@@ -13,6 +13,7 @@ or docs/index.html in your web browser.
 To build in a POSIX environment (for example, Linux or another
 UNIX-like system), run:
 
+	(cd build_posix; ./reconf)
 	./configure && make
 
 To install in the standard POSIX environment locations, enter:
