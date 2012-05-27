@@ -12,7 +12,8 @@
  *	Add in the byte count of the most recent snapshot of a file.
  */
 static int
-__size_file(WT_SESSION_IMPL *session, const char *file, uint64_t *bytesp)
+__size_file(WT_SESSION_IMPL *session,
+    const char *file, const char *snapshot, uint64_t *bytesp)
 {
 	WT_DECL_RET;
 	WT_SNAPSHOT *snap, *snapbase, *snapmax;
@@ -24,9 +25,18 @@ __size_file(WT_SESSION_IMPL *session, const char *file, uint64_t *bytesp)
 	 * easy to check.
 	 */
 	snapmax = NULL;
-	WT_SNAPSHOT_FOREACH(snapbase, snap)
+	WT_SNAPSHOT_FOREACH(snapbase, snap) {
+		/*
+		 * If the snapshot is named, we're looking for a specific
+		 * checkpoint.
+		 */
+		if (snapshot != NULL && strcmp(snap->name, snapshot) != 0)
+			continue;
+
+		/* We want the most recent snapshot, by default. */
 		if (snapmax == NULL || snap->order > snapmax->order)
 			snapmax = snap;
+	}
 
 	if (snapmax == NULL)
 		ret = WT_NOTFOUND;
@@ -42,7 +52,8 @@ __size_file(WT_SESSION_IMPL *session, const char *file, uint64_t *bytesp)
  *	Add in the byte count of the most recent snapshot of a single object.
  */
 static int
-__size_uri(WT_SESSION_IMPL *session, const char *uri, uint64_t *bytesp)
+__size_uri(WT_SESSION_IMPL *session,
+    const char *uri, const char *snapshot, uint64_t *bytesp)
 {
 	WT_CONFIG_ITEM cval;
 	WT_CURSOR *cursor;
@@ -63,7 +74,7 @@ __size_uri(WT_SESSION_IMPL *session, const char *uri, uint64_t *bytesp)
 	WT_ERR(__wt_config_getones(session, conf, "filename", &cval));
 	WT_ERR(__wt_buf_fmt(
 	    session, uribuf, "file:%.*s", (int)cval.len, cval.str));
-	WT_ERR(__size_file(session, uribuf->data, bytesp));
+	WT_ERR(__size_file(session, uribuf->data, snapshot, bytesp));
 
 err:	__wt_scr_free(&uribuf);
 	if (cursor != NULL)
@@ -79,26 +90,39 @@ int
 __wt_session_size(WT_SESSION_IMPL *session,
     const char *uri, uint64_t *bytesp, const char *cfg[])
 {
+	WT_CONFIG_ITEM cval;
+	WT_DECL_RET;
 	WT_TABLE *table;
 	const char *tablename;
+	char *snapshot;
 	int i;
 
 	*bytesp = 0;
+
+	snapshot = NULL;
 	tablename = uri;
 
+	/* This may be a named snapshot, check the configuration. */
+	if ((ret = __wt_config_gets(
+	    session, cfg, "snapshot", &cval)) != 0 && ret != WT_NOTFOUND)
+		WT_RET(ret);
+	if (cval.len != 0)
+		WT_RET(__wt_strndup(session, cval.str, cval.len, &snapshot));
+
 	if (WT_PREFIX_MATCH(uri, "file:")) {
-		WT_RET(__size_file(session, uri, bytesp));
+		WT_ERR(__size_file(session, uri, snapshot, bytesp));
 	} else if (WT_PREFIX_MATCH(uri, "colgroup:") ||
 	    WT_PREFIX_MATCH(uri, "index:")) {
-		WT_RET(__size_uri(session, uri, bytesp));
+		WT_ERR(__size_uri(session, uri, snapshot, bytesp));
 	} else if (WT_PREFIX_SKIP(tablename, "table:")) {
-		WT_RET(__wt_schema_get_table(
+		WT_ERR(__wt_schema_get_table(
 		    session, tablename, strlen(tablename), &table));
 		for (i = 0; i < WT_COLGROUPS(table); i++)
-			WT_RET(__size_uri(session, table->cg_name[i], bytesp));
+			WT_ERR(__size_uri(
+			    session, table->cg_name[i], snapshot, bytesp));
 	} else
-		return (__wt_unknown_object_type(session, uri));
+		WT_ERR(__wt_unknown_object_type(session, uri));
 
-	WT_UNUSED(cfg);
+err:	__wt_free(session, snapshot);
 	return (0);
 }

@@ -269,7 +269,11 @@ methods = {
 		files''',
 		type='boolean'),
 ]),
-'session.size' : Method([]),
+'session.size' : Method([
+	Config('snapshot', '', r'''
+		if non-empty, return the size information for the named
+		snapshot'''),
+]),
 'session.sync' : Method([
 	Config('snapshot', '', r'''
 		if non-empty, create a named snapshot'''),

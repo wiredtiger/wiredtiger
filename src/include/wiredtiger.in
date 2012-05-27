@@ -695,15 +695,17 @@ struct __wt_session {
 	int __F(salvage)(WT_SESSION *session,
 	    const char *name, const char *config);
 
-	/*! Return the total bytes required for the most recent snapshot of an
-	 * underlying object's storage.
+	/*! Return the total bytes required by the underlying object's storage.
 	 *
 	 * @snippet ex_all.c session size
 	 *
 	 * @param session the session handle
 	 * @param name the URI of the object, such as \c "table:stock"
 	 * @param bytesp the memory in which to store the byte count
-	 * @configempty{session.size, see dist/api_data.py}
+	 * @configstart{session.size, see dist/api_data.py}
+	 * @config{snapshot, if non-empty\, return the size information for the
+	 * named snapshot.,a string; default empty.}
+	 * @configend
 	 * @errors
 	 */
 	int __F(size)(WT_SESSION *session,

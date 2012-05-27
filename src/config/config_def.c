@@ -222,11 +222,11 @@ __wt_confchk_session_salvage =
 
 const char *
 __wt_confdfl_session_size =
-    "";
+    "snapshot=""";
 
 const char *
 __wt_confchk_session_size =
-    "";
+    "snapshot=()";
 
 const char *
 __wt_confdfl_session_sync =
