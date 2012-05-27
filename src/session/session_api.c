@@ -264,6 +264,24 @@ err:	API_END_NOTFOUND_MAP(session, ret);
 }
 
 /*
+ * __session_size --
+ *	WT_SESSION->size method.
+ */
+static int
+__session_size(WT_SESSION *wt_session,
+    const char *uri, uint64_t *bytesp, const char *config)
+{
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	session = (WT_SESSION_IMPL *)wt_session;
+
+	SESSION_API_CALL(session, size, config, cfg);
+	ret = __wt_session_size(session, uri, bytesp, cfg);
+err:	API_END_NOTFOUND_MAP(session, ret);
+}
+
+/*
  * __session_sync --
  *	WT_SESSION->sync method.
  */
@@ -510,6 +528,7 @@ __wt_open_session(WT_CONNECTION_IMPL *conn, int internal,
 		__session_drop,
 		__session_rename,
 		__session_salvage,
+		__session_size,
 		__session_sync,
 		__session_truncate,
 		__session_upgrade,

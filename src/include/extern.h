@@ -505,6 +505,8 @@ extern const char *__wt_confdfl_session_rollback_transaction;
 extern const char *__wt_confchk_session_rollback_transaction;
 extern const char *__wt_confdfl_session_salvage;
 extern const char *__wt_confchk_session_salvage;
+extern const char *__wt_confdfl_session_size;
+extern const char *__wt_confchk_session_size;
 extern const char *__wt_confdfl_session_sync;
 extern const char *__wt_confchk_session_sync;
 extern const char *__wt_confdfl_session_truncate;
@@ -610,7 +612,7 @@ extern int __wt_metadata_get_snaplist( WT_SESSION *session,
     const char *name,
     WT_SNAPSHOT **snapbasep);
 extern void __wt_metadata_free_snaplist(WT_SESSION *session,
-    WT_SNAPSHOT *snapbase);
+    WT_SNAPSHOT **snapbasep);
 extern int __wt_meta_btree_apply(WT_SESSION_IMPL *session,
     int (*func)(WT_SESSION_IMPL *,
     const char *[]),
@@ -628,7 +630,7 @@ extern int __wt_meta_snaplist_set( WT_SESSION_IMPL *session,
     const char *name,
     WT_SNAPSHOT *snapbase);
 extern void __wt_meta_snaplist_free(WT_SESSION_IMPL *session,
-    WT_SNAPSHOT *snapbase);
+    WT_SNAPSHOT **snapbasep);
 extern int __wt_metadata_open(WT_SESSION_IMPL *session);
 extern int __wt_metadata_cursor( WT_SESSION_IMPL *session,
     const char *config,
@@ -897,6 +899,10 @@ extern int __wt_session_lock_snapshot( WT_SESSION_IMPL *session,
 extern int __wt_session_discard_btree( WT_SESSION_IMPL *session,
     WT_BTREE_SESSION *btree_session);
 extern int __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[]);
+extern int __wt_session_size(WT_SESSION_IMPL *session,
+    const char *uri,
+    uint64_t *bytesp,
+    const char *cfg[]);
 extern int __wt_snapshot(WT_SESSION_IMPL *session, const char *cfg[]);
 extern int __wt_snapshot_close(WT_SESSION_IMPL *session);
 extern int __wt_snapshot_drop(WT_SESSION_IMPL *session, const char *cfg[]);

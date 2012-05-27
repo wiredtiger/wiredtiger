@@ -34,7 +34,7 @@ __wt_metadata_get_snaplist(
  *	Public entry point to __wt_snapshot_list_free (for wt list).
  */
 void
-__wt_metadata_free_snaplist(WT_SESSION *session, WT_SNAPSHOT *snapbase)
+__wt_metadata_free_snaplist(WT_SESSION *session, WT_SNAPSHOT **snapbasep)
 {
-	__wt_meta_snaplist_free((WT_SESSION_IMPL *)session, snapbase);
+	__wt_meta_snaplist_free((WT_SESSION_IMPL *)session, snapbasep);
 }
