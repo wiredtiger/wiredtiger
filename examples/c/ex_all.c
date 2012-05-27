@@ -332,6 +332,14 @@ session_ops(WT_SESSION *session)
 	ret = session->salvage(session, "table:mytable", NULL);
 	/*! [session salvage] */
 
+	{
+	/*! [session size] */
+	uint64_t bytes;
+
+	ret = session->size(session, "table:mytable", &bytes, NULL);
+	/*! [session size] */
+	}
+
 	/*! [session sync] */
 	ret = session->sync(session, "table:mytable", NULL);
 	/*! [session sync] */

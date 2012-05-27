@@ -194,7 +194,7 @@ list_print_snapshot(WT_SESSION *session, const char *key)
 			printf(" (%" PRIu64 " B)\n", v);
 	}
 
-	__wt_metadata_free_snaplist(session, snapbase);
+	__wt_metadata_free_snaplist(session, &snapbase);
 	return (0);
 }
 

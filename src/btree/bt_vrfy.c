@@ -138,7 +138,7 @@ __verify_int(WT_SESSION_IMPL *session, int dumpfile)
 	}
 
 	/* Discard the list of snapshots. */
-err:	__wt_meta_snaplist_free(session, snapbase);
+err:	__wt_meta_snaplist_free(session, &snapbase);
 
 	/* Inform the underlying block manager we're done. */
 	WT_TRET(__wt_bm_verify_end(session));

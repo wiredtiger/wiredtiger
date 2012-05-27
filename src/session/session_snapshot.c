@@ -247,7 +247,7 @@ nomatch:		WT_ERR_MSG(session,
 	} else
 		WT_ERR(__wt_meta_snaplist_set(session, btree->name, snapbase));
 
-err:	__wt_meta_snaplist_free(session, snapbase);
+err:	__wt_meta_snaplist_free(session, &snapbase);
 	__wt_rwunlock(session, btree->snaplock);
 
 	return (ret);

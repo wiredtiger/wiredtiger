@@ -186,6 +186,7 @@ btree
 buf
 builtin
 bytelock
+bytesp
 bzip
 calloc
 catfmt

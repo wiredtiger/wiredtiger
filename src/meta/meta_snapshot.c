@@ -293,7 +293,7 @@ __wt_meta_snaplist_get(
 
 	if (0) {
 format:		WT_ERR_MSG(session, WT_ERROR, "corrupted snapshot list");
-err:		__wt_meta_snaplist_free(session, snapbase);
+err:		__wt_meta_snaplist_free(session, &snapbase);
 	}
 	__wt_free(session, config);
 	__wt_scr_free(&buf);
@@ -369,11 +369,14 @@ err:	__wt_scr_free(&buf);
  *	Discard the snapshot array.
  */
 void
-__wt_meta_snaplist_free(WT_SESSION_IMPL *session, WT_SNAPSHOT *snapbase)
+__wt_meta_snaplist_free(WT_SESSION_IMPL *session, WT_SNAPSHOT **snapbasep)
 {
-	WT_SNAPSHOT *snap;
-	if (snapbase == NULL)
+	WT_SNAPSHOT *snap, *snapbase;
+
+	if ((snapbase = *snapbasep) == NULL)
 		return;
+	*snapbasep = NULL;
+
 	WT_SNAPSHOT_FOREACH(snapbase, snap) {
 		__wt_free(session, snap->name);
 		__wt_buf_free(session, &snap->addr);
