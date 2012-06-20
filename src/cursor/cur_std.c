@@ -483,9 +483,9 @@ __wt_cursor_init(WT_CURSOR *cursor,
 	/* Checkpoint cursors are read-only. */
 	WT_RET(__wt_config_gets(session, cfg, "checkpoint", &cval));
 	if (cval.len != 0) {
-		cursor->insert = (int (*)(WT_CURSOR *))__wt_cursor_notsup;
-		cursor->update = (int (*)(WT_CURSOR *))__wt_cursor_notsup;
-		cursor->remove = (int (*)(WT_CURSOR *))__wt_cursor_notsup;
+		cursor->insert = __wt_cursor_notsup;
+		cursor->update = __wt_cursor_notsup;
+		cursor->remove = __wt_cursor_notsup;
 	}
 
 	/*

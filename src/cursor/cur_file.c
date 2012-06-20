@@ -46,6 +46,25 @@ __curfile_prev(WT_CURSOR *cursor)
 }
 
 /*
+ * __curfile_random --
+ *	WT_CURSOR->random method for the btree cursor type.
+ */
+static int
+__curfile_random(WT_CURSOR *cursor)
+{
+	WT_CURSOR_BTREE *cbt;
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	cbt = (WT_CURSOR_BTREE *)cursor;
+	CURSOR_API_CALL_NOCONF(cursor, session, random, cbt->btree);
+	ret = __wt_btcur_random(cbt);
+	API_END(session);
+
+	return (ret);
+}
+
+/*
  * __curfile_reset --
  *	WT_CURSOR->reset method for the btree cursor type.
  */
@@ -219,6 +238,7 @@ __wt_curfile_create(WT_SESSION_IMPL *session,
 		__curfile_remove,
 		__curfile_close,
 		NULL,
+		__wt_cursor_notsup,	/* random */
 		{ NULL, NULL },		/* TAILQ_ENTRY q */
 		0,			/* recno key */
 		{ 0 },                  /* recno raw buffer */
@@ -256,6 +276,10 @@ __wt_curfile_create(WT_SESSION_IMPL *session,
 	cbt->btree = session->btree;
 	if (bulk)
 		WT_ERR(__wt_curbulk_init((WT_CURSOR_BULK *)cbt));
+
+	/* Random lookup only applies to row-store. */
+	if (!WT_CURSOR_RECNO(cursor))
+		cursor->random = __curfile_random;
 
 	STATIC_ASSERT(offsetof(WT_CURSOR_BTREE, iface) == 0);
 	WT_ERR(__wt_cursor_init(cursor, cursor->uri, owner, cfg, cursorp));

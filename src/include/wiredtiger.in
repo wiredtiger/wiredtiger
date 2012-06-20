@@ -388,6 +388,20 @@ struct __wt_cursor {
 	 */
 	int __F(reconfigure)(WT_CURSOR *cursor, const char *config);
 
+	/*! @name Specialized functionality
+	 * @{
+	 */
+	/*! Move to a random record (only supported for row-store files
+	 * or tables with a primary row-store key).
+	 *
+	 * @snippet ex_all.c Return a random record
+	 *
+	 * @param cursor the cursor handle
+	 * @errors
+	 */
+	int __F(random)(WT_CURSOR *cursor);
+	/*! @} */
+
 	/*
 	 * Protected fields, only to be used by cursor implementations.
 	 */

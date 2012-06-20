@@ -132,6 +132,10 @@ cursor_ops(WT_SESSION *session)
 	ret = cursor->prev(cursor);
 	/*! [Return the previous record] */
 
+	/*! [Return a random record] */
+	ret = cursor->random(cursor);
+	/*! [Return a random record] */
+
 	/*! [Reset the cursor] */
 	ret = cursor->reset(cursor);
 	/*! [Reset the cursor] */
