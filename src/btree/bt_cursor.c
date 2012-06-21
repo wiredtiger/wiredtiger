@@ -99,6 +99,35 @@ __cursor_invalid(WT_CURSOR_BTREE *cbt)
 }
 
 /*
+ * __wt_btcur_random --
+ *	Move to the first record of a random page in the tree.
+ */
+int
+__wt_btcur_random(WT_CURSOR_BTREE *cbt)
+{
+	WT_BTREE *btree;
+	WT_CURSOR *cursor;
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	btree = cbt->btree;
+	cursor = &cbt->iface;
+	session = (WT_SESSION_IMPL *)cursor->session;
+	WT_BSTAT_INCR(session, cursor_read);
+
+	__cursor_func_init(cbt, 1);
+
+	WT_ERR(btree->type == BTREE_ROW ?
+	    __wt_row_random(session, cbt) : ENOTSUP);
+	ret = cbt->compare == 0 ?
+	    __wt_kv_return(session, cbt, 1) : WT_NOTFOUND;
+
+err:	__cursor_func_resolve(cbt, ret);
+
+	return (ret);
+}
+
+/*
  * __wt_btcur_reset --
  *	Invalidate the cursor position.
  */

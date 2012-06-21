@@ -320,6 +320,7 @@ __wt_curstat_open(WT_SESSION_IMPL *session,
 		__curstat_close,
 		(int (*)		/* reconfigure */
 		    (WT_CURSOR *, const char *))__wt_cursor_notsup,
+		__wt_cursor_notsup,	/* random */
 		{ NULL, NULL },		/* TAILQ_ENTRY q */
 		0,			/* recno key */
 		{ 0 },                  /* recno raw buffer */

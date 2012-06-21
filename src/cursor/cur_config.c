@@ -47,6 +47,7 @@ __wt_curconfig_open(WT_SESSION_IMPL *session,
 		__curconfig_close,
 		(int (*)		/* reconfigure */
 		    (WT_CURSOR *, const char *))__wt_cursor_notsup,
+		__wt_cursor_notsup,	/* random */
 		{ NULL, NULL },		/* TAILQ_ENTRY q */
 		0,			/* recno key */
 		{ 0 },                  /* recno raw buffer */

@@ -312,6 +312,7 @@ __wt_curdump_create(WT_CURSOR *child, WT_CURSOR *owner, WT_CURSOR **cursorp)
 		__curdump_close,
 		(int (*)		/* reconfigure */
 		    (WT_CURSOR *, const char *))__wt_cursor_notsup,
+		__wt_cursor_notsup,	/* random */
 		{ NULL, NULL },		/* TAILQ_ENTRY q */
 		0,			/* recno key */
 		{ 0 },                  /* recno raw buffer */
