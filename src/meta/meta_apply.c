@@ -10,7 +10,7 @@
 /*
  * __wt_meta_btree_apply --
  *	Apply a function to all files listed in the metadata, apart from the
- *	metadata file.
+ *	metadata file, and then finally to the metadata file.
  */
 int
 __wt_meta_btree_apply(WT_SESSION_IMPL *session,
@@ -25,6 +25,7 @@ __wt_meta_btree_apply(WT_SESSION_IMPL *session,
 
 	saved_btree = session->btree;
 	WT_RET(__wt_metadata_cursor(session, NULL, &cursor));
+
 	cursor->set_key(cursor, "file:");
 	if ((tret = cursor->search_near(cursor, &cmp)) == 0 && cmp < 0)
 		tret = cursor->next(cursor);
@@ -32,16 +33,22 @@ __wt_meta_btree_apply(WT_SESSION_IMPL *session,
 		WT_ERR(cursor->get_key(cursor, &uri));
 		if (!WT_PREFIX_MATCH(uri, "file:"))
 			break;
-		else if (strcmp(uri, WT_METADATA_URI) == 0)
+		if (strcmp(uri, WT_METADATA_URI) == 0)
 			continue;
+
 		WT_ERR(__wt_session_get_btree(session, uri, NULL, flags));
 		ret = func(session, cfg);
 		WT_TRET(__wt_session_release_btree(session));
 		WT_ERR(ret);
 	}
+	WT_ERR_NOTFOUND_OK(tret);
 
-	if (tret != WT_NOTFOUND)
-		WT_TRET(tret);
+	cursor->set_key(cursor, WT_METADATA_URI);
+	WT_ERR(cursor->search(cursor));
+	WT_ERR(__wt_session_get_btree(session, WT_METADATA_URI, NULL, flags));
+	ret = func(session, cfg);
+	WT_TRET(__wt_session_release_btree(session));
+
 err:	WT_TRET(cursor->close(cursor));
 	session->btree = saved_btree;
 	return (ret);
