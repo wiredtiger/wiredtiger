@@ -292,34 +292,43 @@ err:	if (ret != 0 && locked) {
 /*
  * __wt_conn_btree_apply --
  *	Apply a function to all open, non-checkpoint btree handles apart from
- * the metadata file.
+ * the metadata file, and then finally to the metadata file.
  */
 int
 __wt_conn_btree_apply(WT_SESSION_IMPL *session,
     int (*func)(WT_SESSION_IMPL *, const char *[]), const char *cfg[])
 {
-	WT_BTREE *btree, *saved_btree;
+	WT_BTREE *btree, *meta, *saved_btree;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 
 	conn = S2C(session);
+	meta = NULL;
 	saved_btree = session->btree;
 
 	__wt_spin_lock(session, &conn->spinlock);
 	F_SET(session, WT_SESSION_HAS_CONNLOCK);
-	TAILQ_FOREACH(btree, &conn->btqh, q)
-		if (F_ISSET(btree, WT_BTREE_OPEN) &&
-		    btree->checkpoint == NULL &&
-		    strcmp(btree->name, WT_METADATA_URI) != 0) {
-			/*
-			 * We have the connection spinlock, which prevents
-			 * handles being opened or closed, so there is no need
-			 * for additional handle locking here, or pulling every
-			 * tree into this session's handle cache.
-			 */
-			session->btree = btree;
-			WT_ERR(func(session, cfg));
+	TAILQ_FOREACH(btree, &conn->btqh, q) {
+		if (!F_ISSET(btree, WT_BTREE_OPEN) || btree->checkpoint != NULL)
+			continue;
+		if (strcmp(btree->name, WT_METADATA_URI) == 0) {
+			meta = btree;
+			continue;
 		}
+		/*
+		 * We have the connection spinlock, which prevents handles
+		 * being opened or closed, so there is no need for additional
+		 * handle locking here, or pulling every tree into this
+		 * session's handle cache.
+		 */
+		session->btree = btree;
+		WT_ERR(func(session, cfg));
+	}
+	if (meta == NULL)
+		WT_ERR_MSG(session, EINVAL,
+		    "connection apply unable to find open meta-data handle");
+	session->btree = meta;
+	WT_ERR(func(session, cfg));
 
 err:	F_CLR(session, WT_SESSION_HAS_CONNLOCK);
 	__wt_spin_unlock(session, &conn->spinlock);
