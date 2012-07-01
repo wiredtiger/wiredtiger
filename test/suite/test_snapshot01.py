@@ -23,9 +23,6 @@ class SnapShotTest(wttest.WiredTigerTestCase):
     snapshots = OrderedDict(sorted(snapshots.items(), key=lambda t: t[0]))
     URI = "file:__snap"
     
-    #def tearDown(self):
-       # for snapshot, sizes in self.snapshots.iteritems():
-        #    self.sesssion.drop(self.URL, snapshot)
     def setUpConnectionOpen(self, dir):
         conn = wiredtiger.wiredtiger_open(dir, "create, cache_size=100MB")
         self.pr('conn')
@@ -97,19 +94,14 @@ class SnapShotTest(wttest.WiredTigerTestCase):
             value = cursor.get_value()
             file_to_write.write( "%s\n%s\n" % (key, value))
             print key, value
-            #assert 0 == key
-            #assert 0 == value
         cursor.close()
         file_to_write.close()
 
     def cursor_lock(self):
         buf = 'snapshot=snapshot-1'
         cursor = self.session.open_cursor(self.URI, None, buf)
-        #try:
         with self.assertRaises(wiredtiger.WiredTigerError) as cm:
             self.session.drop(self.URI, buf)
-        #except:
-        #    "WiredTigerError: Device or resource busy" in traceback.format_exc()
         assert 0 == cursor.close()
         cursor1 = self.session.open_cursor(self.URI, None, buf)
         print 'cursor1', cursor1
