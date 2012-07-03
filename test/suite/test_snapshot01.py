@@ -17,8 +17,7 @@ class SnapShotTest(wttest.WiredTigerTestCase):
         "snapshot-6": (100, 620),
         "snapshot-7": (200, 720),
         "snapshot-8": (300, 820),
-        "snapshot-9": (400, 920),
-        #"snapshot-a": (500, 600),
+        "snapshot-9": (400, 920)
     }
     snapshots = OrderedDict(sorted(snapshots.items(), key=lambda t: t[0]))
     URI = "file:__snap"
@@ -48,8 +47,8 @@ class SnapShotTest(wttest.WiredTigerTestCase):
             start, stop = sizes
             self.add_records(start, stop)
             buf = "snapshot=%s" % snapshot_name
-            assert 0 == self.session.sync(self.URI, buf)
-            assert 0 == self.session.verify(self.URI, None)
+            self.assertEqual(0, self.session.sync(self.URI, buf))
+            self.assertEqual(0, self.session.verify(self.URI, None))
     
     def add_records(self, start, stop):
         cursor = self.session.open_cursor(self.URI, None, "overwrite")
@@ -60,11 +59,11 @@ class SnapShotTest(wttest.WiredTigerTestCase):
             cursor.set_value(vbuf)
             result = cursor.insert()
             if result != 0:
-                sys.exit("cursor.insert(): %s" % result)
+                self.fail("cursor.insert(): %s" % result)
         cursor.close()
 
             
-    def dump_records(self, snapshot_name,  filename):
+    def dump_records_deprecated(self, snapshot_name,  filename):
         file_to_write = open(filename, 'w')
         for snapshot, sizes in self.snapshots.iteritems():
             sizes = self.snapshots[snapshot]
@@ -75,17 +74,41 @@ class SnapShotTest(wttest.WiredTigerTestCase):
                 break;
         file_to_write.close()
 
+    def dump_records(self, snapshot_name, filename):
+        records = []
+        for snapshot, sizes in self.snapshots.iteritems():
+            sizes = self.snapshots[snapshot]
+            start, stop = sizes
+            for i in range(start, stop+1):
+                    records.append("%010d KEY------\n%010d VALUE----\n" % (i, i))
+            if snapshot == snapshot_name:
+                break;
+        return records.sort()
+
     def check(self, snapshot_name):
-        self.dump_records(snapshot_name, "__dump.1")
-        self.dump_snap(snapshot_name, "__dump.2")
-        if os.system(\
-        "sort -u -o __dump.1 __dump.1 && "
-        "sort -u -o __dump.2 __dump.2 && "
-        "cmp __dump.1 __dump.2 > /dev/null"
-        ):
-            sys.exit("Check failed, snapshot results for %s were incorrect" % snapshot_name)
+        records = self.dump_records(snapshot_name, "__dump.1")
+        snaps = self.dump_snap(snapshot_name, "__dump.2")
+        self.assertEqual(records, snaps)
+        #if os.system(\
+        #"sort -u -o __dump.1 __dump.1 && "
+        #"sort -u -o __dump.2 __dump.2 && "
+        #"cmp __dump.1 __dump.2 > /dev/null"
+        #):
+        #    self.fail("Check failed, snapshot results for %s were incorrect" % snapshot_name)
 
     def dump_snap(self, snapshot_name, filename):
+        snaps = []
+        buf = "snapshot=%s" % snapshot_name
+        cursor = self.session.open_cursor(self.URI, None, buf)
+        while cursor.next() == 0:
+            key =  cursor.get_key()
+            value = cursor.get_value()
+            snaps.append( "%s\n%s\n" % (key, value))
+            print key, value
+        cursor.close()
+        return snaps.sort()
+
+    def dump_snap_deprecated(self, snapshot_name, filename):
         file_to_write = open(filename, 'w')
         buf = "snapshot=%s" % snapshot_name
         cursor = self.session.open_cursor(self.URI, None, buf)
@@ -102,20 +125,20 @@ class SnapShotTest(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(self.URI, None, buf)
         with self.assertRaises(wiredtiger.WiredTigerError) as cm:
             self.session.drop(self.URI, buf)
-        assert 0 == cursor.close()
+        self.assertEqual(0, cursor.close())
         cursor1 = self.session.open_cursor(self.URI, None, buf)
         print 'cursor1', cursor1
         assert cursor1 != None
         buf = 'snapshot=snapshot-2' 
         cursor2 = self.session.open_cursor(self.URI, None, buf)
         cursor3 = self.session.open_cursor(self.URI, None, None)
-        assert 0 == cursor1.close()
-        assert 0 == cursor2.close()
-        assert 0 == cursor3.close()
+        self.assertEqual(0, cursor1.close())
+        self.assertEqual(0, cursor2.close())
+        self.assertEqual(0, cursor3.close())
 
     def drop(self):
         for snapshot_name, sizes in self.snapshots.iteritems():
             start, stop = sizes
             buf = 'snapshot=%s' % snapshot_name
-            assert 0 == self.session.drop(self.URI, buf)
-            assert 0 == self.session.verify(self.URI, None)
+            self.assertEqual(0, self.session.drop(self.URI, buf))
+            self.assertEqual(0, self.session.verify(self.URI, None))
