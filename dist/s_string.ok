@@ -25,6 +25,7 @@ Btree
 CAS
 CELL's
 CELLs
+CKPT
 CLR
 COL's
 CONCAT
@@ -60,6 +61,7 @@ FreeBSD
 FreeBSD's
 Freelist
 GCC
+GIDs
 IKEY
 IMPL
 IMPL's
@@ -135,7 +137,9 @@ TODO
 TOOSMALL
 TRK
 TXN
+TXNID
 Timestamp
+UIDs
 UINT
 URI
 URIs
@@ -148,7 +152,7 @@ WIREDTIGER
 WinNT
 WiredTiger
 WiredTiger's
-WiredTigerInternalSnapshot
+WiredTigerInternalCheckpoint
 Wuninitialized
 XP
 __wt_epoch
@@ -195,6 +199,9 @@ checksum
 checksums
 chk
 cip
+ckpt
+ckptfrag
+ckptlist
 cksum
 clr
 cmp
@@ -249,6 +256,7 @@ endian
 english
 enqueue
 enum's
+env
 eof
 eop
 errhandler
@@ -425,6 +433,7 @@ rle
 rpc
 rref
 runlength
+runtime
 rwlock
 rwlocks
 rwunlock
@@ -444,11 +453,6 @@ sizev
 skiplist
 skiplists
 slvg
-snapall
-snapfrag
-snapfrom
-snaplist
-snapto
 snprintf
 sp
 spinlock

@@ -127,8 +127,10 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 	txn = &session->txn;
 	if (txn->isolation == TXN_ISO_SNAPSHOT)
 		while (upd != NULL && !__wt_txn_visible(session, upd->txnid)) {
-			if (upd->txnid != WT_TXN_ABORTED)
+			if (upd->txnid != WT_TXN_ABORTED) {
+				WT_BSTAT_INCR(session, update_conflict);
 				return (WT_DEADLOCK);
+			}
 			upd = upd->next;
 		}
 
@@ -138,8 +140,15 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 /*
  * __wt_txn_ancient --
  *	Check if a given transaction ID is "ancient".
- *      That is, if it is so far behind the current transaction that it could
- *      soon become invisible.  If so, eviction will be forced on the page.
+ *
+ *	Transaction IDs are 32 bit integers, and we use a 31 bit window when
+ *	comparing them (in TXNID_LT).  As a result, updates from a transaction
+ *	more than 2 billion transactions older than the current ID appear to be
+ *	in the future and are no longer be visible to running transactions.
+ *
+ *	Call an update "ancient" if it will become invisible in under a million
+ *	transactions, to give eviction time to write it.  Eviction is forced on
+ *	pages with ancient transactions before they can be read.
  */
 static inline int
 __wt_txn_ancient(WT_SESSION_IMPL *session, wt_txnid_t id)
@@ -150,10 +159,6 @@ __wt_txn_ancient(WT_SESSION_IMPL *session, wt_txnid_t id)
 	txn_global = &S2C(session)->txn_global;
 	current = txn_global->current;
 
-	/*
-	 * Call an update "ancient" if it will wrap around in under 1 million
-	 * transactions, to give eviction time to write it.
-	 */
 #define	TXN_WRAP_BUFFER	1000000
 #define	TXN_WINDOW	((UINT32_MAX / 2) - TXN_WRAP_BUFFER)
 

@@ -137,7 +137,7 @@ static int  __slvg_trk_ovfl(WT_SESSION_IMPL *,
  */
 int
 __wt_bt_salvage(
-    WT_SESSION_IMPL *session, WT_SNAPSHOT *snapbase, const char *cfg[])
+    WT_SESSION_IMPL *session, WT_CKPT *ckptbase, const char *cfg[])
 {
 	WT_BTREE *btree;
 	WT_DECL_RET;
@@ -270,12 +270,12 @@ __wt_bt_salvage(
 
 	/*
 	 * Step 9:
-	 * Evict the newly created root page, creating a snapshot.
+	 * Evict the newly created root page, creating a checkpoint.
 	 */
 	if (ss->root_page != NULL) {
-		btree->snap = snapbase;
+		btree->ckpt = ckptbase;
 		ret = __wt_rec_evict(session, ss->root_page, WT_REC_SINGLE);
-		btree->snap = NULL;
+		btree->ckpt = NULL;
 		ss->root_page = NULL;
 	}
 
@@ -515,11 +515,10 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *dsk,
 		 * it's probably a great place to start.
 		 */
 		WT_ERR(__wt_page_inmem(session, NULL, NULL, dsk, &page));
-		WT_ERR(__wt_row_key(session,
+		WT_ERR(__wt_row_key_copy(session,
 		    page, &page->u.row.d[0], &trk->row_start));
-		WT_ERR(__wt_row_key(session,
-		    page, &page->u.row.d[page->entries - 1],
-		    &trk->row_stop));
+		WT_ERR(__wt_row_key_copy(session,
+		    page, &page->u.row.d[page->entries - 1], &trk->row_stop));
 
 		if (WT_VERBOSE_ISSET(session, salvage)) {
 			WT_ERR(__wt_buf_set_printable(session, ss->tmp1,
@@ -1518,14 +1517,11 @@ __slvg_row_trk_update_start(
 	WT_DECL_ITEM(dsk);
 	WT_DECL_ITEM(key);
 	WT_DECL_RET;
-	WT_IKEY *ikey;
-	WT_ITEM *item, _item;
 	WT_PAGE *page;
 	WT_ROW *rip;
 	WT_TRACK *trk;
 	uint32_t i;
 	int cmp, found;
-	void *ripkey;
 
 	btree = session->btree;
 	page = NULL;
@@ -1563,17 +1559,8 @@ __slvg_row_trk_update_start(
 	 */
 	WT_ERR(__wt_scr_alloc(session, 0, &key));
 	WT_ROW_FOREACH(page, rip, i) {
-		ripkey = WT_ROW_KEY_COPY(rip);
-		if (__wt_off_page(page, ripkey)) {
-			ikey = ripkey;
-			_item.data = WT_IKEY_DATA(ikey);
-			_item.size = ikey->size;
-			item = &_item;
-		} else {
-			WT_ERR(__wt_row_key(session, page, rip, key));
-			item = key;
-		}
-		WT_ERR(WT_BTREE_CMP(session, btree, item, stop, cmp));
+		WT_ERR(__wt_row_key(session, page, rip, key, 0));
+		WT_ERR(WT_BTREE_CMP(session, btree, key, stop, cmp));
 		if (cmp > 0) {
 			found = 1;
 			break;
@@ -1587,7 +1574,7 @@ __slvg_row_trk_update_start(
 	 * is safe.  (But, it never hurts to check.)
 	 */
 	WT_ERR_TEST(!found, WT_ERROR);
-	WT_ERR(__slvg_key_copy(session, &trk->row_start, item));
+	WT_ERR(__slvg_key_copy(session, &trk->row_start, key));
 
 	/*
 	 * We may need to re-sort some number of elements in the list.  Walk
@@ -1699,14 +1686,11 @@ __slvg_row_build_leaf(WT_SESSION_IMPL *session,
 	WT_BTREE *btree;
 	WT_DECL_ITEM(key);
 	WT_DECL_RET;
-	WT_IKEY *ikey;
-	WT_ITEM *item, _item;
 	WT_PAGE *page;
 	WT_ROW *rip;
 	WT_SALVAGE_COOKIE *cookie, _cookie;
 	uint32_t i, skip_start, skip_stop;
 	int cmp;
-	void *ripkey;
 
 	btree = session->btree;
 	page = NULL;
@@ -1739,27 +1723,18 @@ __slvg_row_build_leaf(WT_SESSION_IMPL *session,
 	skip_start = skip_stop = 0;
 	if (F_ISSET(trk, WT_TRACK_CHECK_START))
 		WT_ROW_FOREACH(page, rip, i) {
-			ripkey = WT_ROW_KEY_COPY(rip);
-			if (__wt_off_page(page, ripkey)) {
-				ikey = ripkey;
-				_item.data = WT_IKEY_DATA(ikey);
-				_item.size = ikey->size;
-				item = &_item;
-			} else {
-				WT_ERR(__wt_row_key(session, page, rip, key));
-				item = key;
-			}
+			WT_ERR(__wt_row_key(session, page, rip, key, 0));
 
 			/*
 			 * >= is correct: see the comment above.
 			 */
-			WT_ERR(WT_BTREE_CMP(session, btree,
-			    item, &trk->row_start, cmp));
+			WT_ERR(WT_BTREE_CMP(
+			    session, btree, key, &trk->row_start, cmp));
 			if (cmp >= 0)
 				break;
 			if (WT_VERBOSE_ISSET(session, salvage)) {
 				WT_ERR(__wt_buf_set_printable(session,
-				    ss->tmp1, item->data, item->size));
+				    ss->tmp1, key->data, key->size));
 				WT_VERBOSE_ERR(session, salvage,
 				    "%s merge discarding leading key %.*s",
 				    __wt_addr_string(session,
@@ -1771,27 +1746,18 @@ __slvg_row_build_leaf(WT_SESSION_IMPL *session,
 		}
 	if (F_ISSET(trk, WT_TRACK_CHECK_STOP))
 		WT_ROW_FOREACH_REVERSE(page, rip, i) {
-			ripkey = WT_ROW_KEY_COPY(rip);
-			if (__wt_off_page(page, ripkey)) {
-				ikey = ripkey;
-				_item.data = WT_IKEY_DATA(ikey);
-				_item.size = ikey->size;
-				item = &_item;
-			} else {
-				WT_ERR(__wt_row_key(session, page, rip, key));
-				item = key;
-			}
+			WT_ERR(__wt_row_key(session, page, rip, key, 0));
 
 			/*
 			 * < is correct: see the comment above.
 			 */
-			WT_ERR(WT_BTREE_CMP(session, btree,
-			    item, &trk->row_stop, cmp));
+			WT_ERR(WT_BTREE_CMP(
+			    session, btree, key, &trk->row_stop, cmp));
 			if (cmp < 0)
 				break;
 			if (WT_VERBOSE_ISSET(session, salvage)) {
 				WT_ERR(__wt_buf_set_printable(session,
-				    ss->tmp1, item->data, item->size));
+				    ss->tmp1, key->data, key->size));
 				WT_VERBOSE_ERR(session, salvage,
 				    "%s merge discarding trailing key %.*s",
 				    __wt_addr_string(session,
@@ -1816,16 +1782,9 @@ __slvg_row_build_leaf(WT_SESSION_IMPL *session,
 	 * a copy from the page.
 	 */
 	rip = page->u.row.d + skip_start;
-	ripkey = WT_ROW_KEY_COPY(rip);
-	if (__wt_off_page(page, ripkey)) {
-		ikey = ripkey;
-		WT_ERR(__wt_row_ikey_alloc(session, 0,
-		    WT_IKEY_DATA(ikey), ikey->size, &ref->u.key));
-	} else {
-		WT_ERR(__wt_row_key(session, page, rip, key));
-		WT_ERR(__wt_row_ikey_alloc(session, 0,
-		    key->data, key->size, &ref->u.key));
-	}
+	WT_ERR(__wt_row_key(session, page, rip, key, 0));
+	WT_ERR(
+	    __wt_row_ikey_alloc(session, 0, key->data, key->size, &ref->u.key));
 
 	/*
 	 * Discard backing overflow pages for any items being discarded that
@@ -1901,18 +1860,17 @@ __slvg_row_merge_ovfl(WT_SESSION_IMPL *session,
 {
 	WT_CELL *cell;
 	WT_CELL_UNPACK *unpack, _unpack;
+	WT_IKEY *ikey;
 	WT_ROW *rip;
-	void *ripkey;
 
 	unpack = &_unpack;
 
 	for (rip = page->u.row.d + start; start < stop; ++start) {
-		ripkey = WT_ROW_KEY_COPY(rip);
-		if (__wt_off_page(page, ripkey))
-			cell = WT_PAGE_REF_OFFSET(
-			    page, ((WT_IKEY *)ripkey)->cell_offset);
+		ikey = WT_ROW_KEY_COPY(rip);
+		if (__wt_off_page(page, ikey))
+			cell = WT_PAGE_REF_OFFSET(page, ikey->cell_offset);
 		else
-			cell = ripkey;
+			cell = (WT_CELL *)ikey;
 		__wt_cell_unpack(cell, unpack);
 		if (unpack->type == WT_CELL_KEY_OVFL) {
 			WT_VERBOSE_RET(session, salvage,

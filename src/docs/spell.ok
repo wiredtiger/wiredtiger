@@ -30,7 +30,7 @@ URIs
 Vv
 WiredTiger
 WiredTiger's
-WiredTigerInternal
+WiredTigerInternalCheckpoint
 aR
 ack'ed
 alloc
@@ -73,6 +73,7 @@ control's
 cpp
 crashless
 cursortype
+cv
 dN
 dNLen
 dNOff
@@ -111,6 +112,7 @@ fileformats
 fileid
 filename
 filesystem
+filesystems
 fillfactor
 firstname
 fput
@@ -257,7 +259,6 @@ structs
 subdatabases
 subpage
 superset
-sv
 tablename
 tcl
 tcmalloc

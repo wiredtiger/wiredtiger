@@ -73,7 +73,7 @@ __wt_curtable_get_value(WT_CURSOR *cursor, ...)
 
 	ctable = (WT_CURSOR_TABLE *)cursor;
 	primary = *ctable->cg_cursors;
-	CURSOR_API_CALL(cursor, session, get_value, NULL);
+	CURSOR_API_CALL_NOCONF(cursor, session, get_value, NULL);
 	WT_CURSOR_NEEDVALUE(primary);
 
 	va_start(ap, cursor);
@@ -144,7 +144,7 @@ __wt_curtable_set_value(WT_CURSOR *cursor, ...)
 	int i;
 
 	ctable = (WT_CURSOR_TABLE *)cursor;
-	CURSOR_API_CALL(cursor, session, set_value, NULL);
+	CURSOR_API_CALL_NOCONF(cursor, session, set_value, NULL);
 
 	va_start(ap, cursor);
 	if (F_ISSET(cursor,
@@ -185,9 +185,45 @@ __curtable_next(WT_CURSOR *cursor)
 	WT_SESSION_IMPL *session;
 
 	ctable = (WT_CURSOR_TABLE *)cursor;
-	CURSOR_API_CALL(cursor, session, next, NULL);
+	CURSOR_API_CALL_NOCONF(cursor, session, next, NULL);
 	APPLY_CG(ctable, next);
 	API_END(session);
+
+	return (ret);
+}
+
+/*
+ * __curtable_next_random --
+ *	WT_CURSOR->insert method for the table cursor type when configured with
+ * next_random.
+ */
+static int
+__curtable_next_random(WT_CURSOR *cursor)
+{
+	WT_CURSOR *primary, **cp;
+	WT_CURSOR_TABLE *ctable;
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+	int i;
+
+	ctable = (WT_CURSOR_TABLE *)cursor;
+	CURSOR_API_CALL_NOCONF(cursor, session, next, NULL);
+	cp = ctable->cg_cursors;
+
+	/* Split out the first next, it retrieves the random record. */
+	primary = *cp++;
+	WT_ERR(primary->next(primary));
+
+	/* Fill in the rest of the columns. */
+	for (i = 1; i < WT_COLGROUPS(ctable->table); i++, cp++) {
+		(*cp)->key.data = primary->key.data;
+		(*cp)->key.size = primary->key.size;
+		(*cp)->recno = primary->recno;
+		F_SET(*cp, WT_CURSTD_KEY_SET);
+		WT_ERR((*cp)->search(*cp));
+	}
+
+err:	API_END(session);
 
 	return (ret);
 }
@@ -204,7 +240,7 @@ __curtable_prev(WT_CURSOR *cursor)
 	WT_SESSION_IMPL *session;
 
 	ctable = (WT_CURSOR_TABLE *)cursor;
-	CURSOR_API_CALL(cursor, session, prev, NULL);
+	CURSOR_API_CALL_NOCONF(cursor, session, prev, NULL);
 	APPLY_CG(ctable, prev);
 	API_END(session);
 
@@ -223,7 +259,7 @@ __curtable_reset(WT_CURSOR *cursor)
 	WT_SESSION_IMPL *session;
 
 	ctable = (WT_CURSOR_TABLE *)cursor;
-	CURSOR_API_CALL(cursor, session, reset, NULL);
+	CURSOR_API_CALL_NOCONF(cursor, session, reset, NULL);
 	APPLY_CG(ctable, reset);
 	API_END(session);
 
@@ -242,7 +278,7 @@ __curtable_search(WT_CURSOR *cursor)
 	WT_SESSION_IMPL *session;
 
 	ctable = (WT_CURSOR_TABLE *)cursor;
-	CURSOR_API_CALL(cursor, session, search, NULL);
+	CURSOR_API_CALL_NOCONF(cursor, session, search, NULL);
 	APPLY_CG(ctable, search);
 	API_END(session);
 
@@ -263,7 +299,7 @@ __curtable_search_near(WT_CURSOR *cursor, int *exact)
 	int i;
 
 	ctable = (WT_CURSOR_TABLE *)cursor;
-	CURSOR_API_CALL(cursor, session, search_near, NULL);
+	CURSOR_API_CALL_NOCONF(cursor, session, search_near, NULL);
 	cp = ctable->cg_cursors;
 	primary = *cp;
 	WT_ERR(primary->search_near(primary, exact));
@@ -293,7 +329,7 @@ __curtable_insert(WT_CURSOR *cursor)
 	int i;
 
 	ctable = (WT_CURSOR_TABLE *)cursor;
-	CURSOR_API_CALL(cursor, session, insert, NULL);
+	CURSOR_API_CALL_NOCONF(cursor, session, insert, NULL);
 	cp = ctable->cg_cursors;
 
 	/*
@@ -339,7 +375,7 @@ __curtable_update(WT_CURSOR *cursor)
 	WT_SESSION_IMPL *session;
 
 	ctable = (WT_CURSOR_TABLE *)cursor;
-	CURSOR_API_CALL(cursor, session, update, NULL);
+	CURSOR_API_CALL_NOCONF(cursor, session, update, NULL);
 	WT_ERR(__curtable_open_indices(ctable));
 	/*
 	 * If the table has indices, first delete any old index keys, then
@@ -379,7 +415,7 @@ __curtable_remove(WT_CURSOR *cursor)
 	WT_SESSION_IMPL *session;
 
 	ctable = (WT_CURSOR_TABLE *)cursor;
-	CURSOR_API_CALL(cursor, session, remove, NULL);
+	CURSOR_API_CALL_NOCONF(cursor, session, remove, NULL);
 
 	/* Find the old record so it can be removed from indices */
 	WT_ERR(__curtable_open_indices(ctable));
@@ -409,7 +445,7 @@ __curtable_close(WT_CURSOR *cursor)
 	int i;
 
 	ctable = (WT_CURSOR_TABLE *)cursor;
-	CURSOR_API_CALL(cursor, session, close, NULL);
+	CURSOR_API_CALL_NOCONF(cursor, session, close, NULL);
 
 	for (i = 0, cp = (ctable)->cg_cursors;
 	    i < WT_COLGROUPS(ctable->table); i++, cp++)
@@ -444,17 +480,21 @@ __curtable_open_colgroups(WT_CURSOR_TABLE *ctable, const char *cfg[])
 	WT_SESSION_IMPL *session;
 	WT_TABLE *table;
 	WT_CURSOR **cp;
-	const char *cfg_no_overwrite[4];
+	const char *cfg_override[5];
 	int i;
 
 	session = (WT_SESSION_IMPL *)ctable->iface.session;
 	table = ctable->table;
 
-	/* Underlying column groups are always opened without overwrite */
-	cfg_no_overwrite[0] = cfg[0];
-	cfg_no_overwrite[1] = cfg[1];
-	cfg_no_overwrite[2] = "overwrite=false";
-	cfg_no_overwrite[3] = NULL;
+	/*
+	 * Underlying column groups are always opened without overwrite, and
+	 * only the primary is opened with next_random.
+	 */
+	cfg_override[0] = cfg[0];
+	cfg_override[1] = cfg[1];
+	cfg_override[2] = "overwrite=false";
+	cfg_override[3] = NULL;
+	cfg_override[4] = NULL;
 
 	if (!table->cg_complete)
 		WT_RET_MSG(session, EINVAL,
@@ -466,9 +506,11 @@ __curtable_open_colgroups(WT_CURSOR_TABLE *ctable, const char *cfg[])
 
 	for (i = 0, cp = ctable->cg_cursors;
 	    i < WT_COLGROUPS(table);
-	    i++, cp++)
+	    i++, cp++) {
 		WT_RET(__wt_curfile_open(session, table->cg_name[i],
-		    &ctable->iface, cfg_no_overwrite, cp));
+		    &ctable->iface, cfg_override, cp));
+		cfg_override[3] = "next_random=false";
+	}
 	return (0);
 }
 
@@ -528,6 +570,7 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 		__curtable_update,
 		__curtable_remove,
 		__curtable_close,
+		NULL,
 		{ NULL, NULL },		/* TAILQ_ENTRY q */
 		0,			/* recno key */
 		{ 0 },                  /* raw recno buffer */
@@ -536,6 +579,7 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 		0,			/* int saved_err */
 		0			/* uint32_t flags */
 	};
+	WT_CONFIG_ITEM cval;
 	WT_CURSOR *cursor;
 	WT_CURSOR_TABLE *ctable;
 	WT_DECL_RET;
@@ -596,6 +640,16 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 		WT_ERR(__wt_struct_plan(session, table,
 		    columns, strlen(columns), 0, &plan));
 		ctable->plan = __wt_buf_steal(session, &plan, NULL);
+	}
+
+	/*
+	 * random_retrieval
+	 * Random retrieval cursors only support next and close.
+	 */
+	WT_ERR(__wt_config_gets(session, cfg, "next_random", &cval));
+	if (cval.val != 0) {
+		__wt_cursor_set_notsup(cursor);
+		cursor->next = __curtable_next_random;
 	}
 
 	STATIC_ASSERT(offsetof(WT_CURSOR_TABLE, iface) == 0);

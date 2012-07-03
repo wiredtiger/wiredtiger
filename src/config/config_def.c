@@ -67,6 +67,19 @@ __wt_confchk_connection_open_session =
     "";
 
 const char *
+__wt_confdfl_connection_reconfigure =
+    "cache_size=100MB,error_prefix="",eviction_target=80,eviction_trigger=95,"
+    "verbose=()";
+
+const char *
+__wt_confchk_connection_reconfigure =
+    "cache_size=(type=int,min=1MB,max=10TB),error_prefix=(),"
+    "eviction_target=(type=int,min=10,max=99),eviction_trigger=(type=int,"
+    "min=10,max=99),verbose=(type=list,choices=[\"block\",\"ckpt\",\"evict\","
+    "\"evictserver\",\"fileops\",\"hazard\",\"mutex\",\"read\",\"readserver\""
+    ",\"reconcile\",\"salvage\",\"verify\",\"write\"])";
+
+const char *
 __wt_confdfl_cursor_close =
     "";
 
@@ -75,24 +88,33 @@ __wt_confchk_cursor_close =
     "";
 
 const char *
+__wt_confdfl_cursor_reconfigure =
+    "overwrite=false";
+
+const char *
+__wt_confchk_cursor_reconfigure =
+    "overwrite=(type=boolean)";
+
+const char *
 __wt_confdfl_file_meta =
-    "allocation_size=512B,block_compressor="",checksum=true,collator="","
-    "columns=(),huffman_key="",huffman_value="",internal_item_max=0,"
-    "internal_key_truncate=true,internal_page_max=2KB,key_format=u,key_gap=10"
-    ",leaf_item_max=0,leaf_page_max=1MB,prefix_compression=true,snapshot="","
-    "split_pct=75,type=btree,value_format=u,version=(major=0,minor=0)";
+    "allocation_size=512B,block_compressor="",checkpoint="",checksum=true,"
+    "collator="",columns=(),huffman_key="",huffman_value="","
+    "internal_item_max=0,internal_key_truncate=true,internal_page_max=2KB,"
+    "key_format=u,key_gap=10,leaf_item_max=0,leaf_page_max=1MB,"
+    "prefix_compression=true,split_pct=75,type=btree,value_format=u,"
+    "version=(major=0,minor=0)";
 
 const char *
 __wt_confchk_file_meta =
     "allocation_size=(type=int,min=512B,max=128MB),block_compressor=(),"
-    "checksum=(type=boolean),collator=(),columns=(type=list),huffman_key=(),"
-    "huffman_value=(),internal_item_max=(type=int,min=0),"
+    "checkpoint=(),checksum=(type=boolean),collator=(),columns=(type=list),"
+    "huffman_key=(),huffman_value=(),internal_item_max=(type=int,min=0),"
     "internal_key_truncate=(type=boolean),internal_page_max=(type=int,"
     "min=512B,max=512MB),key_format=(type=format),key_gap=(type=int,min=0),"
     "leaf_item_max=(type=int,min=0),leaf_page_max=(type=int,min=512B,"
-    "max=512MB),prefix_compression=(type=boolean),snapshot=(),"
-    "split_pct=(type=int,min=25,max=100),type=(choices=[\"btree\"]),"
-    "value_format=(type=format),version=()";
+    "max=512MB),prefix_compression=(type=boolean),split_pct=(type=int,min=25,"
+    "max=100),type=(choices=[\"btree\"]),value_format=(type=format),"
+    "version=()";
 
 const char *
 __wt_confdfl_index_meta =
@@ -114,11 +136,11 @@ __wt_confchk_session_begin_transaction =
 
 const char *
 __wt_confdfl_session_checkpoint =
-    "snapshot=""";
+    "drop=(),name="",target=()";
 
 const char *
 __wt_confchk_session_checkpoint =
-    "snapshot=()";
+    "drop=(type=list),name=(),target=(type=list)";
 
 const char *
 __wt_confdfl_session_close =
@@ -162,11 +184,11 @@ __wt_confchk_session_create =
 
 const char *
 __wt_confdfl_session_drop =
-    "force=false,snapshot=""";
+    "force=false";
 
 const char *
 __wt_confchk_session_drop =
-    "force=(type=boolean),snapshot=()";
+    "force=(type=boolean)";
 
 const char *
 __wt_confdfl_session_dumpfile =
@@ -186,15 +208,17 @@ __wt_confchk_session_log_printf =
 
 const char *
 __wt_confdfl_session_open_cursor =
-    "append=false,bulk=false,dump="",isolation=read-committed,overwrite=false"
-    ",raw=false,snapshot="",statistics=false,statistics_clear=false";
+    "append=false,bulk=false,checkpoint="",dump="",isolation=read-committed,"
+    "next_random=false,overwrite=false,raw=false,statistics=false,"
+    "statistics_clear=false";
 
 const char *
 __wt_confchk_session_open_cursor =
-    "append=(type=boolean),bulk=(type=boolean),dump=(choices=[\"hex\","
-    "\"print\"]),isolation=(choices=[\"snapshot\",\"read-committed\","
-    "\"read-uncommitted\"]),overwrite=(type=boolean),raw=(type=boolean),"
-    "snapshot=(),statistics=(type=boolean),statistics_clear=(type=boolean)";
+    "append=(type=boolean),bulk=(type=boolean),checkpoint=(),"
+    "dump=(choices=[\"hex\",\"print\"]),isolation=(choices=[\"snapshot\","
+    "\"read-committed\",\"read-uncommitted\"]),next_random=(type=boolean),"
+    "overwrite=(type=boolean),raw=(type=boolean),statistics=(type=boolean),"
+    "statistics_clear=(type=boolean)";
 
 const char *
 __wt_confdfl_session_rename =
@@ -219,14 +243,6 @@ __wt_confdfl_session_salvage =
 const char *
 __wt_confchk_session_salvage =
     "force=(type=boolean)";
-
-const char *
-__wt_confdfl_session_sync =
-    "snapshot=""";
-
-const char *
-__wt_confchk_session_sync =
-    "snapshot=()";
 
 const char *
 __wt_confdfl_session_truncate =
@@ -265,9 +281,8 @@ const char *
 __wt_confdfl_wiredtiger_open =
     "buffer_alignment=-1,cache_size=100MB,create=false,direct_io=(),"
     "error_prefix="",eviction_target=80,eviction_trigger=95,extensions=(),"
-    "hazard_max=30,home_environment=false,home_environment_priv=false,"
-    "logging=false,multiprocess=false,session_max=50,sync=true,"
-    "transactional=true,verbose=()";
+    "hazard_max=30,logging=false,multiprocess=false,session_max=50,sync=true,"
+    "transactional=true,use_environment_priv=false,verbose=()";
 
 const char *
 __wt_confchk_wiredtiger_open =
@@ -275,10 +290,10 @@ __wt_confchk_wiredtiger_open =
     "max=10TB),create=(type=boolean),direct_io=(type=list,choices=[\"data\","
     "\"log\"]),error_prefix=(),eviction_target=(type=int,min=10,max=99),"
     "eviction_trigger=(type=int,min=10,max=99),extensions=(type=list),"
-    "hazard_max=(type=int,min=15),home_environment=(type=boolean),"
-    "home_environment_priv=(type=boolean),logging=(type=boolean),"
+    "hazard_max=(type=int,min=15),logging=(type=boolean),"
     "multiprocess=(type=boolean),session_max=(type=int,min=1),"
-    "sync=(type=boolean),transactional=(type=boolean),verbose=(type=list,"
-    "choices=[\"block\",\"evict\",\"evictserver\",\"fileops\",\"hazard\","
-    "\"mutex\",\"read\",\"readserver\",\"reconcile\",\"salvage\",\"snapshot\""
-    ",\"verify\",\"write\"])";
+    "sync=(type=boolean),transactional=(type=boolean),"
+    "use_environment_priv=(type=boolean),verbose=(type=list,"
+    "choices=[\"block\",\"ckpt\",\"evict\",\"evictserver\",\"fileops\","
+    "\"hazard\",\"mutex\",\"read\",\"readserver\",\"reconcile\",\"salvage\","
+    "\"verify\",\"write\"])";

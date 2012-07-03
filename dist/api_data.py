@@ -158,8 +158,8 @@ file_config = format_meta + [
 
 # File metadata, including both configurable and non-configurable (internal)
 file_meta = file_config + [
-	Config('snapshot', '', r'''
-		the file snapshot entries'''),
+	Config('checkpoint', '', r'''
+		the file checkpoint entries'''),
 	Config('version', '(major=0,minor=0)', r'''
 		the file version'''),
 ]
@@ -181,6 +181,48 @@ index_meta = column_meta + filename_meta
 
 table_meta = format_meta + table_only_meta
 
+# Cursor runtime config, shared by cursor.reconfigure and session.open_cursor
+cursor_runtime_config = [
+	Config('overwrite', 'false', r'''
+		change the behavior of the cursor's insert method to
+		overwrite previously existing values''',
+		type='boolean'),
+]
+
+# Connection runtime config, shared by conn.reconfigure and wiredtiger_open
+connection_runtime_config = [
+	Config('cache_size', '100MB', r'''
+		maximum heap memory to allocate for the cache''',
+		min='1MB', max='10TB'),
+	Config('error_prefix', '', r'''
+		prefix string for error messages'''),
+	Config('eviction_target', '80', r'''
+		continue evicting until the cache becomes less full than this
+		(as a percentage).  Must be less than \c eviction_trigger''',
+		min=10, max=99),
+	Config('eviction_trigger', '95', r'''
+		trigger eviction when the cache becomes this full (as a
+		percentage)''',
+		min=10, max=99),
+	Config('verbose', '', r'''
+		enable messages for various events.  Options are given as a
+		list, such as <code>"verbose=[evictserver,read]"</code>''',
+		type='list', choices=[
+		    'block',
+		    'ckpt',
+		    'evict',
+		    'evictserver',
+		    'fileops',
+		    'hazard',
+		    'mutex',
+		    'read',
+		    'readserver',
+		    'reconcile',
+		    'salvage',
+		    'verify',
+		    'write']),
+]
+
 methods = {
 'file.meta' : Method(file_meta),
 
@@ -190,8 +232,9 @@ methods = {
 
 'table.meta' : Method(table_meta),
 
-'cursor.close' : Method([
-]),
+'cursor.close' : Method([]),
+
+'cursor.reconfigure' : Method(cursor_runtime_config),
 
 'session.close' : Method([]),
 
@@ -207,31 +250,24 @@ methods = {
 	Config('force', 'false', r'''
 		return success if the object does not exist''',
 		type='boolean'),
-	Config('snapshot', '', r'''
-		specify one or more snapshots to drop.
-
-		The value must be either the name of a single snapshot to drop
-		(a string), or a list containing one of the following keys:
-		\c "all" to drop all snapshots,
-		\c "from=<snapshot>" to drop all snapshots after and including
-		the named snapshots, or
-		\c "to=<snapshot>" to drop all snapshots before and including
-		the named snapshot'''),
 	]),
 
 'session.dumpfile' : Method([]),
 'session.log_printf' : Method([]),
 
-'session.open_cursor' : Method([
+'session.open_cursor' : Method(cursor_runtime_config + [
 	Config('append', 'false', r'''
 		only supported by cursors with record number keys: append the
 		value as a new record, creating a new record number key''',
 		type='boolean'),
 	Config('bulk', 'false', r'''
 		configure the cursor for bulk loads; bulk-load is a fast
-		load path for empty objects, only empty objects may be
-		bulk-loaded''',
+		load path for empty objects and only empty objects may
+		be bulk-loaded.  Cursors configured for bulk load only
+		support the WT_CURSOR::insert and WT_CURSOR::close methods''',
 		type='boolean'),
+	Config('checkpoint', '', r'''
+		the name of a checkpoint to open'''),
 	Config('dump', '', r'''
 		configure the cursor for dump format inputs and outputs:
 		"hex" selects a simple hexadecimal format, "print"
@@ -243,16 +279,15 @@ methods = {
 		the isolation level for this cursor, ignored for transactional
 		cursors''',
 		choices=['snapshot', 'read-committed', 'read-uncommitted']),
-	Config('overwrite', 'false', r'''
-		change the behavior of the cursor's insert method to
-		overwrite previously existing values''',
+	Config('next_random', 'false', r'''
+		configure the cursor to return a pseudo-random record from
+		the object.  Cursors configured for random retrieval only
+		support the WT_CURSOR::next and WT_CURSOR::close methods''',
 		type='boolean'),
 	Config('raw', 'false', r'''
 		ignore the encodings for the key and value, manage data as if
 		the formats were \c "u".  See @ref cursor_raw for details''',
 		type='boolean'),
-	Config('snapshot', '', r'''
-		the name of a snapshot to open'''),
 	Config('statistics', 'false', r'''
 		configure the cursor for statistics''',
 		type='boolean'),
@@ -268,10 +303,6 @@ methods = {
 		force salvage even of files that do not appear to be WiredTiger
 		files''',
 		type='boolean'),
-]),
-'session.sync' : Method([
-	Config('snapshot', '', r'''
-		if non-empty, create a named snapshot'''),
 ]),
 'session.truncate' : Method([]),
 'session.upgrade' : Method([]),
@@ -296,8 +327,18 @@ methods = {
 'session.rollback_transaction' : Method([]),
 
 'session.checkpoint' : Method([
-	Config('snapshot', '', r'''
-		if non-empty, create named snapshots in files'''),
+	Config('drop', '', r'''
+		specify a list of checkpoints to drop.
+		The list may additionally contain one of the following keys:
+		\c "from=all" to drop all checkpoints,
+		\c "from=<checkpoint>" to drop all checkpoints after and
+		including the named checkpoint, or
+		\c "to=<checkpoint>" to drop all checkpoints before and
+		including the named checkpoint''', type='list'),
+	Config('name', '', r'''
+		if non-empty, specify a name for the checkpoint'''),
+	Config('target', '', r'''
+		if non-empty, checkpoint the list of objects''', type='list'),
 ]),
 
 'connection.add_collator' : Method([]),
@@ -305,6 +346,7 @@ methods = {
 'connection.add_data_source' : Method([]),
 'connection.add_extractor' : Method([]),
 'connection.close' : Method([]),
+'connection.reconfigure' : Method(connection_runtime_config),
 
 'connection.load_extension' : Method([
 	Config('entry', 'wiredtiger_extension_init', r'''
@@ -316,15 +358,12 @@ methods = {
 
 'connection.open_session' : Method([]),
 
-'wiredtiger_open' : Method([
+'wiredtiger_open' : Method(connection_runtime_config + [
 	Config('buffer_alignment', '-1', r'''
 		in-memory alignment (in bytes) for buffers used for I/O.  By
 		default, a platform-specific alignment value is used (512 bytes
 		on Linux systems, zero elsewhere)''',
 		min='-1', max='1MB'),
-	Config('cache_size', '100MB', r'''
-		maximum heap memory to allocate for the cache''',
-		min='1MB', max='10TB'),
 	Config('create', 'false', r'''
 		create the database if it does not exist''',
 		type='boolean'),
@@ -332,32 +371,12 @@ methods = {
 		Use \c O_DIRECT to access files.  Options are given as a
 		list, such as <code>"direct_io=[data]"</code>''',
 		type='list', choices=['data', 'log']),
-	Config('home_environment', 'false', r'''
-		use the \c WIREDTIGER_HOME environment variable for naming
-		unless the process is running with special privileges.
-		See @ref home for more information''',
-		type='boolean'),
-	Config('home_environment_priv', 'false', r'''
-		use the \c WIREDTIGER_HOME environment variable for naming
-		regardless of whether or not the process is running with
-		special privileges.  See @ref home for more information''',
-		type='boolean'),
 	Config('extensions', '', r'''
 		list of extensions to load.  Optional values are passed as the
 		\c config parameter to WT_CONNECTION::load_extension.  Complex
 		paths may need quoting, for example,
 		<code>extensions=("/path/to/ext.so"="entry=my_entry")</code>''',
 		type='list'),
-	Config('error_prefix', '', r'''
-		prefix string for error messages'''),
-	Config('eviction_target', '80', r'''
-		continue evicting until the cache becomes less full than this
-		(as a percentage).  Must be less than \c eviction_trigger''',
-		min=10, max=99),
-	Config('eviction_trigger', '95', r'''
-		trigger eviction when the cache becomes this full (as a
-		percentage)''',
-		min=10, max=99),
 	Config('hazard_max', '30', r'''
 		number of simultaneous hazard references per session handle''',
 		min='15'),
@@ -374,28 +393,17 @@ methods = {
 		threads)''',
 		min='1'),
 	Config('sync', 'true', r'''
-		sync files when closing or writing snapshots''',
+		flush files to stable storage when closing or writing
+		checkpoints''',
 		type='boolean'),
 	Config('transactional', 'true', r'''
 		support transactional semantics''',
 		type='boolean'),
-	Config('verbose', '', r'''
-		enable messages for various events.  Options are given as a
-		list, such as <code>"verbose=[evictserver,read]"</code>''',
-		type='list', choices=[
-		    'block',
-		    'evict',
-		    'evictserver',
-		    'fileops',
-		    'hazard',
-		    'mutex',
-		    'read',
-		    'readserver',
-		    'reconcile',
-		    'salvage',
-		    'snapshot',
-		    'verify',
-		    'write']),
+	Config('use_environment_priv', 'false', r'''
+		use the \c WIREDTIGER_CONFIG and \c WIREDTIGER_HOME environment
+		variables regardless of whether or not the process is running
+		with special privileges.  See @ref home for more information''',
+		type='boolean'),
 ]),
 }
 
@@ -408,6 +416,7 @@ flags = {
 	'rec_evict' : [ 'REC_SINGLE' ],
 	'verbose' : [
 		'VERB_block',
+		'VERB_ckpt',
 		'VERB_evict',
 		'VERB_evictserver',
 		'VERB_fileops',
@@ -417,7 +426,6 @@ flags = {
 		'VERB_readserver',
 		'VERB_reconcile',
 		'VERB_salvage',
-		'VERB_snapshot',
 		'VERB_verify',
 		'VERB_write'
 	],

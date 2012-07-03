@@ -48,9 +48,9 @@ class test_txn01(wttest.WiredTigerTestCase):
 
     def check_checkpoint(self, expected):
         s = self.conn.open_session()
-        s.checkpoint("snapshot=test")
+        s.checkpoint("name=test")
         try:
-            cursor = s.open_cursor(self.uri, None, "snapshot=test")
+            cursor = s.open_cursor(self.uri, None, "checkpoint=test")
             count = 0
             for r in cursor:
                 count += 1

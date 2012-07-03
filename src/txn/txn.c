@@ -129,11 +129,11 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
- * __txn_release --
+ * __wt_txn_release --
  *	Release the resources associated with the current transaction.
  */
-static int
-__txn_release(WT_SESSION_IMPL *session)
+int
+__wt_txn_release(WT_SESSION_IMPL *session)
 {
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
@@ -166,7 +166,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_UNUSED(cfg);
 
-	return (__txn_release(session));
+	return (__wt_txn_release(session));
 }
 
 /*
@@ -186,71 +186,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	for (i = 0, m = txn->mod; i < txn->mod_count; i++, m++)
 		**m = WT_TXN_ABORTED;
 
-	return (__txn_release(session));
-}
-
-/*
- * __wt_txn_checkpoint --
- *	Write a checkpoint.
- */
-int
-__wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
-{
-	WT_CONFIG_ITEM cval;
-	WT_DECL_RET;
-	WT_TXN_GLOBAL *txn_global;
-	const char *snapshot;
-	const char *txn_cfg[] = { "isolation=snapshot", NULL };
-
-	txn_global = &S2C(session)->txn_global;
-
-	if ((ret = __wt_config_gets(
-	    session, cfg, "snapshot", &cval)) != 0 && ret != WT_NOTFOUND)
-		WT_RET(ret);
-	if (cval.len != 0)
-		WT_RET(__wt_strndup(session, cval.str, cval.len, &snapshot));
-	else
-		snapshot = NULL;
-
-	/* Only one checkpoint can be active at a time. */
-	__wt_writelock(session, S2C(session)->ckpt_rwlock);
-	WT_ERR(__wt_txn_begin(session, txn_cfg));
-
-	/* Prevent eviction from evicting anything newer than this. */
-	txn_global->ckpt_txnid = session->txn.snap_min;
-
-	WT_ERR(__wt_meta_track_on(session));
-
-	/*
-	 * If we're doing an ordinary unnamed checkpoint, we only need to flush
-	 * open files.	If we're creating a named snapshot, we need to walk the
-	 * entire list of files in the metadata.
-	 */
-	WT_TRET((snapshot == NULL) ?
-	    __wt_conn_btree_apply(session, __wt_snapshot, cfg) :
-	    __wt_meta_btree_apply(session,
-		__wt_snapshot, cfg, WT_BTREE_SNAPSHOT_OP));
-
-	/*
-	 * XXX Rolling back the changes here is problematic.
-	 *
-	 * If we unroll here, we need a way to roll back changes to the avail
-	 * list for each tree that was successfully synced before the error
-	 * occurred.  Otherwise, the next time we try this operation, we will
-	 * try to free an old snapshot again.
-	 *
-	 * OTOH, if we commit the changes after a failure, we have partially
-	 * overwritten the checkpoint, so what ends up on disk is not
-	 * consistent.
-	 */
-	WT_TRET(__wt_meta_track_off(session, ret != 0));
-
-err:	txn_global->ckpt_txnid = WT_TXN_NONE;
-	if (F_ISSET(&session->txn, TXN_RUNNING))
-		WT_TRET(__txn_release(session));
-	__wt_rwunlock(session, S2C(session)->ckpt_rwlock);
-	__wt_free(session, snapshot);
-	return (ret);
+	return (__wt_txn_release(session));
 }
 
 /*

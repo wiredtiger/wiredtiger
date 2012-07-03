@@ -93,7 +93,6 @@ __cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip)
 	WT_IKEY *ikey;
 	WT_SESSION_IMPL *session;
 	WT_UPDATE *upd;
-	void *key;
 
 	session = (WT_SESSION_IMPL *)cbt->iface.session;
 	btree = session->btree;
@@ -106,7 +105,7 @@ __cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip)
 	 * Return the WT_ROW slot's K/V pair.
 	 */
 
-	key = WT_ROW_KEY_COPY(rip);
+	ikey = WT_ROW_KEY_COPY(rip);
 	/*
 	 * Key copied.
 	 *
@@ -119,21 +118,21 @@ __cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip)
 	 * If the key points on-page, we have a copy of a WT_CELL value that can
 	 * be processed, regardless of what any other thread is doing.
 	 */
-	if (__wt_off_page(cbt->page, key)) {
-		ikey = key;
+	if (__wt_off_page(cbt->page, ikey)) {
 		kb->data = WT_IKEY_DATA(ikey);
 		kb->size = ikey->size;
 	} else {
 		/*
-		 * If the key is simple and on-page, just reference it.
-		 * Else, if the key is simple, prefix-compressed and on-page,
-		 * and we have the previous expanded key in the cursor buffer,
-		 * build the key quickly.
-		 * Else, instantiate the key and do it all  the hard way.
+		 * Get a reference to the key, ideally without doing a copy.  If
+		 * the key is simple and on-page, just reference it; if the key
+		 * is simple, on-page and prefix-compressed, and we have the
+		 * previous expanded key in the cursor buffer, build the key
+		 * here.  Else, call the underlying routines to do it the hard
+		 * way.
 		 */
 		if (btree->huffman_key != NULL)
 			goto slow;
-		__wt_cell_unpack(key, unpack);
+		__wt_cell_unpack((WT_CELL *)ikey, unpack);
 		if (unpack->type == WT_CELL_KEY && unpack->prefix == 0) {
 			kb->data = cbt->tmp.data = unpack->data;
 			kb->size = cbt->tmp.size = unpack->size;
@@ -165,7 +164,7 @@ __cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip)
 			kb->size = cbt->tmp.size;
 			cbt->rip_saved = rip;
 		} else
-slow:			WT_RET(__wt_row_key(session, cbt->page, rip, kb));
+slow:			WT_RET(__wt_row_key_copy(session, cbt->page, rip, kb));
 	}
 
 	/*
