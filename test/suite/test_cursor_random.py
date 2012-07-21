@@ -25,8 +25,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_cursor01.py
-# 	Cursor operations
+# test_cursor_random.py
+# 	Cursor next_random operations
 #
 
 import wiredtiger, wttest
@@ -35,13 +35,12 @@ class Test_Cursor_Random(wttest.WiredTigerTestCase):
     """
     Test basic operations
     """
-    table_name1 = 'test_cursor_random'
     nentries = 10
 
     scenarios = [
-        ('row', dict(tablekind='row')),
-        ('col', dict(tablekind='col')),
-        ('fix', dict(tablekind='fix'))
+        ('row', dict(tablekind='row', uri='table', tablename='one')),
+        ('col', dict(tablekind='col', uri='file', tablename='two')),
+        ('fix', dict(tablekind='fix', uri='table', tablename='three'))
         ]
 
     def config_string(self):
@@ -61,8 +60,16 @@ class Test_Cursor_Random(wttest.WiredTigerTestCase):
             print('**** ERROR in session.create("' + name + '","' + args + '") ***** ')
             raise
 
+    def session_close(self):
+        self.session.close()
+
+    def tearDown(self):
+        self.session.close()
+        super(Test_Cursor_Random, self).tearDown()
+
     def create_session_and_cursor(self,randomize=False):
-        tablearg = "table:" + self.table_name1
+        args = self.uri + ":" + self.tablename
+        #tablearg = "table:" + self.table_name1
         if self.tablekind == 'row':
             keyformat = 'key_format=S'
         else:
@@ -74,12 +81,12 @@ class Test_Cursor_Random(wttest.WiredTigerTestCase):
         create_args = keyformat + ',' + valformat + self.config_string()
         #print 'Args= %s' % create_args
         self.pr('creating session: ' + create_args)
-        self.session_create(tablearg, create_args)
+        self.session_create(args, create_args)
         self.pr('creating cursor')
         config = None
         if randomize:
             config = "next_random=true"
-        return self.session.open_cursor(tablearg, None, config)
+        return self.session.open_cursor(args, None, config)
 
     def genkey(self, i):
         if self.tablekind == 'row':
@@ -94,6 +101,12 @@ class Test_Cursor_Random(wttest.WiredTigerTestCase):
             return 'value' + str(i)
 
     def test_cursor_random(self):
+        """
+        We test next_random in this test. We insert values n---m
+        in the table. Then using next_random, we retrieve values
+        from the database and make sure returned values range within
+        n...m
+        """
         cursor = self.create_session_and_cursor()
         for i in range(0, self.nentries):
             cursor.set_key(self.genkey(i))
@@ -102,10 +115,11 @@ class Test_Cursor_Random(wttest.WiredTigerTestCase):
         cursor.close()
         if self.tablekind == 'row':
             cursor = self.create_session_and_cursor(randomize=True)
-            self.assertEqual(cursor.next(), 0)
-            value = str(cursor.get_value())
-            print "Value= %s" % value
-            self.assertTrue(value in ['value'+str(x) for x in range(0, self.nentries)])
+            for i in range(0, self.nentries):
+                self.assertEqual(cursor.next(), 0)
+                value = str(cursor.get_value())
+                #print "Value= %s" % value
+                self.assertTrue(value in ['value'+str(x) for x in range(0, self.nentries)])
             cursor.close()
         else:#becasue next_random only works in row format, otherwise throws exceptino
             cursor = self.create_session_and_cursor(randomize=True)
@@ -116,7 +130,56 @@ class Test_Cursor_Random(wttest.WiredTigerTestCase):
     def test_cursor_random_empty_table(self):
         if self.tablekind == "row":
             cursor = self.create_session_and_cursor(randomize=True)
+            self.assertTrue(cursor.next(), wiredtiger.WT_NOTFOUND)
+            #self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            #    lambda: cursor.next(),
+            #    r"")
+    def test_cursor_random_ops_not_supported(self):
+        pass
+
+    def test_cursor_random_single_record(self):
+        """
+        Insert one value and then close the cursor. Then, 
+        using next_random we retrieve values and we make
+        sure same is returned each time.
+        """
+        cursor = self.create_session_and_cursor()
+        cursor.set_key(self.genkey(1))
+        cursor.set_value(self.genvalue(1))
+        cursor.insert()
+        cursor.close()
+        if self.tablekind == 'row':
+            cursor = self.create_session_and_cursor(randomize=True)
+            #print "Value= %s" % value
+            for i in range(1, 5):
+                self.assertEqual(cursor.next(), 0) 
+                value = str(cursor.get_value())
+                self.assertEqual('value1', value)
+            cursor.close()
+        else:#becasue next_random only works in row format, otherwise throws exceptino
+            cursor = self.create_session_and_cursor(randomize=True)
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                lambda: cursor.next(),
-                r"")
+                    lambda: cursor.next(),
+                    r"")
+            cursor.close()
+    def test_cursor_random_session_recreate(self):
+        cursor = self.create_session_and_cursor()
+        cursor.set_key(self.genkey(1))
+        cursor.set_value(self.genvalue(1))
+        cursor.insert()
+        cursor.close()
+        self.session_close()
+        #print 'Session closed in test_cursor_random_session_recreate'
+        if self.tablekind == 'row':
+            conn = wiredtiger.wiredtiger_open(self.dir)
+            session = conn.open_session()
+            cursor = session.open_cursor(self.uri + ":" + self.tablename)
+            for i in range(1, 5):
+                self.assertEqual(cursor.next(), 0)
+                self.assertEqual(1, cursor.get_value())
+            cursor.close()
+
+            
+            
+
 
