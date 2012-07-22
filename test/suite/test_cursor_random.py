@@ -28,9 +28,8 @@
 # test_cursor_random.py
 # 	Cursor next_random operations
 #
-
 import wiredtiger, wttest
-
+from datetime import datetime
 class Test_Cursor_Random(wttest.WiredTigerTestCase):
     """
     Test basic operations
@@ -67,7 +66,10 @@ class Test_Cursor_Random(wttest.WiredTigerTestCase):
         self.session.close()
         super(Test_Cursor_Random, self).tearDown()
 
-    def create_session_and_cursor(self,randomize=False):
+    def create_session_and_cursor(self, use_next_random=False, use_random_table_name=False):
+        if use_random_table_name:
+            rightnow = datetime.now()
+            self.tablename = self.tablename + rightnow.strftime("%Y%m%d%H%M%S%f")
         args = self.uri + ":" + self.tablename
         #tablearg = "table:" + self.table_name1
         if self.tablekind == 'row':
@@ -84,7 +86,7 @@ class Test_Cursor_Random(wttest.WiredTigerTestCase):
         self.session_create(args, create_args)
         self.pr('creating cursor')
         config = None
-        if randomize:
+        if use_next_random:
             config = "next_random=true"
         return self.session.open_cursor(args, None, config)
 
@@ -114,7 +116,7 @@ class Test_Cursor_Random(wttest.WiredTigerTestCase):
             cursor.insert()
         cursor.close()
         if self.tablekind == 'row':
-            cursor = self.create_session_and_cursor(randomize=True)
+            cursor = self.create_session_and_cursor(use_next_random=True)
             for i in range(0, self.nentries):
                 self.assertEqual(cursor.next(), 0)
                 value = str(cursor.get_value())
@@ -122,20 +124,20 @@ class Test_Cursor_Random(wttest.WiredTigerTestCase):
                 self.assertTrue(value in ['value'+str(x) for x in range(0, self.nentries)])
             cursor.close()
         else:#becasue next_random only works in row format, otherwise throws exceptino
-            cursor = self.create_session_and_cursor(randomize=True)
+            cursor = self.create_session_and_cursor(use_next_random=True)
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                     lambda: cursor.next(),
                     r"")
             cursor.close()
     def test_cursor_random_empty_table(self):
         if self.tablekind == "row":
-            cursor = self.create_session_and_cursor(randomize=True)
+            cursor = self.create_session_and_cursor(use_next_random=True, \
+                    use_random_table_name=True)
             self.assertTrue(cursor.next(), wiredtiger.WT_NOTFOUND)
             #self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             #    lambda: cursor.next(),
             #    r"")
-    def test_cursor_random_ops_not_supported(self):
-        pass
+            #cursor.close()
 
     def test_cursor_random_single_record(self):
         """
@@ -149,7 +151,7 @@ class Test_Cursor_Random(wttest.WiredTigerTestCase):
         cursor.insert()
         cursor.close()
         if self.tablekind == 'row':
-            cursor = self.create_session_and_cursor(randomize=True)
+            cursor = self.create_session_and_cursor(use_next_random=True)
             #print "Value= %s" % value
             for i in range(1, 5):
                 self.assertEqual(cursor.next(), 0) 
@@ -157,7 +159,7 @@ class Test_Cursor_Random(wttest.WiredTigerTestCase):
                 self.assertEqual('value1', value)
             cursor.close()
         else:#becasue next_random only works in row format, otherwise throws exceptino
-            cursor = self.create_session_and_cursor(randomize=True)
+            cursor = self.create_session_and_cursor(use_next_random=True)
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                     lambda: cursor.next(),
                     r"")
