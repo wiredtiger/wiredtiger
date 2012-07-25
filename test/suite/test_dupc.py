@@ -31,7 +31,7 @@
 
 import os, time
 import wiredtiger, wttest
-from helper import complexPopulate, simplePopulate
+from helper import complex_populate, simple_populate
 
 # Test session.open_cursor with cursor duplication.
 class test_duplicate_cursor(wttest.WiredTigerTestCase):
@@ -69,13 +69,13 @@ class test_duplicate_cursor(wttest.WiredTigerTestCase):
         uri = self.uri + self.name
 
         # A simple, one-file file or table object.
-        simplePopulate(self, uri, self.config, self.nentries)
+        simple_populate(self, uri, self.config, self.nentries)
         self.iterate(uri)
         self.session.drop(uri, None)
 
         # A complex, multi-file table object.
         if self.uri == "table:":
-            complexPopulate(self, uri, self.config, self.nentries)
+            complex_populate(self, uri, self.config, self.nentries)
             self.iterate(uri)
             self.session.drop(uri, None)
 

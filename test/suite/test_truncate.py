@@ -32,7 +32,7 @@
 import os, time
 import wiredtiger, wttest
 from helper import\
-    confirmDoesNotExist, confirmEmpty, complexPopulate, simplePopulate
+    confirm_does_not_exist, confirm_empty, complex_populate, simple_populate
 
 # Test session.truncate.
 class test_truncate(wttest.WiredTigerTestCase):
@@ -50,9 +50,9 @@ class test_truncate(wttest.WiredTigerTestCase):
     # Test simple truncate of an object using its URI.
     def test_truncate(self):
         uri = self.uri + self.name
-        simplePopulate(self, uri, self.config, self.nentries)
+        simple_populate(self, uri, self.config, self.nentries)
         self.session.truncate(uri, None, None, None)
-        confirmEmpty(self, uri)
+        confirm_empty(self, uri)
 
     def initCursor(self, uri, key):
         if key == -1:
@@ -82,7 +82,7 @@ class test_truncate(wttest.WiredTigerTestCase):
         # last keys are the ones before/after the truncated range.
         cursor = self.session.open_cursor(uri, None, None)
         if begin == 0 and end == self.nentries - 1:
-            confirmEmpty(self, uri)
+            confirm_empty(self, uri)
         else:
             self.assertEqual(cursor.next(), 0)
             key = cursor.get_key()
@@ -128,14 +128,14 @@ class test_truncate(wttest.WiredTigerTestCase):
 
         # A simple, one-file file or table object.
         for begin,end in list:
-            simplePopulate(self, uri, self.config, self.nentries)
+            simple_populate(self, uri, self.config, self.nentries)
             self.truncateRangeAndCheck(uri, begin, end)
             self.session.drop(uri, None)
 
         # A complex, multi-file table object.
         if self.uri == "table:":
             for begin,end in list:
-                complexPopulate(self, uri, self.config, self.nentries)
+                complex_populate(self, uri, self.config, self.nentries)
                 self.truncateRangeAndCheck(uri, begin, end)
                 self.session.drop(uri, None)
 

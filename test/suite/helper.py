@@ -32,7 +32,7 @@ import wiredtiger
 # python has a filecmp.cmp function, but different versions of python approach
 # file comparison differently.  To make sure we get byte for byte comparison,
 # we define it here.
-def compareFiles(self, filename1, filename2):
+def compare_files(self, filename1, filename2):
     self.pr('compareFiles: ' + filename1 + ', ' + filename2)
     bufsize = 4096
     if os.path.getsize(filename1) != os.path.getsize(filename2):
@@ -51,7 +51,7 @@ def compareFiles(self, filename1, filename2):
                     return True
 
 # confirm a URI doesn't exist.
-def confirmDoesNotExist(self, uri):
+def confirm_does_not_exist(self, uri):
     self.pr('confirmDoesNotExist: ' + uri)
     self.assertRaises(wiredtiger.WiredTigerError,
         lambda: self.session.open_cursor(uri, None, None))
@@ -61,9 +61,9 @@ def confirmDoesNotExist(self, uri):
         uri.split(":")[1] + '\" found')
 
 # confirm a URI exists and is empty.
-def confirmEmpty(self, uri):
+def confirm_empty(self, uri, to_dup=None, config=None):
     self.pr('confirmEmpty: ' + uri)
-    cursor = self.session.open_cursor(uri, None, None)
+    cursor = self.session.open_cursor(uri, to_dup, config)
     self.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
     cursor.close()
 
@@ -71,10 +71,11 @@ def confirmEmpty(self, uri):
 #    uri:       object
 #    config:    prefix of the session.create configuration string
 #    rows:      entries to insert
-def simplePopulate(self, uri, config, rows):
+def simple_populate(self, uri, config, rows,\
+        to_dup=None, cursor_config=None):
     self.pr('simplePopulate: ' + uri + ' with ' + str(rows) + ' rows')
     self.session.create(uri, config + ',value_format=S')
-    cursor = self.session.open_cursor(uri, None, None)
+    cursor = self.session.open_cursor(uri, to_dup, cursor_config)
     if cursor.key_format == 'i' or cursor.key_format == 'u':
         for i in range(0, rows):
             cursor.set_key(i)
@@ -91,9 +92,9 @@ def simplePopulate(self, uri, config, rows):
             cursor.key_format)
     cursor.close()
 
-def simplePopulateCheck(self, uri):
+def simple_populate_check(self, uri, to_dup=None, config=None):
     self.pr('simplePopulateCheck: ' + uri)
-    cursor = self.session.open_cursor(uri, None, None)
+    cursor = self.session.open_cursor(uri, to_dup, config)
     next = -1
     if cursor.key_format == 'i' or cursor.key_format == 'u':
         for key,val in cursor:
@@ -115,7 +116,7 @@ def simplePopulateCheck(self, uri):
 #    uri:       object
 #    config:    prefix of the session.create configuration string
 #    rows:      entries to insert
-def complexPopulate(self, uri, config, rows):
+def complex_populate(self, uri, config, rows):
     self.session.create(uri,
         config + ',value_format=SiSS,' +
         'columns=(record,column2,column3,column4,column5),' +
@@ -152,7 +153,7 @@ def complexPopulate(self, uri, config, rows):
             cursor.key_format)
     cursor.close()
 
-def complexPopulateCheck(self, uri):
+def complex_populate_check(self, uri):
     self.pr('complexPopulateCheck: ' + uri)
     cursor = self.session.open_cursor(uri, None, None)
     i = -1

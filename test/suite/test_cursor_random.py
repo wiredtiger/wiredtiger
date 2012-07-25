@@ -29,6 +29,7 @@
 # 	Cursor next_random operations
 #
 import wiredtiger, wttest
+from helper import simple_populate, simple_populate_check, simple_populate_check
 from datetime import datetime
 class Test_Cursor_Random(wttest.WiredTigerTestCase):
     """
@@ -53,11 +54,7 @@ class Test_Cursor_Random(wttest.WiredTigerTestCase):
         """
         session.create, but report errors more completely
         """
-        try:
-            self.session.create(name, args)
-        except:
-            print('**** ERROR in session.create("' + name + '","' + args + '") ***** ')
-            raise
+        self.session.create(name, args)
 
     def session_close(self):
         self.session.close()
@@ -90,17 +87,15 @@ class Test_Cursor_Random(wttest.WiredTigerTestCase):
             config = "next_random=true"
         return self.session.open_cursor(args, None, config)
 
-    def genkey(self, i):
-        if self.tablekind == 'row':
-            return 'key' + str(i)
-        else:
-            return long(i+1)
-
-    def genvalue(self, i):
-        if self.tablekind == 'fix':
-            return int(i & 0xff)
-        else:
-            return 'value' + str(i)
+    def verify_populate(self, uri):
+        config = "next_random=true"
+        cursor = self.session.open_cursor(uri, None, config)
+        values_range = [str(x) + ": abcdefghijklmnopqrstuvwxyz" for x in range(0, self.nentries)]
+        for i in range(0, self.nentries):
+            self.assertEqual(0, cursor.next())
+            value = cursor.get_value()
+            self.assertTrue(str(value) in values_range)
+        cursor.close()
 
     def test_cursor_random(self):
         """
@@ -109,20 +104,11 @@ class Test_Cursor_Random(wttest.WiredTigerTestCase):
         from the database and make sure returned values range within
         n...m
         """
-        cursor = self.create_session_and_cursor()
-        for i in range(0, self.nentries):
-            cursor.set_key(self.genkey(i))
-            cursor.set_value(self.genvalue(i))
-            cursor.insert()
-        cursor.close()
+        uri = self.uri + ":" + self.tablename
+        config = "next_random=true"
         if self.tablekind == 'row':
-            cursor = self.create_session_and_cursor(use_next_random=True)
-            for i in range(0, self.nentries):
-                self.assertEqual(cursor.next(), 0)
-                value = str(cursor.get_value())
-                #print "Value= %s" % value
-                self.assertTrue(value in ['value'+str(x) for x in range(0, self.nentries)])
-            cursor.close()
+            simple_populate(self, uri, "key_format=S", self.nentries)
+            self.verify_populate(uri)
         else:#becasue next_random only works in row format, otherwise throws exceptino
             cursor = self.create_session_and_cursor(use_next_random=True)
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
@@ -134,10 +120,7 @@ class Test_Cursor_Random(wttest.WiredTigerTestCase):
             cursor = self.create_session_and_cursor(use_next_random=True, \
                     use_random_table_name=True)
             self.assertTrue(cursor.next(), wiredtiger.WT_NOTFOUND)
-            #self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            #    lambda: cursor.next(),
-            #    r"")
-            #cursor.close()
+            cursor.close()
 
     def test_cursor_random_single_record(self):
         """
@@ -145,19 +128,15 @@ class Test_Cursor_Random(wttest.WiredTigerTestCase):
         using next_random we retrieve values and we make
         sure same is returned each time.
         """
-        cursor = self.create_session_and_cursor()
-        cursor.set_key(self.genkey(1))
-        cursor.set_value(self.genvalue(1))
-        cursor.insert()
-        cursor.close()
+        uri = self.uri + ":" + self.tablename
+        #cursor = self.create_session_and_cursor()
+        #cursor.set_key(self.genkey(1))
+        #cursor.set_value(self.genvalue(1))
+        #cursor.insert()
+        #cursor.close()
         if self.tablekind == 'row':
-            cursor = self.create_session_and_cursor(use_next_random=True)
-            #print "Value= %s" % value
-            for i in range(1, 5):
-                self.assertEqual(cursor.next(), 0) 
-                value = str(cursor.get_value())
-                self.assertEqual('value1', value)
-            cursor.close()
+            simple_populate(self, uri, "key_format=S", self.nentries)
+            self.verify_populate(uri)
         else:#becasue next_random only works in row format, otherwise throws exceptino
             cursor = self.create_session_and_cursor(use_next_random=True)
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
@@ -165,14 +144,11 @@ class Test_Cursor_Random(wttest.WiredTigerTestCase):
                     r"")
             cursor.close()
     def test_cursor_random_session_recreate(self):
-        cursor = self.create_session_and_cursor()
-        cursor.set_key(self.genkey(1))
-        cursor.set_value(self.genvalue(1))
-        cursor.insert()
-        cursor.close()
-        self.session_close()
-        #print 'Session closed in test_cursor_random_session_recreate'
+        uri = self.uri + ":" + self.tablename
+       #print 'Session closed in test_cursor_random_session_recreate'
         if self.tablekind == 'row':
+            simple_populate(self, uri, "key_format=S", self.nentries)
+            self.session_close()
             conn = wiredtiger.wiredtiger_open(self.dir)
             session = conn.open_session()
             cursor = session.open_cursor(self.uri + ":" + self.tablename)
