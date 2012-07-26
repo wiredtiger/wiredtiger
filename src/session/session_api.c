@@ -19,7 +19,6 @@ __session_close_cursors(WT_SESSION_IMPL *session)
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 
-	ret = 0;
 	while ((cursor = TAILQ_FIRST(&session->cursors)) != NULL)
 		WT_TRET(cursor->close(cursor));
 	return (ret);
@@ -141,7 +140,7 @@ __session_open_cursor(WT_SESSION *wt_session,
 		    WT_PREFIX_MATCH(uri, "table:"))
 			ret = __wt_cursor_dup(session, to_dup, config, cursorp);
 		else
-			ret = ENOTSUP;
+			ret = __wt_bad_object_type(session, uri);
 	} else if (WT_PREFIX_MATCH(uri, "backup:"))
 		ret = __wt_curbackup_open(session, uri, cfg, cursorp);
 	else if (WT_PREFIX_MATCH(uri, "colgroup:"))
@@ -156,10 +155,8 @@ __session_open_cursor(WT_SESSION *wt_session,
 		ret = __wt_curstat_open(session, uri, cfg, cursorp);
 	else if (WT_PREFIX_MATCH(uri, "table:"))
 		ret = __wt_curtable_open(session, uri, cfg, cursorp);
-	else {
-		__wt_err(session, EINVAL, "Unknown cursor type '%s'", uri);
-		ret = EINVAL;
-	}
+	else
+		ret = __wt_bad_object_type(session, uri);
 
 err:	API_END_NOTFOUND_MAP(session, ret);
 }
@@ -295,6 +292,7 @@ __session_truncate(WT_SESSION *wt_session,
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	WT_CURSOR *cursor;
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
@@ -313,36 +311,35 @@ __session_truncate(WT_SESSION *wt_session,
 		WT_ERR_MSG(session, EINVAL,
 		    "the truncate method should be passed either a URI or "
 		    "start/stop cursors, but not both");
-	if (start != NULL && stop != NULL && strcmp(start->uri, stop->uri) != 0)
-		WT_ERR_MSG(session, EINVAL,
-		    "truncate method cursors must reference the same object");
 
 	if (uri == NULL) {
+		if (start != NULL && stop != NULL &&
+		    strcmp(start->uri, stop->uri) != 0)
+			WT_ERR_MSG(session, EINVAL,
+			    "truncate method cursors must reference the same "
+			    "object");
+
 		/*
-		 * From a starting/stopping cursor to the begin/end of the
-		 * object is easy, walk the object.
+		 * For table truncation, we need the complete table cursor setup
+		 * (including indices), and for file truncation, we need a fully
+		 * initialized btree cursor.  There's no reason to believe any
+		 * of that is done, yet, the application may have only set the
+		 * keys and done nothing further.  Because the table cursor code
+		 * sits on top of the file cursor code, the easy solution is to
+		 * do a search now, that fully instantiates everything we need,
+		 * and then we don't have to deal with it further.
 		 */
-		if (start == NULL)
-			for (;;) {
-				WT_ERR(stop->remove(stop));
-				if ((ret = stop->prev(stop)) != 0) {
-					if (ret == WT_NOTFOUND)
-						ret = 0;
-					break;
-				}
-			}
+		if (start != NULL)
+			WT_ERR(start->search(start));
+		if (stop != NULL)
+			WT_ERR(stop->search(stop));
+		cursor = start == NULL ? stop : start;
+		if (WT_PREFIX_MATCH(cursor->uri, "file:"))
+			ret = __wt_curfile_truncate(session, start, stop);
+		else if (WT_PREFIX_MATCH(cursor->uri, "table:"))
+			ret = __wt_curtable_truncate(session, start, stop);
 		else
-			for (;;) {
-				WT_ERR(start->remove(start));
-				if (stop != NULL &&
-				    start->equals(start, stop))
-					break;
-				if ((ret = start->next(start)) != 0) {
-					if (ret == WT_NOTFOUND)
-						ret = 0;
-					break;
-				}
-			}
+			ret = __wt_bad_object_type(session, cursor->uri);
 	} else
 		WT_WITH_SCHEMA_LOCK(session,
 		    ret = __wt_schema_truncate(session, uri, cfg));

@@ -20,7 +20,7 @@ __curfile_next(WT_CURSOR *cursor)
 
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_API_CALL_NOCONF(cursor, session, next, cbt->btree);
-	ret = __wt_btcur_next((WT_CURSOR_BTREE *)cursor);
+	ret = __wt_btcur_next((WT_CURSOR_BTREE *)cursor, 0);
 	API_END(session);
 
 	return (ret);
@@ -59,7 +59,7 @@ __curfile_prev(WT_CURSOR *cursor)
 
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_API_CALL_NOCONF(cursor, session, prev, cbt->btree);
-	ret = __wt_btcur_prev((WT_CURSOR_BTREE *)cursor);
+	ret = __wt_btcur_prev((WT_CURSOR_BTREE *)cursor, 0);
 	API_END(session);
 
 	return (ret);
@@ -183,6 +183,39 @@ __curfile_remove(WT_CURSOR *cursor)
 	WT_CURSOR_NEEDKEY(cursor);
 	ret = __wt_btcur_remove((WT_CURSOR_BTREE *)cursor);
 err:	API_END_TXN_ERROR(session, ret);
+
+	return (ret);
+}
+
+/*
+ * __wt_curfile_truncate --
+ *	WT_SESSION.truncate support when file cursors are specified.
+ */
+int
+__wt_curfile_truncate(
+    WT_SESSION_IMPL *session, WT_CURSOR *start, WT_CURSOR *stop)
+{
+	WT_BTREE *saved_btree;
+	WT_CURSOR_BTREE *cursor;
+	WT_DECL_RET;
+
+	/*
+	 * Our caller is either the session layer or the table-cursor truncate
+	 * code, both of which guarantee any open cursor is fully instantiated.
+	 * To minimize overhead when called from the table-cursor code, don't
+	 * do any further checking.
+	 *
+	 * !!!
+	 * We're doing a cursor operation but in the service of the session API;
+	 * set the session handle to reference the appropriate Btree, but don't
+	 * do any of the other "standard" cursor API setup.
+	 */
+	cursor = (WT_CURSOR_BTREE *)(start == NULL ? stop : start);
+	saved_btree = session->btree;
+	session->btree = cursor->btree;
+	ret = __wt_btcur_truncate(
+	    (WT_CURSOR_BTREE *)start, (WT_CURSOR_BTREE *)stop);
+	session->btree = saved_btree;
 
 	return (ret);
 }
@@ -322,7 +355,7 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri,
 		WT_RET(__wt_session_get_btree(session,
 		     uri, cfg, bulk ? WT_BTREE_EXCLUSIVE : 0));
 	else
-		WT_RET_MSG(session, EINVAL, "Unexpected object type");
+		WT_RET(__wt_bad_object_type(session, uri));
 
 	return (__wt_curfile_create(session, owner, cfg, cursorp));
 }

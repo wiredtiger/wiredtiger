@@ -116,7 +116,7 @@ __curindex_next(WT_CURSOR *cursor)
 
 	cindex = (WT_CURSOR_INDEX *)cursor;
 	CURSOR_API_CALL_NOCONF(cursor, session, next, cindex->cbt.btree);
-	if ((ret = __wt_btcur_next(&cindex->cbt)) == 0)
+	if ((ret = __wt_btcur_next(&cindex->cbt, 0)) == 0)
 		ret = __curindex_move(cindex);
 	API_END(session);
 
@@ -136,7 +136,7 @@ __curindex_prev(WT_CURSOR *cursor)
 
 	cindex = (WT_CURSOR_INDEX *)cursor;
 	CURSOR_API_CALL_NOCONF(cursor, session, prev, cindex->cbt.btree);
-	if ((ret = __wt_btcur_prev(&cindex->cbt)) == 0)
+	if ((ret = __wt_btcur_prev(&cindex->cbt, 0)) == 0)
 		ret = __curindex_move(cindex);
 	API_END(session);
 
@@ -384,7 +384,7 @@ __wt_curindex_open(WT_SESSION_IMPL *session,
 	++idxname;
 
 	if ((ret = __wt_schema_get_table(session,
-	    tablename, namesize, &table)) != 0) {
+	    tablename, namesize, 0, &table)) != 0) {
 		if (ret == WT_NOTFOUND)
 			WT_RET_MSG(session, EINVAL,
 			    "Cannot open cursor '%s' on unknown table", uri);

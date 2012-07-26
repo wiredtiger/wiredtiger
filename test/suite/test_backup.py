@@ -39,7 +39,7 @@ from helper import compare_files, confirm_does_not_exist, \
     complex_populate, complex_populate_check, simple_populate, simple_populate_check
 
 # Test backup (both backup cursors and the wt backup command).
-class test_backup(wttest.WiredTigerTestCase, suite_subprocess):
+class Test_Backup(wttest.WiredTigerTestCase, suite_subprocess):
     dir='backup.dir'            # Backup directory name
 
     pfx = 'test_backup'
@@ -81,11 +81,18 @@ class test_backup(wttest.WiredTigerTestCase, suite_subprocess):
         self.populate()
         os.mkdir(self.dir)
         self.runWt(['backup', self.dir])
+
+    	# Make sure all the files were copied.
+    	self.runWt(['list'], outfilename='outfile.orig')
+    	self.runWt(['-h', self.dir, 'list'], outfilename='outfile.backup')
+        compare_files(self, 'outfile.orig', 'outfile.backup')
+
+    	# And that the contents are the same.
         for i in self.objs:
             self.compare(i[0])
 
     # Check that a URI doesn't exist, both the meta-data and the file names.
-    def confirmPathDoesNotExist(self, uri):
+    def confirm_path_does_not_exist(self, uri):
         conn = wiredtiger.wiredtiger_open(self.dir)
         session = conn.open_session()
         self.assertRaises(wiredtiger.WiredTigerError,
@@ -118,7 +125,7 @@ class test_backup(wttest.WiredTigerTestCase, suite_subprocess):
         # Confirm the other objects don't exist.
         for i in range(0, len(self.objs)):
             if i not in l:
-                self.confirmPathDoesNotExist(self.objs[i][0])
+                self.confirm_path_does_not_exist(self.objs[i][0])
 
     # Test backup of database subsets.
     def test_backup_table(self):

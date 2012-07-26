@@ -116,8 +116,8 @@ __wt_schema_open_colgroups(WT_SESSION_IMPL *session, WT_TABLE *table)
 			cgname = table->cg_name[i] =
 			    __wt_buf_steal(session, &namebuf, NULL);
 		}
-		ret = __wt_schema_get_btree(session,
-		    cgname, strlen(cgname), NULL, 0);
+		ret = __wt_schema_get_btree(
+		    session, cgname, strlen(cgname), NULL, 0);
 		if (ret != 0) {
 			/* It is okay if the table is not yet complete. */
 			if (ret == WT_NOTFOUND)
@@ -259,71 +259,90 @@ __wt_schema_open_index(
     WT_SESSION_IMPL *session, WT_TABLE *table, const char *idxname, size_t len)
 {
 	WT_CURSOR *cursor;
+	WT_DECL_ITEM(tmp);
 	WT_DECL_RET;
+	int cmp, i, match;
 	const char *idxconf, *name, *tablename, *uri;
-	int i, match, skipped;
 
-	cursor = NULL;
-	skipped = 0;
-	idxconf = NULL;
-	tablename = table->name;
-	(void)WT_PREFIX_SKIP(tablename, "table:");
-
-	if (len == 0 && table->idx_complete)
+	/* Check if we've already done the work. */
+	if (idxname == NULL && table->idx_complete)
 		return (0);
 
-	/*
-	 * XXX
-	 * Do a full scan through the metadata to find all matching indices.
-	 * This scan be optimized with search + next.
-	 */
-	WT_RET(__wt_metadata_cursor(session, NULL, &cursor));
+	cursor = NULL;
+	idxconf = NULL;
 
-	/* Open each index. */
-	for (i = 0; (ret = cursor->next(cursor)) == 0;) {
+	/* Build a search key. */
+	tablename = table->name;
+	(void)WT_PREFIX_SKIP(tablename, "table:");
+	WT_ERR(__wt_scr_alloc(session, 512, &tmp));
+	WT_ERR(__wt_buf_fmt(session, tmp, "index:%s:", tablename));
+
+	/* Find matching indices. */
+	WT_ERR(__wt_metadata_cursor(session, NULL, &cursor));
+	cursor->set_key(cursor, tmp->data);
+	if ((ret = cursor->search_near(cursor, &cmp)) == 0 && cmp < 0)
+		ret = cursor->next(cursor);
+	for (i = 0; ret == 0; i++, ret = cursor->next(cursor)) {
 		WT_ERR(cursor->get_key(cursor, &uri));
 		name = uri;
-		if (!WT_PREFIX_SKIP(name, "index:") ||
-		    !WT_PREFIX_SKIP(name, tablename) ||
-		    !WT_PREFIX_SKIP(name, ":"))
-			continue;
+		if (!WT_PREFIX_SKIP(name, tmp->data))
+			break;
 
 		/* Is this the index we are looking for? */
-		match = (len > 0 &&
-		   strncmp(name, idxname, len) == 0 && name[len] == '\0');
+		match = (idxname == NULL ||
+		    (strncmp(name, idxname, len) == 0 && name[len] == '\0'));
 
-		if ((size_t)i * sizeof(const char *) >= table->idx_name_alloc)
+		/*
+		 * Ensure there is space, including if we have to make room for
+		 * a new entry in the middle of the list.
+		 */
+		if (table->idx_name_alloc <=
+		    ((size_t)WT_MAX(i, table->nindices) + 1) *
+		    sizeof(const char *))
 			WT_ERR(__wt_realloc(session, &table->idx_name_alloc,
 			    WT_MAX(10 * sizeof(const char *),
 			    2 * table->idx_name_alloc), &table->idx_name));
 
+		/* Keep the in-memory list in sync with the metadata. */
+		cmp = 0;
+		while (table->idx_name[i] != NULL &&
+		    (cmp = strcmp(uri, table->idx_name[i])) > 0) {
+			/* Index no longer exists, remove it. */
+			__wt_free(session, table->idx_name[i]);
+			memmove(&table->idx_name[i], &table->idx_name[i + 1],
+			    (table->nindices - i) * sizeof(const char *));
+			table->idx_name[--table->nindices] = NULL;
+		}
+		if (cmp < 0) {
+			/* Make room for a new index. */
+			memmove(&table->idx_name[i + 1], &table->idx_name[i],
+			    (table->nindices - i) * sizeof(const char *));
+			table->idx_name[i] = NULL;
+			++table->nindices;
+		}
+
 		if (table->idx_name[i] == NULL)
 			WT_ERR(__wt_strdup(session, uri, &table->idx_name[i]));
 
-		if (len == 0 || match) {
+		if (match) {
 			WT_ERR(cursor->get_value(cursor, &idxconf));
 			WT_ERR(__open_index(session, table, uri, idxconf));
-		} else
-			skipped = 1;
 
-		if (match) {
-			ret = cursor->close(cursor);
-			cursor = NULL;
-			break;
-		}
-		i++;
-	}
-
-	/* Did we make it all the way through? */
-	if (ret == WT_NOTFOUND) {
-		ret = 0;
-		if (!skipped) {
-			table->nindices = i;
-			table->idx_complete = 1;
+			/* If we were looking for a single index, we're done. */
+			if (idxname != NULL)
+				break;
 		}
 	}
+	WT_ERR_NOTFOUND_OK(ret);
 
-err:	if (cursor != NULL)
+	/* If we did a full pass, we won't need to do it again. */
+	if (idxname == NULL) {
+		table->nindices = i;
+		table->idx_complete = 1;
+	}
+
+err:	__wt_scr_free(&tmp);
+	if (cursor != NULL)
 		WT_TRET(cursor->close(cursor));
 	return (ret);
 }
