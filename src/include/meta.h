@@ -23,6 +23,7 @@
  * btree engine, and the block manager.
  */
 #define	WT_INTERNAL_CHKPT	"WiredTigerInternalCheckpoint"
+#define	WT_LAST_CHKPT_NAME	"wiredtiger.last"
 #define	WT_CKPT_FOREACH(ckptbase, ckpt)					\
 	for ((ckpt) = (ckptbase); (ckpt)->name != NULL; ++(ckpt))
 

@@ -252,6 +252,7 @@ class test_checkpoint_target(wttest.WiredTigerTestCase):
         self.check(self.uri + '2', 'UPDATE')
         self.check(self.uri + '3', 'ORIGINAL')
 
+
 # Check that you can't write checkpoint cursors.
 class test_checkpoint_cursor_update(wttest.WiredTigerTestCase):
     scenarios = [
@@ -271,3 +272,52 @@ class test_checkpoint_cursor_update(wttest.WiredTigerTestCase):
         self.assertRaises(wiredtiger.WiredTigerError, lambda: cursor.remove())
         self.assertRaises(wiredtiger.WiredTigerError, lambda: cursor.update())
         cursor.close()
+
+
+# Check that wiredtiger.last works as a checkpoint specifier.
+class test_checkpoint_last(wttest.WiredTigerTestCase):
+    scenarios = [
+        ('file', dict(uri='file:checkpoint',fmt='S')),
+        ('table', dict(uri='table:checkpoint',fmt='S'))
+        ]
+
+    def test_checkpoint_last(self):
+        # Create an object, change one record to an easily recognizable string,
+        # then checkpoint it and open a cursor, confirming we see the correct
+        # value.   Repeat this action, we want to be sure the engine gets the
+        # latest checkpoint information each time.
+        uri = self.uri
+        simplePopulate(self, uri, 'key_format=' + self.fmt, 100)
+
+        for value in ('FIRST', 'SECOND', 'THIRD', 'FOURTH', 'FIFTH'):
+            # Update the object.
+            cursor = self.session.open_cursor(uri, None, "overwrite")
+            cursor.set_key(keyPopulate(self.fmt, 10))
+            cursor.set_value(value)
+            cursor.insert()
+            cursor.close()
+
+            # Checkpoint the object.
+            self.session.checkpoint()
+
+            # Verify the "last" checkpoint sees the correct.
+            cursor = self.session.open_cursor(
+                uri, None, "checkpoint=wiredtiger.last")
+            cursor.set_key(keyPopulate(self.fmt, 10))
+            cursor.search()
+            self.assertEquals(cursor.get_value(), value)
+            # Don't close the checkoint cursor, we want it to remain open until
+            # the test completes.
+
+
+# Check we can't use the reserved name as our own checkpoint name.
+class test_checkpoint_last_name(wttest.WiredTigerTestCase):
+    def test_checkpoint_last_name(self):
+        simplePopulate(self, "file:checkpoint", 'key_format=S', 100)
+        msg = '/the checkpoint name.*is reserved/'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.checkpoint("name=wiredtiger.last"), msg)
+
+
+if __name__ == '__main__':
+    wttest.run()

@@ -1,5 +1,10 @@
 /*! @page name_space Programmatic name spaces
 
+@section config Application configuration name space
+
+WiredTiger's reserved configuration strings begin with the string
+"wiredtiger.".
+
 @section env Process' environment name space
 
 WiredTiger's environment variables begin with the string "WIREDTIGER".

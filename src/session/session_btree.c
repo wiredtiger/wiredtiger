@@ -111,7 +111,8 @@ __wt_session_release_btree(WT_SESSION_IMPL *session)
 	if (F_ISSET(btree, WT_BTREE_DISCARD | WT_BTREE_SPECIAL_FLAGS)) {
 		WT_ASSERT(session, F_ISSET(btree, WT_BTREE_EXCLUSIVE));
 
-		ret = __wt_conn_btree_sync_and_close(session);
+		WT_WITH_SCHEMA_LOCK(session,
+		    ret = __wt_conn_btree_sync_and_close(session));
 	}
 
 	if (F_ISSET(btree, WT_BTREE_EXCLUSIVE))
@@ -137,7 +138,7 @@ __wt_session_get_btree(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	const char *ckpt;
 	size_t ckptlen;
-	int needlock;
+	int last_ckpt;
 
 	btree = NULL;
 
@@ -153,21 +154,39 @@ __wt_session_get_btree(WT_SESSION_IMPL *session,
 	    cval.len != 0) {
 		ckpt = cval.str;
 		ckptlen = cval.len;
+
+		/*
+		 * The checkpoint "wiredtiger.last" is special, it's the last
+		 * checkpoint the object has; since the object may have created
+		 * a new checkpoint after any one we've cached, we don't search
+		 * the cached list.
+		 *
+		 * Magic checkpoint handles are exclusive and are discarded on
+		 * close.
+		 */
+		last_ckpt =
+		    ckptlen == strlen(WT_LAST_CHKPT_NAME) &&
+		    strncmp(ckpt, WT_LAST_CHKPT_NAME, ckptlen) == 0;
+		if (last_ckpt)
+			LF_SET(WT_BTREE_DISCARD | WT_BTREE_EXCLUSIVE);
 	} else {
 		ckpt = NULL;
 		ckptlen = 0;
+		last_ckpt = 0;
 	}
 
-	TAILQ_FOREACH(btree_session, &session->btrees, q) {
-		btree = btree_session->btree;
-		if (strcmp(uri, btree->name) != 0)
-			continue;
-		if ((ckpt == NULL && btree->checkpoint == NULL) ||
-		    (ckpt != NULL && btree->checkpoint != NULL &&
-		    (strncmp(ckpt, btree->checkpoint, ckptlen) == 0 &&
-		    btree->checkpoint[ckptlen] == '\0')))
-			break;
-	}
+	btree_session = NULL;
+	if (!last_ckpt)
+		TAILQ_FOREACH(btree_session, &session->btrees, q) {
+			btree = btree_session->btree;
+			if (strcmp(uri, btree->name) != 0)
+				continue;
+			if ((ckpt == NULL && btree->checkpoint == NULL) ||
+			    (ckpt != NULL && btree->checkpoint != NULL &&
+			    (strncmp(ckpt, btree->checkpoint, ckptlen) == 0 &&
+			    btree->checkpoint[ckptlen] == '\0')))
+				break;
+		}
 
 	if (btree_session == NULL)
 		session->btree = NULL;
@@ -194,19 +213,8 @@ __wt_session_get_btree(WT_SESSION_IMPL *session,
 	 * If we don't already hold the schema lock, get it now so that we
 	 * can find and/or open the handle.
 	 */
-	needlock = !F_ISSET(session, WT_SESSION_SCHEMA_LOCKED);
-	if (needlock) {
-		__wt_spin_lock(session, &S2C(session)->schema_lock);
-		F_SET(session, WT_SESSION_SCHEMA_LOCKED);
-	}
-
-	ret = __wt_conn_btree_get(session, uri, ckpt, cfg, flags);
-
-	if (needlock) {
-		F_CLR(session, WT_SESSION_SCHEMA_LOCKED);
-		__wt_spin_unlock(session, &S2C(session)->schema_lock);
-	}
-
+	WT_WITH_SCHEMA_LOCK(session,
+	    ret = __wt_conn_btree_get(session, uri, ckpt, cfg, flags));
 	WT_RET(ret);
 
 	if (btree_session == NULL)
