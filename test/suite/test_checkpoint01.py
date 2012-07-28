@@ -287,12 +287,12 @@ class test_checkpoint_last(wttest.WiredTigerTestCase):
         # value.   Repeat this action, we want to be sure the engine gets the
         # latest checkpoint information each time.
         uri = self.uri
-        simplePopulate(self, uri, 'key_format=' + self.fmt, 100)
+        simple_populate(self, uri, 'key_format=' + self.fmt, 100)
 
         for value in ('FIRST', 'SECOND', 'THIRD', 'FOURTH', 'FIFTH'):
             # Update the object.
             cursor = self.session.open_cursor(uri, None, "overwrite")
-            cursor.set_key(keyPopulate(self.fmt, 10))
+            cursor.set_key(key_populate(self.fmt, 10))
             cursor.set_value(value)
             cursor.insert()
             cursor.close()
@@ -303,7 +303,7 @@ class test_checkpoint_last(wttest.WiredTigerTestCase):
             # Verify the "last" checkpoint sees the correct.
             cursor = self.session.open_cursor(
                 uri, None, "checkpoint=wiredtiger.last")
-            cursor.set_key(keyPopulate(self.fmt, 10))
+            cursor.set_key(key_populate(self.fmt, 10))
             cursor.search()
             self.assertEquals(cursor.get_value(), value)
             # Don't close the checkoint cursor, we want it to remain open until
@@ -313,7 +313,7 @@ class test_checkpoint_last(wttest.WiredTigerTestCase):
 # Check we can't use the reserved name as our own checkpoint name.
 class test_checkpoint_last_name(wttest.WiredTigerTestCase):
     def test_checkpoint_last_name(self):
-        simplePopulate(self, "file:checkpoint", 'key_format=S', 100)
+        simple_populate(self, "file:checkpoint", 'key_format=S', 100)
         msg = '/the checkpoint name.*is reserved/'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.checkpoint("name=wiredtiger.last"), msg)
