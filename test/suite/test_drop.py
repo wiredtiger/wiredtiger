@@ -39,29 +39,40 @@ class test_drop(wttest.WiredTigerTestCase):
         ('table', dict(uri='table:'))
         ]
 
-    # Populate and object, remove it and confirm it no longer exists.
-    def drop(self, populate):
+    # Populate an object, remove it and confirm it no longer exists.
+    def drop(self, populate, with_cursor):
         uri = self.uri + self.name
         populate(self, uri, 'key_format=S', 10)
+
+        # Open cursors should cause failure.
+        if with_cursor:
+            cursor = self.session.open_cursor(uri, None, None)
+            self.assertRaises(wiredtiger.WiredTigerError,
+                lambda: self.session.drop(uri, None))
+            cursor.close()
+
         self.session.drop(uri, None)
         confirm_does_not_exist(self, uri)
 
     # Test drop of an object.
     def test_drop(self):
         # Simple file or table object.
-        self.drop(simple_populate)
+        self.drop(simple_populate, False)
+        self.drop(simple_populate, True)
 
         # A complex, multi-file table object.
         if self.uri == "table:":
-            self.drop(complex_populate)
+            self.drop(complex_populate, False)
+            self.drop(complex_populate, True)
 
-    # Test drop of a non-existent object.
+    # Test drop of a non-existent object: force succeeds, without force fails.
     def test_drop_dne(self):
         uri = self.uri + self.name
         confirm_does_not_exist(self, uri)
         self.session.drop(uri, 'force')
         self.assertRaises(
             wiredtiger.WiredTigerError, lambda: self.session.drop(uri, None))
+
 
 if __name__ == '__main__':
     wttest.run()

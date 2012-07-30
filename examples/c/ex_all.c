@@ -152,10 +152,11 @@ cursor_ops(WT_SESSION *session)
 	/*! [Reset the cursor] */
 
 	{
-	WT_CURSOR *other;
-	other = NULL;
+	WT_CURSOR *other = NULL;
 	/*! [Test cursor equality] */
-	if (cursor->equals(cursor, other)) {
+	int equal;
+	ret = cursor->equals(cursor, other, &equal);
+	if (equal) {
 		/* Take some action. */
 	}
 	/*! [Test cursor equality] */

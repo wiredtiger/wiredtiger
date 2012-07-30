@@ -26,7 +26,8 @@ __wt_cursor_notsup(WT_CURSOR *cursor)
 void
 __wt_cursor_set_notsup(WT_CURSOR *cursor)
 {
-	cursor->equals = (int (*)(WT_CURSOR *, WT_CURSOR *))__wt_cursor_notsup;
+	cursor->equals =
+	    (int (*)(WT_CURSOR *, WT_CURSOR *, int *))__wt_cursor_notsup;
 	cursor->next = __wt_cursor_notsup;
 	cursor->prev = __wt_cursor_notsup;
 	cursor->reset = __wt_cursor_notsup;
@@ -331,13 +332,15 @@ __cursor_search(WT_CURSOR *cursor)
  *	WT_CURSOR->equals default implementation.
  */
 static int
-__cursor_equals(WT_CURSOR *cursor, WT_CURSOR *other)
+__cursor_equals(WT_CURSOR *cursor, WT_CURSOR *other, int *equalp)
 {
 	WT_ITEM aitem, bitem;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 
 	CURSOR_API_CALL_NOCONF(cursor, session, equals, NULL);
+
+	*equalp = 0;
 
 	/*
 	 * Confirm both cursors refer to the same source, then retrieve their
@@ -351,7 +354,7 @@ __cursor_equals(WT_CURSOR *cursor, WT_CURSOR *other)
 		 */
 		WT_ERR(__wt_cursor_get_raw_key(cursor, &aitem));
 		WT_ERR(__wt_cursor_get_raw_key(other, &bitem));
-		ret = (aitem.size == bitem.size &&
+		*equalp = (aitem.size == bitem.size &&
 		    memcmp(aitem.data, bitem.data, aitem.size) == 0) ? 1 : 0;
 	}
 
@@ -397,7 +400,8 @@ __cursor_runtime_config(WT_CURSOR *cursor, const char *cfg[])
 
 	session = (WT_SESSION_IMPL *)cursor->session;
 
-	if ((ret = __wt_config_gets(session, cfg, "overwrite", &cval)) == 0) {
+	if ((ret =
+	    __wt_config_gets_defno(session, cfg, "overwrite", &cval)) == 0) {
 		if (cval.val)
 			F_SET(cursor, WT_CURSTD_OVERWRITE);
 		else
@@ -417,16 +421,22 @@ __cursor_reconfigure(WT_CURSOR *cursor, const char *config)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	const char *raw_cfg[] = { config, NULL };
 
 	CURSOR_API_CALL(cursor, session, reconfigure, NULL, config, cfg);
+	WT_UNUSED(cfg);
 
 	/*
 	 * We need to take care here: only override with values that appear in
 	 * the config string from the application, not with defaults.
+	 *
+	 * Set config in raw_cfg[1], not raw_cfg[0]; the underlying function
+	 * calls __wt_config_gets_defno to speed up cursor creation and a NULL
+	 * cfg[1] in that function implies no user-specified configuration.
 	 */
-	WT_UNUSED(cfg);
+	{
+	const char *raw_cfg[] = { "", config, NULL };
 	ret = __cursor_runtime_config(cursor, raw_cfg);
+	}
 
 err:	API_END(session);
 	return (ret);
