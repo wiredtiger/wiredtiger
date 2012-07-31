@@ -289,6 +289,15 @@ __wt_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 		force = 1;
 		WT_ERR(__wt_strndup(session, cval.str, cval.len, &name_alloc));
 		name = name_alloc;
+
+		/*
+		 * The checkpoint "wiredtiger.last" is special, don't allow
+		 * applications to use it.
+		 */
+		if (strcmp(name, WT_LAST_CHKPT_NAME) == 0)
+			WT_ERR_MSG(session, EINVAL,
+			    "the checkpoint name \"%s\" is reserved",
+			    WT_LAST_CHKPT_NAME);
 	}
 
 	/*

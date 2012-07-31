@@ -267,7 +267,9 @@ methods = {
 		support the WT_CURSOR::insert and WT_CURSOR::close methods''',
 		type='boolean'),
 	Config('checkpoint', '', r'''
-		the name of a checkpoint to open'''),
+		the name of a checkpoint to open; the reserved checkpoint name
+		"wiredtiger.last" opens a cursor on the most recent checkpoint
+		for the object'''),
 	Config('dump', '', r'''
 		configure the cursor for dump format inputs and outputs:
 		"hex" selects a simple hexadecimal format, "print"

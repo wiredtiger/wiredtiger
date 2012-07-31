@@ -92,7 +92,8 @@ __conn_btree_get(WT_SESSION_IMPL *session,
 	/* Increment the reference count if we already have the btree open. */
 	matched = 0;
 	TAILQ_FOREACH(btree, &conn->btqh, q) {
-		if (strcmp(name, btree->name) == 0 &&
+		if (!F_ISSET(btree, WT_BTREE_DISCARD) &&
+		    strcmp(name, btree->name) == 0 &&
 		    ((ckpt == NULL && btree->checkpoint == NULL) ||
 		    (ckpt != NULL && btree->checkpoint != NULL &&
 		    strcmp(ckpt, btree->checkpoint) == 0))) {
@@ -179,6 +180,7 @@ __conn_btree_open(WT_SESSION_IMPL *session,
 	WT_BTREE *btree;
 	WT_DECL_ITEM(addr);
 	WT_DECL_RET;
+	int last_ckpt;
 
 	btree = session->btree;
 
@@ -199,19 +201,25 @@ __conn_btree_open(WT_SESSION_IMPL *session,
 	if (F_ISSET(btree, WT_BTREE_OPEN))
 		WT_RET(__wt_conn_btree_sync_and_close(session));
 
-	WT_RET(__wt_scr_alloc(
-	    session, WT_BTREE_MAX_ADDR_COOKIE, &addr));
+	WT_RET(__wt_scr_alloc(session, WT_BTREE_MAX_ADDR_COOKIE, &addr));
 
 	/* Set any special flags on the handle. */
-	F_SET(btree, LF_ISSET(WT_BTREE_SPECIAL_FLAGS));
+	F_SET(btree, LF_ISSET(WT_BTREE_DISCARD | WT_BTREE_SPECIAL_FLAGS));
 
 	/* The metadata file is never evicted. */
 	if (strcmp(btree->name, WT_METADATA_URI) == 0)
 		F_SET(btree, WT_BTREE_NO_EVICTION);
 
+	/*
+	 * The checkpoint "wiredtiger.last" is special, it's the last checkpoint
+	 * the object has.
+	 */
+	last_ckpt = btree->checkpoint != NULL &&
+	    strcmp(btree->checkpoint, WT_LAST_CHKPT_NAME) == 0;
+
 	do {
-		WT_ERR(__wt_meta_checkpoint_get(
-		    session, btree->name, btree->checkpoint, addr));
+		WT_ERR(__wt_meta_checkpoint_get(session,
+		    btree->name, last_ckpt ? NULL : btree->checkpoint, addr));
 		WT_ERR(__wt_btree_open(session, addr->data, addr->size, cfg,
 		    btree->checkpoint == NULL ? 0 : 1));
 		F_SET(btree, WT_BTREE_OPEN);

@@ -519,8 +519,9 @@ struct __wt_session {
 	 * bulk-loaded.  Cursors configured for bulk load only support the
 	 * WT_CURSOR::insert and WT_CURSOR::close methods.,a boolean flag;
 	 * default \c false.}
-	 * @config{checkpoint, the name of a checkpoint to open.,a string;
-	 * default empty.}
+	 * @config{checkpoint, the name of a checkpoint to open; the reserved
+	 * checkpoint name "wiredtiger.last" opens a cursor on the most recent
+	 * checkpoint for the object.,a string; default empty.}
 	 * @config{dump, configure the cursor for dump format inputs and
 	 * outputs: "hex" selects a simple hexadecimal format\, "print" selects
 	 * a format where only non-printing characters are hexadecimal encoded.
