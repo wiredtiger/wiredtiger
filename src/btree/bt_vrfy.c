@@ -538,7 +538,8 @@ __verify_cell(
 			    session, unpack->data, unpack->size));
 			break;
 		case WT_CELL_ADDR_DEL:
-			if (dsk->type != WT_PAGE_ROW_LEAF)
+			if (dsk->type != WT_PAGE_COL_VAR &&
+			    dsk->type != WT_PAGE_ROW_LEAF)
 				break;
 			WT_RET(__wt_bm_verify_addr(
 			    session, unpack->data, unpack->size));
