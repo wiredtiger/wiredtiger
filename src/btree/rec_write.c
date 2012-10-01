@@ -446,17 +446,6 @@ __wt_rec_write(WT_SESSION_IMPL *session,
 	/* Initialize the tracking subsystem for each new run. */
 	WT_RET(__wt_rec_track_init(session, page));
 
-	/*
-	 * Handle any address-deleted cells this page might have; only happens
-	 * on the first reconciliation of the page as we only need to free the
-	 * blocks once.
-	 */
-	if (F_ISSET(page->modify, WT_PM_ADDR_DEL)) {
-		WT_RET(__rec_addr_del_fixup(session, page));
-
-		F_CLR(page->modify, WT_PM_ADDR_DEL);
-	}
-
 	/* Reconcile the page. */
 	switch (page->type) {
 	case WT_PAGE_COL_FIX:
@@ -487,6 +476,19 @@ __wt_rec_write(WT_SESSION_IMPL *session,
 		 */
 		(void)__rec_write_wrapup_err(session, r, page);
 		return (ret);
+	}
+
+	/*
+	 * Handle any address-deleted cells this page might have; only happens
+	 * on the first reconciliation of the page as we only need to free the
+	 * blocks once.   Do this work after we've reconciled the page, if we
+	 * are attempting to evict the page and we have to skip some updates,
+	 * we'll quit in the middle of the run and we don't want to clear the
+	 * page's flag in that case.
+	 */
+	if (F_ISSET(page->modify, WT_PM_ADDR_DEL)) {
+		WT_RET(__rec_addr_del_fixup(session, page));
+		F_CLR(page->modify, WT_PM_ADDR_DEL);
 	}
 
 	/* Wrap up the page's reconciliation. */
