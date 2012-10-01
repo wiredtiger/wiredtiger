@@ -486,7 +486,8 @@ __wt_rec_write(WT_SESSION_IMPL *session,
 	 * we'll quit in the middle of the run and we don't want to clear the
 	 * page's flag in that case.
 	 */
-	if (F_ISSET(page->modify, WT_PM_ADDR_DEL)) {
+	if (salvage == NULL &&
+	    F_ISSET(page->modify, WT_PM_ADDR_DEL)) {
 		WT_RET(__rec_addr_del_fixup(session, page));
 		F_CLR(page->modify, WT_PM_ADDR_DEL);
 	}
