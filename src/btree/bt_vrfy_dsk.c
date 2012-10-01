@@ -172,6 +172,16 @@ __verify_dsk_row(
 		cell_type = unpack->type;
 
 		/*
+		 * Row-store leaf pages can have deleted address cells.  Those
+		 * cells are for overflow objects we wanted to discard but
+		 * couldn't because of older transactions in the system.  They
+		 * aren't related to anything else on the page, just skip them.
+		 */
+		if (dsk->type == WT_PAGE_ROW_LEAF &&
+		    unpack->raw == WT_CELL_ADDR_DEL)
+			continue;
+
+		/*
 		 * Check ordering relationships between the WT_CELL entries.
 		 * For row-store internal pages, check for:
 		 *	two values in a row,
@@ -449,11 +459,21 @@ __verify_dsk_col_var(
 			return (__err_cell_corrupted(session, cell_num, addr));
 
 		/* Check the raw and collapsed cell types. */
-		WT_RET (__err_cell_type(
+		WT_RET(__err_cell_type(
 		    session, cell_num, addr, unpack->raw, dsk->type));
-		WT_RET (__err_cell_type(
+		WT_RET(__err_cell_type(
 		    session, cell_num, addr, unpack->type, dsk->type));
 		cell_type = unpack->type;
+
+		/*
+		 * Variable-length column-store leaf pages can have deleted
+		 * address cells.  Those cells are for overflow objects we
+		 * wanted to discard but couldn't because of older transactions
+		 * in the system.  They aren't related to anything else on the
+		 * page, just skip them.
+		 */
+		if (unpack->raw == WT_CELL_ADDR_DEL)
+			continue;
 
 		/* Check if any referenced item is entirely in the file.
 		 */
@@ -564,6 +584,12 @@ __err_cell_type(WT_SESSION_IMPL *session,
 	switch (cell_type) {
 	case WT_CELL_ADDR:
 	case WT_CELL_ADDR_DEL:
+		if (dsk_type == WT_PAGE_COL_INT ||
+		    dsk_type == WT_PAGE_COL_VAR ||
+		    dsk_type == WT_PAGE_ROW_INT ||
+		    dsk_type == WT_PAGE_ROW_LEAF)
+			return (0);
+		break;
 	case WT_CELL_ADDR_LNO:
 		if (dsk_type == WT_PAGE_COL_INT ||
 		    dsk_type == WT_PAGE_ROW_INT)

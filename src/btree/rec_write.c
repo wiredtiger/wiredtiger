@@ -170,7 +170,7 @@ typedef struct {
 		WT_CELL	 cell;		/* Cell and cell's length */
 		uint32_t cell_len;
 		uint32_t len;		/* Total length of cell + data */
-	} k, v;				/* Key/Value being built */
+	} k, v, ad;			/* Key/Value being built */
 
 	WT_ITEM *cur, _cur;		/* Key/Value being built */
 	WT_ITEM *last, _last;		/* Last key/value built */
@@ -181,8 +181,9 @@ typedef struct {
 	int key_sfx_compress_conf;	/* If suffix compression configured */
 } WT_RECONCILE;
 
+static int  __rec_addr_del_fixup(WT_SESSION_IMPL *, WT_PAGE *);
 static void __rec_cell_build_addr(
-		WT_RECONCILE *, const void *, uint32_t, u_int, uint64_t);
+		WT_KV *, const void *, uint32_t, u_int, uint64_t);
 static int  __rec_cell_build_key(WT_SESSION_IMPL *,
 		WT_RECONCILE *, const void *, uint32_t, int, int *);
 static int  __rec_cell_build_ovfl(WT_SESSION_IMPL *,
@@ -197,7 +198,7 @@ static int  __rec_col_merge(WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
 static int  __rec_col_var(WT_SESSION_IMPL *,
 		WT_RECONCILE *, WT_PAGE *, WT_SALVAGE_COOKIE *);
 static int  __rec_col_var_helper(WT_SESSION_IMPL *, WT_RECONCILE *,
-		WT_SALVAGE_COOKIE *, WT_ITEM *, int, int, uint64_t);
+		WT_SALVAGE_COOKIE *, WT_ITEM *, u_int, uint64_t);
 static int  __rec_page_deleted(
 		WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *, WT_REF *, int *);
 static int  __rec_page_modified(
@@ -400,6 +401,19 @@ __rec_txn_read(
 }
 
 /*
+ * __rec_visible_all --
+ *	Return if there's a modification that's globally visible.
+ */
+static int
+__rec_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
+{
+	for (; upd != NULL; upd = upd->next)
+		if (__wt_txn_visible_all(session, upd->txnid))
+			return (1);
+	return (0);
+}
+
+/*
  * __wt_rec_write --
  *	Reconcile an in-memory page into its on-disk format, and write it.
  */
@@ -431,6 +445,17 @@ __wt_rec_write(WT_SESSION_IMPL *session,
 
 	/* Initialize the tracking subsystem for each new run. */
 	WT_RET(__wt_rec_track_init(session, page));
+
+	/*
+	 * Handle any address-deleted cells this page might have; only happens
+	 * on the first reconciliation of the page as we only need to free the
+	 * blocks once.
+	 */
+	if (F_ISSET(page->modify, WT_PM_ADDR_DEL)) {
+		WT_RET(__rec_addr_del_fixup(session, page));
+
+		F_CLR(page->modify, WT_PM_ADDR_DEL);
+	}
 
 	/* Reconcile the page. */
 	switch (page->type) {
@@ -646,6 +671,7 @@ __wt_rec_destroy(WT_SESSION_IMPL *session, void *retp)
 
 	__wt_buf_free(session, &r->k.buf);
 	__wt_buf_free(session, &r->v.buf);
+	__wt_buf_free(session, &r->ad.buf);
 	__wt_buf_free(session, &r->_cur);
 	__wt_buf_free(session, &r->_last);
 
@@ -653,6 +679,40 @@ __wt_rec_destroy(WT_SESSION_IMPL *session, void *retp)
 
 	__wt_free(session, r);
 	*(WT_RECONCILE **)retp = NULL;
+}
+
+/*
+ * __rec_addr_del_fixup --
+ *	Handle deleted cells that appear on the page's disk image.
+ */
+static int
+__rec_addr_del_fixup(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+	WT_BTREE *btree;
+	WT_CELL *cell;
+	WT_CELL_UNPACK *unpack, _unpack;
+	WT_PAGE_HEADER *dsk;
+	uint32_t i;
+
+	btree = session->btree;
+	dsk = page->dsk;
+	unpack = &_unpack;
+
+	 /*
+	  * A cell may reference a deleted address (a deleted overflow chunk or
+	  * a deleted leaf page).  We handle the former by instantiating a
+	  * deleted reference in the internal parent page when the parent is
+	  * read in; we handle the latter here: the first time a leaf page with
+	  * an address-deleted cell is reconciled, we read the disk image and
+	  * schedule the referenced pages to be freed.
+	  */
+	WT_CELL_FOREACH(btree, dsk, cell, unpack, i) {
+		__wt_cell_unpack(cell, unpack);
+		if (unpack->raw == WT_CELL_ADDR_DEL)
+			WT_RET(__wt_rec_track_onpage_addr(
+			    session, page, unpack->data, unpack->size));
+	}
+	return (0);
 }
 
 /*
@@ -1662,7 +1722,7 @@ __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			val->cell_len = 0;
 			val->len = val->buf.size;
 		} else
-			__rec_cell_build_addr(r,
+			__rec_cell_build_addr(val,
 			    addr->addr, addr->size,
 			    addr->leaf_no_overflow ?
 			    WT_CELL_ADDR_LNO : WT_CELL_ADDR,
@@ -1840,8 +1900,7 @@ __rec_col_fix_slvg(WT_SESSION_IMPL *session,
  */
 static int
 __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r,
-    WT_SALVAGE_COOKIE *salvage,
-    WT_ITEM *value, int deleted, int ovfl, uint64_t rle)
+    WT_SALVAGE_COOKIE *salvage, WT_ITEM *value, u_int cell_type, uint64_t rle)
 {
 	WT_KV *val;
 
@@ -1878,27 +1937,37 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		}
 	}
 
-	if (deleted) {
+	switch (cell_type) {
+	case WT_CELL_ADDR_DEL:
+		__rec_cell_build_addr(
+		    val, value->data, value->size, WT_CELL_ADDR_DEL, 0);
+		break;
+	case WT_CELL_DEL:
 		val->cell_len = __wt_cell_pack_del(&val->cell, rle);
 		val->buf.data = NULL;
 		val->buf.size = 0;
 		val->len = val->cell_len;
-	} else if (ovfl) {
+		break;
+	case WT_CELL_VALUE_OVFL:
 		val->cell_len = __wt_cell_pack_ovfl(
 		    &val->cell, WT_CELL_VALUE_OVFL, rle, value->size);
 		val->buf.data = value->data;
 		val->buf.size = value->size;
 		val->len = val->cell_len + value->size;
-	} else
+		break;
+	case 0:
 		WT_RET(__rec_cell_build_val(
 		    session, r, value->data, value->size, rle));
+		break;
+	WT_ILLEGAL_VALUE(session);
+	}
 
 	/* Boundary: split or write the page. */
 	while (val->len > r->space_avail)
 		WT_RET(__rec_split(session, r));
 
 	/* Copy the value onto the page. */
-	if (!deleted && !ovfl && r->dictionary != NULL)
+	if (cell_type == 0 && r->dictionary != NULL)
 		WT_RET(__rec_dict_replace(session, r, rle, val));
 	__rec_copy_incr(session, r, val);
 
@@ -1955,7 +2024,8 @@ static int
 __rec_col_var(WT_SESSION_IMPL *session,
     WT_RECONCILE *r, WT_PAGE *page, WT_SALVAGE_COOKIE *salvage)
 {
-	enum { OVFL_IGNORE, OVFL_UNUSED, OVFL_USED } ovfl_state;
+	enum { OVFL_IGNORE,
+	    OVFL_UNUSED, OVFL_UNUSED_VISIBLE, OVFL_USED } ovfl_state;
 	WT_BTREE *btree;
 	WT_CELL *cell;
 	WT_CELL_UNPACK *unpack, _unpack;
@@ -1964,7 +2034,7 @@ __rec_col_var(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	WT_INSERT *ins;
 	WT_INSERT_HEAD *append;
-	WT_ITEM *last;
+	WT_ITEM *last, tmp;
 	WT_UPDATE *upd;
 	uint64_t n, nrepeat, repeat_count, rle, slvg_missing, src_recno;
 	uint32_t i, size;
@@ -1995,7 +2065,7 @@ __rec_col_var(WT_SESSION_IMPL *session,
 	slvg_missing = salvage == NULL ? 0 : salvage->missing;
 	if (slvg_missing)
 		WT_ERR(__rec_col_var_helper(
-		    session, r, NULL, NULL, 1, 0, slvg_missing));
+		    session, r, NULL, NULL, WT_CELL_DEL, slvg_missing));
 
 	/*
 	 * We track two data items through this loop: the previous (last) item
@@ -2086,6 +2156,22 @@ record_loop:	/*
 			if (ins != NULL && WT_INSERT_RECNO(ins) == src_recno) {
 				WT_ERR(
 				    __rec_txn_read(session, r, ins->upd, &upd));
+
+				/*
+				 * If we never use a particular overflow item,
+				 * we'll want to free the blocks.  However, we
+				 * can't free the blocks if there's a reader
+				 * in the system that might want them.  If we
+				 * are considering freeing an overflow item,
+				 * check to see if any update chain is not yet
+				 * sufficient for any reader in the system, in
+				 * which case we can't free the overflow item,
+				 * it's "visible".
+				 */
+				if (ovfl_state == OVFL_UNUSED &&
+				    !__rec_visible_all(session, ins->upd))
+					ovfl_state = OVFL_UNUSED_VISIBLE;
+
 				ins = WT_SKIP_NEXT(ins);
 			}
 			if (upd != NULL) {
@@ -2127,6 +2213,7 @@ record_loop:	/*
 				 */
 				switch (ovfl_state) {
 				case OVFL_UNUSED:
+				case OVFL_UNUSED_VISIBLE:
 					/*
 					 * Original is an overflow item, as yet
 					 * unused -- use it now.
@@ -2136,7 +2223,8 @@ record_loop:	/*
 					if (rle != 0) {
 						WT_ERR(__rec_col_var_helper(
 						    session, r, salvage, last,
-						    last_deleted, 0, rle));
+						    last_deleted ?
+						    WT_CELL_DEL : 0, rle));
 						rle = 0;
 					}
 
@@ -2144,8 +2232,8 @@ record_loop:	/*
 					last->data = unpack->data;
 					last->size = unpack->size;
 					WT_ERR(__rec_col_var_helper(
-					    session, r, salvage,
-					    last, 0, 1, repeat_count));
+					    session, r, salvage, last,
+					    WT_CELL_VALUE_OVFL, repeat_count));
 
 					/* Track the page has overflow items. */
 					r->ovfl_items = 1;
@@ -2192,8 +2280,8 @@ compare:		/*
 					rle += repeat_count;
 					continue;
 				}
-				WT_ERR(__rec_col_var_helper(session, r,
-				    salvage, last, last_deleted, 0, rle));
+				WT_ERR(__rec_col_var_helper(session, r, salvage,
+				    last, last_deleted ? WT_CELL_DEL : 0, rle));
 			}
 
 			/*
@@ -2227,15 +2315,27 @@ compare:		/*
 		}
 
 		/*
-		 * If we had a reference to an overflow record we never used,
-		 * discard the underlying blocks, they're no longer useful.
-		 * One complication: we must cache a copy before discarding the
-		 * on-disk version if there's a transaction in the system that
-		 * might read the original value.
+		 * If there's an overflow record we never used, discard the
+		 * underlying blocks, unless there are older readers in the
+		 * system, in which case write a special "deleted address"
+		 * cell.
 		 */
-		if (ovfl_state == OVFL_UNUSED)
-			WT_ERR(__wt_ovfl_in_cache(
-			    session, page, upd, unpack->data, unpack->size));
+		switch (ovfl_state) {
+		case OVFL_IGNORE:
+		case OVFL_USED:
+			break;
+		case OVFL_UNUSED:
+			WT_ERR(__wt_rec_track_onpage_addr(
+			    session, page, unpack->data, unpack->size));
+			break;
+		case OVFL_UNUSED_VISIBLE:
+			WT_CLEAR(tmp);
+			tmp.data = unpack->data;
+			tmp.size = unpack->size;
+			WT_ERR(__rec_col_var_helper(
+			    session, r, NULL, &tmp, WT_CELL_ADDR_DEL, 0));
+			break;
+		}
 	}
 
 	/* Walk any append list. */
@@ -2271,8 +2371,8 @@ compare:		/*
 					++rle;
 					continue;
 				}
-				WT_ERR(__rec_col_var_helper(session, r,
-				    salvage, last, last_deleted, 0, rle));
+				WT_ERR(__rec_col_var_helper(session, r, salvage,
+				    last, last_deleted ? WT_CELL_DEL : 0, rle));
 			}
 
 			/*
@@ -2293,8 +2393,8 @@ compare:		/*
 
 	/* If we were tracking a record, write it. */
 	if (rle != 0)
-		WT_ERR(__rec_col_var_helper(
-		    session, r, salvage, last, last_deleted, 0, rle));
+		WT_ERR(__rec_col_var_helper(session,
+		    r, salvage, last, last_deleted ? WT_CELL_DEL : 0, rle));
 
 	/* Write the remnant page. */
 	ret = __rec_split_finish(session, r);
@@ -2521,7 +2621,7 @@ __rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 				vtype = addr->leaf_no_overflow ?
 				    WT_CELL_ADDR_LNO : WT_CELL_ADDR;
 		}
-		__rec_cell_build_addr(r, p, size, vtype, 0);
+		__rec_cell_build_addr(val, p, size, vtype, 0);
 
 		/*
 		 * Build key cell.
@@ -2742,7 +2842,7 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 				vtype = addr->leaf_no_overflow ?
 				    WT_CELL_ADDR_LNO : WT_CELL_ADDR;
 		}
-		__rec_cell_build_addr(r, p, size, vtype, 0);
+		__rec_cell_build_addr(val, p, size, vtype, 0);
 
 		/*
 		 * Build the key cell.  If this is the first key in a "to be
@@ -2802,7 +2902,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	WT_IKEY *ikey;
 	WT_INSERT *ins;
-	WT_KV *key, *val;
+	WT_KV *addrdel, *key, *val;
 	WT_ROW *rip;
 	WT_UPDATE *upd;
 	uint64_t slvg_skip;
@@ -2813,6 +2913,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 	btree = session->btree;
 	slvg_skip = salvage == NULL ? 0 : salvage->skip;
 
+	addrdel = &r->ad;
 	key = &r->k;
 	val = &r->v;
 	unpack = &_unpack;
@@ -2864,6 +2965,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 
 		/* Build value cell. */
 		dictionary = 0;
+		addrdel->len = 0;
 		if ((val_cell = __wt_row_value(page, rip)) != NULL)
 			__wt_cell_unpack(val_cell, unpack);
 		WT_ERR(
@@ -2911,15 +3013,21 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 			}
 		} else {
 			/*
-			 * If the original value was an overflow and we've not
-			 * already done so, discard it.  One complication: we
-			 * must cache a copy before discarding the on-disk
-			 * version if there's a transaction in the system that
-			 * might read the original value.
+			 * If the original value was an overflow, discard it,
+			 * unless there are older readers in the system, in
+			 * which case write a special "deleted address" cell.
 			 */
-			if (val_cell != NULL && unpack->ovfl)
-				WT_ERR(__wt_ovfl_in_cache(session,
-				    page, upd, unpack->data, unpack->size));
+			if (val_cell != NULL && unpack->ovfl) {
+				if (__rec_visible_all(
+				    session, WT_ROW_UPDATE(page, rip)))
+					WT_ERR(__wt_rec_track_onpage_addr(
+					    session,
+					    page, unpack->data, unpack->size));
+				else
+					__rec_cell_build_addr(addrdel,
+					    unpack->data, unpack->size,
+					    WT_CELL_ADDR_DEL, 0);
+			}
 
 			/* If this key/value pair was deleted, we're done. */
 			if (WT_UPDATE_DELETED_ISSET(upd)) {
@@ -3081,10 +3189,14 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 		/*
 		 * Boundary, split or write the page.
 		 *
+		 * Don't put an address-deleted cell as the first cell on the
+		 * page (it should work, but I'm not interested in finding out
+		 * for sure).
+		 *
 		 * We write a trailing key cell on the page after the K/V pairs
 		 * (see WT_TRAILING_KEY_CELL for more information).
 		 */
-		while (key->len +
+		while (addrdel->len + key->len +
 		    val->len + WT_TRAILING_KEY_CELL > r->space_avail) {
 			/*
 			 * In one path above, we copied the key from the page
@@ -3116,6 +3228,10 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 				WT_ERR(__rec_dict_replace(session, r, 0, val));
 			__rec_copy_incr(session, r, val);
 		}
+
+		/* Copy any address-deleted item onto the page. */
+		if (addrdel->len != 0)
+			__rec_copy_incr(session, r, addrdel);
 
 		/* Update compression state. */
 		__rec_key_state_update(r, ovfl_key);
@@ -3713,13 +3829,9 @@ __rec_cell_build_key(WT_SESSION_IMPL *session, WT_RECONCILE *r,
  * on the page.
  */
 static void
-__rec_cell_build_addr(WT_RECONCILE *r,
+__rec_cell_build_addr(WT_KV *v,
     const void *addr, uint32_t size, u_int cell_type, uint64_t recno)
 {
-	WT_KV *val;
-
-	val = &r->v;
-
 	/*
 	 * We don't check the address size because we can't store an address on
 	 * an overflow page: if the address won't fit, the overflow page's
@@ -3733,11 +3845,11 @@ __rec_cell_build_addr(WT_RECONCILE *r,
 	 * We don't copy the data into the buffer, it's not necessary; just
 	 * re-point the buffer's data/length fields.
 	 */
-	val->buf.data = addr;
-	val->buf.size = size;
-	val->cell_len = __wt_cell_pack_addr(
-	    &val->cell, cell_type, recno, val->buf.size);
-	val->len = val->cell_len + val->buf.size;
+	v->buf.data = addr;
+	v->buf.size = size;
+	v->cell_len =
+	    __wt_cell_pack_addr(&v->cell, cell_type, recno, v->buf.size);
+	v->len = v->cell_len + v->buf.size;
 }
 
 /*

@@ -329,11 +329,6 @@ extern int __wt_ovfl_in(WT_SESSION_IMPL *session,
     WT_ITEM *store,
     const uint8_t *addr,
     uint32_t addr_size);
-extern int __wt_ovfl_in_cache(WT_SESSION_IMPL *session,
-    WT_PAGE *page,
-    WT_UPDATE *upd_arg,
-    const uint8_t *addr,
-    uint32_t addr_size);
 extern int
 __wt_page_in_func(
  WT_SESSION_IMPL *session, WT_PAGE *parent, WT_REF *ref

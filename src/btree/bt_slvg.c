@@ -489,6 +489,14 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *dsk,
 		stop_recno = dsk->recno;
 		WT_CELL_FOREACH(btree, dsk, cell, unpack, i) {
 			__wt_cell_unpack(cell, unpack);
+
+			/*
+			 * Ignore address-deleted cells, they have nothing to do
+			 * during salvage.
+			 */
+			if (unpack->raw == WT_CELL_ADDR_DEL)
+				continue;
+
 			stop_recno += __wt_cell_rle(unpack);
 		}
 
