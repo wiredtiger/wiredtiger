@@ -1354,14 +1354,17 @@ __rec_split_row_promote(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint8_t type)
 	if (r->bnd_next == 1) {
 		/*
 		 * The cell had better have a zero-length prefix: it's the first
-		 * key on the page.  We also assert it's not a copy cell, even
-		 * if we could copy the value, which we could, the first cell on
-		 * a page had better not refer an earlier cell on the page.
+		 * key on the page.  We also assert it's not address-deleted or
+		 * copy cell; even if we could copy the value, which we could,
+		 * the first cell on a page had better not refer an earlier cell
+		 * on the page.
 		 */
 		cell = WT_PAGE_HEADER_BYTE(btree, r->dsk.mem);
 		__wt_cell_unpack(cell, unpack);
 		WT_ASSERT_RET(session,
-		    unpack->raw != WT_CELL_VALUE_COPY && unpack->prefix == 0);
+		    unpack->raw != WT_CELL_VALUE_COPY &&
+		    unpack->raw != WT_CELL_ADDR_DEL &&
+		    unpack->prefix == 0);
 		WT_RET(__wt_cell_unpack_copy(session, unpack, &r->bnd[0].key));
 	}
 
@@ -1512,12 +1515,7 @@ __wt_rec_row_bulk_insert(WT_CURSOR_BULK *cbulk)
 	WT_RET(__rec_cell_build_val(session, r,		/* Build value cell */
 	    cursor->value.data, cursor->value.size, (uint64_t)0));
 
-	/*
-	 * Boundary, split or write the page.
-	 *
-	 * We write a trailing key cell on the page after the K/V pairs
-	 * (see WT_TRAILING_KEY_CELL for more information).
-	 */
+	/* Boundary, split or write the page. */
 	while (key->len + val->len + WT_TRAILING_KEY_CELL > r->space_avail) {
 		/* Split the page. */
 		WT_RET(__rec_split(session, r));
@@ -1981,11 +1979,11 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 }
 
 /*
- * __rec_onpage_ovfl --
- *	Get/set overflow records we need to track over the life of the page.
+ * __rec_key_ovfl --
+ *	Get/set key overflow records we need to track over the life of the page.
  */
 static int
-__rec_onpage_ovfl(WT_SESSION_IMPL *session,
+__rec_key_ovfl(WT_SESSION_IMPL *session,
     WT_PAGE *page, WT_CELL_UNPACK *unpack, WT_ITEM *buf)
 {
 	int found;
@@ -2498,7 +2496,7 @@ __rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			 * enter them into the tracking system.
 			 */
 			if (onpage_ovfl)
-				WT_ERR(__rec_onpage_ovfl(
+				WT_ERR(__rec_key_ovfl(
 				    session, page, kpack, tmpkey));
 
 			/*
@@ -2562,7 +2560,7 @@ __rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 				 * enter them into the tracking system.
 				 */
 				if (onpage_ovfl)
-					WT_ERR(__rec_onpage_ovfl(
+					WT_ERR(__rec_key_ovfl(
 					    session, page, kpack, tmpkey));
 				continue;
 			case WT_PM_REC_REPLACE:
@@ -2584,7 +2582,7 @@ __rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 				 * system.
 				 */
 				if (onpage_ovfl)
-					WT_ERR(__rec_onpage_ovfl(
+					WT_ERR(__rec_key_ovfl(
 					    session, page, kpack, tmpkey));
 
 				r->merge_ref = ref;
@@ -3044,7 +3042,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 				 */
 				__wt_cell_unpack(cell, unpack);
 				if (unpack->ovfl)
-					WT_ERR(__rec_onpage_ovfl(
+					WT_ERR(__rec_key_ovfl(
 					    session, page, unpack, tmpkey));
 
 				/*
@@ -3055,7 +3053,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 				tmpkey->size = 0;
 
 				/* Proceed with appended key/value pairs. */
-				goto leaf_insert;
+				goto skip_kv_pair;
 			}
 
 			/*
@@ -3189,17 +3187,8 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 			    tmpkey->data, tmpkey->size, 0, &ovfl_key));
 		}
 
-		/*
-		 * Boundary, split or write the page.
-		 *
-		 * Don't put an address-deleted cell as the first cell on the
-		 * page (it should work, but I'm not interested in finding out
-		 * for sure).
-		 *
-		 * We write a trailing key cell on the page after the K/V pairs
-		 * (see WT_TRAILING_KEY_CELL for more information).
-		 */
-		while (addrdel->len + key->len +
+		/* Boundary, split or write the page. */
+		while (key->len +
 		    val->len + WT_TRAILING_KEY_CELL > r->space_avail) {
 			/*
 			 * In one path above, we copied the key from the page
@@ -3232,14 +3221,29 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 			__rec_copy_incr(session, r, val);
 		}
 
-		/* Copy any address-deleted item onto the page. */
-		if (addrdel->len != 0)
-			__rec_copy_incr(session, r, addrdel);
-
 		/* Update compression state. */
 		__rec_key_state_update(r, ovfl_key);
 
-leaf_insert:	/* Write any K/V pairs inserted into the page after this key. */
+		/*
+		 * There may be an a address-deleted cell to put on the page if
+		 * an overflow value was deleted.
+		 */
+skip_kv_pair:	if (addrdel->len != 0) {
+			while (addrdel->len +
+			    WT_TRAILING_KEY_CELL > r->space_avail) {
+				/*
+				 * Turn off prefix compression until a full key
+				 * is written to the new page.
+				 */
+				r->key_pfx_compress = 0;
+				WT_ERR(__rec_split(session, r));
+			}
+
+			/* Copy the address-deleted item onto the page. */
+			__rec_copy_incr(session, r, addrdel);
+		}
+
+		/* Write any K/V pairs inserted into the page after this key. */
 		if ((ins = WT_SKIP_FIRST(WT_ROW_INSERT(page, rip))) != NULL)
 			WT_ERR(__rec_row_leaf_insert(session, r, ins));
 	}
@@ -3280,12 +3284,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 		WT_RET(__rec_cell_build_key(session, r,	/* Build key cell. */
 		    WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins), 0, &ovfl_key));
 
-		/*
-		 * Boundary, split or write the page.
-		 *
-		 * We write a trailing key cell on the page after the K/V pairs
-		 * (see WT_TRAILING_KEY_CELL for more information).
-		 */
+		/* Boundary, split or write the page. */
 		while (key->len +
 		    val->len + WT_TRAILING_KEY_CELL > r->space_avail) {
 			WT_RET(__rec_split(session, r));
