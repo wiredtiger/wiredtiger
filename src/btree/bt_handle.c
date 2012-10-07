@@ -246,15 +246,12 @@ __btree_conf(WT_SESSION_IMPL *session, const char *cfg[])
 	/* Reconciliation configuration. */
 	WT_RET(__wt_config_getones(session, config, "dictionary", &cval));
 	btree->dictionary = (u_int)cval.val;
-
 	WT_RET(__wt_config_getones(
 	    session, config, "internal_key_truncate", &cval));
 	btree->internal_key_truncate = cval.val == 0 ? 0 : 1;
-
 	WT_RET(
 	    __wt_config_getones(session, config, "prefix_compression", &cval));
 	btree->prefix_compression = cval.val == 0 ? 0 : 1;
-
 	WT_RET(__wt_config_getones(session, config, "split_pct", &cval));
 	btree->split_pct = (u_int)cval.val;
 

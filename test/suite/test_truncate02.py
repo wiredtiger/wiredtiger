@@ -173,6 +173,12 @@ class test_truncate_fast_delete(wttest.WiredTigerTestCase):
                         cursor.set_key(key_populate(cursor, i))
                         cursor.set_value(value_populate(cursor, i + 100))
                         cursor.update()
+
+                        # Immediately delete rows updated inside the truncated
+                        # range so the final expected record count is the same
+                        # for both the read and write cases.
+                        if i >= 10 and i <= self.nentries - 10:
+                            cursor.remove()
             cursor.close()
 
         # A cursor involved in the transaction should see the deleted records.

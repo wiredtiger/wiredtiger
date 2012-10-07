@@ -191,6 +191,56 @@ err:	/*
 }
 
 /*
+ * __inmem_cell_addr_del --
+ *	WT_CELL_ADDR_DEL support.
+ */
+static int
+__inmem_cell_addr_del(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+	WT_BTREE *btree;
+
+	btree = session->btree;
+
+	/*
+	 * A cell may reference a deleted address, which happens in two ways.
+	 *
+	 * First, a cell on a row-store internal page may reference a deleted
+	 * leaf page: if a leaf page was deleted without first being read, and
+	 * the deletion committed, but some transaction in the system required
+	 * the previous version of the page to be available, a special address
+	 * deleted cell is written.  If we crash and recover to a page with a
+	 * deleted-address cell, we now want to delete the leaf page (because
+	 * it was never deleted, but by definition no earlier transaction might
+	 * need it).  Second, a cell in a variable-length column-store or row-
+	 * store page may reference a deleted overflow chunk: when a key
+	 * references an overflow item, the overflow value is updated and the
+	 * update commits, we want to discard the overflow chunk.  Again, if
+	 * some transaction in the system required the original version of the
+	 * overflow value to be available, a special deleted-address type cell
+	 * is written.
+	 *
+	 * In both cases, if we crash and recover to a version of the page with
+	 * address-deleted cells, it's time to delete the leaf page or overflow
+	 * chunk (we crashed, so by definition no earlier transaction can need
+	 * the original page/chunk).
+	 *
+	 * Should we find any WT_CELL_ADDR_DEL cells, we give the page a modify
+	 * structure and set the transaction ID for the first update to the
+	 * page (WT_TXN_NONE because the transaction is committed and visible).
+	 *
+	 * If the tree is already dirty and so will be written, mark the page
+	 * dirty.  (We'd like to free the referenced pages right here, but if
+	 * the handle is read-only and/or the application never modifies the
+	 * tree, we're not able to do so).
+	 */
+	WT_RET(__wt_page_modify_init(session, page));
+	page->modify->first_id = WT_TXN_NONE;
+	if (btree->modified)
+		__wt_page_modify_set(page);
+	return (0);
+}
+
+/*
  * __inmem_col_fix --
  *	Build in-memory index for fixed-length column-store leaf pages.
  */
@@ -267,7 +317,8 @@ __inmem_col_var(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *inmem_sizep)
 	WT_PAGE_HEADER *dsk;
 	uint64_t recno, rle;
 	size_t bytes_allocated;
-	uint32_t i, indx, max_repeats, nrepeats;
+	uint32_t i, nindx, max_repeats, nrepeats;
+	int addrdel;
 
 	btree = session->btree;
 	dsk = page->dsk;
@@ -277,8 +328,10 @@ __inmem_col_var(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *inmem_sizep)
 	recno = page->u.col_var.recno;
 
 	/*
-	 * Column-store page entries map one-to-one to the number of physical
-	 * entries on the page (each physical entry is a data item).
+	 * Column-store page entries normally map one-to-one to the number of
+	 * physical entries on the page (each physical entry is a data item).
+	 * There might be address-deleted cells on the page, but they're so
+	 * rare it's not worth doing any kind of correction for that case.
 	 */
 	WT_RET(__wt_calloc_def(
 	    session, (size_t)dsk->u.entries, &page->u.col_var.d));
@@ -287,13 +340,22 @@ __inmem_col_var(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *inmem_sizep)
 
 	/*
 	 * Walk the page, building references: the page contains unsorted value
-	 * items.  The value items are on-page (WT_CELL_VALUE), overflow items
-	 * (WT_CELL_VALUE_OVFL) or deleted items (WT_CELL_DEL).
+	 * items.  The value items are on-page (WT_CELL_VALUE), overflow
+	 * (WT_CELL_VALUE_OVFL), deleted (WT_CELL_DEL) or address-deleted
+	 * (WT_CELL_ADDR_DEL) items.
 	 */
 	cip = page->u.col_var.d;
-	indx = 0;
+	nindx = 0;
+	addrdel = 0;
 	WT_CELL_FOREACH(btree, dsk, cell, unpack, i) {
 		__wt_cell_unpack(cell, unpack);
+
+		/* Ignore address-deleted cells. */
+		if (unpack->raw == WT_CELL_ADDR_DEL) {
+			addrdel = 1;
+			continue;
+		}
+
 		(cip++)->__value = WT_PAGE_DISK_OFFSET(page, cell);
 
 		/*
@@ -309,17 +371,23 @@ __inmem_col_var(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *inmem_sizep)
 				    max_repeats * sizeof(WT_COL_RLE),
 				    &repeats));
 			}
-			repeats[nrepeats].indx = indx;
+			repeats[nrepeats].indx = nindx;
 			repeats[nrepeats].recno = recno;
 			repeats[nrepeats++].rle = rle;
 		}
-		indx++;
+		nindx++;
 		recno += rle;
+	}
+
+	/* Found an address-deleted cell. */
+	if (addrdel) {
+		WT_RET(__inmem_cell_addr_del(session, page));
+		F_SET(page->modify, WT_PM_ADDR_DEL);
 	}
 
 	page->u.col_var.repeats = repeats;
 	page->u.col_var.nrepeats = nrepeats;
-	page->entries = dsk->u.entries;
+	page->entries = nindx;
 	if (inmem_sizep != NULL)
 		*inmem_sizep += bytes_allocated;
 	return (0);
@@ -342,6 +410,7 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *inmem_sizep)
 	WT_PAGE_HEADER *dsk;
 	WT_REF *ref;
 	uint32_t i, nindx, prefix;
+	int addrdel;
 	void *huffman;
 
 	btree = session->btree;
@@ -372,9 +441,10 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *inmem_sizep)
 	/*
 	 * Walk the page, instantiating keys: the page contains sorted key and
 	 * location cookie pairs.  Keys are on-page/overflow items and location
-	 * cookies are WT_CELL_ADDR items.
+	 * cookies are WT_CELL_ADDR or WT_CELL_ADDR_DEL items.
 	 */
 	ref = page->u.intl.t;
+	addrdel = 0;
 	WT_CELL_FOREACH(btree, dsk, cell, unpack, i) {
 		__wt_cell_unpack(cell, unpack);
 		switch (unpack->type) {
@@ -382,40 +452,32 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *inmem_sizep)
 		case WT_CELL_KEY_OVFL:
 			break;
 		case WT_CELL_ADDR:
-			ref->addr = cell;
-
 			/*
-			 * A cell may reference a deleted leaf page: if a leaf
-			 * page was deleted without first being read, and the
-			 * deletion committed, but older transactions in the
-			 * system required the previous version of the page to
-			 * be available, a special deleted-address type cell is
-			 * written.  If we crash and recover to a page with a
-			 * deleted-address cell, we now want to delete the leaf
-			 * page (because it was never deleted, but by definition
-			 * no earlier transaction might need it).
+			 * An address-deleted cell, re-create the deleted node.
 			 *
-			 * Re-create the WT_REF state of a deleted node, give
-			 * the page a modify structure and set the transaction
-			 * ID for the first update to the page (WT_TXN_NONE
-			 * because the transaction is committed and visible.)
-			 *
-			 * If the tree is already dirty and so will be written,
-			 * mark the page dirty.  (We'd like to free the deleted
-			 * pages, but if the handle is read-only or if the
-			 * application never modifies the tree, we're not able
-			 * to do so.)
+			 * It's tempting to change this in a couple of ways:
+			 * first, we could change reconciliation to write only a
+			 * single address-deleted cell instead of a key/value
+			 * pair (where the value is an address-deleted cell).
+			 * Reconciliation makes that difficult: dealing with
+			 * split key promotions and prefix compression won't
+			 * be pleasant.  Second, it's tempting to skip over the
+			 * address-deleted cells here, letting reconciliation
+			 * delete the same way we delete overflow chunks (that
+			 * would give us more compact trees, too, because an
+			 * insert wouldn't instantiate an entire page, it would
+			 * simply insert into the appropriate leaf page.  The
+			 * problem with that change is a large truncation will
+			 * result in empty internal pages, which the rest of the
+			 * system isn't prepared to deal with.
 			 */
 			if (unpack->raw == WT_CELL_ADDR_DEL) {
+				addrdel = 1;
 				ref->state = WT_REF_DELETED;
 				ref->txnid = WT_TXN_NONE;
-
-				WT_ERR(__wt_page_modify_init(session, page));
-				page->modify->first_id = WT_TXN_NONE;
-				if (btree->modified)
-					__wt_page_modify_set(page);
 			}
 
+			ref->addr = cell;
 			++ref;
 			continue;
 		WT_ILLEGAL_VALUE_ERR(session);
@@ -482,6 +544,10 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *inmem_sizep)
 		}
 	}
 
+	/* Found an address-deleted cell. */
+	if (addrdel)
+		WT_ERR(__inmem_cell_addr_del(session, page));
+
 err:	__wt_scr_free(&current);
 	__wt_scr_free(&last);
 	return (ret);
@@ -500,6 +566,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *inmem_sizep)
 	WT_PAGE_HEADER *dsk;
 	WT_ROW *rip;
 	uint32_t i, nindx;
+	int addrdel;
 
 	btree = session->btree;
 	dsk = page->dsk;
@@ -514,9 +581,11 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *inmem_sizep)
 	 *
 	 * The page contains key/data pairs.  Keys are on-page (WT_CELL_KEY) or
 	 * overflow (WT_CELL_KEY_OVFL) items, data are either a single on-page
-	 * (WT_CELL_VALUE) or overflow (WT_CELL_VALUE_OVFL) item.
+	 * (WT_CELL_VALUE), overflow (WT_CELL_VALUE_OVFL) or address-deleted
+	 * (WT_CELL_ADDR_DEL) items.
 	 */
 	nindx = 0;
+	addrdel = 0;
 	WT_CELL_FOREACH(btree, dsk, cell, unpack, i) {
 		__wt_cell_unpack(cell, unpack);
 		switch (unpack->type) {
@@ -527,8 +596,25 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *inmem_sizep)
 		case WT_CELL_VALUE:
 		case WT_CELL_VALUE_OVFL:
 			break;
+		case WT_CELL_ADDR:
+			/*
+			 * Ignore address-deleted cells.
+			 * Sanity: the raw type better be address-deleted.
+			 */
+			if (unpack->raw == WT_CELL_ADDR_DEL) {
+				addrdel = 1;
+				break;
+			}
+			/* FALLTHROUGH */
 		WT_ILLEGAL_VALUE(session);
 		}
+	}
+
+	/* Found an address-deleted cell. */
+	if (addrdel) {
+		WT_RET(__inmem_cell_addr_del(session, page));
+
+		F_SET(page->modify, WT_PM_ADDR_DEL);
 	}
 
 	WT_RET((__wt_calloc_def(session, (size_t)nindx, &page->u.row.d)));
@@ -545,6 +631,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *inmem_sizep)
 			WT_ROW_KEY_SET(rip, cell);
 			++rip;
 			break;
+		case WT_CELL_ADDR:
 		case WT_CELL_VALUE:
 		case WT_CELL_VALUE_OVFL:
 			break;

@@ -25,12 +25,11 @@ typedef struct {
 	WT_ITEM *tmp2;				/* Temporary buffer */
 } WT_VSTUFF;
 
+static int  __verify_cell(WT_SESSION_IMPL *, WT_PAGE *, int *, WT_VSTUFF *);
 static void __verify_checkpoint_reset(WT_VSTUFF *);
 static int  __verify_int(WT_SESSION_IMPL *, int);
-static int  __verify_overflow(
-	WT_SESSION_IMPL *, const uint8_t *, uint32_t, WT_VSTUFF *);
-static int  __verify_overflow_cell(
-	WT_SESSION_IMPL *, WT_PAGE *, int *, WT_VSTUFF *);
+static int __verify_overflow(WT_SESSION_IMPL *,
+	WT_PAGE *, uint32_t, const uint8_t *, uint32_t, WT_VSTUFF *);
 static int  __verify_row_int_key_order(
 	WT_SESSION_IMPL *, WT_PAGE *, WT_REF *, uint32_t, WT_VSTUFF *);
 static int  __verify_row_leaf_key_order(
@@ -190,7 +189,7 @@ __verify_tree(WT_SESSION_IMPL *session, WT_PAGE *page, WT_VSTUFF *vs)
 	WT_REF *ref;
 	uint64_t recno;
 	uint32_t entry, i;
-	int found, lno;
+	int lno, ovfl_found;
 
 	unpack = &_unpack;
 
@@ -283,9 +282,9 @@ recno_chk:	if (recno != vs->record_total + 1)
 	}
 
 	/*
-	 * Check overflow pages.  We check overflow cells separately from other
-	 * tests that walk the page as it's simpler, and I don't care much how
-	 * fast table verify runs.
+	 * Check address-deleted and overflow cells.  We check overflow cells
+	 * separately from other tests that walk the page as it's simpler, and
+	 * I don't care much how fast table verify runs.
 	 *
 	 * Object if a leaf-no-overflow address cell references a page that has
 	 * overflow keys, but don't object if a standard address cell references
@@ -305,8 +304,8 @@ recno_chk:	if (recno != vs->record_total + 1)
 	case WT_PAGE_COL_VAR:
 	case WT_PAGE_ROW_INT:
 	case WT_PAGE_ROW_LEAF:
-		WT_RET(__verify_overflow_cell(session, page, &found, vs));
-		if (found && lno)
+		WT_RET(__verify_cell(session, page, &ovfl_found, vs));
+		if (ovfl_found && lno)
 			WT_RET_MSG(session, WT_ERROR,
 			    "page at %s referenced in its parent by a cell of "
 			    "type %s illegally contains overflow items",
@@ -495,23 +494,22 @@ __verify_row_leaf_key_order(
 }
 
 /*
- * __verify_overflow_cell --
- *	Verify any overflow cells on the page.
+ * __verify_cell --
+ *	Verify any address-deleted or overflow cells on the page.
  */
 static int
-__verify_overflow_cell(
-    WT_SESSION_IMPL *session, WT_PAGE *page, int *found, WT_VSTUFF *vs)
+__verify_cell(
+    WT_SESSION_IMPL *session, WT_PAGE *page, int *ovfl_found, WT_VSTUFF *vs)
 {
 	WT_BTREE *btree;
 	WT_CELL *cell;
 	WT_CELL_UNPACK *unpack, _unpack;
-	WT_DECL_RET;
 	WT_PAGE_HEADER *dsk;
 	uint32_t cell_num, i;
 
 	btree = session->btree;
 	unpack = &_unpack;
-	*found = 0;
+	*ovfl_found = 0;
 
 	/*
 	 * If a tree is empty (just created), it won't have a disk image;
@@ -520,29 +518,36 @@ __verify_overflow_cell(
 	if ((dsk = page->dsk) == NULL)
 		return (0);
 
-	/* Walk the disk page, verifying pages referenced by overflow cells. */
+	/*
+	 * Walk the disk page, ignoring pages referenced by address-deleted
+	 * cells and verifying pages referenced by overflow cells.
+	 */
 	cell_num = 0;
 	WT_CELL_FOREACH(btree, dsk, cell, unpack, i) {
 		++cell_num;
 		__wt_cell_unpack(cell, unpack);
-		switch (unpack->type) {
+
+		/* Address-deleted cells are collapsed, check the raw type. */
+		switch (unpack->raw) {
 		case WT_CELL_KEY_OVFL:
 		case WT_CELL_VALUE_OVFL:
-			*found = 1;
-			WT_ERR(__verify_overflow(
-			    session, unpack->data, unpack->size, vs));
+			*ovfl_found = 1;
+			WT_RET(__verify_overflow(session, page,
+			    cell_num - 1, unpack->data, unpack->size, vs));
+			WT_RET(__wt_bm_verify_addr(
+			    session, unpack->data, unpack->size));
+			break;
+		case WT_CELL_ADDR_DEL:
+			if (dsk->type != WT_PAGE_COL_VAR &&
+			    dsk->type != WT_PAGE_ROW_LEAF)
+				break;
+			WT_RET(__wt_bm_verify_addr(
+			    session, unpack->data, unpack->size));
 			break;
 		}
 	}
 
 	return (0);
-
-err:	WT_RET_MSG(session, ret,
-	    "cell %" PRIu32 " on page at %s references an overflow item at %s "
-	    "that failed verification",
-	    cell_num - 1,
-	    __wt_page_addr_string(session, vs->tmp1, page),
-	    __wt_addr_string(session, vs->tmp2, unpack->data, unpack->size));
 }
 
 /*
@@ -551,12 +556,14 @@ err:	WT_RET_MSG(session, ret,
  */
 static int
 __verify_overflow(WT_SESSION_IMPL *session,
+    WT_PAGE *page, uint32_t cell_num,
     const uint8_t *addr, uint32_t addr_size, WT_VSTUFF *vs)
 {
+	WT_DECL_RET;
 	WT_PAGE_HEADER *dsk;
 
 	/* Read and verify the overflow item. */
-	WT_RET(__wt_bm_read(session, vs->tmp1, addr, addr_size));
+	WT_ERR(__wt_bm_read(session, vs->tmp1, addr, addr_size));
 
 	/*
 	 * The physical page has already been verified, but we haven't confirmed
@@ -564,11 +571,17 @@ __verify_overflow(WT_SESSION_IMPL *session,
 	 * the type of page we expected.
 	 */
 	dsk = vs->tmp1->mem;
-	if (dsk->type != WT_PAGE_OVFL)
-		WT_RET_MSG(session, WT_ERROR,
-		    "overflow referenced page at %s is not an overflow page",
-		    __wt_addr_string(session, vs->tmp1, addr, addr_size));
+	if (dsk->type == WT_PAGE_OVFL)
+		return (0);
 
-	WT_RET(__wt_bm_verify_addr(session, addr, addr_size));
-	return (0);
+	WT_ERR_MSG(session, WT_ERROR,
+	    "overflow referenced page at %s is not an overflow page",
+	    __wt_addr_string(session, vs->tmp1, addr, addr_size));
+
+err:	WT_RET_MSG(session, ret,
+	    "cell %" PRIu32 " on page at %s references an overflow item at %s "
+	    "that failed verification",
+	    cell_num,
+	    __wt_page_addr_string(session, vs->tmp1, page),
+	    __wt_addr_string(session, vs->tmp2, addr, addr_size));
 }

@@ -371,9 +371,11 @@ __wt_cell_rle(WT_CELL_UNPACK *unpack)
 	/*
 	 * Any item with only 1 occurrence is stored with an RLE of 0, that is,
 	 * without any RLE at all.  This code is a single place to handle that
-	 * correction, for simplicity.
+	 * correction, for simplicity.  The only exception is address-deleted
+	 * cells, they are ignored for the purposes of record counts.
 	 */
-	return (unpack->v < 2 ? 1 : unpack->v);
+	return (unpack->v < 2 ?
+	    ((unpack->raw == WT_CELL_ADDR_DEL) ? 0 : 1) : unpack->v);
 }
 
 /*

@@ -12,8 +12,8 @@
  *	Read an overflow item from the disk.
  */
 int
-__wt_ovfl_in(
-    WT_SESSION_IMPL *session, WT_ITEM *store, const uint8_t *addr, uint32_t len)
+__wt_ovfl_in(WT_SESSION_IMPL *session,
+    WT_ITEM *store, const uint8_t *addr, uint32_t addr_size)
 {
 	WT_BTREE *btree;
 
@@ -28,7 +28,7 @@ __wt_ovfl_in(
 	 * Overflow reads are synchronous. That may bite me at some point, but
 	 * WiredTiger supports large page sizes, overflow items should be rare.
 	 */
-	WT_RET(__wt_bm_read(session, store, addr, len));
+	WT_RET(__wt_bm_read(session, store, addr, addr_size));
 
 	/* Reference the start of the data and set the data's length. */
 	store->data = WT_PAGE_HEADER_BYTE(btree, store->mem);

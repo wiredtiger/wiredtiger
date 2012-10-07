@@ -30,8 +30,11 @@ struct __wt_stuff {
 
 	uint8_t    page_type;			/* Page type */
 
-	/* If need to free blocks backing merged page ranges. */
-	int	   merge_free;
+	/*
+	 * If need a final pass to free blocks backing merged page ranges or
+	 * leaf pages containing address-deleted cells.
+	 */
+	int	   rewritten_free;
 
 	WT_ITEM	  *tmp1;			/* Verbose print buffer */
 	WT_ITEM	  *tmp2;			/* Verbose print buffer */
@@ -80,11 +83,12 @@ struct __wt_track {
 		} col;
 	} u;
 
-#define	WT_TRACK_CHECK_START	0x001		/* Initial key updated */
-#define	WT_TRACK_CHECK_STOP	0x002		/* Last key updated */
-#define	WT_TRACK_MERGE		0x004		/* Page requires merging */
-#define	WT_TRACK_NO_FILE_BLOCKS	0x008		/* WT_TRACK w/o file blocks */
-#define	WT_TRACK_OVFL_REFD	0x010		/* Overflow page referenced */
+#define	WT_TRACK_ADDR_DEL	0x001		/* Page has deleted cells */
+#define	WT_TRACK_CHECK_START	0x002		/* Initial key updated */
+#define	WT_TRACK_CHECK_STOP	0x004		/* Last key updated */
+#define	WT_TRACK_MERGE		0x008		/* Page requires merging */
+#define	WT_TRACK_NO_FILE_BLOCKS	0x010		/* WT_TRACK w/o file blocks */
+#define	WT_TRACK_OVFL_REFD	0x020		/* Overflow page referenced */
 	uint32_t flags;
 };
 
@@ -92,6 +96,8 @@ struct __wt_track {
 #define	WT_TRK_FREE_BLOCKS	0x01		/* Free any blocks */
 #define	WT_TRK_FREE_OVFL	0x02		/* Free any overflow pages */
 
+static int  __slvg_build_addrdel(
+		WT_SESSION_IMPL *, WT_TRACK *, WT_PAGE *, WT_REF *);
 static int  __slvg_cleanup(WT_SESSION_IMPL *, WT_STUFF *);
 static int  __slvg_col_build_internal(WT_SESSION_IMPL *, uint32_t, WT_STUFF *);
 static int  __slvg_col_build_leaf(
@@ -103,11 +109,11 @@ static int  __slvg_col_range_missing(WT_SESSION_IMPL *, WT_STUFF *);
 static int  __slvg_col_range_overlap(
 		WT_SESSION_IMPL *, uint32_t, uint32_t, WT_STUFF *);
 static void __slvg_col_trk_update_start(uint32_t, WT_STUFF *);
-static int  __slvg_merge_block_free(WT_SESSION_IMPL *, WT_STUFF *);
 static int  __slvg_ovfl_compare(const void *, const void *);
 static int  __slvg_ovfl_discard(WT_SESSION_IMPL *, WT_STUFF *);
 static int  __slvg_ovfl_reconcile(WT_SESSION_IMPL *, WT_STUFF *);
 static int  __slvg_read(WT_SESSION_IMPL *, WT_STUFF *);
+static int  __slvg_rewritten_block_free(WT_SESSION_IMPL *, WT_STUFF *);
 static int  __slvg_row_build_internal(WT_SESSION_IMPL *, uint32_t, WT_STUFF *);
 static int  __slvg_row_build_leaf(WT_SESSION_IMPL *,
 		WT_TRACK *, WT_PAGE *, WT_REF *, WT_STUFF *);
@@ -126,7 +132,7 @@ static int  __slvg_trk_init(WT_SESSION_IMPL *, uint8_t *,
 		uint32_t, uint32_t, uint64_t, WT_STUFF *, WT_TRACK **);
 static int  __slvg_trk_leaf(WT_SESSION_IMPL *,
 		WT_PAGE_HEADER *, uint8_t *, uint32_t, uint64_t, WT_STUFF *);
-static int  __slvg_trk_leaf_ovfl(
+static int  __slvg_trk_leaf_scan(
 		WT_SESSION_IMPL *, WT_PAGE_HEADER *, WT_TRACK *);
 static int  __slvg_trk_ovfl(WT_SESSION_IMPL *,
 		WT_PAGE_HEADER *, uint8_t *, uint32_t, uint64_t, WT_STUFF *);
@@ -256,17 +262,18 @@ __wt_bt_salvage(
 
 	/*
 	 * Step 8:
-	 * If we had to merge key ranges, we have to do a final pass through
-	 * the leaf page array and discard file pages used during key merges.
-	 * We can't do it earlier: if we free'd the leaf pages we're merging as
-	 * we merged them, the write of subsequent leaf pages or the internal
-	 * page might allocate those free'd file blocks, and if the salvage run
-	 * subsequently fails, we'd have overwritten pages used to construct the
-	 * final key range.  In other words, if the salvage run fails, we don't
-	 * want to overwrite data the next salvage run might need.
+	 * If we had to merge key ranges or rewrite pages with address-deleted
+	 * cells, we have to do a final pass through the leaf pages and discard
+	 * the original file blocks.  We can't do it earlier: if we free'd the
+	 * leaf pages we're rewriting as we rewrote them, writes of subsequent
+	 * leaf pages or the internal page might reuse those free'd file blocks,
+	 * and if the salvage run subsequently fails, pages used to construct
+	 * the final key range would have been overwritten.  In other words, if
+	 * the salvage run fails, we don't want to overwrite data needed by a
+	 * subsequent salvage run.
 	 */
-	if (ss->merge_free)
-		WT_ERR(__slvg_merge_block_free(session, ss));
+	if (ss->rewritten_free)
+		WT_ERR(__slvg_rewritten_block_free(session, ss));
 
 	/*
 	 * Step 9:
@@ -501,8 +508,11 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *dsk,
 		    session, ss->tmp1, trk->addr.addr, trk->addr.size),
 		    trk->col_start, trk->col_stop);
 
-		/* Column-store pages can contain overflow items. */
-		WT_ERR(__slvg_trk_leaf_ovfl(session, dsk, trk));
+		/*
+		 * Variable-length column-store pages can contain address-
+		 * deleted cells and overflow items.
+		 */
+		WT_ERR(__slvg_trk_leaf_scan(session, dsk, trk));
 		break;
 	case WT_PAGE_ROW_LEAF:
 		/*
@@ -537,8 +547,11 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *dsk,
 			    (int)ss->tmp1->size, (char *)ss->tmp1->data);
 		}
 
-		/* Row-store pages can contain overflow items. */
-		WT_ERR(__slvg_trk_leaf_ovfl(session, dsk, trk));
+		/*
+		 * Row-store pages can contain address-deleted cells and
+		 * overflow items.
+		 */
+		WT_ERR(__slvg_trk_leaf_scan(session, dsk, trk));
 		break;
 	}
 	ss->pages[ss->pages_next++] = trk;
@@ -576,11 +589,11 @@ __slvg_trk_ovfl(WT_SESSION_IMPL *session, WT_PAGE_HEADER *dsk,
 }
 
 /*
- * __slvg_trk_leaf_ovfl --
- *	Search a leaf page for overflow items.
+ * __slvg_trk_leaf_scan --
+ *	Search a leaf page for address-deleted cells and overflow items.
  */
 static int
-__slvg_trk_leaf_ovfl(
+__slvg_trk_leaf_scan(
     WT_SESSION_IMPL *session, WT_PAGE_HEADER *dsk, WT_TRACK *trk)
 {
 	WT_BTREE *btree;
@@ -598,6 +611,8 @@ __slvg_trk_leaf_ovfl(
 	ovfl_cnt = 0;
 	WT_CELL_FOREACH(btree, dsk, cell, unpack, i) {
 		__wt_cell_unpack(cell, unpack);
+		if (unpack->raw == WT_CELL_ADDR_DEL)
+			F_SET(trk, WT_TRACK_ADDR_DEL);
 		if (unpack->ovfl)
 			++ovfl_cnt;
 	}
@@ -1030,6 +1045,33 @@ __slvg_col_range_missing(WT_SESSION_IMPL *session, WT_STUFF *ss)
 }
 
 /*
+ * __slvg_clear_page_addr --
+ *	Clear the address associated with a page we're rewriting.
+ */
+static void
+__slvg_clear_page_addr(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+	/*
+	 * This function exists in order to have a place to put this comment
+	 * and localize some ugly code.
+	 *
+	 * We can't discard the original blocks associated with a page we're
+	 * rewriting.  (The problem is we don't want to overwrite any original
+	 * information until the salvage run succeeds -- if we free the blocks
+	 * now, the next merge page we write might allocate those blocks and
+	 * overwrite them, and should the salvage run eventually fail, the
+	 * original information would have been lost.)  Clear the reference
+	 * addr so eviction doesn't free the underlying blocks.
+	 *
+	 * Obviously, this hack requires support from reconciliation, it must
+	 * ignore addresses that have been cleared.
+	 */
+	__wt_free(session, ((WT_ADDR *)ref->addr)->addr);
+	__wt_free(session, ref->addr);
+	ref->addr = NULL;
+}
+
+/*
  * __slvg_modify_init --
  *	Initialize a salvage page's modification information.
  */
@@ -1095,18 +1137,29 @@ __slvg_col_build_internal(
 		ref->state = WT_REF_DISK;
 
 		/*
-		 * If the page's key range is unmodified from when we read it
-		 * (in other words, we didn't merge part of this page with
-		 * another page), we can use the page without change.  If we
-		 * did merge with another page, we must build a page reflecting
-		 * the updated key range, and that requires an additional pass
-		 * to free its backing blocks.
+		 * If the page's key range is changed from when we read it, that
+		 * is, if we merged part of this page with another page, we must
+		 * build a page reflecting the updated key range.  If the page
+		 * contained address-deleted cells, we have to strip them out,
+		 * otherwise a subsequent read of the page would attempt to free
+		 * them, and they may not exist after salvage.   In either case,
+		 * there's an additional pass to free the original page blocks.
+		 *
+		 * Note: page key range changes trump address-deleted changes,
+		 * rewriting the page to update the key range discards any
+		 * address-deleted cells.  The reason we check twice is because
+		 * the merge routine might decide the page was OK after all, in
+		 * which case it will have cleared the merge flag.
+		 *
+		 * Otherwise, we can use the page without modification.
 		 */
-		if (F_ISSET(trk, WT_TRACK_MERGE)) {
-			ss->merge_free = 1;
-
+		if (F_ISSET(trk, WT_TRACK_MERGE))
 			WT_ERR(__slvg_col_build_leaf(session, trk, page, ref));
-		}
+		if (!F_ISSET(trk, WT_TRACK_MERGE) &&
+		    F_ISSET(trk, WT_TRACK_ADDR_DEL))
+			WT_ERR(__slvg_build_addrdel(session, trk, page, ref));
+		if (F_ISSET(trk, WT_TRACK_ADDR_DEL | WT_TRACK_MERGE))
+			ss->rewritten_free = 1;
 		++ref;
 	}
 
@@ -1183,19 +1236,10 @@ __slvg_col_build_leaf(
 	ref->u.recno = page->u.col_var.recno;
 
 	/*
-	 * We can't discard the original blocks associated with this page now.
-	 * (The problem is we don't want to overwrite any original information
-	 * until the salvage run succeeds -- if we free the blocks now, the next
-	 * merge page we write might allocate those blocks and overwrite them,
-	 * and should the salvage run eventually fail, the original information
-	 * would have been lost.)  Clear the reference addr so eviction doesn't
-	 * free the underlying blocks.
+	 * Clear the page's original address and write the new version of the
+	 * leaf page to disk.
 	 */
-	__wt_free(session, ((WT_ADDR *)ref->addr)->addr);
-	__wt_free(session, ref->addr);
-	ref->addr = NULL;
-
-	/* Write the new version of the leaf page to disk. */
+	__slvg_clear_page_addr(session, ref);
 	WT_ERR(__slvg_modify_init(session, page));
 	WT_ERR(__wt_rec_write(session, page, cookie, 0));
 
@@ -1253,6 +1297,55 @@ __slvg_col_merge_ovfl(WT_SESSION_IMPL *session,
 		WT_RET(__wt_bm_free(session, unpack->data, unpack->size));
 	}
 	return (0);
+}
+
+/*
+ * __slvg_build_addrdel --
+ *	Strip address-deleted cells out of a leaf page.
+ */
+static int
+__slvg_build_addrdel(
+    WT_SESSION_IMPL *session, WT_TRACK *trk, WT_PAGE *parent, WT_REF *ref)
+{
+	WT_SALVAGE_COOKIE *cookie, _cookie;
+	WT_DECL_RET;
+	WT_PAGE *page;
+
+	cookie = &_cookie;
+	WT_CLEAR(*cookie);
+
+	WT_VERBOSE_RET(session, salvage,
+	    "%s stripping address-deleted cells",
+	    __wt_addr_string(
+	    session, trk->ss->tmp1, trk->addr.addr, trk->addr.size));
+
+	/*
+	 * To discard address-deleted cells, all we have to do is reconcile and
+	 * write the page.  (Reconciliation normally frees blocks referenced by
+	 * address-deleted cells, but it skips that step when the salvage cookie
+	 * is set.)
+	 *
+	 * Get the original page, including the full in-memory setup.
+	 */
+	WT_RET(__wt_page_in(session, parent, ref));
+	page = ref->page;
+
+	/*
+	 * Clear the page's original address and write the new version of the
+	 * leaf page to disk.
+	 */
+	__slvg_clear_page_addr(session, ref);
+	WT_ERR(__slvg_modify_init(session, page));
+	WT_ERR(__wt_rec_write(session, page, cookie, 0));
+
+	__wt_page_release(session, page);
+	ret = __wt_rec_evict(session, page, WT_REC_SINGLE);
+
+	if (0) {
+err:		__wt_page_release(session, page);
+	}
+
+	return (ret);
 }
 
 /*
@@ -1669,22 +1762,40 @@ __slvg_row_build_internal(
 		ref->state = WT_REF_DISK;
 
 		/*
-		 * If the page's key range is unmodified from when we read it
-		 * (in other words, we didn't merge part of this page with
-		 * another page), we can use the page without change.  If we
-		 * did merge with another page, we must build a page reflecting
-		 * the updated key range, and that requires an additional pass
-		 * to free its backing blocks.
+		 * If the page's key range is changed from when we read it, that
+		 * is, if we merged part of this page with another page, we must
+		 * build a page reflecting the updated key range.  If the page
+		 * contained address-deleted cells, we have to strip them out,
+		 * otherwise a subsequent read of the page would attempt to free
+		 * them, and they may not exist after salvage.   In either case,
+		 * there's an additional pass to free the original page blocks.
+		 *
+		 * Note: page key range changes trump address-deleted changes,
+		 * rewriting the page to update the key range discards any
+		 * address-deleted cells.  The reason we check twice is because
+		 * the merge routine might decide the page was OK after all, in
+		 * which case it will have cleared the merge flag.
+		 *
+		 * Otherwise, we can use the page without modification.
 		 */
-		if (F_ISSET(trk, WT_TRACK_MERGE)) {
-			ss->merge_free = 1;
+		if (F_ISSET(trk, WT_TRACK_MERGE))
+			WT_ERR(
+			    __slvg_row_build_leaf(session, trk, page, ref, ss));
+		if (!F_ISSET(trk, WT_TRACK_MERGE) &&
+		    F_ISSET(trk, WT_TRACK_ADDR_DEL))
+			WT_ERR(__slvg_build_addrdel(session, trk, page, ref));
+		if (F_ISSET(trk, WT_TRACK_ADDR_DEL | WT_TRACK_MERGE))
+			ss->rewritten_free = 1;
 
-			WT_ERR(__slvg_row_build_leaf(
-			    session, trk, page, ref, ss));
-		} else
+		/*
+		 * Merging pages stores the correct start key for the page; in
+		 * all other cases (even if we re-wrote the original page to
+		 * get rid of address-deleted cells), we use the start key from
+		 * the original page.
+		 */
+		if (!F_ISSET(trk, WT_TRACK_MERGE))
 			WT_ERR(__wt_row_ikey_alloc(session, 0,
-			    trk->row_start.data,
-			    trk->row_start.size,
+			    trk->row_start.data, trk->row_start.size,
 			    &ref->u.key));
 		++ref;
 	}
@@ -1835,20 +1946,10 @@ __slvg_row_build_leaf(WT_SESSION_IMPL *session,
 		cookie->skip = skip_start;
 
 		/*
-		 * We can't discard the original blocks associated with the page
-		 * now.  (The problem is we don't want to overwrite any original
-		 * information until the salvage run succeeds -- if we free the
-		 * blocks now, the next merge page we write might allocate those
-		 * blocks and overwrite them, and should the salvage run fail,
-		 * the original information would have been lost to subsequent
-		 * salvage runs.)  Clear the reference addr so eviction doesn't
-		 * free the underlying blocks.
+		 * Clear the page's original address and write the new version
+		 * of the leaf page to disk.
 		 */
-		__wt_free(session, ((WT_ADDR *)ref->addr)->addr);
-		__wt_free(session, ref->addr);
-		ref->addr = NULL;
-
-		/* Write the new version of the leaf page to disk. */
+		__slvg_clear_page_addr(session, ref);
 		WT_ERR(__slvg_modify_init(session, page));
 		WT_ERR(__wt_rec_write(session, page, cookie, 0));
 
@@ -2137,25 +2238,25 @@ __slvg_trk_compare_gen(const void *a, const void *b)
 }
 
 /*
- * __slvg_merge_block_free --
- *	Free file blocks for pages that had to be merged.
+ * __slvg_rewritten_block_free --
+ *	Free file blocks for pages that had to be rewritten
  */
 static int
-__slvg_merge_block_free(WT_SESSION_IMPL *session, WT_STUFF *ss)
+__slvg_rewritten_block_free(WT_SESSION_IMPL *session, WT_STUFF *ss)
 {
 	WT_TRACK *trk;
 	uint32_t i;
 
 	/*
-	 * Free any underlying file blocks for merged pages.  We do not free
-	 * referenced overflow pages: that had to be done when creating the
-	 * merged pages because we chose the overflow pages to free based on
-	 * the keys we retained or discarded.
+	 * Free any underlying file blocks for merged pages and pages containing
+	 * address-deleted cells.  We do not free referenced overflow pages:
+	 * that had to be done when creating the merged pages because we chose
+	 * which overflow pages to free based on the keys retained or discarded.
 	 */
 	for (i = 0; i < ss->pages_next; ++i) {
 		if ((trk = ss->pages[i]) == NULL)
 			continue;
-		if (F_ISSET(trk, WT_TRACK_MERGE) &&
+		if (F_ISSET(trk, WT_TRACK_ADDR_DEL | WT_TRACK_MERGE) &&
 		    !F_ISSET(trk, WT_TRACK_NO_FILE_BLOCKS))
 			WT_RET(__slvg_trk_free(
 			    session, &ss->pages[i], WT_TRK_FREE_BLOCKS));
