@@ -86,6 +86,9 @@ lsm_config = [
 	Config('lsm_bloom_bit_count', '8', r'''
 		the number of bits used per item for LSM bloom filters.''',
 		min='2', max='1000'),
+	Config('lsm_bloom', 'true', r'''
+		create bloom filters for LSM trees.''',
+		type='boolean'),
 	Config('lsm_chunk_size', '2MB', r'''
 		the maximum size of the in-memory chunk of an LSM tree''',
 		min='512K', max='500MB'),
@@ -325,6 +328,10 @@ methods = {
 		reset statistics counters when the cursor is closed; valid
 		only for statistics cursors''',
 		type='boolean'),
+	Config('statistics_fast', 'false', r'''
+		only gather statistics that don't require traversing the tree;
+		valid only for statistics cursors''',
+		type='boolean'),
 	Config('target', '', r'''
 		if non-empty, backup the list of objects; valid only for a
 		backup data source''',
@@ -422,6 +429,9 @@ methods = {
 	Config('logging', 'false', r'''
 		enable logging''',
 		type='boolean'),
+	Config('lsm_merge', 'true', r'''
+		merge LSM chunks where possible''',
+		type='boolean'),
 	Config('multiprocess', 'false', r'''
 		permit sharing between processes (will automatically start an
 		RPC server for primary processes and use RPC for secondary
@@ -474,7 +484,8 @@ flags = {
 # Structure flag declarations
 ###################################################
 	'conn' : [
-		'CONN_NOSYNC',
+		'CONN_LSM_MERGE',
+		'CONN_SYNC',
 		'CONN_TRANSACTIONAL',
 		'SERVER_RUN'
 	],
