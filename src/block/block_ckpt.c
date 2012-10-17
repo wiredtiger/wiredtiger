@@ -303,9 +303,6 @@ __ckpt_process(
 	last_ckpt = NULL;
 	deleting = 0;
 	WT_CKPT_FOREACH(ckptbase, ckpt) {
-		if (F_ISSET(ckpt, WT_CKPT_FAKE))
-			continue;
-
 		/*
 		 * To delete a checkpoint, we'll need checkpoint information for
 		 * it and the subsequent checkpoint.  The test is tricky, load
@@ -342,6 +339,11 @@ __ckpt_process(
 		    session, 1, sizeof(WT_BLOCK_CKPT), &ckpt->bpriv));
 		ci = ckpt->bpriv;
 		WT_ERR(__wt_block_ckpt_init(session, block, ci, ckpt->name, 0));
+
+		/* Fake checkpoints don't have extents lists. */
+		if (F_ISSET(ckpt, WT_CKPT_FAKE))
+			continue;
+
 		WT_ERR(__wt_block_buffer_to_ckpt(
 		    session, block, ckpt->raw.data, ci));
 		WT_ERR(__wt_block_extlist_read(session, block, &ci->alloc));
