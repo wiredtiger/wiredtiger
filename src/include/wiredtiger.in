@@ -623,8 +623,8 @@ struct __wt_session {
 	 * @config{exclusive, fail if the object exists.  When false (the
 	 * default)\, if the object exists\, check that its settings match the
 	 * specified configuration.,a boolean flag; default \c false.}
-	 * @config{filename, override the default filename derived from the
-	 * object name.,a string; default empty.}
+	 * @config{format, the file format.,a string\, chosen from the following
+	 * options: \c "btree"; default \c btree.}
 	 * @config{huffman_key, configure Huffman encoding for keys.  Permitted
 	 * values are empty (off)\, \c "english"\, \c "utf8<file>" or \c
 	 * "utf16<file>".  See @ref huffman for more information.,a string;
@@ -665,25 +665,35 @@ struct __wt_session {
 	 * significant for applications wanting to maximize sequential data
 	 * transfer from a storage device.,an integer between 512B and 512MB;
 	 * default \c 1MB.}
-	 * @config{lsm_bloom, create bloom filters for LSM trees..,a boolean
-	 * flag; default \c true.}
+	 * @config{lsm_bloom, create bloom filters on LSM tree chunks as they
+	 * are merged..,a boolean flag; default \c true.}
 	 * @config{lsm_bloom_bit_count, the number of bits used per item for LSM
 	 * bloom filters..,an integer between 2 and 1000; default \c 8.}
 	 * @config{lsm_bloom_hash_count, the number of hash values per item used
 	 * for LSM bloom filters..,an integer between 2 and 100; default \c 4.}
+	 * @config{lsm_bloom_newest, create a bloom filter on an LSM tree chunk
+	 * before it's first merge. Only supported if bloom filters are
+	 * enabled..,a boolean flag; default \c false.}
+	 * @config{lsm_bloom_oldest, create a bloom filter on the oldest LSM
+	 * tree chunk. Only supported if bloom filters are enabled..,a boolean
+	 * flag; default \c false.}
 	 * @config{lsm_chunk_size, the maximum size of the in-memory chunk of an
 	 * LSM tree.,an integer between 512K and 500MB; default \c 2MB.}
 	 * @config{lsm_merge_max, the maximum number of chunks to include in a
 	 * merge operation.,an integer between 2 and 100; default \c 15.}
 	 * @config{prefix_compression, configure row-store format key prefix
 	 * compression.,a boolean flag; default \c true.}
+	 * @config{source, override the default data source URI derived from the
+	 * object name.,a string; default empty.}
 	 * @config{split_pct, the Btree page split size as a percentage of the
 	 * maximum Btree page size\, that is\, when a Btree page is split\, it
 	 * will be split into smaller pages\, where each page is the specified
 	 * percentage of the maximum Btree page size.,an integer between 25 and
 	 * 100; default \c 75.}
-	 * @config{type, the file type.,a string\, chosen from the following
-	 * options: \c "btree"; default \c btree.}
+	 * @config{type, set the data source type.  This setting overrides the
+	 * URI prefix for the data source\, if no \c source configuration
+	 * setting is provided.,a string\, chosen from the following options: \c
+	 * "file"\, \c "lsm"; default \c file.}
 	 * @config{value_format, the format of the data packed into value items.
 	 * See @ref schema_format_types for details.  By default\, the
 	 * value_format is \c 'u' and applications use a WT_ITEM structure to
@@ -694,6 +704,18 @@ struct __wt_session {
 	 * @errors
 	 */
 	int __F(create)(WT_SESSION *session,
+	    const char *name, const char *config);
+
+	/*! Compact an object.
+	 *
+	 * @snippet ex_all.c Compact a table
+	 *
+	 * @param session the session handle
+	 * @param name the URI of the object to drop, such as \c "table:stock"
+	 * @configempty{session.compact, see dist/api_data.py}
+	 * @errors
+	 */
+	int __F(compact)(WT_SESSION *session,
 	    const char *name, const char *config);
 
 	/*! Drop (delete) an object.
@@ -802,7 +824,17 @@ struct __wt_session {
 	 *
 	 * @param session the session handle
 	 * @param name the URI of the file or table to verify
-	 * @configempty{session.verify, see dist/api_data.py}
+	 * @configstart{session.verify, see dist/api_data.py}
+	 * @config{dump_address, Display addresses and page types as pages are
+	 * verified\, using the application's message handler\, intended for
+	 * debugging.,a boolean flag; default \c false.}
+	 * @config{dump_blocks, Display the contents of on-disk blocks as they
+	 * are verified\, using the application's message handler\, intended for
+	 * debugging.,a boolean flag; default \c false.}
+	 * @config{dump_pages, Display the contents of in-memory pages as they
+	 * are verified\, using the application's message handler\, intended for
+	 * debugging.,a boolean flag; default \c false.}
+	 * @configend
 	 * @errors
 	 */
 	int __F(verify)(WT_SESSION *session,
@@ -894,6 +926,9 @@ struct __wt_session {
 	 * drop all checkpoints before and including the named checkpoint.
 	 * Checkpoints cannot be dropped while a hot backup is in progress or if
 	 * open in a cursor.,a list of strings; default empty.}
+	 * @config{force, checkpoints may be skipped if the underlying object
+	 * has not been modified\, this option forces the checkpoint.,a boolean
+	 * flag; default \c false.}
 	 * @config{name, if non-empty\, specify a name for the checkpoint.,a
 	 * string; default empty.}
 	 * @config{target, if non-empty\, checkpoint the list of objects.,a list
@@ -907,21 +942,6 @@ struct __wt_session {
 	/*! @name Debugging
 	 * @{
 	 */
-
-	/*! Dump a physical file in debugging mode.
-	 *
-	 * The specified file is displayed in a non-portable debugging mode to
-	 * the application's standard output.
-	 *
-	 * @snippet ex_all.c Dump a file
-	 *
-	 * @param session the session handle
-	 * @param name the URI of the file to dump
-	 * @configempty{session.dumpfile, see dist/api_data.py}
-	 * @errors
-	 */
-	int __F(dumpfile)(WT_SESSION *session,
-	    const char *name, const char *config);
 
 	/*! Send a string to the message handler for debugging.
 	 *
@@ -1732,62 +1752,68 @@ extern int wiredtiger_extension_init(WT_SESSION *session,
 #define	WT_STAT_free					15
 /*! file: overflow pages read from the file */
 #define	WT_STAT_overflow_read				16
+/*! file: overflow values cached in memory */
+#define	WT_STAT_overflow_value_cache			17
 /*! file: pages evicted from the file */
-#define	WT_STAT_page_evict				17
+#define	WT_STAT_page_evict				18
 /*! file: pages read from the file */
-#define	WT_STAT_page_read				18
+#define	WT_STAT_page_read				19
+/*! file: pages that were selected for eviction that could not be evicted */
+#define	WT_STAT_page_evict_fail				20
 /*! file: pages written to the file */
-#define	WT_STAT_page_write				19
+#define	WT_STAT_page_write				21
 /*! file: size */
-#define	WT_STAT_file_size				20
+#define	WT_STAT_file_size				22
 /*! fixed-record size */
-#define	WT_STAT_file_fixed_len				21
+#define	WT_STAT_file_fixed_len				23
 /*! magic number */
-#define	WT_STAT_file_magic				22
+#define	WT_STAT_file_magic				24
 /*! major version number */
-#define	WT_STAT_file_major				23
+#define	WT_STAT_file_major				25
 /*! maximum internal page item size */
-#define	WT_STAT_file_maxintlitem			24
+#define	WT_STAT_file_maxintlitem			26
 /*! maximum internal page size */
-#define	WT_STAT_file_maxintlpage			25
+#define	WT_STAT_file_maxintlpage			27
 /*! maximum leaf page item size */
-#define	WT_STAT_file_maxleafitem			26
+#define	WT_STAT_file_maxleafitem			28
 /*! maximum leaf page size */
-#define	WT_STAT_file_maxleafpage			27
+#define	WT_STAT_file_maxleafpage			29
 /*! minor version number */
-#define	WT_STAT_file_minor				28
+#define	WT_STAT_file_minor				30
 /*! overflow pages */
-#define	WT_STAT_file_overflow				29
+#define	WT_STAT_file_overflow				31
 /*! page size allocation unit */
-#define	WT_STAT_file_allocsize				30
+#define	WT_STAT_file_allocsize				32
+/*! pages rewritten by compaction */
+#define	WT_STAT_file_compact_rewrite			33
 /*! reconcile: deleted or temporary pages merged */
-#define	WT_STAT_rec_page_merge				31
+#define	WT_STAT_rec_page_merge				34
 /*! reconcile: dictionary match */
-#define	WT_STAT_rec_dictionary				32
+#define	WT_STAT_rec_dictionary				35
 /*! reconcile: internal pages split */
-#define	WT_STAT_rec_split_intl				33
+#define	WT_STAT_rec_split_intl				36
 /*! reconcile: leaf pages split */
-#define	WT_STAT_rec_split_leaf				34
+#define	WT_STAT_rec_split_leaf				37
 /*! reconcile: overflow key */
-#define	WT_STAT_rec_ovfl_key				35
+#define	WT_STAT_rec_ovfl_key				38
 /*! reconcile: overflow value */
-#define	WT_STAT_rec_ovfl_value				36
+#define	WT_STAT_rec_ovfl_value				39
 /*! reconcile: pages deleted */
-#define	WT_STAT_rec_page_delete				37
+#define	WT_STAT_rec_page_delete				40
 /*! reconcile: pages written */
-#define	WT_STAT_rec_written				38
+#define	WT_STAT_rec_written				41
 /*! reconcile: unable to acquire hazard reference */
-#define	WT_STAT_rec_hazard				39
+#define	WT_STAT_rec_hazard				42
 /*! row-store internal pages */
-#define	WT_STAT_file_row_int_pages			40
+#define	WT_STAT_file_row_int_pages			43
 /*! row-store leaf pages */
-#define	WT_STAT_file_row_leaf_pages			41
+#define	WT_STAT_file_row_leaf_pages			44
 /*! total entries */
-#define	WT_STAT_file_entries				42
+#define	WT_STAT_file_entries				45
 /*! update conflicts */
-#define	WT_STAT_update_conflict				43
+#define	WT_STAT_update_conflict				46
 /*! write generation conflicts */
-#define	WT_STAT_file_write_conflicts			44
+#define	WT_STAT_file_write_conflicts			47
 /*! @} */
 
 /*!
@@ -1796,32 +1822,39 @@ extern int wiredtiger_extension_init(WT_SESSION *session,
  * @anchor statistics_lsm
  * @{
  */
+/*! Highest merge generation in the LSM tree */
+#define	WT_STAT_generation_max				0
+/*! Number of bloom filter false positives */
+#define	WT_STAT_bloom_false_positives			1
+/*! Number of bloom filter hits */
+#define	WT_STAT_bloom_hits				2
+/*! Number of bloom filter misses */
+#define	WT_STAT_bloom_misses				3
 /*! Number of bloom filters in the LSM tree */
-#define	WT_STAT_bloom_count				0
+#define	WT_STAT_bloom_count				4
 /*! Number of bloom pages evicted from cache */
-#define	WT_STAT_bloom_cache_evict			1
+#define	WT_STAT_bloom_cache_evict			5
 /*! Number of bloom pages read into cache */
-#define	WT_STAT_bloom_cache_read			2
+#define	WT_STAT_bloom_cache_read			6
 /*! Number of chunks in the LSM tree */
-#define	WT_STAT_chunk_count				3
+#define	WT_STAT_chunk_count				7
 /*! Number of pages evicted from LSM chunks */
-#define	WT_STAT_chunk_cache_evict			4
+#define	WT_STAT_chunk_cache_evict			8
 /*! Number of pages evicted from cache */
-#define	WT_STAT_cache_evict				5
+#define	WT_STAT_cache_evict				9
 /*! Number of pages read into LSM chunks */
-#define	WT_STAT_chunk_cache_read			6
+#define	WT_STAT_chunk_cache_read			10
 /*! Number of pages read into cache */
-#define	WT_STAT_cache_read				7
+#define	WT_STAT_cache_read				11
+/*! Number of pages selected for eviction that could not be evicted */
+#define	WT_STAT_cache_evict_fail			12
 /*! Number of pages written from cache */
-#define	WT_STAT_cache_write				8
-/*! Number of successful bloom filter false positives */
-#define	WT_STAT_bloom_misses				9
-/*! Number of successful bloom filter lookups */
-#define	WT_STAT_bloom_hits				10
-/*! Number of unsuccessful bloom filter lookups */
-#define	WT_STAT_bloom_skips				11
+#define	WT_STAT_cache_write				13
+/*! Number of queries that could have benefited from a bloom filter that
+ * did not exist */
+#define	WT_STAT_search_miss_no_bloom			14
 /*! Total space used by bloom filters */
-#define	WT_STAT_bloom_space				12
+#define	WT_STAT_bloom_space				15
 /*! @} */
 /*
  * Statistics section: END

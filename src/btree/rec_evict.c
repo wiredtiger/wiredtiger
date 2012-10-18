@@ -265,7 +265,6 @@ __rec_review(WT_SESSION_IMPL *session,
 				WT_RET(__rec_review(
 				    session, ref, ref->page, flags, 0));
 				break;
-			case WT_REF_EVICT_FORCE:	/* Forced eviction */
 			case WT_REF_EVICT_WALK:		/* Walk point */
 			case WT_REF_LOCKED:		/* Being evicted */
 			case WT_REF_READING:		/* Being read */
@@ -310,7 +309,7 @@ __rec_review(WT_SESSION_IMPL *session,
 	 * to evict split-merge pages, which means the only interesting case
 	 * is an empty page.  If the eviction thread picked an "empty" page
 	 * for eviction, it must have had reason, probably the empty page got
-	 * really, really full and is being forced out of the cache.
+	 * really, really full.
 	 */
 	mod = page->modify;
 	if (!top && (mod == NULL || !F_ISSET(mod,

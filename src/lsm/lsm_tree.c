@@ -24,9 +24,18 @@ __lsm_tree_discard(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 	if (F_ISSET(lsm_tree, WT_LSM_TREE_OPEN))
 		TAILQ_REMOVE(&S2C(session)->lsmqh, lsm_tree, q);
 
+	__wt_free(session, lsm_tree->name);
+	__wt_free(session, lsm_tree->config);
+	__wt_free(session, lsm_tree->key_format);
+	__wt_free(session, lsm_tree->value_format);
+	__wt_free(session, lsm_tree->file_config);
+
+	if (lsm_tree->rwlock != NULL)
+		__wt_rwlock_destroy(session, &lsm_tree->rwlock);
+
+	__wt_free(session, lsm_tree->stats);
 	__wt_spin_destroy(session, &lsm_tree->lock);
 
-	__wt_free(session, lsm_tree->name);
 	for (i = 0; i < lsm_tree->nchunks; i++) {
 		if ((chunk = lsm_tree->chunk[i]) == NULL)
 			continue;
@@ -46,8 +55,6 @@ __lsm_tree_discard(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 		__wt_free(session, chunk);
 	}
 	__wt_free(session, lsm_tree->old_chunks);
-	__wt_free(session, lsm_tree->stats);
-
 	__wt_free(session, lsm_tree);
 }
 
@@ -150,22 +157,36 @@ __wt_lsm_tree_chunk_name(
 }
 
 /*
- * __wt_lsm_tree_create_chunk --
- *	Create a chunk of an LSM tree.
+ * __wt_lsm_tree_setup_chunk --
+ *	Initialize a chunk of an LSM tree.
  */
 int
-__wt_lsm_tree_create_chunk(
-    WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, int i, const char **urip)
+__wt_lsm_tree_setup_chunk(WT_SESSION_IMPL *session,
+    WT_LSM_TREE *lsm_tree, int i, WT_LSM_CHUNK *chunk, int create_bloom)
 {
 	WT_DECL_ITEM(buf);
+	WT_DECL_ITEM(bbuf);
 	WT_DECL_RET;
+	const char *cfg[] = API_CONF_DEFAULTS(session, drop, "force");
 
 	WT_RET(__wt_scr_alloc(session, 0, &buf));
 	WT_ERR(__wt_lsm_tree_chunk_name(session, lsm_tree, i, buf));
+	/*
+	 * Drop the chunk first - there may be some content hanging over
+	 * from an aborted merge.
+	 */
+	WT_ERR(__wt_schema_drop(session, buf->data, cfg));
 	WT_ERR(__wt_schema_create(session, buf->data, lsm_tree->file_config));
-	*urip = __wt_buf_steal(session, buf, NULL);
+	chunk->uri = __wt_buf_steal(session, buf, NULL);
+	if (create_bloom) {
+		WT_ERR(__wt_scr_alloc(session, 0, &bbuf));
+		WT_ERR(__wt_lsm_tree_bloom_name(
+		    session, lsm_tree, i, bbuf));
+		chunk->bloom_uri = __wt_buf_steal(session, bbuf, NULL);
+	}
 
 err:	__wt_scr_free(&buf);
+	__wt_scr_free(&bbuf);
 	return (ret);
 }
 
@@ -244,7 +265,21 @@ __wt_lsm_tree_create(WT_SESSION_IMPL *session,
 	    &lsm_tree->value_format));
 
 	WT_ERR(__wt_config_gets(session, cfg, "lsm_bloom", &cval));
-	lsm_tree->bloom = (cval.val == 0 ? 0 : 1);
+	FLD_SET(lsm_tree->bloom,
+	    (cval.val == 0 ? WT_LSM_BLOOM_OFF : WT_LSM_BLOOM_MERGED));
+	WT_ERR(__wt_config_gets(session, cfg, "lsm_bloom_newest", &cval));
+	if (cval.val != 0)
+		FLD_SET(lsm_tree->bloom, WT_LSM_BLOOM_NEWEST);
+	WT_ERR(__wt_config_gets(session, cfg, "lsm_bloom_oldest", &cval));
+	if (cval.val != 0)
+		FLD_SET(lsm_tree->bloom, WT_LSM_BLOOM_OLDEST);
+
+	if (FLD_ISSET(lsm_tree->bloom, WT_LSM_BLOOM_OFF) &&
+	    (FLD_ISSET(lsm_tree->bloom, WT_LSM_BLOOM_NEWEST) ||
+	    FLD_ISSET(lsm_tree->bloom, WT_LSM_BLOOM_OLDEST)))
+		WT_ERR_MSG(session, EINVAL,
+		    "Bloom filters can only be created on newest and oldest "
+		    "chunks if bloom filters are enabled");
 
 	WT_ERR(__wt_config_gets(session, cfg, "lsm_bloom_bit_count", &cval));
 	lsm_tree->bloom_bit_count = (uint32_t)cval.val;
@@ -418,8 +453,9 @@ __wt_lsm_tree_switch(
 
 	WT_ERR(__wt_calloc_def(session, 1, &chunk));
 	lsm_tree->chunk[lsm_tree->nchunks++] = chunk;
-	WT_ERR(__wt_lsm_tree_create_chunk(session, lsm_tree, new_id,
-	    &chunk->uri));
+	WT_ERR(__wt_lsm_tree_setup_chunk(
+	    session, lsm_tree, new_id, chunk,
+	    FLD_ISSET(lsm_tree->bloom, WT_LSM_BLOOM_NEWEST) ? 1 : 0));
 
 	++lsm_tree->dsk_gen;
 	WT_ERR(__wt_lsm_meta_write(session, lsm_tree));
@@ -454,7 +490,7 @@ __wt_lsm_tree_drop(
 	for (i = 0; i < lsm_tree->nchunks; i++) {
 		chunk = lsm_tree->chunk[i];
 		WT_ERR(__wt_schema_drop(session, chunk->uri, cfg));
-		if (chunk->bloom_uri != NULL)
+		if (F_ISSET(chunk, WT_LSM_CHUNK_BLOOM))
 			WT_ERR(
 			    __wt_schema_drop(session, chunk->bloom_uri, cfg));
 	}
@@ -463,7 +499,7 @@ __wt_lsm_tree_drop(
 		if ((chunk = lsm_tree->old_chunks[i]) == NULL)
 			continue;
 		WT_ERR(__wt_schema_drop(session, chunk->uri, cfg));
-		if (chunk->bloom_uri != NULL)
+		if (F_ISSET(chunk, WT_LSM_CHUNK_BLOOM))
 			WT_ERR(
 			    __wt_schema_drop(session, chunk->bloom_uri, cfg));
 	}
@@ -526,6 +562,7 @@ __wt_lsm_tree_rename(WT_SESSION_IMPL *session,
 			WT_ERR(__wt_lsm_tree_bloom_name(
 			    session, lsm_tree, i, buf));
 			chunk->bloom_uri = __wt_buf_steal(session, buf, NULL);
+			F_SET(chunk, WT_LSM_CHUNK_BLOOM);
 			WT_ERR(__wt_schema_rename(
 			    session, old, chunk->uri, cfg));
 			__wt_free(session, old);
@@ -570,12 +607,13 @@ __wt_lsm_tree_truncate(
 	WT_RET(__wt_spin_trylock(session, &lsm_tree->lock));
 
 	/* Mark all chunks old. */
+	WT_ERR(__wt_calloc_def(session, 1, &chunk));
 	WT_ERR(__wt_lsm_merge_update_tree(
-	    session, lsm_tree, 0, lsm_tree->nchunks, &chunk));
+	    session, lsm_tree, 0, lsm_tree->nchunks, chunk));
 
 	/* Create the new chunk. */
-	WT_ERR(__wt_lsm_tree_create_chunk(
-	    session, lsm_tree, WT_ATOMIC_ADD(lsm_tree->last, 1), &chunk->uri));
+	WT_ERR(__wt_lsm_tree_setup_chunk(
+	    session, lsm_tree, WT_ATOMIC_ADD(lsm_tree->last, 1), chunk, 0));
 
 	WT_ERR(__wt_lsm_meta_write(session, lsm_tree));
 

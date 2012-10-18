@@ -79,6 +79,7 @@ Fasttrack
 FreeBSD
 FreeBSD's
 Freelist
+Fsync
 GCC
 GIDs
 Geoff
@@ -192,6 +193,7 @@ URIs
 UTF
 UnixLib
 VARCHAR
+Vanishingly
 Vc
 Vixie
 Vo
@@ -199,7 +201,6 @@ Vv
 VxWorks
 WIREDTIGER
 WeakHashLen
-WildTiger
 WinNT
 WiredTiger
 WiredTiger's
@@ -431,12 +432,14 @@ incrementing
 incrv
 indices
 indx
+infeasible
 init
 initn
 initsize
 inmem
 insertK
 insertV
+instantiation
 intl
 intpack
 ints
@@ -461,6 +464,7 @@ llll
 llu
 lno
 loadtext
+logf
 logput
 lookup
 lookups
@@ -567,6 +571,7 @@ readserver
 realloc
 recno
 req
+rescan
 resizing
 ret
 retp

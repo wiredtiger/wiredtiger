@@ -7,6 +7,7 @@
 
 #include "wt_internal.h"
 
+static int __session_checkpoint(WT_SESSION *, const char *);
 static int __session_rollback_transaction(WT_SESSION *, const char *);
 
 /*
@@ -171,6 +172,45 @@ err:	API_END_NOTFOUND_MAP(session, ret);
 }
 
 /*
+ * __wt_open_cursor --
+ *	Internal version of WT_SESSION::open_cursor.
+ */
+int
+__wt_open_cursor(WT_SESSION_IMPL *session,
+    const char *uri, WT_CURSOR *owner, const char *cfg[], WT_CURSOR **cursorp)
+{
+	WT_COLGROUP *colgroup;
+	WT_DATA_SOURCE *dsrc;
+	WT_DECL_RET;
+
+	if (WT_PREFIX_MATCH(uri, "backup:"))
+		ret = __wt_curbackup_open(session, uri, cfg, cursorp);
+	else if (WT_PREFIX_MATCH(uri, "colgroup:")) {
+		/*
+		 * Column groups are a special case: open a cursor on the
+		 * underlying data source.
+		 */
+		WT_RET(__wt_schema_get_colgroup(session, uri, NULL, &colgroup));
+		ret = __wt_open_cursor(
+		    session, colgroup->source, owner, cfg, cursorp);
+	} else if (WT_PREFIX_MATCH(uri, "config:"))
+		ret = __wt_curconfig_open(session, uri, cfg, cursorp);
+	else if (WT_PREFIX_MATCH(uri, "file:"))
+		ret = __wt_curfile_open(session, uri, NULL, cfg, cursorp);
+	else if (WT_PREFIX_MATCH(uri, "index:"))
+		ret = __wt_curindex_open(session, uri, cfg, cursorp);
+	else if (WT_PREFIX_MATCH(uri, "statistics:"))
+		ret = __wt_curstat_open(session, uri, cfg, cursorp);
+	else if (WT_PREFIX_MATCH(uri, "table:"))
+		ret = __wt_curtable_open(session, uri, cfg, cursorp);
+	else if ((ret = __wt_schema_get_source(session, uri, &dsrc)) == 0)
+		ret = dsrc->open_cursor(dsrc, &session->iface,
+		    uri, cfg, cursorp);
+
+	return (ret);
+}
+
+/*
  * __session_open_cursor --
  *	WT_SESSION->open_cursor method.
  */
@@ -178,7 +218,6 @@ static int
 __session_open_cursor(WT_SESSION *wt_session,
     const char *uri, WT_CURSOR *to_dup, const char *config, WT_CURSOR **cursorp)
 {
-	WT_DATA_SOURCE *dsrc;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 
@@ -197,26 +236,11 @@ __session_open_cursor(WT_SESSION *wt_session,
 		    WT_PREFIX_MATCH(uri, "file:") ||
 		    WT_PREFIX_MATCH(uri, "lsm:") ||
 		    WT_PREFIX_MATCH(uri, "table:"))
-			ret = __wt_cursor_dup(session, to_dup, config, cursorp);
+			ret = __wt_cursor_dup(session, to_dup, cfg, cursorp);
 		else
 			ret = __wt_bad_object_type(session, uri);
-	} else if (WT_PREFIX_MATCH(uri, "backup:"))
-		ret = __wt_curbackup_open(session, uri, cfg, cursorp);
-	else if (WT_PREFIX_MATCH(uri, "colgroup:"))
-		ret = __wt_curfile_open(session, uri, NULL, cfg, cursorp);
-	else if (WT_PREFIX_MATCH(uri, "config:"))
-		ret = __wt_curconfig_open(session, uri, cfg, cursorp);
-	else if (WT_PREFIX_MATCH(uri, "file:"))
-		ret = __wt_curfile_open(session, uri, NULL, cfg, cursorp);
-	else if (WT_PREFIX_MATCH(uri, "index:"))
-		ret = __wt_curindex_open(session, uri, cfg, cursorp);
-	else if (WT_PREFIX_MATCH(uri, "statistics:"))
-		ret = __wt_curstat_open(session, uri, cfg, cursorp);
-	else if (WT_PREFIX_MATCH(uri, "table:"))
-		ret = __wt_curtable_open(session, uri, cfg, cursorp);
-	else if ((ret = __wt_schema_get_source(session, uri, &dsrc)) == 0)
-		ret = dsrc->open_cursor(dsrc, &session->iface,
-		    uri, cfg, cursorp);
+	} else
+		ret = __wt_open_cursor(session, uri, NULL, cfg, cursorp);
 
 err:	API_END_NOTFOUND_MAP(session, ret);
 }
@@ -280,6 +304,97 @@ err:	API_END_NOTFOUND_MAP(session, ret);
 }
 
 /*
+ * __session_compact_worker --
+ *	Worker function to do the actual compaction call.
+ */
+static int
+__session_compact_worker(
+    WT_SESSION *wt_session, const char *uri, const char *config)
+{
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	session = (WT_SESSION_IMPL *)wt_session;
+	SESSION_API_CALL(session, compact, config, cfg);
+
+	WT_WITH_SCHEMA_LOCK(session,
+	    ret = __wt_schema_worker(session, uri, __wt_compact, cfg, 0));
+
+err:	API_END_NOTFOUND_MAP(session, ret);
+}
+
+/*
+ * __session_compact --
+ *	WT_SESSION.compact method.
+ */
+static int
+__session_compact(WT_SESSION *wt_session, const char *uri, const char *config)
+{
+	WT_DECL_RET;
+	WT_ITEM *t;
+	WT_SESSION_IMPL *session;
+
+	session = (WT_SESSION_IMPL *)wt_session;
+
+	/* Compaction makes no sense for LSM objects, ignore requests. */
+	if (WT_PREFIX_MATCH(uri, "lsm:"))
+		return (0);
+	if (!WT_PREFIX_MATCH(uri, "colgroup:") &&
+	    !WT_PREFIX_MATCH(uri, "file:") &&
+	    !WT_PREFIX_MATCH(uri, "index:") &&
+	    !WT_PREFIX_MATCH(uri, "table:"))
+		return (__wt_bad_object_type(session, uri));
+
+	/*
+	 * Compaction requires 2, and possibly 3 checkpoints, how many is block
+	 * manager specific: all block managers will need the first checkpoint,
+	 * but may or may not need the last two.
+	 *
+	 * The first checkpoint frees emptied pages to the underlying block
+	 * manager (when rows are deleted, underlying blocks aren't freed until
+	 * the page is reconciled, and checkpoint makes that happen).  Because
+	 * compaction is based on having available blocks in the block manager,
+	 * compaction could do no work without the first checkpoint.
+	 *
+	 * After the first checkpoint, we compact the tree.
+	 *
+	 * The second and third checkpoints are done because the default block
+	 * manager does checkpoints in two steps: blocks made available for
+	 * re-use during a checkpoint are put on a special checkpoint-available
+	 * list and only moved onto the real available list once the metadata
+	 * has been updated with the newly written checkpoint information.  This
+	 * means blocks allocated by the checkpoint itself cannot be taken from
+	 * the blocks made available by the checkpoint.
+	 *
+	 * In other words, the second checkpoint puts the blocks from the end of
+	 * the file that were freed by compaction onto the checkpoint-available
+	 * list, but then potentially writes checkpoint blocks at the end of the
+	 * file, which would prevent any file truncation.  When the second
+	 * checkpoint resolves, those blocks become available for the third
+	 * checkpoint, so it's able to write its blocks toward the beginning of
+	 * the file, and then the file can be truncated.
+	 *
+	 * We do the work here so applications don't get confused why compaction
+	 * isn't helping until after multiple, subsequent checkpoint calls.
+	 *
+	 * Force the checkpoint: we don't want to skip it because the work we
+	 * need to have done is done in the underlying block manager.
+	 */
+	WT_RET(__wt_scr_alloc(session, 0, &t));
+	WT_ERR(__wt_buf_fmt(session, t, "target=(\"%s\")", uri));
+	WT_ERR(__session_checkpoint(wt_session, t->data));
+
+	WT_ERR(__session_compact_worker(wt_session, uri, config));
+
+	WT_ERR(__wt_buf_fmt(session, t, "target=(\"%s\"),force=1", uri));
+	WT_ERR(__session_checkpoint(wt_session, t->data));
+	WT_ERR(__session_checkpoint(wt_session, t->data));
+
+err:	__wt_scr_free(&t);
+	return (ret);
+}
+
+/*
  * __session_drop --
  *	WT_SESSION->drop method.
  */
@@ -297,25 +412,6 @@ __session_drop(WT_SESSION *wt_session, const char *uri, const char *config)
 
 err:	/* Note: drop operations cannot be unrolled (yet?). */
 	API_END_NOTFOUND_MAP(session, ret);
-}
-
-/*
- * __session_dumpfile --
- *	WT_SESSION->dumpfile method.
- */
-static int
-__session_dumpfile(WT_SESSION *wt_session, const char *uri, const char *config)
-{
-	WT_DECL_RET;
-	WT_SESSION_IMPL *session;
-
-	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, dumpfile, config, cfg);
-	WT_WITH_SCHEMA_LOCK(session,
-	    ret = __wt_schema_worker(session, uri,
-		__wt_dumpfile, cfg, WT_BTREE_EXCLUSIVE | WT_BTREE_VERIFY));
-
-err:	API_END_NOTFOUND_MAP(session, ret);
 }
 
 /*
@@ -641,6 +737,7 @@ __wt_open_session(WT_CONNECTION_IMPL *conn, int internal,
 		__session_reconfigure,
 		__session_open_cursor,
 		__session_create,
+		__session_compact,
 		__session_drop,
 		__session_rename,
 		__session_salvage,
@@ -651,7 +748,6 @@ __wt_open_session(WT_CONNECTION_IMPL *conn, int internal,
 		__session_commit_transaction,
 		__session_rollback_transaction,
 		__session_checkpoint,
-		__session_dumpfile,
 		__session_msg_printf
 	};
 	WT_DECL_RET;

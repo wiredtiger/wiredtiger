@@ -70,8 +70,10 @@ struct __wt_btree_stats {
 	WT_STATS extend;
 	WT_STATS free;
 	WT_STATS overflow_read;
+	WT_STATS overflow_value_cache;
 	WT_STATS page_evict;
 	WT_STATS page_read;
+	WT_STATS page_evict_fail;
 	WT_STATS page_write;
 	WT_STATS file_size;
 	WT_STATS file_fixed_len;
@@ -84,6 +86,7 @@ struct __wt_btree_stats {
 	WT_STATS file_minor;
 	WT_STATS file_overflow;
 	WT_STATS file_allocsize;
+	WT_STATS file_compact_rewrite;
 	WT_STATS rec_page_merge;
 	WT_STATS rec_dictionary;
 	WT_STATS rec_split_intl;
@@ -134,6 +137,10 @@ struct __wt_connection_stats {
  * Statistics entries for LSM handle.
  */
 struct __wt_lsm_stats {
+	WT_STATS generation_max;
+	WT_STATS bloom_false_positives;
+	WT_STATS bloom_hits;
+	WT_STATS bloom_misses;
 	WT_STATS bloom_count;
 	WT_STATS bloom_cache_evict;
 	WT_STATS bloom_cache_read;
@@ -142,10 +149,9 @@ struct __wt_lsm_stats {
 	WT_STATS cache_evict;
 	WT_STATS chunk_cache_read;
 	WT_STATS cache_read;
+	WT_STATS cache_evict_fail;
 	WT_STATS cache_write;
-	WT_STATS bloom_misses;
-	WT_STATS bloom_hits;
-	WT_STATS bloom_skips;
+	WT_STATS search_miss_no_bloom;
 	WT_STATS bloom_space;
 };
 

@@ -296,6 +296,7 @@ __cursor_var_prev(WT_CURSOR_BTREE *cbt, int newpage)
 	WT_CELL *cell;
 	WT_CELL_UNPACK unpack;
 	WT_COL *cip;
+	WT_DECL_RET;
 	WT_ITEM *val;
 	WT_SESSION_IMPL *session;
 	WT_UPDATE *upd;
@@ -349,20 +350,23 @@ new_page:	if (cbt->recno < cbt->page->u.col_var.recno)
 			if ((cell = WT_COL_PTR(cbt->page, cip)) == NULL)
 				continue;
 			__wt_cell_unpack(cell, &unpack);
-			switch (unpack.type) {
-			case WT_CELL_DEL:
+			if (unpack.type == WT_CELL_DEL)
 				continue;
-			case WT_CELL_VALUE:
-				if (session->btree->huffman_value == NULL) {
-					cbt->tmp.data = unpack.data;
-					cbt->tmp.size = unpack.size;
-					break;
-				}
-				/* FALLTHROUGH */
-			default:
-				WT_RET(__wt_cell_unpack_copy(
-				    session, &unpack, &cbt->tmp));
-			}
+
+			/*
+			 * Restart for a variable-length column-store.  We could
+			 * catch restart higher up the call-stack but there's no
+			 * point to it: unlike row-store (where a normal search
+			 * path finds cached overflow values), we have to access
+			 * the page's reconciliation structures, and that's as
+			 * easy here as higher up the stack.
+			 */
+			if ((ret = __wt_cell_unpack_ref(
+			    session, &unpack, &cbt->tmp)) == WT_RESTART)
+				ret = __wt_ovfl_cache_col_restart(
+				    session, cbt->page, &unpack, &cbt->tmp);
+			WT_RET(ret);
+
 			cbt->cip_saved = cip;
 		}
 		val->data = cbt->tmp.data;
@@ -490,7 +494,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, int discard)
 	if (discard)
 		LF_SET(WT_TREE_DISCARD);
 
-	__cursor_func_init(cbt, 0);
+retry:	__cursor_func_init(cbt, 0);
 	__cursor_position_clear(cbt);
 
 	/*
@@ -576,6 +580,8 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, int discard)
 			F_SET(cbt, WT_CBT_ITERATE_APPEND);
 	}
 
-err:	__cursor_func_resolve(cbt, ret);
+err:	if (ret == WT_RESTART)
+		goto retry;
+	__cursor_func_resolve(cbt, ret);
 	return (ret);
 }
