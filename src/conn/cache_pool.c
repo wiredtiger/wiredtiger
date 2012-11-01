@@ -64,8 +64,6 @@ __wt_conn_cache_pool_config(WT_SESSION_IMPL *session, const char **cfg)
 		cp->name = pool_name;
 		TAILQ_INIT(&cp->cache_pool_qh);
 		__wt_spin_init(conn->default_session, &cp->cache_pool_lock);
-		WT_ERR(__wt_cond_alloc(conn->default_session,
-		    "cache pool server", 0, &cp->cache_pool_cond));
 		created = 1;
 
 		WT_ERR(__wt_config_gets(
@@ -187,10 +185,6 @@ __wt_conn_cache_pool_destroy(WT_CONNECTION_IMPL *conn)
 			return (0);
 		}
 		WT_VERBOSE_VOID(session, cache_pool, "Destroying cache pool.");
-		/* Shut down the cache pool worker. */
-		__wt_cond_signal(
-		    conn->default_session, cp->cache_pool_cond);
-		WT_TRET(__wt_thread_join(cp->cache_pool_tid));
 
 		/*
 		 * Get the pool lock out of paranoia there should not be
@@ -204,7 +198,6 @@ __wt_conn_cache_pool_destroy(WT_CONNECTION_IMPL *conn)
 		/* Now free the pool. */
 		__wt_free(session, cp->name);
 		__wt_spin_destroy(session, &cp->cache_pool_lock);
-		ret = __wt_cond_destroy(session, cp->cache_pool_cond);
 		__wt_free(session, cp);
 	}
 

@@ -11,8 +11,6 @@
  */
 struct __wt_cache_pool {
 	WT_SPINLOCK cache_pool_lock;
-	pthread_t cache_pool_tid;
-	WT_CONDVAR *cache_pool_cond;
 	const char *name;
 	uint64_t size;
 	uint64_t quota;
