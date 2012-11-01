@@ -160,10 +160,12 @@ __wt_cache_evict_server(void *arg)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	uint32_t pass_count;
 
 	session = arg;
 	conn = S2C(session);
 	cache = conn->cache;
+	pass_count = 0;
 
 	while (F_ISSET(conn, WT_SERVER_RUN)) {
 		/* Evict pages from the cache as needed. */
@@ -171,6 +173,17 @@ __wt_cache_evict_server(void *arg)
 
 		if (!F_ISSET(conn, WT_SERVER_RUN))
 			break;
+
+		/*
+		 * This will run regularly if there is a lot of pressure on
+		 * this connections cache, and rarely if there is no pressure.
+		 * Ideally this would be run every X seconds regardless of the
+		 * cache usage in this connection, but that doesn't fit easily
+		 * into the eviction thread model.
+		 */
+		if (F_ISSET(conn, WT_CONN_CACHE_POOL) && pass_count % 100)
+			WT_ERR(__wt_cache_pool_balance(session));
+		++pass_count;
 
 		WT_VERBOSE_ERR(session, evictserver, "sleeping");
 		/* Don't rely on signals: check periodically. */
