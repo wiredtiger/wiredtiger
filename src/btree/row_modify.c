@@ -454,6 +454,7 @@ __wt_row_leaf_obsolete(WT_SESSION_IMPL *session, WT_PAGE *page)
 int
 __wt_update_serial_func(WT_SESSION_IMPL *session, void *args)
 {
+	WT_DECL_RET;
 	WT_PAGE *page;
 	WT_UPDATE **new_upd, *upd, **upd_entry, **upd_obsolete;
 	uint32_t write_gen;
@@ -461,8 +462,18 @@ __wt_update_serial_func(WT_SESSION_IMPL *session, void *args)
 	__wt_update_unpack(
 	    args, &page, &write_gen, &upd_entry, &new_upd, &upd, &upd_obsolete);
 
-	/* Check the page's write-generation. */
-	WT_RET(__wt_page_write_gen_check(session, page, write_gen));
+	/*
+	 * We may not be able to apply the update if the entry changed.  Check
+	 * the page's write generation (it's a fast check), but if that fails,
+	 * see if it's the only update for the slot or the transaction is not
+	 * in TXN_ISO_SNAPSHOT mode, those cases can ignore page generations.
+	 */
+	if ((ret = __wt_page_write_gen_check(session, page, write_gen)) != 0) {
+		if (*upd_entry != NULL &&
+		    session->txn.isolation == TXN_ISO_SNAPSHOT)
+			return (ret);
+		ret = 0;
+	}
 
 	upd->next = *upd_entry;
 	/*
