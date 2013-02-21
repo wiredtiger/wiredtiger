@@ -24,46 +24,37 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
+# test_bug007.py
+#       Regression tests.
 
 import wiredtiger, wttest
-from helper import simple_populate, key_populate, value_populate
 
-# Test no-cache flag.
-class test_no_cache(wttest.WiredTigerTestCase):
-    name = 'no_cache'
+# Check that forced salvage works correctly.
+class test_bug007(wttest.WiredTigerTestCase):
+    def test_bug007(self):
+        # This is a btree layer test, test files only.
+        uri = 'file:test_bug007'
 
-    scenarios = [
-        ('file', dict(type='file:')),
-        ('table', dict(type='table:'))
-    ]
-
-    # Create an object, and run an uncached cursor through it.
-    def test_no_cache(self):
-        uri = self.type + self.name
-        simple_populate(self, uri, 'key_format=S,leaf_page_max=512', 10000)
-        cursor = self.session.open_cursor(uri, None, "no_cache")
-        i = 0
-        for key,val in cursor:
-            i += 1
-            self.assertEqual(key, key_populate(cursor, i))
-            self.assertEqual(val, value_populate(cursor, i))
-
-    # Create an object, and run an uncached cursor through part of it to
-    # confirm that we release the full stack on an uncached cursor.
-    def test_no_cache_partial(self):
-        uri = self.type + self.name
-        simple_populate(self, uri, 'key_format=S,leaf_page_max=512', 10000)
-        cursor = self.session.open_cursor(uri, None, "no_cache")
-        i = 0
-        for key,val in cursor:
-            i += 1
-            if i > 2000:
-                break
-            self.assertEqual(key, key_populate(cursor, i))
-            self.assertEqual(val, value_populate(cursor, i))
+        # Create the object.
+        self.session.create(uri, 'value_format=S,key_format=S')
+        cursor = self.session.open_cursor(uri, None)
         cursor.close()
+
+        # Force is required if a file doesn't have a reasonable header.
+        # Overwrite the file with random data.
+        f = open('test_bug007', 'w')
+        f.write('random data' * 100)
+        f.close()
+
+        # Salvage should fail.
+        self.assertRaisesWithMessage(
+            wiredtiger.WiredTigerError,
+            lambda: self.session.salvage(uri), "/session.salvage/")
+
+        # Forced salvage should succeed.
+        self.session.salvage(uri, "force")
 
 
 if __name__ == '__main__':
     wttest.run()
-

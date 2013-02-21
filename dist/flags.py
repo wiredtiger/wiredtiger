@@ -9,18 +9,14 @@ flags = {
 # Internal routine flag declarations
 ###################################################
 	'cache_flush' : [
+		'SYNC_CHECKPOINT',
 		'SYNC_COMPACT',
 		'SYNC_DISCARD',
 		'SYNC_DISCARD_NOWRITE',
-		'SYNC_INTERNAL',
-		'SYNC_LEAF',
 	],
 	'direct_io' : [
 		'DIRECTIO_DATA',
 		'DIRECTIO_LOG'
-	],
-	'page_free' : [
-		'PAGE_FREE_IGNORE_DISK'
 	],
 	'rec_write' : [
 		'EVICTION_SERVER_LOCKED',

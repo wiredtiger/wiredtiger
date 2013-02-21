@@ -40,6 +40,7 @@ src/btree/bt_walk.c
 src/btree/col_modify.c
 src/btree/col_srch.c
 src/btree/rec_evict.c
+src/btree/rec_merge.c
 src/btree/rec_track.c
 src/btree/rec_write.c
 src/btree/row_key.c
@@ -91,6 +92,7 @@ src/os_posix/os_flock.c
 src/os_posix/os_fsync.c
 src/os_posix/os_ftruncate.c
 src/os_posix/os_getline.c
+src/os_posix/os_map.c
 src/os_posix/os_mtx.c
 src/os_posix/os_open.c
 src/os_posix/os_priv.c
@@ -102,8 +104,9 @@ src/os_posix/os_strtouq.c
 src/os_posix/os_thread.c
 src/os_posix/os_time.c
 src/os_posix/os_yield.c
-src/packing/packing.c
-src/packing/packing_api.c
+src/packing/pack_api.c
+src/packing/pack_impl.c
+src/packing/pack_stream.c
 src/schema/schema_create.c
 src/schema/schema_drop.c
 src/schema/schema_list.c

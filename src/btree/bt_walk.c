@@ -70,7 +70,7 @@ __tree_walk_delete(
 	 * unclear optimizing for overlapping range deletes is worth the effort.
 	 */
 	if (ref->state != WT_REF_DISK ||
-	    !WT_ATOMIC_CAS(ref->state, WT_REF_DISK, WT_REF_READING))
+	    !WT_ATOMIC_CAS(ref->state, WT_REF_DISK, WT_REF_LOCKED))
 		return (0);
 
 	/*
@@ -145,7 +145,7 @@ __tree_walk_read(WT_SESSION_IMPL *session, WT_REF *ref, int *skipp)
 	 * transaction ID to see if the delete is visible to us.  Lock down
 	 * the structure.
 	 */
-	if (!WT_ATOMIC_CAS(ref->state, WT_REF_DELETED, WT_REF_READING))
+	if (!WT_ATOMIC_CAS(ref->state, WT_REF_DELETED, WT_REF_LOCKED))
 		return (0);
 
 	*skipp = __wt_txn_visible(session, ref->txnid) ? 1 : 0;
@@ -162,7 +162,7 @@ int
 __wt_tree_walk(WT_SESSION_IMPL *session, WT_PAGE **pagep, uint32_t flags)
 {
 	WT_BTREE *btree;
-	WT_PAGE *page, *t;
+	WT_PAGE *page, *parent;
 	WT_REF *ref;
 	uint32_t slot;
 	int cache, compact, discard, eviction, prev, set_read_gen;
@@ -180,10 +180,7 @@ __wt_tree_walk(WT_SESSION_IMPL *session, WT_PAGE **pagep, uint32_t flags)
 	skip_intl = LF_ISSET(WT_TREE_SKIP_INTL) ? 1 : 0;
 	skip_leaf = LF_ISSET(WT_TREE_SKIP_LEAF) ? 1 : 0;
 
-	/*
-	 * Take a copy of any returned page; we have a hazard pointer on the
-	 * page, by definition.
-	 */
+	/* Take a copy of any held page and clear the return value. */
 	page = *pagep;
 	*pagep = NULL;
 
@@ -200,18 +197,39 @@ ascend:	/* If the active page was the root, we've reached the walk's end. */
 		return (0);
 
 	/* Figure out the current slot in the parent page's WT_REF array. */
-	t = page->parent;
-	slot = (uint32_t)(page->ref - t->u.intl.t);
+	parent = page->parent;
+	slot = (uint32_t)(page->ref - parent->u.intl.t);
 
-	/* If not the eviction thread, release the page's hazard pointer. */
-	if (eviction) {
+	/* If the eviction thread, clear the page's walk status. */
+	if (eviction)
 		if (page->ref->state == WT_REF_EVICT_WALK)
 			page->ref->state = WT_REF_MEM;
-	} else
-		WT_RET(__wt_page_release(session, page));
 
-	/* Switch to the parent. */
-	page = t;
+	/*
+	 * Move to the parent.
+	 *
+	 * If not the eviction thread, swap our hazard pointer for the hazard
+	 * pointer of our parent, if it's not the root page (we could access
+	 * it directly because we know it's in memory, but we need a hazard as
+	 * we climb the tree).  Don't leave a hazard pointer dangling on error.
+	 *
+	 * We're hazard-pointer coupling up the tree and that's OK: first,
+	 * hazard pointers can't deadlock, so there's none of the usual
+	 * problems found when logically locking up a Btree; second, we don't
+	 * release our current hazard pointer until we have our parent's
+	 * hazard pointer.  If the eviction thread tries to evict the active
+	 * page, that fails because of our hazard pointer.  If eviction tries
+	 * to evict our parent, that fails because the parent has a child page
+	 * that can't be discarded.
+	 */
+	if (!eviction) {
+		if (WT_PAGE_IS_ROOT(parent))
+			WT_RET(__wt_page_release(session, page));
+		else
+			WT_RET(
+			    __wt_page_swap(session, page, parent, parent->ref));
+	}
+	page = parent;
 
 	/*
 	 * If we're at the last/first slot on the page, return this page in
@@ -245,23 +263,22 @@ descend:	for (;;) {
 			/*
 			 * There are several reasons to walk an in-memory tree:
 			 *
-			 * (1) to write all dirty leaf nodes;
-			 * (2) to find pages to evict;
-			 * (3) to find pages for compaction; and
-			 * (4) to write internal nodes (creating a checkpoint);
-			 * (5) to close a file, discarding pages;
-			 * (6) to perform cursor scans.
+			 * (1) to find pages to evict;
+			 * (2) to write internal nodes (checkpoint, compaction);
+			 * (3) to write all dirty leaf nodes;
+			 * (4) to close a file, discarding pages;
+			 * (5) to perform cursor scans.
 			 *
-			 * For cases (2)-(4), we want all ordinary in-memory
-			 * pages, and we swap the state to WT_REF_EVICT_WALK
-			 * temporarily to avoid the page being evicted by
-			 * another thread while it is being evaluated.  The
-			 * other cases use __wt_page_in to get hazard pointers
+			 * For cases 1 and 2, "eviction" is configured and we
+			 * swap the state to WT_REF_EVICT_WALK temporarily to
+			 * mark the page and to avoid the page being evicted by
+			 * another thread.  The other cases get hazard pointers
 			 * and protect the page from eviction that way.
 			 */
 			set_read_gen = 0;
 			if (eviction) {
-retry:				if (!WT_ATOMIC_CAS(ref->state,
+retry:				if (ref->state != WT_REF_MEM ||
+				    !WT_ATOMIC_CAS(ref->state,
 				    WT_REF_MEM, WT_REF_EVICT_WALK)) {
 					if (!LF_ISSET(WT_TREE_WAIT) ||
 					    ref->state == WT_REF_DELETED ||
@@ -286,20 +303,19 @@ retry:				if (!WT_ATOMIC_CAS(ref->state,
 				}
 			} else if (cache) {
 				/*
-				 * Only look at pages that are in memory.
+				 * Only look at unlocked pages in memory.
 				 * There is a race here, but worse case is
 				 * that the page will be read back in to cache.
 				 */
 				while (LF_ISSET(WT_TREE_WAIT) &&
 				    (ref->state == WT_REF_EVICT_FORCE ||
-				    ref->state == WT_REF_LOCKED ||
-				    ref->state == WT_REF_READING))
+				    ref->state == WT_REF_LOCKED))
 					__wt_yield();
 				if (ref->state == WT_REF_DELETED ||
 				    ref->state == WT_REF_DISK)
 					break;
-				/* Grab a hazard pointer. */
-				WT_RET(__wt_page_in(session, page, ref));
+				WT_RET(
+				    __wt_page_swap(session, page, page, ref));
 			} else if (discard) {
 				/*
 				 * If deleting a range, try to delete the page
@@ -309,7 +325,8 @@ retry:				if (!WT_ATOMIC_CAS(ref->state,
 				    session, page, ref, &skip));
 				if (skip)
 					break;
-				WT_RET(__wt_page_in(session, page, ref));
+				WT_RET(
+				    __wt_page_swap(session, page, page, ref));
 			} else {
 				/*
 				 * If iterating a cursor (or doing compaction),
@@ -339,14 +356,13 @@ retry:				if (!WT_ATOMIC_CAS(ref->state,
 					set_read_gen =
 					    ref->state == WT_REF_DISK ? 1 : 0;
 				}
-
-				WT_RET(__wt_page_in(session, page, ref));
+				WT_RET(
+				    __wt_page_swap(session, page, page, ref));
 				if (set_read_gen)
 					page->read_gen = 0;
 			}
 
 			page = ref->page;
-			WT_ASSERT(session, page != NULL);
 			slot = prev ? page->entries - 1 : 0;
 		}
 	}

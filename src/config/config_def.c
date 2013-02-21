@@ -86,13 +86,13 @@ const char *
 __wt_confdfl_connection_reconfigure =
 	"cache_size=100MB,error_prefix=,eviction_dirty_target=80,"
 	"eviction_target=80,eviction_trigger=95,shared_cache=(chunk=10MB,"
-	"min=50MB,name=,size=500MB),verbose=";
+	"name=pool,reserve=0,size=500MB),verbose=";
 
 WT_CONFIG_CHECK
 __wt_confchk_shared_cache_subconfigs[] = {
 	{ "chunk", "int", "min=1MB,max=10TB", NULL },
-	{ "min", "int", "min=10MB,max=10TB", NULL },
 	{ "name", "string", NULL, NULL },
+	{ "reserve", "int", NULL, NULL },
 	{ "size", "int", "min=1MB,max=10TB", NULL },
 	{ NULL, NULL, NULL, NULL }
 };
@@ -320,8 +320,8 @@ __wt_confchk_session_log_printf[] = {
 
 const char *
 __wt_confdfl_session_open_cursor =
-	"append=0,bulk=0,checkpoint=,dump=,next_random=0,no_cache=0,"
-	"overwrite=0,raw=0,statistics_clear=0,statistics_fast=0,target=";
+	"append=0,bulk=0,checkpoint=,dump=,next_random=0,overwrite=0,raw=0,"
+	"statistics_clear=0,statistics_fast=0,target=";
 
 WT_CONFIG_CHECK
 __wt_confchk_session_open_cursor[] = {
@@ -330,7 +330,6 @@ __wt_confchk_session_open_cursor[] = {
 	{ "checkpoint", "string", NULL, NULL},
 	{ "dump", "string", "choices=[\"hex\",\"print\"]", NULL},
 	{ "next_random", "boolean", NULL, NULL},
-	{ "no_cache", "boolean", NULL, NULL},
 	{ "overwrite", "boolean", NULL, NULL},
 	{ "raw", "boolean", NULL, NULL},
 	{ "statistics_clear", "boolean", NULL, NULL},
@@ -427,9 +426,9 @@ __wt_confdfl_wiredtiger_open =
 	"buffer_alignment=-1,cache_size=100MB,create=0,direct_io=,"
 	"error_prefix=,eviction_dirty_target=80,eviction_target=80,"
 	"eviction_trigger=95,extensions=,hazard_max=1000,logging=0,lsm_merge="
-	",multiprocess=0,session_max=50,shared_cache=(chunk=10MB,min=50MB,"
-	"name=,size=500MB),sync=,transactional=,use_environment_priv=0,"
-	"verbose=";
+	",mmap=,multiprocess=0,session_max=50,shared_cache=(chunk=10MB,"
+	"name=pool,reserve=0,size=500MB),sync=,transactional=,"
+	"use_environment_priv=0,verbose=";
 
 WT_CONFIG_CHECK
 __wt_confchk_wiredtiger_open[] = {
@@ -445,6 +444,7 @@ __wt_confchk_wiredtiger_open[] = {
 	{ "hazard_max", "int", "min=15", NULL},
 	{ "logging", "boolean", NULL, NULL},
 	{ "lsm_merge", "boolean", NULL, NULL},
+	{ "mmap", "boolean", NULL, NULL},
 	{ "multiprocess", "boolean", NULL, NULL},
 	{ "session_max", "int", "min=1", NULL},
 	{ "shared_cache", "category", NULL,

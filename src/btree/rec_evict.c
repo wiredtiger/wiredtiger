@@ -13,7 +13,7 @@ static void __rec_discard_tree(WT_SESSION_IMPL *, WT_PAGE *, int);
 static void __rec_excl_clear(WT_SESSION_IMPL *);
 static void __rec_page_clean_update(WT_SESSION_IMPL *, WT_PAGE *);
 static int  __rec_page_dirty_update(WT_SESSION_IMPL *, WT_PAGE *);
-static int  __rec_review(WT_SESSION_IMPL *, WT_REF *, WT_PAGE *, int, int);
+static int  __rec_review(WT_SESSION_IMPL *, WT_REF *, WT_PAGE *, int, int, int);
 static void __rec_root_update(WT_SESSION_IMPL *);
 
 /*
@@ -24,11 +24,22 @@ int
 __wt_rec_evict(WT_SESSION_IMPL *session, WT_PAGE *page, int exclusive)
 {
 	WT_DECL_RET;
+	WT_PAGE_MODIFY *mod;
+	int merge;
 
 	WT_VERBOSE_RET(session, evict,
 	    "page %p (%s)", page, __wt_page_type_string(page->type));
 
 	WT_ASSERT(session, session->excl_next == 0);
+
+	/*
+	 * If we get a split-merge page during normal eviction, try to collapse
+	 * it.  During close, it will be merged into its parent.
+	 */
+	mod = page->modify;
+	merge = (mod != NULL && F_ISSET(mod, WT_PM_REC_SPLIT_MERGE));
+	if (merge && exclusive)
+		return (EBUSY);
 
 	/*
 	 * Get exclusive access to the page and review the page and its subtree
@@ -39,20 +50,32 @@ __wt_rec_evict(WT_SESSION_IMPL *session, WT_PAGE *page, int exclusive)
 	 * not disallowed anywhere.
 	 *
 	 * Note that page->ref may be NULL in some cases (e.g., for root pages
-	 * or during salvage).  That's OK if WT_REC_SINGLE is set: we won't
-	 * check hazard pointers in that case.
+	 * or during salvage).  That's OK if exclusive is set: we won't check
+	 * hazard pointers in that case.
 	 */
-	WT_ERR(__rec_review(session, page->ref, page, exclusive, 1));
+	WT_ERR(__rec_review(session, page->ref, page, exclusive, merge, 1));
+
+	/* Try to merge internal pages. */
+	if (merge)
+		WT_ERR(__wt_merge_tree(session, page));
+
+	/*
+	 * Update the page's modification reference, reconciliation might have
+	 * changed it.
+	 */
+	mod = page->modify;
 
 	/* Count evictions of internal pages during normal operation. */
-	if (!exclusive &&
+	if (!exclusive && !merge &&
 	    (page->type == WT_PAGE_COL_INT || page->type == WT_PAGE_ROW_INT)) {
 		WT_CSTAT_INCR(session, cache_eviction_internal);
 		WT_DSTAT_INCR(session, cache_eviction_internal);
 	}
 
-	/* Update the parent and discard the page. */
-	if (page->modify == NULL || !F_ISSET(page->modify, WT_PM_REC_MASK)) {
+	/*
+	 * Update the parent and discard the page.
+	 */
+	if (mod == NULL || !F_ISSET(mod, WT_PM_REC_MASK)) {
 		WT_ASSERT(session,
 		    exclusive || page->ref->state == WT_REF_LOCKED);
 
@@ -110,9 +133,18 @@ __rec_root_update(WT_SESSION_IMPL *session)
 static void
 __rec_page_clean_update(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
-	/* Update the relevant WT_REF structure. */
-	page->ref->page = NULL;
-	WT_PUBLISH(page->ref->state, WT_REF_DISK);
+	WT_REF *ref;
+
+	ref = page->ref;
+
+	/*
+	 * Update the page's WT_REF structure.  If the page has an address, it's
+	 * a disk page; if it has no address, it must be a deleted page that was
+	 * re-instantiated (for example, by searching) and never written.
+	 */
+	ref->page = NULL;
+	WT_PUBLISH(ref->state,
+	    ref->addr == NULL ? WT_REF_DELETED : WT_REF_DISK);
 
 	WT_UNUSED(session);
 }
@@ -132,6 +164,30 @@ __rec_page_dirty_update(WT_SESSION_IMPL *session, WT_PAGE *page)
 	parent_ref = page->ref;
 
 	switch (F_ISSET(mod, WT_PM_REC_MASK)) {
+	case WT_PM_REC_EMPTY:				/* Page is empty */
+		if (parent_ref->addr != NULL &&
+		    __wt_off_page(page->parent, parent_ref->addr)) {
+			__wt_free(session, ((WT_ADDR *)parent_ref->addr)->addr);
+			__wt_free(session, parent_ref->addr);
+		}
+
+		/*
+		 * Update the parent to reference an empty page.
+		 *
+		 * Set the transaction ID to WT_TXN_NONE because the fact that
+		 * reconciliation left the page "empty" means there's no older
+		 * transaction in the system that might need to see an earlier
+		 * version of the page.  It isn't necessary (WT_TXN_NONE is 0),
+		 * but it's the right thing to do.
+		 *
+		 * Publish: a barrier to ensure the structure fields are set
+		 * before the state change makes the page available to readers.
+		 */
+		parent_ref->page = NULL;
+		parent_ref->addr = NULL;
+		parent_ref->txnid = WT_TXN_NONE;
+		WT_PUBLISH(parent_ref->state, WT_REF_DELETED);
+		break;
 	case WT_PM_REC_REPLACE: 			/* 1-for-1 page swap */
 		if (parent_ref->addr != NULL &&
 		    __wt_off_page(page->parent, parent_ref->addr)) {
@@ -168,9 +224,6 @@ __rec_page_dirty_update(WT_SESSION_IMPL *session, WT_PAGE *page)
 		mod->u.split = NULL;
 		F_CLR(mod, WT_PM_REC_SPLIT);
 		break;
-	case WT_PM_REC_EMPTY:				/* Page is empty */
-		/* We checked if the page was empty when we reviewed it. */
-		/* FALLTHROUGH */
 	WT_ILLEGAL_VALUE(session);
 	}
 
@@ -222,7 +275,7 @@ __rec_discard_page(WT_SESSION_IMPL *session, WT_PAGE *page, int exclusive)
 		__wt_evict_list_clr_page(session, page);
 
 	/* Discard the page. */
-	__wt_page_out(session, &page, 0);
+	__wt_page_out(session, &page);
 }
 
 /*
@@ -238,7 +291,7 @@ __rec_discard_page(WT_SESSION_IMPL *session, WT_PAGE *page, int exclusive)
  */
 static int
 __rec_review(WT_SESSION_IMPL *session,
-    WT_REF *ref, WT_PAGE *page, int exclusive, int top)
+    WT_REF *ref, WT_PAGE *page, int exclusive, int merge, int top)
 {
 	WT_BTREE *btree;
 	WT_DECL_RET;
@@ -269,8 +322,8 @@ __rec_review(WT_SESSION_IMPL *session,
 			case WT_REF_DELETED:		/* On-disk, deleted */
 				break;
 			case WT_REF_MEM:		/* In-memory */
-				WT_RET(__rec_review(
-				    session, ref, ref->page, exclusive, 0));
+				WT_RET(__rec_review(session,
+				    ref, ref->page, exclusive, merge, 0));
 				break;
 			case WT_REF_EVICT_WALK:		/* Walk point */
 			case WT_REF_EVICT_FORCE:	/* Forced evict */
@@ -337,22 +390,18 @@ __rec_review(WT_SESSION_IMPL *session,
 		}
 
 	/*
-	 * Fail if the top-level page is a page expected to be removed from the
-	 * tree as part of eviction (an empty page or a split-merge page).  Note
-	 * "split" pages are NOT included in this test, because a split page can
-	 * be separately evicted, at which point it's replaced in its parent by
-	 * a reference to a split-merge page.  That's a normal part of the leaf
-	 * page life-cycle if it grows too large and must be pushed out of the
-	 * cache.  There is also an exception for empty pages, the root page may
-	 * be empty when evicted, but that only happens when the tree is closed.
-	 *
-	 * Fail if any page in the top-level page's subtree can't be merged into
-	 * its parent.  You can't evict a page that references such in-memory
-	 * pages, they must be evicted first.  The test is necessary but should
-	 * not fire much: the LRU-based eviction code is biased for leaf pages,
-	 * an internal page shouldn't be selected for LRU-based eviction until
-	 * its children have been evicted.  Empty, split and split-merge pages
-	 * are all included in this test, they can all be merged into a parent.
+	 * If we are merging internal pages, we just need exclusive access, we
+	 * don't need to write everything.
+	 */
+	if (merge)
+		return (0);
+
+	/*
+	 * Fail if any page in the top-level page's subtree won't be merged into
+	 * its parent, the page that cannot be merged must be evicted first.
+	 * The test is necessary but should not fire much: the eviction code is
+	 * biased for leaf pages, an internal page shouldn't be selected for
+	 * eviction until its children have been evicted.
 	 *
 	 * We have to write dirty pages to know their final state, a page marked
 	 * empty may have had records added since reconciliation, a page marked
@@ -367,23 +416,26 @@ __rec_review(WT_SESSION_IMPL *session,
 	 * testing might be worthwhile, but it's more probable we're attempting
 	 * to evict an internal page with live children, and that's a waste of
 	 * time.
-	 *
-	 * We don't do a cheap test for the top-level page: we're not called
-	 * to evict split-merge pages, which means the only interesting case
-	 * is an empty page.  If the eviction thread picked an "empty" page
-	 * for eviction, it must have had reason, probably the empty page got
-	 * really, really full.
 	 */
 	mod = page->modify;
 	if (!top && (mod == NULL || !F_ISSET(mod,
 	    WT_PM_REC_EMPTY | WT_PM_REC_SPLIT | WT_PM_REC_SPLIT_MERGE)))
 		return (EBUSY);
 
-	/* If the page is dirty, write it so we know the final state. */
+	/*
+	 * If the page is dirty and can possibly change state, write it so we
+	 * know the final state.
+	 */
 	if (__wt_page_is_modified(page) &&
 	    !F_ISSET(mod, WT_PM_REC_SPLIT_MERGE)) {
 		ret = __wt_rec_write(session, page,
 		    NULL, WT_EVICTION_SERVER_LOCKED | WT_SKIP_UPDATE_QUIT);
+
+		/*
+		 * Update the page's modification reference, reconciliation
+		 * might have changed it.
+		 */
+		mod = page->modify;
 
 		/* If there are unwritten changes on the page, give up. */
 		if (ret == EBUSY) {
@@ -391,29 +443,23 @@ __rec_review(WT_SESSION_IMPL *session,
 			    "eviction failed, reconciled page not clean");
 
 			/*
-			 * A pathological case: if we're in the middle of a
-			 * transaction and we're stuck trying to find space,
+			 * A pathological case: if we're the oldest transaction
+			 * in the system and we're stuck trying to find space,
 			 * abort the transaction to give up all hazard
-			 * references before trying again.  Don't fail while
-			 * a checkpoint is running: we know that will pass.
+			 * references before trying again.
 			 */
 			if (F_ISSET(txn, TXN_RUNNING) &&
-			    !btree->checkpointing &&
+			    __wt_txn_am_oldest(session) &&
 			    ++txn->eviction_fails >= 100) {
 				txn->eviction_fails = 0;
 				ret = WT_DEADLOCK;
 				WT_CSTAT_INCR(session, txn_fail_cache);
 			}
 
-			/*
-			 * If there aren't multiple cursors active, there
-			 * are no consistency issues: try to bump our snapshot.
+			/* 
+			 * We may be able to discard any "update" memory the
+			 * page no longer needs.
 			 */
-			if (session->ncursors <= 1) {
-				__wt_txn_read_last(session);
-				__wt_txn_read_first(session);
-			}
-
 			switch (page->type) {
 			case WT_PAGE_COL_FIX:
 			case WT_PAGE_COL_VAR:
@@ -431,28 +477,11 @@ __rec_review(WT_SESSION_IMPL *session,
 	}
 
 	/*
-	 * Repeat the eviction tests.
-	 *
-	 * Fail if the top-level page should be merged into its parent, and it's
-	 * not the root page.
-	 *
-	 * Fail if a page in the top-level page's subtree can't be merged into
-	 * its parent.
+	 * Repeat the test: fail if any page in the top-level page's subtree
+	 * won't be merged into its parent.
 	 */
-	if (top) {
-		/*
-		 * We never get a top-level split-merge page to evict, they are
-		 * ignored by the eviction thread.  Check out of sheer paranoia.
-		 */
-		if (mod != NULL) {
-			if (F_ISSET(mod, WT_PM_REC_SPLIT_MERGE))
-				return (EBUSY);
-			if (F_ISSET(mod, WT_PM_REC_EMPTY) &&
-			    !WT_PAGE_IS_ROOT(page))
-				return (EBUSY);
-		}
-	} else if (mod == NULL || !F_ISSET(mod,
-	    WT_PM_REC_EMPTY | WT_PM_REC_SPLIT | WT_PM_REC_SPLIT_MERGE))
+	if (!top && (mod == NULL || !F_ISSET(mod,
+	    WT_PM_REC_EMPTY | WT_PM_REC_SPLIT | WT_PM_REC_SPLIT_MERGE)))
 		return (EBUSY);
 	return (0);
 }

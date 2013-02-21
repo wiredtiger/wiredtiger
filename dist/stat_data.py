@@ -27,6 +27,7 @@ connection_stats = [
 	Stat('file_open', 'files currently open'),
 	Stat('memory_allocation', 'total heap memory allocations'),
 	Stat('memory_free', 'total heap memory frees'),
+	Stat('memory_grow', 'total heap memory re-allocations'),
 	Stat('read_io', 'total read I/Os'),
 	Stat('rwlock_read', 'pthread mutex shared lock read-lock calls'),
 	Stat('rwlock_write', 'pthread mutex shared lock write-lock calls'),
@@ -35,8 +36,10 @@ connection_stats = [
 	##########################################
 	# Block manager statistics
 	##########################################
+	Stat('block_byte_map_read', 'mapped bytes read by the block manager'),
 	Stat('block_byte_read', 'bytes read by the block manager'),
 	Stat('block_byte_write', 'bytes written by the block manager'),
+	Stat('block_map_read', 'mapped blocks read by the block manager'),
 	Stat('block_read', 'blocks read by the block manager'),
 	Stat('block_write', 'blocks written by the block manager'),
 
@@ -56,6 +59,12 @@ connection_stats = [
 	Stat('cache_eviction_hazard',
 	    'cache: eviction unable to acquire hazard pointer'),
 	Stat('cache_eviction_internal', 'cache: internal pages evicted'),
+	Stat('cache_eviction_merge',
+	    'cache: internal page merge operations completed'),
+	Stat('cache_eviction_merge_fail',
+	    'cache: internal page merge attempts that could not complete'),
+	Stat('cache_eviction_merge_levels',
+	    'cache: internal levels merged'),
 	Stat('cache_eviction_slow',
 	    'cache: eviction server unable to reach eviction goal'),
 	Stat('cache_pages_dirty', 'cache: tracked dirty pages in the cache'),
@@ -63,6 +72,14 @@ connection_stats = [
 	    'cache: pages currently held in the cache', perm=1),
 	Stat('cache_read', 'cache: pages read into cache'),
 	Stat('cache_write', 'cache: pages written from cache'),
+
+	##########################################
+	# Reconciliation statistics
+	##########################################
+	Stat('rec_pages', 'page reconciliation calls'),
+	Stat('rec_pages_eviction', 'page reconciliation calls for eviction'),
+	Stat('rec_skipped_update',
+	    'reconciliation failed because an update could not be included'),
 
 	##########################################
 	# Transaction statistics
@@ -97,6 +114,7 @@ dsrc_stats = [
 	Stat('cursor_search_near', 'cursor search near calls'),
 	Stat('cursor_update', 'cursor update calls'),
 	Stat('cursor_update_bytes', 'cursor-update value bytes updated'),
+	Stat('session_compact', 'object compaction'),
 
 	##########################################
 	# Btree statistics
@@ -106,10 +124,11 @@ dsrc_stats = [
 	Stat('btree_column_fix', 'column-store fixed-size leaf pages'),
 	Stat('btree_column_internal', 'column-store internal pages'),
 	Stat('btree_column_variable', 'column-store variable-size leaf pages'),
-	Stat('btree_compact_rewrite', 'tree pages rewritten by compaction'),
+	Stat('btree_compact_rewrite', 'pages rewritten by compaction'),
 	Stat('btree_entries',
 	    'total LSM, table or file object key/value pairs'),
 	Stat('btree_fixed_len', 'fixed-record size'),
+	Stat('btree_maximum_depth', 'maximum tree depth'),
 	Stat('btree_maxintlitem', 'maximum internal page item size'),
 	Stat('btree_maxintlpage', 'maximum internal page size'),
 	Stat('btree_maxleafitem', 'maximum leaf page item size'),
@@ -159,10 +178,30 @@ dsrc_stats = [
 	Stat('cache_eviction_hazard',
 	    'eviction unable to acquire hazard pointer'),
 	Stat('cache_eviction_internal', 'internal pages evicted'),
+	Stat('cache_eviction_merge',
+	    'cache: internal page merge operations completed'),
+	Stat('cache_eviction_merge_fail',
+	    'cache: internal page merge attempts that could not complete'),
+	Stat('cache_eviction_merge_levels',
+	    'cache: internal levels merged'),
 	Stat('cache_overflow_value', 'overflow values cached in memory'),
 	Stat('cache_read', 'pages read into cache'),
 	Stat('cache_read_overflow', 'overflow pages read into cache'),
 	Stat('cache_write', 'pages written from cache'),
+
+	##########################################
+	# Compression statistics
+	##########################################
+	Stat('compress_raw_ok', 'raw compression call succeeded'),
+	Stat('compress_raw_fail',
+	    'raw compression call failed (no additional data available)'),
+	Stat('compress_raw_fail_temporary',
+	    'raw compression call failed (additional data available)'),
+	Stat('compress_read', 'compressed pages read'),
+	Stat('compress_write', 'compressed pages written'),
+	Stat('compress_write_fail', 'page written failed to compress'),
+	Stat('compress_write_too_small',
+	    'page written was too small to compress'),
 
 	##########################################
 	# Reconciliation statistics
@@ -172,9 +211,14 @@ dsrc_stats = [
 	Stat('rec_ovfl_value', 'reconciliation overflow values written'),
 	Stat('rec_page_delete', 'reconciliation pages deleted'),
 	Stat('rec_page_merge', 'reconciliation pages merged'),
+	Stat('rec_pages', 'page reconciliation calls'),
+	Stat('rec_pages_eviction', 'page reconciliation calls for eviction'),
+	Stat('rec_skipped_update',
+	    'reconciliation failed because an update could not be included'),
 	Stat('rec_split_intl', 'reconciliation internal pages split'),
 	Stat('rec_split_leaf', 'reconciliation leaf pages split'),
-	Stat('rec_written', 'reconciliation pages written'),
+	Stat('rec_split_max',
+	    'reconciliation maximum number of splits created by for a page'),
 
 	##########################################
 	# Transaction statistics

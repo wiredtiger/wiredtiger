@@ -33,13 +33,16 @@
 
 /*
  * Align an unsigned value of any type to a specified power-of-2, including the
- * offset result of a pointer subtraction.  Do the calculation using the largest
- * unsigned integer type available, which results in conversion complaints; cast
- * the result to a uint32_t because that's the size of a piece of data in the
- * WiredTiger engine.
+ * offset result of a pointer subtraction; do the calculation using the largest
+ * unsigned integer type available.
+ *
+ * Optionally cast the result to a uint32_t because that's the size of a piece
+ * of data in the WiredTiger engine.
  */
 #define	WT_ALIGN(n, v)							\
-	((uint32_t)((((uintmax_t)(n)) + ((v) - 1)) & ~(((uintmax_t)(v)) - 1)))
+	((((uintmax_t)(n)) + ((v) - 1)) & ~(((uintmax_t)(v)) - 1))
+#define	WT_ALIGN32(n, v)						\
+	((uint32_t)WT_ALIGN(n, v))
 
 /* Min, max. */
 #define	WT_MIN(a, b)	((a) < (b) ? (a) : (b))
@@ -162,6 +165,13 @@
 #define	WT_DECL_RET	int ret = 0
 
 /*
+ * Skip the default configuration string in an list of configurations. The
+ * default config is always the first entry in the array, and the array always
+ * has an explicit NULL terminator, so this is safe.
+ */
+#define	WT_SKIP_DEFAULT_CONFIG(c) &(c)[1]
+
+/*
  * In diagnostic mode we track the locations from which hazard pointers and
  * scratch buffers were acquired.
  */
@@ -170,9 +180,13 @@
 	__wt_scr_alloc_func(session, size, scratchp, __FILE__, __LINE__)
 #define	__wt_page_in(session, parent, ref)				\
 	__wt_page_in_func(session, parent, ref, __FILE__, __LINE__)
+#define	__wt_page_swap(session, out, in, inref)				\
+	__wt_page_swap_func(session, out, in, inref, __FILE__, __LINE__)
 #else
 #define	__wt_scr_alloc(session, size, scratchp)				\
 	__wt_scr_alloc_func(session, size, scratchp)
 #define	__wt_page_in(session, parent, ref)				\
 	__wt_page_in_func(session, parent, ref)
+#define	__wt_page_swap(session, out, in, inref)				\
+	__wt_page_swap_func(session, out, in, inref)
 #endif

@@ -115,7 +115,7 @@ __wt_row_search(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, int is_modify)
 	WT_REF *ref;
 	WT_ROW *rip;
 	uint32_t base, indx, limit;
-	int cmp;
+	int cmp, depth;
 
 	__cursor_search_clear(cbt);
 
@@ -124,14 +124,32 @@ __wt_row_search(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, int is_modify)
 	btree = session->btree;
 	rip = NULL;
 
-	cmp = -1;				/* Assume we don't match. */
-
 	/* Search the internal pages of the tree. */
+	cmp = -1;
 	item = &_item;
-	for (page = btree->root_page; page->type == WT_PAGE_ROW_INT;) {
+	for (depth = 2,
+	    page = btree->root_page; page->type == WT_PAGE_ROW_INT; ++depth) {
+		/*
+		 * Fast-path internal pages with one child, a common case for
+		 * the root page in new trees.
+		 */
+		base = page->entries;
+		ref = &page->u.intl.t[base - 1];
+		if (base == 1)
+			goto descend;
+
+		/* Fast-path appends. */
+		ikey = ref->u.key;
+		item->data = WT_IKEY_DATA(ikey);
+		item->size = ikey->size;
+
+		WT_ERR(WT_BTREE_CMP(session, btree, srch_key, item, cmp));
+		if (cmp >= 0)
+			goto descend;
+
 		/* Binary search of internal pages. */
 		for (base = 0, ref = NULL,
-		    limit = page->entries; limit != 0; limit >>= 1) {
+		    limit = page->entries - 1; limit != 0; limit >>= 1) {
 			indx = base + (limit >> 1);
 			ref = page->u.intl.t + indx;
 
@@ -157,7 +175,8 @@ __wt_row_search(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, int is_modify)
 			base = indx + 1;
 			--limit;
 		}
-		WT_ASSERT(session, ref != NULL);
+
+descend:	WT_ASSERT(session, ref != NULL);
 
 		/*
 		 * Reference the slot used for next step down the tree.
@@ -170,10 +189,26 @@ __wt_row_search(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, int is_modify)
 		if (cmp != 0)
 			ref = page->u.intl.t + (base - 1);
 
-		/* Move to the child page. */
-		WT_ERR(__wt_page_in(session, page, ref));
+		/*
+		 * Swap the parent page for the child page; return on error,
+		 * the swap function ensures we're holding nothing on failure.
+		 *
+		 * !!!
+		 * Don't use WT_RET, we've already used WT_ERR, and the style
+		 * checking code complains if we use WT_RET after a jump to an
+		 * error label.
+		 */
+		if ((ret = __wt_page_swap(session, page, page, ref)) != 0)
+			return (ret);
 		page = ref->page;
 	}
+
+	/*
+	 * We want to know how deep the tree gets because excessive depth can
+	 * happen because of how WiredTiger splits.
+	 */
+	if (depth > btree->maximum_depth)
+		btree->maximum_depth = depth;
 
 	/*
 	 * Copy the leaf page's write generation value before reading the page.
@@ -187,7 +222,11 @@ __wt_row_search(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, int is_modify)
 		WT_ORDERED_READ(cbt->write_gen, page->modify->write_gen);
 	}
 
-	/* Do a binary search of the leaf page. */
+	/*
+	 * Do a binary search of the leaf page; the page might be empty, reset
+	 * the comparison value.
+	 */
+	cmp = -1;
 	for (base = 0, limit = page->entries; limit != 0; limit >>= 1) {
 		indx = base + (limit >> 1);
 		rip = page->u.row.d + indx;
@@ -259,7 +298,7 @@ __wt_row_search(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, int is_modify)
 	WT_ERR(__wt_search_insert(session, cbt, cbt->ins_head, srch_key));
 	return (0);
 
-err:	WT_TRET(__wt_stack_release(session, page));
+err:	WT_TRET(__wt_page_release(session, page));
 	return (ret);
 }
 
@@ -284,8 +323,11 @@ __wt_row_random(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	for (page = btree->root_page; page->type == WT_PAGE_ROW_INT;) {
 		ref = page->u.intl.t + __wt_random() % page->entries;
 
-		/* Swap the parent page for the child page. */
-		WT_ERR(__wt_page_in(session, page, ref));
+		/*
+		 * Swap the parent page for the child page; return on error,
+		 * the swap function ensures we're holding nothing on failure.
+		 */
+		WT_RET(__wt_page_swap(session, page, page, ref));
 		page = ref->page;
 	}
 
@@ -326,6 +368,6 @@ __wt_row_random(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 
 	return (0);
 
-err:	WT_TRET(__wt_stack_release(session, page));
+err:	WT_TRET(__wt_page_release(session, page));
 	return (ret);
 }

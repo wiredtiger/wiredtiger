@@ -70,20 +70,21 @@ __cursor_leave(WT_CURSOR_BTREE *cbt)
 	F_CLR(cursor, WT_CURSTD_KEY_RET | WT_CURSTD_VALUE_RET);
 
 	/* Release any page references we're holding. */
-	WT_RET(__wt_stack_release(session, cbt->page));
+	WT_RET(__wt_page_release(session, cbt->page));
 	cbt->page = NULL;
 
 	if (F_ISSET(cbt, WT_CBT_ACTIVE)) {
 		WT_ASSERT(session, session->ncursors > 0);
-		if (--session->ncursors == 0) {
+		/*
+		 * We no longer have any active cursors, and there is no
+		 * transaction running, check if our operation overflowed the
+		 * cache.  We don't care if we fail to evict pages: our
+		 * operation is done regardless.
+		 */
+		if (--session->ncursors == 0 &&
+		    !F_ISSET(&session->txn, TXN_RUNNING)) {
 			__wt_txn_read_last(session);
 
-			/*
-			 * We no longer have any active cursors, check if our
-			 * operation overflowed the cache.  We don't care if we
-			 * fail to evict pages: our operation is done
-			 * regardless.
-			 */
 			(void)__wt_cache_full_check(session);
 		}
 		F_CLR(cbt, WT_CBT_ACTIVE);

@@ -637,7 +637,7 @@ __block_ext_overlap(WT_SESSION_IMPL *session,
 	 * We can think of the overlap possibilities as 11 different cases:
 	 *
 	 *		AAAAAAAAAAAAAAAAAA
-	 * #1		BBBBBBBBBBBBBBBBBB		ranges are are the same
+	 * #1		BBBBBBBBBBBBBBBBBB		ranges are the same
 	 * #2	BBBBBBBBBBBBB				overlaps the beginning
 	 * #3			BBBBBBBBBBBBBBBB	overlaps the end
 	 * #4		BBBBB				B is a prefix of A
@@ -658,7 +658,7 @@ __block_ext_overlap(WT_SESSION_IMPL *session,
 	 * eliminate cases #2, #8, #10 and #11, and only handle 7 cases:
 	 *
 	 *		AAAAAAAAAAAAAAAAAA
-	 * #1		BBBBBBBBBBBBBBBBBB		ranges are are the same
+	 * #1		BBBBBBBBBBBBBBBBBB		ranges are the same
 	 * #3			BBBBBBBBBBBBBBBB	overlaps the end
 	 * #4		BBBBB				B is a prefix of A
 	 * #5			BBBBBB			B is middle of A
@@ -1035,7 +1035,8 @@ __wt_block_extlist_write(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	WT_EXT *ext;
 	WT_PAGE_HEADER *dsk;
-	uint32_t entries, size;
+	size_t size;
+	uint32_t entries;
 	uint8_t *p;
 
 	if (WT_VERBOSE_ISSET(session, block))

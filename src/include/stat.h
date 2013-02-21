@@ -106,6 +106,7 @@ struct __wt_dsrc_stats {
 	WT_STATS btree_compact_rewrite;
 	WT_STATS btree_entries;
 	WT_STATS btree_fixed_len;
+	WT_STATS btree_maximum_depth;
 	WT_STATS btree_maxintlitem;
 	WT_STATS btree_maxintlpage;
 	WT_STATS btree_maxleafitem;
@@ -120,10 +121,20 @@ struct __wt_dsrc_stats {
 	WT_STATS cache_eviction_fail;
 	WT_STATS cache_eviction_hazard;
 	WT_STATS cache_eviction_internal;
+	WT_STATS cache_eviction_merge;
+	WT_STATS cache_eviction_merge_fail;
+	WT_STATS cache_eviction_merge_levels;
 	WT_STATS cache_overflow_value;
 	WT_STATS cache_read;
 	WT_STATS cache_read_overflow;
 	WT_STATS cache_write;
+	WT_STATS compress_raw_fail;
+	WT_STATS compress_raw_fail_temporary;
+	WT_STATS compress_raw_ok;
+	WT_STATS compress_read;
+	WT_STATS compress_write;
+	WT_STATS compress_write_fail;
+	WT_STATS compress_write_too_small;
 	WT_STATS cursor_insert;
 	WT_STATS cursor_insert_bulk;
 	WT_STATS cursor_insert_bytes;
@@ -144,9 +155,13 @@ struct __wt_dsrc_stats {
 	WT_STATS rec_ovfl_value;
 	WT_STATS rec_page_delete;
 	WT_STATS rec_page_merge;
+	WT_STATS rec_pages;
+	WT_STATS rec_pages_eviction;
+	WT_STATS rec_skipped_update;
 	WT_STATS rec_split_intl;
 	WT_STATS rec_split_leaf;
-	WT_STATS rec_written;
+	WT_STATS rec_split_max;
+	WT_STATS session_compact;
 	WT_STATS txn_update_conflict;
 	WT_STATS txn_write_conflict;
 };
@@ -155,8 +170,10 @@ struct __wt_dsrc_stats {
  * Statistics entries for connections.
  */
 struct __wt_connection_stats {
+	WT_STATS block_byte_map_read;
 	WT_STATS block_byte_read;
 	WT_STATS block_byte_write;
+	WT_STATS block_map_read;
 	WT_STATS block_read;
 	WT_STATS block_write;
 	WT_STATS cache_bytes_dirty;
@@ -169,6 +186,9 @@ struct __wt_connection_stats {
 	WT_STATS cache_eviction_fail;
 	WT_STATS cache_eviction_hazard;
 	WT_STATS cache_eviction_internal;
+	WT_STATS cache_eviction_merge;
+	WT_STATS cache_eviction_merge_fail;
+	WT_STATS cache_eviction_merge_levels;
 	WT_STATS cache_eviction_slow;
 	WT_STATS cache_pages_dirty;
 	WT_STATS cache_pages_inuse;
@@ -178,7 +198,11 @@ struct __wt_connection_stats {
 	WT_STATS file_open;
 	WT_STATS memory_allocation;
 	WT_STATS memory_free;
+	WT_STATS memory_grow;
 	WT_STATS read_io;
+	WT_STATS rec_pages;
+	WT_STATS rec_pages_eviction;
+	WT_STATS rec_skipped_update;
 	WT_STATS rwlock_read;
 	WT_STATS rwlock_write;
 	WT_STATS txn_ancient;

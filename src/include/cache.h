@@ -54,7 +54,6 @@ struct __wt_cache {
 	 */
 	WT_EVICT_ENTRY *evict;		/* LRU pages being tracked */
 	WT_EVICT_ENTRY *evict_current;	/* LRU current page to be evicted */
-	size_t   evict_allocated;	/* LRU list bytes allocated */
 	uint32_t evict_entries;		/* LRU list eviction slots */
 	uint32_t evict_candidates;	/* LRU list pages to evict */
 	u_int    evict_file_next;	/* LRU: next file to search */
@@ -71,6 +70,7 @@ struct __wt_cache {
 	uint64_t cp_saved_evict;	/* Evict count from last pass */
 	uint64_t cp_current_evict;	/* Evict count from current pass */
 	uint32_t cp_skip_count;		/* Post change stabilization */
+	uint64_t cp_reserved;		/* Base size for this cache */
 
 	/*
 	 * Flags.
@@ -90,7 +90,6 @@ struct __wt_cache_pool {
 	WT_SESSION_IMPL *session;
 	const char *name;
 	uint64_t size;
-	uint64_t min;		/* The minimum size per connection. */
 	uint64_t chunk;
 	uint64_t currently_used;
 	uint32_t flags;

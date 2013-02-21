@@ -23,6 +23,7 @@ __wt_col_search(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, int is_modify)
 	WT_REF *ref;
 	uint64_t recno;
 	uint32_t base, indx, limit;
+	int depth;
 
 	__cursor_search_clear(cbt);
 
@@ -32,13 +33,20 @@ __wt_col_search(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, int is_modify)
 	ref = NULL;
 
 	/* Search the internal pages of the tree. */
-	for (page = btree->root_page; page->type == WT_PAGE_COL_INT;) {
+	for (depth = 2,
+	    page = btree->root_page; page->type == WT_PAGE_COL_INT; ++depth) {
 		WT_ASSERT(session, ref == NULL ||
 		    ref->u.recno == page->u.intl.recno);
 
+		/* Fast path appends. */
+		base = page->entries;
+		ref = &page->u.intl.t[base - 1];
+		if (recno >= ref->u.recno)
+			goto descend;
+
 		/* Binary search of internal pages. */
-		for (base = 0,
-		    limit = page->entries; limit != 0; limit >>= 1) {
+		for (base = 0, ref = NULL,
+		    limit = page->entries - 1; limit != 0; limit >>= 1) {
 			indx = base + (limit >> 1);
 			ref = page->u.intl.t + indx;
 
@@ -49,7 +57,8 @@ __wt_col_search(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, int is_modify)
 			base = indx + 1;
 			--limit;
 		}
-		WT_ASSERT(session, ref != NULL);
+
+descend:	WT_ASSERT(session, ref != NULL);
 
 		/*
 		 * Reference the slot used for next step down the tree.
@@ -68,10 +77,20 @@ __wt_col_search(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, int is_modify)
 			ref = page->u.intl.t + (base - 1);
 		}
 
-		/* Move to the child page. */
-		WT_ERR(__wt_page_in(session, page, ref));
+		/*
+		 * Swap the parent page for the child page; return on error,
+		 * the swap function ensures we're holding nothing on failure.
+		 */
+		WT_RET(__wt_page_swap(session, page, page, ref));
 		page = ref->page;
 	}
+
+	/*
+	 * We want to know how deep the tree gets because excessive depth can
+	 * happen because of how WiredTiger splits.
+	 */
+	if (depth > btree->maximum_depth)
+		btree->maximum_depth = depth;
 
 	/*
 	 * Copy the leaf page's write generation value before reading the page.
@@ -158,6 +177,6 @@ past_end:
 		F_SET(cbt, WT_CBT_MAX_RECORD);
 	return (0);
 
-err:	WT_TRET(__wt_stack_release(session, page));
+err:	WT_TRET(__wt_page_release(session, page));
 	return (ret);
 }

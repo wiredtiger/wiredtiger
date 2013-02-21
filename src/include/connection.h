@@ -38,7 +38,8 @@ struct __wt_named_collator {
 struct __wt_named_compressor {
 	const char *name;		/* Name of compressor */
 	WT_COMPRESSOR *compressor;	/* User supplied callbacks */
-	TAILQ_ENTRY(__wt_named_compressor) q;	/* Linked list of compressors */
+					/* Linked list of compressors */
+	TAILQ_ENTRY(__wt_named_compressor) q;
 };
 
 /*
@@ -46,9 +47,10 @@ struct __wt_named_compressor {
  *	A data source list entry
  */
 struct __wt_named_data_source {
-	const char *prefix;		/* Name of compressor */
+	const char *prefix;		/* Name of data source */
 	WT_DATA_SOURCE *dsrc;		/* User supplied callbacks */
-	TAILQ_ENTRY(__wt_named_data_source) q;	/* Linked list of compressors */
+					/* Linked list of data sources */
+	TAILQ_ENTRY(__wt_named_data_source) q;
 };
 
 /*
@@ -94,9 +96,11 @@ struct __wt_connection_impl {
 	TAILQ_HEAD(__wt_lsm_qh, __wt_lsm_tree) lsmqh;
 					/* Locked: file list */
 	TAILQ_HEAD(__wt_fh_qh, __wt_fh) fhqh;
-
 					/* Locked: library list */
 	TAILQ_HEAD(__wt_dlh_qh, __wt_dlh) dlhqh;
+
+	WT_SPINLOCK block_lock;		/* Locked: block manager list */
+	TAILQ_HEAD(__wt_block_qh, __wt_block) blockqh;
 
 	u_int open_btree_count;		/* Locked: open writable btree count */
 	u_int next_file_id;		/* Locked: file ID counter */
@@ -146,7 +150,8 @@ struct __wt_connection_impl {
 	/* If non-zero, all buffers used for I/O will be aligned to this. */
 	size_t buffer_alignment;
 
-	uint32_t direct_io;
+	uint32_t direct_io;		/* O_DIRECT configuration */
+	int	 mmap;			/* mmap configuration */
 	uint32_t verbose;
 
 	uint32_t flags;

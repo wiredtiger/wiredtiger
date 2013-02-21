@@ -181,9 +181,11 @@ file_config = format_meta + lsm_config + [
 		block compression is done''',
 		min='512B', max='512MB'),
 	Config('internal_item_max', '0', r'''
-		the maximum key size stored on internal nodes, in bytes.  If
-		zero, a maximum is calculated to permit at least 8 keys per
-		internal page''',
+		the largest key stored within an internal node, in bytes.  If
+		non-zero, any key larger than the specified size will be
+		stored as an overflow item (which may require additional I/O
+		to access).  If zero, a default size is chosen that permits at
+		least 8 keys per internal page''',
 		min=0),
 	Config('key_gap', '10', r'''
 		the maximum gap between instantiated keys in a Btree leaf page,
@@ -199,9 +201,11 @@ file_config = format_meta + lsm_config + [
 		is done''',
 		min='512B', max='512MB'),
 	Config('leaf_item_max', '0', r'''
-		the maximum key or value size stored on leaf nodes, in bytes.
-		If zero, a size is calculated to permit at least 8 items
-		(values or row store keys) per leaf page''',
+		the largest key or value stored within a leaf node, in bytes.
+		If non-zero, any key or value larger than the specified size
+		will be stored as an overflow item (which may require additional
+		I/O to access).  If zero, a default size is chosen that permits
+		at least 4 key and value pairs per leaf page''',
 		min=0),
 	Config('memory_page_max', '5MB', r'''
 		the maximum size a page can grow to in memory before being
@@ -255,10 +259,11 @@ connection_runtime_config = [
 		Config('chunk', '10MB', r'''
 			the granularity that a shared cache is redistributed''',
 			min='1MB', max='10TB'),
-		Config('min', '50MB', r'''
-			minimum amount of cache a database in a shared cache can have''',
-			min='10MB', max='10TB'),
-		Config('name', '', r'''
+		Config('reserve', '0', r'''
+			amount of cache this database is guaranteed to have available
+			from the shared cache. This setting is per database. Defaults
+			to the chunk size''', type='int'),
+		Config('name', 'pool', r'''
 			name of a cache that is shared between databases'''),
 		Config('size', '500MB', r'''
 			maximum memory to allocate for the shared cache. Setting this
@@ -354,19 +359,21 @@ methods = {
 		number key; valid only for cursors with record number keys''',
 		type='boolean'),
 	Config('bulk', 'false', r'''
-		configure the cursor for bulk loads, a fast load path that may
-		only be used for newly created objects. Cursors configured for
-		bulk load only support the WT_CURSOR::insert and
-		WT_CURSOR::close methods.  The value is usually a true/false
-		flag, but the the special value \c "bitmap" is for use with
-		fixed-length column stores, and allows chunks of a memory
-		resident bitmap to be loaded directly into a file by passing a
-		\c WT_ITEM to WT_CURSOR::set_value where the \c size field
-		indicates the number of records in the bitmap (as specified by
-		the file's \c value_format). Bulk load bitmap values must end
-		on a byte boundary relative to the bit count - except for the
-		last set of values loaded''',
-		type='string'),
+		configure the cursor for bulk-loading, a fast, initial load
+		path (see @ref bulk_load for more information).  Bulk-load
+		may only be used for newly created objects and cursors
+		configured for bulk-load only support the WT_CURSOR::insert
+		and WT_CURSOR::close methods.  When bulk-loading row-store
+		objects, keys must be loaded in sorted order.  The value is
+		usually a true/false flag; when bulk-loading fixed-length
+		column store objects, the special value \c bitmap allows
+		chunks of a memory resident bitmap to be loaded directly into
+		a file by passing a \c WT_ITEM to WT_CURSOR::set_value where
+		the \c size field indicates the number of records in the
+		bitmap (as specified by the object's \c value_format
+		configuration). Bulk-loaded bitmap values must end on a byte
+		boundary relative to the bit count (except for the last set
+		of values loaded)'''),
 	Config('checkpoint', '', r'''
 		the name of a checkpoint to open (the reserved name
 		"WiredTigerCheckpoint" opens the most recent internal
@@ -386,10 +393,6 @@ methods = {
 		and WT_CURSOR::close methods.  See @ref cursor_random for
 		details''',
 		type='boolean'),
-	Config('no_cache', 'false', r'''
-		do not cache pages from the underlying object.  The cursor
-		does not support data modification''',
-		type='boolean', undoc=True),
 	Config('overwrite', 'false', r'''
 		change the behavior of the cursor's insert method to overwrite
 		previously existing values''',
@@ -524,6 +527,9 @@ methods = {
 		type='boolean'),
 	Config('lsm_merge', 'true', r'''
 		merge LSM chunks where possible''',
+		type='boolean'),
+	Config('mmap', 'true', r'''
+		Use memory mapping to access files when possible''',
 		type='boolean'),
 	Config('multiprocess', 'false', r'''
 		permit sharing between processes (will automatically start an

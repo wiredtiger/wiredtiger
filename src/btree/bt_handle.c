@@ -7,7 +7,7 @@
 
 #include "wt_internal.h"
 
-static int __btree_conf(WT_SESSION_IMPL *, WT_CKPT *ckpt, const char *[]);
+static int __btree_conf(WT_SESSION_IMPL *, WT_CKPT *ckpt);
 static int __btree_get_last_recno(WT_SESSION_IMPL *);
 static int __btree_page_sizes(WT_SESSION_IMPL *, const char *);
 static int __btree_tree_open_empty(WT_SESSION_IMPL *, int);
@@ -16,32 +16,13 @@ static int pse1(WT_SESSION_IMPL *, const char *, uint32_t, uint32_t);
 static int pse2(WT_SESSION_IMPL *, const char *, uint32_t, uint32_t, uint32_t);
 
 /*
- * __wt_btree_create --
- *	Create a Btree.
- */
-int
-__wt_btree_create(WT_SESSION_IMPL *session, const char *filename)
-{
-	return (__wt_bm_create(session, filename));
-}
-
-/*
- * __wt_btree_truncate --
- *	Truncate a Btree.
- */
-int
-__wt_btree_truncate(WT_SESSION_IMPL *session, const char *filename)
-{
-	return (__wt_bm_truncate(session, filename));
-}
-
-/*
  * __wt_btree_open --
  *	Open a Btree.
  */
 int
 __wt_btree_open(WT_SESSION_IMPL *session, const char *cfg[])
 {
+	WT_BM *bm;
 	WT_BTREE *btree;
 	WT_CKPT ckpt;
 	WT_CONFIG_ITEM cval;
@@ -52,6 +33,9 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *cfg[])
 	const char *filename;
 
 	btree = session->btree;
+	bm = NULL;
+
+	/* Checkpoint files are readonly. */
 	readonly = btree->checkpoint == NULL ? 0 : 1;
 
 	/* Get the checkpoint information for this name/checkpoint pair. */
@@ -79,14 +63,28 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *cfg[])
 	}
 
 	/* Initialize and configure the WT_BTREE structure. */
-	WT_ERR(__btree_conf(session, &ckpt, cfg));
+	WT_ERR(__btree_conf(session, &ckpt));
 
 	/* Connect to the underlying block manager. */
 	filename = btree->name;
 	if (!WT_PREFIX_SKIP(filename, "file:"))
 		WT_ERR_MSG(session, EINVAL, "expected a 'file:' URI");
-	WT_ERR(__wt_bm_open(
-	    session, filename, btree->config, cfg, forced_salvage));
+	WT_ERR(__wt_block_manager_open(
+	    session, filename, btree->config, cfg, forced_salvage, &btree->bm));
+	bm = btree->bm;
+
+	/*
+	 * !!!
+	 * As part of block-manager configuration, we need to return the maximum
+	 * sized address cookie that a block manager will ever return.  There's
+	 * a limit of WT_BTREE_MAX_ADDR_COOKIE, but at 255B, it's too large for
+	 * a Btree with 512B internal pages.  The default block manager packs
+	 * an off_t and 2 uint32_t's into its cookie, so there's no problem now,
+	 * but when we create a block manager extension API, we need some way to
+	 * consider the block manager's maximum cookie size versus the minimum
+	 * Btree internal node size.
+	 */
+	btree->block_header = bm->block_header(bm);
 
 	/*
 	 * Open the specified checkpoint unless it's a special command (special
@@ -100,7 +98,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *cfg[])
 		 * being created), or the load call returns no root page (the
 		 * checkpoint is for an empty file).
 		 */
-		WT_ERR(__wt_bm_checkpoint_load(session,
+		WT_ERR(bm->checkpoint_load(bm, session,
 		    ckpt.raw.data, ckpt.raw.size,
 		    root_addr, &root_addr_size, readonly));
 		if (creation || root_addr_size == 0)
@@ -130,19 +128,24 @@ err:		WT_TRET(__wt_btree_close(session));
 int
 __wt_btree_close(WT_SESSION_IMPL *session)
 {
+	WT_BM *bm;
 	WT_BTREE *btree;
 	WT_DECL_RET;
 
 	btree = session->btree;
 
-	/* Unload the checkpoint, unless it's a special command. */
-	if (F_ISSET(btree, WT_BTREE_OPEN) &&
-	    !F_ISSET(btree,
-	    WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY))
-		WT_TRET(__wt_bm_checkpoint_unload(session));
+	if ((bm = btree->bm) != NULL) {
+		/* Unload the checkpoint, unless it's a special command. */
+		if (F_ISSET(btree, WT_BTREE_OPEN) &&
+		    !F_ISSET(btree,
+		    WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY))
+			WT_TRET(bm->checkpoint_unload(bm, session));
 
-	/* Close the underlying block manager reference. */
-	WT_TRET(__wt_bm_close(session));
+		/* Close the underlying block manager reference. */
+		WT_TRET(bm->close(bm, session));
+
+		btree->bm = NULL;
+	}
 
 	/* Close the Huffman tree. */
 	__wt_btree_huffman_close(session);
@@ -164,12 +167,11 @@ __wt_btree_close(WT_SESSION_IMPL *session)
  *	Configure a WT_BTREE structure.
  */
 static int
-__btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, const char *cfg[])
+__btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 {
 	WT_BTREE *btree;
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
-	WT_DECL_RET;
 	WT_NAMED_COLLATOR *ncoll;
 	WT_NAMED_COMPRESSOR *ncomp;
 	uint32_t bitcnt;
@@ -238,16 +240,6 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, const char *cfg[])
 			F_SET(btree, WT_BTREE_NO_EVICTION | WT_BTREE_NO_HAZARD);
 		else
 			F_CLR(btree, WT_BTREE_NO_EVICTION);
-	}
-
-	/* No-cache files are never evicted or cached. */
-	if (cfg != NULL) {
-		ret = __wt_config_gets(session, cfg, "no_cache", &cval);
-		if (ret != 0 && ret != WT_NOTFOUND)
-			WT_RET(ret);
-		if (ret == 0 && cval.val != 0)
-			F_SET(session->btree, WT_BTREE_NO_CACHE |
-			    WT_BTREE_NO_EVICTION | WT_BTREE_NO_HAZARD);
 	}
 
 	/* Checksums */
@@ -340,7 +332,8 @@ __wt_btree_tree_open(
 
 	/* Read the page, then build the in-memory version of the page. */
 	WT_ERR(__wt_bt_read(session, &dsk, addr, addr_size));
-	WT_ERR(__wt_page_inmem(session, NULL, NULL, dsk.mem, &page));
+	WT_ERR(__wt_page_inmem(session,
+	    NULL, NULL, dsk.mem, F_ISSET(&dsk, WT_ITEM_MAPPED) ? 1 : 0, &page));
 	btree->root_page = page;
 
 	if (0) {
@@ -395,7 +388,6 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, int creation)
 		WT_ERR(__wt_calloc_def(session, 1, &root->u.intl.t));
 		ref = root->u.intl.t;
 		WT_ERR(__wt_btree_leaf_create(session, root, ref, &leaf));
-		ref->page = leaf;
 		ref->addr = NULL;
 		ref->state = WT_REF_MEM;
 		ref->u.recno = 1;
@@ -405,7 +397,6 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, int creation)
 		WT_ERR(__wt_calloc_def(session, 1, &root->u.intl.t));
 		ref = root->u.intl.t;
 		WT_ERR(__wt_btree_leaf_create(session, root, ref, &leaf));
-		ref->page = leaf;
 		ref->addr = NULL;
 		ref->state = WT_REF_MEM;
 		WT_ERR(__wt_row_ikey_alloc(session, 0, "", 1, &ref->u.key));
@@ -449,15 +440,15 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, int creation)
 	return (0);
 
 err:	if (leaf != NULL)
-		__wt_page_out(session, &leaf, 0);
+		__wt_page_out(session, &leaf);
 	if (root != NULL)
-		__wt_page_out(session, &root, 0);
+		__wt_page_out(session, &root);
 	return (ret);
 }
 
 /*
  * __wt_btree_leaf_create --
- *	Create an empty leaf page.
+ *	Create an empty leaf page and link it into a reference in its parent.
  */
 int
 __wt_btree_leaf_create(
@@ -483,8 +474,7 @@ __wt_btree_leaf_create(
 		break;
 	}
 	leaf->entries = 0;
-	leaf->ref = ref;
-	leaf->parent = parent;
+	WT_LINK_PAGE(parent, ref, leaf);
 
 	*pagep = leaf;
 	return (0);
@@ -544,7 +534,7 @@ __btree_get_last_recno(WT_SESSION_IMPL *session)
 		return (WT_NOTFOUND);
 
 	btree->last_recno = __col_last_recno(page);
-	return (__wt_stack_release(session, page));
+	return (__wt_page_release(session, page));
 }
 
 /*
@@ -581,6 +571,18 @@ __btree_page_sizes(WT_SESSION_IMPL *session, const char *config)
 	WT_RET(__wt_config_getones(session, config, "memory_page_max", &cval));
 	btree->maxmempage = WT_MAX((uint64_t)cval.val, 50 * btree->maxleafpage);
 
+	/*
+	 * Limit allocation units to 128MB, and page sizes to 512MB.  There's no
+	 * reason we couldn't support larger values (any value up to the smaller
+	 * of an off_t and a size_t should work), but an application specifying
+	 * larger allocation units or page sizes is likely making a mistake. The
+	 * API checked this, but we assert it anyway.
+	 */
+	WT_ASSERT(session, btree->allocsize >= WT_BTREE_ALLOCATION_SIZE_MIN);
+	WT_ASSERT(session, btree->allocsize <= WT_BTREE_ALLOCATION_SIZE_MAX);
+	WT_ASSERT(session, btree->maxintlpage <= WT_BTREE_PAGE_SIZE_MAX);
+	WT_ASSERT(session, btree->maxleafpage <= WT_BTREE_PAGE_SIZE_MAX);
+
 	/* Allocation sizes must be a power-of-two, nothing else makes sense. */
 	if (!__wt_ispo2(btree->allocsize))
 		WT_RET_MSG(session,
@@ -596,9 +598,8 @@ __btree_page_sizes(WT_SESSION_IMPL *session, const char *config)
 		    "size (%" PRIu32 "B)", btree->allocsize);
 
 	/*
-	 * Set the split percentage: reconciliation splits to a
-	 * smaller-than-maximum page size so we don't split every time a new
-	 * entry is added.
+	 * Set the split percentage: reconciliation splits to a smaller-than-
+	 * maximum page size so we don't split every time a new entry is added.
 	 */
 	WT_RET(__wt_config_getones(session, config, "split_pct", &cval));
 	split_pct = (uint32_t)cval.val;
@@ -615,6 +616,15 @@ __btree_page_sizes(WT_SESSION_IMPL *session, const char *config)
 		    btree->maxintlitem = intl_split_size / 8;
 	if (btree->maxleafitem == 0)
 		    btree->maxleafitem = leaf_split_size / 8;
+
+	/*
+	 * If raw compression is configured, the application owns page layout,
+	 * it's not our problem.   Hopefully the application chose well.
+	 */
+	if (btree->compressor != NULL &&
+	    btree->compressor->compress_raw != NULL)
+		return (0);
+
 	/* Check we can fit at least 2 items on a page. */
 	if (btree->maxintlitem > btree->maxintlpage / 2)
 		return (pse1(session, "internal",
@@ -634,18 +644,6 @@ __btree_page_sizes(WT_SESSION_IMPL *session, const char *config)
 	if (btree->maxleafitem > leaf_split_size / 2)
 		return (pse2(session, "leaf",
 		    btree->maxleafpage, btree->maxleafitem, split_pct));
-
-	/*
-	 * Limit allocation units to 128MB, and page sizes to 512MB.  There's
-	 * no reason we couldn't support larger sizes (any sizes up to the
-	 * smaller of an off_t and a size_t should work), but an application
-	 * specifying larger allocation or page sizes would likely be making
-	 * as mistake.  The API checked this, but we assert it anyway.
-	 */
-	WT_ASSERT(session, btree->allocsize >= WT_BTREE_ALLOCATION_SIZE_MIN);
-	WT_ASSERT(session, btree->allocsize <= WT_BTREE_ALLOCATION_SIZE_MAX);
-	WT_ASSERT(session, btree->maxintlpage <= WT_BTREE_PAGE_SIZE_MAX);
-	WT_ASSERT(session, btree->maxleafpage <= WT_BTREE_PAGE_SIZE_MAX);
 
 	return (0);
 }
