@@ -78,7 +78,8 @@ __wt_lsm_merge(
 	const char *rand_cfg[] = API_CONF_DEFAULTS(session, open_cursor,
 	    "checkpoint=WiredTigerCheckpoint,next_random");
 	uint32_t generation, start_id;
-	uint64_t insert_count, record_count, r;
+	uint64_t insert_count, merge_size, record_count, r;
+	double merge_rate;
 	u_int dest_id, end_chunk, i, max_chunks, nchunks, start_chunk;
 	int create_bloom;
 
@@ -93,8 +94,10 @@ __wt_lsm_merge(
 	 * should assume there is no work to do: if there are unwritten chunks,
 	 * the worker should write them immediately.
 	 */
-	if (lsm_tree->nchunks <= 1)
+	if (lsm_tree->nchunks <= 1) {
+		lsm_tree->merge_rate = 1;
 		return (WT_NOTFOUND);
+	}
 
 	/*
 	 * Use the lsm_tree lock to read the chunks (so no switches occur), but
@@ -191,8 +194,10 @@ __wt_lsm_merge(
 	start_id = lsm_tree->chunk[start_chunk]->id;
 	WT_RET(__wt_rwunlock(session, lsm_tree->rwlock));
 
-	if (nchunks == 0)
+	if (nchunks == 0) {
+		lsm_tree->merge_rate = 1;
 		return (WT_NOTFOUND);
+	}
 
 	/* Allocate an ID for the merge. */
 	dest_id = WT_ATOMIC_ADD(lsm_tree->last, 1);
@@ -237,6 +242,7 @@ __wt_lsm_merge(
 
 	WT_ERR(__wt_open_cursor(session, chunk->uri, NULL, cur_cfg, &dest));
 
+	merge_size = 0;
 	for (insert_count = 0; (ret = src->next(src)) == 0; insert_count++) {
 		if (insert_count % 1000 &&
 		    !F_ISSET(lsm_tree, WT_LSM_TREE_WORKING)) {
@@ -248,6 +254,7 @@ __wt_lsm_merge(
 		WT_ERR(src->get_value(src, &value));
 		dest->set_value(dest, &value);
 		WT_ERR(dest->insert(dest));
+		merge_size += key.size + value.size;
 		if (create_bloom)
 			WT_ERR(__wt_bloom_insert(bloom, &key));
 	}
@@ -312,6 +319,20 @@ __wt_lsm_merge(
 	chunk->count = insert_count;
 	chunk->generation = generation;
 	F_SET(chunk, WT_LSM_CHUNK_ONDISK);
+
+	/* Track whether merges are keeping up with inserts */
+	merge_rate = (double)merge_size /
+	    (lsm_tree->switch_count * lsm_tree->chunk_size);
+	lsm_tree->merge_rate = ((lsm_tree->merge_rate * 3) + merge_rate) / 4; 
+	WT_VERBOSE_RET(session, lsm,
+	    "LSM merge not keeping up with inserts. Inserted"
+	    ": %" PRIu64 " bytes while merging: %" PRIu64
+	    " merge rate: %f, weighted merge rate: %f."
+	    " %s throttle inserts\n",
+	    lsm_tree->switch_count * lsm_tree->chunk_size,
+	    merge_size, merge_rate, lsm_tree->merge_rate,
+	    F_ISSET(lsm_tree, WT_LSM_THROTTLE) ? "Will" : "Won't");
+	lsm_tree->switch_count = 0;
 
 	ret = __wt_lsm_meta_write(session, lsm_tree);
 	WT_TRET(__wt_rwunlock(session, lsm_tree->rwlock));

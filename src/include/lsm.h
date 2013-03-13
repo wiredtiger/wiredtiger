@@ -67,6 +67,10 @@ struct __wt_lsm_tree {
 
 	WT_DSRC_STATS stats;		/* LSM statistics */
 
+	/* Variables to help with insert throttling */
+	uint64_t switch_count;	/* Number of new chunks since the last merge */
+	double merge_rate;	/* Proportion of inserts vs merged items */
+
 	uint64_t dsk_gen;
 
 	/* Configuration parameters */
@@ -105,6 +109,7 @@ struct __wt_lsm_tree {
 
 #define	WT_LSM_TREE_WORKING	0x01
 #define	WT_LSM_TREE_OPEN	0x02
+#define	WT_LSM_THROTTLE		0x04
 	uint32_t flags;
 };
 

@@ -778,6 +778,7 @@ __clsm_put(
 	WT_CURSOR *primary;
 	WT_DECL_RET;
 	WT_LSM_TREE *lsm_tree;
+	uint32_t backoff;
 
 	lsm_tree = clsm->lsm_tree;
 
@@ -803,6 +804,31 @@ __clsm_put(
 	primary->set_key(primary, key);
 	primary->set_value(primary, value);
 	WT_RET(primary->insert(primary));
+
+	/*
+	 * If we are attempting to match insert and merge rates, apply
+	 * throttling. The slower merges are (relatively) the more
+	 * aggressively we throttle.
+	 */
+	if (F_ISSET(lsm_tree, WT_LSM_THROTTLE) && lsm_tree->merge_rate < 1) {
+		backoff = 0;
+		if (lsm_tree->merge_rate < 0.1)
+			backoff = 1000;
+		else if (lsm_tree->merge_rate < 0.6)
+			backoff = 10;
+		else if (lsm_tree->merge_rate < 0.8) {
+			if (clsm->primary_chunk->count % 5 == 0)
+				backoff = 10;
+		} else if (lsm_tree->merge_rate < 0.9) {
+			if (clsm->primary_chunk->count % 50 == 0)
+				backoff = 10;
+		} else {
+			if (clsm->primary_chunk->count % 200 == 0)
+				backoff = 10;
+		}
+		if (backoff != 0)
+			__wt_sleep(0, backoff);
+	}
 
 	/*
 	 * The count is in a shared structure, but it's only approximate, so
