@@ -361,6 +361,9 @@ __wt_lsm_tree_create(WT_SESSION_IMPL *session,
 	lsm_tree->bloom_bit_count = (uint32_t)cval.val;
 	WT_ERR(__wt_config_gets(session, cfg, "lsm_bloom_hash_count", &cval));
 	lsm_tree->bloom_hash_count = (uint32_t)cval.val;
+	WT_ERR(__wt_config_gets(session, cfg, "lsm_auto_throttle", &cval));
+	if (cval.val != 0)
+		F_SET(lsm_tree, WT_LSM_THROTTLE);
 	WT_ERR(__wt_config_gets(session, cfg, "lsm_chunk_size", &cval));
 	lsm_tree->chunk_size = (uint32_t)cval.val;
 	WT_ERR(__wt_config_gets(session, cfg, "lsm_merge_max", &cval));
@@ -468,6 +471,9 @@ __lsm_tree_open(
 	/* Set the generation number so cursors are opened on first usage. */
 	lsm_tree->dsk_gen = 1;
 
+	lsm_tree->switch_count = 0;
+	lsm_tree->merge_rate = 1;
+
 	/* Now the tree is setup, make it visible to others. */
 	lsm_tree->refcnt = 1;
 	TAILQ_INSERT_HEAD(&S2C(session)->lsmqh, lsm_tree, q);
@@ -549,6 +555,7 @@ __wt_lsm_tree_switch(
 	WT_ERR(__wt_lsm_tree_setup_chunk(session, lsm_tree, chunk));
 
 	++lsm_tree->dsk_gen;
+	++lsm_tree->switch_count;
 	WT_ERR(__wt_lsm_meta_write(session, lsm_tree));
 
 err:	/* TODO: mark lsm_tree bad on error(?) */

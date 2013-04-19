@@ -94,6 +94,10 @@ format_meta = column_meta + [
 ]
 
 lsm_config = [
+	Config('lsm_auto_throttle', 'false', r'''
+		Throttle inserts into LSM tree if merge operations aren't keeping
+		up''',
+		type='boolean'),
 	Config('lsm_bloom', 'true', r'''
 		create bloom filters on LSM tree chunks as they are merged''',
 		type='boolean'),
