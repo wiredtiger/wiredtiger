@@ -531,9 +531,10 @@ __clsm_search(WT_CURSOR *cursor)
 	WT_CURSOR *c;
 	WT_CURSOR_LSM *clsm;
 	WT_DECL_RET;
+	WT_LSM_TREE *lsm_tree;
 	WT_SESSION_IMPL *session;
 	u_int i;
-	int have_hash;
+	int cmp, have_hash;
 
 	have_hash = 0;
 
@@ -551,6 +552,17 @@ __clsm_search(WT_CURSOR *cursor)
 		WT_ERR(clsm->current->reset(clsm->current));
 		clsm->current = NULL;
 	}
+
+	/* Check for a search beyond the end of the key space. */
+	lsm_tree = clsm->lsm_tree;
+	__wt_spin_lock(session, &lsm_tree->end_lock);
+	if (lsm_tree->end_key.data == NULL ||
+	    ((ret = WT_LSM_CMP(session, lsm_tree,
+	    &cursor->key, &lsm_tree->end_key, cmp)) == 0 &&
+	    cmp >= 0))
+		ret = WT_NOTFOUND;
+	__wt_spin_unlock(session, &lsm_tree->end_lock);
+	WT_ERR(ret);
 
 	WT_FORALL_CURSORS(clsm, c, i) {
 		/* If there is a Bloom filter, see if we can skip the read. */
@@ -866,7 +878,9 @@ __clsm_insert(WT_CURSOR *cursor)
 {
 	WT_CURSOR_LSM *clsm;
 	WT_DECL_RET;
+	WT_LSM_TREE *lsm_tree;
 	WT_SESSION_IMPL *session;
+	int cmp;
 
 	WT_LSM_UPDATE_ENTER(clsm, cursor, session, insert);
 	WT_CURSOR_NEEDKEY(cursor);
@@ -878,6 +892,18 @@ __clsm_insert(WT_CURSOR *cursor)
 			ret = WT_DUPLICATE_KEY;
 		return (ret);
 	}
+
+	/* Check for a search beyond the end of the key space. */
+	lsm_tree = clsm->lsm_tree;
+	__wt_spin_lock(session, &lsm_tree->end_lock);
+	if (lsm_tree->end_key.data == NULL ||
+	    ((ret = WT_LSM_CMP(session, lsm_tree,
+	    &cursor->key, &lsm_tree->end_key, cmp)) == 0 &&
+	    cmp > 0))
+		ret = __wt_buf_set(session, &lsm_tree->end_key,
+		    cursor->key.data, cursor->key.size);
+	__wt_spin_unlock(session, &lsm_tree->end_lock);
+	WT_ERR(ret);
 
 	ret = __clsm_put(session, clsm, &cursor->key, &cursor->value);
 
