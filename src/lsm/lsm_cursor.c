@@ -559,8 +559,11 @@ __clsm_search(WT_CURSOR *cursor)
 	if (lsm_tree->end_key.data == NULL ||
 	    ((ret = WT_LSM_CMP(session, lsm_tree,
 	    &cursor->key, &lsm_tree->end_key, cmp)) == 0 &&
-	    cmp >= 0))
+	    cmp >= 0)) {
 		ret = WT_NOTFOUND;
+		WT_STAT_INCR(&clsm->lsm_tree->stats, lsm_max_key_check);
+		WT_CSTAT_INCR(session, lsm_max_key_check);
+	}
 	__wt_spin_unlock(session, &lsm_tree->end_lock);
 	WT_ERR(ret);
 
