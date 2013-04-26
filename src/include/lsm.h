@@ -69,6 +69,9 @@ struct __wt_lsm_tree {
 	WT_CONDVAR *ckpt_cond;		/* Used to notify worker of a switch */
 	TAILQ_ENTRY(__wt_lsm_tree) q;
 
+	WT_ITEM end_key;		/* Highest key seen in the tree */
+	WT_SPINLOCK end_lock;		/* Protects end_key */
+
 	WT_DSRC_STATS stats;		/* LSM statistics */
 
 	uint64_t dsk_gen;

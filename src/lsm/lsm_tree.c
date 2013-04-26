@@ -36,6 +36,7 @@ __lsm_tree_discard(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 
 	WT_TRET(__wt_rwlock_destroy(session, &lsm_tree->rwlock));
 	WT_TRET(__wt_cond_destroy(session, &lsm_tree->ckpt_cond));
+	__wt_spin_destroy(session, &lsm_tree->end_lock);
 
 	for (i = 0; i < lsm_tree->nchunks; i++) {
 		if ((chunk = lsm_tree->chunk[i]) == NULL)
@@ -465,6 +466,8 @@ __lsm_tree_open(
 	WT_ERR(__wt_rwlock_alloc(session, "lsm tree", &lsm_tree->rwlock));
 	WT_ERR(__wt_cond_alloc(session, "lsm ckpt", 0, &lsm_tree->ckpt_cond));
 	WT_ERR(__lsm_tree_set_name(session, lsm_tree, uri));
+	__wt_spin_init(session, &lsm_tree->end_lock);
+	__wt_buf_free(session, &lsm_tree->end_key);
 	__wt_stat_init_dsrc_stats(&lsm_tree->stats);
 
 	WT_ERR(__wt_lsm_meta_read(session, lsm_tree));

@@ -147,6 +147,7 @@ struct __wt_dsrc_stats {
 	WT_STATS lsm_chunk_count;
 	WT_STATS lsm_generation_max;
 	WT_STATS lsm_lookup_no_bloom;
+	WT_STATS lsm_max_key_check;
 	WT_STATS rec_dictionary;
 	WT_STATS rec_ovfl_key;
 	WT_STATS rec_ovfl_value;
@@ -205,6 +206,7 @@ struct __wt_connection_stats {
 	WT_STATS cursor_search_near;
 	WT_STATS cursor_update;
 	WT_STATS file_open;
+	WT_STATS lsm_max_key_check;
 	WT_STATS lsm_rows_merged;
 	WT_STATS memory_allocation;
 	WT_STATS memory_free;
@@ -215,6 +217,7 @@ struct __wt_connection_stats {
 	WT_STATS rec_skipped_update;
 	WT_STATS rwlock_read;
 	WT_STATS rwlock_write;
+	WT_STATS session_cursors;
 	WT_STATS txn_ancient;
 	WT_STATS txn_begin;
 	WT_STATS txn_checkpoint;

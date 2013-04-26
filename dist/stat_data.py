@@ -97,7 +97,13 @@ connection_stats = [
 	##########################################
 	# LSM statistics
 	##########################################
+	Stat('lsm_max_key_check', 'searches skipped based on last-key check'),
 	Stat('lsm_rows_merged', 'rows merged in an LSM tree'),
+
+	##########################################
+	# Session operations
+	##########################################
+	Stat('session_cursors', 'number of open cursors'),
 
 	##########################################
 	# Total Btree cursor operations
@@ -178,6 +184,7 @@ dsrc_stats = [
 	Stat('lsm_lookup_no_bloom',
 	    'queries that could have benefited ' +
 	    'from a Bloom filter that did not exist'),
+	Stat('lsm_max_key_check', 'searches skipped based on last-key check'),
 
 	##########################################
 	# Block manager statistics

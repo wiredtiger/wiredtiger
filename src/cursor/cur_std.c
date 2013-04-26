@@ -384,6 +384,8 @@ __wt_cursor_close(WT_CURSOR *cursor)
 	__wt_free(session, cursor->uri);
 	__wt_free(session, cursor);
 
+	WT_CSTAT_DECR(session, session_cursors);
+
 err:	API_END(session);
 	return (ret);
 }
@@ -571,6 +573,7 @@ __wt_cursor_init(WT_CURSOR *cursor,
 		TAILQ_INSERT_HEAD(&session->cursors, cursor, q);
 
 	F_SET(cursor, WT_CURSTD_OPEN);
+	WT_CSTAT_INCR(session, session_cursors);
 
 	*cursorp = (cdump != NULL) ? cdump : cursor;
 	return (0);

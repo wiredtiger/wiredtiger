@@ -93,6 +93,8 @@ __wt_stat_init_dsrc_stats(WT_DSRC_STATS *stats)
 	    "highest merge generation in the LSM tree";
 	stats->lsm_lookup_no_bloom.desc =
 	    "queries that could have benefited from a Bloom filter that did not exist";
+	stats->lsm_max_key_check.desc =
+	    "searches skipped based on last-key check";
 	stats->rec_dictionary.desc = "reconciliation dictionary matches";
 	stats->rec_ovfl_key.desc = "reconciliation overflow keys written";
 	stats->rec_ovfl_value.desc = "reconciliation overflow values written";
@@ -188,6 +190,7 @@ __wt_stat_clear_dsrc_stats(void *stats_arg)
 	stats->lsm_chunk_count.v = 0;
 	stats->lsm_generation_max.v = 0;
 	stats->lsm_lookup_no_bloom.v = 0;
+	stats->lsm_max_key_check.v = 0;
 	stats->rec_dictionary.v = 0;
 	stats->rec_ovfl_key.v = 0;
 	stats->rec_ovfl_value.v = 0;
@@ -257,6 +260,8 @@ __wt_stat_init_connection_stats(WT_CONNECTION_STATS *stats)
 	stats->cursor_search_near.desc = "Btree cursor search near calls";
 	stats->cursor_update.desc = "Btree cursor update calls";
 	stats->file_open.desc = "files currently open";
+	stats->lsm_max_key_check.desc =
+	    "searches skipped based on last-key check";
 	stats->lsm_rows_merged.desc = "rows merged in an LSM tree";
 	stats->memory_allocation.desc = "total heap memory allocations";
 	stats->memory_free.desc = "total heap memory frees";
@@ -270,6 +275,7 @@ __wt_stat_init_connection_stats(WT_CONNECTION_STATS *stats)
 	stats->rwlock_read.desc = "pthread mutex shared lock read-lock calls";
 	stats->rwlock_write.desc =
 	    "pthread mutex shared lock write-lock calls";
+	stats->session_cursors.desc = "number of open cursors";
 	stats->txn_ancient.desc = "ancient transactions";
 	stats->txn_begin.desc = "transactions";
 	stats->txn_checkpoint.desc = "transaction checkpoints";
@@ -320,6 +326,7 @@ __wt_stat_clear_connection_stats(void *stats_arg)
 	stats->cursor_search.v = 0;
 	stats->cursor_search_near.v = 0;
 	stats->cursor_update.v = 0;
+	stats->lsm_max_key_check.v = 0;
 	stats->lsm_rows_merged.v = 0;
 	stats->memory_allocation.v = 0;
 	stats->memory_free.v = 0;
@@ -330,6 +337,7 @@ __wt_stat_clear_connection_stats(void *stats_arg)
 	stats->rec_skipped_update.v = 0;
 	stats->rwlock_read.v = 0;
 	stats->rwlock_write.v = 0;
+	stats->session_cursors.v = 0;
 	stats->txn_ancient.v = 0;
 	stats->txn_begin.v = 0;
 	stats->txn_checkpoint.v = 0;
