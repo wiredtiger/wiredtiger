@@ -101,13 +101,24 @@ __wt_lsm_merge(
 
 	/*
 	 * Only include chunks that are stable on disk and not involved in a
-	 * merge.
+	 * merge.  With multiple merge threads, alternate between searching
+	 * from each end of the tree so that we don't miss potential merges
+	 * because another thread has some chunks marked as merging.
 	 */
-	end_chunk = lsm_tree->nchunks - 1;
-	while (end_chunk > 0 &&
-	    (!F_ISSET(lsm_tree->chunk[end_chunk], WT_LSM_CHUNK_ONDISK) ||
-	    F_ISSET(lsm_tree->chunk[end_chunk], WT_LSM_CHUNK_MERGING)))
-		--end_chunk;
+	if (id == 0 || stalls % 2 == 0) {
+		end_chunk = lsm_tree->nchunks - 1;
+		while (end_chunk > 0 && (!F_ISSET(lsm_tree->chunk[end_chunk],
+		    WT_LSM_CHUNK_ONDISK) ||
+		    F_ISSET(lsm_tree->chunk[end_chunk], WT_LSM_CHUNK_MERGING)))
+			--end_chunk;
+	} else {
+		end_chunk = 0;
+		while (end_chunk < lsm_tree->nchunks &&
+		    lsm_tree->chunk[end_chunk]->generation >= id &&
+		    F_ISSET(lsm_tree->chunk[end_chunk], WT_LSM_CHUNK_ONDISK) &&
+		    !F_ISSET(lsm_tree->chunk[end_chunk], WT_LSM_CHUNK_MERGING))
+			++end_chunk;
+	}
 
 	/*
 	 * Look for the most efficient merge we can do.  We define efficiency
@@ -138,10 +149,10 @@ __wt_lsm_merge(
 			break;
 
 		/*
-		 * If the next chunk is more than double the average size of
-		 * the chunks we have so far, stop.
+		 * If there are multiple merge threads, each thread other than
+		 * the last sticks to generations lower than its thread ID.
 		 */
-		if (nchunks > 1 && chunk->count > 2 * record_count / nchunks)
+		if (id < lsm_tree->merge_threads - 1 && chunk->generation > id)
 			break;
 
 		/*
@@ -169,7 +180,7 @@ __wt_lsm_merge(
 	WT_ASSERT(session, nchunks <= max_chunks);
 
 	/* Don't do small merges. */
-	if (nchunks <= 1 || (id == 0 && nchunks < max_chunks / 2)) {
+	if (nchunks <= 1 || nchunks < max_chunks / (2 + id)) {
 		for (i = 0; i < nchunks; i++)
 			F_CLR(lsm_tree->chunk[start_chunk + i],
 			    WT_LSM_CHUNK_MERGING);
@@ -192,8 +203,8 @@ __wt_lsm_merge(
 
 	WT_VERBOSE_RET(session, lsm,
 	    "Merging chunks %d-%d into %d (%" PRIu64 " records)"
-	    ", generation %d\n",
-	    start_chunk, end_chunk, dest_id, record_count, generation);
+	    ", generation %d, thread %u\n",
+	    start_chunk, end_chunk, dest_id, record_count, generation, id);
 
 	WT_RET(__wt_calloc_def(session, 1, &chunk));
 	chunk->id = dest_id;
