@@ -267,7 +267,7 @@ __wt_cursor_get_value(WT_CURSOR *cursor, ...)
 	WT_DECL_RET;
 	WT_ITEM *value;
 	WT_SESSION_IMPL *session;
-	const char *fmt;
+	const char *fmt, **p;
 	va_list ap;
 
 	CURSOR_API_CALL(cursor, session, get_value, NULL);
@@ -279,12 +279,14 @@ __wt_cursor_get_value(WT_CURSOR *cursor, ...)
 	fmt = F_ISSET(cursor, WT_CURSOR_RAW_OK) ? "u" : cursor->value_format;
 
 	/* Fast path some common cases. */
-	if (strcmp(fmt, "S") == 0)
-		*va_arg(ap, const char **) = cursor->value.data;
-	else if (strcmp(fmt, "u") == 0) {
-		value = va_arg(ap, WT_ITEM *);
-		value->data = cursor->value.data;
-		value->size = cursor->value.size;
+	if (strcmp(fmt, "S") == 0) {
+		if ((p = va_arg(ap, const char **)) != NULL)
+			*p = cursor->value.data;
+	} else if (strcmp(fmt, "u") == 0) {
+		if ((value = va_arg(ap, WT_ITEM *)) != NULL) {
+			value->data = cursor->value.data;
+			value->size = cursor->value.size;
+		}
 	} else
 		ret = __wt_struct_unpackv(session,
 		    cursor->value.data, cursor->value.size, fmt, ap);
