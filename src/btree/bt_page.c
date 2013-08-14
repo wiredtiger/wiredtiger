@@ -31,9 +31,10 @@ __wt_page_in_func(
 	WT_DECL_RET;
 	WT_PAGE *page;
 	WT_TXN *txn;
-	int busy, oldgen;
+	int busy, force_evict_attempts, oldgen;
 
 	txn = &session->txn;
+	force_evict_attempts = 0;
 
 	for (oldgen = 0;;) {
 		switch (ref->state) {
@@ -78,16 +79,20 @@ __wt_page_in_func(
 
 			/*
 			 * Make sure the page isn't too big.  Only do this
-			 * check if the transaction hasn't made any updates
+			 * check if the transaction has not modified the page
 			 * and limit the number of attempts to avoid getting
-			 * stuck if the page doesn't become available.
+			 * stuck if the page never becomes available.
 			 */
-			if (!WT_TXN_ACTIVE(txn) &&
-			    txn->force_evict_attempts < 100 &&
-			    __wt_eviction_page_force(session, page)) {
-				++txn->force_evict_attempts;
+			if ((!F_ISSET(txn, TXN_RUNNING) ||
+			    page->modify == NULL ||
+			    txn->id > page->modify->last_txn) &&
+			    __wt_eviction_page_force(session, page) &&
+			    force_evict_attempts < 100) {
 				page->read_gen = WT_READ_GEN_OLDEST;
 				WT_RET(__wt_page_release(session, page));
+				/* Back off if we have tried many times. */
+				if (++force_evict_attempts > 10)
+					__wt_sleep(0, force_evict_attempts);
 				break;
 			}
 

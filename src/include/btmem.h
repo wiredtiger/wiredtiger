@@ -141,6 +141,9 @@ struct __wt_page_modify {
 	 */
 	uint64_t disk_snap_min;
 
+	/* The largest transaction ID to modify the page. */
+	uint64_t last_txn;
+
 	/* The largest transaction ID written to disk, for clean pages. */
 	uint64_t disk_txn;
 

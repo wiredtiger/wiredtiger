@@ -67,7 +67,7 @@ __wt_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, int is_remove)
 			upd_entry = &cbt->ins->upd;
 
 		/* Make sure the update can proceed. */
-		WT_ERR(__wt_update_check(session, old_upd = *upd_entry));
+		WT_ERR(__wt_update_check(session, page, old_upd = *upd_entry));
 
 		/* Allocate the WT_UPDATE structure and transaction ID. */
 		WT_ERR(__wt_update_alloc(session, value, &upd, &upd_size));
@@ -84,7 +84,7 @@ __wt_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, int is_remove)
 			__wt_update_obsolete_free(session, page, upd_obsolete);
 	} else {
 		/* Make sure the update can proceed. */
-		WT_ERR(__wt_update_check(session, NULL));
+		WT_ERR(__wt_update_check(session, page, NULL));
 
 		/*
 		 * Allocate insert array if necessary, and set the array
@@ -297,10 +297,17 @@ __wt_insert_serial_func(WT_SESSION_IMPL *session, void *args)
  *	Check whether an update can proceed.
  */
 int
-__wt_update_check(WT_SESSION_IMPL *session, WT_UPDATE *next)
+__wt_update_check(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *next)
 {
+	uint64_t txnid;
+
 	/* Before allocating anything, make sure this update is permitted. */
 	WT_RET(__wt_txn_update_check(session, next));
+
+	/* Update the page's most recent modification ID. */
+	txnid = session->txn.id;
+	if (txnid > page->modify->last_txn)
+		page->modify->last_txn = txnid;
 
 	return (0);
 }
@@ -449,7 +456,7 @@ __wt_update_serial_func(WT_SESSION_IMPL *session, void *args)
 	 */
 	WT_RET(__wt_page_write_gen_wrapped_check(page));
 	if (old_upd != *upd_entry)
-		WT_RET(__wt_update_check(session, *upd_entry));
+		WT_RET(__wt_update_check(session, page, *upd_entry));
 
 	upd->next = *upd_entry;
 	/*
