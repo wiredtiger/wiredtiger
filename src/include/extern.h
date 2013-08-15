@@ -378,6 +378,13 @@ extern int __wt_col_search(WT_SESSION_IMPL *session,
 extern int __wt_rec_evict(WT_SESSION_IMPL *session,
     WT_PAGE *page,
     int exclusive);
+extern int __wt_rec_review(WT_SESSION_IMPL *session,
+    WT_REF *ref,
+    WT_PAGE *page,
+    int exclusive,
+    int merge,
+    int top,
+    int *inmem_split);
 extern int __wt_merge_tree(WT_SESSION_IMPL *session, WT_PAGE *top);
 extern int __wt_split_page_inmem(WT_SESSION_IMPL *session, WT_PAGE *page);
 extern int __wt_rec_track(WT_SESSION_IMPL *session,

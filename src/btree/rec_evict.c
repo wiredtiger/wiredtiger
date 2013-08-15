@@ -12,8 +12,6 @@ static void __rec_discard_tree(WT_SESSION_IMPL *, WT_PAGE *, int);
 static void __rec_excl_clear(WT_SESSION_IMPL *);
 static void __rec_page_clean_update(WT_SESSION_IMPL *, WT_PAGE *);
 static int  __rec_page_dirty_update(WT_SESSION_IMPL *, WT_PAGE *);
-static int  __rec_review(
-    WT_SESSION_IMPL *, WT_REF *, WT_PAGE *, int, int, int, int *);
 static void __rec_root_update(WT_SESSION_IMPL *);
 
 /*
@@ -30,7 +28,7 @@ __wt_rec_evict(WT_SESSION_IMPL *session, WT_PAGE *page, int exclusive)
 	WT_VERBOSE_RET(session, evict,
 	    "page %p (%s)", page, __wt_page_type_string(page->type));
 
-	WT_ASSERT(session, session->excl_next == 0);
+	WT_ASSERT(session, exclusive || session->excl_next == 0);
 	inmem_split = 0;
 
 	/*
@@ -57,7 +55,7 @@ __wt_rec_evict(WT_SESSION_IMPL *session, WT_PAGE *page, int exclusive)
 	 * or during salvage).  That's OK if exclusive is set: we won't check
 	 * hazard pointers in that case.
 	 */
-	WT_ERR(__rec_review(
+	WT_ERR(__wt_rec_review(
 	    session, page->ref, page, exclusive, merge, 1, &inmem_split));
 
 	/* Try to merge internal pages. */
@@ -121,7 +119,8 @@ err:		/*
 		 * If unable to evict this page, release exclusive reference(s)
 		 * we've acquired.
 		 */
-		__rec_excl_clear(session);
+		if (!exclusive)
+			__rec_excl_clear(session);
 
 		WT_CSTAT_INCR(session, cache_eviction_fail);
 		WT_DSTAT_INCR(session, cache_eviction_fail);
@@ -278,7 +277,7 @@ __rec_discard_tree(WT_SESSION_IMPL *session, WT_PAGE *page, int exclusive)
 }
 
 /*
- * __rec_review --
+ * __wt_rec_review --
  *	Get exclusive access to the page and review the page and its subtree
  *	for conditions that would block its eviction.
  *
@@ -288,8 +287,8 @@ __rec_discard_tree(WT_SESSION_IMPL *session, WT_PAGE *page, int exclusive)
  *	salvage), and (b) we can't safely look at page->ref until we have a
  *	hazard pointer.
  */
-static int
-__rec_review(WT_SESSION_IMPL *session, WT_REF *ref,
+int
+__wt_rec_review(WT_SESSION_IMPL *session, WT_REF *ref,
     WT_PAGE *page, int exclusive, int merge, int top, int *inmem_split)
 {
 	WT_BTREE *btree;
@@ -330,7 +329,7 @@ __rec_review(WT_SESSION_IMPL *session, WT_REF *ref,
 			case WT_REF_DELETED:		/* On-disk, deleted */
 				break;
 			case WT_REF_MEM:		/* In-memory */
-				WT_RET(__rec_review(
+				WT_RET(__wt_rec_review(
 				    session, ref, ref->page,
 				    exclusive, merge, 0, inmem_split));
 				break;

@@ -136,6 +136,55 @@ __merge_unlock(WT_PAGE *page)
 }
 
 /*
+ * __merge_evict --
+ *	Evict all live pages under an internal page being merged.
+ */
+static int
+__merge_evict(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+	WT_DECL_RET;
+	WT_REF *ref;
+	uint32_t i;
+
+	WT_REF_FOREACH(page, ref, i) {
+		if (ref->page && (ref->page->type == WT_PAGE_ROW_INT ||
+		    ref->page->type == WT_PAGE_COL_INT))
+			WT_RET(__merge_evict(session, ref->page));
+		/* Evict all live pages in the subtree. */
+		if (ref->state == WT_REF_LOCKED &&
+		    !__wt_btree_mergeable(ref->page)) {
+			if ((ret = __wt_rec_evict(
+			    session, ref->page, 1)) != 0) {
+				fprintf(stderr,
+				    "Failed to evict a split-merge subtree"
+				    " due to a live leaf item.\n");
+				WT_RET(ret);
+			}
+		}
+	}
+	return (0);
+}
+
+/*
+ * __merge_evict_subtree --
+ *	Evict the subtree instead of merging split merge pages together.
+ */
+static int
+__merge_evict_subtree(WT_SESSION_IMPL *session, WT_PAGE *top)
+{
+	int ignored;
+
+	/* Walk and evict live pages in the subtree. */
+	WT_RET(__merge_evict(session, top));
+
+	/* Setup the top page so that it will be reconciled. */
+	F_CLR(top->modify, WT_PM_REC_SPLIT_MERGE);
+	__wt_page_modify_set(session, top);
+	WT_RET(__wt_rec_review(session, top->ref, top, 1, 0, 1, &ignored));
+	return (0);
+}
+
+/*
  * __merge_transfer_footprint --
  *	Transfer the size of references from an old page to a new page.
  *
@@ -309,14 +358,23 @@ __wt_merge_tree(WT_SESSION_IMPL *session, WT_PAGE *top)
 	if (visit_state.maxdepth < WT_MERGE_STACK_MIN)
 		return (EBUSY);
 
+	/* Make sure the top page isn't queued for eviction. */
+	__wt_evict_list_clr_page(session, top);
+
+	/* Clear the eviction walk: it may be in our subtree. */
+	__wt_evict_clear_tree_walk(session, NULL);
+
 	/*
-	 * Don't allow split merges to generate arbitrarily large pages.
-	 * Ideally we would choose a size based on the internal_page_max
-	 * setting for the btree, but we don't have the correct btree handle
-	 * available.
+	 * If the number of refs is above a threshold evict the subtree so
+	 * we don't generate arbitrarily large pages during merge.
 	 */
-	if (visit_state.refcnt > WT_MERGE_MAX_REFS)
-		return (EBUSY);
+	if (visit_state.refcnt > WT_MERGE_MAX_REFS) {
+		WT_RET(__merge_evict_subtree(session, top));
+		WT_VERBOSE_RET(session, evict,
+		    "Successfully evicted a split-merge subtree with %"
+		    PRIu64 " refs", visit_state.refcnt);
+		return (0);
+	}
 
 	/*
 	 * Now we either collapse the internal pages into one split-merge page,
