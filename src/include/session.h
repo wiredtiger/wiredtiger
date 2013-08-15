@@ -62,6 +62,7 @@ struct __wt_session_impl {
 	WT_CURSOR *cursor;		/* Current cursor */
 					/* Cursors closed with the session */
 	TAILQ_HEAD(__cursors, __wt_cursor) cursors;
+	WT_CURSOR_BACKUP *bkp_cursor;	/* Cursor for current backup */
 
 	WT_BTREE *metafile;		/* Metadata file */
 	void	*meta_track;		/* Metadata operation tracking */
@@ -74,7 +75,6 @@ struct __wt_session_impl {
 	TAILQ_HEAD(__tables, __wt_table) tables;
 
 	WT_ITEM	logrec_buf;		/* Buffer for log records */
-	WT_ITEM	logprint_buf;		/* Buffer for debug log records */
 
 	WT_ITEM	**scratch;		/* Temporary memory for any function */
 	u_int	scratch_alloc;		/* Currently allocated */

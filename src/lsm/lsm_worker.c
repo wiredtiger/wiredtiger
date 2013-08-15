@@ -279,7 +279,7 @@ __wt_lsm_checkpoint_worker(void *arg)
 			F_SET(lsm_tree, WT_LSM_TREE_LOCKED);
 			WT_WITH_SCHEMA_LOCK(session,
 			    ret = __wt_schema_worker(session, chunk->uri,
-			    __wt_checkpoint, NULL, 0));
+			    __wt_checkpoint, NULL, NULL, 0));
 			F_CLR(lsm_tree, WT_LSM_TREE_LOCKED);
 
 			if (ret != 0) {
@@ -303,7 +303,8 @@ __wt_lsm_checkpoint_worker(void *arg)
 			WT_VERBOSE_ERR(session, lsm,
 			     "LSM worker checkpointed %u", i);
 		}
-		if (j == 0 && F_ISSET(lsm_tree, WT_LSM_TREE_WORKING))
+		if (j == 0 && F_ISSET(lsm_tree, WT_LSM_TREE_WORKING) &&
+		    !F_ISSET(lsm_tree, WT_LSM_TREE_NEED_SWITCH))
 			WT_ERR(__wt_cond_wait(
 			    session, lsm_tree->work_cond, 100000));
 	}
@@ -444,6 +445,12 @@ __lsm_drop_file(WT_SESSION_IMPL *session, const char *uri)
 	WT_RET(__lsm_discard_handle(session, uri, NULL));
 	WT_RET(__lsm_discard_handle(session, uri, "WiredTigerCheckpoint"));
 
+	/*
+	 * Take the schema lock for the drop operation. Play games with the
+	 * hot backup lock. Since __wt_schema_drop results in the hot backup
+	 * lock being taken when it updates the metadata (which would be too
+	 * late to prevent our drop).
+	 */
 	WT_WITH_SCHEMA_LOCK(session,
 	    ret = __wt_schema_drop(session, uri, drop_cfg));
 

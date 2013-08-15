@@ -15,10 +15,20 @@ flags = {
 		'SYNC_DISCARD_NOWRITE',
 		'SYNC_WRITE_LEAVES',
 	],
-	'direct_io' : [
-		'DIRECTIO_DATA',
-		'DIRECTIO_LOG'
+	'file_types' : [
+		'FILE_TYPE_DATA',
+		'FILE_TYPE_LOG'
 	],
+        'log_scan' : [
+		'LOGSCAN_FIRST',
+		'LOGSCAN_FROM_CKP',
+		'LOGSCAN_ONE',
+		'LOGSCAN_RECOVER'
+        ],
+        'log_write' : [
+		'LOG_CKPT',
+		'LOG_SYNC'
+        ],
 	'rec_write' : [
 		'EVICTION_SERVER_LOCKED',
 		'SKIP_UPDATE_ERR',
@@ -44,6 +54,7 @@ flags = {
 		'VERB_evictserver',
 		'VERB_fileops',
 		'VERB_hazard',
+		'VERB_log',
 		'VERB_lsm',
 		'VERB_mutex',
 		'VERB_read',
@@ -51,6 +62,7 @@ flags = {
 		'VERB_salvage',
 		'VERB_shared_cache',
 		'VERB_verify',
+		'VERB_version',
 		'VERB_write'
 	],
 
@@ -64,7 +76,6 @@ flags = {
 		'CONN_PANIC',
 		'CONN_SERVER_RUN',
 		'CONN_SYNC',
-		'CONN_TRANSACTIONAL',
 	],
 	'session' : [
 		'SESSION_INTERNAL',

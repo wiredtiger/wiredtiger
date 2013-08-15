@@ -43,7 +43,7 @@ wts_load(void)
 		die(ret, "connection.open_session");
 
 	if (g.logging != 0)
-		(void)wt_api->msg_printf(wt_api, session,
+		(void)g.wt_api->msg_printf(g.wt_api, session,
 		    "=============== bulk load start ===============");
 
 	/*
@@ -53,14 +53,12 @@ wts_load(void)
 	 */
 	is_bulk = !g.c_reverse &&
 	    !DATASOURCE("kvsbdb") && !DATASOURCE("memrata");
-	if ((ret = session->open_cursor(
-	    session, g.uri, NULL, is_bulk ? "bulk" : NULL, &cursor)) != 0)
+	if ((ret = session->open_cursor(session, g.uri, NULL,
+	    is_bulk ? "bulk" : NULL, &cursor)) != 0)
 		die(ret, "session.open_cursor");
 
 	/* Set up the default key buffer. */
-	memset(&key, 0, sizeof(key));
 	key_gen_setup(&keybuf);
-	memset(&value, 0, sizeof(value));
 	val_gen_setup(&valbuf);
 
 	for (;;) {
@@ -84,7 +82,7 @@ wts_load(void)
 				cursor->set_key(cursor, g.key_cnt);
 			cursor->set_value(cursor, *(uint8_t *)value.data);
 			if (g.logging == LOG_OPS)
-				(void)wt_api->msg_printf(wt_api, session,
+				(void)g.wt_api->msg_printf(g.wt_api, session,
 				    "%-10s %" PRIu32 " {0x%02" PRIx8 "}",
 				    "bulk V",
 				    g.key_cnt, ((uint8_t *)value.data)[0]);
@@ -94,7 +92,7 @@ wts_load(void)
 				cursor->set_key(cursor, g.key_cnt);
 			cursor->set_value(cursor, &value);
 			if (g.logging == LOG_OPS)
-				(void)wt_api->msg_printf(wt_api, session,
+				(void)g.wt_api->msg_printf(g.wt_api, session,
 				    "%-10s %" PRIu32 " {%.*s}", "bulk V",
 				    g.key_cnt,
 				    (int)value.size, (char *)value.data);
@@ -102,12 +100,12 @@ wts_load(void)
 		case ROW:
 			cursor->set_key(cursor, &key);
 			if (g.logging == LOG_OPS)
-				(void)wt_api->msg_printf(wt_api, session,
+				(void)g.wt_api->msg_printf(g.wt_api, session,
 				    "%-10s %" PRIu32 " {%.*s}", "bulk K",
 				    g.key_cnt, (int)key.size, (char *)key.data);
 			cursor->set_value(cursor, &value);
 			if (g.logging == LOG_OPS)
-				(void)wt_api->msg_printf(wt_api, session,
+				(void)g.wt_api->msg_printf(g.wt_api, session,
 				    "%-10s %" PRIu32 " {%.*s}", "bulk V",
 				    g.key_cnt,
 				    (int)value.size, (char *)value.data);
@@ -128,7 +126,7 @@ wts_load(void)
 		die(ret, "cursor.close");
 
 	if (g.logging != 0)
-		(void)wt_api->msg_printf(wt_api, session,
+		(void)g.wt_api->msg_printf(g.wt_api, session,
 		    "=============== bulk load stop ===============");
 
 	if ((ret = session->close(session, NULL)) != 0)
