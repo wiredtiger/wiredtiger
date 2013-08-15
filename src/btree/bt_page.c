@@ -78,13 +78,14 @@ __wt_page_in_func(
 
 			/*
 			 * Make sure the page isn't too big.  Only do this
-			 * check once per transaction: it is not a common case,
-			 * and we don't want to get stuck if it isn't possible
-			 * to evict the page.
+			 * check if the transaction hasn't made any updates
+			 * and limit the number of attempts to avoid getting
+			 * stuck if the page doesn't become available.
 			 */
-			if (!F_ISSET(txn, TXN_FORCE_EVICT) &&
+			if (!WT_TXN_ACTIVE(txn) &&
+			    txn->force_evict_attempts < 4 &&
 			    __wt_eviction_page_force(session, page)) {
-				F_SET(txn, TXN_FORCE_EVICT);
+				++txn->force_evict_attempts;
 				page->read_gen = WT_READ_GEN_OLDEST;
 				WT_RET(__wt_page_release(session, page));
 				break;
@@ -197,7 +198,7 @@ __wt_page_alloc(WT_SESSION_IMPL *session,
 int
 __wt_page_inmem(
     WT_SESSION_IMPL *session, WT_PAGE *parent, WT_REF *parent_ref,
-    WT_PAGE_HEADER *dsk, int disk_not_alloc, WT_PAGE **pagep)
+    WT_PAGE_HEADER *dsk, uint32_t flags, WT_PAGE **pagep)
 {
 	WT_DECL_RET;
 	WT_PAGE *page;
@@ -253,14 +254,13 @@ __wt_page_inmem(
 	WT_RET(__wt_page_alloc(session, dsk->type, alloc_entries, &page));
 	page->dsk = dsk;
 	page->read_gen = WT_READ_GEN_NOTSET;
-	if (disk_not_alloc)
-		F_SET_ATOMIC(page, WT_PAGE_DISK_NOT_ALLOC);
+	F_SET_ATOMIC(page, flags);
 
 	/*
 	 * Track the memory allocated to build this page so we can update the
 	 * cache statistics in a single call.
 	 */
-	size = disk_not_alloc ? 0 : dsk->mem_size;
+	size = LF_ISSET(WT_PAGE_DISK_ALLOC) ? dsk->mem_size : 0;
 
 	switch (page->type) {
 	case WT_PAGE_COL_FIX:
@@ -345,7 +345,7 @@ __inmem_col_int(WT_SESSION_IMPL *session, WT_PAGE *page)
 	WT_CELL_FOREACH(btree, dsk, cell, unpack, i) {
 		__wt_cell_unpack(cell, unpack);
 		ref->addr = cell;
-		ref->u.recno = unpack->v;
+		ref->key.recno = unpack->v;
 		++ref;
 	}
 }
@@ -419,21 +419,16 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
 	WT_CELL *cell;
 	WT_CELL_UNPACK *unpack, _unpack;
 	WT_DECL_ITEM(current);
-	WT_DECL_ITEM(last);
 	WT_DECL_RET;
-	WT_ITEM *tmp;
 	WT_PAGE_HEADER *dsk;
 	WT_REF *ref;
-	uint32_t i, prefix;
-	void *huffman;
+	uint32_t i;
 
 	btree = S2BT(session);
 	unpack = &_unpack;
 	dsk = page->dsk;
-	huffman = btree->huffman_key;
 
 	WT_ERR(__wt_scr_alloc(session, 0, &current));
-	WT_ERR(__wt_scr_alloc(session, 0, &last));
 
 	/*
 	 * Walk the page, instantiating keys: the page contains sorted key and
@@ -445,7 +440,18 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
 		__wt_cell_unpack(cell, unpack);
 		switch (unpack->type) {
 		case WT_CELL_KEY:
+			__wt_ref_key_onpage_set(page, ref, unpack);
+			break;
 		case WT_CELL_KEY_OVFL:
+			/* Instantiate any overflow records. */
+			WT_ERR(__wt_cell_unpack_ref(
+			    session, WT_PAGE_ROW_INT, unpack, current));
+
+			WT_ERR(__wt_row_ikey(session,
+			    WT_PAGE_DISK_OFFSET(page, cell),
+			    current->data, current->size, &ref->key.ikey));
+
+			*sizep += sizeof(WT_IKEY) + current->size;
 			break;
 		case WT_CELL_ADDR:
 			ref->addr = cell;
@@ -461,10 +467,8 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
 			 * page (because it was never deleted, but by definition
 			 * no earlier transaction might need it).
 			 *
-			 * Re-create the WT_REF state of a deleted node, give
-			 * the page a modify structure and set the transaction
-			 * ID for the first update to the page (WT_TXN_NONE
-			 * because the transaction is committed and visible.)
+			 * Re-create the WT_REF state of a deleted node and give
+			 * the page a modify structure.
 			 *
 			 * If the tree is already dirty and so will be written,
 			 * mark the page dirty.  (We'd like to free the deleted
@@ -477,85 +481,17 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
 				ref->txnid = WT_TXN_NONE;
 
 				WT_ERR(__wt_page_modify_init(session, page));
-				page->modify->first_id = WT_TXN_NONE;
 				if (btree->modified)
 					__wt_page_modify_set(session, page);
 			}
 
 			++ref;
-			continue;
+			break;
 		WT_ILLEGAL_VALUE_ERR(session);
-		}
-
-		/*
-		 * If Huffman decoding is required or it's an overflow record,
-		 * unpack the cell to build the key, then resolve the prefix.
-		 * Else, we can do it faster internally as we don't have to
-		 * shuffle memory around as much.
-		 */
-		prefix = unpack->prefix;
-		if (huffman != NULL || unpack->ovfl) {
-			WT_ERR(__wt_cell_unpack_ref(session, unpack, current));
-
-			/*
-			 * If there's a prefix, make sure there's enough buffer
-			 * space, then shift the decoded data past the prefix
-			 * and copy the prefix into place.
-			 */
-			if (prefix != 0) {
-				WT_ERR(__wt_buf_grow(
-				    session, current, prefix + current->size));
-				memmove((uint8_t *)current->mem + prefix,
-				    current->data, current->size);
-				memcpy(current->mem, last->data, prefix);
-				current->data = current->mem;
-				current->size += prefix;
-			}
-		} else {
-			/*
-			 * Get the cell's data/length and make sure we have
-			 * enough buffer space.
-			 */
-			WT_ERR(__wt_buf_init(
-			    session, current, prefix + unpack->size));
-
-			/* Copy the prefix then the data into place. */
-			if (prefix != 0)
-				memcpy(current->mem, last->data, prefix);
-			memcpy((uint8_t *)current->mem + prefix, unpack->data,
-			    unpack->size);
-			current->size = prefix + unpack->size;
-		}
-
-		/*
-		 * Allocate and initialize the instantiated key.
-		 *
-		 * Note: all keys on internal pages are instantiated, we assume
-		 * they're more likely to be useful than keys on leaf pages.
-		 * It's possible that's wrong (imagine a cursor reading a table
-		 * that's never randomly searched, the internal page keys are
-		 * unnecessary).  If this policy changes, it has implications
-		 * for reconciliation, the row-store reconciliation function
-		 * depends on keys always be instantiated.
-		 */
-		WT_ERR(__wt_row_ikey(session,
-		    WT_PAGE_DISK_OFFSET(page, cell),
-		    current->data, current->size, &ref->u.key));
-		*sizep += sizeof(WT_IKEY) + current->size;
-
-		/*
-		 * Swap buffers if it's not an overflow key, we have a new
-		 * prefix-compressed key.
-		 */
-		if (!unpack->ovfl) {
-			tmp = last;
-			last = current;
-			current = tmp;
 		}
 	}
 
 err:	__wt_scr_free(&current);
-	__wt_scr_free(&last);
 	return (ret);
 }
 
@@ -649,11 +585,8 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
 	}
 
 	/*
-	 * If the keys are Huffman encoded, instantiate some set of them.  It
-	 * doesn't matter if we are randomly searching the page or scanning a
-	 * cursor through it, there isn't a fast-path to getting keys off the
-	 * page.
+	 * We do not currently instantiate keys on leaf pages when the page is
+	 * loaded, they're instantiated on demand.
 	 */
-	return (
-	    btree->huffman_key == NULL ? 0 : __wt_row_leaf_keys(session, page));
+	return (0);
 }

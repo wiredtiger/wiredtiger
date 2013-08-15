@@ -145,7 +145,10 @@ struct __wt_page_modify {
 	uint64_t disk_txn;
 
 	union {
-		WT_PAGE *split;		/* Resulting split */
+		struct {
+			WT_PAGE *page;	/* Resulting split page */
+			WT_REF *ref;	/* WT_REF slot on the parent */
+		} split;
 		WT_ADDR	 replace;	/* Resulting replacement */
 	} u;
 
@@ -195,11 +198,6 @@ struct __wt_page_modify {
 		uint8_t  flags;
 	} *track;			/* Array of tracked objects */
 	uint32_t track_entries;		/* Total track slots */
-
-	uint64_t first_id;		/* Earliest transactional update, used
-					 * to avoid errors from transaction ID
-					 * wraparound.
-					 */
 
 #define	WT_PM_REC_EMPTY		0x01	/* Reconciliation: page empty */
 #define	WT_PM_REC_REPLACE	0x02	/* Reconciliation: page replaced */
@@ -329,8 +327,10 @@ struct __wt_page {
 	uint8_t type;			/* Page type */
 
 #define	WT_PAGE_BUILD_KEYS	0x01	/* Keys have been built in memory */
-#define	WT_PAGE_DISK_NOT_ALLOC	0x02	/* Ignore disk image on page discard */
-#define	WT_PAGE_EVICT_LRU	0x04	/* Page is on the LRU queue */
+#define	WT_PAGE_DISK_ALLOC	0x02	/* Disk image in allocated memory */
+#define	WT_PAGE_DISK_MAPPED	0x04	/* Disk image in mapped memory */
+#define	WT_PAGE_EVICT_LRU	0x08	/* Page is on the LRU queue */
+#define	WT_PAGE_WAS_SPLIT	0x10	/* Page has been split in memory */
 	uint8_t flags_atomic;		/* Atomic flags, use F_*_ATOMIC */
 };
 
@@ -418,14 +418,27 @@ struct __wt_ref {
 
 	void	*addr;			/* On-page cell or off_page WT_ADDR */
 
+	/*
+	 * The child page's key.  Do NOT change this union without reviewing
+	 * __wt_ref_key.
+	 */
 	union {
 		uint64_t recno;		/* Column-store: starting recno */
-		void	*key;		/* Row-store: on-page cell or WT_IKEY */
-	} u;
+		void	*ikey;		/* Row-store: instantiated key */
+		uint64_t pkey;		/* Row-store: on-page key */
+	} key;
+
 	uint64_t txnid;			/* Transaction ID */
 
 	volatile WT_PAGE_STATE state;	/* Page state */
+
+	uint32_t unused;
 };
+/*
+ * WT_REF_SIZE is the expected structure size -- we verify the build to ensure
+ * the compiler hasn't inserted padding which would break the world.
+ */
+#define	WT_REF_SIZE	40
 
 /*
  * WT_REF_FOREACH --

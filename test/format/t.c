@@ -44,7 +44,7 @@ main(int argc, char *argv[])
 		++g.progname;
 
 	/* Configure the FreeBSD malloc for debugging. */
-	(void)setenv("MALLOC_OPTIONS", "AJZ", 1);
+	(void)setenv("MALLOC_OPTIONS", "AJ", 1);
 
 	/* Set values from the "CONFIG" file, if it exists. */
 	if (access("CONFIG", R_OK) == 0)
@@ -102,7 +102,7 @@ main(int argc, char *argv[])
 	if ((ret = pthread_rwlock_init(&g.backup_lock, NULL)) != 0)
 		die(ret, "pthread_rwlock_init: hot-backup lock");
 	if ((ret = pthread_rwlock_init(&g.table_extend_lock, NULL)) != 0)
-		die(ret, "pthread_rwlock_destroy: table_extend lock");
+		die(ret, "pthread_rwlock_init: table_extend lock");
 
 	/* Clean up on signal. */
 	(void)signal(SIGINT, onint);
@@ -196,6 +196,12 @@ main(int argc, char *argv[])
 		(void)fclose(g.rand_log);
 
 	config_print(0);
+
+	if ((ret = pthread_rwlock_destroy(&g.backup_lock)) != 0)
+		die(ret, "pthread_rwlock_destroy: hot-backup lock");
+	if ((ret = pthread_rwlock_destroy(&g.table_extend_lock)) != 0)
+		die(ret, "pthread_rwlock_destroy: table_extend lock");
+
 	config_clear();
 
 	return (EXIT_SUCCESS);
