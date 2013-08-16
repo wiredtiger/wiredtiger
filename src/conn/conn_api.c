@@ -117,6 +117,7 @@ __conn_get_extension_api(WT_CONNECTION *wt_conn)
 	conn->extension_api.struct_pack = __wt_ext_struct_pack;
 	conn->extension_api.struct_size = __wt_ext_struct_size;
 	conn->extension_api.struct_unpack = __wt_ext_struct_unpack;
+	conn->extension_api.transaction_id_init = __wt_ext_transaction_id_init;
 	conn->extension_api.transaction_id = __wt_ext_transaction_id;
 	conn->extension_api.transaction_isolation_level =
 	    __wt_ext_transaction_isolation_level;

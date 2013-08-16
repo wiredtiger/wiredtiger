@@ -20,6 +20,40 @@ __wt_ext_transaction_id(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session)
 }
 
 /*
+ * __wt_ext_transaction_id_init --
+ *	Initialize the system transaction ID.
+ */
+int
+__wt_ext_transaction_id_init(WT_EXTENSION_API *wt_api, uint64_t txnid)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_SESSION_IMPL *session;
+
+	conn = (WT_CONNECTION_IMPL *)wt_api->conn;
+	session = conn->default_session;
+
+	/*
+	 * Transaction IDs in WiredTiger aren't durable, they are reset on every
+	 * connection restart.  That doesn't work for Memrata devices which need
+	 * to have ever-increasing transaction IDs over restarts.
+	 *
+	 * We limit this API to before any transaction IDs have been allocated,
+	 * as there's moderately complex code to use allocate transaction IDs
+	 * without acquiring a mutex.  Until we have a data-source that needs to
+	 * call this API after transactions have already started running, don't
+	 * try and solve the hard problems.
+	 */
+	if (conn->txn_global.current == WT_TXN_INITIAL_ID) {
+		conn->txn_global.current = txnid + 1;
+		return (0);
+	}
+
+	WT_RET_MSG(session, EINVAL,
+	    "WT_EXTENSION_API.transaction_id_init may only be called before "
+	    "transactions are started");
+}
+
+/*
  * __wt_ext_transaction_isolation_level --
  *	Return if the current transaction's isolation level.
  */

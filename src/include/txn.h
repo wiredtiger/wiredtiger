@@ -27,7 +27,8 @@ struct __wt_txn_state {
 };
 
 struct __wt_txn_global {
-	volatile uint64_t current;	/* Current transaction ID. */
+#define	WT_TXN_INITIAL_ID	1	/* Initial transaction ID */
+	volatile uint64_t current;	/* Current transaction ID */
 
 	/*
 	 * The oldest transaction ID that is not yet visible to some

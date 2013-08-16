@@ -445,7 +445,7 @@ __wt_txn_global_init(WT_CONNECTION_IMPL *conn, const char *cfg[])
 	WT_UNUSED(cfg);
 	session = conn->default_session;
 	txn_global = &conn->txn_global;
-	txn_global->current = 1;
+	txn_global->current = WT_TXN_INITIAL_ID;
 
 	WT_RET(__wt_calloc_def(
 	    session, conn->session_size, &txn_global->states));
