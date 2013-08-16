@@ -475,6 +475,29 @@ txn_state_set(WT_EXTENSION_API *wtext,
 }
 
 /*
+ * txn_max_id --
+ *	Return the largest transaction ID in the system.
+ */
+static uint64_t
+txn_max_id(kvs_t *kvstxn)
+{
+	struct kvs_record txn;
+	uint64_t txnid, txnmax;
+
+	memset(&txn, 0, sizeof(txn));
+	txn.key = &txnid;
+	txn.key_len = 0;
+
+	txnmax = 0;
+	while (kvs_next(kvstxn, &txn, 0UL, 0UL) == 0) {
+		memcpy(&txnid, txn.key, sizeof(txnid));
+		if (txnid > txnmax)
+			txnmax = txnid;
+	}
+	return (txnmax);
+}
+
+/*
  * txn_notify --
  *	Resolve a transaction.
  */
@@ -2913,6 +2936,25 @@ kvs_source_open_txn(DATA_SOURCE *ds)
 			kvstxn = t;
 			kstxn = ks;
 		}
+	ks = kstxn;
+
+	/*
+	 * WiredTiger's transaction IDs are reset as part of recovery, that is,
+	 * they aren't durable, which doesn't work for the Memrata devices.  The
+	 * problem is the Memrata object's cache.  Each cache value includes a
+	 * transaction ID, and we use that transaction ID to decide if the value
+	 * is committed and/or visible.   Memrata objects are opened on demand,
+	 * which means that at some time in the future we'll have a new set of
+	 * records with transaction IDs from some time in the past.  If the IDs
+	 * are reset, new transactions could appear part of old transactions.
+	 *
+	 * Get the maximum transaction value of which we're aware, and ask the
+	 * WiredTiger engine to not allocate any transaction IDs lower than or
+	 * equal to that ID.
+	 */
+	if (ks != NULL &&
+	    (ret = wtext->transaction_id_init(wtext, txn_max_id(kvstxn))) != 0)
+		return (ret);
 
 	/*
 	 * If we didn't find a transaction store, open a transaction store in
@@ -2920,7 +2962,7 @@ kvs_source_open_txn(DATA_SOURCE *ds)
 	 * last one we loaded, we're just picking one, but picking the first
 	 * seems slightly less likely to make people wonder.)
 	 */
-	if ((ks = kstxn) == NULL) {
+	if (ks == NULL) {
 		for (ks = ds->kvs_head; ks->next != NULL; ks = ks->next)
 			;
 		if ((kvstxn = kvs_open_namespace(

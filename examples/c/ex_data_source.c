@@ -192,6 +192,14 @@ static int my_cursor_insert(WT_CURSOR *wtcursor)
 	}
 
 	{
+	/*! [WT_EXTENSION transaction ID init] */
+	uint64_t transaction_id_max;
+
+	ret = wt_api->transaction_id_init(wt_api, transaction_id_max);
+	/*! [WT_EXTENSION transaction ID init] */
+	}
+
+	{
 	/*! [WT_EXTENSION transaction oldest] */
 	uint64_t transaction_oldest;
 

@@ -372,6 +372,24 @@ struct __wt_extension_api {
 	    WT_SESSION *session);
 
 	/*!
+	 * Initialize the system transaction ID.
+	 *
+	 * WiredTiger transaction IDs are not durable, and are reset each time
+	 * the database is recovered.  This method ensures future WiredTiger
+	 * transactions have IDs greater than the ID specified, allowing data
+	 * sources to depend on ever-increasing transaction IDs across recovery.
+	 *
+	 * This method may only be called before any transactions are started.
+	 *
+	 * @param wt_api the extension handle
+	 * @param txnid the maximum transaction ID which is not to be reused
+	 * @errors
+	 *
+	 * @snippet ex_data_source.c WT_EXTENSION transaction ID init
+	 */
+	int (*transaction_id_init)(WT_EXTENSION_API *wt_api, uint64_t txnid);
+
+	/*!
 	 * Return the current transaction's isolation level; returns one of
 	 * ::WT_TXN_ISO_READ_COMMITTED, ::WT_TXN_ISO_READ_UNCOMMITTED, or
 	 * ::WT_TXN_ISO_SNAPSHOT.
