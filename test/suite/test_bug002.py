@@ -28,12 +28,15 @@
 # test_bug002.py
 #       Regression tests.
 
-import wiredtiger, wttest
-from helper import key_populate, value_populate
+import os
+import shutil
+from helper import compare_files, key_populate, value_populate
+from suite_subprocess import suite_subprocess
 from wtscenario import multiply_scenarios, number_scenarios
+import wiredtiger, wttest
 
 # Regression tests.
-class test_bug002(wttest.WiredTigerTestCase):
+class test_bug002(wttest.WiredTigerTestCase, suite_subprocess):
     types = [
         ('file', dict(uri='file:data')),
         ('table', dict(uri='table:data')),
@@ -75,6 +78,45 @@ class test_bug002(wttest.WiredTigerTestCase):
             self.assertEquals(cursor.next(), wiredtiger.WT_NOTFOUND)
             cursor.close()
 
+    # Backup a set of chosen tables/files using the wt backup command.
+    def backup_table_cursor(self, session):
+        # Remove any previous backup directories.
+        targetdir = 'backup.dir'
+        shutil.rmtree(targetdir, True)
+        os.mkdir(targetdir)
+
+        # Open up the backup cursor, and copy the files.
+        cursor = session.open_cursor('backup:', None, None)
+        while True:
+            ret = cursor.next()
+            if ret != 0:
+                break
+            #print 'Copy from: ' + cursor.get_key() + ' to ' + targetdir
+            shutil.copy(cursor.get_key(), targetdir)
+        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+        cursor.close()
+
+        # Confirm the object we backed up exist, with correct contents.
+        self.runWt(['dump', self.uri], outfilename='orig')
+        self.runWt(['-h', targetdir, 'dump', self.uri], outfilename='backup')
+        compare_files(self, 'orig', 'backup')
+
+    def test_bulk_load_backup(self):
+        # Open a bulk cursor and insert a few records.
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        cursor = self.session.open_cursor(self.uri, None, 'bulk')
+        for i in range(1, 10):
+            cursor.set_key(key_populate(cursor, i))
+            cursor.set_value(value_populate(cursor, i))
+            cursor.insert()
+
+        # Test with the same and different sessions than the bulk-get call,
+        # test both the database handle and session handle caches.
+        self.backup_table_cursor(self.session)
+        self.backup_table_cursor(self.conn.open_session())
+
+        # Close the bulk cursor.
+        cursor.close()
 
 if __name__ == '__main__':
     wttest.run()
