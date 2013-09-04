@@ -398,48 +398,58 @@ __unpack_read(WT_SESSION_IMPL *session,
 }
 
 #define	WT_UNPACK_PUT(session, pv, ap) do {				\
-	WT_ITEM *__item;						\
+	void *__p;							\
 	switch (pv.type) {						\
 	case 'x':							\
 		break;							\
 	case 's':							\
 	case 'S':							\
-		*va_arg(ap, const char **) = pv.u.s;			\
+		if ((__p = va_arg(ap, const char **)) != NULL)		\
+			*(const char **)__p = pv.u.s;			\
 		break;							\
 	case 'U':							\
 	case 'u':							\
-		__item = va_arg(ap, WT_ITEM *);				\
-		__item->data = pv.u.item.data;				\
-		__item->size = pv.u.item.size;				\
+		if ((__p = va_arg(ap, WT_ITEM *)) != NULL) {		\
+			((WT_ITEM *)__p)->data = pv.u.item.data;	\
+			((WT_ITEM *)__p)->size = pv.u.item.size;	\
+		}							\
 		break;							\
 	case 'b':							\
-		*va_arg(ap, int8_t *) = (int8_t)pv.u.i;			\
+		if ((__p = va_arg(ap, int8_t *)) != NULL)		\
+			*(int8_t *)__p = (int8_t)pv.u.i;		\
 		break;							\
 	case 'h':							\
-		*va_arg(ap, int16_t *) = (short)pv.u.i;			\
+		if ((__p = va_arg(ap, int16_t *)) != NULL)		\
+			*(int16_t *)__p = (short)pv.u.i;		\
 		break;							\
 	case 'i':							\
 	case 'l':							\
-		*va_arg(ap, int32_t *) = (int32_t)pv.u.i;		\
+		if ((__p = va_arg(ap, int32_t *)) != NULL)		\
+			*(int32_t *)__p = (int32_t)pv.u.i;		\
 		break;							\
 	case 'q':							\
-		*va_arg(ap, int64_t *) = pv.u.i;			\
+		if ((__p = va_arg(ap, int64_t *)) != NULL)		\
+			*(int64_t *)__p = pv.u.i;			\
 		break;							\
 	case 'B':							\
 	case 't':							\
-		*va_arg(ap, uint8_t *) = (uint8_t)pv.u.u;		\
+		if ((__p = va_arg(ap, uint8_t *)) != NULL)		\
+			*(uint8_t *)__p = (uint8_t)pv.u.u;		\
 		break;							\
 	case 'H':							\
-		*va_arg(ap, uint16_t *) = (uint16_t)pv.u.u;             \
+		if ((__p = va_arg(ap, uint16_t *)) != NULL)		\
+			*(uint16_t *)__p = (uint16_t)pv.u.u;		\
 		break;							\
 	case 'I':							\
 	case 'L':							\
-		*va_arg(ap, uint32_t *) = (uint32_t)pv.u.u;	        \
+		if ((__p = va_arg(ap, uint32_t *)) != NULL)		\
+			*(uint32_t *)__p = (uint32_t)pv.u.u;	        \
 		break;							\
 	case 'Q':							\
 	case 'r':							\
 	case 'R':							\
-		*va_arg(ap, uint64_t *) = pv.u.u;			\
+		if ((__p = va_arg(ap, uint64_t *)) != NULL)		\
+			*(uint64_t *)__p = pv.u.u;			\
 		break;							\
 	/* User format strings have already been validated. */          \
 	WT_ILLEGAL_VALUE(session);                                      \
