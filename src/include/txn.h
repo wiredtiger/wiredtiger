@@ -114,8 +114,6 @@ struct __wt_txn {
 	size_t		mod_alloc;
 	u_int		mod_count;
 
-	uint32_t	force_evict_attempts;
-
 	/* Requested notification when transactions are resolved. */
 	WT_TXN_NOTIFY *notify;
 
