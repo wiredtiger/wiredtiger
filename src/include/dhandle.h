@@ -60,5 +60,6 @@ struct __wt_data_handle {
 #define	WT_DHANDLE_EXCLUSIVE	        0x04	/* Need exclusive access */
 #define	WT_DHANDLE_LOCK_ONLY	        0x08	/* Handle only used as a lock */
 #define	WT_DHANDLE_OPEN		        0x10	/* Handle is open */
+#define	WT_DHANDLE_NO_GET	        0x20	/* Session already has handle */
 	uint32_t flags;
 };

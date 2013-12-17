@@ -177,6 +177,8 @@ __wt_conn_btree_sync_and_close(WT_SESSION_IMPL *session)
 	if (!F_ISSET(dhandle, WT_DHANDLE_OPEN))
 		return (0);
 
+	S2C(session)->dhandle_dead++;
+
 	if (dhandle->checkpoint == NULL)
 		--S2C(session)->open_btree_count;
 
@@ -429,7 +431,11 @@ __wt_conn_btree_get(WT_SESSION_IMPL *session,
 	    S2C(session)->dhandle_dead >= WT_DHANDLE_SWEEP_TRIGGER)
 		WT_RET(__conn_dhandle_sweep(session));
 
-	WT_RET(__conn_dhandle_get(session, name, ckpt, flags));
+	if (LF_ISSET(WT_DHANDLE_NO_GET))
+		WT_RET(
+		    __conn_dhandle_open_lock(session, session->dhandle, flags));
+	else
+		WT_RET(__conn_dhandle_get(session, name, ckpt, flags));
 	dhandle = session->dhandle;
 
 	if (!LF_ISSET(WT_DHANDLE_LOCK_ONLY) &&
@@ -603,7 +609,7 @@ __wt_conn_btree_close(WT_SESSION_IMPL *session, int locked)
 
 	if (F_ISSET(dhandle, WT_DHANDLE_OPEN))
 		WT_TRET(__wt_conn_btree_sync_and_close(session));
-	S2C(session)->dhandle_dead++;
+
 	if (!locked) {
 		F_CLR(dhandle, WT_DHANDLE_EXCLUSIVE);
 		WT_TRET(__wt_rwunlock(session, dhandle->rwlock));
