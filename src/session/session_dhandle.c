@@ -320,7 +320,7 @@ __wt_session_get_btree(WT_SESSION_IMPL *session,
 	WT_DATA_HANDLE_CACHE *dhandle_cache;
 	WT_DECL_RET;
 	uint64_t hash;
-	int candidate;
+	int candidate, found;
 
 	dhandle = NULL;
 	candidate = 0;
@@ -340,6 +340,7 @@ __wt_session_get_btree(WT_SESSION_IMPL *session,
 
 	if (dhandle_cache != NULL) {
 		candidate = 1;
+		LF_SET(WT_DHANDLE_NO_GET);
 		session->dhandle = dhandle;
 
 		/*
