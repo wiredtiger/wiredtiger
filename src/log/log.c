@@ -847,7 +847,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 		}
 		rdup_len = __wt_rduppo2(reclen, allocsize);
 		if (reclen > allocsize) {
-			WT_ERR(__wt_buf_grow(session, &buf, rdup_len));
+			WT_ERR(__wt_buf_grow(session, &buf, reclen));
 			WT_ERR(__wt_read(session,
 			    log_fh, rd_lsn.offset, (size_t)reclen, buf.mem));
 			WT_STAT_FAST_CONN_INCR(session, log_scan_rereads);
