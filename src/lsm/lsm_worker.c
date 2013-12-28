@@ -149,7 +149,12 @@ __wt_lsm_merge_worker(void *vargs)
 			/* Poll 10 times per second. */
 			WT_ERR_TIMEDOUT_OK(__wt_cond_wait(
 			    session, lsm_tree->work_cond, 100000));
-			stallms += 100;
+			/*
+			 * Randomize the tracking of stall time so that with
+			 * multiple LSM trees open, they don't all get
+			 * aggressive in lock-step.
+			 */
+			stallms += __wt_random() % 200;
 
 			/*
 			 * Get aggressive if more than enough chunks for a
@@ -241,6 +246,7 @@ __wt_lsm_checkpoint_worker(void *arg)
 	WT_TXN_ISOLATION saved_isolation;
 	u_int i, j;
 	int locked;
+	WT_DECL_SPINLOCK_ID(id);			/* Must appear last */
 
 	lsm_tree = arg;
 	session = lsm_tree->ckpt_session;
@@ -320,7 +326,7 @@ __wt_lsm_checkpoint_worker(void *arg)
 			    !locked && ret == 0 &&
 			    !F_ISSET(lsm_tree, WT_LSM_TREE_NEED_SWITCH);) {
 				if ((ret = __wt_spin_trylock(session,
-				    &S2C(session)->checkpoint_lock)) == 0)
+				    &S2C(session)->checkpoint_lock, &id)) == 0)
 					locked = 1;
 				else if (ret == EBUSY) {
 					__wt_yield();
@@ -374,7 +380,7 @@ __wt_lsm_checkpoint_worker(void *arg)
 			++lsm_tree->dsk_gen;
 
 			/* Update the throttle time. */
-			__wt_lsm_tree_throttle(session, lsm_tree);
+			__wt_lsm_tree_throttle(session, lsm_tree, 1);
 			WT_TRET(__wt_lsm_tree_unlock(session, lsm_tree));
 
 			/* Make sure we aren't pinning a transaction ID. */
@@ -434,7 +440,7 @@ __lsm_bloom_create(WT_SESSION_IMPL *session,
 		WT_CLEAR(buf);
 		WT_RET(__wt_lsm_tree_bloom_name(
 		    session, lsm_tree, chunk->id, &buf));
-		chunk->bloom_uri = __wt_buf_steal(session, &buf, NULL);
+		chunk->bloom_uri = __wt_buf_steal(session, &buf);
 	}
 
 	/*
@@ -509,6 +515,7 @@ __lsm_discard_handle(
 {
 	WT_DECL_RET;
 	int locked;
+	WT_DECL_SPINLOCK_ID(id);			/* Must appear last */
 
 	/* This will fail with EBUSY if the file is still in use. */
 	WT_RET(__wt_session_get_btree(session, uri, checkpoint, NULL,
@@ -525,8 +532,8 @@ __lsm_discard_handle(
 	 * the schema lock.
 	 */
 	locked = 0;
-	if (checkpoint == NULL && (ret =
-	    __wt_spin_trylock(session, &S2C(session)->checkpoint_lock)) == 0)
+	if (checkpoint == NULL && (ret = __wt_spin_trylock(
+	    session, &S2C(session)->checkpoint_lock, &id)) == 0)
 		locked = 1;
 	if (ret == 0)
 		F_SET(session->dhandle, WT_DHANDLE_DISCARD);

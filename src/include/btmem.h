@@ -77,7 +77,7 @@ struct __wt_page_header {
  */
 struct __wt_addr {
 	uint8_t *addr;			/* Block-manager's cookie */
-	uint32_t size;			/* Block-manager's cookie length */
+	uint8_t  size;			/* Block-manager's cookie length */
 
 #define	WT_ADDR_INT	1		/* Internal page */
 #define	WT_ADDR_LEAF	2		/* Leaf page */
@@ -247,8 +247,8 @@ struct __wt_page_modify {
 
 #define	WT_PAGE_LOCK(s, p)						\
 	__wt_spin_lock((s), &S2C(s)->page_lock[(p)->modify->page_lock])
-#define	WT_PAGE_TRYLOCK(s, p)						\
-	__wt_spin_trylock((s), &S2C(s)->page_lock[(p)->modify->page_lock])
+#define	WT_PAGE_TRYLOCK(s, p, idp)					\
+	__wt_spin_trylock((s), &S2C(s)->page_lock[(p)->modify->page_lock], idp)
 #define	WT_PAGE_UNLOCK(s, p)						\
 	__wt_spin_unlock((s), &S2C(s)->page_lock[(p)->modify->page_lock])
 	uint8_t page_lock;    /* Page's spinlock */
@@ -361,13 +361,13 @@ struct __wt_page {
 #define	WT_READ_GEN_STEP	1000
 	uint64_t read_gen;
 
+	uint64_t memory_footprint;	/* Memory attached to the page */
+
 	/*
 	 * In-memory pages optionally reference a number of entries originally
 	 * read from disk and sizes the allocated arrays that describe the page.
 	 */
 	uint32_t entries;
-
-	uint32_t memory_footprint;	/* Memory attached to the page */
 
 #define	WT_PAGE_INVALID		0	/* Invalid page */
 #define	WT_PAGE_BLOCK_MANAGER	1	/* Block-manager page */

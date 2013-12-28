@@ -281,7 +281,7 @@ __log_fill(WT_SESSION_IMPL *session,
 	if (direct)
 		WT_ERR(__wt_write(session, myslot->slot->slot_fh,
 		    myslot->offset + myslot->slot->slot_start_offset,
-		    logrec->len, (void *)logrec));
+		    (size_t)logrec->len, (void *)logrec));
 	else
 		memcpy((char *)myslot->slot->slot_buf.mem + myslot->offset,
 		    logrec, logrec->len);
@@ -476,7 +476,7 @@ __log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 	WT_DECL_RET;
 	WT_FH *close_fh;
 	WT_LOG *log;
-	uint32_t write_size;
+	size_t write_size;
 
 	conn = S2C(session);
 	log = conn->log;
@@ -493,7 +493,7 @@ __log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 
 	/* Write the buffered records */
 	if (F_ISSET(slot, SLOT_BUFFERED)) {
-		write_size = (uint32_t)
+		write_size = (size_t)
 		    (slot->slot_end_lsn.offset - slot->slot_start_offset);
 		WT_ERR(__wt_write(session, slot->slot_fh,
 		    slot->slot_start_offset, write_size, slot->slot_buf.mem));
@@ -656,8 +656,8 @@ __wt_log_read(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 	 * Read the minimum allocation size a record could be.
 	 */
 	WT_ERR(__wt_buf_init(session, record, log->allocsize));
-	WT_ERR(__wt_read(
-	    session, log_fh, lsnp->offset, log->allocsize, record->mem));
+	WT_ERR(__wt_read(session,
+	    log_fh, lsnp->offset, (size_t)log->allocsize, record->mem));
 	/*
 	 * First 4 bytes is the real record length.  See if we
 	 * need to read more than the allocation size.  We expect
@@ -672,8 +672,8 @@ __wt_log_read(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 	if (reclen > log->allocsize) {
 		rdup_len = __wt_rduppo2(reclen, log->allocsize);
 		WT_ERR(__wt_buf_grow(session, record, rdup_len));
-		WT_ERR(__wt_read(
-		    session, log_fh, lsnp->offset, rdup_len, record->mem));
+		WT_ERR(__wt_read(session,
+		    log_fh, lsnp->offset, (size_t)rdup_len, record->mem));
 	}
 	/*
 	 * We read in the record, verify checksum.
@@ -825,8 +825,8 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 		 * Read the minimum allocation size a record could be.
 		 */
 		WT_ASSERT(session, buf.memsize >= allocsize);
-		WT_ERR(__wt_read(
-		    session, log_fh, rd_lsn.offset, allocsize, buf.mem));
+		WT_ERR(__wt_read(session,
+		    log_fh, rd_lsn.offset, (size_t)allocsize, buf.mem));
 		/*
 		 * First 8 bytes is the real record length.  See if we
 		 * need to read more than the allocation size.  We expect
@@ -848,8 +848,8 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 		rdup_len = __wt_rduppo2(reclen, allocsize);
 		if (reclen > allocsize) {
 			WT_ERR(__wt_buf_grow(session, &buf, rdup_len));
-			WT_ERR(__wt_read(
-			    session, log_fh, rd_lsn.offset, reclen, buf.mem));
+			WT_ERR(__wt_read(session,
+			    log_fh, rd_lsn.offset, (size_t)reclen, buf.mem));
 			WT_STAT_FAST_CONN_INCR(session, log_scan_rereads);
 		}
 		/*
@@ -913,6 +913,7 @@ __log_direct_write(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 	WT_LOGSLOT tmp;
 	WT_MYSLOT myslot;
 	int locked;
+	WT_DECL_SPINLOCK_ID(id);			/* Must appear last */
 
 	log = S2C(session)->log;
 	myslot.slot = &tmp;
@@ -920,7 +921,7 @@ __log_direct_write(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 	WT_CLEAR(tmp);
 
 	/* Fast path the contended case. */
-	if (__wt_spin_trylock(session, &log->log_slot_lock) != 0)
+	if (__wt_spin_trylock(session, &log->log_slot_lock, &id) != 0)
 		return (EAGAIN);
 	locked = 1;
 
@@ -969,7 +970,7 @@ __wt_log_write(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 	 * direct_io is in use because it makes the reading code cleaner.
 	 */
 	WT_STAT_FAST_CONN_INCRV(session, log_bytes_user, record->size);
-	rdup_len = __wt_rduppo2(record->size, log->allocsize);
+	rdup_len = __wt_rduppo2((uint32_t)record->size, log->allocsize);
 	WT_ERR(__wt_buf_grow(session, record, rdup_len));
 	WT_ASSERT(session, record->data == record->mem);
 	/*
@@ -982,7 +983,7 @@ __wt_log_write(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 		record->size = rdup_len;
 	}
 	logrec = (WT_LOG_RECORD *)record->mem;
-	logrec->len = record->size;
+	logrec->len = (uint32_t)record->size;
 	logrec->checksum = 0;
 	logrec->checksum = __wt_cksum(logrec, record->size);
 

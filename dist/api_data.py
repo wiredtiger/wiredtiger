@@ -129,7 +129,11 @@ lsm_config = [
 	    Config('merge_max', '15', r'''
 	        the maximum number of chunks to include in a merge operation''',
 	        min='2', max='100'),
-	    Config('merge_threads', '1', r'''
+	    Config('merge_min', '0', r'''
+	        the minimum number of chunks to include in a merge operation. If
+	        set to 0 or 1 half the value of merge_max is used''',
+	        max='100'),
+	    Config('merge_threads', '2', r'''
 	        the number of threads to perform merge operations''',
 	        min='1', max='10'), # !!! max must match WT_LSM_MAX_WORKERS
 	]),
@@ -391,9 +395,9 @@ methods = {
 'session.compact' : Method([
 	Config('timeout', '1200', r'''
 	    maximum amount of time to allow for compact in seconds. The
-		actual amount of time spent in compact may exceed the configured
-		value. A value of zero disables the timeout''',
-		type='int'),
+	    actual amount of time spent in compact may exceed the configured
+	    value. A value of zero disables the timeout''',
+	    type='int'),
 ]),
 
 'session.create' :
@@ -653,7 +657,7 @@ methods = {
 	    RPC server for primary processes and use RPC for secondary
 	    processes). <b>Not yet supported in WiredTiger</b>''',
 	    type='boolean'),
-	Config('session_max', '50', r'''
+	Config('session_max', '100', r'''
 	    maximum expected number of sessions (including server
 	    threads)''',
 	    min='1'),
@@ -661,7 +665,7 @@ methods = {
 	    log any statistics the database is configured to maintain,
 	    to a file.  See @ref statistics for more information''',
 	    type='category', subconfig=[
-	    Config('path', '"WiredTigerStat.%H"', r'''
+	    Config('path', '"WiredTigerStat.%d.%H"', r'''
 	        the pathname to a file into which the log records are written,
 	        may contain ISO C standard strftime conversion specifications.
 	        If the value is not an absolute path name, the file is created

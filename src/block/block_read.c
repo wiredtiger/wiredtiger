@@ -13,7 +13,7 @@
  */
 int
 __wt_bm_preload(WT_BM *bm,
-    WT_SESSION_IMPL *session, const uint8_t *addr, uint32_t addr_size)
+    WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
 	WT_BLOCK *block;
 	WT_DECL_RET;
@@ -23,7 +23,7 @@ __wt_bm_preload(WT_BM *bm,
 
 	WT_UNUSED(addr_size);
 	block = bm->block;
-	ret = EINVAL; /* Play games due to conditional compilation */
+	ret = EINVAL;		/* Play games due to conditional compilation */
 
 	/* Crack the cookie. */
 	WT_RET(__wt_block_buffer_to_addr(block, addr, &offset, &size, &cksum));
@@ -59,7 +59,7 @@ __wt_bm_preload(WT_BM *bm,
  */
 int
 __wt_bm_read(WT_BM *bm, WT_SESSION_IMPL *session,
-    WT_ITEM *buf, const uint8_t *addr, uint32_t addr_size)
+    WT_ITEM *buf, const uint8_t *addr, size_t addr_size)
 {
 	WT_BLOCK *block;
 	int mapped;
@@ -145,7 +145,8 @@ __wt_block_read_off(WT_SESSION_IMPL *session,
     WT_BLOCK *block, WT_ITEM *buf, off_t offset, uint32_t size, uint32_t cksum)
 {
 	WT_BLOCK_HEADER *blk;
-	uint32_t alloc_size, page_cksum;
+	size_t bufsize;
+	uint32_t page_cksum;
 
 	WT_VERBOSE_RET(session, read,
 	    "off %" PRIuMAX ", size %" PRIu32 ", cksum %" PRIu32,
@@ -161,12 +162,12 @@ __wt_block_read_off(WT_SESSION_IMPL *session,
 	 * we're not adding any additional processing time.)
 	 */
 	if (F_ISSET(buf, WT_ITEM_ALIGNED))
-		alloc_size = size;
+		bufsize = size;
 	else {
 		F_SET(buf, WT_ITEM_ALIGNED);
-		alloc_size = (uint32_t)WT_MAX(size, buf->memsize + 10);
+		bufsize = WT_MAX(size, buf->memsize + 10);
 	}
-	WT_RET(__wt_buf_init(session, buf, alloc_size));
+	WT_RET(__wt_buf_init(session, buf, bufsize));
 	WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
 	buf->size = size;
 
@@ -175,12 +176,14 @@ __wt_block_read_off(WT_SESSION_IMPL *session,
 	page_cksum = __wt_cksum(buf->mem,
 	    F_ISSET(blk, WT_BLOCK_DATA_CKSUM) ? size : WT_BLOCK_COMPRESS_SKIP);
 	if (cksum != page_cksum) {
-		if (!F_ISSET(session, WT_SESSION_SALVAGE_QUIET_ERR))
+		if (!F_ISSET(session, WT_SESSION_SALVAGE_QUIET_ERR)) {
 			__wt_errx(session,
 			    "read checksum error [%"
 			    PRIu32 "B @ %" PRIuMAX ", %"
 			    PRIu32 " != %" PRIu32 "]",
 			    size, (uintmax_t)offset, cksum, page_cksum);
+			WT_ASSERT(session, cksum == page_cksum);
+		}
 		return (WT_ERROR);
 	}
 

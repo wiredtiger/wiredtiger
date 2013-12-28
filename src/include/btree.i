@@ -36,7 +36,7 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
 
 	cache = S2C(session)->cache;
 	(void)WT_ATOMIC_ADD(cache->bytes_inmem, size);
-	(void)WT_ATOMIC_ADD(page->memory_footprint, WT_STORE_SIZE(size));
+	(void)WT_ATOMIC_ADD(page->memory_footprint, size);
 	if (__wt_page_is_modified(page)) {
 		(void)WT_ATOMIC_ADD(cache->bytes_dirty, size);
 		(void)WT_ATOMIC_ADD(page->modify->bytes_dirty, size);
@@ -56,7 +56,7 @@ __wt_cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
 
 	cache = S2C(session)->cache;
 	(void)WT_ATOMIC_SUB(cache->bytes_inmem, size);
-	(void)WT_ATOMIC_SUB(page->memory_footprint, WT_STORE_SIZE(size));
+	(void)WT_ATOMIC_SUB(page->memory_footprint, size);
 	if (__wt_page_is_modified(page)) {
 		(void)WT_ATOMIC_SUB(cache->bytes_dirty, size);
 		(void)WT_ATOMIC_SUB(page->modify->bytes_dirty, size);
@@ -311,7 +311,7 @@ __wt_off_page(WT_PAGE *page, const void *p)
  * possible.
  */
 static inline void
-__wt_ref_key(WT_PAGE *page, WT_REF *ref, void *keyp, uint32_t *sizep)
+__wt_ref_key(WT_PAGE *page, WT_REF *ref, void *keyp, size_t *sizep)
 {
 	/*
 	 * An internal page key is in one of two places: if we instantiated the
@@ -333,7 +333,7 @@ __wt_ref_key(WT_PAGE *page, WT_REF *ref, void *keyp, uint32_t *sizep)
 	if (ref->key.pkey & 0x01) {
 		*(void **)keyp =
 		    WT_PAGE_REF_OFFSET(page, (ref->key.pkey & 0xFFFFFFFF) >> 1);
-		*sizep = (uint32_t)(ref->key.pkey >> 32);
+		*sizep = ref->key.pkey >> 32;
 	} else {
 		*(void **)keyp = WT_IKEY_DATA(ref->key.ikey);
 		*sizep = ((WT_IKEY *)ref->key.ikey)->size;
@@ -451,7 +451,7 @@ retry:	ikey = WT_ROW_KEY_COPY(rip);
  */
 static inline int
 __wt_ref_info(WT_SESSION_IMPL *session, WT_PAGE *page,
-    WT_REF *ref, const uint8_t **addrp, uint32_t *sizep, u_int *typep)
+    WT_REF *ref, const uint8_t **addrp, size_t *sizep, u_int *typep)
 {
 	WT_ADDR *addr;
 	WT_CELL_UNPACK *unpack, _unpack;
@@ -753,7 +753,7 @@ static inline int
 __wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item)
 {
 	const uint8_t *userp, *treep;
-	uint32_t len, usz, tsz;
+	size_t len, usz, tsz;
 
 	usz = user_item->size;
 	tsz = tree_item->size;
@@ -788,10 +788,10 @@ __wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item)
  */
 static inline int
 __wt_lex_compare_skip(
-    const WT_ITEM *user_item, const WT_ITEM *tree_item, uint32_t *matchp)
+    const WT_ITEM *user_item, const WT_ITEM *tree_item, size_t *matchp)
 {
 	const uint8_t *userp, *treep;
-	uint32_t len, usz, tsz;
+	size_t len, usz, tsz;
 
 	usz = user_item->size;
 	tsz = tree_item->size;

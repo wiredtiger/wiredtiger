@@ -42,7 +42,7 @@ int
 __wt_verify_dsk(WT_SESSION_IMPL *session, const char *addr, WT_ITEM *buf)
 {
 	WT_PAGE_HEADER *dsk;
-	uint32_t size;
+	size_t size;
 	uint8_t *p, *end;
 	u_int i;
 
@@ -94,8 +94,8 @@ __wt_verify_dsk(WT_SESSION_IMPL *session, const char *addr, WT_ITEM *buf)
 		break;
 	default:
 		WT_RET_VRFY(session,
-		    "page at %s has an invalid flags value of 0x%" PRIx32,
-		    addr, (uint32_t)dsk->flags);
+		    "page at %s has an invalid flags value of 0x%" PRIx8,
+		    addr, dsk->flags);
 	}
 
 	/* Unused bytes */
@@ -287,8 +287,7 @@ __verify_dsk_row(
 			WT_ERR_VRFY(session,
 			    "key %" PRIu32 " on page at %s has a prefix "
 			    "compression count of %" PRIu32
-			    ", larger than the length of the previous key, %"
-			    PRIu32,
+			    ", larger than the length of the previous key, %zu",
 			    cell_num, addr, prefix, last->size);
 
 		/*
@@ -453,7 +452,8 @@ __verify_dsk_col_var(
 	WT_BTREE *btree;
 	WT_CELL *cell;
 	WT_CELL_UNPACK *unpack, _unpack;
-	uint32_t cell_num, cell_type, i, last_size;
+	size_t last_size;
+	uint32_t cell_num, cell_type, i;
 	int last_deleted;
 	const uint8_t *last_data;
 	uint8_t *end;

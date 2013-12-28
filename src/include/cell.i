@@ -142,9 +142,9 @@ struct __wt_cell_unpack {
 	uint64_t v;			/* RLE count or recno */
 
 	const void *data;		/* Data */
-	uint32_t    size;		/* Data size */
+	size_t      size;		/* Data size */
 
-	uint32_t __len;			/* Cell + data length (usually) */
+	size_t __len;			/* Cell + data length (usually) */
 
 	uint8_t prefix;			/* Cell prefix length */
 
@@ -168,9 +168,8 @@ struct __wt_cell_unpack {
  * __wt_cell_pack_addr --
  *	Pack an address cell.
  */
-static inline uint32_t
-__wt_cell_pack_addr(
-    WT_CELL *cell, u_int cell_type, uint64_t recno, uint32_t size)
+static inline size_t
+__wt_cell_pack_addr(WT_CELL *cell, u_int cell_type, uint64_t recno, size_t size)
 {
 	uint8_t *p;
 
@@ -183,15 +182,15 @@ __wt_cell_pack_addr(
 		(void)__wt_vpack_uint(&p, 0, recno);	/* Record number */
 	}
 	(void)__wt_vpack_uint(&p, 0, (uint64_t)size);	/* Length */
-	return (WT_PTRDIFF32(p, cell));
+	return (WT_PTRDIFF(p, cell));
 }
 
 /*
  * __wt_cell_pack_data --
  *	Set a data item's WT_CELL contents.
  */
-static inline uint32_t
-__wt_cell_pack_data(WT_CELL *cell, uint64_t rle, uint32_t size)
+static inline size_t
+__wt_cell_pack_data(WT_CELL *cell, uint64_t rle, size_t size)
 {
 	uint8_t byte, *p;
 
@@ -215,7 +214,7 @@ __wt_cell_pack_data(WT_CELL *cell, uint64_t rle, uint32_t size)
 		(void)__wt_vpack_uint(&p, 0, rle);	/* RLE */
 	}
 	(void)__wt_vpack_uint(&p, 0, (uint64_t)size);	/* Length */
-	return (WT_PTRDIFF32(p, cell));
+	return (WT_PTRDIFF(p, cell));
 }
 
 /*
@@ -275,7 +274,7 @@ __wt_cell_pack_data_match(
  * __wt_cell_pack_copy --
  *	Write a copy value cell.
  */
-static inline uint32_t
+static inline size_t
 __wt_cell_pack_copy(WT_CELL *cell, uint64_t rle, uint64_t v)
 {
 	uint8_t *p;
@@ -289,14 +288,14 @@ __wt_cell_pack_copy(WT_CELL *cell, uint64_t rle, uint64_t v)
 		(void)__wt_vpack_uint(&p, 0, rle);	/* RLE */
 	}
 	(void)__wt_vpack_uint(&p, 0, v);		/* Copy offset */
-	return (WT_PTRDIFF32(p, cell));
+	return (WT_PTRDIFF(p, cell));
 }
 
 /*
  * __wt_cell_pack_del --
  *	Write a deleted value cell.
  */
-static inline uint32_t
+static inline size_t
 __wt_cell_pack_del(WT_CELL *cell, uint64_t rle)
 {
 	uint8_t *p;
@@ -309,15 +308,15 @@ __wt_cell_pack_del(WT_CELL *cell, uint64_t rle)
 							/* Type */
 	cell->__chunk[0] = WT_CELL_DEL | WT_CELL_64V;
 	(void)__wt_vpack_uint(&p, 0, rle);		/* RLE */
-	return (WT_PTRDIFF32(p, cell));
+	return (WT_PTRDIFF(p, cell));
 }
 
 /*
  * __wt_cell_pack_int_key --
  *	Set a row-store internal page key's WT_CELL contents.
  */
-static inline uint32_t
-__wt_cell_pack_int_key(WT_CELL *cell, uint32_t size)
+static inline size_t
+__wt_cell_pack_int_key(WT_CELL *cell, size_t size)
 {
 	uint8_t byte, *p;
 
@@ -335,15 +334,15 @@ __wt_cell_pack_int_key(WT_CELL *cell, uint32_t size)
 	size -= WT_CELL_SIZE_ADJUST;
 	(void)__wt_vpack_uint(&p, 0, (uint64_t)size);	/* Length */
 
-	return (WT_PTRDIFF32(p, cell));
+	return (WT_PTRDIFF(p, cell));
 }
 
 /*
  * __wt_cell_pack_leaf_key --
  *	Set a row-store leaf page key's WT_CELL contents.
  */
-static inline uint32_t
-__wt_cell_pack_leaf_key(WT_CELL *cell, uint8_t prefix, uint32_t size)
+static inline size_t
+__wt_cell_pack_leaf_key(WT_CELL *cell, uint8_t prefix, size_t size)
 {
 	uint8_t byte, *p;
 
@@ -376,15 +375,15 @@ __wt_cell_pack_leaf_key(WT_CELL *cell, uint8_t prefix, uint32_t size)
 	size -= WT_CELL_SIZE_ADJUST;
 	(void)__wt_vpack_uint(&p, 0, (uint64_t)size);	/* Length */
 
-	return (WT_PTRDIFF32(p, cell));
+	return (WT_PTRDIFF(p, cell));
 }
 
 /*
  * __wt_cell_pack_ovfl --
  *	Pack an overflow cell.
  */
-static inline uint32_t
-__wt_cell_pack_ovfl(WT_CELL *cell, uint8_t type, uint64_t rle, uint32_t size)
+static inline size_t
+__wt_cell_pack_ovfl(WT_CELL *cell, uint8_t type, uint64_t rle, size_t size)
 {
 	uint8_t *p;
 
@@ -396,7 +395,7 @@ __wt_cell_pack_ovfl(WT_CELL *cell, uint8_t type, uint64_t rle, uint32_t size)
 		(void)__wt_vpack_uint(&p, 0, rle);	/* RLE */
 	}
 	(void)__wt_vpack_uint(&p, 0, (uint64_t)size);	/* Length */
-	return (WT_PTRDIFF32(p, cell));
+	return (WT_PTRDIFF(p, cell));
 }
 
 /*
@@ -418,7 +417,7 @@ __wt_cell_rle(WT_CELL_UNPACK *unpack)
  * __wt_cell_total_len --
  *	Return the cell's total length, including data.
  */
-static inline uint32_t
+static inline size_t
 __wt_cell_total_len(WT_CELL_UNPACK *unpack)
 {
 	/*
@@ -490,11 +489,10 @@ __wt_cell_type_raw(WT_CELL *cell)
 static inline int
 __wt_cell_unpack_safe(WT_CELL *cell, WT_CELL_UNPACK *unpack, uint8_t *end)
 {
-	uint64_t v;
-	const uint8_t *p;
-	uint32_t saved_len;
-	uint64_t saved_v;
+	size_t saved_len;
+	uint64_t saved_v, v;
 	int copied;
+	const uint8_t *p;
 
 	copied = 0;
 	saved_len = 0;
@@ -577,7 +575,7 @@ restart:
 		 */
 		WT_RET(__wt_vunpack_uint(
 		    &p, end == NULL ? 0 : (size_t)(end - p), &v));
-		saved_len = WT_PTRDIFF32(p, cell);
+		saved_len = WT_PTRDIFF(p, cell);
 		saved_v = unpack->v;
 		cell = (WT_CELL *)((uint8_t *)cell - v);
 		copied = 1;
@@ -612,12 +610,12 @@ restart:
 			v += WT_CELL_SIZE_ADJUST;
 
 		unpack->data = p;
-		unpack->size = WT_STORE_SIZE(v);
-		unpack->__len = WT_PTRDIFF32(p + unpack->size, cell);
+		unpack->size = (size_t)v;
+		unpack->__len = WT_PTRDIFF(p + unpack->size, cell);
 		break;
 
 	case WT_CELL_DEL:
-		unpack->__len = WT_PTRDIFF32(p, cell);
+		unpack->__len = WT_PTRDIFF(p, cell);
 		break;
 	default:
 		return (WT_ERROR);			/* Unknown cell type. */
