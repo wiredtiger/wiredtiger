@@ -509,9 +509,8 @@ __wt_cell_unpack_safe(WT_CELL *cell, WT_CELL_UNPACK *unpack, uint8_t *end)
 } while (0)
 
 restart:
+	WT_CLEAR(*unpack);
 	unpack->cell = cell;
-	unpack->v = 0;
-	unpack->ovfl = unpack->prefix = 0;
 
 	WT_CELL_LEN_CHK(cell, 0);
 	unpack->type = __wt_cell_type(cell);
