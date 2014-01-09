@@ -142,16 +142,14 @@ struct __wt_cell_unpack {
 	uint64_t v;			/* RLE count or recno */
 
 	const void *data;		/* Data */
-	size_t      size;		/* Data size */
+	uint32_t size;			/* Data size */
+	uint32_t __len;			/* Cell + data length (usually) */
 
-	size_t __len;			/* Cell + data length (usually) */
-
+	uint8_t ovfl;			/* 1/0: cell is an overflow */
 	uint8_t prefix;			/* Cell prefix length */
 
 	uint8_t raw;			/* Raw cell type (include "shorts") */
 	uint8_t type;			/* Cell type */
-
-	uint8_t ovfl;			/* 1/0: cell is an overflow */
 };
 
 /*

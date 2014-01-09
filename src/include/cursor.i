@@ -172,13 +172,14 @@ __cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_UPDATE *upd)
 	WT_BTREE *btree;
 	WT_ITEM *kb, *vb;
 	WT_CELL *cell;
-	WT_CELL_UNPACK *unpack, _unpack;
+	WT_CELL_UNPACK unpack;
 	WT_IKEY *ikey;
 	WT_SESSION_IMPL *session;
+	int unpacked;
 
 	session = (WT_SESSION_IMPL *)cbt->iface.session;
 	btree = S2BT(session);
-	unpack = &_unpack;
+	unpacked = 0;
 
 	kb = &cbt->iface.key;
 	vb = &cbt->iface.value;
@@ -215,13 +216,14 @@ __cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_UPDATE *upd)
 		 */
 		if (btree->huffman_key != NULL)
 			goto slow;
-		__wt_cell_unpack((WT_CELL *)ikey, unpack);
-		if (unpack->type == WT_CELL_KEY && unpack->prefix == 0) {
-			cbt->tmp.data = unpack->data;
-			cbt->tmp.size = unpack->size;
-		} else if (unpack->type == WT_CELL_KEY &&
+		__wt_cell_unpack((WT_CELL *)ikey, &unpack);
+		unpacked = 1;
+		if (unpack.type == WT_CELL_KEY && unpack.prefix == 0) {
+			cbt->tmp.data = unpack.data;
+			cbt->tmp.size = unpack.size;
+		} else if (unpack.type == WT_CELL_KEY &&
 		    cbt->rip_saved != NULL && cbt->rip_saved == rip - 1) {
-			WT_ASSERT(session, cbt->tmp.size >= unpack->prefix);
+			WT_ASSERT(session, cbt->tmp.size >= unpack.prefix);
 			/*
 			 * If we previously built a prefix-compressed key in the
 			 * temporary buffer, the WT_ITEM->data field will be the
@@ -236,16 +238,16 @@ __cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_UPDATE *upd)
 			 */
 			if (cbt->tmp.data != cbt->tmp.mem)
 				WT_RET(__wt_buf_set(session, &cbt->tmp,
-				    cbt->tmp.data, unpack->prefix));
+				    cbt->tmp.data, unpack.prefix));
 			/*
 			 * Grow the buffer if necessary, and copy the suffix
 			 * into place.
 			 */
 			WT_RET(__wt_buf_grow(
-			    session, &cbt->tmp, unpack->prefix + unpack->size));
-			memcpy((uint8_t *)cbt->tmp.data + unpack->prefix,
-			    unpack->data, unpack->size);
-			cbt->tmp.size = unpack->prefix + unpack->size;
+			    session, &cbt->tmp, unpack.prefix + unpack.size));
+			memcpy((uint8_t *)cbt->tmp.data + unpack.prefix,
+			    unpack.data, unpack.size);
+			cbt->tmp.size = unpack.prefix + unpack.size;
 		} else {
 			/*
 			 * __wt_row_leaf_key_work instead of __wt_row_leaf_key:
@@ -269,12 +271,22 @@ slow:			WT_RET(__wt_row_leaf_key_work(
 	if (upd != NULL) {
 		vb->data = WT_UPDATE_DATA(upd);
 		vb->size = upd->size;
-	} else if ((cell = __wt_row_value(cbt->page, rip)) == NULL) {
-		vb->data = "";
-		vb->size = 0;
 	} else {
-		__wt_cell_unpack(cell, unpack);
-		WT_RET(__wt_page_cell_data_ref(session, cbt->page, unpack, vb));
+		if (unpacked) {
+			cell = (WT_CELL *)(
+			    (uint8_t *)ikey + __wt_cell_total_len(&unpack));
+			if (__wt_off_page(cbt->page, cell))
+				cell = NULL;
+		} else
+			cell = __wt_row_value(cbt->page, rip);
+		if (cell == NULL) {
+			vb->data = "";
+			vb->size = 0;
+		} else {
+			__wt_cell_unpack(cell, &unpack);
+			WT_RET(__wt_page_cell_data_ref(
+			    session, cbt->page, &unpack, vb));
+		}
 	}
 
 	return (0);
