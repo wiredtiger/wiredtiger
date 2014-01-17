@@ -260,10 +260,12 @@ __wt_page_inmem(
 	F_SET_ATOMIC(page, flags);
 
 	/*
-	 * Track the memory allocated to build this page so we can update the
-	 * cache statistics in a single call.
+	 * Track the memory used to build this page so we can update the cache
+	 * statistics in a single call.  Include the disk image size regardless
+	 * of whether the image is memory mapped or in heap memory: either way,
+	 * we are tying up that space.
 	 */
-	size = LF_ISSET(WT_PAGE_DISK_ALLOC) ? dsk->mem_size : 0;
+	size = dsk->mem_size;
 
 	switch (page->type) {
 	case WT_PAGE_COL_FIX:
