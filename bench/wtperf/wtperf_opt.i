@@ -82,10 +82,18 @@ DEF_OPT_AS_UINT32(checkpoint_threads, 0, "number of checkpoint threads")
 DEF_OPT_AS_CONFIG_STRING(conn_config, "create",
     "connection configuration string")
 DEF_OPT_AS_BOOL(compact, 0, "post-populate compact for LSM merging activity")
+DEF_OPT_AS_STRING(compression, "none",
+    "compression extension.  Allowed configuration values are: "
+    "'none' (default), 'bzip', 'snappy', 'zlib'")
 DEF_OPT_AS_BOOL(create, 1,
     "do population phase; false to use existing database")
-DEF_OPT_AS_UINT32(value_sz, 100, "value size")
-DEF_OPT_AS_UINT32(icount, 5000, "number of records to initially populate")
+DEF_OPT_AS_UINT32(database_count, 1,
+    "number of WiredTiger databases to use. Each database will execute the"
+    " workload using a separate home directory and complete set of worker"
+    " threads")
+DEF_OPT_AS_UINT32(icount, 5000,
+    "number of records to initially populate. If multiple tables are "
+    "configured, each table has this many items inserted.")
 DEF_OPT_AS_BOOL(insert_rmw, 0,
     "execute a read prior to each insert in workload phase")
 DEF_OPT_AS_UINT32(key_sz, 20, "key size")
@@ -97,7 +105,8 @@ DEF_OPT_AS_UINT32(populate_threads, 1,
     "number of populate threads, 1 for bulk load")
 DEF_OPT_AS_UINT32(random_range, 0,
     "if non zero choose a value from within this range as the key for "
-    "operations")
+    "insert operations")
+DEF_OPT_AS_BOOL(random_value, 0, "generate random content for the value")
 DEF_OPT_AS_UINT32(report_interval, 2,
     "output throughput information every interval seconds, 0 to disable")
 DEF_OPT_AS_UINT32(run_ops, 0,
@@ -109,22 +118,28 @@ DEF_OPT_AS_UINT32(sample_interval, 0,
 DEF_OPT_AS_UINT32(sample_rate, 50,
     "how often the latency of operations is measured. One for every operation,"
     "two for every second operation, three for every third operation etc.")
+DEF_OPT_AS_CONFIG_STRING(sess_config, "", "session configuration string")
 DEF_OPT_AS_CONFIG_STRING(table_config,
     "key_format=S,value_format=S,type=lsm,exclusive=true,"
     "leaf_page_max=4kb,internal_page_max=64kb,allocation_size=4kb,",
     "table configuration string")
-DEF_OPT_AS_STRING(threads, "", "worker thread configuration: each 'count' "
+DEF_OPT_AS_UINT32(table_count, 1,
+    "number of tables to run operations over. Keys are divided evenly "
+    "over the tables. Default 1, maximum 99.")
+DEF_OPT_AS_STRING(threads, "", "workload configuration: each 'count' "
     "entry is the total number of threads, and the 'insert', 'read' and "
     "'update' entries are the ratios of insert, read and update operations "
     "done by each worker thread; multiple workload configurations may be "
     "specified; for example, a more complex threads configuration might be "
     "'threads=((count=2,reads=1)(count=8,reads=1,inserts=2,updates=1))' "
     "which would create 2 threads doing nothing but reads and 8 threads "
-    "each doing 50% inserts and 25% reads and updates")
+    "each doing 50% inserts and 25% reads and updates.  Allowed"
+    "configuration values are 'count', 'reads', 'inserts', 'updates'")
 DEF_OPT_AS_CONFIG_STRING(transaction_config, "",
     "transaction configuration string, relevant when populate_opts_per_txn "
     "is nonzero")
 DEF_OPT_AS_STRING(table_name, "test", "table name")
+DEF_OPT_AS_UINT32(value_sz, 100, "value size")
 DEF_OPT_AS_UINT32(verbose, 1, "verbosity")
 
 #undef DEF_OPT_AS_BOOL

@@ -48,6 +48,21 @@
 typedef struct __config CONFIG;
 typedef struct __config_thread CONFIG_THREAD;
 
+#define	EXT_PFX	",extensions=("
+#define	EXT_SFX	")"
+#define	EXTPATH "../../ext/compressors/"		/* Extensions path */
+#define	BLKCMP_PFX	",block_compressor="
+
+#define	BZIP_BLK BLKCMP_PFX "bzip2"
+#define	BZIP_EXT							\
+	EXT_PFX EXTPATH "bzip2/.libs/libwiredtiger_bzip2.so" EXT_SFX
+#define	SNAPPY_BLK BLKCMP_PFX "snappy"
+#define	SNAPPY_EXT							\
+	EXT_PFX EXTPATH "snappy/.libs/libwiredtiger_snappy.so" EXT_SFX
+#define	ZLIB_BLK BLKCMP_PFX "zlib"
+#define	ZLIB_EXT							\
+	EXT_PFX EXTPATH "zlib/.libs/libwiredtiger_zlib.so" EXT_SFX
+
 typedef struct {
 	int64_t threads;		/* Thread count */
 	int64_t insert;			/* Insert ratio */
@@ -61,13 +76,23 @@ typedef struct {
 	uint8_t ops[100];		/* Operation schedule */
 } WORKLOAD;
 
+/*
+ * NOTE:  If you add any fields to this structure here, you must also add
+ * an initialization in wtperf.c in the default_cfg.
+ */
 struct __config {			/* Configuration struction */
 	const char *home;		/* WiredTiger home */
-	char *uri;			/* Object URI */
+	const char *monitor_dir;	/* Monitor output dir */
+	char *base_uri;			/* Object URI */
+	char **uris;			/* URIs if multiple tables */
+	const char *helium_mount;	/* Optional Helium mount point */
 
 	WT_CONNECTION *conn;		/* Database connection */
 
 	FILE *logf;			/* Logging handle */
+
+	const char *compress_ext;	/* Compression extension for conn */
+	const char *compress_table;	/* Compression arg to table create */
 
 	CONFIG_THREAD *ckptthreads, *popthreads;
 
@@ -77,6 +102,21 @@ struct __config {			/* Configuration struction */
 
 	WORKLOAD	*workload;		/* Workloads */
 	u_int		 workload_cnt;
+
+	/* State tracking variables. */
+
+	uint64_t ckpt_ops;		/* checkpoint operations */
+	uint64_t insert_ops;		/* insert operations */
+	uint64_t read_ops;		/* read operations */
+	uint64_t update_ops;		/* update operations */
+
+	uint64_t insert_key;		/* insert key */
+
+	volatile int ckpt;		/* checkpoint in progress */
+	volatile int error;		/* thread error */
+	volatile int stop;		/* notify threads to stop */
+
+	volatile uint32_t totalsec;	/* total seconds running */
 
 	/* Fields changeable on command line are listed in wtperf_opt.i */
 #define	OPT_DECLARE_STRUCT
@@ -97,6 +137,11 @@ typedef struct {
 } CONFIG_OPT;
 
 #define	ELEMENTS(a)	(sizeof(a) / sizeof(a[0]))
+
+/* From include/os.h */
+#define	WT_TIMEDIFF(end, begin)                                         \
+	(1000000000 * (uint64_t)((end).tv_sec - (begin).tv_sec) +       \
+	    (uint64_t)(end).tv_nsec - (uint64_t)(begin).tv_nsec)
 
 #define	THOUSAND	(1000ULL)
 #define	MILLION		(1000000ULL)
@@ -125,17 +170,18 @@ typedef struct {
 	 * the last_XXX fields.
 	 */
 	uint64_t ops;			/* Total operations */
+	uint64_t latency_ops;		/* Total ops sampled for latency */
 	uint64_t latency;		/* Total latency */
 
-	uint64_t last_ops;		/* Last read by monitor thread */
+	uint64_t last_latency_ops;	/* Last read by monitor thread */
 	uint64_t last_latency;
 
 	/*
 	 * Minimum/maximum latency, shared with the monitor thread, that is, the
 	 * monitor thread clears it so it's recalculated again for each period.
 	 */
-	uint32_t min_latency;		/* Minimum latency (NS) */
-	uint32_t max_latency;		/* Maximum latency (NS) */
+	uint32_t min_latency;		/* Minimum latency (uS) */
+	uint32_t max_latency;		/* Maximum latency (uS) */
 
 	/*
 	 * Latency buckets.
@@ -161,6 +207,7 @@ struct __config_thread {		/* Per-thread structure */
 };
 
 int	 config_assign(CONFIG *, const CONFIG *);
+int	 config_compress(CONFIG *);
 void	 config_free(CONFIG *);
 int	 config_opt_file(CONFIG *, const char *);
 int	 config_opt_line(CONFIG *, const char *);
