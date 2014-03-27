@@ -285,6 +285,14 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
 };
 
 static const WT_CONFIG_ENTRY config_entries[] = {
+	{ "async_conn.close",
+	  "",
+	  NULL
+	},
+	{ "async_conn.open_data_source",
+	  "",
+	  NULL
+	},
 	{ "colgroup.meta",
 	  "columns=,source=,type=file",
 	  confchk_colgroup_meta
@@ -422,6 +430,10 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	{ "table.meta",
 	  "colgroups=,columns=,key_format=u,value_format=u",
 	  confchk_table_meta
+	},
+	{ "wiredtiger_async_open",
+	  "",
+	  NULL
 	},
 	{ "wiredtiger_open",
 	  "buffer_alignment=-1,cache_size=100MB,"

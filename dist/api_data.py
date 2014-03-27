@@ -697,4 +697,8 @@ methods = {
 	    with special privileges.  See @ref home for more information''',
 	    type='boolean'),
 ]),
+
+'async_conn.close' : Method([]),
+'async_conn.open_data_source' : Method([]),
+'wiredtiger_async_open' : Method([]),
 }

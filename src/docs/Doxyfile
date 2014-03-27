@@ -677,6 +677,7 @@ WARN_LOGFILE           = doxygen.log
 # with spaces.
 
 INPUT                  = ../include/wiredtiger.in \
+                         ../include/wiredtiger_async.h \
                          ../include/wiredtiger_ext.h \
                          .
 

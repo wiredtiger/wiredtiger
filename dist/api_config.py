@@ -7,12 +7,6 @@ from dist import compare_srcfile
 # Temporary file.
 tmp_file = '__tmp'
 
-#####################################################################
-# Update wiredtiger.in with doxygen comments
-#####################################################################
-f='../src/include/wiredtiger.in'
-tfile = open(tmp_file, 'w')
-
 whitespace_re = re.compile(r'\s+')
 cbegin_re = re.compile(r'(\s*\*\s*)@config(?:empty|start)\{(.*?),.*\}')
 
@@ -92,60 +86,66 @@ def getconfcheck(c):
         check = '\n\t    '.join(w.wrap(check + ' ' + cstr + ', ' + sstr + '},'))
     return check
 
-skip = False
-for line in open(f, 'r'):
-    if skip:
-        if '@configend' in line:
-            skip = False
-        continue
+#####################################################################
+# Update wiredtiger.in and wiredtiger_async.h with doxygen comments
+#####################################################################
+for f in ('../src/include/wiredtiger.in', '../src/include/wiredtiger_async.h'):
+	tfile = open(tmp_file, 'w')
 
-    m = cbegin_re.match(line)
-    if not m:
-        tfile.write(line)
-        continue
+	skip = False
+	for line in open(f, 'r'):
+		if skip:
+			if '@configend' in line:
+				skip = False
+			continue
 
-    prefix, config_name = m.groups()
-    if config_name not in api_data.methods:
-        print >>sys.stderr, "Missing configuration for " + config_name
-        tfile.write(line)
-        continue
+		m = cbegin_re.match(line)
+		if not m:
+			tfile.write(line)
+			continue
 
-    skip = ('@configstart' in line)
+		prefix, config_name = m.groups()
+		if config_name not in api_data.methods:
+			print >>sys.stderr, "Missing configuration for " + config_name
+			tfile.write(line)
+			continue
 
-    if not api_data.methods[config_name].config:
-        tfile.write(prefix + '@configempty{' + config_name +
-                ', see dist/api_data.py}\n')
-        continue
+		skip = ('@configstart' in line)
 
-    tfile.write(prefix + '@configstart{' + config_name +
-            ', see dist/api_data.py}\n')
+		if not api_data.methods[config_name].config:
+			tfile.write(prefix + '@configempty{' + config_name +
+					', see dist/api_data.py}\n')
+			continue
 
-    w = textwrap.TextWrapper(width=80-len(prefix.expandtabs()),
-            break_on_hyphens=False,
-			replace_whitespace=False,
-			fix_sentence_endings=True)
-    lastname = None
-    for c in sorted(api_data.methods[config_name].config):
-        name = c.name
-        if '.' in name:
-            print >>sys.stderr, "Bad config key " + name
+		tfile.write(prefix + '@configstart{' + config_name +
+				', see dist/api_data.py}\n')
 
-        # Deal with duplicates: with complex configurations (like
-        # WT_SESSION::create), it's simpler to deal with duplicates here than
-        # manually in api_data.py.
-        if name == lastname:
-            continue
-        lastname = name
-        if 'undoc' in c.flags:
-            continue
-        output = parseconfig(c)
-        for l in w.wrap(output):
-            tfile.write(prefix + l.replace('\n', '\n' + prefix) + '\n')
+		w = textwrap.TextWrapper(width=80-len(prefix.expandtabs()),
+				break_on_hyphens=False,
+				replace_whitespace=False,
+				fix_sentence_endings=True)
+		lastname = None
+		for c in sorted(api_data.methods[config_name].config):
+			name = c.name
+			if '.' in name:
+				print >>sys.stderr, "Bad config key " + name
 
-    tfile.write(prefix + '@configend\n')
+			# Deal with duplicates: with complex configurations (like
+			# WT_SESSION::create), it's simpler to deal with duplicates here than
+			# manually in api_data.py.
+			if name == lastname:
+				continue
+			lastname = name
+			if 'undoc' in c.flags:
+				continue
+			output = parseconfig(c)
+			for l in w.wrap(output):
+				tfile.write(prefix + l.replace('\n', '\n' + prefix) + '\n')
 
-tfile.close()
-compare_srcfile(tmp_file, f)
+		tfile.write(prefix + '@configend\n')
+
+	tfile.close()
+	compare_srcfile(tmp_file, f)
 
 #####################################################################
 # Create config_def.c with defaults for each config string
