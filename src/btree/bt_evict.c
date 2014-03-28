@@ -229,7 +229,7 @@ __evict_worker(WT_SESSION_IMPL *session)
 
 		/* Check to see if the eviction server should run. */
 		if (bytes_inuse > (cache->eviction_target * bytes_max) / 100)
-			flags = (loop > 10) ?
+			flags = (F_ISSET(cache, WT_EVICT_STUCK) || loop > 10) ?
 			    WT_EVICT_PASS_AGGRESSIVE : WT_EVICT_PASS_ALL;
 		else if (dirty_inuse >
 		    (cache->eviction_dirty_target * bytes_max) / 100)
@@ -1191,7 +1191,8 @@ __wt_evict_lru_page(WT_SESSION_IMPL *session, int is_app)
 	 * the page and some other thread may have evicted it by the time we
 	 * look at it.
 	 */
-	page->read_gen = __wt_cache_read_gen_set(session);
+	if (page->read_gen != WT_READ_GEN_OLDEST)
+		page->read_gen = __wt_cache_read_gen_set(session);
 
 	WT_WITH_BTREE(session, btree, ret = __wt_evict_page(session, page));
 
