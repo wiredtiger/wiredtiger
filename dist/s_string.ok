@@ -623,6 +623,7 @@ mem
 memalign
 memalloc
 membar
+memcmp
 memcpy
 memfree
 memmove

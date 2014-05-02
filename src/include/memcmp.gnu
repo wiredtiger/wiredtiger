@@ -16,36 +16,6 @@
    License along with the GNU C Library; if not, see
    <http://www.gnu.org/licenses/>.  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
-#undef	__ptr_t
-#define __ptr_t	void *
-
-#if defined HAVE_STRING_H || defined _LIBC
-# include <string.h>
-#endif
-
-#undef memcmp
-
-#ifndef MEMCMP
-# define MEMCMP memcmp
-#endif
-
-#ifdef _LIBC
-
-# include <memcopy.h>
-# include <endian.h>
-
-# if __BYTE_ORDER == __BIG_ENDIAN
-#  define WORDS_BIGENDIAN
-# endif
-
-#else	/* Not in the GNU C library.  */
-
-# include <sys/types.h>
-
 /* Type to use for aligned memory operations.
    This should normally be the biggest type supported by a single load
    and store.  Must be an unsigned type.  */
@@ -55,16 +25,11 @@
 /* Threshold value for when to enter the unrolled loops.  */
 # define OP_T_THRES	16
 
-/* Type to use for unaligned operations.  */
-typedef unsigned char byte;
-
 # ifndef WORDS_BIGENDIAN
 #  define MERGE(w0, sh_1, w1, sh_2) (((w0) >> (sh_1)) | ((w1) << (sh_2)))
 # else
 #  define MERGE(w0, sh_1, w1, sh_2) (((w0) << (sh_1)) | ((w1) >> (sh_2)))
 # endif
-
-#endif	/* In the GNU C library.  */
 
 #ifdef WORDS_BIGENDIAN
 # define CMP_LT_OR_GT(a, b) ((a) > (b) ? 1 : -1)
@@ -90,11 +55,8 @@ typedef unsigned char byte;
    A and B are known to be different.
    This is needed only on little-endian machines.  */
 
-static int memcmp_bytes (op_t, op_t) __THROW;
-
-static int
-memcmp_bytes (a, b)
-     op_t a, b;
+static inline int
+memcmp_bytes (op_t a, op_t b)
 {
   long int srcp1 = (long int) &a;
   long int srcp2 = (long int) &b;
@@ -102,8 +64,8 @@ memcmp_bytes (a, b)
 
   do
     {
-      a0 = ((byte *) srcp1)[0];
-      b0 = ((byte *) srcp2)[0];
+      a0 = ((unsigned char *) srcp1)[0];
+      b0 = ((unsigned char *) srcp2)[0];
       srcp1 += 1;
       srcp2 += 1;
     }
@@ -112,16 +74,11 @@ memcmp_bytes (a, b)
 }
 #endif
 
-static int memcmp_common_alignment (long, long, size_t) __THROW;
-
 /* memcmp_common_alignment -- Compare blocks at SRCP1 and SRCP2 with LEN `op_t'
    objects (not LEN bytes!).  Both SRCP1 and SRCP2 should be aligned for
    memory operations on `op_t's.  */
-static int
-memcmp_common_alignment (srcp1, srcp2, len)
-     long int srcp1;
-     long int srcp2;
-     size_t len;
+static inline int
+memcmp_common_alignment (long int srcp1, long int srcp2, size_t len)
 {
   op_t a0, a1;
   op_t b0, b1;
@@ -199,16 +156,11 @@ memcmp_common_alignment (srcp1, srcp2, len)
   return 0;
 }
 
-static int memcmp_not_common_alignment (long, long, size_t) __THROW;
-
 /* memcmp_not_common_alignment -- Compare blocks at SRCP1 and SRCP2 with LEN
    `op_t' objects (not LEN bytes!).  SRCP2 should be aligned for memory
    operations on `op_t', but SRCP1 *should be unaligned*.  */
-static int
-memcmp_not_common_alignment (srcp1, srcp2, len)
-     long int srcp1;
-     long int srcp2;
-     size_t len;
+static inline int
+memcmp_not_common_alignment (long int srcp1, long int srcp2, size_t len)
 {
   op_t a0, a1, a2, a3;
   op_t b0, b1, b2, b3;
@@ -307,11 +259,8 @@ memcmp_not_common_alignment (srcp1, srcp2, len)
   return 0;
 }
 
-int
-MEMCMP (s1, s2, len)
-     const __ptr_t s1;
-     const __ptr_t s2;
-     size_t len;
+static inline int
+__memcmp_gnu (const void *s1, const void *s2, size_t len)
 {
   op_t a0;
   op_t b0;
@@ -325,8 +274,8 @@ MEMCMP (s1, s2, len)
 	 for LEN == 0 in this alignment loop.  */
       while (srcp2 % OPSIZ != 0)
 	{
-	  a0 = ((byte *) srcp1)[0];
-	  b0 = ((byte *) srcp2)[0];
+	  a0 = ((unsigned char *) srcp1)[0];
+	  b0 = ((unsigned char *) srcp2)[0];
 	  srcp1 += 1;
 	  srcp2 += 1;
 	  res = a0 - b0;
@@ -355,8 +304,8 @@ MEMCMP (s1, s2, len)
   /* There are just a few bytes to compare.  Use byte memory operations.  */
   while (len != 0)
     {
-      a0 = ((byte *) srcp1)[0];
-      b0 = ((byte *) srcp2)[0];
+      a0 = ((unsigned char *) srcp1)[0];
+      b0 = ((unsigned char *) srcp2)[0];
       srcp1 += 1;
       srcp2 += 1;
       res = a0 - b0;
@@ -367,8 +316,3 @@ MEMCMP (s1, s2, len)
 
   return 0;
 }
-libc_hidden_builtin_def(memcmp)
-#ifdef weak_alias
-# undef bcmp
-weak_alias (memcmp, bcmp)
-#endif
