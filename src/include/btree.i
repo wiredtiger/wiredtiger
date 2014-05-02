@@ -902,18 +902,15 @@ __wt_btree_size_overflow(WT_SESSION_IMPL *session, uint64_t maxsize)
 static inline int
 __wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item)
 {
-	const uint8_t *userp, *treep;
 	size_t len, usz, tsz;
+	int cmp;
 
 	usz = user_item->size;
 	tsz = tree_item->size;
 	len = WT_MIN(usz, tsz);
 
-	for (userp = user_item->data, treep = tree_item->data;
-	    len > 0;
-	    --len, ++userp, ++treep)
-		if (*userp != *treep)
-			return (*userp < *treep ? -1 : 1);
+	if ((cmp = __wt_memcmp(user_item->data, tree_item->data, len)) != 0)
+		return (cmp);
 
 	/* Contents are equal up to the smallest length. */
 	return ((usz == tsz) ? 0 : (usz < tsz) ? -1 : 1);
@@ -940,19 +937,17 @@ static inline int
 __wt_lex_compare_skip(
     const WT_ITEM *user_item, const WT_ITEM *tree_item, size_t *matchp)
 {
-	const uint8_t *userp, *treep;
 	size_t len, usz, tsz;
+	int cmp;
 
 	usz = user_item->size;
 	tsz = tree_item->size;
 	len = WT_MIN(usz, tsz) - *matchp;
 
-	for (userp = (uint8_t *)user_item->data + *matchp,
-	    treep = (uint8_t *)tree_item->data + *matchp;
-	    len > 0;
-	    --len, ++userp, ++treep, ++*matchp)
-		if (*userp != *treep)
-			return (*userp < *treep ? -1 : 1);
+	if ((cmp = __wt_memcmp(
+	    (uint8_t *)user_item->data + *matchp,
+	    (uint8_t *)tree_item->data + *matchp, len)) != 0)
+		return (cmp);
 
 	/* Contents are equal up to the smallest length. */
 	return ((usz == tsz) ? 0 : (usz < tsz) ? -1 : 1);

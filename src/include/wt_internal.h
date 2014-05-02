@@ -267,6 +267,7 @@ struct __wt_update;
 #include "extern.h"
 #include "verify_build.h"
 
+#include "memcmp.i"
 #include "buf.i"
 #include "intpack.i"			/* required by cell.i, packing.i */
 #include "packing.i"
