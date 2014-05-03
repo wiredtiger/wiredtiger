@@ -102,12 +102,13 @@ struct __wt_cursor_btree {
 	int	compare;
 
 	/*
-	 * The key value from a binary search of a row-store files; we keep a
-	 * copy of the last key we retrieved in the search, it avoids having
-	 * doing the additional work of getting the key again for return to
-	 * the application.
+	 * The key/value pair from the binary search of a row-store files.  We
+	 * keep a copy of the last key retrieved in the search and its value to
+	 * avoid another retrieval of the key/value pair when returning to the
+	 * application.
 	 */
-	WT_ITEM search_key;
+	WT_ITEM  search_key;
+	WT_CELL *search_value;
 
 	/*
 	 * It's relatively expensive to calculate the last record on a variable-

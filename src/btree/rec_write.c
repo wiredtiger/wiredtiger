@@ -1629,7 +1629,7 @@ __rec_split_row_promote(
 		skip = &r->skip[i - 1];
 		if (skip->ins == NULL)
 			WT_ERR(__wt_row_leaf_key(
-			    session, r->page, skip->rip, update, 0));
+			    session, r->page, skip->rip, update, NULL, 0));
 		else {
 			update->data = WT_INSERT_KEY(skip->ins);
 			update->size = WT_INSERT_KEY_SIZE(skip->ins);
@@ -2476,7 +2476,7 @@ __rec_split_write(WT_SESSION_IMPL *session,
 		case WT_PAGE_ROW_LEAF:
 			if (skip->ins == NULL)
 				WT_ERR(__wt_row_leaf_key(
-				    session, page, skip->rip, key, 0));
+				    session, page, skip->rip, key, NULL, 0));
 			else {
 				key->data = WT_INSERT_KEY(skip->ins);
 				key->size = WT_INSERT_KEY_SIZE(skip->ins);
@@ -4103,8 +4103,8 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 					 */
 					if (ikey == NULL)
 						WT_ERR(__wt_row_leaf_key_work(
-						    session,
-						    page, rip, tmpkey, 1));
+						    session, page,
+						    rip, tmpkey, NULL, 1));
 
 					WT_ERR(__wt_ovfl_discard_add(
 					    session, page, kpack->cell));

@@ -492,7 +492,7 @@ __split_inmem_build(
 				orig->pg_row_upd[slot] = NULL;
 
 				WT_ERR(__wt_row_leaf_key(
-				    session, orig, skip->rip, key, 0));
+				    session, orig, skip->rip, key, NULL, 0));
 			} else {
 				upd = skip->ins->upd;
 				skip->ins->upd = NULL;

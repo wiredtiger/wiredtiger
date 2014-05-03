@@ -93,8 +93,13 @@ __wt_kv_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 			return (0);
 		}
 
-		/* Take the original cell (which may be empty). */
-		if ((cell = __wt_row_leaf_value(page, rip)) == NULL) {
+		/*
+		 * The search routines track the key's value, take it if set,
+		 * otherwise find the original cell (which may be empty).
+		 */
+		if ((cell = cbt->search_value) == NULL)
+			cell = __wt_row_leaf_value(page, rip);
+		if (cell == NULL) {
 			cursor->value.size = 0;
 			return (0);
 		}

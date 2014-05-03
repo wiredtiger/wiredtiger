@@ -117,6 +117,7 @@ __wt_row_search(WT_SESSION_IMPL *session,
     WT_ITEM *srch_key, WT_REF *leaf, WT_CURSOR_BTREE *cbt)
 {
 	WT_BTREE *btree;
+	WT_CELL *value;
 	WT_DECL_RET;
 	WT_ITEM *item;
 	WT_PAGE *page;
@@ -301,12 +302,14 @@ leaf_only:
 	cmp = -1;
 	base = 0;
 	limit = page->pg_row_entries;
+	value = NULL;
 	if (btree->collator == NULL)
 		for (; limit != 0; limit >>= 1) {
 			indx = base + (limit >> 1);
 			rip = page->pg_row_d + indx;
 
-			WT_ERR(__wt_row_leaf_key(session, page, rip, item, 1));
+			WT_ERR(__wt_row_leaf_key(
+			    session, page, rip, item, &value, 1));
 			match = WT_MIN(skiplow, skiphigh);
 			cmp = __wt_lex_compare_skip(srch_key, item, &match);
 			if (cmp == 0)
@@ -325,7 +328,8 @@ leaf_only:
 			indx = base + (limit >> 1);
 			rip = page->pg_row_d + indx;
 
-			WT_ERR(__wt_row_leaf_key(session, page, rip, item, 1));
+			WT_ERR(__wt_row_leaf_key(
+			    session, page, rip, item, &value, 1));
 			WT_ERR(WT_LEX_CMP_SKIP(session,
 			    btree->collator, srch_key, item, cmp, &match));
 			if (cmp == 0)
@@ -346,6 +350,7 @@ leaf_only:
 	if (cmp == 0) {
 		WT_ASSERT(session, rip != NULL);
 		cbt->compare = 0;
+		cbt->search_value = value;
 		cbt->ref = child;
 		cbt->slot = WT_ROW_SLOT(page, rip);
 		return (0);
@@ -459,9 +464,9 @@ restart:
 		pindex = WT_INTL_INDEX_COPY(btree->root.page);
 		cbt->slot = pindex->entries < 2 ?
 		    __wt_random() % page->pg_row_entries : 0;
-		
-		return (__wt_row_leaf_key(session,
-		    page, page->pg_row_d + cbt->slot, &cbt->search_key, 0));
+
+		return (__wt_row_leaf_key(session, page,
+		    page->pg_row_d + cbt->slot, &cbt->search_key, NULL, 0));
 	}
 
 	/*

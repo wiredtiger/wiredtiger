@@ -60,7 +60,7 @@ __wt_row_leaf_keys(WT_SESSION_IMPL *session, WT_PAGE *page)
 	for (rip = page->pg_row_d, i = 0; i < page->pg_row_entries; ++rip, ++i)
 		if (__bit_test(tmp->mem, i))
 			WT_ERR(__wt_row_leaf_key_work(
-			    session, page, rip, key, 1));
+			    session, page, rip, key, NULL, 1));
 
 	F_SET_ATOMIC(page, WT_PAGE_BUILD_KEYS);
 
@@ -109,13 +109,13 @@ __inmem_row_leaf_slots(
  */
 int
 __wt_row_leaf_key_copy(
-    WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip_arg, WT_ITEM *retb)
+    WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip_arg, WT_ITEM *keyb)
 {
-	WT_RET(__wt_row_leaf_key_work(session, page, rip_arg, retb, 0));
+	WT_RET(__wt_row_leaf_key_work(session, page, rip_arg, keyb, NULL, 0));
 
 	/* The return buffer may only hold a reference to a key, copy it. */
-	if (!WT_DATA_IN_ITEM(retb))
-		WT_RET(__wt_buf_set(session, retb, retb->data, retb->size));
+	if (!WT_DATA_IN_ITEM(keyb))
+		WT_RET(__wt_buf_set(session, keyb, keyb->data, keyb->size));
 
 	return (0);
 }
@@ -126,8 +126,8 @@ __wt_row_leaf_key_copy(
  * Optionally instantiate the key into the in-memory page.
  */
 int
-__wt_row_leaf_key_work(WT_SESSION_IMPL *session,
-    WT_PAGE *page, WT_ROW *rip_arg, WT_ITEM *retb, int instantiate)
+__wt_row_leaf_key_work(WT_SESSION_IMPL *session, WT_PAGE *page,
+    WT_ROW *rip_arg, WT_ITEM *keyb, WT_CELL **valuep, int instantiate)
 {
 	enum { FORWARD, BACKWARD } direction;
 	WT_BTREE *btree;
@@ -188,8 +188,8 @@ off_page:		ikey = key;
 			 * Take a copy and wrap up.
 			 */
 			if (slot_offset == 0) {
-				retb->data = WT_IKEY_DATA(ikey);
-				retb->size = ikey->size;
+				keyb->data = WT_IKEY_DATA(ikey);
+				keyb->size = ikey->size;
 
 				/*
 				 * The key is already instantiated, ignore the
@@ -224,14 +224,14 @@ off_page:		ikey = key;
 			 * In short: if it's not an overflow key, take a copy
 			 * and roll forward.
 			 */
-			retb->data = WT_IKEY_DATA(ikey);
-			retb->size = ikey->size;
+			keyb->data = WT_IKEY_DATA(ikey);
+			keyb->size = ikey->size;
 			direction = FORWARD;
 			goto next;
 		}
 
 		/* Unpack the key's cell. */
-		__wt_cell_unpack(key, unpack);
+		__wt_cell_unpack_with_value(page, key, unpack);
 
 		/* 2: the test for an on-page reference to an overflow key. */
 		if (unpack->type == WT_CELL_KEY_OVFL) {
@@ -260,10 +260,13 @@ off_page:		ikey = key;
 					goto off_page;
 				}
 				ret = __wt_dsk_cell_data_ref(
-				    session, WT_PAGE_ROW_LEAF, unpack, retb);
+				    session, WT_PAGE_ROW_LEAF, unpack, keyb);
 				WT_TRET(__wt_rwunlock(
 				    session, btree->ovfl_lock));
 				WT_ERR(ret);
+
+				if (valuep != NULL)
+					*valuep = unpack->value;
 				break;
 			}
 
@@ -299,11 +302,11 @@ off_page:		ikey = key;
 			 * directions then.
 			 */
 			if (btree->huffman_key == NULL) {
-				retb->data = unpack->data;
-				retb->size = unpack->size;
+				keyb->data = unpack->data;
+				keyb->size = unpack->size;
 			} else
 				WT_ERR(__wt_dsk_cell_data_ref(
-				    session, WT_PAGE_ROW_LEAF, unpack, retb));
+				    session, WT_PAGE_ROW_LEAF, unpack, keyb));
 
 			if (slot_offset == 0) {
 				/*
@@ -315,6 +318,9 @@ off_page:		ikey = key;
 				 */
 				if (btree->huffman_key == NULL)
 					instantiate = 0;
+
+				if (valuep != NULL)
+					*valuep = unpack->value;
 				break;
 			}
 
@@ -391,13 +397,16 @@ off_page:		ikey = key;
 			 * don't need, truncate the item's data length to the
 			 * prefix bytes.
 			 */
-			retb->size = unpack->prefix;
-			WT_ERR(__wt_buf_grow(session, retb, retb->size + size));
-			memcpy((uint8_t *)retb->data + retb->size, p, size);
-			retb->size += size;
+			keyb->size = unpack->prefix;
+			WT_ERR(__wt_buf_grow(session, keyb, keyb->size + size));
+			memcpy((uint8_t *)keyb->data + keyb->size, p, size);
+			keyb->size += size;
 
-			if (slot_offset == 0)
+			if (slot_offset == 0) {
+				if (valuep != NULL)
+					*valuep = unpack->value;
 				break;
+			}
 		}
 
 next:		switch (direction) {
@@ -431,7 +440,7 @@ next:		switch (direction) {
 		if (!__wt_off_page(page, key)) {
 			WT_ERR(__wt_row_ikey(session,
 			    WT_PAGE_DISK_OFFSET(page, key),
-			    retb->data, retb->size, &ikey));
+			    keyb->data, keyb->size, &ikey));
 
 			/*
 			 * Serialize the swap of the key into place: on success,
