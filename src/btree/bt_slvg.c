@@ -1598,7 +1598,8 @@ __slvg_row_trk_update_start(
 	 */
 	WT_ERR(__wt_scr_alloc(session, 0, &key));
 	WT_ROW_FOREACH(page, rip, i) {
-		WT_ERR(__wt_row_leaf_key_work(session, page, rip, key, 0));
+		WT_ERR(
+		    __wt_row_leaf_key_work(session, page, rip, key, NULL, 0));
 		WT_ERR(WT_LEX_CMP(session, btree->collator, key, stop, cmp));
 		if (cmp > 0) {
 			found = 1;
@@ -1764,8 +1765,8 @@ __slvg_row_build_leaf(
 	skip_start = skip_stop = 0;
 	if (F_ISSET(trk, WT_TRACK_CHECK_START))
 		WT_ROW_FOREACH(page, rip, i) {
-			WT_ERR(
-			    __wt_row_leaf_key_work(session, page, rip, key, 0));
+			WT_ERR(__wt_row_leaf_key_work(
+			    session, page, rip, key, NULL, 0));
 
 			/*
 			 * >= is correct: see the comment above.
@@ -1788,8 +1789,8 @@ __slvg_row_build_leaf(
 		}
 	if (F_ISSET(trk, WT_TRACK_CHECK_STOP))
 		WT_ROW_FOREACH_REVERSE(page, rip, i) {
-			WT_ERR(
-			    __wt_row_leaf_key_work(session, page, rip, key, 0));
+			WT_ERR(__wt_row_leaf_key_work(
+			    session, page, rip, key, NULL, 0));
 
 			/*
 			 * < is correct: see the comment above.
@@ -1822,7 +1823,7 @@ __slvg_row_build_leaf(
 	 * a copy from the page.
 	 */
 	rip = page->pg_row_d + skip_start;
-	WT_ERR(__wt_row_leaf_key_work(session, page, rip, key, 0));
+	WT_ERR(__wt_row_leaf_key_work(session, page, rip, key, NULL, 0));
 	WT_ERR(__wt_row_ikey_incr(session,
 	    ref->home, 0, key->data, key->size, &ref->key.ikey));
 

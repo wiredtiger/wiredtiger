@@ -60,7 +60,7 @@ __wt_row_leaf_keys(WT_SESSION_IMPL *session, WT_PAGE *page)
 	for (rip = page->pg_row_d, i = 0; i < page->pg_row_entries; ++rip, ++i)
 		if (__bit_test(tmp->mem, i))
 			WT_ERR(__wt_row_leaf_key_work(
-			    session, page, rip, key, 1));
+			    session, page, rip, key, NULL, 1));
 
 	F_SET_ATOMIC(page, WT_PAGE_BUILD_KEYS);
 
@@ -111,7 +111,7 @@ int
 __wt_row_leaf_key_copy(
     WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip_arg, WT_ITEM *keyb)
 {
-	WT_RET(__wt_row_leaf_key_work(session, page, rip_arg, keyb, 0));
+	WT_RET(__wt_row_leaf_key_work(session, page, rip_arg, keyb, NULL, 0));
 
 	/* The return buffer may only hold a reference to a key, copy it. */
 	if (!WT_DATA_IN_ITEM(keyb))
@@ -126,8 +126,8 @@ __wt_row_leaf_key_copy(
  * Optionally instantiate the key into the in-memory page.
  */
 int
-__wt_row_leaf_key_work(WT_SESSION_IMPL *session,
-    WT_PAGE *page, WT_ROW *rip_arg, WT_ITEM *keyb, int instantiate)
+__wt_row_leaf_key_work(WT_SESSION_IMPL *session, WT_PAGE *page,
+    WT_ROW *rip_arg, WT_ITEM *keyb, WT_CELL **valuep, int instantiate)
 {
 	enum { FORWARD, BACKWARD } direction;
 	WT_BTREE *btree;
@@ -231,7 +231,7 @@ off_page:		ikey = key;
 		}
 
 		/* Unpack the key's cell. */
-		__wt_cell_unpack(key, unpack);
+		__wt_cell_unpack_with_value(page, key, unpack);
 
 		/* 2: the test for an on-page reference to an overflow key. */
 		if (unpack->type == WT_CELL_KEY_OVFL) {
@@ -264,6 +264,9 @@ off_page:		ikey = key;
 				WT_TRET(__wt_rwunlock(
 				    session, btree->ovfl_lock));
 				WT_ERR(ret);
+
+				if (valuep != NULL)
+					*valuep = unpack->value;
 				break;
 			}
 
@@ -315,6 +318,9 @@ off_page:		ikey = key;
 				 */
 				if (btree->huffman_key == NULL)
 					instantiate = 0;
+
+				if (valuep != NULL)
+					*valuep = unpack->value;
 				break;
 			}
 
@@ -396,8 +402,11 @@ off_page:		ikey = key;
 			memcpy((uint8_t *)keyb->data + keyb->size, p, size);
 			keyb->size += size;
 
-			if (slot_offset == 0)
+			if (slot_offset == 0) {
+				if (valuep != NULL)
+					*valuep = unpack->value;
 				break;
+			}
 		}
 
 next:		switch (direction) {

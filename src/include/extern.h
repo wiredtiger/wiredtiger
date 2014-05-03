@@ -457,6 +457,7 @@ extern int __wt_row_leaf_key_work(WT_SESSION_IMPL *session,
     WT_PAGE *page,
     WT_ROW *rip_arg,
     WT_ITEM *keyb,
+    WT_CELL **valuep,
     int instantiate);
 extern int __wt_row_ikey_incr(WT_SESSION_IMPL *session,
     WT_PAGE *page,

@@ -501,7 +501,7 @@ __wt_ref_key_clear(WT_REF *ref)
  */
 static inline int
 __wt_row_leaf_key(WT_SESSION_IMPL *session,
-    WT_PAGE *page, WT_ROW *rip, WT_ITEM *key, int instantiate)
+    WT_PAGE *page, WT_ROW *rip, WT_ITEM *key, WT_CELL **valuep, int instantiate)
 {
 	WT_BTREE *btree;
 	WT_IKEY *ikey;
@@ -541,7 +541,8 @@ __wt_row_leaf_key(WT_SESSION_IMPL *session,
 	 * We have to build the key (it's never been instantiated, and it's some
 	 * kind of compressed or overflow key).
 	 */
-	return (__wt_row_leaf_key_work(session, page, rip, key, instantiate));
+	return (__wt_row_leaf_key_work(
+	    session, page, rip, key, valuep, instantiate));
 }
 
 /*
@@ -563,7 +564,7 @@ __wt_cursor_row_leaf_key(WT_CURSOR_BTREE *cbt, WT_ITEM *key)
 		session = (WT_SESSION_IMPL *)cbt->iface.session;
 		page = cbt->ref->page;
 		rip = &page->u.row.d[cbt->slot];
-		WT_RET(__wt_row_leaf_key(session, page, rip, key, 0));
+		WT_RET(__wt_row_leaf_key(session, page, rip, key, NULL, 0));
 	} else {
 		key->data = WT_INSERT_KEY(cbt->ins);
 		key->size = WT_INSERT_KEY_SIZE(cbt->ins);

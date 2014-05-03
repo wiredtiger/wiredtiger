@@ -36,6 +36,8 @@ __cursor_search_clear(WT_CURSOR_BTREE *cbt)
 
 	cbt->compare = 2;			/* Illegal value */
 
+	cbt->search_value = NULL;
+
 	cbt->cip_saved = NULL;
 	cbt->rip_saved = NULL;
 
@@ -250,7 +252,7 @@ __cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_UPDATE *upd)
 			 * we do __wt_row_leaf_key's fast-path checks inline.
 			 */
 slow:			WT_RET(__wt_row_leaf_key_work(
-			    session, page, rip, &cbt->tmp, 0));
+			    session, page, rip, &cbt->tmp, NULL, 0));
 		}
 		kb->data = cbt->tmp.data;
 		kb->size = cbt->tmp.size;
