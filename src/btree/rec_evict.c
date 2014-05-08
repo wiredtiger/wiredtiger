@@ -315,7 +315,6 @@ __rec_review(
 	 * Lastly, if we are behind a checkpoint, we can't merge multiblock
 	 * pages into their parent.
 	 */
-	mod = page->modify;
 	if (__wt_page_behind_checkpoint(session, page)) {
 		WT_STAT_FAST_CONN_INCR(session, cache_eviction_checkpoint);
 		WT_STAT_FAST_DATA_INCR(session, cache_eviction_checkpoint);
@@ -334,6 +333,7 @@ __rec_review(
 	 * page is expensive, do a cheap test first: if it doesn't seem likely a
 	 * subtree page can be merged, quit.
 	 */
+	mod = page->modify;
 	if (!top && (mod == NULL || !F_ISSET(mod, WT_PM_REC_EMPTY)))
 		return (EBUSY);
 
