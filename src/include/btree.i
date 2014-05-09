@@ -345,12 +345,6 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 
 		txn_global = &S2C(session)->txn_global;
 		page->modify->rec_skipped_txn = txn_global->last_running;
-
-		/*
-		 * Set the checkpoint generation: if a checkpoint is already
-		 * running, these changes cannot be included, by definition.
-		 */
-		page->modify->checkpoint_gen = S2BT(session)->checkpoint_gen;
 	}
 
 	/* Check if this is the largest transaction ID to update the page. */
@@ -413,6 +407,36 @@ __wt_page_parent_modify_set(
 	else
 		__wt_page_modify_set(session, parent);
 	return (0);
+}
+
+/*
+ * __wt_page_behind_checkpoint --
+ *	Return if this page cannot be evicted due to a checkpoint.
+ */
+static inline int
+__wt_page_behind_checkpoint(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+	WT_BTREE *btree;
+	WT_PAGE_MODIFY *mod;
+
+	btree = S2BT(session);
+	mod = page->modify;
+
+	if (!btree->checkpointing || mod == NULL)
+		return (0);
+
+	/*
+	 * Once checkpointing starts, don't try to evict internal pages or
+	 * merge multiblock pages into their parents.
+	 */
+	if (WT_PAGE_IS_INTERNAL(page) || F_ISSET(mod, WT_PM_REC_MULTIBLOCK))
+		return (1);
+
+	if (mod->checkpoint_gen != 0 &&
+	    mod->checkpoint_gen < btree->checkpoint_gen)
+		return (0);
+
+	return (__wt_page_is_modified(page));
 }
 
 /*

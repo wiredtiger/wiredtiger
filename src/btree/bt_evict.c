@@ -882,16 +882,11 @@ __evict_walk_file(WT_SESSION_IMPL *session, u_int *slotp, uint32_t flags)
 		 * where we can't discard dirty pages because of possible races
 		 * with the checkpointing thread.
 		 */
-		modified = __wt_page_is_modified(page);
-#ifdef EVICTION_DURING_CHECKPOINT
-		if (modified && btree->checkpointing &&
-		    page->modify->checkpoint_gen >= btree->checkpoint_gen)
-#else
-		if (modified && btree->checkpointing)
-#endif
+		if (__wt_page_behind_checkpoint(session, page))
 			continue;
 
 		/* Optionally ignore clean pages. */
+		modified = __wt_page_is_modified(page);
 		if (!modified && LF_ISSET(WT_EVICT_PASS_DIRTY))
 			continue;
 

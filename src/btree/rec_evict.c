@@ -241,7 +241,6 @@ __rec_review(
 	WT_PAGE_MODIFY *mod;
 	WT_REF *child;
 	uint32_t flags;
-	int behind_checkpoint;
 
 	btree = S2BT(session);
 	page = ref->page;
@@ -298,39 +297,29 @@ __rec_review(
 	 * previous version of the page, that previous version might be
 	 * referenced by an internal page already been written in the
 	 * checkpoint, leaving the checkpoint inconsistent.
-	 *     Don't rely on new updates being skipped by the transaction used
+	 *
+	 * Don't rely on new updates being skipped by the transaction used
 	 * for transaction reads: (1) there are paths that dirty pages for
 	 * artificial reasons; (2) internal pages aren't transactional; and
 	 * (3) if an update was skipped during the checkpoint (leaving the page
 	 * dirty), then rolled back, we could still successfully overwrite a
 	 * page and corrupt the checkpoint.
-	 *	Further, we can't race with the checkpoint's reconciliation of
+	 *
+	 * Further, we can't race with the checkpoint's reconciliation of
 	 * an internal page as we evict a clean child from the page's subtree.
 	 * This works in the usual way: eviction locks the page and then checks
 	 * for existing hazard pointers, the checkpoint thread reconciling an
 	 * internal page acquires hazard pointers on child pages it reads, and
 	 * is blocked by the exclusive lock.
+	 *
+	 * Lastly, if we are behind a checkpoint, we can't merge multiblock
+	 * pages into their parent.
 	 */
-	mod = page->modify;
-#ifdef EVICTION_DURING_CHECKPOINT
-	behind_checkpoint = btree->checkpointing && (mod != NULL) &&
-	    mod->checkpoint_gen >= btree->checkpoint_gen;
-#else
-	behind_checkpoint = btree->checkpointing && (mod != NULL);
-#endif
-
-	if (behind_checkpoint && __wt_page_is_modified(page)) {
+	if (__wt_page_behind_checkpoint(session, page)) {
 		WT_STAT_FAST_CONN_INCR(session, cache_eviction_checkpoint);
 		WT_STAT_FAST_DATA_INCR(session, cache_eviction_checkpoint);
 		return (EBUSY);
 	}
-
-	/*
-	 * If we behind a checkpoint, we can't merge multiblock pages into
-	 * their parent.
-	 */
-	if (behind_checkpoint && F_ISSET(mod, WT_PM_REC_MULTIBLOCK))
-		return (EBUSY);
 
 	/*
 	 * Fail if any page in the top-level page's subtree won't be merged into
@@ -344,6 +333,7 @@ __rec_review(
 	 * page is expensive, do a cheap test first: if it doesn't seem likely a
 	 * subtree page can be merged, quit.
 	 */
+	mod = page->modify;
 	if (!top && (mod == NULL || !F_ISSET(mod, WT_PM_REC_EMPTY)))
 		return (EBUSY);
 
