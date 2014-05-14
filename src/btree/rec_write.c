@@ -1906,7 +1906,8 @@ __rec_split_raw_worker(
 	if (dsk->type == WT_PAGE_COL_VAR)
 		recno = last->recno;
 
-	entry = slots = 0;
+	len = 0;
+	entry = slots = result_slots = 0;
 	WT_CELL_FOREACH(btree, dsk, cell, unpack, i) {
 		++entry;
 
@@ -1942,13 +1943,12 @@ __rec_split_raw_worker(
 		}
 
 		/*
-		 * We can't compress the first 64B of the block (it must be
-		 * written without compression), and a possible split point
-		 * may appear in that 64B; keep it simple, ignore the first
-		 * allocation size of data, anybody splitting smaller than
-		 * that (as calculated before compression), is doing it wrong.
+		 * The first 64B of each block is written without compression,
+		 * and a possible split point may appear in that 64B; skip over
+		 * the first half-allocation size of data (which is guaranteed
+		 * to be more than 64B).
 		 */
-		if ((len = WT_PTRDIFF(cell, dsk)) > btree->allocsize)
+		if ((len = WT_PTRDIFF(cell, dsk)) > btree->allocsize / 2)
 			r->raw_offsets[++slots] =
 			    WT_STORE_SIZE(len - WT_BLOCK_COMPRESS_SKIP);
 
@@ -1959,13 +1959,11 @@ __rec_split_raw_worker(
 	}
 
 	/*
-	 * If we haven't managed to find at least one split point, we're done,
-	 * don't bother calling the underlying compression function.
+	 * If we don't find a split point, or all of the rows fit into a single
+	 * block, don't bother calling the underlying compression function.
 	 */
-	if (slots == 0) {
-		result_slots = 0;
+	if (slots == 0 || len <= btree->allocsize)
 		goto no_slots;
-	}
 
 	/* The slot at array's end is the total length of the data. */
 	r->raw_offsets[++slots] =
@@ -2014,6 +2012,11 @@ __rec_split_raw_worker(
 	    result_len, no_more_rows, &result_len, &result_slots);
 	if (ret == EAGAIN) {
 		ret = 0;
+
+		/*
+		 * The underlying compression function might have changed the
+		 * "result slots" value, reset it.
+		 */
 		result_slots = 0;
 	}
 	WT_RET(ret);
