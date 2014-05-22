@@ -65,8 +65,6 @@ __curmetadata_metadata_search(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 	__wt_free(session, value);
 	WT_RET(ret);
 
-	cursor->key.data = WT_METADATA_URI;
-	cursor->key.size = strlen(WT_METADATA_URI);
 	cursor->value.data = mdc->tmp_val.data;
 	cursor->value.size = mdc->tmp_val.size;
 	F_SET(mdc, WT_MDC_ONMETADATA | WT_MDC_POSITIONED | WT_MDC_TMP_USED);
@@ -133,9 +131,11 @@ __curmetadata_next(WT_CURSOR *cursor)
 	CURSOR_API_CALL(cursor, session,
 	    next, ((WT_CURSOR_BTREE *)file_cursor)->btree);
 
-	if (!F_ISSET(mdc, WT_MDC_POSITIONED))
+	if (!F_ISSET(mdc, WT_MDC_POSITIONED)) {
+		WT_ERR(__wt_buf_set(session, &cursor->key,
+		    WT_METADATA_URI, strlen(WT_METADATA_URI) + 1));
 		WT_ERR(__curmetadata_metadata_search(session, cursor));
-	else {
+	} else {
 		WT_ERR(file_cursor->next(mdc->file_cursor));
 		WT_MD_SET_KEY_VALUE(cursor, mdc, file_cursor);
 	}
@@ -173,8 +173,11 @@ __curmetadata_prev(WT_CURSOR *cursor)
 	ret = file_cursor->prev(file_cursor);
 	if (ret == 0) {
 		WT_MD_SET_KEY_VALUE(cursor, mdc, file_cursor);
-	} else if (ret == WT_NOTFOUND)
+	} else if (ret == WT_NOTFOUND) {
+		WT_ERR(__wt_buf_set(session, &cursor->key,
+		    WT_METADATA_URI, strlen(WT_METADATA_URI) + 1));
 		WT_ERR(__curmetadata_metadata_search(session, cursor));
+	}
 
 err:	if (ret != 0) {
 		F_CLR(mdc, WT_MDC_POSITIONED | WT_MDC_ONMETADATA);
@@ -204,8 +207,7 @@ __curmetadata_reset(WT_CURSOR *cursor)
 	if (F_ISSET(mdc, WT_MDC_POSITIONED) &&
 	    !F_ISSET(mdc, WT_MDC_ONMETADATA))
 	    ret = file_cursor->reset(file_cursor);
-	F_CLR(mdc,
-	    WT_MDC_POSITIONED | WT_MDC_ONMETADATA);
+	F_CLR(mdc, WT_MDC_POSITIONED | WT_MDC_ONMETADATA);
 	F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
 err:	API_END(session, ret);
@@ -232,7 +234,7 @@ __curmetadata_search(WT_CURSOR *cursor)
 	WT_MD_CURSOR_NEEDKEY(cursor);
 
 	if (WT_STRING_MATCH(
-	    cursor->key.data, "metadata:", cursor->key.size - 1))
+	    cursor->key.data, WT_METADATA_URI, cursor->key.size))
 		WT_ERR(__curmetadata_metadata_search(session, cursor));
 	else {
 		WT_ERR(file_cursor->search(file_cursor));
@@ -267,7 +269,7 @@ __curmetadata_search_near(WT_CURSOR *cursor, int *exact)
 	WT_MD_CURSOR_NEEDKEY(cursor);
 
 	if (WT_STRING_MATCH(
-	    (char *)cursor->key.data, "metadata:", cursor->key.size - 1)) {
+	    cursor->key.data, WT_METADATA_URI, cursor->key.size)) {
 		WT_ERR(__curmetadata_metadata_search(session, cursor));
 		*exact = 1;
 	} else {

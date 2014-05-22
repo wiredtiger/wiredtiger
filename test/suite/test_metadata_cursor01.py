@@ -118,8 +118,8 @@ class test_metadata_cursor01(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor('metadata:', None, None)
         self.assertCursorHasNoKeyValue(cursor)
         
-        # Ensure the 'special' metadata metadata is found.
-        value = cursor['metadata:']
+        # Ensure the WiredTiger metadata file can be found.
+        value = cursor['file:WiredTiger.wt']
         self.assertTrue(value.find('key_format') != -1)
 
         # Ensure the metadata for the table we created is found
