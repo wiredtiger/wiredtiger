@@ -87,10 +87,17 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
 	/* The remaining argument is the uri. */
 	if (argc != 1)
 		return (usage());
-	if ((name = util_name(*argv,
-	    "table", UTIL_FILE_OK | UTIL_LSM_OK | UTIL_TABLE_OK)) == NULL)
+	if ((name = util_name(*argv, "table",
+	    UTIL_FILE_OK | UTIL_LSM_OK |
+	    UTIL_METADATA_OK | UTIL_TABLE_OK)) == NULL)
 		goto err;
 
+	if (WT_PREFIX_MATCH(name, "metadata:")) {
+		fprintf(stderr,
+		    "Direct metadata dump not supported, you probably want "
+		    "\"wt list -v\" instead.\n");
+		goto err;
+	}
 	if (dump_config(session, name, hex) != 0)
 		goto err;
 
