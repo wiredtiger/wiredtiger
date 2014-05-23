@@ -49,7 +49,7 @@ util_list(WT_SESSION *session, int argc, char *argv[])
 	}
 
 	/* The metadata URI is equivalent to the verbose flag. */
-	if (WT_PREFIX_MATCH(name, "metadata:")) {
+	if (name != NULL && WT_PREFIX_MATCH(name, "metadata:")) {
 		free(name);
 		name = NULL;
 		vflag = 1;
