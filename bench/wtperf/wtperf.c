@@ -1339,6 +1339,9 @@ retry:			 if ((ret = cfg->conn->async_new_op(cfg->conn,
 		assert(tables == 0);
 	}
 
+	/* Dump the population phase's connection statistics. */
+	conn_stats_print(cfg, "pop");
+
 	/*
 	 * Reopen the connection.  We do this so that the workload phase always
 	 * starts with the on-disk files, and so that read-only workloads can
@@ -1865,6 +1868,9 @@ err:		if (ret == 0)
 		if (ret == 0)
 			ret = t_ret;
 	}
+
+	/* Dump the workload phase's connection statistics. */
+	conn_stats_print(cfg, "work");
 
 	if (cfg->conn != NULL &&
 	    (t_ret = cfg->conn->close(cfg->conn, NULL)) != 0) {
