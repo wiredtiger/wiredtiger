@@ -113,6 +113,14 @@ __wt_search_insert(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 }
 
 /*
+ * We switch from a binary search to a linear search at 5 items or less, since
+ * the number of keys we'll compare is roughly the same whether we do a binary
+ * search or a linear search at that point, and cache pre-fetch will benefit a
+ * linear search.
+ */
+#define	WT_LINEAR_SEARCH_LIMIT	5
+
+/*
  * __wt_row_search --
  *	Search a row-store tree for a specific key.
  */
@@ -307,7 +315,7 @@ leaf_only:
 	base = 0;
 	limit = page->pg_row_entries;
 	if (btree->collator == NULL) {
-		for (; limit > 20; limit >>= 1) {
+		for (; limit > WT_LINEAR_SEARCH_LIMIT; limit >>= 1) {
 			indx = base + (limit >> 1);
 			rip = page->pg_row_d + indx;
 			WT_ERR(__wt_row_leaf_key(session, page, rip, item, 1));
@@ -334,7 +342,7 @@ leaf_only:
 			skiplow = match;
 		}
 	} else {
-		for (; limit > 20; limit >>= 1) {
+		for (; limit > WT_LINEAR_SEARCH_LIMIT; limit >>= 1) {
 			indx = base + (limit >> 1);
 			rip = page->pg_row_d + indx;
 			WT_ERR(__wt_row_leaf_key(session, page, rip, item, 1));
