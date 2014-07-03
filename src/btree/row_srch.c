@@ -189,8 +189,10 @@ restart:	page = parent->page;
 		}
 
 		/*
-		 * Two versions of the binary search of internal pages: with and
-		 * without application-specified collation.
+		 * Search the internal page.  There are two versions (a default
+		 * loop and an application-specified collation loop), because
+		 * moving the collation test and error handling inside the loop
+		 * costs about 5%.
 		 *
 		 * The 0th key on an internal page is a problem for a couple of
 		 * reasons.  First, we have to force the 0th key to sort less
@@ -292,17 +294,20 @@ leaf_only:
 	page = child->page;
 
 	/*
-	 * Binary search of the leaf page.  There are two versions (a default
-	 * loop and an application-specified collation loop), because moving
-	 * the collation test and error handling inside the loop costs about 5%.
+	 * Search the leaf page.  There are two versions (a default loop and an
+	 * application-specified collation loop), because moving the collation
+	 * test and error handling inside the loop costs about 5%.
+	 *
+	 * Do a binary search down to N items, then switch to a linear search so
+	 * the cache pre-fetching works for us.
 	 *
 	 * The page might be empty, reset the comparison value.
 	 */
 	cmp = -1;
 	base = 0;
 	limit = page->pg_row_entries;
-	if (btree->collator == NULL)
-		for (; limit != 0; limit >>= 1) {
+	if (btree->collator == NULL) {
+		for (; limit > 20; limit >>= 1) {
 			indx = base + (limit >> 1);
 			rip = page->pg_row_d + indx;
 			WT_ERR(__wt_row_leaf_key(session, page, rip, item, 1));
@@ -316,10 +321,20 @@ leaf_only:
 			} else if (cmp < 0)
 				skiphigh = match;
 			else
-				break;
+				goto skip_linear_leaf;
 		}
-	else
-		for (; limit != 0; limit >>= 1) {
+		for (; limit != 0; ++base, --limit)  {
+			rip = page->pg_row_d + base;
+			WT_ERR(__wt_row_leaf_key(session, page, rip, item, 0));
+
+			match = WT_MIN(skiplow, skiphigh);
+			cmp = __wt_lex_compare_skip(srch_key, item, &match);
+			if (cmp <= 0)
+				break;
+			skiplow = match;
+		}
+	} else {
+		for (; limit > 20; limit >>= 1) {
 			indx = base + (limit >> 1);
 			rip = page->pg_row_d + indx;
 			WT_ERR(__wt_row_leaf_key(session, page, rip, item, 1));
@@ -330,8 +345,18 @@ leaf_only:
 				base = indx + 1;
 				--limit;
 			} else if (cmp == 0)
+				goto skip_linear_leaf;
+		}
+		for (; limit != 0; ++base, --limit)  {
+			rip = page->pg_row_d + base;
+			WT_ERR(__wt_row_leaf_key(session, page, rip, item, 0));
+
+			WT_ERR(WT_LEX_CMP(
+			    session, btree->collator, srch_key, item, cmp));
+			if (cmp <= 0)
 				break;
 		}
+	}
 
 	/*
 	 * The best case is finding an exact match in the page's WT_ROW slot
@@ -340,6 +365,9 @@ leaf_only:
 	 * an existing entry.  Check that case and get out fast.
 	 */
 	if (cmp == 0) {
+		/* Lucky hit, found an exact match during the binary search. */
+skip_linear_leaf:
+
 		cbt->compare = 0;
 		cbt->ref = child;
 
