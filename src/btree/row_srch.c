@@ -202,6 +202,9 @@ restart:	page = parent->page;
 		 * moving the collation test and error handling inside the loop
 		 * costs about 5%.
 		 *
+		 * Do a binary search down to N items, then switch to a linear
+		 * search so the cache pre-fetching works for us.
+		 *
 		 * The 0th key on an internal page is a problem for a couple of
 		 * reasons.  First, we have to force the 0th key to sort less
 		 * than any application key, so internal pages don't have to be
@@ -213,21 +216,16 @@ restart:	page = parent->page;
 		 * of the leading bytes in each key that we can skip during the
 		 * comparison).
 		 *
-		 * The only way to possibly compare against the 0th key in the
-		 * binary search loop is if base is 0 and limit is 0 or 1; in
-		 * that case, we must exit the loop after doing the 0th key
-		 * comparison, that is, if we are doing the comparison, we're
-		 * descending down the left-hand side of the tree.
+		 * We cannot compare against the 0th key in the binary search
+		 * loop because the limit on the number of elements remaining
+		 * to compare will force us into the linear search loop before
+		 * we compare against the 0th index.
 		 */
 		base = 0;
-		indx = 0;		/* -Werror=maybe-uninitialized */
 		limit = pindex->entries;
-		if (btree->collator == NULL)
-			for (; limit != 0; limit >>= 1) {
-				/* If index is 0, skip the comparison. */
-				if ((indx = base + (limit >> 1)) == 0)
-					break;
-
+		if (btree->collator == NULL) {
+			for (; limit > WT_LINEAR_SEARCH_LIMIT; limit >>= 1) {
+				indx = base + (limit >> 1);
 				child = pindex->index[indx];
 				__wt_ref_key(
 				    page, child, &item->data, &item->size);
@@ -242,14 +240,35 @@ restart:	page = parent->page;
 				} else if (cmp < 0)
 					skiphigh = match;
 				else
-					break;
+					goto skip_linear_internal;
 			}
-		else
-			for (; limit != 0; limit >>= 1) {
-				/* If index is 0, skip the comparison. */
-				if ((indx = base + (limit >> 1)) == 0)
-					break;
 
+			/*
+			 * If base remains set at the 0th element, skip past and
+			 * decrease the number of items to compare.  If we are
+			 * descending down the left-hand side of the tree, the
+			 * next comparison will detect that (by definition any
+			 * comparison with the 0th element must return -1).
+			 */
+			if (base == 0) {
+				++base;
+				--limit;
+			}
+			for (; limit != 0; ++base, --limit)  {
+				child = pindex->index[base];
+				__wt_ref_key(
+				    page, child, &item->data, &item->size);
+
+				match = WT_MIN(skiplow, skiphigh);
+				cmp = __wt_lex_compare_skip(
+				    srch_key, item, &match);
+				if (cmp <= 0)
+					break;
+				skiplow = match;
+			}
+		} else {
+			for (; limit > WT_LINEAR_SEARCH_LIMIT; limit >>= 1) {
+				indx = base + (limit >> 1);
 				child = pindex->index[indx];
 				__wt_ref_key(
 				    page, child, &item->data, &item->size);
@@ -260,18 +279,35 @@ restart:	page = parent->page;
 					base = indx + 1;
 					--limit;
 				} else if (cmp == 0)
-					break;
+					goto skip_linear_internal;
 			}
 
+			/* See comment above. */
+			if (base == 0) {
+				++base;
+				--limit;
+			}
+			for (; limit != 0; ++base, --limit)  {
+				child = pindex->index[base];
+				__wt_ref_key(
+				    page, child, &item->data, &item->size);
+
+				WT_ERR(WT_LEX_CMP(session,
+				    btree->collator, srch_key, item, cmp));
+				if (cmp <= 0)
+					break;
+			}
+		}
+
+		/* Lucky hit, found an exact match during the binary search. */
+skip_linear_internal:
+
 		/*
-		 * Find the slot used to descend the tree.  If index is 0, it's
-		 * a left-side descent.  Otherwise, if we found an exact match,
-		 * child is already set, if we didn't find an exact match, base
-		 * is the smallest index greater than key, possibly (last + 1).
+		 * Find the slot used to descend the tree.  If we found an exact
+		 * match, child is already set, otherwise, base is the smallest
+		 * index greater than key, possibly (last + 1).
 		 */
-		if (indx == 0)
-			child = pindex->index[0];
-		else if (cmp != 0)
+		if (cmp != 0)
 			child = pindex->index[base - 1];
 
 descend:	WT_ASSERT(session, child != NULL);
