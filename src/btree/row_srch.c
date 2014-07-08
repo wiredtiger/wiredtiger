@@ -113,6 +113,14 @@ __wt_search_insert(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 }
 
 /*
+ * We switch from a binary search to a linear search at 5 items or less, since
+ * the number of keys we'll compare is roughly the same whether we do a binary
+ * search or a linear search at that point, and cache pre-fetch will benefit a
+ * linear search.
+ */
+#define	WT_LINEAR_SEARCH_LIMIT	5
+
+/*
  * __wt_row_search --
  *	Search a row-store tree for a specific key.
  */
@@ -189,8 +197,13 @@ restart:	page = parent->page;
 		}
 
 		/*
-		 * Two versions of the binary search of internal pages: with and
-		 * without application-specified collation.
+		 * Search the internal page.  There are two versions (a default
+		 * loop and an application-specified collation loop), because
+		 * moving the collation test and error handling inside the loop
+		 * costs about 5%.
+		 *
+		 * Do a binary search down to N items, then switch to a linear
+		 * search so the cache pre-fetching works for us.
 		 *
 		 * The 0th key on an internal page is a problem for a couple of
 		 * reasons.  First, we have to force the 0th key to sort less
@@ -203,21 +216,16 @@ restart:	page = parent->page;
 		 * of the leading bytes in each key that we can skip during the
 		 * comparison).
 		 *
-		 * The only way to possibly compare against the 0th key in the
-		 * binary search loop is if base is 0 and limit is 0 or 1; in
-		 * that case, we must exit the loop after doing the 0th key
-		 * comparison, that is, if we are doing the comparison, we're
-		 * descending down the left-hand side of the tree.
+		 * We cannot compare against the 0th key in the binary search
+		 * loop because the limit on the number of elements remaining
+		 * to compare will force us into the linear search loop before
+		 * we compare against the 0th index.
 		 */
 		base = 0;
-		indx = 0;		/* -Werror=maybe-uninitialized */
 		limit = pindex->entries;
-		if (btree->collator == NULL)
-			for (; limit != 0; limit >>= 1) {
-				/* If index is 0, skip the comparison. */
-				if ((indx = base + (limit >> 1)) == 0)
-					break;
-
+		if (btree->collator == NULL) {
+			for (; limit > WT_LINEAR_SEARCH_LIMIT; limit >>= 1) {
+				indx = base + (limit >> 1);
 				child = pindex->index[indx];
 				__wt_ref_key(
 				    page, child, &item->data, &item->size);
@@ -232,14 +240,35 @@ restart:	page = parent->page;
 				} else if (cmp < 0)
 					skiphigh = match;
 				else
-					break;
+					goto skip_linear_internal;
 			}
-		else
-			for (; limit != 0; limit >>= 1) {
-				/* If index is 0, skip the comparison. */
-				if ((indx = base + (limit >> 1)) == 0)
-					break;
 
+			/*
+			 * If base remains set at the 0th element, skip past and
+			 * decrease the number of items to compare.  If we are
+			 * descending down the left-hand side of the tree, the
+			 * next comparison will detect that (by definition any
+			 * comparison with the 0th element must return -1).
+			 */
+			if (base == 0) {
+				++base;
+				--limit;
+			}
+			for (; limit != 0; ++base, --limit)  {
+				child = pindex->index[base];
+				__wt_ref_key(
+				    page, child, &item->data, &item->size);
+
+				match = WT_MIN(skiplow, skiphigh);
+				cmp = __wt_lex_compare_skip(
+				    srch_key, item, &match);
+				if (cmp <= 0)
+					break;
+				skiplow = match;
+			}
+		} else {
+			for (; limit > WT_LINEAR_SEARCH_LIMIT; limit >>= 1) {
+				indx = base + (limit >> 1);
 				child = pindex->index[indx];
 				__wt_ref_key(
 				    page, child, &item->data, &item->size);
@@ -250,18 +279,35 @@ restart:	page = parent->page;
 					base = indx + 1;
 					--limit;
 				} else if (cmp == 0)
-					break;
+					goto skip_linear_internal;
 			}
 
+			/* See comment above. */
+			if (base == 0) {
+				++base;
+				--limit;
+			}
+			for (; limit != 0; ++base, --limit)  {
+				child = pindex->index[base];
+				__wt_ref_key(
+				    page, child, &item->data, &item->size);
+
+				WT_ERR(WT_LEX_CMP(session,
+				    btree->collator, srch_key, item, cmp));
+				if (cmp <= 0)
+					break;
+			}
+		}
+
+		/* Lucky hit, found an exact match during the binary search. */
+skip_linear_internal:
+
 		/*
-		 * Find the slot used to descend the tree.  If index is 0, it's
-		 * a left-side descent.  Otherwise, if we found an exact match,
-		 * child is already set, if we didn't find an exact match, base
-		 * is the smallest index greater than key, possibly (last + 1).
+		 * Find the slot used to descend the tree.  If we found an exact
+		 * match, child is already set, otherwise, base is the smallest
+		 * index greater than key, possibly (last + 1).
 		 */
-		if (indx == 0)
-			child = pindex->index[0];
-		else if (cmp != 0)
+		if (cmp != 0)
 			child = pindex->index[base - 1];
 
 descend:	WT_ASSERT(session, child != NULL);
@@ -292,17 +338,20 @@ leaf_only:
 	page = child->page;
 
 	/*
-	 * Binary search of the leaf page.  There are two versions (a default
-	 * loop and an application-specified collation loop), because moving
-	 * the collation test and error handling inside the loop costs about 5%.
+	 * Search the leaf page.  There are two versions (a default loop and an
+	 * application-specified collation loop), because moving the collation
+	 * test and error handling inside the loop costs about 5%.
+	 *
+	 * Do a binary search down to N items, then switch to a linear search so
+	 * the cache pre-fetching works for us.
 	 *
 	 * The page might be empty, reset the comparison value.
 	 */
 	cmp = -1;
 	base = 0;
 	limit = page->pg_row_entries;
-	if (btree->collator == NULL)
-		for (; limit != 0; limit >>= 1) {
+	if (btree->collator == NULL) {
+		for (; limit > WT_LINEAR_SEARCH_LIMIT; limit >>= 1) {
 			indx = base + (limit >> 1);
 			rip = page->pg_row_d + indx;
 			WT_ERR(__wt_row_leaf_key(session, page, rip, item, 1));
@@ -316,10 +365,20 @@ leaf_only:
 			} else if (cmp < 0)
 				skiphigh = match;
 			else
-				break;
+				goto skip_linear_leaf;
 		}
-	else
-		for (; limit != 0; limit >>= 1) {
+		for (; limit != 0; ++base, --limit)  {
+			rip = page->pg_row_d + base;
+			WT_ERR(__wt_row_leaf_key(session, page, rip, item, 0));
+
+			match = WT_MIN(skiplow, skiphigh);
+			cmp = __wt_lex_compare_skip(srch_key, item, &match);
+			if (cmp <= 0)
+				break;
+			skiplow = match;
+		}
+	} else {
+		for (; limit > WT_LINEAR_SEARCH_LIMIT; limit >>= 1) {
 			indx = base + (limit >> 1);
 			rip = page->pg_row_d + indx;
 			WT_ERR(__wt_row_leaf_key(session, page, rip, item, 1));
@@ -330,8 +389,18 @@ leaf_only:
 				base = indx + 1;
 				--limit;
 			} else if (cmp == 0)
+				goto skip_linear_leaf;
+		}
+		for (; limit != 0; ++base, --limit)  {
+			rip = page->pg_row_d + base;
+			WT_ERR(__wt_row_leaf_key(session, page, rip, item, 0));
+
+			WT_ERR(WT_LEX_CMP(
+			    session, btree->collator, srch_key, item, cmp));
+			if (cmp <= 0)
 				break;
 		}
+	}
 
 	/*
 	 * The best case is finding an exact match in the page's WT_ROW slot
@@ -340,6 +409,9 @@ leaf_only:
 	 * an existing entry.  Check that case and get out fast.
 	 */
 	if (cmp == 0) {
+		/* Lucky hit, found an exact match during the binary search. */
+skip_linear_leaf:
+
 		cbt->compare = 0;
 		cbt->ref = child;
 
