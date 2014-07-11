@@ -86,6 +86,7 @@ __conn_dhandle_get(WT_SESSION_IMPL *session,
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
+	size_t name_len;
 	uint64_t hash;
 
 	conn = S2C(session);
@@ -95,7 +96,8 @@ __conn_dhandle_get(WT_SESSION_IMPL *session,
 	    !LF_ISSET(WT_DHANDLE_HAVE_REF));
 
 	/* Increment the reference count if we already have the btree open. */
-	hash = __wt_hash_city64(name, strlen(name));
+	name_len = strlen(name);
+	hash = __wt_hash_city64(name, name_len);
 	SLIST_FOREACH(dhandle, &conn->dhlh, l)
 		if ((hash == dhandle->name_hash &&
 		     strcmp(name, dhandle->name) == 0) &&
@@ -129,6 +131,15 @@ __conn_dhandle_get(WT_SESSION_IMPL *session,
 	btree->dhandle = dhandle;
 
 	F_SET(dhandle, WT_DHANDLE_EXCLUSIVE);
+
+	/*
+	 * Mark all files that are part of an LSM tree. Ideally we would keep
+	 * track of this in the metadata, but use string matching for now.
+	 */
+	if (name_len > 4 &&
+	    strncmp(".lsm", name + name_len - 4, 4) == 0)
+		F_SET(dhandle, WT_DHANDLE_LSM);
+
 	WT_ERR(__wt_writelock(session, dhandle->rwlock));
 
 	/*
@@ -422,6 +433,7 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session,
 		if (F_ISSET(dhandle, WT_DHANDLE_OPEN) &&
 		    WT_PREFIX_MATCH(dhandle->name, "file:") &&
 		    (apply_checkpoints || dhandle->checkpoint == NULL) &&
+		    !F_ISSET(dhandle, WT_DHANDLE_LSM) &&
 		    !WT_IS_METADATA(dhandle)) {
 			/*
 			 * We need to pull the handle into the session handle

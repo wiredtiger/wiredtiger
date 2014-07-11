@@ -982,6 +982,8 @@ extern int __wt_lsm_tree_unlock( WT_SESSION_IMPL *session,
 extern int __wt_lsm_compact(WT_SESSION_IMPL *session,
     const char *name,
     int *skip);
+extern int __wt_lsm_tree_checkpoint(WT_SESSION_IMPL *session,
+    WT_LSM_TREE *lsm_tree);
 extern int __wt_lsm_tree_worker(WT_SESSION_IMPL *session,
     const char *uri,
     int (*file_func)(WT_SESSION_IMPL *,
@@ -991,7 +993,18 @@ extern int __wt_lsm_tree_worker(WT_SESSION_IMPL *session,
     int *),
     const char *cfg[],
     uint32_t open_flags);
+extern int __wt_lsm_copy_chunks(WT_SESSION_IMPL *session,
+    WT_LSM_TREE *lsm_tree,
+    WT_LSM_WORKER_COOKIE *cookie,
+    int old_chunks);
+extern void __wt_lsm_unpin_chunks(WT_SESSION_IMPL *session,
+    WT_LSM_WORKER_COOKIE *cookie);
 extern void *__wt_lsm_merge_worker(void *vargs);
+extern int __wt_lsm_checkpoint_chunks( WT_SESSION_IMPL *session,
+    WT_LSM_TREE *lsm_tree,
+    WT_LSM_WORKER_COOKIE *cookie,
+    int for_checkpoint,
+    int *checkpointed_all);
 extern void *__wt_lsm_checkpoint_worker(void *arg);
 extern int __wt_meta_btree_apply(WT_SESSION_IMPL *session,
     int (*func)(WT_SESSION_IMPL *,
