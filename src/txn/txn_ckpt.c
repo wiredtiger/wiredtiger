@@ -129,6 +129,7 @@ __checkpoint_apply(WT_SESSION_IMPL *session, const char *cfg[],
 		WT_ERR(ckpt_closed ?
 		    __wt_meta_btree_apply(session, op, cfg) :
 		    __wt_conn_btree_apply(session, 0, op, cfg));
+
 	}
 
 err:	__wt_scr_free(&tmp);
@@ -184,6 +185,7 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_ITEM(tmp);
 	WT_DECL_RET;
+	WT_LSM_TREE *lsm_tree;
 	WT_TXN *txn;
 	WT_TXN_ISOLATION saved_isolation;
 	const char *txn_cfg[3];
@@ -249,6 +251,14 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	}
 
 	WT_ERR(__checkpoint_apply(session, cfg, __wt_checkpoint, NULL));
+
+	/*
+	 * Regular checkpoints skip files linked to LSM trees -
+	 * checkpoint the LSM tree. TODO: Ideally we'd be able to flush the
+	 * LSM chunks before taking the checkpoint lock.
+	 */
+	TAILQ_FOREACH(lsm_tree, &S2C(session)->lsmqh, q)
+		WT_ERR(__wt_lsm_tree_checkpoint(session, lsm_tree));
 
 	/* Commit the transaction before syncing the file(s). */
 	WT_ERR(__wt_txn_commit(session, NULL));

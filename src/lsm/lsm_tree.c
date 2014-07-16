@@ -1112,6 +1112,49 @@ __wt_lsm_compact(WT_SESSION_IMPL *session, const char *name, int *skip)
 }
 
 /*
+ * __wt_lsm_tree_checkpoint --
+ *	Create a checkpoint in an LSM tree.
+ */
+int
+__wt_lsm_tree_checkpoint(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
+{
+	WT_DECL_RET;
+	WT_LSM_WORKER_COOKIE cookie;
+	int checkpointed_all;
+
+	WT_CLEAR(cookie);
+
+	/*
+	 * Force the tree to switch. This means a new primary chunk will
+	 * be active for all new writes, and the LSM metadata will be
+	 * checkpointed with a transaction ID consistent with the checkpoint.
+	 */
+	if (lsm_tree->modified) {
+		F_SET(lsm_tree, WT_LSM_TREE_NEED_SWITCH);
+		WT_RET(__wt_lsm_tree_switch(session, lsm_tree));
+	}
+
+	/* Get a copy of all active chunks. */
+	WT_ERR(__wt_lsm_copy_chunks(session, lsm_tree, &cookie, 0));
+	if (cookie.nchunks < 2)
+		return (0);
+	/*
+	 * Don't checkpoint the in memory chunk - we've made sure it's
+	 * contents aren't relevant for the checkpoint.
+	 */
+	(void)WT_ATOMIC_SUB(cookie.chunk_array[cookie.nchunks - 1]->refcnt, 1);
+	--cookie.nchunks;
+	
+	/* Make sure all necessary chunks are checkpointed. */
+	WT_ERR(__wt_lsm_checkpoint_chunks(
+	    session, lsm_tree, &cookie, 1, &checkpointed_all));
+
+err:	__wt_lsm_unpin_chunks(session, &cookie);
+	__wt_free(session, cookie.chunk_array);
+	return (ret);
+}
+
+/*
  * __wt_lsm_tree_worker --
  *	Run a schema worker operation on each level of a LSM tree.
  */
