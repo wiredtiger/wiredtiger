@@ -130,6 +130,8 @@ __conn_dhandle_get(WT_SESSION_IMPL *session,
 
 	WT_ERR(__wt_spin_init(
 	    session, &dhandle->close_lock, "data handle close"));
+	WT_ERR(__wt_spin_init(
+	    session, &dhandle->ckpt_lock, "data handle checkpoint"));
 
 	F_SET(dhandle, WT_DHANDLE_EXCLUSIVE);
 	WT_ERR(__wt_writelock(session, dhandle->rwlock));
@@ -155,10 +157,11 @@ __conn_dhandle_get(WT_SESSION_IMPL *session,
 
 err:	if (dhandle->rwlock != NULL)
 		WT_TRET(__wt_rwlock_destroy(session, &dhandle->rwlock));
-	__wt_spin_destroy(session, &dhandle->close_lock);
 	__wt_free(session, dhandle->name);
 	__wt_free(session, dhandle->checkpoint);
 	__wt_free(session, dhandle->handle);		/* btree free */
+	__wt_spin_destroy(session, &dhandle->close_lock);
+	__wt_spin_destroy(session, &dhandle->ckpt_lock);
 	__wt_overwrite_and_free(session, dhandle);
 
 	return (ret);
@@ -609,6 +612,7 @@ __wt_conn_dhandle_discard_single(
 		__conn_btree_config_clear(session);
 		__wt_free(session, dhandle->handle);
 		__wt_spin_destroy(session, &dhandle->close_lock);
+		__wt_spin_destroy(session, &dhandle->ckpt_lock);
 		__wt_overwrite_and_free(session, dhandle);
 
 		WT_CLEAR_BTREE_IN_SESSION(session);
