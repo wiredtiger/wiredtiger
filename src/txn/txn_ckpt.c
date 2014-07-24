@@ -867,7 +867,11 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session)
 	if (!modified)
 		return (__wt_cache_op(session, NULL, WT_SYNC_DISCARD));
 
-	/* Else, checkpoint the file and optionally flush the writes. */
+	/*
+	 * Else, checkpoint the file and optionally flush the writes (the
+	 * checkpoint call will discard the blocks, there's no additional
+	 * step needed).
+	 */
 	WT_RET(__checkpoint_worker(session, NULL, 0));
 
 	if (F_ISSET(S2C(session), WT_CONN_CKPT_SYNC))
