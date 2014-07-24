@@ -60,6 +60,14 @@ struct __wt_data_handle {
 	 */
 	WT_SPINLOCK	close_lock;	/* Lock to close the handle */
 
+	/*
+	 * When modified data handles are closed they are checkpointed which
+	 * involves a read-modify-write cycle of the file's metadata inside
+	 * the checkpoint code.  For that reason, we serialize the checkpoint
+	 * around the read and eventual update of the metadata information.
+	 */
+	WT_SPINLOCK	ckpt_lock;	/* Lock to serialize checkpoints */
+
 	WT_DSRC_STATS stats;		/* Data-source statistics */
 
 	/* Flags values over 0xff are reserved for WT_BTREE_* */

@@ -451,7 +451,7 @@ __checkpoint_worker(
 	WT_DECL_RET;
 	WT_LSN ckptlsn;
 	const char *name;
-	int deleted, force, hot_backup_locked, track_ckpt;
+	int deleted, force, handle_locked, hot_backup_locked, track_ckpt;
 	char *name_alloc;
 
 	btree = S2BT(session);
@@ -461,18 +461,19 @@ __checkpoint_worker(
 	INIT_LSN(&ckptlsn);
 	dhandle = session->dhandle;
 	name_alloc = NULL;
-	hot_backup_locked = 0;
+	handle_locked = hot_backup_locked = 0;
 	name_alloc = NULL;
 	track_ckpt = 1;
 
 	/*
-	 * If closing a file that's never been modified, discard its blocks.
-	 * If checkpoint of a file that's never been modified, we may still
-	 * have to checkpoint it, we'll test again once we understand the
-	 * nature of the checkpoint.
+	 * Serialize checkpoints on this particular handle: doing a checkpoint
+	 * implies a read-modify-write cycle of the file's metadata; since we
+	 * do not always acquire a high-level lock during checkpoint (when the
+	 * handle is closed, for example), we have to serialize to ensure one
+	 * checkpoint doesn't race with another.
 	 */
-	if (!btree->modified && !is_checkpoint)
-		return (__wt_cache_op(session, NULL, WT_SYNC_DISCARD));
+	__wt_spin_lock(session, &dhandle->ckpt_lock);
+	handle_locked = 1;
 
 	/*
 	 * Get the list of checkpoints for this file.  If there's no reference
@@ -482,7 +483,8 @@ __checkpoint_worker(
 	if ((ret = __wt_meta_ckptlist_get(
 	    session, dhandle->name, &ckptbase)) == WT_NOTFOUND) {
 		WT_ASSERT(session, session->dhandle->session_ref == 0);
-		return (__wt_cache_op(session, NULL, WT_SYNC_DISCARD));
+		ret = __wt_cache_op(session, NULL, WT_SYNC_DISCARD);
+		goto done;
 	}
 	WT_ERR(ret);
 
@@ -567,7 +569,7 @@ __checkpoint_worker(
 	}
 	if (!btree->modified && !force) {
 		if (!is_checkpoint)
-			goto skip;
+			goto done;
 
 		deleted = 0;
 		WT_CKPT_FOREACH(ckptbase, ckpt)
@@ -585,7 +587,7 @@ __checkpoint_worker(
 		    (strcmp(name, (ckpt - 1)->name) == 0 ||
 		    (WT_PREFIX_MATCH(name, WT_CHECKPOINT) &&
 		    WT_PREFIX_MATCH((ckpt - 1)->name, WT_CHECKPOINT))))
-			goto skip;
+			goto done;
 	}
 
 	/* Add a new checkpoint entry at the end of the list. */
@@ -786,10 +788,15 @@ fake:	/* Update the object's metadata. */
 		WT_ERR(__wt_txn_checkpoint_log(
 		    session, 0, WT_TXN_LOG_CKPT_STOP, NULL));
 
-err:	if (hot_backup_locked)
+done: err:
+	if (hot_backup_locked)
 		__wt_spin_unlock(session, &conn->hot_backup_lock);
-skip:	__wt_meta_ckptlist_free(session, ckptbase);
+	if (handle_locked)
+		__wt_spin_unlock(session, &dhandle->ckpt_lock);
+
+	__wt_meta_ckptlist_free(session, ckptbase);
 	__wt_free(session, name_alloc);
+
 	return (ret);
 }
 
@@ -852,22 +859,22 @@ __wt_checkpoint_sync(WT_SESSION_IMPL *session, const char *cfg[])
 int
 __wt_checkpoint_close(WT_SESSION_IMPL *session)
 {
-	int needsync;
+	int modified;
 
-	/*
-	 * Checkpoint handles are read-only: closing one discards its blocks,
-	 * otherwise there's no work to do.
-	 */
-	if (session->dhandle->checkpoint != NULL)
+	modified = S2BT(session)->modified ? 1 : 0;
+
+	/* If closing an unmodified file, simply discard its blocks. */
+	if (!modified)
 		return (__wt_cache_op(session, NULL, WT_SYNC_DISCARD));
 
 	/*
-	 * Otherwise, checkpoint the file and, if it was modified, optionally
-	 * flush the writes to stable storage.
+	 * Else, checkpoint the file and optionally flush the writes (the
+	 * checkpoint call will discard the blocks, there's no additional
+	 * step needed).
 	 */
-	needsync = S2BT(session)->modified;
 	WT_RET(__checkpoint_worker(session, NULL, 0));
-	if (needsync && F_ISSET(S2C(session), WT_CONN_CKPT_SYNC))
+
+	if (F_ISSET(S2C(session), WT_CONN_CKPT_SYNC))
 		WT_RET(__wt_checkpoint_sync(session, NULL));
 	return (0);
 }
