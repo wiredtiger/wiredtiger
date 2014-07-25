@@ -17,7 +17,8 @@ static int  __inmem_row_leaf_entries(
 
 /*
  * eviction_force_check --
- *	Check if a page matches the criteria for forced eviction.
+ *	Check if a thread/page combination matches the criteria for forced
+ * eviction.
  */
 static int
 eviction_force_check(WT_SESSION_IMPL *session, WT_PAGE *page)
@@ -34,6 +35,13 @@ eviction_force_check(WT_SESSION_IMPL *session, WT_PAGE *page)
 	if (page->type != WT_PAGE_COL_FIX &&
 	    page->type != WT_PAGE_COL_VAR &&
 	    page->type != WT_PAGE_ROW_LEAF)
+		return (0);
+
+	/*
+	 * Don't task specific threads and other threads holding high-level
+	 * locks with eviction.
+	 */
+	if (F_ISSET(session, WT_SESSION_NO_EVICTION | WT_SESSION_SCHEMA_LOCKED))
 		return (0);
 
 	/* Eviction may be turned off, although that's rare. */

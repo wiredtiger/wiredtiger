@@ -55,17 +55,15 @@ __wt_cache_full_check(WT_SESSION_IMPL *session)
 	int busy, count, full;
 
 	/*
-	 * LSM sets the no-cache-check flag when holding the LSM tree lock,
-	 * in that case, or when holding the schema lock, we don't want to
-	 * highjack the thread for eviction.
+	 * Don't task specific threads and other threads holding high-level
+	 * locks with eviction.
 	 */
-	if (F_ISSET(session,
-	    WT_SESSION_NO_CACHE_CHECK | WT_SESSION_SCHEMA_LOCKED))
+	if (F_ISSET(session, WT_SESSION_NO_EVICTION | WT_SESSION_SCHEMA_LOCKED))
 		return (0);
 
 	/*
-	 * Threads operating on trees that cannot be evicted are ignored,
-	 * mostly because they're not contributing to the problem.
+	 * Threads operating on trees that cannot be evicted are ignored, mostly
+	 * because they're not contributing to the problem.
 	 */
 	if ((btree = S2BT_SAFE(session)) != NULL &&
 	    F_ISSET(btree, WT_BTREE_NO_EVICTION))
