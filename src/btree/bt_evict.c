@@ -166,8 +166,8 @@ __wt_cache_evict_server(void *arg)
 	cache = conn->cache;
 	workers = NULL;
 
-	/* Don't highjack the eviction server to do eviction. */
-	F_SET(session, WT_SESSION_NO_EVICTION);
+	/* Don't do forced eviction during eviction walks. */
+	F_SET(session, WT_SESSION_NO_EVICT_FORCE);
 
 	if (cache->eviction_workers > 0)
 		WT_ERR(__wt_calloc_def(

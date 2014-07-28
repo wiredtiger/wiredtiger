@@ -990,8 +990,8 @@ __wt_lsm_tree_lock(
 	else
 		WT_RET(__wt_readlock(session, lsm_tree->rwlock));
 
-	/* Holding the LSM tree lock, don't highjack the thread for eviction. */
-	F_SET(session, WT_SESSION_NO_EVICTION);
+	/* Don't get stuck in eviction while holding the LSM tree lock. */
+	F_SET(session, WT_SESSION_BUSY);
 
 	/*
 	 * Diagnostic: avoid deadlocks with the schema lock: if we need it for
@@ -1011,7 +1011,7 @@ __wt_lsm_tree_unlock(
 {
 	WT_DECL_RET;
 
-	F_CLR(session, WT_SESSION_NO_EVICTION | WT_SESSION_NO_SCHEMA_LOCK);
+	F_CLR(session, WT_SESSION_BUSY | WT_SESSION_NO_SCHEMA_LOCK);
 	if ((ret = __wt_rwunlock(session, lsm_tree->rwlock)) != 0)
 		WT_PANIC_RET(session, ret, "Unlocking an LSM tree");
 	return (0);

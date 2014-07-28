@@ -38,10 +38,11 @@ eviction_force_check(WT_SESSION_IMPL *session, WT_PAGE *page)
 		return (0);
 
 	/*
-	 * Don't task specific sessions and other sessions holding high-level
-	 * locks with eviction.
+	 * Don't task specific sessions or other sessions holding high-level
+	 * locks with forced eviction.
 	 */
-	if (F_ISSET(session, WT_SESSION_NO_EVICTION | WT_SESSION_SCHEMA_LOCKED))
+	if (F_ISSET(session,
+	    WT_SESSION_NO_EVICT_FORCE | WT_SESSION_SCHEMA_LOCKED))
 		return (0);
 
 	/* Eviction may be turned off, although that's rare. */

@@ -958,14 +958,14 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * Don't task specific sessions and other sessions holding high-level
 	 * locks with eviction.
 	 *
-	 * Sessions operating on trees that cannot be evicted are ignored, mostly
-	 * because they're not contributing to the problem.
+	 * Sessions operating on trees that cannot be evicted are ignored,
+	 * mostly because they're not contributing to the problem.
 	 *
 	 * Make sure there's no forced eviction during checkpoints.
 	 */
 	if (page->read_gen != WT_READGEN_OLDEST ||
 	    F_ISSET(session,
-	    WT_SESSION_NO_EVICTION | WT_SESSION_SCHEMA_LOCKED) ||
+	    WT_SESSION_NO_EVICT_FORCE | WT_SESSION_SCHEMA_LOCKED) ||
 	    F_ISSET(btree, WT_BTREE_NO_EVICTION) ||
 	    (btree->checkpointing && __wt_page_is_modified(page)))
 		return (__wt_hazard_clear(session, page));

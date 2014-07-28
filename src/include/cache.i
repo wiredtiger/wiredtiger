@@ -54,11 +54,8 @@ __wt_cache_full_check(WT_SESSION_IMPL *session)
 	WT_TXN_STATE *txn_state;
 	int busy, count, full;
 
-	/*
-	 * Don't task specific threads and other threads holding high-level
-	 * locks with eviction.
-	 */
-	if (F_ISSET(session, WT_SESSION_NO_EVICTION | WT_SESSION_SCHEMA_LOCKED))
+	/* Don't task sessions holding the schema lock with eviction. */
+	if (F_ISSET(session, WT_SESSION_SCHEMA_LOCKED))
 		return (0);
 
 	/*
@@ -92,7 +89,8 @@ __wt_cache_full_check(WT_SESSION_IMPL *session)
 	 */
 	txn_global = &S2C(session)->txn_global;
 	txn_state = &txn_global->states[session->id];
-	busy = txn_state->id != WT_TXN_NONE ||
+	busy = F_ISSET(session, WT_SESSION_BUSY) ||
+	    txn_state->id != WT_TXN_NONE ||
 	    session->nhazard > 0 ||
 	    (txn_state->snap_min != WT_TXN_NONE &&
 	    txn_global->current != txn_global->oldest_id);
