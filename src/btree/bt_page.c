@@ -17,7 +17,7 @@ static int  __inmem_row_leaf_entries(
 
 /*
  * eviction_force_check --
- *	Check if a thread/page combination matches the criteria for forced
+ *	Check if a session/page combination matches the criteria for forced
  * eviction.
  */
 static int
@@ -38,7 +38,7 @@ eviction_force_check(WT_SESSION_IMPL *session, WT_PAGE *page)
 		return (0);
 
 	/*
-	 * Don't task specific threads and other threads holding high-level
+	 * Don't task specific sessions and other sessions holding high-level
 	 * locks with eviction.
 	 */
 	if (F_ISSET(session, WT_SESSION_NO_EVICTION | WT_SESSION_SCHEMA_LOCKED))
