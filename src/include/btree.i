@@ -955,10 +955,10 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref)
 	/*
 	 * Forcibly evict pages with the special "oldest" read generation.
 	 *
-	 * Don't task specific threads and other threads holding high-level
+	 * Don't task specific sessions and other sessions holding high-level
 	 * locks with eviction.
 	 *
-	 * Threads operating on trees that cannot be evicted are ignored, mostly
+	 * Sessions operating on trees that cannot be evicted are ignored, mostly
 	 * because they're not contributing to the problem.
 	 *
 	 * Make sure there's no forced eviction during checkpoints.
