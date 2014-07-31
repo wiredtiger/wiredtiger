@@ -236,8 +236,6 @@ __checkpoint_write_leaves(WT_SESSION_IMPL *session, const char *cfg[])
 				ret = 0;
 				continue;
 			}
-			if (ret != 0)
-				fprintf(stderr, "write leaves get failed\n");
 			WT_ERR(ret);
 			/*
 			 * There is nothing for us to do if the handle existed
