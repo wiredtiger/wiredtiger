@@ -86,7 +86,10 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block,
 		 * file, for that matter.
 		 */
 		ci = &block->live;
-		WT_ERR(__wt_block_ckpt_init(session, ci, "live"));
+		__wt_spin_lock(session, &block->live_lock);
+		WT_TRET(__wt_block_ckpt_init(session, ci, "live"));
+		__wt_spin_unlock(session, &block->live_lock);
+		WT_ERR(ret);
 	}
 
 	/*
@@ -115,9 +118,13 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block,
 		 * Rolling a checkpoint forward requires the avail list, the
 		 * blocks from which we can allocate.
 		 */
-		if (!checkpoint)
-			WT_ERR(__wt_block_extlist_read_avail(
+		if (!checkpoint) {
+			__wt_spin_lock(session, &block->live_lock);
+			WT_TRET(__wt_block_extlist_read_avail(
 			    session, block, &ci->avail, ci->file_size));
+			__wt_spin_unlock(session, &block->live_lock);
+			WT_ERR(ret);
+		}
 	}
 
 	/*

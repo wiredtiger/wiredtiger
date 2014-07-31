@@ -230,14 +230,19 @@ __checkpoint_write_leaves(WT_SESSION_IMPL *session, const char *cfg[])
 		if ((t = strchr(p, ',')) != NULL) {
 			*t = '\0';
 
-			ret = __wt_session_get_btree(session, p, NULL, NULL, 0);
+			ret = __wt_session_get_btree(session, p, NULL, NULL,
+			    WT_DHANDLE_EXCLUSIVE | WT_DHANDLE_LOCK_ONLY);
 			if (ret == EBUSY || ret == ENOENT) {
 				ret = 0;
 				continue;
 			}
 			WT_ERR(ret);
-
-			if ((ret = __wt_cache_op(
+			/*
+			 * There is nothing for us to do if the handle existed
+			 * in the handle cache but was not open.
+			 */
+			if (F_ISSET(session->dhandle, WT_DHANDLE_OPEN) &&
+			    (ret = __wt_cache_op(
 			    session, NULL, WT_SYNC_WRITE_LEAVES)) == EBUSY)
 				ret = 0;
 
@@ -774,11 +779,10 @@ __checkpoint_worker(
 	 * same name you would have to use the bulk-load's fake checkpoint to
 	 * delete a physical checkpoint, and that will end in tears.
 	 */
-	if (is_checkpoint)
-		if (btree->bulk_load_ok) {
-			track_ckpt = 0;
-			goto fake;
-		}
+	if (is_checkpoint && btree->bulk_load_ok) {
+		track_ckpt = 0;
+		goto fake;
+	}
 
 	/*
 	 * Mark the root page dirty to ensure something gets written.
