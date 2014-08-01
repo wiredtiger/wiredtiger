@@ -26,6 +26,7 @@ __sync_file(WT_SESSION_IMPL *session, int syncop)
 	uint32_t flags;
 
 	btree = S2BT(session);
+
 	walk = NULL;
 	txn = &session->txn;
 
@@ -38,7 +39,19 @@ __sync_file(WT_SESSION_IMPL *session, int syncop)
 	case WT_SYNC_WRITE_LEAVES:
 		/*
 		 * Write all immediately available, dirty in-cache leaf pages.
+		 *
+		 * Writing the leaf pages is done without acquiring a high-level
+		 * lock, serialize so multiple threads don't walk the tree at
+		 * the same time.
 		 */
+		if (!btree->modified)
+			return (0);
+		__wt_spin_lock(session, &btree->flush_lock);
+		if (!btree->modified) {
+			__wt_spin_unlock(session, &btree->flush_lock);
+			return (0);
+		}
+
 		flags = WT_READ_CACHE |
 		    WT_READ_NO_GEN | WT_READ_NO_WAIT | WT_READ_SKIP_INTL;
 		for (walk = NULL;;) {
@@ -58,8 +71,18 @@ __sync_file(WT_SESSION_IMPL *session, int syncop)
 			}
 		}
 		break;
-
 	case WT_SYNC_CHECKPOINT:
+		/*
+		 * We cannot check the tree modified flag in the case of a
+		 * checkpoint, the checkpoint code has already cleared it.
+		 *
+		 * Writing the leaf pages is done without acquiring a high-level
+		 * lock, serialize so multiple threads don't walk the tree at
+		 * the same time.  We're holding the schema lock, but need the
+		 * lower-level lock as well.
+		 */
+		__wt_spin_lock(session, &btree->flush_lock);
+
 		/*
 		 * When internal pages are being reconciled by checkpoint their
 		 * child pages cannot disappear from underneath them or be split
@@ -154,6 +177,8 @@ err:	/* On error, clear any left-over tree walk. */
 		 */
 		WT_TRET(__wt_evict_server_wake(session));
 	}
+
+	__wt_spin_unlock(session, &btree->flush_lock);
 
 	return (ret);
 }
