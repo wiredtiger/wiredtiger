@@ -449,9 +449,14 @@ __evict_pass(WT_SESSION_IMPL *session)
 		} else
 			F_CLR(cache, WT_EVICT_NO_PROGRESS);
 
-		/* Start a worker if we have capacity and the cache is full. */
-		if (bytes_inuse > conn->cache_size &&
-		    conn->evict_workers < conn->evict_workers_max) {
+		/*
+		 * Start a worker if we have capacity and the cache is above
+		 * the dirty target.  The reasoning here is that extra threads
+		 * help with reconciliation and I/O, but can hurt read-only
+		 * workloads where eviction is just freeing memory.
+		 */
+		if (cache->bytes_dirty >
+		    (cache->eviction_dirty_target * conn->cache_size) / 100) {
 			WT_RET(__wt_verbose(session, WT_VERB_EVICTSERVER,
 			    "Starting evict worker: %"PRIu32"\n",
 			    conn->evict_workers));
