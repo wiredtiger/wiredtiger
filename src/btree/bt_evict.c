@@ -386,13 +386,13 @@ __evict_has_work(WT_SESSION_IMPL *session, uint32_t *flagsp)
 	dirty_inuse = cache->bytes_dirty;
 	bytes_max = conn->cache_size;
 
-	/* Check to see if the eviction server should run. */
+	/* Check to see if clean and/or dirty pages should be evicted. */
 	if (bytes_inuse > (cache->eviction_target * bytes_max) / 100)
-		LF_SET(WT_EVICT_PASS_ALL);
-	else if (dirty_inuse >
-	    (cache->eviction_dirty_target * bytes_max) / 100)
-		/* Ignore clean pages unless the cache is too large */
+		LF_SET(WT_EVICT_PASS_CLEAN);
+	if (dirty_inuse > (cache->eviction_dirty_target * bytes_max) / 100)
 		LF_SET(WT_EVICT_PASS_DIRTY);
+	else
+		LF_CLR(WT_EVICT_PASS_DIRTY);
 
 	if (F_ISSET(cache, WT_EVICT_STUCK))
 		LF_SET(WT_EVICT_PASS_AGGRESSIVE);
@@ -449,8 +449,13 @@ __evict_pass(WT_SESSION_IMPL *session)
 		} else
 			F_CLR(cache, WT_EVICT_NO_PROGRESS);
 
-		/* Start a worker if we have capacity and the cache is full. */
-		if (bytes_inuse > conn->cache_size &&
+		/*
+		 * Start a worker if we have capacity and the cache is above
+		 * the dirty target.  The reasoning here is that extra threads
+		 * help with reconciliation and I/O, but can hurt read-only
+		 * workloads where eviction is just freeing memory.
+		 */
+		if (LF_ISSET(WT_EVICT_PASS_DIRTY) &&
 		    conn->evict_workers < conn->evict_workers_max) {
 			WT_RET(__wt_verbose(session, WT_VERB_EVICTSERVER,
 			    "Starting evict worker: %"PRIu32"\n",
@@ -1024,8 +1029,10 @@ __evict_walk_file(WT_SESSION_IMPL *session, u_int *slotp, uint32_t flags)
 		if (modified && btree->checkpointing)
 			continue;
 
-		/* Optionally ignore clean pages. */
-		if (!modified && LF_ISSET(WT_EVICT_PASS_DIRTY))
+		/* Optionally ignore clean/dirty pages. */
+		if (!modified && !LF_ISSET(WT_EVICT_PASS_CLEAN))
+			continue;
+		if (modified && !LF_ISSET(WT_EVICT_PASS_DIRTY))
 			continue;
 
 		/*
