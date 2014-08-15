@@ -138,6 +138,10 @@ static CONFIG c[] = {
 	  "filter random key/value pairs",			/* 5% */
 	  C_BOOL, 5, 0, 0, &g.c_discard_filter, NULL },
 
+	{ "evict_max",
+	  "the maximum number of eviction workers",
+	  0x0, 0, 5, 100, &g.c_evict_max, NULL },
+
 	{ "file_type",
 	  "type of store to create (fix | var | row)",
 	  C_IGNORE|C_STRING, 1, 3, 3, NULL, &g.c_file_type },

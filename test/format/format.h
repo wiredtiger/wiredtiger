@@ -157,9 +157,10 @@ typedef struct {
 	uint32_t c_delete_pct;
 	uint32_t c_dictionary;
 	uint32_t c_discard_filter;
+	uint32_t c_evict_max;
+	char	*c_file_type;
 	uint32_t c_firstfit;
 	uint32_t c_hot_backups;
-	char	*c_file_type;
 	uint32_t c_huffman_key;
 	uint32_t c_huffman_value;
 	uint32_t c_insert_pct;
