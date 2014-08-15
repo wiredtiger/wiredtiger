@@ -28,7 +28,8 @@ extern WT_PROCESS __wt_process;
 struct __wt_named_collator {
 	const char *name;		/* Name of collator */
 	WT_COLLATOR *collator;		/* User supplied object */
-	TAILQ_ENTRY(__wt_named_collator) q;	/* Linked list of collators */
+					/* Linked list of collators */
+	TAILQ_ENTRY(__wt_named_collator) q;
 };
 
 /*
@@ -51,6 +52,17 @@ struct __wt_named_data_source {
 	WT_DATA_SOURCE *dsrc;		/* User supplied callbacks */
 					/* Linked list of data sources */
 	TAILQ_ENTRY(__wt_named_data_source) q;
+};
+
+/*
+ * WT_NAMED_DISCARD_FILTER --
+ *	A discard filter list entry
+ */
+struct __wt_named_discard_filter {
+	const char *name;		/* Name of discard filters */
+	WT_DISCARD_FILTER *filter;	/* User supplied object */
+					/* Linked list of filters */
+	TAILQ_ENTRY(__wt_named_discard_filter) q;
 };
 
 /*
@@ -243,6 +255,9 @@ struct __wt_connection_impl {
 
 					/* Locked: data source list */
 	TAILQ_HEAD(__wt_dsrc_qh, __wt_named_data_source) dsrcqh;
+
+	TAILQ_HEAD(			/* Locked: discard filter list */
+	    __wt_discard_filter_qh, __wt_named_discard_filter) discard_filterqh;
 
 	void	*lang_private;		/* Language specific private storage */
 

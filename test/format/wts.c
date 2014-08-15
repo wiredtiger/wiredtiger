@@ -63,6 +63,25 @@ static WT_EVENT_HANDLER event_handler = {
 	NULL	/* Close handler. */
 };
 
+static int
+discard_filter(WT_DISCARD_FILTER *filter,
+    WT_SESSION *session, const WT_ITEM *key, int *discardp)
+{
+	static int count = 0;
+
+	(void)filter;
+	(void)session;
+	(void)key;
+
+	/* Filter every 100th key, and we don't care if we race. */
+	*discardp = 0;
+	if (count++ == 100) {
+		count -= 100;
+		*discardp = 1;
+	}
+	return (0);
+}
+
 /*
  * wts_open --
  *	Open a connection to a WiredTiger database.
@@ -119,6 +138,15 @@ wts_open(const char *home, int set_api, WT_CONNECTION **connp)
 
 	if (set_api)
 		g.wt_api = conn->get_extension_api(conn);
+
+	/* Configure optional key filtering. */
+	if (g.c_discard_filter) {
+		static WT_DISCARD_FILTER filter = { discard_filter, NULL };
+
+		if ((ret = conn->add_discard_filter(
+		    conn, "format-filter", &filter, NULL)) != 0)
+			die(ret, "WT_CONNECTION.add_discard_filter");
+	}
 
 	/*
 	 * Load the Helium shared library: it would be possible to do this as
@@ -276,6 +304,11 @@ wts_create(void)
 	/* Configure Btree split page percentage. */
 	p += snprintf(p, (size_t)(end - p),
 	    ",split_pct=%" PRIu32, g.c_split_pct);
+
+	/* Configure row-store filter. */
+	if (g.c_discard_filter)
+		p += snprintf(
+		    p, (size_t)(end - p), ",discard_filter=format-filter");
 
 	/* Configure LSM and data-sources. */
 	if (DATASOURCE("helium"))

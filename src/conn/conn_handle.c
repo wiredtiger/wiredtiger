@@ -20,13 +20,14 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
 	session = conn->default_session;
 
 	SLIST_INIT(&conn->dhlh);		/* Data handle list */
-	TAILQ_INIT(&conn->dlhqh);		/* Library list */
-	TAILQ_INIT(&conn->dsrcqh);		/* Data source list */
+	TAILQ_INIT(&conn->lsmqh);		/* WT_LSM_TREE list */
 	TAILQ_INIT(&conn->fhqh);		/* File list */
+	TAILQ_INIT(&conn->dlhqh);		/* Library list */
+
 	TAILQ_INIT(&conn->collqh);		/* Collator list */
 	TAILQ_INIT(&conn->compqh);		/* Compressor list */
-
-	TAILQ_INIT(&conn->lsmqh);		/* WT_LSM_TREE list */
+	TAILQ_INIT(&conn->dsrcqh);		/* Data source list */
+	TAILQ_INIT(&conn->discard_filterqh);	/* Discard filter list */
 
 	/* Configuration. */
 	WT_RET(__wt_conn_config_init(session));

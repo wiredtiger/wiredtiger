@@ -26,11 +26,12 @@
  *
  * ex_extending.c
  *	This is an example demonstrating ways to extend WiredTiger with
- *	extractors, collators and loadable modules.
+ *	collators and discard filters.
  */
 
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include <wiredtiger.h>
 
@@ -54,6 +55,35 @@ __compare_nocase(WT_COLLATOR *collator, WT_SESSION *session,
 
 static WT_COLLATOR nocasecoll = { __compare_nocase, NULL };
 /*! [case insensitive comparator] */
+
+/*! [monthly discard filter] */
+/* A simple monthly discard filter. */
+static int
+__filter_monthly(WT_DISCARD_FILTER *filter,
+    WT_SESSION *session, const WT_ITEM *key, int *removep)
+{
+	struct tm *today;
+	time_t now;
+
+	/* Unused parameters */
+	(void)filter;
+	(void)session;
+
+	(void)time(&now);
+	if ((today = localtime(&now)) == NULL)
+		return (1);
+
+	/*
+	 * The first byte of the key is the month as an integer, 1-12.
+	 * The localtime representation of the month is 0-11, requires
+	 * correction.
+	 */
+	*removep = *(u_char *)key->data == today->tm_mon - 1 ? 0 : 1;
+	return (0);
+}
+
+static WT_DISCARD_FILTER monthly_filter = { __filter_monthly, NULL };
+/*! [monthly discard filter] */
 
 /*! [n character comparator] */
 /*
@@ -93,10 +123,14 @@ int main(void)
 		fprintf(stderr, "Error connecting to %s: %s\n",
 		    home, wiredtiger_strerror(ret));
 
-	/*! [add collator nocase] */
+	/*! [add collator] */
 	ret = conn->add_collator(conn, "nocase", &nocasecoll, NULL);
-	/*! [add collator nocase] */
-	/*! [add collator prefix10] */
+	/*! [add collator] */
+
+	/*! [add discard filter] */
+	ret = conn->add_discard_filter(conn, "monthly", &monthly_filter, NULL);
+	/*! [add discard filter] */
+
 	ret = conn->add_collator(conn, "prefix10", &pcoll10.iface, NULL);
 
 	/* Open a session for the current thread's work. */
@@ -108,7 +142,6 @@ int main(void)
 
 	/* Note: closing the connection implicitly closes open session(s). */
 	if ((ret = conn->close(conn, NULL)) != 0)
-	/*! [add collator prefix10] */
 		fprintf(stderr, "Error connecting to %s: %s\n",
 		    home, wiredtiger_strerror(ret));
 

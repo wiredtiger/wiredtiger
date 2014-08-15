@@ -73,6 +73,9 @@ struct __wt_btree {
 
 	WT_COLLATOR *collator;		/* Row-store comparator */
 
+					/* File object discard filter */
+	WT_DISCARD_FILTER *discard_filter;
+
 	uint32_t id;			/* File ID, for logging */
 
 	uint32_t key_gap;		/* Row-store prefix key gap */

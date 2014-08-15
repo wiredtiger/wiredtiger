@@ -240,6 +240,21 @@ static int my_cursor_insert(WT_CURSOR *wtcursor)
 	/*! [WT_EXTENSION collate] */
 	}
 
+	{
+	const char *string;
+	/*! [WT_EXTENSION discard filter] */
+	WT_ITEM key;
+	int discard;
+
+	key.data = string;
+	key.size = strlen(string);
+
+	ret = wt_api->discard_filter(wt_api, session, &key, &discard);
+	if (discard)
+		printf("key %s should be discarded\n", string);
+	/*! [WT_EXTENSION discard filter] */
+	}
+
 	return (ret);
 }
 
@@ -378,6 +393,21 @@ my_open_cursor(WT_DATA_SOURCE *dsrc, WT_SESSION *session,
 		return (ret);
 	}
 	/*! [WT_EXTENSION collator config] */
+	}
+
+	{
+	/*! [WT_EXTENSION discard filter config] */
+	/*
+	 * Configure the appropriate discard filter.
+	 */
+	if ((ret =
+	    wt_api->discard_filter_config(wt_api, session, config)) != 0) {
+		(void)wt_api->err_printf(wt_api, session,
+		    "discard filter configuration: %s",
+		    wiredtiger_strerror(ret));
+		return (ret);
+	}
+	/*! [WT_EXTENSION discard filter config] */
 	}
 
 	/*! [WT_DATA_SOURCE error message] */

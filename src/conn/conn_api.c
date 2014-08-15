@@ -89,6 +89,91 @@ __wt_collator_config(
 }
 
 /*
+ * ext_discard_filter --
+ *	Call the discard filter function (external API version).
+ */
+static int
+ext_discard_filter(WT_EXTENSION_API *wt_api,
+    WT_SESSION *wt_session, WT_ITEM *key, int *discardp)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_SESSION_IMPL *session;
+
+	conn = (WT_CONNECTION_IMPL *)wt_api->conn;
+	if ((session = (WT_SESSION_IMPL *)wt_session) == NULL)
+		session = conn->default_session;
+
+	*discardp = 0;
+	if (wt_api->discard_filter_func != NULL)
+		WT_RET(__wt_discard_filter(
+		    session, wt_api->discard_filter_func, key, discardp));
+
+	return (0);
+}
+
+/*
+ * ext_discard_filter_config --
+ *	Given a configuration, configure the discard_filter (external API
+ * version).
+ */
+static int
+ext_discard_filter_config(
+    WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, WT_CONFIG_ARG *cfg_arg)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_SESSION_IMPL *session;
+	const char **cfg;
+
+	conn = (WT_CONNECTION_IMPL *)wt_api->conn;
+	if ((session = (WT_SESSION_IMPL *)wt_session) == NULL)
+		session = conn->default_session;
+
+	/* The default is no discard filter configuration. */
+	if ((cfg = (const char **)cfg_arg) == NULL)
+		return (0);
+
+	return (__wt_discard_filter_config(
+	    session, cfg, &wt_api->discard_filter_func));
+}
+
+/*
+ * __wt_discard_filter_config --
+ *	Given a configuration, configure the discard filter.
+ */
+int
+__wt_discard_filter_config(
+    WT_SESSION_IMPL *session, const char **cfg, WT_DISCARD_FILTER **filterp)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_CONFIG_ITEM cval;
+	WT_DECL_RET;
+	WT_NAMED_DISCARD_FILTER *nfilter;
+
+	*filterp = NULL;
+
+	conn = S2C(session);
+
+	if ((ret =
+	    __wt_config_gets(session, cfg, "discard_filter", &cval)) != 0)
+		return (ret == WT_NOTFOUND ? 0 : ret);
+
+	if (cval.len > 0) {
+		TAILQ_FOREACH(nfilter, &conn->discard_filterqh, q)
+			if (WT_STRING_MATCH(
+			    nfilter->name, cval.str, cval.len)) {
+				*filterp = nfilter->filter;
+				return (0);
+			}
+		/*
+		 * Unlike collation functions, discard filters aren't required,
+		 * and for example, a filter may be configured for objects not
+		 * known by a utility; ignore failure to find a filter.
+		 */
+	}
+	return (0);
+}
+
+/*
  * __conn_get_extension_api --
  *	WT_CONNECTION.get_extension_api method.
  */
@@ -123,6 +208,8 @@ __conn_get_extension_api(WT_CONNECTION *wt_conn)
 	conn->extension_api.transaction_oldest = __wt_ext_transaction_oldest;
 	conn->extension_api.transaction_visible = __wt_ext_transaction_visible;
 	conn->extension_api.version = wiredtiger_version;
+	conn->extension_api.discard_filter_config = ext_discard_filter_config;
+	conn->extension_api.discard_filter = ext_discard_filter;
 
 	return (&conn->extension_api);
 }
@@ -291,26 +378,29 @@ err:	if (ncoll != NULL) {
 
 /*
  * __wt_conn_remove_collator --
- *	remove collator added by WT_CONNECTION->add_collator,
- *	only used internally.
+ *	Remove collator added by WT_CONNECTION->add_collator, only used
+ * internally.
  */
 int
-__wt_conn_remove_collator(WT_CONNECTION_IMPL *conn, WT_NAMED_COLLATOR *ncoll)
+__wt_conn_remove_collator(WT_CONNECTION_IMPL *conn)
 {
-	WT_SESSION_IMPL *session;
 	WT_DECL_RET;
+	WT_NAMED_COLLATOR *ncoll;
+	WT_SESSION_IMPL *session;
 
 	session = conn->default_session;
 
-	/* Call any termination method. */
-	if (ncoll->collator->terminate != NULL)
-		ret = ncoll->collator->terminate(
-		    ncoll->collator, (WT_SESSION *)session);
+	while ((ncoll = TAILQ_FIRST(&conn->collqh)) != NULL) {
+		/* Call any termination method. */
+		if (ncoll->collator->terminate != NULL)
+			WT_TRET(ncoll->collator->terminate(
+			    ncoll->collator, (WT_SESSION *)session));
 
-	/* Remove from the connection's list, free memory. */
-	TAILQ_REMOVE(&conn->collqh, ncoll, q);
-	__wt_free(session, ncoll->name);
-	__wt_free(session, ncoll);
+		/* Remove from the connection's list, free memory. */
+		TAILQ_REMOVE(&conn->collqh, ncoll, q);
+		__wt_free(session, ncoll->name);
+		__wt_free(session, ncoll);
+	}
 
 	return (ret);
 }
@@ -359,23 +449,25 @@ err:	if (ncomp != NULL) {
  *	only used internally.
  */
 int
-__wt_conn_remove_compressor(
-    WT_CONNECTION_IMPL *conn, WT_NAMED_COMPRESSOR *ncomp)
+__wt_conn_remove_compressor(WT_CONNECTION_IMPL *conn)
 {
-	WT_SESSION_IMPL *session;
 	WT_DECL_RET;
+	WT_NAMED_COMPRESSOR *ncomp;
+	WT_SESSION_IMPL *session;
 
 	session = conn->default_session;
 
-	/* Call any termination method. */
-	if (ncomp->compressor->terminate != NULL)
-		ret = ncomp->compressor->terminate(
-		    ncomp->compressor, (WT_SESSION *)session);
+	while ((ncomp = TAILQ_FIRST(&conn->compqh)) != NULL) {
+		/* Call any termination method. */
+		if (ncomp->compressor->terminate != NULL)
+			WT_TRET(ncomp->compressor->terminate(
+			    ncomp->compressor, (WT_SESSION *)session));
 
-	/* Remove from the connection's list, free memory. */
-	TAILQ_REMOVE(&conn->compqh, ncomp, q);
-	__wt_free(session, ncomp->name);
-	__wt_free(session, ncomp);
+		/* Remove from the connection's list, free memory. */
+		TAILQ_REMOVE(&conn->compqh, ncomp, q);
+		__wt_free(session, ncomp->name);
+		__wt_free(session, ncomp);
+	}
 
 	return (ret);
 }
@@ -422,23 +514,25 @@ err:	if (ndsrc != NULL) {
  *	Remove data source added by WT_CONNECTION->add_data_source.
  */
 int
-__wt_conn_remove_data_source(
-    WT_CONNECTION_IMPL *conn, WT_NAMED_DATA_SOURCE *ndsrc)
+__wt_conn_remove_data_source(WT_CONNECTION_IMPL *conn)
 {
 	WT_DECL_RET;
+	WT_NAMED_DATA_SOURCE *ndsrc;
 	WT_SESSION_IMPL *session;
 
 	session = conn->default_session;
 
-	/* Call any termination method. */
-	if (ndsrc->dsrc->terminate != NULL)
-		ret =
-		    ndsrc->dsrc->terminate(ndsrc->dsrc, (WT_SESSION *)session);
+	while ((ndsrc = TAILQ_FIRST(&conn->dsrcqh)) != NULL) {
+		/* Call any termination method. */
+		if (ndsrc->dsrc->terminate != NULL)
+			WT_TRET(ndsrc->dsrc->terminate(
+			    ndsrc->dsrc, (WT_SESSION *)session));
 
-	/* Remove from the connection's list, free memory. */
-	TAILQ_REMOVE(&conn->dsrcqh, ndsrc, q);
-	__wt_free(session, ndsrc->prefix);
-	__wt_free(session, ndsrc);
+		/* Remove from the connection's list, free memory. */
+		TAILQ_REMOVE(&conn->dsrcqh, ndsrc, q);
+		__wt_free(session, ndsrc->prefix);
+		__wt_free(session, ndsrc);
+	}
 
 	return (ret);
 }
@@ -464,6 +558,71 @@ __conn_add_extractor(WT_CONNECTION *wt_conn,
 	WT_UNUSED(cfg);
 
 err:	API_END_RET_NOTFOUND_MAP(session, ret);
+}
+
+/*
+ * __conn_add_discard_filter --
+ *	WT_CONNECTION->add_discard_filter method.
+ */
+static int
+__conn_add_discard_filter(WT_CONNECTION *wt_conn,
+    const char *name, WT_DISCARD_FILTER *filter, const char *config)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+	WT_NAMED_DISCARD_FILTER *nfilter;
+	WT_SESSION_IMPL *session;
+
+	nfilter = NULL;
+
+	conn = (WT_CONNECTION_IMPL *)wt_conn;
+	CONNECTION_API_CALL(conn, session, add_discard_filter, config, cfg);
+	WT_UNUSED(cfg);
+
+	WT_ERR(__wt_calloc_def(session, 1, &nfilter));
+	WT_ERR(__wt_strdup(session, name, &nfilter->name));
+	nfilter->filter = filter;
+
+	__wt_spin_lock(session, &conn->api_lock);
+	TAILQ_INSERT_TAIL(&conn->discard_filterqh, nfilter, q);
+	nfilter = NULL;
+	__wt_spin_unlock(session, &conn->api_lock);
+
+err:	if (nfilter != NULL) {
+		__wt_free(session, nfilter->name);
+		__wt_free(session, nfilter);
+	}
+
+	API_END_RET_NOTFOUND_MAP(session, ret);
+}
+
+/*
+ * __wt_conn_remove_discard_filter --
+ *	Remove discard filter added by WT_CONNECTION->add_filter, only used
+ * internally.
+ */
+int
+__wt_conn_remove_discard_filter(WT_CONNECTION_IMPL *conn)
+{
+	WT_DECL_RET;
+	WT_NAMED_DISCARD_FILTER *nfilter;
+	WT_SESSION_IMPL *session;
+
+	session = conn->default_session;
+
+	while ((nfilter = TAILQ_FIRST(&conn->discard_filterqh)) != NULL) {
+		/* Call any termination method. */
+		if (nfilter->filter->terminate != NULL)
+			WT_TRET(nfilter->filter->terminate(
+			    nfilter->filter, (WT_SESSION *)session));
+
+		/* Remove from the connection's list, free memory. */
+		TAILQ_REMOVE(&conn->discard_filterqh, nfilter, q);
+		__wt_free(session, nfilter->name);
+		__wt_free(session, nfilter);
+	}
+
+	return (ret);
 }
 
 /*
@@ -1169,6 +1328,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 		__conn_add_collator,
 		__conn_add_compressor,
 		__conn_add_extractor,
+		__conn_add_discard_filter,
 		__conn_get_extension_api
 	};
 	static const struct {

@@ -34,6 +34,7 @@ each of which is ordered by one or more columns.
 - @subpage statistics
 - @subpage async
 - @subpage shared_cache
+- @subpage discard_filter
 
 <h2>Extending WiredTiger</h2>
 - @subpage custom_data_sources

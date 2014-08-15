@@ -159,7 +159,7 @@ file_config = format_meta + [
 	Config('block_compressor', '', r'''
 	    configure a compressor for file blocks.  Permitted values are
 	    empty (off) or \c "bzip2", \c "snappy" or custom compression
-	    engine \c "name" created with WT_CONNECTION::add_compressor.
+	    engine \c "name" registered with WT_CONNECTION::add_compressor.
 	    See @ref compression for more information'''),
 	Config('cache_resident', 'false', r'''
 	    do not ever evict the object's pages; see @ref
@@ -174,13 +174,18 @@ file_config = format_meta + [
 	    has been corrupted''',
 	    choices=['on', 'off', 'uncompressed']),
 	Config('collator', '', r'''
-	    configure custom collation for keys.  Value must be a collator
-	    name created with WT_CONNECTION::add_collator'''),
+	    configure custom collation for keys; value must be a collator name
+	    registered with WT_CONNECTION::add_collator'''),
 	Config('dictionary', '0', r'''
 	    the maximum number of unique values remembered in the Btree
 	    row-store leaf page value dictionary; see
 	    @ref file_formats_compression for more information''',
 	    min='0'),
+	Config('discard_filter', '', r'''
+	    configure a filter to discard key/value pairs that are no longer
+	    useful; value must be a collator name registered with
+	    WT_CONNECTION::add_discard_filter.  See @ref discard_filter for
+	    more information'''),
 	Config('format', 'btree', r'''
 	    the file format''',
 	    choices=['btree']),
@@ -646,6 +651,7 @@ methods = {
 'connection.add_collator' : Method([]),
 'connection.add_compressor' : Method([]),
 'connection.add_data_source' : Method([]),
+'connection.add_discard_filter' : Method([]),
 'connection.add_extractor' : Method([]),
 'connection.async_new_op' : Method([
 	Config('append', 'false', r'''

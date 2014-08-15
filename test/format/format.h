@@ -156,6 +156,7 @@ typedef struct {
 	char	*c_data_source;
 	uint32_t c_delete_pct;
 	uint32_t c_dictionary;
+	uint32_t c_discard_filter;
 	uint32_t c_firstfit;
 	uint32_t c_hot_backups;
 	char	*c_file_type;

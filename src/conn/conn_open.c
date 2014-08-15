@@ -64,9 +64,6 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	WT_DECL_RET;
 	WT_DLH *dlh;
 	WT_FH *fh;
-	WT_NAMED_COLLATOR *ncoll;
-	WT_NAMED_COMPRESSOR *ncomp;
-	WT_NAMED_DATA_SOURCE *ndsrc;
 	WT_SESSION_IMPL *s, *session;
 	u_int i;
 
@@ -108,17 +105,11 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 		WT_TRET(__wt_logmgr_destroy(conn));
 	}
 
-	/* Free memory for collators */
-	while ((ncoll = TAILQ_FIRST(&conn->collqh)) != NULL)
-		WT_TRET(__wt_conn_remove_collator(conn, ncoll));
-
-	/* Free memory for compressors */
-	while ((ncomp = TAILQ_FIRST(&conn->compqh)) != NULL)
-		WT_TRET(__wt_conn_remove_compressor(conn, ncomp));
-
-	/* Free memory for data sources */
-	while ((ndsrc = TAILQ_FIRST(&conn->dsrcqh)) != NULL)
-		WT_TRET(__wt_conn_remove_data_source(conn, ndsrc));
+	/* Free collators, compressors, data sources, discard filters. */
+	WT_TRET(__wt_conn_remove_collator(conn));
+	WT_TRET(__wt_conn_remove_compressor(conn));
+	WT_TRET(__wt_conn_remove_data_source(conn));
+	WT_TRET(__wt_conn_remove_discard_filter(conn));
 
 	/*
 	 * Complain if files weren't closed, ignoring the lock file, we'll
