@@ -242,17 +242,18 @@ static int my_cursor_insert(WT_CURSOR *wtcursor)
 	}
 
 	{
-	const char *string;
+	const char *discard_key = NULL;
+	uint32_t discard_key_len = 0;
 	/*! [WT_EXTENSION discard filter] */
 	WT_ITEM key;
 	int discard;
 
-	key.data = string;
-	key.size = strlen(string);
+	key.data = discard_key;
+	key.size = discard_key_len;
 
 	ret = wt_api->discard_filter(wt_api, session, &key, &discard);
 	if (discard)
-		printf("key %s should be discarded\n", string);
+		printf("key %s should be discarded\n", discard_key);
 	/*! [WT_EXTENSION discard filter] */
 	}
 
