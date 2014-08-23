@@ -90,7 +90,6 @@ struct __wt_extension_api {
 	 */
 	WT_CONNECTION *conn;		/* Enclosing connection */
 
-	WT_COLLATOR *collator;		/* Collation function */
 					/* Discard filter function */
 	WT_DISCARD_FILTER   *discard_filter_func;
 #endif
@@ -162,18 +161,22 @@ struct __wt_extension_api {
 	 * @param wt_api the extension handle
 	 * @param session the session handle (or NULL if none available)
 	 * @param config the configuration information passed to an application
+	 * @param collatorp the selector collator, if any
+	 * @param ownp set if the collator terminate method should be called
+	 * when no longer needed
 	 * @errors
 	 *
 	 * @snippet ex_data_source.c WT_EXTENSION collator config
 	 */
 	int (*collator_config)(WT_EXTENSION_API *wt_api, WT_SESSION *session,
-	    WT_CONFIG_ARG *config);
+	    WT_CONFIG_ARG *config, WT_COLLATOR **collatorp, int *ownp);
 
 	/*!
 	 * The extension collator method.
 	 *
 	 * @param wt_api the extension handle
 	 * @param session the session handle (or NULL if none available)
+	 * @param collator the collator (or NULL if none available)
 	 * @param first first item
 	 * @param second second item
 	 * @param[out] cmp set less than 0 if \c first collates less than
@@ -184,7 +187,7 @@ struct __wt_extension_api {
 	 * @snippet ex_data_source.c WT_EXTENSION collate
 	 */
 	int (*collate)(WT_EXTENSION_API *wt_api, WT_SESSION *session,
-	    WT_ITEM *first, WT_ITEM *second, int *cmp);
+	    WT_COLLATOR *collator, WT_ITEM *first, WT_ITEM *second, int *cmp);
 
 	/*!
 	 * @copydoc wiredtiger_config_parser_open

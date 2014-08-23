@@ -164,6 +164,14 @@ __wt_btree_close(WT_SESSION_IMPL *session)
 	__wt_free(session, btree->key_format);
 	__wt_free(session, btree->value_format);
 
+	if (btree->collator_owned) {
+		if (btree->collator->terminate != NULL)
+			WT_TRET(btree->collator->terminate(
+			    btree->collator, &session->iface));
+		btree->collator_owned = 0;
+	}
+	btree->collator = NULL;
+
 	btree->bulk_load_ok = 0;
 
 	return (ret);
@@ -221,7 +229,8 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 	 * compression.
 	 */
 	if (btree->type == BTREE_ROW) {
-		WT_RET(__wt_collator_config(session, cfg, &btree->collator));
+		WT_RET(__wt_collator_config(
+		    session, cfg, &btree->collator, &btree->collator_owned));
 
 		WT_RET(__wt_discard_filter_config(
 		    session, cfg, &btree->discard_filter));

@@ -72,6 +72,7 @@ struct __wt_btree {
 	uint8_t bitcnt;			/* Fixed-length field size in bits */
 
 	WT_COLLATOR *collator;		/* Row-store comparator */
+	int collator_owned;		/* The collator needs to be freed */
 
 					/* File object discard filter */
 	WT_DISCARD_FILTER *discard_filter;
