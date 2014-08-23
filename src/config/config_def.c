@@ -436,12 +436,12 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_session_compact
 	},
 	{ "session.create",
-	  "allocation_size=4KB,block_allocation=best,block_compressor=,"
-	  "cache_resident=0,checksum=uncompressed,colgroups=,collator=,"
-	  "columns=,dictionary=0,discard_filter=,exclusive=0,format=btree,"
-	  "huffman_key=,huffman_value=,internal_item_max=0,"
-	  "internal_key_truncate=,internal_page_max=4KB,key_format=u,"
-	  "key_gap=10,leaf_item_max=0,leaf_page_max=32KB,"
+	  "allocation_size=4KB,app_metadata=,block_allocation=best,"
+	  "block_compressor=,cache_resident=0,checksum=uncompressed,"
+	  "colgroups=,collator=,columns=,dictionary=0,discard_filter=,"
+	  "exclusive=0,format=btree,huffman_key=,huffman_value=,"
+	  "internal_item_max=0,internal_key_truncate=,internal_page_max=4KB"
+	  ",key_format=u,key_gap=10,leaf_item_max=0,leaf_page_max=32KB,"
 	  "lsm=(auto_throttle=,bloom=,bloom_bit_count=16,bloom_config=,"
 	  "bloom_hash_count=8,bloom_oldest=0,chunk_max=5GB,chunk_size=10MB,"
 	  "merge_max=15,merge_min=0,merge_threads=2),memory_page_max=5MB,"
