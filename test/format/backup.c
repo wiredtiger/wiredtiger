@@ -28,11 +28,11 @@
 #include "format.h"
 
 /*
- * check_copy --
+ * backup_verify --
  *	Confirm the backup worked.
  */
 static void
-check_copy(void)
+backup_verify(void)
 {
 	WT_CONNECTION *conn;
 	WT_SESSION *session;
@@ -74,84 +74,135 @@ copy_file(const char *name)
 }
 
 /*
- * backup --
- *	Periodically do a backup and verify it.
+ * backup_wait --
+ *	Wait for some number of seconds, return if the run has completed.
  */
-void *
-backup(void *arg)
+static int
+backup_wait(u_int32_t period)
+{
+	/* Sleep for short periods so we don't make the run wait. */
+	for (; period > 0 && !g.workers_finished; --period)
+		sleep(1);
+	return (g.workers_finished);
+}
+
+/*
+ * backup_full --
+ *	Perform a full backup.
+ */
+static void
+backup_full(void)
 {
 	WT_CONNECTION *conn;
 	WT_CURSOR *backup_cursor;
 	WT_SESSION *session;
-	u_int period;
-	int ret;
 	const char *key;
-
-	WT_UNUSED(arg);
+	int ret;
 
 	conn = g.wts_conn;
 
-	/* If backups aren't configured, we're done. */
-	if (!g.c_backups)
-		return (NULL);
-
-	/* Backups aren't supported for non-standard data sources. */
-	if (DATASOURCE("helium") || DATASOURCE("kvsbdb"))
-		return (NULL);
+	/* Lock out named checkpoints */
+	if ((ret = pthread_rwlock_wrlock(&g.backup_lock)) != 0)
+		die(ret, "pthread_rwlock_wrlock: backup lock");
 
 	/* Open a session. */
 	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
 		die(ret, "connection.open_session");
 
 	/*
-	 * Perform a backup at somewhere under 10 seconds (so we get at
-	 * least one done), and then at 45 second intervals.
+	 * WT_SESSION.open_cursor can return EBUSY if a metadata operation is
+	 * currently happening -- retry in that case.
 	 */
-	for (period = MMRAND(1, 10);; period = 45) {
-		/* Sleep for short periods so we don't make the run wait. */
-		while (period > 0 && !g.threads_finished) {
-			--period;
-			sleep(1);
-		}
-		if (g.threads_finished)
-			break;
+	while ((ret = session->open_cursor(
+	    session, "backup:", NULL, NULL, &backup_cursor)) == EBUSY)
+		if (backup_wait(1))
+			goto quit;
+	if (ret != 0)
+		die(ret, "session.open_cursor: backup");
 
-		/* Lock out named checkpoints */
-		if ((ret = pthread_rwlock_wrlock(&g.backup_lock)) != 0)
-			die(ret, "pthread_rwlock_wrlock: backup lock");
-
-		/* Re-create the backup directory. */
-		if ((ret = system(g.home_backup_init)) != 0)
-			die(ret, "backup directory creation failed");
-
-		/*
-		 * open_cursor can return EBUSY if a metadata operation is
-		 * currently happening - retry in that case.
-		 */
-		while ((ret = session->open_cursor(session,
-		    "backup:", NULL, NULL, &backup_cursor)) == EBUSY)
-			sleep(1);
-		if (ret != 0)
-			die(ret, "session.open_cursor: backup");
-
-		while ((ret = backup_cursor->next(backup_cursor)) == 0) {
-			if ((ret =
-			    backup_cursor->get_key(backup_cursor, &key)) != 0)
-				die(ret, "cursor.get_key");
-			copy_file(key);
-		}
-
-		if ((ret = backup_cursor->close(backup_cursor)) != 0)
-			die(ret, "cursor.close");
-
-		if ((ret = pthread_rwlock_unlock(&g.backup_lock)) != 0)
-			die(ret, "pthread_rwlock_unlock: backup lock");
-
-		check_copy();
+	while ((ret = backup_cursor->next(backup_cursor)) == 0) {
+		if ((ret = backup_cursor->get_key(backup_cursor, &key)) != 0)
+			die(ret, "cursor.get_key");
+		copy_file(key);
 	}
+	if (ret != WT_NOTFOUND)
+		die(ret, "cursor.next");
 
+	if ((ret = backup_cursor->close(backup_cursor)) != 0)
+		die(ret, "cursor.close");
+
+quit:
 	if ((ret = session->close(session, NULL)) != 0)
 		die(ret, "session.close");
+
+	if ((ret = pthread_rwlock_unlock(&g.backup_lock)) != 0)
+		die(ret, "pthread_rwlock_unlock: backup lock");
+}
+
+/*
+ * backup_incremental --
+ *	Perform an incremental backup.
+ */
+static void
+backup_incremental(void)
+{
+	WT_CONNECTION *conn;
+	WT_SESSION *session;
+	int ret;
+
+	conn = g.wts_conn;
+
+	/*
+	 * Command #1, create a list of log files and copy all of them to the
+	 * backup directory.
+	 */
+	if ((ret = system(g.home_backup_incr1)) != 0)
+		die(ret, "incremental backup failed");
+
+	/* Open a session and checkpoint the database. */
+	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
+		die(ret, "connection.open_session");
+	if ((ret = session->checkpoint(session, NULL)) != 0)
+		die(ret, "session.checkpoint");
+	if ((ret = session->close(session, NULL)) != 0)
+		die(ret, "session.close");
+
+	/*
+	 * Command #2, remove all but the most recent log file of the copied
+	 * list from the home directory.
+	 */
+	if ((ret = system(g.home_backup_incr2)) != 0)
+		die(ret, "incremental backup failed");
+}
+
+/*
+ * backup --
+ *	Do a full backup and then periodic incremental backups.
+ */
+void *
+backup(void *arg)
+{
+	int ret;
+
+	WT_UNUSED(arg);
+
+	/* Create the backup directory. */
+	if ((ret = system(g.home_backup_init)) != 0)
+		die(ret, "backup directory creation failed");
+
+	/* Wait for the worker threads to get something done. */
+	if (backup_wait(MMRAND(20, 30)))
+		return (NULL);
+
+	/* Do a full backup. */
+	backup_full();
+
+	/* Do periodic incremental backups. */ 
+	while (!backup_wait(MMRAND(20, 30)))
+		backup_incremental();
+
+	/* Open the backup and run recovery and verify. */
+	backup_verify();
 
 	return (NULL);
 }

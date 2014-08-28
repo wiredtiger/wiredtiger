@@ -199,10 +199,20 @@ track(const char *tag, uint64_t cnt, TINFO *tinfo)
 		    msg, sizeof(msg), "%4d: %s: %" PRIu64, g.run_cnt, tag, cnt);
 	else
 		len = snprintf(msg, sizeof(msg),
-		    "%4d: %s: " "search %" PRIu64
-		    ", insert %" PRIu64 ", update %" PRIu64 ", remove %" PRIu64,
+		    "%4d: %s: "
+		    "search %" PRIu64 "%s, "
+		    "insert %" PRIu64 "%s, "
+		    "update %" PRIu64 "%s, "
+		    "remove %" PRIu64 "%s",
 		    g.run_cnt, tag,
-		    tinfo->search, tinfo->insert, tinfo->update, tinfo->remove);
+		    tinfo->search > M(9) ? tinfo->search / M(1) : tinfo->search,
+		    tinfo->search > M(9) ? "M" : "",
+		    tinfo->insert > M(9) ? tinfo->insert / M(1) : tinfo->insert,
+		    tinfo->insert > M(9) ? "M" : "",
+		    tinfo->update > M(9) ? tinfo->update / M(1) : tinfo->update,
+		    tinfo->update > M(9) ? "M" : "",
+		    tinfo->remove > M(9) ? tinfo->remove / M(1) : tinfo->remove,
+		    tinfo->remove > M(9) ? "M" : "");
 
 	if (lastlen > len) {
 		memset(msg + len, ' ', (size_t)(lastlen - len));
@@ -253,7 +263,7 @@ path_setup(const char *home)
 		die(errno, "malloc");
 	snprintf(g.home_stats, len, "%s/%s", g.home, "stats");
 
-	/* Backup directory. */
+	/* Hot-backup directory. */
 	len = strlen(g.home) + strlen("BACKUP") + 2;
 	if ((g.home_backup = malloc(len)) == NULL)
 		die(errno, "malloc");
@@ -276,7 +286,8 @@ path_setup(const char *home)
 	 * log file.
 	 */
 #undef	CMD
-#define	CMD	"cd %s && rm -rf `ls | sed /rand/d`"
+#define	CMD								\
+	"cd %s && rm -rf `ls | sed /rand/d`"
 	len = strlen(g.home) + strlen(CMD) + 1;
 	if ((g.home_init = malloc(len)) == NULL)
 		die(errno, "malloc");
@@ -284,11 +295,31 @@ path_setup(const char *home)
 
 	/* Backup directory initialize command, remove and re-create it. */
 #undef	CMD
-#define	CMD	"rm -rf %s && mkdir %s"
+#define	CMD								\
+	"rm -rf %s && mkdir %s"
 	len = strlen(g.home_backup) * 2 + strlen(CMD) + 1;
 	if ((g.home_backup_init = malloc(len)) == NULL)
 		die(errno, "malloc");
 	snprintf(g.home_backup_init, len, CMD, g.home_backup, g.home_backup);
+
+	/* Incremental backup commands. */
+#undef	CMD
+#define	CMD								\
+	"ls %s/WiredTigerLog.* > %s/backup.incr.list && "		\
+	"cp `cat %s/backup.incr.list` %s/"
+	len = strlen(g.home) * 3 + strlen(g.home_backup) + strlen(CMD) + 1;
+	if ((g.home_backup_incr1 = malloc(len)) == NULL)
+		die(errno, "malloc");
+	snprintf(g.home_backup_incr1, len,
+	    CMD, g.home, g.home, g.home, g.home_backup);
+
+#undef	CMD
+#define	CMD								\
+	"rm -f `sed '$d' %s/backup.incr.list`"
+	len = strlen(g.home) + strlen(CMD) + 1;
+	if ((g.home_backup_incr2 = malloc(len)) == NULL)
+		die(errno, "malloc");
+	snprintf(g.home_backup_incr2, len, CMD, g.home);
 
 	/*
 	 * Salvage command, save the interesting files so we can replay the
@@ -298,7 +329,7 @@ path_setup(const char *home)
 #define	CMD								\
 	"cd %s && "							\
 	"rm -rf slvg.copy && mkdir slvg.copy && "			\
-	"cp WiredTiger* wt* slvg.copy/"
+	"cp WiredTiger.* wt* slvg.copy/"
 	len = strlen(g.home) + strlen(CMD) + 1;
 	if ((g.home_salvage_copy = malloc(len)) == NULL)
 		die(errno, "malloc");

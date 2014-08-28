@@ -142,9 +142,9 @@ static CONFIG c[] = {
 	  "type of store to create (fix | var | row)",
 	  C_IGNORE|C_STRING, 1, 3, 3, NULL, &g.c_file_type },
 
-	{ "backups",
-	  "if backups are enabled",				/* 5% */
-	  C_BOOL, 5, 0, 0, &g.c_backups, NULL },
+	{ "backup",
+	  "if backup/recovery testing is enabled",
+	  C_IGNORE|C_BOOL, 0, 0, 0, &g.c_backup, NULL },
 
 	{ "huffman_key",
 	  "if keys are huffman encoded",			/* 20% */
@@ -246,6 +246,10 @@ static CONFIG c[] = {
 	{ "threads",
 	  "the number of threads",
 	  C_IGNORE, 1, 32, 128, &g.c_threads, NULL },
+
+	{ "timer",
+	  "time to run in minutes",
+	  C_IGNORE, 0, UINT_MAX, UINT_MAX, &g.c_timer, NULL },
 
 	{ "value_max",
 	  "maximum size of values",

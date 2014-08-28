@@ -85,11 +85,15 @@ extern WT_EXTENSION_API *wt_api;
 #define	DATASOURCE(v)	(strcmp(v, g.c_data_source) == 0 ? 1 : 0)
 #define	SINGLETHREADED	(g.c_threads == 1)
 
+#define	FORMAT_OPERATION_REPS	3		/* 3 thread operations sets */
+
 typedef struct {
 	char *progname;				/* Program name */
 
 	char *home;				/* Home directory */
-	char *home_backup;			/* Hot-backup directory */
+	char *home_backup;			/* Backup directory */
+	char *home_backup_incr1;		/* Incremental backup command */
+	char *home_backup_incr2;		/* Incremental backup command */
 	char *home_backup_init;			/* Initialize backup command */
 	char *home_bdb;				/* BDB directory */
 	char *home_config;			/* Run CONFIG file path */
@@ -121,9 +125,10 @@ typedef struct {
 
 	int replay;				/* Replaying a run. */
 	int track;				/* Track progress */
-	int threads_finished;			/* Operations completed */
+	int workers_finished;                   /* Operations completed */
 
-	pthread_rwlock_t backup_lock;		/* Hot backup running */
+	/* Backup and named checkpoints have to be serialized. */
+	pthread_rwlock_t backup_lock;
 
 	/*
 	 * We have a list of records that are appended, but not yet "resolved",
@@ -140,7 +145,7 @@ typedef struct {
 	char *config_open;			/* Command-line configuration */
 
 	uint32_t c_auto_throttle;		/* Config values */
-	uint32_t c_backups;
+	uint32_t c_backup;
 	uint32_t c_bitcnt;
 	uint32_t c_bloom;
 	uint32_t c_bloom_bit_count;
@@ -185,6 +190,7 @@ typedef struct {
 	uint32_t c_split_pct;
 	uint32_t c_statistics;
 	uint32_t c_threads;
+	uint32_t c_timer;
 	uint32_t c_value_max;
 	uint32_t c_value_min;
 	uint32_t c_write_pct;
@@ -225,6 +231,7 @@ typedef struct {
 	uint64_t insert;
 	uint64_t update;
 	uint64_t remove;
+	uint64_t ops;				/* total */
 
 	uint64_t commit;			/* transaction resolution */
 	uint64_t rollback;
@@ -233,11 +240,13 @@ typedef struct {
 	int       id;				/* simple thread ID */
 	pthread_t tid;				/* thread ID */
 
+	int	  quit;				/* thread should quit */
+
 #define	TINFO_RUNNING	1			/* Running */
 #define	TINFO_COMPLETE	2			/* Finished */
 #define	TINFO_JOINED	3			/* Resolved */
 	volatile int state;			/* state */
-} TINFO;
+} TINFO WT_GCC_ATTRIBUTE((aligned(64)));
 
 void	 bdb_close(void);
 void	 bdb_insert(const void *, size_t, const void *, size_t);
