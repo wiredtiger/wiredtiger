@@ -361,8 +361,10 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
 		 * configured, else we may be relying on compression.  If the
 		 * read fails, simply move to the next potential block.
 		 */
-		if (__wt_bt_read(session, buf, addr, addr_size) != 0)
+		if (__wt_bt_read(session, buf, addr, addr_size) != 0) {
+			WT_ERR(bm->free(bm, session, addr, addr_size));
 			continue;
+		}
 
 		/* Tell the block manager we're taking this one. */
 		WT_ERR(bm->salvage_valid(bm, session, addr, addr_size));
@@ -1326,8 +1328,8 @@ __slvg_col_merge_ovfl(WT_SESSION_IMPL *session,
 	uint32_t i;
 
 	/*
-	 * We're merging a row-store page, and we took some number of records,
-	 * figure out which (if any) overflow records we used.
+	 * Merging a variable-length column-store page, and we took some number
+	 * of records, figure out which (if any) overflow records we used.
 	 */
 	recno = page->pg_var_recno;
 	start = recno + skip;
@@ -1338,11 +1340,24 @@ __slvg_col_merge_ovfl(WT_SESSION_IMPL *session,
 		__wt_cell_unpack(cell, &unpack);
 		recno += __wt_cell_rle(&unpack);
 
-		if (unpack.type != WT_CELL_VALUE_OVFL)
-			continue;
-		if (recno >= start && recno <= stop)
-			continue;
-		WT_RET(__slvg_col_merge_ovfl_single(session, trk, &unpack));
+		/*
+		 * I keep getting this calculation wrong, so here's the logic.
+		 * Start is the first record we want, stop is the last record
+		 * we want. The record number has already been incremented one
+		 * past the maximum record number for this page entry, that is,
+		 * it's set to the first record number for the next page entry.
+		 * The test of start should be greater-than (not greater-than-
+		 * or-equal), because of that increment, if the record number
+		 * equals start, we want the next record, not this one.  The
+		 * test against stop is greater-than, not greater-than-or-equal
+		 * because stop is the last record wanted, if the record number
+		 * equals stop, we want the next record.
+		 */
+		if (recno > start && unpack.type == WT_CELL_VALUE_OVFL)
+			WT_RET(__slvg_col_merge_ovfl_single(
+			    session, trk, &unpack));
+		if (recno > stop)
+			break;
 	}
 	return (0);
 }

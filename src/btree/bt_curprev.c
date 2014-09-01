@@ -67,6 +67,7 @@ restart:
 	 * and the exit conditions to end up with the right values are
 	 * non-trivial.
 	 */
+	ins = NULL;			/* -Wconditional-uninitialized */
 	for (i = 0; i < WT_SKIP_MAXDEPTH - 1; i++)
 		if ((ins = PREV_INS(cbt, i + 1)) != current)
 			break;
