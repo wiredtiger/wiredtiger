@@ -51,8 +51,9 @@ wts_ops(void)
 	WT_CONNECTION *conn;
 	WT_SESSION *session;
 	pthread_t backup_tid, compact_tid;
+	uint64_t thread_ops;
+	uint32_t i, tenths;
 	int ret, running;
-	uint32_t i;
 
 	conn = g.wts_conn;
 
@@ -62,6 +63,21 @@ wts_ops(void)
 	 */
 	if (!SINGLETHREADED)
 		g.rand_log_stop = 1;
+
+	/*
+	 * There are two mechanisms to specify the length of the run, a number
+	 * of operations or a timer.  If the former, each thread does an equal
+	 * share of the total operations (and make sure that it's not 0).  If
+	 * the latter, calculate how many tenth-of-a-second sleeps until this
+	 * part of the run finishes.
+	 */
+	if (g.c_timer == 0) {
+		tenths = 0;
+		thread_ops = 100 + g.c_ops / g.c_threads;
+	} else {
+		tenths = (g.c_timer * 10 * 60) / FORMAT_OPERATION_REPS;
+		thread_ops = 0;
+	}
 
 	/* Initialize the table extension code. */
 	table_append_init();
@@ -74,72 +90,74 @@ wts_ops(void)
 		    "=============== thread ops start ===============");
 	}
 
-	if (SINGLETHREADED) {
-		memset(&total, 0, sizeof(total));
-		total.id = 1;
-		(void)ops(&total);
-	} else {
-		g.threads_finished = 0;
-
-		/*
-		 * Create thread structure; start worker, backup, compaction
-		 * threads.
-		 */
-		if ((tinfo =
-		    calloc((size_t)g.c_threads, sizeof(*tinfo))) == NULL)
-			die(errno, "calloc");
-		for (i = 0; i < g.c_threads; ++i) {
-			tinfo[i].id = (int)i + 1;
-			tinfo[i].state = TINFO_RUNNING;
-			if ((ret = pthread_create(
-			    &tinfo[i].tid, NULL, ops, &tinfo[i])) != 0)
-				die(ret, "pthread_create");
-		}
+	/* Create the per-thread structures, start the worker threads. */
+	if ((tinfo = calloc((size_t)g.c_threads, sizeof(*tinfo))) == NULL)
+		die(errno, "calloc");
+	for (i = 0; i < g.c_threads; ++i) {
+		tinfo[i].id = (int)i + 1;
+		tinfo[i].state = TINFO_RUNNING;
 		if ((ret =
-		    pthread_create(&backup_tid, NULL, backup, NULL)) != 0)
+		    pthread_create(&tinfo[i].tid, NULL, ops, &tinfo[i])) != 0)
 			die(ret, "pthread_create");
-		if (g.c_compact && (ret =
-		    pthread_create(&compact_tid, NULL, compact, NULL)) != 0)
-			die(ret, "pthread_create");
-
-		/* Wait for the threads. */
-		for (;;) {
-			total.commit = total.deadlock = total.insert =
-			    total.remove = total.rollback = total.search =
-			    total.update = 0;
-			for (i = 0, running = 0; i < g.c_threads; ++i) {
-				total.commit += tinfo[i].commit;
-				total.deadlock += tinfo[i].deadlock;
-				total.insert += tinfo[i].insert;
-				total.remove += tinfo[i].remove;
-				total.rollback += tinfo[i].rollback;
-				total.search += tinfo[i].search;
-				total.update += tinfo[i].update;
-				switch (tinfo[i].state) {
-				case TINFO_RUNNING:
-					running = 1;
-					break;
-				case TINFO_COMPLETE:
-					tinfo[i].state = TINFO_JOINED;
-					(void)pthread_join(tinfo[i].tid, NULL);
-					break;
-				case TINFO_JOINED:
-					break;
-				}
-			}
-			track("ops", 0ULL, &total);
-			if (!running)
-				break;
-			(void)usleep(100000);		/* 1/10th of a second */
-		}
-		free(tinfo);
-
-		/* Wait for the backup, compaction thread. */
-		g.threads_finished = 1;
-		(void)pthread_join(backup_tid, NULL);
-		if (g.c_compact)
-			(void)pthread_join(compact_tid, NULL);
 	}
+
+	/* If a multi-threaded run, start worker, backup, compaction threads. */
+	g.workers_finished = 0;
+	if (g.c_backup &&
+	    (ret = pthread_create(&backup_tid, NULL, backup, NULL)) != 0)
+		die(ret, "pthread_create: backup");
+	if (g.c_compact &&
+	    (ret = pthread_create(&compact_tid, NULL, compact, NULL)) != 0)
+		die(ret, "pthread_create: compact");
+
+	/* Spin on the threads, calculating the totals. */
+	memset(&total, 0, sizeof(total));
+	for (;;) {
+		for (i = 0, running = 0; i < g.c_threads; ++i) {
+			total.commit += tinfo[i].commit;
+			total.deadlock += tinfo[i].deadlock;
+			total.insert += tinfo[i].insert;
+			total.remove += tinfo[i].remove;
+			total.rollback += tinfo[i].rollback;
+			total.search += tinfo[i].search;
+			total.update += tinfo[i].update;
+
+			switch (tinfo[i].state) {
+			case TINFO_RUNNING:
+				running = 1;
+				break;
+			case TINFO_COMPLETE:
+				tinfo[i].state = TINFO_JOINED;
+				(void)pthread_join(tinfo[i].tid, NULL);
+				break;
+			case TINFO_JOINED:
+				break;
+			}
+
+			/* Tell the thread if it's done. */
+			if (thread_ops == 0) {
+				if (tenths == 0)
+					tinfo[i].quit = 1;
+			} else
+				if (tinfo[i].ops >= thread_ops)
+					tinfo[i].quit = 1;
+		}
+		track("ops", 0ULL, &total);
+		if (!running)
+			break;
+
+		(void)usleep(100000);		/* 1/10th of a second */
+		if (tenths != 0)
+			--tenths;
+	}
+	free(tinfo);
+
+	/* Wait for the backup, compaction thread. */
+	g.workers_finished = 1;
+	if (g.c_backup)
+		(void)pthread_join(backup_tid, NULL);
+	if (g.c_compact)
+		(void)pthread_join(compact_tid, NULL);
 
 	if (g.logging != 0) {
 		(void)g.wt_api->msg_printf(g.wt_api, session,
@@ -182,7 +200,7 @@ ops(void *arg)
 	WT_CURSOR *cursor, *cursor_insert;
 	WT_SESSION *session;
 	WT_ITEM key, value;
-	uint64_t cnt, keyno, ckpt_op, session_op, thread_ops;
+	uint64_t keyno, ckpt_op, session_op;
 	uint32_t op;
 	uint8_t *keybuf, *valbuf;
 	u_int np;
@@ -199,24 +217,15 @@ ops(void *arg)
 	val_gen_setup(&valbuf);
 
 	/*
-	 * Each thread does its share of the total operations, and make sure
-	 * that it's not 0 (testing runs: threads might be larger than ops).
-	 */
-	thread_ops = 100 + g.c_ops / g.c_threads;
-
-	/*
 	 * Select the first operation where we'll create sessions and cursors,
 	 * perform checkpoint operations.
 	 */
-	ckpt_op = g.c_checkpoints ? MMRAND(1, thread_ops) : 0;
 	session_op = 0;
+	ckpt_op = g.c_checkpoints ? MMRAND(100, 10000) : 0;
 
 	session = NULL;
 	cursor = cursor_insert = NULL;
-	for (intxn = 0, cnt = 0; cnt < thread_ops; ++cnt) {
-		if (SINGLETHREADED && cnt % 100 == 0)
-			track("ops", 0ULL, tinfo);
-
+	for (intxn = 0; !tinfo->quit; ++tinfo->ops) {
 		/*
 		 * We can't checkpoint or swap sessions/cursors while in a
 		 * transaction, resolve any running transaction.
@@ -224,7 +233,7 @@ ops(void *arg)
 		 * Reset the cursor regardless: we may block waiting for a lock
 		 * and there is no reason to keep pages pinned.
 		 */
-		if (cnt == ckpt_op || cnt == session_op) {
+		if (tinfo->ops == ckpt_op || tinfo->ops == session_op) {
 			if (intxn) {
 				if ((ret = session->commit_transaction(
 				    session, NULL)) != 0)
@@ -238,7 +247,8 @@ ops(void *arg)
 		}
 
 		/* Open up a new session and cursors. */
-		if (cnt == session_op || session == NULL || cursor == NULL) {
+		if (tinfo->ops == session_op ||
+		    session == NULL || cursor == NULL) {
 			if (session != NULL &&
 			    (ret = session->close(session, NULL)) != 0)
 				die(ret, "session.close");
@@ -269,12 +279,11 @@ ops(void *arg)
 				die(ret, "session.open_cursor");
 
 			/* Pick the next session/cursor close/open. */
-			session_op += SINGLETHREADED ?
-			    MMRAND(1, thread_ops) : 100 * MMRAND(1, 50);
+			session_op += 100 * MMRAND(1, 50);
 		}
 
 		/* Checkpoint the database. */
-		if (cnt == ckpt_op && g.c_checkpoints) {
+		if (tinfo->ops == ckpt_op && g.c_checkpoints) {
 			/*
 			 * LSM and data-sources don't support named checkpoints,
 			 * else 25% of the time we name the checkpoint.
@@ -306,10 +315,9 @@ ops(void *arg)
 				    "pthread_rwlock_wrlock: backup lock");
 
 			/*
-			 * Pick the next checkpoint operation, try for roughly
-			 * five checkpoint operations per thread run.
+			 * Pick the next checkpoint operation.
 			 */
-			ckpt_op += MMRAND(1, thread_ops) / 5;
+			ckpt_op += 1000 * MMRAND(5, 20);
 		}
 
 		/*

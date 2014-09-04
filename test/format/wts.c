@@ -93,7 +93,7 @@ wts_open(const char *home, int set_api, WT_CONNECTION **connp)
 	    "create,"
 	    "checkpoint_sync=false,cache_size=%" PRIu32 "MB,"
 	    "buffer_alignment=512,error_prefix=\"%s\","
-	    "%s,%s,%s,%s,%s"
+	    "%s,%s,%s,%s,%s,%s"
 	    "extensions="
 	    "[\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\"],"
 	    "%s,%s",
@@ -103,6 +103,7 @@ wts_open(const char *home, int set_api, WT_CONNECTION **connp)
 	    g.c_logging ? "log=(enabled=true)" : "",
 	    g.c_mmap ? "mmap=true" : "mmap=false",
 	    g.c_statistics ? "statistics=(fast)" : "statistics=(none)",
+	    g.c_backup ? "log=(archive=false)" : "",
 	    evict_config,
 	    g.c_reverse ? REVERSE_PATH : "",
 	    access(BZIP_PATH, R_OK) == 0 ? BZIP_PATH : "",
@@ -113,15 +114,6 @@ wts_open(const char *home, int set_api, WT_CONNECTION **connp)
 	    g.c_config_open == NULL ? "" : g.c_config_open,
 	    g.config_open == NULL ? "" : g.config_open) >= (int)sizeof(config))
 		die(ENOMEM, "configuration buffer too small");
-
-	/*
-	 * Direct I/O may not work with backups, doing copies through the buffer
-	 * cache after configuring direct I/O in Linux won't work.  If direct
-	 * I/O is configured, turn off backups.   This isn't a great place to do
-	 * this check, but it's only here we have the configuration string.
-	 */
-	if (strstr(config, "direct_io") != NULL)
-		g.c_backups = 0;
 
 	if ((ret = wiredtiger_open(home, &event_handler, config, &conn)) != 0)
 		die(ret, "wiredtiger_open: %s", home);

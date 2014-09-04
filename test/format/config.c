@@ -28,6 +28,8 @@
 #include "format.h"
 #include "config.h"
 
+static void	   config_backup(void);
+static void	   config_compact(void);
 static void	   config_checksum(void);
 static void	   config_compression(void);
 static const char *config_file_type(u_int);
@@ -137,6 +139,8 @@ config_setup(void)
 	if (DATASOURCE("helium") || DATASOURCE("kvsbdb"))
 		g.c_reverse = 0;
 
+	config_backup();
+	config_compact();
 	config_checksum();
 	config_compression();
 	config_isolation();
@@ -200,6 +204,53 @@ config_setup(void)
 }
 
 /*
+ * config_backup --
+ *	Backup configuration.
+ */
+static void
+config_backup(void)
+{
+	CONFIG *cp;
+
+	/*
+	 * If no backup configuration was specified, and logging is configured,
+	 * turn on backups.
+	 */
+	cp = config_find("backup", strlen("backup"));
+	if (cp->flags & C_PERM) {
+		if (!g.c_logging)
+			die(EINVAL,
+			    "backup requires logging also be configured");
+	} else
+		g.c_backup = g.c_logging;
+
+	/* By default, don't do backups when running single-threaded. */
+	if (!(cp->flags & C_PERM) && SINGLETHREADED)
+		g.c_backup = 0;
+
+	/* Non-standard data sources don't yet support backup. */
+	if (cp->flags & C_PERM) {
+		if (DATASOURCE("helium") || DATASOURCE("kvsbdb"))
+			die(EINVAL,
+			    "backup not supported by %s data sources",
+			    g.c_data_source);
+	} else
+		if (DATASOURCE("helium") || DATASOURCE("kvsbdb"))
+			g.c_backup = 0;
+
+	/*
+	 * Direct I/O may not work with backups, doing copies through the buffer
+	 * cache after configuring direct I/O in Linux won't work.  If direct
+	 * I/O was configured, turn off backups.
+	 */
+	if ((g.config_open != NULL &&
+	    strstr(g.config_open, "direct_io") != NULL) ||
+	    (g.c_config_open != NULL &&
+	    strstr(g.c_config_open, "direct_io") != NULL))
+		g.c_backup = 0;
+}
+
+/*
  * config_checksum --
  *	Checksum configuration.
  */
@@ -222,6 +273,21 @@ config_checksum(void)
 			config_single("checksum=uncompressed", 0);
 			break;
 		}
+}
+
+/*
+ * config_compact --
+ *	Compaction configuration.
+ */
+static void
+config_compact(void)
+{
+	CONFIG *cp;
+
+	/* By default, don't do compaction when running single-threaded. */
+	cp = config_find("compaction", strlen("compaction"));
+	if (!(cp->flags & C_PERM) && SINGLETHREADED)
+		g.c_compact = 0;
 }
 
 /*
