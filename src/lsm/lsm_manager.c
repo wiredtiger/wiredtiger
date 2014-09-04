@@ -15,7 +15,8 @@ static void * __lsm_worker_manager(void *);
 
 /*
  * __wt_lsm_manager_start --
- *	Start the LSM management infrastructure.
+ *	Start the LSM management infrastructure. Our queues and locks were
+ *	initialized when the connection was initialized.
  */
 int
 __wt_lsm_manager_start(WT_SESSION_IMPL *session)
@@ -102,55 +103,58 @@ __wt_lsm_manager_destroy(WT_CONNECTION_IMPL *conn)
 	manager = &conn->lsm_manager;
 	removed = 0;
 
-	if (manager->lsm_worker_cookies == NULL)
-		return (0);
+	if (manager->lsm_worker_cookies != NULL) {
+		/* Wait for the server to notice and wrap up. */
+		while (F_ISSET(conn, WT_CONN_SERVER_LSM))
+			__wt_yield();
 
-	/* Wait for the server to notice and wrap up. */
-	while (F_ISSET(conn, WT_CONN_SERVER_LSM))
-		__wt_yield();
+		/* Clean up open LSM handles. */
+		ret = __wt_lsm_tree_close_all(conn->default_session);
 
-	/* Clean up open LSM handles. */
-	ret = __wt_lsm_tree_close_all(conn->default_session);
+		WT_TRET(__wt_thread_join(
+		    session, manager->lsm_worker_cookies[0].tid));
+		manager->lsm_worker_cookies[0].tid = 0;
 
-	WT_TRET(__wt_thread_join(session, manager->lsm_worker_cookies[0].tid));
-	manager->lsm_worker_cookies[0].tid = 0;
+		/* Release memory from any operations left on the queue. */
+		for (current = TAILQ_FIRST(&manager->switchqh);
+		    current != NULL; current = next) {
+			next = TAILQ_NEXT(current, q);
+			TAILQ_REMOVE(&manager->switchqh, current, q);
+			++removed;
+			__wt_lsm_manager_free_work_unit(session, current);
+		}
+		for (current = TAILQ_FIRST(&manager->appqh);
+		    current != NULL; current = next) {
+			next = TAILQ_NEXT(current, q);
+			TAILQ_REMOVE(&manager->appqh, current, q);
+			++removed;
+			__wt_lsm_manager_free_work_unit(session, current);
+		}
+		for (current = TAILQ_FIRST(&manager->managerqh);
+		    current != NULL; current = next) {
+			next = TAILQ_NEXT(current, q);
+			TAILQ_REMOVE(&manager->managerqh, current, q);
+			++removed;
+			__wt_lsm_manager_free_work_unit(session, current);
+		}
 
-	/* Release memory from any operations left on the queue. */
-	for (current = TAILQ_FIRST(&manager->switchqh);
-	    current != NULL; current = next) {
-		next = TAILQ_NEXT(current, q);
-		TAILQ_REMOVE(&manager->switchqh, current, q);
-		++removed;
-		__wt_lsm_manager_free_work_unit(session, current);
+		/* Close all LSM worker sessions. */
+		for (i = 0; i < manager->lsm_workers_max; i++) {
+			wt_session =
+			    &manager->lsm_worker_cookies[i].session->iface;
+			WT_TRET(wt_session->close(wt_session, NULL));
+		}
+
+		WT_STAT_FAST_CONN_INCRV(session,
+		    lsm_work_units_discarded, removed);
+		__wt_free(session, manager->lsm_worker_cookies);
 	}
-	for (current = TAILQ_FIRST(&manager->appqh);
-	    current != NULL; current = next) {
-		next = TAILQ_NEXT(current, q);
-		TAILQ_REMOVE(&manager->appqh, current, q);
-		++removed;
-		__wt_lsm_manager_free_work_unit(session, current);
-	}
-	for (current = TAILQ_FIRST(&manager->managerqh);
-	    current != NULL; current = next) {
-		next = TAILQ_NEXT(current, q);
-		TAILQ_REMOVE(&manager->managerqh, current, q);
-		++removed;
-		__wt_lsm_manager_free_work_unit(session, current);
-	}
 
-	/* Close all LSM worker sessions. */
-	for (i = 0; i < manager->lsm_workers_max; i++) {
-		wt_session = &manager->lsm_worker_cookies[i].session->iface;
-		WT_TRET(wt_session->close(wt_session, NULL));
-	}
-
-	WT_STAT_FAST_CONN_INCRV(session, lsm_work_units_discarded, removed);
-
+	/* Free resources that are allocated in connection initialize */
 	__wt_spin_destroy(session, &manager->switch_lock);
 	__wt_spin_destroy(session, &manager->app_lock);
 	__wt_spin_destroy(session, &manager->manager_lock);
-
-	__wt_free(session, manager->lsm_worker_cookies);
+	WT_TRET(__wt_cond_destroy(session, &manager->work_cond));
 
 	return (ret);
 }
@@ -205,17 +209,10 @@ __lsm_manager_worker_setup(WT_SESSION_IMPL *session)
 
 	WT_ASSERT(session, manager->lsm_workers == 1);
 
-	/* Setup the spin locks for the queues. */
-	WT_RET(__wt_spin_init(
-	    session, &manager->app_lock, "LSM application queue lock"));
-	WT_RET(__wt_spin_init(
-	    session, &manager->manager_lock, "LSM manager queue lock"));
-	WT_RET(__wt_spin_init(
-	    session, &manager->switch_lock, "LSM switch queue lock"));
-
 	worker_args = &manager->lsm_worker_cookies[1];
+	worker_args->work_cond = manager->work_cond;
 	worker_args->id = manager->lsm_workers++;
-	worker_args->flags = WT_LSM_WORK_SWITCH;
+	worker_args->flags = WT_LSM_WORK_SWITCH | WT_LSM_WORK_DROP;
 	/* Start the switch thread. */
 	WT_RET(__wt_lsm_worker_start(session, worker_args));
 
@@ -229,6 +226,7 @@ __lsm_manager_worker_setup(WT_SESSION_IMPL *session)
 		/* Freed by the worker thread when it shuts down */
 		worker_args =
 		    &manager->lsm_worker_cookies[manager->lsm_workers];
+		worker_args->work_cond = manager->work_cond;
 		worker_args->id = manager->lsm_workers;
 		worker_args->flags =
 		    WT_LSM_WORK_BLOOM |
@@ -267,6 +265,7 @@ __lsm_manager_worker_shutdown(WT_SESSION_IMPL *session)
 	 */
 	for (i = 1; i < manager->lsm_workers; i++) {
 		WT_ASSERT(session, manager->lsm_worker_cookies[i].tid != 0);
+		WT_TRET(__wt_cond_signal(session, manager->work_cond));
 		WT_TRET(__wt_thread_join(
 		    session, manager->lsm_worker_cookies[i].tid));
 	}
@@ -326,16 +325,13 @@ __lsm_manager_run_server(WT_SESSION_IMPL *session)
 				WT_RET(__wt_lsm_manager_push_entry(
 				    session, WT_LSM_WORK_SWITCH, lsm_tree));
 				WT_RET(__wt_lsm_manager_push_entry(
+				    session, WT_LSM_WORK_DROP, lsm_tree));
+				WT_RET(__wt_lsm_manager_push_entry(
 				    session, WT_LSM_WORK_FLUSH, lsm_tree));
 				WT_RET(__wt_lsm_manager_push_entry(
 				    session, WT_LSM_WORK_BLOOM, lsm_tree));
 				WT_RET(__wt_lsm_manager_push_entry(
 				    session, WT_LSM_WORK_MERGE, lsm_tree));
-			}
-			if (lsm_tree->queue_ref == 0 &&
-			    lsm_tree->nold_chunks != 0) {
-				WT_RET(__wt_lsm_manager_push_entry(
-				    session, WT_LSM_WORK_DROP, lsm_tree));
 			}
 		}
 	}
@@ -485,13 +481,17 @@ __wt_lsm_manager_pop_entry(
 			return (0);
 
 		__wt_spin_lock(session, &manager->app_lock);
-		if (!TAILQ_EMPTY(&manager->appqh)) {
-			entry = TAILQ_FIRST(&manager->appqh);
-			WT_ASSERT(session, entry != NULL);
-			if (FLD_ISSET(type, entry->flags))
+		/*
+		 * Find and remove the first entry in the queue that matches the
+		 * request.
+		 */
+		for (entry = TAILQ_FIRST(&manager->appqh);
+		    entry != NULL;
+		    entry = TAILQ_NEXT(entry, q)) {
+			if (FLD_ISSET(type, entry->flags)) {
 				TAILQ_REMOVE(&manager->appqh, entry, q);
-			else
-				entry = NULL;
+				break;
+			}
 		}
 		__wt_spin_unlock(session, &manager->app_lock);
 		break;
@@ -543,6 +543,8 @@ __wt_lsm_manager_push_entry(
 		break;
 	WT_ILLEGAL_VALUE(session);
 	}
+
+	WT_RET(__wt_cond_signal(session, manager->work_cond));
 
 	return (0);
 }

@@ -56,7 +56,7 @@ __lsm_worker_general_op(
 	} else if (entry->flags == WT_LSM_WORK_DROP)
 		WT_ERR(__wt_lsm_free_chunks(session, entry->lsm_tree));
 	else if (entry->flags == WT_LSM_WORK_BLOOM) {
-		WT_ERR(__wt_lsm_bloom_work(session, entry->lsm_tree));
+		WT_ERR(__wt_lsm_work_bloom(session, entry->lsm_tree));
 		WT_ERR(__wt_lsm_manager_push_entry(
 		    session, WT_LSM_WORK_MERGE, entry->lsm_tree));
 	}
@@ -78,7 +78,7 @@ __lsm_worker(void *arg)
 	WT_LSM_WORK_UNIT *entry;
 	WT_LSM_WORKER_ARGS *cookie;
 	WT_SESSION_IMPL *session;
-	int ran;
+	int progress, ran;
 
 	cookie = (WT_LSM_WORKER_ARGS *)arg;
 	session = cookie->session;
@@ -86,32 +86,15 @@ __lsm_worker(void *arg)
 
 	entry = NULL;
 	while (F_ISSET(conn, WT_CONN_SERVER_RUN)) {
-		/* Don't busy wait if there aren't any LSM trees. */
-		if (TAILQ_EMPTY(&conn->lsmqh)) {
-			__wt_sleep(0, 10000);
-			continue;
-		}
+		progress = 0;
 
 		/* Switches are always a high priority */
 		while (F_ISSET(cookie, WT_LSM_WORK_SWITCH) &&
 		    (ret = __wt_lsm_manager_pop_entry(
 		    session, WT_LSM_WORK_SWITCH, &entry)) == 0 &&
-		    entry != NULL) {
-			/*
-			 * Don't exit the switch thread because a single
-			 * switch fails. Keep trying until we are told to
-			 * shut down.
-			 */
-			WT_WITH_SCHEMA_LOCK(session, ret =
-			    __wt_lsm_tree_switch(session, entry->lsm_tree));
-
-			__wt_lsm_manager_free_work_unit(session, entry);
-			entry = NULL;
-
-			if (ret == EBUSY)
-				ret = 0;
-			WT_ERR(ret);
-		}
+		    entry != NULL)
+			WT_ERR(
+			    __wt_lsm_work_switch(session, &entry, &progress));
 		/* Flag an error if the pop failed. */
 		WT_ERR(ret);
 
@@ -119,6 +102,7 @@ __lsm_worker(void *arg)
 		if (ret == EBUSY || ret == WT_NOTFOUND)
 			ret = 0;
 		WT_ERR(ret);
+		progress = progress || ran;
 
 		if (F_ISSET(cookie, WT_LSM_WORK_MERGE) &&
 		    (ret = __wt_lsm_manager_pop_entry(
@@ -136,9 +120,17 @@ __lsm_worker(void *arg)
 			WT_CLEAR_BTREE_IN_SESSION(session);
 			__wt_lsm_manager_free_work_unit(session, entry);
 			entry = NULL;
+			progress = 1;
 		}
 		/* Flag an error if the pop failed. */
 		WT_ERR(ret);
+
+		/* Don't busy wait if there isn't any work to do. */
+		if (!progress) {
+			WT_ERR(
+			    __wt_cond_wait(session, cookie->work_cond, 10000));
+			continue;
+		}
 	}
 
 	if (ret != 0) {

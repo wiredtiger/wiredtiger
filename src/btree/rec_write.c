@@ -274,7 +274,8 @@ typedef struct {
 	int key_sfx_compress_conf;	/* If suffix compression configured */
 
 	int is_bulk_load;		/* If it's a bulk load */
-	int is_salvage;			/* If it's a salvage operation */
+
+	WT_SALVAGE_COOKIE *salvage;	/* If it's a salvage operation */
 
 	int tested_ref_state;		/* Debugging information */
 } WT_RECONCILE;
@@ -529,6 +530,52 @@ err:	__wt_page_out(session, &next);
 }
 
 /*
+ * __rec_raw_compression_config --
+ *	Configure raw compression.
+ */
+static inline int
+__rec_raw_compression_config(
+    WT_SESSION_IMPL *session, WT_PAGE *page, WT_SALVAGE_COOKIE *salvage)
+{
+	WT_BTREE *btree;
+
+	btree = S2BT(session);
+
+	/* Check if raw compression configured. */
+	if (btree->compressor == NULL ||
+	    btree->compressor->compress_raw == NULL)
+		return (0);
+
+	/* Only for row-store and variable-length column-store objects. */
+	if (page->type == WT_PAGE_COL_FIX)
+		return (0);
+
+	/*
+	 * Raw compression cannot support dictionary compression. (Technically,
+	 * we could still use the raw callback on column-store variable length
+	 * internal pages with dictionary compression configured, because
+	 * dictionary compression only applies to column-store leaf pages, but
+	 * that seems an unlikely use case.)
+	 */
+	if (btree->dictionary != 0)
+		return (0);
+
+	/* Raw compression cannot support prefix compression. */
+	if (btree->prefix_compression != 0)
+		return (0);
+
+	/*
+	 * Raw compression is also turned off during salvage: we can't allow
+	 * pages to split during salvage, raw compression has no point if it
+	 * can't manipulate the page size.
+	 */
+	if (salvage != NULL)
+		return (0);
+
+	return (1);
+}
+
+/*
  * __rec_write_init --
  *	Initialize the reconciliation structure.
  */
@@ -565,27 +612,9 @@ __rec_write_init(WT_SESSION_IMPL *session,
 	/* Track if the page can be marked clean. */
 	r->leave_dirty = 0;
 
-	/*
-	 * Raw compression, the application builds disk images: applicable only
-	 * to row-and variable-length column-store objects.  Dictionary and
-	 * prefix compression must be turned off or we ignore raw-compression,
-	 * raw compression can't support either one.  (Technically, we could
-	 * still use the raw callback on column-store variable length internal
-	 * pages with dictionary compression configured, because dictionary
-	 * compression only applies to column-store leaf pages, but that seems
-	 * an unlikely use case.)
-	 *
-	 * Raw compression is also turned off during salvage: we can't allow
-	 * pages to split during salvage, raw compression has no point if it
-	 * can't manipulate the page size.
-	 */
+	/* Raw compression. */
 	r->raw_compression =
-	    btree->compressor != NULL &&
-	    btree->compressor->compress_raw != NULL &&
-	    page->type != WT_PAGE_COL_FIX &&
-	    btree->dictionary == 0 &&
-	    btree->prefix_compression == 0 &&
-	    salvage == NULL;
+	    __rec_raw_compression_config(session, page, salvage);
 	r->raw_destination.flags = WT_ITEM_ALIGNED;
 
 	/* Track overflow items. */
@@ -639,7 +668,7 @@ __rec_write_init(WT_SESSION_IMPL *session,
 	if (btree->prefix_compression && page->type == WT_PAGE_ROW_LEAF)
 		r->key_pfx_compress_conf = 1;
 
-	r->is_salvage = salvage == NULL ? 0 : 1;
+	r->salvage = salvage;
 
 	/* Save the page's write generation before reading the page. */
 	WT_ORDERED_READ(r->orig_write_gen, page->modify->write_gen);
@@ -1391,6 +1420,80 @@ __rec_key_state_update(WT_RECONCILE *r, int ovfl_key)
 }
 
 /*
+ * Macros from fixed-length entries to/from bytes.
+ */
+#define	WT_FIX_BYTES_TO_ENTRIES(btree, bytes)				\
+    ((uint32_t)((((bytes) * 8) / (btree)->bitcnt)))
+#define	WT_FIX_ENTRIES_TO_BYTES(btree, entries)				\
+	((uint32_t)WT_ALIGN((entries) * (btree)->bitcnt, 8))
+
+/*
+ * __rec_leaf_page_max --
+ *	Figure out the maximum leaf page size for the reconciliation.
+ */
+static inline uint32_t
+__rec_leaf_page_max(WT_SESSION_IMPL *session,  WT_RECONCILE *r)
+{
+	WT_BTREE *btree;
+	WT_PAGE *page;
+	uint32_t page_size;
+
+	btree = S2BT(session);
+	page = r->page;
+
+	page_size = 0;
+	switch (page->type) {
+	case WT_PAGE_COL_FIX:
+		/*
+		 * Column-store pages can grow if there are missing records
+		 * (that is, we lost a chunk of the range, and have to write
+		 * deleted records).  Fixed-length objects are a problem, if
+		 * there's a big missing range, we could theoretically have to
+		 * write large numbers of missing objects.
+		 */
+		page_size = (uint32_t)WT_ALIGN(WT_FIX_ENTRIES_TO_BYTES(btree,
+		    r->salvage->take + r->salvage->missing), btree->allocsize);
+		break;
+	case WT_PAGE_COL_VAR:
+		/*
+		 * Column-store pages can grow if there are missing records
+		 * (that is, we lost a chunk of the range, and have to write
+		 * deleted records).  Variable-length objects aren't usually a
+		 * problem because we can write any number of deleted records
+		 * in a single page entry because of the RLE, we just need to
+		 * ensure that additional entry fits.
+		 */
+		break;
+	case WT_PAGE_ROW_LEAF:
+	default:
+		/*
+		 * Row-store pages can't grow, salvage never does anything
+		 * other than reduce the size of a page read from disk.
+		 */
+		break;
+	}
+
+	/*
+	 * Default size for variable-length column-store and row-store pages
+	 * during salvage is the maximum leaf page size.
+	 */
+	if (page_size < btree->maxleafpage)
+		page_size = btree->maxleafpage;
+
+	/*
+	 * The page we read from the disk should be smaller than the page size
+	 * we just calculated, check out of paranoia.
+	 */
+	if (page_size < page->dsk->mem_size)
+		page_size = page->dsk->mem_size;
+
+	/*
+	 * Salvage is the backup plan: don't let this fail.
+	 */
+	return (page_size * 2);
+}
+
+/*
  * __rec_split_bnd_grow --
  *	Grow the boundary array as necessary.
  */
@@ -1424,6 +1527,16 @@ __rec_split_init(WT_SESSION_IMPL *session,
 
 	btree = S2BT(session);
 	bm = btree->bm;
+
+	/*
+	 * The maximum leaf page size governs when an in-memory leaf page splits
+	 * into multiple on-disk pages; however, salvage can't be allowed to
+	 * split, there's no parent page yet.  If we're doing salvage, override
+	 * the caller's selection of a maximum page size, choosing a page size
+	 * that ensures we won't split.
+	 */
+	if (r->salvage != NULL)
+		max = __rec_leaf_page_max(session, r);
 
 	/*
 	 * Set the page sizes.  If we're doing the page layout, the maximum page
@@ -1477,23 +1590,34 @@ __rec_split_init(WT_SESSION_IMPL *session,
 	 * page at the boundary points if we eventually overflow the maximum
 	 * page size.
 	 *
-	 * Finally, all this doesn't matter for fixed-size column-store pages
-	 * and raw compression.  Fixed-size column store pages can split under
-	 * (very) rare circumstances, but they're allocated at a fixed page
-	 * size, never anything smaller.  In raw compression, the underlying
-	 * compression routine decides when we split, so it's not our problem.
+	 * Finally, all this doesn't matter for fixed-size column-store pages,
+	 * raw compression, and salvage.  Fixed-size column store pages can
+	 * split under (very) rare circumstances, but they're allocated at a
+	 * fixed page size, never anything smaller.  In raw compression, the
+	 * underlying compression routine decides when we split, so it's not
+	 * our problem.  In salvage, as noted above, we can't split at all.
 	 */
-	if (r->raw_compression)
+	if (r->raw_compression || r->salvage != NULL) {
 		r->split_size = 0;
-	else if (page->type == WT_PAGE_COL_FIX)
+		r->space_avail = r->page_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
+	}
+	else if (page->type == WT_PAGE_COL_FIX) {
 		r->split_size = r->page_size_max;
-	else
+		r->space_avail =
+		    r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
+	} else {
 		r->split_size = __wt_split_page_size(btree, r->page_size_max);
+		r->space_avail =
+		    r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
+	}
+	r->first_free = WT_PAGE_HEADER_BYTE(btree, dsk);
 
 	/*
 	 * If the maximum page size is the same as the split page size, either
 	 * because of the object type or application configuration, there isn't
 	 * any need to maintain split boundaries within a larger page.
+	 *
+	 * No configuration for salvage here, because salvage can't split.
 	 */
 	if (r->raw_compression)
 		r->bnd_state = SPLIT_TRACKING_RAW;
@@ -1511,21 +1635,8 @@ __rec_split_init(WT_SESSION_IMPL *session,
 	r->bnd[0].recno = recno;
 	r->bnd[0].start = WT_PAGE_HEADER_BYTE(btree, dsk);
 
-	/* Initialize the total entries. */
-	r->total_entries = 0;
-
-	/*
-	 * Set the caller's information and configuration so the loop calls the
-	 * split function when approaching the split boundary.
-	 */
+	r->entries = r->total_entries = 0;
 	r->recno = recno;
-	r->entries = 0;
-	r->first_free = WT_PAGE_HEADER_BYTE(btree, dsk);
-	if (r->raw_compression)
-		r->space_avail = r->page_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
-	else
-		r->space_avail =
-		    r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
 
 	/* New page, compression off. */
 	r->key_pfx_compress = r->key_sfx_compress = 0;
@@ -1727,9 +1838,9 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	 * We should never split during salvage, and we're about to drop core
 	 * because there's no parent page.
 	 */
-	if (r->is_salvage)
+	if (r->salvage != NULL)
 		WT_PANIC_RET(session, WT_PANIC,
-		    "%s leaf page too large, attempted split during salvage",
+		    "%s page too large, attempted split during salvage",
 		    __wt_page_type_string(r->page->type));
 
 	/*
@@ -2825,14 +2936,6 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 }
 
 /*
- * Macros from fixed-length entries to/from bytes.
- */
-#define	WT_FIX_BYTES_TO_ENTRIES(btree, bytes)				\
-    ((uint32_t)((((bytes) * 8) / (btree)->bitcnt)))
-#define	WT_FIX_ENTRIES_TO_BYTES(btree, entries)				\
-	((uint32_t)WT_ALIGN((entries) * (btree)->bitcnt, 8))
-
-/*
  * __rec_col_fix_bulk_insert_split_check --
  *	Check if a bulk-loaded fixed-length column store page needs to split.
  */
@@ -3205,80 +3308,6 @@ __rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 }
 
 /*
- * __rec_leaf_page_max --
- *	Figure out the maximum leaf page size for the reconciliation.
- */
-static inline uint32_t
-__rec_leaf_page_max(
-    WT_SESSION_IMPL *session, WT_PAGE *page, WT_SALVAGE_COOKIE *salvage)
-{
-	WT_BTREE *btree;
-	uint32_t page_size;
-
-	btree = S2BT(session);
-
-	/*
-	 * The maximum leaf page size governs when an in-memory page splits into
-	 * multiple on-disk pages; however, salvage can't be allowed to split,
-	 * there's no parent page yet.  If we're not doing salvage, use the leaf
-	 * page size, otherwise, use a page size that ensures we won't split.
-	 */
-	if (salvage == NULL)
-		return (btree->maxleafpage);
-
-	page_size = 0;
-	switch (page->type) {
-	case WT_PAGE_COL_FIX:
-		/*
-		 * Column-store pages can split if there are missing records
-		 * (that is, we lost a chunk of the range, and have to write
-		 * deleted records).  Fixed-length objects are a problem, if
-		 * there's a big missing range, we could theoretically have to
-		 * write large numbers of missing objects.
-		 */
-		page_size = (uint32_t)WT_ALIGN(WT_FIX_ENTRIES_TO_BYTES(
-		    btree, salvage->take + salvage->missing), btree->allocsize);
-		break;
-	case WT_PAGE_COL_VAR:
-		/*
-		 * Column-store pages can split if there are missing records
-		 * (that is, we lost a chunk of the range, and have to write
-		 * deleted records).  Variable-length objects aren't usually a
-		 * problem because we can write any number of deleted records
-		 * in a single page entry because of the RLE, we just need to
-		 * ensure that additional entry fits.
-		 */
-		break;
-	case WT_PAGE_ROW_LEAF:
-	default:
-		/*
-		 * Row-store pages can't split, salvage never does anything
-		 * other than reduce the side of a page read from disk.
-		 */
-		break;
-	}
-
-	/*
-	 * Default size for variable-length column-store and row-store pages
-	 * during salvage is the maximum leaf page size.
-	 */
-	if (page_size < btree->maxleafpage)
-		page_size = btree->maxleafpage;
-
-	/*
-	 * The page we read from the disk should be smaller than the page size
-	 * we just calculated, check out of paranoia.
-	 */
-	if (page_size < page->dsk->mem_size)
-		page_size = page->dsk->mem_size;
-
-	/*
-	 * Salvage is the backup plan: don't let this fail.
-	 */
-	return (page_size * 2);
-}
-
-/*
  * __rec_col_fix_slvg --
  *	Reconcile a fixed-width, column-store leaf page created during salvage.
  */
@@ -3304,8 +3333,8 @@ __rec_col_fix_slvg(WT_SESSION_IMPL *session,
 	 * for fixed-length format ranges to overlap during salvage, and I
 	 * don't want to have to retrofit the code later.
 	 */
-	WT_RET(__rec_split_init(session, r, page,
-	    page->pg_fix_recno, __rec_leaf_page_max(session, page, salvage)));
+	WT_RET(__rec_split_init(
+	    session, r, page, page->pg_fix_recno, btree->maxleafpage));
 
 	/* We may not be taking all of the entries on the original page. */
 	page_take = salvage->take == 0 ? page->pg_fix_entries : salvage->take;
@@ -3335,7 +3364,7 @@ __rec_col_fix_slvg(WT_SESSION_IMPL *session,
 	 */
 	if (salvage->missing != 0 || page_take != 0)
 		WT_PANIC_RET(session, WT_PANIC,
-		    "%s leaf page too large, attempted split during salvage",
+		    "%s page too large, attempted split during salvage",
 		    __wt_page_type_string(page->type));
 
 	/* Write the page. */
@@ -3432,6 +3461,7 @@ __rec_col_var(WT_SESSION_IMPL *session,
     WT_RECONCILE *r, WT_PAGE *page, WT_SALVAGE_COOKIE *salvage)
 {
 	enum { OVFL_IGNORE, OVFL_UNUSED, OVFL_USED } ovfl_state;
+	WT_BTREE *btree;
 	WT_CELL *cell;
 	WT_CELL_UNPACK *vpack, _vpack;
 	WT_COL *cip;
@@ -3445,6 +3475,7 @@ __rec_col_var(WT_SESSION_IMPL *session,
 	int deleted, last_deleted, orig_deleted, update_no_copy;
 	const void *data;
 
+	btree = S2BT(session);
 	last = r->last;
 	vpack = &_vpack;
 
@@ -3453,8 +3484,8 @@ __rec_col_var(WT_SESSION_IMPL *session,
 	size = 0;
 	upd = NULL;
 
-	WT_RET(__rec_split_init(session, r, page,
-	    page->pg_var_recno, __rec_leaf_page_max(session, page, salvage)));
+	WT_RET(__rec_split_init(
+	    session, r, page, page->pg_var_recno, btree->maxleafpage));
 
 	/*
 	 * The salvage code may be calling us to reconcile a page where there
@@ -4121,8 +4152,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 	key = &r->k;
 	val = &r->v;
 
-	WT_RET(__rec_split_init(session, r,
-	    page, 0ULL, __rec_leaf_page_max(session, page, salvage)));
+	WT_RET(__rec_split_init(session, r, page, 0ULL, btree->maxleafpage));
 
 	/*
 	 * Write any K/V pairs inserted into the page before the first from-disk
