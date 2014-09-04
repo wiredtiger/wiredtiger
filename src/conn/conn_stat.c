@@ -237,6 +237,11 @@ __statlog_lsm_apply(WT_SESSION_IMPL *session)
 
 err:	if (locked)
 		__wt_spin_unlock(session, &S2C(session)->schema_lock);
+	/* Release any LSM trees on error. */
+	while (cnt > 0) {
+		--cnt;
+		__wt_lsm_tree_release(session, list[cnt]);
+	}
 	return (ret);
 }
 
@@ -380,7 +385,7 @@ __statlog_server(void *arg)
 			WT_ERR(__statlog_log_one(session, &path, &tmp));
 
 		/* Wait until the next event. */
-		WT_ERR_TIMEDOUT_OK(
+		WT_ERR(
 		    __wt_cond_wait(session, conn->stat_cond, conn->stat_usecs));
 	}
 

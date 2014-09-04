@@ -96,7 +96,7 @@ wts_ops(void)
 				die(ret, "pthread_create");
 		}
 		if ((ret =
-		    pthread_create(&backup_tid, NULL, hot_backup, NULL)) != 0)
+		    pthread_create(&backup_tid, NULL, backup, NULL)) != 0)
 			die(ret, "pthread_create");
 		if (g.c_compact && (ret =
 		    pthread_create(&compact_tid, NULL, compact, NULL)) != 0)
@@ -219,9 +219,10 @@ ops(void *arg)
 
 		/*
 		 * We can't checkpoint or swap sessions/cursors while in a
-		 * transaction, resolve any running transaction.  Otherwise,
-		 * reset the cursor: we may block waiting for a lock and there
-		 * is no reason to keep pages pinned.
+		 * transaction, resolve any running transaction.
+		 *
+		 * Reset the cursor regardless: we may block waiting for a lock
+		 * and there is no reason to keep pages pinned.
 		 */
 		if (cnt == ckpt_op || cnt == session_op) {
 			if (intxn) {
@@ -231,7 +232,7 @@ ops(void *arg)
 				++tinfo->commit;
 				intxn = 0;
 			}
-			else if (cursor != NULL &&
+			if (cursor != NULL &&
 			    (ret = cursor->reset(cursor)) != 0)
 				die(ret, "cursor.reset");
 		}
@@ -287,11 +288,11 @@ ops(void *arg)
 				ckpt_config = config;
 			}
 
-			/* Named checkpoints lock out hot backups */
+			/* Named checkpoints lock out backups */
 			if (ckpt_config != NULL &&
 			    (ret = pthread_rwlock_wrlock(&g.backup_lock)) != 0)
 				die(ret,
-				    "pthread_rwlock_wrlock: hot-backup lock");
+				    "pthread_rwlock_wrlock: backup lock");
 
 			if ((ret =
 			    session->checkpoint(session, ckpt_config)) != 0)
@@ -302,7 +303,7 @@ ops(void *arg)
 			if (ckpt_config != NULL &&
 			    (ret = pthread_rwlock_unlock(&g.backup_lock)) != 0)
 				die(ret,
-				    "pthread_rwlock_wrlock: hot-backup lock");
+				    "pthread_rwlock_wrlock: backup lock");
 
 			/*
 			 * Pick the next checkpoint operation, try for roughly
@@ -313,7 +314,7 @@ ops(void *arg)
 
 		/*
 		 * If we're not single-threaded and we're not in a transaction,
-		 * start a transaction 80% of the time.
+		 * start a transaction 20% of the time.
 		 */
 		if (!SINGLETHREADED && !intxn && MMRAND(1, 10) >= 8) {
 			if ((ret =
@@ -449,7 +450,8 @@ deadlock:				++tinfo->deadlock;
 				}
 				if ((ret = session->rollback_transaction(
 				    session, NULL)) != 0)
-					die(ret, "session.commit_transaction");
+					die(ret,
+					    "session.rollback_transaction");
 				++tinfo->rollback;
 				intxn = 0;
 				break;

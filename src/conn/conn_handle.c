@@ -29,6 +29,11 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
 	TAILQ_INIT(&conn->dsrcqh);		/* Data source list */
 	TAILQ_INIT(&conn->discard_filterqh);	/* Discard filter list */
 
+	/* Setup the LSM work queues. */
+	TAILQ_INIT(&conn->lsm_manager.switchqh);
+	TAILQ_INIT(&conn->lsm_manager.appqh);
+	TAILQ_INIT(&conn->lsm_manager.managerqh);
+
 	/* Configuration. */
 	WT_RET(__wt_conn_config_init(session));
 
@@ -46,6 +51,16 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
 	for (i = 0; i < WT_PAGE_LOCKS(conn); ++i)
 		WT_RET(
 		    __wt_spin_init(session, &conn->page_lock[i], "btree page"));
+
+	/* Setup the spin locks for the LSM manager queues. */
+	WT_RET(__wt_spin_init(session,
+	    &conn->lsm_manager.app_lock, "LSM application queue lock"));
+	WT_RET(__wt_spin_init(session,
+	    &conn->lsm_manager.manager_lock, "LSM manager queue lock"));
+	WT_RET(__wt_spin_init(
+	    session, &conn->lsm_manager.switch_lock, "LSM switch queue lock"));
+	WT_RET(__wt_cond_alloc(
+	    session, "LSM worker cond", 0, &conn->lsm_manager.work_cond));
 
 	/*
 	 * Generation numbers.

@@ -48,18 +48,18 @@
 int add_collator(WT_CONNECTION *conn);
 int add_discard_filter(WT_CONNECTION *conn);
 int add_extractor(WT_CONNECTION *conn);
+int backup(WT_SESSION *session);
 int checkpoint_ops(WT_SESSION *session);
 int connection_ops(WT_CONNECTION *conn);
 int cursor_ops(WT_SESSION *session);
 int cursor_search_near(WT_CURSOR *cursor);
 int cursor_statistics(WT_SESSION *session);
-int hot_backup(WT_SESSION *session);
 int pack_ops(WT_SESSION *session);
 int session_ops(WT_SESSION *session);
 int transaction_ops(WT_CONNECTION *conn, WT_SESSION *session);
 
-const char * const progname = "ex_all";
-const char *home;
+static const char * const progname = "ex_all";
+static const char *home;
 
 int
 cursor_ops(WT_SESSION *session)
@@ -686,14 +686,15 @@ transaction_ops(WT_CONNECTION *conn, WT_SESSION *session)
 	int ret;
 
 	/*! [transaction commit/rollback] */
-	ret =
-	    session->open_cursor(session, "table:mytable", NULL, NULL, &cursor);
-	ret = session->begin_transaction(session, NULL);
 	/*
 	 * Cursors may be opened before or after the transaction begins, and in
 	 * either case, subsequent operations are included in the transaction.
-	 * The begin_transaction call resets all open cursors.
+	 * Opening cursors before the transaction begins allows applications to
+	 * cache cursors and use them for multiple operations.
 	 */
+	ret =
+	    session->open_cursor(session, "table:mytable", NULL, NULL, &cursor);
+	ret = session->begin_transaction(session, NULL);
 
 	cursor->set_key(cursor, "key");
 	cursor->set_value(cursor, "value");
@@ -701,18 +702,21 @@ transaction_ops(WT_CONNECTION *conn, WT_SESSION *session)
 	case 0:					/* Update success */
 		ret = session->commit_transaction(session, NULL);
 		/*
-		 * The commit_transaction call resets all open cursors.
-		 * If commit_transaction fails, the transaction was rolled-back.
+		 * If commit_transaction succeeds, cursors remain positioned; if
+		 * commit_transaction fails, the transaction was rolled-back and
+		 * and all cursors are reset.
 		 */
 		break;
 	case WT_DEADLOCK:			/* Update conflict */
 	default:				/* Other error */
 		ret = session->rollback_transaction(session, NULL);
-		/* The rollback_transaction call resets all open cursors. */
+		/* The rollback_transaction call resets all cursors. */
 		break;
 	}
 
-	/* Cursors remain open and may be used for multiple transactions. */
+	/*
+	 * Cursors remain open and may be used for multiple transactions.
+	 */
 	/*! [transaction commit/rollback] */
 	ret = cursor->close(cursor);
 
@@ -953,11 +957,11 @@ pack_ops(WT_SESSION *session)
 }
 
 int
-hot_backup(WT_SESSION *session)
+backup(WT_SESSION *session)
 {
 	char buf[1024];
 
-	/*! [Hot backup]*/
+	/*! [backup]*/
 	WT_CURSOR *cursor;
 	const char *filename;
 	int ret;
@@ -965,7 +969,7 @@ hot_backup(WT_SESSION *session)
 	/* Create the backup directory. */
 	ret = mkdir("/path/database.backup", 077);
 
-	/* Open the hot backup data source. */
+	/* Open the backup data source. */
 	ret = session->open_cursor(session, "backup:", NULL, NULL, &cursor);
 
 	/* Copy the list of files. */
@@ -984,11 +988,11 @@ hot_backup(WT_SESSION *session)
 		    progname, wiredtiger_strerror(ret));
 
 	ret = cursor->close(cursor);
-	/*! [Hot backup]*/
+	/*! [backup]*/
 
-	/*! [Hot backup of a checkpoint]*/
+	/*! [backup of a checkpoint]*/
 	ret = session->checkpoint(session, "drop=(from=June01),name=June01");
-	/*! [Hot backup of a checkpoint]*/
+	/*! [backup of a checkpoint]*/
 
 	return (ret);
 }

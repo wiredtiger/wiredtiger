@@ -163,41 +163,42 @@ cb_asyncop(WT_ASYNC_CALLBACK *cb, WT_ASYNC_OP *op, int ret, uint32_t flags)
 
 	(void)cb;
 	(void)flags;
+
+	cfg = NULL;			/* -Wconditional-uninitialized */
+	thread = NULL;			/* -Wconditional-uninitialized */
+
 	type = op->get_type(op);
 	if (type != WT_AOP_COMPACT) {
 		thread = (CONFIG_THREAD *)op->app_private;
 		cfg = thread->cfg;
 	}
+
 	trk = NULL;
 	switch (type) {
-		case WT_AOP_INSERT:
-			trk = &thread->insert;
-			break;
-		case WT_AOP_SEARCH:
-			trk = &thread->read;
-			if (ret == 0) {
-				if ((t_ret = op->get_value(
-				    op, &value)) != 0) {
-					ret = t_ret;
-					lprintf(cfg, ret, 0,
-					    "get_value in read.");
-					goto err;
-				}
-			}
-			break;
-		case WT_AOP_UPDATE:
-			trk = &thread->update;
-			break;
-		case WT_AOP_COMPACT:
-			tables = (uint32_t *)op->app_private;
-			ATOMIC_ADD(*tables, (uint32_t)-1);
-			break;
-		case WT_AOP_REMOVE:
-		case WT_AOP_NONE:
-			/* We never expect this type. */
-			lprintf(cfg, ret, 0, "No type in op %" PRIu64,
-			    op->get_id(op));
+	case WT_AOP_COMPACT:
+		tables = (uint32_t *)op->app_private;
+		ATOMIC_ADD(*tables, (uint32_t)-1);
+		break;
+	case WT_AOP_INSERT:
+		trk = &thread->insert;
+		break;
+	case WT_AOP_SEARCH:
+		trk = &thread->read;
+		if (ret == 0 &&
+		    (t_ret = op->get_value(op, &value)) != 0) {
+			ret = t_ret;
+			lprintf(cfg, ret, 0, "get_value in read.");
 			goto err;
+		}
+		break;
+	case WT_AOP_UPDATE:
+		trk = &thread->update;
+		break;
+	case WT_AOP_NONE:
+	case WT_AOP_REMOVE:
+		/* We never expect this type. */
+		lprintf(cfg, ret, 0, "No type in op %" PRIu64, op->get_id(op));
+		goto err;
 	}
 
 	/*
@@ -1198,9 +1199,8 @@ execute_populate(CONFIG *cfg)
 	struct timespec start, stop;
 	CONFIG_THREAD *popth;
 	WT_ASYNC_OP *asyncop;
-	double secs;
 	size_t i;
-	uint64_t last_ops;
+	uint64_t last_ops, secs;
 	uint32_t interval, tables;
 	int elapsed, ret;
 	void *(*pfunc)(void *);
@@ -1278,12 +1278,12 @@ execute_populate(CONFIG *cfg)
 	}
 
 	lprintf(cfg, 0, 1, "Finished load of %" PRIu32 " items", cfg->icount);
-	secs = stop.tv_sec + stop.tv_nsec / (double)BILLION;
-	secs -= start.tv_sec + start.tv_nsec / (double)BILLION;
+	secs = WT_TIMEDIFF(stop, start) / BILLION;
 	if (secs == 0)
 		++secs;
 	lprintf(cfg, 0, 1,
-	    "Load time: %.2f\n" "load ops/sec: %.2f", secs, cfg->icount / secs);
+	    "Load time: %" PRIu64 "\n" "load ops/sec: %" PRIu64,
+	    secs, cfg->icount / secs);
 
 	/*
 	 * If configured, compact to allow LSM merging to complete.  We
@@ -1323,9 +1323,9 @@ execute_populate(CONFIG *cfg)
 			lprintf(cfg, ret, 0, "Get time failed in populate.");
 			return (ret);
 		}
-		secs = stop.tv_sec + stop.tv_nsec / (double)BILLION;
-		secs -= start.tv_sec + start.tv_nsec / (double)BILLION;
-		lprintf(cfg, 0, 1, "Compact completed in %.2f seconds", secs);
+		secs = WT_TIMEDIFF(stop, start) / BILLION;
+		lprintf(cfg, 0, 1,
+		    "Compact completed in %" PRIu64 " seconds", secs);
 		assert(tables == 0);
 	}
 	return (0);

@@ -142,6 +142,7 @@ Kounavis
 LEX
 LF
 LNO
+LOGREC
 LOGSCAN
 LRU
 LSB
@@ -277,6 +278,7 @@ Vo
 Vv
 VxWorks
 WIREDTIGER
+Wconditional
 WeakHashLen
 Werror
 Wformat
@@ -628,11 +630,13 @@ lognum
 logput
 logread
 logrec
+logsize
 logtest
 lookup
 lookups
 lr
 lru
+lseek
 lsm
 lsn
 lu
@@ -854,6 +858,7 @@ stdout
 stepinit
 stepkv
 stepnext
+stepp
 steprec
 str
 strcmp
@@ -970,6 +975,7 @@ update's
 upg
 uri
 uri's
+usecs
 usedp
 usr
 utf
