@@ -138,11 +138,11 @@ config_setup(void)
 		g.c_reverse = 0;
 
 	/*
-	 * Row-store file objects optionally support key/value pair filters.
-	 * Single-threaded runs don't support key filtering (because we can't
-	 * compare the results against the Berkeley DB store).
+	 * Row-store objects optionally support key/value pair filters. Single-
+	 * threaded runs don't support key filtering (because we can't compare
+	 * the results against Berkeley DB store).
 	 */
-	if (g.type != ROW || !DATASOURCE("file") || SINGLETHREADED)
+	if (g.type != ROW || DATASOURCE("lsm") || SINGLETHREADED)
 		g.c_discard_filter = 0;
 
 	config_checksum();
