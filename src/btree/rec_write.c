@@ -4122,9 +4122,11 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 	WT_BTREE *btree;
 	WT_CELL *cell, *val_cell;
 	WT_CELL_UNPACK *kpack, _kpack, *vpack, _vpack;
+	WT_DECL_ITEM(filterkey);
 	WT_DECL_ITEM(tmpkey);
 	WT_DECL_ITEM(tmpval);
 	WT_DECL_RET;
+	WT_DISCARD_FILTER *filter;
 	WT_IKEY *ikey;
 	WT_INSERT *ins;
 	WT_KV *key, *val;
@@ -4133,11 +4135,12 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 	size_t size;
 	uint64_t slvg_skip;
 	uint32_t i;
-	int dictionary, onpage_ovfl, ovfl_key;
+	int dictionary, discard, key_onpage_ovfl, ovfl_key, val_onpage_ovfl;
 	const void *p;
 	void *copy;
 
 	btree = S2BT(session);
+	filter = btree->discard_filter;
 	slvg_skip = salvage == NULL ? 0 : salvage->skip;
 
 	key = &r->k;
@@ -4156,6 +4159,8 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 	 * Temporary buffers in which to instantiate any uninstantiated keys
 	 * or value items we need.
 	 */
+	if (filter != NULL)
+		WT_RET(__wt_scr_alloc(session, 0, &filterkey));
 	WT_RET(__wt_scr_alloc(session, 0, &tmpkey));
 	WT_RET(__wt_scr_alloc(session, 0, &tmpval));
 
@@ -4183,22 +4188,59 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 		copy = WT_ROW_KEY_COPY(rip);
 		(void)__wt_row_leaf_key_info(
 		    page, copy, &ikey, &cell, NULL, NULL);
-		if (cell == NULL)
+		if (cell == NULL) {
 			kpack = NULL;
-		else {
+			key_onpage_ovfl = 0;
+		} else {
 			kpack = &_kpack;
 			__wt_cell_unpack(cell, kpack);
+			key_onpage_ovfl =
+			    kpack->ovfl && kpack->raw != WT_CELL_KEY_OVFL_RM;
 		}
 
 		/* Unpack the on-page value cell, and look for an update. */
 		if ((val_cell =
-		    __wt_row_leaf_value_cell(page, rip, NULL)) == NULL)
+		    __wt_row_leaf_value_cell(page, rip, NULL)) == NULL) {
 			vpack = NULL;
-		else {
+			val_onpage_ovfl = 0;
+		} else {
 			vpack = &_vpack;
 			__wt_cell_unpack(val_cell, vpack);
+			val_onpage_ovfl =
+			    vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM;
 		}
 		WT_ERR(__rec_txn_read(session, r, NULL, rip, vpack, &upd));
+
+		/*
+		 * If a discard filter has been configured, check if this row is
+		 * being automagically discarded.  This is done after review of
+		 * the update list, that code does additional work like tracking
+		 * the largest transaction found on the page, we can't skipi it
+		 * even if we're discarding this key/value pair.
+		 *
+		 * We only do a discard filter check if the key and value are
+		 * on-page objects; this work is done behind the transactional
+		 * system's back, and the row might magically reappear if the
+		 * filter function returns the row is not to be discarded during
+		 * the next reconciliation of this page.  That's OK for a simple
+		 * key/value pair, but not for the backing overflow blocks we'd
+		 * have discarded.
+		 */
+		if (filter != NULL && !key_onpage_ovfl && !val_onpage_ovfl) {
+			WT_ERR(__wt_row_leaf_key(
+			    session, page, rip, filterkey, 0));
+			WT_ERR(__wt_discard_filter(
+			    session, filter, filterkey, &discard));
+			if (discard) {
+				/*
+				 * We aren't actually creating the key so we
+				 * can't use bytes from this key to provide
+				 * prefix information for a subsequent key.
+				 */
+				tmpkey->size = 0;
+				goto leaf_insert;
+			}
+		}
 
 		/* Build value cell. */
 		dictionary = 0;
@@ -4296,8 +4338,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 			 * version if there's a transaction in the system that
 			 * might read the original value.
 			 */
-			if (vpack != NULL &&
-			    vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)
+			if (val_onpage_ovfl)
 				WT_ERR(
 				    __wt_ovfl_cache(session, page, rip, vpack));
 
@@ -4310,8 +4351,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 				 * keys from a row-store page reconciliation
 				 * seems unlikely enough to ignore.
 				 */
-				if (kpack != NULL && kpack->ovfl &&
-				    kpack->raw != WT_CELL_KEY_OVFL_RM) {
+				if (key_onpage_ovfl) {
 					/*
 					 * Keys are part of the name-space, we
 					 * can't remove them from the in-memory
@@ -4362,9 +4402,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 		 * If the key is an overflow key that hasn't been removed, use
 		 * the original backing blocks.
 		 */
-		onpage_ovfl = kpack != NULL &&
-		    kpack->ovfl && kpack->raw != WT_CELL_KEY_OVFL_RM;
-		if (onpage_ovfl) {
+		if (key_onpage_ovfl) {
 			key->buf.data = cell;
 			key->buf.size = __wt_cell_total_len(kpack);
 			key->cell_len = 0;
@@ -4440,10 +4478,10 @@ build:
 			 * case, we have to build the actual key now because we
 			 * are about to promote it.
 			 */
-			if (onpage_ovfl) {
+			if (key_onpage_ovfl) {
 				WT_ERR(__wt_dsk_cell_data_ref(
 				    session, WT_PAGE_ROW_LEAF, kpack, r->cur));
-				onpage_ovfl = 0;
+				key_onpage_ovfl = 0;
 			}
 			WT_ERR(__rec_split(session, r));
 
@@ -4483,7 +4521,8 @@ leaf_insert:	/* Write any K/V pairs inserted into the page after this key. */
 	/* Write the remnant page. */
 	ret = __rec_split_finish(session, r);
 
-err:	__wt_scr_free(&tmpkey);
+err:	__wt_scr_free(&filterkey);
+	__wt_scr_free(&tmpkey);
 	__wt_scr_free(&tmpval);
 	return (ret);
 }
