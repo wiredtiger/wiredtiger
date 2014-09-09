@@ -212,7 +212,9 @@ __wt_cursor_get_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
 	WT_ITEM *key;
 	WT_SESSION_IMPL *session;
 	size_t size;
+	uint64_t v;
 	const char *fmt;
+	const uint8_t *p;
 
 	CURSOR_API_CALL(cursor, session, get_key, NULL);
 	if (!F_ISSET(cursor, WT_CURSTD_KEY_EXT | WT_CURSTD_KEY_INT))
@@ -236,6 +238,10 @@ __wt_cursor_get_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
 			key = va_arg(ap, WT_ITEM *);
 			key->data = cursor->key.data;
 			key->size = cursor->key.size;
+		} else if (WT_STREQ(fmt, "Q")) {
+			p = cursor->key.data;
+			WT_ERR(__wt_vunpack_uint(&p, WT_INTPACK64_MAXSIZE, &v));
+			*va_arg(ap, uint64_t *) = v;
 		} else if (WT_STREQ(fmt, "S"))
 			*va_arg(ap, const char **) = cursor->key.data;
 		else
@@ -258,7 +264,9 @@ __wt_cursor_set_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
 	WT_ITEM *buf, *item;
 	size_t sz;
 	va_list ap_copy;
+	uint64_t v;
 	const char *fmt, *str;
+	uint8_t *p;
 
 	CURSOR_API_CALL(cursor, session, set_key, NULL);
 	F_CLR(cursor, WT_CURSTD_KEY_SET);
@@ -282,6 +290,13 @@ __wt_cursor_set_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
 			item = va_arg(ap, WT_ITEM *);
 			sz = item->size;
 			cursor->key.data = item->data;
+		} else if (WT_STREQ(fmt, "Q")) {
+			WT_ERR(__wt_buf_initsize(
+			    session, &cursor->key, WT_INTPACK64_MAXSIZE));
+			v = va_arg(ap, uint64_t);
+			p = cursor->key.mem;
+			WT_ERR(__wt_vpack_uint(&p, WT_INTPACK64_MAXSIZE, v));
+			sz = WT_PTRDIFF(p, cursor->key.mem);
 		} else if (WT_STREQ(fmt, "S")) {
 			str = va_arg(ap, const char *);
 			sz = strlen(str) + 1;
