@@ -578,6 +578,9 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
 	conn = (WT_CONNECTION_IMPL *)wt_conn;
 
 	CONNECTION_API_CALL(conn, session, close, config, cfg);
+#ifdef	HAVE_DIAGNOSTIC
+	F_SET(conn, WT_CONN_CLOSE_DIAGNOSTIC);
+#endif
 
 	WT_TRET(__wt_config_gets(session, cfg, "leak_memory", &cval));
 	if (cval.val != 0)

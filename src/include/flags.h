@@ -2,8 +2,9 @@
  * DO NOT EDIT: automatically built by dist/flags.py.
  * flags section: BEGIN
  */
-#define	WT_CONN_CACHE_POOL				0x00001000
-#define	WT_CONN_CKPT_SYNC				0x00000800
+#define	WT_CONN_CACHE_POOL				0x00002000
+#define	WT_CONN_CKPT_SYNC				0x00001000
+#define	WT_CONN_CLOSE_DIAGNOSTIC			0x00000800
 #define	WT_CONN_EVICTION_RUN				0x00000400
 #define	WT_CONN_LEAK_MEMORY				0x00000200
 #define	WT_CONN_LSM_MERGE				0x00000100

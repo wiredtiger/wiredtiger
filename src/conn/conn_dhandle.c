@@ -221,7 +221,7 @@ err:	__wt_spin_unlock(session, &dhandle->close_lock);
 	if (no_schema_lock)
 		F_CLR(session, WT_SESSION_NO_SCHEMA_LOCK);
 
-	return (ret);
+	WT_RET_EBUSY(session, ret);
 }
 
 /*
@@ -632,7 +632,7 @@ __wt_conn_dhandle_discard_single(
 
 err:	session->dhandle = save_dhandle;
 	WT_ASSERT(session, !final || ret == 0);
-	return (ret);
+	WT_RET_EBUSY(session, ret);
 }
 
 /*
