@@ -618,6 +618,7 @@ err:	/*
 
 	/* We no longer have a session, don't try to update it. */
 	session = NULL;
+	WT_ASSERT(session, ret != EBUSY);
 
 	API_END_RET_NOTFOUND_MAP(session, ret);
 }
