@@ -48,26 +48,6 @@
 	if ((__ret = (a)) != 0)						\
 		return (__ret);						\
 } while (0)
-#ifdef	HAVE_DIAGNOSTIC
-#define	WT_RET_CLOSE_DIAG(s, a) do {					\
-	int __ret;							\
-	if ((__ret = (a)) != 0)	{					\
-		if (F_ISSET(S2C((s)), WT_CONN_CLOSE_DIAGNOSTIC) &&	\
-		    __ret == EBUSY)					\
-			__wt_panic((s));				\
-		return (__ret);						\
-	}								\
-} while (0)
-#define	WT_RET_EBUSY(s, r) do {						\
-	if (F_ISSET(S2C((s)), WT_CONN_CLOSE_DIAGNOSTIC) &&		\
-	    (r) == EBUSY)						\
-		__wt_panic((s));					\
-	return ((r));							\
-} while (0)
-#else
-#define	WT_RET_CLOSE_DIAG(s, a)	WT_RET((a))
-#define	WT_RET_EBUSY(s, a)	return (a)
-#endif
 #define	WT_RET_TEST(a, v) do {						\
 	if (a)								\
 		return (v);						\

@@ -286,6 +286,9 @@ __rec_review(
 			case WT_REF_LOCKED:		/* Being evicted */
 			case WT_REF_READING:		/* Being read */
 			case WT_REF_SPLIT:		/* Being split */
+				WT_ASSERT(session,
+				    !F_ISSET(S2C(session),
+				    WT_CONN_CLOSE_DIAGNOSTIC));
 				return (EBUSY);
 			WT_ILLEGAL_VALUE(session);
 			}
@@ -301,8 +304,11 @@ __rec_review(
 	 * can evict the created page.
 	 */
 	if (!exclusive && mod != NULL && WT_PAGE_IS_INTERNAL(page) &&
-	    !__wt_txn_visible_all(session, mod->mod_split_txn))
+	    !__wt_txn_visible_all(session, mod->mod_split_txn)) {
+		WT_ASSERT(session,
+		    !F_ISSET(S2C(session), WT_CONN_CLOSE_DIAGNOSTIC));
 		return (EBUSY);
+	}
 
 	/*
 	 * If the file is being checkpointed, we can't evict dirty pages:
@@ -329,6 +335,8 @@ __rec_review(
 	    F_ISSET(mod, WT_PM_REC_MULTIBLOCK))) {
 		WT_STAT_FAST_CONN_INCR(session, cache_eviction_checkpoint);
 		WT_STAT_FAST_DATA_INCR(session, cache_eviction_checkpoint);
+		WT_ASSERT(session,
+		    !F_ISSET(S2C(session), WT_CONN_CLOSE_DIAGNOSTIC));
 		return (EBUSY);
 	}
 
@@ -344,8 +352,11 @@ __rec_review(
 	 * page is expensive, do a cheap test first: if it doesn't seem likely a
 	 * subtree page can be merged, quit.
 	 */
-	if (!top && (mod == NULL || !F_ISSET(mod, WT_PM_REC_EMPTY)))
+	if (!top && (mod == NULL || !F_ISSET(mod, WT_PM_REC_EMPTY))) {
+		WT_ASSERT(session,
+		    !F_ISSET(S2C(session), WT_CONN_CLOSE_DIAGNOSTIC));
 		return (EBUSY);
+	}
 
 	/*
 	 * If the page is dirty and can possibly change state, write it so we
@@ -395,16 +406,22 @@ __rec_review(
 		 * on the page are old enough they can be discarded from cache.
 		 */
 		if (!exclusive && mod != NULL &&
-		    !__wt_txn_visible_all(session, mod->rec_max_txn))
+		    !__wt_txn_visible_all(session, mod->rec_max_txn)) {
+			WT_ASSERT(session,
+			    !F_ISSET(S2C(session), WT_CONN_CLOSE_DIAGNOSTIC));
 			return (EBUSY);
+		}
 	}
 
 	/*
 	 * Repeat the test: fail if any page in the top-level page's subtree
 	 * won't be merged into its parent.
 	 */
-	if (!top && (mod == NULL || !F_ISSET(mod, WT_PM_REC_EMPTY)))
+	if (!top && (mod == NULL || !F_ISSET(mod, WT_PM_REC_EMPTY))) {
+		WT_ASSERT(session,
+		    !F_ISSET(S2C(session), WT_CONN_CLOSE_DIAGNOSTIC));
 		return (EBUSY);
+	}
 
 	return (0);
 }
@@ -447,8 +464,11 @@ __hazard_exclusive(WT_SESSION_IMPL *session, WT_REF *ref, int top)
 	 * already be in the locked state, lock child pages in memory.
 	 * If another thread already has this page, give up.
 	 */
-	if (!top && !WT_ATOMIC_CAS(ref->state, WT_REF_MEM, WT_REF_LOCKED))
+	if (!top && !WT_ATOMIC_CAS(ref->state, WT_REF_MEM, WT_REF_LOCKED)) {
+		WT_ASSERT(session,
+		    !F_ISSET(S2C(session), WT_CONN_CLOSE_DIAGNOSTIC));
 		return (EBUSY);	/* We couldn't change the state. */
+	}
 	WT_ASSERT(session, ref->state == WT_REF_LOCKED);
 
 	session->excl[session->excl_next++] = ref;
@@ -462,5 +482,6 @@ __hazard_exclusive(WT_SESSION_IMPL *session, WT_REF *ref, int top)
 
 	WT_RET(__wt_verbose(session, WT_VERB_EVICT,
 	    "page %p hazard request failed", ref->page));
+	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_CLOSE_DIAGNOSTIC));
 	return (EBUSY);
 }
