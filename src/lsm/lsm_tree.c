@@ -505,8 +505,8 @@ __wt_lsm_tree_get(WT_SESSION_IMPL *session,
 			 */
 			if ((exclusive && lsm_tree->refcnt > 0) ||
 			    F_ISSET_ATOMIC(lsm_tree, WT_LSM_TREE_EXCLUSIVE)) {
-				WT_ASSERT(session, !F_ISSET(S2C(session),
-				    WT_CONN_CLOSE_DIAGNOSTIC));
+				WT_ASSERT(session,
+				    session != S2C(session)->close_dbg_session);
 				return (EBUSY);
 			}
 
@@ -515,8 +515,8 @@ __wt_lsm_tree_get(WT_SESSION_IMPL *session,
 				if (!WT_ATOMIC_CAS(lsm_tree->refcnt, 0, 1)) {
 					F_CLR(lsm_tree, WT_LSM_TREE_EXCLUSIVE);
 					WT_ASSERT(session,
-					    !F_ISSET(S2C(session),
-					    WT_CONN_CLOSE_DIAGNOSTIC));
+					    session !=
+					    S2C(session)->close_dbg_session);
 					return (EBUSY);
 				}
 			} else
@@ -529,8 +529,8 @@ __wt_lsm_tree_get(WT_SESSION_IMPL *session,
 			if (!exclusive &&
 			    F_ISSET_ATOMIC(lsm_tree, WT_LSM_TREE_EXCLUSIVE)) {
 				(void)WT_ATOMIC_SUB(lsm_tree->refcnt, 1);
-				WT_ASSERT(session, !F_ISSET(S2C(session),
-				    WT_CONN_CLOSE_DIAGNOSTIC));
+				WT_ASSERT(session,
+				    session != S2C(session)->close_dbg_session);
 				return (EBUSY);
 			}
 			*treep = lsm_tree;
