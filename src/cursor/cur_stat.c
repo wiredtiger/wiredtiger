@@ -513,8 +513,7 @@ __wt_curstat_open(WT_SESSION_IMPL *session,
 	 */
 	if (FLD_ISSET(conn->stat_flags, WT_CONN_STAT_NONE))
 		goto config_err;
-	if ((ret = __wt_config_gets(session, cfg, "statistics", &cval)) == 0 &&
-	    cval.len != 0) {
+	if ((ret = __wt_config_gets(session, cfg, "statistics", &cval)) == 0) {
 		if ((ret = __wt_config_subgets(
 		    session, &cval, "all", &sval)) == 0 && sval.val != 0) {
 			if (!FLD_ISSET(conn->stat_flags, WT_CONN_STAT_ALL))
