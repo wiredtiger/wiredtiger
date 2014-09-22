@@ -1027,6 +1027,11 @@ __conn_statistics_config(WT_SESSION_IMPL *session, const char *cfg[])
 
 	WT_RET(__wt_config_gets(session, cfg, "statistics", &cval));
 
+	if (cval.len == 0) {
+		conn->stat_flags = flags;
+		return (0);
+	}
+
 	flags = 0;
 	set = 0;
 	if ((ret = __wt_config_subgets(
@@ -1109,7 +1114,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_RET(__wt_config_gets(session, cfg, "verbose", &cval));
 
 	flags = 0;
-	for (ft = verbtypes; ft->name != NULL; ft++) {
+	for (ft = verbtypes; cval.len != 0 && ft->name != NULL; ft++) {
 		if ((ret = __wt_config_subgets(
 		    session, &cval, ft->name, &sval)) == 0 && sval.val != 0) {
 #ifdef HAVE_VERBOSE
@@ -1348,7 +1353,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 #endif
 
 	WT_ERR(__wt_config_gets(session, cfg, "direct_io", &cval));
-	for (ft = file_types; ft->name != NULL; ft++) {
+	for (ft = file_types; cval.len != 0 && ft->name != NULL; ft++) {
 		ret = __wt_config_subgets(session, &cval, ft->name, &sval);
 		if (ret == 0) {
 			if (sval.val)
@@ -1358,7 +1363,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	}
 
 	WT_ERR(__wt_config_gets(session, cfg, "file_extend", &cval));
-	for (ft = file_types; ft->name != NULL; ft++) {
+	for (ft = file_types; cval.len != 0 && ft->name != NULL; ft++) {
 		ret = __wt_config_subgets(session, &cval, ft->name, &sval);
 		if (ret == 0) {
 			switch (ft->flag) {
