@@ -1028,7 +1028,7 @@ __conn_statistics_config(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_RET(__wt_config_gets(session, cfg, "statistics", &cval));
 
 	if (cval.len == 0) {
-		conn->stat_flags = flags;
+		conn->stat_flags = 0;
 		return (0);
 	}
 
