@@ -105,9 +105,10 @@ __wt_session_lock_btree(WT_SESSION_IMPL *session, uint32_t flags)
 			F_SET(dhandle, WT_DHANDLE_EXCLUSIVE);
 			locked = 1;
 		}
-	} else if (F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS))
+	} else if (F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS)) {
+		WT_ASSERT(session, session != S2C(session)->close_dbg_session);
 		return (EBUSY);
-	else {
+	} else {
 		WT_RET(__wt_readlock(session, dhandle->rwlock));
 		locked = 1;
 	}

@@ -916,8 +916,10 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 * If evicting and we aren't able to save/restore the not-yet-visible
 	 * updates, the page can't be evicted.
 	 */
-	if (!F_ISSET(r, WT_SKIP_UPDATE_RESTORE))
+	if (!F_ISSET(r, WT_SKIP_UPDATE_RESTORE)) {
+		WT_ASSERT(session, session != S2C(session)->close_dbg_session);
 		return (EBUSY);
+	}
 
 	/*
 	 * Evicting a page with not-yet-visible updates: save and restore the
@@ -1208,8 +1210,11 @@ __rec_child_deleted(
 			    "reconciliation illegally skipped an update");
 
 		/* If this page cannot be evicted, quit now. */
-		if (F_ISSET(r, WT_EVICTING))
+		if (F_ISSET(r, WT_EVICTING)) {
+			WT_ASSERT(session,
+			    session != S2C(session)->close_dbg_session);
 			return (EBUSY);
+		}
 	}
 
 	/*
@@ -2029,6 +2034,7 @@ __rec_skipped_update_chk(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	    r->bnd_next == 0 && r->leave_dirty) {
 		WT_STAT_FAST_CONN_INCR(session, rec_skipped_update);
 		WT_STAT_FAST_DATA_INCR(session, rec_skipped_update);
+		WT_ASSERT(session, session != S2C(session)->close_dbg_session);
 		return (EBUSY);
 	}
 	return (0);

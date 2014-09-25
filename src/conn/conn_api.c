@@ -585,6 +585,9 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
 	conn = (WT_CONNECTION_IMPL *)wt_conn;
 
 	CONNECTION_API_CALL(conn, session, close, config, cfg);
+#ifdef	HAVE_DIAGNOSTIC
+	conn->close_dbg_session = session;
+#endif
 
 	WT_TRET(__wt_config_gets(session, cfg, "leak_memory", &cval));
 	if (cval.val != 0)
@@ -622,6 +625,7 @@ err:	/*
 
 	/* We no longer have a session, don't try to update it. */
 	session = NULL;
+	WT_ASSERT(session, ret != EBUSY);
 
 	API_END_RET_NOTFOUND_MAP(session, ret);
 }

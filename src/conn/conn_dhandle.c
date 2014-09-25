@@ -34,8 +34,11 @@ __conn_dhandle_open_lock(
 	 */
 	for (;;) {
 		if (!LF_ISSET(WT_DHANDLE_EXCLUSIVE) &&
-		    F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS))
+		    F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS)) {
+			WT_ASSERT(session,
+			    session != S2C(session)->close_dbg_session);
 			return (EBUSY);
+		}
 
 		if (F_ISSET(dhandle, WT_DHANDLE_OPEN) &&
 		    !LF_ISSET(WT_DHANDLE_EXCLUSIVE)) {
@@ -65,8 +68,11 @@ __conn_dhandle_open_lock(
 			/* We have an exclusive lock, we're done. */
 			F_SET(dhandle, WT_DHANDLE_EXCLUSIVE);
 			return (0);
-		} else if (ret != EBUSY || LF_ISSET(WT_DHANDLE_EXCLUSIVE))
+		} else if (ret != EBUSY || LF_ISSET(WT_DHANDLE_EXCLUSIVE)) {
+			WT_ASSERT(session,
+			    session != S2C(session)->close_dbg_session);
 			return (EBUSY);
+		}
 
 		/* Give other threads a chance to make progress. */
 		__wt_yield();
@@ -221,6 +227,8 @@ err:	__wt_spin_unlock(session, &dhandle->close_lock);
 	if (no_schema_lock)
 		F_CLR(session, WT_SESSION_NO_SCHEMA_LOCK);
 
+	WT_ASSERT(session,
+	    !(session == S2C(session)->close_dbg_session && ret == EBUSY));
 	return (ret);
 }
 
@@ -446,6 +454,9 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session,
 				ret = __wt_conn_btree_apply_single(
 				    session, dhandle->name,
 				    dhandle->checkpoint, func, cfg);
+			WT_ASSERT(session,
+			    !(session == S2C(session)->close_dbg_session
+			    && ret == EBUSY));
 			WT_RET(ret);
 		}
 
@@ -643,6 +654,8 @@ unlock:	__wt_spin_unlock(session, &conn->schema_lock);
 
 err:	session->dhandle = save_dhandle;
 	WT_ASSERT(session, !final || ret == 0);
+	WT_ASSERT(session,
+	    !(session == S2C(session)->close_dbg_session && ret == EBUSY));
 	return (ret);
 }
 

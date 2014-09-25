@@ -69,6 +69,7 @@ struct __wt_connection_impl {
 	/* For operations without an application-supplied session */
 	WT_SESSION_IMPL *default_session;
 	WT_SESSION_IMPL  dummy_session;
+	WT_SESSION_IMPL *close_dbg_session;
 
 	const char *cfg;		/* Connection configuration */
 
