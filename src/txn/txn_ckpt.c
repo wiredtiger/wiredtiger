@@ -823,9 +823,20 @@ __checkpoint_worker(
 	WT_FULL_BARRIER();
 
 	/* Tell logging that a file checkpoint is starting. */
-	if (conn->logging)
+	if (conn->logging) {
 		WT_ERR(__wt_txn_checkpoint_log(
 		    session, 0, WT_TXN_LOG_CKPT_START, &ckptlsn));
+
+		/*
+		 * If we're logging and taking an ordinary checkpoint, bump the
+		 * snapshot in between files: recovery will take care of
+		 * bringing them up to date: we don't need consistency between
+		 * files.
+		 */
+		if (session->txn.isolation == TXN_ISO_SNAPSHOT &&
+		    strcmp(name, WT_CHECKPOINT) == 0)
+			__wt_txn_refresh(session, 1);
+	}
 
 	/* Flush the file from the cache, creating the checkpoint. */
 	if (is_checkpoint)
