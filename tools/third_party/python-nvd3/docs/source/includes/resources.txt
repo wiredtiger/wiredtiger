@@ -1,0 +1,21 @@
+
+.. _feedback:
+
+Feedback
+--------
+
+Your feedback is more than welcome. Write email to
+areski@gmail.com or post bugs and feature requests on github:
+
+http://github.com/areski/python-nvd3/issues
+
+
+.. _source_download:
+
+Source download
+---------------
+
+The source code is currently available on github. Fork away!
+
+http://github.com/areski/python-nvd3
+
