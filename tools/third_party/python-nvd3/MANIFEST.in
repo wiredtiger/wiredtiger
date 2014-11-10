@@ -1,0 +1,4 @@
+global-exclude *.pyc
+include README.rst
+include MIT-LICENSE.txt
+recursive-include nvd3 *

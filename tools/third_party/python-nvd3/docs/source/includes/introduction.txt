@@ -1,0 +1,159 @@
+:Version: |version|
+:Date: |today|
+:Keywords: python, plot, graph, nvd3, d3
+:Author: Arezqui Belaid
+:License: MIT
+:Description: Python wrapper for nvd3, build re-usable charts and chart components for d3.js
+:NVD3: NVD3 http://nvd3.org/
+
+--
+
+.. _python-nvd3-synopsis:
+
+Python-nvd3 is a Python wrapper for NVD3 graph library.
+NVD3 is an attempt to build re-usable charts and chart components
+for d3.js without taking away the power that d3.js gives you.
+
+
+.. _overview:
+
+Overview
+========
+
+Python-nvd3 is a Python wrapper for NVD3 graph library.
+Visit NVD3 website for futher information : http://nvd3.org/
+
+
+.. _installation:
+
+Installation
+------------
+
+Install, upgrade and uninstall python-nvd3.py with these commands::
+
+    $ sudo pip install python-nvd3
+    $ sudo pip install --upgrade python-nvd3
+    $ sudo pip uninstall python-nvd3
+
+Or if you don't have `pip`::
+
+    $ sudo easy_install python-nvd3
+
+
+.. _usage:
+
+Usage
+-----
+
+After installation use python-nvd3 as follows ::
+
+    from nvd3 import pieChart
+
+    #Open File to write the D3 Graph
+    output_file = open('test-nvd3.html', 'w')
+
+    type = 'pieChart'
+    chart = pieChart(name=type, color_category='category20c', height=450, width=450)
+    chart.set_containerheader("\n\n<h2>" + type + "</h2>\n\n")
+
+    xdata = ["Orange", "Banana", "Pear", "Kiwi", "Apple", "Strawberry", "Pineapple"]
+    ydata = [3, 4, 0, 1, 5, 7, 3]
+
+    extra_serie = {"tooltip": {"y_start": "", "y_end": " cal"}}
+    chart.add_serie(y=ydata, x=xdata, extra=extra_serie)
+    chart.buildhtml()
+    output_file.write(chart.htmlcontent)
+
+    #close Html file
+    output_file.close()
+
+
+See our examples directory for more usage.
+
+
+.. _supported_charts:
+
+Supported nvd3 charts
+---------------------
+
+
+.. image:: _static/screenshot/lineChart.png
+
+
+.. image:: _static/screenshot/linePlusBarChart.png
+
+
+.. image:: _static/screenshot/lineWithFocusChart.png
+
+
+.. image:: _static/screenshot/linePlusBarWithFocusChart.png
+
+
+.. image:: _static/screenshot/multiBarChart.png
+
+
+.. image:: _static/screenshot/multiBarHorizontalChart.png
+
+
+.. image:: _static/screenshot/cumulativeLineChart.png
+
+
+.. image:: _static/screenshot/discreteBarChart.png
+
+
+.. image:: _static/screenshot/pieChart.png
+
+
+.. image:: _static/screenshot/stackedAreaChart.png
+
+
+.. image:: _static/screenshot/scatterChart.png
+
+
+.. image:: _static/screenshot/linePlusBarWithFocusChart.png
+
+
+
+.. _live_demo:
+
+Live demo of NVD3
+-----------------
+
+See a live demo on jsfiddle : http://jsfiddle.net/areski/z4zuH/3/
+
+
+
+.. _documentation:
+
+Documentation
+=============
+
+Documentation is available on 'Read the Docs':
+http://python-nvd3.readthedocs.org
+
+
+.. _contributing:
+
+Contributing
+============
+
+If you've found a bug, add a feature or improve python-nvd3 and
+think it is useful then please consider contributing.
+Patches, pull requests or just suggestions are always welcome!
+
+Source code: http://github.com/areski/python-nvd3
+
+
+If you don’t like Github and Git you’re welcome to send regular patches.
+
+Bug tracker: http://github.com/areski/python-nvd3/issues
+
+
+.. _license:
+
+License
+=======
+
+Copyright (c) 2013 Arezqui Belaid <areski@gmail.com>
+
+Python-nvd3 is licensed under MIT, see `MIT-LICENSE.txt`.
