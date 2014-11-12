@@ -70,6 +70,8 @@ struct __wt_stats {
 /*
  * Read/write connection handle statistics if "fast" statistics are configured.
  */
+#define	WT_CONN_STAT(session, fld)					\
+	WT_STAT(&S2C(session)->stats, fld)
 #define	WT_STAT_FAST_CONN_ATOMIC_DECRV(session, fld, value)		\
 	WT_STAT_FAST_ATOMIC_DECRV(session, &S2C(session)->stats, fld, value)
 #define	WT_STAT_FAST_CONN_ATOMIC_DECR(session, fld)			\
