@@ -824,20 +824,16 @@ __session_ckpt_stats(WT_SESSION_IMPL *session,
 	 * Get time diff in microseconds.
 	 */
 	usec = (WT_TIMEDIFF(*stop, *start) / 1000);
-	if (conn->ckpt_min_time == 0 || usec < conn->ckpt_min_time)
-		conn->ckpt_min_time = usec;
-	if (usec > conn->ckpt_max_time)
-		conn->ckpt_max_time = usec;
-	WT_STAT_FAST_CONN_SET(session,
-	    txn_checkpoint_time_max, conn->ckpt_max_time);
-	WT_STAT_FAST_CONN_SET(session,
-	    txn_checkpoint_time_min, conn->ckpt_min_time);
-	WT_STAT_FAST_CONN_SET(session,
-	    txn_checkpoint_time_recent, usec);
-	WT_STAT_FAST_CONN_INCRV(session,
-	    txn_checkpoint_time_total, usec);
 
-	return;
+	if (WT_CONN_STAT(session, txn_checkpoint_time_min) == 0 ||
+	    usec < WT_CONN_STAT(session, txn_checkpoint_time_min))
+		WT_STAT_FAST_CONN_SET(session, txn_checkpoint_time_min, usec);
+
+	if (usec > WT_CONN_STAT(session, txn_checkpoint_time_max))
+		WT_STAT_FAST_CONN_SET(session, txn_checkpoint_time_max, usec);
+
+	WT_STAT_FAST_CONN_SET(session, txn_checkpoint_time_recent, usec);
+	WT_STAT_FAST_CONN_INCRV(session, txn_checkpoint_time_total, usec);
 }
 
 /*
