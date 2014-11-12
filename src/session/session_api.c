@@ -816,10 +816,8 @@ static void
 __session_ckpt_stats(WT_SESSION_IMPL *session,
     struct timespec *start, struct timespec *stop)
 {
-	WT_CONNECTION_IMPL *conn;
 	uint64_t usec;
 
-	conn = S2C(session);
 	/*
 	 * Get time diff in microseconds.
 	 */
