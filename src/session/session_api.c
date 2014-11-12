@@ -9,8 +9,6 @@
 
 static int __session_checkpoint(WT_SESSION *, const char *);
 static int __session_rollback_transaction(WT_SESSION *, const char *);
-static void __session_ckpt_stats(WT_SESSION_IMPL *,
-    struct timespec *, struct timespec *);
 
 /*
  * __wt_session_reset_cursors --
