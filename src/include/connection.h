@@ -93,9 +93,11 @@ struct __wt_connection_impl {
 
 	WT_SPINLOCK api_lock;		/* Connection API spinlock */
 	WT_SPINLOCK checkpoint_lock;	/* Checkpoint spinlock */
+	WT_SPINLOCK dhandle_lock;	/* Data handle list spinlock */
 	WT_SPINLOCK fh_lock;		/* File handle queue spinlock */
 	WT_SPINLOCK reconfig_lock;	/* Single thread reconfigure */
 	WT_SPINLOCK schema_lock;	/* Schema operation spinlock */
+	WT_SPINLOCK table_lock;		/* Table creation spinlock */
 
 	/*
 	 * We distribute the btree page locks across a set of spin locks; it
@@ -130,7 +132,6 @@ struct __wt_connection_impl {
 
 	uint64_t  split_gen;		/* Generation number for splits */
 
-	WT_SPINLOCK dhandle_lock;	/* Locked: dhandle sweep */
 					/* Locked: data handle list */
 	SLIST_HEAD(__wt_dhandle_lh, __wt_data_handle) dhlh;
 					/* Locked: LSM handle list. */
@@ -181,8 +182,8 @@ struct __wt_connection_impl {
 	WT_CONDVAR	*ckpt_cond;	/* Checkpoint wait mutex */
 	const char	*ckpt_config;	/* Checkpoint configuration */
 #define	WT_CKPT_LOGSIZE(conn)	((conn)->ckpt_logsize != 0)
-	wt_off_t		 ckpt_logsize;	/* Checkpoint log size period */
-	uint32_t	 ckpt_signalled; /* Checkpoint signalled */
+	wt_off_t	 ckpt_logsize;	/* Checkpoint log size period */
+	uint32_t	 ckpt_signalled;/* Checkpoint signalled */
 	long		 ckpt_usecs;	/* Checkpoint period */
 
 	int compact_in_memory_pass;	/* Compaction serialization */

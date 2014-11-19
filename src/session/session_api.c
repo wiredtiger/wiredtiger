@@ -433,7 +433,8 @@ __session_create(WT_SESSION *wt_session, const char *uri, const char *config)
 	}
 
 	WT_WITH_SCHEMA_LOCK(session,
-	    ret = __wt_schema_create(session, uri, config));
+	    WT_WITH_TABLE_LOCK(session,
+		ret = __wt_schema_create(session, uri, config)));
 
 err:	API_END_RET_NOTFOUND_MAP(session, ret);
 }
@@ -479,7 +480,8 @@ __session_rename(WT_SESSION *wt_session,
 	WT_ERR(__wt_str_name_check(session, newuri));
 
 	WT_WITH_SCHEMA_LOCK(session,
-	    ret = __wt_schema_rename(session, uri, newuri, cfg));
+	    WT_WITH_TABLE_LOCK(session,
+		ret = __wt_schema_rename(session, uri, newuri, cfg)));
 
 err:	API_END_RET_NOTFOUND_MAP(session, ret);
 }
@@ -525,7 +527,8 @@ __session_drop(WT_SESSION *wt_session, const char *uri, const char *config)
 	WT_ERR(__wt_str_name_check(session, uri));
 
 	WT_WITH_SCHEMA_LOCK(session,
-	    ret = __wt_schema_drop(session, uri, cfg));
+	    WT_WITH_TABLE_LOCK(session,
+		ret = __wt_schema_drop(session, uri, cfg)));
 
 err:	/* Note: drop operations cannot be unrolled (yet?). */
 	API_END_RET_NOTFOUND_MAP(session, ret);
@@ -546,7 +549,7 @@ __session_salvage(WT_SESSION *wt_session, const char *uri, const char *config)
 	SESSION_API_CALL(session, salvage, config, cfg);
 	WT_WITH_SCHEMA_LOCK(session,
 	    ret = __wt_schema_worker(session, uri, __wt_salvage,
-		NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_SALVAGE));
+	    NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_SALVAGE));
 
 err:	API_END_RET_NOTFOUND_MAP(session, ret);
 }
@@ -569,7 +572,8 @@ __session_truncate(WT_SESSION *wt_session,
 
 	/*
 	 * If the URI is specified, we don't need a start/stop, if start/stop
-	 * is specified, we don't need a URI.
+	 * is specified, we don't need a URI.  One exception is the log URI
+	 * which may truncate (archive) log files for a backup cursor.
 	 *
 	 * If no URI is specified, and both cursors are specified, start/stop
 	 * must reference the same object.
@@ -577,7 +581,8 @@ __session_truncate(WT_SESSION *wt_session,
 	 * Any specified cursor must have been initialized.
 	 */
 	if ((uri == NULL && start == NULL && stop == NULL) ||
-	    (uri != NULL && (start != NULL || stop != NULL)))
+	    (uri != NULL && !WT_PREFIX_MATCH(uri, "log:") &&
+	    (start != NULL || stop != NULL)))
 		WT_ERR_MSG(session, EINVAL,
 		    "the truncate method should be passed either a URI or "
 		    "start/stop cursors, but not both");
@@ -586,8 +591,19 @@ __session_truncate(WT_SESSION *wt_session,
 		/* Disallow objects in the WiredTiger name space. */
 		WT_ERR(__wt_str_name_check(session, uri));
 
-		WT_WITH_SCHEMA_LOCK(session,
-		    ret = __wt_schema_truncate(session, uri, cfg));
+		if (WT_PREFIX_MATCH(uri, "log:")) {
+			/*
+			 * Verify the user only gave the URI prefix and not
+			 * a specific target name after that.
+			 */
+			if (!WT_STREQ(uri, "log:"))
+				WT_ERR_MSG(session, EINVAL,
+				    "the truncate method should not specify any"
+				    "target after the log: URI prefix.");
+			ret = __wt_log_truncate_files(session, start, cfg);
+		} else
+			WT_WITH_SCHEMA_LOCK(session,
+			    ret = __wt_schema_truncate(session, uri, cfg));
 		goto done;
 	}
 
@@ -668,7 +684,7 @@ __session_upgrade(WT_SESSION *wt_session, const char *uri, const char *config)
 	SESSION_API_CALL(session, upgrade, config, cfg);
 	WT_WITH_SCHEMA_LOCK(session,
 	    ret = __wt_schema_worker(session, uri, __wt_upgrade,
-		NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_UPGRADE));
+	    NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_UPGRADE));
 
 err:	API_END_RET_NOTFOUND_MAP(session, ret);
 }
@@ -688,7 +704,7 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
 	SESSION_API_CALL(session, verify, config, cfg);
 	WT_WITH_SCHEMA_LOCK(session,
 	    ret = __wt_schema_worker(session, uri, __wt_verify,
-		NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY));
+	    NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY));
 
 err:	API_END_RET_NOTFOUND_MAP(session, ret);
 }
@@ -870,6 +886,7 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
 	ret = __wt_txn_checkpoint(session, cfg);
 
 	WT_STAT_FAST_CONN_SET(session, txn_checkpoint_running, 0);
+
 	__wt_spin_unlock(session, &S2C(session)->checkpoint_lock);
 
 err:	F_CLR(session, WT_SESSION_CAN_WAIT | WT_SESSION_NO_CACHE_CHECK);
@@ -997,7 +1014,8 @@ __wt_open_session(WT_CONNECTION_IMPL *conn,
 
 	WT_ERR(__wt_cond_alloc(session, "session", 0, &session_ret->cond));
 
-	__wt_random_init(session_ret->rnd);
+	if (WT_SESSION_FIRST_USE(session_ret))
+		__wt_random_init(session_ret->rnd);
 
 	__wt_event_handler_set(session_ret,
 	    event_handler == NULL ? session->event_handler : event_handler);
@@ -1014,7 +1032,7 @@ __wt_open_session(WT_CONNECTION_IMPL *conn,
 	 * session close because access to it isn't serialized.  Allocate the
 	 * first time we open this session.
 	 */
-	if (session_ret->hazard == NULL)
+	if (WT_SESSION_FIRST_USE(session_ret))
 		WT_ERR(__wt_calloc_def(
 		    session, conn->hazard_max, &session_ret->hazard));
 

@@ -117,6 +117,10 @@ struct __wt_stats {
 		   session, &(session)->dhandle->stats, fld, value);	\
 } while (0)
 
+/* Connection handle statistics value. */
+#define	WT_CONN_STAT(session, fld)					\
+	WT_STAT(&S2C(session)->stats, fld)
+
 /*
  * DO NOT EDIT: automatically built by dist/stat.py.
  */
@@ -187,7 +191,7 @@ struct __wt_connection_stats {
 	WT_STATS file_open;
 	WT_STATS log_buffer_grow;
 	WT_STATS log_buffer_size;
-	WT_STATS log_bytes_user;
+	WT_STATS log_bytes_payload;
 	WT_STATS log_bytes_written;
 	WT_STATS log_close_yields;
 	WT_STATS log_max_filesize;
@@ -230,6 +234,10 @@ struct __wt_connection_stats {
 	WT_STATS txn_begin;
 	WT_STATS txn_checkpoint;
 	WT_STATS txn_checkpoint_running;
+	WT_STATS txn_checkpoint_time_max;
+	WT_STATS txn_checkpoint_time_min;
+	WT_STATS txn_checkpoint_time_recent;
+	WT_STATS txn_checkpoint_time_total;
 	WT_STATS txn_commit;
 	WT_STATS txn_fail_cache;
 	WT_STATS txn_pinned_range;

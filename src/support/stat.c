@@ -412,6 +412,7 @@ __wt_stat_init_connection_stats(WT_CONNECTION_STATS *stats)
 	stats->log_slot_toosmall.desc =
 	    "log: failed to find a slot large enough for record";
 	stats->log_buffer_grow.desc = "log: log buffer size increases";
+	stats->log_bytes_payload.desc = "log: log bytes of payload data";
 	stats->log_bytes_written.desc = "log: log bytes written";
 	stats->log_reads.desc = "log: log read operations";
 	stats->log_scans.desc = "log: log scan operations";
@@ -426,7 +427,6 @@ __wt_stat_init_connection_stats(WT_CONNECTION_STATS *stats)
 	stats->log_slot_switch_fails.desc =
 	    "log: slots selected for switching that were unavailable";
 	stats->log_buffer_size.desc = "log: total log buffer size";
-	stats->log_bytes_user.desc = "log: user provided log bytes written";
 	stats->log_close_yields.desc =
 	    "log: yields waiting for previous log file close";
 	stats->lsm_work_queue_app.desc =
@@ -458,6 +458,14 @@ __wt_stat_init_connection_stats(WT_CONNECTION_STATS *stats)
 	stats->txn_begin.desc = "transaction: transaction begins";
 	stats->txn_checkpoint_running.desc =
 	    "transaction: transaction checkpoint currently running";
+	stats->txn_checkpoint_time_max.desc =
+	    "transaction: transaction checkpoint max time (msecs)";
+	stats->txn_checkpoint_time_min.desc =
+	    "transaction: transaction checkpoint min time (msecs)";
+	stats->txn_checkpoint_time_recent.desc =
+	    "transaction: transaction checkpoint most recent time (msecs)";
+	stats->txn_checkpoint_time_total.desc =
+	    "transaction: transaction checkpoint total time (msecs)";
 	stats->txn_checkpoint.desc = "transaction: transaction checkpoints";
 	stats->txn_fail_cache.desc =
 	    "transaction: transaction failures due to cache overflow";
@@ -540,6 +548,7 @@ __wt_stat_refresh_connection_stats(void *stats_arg)
 	stats->log_slot_joins.v = 0;
 	stats->log_slot_toosmall.v = 0;
 	stats->log_buffer_grow.v = 0;
+	stats->log_bytes_payload.v = 0;
 	stats->log_bytes_written.v = 0;
 	stats->log_reads.v = 0;
 	stats->log_scans.v = 0;
@@ -550,7 +559,6 @@ __wt_stat_refresh_connection_stats(void *stats_arg)
 	stats->log_slot_toobig.v = 0;
 	stats->log_scan_records.v = 0;
 	stats->log_slot_switch_fails.v = 0;
-	stats->log_bytes_user.v = 0;
 	stats->log_close_yields.v = 0;
 	stats->lsm_rows_merged.v = 0;
 	stats->lsm_checkpoint_throttle.v = 0;

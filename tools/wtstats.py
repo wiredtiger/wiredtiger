@@ -31,6 +31,13 @@ from collections import defaultdict
 from time import mktime
 from subprocess import call
 
+# Make sure Python can find files in the tools directory
+tool_dir = os.path.split(sys.argv[0])[0]
+
+# Make sure Python finds the NVD3 in our third party directory.
+# To avoid compatability issues, prepend it to the system path.
+sys.path = [ os.path.join(tool_dir, "3rdparty") ] + sys.path
+
 try:
     from stat_data import no_scale_per_second_list, no_clear_list
 except ImportError:
@@ -55,7 +62,11 @@ except ImportError:
 try:
     from nvd3 import lineChart, lineWithFocusChart
 except ImportError:
-    print >>sys.stderr, "Could not import nvd3.  Please install it *from source* (other versions may be missing features that we rely on).  Run these commands: git clone https://github.com/areski/python-nvd3.git ; cd python-nvd3 ; sudo python setup.py install"
+    print >>sys.stderr, "Could not import nvd3 it should be installed locally"
+    sys.exit(-1)
+
+if sys.version_info<(2,7,0):
+    print >>sys.stderr, "You need python 2.7 or later to run this script"
     sys.exit(-1)
 
 # Plot a set of entries for a title.
