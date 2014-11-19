@@ -806,7 +806,7 @@ cache_value_update_check(WT_CURSOR *wtcursor)
 	for (i = 0, cp = cursor->cache; i < cursor->cache_entries; ++i, ++cp)
 		if (!cache_value_aborted(wtcursor, cp) &&
 		    !wtext->transaction_visible(wtext, session, cp->txnid))
-			return (WT_DEADLOCK);
+			return (WT_ROLLBACK);
 	return (0);
 }
 
@@ -1242,7 +1242,8 @@ cache_clean:
 		a.size = (uint32_t)r->key_len;
 		b.data = cursor->t2.v;		/* b is the cache */
 		b.size = (uint32_t)cursor->t2.len;
-		if ((ret = wtext->collate(wtext, session, &a, &b, &cmp)) != 0)
+		if ((ret = wtext->collate(
+		    wtext, session, NULL, &a, &b, &cmp)) != 0)
 			return (ret);
 
 		if (f == he_next) {
@@ -1956,7 +1957,7 @@ err:		if (ws != NULL)
  */
 static int
 master_uri_get(WT_DATA_SOURCE *wtds,
-    WT_SESSION *session, const char *uri, const char **valuep)
+    WT_SESSION *session, const char *uri, char **valuep)
 {
 	DATA_SOURCE *ds;
 	WT_EXTENSION_API *wtext;
@@ -1994,7 +1995,7 @@ master_uri_rename(WT_DATA_SOURCE *wtds,
 	DATA_SOURCE *ds;
 	WT_EXTENSION_API *wtext;
 	int ret = 0;
-	const char *value;
+	char *value;
 
 	ds = (DATA_SOURCE *)wtds;
 	wtext = ds->wtext;
@@ -2106,8 +2107,8 @@ helium_session_open_cursor(WT_DATA_SOURCE *wtds, WT_SESSION *session,
 	WT_CURSOR *wtcursor;
 	WT_EXTENSION_API *wtext;
 	WT_SOURCE *ws;
-	int locked, ret, tret;
-	const char *value;
+	int locked, own, ret, tret;
+	char *value;
 
 	*new_cursor = NULL;
 
@@ -2136,7 +2137,8 @@ helium_session_open_cursor(WT_DATA_SOURCE *wtds, WT_SESSION *session,
 		    "overwrite configuration: %s", wtext->strerror(ret));
 	cursor->config_overwrite = v.val != 0;
 
-	if ((ret = wtext->collator_config(wtext, session, config)) != 0)
+	if ((ret = wtext->collator_config(
+	    wtext, session, uri, config, NULL, &own)) != 0)
 		EMSG_ERR(wtext, session, ret,
 		    "collator configuration: %s", wtext->strerror(ret));
 

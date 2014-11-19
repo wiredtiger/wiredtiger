@@ -195,13 +195,8 @@ __evict_server(void *arg)
 		WT_ERR(__wt_verbose(session, WT_VERB_EVICTSERVER, "waking"));
 	}
 
-	WT_ERR(__wt_verbose(session, WT_VERB_EVICTSERVER, "exiting"));
-
-err:	
-	if (ret != 0) {
-		WT_PANIC_MSG(session, ret, "eviction server error");
-		return (NULL);
-	}
+	WT_ERR(__wt_verbose(
+	    session, WT_VERB_EVICTSERVER, "cache eviction server exiting"));
 
 	if (cache->pages_inmem != cache->pages_evict)
 		__wt_errx(session,
@@ -219,6 +214,9 @@ err:
 		    " bytes dirty and %" PRIu64 " pages dirty",
 		    cache->bytes_dirty, cache->pages_dirty);
 
+	if (0) {
+err:		WT_PANIC_MSG(session, ret, "cache eviction server error");
+	}
 	return (NULL);
 }
 
@@ -227,11 +225,13 @@ err:
  *	Start the eviction server thread.
  */
 int
-__wt_evict_create(WT_CONNECTION_IMPL *conn)
+__wt_evict_create(WT_SESSION_IMPL *session)
 {
-	WT_SESSION_IMPL *session;
+	WT_CONNECTION_IMPL *conn;
 	WT_EVICT_WORKER *workers;
 	u_int i;
+
+	conn = S2C(session);
 
 	/* Set first, the thread might run before we finish up. */
 	F_SET(conn, WT_CONN_EVICTION_RUN);
@@ -287,17 +287,17 @@ __wt_evict_create(WT_CONNECTION_IMPL *conn)
  *	Destroy the eviction server thread.
  */
 int
-__wt_evict_destroy(WT_CONNECTION_IMPL *conn)
+__wt_evict_destroy(WT_SESSION_IMPL *session)
 {
 	WT_CACHE *cache;
+	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_EVICT_WORKER *workers;
 	WT_SESSION *wt_session;
-	WT_SESSION_IMPL *session;
 	u_int i;
 
+	conn = S2C(session);
 	cache = conn->cache;
-	session = conn->default_session;
 	workers = conn->evict_workctx;
 
 	F_CLR(conn, WT_CONN_EVICTION_RUN);
@@ -362,13 +362,12 @@ __evict_worker(void *arg)
 		else
 			WT_ERR(__evict_lru_pages(session, 1));
 	}
+	WT_ERR(__wt_verbose(
+	    session, WT_VERB_EVICTSERVER, "cache eviction worker exiting"));
 
 	if (0) {
-err:		__wt_err(session, ret, "cache eviction helper error");
+err:		WT_PANIC_MSG(session, ret, "cache eviction worker error");
 	}
-
-	WT_TRET(__wt_verbose(session, WT_VERB_EVICTSERVER, "helper exiting"));
-
 	return (NULL);
 }
 
@@ -568,15 +567,27 @@ __evict_tree_walk_clear(WT_SESSION_IMPL *session)
 	WT_BTREE *btree;
 	WT_CACHE *cache;
 	WT_DECL_RET;
+	int locked;
 
 	btree = S2BT(session);
 	cache = S2C(session)->cache;
 
-	while (btree->evict_ref != NULL) {
+	/*
+	 * Drop the handle lock if we are holding it: the eviction server needs
+	 * it to find the handle and clear the walk point.
+	  */
+	locked = F_ISSET(session, WT_SESSION_HANDLE_LIST_LOCKED);
+	if (locked)
+		__wt_spin_unlock(session, &S2C(session)->dhandle_lock);
+
+	while (btree->evict_ref != NULL && ret == 0) {
 		F_SET(cache, WT_EVICT_CLEAR_WALKS);
-		WT_RET(__wt_cond_wait(
-		    session, cache->evict_waiter_cond, 100000));
+		ret = __wt_cond_wait(
+		    session, cache->evict_waiter_cond, 100000);
 	}
+
+	if (locked)
+		__wt_spin_lock(session, &S2C(session)->dhandle_lock);
 
 	return (ret);
 }
@@ -1116,7 +1127,7 @@ __evict_get_ref(
 	    __wt_txn_am_oldest(session)) {
 		F_CLR(cache, WT_EVICT_STUCK);
 		WT_STAT_FAST_CONN_INCR(session, txn_fail_cache);
-		return (WT_DEADLOCK);
+		return (WT_ROLLBACK);
 	}
 
 	/*
@@ -1155,7 +1166,7 @@ __evict_get_ref(
 		 * multiple attempts to evict it.  For pages that are already
 		 * being evicted, this operation will fail and we will move on.
 		 */
-		if (!WT_ATOMIC_CAS(
+		if (!WT_ATOMIC_CAS4(
 		    evict->ref->state, WT_REF_MEM, WT_REF_LOCKED)) {
 			__evict_list_clear(session, evict);
 			continue;
@@ -1165,7 +1176,7 @@ __evict_get_ref(
 		 * Increment the busy count in the btree handle to prevent it
 		 * from being closed under us.
 		 */
-		(void)WT_ATOMIC_ADD(evict->btree->evict_busy, 1);
+		(void)WT_ATOMIC_ADD4(evict->btree->evict_busy, 1);
 
 		*btreep = evict->btree;
 		*refp = evict->ref;
@@ -1217,7 +1228,7 @@ __wt_evict_lru_page(WT_SESSION_IMPL *session, int is_app)
 
 	WT_WITH_BTREE(session, btree, ret = __wt_evict_page(session, ref));
 
-	(void)WT_ATOMIC_SUB(btree->evict_busy, 1);
+	(void)WT_ATOMIC_SUB4(btree->evict_busy, 1);
 
 	WT_RET(ret);
 

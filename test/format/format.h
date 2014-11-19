@@ -26,7 +26,9 @@
  */
 
 #include <sys/stat.h>
+#ifndef _WIN32
 #include <sys/time.h>
+#endif
 #include <sys/types.h>
 
 #include <assert.h>
@@ -35,20 +37,35 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include <limits.h>
+#ifndef _WIN32
 #include <pthread.h>
+#endif
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
+#include <time.h>
+
+#ifdef _WIN32
+#include "windows_shim.h"
+#endif
+
+#include <wiredtiger.h>
+#include <wiredtiger_ext.h>
 
 #ifdef BDB
 #include <db.h>
 #endif
-#include <wiredtiger.h>
-#include <gcc.h>				/* WiredTiger internal */
 
-#include <wiredtiger_ext.h>
+#if defined(__GNUC__)
+#define	WT_GCC_ATTRIBUTE(x)	__attribute__(x)
+#else
+#define	WT_GCC_ATTRIBUTE(x)
+#endif
+
 extern WT_EXTENSION_API *wt_api;
 
 #define	EXTPATH	"../../ext/"			/* Extensions path */
@@ -84,6 +101,14 @@ extern WT_EXTENSION_API *wt_api;
 
 #define	DATASOURCE(v)	(strcmp(v, g.c_data_source) == 0 ? 1 : 0)
 #define	SINGLETHREADED	(g.c_threads == 1)
+
+#define	FORMAT_OPERATION_REPS	3		/* 3 thread operations sets */
+
+#ifndef _WIN32
+#define	SIZET_FMT	"%zu"			/* size_t format string */
+#else
+#define	SIZET_FMT	"%Iu"			/* size_t format string */
+#endif
 
 typedef struct {
 	char *progname;				/* Program name */
@@ -121,7 +146,7 @@ typedef struct {
 
 	int replay;				/* Replaying a run. */
 	int track;				/* Track progress */
-	int threads_finished;			/* Operations completed */
+	int workers_finished;			/* Operations completed */
 
 	pthread_rwlock_t backup_lock;		/* Hot backup running */
 
@@ -173,8 +198,8 @@ typedef struct {
 	uint32_t c_leaf_page_max;
 	uint32_t c_leak_memory;
 	uint32_t c_logging;
+	uint32_t c_lsm_worker_threads;
 	uint32_t c_merge_max;
-	uint32_t c_merge_threads;
 	uint32_t c_mmap;
 	uint32_t c_ops;
 	uint32_t c_prefix_compression;
@@ -186,6 +211,7 @@ typedef struct {
 	uint32_t c_split_pct;
 	uint32_t c_statistics;
 	uint32_t c_threads;
+	uint32_t c_timer;
 	uint32_t c_value_max;
 	uint32_t c_value_min;
 	uint32_t c_write_pct;
@@ -206,6 +232,7 @@ typedef struct {
 #define	COMPRESS_LZO			4
 #define	COMPRESS_SNAPPY			5
 #define	COMPRESS_ZLIB			6
+#define	COMPRESS_ZLIB_NO_RAW		7
 	u_int c_compression_flag;		/* Compression flag value */
 
 #define	ISOLATION_RANDOM		1
@@ -226,6 +253,7 @@ typedef struct {
 	uint64_t insert;
 	uint64_t update;
 	uint64_t remove;
+	uint64_t ops;
 
 	uint64_t commit;			/* transaction resolution */
 	uint64_t rollback;
@@ -234,11 +262,13 @@ typedef struct {
 	int       id;				/* simple thread ID */
 	pthread_t tid;				/* thread ID */
 
+	int quit;				/* thread should quit */
+
 #define	TINFO_RUNNING	1			/* Running */
 #define	TINFO_COMPLETE	2			/* Finished */
 #define	TINFO_JOINED	3			/* Resolved */
 	volatile int state;			/* state */
-} TINFO;
+} TINFO WT_GCC_ATTRIBUTE((aligned(64)));
 
 void	 bdb_close(void);
 void	 bdb_insert(const void *, size_t, const void *, size_t);

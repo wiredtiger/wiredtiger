@@ -213,9 +213,19 @@ config_threads(CONFIG *cfg, const char *config, size_t len)
 					goto err;
 				continue;
 			}
+			if (STRING_MATCH("throttle", k.str, k.len)) {
+				if ((workp->throttle = v.val) < 0)
+					goto err;
+				continue;
+			}
 			if (STRING_MATCH("insert", k.str, k.len) ||
 			    STRING_MATCH("inserts", k.str, k.len)) {
 				if ((workp->insert = v.val) < 0)
+					goto err;
+				continue;
+			}
+			if (STRING_MATCH("ops_per_txn", k.str, k.len)) {
+				if ((workp->ops_per_txn = v.val) < 0)
 					goto err;
 				continue;
 			}
@@ -277,8 +287,7 @@ config_opt(CONFIG *cfg, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v)
 {
 	CONFIG_OPT *popt;
 	char *newstr, **strp;
-	size_t i, nopt;
-	uint64_t newlen;
+	size_t i, newlen, nopt;
 	void *valueloc;
 
 	popt = NULL;
@@ -423,14 +432,19 @@ config_opt_file(CONFIG *cfg, const char *filename)
 		goto err;
 	}
 	read_size = read(fd, file_buf, buf_size);
-	if (read_size == -1 || (size_t)read_size != buf_size) {
+	if (read_size == -1
+#ifndef _WIN32
+	/* Windows automatically translates \r\n -> \n so counts will be off */
+	|| (size_t)read_size != buf_size
+#endif
+	) {
 		fprintf(stderr,
 		    "wtperf: read unexpected amount from config file\n");
 		ret = EINVAL;
 		goto err;
 	}
 	/* Make sure the buffer is terminated correctly. */
-	file_buf[buf_size] = '\0';
+	file_buf[read_size] = '\0';
 
 	ret = 0;
 	optionpos = 0;

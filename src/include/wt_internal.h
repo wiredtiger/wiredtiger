@@ -18,25 +18,42 @@ extern "C" {
 /*******************************************
  * WiredTiger system include files.
  *******************************************/
+#ifndef _WIN32
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/uio.h>
-
+#endif
 #include <ctype.h>
+#ifndef _WIN32
 #include <dlfcn.h>
+#endif
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
+#ifdef _WIN32
+#include <io.h>
+#endif
 #include <limits.h>
+#ifndef _WIN32
 #include <pthread.h>
+#endif
 #ifdef HAVE_PTHREAD_NP_H
 #include <pthread_np.h>
 #endif
 #include <stddef.h>
+#include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
+#include <time.h>
+#ifdef _WIN32
+#define	WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
 
 /*******************************************
  * WiredTiger externally maintained include files.
@@ -195,6 +212,8 @@ struct __wt_named_data_source;
     typedef struct __wt_named_data_source WT_NAMED_DATA_SOURCE;
 struct __wt_named_discard_filter;
     typedef struct __wt_named_discard_filter WT_NAMED_DISCARD_FILTER;
+struct __wt_named_extractor;
+    typedef struct __wt_named_extractor WT_NAMED_EXTRACTOR;
 struct __wt_ovfl_reuse;
     typedef struct __wt_ovfl_reuse WT_OVFL_REUSE;
 struct __wt_ovfl_track;
@@ -253,11 +272,23 @@ struct __wt_update;
 /*******************************************
  * WiredTiger internal include files.
  *******************************************/
+#if defined(_lint)
+#include "lint.h"
+#elif defined(__GNUC__)
 #include "gcc.h"
+#elif defined(_MSC_VER)
+#include "msvc.h"
+#endif
 #include "hardware.h"
+
+#ifdef _WIN32
+#include "os_windows.h"
+#else
+#include "posix.h"
+#endif
+
 #include "misc.h"
 #include "mutex.h"
-#include "posix.h"
 
 #include "stat.h"			/* required by dhandle.h */
 #include "dhandle.h"			/* required by btree.h */

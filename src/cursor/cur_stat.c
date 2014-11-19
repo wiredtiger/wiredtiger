@@ -404,12 +404,12 @@ __curstat_file_init(WT_SESSION_IMPL *session,
 		cfg_arg[0] = (char *)&args;
 
 		/*
-		 * We're likely holding the schema lock inside the statistics
+		 * We're likely holding the handle lock inside the statistics
 		 * logging thread, not to mention calling __wt_conn_btree_apply
 		 * from there as well.  Save/restore the handle.
 		 */
 		saved_dhandle = dhandle;
-		WT_WITH_SCHEMA_LOCK(session,
+		WT_WITH_DHANDLE_LOCK(session,
 		    ret = __wt_conn_btree_apply(
 		    session, 1, __curstat_checkpoint, cfg_arg));
 		session->dhandle = saved_dhandle;
@@ -483,7 +483,7 @@ __wt_curstat_open(WT_SESSION_IMPL *session,
 	    __curstat_get_value,	/* get-value */
 	    __curstat_set_key,		/* set-key */
 	    __curstat_set_value,	/* set-value */
-	    NULL,			/* compare */
+	    __wt_cursor_notsup,		/* compare */
 	    __curstat_next,		/* next */
 	    __curstat_prev,		/* prev */
 	    __curstat_reset,		/* reset */
@@ -498,7 +498,7 @@ __wt_curstat_open(WT_SESSION_IMPL *session,
 	WT_CURSOR_STAT *cst;
 	WT_DECL_RET;
 
-	STATIC_ASSERT(offsetof(WT_CURSOR_STAT, iface) == 0);
+	WT_STATIC_ASSERT(offsetof(WT_CURSOR_STAT, iface) == 0);
 
 	conn = S2C(session);
 

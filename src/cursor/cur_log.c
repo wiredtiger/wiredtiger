@@ -22,7 +22,7 @@ __curlog_logrec(
 	/* Set up the LSNs and take a copy of the log record for the cursor. */
 	*cl->cur_lsn = *lsnp;
 	*cl->next_lsn = *lsnp;
-	cl->next_lsn->offset += (off_t)logrec->size;
+	cl->next_lsn->offset += (wt_off_t)logrec->size;
 	WT_RET(__wt_buf_set(session, cl->logrec, logrec->data, logrec->size));
 
 	/*
@@ -286,14 +286,14 @@ __curlog_close(WT_CURSOR *cursor)
 	conn = S2C(session);
 	WT_ASSERT(session, conn->logging);
 	log = conn->log;
-	WT_ERR(__wt_rwunlock(session, log->log_archive_lock));
-	WT_ERR(__curlog_reset(cursor));
+	WT_TRET(__wt_readunlock(session, log->log_archive_lock));
+	WT_TRET(__curlog_reset(cursor));
 	__wt_free(session, cl->cur_lsn);
 	__wt_free(session, cl->next_lsn);
 	__wt_scr_free(&cl->logrec);
 	__wt_scr_free(&cl->opkey);
 	__wt_scr_free(&cl->opvalue);
-	WT_ERR(__wt_cursor_close(cursor));
+	WT_TRET(__wt_cursor_close(cursor));
 
 err:	API_END_RET(session, ret);
 }
@@ -308,10 +308,10 @@ __wt_curlog_open(WT_SESSION_IMPL *session,
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_CURSOR_STATIC_INIT(iface,
-	    NULL,			/* get-key */
-	    NULL,			/* get-value */
-	    NULL,			/* set-key */
-	    NULL,			/* set-value */
+	    __wt_cursor_get_key,	/* get-key */
+	    __wt_cursor_get_value,	/* get-value */
+	    __wt_cursor_set_key,	/* set-key */
+	    __wt_cursor_set_value,	/* set-value */
 	    __curlog_compare,		/* compare */
 	    __curlog_next,		/* next */
 	    __wt_cursor_notsup,		/* prev */
@@ -327,7 +327,7 @@ __wt_curlog_open(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	WT_LOG *log;
 
-	STATIC_ASSERT(offsetof(WT_CURSOR_LOG, iface) == 0);
+	WT_STATIC_ASSERT(offsetof(WT_CURSOR_LOG, iface) == 0);
 	conn = S2C(session);
 	if (!conn->logging)
 		WT_RET_MSG(session, EINVAL,

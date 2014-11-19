@@ -87,13 +87,9 @@ backup(void *arg)
 	int ret;
 	const char *key;
 
-	WT_UNUSED(arg);
+	(void)(arg);
 
 	conn = g.wts_conn;
-
-	/* If backups aren't configured, we're done. */
-	if (!g.c_backups)
-		return (NULL);
 
 	/* Backups aren't supported for non-standard data sources. */
 	if (DATASOURCE("helium") || DATASOURCE("kvsbdb"))
@@ -109,11 +105,11 @@ backup(void *arg)
 	 */
 	for (period = MMRAND(1, 10);; period = 45) {
 		/* Sleep for short periods so we don't make the run wait. */
-		while (period > 0 && !g.threads_finished) {
+		while (period > 0 && !g.workers_finished) {
 			--period;
 			sleep(1);
 		}
-		if (g.threads_finished)
+		if (g.workers_finished)
 			break;
 
 		/* Lock out named checkpoints */

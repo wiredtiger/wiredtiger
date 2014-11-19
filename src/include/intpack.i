@@ -50,13 +50,22 @@
 	WT_RET_TEST((maxl) != 0 && (size_t)(l) > (maxl), ENOMEM)
 
 /* Count the leading zero bytes. */
-#ifdef __GNUC__
+#if defined(__GNUC__)
 #define	WT_LEADING_ZEROS(x, i)						\
 	(i = (x == 0) ? (int)sizeof (x) : __builtin_clzll(x) >> 3)
+#elif defined(_MSC_VER)
+#define	WT_LEADING_ZEROS(x, i)	do {					\
+	if (x == 0) i = (int)sizeof(x);				\
+	else  { 							\
+		unsigned long __index;					\
+		_BitScanReverse64(&__index, x);				\
+		__index = 63 ^ __index;					\
+		i = (int)(__index >> 3); }				\
+	} while (0)
 #else
 #define	WT_LEADING_ZEROS(x, i) do {					\
 	uint64_t __x = (x);						\
-	uint64_t __m = 0xff << 56;					\
+	uint64_t __m = (uint64_t)0xff << 56;				\
 	for (i = 0; !(__x & __m) && i != 8; i++)			\
 		__m >>= 8;						\
 } while (0)
@@ -81,7 +90,7 @@ __wt_vpack_posint(uint8_t **pp, size_t maxlen, uint64_t x)
 	*p++ |= (len & 0xf);
 
 	for (shift = (len - 1) << 3; len != 0; --len, shift -= 8)
-		*p++ = (x >> shift);
+		*p++ = (uint8_t)(x >> shift);
 
 	*pp = p;
 	return (0);
@@ -111,7 +120,7 @@ __wt_vpack_negint(uint8_t **pp, size_t maxlen, uint64_t x)
 	*p++ |= (lz & 0xf);
 
 	for (shift = (len - 1) << 3; len != 0; shift -= 8, --len)
-		*p++ = (x >> shift);
+		*p++ = (uint8_t)(x >> shift);
 
 	*pp = p;
 	return (0);
@@ -183,6 +192,14 @@ __wt_vpack_uint(uint8_t **pp, size_t maxlen, uint64_t x)
 		x -= POS_1BYTE_MAX + 1;
 		*p++ = POS_2BYTE_MARKER | GET_BITS(x, 13, 8);
 		*p++ = GET_BITS(x, 8, 0);
+	} else if (x == POS_2BYTE_MAX + 1) {
+		/*
+		 * This is a special case where we could store the value with
+		 * just a single byte, but we append a zero byte so that the
+		 * encoding doesn't get shorter for this one value.
+		 */
+		*p++ = POS_MULTI_MARKER | 0x1;
+		*p++ = 0;
 	} else {
 		x -= POS_2BYTE_MAX + 1;
 		*p = POS_MULTI_MARKER;
@@ -335,7 +352,7 @@ __wt_vsize_uint(uint64_t x)
 {
 	if (x <= POS_1BYTE_MAX)
 		return (1);
-	else if (x <= POS_2BYTE_MAX) {
+	else if (x <= POS_2BYTE_MAX + 1) {
 		return (2);
 	} else {
 		x -= POS_2BYTE_MAX + 1;

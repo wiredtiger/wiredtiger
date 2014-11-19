@@ -45,11 +45,11 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
 	size += WT_ALLOC_OVERHEAD;
 
 	cache = S2C(session)->cache;
-	(void)WT_ATOMIC_ADD(cache->bytes_inmem, size);
-	(void)WT_ATOMIC_ADD(page->memory_footprint, size);
+	(void)WT_ATOMIC_ADD8(cache->bytes_inmem, size);
+	(void)WT_ATOMIC_ADD8(page->memory_footprint, size);
 	if (__wt_page_is_modified(page)) {
-		(void)WT_ATOMIC_ADD(cache->bytes_dirty, size);
-		(void)WT_ATOMIC_ADD(page->modify->bytes_dirty, size);
+		(void)WT_ATOMIC_ADD8(cache->bytes_dirty, size);
+		(void)WT_ATOMIC_ADD8(page->modify->bytes_dirty, size);
 	}
 }
 
@@ -65,11 +65,11 @@ __wt_cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
 	size += WT_ALLOC_OVERHEAD;
 
 	cache = S2C(session)->cache;
-	(void)WT_ATOMIC_SUB(cache->bytes_inmem, size);
-	(void)WT_ATOMIC_SUB(page->memory_footprint, size);
+	(void)WT_ATOMIC_SUB8(cache->bytes_inmem, size);
+	(void)WT_ATOMIC_SUB8(page->memory_footprint, size);
 	if (__wt_page_is_modified(page)) {
-		(void)WT_ATOMIC_SUB(cache->bytes_dirty, size);
-		(void)WT_ATOMIC_SUB(page->modify->bytes_dirty, size);
+		(void)WT_ATOMIC_SUB8(cache->bytes_dirty, size);
+		(void)WT_ATOMIC_SUB8(page->modify->bytes_dirty, size);
 	}
 }
 
@@ -84,15 +84,15 @@ __wt_cache_dirty_incr(WT_SESSION_IMPL *session, WT_PAGE *page)
 	size_t size;
 
 	cache = S2C(session)->cache;
-	(void)WT_ATOMIC_ADD(cache->pages_dirty, 1);
+	(void)WT_ATOMIC_ADD8(cache->pages_dirty, 1);
 
 	/*
 	 * Take care to read the memory_footprint once in case we are racing
 	 * with updates.
 	 */
 	size = page->memory_footprint;
-	(void)WT_ATOMIC_ADD(cache->bytes_dirty, size);
-	(void)WT_ATOMIC_ADD(page->modify->bytes_dirty, size);
+	(void)WT_ATOMIC_ADD8(cache->bytes_dirty, size);
+	(void)WT_ATOMIC_ADD8(page->modify->bytes_dirty, size);
 }
 
 /*
@@ -113,7 +113,7 @@ __wt_cache_dirty_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
 		   "negative");
 		cache->pages_dirty = 0;
 	} else
-		(void)WT_ATOMIC_SUB(cache->pages_dirty, 1);
+		(void)WT_ATOMIC_SUB8(cache->pages_dirty, 1);
 
 	/*
 	 * It is possible to decrement the footprint of the page without making
@@ -131,8 +131,8 @@ __wt_cache_dirty_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 * the page is evicted.
 	 */
 	size = WT_MIN(page->memory_footprint, cache->bytes_dirty);
-	(void)WT_ATOMIC_SUB(cache->bytes_dirty, size);
-	(void)WT_ATOMIC_SUB(page->modify->bytes_dirty, size);
+	(void)WT_ATOMIC_SUB8(cache->bytes_dirty, size);
+	(void)WT_ATOMIC_SUB8(page->modify->bytes_dirty, size);
 }
 
 /*
@@ -154,13 +154,13 @@ __wt_cache_page_evict(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 * we can fix the global stats.
 	 */
 	if (mod != NULL && mod->bytes_dirty != 0)
-		(void)WT_ATOMIC_SUB(cache->bytes_dirty, mod->bytes_dirty);
+		(void)WT_ATOMIC_SUB8(cache->bytes_dirty, mod->bytes_dirty);
 
 	WT_ASSERT(session, page->memory_footprint != 0);
-	(void)WT_ATOMIC_ADD(cache->bytes_evict, page->memory_footprint);
+	(void)WT_ATOMIC_ADD8(cache->bytes_evict, page->memory_footprint);
 	page->memory_footprint = 0;
 
-	(void)WT_ATOMIC_ADD(cache->pages_evict, 1);
+	(void)WT_ATOMIC_ADD8(cache->pages_evict, 1);
 }
 
 /*
@@ -286,33 +286,8 @@ retry:	pindex = WT_INTL_INDEX_COPY(ref->home);
 static inline int
 __wt_page_modify_init(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
-	WT_CONNECTION_IMPL *conn;
-	WT_PAGE_MODIFY *modify;
-
-	if (page->modify != NULL)
-		return (0);
-
-	conn = S2C(session);
-
-	WT_RET(__wt_calloc_def(session, 1, &modify));
-
-	/*
-	 * Select a spinlock for the page; let the barrier immediately below
-	 * keep things from racing too badly.
-	 */
-	modify->page_lock = ++conn->page_lock_cnt % WT_PAGE_LOCKS(conn);
-
-	/*
-	 * Multiple threads of control may be searching and deciding to modify
-	 * a page.  If our modify structure is used, update the page's memory
-	 * footprint, else discard the modify structure, another thread did the
-	 * work.
-	 */
-	if (WT_ATOMIC_CAS(page->modify, NULL, modify))
-		__wt_cache_page_inmem_incr(session, page, sizeof(*modify));
-	else
-		__wt_free(session, modify);
-	return (0);
+	return (page->modify == NULL ?
+	    __wt_page_modify_alloc(session, page) : 0);
 }
 
 /*
@@ -337,7 +312,7 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 * Every time the page transitions from clean to dirty, update the cache
 	 * and transactional information.
 	 */
-	if (WT_ATOMIC_ADD(page->modify->write_gen, 1) == 1) {
+	if (WT_ATOMIC_ADD4(page->modify->write_gen, 1) == 1) {
 		__wt_cache_dirty_incr(session, page);
 
 		/*
@@ -952,11 +927,23 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 		return (0);
 	page = ref->page;
 
-	/* Attempt to evict pages with the special "oldest" read generation. */
+	/*
+	 * Attempt to evict pages with the special "oldest" read generation.
+	 *
+	 * This is set for pages that grow larger than the configured
+	 * memory_page_max setting, and when we are attempting to scan without
+	 * trashing the cache.
+	 *
+	 * Skip this if eviction is disabled for this operation or this tree,
+	 * or if there is no chance of eviction succeeding for dirty pages due
+	 * to a checkpoint or because we've already tried writing this page and
+	 * it contains an update that isn't stable.
+	 */
 	if (LF_ISSET(WT_READ_NO_EVICT) ||
 	    page->read_gen != WT_READGEN_OLDEST ||
 	    F_ISSET(btree, WT_BTREE_NO_EVICTION) ||
-	    (btree->checkpointing && __wt_page_is_modified(page)))
+	    (__wt_page_is_modified(page) && (btree->checkpointing ||
+	    !__wt_txn_visible_all(session, page->modify->first_dirty_txn))))
 		return (__wt_hazard_clear(session, page));
 
 	/*
@@ -964,12 +951,12 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	 * reference without first locking the page, it could be evicted in
 	 * between.
 	 */
-	locked = WT_ATOMIC_CAS(ref->state, WT_REF_MEM, WT_REF_LOCKED);
+	locked = WT_ATOMIC_CAS4(ref->state, WT_REF_MEM, WT_REF_LOCKED);
 	WT_TRET(__wt_hazard_clear(session, page));
 	if (!locked)
 		return (ret);
 
-	(void)WT_ATOMIC_ADD(btree->evict_busy, 1);
+	(void)WT_ATOMIC_ADD4(btree->evict_busy, 1);
 	if ((ret = __wt_evict_page(session, ref)) == 0)
 		WT_STAT_FAST_CONN_INCR(session, cache_eviction_force);
 	else {
@@ -977,7 +964,7 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 		if (ret == EBUSY)
 			ret = 0;
 	}
-	(void)WT_ATOMIC_SUB(btree->evict_busy, 1);
+	(void)WT_ATOMIC_SUB4(btree->evict_busy, 1);
 
 	return (ret);
 }
@@ -1071,12 +1058,12 @@ __wt_page_hazard_check(WT_SESSION_IMPL *session, WT_PAGE *page)
  *	Randomly choose a depth for a skiplist insert.
  */
 static inline u_int
-__wt_skip_choose_depth(void)
+__wt_skip_choose_depth(WT_SESSION_IMPL *session)
 {
 	u_int d;
 
 	for (d = 1; d < WT_SKIP_MAXDEPTH &&
-	    __wt_random() < WT_SKIP_PROBABILITY; d++)
+	    __wt_random(session->rnd) < WT_SKIP_PROBABILITY; d++)
 		;
 	return (d);
 }

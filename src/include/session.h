@@ -48,6 +48,7 @@ struct __wt_session_impl {
 	u_int active;			/* Non-zero if the session is in-use */
 
 	const char *name;		/* Name */
+	const char *lastop;		/* Last operation */
 	uint32_t id;			/* UID, offset in session array */
 
 	WT_CONDVAR *cond;		/* Condition variable */
@@ -105,7 +106,11 @@ struct __wt_session_impl {
 	void	*block_manager;		/* Block-manager support */
 	int	(*block_manager_cleanup)(WT_SESSION_IMPL *);
 
-	WT_DATA_HANDLE **ckpt_handle;	/* Checkpoint support */
+					/* Checkpoint support */
+	struct {
+		WT_DATA_HANDLE *dhandle;
+		const char *name;
+	} *ckpt_handle;			/* Handle list */
 	u_int   ckpt_handle_next;	/* Next empty slot */
 	size_t  ckpt_handle_allocated;	/* Bytes allocated */
 
@@ -113,19 +118,25 @@ struct __wt_session_impl {
 	int	(*reconcile_cleanup)(WT_SESSION_IMPL *);
 
 	int compaction;			/* Compaction did some work */
-	int skip_schema_lock;		/* Another thread holds the schema lock
-					 * on our behalf */
+
+	uint32_t flags;
 
 	/*
 	 * The split stash memory and hazard information persist past session
-	 * close, because they are accessed by threads of control other than
-	 * the thread owning the session.  They live at the end of the
-	 * structure so it's somewhat easier to clear everything but the fields
-	 * that persist.
+	 * close because they are accessed by threads of control other than the
+	 * thread owning the session.
+	 *
+	 * The random number state persists past session close because we don't
+	 * want to repeatedly allocate repeated values for skiplist depth if the
+	 * application isn't caching sessions.
+	 *
+	 * All of these fields live at the end of the structure so it's easier
+	 * to clear everything but the fields that persist.
 	 */
 #define	WT_SESSION_CLEAR_SIZE(s)					\
-	(WT_PTRDIFF(&(s)->flags, s) + sizeof((s)->flags))
-	uint32_t flags;
+	(WT_PTRDIFF(&(s)->rnd[0], s))
+
+	uint32_t rnd[2];		/* Random number generation state */
 
 	/*
 	 * Splits can "free" memory that may still be in use, and we use a
@@ -146,8 +157,14 @@ struct __wt_session_impl {
 
 	/*
 	 * Hazard pointers.
-	 * The number of hazard pointers that can be in use grows dynamically.
+	 *
+	 * Use the non-NULL state of the hazard field to know if the session has
+	 * previously been initialized.
 	 */
+#define	WT_SESSION_FIRST_USE(s)						\
+	((s)->hazard == NULL)
+
+	/* The number of hazard pointers grows dynamically. */
 #define	WT_HAZARD_INCR		10
 	uint32_t   hazard_size;		/* Allocated slots in hazard array. */
 	uint32_t   nhazard;		/* Count of active hazard pointers */

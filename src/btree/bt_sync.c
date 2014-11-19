@@ -63,7 +63,7 @@ __sync_file(WT_SESSION_IMPL *session, int syncop)
 			page = walk->page;
 			if (__wt_page_is_modified(page)) {
 				if (txn->isolation == TXN_ISO_READ_COMMITTED)
-					__wt_txn_refresh(session, 1, 0);
+					__wt_txn_refresh(session, 1);
 				leaf_bytes += page->memory_footprint;
 				++leaf_pages;
 				WT_ERR(__wt_rec_write(session, walk, NULL, 0));
@@ -272,6 +272,7 @@ __evict_file(WT_SESSION_IMPL *session, int syncop)
 				WT_ERR(__wt_rec_evict(session, ref, 1));
 			break;
 		case WT_SYNC_DISCARD:
+		case WT_SYNC_DISCARD_FORCE:
 			/*
 			 * Discard the page, whether clean or dirty.
 			 *
@@ -283,7 +284,27 @@ __evict_file(WT_SESSION_IMPL *session, int syncop)
 				page->modify->write_gen = 0;
 				__wt_cache_dirty_decr(session, page);
 			}
+			/*
+			 * If the page contains an update that is too recent to
+			 * evict, stop.  This should never happen during
+			 * connection close, and in other paths our caller
+			 * should be prepared to deal with this case.
+			 */
+			if (syncop == WT_SYNC_DISCARD &&
+			    page->modify != NULL &&
+			    !__wt_txn_visible_all(session,
+			    page->modify->rec_max_txn))
+				return (EBUSY);
+			if (syncop == WT_SYNC_DISCARD_FORCE)
+				F_SET(session, WT_SESSION_DISCARD_FORCE);
 			__wt_ref_out(session, ref);
+			/*
+			 * In case we don't discard the whole tree, make sure
+			 * that future readers know that the page is no longer
+			 * in cache.
+			 */
+			ref->state = WT_REF_DISK;
+			F_CLR(session, WT_SESSION_DISCARD_FORCE);
 			break;
 		WT_ILLEGAL_VALUE_ERR(session);
 		}
@@ -300,26 +321,6 @@ err:		/* On error, clear any left-over tree walk. */
 		__wt_evict_file_exclusive_off(session);
 
 	return (ret);
-}
-
-/*
- * __wt_cache_force_write --
- *	Dirty the root page of the tree so it gets written.
- */
-int
-__wt_cache_force_write(WT_SESSION_IMPL *session)
-{
-	WT_BTREE *btree;
-	WT_PAGE *page;
-
-	btree = S2BT(session);
-	page = btree->root.page;
-
-	/* Dirty the root page to ensure a write. */
-	WT_RET(__wt_page_modify_init(session, page));
-	__wt_page_modify_set(session, page);
-
-	return (0);
 }
 
 /*
@@ -355,6 +356,7 @@ __wt_cache_op(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, int op)
 		break;
 	case WT_SYNC_CLOSE:
 	case WT_SYNC_DISCARD:
+	case WT_SYNC_DISCARD_FORCE:
 		WT_ERR(__evict_file(session, op));
 		break;
 	WT_ILLEGAL_VALUE_ERR(session);

@@ -60,7 +60,20 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
 #ifdef HAVE_DIAGNOSTIC
 	{
 	WT_HAZARD *hp;
-	if ((hp = __wt_page_hazard_check(session, page)) != NULL)
+	int i;
+	/*
+	 * Make sure no other thread has a hazard pointer on the page we are
+	 * about to discard.  This is complicated by the fact that readers
+	 * publish their hazard pointer before re-checking the page state, so
+	 * our check can race with readers without indicating a real problem.
+	 * Wait for up to a second for hazard pointers to be cleared.
+	 */
+	for (hp = NULL, i = 0; i < 100; i++) {
+		if ((hp = __wt_page_hazard_check(session, page)) == NULL)
+			break;
+		__wt_sleep(0, 10000);
+	}
+	if (hp != NULL)
 		__wt_errx(session,
 		    "discarded page has hazard pointer: (%p: %s, line %d)",
 		    hp->page, hp->file, hp->line);
@@ -399,6 +412,7 @@ __free_update_list(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 	for (; upd != NULL; upd = next) {
 		/* Everything we free should be visible to everyone. */
 		WT_ASSERT(session,
+		    F_ISSET(session, WT_SESSION_DISCARD_FORCE) ||
 		    upd->txnid == WT_TXN_ABORTED ||
 		    __wt_txn_visible_all(session, upd->txnid));
 

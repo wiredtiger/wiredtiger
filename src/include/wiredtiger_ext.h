@@ -160,6 +160,7 @@ struct __wt_extension_api {
 	 *
 	 * @param wt_api the extension handle
 	 * @param session the session handle (or NULL if none available)
+	 * @param uri the URI of the handle being configured
 	 * @param config the configuration information passed to an application
 	 * @param collatorp the selector collator, if any
 	 * @param ownp set if the collator terminate method should be called
@@ -169,7 +170,8 @@ struct __wt_extension_api {
 	 * @snippet ex_data_source.c WT_EXTENSION collator config
 	 */
 	int (*collator_config)(WT_EXTENSION_API *wt_api, WT_SESSION *session,
-	    WT_CONFIG_ARG *config, WT_COLLATOR **collatorp, int *ownp);
+	    const char *uri, WT_CONFIG_ARG *config,
+	    WT_COLLATOR **collatorp, int *ownp);
 
 	/*!
 	 * The extension collator method.
@@ -249,7 +251,7 @@ struct __wt_extension_api {
 	 * @snippet ex_data_source.c WT_EXTENSION metadata search
 	 */
 	int (*metadata_search)(WT_EXTENSION_API *wt_api,
-	    WT_SESSION *session, const char *key, const char **valuep);
+	    WT_SESSION *session, const char *key, char **valuep);
 
 	/*!
 	 * Update a row in the metadata by either inserting a new record or

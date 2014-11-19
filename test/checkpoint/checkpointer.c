@@ -69,11 +69,12 @@ end_checkpoints(void)
 static void *
 checkpointer(void *arg)
 {
-	pthread_t tid;
+	char tid[128];
 
 	WT_UNUSED(arg);
-	tid = pthread_self();
-	printf("checkpointer thread starting: tid: %p\n", (void *)tid);
+
+	__wt_thread_id(tid, sizeof(tid));
+	printf("checkpointer thread starting: tid: %s\n", tid);
 
 	(void)real_checkpointer();
 	return (NULL);
@@ -188,7 +189,7 @@ verify_checkpoint(WT_SESSION *session)
 				continue;
 			t_ret = cursors[i]->next(cursors[i]);
 			if (t_ret != 0 && t_ret != WT_NOTFOUND) {
-				(void)log_print_err("cursor->next", ret, 1);
+				(void)log_print_err("cursor->next", t_ret, 1);
 				goto err;
 			}
 
@@ -224,7 +225,7 @@ err:	for (i = 0; i < g.ntables; i++) {
 			    "verify_checkpoint:cursor close", ret, 1);
 	}
 	free(cursors);
-	return (0);
+	return (ret);
 }
 
 /*

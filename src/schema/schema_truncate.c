@@ -14,6 +14,7 @@
 static int
 __truncate_file(WT_SESSION_IMPL *session, const char *name)
 {
+	WT_DECL_RET;
 	const char *filename;
 	uint32_t allocsize;
 
@@ -31,7 +32,9 @@ __truncate_file(WT_SESSION_IMPL *session, const char *name)
 	WT_RET(__wt_session_release_btree(session));
 
 	/* Close any btree handles in the file. */
-	WT_RET(__wt_conn_dhandle_close_all(session, name));
+	WT_WITH_DHANDLE_LOCK(session,
+	    ret = __wt_conn_dhandle_close_all(session, name, 0));
+	WT_RET(ret);
 
 	/* Delete the root address and truncate the file. */
 	WT_RET(__wt_meta_checkpoint_clear(session, name));
@@ -88,7 +91,7 @@ __truncate_dsrc(WT_SESSION_IMPL *session, const char *uri)
 	WT_ERR_NOTFOUND_OK(ret);
 
 err:	WT_TRET(cursor->close(cursor));
-	return (0);
+	return (ret);
 }
 
 /*
@@ -164,7 +167,7 @@ __wt_schema_range_truncate(
 	const char *uri;
 
 	cursor = (start != NULL) ? start : stop;
-	uri = cursor->uri;
+	uri = cursor->internal_uri;
 
 	if (WT_PREFIX_MATCH(uri, "file:"))
 		WT_WITH_BTREE(session, ((WT_CURSOR_BTREE *)cursor)->btree,

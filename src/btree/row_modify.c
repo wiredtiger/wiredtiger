@@ -8,6 +8,39 @@
 #include "wt_internal.h"
 
 /*
+ * __wt_page_modify_alloc --
+ *	Allocate a page's modification structure.
+ */
+int
+__wt_page_modify_alloc(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_PAGE_MODIFY *modify;
+
+	conn = S2C(session);
+
+	WT_RET(__wt_calloc_def(session, 1, &modify));
+
+	/*
+	 * Select a spinlock for the page; let the barrier immediately below
+	 * keep things from racing too badly.
+	 */
+	modify->page_lock = ++conn->page_lock_cnt % WT_PAGE_LOCKS(conn);
+
+	/*
+	 * Multiple threads of control may be searching and deciding to modify
+	 * a page.  If our modify structure is used, update the page's memory
+	 * footprint, else discard the modify structure, another thread did the
+	 * work.
+	 */
+	if (WT_ATOMIC_CAS8(page->modify, NULL, modify))
+		__wt_cache_page_inmem_incr(session, page, sizeof(*modify));
+	else
+		__wt_free(session, modify);
+	return (0);
+}
+
+/*
  * __wt_row_modify --
  *	Row-store insert, update and delete.
  */
@@ -70,7 +103,9 @@ __wt_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 			/* Avoid WT_CURSOR.update data copy. */
 			cbt->modify_update = upd;
 		} else {
-			upd_size = sizeof(WT_UPDATE) + upd->size;
+			upd_size = sizeof(WT_UPDATE) +
+			    (WT_UPDATE_DELETED_ISSET(upd) ? 0 : upd->size);
+
 			/*
 			 * We are restoring updates that couldn't be evicted,
 			 * there should only be one update list per key.
@@ -118,7 +153,7 @@ __wt_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 		ins_head = *ins_headp;
 
 		/* Choose a skiplist depth for this insert. */
-		skipdepth = __wt_skip_choose_depth();
+		skipdepth = __wt_skip_choose_depth(session);
 
 		/*
 		 * Allocate a WT_INSERT/WT_UPDATE pair and transaction ID, and
@@ -139,7 +174,9 @@ __wt_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 			/* Avoid WT_CURSOR.update data copy. */
 			cbt->modify_update = upd;
 		} else
-			upd_size = sizeof(WT_UPDATE) + upd->size;
+			upd_size = sizeof(WT_UPDATE) +
+			    (WT_UPDATE_DELETED_ISSET(upd) ? 0 : upd->size);
+
 		ins->upd = upd;
 		ins_size += upd_size;
 
@@ -278,7 +315,7 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 	 */
 	if (first != NULL &&
 	    (next = first->next) != NULL &&
-	    WT_ATOMIC_CAS(first->next, next, NULL))
+	    WT_ATOMIC_CAS8(first->next, next, NULL))
 		return (next);
 
 	return (NULL);

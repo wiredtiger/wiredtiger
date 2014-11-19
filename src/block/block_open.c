@@ -24,7 +24,7 @@ __wt_block_manager_truncate(
 	WT_RET(__wt_open(session, filename, 0, 0, WT_FILE_TYPE_DATA, &fh));
 
 	/* Truncate the file. */
-	WT_ERR(__wt_ftruncate(session, fh, (off_t)0));
+	WT_ERR(__wt_ftruncate(session, fh, (wt_off_t)0));
 
 	/* Write out the file's meta-data. */
 	ret = __wt_desc_init(session, fh, allocsize);
@@ -45,6 +45,7 @@ __wt_block_manager_create(
 {
 	WT_DECL_RET;
 	WT_FH *fh;
+	char *path;
 
 	/* Create the underlying file and open a handle. */
 	WT_RET(__wt_open(session, filename, 1, 1, WT_FILE_TYPE_DATA, &fh));
@@ -54,6 +55,16 @@ __wt_block_manager_create(
 
 	/* Close the file handle. */
 	WT_TRET(__wt_close(session, fh));
+
+	/*
+	 * If checkpoint syncing is enabled, some filesystems require that we
+	 * sync the directory to be confident that the file will appear.
+	 */
+	if (ret == 0 && F_ISSET(S2C(session), WT_CONN_CKPT_SYNC) &&
+	    (ret = __wt_filename(session, filename, &path)) == 0) {
+		ret = __wt_directory_sync(session, path);
+		__wt_free(session, path);
+	}
 
 	/* Undo any create on error. */
 	if (ret != 0)
@@ -241,7 +252,7 @@ __wt_desc_init(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize)
 	desc->cksum = 0;
 	desc->cksum = __wt_cksum(desc, allocsize);
 
-	ret = __wt_write(session, fh, (off_t)0, (size_t)allocsize, desc);
+	ret = __wt_write(session, fh, (wt_off_t)0, (size_t)allocsize, desc);
 
 	__wt_scr_free(&buf);
 	return (ret);
@@ -263,8 +274,8 @@ __desc_read(WT_SESSION_IMPL *session, WT_BLOCK *block)
 	WT_RET(__wt_scr_alloc(session, block->allocsize, &buf));
 
 	/* Read the first allocation-sized block and verify the file format. */
-	WT_ERR(__wt_read(
-	    session, block->fh, (off_t)0, (size_t)block->allocsize, buf->mem));
+	WT_ERR(__wt_read(session,
+	    block->fh, (wt_off_t)0, (size_t)block->allocsize, buf->mem));
 
 	desc = buf->mem;
 	WT_ERR(__wt_verbose(session, WT_VERB_BLOCK,

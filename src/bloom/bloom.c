@@ -4,14 +4,15 @@
  *
  * See the file LICENSE for redistribution information.
  */
+/*
+ * Less Hashing, Same Performance: Building a Better Bloom Filter
+ *	by Adam Kirsch, Michael Mitzenmacher
+ *	Random Structures & Algorithms, Volume 33 Issue 2, September 2008
+ */
 
 #include "wt_internal.h"
 
 #define	WT_BLOOM_TABLE_CONFIG "key_format=r,value_format=1t,exclusive=true"
-
-static int __bloom_init(
-    WT_SESSION_IMPL *, const char *, const char *, WT_BLOOM **);
-static int __bloom_setup(WT_BLOOM *, uint64_t, uint64_t, uint32_t, uint32_t);
 
 /*
  * __bloom_init --
@@ -25,8 +26,10 @@ __bloom_init(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	size_t len;
 
-	bloom = NULL;
-	WT_ERR(__wt_calloc_def(session, 1, &bloom));
+	*bloomp = NULL;
+
+	WT_RET(__wt_calloc_def(session, 1, &bloom));
+
 	WT_ERR(__wt_strdup(session, uri, &bloom->uri));
 	len = strlen(WT_BLOOM_TABLE_CONFIG) + 2;
 	if (config != NULL)

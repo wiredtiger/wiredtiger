@@ -11,18 +11,18 @@
 	const char *__oldname = (s)->name;				\
 	(s)->cursor = (cur);						\
 	(s)->dhandle = (dh);						\
-	(s)->name = #h "." #n;
+	(s)->name = (s)->lastop = #h "." #n;				\
 
 #define	API_CALL_NOCONF(s, h, n, cur, dh) do {				\
 	API_SESSION_INIT(s, h, n, cur, dh);				\
-	WT_ERR(F_ISSET(S2C(s), WT_CONN_PANIC) ? __wt_panic(s) : 0);	\
+	WT_ERR(WT_SESSION_CHECK_PANIC(s));				\
 	WT_ERR(__wt_verbose((s), WT_VERB_API, "CALL: " #h ":" #n))
 
 #define	API_CALL(s, h, n, cur, dh, config, cfg) do {			\
 	const char *cfg[] =						\
 	    { WT_CONFIG_BASE(s, h##_##n), config, NULL };		\
 	API_SESSION_INIT(s, h, n, cur, dh);				\
-	WT_ERR(F_ISSET(S2C(s), WT_CONN_PANIC) ? __wt_panic(s) : 0);	\
+	WT_ERR(WT_SESSION_CHECK_PANIC(s));				\
 	WT_ERR(((config) != NULL) ?					\
 	    __wt_config_check((s),					\
 	    WT_CONFIG_REF(session, h##_##n), (config), 0) : 0);		\
@@ -52,7 +52,7 @@
 #define	TXN_API_CALL_NOCONF(s, h, n, cur, bt) do {			\
 	int __autotxn = 0;						\
 	API_CALL_NOCONF(s, h, n, cur, bt);				\
-	__autotxn = !F_ISSET(&(s)->txn, TXN_AUTOCOMMIT | TXN_RUNNING);  \
+	__autotxn = !F_ISSET(&(s)->txn, TXN_AUTOCOMMIT | TXN_RUNNING);	\
 	if (__autotxn)							\
 		F_SET(&(s)->txn, TXN_AUTOCOMMIT)
 
@@ -66,7 +66,7 @@
 			ret = __wt_txn_commit((s), NULL);		\
 		else {							\
 			WT_TRET(__wt_txn_rollback((s), NULL));		\
-			if ((ret == 0 || ret == WT_DEADLOCK) &&		\
+			if ((ret == 0 || ret == WT_ROLLBACK) &&		\
 			    (retry)) {					\
 				ret = 0;				\
 				continue;				\
@@ -104,7 +104,7 @@
 #define	SESSION_API_CALL(s, n, config, cfg)				\
 	API_CALL(s, session, n, NULL, NULL, config, cfg)
 
-#define	SESSION_API_CALL_NO_CONF(s, n)					\
+#define	SESSION_API_CALL_NOCONF(s, n)					\
 	API_CALL_NOCONF(s, session, n, NULL, NULL)
 
 #define	SESSION_TXN_API_CALL(s, n, config, cfg)				\

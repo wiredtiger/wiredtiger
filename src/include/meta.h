@@ -5,8 +5,14 @@
  * See the file LICENSE for redistribution information.
  */
 
-#define	WT_SINGLETHREAD		"WiredTiger"		/* Locking file */
+#define	WT_WIREDTIGER		"WiredTiger"		/* Version file */
+#define	WT_SINGLETHREAD		"WiredTiger.lock"	/* Locking file */
 
+#define	WT_BASECONFIG		"WiredTiger.basecfg"	/* Configuration */
+#define	WT_USERCONFIG		"WiredTiger.config"	/* Configuration */
+
+#define	WT_INCREMENTAL_BACKUP						\
+    "WiredTiger.ibackup"	/* Incremental backup file */
 #define	WT_METADATA_BACKUP	"WiredTiger.backup"	/* Hot backup file */
 
 #define	WT_METADATA_TURTLE	"WiredTiger.turtle"	/* Metadata metadata */
@@ -16,6 +22,7 @@
 #define	WT_METAFILE_URI		"file:WiredTiger.wt"	/* Metadata file URI */
 #define	WT_IS_METADATA(dh)						\
 	(strcmp((dh)->name, WT_METAFILE_URI) == 0)
+#define	WT_METAFILE_ID		0			/* Metadata file ID */
 
 #define	WT_METADATA_VERSION	"WiredTiger version"	/* Version keys */
 #define	WT_METADATA_VERSION_STR	"WiredTiger version string"

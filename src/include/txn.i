@@ -6,7 +6,6 @@
  */
 
 static inline int __wt_txn_id_check(WT_SESSION_IMPL *session);
-static inline void __wt_txn_read_first(WT_SESSION_IMPL *session);
 static inline void __wt_txn_read_last(WT_SESSION_IMPL *session);
 
 /*
@@ -33,6 +32,7 @@ __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
 
 	*opp = &txn->mod[txn->mod_count++];
 	WT_CLEAR(**opp);
+	(*opp)->fileid = S2BT(session)->id;
 	return (0);
 }
 
@@ -68,7 +68,6 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 	op->type = F_ISSET(session, WT_SESSION_LOGGING_INMEM) ?
 	    TXN_OP_INMEM : TXN_OP_BASIC;
 	op->u.upd = upd;
-	op->fileid = S2BT(session)->id;
 	upd->txnid = session->txn.id;
 	return (ret);
 }
@@ -179,7 +178,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 
 /*
  * __wt_txn_autocommit_check --
- *  If an auto-commit transaction is required, start one.
+ *      If an auto-commit transaction is required, start one.
 */
 static inline int
 __wt_txn_autocommit_check(WT_SESSION_IMPL *session)
@@ -195,23 +194,20 @@ __wt_txn_autocommit_check(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_txn_current_id --
- *	Get the current transaction ID.
- */
-static inline uint64_t
-__wt_txn_current_id(WT_SESSION_IMPL *session)
-{
-	return (S2C(session)->txn_global.current);
-}
-
-/*
  * __wt_txn_new_id --
  *	Allocate a new transaction ID.
  */
 static inline uint64_t
 __wt_txn_new_id(WT_SESSION_IMPL *session)
 {
-	return WT_ATOMIC_ADD(S2C(session)->txn_global.current, 1);
+	/*
+	 * We want the global value to lead the allocated values, so that any
+	 * allocated transaction ID eventually becomes globally visible.  When
+	 * there are no transactions running, the oldest_id will reach the
+	 * global current ID, so we want post-increment semantics.  Our atomic
+	 * add primitive does pre-increment, so adjust the result here.
+	 */
+	return (WT_ATOMIC_ADD8(S2C(session)->txn_global.current, 1) - 1);
 }
 
 /*
@@ -257,7 +253,7 @@ __wt_txn_id_check(WT_SESSION_IMPL *session)
 		 */
 		do {
 			txn_state->id = txn->id = txn_global->current;
-		} while (!WT_ATOMIC_CAS(
+		} while (!WT_ATOMIC_CAS8(
 		    txn_global->current, txn->id, txn->id + 1));
 
 		/*
@@ -287,40 +283,12 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 			if (upd->txnid != WT_TXN_ABORTED) {
 				WT_STAT_FAST_DATA_INCR(
 				    session, txn_update_conflict);
-				return (WT_DEADLOCK);
+				return (WT_ROLLBACK);
 			}
 			upd = upd->next;
 		}
 
 	return (0);
-}
-
-/*
- * __wt_txn_read_first --
- *	Called for the first page read for a session.
- */
-static inline void
-__wt_txn_read_first(WT_SESSION_IMPL *session)
-{
-	WT_TXN *txn;
-
-	txn = &session->txn;
-
-#ifdef HAVE_DIAGNOSTIC
-	{
-	WT_TXN_GLOBAL *txn_global;
-	WT_TXN_STATE *txn_state;
-	txn_global = &S2C(session)->txn_global;
-	txn_state = &txn_global->states[session->id];
-
-	WT_ASSERT(session, F_ISSET(txn, TXN_HAS_SNAPSHOT) ||
-	    txn_state->snap_min == WT_TXN_NONE);
-	}
-#endif
-
-	if (txn->isolation == TXN_ISO_READ_COMMITTED ||
-	    (!F_ISSET(txn, TXN_RUNNING) && txn->isolation == TXN_ISO_SNAPSHOT))
-		__wt_txn_refresh(session, 1, 0);
 }
 
 /*
@@ -375,6 +343,10 @@ __wt_txn_cursor_op(WT_SESSION_IMPL *session)
 	    !F_ISSET(txn, TXN_HAS_ID) &&
 	    TXNID_LT(txn_state->snap_min, txn_global->last_running))
 		txn_state->snap_min = txn_global->last_running;
+
+	if (txn->isolation != TXN_ISO_READ_UNCOMMITTED &&
+	    !F_ISSET(txn, TXN_HAS_SNAPSHOT))
+		__wt_txn_refresh(session, 1);
 }
 
 /*

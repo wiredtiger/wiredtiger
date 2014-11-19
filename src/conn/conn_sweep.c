@@ -21,11 +21,7 @@ __sweep(WT_SESSION_IMPL *session)
 
 	conn = S2C(session);
 
-	/*
-	 * Session's cache handles unless the session itself is closed, at which
-	 * time the handle reference counts are immediately decremented.  Don't
-	 * discard handles that have been open recently.
-	 */
+	/* Don't discard handles that have been open recently. */
 	WT_RET(__wt_seconds(session, &now));
 
 	dhandle = SLIST_FIRST(&conn->dhlh);
@@ -53,6 +49,11 @@ __sweep(WT_SESSION_IMPL *session)
 			    session, NULL, WT_SYNC_WRITE_LEAVES));
 			WT_RET(ret);
 
+			/* Re-check that this looks like a good candidate. */
+			if (dhandle->session_ref != 0 ||
+			    now - dhandle->timeofdeath <= WT_DHANDLE_SWEEP_WAIT)
+				continue;
+
 			/*
 			 * We don't set WT_DHANDLE_EXCLUSIVE deliberately, we
 			 * want opens to block on us rather than returning an
@@ -66,11 +67,11 @@ __sweep(WT_SESSION_IMPL *session)
 			WT_RET(ret);
 
 			WT_WITH_DHANDLE(session, dhandle,
-			    ret = __wt_conn_btree_sync_and_close(session));
+			    ret = __wt_conn_btree_sync_and_close(session, 0));
 			if (ret == EBUSY)
 				ret = 0;
 
-			WT_TRET(__wt_rwunlock(session, dhandle->rwlock));
+			WT_TRET(__wt_writeunlock(session, dhandle->rwlock));
 			WT_RET(ret);
 		}
 
@@ -80,7 +81,8 @@ __sweep(WT_SESSION_IMPL *session)
 		 * why we don't do any special handling of EBUSY returns above,
 		 * that path never cleared the handle-open flag.
 		 */
-		ret = __wt_conn_dhandle_discard_single(session, dhandle, 0);
+		WT_WITH_DHANDLE(session, dhandle,
+		    ret = __wt_conn_dhandle_discard_single(session, 0));
 		if (ret == EBUSY)
 			ret = 0;
 		WT_RET(ret);
@@ -117,7 +119,7 @@ __sweep_server(void *arg)
 	}
 
 	if (0) {
-err:		__wt_err(session, ret, "handle sweep server error");
+err:		WT_PANIC_MSG(session, ret, "handle sweep server error");
 	}
 	return (NULL);
 }
@@ -127,9 +129,11 @@ err:		__wt_err(session, ret, "handle sweep server error");
  *	Start the handle sweep thread.
  */
 int
-__wt_sweep_create(WT_CONNECTION_IMPL *conn)
+__wt_sweep_create(WT_SESSION_IMPL *session)
 {
-	WT_SESSION_IMPL *session;
+	WT_CONNECTION_IMPL *conn;
+
+	conn = S2C(session);
 
 	/* Set first, the thread might run before we finish up. */
 	F_SET(conn, WT_CONN_SERVER_SWEEP);
@@ -159,13 +163,13 @@ __wt_sweep_create(WT_CONNECTION_IMPL *conn)
  *	Destroy the handle-sweep thread.
  */
 int
-__wt_sweep_destroy(WT_CONNECTION_IMPL *conn)
+__wt_sweep_destroy(WT_SESSION_IMPL *session)
 {
+	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_SESSION *wt_session;
-	WT_SESSION_IMPL *session;
 
-	session = conn->default_session;
+	conn = S2C(session);
 
 	F_CLR(conn, WT_CONN_SERVER_SWEEP);
 	if (conn->sweep_tid_set) {

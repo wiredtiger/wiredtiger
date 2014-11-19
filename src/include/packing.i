@@ -231,8 +231,8 @@ next:	if (pack->cur == pack->end)
 	case 'R':							\
 		pv.u.u = va_arg(ap, uint64_t);				\
 		break;							\
-	/* User format strings have already been validated. */          \
-	WT_ILLEGAL_VALUE(session);                                      \
+	/* User format strings have already been validated. */		\
+	WT_ILLEGAL_VALUE(session);					\
 	}								\
 } while (0)
 
@@ -248,6 +248,20 @@ __pack_size(WT_SESSION_IMPL *session, WT_PACK_VALUE *pv)
 	switch (pv->type) {
 	case 'x':
 		return (pv->size);
+	case 'j':
+	case 'J':
+		if (pv->type == 'j' || pv->havesize)
+			s = pv->size;
+		else {
+			ssize_t len;
+
+			/* The string was previously validated. */
+			len = __wt_json_strlen(pv->u.item.data,
+			    pv->u.item.size);
+			WT_ASSERT(session, len >= 0);
+			s = (size_t)len + 1;
+		}
+		return (s);
 	case 's':
 	case 'S':
 		if (pv->type == 's' || pv->havesize)
@@ -325,6 +339,28 @@ __pack_write(
 			memcpy(*pp, pv->u.s, s);
 		*pp += s;
 		if (pad > 0) {
+			memset(*pp, 0, pad);
+			*pp += pad;
+		}
+		break;
+	case 'j':
+	case 'J':
+		s = pv->u.item.size;
+		if ((pv->type == 'j' || pv->havesize) && pv->size < s) {
+			s = pv->size;
+			pad = 0;
+		} else if (pv->havesize)
+			pad = pv->size - s;
+		else
+			pad = 1;
+		if (s > 0) {
+			oldp = *pp;
+			WT_RET(__wt_json_strncpy((char **)pp, maxlen,
+			    pv->u.item.data, s));
+			maxlen -= (size_t)(*pp - oldp);
+		}
+		if (pad > 0) {
+			WT_SIZE_CHECK(pad, maxlen);
 			memset(*pp, 0, pad);
 			*pp += pad;
 		}
@@ -499,19 +535,19 @@ __unpack_read(WT_SESSION_IMPL *session,
 		*va_arg(ap, uint8_t *) = (uint8_t)pv.u.u;		\
 		break;							\
 	case 'H':							\
-		*va_arg(ap, uint16_t *) = (uint16_t)pv.u.u;             \
+		*va_arg(ap, uint16_t *) = (uint16_t)pv.u.u;		\
 		break;							\
 	case 'I':							\
 	case 'L':							\
-		*va_arg(ap, uint32_t *) = (uint32_t)pv.u.u;	        \
+		*va_arg(ap, uint32_t *) = (uint32_t)pv.u.u;		\
 		break;							\
 	case 'Q':							\
 	case 'r':							\
 	case 'R':							\
 		*va_arg(ap, uint64_t *) = pv.u.u;			\
 		break;							\
-	/* User format strings have already been validated. */          \
-	WT_ILLEGAL_VALUE(session);                                      \
+	/* User format strings have already been validated. */		\
+	WT_ILLEGAL_VALUE(session);					\
 	}								\
 } while (0)
 
@@ -631,19 +667,16 @@ __wt_struct_unpackv(WT_SESSION_IMPL *session,
 static inline void
 __wt_struct_size_adjust(WT_SESSION_IMPL *session, size_t *sizep)
 {
-	size_t prev_size = 1;
-	size_t orig_size = *sizep;
-	size_t field_size0 = __wt_vsize_uint(orig_size);
-	size_t field_size1 =
-	    __wt_vsize_uint(orig_size + field_size0 - prev_size);
-	*sizep += field_size1 - prev_size;
+	size_t curr_size = *sizep;
+	size_t field_size, prev_field_size = 1;
 
-	/*
-	 * Make sure the field size we calculated matches the adjusted size.
-	 * This relies on the fact that we are only adjusting by a small number
-	 * of bytes, so we won't cross multiple boundaries in the packing
-	 * routine.  If that were not true, we would need to iterate here until
-	 * the field size stops growing.
-	 */
-	WT_ASSERT(session, field_size1 == __wt_vsize_uint(*sizep));
+	while ((field_size = __wt_vsize_uint(curr_size)) != prev_field_size) {
+		curr_size += field_size - prev_field_size;
+		prev_field_size = field_size;
+	}
+
+	/* Make sure the field size we calculated matches the adjusted size. */
+	WT_ASSERT(session, field_size == __wt_vsize_uint(curr_size));
+
+	*sizep = curr_size;
 }

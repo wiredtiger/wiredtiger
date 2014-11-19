@@ -154,8 +154,8 @@ __curbulk_insert_row(WT_CURSOR *cursor)
 	 */
 	CURSOR_API_CALL(cursor, session, insert, btree);
 
-	WT_CURSOR_NEEDKEY(cursor);
-	WT_CURSOR_NEEDVALUE(cursor);
+	WT_CURSOR_CHECKKEY(cursor);
+	WT_CURSOR_CHECKVALUE(cursor);
 
 	/*
 	 * If this isn't the first key inserted, compare it against the last key
@@ -241,7 +241,7 @@ __curbulk_close(WT_CURSOR *cursor)
 	WT_TRET(__wt_session_release_btree(session));
 
 	/* The URI is owned by the btree handle. */
-	cursor->uri = NULL;
+	cursor->internal_uri = NULL;
 
 	WT_TRET(__wt_cursor_close(cursor));
 

@@ -39,7 +39,7 @@ compact(void *arg)
 	u_int period;
 	int ret;
 
-	WT_UNUSED(arg);
+	(void)(arg);
 
 	/* Compaction isn't supported for all data sources. */
 	if (DATASOURCE("helium") || DATASOURCE("kvsbdb"))
@@ -56,15 +56,15 @@ compact(void *arg)
 	 */
 	for (period = MMRAND(1, 15);; period = 23) {
 		/* Sleep for short periods so we don't make the run wait. */
-		while (period > 0 && !g.threads_finished) {
+		while (period > 0 && !g.workers_finished) {
 			--period;
 			sleep(1);
 		}
-		if (g.threads_finished)
+		if (g.workers_finished)
 			break;
 
 		if ((ret = session->compact(
-		    session, g.uri, NULL)) != 0 && ret != WT_DEADLOCK)
+		    session, g.uri, NULL)) != 0 && ret != WT_ROLLBACK)
 			die(ret, "session.compact");
 	}
 

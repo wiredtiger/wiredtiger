@@ -31,8 +31,8 @@ static int
 handle_message(WT_EVENT_HANDLER *handler,
     WT_SESSION *session, const char *message)
 {
-	WT_UNUSED(handler);
-	WT_UNUSED(session);
+	(void)(handler);
+	(void)(session);
 
 	if (g.logfp != NULL)
 		return (fprintf(
@@ -49,8 +49,8 @@ static int
 handle_progress(WT_EVENT_HANDLER *handler,
     WT_SESSION *session, const char *operation, uint64_t progress)
 {
-	WT_UNUSED(handler);
-	WT_UNUSED(session);
+	(void)(handler);
+	(void)(session);
 
 	track(operation, progress, NULL);
 	return (0);
@@ -91,6 +91,7 @@ wts_open(const char *home, int set_api, WT_CONNECTION **connp)
 {
 	WT_CONNECTION *conn;
 	int ret;
+	const char *buffer_align, *progname;
 	char config[2048], evict_config[64];
 
 	*connp = NULL;
@@ -108,16 +109,26 @@ wts_open(const char *home, int set_api, WT_CONNECTION **connp)
 	 * command line configuration options at the end. Do this so they
 	 * override the standard configuration.
 	 */
+#ifdef _WIN32
+	progname = "t_format.exe";
+	buffer_align = "";
+#else
+	progname = g.progname;
+	buffer_align = "buffer_alignment=512";
+#endif
 	if (snprintf(config, sizeof(config),
 	    "create,"
 	    "checkpoint_sync=false,cache_size=%" PRIu32 "MB,"
-	    "buffer_alignment=512,error_prefix=\"%s\","
+	    "%s,lsm_manager=(worker_thread_max=%" PRIu32
+	    "),error_prefix=\"%s\","
 	    "%s,%s,%s,%s,%s"
 	    "extensions="
 	    "[\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\"],"
 	    "%s,%s",
 	    g.c_cache,
-	    g.progname,
+	    buffer_align,
+	    g.c_lsm_worker_threads,
+	    progname,
 	    g.c_data_extend ? "file_extend=(data=8MB)" : "",
 	    g.c_logging ? "log=(enabled=true)" : "",
 	    g.c_mmap ? "mmap=true" : "mmap=false",
@@ -300,6 +311,10 @@ wts_create(void)
 		p += snprintf(p, (size_t)(end - p),
 		    ",block_compressor=\"zlib\"");
 		break;
+	case COMPRESS_ZLIB_NO_RAW:
+		p += snprintf(p, (size_t)(end - p),
+		    ",block_compressor=\"zlib-noraw\"");
+		break;
 	}
 
 	/* Configure Btree internal key truncation. */
@@ -350,8 +365,6 @@ wts_create(void)
 		    "bloom_oldest=%s,", g.c_bloom_oldest ? "true" : "false");
 		p += snprintf(p, (size_t)(end - p),
 		    "merge_max=%" PRIu32 ",", g.c_merge_max);
-		p += snprintf(p, (size_t)(end - p),
-		    "merge_threads=%" PRIu32 ",", g.c_merge_threads);
 		p += snprintf(p, (size_t)(end - p), ",)");
 	}
 

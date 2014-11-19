@@ -10,29 +10,22 @@
 /*
  * WT_BTREE_CURSOR_SAVE_AND_RESTORE
  *	Save the cursor's key/value data/size fields, call an underlying btree
- * function, and then consistently handle failure and success.
+ *	function, and then consistently handle failure and success.
  */
 #define	WT_BTREE_CURSOR_SAVE_AND_RESTORE(cursor, f, ret) do {		\
-	const void *__key_data = (cursor)->key.data;			\
-	const void *__value_data = (cursor)->value.data;		\
+	WT_ITEM __key_copy = (cursor)->key;				\
 	uint64_t __recno = (cursor)->recno;				\
-	size_t __key_size = (cursor)->key.size;				\
-	size_t __value_size = (cursor)->value.size;			\
+	WT_ITEM __value_copy = (cursor)->value;				\
 	if (((ret) = (f)) == 0) {					\
 		F_CLR(cursor, WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT);	\
 		F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);	\
-	} else if ((ret) == WT_NOTFOUND)				\
-		F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);	\
-	else {								\
+	} else {							\
 		if (F_ISSET(cursor, WT_CURSTD_KEY_EXT)) {		\
 			(cursor)->recno = __recno;			\
-			(cursor)->key.data = __key_data;		\
-			(cursor)->key.size = __key_size;		\
+			WT_ITEM_SET((cursor)->key, __key_copy);		\
 		}							\
-		if (F_ISSET(cursor, WT_CURSTD_VALUE_EXT)) {		\
-			(cursor)->value.data = __value_data;		\
-			(cursor)->value.size = __value_size;		\
-		}							\
+		if (F_ISSET(cursor, WT_CURSTD_VALUE_EXT))		\
+			WT_ITEM_SET((cursor)->value, __value_copy);	\
 		F_CLR(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);	\
 	}								\
 } while (0)
@@ -55,12 +48,12 @@ __curfile_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
 	 * Confirm both cursors refer to the same source and have keys, then
 	 * call the underlying object to compare them.
 	 */
-	if (strcmp(a->uri, b->uri) != 0)
+	if (strcmp(a->internal_uri, b->internal_uri) != 0)
 		WT_ERR_MSG(session, EINVAL,
 		    "Cursors must reference the same object");
 
-	WT_CURSOR_NEEDKEY(a);
-	WT_CURSOR_NEEDKEY(b);
+	WT_CURSOR_CHECKKEY(a);
+	WT_CURSOR_CHECKKEY(b);
 
 	ret = __wt_btcur_compare(
 	    (WT_CURSOR_BTREE *)a, (WT_CURSOR_BTREE *)b, cmpp);
@@ -168,6 +161,7 @@ __curfile_search(WT_CURSOR *cursor)
 	CURSOR_API_CALL(cursor, session, search, cbt->btree);
 
 	WT_CURSOR_NEEDKEY(cursor);
+	WT_CURSOR_NOVALUE(cursor);
 
 	WT_BTREE_CURSOR_SAVE_AND_RESTORE(cursor, __wt_btcur_search(cbt), ret);
 
@@ -189,6 +183,7 @@ __curfile_search_near(WT_CURSOR *cursor, int *exact)
 	CURSOR_API_CALL(cursor, session, search_near, cbt->btree);
 
 	WT_CURSOR_NEEDKEY(cursor);
+	WT_CURSOR_NOVALUE(cursor);
 
 	WT_BTREE_CURSOR_SAVE_AND_RESTORE(
 	    cursor, __wt_btcur_search_near(cbt, exact), ret);
@@ -273,6 +268,7 @@ __wt_curfile_update_check(WT_CURSOR *cursor)
 	CURSOR_UPDATE_API_CALL(cursor, session, update, cbt->btree);
 
 	WT_CURSOR_NEEDKEY(cursor);
+	WT_CURSOR_NOVALUE(cursor);
 
 	WT_BTREE_CURSOR_SAVE_AND_RESTORE(
 	    cursor, __wt_btcur_update_check(cbt), ret);
@@ -296,6 +292,7 @@ __curfile_remove(WT_CURSOR *cursor)
 	CURSOR_UPDATE_API_CALL(cursor, session, remove, cbt->btree);
 
 	WT_CURSOR_NEEDKEY(cursor);
+	WT_CURSOR_NOVALUE(cursor);
 
 	WT_BTREE_CURSOR_SAVE_AND_RESTORE(cursor, __wt_btcur_remove(cbt), ret);
 
@@ -304,9 +301,12 @@ __curfile_remove(WT_CURSOR *cursor)
 	 */
 	if (ret == 0) {
 		if (F_ISSET(cursor, WT_CURSTD_KEY_INT) &&
-		    !WT_DATA_IN_ITEM(&(cursor)->key))
+		    !WT_DATA_IN_ITEM(&(cursor)->key)) {
 			WT_ERR(__wt_buf_set(session, &cursor->key,
 			    cursor->key.data, cursor->key.size));
+			F_CLR(cursor, WT_CURSTD_KEY_INT);
+			F_SET(cursor, WT_CURSTD_KEY_EXT);
+		}
 		F_CLR(cursor, WT_CURSTD_VALUE_SET);
 	}
 
@@ -331,7 +331,7 @@ __curfile_close(WT_CURSOR *cursor)
 	if (cbt->btree != NULL)
 		WT_TRET(__wt_session_release_btree(session));
 	/* The URI is owned by the btree handle. */
-	cursor->uri = NULL;
+	cursor->internal_uri = NULL;
 	WT_TRET(__wt_cursor_close(cursor));
 
 err:	API_END_RET(session, ret);
@@ -347,10 +347,10 @@ __wt_curfile_create(WT_SESSION_IMPL *session,
     WT_CURSOR **cursorp)
 {
 	WT_CURSOR_STATIC_INIT(iface,
-	    NULL,			/* get-key */
-	    NULL,			/* get-value */
-	    NULL,			/* set-key */
-	    NULL,			/* set-value */
+	    __wt_cursor_get_key,	/* get-key */
+	    __wt_cursor_get_value,	/* get-value */
+	    __wt_cursor_set_key,	/* set-key */
+	    __wt_cursor_set_value,	/* set-value */
 	    __curfile_compare,		/* compare */
 	    __curfile_next,		/* next */
 	    __curfile_prev,		/* prev */
@@ -369,7 +369,7 @@ __wt_curfile_create(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	size_t csize;
 
-	STATIC_ASSERT(offsetof(WT_CURSOR_BTREE, iface) == 0);
+	WT_STATIC_ASSERT(offsetof(WT_CURSOR_BTREE, iface) == 0);
 
 	cbt = NULL;
 
@@ -382,7 +382,7 @@ __wt_curfile_create(WT_SESSION_IMPL *session,
 	cursor = &cbt->iface;
 	*cursor = iface;
 	cursor->session = &session->iface;
-	cursor->uri = btree->dhandle->name;
+	cursor->internal_uri = btree->dhandle->name;
 	cursor->key_format = btree->key_format;
 	cursor->value_format = btree->value_format;
 
@@ -411,7 +411,8 @@ __wt_curfile_create(WT_SESSION_IMPL *session,
 	}
 
 	/* __wt_cursor_init is last so we don't have to clean up on error. */
-	WT_ERR(__wt_cursor_init(cursor, cursor->uri, owner, cfg, cursorp));
+	WT_ERR(__wt_cursor_init(
+	    cursor, cursor->internal_uri, owner, cfg, cursorp));
 
 	WT_STAT_FAST_CONN_INCR(session, cursor_create);
 	WT_STAT_FAST_DATA_INCR(session, cursor_create);

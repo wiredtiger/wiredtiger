@@ -16,11 +16,11 @@ struct __wt_stats {
 #define	WT_STAT(stats, fld)						\
 	((stats)->fld.v)
 #define	WT_STAT_ATOMIC_DECRV(stats, fld, value) do {			\
-	(void)WT_ATOMIC_SUB(WT_STAT(stats, fld), (value));		\
+	(void)WT_ATOMIC_SUB8(WT_STAT(stats, fld), (value));		\
 } while (0)
 #define	WT_STAT_ATOMIC_DECR(stats, fld) WT_STAT_ATOMIC_DECRV(stats, fld, 1)
 #define	WT_STAT_ATOMIC_INCRV(stats, fld, value) do {			\
-	(void)WT_ATOMIC_ADD(WT_STAT(stats, fld), (value));		\
+	(void)WT_ATOMIC_ADD8(WT_STAT(stats, fld), (value));		\
 } while (0)
 #define	WT_STAT_ATOMIC_INCR(stats, fld) WT_ATOMIC_ADD(WT_STAT(stats, fld), 1)
 #define	WT_STAT_DECRV(stats, fld, value) do {				\
@@ -117,6 +117,10 @@ struct __wt_stats {
 		   session, &(session)->dhandle->stats, fld, value);	\
 } while (0)
 
+/* Connection handle statistics value. */
+#define	WT_CONN_STAT(session, fld)					\
+	WT_STAT(&S2C(session)->stats, fld)
+
 /*
  * DO NOT EDIT: automatically built by dist/stat.py.
  */
@@ -187,8 +191,9 @@ struct __wt_connection_stats {
 	WT_STATS file_open;
 	WT_STATS log_buffer_grow;
 	WT_STATS log_buffer_size;
-	WT_STATS log_bytes_user;
+	WT_STATS log_bytes_payload;
 	WT_STATS log_bytes_written;
+	WT_STATS log_close_yields;
 	WT_STATS log_max_filesize;
 	WT_STATS log_reads;
 	WT_STATS log_scan_records;
@@ -207,6 +212,10 @@ struct __wt_connection_stats {
 	WT_STATS lsm_checkpoint_throttle;
 	WT_STATS lsm_merge_throttle;
 	WT_STATS lsm_rows_merged;
+	WT_STATS lsm_work_queue_app;
+	WT_STATS lsm_work_queue_manager;
+	WT_STATS lsm_work_queue_max;
+	WT_STATS lsm_work_queue_switch;
 	WT_STATS lsm_work_units_created;
 	WT_STATS lsm_work_units_discarded;
 	WT_STATS lsm_work_units_done;
@@ -216,17 +225,22 @@ struct __wt_connection_stats {
 	WT_STATS read_io;
 	WT_STATS rec_pages;
 	WT_STATS rec_pages_eviction;
-	WT_STATS rec_skipped_update;
 	WT_STATS rec_split_stashed_bytes;
 	WT_STATS rec_split_stashed_objects;
 	WT_STATS rwlock_read;
 	WT_STATS rwlock_write;
 	WT_STATS session_cursor_open;
+	WT_STATS session_open;
 	WT_STATS txn_begin;
 	WT_STATS txn_checkpoint;
 	WT_STATS txn_checkpoint_running;
+	WT_STATS txn_checkpoint_time_max;
+	WT_STATS txn_checkpoint_time_min;
+	WT_STATS txn_checkpoint_time_recent;
+	WT_STATS txn_checkpoint_time_total;
 	WT_STATS txn_commit;
 	WT_STATS txn_fail_cache;
+	WT_STATS txn_pinned_range;
 	WT_STATS txn_rollback;
 	WT_STATS write_io;
 };
@@ -317,7 +331,6 @@ struct __wt_dsrc_stats {
 	WT_STATS rec_pages;
 	WT_STATS rec_pages_eviction;
 	WT_STATS rec_prefix_compression;
-	WT_STATS rec_skipped_update;
 	WT_STATS rec_suffix_compression;
 	WT_STATS session_compact;
 	WT_STATS session_cursor_open;

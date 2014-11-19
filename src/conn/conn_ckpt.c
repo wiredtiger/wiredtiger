@@ -20,6 +20,7 @@ __ckpt_server_config(WT_SESSION_IMPL *session, const char **cfg, int *startp)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_ITEM(tmp);
 	WT_DECL_RET;
+	char *p;
 
 	conn = S2C(session);
 
@@ -31,7 +32,7 @@ __ckpt_server_config(WT_SESSION_IMPL *session, const char **cfg, int *startp)
 	WT_RET(__wt_config_gets(session, cfg, "checkpoint.wait", &cval));
 	conn->ckpt_usecs = (long)cval.val * 1000000;
 	WT_RET(__wt_config_gets(session, cfg, "checkpoint.log_size", &cval));
-	conn->ckpt_logsize = (off_t)cval.val;
+	conn->ckpt_logsize = (wt_off_t)cval.val;
 	__wt_log_written_reset(session);
 	if ((conn->ckpt_usecs == 0 && conn->ckpt_logsize == 0) ||
 	    (conn->ckpt_logsize && !conn->logging && conn->ckpt_usecs == 0)) {
@@ -40,19 +41,26 @@ __ckpt_server_config(WT_SESSION_IMPL *session, const char **cfg, int *startp)
 	}
 	*startp = 1;
 
+	/*
+	 * The application can specify a checkpoint name, which we ignore if
+	 * it's our default.
+	 */
 	WT_RET(__wt_config_gets(session, cfg, "checkpoint.name", &cval));
+	if (cval.len != 0 &&
+	    !WT_STRING_MATCH(WT_CHECKPOINT, cval.str, cval.len)) {
+		WT_RET(__wt_checkpoint_name_ok(session, cval.str, cval.len));
 
-	if (!WT_STRING_MATCH(WT_CHECKPOINT, cval.str, cval.len)) {
 		WT_RET(__wt_scr_alloc(session, cval.len + 20, &tmp));
-		strcpy((char *)tmp->data, "name=");
-		strncat((char *)tmp->data, cval.str, cval.len);
-		ret = __wt_strndup(session,
-		    tmp->data, strlen("name=") + cval.len, &conn->ckpt_config);
-		__wt_scr_free(&tmp);
-		WT_RET(ret);
+		WT_ERR(__wt_buf_fmt(
+		    session, tmp, "name=%.*s", (int)cval.len, cval.str));
+		WT_ERR(__wt_strdup(session, tmp->data, &p));
+
+		__wt_free(session, conn->ckpt_config);
+		conn->ckpt_config = p;
 	}
 
-	return (0);
+err:	__wt_scr_free(&tmp);
+	return (ret);
 }
 
 /*
@@ -91,7 +99,7 @@ __ckpt_server(void *arg)
 	}
 
 	if (0) {
-err:		__wt_err(session, ret, "checkpoint server error");
+err:		WT_PANIC_MSG(session, ret, "checkpoint server error");
 	}
 	return (NULL);
 }
@@ -139,17 +147,19 @@ __ckpt_server_start(WT_CONNECTION_IMPL *conn)
  *	Configure and start the checkpoint server.
  */
 int
-__wt_checkpoint_server_create(WT_CONNECTION_IMPL *conn, const char *cfg[])
+__wt_checkpoint_server_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
+	WT_CONNECTION_IMPL *conn;
 	int start;
 
+	conn = S2C(session);
 	start = 0;
 
 	/* If there is already a server running, shut it down. */
 	if (conn->ckpt_session != NULL)
-		WT_RET(__wt_checkpoint_server_destroy(conn));
+		WT_RET(__wt_checkpoint_server_destroy(session));
 
-	WT_RET(__ckpt_server_config(conn->default_session, cfg, &start));
+	WT_RET(__ckpt_server_config(session, cfg, &start));
 	if (start)
 		WT_RET(__ckpt_server_start(conn));
 
@@ -161,13 +171,13 @@ __wt_checkpoint_server_create(WT_CONNECTION_IMPL *conn, const char *cfg[])
  *	Destroy the checkpoint server thread.
  */
 int
-__wt_checkpoint_server_destroy(WT_CONNECTION_IMPL *conn)
+__wt_checkpoint_server_destroy(WT_SESSION_IMPL *session)
 {
+	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_SESSION *wt_session;
-	WT_SESSION_IMPL *session;
 
-	session = conn->default_session;
+	conn = S2C(session);
 
 	F_CLR(conn, WT_CONN_SERVER_CHECKPOINT);
 	if (conn->ckpt_tid_set) {
@@ -204,7 +214,7 @@ __wt_checkpoint_server_destroy(WT_CONNECTION_IMPL *conn)
  *	Return 1 if this signals the checkpoint thread, 0 otherwise.
  */
 int
-__wt_checkpoint_signal(WT_SESSION_IMPL *session, off_t logsize)
+__wt_checkpoint_signal(WT_SESSION_IMPL *session, wt_off_t logsize)
 {
 	WT_CONNECTION_IMPL *conn;
 

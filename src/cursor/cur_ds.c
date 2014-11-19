@@ -14,8 +14,8 @@
 static int
 __curds_txn_enter(WT_SESSION_IMPL *session)
 {
-	if (session->ncursors++ == 0)			/* XXX */
-		__wt_txn_read_first(session);
+	session->ncursors++;				/* XXX */
+	__wt_txn_cursor_op(session);
 
 	return (0);
 }
@@ -139,7 +139,7 @@ __curds_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
 	 * Confirm both cursors refer to the same source and have keys, then
 	 * compare them.
 	 */
-	if (strcmp(a->uri, b->uri) != 0)
+	if (strcmp(a->internal_uri, b->internal_uri) != 0)
 		WT_ERR_MSG(session, EINVAL,
 		    "Cursors must reference the same object");
 
@@ -448,10 +448,10 @@ __wt_curds_open(
     const char *cfg[], WT_DATA_SOURCE *dsrc, WT_CURSOR **cursorp)
 {
 	WT_CURSOR_STATIC_INIT(iface,
-	    NULL,			/* get-key */
-	    NULL,			/* get-value */
-	    NULL,			/* set-key */
-	    NULL,			/* set-value */
+	    __wt_cursor_get_key,	/* get-key */
+	    __wt_cursor_get_value,	/* get-value */
+	    __wt_cursor_set_key,	/* set-key */
+	    __wt_cursor_set_value,	/* set-value */
 	    __curds_compare,		/* compare */
 	    __curds_next,		/* next */
 	    __curds_prev,		/* prev */
@@ -462,13 +462,13 @@ __wt_curds_open(
 	    __curds_update,		/* update */
 	    __curds_remove,		/* remove */
 	    __curds_close);		/* close */
-	WT_CONFIG_ITEM cval;
+	WT_CONFIG_ITEM cval, metadata;
 	WT_CURSOR *cursor, *source;
 	WT_CURSOR_DATA_SOURCE *data_source;
 	WT_DECL_RET;
-	const char *metaconf;
+	char *metaconf;
 
-	STATIC_ASSERT(offsetof(WT_CURSOR_DATA_SOURCE, iface) == 0);
+	WT_STATIC_ASSERT(offsetof(WT_CURSOR_DATA_SOURCE, iface) == 0);
 
 	data_source = NULL;
 	metaconf = NULL;
@@ -495,9 +495,13 @@ __wt_curds_open(
 
 	WT_ERR(__wt_cursor_init(cursor, uri, owner, cfg, cursorp));
 
-	/* Data-source cursors have a collator reference. */
-	WT_ERR(__wt_collator_config(session, cfg,
-	    &data_source->collator, &data_source->collator_owned));
+	/* Data-source cursors may have a custom collator. */
+	WT_ERR(
+	    __wt_config_getones(session, metaconf, "app_metadata", &metadata));
+	WT_ERR(__wt_config_gets(session, cfg, "collator", &cval));
+	if (cval.len != 0)
+		WT_ERR(__wt_collator_config(session, uri, &cval, &metadata,
+		    &data_source->collator, &data_source->collator_owned));
 
 	WT_ERR(dsrc->open_cursor(dsrc,
 	    &session->iface, uri, (WT_CONFIG_ARG *)cfg, &data_source->source));

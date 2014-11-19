@@ -66,10 +66,29 @@ struct __wt_named_discard_filter {
 };
 
 /*
+ * WT_NAMED_EXTRACTOR --
+ *	An extractor list entry
+ */
+struct __wt_named_extractor {
+	const char *name;		/* Name of extractor */
+	WT_EXTRACTOR *extractor;		/* User supplied object */
+	TAILQ_ENTRY(__wt_named_extractor) q;	/* Linked list of extractors */
+};
+
+/*
  * Allocate some additional slots for internal sessions.  There is a default
  * session for each connection, plus a session for each server thread.
  */
 #define	WT_NUM_INTERNAL_SESSIONS	10
+
+/*
+ * WT_CONN_CHECK_PANIC --
+ *	Check if we've panicked and return the appropriate error.
+ */
+#define	WT_CONN_CHECK_PANIC(conn)					\
+	(F_ISSET(conn, WT_CONN_PANIC) ? WT_PANIC : 0)
+#define	WT_SESSION_CHECK_PANIC(session)					\
+	WT_CONN_CHECK_PANIC(S2C(session))
 
 /*
  * WT_CONNECTION_IMPL --
@@ -82,10 +101,15 @@ struct __wt_connection_impl {
 	WT_SESSION_IMPL *default_session;
 	WT_SESSION_IMPL  dummy_session;
 
+	const char *cfg;		/* Connection configuration */
+
 	WT_SPINLOCK api_lock;		/* Connection API spinlock */
 	WT_SPINLOCK checkpoint_lock;	/* Checkpoint spinlock */
+	WT_SPINLOCK dhandle_lock;	/* Data handle list spinlock */
 	WT_SPINLOCK fh_lock;		/* File handle queue spinlock */
+	WT_SPINLOCK reconfig_lock;	/* Single thread reconfigure */
 	WT_SPINLOCK schema_lock;	/* Schema operation spinlock */
+	WT_SPINLOCK table_lock;		/* Table creation spinlock */
 
 	/*
 	 * We distribute the btree page locks across a set of spin locks; it
@@ -120,7 +144,6 @@ struct __wt_connection_impl {
 
 	uint64_t  split_gen;		/* Generation number for splits */
 
-	WT_SPINLOCK dhandle_lock;	/* Locked: dhandle sweep */
 					/* Locked: data handle list */
 	SLIST_HEAD(__wt_dhandle_lh, __wt_data_handle) dhlh;
 					/* Locked: LSM handle list. */
@@ -166,13 +189,13 @@ struct __wt_connection_impl {
 	int hot_backup;
 
 	WT_SESSION_IMPL *ckpt_session;	/* Checkpoint thread session */
-	pthread_t	 ckpt_tid;	/* Checkpoint thread */
+	wt_thread_t	 ckpt_tid;	/* Checkpoint thread */
 	int		 ckpt_tid_set;	/* Checkpoint thread set */
 	WT_CONDVAR	*ckpt_cond;	/* Checkpoint wait mutex */
 	const char	*ckpt_config;	/* Checkpoint configuration */
 #define	WT_CKPT_LOGSIZE(conn)	((conn)->ckpt_logsize != 0)
-	off_t		 ckpt_logsize;	/* Checkpoint log size period */
-	uint32_t	 ckpt_signalled; /* Checkpoint signalled */
+	wt_off_t	 ckpt_logsize;	/* Checkpoint log size period */
+	uint32_t	 ckpt_signalled;/* Checkpoint signalled */
 	long		 ckpt_usecs;	/* Checkpoint period */
 
 	int compact_in_memory_pass;	/* Compaction serialization */
@@ -217,7 +240,7 @@ struct __wt_connection_impl {
 	WT_LSM_MANAGER	lsm_manager;	/* LSM worker thread information */
 
 	WT_SESSION_IMPL *evict_session; /* Eviction server sessions */
-	pthread_t	 evict_tid;	/* Eviction server thread ID */
+	wt_thread_t	 evict_tid;	/* Eviction server thread ID */
 	int		 evict_tid_set;	/* Eviction server thread ID set */
 
 	uint32_t	 evict_workers_max;/* Max eviction workers */
@@ -226,7 +249,7 @@ struct __wt_connection_impl {
 	WT_EVICT_WORKER	*evict_workctx;	/* Eviction worker context */
 
 	WT_SESSION_IMPL *stat_session;	/* Statistics log session */
-	pthread_t	 stat_tid;	/* Statistics log thread */
+	wt_thread_t	 stat_tid;	/* Statistics log thread */
 	int		 stat_tid_set;	/* Statistics log thread set */
 	WT_CONDVAR	*stat_cond;	/* Statistics log wait mutex */
 	const char	*stat_format;	/* Statistics log timestamp format */
@@ -240,15 +263,15 @@ struct __wt_connection_impl {
 	int		 archive;	/* Global archive configuration */
 	WT_CONDVAR	*arch_cond;	/* Log archive wait mutex */
 	WT_SESSION_IMPL *arch_session;	/* Log archive session */
-	pthread_t	 arch_tid;	/* Log archive thread */
+	wt_thread_t	 arch_tid;	/* Log archive thread */
 	int		 arch_tid_set;	/* Log archive thread set */
 	WT_LOG		*log;		/* Logging structure */
-	off_t		log_file_max;	/* Log file max size */
+	wt_off_t	 log_file_max;	/* Log file max size */
 	const char	*log_path;	/* Logging path format */
 	uint32_t	txn_logsync;	/* Log sync configuration */
 
 	WT_SESSION_IMPL *sweep_session;	/* Handle sweep session */
-	pthread_t	 sweep_tid;	/* Handle sweep thread */
+	wt_thread_t	 sweep_tid;	/* Handle sweep thread */
 	int		 sweep_tid_set;	/* Handle sweep thread set */
 	WT_CONDVAR	*sweep_cond;	/* Handle sweep wait mutex */
 
@@ -264,6 +287,9 @@ struct __wt_connection_impl {
 	TAILQ_HEAD(			/* Locked: discard filter list */
 	    __wt_discard_filter_qh, __wt_named_discard_filter) discard_filterqh;
 
+					/* Locked: extractor list */
+	TAILQ_HEAD(__wt_extractor_qh, __wt_named_extractor) extractorqh;
+
 	void	*lang_private;		/* Language specific private storage */
 
 	/* If non-zero, all buffers used for I/O will be aligned to this. */
@@ -271,8 +297,8 @@ struct __wt_connection_impl {
 
 	uint32_t schema_gen;		/* Schema generation number */
 
-	off_t	 data_extend_len;	/* file_extend data length */
-	off_t	 log_extend_len;	/* file_extend log length */
+	wt_off_t data_extend_len;	/* file_extend data length */
+	wt_off_t log_extend_len;	/* file_extend log length */
 
 	uint32_t direct_io;		/* O_DIRECT file type flags */
 	int	 mmap;			/* mmap configuration */

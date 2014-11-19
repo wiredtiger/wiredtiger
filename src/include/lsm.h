@@ -6,6 +6,30 @@
  */
 
 /*
+ * WT_LSM_WORKER_COOKIE --
+ *	State for an LSM worker thread.
+ */
+struct __wt_lsm_worker_cookie {
+	WT_LSM_CHUNK **chunk_array;
+	size_t chunk_alloc;
+	u_int nchunks;
+};
+
+/*
+ * WT_LSM_WORKER_ARGS --
+ *	State for an LSM worker thread.
+ */
+struct __wt_lsm_worker_args {
+	WT_SESSION_IMPL	*session;	/* Session */
+	WT_CONDVAR	*work_cond;	/* Owned by the manager */
+	wt_thread_t	tid;		/* Thread id */
+	u_int		id;		/* My manager slot id */
+	uint32_t	type;		/* Types of operations handled */
+#define	WT_LSM_WORKER_RUN	0x01
+	uint32_t	flags;		/* Worker flags */
+};
+
+/*
  * WT_CURSOR_LSM --
  *	An LSM cursor.
  */
@@ -87,7 +111,7 @@ struct __wt_lsm_chunk {
 #define	WT_LSM_WORK_DROP	0x02	/* Drop unused chunks */
 #define	WT_LSM_WORK_FLUSH	0x04	/* Flush a chunk to disk */
 #define	WT_LSM_WORK_MERGE	0x08	/* Look for a tree merge */
-#define	WT_LSM_WORK_SWITCH	0x10	/* Switch to a new in memory chunk */
+#define	WT_LSM_WORK_SWITCH	0x10	/* Switch to new in-memory chunk */
 
 /*
  * WT_LSM_WORK_UNIT --
@@ -95,7 +119,9 @@ struct __wt_lsm_chunk {
  */
 struct __wt_lsm_work_unit {
 	TAILQ_ENTRY(__wt_lsm_work_unit) q;	/* Worker unit queue */
-	uint32_t flags;				/* The type of operation */
+	uint32_t	type;			/* Type of operation */
+#define	WT_LSM_WORK_FORCE	0x0001		/* Force operation */
+	uint32_t	flags;			/* Flags for operation */
 	WT_LSM_TREE *lsm_tree;
 };
 
@@ -124,9 +150,11 @@ struct __wt_lsm_manager {
 	WT_CONDVAR     *work_cond;	/* Used to notify worker of activity */
 	uint32_t	lsm_workers;	/* Current number of LSM workers */
 	uint32_t	lsm_workers_max;
-	WT_LSM_WORKER_ARGS *lsm_worker_cookies;
+#define	WT_LSM_MAX_WORKERS	20
+	WT_LSM_WORKER_ARGS lsm_worker_cookies[WT_LSM_MAX_WORKERS];
 };
 
+#define	WT_LSM_AGGRESSIVE_THRESHOLD	5
 /*
  * WT_LSM_TREE --
  *	An LSM tree.
@@ -138,8 +166,10 @@ struct __wt_lsm_tree {
 
 	WT_COLLATOR *collator;
 	const char *collator_name;
+	int collator_owned;
 
 	int refcnt;			/* Number of users of the tree */
+#define	LSM_TREE_MAX_QUEUE	100
 	int queue_ref;
 	WT_RWLOCK *rwlock;
 	TAILQ_ENTRY(__wt_lsm_tree) q;
@@ -154,6 +184,7 @@ struct __wt_lsm_tree {
 	struct timespec last_flush_ts;	/* Timestamp last flush finished */
 	struct timespec work_push_ts;	/* Timestamp last work unit added */
 	uint64_t merge_progressing;	/* Bumped when merges are active */
+	uint32_t merge_syncing;		/* Bumped when merges are syncing */
 
 	/* Configuration parameters */
 	uint32_t bloom_bit_count;
@@ -161,7 +192,6 @@ struct __wt_lsm_tree {
 	uint64_t chunk_size;
 	uint64_t chunk_max;
 	u_int merge_min, merge_max;
-	u_int merge_threads;
 
 	u_int merge_idle;		/* Count of idle merge threads */
 
@@ -169,14 +199,6 @@ struct __wt_lsm_tree {
 #define	WT_LSM_BLOOM_OFF				0x00000002
 #define	WT_LSM_BLOOM_OLDEST				0x00000004
 	uint32_t bloom;			/* Bloom creation policy */
-
-#define	WT_LSM_MAX_WORKERS	10
-					/* Passed to thread_create */
-	WT_SESSION_IMPL *worker_sessions[WT_LSM_MAX_WORKERS];
-					/* LSM worker thread(s) */
-	pthread_t worker_tids[WT_LSM_MAX_WORKERS];
-	WT_SESSION_IMPL *ckpt_session;	/* For checkpoint worker */
-	pthread_t ckpt_tid;		/* LSM checkpoint worker thread */
 
 	WT_LSM_CHUNK **chunk;		/* Array of active LSM chunks */
 	size_t chunk_alloc;		/* Space allocated for chunks */
@@ -190,15 +212,15 @@ struct __wt_lsm_tree {
 	int freeing_old_chunks;		/* Whether chunks are being freed */
 	uint32_t merge_aggressiveness;	/* Increase amount of work per merge */
 
-#define	WT_LSM_TREE_ACTIVE	0x01	/* Workers are active */
-#define	WT_LSM_TREE_COMPACTING	0x02	/* Tree is being compacted */
-#define	WT_LSM_TREE_NEED_SWITCH	0x04	/* A new chunk should be created */
-#define	WT_LSM_TREE_OPEN	0x08	/* The tree is open */
-#define	WT_LSM_TREE_THROTTLE	0x10	/* Throttle updates */
+#define	WT_LSM_TREE_ACTIVE		0x01	/* Workers are active */
+#define	WT_LSM_TREE_COMPACTING		0x02	/* Tree being compacted */
+#define	WT_LSM_TREE_NEED_SWITCH		0x04	/* New chunk needs creating */
+#define	WT_LSM_TREE_OPEN		0x08	/* The tree is open */
+#define	WT_LSM_TREE_THROTTLE		0x10	/* Throttle updates */
 	uint32_t flags;
 
 #define	WT_LSM_TREE_EXCLUSIVE	0x01	/* Tree is opened exclusively */
-	uint32_t flags_atomic;
+	uint8_t flags_atomic;
 };
 
 /*
@@ -209,26 +231,4 @@ struct __wt_lsm_data_source {
 	WT_DATA_SOURCE iface;
 
 	WT_RWLOCK *rwlock;
-};
-
-/*
- * WT_LSM_WORKER_COOKIE --
- *	State for an LSM worker thread.
- */
-struct __wt_lsm_worker_cookie {
-	WT_LSM_CHUNK **chunk_array;
-	size_t chunk_alloc;
-	u_int nchunks;
-};
-
-/*
- * WT_LSM_WORKER_ARGS --
- *	State for an LSM worker thread.
- */
-struct __wt_lsm_worker_args {
-	WT_SESSION_IMPL *session;
-	WT_CONDVAR *work_cond;		/* Owned by the manager */
-	pthread_t tid;
-	u_int id;
-	uint32_t flags;
 };

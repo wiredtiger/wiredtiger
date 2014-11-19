@@ -41,7 +41,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+#ifndef _WIN32
 #include <unistd.h>
+#else
+#include "windows_shim.h"
+#endif
 
 #include <wiredtiger.h>
 
@@ -707,7 +712,7 @@ transaction_ops(WT_CONNECTION *conn, WT_SESSION *session)
 		 * and all cursors are reset.
 		 */
 		break;
-	case WT_DEADLOCK:			/* Update conflict */
+	case WT_ROLLBACK:			/* Update conflict */
 	default:				/* Other error */
 		ret = session->rollback_transaction(session, NULL);
 		/* The rollback_transaction call resets all cursors. */
@@ -741,6 +746,15 @@ transaction_ops(WT_CONNECTION *conn, WT_SESSION *session)
 	/* Re-configure a session for snapshot isolation. */
 	ret = session->reconfigure(session, "isolation=snapshot");
 	/*! [session isolation re-configuration] */
+
+	{
+	/*! [transaction pinned range] */
+	/* Check the transaction ID range pinned by the session handle. */
+	uint64_t range;
+
+	ret = session->transaction_pinned_range(session, &range);
+	/*! [transaction pinned range] */
+	}
 
 	return (ret);
 }
@@ -830,15 +844,15 @@ add_discard_filter(WT_CONNECTION *conn)
 static int
 my_extract(WT_EXTRACTOR *extractor, WT_SESSION *session,
     const WT_ITEM *key, const WT_ITEM *value,
-    WT_ITEM *result)
+    WT_CURSOR *result_cursor)
 {
 	/* Unused parameters */
 	(void)extractor;
 	(void)session;
 	(void)key;
 
-	*result = *value;
-	return (0);
+	result_cursor->set_key(result_cursor, value);
+	return (result_cursor->insert(result_cursor));
 }
 /*! [WT_EXTRACTOR] */
 
@@ -848,7 +862,7 @@ add_extractor(WT_CONNECTION *conn)
 	int ret;
 
 	/*! [WT_EXTRACTOR register] */
-	static WT_EXTRACTOR my_extractor = {my_extract};
+	static WT_EXTRACTOR my_extractor = {my_extract, NULL, NULL};
 
 	ret = conn->add_extractor(conn, "my_extractor", &my_extractor, NULL);
 	/*! [WT_EXTRACTOR register] */
@@ -1107,8 +1121,8 @@ main(void)
 
 	/*! [Statistics logging with a table] */
 	ret = wiredtiger_open(home, NULL,
-	    "create,"
-	    "statistics_log=(sources=(\"table:table1\",\"table:table2\"))",
+	    "create, statistics_log=("
+	    "sources=(\"lsm:table1\",\"lsm:table2\"), wait=5)",
 	    &conn);
 	/*! [Statistics logging with a table] */
 	if (ret == 0)
@@ -1116,7 +1130,7 @@ main(void)
 
 	/*! [Statistics logging with all tables] */
 	ret = wiredtiger_open(home, NULL,
-	    "create,statistics_log=(sources=(\"table:\"))",
+	    "create, statistics_log=(sources=(\"lsm:\"), wait=5)",
 	    &conn);
 	/*! [Statistics logging with all tables] */
 	if (ret == 0)

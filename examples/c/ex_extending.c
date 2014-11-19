@@ -36,6 +36,10 @@
 
 #include <wiredtiger.h>
 
+#ifdef _WIN32
+#define	strcasecmp stricmp
+#endif
+
 static const char *home;
 
 /*! [case insensitive comparator] */

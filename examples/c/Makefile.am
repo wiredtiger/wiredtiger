@@ -5,12 +5,14 @@ noinst_PROGRAMS = \
 	ex_access \
 	ex_all \
 	ex_async \
+	ex_backup \
 	ex_call_center \
 	ex_config \
 	ex_config_parse \
 	ex_cursor \
 	ex_data_source \
 	ex_extending \
+	ex_extractor \
 	ex_file \
 	ex_hello \
 	ex_log \

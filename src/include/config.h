@@ -77,6 +77,9 @@ struct __wt_config_parser_impl {
 #define	WT_CONFIG_ENTRY_session_verify			29
 #define	WT_CONFIG_ENTRY_table_meta			30
 #define	WT_CONFIG_ENTRY_wiredtiger_open			31
+#define	WT_CONFIG_ENTRY_wiredtiger_open_all		32
+#define	WT_CONFIG_ENTRY_wiredtiger_open_basecfg		33
+#define	WT_CONFIG_ENTRY_wiredtiger_open_usercfg		34
 /*
  * configuration section: END
  * DO NOT EDIT: automatically built by dist/flags.py.

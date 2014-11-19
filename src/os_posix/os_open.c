@@ -8,50 +8,26 @@
 #include "wt_internal.h"
 
 /*
- * __open_directory_sync --
- *	Fsync the directory in which we created the file.
+ * __open_directory --
+ *	Open up a file handle to a directory.
  */
 static int
-__open_directory_sync(WT_SESSION_IMPL *session, char *path)
+__open_directory(WT_SESSION_IMPL *session, char *path, int *fd)
 {
-#ifdef __linux__
 	WT_DECL_RET;
-	int fd;
 	char *dir;
 
-	/*
-	 * According to the Linux fsync man page:
-	 *	Calling fsync() does not necessarily ensure that the entry in
-	 *	the directory containing the file has also reached disk. For
-	 *	that an explicit fsync() on a file descriptor for the directory
-	 *	is also needed.
-	 *
-	 * Open the WiredTiger home directory and sync it, I don't want the rest
-	 * of the system to have to wonder if opening a file creates it.
-	 */
 	if ((dir = strrchr(path, '/')) == NULL)
 		path = (char *)".";
 	else
 		*dir = '\0';
-	WT_SYSCALL_RETRY(((fd =
+	WT_SYSCALL_RETRY(((*fd =
 	    open(path, O_RDONLY, 0444)) == -1 ? 1 : 0), ret);
 	if (dir != NULL)
 		*dir = '/';
 	if (ret != 0)
-		WT_RET_MSG(session, ret, "%s: open", path);
-
-	WT_SYSCALL_RETRY(fsync(fd), ret);
-	if (ret != 0)
-		WT_ERR_MSG(session, ret, "%s: fsync", path);
-
-err:	WT_SYSCALL_RETRY(close(fd), ret);
-	if (ret != 0)
-		WT_ERR_MSG(session, ret, "%s: close", path);
-#else
-	WT_UNUSED(session);
-	WT_UNUSED(path);
-#endif
-	return (0);
+		WT_RET_MSG(session, ret, "%s: open_directory", path);
+	return (ret);
 }
 
 /*
@@ -70,6 +46,7 @@ __wt_open(WT_SESSION_IMPL *session,
 	char *path;
 
 	conn = S2C(session);
+	direct_io = 0;
 	fh = NULL;
 	fd = -1;
 	path = NULL;
@@ -81,7 +58,7 @@ __wt_open(WT_SESSION_IMPL *session,
 	__wt_spin_lock(session, &conn->fh_lock);
 	TAILQ_FOREACH(tfh, &conn->fhqh, q)
 		if (strcmp(name, tfh->name) == 0) {
-			++tfh->refcnt;
+			++tfh->ref;
 			*fhp = tfh;
 			matched = 1;
 			break;
@@ -91,6 +68,11 @@ __wt_open(WT_SESSION_IMPL *session,
 		return (0);
 
 	WT_RET(__wt_filename(session, name, &path));
+
+	if (dio_type == WT_FILE_TYPE_DIRECTORY) {
+		WT_ERR(__open_directory(session, path, &fd));
+		goto setupfh;
+	}
 
 	f = O_RDWR;
 #ifdef O_BINARY
@@ -120,7 +102,6 @@ __wt_open(WT_SESSION_IMPL *session,
 	} else
 		mode = 0;
 
-	direct_io = 0;
 #ifdef O_DIRECT
 	if (dio_type && FLD_ISSET(conn->direct_io, dio_type)) {
 		f |= O_DIRECT;
@@ -144,6 +125,7 @@ __wt_open(WT_SESSION_IMPL *session,
 		    "%s: open failed with direct I/O configured, some "
 		    "filesystem types do not support direct I/O" : "%s", path);
 
+setupfh:
 #if defined(HAVE_FCNTL) && defined(FD_CLOEXEC) && !defined(O_CLOEXEC)
 	/*
 	 * Security:
@@ -163,13 +145,10 @@ __wt_open(WT_SESSION_IMPL *session,
 		WT_ERR(posix_fadvise(fd, 0, 0, POSIX_FADV_RANDOM));
 #endif
 
-	if (F_ISSET(conn, WT_CONN_CKPT_SYNC))
-		WT_ERR(__open_directory_sync(session, path));
-
 	WT_ERR(__wt_calloc(session, 1, sizeof(WT_FH), &fh));
 	WT_ERR(__wt_strdup(session, name, &fh->name));
 	fh->fd = fd;
-	fh->refcnt = 1;
+	fh->ref = 1;
 	fh->direct_io = direct_io;
 
 	/* Set the file's size. */
@@ -180,6 +159,9 @@ __wt_open(WT_SESSION_IMPL *session,
 	    dio_type == WT_FILE_TYPE_CHECKPOINT)
 		fh->extend_len = conn->data_extend_len;
 
+	/* Configure fallocate/posix_fallocate calls. */
+	__wt_fallocate_config(session, fh);
+
 	/*
 	 * Repeat the check for a match, but then link onto the database's list
 	 * of files.
@@ -188,7 +170,7 @@ __wt_open(WT_SESSION_IMPL *session,
 	__wt_spin_lock(session, &conn->fh_lock);
 	TAILQ_FOREACH(tfh, &conn->fhqh, q)
 		if (strcmp(name, tfh->name) == 0) {
-			++tfh->refcnt;
+			++tfh->ref;
 			*fhp = tfh;
 			matched = 1;
 			break;
@@ -226,7 +208,7 @@ __wt_close(WT_SESSION_IMPL *session, WT_FH *fh)
 	conn = S2C(session);
 
 	__wt_spin_lock(session, &conn->fh_lock);
-	if (fh == NULL || fh->refcnt == 0 || --fh->refcnt > 0) {
+	if (fh == NULL || fh->ref == 0 || --fh->ref > 0) {
 		__wt_spin_unlock(session, &conn->fh_lock);
 		return (0);
 	}
@@ -240,7 +222,7 @@ __wt_close(WT_SESSION_IMPL *session, WT_FH *fh)
 	/* Discard the memory. */
 	if (close(fh->fd) != 0) {
 		ret = __wt_errno();
-		__wt_err(session, ret, "%s", fh->name);
+		__wt_err(session, ret, "close: %s", fh->name);
 	}
 
 	__wt_free(session, fh->name);

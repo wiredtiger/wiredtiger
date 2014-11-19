@@ -93,8 +93,6 @@ Status WiredTigerErrorToStatus(int wiredTigerError, const char *msg) {
     return Status::NotFound(Slice(msg));
   else if (wiredTigerError == WT_ERROR || wiredTigerError == WT_PANIC)
     return Status::Corruption(Slice(msg));
-  else if (wiredTigerError == WT_DEADLOCK)
-    return Status::IOError("DEADLOCK"); // TODO: Is this the best translation?
   else if (wiredTigerError == ENOTSUP)
     return Status::NotSupported(Slice(msg));
   else if (wiredTigerError == EINVAL)
@@ -103,6 +101,8 @@ Status WiredTigerErrorToStatus(int wiredTigerError, const char *msg) {
       wiredTigerError == EIO || wiredTigerError == EBADF ||
       wiredTigerError == EEXIST || wiredTigerError == ENOSPC)
     return Status::IOError(Slice(msg));
+  else if (wiredTigerError == WT_ROLLBACK)
+    return Status::IOError("ROLLBACK"); // TODO: Is this the best translation?
   else
     return Status::Corruption(Slice(msg));
 }
@@ -395,7 +395,7 @@ DbImpl::Write(const WriteOptions& options, WriteBatch* updates)
       throw;
     }
 #endif
-    if (!status.ok() || (ret = handler.GetWiredTigerStatus()) != WT_DEADLOCK)
+    if (!status.ok() || (ret = handler.GetWiredTigerStatus()) != WT_ROLLBACK)
       break;
     // Roll back the transaction on deadlock so we can try again
     if (need_txn && (ret = session->rollback_transaction(session, NULL)) != 0) {
@@ -755,13 +755,8 @@ IteratorImpl::Next()
   int ret;
   WT_ITEM item;
 
-  if (!Status().ok())
+  if (!Status().ok() || !valid_)
     return;
-
-  if (!valid_) {
-    SetError(EINVAL);
-    return;
-  }
 
   ret = cursor_->next(cursor_);
   if (ret != 0) {
@@ -791,13 +786,8 @@ IteratorImpl::Prev()
 {
   WT_ITEM item;
 
-  if (!Status().ok())
+  if (!Status().ok() || !valid_)
     return;
-
-  if (!valid_) {
-    SetError(EINVAL);
-    return;
-  }
 
   int ret = cursor_->prev(cursor_);
   if (ret != 0) {

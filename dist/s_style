@@ -6,27 +6,49 @@ trap 'rm -f $t; exit 0' 0 1 2 3 13 15
 
 cd ..
 
-# Returns in functions after a jump to the error label.
-for f in `find examples ext src test -name '*.[ci]'`; do
+# Turn a C file into a line per function so we can use grep on it.
+file_parse()
+{
 	sed -n \
-	    -e '/^{$/,/^}$/{=;p;}' $f |
+	    -e '/^{$/,/^}$/{=;p;}' $1 |
 	sed 'N;s/\n/:/' |
 	sed -e '/./{H;/^[0-9][0-9]*:}$/!d;}' \
 	    -e x \
 	    -e 's/\n/ /g' \
 	    -e p \
-	    -e '{s/.*//;x;}' |
-	egrep '(WT_ERR|WT_ERR_MSG|WT_ERR_NOTFOUND_OK|WT_ERR_TEST|WT_ILLEGAL_VALUE_ERR|WT_VERBOSE_ERR)\(.*(WT_ASSERT_RET|WT_ILLEGAL_VALUE|WT_RET|WT_RET_MSG|WT_RET_NOTFOUND_OK|WT_RET_TEST|WT_VERBOSE_RET|WT_VERBOSE_RETVAL)\(.*err:' |
-	    sed 's/:.*//' > $t
+	    -e '{s/.*//;x;}'
+}
+
+# Returns in functions after a jump to the error label, or an infinite loop
+# where there's a jump to the error label after the error label.
+for f in `find bench examples ext src test -name '*.[ci]'`; do
+	file_parse $f |
+	egrep '(WT_ERR|WT_ERR_MSG|WT_ERR_NOTFOUND_OK|WT_ERR_TEST|WT_ILLEGAL_VALUE_ERR)\(.*(WT_ASSERT_RET|WT_ILLEGAL_VALUE|WT_RET|WT_RET_MSG|WT_RET_NOTFOUND_OK|WT_RET_TEST|WT_VERBOSE_RET|WT_VERBOSE_RETVAL)\(.*err:|[^a-z_]err:.*(WT_ERR|WT_ERR_MSG|WT_ERR_NOTFOUND_OK|WT_ERR_TEST|WT_ILLEGAL_VALUE_ERR)\(' |
+	sed 's/:.*//' > $t
+
 	test -s $t && {
-		echo "$f: function with return after a jump to an error label"
+		echo "$f: return after a jump to the error label or a jump to the error label after the error label"
+		sed 's/^/function @ line:/' < $t
+	}
+done
+
+# Return of 0 in functions after a jump to the error label.
+for f in `find bench examples ext src test -name '*.[ci]'`; do
+	file_parse $f |
+	egrep -v '[^a-z_]err:.*return \(ret|[^a-z_]err:.*WT_RET' |
+	egrep '[^a-z_]err:.*return \(0\);' |
+	sed 's/:.*//' > $t
+
+	test -s $t && {
+		echo "$f: error label followed by a return of 0"
 		sed 's/^/function @ line:/' < $t
 	}
 done
 
 for f in \
-    `find bench/wtperf examples ext src test -name '*.[chisy]' -o -name '*.in' |
-    sed '/Makefile.in/d'`; do
+    `find bench examples ext src test -name '*.[chisy]' -o -name '*.in' |
+    sed -e '/Makefile.in/d' \
+	-e '/build_win\/wiredtiger_config.h/d'`; do
 	if grep "^[^}]*while (0);" $f > $t; then
 		echo "$f: while (0) has trailing semi-colon"
 		cat $t
@@ -37,9 +59,22 @@ for f in \
 		cat $t
 	fi
 
-	egrep 'u_quad' $f | sed '/@u_quad_decl@/d' > $t
+	if grep WT_DEADLOCK $f | grep -v '#define.WT_DEADLOCK' > $t; then
+		echo "$f: WT_DEADLOCK deprecated in favor of WT_ROLLBACK"
+		cat $t
+	fi
+
+	if ! expr "$f" : 'examples/c/.*' > /dev/null &&
+	   ! expr "$f" : 'ext/datasources/helium/helium.c' > /dev/null &&
+	   ! expr "$f" : 'src/include/os.h' > /dev/null &&
+	    grep "%zu" $f | grep -v 'SIZET_FMT' > $t; then
+		echo "$f: %zu needs to be fixed for Windows"
+		cat $t
+	fi
+
+	egrep -w 'off_t' $f > $t
 	test -s $t && {
-		echo "$f: old-style type declaration: u_XXX_t or u_quad"
+		echo "$f: off_t type declaration, use wt_off_t"
 		cat $t
 	}
 
@@ -109,6 +144,7 @@ for f in \
 	    -e 's/\([	 ,]\)u_int16_t\([	 ,]\)/\1uint16_t\2/g' \
 	    -e 's/\([	 ,]\)u_int32_t\([	 ,]\)/\1uint32_t\2/g' \
 	    -e 's/\([	 ,]\)u_int64_t\([	 ,]\)/\1uint64_t\2/g' \
+	    -e 's/\([	 ,]\)u_quad\([	 ,]\)/\1uint64_t\2/g' \
 	    -e 's/\([|&=+-]\)  *\([^*]\)/\1 \2/' \
 	    -e 's/(void) \([a-zA-Z_]\)/(void)\1/' \
 	    -e '/for /!s/;;$/;/' \

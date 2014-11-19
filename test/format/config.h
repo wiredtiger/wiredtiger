@@ -96,7 +96,7 @@ static CONFIG c[] = {
 
 	{ "cache",
 	  "size of the cache in MB",
-	  0x0, 1, 100, 1024, &g.c_cache, NULL },
+	  0x0, 1, 100, 100 * 1024, &g.c_cache, NULL },
 
 	{ "checkpoints",
 	  "if periodic checkpoints are done",			/* 95% */
@@ -115,7 +115,8 @@ static CONFIG c[] = {
 	  C_BOOL, 10, 0, 0, &g.c_compact, NULL },
 
 	{ "compression",
-	  "type of compression (none | bzip | bzip-raw | lzo | snappy | zlib)",
+	  "type of compression "
+	  "(none | bzip | bzip-raw | lzo | snappy | zlib | zlib-noraw)",
 	  C_IGNORE|C_STRING, 1, 5, 5, NULL, &g.c_compression },
 
 	{ "data_extend",
@@ -199,13 +200,13 @@ static CONFIG c[] = {
 	  "if logging configured",				/* 30% */
 	  C_BOOL, 30, 0, 0, &g.c_logging, NULL },
 
+	{ "lsm_worker_threads",
+	  "the number of LSM worker threads",
+	  0x0, 3, 4, 20, &g.c_lsm_worker_threads, NULL },
+
 	{ "merge_max",
 	  "the maximum number of chunks to include in a merge operation",
 	  0x0, 4, 20, 100, &g.c_merge_max, NULL },
-
-	{ "merge_threads",
-	  "the number of threads to perform merge operations",
-	  0x0, 1, 4, 10, &g.c_merge_threads, NULL },
 
 	{ "mmap",
 	  "configure for mmap operations",			/* 90% */
@@ -250,6 +251,10 @@ static CONFIG c[] = {
 	{ "threads",
 	  "the number of threads",
 	  C_IGNORE, 1, 32, 128, &g.c_threads, NULL },
+
+	{ "timer",
+	  "time to run in minutes",
+	  C_IGNORE, 0, UINT_MAX, UINT_MAX, &g.c_timer, NULL },
 
 	{ "value_max",
 	  "maximum size of values",

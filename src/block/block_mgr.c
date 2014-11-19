@@ -41,7 +41,8 @@ static int
 __bm_addr_valid(WT_BM *bm,
     WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
-	return (__wt_block_addr_valid(session, bm->block, addr, addr_size));
+	return (__wt_block_addr_valid(
+	    session, bm->block, addr, addr_size, bm->is_live));
 }
 
 /*
@@ -102,8 +103,8 @@ __bm_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session,
 		 * of being read into cache buffers.
 		 */
 		if (conn->mmap)
-			WT_RET(__wt_block_map(
-			    session, bm->block, &bm->map, &bm->maplen));
+			WT_RET(__wt_block_map(session, bm->block,
+			    &bm->map, &bm->maplen, &bm->mappingcookie));
 
 		/*
 		 * If this handle is for a checkpoint, that is, read-only, there
@@ -138,8 +139,8 @@ __bm_checkpoint_unload(WT_BM *bm, WT_SESSION_IMPL *session)
 
 	/* Unmap any mapped segment. */
 	if (bm->map != NULL)
-		WT_TRET(
-		    __wt_block_unmap(session, bm->block, bm->map, bm->maplen));
+		WT_TRET(__wt_block_unmap(session,
+		    bm->block, bm->map, bm->maplen, &bm->mappingcookie));
 
 	/* Unload the checkpoint. */
 	WT_TRET(__wt_block_checkpoint_unload(session, bm->block, !bm->is_live));

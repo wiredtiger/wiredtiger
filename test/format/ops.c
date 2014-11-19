@@ -51,10 +51,15 @@ wts_ops(void)
 	WT_CONNECTION *conn;
 	WT_SESSION *session;
 	pthread_t backup_tid, compact_tid;
+	uint64_t thread_ops;
+	uint32_t i, tenths;
 	int ret, running;
-	uint32_t i;
 
 	conn = g.wts_conn;
+
+	session = NULL;			/* -Wconditional-uninitialized */
+	memset(&backup_tid, 0, sizeof(backup_tid));
+	memset(&compact_tid, 0, sizeof(compact_tid));
 
 	/*
 	 * We support replay of threaded runs, but don't log random numbers
@@ -62,6 +67,23 @@ wts_ops(void)
 	 */
 	if (!SINGLETHREADED)
 		g.rand_log_stop = 1;
+
+	/*
+	 * There are two mechanisms to specify the length of the run, a number
+	 * of operations or a timer.  If the former, each thread does an equal
+	 * share of the total operations (and make sure that it's not 0).  If
+	 * the latter, calculate how many tenth-of-a-second sleeps until this
+	 * part of the run finishes.
+	 */
+	if (g.c_timer == 0) {
+		tenths = 0;
+		if (g.c_ops < g.c_threads)
+			g.c_ops = g.c_threads;
+		thread_ops = g.c_ops / g.c_threads;
+	} else {
+		tenths = (g.c_timer * 10 * 60) / FORMAT_OPERATION_REPS;
+		thread_ops = 0;
+	}
 
 	/* Initialize the table extension code. */
 	table_append_init();
@@ -74,72 +96,72 @@ wts_ops(void)
 		    "=============== thread ops start ===============");
 	}
 
-	if (SINGLETHREADED) {
-		memset(&total, 0, sizeof(total));
-		total.id = 1;
-		(void)ops(&total);
-	} else {
-		g.threads_finished = 0;
-
-		/*
-		 * Create thread structure; start worker, backup, compaction
-		 * threads.
-		 */
-		if ((tinfo =
-		    calloc((size_t)g.c_threads, sizeof(*tinfo))) == NULL)
-			die(errno, "calloc");
-		for (i = 0; i < g.c_threads; ++i) {
-			tinfo[i].id = (int)i + 1;
-			tinfo[i].state = TINFO_RUNNING;
-			if ((ret = pthread_create(
-			    &tinfo[i].tid, NULL, ops, &tinfo[i])) != 0)
-				die(ret, "pthread_create");
-		}
+	/* Create thread structure; start the worker threads. */
+	if ((tinfo = calloc((size_t)g.c_threads, sizeof(*tinfo))) == NULL)
+		die(errno, "calloc");
+	for (i = 0; i < g.c_threads; ++i) {
+		tinfo[i].id = (int)i + 1;
+		tinfo[i].state = TINFO_RUNNING;
 		if ((ret =
-		    pthread_create(&backup_tid, NULL, backup, NULL)) != 0)
+		    pthread_create(&tinfo[i].tid, NULL, ops, &tinfo[i])) != 0)
 			die(ret, "pthread_create");
-		if (g.c_compact && (ret =
-		    pthread_create(&compact_tid, NULL, compact, NULL)) != 0)
-			die(ret, "pthread_create");
-
-		/* Wait for the threads. */
-		for (;;) {
-			total.commit = total.deadlock = total.insert =
-			    total.remove = total.rollback = total.search =
-			    total.update = 0;
-			for (i = 0, running = 0; i < g.c_threads; ++i) {
-				total.commit += tinfo[i].commit;
-				total.deadlock += tinfo[i].deadlock;
-				total.insert += tinfo[i].insert;
-				total.remove += tinfo[i].remove;
-				total.rollback += tinfo[i].rollback;
-				total.search += tinfo[i].search;
-				total.update += tinfo[i].update;
-				switch (tinfo[i].state) {
-				case TINFO_RUNNING:
-					running = 1;
-					break;
-				case TINFO_COMPLETE:
-					tinfo[i].state = TINFO_JOINED;
-					(void)pthread_join(tinfo[i].tid, NULL);
-					break;
-				case TINFO_JOINED:
-					break;
-				}
-			}
-			track("ops", 0ULL, &total);
-			if (!running)
-				break;
-			(void)usleep(100000);		/* 1/10th of a second */
-		}
-		free(tinfo);
-
-		/* Wait for the backup, compaction thread. */
-		g.threads_finished = 1;
-		(void)pthread_join(backup_tid, NULL);
-		if (g.c_compact)
-			(void)pthread_join(compact_tid, NULL);
 	}
+
+	/* If a multi-threaded run, start backup and compaction threads. */
+	if (g.c_backups &&
+	    (ret = pthread_create(&backup_tid, NULL, backup, NULL)) != 0)
+		die(ret, "pthread_create: backup");
+	if (g.c_compact &&
+	    (ret = pthread_create(&compact_tid, NULL, compact, NULL)) != 0)
+		die(ret, "pthread_create: compaction");
+
+	/* Spin on the threads, calculating the totals. */
+	memset(&total, 0, sizeof(total));
+	for (;;) {
+		for (i = 0, running = 0; i < g.c_threads; ++i) {
+			total.commit += tinfo[i].commit;
+			total.deadlock += tinfo[i].deadlock;
+			total.insert += tinfo[i].insert;
+			total.remove += tinfo[i].remove;
+			total.rollback += tinfo[i].rollback;
+			total.search += tinfo[i].search;
+			total.update += tinfo[i].update;
+
+			switch (tinfo[i].state) {
+			case TINFO_RUNNING:
+				running = 1;
+				break;
+			case TINFO_COMPLETE:
+				tinfo[i].state = TINFO_JOINED;
+				(void)pthread_join(tinfo[i].tid, NULL);
+				break;
+			case TINFO_JOINED:
+				break;
+			}
+
+			/* Tell the thread if it's done. */
+			if (thread_ops == 0) {
+				if (tenths == 0)
+					tinfo[i].quit = 1;
+			} else
+				if (tinfo[i].ops >= thread_ops)
+					tinfo[i].quit = 1;
+		}
+		track("ops", 0ULL, &total);
+		if (!running)
+			break;
+		(void)usleep(250000);		/* 1/4th of a second */
+		if (tenths != 0)
+			--tenths;
+	}
+	free(tinfo);
+
+	/* Wait for the backup, compaction thread. */
+	g.workers_finished = 1;
+	if (g.c_backups)
+		(void)pthread_join(backup_tid, NULL);
+	if (g.c_compact)
+		(void)pthread_join(compact_tid, NULL);
 
 	if (g.logging != 0) {
 		(void)g.wt_api->msg_printf(g.wt_api, session,
@@ -182,63 +204,49 @@ ops(void *arg)
 	WT_CURSOR *cursor, *cursor_insert;
 	WT_SESSION *session;
 	WT_ITEM key, value;
-	uint64_t cnt, keyno, ckpt_op, session_op, thread_ops;
+	uint64_t keyno, ckpt_op, session_op;
 	uint32_t op;
 	uint8_t *keybuf, *valbuf;
 	u_int np;
-	int dir, insert, intxn, notfound, ret;
-	char *ckpt_config, config[64];
+	int ckpt_available, dir, insert, intxn, notfound, readonly, ret;
+	char *ckpt_config, ckpt_name[64];
 
 	tinfo = arg;
 
 	conn = g.wts_conn;
 	keybuf = valbuf = NULL;
+	readonly = 0;			/* -Wconditional-uninitialized */
 
 	/* Set up the default key and value buffers. */
 	key_gen_setup(&keybuf);
 	val_gen_setup(&valbuf);
 
-	/*
-	 * Each thread does its share of the total operations, and make sure
-	 * that it's not 0 (testing runs: threads might be larger than ops).
-	 */
-	thread_ops = 100 + g.c_ops / g.c_threads;
-
-	/*
-	 * Select the first operation where we'll create sessions and cursors,
-	 * perform checkpoint operations.
-	 */
-	ckpt_op = g.c_checkpoints ? MMRAND(1, thread_ops) : 0;
+	/* Set the first operation where we'll create sessions and cursors. */
 	session_op = 0;
-
 	session = NULL;
 	cursor = cursor_insert = NULL;
-	for (intxn = 0, cnt = 0; cnt < thread_ops; ++cnt) {
-		if (SINGLETHREADED && cnt % 100 == 0)
-			track("ops", 0ULL, tinfo);
 
+	/* Set the first operation where we'll perform checkpoint operations. */
+	ckpt_op = g.c_checkpoints ? MMRAND(100, 10000) : 0;
+	ckpt_available = 0;
+
+	for (intxn = 0; !tinfo->quit; ++tinfo->ops) {
 		/*
 		 * We can't checkpoint or swap sessions/cursors while in a
 		 * transaction, resolve any running transaction.
-		 *
-		 * Reset the cursor regardless: we may block waiting for a lock
-		 * and there is no reason to keep pages pinned.
 		 */
-		if (cnt == ckpt_op || cnt == session_op) {
-			if (intxn) {
-				if ((ret = session->commit_transaction(
-				    session, NULL)) != 0)
-					die(ret, "session.commit_transaction");
-				++tinfo->commit;
-				intxn = 0;
-			}
-			if (cursor != NULL &&
-			    (ret = cursor->reset(cursor)) != 0)
-				die(ret, "cursor.reset");
+		if (intxn &&
+		    (tinfo->ops == ckpt_op || tinfo->ops == session_op)) {
+			if ((ret = session->commit_transaction(
+			    session, NULL)) != 0)
+				die(ret, "session.commit_transaction");
+			++tinfo->commit;
+			intxn = 0;
 		}
 
 		/* Open up a new session and cursors. */
-		if (cnt == session_op || session == NULL || cursor == NULL) {
+		if (tinfo->ops == session_op ||
+		    session == NULL || cursor == NULL) {
 			if (session != NULL &&
 			    (ret = session->close(session, NULL)) != 0)
 				die(ret, "session.close");
@@ -248,44 +256,72 @@ ops(void *arg)
 				die(ret, "connection.open_session");
 
 			/*
-			 * Open two cursors: one configured for overwriting and
-			 * one configured for append if we're dealing with a
-			 * column-store.
+			 * 10% of the time, perform some read-only operations
+			 * from a checkpoint.
 			 *
-			 * The reason is when testing with existing records, we
-			 * don't track if a record was deleted or not, which
-			 * means we must use cursor->insert with overwriting
-			 * configured.  But, in column-store files where we're
-			 * testing with new, appended records, we don't want to
-			 * have to specify the record number, which requires an
-			 * append configuration.
+			 * Skip that if we single-threaded and doing checks
+			 * against a Berkeley DB database, because that won't
+			 * work because the Berkeley DB database records won't
+			 * match the checkpoint.  Also skip if we are using
+			 * LSM, because it doesn't support reads from
+			 * checkpoints.
 			 */
-			if ((ret = session->open_cursor(session,
-			    g.uri, NULL, "overwrite", &cursor)) != 0)
-				die(ret, "session.open_cursor");
-			if ((g.type == FIX || g.type == VAR) &&
-			    (ret = session->open_cursor(session,
-			    g.uri, NULL, "append", &cursor_insert)) != 0)
-				die(ret, "session.open_cursor");
+			if (!SINGLETHREADED && !DATASOURCE("lsm") &&
+			    ckpt_available && MMRAND(1, 10) == 1) {
+				if ((ret = session->open_cursor(session,
+				    g.uri, NULL, ckpt_name, &cursor)) != 0)
+					die(ret, "session.open_cursor");
 
-			/* Pick the next session/cursor close/open. */
-			session_op += SINGLETHREADED ?
-			    MMRAND(1, thread_ops) : 100 * MMRAND(1, 50);
+				/* Pick the next session/cursor close/open. */
+				session_op += 250;
+
+				/* Checkpoints are read-only. */
+				readonly = 1;
+			} else {
+				/*
+				 * Open two cursors: one for overwriting and one
+				 * for append (if it's a column-store).
+				 *
+				 * The reason is when testing with existing
+				 * records, we don't track if a record was
+				 * deleted or not, which means we must use
+				 * cursor->insert with overwriting configured.
+				 * But, in column-store files where we're
+				 * testing with new, appended records, we don't
+				 * want to have to specify the record number,
+				 * which requires an append configuration.
+				 */
+				if ((ret = session->open_cursor(session, g.uri,
+				    NULL, "overwrite", &cursor)) != 0)
+					die(ret, "session.open_cursor");
+				if ((g.type == FIX || g.type == VAR) &&
+				    (ret = session->open_cursor(session, g.uri,
+				    NULL, "append", &cursor_insert)) != 0)
+					die(ret, "session.open_cursor");
+
+				/* Pick the next session/cursor close/open. */
+				session_op += 100 * MMRAND(1, 50);
+
+				/* Updates supported. */
+				readonly = 0;
+			}
 		}
 
 		/* Checkpoint the database. */
-		if (cnt == ckpt_op && g.c_checkpoints) {
+		if (tinfo->ops == ckpt_op && g.c_checkpoints) {
 			/*
 			 * LSM and data-sources don't support named checkpoints,
-			 * else 25% of the time we name the checkpoint.
+			 * and we can't drop a named checkpoint while there's a
+			 * cursor open on it, otherwise 20% of the time name the
+			 * checkpoint.
 			 */
-			if (DATASOURCE("lsm") || DATASOURCE("helium") ||
-			    DATASOURCE("kvsbdb") || MMRAND(1, 4) == 1)
+			if (DATASOURCE("helium") || DATASOURCE("kvsbdb") ||
+			    DATASOURCE("lsm") || readonly || MMRAND(1, 5) == 1)
 				ckpt_config = NULL;
 			else {
-				(void)snprintf(config, sizeof(config),
+				(void)snprintf(ckpt_name, sizeof(ckpt_name),
 				    "name=thread-%d", tinfo->id);
-				ckpt_config = config;
+				ckpt_config = ckpt_name;
 			}
 
 			/* Named checkpoints lock out backups */
@@ -305,11 +341,17 @@ ops(void *arg)
 				die(ret,
 				    "pthread_rwlock_wrlock: backup lock");
 
-			/*
-			 * Pick the next checkpoint operation, try for roughly
-			 * five checkpoint operations per thread run.
-			 */
-			ckpt_op += MMRAND(1, thread_ops) / 5;
+			/* Rephrase the checkpoint name for cursor open. */
+			if (ckpt_config == NULL)
+				strcpy(ckpt_name,
+				    "checkpoint=WiredTigerCheckpoint");
+			else
+				(void)snprintf(ckpt_name, sizeof(ckpt_name),
+				    "checkpoint=thread-%d", tinfo->id);
+			ckpt_available = 1;
+
+			/* Pick the next checkpoint operation. */
+			ckpt_op += 1000 * MMRAND(5, 20);
 		}
 
 		/*
@@ -336,7 +378,7 @@ ops(void *arg)
 		 * of deletes will mean fewer inserts and writes.  Modifications
 		 * are always followed by a read to confirm it worked.
 		 */
-		op = (uint32_t)(rng() % 100);
+		op = readonly ? UINT32_MAX : (uint32_t)(rng() % 100);
 		if (op < g.c_delete_pct) {
 			++tinfo->remove;
 			switch (g.type) {
@@ -372,13 +414,6 @@ ops(void *arg)
 				if (g.append_cnt >= g.append_max)
 					goto skip_insert;
 
-				/*
-				 * Reset the standard cursor so it doesn't keep
-				 * pages pinned.
-				 */
-				if ((ret = cursor->reset(cursor)) != 0)
-					die(ret, "cursor.reset");
-
 				/* Insert, then reset the insert cursor. */
 				if (col_insert(
 				    cursor_insert, &key, &value, &keyno))
@@ -407,7 +442,8 @@ skip_insert:			if (col_update(cursor, &key, &value, keyno))
 		} else {
 			++tinfo->search;
 			if (read_row(cursor, &key, keyno))
-				goto deadlock;
+				if (intxn)
+					goto deadlock;
 			continue;
 		}
 
@@ -426,10 +462,14 @@ skip_insert:			if (col_update(cursor, &key, &value, keyno))
 			}
 		}
 
-		/* Read the value we modified to confirm the operation. */
+		/* Read to confirm the operation. */
 		++tinfo->search;
 		if (read_row(cursor, &key, keyno))
 			goto deadlock;
+
+		/* Reset the cursor: there is no reason to keep pages pinned. */
+		if (cursor != NULL && (ret = cursor->reset(cursor)) != 0)
+			die(ret, "cursor.reset");
 
 		/*
 		 * If we're in the transaction, commit 40% of the time and
@@ -559,8 +599,8 @@ read_row(WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno)
 			ret = cursor->get_value(cursor, &value);
 		}
 	}
-	if (ret == WT_DEADLOCK)
-		return (WT_DEADLOCK);
+	if (ret == WT_ROLLBACK)
+		return (WT_ROLLBACK);
 	if (ret != 0 && ret != WT_NOTFOUND)
 		die(ret, "read_row: read row %" PRIu64, keyno);
 	/*
@@ -617,8 +657,8 @@ nextprev(WT_CURSOR *cursor, int next, int *notfoundp)
 
 	keyno = 0;
 	ret = next ? cursor->next(cursor) : cursor->prev(cursor);
-	if (ret == WT_DEADLOCK)
-		return (WT_DEADLOCK);
+	if (ret == WT_ROLLBACK)
+		return (WT_ROLLBACK);
 	if (ret == 0)
 		switch (g.type) {
 		case FIX:
@@ -727,8 +767,8 @@ row_update(
 	cursor->set_key(cursor, key);
 	cursor->set_value(cursor, value);
 	ret = cursor->update(cursor);
-	if (ret == WT_DEADLOCK)
-		return (WT_DEADLOCK);
+	if (ret == WT_ROLLBACK)
+		return (WT_ROLLBACK);
 	if (ret != 0 && ret != WT_NOTFOUND)
 		die(ret, "row_update: update row %" PRIu64 " by key", keyno);
 
@@ -774,8 +814,8 @@ col_update(WT_CURSOR *cursor, WT_ITEM *key, WT_ITEM *value, uint64_t keyno)
 	else
 		cursor->set_value(cursor, value);
 	ret = cursor->update(cursor);
-	if (ret == WT_DEADLOCK)
-		return (WT_DEADLOCK);
+	if (ret == WT_ROLLBACK)
+		return (WT_ROLLBACK);
 	if (ret != 0 && ret != WT_NOTFOUND)
 		die(ret, "col_update: %" PRIu64, keyno);
 
@@ -919,8 +959,8 @@ row_insert(
 	cursor->set_key(cursor, key);
 	cursor->set_value(cursor, value);
 	ret = cursor->insert(cursor);
-	if (ret == WT_DEADLOCK)
-		return (WT_DEADLOCK);
+	if (ret == WT_ROLLBACK)
+		return (WT_ROLLBACK);
 	if (ret != 0 && ret != WT_NOTFOUND)
 		die(ret, "row_insert: insert row %" PRIu64 " by key", keyno);
 
@@ -952,8 +992,8 @@ col_insert(WT_CURSOR *cursor, WT_ITEM *key, WT_ITEM *value, uint64_t *keynop)
 	else
 		cursor->set_value(cursor, value);
 	if ((ret = cursor->insert(cursor)) != 0) {
-		if (ret == WT_DEADLOCK)
-			return (WT_DEADLOCK);
+		if (ret == WT_ROLLBACK)
+			return (WT_ROLLBACK);
 		die(ret, "cursor.insert");
 	}
 	if ((ret = cursor->get_key(cursor, &keyno)) != 0)
@@ -1006,8 +1046,8 @@ row_remove(WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno, int *notfoundp)
 	/* We use the cursor in overwrite mode, check for existence. */
 	if ((ret = cursor->search(cursor)) == 0)
 		ret = cursor->remove(cursor);
-	if (ret == WT_DEADLOCK)
-		return (WT_DEADLOCK);
+	if (ret == WT_ROLLBACK)
+		return (WT_ROLLBACK);
 	if (ret != 0 && ret != WT_NOTFOUND)
 		die(ret, "row_remove: remove %" PRIu64 " by key", keyno);
 	*notfoundp = (ret == WT_NOTFOUND);
@@ -1041,8 +1081,8 @@ col_remove(WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno, int *notfoundp)
 	/* We use the cursor in overwrite mode, check for existence. */
 	if ((ret = cursor->search(cursor)) == 0)
 		ret = cursor->remove(cursor);
-	if (ret == WT_DEADLOCK)
-		return (WT_DEADLOCK);
+	if (ret == WT_ROLLBACK)
+		return (WT_ROLLBACK);
 	if (ret != 0 && ret != WT_NOTFOUND)
 		die(ret, "col_remove: remove %" PRIu64 " by key", keyno);
 	*notfoundp = (ret == WT_NOTFOUND);

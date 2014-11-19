@@ -54,7 +54,7 @@ __wt_cond_wait(WT_SESSION_IMPL *session, WT_CONDVAR *cond, long usecs)
 	WT_ASSERT(session, usecs >= 0);
 
 	/* Fast path if already signalled. */
-	if (WT_ATOMIC_ADD(cond->waiters, 1) == 0)
+	if (WT_ATOMIC_ADD4(cond->waiters, 1) == 0)
 		return (0);
 
 	/*
@@ -89,7 +89,7 @@ __wt_cond_wait(WT_SESSION_IMPL *session, WT_CONDVAR *cond, long usecs)
 	    ret == ETIMEDOUT)
 		ret = 0;
 
-	(void)WT_ATOMIC_SUB(cond->waiters, 1);
+	(void)WT_ATOMIC_SUB4(cond->waiters, 1);
 
 err:	if (locked)
 		WT_TRET(pthread_mutex_unlock(&cond->mtx));
@@ -122,7 +122,7 @@ __wt_cond_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond)
 	if (cond->waiters == -1)
 		return (0);
 
-	if (cond->waiters > 0 || !WT_ATOMIC_CAS(cond->waiters, 0, -1)) {
+	if (cond->waiters > 0 || !WT_ATOMIC_CAS4(cond->waiters, 0, -1)) {
 		WT_ERR(pthread_mutex_lock(&cond->mtx));
 		locked = 1;
 		WT_ERR(pthread_cond_broadcast(&cond->cond));
@@ -154,129 +154,4 @@ __wt_cond_destroy(WT_SESSION_IMPL *session, WT_CONDVAR **condp)
 	__wt_free(session, *condp);
 
 	return (ret);
-}
-
-/*
- * __wt_rwlock_alloc --
- *	Allocate and initialize a read/write lock.
- */
-int
-__wt_rwlock_alloc(
-    WT_SESSION_IMPL *session, WT_RWLOCK **rwlockp, const char *name)
-{
-	WT_DECL_RET;
-	WT_RWLOCK *rwlock;
-
-	WT_RET(__wt_calloc(session, 1, sizeof(WT_RWLOCK), &rwlock));
-	WT_ERR(pthread_rwlock_init(&rwlock->rwlock, NULL));
-
-	rwlock->name = name;
-	*rwlockp = rwlock;
-
-	WT_ERR(__wt_verbose(session, WT_VERB_MUTEX,
-	    "rwlock: alloc %s (%p)", rwlock->name, rwlock));
-
-	if (0) {
-err:		__wt_free(session, rwlock);
-	}
-	return (ret);
-}
-
-/*
- * __wt_readlock --
- *	Get a shared lock.
- */
-int
-__wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *rwlock)
-{
-	WT_DECL_RET;
-
-	WT_RET(__wt_verbose(session, WT_VERB_MUTEX,
-	    "rwlock: readlock %s (%p)", rwlock->name, rwlock));
-	WT_STAT_FAST_CONN_INCR(session, rwlock_read);
-
-	if ((ret = pthread_rwlock_rdlock(&rwlock->rwlock)) == 0)
-		return (0);
-	WT_RET_MSG(session, ret, "pthread_rwlock_rdlock: %s", rwlock->name);
-}
-
-/*
- * __wt_try_writelock --
- *	Try to get an exclusive lock, or fail immediately if unavailable.
- */
-int
-__wt_try_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *rwlock)
-{
-	WT_DECL_RET;
-
-	WT_RET(__wt_verbose(session, WT_VERB_MUTEX,
-	    "rwlock: try_writelock %s (%p)", rwlock->name, rwlock));
-	WT_STAT_FAST_CONN_INCR(session, rwlock_write);
-
-	if ((ret =
-	    pthread_rwlock_trywrlock(&rwlock->rwlock)) == 0 || ret == EBUSY)
-		return (ret);
-	WT_RET_MSG(session, ret, "pthread_rwlock_trywrlock: %s", rwlock->name);
-}
-
-/*
- * __wt_writelock --
- *	Wait to get an exclusive lock.
- */
-int
-__wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *rwlock)
-{
-	WT_DECL_RET;
-
-	WT_RET(__wt_verbose(session, WT_VERB_MUTEX,
-	    "rwlock: writelock %s (%p)", rwlock->name, rwlock));
-	WT_STAT_FAST_CONN_INCR(session, rwlock_write);
-
-	if ((ret = pthread_rwlock_wrlock(&rwlock->rwlock)) == 0)
-		return (0);
-	WT_RET_MSG(session, ret, "pthread_rwlock_wrlock: %s", rwlock->name);
-}
-
-/*
- * __wt_rwunlock --
- *	Release a read/write lock.
- */
-int
-__wt_rwunlock(WT_SESSION_IMPL *session, WT_RWLOCK *rwlock)
-{
-	WT_DECL_RET;
-
-	WT_RET(__wt_verbose(session, WT_VERB_MUTEX,
-	    "rwlock: unlock %s (%p)", rwlock->name, rwlock));
-
-	if ((ret = pthread_rwlock_unlock(&rwlock->rwlock)) == 0)
-		return (0);
-	WT_RET_MSG(session, ret, "pthread_rwlock_unlock: %s", rwlock->name);
-}
-
-/*
- * __wt_rwlock_destroy --
- *	Destroy a mutex.
- */
-int
-__wt_rwlock_destroy(WT_SESSION_IMPL *session, WT_RWLOCK **rwlockp)
-{
-	WT_DECL_RET;
-	WT_RWLOCK *rwlock;
-
-	rwlock = *rwlockp;		/* Clear our caller's reference. */
-	if (rwlock == NULL)
-		return (0);
-	*rwlockp = NULL;
-
-	WT_RET(__wt_verbose(session, WT_VERB_MUTEX,
-	    "rwlock: destroy %s (%p)", rwlock->name, rwlock));
-
-	if ((ret = pthread_rwlock_destroy(&rwlock->rwlock)) == 0) {
-		__wt_free(session, rwlock);
-		return (0);
-	}
-
-	/* Deliberately leak memory on error. */
-	WT_RET_MSG(session, ret, "pthread_rwlock_destroy: %s", rwlock->name);
 }

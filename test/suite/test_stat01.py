@@ -83,12 +83,12 @@ class test_stat01(wttest.WiredTigerTestCase):
     def test_basic_conn_stats(self):
         self.printVerbose(2, 'overall database stats:')
         allstat_cursor = self.session.open_cursor('statistics:', None, None)
-        self.check_stats(allstat_cursor, 10, 'block manager: blocks written')
+        self.check_stats(allstat_cursor, 10, 'block-manager: blocks written')
 
         # See that we can get a specific stat value by its key,
         # and verify that its entry is self-consistent
         values = allstat_cursor[stat.conn.block_write]
-        self.assertEqual(values[0], 'block manager: blocks written')
+        self.assertEqual(values[0], 'block-manager: blocks written')
         val = self.statstr_to_int(values[1])
         self.assertEqual(val, values[2])
         allstat_cursor.close()
@@ -108,12 +108,12 @@ class test_stat01(wttest.WiredTigerTestCase):
         self.printVerbose(2, 'data source specific stats:')
         cursor = self.session.open_cursor(
             'statistics:' + self.uri, None, None)
-        self.check_stats(cursor, 10, 'overflow pages')
+        self.check_stats(cursor, 10, 'btree: overflow pages')
 
         # See that we can get a specific stat value by its key,
         # and verify that its entry is self-consistent
         values = cursor[stat.dsrc.btree_overflow]
-        self.assertEqual(values[0], 'overflow pages')
+        self.assertEqual(values[0], 'btree: overflow pages')
         val = self.statstr_to_int(values[1])
         self.assertEqual(val, values[2])
         cursor.close()

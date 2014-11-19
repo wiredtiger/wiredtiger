@@ -199,10 +199,20 @@ track(const char *tag, uint64_t cnt, TINFO *tinfo)
 		    msg, sizeof(msg), "%4d: %s: %" PRIu64, g.run_cnt, tag, cnt);
 	else
 		len = snprintf(msg, sizeof(msg),
-		    "%4d: %s: " "search %" PRIu64
-		    ", insert %" PRIu64 ", update %" PRIu64 ", remove %" PRIu64,
+		    "%4d: %s: "
+		    "search %" PRIu64 "%s, "
+		    "insert %" PRIu64 "%s, "
+		    "update %" PRIu64 "%s, "
+		    "remove %" PRIu64 "%s",
 		    g.run_cnt, tag,
-		    tinfo->search, tinfo->insert, tinfo->update, tinfo->remove);
+		    tinfo->search > M(9) ? tinfo->search / M(1) : tinfo->search,
+		    tinfo->search > M(9) ? "M" : "",
+		    tinfo->insert > M(9) ? tinfo->insert / M(1) : tinfo->insert,
+		    tinfo->insert > M(9) ? "M" : "",
+		    tinfo->update > M(9) ? tinfo->update / M(1) : tinfo->update,
+		    tinfo->update > M(9) ? "M" : "",
+		    tinfo->remove > M(9) ? tinfo->remove / M(1) : tinfo->remove,
+		    tinfo->remove > M(9) ? "M" : "");
 
 	if (lastlen > len) {
 		memset(msg + len, ' ', (size_t)(lastlen - len));
@@ -276,7 +286,11 @@ path_setup(const char *home)
 	 * log file.
 	 */
 #undef	CMD
+#ifdef _WIN32
+#define	CMD	"cd %s && del /s /q * && rd /s /q KVS"
+#else
 #define	CMD	"cd %s && rm -rf `ls | sed /rand/d`"
+#endif
 	len = strlen(g.home) + strlen(CMD) + 1;
 	if ((g.home_init = malloc(len)) == NULL)
 		die(errno, "malloc");
@@ -284,7 +298,11 @@ path_setup(const char *home)
 
 	/* Backup directory initialize command, remove and re-create it. */
 #undef	CMD
+#ifdef _WIN32
+#define	CMD	"del /s && mkdir %s"
+#else
 #define	CMD	"rm -rf %s && mkdir %s"
+#endif
 	len = strlen(g.home_backup) * 2 + strlen(CMD) + 1;
 	if ((g.home_backup_init = malloc(len)) == NULL)
 		die(errno, "malloc");
@@ -295,11 +313,18 @@ path_setup(const char *home)
 	 * salvage command as necessary.
 	 */
 #undef	CMD
+#ifdef _WIN32
+#define	CMD								\
+	"cd %s && "							\
+	"rd /q /s slvg.copy & mkdir slvg.copy && "			\
+	"copy WiredTiger* slvg.copy\\ && copy wt* slvg.copy\\"
+#else
 #define	CMD								\
 	"cd %s && "							\
 	"rm -rf slvg.copy && mkdir slvg.copy && "			\
 	"cp WiredTiger* wt* slvg.copy/"
-	len = strlen(g.home) +  strlen(CMD) + 1;
+#endif
+	len = strlen(g.home) + strlen(CMD) + 1;
 	if ((g.home_salvage_copy = malloc(len)) == NULL)
 		die(errno, "malloc");
 	snprintf(g.home_salvage_copy, len, CMD, g.home);

@@ -25,28 +25,38 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#ifndef _WIN32
 #include <sys/time.h>
+#endif
 #include <sys/types.h>
 #include <sys/stat.h>
 
 #include <assert.h>
 #include <ctype.h>
+#ifndef _WIN32
 #include <dirent.h>
+#endif
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
 #include <limits.h>
 #include <math.h>
+#ifndef _WIN32
 #include <pthread.h>
+#endif
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 
-#include <wiredtiger.h>
-#include <wiredtiger_ext.h>
-#include <gcc.h>			/* WiredTiger internal */
+#include <wt_internal.h>
+
+#ifdef _WIN32
+#include "windows_shim.h"
+#endif
 
 #include "config_opt.h"
 
@@ -73,6 +83,9 @@ typedef struct {
 	int64_t insert;			/* Insert ratio */
 	int64_t read;			/* Read ratio */
 	int64_t update;			/* Update ratio */
+	int64_t throttle;		/* Maximum operations/second */
+		/* Number of operations per transaction. Zero for autocommit */
+	int64_t ops_per_txn;
 
 #define	WORKER_INSERT		1	/* Insert */
 #define	WORKER_INSERT_RMW	2	/* Insert with read-modify-write */
@@ -104,13 +117,13 @@ struct __config {			/* Configuration struction */
 	CONFIG_THREAD *ckptthreads, *popthreads;
 
 #define	WORKLOAD_MAX	50
-	CONFIG_THREAD	*workers;		/* Worker threads */
+	CONFIG_THREAD	*workers;	/* Worker threads */
 	u_int		 workers_cnt;
 
-	WORKLOAD	*workload;		/* Workloads */
+	WORKLOAD	*workload;	/* Workloads */
 	u_int		 workload_cnt;
 
-	uint32_t	 use_asyncops;		/* Use async operations */
+	uint32_t	 use_asyncops;	/* Use async operations */
 	/* State tracking variables. */
 
 	uint64_t ckpt_ops;		/* checkpoint operations */
@@ -135,14 +148,15 @@ struct __config {			/* Configuration struction */
 
 #define	ELEMENTS(a)	(sizeof(a) / sizeof(a[0]))
 
-/* From include/os.h */
-#define	WT_TIMEDIFF(end, begin)                                         \
-	(1000000000 * (uint64_t)((end).tv_sec - (begin).tv_sec) +       \
-	    (uint64_t)(end).tv_nsec - (uint64_t)(begin).tv_nsec)
+#define	THROTTLE_OPS	100
 
 #define	THOUSAND	(1000ULL)
 #define	MILLION		(1000000ULL)
 #define	BILLION		(1000000000ULL)
+
+#define	NSEC_PER_SEC	BILLION
+#define	USEC_PER_SEC	MILLION
+#define	MSEC_PER_SEC	THOUSAND
 
 #define	ns_to_ms(v)	((v) / MILLION)
 #define	ns_to_sec(v)	((v) / BILLION)
@@ -191,6 +205,8 @@ typedef struct {
 struct __config_thread {		/* Per-thread structure */
 	CONFIG *cfg;			/* Enclosing configuration */
 
+	uint32_t rnd[2];		/* Random number generation state */
+
 	pthread_t handle;		/* Handle */
 
 	char *key_buf, *value_buf;	/* Key/value memory */
@@ -216,8 +232,6 @@ void	 latency_read(CONFIG *, uint32_t *, uint32_t *, uint32_t *);
 void	 latency_update(CONFIG *, uint32_t *, uint32_t *, uint32_t *);
 void	 latency_print(CONFIG *);
 int	 enomem(const CONFIG *);
-void	 lprintf(const CONFIG *, int err, uint32_t, const char *, ...)
-	   WT_GCC_ATTRIBUTE((format (printf, 4, 5)));
 int	 setup_log_file(CONFIG *);
 uint64_t sum_ckpt_ops(CONFIG *);
 uint64_t sum_insert_ops(CONFIG *);
@@ -225,3 +239,9 @@ uint64_t sum_pop_ops(CONFIG *);
 uint64_t sum_read_ops(CONFIG *);
 uint64_t sum_update_ops(CONFIG *);
 void	 usage(void);
+
+void	 lprintf(const CONFIG *, int err, uint32_t, const char *, ...)
+#if defined(__GNUC__)
+__attribute__((format (printf, 4, 5)))
+#endif
+;

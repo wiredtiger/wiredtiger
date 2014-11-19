@@ -106,7 +106,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 	log = conn->log;
 	slot_grow_attempts = 0;
 find_slot:
-	allocated_slot = __wt_random() % SLOT_ACTIVE;
+	allocated_slot = __wt_random(session->rnd) % SLOT_ACTIVE;
 	slot = log->slot_array[allocated_slot];
 	old_state = slot->slot_state;
 join_slot:
@@ -141,7 +141,7 @@ join_slot:
 		}
 		goto find_slot;
 	}
-	cur_state = WT_ATOMIC_CAS_VAL(slot->slot_state, old_state, new_state);
+	cur_state = WT_ATOMIC_CAS_VAL8(slot->slot_state, old_state, new_state);
 	/*
 	 * We lost a race to add our size into this slot.  Check the state
 	 * and try again.
@@ -157,10 +157,12 @@ join_slot:
 	 * the caller.
 	 */
 	WT_STAT_FAST_CONN_INCR(session, log_slot_joins);
+	if (LF_ISSET(WT_LOG_DSYNC | WT_LOG_FSYNC))
+		F_SET(slot, SLOT_SYNC_DIR);
 	if (LF_ISSET(WT_LOG_FSYNC))
 		F_SET(slot, SLOT_SYNC);
 	myslotp->slot = slot;
-	myslotp->offset = (off_t)old_state - WT_LOG_SLOT_READY;
+	myslotp->offset = (wt_off_t)old_state - WT_LOG_SLOT_READY;
 	return (0);
 }
 
@@ -222,7 +224,7 @@ retry:
 	newslot->slot_state = WT_LOG_SLOT_READY;
 	newslot->slot_index = slot->slot_index;
 	log->slot_array[newslot->slot_index] = &log->slot_pool[pool_i];
-	old_state = WT_ATOMIC_STORE(slot->slot_state, WT_LOG_SLOT_PENDING);
+	old_state = WT_ATOMIC_STORE8(slot->slot_state, WT_LOG_SLOT_PENDING);
 	slot->slot_group_size = (uint64_t)(old_state - WT_LOG_SLOT_READY);
 	/*
 	 * Note that this statistic may be much bigger than in reality,
@@ -278,7 +280,7 @@ __wt_log_slot_release(WT_LOGSLOT *slot, uint64_t size)
 	 * Add my size into the state.  When it reaches WT_LOG_SLOT_DONE
 	 * all participatory threads have completed copying their piece.
 	 */
-	newsize = WT_ATOMIC_ADD(slot->slot_state, (int64_t)size);
+	newsize = WT_ATOMIC_ADD8(slot->slot_state, (int64_t)size);
 	return (newsize);
 }
 
@@ -331,10 +333,10 @@ __wt_log_slot_grow_buffers(WT_SESSION_IMPL *session, size_t newsize)
 		if (slot->slot_buf.memsize > (10 * newsize) &&
 		    !F_ISSET(slot, SLOT_BUF_GROW))
 			continue;
-		orig_state = WT_ATOMIC_CAS_VAL(
+		orig_state = WT_ATOMIC_CAS_VAL8(
 		    slot->slot_state, WT_LOG_SLOT_FREE, WT_LOG_SLOT_PENDING);
 		if (orig_state != WT_LOG_SLOT_FREE) {
-			orig_state = WT_ATOMIC_CAS_VAL(slot->slot_state,
+			orig_state = WT_ATOMIC_CAS_VAL8(slot->slot_state,
 			    WT_LOG_SLOT_READY, WT_LOG_SLOT_PENDING);
 			if (orig_state != WT_LOG_SLOT_READY)
 				continue;

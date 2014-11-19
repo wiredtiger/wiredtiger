@@ -11,9 +11,10 @@ static int dump_config(WT_SESSION *, const char *, int);
 static int dump_json_begin(void);
 static int dump_json_end(void);
 static int dump_json_separator(void);
-static int dump_json_table_begin(WT_CURSOR *, const char *, const char *);
-static int dump_json_table_cg(WT_CURSOR *, const char *, const char *,
-    const char *, const char *);
+static int dump_json_table_begin(
+    WT_SESSION *, WT_CURSOR *, const char *, const char *);
+static int dump_json_table_cg(WT_SESSION *, WT_CURSOR *,
+    const char *, const char *, const char *, const char *);
 static int dump_json_table_config(WT_SESSION *, const char *);
 static int dump_json_table_end(void);
 static int dump_prefix(int);
@@ -37,15 +38,15 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
 
 	hex = json = reverse = 0;
 	checkpoint = config = name = NULL;
-	while ((ch = util_getopt(argc, argv, "c:f:jrx")) != EOF)
+	while ((ch = __wt_getopt(progname, argc, argv, "c:f:jrx")) != EOF)
 		switch (ch) {
 		case 'c':
-			checkpoint = util_optarg;
+			checkpoint = __wt_optarg;
 			break;
 		case 'f':			/* output file */
-			if (freopen(util_optarg, "w", stdout) == NULL)
+			if (freopen(__wt_optarg, "w", stdout) == NULL)
 				return (
-				    util_err(errno, "%s: reopen", util_optarg));
+				    util_err(errno, "%s: reopen", __wt_optarg));
 			break;
 		case 'j':
 			json = 1;
@@ -60,8 +61,8 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
 		default:
 			return (usage());
 		}
-	argc -= util_optind;
-	argv += util_optind;
+	argc -= __wt_optind;
+	argv += __wt_optind;
 
 	/* -j and -x are incompatible. */
 	if (hex && json) {
@@ -221,11 +222,12 @@ dump_json_separator(void)
  *	Output the JSON syntax that starts a table, along with its config.
  */
 static int
-dump_json_table_begin(WT_CURSOR *cursor, const char *uri, const char *config)
+dump_json_table_begin(
+    WT_SESSION *session, WT_CURSOR *cursor, const char *uri, const char *config)
 {
 	WT_DECL_RET;
 	const char *name;
-	char *jsonconfig;
+	char *jsonconfig, *stripped;
 
 	jsonconfig = NULL;
 
@@ -236,7 +238,12 @@ dump_json_table_begin(WT_CURSOR *cursor, const char *uri, const char *config)
 	}
 	++name;
 
-	if ((ret = dup_json_string(config, &jsonconfig)) != 0)
+	if ((ret = 
+	    __wt_session_create_strip(session, config, NULL, &stripped)) != 0)
+		return (util_err(ret, NULL));
+	ret = dup_json_string(stripped, &jsonconfig);
+	free(stripped);
+	if (ret != 0)
 		return (util_cerr(uri, "config dup", ret));
 	if (printf("    \"%s\" : [\n        {\n", uri) < 0)
 		goto eio;
@@ -244,14 +251,14 @@ dump_json_table_begin(WT_CURSOR *cursor, const char *uri, const char *config)
 		goto eio;
 
 	if ((ret = dump_json_table_cg(
-	    cursor, uri, name, "colgroup:", "colgroups")) == 0) {
+	    session, cursor, uri, name, "colgroup:", "colgroups")) == 0) {
 		if (printf(",\n") < 0)
 			goto eio;
-		ret =
-		    dump_json_table_cg(cursor, uri, name, "index:", "indices");
+		ret = dump_json_table_cg(
+		    session, cursor, uri, name, "index:", "indices");
 	}
 
-	if (printf("\n        },\n        [") < 0)
+	if (printf("\n        },\n        {\n            \"data\" : [") < 0)
 		goto eio;
 
 	if (0) {
@@ -267,13 +274,13 @@ eio:		ret = util_err(EIO, NULL);
  *	Dump the column groups or indices for a table.
  */
 static int
-dump_json_table_cg(WT_CURSOR *cursor,
+dump_json_table_cg(WT_SESSION *session, WT_CURSOR *cursor,
     const char *uri, const char *name, const char *entry, const char *header)
 {
 	WT_DECL_RET;
 	const char *key, *skip, *value;
 	int exact, once;
-	char *jsonconfig;
+	char *jsonconfig, *stripped;
 	static const char * const indent = "                ";
 
 	once = 0;
@@ -321,7 +328,12 @@ match:		if ((ret = cursor->get_key(cursor, &key)) != 0)
 		if ((ret = cursor->get_value(cursor, &value)) != 0)
 			return (util_cerr(uri, "get_value", ret));
 
-		if ((ret = dup_json_string(value, &jsonconfig)) != 0)
+		if ((ret = __wt_session_create_strip(
+		    session, value, NULL, &stripped)) != 0)
+			return (util_err(ret, NULL));
+		ret = dup_json_string(stripped, &jsonconfig);
+		free(stripped);
+		if (ret != 0)
 			return (util_cerr(uri, "config dup", ret));
 		ret = printf("%s\n"
 		    "%s{\n"
@@ -354,7 +366,7 @@ dump_json_table_config(WT_SESSION *session, const char *uri)
 	WT_DECL_RET;
 	WT_EXTENSION_API *wtext;
 	int tret;
-	const char *value;
+	char *value;
 
 	/* Dump the config. */
 	if (WT_PREFIX_MATCH(uri, "table:")) {
@@ -377,8 +389,8 @@ dump_json_table_config(WT_SESSION *session, const char *uri)
 		if ((ret = cursor->search(cursor)) == 0) {
 			if ((ret = cursor->get_value(cursor, &value)) != 0)
 				ret = util_cerr(uri, "get_value", ret);
-			else if (dump_json_table_begin(cursor, uri,
-			    value) != 0)
+			else if (dump_json_table_begin(
+			    session, cursor, uri, value) != 0)
 				ret = 1;
 		} else if (ret == WT_NOTFOUND)
 			ret = util_err(0, "%s: No such object exists", uri);
@@ -404,7 +416,8 @@ dump_json_table_config(WT_SESSION *session, const char *uri)
 		    connection->get_extension_api(session->connection);
 		if ((ret =
 		    wtext->metadata_search(wtext, session, uri, &value)) == 0) {
-			if (dump_json_table_begin(NULL, uri, value) != 0)
+			if (dump_json_table_begin(
+			    session, NULL, uri, value) != 0)
 				ret = 1;
 		} else if (ret == WT_NOTFOUND)
 			ret = util_err(0, "%s: No such object exists", uri);
@@ -422,7 +435,7 @@ dump_json_table_config(WT_SESSION *session, const char *uri)
 static int
 dump_json_table_end(void)
 {
-	if (printf("        ]\n    ]") < 0)
+	if (printf("            ]\n        }\n    ]") < 0)
 		return (util_err(EIO, NULL));
 	return (0);
 }
@@ -595,9 +608,9 @@ dump_record(WT_CURSOR *cursor, const char *name, int reverse, int json)
 
 	once = 0;
 	if (json) {
-		prefix = "\n            {\n";
+		prefix = "\n{\n";
 		infix = ",\n";
-		suffix = "\n            }";
+		suffix = "\n}";
 	} else {
 		prefix = "";
 		infix = "\n";
@@ -670,7 +683,7 @@ print_config(WT_SESSION *session,
     const char *key, const char *v1, const char *v2)
 {
 	WT_DECL_RET;
-	const char *value_ret;
+	char *value_ret;
 
 	/*
 	 * The underlying call will ignore v2 if v1 is NULL -- check here and

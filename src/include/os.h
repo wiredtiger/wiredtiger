@@ -43,15 +43,35 @@
 	     (t1).tv_nsec == (t2).tv_nsec ? 0 : 1 : 1)
 
 struct __wt_fh {
-	u_int	refcnt;				/* Reference count */
+	char	*name;				/* File name */
 	TAILQ_ENTRY(__wt_fh) q;			/* List of open handles */
 
-	char	*name;				/* File name */
+	u_int	ref;				/* Reference count */
 
-	int	fd;				/* POSIX file handle */
-	off_t	size;				/* File size */
-	off_t   extend_size;			/* File extended size */
-	off_t   extend_len;			/* File extend chunk size */
+#ifndef _WIN32
+	int	 fd;				/* POSIX file handle */
+#else
+	HANDLE filehandle;			/* Windows file handle */
+	HANDLE filehandle_secondary;		/* Windows file handle
+						   for file size changes */
+#endif
+	wt_off_t size;				/* File size */
+	wt_off_t extend_size;			/* File extended size */
+	wt_off_t extend_len;			/* File extend chunk size */
 
 	int	direct_io;			/* O_DIRECT configured */
+
+	enum {					/* file extend configuration */
+	    WT_FALLOCATE_AVAILABLE,
+	    WT_FALLOCATE_NOT_AVAILABLE,
+	    WT_FALLOCATE_POSIX,
+	    WT_FALLOCATE_STD,
+	    WT_FALLOCATE_SYS } fallocate_available;
+	int	fallocate_requires_locking;
 };
+
+#ifndef _WIN32
+#define	WT_SIZET_FMT	"zu"			/* size_t format string */
+#else
+#define	WT_SIZET_FMT	"Iu"			/* size_t format string */
+#endif
