@@ -256,7 +256,8 @@ __wt_checkpoint_list(WT_SESSION_IMPL *session, const char *cfg[])
 	session->dhandle = NULL;
 
 	/* Record busy file names, we'll deal with them in the checkpoint. */
-	if ((ret = __wt_session_get_btree(session, name, NULL, NULL, 0)) == 0)
+	if ((ret = __wt_session_get_btree(
+	    session, name, NULL, NULL, WT_DHANDLE_NO_BULK)) == 0)
 		session->ckpt_handle[session->ckpt_handle_next++].dhandle =
 		    session->dhandle;
 	else if (ret == EBUSY) {

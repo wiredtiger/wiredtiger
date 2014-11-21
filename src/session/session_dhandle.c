@@ -123,8 +123,9 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags)
 	 * required, we're done.  Otherwise, check that the handle is open and
 	 * that no special flags are required.
 	 */
-	if (LF_ISSET(WT_DHANDLE_LOCK_ONLY) ||
-	    (F_ISSET(dhandle, WT_DHANDLE_OPEN) && special_flags == 0))
+	if ((LF_ISSET(WT_DHANDLE_LOCK_ONLY) ||
+	    (F_ISSET(dhandle, WT_DHANDLE_OPEN) && special_flags == 0)) &&
+	    (!LF_ISSET(WT_DHANDLE_NO_BULK) || btree->bulk_load_ok))
 		return (0);
 
 	/*
