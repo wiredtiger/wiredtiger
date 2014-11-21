@@ -68,6 +68,10 @@ __conn_dhandle_open_lock(
 		if (F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS))
 			return (EBUSY);
 
+		/* Treat empty trees as busy (for checkpoints). */
+		if (LF_ISSET(WT_DHANDLE_NO_BULK) && btree->bulk_load_ok)
+			return (EBUSY);
+
 		/*
 		 * If the handle is open, get a read lock and recheck.
 		 *
