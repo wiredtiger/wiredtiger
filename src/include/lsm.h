@@ -216,9 +216,10 @@ struct __wt_lsm_tree {
 
 #define	WT_LSM_TREE_ACTIVE		0x01	/* Workers are active */
 #define	WT_LSM_TREE_COMPACTING		0x02	/* Tree being compacted */
-#define	WT_LSM_TREE_NEED_SWITCH		0x04	/* New chunk needs creating */
-#define	WT_LSM_TREE_OPEN		0x08	/* The tree is open */
-#define	WT_LSM_TREE_THROTTLE		0x10	/* Throttle updates */
+#define	WT_LSM_TREE_MANAGER_OPEN	0x04	/* Manager has handle ref */
+#define	WT_LSM_TREE_NEED_SWITCH		0x08	/* New chunk needs creating */
+#define	WT_LSM_TREE_OPEN		0x10	/* The tree is open */
+#define	WT_LSM_TREE_THROTTLE		0x20	/* Throttle updates */
 	uint32_t flags;
 };
 

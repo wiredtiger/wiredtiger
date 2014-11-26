@@ -8,7 +8,9 @@
 #include "wt_internal.h"
 
 static int __lsm_manager_aggressive_update(WT_SESSION_IMPL *, WT_LSM_TREE *);
+static int __lsm_manager_pin_trees(WT_SESSION_IMPL *);
 static int __lsm_manager_run_server(WT_SESSION_IMPL *);
+static int __lsm_manager_unpin_trees(WT_SESSION_IMPL *);
 static int __lsm_manager_worker_setup(WT_SESSION_IMPL *);
 
 static void * __lsm_worker_manager(void *);
@@ -399,6 +401,45 @@ __lsm_manager_worker_shutdown(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __lsm_manager_pin_trees --
+ *	Make it safe to iterate the list of handles.
+ */
+static int
+__lsm_manager_pin_trees(WT_SESSION_IMPL *session)
+{
+	WT_LSM_TREE *lsm_tree;
+
+	WT_ASSERT(session, F_ISSET(session, WT_SESSION_HANDLE_LIST_LOCKED));
+	TAILQ_FOREACH(lsm_tree, &S2C(session)->lsmqh, q) {
+		WT_ASSERT(session,
+		    !F_ISSET(lsm_tree, WT_LSM_TREE_MANAGER_OPEN));
+		(void)WT_ATOMIC_ADD4(lsm_tree->refcnt, 1);
+		F_SET(lsm_tree, WT_LSM_TREE_MANAGER_OPEN);
+	}
+
+	return (0);
+}
+
+/*
+ * __lsm_manager_unpin_trees --
+ *	Make it safe to iterate the list of handles.
+ */
+static int
+__lsm_manager_unpin_trees(WT_SESSION_IMPL *session)
+{
+	WT_LSM_TREE *lsm_tree;
+
+	WT_ASSERT(session, F_ISSET(session, WT_SESSION_HANDLE_LIST_LOCKED));
+	TAILQ_FOREACH(lsm_tree, &S2C(session)->lsmqh, q) {
+		if (F_ISSET(lsm_tree, WT_LSM_TREE_MANAGER_OPEN))
+			(void)WT_ATOMIC_SUB4(lsm_tree->refcnt, 1);
+		F_CLR(lsm_tree, WT_LSM_TREE_MANAGER_OPEN);
+	}
+
+	return (0);
+}
+
+/*
  * __lsm_manager_run_server --
  *	Run manager thread operations.
  */
@@ -406,23 +447,32 @@ static int
 __lsm_manager_run_server(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
 	WT_LSM_TREE *lsm_tree;
 	struct timespec now;
 	uint64_t fillms, pushms;
+	int pinned;
 
 	conn = S2C(session);
+	pinned = 0;
+
 	while (F_ISSET(conn, WT_CONN_SERVER_RUN)) {
 		if (TAILQ_EMPTY(&conn->lsmqh)) {
 			__wt_sleep(0, 10000);
 			continue;
 		}
 		__wt_sleep(0, 10000);
+		WT_WITH_DHANDLE_LOCK(session,
+		    ret = __lsm_manager_pin_trees(session));
+		WT_ERR(ret);
+		pinned = 1;
+
 		TAILQ_FOREACH(lsm_tree, &S2C(session)->lsmqh, q) {
 			if (!F_ISSET(lsm_tree, WT_LSM_TREE_ACTIVE))
 				continue;
-			WT_RET(__lsm_manager_aggressive_update(
+			WT_ERR(__lsm_manager_aggressive_update(
 			    session, lsm_tree));
-			WT_RET(__wt_epoch(session, &now));
+			WT_ERR(__wt_epoch(session, &now));
 			pushms = lsm_tree->work_push_ts.tv_sec == 0 ? 0 :
 			    WT_TIMEDIFF(
 			    now, lsm_tree->work_push_ts) / WT_MILLION;
@@ -453,15 +503,15 @@ __lsm_manager_run_server(WT_SESSION_IMPL *session)
 			    (lsm_tree->merge_aggressiveness > 3 &&
 			     !F_ISSET(lsm_tree, WT_LSM_TREE_COMPACTING)) ||
 			    pushms > fillms) {
-				WT_RET(__wt_lsm_manager_push_entry(
+				WT_ERR(__wt_lsm_manager_push_entry(
 				    session, WT_LSM_WORK_SWITCH, 0, lsm_tree));
-				WT_RET(__wt_lsm_manager_push_entry(
+				WT_ERR(__wt_lsm_manager_push_entry(
 				    session, WT_LSM_WORK_DROP, 0, lsm_tree));
-				WT_RET(__wt_lsm_manager_push_entry(
+				WT_ERR(__wt_lsm_manager_push_entry(
 				    session, WT_LSM_WORK_FLUSH, 0, lsm_tree));
-				WT_RET(__wt_lsm_manager_push_entry(
+				WT_ERR(__wt_lsm_manager_push_entry(
 				    session, WT_LSM_WORK_BLOOM, 0, lsm_tree));
-				WT_RET(__wt_verbose(session, WT_VERB_LSM,
+				WT_ERR(__wt_verbose(session, WT_VERB_LSM,
 				    "MGR %s: queue %d mod %d nchunks %d"
 				    " flags 0x%x aggressive %d pushms %" PRIu64
 				    " fillms %" PRIu64,
@@ -470,13 +520,20 @@ __lsm_manager_run_server(WT_SESSION_IMPL *session)
 				    lsm_tree->flags,
 				    lsm_tree->merge_aggressiveness,
 				    pushms, fillms));
-				WT_RET(__wt_lsm_manager_push_entry(
+				WT_ERR(__wt_lsm_manager_push_entry(
 				    session, WT_LSM_WORK_MERGE, 0, lsm_tree));
 			}
 		}
+		WT_WITH_DHANDLE_LOCK(session,
+		    ret = __lsm_manager_unpin_trees(session));
+		pinned = 0;
+		WT_ERR(ret);
 	}
 
-	return (0);
+err:	if (pinned)
+		WT_WITH_DHANDLE_LOCK(session,
+		    ret = __lsm_manager_unpin_trees(session));
+	return (ret);
 }
 
 /*
