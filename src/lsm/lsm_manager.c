@@ -411,10 +411,9 @@ __lsm_manager_pin_trees(WT_SESSION_IMPL *session)
 
 	WT_ASSERT(session, F_ISSET(session, WT_SESSION_HANDLE_LIST_LOCKED));
 	TAILQ_FOREACH(lsm_tree, &S2C(session)->lsmqh, q) {
-		WT_ASSERT(session,
-		    !F_ISSET(lsm_tree, WT_LSM_TREE_MANAGER_OPEN));
+		WT_ASSERT(session, lsm_tree->manager_pinned == 0);
 		(void)WT_ATOMIC_ADD4(lsm_tree->refcnt, 1);
-		F_SET(lsm_tree, WT_LSM_TREE_MANAGER_OPEN);
+		lsm_tree->manager_pinned = 1;
 	}
 
 	return (0);
@@ -431,9 +430,9 @@ __lsm_manager_unpin_trees(WT_SESSION_IMPL *session)
 
 	WT_ASSERT(session, F_ISSET(session, WT_SESSION_HANDLE_LIST_LOCKED));
 	TAILQ_FOREACH(lsm_tree, &S2C(session)->lsmqh, q) {
-		if (F_ISSET(lsm_tree, WT_LSM_TREE_MANAGER_OPEN))
+		if (lsm_tree->manager_pinned != 0)
 			(void)WT_ATOMIC_SUB4(lsm_tree->refcnt, 1);
-		F_CLR(lsm_tree, WT_LSM_TREE_MANAGER_OPEN);
+		lsm_tree->manager_pinned = 0;
 	}
 
 	return (0);
