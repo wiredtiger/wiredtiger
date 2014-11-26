@@ -422,7 +422,7 @@ __lsm_manager_pin_trees(WT_SESSION_IMPL *session)
 
 /*
  * __lsm_manager_unpin_trees --
- *	Make it safe to iterate the list of handles.
+ *	Release references to any trees held by the LSM manager.
  */
 static int
 __lsm_manager_unpin_trees(WT_SESSION_IMPL *session)
