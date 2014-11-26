@@ -170,6 +170,7 @@ struct __wt_lsm_tree {
 
 	int refcnt;			/* Number of users of the tree */
 	int8_t exclusive;		/* Tree is locked exclusively */
+	int manager_pinned;		/* Whether the manager has a ref */
 
 #define	LSM_TREE_MAX_QUEUE	100
 	int queue_ref;
