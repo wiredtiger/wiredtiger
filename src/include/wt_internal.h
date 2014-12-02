@@ -210,6 +210,8 @@ struct __wt_named_compressor;
     typedef struct __wt_named_compressor WT_NAMED_COMPRESSOR;
 struct __wt_named_data_source;
     typedef struct __wt_named_data_source WT_NAMED_DATA_SOURCE;
+struct __wt_named_discard_filter;
+    typedef struct __wt_named_discard_filter WT_NAMED_DISCARD_FILTER;
 struct __wt_named_extractor;
     typedef struct __wt_named_extractor WT_NAMED_EXTRACTOR;
 struct __wt_ovfl_reuse;

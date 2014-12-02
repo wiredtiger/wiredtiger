@@ -41,6 +41,7 @@ each of which is ordered by one or more columns.
 - @subpage compact
 - @subpage statistics
 - @subpage shared_cache
+- @subpage discard_filter
 - @subpage cursor_log
 - @subpage_single upgrade
 

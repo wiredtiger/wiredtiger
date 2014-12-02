@@ -137,6 +137,14 @@ config_setup(void)
 	if (DATASOURCE("helium") || DATASOURCE("kvsbdb"))
 		g.c_reverse = 0;
 
+	/*
+	 * Row-store objects optionally support key/value pair filters. Single-
+	 * threaded runs don't support key filtering (because we can't compare
+	 * the results against Berkeley DB store).
+	 */
+	if (g.type != ROW || DATASOURCE("lsm") || SINGLETHREADED)
+		g.c_discard_filter = 0;
+
 	config_checksum();
 	config_compression();
 	config_isolation();

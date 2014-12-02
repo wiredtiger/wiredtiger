@@ -1216,3 +1216,14 @@ __wt_compare_skip(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
 	return (collator->compare(
 	    collator, &session->iface, user_item, tree_item, cmpp));
 }
+
+/*
+ * __wt_discard_filter --
+ *	Filter a key during a write.
+ */
+static inline int
+__wt_discard_filter(WT_SESSION_IMPL *session,
+    WT_DISCARD_FILTER *filter, const WT_ITEM *key, int *removep)
+{
+	return (filter->filter(filter, &session->iface, key, removep));
+}

@@ -527,6 +527,21 @@ __create_table(WT_SESSION_IMPL *session,
 		;
 	WT_ERR_NOTFOUND_OK(ret);
 
+	/* Discard filters are only supported for simple tables. */
+	if (ncolgroups > 0) {
+		/*
+		 * We only look at the application's config, so not-found is an
+		 * expected return and we have to initialize the return length.
+		 */
+		cval.len = 0;
+		WT_ERR_NOTFOUND_OK(
+		    __wt_config_gets(session, cfg, "discard_filter", &cval));
+		if (cval.len > 0)
+			WT_ERR_MSG(session, EINVAL,
+			    "discard filter configuration only supported for "
+			    "simple tables");
+	}
+
 	WT_ERR(__wt_config_collapse(session, cfg, &tableconf));
 	if ((ret = __wt_metadata_insert(session, name, tableconf)) != 0) {
 		/*

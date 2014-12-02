@@ -32,23 +32,26 @@
  *	fragments.
  */
 
-#include <assert.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+
 #include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #ifndef _WIN32
 #include <unistd.h>
 #else
 #include "windows_shim.h"
 #endif
-#include <sys/stat.h>
 
 #include <wiredtiger.h>
 
 int add_collator(WT_CONNECTION *conn);
+int add_discard_filter(WT_CONNECTION *conn);
 int add_extractor(WT_CONNECTION *conn);
 int backup(WT_SESSION *session);
 int checkpoint_ops(WT_SESSION *session);
@@ -528,6 +531,12 @@ session_ops(WT_SESSION *session)
 	/*! [Create a table with columns] */
 	ret = session->drop(session, "table:mytable", NULL);
 
+	/*! [Create a file with a discard filter] */
+	ret = session->create(session, "file:myfile",
+	    "key_format=S,value_format=S,discard_filter=monthly-filter");
+	/*! [Create a file with a discard filter] */
+	ret = session->drop(session, "file:myfile", NULL);
+
 	/*
 	 * This example code gets run, and the compression libraries might not
 	 * be loaded, causing the create to fail.  The documentation requires
@@ -750,7 +759,7 @@ transaction_ops(WT_CONNECTION *conn, WT_SESSION *session)
 	return (ret);
 }
 
-/*! [Implement WT_COLLATOR] */
+/*! [implement WT_COLLATOR] */
 /*
  * A simple example of the collator API: compare the keys as strings.
  */
@@ -772,7 +781,7 @@ my_compare(WT_COLLATOR *collator, WT_SESSION *session,
 	*cmp = (int)*p2 - (int)*p1;
 	return (0);
 }
-/*! [Implement WT_COLLATOR] */
+/*! [implement WT_COLLATOR] */
 
 int
 add_collator(WT_CONNECTION *conn)
@@ -783,6 +792,50 @@ add_collator(WT_CONNECTION *conn)
 	static WT_COLLATOR my_collator = { my_compare, NULL, NULL };
 	ret = conn->add_collator(conn, "my_collator", &my_collator, NULL);
 	/*! [WT_COLLATOR register] */
+
+	return (ret);
+}
+
+/*! [implement WT_DISCARD_FILTER] */
+/*
+ * A simple example of the discard filter API: discard key/value pairs not from
+ * this month.
+ */
+static int
+filter_monthly(WT_DISCARD_FILTER *filter,
+    WT_SESSION *session, const WT_ITEM *key, int *removep)
+{
+	struct tm *today;
+	time_t now;
+
+	/* Unused parameters */
+	(void)filter;
+	(void)session;
+
+	(void)time(&now);
+	if ((today = localtime(&now)) == NULL)
+		return (1);
+
+	/*
+	 * The first byte of the key is the month as an integer, 1-12.
+	 * The localtime representation of the month is 0-11, requires
+	 * correction.
+	 */
+	*removep = *(u_char *)key->data == (today->tm_mon - 1) ? 0 : 1;
+	return (0);
+}
+/*! [implement WT_DISCARD_FILTER] */
+
+int
+add_discard_filter(WT_CONNECTION *conn)
+{
+	int ret;
+
+	/*! [WT_DISCARD_FILTER register] */
+	static WT_DISCARD_FILTER filter = { filter_monthly, NULL };
+
+	ret = conn->add_discard_filter(conn, "monthly-filter", &filter, NULL);
+	/*! [WT_DISCARD_FILTER register] */
 
 	return (ret);
 }
@@ -894,7 +947,6 @@ pack_ops(WT_SESSION *session)
 	size_t size;
 	ret = wiredtiger_struct_size(session, &size, "iSh", 42, "hello", -3);
 	/*! [Get the packed size] */
-	assert(size < 100);
 	}
 
 	{

@@ -224,11 +224,13 @@ extern int __wt_ext_config_parser_open(WT_EXTENSION_API *wt_ext, WT_SESSION *wt_
 extern int __wt_ext_config_get(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, WT_CONFIG_ARG *cfg_arg, const char *key, WT_CONFIG_ITEM *cval);
 extern int __wt_config_upgrade(WT_SESSION_IMPL *session, WT_ITEM *buf);
 extern int __wt_collator_config(WT_SESSION_IMPL *session, const char *uri, WT_CONFIG_ITEM *cname, WT_CONFIG_ITEM *metadata, WT_COLLATOR **collatorp, int *ownp);
+extern int __wt_discard_filter_config( WT_SESSION_IMPL *session, const char **cfg, WT_DISCARD_FILTER **filterp);
 extern int __wt_conn_remove_collator(WT_SESSION_IMPL *session);
 extern int __wt_conn_remove_compressor(WT_SESSION_IMPL *session);
 extern int __wt_conn_remove_data_source(WT_SESSION_IMPL *session);
 extern int __wt_extractor_config(WT_SESSION_IMPL *session, const char *config, WT_EXTRACTOR **extractorp, int *ownp);
 extern int __wt_conn_remove_extractor(WT_SESSION_IMPL *session);
+extern int __wt_conn_remove_discard_filter(WT_SESSION_IMPL *session);
 extern int __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[]);
 extern int __wt_cache_config(WT_SESSION_IMPL *session, const char *cfg[]);
 extern int __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[]);

@@ -89,6 +89,9 @@ struct __wt_extension_api {
 	 * Private fields.
 	 */
 	WT_CONNECTION *conn;		/* Enclosing connection */
+
+					/* Discard filter function */
+	WT_DISCARD_FILTER   *discard_filter_func;
 #endif
 	/*!
 	 * Insert an error message into the WiredTiger error stream.
@@ -381,6 +384,34 @@ struct __wt_extension_api {
 	 * @copydoc wiredtiger_version
 	 */
 	const char *(*version)(int *majorp, int *minorp, int *patchp);
+
+	/*!
+	 * Configure the extension discard filter method.
+	 *
+	 * @param wt_api the extension handle
+	 * @param session the session handle (or NULL if none available)
+	 * @param config the configuration information passed to an application
+	 * @errors
+	 *
+	 * @snippet ex_data_source.c WT_EXTENSION discard filter config
+	 */
+	int (*discard_filter_config)(WT_EXTENSION_API *wt_api,
+	    WT_SESSION *session, WT_CONFIG_ARG *config);
+
+	/*!
+	 * The extension discard filter method.
+	 *
+	 * @param wt_api the extension handle
+	 * @param session the session handle (or NULL if none available)
+	 * @param key
+	 * @param[out] discard set to 1 if <code>key</code> should be discarded,
+	 * 	1 if <code>key</code> should be retained.
+	 * @errors
+	 *
+	 * @snippet ex_data_source.c WT_EXTENSION discard filter
+	 */
+	int (*discard_filter)(WT_EXTENSION_API *wt_api,
+	    WT_SESSION *session, WT_ITEM *key, int *discard);
 };
 
 /*!

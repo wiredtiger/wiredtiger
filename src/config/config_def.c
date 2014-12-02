@@ -126,6 +126,7 @@ static const WT_CONFIG_CHECK confchk_file_meta[] = {
 	{ "collator", "string", NULL, NULL },
 	{ "columns", "list", NULL, NULL },
 	{ "dictionary", "int", "min=0", NULL },
+	{ "discard_filter", "string", NULL, NULL },
 	{ "format", "string", "choices=[\"btree\"]", NULL },
 	{ "huffman_key", "string", NULL, NULL },
 	{ "huffman_value", "string", NULL, NULL },
@@ -213,6 +214,7 @@ static const WT_CONFIG_CHECK confchk_session_create[] = {
 	{ "collator", "string", NULL, NULL },
 	{ "columns", "list", NULL, NULL },
 	{ "dictionary", "int", "min=0", NULL },
+	{ "discard_filter", "string", NULL, NULL },
 	{ "exclusive", "boolean", NULL, NULL },
 	{ "extractor", "string", NULL, NULL },
 	{ "format", "string", "choices=[\"btree\"]", NULL },
@@ -512,6 +514,10 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "",
 	  NULL
 	},
+	{ "connection.add_discard_filter",
+	  "",
+	  NULL
+	},
 	{ "connection.add_extractor",
 	  "",
 	  NULL
@@ -553,9 +559,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "allocation_size=4KB,app_metadata=,block_allocation=best,"
 	  "block_compressor=,cache_resident=0,checkpoint=,checkpoint_lsn=,"
 	  "checksum=uncompressed,collator=,columns=,dictionary=0,"
-	  "format=btree,huffman_key=,huffman_value=,id=,internal_item_max=0"
-	  ",internal_key_truncate=,internal_page_max=4KB,key_format=u,"
-	  "key_gap=10,leaf_item_max=0,leaf_page_max=32KB,"
+	  "discard_filter=,format=btree,huffman_key=,huffman_value=,id=,"
+	  "internal_item_max=0,internal_key_truncate=,internal_page_max=4KB"
+	  ",key_format=u,key_gap=10,leaf_item_max=0,leaf_page_max=32KB,"
 	  "memory_page_max=5MB,os_cache_dirty_max=0,os_cache_max=0,"
 	  "prefix_compression=0,prefix_compression_min=4,split_pct=75,"
 	  "value_format=u,version=(major=0,minor=0)",
@@ -589,13 +595,13 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	{ "session.create",
 	  "allocation_size=4KB,app_metadata=,block_allocation=best,"
 	  "block_compressor=,cache_resident=0,checksum=uncompressed,"
-	  "colgroups=,collator=,columns=,dictionary=0,exclusive=0,"
-	  "extractor=,format=btree,huffman_key=,huffman_value=,immutable=0,"
-	  "internal_item_max=0,internal_key_truncate=,internal_page_max=4KB"
-	  ",key_format=u,key_gap=10,leaf_item_max=0,leaf_page_max=32KB,"
-	  "lsm=(auto_throttle=,bloom=,bloom_bit_count=16,bloom_config=,"
-	  "bloom_hash_count=8,bloom_oldest=0,chunk_max=5GB,chunk_size=10MB,"
-	  "merge_max=15,merge_min=0),memory_page_max=5MB,"
+	  "colgroups=,collator=,columns=,dictionary=0,discard_filter=,"
+	  "exclusive=0,extractor=,format=btree,huffman_key=,huffman_value=,"
+	  "immutable=0,internal_item_max=0,internal_key_truncate=,"
+	  "internal_page_max=4KB,key_format=u,key_gap=10,leaf_item_max=0,"
+	  "leaf_page_max=32KB,lsm=(auto_throttle=,bloom=,bloom_bit_count=16"
+	  ",bloom_config=,bloom_hash_count=8,bloom_oldest=0,chunk_max=5GB,"
+	  "chunk_size=10MB,merge_max=15,merge_min=0),memory_page_max=5MB,"
 	  "os_cache_dirty_max=0,os_cache_max=0,prefix_compression=0,"
 	  "prefix_compression_min=4,source=,split_pct=75,type=file,"
 	  "value_format=u",

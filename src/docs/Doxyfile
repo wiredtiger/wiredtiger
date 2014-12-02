@@ -1565,6 +1565,7 @@ PREDEFINED             = DOXYGEN \
                          __wt_connection:=WT_CONNECTION \
                          __wt_cursor:=WT_CURSOR \
                          __wt_data_source:=WT_DATA_SOURCE \
+                         __wt_discard_filter:=WT_DISCARD_FILTER \
                          __wt_event_handler:=WT_EVENT_HANDLER \
                          __wt_extension_api:=WT_EXTENSION_API \
                          __wt_extractor:=WT_EXTRACTOR \

@@ -135,6 +135,10 @@ static CONFIG c[] = {
 	  "if values are dictionary compressed",		/* 20% */
 	  C_BOOL, 20, 0, 0, &g.c_dictionary, NULL },
 
+	{ "discard_filter",
+	  "filter random key/value pairs",			/* 5% */
+	  C_BOOL, 5, 0, 0, &g.c_discard_filter, NULL },
+
 	{ "evict_max",
 	  "the maximum number of eviction workers",
 	  0x0, 0, 5, 100, &g.c_evict_max, NULL },

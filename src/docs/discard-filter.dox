@@ -1,0 +1,31 @@
+/*! @page discard_filter Discard filters
+
+WiredTiger supports automatically discarding key/value pairs when simple
+row-store \c table: objects are written to stable storage.  For example,
+an application creating an operation log might want to include a
+timestamp in each key and automatically discard rows more than a day
+old.
+
+Discard filters cannot but used on objects stored in more than a single
+file, that is, it cannot be used in conjunction with column groups.
+
+An application configures a discard filter by first implementing the
+WT_DISCARD_FILTER interface, and then passing the \c discard_filter
+configuration to the WT_SESSION::session_create method.
+
+For example, here's a simple implementation of the WT_DISCARD_FILTER
+interface:
+
+@snippet ex_all.c implement WT_DISCARD_FILTER
+
+The WT_DISCARD_FILTER implementation would then be registered as
+follows:
+
+@snippet ex_all.c WT_DISCARD_FILTER register
+
+And finally, the file object would be created with a reference to the
+filter as follows:
+
+@snippet ex_all.c Create a file with a discard filter
+
+ */
