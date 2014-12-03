@@ -28,6 +28,8 @@ __evict_insert_skip_size(
 	WT_INSERT_HEAD *ins_head;
 	uint32_t i;
 
+	*skip_sizep = 0;
+
 	if (page->type != WT_PAGE_ROW_LEAF)
 		return (0);
 
