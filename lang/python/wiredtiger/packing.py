@@ -82,10 +82,14 @@ def unpack(fmt, string):
             size = size if havesize else 1
             string = string[size:]
             havesize = size = 0
-        elif char == 'S':
-            size = size if havesize else string.find('\0')
+        elif char == 'S' and not havesize:
+            size = string.find('\0')
             result.append(string[:size])
             string = string[size+1:]
+            havesize = size = 0
+        elif char == 'S':  # and havesize:
+            result.append(string[:size])
+            string = string[size:]
             havesize = size = 0
         elif char == 's':
             size = size if havesize else 1
