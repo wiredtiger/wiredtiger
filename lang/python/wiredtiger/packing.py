@@ -26,124 +26,185 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # WiredTiger variable-length packing and unpacking functions
+"""Packing and unpacking functions
+
+The format string use the following conversion table:
+
+Format  Python  Notes
+
+  x 	 N/A   	pad byte, no associated value
+  b 	 int 	signed byte
+  B 	 int 	unsigned byte
+  h 	 int 	signed 16-bit
+  H 	 int 	unsigned 16-bit
+  i 	 int 	signed 32-bit
+  I 	 int 	unsigned 32-bit
+  l 	 int 	signed 32-bit
+  L 	 int 	unsigned 32-bit
+  q 	 int 	signed 64-bit
+  Q 	 int 	unsigned 64-bit
+  r  	 int 	record number
+  s  	 str 	fixed-length string
+  S  	 str 	NUL-terminated string
+  t  	 int 	fixed-length bit field
+  u  	 str 	raw byte array
+"""
 
 from intpacking import pack_int, unpack_int
 
-def __get_type(fmt):
-	if not fmt:
-		return None, fmt
-	# Variable-sized encoding is the default (and only supported format in v1)
-	if fmt[0] in '.@<>':
-		tfmt = fmt[0]
-		fmt = fmt[1:]
-	else:
-		tfmt = '.'
-	return tfmt, fmt
 
-def unpack(fmt, s):
-	tfmt, fmt = __get_type(fmt)
-	if not fmt:
-		return ()
-	if tfmt != '.':
-		raise ValueError('Only variable-length encoding is currently supported')
-	result = []
-	havesize = size = 0
-	for offset, f in enumerate(fmt):
-		if f.isdigit():
-			size = (size * 10) + int(f)
-			havesize = 1
-			continue
-		elif f == 'x':
-			if not havesize:
-				size = 1
-			s = s[size:]
-			# Note: no value, don't increment i
-		elif f in 'Ssu':
-			if not havesize:
-				if f == 's':
-					size = 1
-				elif f == 'S':
-					size = s.find('\0')
-				elif f == 'u':
-					if offset == len(fmt) - 1:
-						size = len(s)
-					else:
-						size, s = unpack_int(s)
-			result.append(s[:size])
-			if f == 'S' and not havesize:
-				size += 1
-			s = s[size:]
-		elif f in 't':
-			# bit type, size is number of bits
-			if not havesize:
-				size = 1
-			result.append(ord(s[0:1]))
-			s = s[1:]
-		else:
-			# integral type
-			if not havesize:
-				size = 1
-			for j in xrange(size):
-				v, s = unpack_int(s)
-				result.append(v)
-		havesize = size = 0
-	return result
+def __get_type(fmt):
+    if not fmt:
+        return None, fmt
+    # Variable-sized encoding is the default (and only supported format in v1)
+    if fmt[0] in '.@<>':
+        tfmt = fmt[0]
+        fmt = fmt[1:]
+    else:
+        tfmt = '.'
+    return tfmt, fmt
+
+
+def iter_fmt(fmt):
+    size = 0
+    for offset, char in enumerate(fmt):
+        if char.isdigit():
+            size = (size * 10) + int(char)
+        else:
+            yield offset, size, char
+            size = 0
+
+
+def unpack(fmt, string):
+    tfmt, fmt = __get_type(fmt)
+    if not fmt:
+        return ()
+    if tfmt != '.':
+        raise ValueError('Only variable-length encoding is currently supported')
+    result = []
+    size = 0
+    end = len(fmt) - 1
+    for offset, size, char in iter_fmt(fmt):
+        if char == 'x':
+            size = size if size else 1
+            string = string[size:]
+        elif char == 'S' and size:
+            value = string[:size]
+            value = value.rstrip('\x00')
+            result.append(value)
+            string = string[size:]
+        elif char == 'S':    # and size == 0
+            size = string.find('\0')
+            result.append(string[:size])
+            string = string[size+1:]
+        elif char == 's':
+            size = size if size else 1
+            result.append(string[:size])
+            string = string[size:]
+        elif char == 'u' and size:
+            result.append(string[:size])
+            string = string[size:]
+        elif char == 'u' and (offset == end):
+            # if ``u`` (raw) is at the end of
+            # the format string no need to encode
+            # its size it's the full remaining string
+            result.append(string)
+            break
+        elif char == 'u':
+            # otherwise the size is encoded
+            size, string = unpack_int(string)
+            result.append(string[:size])
+            string = string[size:]
+            size = 0
+        elif char == 't':
+            # bit type always stored as byte
+            result.append(ord(string[0]))
+            string = string[1:]
+        else:
+            # integral type
+            size = size if size else 1
+            for j in xrange(size):
+                v, string = unpack_int(string)
+                result.append(v)
+    return result
+
+
+def pack_iter_fmt(fmt, values):
+    index = 0
+    for offset, size, char in iter_fmt(fmt):
+        if char == 'x':  # padding no value
+            yield offset, size, char, None
+        elif char in 'Ssut':
+            yield offset, size, char, values[index]
+            index += 1
+        else:
+            # integral type
+            # ``3i`` is processed just like ``iii``
+            # anyway it's the same result.
+            size = size if size else 1
+            for i in xrange(size):
+                value = values[index]
+                yield offset, size, char, value
+                index = index + 1
+
 
 def pack(fmt, *values):
-	tfmt, fmt = __get_type(fmt)
-	if not fmt:
-		return ()
-	if tfmt != '.':
-		raise ValueError('Only variable-length encoding is currently supported')
-	result = ''
-	havesize = i = size = 0
-	for offset, f in enumerate(fmt):
-		if f.isdigit():
-			size = (size * 10) + int(f)
-			havesize = 1
-			continue
-		elif f == 'x':
-			if not havesize:
-				result += '\0'
-			else:
-				result += '\0' * size
-			# Note: no value, don't increment i
-		elif f in 'Ssu':
-			if f == 'S' and '\0' in values[i]:
-				l = values[i].find('\0')
-			else:
-				l = len(values[i])
-			if havesize:
-				if l > size:
-					l = size
-			elif f == 's':
-				havesize = size = 1
-			elif f == 'u' and offset != len(fmt) - 1:
-				result += pack_int(l)
-			result += values[i][:l]
-			if f == 'S' and not havesize:
-				result += '\0'
-			elif size > l:
-				result += '\0' * (size - l)
-			i += 1
-		elif f in 't':
-			# bit type, size is number of bits
-			if not havesize:
-				size = 1
-                        if size > 8:
-				raise ValueError("bit count cannot be greater than 8 for 't' encoding")
-			mask = (1 << size) - 1
-			val = values[i]
-                        if (mask & val) != val:
-				raise ValueError("value out of range for 't' encoding")
-			result += chr(val)
-			i += 1
-		else:
-			# integral type
-			if not havesize:
-				size = 1
-			for j in xrange(size):
-				result += pack_int(values[i])
-				i += 1
-		havesize = size = 0
-	return result
+    tfmt, fmt = __get_type(fmt)
+    if not fmt:
+            return ()
+    if tfmt != '.':
+            raise ValueError('Only variable-length encoding is currently supported')
+    result = ''
+    end = (len(fmt) - 1)
+    for offset, size, char, value in pack_iter_fmt(fmt, values):
+        if char == 'x':
+            size = size if size else 1
+            result += '\0' * size
+        elif char == 'S':
+            if '\0' in value:
+                length = value.find('\0')
+            else:
+                length = len(value)
+            if size and length > size:
+                length = size
+            result += value[:length]
+            if not size:
+                result += '\0'
+            elif size > length:
+                result += '\0' * (size - length)
+        elif char == 's':
+            length = len(value)
+            if size and length > size:
+                length = size
+            elif not size:
+                size = 1
+            result += value[:length]
+            if size > length:
+                result += '\0' * (size - length)
+        elif char == 'u' and size:
+            length = len(value)
+            if size and length > size:
+                length = size
+            elif not size and offset != end:
+                result += pack_int(length)
+            result += value[:length]
+            if size > length:
+                result += '\0' * (size - length)
+        elif char == 'u':  # size == 0
+            length = len(value)
+            if offset != end:
+                result += pack_int(length)
+            # else it's the last value no need to encode length
+            result += value[:length]
+        elif char == 't':
+            # bit type, size is number of bits
+            size = size if size else 1
+            if size > 8:
+                raise ValueError("bit count cannot be greater than 8 for 't' encoding")
+            mask = (1 << size) - 1
+            if (mask & value) != value:
+                raise ValueError("value out of range for '%st' encoding" % size)
+            result += chr(value)
+        else:  # integral type
+            result += pack_int(value)
+    return result
