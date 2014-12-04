@@ -96,15 +96,19 @@ def unpack(fmt, string):
             result.append(string[:size])
             string = string[size:]
             havesize = size = 0
-        elif char == 'u' and (not havesize):
-            if offset == len(fmt) - 1:
-                size = len(string)
-            else:
-                size, string = unpack_int(string)
+        elif char == 'u' and havesize:
             result.append(string[:size])
             string = string[size:]
             havesize = size = 0
-        elif char == 'u':   # and havesize
+        elif char == 'u' and (offset == len(fmt) - 1):
+            # if ``u`` (raw) is at the end of
+            # the format string no need to encode
+            # its size it's the full remaining string
+            result.append(string)
+            break
+        elif char == 'u':
+            # otherwise the size is encoded
+            size, string = unpack_int(string)
             result.append(string[:size])
             string = string[size:]
             havesize = size = 0
