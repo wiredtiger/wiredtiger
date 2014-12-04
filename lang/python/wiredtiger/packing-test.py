@@ -60,6 +60,7 @@ if __name__ == '__main__':
     check('iii', 0, 101, -99)
     check('3i', 0, 101, -99)
     check('iS', 42, "forty two")
+    check('9SS', "forty two", "spam egg")
     check('u', r"\x42" * 20)
     check('uu', r"\x42" * 10, r"\x42" * 10)
     check('s', "4")
