@@ -44,7 +44,7 @@ def check_verbose(fmt, *v):
     v = list(v)
     print '* %s as %s' % (repr(v), fmt)
     packed = pack(fmt, *v)
-    print '** packed: ', ''.join('%02x' % ord(c) for c in packed)
+    print '** packed: ', ''.join('%02x' % ord(c) for c in packed), packed
     unpacked = unpack(fmt, packed)
     print '** unpacked: ', unpacked
     if unpacked == v:
@@ -63,5 +63,8 @@ if __name__ == '__main__':
     check('9SS', "forty two", "spam egg")
     check('u', r"\x42" * 20)
     check('uu', r"\x42" * 10, r"\x42" * 10)
+    check('3u', r"\x4")
+    check('3uu', r"\x4", r"\x42" * 10)
+    check('u3u', r"\x42" * 10, r"\x4")
     check('s', "4")
     check("2s", "42")
