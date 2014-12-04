@@ -133,7 +133,7 @@ def pack_iter_fmt(fmt, values):
     index = 0
     for offset, size, char in iter_fmt(fmt):
         if char == 'x':  # padding no value
-            yield offset, size, char, None, None
+            yield offset, size, char, None
         elif char in 'Ssut':
             yield offset, size, char, values[index]
             index += 1
