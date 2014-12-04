@@ -26,7 +26,29 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # WiredTiger variable-length packing and unpacking functions
+"""Packing and unpacking functions
 
+The format string use the following conversion table:
+
+Format  Python  Notes
+
+  x 	 N/A   	pad byte, no associated value
+  b 	 int 	signed byte
+  B 	 int 	unsigned byte
+  h 	 int 	signed 16-bit
+  H 	 int 	unsigned 16-bit
+  i 	 int 	signed 32-bit
+  I 	 int 	unsigned 32-bit
+  l 	 int 	signed 32-bit
+  L 	 int 	unsigned 32-bit
+  q 	 int 	signed 64-bit
+  Q 	 int 	unsigned 64-bit
+  r  	 int 	record number
+  s  	 str 	fixed-length string
+  S  	 str 	NUL-terminated string
+  t  	 int 	fixed-length bit field
+  u  	 str 	raw byte array
+"""
 
 from intpacking import pack_int, unpack_int
 
@@ -61,28 +83,29 @@ def unpack(fmt, string):
             string = string[size:]
             havesize = size = 0
         elif char == 'S':
-            size = size if havesize else 1
+            size = size if havesize else string.find('\0')
             result.append(string[:size])
             string = string[size+1:]
             havesize = size = 0
         elif char == 's':
-            size = size if havesize else string.find('\0')
+            size = size if havesize else 1
             result.append(string[:size])
             string = string[size:]
             havesize = size = 0
-        elif char == 'u':
-            if not havesize:
-                if offset == len(fmt) - 1:
-                    size = len(string)
-                else:
-                    size, string = unpack_int(string)
+        elif char == 'u' and (not havesize):
+            if offset == len(fmt) - 1:
+                size = len(string)
+            else:
+                size, string = unpack_int(string)
+            result.append(string[:size])
+            string = string[size:]
+            havesize = size = 0
+        elif char == 'u':   # and havesize
             result.append(string[:size])
             string = string[size:]
             havesize = size = 0
         elif char == 't':
-            # bit type, size is number of bits
-            if not havesize:
-                    size = 1
+            # bit type always stored as byte
             result.append(ord(string[0]))
             string = string[1:]
             havesize = size = 0
@@ -114,55 +137,56 @@ def pack(fmt, *values):
             # Note: no value, don't increment i
             havesize = size = 0
         elif char == 'S':
-            if '\0' in values[i]:
-                l = values[i].find('\0')
+            value = values[i]
+            if '\0' in value:
+                l = value.find('\0')
             else:
-                l = len(values[i])
+                l = len(value)
             if havesize and l > size:
                 l = size
-            result += values[i][:l]
+            result += value[:l]
             if not havesize:
                 result += '\0'
             elif size > l:
                 result += '\0' * (size - l)
-            i += 1
             havesize = size = 0
+            i += 1
         elif char == 's':
-            l = len(values[i])
-            if havesize:
-                if l > size:
-                    l = size
-            else:
+            value = values[i]
+            l = len(value)
+            if havesize and l > size:
+                l = size
+            elif not havesize:
                 havesize = size = 1
-            result += values[i][:l]
+            result += value[:l]
             if size > l:
                 result += '\0' * (size - l)
-            i += 1
             havesize = size = 0
+            i += 1
         elif char == 'u':
-            l = len(values[i])
-            if havesize:
-                if l > size:
-                    l = size
-            elif offset != len(fmt) - 1:
+            value = values[i]
+            l = len(value)
+            if havesize and l > size:
+                l = size
+            elif not havesize and offset != (len(fmt) - 1):
                 result += pack_int(l)
-            result += values[i][:l]
+            result += value[:l]
             if size > l:
                 result += '\0' * (size - l)
-            i += 1
             havesize = size = 0
+            i += 1
         elif char == 't':
             # bit type, size is number of bits
             size = size if havesize else 1
             if size > 8:
                 raise ValueError("bit count cannot be greater than 8 for 't' encoding")
             mask = (1 << size) - 1
-            val = values[i]
-            if (mask & val) != val:
-                raise ValueError("value out of range for 't' encoding")
-            result += chr(val)
-            i += 1
+            value = values[i]
+            if (mask & value) != value:
+                raise ValueError("value out of range for '%st' encoding" % size)
+            result += chr(value)
             havesize = size = 0
+            i += 1
         else:
             # integral type
             size = size if havesize else 1
