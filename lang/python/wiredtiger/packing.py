@@ -72,34 +72,33 @@ def unpack(fmt, string):
     if tfmt != '.':
         raise ValueError('Only variable-length encoding is currently supported')
     result = []
-    havesize = size = 0
+    size = 0
     for offset, char in enumerate(fmt):
         if char.isdigit():
             size = (size * 10) + int(char)
-            havesize = 1
             continue
         elif char == 'x':
-            size = size if havesize else 1
+            size = size if size else 1
             string = string[size:]
-            havesize = size = 0
-        elif char == 'S' and not havesize:
+            size = 0
+        elif char == 'S' and not size:
             size = string.find('\0')
             result.append(string[:size])
             string = string[size+1:]
-            havesize = size = 0
-        elif char == 'S':  # and havesize:
+            size = 0
+        elif char == 'S':  # and size > 0:
             result.append(string[:size])
             string = string[size:]
-            havesize = size = 0
+            size = 0
         elif char == 's':
-            size = size if havesize else 1
+            size = size if size else 1
             result.append(string[:size])
             string = string[size:]
-            havesize = size = 0
-        elif char == 'u' and havesize:
+            size = 0
+        elif char == 'u' and size:
             result.append(string[:size])
             string = string[size:]
-            havesize = size = 0
+            size = 0
         elif char == 'u' and (offset == len(fmt) - 1):
             # if ``u`` (raw) is at the end of
             # the format string no need to encode
@@ -111,19 +110,19 @@ def unpack(fmt, string):
             size, string = unpack_int(string)
             result.append(string[:size])
             string = string[size:]
-            havesize = size = 0
+            size = 0
         elif char == 't':
             # bit type always stored as byte
             result.append(ord(string[0]))
             string = string[1:]
-            havesize = size = 0
+            size = 0
         else:
             # integral type
-            size = size if havesize else 1
+            size = size if size else 1
             for j in xrange(size):
                 v, string = unpack_int(string)
                 result.append(v)
-            havesize = size = 0
+            size = 0
     return result
 
 
@@ -134,58 +133,57 @@ def pack(fmt, *values):
     if tfmt != '.':
             raise ValueError('Only variable-length encoding is currently supported')
     result = ''
-    havesize = i = size = 0
+    i = size = 0
     for offset, char in enumerate(fmt):
         if char.isdigit():
             size = (size * 10) + int(char)
-            havesize = 1
         elif char == 'x':
-            size = size if havesize else 1
+            size = size if size else 1
             result += '\0' * size
             # Note: no value, don't increment i
-            havesize = size = 0
+            size = 0
         elif char == 'S':
             value = values[i]
             if '\0' in value:
                 l = value.find('\0')
             else:
                 l = len(value)
-            if havesize and l > size:
+            if size and l > size:
                 l = size
             result += value[:l]
-            if not havesize:
+            if not size:
                 result += '\0'
             elif size > l:
                 result += '\0' * (size - l)
-            havesize = size = 0
+            size = 0
             i += 1
         elif char == 's':
             value = values[i]
             l = len(value)
-            if havesize and l > size:
+            if size and l > size:
                 l = size
-            elif not havesize:
-                havesize = size = 1
+            elif not size:
+                size = 1
             result += value[:l]
             if size > l:
                 result += '\0' * (size - l)
-            havesize = size = 0
+            size = 0
             i += 1
         elif char == 'u':
             value = values[i]
             l = len(value)
-            if havesize and l > size:
+            if size and l > size:
                 l = size
-            elif not havesize and offset != (len(fmt) - 1):
+            elif not size and offset != (len(fmt) - 1):
                 result += pack_int(l)
             result += value[:l]
             if size > l:
                 result += '\0' * (size - l)
-            havesize = size = 0
+            size = 0
             i += 1
         elif char == 't':
             # bit type, size is number of bits
-            size = size if havesize else 1
+            size = size if size else 1
             if size > 8:
                 raise ValueError("bit count cannot be greater than 8 for 't' encoding")
             mask = (1 << size) - 1
@@ -193,13 +191,13 @@ def pack(fmt, *values):
             if (mask & value) != value:
                 raise ValueError("value out of range for '%st' encoding" % size)
             result += chr(value)
-            havesize = size = 0
+            size = 0
             i += 1
         else:
             # integral type
-            size = size if havesize else 1
+            size = size if size else 1
             for j in xrange(size):
                 result += pack_int(values[i])
                 i += 1
-            havesize = size = 0
+            size = 0
     return result
