@@ -34,9 +34,9 @@ def check(fmt, *v):
     packed = pack(fmt, *v)
     unpacked = unpack(fmt, packed)
     if unpacked == v:
-        result = 'PASS!'
+        result = 'ok!'
     else:
-        result = 'FAIL!'
+        result = 'KO!'
     print '* %s: %s' % (fmt, result)
 
 
@@ -60,11 +60,23 @@ if __name__ == '__main__':
     check('iii', 0, 101, -99)
     check('3i', 0, 101, -99)
     check('iS', 42, "forty two")
+
+    #
+    check('S', 'abc')
+    check('9S', 'a' * 9)
     check('9SS', "forty two", "spam egg")
+    check('42S', 'a' * 42)
+    check('42SS', 'a' * 42, 'something')
+    check('S42S', 'something', 'a' * 42)
+    # nul terminated string with padding
+    check('10SS', 'a' * 5, 'something')
+    check('S10S', 'something', 'a' * 5)
+    
     check('u', r"\x42" * 20)
     check('uu', r"\x42" * 10, r"\x42" * 10)
     check('3u', r"\x4")
     check('3uu', r"\x4", r"\x42" * 10)
     check('u3u', r"\x42" * 10, r"\x4")
+
     check('s', "4")
     check("2s", "42")
