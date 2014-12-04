@@ -83,19 +83,20 @@ def unpack(fmt, string):
         raise ValueError('Only variable-length encoding is currently supported')
     result = []
     size = 0
+    end = len(fmt) - 1
     for offset, size, char in iter_fmt(fmt):
         if char == 'x':
             size = size if size else 1
             string = string[size:]
-        elif char == 'S' and not size:
-            size = string.find('\0')
-            result.append(string[:size])
-            string = string[size+1:]
-        elif char == 'S':  # and size > 0:
+        elif char == 'S' and size:
             value = string[:size]
             value = value.rstrip('\x00')
             result.append(value)
             string = string[size:]
+        elif char == 'S':    # and size == 0
+            size = string.find('\0')
+            result.append(string[:size])
+            string = string[size+1:]
         elif char == 's':
             size = size if size else 1
             result.append(string[:size])
@@ -103,7 +104,7 @@ def unpack(fmt, string):
         elif char == 'u' and size:
             result.append(string[:size])
             string = string[size:]
-        elif char == 'u' and (offset == len(fmt) - 1):
+        elif char == 'u' and (offset == end):
             # if ``u`` (raw) is at the end of
             # the format string no need to encode
             # its size it's the full remaining string
@@ -154,6 +155,7 @@ def pack(fmt, *values):
     if tfmt != '.':
             raise ValueError('Only variable-length encoding is currently supported')
     result = ''
+    end = (len(fmt) - 1)
     for offset, size, char, value in pack_iter_fmt(fmt, values):
         if char == 'x':
             size = size if size else 1
@@ -179,15 +181,21 @@ def pack(fmt, *values):
             result += value[:length]
             if size > length:
                 result += '\0' * (size - length)
-        elif char == 'u':
+        elif char == 'u' and size:
             length = len(value)
             if size and length > size:
                 length = size
-            elif not size and offset != (len(fmt) - 1):
+            elif not size and offset != end:
                 result += pack_int(length)
             result += value[:length]
             if size > length:
                 result += '\0' * (size - length)
+        elif char == 'u':  # size == 0
+            length = len(value)
+            if offset != end:
+                result += pack_int(length)
+            # else it's the last value no need to encode length
+            result += value[:length]
         elif char == 't':
             # bit type, size is number of bits
             size = size if size else 1
