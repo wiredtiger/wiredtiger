@@ -92,7 +92,9 @@ def unpack(fmt, string):
             result.append(string[:size])
             string = string[size+1:]
         elif char == 'S':  # and size > 0:
-            result.append(string[:size])
+            value = string[:size]
+            value = value.rstrip('\x00')
+            result.append(value)
             string = string[size:]
         elif char == 's':
             size = size if size else 1
