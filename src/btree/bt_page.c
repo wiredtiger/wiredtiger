@@ -16,6 +16,46 @@ static int  __inmem_row_leaf_entries(
 	WT_SESSION_IMPL *, const WT_PAGE_HEADER *, uint32_t *);
 
 /*
+ * __evict_insert_skip_size --
+ *	Estimate how many items are in a skip list. Deliberately sacrifices
+ *	accuracy for performance.
+ */
+static int
+__evict_insert_skip_size(
+    WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t *skip_sizep)
+{
+	WT_INSERT *ins;
+	WT_INSERT_HEAD *ins_head;
+	uint32_t i;
+
+	*skip_sizep = 0;
+
+	if (page->type != WT_PAGE_ROW_LEAF)
+		return (0);
+
+#define	WT_SKIP_DEPTH_FOR_THOUSAND	5
+	WT_ASSERT(session, WT_SKIP_MAXDEPTH > WT_SKIP_DEPTH_FOR_THOUSAND);
+
+	ins_head = page->pg_row_entries == 0 ?
+	    WT_ROW_INSERT_SMALLEST(page) :
+	    WT_ROW_INSERT_SLOT(page, page->pg_row_entries - 1);
+
+	if (ins_head == NULL)
+		return (0);
+
+	/*
+	 * We should have about one entry at level 5 for each 1000
+	 * items on the skip list.
+	 */
+	for (i = 0, ins = ins_head->head[WT_SKIP_DEPTH_FOR_THOUSAND];
+	    ins != NULL;
+	    ins = ins->next[WT_SKIP_DEPTH_FOR_THOUSAND], i++) {}
+
+	*skip_sizep = i * 1000;
+	return (0);
+}
+
+/*
  * __evict_force_check --
  *	Check if a page matches the criteria for forced eviction.
  */
@@ -23,11 +63,17 @@ static int
 __evict_force_check(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
 	WT_BTREE *btree;
+	uint32_t skip_size;
 
 	btree = S2BT(session);
+	skip_size = 0; /* -Werror=maybe-uninitialized */
+
+	WT_RET(__evict_insert_skip_size(session, page, &skip_size));
 
 	/* Pages are usually small enough, check that first. */
-	if (page->memory_footprint < btree->maxmempage)
+#define	WT_SKIP_MAX_ELEMS	5000
+	if (page->memory_footprint < btree->maxmempage &&
+	    skip_size < WT_SKIP_MAX_ELEMS)
 		return (0);
 
 	/* Leaf pages only. */
