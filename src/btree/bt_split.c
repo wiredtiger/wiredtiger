@@ -1315,8 +1315,17 @@ __wt_split_insert(WT_SESSION_IMPL *session, WT_REF *ref, int *splitp)
 #endif
 
 	/*
-	 * Split into the parent.
+	 * Save the transaction ID when the split happened.  Application
+	 * threads will not try to forcibly evict the page again until
+	 * all concurrent transactions commit.
 	 */
+	page->modify->inmem_split_txn = __wt_txn_new_id(session);
+
+	/*
+	 * Split into the parent.  After this, the original page is no
+	 * longer locked, so we cannot safely look at it.
+	 */
+	page = NULL;
 	if ((ret = __split_parent(
 	    session, ref, split_ref, 2, 0, parent_incr, 0, 0)) != 0) {
 		/*
@@ -1341,13 +1350,6 @@ __wt_split_insert(WT_SESSION_IMPL *session, WT_REF *ref, int *splitp)
 		WT_ERR(ret);
 	}
 
-	/*
-	 * Save the transaction ID when the split happened.  Application
-	 * threads will not try to forcibly evict the page again until
-	 * all concurrent transactions commit.
-	 */
-	page->modify->inmem_split_txn = __wt_txn_new_id(session);
-
 	/* Let our caller know that we split. */
 	*splitp = 1;
 
@@ -1364,7 +1366,7 @@ __wt_split_insert(WT_SESSION_IMPL *session, WT_REF *ref, int *splitp)
 	 * change in memory footprint.  Row store pages have keys that may be
 	 * instantiated, check for that.
 	 */
-	if ((page->type == WT_PAGE_ROW_LEAF || page->type == WT_PAGE_ROW_INT) &&
+	if (S2BT(session)->type == BTREE_ROW &&
 	    (ikey = __wt_ref_key_instantiated(ref)) != NULL)
 		WT_TRET(__split_safe_free(
 		    session, 0, ikey, sizeof(WT_IKEY) + ikey->size));
