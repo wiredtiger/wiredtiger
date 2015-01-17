@@ -390,7 +390,8 @@ NOTFOUND_OK(__wt_cursor::search)
 NOTFOUND_OK(__wt_cursor::update)
 
 COMPARE_OK(__wt_cursor::compare)
-COMPARE_OK(__wt_cursor::equals)
+/* Equals needs name mapping to avoid symbol conflicts. */
+COMPARE_OK(__wt_cursor::_equals)
 COMPARE_NOTFOUND_OK(__wt_cursor::search_near)
 
 /* Lastly, some methods need no (additional) error checking. */
@@ -709,7 +710,7 @@ typedef int int_void;
 	}
 
 	/* equals: special handling. */
-	int equals(WT_CURSOR *other) {
+	int _equals(WT_CURSOR *other) {
 		int cmp = 0;
 		int ret = 0;
 		if (other == NULL) {
@@ -810,6 +811,12 @@ typedef int int_void;
 			# Keep the Python string pinned
 			self._value = pack(self.value_format, *args)
 			self._set_value(self._value)
+
+	def equals(self, *args):
+		'''equals(self, other) -> None
+		
+		@copydoc WT_CURSOR::equals'''
+		self._equals(self._value, args[0])
 
 	def __iter__(self):
 		'''Cursor objects support iteration, equivalent to calling
