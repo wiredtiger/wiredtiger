@@ -1,4 +1,5 @@
 /*-
+ * Copyright (c) 2014-2015 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -14,6 +15,7 @@
 	set_key,							\
 	set_value,							\
 	compare,							\
+	equals,								\
 	next,								\
 	prev,								\
 	reset,								\
@@ -22,6 +24,7 @@
 	insert,								\
 	update,								\
 	remove,								\
+	reconfigure,							\
 	close)								\
 	static const WT_CURSOR n = {					\
 	NULL,				/* session */			\
@@ -33,6 +36,7 @@
 	(void (*)(WT_CURSOR *, ...))(set_key),				\
 	(void (*)(WT_CURSOR *, ...))(set_value),			\
 	(int (*)(WT_CURSOR *, WT_CURSOR *, int *))(compare),		\
+	(int (*)(WT_CURSOR *, WT_CURSOR *, int *))(equals),		\
 	next,								\
 	prev,								\
 	reset,								\
@@ -42,6 +46,7 @@
 	update,								\
 	remove,								\
 	close,								\
+	(int (*)(WT_CURSOR *, const char *))(reconfigure),		\
 	{ NULL, NULL },			/* TAILQ_ENTRY q */		\
 	0,				/* recno key */			\
 	{ 0 },				/* recno raw buffer */		\
@@ -263,6 +268,8 @@ struct __wt_cursor_log {
 	WT_ITEM		*logrec;	/* Copy of record for cursor */
 	WT_ITEM		*opkey, *opvalue;	/* Op key/value copy */
 	const uint8_t	*stepp, *stepp_end;	/* Pointer within record */
+	uint8_t		*packed_key;	/* Packed key for 'raw' interface */
+	uint8_t		*packed_value;	/* Packed value for 'raw' interface */
 	uint32_t	step_count;	/* Intra-record count */
 	uint32_t	rectype;	/* Record type */
 	uint64_t	txnid;		/* Record txnid */

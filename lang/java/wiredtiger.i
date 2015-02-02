@@ -1,4 +1,5 @@
 /*-
+ * Public Domain 2014-2015 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -292,6 +293,8 @@ WT_CLASS(struct __wt_async_op, WT_ASYNC_OP, op)
 
 %ignore __wt_cursor::compare(WT_CURSOR *, WT_CURSOR *, int *);
 %rename (compare_wrap) __wt_cursor::compare;
+%ignore __wt_cursor::equals(WT_CURSOR *, WT_CURSOR *, int *);
+%rename (equals_wrap) __wt_cursor::equals;
 %rename (AsyncOpType) WT_ASYNC_OPTYPE;
 %rename (getKeyFormat) __wt_async_op::getKey_format;
 %rename (getValueFormat) __wt_async_op::getValue_format;
@@ -651,6 +654,19 @@ WT_ASYNC_CALLBACK javaApiAsyncHandler = {javaAsyncHandler};
 	}
 
 	/**
+	 * Append a record number to the async_op's key.
+	 *
+	 * \param value The value to append
+	 * \return This async_op object, so put calls can be chained.
+	 */
+	public AsyncOp putKeyRecord(long value)
+	throws WiredTigerPackingException {
+		keyUnpacker = null;
+		keyPacker.addRecord(value);
+		return this;
+	}
+
+	/**
 	 * Append a short integer to the async_op's key.
 	 *
 	 * \param value The value to append
@@ -739,6 +755,19 @@ WT_ASYNC_CALLBACK javaApiAsyncHandler = {javaAsyncHandler};
 	throws WiredTigerPackingException {
 		valueUnpacker = null;
 		valuePacker.addLong(value);
+		return this;
+	}
+
+	/**
+	 * Append a record number to the async_op's value.
+	 *
+	 * \param value The value to append
+	 * \return This async_op object, so put calls can be chained.
+	 */
+	public AsyncOp putValueRecord(long value)
+	throws WiredTigerPackingException {
+		valueUnpacker = null;
+		valuePacker.addRecord(value);
 		return this;
 	}
 
@@ -834,6 +863,16 @@ WT_ASYNC_CALLBACK javaApiAsyncHandler = {javaAsyncHandler};
 	}
 
 	/**
+	 * Retrieve a record number from the async_op's key.
+	 *
+	 * \return The requested value.
+	 */
+	public long getKeyRecord()
+	throws WiredTigerPackingException {
+		return getKeyUnpacker().getRecord();
+	}
+
+	/**
 	 * Retrieve a short integer from the async_op's key.
 	 *
 	 * \return The requested value.
@@ -916,6 +955,16 @@ WT_ASYNC_CALLBACK javaApiAsyncHandler = {javaAsyncHandler};
 	public long getValueLong()
 	throws WiredTigerPackingException {
 		return getValueUnpacker().getLong();
+	}
+
+	/**
+	 * Retrieve a record number from the async_op's value.
+	 *
+	 * \return The requested value.
+	 */
+	public long getValueRecord()
+	throws WiredTigerPackingException {
+		return getValueUnpacker().getRecord();
 	}
 
 	/**
@@ -1087,6 +1136,13 @@ WT_ASYNC_CALLBACK javaApiAsyncHandler = {javaAsyncHandler};
 		return cmp;
 	}
 
+	int equals_wrap(JNIEnv *jenv, WT_CURSOR *other) {
+		int cmp, ret = $self->equals($self, other, &cmp);
+		if (ret != 0)
+			throwWiredTigerException(jenv, ret);
+		return cmp;
+	}
+
 	%javamethodmodifiers java_init "protected";
 	int java_init(jobject jcursor) {
 		JAVA_CALLBACK *jcb = (JAVA_CALLBACK *)$self->lang_private;
@@ -1201,6 +1257,18 @@ WT_ASYNC_CALLBACK javaApiAsyncHandler = {javaAsyncHandler};
 	}
 
 	/**
+	 * Append a record number to the cursor's key.
+	 *
+	 * \param value The value to append
+	 * \return This cursor object, so put calls can be chained.
+	 */
+	public Cursor putKeyRecord(long value)
+	throws WiredTigerPackingException {
+		keyPacker.addRecord(value);
+		return this;
+	}
+
+	/**
 	 * Append a short integer to the cursor's key.
 	 *
 	 * \param value The value to append
@@ -1283,6 +1351,18 @@ WT_ASYNC_CALLBACK javaApiAsyncHandler = {javaAsyncHandler};
 	public Cursor putValueLong(long value)
 	throws WiredTigerPackingException {
 		valuePacker.addLong(value);
+		return this;
+	}
+
+	/**
+	 * Append a record number to the cursor's value.
+	 *
+	 * \param value The value to append
+	 * \return This cursor object, so put calls can be chained.
+	 */
+	public Cursor putValueRecord(long value)
+	throws WiredTigerPackingException {
+		valuePacker.addRecord(value);
 		return this;
 	}
 
@@ -1376,6 +1456,16 @@ WT_ASYNC_CALLBACK javaApiAsyncHandler = {javaAsyncHandler};
 	}
 
 	/**
+	 * Retrieve a record number from the cursor's key.
+	 *
+	 * \return The requested value.
+	 */
+	public long getKeyRecord()
+	throws WiredTigerPackingException {
+		return keyUnpacker.getRecord();
+	}
+
+	/**
 	 * Retrieve a short integer from the cursor's key.
 	 *
 	 * \return The requested value.
@@ -1461,6 +1551,16 @@ WT_ASYNC_CALLBACK javaApiAsyncHandler = {javaAsyncHandler};
 	}
 
 	/**
+	 * Retrieve a record number from the cursor's value.
+	 *
+	 * \return The requested value.
+	 */
+	public long getValueRecord()
+	throws WiredTigerPackingException {
+		return valueUnpacker.getRecord();
+	}
+
+	/**
 	 * Retrieve a short integer from the cursor's value.
 	 *
 	 * \return The requested value.
@@ -1528,6 +1628,16 @@ WT_ASYNC_CALLBACK javaApiAsyncHandler = {javaAsyncHandler};
 	public int compare(Cursor other)
 	throws WiredTigerException {
 		return compare_wrap(other);
+	}
+
+	/**
+	 * Compare this cursor's position to another Cursor.
+	 *
+	 * \return The result of the comparison.
+	 */
+	public int equals(Cursor other)
+	throws WiredTigerException {
+		return equals_wrap(other);
 	}
 
 	/**
@@ -1800,7 +1910,8 @@ err:		if (ret != 0)
 		if ((ret = $self->open_cursor($self, uri, to_dup, config, &cursor)) != 0)
 			goto err;
 
-		cursor->flags |= WT_CURSTD_RAW;
+		if ((cursor->flags & WT_CURSTD_DUMP_JSON) == 0)
+			cursor->flags |= WT_CURSTD_RAW;
 
 		if ((ret = __wt_calloc_def((WT_SESSION_IMPL *)cursor->session,
 			    1, &jcb)) != 0)

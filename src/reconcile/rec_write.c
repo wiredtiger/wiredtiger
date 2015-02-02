@@ -1,4 +1,5 @@
 /*-
+ * Copyright (c) 2014-2015 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -439,8 +440,11 @@ __wt_reconcile(WT_SESSION_IMPL *session,
 	 * Root pages are special, splits have to be done, we can't put it off
 	 * as the parent's problem any more.
 	 */
-	if (__wt_ref_is_root(ref))
-		return (__rec_root_write(session, page, flags));
+	if (__wt_ref_is_root(ref)) {
+		WT_WITH_PAGE_INDEX(session,
+		    ret = __rec_root_write(session, page, flags));
+		return (ret);
+	}
 
 	/*
 	 * Otherwise, mark the page's parent dirty.
@@ -503,6 +507,7 @@ __rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
 	WT_ILLEGAL_VALUE(session);
 	}
 
+	WT_ASSERT(session, session->split_gen != 0);
 	pindex = WT_INTL_INDEX_COPY(next);
 	for (i = 0; i < mod->mod_multi_entries; ++i) {
 		WT_ERR(__wt_multi_to_ref(session,
@@ -1879,7 +1884,7 @@ __rec_split_row_promote(
 		}
 	ret = __wt_buf_set(session, key, r->cur->data, size);
 
-err:	__wt_scr_free(&update);
+err:	__wt_scr_free(session, &update);
 	return (ret);
 }
 
@@ -2431,15 +2436,7 @@ no_slots:
 		 * the "page" and try again after we accumulate some more rows.
 		 */
 		WT_STAT_FAST_DATA_INCR(session, compress_raw_fail_temporary);
-
-split_grow:	/*
-		 * Double the page size and make sure we accommodate at least
-		 * one more record. The reason for the latter is that we may
-		 * be here because there's a large key/value pair that won't
-		 * fit in our initial page buffer, even at its expanded size.
-		 */
-		r->page_size *= 2;
-		return (__rec_split_grow(session, r, r->page_size + next_len));
+		goto split_grow;
 	}
 
 	/* We have a block, update the boundary counter. */
@@ -2461,6 +2458,22 @@ split_grow:	/*
 	} else
 		WT_RET(
 		    __rec_split_write(session, r, last, write_ref, last_block));
+
+	/*
+	 * We got called because there wasn't enough room in the buffer for the
+	 * next key and we might or might not have written a block. In any case,
+	 * make sure the next key fits into the buffer.
+	 */
+	if (r->space_avail < next_len) {
+split_grow:	/*
+		 * Double the page size and make sure we accommodate at least
+		 * one more record. The reason for the latter is that we may
+		 * be here because there's a large key/value pair that won't
+		 * fit in our initial page buffer, even at its expanded size.
+		 */
+		r->page_size *= 2;
+		return (__rec_split_grow(session, r, r->page_size + next_len));
+	}
 	return (0);
 }
 
@@ -2502,7 +2515,7 @@ __rec_raw_decompress(
 	WT_ASSERT(session, __wt_verify_dsk_image(
 	    session, "[raw evict split]", tmp->data, dsk->mem_size, 0) == 0);
 
-err:	__wt_scr_free(&tmp);
+err:	__wt_scr_free(session, &tmp);
 	return (ret);
 }
 
@@ -2672,7 +2685,7 @@ __rec_split_fixup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	r->space_avail =
 	    r->split_size - (WT_PAGE_HEADER_BYTE_SIZE(btree) + len);
 
-err:	__wt_scr_free(&tmp);
+err:	__wt_scr_free(session, &tmp);
 	return (ret);
 }
 
@@ -2861,7 +2874,7 @@ skip_check_complete:
 	bnd->addr.size = (uint8_t)addr_size;
 
 done:
-err:	__wt_scr_free(&key);
+err:	__wt_scr_free(session, &key);
 	return (ret);
 }
 
@@ -3915,7 +3928,7 @@ compare:		/*
 	/* Write the remnant page. */
 	ret = __rec_split_finish(session, r);
 
-err:	__wt_scr_free(&orig);
+err:	__wt_scr_free(session, &orig);
 	return (ret);
 }
 
@@ -4564,8 +4577,8 @@ leaf_insert:	/* Write any K/V pairs inserted into the page after this key. */
 	/* Write the remnant page. */
 	ret = __rec_split_finish(session, r);
 
-err:	__wt_scr_free(&tmpkey);
-	__wt_scr_free(&tmpval);
+err:	__wt_scr_free(session, &tmpkey);
+	__wt_scr_free(session, &tmpval);
 	return (ret);
 }
 
@@ -4919,7 +4932,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 					break;
 				WT_ILLEGAL_VALUE_ERR(session);
 				}
-err:			__wt_scr_free(&tkey);
+err:			__wt_scr_free(session, &tkey);
 			WT_RET(ret);
 		}
 		if (r->bnd_next > r->bnd_next_max) {
@@ -5402,7 +5415,7 @@ __rec_cell_build_ovfl(WT_SESSION_IMPL *session,
 	kv->cell_len = __wt_cell_pack_ovfl(&kv->cell, type, rle, kv->buf.size);
 	kv->len = kv->cell_len + kv->buf.size;
 
-err:	__wt_scr_free(&tmp);
+err:	__wt_scr_free(session, &tmp);
 	return (ret);
 }
 

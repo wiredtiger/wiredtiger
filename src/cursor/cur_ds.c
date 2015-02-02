@@ -1,4 +1,5 @@
 /*-
+ * Copyright (c) 2014-2015 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -453,6 +454,7 @@ __wt_curds_open(
 	    __wt_cursor_set_key,	/* set-key */
 	    __wt_cursor_set_value,	/* set-value */
 	    __curds_compare,		/* compare */
+	    __wt_cursor_equals,		/* equals */
 	    __curds_next,		/* next */
 	    __curds_prev,		/* prev */
 	    __curds_reset,		/* reset */
@@ -461,6 +463,7 @@ __wt_curds_open(
 	    __curds_insert,		/* insert */
 	    __curds_update,		/* update */
 	    __curds_remove,		/* remove */
+	    __wt_cursor_notsup,		/* reconfigure */
 	    __curds_close);		/* close */
 	WT_CONFIG_ITEM cval, metadata;
 	WT_CURSOR *cursor, *source;
@@ -477,7 +480,6 @@ __wt_curds_open(
 	cursor = &data_source->iface;
 	*cursor = iface;
 	cursor->session = &session->iface;
-	F_SET(cursor, WT_CURSTD_DATA_SOURCE);
 
 	/*
 	 * XXX

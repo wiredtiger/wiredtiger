@@ -1,4 +1,5 @@
 /*-
+ * Copyright (c) 2014-2015 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -169,8 +170,6 @@ __clsm_enter(WT_CURSOR_LSM *clsm, int reset, int update)
 		if (clsm->dsk_gen != lsm_tree->dsk_gen &&
 		    lsm_tree->nchunks != 0)
 			goto open;
-
-		WT_RET(__wt_cache_full_check(session));
 
 		if (clsm->dsk_gen != lsm_tree->dsk_gen &&
 		    lsm_tree->nchunks != 0)
@@ -1314,7 +1313,7 @@ __clsm_insert(WT_CURSOR *cursor)
 	WT_ERR(__clsm_deleted_encode(session, &cursor->value, &value, &buf));
 	ret = __clsm_put(session, clsm, &cursor->key, &value, 0);
 
-err:	__wt_scr_free(&buf);
+err:	__wt_scr_free(session, &buf);
 	WT_TRET(__clsm_leave(clsm));
 	CURSOR_UPDATE_API_END(session, ret);
 	return (ret);
@@ -1347,7 +1346,7 @@ __clsm_update(WT_CURSOR *cursor)
 		ret = __clsm_put(session, clsm, &cursor->key, &value, 1);
 	}
 
-err:	__wt_scr_free(&buf);
+err:	__wt_scr_free(session, &buf);
 	WT_TRET(__clsm_leave(clsm));
 	CURSOR_UPDATE_API_END(session, ret);
 	return (ret);
@@ -1430,6 +1429,7 @@ __wt_clsm_open(WT_SESSION_IMPL *session,
 	    __wt_cursor_set_key,	/* set-key */
 	    __wt_cursor_set_value,	/* set-value */
 	    __clsm_compare,		/* compare */
+	    __wt_cursor_equals,		/* equals */
 	    __clsm_next,		/* next */
 	    __clsm_prev,		/* prev */
 	    __clsm_reset,		/* reset */
@@ -1438,6 +1438,7 @@ __wt_clsm_open(WT_SESSION_IMPL *session,
 	    __clsm_insert,		/* insert */
 	    __clsm_update,		/* update */
 	    __clsm_remove,		/* remove */
+	    __wt_cursor_reconfigure,	/* reconfigure */
 	    __clsm_close);		/* close */
 	WT_CURSOR *cursor;
 	WT_CURSOR_LSM *clsm;
@@ -1469,8 +1470,6 @@ __wt_clsm_open(WT_SESSION_IMPL *session,
 	cursor->key_format = lsm_tree->key_format;
 	cursor->value_format = lsm_tree->value_format;
 
-	WT_ERR(__wt_cursor_config_readonly(cursor, cfg, 0));
-
 	clsm->lsm_tree = lsm_tree;
 
 	/*
@@ -1483,11 +1482,8 @@ __wt_clsm_open(WT_SESSION_IMPL *session,
 	WT_ERR(__wt_cursor_init(cursor, cursor->uri, owner, cfg, cursorp));
 
 	if (0) {
-err:		__wt_lsm_tree_release(session, lsm_tree);
-		if (clsm != NULL) {
-			clsm->lsm_tree = NULL;
+err:		if (clsm != NULL)
 			WT_TRET(__clsm_close(cursor));
-		}
 	}
 
 	return (ret);

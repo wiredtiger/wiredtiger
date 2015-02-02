@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 #
+# Public Domain 2014-2015 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -80,7 +81,7 @@ def confirm_does_not_exist(self, uri):
     self.pr('confirm_does_not_exist: ' + uri)
     self.assertRaises(wiredtiger.WiredTigerError,
         lambda: self.session.open_cursor(uri, None))
-    self.assertEqual(glob.glob('*' + uri.split(":")[1] + '*'), [],
+    self.assertEqual(glob.glob('*' + uri.split(":")[-1] + '*'), [],
         'confirm_does_not_exist: URI exists, file name matching \"' +
         uri.split(":")[1] + '\" found')
 
@@ -155,7 +156,7 @@ def simple_populate_check(self, uri, rows):
     cursor.close()
 
 # Return the value stored in a complex object.
-def value_populate_complex(i):
+def complex_value_populate(cursor, i):
     return [str(i) + ': abcdefghijklmnopqrstuvwxyz'[0:i%26],
         i,
         str(i) + ': abcdefghijklmnopqrstuvwxyz'[0:i%23],
@@ -198,17 +199,20 @@ def complex_populate_type(self, uri, config, rows, type):
     cursor = self.session.open_cursor(uri, None)
     for i in range(1, rows + 1):
         cursor.set_key(key_populate(cursor, i))
-        v = value_populate_complex(i)
+        v = complex_value_populate(cursor, i)
         cursor.set_value(v[0], v[1], v[2], v[3])
         cursor.insert()
     cursor.close()
+
+def complex_populate_index_name(self, uri):
+    return 'index:' + uri.split(":")[1] + ':indx1'
 
 def complex_populate_check_cursor(self, cursor, rows):
     i = 0
     for key, s1, i2, s3, s4 in cursor:
         i += 1
         self.assertEqual(key, key_populate(cursor, i))
-        v = value_populate_complex(i)
+        v = complex_value_populate(cursor, i)
         self.assertEqual(s1, v[0])
         self.assertEqual(i2, v[1])
         self.assertEqual(s3, v[2])

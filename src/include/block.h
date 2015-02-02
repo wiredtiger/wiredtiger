@@ -1,4 +1,5 @@
 /*-
+ * Copyright (c) 2014-2015 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -216,7 +217,6 @@ struct __wt_block {
 
 	/* Configuration information, set when the file is opened. */
 	int	 allocfirst;		/* Allocation is first-fit */
-	int	 allocfirst_save;	/* Allocation is first-fit, saved */
 	uint32_t allocsize;		/* Allocation size */
 	size_t	 os_cache;		/* System buffer cache flush max */
 	size_t	 os_cache_max;
@@ -235,6 +235,10 @@ struct __wt_block {
 	WT_SPINLOCK	live_lock;	/* Live checkpoint lock */
 	WT_BLOCK_CKPT	live;		/* Live checkpoint */
 	int		ckpt_inprogress;/* Live checkpoint in progress */
+
+				/* Compaction support */
+	int	allocfirst_save;	/* Saved: allocation is first-fit */
+	int	compact_pct_tenths;	/* Percent to compact */
 
 				/* Salvage support */
 	wt_off_t	slvg_off;	/* Salvage file offset */

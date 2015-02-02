@@ -1,4 +1,5 @@
 /*-
+ * Copyright (c) 2014-2015 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -26,14 +27,6 @@ __wt_page_is_modified(WT_PAGE *page)
 }
 
 /*
- * Estimate the per-allocation overhead.  All implementations of malloc / free
- * have some kind of header and pad for alignment.  We can't know for sure what
- * that adds up to, but this is an estimate based on some measurements of heap
- * size versus bytes in use.
- */
-#define	WT_ALLOC_OVERHEAD	32U
-
-/*
  * __wt_cache_page_inmem_incr --
  *	Increment a page's memory footprint in the cache.
  */
@@ -42,7 +35,7 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
 {
 	WT_CACHE *cache;
 
-	size += WT_ALLOC_OVERHEAD;
+	WT_ASSERT(session, size < WT_EXABYTE);
 
 	cache = S2C(session)->cache;
 	(void)WT_ATOMIC_ADD8(cache->bytes_inmem, size);
@@ -53,6 +46,34 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
 	}
 }
 
+/* 
+ * WT_CACHE_DECR --
+ *	Macro to decrement a field by a size.
+ *
+ * Be defensive and don't underflow: a band-aid on a gaping wound, but underflow
+ * won't make things better no matter the problem (specifically, underflow makes
+ * eviction crazy trying to evict non-existent memory).
+ */
+#ifdef HAVE_DIAGNOSTIC
+#define	WT_CACHE_DECR(session, f, sz) do {				\
+	static int __first = 1;						\
+	if (WT_ATOMIC_SUB8(f, sz) > WT_EXABYTE) {			\
+		(void)WT_ATOMIC_ADD8(f, sz);				\
+		if (__first) {						\
+			__wt_errx(session,				\
+			    "%s underflow: decrementing %" WT_SIZET_FMT,\
+			    #f, sz);					\
+			__first = 0;					\
+		}							\
+	}								\
+} while (0)
+#else
+#define	WT_CACHE_DECR(s, f, sz) do {					\
+	if (WT_ATOMIC_SUB8(f, sz) > WT_EXABYTE)				\
+		(void)WT_ATOMIC_ADD8(f, sz);				\
+} while (0)
+#endif
+
 /*
  * __wt_cache_page_inmem_decr --
  *	Decrement a page's memory footprint in the cache.
@@ -62,14 +83,15 @@ __wt_cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
 {
 	WT_CACHE *cache;
 
-	size += WT_ALLOC_OVERHEAD;
-
 	cache = S2C(session)->cache;
-	(void)WT_ATOMIC_SUB8(cache->bytes_inmem, size);
-	(void)WT_ATOMIC_SUB8(page->memory_footprint, size);
+
+	WT_ASSERT(session, size < WT_EXABYTE);
+
+	WT_CACHE_DECR(session, cache->bytes_inmem, size);
+	WT_CACHE_DECR(session, page->memory_footprint, size);
 	if (__wt_page_is_modified(page)) {
-		(void)WT_ATOMIC_SUB8(cache->bytes_dirty, size);
-		(void)WT_ATOMIC_SUB8(page->modify->bytes_dirty, size);
+		WT_CACHE_DECR(session, cache->bytes_dirty, size);
+		WT_CACHE_DECR(session, page->modify->bytes_dirty, size);
 	}
 }
 
@@ -164,62 +186,18 @@ __wt_cache_page_evict(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
- * __wt_cache_read_gen --
- *      Get the current read generation number.
+ * __wt_update_list_memsize --
+ *      The size in memory of a list of updates.
  */
-static inline uint64_t
-__wt_cache_read_gen(WT_SESSION_IMPL *session)
+static inline size_t
+__wt_update_list_memsize(WT_UPDATE *upd)
 {
-	return (S2C(session)->cache->read_gen);
-}
+	size_t upd_size;
 
-/*
- * __wt_cache_read_gen_incr --
- *      Increment the current read generation number.
- */
-static inline void
-__wt_cache_read_gen_incr(WT_SESSION_IMPL *session)
-{
-	++S2C(session)->cache->read_gen;
-}
+	for (upd_size = 0; upd != NULL; upd = upd->next)
+		upd_size += WT_UPDATE_MEMSIZE(upd);
 
-/*
- * __wt_cache_read_gen_set --
- *      Get the read generation to store in a page.
- */
-static inline uint64_t
-__wt_cache_read_gen_set(WT_SESSION_IMPL *session)
-{
-	/*
-	 * We return read-generations from the future (where "the future" is
-	 * measured by increments of the global read generation).  The reason
-	 * is because when acquiring a new hazard pointer for a page, we can
-	 * check its read generation, and if the read generation isn't less
-	 * than the current global generation, we don't bother updating the
-	 * page.  In other words, the goal is to avoid some number of updates
-	 * immediately after each update we have to make.
-	 */
-	return (__wt_cache_read_gen(session) + WT_READGEN_STEP);
-}
-
-/*
- * __wt_cache_pages_inuse --
- *	Return the number of pages in use.
- */
-static inline uint64_t
-__wt_cache_pages_inuse(WT_CACHE *cache)
-{
-	return (cache->pages_inmem - cache->pages_evict);
-}
-
-/*
- * __wt_cache_bytes_inuse --
- *	Return the number of bytes in use.
- */
-static inline uint64_t
-__wt_cache_bytes_inuse(WT_CACHE *cache)
-{
-	return (cache->bytes_inmem - cache->bytes_evict);
+	return (upd_size);
 }
 
 /*
@@ -243,8 +221,7 @@ __wt_page_refp(WT_SESSION_IMPL *session,
 	WT_PAGE_INDEX *pindex;
 	uint32_t i;
 
-	WT_ASSERT(session,
-	    WT_SESSION_TXN_STATE(session)->snap_min != WT_TXN_NONE);
+	WT_ASSERT(session, session->split_gen != 0);
 
 	/*
 	 * Copy the parent page's index value: the page can split at any time,
@@ -916,16 +893,16 @@ __wt_ref_info(WT_SESSION_IMPL *session,
 }
 
 /*
- * __wt_page_release --
- *	Release a reference to a page.
+ * __wt_page_release_busy --
+ *	Release a reference to a page, fail if busy during forced eviction.
  */
 static inline int
-__wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
+__wt_page_release_busy(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 {
 	WT_BTREE *btree;
 	WT_DECL_RET;
 	WT_PAGE *page;
-	int locked;
+	int locked, too_big;
 
 	btree = S2BT(session);
 
@@ -936,6 +913,8 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	if (ref == NULL || __wt_ref_is_root(ref))
 		return (0);
 	page = ref->page;
+
+	too_big = (page->memory_footprint < btree->maxmempage) ? 0 : 1;
 
 	/*
 	 * Attempt to evict pages with the special "oldest" read generation.
@@ -969,16 +948,34 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 		return (ret);
 
 	(void)WT_ATOMIC_ADD4(btree->evict_busy, 1);
-	if ((ret = __wt_evict_page(session, ref)) == 0)
-		WT_STAT_FAST_CONN_INCR(session, cache_eviction_force);
-	else {
+	if ((ret = __wt_evict_page(session, ref)) == 0) {
+		if (too_big)
+			WT_STAT_FAST_CONN_INCR(session, cache_eviction_force);
+		else
+			/*
+			 * If the page isn't too big, we are evicting it because
+			 * it had a chain of deleted entries that make traversal
+			 * expensive.
+			 */
+			WT_STAT_FAST_CONN_INCR(
+			    session, cache_eviction_force_delete);
+	} else {
 		WT_STAT_FAST_CONN_INCR(session, cache_eviction_force_fail);
-		if (ret == EBUSY)
-			ret = 0;
 	}
 	(void)WT_ATOMIC_SUB4(btree->evict_busy, 1);
 
 	return (ret);
+}
+
+/*
+ * __wt_page_release --
+ *	Release a reference to a page.
+ */
+static inline int
+__wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
+{
+	WT_RET_BUSY_OK(__wt_page_release_busy(session, ref, flags));
+	return (0);
 }
 
 /*

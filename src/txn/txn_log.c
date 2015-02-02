@@ -1,4 +1,5 @@
 /*-
+ * Copyright (c) 2014-2015 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -269,6 +270,7 @@ __wt_txn_checkpoint_log(
 {
 	WT_DECL_ITEM(logrec);
 	WT_DECL_RET;
+	WT_ITEM *ckpt_snapshot, empty;
 	WT_LSN *ckpt_lsn;
 	WT_TXN *txn;
 	uint8_t *end, *p;
@@ -318,21 +320,26 @@ __wt_txn_checkpoint_log(
 		 */
 		if (!txn->full_ckpt) {
 			txn->ckpt_nsnapshot = 0;
+			WT_CLEAR(empty);
+			ckpt_snapshot = &empty;
 			*ckpt_lsn = S2C(session)->log->alloc_lsn;
-		}
+		} else
+			ckpt_snapshot = txn->ckpt_snapshot;
 
 		/* Write the checkpoint log record. */
 		WT_ERR(__wt_struct_size(session, &recsize, fmt,
 		    rectype, ckpt_lsn->file, ckpt_lsn->offset,
-		    txn->ckpt_nsnapshot, &txn->ckpt_snapshot));
+		    txn->ckpt_nsnapshot, ckpt_snapshot));
 		WT_ERR(__wt_logrec_alloc(session, recsize, &logrec));
 
 		WT_ERR(__wt_struct_pack(session,
 		    (uint8_t *)logrec->data + logrec->size, recsize, fmt,
 		    rectype, ckpt_lsn->file, ckpt_lsn->offset,
-		    txn->ckpt_nsnapshot, &txn->ckpt_snapshot));
+		    txn->ckpt_nsnapshot, ckpt_snapshot));
 		logrec->size += (uint32_t)recsize;
-		WT_ERR(__wt_log_write(session, logrec, lsnp, 0));
+		WT_ERR(__wt_log_write(session, logrec, lsnp,
+		    F_ISSET(S2C(session), WT_CONN_CKPT_SYNC) ?
+		    WT_LOG_FSYNC : 0));
 
 		/*
 		 * If this full checkpoint completed successfully and there is
@@ -345,9 +352,9 @@ __wt_txn_checkpoint_log(
 		/* FALLTHROUGH */
 	case WT_TXN_LOG_CKPT_FAIL:
 		/* Cleanup any allocated resources */
-		INIT_LSN(ckpt_lsn);
+		WT_INIT_LSN(ckpt_lsn);
 		txn->ckpt_nsnapshot = 0;
-		__wt_scr_free(&txn->ckpt_snapshot);
+		__wt_scr_free(session, &txn->ckpt_snapshot);
 		txn->full_ckpt = 0;
 		break;
 	}

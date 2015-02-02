@@ -73,6 +73,7 @@ Crummey
 CustomersPhone
 DATAITEMs
 DECL
+DECR
 DESC
 DHANDLE
 DLFCN
@@ -181,6 +182,7 @@ KV
 KVS
 Kanowski's
 Kounavis
+LANGID
 LEX
 LF
 LIBBZ
@@ -225,6 +227,7 @@ Mellor
 Metadata
 Mewhort
 Mitzenmacher
+MongoDB
 MoveFile
 Multi
 Multithreaded
@@ -395,6 +398,7 @@ agc
 alfred
 alloc
 allocator
+allocators
 allocfile
 allocsize
 amd
@@ -436,6 +440,7 @@ btmem
 btree
 btrees
 buf
+buflen
 bufs
 bufsz
 builtin
@@ -578,6 +583,7 @@ enum's
 env
 eof
 eop
+equalp
 errhandler
 errno
 errv

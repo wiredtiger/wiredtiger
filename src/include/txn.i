@@ -1,4 +1,5 @@
 /*-
+ * Copyright (c) 2014-2015 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -226,6 +227,16 @@ __wt_txn_id_check(WT_SESSION_IMPL *session)
 	txn = &session->txn;
 
 	WT_ASSERT(session, F_ISSET(txn, TXN_RUNNING));
+
+	/*
+	 * If there is no transaction active in this thread and we haven't
+	 * checked if the cache is full, do it now.  If we have to block for
+	 * eviction, this is the best time to do it.
+	 */
+	if (F_ISSET(txn, TXN_RUNNING) &&
+	    !F_ISSET(txn, TXN_HAS_ID) && !F_ISSET(txn, TXN_HAS_SNAPSHOT))
+		WT_RET(__wt_cache_full_check(session));
+
 	if (!F_ISSET(txn, TXN_HAS_ID)) {
 		conn = S2C(session);
 		txn_global = &conn->txn_global;
@@ -371,11 +382,8 @@ __wt_txn_am_oldest(WT_SESSION_IMPL *session)
 		return (0);
 
 	WT_ORDERED_READ(session_cnt, conn->session_cnt);
-	for (i = 0, s = txn_global->states;
-	    i < session_cnt;
-	    i++, s++)
-		if ((id = s->id) != WT_TXN_NONE &&
-		    TXNID_LT(id, txn->id))
+	for (i = 0, s = txn_global->states; i < session_cnt; i++, s++)
+		if ((id = s->id) != WT_TXN_NONE && TXNID_LT(id, txn->id))
 			return (0);
 
 	return (1);

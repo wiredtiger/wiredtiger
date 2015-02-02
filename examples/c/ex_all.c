@@ -1,4 +1,5 @@
 /*-
+ * Public Domain 2014-2015 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -94,20 +95,16 @@ cursor_ops(WT_SESSION *session)
 	}
 
 	{
-	WT_CURSOR *overwrite_cursor;
 	const char *key = "some key", *value = "some value";
 	/*! [Reconfigure a cursor] */
 	ret = session->open_cursor(
-	    session, "table:mytable", NULL, NULL, &cursor);
+	    session, "table:mytable", NULL, "overwrite=false", &cursor);
 	cursor->set_key(cursor, key);
+	cursor->set_value(cursor, value);
 
 	/* Reconfigure the cursor to overwrite the record. */
-	ret = session->open_cursor(
-	    session, NULL, cursor, "overwrite", &overwrite_cursor);
-	ret = cursor->close(cursor);
-
-	overwrite_cursor->set_value(overwrite_cursor, value);
-	ret = overwrite_cursor->insert(cursor);
+	ret = cursor->reconfigure(cursor, "overwrite=true");
+	ret = cursor->insert(cursor);
 	/*! [Reconfigure a cursor] */
 	}
 
@@ -241,6 +238,19 @@ cursor_ops(WT_SESSION *session)
 	}
 
 	{
+	WT_CURSOR *other = NULL;
+	/*! [Cursor equality] */
+	int equal;
+	ret = cursor->equals(cursor, other, &equal);
+	if (equal) {
+		/* Cursors reference the same key */
+	} else {
+		/* Cursors don't reference the same key */
+	}
+	/*! [Cursor equality] */
+	}
+
+	{
 	/*! [Search for an exact match] */
 	const char *key = "some key";
 	cursor->set_key(cursor, key);
@@ -340,6 +350,22 @@ cursor_ops(WT_SESSION *session)
 		return (ret);
 	}
 	/*! [Display an error] */
+	}
+
+	{
+	/*! [Display an error thread safe] */
+	const char *key = "non-existent key";
+	cursor->set_key(cursor, key);
+	if ((ret = cursor->remove(cursor)) != 0) {
+		char buf[128];
+
+		if (wiredtiger_strerror_r(ret, buf, sizeof(buf)) != 0)
+			(void)snprintf(
+			    buf, sizeof(buf), "error value: %d\n", ret);
+		fprintf(stderr, "cursor.remove: %s\n", buf);
+		return (ret);
+	}
+	/*! [Display an error thread safe] */
 	}
 
 	/*! [Close the cursor] */
@@ -530,14 +556,14 @@ session_ops(WT_SESSION *session)
 
 	/*! [Create a table and configure the page size] */
 	ret = session->create(session,
-	    "table:mytable", "key_format=S,value_format=S"
+	    "table:mytable", "key_format=S,value_format=S,"
 	    "internal_page_max=16KB,leaf_page_max=1MB,leaf_value_max=64KB");
 	/*! [Create a table and configure the page size] */
 	ret = session->drop(session, "table:mytable", NULL);
 
 	/*! [Create a table and configure a large leaf value max] */
 	ret = session->create(session,
-	    "table:mytable", "key_format=S,value_format=S"
+	    "table:mytable", "key_format=S,value_format=S,"
 	    "leaf_page_max=16KB,leaf_value_max=256KB");
 	/*! [Create a table and configure a large leaf value max] */
 	ret = session->drop(session, "table:mytable", NULL);

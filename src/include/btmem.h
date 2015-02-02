@@ -1,4 +1,5 @@
 /*-
+ * Copyright (c) 2014-2015 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -549,9 +550,10 @@ struct __wt_page {
 #define	WT_PAGE_DISK_ALLOC	0x02	/* Disk image in allocated memory */
 #define	WT_PAGE_DISK_MAPPED	0x04	/* Disk image in mapped memory */
 #define	WT_PAGE_EVICT_LRU	0x08	/* Page is on the LRU queue */
-#define	WT_PAGE_SCANNING	0x10	/* Obsolete updates are being scanned */
-#define	WT_PAGE_SPLITTING	0x20	/* An internal page is growing */
+#define	WT_PAGE_REFUSE_DEEPEN	0x10	/* Don't deepen the tree at this page */
+#define	WT_PAGE_SCANNING	0x20	/* Obsolete updates are being scanned */
 #define	WT_PAGE_SPLIT_INSERT	0x40	/* A leaf page was split for append */
+#define	WT_PAGE_SPLITTING	0x80	/* An internal page is growing */
 	uint8_t flags_atomic;		/* Atomic flags, use F_*_ATOMIC */
 };
 
@@ -837,6 +839,8 @@ struct __wt_update {
 	 */
 #define	WT_UPDATE_DELETED_ISSET(upd)	((upd)->size == UINT32_MAX)
 #define	WT_UPDATE_DELETED_SET(upd)	((upd)->size = UINT32_MAX)
+#define	WT_UPDATE_MEMSIZE(upd)						\
+	(sizeof(WT_UPDATE) + (WT_UPDATE_DELETED_ISSET(upd) ? 0 : (upd)->size))
 	uint32_t size;			/* update length */
 
 	/* The untyped value immediately follows the WT_UPDATE structure. */
@@ -1004,7 +1008,10 @@ struct __wt_insert_head {
 #define	WT_ENTER_PAGE_INDEX(session) do {				\
 	uint64_t __prev_split_gen = (session)->split_gen;		\
 	if (__prev_split_gen == 0)					\
-		WT_PUBLISH((session)->split_gen, S2C(session)->split_gen)
+		do {                                                    \
+			WT_PUBLISH((session)->split_gen,                \
+			    S2C(session)->split_gen);                   \
+		} while ((session)->split_gen != S2C(session)->split_gen)
 
 #define	WT_LEAVE_PAGE_INDEX(session)					\
 	if (__prev_split_gen == 0)					\

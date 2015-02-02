@@ -1,4 +1,5 @@
 /*-
+ * Public Domain 2014-2015 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -211,6 +212,19 @@ public static int cursor_ops(Session session)
         /* Cursor key greater than other key */
     }
     /*! [Cursor comparison] */
+    }
+
+    {
+    Cursor other = null;
+    /*! [Cursor equality] */
+    int compare;
+    compare = cursor.equals(other);
+    if (compare == 0) {
+        /* redtiger.iCursors reference the same key */
+    } else {
+	/* Cursors don't reference the same key */
+    }
+    /*! [Cursor equality] */
     }
 
     {

@@ -1,4 +1,5 @@
 /*-
+ * Copyright (c) 2014-2015 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -321,13 +322,13 @@ struct __wt_update;
 #include "misc.i"
 #include "intpack.i"			/* required by cell.i, packing.i */
 #include "packing.i"
+#include "cache.i"			/* required by txn.i */
 #include "cell.i"			/* required by btree.i */
 
 #include "mutex.i"			/* required by btree.i */
 #include "txn.i"			/* required by btree.i */
 
 #include "btree.i"			/* required by cursor.i */
-#include "cache.i"			/* required by cursor.i */
 #include "cursor.i"
 
 #include "bitstring.i"

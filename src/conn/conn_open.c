@@ -1,4 +1,5 @@
 /*-
+ * Copyright (c) 2014-2015 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -24,7 +25,7 @@ __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
 	 * Tell internal server threads to run: this must be set before opening
 	 * any sessions.
 	 */
-	F_SET(conn, WT_CONN_SERVER_RUN);
+	F_SET(conn, WT_CONN_SERVER_RUN | WT_CONN_LOG_SERVER_RUN);
 
 	/* WT_SESSION_IMPL array. */
 	WT_RET(__wt_calloc(session,
@@ -129,6 +130,7 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
 		WT_TRET(__wt_txn_checkpoint_log(
 		    session, 1, WT_TXN_LOG_CKPT_STOP, NULL));
+	F_CLR(conn, WT_CONN_LOG_SERVER_RUN);
 	WT_TRET(__wt_logmgr_destroy(session));
 
 	/* Free memory for collators, compressors, data sources. */
@@ -241,12 +243,17 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
 	/* Start the optional async threads. */
 	WT_RET(__wt_async_create(session, cfg));
 
+	WT_RET(__wt_logmgr_create(session, cfg));
+
+	/* Run recovery. */
+	WT_RET(__wt_txn_recover(session));
+
 	/*
 	 * Start the optional logging/archive thread.
 	 * NOTE: The log manager must be started before checkpoints so that the
 	 * checkpoint server knows if logging is enabled.
 	 */
-	WT_RET(__wt_logmgr_create(session, cfg));
+	WT_RET(__wt_logmgr_open(session));
 
 	/* Start the optional checkpoint thread. */
 	WT_RET(__wt_checkpoint_server_create(session, cfg));

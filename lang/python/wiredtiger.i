@@ -1,4 +1,5 @@
 /*-
+ * Public Domain 2014-2015 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -156,7 +157,7 @@ from packing import pack, unpack
 %define DESTRUCTOR(class, method)
 %feature("shadow") class::method %{
 	def method(self, *args):
-		'''close(self, config) -> int
+		'''method(self, config) -> int
 		
 		@copydoc class::method'''
 		try:
@@ -169,6 +170,26 @@ from packing import pack, unpack
 DESTRUCTOR(__wt_connection, close)
 DESTRUCTOR(__wt_cursor, close)
 DESTRUCTOR(__wt_session, close)
+
+/*
+ * OVERRIDE_METHOD must be used when overriding or extending an existing
+ * method in the C interface.  It creates Python method() that calls
+ * _method(), which is the extended version of the method.  This works
+ * around potential naming conflicts.  Without this technique, for example,
+ * defining __wt_cursor::equals() creates the wrapper function
+ * __wt_cursor_equals(), which may be defined in the WT library.
+ */
+%define OVERRIDE_METHOD(cclass, pyclass, method, pyargs)
+%extend cclass {
+%pythoncode %{
+	def method(self, *args):
+		'''method pyargs -> int
+
+		@copydoc class::method'''
+		return self._##method(*args)
+%}
+};
+%enddef
 
 /* Don't require empty config strings. */
 %typemap(default) const char *config { $1 = NULL; }
@@ -338,7 +359,9 @@ retry:
 	if (result != 0 && result != EBUSY)
 		SWIG_ERROR_IF_NOT_SET(result);
         else if (result == EBUSY) {
+		SWIG_PYTHON_THREAD_BEGIN_ALLOW;
                 __wt_sleep(0, 10000);
+		SWIG_PYTHON_THREAD_END_ALLOW;
                 goto retry;
         }
 }
@@ -360,8 +383,17 @@ retry:
 }
 %enddef
 
-/* Cursor compare can return any of -1, 0, 1 or WT_NOTFOUND. */
+/* Cursor compare can return any of -1, 0, 1. */
 %define COMPARE_OK(m)
+%exception m {
+	$action
+	if (result < -1 || result > 1)
+		SWIG_ERROR_IF_NOT_SET(result);
+}
+%enddef
+
+/* Cursor compare can return any of -1, 0, 1 or WT_NOTFOUND. */
+%define COMPARE_NOTFOUND_OK(m)
 %exception m {
 	$action
 	if ((result < -1 || result > 1) && result != WT_NOTFOUND)
@@ -377,8 +409,9 @@ NOTFOUND_OK(__wt_cursor::remove)
 NOTFOUND_OK(__wt_cursor::search)
 NOTFOUND_OK(__wt_cursor::update)
 
-COMPARE_OK(__wt_cursor::compare)
-COMPARE_OK(__wt_cursor::search_near)
+COMPARE_OK(__wt_cursor::_compare)
+COMPARE_OK(__wt_cursor::_equals)
+COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 
 /* Lastly, some methods need no (additional) error checking. */
 %exception __wt_connection::get_home;
@@ -412,7 +445,12 @@ COMPARE_OK(__wt_cursor::search_near)
 
 /* Next, override methods that return integers via arguments. */
 %ignore __wt_cursor::compare(WT_CURSOR *, WT_CURSOR *, int *);
+%ignore __wt_cursor::equals(WT_CURSOR *, WT_CURSOR *, int *);
 %ignore __wt_cursor::search_near(WT_CURSOR *, int *);
+
+OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, compare, (self, other))
+OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, equals, (self, other))
+OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
 
 /* SWIG magic to turn Python byte strings into data / size. */
 %apply (char *STRING, int LENGTH) { (char *data, int size) };
@@ -670,8 +708,8 @@ typedef int int_void;
 		return (ret);
 	}
 
-	/* compare and search_near need special handling. */
-	int compare(WT_CURSOR *other) {
+	/* compare: special handling. */
+	int _compare(WT_CURSOR *other) {
 		int cmp = 0;
 		int ret = 0;
 		if (other == NULL) {
@@ -688,21 +726,40 @@ typedef int int_void;
 			 * Map less-than-zero to -1 and greater-than-zero to 1
 			 * to avoid colliding with other errors.
 			 */
-			ret = ((ret != 0) ? ret :
-			    (cmp < 0) ? -1 : (cmp == 0) ? 0 : 1);
+			ret = (ret != 0) ? ret :
+			    ((cmp < 0) ? -1 : (cmp == 0) ? 0 : 1);
 		}
 		return (ret);
 	}
 
-	int search_near() {
+	/* equals: special handling. */
+	int _equals(WT_CURSOR *other) {
+		int cmp = 0;
+		int ret = 0;
+		if (other == NULL) {
+			SWIG_Error(SWIG_NullReferenceError,
+			    "in method 'Cursor_equals', "
+			    "argument 1 of type 'struct __wt_cursor *' "
+			    "is None");
+			ret = EINVAL;  /* any non-zero value will do. */
+		}
+		else {
+			ret = $self->equals($self, other, &cmp);
+                        if (ret == 0)
+                                ret = cmp;
+		}
+		return (ret);
+	}
+
+	/* search_near: special handling. */
+	int _search_near() {
 		int cmp = 0;
 		int ret = $self->search_near($self, &cmp);
 		/*
 		 * Map less-than-zero to -1 and greater-than-zero to 1 to avoid
-		 * colliding with WT_NOTFOUND.
+		 * colliding with other errors.
 		 */
-		return ((ret != 0) ? ret :
-		    (cmp < 0) ? -1 : (cmp == 0) ? 0 : 1);
+		return ((ret != 0) ? ret : (cmp < 0) ? -1 : (cmp == 0) ? 0 : 1);
 	}
 
 	int _freecb() {
@@ -795,7 +852,7 @@ typedef int int_void;
 };
 
 %extend __wt_session {
-	int log_printf(const char *msg) {
+	int _log_printf(const char *msg) {
 		return self->log_printf(self, "%s", msg);
 	}
 
@@ -858,6 +915,8 @@ int verbose_build();
 %ignore __wt_connection::add_extractor;
 %ignore __wt_connection::get_extension_api;
 %ignore __wt_session::log_printf;
+
+OVERRIDE_METHOD(__wt_session, WT_SESSION, log_printf, (self, msg))
 
 %ignore wiredtiger_struct_pack;
 %ignore wiredtiger_struct_size;

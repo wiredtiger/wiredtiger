@@ -1,4 +1,5 @@
 /*-
+ * Copyright (c) 2014-2015 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -142,7 +143,7 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 			/* Avoid a data copy in WT_CURSOR.update. */
 			cbt->modify_update = upd;
 		} else
-			upd_size = sizeof(WT_UPDATE) + upd->size;
+			upd_size = __wt_update_list_memsize(upd);
 		ins->upd = upd;
 		ins_size += upd_size;
 

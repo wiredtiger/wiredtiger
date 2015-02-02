@@ -1,4 +1,5 @@
 /*-
+ * Copyright (c) 2014-2015 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -20,11 +21,14 @@ static void __evict_excl_clear(WT_SESSION_IMPL *);
 int
 __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, int exclusive)
 {
+	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_PAGE *page;
 	WT_PAGE_MODIFY *mod;
 	WT_TXN_STATE *txn_state;
 	int forced_eviction, inmem_split, istree;
+
+	conn = S2C(session);
 
 	page = ref->page;
 	forced_eviction = (page->read_gen == WT_READGEN_OLDEST);
@@ -39,7 +43,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, int exclusive)
 	 */
 	txn_state = WT_SESSION_TXN_STATE(session);
 	if (txn_state->snap_min == WT_TXN_NONE)
-		txn_state->snap_min = S2C(session)->txn_global.oldest_id;
+		txn_state->snap_min = conn->txn_global.oldest_id;
 	else
 		txn_state = NULL;
 
@@ -73,6 +77,14 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, int exclusive)
 		WT_STAT_FAST_CONN_INCR(session, cache_eviction_internal);
 		WT_STAT_FAST_DATA_INCR(session, cache_eviction_internal);
 	}
+
+	/*
+	 * Track the largest page size seen at eviction, it tells us something
+	 * about our ability to force pages out before they're larger than the
+	 * cache.
+	 */
+	if (page->memory_footprint > conn->cache->evict_max_page_size)
+		conn->cache->evict_max_page_size = page->memory_footprint;
 
 	/* Discard any subtree rooted in this page. */
 	if (istree)
@@ -118,8 +130,8 @@ done:	session->excl_next = 0;
 		txn_state->snap_min = WT_TXN_NONE;
 
 	if ((inmem_split || (forced_eviction && ret == EBUSY)) &&
-	    !F_ISSET(S2C(session)->cache, WT_EVICT_WOULD_BLOCK)) {
-		F_SET(S2C(session)->cache, WT_EVICT_WOULD_BLOCK);
+	    !F_ISSET(conn->cache, WT_EVICT_WOULD_BLOCK)) {
+		F_SET(conn->cache, WT_EVICT_WOULD_BLOCK);
 		WT_TRET(__wt_evict_server_wake(session));
 	}
 
@@ -343,6 +355,14 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref,
 	 * pages after we've written them.
 	 */
 	if (WT_PAGE_IS_INTERNAL(page)) {
+		/*
+		 * Quit if we're trying to push out a "tree", an internal page
+		 * with live internal pages as children, it's not likely to
+		 * succeed.
+		 */
+		if (!top && !exclusive)
+			return (EBUSY);
+
 		WT_WITH_PAGE_INDEX(session, ret = __evict_review_subtree(
 		    session, ref, exclusive, inmem_splitp, istreep));
 		WT_RET(ret);
@@ -393,12 +413,11 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref,
 	 * Check for an append-only workload needing an in-memory split.
 	 *
 	 * We can't do this earlier because in-memory splits require exclusive
-	 * access.  If an in-memory split completes, the page stays in memory
-	 * and the tree is left in the desired state: avoid the usual cleanup.
+	 * access, and we can't split if a checkpoint is in progress because
+	 * the checkpoint could be walking the parent page.
 	 *
-	 * Attempt the split before checking whether a checkpoint is running -
-	 * that's not a problem here because we aren't evicting any dirty
-	 * pages.
+	 * If an in-memory split completes, the page stays in memory and the
+	 * tree is left in the desired state: avoid the usual cleanup.
 	 */
 	if (top && !exclusive) {
 		WT_RET(__wt_split_insert(session, ref, inmem_splitp));
