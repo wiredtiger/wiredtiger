@@ -994,7 +994,16 @@ __clsm_reset(WT_CURSOR *cursor)
 	CURSOR_API_CALL(cursor, session, reset, NULL);
 	F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
-	WT_TRET(__clsm_reset_cursors(clsm, NULL));
+	/*
+	 * If the cursor was opened for reads, close everything: if the cursor
+	 * is cached after the reset, we don't want to block chunks from being
+	 * dropped.
+	 */
+	if (1 || F_ISSET(clsm, WT_CLSM_OPEN_READ)) {
+		WT_TRET(__clsm_close_cursors(clsm, 0, clsm->nchunks));
+		clsm->dsk_gen = 0;
+	} else
+		WT_TRET(__clsm_reset_cursors(clsm, NULL));
 
 	/* In case we were left positioned, clear that. */
 	WT_TRET(__clsm_leave(clsm));
