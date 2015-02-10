@@ -38,7 +38,7 @@ struct __wt_cursor_lsm {
 	WT_CURSOR iface;
 
 	WT_LSM_TREE *lsm_tree;
-	uint64_t dsk_gen;
+	uint64_t dsk_gen, old_dsk_gen;
 
 	u_int nchunks;			/* Number of chunks in the cursor */
 	u_int nupdates;			/* Updates needed (including
