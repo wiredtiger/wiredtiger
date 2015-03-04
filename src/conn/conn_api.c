@@ -117,7 +117,7 @@ __conn_get_extension_api(WT_CONNECTION *wt_conn)
 	conn->extension_api.conn = wt_conn;
 	conn->extension_api.err_printf = __wt_ext_err_printf;
 	conn->extension_api.msg_printf = __wt_ext_msg_printf;
-	conn->extension_api.strerror = wiredtiger_strerror;
+	conn->extension_api.strerror = __wt_ext_strerror;
 	conn->extension_api.scr_alloc = __wt_ext_scr_alloc;
 	conn->extension_api.scr_free = __wt_ext_scr_free;
 	conn->extension_api.collator_config = ext_collator_config;
@@ -762,8 +762,7 @@ __conn_reconfigure(WT_CONNECTION *wt_conn, const char *config)
 
 	WT_ERR(__conn_statistics_config(session, config_cfg));
 	WT_ERR(__wt_async_reconfig(session, config_cfg));
-	WT_ERR(__wt_cache_config(session, config_cfg));
-	WT_ERR(__wt_cache_pool_config(session, config_cfg));
+	WT_ERR(__wt_cache_config(session, 1, config_cfg));
 	WT_ERR(__wt_checkpoint_server_create(session, config_cfg));
 	WT_ERR(__wt_lsm_manager_reconfig(session, config_cfg));
 	WT_ERR(__wt_statlog_create(session, config_cfg));

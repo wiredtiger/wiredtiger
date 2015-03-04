@@ -13,14 +13,14 @@
  *	Move to the next/previous page in the tree.
  */
 int
-__wt_tree_walk(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags)
+__wt_tree_walk(WT_SESSION_IMPL *session,
+    WT_REF **refp, uint64_t *walkcntp, uint32_t flags)
 {
 	WT_BTREE *btree;
 	WT_DECL_RET;
 	WT_PAGE *page;
 	WT_PAGE_INDEX *pindex;
 	WT_REF *couple, *ref;
-	WT_TXN_STATE *txn_state;
 	int descending, prev, skip;
 	uint32_t slot;
 
@@ -42,16 +42,6 @@ __wt_tree_walk(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags)
 		LF_CLR(WT_READ_TRUNCATE);
 
 	prev = LF_ISSET(WT_READ_PREV) ? 1 : 0;
-
-	/*
-	 * Pin a transaction ID, required to safely look at page index
-	 * structures, if our caller has not already done so.
-	 */
-	txn_state = WT_SESSION_TXN_STATE(session);
-	if (txn_state->snap_min == WT_TXN_NONE)
-		txn_state->snap_min = S2C(session)->txn_global.last_running;
-	else
-		txn_state = NULL;
 
 	/*
 	 * There are multiple reasons and approaches to walking the in-memory
@@ -95,11 +85,8 @@ __wt_tree_walk(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags)
 	/* If no page is active, begin a walk from the start of the tree. */
 	if (ref == NULL) {
 		ref = &btree->root;
-		if (ref->page == NULL) {
-			if (txn_state != NULL)
-				txn_state->snap_min = WT_TXN_NONE;
+		if (ref->page == NULL)
 			goto done;
-		}
 		goto descend;
 	}
 
@@ -128,12 +115,8 @@ restart:	/*
 		 */
 		ref = couple;
 		if (ref == &btree->root) {
-			ref = &btree->root;
-			if (ref->page == NULL) {
-				if (txn_state != NULL)
-					txn_state->snap_min = WT_TXN_NONE;
+			if (ref->page == NULL)
 				goto done;
-			}
 			goto descend;
 		}
 		__wt_page_refp(session, ref, &pindex, &slot);
@@ -195,6 +178,9 @@ restart:	/*
 		else
 			++slot;
 
+		if (walkcntp != NULL)
+			++*walkcntp;
+
 		for (descending = 0;;) {
 			ref = pindex->index[slot];
 
@@ -211,7 +197,8 @@ restart:	/*
 				 * Avoid pulling a deleted page back in to try
 				 * to delete it again.
 				 */
-				if (__wt_delete_page_skip(session, ref))
+				if (ref->state == WT_REF_DELETED &&
+				    __wt_delete_page_skip(session, ref))
 					break;
 				/*
 				 * If deleting a range, try to delete the page
@@ -245,10 +232,10 @@ restart:	/*
 				}
 			} else {
 				/*
-				 * If iterating a cursor, try to skip deleted
-				 * pages that are visible to us.
+				 * Try to skip deleted pages visible to us.
 				 */
-				if (__wt_delete_page_skip(session, ref))
+				if (ref->state == WT_REF_DELETED &&
+				    __wt_delete_page_skip(session, ref))
 					break;
 			}
 
@@ -262,9 +249,8 @@ restart:	/*
 			WT_ERR(ret);
 
 			/*
-			 * Entering a new page: configure for traversal of any
-			 * internal page's children, else return (or optionally
-			 * skip), the leaf page.
+			 * A new page: configure for traversal of any internal
+			 * page's children, else return the leaf page.
 			 */
 descend:		couple = ref;
 			page = ref->page;
@@ -273,9 +259,7 @@ descend:		couple = ref;
 				pindex = WT_INTL_INDEX_COPY(page);
 				slot = prev ? pindex->entries - 1 : 0;
 				descending = 1;
-			} else if (LF_ISSET(WT_READ_SKIP_LEAF))
-				goto ascend;
-			else {
+			} else {
 				*refp = ref;
 				goto done;
 			}
@@ -283,9 +267,6 @@ descend:		couple = ref;
 	}
 
 done:
-err:	if (txn_state != NULL)
-		txn_state->snap_min = WT_TXN_NONE;
-
-	WT_LEAVE_PAGE_INDEX(session);
+err:	WT_LEAVE_PAGE_INDEX(session);
 	return (ret);
 }

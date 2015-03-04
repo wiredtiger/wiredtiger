@@ -25,6 +25,7 @@ __sync_file(WT_SESSION_IMPL *session, int syncop)
 	uint64_t internal_bytes, leaf_bytes;
 	uint64_t internal_pages, leaf_pages;
 	uint32_t flags;
+	int evict_reset;
 
 	btree = S2BT(session);
 
@@ -56,13 +57,19 @@ __sync_file(WT_SESSION_IMPL *session, int syncop)
 
 		flags |= WT_READ_NO_WAIT | WT_READ_SKIP_INTL;
 		for (walk = NULL;;) {
-			WT_ERR(__wt_tree_walk(session, &walk, flags));
+			WT_ERR(__wt_tree_walk(session, &walk, NULL, flags));
 			if (walk == NULL)
 				break;
 
-			/* Write dirty pages if nobody beat us to it. */
+			/*
+			 * Write dirty pages if nobody beat us to it.  Don't
+			 * try to write the hottest pages: checkpoint will have
+			 * to visit them anyway.
+			 */
 			page = walk->page;
-			if (__wt_page_is_modified(page)) {
+			if (__wt_page_is_modified(page) &&
+			    __wt_txn_visible_all(
+			    session, page->modify->update_txn)) {
 				if (txn->isolation == TXN_ISO_READ_COMMITTED)
 					__wt_txn_refresh(session, 1);
 				leaf_bytes += page->memory_footprint;
@@ -93,16 +100,16 @@ __sync_file(WT_SESSION_IMPL *session, int syncop)
 		 * eviction to complete.
 		 */
 		btree->checkpointing = 1;
+		WT_FULL_BARRIER();
 
-		if (!F_ISSET(btree, WT_BTREE_NO_EVICTION)) {
-			WT_ERR(__wt_evict_file_exclusive_on(session));
+		WT_ERR(__wt_evict_file_exclusive_on(session, &evict_reset));
+		if (evict_reset)
 			__wt_evict_file_exclusive_off(session);
-		}
 
 		/* Write all dirty in-cache pages. */
 		flags |= WT_READ_NO_EVICT;
 		for (walk = NULL;;) {
-			WT_ERR(__wt_tree_walk(session, &walk, flags));
+			WT_ERR(__wt_tree_walk(session, &walk, NULL, flags));
 			if (walk == NULL)
 				break;
 
@@ -137,7 +144,6 @@ __sync_file(WT_SESSION_IMPL *session, int syncop)
 			}
 		}
 		break;
-	WT_ILLEGAL_VALUE_ERR(session);
 	}
 
 	if (WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT)) {
@@ -168,6 +174,12 @@ err:	/* On error, clear any left-over tree walk. */
 		 */
 		btree->checkpointing = 0;
 		WT_FULL_BARRIER();
+
+		/*
+		 * If this tree was being skipped by the eviction server during
+		 * the checkpoint, clear the wait.
+		 */
+		btree->evict_walk_period = 0;
 
 		/*
 		 * Wake the eviction server, in case application threads have
