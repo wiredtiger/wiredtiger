@@ -533,10 +533,10 @@ __wt_curstat_open(WT_SESSION_IMPL *session,
 		;
 	WT_ERR(__wt_calloc_def(session, i + 1, &cst->cfg));
 	for (i = 0; cfg[i] != NULL; ++i)
-		WT_ERR(__wt_strdup(session, cfg[i], &cst->cfg[0]));
+		WT_ERR(__wt_strdup(session, cfg[i], &cst->cfg[i]));
 
 	/*
-	 * The cursor isn't yet initialized or positioned; then, initialize it.
+	 * The cursor isn't yet initialized or positioned, initialize it now.
 	 */
 	cst->notinitialized = cst->notpositioned = 1;
 	WT_ERR(__wt_curstat_init(session, uri, cst->cfg, cst));
