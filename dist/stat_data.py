@@ -491,6 +491,8 @@ dsrc_stats = [
     # Transaction statistics
     ##########################################
     TxnStat('txn_update_conflict', 'update conflicts'),
+
+    TxnStat('txn_dummy_stat', 'dummy statistic not to be merged'),
 ]
 
 dsrc_stats = sorted(dsrc_stats, key=attrgetter('name'))
