@@ -3657,8 +3657,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_SESSION_COMPACT			2087
 /*! session: open cursor count */
 #define	WT_STAT_DSRC_SESSION_CURSOR_OPEN		2088
+/*! transaction: dummy statistic not to be merged */
+#define	WT_STAT_DSRC_TXN_DUMMY_STAT			2089
 /*! transaction: update conflicts */
-#define	WT_STAT_DSRC_TXN_UPDATE_CONFLICT		2089
+#define	WT_STAT_DSRC_TXN_UPDATE_CONFLICT		2090
 /*! @} */
 /*
  * Statistics section: END
