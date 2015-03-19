@@ -368,6 +368,7 @@ struct __wt_dsrc_stats {
 	WT_STATS rec_suffix_compression;
 	WT_STATS session_compact;
 	WT_STATS session_cursor_open;
+	WT_STATS txn_dummy_stat;
 	WT_STATS txn_update_conflict;
 };
 

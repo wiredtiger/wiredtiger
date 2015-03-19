@@ -136,6 +136,8 @@ __wt_stat_init_dsrc_stats(WT_DSRC_STATS *stats)
 	stats->rec_page_delete.desc = "reconciliation: pages deleted";
 	stats->session_compact.desc = "session: object compaction";
 	stats->session_cursor_open.desc = "session: open cursor count";
+	stats->txn_dummy_stat.desc =
+	    "transaction: dummy statistic not to be merged";
 	stats->txn_update_conflict.desc = "transaction: update conflicts";
 }
 
@@ -232,6 +234,7 @@ __wt_stat_refresh_dsrc_stats(void *stats_arg)
 	stats->rec_pages_eviction.v = 0;
 	stats->rec_page_delete.v = 0;
 	stats->session_compact.v = 0;
+	stats->txn_dummy_stat.v = 0;
 	stats->txn_update_conflict.v = 0;
 }
 
@@ -323,6 +326,7 @@ __wt_stat_aggregate_dsrc_stats(const void *child, const void *parent)
 	p->rec_page_delete.v += c->rec_page_delete.v;
 	p->session_compact.v += c->session_compact.v;
 	p->session_cursor_open.v += c->session_cursor_open.v;
+	p->txn_dummy_stat.v += c->txn_dummy_stat.v;
 	p->txn_update_conflict.v += c->txn_update_conflict.v;
 }
 
