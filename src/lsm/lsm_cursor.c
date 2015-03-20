@@ -233,7 +233,22 @@ __clsm_enter(WT_CURSOR_LSM *clsm, int reset, int update)
 		    (!update && F_ISSET(clsm, WT_CLSM_OPEN_READ))))
 			break;
 
-open:		WT_WITH_SCHEMA_LOCK(session,
+open:		/*
+		 * Fast-path the case where we reset, closed cursors, then
+		 * reopen and the tree hasn't changed.
+		 */
+		if (clsm->old_dsk_gen == lsm_tree->dsk_gen &&
+		    !F_ISSET(clsm, WT_CLSM_OPEN_READ) && update &&
+		    clsm->nupdates == 1 && clsm->primary_chunk != NULL) {
+			WT_RET(__wt_open_cursor(session,
+			    clsm->primary_chunk->uri, &clsm->iface, NULL,
+			    &clsm->cursors[clsm->nchunks - 1]));
+			clsm->dsk_gen = clsm->old_dsk_gen;
+			clsm->old_dsk_gen = 0;
+			continue;
+		}
+
+		WT_WITH_SCHEMA_LOCK(session,
 		    ret = __clsm_open_cursors(clsm, update, 0, 0));
 		WT_RET(ret);
 	}
@@ -994,7 +1009,14 @@ __clsm_reset(WT_CURSOR *cursor)
 	CURSOR_API_CALL(cursor, session, reset, NULL);
 	F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
-	WT_TRET(__clsm_reset_cursors(clsm, NULL));
+	/*
+	 * If the cursor was opened for reads, close everything: if the cursor
+	 * is cached after the reset, we don't want to block chunks from being
+	 * dropped.
+	 */
+	WT_TRET(__clsm_close_cursors(clsm, 0, clsm->nchunks));
+	clsm->old_dsk_gen = clsm->dsk_gen;
+	clsm->dsk_gen = 0;
 
 	/* In case we were left positioned, clear that. */
 	__clsm_leave(clsm);
