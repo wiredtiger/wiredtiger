@@ -309,8 +309,10 @@ __wt_turtle_update(
 
 	WT_ERR(__wt_write(session, fh, 0, buf->size, buf->data));
 
-	if (F_ISSET(S2C(session), WT_CONN_CKPT_SYNC))
-		WT_ERR(__wt_fsync(session, fh));
+	/*
+	 * Flush to disk, ensure we don't have a zero-length file after rename.
+	 */
+	WT_ERR(__wt_fsync(session, fh));
 
 	ret = __wt_close(session, fh);
 	fh = NULL;
@@ -319,8 +321,11 @@ __wt_turtle_update(
 	WT_ERR(
 	    __wt_rename(session, WT_METADATA_TURTLE_SET, WT_METADATA_TURTLE));
 
-	if (F_ISSET(S2C(session), WT_CONN_CKPT_SYNC))
-		WT_ERR(__wt_directory_sync(session, NULL));
+	/*
+	 * Flush the enclosing directory, ensure we have the right file after
+	 * the rename.
+	 */
+	WT_ERR(__wt_directory_sync(session, NULL));
 
 	if (0) {
 err:		WT_TRET(__wt_remove(session, WT_METADATA_TURTLE_SET));
