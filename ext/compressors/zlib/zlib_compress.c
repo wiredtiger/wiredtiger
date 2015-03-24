@@ -234,7 +234,7 @@ zlib_compress_raw(WT_COMPRESSOR *compressor, WT_SESSION *session,
 {
 	ZLIB_COMPRESSOR *zlib_compressor;
 	ZLIB_OPAQUE opaque;
-	z_stream last_zs, zs;
+	z_stream zs;
 	uint32_t curr_slot, last_slot;
 	int ret;
 
@@ -252,8 +252,7 @@ zlib_compress_raw(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	opaque.session = session;
 	zs.opaque = &opaque;
 
-	if ((ret = deflateInit(&zs,
-	    zlib_compressor->zlib_level)) != Z_OK)
+	if ((ret = deflateInit(&zs, zlib_compressor->zlib_level)) != Z_OK)
 		return (zlib_error(compressor, session, "deflateInit", ret));
 
 	zs.next_in = src;
@@ -264,8 +263,7 @@ zlib_compress_raw(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	 * inefficient.
 	 */
 #define	WT_ZLIB_RESERVED	24
-	zs.avail_out = (uint32_t)(page_max - extra - WT_ZLIB_RESERVED);
-	last_zs = zs;
+	zs.avail_out = (uint32_t)(page_max - (extra + WT_ZLIB_RESERVED));
 
 	/*
 	 * Strategy: take the available output size and compress that much
@@ -286,20 +284,35 @@ zlib_compress_raw(WT_COMPRESSOR *compressor, WT_SESSION *session,
 			break;
 
 		zs.avail_in = offsets[curr_slot] - offsets[last_slot];
-		/* Save the stream state in case the chosen data doesn't fit. */
-		last_zs = zs;
-
 		while (zs.avail_in > 0 && zs.avail_out > 0)
 			if ((ret = deflate(&zs, Z_SYNC_FLUSH)) != Z_OK)
 				return (zlib_error(
 				    compressor, session, "deflate", ret));
 
 		/* Roll back if the last deflate didn't complete. */
-		if (zs.avail_in > 0) {
-			zs = last_zs;
-			break;
-		} else
-			last_slot = curr_slot;
+		if (zs.avail_in > 0)
+			goto rollback;
+
+		last_slot = curr_slot;
+	}
+
+	if (0) {
+		/*
+		 * Repeat the last successful compression.
+		 */
+rollback:	if ((ret = deflateReset(&zs)) != Z_OK)
+			return (zlib_error(
+			    compressor, session, "deflateReset", ret));
+
+		zs.next_in = src;
+		zs.next_out = dst;
+		zs.avail_in = offsets[last_slot];
+		zs.avail_out =
+		    (uint32_t)(page_max - (extra + WT_ZLIB_RESERVED));
+		while (zs.avail_in > 0 && zs.avail_out > 0)
+			if ((ret = deflate(&zs, Z_SYNC_FLUSH)) != Z_OK)
+				return (zlib_error(
+				    compressor, session, "deflate", ret));
 	}
 
 	zs.avail_out += WT_ZLIB_RESERVED;

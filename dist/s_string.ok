@@ -544,6 +544,7 @@ decrement
 decrementing
 deflateEnd
 deflateInit
+deflateReset
 defno
 del
 delfmt
