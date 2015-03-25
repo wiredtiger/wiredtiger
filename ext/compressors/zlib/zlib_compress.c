@@ -143,7 +143,7 @@ zlib_compress(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	zs.avail_out = (uint32_t)dst_len;
 	if (deflate(&zs, Z_FINISH) == Z_STREAM_END) {
 		*compression_failed = 0;
-		*result_lenp = zs.total_out;
+		*result_lenp = (size_t)zs.total_out;
 	} else
 		*compression_failed = 1;
 
@@ -158,7 +158,7 @@ zlib_compress(WT_COMPRESSOR *compressor, WT_SESSION *session,
  *	Find the slot containing the target offset (binary search).
  */
 static inline uint32_t
-zlib_find_slot(uint32_t target, uint32_t *offsets, uint32_t slots)
+zlib_find_slot(u_long target, uint32_t *offsets, uint32_t slots)
 {
 	uint32_t base, indx, limit;
 
@@ -210,7 +210,7 @@ zlib_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	while ((ret = inflate(&zs, Z_FINISH)) == Z_OK)
 		;
 	if (ret == Z_STREAM_END) {
-		*result_lenp = zs.total_out;
+		*result_lenp = (size_t)zs.total_out;
 		ret = Z_OK;
 	}
 
@@ -334,7 +334,7 @@ rollback:	if ((ret = deflateReset(&zs)) != Z_OK)
 
 	if (last_slot > 0) {
 		*result_slotsp = last_slot;
-		*result_lenp = zs.total_out;
+		*result_lenp = (size_t)zs.total_out;
 	} else {
 		/* We didn't manage to compress anything: don't retry. */
 		*result_slotsp = 0;
