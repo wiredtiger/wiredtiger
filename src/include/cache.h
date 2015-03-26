@@ -65,6 +65,17 @@ struct __wt_cache {
 	uint64_t   read_gen;		/* Page read generation (LRU) */
 
 	/*
+	 * Configuration
+	 */
+	u_int evict_dirty_target;	/* Percent to allow dirty */
+	u_int evict_target;		/* Percent to end eviction */
+	u_int evict_trigger;		/* Percent to trigger eviction */
+	u_int evict_walk_base;		/* Pages tracked across file visits */
+	u_int evict_walk_base_incr;	/* Pages added each walk */
+	u_int evict_walk_queue_per_file;/* Pages to queue per file visit */
+	u_int evict_walk_visit_per_file;/* Max pages to visit per file */
+
+	/*
 	 * Eviction thread information.
 	 */
 	WT_CONDVAR *evict_cond;		/* Eviction server condition */
@@ -72,14 +83,6 @@ struct __wt_cache {
 	WT_SPINLOCK evict_walk_lock;	/* Eviction walk location */
 	/* Condition signalled when the eviction server populates the queue */
 	WT_CONDVAR *evict_waiter_cond;
-
-	u_int evict_walk_base;		/* Pages tracked across file visits */
-	u_int evict_walk_base_incr;	/* Pages added each walk */
-	u_int evict_walk_queue_per_file;/* Pages to queue per file visit */
-	u_int evict_walk_visit_per_file;/* Max pages to visit per file */
-	u_int eviction_dirty_target;    /* Percent to allow dirty */
-	u_int eviction_target;		/* Percent to end eviction */
-	u_int eviction_trigger;		/* Percent to trigger eviction */
 
 	u_int overhead_pct;	        /* Cache percent adjustment */
 

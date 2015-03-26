@@ -445,10 +445,9 @@ __evict_has_work(WT_SESSION_IMPL *session, uint32_t *flagsp)
 	bytes_max = conn->cache_size;
 
 	/* Check to see if the eviction server should run. */
-	if (bytes_inuse > (cache->eviction_target * bytes_max) / 100)
+	if (bytes_inuse > (cache->evict_target * bytes_max) / 100)
 		LF_SET(WT_EVICT_PASS_ALL);
-	else if (dirty_inuse >
-	    (cache->eviction_dirty_target * bytes_max) / 100)
+	else if (dirty_inuse > (cache->evict_dirty_target * bytes_max) / 100)
 		/* Ignore clean pages unless the cache is too large */
 		LF_SET(WT_EVICT_PASS_DIRTY);
 	else if (F_ISSET(cache, WT_CACHE_WOULD_BLOCK)) {

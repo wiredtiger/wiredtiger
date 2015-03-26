@@ -46,19 +46,19 @@ __cache_config_local(WT_SESSION_IMPL *session, int shared, const char *cfg[])
 	if (cval.val == 0)
 		WT_RET(__wt_config_gets(
 		    session, cfg, "eviction.target", &cval));
-	cache->eviction_target = (u_int)cval.val;
+	cache->evict_target = (u_int)cval.val;
 
 	WT_RET(__wt_config_gets(session, cfg, "eviction_trigger", &cval));
 	if (cval.val == 0)
 		WT_RET(__wt_config_gets(
 		    session, cfg, "eviction.trigger", &cval));
-	cache->eviction_trigger = (u_int)cval.val;
+	cache->evict_trigger = (u_int)cval.val;
 
 	WT_RET(__wt_config_gets(session, cfg, "eviction_dirty_target", &cval));
 	if (cval.val == 0)
 		WT_RET(__wt_config_gets(
 		    session, cfg, "eviction.dirty_target", &cval));
-	cache->eviction_dirty_target = (u_int)cval.val;
+	cache->evict_dirty_target = (u_int)cval.val;
 
 	WT_RET(__wt_config_gets(session, cfg, "eviction.threads_max", &cval));
 	evict_workers_max = (uint32_t)cval.val - 1;
@@ -163,7 +163,7 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
 	 * The target size must be lower than the trigger size or we will never
 	 * get any work done.
 	 */
-	if (cache->eviction_target >= cache->eviction_trigger)
+	if (cache->evict_target >= cache->evict_trigger)
 		WT_ERR_MSG(session, EINVAL,
 		    "eviction target must be lower than the eviction trigger");
 
