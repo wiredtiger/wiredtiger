@@ -1124,14 +1124,16 @@ __evict_walk_file(WT_SESSION_IMPL *session, u_int *slotp, uint32_t flags)
 	WT_REF *ref;
 	uint64_t pages_walked;
 	uint32_t walk_flags;
-	int enough, internal_pages, modified, restarts;
+	u_int internal_pages;
+	int enough, modified, restarts;
 
 	btree = S2BT(session);
 	cache = S2C(session)->cache;
 	start = cache->evict + *slotp;
 	end = WT_MIN(start + cache->evict_walk_queue_per_file,
 	    cache->evict + cache->evict_slots);
-	enough = internal_pages = restarts = 0;
+	internal_pages = 0;
+	enough = restarts = 0;
 
 	walk_flags = WT_READ_CACHE | WT_READ_NO_EVICT |
 	    WT_READ_NO_GEN | WT_READ_NO_WAIT;
