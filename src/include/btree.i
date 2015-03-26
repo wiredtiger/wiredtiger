@@ -265,7 +265,7 @@ __wt_update_list_memsize(WT_UPDATE *upd)
 static inline void
 __wt_page_evict_soon(WT_PAGE *page)
 {
-	page->read_gen = WT_READGEN_OLDEST;
+	page->read_gen = WT_READGEN_EVICT_NOW;
 }
 
 /*
@@ -1016,7 +1016,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_PAGE *page, int check_splits)
 	 * internal page acquires hazard pointers on child pages it reads, and
 	 * is blocked by the exclusive lock.
 	 */
-	if (page->read_gen != WT_READGEN_OLDEST &&
+	if (page->read_gen != WT_READGEN_EVICT_NOW &&
 	    !__wt_txn_visible_all(session, __wt_page_is_modified(page) ?
 	    mod->update_txn : mod->rec_max_txn))
 		return (0);
@@ -1112,7 +1112,7 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	 * it contains an update that isn't stable.  Also skip forced eviction
 	 * if we just did an in-memory split.
 	 */
-	if (page->read_gen != WT_READGEN_OLDEST ||
+	if (page->read_gen != WT_READGEN_EVICT_NOW ||
 	    LF_ISSET(WT_READ_NO_EVICT) ||
 	    F_ISSET(btree, WT_BTREE_NO_EVICTION) ||
 	    !__wt_page_can_evict(session, page, 1))

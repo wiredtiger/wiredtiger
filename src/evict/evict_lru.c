@@ -37,7 +37,7 @@ __evict_read_gen(const WT_EVICT_ENTRY *entry)
 
 	/* Any empty page (leaf or internal), is a good choice. */
 	if (__wt_page_is_empty(page))
-		return (WT_READGEN_OLDEST);
+		return (WT_READGEN_EVICT_NOW);
 
 	/*
 	 * Skew the read generation for internal pages, we prefer to evict leaf
@@ -1190,7 +1190,7 @@ __evict_walk_file(WT_SESSION_IMPL *session, u_int *slotp, uint32_t flags)
 		 * eviction, skip anything that isn't marked.
 		 */
 		if (LF_ISSET(WT_EVICT_PASS_WOULD_BLOCK) &&
-		    page->read_gen != WT_READGEN_OLDEST)
+		    page->read_gen != WT_READGEN_EVICT_NOW)
 			continue;
 
 		/* Limit internal pages to 50% unless we get aggressive. */
@@ -1263,7 +1263,7 @@ fast:		/* If the page can't be evicted, give up. */
 	 * as quickly as possible.
 	 */
 	if ((ref = btree->evict_ref) != NULL && (__wt_ref_is_root(ref) ||
-	    ref->page->read_gen == WT_READGEN_OLDEST)) {
+	    ref->page->read_gen == WT_READGEN_EVICT_NOW)) {
 		btree->evict_ref = NULL;
 		__wt_page_release(session, ref, 0);
 	}
@@ -1401,7 +1401,7 @@ __wt_evict_lru_page(WT_SESSION_IMPL *session, int is_server)
 	 * look at it.
 	 */
 	page = ref->page;
-	if (page->read_gen != WT_READGEN_OLDEST)
+	if (page->read_gen != WT_READGEN_EVICT_NOW)
 		page->read_gen = __wt_cache_read_gen_set(session);
 
 	WT_WITH_BTREE(session, btree, ret = __wt_evict_page(session, ref));
