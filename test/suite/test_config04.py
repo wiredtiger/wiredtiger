@@ -138,17 +138,17 @@ class test_config04(wttest.WiredTigerTestCase):
     # Test a variety of eviction configurations, mixing old and new syntax.
     def test_eviction(self):
         self.common_test('eviction=(target=84,trigger=94)')
-	self.close_conn()
+        self.close_conn()
         self.common_test('eviction=(target=84),eviction_trigger=94')
-	self.close_conn()
+        self.close_conn()
         self.common_test('eviction_target=84,eviction=(trigger=94)')
-	self.close_conn()
+        self.close_conn()
         self.common_test('eviction_target=84,eviction_trigger=94')
-	self.close_conn()
+        self.close_conn()
 
     # Test a variety of eviction configurations, mixing old and new syntax.
     def test_eviction_bad(self):
-	msg = "/eviction target must be lower than the eviction trigger/"
+        msg = "/eviction target must be lower than the eviction trigger/"
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
             wiredtiger.wiredtiger_open('.',
                 'create,eviction_target=91,eviction_trigger=81'), msg)
@@ -162,7 +162,7 @@ class test_config04(wttest.WiredTigerTestCase):
             wiredtiger.wiredtiger_open('.',
                 'create,eviction=(target=91,trigger=81)'), msg)
 
-	# Test with equal values.
+        # Test with equal values.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
             wiredtiger.wiredtiger_open('.',
                 'create,eviction_target=86,eviction_trigger=86'), msg)
