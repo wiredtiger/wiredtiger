@@ -36,26 +36,34 @@ __cache_config_local(WT_SESSION_IMPL *session, int shared, const char *cfg[])
 	WT_RET(__wt_config_gets(session, cfg, "cache_overhead", &cval));
 	cache->overhead_pct = (u_int)cval.val;
 
+	/*
+	 * Historically the eviction.{dirty_target,target,trigger} configuration
+	 * values were eviction_{dirty_target,target,trigger}, check for the old
+	 * values before looking for the new values. The old values have illegal
+	 * defaults (of 0) so we can detect if they were actually set or not.
+	 */
 	WT_RET(__wt_config_gets(session, cfg, "eviction_target", &cval));
+	if (cval.val == 0)
+		WT_RET(__wt_config_gets(
+		    session, cfg, "eviction.target", &cval));
 	cache->eviction_target = (u_int)cval.val;
 
 	WT_RET(__wt_config_gets(session, cfg, "eviction_trigger", &cval));
+	if (cval.val == 0)
+		WT_RET(__wt_config_gets(
+		    session, cfg, "eviction.trigger", &cval));
 	cache->eviction_trigger = (u_int)cval.val;
 
 	WT_RET(__wt_config_gets(session, cfg, "eviction_dirty_target", &cval));
+	if (cval.val == 0)
+		WT_RET(__wt_config_gets(
+		    session, cfg, "eviction.dirty_target", &cval));
 	cache->eviction_dirty_target = (u_int)cval.val;
 
-	/*
-	 * The eviction thread configuration options include the main eviction
-	 * thread and workers. Our implementation splits them out. Adjust for
-	 * the difference when parsing the configuration.
-	 */
 	WT_RET(__wt_config_gets(session, cfg, "eviction.threads_max", &cval));
-	WT_ASSERT(session, cval.val > 0);
 	evict_workers_max = (uint32_t)cval.val - 1;
 
 	WT_RET(__wt_config_gets(session, cfg, "eviction.threads_min", &cval));
-	WT_ASSERT(session, cval.val > 0);
 	evict_workers_min = (uint32_t)cval.val - 1;
 
 	if (evict_workers_min > evict_workers_max)
