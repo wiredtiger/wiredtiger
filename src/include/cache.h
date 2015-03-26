@@ -6,17 +6,9 @@
  * See the file LICENSE for redistribution information.
  */
 
-/*
- * Tuning constants: I hesitate to call this tuning, but we want to review some
- * number of pages from each file's in-memory tree for each page we evict.
- */
 #define	WT_EVICT_INT_SKEW  (1<<20)	/* Prefer leaf pages over internal
 					   pages by this many increments of the
 					   read generation. */
-#define	WT_EVICT_WALK_PER_FILE	 10	/* Pages to queue per file */
-#define	WT_EVICT_MAX_PER_FILE	100	/* Max pages to visit per file */
-#define	WT_EVICT_WALK_BASE	300	/* Pages tracked across file visits */
-#define	WT_EVICT_WALK_INCR	100	/* Pages added each walk */
 
 #define	WT_EVICT_PASS_AGGRESSIVE	0x01
 #define	WT_EVICT_PASS_ALL		0x02
@@ -81,9 +73,13 @@ struct __wt_cache {
 	/* Condition signalled when the eviction server populates the queue */
 	WT_CONDVAR *evict_waiter_cond;
 
-	u_int eviction_trigger;		/* Percent to trigger eviction */
-	u_int eviction_target;		/* Percent to end eviction */
+	u_int evict_walk_base;		/* Pages tracked across file visits */
+	u_int evict_walk_base_incr;	/* Pages added each walk */
+	u_int evict_walk_queue_per_file;/* Pages to queue per file visit */
+	u_int evict_walk_visit_per_file;/* Max pages to visit per file */
 	u_int eviction_dirty_target;    /* Percent to allow dirty */
+	u_int eviction_target;		/* Percent to end eviction */
+	u_int eviction_trigger;		/* Percent to trigger eviction */
 
 	u_int overhead_pct;	        /* Cache percent adjustment */
 

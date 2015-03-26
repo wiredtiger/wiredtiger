@@ -1607,6 +1607,18 @@ struct __wt_connection {
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;trigger, trigger eviction when the
 	 * cache is using this much memory\, as a percentage of the total cache
 	 * size., an integer between 10 and 99; default \c 95.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;walk_base, pages retained across
+	 * eviction file visits., an integer greater than or equal to 1; default
+	 * \c 300.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;walk_base_incr, pages added
+	 * in each group of eviction file visits., an integer greater than or
+	 * equal to 1; default \c 100.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;walk_queue_per_file, pages queued for
+	 * eviction from each file per visit., an integer greater than or equal
+	 * to 1; default \c 10.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;walk_visit_per_file, pages from each
+	 * file visited., an integer greater than or equal to 1; default \c
+	 * 100.}
 	 * @config{ ),,}
 	 * @config{file_manager = (, control how file handles are managed., a
 	 * set of related configuration options defined below.}
@@ -1967,6 +1979,18 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;trigger, trigger eviction when the cache is
  * using this much memory\, as a percentage of the total cache size., an integer
  * between 10 and 99; default \c 95.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;walk_base,
+ * pages retained across eviction file visits., an integer greater than or equal
+ * to 1; default \c 300.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;walk_base_incr, pages
+ * added in each group of eviction file visits., an integer greater than or
+ * equal to 1; default \c 100.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;walk_queue_per_file, pages queued for
+ * eviction from each file per visit., an integer greater than or equal to 1;
+ * default \c 10.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;walk_visit_per_file, pages
+ * from each file visited., an integer greater than or equal to 1; default \c
+ * 100.}
  * @config{ ),,}
  * @config{exclusive, fail if the database already exists\, generally used with
  * the \c create option., a boolean flag; default \c false.}

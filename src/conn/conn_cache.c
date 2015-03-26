@@ -73,6 +73,21 @@ __cache_config_local(WT_SESSION_IMPL *session, int shared, const char *cfg[])
 	conn->evict_workers_max = evict_workers_max;
 	conn->evict_workers_min = evict_workers_min;
 
+	WT_RET(__wt_config_gets(session, cfg, "eviction.walk_base", &cval));
+	cache->evict_walk_base = (u_int)cval.val;
+
+	WT_RET(__wt_config_gets(
+	    session, cfg, "eviction.walk_base_incr", &cval));
+	cache->evict_walk_base_incr = (u_int)cval.val;
+
+	WT_RET(__wt_config_gets(
+	    session, cfg, "eviction.walk_queue_per_file", &cval));
+	cache->evict_walk_queue_per_file = (u_int)cval.val;
+
+	WT_RET(__wt_config_gets(
+	    session, cfg, "eviction.walk_visit_per_file", &cval));
+	cache->evict_walk_visit_per_file = (u_int)cval.val;
+
 	return (0);
 }
 
@@ -160,7 +175,8 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_ERR(__wt_spin_init(session, &cache->evict_walk_lock, "cache walk"));
 
 	/* Allocate the LRU eviction queue. */
-	cache->evict_slots = WT_EVICT_WALK_BASE + WT_EVICT_WALK_INCR;
+	cache->evict_slots =
+	    cache->evict_walk_base + cache->evict_walk_base_incr;
 	WT_ERR(__wt_calloc_def(session, cache->evict_slots, &cache->evict));
 
 	/*

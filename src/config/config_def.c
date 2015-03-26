@@ -59,6 +59,10 @@ static const WT_CONFIG_CHECK confchk_eviction_subconfigs[] = {
 	{ "threads_max", "int", NULL, "min=1,max=20", NULL },
 	{ "threads_min", "int", NULL, "min=1,max=20", NULL },
 	{ "trigger", "int", NULL, "min=10,max=99", NULL },
+	{ "walk_base", "int", NULL, "min=1", NULL },
+	{ "walk_base_incr", "int", NULL, "min=1", NULL },
+	{ "walk_queue_per_file", "int", NULL, "min=1", NULL },
+	{ "walk_visit_per_file", "int", NULL, "min=1", NULL },
 	{ NULL, NULL, NULL, NULL, NULL }
 };
 
@@ -664,11 +668,13 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "cache_size=100MB,checkpoint=(log_size=0,"
 	  "name=\"WiredTigerCheckpoint\",wait=0),error_prefix=,"
 	  "eviction=(dirty_target=80,target=80,threads_max=1,threads_min=1,"
-	  "trigger=95),eviction_dirty_target=0,eviction_target=0,"
-	  "eviction_trigger=0,file_manager=(close_idle_time=30,"
-	  "close_scan_interval=10),lsm_manager=(merge=,worker_thread_max=4)"
-	  ",lsm_merge=,shared_cache=(chunk=10MB,name=,reserve=0,size=500MB)"
-	  ",statistics=none,statistics_log=(on_close=0,"
+	  "trigger=95,walk_base=300,walk_base_incr=100,"
+	  "walk_queue_per_file=10,walk_visit_per_file=100),"
+	  "eviction_dirty_target=0,eviction_target=0,eviction_trigger=0,"
+	  "file_manager=(close_idle_time=30,close_scan_interval=10),"
+	  "lsm_manager=(merge=,worker_thread_max=4),lsm_merge=,"
+	  "shared_cache=(chunk=10MB,name=,reserve=0,size=500MB),"
+	  "statistics=none,statistics_log=(on_close=0,"
 	  "path=\"WiredTigerStat.%d.%H\",sources=,"
 	  "timestamp=\"%b %d %H:%M:%S\",wait=0),verbose=",
 	  confchk_connection_reconfigure
@@ -794,8 +800,10 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "name=\"WiredTigerCheckpoint\",wait=0),checkpoint_sync=,"
 	  "config_base=,create=0,direct_io=,error_prefix=,"
 	  "eviction=(dirty_target=80,target=80,threads_max=1,threads_min=1,"
-	  "trigger=95),eviction_dirty_target=0,eviction_target=0,"
-	  "eviction_trigger=0,exclusive=0,extensions=,file_extend=,"
+	  "trigger=95,walk_base=300,walk_base_incr=100,"
+	  "walk_queue_per_file=10,walk_visit_per_file=100),"
+	  "eviction_dirty_target=0,eviction_target=0,eviction_trigger=0,"
+	  "exclusive=0,extensions=,file_extend=,"
 	  "file_manager=(close_idle_time=30,close_scan_interval=10),"
 	  "hazard_max=1000,log=(archive=,compressor=,enabled=0,"
 	  "file_max=100MB,path=,prealloc=,recover=on),lsm_manager=(merge=,"
@@ -814,8 +822,10 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "name=\"WiredTigerCheckpoint\",wait=0),checkpoint_sync=,"
 	  "config_base=,create=0,direct_io=,error_prefix=,"
 	  "eviction=(dirty_target=80,target=80,threads_max=1,threads_min=1,"
-	  "trigger=95),eviction_dirty_target=0,eviction_target=0,"
-	  "eviction_trigger=0,exclusive=0,extensions=,file_extend=,"
+	  "trigger=95,walk_base=300,walk_base_incr=100,"
+	  "walk_queue_per_file=10,walk_visit_per_file=100),"
+	  "eviction_dirty_target=0,eviction_target=0,eviction_trigger=0,"
+	  "exclusive=0,extensions=,file_extend=,"
 	  "file_manager=(close_idle_time=30,close_scan_interval=10),"
 	  "hazard_max=1000,log=(archive=,compressor=,enabled=0,"
 	  "file_max=100MB,path=,prealloc=,recover=on),lsm_manager=(merge=,"
@@ -833,7 +843,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "cache_overhead=8,cache_size=100MB,checkpoint=(log_size=0,"
 	  "name=\"WiredTigerCheckpoint\",wait=0),checkpoint_sync=,"
 	  "direct_io=,error_prefix=,eviction=(dirty_target=80,target=80,"
-	  "threads_max=1,threads_min=1,trigger=95),eviction_dirty_target=0,"
+	  "threads_max=1,threads_min=1,trigger=95,walk_base=300,"
+	  "walk_base_incr=100,walk_queue_per_file=10,"
+	  "walk_visit_per_file=100),eviction_dirty_target=0,"
 	  "eviction_target=0,eviction_trigger=0,extensions=,file_extend=,"
 	  "file_manager=(close_idle_time=30,close_scan_interval=10),"
 	  "hazard_max=1000,log=(archive=,compressor=,enabled=0,"
@@ -852,7 +864,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "cache_overhead=8,cache_size=100MB,checkpoint=(log_size=0,"
 	  "name=\"WiredTigerCheckpoint\",wait=0),checkpoint_sync=,"
 	  "direct_io=,error_prefix=,eviction=(dirty_target=80,target=80,"
-	  "threads_max=1,threads_min=1,trigger=95),eviction_dirty_target=0,"
+	  "threads_max=1,threads_min=1,trigger=95,walk_base=300,"
+	  "walk_base_incr=100,walk_queue_per_file=10,"
+	  "walk_visit_per_file=100),eviction_dirty_target=0,"
 	  "eviction_target=0,eviction_trigger=0,extensions=,file_extend=,"
 	  "file_manager=(close_idle_time=30,close_scan_interval=10),"
 	  "hazard_max=1000,log=(archive=,compressor=,enabled=0,"

@@ -393,6 +393,18 @@ connection_runtime_config = [
                 trigger eviction when the cache is using this much memory, as a
                 percentage of the total cache size''',
                 min=10, max=99),
+            Config('walk_base', '300', r'''
+                pages retained across eviction file visits''',
+                min=1, undoc=True),
+            Config('walk_base_incr', '100', r'''
+                pages added in each group of eviction file visits''',
+                min=1, undoc=True),
+            Config('walk_queue_per_file', '10', r'''
+                pages queued for eviction from each file per visit''',
+                min=1, undoc=True),
+            Config('walk_visit_per_file', '100', r'''
+                pages from each file visited''',
+                min=1, undoc=True),
             ]),
     Config('file_manager', '', r'''
         control how file handles are managed''',
