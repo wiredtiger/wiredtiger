@@ -60,7 +60,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, int exclusive)
 	conn = S2C(session);
 
 	page = ref->page;
-	forced_eviction = (page->read_gen == WT_READGEN_OLDEST);
+	forced_eviction = page->read_gen == WT_READGEN_EVICT_NOW;
 	inmem_split = 0;
 
 	WT_RET(__wt_verbose(session, WT_VERB_EVICT,
@@ -355,7 +355,7 @@ __evict_review(
 		if (exclusive)
 			LF_SET(WT_SKIP_UPDATE_ERR);
 		else if (!WT_PAGE_IS_INTERNAL(page) &&
-		    page->read_gen == WT_READGEN_OLDEST)
+		    page->read_gen == WT_READGEN_EVICT_NOW)
 			LF_SET(WT_SKIP_UPDATE_RESTORE);
 		WT_RET(__wt_reconcile(session, ref, NULL, flags));
 		WT_ASSERT(session,

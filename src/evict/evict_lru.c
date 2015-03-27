@@ -37,7 +37,7 @@ __evict_read_gen(const WT_EVICT_ENTRY *entry)
 
 	/* Any empty page (leaf or internal), is a good choice. */
 	if (__wt_page_is_empty(page))
-		return (WT_READGEN_OLDEST);
+		return (WT_READGEN_EVICT_NOW);
 
 	/*
 	 * Skew the read generation for internal pages, we prefer to evict leaf
@@ -445,10 +445,9 @@ __evict_has_work(WT_SESSION_IMPL *session, uint32_t *flagsp)
 	bytes_max = conn->cache_size;
 
 	/* Check to see if the eviction server should run. */
-	if (bytes_inuse > (cache->eviction_target * bytes_max) / 100)
+	if (bytes_inuse > (cache->evict_target * bytes_max) / 100)
 		LF_SET(WT_EVICT_PASS_ALL);
-	else if (dirty_inuse >
-	    (cache->eviction_dirty_target * bytes_max) / 100)
+	else if (dirty_inuse > (cache->evict_dirty_target * bytes_max) / 100)
 		/* Ignore clean pages unless the cache is too large */
 		LF_SET(WT_EVICT_PASS_DIRTY);
 	else if (F_ISSET(cache, WT_CACHE_WOULD_BLOCK)) {
@@ -841,12 +840,12 @@ __evict_lru_walk(WT_SESSION_IMPL *session, uint32_t flags)
 	}
 
 	/* If we have more than the minimum number of entries, clear them. */
-	if (cache->evict_entries > WT_EVICT_WALK_BASE) {
-		for (i = WT_EVICT_WALK_BASE, evict = cache->evict + i;
+	if (cache->evict_entries > cache->evict_walk_base) {
+		for (i = cache->evict_walk_base, evict = cache->evict + i;
 		    i < cache->evict_entries;
 		    i++, evict++)
 			__evict_list_clear(session, evict);
-		cache->evict_entries = WT_EVICT_WALK_BASE;
+		cache->evict_entries = cache->evict_walk_base;
 	}
 
 	cache->evict_current = cache->evict;
@@ -932,7 +931,7 @@ __evict_walk(WT_SESSION_IMPL *session, uint32_t flags)
 	 * per walk.
 	 */
 	start_slot = slot = cache->evict_entries;
-	max_entries = slot + WT_EVICT_WALK_INCR;
+	max_entries = slot + cache->evict_walk_base_incr;
 
 retry:	while (slot < max_entries && ret == 0) {
 		/*
@@ -1013,7 +1012,7 @@ retry:	while (slot < max_entries && ret == 0) {
 		 * useful in the past.
 		 */
 		if (btree->evict_walk_period != 0 &&
-		    cache->evict_entries >= WT_EVICT_WALK_INCR &&
+		    cache->evict_entries >= cache->evict_walk_base_incr &&
 		    btree->evict_walk_skips++ < btree->evict_walk_period)
 			continue;
 		btree->evict_walk_skips = 0;
@@ -1125,14 +1124,16 @@ __evict_walk_file(WT_SESSION_IMPL *session, u_int *slotp, uint32_t flags)
 	WT_REF *ref;
 	uint64_t pages_walked;
 	uint32_t walk_flags;
-	int enough, internal_pages, modified, restarts;
+	u_int internal_pages;
+	int enough, modified, restarts;
 
 	btree = S2BT(session);
 	cache = S2C(session)->cache;
 	start = cache->evict + *slotp;
-	end = WT_MIN(start + WT_EVICT_WALK_PER_FILE,
+	end = WT_MIN(start + cache->evict_walk_queue_per_file,
 	    cache->evict + cache->evict_slots);
-	enough = internal_pages = restarts = 0;
+	internal_pages = 0;
+	enough = restarts = 0;
 
 	walk_flags = WT_READ_CACHE | WT_READ_NO_EVICT |
 	    WT_READ_NO_GEN | WT_READ_NO_WAIT;
@@ -1156,7 +1157,7 @@ __evict_walk_file(WT_SESSION_IMPL *session, u_int *slotp, uint32_t flags)
 	    evict < end && !enough && (ret == 0 || ret == WT_NOTFOUND);
 	    ret = __wt_tree_walk(
 	    session, &btree->evict_ref, &pages_walked, walk_flags)) {
-		enough = (pages_walked > WT_EVICT_MAX_PER_FILE);
+		enough = (pages_walked > cache->evict_walk_visit_per_file);
 		if ((ref = btree->evict_ref) == NULL) {
 			if (++restarts == 2 || enough)
 				break;
@@ -1190,12 +1191,12 @@ __evict_walk_file(WT_SESSION_IMPL *session, u_int *slotp, uint32_t flags)
 		 * eviction, skip anything that isn't marked.
 		 */
 		if (LF_ISSET(WT_EVICT_PASS_WOULD_BLOCK) &&
-		    page->read_gen != WT_READGEN_OLDEST)
+		    page->read_gen != WT_READGEN_EVICT_NOW)
 			continue;
 
 		/* Limit internal pages to 50% unless we get aggressive. */
 		if (WT_PAGE_IS_INTERNAL(page) &&
-		    ++internal_pages > WT_EVICT_WALK_PER_FILE / 2 &&
+		    ++internal_pages > cache->evict_walk_queue_per_file / 2 &&
 		    !LF_ISSET(WT_EVICT_PASS_AGGRESSIVE))
 			continue;
 
@@ -1263,7 +1264,7 @@ fast:		/* If the page can't be evicted, give up. */
 	 * as quickly as possible.
 	 */
 	if ((ref = btree->evict_ref) != NULL && (__wt_ref_is_root(ref) ||
-	    ref->page->read_gen == WT_READGEN_OLDEST)) {
+	    ref->page->read_gen == WT_READGEN_EVICT_NOW)) {
 		btree->evict_ref = NULL;
 		__wt_page_release(session, ref, 0);
 	}
@@ -1401,7 +1402,7 @@ __wt_evict_lru_page(WT_SESSION_IMPL *session, int is_server)
 	 * look at it.
 	 */
 	page = ref->page;
-	if (page->read_gen != WT_READGEN_OLDEST)
+	if (page->read_gen != WT_READGEN_EVICT_NOW)
 		page->read_gen = __wt_cache_read_gen_set(session);
 
 	WT_WITH_BTREE(session, btree, ret = __wt_evict_page(session, ref));

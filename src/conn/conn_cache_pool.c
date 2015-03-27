@@ -558,7 +558,7 @@ __cache_pool_adjust(WT_SESSION_IMPL *session,
 		} else if (highest > 1 &&
 		    entry->cache_size < cp->size &&
 		     cache->bytes_inmem >=
-		     (entry->cache_size * cache->eviction_target) / 100 &&
+		     (entry->cache_size * cache->evict_target) / 100 &&
 		     cp->currently_used < cp->size &&
 		     read_pressure > bump_threshold) {
 			grew = 1;

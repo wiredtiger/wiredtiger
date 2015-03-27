@@ -135,21 +135,46 @@ class test_config04(wttest.WiredTigerTestCase):
             lambda: wiredtiger.wiredtiger_open('.', configstr),
             "/Value too large for key 'cache_size' the maximum is/")
 
+    # Test a variety of eviction configurations, mixing old and new syntax.
     def test_eviction(self):
+        self.common_test('eviction=(target=84,trigger=94)')
+        self.close_conn()
+        self.common_test('eviction=(target=84),eviction_trigger=94')
+        self.close_conn()
+        self.common_test('eviction_target=84,eviction=(trigger=94)')
+        self.close_conn()
         self.common_test('eviction_target=84,eviction_trigger=94')
-        # Note
+        self.close_conn()
 
+    # Test a variety of eviction configurations, mixing old and new syntax.
     def test_eviction_bad(self):
+        msg = "/eviction target must be lower than the eviction trigger/"
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
-            wiredtiger.wiredtiger_open('.', 'create,eviction_target=91,' +
-                                       'eviction_trigger=81'),
-            "/eviction target must be lower than the eviction trigger/")
+            wiredtiger.wiredtiger_open('.',
+                'create,eviction_target=91,eviction_trigger=81'), msg)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
+            wiredtiger.wiredtiger_open('.',
+                'create,eviction=(target=91),eviction_trigger=81'), msg)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
+            wiredtiger.wiredtiger_open('.',
+                'create,eviction_target=91,eviction=(trigger=81)'), msg)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
+            wiredtiger.wiredtiger_open('.',
+                'create,eviction=(target=91,trigger=81)'), msg)
 
-    def test_eviction_bad2(self):
+        # Test with equal values.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
-            wiredtiger.wiredtiger_open('.', 'create,eviction_target=86,' +
-                                       'eviction_trigger=86'),
-            "/eviction target must be lower than the eviction trigger/")
+            wiredtiger.wiredtiger_open('.',
+                'create,eviction_target=86,eviction_trigger=86'), msg)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
+            wiredtiger.wiredtiger_open('.',
+                'create,eviction=(target=86),eviction_trigger=86'), msg)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
+            wiredtiger.wiredtiger_open('.',
+                'create,eviction_target=86,eviction=(trigger=86)'), msg)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
+            wiredtiger.wiredtiger_open('.',
+                'create,eviction=(target=86,trigger=86)'), msg)
 
     def test_hazard_max(self):
         # Note: There isn't any direct way to know that this was set.

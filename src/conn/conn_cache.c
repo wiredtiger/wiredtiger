@@ -36,26 +36,34 @@ __cache_config_local(WT_SESSION_IMPL *session, int shared, const char *cfg[])
 	WT_RET(__wt_config_gets(session, cfg, "cache_overhead", &cval));
 	cache->overhead_pct = (u_int)cval.val;
 
+	/*
+	 * Historically the eviction.{dirty_target,target,trigger} configuration
+	 * values were eviction_{dirty_target,target,trigger}, check for the old
+	 * values before looking for the new values. The old values have illegal
+	 * defaults (of 0) so we can detect if they were actually set or not.
+	 */
 	WT_RET(__wt_config_gets(session, cfg, "eviction_target", &cval));
-	cache->eviction_target = (u_int)cval.val;
+	if (cval.val == 0)
+		WT_RET(__wt_config_gets(
+		    session, cfg, "eviction.target", &cval));
+	cache->evict_target = (u_int)cval.val;
 
 	WT_RET(__wt_config_gets(session, cfg, "eviction_trigger", &cval));
-	cache->eviction_trigger = (u_int)cval.val;
+	if (cval.val == 0)
+		WT_RET(__wt_config_gets(
+		    session, cfg, "eviction.trigger", &cval));
+	cache->evict_trigger = (u_int)cval.val;
 
 	WT_RET(__wt_config_gets(session, cfg, "eviction_dirty_target", &cval));
-	cache->eviction_dirty_target = (u_int)cval.val;
+	if (cval.val == 0)
+		WT_RET(__wt_config_gets(
+		    session, cfg, "eviction.dirty_target", &cval));
+	cache->evict_dirty_target = (u_int)cval.val;
 
-	/*
-	 * The eviction thread configuration options include the main eviction
-	 * thread and workers. Our implementation splits them out. Adjust for
-	 * the difference when parsing the configuration.
-	 */
 	WT_RET(__wt_config_gets(session, cfg, "eviction.threads_max", &cval));
-	WT_ASSERT(session, cval.val > 0);
 	evict_workers_max = (uint32_t)cval.val - 1;
 
 	WT_RET(__wt_config_gets(session, cfg, "eviction.threads_min", &cval));
-	WT_ASSERT(session, cval.val > 0);
 	evict_workers_min = (uint32_t)cval.val - 1;
 
 	if (evict_workers_min > evict_workers_max)
@@ -64,6 +72,21 @@ __cache_config_local(WT_SESSION_IMPL *session, int shared, const char *cfg[])
 		    "eviction=(threads_max)");
 	conn->evict_workers_max = evict_workers_max;
 	conn->evict_workers_min = evict_workers_min;
+
+	WT_RET(__wt_config_gets(session, cfg, "eviction.walk_base", &cval));
+	cache->evict_walk_base = (u_int)cval.val;
+
+	WT_RET(__wt_config_gets(
+	    session, cfg, "eviction.walk_base_incr", &cval));
+	cache->evict_walk_base_incr = (u_int)cval.val;
+
+	WT_RET(__wt_config_gets(
+	    session, cfg, "eviction.walk_queue_per_file", &cval));
+	cache->evict_walk_queue_per_file = (u_int)cval.val;
+
+	WT_RET(__wt_config_gets(
+	    session, cfg, "eviction.walk_visit_per_file", &cval));
+	cache->evict_walk_visit_per_file = (u_int)cval.val;
 
 	return (0);
 }
@@ -140,7 +163,7 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
 	 * The target size must be lower than the trigger size or we will never
 	 * get any work done.
 	 */
-	if (cache->eviction_target >= cache->eviction_trigger)
+	if (cache->evict_target >= cache->evict_trigger)
 		WT_ERR_MSG(session, EINVAL,
 		    "eviction target must be lower than the eviction trigger");
 
@@ -152,7 +175,8 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_ERR(__wt_spin_init(session, &cache->evict_walk_lock, "cache walk"));
 
 	/* Allocate the LRU eviction queue. */
-	cache->evict_slots = WT_EVICT_WALK_BASE + WT_EVICT_WALK_INCR;
+	cache->evict_slots =
+	    cache->evict_walk_base + cache->evict_walk_base_incr;
 	WT_ERR(__wt_calloc_def(session, cache->evict_slots, &cache->evict));
 
 	/*

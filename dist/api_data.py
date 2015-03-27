@@ -356,19 +356,56 @@ connection_runtime_config = [
         ]),
     Config('error_prefix', '', r'''
         prefix string for error messages'''),
-    Config('eviction_dirty_target', '80', r'''
-        continue evicting until the cache has less dirty memory than the
-        value, as a percentage of the total cache size. Dirty pages will
-        only be evicted if the cache is full enough to trigger eviction''',
-        min=10, max=99),
-    Config('eviction_target', '80', r'''
-        continue evicting until the cache has less total memory than the
-        value, as a percentage of the total cache size. Must be less than
-        \c eviction_trigger''',
-        min=10, max=99),
-    Config('eviction_trigger', '95', r'''
-        trigger eviction when the cache is using this much memory, as a
-        percentage of the total cache size''', min=10, max=99),
+    Config('eviction_dirty_target', '0', r'''
+        deprecated for eviction.dirty_target''',
+        min=10, max=99, undoc=True),
+    Config('eviction_target', '0', r'''
+        deprecated for eviction.target''',
+        min=10, max=99, undoc=True),
+    Config('eviction_trigger', '0', r'''
+        deprecated for eviction.trigger''',
+        min=10, max=99, undoc=True),
+    Config('eviction', '', r'''
+        eviction configuration options.''',
+        type='category', subconfig=[
+            Config('dirty_target', '80', r'''
+                continue evicting until the cache has less dirty memory than
+                the value, as a percentage of the total cache size. Dirty pages
+                will only be evicted if the cache is full enough to trigger
+                eviction''',
+                min=10, max=99),
+            Config('target', '80', r'''
+                continue evicting until the cache has less total memory than
+                the value, as a percentage of the total cache size. Must be
+                less than \c eviction_trigger''',
+                min=10, max=99),
+            Config('threads_max', '1', r'''
+                maximum number of threads WiredTiger will start to help evict
+                pages from cache. The number of threads started will vary
+                depending on the current eviction load''',
+                min=1, max=20),
+            Config('threads_min', '1', r'''
+                minimum number of threads WiredTiger will start to help evict
+                pages from cache. The number of threads currently running will
+                vary depending on the current eviction load''',
+                min=1, max=20),
+            Config('trigger', '95', r'''
+                trigger eviction when the cache is using this much memory, as a
+                percentage of the total cache size''',
+                min=10, max=99),
+            Config('walk_base', '300', r'''
+                pages retained across eviction file visits''',
+                min=1, undoc=True),
+            Config('walk_base_incr', '100', r'''
+                pages added in each group of eviction file visits''',
+                min=1, undoc=True),
+            Config('walk_queue_per_file', '10', r'''
+                pages queued for eviction from each file per visit''',
+                min=1, undoc=True),
+            Config('walk_visit_per_file', '100', r'''
+                pages from each file visited''',
+                min=1, undoc=True),
+            ]),
     Config('file_manager', '', r'''
         control how file handles are managed''',
         type='category', subconfig=[
@@ -394,20 +431,6 @@ connection_runtime_config = [
     Config('lsm_merge', 'true', r'''
         merge LSM chunks where possible (deprecated)''',
         type='boolean', undoc=True),
-    Config('eviction', '', r'''
-        eviction configuration options.''',
-        type='category', subconfig=[
-            Config('threads_max', '1', r'''
-                maximum number of threads WiredTiger will start to help evict
-                pages from cache. The number of threads started will vary
-                depending on the current eviction load''',
-                min=1, max=20),
-            Config('threads_min', '1', r'''
-                minimum number of threads WiredTiger will start to help evict
-                pages from cache. The number of threads currently running will
-                vary depending on the current eviction load''',
-                min=1, max=20),
-            ]),
     Config('shared_cache', '', r'''
         shared cache configuration options. A database should configure
         either a cache_size or a shared_cache not both''',
