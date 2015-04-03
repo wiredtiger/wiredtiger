@@ -168,6 +168,7 @@ struct __wt_connection_impl {
 
 					/* Configuration */
 	const WT_CONFIG_ENTRY **config_entries;
+	uint16_t **config_index;
 
 	void  **foc;			/* Free-on-close array */
 	size_t  foc_cnt;		/* Array entries */

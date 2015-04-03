@@ -259,12 +259,13 @@ for name in sorted(api_data.methods.keys()):
 
     # Write the method name and base.
     tfile.write('''
-\t{ "%(name)s",
+\t{ "%(name)s",%(slot)s
 %(config)s,''' % {
     'config' : '\n'.join('\t  "%s"' % line
         for line in w.wrap(','.join('%s=%s' % (c.name, get_default(c))
             for c in sorted(ctype))) or [""]),
-    'name' : name
+    'name' : name,
+    'slot' : ctype and '\n\t  "A=' + str(slot) + ',"' or ""
 })
 
     # Write the checks reference, or NULL if no related checks structure.
@@ -284,25 +285,77 @@ tfile.write('\n};\n')
 # Write the routine that connects the WT_CONNECTION_IMPL structure to the list
 # of configuration entry structures.
 tfile.write('''
+/*
+ * __conn_config_index --
+ *\tIndex a default configuration entry.
+ */
+static int
+__conn_config_index(
+    WT_SESSION_IMPL *session, const char *base, uint16_t **indxp)
+{
+\tWT_CONFIG conf;
+\tWT_CONFIG_ITEM k, v;
+\tWT_DECL_RET;
+\tuint16_t entries;
+\tsize_t slot;
+
+\t/* Count the entries. */
+\tWT_RET(__wt_config_init(session, &conf, base));
+\tfor (entries = 0; (ret = __wt_config_next(&conf, &k, &v)) == 0;)
+\t\t++entries;
+\tWT_RET_NOTFOUND_OK(ret);
+\tif (entries == 0)
+\t\treturn (0);
+
+\t/*
+\t * Allocate memory for an index and initialize it. The first slot is the
+\t * number of entries, the last slot is the end offset so we can figure
+\t * out the length of the last indexed chunk.
+\t */
+\tWT_RET(__wt_calloc_def(session, entries + 2, &(*indxp)));
+\t(*indxp)[slot = 0] = entries;
+
+\tWT_RET(__wt_config_init(session, &conf, base));
+\twhile ((ret = __wt_config_next(&conf, &k, &v)) == 0)
+\t\t(*indxp)[++slot] = (uint16_t)WT_PTRDIFF(k.str, base);
+\t(*indxp)[slot + 1] = strlen(base);
+\tWT_RET_NOTFOUND_OK(ret);
+
+\treturn (0);
+}
+
 int
 __wt_conn_config_init(WT_SESSION_IMPL *session)
 {
 \tWT_CONNECTION_IMPL *conn;
 \tconst WT_CONFIG_ENTRY *ep, **epp;
+\tuint16_t **ip;
 
 \tconn = S2C(session);
 
 \t/* Build a list of pointers to the configuration information. */
-\tWT_RET(__wt_calloc_def(session,
-\t    sizeof(config_entries) / sizeof(config_entries[0]), &epp));
+\tWT_RET(__wt_calloc_def(session, WT_ELEMENTS(config_entries), &epp));
 \tconn->config_entries = epp;
 
-\t/* Fill in the list to reference the default information. */
+\t/* Fill in the list to reference default configuration information. */
 \tfor (ep = config_entries;;) {
 \t\t*epp++ = ep++;
 \t\tif (ep->method == NULL)
 \t\t\tbreak;
 \t}
+
+\t/*
+\t * The default configuration information is sorted and we access it a
+\t * lot.  Build a list of indices to enable binary search.
+\t */
+\tWT_RET(__wt_calloc_def(
+\t    session, WT_ELEMENTS(config_entries), &conn->config_index));
+\tfor (ep = config_entries, ip = conn->config_index;; ++ep, ++ip) {
+\t\tif (ep->method == NULL)
+\t\t\tbreak;
+\t\tWT_RET(__conn_config_index(session, ep->base, ip));
+\t}
+
 \treturn (0);
 }
 
@@ -310,10 +363,15 @@ void
 __wt_conn_config_discard(WT_SESSION_IMPL *session)
 {
 \tWT_CONNECTION_IMPL *conn;
+\tsize_t i;
 
 \tconn = S2C(session);
 
 \t__wt_free(session, conn->config_entries);
+
+\tfor (i = 0; i < WT_ELEMENTS(config_entries); ++i)
+\t\t__wt_free(session, conn->config_index[0]);
+\t__wt_free(session, conn->config_index);
 }
 ''')
 
