@@ -46,6 +46,13 @@ __wt_config_collapse(
 		    k.type != WT_CONFIG_ITEM_ID)
 			WT_ERR_MSG(session, EINVAL,
 			    "Invalid configuration key found: '%s'\n", k.str);
+
+		/*
+		 * Skip configuration string index references.
+		 */
+		if (k.str[0] == 'A' && k.len == 1)
+			continue;
+
 		WT_ERR(__wt_config_get(session, cfg, &k, &v));
 		/* Include the quotes around string keys/values. */
 		if (k.type == WT_CONFIG_ITEM_STRING) {
@@ -128,6 +135,11 @@ __config_merge_scan(WT_SESSION_IMPL *session,
 		    k.type != WT_CONFIG_ITEM_ID)
 			WT_ERR_MSG(session, EINVAL,
 			    "Invalid configuration key found: '%s'\n", k.str);
+		/*
+		 * Skip configuration string index references.
+		 */
+		if (k.str[0] == 'A' && k.len == 1)
+			continue;
 
 		/* Include the quotes around string keys/values. */
 		if (k.type == WT_CONFIG_ITEM_STRING) {

@@ -615,27 +615,95 @@ __config_getraw(
 }
 
 /*
+ * __config_srch_indx --
+ *	Search the configuration index for a match.
+ */
+static inline int
+__config_srch_indx(WT_SESSION_IMPL *session,
+    const char *config, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value)
+{
+	WT_CONFIG cparser;
+	WT_CONNECTION_IMPL *conn;
+	size_t i, len;
+	uint16_t *ip;
+	u_int base, indx, limit;
+	int cmp, slot;
+
+	conn = S2C(session);
+
+	/*
+	 * We may be searching for a configuration substring, check for that
+	 * case and back off to the configuration string.
+	 */
+	for (len = 0; len < key->len; ++len)
+		if (key->str[len] == '.')
+			break;
+
+	/* Figure out the index slot we're going to use. */
+	for (slot = 0, i = 2; isdigit(config[i]); ++i)
+		slot = slot * 10 + (config[i] - '0');
+	ip = conn->config_index[slot];
+
+	/* Binary search of the configuration index. */
+	for (base = indx = 0, limit = *ip++; limit != 0; limit >>= 1) {
+		indx = base + (limit >> 1);
+		cmp = strncmp(config + ip[indx], key->str, len);
+		if (cmp == 0 && (config + ip[indx] + len)[0] == '=')
+			break;
+		if (cmp < 0) {
+			base = indx + 1;
+			--limit;
+		}
+	}
+	if (limit == 0)
+		return (WT_NOTFOUND);
+
+	WT_RET(__wt_config_initn(session,
+	    &cparser, config + ip[indx], (size_t)ip[indx + 1] - ip[indx]));
+	return (__config_getraw(&cparser, key, value, 1));
+}
+
+/*
  * __wt_config_get --
  *	Given a NULL-terminated list of configuration strings, find
  *	the final value for a given key.
  */
 int
 __wt_config_get(WT_SESSION_IMPL *session,
-    const char **cfg, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value)
+    const char **cfg_arg, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value)
 {
 	WT_CONFIG cparser;
 	WT_DECL_RET;
-	int found;
+	const char **cfg;
 
-	for (found = 0; *cfg != NULL; cfg++) {
-		WT_RET(__wt_config_init(session, &cparser, *cfg));
-		if ((ret = __config_getraw(&cparser, key, value, 1)) == 0)
-			found = 1;
-		else if (ret != WT_NOTFOUND)
-			return (ret);
-	}
+	if (cfg_arg[0] == NULL)
+		return (WT_NOTFOUND);
 
-	return (found ? 0 : WT_NOTFOUND);
+	/*
+	 * Search the strings in reverse order, that way the first hit wins and
+	 * and we don't search the base set until there's no other choice.
+	 */
+	for (cfg = cfg_arg; *cfg != NULL; ++cfg)
+		;
+	do {
+		--cfg;
+
+		/*
+		 * Check for an index, key=A and a value of the index offset,
+		 * and do a index-based search.
+		 */
+		if ((*cfg)[0] == 'A' && (*cfg)[1] == '=')
+			ret = __config_srch_indx(session, *cfg, key, value);
+		else {
+			WT_RET(__wt_config_init(session, &cparser, *cfg));
+			ret = __config_getraw(&cparser, key, value, 1);
+		}
+		if (ret == 0)
+			return (0);
+		WT_RET_NOTFOUND_OK(ret);
+	} while (cfg != cfg_arg);
+
+	return (WT_NOTFOUND);
 }
 
 /*

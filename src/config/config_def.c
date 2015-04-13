@@ -663,6 +663,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
 
 static const WT_CONFIG_ENTRY config_entries[] = {
 	{ "colgroup.meta",
+	  "A=0,"
 	  "app_metadata=,collator=,columns=,source=,type=file",
 	  confchk_colgroup_meta, 5
 	},
@@ -683,23 +684,28 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  NULL, 0
 	},
 	{ "connection.async_new_op",
+	  "A=5,"
 	  "append=0,overwrite=,raw=0,timeout=1200",
 	  confchk_connection_async_new_op, 4
 	},
 	{ "connection.close",
+	  "A=6,"
 	  "leak_memory=0",
 	  confchk_connection_close, 1
 	},
 	{ "connection.load_extension",
+	  "A=7,"
 	  "config=,entry=wiredtiger_extension_init,"
 	  "terminate=wiredtiger_extension_terminate",
 	  confchk_connection_load_extension, 3
 	},
 	{ "connection.open_session",
+	  "A=8,"
 	  "isolation=read-committed",
 	  confchk_connection_open_session, 1
 	},
 	{ "connection.reconfigure",
+	  "A=9,"
 	  "async=(enabled=0,ops_max=1024,threads=2),cache_overhead=8,"
 	  "cache_size=100MB,checkpoint=(log_size=0,"
 	  "name=\"WiredTigerCheckpoint\",wait=0),error_prefix=,"
@@ -718,10 +724,12 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  NULL, 0
 	},
 	{ "cursor.reconfigure",
+	  "A=11,"
 	  "append=0,overwrite=",
 	  confchk_cursor_reconfigure, 2
 	},
 	{ "file.meta",
+	  "A=12,"
 	  "allocation_size=4KB,app_metadata=,block_allocation=best,"
 	  "block_compressor=,cache_resident=0,checkpoint=,checkpoint_lsn=,"
 	  "checksum=uncompressed,collator=,columns=,dictionary=0,"
@@ -736,15 +744,18 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_file_meta, 35
 	},
 	{ "index.meta",
+	  "A=13,"
 	  "app_metadata=,collator=,columns=,extractor=,immutable=0,"
 	  "index_key_columns=,key_format=u,source=,type=file,value_format=u",
 	  confchk_index_meta, 10
 	},
 	{ "session.begin_transaction",
+	  "A=14,"
 	  "isolation=,name=,priority=0,sync=",
 	  confchk_session_begin_transaction, 4
 	},
 	{ "session.checkpoint",
+	  "A=15,"
 	  "drop=,force=0,name=,target=",
 	  confchk_session_checkpoint, 4
 	},
@@ -757,10 +768,12 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  NULL, 0
 	},
 	{ "session.compact",
+	  "A=18,"
 	  "timeout=1200",
 	  confchk_session_compact, 1
 	},
 	{ "session.create",
+	  "A=19,"
 	  "allocation_size=4KB,app_metadata=,block_allocation=best,"
 	  "block_compressor=,cache_resident=0,checksum=uncompressed,"
 	  "colgroups=,collator=,columns=,dictionary=0,exclusive=0,"
@@ -778,6 +791,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_session_create, 38
 	},
 	{ "session.drop",
+	  "A=20,"
 	  "force=0,remove_files=",
 	  confchk_session_drop, 2
 	},
@@ -786,11 +800,13 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  NULL, 0
 	},
 	{ "session.open_cursor",
+	  "A=22,"
 	  "append=0,bulk=0,checkpoint=,dump=,next_random=0,overwrite=,raw=0"
 	  ",readonly=0,skip_sort_check=0,statistics=,target=",
 	  confchk_session_open_cursor, 11
 	},
 	{ "session.reconfigure",
+	  "A=23,"
 	  "isolation=read-committed",
 	  confchk_session_reconfigure, 1
 	},
@@ -803,6 +819,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  NULL, 0
 	},
 	{ "session.salvage",
+	  "A=26,"
 	  "force=0",
 	  confchk_session_salvage, 1
 	},
@@ -819,16 +836,19 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  NULL, 0
 	},
 	{ "session.verify",
+	  "A=30,"
 	  "dump_address=0,dump_blocks=0,dump_offsets=,dump_pages=0,"
 	  "dump_shape=0",
 	  confchk_session_verify, 5
 	},
 	{ "table.meta",
+	  "A=31,"
 	  "app_metadata=,colgroups=,collator=,columns=,key_format=u,"
 	  "value_format=u",
 	  confchk_table_meta, 6
 	},
 	{ "wiredtiger_open",
+	  "A=32,"
 	  "async=(enabled=0,ops_max=1024,threads=2),buffer_alignment=-1,"
 	  "cache_overhead=8,cache_size=100MB,checkpoint=(log_size=0,"
 	  "name=\"WiredTigerCheckpoint\",wait=0),checkpoint_sync=,"
@@ -848,6 +868,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_wiredtiger_open, 32
 	},
 	{ "wiredtiger_open_all",
+	  "A=33,"
 	  "async=(enabled=0,ops_max=1024,threads=2),buffer_alignment=-1,"
 	  "cache_overhead=8,cache_size=100MB,checkpoint=(log_size=0,"
 	  "name=\"WiredTigerCheckpoint\",wait=0),checkpoint_sync=,"
@@ -868,6 +889,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_wiredtiger_open_all, 33
 	},
 	{ "wiredtiger_open_basecfg",
+	  "A=34,"
 	  "async=(enabled=0,ops_max=1024,threads=2),buffer_alignment=-1,"
 	  "cache_overhead=8,cache_size=100MB,checkpoint=(log_size=0,"
 	  "name=\"WiredTigerCheckpoint\",wait=0),checkpoint_sync=,"
@@ -886,6 +908,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_wiredtiger_open_basecfg, 29
 	},
 	{ "wiredtiger_open_usercfg",
+	  "A=35,"
 	  "async=(enabled=0,ops_max=1024,threads=2),buffer_alignment=-1,"
 	  "cache_overhead=8,cache_size=100MB,checkpoint=(log_size=0,"
 	  "name=\"WiredTigerCheckpoint\",wait=0),checkpoint_sync=,"
@@ -906,25 +929,77 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	{ NULL, NULL, NULL, 0 }
 };
 
+/*
+ * __conn_config_index --
+ *	Index a default configuration entry.
+ */
+static int
+__conn_config_index(
+    WT_SESSION_IMPL *session, const char *base, uint16_t **indxp)
+{
+	WT_CONFIG conf;
+	WT_CONFIG_ITEM k, v;
+	WT_DECL_RET;
+	uint16_t entries;
+	size_t slot;
+
+	/* Count the entries. */
+	WT_RET(__wt_config_init(session, &conf, base));
+	for (entries = 0; (ret = __wt_config_next(&conf, &k, &v)) == 0;)
+		++entries;
+	WT_RET_NOTFOUND_OK(ret);
+	if (entries == 0)
+		return (0);
+
+	/*
+	 * Allocate memory for an index and initialize it. The first slot is the
+	 * number of entries, the last slot is the end offset so we can figure
+	 * out the length of the last indexed chunk.
+	 */
+	WT_RET(__wt_calloc_def(session, entries + 2, &(*indxp)));
+	(*indxp)[slot = 0] = entries;
+
+	WT_RET(__wt_config_init(session, &conf, base));
+	while ((ret = __wt_config_next(&conf, &k, &v)) == 0)
+		(*indxp)[++slot] = (uint16_t)WT_PTRDIFF(k.str, base);
+	(*indxp)[slot + 1] = strlen(base);
+	WT_RET_NOTFOUND_OK(ret);
+
+	return (0);
+}
+
 int
 __wt_conn_config_init(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
 	const WT_CONFIG_ENTRY *ep, **epp;
+	uint16_t **ip;
 
 	conn = S2C(session);
 
 	/* Build a list of pointers to the configuration information. */
-	WT_RET(__wt_calloc_def(session,
-	    sizeof(config_entries) / sizeof(config_entries[0]), &epp));
+	WT_RET(__wt_calloc_def(session, WT_ELEMENTS(config_entries), &epp));
 	conn->config_entries = epp;
 
-	/* Fill in the list to reference the default information. */
+	/* Fill in the list to reference default configuration information. */
 	for (ep = config_entries;;) {
 		*epp++ = ep++;
 		if (ep->method == NULL)
 			break;
 	}
+
+	/*
+	 * The default configuration information is sorted and we access it a
+	 * lot.  Build a list of indices to enable binary search.
+	 */
+	WT_RET(__wt_calloc_def(
+	    session, WT_ELEMENTS(config_entries), &conn->config_index));
+	for (ep = config_entries, ip = conn->config_index;; ++ep, ++ip) {
+		if (ep->method == NULL)
+			break;
+		WT_RET(__conn_config_index(session, ep->base, ip));
+	}
+
 	return (0);
 }
 
@@ -932,8 +1007,13 @@ void
 __wt_conn_config_discard(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
+	size_t i;
 
 	conn = S2C(session);
 
 	__wt_free(session, conn->config_entries);
+
+	for (i = 0; i < WT_ELEMENTS(config_entries); ++i)
+		__wt_free(session, conn->config_index[0]);
+	__wt_free(session, conn->config_index);
 }
