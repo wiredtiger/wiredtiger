@@ -8,7 +8,10 @@
 
 #include "wt_internal.h"
 
-				/* Don't waste effort, 1GB is always cool. */
+/*
+ * Macros to decide if we need to do a real size check; don't waste any effort,
+ * 1GB is always cool.
+ */
 #define	WT_NEED_SIZE_CHK(kv)	((kv)->size > WT_GIGABYTE)
 #define	WT_TYPE_NEED_SIZE_CHK(btree, kv)				\
 	((btree)->type != BTREE_ROW || WT_NEED_SIZE_CHK(kv))
@@ -331,7 +334,7 @@ __btcur_search_row(WT_CURSOR_BTREE *cbt)
 		    cbt->compare == 0 && __cursor_valid(cbt, &upd, BTREE_ROW);
 	}
 
-	if (valid && (ret = __wt_kv_return(session, cbt, upd)) == 0)
+	if (valid && (ret = cbt->kvret(cbt, upd)) == 0)
 		return (0);
 	if (!valid)
 		ret = WT_NOTFOUND;
@@ -384,7 +387,7 @@ __btcur_search_col(WT_CURSOR_BTREE *cbt)
 		    cbt->compare == 0 && __cursor_valid(cbt, &upd, btree->type);
 	}
 
-	if (valid && (ret = __wt_kv_return(session, cbt, upd)) == 0)
+	if (valid && (ret = cbt->kvret(cbt, upd)) == 0)
 		return (0);
 	if (!valid) {
 		if (__cursor_fix_implicit(btree, cbt)) {
@@ -491,7 +494,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 	 */
 	if (valid) {
 		exact = cbt->compare;
-		ret = __wt_kv_return(session, cbt, upd);
+		ret = cbt->kvret(cbt, upd);
 	} else if (__cursor_fix_implicit(btree, cbt)) {
 		cbt->recno = cursor->recno;
 		cbt->v = 0;
@@ -506,7 +509,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 		    __cursor_col_search(session, cbt, NULL));
 		if (__cursor_valid(cbt, &upd, btree->type)) {
 			exact = cbt->compare;
-			ret = __wt_kv_return(session, cbt, upd);
+			ret = cbt->kvret(cbt, upd);
 		} else if ((ret = __wt_btcur_prev(cbt, 0)) != WT_NOTFOUND)
 			exact = -1;
 	}
@@ -862,7 +865,7 @@ err:	if (ret == WT_RESTART)
 	 * pointer to the modify function's allocated update structure.
 	 */
 	if (ret == 0)
-		WT_TRET(__wt_kv_return(session, cbt, cbt->modify_update));
+		WT_TRET(cbt->kvret(cbt, cbt->modify_update));
 
 	if (ret != 0)
 		WT_TRET(__cursor_reset(cbt));
@@ -900,7 +903,7 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
 	    ret = __wt_row_random(session, cbt));
 	WT_ERR(ret);
 	if (__cursor_valid(cbt, &upd, btree->type))
-		WT_ERR(__wt_kv_return(session, cbt, upd));
+		WT_ERR(cbt->kvret(cbt, upd));
 	else
 		WT_ERR(__wt_btcur_search_near(cbt, 0));
 
@@ -1199,8 +1202,20 @@ __wt_btcur_open(WT_CURSOR_BTREE *cbt)
 
 	btree = cbt->btree;
 
-	cbt->search =
-	    btree->type == BTREE_ROW ? __btcur_search_row : __btcur_search_col;
+	switch (btree->type) {
+	case BTREE_COL_FIX:
+		cbt->kvret = __wt_kvret_fix;
+		cbt->search = __btcur_search_col;
+		break;
+	case BTREE_COL_VAR:
+		cbt->kvret = __wt_kvret_var;
+		cbt->search = __btcur_search_col;
+		break;
+	case BTREE_ROW:
+		cbt->kvret = __wt_kvret_row;
+		cbt->search = __btcur_search_row;
+		break;
+	}
 
 	cbt->row_key = &cbt->_row_key;
 	cbt->tmp = &cbt->_tmp;

@@ -79,8 +79,7 @@ struct __wt_cursor_backup {
 struct __wt_cursor_btree {
 	WT_CURSOR iface;
 
-	WT_BTREE *btree;		/* Enclosing btree and fast functions */
-	int (*search)(WT_CURSOR_BTREE *);
+	WT_BTREE *btree;		/* Enclosing btree */
 
 	/*
 	 * The following fields are set by the search functions as a precursor
@@ -183,6 +182,13 @@ struct __wt_cursor_btree {
 	 * functions, used to avoid a data copy in the WT_CURSOR.update call.
 	 */
 	WT_UPDATE *modify_update;
+
+	/*
+	 * There a couple of calls we figure out on a per-type basis (row- or
+	 * column-store, for example), and cache in the cursor.
+	 */
+	int (*kvret)(WT_CURSOR_BTREE *, WT_UPDATE *);
+	int (*search)(WT_CURSOR_BTREE *);
 
 	/*
 	 * Fixed-length column-store items are a single byte, and it's simpler

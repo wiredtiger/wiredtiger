@@ -146,7 +146,9 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 extern int __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint64_t recno, uint32_t alloc_entries, int alloc_refs, WT_PAGE **pagep);
 extern int __wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, size_t memsize, uint32_t flags, WT_PAGE **pagep);
 extern int __wt_cache_read(WT_SESSION_IMPL *session, WT_REF *ref);
-extern int __wt_kv_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd);
+extern int __wt_kvret_fix(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd);
+extern int __wt_kvret_var(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd);
+extern int __wt_kvret_row(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd);
 extern int __wt_bt_salvage(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, const char *cfg[]);
 extern void __wt_split_stash_discard(WT_SESSION_IMPL *session);
 extern void __wt_split_stash_discard_all( WT_SESSION_IMPL *session_safe, WT_SESSION_IMPL *session);
