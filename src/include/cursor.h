@@ -79,7 +79,8 @@ struct __wt_cursor_backup {
 struct __wt_cursor_btree {
 	WT_CURSOR iface;
 
-	WT_BTREE *btree;		/* Enclosing btree */
+	WT_BTREE *btree;		/* Enclosing btree and fast functions */
+	int (*search)(WT_CURSOR_BTREE *);
 
 	/*
 	 * The following fields are set by the search functions as a precursor

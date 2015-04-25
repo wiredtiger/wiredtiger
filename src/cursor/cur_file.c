@@ -197,7 +197,7 @@ __curfile_search(WT_CURSOR *cursor)
 	WT_CURSOR_NEEDKEY(cursor);
 	WT_CURSOR_NOVALUE(cursor);
 
-	WT_BTREE_CURSOR_SAVE_AND_RESTORE(cursor, __wt_btcur_search(cbt), ret);
+	WT_BTREE_CURSOR_SAVE_AND_RESTORE(cursor, cbt->search(cbt), ret);
 
 err:	API_END_RET(session, ret);
 }

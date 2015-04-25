@@ -90,7 +90,6 @@ extern void __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt, int next);
 extern int __wt_btcur_next(WT_CURSOR_BTREE *cbt, int truncating);
 extern int __wt_btcur_prev(WT_CURSOR_BTREE *cbt, int truncating);
 extern int __wt_btcur_reset(WT_CURSOR_BTREE *cbt);
-extern int __wt_btcur_search(WT_CURSOR_BTREE *cbt);
 extern int __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp);
 extern int __wt_btcur_insert(WT_CURSOR_BTREE *cbt);
 extern int __wt_btcur_update_check(WT_CURSOR_BTREE *cbt);
