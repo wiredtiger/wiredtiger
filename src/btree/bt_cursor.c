@@ -8,11 +8,16 @@
 
 #include "wt_internal.h"
 
+				/* Don't waste effort, 1GB is always cool. */
+#define	WT_NEED_SIZE_CHK(kv)	((kv)->size > WT_GIGABYTE)
+#define	WT_TYPE_NEED_SIZE_CHK(btree, kv)				\
+	((btree)->type != BTREE_ROW || WT_NEED_SIZE_CHK(kv))
+
 /*
  * __cursor_size_chk --
  *	Return if an inserted item is too large.
  */
-static inline int
+static int
 __cursor_size_chk(WT_SESSION_IMPL *session, WT_ITEM *kv)
 {
 	WT_BM *bm;
@@ -33,8 +38,7 @@ __cursor_size_chk(WT_SESSION_IMPL *session, WT_ITEM *kv)
 		return (0);
 	}
 
-	/* Don't waste effort, 1GB is always cool. */
-	if (kv->size <= WT_GIGABYTE)
+	if (!WT_NEED_SIZE_CHK(kv))
 		return (0);
 
 	/*
@@ -302,7 +306,8 @@ __btcur_search_row(WT_CURSOR_BTREE *cbt)
 	WT_STAT_FAST_CONN_INCR(session, cursor_search);
 	WT_STAT_FAST_DATA_INCR(session, cursor_search);
 
-	WT_RET(__cursor_size_chk(session, &cursor->key));
+	if (WT_NEED_SIZE_CHK(&cursor->key))
+		WT_RET(__cursor_size_chk(session, &cursor->key));
 
 	/*
 	 * If we have a page pinned, search it; if we don't have a page pinned,
@@ -423,7 +428,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 	WT_STAT_FAST_CONN_INCR(session, cursor_search_near);
 	WT_STAT_FAST_DATA_INCR(session, cursor_search_near);
 
-	if (btree->type == BTREE_ROW)
+	if (WT_TYPE_NEED_SIZE_CHK(btree, &cursor->key))
 		WT_RET(__cursor_size_chk(session, &cursor->key));
 
 	/*
@@ -534,9 +539,10 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
 	WT_STAT_FAST_DATA_INCRV(session,
 	    cursor_insert_bytes, cursor->key.size + cursor->value.size);
 
-	if (btree->type == BTREE_ROW)
+	if (WT_TYPE_NEED_SIZE_CHK(btree, &cursor->key))
 		WT_RET(__cursor_size_chk(session, &cursor->key));
-	WT_RET(__cursor_size_chk(session, &cursor->value));
+	if (WT_TYPE_NEED_SIZE_CHK(btree, &cursor->value))
+		WT_RET(__cursor_size_chk(session, &cursor->value));
 
 	/*
 	 * The tree is no longer empty: eviction should pay attention to it,
@@ -701,7 +707,7 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt)
 	WT_STAT_FAST_DATA_INCR(session, cursor_remove);
 	WT_STAT_FAST_DATA_INCRV(session, cursor_remove_bytes, cursor->key.size);
 
-	if (btree->type == BTREE_ROW)
+	if (WT_TYPE_NEED_SIZE_CHK(btree, &cursor->key))
 		WT_RET(__cursor_size_chk(session, &cursor->key));
 
 retry:	WT_RET(__cursor_func_init(cbt, 1));
@@ -789,9 +795,10 @@ __wt_btcur_update(WT_CURSOR_BTREE *cbt)
 	WT_STAT_FAST_DATA_INCRV(
 	    session, cursor_update_bytes, cursor->value.size);
 
-	if (btree->type == BTREE_ROW)
+	if (WT_TYPE_NEED_SIZE_CHK(btree, &cursor->key))
 		WT_RET(__cursor_size_chk(session, &cursor->key));
-	WT_RET(__cursor_size_chk(session, &cursor->value));
+	if (WT_TYPE_NEED_SIZE_CHK(btree, &cursor->value))
+		WT_RET(__cursor_size_chk(session, &cursor->value));
 
 	/*
 	 * The tree is no longer empty: eviction should pay attention to it,
