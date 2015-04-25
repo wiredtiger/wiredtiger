@@ -11,9 +11,22 @@
 /*
  * Macros to decide if we need to do a real size check; don't waste any effort,
  * 1GB is always cool.
+ * WT_VALUE_NEED_SIZE_CHK:
+ *	no fast check row-store keys require checking, only large keys.
  */
 #define	WT_NEED_SIZE_CHK(kv)	((kv)->size > WT_GIGABYTE)
-#define	WT_TYPE_NEED_SIZE_CHK(btree, kv)				\
+/*
+ * WT_KEY_NEED_SIZE_CHK --
+ *	Only row-store keys require checking and only large keys.
+ */
+#define	WT_KEY_NEED_SIZE_CHK(btree, kv)					\
+	((btree)->type == BTREE_ROW && WT_NEED_SIZE_CHK(kv))
+/*
+ * WT_VALUE_NEED_SIZE_CHK --
+ *	Check for anything that's not a row-store, or if it's a row-store
+ * and a large value.
+ */
+#define	WT_VALUE_NEED_SIZE_CHK(btree, kv)				\
 	((btree)->type != BTREE_ROW || WT_NEED_SIZE_CHK(kv))
 
 /*
@@ -431,7 +444,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 	WT_STAT_FAST_CONN_INCR(session, cursor_search_near);
 	WT_STAT_FAST_DATA_INCR(session, cursor_search_near);
 
-	if (WT_TYPE_NEED_SIZE_CHK(btree, &cursor->key))
+	if (WT_KEY_NEED_SIZE_CHK(btree, &cursor->key))
 		WT_RET(__cursor_size_chk(session, &cursor->key));
 
 	/*
@@ -542,9 +555,9 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
 	WT_STAT_FAST_DATA_INCRV(session,
 	    cursor_insert_bytes, cursor->key.size + cursor->value.size);
 
-	if (WT_TYPE_NEED_SIZE_CHK(btree, &cursor->key))
+	if (WT_KEY_NEED_SIZE_CHK(btree, &cursor->key))
 		WT_RET(__cursor_size_chk(session, &cursor->key));
-	if (WT_TYPE_NEED_SIZE_CHK(btree, &cursor->value))
+	if (WT_VALUE_NEED_SIZE_CHK(btree, &cursor->value))
 		WT_RET(__cursor_size_chk(session, &cursor->value));
 
 	/*
@@ -710,7 +723,7 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt)
 	WT_STAT_FAST_DATA_INCR(session, cursor_remove);
 	WT_STAT_FAST_DATA_INCRV(session, cursor_remove_bytes, cursor->key.size);
 
-	if (WT_TYPE_NEED_SIZE_CHK(btree, &cursor->key))
+	if (WT_KEY_NEED_SIZE_CHK(btree, &cursor->key))
 		WT_RET(__cursor_size_chk(session, &cursor->key));
 
 retry:	WT_RET(__cursor_func_init(cbt, 1));
@@ -798,9 +811,9 @@ __wt_btcur_update(WT_CURSOR_BTREE *cbt)
 	WT_STAT_FAST_DATA_INCRV(
 	    session, cursor_update_bytes, cursor->value.size);
 
-	if (WT_TYPE_NEED_SIZE_CHK(btree, &cursor->key))
+	if (WT_KEY_NEED_SIZE_CHK(btree, &cursor->key))
 		WT_RET(__cursor_size_chk(session, &cursor->key));
-	if (WT_TYPE_NEED_SIZE_CHK(btree, &cursor->value))
+	if (WT_VALUE_NEED_SIZE_CHK(btree, &cursor->value))
 		WT_RET(__cursor_size_chk(session, &cursor->value));
 
 	/*
