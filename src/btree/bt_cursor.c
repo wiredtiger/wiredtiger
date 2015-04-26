@@ -413,8 +413,9 @@ __btcur_search_col(WT_CURSOR_BTREE *cbt)
 			cbt->v = 0;
 			cursor->value.data = &cbt->v;
 			cursor->value.size = 1;
-		} else
-			ret = WT_NOTFOUND;
+			return (0);
+		}
+		ret = WT_NOTFOUND;
 	}
 
 err:	WT_TRET(__cursor_reset(cbt));
