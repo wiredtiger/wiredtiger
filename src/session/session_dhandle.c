@@ -52,7 +52,6 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags)
 	enum { NOLOCK, READLOCK, WRITELOCK } locked;
 	WT_BTREE *btree;
 	WT_DATA_HANDLE *dhandle;
-	WT_DECL_RET;
 	uint32_t special_flags;
 
 	btree = S2BT(session);
@@ -86,18 +85,14 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags)
 		}
 	} else if (F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS))
 		return (EBUSY);
-	else if (F_ISSET(session, WT_SESSION_SCHEMA_LOCKED)) {
+	else {
 		/*
 		 * Waiting on a handle lock whilst holding the schema lock
-		 * result in deadlocks.
+		 * can result in deadlocks. Propagate EBUSY in that case.
 		 */
-		if ((ret = __wt_try_readlock(
-		    session, dhandle->rwlock)) == EBUSY)
-			return (ret);
-		WT_RET(ret);
-		locked = READLOCK;
-	} else {
-		WT_RET(__wt_readlock(session, dhandle->rwlock));
+		WT_RET(F_ISSET(session, WT_SESSION_SCHEMA_LOCKED) ?
+		    __wt_try_readlock(session, dhandle->rwlock) :
+		    __wt_readlock(session, dhandle->rwlock));
 		locked = READLOCK;
 	}
 
