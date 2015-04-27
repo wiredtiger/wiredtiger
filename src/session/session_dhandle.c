@@ -86,7 +86,13 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags)
 	} else if (F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS))
 		return (EBUSY);
 	else {
-		WT_RET(__wt_readlock(session, dhandle->rwlock));
+		/*
+		 * Waiting on a handle lock whilst holding the schema lock
+		 * can result in deadlocks. Propagate EBUSY in that case.
+		 */
+		WT_RET(F_ISSET(session, WT_SESSION_SCHEMA_LOCKED) ?
+		    __wt_try_readlock(session, dhandle->rwlock) :
+		    __wt_readlock(session, dhandle->rwlock));
 		locked = READLOCK;
 	}
 
