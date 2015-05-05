@@ -284,34 +284,33 @@ path_setup(const char *home)
 		die(errno, "malloc");
 	snprintf(g.home_bdb, len, "%s/%s", g.home, "bdb");
 
-	/* KVS directory. */
-	len = strlen(g.home) + strlen("KVS") + 2;
-	if ((g.home_kvs = malloc(len)) == NULL)
-		die(errno, "malloc");
-	snprintf(g.home_kvs, len, "%s/%s", g.home, "KVS");
-
 	/*
-	 * Home directory initialize command: remove everything except the RNG
-	 * log file.
+	 * Home directory initialize command: create the directory if it doesn't
+	 * exist, else remove everything except the RNG log file, create the KVS
+	 * subdirectory.
 	 *
 	 * Redirect the "cd" command to /dev/null so chatty cd implementations
 	 * don't add the new working directory to our output.
 	 */
 #undef	CMD
 #ifdef _WIN32
-#define	CMD	"cd %s && del /s /q * && rd /s /q KVS"
+#define	CMD	"test -e %s || mkdir %s; "				\
+		"cd %s && del /s /q * >:nul && rd /s /q KVS; "		\
+		"mkdir KVS"
 #else
-#define	CMD	"cd %s > /dev/null && rm -rf `ls | sed /rand/d`"
+#define	CMD	"test -e %s || mkdir %s; "				\
+		"cd %s > /dev/null && rm -rf `ls | sed /rand/d`; "	\
+		"mkdir KVS"
 #endif
-	len = strlen(g.home) + strlen(CMD) + 1;
+	len = strlen(g.home) * 3 + strlen(CMD) + 1;
 	if ((g.home_init = malloc(len)) == NULL)
 		die(errno, "malloc");
-	snprintf(g.home_init, len, CMD, g.home);
+	snprintf(g.home_init, len, CMD, g.home, g.home, g.home);
 
 	/* Backup directory initialize command, remove and re-create it. */
 #undef	CMD
 #ifdef _WIN32
-#define	CMD	"del /s && mkdir %s"
+#define	CMD	"del /s /q >:nul && mkdir %s"
 #else
 #define	CMD	"rm -rf %s && mkdir %s"
 #endif
@@ -330,9 +329,9 @@ path_setup(const char *home)
 #undef	CMD
 #ifdef _WIN32
 #define	CMD								\
-	"cd %s "							\
+	"cd %s && "							\
 	"rd /q /s slvg.copy & mkdir slvg.copy && "			\
-	"copy WiredTiger* slvg.copy\\ && copy wt* slvg.copy\\"
+	"copy WiredTiger* slvg.copy\\ >:nul && copy wt* slvg.copy\\ >:nul"
 #else
 #define	CMD								\
 	"cd %s > /dev/null && "						\
@@ -385,6 +384,10 @@ rng(void)
 	}
 
 	r = (uint32_t)rand();
-	fprintf(g.rand_log, "%" PRIu32 "\n", r);
+
+	/* Save and flush the random number so we're up-to-date on error. */
+	(void)fprintf(g.rand_log, "%" PRIu32 "\n", r);
+	(void)fflush(g.rand_log);
+
 	return (r);
 }

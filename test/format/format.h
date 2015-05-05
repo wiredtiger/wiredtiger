@@ -128,7 +128,6 @@ typedef struct {
 	char *home_bdb;				/* BDB directory */
 	char *home_config;			/* Run CONFIG file path */
 	char *home_init;			/* Initialize home command */
-	char *home_kvs;				/* KVS directory */
 	char *home_log;				/* Operation log file path */
 	char *home_rand;			/* RNG log file path */
 	char *home_salvage_copy;		/* Salvage copy command */
@@ -136,8 +135,10 @@ typedef struct {
 
 	char *helium_mount;			/* Helium volume */
 
+#ifdef HAVE_BERKELEY_DB
 	void *bdb;				/* BDB comparison handle */
 	void *dbc;				/* BDB cursor handle */
+#endif
 
 	WT_CONNECTION	 *wts_conn;
 	WT_EXTENSION_API *wt_api;
@@ -283,6 +284,7 @@ typedef struct {
 	volatile int state;			/* state */
 } TINFO WT_GCC_ATTRIBUTE((aligned(64)));
 
+#ifdef HAVE_BERKELEY_DB
 void	 bdb_close(void);
 void	 bdb_insert(const void *, size_t, const void *, size_t);
 void	 bdb_np(int, void *, size_t *, void *, size_t *, int *);
@@ -290,6 +292,7 @@ void	 bdb_open(void);
 void	 bdb_read(uint64_t, void *, size_t *, int *);
 void	 bdb_remove(uint64_t, int *);
 void	 bdb_update(const void *, size_t, const void *, size_t, int *);
+#endif
 
 void	*backup(void *);
 void	*compact(void *);

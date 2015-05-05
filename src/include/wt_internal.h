@@ -41,9 +41,6 @@ extern "C" {
 #else
 #include <pthread.h>
 #endif
-#ifdef HAVE_PTHREAD_NP_H
-#include <pthread_np.h>
-#endif
 #include <stddef.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -127,8 +124,6 @@ struct __wt_connection_impl;
     typedef struct __wt_connection_impl WT_CONNECTION_IMPL;
 struct __wt_connection_stats;
     typedef struct __wt_connection_stats WT_CONNECTION_STATS;
-struct __wt_connection_stats_spinlock;
-    typedef struct __wt_connection_stats_spinlock WT_CONNECTION_STATS_SPINLOCK;
 struct __wt_cursor_backup;
     typedef struct __wt_cursor_backup WT_CURSOR_BACKUP;
 struct __wt_cursor_backup_entry;
@@ -185,6 +180,8 @@ struct __wt_insert;
     typedef struct __wt_insert WT_INSERT;
 struct __wt_insert_head;
     typedef struct __wt_insert_head WT_INSERT_HEAD;
+struct __wt_keyed_encryptor;
+    typedef struct __wt_keyed_encryptor WT_KEYED_ENCRYPTOR;
 struct __wt_log_desc;
     typedef struct __wt_log_desc WT_LOG_DESC;
 struct __wt_log_op_desc;
@@ -213,6 +210,8 @@ struct __wt_named_compressor;
     typedef struct __wt_named_compressor WT_NAMED_COMPRESSOR;
 struct __wt_named_data_source;
     typedef struct __wt_named_data_source WT_NAMED_DATA_SOURCE;
+struct __wt_named_encryptor;
+    typedef struct __wt_named_encryptor WT_NAMED_ENCRYPTOR;
 struct __wt_named_extractor;
     typedef struct __wt_named_extractor WT_NAMED_EXTRACTOR;
 struct __wt_ovfl_reuse;
@@ -331,6 +330,7 @@ struct __wt_update;
 #include "txn.i"			/* required by btree.i */
 
 #include "btree.i"			/* required by cursor.i */
+#include "btree_cmp.i"
 #include "cursor.i"
 
 #include "bitstring.i"

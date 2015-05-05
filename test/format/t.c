@@ -152,9 +152,6 @@ main(int argc, char *argv[])
 	if (g.replay && SINGLETHREADED)
 		g.c_runs = 1;
 
-	/* Use line buffering on stdout so status updates aren't buffered. */
-	(void)setvbuf(stdout, NULL, _IOLBF, 32);
-
 	/*
 	 * Initialize locks to single-thread named checkpoints and backups, and
 	 * to single-thread last-record updates.
@@ -178,8 +175,10 @@ main(int argc, char *argv[])
 		start = time(NULL);
 		track("starting up", 0ULL, NULL);
 
+#ifdef HAVE_BERKELEY_DB
 		if (SINGLETHREADED)
 			bdb_open();		/* Initial file config */
+#endif
 		wts_open(g.home, 1, &g.wts_conn);
 		wts_create();
 
@@ -217,8 +216,10 @@ main(int argc, char *argv[])
 			}
 
 		track("shutting down", 0ULL, NULL);
+#ifdef HAVE_BERKELEY_DB
 		if (SINGLETHREADED)
 			bdb_close();
+#endif
 		wts_close();
 
 		/*
@@ -239,6 +240,7 @@ main(int argc, char *argv[])
 		printf("%4d: %s, %s (%.0f seconds)\n",
 		    g.run_cnt, g.c_data_source,
 		    g.c_file_type, difftime(time(NULL), start));
+		fflush(stdout);
 	}
 
 	/* Flush/close any logging information. */
@@ -280,35 +282,17 @@ startup(void)
 		g.rand_log = NULL;
 	}
 
-	/* Create home if it doesn't yet exist. */
-	if (access(g.home, X_OK) != 0 && mkdir(g.home, 0777) != 0)
-		die(errno, "mkdir: %s", g.home);
-
-	/* Remove the run's files except for rand. */
+	/* Create or initialize the home and data-source directories. */
 	if ((ret = system(g.home_init)) != 0)
 		die(ret, "home directory initialization failed");
 
-	/* Create the data-source directory. */
-	if (mkdir(g.home_kvs, 0777) != 0)
-		die(errno, "mkdir: %s", g.home_kvs);
+	/* Open/truncate the logging file. */
+	if (g.logging != 0 && (g.logfp = fopen(g.home_log, "w")) == NULL)
+		die(errno, "fopen: %s", g.home_log);
 
-	/*
-	 * Open/truncate the logging file; line buffer so we see up-to-date
-	 * information on error.
-	 */
-	if (g.logging != 0) {
-		if ((g.logfp = fopen(g.home_log, "w")) == NULL)
-			die(errno, "fopen: %s", g.home_log);
-		(void)setvbuf(g.logfp, NULL, _IOLBF, 0);
-	}
-
-	/*
-	 * Open/truncate the random number logging file; line buffer so we see
-	 * up-to-date information on error.
-	 */
+	/* Open/truncate the random number logging file. */
 	if ((g.rand_log = fopen(g.home_rand, g.replay ? "r" : "w")) == NULL)
 		die(errno, "%s", g.home_rand);
-	(void)setvbuf(g.rand_log, NULL, _IOLBF, 32);
 }
 
 /*

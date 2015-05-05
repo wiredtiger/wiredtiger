@@ -279,13 +279,11 @@ __wt_page_refp(WT_SESSION_IMPL *session,
 	WT_PAGE_INDEX *pindex;
 	uint32_t i;
 
-	WT_ASSERT(session, session->split_gen != 0);
-
 	/*
 	 * Copy the parent page's index value: the page can split at any time,
 	 * but the index's value is always valid, even if it's not up-to-date.
 	 */
-retry:	pindex = WT_INTL_INDEX_COPY(ref->home);
+retry:	WT_INTL_INDEX_GET(session, ref->home, pindex);
 
 	/*
 	 * Use the page's reference hint: it should be correct unless the page
@@ -951,25 +949,90 @@ __wt_ref_info(WT_SESSION_IMPL *session,
 }
 
 /*
+ * __wt_page_can_split --
+ *	Check whether a page can be split in memory.
+ */
+static inline int
+__wt_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+	WT_BTREE *btree;
+	WT_INSERT_HEAD *ins_head;
+
+	btree = S2BT(session);
+
+	/*
+	 * Only split a page once, otherwise workloads that update in the middle
+	 * of the page could continually split without benefit.
+	 */
+	if (F_ISSET_ATOMIC(page, WT_PAGE_SPLIT_INSERT))
+		return (0);
+
+	/*
+	 * Check for pages with append-only workloads. A common application
+	 * pattern is to have multiple threads frantically appending to the
+	 * tree. We want to reconcile and evict this page, but we'd like to
+	 * do it without making the appending threads wait. If we're not
+	 * discarding the tree, check and see if it's worth doing a split to
+	 * let the threads continue before doing eviction.
+	 *
+	 * Ignore anything other than large, dirty row-store leaf pages.
+	 *
+	 * XXX KEITH
+	 * Need a better test for append-only workloads.
+	 */
+	if (page->type != WT_PAGE_ROW_LEAF ||
+	    page->memory_footprint < btree->maxmempage ||
+	    !__wt_page_is_modified(page))
+		return (0);
+
+	/* Don't split a page that is pending a multi-block split. */
+	if (F_ISSET(page->modify, WT_PM_REC_MULTIBLOCK))
+		return (0);
+
+	/*
+	 * There is no point splitting if the list is small, no deep items is
+	 * our heuristic for that. (A 1/4 probability of adding a new skiplist
+	 * level means there will be a new 6th level for roughly each 4KB of
+	 * entries in the list. If we have at least two 6th level entries, the
+	 * list is at least large enough to work with.)
+	 *
+	 * The following code requires at least two items on the insert list,
+	 * this test serves the additional purpose of confirming that.
+	 */
+#define	WT_MIN_SPLIT_SKIPLIST_DEPTH	WT_MIN(6, WT_SKIP_MAXDEPTH - 1)
+	ins_head = page->pg_row_entries == 0 ?
+	    WT_ROW_INSERT_SMALLEST(page) :
+	    WT_ROW_INSERT_SLOT(page, page->pg_row_entries - 1);
+	if (ins_head == NULL ||
+	    ins_head->head[WT_MIN_SPLIT_SKIPLIST_DEPTH] == NULL ||
+	    ins_head->head[WT_MIN_SPLIT_SKIPLIST_DEPTH] ==
+	    ins_head->tail[WT_MIN_SPLIT_SKIPLIST_DEPTH])
+		return (0);
+
+	return (1);
+}
+
+/*
  * __wt_page_can_evict --
  *	Check whether a page can be evicted.
  */
 static inline int
-__wt_page_can_evict(WT_SESSION_IMPL *session, WT_PAGE *page, int check_splits)
+__wt_page_can_evict(
+    WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags, int *inmem_splitp)
 {
 	WT_BTREE *btree;
 	WT_PAGE_MODIFY *mod;
+	WT_TXN_GLOBAL *txn_global;
 
 	btree = S2BT(session);
 	mod = page->modify;
+	txn_global = &S2C(session)->txn_global;
+	if (inmem_splitp != NULL)
+		*inmem_splitp = 0;
 
 	/* Pages that have never been modified can always be evicted. */
 	if (mod == NULL)
 		return (1);
-
-	/* Skip pages that are already being evicted. */
-	if (F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU))
-		return (0);
 
 	/*
 	 * If the tree was deepened, there's a requirement that newly created
@@ -980,9 +1043,22 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_PAGE *page, int check_splits)
 	 * a transaction value, once that's globally visible, we know we can
 	 * evict the created page.
 	 */
-	if (check_splits && WT_PAGE_IS_INTERNAL(page) &&
+	if (LF_ISSET(WT_EVICT_CHECK_SPLITS) && WT_PAGE_IS_INTERNAL(page) &&
 	    !__wt_txn_visible_all(session, mod->mod_split_txn))
 		return (0);
+
+	/*
+	 * Allow for the splitting of pages when a checkpoint is underway only
+	 * if the allow_splits flag has been passed, we know we are performing
+	 * a checkpoint, the page is larger than the stated maximum and there
+	 * has not already been a split on this page as the WT_PM_REC_MULTIBLOCK
+	 * flag is unset.
+	 */
+	if (__wt_page_can_split(session, page)) {
+		if (inmem_splitp != NULL)
+			*inmem_splitp = 1;
+		return (1);
+	}
 
 	/*
 	 * If the file is being checkpointed, we can't evict dirty pages:
@@ -1023,10 +1099,12 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_PAGE *page, int check_splits)
 
 	/*
 	 * If the page was recently split in-memory, don't force it out: we
-	 * hope an eviction thread will find it first.
+	 * hope an eviction thread will find it first.  The check here is
+	 * similar to __wt_txn_visible_all, but ignores the checkpoints
+	 * transaction.
 	 */
-	if (check_splits &&
-	    !__wt_txn_visible_all(session, mod->inmem_split_txn))
+	if (LF_ISSET(WT_EVICT_CHECK_SPLITS) &&
+	    TXNID_LE(txn_global->oldest_id, mod->inmem_split_txn))
 		return (0);
 
 	return (1);
@@ -1046,7 +1124,6 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 
 	btree = S2BT(session);
 	page = ref->page;
-	too_big = (page->memory_footprint > btree->maxmempage) ? 1 : 0;
 
 	/*
 	 * Take some care with order of operations: if we release the hazard
@@ -1061,6 +1138,8 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 	}
 
 	(void)WT_ATOMIC_ADD4(btree->evict_busy, 1);
+
+	too_big = (page->memory_footprint > btree->maxmempage) ? 1 : 0;
 	if ((ret = __wt_evict_page(session, ref)) == 0) {
 		if (too_big)
 			WT_STAT_FAST_CONN_INCR(session, cache_eviction_force);
@@ -1098,7 +1177,13 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	 */
 	if (ref == NULL || __wt_ref_is_root(ref))
 		return (0);
-	page = ref->page;
+
+	/*
+	 * If hazard pointers aren't necessary for this file, we can't be
+	 * evicting, we're done.
+	 */
+	if (F_ISSET(btree, WT_BTREE_IN_MEMORY))
+		return (0);
 
 	/*
 	 * Attempt to evict pages with the special "oldest" read generation.
@@ -1112,10 +1197,11 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	 * it contains an update that isn't stable.  Also skip forced eviction
 	 * if we just did an in-memory split.
 	 */
-	if (page->read_gen != WT_READGEN_OLDEST ||
+	page = ref->page;
+	if (F_ISSET(btree, WT_BTREE_NO_EVICTION) ||
 	    LF_ISSET(WT_READ_NO_EVICT) ||
-	    F_ISSET(btree, WT_BTREE_NO_EVICTION) ||
-	    !__wt_page_can_evict(session, page, 1))
+	    page->read_gen != WT_READGEN_OLDEST || !__wt_page_can_evict(
+	    session, page, WT_EVICT_CHECK_SPLITS, NULL))
 		return (__wt_hazard_clear(session, page));
 
 	WT_RET_BUSY_OK(__wt_page_release_evict(session, ref));
@@ -1229,13 +1315,13 @@ __wt_skip_choose_depth(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_btree_size_overflow --
- *	Check if the size of an in-memory tree with a single leaf page is over
+ * __wt_btree_lsm_size --
+ *	Return if the size of an in-memory tree with a single leaf page is over
  * a specified maximum.  If called on anything other than a simple tree with a
- * single leaf page, returns true so the calling code will switch to a new tree.
+ * single leaf page, returns true so our LSM caller will switch to a new tree.
  */
 static inline int
-__wt_btree_size_overflow(WT_SESSION_IMPL *session, uint64_t maxsize)
+__wt_btree_lsm_size(WT_SESSION_IMPL *session, uint64_t maxsize)
 {
 	WT_BTREE *btree;
 	WT_PAGE *child, *root;
@@ -1254,7 +1340,7 @@ __wt_btree_size_overflow(WT_SESSION_IMPL *session, uint64_t maxsize)
 		return (1);
 
 	/* Check for a tree with a single leaf page. */
-	pindex = WT_INTL_INDEX_COPY(root);
+	WT_INTL_INDEX_GET(session, root, pindex);
 	if (pindex->entries != 1)		/* > 1 child page, switch */
 		return (1);
 
@@ -1272,105 +1358,4 @@ __wt_btree_size_overflow(WT_SESSION_IMPL *session, uint64_t maxsize)
 		return (1);
 
 	return (child->memory_footprint > maxsize);
-}
-
-/*
- * __wt_lex_compare --
- *	Lexicographic comparison routine.
- *
- * Returns:
- *	< 0 if user_item is lexicographically < tree_item
- *	= 0 if user_item is lexicographically = tree_item
- *	> 0 if user_item is lexicographically > tree_item
- *
- * We use the names "user" and "tree" so it's clear in the btree code which
- * the application is looking at when we call its comparison func.
- */
-static inline int
-__wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item)
-{
-	const uint8_t *userp, *treep;
-	size_t len, usz, tsz;
-
-	usz = user_item->size;
-	tsz = tree_item->size;
-	len = WT_MIN(usz, tsz);
-
-	for (userp = user_item->data, treep = tree_item->data;
-	    len > 0;
-	    --len, ++userp, ++treep)
-		if (*userp != *treep)
-			return (*userp < *treep ? -1 : 1);
-
-	/* Contents are equal up to the smallest length. */
-	return ((usz == tsz) ? 0 : (usz < tsz) ? -1 : 1);
-}
-
-/*
- * __wt_compare --
- *	The same as __wt_lex_compare, but using the application's collator
- * function when configured.
- */
-static inline int
-__wt_compare(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
-    const WT_ITEM *user_item, const WT_ITEM *tree_item, int *cmpp)
-{
-	if (collator == NULL) {
-		*cmpp = __wt_lex_compare(user_item, tree_item);
-		return (0);
-	}
-	return (collator->compare(
-	    collator, &session->iface, user_item, tree_item, cmpp));
-}
-
-/*
- * __wt_lex_compare_skip --
- *	Lexicographic comparison routine, skipping leading bytes.
- *
- * Returns:
- *	< 0 if user_item is lexicographically < tree_item
- *	= 0 if user_item is lexicographically = tree_item
- *	> 0 if user_item is lexicographically > tree_item
- *
- * We use the names "user" and "tree" so it's clear in the btree code which
- * the application is looking at when we call its comparison func.
- */
-static inline int
-__wt_lex_compare_skip(
-    const WT_ITEM *user_item, const WT_ITEM *tree_item, size_t *matchp)
-{
-	const uint8_t *userp, *treep;
-	size_t len, usz, tsz;
-
-	usz = user_item->size;
-	tsz = tree_item->size;
-	len = WT_MIN(usz, tsz) - *matchp;
-
-	for (userp = (uint8_t *)user_item->data + *matchp,
-	    treep = (uint8_t *)tree_item->data + *matchp;
-	    len > 0;
-	    --len, ++userp, ++treep, ++*matchp)
-		if (*userp != *treep)
-			return (*userp < *treep ? -1 : 1);
-
-	/* Contents are equal up to the smallest length. */
-	return ((usz == tsz) ? 0 : (usz < tsz) ? -1 : 1);
-}
-
-/*
- * __wt_compare_skip --
- *	The same as __wt_lex_compare_skip, but using the application's collator
- * function when configured.
- */
-static inline int
-__wt_compare_skip(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
-    const WT_ITEM *user_item, const WT_ITEM *tree_item, int *cmpp,
-    size_t *matchp)
-{
-	if (collator == NULL) {
-		*cmpp = __wt_lex_compare_skip(user_item, tree_item, matchp);
-		return (0);
-	}
-	return (collator->compare(
-	    collator, &session->iface, user_item, tree_item, cmpp));
 }

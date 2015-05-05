@@ -185,7 +185,7 @@ __checkpoint_apply(WT_SESSION_IMPL *session, const char *cfg[],
 			    session->ckpt_handle[i].dhandle,
 			    ret = (*op)(session, cfg));
 		else
-			WT_WITH_DHANDLE_LOCK(session,
+			WT_WITH_HANDLE_LIST_LOCK(session,
 			    ret = __wt_conn_btree_apply_single(session,
 			    session->ckpt_handle[i].name, NULL, op, cfg));
 		WT_RET(ret);
@@ -349,9 +349,8 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_ISOLATION saved_isolation;
-	const char *txn_cfg[] =
-	    { WT_CONFIG_BASE(session, session_begin_transaction),
-	      "isolation=snapshot", NULL };
+	const char *txn_cfg[] = { WT_CONFIG_BASE(session,
+	    WT_SESSION_begin_transaction), "isolation=snapshot", NULL };
 	void *saved_meta_next;
 	int full, logging, tracking;
 	u_int i;
@@ -377,7 +376,7 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	WT_WITH_SCHEMA_LOCK(session,
 	    WT_WITH_TABLE_LOCK(session,
-		WT_WITH_DHANDLE_LOCK(session,
+		WT_WITH_HANDLE_LIST_LOCK(session,
 		    ret = __checkpoint_apply_all(
 		    session, cfg, __wt_checkpoint_list, NULL))));
 	WT_ERR(ret);
@@ -412,7 +411,7 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_ERR(__checkpoint_apply(session, cfg, __wt_checkpoint_sync));
 
 	/* Acquire the schema lock. */
-	F_SET(session, WT_SESSION_SCHEMA_LOCKED);
+	F_SET(session, WT_SESSION_LOCKED_SCHEMA);
 	__wt_spin_lock(session, &conn->schema_lock);
 
 	WT_ERR(__wt_meta_track_on(session));
@@ -569,8 +568,8 @@ err:	/*
 	__wt_free(session, session->ckpt_handle);
 	session->ckpt_handle_allocated = session->ckpt_handle_next = 0;
 
-	if (F_ISSET(session, WT_SESSION_SCHEMA_LOCKED)) {
-		F_CLR(session, WT_SESSION_SCHEMA_LOCKED);
+	if (F_ISSET(session, WT_SESSION_LOCKED_SCHEMA)) {
+		F_CLR(session, WT_SESSION_LOCKED_SCHEMA);
 		__wt_spin_unlock(session, &conn->schema_lock);
 	}
 
@@ -1058,7 +1057,7 @@ __wt_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_ASSERT(session, session->dhandle->checkpoint == NULL);
 
 	/* Should be holding the schema lock. */
-	WT_ASSERT(session, F_ISSET(session, WT_SESSION_SCHEMA_LOCKED));
+	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SCHEMA));
 
 	return (__checkpoint_worker(session, cfg, 1));
 }
@@ -1090,7 +1089,7 @@ __wt_checkpoint_sync(WT_SESSION_IMPL *session, const char *cfg[])
  *	Checkpoint a single file as part of closing the handle.
  */
 int
-__wt_checkpoint_close(WT_SESSION_IMPL *session, int final, int force)
+__wt_checkpoint_close(WT_SESSION_IMPL *session, int final)
 {
 	WT_BTREE *btree;
 	WT_DECL_RET;
@@ -1099,8 +1098,8 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, int final, int force)
 	btree = S2BT(session);
 	bulk = F_ISSET(btree, WT_BTREE_BULK) ? 1 : 0;
 
-	/* Handle forced discard (when dropping a file). */
-	if (force)
+	/* If the handle is already dead, force the discard. */
+	if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
 		return (__wt_cache_op(session, NULL, WT_SYNC_DISCARD_FORCE));
 
 	/*
@@ -1124,7 +1123,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, int final, int force)
 	 */
 	if (!final)
 		WT_ASSERT(session,
-		    bulk || F_ISSET(session, WT_SESSION_SCHEMA_LOCKED));
+		    bulk || F_ISSET(session, WT_SESSION_LOCKED_SCHEMA));
 
 	need_tracking = !bulk && !final && !WT_META_TRACKING(session);
 	if (need_tracking)

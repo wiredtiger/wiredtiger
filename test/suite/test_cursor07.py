@@ -40,7 +40,9 @@ class test_cursor07(wttest.WiredTigerTestCase, suite_subprocess):
     logmax = "100K"
     tablename = 'test_cursor07'
     uri = 'table:' + tablename
-    nkeys = 5
+    #  A large number of keys will force a log file change which will
+    # test that scenario for log cursors.
+    nkeys = 7000
 
     scenarios = check_scenarios([
         ('regular', dict(reopen=False)),
@@ -75,9 +77,7 @@ class test_cursor07(wttest.WiredTigerTestCase, suite_subprocess):
 
         self.session.begin_transaction()
         for k in range(self.nkeys):
-            c.set_key(k)
-            c.set_value(value)
-            c.insert()
+            c[k] = value
         self.session.commit_transaction()
         c.close()
 

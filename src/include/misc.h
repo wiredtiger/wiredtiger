@@ -59,6 +59,12 @@
 #define	WT_SKIP_PROBABILITY	(UINT32_MAX >> 2)
 
 /*
+ * Encryption needs to know its original length before either the
+ * block or logging subsystems pad.  Constant value.
+ */
+#define	WT_ENCRYPT_LEN_SIZE	sizeof(uint32_t)
+
+/*
  * __wt_calloc_def, __wt_calloc_one --
  *	Most calloc calls don't need separate count or sizeof arguments.
  */
@@ -126,6 +132,33 @@
 #define	FLD_ISSET(field, mask)	((field) & ((uint32_t)(mask)))
 #define	FLD_SET(field, mask)	((field) |= ((uint32_t)(mask)))
 
+/*
+ * Insertion sort, for sorting small sets of values.
+ *
+ * The "compare_lt" argument is a function or macro that returns true when
+ * its first argument is less than its second argument.
+ */
+#define	WT_INSERTION_SORT(arrayp, n, value_type, compare_lt) do {	\
+	value_type __v;							\
+	int __i, __j, __n = (int)(n);					\
+	if (__n == 2) {							\
+		__v = (arrayp)[1];					\
+		if (compare_lt(__v, (arrayp)[0])) {			\
+			(arrayp)[1] = (arrayp)[0];			\
+			(arrayp)[0] = __v;				\
+		}							\
+	}								\
+	if (__n > 2) {							\
+		for (__i = 1; __i < __n; ++__i) {			\
+			__v = (arrayp)[__i];				\
+			for (__j = __i - 1; __j >= 0 &&			\
+			    compare_lt(__v, (arrayp)[__j]); --__j)	\
+				(arrayp)[__j + 1] = (arrayp)[__j];	\
+			(arrayp)[__j + 1] = __v;			\
+		}							\
+	}								\
+} while (0)
+
 /* Verbose messages. */
 #ifdef HAVE_VERBOSE
 #define	WT_VERBOSE_ISSET(session, f)					\
@@ -134,17 +167,6 @@
 #define	WT_VERBOSE_ISSET(session, f)	0
 #endif
 
-/*
- * Clear a structure, two flavors: inline when we want to guarantee there's
- * no function call or setup/tear-down of a loop, and the default where the
- * compiler presumably chooses.  Gcc 4.3 is supposed to get this right, but
- * we've seen problems when calling memset to clear structures in performance
- * critical paths.
- */
-#define	WT_CLEAR_INLINE(type, s) do {					\
-	static const type __clear;					\
-	s = __clear;							\
-} while (0)
 #define	WT_CLEAR(s)							\
 	memset(&(s), 0, sizeof(s))
 
