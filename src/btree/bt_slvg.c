@@ -327,7 +327,7 @@ __wt_bt_salvage(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, const char *cfg[])
 	 */
 	if (ss->root_ref.page != NULL) {
 		btree->ckpt = ckptbase;
-		ret = __wt_evict(session, &ss->root_ref, 1);
+		ret = __wt_evict(session, &ss->root_ref, WT_EVICT_EXCLUSIVE);
 		ss->root_ref.page = NULL;
 		btree->ckpt = NULL;
 	}
@@ -1175,7 +1175,7 @@ __slvg_col_build_internal(
 	    __wt_page_alloc(session, WT_PAGE_COL_INT, 1, leaf_cnt, 1, &page));
 	WT_ERR(__slvg_modify_init(session, page));
 
-	pindex = WT_INTL_INDEX_COPY(page);
+	pindex = WT_INTL_INDEX_GET_SAFE(page);
 	for (refp = pindex->index, i = 0; i < ss->pages_next; ++i) {
 		if ((trk = ss->pages[i]) == NULL)
 			continue;
@@ -1313,7 +1313,7 @@ __slvg_col_build_leaf(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_REF *ref)
 
 	ret = __wt_page_release(session, ref, 0);
 	if (ret == 0)
-		ret = __wt_evict(session, ref, 1);
+		ret = __wt_evict(session, ref, WT_EVICT_EXCLUSIVE);
 
 	if (0) {
 err:		WT_TRET(__wt_page_release(session, ref, 0));
@@ -1820,7 +1820,7 @@ __slvg_row_build_internal(
 	    __wt_page_alloc(session, WT_PAGE_ROW_INT, 0, leaf_cnt, 1, &page));
 	WT_ERR(__slvg_modify_init(session, page));
 
-	pindex = WT_INTL_INDEX_COPY(page);
+	pindex = WT_INTL_INDEX_GET_SAFE(page);
 	for (refp = pindex->index, i = 0; i < ss->pages_next; ++i) {
 		if ((trk = ss->pages[i]) == NULL)
 			continue;
@@ -2022,7 +2022,7 @@ __slvg_row_build_leaf(
 	 */
 	ret = __wt_page_release(session, ref, 0);
 	if (ret == 0)
-		ret = __wt_evict(session, ref, 1);
+		ret = __wt_evict(session, ref, WT_EVICT_EXCLUSIVE);
 
 	if (0) {
 err:		WT_TRET(__wt_page_release(session, ref, 0));
