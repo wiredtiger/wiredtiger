@@ -42,6 +42,7 @@ CAS
 CELL's
 CELLs
 CHECKKEY
+CHK
 CKPT
 CMP
 CONCAT
@@ -584,6 +585,7 @@ keycmp
 keyv
 kv
 kvraw
+kvret
 kvs
 kvsbdb
 lang

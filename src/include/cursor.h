@@ -184,6 +184,13 @@ struct __wt_cursor_btree {
 	WT_UPDATE *modify_update;
 
 	/*
+	 * There a couple of calls we figure out on a per-type basis (row- or
+	 * column-store, for example), and cache in the cursor.
+	 */
+	int (*kvret)(WT_CURSOR_BTREE *, WT_UPDATE *);
+	int (*search)(WT_CURSOR_BTREE *);
+
+	/*
 	 * Fixed-length column-store items are a single byte, and it's simpler
 	 * and cheaper to allocate the space for it now than keep checking to
 	 * see if we need to grow the buffer.
