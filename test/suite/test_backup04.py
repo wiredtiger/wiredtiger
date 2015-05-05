@@ -71,20 +71,14 @@ class test_backup_target(wttest.WiredTigerTestCase, suite_subprocess):
         self.pr('populate: ' + uri + ' with ' + str(rows) + ' rows')
         cursor = self.session.open_cursor(uri, None)
         for i in range(1, rows + 1):
-            cursor.set_key(key_populate(cursor, i))
-            my_data = str(i) + ':' + 'a' * dsize
-            cursor.set_value(my_data)
-            cursor.insert()
+            cursor[key_populate(cursor, i)] = str(i) + ':' + 'a' * dsize
         cursor.close()
 
     def update(self, uri, dsize, upd, rows):
         self.pr('update: ' + uri + ' with ' + str(rows) + ' rows')
         cursor = self.session.open_cursor(uri, None)
         for i in range(1, rows + 1):
-            cursor.set_key(key_populate(cursor, i))
-            my_data = str(i) + ':' + upd * dsize
-            cursor.set_value(my_data)
-            cursor.insert()
+            cursor[key_populate(cursor, i)] = str(i) + ':' + upd * dsize
         cursor.close()
 
     # Compare the original and backed-up files using the wt dump command.
@@ -165,10 +159,8 @@ class test_backup_target(wttest.WiredTigerTestCase, suite_subprocess):
         #   Copy log files returned by log targeted backup cursor
         #   Truncate (archive) the log files
         #   Close the backup cursor
-        count = 5
-        increment = 0
         updstr="bcdefghi"
-        while increment < count:
+        for increment in range(0, 5):
             full_dir = self.dir + str(increment)
             # Add more work to move the logs forward.
             self.update(self.uri, self.dsize, updstr[increment], self.nops)
@@ -176,7 +168,6 @@ class test_backup_target(wttest.WiredTigerTestCase, suite_subprocess):
 
             self.pr('Iteration: ' + str(increment))
             self.take_incr_backup(self.dir)
-            increment += 1
 
         # After running, take a full backup.  Compare the incremental
         # backup to the original database and the full backup database.

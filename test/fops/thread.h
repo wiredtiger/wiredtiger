@@ -27,18 +27,24 @@
  */
 
 #include <sys/types.h>
+#ifndef _WIN32
 #include <sys/time.h>
+#endif
 
 #include <errno.h>
 #include <inttypes.h>
+#ifndef _WIN32
 #include <pthread.h>
+#endif
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 
-#include <wiredtiger.h>
+#include "test_util.i"
 
 extern WT_CONNECTION *conn;			/* WiredTiger connection */
 
@@ -59,9 +65,3 @@ void obj_cursor(void);
 void obj_drop(void);
 void obj_upgrade(void);
 void obj_verify(void);
-
-void die(int, const char *, ...)
-#if defined(__GNUC__)
-__attribute__((noreturn))
-#endif
-;

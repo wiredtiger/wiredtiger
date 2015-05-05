@@ -79,7 +79,7 @@ key_gen_setup(uint8_t **keyp)
 
 	len = MAX(KILOBYTE(100), g.c_key_max);
 	if ((key = malloc(len)) == NULL)
-		die(errno, "malloc");
+		testutil_die(errno, "malloc");
 	for (i = 0; i < len; ++i)
 		key[i] = (uint8_t)("abcdefghijklmnopqrstuvwxyz"[i % 26]);
 	*keyp = key;
@@ -129,7 +129,7 @@ val_gen_setup(uint8_t **valp)
 	 */
 	len = MAX(KILOBYTE(100), g.c_value_max) + 20;
 	if ((val = malloc(len)) == NULL)
-		die(errno, "malloc");
+		testutil_die(errno, "malloc");
 	for (i = 0; i < len; ++i)
 		val[i] = (uint8_t)("ABCDEFGHIJKLMNOPQRSTUVWXYZ"[i % 26]);
 
@@ -230,9 +230,9 @@ track(const char *tag, uint64_t cnt, TINFO *tinfo)
 	lastlen = len;
 
 	if (printf("%s\r", msg) < 0)
-		die(EIO, "printf");
+		testutil_die(EIO, "printf");
 	if (fflush(stdout) == EOF)
-		die(errno, "fflush");
+		testutil_die(errno, "fflush");
 }
 
 /*
@@ -246,78 +246,77 @@ path_setup(const char *home)
 
 	/* Home directory. */
 	if ((g.home = strdup(home == NULL ? "RUNDIR" : home)) == NULL)
-		die(errno, "malloc");
+		testutil_die(errno, "malloc");
 
 	/* Log file. */
 	len = strlen(g.home) + strlen("log") + 2;
 	if ((g.home_log = malloc(len)) == NULL)
-		die(errno, "malloc");
+		testutil_die(errno, "malloc");
 	snprintf(g.home_log, len, "%s/%s", g.home, "log");
 
 	/* RNG log file. */
 	len = strlen(g.home) + strlen("rand") + 2;
 	if ((g.home_rand = malloc(len)) == NULL)
-		die(errno, "malloc");
+		testutil_die(errno, "malloc");
 	snprintf(g.home_rand, len, "%s/%s", g.home, "rand");
 
 	/* Run file. */
 	len = strlen(g.home) + strlen("CONFIG") + 2;
 	if ((g.home_config = malloc(len)) == NULL)
-		die(errno, "malloc");
+		testutil_die(errno, "malloc");
 	snprintf(g.home_config, len, "%s/%s", g.home, "CONFIG");
 
 	/* Statistics file. */
 	len = strlen(g.home) + strlen("stats") + 2;
 	if ((g.home_stats = malloc(len)) == NULL)
-		die(errno, "malloc");
+		testutil_die(errno, "malloc");
 	snprintf(g.home_stats, len, "%s/%s", g.home, "stats");
 
 	/* Backup directory. */
 	len = strlen(g.home) + strlen("BACKUP") + 2;
 	if ((g.home_backup = malloc(len)) == NULL)
-		die(errno, "malloc");
+		testutil_die(errno, "malloc");
 	snprintf(g.home_backup, len, "%s/%s", g.home, "BACKUP");
 
 	/* BDB directory. */
 	len = strlen(g.home) + strlen("bdb") + 2;
 	if ((g.home_bdb = malloc(len)) == NULL)
-		die(errno, "malloc");
+		testutil_die(errno, "malloc");
 	snprintf(g.home_bdb, len, "%s/%s", g.home, "bdb");
 
-	/* KVS directory. */
-	len = strlen(g.home) + strlen("KVS") + 2;
-	if ((g.home_kvs = malloc(len)) == NULL)
-		die(errno, "malloc");
-	snprintf(g.home_kvs, len, "%s/%s", g.home, "KVS");
-
 	/*
-	 * Home directory initialize command: remove everything except the RNG
-	 * log file.
+	 * Home directory initialize command: create the directory if it doesn't
+	 * exist, else remove everything except the RNG log file, create the KVS
+	 * subdirectory.
 	 *
 	 * Redirect the "cd" command to /dev/null so chatty cd implementations
 	 * don't add the new working directory to our output.
 	 */
 #undef	CMD
 #ifdef _WIN32
-#define	CMD	"cd %s && del /s /q * && rd /s /q KVS"
+#define	CMD	"test -e %s || mkdir %s; "				\
+		"cd %s && del /s /q * >:nul && rd /s /q KVS; "		\
+		"mkdir KVS"
 #else
-#define	CMD	"cd %s > /dev/null && rm -rf `ls | sed /rand/d`"
+#define	CMD	"test -e %s || mkdir %s; "				\
+		"cd %s > /dev/null && rm -rf `ls | sed /rand/d`; "	\
+		"mkdir KVS"
 #endif
-	len = strlen(g.home) + strlen(CMD) + 1;
+	len = strlen(g.home) * 3 + strlen(CMD) + 1;
 	if ((g.home_init = malloc(len)) == NULL)
-		die(errno, "malloc");
-	snprintf(g.home_init, len, CMD, g.home);
+		testutil_die(errno, "malloc");
+	snprintf(g.home_init, len, CMD, g.home, g.home, g.home);
 
 	/* Backup directory initialize command, remove and re-create it. */
 #undef	CMD
 #ifdef _WIN32
-#define	CMD	"del /s && mkdir %s"
+#define	CMD	"del /s /q >:nul && mkdir %s"
 #else
 #define	CMD	"rm -rf %s && mkdir %s"
 #endif
 	len = strlen(g.home_backup) * 2 + strlen(CMD) + 1;
 	if ((g.home_backup_init = malloc(len)) == NULL)
-		die(errno, "malloc");
+		testutil_die(errno, "malloc");
 	snprintf(g.home_backup_init, len, CMD, g.home_backup, g.home_backup);
 
 	/*
@@ -330,9 +329,9 @@ path_setup(const char *home)
 #undef	CMD
 #ifdef _WIN32
 #define	CMD								\
-	"cd %s "							\
+	"cd %s && "							\
 	"rd /q /s slvg.copy & mkdir slvg.copy && "			\
-	"copy WiredTiger* slvg.copy\\ && copy wt* slvg.copy\\"
+	"copy WiredTiger* slvg.copy\\ >:nul && copy wt* slvg.copy\\ >:nul"
 #else
 #define	CMD								\
 	"cd %s > /dev/null && "						\
@@ -341,7 +340,7 @@ path_setup(const char *home)
 #endif
 	len = strlen(g.home) + strlen(CMD) + 1;
 	if ((g.home_salvage_copy = malloc(len)) == NULL)
-		die(errno, "malloc");
+		testutil_die(errno, "malloc");
 	snprintf(g.home_salvage_copy, len, CMD, g.home);
 }
 
@@ -378,13 +377,17 @@ rng(void)
 				    "exiting\n");
 				exit(EXIT_SUCCESS);
 			}
-			die(errno, "random number log");
+			testutil_die(errno, "random number log");
 		}
 
 		return ((uint32_t)strtoul(buf, NULL, 10));
 	}
 
 	r = (uint32_t)rand();
-	fprintf(g.rand_log, "%" PRIu32 "\n", r);
+
+	/* Save and flush the random number so we're up-to-date on error. */
+	(void)fprintf(g.rand_log, "%" PRIu32 "\n", r);
+	(void)fflush(g.rand_log);
+
 	return (r);
 }
