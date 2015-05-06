@@ -205,6 +205,9 @@ __wt_txn_log_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_UNUSED(cfg);
 	txn = &session->txn;
 
+	if (txn->logrec == NULL || txn->logrec->size == 0)
+		return (0);
+
 	/* Write updates to the log. */
 	return (__wt_log_write(session, txn->logrec, NULL, txn->txn_logsync));
 }
