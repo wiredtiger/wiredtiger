@@ -1262,8 +1262,10 @@ __clsm_put(WT_SESSION_IMPL *session,
     WT_CURSOR_LSM *clsm, const WT_ITEM *key, const WT_ITEM *value, int position)
 {
 	WT_CURSOR *c, *primary;
+	WT_DECL_RET;
 	WT_LSM_TREE *lsm_tree;
 	u_int i, slot;
+	int no_logging_set;
 
 	lsm_tree = clsm->lsm_tree;
 
@@ -1284,7 +1286,14 @@ __clsm_put(WT_SESSION_IMPL *session,
 	if (position)
 		clsm->current = primary;
 
-	for (i = 0, slot = clsm->nchunks - 1; i < clsm->nupdates; i++, slot--) {
+	no_logging_set = F_ISSET(&clsm->iface, WT_CURSTD_BULK) &&
+	    !F_ISSET(session, WT_SESSION_NO_LOGGING);
+	if (no_logging_set)
+		F_SET(session, WT_SESSION_NO_LOGGING);
+
+	for (i = 0, slot = clsm->nchunks - 1;
+	    ret == 0 && i < clsm->nupdates;
+	    i++, slot--) {
 		/* Check if we need to keep updating old chunks. */
 		if (i > 0 &&
 		    __wt_txn_visible(session, clsm->switch_txn[slot])) {
@@ -1295,8 +1304,13 @@ __clsm_put(WT_SESSION_IMPL *session,
 		c = clsm->cursors[slot];
 		c->set_key(c, key);
 		c->set_value(c, value);
-		WT_RET((position && i == 0) ? c->update(c) : c->insert(c));
+		ret = (position && i == 0) ? c->update(c) : c->insert(c);
 	}
+
+	if (no_logging_set)
+		F_CLR(session, WT_SESSION_NO_LOGGING);
+
+	WT_RET(ret);
 
 	/*
 	 * Update the record count.  It is in a shared structure, but it's only
@@ -1512,6 +1526,10 @@ __wt_clsm_open(WT_SESSION_IMPL *session,
 	cursor->uri = lsm_tree->name;
 	cursor->key_format = lsm_tree->key_format;
 	cursor->value_format = lsm_tree->value_format;
+
+	WT_RET(__wt_config_gets_def(session, cfg, "bulk", 0, &cval));
+	if (cval.val != 0)
+		F_SET(cursor, WT_CURSTD_BULK);
 
 	clsm->lsm_tree = lsm_tree;
 
