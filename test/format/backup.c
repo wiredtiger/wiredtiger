@@ -63,12 +63,21 @@ copy_file(const char *name)
 	size_t len;
 	char *cmd;
 	int ret;
+	/*
+	 * Use dd with directio to make the copy - the idea being that avoiding
+	 * the file system cache makes it more likely for us to catch the
+	 * state of a database in a "crash like" snapshot.
+	 */
+#define BACKUP_COPY_STRING	"dd iflag=direct status=none if=%s/%s of=%s/%s"
 
-	len = strlen(g.home) + strlen(g.home_backup) + strlen(name) * 2 + 20;
+	len = strlen(g.home) + strlen(g.home_backup) +
+	    strlen(name) * 2 + strlen(BACKUP_COPY_STRING);
 	if ((cmd = malloc(len)) == NULL)
 		die(errno, "malloc");
-	(void)snprintf(cmd, len,
-	    "cp %s/%s %s/%s", g.home, name, g.home_backup, name);
+
+	(void)snprintf(cmd, len, BACKUP_COPY_STRING,
+	    g.home, name, g.home_backup, name);
+
 	if ((ret = system(cmd)) != 0)
 		die(ret, "backup copy: %s", cmd);
 	free(cmd);
