@@ -64,11 +64,11 @@ copy_file(const char *name)
 	char *cmd;
 	int ret;
 	/*
-	 * Use dd with directio to make the copy - the idea being that avoiding
+	 * Use dd with direct IO to make the copy - the idea being that avoiding
 	 * the file system cache makes it more likely for us to catch the
 	 * state of a database in a "crash like" snapshot.
 	 */
-#define BACKUP_COPY_STRING	"dd iflag=direct status=none if=%s/%s of=%s/%s"
+#define	BACKUP_COPY_STRING	"dd iflag=direct status=none if=%s/%s of=%s/%s"
 
 	len = strlen(g.home) + strlen(g.home_backup) +
 	    strlen(name) * 2 + strlen(BACKUP_COPY_STRING);

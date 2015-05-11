@@ -550,6 +550,7 @@ ibackup
 icount
 idx
 ifdef's
+iflag
 ikey
 incr
 incrementing
