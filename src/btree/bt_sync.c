@@ -99,7 +99,7 @@ __sync_file(WT_SESSION_IMPL *session, int syncop)
 		 * internal page pass is complete, then wait for any existing
 		 * eviction to complete.
 		 */
-		btree->checkpointing = 1;
+		WT_ATOMIC_ADD1(btree->checkpointing, 1);
 		WT_FULL_BARRIER();
 
 		WT_ERR(__wt_evict_file_exclusive_on(session, &evict_reset));
@@ -185,16 +185,18 @@ err:	/* On error, clear any left-over tree walk. */
 	if (walk != NULL)
 		WT_TRET(__wt_page_release(session, walk, flags));
 
+	__wt_spin_unlock(session, &btree->flush_lock);
+
 	if (txn->isolation == WT_ISO_READ_COMMITTED && session->ncursors == 0)
 		__wt_txn_release_snapshot(session);
 
-	if (btree->checkpointing) {
+	if (syncop == WT_SYNC_CHECKPOINT) {
 		/*
 		 * Clear the checkpoint flag and push the change; not required,
 		 * but publishing the change means stalled eviction gets moving
 		 * as soon as possible.
 		 */
-		btree->checkpointing = 0;
+		WT_ATOMIC_SUB1(btree->checkpointing, 1);
 		WT_FULL_BARRIER();
 
 		/*
@@ -211,8 +213,6 @@ err:	/* On error, clear any left-over tree walk. */
 		 */
 		WT_TRET(__wt_evict_server_wake(session));
 	}
-
-	__wt_spin_unlock(session, &btree->flush_lock);
 
 	/*
 	 * Leaves are written before a checkpoint (or as part of a file close,

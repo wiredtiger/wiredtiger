@@ -128,13 +128,13 @@ struct __wt_btree {
 	uint64_t rec_max_txn;		/* Maximum txn seen (clean trees) */
 	uint64_t write_gen;		/* Write generation */
 
+	uint8_t checkpointing;		/* Checkpoint in progress */
+
 	WT_REF  *evict_ref;		/* Eviction thread's location */
 	uint64_t evict_priority;	/* Relative priority of cached pages */
 	u_int    evict_walk_period;	/* Skip this many LRU walks */
 	u_int    evict_walk_skips;	/* Number of walks skipped */
 	volatile uint32_t evict_busy;	/* Count of threads in eviction */
-
-	int checkpointing;		/* Checkpoint in progress */
 
 	/*
 	 * We flush pages from the tree (in order to make checkpoint faster),
