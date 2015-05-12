@@ -14,7 +14,8 @@
  */
 static int
 __curlog_logrec(WT_SESSION_IMPL *session,
-    WT_ITEM *logrec, WT_LSN *lsnp, void *cookie, int firstrecord)
+    WT_ITEM *logrec, WT_LSN *lsnp, WT_LSN *next_lsnp,
+    void *cookie, int firstrecord)
 {
 	WT_CURSOR_LOG *cl;
 
@@ -23,8 +24,7 @@ __curlog_logrec(WT_SESSION_IMPL *session,
 
 	/* Set up the LSNs and take a copy of the log record for the cursor. */
 	*cl->cur_lsn = *lsnp;
-	*cl->next_lsn = *lsnp;
-	cl->next_lsn->offset += (wt_off_t)logrec->size;
+	*cl->next_lsn = *next_lsnp;
 	WT_RET(__wt_buf_set(session, cl->logrec, logrec->data, logrec->size));
 
 	/*
@@ -74,7 +74,7 @@ __curlog_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
 	acl = (WT_CURSOR_LOG *)a;
 	bcl = (WT_CURSOR_LOG *)b;
 	WT_ASSERT(session, cmpp != NULL);
-	*cmpp = LOG_CMP(acl->cur_lsn, bcl->cur_lsn);
+	*cmpp = WT_LOG_CMP(acl->cur_lsn, bcl->cur_lsn);
 	/*
 	 * If both are on the same LSN, compare step counter.
 	 */

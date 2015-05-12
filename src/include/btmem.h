@@ -179,17 +179,20 @@ struct __wt_page_modify {
 	 */
 	uint64_t disk_snap_min;
 
-	/* The largest transaction ID seen on the page by reconciliation. */
-	uint64_t rec_max_txn;
-
 	/* The first unwritten transaction ID (approximate). */
 	uint64_t first_dirty_txn;
 
-	/* The largest update transaction ID (approximate). */
-	uint64_t update_txn;
-
 	/* In-memory split transaction ID. */
 	uint64_t inmem_split_txn;
+
+	/* Avoid checking for obsolete updates during checkpoints. */
+	uint64_t obsolete_check_txn;
+
+	/* The largest transaction ID seen on the page by reconciliation. */
+	uint64_t rec_max_txn;
+
+	/* The largest update transaction ID (approximate). */
+	uint64_t update_txn;
 
 	/* Dirty bytes added to the cache. */
 	size_t bytes_dirty;
@@ -353,8 +356,10 @@ struct __wt_page_modify {
 #define	WT_PM_REC_EMPTY		0x01	/* Reconciliation: no replacement */
 #define	WT_PM_REC_MULTIBLOCK	0x02	/* Reconciliation: multiple blocks */
 #define	WT_PM_REC_REPLACE	0x04	/* Reconciliation: single block */
+#define	WT_PM_REC_REWRITE	0x08	/* Reconciliation: rewrite in place */
 #define	WT_PM_REC_MASK							\
-	(WT_PM_REC_EMPTY | WT_PM_REC_MULTIBLOCK | WT_PM_REC_REPLACE)
+	(WT_PM_REC_EMPTY | WT_PM_REC_MULTIBLOCK |			\
+	 WT_PM_REC_REPLACE | WT_PM_REC_REWRITE)
 	uint8_t flags;			/* Page flags */
 };
 
@@ -412,8 +417,17 @@ struct __wt_page {
 	/*
 	 * Macros to copy/set the index because the name is obscured to ensure
 	 * the field isn't read multiple times.
+	 *
+	 * There are two versions of WT_INTL_INDEX_GET because the session split
+	 * generation is usually set, but it's not always required: for example,
+	 * if a page is locked for splitting, or being created or destroyed.
 	 */
-#define	WT_INTL_INDEX_COPY(page)	((page)->u.intl.__index)
+#define	WT_INTL_INDEX_GET_SAFE(page)					\
+	((page)->u.intl.__index)
+#define	WT_INTL_INDEX_GET(session, page, pindex) do {			\
+	WT_ASSERT(session, session->split_gen != 0);			\
+	(pindex) = WT_INTL_INDEX_GET_SAFE(page);			\
+} while (0)
 #define	WT_INTL_INDEX_SET(page, v) do {					\
 	WT_WRITE_BARRIER();						\
 	((page)->u.intl.__index) = (v);					\
@@ -421,21 +435,15 @@ struct __wt_page {
 
 	/*
 	 * Macro to walk the list of references in an internal page.
-	 * Two flavors: by default, check that we have a split_gen, but
-	 * provide a "SAFE" version for code that can safely read the
-	 * page index without a split_gen.
 	 */
-#define	WT_INTL_FOREACH_BEGIN_SAFE(session, page, ref) do {		\
+#define	WT_INTL_FOREACH_BEGIN(session, page, ref) do {			\
 	WT_PAGE_INDEX *__pindex;					\
 	WT_REF **__refp;						\
 	uint32_t __entries;						\
-	for (__pindex = WT_INTL_INDEX_COPY(page),			\
-	    __refp = __pindex->index,					\
+	WT_INTL_INDEX_GET(session, page, __pindex);			\
+	for (__refp = __pindex->index,					\
 	    __entries = __pindex->entries; __entries > 0; --__entries) {\
 		(ref) = *__refp++;
-#define	WT_INTL_FOREACH_BEGIN(session, page, ref)			\
-	WT_ASSERT(session, session->split_gen != 0);			\
-	WT_INTL_FOREACH_BEGIN_SAFE(session, page, ref)
 #define	WT_INTL_FOREACH_END						\
 	}								\
 } while (0)
@@ -532,7 +540,7 @@ struct __wt_page {
 #define	WT_PAGE_REFUSE_DEEPEN	0x10	/* Don't deepen the tree at this page */
 #define	WT_PAGE_SCANNING	0x20	/* Obsolete updates are being scanned */
 #define	WT_PAGE_SPLIT_INSERT	0x40	/* A leaf page was split for append */
-#define	WT_PAGE_SPLITTING	0x80	/* An internal page is growing */
+#define	WT_PAGE_SPLIT_LOCKED	0x80	/* An internal page is growing */
 	uint8_t flags_atomic;		/* Atomic flags, use F_*_ATOMIC */
 
 	/*
