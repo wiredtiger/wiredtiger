@@ -28,7 +28,7 @@
 
 #include <assert.h>
 
-#include "wt_internal.h"
+#include "wt_internal.h"			/* For __wt_XXX */
 
 static void
 check(const char *fmt, ...)
@@ -56,7 +56,7 @@ check(const char *fmt, ...)
 }
 
 int
-main()
+main(void)
 {
 	check("iii", 0, 101, -99);
 	check("3i", 0, 101, -99);

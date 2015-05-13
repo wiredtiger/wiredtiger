@@ -24,20 +24,20 @@
 	    { WT_CONFIG_BASE(s, h##_##n), config, NULL };		\
 	API_SESSION_INIT(s, h, n, cur, dh);				\
 	WT_ERR(WT_SESSION_CHECK_PANIC(s));				\
-	WT_ERR(((config) != NULL) ?					\
-	    __wt_config_check((s),					\
-	    WT_CONFIG_REF(session, h##_##n), (config), 0) : 0);		\
+	if ((config) != NULL)						\
+		WT_ERR(__wt_config_check((s),				\
+		    WT_CONFIG_REF(session, h##_##n), (config), 0));	\
 	WT_ERR(__wt_verbose((s), WT_VERB_API, "CALL: " #h ":" #n))
 
 #define	API_END(s, ret)							\
 	if ((s) != NULL) {						\
 		(s)->dhandle = __olddh;					\
 		(s)->name = __oldname;					\
-		if (F_ISSET(&(s)->txn, TXN_RUNNING) &&			\
+		if (F_ISSET(&(s)->txn, WT_TXN_RUNNING) &&		\
 		    (ret) != 0 &&					\
 		    (ret) != WT_NOTFOUND &&				\
 		    (ret) != WT_DUPLICATE_KEY)				\
-			F_SET(&(s)->txn, TXN_ERROR);			\
+			F_SET(&(s)->txn, WT_TXN_ERROR);			\
 	}								\
 } while (0)
 
@@ -45,25 +45,25 @@
 #define	TXN_API_CALL(s, h, n, cur, bt, config, cfg) do {		\
 	int __autotxn = 0;						\
 	API_CALL(s, h, n, bt, cur, config, cfg);			\
-	__autotxn = !F_ISSET(&(s)->txn, TXN_AUTOCOMMIT | TXN_RUNNING);	\
+	__autotxn = !F_ISSET(&(s)->txn, WT_TXN_AUTOCOMMIT | WT_TXN_RUNNING);\
 	if (__autotxn)							\
-		F_SET(&(s)->txn, TXN_AUTOCOMMIT)
+		F_SET(&(s)->txn, WT_TXN_AUTOCOMMIT)
 
 /* An API call wrapped in a transaction if necessary. */
 #define	TXN_API_CALL_NOCONF(s, h, n, cur, bt) do {			\
 	int __autotxn = 0;						\
 	API_CALL_NOCONF(s, h, n, cur, bt);				\
-	__autotxn = !F_ISSET(&(s)->txn, TXN_AUTOCOMMIT | TXN_RUNNING);	\
+	__autotxn = !F_ISSET(&(s)->txn, WT_TXN_AUTOCOMMIT | WT_TXN_RUNNING);\
 	if (__autotxn)							\
-		F_SET(&(s)->txn, TXN_AUTOCOMMIT)
+		F_SET(&(s)->txn, WT_TXN_AUTOCOMMIT)
 
 /* End a transactional API call, optional retry on deadlock. */
 #define	TXN_API_END_RETRY(s, ret, retry)				\
 	API_END(s, ret);						\
 	if (__autotxn) {						\
-		if (F_ISSET(&(s)->txn, TXN_AUTOCOMMIT))			\
-			F_CLR(&(s)->txn, TXN_AUTOCOMMIT);		\
-		else if (ret == 0 && !F_ISSET(&(s)->txn, TXN_ERROR))	\
+		if (F_ISSET(&(s)->txn, WT_TXN_AUTOCOMMIT))		\
+			F_CLR(&(s)->txn, WT_TXN_AUTOCOMMIT);		\
+		else if (ret == 0 && !F_ISSET(&(s)->txn, WT_TXN_ERROR))	\
 			ret = __wt_txn_commit((s), NULL);		\
 		else {							\
 			WT_TRET(__wt_txn_rollback((s), NULL));		\
@@ -96,29 +96,29 @@
 
 #define	CONNECTION_API_CALL(conn, s, n, config, cfg)			\
 	s = (conn)->default_session;					\
-	API_CALL(s, connection, n, NULL, NULL, config, cfg)
+	API_CALL(s, WT_CONNECTION, n, NULL, NULL, config, cfg)
 
 #define	CONNECTION_API_CALL_NOCONF(conn, s, n)				\
 	s = (conn)->default_session;					\
-	API_CALL_NOCONF(s, connection, n, NULL, NULL)
+	API_CALL_NOCONF(s, WT_CONNECTION, n, NULL, NULL)
 
 #define	SESSION_API_CALL(s, n, config, cfg)				\
-	API_CALL(s, session, n, NULL, NULL, config, cfg)
+	API_CALL(s, WT_SESSION, n, NULL, NULL, config, cfg)
 
 #define	SESSION_API_CALL_NOCONF(s, n)					\
-	API_CALL_NOCONF(s, session, n, NULL, NULL)
+	API_CALL_NOCONF(s, WT_SESSION, n, NULL, NULL)
 
 #define	SESSION_TXN_API_CALL(s, n, config, cfg)				\
-	TXN_API_CALL(s, session, n, NULL, NULL, config, cfg)
+	TXN_API_CALL(s, WT_SESSION, n, NULL, NULL, config, cfg)
 
 #define	CURSOR_API_CALL(cur, s, n, bt)					\
 	(s) = (WT_SESSION_IMPL *)(cur)->session;			\
-	API_CALL_NOCONF(s, cursor, n, cur,				\
+	API_CALL_NOCONF(s, WT_CURSOR, n, cur,				\
 	    ((bt) == NULL) ? NULL : ((WT_BTREE *)(bt))->dhandle)
 
 #define	CURSOR_UPDATE_API_CALL(cur, s, n, bt)				\
 	(s) = (WT_SESSION_IMPL *)(cur)->session;			\
-	TXN_API_CALL_NOCONF(s, cursor, n, cur,				\
+	TXN_API_CALL_NOCONF(s, WT_CURSOR, n, cur,			\
 	    ((bt) == NULL) ? NULL : ((WT_BTREE *)(bt))->dhandle)
 
 #define	CURSOR_UPDATE_API_END(s, ret)					\

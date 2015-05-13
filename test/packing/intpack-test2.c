@@ -28,10 +28,10 @@
 
 #include <assert.h>
 
-#include "wt_internal.h"
+#include "wt_internal.h"			/* For __wt_XXX */
 
 int
-main()
+main(void)
 {
 	uint8_t buf[10], *p, *end;
 	int64_t i;
