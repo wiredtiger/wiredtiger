@@ -470,8 +470,8 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	session->dhandle = NULL;
 
-	/* Commit the transaction before syncing the file(s). */
-	WT_ERR(__wt_txn_commit(session, NULL));
+	/* Release the snapshot so we aren't pinning pages in cache. */
+	__wt_txn_release_snapshot(session);
 
 	/* Clear the global checkpoint transaction IDs */
 	txn_global->checkpoint_id = WT_TXN_NONE;
@@ -489,6 +489,14 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 
 	WT_ERR(__checkpoint_verbose_track(session,
 	    "sync completed", &verb_timer));
+
+	/*
+	 * Commit the transaction now that we are sure that all files in the
+	 * checkpoint have been flushed to disk. It's OK to commit before
+	 * checkpointing the metadata since we know that all files in the
+	 * checkpoint are now in a consistent state.
+	 */
+	WT_ERR(__wt_txn_commit(session, NULL));
 
 	/*
 	 * Disable metadata tracking during the metadata checkpoint.
@@ -1000,8 +1008,16 @@ fake:	/*
 	 * will update the turtle file and swap the new one into place.  We
 	 * need to make sure the metadata is on disk before the turtle file is
 	 * updated.
+	 *
+	 * If we are doing a checkpoint in a file without a transaction (e.g.,
+	 * closing a dirty tree before an exclusive operation like verify),
+	 * the metadata update will be auto-committed.  In that case, we need to
+	 * sync the file here or we could roll forward the metadata in
+	 * recovery and open a checkpoint that isn't yet durable.
 	 */
-	if (F_ISSET(conn, WT_CONN_CKPT_SYNC) && WT_IS_METADATA(dhandle))
+	if (F_ISSET(conn, WT_CONN_CKPT_SYNC) &&
+	    (WT_IS_METADATA(dhandle) ||
+	    !F_ISSET(&session->txn, WT_TXN_RUNNING)))
 		WT_ERR(__wt_checkpoint_sync(session, NULL));
 
 	WT_ERR(__wt_meta_ckptlist_set(
