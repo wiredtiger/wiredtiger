@@ -448,7 +448,7 @@ next:		switch (direction) {
 			 * update the page's memory footprint, on failure, free
 			 * the allocated memory.
 			 */
-			if (WT_ATOMIC_CAS8(WT_ROW_KEY_COPY(rip), copy, ikey))
+			if (WT_ATOMIC_CAS8(WT_ROW_KEY_PTR(rip), copy, ikey))
 				__wt_cache_page_inmem_incr(session,
 				    page, sizeof(WT_IKEY) + ikey->size);
 			else

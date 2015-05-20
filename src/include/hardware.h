@@ -24,6 +24,13 @@
 	WT_READ_BARRIER();						\
 } while (0)
 
+/* Read a shared location without caching. */
+static inline int __wt_barrier() {
+	WT_BARRIER();
+	return (0);
+}
+#define	WT_SHARED_READ(val) (__wt_barrier(), (val))
+
 /*
  * Atomic versions of the flag set/clear macros.
  */

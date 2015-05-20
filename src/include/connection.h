@@ -210,7 +210,7 @@ struct __wt_connection_impl {
 
 	WT_FH *lock_fh;			/* Lock file handle */
 
-	volatile uint64_t  split_gen;	/* Generation number for splits */
+	uint64_t  split_gen;		/* Generation number for splits */
 
 	/*
 	 * The connection keeps a cache of data handles. The set of handles

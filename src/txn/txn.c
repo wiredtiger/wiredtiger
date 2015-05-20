@@ -110,7 +110,7 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 	 * which indicates that some thread is moving the oldest ID forwards.
 	 */
 	do {
-		if ((count = txn_global->scan_count) < 0)
+		if ((count = WT_SHARED_READ(txn_global->scan_count)) < 0)
 			WT_PAUSE();
 	} while (count < 0 ||
 	    !WT_ATOMIC_CAS4(txn_global->scan_count, count, count + 1));
@@ -124,7 +124,7 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 	ckpt_id = txn_global->checkpoint_id;
 	for (i = n = 0, s = txn_global->states; i < session_cnt; i++, s++) {
 		/* Skip the checkpoint transaction; it is never read from. */
-		if (ckpt_id != WT_TXN_NONE && ckpt_id == s->id)
+		if (ckpt_id != WT_TXN_NONE && ckpt_id == WT_SHARED_READ(s->id))
 			continue;
 
 		/*
@@ -138,7 +138,7 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 		 *    keep spinning until it gets a valid one.
 		 */
 		if (s != txn_state &&
-		    (id = s->id) != WT_TXN_NONE &&
+		    (id = WT_SHARED_READ(s->id)) != WT_TXN_NONE &&
 		    WT_TXNID_LE(prev_oldest_id, id)) {
 			txn->snapshot[n++] = id;
 			if (WT_TXNID_LT(id, snap_min))
@@ -223,8 +223,10 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, int force)
 	WT_ORDERED_READ(session_cnt, conn->session_cnt);
 	ckpt_id = txn_global->checkpoint_id;
 	for (i = 0, s = txn_global->states; i < session_cnt; i++, s++) {
+		id = WT_SHARED_READ(s->id);
+
 		/* Skip the checkpoint transaction; it is never read from. */
-		if (ckpt_id != WT_TXN_NONE && ckpt_id == s->id)
+		if (ckpt_id != WT_TXN_NONE && ckpt_id == id)
 			continue;
 
 		/*
@@ -235,8 +237,7 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, int force)
 		 * will not be used because the thread will keep spinning until
 		 * it gets a valid one.
 		 */
-		if ((id = s->id) != WT_TXN_NONE &&
-		    WT_TXNID_LE(prev_oldest_id, id) &&
+		if (id != WT_TXN_NONE && WT_TXNID_LE(prev_oldest_id, id) &&
 		    WT_TXNID_LT(id, snap_min))
 			snap_min = id;
 
@@ -248,7 +249,7 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, int force)
 		 * table.  See the comment in __wt_txn_cursor_op for
 		 * more details.
 		 */
-		if ((id = s->snap_min) != WT_TXN_NONE &&
+		if ((id = WT_SHARED_READ(s->snap_min)) != WT_TXN_NONE &&
 		    WT_TXNID_LT(id, oldest_id)) {
 			oldest_id = id;
 			oldest_session = &conn->sessions[i];
@@ -271,17 +272,17 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, int force)
 		WT_ORDERED_READ(session_cnt, conn->session_cnt);
 		ckpt_id = txn_global->checkpoint_id;
 		for (i = 0, s = txn_global->states; i < session_cnt; i++, s++) {
+			id = WT_SHARED_READ(s->id);
 			/*
 			 * Skip the checkpoint transaction; it is never read
 			 * from.
 			 */
-			if (ckpt_id != WT_TXN_NONE && ckpt_id == s->id)
+			if (ckpt_id != WT_TXN_NONE && ckpt_id == id)
 				continue;
 
-			if ((id = s->id) != WT_TXN_NONE &&
-			    WT_TXNID_LT(id, oldest_id))
+			if (id != WT_TXN_NONE && WT_TXNID_LT(id, oldest_id))
 				oldest_id = id;
-			if ((id = s->snap_min) != WT_TXN_NONE &&
+			if ((id = WT_SHARED_READ(s->snap_min)) != WT_TXN_NONE &&
 			    WT_TXNID_LT(id, oldest_id))
 				oldest_id = id;
 		}

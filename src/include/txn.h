@@ -26,12 +26,12 @@
 #define	WT_SESSION_TXN_STATE(s) (&S2C(s)->txn_global.states[(s)->id])
 
 struct WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) __wt_txn_state {
-	volatile uint64_t id;
-	volatile uint64_t snap_min;
+	uint64_t id;
+	uint64_t snap_min;
 };
 
 struct __wt_txn_global {
-	volatile uint64_t current;	/* Current transaction ID. */
+	uint64_t current;	/* Current transaction ID. */
 
 	/* The oldest running transaction ID (may race). */
 	uint64_t last_running;
@@ -40,10 +40,10 @@ struct __wt_txn_global {
 	 * The oldest transaction ID that is not yet visible to some
 	 * transaction in the system.
 	 */
-	volatile uint64_t oldest_id;
+	uint64_t oldest_id;
 
 	/* Count of scanning threads, or -1 for exclusive access. */
-	volatile int32_t scan_count;
+	int32_t scan_count;
 
 	/*
 	 * Track information about the running checkpoint. The transaction IDs
@@ -52,9 +52,9 @@ struct __wt_txn_global {
 	 * checkpoint operations know when they need to be aware of
 	 * checkpoint IDs.
 	 */
-	volatile uint64_t checkpoint_gen;
-	volatile uint64_t checkpoint_id;
-	volatile uint64_t checkpoint_snap_min;
+	uint64_t checkpoint_gen;
+	uint64_t checkpoint_id;
+	uint64_t checkpoint_snap_min;
 
 	WT_TXN_STATE *states;		/* Per-session transaction states */
 };

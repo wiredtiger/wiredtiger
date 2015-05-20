@@ -397,10 +397,9 @@ struct __wt_page {
 		 *	WT_REF **refp = page->u.intl__index->index;
 		 *	uint32_t entries = page->u.intl__index->entries;
 		 *
-		 * The field is declared volatile (so the compiler knows not to
-		 * read it multiple times), and we obscure the field name and
-		 * use a copy macro in all references to the field (so the code
-		 * doesn't read it multiple times).
+		 * We obscure the field name and use a copy macro in all
+		 * references to the field (so that code doesn't read it
+		 * multiple times).
 		 */
 		struct {
 			uint64_t recno;		/* Starting recno */
@@ -409,7 +408,7 @@ struct __wt_page {
 			struct __wt_page_index {
 				uint32_t entries;
 				WT_REF	**index;
-			} * volatile __index;	/* Collated children */
+			} * __index;	/* Collated children */
 		} intl;
 #undef	pg_intl_recno
 #define	pg_intl_recno			u.intl.recno
@@ -424,7 +423,7 @@ struct __wt_page {
 	 * if a page is locked for splitting, or being created or destroyed.
 	 */
 #define	WT_INTL_INDEX_GET_SAFE(page)					\
-	((page)->u.intl.__index)
+	WT_SHARED_READ((page)->u.intl.__index)
 #define	WT_INTL_INDEX_GET(session, page, pindex) do {			\
 	WT_ASSERT(session, session->split_gen != 0);			\
 	(pindex) = WT_INTL_INDEX_GET_SAFE(page);			\
@@ -671,10 +670,10 @@ struct __wt_ref {
 	 * changes.  Don't cache it, we need to see that change when looking
 	 * up our slot in the page's index structure.
 	 */
-	WT_PAGE * volatile home;	/* Reference page */
+	WT_PAGE *home;			/* Reference page */
 	uint32_t ref_hint;		/* Reference page index hint */
 
-	volatile WT_PAGE_STATE state;	/* Page state */
+	WT_PAGE_STATE state;		/* Page state */
 
 	/*
 	 * Address: on-page cell if read from backing block, off-page WT_ADDR
@@ -718,16 +717,16 @@ struct __wt_ref {
  *		cell = rip->key;
  *	}
  *
- * The field is declared volatile (so the compiler knows it shouldn't read it
- * multiple times), and we obscure the field name and use a copy macro in all
- * references to the field (so the code doesn't read it multiple times), all
- * to make sure we don't introduce this bug (again).
+ * We obscure the field name and use a copy macro in all references to the
+ * field (so the code doesn't read it multiple times), all to make sure we
+ * don't introduce this bug (again).
  */
 struct __wt_row {	/* On-page key, on-page cell, or off-page WT_IKEY */
-	void * volatile __key;
+	void * __key;
 };
-#define	WT_ROW_KEY_COPY(rip)	((rip)->__key)
-#define	WT_ROW_KEY_SET(rip, v)	((rip)->__key) = (void *)(v)
+#define	WT_ROW_KEY_PTR(rip)	((rip)->__key)
+#define	WT_ROW_KEY_COPY(rip)	WT_SHARED_READ(WT_ROW_KEY_PTR(rip))
+#define	WT_ROW_KEY_SET(rip, v)	(WT_ROW_KEY_PTR(rip) = (void *)(v))
 
 /*
  * WT_ROW_FOREACH --
@@ -1037,9 +1036,10 @@ struct __wt_insert_head {
 	uint64_t __prev_split_gen = (session)->split_gen;		\
 	if (__prev_split_gen == 0)					\
 		do {                                                    \
-			WT_PUBLISH((session)->split_gen,                \
-			    S2C(session)->split_gen);                   \
-		} while ((session)->split_gen != S2C(session)->split_gen)
+			WT_PUBLISH((session)->split_gen,		\
+			    S2C(session)->split_gen);			\
+		} while ((session)->split_gen !=			\
+		    WT_SHARED_READ(S2C(session)->split_gen))
 
 #define	WT_LEAVE_PAGE_INDEX(session)					\
 	if (__prev_split_gen == 0)					\
