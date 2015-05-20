@@ -1091,6 +1091,7 @@ int
 __wt_checkpoint_sync(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_BM *bm;
+	WT_DECL_RET;
 
 	WT_UNUSED(cfg);
 
@@ -1102,7 +1103,30 @@ __wt_checkpoint_sync(WT_SESSION_IMPL *session, const char *cfg[])
 	/* Should have an underlying block manager reference. */
 	WT_ASSERT(session, bm != NULL);
 
-	return (bm->sync(bm, session, 0));
+	/* XXX layering violation.  Prevent writes to a file during fsync. */
+	WT_ATOMIC_ADD1(S2BT(session)->checkpointing, 1);
+
+#if 0
+	{
+	int evict_reset;
+
+	/*
+	 * Be sloppy: testing suggests we can write several GB before blocking,
+	 * so let existing eviction complete in parallel with the sync.
+	 */
+	WT_ERR(__wt_evict_file_exclusive_on(session, &evict_reset));
+	if (evict_reset)
+		__wt_evict_file_exclusive_off(session);
+	}
+#endif
+
+	ret = bm->sync(bm, session, 0);
+
+#if 0
+err:
+#endif
+	WT_ATOMIC_SUB1(S2BT(session)->checkpointing, 1);
+	return (ret);
 }
 
 /*
