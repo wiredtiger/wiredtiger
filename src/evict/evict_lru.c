@@ -752,7 +752,7 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session, int *evict_resetp)
 	 * We have disabled further eviction: wait for concurrent LRU eviction
 	 * activity to drain.
 	 */
-	while (btree->evict_busy > 0)
+	while (WT_SHARED_READ(btree->evict_busy) > 0)
 		__wt_yield();
 
 	return (0);
@@ -1462,6 +1462,7 @@ __wt_cache_wait(WT_SESSION_IMPL *session, int full)
 	WT_DECL_RET;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_STATE *txn_state;
+	uint64_t oldest_id;
 	int busy, count;
 
 	cache = S2C(session)->cache;
@@ -1478,7 +1479,8 @@ __wt_cache_wait(WT_SESSION_IMPL *session, int full)
 	busy = txn_state->id != WT_TXN_NONE ||
 	    session->nhazard > 0 ||
 	    (txn_state->snap_min != WT_TXN_NONE &&
-	    txn_global->current != txn_global->oldest_id);
+	    WT_SHARED_READ(txn_global->current) !=
+	    WT_SHARED_READ(txn_global->oldest_id));
 	if (busy && full < 100)
 		return (0);
 	count = busy ? 1 : 10;
@@ -1524,8 +1526,9 @@ __wt_cache_wait(WT_SESSION_IMPL *session, int full)
 		 */
 		if (busy) {
 			__wt_txn_update_oldest(session, 0);
-			if (txn_state->id == txn_global->oldest_id ||
-			    txn_state->snap_min == txn_global->oldest_id)
+			oldest_id = WT_SHARED_READ(txn_global->oldest_id);
+			if (txn_state->id == oldest_id ||
+			    txn_state->snap_min == oldest_id)
 				return (0);
 		}
 
@@ -1535,7 +1538,8 @@ __wt_cache_wait(WT_SESSION_IMPL *session, int full)
 
 		/* Check if things have changed so that we are busy. */
 		if (!busy && txn_state->snap_min != WT_TXN_NONE &&
-		    txn_global->current != txn_global->oldest_id)
+		    WT_SHARED_READ(txn_global->current) !=
+		    WT_SHARED_READ(txn_global->oldest_id))
 			busy = count = 1;
 	}
 }

@@ -132,7 +132,7 @@ struct __wt_btree {
 	uint64_t evict_priority;	/* Relative priority of cached pages */
 	u_int    evict_walk_period;	/* Skip this many LRU walks */
 	u_int    evict_walk_skips;	/* Number of walks skipped */
-	volatile uint32_t evict_busy;	/* Count of threads in eviction */
+	uint32_t evict_busy;	        /* Count of threads in eviction */
 
 	int checkpointing;		/* Checkpoint in progress */
 

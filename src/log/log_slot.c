@@ -109,9 +109,8 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 find_slot:
 	allocated_slot = WT_SLOT_ACTIVE == 1 ? 0 :
 	    __wt_random(session->rnd) % WT_SLOT_ACTIVE;
-	WT_BARRIER();
-	slot = log->slot_array[allocated_slot];
-	old_state = slot->slot_state;
+	slot = WT_SHARED_READ(log->slot_array[allocated_slot]);
+	old_state = WT_SHARED_READ(slot->slot_state);
 join_slot:
 	/*
 	 * WT_LOG_SLOT_READY and higher means the slot is available for
@@ -194,7 +193,7 @@ retry:
 	 * Find an unused slot in the pool.
 	 */
 	pool_i = log->pool_index;
-	newslot = &log->slot_pool[pool_i];
+	newslot = WT_SHARED_READ(&log->slot_pool[pool_i]);
 	if (++log->pool_index >= WT_SLOT_POOL)
 		log->pool_index = 0;
 	if (newslot->slot_state != WT_LOG_SLOT_FREE) {
@@ -266,11 +265,12 @@ __wt_log_slot_wait(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 	yield_count = 0;
 	WT_UNUSED(session);
 
-	while (slot->slot_state > WT_LOG_SLOT_DONE)
+	while (WT_SHARED_READ(slot->slot_state) > WT_LOG_SLOT_DONE)
 		if (++yield_count < 1000)
 			__wt_yield();
 		else
 			__wt_sleep(0, 200);
+
 	return (0);
 }
 
@@ -356,7 +356,7 @@ __wt_log_slot_grow_buffers(WT_SESSION_IMPL *session, size_t newsize)
 	 */
 	__wt_spin_lock(session, &log->log_slot_lock);
 	for (i = 0; i < WT_SLOT_POOL; i++) {
-		slot = &log->slot_pool[i];
+		slot = WT_SHARED_READ(&log->slot_pool[i]);
 		/* Avoid atomic operations if they won't succeed. */
 		if (slot->slot_state != WT_LOG_SLOT_FREE &&
 		    slot->slot_state != WT_LOG_SLOT_READY)

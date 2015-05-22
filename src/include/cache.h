@@ -94,16 +94,10 @@ struct __wt_cache {
 	WT_EVICT_ENTRY *evict_current;	/* LRU current page to be evicted */
 	uint32_t evict_candidates;	/* LRU list pages to evict */
 	uint32_t evict_entries;		/* LRU entries in the queue */
-	volatile uint32_t evict_max;	/* LRU maximum eviction slot used */
+	uint32_t evict_max;		/* LRU maximum eviction slot used */
 	uint32_t evict_slots;		/* LRU list eviction slots */
 	WT_DATA_HANDLE
 		*evict_file_next;	/* LRU next file to search */
-
-	/*
-	 * Sync/flush request information.
-	 */
-	volatile uint64_t sync_request;	/* File sync requests */
-	volatile uint64_t sync_complete;/* File sync requests completed */
 
 	/*
 	 * Cache pool information.

@@ -357,7 +357,8 @@ __wt_txn_id_check(WT_SESSION_IMPL *session)
 		 * path latch free.
 		 */
 		do {
-			txn_state->id = txn->id = txn_global->current;
+			txn_state->id = txn->id =
+			    WT_SHARED_READ(txn_global->current);
 		} while (!WT_ATOMIC_CAS8(
 		    txn_global->current, txn->id, txn->id + 1));
 
@@ -477,7 +478,8 @@ __wt_txn_am_oldest(WT_SESSION_IMPL *session)
 
 	WT_ORDERED_READ(session_cnt, conn->session_cnt);
 	for (i = 0, s = txn_global->states; i < session_cnt; i++, s++)
-		if ((id = s->id) != WT_TXN_NONE && WT_TXNID_LT(id, txn->id))
+		if ((id = WT_SHARED_READ(s->id)) != WT_TXN_NONE &&
+		    WT_TXNID_LT(id, txn->id))
 			return (0);
 
 	return (1);
