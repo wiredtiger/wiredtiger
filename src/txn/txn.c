@@ -397,11 +397,15 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 		__wt_split_stash_discard(session);
 
 	/*
-	 * Reset the transaction state to not running and release the snapshot.
+	 * Release any snapshot.
 	 */
 	__wt_txn_release_snapshot(session);
-	txn->isolation = session->isolation;
-	/* Ensure the transaction flags are cleared on exit */
+
+	/*
+	 * Clear the transaction flags: the one we care about is WT_TXN_RUNNING
+	 * which ensures we don't look at this transaction again, but clearing
+	 * them all is fine.
+	 */
 	txn->flags = 0;
 }
 
