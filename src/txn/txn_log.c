@@ -155,11 +155,11 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 
+	txn = &session->txn;
+
 	if (!FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED) ||
 	    F_ISSET(session, WT_SESSION_NO_LOGGING))
 		return (0);
-
-	txn = &session->txn;
 
 	/* We'd better have a transaction. */
 	WT_ASSERT(session,
@@ -355,7 +355,7 @@ __wt_txn_checkpoint_log(
 			WT_ERR(__wt_log_ckpt(session, ckpt_lsn));
 
 		/* FALLTHROUGH */
-	case WT_TXN_LOG_CKPT_FAIL:
+	case WT_TXN_LOG_CKPT_CLEANUP:
 		/* Cleanup any allocated resources */
 		WT_INIT_LSN(ckpt_lsn);
 		txn->ckpt_nsnapshot = 0;
@@ -456,7 +456,7 @@ __txn_printlog(WT_SESSION_IMPL *session,
 	WT_UNUSED(next_lsnp);
 	out = cookie;
 
-	p = LOG_SKIP_HEADER(rawrec->data);
+	p = WT_LOG_SKIP_HEADER(rawrec->data);
 	end = (const uint8_t *)rawrec->data + rawrec->size;
 	logrec = (WT_LOG_RECORD *)rawrec->data;
 	compressed = F_ISSET(logrec, WT_LOG_RECORD_COMPRESSED);
