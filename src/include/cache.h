@@ -28,8 +28,8 @@
  *	Encapsulation of an eviction candidate.
  */
 struct __wt_evict_entry {
-	WT_BTREE *btree;			/* Enclosing btree object */
-	WT_REF	 *ref;				/* Page to flush/evict */
+	WT_BTREE *btree;		/* Enclosing btree object */
+	WT_REF	 *ref;			/* Page to flush/evict */
 };
 
 /*
@@ -71,6 +71,8 @@ struct __wt_cache {
 	 * Read information.
 	 */
 	uint64_t   read_gen;		/* Page read generation (LRU) */
+	uint64_t   read_gen_oldest;	/* The oldest read generation that
+					   eviction knows about */
 
 	/*
 	 * Eviction thread information.
@@ -84,6 +86,7 @@ struct __wt_cache {
 	u_int eviction_trigger;		/* Percent to trigger eviction */
 	u_int eviction_target;		/* Percent to end eviction */
 	u_int eviction_dirty_target;    /* Percent to allow dirty */
+	u_int eviction_dirty_trigger;	/* Percent to trigger dirty eviction */
 
 	u_int overhead_pct;	        /* Cache percent adjustment */
 
@@ -98,12 +101,6 @@ struct __wt_cache {
 	uint32_t evict_slots;		/* LRU list eviction slots */
 	WT_DATA_HANDLE
 		*evict_file_next;	/* LRU next file to search */
-
-	/*
-	 * Sync/flush request information.
-	 */
-	volatile uint64_t sync_request;	/* File sync requests */
-	volatile uint64_t sync_complete;/* File sync requests completed */
 
 	/*
 	 * Cache pool information.

@@ -442,7 +442,7 @@ struct __wt_cursor {
 	int __F(insert)(WT_CURSOR *cursor);
 
 	/*!
-	 * Update a record and optionally insert an existing record.
+	 * Update an existing record and optionally insert a record.
 	 *
 	 * If the cursor was configured with "overwrite=true" (the default),
 	 * both the key and value must be set; if the record already exists, the
@@ -946,14 +946,16 @@ struct __wt_session {
 	 * configured when the database is configured with "all"\, but the
 	 * cursor open will fail if "all" is specified when the database is
 	 * configured with "fast"\, and the cursor open will fail in all cases
-	 * when the database is configured with "none". If \c statistics is not
+	 * when the database is configured with "none". If "size" is
+	 * configured\, only the underlying size of the object on disk is filled
+	 * in and the object is not opened.  If \c statistics is not
 	 * configured\, the default configuration is the database configuration.
 	 * The "clear" configuration resets statistics after gathering them\,
 	 * where appropriate (for example\, a cache size statistic is not
 	 * cleared\, while the count of cursor insert operations will be
 	 * cleared). See @ref statistics for more information., a list\, with
 	 * values chosen from the following options: \c "all"\, \c "fast"\, \c
-	 * "clear"; default empty.}
+	 * "clear"\, \c "size"; default empty.}
 	 * @config{target, if non-empty\, backup the list of objects; valid only
 	 * for a backup data source., a list of strings; default empty.}
 	 * @configend
@@ -1358,6 +1360,10 @@ struct __wt_session {
 	 * @config{dump_shape, Display the shape of the tree after
 	 * verification\, using the application's message handler\, intended for
 	 * debugging., a boolean flag; default \c false.}
+	 * @config{strict, Treat any verification problem as an error; by
+	 * default\, verify will warn\, but not fail\, in the case of errors
+	 * that won't affect future behavior (for example\, a leaked block)., a
+	 * boolean flag; default \c false.}
 	 * @configend
 	 * @ebusy_errors
 	 */
@@ -1680,7 +1686,11 @@ struct __wt_connection {
 	 * @config{eviction_dirty_target, continue evicting until the cache has
 	 * less dirty memory than the value\, as a percentage of the total cache
 	 * size.  Dirty pages will only be evicted if the cache is full enough
-	 * to trigger eviction., an integer between 10 and 99; default \c 80.}
+	 * to trigger eviction., an integer between 5 and 99; default \c 80.}
+	 * @config{eviction_dirty_trigger, trigger eviction when the cache is
+	 * using this much memory for dirty content\, as a percentage of the
+	 * total cache size.  This setting only alters behavior if it is lower
+	 * than eviction_trigger., an integer between 5 and 99; default \c 95.}
 	 * @config{eviction_target, continue evicting until the cache has less
 	 * total memory than the value\, as a percentage of the total cache
 	 * size.  Must be less than \c eviction_trigger., an integer between 10
@@ -1774,11 +1784,11 @@ struct __wt_connection {
 	 * as a list\, such as <code>"verbose=[evictserver\,read]"</code>., a
 	 * list\, with values chosen from the following options: \c "api"\, \c
 	 * "block"\, \c "checkpoint"\, \c "compact"\, \c "evict"\, \c
-	 * "evictserver"\, \c "fileops"\, \c "log"\, \c "lsm"\, \c "metadata"\,
-	 * \c "mutex"\, \c "overflow"\, \c "read"\, \c "reconcile"\, \c
-	 * "recovery"\, \c "salvage"\, \c "shared_cache"\, \c "split"\, \c
-	 * "temporary"\, \c "transaction"\, \c "verify"\, \c "version"\, \c
-	 * "write"; default empty.}
+	 * "evictserver"\, \c "fileops"\, \c "log"\, \c "lsm"\, \c
+	 * "lsm_manager"\, \c "metadata"\, \c "mutex"\, \c "overflow"\, \c
+	 * "read"\, \c "reconcile"\, \c "recovery"\, \c "salvage"\, \c
+	 * "shared_cache"\, \c "split"\, \c "temporary"\, \c "transaction"\, \c
+	 * "verify"\, \c "version"\, \c "write"; default empty.}
 	 * @configend
 	 * @errors
 	 */
@@ -2096,7 +2106,11 @@ struct __wt_connection {
  * @config{eviction_dirty_target, continue evicting until the cache has less
  * dirty memory than the value\, as a percentage of the total cache size.  Dirty
  * pages will only be evicted if the cache is full enough to trigger eviction.,
- * an integer between 10 and 99; default \c 80.}
+ * an integer between 5 and 99; default \c 80.}
+ * @config{eviction_dirty_trigger, trigger eviction when the cache is using this
+ * much memory for dirty content\, as a percentage of the total cache size.
+ * This setting only alters behavior if it is lower than eviction_trigger., an
+ * integer between 5 and 99; default \c 95.}
  * @config{eviction_target, continue evicting until the cache has less total
  * memory than the value\, as a percentage of the total cache size.  Must be
  * less than \c eviction_trigger., an integer between 10 and 99; default \c 80.}
@@ -2244,10 +2258,10 @@ struct __wt_connection {
  * list\, such as <code>"verbose=[evictserver\,read]"</code>., a list\, with
  * values chosen from the following options: \c "api"\, \c "block"\, \c
  * "checkpoint"\, \c "compact"\, \c "evict"\, \c "evictserver"\, \c "fileops"\,
- * \c "log"\, \c "lsm"\, \c "metadata"\, \c "mutex"\, \c "overflow"\, \c
- * "read"\, \c "reconcile"\, \c "recovery"\, \c "salvage"\, \c "shared_cache"\,
- * \c "split"\, \c "temporary"\, \c "transaction"\, \c "verify"\, \c "version"\,
- * \c "write"; default empty.}
+ * \c "log"\, \c "lsm"\, \c "lsm_manager"\, \c "metadata"\, \c "mutex"\, \c
+ * "overflow"\, \c "read"\, \c "reconcile"\, \c "recovery"\, \c "salvage"\, \c
+ * "shared_cache"\, \c "split"\, \c "temporary"\, \c "transaction"\, \c
+ * "verify"\, \c "version"\, \c "write"; default empty.}
  * @configend
  * Additionally, if files named \c WiredTiger.config or \c WiredTiger.basecfg
  * appear in the WiredTiger home directory, they are read for configuration
@@ -2966,7 +2980,7 @@ struct __wt_compressor {
 	 * encodes none, some or all of the byte strings and copies the encoded
 	 * representation into a destination buffer.  The callback returns the
 	 * number of byte strings encoded and the bytes needed for the encoded
-	 * representation.   The encoded representation has header information
+	 * representation. The encoded representation has header information
 	 * prepended and is written as a block to the underlying file object.
 	 *
 	 * On entry, \c page_max is the configured maximum size for objects of

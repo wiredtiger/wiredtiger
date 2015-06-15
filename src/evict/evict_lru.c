@@ -418,30 +418,22 @@ __evict_has_work(WT_SESSION_IMPL *session, uint32_t *flagsp)
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	uint32_t flags;
-	uint64_t bytes_inuse, bytes_max, dirty_inuse;
+	int evict, dirty;
 
 	conn = S2C(session);
 	cache = conn->cache;
-	flags = 0;
-	*flagsp = 0;
+	*flagsp = flags = 0;
 
 	if (!F_ISSET(conn, WT_CONN_EVICTION_RUN))
 		return (0);
 
-	/*
-	 * Figure out whether the cache usage exceeds either the eviction
-	 * target or the dirty target.
-	 */
-	bytes_inuse = __wt_cache_bytes_inuse(cache);
-	dirty_inuse = __wt_cache_dirty_inuse(cache);
-	bytes_max = conn->cache_size;
-
 	/* Check to see if the eviction server should run. */
-	if (bytes_inuse > (cache->eviction_target * bytes_max) / 100)
+	__wt_cache_status(session, &evict, &dirty);
+	if (evict)
+		/* The cache is too small. */
 		LF_SET(WT_EVICT_PASS_ALL);
-	else if (dirty_inuse >
-	    (cache->eviction_dirty_target * bytes_max) / 100)
-		/* Ignore clean pages unless the cache is too large */
+	else if (dirty)
+		/* Too many dirty pages, ignore clean pages. */
 		LF_SET(WT_EVICT_PASS_DIRTY);
 	else if (F_ISSET(cache, WT_CACHE_WOULD_BLOCK)) {
 		/*
@@ -492,6 +484,14 @@ __evict_pass(WT_SESSION_IMPL *session)
 			WT_RET(__wt_cond_signal(
 			    session, cache->evict_waiter_cond));
 		}
+
+		/*
+		 * Increment the shared read generation.  We do this
+		 * occasionally even if eviction is not currently required, so
+		 * that pages have some relative read generation when the
+		 * eviction server does need to do some work.
+		 */
+		__wt_cache_read_gen_incr(session);
 
 		WT_RET(__evict_has_work(session, &flags));
 		if (flags == 0)
@@ -838,6 +838,9 @@ __evict_lru_walk(WT_SESSION_IMPL *session, uint32_t flags)
 
 	WT_ASSERT(session, cache->evict[0].ref != NULL);
 
+	/* Track the oldest read generation we have in the queue. */
+	cache->read_gen_oldest = cache->evict[0].ref->page->read_gen;
+
 	if (LF_ISSET(WT_EVICT_PASS_AGGRESSIVE | WT_EVICT_PASS_WOULD_BLOCK))
 		/*
 		 * Take all candidates if we only gathered pages with an oldest
@@ -931,9 +934,6 @@ __evict_walk(WT_SESSION_IMPL *session, uint32_t flags)
 	dhandle = NULL;
 	incr = dhandle_locked = 0;
 	retries = 0;
-
-	/* Increment the shared read generation. */
-	__wt_cache_read_gen_incr(session);
 
 	/*
 	 * Update the oldest ID: we use it to decide whether pages are
@@ -1221,19 +1221,14 @@ __evict_walk_file(WT_SESSION_IMPL *session, u_int *slotp, uint32_t flags)
 			continue;
 
 		/*
-		 * If this page has never been considered for eviction,
-		 * set its read generation to a little bit in the
-		 * future and move on, give readers a chance to start
-		 * updating the read generation.
+		 * If this page has never been considered for eviction, set its
+		 * read generation to somewhere in the middle of the LRU list.
 		 */
-		if (page->read_gen == WT_READGEN_NOTSET) {
-			page->read_gen = __wt_cache_read_gen_set(session);
-			continue;
-		}
+		if (page->read_gen == WT_READGEN_NOTSET)
+			page->read_gen = __wt_cache_read_gen_new(session);
 
 fast:		/* If the page can't be evicted, give up. */
-		if (!__wt_page_can_evict(
-		    session, page, WT_EVICT_CHECK_SPLITS, NULL))
+		if (!__wt_page_can_evict(session, page, 1, NULL))
 			continue;
 
 		/*
@@ -1423,7 +1418,7 @@ __wt_evict_lru_page(WT_SESSION_IMPL *session, int is_server)
 	 */
 	page = ref->page;
 	if (page->read_gen != WT_READGEN_OLDEST)
-		page->read_gen = __wt_cache_read_gen_set(session);
+		page->read_gen = __wt_cache_read_gen_bump(session);
 
 	/*
 	 * If we are evicting in a dead tree, don't write dirty pages.
@@ -1513,7 +1508,12 @@ __wt_cache_wait(WT_SESSION_IMPL *session, int full)
 		WT_RET(__wt_eviction_check(session, &full, 0));
 		if (full < 100)
 			return (0);
-		else if (ret == 0)
+		/*
+		 * The value of ret is set in the switch statement above (and
+		 * not altered by WT_RET), so it's 0 or WT_NOTFOUND depending
+		 * on whether or not there was a page to evict in the queue.
+		 */
+		if (ret == 0)
 			continue;
 
 		/*
@@ -1539,6 +1539,7 @@ __wt_cache_wait(WT_SESSION_IMPL *session, int full)
 			busy = count = 1;
 	}
 }
+
 #ifdef HAVE_DIAGNOSTIC
 /*
  * __wt_cache_dump --

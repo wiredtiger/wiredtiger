@@ -229,7 +229,7 @@ wts_open(const char *home, int set_api, WT_CONNECTION **connp)
 	/*
 	 * Direct I/O may not work with backups, doing copies through the buffer
 	 * cache after configuring direct I/O in Linux won't work.  If direct
-	 * I/O is configured, turn off backups.   This isn't a great place to do
+	 * I/O is configured, turn off backups. This isn't a great place to do
 	 * this check, but it's only here we have the configuration string.
 	 */
 	if (strstr(config, "direct_io") != NULL)
@@ -499,7 +499,7 @@ wts_verify(const char *tag)
 		    "=============== verify start ===============");
 
 	/* Session operations for LSM can return EBUSY. */
-	ret = session->verify(session, g.uri, NULL);
+	ret = session->verify(session, g.uri, "strict");
 	if (ret != 0 && !(ret == EBUSY && DATASOURCE("lsm")))
 		die(ret, "session.verify: %s: %s", g.uri, tag);
 
