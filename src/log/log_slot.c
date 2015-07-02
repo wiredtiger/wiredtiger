@@ -194,7 +194,7 @@ __wt_log_slot_close(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 	WT_LOG *log;
 	WT_LOGSLOT *newslot;
 	int64_t old_state;
-	int32_t yields;
+	//int32_t yields;
 	uint32_t pool_i, switch_fails;
 
 	conn = S2C(session);
@@ -218,7 +218,15 @@ retry:
 		 */
 		if (++switch_fails % WT_SLOT_POOL == 0 && slot->slot_churn < 5)
 			++slot->slot_churn;
-		__wt_yield();
+		if (switch_fails % WT_SLOT_POOL == 0) {
+			/*
+			 * Looked through all slots, didn't find a free one so
+			 * process written slots to see if we can free any
+			 * yield if that didn't generate any free ones.
+			 */
+			if (!__wt_log_wrlsn(session, conn, log))
+				__wt_yield();
+		}
 		goto retry;
 	} else if (slot->slot_churn > 0) {
 		--slot->slot_churn;
@@ -226,8 +234,13 @@ retry:
 	}
 
 	/* Pause to allow other threads a chance to consolidate. */
-	for (yields = slot->slot_churn; yields >= 0; yields--)
+	/*
+	 * BDL: I got better results without this - but may depend on workload.
+	 */
+#if 0
+	for (int yields = slot->slot_churn; yields >= 0; yields--)
 		__wt_yield();
+#endif
 
 	/*
 	 * Swap out the slot we're going to use and put a free one in the
