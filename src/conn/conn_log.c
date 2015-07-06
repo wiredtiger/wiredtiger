@@ -393,26 +393,27 @@ typedef struct {
 
 /*
  * __wt_log_wrlsn --
- *	Process written log slots
- *
- * Called from __wt_log_slot_close with the logging spinlock held also called
- * (for now) __log_wrlsn_server also with the logging spinlock held returns 1
- * if progress was made (slots freed), 0 if not slots can be freed if they are
- * contiguous with either log->write_lsn, or with another slot's slot_end_lsn.
+ *	Process written log slots and attempt to coalesce them if the LSNs
+ *	are contiguous.  Returns 1 if slots were freed, 0 if no slots were
+ *	freed in the progress arg.  Must be called with the log slot lock held.
  */
 int
-__wt_log_wrlsn(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *conn, WT_LOG* log)
+__wt_log_wrlsn(WT_SESSION_IMPL *session, uint32_t *progress)
 {
-	WT_DECL_RET;
+	WT_CONNECTION_IMPL *conn;
+	WT_LOG *log;
 	WT_LOG_WRLSN_ENTRY written[WT_SLOT_POOL];
 	WT_LOGSLOT *coalescing, *slot;
 	size_t written_i;
-	uint32_t i, save_i;
-	int progress = 0;
+	uint32_t i, save_i, slot_freed;
 
+	conn = S2C(session);
+	log = conn->log;
 	coalescing = NULL;
 	written_i = 0;
-	i = 0;
+	if (progress != NULL)
+		*progress = 0;
+	i = slot_freed = 0;
 
 	/*
 	 * Walk the array once saving any slots that are in the
@@ -437,41 +438,35 @@ __wt_log_wrlsn(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *conn, WT_LOG* log)
 		/*
 		 * We know the written array is sorted by LSN.  Go
 		 * through them either advancing write_lsn or coalesce
-		 * contiguous ranges of written slots
+		 * contiguous ranges of written slots.
 		 */
 		for (i = 0; i < written_i; i++) {
 			slot = &log->slot_pool[written[i].slot_index];
-
-			if (coalescing) {
+			if (coalescing != NULL) {
 				if (WT_LOG_CMP(&coalescing->slot_end_lsn,
 				    &written[i].lsn) != 0) {
 					coalescing = slot;
 					continue;
 				}
-
 				/*
 				 * If we get here we have a slot to coalesce
 				 * and free.
 				 */
 				coalescing->slot_end_lsn = slot->slot_end_lsn;
-
 				/*
 				 * Signal the close thread if needed.
 				 */
 				if (F_ISSET(slot, WT_SLOT_CLOSEFH))
-					WT_ERR(__wt_cond_signal(session,
+					WT_RET(__wt_cond_signal(session,
 					    conn->log_file_cond));
-				WT_ERR(__wt_log_slot_free(session, slot));
-				progress = 1;
-
+				WT_RET(__wt_log_slot_free(session, slot));
+				slot_freed = 1;
 			} else {
-
 				if (WT_LOG_CMP(
 				    &log->write_lsn, &written[i].lsn) != 0) {
 					coalescing = slot;
 					continue;
 				}
-
 				/*
 				 * If we get here we have a slot to process.
 				 * Advance the LSN and process the slot.
@@ -480,7 +475,7 @@ __wt_log_wrlsn(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *conn, WT_LOG* log)
 				    &slot->slot_release_lsn) == 0);
 				log->write_start_lsn = slot->slot_start_lsn;
 				log->write_lsn = slot->slot_end_lsn;
-				WT_ERR(__wt_cond_signal(
+				WT_RET(__wt_cond_signal(
 				    session, log->log_write_cond));
 				WT_STAT_FAST_CONN_INCR(session, log_write_lsn);
 
@@ -488,17 +483,16 @@ __wt_log_wrlsn(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *conn, WT_LOG* log)
 				 * Signal the close thread if needed.
 				 */
 				if (F_ISSET(slot, WT_SLOT_CLOSEFH))
-					WT_ERR(__wt_cond_signal(
+					WT_RET(__wt_cond_signal(
 					    session, conn->log_file_cond));
-				WT_ERR(__wt_log_slot_free(session, slot));
-				progress = 1;
+				WT_RET(__wt_log_slot_free(session, slot));
+				slot_freed = 1;
 			}
 		}
-
 	}
-
-err:
-	return (progress);
+	if (progress != NULL)
+		*progress = slot_freed;
+	return (0);
 }
 
 /*
@@ -517,7 +511,7 @@ __log_wrlsn_server(void *arg)
 	log = conn->log;
 	while (F_ISSET(conn, WT_CONN_LOG_SERVER_RUN)) {
 		__wt_spin_lock(session, &log->log_slot_lock);
-		__wt_log_wrlsn(session, conn, log);
+		__wt_log_wrlsn(session, NULL);
 		__wt_spin_unlock(session, &log->log_slot_lock);
 		__wt_sleep(0, 1000);
 	}

@@ -195,7 +195,7 @@ __wt_log_slot_close(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 	WT_LOGSLOT *newslot;
 	int64_t old_state;
 	//int32_t yields;
-	uint32_t pool_i, switch_fails;
+	uint32_t pool_i, slots_freed, switch_fails;
 
 	conn = S2C(session);
 	log = conn->log;
@@ -220,11 +220,12 @@ retry:
 			++slot->slot_churn;
 		if (switch_fails % WT_SLOT_POOL == 0) {
 			/*
-			 * Looked through all slots, didn't find a free one so
-			 * process written slots to see if we can free any
-			 * yield if that didn't generate any free ones.
+			 * We looked through all slots, didn't find a free one.
+			 * Process written slots to see if we can free any.
+			 * Yield if that didn't generate any free ones.
 			 */
-			if (!__wt_log_wrlsn(session, conn, log))
+			WT_RET(__wt_log_wrlsn(session, &slots_freed));
+			if (!slots_freed)
 				__wt_yield();
 		}
 		goto retry;
