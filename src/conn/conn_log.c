@@ -398,7 +398,7 @@ typedef struct {
  *	freed in the progress arg.  Must be called with the log slot lock held.
  */
 int
-__wt_log_wrlsn(WT_SESSION_IMPL *session, uint32_t *progress)
+__wt_log_wrlsn(WT_SESSION_IMPL *session, uint32_t *slots_freed)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_LOG *log;
@@ -411,8 +411,8 @@ __wt_log_wrlsn(WT_SESSION_IMPL *session, uint32_t *progress)
 	log = conn->log;
 	coalescing = NULL;
 	written_i = 0;
-	if (progress != NULL)
-		*progress = 0;
+	if (slots_freed != NULL)
+		*slots_freed = 0;
 	i = slot_freed = 0;
 
 	/*
@@ -453,15 +453,18 @@ __wt_log_wrlsn(WT_SESSION_IMPL *session, uint32_t *progress)
 				 * and free.
 				 */
 				coalescing->slot_end_lsn = slot->slot_end_lsn;
+				WT_STAT_FAST_CONN_INCR(
+				    session, log_slot_coalesced);
 				/*
-				 * Signal the close thread if needed.
+				 * Copy the flag for later closing.
 				 */
 				if (F_ISSET(slot, WT_SLOT_CLOSEFH))
-					WT_RET(__wt_cond_signal(session,
-					    conn->log_file_cond));
-				WT_RET(__wt_log_slot_free(session, slot));
-				slot_freed = 1;
+					F_SET(coalescing, WT_SLOT_CLOSEFH);
 			} else {
+				/*
+				 * If this written slot is not the next LSN,
+				 * try to start coalescing with later slots.
+				 */
 				if (WT_LOG_CMP(
 				    &log->write_lsn, &written[i].lsn) != 0) {
 					coalescing = slot;
@@ -478,20 +481,19 @@ __wt_log_wrlsn(WT_SESSION_IMPL *session, uint32_t *progress)
 				WT_RET(__wt_cond_signal(
 				    session, log->log_write_cond));
 				WT_STAT_FAST_CONN_INCR(session, log_write_lsn);
-
 				/*
 				 * Signal the close thread if needed.
 				 */
 				if (F_ISSET(slot, WT_SLOT_CLOSEFH))
 					WT_RET(__wt_cond_signal(
 					    session, conn->log_file_cond));
-				WT_RET(__wt_log_slot_free(session, slot));
-				slot_freed = 1;
 			}
+			WT_RET(__wt_log_slot_free(session, slot));
+			slot_freed++;
 		}
 	}
-	if (progress != NULL)
-		*progress = slot_freed;
+	if (slots_freed != NULL)
+		*slots_freed = slot_freed;
 	return (0);
 }
 

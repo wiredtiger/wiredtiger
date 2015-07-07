@@ -225,7 +225,7 @@ retry:
 			 * Yield if that didn't generate any free ones.
 			 */
 			WT_RET(__wt_log_wrlsn(session, &slots_freed));
-			if (!slots_freed)
+			if (slots_freed == 0)
 				__wt_yield();
 		}
 		goto retry;
