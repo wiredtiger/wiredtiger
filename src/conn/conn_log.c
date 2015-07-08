@@ -505,19 +505,28 @@ static WT_THREAD_RET
 __log_wrlsn_server(void *arg)
 {
 	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
 	WT_LOG *log;
 	WT_SESSION_IMPL *session;
+	int locked;
 
 	session = arg;
 	conn = S2C(session);
 	log = conn->log;
+	locked = 0;
 	while (F_ISSET(conn, WT_CONN_LOG_SERVER_RUN)) {
 		__wt_spin_lock(session, &log->log_slot_lock);
-		__wt_log_wrlsn(session, NULL);
+		locked = 1;
+		WT_ERR(__wt_log_wrlsn(session, NULL));
 		__wt_spin_unlock(session, &log->log_slot_lock);
-		__wt_sleep(0, 1000);
+		locked = 0;
+		WT_ERR(__wt_cond_wait(session, conn->log_wrlsn_cond, 100000));
 	}
+	if (0)
+err:		__wt_err(session, ret, "log wrlsn server error");
 
+	if (locked)
+		__wt_spin_unlock(session, &log->log_slot_lock);
 	return (WT_THREAD_RET_VALUE);
 }
 
