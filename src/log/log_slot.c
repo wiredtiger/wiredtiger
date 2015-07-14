@@ -107,6 +107,14 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 	log = conn->log;
 	slot_grow_attempts = 0;
 
+	/*
+	 * If our record is too big return immediately and do a direct
+	 * write.
+	 */
+	if (mysize >= WT_LOG_SLOT_BUF_MAX_SIZE) {
+		WT_STAT_FAST_CONN_INCR(session, log_slot_toobig);
+		return (ENOMEM);
+	}
 find_slot:
 #if WT_SLOT_ACTIVE == 1
 	allocated_slot = 0;
@@ -150,7 +158,8 @@ join_slot:
 	 * the slot for a buffer size increase and find another slot.
 	 */
 	if (new_state > (int64_t)slot->slot_buf.memsize) {
-		F_SET(slot, WT_SLOT_BUF_GROW);
+		if (slot->slot_buf.memsize < WT_LOG_SLOT_BUF_MAX_SIZE)
+			F_SET(slot, WT_SLOT_BUF_GROW);
 		if (++slot_grow_attempts > 5) {
 			WT_STAT_FAST_CONN_INCR(session, log_slot_toosmall);
 			return (ENOMEM);
@@ -316,12 +325,14 @@ __wt_log_slot_free(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 	/*
 	 * Grow the buffer if needed before returning it to the pool.
 	 */
-	if (F_ISSET(slot, WT_SLOT_BUF_GROW)) {
+	if (F_ISSET(slot, WT_SLOT_BUF_GROW) &&
+	    slot->slot_buf.memsize < WT_LOG_SLOT_BUF_MAX_SIZE) {
 		WT_STAT_FAST_CONN_INCR(session, log_buffer_grow);
 		WT_STAT_FAST_CONN_INCRV(session,
 		    log_buffer_size, slot->slot_buf.memsize);
-		WT_ERR(__wt_buf_grow(session,
-		    &slot->slot_buf, slot->slot_buf.memsize * 2));
+		WT_ERR(__wt_buf_grow(session, &slot->slot_buf,
+		    WT_MIN(slot->slot_buf.memsize * 2,
+		    WT_LOG_SLOT_BUF_MAX_SIZE)));
 	}
 err:
 	/*
@@ -385,8 +396,13 @@ __wt_log_slot_grow_buffers(WT_SESSION_IMPL *session, size_t newsize)
 		/* We have a slot - now go ahead and grow the buffer. */
 		old_size = slot->slot_buf.memsize;
 		F_CLR(slot, WT_SLOT_BUF_GROW);
+		if (old_size == WT_LOG_SLOT_BUF_MAX_SIZE) {
+			slot->slot_state = orig_state;
+			continue;
+		}
 		WT_ERR(__wt_buf_grow(session, &slot->slot_buf,
-		    WT_MAX(slot->slot_buf.memsize * 2, newsize)));
+		    WT_MIN(WT_LOG_SLOT_BUF_MAX_SIZE,
+		    WT_MAX(slot->slot_buf.memsize * 2, newsize))));
 		slot->slot_state = orig_state;
 		total_growth += slot->slot_buf.memsize - old_size;
 	}
