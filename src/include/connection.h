@@ -344,6 +344,8 @@ struct __wt_connection_impl {
 	wt_off_t	 log_file_max;	/* Log file max size */
 	const char	*log_path;	/* Logging path format */
 	uint32_t	 log_prealloc;	/* Log file pre-allocation */
+	wt_off_t	 log_slot_mem;	/* Log slot memory size */
+	uint32_t	 log_slots;	/* Number of log slots */
 	uint32_t	 txn_logsync;	/* Log sync configuration */
 
 	WT_SESSION_IMPL *sweep_session;	/* Handle sweep session */

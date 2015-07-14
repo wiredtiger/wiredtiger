@@ -477,6 +477,7 @@ __wt_stat_init_connection_stats(WT_CONNECTION_STATS *stats)
 	stats->log_writes.desc = "log: log write operations";
 	stats->log_slot_consolidated.desc = "log: logging bytes consolidated";
 	stats->log_max_filesize.desc = "log: maximum log file size";
+	stats->log_slots.desc = "log: number of consolidation slots";
 	stats->log_prealloc_max.desc =
 	    "log: number of pre-allocated log files to create";
 	stats->log_prealloc_files.desc =
@@ -488,7 +489,7 @@ __wt_stat_init_connection_stats(WT_CONNECTION_STATS *stats)
 	    "log: slots selected for switching that were unavailable";
 	stats->log_compress_mem.desc =
 	    "log: total in-memory size of compressed records";
-	stats->log_buffer_size.desc = "log: total log buffer size";
+	stats->log_buffer_size.desc = "log: total log slot buffer size";
 	stats->log_compress_len.desc = "log: total size of compressed records";
 	stats->log_close_yields.desc =
 	    "log: yields waiting for previous log file close";

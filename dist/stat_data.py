@@ -218,7 +218,8 @@ connection_stats = [
     ##########################################
     # Logging statistics
     ##########################################
-    LogStat('log_buffer_size', 'total log buffer size', 'no_clear,no_scale'),
+    LogStat('log_buffer_size',
+        'total log slot buffer size', 'no_clear,no_scale'),
     LogStat('log_bytes_payload', 'log bytes of payload data'),
     LogStat('log_bytes_written', 'log bytes written'),
     LogStat('log_close_yields', 'yields waiting for previous log file close'),
@@ -236,6 +237,7 @@ connection_stats = [
     LogStat('log_scan_records', 'records processed by log scan'),
     LogStat('log_scan_rereads', 'log scan records requiring two reads'),
     LogStat('log_scans', 'log scan operations'),
+    LogStat('log_slots', 'number of consolidation slots', 'no_clear,no_scale'),
     LogStat('log_sync', 'log sync operations'),
     LogStat('log_sync_dir', 'log sync_dir operations'),
     LogStat('log_writes', 'log write operations'),

@@ -35,7 +35,8 @@ __wt_log_slot_init(WT_SESSION_IMPL *session)
 
 	conn = S2C(session);
 	log = conn->log;
-	for (i = 0; i < WT_SLOT_POOL; i++) {
+	WT_RET(__wt_calloc_def(session, conn->log_slots, &log->slot_pool));
+	for (i = 0; i < (int32_t)conn->log_slots; i++) {
 		log->slot_pool[i].slot_state = WT_LOG_SLOT_FREE;
 		log->slot_pool[i].slot_index = WT_SLOT_INVALID_INDEX;
 	}
@@ -57,14 +58,13 @@ __wt_log_slot_init(WT_SESSION_IMPL *session)
 	/*
 	 * Cap the slot buffer to the log file size.
 	 */
-	log->slot_buf_size = WT_MIN(conn->log_file_max, WT_LOG_SLOT_BUF_SIZE);
-	for (i = 0; i < WT_SLOT_POOL; i++) {
+	log->slot_buf_size = WT_MIN(conn->log_file_max,
+	    conn->log_slot_mem / conn->log_slots);
+	for (i = 0; i < (int32_t)conn->log_slots; i++) {
 		WT_ERR(__wt_buf_init(session,
 		    &log->slot_pool[i].slot_buf, log->slot_buf_size));
 		F_SET(&log->slot_pool[i], WT_SLOT_INIT_FLAGS);
 	}
-	WT_STAT_FAST_CONN_INCRV(session,
-	    log_buffer_size, log->slot_buf_size * WT_SLOT_POOL);
 	if (0) {
 err:		while (--i >= 0)
 			__wt_buf_free(session, &log->slot_pool[i].slot_buf);
@@ -81,12 +81,12 @@ __wt_log_slot_destroy(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_LOG *log;
-	int i;
+	uint32_t i;
 
 	conn = S2C(session);
 	log = conn->log;
 
-	for (i = 0; i < WT_SLOT_POOL; i++)
+	for (i = 0; i < conn->log_slots; i++)
 		__wt_buf_free(session, &log->slot_pool[i].slot_buf);
 	return (0);
 }
@@ -209,7 +209,7 @@ retry:
 	 */
 	pool_i = log->pool_index;
 	newslot = &log->slot_pool[pool_i];
-	if (++log->pool_index >= WT_SLOT_POOL)
+	if (++log->pool_index >= conn->log_slots)
 		log->pool_index = 0;
 	if (newslot->slot_state != WT_LOG_SLOT_FREE) {
 		WT_STAT_FAST_CONN_INCR(session, log_slot_switch_fails);
@@ -219,7 +219,8 @@ retry:
 		 * churn is used to change how long we pause before closing
 		 * the slot - which leads to more consolidation and less churn.
 		 */
-		if (++switch_fails % WT_SLOT_POOL == 0 && slot->slot_churn < 5)
+		if (++switch_fails % conn->log_slots == 0 &&
+		    slot->slot_churn < 5)
 			++slot->slot_churn;
 		__wt_yield();
 		goto retry;
