@@ -228,6 +228,7 @@ struct __wt_connection_stats {
 	WT_STATS log_slot_toobig;
 	WT_STATS log_slot_toosmall;
 	WT_STATS log_slot_transitions;
+	WT_STATS log_slots;
 	WT_STATS log_sync;
 	WT_STATS log_sync_dir;
 	WT_STATS log_write_lsn;

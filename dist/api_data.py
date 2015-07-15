@@ -634,6 +634,12 @@ common_wiredtiger_open = [
             run recovery or error if recovery needs to run after an
             unclean shutdown.''',
             choices=['error','on']),
+        Config('slot_memory', '32MB', r'''
+            the memory to allocate for slot buffers''',
+            min='1MB', max='2GB'),
+        Config('slots', '128', r'''
+            the number of slots for consolidation''',
+            min='16', max='256'),
         ]),
     Config('mmap', 'true', r'''
         Use memory mapping to access files when possible''',

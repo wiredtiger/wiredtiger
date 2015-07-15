@@ -78,6 +78,14 @@ __logmgr_config(WT_SESSION_IMPL *session, const char **cfg, int *runp)
 	conn->log_file_max = (wt_off_t)cval.val;
 	WT_STAT_FAST_CONN_SET(session, log_max_filesize, conn->log_file_max);
 
+	WT_RET(__wt_config_gets(session, cfg, "log.slot_memory", &cval));
+	conn->log_slot_mem = (wt_off_t)cval.val;
+	WT_STAT_FAST_CONN_SET(session, log_buffer_size, conn->log_slot_mem);
+
+	WT_RET(__wt_config_gets(session, cfg, "log.slots", &cval));
+	conn->log_slots = (wt_off_t)cval.val;
+	WT_STAT_FAST_CONN_SET(session, log_slots, conn->log_slots);
+
 	WT_RET(__wt_config_gets(session, cfg, "log.prealloc", &cval));
 	/*
 	 * If pre-allocation is configured, set the initial number to one.
@@ -401,17 +409,19 @@ __log_wrlsn_server(void *arg)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_LOG *log;
-	WT_LOG_WRLSN_ENTRY written[WT_SLOT_POOL];
+	WT_LOG_WRLSN_ENTRY *written;
 	WT_LOGSLOT *slot;
 	WT_SESSION_IMPL *session;
 	size_t written_i;
 	uint32_t i, save_i;
 	int yield;
 
+	written = NULL;
 	session = arg;
 	conn = S2C(session);
 	log = conn->log;
 	yield = 0;
+	WT_ERR(__wt_calloc_def(session, conn->log_slots, &written));
 	while (F_ISSET(conn, WT_CONN_LOG_SERVER_RUN)) {
 		/*
 		 * No need to use the log_slot_lock because the slot pool
@@ -424,7 +434,7 @@ __log_wrlsn_server(void *arg)
 		 * Walk the array once saving any slots that are in the
 		 * WT_LOG_SLOT_WRITTEN state.
 		 */
-		while (i < WT_SLOT_POOL) {
+		while (i < conn->log_slots) {
 			save_i = i;
 			slot = &log->slot_pool[i++];
 			if (slot->slot_state != WT_LOG_SLOT_WRITTEN)
@@ -486,6 +496,7 @@ __log_wrlsn_server(void *arg)
 
 	if (0)
 err:		__wt_err(session, ret, "log wrlsn server error");
+	__wt_free(session, written);
 	return (WT_THREAD_RET_VALUE);
 }
 
@@ -676,7 +687,7 @@ __wt_logmgr_open(WT_SESSION_IMPL *session)
 
 /*
  * __wt_logmgr_destroy --
- *	Destroy the log archiving server thread and logging subsystem.
+ *	Destroy the log worker threads and logging subsystem.
  */
 int
 __wt_logmgr_destroy(WT_SESSION_IMPL *session)
@@ -742,6 +753,7 @@ __wt_logmgr_destroy(WT_SESSION_IMPL *session)
 	__wt_spin_destroy(session, &conn->log->log_slot_lock);
 	__wt_spin_destroy(session, &conn->log->log_sync_lock);
 	__wt_free(session, conn->log_path);
+	__wt_free(session, conn->log->slot_pool);
 	__wt_free(session, conn->log);
 	return (ret);
 }
