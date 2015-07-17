@@ -998,7 +998,7 @@ retry:	while (slot < max_entries && ret == 0) {
 			break;
 
 		/* Ignore non-file handles, or handles that aren't open. */
-		if (!WT_PREFIX_MATCH(dhandle->name, "file:") ||
+		if (!F_ISSET(dhandle, WT_DHANDLE_IS_FILE) ||
 		    !F_ISSET(dhandle, WT_DHANDLE_OPEN))
 			continue;
 
