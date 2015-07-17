@@ -34,7 +34,7 @@
  */
 struct __wt_data_handle {
 	WT_RWLOCK *rwlock;		/* Lock for shared/exclusive ops */
-	SLIST_ENTRY(__wt_data_handle) l;
+	STAILQ_ENTRY(__wt_data_handle) l;
 	SLIST_ENTRY(__wt_data_handle) hashl;
 
 	/*

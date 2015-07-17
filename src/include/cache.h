@@ -13,7 +13,7 @@
 #define	WT_EVICT_INT_SKEW  (1<<20)	/* Prefer leaf pages over internal
 					   pages by this many increments of the
 					   read generation. */
-#define	WT_EVICT_WALK_PER_FILE	 10	/* Pages to queue per file */
+#define	WT_EVICT_WALK_PER_FILE	 50	/* Pages to queue per file */
 #define	WT_EVICT_MAX_PER_FILE	100	/* Max pages to visit per file */
 #define	WT_EVICT_WALK_BASE	300	/* Pages tracked across file visits */
 #define	WT_EVICT_WALK_INCR	100	/* Pages added each walk */

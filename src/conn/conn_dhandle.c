@@ -410,7 +410,7 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session,
 				WT_RET(__conn_btree_apply_internal(
 				    session, dhandle, func, cfg));
 	} else {
-		SLIST_FOREACH(dhandle, &conn->dhlh, l)
+		STAILQ_FOREACH(dhandle, &conn->dhlh, l)
 			if (F_ISSET(dhandle, WT_DHANDLE_OPEN) &&
 			    !F_ISSET(dhandle, WT_DHANDLE_DEAD) &&
 			    (apply_checkpoints ||
@@ -673,7 +673,7 @@ __wt_conn_dhandle_discard(WT_SESSION_IMPL *session)
 	 * the list, so we do it the hard way.
 	 */
 restart:
-	SLIST_FOREACH(dhandle, &conn->dhlh, l) {
+	STAILQ_FOREACH(dhandle, &conn->dhlh, l) {
 		if (WT_IS_METADATA(dhandle))
 			continue;
 
@@ -692,7 +692,7 @@ restart:
 	F_SET(session, WT_SESSION_NO_DATA_HANDLES);
 
 	/* Close the metadata file handle. */
-	while ((dhandle = SLIST_FIRST(&conn->dhlh)) != NULL)
+	while ((dhandle = STAILQ_FIRST(&conn->dhlh)) != NULL)
 		WT_WITH_DHANDLE(session, dhandle,
 		    WT_TRET(__wt_conn_dhandle_discard_single(session, 1, 0)));
 
