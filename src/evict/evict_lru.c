@@ -1005,9 +1005,10 @@ retry:	while (slot < max_entries && ret == 0) {
 		 * full walk, then we can declare ourselves finished when we
 		 * find the first entry that isn't to be read.
 		 */
-		if (laps % 15 != 0 &&
-		    dhandle->evict_skip_until > laps)
+		if (laps % 15 != 0 && dhandle->evict_skip_until > laps) {
+			cache->evict_file_next = NULL;
 			break;
+		}
 
 		/* Always ignore non-file handles, or non-open handles. */
 		if (!F_ISSET(dhandle, WT_DHANDLE_IS_FILE) ||
