@@ -1027,7 +1027,7 @@ retry:	while (slot < max_entries && ret == 0) {
 		btree = dhandle->handle;
 		/* Always skip files that don't allow eviction. */
 		if (F_ISSET(btree, WT_BTREE_NO_EVICTION))
-			goto skip;
+			continue;
 
 		/*
 		 * Also skip files that are checkpointing or configured to
@@ -1046,8 +1046,6 @@ retry:	while (slot < max_entries && ret == 0) {
 
 		(void)WT_ATOMIC_ADD4(dhandle->session_inuse, 1);
 		incr = 1;
-		__wt_spin_unlock(session, &conn->dhandle_lock);
-		dhandle_locked = 0;
 
 		__wt_spin_lock(session, &cache->evict_walk_lock);
 
@@ -1061,18 +1059,30 @@ retry:	while (slot < max_entries && ret == 0) {
 			WT_ASSERT(session, session->split_gen == 0);
 		}
 
-		__wt_spin_unlock(session, &cache->evict_walk_lock);
-
 		/*
 		 * If we didn't find any candidates in the file, mark it to be
 		 * skipped for a few runs and remove it and insert to the tail.
 		 */
-		if (slot == prev_slot) {
-skip:			dhandle->evict_skip_until = laps + 10;
+		if (slot == prev_slot &&
+		    __wt_cache_bytes_inuse(cache) >
+		    ((cache->eviction_trigger + 3) * conn->cache_size) / 100) {
+skip:			dhandle->evict_skip_until = laps + 15;
 			STAILQ_REMOVE(&conn->dhlh,
 			    dhandle, __wt_data_handle, l);
 			STAILQ_INSERT_TAIL(&conn->dhlh, dhandle, l);
+		} else {
+			/* If we find something of value, move it back up. */
+			if (dhandle->evict_skip_until > laps) {
+				dhandle->evict_skip_until = 0;
+				STAILQ_REMOVE(&conn->dhlh,
+				    dhandle, __wt_data_handle, l);
+				STAILQ_INSERT_HEAD(&conn->dhlh, dhandle, l);
+			}
 		}
+
+		dhandle_locked = 0;
+		__wt_spin_unlock(session, &conn->dhandle_lock);
+		__wt_spin_unlock(session, &cache->evict_walk_lock);
 	}
 
 	if (incr) {
