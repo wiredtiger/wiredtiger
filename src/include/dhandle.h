@@ -46,6 +46,7 @@ struct __wt_data_handle {
 	int32_t	 session_inuse;		/* Sessions using this handle */
 	time_t	 timeofdeath;		/* Use count went to 0 */
 
+	uint64_t evict_skip_until;	/* Skip eviction until this point */
 	uint64_t name_hash;		/* Hash of name */
 	const char *name;		/* Object name as a URI */
 	const char *checkpoint;		/* Checkpoint name (or NULL) */

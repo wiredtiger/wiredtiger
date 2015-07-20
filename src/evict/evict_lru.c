@@ -1000,16 +1000,13 @@ retry:	while (slot < max_entries && ret == 0) {
 		if (dhandle == NULL)
 			break;
 
-		btree = dhandle->handle;
-
 		/*
 		 * Once every 15 runs we do a full walk. If we aren't doing a
 		 * full walk, then we can declare ourselves finished when we
 		 * find the first entry that isn't to be read.
 		 */
 		if (laps % 15 != 0 &&
-		    btree->evict_walk_period != 0 &&
-		    btree->evict_walk_skips > laps)
+		    dhandle->evict_skip_until > laps)
 			break;
 
 		/* Always ignore non-file handles, or non-open handles. */
@@ -1026,6 +1023,7 @@ retry:	while (slot < max_entries && ret == 0) {
 			continue;
 		cache->evict_file_next = NULL;
 
+		btree = dhandle->handle;
 		/* Always skip files that don't allow eviction. */
 		if (F_ISSET(btree, WT_BTREE_NO_EVICTION))
 			goto skip;
@@ -1043,7 +1041,6 @@ retry:	while (slot < max_entries && ret == 0) {
 		    conn->hazard_max - WT_MIN(conn->hazard_max / 2, 10))
 			continue;
 
-		btree->evict_walk_skips = 0;
 		prev_slot = slot;
 
 		(void)WT_ATOMIC_ADD4(dhandle->session_inuse, 1);
@@ -1070,13 +1067,11 @@ retry:	while (slot < max_entries && ret == 0) {
 		 * skipped for a few runs and remove it and insert to the tail.
 		 */
 		if (slot == prev_slot) {
-skip:			btree->evict_walk_skips = laps + 10;
+skip:			dhandle->evict_skip_until = laps + 10;
 			STAILQ_REMOVE(&conn->dhlh,
 			    dhandle, __wt_data_handle, l);
 			STAILQ_INSERT_TAIL(&conn->dhlh, dhandle, l);
 		}
-		else
-			btree->evict_walk_period = 0;
 	}
 
 	if (incr) {
