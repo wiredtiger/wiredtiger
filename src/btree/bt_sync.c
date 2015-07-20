@@ -199,12 +199,6 @@ err:	/* On error, clear any left-over tree walk. */
 		WT_FULL_BARRIER();
 
 		/*
-		 * If this tree was being skipped by the eviction server during
-		 * the checkpoint, clear the wait.
-		 */
-		btree->evict_walk_period = 0;
-
-		/*
 		 * Wake the eviction server, in case application threads have
 		 * stalled while the eviction server decided it couldn't make
 		 * progress.  Without this, application threads will be stalled
