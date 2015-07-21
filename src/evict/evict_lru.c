@@ -168,7 +168,6 @@ __evict_server(void *arg)
 	laps = 0;
 
 	while (F_ISSET(conn, WT_CONN_EVICTION_RUN)) {
-		laps++;
 		/* Evict pages from the cache as needed. */
 		WT_ERR(__evict_pass(session, laps));
 
@@ -477,7 +476,7 @@ __evict_pass(WT_SESSION_IMPL *session, uint64_t laps)
 	pages_evicted = cache->pages_evict;
 
 	/* Evict pages from the cache. */
-	for (loop = 0;; loop++) {
+	for (loop = 0;; loop++,laps++) {
 		/*
 		 * If there is a request to clear eviction walks, do that now,
 		 * before checking if the cache is full.
@@ -1027,7 +1026,7 @@ retry:	while (slot < max_entries && ret == 0) {
 		btree = dhandle->handle;
 		/* Always skip files that don't allow eviction. */
 		if (F_ISSET(btree, WT_BTREE_NO_EVICTION))
-			continue;
+			goto skip;
 
 		/*
 		 * Also skip files that are checkpointing or configured to
@@ -1063,14 +1062,15 @@ retry:	while (slot < max_entries && ret == 0) {
 		 * If we didn't find any candidates in the file, mark it to be
 		 * skipped for a few runs and remove it and insert to the tail.
 		 */
-		if (slot == prev_slot &&
-		    __wt_cache_bytes_inuse(cache) >
-		    ((cache->eviction_trigger + 3) * conn->cache_size) / 100) {
-skip:			dhandle->evict_skip_until = laps + 15;
-			STAILQ_REMOVE(&conn->dhlh,
-			    dhandle, __wt_data_handle, l);
-			STAILQ_INSERT_TAIL(&conn->dhlh, dhandle, l);
+		if (slot == prev_slot) {
+skip:			if (dhandle->evict_empty_passes++ > 100 ) {
+				dhandle->evict_skip_until = laps + 15;
+				STAILQ_REMOVE(&conn->dhlh,
+				    dhandle, __wt_data_handle, l);
+				STAILQ_INSERT_TAIL(&conn->dhlh, dhandle, l);
+			}
 		} else {
+			dhandle->evict_empty_passes = 0;
 			/* If we find something of value, move it back up. */
 			if (dhandle->evict_skip_until > laps) {
 				dhandle->evict_skip_until = 0;
