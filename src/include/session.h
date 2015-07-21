@@ -84,6 +84,8 @@ struct WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) __wt_session_impl {
 	int	 meta_track_nest;	/* Nesting level of meta transaction */
 #define	WT_META_TRACKING(session)	(session->meta_track_next != NULL)
 
+	WT_DATA_HANDLE *las_dhandle;	/* Lookaside file */
+
 	/*
 	 * Each session keeps a cache of table handles. The set of handles
 	 * can grow quite large so we maintain both a simple list and a hash

@@ -410,7 +410,13 @@ __wt_session_get_btree(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	int is_dead;
 
+#if 0
+	KEITH:
+	This can no longer be asserted because eviction-worker threads are
+	opening the lookaside file.
+
 	WT_ASSERT(session, !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES));
+#endif
 
 	for (;;) {
 		WT_RET(__session_dhandle_find(session, uri, checkpoint));

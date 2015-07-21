@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __las_drop --
- *	Discard the database's lookaside store.
+ * __wt_las_drop --
+ *	Discard the database's lookaside file.
  */
-static int
-__las_drop(WT_SESSION_IMPL *session)
+int
+__wt_las_drop(WT_SESSION_IMPL *session)
 {
 	const char *drop_cfg[] = {
 	    WT_CONFIG_BASE(session, WT_SESSION_drop), "force=true", NULL };
@@ -23,44 +23,72 @@ __las_drop(WT_SESSION_IMPL *session)
 
 /*
  * __wt_las_create --
- *	Initialize the database's lookaside store.
+ *	Create the database's lookaside file.
  */
 int
 __wt_las_create(WT_SESSION_IMPL *session)
 {
-	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-	const char *open_cursor_cfg[] = {
+
+	/* Remove any previous lookaside file. */
+	WT_RET(__wt_las_drop(session));
+
+	/* Create a new lookaside file. */
+	WT_RET(__wt_session_create(
+	    session, WT_LASFILE_URI, "key_format=u,value_format=u"));
+
+	return (0);
+}
+
+/*
+ * __las_open --
+ *	Open the lookaside file, sets session->las_dhandle.
+ */
+static int
+__las_open(WT_SESSION_IMPL *session)
+{
+	WT_RET(__wt_session_get_btree(session, WT_LASFILE_URI, NULL, NULL, 0));
+
+	session->las_dhandle = session->dhandle;
+	WT_ASSERT(session, session->las_dhandle != NULL);
+
+	/* The lookaside handle doesn't need to stay locked -- release it. */
+	return (__wt_session_release_btree(session));
+}
+
+/*
+ * __wt_las_cursor --
+ *	Open a cursor on the lookaside file.
+ */
+int
+__wt_las_cursor(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, int *clearp)
+{
+	WT_DATA_HANDLE *saved_dhandle;
+	WT_DECL_RET;
+	int is_dead;
+	const char *cfg[] = {
 	    WT_CONFIG_BASE(session, WT_SESSION_open_cursor),
 	    "overwrite=false", NULL };
 
-	conn = S2C(session);
+	*clearp = F_ISSET(session, WT_SESSION_NO_CACHE_CHECK) ? 0 : 1;
 
-	/* Lock the lookaside table and check for a race. */
-	__wt_spin_lock(session, &conn->las_lock);
-	if (conn->las_cursor != NULL) {
-		__wt_spin_unlock(session, &conn->las_lock);
-		return (0);
-	}
+	/* Open and cache a handle if we don't yet have one. */
+	saved_dhandle = session->dhandle;
+	if (session->las_dhandle == NULL)
+		WT_RET(__las_open(session));
+	session->dhandle = session->las_dhandle;
 
-	/* Open an internal session, used for lookaside cursors. */
-	WT_ERR(__wt_open_internal_session(
-	    conn, "lookaside table", 1, 1, &conn->las_session));
-	session = conn->las_session;
-
-	/* Discard any previous incarnation of the file. */
-	WT_ERR(__las_drop(session));
-
-	/* Re-create the file. */
-	WT_ERR(__wt_session_create(
-	    session, WT_LASFILE_URI, "key_format=u,value_format=u"));
-
-	/*
-	 * Open the cursor. (Note the "overwrite=false" configuration, we want
-	 * to see errors if we try to remove records that aren't there.)
+	/* 
+	 * We have the lookaside handle cached; lock it and increment the in-use
+	 * counter once the cursor is open.
 	 */
-	WT_ERR(__wt_open_cursor(
-	    session, WT_LASFILE_URI, NULL, open_cursor_cfg, &conn->las_cursor));
+	WT_ERR(__wt_session_lock_dhandle(session, 0, &is_dead));
+
+	/* The lookaside table should never be closed. */
+	WT_ASSERT(session, !is_dead);
+
+	WT_ERR(__wt_curfile_create(session, NULL, cfg, 0, 0, cursorp));
+	__wt_cursor_dhandle_incr_use(session);
 
 	/*
 	 * No cache checks.
@@ -71,40 +99,28 @@ __wt_las_create(WT_SESSION_IMPL *session)
 	F_SET(S2BT(session),
 	    WT_BTREE_LAS_FILE | WT_BTREE_NO_CHECKPOINT | WT_BTREE_NO_LOGGING);
 
-err:	__wt_spin_unlock(session, &conn->las_lock);
+	/* Restore the caller's btree. */
+err:	session->dhandle = saved_dhandle;
 	return (ret);
 }
 
 /*
- * __wt_las_destroy --
- *	Destroy the database's lookaside store.
+ * __wt_las_cursor_close --
+ *	Close a cursor on the lookaside file.
  */
 int
-__wt_las_destroy(WT_SESSION_IMPL *session)
+__wt_las_cursor_close(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, int clear)
 {
-	WT_CONNECTION_IMPL *conn;
 	WT_CURSOR *cursor;
-	WT_DECL_RET;
-	WT_SESSION *wt_session;
 
-	conn = S2C(session);
+	if (clear)
+		F_CLR(session, WT_SESSION_NO_CACHE_CHECK);
 
-	if (conn->las_session == NULL)
+	if ((cursor = *cursorp) == NULL)
 		return (0);
 
-	/* Close open cursors. */
-	if ((cursor = conn->las_cursor) != NULL)
-		WT_TRET(cursor->close(cursor));
-
-	/* Discard any incarnation of the file. */
-	WT_TRET(__las_drop(conn->las_session));
-
-	/* Close the session. */
-	wt_session = &conn->las_session->iface;
-	WT_TRET(wt_session->close(wt_session, NULL));
-	conn->las_session = NULL;
-
-	return (ret);
+	*cursorp = NULL;
+	return (cursor->close(cursor));
 }
 
 /*
@@ -117,164 +133,25 @@ __wt_las_insert(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *value)
 	WT_CONNECTION_IMPL *conn;
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
+	int clear;
 
 	conn = S2C(session);
 
-	/* On the first access, create the lookaside store and cursor. */
-	if (conn->las_cursor == NULL)
-		WT_RET(__wt_las_create(session));
+	/*
+	 * For performance reasons, we don't check the lookaside table when
+	 * freeing backing blocks during reconciliation until the table is
+	 * in use.
+	 */
+	if (conn->reconcile_las == 0) {
+		conn->reconcile_las = 1;
+		WT_WRITE_BARRIER();
+	}
 
-	/* Lock the lookaside table */
-	__wt_spin_lock(session, &conn->las_lock);
-
-	/* Insert the key/value pair. */
-	cursor = conn->las_cursor;
+	WT_RET(__wt_las_cursor(session, &cursor, &clear));
 	cursor->set_key(cursor, key);
 	cursor->set_value(cursor, value);
 	ret = cursor->insert(cursor);
 
-	/* Reset the cursor. */
-	WT_TRET(cursor->reset(cursor));
-	__wt_spin_unlock(session, &conn->las_lock);
-	return (ret);
-}
-
-/*
- * __wt_las_search --
- *	Search for a record into the lookaside store.
- */
-int
-__wt_las_search(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *value)
-{
-	WT_CONNECTION_IMPL *conn;
-	WT_CURSOR *cursor;
-	WT_DECL_RET;
-	int exact;
-
-	conn = S2C(session);
-
-	/* Lock the lookaside table */
-	__wt_spin_lock(session, &conn->las_lock);
-
-	cursor = conn->las_cursor;
-
-	cursor->set_key(cursor, key);
-	if ((ret = cursor->search_near(cursor, &exact)) == 0) {
-		WT_ERR(cursor->get_key(cursor, key));
-		WT_ERR(cursor->get_value(cursor, value));
-	}
-
-err:	WT_TRET(cursor->reset(cursor));
-	__wt_spin_unlock(session, &conn->las_lock);
-	return (ret);
-}
-
-/*
- * __wt_las_remove --
- *	Remove a record from the lookaside store.
- */
-int
-__wt_las_remove(WT_SESSION_IMPL *session, WT_ITEM *key)
-{
-	WT_CONNECTION_IMPL *conn;
-	WT_CURSOR *cursor;
-	WT_DECL_RET;
-
-	conn = S2C(session);
-
-	/* Lock the lookaside table */
-	__wt_spin_lock(session, &conn->las_lock);
-
-	cursor = conn->las_cursor;
-
-	cursor->set_key(cursor, key);
-	ret = cursor->remove(cursor);
-
-	WT_TRET(cursor->reset(cursor));
-	__wt_spin_unlock(session, &conn->las_lock);
-	return (ret);
-}
-
-/*
- * __wt_las_remove_block --
- *	Remove all records matching a key prefix from the lookaside store.
- */
-int
-__wt_las_remove_block(
-    WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
-{
-	WT_BTREE *btree;
-	WT_CONNECTION_IMPL *conn;
-	WT_CURSOR *cursor;
-	WT_DECL_RET;
-	WT_DECL_ITEM(klas);
-	size_t prefix_len;
-	int exact;
-	uint8_t prefix_key[100];
-	void *p;
-
-	conn = S2C(session);
-	btree = S2BT(session);
-
-	/*
-	 * Called whenever a block is freed; if the lookaside store isn't yet
-	 * open, there's no work to do.
-	 */
-	if (conn->las_cursor == NULL)
-		return (0);
-
-	/*
-	 * Build the page's unique key prefix we'll search for in the lookaside
-	 * table, based on the file's ID and the page's block address.
-	 */
-	p = prefix_key;
-	*(char *)p = WT_LAS_RECONCILE_UPDATE;
-	p = (uint8_t *)p + sizeof(char);
-	memcpy(p, &btree->id, sizeof(uint32_t));
-	p = (uint8_t *)p + sizeof(uint32_t);
-	*(uint8_t *)p = (uint8_t)addr_size;
-	p = (uint8_t *)p + sizeof(uint8_t);
-	memcpy(p, addr, addr_size);
-	p = (uint8_t *)p + addr_size;
-	prefix_len =
-	    sizeof(char) + sizeof(uint32_t) + sizeof(uint8_t) + addr_size;
-	WT_ASSERT(session, WT_PTRDIFF(p, prefix_key) == prefix_len);
-
-	/* Copy the unique prefix into the key. */
-	WT_RET(__wt_scr_alloc(session, addr_size + 100, &klas));
-	memcpy(klas->mem, prefix_key, prefix_len);
-	klas->size = prefix_len;
-
-	/* Lock the lookaside table */
-	__wt_spin_lock(session, &conn->las_lock);
-
-	cursor = conn->las_cursor;
-
-	cursor->set_key(cursor, klas);
-	while ((ret = cursor->search_near(cursor, &exact)) == 0) {
-		WT_ERR(cursor->get_key(cursor, klas));
-
-		/*
-		 * Confirm the search using the unique prefix; if not a match,
-		 * we're done searching for records for this page.
-		 */
-		if (klas->size <= prefix_len ||
-		    memcmp(klas->data, prefix_key, prefix_len) != 0)
-			break;
-
-		/* Make sure we have a local copy of the record. */
-		if (!WT_DATA_IN_ITEM(klas))
-			WT_ERR(__wt_buf_set(
-			    session, klas, klas->data, klas->size));
-
-		WT_ERR(cursor->remove(cursor));
-		klas->size = prefix_len;
-	}
-	WT_ERR_NOTFOUND_OK(ret);
-
-err:	WT_TRET(cursor->reset(cursor));
-	__wt_spin_unlock(session, &conn->las_lock);
-
-	__wt_scr_free(session, &klas);
+	WT_TRET(__wt_las_cursor_close(session, &cursor, clear));
 	return (ret);
 }
