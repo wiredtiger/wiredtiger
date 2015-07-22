@@ -420,9 +420,14 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 	/* Free the scratch buffer allocated for logging. */
 	__wt_logrec_free(session, &txn->logrec);
 
-	/* Discard any memory from the session's split stash that we can. */
-	WT_ASSERT(session, session->split_gen == 0);
-	if (session->split_stash_cnt > 0)
+	/*
+	 * Discard any memory from the session's split stash that we can.
+	 *
+	 * Note that we do updates on behalf of page reads when removing from
+	 * the lookaside table.  In that case, the enclosing read will have a
+	 * split_gen set and there is no point trying to discard anything.
+	 */
+	if (session->split_stash_cnt > 0 && session->split_gen == 0)
 		__wt_split_stash_discard(session);
 
 	/*

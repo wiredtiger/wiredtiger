@@ -118,11 +118,11 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	WT_TRET(__wt_sweep_destroy(session));
 	WT_TRET(__wt_evict_destroy(session));
 
-	/* Close open data handles. */
-	WT_TRET(__wt_conn_dhandle_discard(session));
-
 	/* Remove any lookaside table. */
 	WT_TRET(__wt_las_drop(session));
+
+	/* Close open data handles. */
+	WT_TRET(__wt_conn_dhandle_discard(session));
 
 	/*
 	 * Now that all data handles are closed, tell logging that a checkpoint

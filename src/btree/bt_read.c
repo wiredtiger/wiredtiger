@@ -53,9 +53,11 @@ __wt_las_remove_block(
 	WT_DECL_ITEM(klas);
 	WT_DECL_RET;
 	size_t prefix_len;
-	int clear, exact;
+	int exact;
+	uint32_t saved_flags;
 	uint8_t prefix[100];
-	void *p;
+
+	cursor = NULL;
 
 	/*
 	 * Called whenever a block is freed; if the lookaside store isn't yet
@@ -72,7 +74,7 @@ __wt_las_remove_block(
 	memcpy(klas->mem, prefix, prefix_len);
 	klas->size = prefix_len;
 
-	WT_RET(__wt_las_cursor(session, &cursor, &clear));
+	WT_RET(__wt_las_cursor(session, &cursor, &saved_flags));
 
 	cursor->set_key(cursor, klas);
 	while ((ret = cursor->search_near(cursor, &exact)) == 0) {
@@ -96,7 +98,7 @@ __wt_las_remove_block(
 	}
 	WT_ERR_NOTFOUND_OK(ret);
 
-err:	WT_TRET(__wt_las_cursor_close(session, &cursor, clear));
+err:	WT_TRET(__wt_las_cursor_close(session, &cursor, saved_flags));
 
 	__wt_scr_free(session, &klas);
 	return (ret);
@@ -110,34 +112,31 @@ static int
 __las_page_instantiate(WT_SESSION_IMPL *session,
     WT_REF *ref, const uint8_t *addr, size_t addr_size)
 {
-	WT_BTREE *btree;
 	WT_CURSOR *cursor;
 	WT_CURSOR_BTREE cbt;
 	WT_DECL_ITEM(klas);
-	WT_DECL_ITEM(vlas);
 	WT_DECL_RET;
+	WT_ITEM vlas;
 	WT_PAGE *page;
-	WT_UPDATE *upd;
-	size_t incr, prefix_len, total_incr, upd_size, saved_size;
-	uint32_t key_len;
+	WT_UPDATE *first_upd, *last_upd, *upd;
+	size_t incr, prefix_len, total_incr;
 	uint64_t recno, txnid;
+	uint32_t key_len, saved_flags, upd_size;
 	uint8_t prefix[100];
-	int clear, exact;
+	int exact;
 	void *p;
-	const void *saved_data, *t;
 
-	btree = S2BT(session);
 	cursor = NULL;
 	page = ref->page;
-	upd = NULL;
+	first_upd = last_upd = upd = NULL;
 	total_incr = 0;
 	recno = 0;			/* [-Werror=maybe-uninitialized] */
+	saved_flags = 0;		/* [-Werror=maybe-uninitialized] */
 
 	__wt_btcur_init(session, &cbt);
 	__wt_btcur_open(&cbt);
 
 	WT_ERR(__wt_scr_alloc(session, addr_size + 100, &klas));
-	WT_ERR(__wt_scr_alloc(session, 0, &vlas));
 
 	/* Build the unique file/address prefix. */
 	__las_build_prefix(session, addr, addr_size, prefix, &prefix_len);
@@ -147,13 +146,13 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 	klas->size = prefix_len;
 
 	/* Open a lookaside table cursor. */
-	WT_ERR(__wt_las_cursor(session, &cursor, &clear));
+	WT_ERR(__wt_las_cursor(session, &cursor, &saved_flags));
 	cursor->set_key(cursor, klas);
 	if ((ret = cursor->search_near(cursor, &exact)) != 0)
 		goto done;
 
 	/* Step through the lookaside records. */
-	for (; ret == 0; klas->size = prefix_len, ret = cursor->next(cursor)) {
+	for (; ret == 0; ret = cursor->next(cursor)) {
 		WT_ERR(cursor->get_key(cursor, klas));
 
 		/*
@@ -168,8 +167,6 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 		if (!WT_DATA_IN_ITEM(klas))
 			WT_ERR(__wt_buf_set(
 			    session, klas, klas->data, klas->size));
-		saved_data = klas->data;
-		saved_size = klas->size;
 
 		/*
 		 * Skip to the on-page transaction ID stored in the key; if it's
@@ -201,53 +198,54 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 		}
 
 		/* Crack the value. */
-		WT_ERR(cursor->get_value(cursor, vlas));
-		t = vlas->data;
-		memcpy(&txnid, t, sizeof(uint64_t));
-		t = (uint8_t *)t + sizeof(uint64_t);
-		memcpy(&upd_size, t, sizeof(uint32_t));
-		t = (uint8_t *)t + sizeof(uint32_t);
+		WT_ERR(cursor->get_value(cursor, &txnid, &upd_size, &vlas));
 
 		/* Allocate the WT_UPDATE structure. */
-		if (upd_size == WT_UPDATE_DELETED_VALUE)
-			WT_ERR(__wt_update_alloc(session, NULL, &upd, &incr));
-		else {
-			vlas->data = t;
-			vlas->size = upd_size;
-			WT_ERR(__wt_update_alloc(session, vlas, &upd, &incr));
-		}
+		WT_ERR(__wt_update_alloc(session,
+		    (upd_size == WT_UPDATE_DELETED_VALUE) ? NULL : &vlas,
+		    &upd, &incr));
 		total_incr += incr;
 		upd->txnid = txnid;
 
-		/* Search the page and insert the update structure. */
-		switch (page->type) {
-		case WT_PAGE_COL_FIX:
-		case WT_PAGE_COL_VAR:
-			/* Search the page. */
-			WT_ERR(__wt_col_search(session, recno, ref, &cbt));
-
-			/* Apply the modification. */
-			WT_ERR(__wt_col_modify(
-			    session, &cbt, recno, NULL, upd, 0));
-			break;
-		case WT_PAGE_ROW_LEAF:
-			/* Search the page. */
-			WT_ERR(__wt_row_search(session, klas, ref, &cbt, 1));
-
-			/* Apply the modification. */
-			WT_ERR(
-			    __wt_row_modify(session, &cbt, klas, NULL, upd, 0));
-			break;
-		WT_ILLEGAL_VALUE_ERR(session);
+		if (first_upd == NULL)
+			first_upd = last_upd = upd;
+		else {
+			last_upd->next = upd;
+			last_upd = upd;
 		}
-
-		/* Don't discard any appended structures on error. */
-		upd = NULL;
 	}
+
+	if (first_upd == NULL)
+		goto done;
+
+	/* Search the page and insert the update structure. */
+	switch (page->type) {
+	case WT_PAGE_COL_FIX:
+	case WT_PAGE_COL_VAR:
+		/* Search the page. */
+		WT_ERR(__wt_col_search(session, recno, ref, &cbt));
+
+		/* Apply the modification. */
+		WT_ERR(__wt_col_modify(
+		    session, &cbt, recno, NULL, first_upd, 0));
+		break;
+	case WT_PAGE_ROW_LEAF:
+		/* Search the page. */
+		WT_ERR(__wt_row_search(session, klas, ref, &cbt, 1));
+
+		/* Apply the modification. */
+		WT_ERR(
+		    __wt_row_modify(session, &cbt, klas, NULL, first_upd, 0));
+		break;
+	WT_ILLEGAL_VALUE_ERR(session);
+	}
+
+	/* Don't discard any appended structures on error. */
+	first_upd = NULL;
 	WT_ERR_NOTFOUND_OK(ret);
 
 	/* Discard the cursor. */
-	WT_TRET(__wt_las_cursor_close(session, &cursor, &clear));
+	WT_TRET(__wt_las_cursor_close(session, &cursor, saved_flags));
 	cursor = NULL;
 
 	/* Remove this block's entries from the lookaside table. */
@@ -270,6 +268,8 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 	}
 
 done: err:
+	WT_TRET(__wt_las_cursor_close(session, &cursor, saved_flags));
+
 	/*
 	 * KEITH: don't release the page, we don't have a hazard pointer on it;
 	 * why is this is necessary, why doesn't __split_multi_inmem have the
@@ -278,11 +278,10 @@ done: err:
 	cbt.ref = NULL;
 	WT_TRET(__wt_btcur_close(&cbt));
 
-	if (upd != NULL)
-		__wt_free(session, upd);
+	if (first_upd != NULL)
+		__wt_free_update_list(session, first_upd);
 
 	__wt_scr_free(session, &klas);
-	__wt_scr_free(session, &vlas);
 
 	return (ret);
 }
