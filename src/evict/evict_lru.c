@@ -993,14 +993,11 @@ retry:	while (slot < max_entries && ret == 0) {
 		}
 
 		if (move_dhandle < 0) {
-			dhandle->evict_empty_passes = 0;
 			/* If we find something of value, move it back up. */
-			if (dhandle->evict_skip_until > (*laps)) {
-				dhandle->evict_skip_until = 0;
-				STAILQ_REMOVE(&conn->dhlh,
-				    dhandle, __wt_data_handle, l);
-				STAILQ_INSERT_HEAD(&conn->dhlh, dhandle, l);
-			}
+			dhandle->evict_skip_until = 0;
+			STAILQ_REMOVE(&conn->dhlh,
+			    dhandle, __wt_data_handle, l);
+			STAILQ_INSERT_HEAD(&conn->dhlh, dhandle, l);
 		}
 		move_dhandle = 0;
 
@@ -1020,8 +1017,7 @@ retry:	while (slot < max_entries && ret == 0) {
 			break;
 
 		/*
-		 * Once every 15 runs we do a full walk. If we aren't doing a
-		 * full walk, then we can declare ourselves finished when we
+		 * We can declare ourselves finished when we
 		 * find the first entry that isn't to be read.
 		 */
 		if (dhandle->evict_skip_until > (*laps)) {
@@ -1065,9 +1061,9 @@ retry:	while (slot < max_entries && ret == 0) {
 
 		(void)WT_ATOMIC_ADD4(dhandle->session_inuse, 1);
 		incr = 1;
-
 		__wt_spin_lock(session, &cache->evict_walk_lock);
 		dhandle_locked = 0;
+
 		__wt_spin_unlock(session, &conn->dhandle_lock);
 
 		/*
@@ -1086,16 +1082,12 @@ retry:	while (slot < max_entries && ret == 0) {
 		 * If we didn't find any candidates in the file, mark it to be
 		 * skipped for a few runs and remove it and insert to the tail.
 		 */
-		if (slot == prev_slot) {
+		if (slot == prev_slot)
 skip:			move_dhandle = 1;
-		} else {
-			dhandle->evict_empty_passes = 0;
+		else
 			/* If we find something of value, move it back up. */
-			if (dhandle->evict_skip_until > (*laps)) {
+			if (dhandle->evict_skip_until > (*laps))
 				move_dhandle = -1;
-			}
-		}
-
 	}
 
 	if (incr) {
