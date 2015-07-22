@@ -59,7 +59,7 @@ __las_open(WT_SESSION_IMPL *session)
  *	Open a cursor on the lookaside file.
  */
 int
-__wt_las_cursor(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, int *clearp)
+__wt_las_cursor(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t *saved_flagsp)
 {
 	WT_DATA_HANDLE *saved_dhandle;
 	WT_DECL_RET;
@@ -68,7 +68,7 @@ __wt_las_cursor(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, int *clearp)
 	    WT_CONFIG_BASE(session, WT_SESSION_open_cursor),
 	    "overwrite=false", NULL };
 
-	*clearp = F_ISSET(session, WT_SESSION_NO_CACHE_CHECK) ? 0 : 1;
+	*saved_flagsp = session->flags;
 
 	/* Open and cache a handle if we don't yet have one. */
 	saved_dhandle = session->dhandle;
@@ -89,11 +89,11 @@ __wt_las_cursor(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, int *clearp)
 	__wt_cursor_dhandle_incr_use(session);
 
 	/*
-	 * No cache checks.
+	 * No eviction.
 	 * No lookaside records during reconciliation.
 	 * No checkpoints or logging.
 	 */
-	F_SET(session, WT_SESSION_NO_CACHE_CHECK);
+	F_SET(session, WT_SESSION_NO_EVICTION);
 	F_SET(S2BT(session),
 	    WT_BTREE_LAS_FILE | WT_BTREE_NO_CHECKPOINT | WT_BTREE_NO_LOGGING);
 
@@ -107,12 +107,11 @@ err:	session->dhandle = saved_dhandle;
  *	Close a cursor on the lookaside file.
  */
 int
-__wt_las_cursor_close(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, int clear)
+__wt_las_cursor_close(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t saved_flags)
 {
 	WT_CURSOR *cursor;
 
-	if (clear)
-		F_CLR(session, WT_SESSION_NO_CACHE_CHECK);
+	session->flags = saved_flags;
 
 	if ((cursor = *cursorp) == NULL)
 		return (0);

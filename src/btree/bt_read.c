@@ -53,7 +53,8 @@ __wt_las_remove_block(
 	WT_DECL_ITEM(klas);
 	WT_DECL_RET;
 	size_t prefix_len;
-	int clear, exact;
+	int exact;
+	uint32_t saved_flags;
 	uint8_t prefix[100];
 
 	cursor = NULL;
@@ -73,7 +74,7 @@ __wt_las_remove_block(
 	memcpy(klas->mem, prefix, prefix_len);
 	klas->size = prefix_len;
 
-	WT_RET(__wt_las_cursor(session, &cursor, &clear));
+	WT_RET(__wt_las_cursor(session, &cursor, &saved_flags));
 
 	cursor->set_key(cursor, klas);
 	while ((ret = cursor->search_near(cursor, &exact)) == 0) {
@@ -97,7 +98,7 @@ __wt_las_remove_block(
 	}
 	WT_ERR_NOTFOUND_OK(ret);
 
-err:	WT_TRET(__wt_las_cursor_close(session, &cursor, clear));
+err:	WT_TRET(__wt_las_cursor_close(session, &cursor, saved_flags));
 
 	__wt_scr_free(session, &klas);
 	return (ret);
@@ -119,10 +120,10 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 	WT_PAGE *page;
 	WT_UPDATE *first_upd, *last_upd, *upd;
 	size_t incr, prefix_len, total_incr, upd_size;
-	uint32_t key_len;
 	uint64_t recno, txnid;
+	uint32_t key_len, saved_flags;
 	uint8_t prefix[100];
-	int clear, exact;
+	int exact;
 	void *p;
 	const void *saved_data, *t;
 
@@ -131,7 +132,6 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 	first_upd = last_upd = upd = NULL;
 	total_incr = 0;
 	recno = 0;			/* [-Werror=maybe-uninitialized] */
-	clear = 0;			/* [-Werror=maybe-uninitialized] */
 
 	__wt_btcur_init(session, &cbt);
 	__wt_btcur_open(&cbt);
@@ -147,7 +147,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 	klas->size = prefix_len;
 
 	/* Open a lookaside table cursor. */
-	WT_ERR(__wt_las_cursor(session, &cursor, &clear));
+	WT_ERR(__wt_las_cursor(session, &cursor, &saved_flags));
 	cursor->set_key(cursor, klas);
 	if ((ret = cursor->search_near(cursor, &exact)) != 0)
 		goto done;
@@ -258,7 +258,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 	WT_ERR_NOTFOUND_OK(ret);
 
 	/* Discard the cursor. */
-	WT_TRET(__wt_las_cursor_close(session, &cursor, clear));
+	WT_TRET(__wt_las_cursor_close(session, &cursor, saved_flags));
 	cursor = NULL;
 
 	/* Remove this block's entries from the lookaside table. */
@@ -281,7 +281,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 	}
 
 done: err:
-	WT_TRET(__wt_las_cursor_close(session, &cursor, clear));
+	WT_TRET(__wt_las_cursor_close(session, &cursor, saved_flags));
 
 	/*
 	 * KEITH: don't release the page, we don't have a hazard pointer on it;
