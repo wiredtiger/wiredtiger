@@ -662,6 +662,9 @@ __wt_conn_dhandle_discard(WT_SESSION_IMPL *session)
 
 	conn = S2C(session);
 
+	/* Clear the session cache. */
+	__wt_session_close_cache(session);
+
 	/*
 	 * Close open data handles: first, everything but the metadata file
 	 * (as closing a normal file may open and write the metadata file),

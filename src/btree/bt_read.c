@@ -55,7 +55,8 @@ __wt_las_remove_block(
 	size_t prefix_len;
 	int clear, exact;
 	uint8_t prefix[100];
-	void *p;
+
+	cursor = NULL;
 
 	/*
 	 * Called whenever a block is freed; if the lookaside store isn't yet
@@ -110,7 +111,6 @@ static int
 __las_page_instantiate(WT_SESSION_IMPL *session,
     WT_REF *ref, const uint8_t *addr, size_t addr_size)
 {
-	WT_BTREE *btree;
 	WT_CURSOR *cursor;
 	WT_CURSOR_BTREE cbt;
 	WT_DECL_ITEM(klas);
@@ -118,7 +118,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	WT_PAGE *page;
 	WT_UPDATE *upd;
-	size_t incr, prefix_len, total_incr, upd_size, saved_size;
+	size_t incr, prefix_len, total_incr, upd_size;
 	uint32_t key_len;
 	uint64_t recno, txnid;
 	uint8_t prefix[100];
@@ -126,12 +126,12 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 	void *p;
 	const void *saved_data, *t;
 
-	btree = S2BT(session);
 	cursor = NULL;
 	page = ref->page;
 	upd = NULL;
 	total_incr = 0;
 	recno = 0;			/* [-Werror=maybe-uninitialized] */
+	clear = 0;			/* [-Werror=maybe-uninitialized] */
 
 	__wt_btcur_init(session, &cbt);
 	__wt_btcur_open(&cbt);
@@ -153,7 +153,9 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 		goto done;
 
 	/* Step through the lookaside records. */
-	for (; ret == 0; klas->size = prefix_len, ret = cursor->next(cursor)) {
+	for (; ret == 0;
+	    klas->data = saved_data, klas->size = prefix_len,
+	    ret = cursor->next(cursor)) {
 		WT_ERR(cursor->get_key(cursor, klas));
 
 		/*
@@ -169,7 +171,6 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 			WT_ERR(__wt_buf_set(
 			    session, klas, klas->data, klas->size));
 		saved_data = klas->data;
-		saved_size = klas->size;
 
 		/*
 		 * Skip to the on-page transaction ID stored in the key; if it's
@@ -247,7 +248,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 	WT_ERR_NOTFOUND_OK(ret);
 
 	/* Discard the cursor. */
-	WT_TRET(__wt_las_cursor_close(session, &cursor, &clear));
+	WT_TRET(__wt_las_cursor_close(session, &cursor, clear));
 	cursor = NULL;
 
 	/* Remove this block's entries from the lookaside table. */
@@ -270,6 +271,8 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 	}
 
 done: err:
+	WT_TRET(__wt_las_cursor_close(session, &cursor, clear));
+
 	/*
 	 * KEITH: don't release the page, we don't have a hazard pointer on it;
 	 * why is this is necessary, why doesn't __split_multi_inmem have the

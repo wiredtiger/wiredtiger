@@ -28,8 +28,6 @@ __wt_las_drop(WT_SESSION_IMPL *session)
 int
 __wt_las_create(WT_SESSION_IMPL *session)
 {
-	WT_DECL_RET;
-
 	/* Remove any previous lookaside file. */
 	WT_RET(__wt_las_drop(session));
 

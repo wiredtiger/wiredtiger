@@ -1022,16 +1022,37 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 * Evicting, there are still two ways to continue forward: if we skipped
 	 * updates we can save/restore them, that is, evict most of the page and
 	 * then create a new, smaller page where we re-instantiate the skipped
-	 * updates. If we didn't skip updates, but there were updates that were
-	 * not yet visible to all readers in the system, we write those updates
-	 * into the lookaside store, restoring them as necessary if the page is
-	 * read back into cache. The simple case is when there were no skipped
-	 * items: we must copy the update list, but there are no special cases
-	 * or additional work to do.
+	 * updates.
+	 *
+	 * If we didn't skip updates, but there were updates not yet visible to
+	 * all readers in the system, we write those updates into the lookaside
+	 * store, restoring them if the page is read back into cache.
 	 */
 	if (!skipped) {
+		/*
+		 * The lookaside file is a special case, it can't store records
+		 * for itself.
+		 */
 		if (F_ISSET(btree, WT_BTREE_LAS_FILE))
 			return (EBUSY);
+
+		/*
+		 * If no update is globally visible, saving the update list is
+		 * not enough, we have to save the existing entry on the page.
+		 * If there's no existing entry on the page, fail because we
+		 * can't write anything at all, this entry doesn't exist for
+		 * some reader of the system.
+		 */
+		if (!__wt_txn_visible_all(session, min_txn)) {
+			*updp = NULL;
+			if (ins != NULL)
+				return (EBUSY);
+		}
+
+		/*
+		 * There were no skipped items: we must copy the update list,
+		 * but there are no special cases or additional work to do.
+		 */
 		goto save_update_list;
 	}
 
@@ -3096,6 +3117,7 @@ static int
 __rec_update_las(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_BOUNDARY *bnd)
 {
 	WT_BTREE *btree;
+	WT_CURSOR *cursor;
 	WT_DECL_ITEM(key);
 	WT_DECL_ITEM(klas);
 	WT_DECL_ITEM(vlas);
@@ -3107,12 +3129,16 @@ __rec_update_las(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_BOUNDARY *bnd)
 	uint64_t recno;
 	uint32_t counter, i, keylen, slot;
 	uint8_t *counterp;
+	int clear;
 	void *p;
 
 	btree = S2BT(session);
+	cursor = NULL;
 	page = r->page;
 	counter = 0;
 	counterp = NULL;		/* [-Werror=maybe-uninitialized] */
+
+	WT_ERR(__wt_las_cursor(session, &cursor, &clear));
 
 	WT_ERR(__wt_scr_alloc(session, 0, &key));
 	WT_ERR(__wt_scr_alloc(session, 0, &klas));
@@ -3238,11 +3264,15 @@ __rec_update_las(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_BOUNDARY *bnd)
 			WT_ASSERT(session, WT_PTRDIFF(p, vlas->mem) == len);
 
 			/* Insert into the lookaside store. */
-			WT_ERR(__wt_las_insert(session, klas, vlas));
+			cursor->set_key(cursor, klas);
+			cursor->set_value(cursor, vlas);
+			WT_ERR(cursor->insert(cursor));
 		} while ((upd = upd->next) != NULL);
 	}
 
-err:	__wt_scr_free(session, &key);
+err:	WT_TRET(__wt_las_cursor_close(session, &cursor, clear));
+
+	__wt_scr_free(session, &key);
 	__wt_scr_free(session, &klas);
 	__wt_scr_free(session, &vlas);
 
