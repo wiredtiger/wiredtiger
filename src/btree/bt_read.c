@@ -115,29 +115,28 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 	WT_CURSOR *cursor;
 	WT_CURSOR_BTREE cbt;
 	WT_DECL_ITEM(klas);
-	WT_DECL_ITEM(vlas);
 	WT_DECL_RET;
+	WT_ITEM vlas;
 	WT_PAGE *page;
 	WT_UPDATE *first_upd, *last_upd, *upd;
-	size_t incr, prefix_len, total_incr, upd_size;
+	size_t incr, prefix_len, total_incr;
 	uint64_t recno, txnid;
-	uint32_t key_len, saved_flags;
+	uint32_t key_len, saved_flags, upd_size;
 	uint8_t prefix[100];
 	int exact;
 	void *p;
-	const void *saved_data, *t;
 
 	cursor = NULL;
 	page = ref->page;
 	first_upd = last_upd = upd = NULL;
 	total_incr = 0;
 	recno = 0;			/* [-Werror=maybe-uninitialized] */
+	saved_flags = 0;		/* [-Werror=maybe-uninitialized] */
 
 	__wt_btcur_init(session, &cbt);
 	__wt_btcur_open(&cbt);
 
 	WT_ERR(__wt_scr_alloc(session, addr_size + 100, &klas));
-	WT_ERR(__wt_scr_alloc(session, 0, &vlas));
 
 	/* Build the unique file/address prefix. */
 	__las_build_prefix(session, addr, addr_size, prefix, &prefix_len);
@@ -153,9 +152,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 		goto done;
 
 	/* Step through the lookaside records. */
-	for (; ret == 0;
-	    klas->data = saved_data, klas->size = prefix_len,
-	    ret = cursor->next(cursor)) {
+	for (; ret == 0; ret = cursor->next(cursor)) {
 		WT_ERR(cursor->get_key(cursor, klas));
 
 		/*
@@ -170,7 +167,6 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 		if (!WT_DATA_IN_ITEM(klas))
 			WT_ERR(__wt_buf_set(
 			    session, klas, klas->data, klas->size));
-		saved_data = klas->data;
 
 		/*
 		 * Skip to the on-page transaction ID stored in the key; if it's
@@ -202,21 +198,12 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 		}
 
 		/* Crack the value. */
-		WT_ERR(cursor->get_value(cursor, vlas));
-		t = vlas->data;
-		memcpy(&txnid, t, sizeof(uint64_t));
-		t = (uint8_t *)t + sizeof(uint64_t);
-		memcpy(&upd_size, t, sizeof(uint32_t));
-		t = (uint8_t *)t + sizeof(uint32_t);
+		WT_ERR(cursor->get_value(cursor, &txnid, &upd_size, &vlas));
 
 		/* Allocate the WT_UPDATE structure. */
-		if (upd_size == WT_UPDATE_DELETED_VALUE)
-			WT_ERR(__wt_update_alloc(session, NULL, &upd, &incr));
-		else {
-			vlas->data = t;
-			vlas->size = upd_size;
-			WT_ERR(__wt_update_alloc(session, vlas, &upd, &incr));
-		}
+		WT_ERR(__wt_update_alloc(session,
+		    (upd_size == WT_UPDATE_DELETED_VALUE) ? NULL : &vlas,
+		    &upd, &incr));
 		total_incr += incr;
 		upd->txnid = txnid;
 
@@ -295,7 +282,6 @@ done: err:
 		__wt_free_update_list(session, first_upd);
 
 	__wt_scr_free(session, &klas);
-	__wt_scr_free(session, &vlas);
 
 	return (ret);
 }

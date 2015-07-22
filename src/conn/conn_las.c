@@ -33,7 +33,7 @@ __wt_las_create(WT_SESSION_IMPL *session)
 
 	/* Create a new lookaside file. */
 	WT_RET(__wt_session_create(
-	    session, WT_LASFILE_URI, "key_format=u,value_format=u"));
+	    session, WT_LASFILE_URI, "key_format=u,value_format=QIu"));
 
 	return (0);
 }
@@ -118,37 +118,4 @@ __wt_las_cursor_close(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t sa
 
 	*cursorp = NULL;
 	return (cursor->close(cursor));
-}
-
-/*
- * __wt_las_insert --
- *	Insert a record into the lookaside store.
- */
-int
-__wt_las_insert(WT_SESSION_IMPL *session, WT_ITEM *key, WT_ITEM *value)
-{
-	WT_CONNECTION_IMPL *conn;
-	WT_CURSOR *cursor;
-	WT_DECL_RET;
-	int clear;
-
-	conn = S2C(session);
-
-	/*
-	 * For performance reasons, we don't check the lookaside table when
-	 * freeing backing blocks during reconciliation until the table is
-	 * in use.
-	 */
-	if (conn->reconcile_las == 0) {
-		conn->reconcile_las = 1;
-		WT_WRITE_BARRIER();
-	}
-
-	WT_RET(__wt_las_cursor(session, &cursor, &clear));
-	cursor->set_key(cursor, key);
-	cursor->set_value(cursor, value);
-	ret = cursor->insert(cursor);
-
-	WT_TRET(__wt_las_cursor_close(session, &cursor, clear));
-	return (ret);
 }
