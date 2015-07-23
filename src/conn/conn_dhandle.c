@@ -52,9 +52,6 @@ __conn_dhandle_alloc(WT_SESSION_IMPL *session,
 	dhandle->handle = btree;
 	btree->dhandle = dhandle;
 
-	if (WT_PREFIX_MATCH(uri, "file:"))
-		F_SET(dhandle, WT_DHANDLE_IS_FILE);
-
 	WT_ERR(__wt_spin_init(
 	    session, &dhandle->close_lock, "data handle close"));
 

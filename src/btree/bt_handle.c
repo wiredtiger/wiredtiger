@@ -347,6 +347,9 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 		WT_RET(ret);
 	}
 
+	if (WT_PREFIX_MATCH(btree->dhandle->name, "file:"))
+		F_SET(btree->dhandle, WT_DHANDLE_IS_FILE);
+
 	/* Initialize locks. */
 	WT_RET(__wt_rwlock_alloc(
 	    session, &btree->ovfl_lock, "btree overflow lock"));

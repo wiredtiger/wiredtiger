@@ -72,6 +72,6 @@ struct __wt_data_handle {
 #define	WT_DHANDLE_EXCLUSIVE	        0x08	/* Need exclusive access */
 #define	WT_DHANDLE_LOCK_ONLY	        0x10	/* Handle only used as a lock */
 #define	WT_DHANDLE_OPEN		        0x20	/* Handle is open */
-#define	WT_DHANDLE_IS_FILE	        0x40	/* Handle is open */
+#define	WT_DHANDLE_IS_FILE	        0x40	/* Handle is for a file */
 	uint32_t flags;
 };

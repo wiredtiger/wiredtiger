@@ -928,13 +928,15 @@ __evict_walk(WT_SESSION_IMPL *session, uint64_t *laps, uint32_t flags)
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
+	enum { NONE, HEAD, TAIL } move_dhandle;
 	u_int max_entries, prev_slot, retries, slot, start_slot, spins;
-	int incr, dhandle_locked, move_dhandle;
+	int incr, dhandle_locked;
 
 	conn = S2C(session);
 	cache = S2C(session)->cache;
 	dhandle = NULL;
-	incr = dhandle_locked = move_dhandle = 0;
+	incr = dhandle_locked = 0;
+	move_dhandle = NONE;
 	retries = 0;
 
 	/*
@@ -985,21 +987,21 @@ retry:	while (slot < max_entries && ret == 0) {
 		}
 
 		// Move the logic for moving things to the end of the list
-		if (move_dhandle > 0) {
+		if (move_dhandle == TAIL) {
 			dhandle->evict_skip_until = (*laps) + 15;
 			STAILQ_REMOVE(&conn->dhlh,
 			    dhandle, __wt_data_handle, l);
 			STAILQ_INSERT_TAIL(&conn->dhlh, dhandle, l);
 		}
 
-		if (move_dhandle < 0) {
+		if (move_dhandle == HEAD) {
 			/* If we find something of value, move it back up. */
 			dhandle->evict_skip_until = 0;
 			STAILQ_REMOVE(&conn->dhlh,
 			    dhandle, __wt_data_handle, l);
 			STAILQ_INSERT_HEAD(&conn->dhlh, dhandle, l);
 		}
-		move_dhandle = 0;
+		move_dhandle = NONE;
 
 		if (dhandle == NULL)
 			dhandle = STAILQ_FIRST(&conn->dhlh);
@@ -1061,10 +1063,10 @@ retry:	while (slot < max_entries && ret == 0) {
 
 		(void)WT_ATOMIC_ADD4(dhandle->session_inuse, 1);
 		incr = 1;
-		__wt_spin_lock(session, &cache->evict_walk_lock);
+		__wt_spin_unlock(session, &conn->dhandle_lock);
 		dhandle_locked = 0;
 
-		__wt_spin_unlock(session, &conn->dhandle_lock);
+		__wt_spin_lock(session, &cache->evict_walk_lock);
 
 		/*
 		 * Re-check the "no eviction" flag -- it is used to enforce
@@ -1080,14 +1082,14 @@ retry:	while (slot < max_entries && ret == 0) {
 
 		/*
 		 * If we didn't find any candidates in the file, mark it to be
-		 * skipped for a few runs and remove it and insert to the tail.
+		 * skipped and move it to the end of the handle list.
 		 */
 		if (slot == prev_slot)
-skip:			move_dhandle = 1;
+skip:			move_dhandle = TAIL;
 		else
 			/* If we find something of value, move it back up. */
 			if (dhandle->evict_skip_until > (*laps))
-				move_dhandle = -1;
+				move_dhandle = HEAD;
 	}
 
 	if (incr) {
