@@ -1084,12 +1084,17 @@ retry:	while (slot < max_entries && ret == 0) {
 		 * If we didn't find any candidates in the file, mark it to be
 		 * skipped and move it to the end of the handle list.
 		 */
-		if (slot == prev_slot)
-skip:			move_dhandle = TAIL;
-		else
+		if (slot == prev_slot){
+			if (++dhandle->evict_times_empty > 5) {
+				printf("skip!\n");
+skip:				move_dhandle = TAIL;
+			}
+		} else {
+			dhandle->evict_times_empty = 0;
 			/* If we find something of value, move it back up. */
 			if (dhandle->evict_skip_until > (*laps))
 				move_dhandle = HEAD;
+		}
 	}
 
 	if (incr) {
