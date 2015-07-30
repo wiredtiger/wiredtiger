@@ -1084,7 +1084,7 @@ retry:	while (slot < max_entries && ret == 0) {
 		 * If we didn't find any candidates in the file, mark it to be
 		 * skipped and move it to the end of the handle list.
 		 */
-		if (slot == prev_slot){
+		if (slot == prev_slot) {
 			if (++dhandle->evict_times_empty > 1) {
 skip:				move_dhandle = TAIL;
 			}
