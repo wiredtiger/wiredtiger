@@ -988,7 +988,7 @@ retry:	while (slot < max_entries && ret == 0) {
 
 		// Move the logic for moving things to the end of the list
 		if (move_dhandle == TAIL) {
-			dhandle->evict_skip_until = (*laps) + 15;
+			dhandle->evict_skip_until = (*laps) + 100;
 			STAILQ_REMOVE(&conn->dhlh,
 			    dhandle, __wt_data_handle, l);
 			STAILQ_INSERT_TAIL(&conn->dhlh, dhandle, l);
@@ -1044,7 +1044,7 @@ retry:	while (slot < max_entries && ret == 0) {
 		btree = dhandle->handle;
 		/* Always skip files that don't allow eviction. */
 		if (F_ISSET(btree, WT_BTREE_NO_EVICTION))
-			goto skip;
+			continue;
 
 		/*
 		 * Also skip files that are checkpointing or configured to
@@ -1085,8 +1085,7 @@ retry:	while (slot < max_entries && ret == 0) {
 		 * skipped and move it to the end of the handle list.
 		 */
 		if (slot == prev_slot){
-			if (++dhandle->evict_times_empty > 5) {
-				printf("skip!\n");
+			if (++dhandle->evict_times_empty > 1) {
 skip:				move_dhandle = TAIL;
 			}
 		} else {
