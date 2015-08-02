@@ -171,7 +171,8 @@ __statlog_dump(WT_SESSION_IMPL *session, const char *name, int conn_stats)
 			WT_ERR(__wt_fprintf(conn->stat_fp,
 			    "%s %" PRIu64 " %s %s\n",
 			    conn->stat_stamp,
-			    stats->v, name, stats->desc));
+			    __wt_stats_aggregate_and_return(stats),
+			    name, stats->desc));
 		WT_ERR(cursor->close(cursor));
 		break;
 	case EBUSY:

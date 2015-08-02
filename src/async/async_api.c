@@ -213,8 +213,8 @@ __wt_async_stats_update(WT_SESSION_IMPL *session)
 	if (async == NULL)
 		return;
 	stats = &conn->stats;
-	WT_STAT_SET(stats, async_cur_queue, async->cur_queue);
-	WT_STAT_SET(stats, async_max_queue, async->max_queue);
+	WT_STAT_SET(session, stats, async_cur_queue, async->cur_queue);
+	WT_STAT_SET(session, stats, async_max_queue, async->max_queue);
 	F_SET(conn, WT_CONN_SERVER_ASYNC);
 }
 
