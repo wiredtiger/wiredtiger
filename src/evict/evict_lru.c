@@ -1007,6 +1007,10 @@ retry:	while (slot < max_entries && ret == 0) {
 			dhandle = dhandle_next;
 		}
 
+		/* If we reach the end of the list, we're done. */
+		if (dhandle == NULL)
+			break;
+
 		/*
 		 * The handle list is ordered by skip time, so once we see a
 		 * handle to skip, there is no point continuing to walk the
@@ -1016,12 +1020,10 @@ retry:	while (slot < max_entries && ret == 0) {
 		 * Take care to clear the variable: we don't want to skip all
 		 * valid handles next time.
 		 */
-		if (dhandle->evict_skip_until > walks)
+		if (dhandle->evict_skip_until > walks) {
 			dhandle = NULL;
-
-		/* If we reach the end of the list, we're done. */
-		if (dhandle == NULL)
 			break;
+		}
 
 		/* Always ignore non-file handles, or non-open handles. */
 		if (!F_ISSET(dhandle, WT_DHANDLE_IS_FILE) ||
