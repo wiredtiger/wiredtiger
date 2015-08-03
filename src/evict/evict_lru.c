@@ -1032,13 +1032,6 @@ retry:	while (slot < max_entries && ret == 0) {
 		if (!F_ISSET(dhandle, WT_DHANDLE_IS_FILE) ||
 		    !F_ISSET(dhandle, WT_DHANDLE_OPEN)) {
 			move_dhandle = 1;
-
-			if ((ref = btree->evict_ref) != NULL) {
-				btree->evict_ref = NULL;
-				WT_RET(__wt_page_release(
-				    session, ref, WT_READ_NO_EVICT));
-			}
-
 			continue;
 		}
 
@@ -1094,11 +1087,16 @@ retry:	while (slot < max_entries && ret == 0) {
 		 * If we didn't find any candidates in the file, mark it to be
 		 * skipped and move it to the end of the handle list.
 		 */
-		if (slot == prev_slot) {
-			if (dhandle->evict_times_empty++ > WT_EVICT_WALK_TRIES)
-				move_dhandle = 1;
-		} else
+		if (slot > prev_slot)
 			dhandle->evict_times_empty = 0;
+		else if (dhandle->evict_times_empty++ > WT_EVICT_WALK_TRIES) {
+			if ((ref = btree->evict_ref) != NULL) {
+				btree->evict_ref = NULL;
+				WT_RET(__wt_page_release(
+				    session, ref, WT_READ_NO_EVICT));
+			}
+			move_dhandle = 1;
+		}
 	}
 
 	if (incr) {
