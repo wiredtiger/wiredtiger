@@ -1029,8 +1029,10 @@ retry:	while (slot < max_entries && ret == 0) {
 
 		/* Always ignore non-file handles, or non-open handles. */
 		if (!F_ISSET(dhandle, WT_DHANDLE_IS_FILE) ||
-		    !F_ISSET(dhandle, WT_DHANDLE_OPEN))
-			goto skip;
+		    !F_ISSET(dhandle, WT_DHANDLE_OPEN)) {
+			move_dhandle = TAIL;
+			continue;
+		}
 
 		/*
 		 * Each time we reenter this function, start at the next handle
@@ -1085,9 +1087,8 @@ retry:	while (slot < max_entries && ret == 0) {
 		 * skipped and move it to the end of the handle list.
 		 */
 		if (slot == prev_slot) {
-			if (++dhandle->evict_times_empty > 1) {
-skip:				move_dhandle = TAIL;
-			}
+			if (++dhandle->evict_times_empty > 1)
+				move_dhandle = TAIL;
 		} else {
 			dhandle->evict_times_empty = 0;
 			/* If we find something of value, move it back up. */
