@@ -18,6 +18,10 @@
 #define	WT_EVICT_WALK_BASE	300	/* Pages tracked across file visits */
 #define	WT_EVICT_WALK_INCR	100	/* Pages added each walk */
 
+#define	WT_EVICT_WALK_SKIPS	 10	/* Times to skip a file that yields no
+					   candidates */
+#define	WT_EVICT_WALK_TRIES	  3	/* Retries walking before skipping */
+
 #define	WT_EVICT_PASS_AGGRESSIVE	0x01
 #define	WT_EVICT_PASS_ALL		0x02
 #define	WT_EVICT_PASS_DIRTY		0x04
