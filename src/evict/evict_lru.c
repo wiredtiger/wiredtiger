@@ -158,7 +158,6 @@ __evict_server(void *arg)
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-	WT_EVICT_WORKER *worker;
 	WT_SESSION_IMPL *session;
 	uint64_t walks;
 
@@ -174,30 +173,6 @@ __evict_server(void *arg)
 		if (!F_ISSET(conn, WT_CONN_EVICTION_RUN))
 			break;
 
-		/*
-		 * If we have caught up and there are more than the minimum
-		 * number of eviction workers running, shut one down.
-		 */
-		if (conn->evict_workers > conn->evict_workers_min) {
-			WT_TRET(__wt_verbose(session, WT_VERB_EVICTSERVER,
-			    "Stopping evict worker: %"PRIu32"\n",
-			    conn->evict_workers));
-			worker = &conn->evict_workctx[--conn->evict_workers];
-			F_CLR(worker, WT_EVICT_WORKER_RUN);
-			WT_TRET(__wt_cond_signal(
-			    session, cache->evict_waiter_cond));
-			WT_TRET(__wt_thread_join(session, worker->tid));
-			/*
-			 * Flag errors here with a message, but don't shut down
-			 * the eviction server - that's fatal.
-			 */
-			WT_ASSERT(session, ret == 0);
-			if (ret != 0) {
-				(void)__wt_msg(session,
-				    "Error stopping eviction worker: %d", ret);
-				ret = 0;
-			}
-		}
 		/*
 		 * Clear the walks so we don't pin pages while asleep,
 		 * otherwise we can block applications evicting large pages.
@@ -1299,6 +1274,9 @@ fast:		/* If the page can't be evicted, give up. */
 		WT_RET(__wt_verbose(session, WT_VERB_EVICTSERVER,
 		    "select: %p, size %" PRIu64, page, page->memory_footprint));
 	}
+	WT_RET_NOTFOUND_OK(ret);
+
+	*slotp += (u_int)(evict - start);
 
 	/*
 	 * If we happen to end up on the root page, clear it.  We have to track
@@ -1311,16 +1289,12 @@ fast:		/* If the page can't be evicted, give up. */
 	if ((ref = btree->evict_ref) != NULL && (__wt_ref_is_root(ref) ||
 	    ref->page->read_gen == WT_READGEN_OLDEST)) {
 		btree->evict_ref = NULL;
-		__wt_page_release(session, ref, WT_READ_NO_EVICT);
+		WT_RET(__wt_page_release(session, ref, WT_READ_NO_EVICT));
 	}
 
-	/* If the walk was interrupted by a locked page, that's okay. */
-	if (ret == WT_NOTFOUND)
-		ret = 0;
-
-	*slotp += (u_int)(evict - start);
 	WT_STAT_FAST_CONN_INCRV(session, cache_eviction_walk, pages_walked);
-	return (ret);
+
+	return (0);
 }
 
 /*
