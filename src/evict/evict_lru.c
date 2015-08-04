@@ -903,7 +903,6 @@ __evict_walk(WT_SESSION_IMPL *session, uint64_t walks, uint32_t flags)
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle, *dhandle_next;
 	WT_DECL_RET;
-	WT_REF *ref;
 	u_int max_entries, prev_slot, retries, slot, start_slot, spins;
 	int incr, dhandle_locked, move_dhandle;
 
@@ -1065,11 +1064,9 @@ retry:	while (slot < max_entries && ret == 0) {
 		if (slot > prev_slot)
 			dhandle->evict_times_empty = 0;
 		else if (dhandle->evict_times_empty++ > WT_EVICT_WALK_TRIES) {
-			if ((ref = btree->evict_ref) != NULL) {
-				btree->evict_ref = NULL;
-				WT_RET(__wt_page_release(
-				    session, ref, WT_READ_NO_EVICT));
-			}
+			WT_WITH_DHANDLE(session, dhandle,
+			    ret = __evict_clear_walk(session));
+			WT_RET(ret);
 			move_dhandle = 1;
 		}
 	}
@@ -1287,10 +1284,8 @@ fast:		/* If the page can't be evicted, give up. */
 	 * as quickly as possible.
 	 */
 	if ((ref = btree->evict_ref) != NULL && (__wt_ref_is_root(ref) ||
-	    ref->page->read_gen == WT_READGEN_OLDEST)) {
-		btree->evict_ref = NULL;
-		WT_RET(__wt_page_release(session, ref, WT_READ_NO_EVICT));
-	}
+	    ref->page->read_gen == WT_READGEN_OLDEST))
+		WT_RET(__evict_clear_walk(session));
 
 	WT_STAT_FAST_CONN_INCRV(session, cache_eviction_walk, pages_walked);
 
