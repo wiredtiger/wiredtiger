@@ -34,7 +34,7 @@
  */
 struct __wt_data_handle {
 	WT_RWLOCK *rwlock;		/* Lock for shared/exclusive ops */
-	SLIST_ENTRY(__wt_data_handle) l;
+	STAILQ_ENTRY(__wt_data_handle) l;
 	SLIST_ENTRY(__wt_data_handle) hashl;
 
 	/*
@@ -46,6 +46,8 @@ struct __wt_data_handle {
 	int32_t	 session_inuse;		/* Sessions using this handle */
 	time_t	 timeofdeath;		/* Use count went to 0 */
 
+	uint64_t evict_skip_until;	/* Skip eviction until this point */
+	uint64_t evict_times_empty;	/* Times returned nothing to evict */
 	uint64_t name_hash;		/* Hash of name */
 	const char *name;		/* Object name as a URI */
 	const char *checkpoint;		/* Checkpoint name (or NULL) */
@@ -71,5 +73,6 @@ struct __wt_data_handle {
 #define	WT_DHANDLE_EXCLUSIVE	        0x08	/* Need exclusive access */
 #define	WT_DHANDLE_LOCK_ONLY	        0x10	/* Handle only used as a lock */
 #define	WT_DHANDLE_OPEN		        0x20	/* Handle is open */
+#define	WT_DHANDLE_IS_FILE	        0x40	/* Handle is for a file */
 	uint32_t flags;
 };

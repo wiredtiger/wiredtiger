@@ -27,7 +27,7 @@ __sweep_mark(WT_SESSION_IMPL *session, int *dead_handlesp)
 	WT_RET(__wt_seconds(session, &now));
 
 	WT_STAT_FAST_CONN_INCR(session, dh_conn_sweeps);
-	SLIST_FOREACH(dhandle, &conn->dhlh, l) {
+	STAILQ_FOREACH(dhandle, &conn->dhlh, l) {
 		if (WT_IS_METADATA(dhandle))
 			continue;
 		if (F_ISSET(dhandle, WT_DHANDLE_DEAD)) {
@@ -130,7 +130,7 @@ __sweep_expire(WT_SESSION_IMPL *session)
 	WT_RET(__wt_seconds(session, &now));
 
 	WT_STAT_FAST_CONN_INCR(session, dh_conn_sweeps);
-	SLIST_FOREACH(dhandle, &conn->dhlh, l) {
+	STAILQ_FOREACH(dhandle, &conn->dhlh, l) {
 		/*
 		 * Ignore open files once the open file count reaches the
 		 * minimum number of handles.
@@ -169,7 +169,7 @@ __sweep_flush(WT_SESSION_IMPL *session)
 	conn = S2C(session);
 
 	WT_STAT_FAST_CONN_INCR(session, dh_conn_sweeps);
-	SLIST_FOREACH(dhandle, &conn->dhlh, l) {
+	STAILQ_FOREACH(dhandle, &conn->dhlh, l) {
 		if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
 		    !F_ISSET(dhandle, WT_DHANDLE_DEAD))
 			continue;
@@ -200,10 +200,10 @@ __sweep_remove_handles(WT_SESSION_IMPL *session)
 	WT_DECL_RET;
 
 	conn = S2C(session);
-	dhandle = SLIST_FIRST(&conn->dhlh);
+	dhandle = STAILQ_FIRST(&conn->dhlh);
 
 	for (; dhandle != NULL; dhandle = dhandle_next) {
-		dhandle_next = SLIST_NEXT(dhandle, l);
+		dhandle_next = STAILQ_NEXT(dhandle, l);
 		if (WT_IS_METADATA(dhandle))
 			continue;
 		if (F_ISSET(dhandle, WT_DHANDLE_OPEN) ||

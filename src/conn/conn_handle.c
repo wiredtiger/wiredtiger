@@ -25,7 +25,7 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
 		SLIST_INIT(&conn->fhhash[i]);	/* File handle hash lists */
 	}
 
-	SLIST_INIT(&conn->dhlh);		/* Data handle list */
+	STAILQ_INIT(&conn->dhlh);		/* Data handle list */
 	TAILQ_INIT(&conn->dlhqh);		/* Library list */
 	TAILQ_INIT(&conn->dsrcqh);		/* Data source list */
 	SLIST_INIT(&conn->fhlh);		/* File list */

@@ -119,12 +119,12 @@ struct __wt_named_extractor {
  * main queue and the hashed queue.
  */
 #define	WT_CONN_DHANDLE_INSERT(conn, dhandle, bucket) do {		\
-	SLIST_INSERT_HEAD(&(conn)->dhlh, dhandle, l);			\
+	STAILQ_INSERT_HEAD(&(conn)->dhlh, dhandle, l);			\
 	SLIST_INSERT_HEAD(&(conn)->dhhash[bucket], dhandle, hashl);	\
 } while (0)
 
 #define	WT_CONN_DHANDLE_REMOVE(conn, dhandle, bucket) do {		\
-	SLIST_REMOVE(&(conn)->dhlh, dhandle, __wt_data_handle, l);	\
+	STAILQ_REMOVE(&(conn)->dhlh, dhandle, __wt_data_handle, l);	\
 	SLIST_REMOVE(&(conn)->dhhash[bucket],				\
 	    dhandle, __wt_data_handle, hashl);				\
 } while (0)
@@ -221,7 +221,7 @@ struct __wt_connection_impl {
 					/* Locked: data handle hash array */
 	SLIST_HEAD(__wt_dhhash, __wt_data_handle) dhhash[WT_HASH_ARRAY_SIZE];
 					/* Locked: data handle list */
-	SLIST_HEAD(__wt_dhandle_lh, __wt_data_handle) dhlh;
+	STAILQ_HEAD(__wt_dhandle_lh, __wt_data_handle) dhlh;
 					/* Locked: LSM handle list. */
 	TAILQ_HEAD(__wt_lsm_qh, __wt_lsm_tree) lsmqh;
 					/* Locked: file list */
