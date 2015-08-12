@@ -32,23 +32,23 @@
  */
 #define	WT_COUNTER_SLOTS	24
 
-/* A cache-line-padded statistics counter value (padding is needed, otherwise
+/*
+ * A cache-line-padded statistics counter value (padding is needed, otherwise
  * cache coherency messages will be triggered because of false sharing).
  *
  * The actual counter value must be signed, because it is possible one thread
  * incremented the counter in its own slot, and then another thread decremented
  * the same counter in another slot, which was initially zero, so we must allow
- * the value in the second thread's slot to go negative. When the values are
- * summed, we get the correct total value.
+ * the value in the second thread's slot to go negative. When values are summed,
+ * we get a corrected total value.
  */
-typedef struct{
+typedef WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) struct {
 	int64_t v;
-	char padding[WT_CACHE_LINE_ALIGNMENT-sizeof(uint64_t)];
-} padded_counter_t;
+} WT_PADDED_COUNTER;
 
 struct __wt_stats {
 	const char *desc;				/* name */
-	padded_counter_t array_v[WT_COUNTER_SLOTS];     /* value array */
+	WT_PADDED_COUNTER array_v[WT_COUNTER_SLOTS];	/* value array */
 };
 
 /*
@@ -80,7 +80,7 @@ struct __wt_stats {
  */
 #define	WT_STAT_ALL_RESET(stats, fld)  do {				\
 	memset((stats)->fld.array_v, 0,					\
-	    sizeof(padded_counter_t) * WT_COUNTER_SLOTS);		\
+	    sizeof(WT_PADDED_COUNTER) * WT_COUNTER_SLOTS);		\
 } while (0)
 
 /*
