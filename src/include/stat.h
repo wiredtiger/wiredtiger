@@ -105,10 +105,18 @@ __wt_stats_aggregate_and_return(struct __wt_stats *stats)
 	/*
 	 * This can race. However, any implementation with a single value can
 	 * race as well, different threads could set the same counter value
-	 * simultaneously, while we are making races more likely, we are not
+	 * simultaneously. While we are making races more likely, we are not
 	 * fundamentally weakening the isolation semantics found in updating a
 	 * single value.
+	 *
+	 * Additionally, the aggregation can go negative (imagine a thread
+	 * incrementing a value after aggregation has passed its slot and a
+	 * second thread decrementing a value before aggregation has reached
+	 * its slot). Limit the return to 0, negative numbers will just look
+	 * really, really large.
 	 */
+	if (aggr_v < 0)
+		aggr_v = 0;
 	return ((uint64_t)aggr_v);
 }
 
