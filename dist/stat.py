@@ -151,7 +151,7 @@ __wt_stat_aggregate_''' + name +
                 '\t\tWT_STAT_ALL_RESET(p, ' + l.name + ');\n' +\
                 '\t\tWT_STAT_WRITE_SIMPLE(p, ' + l.name + ') =\n' +\
                 '\t\t    (int64_t)WT_STAT_READ(c, ' + l.name + ');\n' +\
-		'\t}\n'
+                '\t}\n'
         else:
             o = '\tWT_STAT_WRITE_SIMPLE(p, ' + l.name + ') +=\n' +\
                 '\t    (int64_t)WT_STAT_READ(c, ' + l.name + ');\n'
