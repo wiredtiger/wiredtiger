@@ -252,6 +252,8 @@ struct __wt_split_stash;
     typedef struct __wt_split_stash WT_SPLIT_STASH;
 struct __wt_stats;
     typedef struct __wt_stats WT_STATS;
+struct __wt_stats_counter;
+    typedef struct __wt_stats_counter WT_STATS_COUNTER;
 struct __wt_table;
     typedef struct __wt_table WT_TABLE;
 struct __wt_txn;

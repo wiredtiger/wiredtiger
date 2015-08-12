@@ -49,13 +49,13 @@
  * in the second thread's slot went negative. When values are summed, we get a
  * corrected total value.
  */
-typedef WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) struct {
+struct WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) __wt_stats_counter {
 	int64_t v;
-} WT_PADDED_COUNTER;
+};
 
 struct __wt_stats {
 	const char *desc;				/* name */
-	WT_PADDED_COUNTER array_v[WT_COUNTER_SLOTS];	/* value array */
+	WT_STATS_COUNTER array_v[WT_COUNTER_SLOTS];	/* padded value array */
 };
 
 /*
@@ -84,17 +84,15 @@ struct __wt_stats {
  * padding. However, resetting the counters is not a common case operation, so
  * we use memset for compactness.
  */
-#define	WT_STAT_ALL_RESET(stats, fld) do {				\
-	memset((stats)->fld.array_v, 0,					\
-	    sizeof(WT_PADDED_COUNTER) * WT_COUNTER_SLOTS);		\
-} while (0)
+#define	WT_STAT_ALL_RESET(stats, fld)					\
+	memset((stats)->fld.array_v, 0, sizeof((stats)->fld.array_v))
 
 /*
  * Aggregate the counter values from all slots into the "master" value "v",
  * return v.
  */
 static inline uint64_t
-__wt_stats_aggregate_and_return(struct __wt_stats *stats)
+__wt_stats_aggregate_and_return(WT_STATS *stats)
 {
 	int64_t aggr_v;
 	int i;
@@ -150,11 +148,13 @@ __wt_stats_aggregate_and_return(struct __wt_stats *stats)
 #define	WT_STAT_ATOMIC_INCR(stats, fld)					\
 	WT_STAT_ATOMIC_INCRV(stats, fld, 1)
 #define	WT_STAT_DECRV(session, stats, fld, value)			\
-	(stats)->fld.array_v[WT_STATS_SLOT_ID(session)].v -= (value)
+	(stats)->							\
+	    fld.array_v[WT_STATS_SLOT_ID(session)].v -= (int64_t)(value)
 #define	WT_STAT_DECR(session, stats, fld)				\
 	WT_STAT_DECRV(session, stats, fld, 1)
 #define	WT_STAT_INCRV(session, stats, fld, value)			\
-	(stats)->fld.array_v[WT_STATS_SLOT_ID(session)].v += (value)
+	(stats)->							\
+	    fld.array_v[WT_STATS_SLOT_ID(session)].v += (int64_t)(value)
 #define	WT_STAT_INCR(session, stats, fld)				\
 	WT_STAT_INCRV(session, stats, fld, 1)
 #define	WT_STAT_SET(session, stats, fld, value) do {			\
