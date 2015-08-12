@@ -17,17 +17,25 @@
  * locking, so the counter read may be inconsistent.
  *
  * We used a fixed number of slots for the array of counters. Picking the number
- * of slots is not straightforward: ideally, if the application running on the
- * system is CPU-intensive, and using all CPUs on the system, we want to use the
- * same number of slots as there are CPUs (because their L1 caches are the units
- * of coherency). However, in practice we cannot easily determine how many CPUs
- * are actually available for the application. Our next best option is to use
- * the number of threads in the application as a heuristic for the number of
- * CPUs. However, inside WiredTiger we do not know when the application creates
- * its threads. Our solution is to simply use a fixed number of slots. Ideally,
- * we would approximate the largest number of cores we expect on any machine
- * where WiredTiger is run, however, we don't want to waste that much memory on
- * smaller machines, so we select a relatively small number.
+ * of slots is not straightforward, obviously, using a smaller number creates
+ * more conflicts, using a larger number uses more memory.
+ *
+ * Ideally, if the application running on the system is CPU-intensive, and using
+ * all CPUs on the system, we want to use the same number of slots as there are
+ * CPUs (because their L1 caches are the units of coherency). However, in
+ * practice we cannot easily determine how many CPUs are actually available for
+ * the application.
+ *
+ * Our next best option is to use the number of threads in the application as a
+ * heuristic for the number of CPUs (presumably, the application architect has
+ * figured out how many CPUs are available). However, inside WiredTiger we don't
+ * know when the application creates its threads.
+ *
+ * Our current solution is to simply use a fixed number of slots. Ideally, we
+ * would approximate the largest number of cores we expect on any machine where
+ * WiredTiger might be run, however, we don't want to waste that much memory on
+ * smaller machines. Right now, machines with more than 24 CPUs are relatively
+ * rare.
  */
 #define	WT_COUNTER_SLOTS	24
 
