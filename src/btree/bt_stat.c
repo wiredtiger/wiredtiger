@@ -80,7 +80,8 @@ __stat_page(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS *stats)
 	switch (page->type) {
 	case WT_PAGE_COL_FIX:
 		WT_STAT_INCR(session, stats, btree_column_fix);
-		WT_STAT_INCRV(session, stats, btree_entries, page->pg_fix_entries);
+		WT_STAT_INCRV(
+		    session, stats, btree_entries, page->pg_fix_entries);
 		break;
 	case WT_PAGE_COL_INT:
 		WT_STAT_INCR(session, stats, btree_column_internal);
@@ -104,7 +105,8 @@ __stat_page(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS *stats)
  *	Stat a WT_PAGE_COL_VAR page.
  */
 static void
-__stat_page_col_var(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS *stats)
+__stat_page_col_var(
+    WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS *stats)
 {
 	WT_CELL *cell;
 	WT_CELL_UNPACK *unpack, _unpack;

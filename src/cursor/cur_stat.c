@@ -215,8 +215,8 @@ __curstat_next(WT_CURSOR *cursor)
 		F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 		WT_ERR(WT_NOTFOUND);
 	}
-	cst->v = 
-	  __wt_stats_aggregate_and_return(&cst->stats_first[WT_STAT_KEY_OFFSET(cst)]);
+	cst->v = __wt_stats_aggregate_and_return(
+	  &cst->stats_first[WT_STAT_KEY_OFFSET(cst)]);
 	WT_ERR(__curstat_print_value(session, cst->v, &cst->pv));
 	F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 
@@ -255,8 +255,8 @@ __curstat_prev(WT_CURSOR *cursor)
 		WT_ERR(WT_NOTFOUND);
 	}
 
-	cst->v = 
-	  __wt_stats_aggregate_and_return(&cst->stats_first[WT_STAT_KEY_OFFSET(cst)]);
+	cst->v = __wt_stats_aggregate_and_return(
+	  &cst->stats_first[WT_STAT_KEY_OFFSET(cst)]);
 	WT_ERR(__curstat_print_value(session, cst->v, &cst->pv));
 	F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 
@@ -310,8 +310,8 @@ __curstat_search(WT_CURSOR *cursor)
 	if (cst->key < WT_STAT_KEY_MIN(cst) || cst->key > WT_STAT_KEY_MAX(cst))
 		WT_ERR(WT_NOTFOUND);
 
-	cst->v = 
-	  __wt_stats_aggregate_and_return(&cst->stats_first[WT_STAT_KEY_OFFSET(cst)]);
+	cst->v = __wt_stats_aggregate_and_return(
+	  &cst->stats_first[WT_STAT_KEY_OFFSET(cst)]);
 	WT_ERR(__curstat_print_value(session, cst->v, &cst->pv));
 	F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 

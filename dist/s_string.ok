@@ -560,6 +560,7 @@ filesystems
 fillms
 firstfit
 fixup
+fld
 floatnum
 fmt
 fmterr
@@ -806,6 +807,7 @@ rS
 rb
 rbrace
 rbracket
+rdtscp
 rduppo
 readlock
 readonly

@@ -8,56 +8,55 @@
 
 /*
  * ARRAY COUNTERS: DESIGN DESCRIPTION.
- * 
- * Instead of a single counter we use an array of values.  
+ *
+ * Instead of a single counter we use an array of values.
  * Threads update different values in an array to avoid writing the same
- * cache line and incurring the cache coherency overheads, which can 
+ * cache line and incurring the cache coherency overheads, which can
  * dramatically slowdown fast and otherwise read-mostly
  * workloads. Upon reading a value, items in individual array cells
- * are merged and returned to the caller. 
- * Aggregation is performed without locking, so the counter read may be 
+ * are merged and returned to the caller.
+ * Aggregation is performed without locking, so the counter read may be
  * slightly inconsistent. Existing use cases tolerate eventual consistency.
- * We are not making things worse relative to non-array implementation. 
+ * We are not making things worse relative to non-array implementation.
  * The read operation now takes longer, because of aggregation, so we
- * are slightly increasing the window when things may be inconsistent, 
- * but that's about it. 
+ * are slightly increasing the window when things may be inconsistent,
+ * but that's about it.
  *
  * We used a fixed number of slots in an array. Picking the number of slots
- * is not as straightforward as it should be.  
- * Ideally, if our application is running on the system alone is CPU-intensive, 
- * and is using all CPUs on the system, we want to use the same number of slots 
- * as there are CPUs (because their L1 caches are the units of coherency). 
- * However, in practice we cannot easily determine how many CPUs are actually 
- * available for the application. 
- * Our next best option is to use the number of threads in the application as 
- * a heuristic for the number of CPUs. Unfortunately, However, inside WT we do 
+ * is not as straightforward as it should be.
+ * Ideally, if our application is running on the system alone is CPU-intensive,
+ * and is using all CPUs on the system, we want to use the same number of slots
+ * as there are CPUs (because their L1 caches are the units of coherency).
+ * However, in practice we cannot easily determine how many CPUs are actually
+ * available for the application.
+ * Our next best option is to use the number of threads in the application as
+ * a heuristic for the number of CPUs. Unfortunately, However, inside WT we do
  * not know when the application creates its threads.
  *
- * Our solution is to simply use a fixed number of slots that roughly 
- * approximates the largest number of cores we expect to see on the machine 
- * where WT is used. All we want is to avoid all threads writing the same 
+ * Our solution is to simply use a fixed number of slots that roughly
+ * approximates the largest number of cores we expect to see on the machine
+ * where WT is used. All we want is to avoid all threads writing the same
  * variable at the same time, and that solution does the trick.
  *
  */
-#define WT_COUNTER_SLOTS 24
+#define	WT_COUNTER_SLOTS 24
 
 /* This is a cache-line-padded counter value. 
  * It is here to effectively support array counters.
- * Padding is needed, otherwise cache coherency messages 
+ * Padding is needed, otherwise cache coherency messages
  * will be triggered because of false sharing.
- * 
+ *
  * The actual counter value v must be signed, because it is possible
  * that one thread incremented the counter in its own slot, and then
- * another thread decremented the same counter in another slot, 
+ * another thread decremented the same counter in another slot,
  * which was initially zero. We need to allow the value is the second
  * thread's slot to be negative. When the values are aggregated, we get
- * the correct total value. 
+ * the correct total value.
  */
 typedef struct{
 	int64_t v;
 	char padding[WT_CACHE_LINE_ALIGNMENT-sizeof(uint64_t)];
 } padded_counter_t;
-
 
 struct __wt_stats {
 	const char	*desc;				/* text description */
@@ -66,35 +65,33 @@ struct __wt_stats {
 };
 
 /*
- * This macro determines the slot id for the array of counters. 
+ * This macro determines the slot id for the array of counters.
  *
- * Ideally, we want a slot per CPU, and we want each thread to index the
- * slot corresponding to the CPU it runs on. Unfortunately, getting
- * the id of the current CPU is difficult. Some operating systems
- * provide a system call for that, but not all. Further, invoking a
- * system call every time we need to increment a stats counter is 
- * expensive. Another option is to use rdtscp instruction, but it
- * x86 specific, has a ~50 cycle overhead and is not supported on 
- * some older processors. 
- * 
- * Our second-best option is to use the thread ID. Unfortunately, there
- * is no portable way to obtain a thread ID that is a small-enough number
- * that could be used as an array index. 
+ * Ideally, we want a slot per CPU, and we want each thread to index the slot
+ * corresponding to the CPU it runs on. Unfortunately, getting the id of the
+ * current CPU is difficult. Some operating systems provide a system call for
+ * that, but not all. Further, invoking a system call every time we need to
+ * increment a stats counter is expensive. Another option would be to use the
+ * rdtscp instruction, but it's x86 specific, has a ~50 cycle overhead and is
+ * not supported on some older processors.
  *
- * Our solution is to use the session ID, because in most cases there is
- * a session per thread and the id itself is a small monotonically 
- * increasing number, so this results in threads writing into different
- * array slots, which is ultimately what we want. 
+ * Our second-best option is to use the thread ID. Unfortunately, there is no
+ * portable way to obtain a thread ID that is a small-enough number that could
+ * be used as an array index.
+ *
+ * Our solution is to use the session ID, because there is a session per thread
+ * and the id itself is a small monotonically increasing number, so this results
+ * in threads writing into different array slots, which is ultimately what we
+ * want.
  */
-
-#define WT_STATS_SLOT_ID (session->id) % WT_COUNTER_SLOTS
+#define	WT_STATS_SLOT_ID	(session->id) % WT_COUNTER_SLOTS
 
 /* Set all the values in the array counter slots to zero. We are
  * doing more work than needed by using memset, because we are setting
  * both the values and the padding. However, resetting the counters is
  * not a common case operation, so we use memset for compactness.
  */
-#define WT_STAT_ALL_RESET(stats, fld)  do {				\
+#define	WT_STAT_ALL_RESET(stats, fld)  do {				\
 		memset((stats)->fld.array_v, 0,                         \
 		       sizeof(padded_counter_t) * WT_COUNTER_SLOTS);	\
 } while (0)
@@ -103,7 +100,7 @@ struct __wt_stats {
  * "master" value "v". Return v.
  * We may race here, which appears to be okay for most
  * counter uses. If there are situations where we want to be
- * precise, we must create a separate version that uses locks. 
+ * precise, we must create a separate version that uses locks.
  */
 static inline uint64_t
 __wt_stats_aggregate_and_return(struct __wt_stats *stats)
@@ -111,14 +108,14 @@ __wt_stats_aggregate_and_return(struct __wt_stats *stats)
 	int i;
 	int64_t aggr_v = 0;
 
-	for(i = 0; i < WT_COUNTER_SLOTS; i++)
+	for (i = 0; i < WT_COUNTER_SLOTS; i++)
 		aggr_v += stats->array_v[i].v;
 
 	/* This can race. However, the previous implementation
 	 * allowed the same races as well: different threads could
-	 * set the same counter value simultaneously. Therefore, 
+	 * set the same counter value simultaneously. Therefore,
 	 * we are not weakening the isolation semantics of the previous
-	 * implementation. 
+	 * implementation.
 	 */
 	return (uint64_t) aggr_v;
 }
@@ -130,25 +127,25 @@ __wt_stats_aggregate_and_return(struct __wt_stats *stats)
  * the stats field: ((stats)->fld.v). The caller could either read this
  * field, or set it (or both). In our case, reading and setting the field
  * require different actions: reading must aggregate the values across
- * array slots, setting must update the counter in one slot only. 
+ * array slots, setting must update the counter in one slot only.
  * So we need to have different macros depending on whether the intent
- * is to read or to set the field. 
+ * is to read or to set the field.
  */
-#define WT_STAT_READ(stats, fld)				        \
+#define	WT_STAT_READ(stats, fld)				        \
 	__wt_stats_aggregate_and_return(&((stats)->fld))
 /* Just return the field that the caller will set */
 #define	WT_STAT_WRITE(session, stats, fld)		                \
 	((stats)->fld.array_v[WT_STATS_SLOT_ID].v)
 /* This is for situations where we just want to update a value
- * in any array slot. This is for infrequent update operations, 
- * where it's incovenient for us to use the coherency-aware
+ * in any array slot. This is for infrequent update operations,
+ * where it's inconvenient for us to use the coherency-aware
  * macro WT_STAT_WRITE, i.e., in cases where we don't know the
- * session id. We just return the first array slot. 
+ * session id. We just return the first array slot.
  */
-#define WT_STAT_WRITE_SIMPLE(stats, fld)		                 \
+#define	WT_STAT_WRITE_SIMPLE(stats, fld)		                 \
 	((stats)->fld.array_v[0].v)
 /* For atomic macros we don't want races, so we always update the
- * same slot (slot 0). 
+ * same slot (slot 0).
  */
 #define	WT_STAT_ATOMIC_DECRV(stats, fld, value) do {			  \
 		(void)WT_ATOMIC_SUB8((stats)->fld.array_v[0].v, (value)); \
@@ -172,7 +169,6 @@ __wt_stats_aggregate_and_return(struct __wt_stats *stats)
 	WT_STAT_WRITE(session, stats, fld) = (int64_t)(value);		\
 } while (0)
 /* END DONE */
-
 
 /*
  * Read/write statistics if "fast" statistics are configured.
@@ -203,7 +199,7 @@ __wt_stats_aggregate_and_return(struct __wt_stats *stats)
 	WT_STAT_FAST_INCRV(session, stats, fld, 1)
 #define	WT_STAT_FAST_SET(session, stats, fld, value) do {		\
 	if (FLD_ISSET(S2C(session)->stat_flags, WT_CONN_STAT_FAST))	\
-		WT_STAT_SET(session, stats, fld, value);			\
+		WT_STAT_SET(session, stats, fld, value);		\
 } while (0)
 
 /*

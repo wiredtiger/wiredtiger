@@ -93,7 +93,8 @@ __curstat_lsm_init(
 		 * top-level.
 		 */
 		new = (WT_DSRC_STATS *)WT_CURSOR_STATS(stat_cursor);
-		WT_STAT_SET(session, new, lsm_generation_max, chunk->generation);
+		WT_STAT_SET(
+		    session, new, lsm_generation_max, chunk->generation);
 
 		/* Aggregate statistics from each new chunk. */
 		__wt_stat_aggregate_dsrc_stats(new, stats);
@@ -122,7 +123,8 @@ __curstat_lsm_init(
 		WT_STAT_SET(session, new, bloom_page_evict,
 		    WT_STAT_READ(new, cache_eviction_clean) +
 		    WT_STAT_READ(new, cache_eviction_dirty));
-		WT_STAT_SET(session, new, bloom_page_read, WT_STAT_READ(new, cache_read));
+		WT_STAT_SET(session,
+		    new, bloom_page_read, WT_STAT_READ(new, cache_read));
 
 		__wt_stat_aggregate_dsrc_stats(new, stats);
 		WT_ERR(stat_cursor->close(stat_cursor));
