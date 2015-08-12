@@ -7,28 +7,27 @@
  */
 
 /*
- * ARRAY COUNTERS: DESIGN DESCRIPTION.
+ * Statistics counters:
  *
- * Instead of a single statistics counter we use an array of values. Threads
+ * Instead of a single statistics counter we use an array of counters. Threads
  * update different values in the array to avoid writing the same cache line
- * and incurring the cache coherency overheads, which can dramatically slowdown
- * fast and otherwise read-mostly workloads. When reading a value, items in
- * individual array slots are summed and returned to the caller. Aggregation
- * is performed without locking, so the counter read may be inconsistent.
- * All existing use cases tolerate eventual consistency.
+ * and incurring the cache coherency overheads, which can dramatically slow
+ * fast and otherwise read-mostly workloads. When reading a counter, the array
+ * slots are summed and returned to the caller. Summation is performed without
+ * locking, so the counter read may be inconsistent.
  *
- * We used a fixed number of slots in the array of values. Picking the number
+ * We used a fixed number of slots for the array of counters. Picking the number
  * of slots is not straightforward: ideally, if the application running on the
- * system is CPU-intensive, and is using all CPUs on the system, we want to use
- * the same number of slots as there are CPUs (because their L1 caches are the
- * units of coherency). However, in practice we cannot easily determine how many
- * CPUs are actually available for the application. Our next best option is to
- * use the number of threads in the application as a heuristic for the number
- * of CPUs. Unfortunately, However, inside WiredTiger we do not know when the
- * application creates its threads. Our solution is to simply use a fixed number
- * of slots (ideally that would roughly approximate the largest number of cores
- * we expect to see on any machine where WiredTiger is used, but we don't want
- * to waste that much memory on smaller machines).
+ * system is CPU-intensive, and using all CPUs on the system, we want to use the
+ * same number of slots as there are CPUs (because their L1 caches are the units
+ * of coherency). However, in practice we cannot easily determine how many CPUs
+ * are actually available for the application. Our next best option is to use
+ * the number of threads in the application as a heuristic for the number of
+ * CPUs. However, inside WiredTiger we do not know when the application creates
+ * its threads. Our solution is to simply use a fixed number of slots. Ideally,
+ * we would approximate the largest number of cores we expect on any machine
+ * where WiredTiger is run, however, we don't want to waste that much memory on
+ * smaller machines, so we select a relatively small number.
  */
 #define	WT_COUNTER_SLOTS	24
 
@@ -38,9 +37,9 @@
  *
  * The actual counter value must be signed, because it is possible one thread
  * incremented the counter in its own slot, and then another thread decremented
- * the same counter in another slot, which was initially zero, so we must allow
- * the value in the second thread's slot to go negative. When values are summed,
- * we get a corrected total value.
+ * the same counter in another slot (which was initially zero), so the value in
+ * in the second thread's slot went negative. When values are summed, we get a
+ * corrected total value.
  */
 typedef WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) struct {
 	int64_t v;
@@ -52,25 +51,24 @@ struct __wt_stats {
 };
 
 /*
- * WT_STATS_SLOT_ID is a thread's slot ID for the array of values.
+ * WT_STATS_SLOT_ID is a thread's slot ID for the array of counters.
  *
  * Ideally, we want a slot per CPU, and we want each thread to index the slot
  * corresponding to the CPU it runs on. Unfortunately, getting the ID of the
  * current CPU is difficult: some operating systems provide a system call for
- * that, but not all. Further, invoking a system call every time we need to
- * increment a stats counter is expensive. Another option would be to use the
- * rdtscp instruction, but it's x86 specific, has a ~50 cycle overhead and is
- * not supported on some older processors.
+ * that, but not all (regardless, a system call every time increment a stats
+ * counter is far too expensive).
  *
  * Our second-best option is to use the thread ID. Unfortunately, there is no
- * portable way to obtain a thread ID that is a small-enough number that could
- * be used as an array index, we'd have to hash that return (and it's generally
- * a pointer or an opaque chunk, not a simple integer).
+ * portable way to obtain a unique thread ID that is a small-enough number to
+ * be used as an array index (portable thread IDs are usually a pointer or an
+ * opaque chunk, not a simple integer).
  *
  * Our solution is to use the session ID; there is normally a session per thread
- * and the session ID is a small monotonically increasing number.
+ * and the session ID is a small, monotonically increasing number.
  */
-#define	WT_STATS_SLOT_ID(session)	((session)->id) % WT_COUNTER_SLOTS
+#define	WT_STATS_SLOT_ID(session)					\
+	((session)->id) % WT_COUNTER_SLOTS
 
 /*
  * Set all the values in the array counter slots to zero. We do more work than
@@ -78,14 +76,14 @@ struct __wt_stats {
  * padding. However, resetting the counters is not a common case operation, so
  * we use memset for compactness.
  */
-#define	WT_STAT_ALL_RESET(stats, fld)  do {				\
+#define	WT_STAT_ALL_RESET(stats, fld) do {				\
 	memset((stats)->fld.array_v, 0,					\
 	    sizeof(WT_PADDED_COUNTER) * WT_COUNTER_SLOTS);		\
 } while (0)
 
 /*
  * Aggregate the counter values from all slots into the "master" value "v",
- * return v. We may race here, which is acceptable for statistics values.
+ * return v.
  */
 static inline uint64_t
 __wt_stats_aggregate_and_return(struct __wt_stats *stats)
@@ -97,10 +95,11 @@ __wt_stats_aggregate_and_return(struct __wt_stats *stats)
 		aggr_v += stats->array_v[i].v;
 
 	/*
-	 * This can race. However, the previous implementation allowed the same
-	 * races as well: different threads could set the same counter value
-	 * simultaneously, we are not weakening the isolation semantics of the
-	 * previous implementation.
+	 * This can race. However, any implementation with a single value can
+	 * race as well, different threads could set the same counter value
+	 * simultaneously, while we are making races more likely, we are not
+	 * fundamentally weakening the isolation semantics found in updating a
+	 * single value.
 	 */
 	return ((uint64_t)aggr_v);
 }
@@ -117,14 +116,14 @@ __wt_stats_aggregate_and_return(struct __wt_stats *stats)
 
 /*
  * In some cases we need to update a value where we don't have a session handle
- * and so don't have a session ID, just update the first slot.
+ * (and so don't have a session ID); just update the first slot.
  */
 #define	WT_STAT_WRITE_SIMPLE(stats, fld)				\
 	((stats)->fld.array_v[0].v)
 
 /*
- * For atomic macros we don't want races, so we always update the same slot
- * (slot 0).
+ * Where races aren't acceptable, we always update the same slot (slot 0),
+ * using an atomic instruction.
  */
 #define	WT_STAT_ATOMIC_DECRV(stats, fld, value)				\
 	(void)WT_ATOMIC_SUB8((stats)->fld.array_v[0].v, value)
@@ -143,7 +142,7 @@ __wt_stats_aggregate_and_return(struct __wt_stats *stats)
 #define	WT_STAT_INCR(session, stats, fld)				\
 	WT_STAT_INCRV(session, stats, fld, 1)
 #define	WT_STAT_SET(session, stats, fld, value) do {			\
-	WT_STAT_ALL_RESET(stats,fld);                                   \
+	WT_STAT_ALL_RESET(stats, fld);					\
 	WT_STAT_WRITE(session, stats, fld) = (int64_t)(value);		\
 } while (0)
 
@@ -226,11 +225,11 @@ __wt_stats_aggregate_and_return(struct __wt_stats *stats)
 #define	WT_STAT_FAST_DATA_SET(session, fld, value) do {			\
 	if ((session)->dhandle != NULL)					\
 		WT_STAT_FAST_SET(					\
-		   session, &(session)->dhandle->stats, fld, value);	\
+		    session, &(session)->dhandle->stats, fld, value);	\
 } while (0)
 
 /* Connection handle statistics value. */
-#define	WT_CONN_STAT(session, fld)	/* XXX: REMOVE */ 	        \
+#define	WT_CONN_STAT(session, fld)	/* XXX: REMOVE */		\
 	WT_STAT_WRITE(session, &S2C(session)->stats, fld)
 #define	WT_CONN_STAT_GET(session, fld)					\
 	WT_STAT_READ(&S2C(session)->stats, fld)
