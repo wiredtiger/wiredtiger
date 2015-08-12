@@ -146,14 +146,16 @@ __wt_stat_aggregate_''' + name +
         if 'no_aggregate' in l.flags:
             continue;
         elif 'max_aggregate' in l.flags:
-            o = 'if (WT_STAT_READ(c, ' + l.name + ') > WT_STAT_READ(p, '+\
-                l.name + '))\n\t{\n\t\tWT_STAT_ALL_RESET(p, ' + l.name +\
-                ');\n\t\tWT_STAT_WRITE_SIMPLE(p, ' + l.name + ')' +\
-                '\n\t\t\t= WT_STAT_READ(c, ' + l.name + ');\n\t}'
+            o = '\tif (WT_STAT_READ(c, ' + l.name + ') >\n' +\
+                '\t    WT_STAT_READ(p, ' + l.name + ')) {\n' +\
+                '\t\tWT_STAT_ALL_RESET(p, ' + l.name + ');\n' +\
+                '\t\tWT_STAT_WRITE_SIMPLE(p, ' + l.name + ') =\n' +\
+                '\t\t    (int64_t)WT_STAT_READ(c, ' + l.name + ');\n' +\
+		'\t}\n'
         else:
-            o = 'WT_STAT_WRITE_SIMPLE(p, ' + l.name + ')' +\
-                '\n\t\t+= WT_STAT_READ(c, ' + l.name + ');'
-        f.write('\t' + o + '\n')
+            o = '\tWT_STAT_WRITE_SIMPLE(p, ' + l.name + ') +=\n' +\
+                '\t    (int64_t)WT_STAT_READ(c, ' + l.name + ');\n'
+        f.write(o)
     f.write('}\n')
 
 # Write the stat initialization and refresh routines to the stat.c file.
