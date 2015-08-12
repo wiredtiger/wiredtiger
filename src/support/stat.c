@@ -242,208 +242,208 @@ __wt_stat_aggregate_dsrc_stats(const void *child, const void *parent)
 
 	c = (WT_DSRC_STATS *)child;
 	p = (WT_DSRC_STATS *)parent;
-	WT_STAT_WRITE_SIMPLE(p, block_extension)
-		+= WT_STAT_READ(c, block_extension);
-	WT_STAT_WRITE_SIMPLE(p, block_alloc)
-		+= WT_STAT_READ(c, block_alloc);
-	WT_STAT_WRITE_SIMPLE(p, block_free)
-		+= WT_STAT_READ(c, block_free);
-	WT_STAT_WRITE_SIMPLE(p, block_checkpoint_size)
-		+= WT_STAT_READ(c, block_checkpoint_size);
-	WT_STAT_WRITE_SIMPLE(p, block_reuse_bytes)
-		+= WT_STAT_READ(c, block_reuse_bytes);
-	WT_STAT_WRITE_SIMPLE(p, block_size)
-		+= WT_STAT_READ(c, block_size);
-	WT_STAT_WRITE_SIMPLE(p, btree_checkpoint_generation)
-		+= WT_STAT_READ(c, btree_checkpoint_generation);
-	WT_STAT_WRITE_SIMPLE(p, btree_column_fix)
-		+= WT_STAT_READ(c, btree_column_fix);
-	WT_STAT_WRITE_SIMPLE(p, btree_column_internal)
-		+= WT_STAT_READ(c, btree_column_internal);
-	WT_STAT_WRITE_SIMPLE(p, btree_column_deleted)
-		+= WT_STAT_READ(c, btree_column_deleted);
-	WT_STAT_WRITE_SIMPLE(p, btree_column_variable)
-		+= WT_STAT_READ(c, btree_column_variable);
-	if (WT_STAT_READ(c, btree_maxintlkey) > WT_STAT_READ(p, btree_maxintlkey))
-	{
+	WT_STAT_WRITE_SIMPLE(p, block_extension) +=
+	    (int64_t)WT_STAT_READ(c, block_extension);
+	WT_STAT_WRITE_SIMPLE(p, block_alloc) +=
+	    (int64_t)WT_STAT_READ(c, block_alloc);
+	WT_STAT_WRITE_SIMPLE(p, block_free) +=
+	    (int64_t)WT_STAT_READ(c, block_free);
+	WT_STAT_WRITE_SIMPLE(p, block_checkpoint_size) +=
+	    (int64_t)WT_STAT_READ(c, block_checkpoint_size);
+	WT_STAT_WRITE_SIMPLE(p, block_reuse_bytes) +=
+	    (int64_t)WT_STAT_READ(c, block_reuse_bytes);
+	WT_STAT_WRITE_SIMPLE(p, block_size) +=
+	    (int64_t)WT_STAT_READ(c, block_size);
+	WT_STAT_WRITE_SIMPLE(p, btree_checkpoint_generation) +=
+	    (int64_t)WT_STAT_READ(c, btree_checkpoint_generation);
+	WT_STAT_WRITE_SIMPLE(p, btree_column_fix) +=
+	    (int64_t)WT_STAT_READ(c, btree_column_fix);
+	WT_STAT_WRITE_SIMPLE(p, btree_column_internal) +=
+	    (int64_t)WT_STAT_READ(c, btree_column_internal);
+	WT_STAT_WRITE_SIMPLE(p, btree_column_deleted) +=
+	    (int64_t)WT_STAT_READ(c, btree_column_deleted);
+	WT_STAT_WRITE_SIMPLE(p, btree_column_variable) +=
+	    (int64_t)WT_STAT_READ(c, btree_column_variable);
+	if (WT_STAT_READ(c, btree_maxintlkey) >
+	    WT_STAT_READ(p, btree_maxintlkey)) {
 		WT_STAT_ALL_RESET(p, btree_maxintlkey);
-		WT_STAT_WRITE_SIMPLE(p, btree_maxintlkey)
-			= WT_STAT_READ(c, btree_maxintlkey);
+		WT_STAT_WRITE_SIMPLE(p, btree_maxintlkey) =
+		    (int64_t)WT_STAT_READ(c, btree_maxintlkey);
 	}
-	if (WT_STAT_READ(c, btree_maxintlpage) > WT_STAT_READ(p, btree_maxintlpage))
-	{
+	if (WT_STAT_READ(c, btree_maxintlpage) >
+	    WT_STAT_READ(p, btree_maxintlpage)) {
 		WT_STAT_ALL_RESET(p, btree_maxintlpage);
-		WT_STAT_WRITE_SIMPLE(p, btree_maxintlpage)
-			= WT_STAT_READ(c, btree_maxintlpage);
+		WT_STAT_WRITE_SIMPLE(p, btree_maxintlpage) =
+		    (int64_t)WT_STAT_READ(c, btree_maxintlpage);
 	}
-	if (WT_STAT_READ(c, btree_maxleafkey) > WT_STAT_READ(p, btree_maxleafkey))
-	{
+	if (WT_STAT_READ(c, btree_maxleafkey) >
+	    WT_STAT_READ(p, btree_maxleafkey)) {
 		WT_STAT_ALL_RESET(p, btree_maxleafkey);
-		WT_STAT_WRITE_SIMPLE(p, btree_maxleafkey)
-			= WT_STAT_READ(c, btree_maxleafkey);
+		WT_STAT_WRITE_SIMPLE(p, btree_maxleafkey) =
+		    (int64_t)WT_STAT_READ(c, btree_maxleafkey);
 	}
-	if (WT_STAT_READ(c, btree_maxleafpage) > WT_STAT_READ(p, btree_maxleafpage))
-	{
+	if (WT_STAT_READ(c, btree_maxleafpage) >
+	    WT_STAT_READ(p, btree_maxleafpage)) {
 		WT_STAT_ALL_RESET(p, btree_maxleafpage);
-		WT_STAT_WRITE_SIMPLE(p, btree_maxleafpage)
-			= WT_STAT_READ(c, btree_maxleafpage);
+		WT_STAT_WRITE_SIMPLE(p, btree_maxleafpage) =
+		    (int64_t)WT_STAT_READ(c, btree_maxleafpage);
 	}
-	if (WT_STAT_READ(c, btree_maxleafvalue) > WT_STAT_READ(p, btree_maxleafvalue))
-	{
+	if (WT_STAT_READ(c, btree_maxleafvalue) >
+	    WT_STAT_READ(p, btree_maxleafvalue)) {
 		WT_STAT_ALL_RESET(p, btree_maxleafvalue);
-		WT_STAT_WRITE_SIMPLE(p, btree_maxleafvalue)
-			= WT_STAT_READ(c, btree_maxleafvalue);
+		WT_STAT_WRITE_SIMPLE(p, btree_maxleafvalue) =
+		    (int64_t)WT_STAT_READ(c, btree_maxleafvalue);
 	}
-	if (WT_STAT_READ(c, btree_maximum_depth) > WT_STAT_READ(p, btree_maximum_depth))
-	{
+	if (WT_STAT_READ(c, btree_maximum_depth) >
+	    WT_STAT_READ(p, btree_maximum_depth)) {
 		WT_STAT_ALL_RESET(p, btree_maximum_depth);
-		WT_STAT_WRITE_SIMPLE(p, btree_maximum_depth)
-			= WT_STAT_READ(c, btree_maximum_depth);
+		WT_STAT_WRITE_SIMPLE(p, btree_maximum_depth) =
+		    (int64_t)WT_STAT_READ(c, btree_maximum_depth);
 	}
-	WT_STAT_WRITE_SIMPLE(p, btree_entries)
-		+= WT_STAT_READ(c, btree_entries);
-	WT_STAT_WRITE_SIMPLE(p, btree_overflow)
-		+= WT_STAT_READ(c, btree_overflow);
-	WT_STAT_WRITE_SIMPLE(p, btree_compact_rewrite)
-		+= WT_STAT_READ(c, btree_compact_rewrite);
-	WT_STAT_WRITE_SIMPLE(p, btree_row_internal)
-		+= WT_STAT_READ(c, btree_row_internal);
-	WT_STAT_WRITE_SIMPLE(p, btree_row_leaf)
-		+= WT_STAT_READ(c, btree_row_leaf);
-	WT_STAT_WRITE_SIMPLE(p, cache_bytes_read)
-		+= WT_STAT_READ(c, cache_bytes_read);
-	WT_STAT_WRITE_SIMPLE(p, cache_bytes_write)
-		+= WT_STAT_READ(c, cache_bytes_write);
-	WT_STAT_WRITE_SIMPLE(p, cache_eviction_checkpoint)
-		+= WT_STAT_READ(c, cache_eviction_checkpoint);
-	WT_STAT_WRITE_SIMPLE(p, cache_eviction_fail)
-		+= WT_STAT_READ(c, cache_eviction_fail);
-	WT_STAT_WRITE_SIMPLE(p, cache_eviction_hazard)
-		+= WT_STAT_READ(c, cache_eviction_hazard);
-	WT_STAT_WRITE_SIMPLE(p, cache_inmem_split)
-		+= WT_STAT_READ(c, cache_inmem_split);
-	WT_STAT_WRITE_SIMPLE(p, cache_eviction_internal)
-		+= WT_STAT_READ(c, cache_eviction_internal);
-	WT_STAT_WRITE_SIMPLE(p, cache_eviction_dirty)
-		+= WT_STAT_READ(c, cache_eviction_dirty);
-	WT_STAT_WRITE_SIMPLE(p, cache_read_overflow)
-		+= WT_STAT_READ(c, cache_read_overflow);
-	WT_STAT_WRITE_SIMPLE(p, cache_overflow_value)
-		+= WT_STAT_READ(c, cache_overflow_value);
-	WT_STAT_WRITE_SIMPLE(p, cache_eviction_deepen)
-		+= WT_STAT_READ(c, cache_eviction_deepen);
-	WT_STAT_WRITE_SIMPLE(p, cache_read)
-		+= WT_STAT_READ(c, cache_read);
-	WT_STAT_WRITE_SIMPLE(p, cache_eviction_split)
-		+= WT_STAT_READ(c, cache_eviction_split);
-	WT_STAT_WRITE_SIMPLE(p, cache_write)
-		+= WT_STAT_READ(c, cache_write);
-	WT_STAT_WRITE_SIMPLE(p, cache_eviction_clean)
-		+= WT_STAT_READ(c, cache_eviction_clean);
-	WT_STAT_WRITE_SIMPLE(p, compress_read)
-		+= WT_STAT_READ(c, compress_read);
-	WT_STAT_WRITE_SIMPLE(p, compress_write)
-		+= WT_STAT_READ(c, compress_write);
-	WT_STAT_WRITE_SIMPLE(p, compress_write_fail)
-		+= WT_STAT_READ(c, compress_write_fail);
-	WT_STAT_WRITE_SIMPLE(p, compress_write_too_small)
-		+= WT_STAT_READ(c, compress_write_too_small);
-	WT_STAT_WRITE_SIMPLE(p, compress_raw_fail_temporary)
-		+= WT_STAT_READ(c, compress_raw_fail_temporary);
-	WT_STAT_WRITE_SIMPLE(p, compress_raw_fail)
-		+= WT_STAT_READ(c, compress_raw_fail);
-	WT_STAT_WRITE_SIMPLE(p, compress_raw_ok)
-		+= WT_STAT_READ(c, compress_raw_ok);
-	WT_STAT_WRITE_SIMPLE(p, cursor_insert_bulk)
-		+= WT_STAT_READ(c, cursor_insert_bulk);
-	WT_STAT_WRITE_SIMPLE(p, cursor_create)
-		+= WT_STAT_READ(c, cursor_create);
-	WT_STAT_WRITE_SIMPLE(p, cursor_insert_bytes)
-		+= WT_STAT_READ(c, cursor_insert_bytes);
-	WT_STAT_WRITE_SIMPLE(p, cursor_remove_bytes)
-		+= WT_STAT_READ(c, cursor_remove_bytes);
-	WT_STAT_WRITE_SIMPLE(p, cursor_update_bytes)
-		+= WT_STAT_READ(c, cursor_update_bytes);
-	WT_STAT_WRITE_SIMPLE(p, cursor_insert)
-		+= WT_STAT_READ(c, cursor_insert);
-	WT_STAT_WRITE_SIMPLE(p, cursor_next)
-		+= WT_STAT_READ(c, cursor_next);
-	WT_STAT_WRITE_SIMPLE(p, cursor_prev)
-		+= WT_STAT_READ(c, cursor_prev);
-	WT_STAT_WRITE_SIMPLE(p, cursor_remove)
-		+= WT_STAT_READ(c, cursor_remove);
-	WT_STAT_WRITE_SIMPLE(p, cursor_reset)
-		+= WT_STAT_READ(c, cursor_reset);
-	WT_STAT_WRITE_SIMPLE(p, cursor_search)
-		+= WT_STAT_READ(c, cursor_search);
-	WT_STAT_WRITE_SIMPLE(p, cursor_search_near)
-		+= WT_STAT_READ(c, cursor_search_near);
-	WT_STAT_WRITE_SIMPLE(p, cursor_update)
-		+= WT_STAT_READ(c, cursor_update);
-	WT_STAT_WRITE_SIMPLE(p, bloom_false_positive)
-		+= WT_STAT_READ(c, bloom_false_positive);
-	WT_STAT_WRITE_SIMPLE(p, bloom_hit)
-		+= WT_STAT_READ(c, bloom_hit);
-	WT_STAT_WRITE_SIMPLE(p, bloom_miss)
-		+= WT_STAT_READ(c, bloom_miss);
-	WT_STAT_WRITE_SIMPLE(p, bloom_page_evict)
-		+= WT_STAT_READ(c, bloom_page_evict);
-	WT_STAT_WRITE_SIMPLE(p, bloom_page_read)
-		+= WT_STAT_READ(c, bloom_page_read);
-	WT_STAT_WRITE_SIMPLE(p, bloom_count)
-		+= WT_STAT_READ(c, bloom_count);
-	WT_STAT_WRITE_SIMPLE(p, lsm_chunk_count)
-		+= WT_STAT_READ(c, lsm_chunk_count);
-	if (WT_STAT_READ(c, lsm_generation_max) > WT_STAT_READ(p, lsm_generation_max))
-	{
+	WT_STAT_WRITE_SIMPLE(p, btree_entries) +=
+	    (int64_t)WT_STAT_READ(c, btree_entries);
+	WT_STAT_WRITE_SIMPLE(p, btree_overflow) +=
+	    (int64_t)WT_STAT_READ(c, btree_overflow);
+	WT_STAT_WRITE_SIMPLE(p, btree_compact_rewrite) +=
+	    (int64_t)WT_STAT_READ(c, btree_compact_rewrite);
+	WT_STAT_WRITE_SIMPLE(p, btree_row_internal) +=
+	    (int64_t)WT_STAT_READ(c, btree_row_internal);
+	WT_STAT_WRITE_SIMPLE(p, btree_row_leaf) +=
+	    (int64_t)WT_STAT_READ(c, btree_row_leaf);
+	WT_STAT_WRITE_SIMPLE(p, cache_bytes_read) +=
+	    (int64_t)WT_STAT_READ(c, cache_bytes_read);
+	WT_STAT_WRITE_SIMPLE(p, cache_bytes_write) +=
+	    (int64_t)WT_STAT_READ(c, cache_bytes_write);
+	WT_STAT_WRITE_SIMPLE(p, cache_eviction_checkpoint) +=
+	    (int64_t)WT_STAT_READ(c, cache_eviction_checkpoint);
+	WT_STAT_WRITE_SIMPLE(p, cache_eviction_fail) +=
+	    (int64_t)WT_STAT_READ(c, cache_eviction_fail);
+	WT_STAT_WRITE_SIMPLE(p, cache_eviction_hazard) +=
+	    (int64_t)WT_STAT_READ(c, cache_eviction_hazard);
+	WT_STAT_WRITE_SIMPLE(p, cache_inmem_split) +=
+	    (int64_t)WT_STAT_READ(c, cache_inmem_split);
+	WT_STAT_WRITE_SIMPLE(p, cache_eviction_internal) +=
+	    (int64_t)WT_STAT_READ(c, cache_eviction_internal);
+	WT_STAT_WRITE_SIMPLE(p, cache_eviction_dirty) +=
+	    (int64_t)WT_STAT_READ(c, cache_eviction_dirty);
+	WT_STAT_WRITE_SIMPLE(p, cache_read_overflow) +=
+	    (int64_t)WT_STAT_READ(c, cache_read_overflow);
+	WT_STAT_WRITE_SIMPLE(p, cache_overflow_value) +=
+	    (int64_t)WT_STAT_READ(c, cache_overflow_value);
+	WT_STAT_WRITE_SIMPLE(p, cache_eviction_deepen) +=
+	    (int64_t)WT_STAT_READ(c, cache_eviction_deepen);
+	WT_STAT_WRITE_SIMPLE(p, cache_read) +=
+	    (int64_t)WT_STAT_READ(c, cache_read);
+	WT_STAT_WRITE_SIMPLE(p, cache_eviction_split) +=
+	    (int64_t)WT_STAT_READ(c, cache_eviction_split);
+	WT_STAT_WRITE_SIMPLE(p, cache_write) +=
+	    (int64_t)WT_STAT_READ(c, cache_write);
+	WT_STAT_WRITE_SIMPLE(p, cache_eviction_clean) +=
+	    (int64_t)WT_STAT_READ(c, cache_eviction_clean);
+	WT_STAT_WRITE_SIMPLE(p, compress_read) +=
+	    (int64_t)WT_STAT_READ(c, compress_read);
+	WT_STAT_WRITE_SIMPLE(p, compress_write) +=
+	    (int64_t)WT_STAT_READ(c, compress_write);
+	WT_STAT_WRITE_SIMPLE(p, compress_write_fail) +=
+	    (int64_t)WT_STAT_READ(c, compress_write_fail);
+	WT_STAT_WRITE_SIMPLE(p, compress_write_too_small) +=
+	    (int64_t)WT_STAT_READ(c, compress_write_too_small);
+	WT_STAT_WRITE_SIMPLE(p, compress_raw_fail_temporary) +=
+	    (int64_t)WT_STAT_READ(c, compress_raw_fail_temporary);
+	WT_STAT_WRITE_SIMPLE(p, compress_raw_fail) +=
+	    (int64_t)WT_STAT_READ(c, compress_raw_fail);
+	WT_STAT_WRITE_SIMPLE(p, compress_raw_ok) +=
+	    (int64_t)WT_STAT_READ(c, compress_raw_ok);
+	WT_STAT_WRITE_SIMPLE(p, cursor_insert_bulk) +=
+	    (int64_t)WT_STAT_READ(c, cursor_insert_bulk);
+	WT_STAT_WRITE_SIMPLE(p, cursor_create) +=
+	    (int64_t)WT_STAT_READ(c, cursor_create);
+	WT_STAT_WRITE_SIMPLE(p, cursor_insert_bytes) +=
+	    (int64_t)WT_STAT_READ(c, cursor_insert_bytes);
+	WT_STAT_WRITE_SIMPLE(p, cursor_remove_bytes) +=
+	    (int64_t)WT_STAT_READ(c, cursor_remove_bytes);
+	WT_STAT_WRITE_SIMPLE(p, cursor_update_bytes) +=
+	    (int64_t)WT_STAT_READ(c, cursor_update_bytes);
+	WT_STAT_WRITE_SIMPLE(p, cursor_insert) +=
+	    (int64_t)WT_STAT_READ(c, cursor_insert);
+	WT_STAT_WRITE_SIMPLE(p, cursor_next) +=
+	    (int64_t)WT_STAT_READ(c, cursor_next);
+	WT_STAT_WRITE_SIMPLE(p, cursor_prev) +=
+	    (int64_t)WT_STAT_READ(c, cursor_prev);
+	WT_STAT_WRITE_SIMPLE(p, cursor_remove) +=
+	    (int64_t)WT_STAT_READ(c, cursor_remove);
+	WT_STAT_WRITE_SIMPLE(p, cursor_reset) +=
+	    (int64_t)WT_STAT_READ(c, cursor_reset);
+	WT_STAT_WRITE_SIMPLE(p, cursor_search) +=
+	    (int64_t)WT_STAT_READ(c, cursor_search);
+	WT_STAT_WRITE_SIMPLE(p, cursor_search_near) +=
+	    (int64_t)WT_STAT_READ(c, cursor_search_near);
+	WT_STAT_WRITE_SIMPLE(p, cursor_update) +=
+	    (int64_t)WT_STAT_READ(c, cursor_update);
+	WT_STAT_WRITE_SIMPLE(p, bloom_false_positive) +=
+	    (int64_t)WT_STAT_READ(c, bloom_false_positive);
+	WT_STAT_WRITE_SIMPLE(p, bloom_hit) +=
+	    (int64_t)WT_STAT_READ(c, bloom_hit);
+	WT_STAT_WRITE_SIMPLE(p, bloom_miss) +=
+	    (int64_t)WT_STAT_READ(c, bloom_miss);
+	WT_STAT_WRITE_SIMPLE(p, bloom_page_evict) +=
+	    (int64_t)WT_STAT_READ(c, bloom_page_evict);
+	WT_STAT_WRITE_SIMPLE(p, bloom_page_read) +=
+	    (int64_t)WT_STAT_READ(c, bloom_page_read);
+	WT_STAT_WRITE_SIMPLE(p, bloom_count) +=
+	    (int64_t)WT_STAT_READ(c, bloom_count);
+	WT_STAT_WRITE_SIMPLE(p, lsm_chunk_count) +=
+	    (int64_t)WT_STAT_READ(c, lsm_chunk_count);
+	if (WT_STAT_READ(c, lsm_generation_max) >
+	    WT_STAT_READ(p, lsm_generation_max)) {
 		WT_STAT_ALL_RESET(p, lsm_generation_max);
-		WT_STAT_WRITE_SIMPLE(p, lsm_generation_max)
-			= WT_STAT_READ(c, lsm_generation_max);
+		WT_STAT_WRITE_SIMPLE(p, lsm_generation_max) =
+		    (int64_t)WT_STAT_READ(c, lsm_generation_max);
 	}
-	WT_STAT_WRITE_SIMPLE(p, lsm_lookup_no_bloom)
-		+= WT_STAT_READ(c, lsm_lookup_no_bloom);
-	WT_STAT_WRITE_SIMPLE(p, lsm_checkpoint_throttle)
-		+= WT_STAT_READ(c, lsm_checkpoint_throttle);
-	WT_STAT_WRITE_SIMPLE(p, lsm_merge_throttle)
-		+= WT_STAT_READ(c, lsm_merge_throttle);
-	WT_STAT_WRITE_SIMPLE(p, bloom_size)
-		+= WT_STAT_READ(c, bloom_size);
-	WT_STAT_WRITE_SIMPLE(p, rec_dictionary)
-		+= WT_STAT_READ(c, rec_dictionary);
-	WT_STAT_WRITE_SIMPLE(p, rec_suffix_compression)
-		+= WT_STAT_READ(c, rec_suffix_compression);
-	WT_STAT_WRITE_SIMPLE(p, rec_multiblock_internal)
-		+= WT_STAT_READ(c, rec_multiblock_internal);
-	WT_STAT_WRITE_SIMPLE(p, rec_overflow_key_internal)
-		+= WT_STAT_READ(c, rec_overflow_key_internal);
-	WT_STAT_WRITE_SIMPLE(p, rec_prefix_compression)
-		+= WT_STAT_READ(c, rec_prefix_compression);
-	WT_STAT_WRITE_SIMPLE(p, rec_multiblock_leaf)
-		+= WT_STAT_READ(c, rec_multiblock_leaf);
-	WT_STAT_WRITE_SIMPLE(p, rec_overflow_key_leaf)
-		+= WT_STAT_READ(c, rec_overflow_key_leaf);
-	if (WT_STAT_READ(c, rec_multiblock_max) > WT_STAT_READ(p, rec_multiblock_max))
-	{
+	WT_STAT_WRITE_SIMPLE(p, lsm_lookup_no_bloom) +=
+	    (int64_t)WT_STAT_READ(c, lsm_lookup_no_bloom);
+	WT_STAT_WRITE_SIMPLE(p, lsm_checkpoint_throttle) +=
+	    (int64_t)WT_STAT_READ(c, lsm_checkpoint_throttle);
+	WT_STAT_WRITE_SIMPLE(p, lsm_merge_throttle) +=
+	    (int64_t)WT_STAT_READ(c, lsm_merge_throttle);
+	WT_STAT_WRITE_SIMPLE(p, bloom_size) +=
+	    (int64_t)WT_STAT_READ(c, bloom_size);
+	WT_STAT_WRITE_SIMPLE(p, rec_dictionary) +=
+	    (int64_t)WT_STAT_READ(c, rec_dictionary);
+	WT_STAT_WRITE_SIMPLE(p, rec_suffix_compression) +=
+	    (int64_t)WT_STAT_READ(c, rec_suffix_compression);
+	WT_STAT_WRITE_SIMPLE(p, rec_multiblock_internal) +=
+	    (int64_t)WT_STAT_READ(c, rec_multiblock_internal);
+	WT_STAT_WRITE_SIMPLE(p, rec_overflow_key_internal) +=
+	    (int64_t)WT_STAT_READ(c, rec_overflow_key_internal);
+	WT_STAT_WRITE_SIMPLE(p, rec_prefix_compression) +=
+	    (int64_t)WT_STAT_READ(c, rec_prefix_compression);
+	WT_STAT_WRITE_SIMPLE(p, rec_multiblock_leaf) +=
+	    (int64_t)WT_STAT_READ(c, rec_multiblock_leaf);
+	WT_STAT_WRITE_SIMPLE(p, rec_overflow_key_leaf) +=
+	    (int64_t)WT_STAT_READ(c, rec_overflow_key_leaf);
+	if (WT_STAT_READ(c, rec_multiblock_max) >
+	    WT_STAT_READ(p, rec_multiblock_max)) {
 		WT_STAT_ALL_RESET(p, rec_multiblock_max);
-		WT_STAT_WRITE_SIMPLE(p, rec_multiblock_max)
-			= WT_STAT_READ(c, rec_multiblock_max);
+		WT_STAT_WRITE_SIMPLE(p, rec_multiblock_max) =
+		    (int64_t)WT_STAT_READ(c, rec_multiblock_max);
 	}
-	WT_STAT_WRITE_SIMPLE(p, rec_overflow_value)
-		+= WT_STAT_READ(c, rec_overflow_value);
-	WT_STAT_WRITE_SIMPLE(p, rec_page_match)
-		+= WT_STAT_READ(c, rec_page_match);
-	WT_STAT_WRITE_SIMPLE(p, rec_pages)
-		+= WT_STAT_READ(c, rec_pages);
-	WT_STAT_WRITE_SIMPLE(p, rec_pages_eviction)
-		+= WT_STAT_READ(c, rec_pages_eviction);
-	WT_STAT_WRITE_SIMPLE(p, rec_page_delete)
-		+= WT_STAT_READ(c, rec_page_delete);
-	WT_STAT_WRITE_SIMPLE(p, session_compact)
-		+= WT_STAT_READ(c, session_compact);
-	WT_STAT_WRITE_SIMPLE(p, session_cursor_open)
-		+= WT_STAT_READ(c, session_cursor_open);
-	WT_STAT_WRITE_SIMPLE(p, txn_update_conflict)
-		+= WT_STAT_READ(c, txn_update_conflict);
+	WT_STAT_WRITE_SIMPLE(p, rec_overflow_value) +=
+	    (int64_t)WT_STAT_READ(c, rec_overflow_value);
+	WT_STAT_WRITE_SIMPLE(p, rec_page_match) +=
+	    (int64_t)WT_STAT_READ(c, rec_page_match);
+	WT_STAT_WRITE_SIMPLE(p, rec_pages) +=
+	    (int64_t)WT_STAT_READ(c, rec_pages);
+	WT_STAT_WRITE_SIMPLE(p, rec_pages_eviction) +=
+	    (int64_t)WT_STAT_READ(c, rec_pages_eviction);
+	WT_STAT_WRITE_SIMPLE(p, rec_page_delete) +=
+	    (int64_t)WT_STAT_READ(c, rec_page_delete);
+	WT_STAT_WRITE_SIMPLE(p, session_compact) +=
+	    (int64_t)WT_STAT_READ(c, session_compact);
+	WT_STAT_WRITE_SIMPLE(p, session_cursor_open) +=
+	    (int64_t)WT_STAT_READ(c, session_cursor_open);
+	WT_STAT_WRITE_SIMPLE(p, txn_update_conflict) +=
+	    (int64_t)WT_STAT_READ(c, txn_update_conflict);
 }
 
 void
