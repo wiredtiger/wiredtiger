@@ -82,15 +82,6 @@ struct __wt_stats {
 	((session)->id) % WT_COUNTER_SLOTS
 
 /*
- * Set all the values in the array counter slots to zero. We do more work than
- * necessary by using memset, because we are clearing both the values and the
- * padding. However, resetting the counters is not a common case operation, so
- * we use memset for compactness.
- */
-#define	WT_STATS_CLEAR(stats, fld)					\
-	memset((stats)->fld.array_v, 0, sizeof((stats)->fld.array_v))
-
-/*
  * Aggregate the counter values from all slots into the "master" value "v",
  * return v.
  */
@@ -120,6 +111,20 @@ __wt_stats_aggregate_and_return(WT_STATS *stats)
 		aggr_v = 0;
 	return ((uint64_t)aggr_v);
 }
+
+/*
+ * Set all the values in the array counter slots to zero.
+ */
+static inline void
+__wt_stats_clear(WT_STATS *stats)
+{
+	u_int i;
+
+	for (i = 0; i < WT_COUNTER_SLOTS; ++i)
+		stats->array_v[i].v = 0;
+}
+#define	WT_STATS_CLEAR(stats, fld)					\
+	__wt_stats_clear(&(stats)->fld)
 
 /*
  * Read/write statistics without any test for statistics configuration. Reading
