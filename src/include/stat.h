@@ -151,7 +151,7 @@ __wt_stats_aggregate_and_return(WT_STATS *stats)
 } while (0)
 
 /*
- * Read/write statistics if "fast" statistics are configured.
+ * Update statistics if "fast" statistics are configured.
  */
 #define	WT_STAT_FAST_DECRV(session, stats, fld, value) do {		\
 	if (FLD_ISSET(S2C(session)->stat_flags, WT_CONN_STAT_FAST))	\
@@ -171,7 +171,7 @@ __wt_stats_aggregate_and_return(WT_STATS *stats)
 } while (0)
 
 /*
- * Read/write connection handle statistics if "fast" statistics are configured.
+ * Update connection handle statistics if "fast" statistics are configured.
  */
 #define	WT_STAT_FAST_CONN_DECR(session, fld)				\
 	WT_STAT_FAST_DECR(session, &S2C(session)->stats, fld)
@@ -185,7 +185,7 @@ __wt_stats_aggregate_and_return(WT_STATS *stats)
 	WT_STAT_FAST_SET(session, &S2C(session)->stats, fld, value)
 
 /*
- * Read/write data-source handle statistics if the data-source handle is set
+ * Update data-source handle statistics if the data-source handle is set
  * and "fast" statistics are configured.
  *
  * XXX
@@ -211,14 +211,6 @@ __wt_stats_aggregate_and_return(WT_STATS *stats)
 		WT_STAT_FAST_SET(					\
 		    session, &(session)->dhandle->stats, fld, value);	\
 } while (0)
-
-/* Connection handle statistics value. */
-#define	WT_CONN_STAT(session, fld)	/* XXX: REMOVE */		\
-	WT_STAT_WRITE(session, &S2C(session)->stats, fld)
-#define	WT_CONN_STAT_GET(session, fld)					\
-	WT_STAT_READ(&S2C(session)->stats, fld)
-#define	WT_CONN_STAT_SET(session, fld)					\
-	WT_STAT_WRITE(&S2C(session)->stats, fld)
 
 /*
  * DO NOT EDIT: automatically built by dist/stat.py.

@@ -278,7 +278,12 @@ struct __wt_connection_impl {
 #define	WT_CKPT_LOGSIZE(conn)	((conn)->ckpt_logsize != 0)
 	wt_off_t	 ckpt_logsize;	/* Checkpoint log size period */
 	uint32_t	 ckpt_signalled;/* Checkpoint signalled */
-	uint64_t	 ckpt_usecs;	/* Checkpoint period */
+
+	uint64_t  ckpt_usecs;		/* Checkpoint timer */
+	uint64_t  ckpt_time_max;	/* Checkpoint time min/max */
+	uint64_t  ckpt_time_min;
+	uint64_t  ckpt_time_recent;	/* Checkpoint time recent/total */
+	uint64_t  ckpt_time_total;
 
 	int compact_in_memory_pass;	/* Compaction serialization */
 
