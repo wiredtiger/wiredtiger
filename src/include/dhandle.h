@@ -34,8 +34,8 @@
  */
 struct __wt_data_handle {
 	WT_RWLOCK *rwlock;		/* Lock for shared/exclusive ops */
-	SLIST_ENTRY(__wt_data_handle) l;
-	SLIST_ENTRY(__wt_data_handle) hashl;
+	TAILQ_ENTRY(__wt_data_handle) q;
+	TAILQ_ENTRY(__wt_data_handle) hashq;
 
 	/*
 	 * Sessions caching a connection's data handle will have a non-zero
@@ -45,6 +45,7 @@ struct __wt_data_handle {
 	uint32_t session_ref;		/* Sessions referencing this handle */
 	int32_t	 session_inuse;		/* Sessions using this handle */
 	time_t	 timeofdeath;		/* Use count went to 0 */
+	time_t	 timeofdiscard;		/* Time of last failed discard */
 
 	uint64_t name_hash;		/* Hash of name */
 	const char *name;		/* Object name as a URI */

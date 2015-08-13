@@ -208,17 +208,18 @@ connection_stats = [
     ##########################################
     # Dhandle statistics
     ##########################################
-    DhandleStat('dh_conn_handles', 'connection dhandles swept'),
-    DhandleStat('dh_conn_ref', 'connection candidate referenced'),
-    DhandleStat('dh_conn_sweeps', 'connection sweeps'),
-    DhandleStat('dh_conn_tod', 'connection time-of-death sets'),
+    DhandleStat('dh_sweep_close', 'connection sweep dhandles closed'),
+    DhandleStat('dh_sweep_remove',
+        'connection sweep dhandles removed from hash list'),
+    DhandleStat('dh_sweep_ref', 'connection sweep candidate became referenced'),
+    DhandleStat('dh_sweep_tod', 'connection sweep time-of-death sets'),
+    DhandleStat('dh_sweeps', 'connection sweeps'),
     DhandleStat('dh_session_handles', 'session dhandles swept'),
     DhandleStat('dh_session_sweeps', 'session sweep attempts'),
 
     ##########################################
     # Logging statistics
     ##########################################
-    LogStat('log_buffer_grow', 'log buffer size increases'),
     LogStat('log_buffer_size', 'total log buffer size', 'no_clear,no_scale'),
     LogStat('log_bytes_payload', 'log bytes of payload data'),
     LogStat('log_bytes_written', 'log bytes written'),
@@ -242,12 +243,11 @@ connection_stats = [
     LogStat('log_writes', 'log write operations'),
     LogStat('log_write_lsn', 'log server thread advances write LSN'),
 
+    LogStat('log_slot_coalesced', 'written slots coalesced'),
     LogStat('log_slot_consolidated', 'logging bytes consolidated'),
     LogStat('log_slot_closes', 'consolidated slot closures'),
     LogStat('log_slot_joins', 'consolidated slot joins'),
     LogStat('log_slot_races', 'consolidated slot join races'),
-    LogStat('log_slot_switch_fails',
-        'slots selected for switching that were unavailable'),
     LogStat('log_slot_toobig', 'record size exceeded maximum'),
     LogStat('log_slot_toosmall',
         'failed to find a slot large enough for record'),

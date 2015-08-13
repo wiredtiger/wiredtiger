@@ -25,10 +25,13 @@
 
 #define	WT_SESSION_TXN_STATE(s) (&S2C(s)->txn_global.states[(s)->id])
 
+#define	WT_SESSION_IS_CHECKPOINT(s)					\
+	((s)->id != 0 && (s)->id == S2C(s)->txn_global.checkpoint_id)
+
 struct __wt_named_snapshot {
 	const char *name;
 
-	STAILQ_ENTRY(__wt_named_snapshot) q;
+	TAILQ_ENTRY(__wt_named_snapshot) q;
 
 	uint64_t snap_min, snap_max;
 	uint64_t *snapshot;
@@ -64,12 +67,12 @@ struct __wt_txn_global {
 	 */
 	volatile uint32_t checkpoint_id;	/* Checkpoint's session ID */
 	volatile uint64_t checkpoint_gen;
-	volatile uint64_t checkpoint_snap_min;
+	volatile uint64_t checkpoint_pinned;
 
 	/* Named snapshot state. */
 	WT_RWLOCK *nsnap_rwlock;
 	volatile uint64_t nsnap_oldest_id;
-	STAILQ_HEAD(__wt_nsnap_qh, __wt_named_snapshot) nsnaph;
+	TAILQ_HEAD(__wt_nsnap_qh, __wt_named_snapshot) nsnaph;
 
 	WT_TXN_STATE *states;		/* Per-session transaction states */
 };

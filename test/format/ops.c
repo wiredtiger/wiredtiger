@@ -54,7 +54,7 @@ wts_ops(int lastrun)
 	TINFO *tinfo, total;
 	WT_CONNECTION *conn;
 	WT_SESSION *session;
-	pthread_t backup_tid, compact_tid;
+	pthread_t backup_tid, compact_tid, lrt_tid;
 	int64_t fourths, thread_ops;
 	uint32_t i;
 	int ret, running;
@@ -64,6 +64,7 @@ wts_ops(int lastrun)
 	session = NULL;			/* -Wconditional-uninitialized */
 	memset(&backup_tid, 0, sizeof(backup_tid));
 	memset(&compact_tid, 0, sizeof(compact_tid));
+	memset(&lrt_tid, 0, sizeof(lrt_tid));
 
 	/*
 	 * There are two mechanisms to specify the length of the run, a number
@@ -114,13 +115,19 @@ wts_ops(int lastrun)
 			die(ret, "pthread_create");
 	}
 
-	/* If a multi-threaded run, start backup and compaction threads. */
+	/*
+	 * If a multi-threaded run, start optional backup, compaction and
+	 * long-running reader threads.
+	 */
 	if (g.c_backups &&
 	    (ret = pthread_create(&backup_tid, NULL, backup, NULL)) != 0)
 		die(ret, "pthread_create: backup");
 	if (g.c_compact &&
 	    (ret = pthread_create(&compact_tid, NULL, compact, NULL)) != 0)
 		die(ret, "pthread_create: compaction");
+	if (!SINGLETHREADED && g.c_long_running_txn &&
+	    (ret = pthread_create(&lrt_tid, NULL, lrt, NULL)) != 0)
+		die(ret, "pthread_create: long-running reader");
 
 	/* Spin on the threads, calculating the totals. */
 	for (;;) {
@@ -174,12 +181,14 @@ wts_ops(int lastrun)
 	}
 	free(tinfo);
 
-	/* Wait for the backup, compaction thread. */
+	/* Wait for the backup, compaction, long-running reader threads. */
 	g.workers_finished = 1;
 	if (g.c_backups)
 		(void)pthread_join(backup_tid, NULL);
 	if (g.c_compact)
 		(void)pthread_join(compact_tid, NULL);
+	if (!SINGLETHREADED && g.c_long_running_txn)
+		(void)pthread_join(lrt_tid, NULL);
 
 	if (g.logging != 0) {
 		(void)g.wt_api->msg_printf(g.wt_api, session,
@@ -194,7 +203,7 @@ wts_ops(int lastrun)
  *	Return the current session configuration.
  */
 static const char *
-ops_session_config(uint64_t *rnd)
+ops_session_config(WT_RAND_STATE *rnd)
 {
 	u_int v;
 

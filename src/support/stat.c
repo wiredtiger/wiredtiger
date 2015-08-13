@@ -553,11 +553,15 @@ __wt_stat_init_connection_stats(WT_CONNECTION_STATS *stats)
 	stats->cursor_search.desc = "cursor: cursor search calls";
 	stats->cursor_search_near.desc = "cursor: cursor search near calls";
 	stats->cursor_update.desc = "cursor: cursor update calls";
-	stats->dh_conn_ref.desc =
-	    "data-handle: connection candidate referenced";
-	stats->dh_conn_handles.desc = "data-handle: connection dhandles swept";
-	stats->dh_conn_sweeps.desc = "data-handle: connection sweeps";
-	stats->dh_conn_tod.desc = "data-handle: connection time-of-death sets";
+	stats->dh_sweep_ref.desc =
+	    "data-handle: connection sweep candidate became referenced";
+	stats->dh_sweep_close.desc =
+	    "data-handle: connection sweep dhandles closed";
+	stats->dh_sweep_remove.desc =
+	    "data-handle: connection sweep dhandles removed from hash list";
+	stats->dh_sweep_tod.desc =
+	    "data-handle: connection sweep time-of-death sets";
+	stats->dh_sweeps.desc = "data-handle: connection sweeps";
 	stats->dh_session_handles.desc = "data-handle: session dhandles swept";
 	stats->dh_session_sweeps.desc = "data-handle: session sweep attempts";
 	stats->log_slot_closes.desc = "log: consolidated slot closures";
@@ -567,7 +571,6 @@ __wt_stat_init_connection_stats(WT_CONNECTION_STATS *stats)
 	stats->log_slot_joins.desc = "log: consolidated slot joins";
 	stats->log_slot_toosmall.desc =
 	    "log: failed to find a slot large enough for record";
-	stats->log_buffer_grow.desc = "log: log buffer size increases";
 	stats->log_bytes_payload.desc = "log: log bytes of payload data";
 	stats->log_bytes_written.desc = "log: log bytes written";
 	stats->log_compress_writes.desc = "log: log records compressed";
@@ -594,12 +597,11 @@ __wt_stat_init_connection_stats(WT_CONNECTION_STATS *stats)
 	stats->log_prealloc_used.desc = "log: pre-allocated log files used";
 	stats->log_slot_toobig.desc = "log: record size exceeded maximum";
 	stats->log_scan_records.desc = "log: records processed by log scan";
-	stats->log_slot_switch_fails.desc =
-	    "log: slots selected for switching that were unavailable";
 	stats->log_compress_mem.desc =
 	    "log: total in-memory size of compressed records";
 	stats->log_buffer_size.desc = "log: total log buffer size";
 	stats->log_compress_len.desc = "log: total size of compressed records";
+	stats->log_slot_coalesced.desc = "log: written slots coalesced";
 	stats->log_close_yields.desc =
 	    "log: yields waiting for previous log file close";
 	stats->lsm_work_queue_app.desc =
@@ -729,10 +731,11 @@ __wt_stat_refresh_connection_stats(void *stats_arg)
 	WT_STAT_ALL_RESET(stats, cursor_search);
 	WT_STAT_ALL_RESET(stats, cursor_search_near);
 	WT_STAT_ALL_RESET(stats, cursor_update);
-	WT_STAT_ALL_RESET(stats, dh_conn_ref);
-	WT_STAT_ALL_RESET(stats, dh_conn_handles);
-	WT_STAT_ALL_RESET(stats, dh_conn_sweeps);
-	WT_STAT_ALL_RESET(stats, dh_conn_tod);
+	WT_STAT_ALL_RESET(stats, dh_sweep_ref);
+	WT_STAT_ALL_RESET(stats, dh_sweep_close);
+	WT_STAT_ALL_RESET(stats, dh_sweep_remove);
+	WT_STAT_ALL_RESET(stats, dh_sweep_tod);
+	WT_STAT_ALL_RESET(stats, dh_sweeps);
 	WT_STAT_ALL_RESET(stats, dh_session_handles);
 	WT_STAT_ALL_RESET(stats, dh_session_sweeps);
 	WT_STAT_ALL_RESET(stats, log_slot_closes);
@@ -740,7 +743,6 @@ __wt_stat_refresh_connection_stats(void *stats_arg)
 	WT_STAT_ALL_RESET(stats, log_slot_transitions);
 	WT_STAT_ALL_RESET(stats, log_slot_joins);
 	WT_STAT_ALL_RESET(stats, log_slot_toosmall);
-	WT_STAT_ALL_RESET(stats, log_buffer_grow);
 	WT_STAT_ALL_RESET(stats, log_bytes_payload);
 	WT_STAT_ALL_RESET(stats, log_bytes_written);
 	WT_STAT_ALL_RESET(stats, log_compress_writes);
@@ -758,9 +760,9 @@ __wt_stat_refresh_connection_stats(void *stats_arg)
 	WT_STAT_ALL_RESET(stats, log_prealloc_used);
 	WT_STAT_ALL_RESET(stats, log_slot_toobig);
 	WT_STAT_ALL_RESET(stats, log_scan_records);
-	WT_STAT_ALL_RESET(stats, log_slot_switch_fails);
 	WT_STAT_ALL_RESET(stats, log_compress_mem);
 	WT_STAT_ALL_RESET(stats, log_compress_len);
+	WT_STAT_ALL_RESET(stats, log_slot_coalesced);
 	WT_STAT_ALL_RESET(stats, log_close_yields);
 	WT_STAT_ALL_RESET(stats, lsm_rows_merged);
 	WT_STAT_ALL_RESET(stats, lsm_checkpoint_throttle);

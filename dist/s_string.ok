@@ -506,6 +506,7 @@ dmsg
 doxgen
 doxygen
 ds
+dsb
 dsk
 dsrc
 dst
@@ -609,6 +610,7 @@ idx
 ifdef's
 ikey
 impl
+incase
 incr
 incrementing
 indices
@@ -649,6 +651,7 @@ lang
 latencies
 lbrace
 lbracket
+ld
 len
 lenp
 level's
@@ -675,6 +678,7 @@ logtest
 lookup
 lookups
 lossy
+lrt
 lru
 lseek
 lsm
@@ -741,6 +745,7 @@ nop
 noraw
 notfound
 notsup
+notused
 nset
 nsnap
 nul
@@ -846,6 +851,7 @@ sd
 secretkey
 sed
 sessionp
+setkv
 setstr
 setv
 sfence
@@ -897,6 +903,7 @@ subtree
 sunique
 superset
 sw
+sy
 sys
 t's
 tV

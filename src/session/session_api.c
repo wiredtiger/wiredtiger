@@ -314,8 +314,10 @@ __wt_open_cursor(WT_SESSION_IMPL *session,
 	 * copied.
 	 */
 	if ((*cursorp)->uri == NULL &&
-	    (ret = __wt_strdup(session, uri, &(*cursorp)->uri)) != 0)
+	    (ret = __wt_strdup(session, uri, &(*cursorp)->uri)) != 0) {
 		WT_TRET((*cursorp)->close(*cursorp));
+		*cursorp = NULL;
+	}
 
 	return (ret);
 }
@@ -378,23 +380,6 @@ err:		if (cursor != NULL)
 		ret = WT_NOTFOUND;
 
 	API_END_RET_NOTFOUND_MAP(session, ret);
-}
-
-/*
- * __wt_session_create_strip --
- *	Discard any configuration information from a schema entry that is not
- * applicable to an session.create call, here for the wt dump command utility,
- * which only wants to dump the schema information needed for load.
- */
-int
-__wt_session_create_strip(WT_SESSION *wt_session,
-    const char *v1, const char *v2, char **value_ret)
-{
-	WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
-	const char *cfg[] =
-	    { WT_CONFIG_BASE(session, WT_SESSION_create), v1, v2, NULL };
-
-	return (__wt_config_collapse(session, cfg, value_ret));
 }
 
 /*
@@ -815,7 +800,7 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
 	WT_STAT_FAST_CONN_INCR(session, txn_commit);
 
 	txn = &session->txn;
-	if (F_ISSET(txn, WT_TXN_ERROR)) {
+	if (F_ISSET(txn, WT_TXN_ERROR) && txn->mod_count != 0) {
 		__wt_errx(session, "failed transaction requires rollback");
 		ret = EINVAL;
 	}
@@ -1181,8 +1166,8 @@ __wt_open_session(WT_CONNECTION_IMPL *conn,
 	if (i == conn->session_size)
 		WT_ERR_MSG(session, ENOMEM,
 		    "only configured to support %" PRIu32 " sessions"
-		    " (including %" PRIu32 " internal)",
-		    conn->session_size, WT_NUM_INTERNAL_SESSIONS);
+		    " (including %d additional internal sessions)",
+		    conn->session_size, WT_EXTRA_INTERNAL_SESSIONS);
 
 	/*
 	 * If the active session count is increasing, update it.  We don't worry
@@ -1205,7 +1190,7 @@ __wt_open_session(WT_CONNECTION_IMPL *conn,
 	    event_handler == NULL ? session->event_handler : event_handler);
 
 	TAILQ_INIT(&session_ret->cursors);
-	SLIST_INIT(&session_ret->dhandles);
+	TAILQ_INIT(&session_ret->dhandles);
 	/*
 	 * If we don't have one, allocate the dhandle hash array.
 	 * Allocate the table hash array as well.
@@ -1217,8 +1202,8 @@ __wt_open_session(WT_CONNECTION_IMPL *conn,
 		WT_ERR(__wt_calloc(session_ret, WT_HASH_ARRAY_SIZE,
 		    sizeof(struct __tables_hash), &session_ret->tablehash));
 	for (i = 0; i < WT_HASH_ARRAY_SIZE; i++) {
-		SLIST_INIT(&session_ret->dhhash[i]);
-		SLIST_INIT(&session_ret->tablehash[i]);
+		TAILQ_INIT(&session_ret->dhhash[i]);
+		TAILQ_INIT(&session_ret->tablehash[i]);
 	}
 
 	/* Initialize transaction support: default to read-committed. */
