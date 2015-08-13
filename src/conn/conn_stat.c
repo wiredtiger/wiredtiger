@@ -42,11 +42,20 @@ __stat_sources_free(WT_SESSION_IMPL *session, char ***sources)
 void
 __wt_conn_stat_init(WT_SESSION_IMPL *session)
 {
+	WT_CONNECTION_IMPL *conn;
+
+	conn = S2C(session);
+
 	__wt_async_stats_update(session);
 	__wt_cache_stats_update(session);
 	__wt_txn_stats_update(session);
 
-	WT_CONN_STAT(session, file_open) = S2C(session)->open_file_count;
+	WT_CONN_STAT(session, file_open) = conn->open_file_count;
+	WT_CONN_STAT(session, session_cursor_open) = conn->open_cursor_count;
+	WT_CONN_STAT(session,
+	    rec_split_stashed_objects) = conn->split_stashed_objects;
+	WT_CONN_STAT(session,
+	    rec_split_stashed_bytes) = conn->split_stashed_bytes;
 }
 
 /*

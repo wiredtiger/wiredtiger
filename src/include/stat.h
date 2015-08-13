@@ -135,18 +135,6 @@ __wt_stats_aggregate_and_return(WT_STATS *stats)
 #define	WT_STAT_WRITE_SIMPLE(stats, fld)				\
 	((stats)->fld.array_v[0].v)
 
-/*
- * Where races aren't acceptable, we always update the same slot (slot 0),
- * using an atomic instruction.
- */
-#define	WT_STAT_ATOMIC_DECRV(stats, fld, value)				\
-	(void)WT_ATOMIC_SUB8((stats)->fld.array_v[0].v, value)
-#define	WT_STAT_ATOMIC_DECR(stats, fld)					\
-	WT_STAT_ATOMIC_DECRV(stats, fld, 1)
-#define	WT_STAT_ATOMIC_INCRV(stats, fld, value)				\
-	(void)WT_ATOMIC_ADD8((stats)->fld.array_v[0].v, value)
-#define	WT_STAT_ATOMIC_INCR(stats, fld)					\
-	WT_STAT_ATOMIC_INCRV(stats, fld, 1)
 #define	WT_STAT_DECRV(session, stats, fld, value)			\
 	(stats)->							\
 	    fld.array_v[WT_STATS_SLOT_ID(session)].v -= (int64_t)(value)
@@ -165,18 +153,6 @@ __wt_stats_aggregate_and_return(WT_STATS *stats)
 /*
  * Read/write statistics if "fast" statistics are configured.
  */
-#define	WT_STAT_FAST_ATOMIC_DECRV(session, stats, fld, value) do {	\
-	if (FLD_ISSET(S2C(session)->stat_flags, WT_CONN_STAT_FAST))	\
-		WT_STAT_ATOMIC_DECRV(stats, fld, value);		\
-} while (0)
-#define	WT_STAT_FAST_ATOMIC_DECR(session, stats, fld)			\
-	WT_STAT_FAST_ATOMIC_DECRV(session, stats, fld, 1)
-#define	WT_STAT_FAST_ATOMIC_INCRV(session, stats, fld, value) do {	\
-	if (FLD_ISSET(S2C(session)->stat_flags, WT_CONN_STAT_FAST))	\
-		WT_STAT_ATOMIC_INCRV(stats, fld, value);		\
-} while (0)
-#define	WT_STAT_FAST_ATOMIC_INCR(session, stats, fld)			\
-	WT_STAT_FAST_ATOMIC_INCRV(session, stats, fld, 1)
 #define	WT_STAT_FAST_DECRV(session, stats, fld, value) do {		\
 	if (FLD_ISSET(S2C(session)->stat_flags, WT_CONN_STAT_FAST))	\
 		WT_STAT_DECRV(session, stats, fld, value);		\
@@ -197,14 +173,6 @@ __wt_stats_aggregate_and_return(WT_STATS *stats)
 /*
  * Read/write connection handle statistics if "fast" statistics are configured.
  */
-#define	WT_STAT_FAST_CONN_ATOMIC_DECRV(session, fld, value)		\
-	WT_STAT_FAST_ATOMIC_DECRV(session, &S2C(session)->stats, fld, value)
-#define	WT_STAT_FAST_CONN_ATOMIC_DECR(session, fld)			\
-	WT_STAT_FAST_ATOMIC_DECR(session, &S2C(session)->stats, fld)
-#define	WT_STAT_FAST_CONN_ATOMIC_INCRV(session, fld, value)		\
-	WT_STAT_FAST_ATOMIC_INCRV(session, &S2C(session)->stats, fld, value)
-#define	WT_STAT_FAST_CONN_ATOMIC_INCR(session, fld)			\
-	WT_STAT_FAST_ATOMIC_INCR(session, &S2C(session)->stats, fld)
 #define	WT_STAT_FAST_CONN_DECR(session, fld)				\
 	WT_STAT_FAST_DECR(session, &S2C(session)->stats, fld)
 #define	WT_STAT_FAST_CONN_DECRV(session, fld, value)			\

@@ -209,6 +209,8 @@ struct __wt_connection_impl {
 	WT_FH *lock_fh;			/* Lock file handle */
 
 	volatile uint64_t  split_gen;	/* Generation number for splits */
+	uint64_t split_stashed_bytes;	/* Atomic: split statistics */
+	uint64_t split_stashed_objects;
 
 	/*
 	 * The connection keeps a cache of data handles. The set of handles
@@ -235,6 +237,7 @@ struct __wt_connection_impl {
 	u_int open_btree_count;		/* Locked: open writable btree count */
 	uint32_t next_file_id;		/* Locked: file ID counter */
 	uint32_t open_file_count;	/* Atomic: open file handle count */
+	uint32_t open_cursor_count;	/* Atomic: open cursor handle count */
 
 	/*
 	 * WiredTiger allocates space for 50 simultaneous sessions (threads of
