@@ -139,13 +139,11 @@ __wt_stats_aggregate_and_return(WT_STATS *stats)
 	((stats)->fld.array_v[0].v)
 
 #define	WT_STAT_DECRV(session, stats, fld, value)			\
-	(stats)->							\
-	    fld.array_v[WT_STATS_SLOT_ID(session)].v -= (int64_t)(value)
+	(stats)->fld.array_v[WT_STATS_SLOT_ID(session)].v -= (int64_t)(value)
 #define	WT_STAT_DECR(session, stats, fld)				\
 	WT_STAT_DECRV(session, stats, fld, 1)
 #define	WT_STAT_INCRV(session, stats, fld, value)			\
-	(stats)->							\
-	    fld.array_v[WT_STATS_SLOT_ID(session)].v += (int64_t)(value)
+	(stats)->fld.array_v[WT_STATS_SLOT_ID(session)].v += (int64_t)(value)
 #define	WT_STAT_INCR(session, stats, fld)				\
 	WT_STAT_INCRV(session, stats, fld, 1)
 #define	WT_STAT_SET(session, stats, fld, value) do {			\

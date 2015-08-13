@@ -138,6 +138,7 @@ __wt_stat_aggregate_''' + name +
 '''_stats(const void *child, const void *parent)
 {
 \tWT_''' + name.upper() + '''_STATS *c, *p;
+\tint64_t v;
 
 \tc = (WT_''' + name.upper() + '''_STATS *)child;
 \tp = (WT_''' + name.upper() + '''_STATS *)parent;
@@ -146,11 +147,10 @@ __wt_stat_aggregate_''' + name +
         if 'no_aggregate' in l.flags:
             continue;
         elif 'max_aggregate' in l.flags:
-            o = '\tif (WT_STAT_READ(c, ' + l.name + ') >\n' +\
+            o = '\tif ((v = WT_STAT_READ(c, ' + l.name + ')) >\n' +\
                 '\t    WT_STAT_READ(p, ' + l.name + ')) {\n' +\
                 '\t\tWT_STATS_CLEAR(p, ' + l.name + ');\n' +\
-                '\t\tWT_STAT_WRITE_SIMPLE(p, ' + l.name + ') =\n' +\
-                '\t\t    (int64_t)WT_STAT_READ(c, ' + l.name + ');\n' +\
+                '\t\tWT_STAT_WRITE_SIMPLE(p, ' + l.name + ') = v;\n' +\
                 '\t}\n'
         else:
             o = '\tWT_STAT_WRITE_SIMPLE(p, ' + l.name + ') +=\n' +\

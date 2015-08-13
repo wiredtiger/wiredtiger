@@ -239,6 +239,7 @@ void
 __wt_stat_aggregate_dsrc_stats(const void *child, const void *parent)
 {
 	WT_DSRC_STATS *c, *p;
+	int64_t v;
 
 	c = (WT_DSRC_STATS *)child;
 	p = (WT_DSRC_STATS *)parent;
@@ -264,41 +265,35 @@ __wt_stat_aggregate_dsrc_stats(const void *child, const void *parent)
 	    (int64_t)WT_STAT_READ(c, btree_column_deleted);
 	WT_STAT_WRITE_SIMPLE(p, btree_column_variable) +=
 	    (int64_t)WT_STAT_READ(c, btree_column_variable);
-	if (WT_STAT_READ(c, btree_maxintlkey) >
+	if ((v = WT_STAT_READ(c, btree_maxintlkey)) >
 	    WT_STAT_READ(p, btree_maxintlkey)) {
 		WT_STATS_CLEAR(p, btree_maxintlkey);
-		WT_STAT_WRITE_SIMPLE(p, btree_maxintlkey) =
-		    (int64_t)WT_STAT_READ(c, btree_maxintlkey);
+		WT_STAT_WRITE_SIMPLE(p, btree_maxintlkey) = v;
 	}
-	if (WT_STAT_READ(c, btree_maxintlpage) >
+	if ((v = WT_STAT_READ(c, btree_maxintlpage)) >
 	    WT_STAT_READ(p, btree_maxintlpage)) {
 		WT_STATS_CLEAR(p, btree_maxintlpage);
-		WT_STAT_WRITE_SIMPLE(p, btree_maxintlpage) =
-		    (int64_t)WT_STAT_READ(c, btree_maxintlpage);
+		WT_STAT_WRITE_SIMPLE(p, btree_maxintlpage) = v;
 	}
-	if (WT_STAT_READ(c, btree_maxleafkey) >
+	if ((v = WT_STAT_READ(c, btree_maxleafkey)) >
 	    WT_STAT_READ(p, btree_maxleafkey)) {
 		WT_STATS_CLEAR(p, btree_maxleafkey);
-		WT_STAT_WRITE_SIMPLE(p, btree_maxleafkey) =
-		    (int64_t)WT_STAT_READ(c, btree_maxleafkey);
+		WT_STAT_WRITE_SIMPLE(p, btree_maxleafkey) = v;
 	}
-	if (WT_STAT_READ(c, btree_maxleafpage) >
+	if ((v = WT_STAT_READ(c, btree_maxleafpage)) >
 	    WT_STAT_READ(p, btree_maxleafpage)) {
 		WT_STATS_CLEAR(p, btree_maxleafpage);
-		WT_STAT_WRITE_SIMPLE(p, btree_maxleafpage) =
-		    (int64_t)WT_STAT_READ(c, btree_maxleafpage);
+		WT_STAT_WRITE_SIMPLE(p, btree_maxleafpage) = v;
 	}
-	if (WT_STAT_READ(c, btree_maxleafvalue) >
+	if ((v = WT_STAT_READ(c, btree_maxleafvalue)) >
 	    WT_STAT_READ(p, btree_maxleafvalue)) {
 		WT_STATS_CLEAR(p, btree_maxleafvalue);
-		WT_STAT_WRITE_SIMPLE(p, btree_maxleafvalue) =
-		    (int64_t)WT_STAT_READ(c, btree_maxleafvalue);
+		WT_STAT_WRITE_SIMPLE(p, btree_maxleafvalue) = v;
 	}
-	if (WT_STAT_READ(c, btree_maximum_depth) >
+	if ((v = WT_STAT_READ(c, btree_maximum_depth)) >
 	    WT_STAT_READ(p, btree_maximum_depth)) {
 		WT_STATS_CLEAR(p, btree_maximum_depth);
-		WT_STAT_WRITE_SIMPLE(p, btree_maximum_depth) =
-		    (int64_t)WT_STAT_READ(c, btree_maximum_depth);
+		WT_STAT_WRITE_SIMPLE(p, btree_maximum_depth) = v;
 	}
 	WT_STAT_WRITE_SIMPLE(p, btree_entries) +=
 	    (int64_t)WT_STAT_READ(c, btree_entries);
@@ -394,11 +389,10 @@ __wt_stat_aggregate_dsrc_stats(const void *child, const void *parent)
 	    (int64_t)WT_STAT_READ(c, bloom_count);
 	WT_STAT_WRITE_SIMPLE(p, lsm_chunk_count) +=
 	    (int64_t)WT_STAT_READ(c, lsm_chunk_count);
-	if (WT_STAT_READ(c, lsm_generation_max) >
+	if ((v = WT_STAT_READ(c, lsm_generation_max)) >
 	    WT_STAT_READ(p, lsm_generation_max)) {
 		WT_STATS_CLEAR(p, lsm_generation_max);
-		WT_STAT_WRITE_SIMPLE(p, lsm_generation_max) =
-		    (int64_t)WT_STAT_READ(c, lsm_generation_max);
+		WT_STAT_WRITE_SIMPLE(p, lsm_generation_max) = v;
 	}
 	WT_STAT_WRITE_SIMPLE(p, lsm_lookup_no_bloom) +=
 	    (int64_t)WT_STAT_READ(c, lsm_lookup_no_bloom);
@@ -422,11 +416,10 @@ __wt_stat_aggregate_dsrc_stats(const void *child, const void *parent)
 	    (int64_t)WT_STAT_READ(c, rec_multiblock_leaf);
 	WT_STAT_WRITE_SIMPLE(p, rec_overflow_key_leaf) +=
 	    (int64_t)WT_STAT_READ(c, rec_overflow_key_leaf);
-	if (WT_STAT_READ(c, rec_multiblock_max) >
+	if ((v = WT_STAT_READ(c, rec_multiblock_max)) >
 	    WT_STAT_READ(p, rec_multiblock_max)) {
 		WT_STATS_CLEAR(p, rec_multiblock_max);
-		WT_STAT_WRITE_SIMPLE(p, rec_multiblock_max) =
-		    (int64_t)WT_STAT_READ(c, rec_multiblock_max);
+		WT_STAT_WRITE_SIMPLE(p, rec_multiblock_max) = v;
 	}
 	WT_STAT_WRITE_SIMPLE(p, rec_overflow_value) +=
 	    (int64_t)WT_STAT_READ(c, rec_overflow_value);
