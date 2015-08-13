@@ -36,8 +36,11 @@
  * WiredTiger might be run, however, we don't want to waste that much memory on
  * smaller machines. Right now, machines with more than 24 CPUs are relatively
  * rare.
+ *
+ * Default hash table size; use a prime number of buckets rather than assuming
+ * a good hash (Reference Sedgewick, Algorithms in C, "Hash Functions").
  */
-#define	WT_COUNTER_SLOTS	24
+#define	WT_COUNTER_SLOTS	23
 
 /*
  * A cache-line-padded statistics counter value (padding is needed, otherwise
