@@ -87,7 +87,7 @@ struct __wt_stats {
  * padding. However, resetting the counters is not a common case operation, so
  * we use memset for compactness.
  */
-#define	WT_STAT_ALL_RESET(stats, fld)					\
+#define	WT_STATS_CLEAR(stats, fld)					\
 	memset((stats)->fld.array_v, 0, sizeof((stats)->fld.array_v))
 
 /*
@@ -149,7 +149,7 @@ __wt_stats_aggregate_and_return(WT_STATS *stats)
 #define	WT_STAT_INCR(session, stats, fld)				\
 	WT_STAT_INCRV(session, stats, fld, 1)
 #define	WT_STAT_SET(session, stats, fld, value) do {			\
-	WT_STAT_ALL_RESET(stats, fld);					\
+	WT_STATS_CLEAR(stats, fld);					\
 	WT_STAT_WRITE(session, stats, fld) = (int64_t)(value);		\
 } while (0)
 

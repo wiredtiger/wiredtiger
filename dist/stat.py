@@ -119,7 +119,7 @@ __wt_stat_refresh_''' + name + '''_stats(void *stats_arg)
     for l in sorted(list):
         # no_clear: don't clear the value.
         if not 'no_clear' in l.flags:
-            f.write('\tWT_STAT_ALL_RESET(stats, ' + l.name + ');\n');
+            f.write('\tWT_STATS_CLEAR(stats, ' + l.name + ');\n');
     f.write('}\n')
 
     # Aggregation is only interesting for data-source statistics.
@@ -148,7 +148,7 @@ __wt_stat_aggregate_''' + name +
         elif 'max_aggregate' in l.flags:
             o = '\tif (WT_STAT_READ(c, ' + l.name + ') >\n' +\
                 '\t    WT_STAT_READ(p, ' + l.name + ')) {\n' +\
-                '\t\tWT_STAT_ALL_RESET(p, ' + l.name + ');\n' +\
+                '\t\tWT_STATS_CLEAR(p, ' + l.name + ');\n' +\
                 '\t\tWT_STAT_WRITE_SIMPLE(p, ' + l.name + ') =\n' +\
                 '\t\t    (int64_t)WT_STAT_READ(c, ' + l.name + ');\n' +\
                 '\t}\n'
