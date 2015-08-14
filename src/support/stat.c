@@ -145,196 +145,298 @@ __wt_stat_refresh_dsrc_stats(void *stats_arg)
 	WT_DSRC_STATS *stats;
 
 	stats = (WT_DSRC_STATS *)stats_arg;
-	stats->block_extension.v = 0;
-	stats->block_alloc.v = 0;
-	stats->block_free.v = 0;
-	stats->block_checkpoint_size.v = 0;
-	stats->allocation_size.v = 0;
-	stats->block_reuse_bytes.v = 0;
-	stats->block_magic.v = 0;
-	stats->block_major.v = 0;
-	stats->block_size.v = 0;
-	stats->block_minor.v = 0;
-	stats->btree_column_fix.v = 0;
-	stats->btree_column_internal.v = 0;
-	stats->btree_column_deleted.v = 0;
-	stats->btree_column_variable.v = 0;
-	stats->btree_fixed_len.v = 0;
-	stats->btree_maxintlkey.v = 0;
-	stats->btree_maxintlpage.v = 0;
-	stats->btree_maxleafkey.v = 0;
-	stats->btree_maxleafpage.v = 0;
-	stats->btree_maxleafvalue.v = 0;
-	stats->btree_maximum_depth.v = 0;
-	stats->btree_entries.v = 0;
-	stats->btree_overflow.v = 0;
-	stats->btree_compact_rewrite.v = 0;
-	stats->btree_row_internal.v = 0;
-	stats->btree_row_leaf.v = 0;
-	stats->cache_bytes_read.v = 0;
-	stats->cache_bytes_write.v = 0;
-	stats->cache_eviction_checkpoint.v = 0;
-	stats->cache_eviction_fail.v = 0;
-	stats->cache_eviction_hazard.v = 0;
-	stats->cache_inmem_split.v = 0;
-	stats->cache_eviction_internal.v = 0;
-	stats->cache_eviction_dirty.v = 0;
-	stats->cache_read_overflow.v = 0;
-	stats->cache_overflow_value.v = 0;
-	stats->cache_eviction_deepen.v = 0;
-	stats->cache_read.v = 0;
-	stats->cache_eviction_split.v = 0;
-	stats->cache_write.v = 0;
-	stats->cache_eviction_clean.v = 0;
-	stats->compress_read.v = 0;
-	stats->compress_write.v = 0;
-	stats->compress_write_fail.v = 0;
-	stats->compress_write_too_small.v = 0;
-	stats->compress_raw_fail_temporary.v = 0;
-	stats->compress_raw_fail.v = 0;
-	stats->compress_raw_ok.v = 0;
-	stats->cursor_insert_bulk.v = 0;
-	stats->cursor_create.v = 0;
-	stats->cursor_insert_bytes.v = 0;
-	stats->cursor_remove_bytes.v = 0;
-	stats->cursor_update_bytes.v = 0;
-	stats->cursor_insert.v = 0;
-	stats->cursor_next.v = 0;
-	stats->cursor_prev.v = 0;
-	stats->cursor_remove.v = 0;
-	stats->cursor_reset.v = 0;
-	stats->cursor_search.v = 0;
-	stats->cursor_search_near.v = 0;
-	stats->cursor_update.v = 0;
-	stats->bloom_false_positive.v = 0;
-	stats->bloom_hit.v = 0;
-	stats->bloom_miss.v = 0;
-	stats->bloom_page_evict.v = 0;
-	stats->bloom_page_read.v = 0;
-	stats->bloom_count.v = 0;
-	stats->lsm_chunk_count.v = 0;
-	stats->lsm_generation_max.v = 0;
-	stats->lsm_lookup_no_bloom.v = 0;
-	stats->lsm_checkpoint_throttle.v = 0;
-	stats->lsm_merge_throttle.v = 0;
-	stats->bloom_size.v = 0;
-	stats->rec_dictionary.v = 0;
-	stats->rec_suffix_compression.v = 0;
-	stats->rec_multiblock_internal.v = 0;
-	stats->rec_overflow_key_internal.v = 0;
-	stats->rec_prefix_compression.v = 0;
-	stats->rec_multiblock_leaf.v = 0;
-	stats->rec_overflow_key_leaf.v = 0;
-	stats->rec_multiblock_max.v = 0;
-	stats->rec_overflow_value.v = 0;
-	stats->rec_page_match.v = 0;
-	stats->rec_pages.v = 0;
-	stats->rec_pages_eviction.v = 0;
-	stats->rec_page_delete.v = 0;
-	stats->session_compact.v = 0;
-	stats->txn_update_conflict.v = 0;
+	WT_STATS_CLEAR(stats, block_extension);
+	WT_STATS_CLEAR(stats, block_alloc);
+	WT_STATS_CLEAR(stats, block_free);
+	WT_STATS_CLEAR(stats, block_checkpoint_size);
+	WT_STATS_CLEAR(stats, allocation_size);
+	WT_STATS_CLEAR(stats, block_reuse_bytes);
+	WT_STATS_CLEAR(stats, block_magic);
+	WT_STATS_CLEAR(stats, block_major);
+	WT_STATS_CLEAR(stats, block_size);
+	WT_STATS_CLEAR(stats, block_minor);
+	WT_STATS_CLEAR(stats, btree_column_fix);
+	WT_STATS_CLEAR(stats, btree_column_internal);
+	WT_STATS_CLEAR(stats, btree_column_deleted);
+	WT_STATS_CLEAR(stats, btree_column_variable);
+	WT_STATS_CLEAR(stats, btree_fixed_len);
+	WT_STATS_CLEAR(stats, btree_maxintlkey);
+	WT_STATS_CLEAR(stats, btree_maxintlpage);
+	WT_STATS_CLEAR(stats, btree_maxleafkey);
+	WT_STATS_CLEAR(stats, btree_maxleafpage);
+	WT_STATS_CLEAR(stats, btree_maxleafvalue);
+	WT_STATS_CLEAR(stats, btree_maximum_depth);
+	WT_STATS_CLEAR(stats, btree_entries);
+	WT_STATS_CLEAR(stats, btree_overflow);
+	WT_STATS_CLEAR(stats, btree_compact_rewrite);
+	WT_STATS_CLEAR(stats, btree_row_internal);
+	WT_STATS_CLEAR(stats, btree_row_leaf);
+	WT_STATS_CLEAR(stats, cache_bytes_read);
+	WT_STATS_CLEAR(stats, cache_bytes_write);
+	WT_STATS_CLEAR(stats, cache_eviction_checkpoint);
+	WT_STATS_CLEAR(stats, cache_eviction_fail);
+	WT_STATS_CLEAR(stats, cache_eviction_hazard);
+	WT_STATS_CLEAR(stats, cache_inmem_split);
+	WT_STATS_CLEAR(stats, cache_eviction_internal);
+	WT_STATS_CLEAR(stats, cache_eviction_dirty);
+	WT_STATS_CLEAR(stats, cache_read_overflow);
+	WT_STATS_CLEAR(stats, cache_overflow_value);
+	WT_STATS_CLEAR(stats, cache_eviction_deepen);
+	WT_STATS_CLEAR(stats, cache_read);
+	WT_STATS_CLEAR(stats, cache_eviction_split);
+	WT_STATS_CLEAR(stats, cache_write);
+	WT_STATS_CLEAR(stats, cache_eviction_clean);
+	WT_STATS_CLEAR(stats, compress_read);
+	WT_STATS_CLEAR(stats, compress_write);
+	WT_STATS_CLEAR(stats, compress_write_fail);
+	WT_STATS_CLEAR(stats, compress_write_too_small);
+	WT_STATS_CLEAR(stats, compress_raw_fail_temporary);
+	WT_STATS_CLEAR(stats, compress_raw_fail);
+	WT_STATS_CLEAR(stats, compress_raw_ok);
+	WT_STATS_CLEAR(stats, cursor_insert_bulk);
+	WT_STATS_CLEAR(stats, cursor_create);
+	WT_STATS_CLEAR(stats, cursor_insert_bytes);
+	WT_STATS_CLEAR(stats, cursor_remove_bytes);
+	WT_STATS_CLEAR(stats, cursor_update_bytes);
+	WT_STATS_CLEAR(stats, cursor_insert);
+	WT_STATS_CLEAR(stats, cursor_next);
+	WT_STATS_CLEAR(stats, cursor_prev);
+	WT_STATS_CLEAR(stats, cursor_remove);
+	WT_STATS_CLEAR(stats, cursor_reset);
+	WT_STATS_CLEAR(stats, cursor_search);
+	WT_STATS_CLEAR(stats, cursor_search_near);
+	WT_STATS_CLEAR(stats, cursor_update);
+	WT_STATS_CLEAR(stats, bloom_false_positive);
+	WT_STATS_CLEAR(stats, bloom_hit);
+	WT_STATS_CLEAR(stats, bloom_miss);
+	WT_STATS_CLEAR(stats, bloom_page_evict);
+	WT_STATS_CLEAR(stats, bloom_page_read);
+	WT_STATS_CLEAR(stats, bloom_count);
+	WT_STATS_CLEAR(stats, lsm_chunk_count);
+	WT_STATS_CLEAR(stats, lsm_generation_max);
+	WT_STATS_CLEAR(stats, lsm_lookup_no_bloom);
+	WT_STATS_CLEAR(stats, lsm_checkpoint_throttle);
+	WT_STATS_CLEAR(stats, lsm_merge_throttle);
+	WT_STATS_CLEAR(stats, bloom_size);
+	WT_STATS_CLEAR(stats, rec_dictionary);
+	WT_STATS_CLEAR(stats, rec_suffix_compression);
+	WT_STATS_CLEAR(stats, rec_multiblock_internal);
+	WT_STATS_CLEAR(stats, rec_overflow_key_internal);
+	WT_STATS_CLEAR(stats, rec_prefix_compression);
+	WT_STATS_CLEAR(stats, rec_multiblock_leaf);
+	WT_STATS_CLEAR(stats, rec_overflow_key_leaf);
+	WT_STATS_CLEAR(stats, rec_multiblock_max);
+	WT_STATS_CLEAR(stats, rec_overflow_value);
+	WT_STATS_CLEAR(stats, rec_page_match);
+	WT_STATS_CLEAR(stats, rec_pages);
+	WT_STATS_CLEAR(stats, rec_pages_eviction);
+	WT_STATS_CLEAR(stats, rec_page_delete);
+	WT_STATS_CLEAR(stats, session_compact);
+	WT_STATS_CLEAR(stats, txn_update_conflict);
 }
 
 void
 __wt_stat_aggregate_dsrc_stats(const void *child, const void *parent)
 {
 	WT_DSRC_STATS *c, *p;
+	uint64_t v;
 
 	c = (WT_DSRC_STATS *)child;
 	p = (WT_DSRC_STATS *)parent;
-	p->block_extension.v += c->block_extension.v;
-	p->block_alloc.v += c->block_alloc.v;
-	p->block_free.v += c->block_free.v;
-	p->block_checkpoint_size.v += c->block_checkpoint_size.v;
-	p->block_reuse_bytes.v += c->block_reuse_bytes.v;
-	p->block_size.v += c->block_size.v;
-	p->btree_checkpoint_generation.v += c->btree_checkpoint_generation.v;
-	p->btree_column_fix.v += c->btree_column_fix.v;
-	p->btree_column_internal.v += c->btree_column_internal.v;
-	p->btree_column_deleted.v += c->btree_column_deleted.v;
-	p->btree_column_variable.v += c->btree_column_variable.v;
-	if (c->btree_maxintlkey.v > p->btree_maxintlkey.v)
-	    p->btree_maxintlkey.v = c->btree_maxintlkey.v;
-	if (c->btree_maxintlpage.v > p->btree_maxintlpage.v)
-	    p->btree_maxintlpage.v = c->btree_maxintlpage.v;
-	if (c->btree_maxleafkey.v > p->btree_maxleafkey.v)
-	    p->btree_maxleafkey.v = c->btree_maxleafkey.v;
-	if (c->btree_maxleafpage.v > p->btree_maxleafpage.v)
-	    p->btree_maxleafpage.v = c->btree_maxleafpage.v;
-	if (c->btree_maxleafvalue.v > p->btree_maxleafvalue.v)
-	    p->btree_maxleafvalue.v = c->btree_maxleafvalue.v;
-	if (c->btree_maximum_depth.v > p->btree_maximum_depth.v)
-	    p->btree_maximum_depth.v = c->btree_maximum_depth.v;
-	p->btree_entries.v += c->btree_entries.v;
-	p->btree_overflow.v += c->btree_overflow.v;
-	p->btree_compact_rewrite.v += c->btree_compact_rewrite.v;
-	p->btree_row_internal.v += c->btree_row_internal.v;
-	p->btree_row_leaf.v += c->btree_row_leaf.v;
-	p->cache_bytes_read.v += c->cache_bytes_read.v;
-	p->cache_bytes_write.v += c->cache_bytes_write.v;
-	p->cache_eviction_checkpoint.v += c->cache_eviction_checkpoint.v;
-	p->cache_eviction_fail.v += c->cache_eviction_fail.v;
-	p->cache_eviction_hazard.v += c->cache_eviction_hazard.v;
-	p->cache_inmem_split.v += c->cache_inmem_split.v;
-	p->cache_eviction_internal.v += c->cache_eviction_internal.v;
-	p->cache_eviction_dirty.v += c->cache_eviction_dirty.v;
-	p->cache_read_overflow.v += c->cache_read_overflow.v;
-	p->cache_overflow_value.v += c->cache_overflow_value.v;
-	p->cache_eviction_deepen.v += c->cache_eviction_deepen.v;
-	p->cache_read.v += c->cache_read.v;
-	p->cache_eviction_split.v += c->cache_eviction_split.v;
-	p->cache_write.v += c->cache_write.v;
-	p->cache_eviction_clean.v += c->cache_eviction_clean.v;
-	p->compress_read.v += c->compress_read.v;
-	p->compress_write.v += c->compress_write.v;
-	p->compress_write_fail.v += c->compress_write_fail.v;
-	p->compress_write_too_small.v += c->compress_write_too_small.v;
-	p->compress_raw_fail_temporary.v += c->compress_raw_fail_temporary.v;
-	p->compress_raw_fail.v += c->compress_raw_fail.v;
-	p->compress_raw_ok.v += c->compress_raw_ok.v;
-	p->cursor_insert_bulk.v += c->cursor_insert_bulk.v;
-	p->cursor_create.v += c->cursor_create.v;
-	p->cursor_insert_bytes.v += c->cursor_insert_bytes.v;
-	p->cursor_remove_bytes.v += c->cursor_remove_bytes.v;
-	p->cursor_update_bytes.v += c->cursor_update_bytes.v;
-	p->cursor_insert.v += c->cursor_insert.v;
-	p->cursor_next.v += c->cursor_next.v;
-	p->cursor_prev.v += c->cursor_prev.v;
-	p->cursor_remove.v += c->cursor_remove.v;
-	p->cursor_reset.v += c->cursor_reset.v;
-	p->cursor_search.v += c->cursor_search.v;
-	p->cursor_search_near.v += c->cursor_search_near.v;
-	p->cursor_update.v += c->cursor_update.v;
-	p->bloom_false_positive.v += c->bloom_false_positive.v;
-	p->bloom_hit.v += c->bloom_hit.v;
-	p->bloom_miss.v += c->bloom_miss.v;
-	p->bloom_page_evict.v += c->bloom_page_evict.v;
-	p->bloom_page_read.v += c->bloom_page_read.v;
-	p->bloom_count.v += c->bloom_count.v;
-	p->lsm_chunk_count.v += c->lsm_chunk_count.v;
-	if (c->lsm_generation_max.v > p->lsm_generation_max.v)
-	    p->lsm_generation_max.v = c->lsm_generation_max.v;
-	p->lsm_lookup_no_bloom.v += c->lsm_lookup_no_bloom.v;
-	p->lsm_checkpoint_throttle.v += c->lsm_checkpoint_throttle.v;
-	p->lsm_merge_throttle.v += c->lsm_merge_throttle.v;
-	p->bloom_size.v += c->bloom_size.v;
-	p->rec_dictionary.v += c->rec_dictionary.v;
-	p->rec_suffix_compression.v += c->rec_suffix_compression.v;
-	p->rec_multiblock_internal.v += c->rec_multiblock_internal.v;
-	p->rec_overflow_key_internal.v += c->rec_overflow_key_internal.v;
-	p->rec_prefix_compression.v += c->rec_prefix_compression.v;
-	p->rec_multiblock_leaf.v += c->rec_multiblock_leaf.v;
-	p->rec_overflow_key_leaf.v += c->rec_overflow_key_leaf.v;
-	if (c->rec_multiblock_max.v > p->rec_multiblock_max.v)
-	    p->rec_multiblock_max.v = c->rec_multiblock_max.v;
-	p->rec_overflow_value.v += c->rec_overflow_value.v;
-	p->rec_page_match.v += c->rec_page_match.v;
-	p->rec_pages.v += c->rec_pages.v;
-	p->rec_pages_eviction.v += c->rec_pages_eviction.v;
-	p->rec_page_delete.v += c->rec_page_delete.v;
-	p->session_compact.v += c->session_compact.v;
-	p->session_cursor_open.v += c->session_cursor_open.v;
-	p->txn_update_conflict.v += c->txn_update_conflict.v;
+	WT_STAT_WRITE_SIMPLE(p, block_extension) +=
+	    (int64_t)WT_STAT_READ(c, block_extension);
+	WT_STAT_WRITE_SIMPLE(p, block_alloc) +=
+	    (int64_t)WT_STAT_READ(c, block_alloc);
+	WT_STAT_WRITE_SIMPLE(p, block_free) +=
+	    (int64_t)WT_STAT_READ(c, block_free);
+	WT_STAT_WRITE_SIMPLE(p, block_checkpoint_size) +=
+	    (int64_t)WT_STAT_READ(c, block_checkpoint_size);
+	WT_STAT_WRITE_SIMPLE(p, block_reuse_bytes) +=
+	    (int64_t)WT_STAT_READ(c, block_reuse_bytes);
+	WT_STAT_WRITE_SIMPLE(p, block_size) +=
+	    (int64_t)WT_STAT_READ(c, block_size);
+	WT_STAT_WRITE_SIMPLE(p, btree_checkpoint_generation) +=
+	    (int64_t)WT_STAT_READ(c, btree_checkpoint_generation);
+	WT_STAT_WRITE_SIMPLE(p, btree_column_fix) +=
+	    (int64_t)WT_STAT_READ(c, btree_column_fix);
+	WT_STAT_WRITE_SIMPLE(p, btree_column_internal) +=
+	    (int64_t)WT_STAT_READ(c, btree_column_internal);
+	WT_STAT_WRITE_SIMPLE(p, btree_column_deleted) +=
+	    (int64_t)WT_STAT_READ(c, btree_column_deleted);
+	WT_STAT_WRITE_SIMPLE(p, btree_column_variable) +=
+	    (int64_t)WT_STAT_READ(c, btree_column_variable);
+	if ((v = WT_STAT_READ(c, btree_maxintlkey)) >
+	    WT_STAT_READ(p, btree_maxintlkey)) {
+		WT_STATS_CLEAR(p, btree_maxintlkey);
+		WT_STAT_WRITE_SIMPLE(p, btree_maxintlkey) = (int64_t)v;
+	}
+	if ((v = WT_STAT_READ(c, btree_maxintlpage)) >
+	    WT_STAT_READ(p, btree_maxintlpage)) {
+		WT_STATS_CLEAR(p, btree_maxintlpage);
+		WT_STAT_WRITE_SIMPLE(p, btree_maxintlpage) = (int64_t)v;
+	}
+	if ((v = WT_STAT_READ(c, btree_maxleafkey)) >
+	    WT_STAT_READ(p, btree_maxleafkey)) {
+		WT_STATS_CLEAR(p, btree_maxleafkey);
+		WT_STAT_WRITE_SIMPLE(p, btree_maxleafkey) = (int64_t)v;
+	}
+	if ((v = WT_STAT_READ(c, btree_maxleafpage)) >
+	    WT_STAT_READ(p, btree_maxleafpage)) {
+		WT_STATS_CLEAR(p, btree_maxleafpage);
+		WT_STAT_WRITE_SIMPLE(p, btree_maxleafpage) = (int64_t)v;
+	}
+	if ((v = WT_STAT_READ(c, btree_maxleafvalue)) >
+	    WT_STAT_READ(p, btree_maxleafvalue)) {
+		WT_STATS_CLEAR(p, btree_maxleafvalue);
+		WT_STAT_WRITE_SIMPLE(p, btree_maxleafvalue) = (int64_t)v;
+	}
+	if ((v = WT_STAT_READ(c, btree_maximum_depth)) >
+	    WT_STAT_READ(p, btree_maximum_depth)) {
+		WT_STATS_CLEAR(p, btree_maximum_depth);
+		WT_STAT_WRITE_SIMPLE(p, btree_maximum_depth) = (int64_t)v;
+	}
+	WT_STAT_WRITE_SIMPLE(p, btree_entries) +=
+	    (int64_t)WT_STAT_READ(c, btree_entries);
+	WT_STAT_WRITE_SIMPLE(p, btree_overflow) +=
+	    (int64_t)WT_STAT_READ(c, btree_overflow);
+	WT_STAT_WRITE_SIMPLE(p, btree_compact_rewrite) +=
+	    (int64_t)WT_STAT_READ(c, btree_compact_rewrite);
+	WT_STAT_WRITE_SIMPLE(p, btree_row_internal) +=
+	    (int64_t)WT_STAT_READ(c, btree_row_internal);
+	WT_STAT_WRITE_SIMPLE(p, btree_row_leaf) +=
+	    (int64_t)WT_STAT_READ(c, btree_row_leaf);
+	WT_STAT_WRITE_SIMPLE(p, cache_bytes_read) +=
+	    (int64_t)WT_STAT_READ(c, cache_bytes_read);
+	WT_STAT_WRITE_SIMPLE(p, cache_bytes_write) +=
+	    (int64_t)WT_STAT_READ(c, cache_bytes_write);
+	WT_STAT_WRITE_SIMPLE(p, cache_eviction_checkpoint) +=
+	    (int64_t)WT_STAT_READ(c, cache_eviction_checkpoint);
+	WT_STAT_WRITE_SIMPLE(p, cache_eviction_fail) +=
+	    (int64_t)WT_STAT_READ(c, cache_eviction_fail);
+	WT_STAT_WRITE_SIMPLE(p, cache_eviction_hazard) +=
+	    (int64_t)WT_STAT_READ(c, cache_eviction_hazard);
+	WT_STAT_WRITE_SIMPLE(p, cache_inmem_split) +=
+	    (int64_t)WT_STAT_READ(c, cache_inmem_split);
+	WT_STAT_WRITE_SIMPLE(p, cache_eviction_internal) +=
+	    (int64_t)WT_STAT_READ(c, cache_eviction_internal);
+	WT_STAT_WRITE_SIMPLE(p, cache_eviction_dirty) +=
+	    (int64_t)WT_STAT_READ(c, cache_eviction_dirty);
+	WT_STAT_WRITE_SIMPLE(p, cache_read_overflow) +=
+	    (int64_t)WT_STAT_READ(c, cache_read_overflow);
+	WT_STAT_WRITE_SIMPLE(p, cache_overflow_value) +=
+	    (int64_t)WT_STAT_READ(c, cache_overflow_value);
+	WT_STAT_WRITE_SIMPLE(p, cache_eviction_deepen) +=
+	    (int64_t)WT_STAT_READ(c, cache_eviction_deepen);
+	WT_STAT_WRITE_SIMPLE(p, cache_read) +=
+	    (int64_t)WT_STAT_READ(c, cache_read);
+	WT_STAT_WRITE_SIMPLE(p, cache_eviction_split) +=
+	    (int64_t)WT_STAT_READ(c, cache_eviction_split);
+	WT_STAT_WRITE_SIMPLE(p, cache_write) +=
+	    (int64_t)WT_STAT_READ(c, cache_write);
+	WT_STAT_WRITE_SIMPLE(p, cache_eviction_clean) +=
+	    (int64_t)WT_STAT_READ(c, cache_eviction_clean);
+	WT_STAT_WRITE_SIMPLE(p, compress_read) +=
+	    (int64_t)WT_STAT_READ(c, compress_read);
+	WT_STAT_WRITE_SIMPLE(p, compress_write) +=
+	    (int64_t)WT_STAT_READ(c, compress_write);
+	WT_STAT_WRITE_SIMPLE(p, compress_write_fail) +=
+	    (int64_t)WT_STAT_READ(c, compress_write_fail);
+	WT_STAT_WRITE_SIMPLE(p, compress_write_too_small) +=
+	    (int64_t)WT_STAT_READ(c, compress_write_too_small);
+	WT_STAT_WRITE_SIMPLE(p, compress_raw_fail_temporary) +=
+	    (int64_t)WT_STAT_READ(c, compress_raw_fail_temporary);
+	WT_STAT_WRITE_SIMPLE(p, compress_raw_fail) +=
+	    (int64_t)WT_STAT_READ(c, compress_raw_fail);
+	WT_STAT_WRITE_SIMPLE(p, compress_raw_ok) +=
+	    (int64_t)WT_STAT_READ(c, compress_raw_ok);
+	WT_STAT_WRITE_SIMPLE(p, cursor_insert_bulk) +=
+	    (int64_t)WT_STAT_READ(c, cursor_insert_bulk);
+	WT_STAT_WRITE_SIMPLE(p, cursor_create) +=
+	    (int64_t)WT_STAT_READ(c, cursor_create);
+	WT_STAT_WRITE_SIMPLE(p, cursor_insert_bytes) +=
+	    (int64_t)WT_STAT_READ(c, cursor_insert_bytes);
+	WT_STAT_WRITE_SIMPLE(p, cursor_remove_bytes) +=
+	    (int64_t)WT_STAT_READ(c, cursor_remove_bytes);
+	WT_STAT_WRITE_SIMPLE(p, cursor_update_bytes) +=
+	    (int64_t)WT_STAT_READ(c, cursor_update_bytes);
+	WT_STAT_WRITE_SIMPLE(p, cursor_insert) +=
+	    (int64_t)WT_STAT_READ(c, cursor_insert);
+	WT_STAT_WRITE_SIMPLE(p, cursor_next) +=
+	    (int64_t)WT_STAT_READ(c, cursor_next);
+	WT_STAT_WRITE_SIMPLE(p, cursor_prev) +=
+	    (int64_t)WT_STAT_READ(c, cursor_prev);
+	WT_STAT_WRITE_SIMPLE(p, cursor_remove) +=
+	    (int64_t)WT_STAT_READ(c, cursor_remove);
+	WT_STAT_WRITE_SIMPLE(p, cursor_reset) +=
+	    (int64_t)WT_STAT_READ(c, cursor_reset);
+	WT_STAT_WRITE_SIMPLE(p, cursor_search) +=
+	    (int64_t)WT_STAT_READ(c, cursor_search);
+	WT_STAT_WRITE_SIMPLE(p, cursor_search_near) +=
+	    (int64_t)WT_STAT_READ(c, cursor_search_near);
+	WT_STAT_WRITE_SIMPLE(p, cursor_update) +=
+	    (int64_t)WT_STAT_READ(c, cursor_update);
+	WT_STAT_WRITE_SIMPLE(p, bloom_false_positive) +=
+	    (int64_t)WT_STAT_READ(c, bloom_false_positive);
+	WT_STAT_WRITE_SIMPLE(p, bloom_hit) +=
+	    (int64_t)WT_STAT_READ(c, bloom_hit);
+	WT_STAT_WRITE_SIMPLE(p, bloom_miss) +=
+	    (int64_t)WT_STAT_READ(c, bloom_miss);
+	WT_STAT_WRITE_SIMPLE(p, bloom_page_evict) +=
+	    (int64_t)WT_STAT_READ(c, bloom_page_evict);
+	WT_STAT_WRITE_SIMPLE(p, bloom_page_read) +=
+	    (int64_t)WT_STAT_READ(c, bloom_page_read);
+	WT_STAT_WRITE_SIMPLE(p, bloom_count) +=
+	    (int64_t)WT_STAT_READ(c, bloom_count);
+	WT_STAT_WRITE_SIMPLE(p, lsm_chunk_count) +=
+	    (int64_t)WT_STAT_READ(c, lsm_chunk_count);
+	if ((v = WT_STAT_READ(c, lsm_generation_max)) >
+	    WT_STAT_READ(p, lsm_generation_max)) {
+		WT_STATS_CLEAR(p, lsm_generation_max);
+		WT_STAT_WRITE_SIMPLE(p, lsm_generation_max) = (int64_t)v;
+	}
+	WT_STAT_WRITE_SIMPLE(p, lsm_lookup_no_bloom) +=
+	    (int64_t)WT_STAT_READ(c, lsm_lookup_no_bloom);
+	WT_STAT_WRITE_SIMPLE(p, lsm_checkpoint_throttle) +=
+	    (int64_t)WT_STAT_READ(c, lsm_checkpoint_throttle);
+	WT_STAT_WRITE_SIMPLE(p, lsm_merge_throttle) +=
+	    (int64_t)WT_STAT_READ(c, lsm_merge_throttle);
+	WT_STAT_WRITE_SIMPLE(p, bloom_size) +=
+	    (int64_t)WT_STAT_READ(c, bloom_size);
+	WT_STAT_WRITE_SIMPLE(p, rec_dictionary) +=
+	    (int64_t)WT_STAT_READ(c, rec_dictionary);
+	WT_STAT_WRITE_SIMPLE(p, rec_suffix_compression) +=
+	    (int64_t)WT_STAT_READ(c, rec_suffix_compression);
+	WT_STAT_WRITE_SIMPLE(p, rec_multiblock_internal) +=
+	    (int64_t)WT_STAT_READ(c, rec_multiblock_internal);
+	WT_STAT_WRITE_SIMPLE(p, rec_overflow_key_internal) +=
+	    (int64_t)WT_STAT_READ(c, rec_overflow_key_internal);
+	WT_STAT_WRITE_SIMPLE(p, rec_prefix_compression) +=
+	    (int64_t)WT_STAT_READ(c, rec_prefix_compression);
+	WT_STAT_WRITE_SIMPLE(p, rec_multiblock_leaf) +=
+	    (int64_t)WT_STAT_READ(c, rec_multiblock_leaf);
+	WT_STAT_WRITE_SIMPLE(p, rec_overflow_key_leaf) +=
+	    (int64_t)WT_STAT_READ(c, rec_overflow_key_leaf);
+	if ((v = WT_STAT_READ(c, rec_multiblock_max)) >
+	    WT_STAT_READ(p, rec_multiblock_max)) {
+		WT_STATS_CLEAR(p, rec_multiblock_max);
+		WT_STAT_WRITE_SIMPLE(p, rec_multiblock_max) = (int64_t)v;
+	}
+	WT_STAT_WRITE_SIMPLE(p, rec_overflow_value) +=
+	    (int64_t)WT_STAT_READ(c, rec_overflow_value);
+	WT_STAT_WRITE_SIMPLE(p, rec_page_match) +=
+	    (int64_t)WT_STAT_READ(c, rec_page_match);
+	WT_STAT_WRITE_SIMPLE(p, rec_pages) +=
+	    (int64_t)WT_STAT_READ(c, rec_pages);
+	WT_STAT_WRITE_SIMPLE(p, rec_pages_eviction) +=
+	    (int64_t)WT_STAT_READ(c, rec_pages_eviction);
+	WT_STAT_WRITE_SIMPLE(p, rec_page_delete) +=
+	    (int64_t)WT_STAT_READ(c, rec_page_delete);
+	WT_STAT_WRITE_SIMPLE(p, session_compact) +=
+	    (int64_t)WT_STAT_READ(c, session_compact);
+	WT_STAT_WRITE_SIMPLE(p, session_cursor_open) +=
+	    (int64_t)WT_STAT_READ(c, session_cursor_open);
+	WT_STAT_WRITE_SIMPLE(p, txn_update_conflict) +=
+	    (int64_t)WT_STAT_READ(c, txn_update_conflict);
 }
 
 void
@@ -564,117 +666,117 @@ __wt_stat_refresh_connection_stats(void *stats_arg)
 	WT_CONNECTION_STATS *stats;
 
 	stats = (WT_CONNECTION_STATS *)stats_arg;
-	stats->async_cur_queue.v = 0;
-	stats->async_alloc_race.v = 0;
-	stats->async_flush.v = 0;
-	stats->async_alloc_view.v = 0;
-	stats->async_full.v = 0;
-	stats->async_nowork.v = 0;
-	stats->async_op_alloc.v = 0;
-	stats->async_op_compact.v = 0;
-	stats->async_op_insert.v = 0;
-	stats->async_op_remove.v = 0;
-	stats->async_op_search.v = 0;
-	stats->async_op_update.v = 0;
-	stats->block_preload.v = 0;
-	stats->block_read.v = 0;
-	stats->block_write.v = 0;
-	stats->block_byte_read.v = 0;
-	stats->block_byte_write.v = 0;
-	stats->block_map_read.v = 0;
-	stats->block_byte_map_read.v = 0;
-	stats->cache_bytes_read.v = 0;
-	stats->cache_bytes_write.v = 0;
-	stats->cache_eviction_checkpoint.v = 0;
-	stats->cache_eviction_queue_empty.v = 0;
-	stats->cache_eviction_queue_not_empty.v = 0;
-	stats->cache_eviction_server_evicting.v = 0;
-	stats->cache_eviction_server_not_evicting.v = 0;
-	stats->cache_eviction_slow.v = 0;
-	stats->cache_eviction_worker_evicting.v = 0;
-	stats->cache_eviction_force_fail.v = 0;
-	stats->cache_eviction_hazard.v = 0;
-	stats->cache_inmem_split.v = 0;
-	stats->cache_eviction_internal.v = 0;
-	stats->cache_eviction_dirty.v = 0;
-	stats->cache_eviction_deepen.v = 0;
-	stats->cache_eviction_force.v = 0;
-	stats->cache_eviction_force_delete.v = 0;
-	stats->cache_eviction_app.v = 0;
-	stats->cache_read.v = 0;
-	stats->cache_eviction_fail.v = 0;
-	stats->cache_eviction_split.v = 0;
-	stats->cache_eviction_walk.v = 0;
-	stats->cache_write.v = 0;
-	stats->cache_eviction_clean.v = 0;
-	stats->memory_allocation.v = 0;
-	stats->memory_free.v = 0;
-	stats->memory_grow.v = 0;
-	stats->cond_wait.v = 0;
-	stats->rwlock_read.v = 0;
-	stats->rwlock_write.v = 0;
-	stats->read_io.v = 0;
-	stats->write_io.v = 0;
-	stats->cursor_create.v = 0;
-	stats->cursor_insert.v = 0;
-	stats->cursor_next.v = 0;
-	stats->cursor_prev.v = 0;
-	stats->cursor_remove.v = 0;
-	stats->cursor_reset.v = 0;
-	stats->cursor_search.v = 0;
-	stats->cursor_search_near.v = 0;
-	stats->cursor_update.v = 0;
-	stats->dh_sweep_ref.v = 0;
-	stats->dh_sweep_close.v = 0;
-	stats->dh_sweep_remove.v = 0;
-	stats->dh_sweep_tod.v = 0;
-	stats->dh_sweeps.v = 0;
-	stats->dh_session_handles.v = 0;
-	stats->dh_session_sweeps.v = 0;
-	stats->log_slot_closes.v = 0;
-	stats->log_slot_races.v = 0;
-	stats->log_slot_transitions.v = 0;
-	stats->log_slot_joins.v = 0;
-	stats->log_slot_toosmall.v = 0;
-	stats->log_bytes_payload.v = 0;
-	stats->log_bytes_written.v = 0;
-	stats->log_compress_writes.v = 0;
-	stats->log_compress_write_fails.v = 0;
-	stats->log_compress_small.v = 0;
-	stats->log_release_write_lsn.v = 0;
-	stats->log_scans.v = 0;
-	stats->log_scan_rereads.v = 0;
-	stats->log_write_lsn.v = 0;
-	stats->log_sync.v = 0;
-	stats->log_sync_dir.v = 0;
-	stats->log_writes.v = 0;
-	stats->log_slot_consolidated.v = 0;
-	stats->log_prealloc_files.v = 0;
-	stats->log_prealloc_used.v = 0;
-	stats->log_slot_toobig.v = 0;
-	stats->log_scan_records.v = 0;
-	stats->log_compress_mem.v = 0;
-	stats->log_compress_len.v = 0;
-	stats->log_slot_coalesced.v = 0;
-	stats->log_close_yields.v = 0;
-	stats->lsm_rows_merged.v = 0;
-	stats->lsm_checkpoint_throttle.v = 0;
-	stats->lsm_merge_throttle.v = 0;
-	stats->lsm_work_units_discarded.v = 0;
-	stats->lsm_work_units_done.v = 0;
-	stats->lsm_work_units_created.v = 0;
-	stats->lsm_work_queue_max.v = 0;
-	stats->rec_pages.v = 0;
-	stats->rec_pages_eviction.v = 0;
-	stats->page_busy_blocked.v = 0;
-	stats->page_forcible_evict_blocked.v = 0;
-	stats->page_locked_blocked.v = 0;
-	stats->page_read_blocked.v = 0;
-	stats->page_sleep.v = 0;
-	stats->txn_begin.v = 0;
-	stats->txn_checkpoint.v = 0;
-	stats->txn_fail_cache.v = 0;
-	stats->txn_sync.v = 0;
-	stats->txn_commit.v = 0;
-	stats->txn_rollback.v = 0;
+	WT_STATS_CLEAR(stats, async_cur_queue);
+	WT_STATS_CLEAR(stats, async_alloc_race);
+	WT_STATS_CLEAR(stats, async_flush);
+	WT_STATS_CLEAR(stats, async_alloc_view);
+	WT_STATS_CLEAR(stats, async_full);
+	WT_STATS_CLEAR(stats, async_nowork);
+	WT_STATS_CLEAR(stats, async_op_alloc);
+	WT_STATS_CLEAR(stats, async_op_compact);
+	WT_STATS_CLEAR(stats, async_op_insert);
+	WT_STATS_CLEAR(stats, async_op_remove);
+	WT_STATS_CLEAR(stats, async_op_search);
+	WT_STATS_CLEAR(stats, async_op_update);
+	WT_STATS_CLEAR(stats, block_preload);
+	WT_STATS_CLEAR(stats, block_read);
+	WT_STATS_CLEAR(stats, block_write);
+	WT_STATS_CLEAR(stats, block_byte_read);
+	WT_STATS_CLEAR(stats, block_byte_write);
+	WT_STATS_CLEAR(stats, block_map_read);
+	WT_STATS_CLEAR(stats, block_byte_map_read);
+	WT_STATS_CLEAR(stats, cache_bytes_read);
+	WT_STATS_CLEAR(stats, cache_bytes_write);
+	WT_STATS_CLEAR(stats, cache_eviction_checkpoint);
+	WT_STATS_CLEAR(stats, cache_eviction_queue_empty);
+	WT_STATS_CLEAR(stats, cache_eviction_queue_not_empty);
+	WT_STATS_CLEAR(stats, cache_eviction_server_evicting);
+	WT_STATS_CLEAR(stats, cache_eviction_server_not_evicting);
+	WT_STATS_CLEAR(stats, cache_eviction_slow);
+	WT_STATS_CLEAR(stats, cache_eviction_worker_evicting);
+	WT_STATS_CLEAR(stats, cache_eviction_force_fail);
+	WT_STATS_CLEAR(stats, cache_eviction_hazard);
+	WT_STATS_CLEAR(stats, cache_inmem_split);
+	WT_STATS_CLEAR(stats, cache_eviction_internal);
+	WT_STATS_CLEAR(stats, cache_eviction_dirty);
+	WT_STATS_CLEAR(stats, cache_eviction_deepen);
+	WT_STATS_CLEAR(stats, cache_eviction_force);
+	WT_STATS_CLEAR(stats, cache_eviction_force_delete);
+	WT_STATS_CLEAR(stats, cache_eviction_app);
+	WT_STATS_CLEAR(stats, cache_read);
+	WT_STATS_CLEAR(stats, cache_eviction_fail);
+	WT_STATS_CLEAR(stats, cache_eviction_split);
+	WT_STATS_CLEAR(stats, cache_eviction_walk);
+	WT_STATS_CLEAR(stats, cache_write);
+	WT_STATS_CLEAR(stats, cache_eviction_clean);
+	WT_STATS_CLEAR(stats, memory_allocation);
+	WT_STATS_CLEAR(stats, memory_free);
+	WT_STATS_CLEAR(stats, memory_grow);
+	WT_STATS_CLEAR(stats, cond_wait);
+	WT_STATS_CLEAR(stats, rwlock_read);
+	WT_STATS_CLEAR(stats, rwlock_write);
+	WT_STATS_CLEAR(stats, read_io);
+	WT_STATS_CLEAR(stats, write_io);
+	WT_STATS_CLEAR(stats, cursor_create);
+	WT_STATS_CLEAR(stats, cursor_insert);
+	WT_STATS_CLEAR(stats, cursor_next);
+	WT_STATS_CLEAR(stats, cursor_prev);
+	WT_STATS_CLEAR(stats, cursor_remove);
+	WT_STATS_CLEAR(stats, cursor_reset);
+	WT_STATS_CLEAR(stats, cursor_search);
+	WT_STATS_CLEAR(stats, cursor_search_near);
+	WT_STATS_CLEAR(stats, cursor_update);
+	WT_STATS_CLEAR(stats, dh_sweep_ref);
+	WT_STATS_CLEAR(stats, dh_sweep_close);
+	WT_STATS_CLEAR(stats, dh_sweep_remove);
+	WT_STATS_CLEAR(stats, dh_sweep_tod);
+	WT_STATS_CLEAR(stats, dh_sweeps);
+	WT_STATS_CLEAR(stats, dh_session_handles);
+	WT_STATS_CLEAR(stats, dh_session_sweeps);
+	WT_STATS_CLEAR(stats, log_slot_closes);
+	WT_STATS_CLEAR(stats, log_slot_races);
+	WT_STATS_CLEAR(stats, log_slot_transitions);
+	WT_STATS_CLEAR(stats, log_slot_joins);
+	WT_STATS_CLEAR(stats, log_slot_toosmall);
+	WT_STATS_CLEAR(stats, log_bytes_payload);
+	WT_STATS_CLEAR(stats, log_bytes_written);
+	WT_STATS_CLEAR(stats, log_compress_writes);
+	WT_STATS_CLEAR(stats, log_compress_write_fails);
+	WT_STATS_CLEAR(stats, log_compress_small);
+	WT_STATS_CLEAR(stats, log_release_write_lsn);
+	WT_STATS_CLEAR(stats, log_scans);
+	WT_STATS_CLEAR(stats, log_scan_rereads);
+	WT_STATS_CLEAR(stats, log_write_lsn);
+	WT_STATS_CLEAR(stats, log_sync);
+	WT_STATS_CLEAR(stats, log_sync_dir);
+	WT_STATS_CLEAR(stats, log_writes);
+	WT_STATS_CLEAR(stats, log_slot_consolidated);
+	WT_STATS_CLEAR(stats, log_prealloc_files);
+	WT_STATS_CLEAR(stats, log_prealloc_used);
+	WT_STATS_CLEAR(stats, log_slot_toobig);
+	WT_STATS_CLEAR(stats, log_scan_records);
+	WT_STATS_CLEAR(stats, log_compress_mem);
+	WT_STATS_CLEAR(stats, log_compress_len);
+	WT_STATS_CLEAR(stats, log_slot_coalesced);
+	WT_STATS_CLEAR(stats, log_close_yields);
+	WT_STATS_CLEAR(stats, lsm_rows_merged);
+	WT_STATS_CLEAR(stats, lsm_checkpoint_throttle);
+	WT_STATS_CLEAR(stats, lsm_merge_throttle);
+	WT_STATS_CLEAR(stats, lsm_work_units_discarded);
+	WT_STATS_CLEAR(stats, lsm_work_units_done);
+	WT_STATS_CLEAR(stats, lsm_work_units_created);
+	WT_STATS_CLEAR(stats, lsm_work_queue_max);
+	WT_STATS_CLEAR(stats, rec_pages);
+	WT_STATS_CLEAR(stats, rec_pages_eviction);
+	WT_STATS_CLEAR(stats, page_busy_blocked);
+	WT_STATS_CLEAR(stats, page_forcible_evict_blocked);
+	WT_STATS_CLEAR(stats, page_locked_blocked);
+	WT_STATS_CLEAR(stats, page_read_blocked);
+	WT_STATS_CLEAR(stats, page_sleep);
+	WT_STATS_CLEAR(stats, txn_begin);
+	WT_STATS_CLEAR(stats, txn_checkpoint);
+	WT_STATS_CLEAR(stats, txn_fail_cache);
+	WT_STATS_CLEAR(stats, txn_sync);
+	WT_STATS_CLEAR(stats, txn_commit);
+	WT_STATS_CLEAR(stats, txn_rollback);
 }

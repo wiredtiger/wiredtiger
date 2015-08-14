@@ -119,7 +119,7 @@ __wt_stat_refresh_''' + name + '''_stats(void *stats_arg)
     for l in sorted(list):
         # no_clear: don't clear the value.
         if not 'no_clear' in l.flags:
-            f.write('\tstats->' + l.name + '.v = 0;\n');
+            f.write('\tWT_STATS_CLEAR(stats, ' + l.name + ');\n');
     f.write('}\n')
 
     # Aggregation is only interesting for data-source statistics.
@@ -138,6 +138,7 @@ __wt_stat_aggregate_''' + name +
 '''_stats(const void *child, const void *parent)
 {
 \tWT_''' + name.upper() + '''_STATS *c, *p;
+\tuint64_t v;
 
 \tc = (WT_''' + name.upper() + '''_STATS *)child;
 \tp = (WT_''' + name.upper() + '''_STATS *)parent;
@@ -146,11 +147,15 @@ __wt_stat_aggregate_''' + name +
         if 'no_aggregate' in l.flags:
             continue;
         elif 'max_aggregate' in l.flags:
-            o = 'if (c->' + l.name + '.v > p->' + l.name +\
-            '.v)\n\t    p->' + l.name + '.v = c->' + l.name + '.v;'
+            o = '\tif ((v = WT_STAT_READ(c, ' + l.name + ')) >\n' +\
+                '\t    WT_STAT_READ(p, ' + l.name + ')) {\n' +\
+                '\t\tWT_STATS_CLEAR(p, ' + l.name + ');\n' +\
+                '\t\tWT_STAT_WRITE_SIMPLE(p, ' + l.name + ') = (int64_t)v;\n' +\
+                '\t}\n'
         else:
-            o = 'p->' + l.name + '.v += c->' + l.name + '.v;'
-        f.write('\t' + o + '\n')
+            o = '\tWT_STAT_WRITE_SIMPLE(p, ' + l.name + ') +=\n' +\
+                '\t    (int64_t)WT_STAT_READ(c, ' + l.name + ');\n'
+        f.write(o)
     f.write('}\n')
 
 # Write the stat initialization and refresh routines to the stat.c file.

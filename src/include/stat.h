@@ -6,79 +6,179 @@
  * See the file LICENSE for redistribution information.
  */
 
+/*
+ * Statistics counters:
+ *
+ * Instead of a single statistics counter we use an array of counters. Threads
+ * update different values in the array to avoid writing the same cache line
+ * and incurring the cache coherency overheads, which can dramatically slow
+ * fast and otherwise read-mostly workloads. When reading a counter, the array
+ * slots are summed and returned to the caller. Summation is performed without
+ * locking, so the counter read may be inconsistent.
+ *
+ * We used a fixed number of slots for the array of counters. Picking the number
+ * of slots is not straightforward, obviously, using a smaller number creates
+ * more conflicts, using a larger number uses more memory.
+ *
+ * Ideally, if the application running on the system is CPU-intensive, and using
+ * all CPUs on the system, we want to use the same number of slots as there are
+ * CPUs (because their L1 caches are the units of coherency). However, in
+ * practice we cannot easily determine how many CPUs are actually available for
+ * the application.
+ *
+ * Our next best option is to use the number of threads in the application as a
+ * heuristic for the number of CPUs (presumably, the application architect has
+ * figured out how many CPUs are available). However, inside WiredTiger we don't
+ * know when the application creates its threads.
+ *
+ * Our current solution is to simply use a fixed number of slots. Ideally, we
+ * would approximate the largest number of cores we expect on any machine where
+ * WiredTiger might be run, however, we don't want to waste that much memory on
+ * smaller machines. Right now, machines with more than 24 CPUs are relatively
+ * rare.
+ *
+ * Default hash table size; use a prime number of buckets rather than assuming
+ * a good hash (Reference Sedgewick, Algorithms in C, "Hash Functions").
+ */
+#define	WT_COUNTER_SLOTS	23
+
+/*
+ * A cache-line-padded statistics counter value (padding is needed, otherwise
+ * cache coherency messages will be triggered because of false sharing).
+ *
+ * The actual counter value must be signed, because it is possible one thread
+ * incremented the counter in its own slot, and then another thread decremented
+ * the same counter in another slot (which was initially zero), so the value in
+ * in the second thread's slot went negative. When values are summed, we get a
+ * corrected total value.
+ */
+struct WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) __wt_stats_counter {
+	int64_t v;
+};
+
 struct __wt_stats {
-	const char	*desc;				/* text description */
-	uint64_t	 v;				/* 64-bit value */
+	const char *desc;				/* name */
+	WT_STATS_COUNTER array_v[WT_COUNTER_SLOTS];	/* padded value array */
 };
 
 /*
- * Read/write statistics without any test for statistics configuration.
+ * WT_STATS_SLOT_ID is a thread's slot ID for the array of counters.
+ *
+ * Ideally, we want a slot per CPU, and we want each thread to index the slot
+ * corresponding to the CPU it runs on. Unfortunately, getting the ID of the
+ * current CPU is difficult: some operating systems provide a system call for
+ * that, but not all (regardless, a system call every time increment a stats
+ * counter is far too expensive).
+ *
+ * Our second-best option is to use the thread ID. Unfortunately, there is no
+ * portable way to obtain a unique thread ID that is a small-enough number to
+ * be used as an array index (portable thread IDs are usually a pointer or an
+ * opaque chunk, not a simple integer).
+ *
+ * Our solution is to use the session ID; there is normally a session per thread
+ * and the session ID is a small, monotonically increasing number.
  */
-#define	WT_STAT(stats, fld)						\
-	((stats)->fld.v)
-#define	WT_STAT_ATOMIC_DECRV(stats, fld, value) do {			\
-	(void)WT_ATOMIC_SUB8(WT_STAT(stats, fld), (value));		\
-} while (0)
-#define	WT_STAT_ATOMIC_DECR(stats, fld) WT_STAT_ATOMIC_DECRV(stats, fld, 1)
-#define	WT_STAT_ATOMIC_INCRV(stats, fld, value) do {			\
-	(void)WT_ATOMIC_ADD8(WT_STAT(stats, fld), (value));		\
-} while (0)
-#define	WT_STAT_ATOMIC_INCR(stats, fld) WT_STAT_ATOMIC_INCRV(stats, fld, 1)
-#define	WT_STAT_DECRV(stats, fld, value) do {				\
-	(stats)->fld.v -= (value);					\
-} while (0)
-#define	WT_STAT_DECR(stats, fld) WT_STAT_DECRV(stats, fld, 1)
-#define	WT_STAT_INCRV(stats, fld, value) do {				\
-	(stats)->fld.v += (value);					\
-} while (0)
-#define	WT_STAT_INCR(stats, fld) WT_STAT_INCRV(stats, fld, 1)
-#define	WT_STAT_SET(stats, fld, value) do {				\
-	(stats)->fld.v = (uint64_t)(value);				\
+#define	WT_STATS_SLOT_ID(session)					\
+	((session)->id) % WT_COUNTER_SLOTS
+
+/*
+ * Aggregate the counter values from all slots into the "master" value "v",
+ * return v.
+ */
+static inline uint64_t
+__wt_stats_aggregate_and_return(WT_STATS *stats)
+{
+	int64_t aggr_v;
+	int i;
+
+	for (aggr_v = 0, i = 0; i < WT_COUNTER_SLOTS; i++)
+		aggr_v += stats->array_v[i].v;
+
+	/*
+	 * This can race. However, any implementation with a single value can
+	 * race as well, different threads could set the same counter value
+	 * simultaneously. While we are making races more likely, we are not
+	 * fundamentally weakening the isolation semantics found in updating a
+	 * single value.
+	 *
+	 * Additionally, the aggregation can go negative (imagine a thread
+	 * incrementing a value after aggregation has passed its slot and a
+	 * second thread decrementing a value before aggregation has reached
+	 * its slot). Limit the return to 0, negative numbers will just look
+	 * really, really large.
+	 */
+	if (aggr_v < 0)
+		aggr_v = 0;
+	return ((uint64_t)aggr_v);
+}
+
+/*
+ * Set all the values in the array counter slots to zero.
+ */
+static inline void
+__wt_stats_clear(WT_STATS *stats)
+{
+	u_int i;
+
+	for (i = 0; i < WT_COUNTER_SLOTS; ++i)
+		stats->array_v[i].v = 0;
+}
+#define	WT_STATS_CLEAR(stats, fld)					\
+	__wt_stats_clear(&(stats)->fld)
+
+/*
+ * Read/write statistics without any test for statistics configuration. Reading
+ * and writing the field require different actions: reading must aggregate the
+ * values across array slots, setting must update the counter in one slot only.
+ */
+#define	WT_STAT_READ(stats, fld)					\
+	__wt_stats_aggregate_and_return(&((stats)->fld))
+#define	WT_STAT_WRITE(session, stats, fld)				\
+	((stats)->fld.array_v[WT_STATS_SLOT_ID(session)].v)
+
+/*
+ * In some cases we need to update a value where we don't have a session handle
+ * (and so don't have a session ID); just update the first slot.
+ */
+#define	WT_STAT_WRITE_SIMPLE(stats, fld)				\
+	((stats)->fld.array_v[0].v)
+
+#define	WT_STAT_DECRV(session, stats, fld, value)			\
+	(stats)->fld.array_v[WT_STATS_SLOT_ID(session)].v -= (int64_t)(value)
+#define	WT_STAT_DECR(session, stats, fld)				\
+	WT_STAT_DECRV(session, stats, fld, 1)
+#define	WT_STAT_INCRV(session, stats, fld, value)			\
+	(stats)->fld.array_v[WT_STATS_SLOT_ID(session)].v += (int64_t)(value)
+#define	WT_STAT_INCR(session, stats, fld)				\
+	WT_STAT_INCRV(session, stats, fld, 1)
+#define	WT_STAT_SET(session, stats, fld, value) do {			\
+	WT_STATS_CLEAR(stats, fld);					\
+	WT_STAT_WRITE(session, stats, fld) = (int64_t)(value);		\
 } while (0)
 
 /*
- * Read/write statistics if "fast" statistics are configured.
+ * Update statistics if "fast" statistics are configured.
  */
-#define	WT_STAT_FAST_ATOMIC_DECRV(session, stats, fld, value) do {	\
-	if (FLD_ISSET(S2C(session)->stat_flags, WT_CONN_STAT_FAST))	\
-		WT_STAT_ATOMIC_DECRV(stats, fld, value);		\
-} while (0)
-#define	WT_STAT_FAST_ATOMIC_DECR(session, stats, fld)			\
-	WT_STAT_FAST_ATOMIC_DECRV(session, stats, fld, 1)
-#define	WT_STAT_FAST_ATOMIC_INCRV(session, stats, fld, value) do {	\
-	if (FLD_ISSET(S2C(session)->stat_flags, WT_CONN_STAT_FAST))	\
-		WT_STAT_ATOMIC_INCRV(stats, fld, value);		\
-} while (0)
-#define	WT_STAT_FAST_ATOMIC_INCR(session, stats, fld)			\
-	WT_STAT_FAST_ATOMIC_INCRV(session, stats, fld, 1)
 #define	WT_STAT_FAST_DECRV(session, stats, fld, value) do {		\
 	if (FLD_ISSET(S2C(session)->stat_flags, WT_CONN_STAT_FAST))	\
-		WT_STAT_DECRV(stats, fld, value);			\
+		WT_STAT_DECRV(session, stats, fld, value);		\
 } while (0)
 #define	WT_STAT_FAST_DECR(session, stats, fld)				\
 	WT_STAT_FAST_DECRV(session, stats, fld, 1)
 #define	WT_STAT_FAST_INCRV(session, stats, fld, value) do {		\
 	if (FLD_ISSET(S2C(session)->stat_flags, WT_CONN_STAT_FAST))	\
-		WT_STAT_INCRV(stats, fld, value);			\
+		WT_STAT_INCRV(session, stats, fld, value);		\
 } while (0)
 #define	WT_STAT_FAST_INCR(session, stats, fld)				\
 	WT_STAT_FAST_INCRV(session, stats, fld, 1)
 #define	WT_STAT_FAST_SET(session, stats, fld, value) do {		\
 	if (FLD_ISSET(S2C(session)->stat_flags, WT_CONN_STAT_FAST))	\
-		WT_STAT_SET(stats, fld, value);				\
+		WT_STAT_SET(session, stats, fld, value);		\
 } while (0)
 
 /*
- * Read/write connection handle statistics if "fast" statistics are configured.
+ * Update connection handle statistics if "fast" statistics are configured.
  */
-#define	WT_STAT_FAST_CONN_ATOMIC_DECRV(session, fld, value)		\
-	WT_STAT_FAST_ATOMIC_DECRV(session, &S2C(session)->stats, fld, value)
-#define	WT_STAT_FAST_CONN_ATOMIC_DECR(session, fld)			\
-	WT_STAT_FAST_ATOMIC_DECR(session, &S2C(session)->stats, fld)
-#define	WT_STAT_FAST_CONN_ATOMIC_INCRV(session, fld, value)		\
-	WT_STAT_FAST_ATOMIC_INCRV(session, &S2C(session)->stats, fld, value)
-#define	WT_STAT_FAST_CONN_ATOMIC_INCR(session, fld)			\
-	WT_STAT_FAST_ATOMIC_INCR(session, &S2C(session)->stats, fld)
 #define	WT_STAT_FAST_CONN_DECR(session, fld)				\
 	WT_STAT_FAST_DECR(session, &S2C(session)->stats, fld)
 #define	WT_STAT_FAST_CONN_DECRV(session, fld, value)			\
@@ -91,7 +191,7 @@ struct __wt_stats {
 	WT_STAT_FAST_SET(session, &S2C(session)->stats, fld, value)
 
 /*
- * Read/write data-source handle statistics if the data-source handle is set
+ * Update data-source handle statistics if the data-source handle is set
  * and "fast" statistics are configured.
  *
  * XXX
@@ -115,12 +215,8 @@ struct __wt_stats {
 #define	WT_STAT_FAST_DATA_SET(session, fld, value) do {			\
 	if ((session)->dhandle != NULL)					\
 		WT_STAT_FAST_SET(					\
-		   session, &(session)->dhandle->stats, fld, value);	\
+		    session, &(session)->dhandle->stats, fld, value);	\
 } while (0)
-
-/* Connection handle statistics value. */
-#define	WT_CONN_STAT(session, fld)					\
-	WT_STAT(&S2C(session)->stats, fld)
 
 /*
  * DO NOT EDIT: automatically built by dist/stat.py.

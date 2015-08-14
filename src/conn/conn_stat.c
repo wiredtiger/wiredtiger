@@ -42,13 +42,24 @@ __stat_sources_free(WT_SESSION_IMPL *session, char ***sources)
 void
 __wt_conn_stat_init(WT_SESSION_IMPL *session)
 {
+	WT_CONNECTION_IMPL *conn;
+	WT_CONNECTION_STATS *stats;
+
+	conn = S2C(session);
+	stats = &conn->stats;
+
 	__wt_async_stats_update(session);
 	__wt_cache_stats_update(session);
 	__wt_txn_stats_update(session);
 
-	WT_CONN_STAT(session, dh_conn_handle_count) =
-	    S2C(session)->dhandle_count;
-	WT_CONN_STAT(session, file_open) = S2C(session)->open_file_count;
+	WT_STAT_SET(session, stats, file_open, conn->open_file_count);
+	WT_STAT_SET(session,
+	    stats, session_cursor_open, conn->open_cursor_count);
+	WT_STAT_SET(session, stats, dh_conn_handle_count, conn->dhandle_count);
+	WT_STAT_SET(session,
+	    stats, rec_split_stashed_objects, conn->split_stashed_objects);
+	WT_STAT_SET(session,
+	    stats, rec_split_stashed_bytes, conn->split_stashed_bytes);
 }
 
 /*
@@ -173,7 +184,8 @@ __statlog_dump(WT_SESSION_IMPL *session, const char *name, int conn_stats)
 			WT_ERR(__wt_fprintf(conn->stat_fp,
 			    "%s %" PRIu64 " %s %s\n",
 			    conn->stat_stamp,
-			    stats->v, name, stats->desc));
+			    __wt_stats_aggregate_and_return(stats),
+			    name, stats->desc));
 		WT_ERR(cursor->close(cursor));
 		break;
 	case EBUSY:

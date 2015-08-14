@@ -671,12 +671,21 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
 	stats = &conn->stats;
 	checkpoint_pinned = txn_global->checkpoint_pinned;
 
-	WT_STAT_SET(stats, txn_pinned_range,
-	    txn_global->current - txn_global->oldest_id);
+	WT_STAT_SET(session, stats, txn_pinned_range,
+	   txn_global->current - txn_global->oldest_id);
 
-	WT_STAT_SET(stats, txn_pinned_checkpoint_range,
+	WT_STAT_SET(session, stats, txn_pinned_checkpoint_range,
 	    checkpoint_pinned == WT_TXN_NONE ?
 	    0 : txn_global->current - checkpoint_pinned);
+
+	WT_STAT_SET(
+	    session, stats, txn_checkpoint_time_max, conn->ckpt_time_max);
+	WT_STAT_SET(
+	    session, stats, txn_checkpoint_time_min, conn->ckpt_time_min);
+	WT_STAT_SET(
+	    session, stats, txn_checkpoint_time_recent, conn->ckpt_time_recent);
+	WT_STAT_SET(
+	    session, stats, txn_checkpoint_time_total, conn->ckpt_time_total);
 }
 
 /*
