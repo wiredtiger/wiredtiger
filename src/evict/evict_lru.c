@@ -1433,7 +1433,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, int busy, int pct_full)
 	WT_DECL_RET;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_STATE *txn_state;
-	int count, q_found, txn_busy;
+	int count, wait_count, q_found, txn_busy;
 
 	conn = S2C(session);
 	cache = conn->cache;
@@ -1468,7 +1468,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, int busy, int pct_full)
 	 */
 	count = busy ? 1 : 10;
 
-	for (;;) {
+	for (wait_count = 0;;) {
 		/*
 		 * A pathological case: if we're the oldest transaction in the
 		 * system and the eviction server is stuck trying to find space,
@@ -1521,7 +1521,18 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, int busy, int pct_full)
 				return (0);
 		}
 
-		/* Wait for the queue to re-populate before trying again. */
+		/*
+		 * Wait 1/10th second for the queue to re-populate before trying
+		 * again; if we've waited for a second, decrement the counter.
+		 * The decrement is defensive (otherwise the loop might never
+		 * terminate), and there have been bugs in other parts of the
+		 * code causing the wrong thread to infinitely loop here.
+		 */
+		if (++wait_count > 10) {
+			wait_count = 0;
+			if (--count == 0)
+				return (0);
+		}
 		WT_RET(
 		    __wt_cond_wait(session, cache->evict_waiter_cond, 100000));
 
