@@ -161,7 +161,7 @@ __wt_lsm_work_switch(
 {
 	WT_DECL_RET;
 	WT_LSM_WORK_UNIT *entry;
-	u_int32_t borrowed_lock;
+	uint32_t borrowed_lock;
 
 	/* We've become responsible for freeing the work unit. */
 	entry = *entryp;
