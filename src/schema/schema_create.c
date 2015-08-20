@@ -334,10 +334,12 @@ __fill_index(WT_SESSION_IMPL *session, WT_TABLE *table, const char *name)
 	WT_CURSOR_TABLE *ctable;
 	WT_INDEX *idx;
 	WT_SESSION *sess;
+	int is_lsm;
 
 	sess = (WT_SESSION *)session;
 	tcur = NULL;
 	icur = NULL;
+	is_lsm = 0;
 	WT_RET(__wt_schema_open_colgroups(session, table));
 
 	/*
@@ -355,23 +357,27 @@ __fill_index(WT_SESSION_IMPL *session, WT_TABLE *table, const char *name)
 	child = cindex->child;
 	idx = cindex->index;
 
-	while ((ret = tcur->next(tcur)) == 0) {
-		/*
-		 * For LSM indices, we must drop locks so that the
-		 * LSM worker thread can grab the schema lock during
-		 * a switch.
-		 */
-		WT_WITHOUT_LOCKS(session,
-		    ret = __wt_apply_single_idx(session, idx,
-		    child, ctable, child->insert));
-		WT_ERR(ret);
+	/*
+	 * Indicate to LSM that this is an index fill, and that
+	 * we retain the schema lock throughout.
+	 */
+	if (WT_PREFIX_MATCH(child->uri, "lsm:")) {
+		F_SET((WT_CURSOR_LSM *)child, WT_CLSM_SCHEMA_LOCK_FILL);
+		is_lsm = 1;
 	}
+	while ((ret = tcur->next(tcur)) == 0) {
+		WT_ERR(__wt_apply_single_idx(session, idx,
+		    child, ctable, child->insert));
+	}
+
 	WT_ERR_NOTFOUND_OK(ret);
 err:
 	if (icur)
 		WT_TRET(icur->close(icur));
 	if (tcur)
 		WT_TRET(tcur->close(tcur));
+	if (is_lsm)
+		F_CLR((WT_CURSOR_LSM *)child, WT_CLSM_SCHEMA_LOCK_FILL);
 	return (ret);
 }
 
