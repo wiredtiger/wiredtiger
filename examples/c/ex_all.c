@@ -689,6 +689,10 @@ session_ops(WT_SESSION *session)
 	ret = session->transaction_sync(session, NULL);
 	/*! [Transaction sync] */
 
+	/*! [Reset the session] */
+	ret = session->reset(session);
+	/*! [Reset the session] */
+
 	{
 	/*
 	 * Insert a pair of keys so we can truncate a range.
@@ -1060,7 +1064,8 @@ main(void)
 		home = NULL;
 
 	/*! [Open a connection] */
-	ret = wiredtiger_open(home, NULL, "create,cache_size=500M", &conn);
+	ret = wiredtiger_open(home, NULL,
+	    "create,cache_size=5GB,log=(enabled,recover=on)", &conn);
 	/*! [Open a connection] */
 
 	if (ret == 0)

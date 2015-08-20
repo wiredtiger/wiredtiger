@@ -71,6 +71,18 @@ __wt_log_force_sync(WT_SESSION_IMPL *session, WT_LSN *min_lsn)
 
 	log = S2C(session)->log;
 
+	/*
+	 * We need to wait for the previous log file to get written
+	 * to disk before we sync out the current one and advance
+	 * the LSN.  Signal the worker thread because we know the
+	 * LSN has moved into a later log file and there should be a
+	 * log file ready to close.
+	 */
+	while (log->sync_lsn.file < min_lsn->file) {
+		WT_ERR(__wt_cond_signal(session,
+		    S2C(session)->log_file_cond));
+		WT_ERR(__wt_cond_wait(session, log->log_sync_cond, 10000));
+	}
 	__wt_spin_lock(session, &log->log_sync_lock);
 	WT_ASSERT(session, log->log_dir_fh != NULL);
 	/*
@@ -565,7 +577,6 @@ __log_file_header(
 		tmp.slot_fh = fh;
 	} else {
 		WT_ASSERT(session, fh == NULL);
-		log->prep_missed++;
 		WT_ERR(__log_acquire(session, logrec->len, &tmp));
 	}
 	WT_ERR(__log_fill(session, &myslot, 1, buf, NULL));
@@ -765,25 +776,28 @@ __wt_log_allocfile(
 	WT_DECL_RET;
 	WT_FH *log_fh;
 	WT_LOG *log;
+	uint32_t tmp_id;
 
 	conn = S2C(session);
 	log = conn->log;
 	log_fh = NULL;
+
 	/*
 	 * Preparing a log file entails creating a temporary file:
 	 * - Writing the header.
 	 * - Truncating to the offset of the first record.
 	 * - Pre-allocating the file if needed.
-	 * - Renaming it to the pre-allocated file name.
+	 * - Renaming it to the desired file name.
 	 */
 	WT_RET(__wt_scr_alloc(session, 0, &from_path));
 	WT_ERR(__wt_scr_alloc(session, 0, &to_path));
-	WT_ERR(__log_filename(session, lognum, WT_LOG_TMPNAME, from_path));
+	tmp_id = __wt_atomic_add32(&log->tmp_fileid, 1);
+	WT_ERR(__log_filename(session, tmp_id, WT_LOG_TMPNAME, from_path));
 	WT_ERR(__log_filename(session, lognum, dest, to_path));
 	/*
 	 * Set up the temporary file.
 	 */
-	WT_ERR(__log_openfile(session, 1, &log_fh, WT_LOG_TMPNAME, lognum));
+	WT_ERR(__log_openfile(session, 1, &log_fh, WT_LOG_TMPNAME, tmp_id));
 	WT_ERR(__log_file_header(session, log_fh, NULL, 1));
 	WT_ERR(__wt_ftruncate(session, log_fh, WT_LOG_FIRST_RECORD));
 	if (prealloc)
@@ -1203,6 +1217,7 @@ __wt_log_newfile(WT_SESSION_IMPL *session, int conn_create, int *created)
 	 */
 	while (log->log_close_fh != NULL) {
 		WT_STAT_FAST_CONN_INCR(session, log_close_yields);
+		WT_RET(__wt_log_wrlsn(session, NULL, NULL));
 		__wt_yield();
 	}
 	log->log_close_fh = log->log_fh;
@@ -1233,9 +1248,12 @@ __wt_log_newfile(WT_SESSION_IMPL *session, int conn_create, int *created)
 	/*
 	 * If we need to create the log file, do so now.
 	 */
-	if (create_log && (ret = __wt_log_allocfile(
-	    session, log->fileid, WT_LOG_FILENAME, 0)) != 0)
-		return (ret);
+	if (create_log) {
+		log->prep_missed++;
+		if ((ret = __wt_log_allocfile(
+		    session, log->fileid, WT_LOG_FILENAME, 0)) != 0)
+			return (ret);
+	}
 	WT_RET(__log_openfile(session,
 	    0, &log->log_fh, WT_LOG_FILENAME, log->fileid));
 	/*
@@ -1799,11 +1817,6 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 		    session, record, lsnp, flags)) == EAGAIN)
 			;
 		WT_ERR(ret);
-		/*
-		 * Increase the buffer size of any slots we can get access
-		 * to, so future consolidations are likely to succeed.
-		 */
-		WT_ERR(__wt_log_slot_grow_buffers(session, 4 * rdup_len));
 		return (0);
 	}
 	WT_ERR(ret);

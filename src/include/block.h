@@ -185,7 +185,8 @@ struct __wt_bm {
 	int (*sync)(WT_BM *, WT_SESSION_IMPL *, int);
 	int (*verify_addr)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
 	int (*verify_end)(WT_BM *, WT_SESSION_IMPL *);
-	int (*verify_start)(WT_BM *, WT_SESSION_IMPL *, WT_CKPT *);
+	int (*verify_start)
+	    (WT_BM *, WT_SESSION_IMPL *, WT_CKPT *, const char *[]);
 	int (*write) (WT_BM *,
 	    WT_SESSION_IMPL *, WT_ITEM *, uint8_t *, size_t *, int);
 	int (*write_size)(WT_BM *, WT_SESSION_IMPL *, size_t *);
@@ -214,8 +215,8 @@ struct __wt_block {
 	/* A list of block manager handles, sharing a file descriptor. */
 	uint32_t ref;			/* References */
 	WT_FH	*fh;			/* Backing file handle */
-	SLIST_ENTRY(__wt_block) l;	/* Linked list of handles */
-	SLIST_ENTRY(__wt_block) hashl;	/* Hashed list of handles */
+	TAILQ_ENTRY(__wt_block) q;	/* Linked list of handles */
+	TAILQ_ENTRY(__wt_block) hashq;	/* Hashed list of handles */
 
 	/* Configuration information, set when the file is opened. */
 	uint32_t allocfirst;		/* Allocation is first-fit */
@@ -246,6 +247,7 @@ struct __wt_block {
 
 				/* Verification support */
 	int	   verify;		/* If performing verification */
+	int	   verify_strict;	/* Fail hard on any error */
 	wt_off_t   verify_size;		/* Checkpoint's file size */
 	WT_EXTLIST verify_alloc;	/* Verification allocation list */
 	uint64_t   frags;		/* Maximum frags in the file */
