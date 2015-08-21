@@ -480,17 +480,15 @@ __wt_panic(WT_SESSION_IMPL *session)
 	F_SET(S2C(session), WT_CONN_PANIC);
 	__wt_err(session, WT_PANIC, "the process must exit and restart");
 
-#if !defined(HAVE_DIAGNOSTIC)
+#if defined(HAVE_DIAGNOSTIC)
+	__wt_abort(session);                    /* Drop core if testing. */
+#endif
 	/*
 	 * Chaos reigns within.
 	 * Reflect, repent, and reboot.
 	 * Order shall return.
 	 */
 	return (WT_PANIC);
-#endif
-
-	__wt_abort(session);			/* Drop core if testing. */
-	/* NOTREACHED */
 }
 
 /*
@@ -504,12 +502,11 @@ __wt_illegal_value(WT_SESSION_IMPL *session, const char *name)
 	    name == NULL ? "" : name, name == NULL ? "" : ": ",
 	    "encountered an illegal file format or internal value");
 
-#if !defined(HAVE_DIAGNOSTIC)
-	return (__wt_panic(session));
+#if defined(HAVE_DIAGNOSTIC)
+	__wt_abort(session);                    /* Drop core if testing. */
 #endif
 
-	__wt_abort(session);			/* Drop core if testing. */
-	/* NOTREACHED */
+	return (WT_ERROR);
 }
 
 /*
