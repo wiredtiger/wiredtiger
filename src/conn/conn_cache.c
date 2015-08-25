@@ -45,6 +45,9 @@ __cache_config_local(WT_SESSION_IMPL *session, int shared, const char *cfg[])
 	WT_RET(__wt_config_gets(session, cfg, "eviction_dirty_target", &cval));
 	cache->eviction_dirty_target = (u_int)cval.val;
 
+	WT_RET(__wt_config_gets(session, cfg, "eviction_dirty_trigger", &cval));
+	cache->eviction_dirty_trigger = (u_int)cval.val;
+
 	/*
 	 * The eviction thread configuration options include the main eviction
 	 * thread and workers. Our implementation splits them out. Adjust for
@@ -175,12 +178,12 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
 {
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
-	WT_CONNECTION_STATS *stats;
+	WT_CONNECTION_STATS **stats;
 	uint64_t inuse, leaf, used;
 
 	conn = S2C(session);
 	cache = conn->cache;
-	stats = &conn->stats;
+	stats = conn->stats;
 
 	inuse = __wt_cache_bytes_inuse(cache);
 	/*
@@ -190,19 +193,23 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
 	used = cache->bytes_overflow + cache->bytes_internal;
 	leaf = inuse > used ? inuse - used : 0;
 
-	WT_STAT_SET(stats, cache_bytes_max, conn->cache_size);
-	WT_STAT_SET(stats, cache_bytes_inuse, inuse);
+	WT_STAT_SET(session, stats, cache_bytes_max, conn->cache_size);
+	WT_STAT_SET(session, stats, cache_bytes_inuse, inuse);
 
-	WT_STAT_SET(stats, cache_overhead, cache->overhead_pct);
-	WT_STAT_SET(stats, cache_pages_inuse, __wt_cache_pages_inuse(cache));
-	WT_STAT_SET(stats, cache_bytes_dirty, __wt_cache_dirty_inuse(cache));
-	WT_STAT_SET(stats,
+	WT_STAT_SET(session, stats, cache_overhead, cache->overhead_pct);
+	WT_STAT_SET(
+	    session, stats, cache_pages_inuse, __wt_cache_pages_inuse(cache));
+	WT_STAT_SET(
+	    session, stats, cache_bytes_dirty, __wt_cache_dirty_inuse(cache));
+	WT_STAT_SET(session, stats,
 	    cache_eviction_maximum_page_size, cache->evict_max_page_size);
-	WT_STAT_SET(stats, cache_pages_dirty, cache->pages_dirty);
+	WT_STAT_SET(session, stats, cache_pages_dirty, cache->pages_dirty);
 
-	WT_STAT_SET(stats, cache_bytes_internal, cache->bytes_internal);
-	WT_STAT_SET(stats, cache_bytes_overflow, cache->bytes_overflow);
-	WT_STAT_SET(stats, cache_bytes_leaf, leaf);
+	WT_STAT_SET(
+	    session, stats, cache_bytes_internal, cache->bytes_internal);
+	WT_STAT_SET(
+	    session, stats, cache_bytes_overflow, cache->bytes_overflow);
+	WT_STAT_SET(session, stats, cache_bytes_leaf, leaf);
 }
 
 /*

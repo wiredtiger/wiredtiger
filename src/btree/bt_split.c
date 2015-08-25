@@ -45,9 +45,12 @@ static int
 __split_stash_add(
     WT_SESSION_IMPL *session, uint64_t split_gen, void *p, size_t len)
 {
+	WT_CONNECTION_IMPL *conn;
 	WT_SPLIT_STASH *stash;
 
 	WT_ASSERT(session, p != NULL);
+
+	conn = S2C(session);
 
 	/* Grow the list as necessary. */
 	WT_RET(__wt_realloc_def(session, &session->split_stash_alloc,
@@ -58,8 +61,8 @@ __split_stash_add(
 	stash->p = p;
 	stash->len = len;
 
-	WT_STAT_FAST_CONN_ATOMIC_INCRV(session, rec_split_stashed_bytes, len);
-	WT_STAT_FAST_CONN_ATOMIC_INCR(session, rec_split_stashed_objects);
+	(void)__wt_atomic_add64(&conn->split_stashed_bytes, len);
+	(void)__wt_atomic_add64(&conn->split_stashed_objects, 1);
 
 	/* See if we can free any previous entries. */
 	if (session->split_stash_cnt > 1)
@@ -75,9 +78,12 @@ __split_stash_add(
 void
 __wt_split_stash_discard(WT_SESSION_IMPL *session)
 {
+	WT_CONNECTION_IMPL *conn;
 	WT_SPLIT_STASH *stash;
 	uint64_t oldest;
 	size_t i;
+
+	conn = S2C(session);
 
 	/* Get the oldest split generation. */
 	oldest = __split_oldest_gen(session);
@@ -93,10 +99,8 @@ __wt_split_stash_discard(WT_SESSION_IMPL *session)
 		 * It's a bad thing if another thread is in this memory after
 		 * we free it, make sure nothing good happens to that thread.
 		 */
-		WT_STAT_FAST_CONN_ATOMIC_DECRV(
-		    session, rec_split_stashed_bytes, stash->len);
-		WT_STAT_FAST_CONN_ATOMIC_DECR(
-		    session, rec_split_stashed_objects);
+		(void)__wt_atomic_sub64(&conn->split_stashed_bytes, stash->len);
+		(void)__wt_atomic_sub64(&conn->split_stashed_objects, 1);
 		__wt_overwrite_and_free_len(session, stash->p, stash->len);
 	}
 
@@ -557,7 +561,7 @@ __split_deepen(WT_SESSION_IMPL *session, WT_PAGE *parent)
 	 */
 	WT_ASSERT(session, WT_INTL_INDEX_GET_SAFE(parent) == pindex);
 	WT_INTL_INDEX_SET(parent, alloc_index);
-	split_gen = WT_ATOMIC_ADD8(S2C(session)->split_gen, 1);
+	split_gen = __wt_atomic_addv64(&S2C(session)->split_gen, 1);
 	panic = 1;
 
 #ifdef HAVE_DIAGNOSTIC
@@ -618,7 +622,7 @@ __split_deepen(WT_SESSION_IMPL *session, WT_PAGE *parent)
 			 */
 			if (child_ref->home == parent) {
 				child_ref->home = child;
-				child_ref->ref_hint = 0;
+				child_ref->pindex_hint = 0;
 			}
 		} WT_INTL_FOREACH_END;
 		WT_LEAVE_PAGE_INDEX(session);
@@ -753,7 +757,7 @@ __split_multi_inmem(
 
 	/*
 	 * We modified the page above, which will have set the first dirty
-	 * transaction to the last transaction current running.  However, the
+	 * transaction to the last transaction currently running.  However, the
 	 * updates we installed may be older than that.  Set the first dirty
 	 * transaction to an impossibly old value so this page is never skipped
 	 * in a checkpoint.
@@ -837,6 +841,9 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 	return (0);
 }
 
+#define	WT_SPLIT_EXCLUSIVE	0x01		/* Page held exclusively */
+#define	WT_SPLIT_INMEM		0x02		/* In-memory split */
+
 /*
  * __split_parent --
  *	Resolve a multi-page split, inserting new information into the parent.
@@ -890,7 +897,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref,
 		 * trying to split a page while its parent is being
 		 * checkpointed.
 		 */
-		if (LF_ISSET(WT_EVICT_INMEM_SPLIT))
+		if (LF_ISSET(WT_SPLIT_INMEM))
 			return (EBUSY);
 		__wt_yield();
 	}
@@ -902,9 +909,10 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref,
 	 * could conceivably be evicted.  Get a hazard pointer on the parent
 	 * now, so that we can safely access it after updating the index.
 	 *
-	 * Take care that getting the page doesn't trigger eviction, or we
-	 * could block trying to split a different child of our parent and
-	 * deadlock.
+	 * Take care getting the page doesn't trigger eviction work: we could
+	 * block trying to split a different child of our parent and deadlock
+	 * or we could be the eviction server relied upon by other threads to
+	 * populate the eviction queue.
 	 */
 	if (!__wt_ref_is_root(parent_ref = parent->pg_intl_parent_ref)) {
 		WT_ERR(__wt_page_in(session, parent_ref, WT_READ_NO_EVICT));
@@ -930,8 +938,8 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref,
 		WT_ASSERT(session, next_ref->state != WT_REF_SPLIT);
 		if (next_ref->state == WT_REF_DELETED &&
 		    __wt_delete_page_skip(session, next_ref) &&
-		    WT_ATOMIC_CAS4(next_ref->state,
-		    WT_REF_DELETED, WT_REF_SPLIT))
+		    __wt_atomic_casv32(
+		    &next_ref->state, WT_REF_DELETED, WT_REF_SPLIT))
 			deleted_entries++;
 	}
 
@@ -991,7 +999,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref,
 	 */
 	WT_ASSERT(session, WT_INTL_INDEX_GET_SAFE(parent) == pindex);
 	WT_INTL_INDEX_SET(parent, alloc_index);
-	split_gen = WT_ATOMIC_ADD8(S2C(session)->split_gen, 1);
+	split_gen = __wt_atomic_addv64(&S2C(session)->split_gen, 1);
 	alloc_index = NULL;
 
 #ifdef HAVE_DIAGNOSTIC
@@ -1087,7 +1095,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref,
 	 */
 	size = sizeof(WT_PAGE_INDEX) + pindex->entries * sizeof(WT_REF *);
 	WT_TRET(__split_safe_free(session,
-	    split_gen, LF_ISSET(WT_EVICT_EXCLUSIVE), pindex, size));
+	    split_gen, LF_ISSET(WT_SPLIT_EXCLUSIVE) ? 1 : 0, pindex, size));
 	parent_decr += size;
 
 	/*
@@ -1112,21 +1120,9 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref,
 	 *	Do the check here because we've just grown the parent page and
 	 * are holding it locked.
 	 */
-	if (ret == 0 && !LF_ISSET(WT_EVICT_EXCLUSIVE) &&
-	    !F_ISSET_ATOMIC(parent, WT_PAGE_REFUSE_DEEPEN) &&
-	    __split_should_deepen(session, parent_ref)) {
-		/*
-		 * XXX
-		 * Temporary hack to avoid a bug where the root page is split
-		 * even when it's no longer doing any good.
-		 */
-		uint64_t __a, __b;
-		__a = parent->memory_footprint;
+	if (ret == 0 && !LF_ISSET(WT_SPLIT_EXCLUSIVE) &&
+	    __split_should_deepen(session, parent_ref))
 		ret = __split_deepen(session, parent);
-		__b = parent->memory_footprint;
-		if (__b * 2 >= __a)
-			F_SET_ATOMIC(parent, WT_PAGE_REFUSE_DEEPEN);
-	}
 
 err:	if (!complete)
 		for (i = 0; i < parent_entries; ++i) {
@@ -1375,8 +1371,8 @@ __wt_split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * longer locked, so we cannot safely look at it.
 	 */
 	page = NULL;
-	if ((ret = __split_parent(session,
-	    ref, split_ref, 2, parent_incr, WT_EVICT_INMEM_SPLIT)) != 0) {
+	if ((ret = __split_parent(
+	    session, ref, split_ref, 2, parent_incr, WT_SPLIT_INMEM)) != 0) {
 		/*
 		 * Move the insert list element back to the original page list.
 		 * For simplicity, the previous skip list pointers originally
@@ -1467,7 +1463,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref)
  *	Resolve a page split.
  */
 int
-__wt_split_multi(WT_SESSION_IMPL *session, WT_REF *ref, int exclusive)
+__wt_split_multi(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
 {
 	WT_DECL_RET;
 	WT_PAGE *page;
@@ -1491,9 +1487,12 @@ __wt_split_multi(WT_SESSION_IMPL *session, WT_REF *ref, int exclusive)
 		WT_ERR(__wt_multi_to_ref(session,
 		    page, &mod->mod_multi[i], &ref_new[i], &parent_incr));
 
-	/* Split into the parent. */
+	/*
+	 * Split into the parent; if we're closing the file, we hold it
+	 * exclusively.
+	 */
 	WT_ERR(__split_parent( session, ref, ref_new,
-	    new_entries, parent_incr, exclusive ? WT_EVICT_EXCLUSIVE : 0));
+	    new_entries, parent_incr, closing ? WT_SPLIT_EXCLUSIVE : 0));
 
 	WT_STAT_FAST_CONN_INCR(session, cache_eviction_split);
 	WT_STAT_FAST_DATA_INCR(session, cache_eviction_split);

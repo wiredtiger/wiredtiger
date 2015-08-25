@@ -144,7 +144,7 @@ struct __wt_cursor_btree {
 
 	/*
 	 * Variable-length column-store values are run-length encoded and may
-	 * be overflow values or Huffman encoded.   To avoid repeatedly reading
+	 * be overflow values or Huffman encoded. To avoid repeatedly reading
 	 * overflow values or decompressing encoded values, process it once and
 	 * store the result in a temporary buffer.  The cip_saved field is used
 	 * to determine if we've switched columns since our last cursor call.
@@ -291,8 +291,9 @@ struct __wt_cursor_metadata {
 
 	WT_CURSOR *file_cursor;		/* Queries of regular metadata */
 
-#define	WT_MDC_POSITIONED	0x01
+#define	WT_MDC_CREATEONLY	0x01
 #define	WT_MDC_ONMETADATA	0x02
+#define	WT_MDC_POSITIONED	0x04
 	uint32_t flags;
 };
 
@@ -302,10 +303,10 @@ struct __wt_cursor_stat {
 	int	notinitialized;		/* Cursor not initialized */
 	int	notpositioned;		/* Cursor not positioned */
 
-	WT_STATS *stats;		/* Stats owned by the cursor */
-	WT_STATS *stats_first;		/* First stats reference */
-	int	  stats_base;		/* Base statistics value */
-	int	  stats_count;		/* Count of stats elements */
+	int64_t	     *stats;		/* Statistics */
+	int	      stats_base;	/* Base statistics value */
+	int	      stats_count;	/* Count of statistics values */
+	const char *(*stats_desc)(int);	/* Statistics descriptions */
 
 	union {				/* Copies of the statistics */
 		WT_DSRC_STATS dsrc_stats;
@@ -324,12 +325,10 @@ struct __wt_cursor_stat {
 
 /*
  * WT_CURSOR_STATS --
- *	Return a reference to a statistic cursor's stats structures; use the
- * WT_CURSOR.stats_first field instead of WT_CURSOR.stats because the latter
- * is NULL when non-cursor memory is used to hold the statistics.
+ *	Return a reference to a statistic cursor's stats structures.
  */
 #define	WT_CURSOR_STATS(cursor)						\
-	(((WT_CURSOR_STAT *)cursor)->stats_first)
+	(((WT_CURSOR_STAT *)cursor)->stats)
 
 struct __wt_cursor_table {
 	WT_CURSOR iface;

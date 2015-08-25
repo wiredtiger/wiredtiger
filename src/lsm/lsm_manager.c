@@ -8,7 +8,6 @@
 
 #include "wt_internal.h"
 
-static int __lsm_manager_aggressive_update(WT_SESSION_IMPL *, WT_LSM_TREE *);
 static int __lsm_manager_run_server(WT_SESSION_IMPL *);
 
 static WT_THREAD_RET __lsm_worker_manager(void *);
@@ -259,7 +258,7 @@ __wt_lsm_manager_free_work_unit(
 	if (entry != NULL) {
 		WT_ASSERT(session, entry->lsm_tree->queue_ref > 0);
 
-		(void)WT_ATOMIC_SUB4(entry->lsm_tree->queue_ref, 1);
+		(void)__wt_atomic_sub32(&entry->lsm_tree->queue_ref, 1);
 		__wt_free(session, entry);
 	}
 }
@@ -274,7 +273,7 @@ __wt_lsm_manager_destroy(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_LSM_MANAGER *manager;
-	WT_LSM_WORK_UNIT *current, *next;
+	WT_LSM_WORK_UNIT *current;
 	WT_SESSION *wt_session;
 	uint32_t i;
 	uint64_t removed;
@@ -298,23 +297,17 @@ __wt_lsm_manager_destroy(WT_SESSION_IMPL *session)
 		manager->lsm_worker_cookies[0].tid = 0;
 
 		/* Release memory from any operations left on the queue. */
-		for (current = TAILQ_FIRST(&manager->switchqh);
-		    current != NULL; current = next) {
-			next = TAILQ_NEXT(current, q);
+		while ((current = TAILQ_FIRST(&manager->switchqh)) != NULL) {
 			TAILQ_REMOVE(&manager->switchqh, current, q);
 			++removed;
 			__wt_lsm_manager_free_work_unit(session, current);
 		}
-		for (current = TAILQ_FIRST(&manager->appqh);
-		    current != NULL; current = next) {
-			next = TAILQ_NEXT(current, q);
+		while ((current = TAILQ_FIRST(&manager->appqh)) != NULL) {
 			TAILQ_REMOVE(&manager->appqh, current, q);
 			++removed;
 			__wt_lsm_manager_free_work_unit(session, current);
 		}
-		for (current = TAILQ_FIRST(&manager->managerqh);
-		    current != NULL; current = next) {
-			next = TAILQ_NEXT(current, q);
+		while ((current = TAILQ_FIRST(&manager->managerqh)) != NULL) {
 			TAILQ_REMOVE(&manager->managerqh, current, q);
 			++removed;
 			__wt_lsm_manager_free_work_unit(session, current);
@@ -336,43 +329,6 @@ __wt_lsm_manager_destroy(WT_SESSION_IMPL *session)
 	WT_TRET(__wt_cond_destroy(session, &manager->work_cond));
 
 	return (ret);
-}
-
-/*
- * __lsm_manager_aggressive_update --
- *	Update the merge aggressiveness for a single LSM tree.
- */
-static int
-__lsm_manager_aggressive_update(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
-{
-	struct timespec now;
-	uint64_t chunk_wait, stallms;
-	u_int new_aggressive;
-
-	WT_RET(__wt_epoch(session, &now));
-	stallms = WT_TIMEDIFF(now, lsm_tree->last_flush_ts) / WT_MILLION;
-	/*
-	 * Get aggressive if more than enough chunks for a merge should have
-	 * been created by now. Use 10 seconds as a default if we don't have an
-	 * estimate.
-	 */
-	if (lsm_tree->nchunks > 1)
-		chunk_wait = stallms / (lsm_tree->chunk_fill_ms == 0 ?
-		    10000 : lsm_tree->chunk_fill_ms);
-	else
-		chunk_wait = 0;
-	new_aggressive = (u_int)(chunk_wait / lsm_tree->merge_min);
-
-	if (new_aggressive > lsm_tree->merge_aggressiveness) {
-		WT_RET(__wt_verbose(session, WT_VERB_LSM,
-		    "LSM merge %s got aggressive (old %u new %u), "
-		    "merge_min %d, %u / %" PRIu64,
-		    lsm_tree->name, lsm_tree->merge_aggressiveness,
-		    new_aggressive, lsm_tree->merge_min, stallms,
-		    lsm_tree->chunk_fill_ms));
-		lsm_tree->merge_aggressiveness = new_aggressive;
-	}
-	return (0);
 }
 
 /*
@@ -428,8 +384,6 @@ __lsm_manager_run_server(WT_SESSION_IMPL *session)
 		TAILQ_FOREACH(lsm_tree, &S2C(session)->lsmqh, q) {
 			if (!F_ISSET(lsm_tree, WT_LSM_TREE_ACTIVE))
 				continue;
-			WT_ERR(__lsm_manager_aggressive_update(
-			    session, lsm_tree));
 			WT_ERR(__wt_epoch(session, &now));
 			pushms = lsm_tree->work_push_ts.tv_sec == 0 ? 0 :
 			    WT_TIMEDIFF(
@@ -458,7 +412,8 @@ __lsm_manager_run_server(WT_SESSION_IMPL *session)
 			    lsm_tree->nchunks > 1) ||
 			    (lsm_tree->queue_ref == 0 &&
 			    lsm_tree->nchunks > 1) ||
-			    (lsm_tree->merge_aggressiveness > 3 &&
+			    (lsm_tree->merge_aggressiveness >
+			    WT_LSM_AGGRESSIVE_THRESHOLD &&
 			     !F_ISSET(lsm_tree, WT_LSM_TREE_COMPACTING)) ||
 			    pushms > fillms) {
 				WT_ERR(__wt_lsm_manager_push_entry(
@@ -469,7 +424,8 @@ __lsm_manager_run_server(WT_SESSION_IMPL *session)
 				    session, WT_LSM_WORK_FLUSH, 0, lsm_tree));
 				WT_ERR(__wt_lsm_manager_push_entry(
 				    session, WT_LSM_WORK_BLOOM, 0, lsm_tree));
-				WT_ERR(__wt_verbose(session, WT_VERB_LSM,
+				WT_ERR(__wt_verbose(session,
+				    WT_VERB_LSM_MANAGER,
 				    "MGR %s: queue %d mod %d nchunks %d"
 				    " flags 0x%x aggressive %d pushms %" PRIu64
 				    " fillms %" PRIu64,
@@ -683,9 +639,9 @@ __wt_lsm_manager_push_entry(WT_SESSION_IMPL *session,
 	 * on close, the flag is cleared and then the queue reference count
 	 * is checked.
 	 */
-	(void)WT_ATOMIC_ADD4(lsm_tree->queue_ref, 1);
+	(void)__wt_atomic_add32(&lsm_tree->queue_ref, 1);
 	if (!F_ISSET(lsm_tree, WT_LSM_TREE_ACTIVE)) {
-		(void)WT_ATOMIC_SUB4(lsm_tree->queue_ref, 1);
+		(void)__wt_atomic_sub32(&lsm_tree->queue_ref, 1);
 		return (0);
 	}
 
@@ -712,6 +668,6 @@ __wt_lsm_manager_push_entry(WT_SESSION_IMPL *session,
 	return (0);
 err:
 	if (!pushed)
-		(void)WT_ATOMIC_SUB4(lsm_tree->queue_ref, 1);
+		(void)__wt_atomic_sub32(&lsm_tree->queue_ref, 1);
 	return (ret);
 }

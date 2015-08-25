@@ -162,20 +162,21 @@ class WiredTigerTestCase(unittest.TestCase):
         WiredTigerTestCase._stderr = sys.stderr
         WiredTigerTestCase._concurrent = False
         WiredTigerTestCase._globalSetup = True
+        WiredTigerTestCase._ttyDescriptor = None
 
     def fdSetUp(self):
         self.captureout = CapturedFd('stdout.txt', 'standard output')
         self.captureerr = CapturedFd('stderr.txt', 'error output')
         sys.stdout = self.captureout.capture()
         sys.stderr = self.captureerr.capture()
-        
+
     def fdTearDown(self):
         # restore stderr/stdout
         self.captureout.release()
         self.captureerr.release()
         sys.stdout = WiredTigerTestCase._stdout
         sys.stderr = WiredTigerTestCase._stderr
-        
+
     def __init__(self, *args, **kwargs):
         if hasattr(self, 'scenarios'):
             assert(len(self.scenarios) == len(dict(self.scenarios)))
@@ -203,11 +204,11 @@ class WiredTigerTestCase(unittest.TestCase):
             'create,error_prefix="%s",%s' % (self.shortid(), self.conn_config))
         self.pr(`conn`)
         return conn
-        
+
     # Can be overridden
     def setUpSessionOpen(self, conn):
         return conn.open_session(None)
-        
+
     # Can be overridden
     def close_conn(self):
         """
@@ -350,7 +351,7 @@ class WiredTigerTestCase(unittest.TestCase):
         else:
             with self.expectedStderr(message):
                 self.assertRaises(exceptionType, expr)
-            
+
     def exceptionToStderr(self, expr):
         """
         Used by assertRaisesHavingMessage to convert an expression
@@ -431,6 +432,24 @@ class WiredTigerTestCase(unittest.TestCase):
         WiredTigerTestCase._resultfile.write('\n')
         traceback.print_exception(excinfo[0], excinfo[1], excinfo[2], None, WiredTigerTestCase._resultfile)
         WiredTigerTestCase._resultfile.write('\n')
+
+    # print directly to tty, useful for debugging
+    def tty(self, message):
+        WiredTigerTestCase.tty(message)
+
+    @staticmethod
+    def tty(message):
+        if WiredTigerTestCase._ttyDescriptor == None:
+            WiredTigerTestCase._ttyDescriptor = open('/dev/tty', 'w')
+        WiredTigerTestCase._ttyDescriptor.write(message + '\n')
+
+    def ttyVerbose(self, level, message):
+        WiredTigerTestCase.ttyVerbose(level, message)
+
+    @staticmethod
+    def ttyVerbose(level, message):
+        if level <= WiredTigerTestCase._verbose:
+            WiredTigerTestCase.tty(message)
 
     def shortid(self):
         return self.id().replace("__main__.","")

@@ -380,7 +380,12 @@ connection_runtime_config = [
         continue evicting until the cache has less dirty memory than the
         value, as a percentage of the total cache size. Dirty pages will
         only be evicted if the cache is full enough to trigger eviction''',
-        min=10, max=99),
+        min=5, max=99),
+    Config('eviction_dirty_trigger', '95', r'''
+        trigger eviction when the cache is using this much memory for dirty
+        content, as a percentage of the total cache size. This setting only
+        alters behavior if it is lower than eviction_trigger''',
+        min=5, max=99),
     Config('eviction_target', '80', r'''
         continue evicting until the cache has less total memory than the
         value, as a percentage of the total cache size. Must be less than
@@ -397,7 +402,8 @@ connection_runtime_config = [
             to close''', min=0),
         Config('close_idle_time', '30', r'''
             amount of time in seconds a file handle needs to be idle
-            before attempting to close it''', min=1, max=100000),
+            before attempting to close it. A setting of 0 means that idle
+            handles are not closed''', min=0, max=100000),
         Config('close_scan_interval', '10', r'''
             interval in seconds at which to check for files that are
             inactive and close them''', min=1, max=100000),
@@ -511,6 +517,7 @@ connection_runtime_config = [
             'fileops',
             'log',
             'lsm',
+            'lsm_manager',
             'metadata',
             'mutex',
             'overflow',
@@ -650,7 +657,7 @@ common_wiredtiger_open = [
         Config('enabled', 'false', r'''
             whether to sync the log on every commit by default, can be
             overridden by the \c sync setting to
-            WT_SESSION::begin_transaction''',
+            WT_SESSION::commit_transaction''',
             type='boolean'),
         Config('method', 'fsync', r'''
             the method used to ensure log records are stable on disk, see
@@ -768,22 +775,22 @@ methods = {
         type='boolean', undoc=True),
     Config('statistics', '', r'''
         Specify the statistics to be gathered.  Choosing "all" gathers
-        statistics regardless of cost and may include traversing
-        on-disk files; "fast" gathers a subset of relatively
-        inexpensive statistics.  The selection must agree with the
-        database \c statistics configuration specified to
-        ::wiredtiger_open or WT_CONNECTION::reconfigure.  For example,
-        "all" or "fast" can be configured when the database is
-        configured with "all", but the cursor open will fail if "all"
-        is specified when the database is configured with "fast",
-        and the cursor open will fail in all cases when the database
-        is configured with "none".  If \c statistics is not configured,
-        the default configuration is the database configuration.
-        The "clear" configuration resets statistics after gathering
-        them, where appropriate (for example, a cache size statistic
-        is not cleared, while the count of cursor insert operations
-        will be cleared).  See @ref statistics for more information''',
-        type='list', choices=['all', 'fast', 'clear']),
+        statistics regardless of cost and may include traversing on-disk files;
+        "fast" gathers a subset of relatively inexpensive statistics.  The
+        selection must agree with the database \c statistics configuration
+        specified to ::wiredtiger_open or WT_CONNECTION::reconfigure.  For
+        example, "all" or "fast" can be configured when the database is
+        configured with "all", but the cursor open will fail if "all" is
+        specified when the database is configured with "fast", and the cursor
+        open will fail in all cases when the database is configured with
+        "none".  If "size" is configured, only the underlying size of the
+        object on disk is filled in and the object is not opened.  If \c
+        statistics is not configured, the default configuration is the database
+        configuration.  The "clear" configuration resets statistics after
+        gathering them, where appropriate (for example, a cache size statistic
+        is not cleared, while the count of cursor insert operations will be
+        cleared).  See @ref statistics for more information''',
+        type='list', choices=['all', 'fast', 'clear', 'size']),
     Config('target', '', r'''
         if non-empty, backup the list of objects; valid only for a
         backup data source''',
@@ -791,6 +798,7 @@ methods = {
 ]),
 
 'WT_SESSION.rename' : Method([]),
+'WT_SESSION.reset' : Method([]),
 'WT_SESSION.salvage' : Method([
     Config('force', 'false', r'''
         force salvage even of files that do not appear to be WiredTiger
@@ -828,6 +836,11 @@ methods = {
     Config('dump_shape', 'false', r'''
         Display the shape of the tree after verification,
         using the application's message handler, intended for debugging''',
+        type='boolean'),
+    Config('strict', 'false', r'''
+        Treat any verification problem as an error; by default, verify will
+        warn, but not fail, in the case of errors that won't affect future
+        behavior (for example, a leaked block)''',
         type='boolean')
 ]),
 
@@ -968,8 +981,10 @@ methods = {
     connection_runtime_config +
     common_wiredtiger_open + [
     Config('config_base', 'true', r'''
-        write the base configuration file if creating the database,
-        see @ref config_base for more information''',
+        write the base configuration file if creating the database.  If
+        \c false in the config passed directly to ::wiredtiger_open, will
+        ignore any existing base configuration file in addition to not creating
+        one.  See @ref config_base for more information''',
         type='boolean'),
     Config('create', 'false', r'''
         create the database if it does not exist''',
@@ -998,8 +1013,10 @@ methods = {
     connection_runtime_config +
     common_wiredtiger_open + [
     Config('config_base', 'true', r'''
-        write the base configuration file if creating the database,
-        see @ref config_base for more information''',
+        write the base configuration file if creating the database.  If
+        \c false in the config passed directly to ::wiredtiger_open, will
+        ignore any existing base configuration file in addition to not creating
+        one.  See @ref config_base for more information''',
         type='boolean'),
     Config('create', 'false', r'''
         create the database if it does not exist''',
