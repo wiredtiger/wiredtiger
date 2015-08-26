@@ -37,11 +37,22 @@ __metadata_turtle(const char *key)
 int
 __wt_metadata_open(WT_SESSION_IMPL *session)
 {
+	int tret;
 	if (session->meta_dhandle != NULL)
 		return (0);
 
-	WT_RET(__wt_session_get_btree(session, WT_METAFILE_URI, NULL, NULL, 0));
-
+	tret = __wt_session_get_btree(session, WT_METAFILE_URI, NULL, NULL, 0);
+	if (tret != 0) {
+		__wt_errx(session, "WiredTiger has failed to open its "
+		    "metadata file.");
+		__wt_errx(session, "This may be due to the database "
+		    "files being encrypted, being from an older "
+		    "version or due to corruption on disk.");
+		__wt_errx(session, "You should confirm that you have "
+		    "started with the correct options including all encryption "
+		    " and compression options.");
+		return (tret);
+	}
 	session->meta_dhandle = session->dhandle;
 	WT_ASSERT(session, session->meta_dhandle != NULL);
 
