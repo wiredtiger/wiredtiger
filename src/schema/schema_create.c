@@ -367,10 +367,16 @@ __fill_index(WT_SESSION_IMPL *session, WT_TABLE *table, const char *name)
 	idx = cindex->index;
 
 	while ((ret = tcur->next(tcur)) == 0) {
-		WT_ERR(__wt_apply_single_idx(session, idx,
+		/*
+		 * For LSM indices, we must drop locks so that the
+		 * LSM worker thread can grab the schema lock during
+		 * a switch.
+		 */
+		WT_WITHOUT_LOCKS(session,
+		    ret = __wt_apply_single_idx(session, idx,
 		    child, ctable, child->insert));
+		WT_ERR(ret);
 	}
-
 	WT_ERR_NOTFOUND_OK(ret);
 err:
 	if (icur)

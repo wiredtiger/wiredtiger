@@ -59,15 +59,14 @@ struct __wt_cursor_lsm {
 
 #define	WT_CLSM_ACTIVE		0x001   /* Incremented the session count */
 #define	WT_CLSM_BULK		0x002   /* Open for snapshot isolation */
-#define	WT_CLSM_SCHEMA_LOCK_FILL 0x004	/* Schema locked while index filled */
-#define	WT_CLSM_ITERATE_NEXT    0x008   /* Forward iteration */
-#define	WT_CLSM_ITERATE_PREV    0x010   /* Backward iteration */
-#define	WT_CLSM_MERGE           0x020   /* Merge cursor, don't update */
-#define	WT_CLSM_MINOR_MERGE	0x040   /* Minor merge, include tombstones */
-#define	WT_CLSM_MULTIPLE        0x080   /* Multiple cursors have values for the
+#define	WT_CLSM_ITERATE_NEXT    0x004   /* Forward iteration */
+#define	WT_CLSM_ITERATE_PREV    0x008   /* Backward iteration */
+#define	WT_CLSM_MERGE           0x010   /* Merge cursor, don't update */
+#define	WT_CLSM_MINOR_MERGE	0x020   /* Minor merge, include tombstones */
+#define	WT_CLSM_MULTIPLE        0x040   /* Multiple cursors have values for the
 					   current key */
-#define	WT_CLSM_OPEN_READ	0x100   /* Open for reads */
-#define	WT_CLSM_OPEN_SNAPSHOT	0x200   /* Open for snapshot isolation */
+#define	WT_CLSM_OPEN_READ	0x080   /* Open for reads */
+#define	WT_CLSM_OPEN_SNAPSHOT	0x100   /* Open for snapshot isolation */
 	uint32_t flags;
 };
 
@@ -228,11 +227,10 @@ struct __wt_lsm_tree {
 #define	WT_LSM_TREE_ACTIVE		0x01	/* Workers are active */
 #define	WT_LSM_TREE_AGGRESSIVE_TIMER	0x02	/* Timer for merge aggression */
 #define	WT_LSM_TREE_COMPACTING		0x04	/* Tree being compacted */
-#define	WT_LSM_TREE_SCHEMA_LOCK_FILL	0x08	/* Index is being filled */
-#define	WT_LSM_TREE_MERGES		0x10	/* Tree should run merges */
-#define	WT_LSM_TREE_NEED_SWITCH		0x20	/* New chunk needs creating */
-#define	WT_LSM_TREE_OPEN		0x40	/* The tree is open */
-#define	WT_LSM_TREE_THROTTLE		0x80	/* Throttle updates */
+#define	WT_LSM_TREE_MERGES		0x08	/* Tree should run merges */
+#define	WT_LSM_TREE_NEED_SWITCH		0x10	/* New chunk needs creating */
+#define	WT_LSM_TREE_OPEN		0x20	/* The tree is open */
+#define	WT_LSM_TREE_THROTTLE		0x40	/* Throttle updates */
 	uint32_t flags;
 };
 

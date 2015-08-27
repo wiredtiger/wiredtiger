@@ -161,21 +161,13 @@ __wt_lsm_work_switch(
 {
 	WT_DECL_RET;
 	WT_LSM_WORK_UNIT *entry;
-	u_int32_t borrowed_lock;
 
 	/* We've become responsible for freeing the work unit. */
 	entry = *entryp;
 	*ran = 0;
 	*entryp = NULL;
-	borrowed_lock = 0;
 
 	if (F_ISSET(entry->lsm_tree, WT_LSM_TREE_NEED_SWITCH)) {
-		/* Application thread has the schema locked while we switch */
-		if (F_ISSET(entry->lsm_tree, WT_LSM_TREE_SCHEMA_LOCK_FILL) &&
-		    !F_ISSET(session, WT_SESSION_LOCKED_SCHEMA)) {
-			borrowed_lock = WT_SESSION_LOCKED_SCHEMA;
-			F_SET(session, WT_SESSION_LOCKED_SCHEMA);
-		}
 		WT_WITH_SCHEMA_LOCK(session,
 		    ret = __wt_lsm_tree_switch(session, entry->lsm_tree));
 		/* Failing to complete the switch is fine */
@@ -187,8 +179,7 @@ __wt_lsm_work_switch(
 		} else
 			*ran = 1;
 	}
-err:	F_CLR(session, borrowed_lock);
-	__wt_lsm_manager_free_work_unit(session, entry);
+err:	__wt_lsm_manager_free_work_unit(session, entry);
 	return (ret);
 }
 

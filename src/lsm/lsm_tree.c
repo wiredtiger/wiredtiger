@@ -856,7 +856,7 @@ __wt_lsm_tree_switch(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 	WT_ERR(__wt_lsm_tree_setup_chunk(session, lsm_tree, chunk));
 
 	WT_ERR(__wt_lsm_meta_write(session, lsm_tree));
-	F_CLR(lsm_tree, WT_LSM_TREE_NEED_SWITCH | WT_LSM_TREE_SCHEMA_LOCK_FILL);
+	F_CLR(lsm_tree, WT_LSM_TREE_NEED_SWITCH);
 	++lsm_tree->dsk_gen;
 
 	lsm_tree->modified = 1;

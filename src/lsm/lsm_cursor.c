@@ -45,8 +45,6 @@ __wt_clsm_request_switch(WT_CURSOR_LSM *clsm)
 		    (clsm->dsk_gen == lsm_tree->dsk_gen &&
 		    !F_ISSET(lsm_tree, WT_LSM_TREE_NEED_SWITCH))) {
 			F_SET(lsm_tree, WT_LSM_TREE_NEED_SWITCH);
-			if (F_ISSET(clsm, WT_CLSM_SCHEMA_LOCK_FILL))
-				F_SET(lsm_tree, WT_LSM_TREE_SCHEMA_LOCK_FILL);
 			ret = __wt_lsm_manager_push_entry(
 			    session, WT_LSM_WORK_SWITCH, 0, lsm_tree);
 		}
