@@ -58,9 +58,6 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 			append = 1;
 	}
 
-	/* If we don't yet have a modify structure, we'll need one. */
-	WT_RET(__wt_page_modify_init(session, page));
-
 	/*
 	 * Delete, insert or update a column-store entry.
 	 *

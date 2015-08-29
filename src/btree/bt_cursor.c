@@ -244,6 +244,35 @@ __cursor_row_search(
 }
 
 /*
+ * __cursor_modify_init --
+ *	Initialize the page's modification structure, mark the cursor's page
+ * and tree dirty.
+ */
+static inline int
+__cursor_modify_init(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+	/* If we don't yet have a modify structure, allocate one. */
+	WT_RET(__wt_page_modify_init(session, page));
+
+	/*
+	 * Check to see if the page's write generation is about to wrap (wildly
+	 * unlikely as it implies 4B updates between clean page reconciliations,
+	 * but technically possible), and fail the update.
+	 *
+	 * The check is outside of any mutex because the page's write generation
+	 * is a hot cache line. Technically it's possible for the page's write
+	 * generation to wrap between the test and our subsequent modification
+	 * of it, however, the test is (4B-1M), and there cannot be a million
+	 * threads that have done the test but not completed their modification.
+	 */
+	if (page->modify->write_gen > UINT32_MAX - WT_MILLION)
+		return (WT_RESTART);
+
+	__wt_page_modify_set(session, page);
+	return (0);
+}
+
+/*
  * __cursor_col_modify --
  *	Column-store delete, insert, and update from an application cursor.
  */
@@ -251,6 +280,10 @@ static inline int
 __cursor_col_modify(
     WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, int is_remove)
 {
+	/* Set up the modification. */
+	WT_RET(__cursor_modify_init(session, cbt->ref->page));
+
+	/* Modify the page. */
 	return (__wt_col_modify(session,
 	    cbt, cbt->iface.recno, &cbt->iface.value, NULL, is_remove));
 }
@@ -263,6 +296,10 @@ static inline int
 __cursor_row_modify(
     WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, int is_remove)
 {
+	/* Set up the modification. */
+	WT_RET(__cursor_modify_init(session, cbt->ref->page));
+
+	/* Modify the page. */
 	return (__wt_row_modify(session,
 	    cbt, &cbt->iface.key, &cbt->iface.value, NULL, is_remove));
 }

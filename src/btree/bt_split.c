@@ -709,6 +709,12 @@ __split_multi_inmem(
 	if (orig->type == WT_PAGE_ROW_LEAF)
 		WT_RET(__wt_scr_alloc(session, 0, &key));
 
+	/* Allocate the modification structure. */
+	WT_RET(__wt_page_modify_init(session, page));
+
+	/* Mark the page and tree dirty. */
+	__wt_page_modify_set(session, page);
+
 	/* Re-create each modification we couldn't write. */
 	for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd)
 		switch (orig->type) {
@@ -719,10 +725,8 @@ __split_multi_inmem(
 			supd->ins->upd = NULL;
 			recno = WT_INSERT_RECNO(supd->ins);
 
-			/* Search the page. */
+			/* Search the page, apply the modification. */
 			WT_ERR(__wt_col_search(session, recno, ref, &cbt));
-
-			/* Apply the modification. */
 			WT_ERR(__wt_col_modify(
 			    session, &cbt, recno, NULL, upd, 0));
 			break;
@@ -743,22 +747,19 @@ __split_multi_inmem(
 				key->size = WT_INSERT_KEY_SIZE(supd->ins);
 			}
 
-			/* Search the page. */
+			/* Search the page, apply the modification. */
 			WT_ERR(__wt_row_search(session, key, ref, &cbt, 1));
-
-			/* Apply the modification. */
-			WT_ERR(
-			    __wt_row_modify(session, &cbt, key, NULL, upd, 0));
+			WT_ERR(__wt_row_modify(
+			    session, &cbt, key, NULL, upd, 0));
 			break;
 		WT_ILLEGAL_VALUE_ERR(session);
 		}
 
 	/*
-	 * We modified the page above, which will have set the first dirty
-	 * transaction to the last transaction currently running.  However, the
-	 * updates we installed may be older than that.  Set the first dirty
-	 * transaction to an impossibly old value so this page is never skipped
-	 * in a checkpoint.
+	 * We marked the page dirty above, which set the first dirty transaction
+	 * to the last transaction currently running.  However, the updates we
+	 * installed may be older than that.  Set the first dirty transaction to
+	 * an impossibly old value so this page is never skipped by checkpoint.
 	 */
 	page->modify->first_dirty_txn = WT_TXN_FIRST;
 

@@ -7,39 +7,14 @@
  */
 
 /*
- * __page_write_gen_wrapped_check --
- *	Confirm the page's write generation number won't wrap.
- */
-static inline int
-__page_write_gen_wrapped_check(WT_PAGE *page)
-{
-	/*
-	 * Check to see if the page's write generation is about to wrap (wildly
-	 * unlikely as it implies 4B updates between clean page reconciliations,
-	 * but technically possible), and fail the update.
-	 *
-	 * The check is outside of the serialization mutex because the page's
-	 * write generation is going to be a hot cache line, so technically it's
-	 * possible for the page's write generation to wrap between the test and
-	 * our subsequent modification of it.  However, the test is (4B-1M), and
-	 * there cannot be a million threads that have done the test but not yet
-	 * completed their modification.
-	 */
-	return (page->modify->write_gen >
-	    UINT32_MAX - WT_MILLION ? WT_RESTART : 0);
-}
-
-/*
  * __insert_simple_func --
  *	Worker function to add a WT_INSERT entry to the middle of a skiplist.
  */
 static inline int
-__insert_simple_func(WT_SESSION_IMPL *session,
+__insert_simple_func(
     WT_INSERT ***ins_stack, WT_INSERT *new_ins, u_int skipdepth)
 {
 	u_int i;
-
-	WT_UNUSED(session);
 
 	/*
 	 * Update the skiplist elements referencing the new WT_INSERT item.
@@ -159,36 +134,26 @@ __wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
 	WT_INSERT *new_ins = *new_insp;
 	WT_DECL_RET;
 
-	/* Check for page write generation wrap. */
-	WT_RET(__page_write_gen_wrapped_check(page));
-
 	/* Clear references to memory we now own and must free on error. */
 	*new_insp = NULL;
 
 	/* Acquire the page's spinlock, call the worker function. */
-	WT_PAGE_LOCK(session, page);
+	if (page->modify != NULL)
+		WT_PAGE_LOCK(session, page);
 	ret = __col_append_serial_func(
 	    session, ins_head, ins_stack, new_ins, recnop, skipdepth);
-	WT_PAGE_UNLOCK(session, page);
+	if (page->modify != NULL)
+		WT_PAGE_UNLOCK(session, page);
+	WT_ERR(ret);
 
-	if (ret != 0) {
-		/* Free unused memory on error. */
-		__wt_free(session, new_ins);
-		return (ret);
-	}
-
-	/*
-	 * Increment in-memory footprint after releasing the mutex: that's safe
-	 * because the structures we added cannot be discarded while visible to
-	 * any running transaction, and we're a running transaction, which means
-	 * there can be no corresponding delete until we complete.
-	 */
+	/* Increment the in-memory footprint. */
 	__wt_cache_page_inmem_incr(session, page, new_ins_size);
 
-	/* Mark the page dirty after updating the footprint. */
-	__wt_page_modify_set(session, page);
-
 	return (0);
+
+err:	/* Free unused memory on error. */
+	__wt_free(session, new_ins);
+	return (ret);
 }
 
 /*
@@ -205,9 +170,6 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
 	int simple;
 	u_int i;
 
-	/* Check for page write generation wrap. */
-	WT_RET(__page_write_gen_wrapped_check(page));
-
 	/* Clear references to memory we now own and must free on error. */
 	*new_insp = NULL;
 
@@ -217,33 +179,25 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
 			simple = 0;
 
 	if (simple)
-		ret = __insert_simple_func(
-		    session, ins_stack, new_ins, skipdepth);
+		WT_ERR(__insert_simple_func(ins_stack, new_ins, skipdepth));
 	else {
-		WT_PAGE_LOCK(session, page);
+		if (page->modify != NULL)
+			WT_PAGE_LOCK(session, page);
 		ret = __insert_serial_func(
 		    session, ins_head, ins_stack, new_ins, skipdepth);
-		WT_PAGE_UNLOCK(session, page);
+		if (page->modify != NULL)
+			WT_PAGE_UNLOCK(session, page);
+		WT_ERR(ret);
 	}
 
-	if (ret != 0) {
-		/* Free unused memory on error. */
-		__wt_free(session, new_ins);
-		return (ret);
-	}
-
-	/*
-	 * Increment in-memory footprint after releasing the mutex: that's safe
-	 * because the structures we added cannot be discarded while visible to
-	 * any running transaction, and we're a running transaction, which means
-	 * there can be no corresponding delete until we complete.
-	 */
+	/* Increment the in-memory footprint. */
 	__wt_cache_page_inmem_incr(session, page, new_ins_size);
 
-	/* Mark the page dirty after updating the footprint. */
-	__wt_page_modify_set(session, page);
-
 	return (0);
+
+err:	/* Free unused memory on error. */
+	__wt_free(session, new_ins);
+	return (ret);
 }
 
 /*
@@ -256,9 +210,6 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
 {
 	WT_DECL_RET;
 	WT_UPDATE *obsolete, *upd = *updp;
-
-	/* Check for page write generation wrap. */
-	WT_RET(__page_write_gen_wrapped_check(page));
 
 	/* Clear references to memory we now own and must free on error. */
 	*updp = NULL;
@@ -280,16 +231,8 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
 		}
 	}
 
-	/*
-	 * Increment in-memory footprint after releasing the mutex: that's safe
-	 * because the structures we added cannot be discarded while visible to
-	 * any running transaction, and we're a running transaction, which means
-	 * there can be no corresponding delete until we complete.
-	 */
+	/* Increment the in-memory footprint. */
 	__wt_cache_page_inmem_incr(session, page, upd_size);
-
-	/* Mark the page dirty after updating the footprint. */
-	__wt_page_modify_set(session, page);
 
 	/*
 	 * If there are subsequent obsolete WT_UPDATE structures, discard them.
@@ -298,7 +241,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
 	 * progress. Serialization is also needed so only one thread does the
 	 * obsolete check at a time.
 	 */
-	if (upd->next != NULL &&
+	if (page->modify != NULL && upd->next != NULL &&
 	    __wt_txn_visible_all(session, page->modify->obsolete_check_txn)) {
 		F_CAS_ATOMIC(page, WT_PAGE_RECONCILIATION, ret);
 		/* If we can't lock it, don't scan, that's okay. */

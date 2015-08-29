@@ -402,6 +402,12 @@ static inline void
 __wt_page_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
 	/*
+	 * Pages in the lookaside table are updated in the service of checkpoint
+	 * handles, and dirtying the page or tree leads to tears.
+	 */
+	WT_ASSERT(session, session->dhandle->checkpoint == NULL);
+
+	/*
 	 * Mark the tree dirty (even if the page is already marked dirty), newly
 	 * created pages to support "empty" files are dirty, but the file isn't
 	 * marked dirty until there's a real change needing to be written. Test
