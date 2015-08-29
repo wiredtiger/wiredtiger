@@ -36,6 +36,15 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 	upd = upd_arg;
 	append = logged = 0;
 
+	/*
+	 * If we don't yet have a modify structure, allocate one; a requirement
+	 * even if not modifying the page because column-store stores key/value
+	 * pairs that don't appear on the page in the page-modify structure, so
+	 * when re-instantiating update lists from the lookaside table we might
+	 * need the page-modify structure.
+	 */
+	WT_RET(__wt_page_modify_init(session, page));
+
 	/* This code expects a remove to have a NULL value. */
 	if (is_remove) {
 		if (btree->type == BTREE_COL_FIX) {
