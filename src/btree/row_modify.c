@@ -43,7 +43,7 @@ __wt_page_modify_alloc(WT_SESSION_IMPL *session, WT_PAGE *page)
 
 /*
  * __wt_row_modify --
- *	Row-store insert, update and delete.
+ *	Row-store page insert, update and delete.
  */
 int
 __wt_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
@@ -67,9 +67,6 @@ __wt_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 	/* This code expects a remove to have a NULL value. */
 	if (is_remove)
 		value = NULL;
-
-	/* If we don't yet have a modify structure, we'll need one. */
-	WT_RET(__wt_page_modify_init(session, page));
 
 	/*
 	 * Modify: allocate an update array as necessary, build a WT_UPDATE

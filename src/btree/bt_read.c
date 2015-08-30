@@ -72,10 +72,9 @@ static int
 __col_instantiate(WT_SESSION_IMPL *session,
     uint64_t recno, WT_REF *ref, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
-	/* Search the page and add updates. */
+	/* Search the page, apply the modification. */
 	WT_RET(__wt_col_search(session, recno, ref, cbt));
-	WT_RET(__wt_col_modify(session, cbt, recno, NULL, upd, 0));
-	return (0);
+	return (__wt_col_modify(session, cbt, recno, NULL, upd, 0));
 }
 
 /*
@@ -86,10 +85,9 @@ static int
 __row_instantiate(WT_SESSION_IMPL *session,
     WT_ITEM *key, WT_REF *ref, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
-	/* Search the page and add updates. */
+	/* Search the page, apply the modification. */
 	WT_RET(__wt_row_search(session, key, ref, cbt, 1));
-	WT_RET(__wt_row_modify(session, cbt, key, NULL, upd, 0));
-	return (0);
+	return (__wt_row_modify(session, cbt, key, NULL, upd, 0));
 }
 
 /*
@@ -243,20 +241,11 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 	/* Discard the cursor. */
 	WT_ERR(__wt_las_cursor_close(session, &cursor, session_flags));
 
-	if (total_incr != 0) {
+	if (total_incr != 0)
 		__wt_cache_page_inmem_incr(session, page, total_incr);
 
-		/*
-		 * We've modified/dirtied the page, but that's not necessary and
-		 * if we keep the page clean, it's easier to evict. We leave the
-		 * lookaside table updates in place, so if we evict this page
-		 * without dirtying it, any future instantiation of it will find
-		 * the records it needs. If the page is dirtied before eviction,
-		 * then we'll write any needed lookaside table records for the
-		 * new location of the page.
-		 */
-		__wt_page_modify_clear(session, page);
-	}
+	/* The page should not have been marked dirty. */
+	WT_ASSERT(session, !__wt_page_is_modified(page));
 
 err:	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 	WT_TRET(__wt_btcur_close(&cbt, 1));
