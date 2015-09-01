@@ -1019,7 +1019,7 @@ __wt_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
 	    WT_ROW_INSERT_SLOT(page, page->pg_row_entries - 1);
 	if (ins_head == NULL)
 		return (0);
-	for (ins = ins_head->head[WT_MIN_SPLIT_SKIPLIST_DEPTH];
+	for (i = 0, ins = ins_head->head[WT_MIN_SPLIT_SKIPLIST_DEPTH];
 	    ins != NULL; ins = ins->next[WT_MIN_SPLIT_SKIPLIST_DEPTH])
 		++i;
 	return (i < 8 ? 0 : 1);
