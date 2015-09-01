@@ -976,6 +976,8 @@ __wt_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
 	WT_BTREE *btree;
 	WT_INSERT_HEAD *ins_head;
+	WT_INSERT *ins;
+	u_int i;
 
 	btree = S2BT(session);
 
@@ -1006,22 +1008,21 @@ __wt_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
 
 	/*
 	 * There is no point splitting if the list is small, no deep items is
-	 * our heuristic for that. (A 1/4 probability of adding a new skiplist
-	 * level means there will be a new 6th level for roughly each 4KB of
-	 * entries in the list. If we have at least two 6th level entries, the
-	 * list is at least large enough to work with.)
+	 * our heuristic for that. A 1/4 probability of adding a new skiplist
+	 * level, with level-0 always created, means there will be a 5th level
+	 * entry for every 1024 entries in the list. If there are at least 8
+	 * 5th level entries, the list is large enough to work with.
 	 */
-#define	WT_MIN_SPLIT_SKIPLIST_DEPTH	WT_MIN(6, WT_SKIP_MAXDEPTH - 1)
+#define	WT_MIN_SPLIT_SKIPLIST_DEPTH	WT_MIN(5, WT_SKIP_MAXDEPTH - 1)
 	ins_head = page->pg_row_entries == 0 ?
 	    WT_ROW_INSERT_SMALLEST(page) :
 	    WT_ROW_INSERT_SLOT(page, page->pg_row_entries - 1);
-	if (ins_head == NULL ||
-	    ins_head->head[WT_MIN_SPLIT_SKIPLIST_DEPTH] == NULL ||
-	    ins_head->head[WT_MIN_SPLIT_SKIPLIST_DEPTH] ==
-	    ins_head->tail[WT_MIN_SPLIT_SKIPLIST_DEPTH])
+	if (ins_head == NULL)
 		return (0);
-
-	return (1);
+	for (ins = ins_head->head[WT_MIN_SPLIT_SKIPLIST_DEPTH];
+	    ins != NULL; ins = ins->next[WT_MIN_SPLIT_SKIPLIST_DEPTH])
+		++i;
+	return (i < 8 ? 0 : 1);
 }
 
 /*
@@ -1060,16 +1061,9 @@ __wt_page_can_evict(WT_SESSION_IMPL *session,
 	    !__wt_txn_visible_all(session, mod->mod_split_txn))
 		return (0);
 
-	/*
-	 * Allow for the splitting of pages when a checkpoint is underway only
-	 * if the allow_splits flag has been passed, we know we are performing
-	 * a checkpoint, the page is larger than the stated maximum and there
-	 * has not already been a split on this page as the WT_PM_REC_MULTIBLOCK
-	 * flag is unset.
-	 */
-	if (__wt_page_can_split(session, page)) {
-		if (inmem_splitp != NULL)
-			*inmem_splitp = 1;
+	/* Check for a possible in-memory split. */
+	if (inmem_splitp != NULL && __wt_page_can_split(session, page)) {
+		*inmem_splitp = 1;
 		return (1);
 	}
 
