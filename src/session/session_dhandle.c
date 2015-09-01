@@ -97,7 +97,7 @@ __wt_session_lock_dhandle(
 		 * If the handle is already open for a special operation,
 		 * give up.
 		 */
-		if (F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS))
+		if (F_ISSET(btree, WT_BTREE_EXCLUSIVE_FLAGS))
 			return (EBUSY);
 
 		/*
@@ -189,7 +189,7 @@ __wt_session_release_btree(WT_SESSION_IMPL *session)
 		ret = __wt_conn_btree_sync_and_close(session, 0, 1);
 		F_CLR(dhandle, WT_DHANDLE_DISCARD_FORCE);
 	} else if (F_ISSET(dhandle, WT_DHANDLE_DISCARD) ||
-	    F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS)) {
+	    F_ISSET(btree, WT_BTREE_EXCLUSIVE_FLAGS)) {
 		WT_ASSERT(session, F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE));
 		ret = __wt_conn_btree_sync_and_close(session, 0, 0);
 		F_CLR(dhandle, WT_DHANDLE_DISCARD);
@@ -442,7 +442,7 @@ __wt_session_get_btree(WT_SESSION_IMPL *session,
 		/* If the handle is open in the mode we want, we're done. */
 		if (LF_ISSET(WT_DHANDLE_LOCK_ONLY) ||
 		    (F_ISSET(dhandle, WT_DHANDLE_OPEN) &&
-		    !LF_ISSET(WT_BTREE_SPECIAL_FLAGS)))
+		    !LF_ISSET(WT_BTREE_EXCLUSIVE_FLAGS)))
 			break;
 
 		WT_ASSERT(session, F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE));

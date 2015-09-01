@@ -484,26 +484,30 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri,
 {
 	WT_CONFIG_ITEM cval;
 	WT_DECL_RET;
-	int bitmap, bulk;
+	int bitmap, bulk, bulk_ordered, bulk_unordered;
 	uint32_t flags;
 
 	flags = 0;
 
+	bitmap = bulk = bulk_ordered = bulk_unordered = 0;
 	WT_RET(__wt_config_gets_def(session, cfg, "bulk", 0, &cval));
 	if (cval.type == WT_CONFIG_ITEM_BOOL ||
 	    (cval.type == WT_CONFIG_ITEM_NUM &&
 	    (cval.val == 0 || cval.val == 1))) {
-		bitmap = 0;
-		bulk = (cval.val != 0);
+		bulk = bulk_ordered = (cval.val != 0);
 	} else if (WT_STRING_MATCH("bitmap", cval.str, cval.len))
-		bitmap = bulk = 1;
+		bitmap = bulk = bulk_ordered = 1;
+	else if (WT_STRING_MATCH("unordered", cval.str, cval.len))
+		bulk_unordered = 1;
 	else
 		WT_RET_MSG(session, EINVAL,
 		    "Value for 'bulk' must be a boolean or 'bitmap'");
 
 	/* Bulk handles require exclusive access. */
-	if (bulk)
+	if (bulk_ordered)
 		LF_SET(WT_BTREE_BULK | WT_DHANDLE_EXCLUSIVE);
+	else if (bulk_unordered)
+		LF_SET(WT_BTREE_BULK_UNORDERED | WT_DHANDLE_EXCLUSIVE);
 
 	/* Get the handle and lock it while the cursor is using it. */
 	if (WT_PREFIX_MATCH(uri, "file:")) {

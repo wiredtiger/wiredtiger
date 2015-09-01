@@ -958,6 +958,7 @@ nockpt:			F_SET(btree, WT_BTREE_SKIP_CKPT);
 		case 0:
 			break;
 		case WT_BTREE_BULK:
+		case WT_BTREE_BULK_UNORDERED:
 			/*
 			 * The only checkpoints a bulk-loaded file should have
 			 * are fake ones we created without the underlying block

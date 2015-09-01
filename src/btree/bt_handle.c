@@ -488,7 +488,7 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, int creation)
 	}
 
 	/* Bulk loads require a leaf page for reconciliation: create it now. */
-	if (F_ISSET(btree, WT_BTREE_BULK)) {
+	if (F_ISSET(btree, WT_BTREE_BULK | WT_BTREE_BULK_UNORDERED)) {
 		WT_ERR(__wt_btree_new_leaf_page(session, &leaf));
 		ref->page = leaf;
 		ref->state = WT_REF_MEM;

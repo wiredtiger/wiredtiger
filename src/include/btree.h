@@ -145,19 +145,22 @@ struct __wt_btree {
 
 	/* Flags values up to 0xff are reserved for WT_DHANDLE_* */
 #define	WT_BTREE_BULK		0x00100	/* Bulk-load handle */
-#define	WT_BTREE_IN_MEMORY	0x00200	/* Cache-resident object */
-#define	WT_BTREE_NO_EVICTION	0x00400	/* Disable eviction */
-#define	WT_BTREE_NO_LOGGING	0x00800	/* Disable logging */
-#define	WT_BTREE_SALVAGE	0x01000	/* Handle is for salvage */
-#define	WT_BTREE_SKIP_CKPT	0x02000	/* Handle skipped checkpoint */
-#define	WT_BTREE_UPGRADE	0x04000	/* Handle is for upgrade */
-#define	WT_BTREE_VERIFY		0x08000	/* Handle is for verify */
+#define	WT_BTREE_BULK_UNORDERED	0x00200	/* Bulk-load handle, may be unordered */
+#define	WT_BTREE_IN_MEMORY	0x00400	/* Cache-resident object */
+#define	WT_BTREE_NO_EVICTION	0x00800	/* Disable eviction */
+#define	WT_BTREE_NO_LOGGING	0x01000	/* Disable logging */
+#define	WT_BTREE_SALVAGE	0x02000	/* Handle is for salvage */
+#define	WT_BTREE_SKIP_CKPT	0x04000	/* Handle skipped checkpoint */
+#define	WT_BTREE_UPGRADE	0x08000	/* Handle is for upgrade */
+#define	WT_BTREE_VERIFY		0x10000	/* Handle is for verify */
 	uint32_t flags;
 };
 
 /* Flags that make a btree handle special (not for normal use). */
 #define	WT_BTREE_SPECIAL_FLAGS	 					\
 	(WT_BTREE_BULK | WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)
+#define	WT_BTREE_EXCLUSIVE_FLAGS					\
+	(WT_BTREE_SPECIAL_FLAGS | WT_BTREE_BULK_UNORDERED)
 
 /*
  * WT_SALVAGE_COOKIE --
