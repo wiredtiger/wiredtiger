@@ -800,7 +800,7 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
 	WT_STAT_FAST_CONN_INCR(session, txn_commit);
 
 	txn = &session->txn;
-	if (F_ISSET(txn, WT_TXN_ERROR)) {
+	if (F_ISSET(txn, WT_TXN_ERROR) && txn->mod_count != 0) {
 		__wt_errx(session, "failed transaction requires rollback");
 		ret = EINVAL;
 	}
@@ -1166,8 +1166,8 @@ __wt_open_session(WT_CONNECTION_IMPL *conn,
 	if (i == conn->session_size)
 		WT_ERR_MSG(session, ENOMEM,
 		    "only configured to support %" PRIu32 " sessions"
-		    " (including %" PRIu32 " internal)",
-		    conn->session_size, WT_NUM_INTERNAL_SESSIONS);
+		    " (including %d additional internal sessions)",
+		    conn->session_size, WT_EXTRA_INTERNAL_SESSIONS);
 
 	/*
 	 * If the active session count is increasing, update it.  We don't worry
@@ -1190,7 +1190,7 @@ __wt_open_session(WT_CONNECTION_IMPL *conn,
 	    event_handler == NULL ? session->event_handler : event_handler);
 
 	TAILQ_INIT(&session_ret->cursors);
-	SLIST_INIT(&session_ret->dhandles);
+	TAILQ_INIT(&session_ret->dhandles);
 	/*
 	 * If we don't have one, allocate the dhandle hash array.
 	 * Allocate the table hash array as well.
@@ -1202,8 +1202,8 @@ __wt_open_session(WT_CONNECTION_IMPL *conn,
 		WT_ERR(__wt_calloc(session_ret, WT_HASH_ARRAY_SIZE,
 		    sizeof(struct __tables_hash), &session_ret->tablehash));
 	for (i = 0; i < WT_HASH_ARRAY_SIZE; i++) {
-		SLIST_INIT(&session_ret->dhhash[i]);
-		SLIST_INIT(&session_ret->tablehash[i]);
+		TAILQ_INIT(&session_ret->dhhash[i]);
+		TAILQ_INIT(&session_ret->tablehash[i]);
 	}
 
 	/* Initialize transaction support: default to read-committed. */
