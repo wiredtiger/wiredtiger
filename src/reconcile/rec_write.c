@@ -433,11 +433,19 @@ __wt_reconcile(WT_SESSION_IMPL *session,
 	}
 
 	/* Get the final status for the reconciliation. */
+#if 0
+	The call to __rec_row_leaf is returning EBUSY for UPDATE_RESTORE calls
+	which means we are skipping the status call, and need the "special"
+	error handling of EBUSY below. The EBUSY is generated from
+	__rec_split_finish_std:2920 - and is required from there to have
+	the reconciliation write bail out early.
+	WT_ASSERT(session, ret == 0);
+#endif
 	if (ret == 0)
 		ret = __rec_write_status(session, r, page);
 
 	/* Wrap up the page reconciliation. */
-	if (ret == 0)
+	if (ret == 0 || (ret == EBUSY && F_ISSET(r, WT_EVICT_UPDATE_RESTORE)))
 		ret = __rec_write_wrapup(session, r, page);
 	else
 		WT_TRET(__rec_write_wrapup_err(session, r, page));
@@ -526,8 +534,8 @@ __rec_write_status(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		btree->modified = 1;
 		WT_FULL_BARRIER();
 
-		/* If evicting, we've failed. */
-		if (F_ISSET(r, WT_EVICTING))
+		if (F_ISSET(r, WT_EVICTING) &&
+		    !F_ISSET(r, WT_EVICT_UPDATE_RESTORE))
 			return (EBUSY);
 	} else {
 		/*
@@ -5367,6 +5375,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		 * replacement blocks.
 		 */
 		if (r->evict_skipped_updates) {
+			WT_ASSERT(session, bnd->dsk != NULL);
 			WT_RET(__wt_calloc_def(
 			    session, r->bnd_next, &mod->mod_multi));
 			multi = mod->mod_multi;
@@ -5562,6 +5571,7 @@ __rec_split_row(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		    bnd->key.data, bnd->key.size, &multi->key.ikey));
 
 		if (r->evict_skipped_updates && bnd->supd != NULL) {
+			WT_ASSERT(session, bnd->dsk != NULL);
 			multi->supd = bnd->supd;
 			multi->supd_entries = bnd->supd_next;
 			bnd->supd = NULL;
@@ -5602,6 +5612,7 @@ __rec_split_col(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		multi->key.recno = bnd->recno;
 
 		if (r->evict_skipped_updates && bnd->supd != NULL) {
+			WT_ASSERT(session, bnd->dsk != NULL);
 			multi->supd = bnd->supd;
 			multi->supd_entries = bnd->supd_next;
 			bnd->supd = NULL;
