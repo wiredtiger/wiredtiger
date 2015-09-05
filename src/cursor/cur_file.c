@@ -497,7 +497,7 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri,
 		bulk = bulk_ordered = (cval.val != 0);
 	} else if (WT_STRING_MATCH("bitmap", cval.str, cval.len))
 		bitmap = bulk = bulk_ordered = 1;
-	else if (WT_STRING_MATCH("unordered", cval.str, cval.len))
+	else if (WT_STRING_MATCH("index", cval.str, cval.len))
 		bulk_unordered = 1;
 	else
 		WT_RET_MSG(session, EINVAL,

@@ -347,18 +347,7 @@ __fill_index(WT_SESSION_IMPL *session, WT_TABLE *table, const char *name)
 	if (!table->cg_complete)
 		return (0);
 
-	WT_ERR(sess->open_cursor(sess, name, NULL, NULL, &icur));
-	if (WT_PREFIX_MATCH(((WT_CURSOR_INDEX *)icur)->index->source, "lsm:")) {
-		/*
-		 * If this is LSM, start again, to get a properly
-		 * configured cursor that won't split while
-		 * we're inserting.
-		 */
-		WT_ERR(icur->close(icur));
-		icur = NULL;
-		WT_ERR(sess->open_cursor(sess, name, NULL, "bulk=unordered",
-		    &icur));
-	}
+	WT_ERR(sess->open_cursor(sess, name, NULL, "bulk=index", &icur));
 	WT_ERR(sess->open_cursor(sess, table->name, NULL, "readonly", &tcur));
 
 	ctable = (WT_CURSOR_TABLE *)tcur;

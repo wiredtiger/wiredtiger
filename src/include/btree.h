@@ -159,8 +159,6 @@ struct __wt_btree {
 /* Flags that make a btree handle special (not for normal use). */
 #define	WT_BTREE_SPECIAL_FLAGS	 					\
 	(WT_BTREE_BULK | WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)
-#define	WT_BTREE_EXCLUSIVE_FLAGS					\
-	(WT_BTREE_SPECIAL_FLAGS | WT_BTREE_BULK_UNORDERED)
 
 /*
  * WT_SALVAGE_COOKIE --
