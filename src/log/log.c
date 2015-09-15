@@ -1944,7 +1944,7 @@ __wt_log_vprintf(WT_SESSION_IMPL *session, const char *fmt, va_list ap)
 	    "log_printf: %s", (char *)logrec->data + logrec->size));
 
 	logrec->size += len;
-	WT_ERR(__wt_log_write(session, logrec, NULL, 0));
+	WT_ERR(__wt_log_write(session, logrec, NULL, WT_LOG_FSYNC));
 err:	__wt_scr_free(session, &logrec);
 	return (ret);
 }
