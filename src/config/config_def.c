@@ -277,6 +277,11 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_drop[] = {
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
 
+static const WT_CONFIG_CHECK confchk_WT_SESSION_log_last_op[] = {
+	{ "min_time", "int", NULL, NULL, NULL, 0 },
+	{ NULL, NULL, NULL, NULL, NULL, 0 }
+};
+
 static const WT_CONFIG_CHECK confchk_WT_SESSION_open_cursor[] = {
 	{ "append", "boolean", NULL, NULL, NULL, 0 },
 	{ "bulk", "string", NULL, NULL, NULL, 0 },
@@ -863,6 +868,10 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	{ "WT_SESSION.drop",
 	  "force=0,remove_files=",
 	  confchk_WT_SESSION_drop, 2
+	},
+	{ "WT_SESSION.log_last_op",
+	  "min_time=0",
+	  confchk_WT_SESSION_log_last_op, 1
 	},
 	{ "WT_SESSION.log_printf",
 	  "",

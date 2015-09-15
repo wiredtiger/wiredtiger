@@ -8,6 +8,7 @@
 
 #include "wt_internal.h"
 
+#include <syscall.h>
 /*
  * __wt_checkpoint_name_ok --
  *	Complain if the checkpoint name isn't acceptable.
@@ -626,6 +627,8 @@ err:	/*
 		__wt_spin_unlock(session, &conn->schema_lock);
 	}
 
+	printf("%d:%d: WiredTiger transaction checkpoint finished, db: %s\n",
+	    (int) time(NULL), (int)syscall(SYS_gettid), conn->home);
 	session->isolation = txn->isolation = saved_isolation;
 	return (ret);
 }

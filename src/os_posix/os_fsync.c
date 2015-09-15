@@ -15,6 +15,11 @@
 static int
 __wt_handle_sync(int fd)
 {
+#define	DISABLE_SYNC 1
+#ifdef DISABLE_SYNC
+	WT_UNUSED(fd);
+	return (0);
+#else
 	WT_DECL_RET;
 
 #if defined(F_FULLFSYNC)
@@ -46,6 +51,7 @@ __wt_handle_sync(int fd)
 	WT_SYSCALL_RETRY(fsync(fd), ret);
 #endif
 	return (ret);
+#endif
 }
 
 /*
@@ -60,6 +66,7 @@ __wt_directory_sync_fh(WT_SESSION_IMPL *session, WT_FH *fh)
 #ifdef __linux__
 	WT_DECL_RET;
 
+	printf("%d:: WiredTiger calling directory sync1\n", (int)time(NULL));
 	if ((ret = __wt_handle_sync(fh->fd)) == 0)
 		return (0);
 	WT_RET_MSG(session, ret, "%s: fsync", fh->name);
@@ -77,11 +84,17 @@ __wt_directory_sync_fh(WT_SESSION_IMPL *session, WT_FH *fh)
 int
 __wt_directory_sync(WT_SESSION_IMPL *session, char *path)
 {
+#if DISABLE_SYNC
+	WT_UNUSED(session);
+	WT_UNUSED(path);
+	return (0);
+#else
 #ifdef __linux__
 	WT_DECL_RET;
 	int fd, tret;
 	char *dir;
 
+	printf("%d:: WiredTiger calling directory sync2\n", (int)time(NULL));
 	/*
 	 * POSIX 1003.1 does not require that fsync of a file handle ensures the
 	 * entry in the directory containing the file has also reached disk (and
@@ -113,6 +126,7 @@ err:	WT_SYSCALL_RETRY(close(fd), tret);
 	WT_UNUSED(path);
 	return (0);
 #endif
+#endif
 }
 
 /*
@@ -124,6 +138,7 @@ __wt_fsync(WT_SESSION_IMPL *session, WT_FH *fh)
 {
 	WT_DECL_RET;
 
+	printf("%d:: WiredTiger calling file sync\n", (int)time(NULL));
 	WT_RET(__wt_verbose(session, WT_VERB_FILEOPS, "%s: fsync", fh->name));
 
 	if ((ret = __wt_handle_sync(fh->fd)) == 0)
@@ -141,6 +156,7 @@ __wt_fsync_async(WT_SESSION_IMPL *session, WT_FH *fh)
 #ifdef	HAVE_SYNC_FILE_RANGE
 	WT_DECL_RET;
 
+	printf("%d:: WiredTiger calling file async\n", (int)time(NULL));
 	WT_RET(__wt_verbose(
 	    session, WT_VERB_FILEOPS, "%s: sync_file_range", fh->name));
 

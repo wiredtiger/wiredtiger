@@ -1558,6 +1558,22 @@ struct __wt_session {
 	 * @errors
 	 */
 	int __F(transaction_sync)(WT_SESSION *session, const char *config);
+
+	/*!
+	 * Log information about the last operation to the message handler.
+	 *
+	 *
+	 * @snippet ex_log_cursor_op.c Log cursor ops
+	 *
+	 * @param cursor the cursor handle
+	 * @configstart{WT_SESSION.log_last_op, see dist/api_data.py}
+	 * @config{min_time, Only log the last operation if it took more than
+	 * minimum time in milliseconds.  A value of zero unconditionally logs
+	 * operation., an integer; default \c 0.}
+	 * @configend
+	 * @errors
+	 */
+	int __F(log_last_op)(WT_SESSION *session, const char *config);
 	/*! @} */
 };
 

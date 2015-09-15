@@ -44,6 +44,7 @@ __evict_exclusive(WT_SESSION_IMPL *session, WT_REF *ref)
 	return (EBUSY);
 }
 
+#include <syscall.h>
 /*
  * __wt_evict --
  *	Evict a page.
@@ -85,6 +86,13 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
 	if (inmem_split)
 		goto done;
 
+	if (page->memory_footprint > S2BT(session)->maxmempage)
+		printf("%d:%d: WiredTiger evicted a page %" PRIu64
+		    " MB, app? %s, db: %s\n",
+		    (int)time(NULL), (int)syscall(SYS_gettid),
+		    page->memory_footprint / (1024 * 1024),
+		    F_ISSET(session, WT_SESSION_INTERNAL) ? "no" : "yes",
+		    conn->home);
 	/*
 	 * Update the page's modification reference, reconciliation might have
 	 * changed it.

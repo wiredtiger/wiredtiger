@@ -38,6 +38,37 @@ struct __wt_hazard {
 #define	S2BT_SAFE(session) ((session)->dhandle == NULL ? NULL : S2BT(session))
 
 /*
+ * WT_OP_TRACKER_ENTRY --
+ *	Per-cursor structure used to track timing for individual operations.
+ */
+struct __wt_op_tracker_entry {
+	/* Type of operation being tracked. TODO: Could be an enum? */
+#define	WT_OP_TYPE_CURSOR_CREATE	0x001
+#define	WT_OP_TYPE_CURSOR_INSERT	0x002
+#define	WT_OP_TYPE_CURSOR_NEXT		0x004
+#define	WT_OP_TYPE_CURSOR_PREV		0x008
+#define	WT_OP_TYPE_CURSOR_REMOVE	0x010
+#define	WT_OP_TYPE_CURSOR_UPDATE	0x020
+#define	WT_OP_TYPE_EVICT_CLEAN		0x040
+#define	WT_OP_TYPE_EVICT_DIRTY		0x080
+#define	WT_OP_TYPE_EVICT_FORCED		0x100
+#define	WT_OP_TYPE_EVICT_WAIT		0x200
+#define	WT_OP_TYPE_IO_DSYNC		0x400
+#define	WT_OP_TYPE_IO_READ		0x800
+#define	WT_OP_TYPE_IO_SYNC		0x1000
+#define	WT_OP_TYPE_IO_WRITE		0x2000
+	uint32_t type;
+
+	struct timespec end, start;	/* Begin and end timestamps */
+	struct timespec last_stop;	/* Record when the next op finishes. */
+	uint64_t self_time_us;		/* Time consumed by this operation */
+	WT_ITEM *msg;			/* Optional additional information */
+
+	TAILQ_ENTRY(__wt_op_tracker_entry) q;	/* Queue of operations */
+	TAILQ_ENTRY(__wt_op_tracker_entry) aq;	/* Available queue */
+};
+
+/*
  * WT_SESSION_IMPL --
  *	Implementation of WT_SESSION.
  */
@@ -176,6 +207,14 @@ struct WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) __wt_session_impl {
 	size_t  split_stash_alloc;	/* Allocated bytes */
 
 	uint64_t split_gen;		/* Reading split generation */
+
+	/*
+	 * Structure used to store timing information about a single operation
+	 * on a cursor.
+	 */
+	TAILQ_HEAD(__op_tracker, __wt_op_tracker_entry) op_trackerq;
+	/* Don't reallocate slow ops all the time. */
+	TAILQ_HEAD(__op_tracker_avail, __wt_op_tracker_entry) op_tracker_availq;
 
 	/*
 	 * Hazard pointers.

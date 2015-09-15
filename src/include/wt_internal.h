@@ -220,6 +220,8 @@ struct __wt_named_extractor;
     typedef struct __wt_named_extractor WT_NAMED_EXTRACTOR;
 struct __wt_named_snapshot;
     typedef struct __wt_named_snapshot WT_NAMED_SNAPSHOT;
+struct __wt_op_tracker_entry;
+    typedef struct __wt_op_tracker_entry WT_OP_TRACKER_ENTRY;
 struct __wt_ovfl_reuse;
     typedef struct __wt_ovfl_reuse WT_OVFL_REUSE;
 struct __wt_ovfl_track;

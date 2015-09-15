@@ -725,6 +725,13 @@ methods = {
         type='boolean'),
 ]),
 
+'WT_SESSION.log_last_op' : Method([
+    Config('min_time', '0', r'''
+        Only log the last operation if it took more than minimum time in
+        milliseconds. A value of zero unconditionally logs operation.''',
+        type='int'),
+]),
+
 'WT_SESSION.log_printf' : Method([]),
 
 'WT_SESSION.open_cursor' : Method(cursor_runtime_config + [
