@@ -17,21 +17,19 @@
 	(s)->name = (s)->lastop = #h "." #n;				\
 	API_CALL_OP_TRACK_ENTER(s, h, n);				\
 
-/* Yuck - wrap this in a declaration block so we can define new field. */
 #define	API_CALL_OP_TRACK_ENTER(s, h, n)				\
 	if (WT_OP_TYPE_##h##_##n != WT_OP_TYPE_WT_SESSION_log_last_op) {\
-		WT_ERR(__wt_session_op_tracker_clear(s));		\
 		WT_ERR(__wt_session_op_tracker_create_entry(		\
-		    s, WT_OP_TYPE_##h##_##n, &__op_entry));		\
+		    s, WT_OP_TYPE_##h##_##n, 1, &__op_entry));		\
 		__tracking = 1;						\
 	}
 
-#define	API_CALL_OP_TRACK_LEAVE(s, ret)	 do {			\
-	int __tret;						\
-	if (__tracking &&					\
-	    (__tret = __wt_session_op_tracker_finish_entry(	\
-	    s, __op_entry)) != 0 && ret == 0)			\
-		ret = __tret;					\
+#define	API_CALL_OP_TRACK_LEAVE(s, ret)	 do {				\
+	int __tret;							\
+	if (__tracking &&						\
+	    (__tret = __wt_session_op_tracker_finish_entry(		\
+	    s, 1, __op_entry)) != 0 && ret == 0)			\
+		ret = __tret;						\
 } while (0)
 
 #define	API_CALL_NOCONF(s, h, n, cur, dh) do {				\

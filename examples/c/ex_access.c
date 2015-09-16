@@ -75,7 +75,7 @@ main(void)
 
 	/* Open a connection to the database, creating it if necessary. */
 	if ((ret = wiredtiger_open(home, &event_handler, "create", &conn)) != 0 ||
-	    (ret = conn->open_session(conn, NULL, NULL, &session)) != 0) {
+	    (ret = conn->open_session(conn, NULL, "op_trace_min=1", &session)) != 0) {
 		fprintf(stderr, "Error connecting to %s: %s\n",
 		    home, wiredtiger_strerror(ret));
 		return (ret);

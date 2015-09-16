@@ -234,7 +234,6 @@ __curfile_insert(WT_CURSOR *cursor)
 {
 	WT_CURSOR_BTREE *cbt;
 	WT_DECL_RET;
-	WT_OP_TRACKER_ENTRY *op_entry;
 	WT_SESSION_IMPL *session;
 
 	cbt = (WT_CURSOR_BTREE *)cursor;
@@ -242,9 +241,6 @@ __curfile_insert(WT_CURSOR *cursor)
 	if (!F_ISSET(cursor, WT_CURSTD_APPEND))
 		WT_CURSOR_NEEDKEY(cursor);
 	WT_CURSOR_NEEDVALUE(cursor);
-
-	WT_RET(__wt_session_op_tracker_create_entry(
-	    session, WT_OP_TYPE_CURSOR_INSERT, &op_entry));
 
 	WT_BTREE_CURSOR_SAVE_AND_RESTORE(cursor, __wt_btcur_insert(cbt), ret);
 

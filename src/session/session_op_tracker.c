@@ -14,12 +14,21 @@
  */
 int
 __wt_session_op_tracker_create_entry(
-    WT_SESSION_IMPL *session, uint32_t type, WT_OP_TRACKER_ENTRY **entryp)
+    WT_SESSION_IMPL *session, uint32_t type,
+    uint32_t api_boundary, WT_OP_TRACKER_ENTRY **entryp)
 {
 	WT_OP_TRACKER_ENTRY *entry, *prev_entry;
 
 	if (F_ISSET(session, WT_SESSION_INTERNAL))
 		return (0);
+
+	/*
+	 * If we are entering the first time via a public API clear any
+	 * tracked operations from the previous API call. Track the call depth
+	 * since WiredTiger uses API calls internally.
+	 */
+	if (api_boundary && session->api_call_depth == 0)
+		WT_RET(__wt_session_op_tracker_clear(session));
 
 	if ((entry = TAILQ_FIRST(&session->op_tracker_availq)) != NULL) {
 		TAILQ_REMOVE(&session->op_tracker_availq, entry, aq);
@@ -27,21 +36,34 @@ __wt_session_op_tracker_create_entry(
 		WT_RET(__wt_calloc_one(session, &entry));
 
 	WT_RET(__wt_epoch(session, &entry->start));
+	memcpy(&entry->last_stop, &entry->start, sizeof(struct timespec));
 	TAILQ_INSERT_TAIL(&session->op_trackerq, entry, q);
+
 	/*
 	 * Update the self time of the previous entry.
 	 * TODO: This is hopefully going to track self time - that will require
 	 * tracking a depth in the queue. For now assume the entries aren't
 	 * nested.
 	 */
-	if ((prev_entry = TAILQ_PREV(entry, __op_tracker, q)) != NULL) {
+	/*
+	 * Find the parent for this entry. It is the last entry in the queue
+	 * that hasn't been finished.
+	 */
+	for (prev_entry = entry; prev_entry != NULL;
+	    prev_entry = TAILQ_PREV(prev_entry, __op_tracker, q)) {
+		if (prev_entry->done)
+			continue;
 		prev_entry->self_time_us +=
 		    WT_TIMEDIFF(prev_entry->last_stop, entry->start);
+		break;
 	}
 
 	/* Create and insert the first entry into the slow op tracker. */
 	entry->type = type;
 	*entryp = entry;
+
+	if (api_boundary)
+		++session->api_call_depth;
 
 	return (0);
 }
@@ -51,7 +73,7 @@ __wt_session_op_tracker_create_entry(
  */
 int
 __wt_session_op_tracker_finish_entry(
-    WT_SESSION_IMPL *session, WT_OP_TRACKER_ENTRY *entry)
+    WT_SESSION_IMPL *session, uint32_t api_boundary, WT_OP_TRACKER_ENTRY *entry)
 {
 	WT_OP_TRACKER_ENTRY *prev_entry;
 
@@ -66,16 +88,28 @@ __wt_session_op_tracker_finish_entry(
 	if (session->iface.connection == NULL)
 		return (0);
 
+	if (api_boundary)
+		--session->api_call_depth;
+
 	WT_RET(__wt_epoch(session, &entry->end));
-	/*
-	 * Restart the self timer if there is a previous entry.
-	 * TODO: This is hopefully going to track self time - that will require
-	 * tracking a depth in the queue. For now assume the entries aren't
-	 * nested.
-	 */
-	if ((prev_entry = TAILQ_PREV(entry, __op_tracker, q)) != NULL) {
+	entry->done = 1;
+	/* Start the sub-entry timer if this is a nested operation. */
+	for (prev_entry = entry; prev_entry != NULL;
+	    prev_entry = TAILQ_PREV(prev_entry, __op_tracker, q)) {
+		if (prev_entry->done)
+			continue;
 		memcpy(&prev_entry->last_stop,
 		    &entry->end, sizeof(struct timespec));
+		break;
+	}
+
+	/* Reporting is done as we are returning from the API call. */
+	if (api_boundary && session->api_call_depth == 0) {
+		/* Update the self timer since this is the end of the trace. */
+		entry->self_time_us +=
+		    WT_TIMEDIFF(entry->end, entry->last_stop);
+		WT_RET(__wt_session_op_tracker_dump(
+		    session, session->op_trace_min));
 	}
 
 	return (0);
@@ -140,7 +174,7 @@ __wt_session_op_tracker_setup(WT_SESSION_IMPL *session)
 
 /*
  * __wt_session_op_tracker_dump --
- *	Wrte the tracking information for the last operation to the configured
+ *	Write the tracking information for the last operation to the configured
  *	message log.
  */
 int
@@ -159,27 +193,30 @@ __wt_session_op_tracker_dump(WT_SESSION_IMPL *session, uint64_t min_time)
 	 * proceed if the operation was slow enough.
 	 */
 	optime = WT_TIMEDIFF(entry->end, entry->start) / WT_MILLION;
-	if (min_time != 0 && optime > min_time)
+	if (min_time != 0 && optime < min_time)
 		return (0);
 
 	WT_RET(__wt_scr_alloc(session, 1024, &buffer));
-	WT_ERR(__wt_buf_catfmt(session, buffer, "<Slow operation>"));
+	WT_ERR(__wt_buf_catfmt(session, buffer,
+	    "{\n\"slow_op\" : [\n"));
 	TAILQ_FOREACH(entry, &session->op_trackerq, q) {
-		WT_ERR(__wt_buf_catfmt(session, buffer, "<entry>"));
+		optime = WT_TIMEDIFF(entry->end, entry->start) / WT_MILLION;
+		WT_ERR(__wt_buf_catfmt(session, buffer, "{\n"));
 		WT_ERR(__wt_buf_catfmt(session, buffer,
-		    "<elapsed>%" PRIu64 "</elapsed>", optime));
+		    "\"elapsed\" : %" PRIu64 ",\n", optime));
 		WT_ERR(__wt_buf_catfmt(session, buffer,
-		    "<self_time>%" PRIu64 "</self_time>", optime));
+		    "\"self_time\" : %" PRIu64 ",\n",
+		    entry->self_time_us / WT_MILLION));
 		WT_ERR(__wt_buf_catfmt(session, buffer,
-		    "<type>%" PRIu32 "</type>", entry->type));
+		    "\"type\" : %" PRIu32 ",\n", entry->type));
 		if (entry->msg != NULL)
 			WT_ERR(__wt_buf_catfmt(session,
-			    buffer, "<msg>%.*s</msg>",
+			    buffer, "\"msg\" : %.*s\n",
 			    (int)entry->msg->size,
 			    (const char *)entry->msg->mem));
-		WT_ERR(__wt_buf_catfmt(session, buffer, "</entry>"));
+		WT_ERR(__wt_buf_catfmt(session, buffer, "},\n"));
 	}
-	WT_ERR(__wt_buf_catfmt(session, buffer, "</Slow operation>"));
+	WT_ERR(__wt_buf_catfmt(session, buffer, "]\n}\n"));
 
 	WT_ERR(__wt_msg(session, "%s", (const char *)buffer->mem));
 err:	__wt_scr_free(session, &buffer);

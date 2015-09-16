@@ -42,27 +42,23 @@ struct __wt_hazard {
  *	Per-cursor structure used to track timing for individual operations.
  */
 struct __wt_op_tracker_entry {
-	/* Type of operation being tracked. TODO: Could be an enum? */
-#define	WT_OP_TYPE_CURSOR_CREATE	0x001
-#define	WT_OP_TYPE_CURSOR_INSERT	0x002
-#define	WT_OP_TYPE_CURSOR_NEXT		0x004
-#define	WT_OP_TYPE_CURSOR_PREV		0x008
-#define	WT_OP_TYPE_CURSOR_REMOVE	0x010
-#define	WT_OP_TYPE_CURSOR_UPDATE	0x020
-#define	WT_OP_TYPE_EVICT_CLEAN		0x040
-#define	WT_OP_TYPE_EVICT_DIRTY		0x080
-#define	WT_OP_TYPE_EVICT_FORCED		0x100
-#define	WT_OP_TYPE_EVICT_WAIT		0x200
-#define	WT_OP_TYPE_IO_DSYNC		0x400
-#define	WT_OP_TYPE_IO_READ		0x800
-#define	WT_OP_TYPE_IO_SYNC		0x1000
-#define	WT_OP_TYPE_IO_WRITE		0x2000
+	/*
+	 * Non API operation types. The API operation type descriptors are
+	 * automatically generated via dist/op_track.py. Allocate these
+	 * identifiers about 1000 to avoid namespace conflicts.
+	 */
+#define	WT_OP_TYPE_EVICT_WAIT	1000
+#define	WT_OP_TYPE_IO_DSYNC		1001
+#define	WT_OP_TYPE_IO_READ		1002
+#define	WT_OP_TYPE_IO_SYNC		1003
+#define	WT_OP_TYPE_IO_WRITE		1004
 	uint32_t type;
 
-	struct timespec end, start;	/* Begin and end timestamps */
+	struct timespec end, start;	/* Begin and end time stamps */
 	struct timespec last_stop;	/* Record when the next op finishes. */
 	uint64_t self_time_us;		/* Time consumed by this operation */
 	WT_ITEM *msg;			/* Optional additional information */
+	int done;
 
 	TAILQ_ENTRY(__wt_op_tracker_entry) q;	/* Queue of operations */
 	TAILQ_ENTRY(__wt_op_tracker_entry) aq;	/* Available queue */
@@ -212,6 +208,8 @@ struct WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) __wt_session_impl {
 	 * Structure used to store timing information about a single operation
 	 * on a cursor.
 	 */
+	uint64_t api_call_depth;
+	uint64_t op_trace_min;
 	TAILQ_HEAD(__op_tracker, __wt_op_tracker_entry) op_trackerq;
 	/* Don't reallocate slow ops all the time. */
 	TAILQ_HEAD(__op_tracker_avail, __wt_op_tracker_entry) op_tracker_availq;

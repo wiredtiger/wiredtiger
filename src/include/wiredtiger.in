@@ -832,6 +832,9 @@ struct __wt_session {
 	 * session., a string\, chosen from the following options: \c
 	 * "read-uncommitted"\, \c "read-committed"\, \c "snapshot"; default \c
 	 * read-committed.}
+	 * @config{op_trace_min, minimum amount of time in milliseconds a single
+	 * API call can run before information will be automatically logged to
+	 * the message stream.  Default to disabled., a string; default \c -1.}
 	 * @configend
 	 * @errors
 	 */
@@ -1890,6 +1893,9 @@ struct __wt_connection {
 	 * session., a string\, chosen from the following options: \c
 	 * "read-uncommitted"\, \c "read-committed"\, \c "snapshot"; default \c
 	 * read-committed.}
+	 * @config{op_trace_min, minimum amount of time in milliseconds a single
+	 * API call can run before information will be automatically logged to
+	 * the message stream.  Default to disabled., a string; default \c -1.}
 	 * @configend
 	 * @param[out] sessionp the new session handle
 	 * @errors
