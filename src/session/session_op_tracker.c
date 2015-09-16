@@ -156,7 +156,7 @@ __wt_session_op_tracker_clear(WT_SESSION_IMPL *session)
 		TAILQ_REMOVE(&session->op_trackerq, entry, q);
 		if (entry->msg != NULL)
 			__wt_scr_free(session, &entry->msg);
-		memset(entry, 0, sizeof(entry));
+		memset(entry, 0, sizeof(WT_OP_TRACKER_ENTRY));
 		TAILQ_INSERT_TAIL(&session->op_tracker_availq, entry, aq);
 	}
 
