@@ -68,7 +68,7 @@ __wt_session_op_tracker_create_entry(
 		if (prev_entry->done)
 			continue;
 		prev_entry->self_time_us +=
-		    WT_TIMEDIFF(prev_entry->last_stop, entry->start);
+		    WT_TIMEDIFF(entry->start, prev_entry->last_stop);
 		break;
 	}
 
