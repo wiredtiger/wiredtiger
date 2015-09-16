@@ -30,7 +30,7 @@ __wt_session_op_tracker_create_entry(
 	/*
 	 * Don't capture WT_CONNECTION methods. It would be nice to have
 	 * a different way to capture this. An alternative would be to have
-	 * an exclude list bult via op_track.py. In the mean time this
+	 * an exclude list built via op_track.py. In the mean time this
 	 * works.
 	 */
 	if (type >= WT_OP_TYPE_WT_CONNECTION_async_flush &&

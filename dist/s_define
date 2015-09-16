@@ -20,8 +20,10 @@ sed -e '/^$/d' -e '/^#/d' < s_define.list
 # Search the list of include files for #defines
 # Ignore configuration objects #defines
 # Ignore statistic "keys" generated for applications #defines
+op_track_sect="operation tracking section"
 search=`cat $dl |
     sed -e '/configuration section: BEGIN/,/configuration section: END/d' \
+        -e '/operation tracking section: BEGIN/,/operation tracking section: END/d' \
         -e '/Statistics section: BEGIN/,/Statistics section: END/d' |
     egrep '^#define' |
     sed 's/#define[	 ][	 ]*\([A-Za-z_][A-Za-z0-9_]*\).*/\1/' |
