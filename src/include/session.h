@@ -47,17 +47,19 @@ struct __wt_op_tracker_entry {
 	 * automatically generated via dist/op_track.py. Allocate these
 	 * identifiers about 1000 to avoid namespace conflicts.
 	 */
-#define	WT_OP_TYPE_EVICT_WAIT	1000
-#define	WT_OP_TYPE_IO_DSYNC		1001
-#define	WT_OP_TYPE_IO_READ		1002
-#define	WT_OP_TYPE_IO_SYNC		1003
-#define	WT_OP_TYPE_IO_WRITE		1004
+#define	WT_OP_TYPE_EVICT_PAGE		1000
+#define	WT_OP_TYPE_IO_ASYNC		1001
+#define	WT_OP_TYPE_IO_DSYNC		1002
+#define	WT_OP_TYPE_IO_FSYNC		1003
+#define	WT_OP_TYPE_IO_READ		1004
+#define	WT_OP_TYPE_IO_WRITE		1005
 	uint32_t type;
 
 	struct timespec end, start;	/* Begin and end time stamps */
 	struct timespec last_stop;	/* Record when the next op finishes. */
 	uint64_t self_time_us;		/* Time consumed by this operation */
 	WT_ITEM *msg;			/* Optional additional information */
+	int api_boundary;
 	int done;
 
 	TAILQ_ENTRY(__wt_op_tracker_entry) q;	/* Queue of operations */

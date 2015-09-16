@@ -28,7 +28,7 @@
 	int __tret;							\
 	if (__tracking &&						\
 	    (__tret = __wt_session_op_tracker_finish_entry(		\
-	    s, 1, __op_entry)) != 0 && ret == 0)			\
+	    s, __op_entry)) != 0 && ret == 0)				\
 		ret = __tret;						\
 } while (0)
 

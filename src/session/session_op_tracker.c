@@ -19,7 +19,12 @@ __wt_session_op_tracker_create_entry(
 {
 	WT_OP_TRACKER_ENTRY *entry, *prev_entry;
 
+	*entryp = NULL;
 	if (F_ISSET(session, WT_SESSION_INTERNAL))
+		return (0);
+
+	/* Don't capture tracing unless we are recording for the API */
+	if (!api_boundary && TAILQ_EMPTY(&session->op_trackerq))
 		return (0);
 
 	/*
@@ -37,6 +42,7 @@ __wt_session_op_tracker_create_entry(
 
 	WT_RET(__wt_epoch(session, &entry->start));
 	memcpy(&entry->last_stop, &entry->start, sizeof(struct timespec));
+	entry->api_boundary = api_boundary;
 	TAILQ_INSERT_TAIL(&session->op_trackerq, entry, q);
 
 	/*
@@ -73,11 +79,17 @@ __wt_session_op_tracker_create_entry(
  */
 int
 __wt_session_op_tracker_finish_entry(
-    WT_SESSION_IMPL *session, uint32_t api_boundary, WT_OP_TRACKER_ENTRY *entry)
+    WT_SESSION_IMPL *session, WT_OP_TRACKER_ENTRY *entry)
 {
 	WT_OP_TRACKER_ENTRY *prev_entry;
 
-	if (F_ISSET(session, WT_SESSION_INTERNAL))
+	/*
+	 * Don't track operations completed by internal sessions. It's also
+	 * OK to ignore calls with a NULL entry - they are operations that
+	 * weren't fully created, and we handle finish with a NULL entry to
+	 * avoid complicating callers code.
+	 */
+	if (F_ISSET(session, WT_SESSION_INTERNAL) || entry == NULL)
 		return (0);
 
 	/*
@@ -88,7 +100,7 @@ __wt_session_op_tracker_finish_entry(
 	if (session->iface.connection == NULL)
 		return (0);
 
-	if (api_boundary)
+	if (entry->api_boundary)
 		--session->api_call_depth;
 
 	WT_RET(__wt_epoch(session, &entry->end));
@@ -104,7 +116,7 @@ __wt_session_op_tracker_finish_entry(
 	}
 
 	/* Reporting is done as we are returning from the API call. */
-	if (api_boundary && session->api_call_depth == 0) {
+	if (entry->api_boundary && session->api_call_depth == 0) {
 		/* Update the self timer since this is the end of the trace. */
 		entry->self_time_us +=
 		    WT_TIMEDIFF(entry->end, entry->last_stop);

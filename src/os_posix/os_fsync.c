@@ -65,11 +65,16 @@ __wt_directory_sync_fh(WT_SESSION_IMPL *session, WT_FH *fh)
 {
 #ifdef __linux__
 	WT_DECL_RET;
+	WT_OP_TRACKER_ENTRY *tracker_entry;
 
-	printf("%d:: WiredTiger calling directory sync1\n", (int)time(NULL));
-	if ((ret = __wt_handle_sync(fh->fd)) == 0)
-		return (0);
-	WT_RET_MSG(session, ret, "%s: fsync", fh->name);
+	WT_RET(__wt_session_op_tracker_create_entry(
+	    session, WT_OP_TYPE_IO_DSYNC, 0, &tracker_entry));
+
+	if ((ret = __wt_handle_sync(fh->fd)) != 0)
+		WT_ERR_MSG(session, ret, "%s: fsync", fh->name);
+
+err:	WT_TRET(__wt_session_op_tracker_finish_entry(session, tracker_entry));
+	return (ret);
 #else
 	WT_UNUSED(session);
 	WT_UNUSED(fh);
@@ -91,10 +96,13 @@ __wt_directory_sync(WT_SESSION_IMPL *session, char *path)
 #else
 #ifdef __linux__
 	WT_DECL_RET;
+	WT_OP_TRACKER_ENTRY *tracker_entry;
 	int fd, tret;
 	char *dir;
 
-	printf("%d:: WiredTiger calling directory sync2\n", (int)time(NULL));
+	WT_RET(__wt_session_op_tracker_create_entry(
+	    session, WT_OP_TYPE_IO_DSYNC, 0, &tracker_entry));
+
 	/*
 	 * POSIX 1003.1 does not require that fsync of a file handle ensures the
 	 * entry in the directory containing the file has also reached disk (and
@@ -117,6 +125,7 @@ __wt_directory_sync(WT_SESSION_IMPL *session, char *path)
 		WT_ERR_MSG(session, ret, "%s: fsync", path);
 
 err:	WT_SYSCALL_RETRY(close(fd), tret);
+	WT_TRET(__wt_session_op_tracker_finish_entry(session, tracker_entry));
 	if (tret != 0)
 		__wt_err(session, tret, "%s: close", path);
 	WT_TRET(tret);
@@ -136,14 +145,19 @@ err:	WT_SYSCALL_RETRY(close(fd), tret);
 int
 __wt_fsync(WT_SESSION_IMPL *session, WT_FH *fh)
 {
+	WT_OP_TRACKER_ENTRY *tracker_entry;
 	WT_DECL_RET;
 
-	printf("%d:: WiredTiger calling file sync\n", (int)time(NULL));
+	WT_RET(__wt_session_op_tracker_create_entry(
+	    session, WT_OP_TYPE_IO_FSYNC, 0, &tracker_entry));
+
 	WT_RET(__wt_verbose(session, WT_VERB_FILEOPS, "%s: fsync", fh->name));
 
-	if ((ret = __wt_handle_sync(fh->fd)) == 0)
-		return (0);
-	WT_RET_MSG(session, ret, "%s fsync error", fh->name);
+	if ((ret = __wt_handle_sync(fh->fd)) != 0)
+		WT_ERR_MSG(session, ret, "%s fsync error", fh->name);
+
+err:	WT_TRET(__wt_session_op_tracker_finish_entry(session, tracker_entry));
+	return (ret);
 }
 
 /*
@@ -154,17 +168,22 @@ int
 __wt_fsync_async(WT_SESSION_IMPL *session, WT_FH *fh)
 {
 #ifdef	HAVE_SYNC_FILE_RANGE
+	WT_OP_TRACKER_ENTRY *tracker_entry;
 	WT_DECL_RET;
 
-	printf("%d:: WiredTiger calling file async\n", (int)time(NULL));
 	WT_RET(__wt_verbose(
 	    session, WT_VERB_FILEOPS, "%s: sync_file_range", fh->name));
 
+	WT_RET(__wt_session_op_tracker_create_entry(
+	    session, WT_OP_TYPE_IO_ASYNC, 0, &tracker_entry));
+
 	WT_SYSCALL_RETRY(sync_file_range(fh->fd,
 	    (off64_t)0, (off64_t)0, SYNC_FILE_RANGE_WRITE), ret);
-	if (ret == 0)
-		return (0);
-	WT_RET_MSG(session, ret, "%s: sync_file_range", fh->name);
+	if (ret != 0)
+		WT_ERR_MSG(session, ret, "%s: sync_file_range", fh->name);
+
+err:	WT_TRET(__wt_session_op_tracker_finish_entry(session, tracker_entry));
+	return (ret);
 #else
 	WT_UNUSED(session);
 	WT_UNUSED(fh);

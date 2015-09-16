@@ -17,7 +17,7 @@ int
 __wt_read(
     WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t len, void *buf)
 {
-	struct timespec end, start;
+	WT_OP_TRACKER_ENTRY *tracker_entry;
 	size_t chunk;
 	ssize_t nr;
 	uint8_t *addr;
@@ -37,7 +37,8 @@ __wt_read(
 	    len >= S2C(session)->buffer_alignment &&
 	    len % S2C(session)->buffer_alignment == 0));
 
-	WT_RET(__wt_epoch(session, &start));
+	WT_RET(__wt_session_op_tracker_create_entry(
+	    session, WT_OP_TYPE_IO_READ, 0, &tracker_entry));
 
 	/* Break reads larger than 1GB into 1GB chunks. */
 	for (addr = buf; len > 0; addr += nr, len -= (size_t)nr, offset += nr) {
@@ -48,11 +49,8 @@ __wt_read(
 			    " bytes at offset %" PRIuMAX,
 			    fh->name, chunk, (uintmax_t)offset);
 	}
-	WT_RET(__wt_epoch(session, &end));
-	if (WT_TIMEDIFF(end, start) > WT_MILLION * 900)
-		printf("%d:%d: WiredTiger slow read in %s of %d bytes took: %" PRIu64 "ms\n",
-		    (int)time(NULL), (int)syscall(SYS_gettid), S2C(session)->home, (int)len,
-		    WT_TIMEDIFF(end, start) / WT_MILLION);
+
+	WT_RET(__wt_session_op_tracker_finish_entry(session, tracker_entry));
 	return (0);
 }
 
@@ -64,7 +62,7 @@ int
 __wt_write(WT_SESSION_IMPL *session,
     WT_FH *fh, wt_off_t offset, size_t len, const void *buf)
 {
-	struct timespec end, start;
+	WT_OP_TRACKER_ENTRY *tracker_entry;
 	size_t chunk;
 	ssize_t nw;
 	const uint8_t *addr;
@@ -84,7 +82,8 @@ __wt_write(WT_SESSION_IMPL *session,
 	    len >= S2C(session)->buffer_alignment &&
 	    len % S2C(session)->buffer_alignment == 0));
 
-	WT_RET(__wt_epoch(session, &start));
+	WT_RET(__wt_session_op_tracker_create_entry(
+	    session, WT_OP_TYPE_IO_WRITE, 0, &tracker_entry));
 	/* Break writes larger than 1GB into 1GB chunks. */
 	for (addr = buf; len > 0; addr += nw, len -= (size_t)nw, offset += nw) {
 		chunk = WT_MIN(len, WT_GIGABYTE);
@@ -95,11 +94,6 @@ __wt_write(WT_SESSION_IMPL *session,
 			    fh->name, chunk, (uintmax_t)offset);
 	}
 
-	WT_RET(__wt_epoch(session, &end));
-	/* 0.9 seconds */
-	if (WT_TIMEDIFF(end, start) > WT_MILLION * 900)
-		printf("%d:%d: WiredTiger slow write in %s of %d bytes took: %" PRIu64 "ms\n",
-		    (int)time(NULL), (int)syscall(SYS_gettid), S2C(session)->home, (int)len,
-		    WT_TIMEDIFF(end, start) / WT_MILLION);
+	WT_RET(__wt_session_op_tracker_finish_entry(session, tracker_entry));
 	return (0);
 }

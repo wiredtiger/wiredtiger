@@ -603,7 +603,7 @@ extern int __wt_session_get_btree(WT_SESSION_IMPL *session, const char *uri, con
 extern int __wt_session_lock_checkpoint(WT_SESSION_IMPL *session, const char *checkpoint);
 extern int __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[]);
 extern int __wt_session_op_tracker_create_entry( WT_SESSION_IMPL *session, uint32_t type, uint32_t api_boundary, WT_OP_TRACKER_ENTRY **entryp);
-extern int __wt_session_op_tracker_finish_entry( WT_SESSION_IMPL *session, uint32_t api_boundary, WT_OP_TRACKER_ENTRY *entry);
+extern int __wt_session_op_tracker_finish_entry( WT_SESSION_IMPL *session, WT_OP_TRACKER_ENTRY *entry);
 extern int __wt_session_op_tracker_clear(WT_SESSION_IMPL *session);
 extern int __wt_session_op_tracker_destroy(WT_SESSION_IMPL *session);
 extern int __wt_session_op_tracker_setup(WT_SESSION_IMPL *session);
