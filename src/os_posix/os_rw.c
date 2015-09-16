@@ -7,7 +7,6 @@
  */
 
 #include "wt_internal.h"
-#include <syscall.h>
 
 /*
  * __wt_read --

@@ -44,7 +44,6 @@ __evict_exclusive(WT_SESSION_IMPL *session, WT_REF *ref)
 	return (EBUSY);
 }
 
-#include <syscall.h>
 /*
  * __wt_evict --
  *	Evict a page.

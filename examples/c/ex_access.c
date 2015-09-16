@@ -36,23 +36,6 @@
 
 static const char *home;
 
-static int
-handle_message(WT_EVENT_HANDLER *handler,
-    WT_SESSION *session, const char *message)
-{
-	handler = handler;
-	session = session;
-	printf("Operation tracking message:\n%s", message);
-	return (0);
-}
-
-static WT_EVENT_HANDLER event_handler = {
-	NULL,
-	handle_message,
-	NULL,
-	NULL	/* Close handler. */
-};
-
 int
 main(void)
 {
@@ -74,8 +57,8 @@ main(void)
 		home = NULL;
 
 	/* Open a connection to the database, creating it if necessary. */
-	if ((ret = wiredtiger_open(home, &event_handler, "create", &conn)) != 0 ||
-	    (ret = conn->open_session(conn, NULL, "op_trace_min=1", &session)) != 0) {
+	if ((ret = wiredtiger_open(home, NULL, "create", &conn)) != 0 ||
+	    (ret = conn->open_session(conn, NULL, NULL, &session)) != 0) {
 		fprintf(stderr, "Error connecting to %s: %s\n",
 		    home, wiredtiger_strerror(ret));
 		return (ret);
@@ -96,7 +79,6 @@ main(void)
 	cursor->set_key(cursor, "key1");	/* Insert a record. */
 	cursor->set_value(cursor, "value1");
 	ret = cursor->insert(cursor);
-	session->log_last_op(session, NULL);
 	/*! [access example cursor insert] */
 
 	/*! [access example cursor list] */

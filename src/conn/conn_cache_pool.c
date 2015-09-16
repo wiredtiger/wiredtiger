@@ -549,7 +549,6 @@ __cache_pool_assess(WT_SESSION_IMPL *session, uint64_t *phighest)
 	return (0);
 }
 
-#include <syscall.h>
 /*
  * __cache_pool_adjust --
  *	Adjust the allocation of cache to each connection. If full is set
@@ -649,11 +648,6 @@ __cache_pool_adjust(WT_SESSION_IMPL *session,
 			adjustment =
 			    WT_MIN(adjustment, entry->cache_size - reserved);
 
-			if (adjustment != 0)
-				fprintf(stdout,
-				    "%d:%d: WiredTiger shared cache reduced by %d, db: %s\n",
-				    (int)time(NULL), (int)syscall(SYS_gettid),
-				    (int)adjustment, entry->home);
 		/*
 		 * Conditions for increasing the amount of resources for an
 		 * entry:
