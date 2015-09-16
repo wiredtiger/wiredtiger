@@ -28,6 +28,19 @@ __wt_session_op_tracker_create_entry(
 		return (0);
 
 	/*
+	 * Don't capture WT_CONNECTION methods. It would be nice to have
+	 * a different way to capture this. An alternative would be to have
+	 * an exclude list bult via op_track.py. In the mean time this
+	 * works.
+	 */
+	if (type >= WT_OP_TYPE_WT_CONNECTION_async_flush &&
+	    type <= WT_OP_TYPE_WT_CONNECTION_get_extension_api)
+		return (0);
+
+	WT_ASSERT(session, session->api_call_depth == 0 ||
+	    !TAILQ_EMPTY(&session->op_trackerq));
+
+	/*
 	 * If we are entering the first time via a public API clear any
 	 * tracked operations from the previous API call. Track the call depth
 	 * since WiredTiger uses API calls internally.
@@ -46,16 +59,11 @@ __wt_session_op_tracker_create_entry(
 	TAILQ_INSERT_TAIL(&session->op_trackerq, entry, q);
 
 	/*
-	 * Update the self time of the previous entry.
-	 * TODO: This is hopefully going to track self time - that will require
-	 * tracking a depth in the queue. For now assume the entries aren't
-	 * nested.
-	 */
-	/*
 	 * Find the parent for this entry. It is the last entry in the queue
 	 * that hasn't been finished.
 	 */
-	for (prev_entry = entry; prev_entry != NULL;
+	for (prev_entry = TAILQ_PREV(entry, __op_tracker, q);
+	    prev_entry != NULL;
 	    prev_entry = TAILQ_PREV(prev_entry, __op_tracker, q)) {
 		if (prev_entry->done)
 			continue;
@@ -70,6 +78,9 @@ __wt_session_op_tracker_create_entry(
 
 	if (api_boundary)
 		++session->api_call_depth;
+
+	WT_ASSERT(session,
+	    !TAILQ_EMPTY(&session->op_trackerq));
 
 	return (0);
 }
@@ -106,7 +117,8 @@ __wt_session_op_tracker_finish_entry(
 	WT_RET(__wt_epoch(session, &entry->end));
 	entry->done = 1;
 	/* Start the sub-entry timer if this is a nested operation. */
-	for (prev_entry = entry; prev_entry != NULL;
+	for (prev_entry = TAILQ_PREV(entry, __op_tracker, q);
+	    prev_entry != NULL;
 	    prev_entry = TAILQ_PREV(prev_entry, __op_tracker, q)) {
 		if (prev_entry->done)
 			continue;
@@ -124,6 +136,8 @@ __wt_session_op_tracker_finish_entry(
 		    session, session->op_trace_min));
 	}
 
+	WT_ASSERT(session, session->api_call_depth == 0 ||
+	    !TAILQ_EMPTY(&session->op_trackerq));
 	return (0);
 }
 
@@ -137,6 +151,7 @@ __wt_session_op_tracker_clear(WT_SESSION_IMPL *session)
 {
 	WT_OP_TRACKER_ENTRY *entry;
 
+	WT_ASSERT(session, session->api_call_depth == 0);
 	while ((entry = TAILQ_FIRST(&session->op_trackerq)) != NULL) {
 		TAILQ_REMOVE(&session->op_trackerq, entry, q);
 		if (entry->msg != NULL)
@@ -212,6 +227,7 @@ __wt_session_op_tracker_dump(WT_SESSION_IMPL *session, uint64_t min_time)
 	WT_ERR(__wt_buf_catfmt(session, buffer,
 	    "{\n\"slow_op\" : [\n"));
 	TAILQ_FOREACH(entry, &session->op_trackerq, q) {
+		WT_ASSERT(session, entry->done);
 		optime = WT_TIMEDIFF(entry->end, entry->start) / WT_MILLION;
 		WT_ERR(__wt_buf_catfmt(session, buffer, "{\n"));
 		WT_ERR(__wt_buf_catfmt(session, buffer,

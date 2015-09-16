@@ -18,10 +18,12 @@
 	API_CALL_OP_TRACK_ENTER(s, h, n);				\
 
 #define	API_CALL_OP_TRACK_ENTER(s, h, n)				\
-	if (WT_OP_TYPE_##h##_##n != WT_OP_TYPE_WT_SESSION_log_last_op) {\
+	if (WT_OP_TYPE_##h##_##n != WT_OP_TYPE_WT_SESSION_log_last_op &&\
+	    WT_OP_TYPE_##h##_##n != WT_OP_TYPE_WT_SESSION_close) {	\
 		WT_ERR(__wt_session_op_tracker_create_entry(		\
 		    s, WT_OP_TYPE_##h##_##n, 1, &__op_entry));		\
-		__tracking = 1;						\
+		if (__op_entry != NULL)					\
+			__tracking = 1;					\
 	}
 
 #define	API_CALL_OP_TRACK_LEAVE(s, ret)	 do {				\
