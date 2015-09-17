@@ -96,5 +96,5 @@ __wt_write(WT_SESSION_IMPL *session,
 	}
 
 err:	WT_TRET(__wt_session_op_tracker_finish_entry(session, tracker_entry));
-	return (0);
+	return (ret);
 }
