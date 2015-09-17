@@ -68,7 +68,7 @@ __wt_session_op_tracker_create_entry(
 	    prev_entry != NULL;
 	    prev_entry = TAILQ_PREV(prev_entry, __op_tracker, q)) {
 		if (prev_entry->done)
-			continue; 
+			continue;
 		WT_ASSERT(session, type != 1009 || prev_entry->type != 11);
 		entry->start_offset_us =
 		    WT_TIMEDIFF(entry->start, prev_entry->start);
