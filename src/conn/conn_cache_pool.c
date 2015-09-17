@@ -647,7 +647,6 @@ __cache_pool_adjust(WT_SESSION_IMPL *session,
 				    (entry->cache_size - smallest) / 2);
 			adjustment =
 			    WT_MIN(adjustment, entry->cache_size - reserved);
-
 		/*
 		 * Conditions for increasing the amount of resources for an
 		 * entry:

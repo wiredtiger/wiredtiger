@@ -15,11 +15,6 @@
 static int
 __wt_handle_sync(int fd)
 {
-#define	DISABLE_SYNC 1
-#ifdef DISABLE_SYNC
-	WT_UNUSED(fd);
-	return (0);
-#else
 	WT_DECL_RET;
 
 #if defined(F_FULLFSYNC)
@@ -51,7 +46,6 @@ __wt_handle_sync(int fd)
 	WT_SYSCALL_RETRY(fsync(fd), ret);
 #endif
 	return (ret);
-#endif
 }
 
 /*

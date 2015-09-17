@@ -116,7 +116,10 @@ __wt_session_op_tracker_finish_entry(
 
 	WT_RET(__wt_epoch(session, &entry->end));
 	entry->done = 1;
-	/* Start the sub-entry timer if this is a nested operation. */
+	/*
+	 * Set a timer in the parent if this operation is nested to facilitate
+	 * tracking self time.
+	 */
 	for (prev_entry = TAILQ_PREV(entry, __op_tracker, q);
 	    prev_entry != NULL;
 	    prev_entry = TAILQ_PREV(prev_entry, __op_tracker, q)) {
