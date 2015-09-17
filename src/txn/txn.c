@@ -452,6 +452,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
+	WT_OP_TRACKER_ENTRY *tracker_entry;
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 	u_int i;
@@ -463,11 +464,14 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	if (!F_ISSET(txn, WT_TXN_RUNNING))
 		WT_RET_MSG(session, EINVAL, "No transaction is active");
 
+	WT_RET(__wt_session_op_tracker_create_entry(
+	    session, WT_OP_TYPE_TXN_COMMIT, 0, &tracker_entry));
+
 	/*
 	 * The default sync setting is inherited from the connection, but can
 	 * be overridden by an explicit "sync" setting for this transaction.
 	 */
-	WT_RET(__wt_config_gets_def(session, cfg, "sync", 0, &cval));
+	WT_ERR(__wt_config_gets_def(session, cfg, "sync", 0, &cval));
 
 	/*
 	 * If the user chose the default setting, check whether sync is enabled
@@ -491,7 +495,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		 * Flag that as an error.
 		 */
 		if (F_ISSET(txn, WT_TXN_SYNC_SET))
-			WT_RET_MSG(session, EINVAL,
+			WT_ERR_MSG(session, EINVAL,
 			    "Sync already set during begin_transaction.");
 		if (WT_STRING_MATCH("background", cval.str, cval.len))
 			txn->txn_logsync = WT_LOG_BACKGROUND;
@@ -530,7 +534,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	if (ret != 0) {
 		WT_TRET(__wt_txn_rollback(session, cfg));
-		return (ret);
+		WT_ERR(ret);
 	}
 
 	/* Free memory associated with updates. */
@@ -544,10 +548,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	 * freed once we don't have a transaction ID pinned.
 	 */
 	if (session->ncursors > 0)
-		WT_RET(__wt_session_copy_values(session));
+		WT_ERR(__wt_session_copy_values(session));
 
 	__wt_txn_release(session);
-	return (0);
+err:	WT_TRET(__wt_session_op_tracker_finish_entry(session, tracker_entry));
+	return (ret);
 }
 
 /*
@@ -558,6 +563,7 @@ int
 __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_DECL_RET;
+	WT_OP_TRACKER_ENTRY *tracker_entry;
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 	u_int i;
@@ -567,6 +573,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	txn = &session->txn;
 	if (!F_ISSET(txn, WT_TXN_RUNNING))
 		WT_RET_MSG(session, EINVAL, "No transaction is active");
+
+	WT_RET(__wt_session_op_tracker_create_entry(
+	    session, WT_OP_TYPE_TXN_ROLLBACK, 0, &tracker_entry));
 
 	/* Rollback notification. */
 	if (txn->notify != NULL)
@@ -605,6 +614,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	txn->mod_count = 0;
 
 	__wt_txn_release(session);
+	WT_TRET(__wt_session_op_tracker_finish_entry(session, tracker_entry));
 	return (ret);
 }
 

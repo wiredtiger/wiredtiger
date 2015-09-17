@@ -213,7 +213,9 @@ __wt_session_op_tracker_dump(WT_SESSION_IMPL *session, uint64_t min_time)
 	WT_DECL_RET;
 	WT_ITEM *buffer;
 	WT_OP_TRACKER_ENTRY *entry;
-	uint64_t optime;
+	uint64_t cumulative_skipped_time, optime_us, self_time_us;
+
+	cumulative_skipped_time = 0;
 
 	if ((entry = TAILQ_FIRST(&session->op_trackerq)) == NULL)
 		return (WT_NOTFOUND);
@@ -222,8 +224,8 @@ __wt_session_op_tracker_dump(WT_SESSION_IMPL *session, uint64_t min_time)
 	 * The first entry records the entire time for the operation. Only
 	 * proceed if the operation was slow enough.
 	 */
-	optime = WT_TIMEDIFF(entry->end, entry->start) / WT_MILLION;
-	if (min_time != 0 && optime < min_time)
+	optime_us = WT_TIMEDIFF(entry->end, entry->start);
+	if (min_time != 0 && optime_us < min_time * WT_MILLION)
 		return (0);
 
 	WT_RET(__wt_scr_alloc(session, 1024, &buffer));
@@ -231,13 +233,15 @@ __wt_session_op_tracker_dump(WT_SESSION_IMPL *session, uint64_t min_time)
 	    "{\n\"slow_op\" : [\n"));
 	TAILQ_FOREACH(entry, &session->op_trackerq, q) {
 		WT_ASSERT(session, entry->done);
-		optime = WT_TIMEDIFF(entry->end, entry->start) / WT_MILLION;
+		optime_us = WT_TIMEDIFF(entry->end, entry->start);
+		self_time_us = entry->self_time_us + cumulative_skipped_time;
+		cumulative_skipped_time = 0;
 		WT_ERR(__wt_buf_catfmt(session, buffer, "{\n"));
 		WT_ERR(__wt_buf_catfmt(session, buffer,
-		    "\"elapsed\" : %" PRIu64 ",\n", optime));
+		    "\"elapsed\" : %" PRIu64 ",\n", optime_us / WT_MILLION));
 		WT_ERR(__wt_buf_catfmt(session, buffer,
 		    "\"self_time\" : %" PRIu64 ",\n",
-		    entry->self_time_us / WT_MILLION));
+		    self_time_us / WT_MILLION));
 		WT_ERR(__wt_buf_catfmt(session, buffer,
 		    "\"type\" : %" PRIu32 ",\n", entry->type));
 		if (entry->msg != NULL)

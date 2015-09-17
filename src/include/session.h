@@ -47,12 +47,19 @@ struct __wt_op_tracker_entry {
 	 * automatically generated via dist/op_track.py. Allocate these
 	 * identifiers about 1000 to avoid namespace conflicts.
 	 */
-#define	WT_OP_TYPE_EVICT_PAGE		1000
-#define	WT_OP_TYPE_IO_ASYNC		1001
-#define	WT_OP_TYPE_IO_DSYNC		1002
-#define	WT_OP_TYPE_IO_FSYNC		1003
-#define	WT_OP_TYPE_IO_READ		1004
-#define	WT_OP_TYPE_IO_WRITE		1005
+#define	WT_OP_TYPE_EVICT_APP		1000
+#define	WT_OP_TYPE_EVICT_CHECK		1002
+#define	WT_OP_TYPE_EVICT_FORCE		1003
+#define	WT_OP_TYPE_EVICT_PAGE		1004
+#define	WT_OP_TYPE_IO_ASYNC		1005
+#define	WT_OP_TYPE_IO_DSYNC		1006
+#define	WT_OP_TYPE_IO_FSYNC		1007
+#define	WT_OP_TYPE_IO_READ		1008
+#define	WT_OP_TYPE_IO_WRITE		1009
+#define	WT_OP_TYPE_PAGE_IN		1010
+#define	WT_OP_TYPE_TXN_BEGIN_CHECK	1011
+#define	WT_OP_TYPE_TXN_COMMIT		1012
+#define	WT_OP_TYPE_TXN_ROLLBACK		1013
 	uint32_t type;
 
 	struct timespec end, start;	/* Begin and end time stamps */

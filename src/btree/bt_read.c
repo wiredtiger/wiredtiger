@@ -436,6 +436,8 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 {
 	WT_BTREE *btree;
 	WT_DECL_RET;
+	WT_OP_TRACKER_ENTRY *evict_tracker_entry, *force_tracker_entry;
+	WT_OP_TRACKER_ENTRY *tracker_entry;
 	WT_PAGE *page;
 	u_int sleep_cnt, wait_cnt;
 	int busy, cache_work, force_attempts, oldgen, stalled;
@@ -443,12 +445,17 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 	btree = S2BT(session);
 	stalled = 0;
 
+	WT_RET(__wt_session_op_tracker_create_entry(
+	    session, WT_OP_TYPE_PAGE_IN, 0, &tracker_entry));
+
 	for (force_attempts = oldgen = 0, sleep_cnt = wait_cnt = 0;;) {
 		switch (ref->state) {
 		case WT_REF_DISK:
 		case WT_REF_DELETED:
-			if (LF_ISSET(WT_READ_CACHE))
-				return (WT_NOTFOUND);
+			if (LF_ISSET(WT_READ_CACHE)) {
+				ret = WT_NOTFOUND;
+				goto err;
+			}
 
 			/*
 			 * The page isn't in memory, read it. If this thread is
@@ -456,32 +463,36 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			 * cache.
 			 */
 			if (!LF_ISSET(WT_READ_NO_EVICT))
-				WT_RET(__wt_cache_eviction_check(
+				WT_ERR(__wt_cache_eviction_check(
 				    session, 1, NULL));
-			WT_RET(__page_read(session, ref));
+			WT_ERR(__page_read(session, ref));
 			oldgen = LF_ISSET(WT_READ_WONT_NEED) ||
 			    F_ISSET(session, WT_SESSION_NO_CACHE);
 			continue;
 		case WT_REF_READING:
-			if (LF_ISSET(WT_READ_CACHE))
-				return (WT_NOTFOUND);
-			if (LF_ISSET(WT_READ_NO_WAIT))
-				return (WT_NOTFOUND);
+			if (LF_ISSET(WT_READ_CACHE) ||
+			    LF_ISSET(WT_READ_NO_WAIT)) {
+				ret = WT_NOTFOUND;
+				goto err;
+			}
 
 			/* Waiting on another thread's read, stall. */
 			WT_STAT_FAST_CONN_INCR(session, page_read_blocked);
 			stalled = 1;
 			break;
 		case WT_REF_LOCKED:
-			if (LF_ISSET(WT_READ_NO_WAIT))
-				return (WT_NOTFOUND);
+			if (LF_ISSET(WT_READ_NO_WAIT)) {
+				ret = WT_NOTFOUND;
+				goto err;
+			}
 
 			/* Waiting on eviction, stall. */
 			WT_STAT_FAST_CONN_INCR(session, page_locked_blocked);
 			stalled = 1;
 			break;
 		case WT_REF_SPLIT:
-			return (WT_RESTART);
+			ret = WT_RESTART;
+			goto err;
 		case WT_REF_MEM:
 			/*
 			 * The page is in memory.
@@ -498,10 +509,10 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			 * because the page is being evicted, yield, try again.
 			 */
 #ifdef HAVE_DIAGNOSTIC
-			WT_RET(
+			WT_ERR(
 			    __wt_hazard_set(session, ref, &busy, file, line));
 #else
-			WT_RET(__wt_hazard_set(session, ref, &busy));
+			WT_ERR(__wt_hazard_set(session, ref, &busy));
 #endif
 			if (busy) {
 				WT_STAT_FAST_CONN_INCR(
@@ -526,8 +537,14 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			page = ref->page;
 			if (force_attempts < 10 &&
 			    __evict_force_check(session, page)) {
+				WT_ERR(__wt_session_op_tracker_create_entry(
+				    session, WT_OP_TYPE_EVICT_FORCE,
+				    0, &force_tracker_entry));
 				++force_attempts;
 				ret = __wt_page_release_evict(session, ref);
+
+				WT_TRET(__wt_session_op_tracker_finish_entry(
+				    session, force_tracker_entry));
 				/* If forced eviction fails, stall. */
 				if (ret == EBUSY) {
 					ret = 0;
@@ -536,7 +553,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 					stalled = 1;
 					break;
 				}
-				WT_RET(ret);
+				WT_ERR(ret);
 
 				/*
 				 * The result of a successful forced eviction
@@ -568,8 +585,9 @@ skip_evict:
 			 * Starting a transaction can trigger eviction, so skip
 			 * it if eviction isn't permitted.
 			 */
-			return (LF_ISSET(WT_READ_NO_EVICT) ? 0 :
-			    __wt_txn_autocommit_check(session));
+			if (!LF_ISSET(WT_READ_NO_EVICT))
+				WT_ERR(__wt_txn_autocommit_check(session));
+			goto err;
 		WT_ILLEGAL_VALUE(session);
 		}
 
@@ -591,8 +609,16 @@ skip_evict:
 		 * substitute that for a sleep.
 		 */
 		if (!LF_ISSET(WT_READ_NO_EVICT)) {
-			WT_RET(
-			    __wt_cache_eviction_check(session, 1, &cache_work));
+			WT_ERR(__wt_session_op_tracker_create_entry(
+			    session, WT_OP_TYPE_EVICT_APP,
+			    0, &evict_tracker_entry));
+
+			ret = __wt_cache_eviction_check(
+			    session, 1, &cache_work);
+
+			WT_TRET(__wt_session_op_tracker_finish_entry(
+			    session, evict_tracker_entry));
+			WT_ERR(ret);
 			if (cache_work)
 				continue;
 		}
@@ -600,4 +626,6 @@ skip_evict:
 		WT_STAT_FAST_CONN_INCRV(session, page_sleep, sleep_cnt);
 		__wt_sleep(0, sleep_cnt);
 	}
+err:	WT_TRET(__wt_session_op_tracker_finish_entry(session, tracker_entry));
+	return (ret);
 }
