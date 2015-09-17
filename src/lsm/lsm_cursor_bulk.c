@@ -90,33 +90,45 @@ __clsm_insert_bulk(WT_CURSOR *cursor)
 int
 __wt_clsm_open_bulk(WT_CURSOR_LSM *clsm, const char *cfg[])
 {
+	WT_CONFIG_ITEM cval;
 	WT_CURSOR *cursor, *bulk_cursor;
+	WT_DECL_RET;
 	WT_LSM_TREE *lsm_tree;
 	WT_SESSION_IMPL *session;
+	int ordered;
 
 	bulk_cursor = NULL;
 	cursor = &clsm->iface;
 	lsm_tree = clsm->lsm_tree;
+	ordered = 1;	/* Default to ordered inserts */
 	session = (WT_SESSION_IMPL *)clsm->iface.session;
 
 	F_SET(clsm, WT_CLSM_BULK);
+
+	/*
+	 * Check for the undocumented unordered bulk flag, which is used when
+	 * doing index builds into LSM for existing trees.
+	 */
+	WT_RET(__wt_config_gets_def(session, cfg, "bulk", 0, &cval));
+	WT_ASSERT(session, cval.val != 0);
+	if (strncmp(cval.str, "unordered", strlen("unordered")) == 0)
+		ordered = 0;
 
 	/* Bulk cursors are limited to insert and close. */
 	__wt_cursor_set_notsup(cursor);
 	cursor->insert = __clsm_insert_bulk;
 	cursor->close = __clsm_close_bulk;
 
-	/* Setup the first chunk in the tree. */
-	WT_RET(__wt_clsm_request_switch(clsm));
-	WT_RET(__wt_clsm_await_switch(clsm));
-
 	/*
-	 * Grab and release the LSM tree lock to ensure that the first chunk
-	 * has been fully created before proceeding. We have the LSM tree
-	 * open exclusive, so that saves us from needing the lock generally.
+	 * Setup the first chunk in the tree. This is the only time we switch
+	 * without using the LSM worker threads, it's safe to do here since
+	 * we have an exclusive lock on the LSM tree. We need to do this
+	 * switch inline, since switch needs a schema lock and online index
+	 * creation opens a bulk cursor while holding the schema lock.
 	 */
-	WT_RET(__wt_lsm_tree_readlock(session, lsm_tree));
-	WT_RET(__wt_lsm_tree_readunlock(session, lsm_tree));
+	WT_WITH_SCHEMA_LOCK(session,
+	    ret = __wt_lsm_tree_switch(session, lsm_tree));
+	WT_RET(ret);
 
 	/*
 	 * Open a bulk cursor on the first chunk, it's not a regular LSM chunk
@@ -138,7 +150,8 @@ __wt_clsm_open_bulk(WT_CURSOR_LSM *clsm, const char *cfg[])
 	 * for bulk access.
 	 */
 	WT_RET(__wt_open_cursor(session,
-	    lsm_tree->chunk[0]->uri, &clsm->iface, cfg, &bulk_cursor));
+	    lsm_tree->chunk[0]->uri, &clsm->iface,
+	    ordered ? cfg : NULL, &bulk_cursor));
 	clsm->cursors[0] = bulk_cursor;
 	/* LSM cursors are always raw */
 	F_SET(bulk_cursor, WT_CURSTD_RAW);
