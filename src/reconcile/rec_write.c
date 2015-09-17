@@ -3518,7 +3518,9 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 {
 	WT_BTREE *btree;
 	WT_CURSOR *cursor;
+	WT_DECL_RET;
 	WT_KV *key, *val;
+	WT_OP_TRACKER_ENTRY *tracker_entry;
 	WT_RECONCILE *r;
 	int ovfl_key;
 
@@ -3535,9 +3537,10 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 
 	/* Boundary: split or write the page. */
 	if (key->len + val->len > r->space_avail) {
+		WT_RET(__wt_session_op_tracker_create_entry(
+		    session, WT_OP_TYPE_RECONCILE_BULK, 0, &tracker_entry));
 		if (r->raw_compression)
-			WT_RET(
-			    __rec_split_raw(session, r, key->len + val->len));
+			ret = __rec_split_raw(session, r, key->len + val->len);
 		else {
 			/*
 			 * Turn off prefix compression until a full key written
@@ -3547,12 +3550,17 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 			if (r->key_pfx_compress_conf) {
 				r->key_pfx_compress = 0;
 				if (!ovfl_key)
-					WT_RET(__rec_cell_build_leaf_key(
-					    session, r, NULL, 0, &ovfl_key));
+					ret = __rec_cell_build_leaf_key(
+					    session, r, NULL, 0, &ovfl_key);
 			}
 
-			WT_RET(__rec_split(session, r, key->len + val->len));
+			if (ret == 0)
+				ret = __rec_split(
+				    session, r, key->len + val->len);
 		}
+		WT_TRET(__wt_session_op_tracker_finish_entry(
+		    session, tracker_entry));
+		WT_RET(ret);
 	}
 
 	/* Copy the key/value pair onto the page. */

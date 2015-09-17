@@ -57,16 +57,19 @@ struct __wt_op_tracker_entry {
 #define	WT_OP_TYPE_IO_READ		1008
 #define	WT_OP_TYPE_IO_WRITE		1009
 #define	WT_OP_TYPE_PAGE_IN		1010
-#define	WT_OP_TYPE_TXN_BEGIN_CHECK	1011
-#define	WT_OP_TYPE_TXN_COMMIT		1012
-#define	WT_OP_TYPE_TXN_ROLLBACK		1013
+#define	WT_OP_TYPE_RECONCILE_BULK	1011
+#define	WT_OP_TYPE_TXN_BEGIN_CHECK	1012
+#define	WT_OP_TYPE_TXN_COMMIT		1013
+#define	WT_OP_TYPE_TXN_ROLLBACK		1014
 	uint32_t type;
 
 	struct timespec end, start;	/* Begin and end time stamps */
-	struct timespec last_stop;	/* Record when the next op finishes. */
+	struct timespec last_start;	/* Record when the child finishes */
+	uint64_t start_offset_us;	/* Time since parent started */
 	uint64_t self_time_us;		/* Time consumed by this operation */
 	WT_ITEM *msg;			/* Optional additional information */
 	int api_boundary;
+	int depth;			/* Nesting depth */
 	int done;
 
 	TAILQ_ENTRY(__wt_op_tracker_entry) q;	/* Queue of operations */

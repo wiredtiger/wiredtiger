@@ -28,10 +28,10 @@ __wt_session_op_tracker_create_entry(
 		return (0);
 
 	/*
-	 * Don't capture WT_CONNECTION methods. It would be nice to have
-	 * a different way to capture this. An alternative would be to have
-	 * an exclude list built via op_track.py. In the mean time this
-	 * works.
+	 * Don't capture WT_CONNECTION methods (they don't have a reliable
+	 * session handle). It would be nice to have a different way to capture
+	 * this. An alternative would be to have an exclude list built via
+	 * op_track.py. In the mean time this works.
 	 */
 	if (type >= WT_OP_TYPE_WT_CONNECTION_async_flush &&
 	    type <= WT_OP_TYPE_WT_CONNECTION_get_extension_api)
@@ -53,9 +53,11 @@ __wt_session_op_tracker_create_entry(
 	} else
 		WT_RET(__wt_calloc_one(session, &entry));
 
+	/* We have a new entry object now, start setting it up. */
 	WT_RET(__wt_epoch(session, &entry->start));
-	memcpy(&entry->last_stop, &entry->start, sizeof(struct timespec));
+	memcpy(&entry->last_start, &entry->start, sizeof(struct timespec));
 	entry->api_boundary = api_boundary;
+	entry->depth = 1;
 	TAILQ_INSERT_TAIL(&session->op_trackerq, entry, q);
 
 	/*
@@ -66,9 +68,13 @@ __wt_session_op_tracker_create_entry(
 	    prev_entry != NULL;
 	    prev_entry = TAILQ_PREV(prev_entry, __op_tracker, q)) {
 		if (prev_entry->done)
-			continue;
+			continue; 
+		WT_ASSERT(session, type != 1009 || prev_entry->type != 11);
+		entry->start_offset_us =
+		    WT_TIMEDIFF(entry->start, prev_entry->start);
+		entry->depth = prev_entry->depth + 1;
 		prev_entry->self_time_us +=
-		    WT_TIMEDIFF(entry->start, prev_entry->last_stop);
+		    WT_TIMEDIFF(entry->start, prev_entry->last_start);
 		break;
 	}
 
@@ -125,7 +131,7 @@ __wt_session_op_tracker_finish_entry(
 	    prev_entry = TAILQ_PREV(prev_entry, __op_tracker, q)) {
 		if (prev_entry->done)
 			continue;
-		memcpy(&prev_entry->last_stop,
+		memcpy(&prev_entry->last_start,
 		    &entry->end, sizeof(struct timespec));
 		break;
 	}
@@ -134,7 +140,7 @@ __wt_session_op_tracker_finish_entry(
 	if (entry->api_boundary && session->api_call_depth == 0) {
 		/* Update the self timer since this is the end of the trace. */
 		entry->self_time_us +=
-		    WT_TIMEDIFF(entry->end, entry->last_stop);
+		    WT_TIMEDIFF(entry->end, entry->last_start);
 		WT_RET(__wt_session_op_tracker_dump(
 		    session, session->op_trace_min));
 	}
@@ -242,6 +248,11 @@ __wt_session_op_tracker_dump(WT_SESSION_IMPL *session, uint64_t min_time)
 		WT_ERR(__wt_buf_catfmt(session, buffer,
 		    "\"self_time\" : %" PRIu64 ",\n",
 		    self_time_us / WT_MILLION));
+		WT_ERR(__wt_buf_catfmt(session, buffer,
+		    "\"parent_offset\" : %" PRIu64 ",\n",
+		    entry->start_offset_us / WT_MILLION));
+		WT_ERR(__wt_buf_catfmt(session, buffer,
+		    "\"nesting\" : %" PRIu32 ",\n", entry->depth));
 		WT_ERR(__wt_buf_catfmt(session, buffer,
 		    "\"type\" : %" PRIu32 ",\n", entry->type));
 		if (entry->msg != NULL)
