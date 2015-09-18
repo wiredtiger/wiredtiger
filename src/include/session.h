@@ -65,8 +65,8 @@ struct __wt_op_tracker_entry {
 
 	struct timespec end, start;	/* Begin and end time stamps */
 	struct timespec last_start;	/* Record when the child finishes */
-	uint64_t start_offset_us;	/* Time since parent started */
-	uint64_t self_time_us;		/* Time consumed by this operation */
+	uint64_t start_offset_ns;	/* Time since parent started */
+	uint64_t self_time_ns;		/* Time consumed by this operation */
 	WT_ITEM *msg;			/* Optional additional information */
 	int api_boundary;
 	int depth;			/* Nesting depth */

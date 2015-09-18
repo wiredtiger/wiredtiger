@@ -70,10 +70,10 @@ __wt_session_op_tracker_create_entry(
 		if (prev_entry->done)
 			continue;
 		WT_ASSERT(session, type != 1009 || prev_entry->type != 11);
-		entry->start_offset_us =
+		entry->start_offset_ns =
 		    WT_TIMEDIFF(entry->start, prev_entry->start);
 		entry->depth = prev_entry->depth + 1;
-		prev_entry->self_time_us +=
+		prev_entry->self_time_ns +=
 		    WT_TIMEDIFF(entry->start, prev_entry->last_start);
 		break;
 	}
@@ -139,7 +139,7 @@ __wt_session_op_tracker_finish_entry(
 	/* Reporting is done as we are returning from the API call. */
 	if (entry->api_boundary && session->api_call_depth == 0) {
 		/* Update the self timer since this is the end of the trace. */
-		entry->self_time_us +=
+		entry->self_time_ns +=
 		    WT_TIMEDIFF(entry->end, entry->last_start);
 		WT_RET(__wt_session_op_tracker_dump(
 		    session, session->op_trace_min));
@@ -219,19 +219,19 @@ __wt_session_op_tracker_dump(WT_SESSION_IMPL *session, uint64_t min_time)
 	WT_DECL_RET;
 	WT_ITEM *buffer;
 	WT_OP_TRACKER_ENTRY *entry;
-	uint64_t cumulative_skipped_time, optime_us, self_time_us;
+	uint64_t cumulative_skipped_time, optime_ns, self_time_ns;
 
 	cumulative_skipped_time = 0;
 
 	if ((entry = TAILQ_FIRST(&session->op_trackerq)) == NULL)
-		return (WT_NOTFOUND);
+		return (0);
 
 	/*
 	 * The first entry records the entire time for the operation. Only
 	 * proceed if the operation was slow enough.
 	 */
-	optime_us = WT_TIMEDIFF(entry->end, entry->start);
-	if (min_time != 0 && optime_us < min_time * WT_MILLION)
+	optime_ns = WT_TIMEDIFF(entry->end, entry->start);
+	if (min_time != 0 && optime_ns < min_time * WT_MILLION)
 		return (0);
 
 	WT_RET(__wt_scr_alloc(session, 1024, &buffer));
@@ -239,18 +239,18 @@ __wt_session_op_tracker_dump(WT_SESSION_IMPL *session, uint64_t min_time)
 	    "{\n\"slow_op\" : [\n"));
 	TAILQ_FOREACH(entry, &session->op_trackerq, q) {
 		WT_ASSERT(session, entry->done);
-		optime_us = WT_TIMEDIFF(entry->end, entry->start);
-		self_time_us = entry->self_time_us + cumulative_skipped_time;
+		optime_ns = WT_TIMEDIFF(entry->end, entry->start);
+		self_time_ns = entry->self_time_ns + cumulative_skipped_time;
 		cumulative_skipped_time = 0;
 		WT_ERR(__wt_buf_catfmt(session, buffer, "{\n"));
 		WT_ERR(__wt_buf_catfmt(session, buffer,
-		    "\"elapsed\" : %" PRIu64 ",\n", optime_us / WT_MILLION));
+		    "\"elapsed\" : %" PRIu64 ",\n", optime_ns / WT_MILLION));
 		WT_ERR(__wt_buf_catfmt(session, buffer,
 		    "\"self_time\" : %" PRIu64 ",\n",
-		    self_time_us / WT_MILLION));
+		    self_time_ns / WT_MILLION));
 		WT_ERR(__wt_buf_catfmt(session, buffer,
 		    "\"parent_offset\" : %" PRIu64 ",\n",
-		    entry->start_offset_us / WT_MILLION));
+		    entry->start_offset_ns / WT_MILLION));
 		WT_ERR(__wt_buf_catfmt(session, buffer,
 		    "\"nesting\" : %" PRIu32 ",\n", entry->depth));
 		WT_ERR(__wt_buf_catfmt(session, buffer,
