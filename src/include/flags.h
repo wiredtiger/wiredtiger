@@ -97,3 +97,79 @@
  * flags section: END
  * DO NOT EDIT: automatically built by dist/flags.py.
  */
+/*
+ * DO NOT EDIT: automatically built by dist/op_track.py.
+ * operation tracking section: BEGIN
+ */
+#define	WT_OP_TYPE_WT_CURSOR_get_key		 0
+#define	WT_OP_TYPE_WT_CURSOR_get_value	 1
+#define	WT_OP_TYPE_WT_CURSOR_set_key		 2
+#define	WT_OP_TYPE_WT_CURSOR_set_value	 3
+#define	WT_OP_TYPE_WT_CURSOR_compare		 4
+#define	WT_OP_TYPE_WT_CURSOR_equals		 5
+#define	WT_OP_TYPE_WT_CURSOR_next		 6
+#define	WT_OP_TYPE_WT_CURSOR_prev		 7
+#define	WT_OP_TYPE_WT_CURSOR_reset		 8
+#define	WT_OP_TYPE_WT_CURSOR_search		 9
+#define	WT_OP_TYPE_WT_CURSOR_search_near	10
+#define	WT_OP_TYPE_WT_CURSOR_insert		11
+#define	WT_OP_TYPE_WT_CURSOR_update		12
+#define	WT_OP_TYPE_WT_CURSOR_remove		13
+#define	WT_OP_TYPE_WT_CURSOR_close		14
+#define	WT_OP_TYPE_WT_CURSOR_reconfigure	15
+#define	WT_OP_TYPE_WT_ASYNC_OP_get_key	16
+#define	WT_OP_TYPE_WT_ASYNC_OP_get_value	17
+#define	WT_OP_TYPE_WT_ASYNC_OP_set_key	18
+#define	WT_OP_TYPE_WT_ASYNC_OP_set_value	19
+#define	WT_OP_TYPE_WT_ASYNC_OP_search	20
+#define	WT_OP_TYPE_WT_ASYNC_OP_insert	21
+#define	WT_OP_TYPE_WT_ASYNC_OP_update	22
+#define	WT_OP_TYPE_WT_ASYNC_OP_remove	23
+#define	WT_OP_TYPE_WT_ASYNC_OP_compact	24
+#define	WT_OP_TYPE_WT_ASYNC_OP_get_id	25
+#define	WT_OP_TYPE_WT_ASYNC_OP_get_type	26
+#define	WT_OP_TYPE_WT_SESSION_close		27
+#define	WT_OP_TYPE_WT_SESSION_reconfigure	28
+#define	WT_OP_TYPE_WT_SESSION_strerror	29
+#define	WT_OP_TYPE_WT_SESSION_open_cursor	30
+#define	WT_OP_TYPE_WT_SESSION_create		31
+#define	WT_OP_TYPE_WT_SESSION_compact	32
+#define	WT_OP_TYPE_WT_SESSION_drop		33
+#define	WT_OP_TYPE_WT_SESSION_log_flush	34
+#define	WT_OP_TYPE_WT_SESSION_log_printf	35
+#define	WT_OP_TYPE_WT_SESSION_rename		36
+#define	WT_OP_TYPE_WT_SESSION_reset		37
+#define	WT_OP_TYPE_WT_SESSION_salvage	38
+#define	WT_OP_TYPE_WT_SESSION_truncate	39
+#define	WT_OP_TYPE_WT_SESSION_upgrade	40
+#define	WT_OP_TYPE_WT_SESSION_verify		41
+#define	WT_OP_TYPE_WT_SESSION_begin_transaction	42
+#define	WT_OP_TYPE_WT_SESSION_commit_transaction	43
+#define	WT_OP_TYPE_WT_SESSION_rollback_transaction	44
+#define	WT_OP_TYPE_WT_SESSION_checkpoint	45
+#define	WT_OP_TYPE_WT_SESSION_snapshot	46
+#define	WT_OP_TYPE_WT_SESSION_transaction_pinned_range	47
+#define	WT_OP_TYPE_WT_SESSION_transaction_sync	48
+#define	WT_OP_TYPE_WT_SESSION_log_last_op	49
+#define	WT_OP_TYPE_WT_CONNECTION_async_flush	50
+#define	WT_OP_TYPE_WT_CONNECTION_async_new_op	51
+#define	WT_OP_TYPE_WT_CONNECTION_close	52
+#define	WT_OP_TYPE_WT_CONNECTION_reconfigure	53
+#define	WT_OP_TYPE_WT_CONNECTION_get_home	54
+#define	WT_OP_TYPE_WT_CONNECTION_configure_method	55
+#define	WT_OP_TYPE_WT_CONNECTION_is_new	56
+#define	WT_OP_TYPE_WT_CONNECTION_open_session	57
+#define	WT_OP_TYPE_WT_CONNECTION_load_extension	58
+#define	WT_OP_TYPE_WT_CONNECTION_add_data_source	59
+#define	WT_OP_TYPE_WT_CONNECTION_add_collator	60
+#define	WT_OP_TYPE_WT_CONNECTION_add_compressor	61
+#define	WT_OP_TYPE_WT_CONNECTION_add_encryptor	62
+#define	WT_OP_TYPE_WT_CONNECTION_add_extractor	63
+#define	WT_OP_TYPE_WT_CONNECTION_get_extension_api	64
+#define	WT_OP_TYPE_WT_CONFIG_PARSER_close	65
+#define	WT_OP_TYPE_WT_CONFIG_PARSER_next	66
+#define	WT_OP_TYPE_WT_CONFIG_PARSER_get	67
+/*
+ * operation tracking section: END
+ * DO NOT EDIT: automatically built by dist/op_track.py.
+ */

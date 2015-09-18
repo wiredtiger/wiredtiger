@@ -832,6 +832,9 @@ struct __wt_session {
 	 * session., a string\, chosen from the following options: \c
 	 * "read-uncommitted"\, \c "read-committed"\, \c "snapshot"; default \c
 	 * read-committed.}
+	 * @config{op_trace_min, minimum amount of time in milliseconds a single
+	 * API call can run before information will be automatically logged to
+	 * the message stream.  Default to disabled., a string; default \c -1.}
 	 * @configend
 	 * @errors
 	 */
@@ -1580,6 +1583,19 @@ struct __wt_session {
 	 * @errors
 	 */
 	int __F(transaction_sync)(WT_SESSION *session, const char *config);
+
+	/*!
+	 * Log information about the last operation to the message handler.
+	 *
+	 * @param session the session handle
+	 * @configstart{WT_SESSION.log_last_op, see dist/api_data.py}
+	 * @config{min_time, Only log the last operation if it took more than
+	 * minimum time in milliseconds.  A value of zero unconditionally logs
+	 * operation., an integer; default \c 0.}
+	 * @configend
+	 * @errors
+	 */
+	int __F(log_last_op)(WT_SESSION *session, const char *config);
 	/*! @} */
 };
 
@@ -1896,6 +1912,9 @@ struct __wt_connection {
 	 * session., a string\, chosen from the following options: \c
 	 * "read-uncommitted"\, \c "read-committed"\, \c "snapshot"; default \c
 	 * read-committed.}
+	 * @config{op_trace_min, minimum amount of time in milliseconds a single
+	 * API call can run before information will be automatically logged to
+	 * the message stream.  Default to disabled., a string; default \c -1.}
 	 * @configend
 	 * @param[out] sessionp the new session handle
 	 * @errors

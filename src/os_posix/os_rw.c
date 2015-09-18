@@ -16,6 +16,8 @@ int
 __wt_read(
     WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t len, void *buf)
 {
+	WT_DECL_RET;
+	WT_OP_TRACKER_ENTRY *tracker_entry;
 	size_t chunk;
 	ssize_t nr;
 	uint8_t *addr;
@@ -35,16 +37,21 @@ __wt_read(
 	    len >= S2C(session)->buffer_alignment &&
 	    len % S2C(session)->buffer_alignment == 0));
 
+	WT_RET(__wt_session_op_tracker_create_entry(
+	    session, WT_OP_TYPE_IO_READ, 0, &tracker_entry));
+
 	/* Break reads larger than 1GB into 1GB chunks. */
 	for (addr = buf; len > 0; addr += nr, len -= (size_t)nr, offset += nr) {
 		chunk = WT_MIN(len, WT_GIGABYTE);
 		if ((nr = pread(fh->fd, addr, chunk, offset)) <= 0)
-			WT_RET_MSG(session, nr == 0 ? WT_ERROR : __wt_errno(),
+			WT_ERR_MSG(session, nr == 0 ? WT_ERROR : __wt_errno(),
 			    "%s read error: failed to read %" WT_SIZET_FMT
 			    " bytes at offset %" PRIuMAX,
 			    fh->name, chunk, (uintmax_t)offset);
 	}
-	return (0);
+
+err:	WT_TRET(__wt_session_op_tracker_finish_entry(session, tracker_entry));
+	return (ret);
 }
 
 /*
@@ -55,6 +62,8 @@ int
 __wt_write(WT_SESSION_IMPL *session,
     WT_FH *fh, wt_off_t offset, size_t len, const void *buf)
 {
+	WT_DECL_RET;
+	WT_OP_TRACKER_ENTRY *tracker_entry;
 	size_t chunk;
 	ssize_t nw;
 	const uint8_t *addr;
@@ -74,14 +83,18 @@ __wt_write(WT_SESSION_IMPL *session,
 	    len >= S2C(session)->buffer_alignment &&
 	    len % S2C(session)->buffer_alignment == 0));
 
+	WT_RET(__wt_session_op_tracker_create_entry(
+	    session, WT_OP_TYPE_IO_WRITE, 0, &tracker_entry));
 	/* Break writes larger than 1GB into 1GB chunks. */
 	for (addr = buf; len > 0; addr += nw, len -= (size_t)nw, offset += nw) {
 		chunk = WT_MIN(len, WT_GIGABYTE);
 		if ((nw = pwrite(fh->fd, addr, chunk, offset)) < 0)
-			WT_RET_MSG(session, __wt_errno(),
+			WT_ERR_MSG(session, __wt_errno(),
 			    "%s write error: failed to write %" WT_SIZET_FMT
 			    " bytes at offset %" PRIuMAX,
 			    fh->name, chunk, (uintmax_t)offset);
 	}
-	return (0);
+
+err:	WT_TRET(__wt_session_op_tracker_finish_entry(session, tracker_entry));
+	return (ret);
 }

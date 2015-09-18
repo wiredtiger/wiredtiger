@@ -27,6 +27,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_open_session[] = {
 	    NULL, "choices=[\"read-uncommitted\",\"read-committed\","
 	    "\"snapshot\"]",
 	    NULL, 0 },
+	{ "op_trace_min", "string", NULL, NULL, NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
 
@@ -284,6 +285,11 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_log_flush[] = {
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
 
+static const WT_CONFIG_CHECK confchk_WT_SESSION_log_last_op[] = {
+	{ "min_time", "int", NULL, NULL, NULL, 0 },
+	{ NULL, NULL, NULL, NULL, NULL, 0 }
+};
+
 static const WT_CONFIG_CHECK confchk_WT_SESSION_open_cursor[] = {
 	{ "append", "boolean", NULL, NULL, NULL, 0 },
 	{ "bulk", "string", NULL, NULL, NULL, 0 },
@@ -308,6 +314,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_reconfigure[] = {
 	    NULL, "choices=[\"read-uncommitted\",\"read-committed\","
 	    "\"snapshot\"]",
 	    NULL, 0 },
+	{ "op_trace_min", "string", NULL, NULL, NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
 
@@ -804,8 +811,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_WT_CONNECTION_load_extension, 3
 	},
 	{ "WT_CONNECTION.open_session",
-	  "isolation=read-committed",
-	  confchk_WT_CONNECTION_open_session, 1
+	  "isolation=read-committed,op_trace_min=-1",
+	  confchk_WT_CONNECTION_open_session, 2
 	},
 	{ "WT_CONNECTION.reconfigure",
 	  "async=(enabled=0,ops_max=1024,threads=2),cache_overhead=8,"
@@ -875,6 +882,10 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "sync=on",
 	  confchk_WT_SESSION_log_flush, 1
 	},
+	{ "WT_SESSION.log_last_op",
+	  "min_time=0",
+	  confchk_WT_SESSION_log_last_op, 1
+	},
 	{ "WT_SESSION.log_printf",
 	  "",
 	  NULL, 0
@@ -885,8 +896,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_WT_SESSION_open_cursor, 11
 	},
 	{ "WT_SESSION.reconfigure",
-	  "isolation=read-committed",
-	  confchk_WT_SESSION_reconfigure, 1
+	  "isolation=read-committed,op_trace_min=-1",
+	  confchk_WT_SESSION_reconfigure, 2
 	},
 	{ "WT_SESSION.rename",
 	  "",

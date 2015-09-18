@@ -201,6 +201,8 @@ static inline int
 __wt_cache_eviction_check(WT_SESSION_IMPL *session, int busy, int *didworkp)
 {
 	WT_BTREE *btree;
+	WT_DECL_RET;
+	WT_OP_TRACKER_ENTRY *tracker_entry;
 	u_int pct_full;
 
 	if (didworkp != NULL)
@@ -234,5 +236,9 @@ __wt_cache_eviction_check(WT_SESSION_IMPL *session, int busy, int *didworkp)
 	if (didworkp != NULL)
 		*didworkp = 1;
 
-	return (__wt_cache_eviction_worker(session, busy, pct_full));
+	WT_RET(__wt_session_op_tracker_create_entry(
+	    session, WT_OP_TYPE_EVICT_CHECK, 0, &tracker_entry));
+	ret = __wt_cache_eviction_worker(session, busy, pct_full);
+	WT_TRET(__wt_session_op_tracker_finish_entry(session, tracker_entry));
+	return (ret);
 }

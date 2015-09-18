@@ -241,6 +241,8 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 static inline int
 __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
 {
+	WT_DECL_RET;
+	WT_OP_TRACKER_ENTRY *tracker_entry;
 	WT_TXN *txn;
 
 	txn = &session->txn;
@@ -259,11 +261,16 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
 		if (session->ncursors > 0)
 			WT_RET(__wt_session_copy_values(session));
 
+		WT_RET(__wt_session_op_tracker_create_entry(
+		    session, WT_OP_TYPE_TXN_BEGIN_CHECK, 0, &tracker_entry));
 		/*
 		 * We're about to allocate a snapshot: if we need to block for
 		 * eviction, it's better to do it beforehand.
 		 */
-		WT_RET(__wt_cache_eviction_check(session, 0, NULL));
+		ret = __wt_cache_eviction_check(session, 0, NULL);
+		WT_TRET(__wt_session_op_tracker_finish_entry(
+		    session, tracker_entry));
+		WT_RET(ret);
 
 		__wt_txn_get_snapshot(session);
 	}

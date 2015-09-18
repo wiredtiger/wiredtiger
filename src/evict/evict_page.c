@@ -53,6 +53,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
+	WT_OP_TRACKER_ENTRY *tracker_entry;
 	WT_PAGE *page;
 	WT_PAGE_MODIFY *mod;
 	int forced_eviction, inmem_split;
@@ -68,6 +69,9 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
 
 	WT_RET(__wt_verbose(session, WT_VERB_EVICT,
 	    "page %p (%s)", page, __wt_page_type_string(page->type)));
+
+	WT_RET(__wt_session_op_tracker_create_entry(
+	    session, WT_OP_TYPE_EVICT_PAGE, 0, &tracker_entry));
 
 	/*
 	 * Get exclusive access to the page and review it for conditions that
@@ -139,6 +143,13 @@ done:	if (((inmem_split && ret == 0) || (forced_eviction && ret == EBUSY)) &&
 		F_SET(conn->cache, WT_CACHE_WOULD_BLOCK);
 		WT_TRET(__wt_evict_server_wake(session));
 	}
+
+	/*
+	 * TODO: We should add more information to the message here.
+	 * Was it a forced evict? and in memory split? A clean page? How big
+	 * was the page?
+	 */
+	WT_TRET(__wt_session_op_tracker_finish_entry(session, tracker_entry));
 
 	return (ret);
 }

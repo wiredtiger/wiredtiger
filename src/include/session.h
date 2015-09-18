@@ -38,6 +38,46 @@ struct __wt_hazard {
 #define	S2BT_SAFE(session) ((session)->dhandle == NULL ? NULL : S2BT(session))
 
 /*
+ * WT_OP_TRACKER_ENTRY --
+ *	Per-cursor structure used to track timing for individual operations.
+ */
+struct __wt_op_tracker_entry {
+	/*
+	 * Non API operation types. The API operation type descriptors are
+	 * automatically generated via dist/op_track.py. Allocate these
+	 * identifiers about 1000 to avoid namespace conflicts.
+	 */
+#define	WT_OP_TYPE_EVICT_APP		1000
+#define	WT_OP_TYPE_EVICT_CHECK		1001
+#define	WT_OP_TYPE_EVICT_FORCE		1002
+#define	WT_OP_TYPE_EVICT_PAGE		1003
+#define	WT_OP_TYPE_EVICT_PARENT_SPLIT	1004
+#define	WT_OP_TYPE_IO_ASYNC		1005
+#define	WT_OP_TYPE_IO_DSYNC		1006
+#define	WT_OP_TYPE_IO_FSYNC		1007
+#define	WT_OP_TYPE_IO_READ		1008
+#define	WT_OP_TYPE_IO_WRITE		1009
+#define	WT_OP_TYPE_PAGE_IN		1010
+#define	WT_OP_TYPE_RECONCILE_BULK	1011
+#define	WT_OP_TYPE_TXN_BEGIN_CHECK	1012
+#define	WT_OP_TYPE_TXN_COMMIT		1013
+#define	WT_OP_TYPE_TXN_ROLLBACK		1014
+	uint32_t type;
+
+	struct timespec end, start;	/* Begin and end time stamps */
+	struct timespec last_start;	/* Record when the child finishes */
+	uint64_t start_offset_ns;	/* Time since parent started */
+	uint64_t self_time_ns;		/* Time consumed by this operation */
+	WT_ITEM *msg;			/* Optional additional information */
+	int api_boundary;
+	int depth;			/* Nesting depth */
+	int done;
+
+	TAILQ_ENTRY(__wt_op_tracker_entry) q;	/* Queue of operations */
+	TAILQ_ENTRY(__wt_op_tracker_entry) aq;	/* Available queue */
+};
+
+/*
  * WT_SESSION_IMPL --
  *	Implementation of WT_SESSION.
  */
@@ -176,6 +216,16 @@ struct WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) __wt_session_impl {
 	size_t  split_stash_alloc;	/* Allocated bytes */
 
 	uint64_t split_gen;		/* Reading split generation */
+
+	/*
+	 * Structure used to store timing information about a single operation
+	 * on a cursor.
+	 */
+	uint64_t api_call_depth;
+	uint64_t op_trace_min;
+	TAILQ_HEAD(__op_tracker, __wt_op_tracker_entry) op_trackerq;
+	/* Don't reallocate slow ops all the time. */
+	TAILQ_HEAD(__op_tracker_avail, __wt_op_tracker_entry) op_tracker_availq;
 
 	/*
 	 * Hazard pointers.

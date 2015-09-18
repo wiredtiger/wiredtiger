@@ -96,6 +96,44 @@ static uint64_t	 wtperf_value_range(CONFIG *);
 #define	HELIUM_CONFIG	",type=helium"
 #define	INDEX_COL_NAMES	",columns=(key,val)"
 
+/*
+ * Setup a wrapper around the event handler, so we can pass our context through
+ */
+struct wtperf_event_handler;
+typedef struct wtperf_event_handler WTPERF_EVENT_HANDLER;
+struct wtperf_event_handler {
+	int (*handle_error)(WT_EVENT_HANDLER *,
+	    WT_SESSION *, int , const char *);
+	int (*handle_message)(WT_EVENT_HANDLER *, WT_SESSION *, const char *);
+	int (*handle_progress)(WT_EVENT_HANDLER *,
+	    WT_SESSION *, const char *, uint64_t );
+	int (*handle_close)(WT_EVENT_HANDLER *, WT_SESSION *, WT_CURSOR *);
+	CONFIG *wtperf_config;
+};
+
+static int
+handle_message(WT_EVENT_HANDLER *handler,
+    WT_SESSION *session, const char *message)
+{
+	CONFIG *cfg;
+	WTPERF_EVENT_HANDLER *h;
+
+	session = session;
+	h = (WTPERF_EVENT_HANDLER *)handler;
+	cfg = h->wtperf_config;
+	lprintf(cfg, 0, 1,
+	    "Operation tracking message:\n%s", message);
+	return (0);
+}
+
+static WTPERF_EVENT_HANDLER event_handler = {
+	NULL,
+	handle_message,
+	NULL,
+	NULL,
+	NULL
+};
+
 /* Retrieve an ID for the next insert operation. */
 static inline uint64_t
 get_next_incr(CONFIG *cfg)
@@ -1437,8 +1475,10 @@ close_reopen(CONFIG *cfg)
 		lprintf(cfg, ret, 0, "Closing the connection failed");
 		return (ret);
 	}
+	event_handler.wtperf_config = cfg;
 	if ((ret = wiredtiger_open(
-	    cfg->home, NULL, cfg->conn_config, &cfg->conn)) != 0) {
+	    cfg->home, (WT_EVENT_HANDLER *)&event_handler,
+	    cfg->conn_config, &cfg->conn)) != 0) {
 		lprintf(cfg, ret, 0, "Re-opening the connection failed");
 		return (ret);
 	}
@@ -1877,8 +1917,11 @@ start_run(CONFIG *cfg)
 	if ((ret = setup_log_file(cfg)) != 0)
 		goto err;
 
+	event_handler.wtperf_config = cfg;
+
 	if ((ret = wiredtiger_open(	/* Open the real connection. */
-	    cfg->home, NULL, cfg->conn_config, &cfg->conn)) != 0) {
+	    cfg->home, (WT_EVENT_HANDLER *)&event_handler,
+	    cfg->conn_config, &cfg->conn)) != 0) {
 		lprintf(cfg, ret, 0, "Error connecting to %s", cfg->home);
 		goto err;
 	}

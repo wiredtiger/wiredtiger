@@ -183,6 +183,12 @@ __session_close(WT_SESSION *wt_session, const char *config)
 
 	__wt_spin_unlock(session, &conn->api_lock);
 
+	/*
+	 * Destroy the operation tracking mechanism. Do this last so API calls
+	 * made while doing other cleanup don't cause problems.
+	 */
+	WT_TRET(__wt_session_op_tracker_destroy(session));
+
 err:	API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
@@ -212,6 +218,12 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 		    WT_ISO_SNAPSHOT :
 		    WT_STRING_MATCH("read-uncommitted", cval.str, cval.len) ?
 		    WT_ISO_READ_UNCOMMITTED : WT_ISO_READ_COMMITTED;
+
+	WT_ERR(__wt_config_gets_def(session, cfg, "op_trace_min", 0, &cval));
+	if (cval.val == -1)
+		session->op_trace_min = UINT64_MAX;
+	else
+		session->op_trace_min = (uint64_t)cval.val;
 
 err:	API_END_RET_NOTFOUND_MAP(session, ret);
 }
@@ -913,7 +925,7 @@ __session_transaction_pinned_range(WT_SESSION *wt_session, uint64_t *prange)
 	uint64_t pinned;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL_NOCONF(session, pinned_range);
+	SESSION_API_CALL_NOCONF(session, transaction_pinned_range);
 
 	txn_state = WT_SESSION_TXN_STATE(session);
 
@@ -1122,6 +1134,30 @@ err:	WT_TRET(__wt_writeunlock(session, txn_global->nsnap_rwlock));
 }
 
 /*
+ * __session_log_last_op --
+ *	WT_SESSION->log_last_op method.
+ */
+static int
+__session_log_last_op(WT_SESSION *wt_session, const char *config)
+{
+	WT_CONFIG_ITEM cval;
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+	uint64_t min_time;
+
+	session = (WT_SESSION_IMPL *)wt_session;
+	SESSION_API_CALL(session, log_last_op, config, cfg);
+
+	/* Retrieve the configured minimum time to do the logging */
+	WT_ERR(__wt_config_gets(session, cfg, "min_time", &cval));
+	min_time = (uint64_t)cval.val;
+
+	WT_ERR(__wt_session_op_tracker_dump(session, min_time));
+
+err:	API_END_RET(session, ret);
+}
+
+/*
  * __session_strerror --
  *	WT_SESSION->strerror method.
  */
@@ -1203,7 +1239,8 @@ __wt_open_session(WT_CONNECTION_IMPL *conn,
 		__session_checkpoint,
 		__session_snapshot,
 		__session_transaction_pinned_range,
-		__session_transaction_sync
+		__session_transaction_sync,
+		__session_log_last_op
 	};
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session, *session_ret;
@@ -1256,6 +1293,13 @@ __wt_open_session(WT_CONNECTION_IMPL *conn,
 
 	TAILQ_INIT(&session_ret->cursors);
 	TAILQ_INIT(&session_ret->dhandles);
+
+	/*
+	 * Setup the slow operation logging early on so session open can
+	 * do logging.
+	 */
+	WT_ERR(__wt_session_op_tracker_setup(session_ret));
+
 	/*
 	 * If we don't have one, allocate the dhandle hash array.
 	 * Allocate the table hash array as well.
@@ -1291,6 +1335,9 @@ __wt_open_session(WT_CONNECTION_IMPL *conn,
 	 * reset the starting size on each open.
 	 */
 	session_ret->hazard_size = WT_HAZARD_INCR;
+
+	/* Default to not automatically dumping function tracing information */
+	session_ret->op_trace_min = UINT64_MAX;
 
 	/*
 	 * Configuration: currently, the configuration for open_session is the

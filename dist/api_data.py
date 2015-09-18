@@ -542,6 +542,10 @@ session_config = [
     Config('isolation', 'read-committed', r'''
         the default isolation level for operations in this session''',
         choices=['read-uncommitted', 'read-committed', 'snapshot']),
+    Config('op_trace_min', '-1', r'''
+        minimum amount of time in milliseconds a single API call can run
+        before information will be automatically logged to the message
+        stream. Default to disabled'''),
 ]
 
 common_wiredtiger_open = [
@@ -723,6 +727,13 @@ methods = {
     Config('remove_files', 'true', r'''
         should the underlying files be removed?''',
         type='boolean'),
+]),
+
+'WT_SESSION.log_last_op' : Method([
+    Config('min_time', '0', r'''
+        Only log the last operation if it took more than minimum time in
+        milliseconds. A value of zero unconditionally logs operation.''',
+        type='int'),
 ]),
 
 'WT_SESSION.log_flush' : Method([

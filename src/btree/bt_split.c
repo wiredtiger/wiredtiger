@@ -1476,6 +1476,7 @@ int
 __wt_split_multi(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
 {
 	WT_DECL_RET;
+	WT_OP_TRACKER_ENTRY *tracker_entry;
 	WT_PAGE *page;
 	WT_PAGE_MODIFY *mod;
 	WT_REF **ref_new;
@@ -1501,8 +1502,13 @@ __wt_split_multi(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
 	 * Split into the parent; if we're closing the file, we hold it
 	 * exclusively.
 	 */
+
+	WT_ERR(__wt_session_op_tracker_create_entry(
+	    session, WT_OP_TYPE_EVICT_PARENT_SPLIT, 0, &tracker_entry));
 	WT_ERR(__split_parent(
 	    session, ref, ref_new, new_entries, parent_incr, closing));
+	WT_TRET(__wt_session_op_tracker_finish_entry(session, tracker_entry));
+	WT_ERR(ret);
 
 	WT_STAT_FAST_CONN_INCR(session, cache_eviction_split);
 	WT_STAT_FAST_DATA_INCR(session, cache_eviction_split);
