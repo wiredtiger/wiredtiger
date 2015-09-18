@@ -83,11 +83,6 @@ err:	WT_TRET(__wt_session_op_tracker_finish_entry(session, tracker_entry));
 int
 __wt_directory_sync(WT_SESSION_IMPL *session, char *path)
 {
-#if DISABLE_SYNC
-	WT_UNUSED(session);
-	WT_UNUSED(path);
-	return (0);
-#else
 #ifdef __linux__
 	WT_DECL_RET;
 	WT_OP_TRACKER_ENTRY *tracker_entry;
@@ -128,7 +123,6 @@ err:	WT_SYSCALL_RETRY(close(fd), tret);
 	WT_UNUSED(session);
 	WT_UNUSED(path);
 	return (0);
-#endif
 #endif
 }
 
