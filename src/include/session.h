@@ -48,9 +48,10 @@ struct __wt_op_tracker_entry {
 	 * identifiers about 1000 to avoid namespace conflicts.
 	 */
 #define	WT_OP_TYPE_EVICT_APP		1000
-#define	WT_OP_TYPE_EVICT_CHECK		1002
-#define	WT_OP_TYPE_EVICT_FORCE		1003
-#define	WT_OP_TYPE_EVICT_PAGE		1004
+#define	WT_OP_TYPE_EVICT_CHECK		1001
+#define	WT_OP_TYPE_EVICT_FORCE		1002
+#define	WT_OP_TYPE_EVICT_PAGE		1003
+#define	WT_OP_TYPE_EVICT_PARENT_SPLIT	1004
 #define	WT_OP_TYPE_IO_ASYNC		1005
 #define	WT_OP_TYPE_IO_DSYNC		1006
 #define	WT_OP_TYPE_IO_FSYNC		1007

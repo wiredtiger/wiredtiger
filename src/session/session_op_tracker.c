@@ -218,10 +218,12 @@ __wt_session_op_tracker_dump(WT_SESSION_IMPL *session, uint64_t min_time)
 {
 	WT_DECL_RET;
 	WT_ITEM *buffer;
-	WT_OP_TRACKER_ENTRY *entry;
+	WT_OP_TRACKER_ENTRY *entry, *next_entry;
 	uint64_t cumulative_skipped_time, optime_ns, self_time_ns;
+	uint32_t skip_count;
 
 	cumulative_skipped_time = 0;
+	skip_count = 0;
 
 	if ((entry = TAILQ_FIRST(&session->op_trackerq)) == NULL)
 		return (0);
@@ -240,8 +242,19 @@ __wt_session_op_tracker_dump(WT_SESSION_IMPL *session, uint64_t min_time)
 	TAILQ_FOREACH(entry, &session->op_trackerq, q) {
 		WT_ASSERT(session, entry->done);
 		optime_ns = WT_TIMEDIFF(entry->end, entry->start);
+		/*
+		 * Fold together repeated operations that aren't taking
+		 * much time.
+		 */
+		if (entry->self_time_ns < WT_MILLION &&
+		    (next_entry = TAILQ_NEXT(entry, q)) != NULL &&
+		    next_entry->type == entry->type &&
+		    next_entry->depth == entry->depth) {
+			++skip_count;
+			cumulative_skipped_time += entry->self_time_ns;
+			continue;
+		}
 		self_time_ns = entry->self_time_ns + cumulative_skipped_time;
-		cumulative_skipped_time = 0;
 		WT_ERR(__wt_buf_catfmt(session, buffer, "{\n"));
 		WT_ERR(__wt_buf_catfmt(session, buffer,
 		    "\"elapsed\" : %" PRIu64 ",\n", optime_ns / WT_MILLION));
@@ -254,6 +267,8 @@ __wt_session_op_tracker_dump(WT_SESSION_IMPL *session, uint64_t min_time)
 		WT_ERR(__wt_buf_catfmt(session, buffer,
 		    "\"nesting\" : %" PRIu32 ",\n", entry->depth));
 		WT_ERR(__wt_buf_catfmt(session, buffer,
+		    "\"skip_count\" : %" PRIu32 ",\n", skip_count));
+		WT_ERR(__wt_buf_catfmt(session, buffer,
 		    "\"type\" : %" PRIu32 ",\n", entry->type));
 		if (entry->msg != NULL)
 			WT_ERR(__wt_buf_catfmt(session,
@@ -261,6 +276,10 @@ __wt_session_op_tracker_dump(WT_SESSION_IMPL *session, uint64_t min_time)
 			    (int)entry->msg->size,
 			    (const char *)entry->msg->mem));
 		WT_ERR(__wt_buf_catfmt(session, buffer, "},\n"));
+
+		/* Reset cumulative counters if we output something */
+		skip_count = 0;
+		cumulative_skipped_time = 0;
 	}
 	WT_ERR(__wt_buf_catfmt(session, buffer, "]\n}\n"));
 
