@@ -1503,7 +1503,7 @@ __wt_split_multi(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
 	 * exclusively.
 	 */
 
-	WT_RET(__wt_session_op_tracker_create_entry(
+	WT_ERR(__wt_session_op_tracker_create_entry(
 	    session, WT_OP_TYPE_EVICT_PARENT_SPLIT, 0, &tracker_entry));
 	WT_ERR(__split_parent(
 	    session, ref, ref_new, new_entries, parent_incr, closing));

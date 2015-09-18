@@ -588,7 +588,7 @@ skip_evict:
 			if (!LF_ISSET(WT_READ_NO_EVICT))
 				WT_ERR(__wt_txn_autocommit_check(session));
 			goto err;
-		WT_ILLEGAL_VALUE(session);
+		WT_ILLEGAL_VALUE_ERR(session);
 		}
 
 		/*
