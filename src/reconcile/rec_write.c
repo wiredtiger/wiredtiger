@@ -1357,7 +1357,7 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 #define	WT_CHILD_IGNORE		1		/* Deleted child: ignore */
 #define	WT_CHILD_MODIFIED	2		/* Modified child */
 #define	WT_CHILD_ORIGINAL	3		/* Original address */
-#define	WT_CHILD_PROXY	`	4		/* Deleted: proxy cell */
+#define	WT_CHILD_PROXY		4		/* Deleted: proxy cell */
 	*statep = WT_CHILD_ORIGINAL;
 
 	/*
