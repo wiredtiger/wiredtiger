@@ -1522,7 +1522,7 @@ __rec_child_deleted(
 	WT_PAGE_DELETED *page_del;
 	size_t addr_size;
 	const uint8_t *addr;
-	int visible, visible_all;
+	bool visible, visible_all;
 
 	page_del = ref->page_del;
 
@@ -1532,21 +1532,28 @@ __rec_child_deleted(
 	 *
 	 * If the deletion was a result of a session truncate call, the deletion
 	 * may not be visible to us (the alternative is an emptied page caused
-	 * by all rows being deleted). In the case of an update we can't read,
+	 * by all rows being deleted). In the case of a delete we can't read,
 	 * proceed as with any change not visible during reconciliation, ignore
-	 * the change for the purposes of writing the internal page. There must
-	 * be an associated page-deleted structure in this case, and it holds
-	 * the transaction ID we care about.
-	 *
-	 * In some cases, there had better not be updates that aren't visible.
+	 * the change for the purposes of writing the internal page. There will
+	 * be a page-deleted structure in this case, with the transaction ID we
+	 * care about.
 	 */
-	visible =
-	    page_del == NULL || __wt_txn_visible(session, page_del->txnid);
-	visible_all =
-	    page_del == NULL || __wt_txn_visible_all(session, page_del->txnid);
-	if (F_ISSET(r, WT_VISIBILITY_ERR) && (!visible || !visible_all))
-		WT_PANIC_RET(session, EINVAL,
-		    "reconciliation illegally skipped an update");
+	if (page_del == NULL)
+		visible = visible_all = true;
+	else {
+		visible = F_ISSET(r, WT_EVICTING) ?
+		    __wt_txn_committed(session, page_del->txnid) :
+		    __wt_txn_visible(session, page_del->txnid);
+		visible_all = __wt_txn_visible_all(session, page_del->txnid);
+
+		/*
+		 * In some cases, there had better not be updates that aren't
+		 * visible.
+		 */
+		if (F_ISSET(r, WT_VISIBILITY_ERR) && (!visible || !visible_all))
+			WT_PANIC_RET(session, EINVAL,
+			    "reconciliation illegally skipped an update");
+	}
 
 	/*
 	 * Deal with any underlying disk blocks.
