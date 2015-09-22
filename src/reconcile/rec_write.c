@@ -1356,8 +1356,9 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 
 #define	WT_CHILD_IGNORE		1		/* Deleted child: ignore */
 #define	WT_CHILD_MODIFIED	2		/* Modified child */
-#define	WT_CHILD_PROXY		3		/* Deleted child: proxy */
-	*statep = 0;
+#define	WT_CHILD_ORIGINAL	3		/* Original address */
+#define	WT_CHILD_PROXY		4		/* Deleted: proxy cell */
+	*statep = WT_CHILD_ORIGINAL;
 
 	/*
 	 * This function is called when walking an internal page to decide how
@@ -1521,26 +1522,38 @@ __rec_child_deleted(
 	WT_PAGE_DELETED *page_del;
 	size_t addr_size;
 	const uint8_t *addr;
+	bool visible, visible_all;
 
 	page_del = ref->page_del;
 
 	/*
 	 * Internal pages with child leaf pages in the WT_REF_DELETED state are
-	 * a special case during reconciliation.  First, if the deletion was a
-	 * result of a session truncate call, the deletion may not be visible to
-	 * us. In that case, we proceed as with any change not visible during
-	 * reconciliation by ignoring the change for the purposes of writing the
-	 * internal page.
+	 * a special case during reconciliation.
 	 *
-	 * In this case, there must be an associated page-deleted structure, and
-	 * it holds the transaction ID we care about.
-	 *
-	 * In some cases, there had better not be any updates we can't see.
+	 * If the deletion was a result of a session truncate call, the deletion
+	 * may not be visible to us (the alternative is an emptied page caused
+	 * by all rows being deleted). In the case of a delete we can't read,
+	 * proceed as with any change not visible during reconciliation, ignore
+	 * the change for the purposes of writing the internal page. There will
+	 * be a page-deleted structure in this case, with the transaction ID we
+	 * care about.
 	 */
-	if (F_ISSET(r, WT_VISIBILITY_ERR) &&
-	    page_del != NULL && !__wt_txn_visible(session, page_del->txnid))
-		WT_PANIC_RET(session, EINVAL,
-		    "reconciliation illegally skipped an update");
+	if (page_del == NULL)
+		visible = visible_all = true;
+	else {
+		visible = F_ISSET(r, WT_EVICTING) ?
+		    __wt_txn_committed(session, page_del->txnid) :
+		    __wt_txn_visible(session, page_del->txnid);
+		visible_all = __wt_txn_visible_all(session, page_del->txnid);
+
+		/*
+		 * In some cases, there had better not be updates that aren't
+		 * visible.
+		 */
+		if (F_ISSET(r, WT_VISIBILITY_ERR) && (!visible || !visible_all))
+			WT_PANIC_RET(session, EINVAL,
+			    "reconciliation illegally skipped an update");
+	}
 
 	/*
 	 * Deal with any underlying disk blocks.
@@ -1566,9 +1579,7 @@ __rec_child_deleted(
 	 * read into this part of the name space again, the cache read function
 	 * instantiates an entirely new page.)
 	 */
-	if (ref->addr != NULL &&
-	    (page_del == NULL ||
-	    __wt_txn_visible_all(session, page_del->txnid))) {
+	if (ref->addr != NULL && visible_all) {
 		WT_RET(__wt_ref_info(session, ref, &addr, &addr_size, NULL));
 		WT_RET(__rec_block_free(session, addr, addr_size));
 
@@ -1577,18 +1588,6 @@ __rec_child_deleted(
 			__wt_free(session, ref->addr);
 		}
 		ref->addr = NULL;
-	}
-
-	/*
-	 * If there are deleted child pages that we can't discard immediately,
-	 * keep the page dirty so they are eventually freed.
-	 */
-	if (ref->addr != NULL) {
-		r->leave_dirty = 1;
-
-		/* This page cannot be evicted, quit now. */
-		if (F_ISSET(r, WT_EVICTING))
-			return (EBUSY);
 	}
 
 	/*
@@ -1606,10 +1605,34 @@ __rec_child_deleted(
 	}
 
 	/*
-	 * If there's still a disk address, then we have to write a proxy
-	 * record, otherwise, we can safely ignore this child page.
+	 * If the change is globally visible, we've discarded the child page's
+	 * backing disk blocks and can ignore the child page, no future use of
+	 * this page requires it. This is normal checkpoint or eviction without
+	 * older readers in the system.
+	 *
+	 * If the change is only visible to us, there must be an older reader
+	 * that will potentially read the page. We don't want the child page
+	 * for any purpose, but we can't delete it until the older reader exits.
+	 * Write a cell to re-create the child page's deleted state if/when the
+	 * page is subsequently read.
+	 *
+	 * If the change isn't visible to us, future use of this page requires
+	 * the child page exist (for example, an uncommitted fast-delete or a
+	 * fast-delete committed after the checkpoint started). In the case of
+	 * a checkpoint, the original page won't have been deleted if we crash
+	 * and go live with that checkpoint, use the original page's address.
+	 * In the case of an eviction, fail now, we can't permit this page to
+	 * leave the cache.
 	 */
-	*statep = ref->addr == NULL ? WT_CHILD_IGNORE : WT_CHILD_PROXY;
+	if (visible_all)
+		*statep = WT_CHILD_IGNORE;
+	else if (visible)
+		*statep = WT_CHILD_PROXY;
+	else {
+		if (F_ISSET(r, WT_EVICTING))
+			return (EBUSY);
+		*statep = WT_CHILD_ORIGINAL;
+	}
 	return (0);
 }
 
@@ -3740,25 +3763,24 @@ __rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		r->recno = ref->key.recno;
 
 		/*
-		 * Modified child.
-		 * The page may be emptied or internally created during a split.
-		 * Deleted/split pages are merged into the parent and discarded.
+		 * Find the child page's state.
 		 */
 		WT_ERR(__rec_child_modify(session, r, ref, &hazard, &state));
 		addr = NULL;
 		child = ref->page;
 
-		/* Deleted child we don't have to write. */
-		if (state == WT_CHILD_IGNORE) {
+		switch (state) {
+		case WT_CHILD_IGNORE:
+			/*
+			 * Deleted child we don't have to write.
+			 */
 			CHILD_RELEASE_ERR(session, hazard, ref);
 			continue;
-		}
-
-		/*
-		 * Modified child.  Empty pages are merged into the parent and
-		 * discarded.
-		 */
-		if (state == WT_CHILD_MODIFIED) {
+		case WT_CHILD_MODIFIED:
+			/*
+			 * Modified child; empty pages are merged into the
+			 * parent and discarded.
+			 */
 			switch (F_ISSET(child->modify, WT_PM_REC_MASK)) {
 			case WT_PM_REC_EMPTY:
 				/*
@@ -3780,9 +3802,17 @@ __rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 				break;
 			WT_ILLEGAL_VALUE_ERR(session);
 			}
-		} else
-			/* No other states are expected for column stores. */
-			WT_ASSERT(session, state == 0);
+			break;
+		case WT_CHILD_ORIGINAL:
+			break;
+		case WT_CHILD_PROXY:
+			/*
+			 * Deleted child that gets a proxy cell, not yet
+			 * supported in column-store.
+			 */
+			/* FALLTHROUGH */
+		WT_ILLEGAL_VALUE_ERR(session);
+		}
 
 		/*
 		 * Build the value cell.  The child page address is in one of 3
@@ -4570,13 +4600,18 @@ __rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			    kpack->ovfl && kpack->raw != WT_CELL_KEY_OVFL_RM;
 		}
 
+		/*
+		 * Find the child page's state.
+		 */
 		WT_ERR(__rec_child_modify(session, r, ref, &hazard, &state));
 		addr = ref->addr;
 		child = ref->page;
 
-		/* Deleted child we don't have to write. */
-		if (state == WT_CHILD_IGNORE) {
+		switch (state) {
+		case WT_CHILD_IGNORE:
 			/*
+			 * Deleted child we don't have to write.
+			 *
 			 * Overflow keys referencing discarded pages are no
 			 * longer useful, schedule them for discard.  Don't
 			 * worry about instantiation, internal page keys are
@@ -4588,13 +4623,18 @@ __rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 				    session, page, kpack->cell));
 			CHILD_RELEASE_ERR(session, hazard, ref);
 			continue;
-		}
-
-		/*
-		 * Modified child.  Empty pages are merged into the parent and
-		 * discarded.
-		 */
-		if (state == WT_CHILD_MODIFIED)
+		case WT_CHILD_ORIGINAL:
+			break;
+		case WT_CHILD_PROXY:
+			/*
+			 * Deleted child that gets a proxy cell.
+			 */
+			break;
+		case WT_CHILD_MODIFIED:
+			/*
+			 * Modified child; empty pages are merged into the
+			 * parent and discarded.
+			 */
 			switch (F_ISSET(child->modify, WT_PM_REC_MASK)) {
 			case WT_PM_REC_EMPTY:
 				/*
@@ -4636,6 +4676,9 @@ __rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 				break;
 			WT_ILLEGAL_VALUE_ERR(session);
 			}
+			break;
+		WT_ILLEGAL_VALUE_ERR(session);
+		}
 
 		/*
 		 * Build the value cell, the child page's address.  Addr points
