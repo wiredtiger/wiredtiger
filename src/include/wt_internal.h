@@ -310,6 +310,7 @@ union __wt_rand_state;
 #include "btmem.h"
 #include "btree.h"
 #include "cache.h"
+#include "cell.h"
 #include "config.h"
 #include "compact.h"
 #include "cursor.h"
@@ -320,6 +321,7 @@ union __wt_rand_state;
 #include "lsm.h"
 #include "meta.h"
 #include "os.h"
+#include "reconcile.h"
 #include "schema.h"
 #include "txn.h"
 
