@@ -548,7 +548,7 @@ extern int __wt_rec_dictionary_replace( WT_SESSION_IMPL *session, WT_RECONCILE *
 extern int __wt_rec_dictionary_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, u_int slots);
 extern void __wt_rec_dictionary_free(WT_SESSION_IMPL *session, WT_RECONCILE *r);
 extern void __wt_rec_dictionary_reset(WT_RECONCILE *r);
-extern inline void __wt_rec_row_key_state_update(WT_RECONCILE *r, bool ovfl_key);
+extern void __wt_rec_row_key_state_update(WT_RECONCILE *r, bool ovfl_key);
 extern int __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page);
 extern int __wt_rec_row_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page, WT_SALVAGE_COOKIE *salvage);
 extern int __wt_rec_row_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page);

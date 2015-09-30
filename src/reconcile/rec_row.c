@@ -16,7 +16,7 @@ static int  __rec_row_merge(WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
  * __wt_rec_row_key_state_update --
  *	Update prefix and suffix compression based on the last key.
  */
-inline void
+void
 __wt_rec_row_key_state_update(WT_RECONCILE *r, bool ovfl_key)
 {
 	WT_ITEM *a;
