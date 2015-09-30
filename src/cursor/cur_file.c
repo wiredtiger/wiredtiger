@@ -365,7 +365,7 @@ __curfile_close(WT_CURSOR *cursor)
 	if (F_ISSET(cursor, WT_CURSTD_BULK)) {
 		/* Free the bulk-specific resources. */
 		cbulk = (WT_CURSOR_BULK *)cbt;
-		WT_TRET(__wt_bulk_wrapup(session, cbulk));
+		WT_TRET(__wt_rec_bulk_wrapup(session, cbulk));
 		__wt_buf_free(session, &cbulk->last);
 	}
 

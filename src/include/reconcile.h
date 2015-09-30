@@ -11,6 +11,38 @@ struct __rec_dictionary;	typedef struct __rec_dictionary WT_DICTIONARY;
 struct __rec_kv;		typedef struct __rec_kv WT_KV;
 
 /*
+ * WT_CHILD_RELEASE, WT_CHILD_RELEASE_ERR --
+ *	Macros to clean up during internal-page reconciliation, releasing the
+ * hazard pointer we're holding on child pages.
+ */
+#define	WT_CHILD_RELEASE(session, hazard, ref) do {			\
+	if (hazard) {							\
+		hazard = false;						\
+		WT_TRET(						\
+		    __wt_page_release(session, ref, WT_READ_NO_EVICT));	\
+	}								\
+} while (0)
+#define	WT_CHILD_RELEASE_ERR(session, hazard, ref) do {			\
+	WT_CHILD_RELEASE(session, hazard, ref);				\
+	WT_ERR(ret);							\
+} while (0)
+
+typedef enum {
+    WT_CHILD_IGNORE,				/* Deleted child: ignore */
+    WT_CHILD_MODIFIED,				/* Modified child */
+    WT_CHILD_ORIGINAL,				/* Original child */
+    WT_CHILD_PROXY				/* Deleted child: proxy */
+} WT_CHILD_STATE;
+
+/*
+ * Macros from fixed-length entries to/from bytes.
+ */
+#define	WT_FIX_BYTES_TO_ENTRIES(btree, bytes)				\
+    ((uint32_t)((((bytes) * 8) / (btree)->bitcnt)))
+#define	WT_FIX_ENTRIES_TO_BYTES(btree, entries)				\
+	((uint32_t)WT_ALIGN((entries) * (btree)->bitcnt, 8))
+
+/*
  * Reconciliation is the process of taking an in-memory page, walking each entry
  * in the page, building a backing disk image in a temporary buffer representing
  * that information, and writing that buffer to disk.  What could be simpler?
@@ -288,4 +320,3 @@ typedef struct {
 
 	uint32_t tested_ref_state;	/* Debugging information */
 } WT_RECONCILE;
-

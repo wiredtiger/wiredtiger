@@ -701,8 +701,8 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
 	 */
 	WT_RET(__wt_config_gets(session, cfg, "split_pct", &cval));
 	btree->split_pct = (int)cval.val;
-	intl_split_size = __wt_split_page_size(btree, btree->maxintlpage);
-	leaf_split_size = __wt_split_page_size(btree, btree->maxleafpage);
+	intl_split_size = __wt_rec_split_page_size(btree, btree->maxintlpage);
+	leaf_split_size = __wt_rec_split_page_size(btree, btree->maxleafpage);
 
 	/*
 	 * In-memory split configuration.
