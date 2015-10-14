@@ -372,9 +372,21 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
 	 * We need to pull the handle into the session handle cache and make
 	 * sure it's referenced to stop other internal code dropping the handle
 	 * (e.g in LSM when cleaning up obsolete chunks).
+	 *
+	 * We're holding the handle list lock which locks out handle open
+	 * (which might change the state of the underlying object).  However,
+	 * closing a handle doesn't require the handle list lock, lock out
+	 * closing the handle and then confirm the handle is still open.
 	 */
-	ret = __wt_session_get_btree(session,
-	    dhandle->name, dhandle->checkpoint, NULL, 0);
+	__wt_spin_lock(session, &dhandle->close_lock);
+	if (F_ISSET(dhandle, WT_DHANDLE_OPEN) &&
+	    !F_ISSET(dhandle, WT_DHANDLE_DEAD))
+		ret = __wt_session_get_btree(session,
+		    dhandle->name, dhandle->checkpoint, NULL, 0);
+	else
+		ret = ENOENT;	/* We raced with a close. */
+	__wt_spin_unlock(session, &dhandle->close_lock);
+
 	if (ret == 0) {
 		WT_SAVE_DHANDLE(session,
 		    ret = func(session, cfg));
@@ -385,6 +397,8 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
 	} else if (ret == EBUSY)
 		ret = __wt_conn_btree_apply_single(session, dhandle->name,
 		    dhandle->checkpoint, func, cfg);
+	else if (ret == ENOENT)
+		ret = 0;
 	return (ret);
 }
 
