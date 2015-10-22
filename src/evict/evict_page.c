@@ -110,7 +110,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		if (__wt_ref_is_root(ref))
 			__wt_ref_out(session, ref);
 		else
-			__wt_evict_page_clean_update(session, ref);
+			WT_ERR(__wt_evict_page_clean_update(session, ref));
 
 		WT_STAT_FAST_CONN_INCR(session, cache_eviction_clean);
 		WT_STAT_FAST_DATA_INCR(session, cache_eviction_clean);
@@ -141,22 +141,50 @@ done:	if ((inmem_split || (forced_eviction && ret == EBUSY)) &&
 
 	return (ret);
 }
+/*
+ * __evict_ref_delete --
+ *	Mark a reference deleted.
+ */
+static int
+__evict_ref_delete(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+	WT_PAGE *parent;
+	WT_PAGE_INDEX *pindex;
+
+	WT_PUBLISH(ref->state, WT_REF_DELETED);
+	if (__wt_ref_is_root(ref))
+		return (0);
+
+	parent = ref->home;
+	WT_INTL_INDEX_GET(session, parent, pindex);
+	if (__wt_atomic_addv32(&pindex->deleted_entries, 1) % 10 == 0)
+		WT_RET(__wt_split_reverse(session, parent->pg_intl_parent_ref));
+
+	return (0);
+}
 
 /*
  * __wt_evict_page_clean_update --
  *	Update a clean page's reference on eviction.
  */
-void
+int
 __wt_evict_page_clean_update(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+	WT_DECL_RET;
+
 	/*
 	 * Discard the page and update the reference structure; if the page has
 	 * an address, it's a disk page; if it has no address, it's a deleted
 	 * page re-instantiated (for example, by searching) and never written.
 	 */
 	__wt_ref_out(session, ref);
-	WT_PUBLISH(ref->state,
-	    ref->addr == NULL ? WT_REF_DELETED : WT_REF_DISK);
+	if (ref->addr == NULL) {
+		WT_WITH_PAGE_INDEX(session, ret = __evict_ref_delete(session, ref));
+		WT_RET_BUSY_OK(ret);
+	} else
+		WT_PUBLISH(ref->state, WT_REF_DISK);
+
+	return (0);
 }
 
 /*
@@ -167,6 +195,7 @@ static int
 __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 {
 	WT_ADDR *addr;
+	WT_DECL_RET;
 	WT_PAGE *parent;
 	WT_PAGE_MODIFY *mod;
 
@@ -194,7 +223,8 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		 */
 		__wt_ref_out(session, ref);
 		ref->addr = NULL;
-		WT_PUBLISH(ref->state, WT_REF_DELETED);
+		WT_WITH_PAGE_INDEX(session, ret = __evict_ref_delete(session, ref));
+		WT_RET(ret);
 		break;
 	case WT_PM_REC_MULTIBLOCK:			/* Multiple blocks */
 		/*
