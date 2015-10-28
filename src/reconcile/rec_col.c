@@ -81,8 +81,6 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			case WT_PM_REC_REPLACE:
 				addr = &child->modify->mod_replace;
 				break;
-			case WT_PM_REC_REWRITE:
-				break;
 			WT_ILLEGAL_VALUE_ERR(session);
 			}
 			break;
@@ -116,7 +114,8 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			val->cell_len = 0;
 			val->len = val->buf.size;
 		} else
-			__wt_rec_cell_build_addr(r, addr->addr, addr->size,
+			__wt_rec_cell_build_addr(session, r,
+			    addr->addr, addr->size,
 			    __wt_rec_vtype(addr), ref->key.recno);
 		WT_CHILD_RELEASE_ERR(session, hazard, ref);
 
@@ -162,7 +161,7 @@ __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
 		/* Build the value cell. */
 		addr = &multi->addr;
-		__wt_rec_cell_build_addr(r,
+		__wt_rec_cell_build_addr(session, r,
 		    addr->addr, addr->size, __wt_rec_vtype(addr), r->recno);
 
 		/* Boundary: split or write the page. */

@@ -157,12 +157,14 @@ __wt_rec_cell_build_leaf_key(WT_SESSION_IMPL *session,
  * on the page.
  */
 void
-__wt_rec_cell_build_addr(WT_RECONCILE *r,
+__wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r,
     const void *addr, size_t size, u_int cell_type, uint64_t recno)
 {
 	WT_KV *val;
 
 	val = &r->v;
+
+	WT_ASSERT(session, size != 0 || cell_type == WT_CELL_ADDR_DEL);
 
 	/*
 	 * We don't check the address size because we can't store an address on

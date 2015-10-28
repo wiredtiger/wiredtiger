@@ -59,6 +59,7 @@ CSV
 CURSORs
 CURSTD
 CallsCustDate
+Checkpointing
 Checksum
 Checksums
 CityHash
@@ -646,6 +647,7 @@ intrin
 inuse
 io
 ip
+islocked
 ispo
 iteratively
 jnr
@@ -842,6 +844,7 @@ rectype
 recurse
 refp
 reinitialization
+relocked
 resize
 resizing
 ret

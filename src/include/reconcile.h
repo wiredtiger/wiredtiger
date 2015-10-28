@@ -74,7 +74,6 @@ typedef struct {
 	 * Track maximum transaction ID seen and first unwritten transaction ID.
 	 */
 	uint64_t max_txn;
-	uint64_t first_dirty_txn;
 
 	/*
 	 * When we can't mark the page clean (for example, checkpoint found some

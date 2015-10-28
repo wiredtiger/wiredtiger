@@ -235,7 +235,8 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			vtype = state == WT_CHILD_PROXY ?
 			    WT_CELL_ADDR_DEL : (u_int)vpack->raw;
 		}
-		__wt_rec_cell_build_addr(r, p, size, vtype, WT_RECNO_OOB);
+		__wt_rec_cell_build_addr(
+		    session, r, p, size, vtype, WT_RECNO_OOB);
 		WT_CHILD_RELEASE_ERR(session, hazard, ref);
 
 		/*
@@ -321,7 +322,7 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		r->cell_zero = false;
 
 		addr = &multi->addr;
-		__wt_rec_cell_build_addr(r,
+		__wt_rec_cell_build_addr(session, r,
 		    addr->addr, addr->size, __wt_rec_vtype(addr), WT_RECNO_OOB);
 
 		/* Boundary: split or write the page. */

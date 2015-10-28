@@ -178,6 +178,7 @@ struct __wt_connection_impl {
 	WT_SPINLOCK reconfig_lock;	/* Single thread reconfigure */
 	WT_SPINLOCK schema_lock;	/* Schema operation spinlock */
 	WT_SPINLOCK table_lock;		/* Table creation spinlock */
+	WT_SPINLOCK turtle_lock;	/* Turtle file spinlock */
 
 	/*
 	 * We distribute the btree page locks across a set of spin locks. Don't
@@ -336,12 +337,12 @@ struct __wt_connection_impl {
 	const char	*stat_stamp;	/* Statistics log entry timestamp */
 	uint64_t	 stat_usecs;	/* Statistics log period */
 
-#define	WT_CONN_LOG_ARCHIVE	0x01	/* Archive is enabled */
-#define	WT_CONN_LOG_ENABLED	0x02	/* Logging is enabled */
-#define	WT_CONN_LOG_EXISTED	0x04	/* Log files found */
-#define	WT_CONN_LOG_PREALLOC	0x08	/* Pre-allocation is enabled */
-#define	WT_CONN_LOG_RECOVER_DONE	0x10	/* Recovery completed */
-#define	WT_CONN_LOG_RECOVER_ERR	0x20	/* Error if recovery required */
+#define	WT_CONN_LOG_ARCHIVE		0x01	/* Archive is enabled */
+#define	WT_CONN_LOG_ENABLED		0x02	/* Logging is enabled */
+#define	WT_CONN_LOG_EXISTED		0x04	/* Log files found */
+#define	WT_CONN_LOG_RECOVER_DONE	0x08	/* Recovery completed */
+#define	WT_CONN_LOG_RECOVER_ERR		0x10	/* Error if recovery required */
+#define	WT_CONN_LOG_ZERO_FILL		0x20	/* Manually zero files */
 	uint32_t	 log_flags;	/* Global logging configuration */
 	WT_CONDVAR	*log_cond;	/* Log server wait mutex */
 	WT_SESSION_IMPL *log_session;	/* Log server session */
@@ -377,7 +378,6 @@ struct __wt_connection_impl {
 	 */
 	WT_SPINLOCK	 las_lock;	/* Lookaside table spinlock */
 	WT_SESSION_IMPL *las_session;	/* Lookaside table session */
-	WT_CURSOR	*las_cursor;	/* Lookaside table cursor */
 	bool		 las_written;	/* Lookaside table has been written */
 
 	WT_ITEM		 las_sweep_key;	/* Sweep server's saved key */
