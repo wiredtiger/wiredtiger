@@ -1617,7 +1617,6 @@ __wt_rec_vtype(WT_ADDR *addr)
 	return (WT_CELL_ADDR_LEAF_NO);
 }
 
-
 /*
  * __rec_split_dump_keys --
  *     Dump out the split keys in verbose mode.
