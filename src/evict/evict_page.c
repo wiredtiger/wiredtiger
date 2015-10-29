@@ -110,7 +110,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		if (__wt_ref_is_root(ref))
 			__wt_ref_out(session, ref);
 		else
-			WT_ERR(__wt_evict_page_clean_update(session, ref));
+			WT_ERR(__wt_evict_page_clean_update(
+			    session, ref, closing));
 
 		WT_STAT_FAST_CONN_INCR(session, cache_eviction_clean);
 		WT_STAT_FAST_DATA_INCR(session, cache_eviction_clean);
@@ -169,7 +170,8 @@ __evict_reverse_split_check(WT_SESSION_IMPL *session, WT_REF *ref)
  *	Update a clean page's reference on eviction.
  */
 int
-__wt_evict_page_clean_update(WT_SESSION_IMPL *session, WT_REF *ref)
+__wt_evict_page_clean_update(
+    WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 {
 	WT_DECL_RET;
 
