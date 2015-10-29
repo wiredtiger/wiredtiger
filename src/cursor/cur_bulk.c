@@ -32,7 +32,7 @@ __curbulk_insert_fix(WT_CURSOR *cursor)
 
 	WT_CURSOR_NEEDVALUE(cursor);
 
-	WT_ERR(__wt_bulk_insert_fix(session, cbulk));
+	WT_ERR(__wt_rec_bulk_insert_fix(session, cbulk));
 
 	WT_STAT_FAST_DATA_INCR(session, cursor_insert_bulk);
 
@@ -79,7 +79,7 @@ __curbulk_insert_var(WT_CURSOR *cursor)
 			++cbulk->rle;
 			duplicate = true;
 		} else
-			WT_ERR(__wt_bulk_insert_var(session, cbulk));
+			WT_ERR(__wt_rec_bulk_insert_var(session, cbulk));
 	}
 
 	/*
@@ -180,7 +180,7 @@ __curbulk_insert_row(WT_CURSOR *cursor)
 	    &cbulk->last, cursor->key.data, cursor->key.size));
 	cbulk->rle = 1;
 
-	WT_ERR(__wt_bulk_insert_row(session, cbulk));
+	WT_ERR(__wt_rec_bulk_insert_row(session, cbulk));
 
 	WT_STAT_FAST_DATA_INCR(session, cursor_insert_bulk);
 
@@ -212,7 +212,7 @@ __curbulk_insert_row_skip_check(WT_CURSOR *cursor)
 	WT_CURSOR_NEEDKEY(cursor);
 	WT_CURSOR_NEEDVALUE(cursor);
 
-	WT_ERR(__wt_bulk_insert_row(session, cbulk));
+	WT_ERR(__wt_rec_bulk_insert_row(session, cbulk));
 
 	WT_STAT_FAST_DATA_INCR(session, cursor_insert_bulk);
 
@@ -253,5 +253,5 @@ __wt_curbulk_init(WT_SESSION_IMPL *session,
 	if (bitmap)
 		F_SET(c, WT_CURSTD_RAW);
 
-	return (__wt_bulk_init(session, cbulk));
+	return (__wt_rec_bulk_init(session, cbulk));
 }
