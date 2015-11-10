@@ -667,6 +667,13 @@ __split_deepen(WT_SESSION_IMPL *session, WT_PAGE *parent)
 	__wt_cache_page_inmem_incr(session, parent, parent_incr);
 	__wt_cache_page_inmem_decr(session, parent, parent_decr);
 
+	{
+		static int num_deepens = 0;
+		char file_name[32];
+		sprintf(file_name, "shape%d", num_deepens++);
+		(void)__wt_debug_tree_shape(session, NULL, file_name);
+	}
+
 err:	/*
 	 * If complete is true, we saw an error after opening up the tree to
 	 * descent through the parent page's new index. There is nothing we

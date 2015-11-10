@@ -423,22 +423,46 @@ __debug_dsk_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk)
  * __debug_tree_shape_info --
  *	Pretty-print information about a page.
  */
-static char *
-__debug_tree_shape_info(WT_PAGE *page)
+static void
+__debug_tree_shape_info(WT_PAGE *page, WT_DBG *ds, int level)
 {
 	uint64_t v;
-	static char buf[32];
+	char buf[32];
+	uint32_t entries;
 
 	v = page->memory_footprint;
 	if (v >= WT_GIGABYTE)
 		snprintf(buf, sizeof(buf),
-		    "(%p %" PRIu64 "G)", page, v / WT_GIGABYTE);
+		    "%" PRIu64 "G", v / WT_GIGABYTE);
 	else if (v >= WT_MEGABYTE)
 		snprintf(buf, sizeof(buf),
-		    "(%p %" PRIu64 "M)", page, v / WT_MEGABYTE);
+		    "%" PRIu64 "M", v / WT_MEGABYTE);
 	else
-		snprintf(buf, sizeof(buf), "(%p %" PRIu64 ")", page, v);
-	return (buf);
+		snprintf(buf, sizeof(buf), "%" PRIu64 "B", v);
+
+	if (WT_PAGE_IS_INTERNAL(page))
+		/*
+		 * It is OK to break the rules re: retrieving the internal
+		 * page entry count here - we aren't relying on it remaining
+		 * unchanged.
+		 */
+		entries = page->u.intl.__index->entries;
+	else if (page->type == WT_PAGE_ROW_LEAF)
+		entries = page->pg_row_entries;
+	else if (page->type == WT_PAGE_COL_FIX)
+		entries = page->pg_fix_entries;
+	else {
+		WT_ASSERT(ds->session, page->type == WT_PAGE_COL_VAR);
+		entries = page->pg_var_entries;
+	}
+
+#if 0
+	__dmsg(ds, ",\n%*s\"size\" : \"%s\",\n%*s\"entries\" : %"PRIu32,
+	    level * 3, " ", buf, level * 3, " ", entries);
+#else
+	WT_UNUSED(level);
+	entries = entries + 1;
+#endif
 }
 
 /*
@@ -446,24 +470,45 @@ __debug_tree_shape_info(WT_PAGE *page)
  *	Dump information about the current page and descend.
  */
 static void
-__debug_tree_shape_worker(WT_DBG *ds, WT_PAGE *page, int level)
+__debug_tree_shape_worker(WT_DBG *ds, WT_PAGE *page, int level, bool logged)
 {
 	WT_REF *ref;
 	WT_SESSION_IMPL *session;
+	int count;
+	bool first, is_internal, log_next;
 
 	session = ds->session;
+	is_internal = WT_PAGE_IS_INTERNAL(page);
 
-	if (WT_PAGE_IS_INTERNAL(page)) {
-		__dmsg(ds, "%*s" "I" "%d %s\n",
-		    level * 3, " ", level, __debug_tree_shape_info(page));
+	if (logged) {
+		__dmsg(ds, "%*s{\n%*s\"name\" : \"%p\"",
+		    level * 3, " ", level * 3, " ", page);
+		__debug_tree_shape_info(page, ds, level);
+	}
+	if (is_internal) {
+		if (logged)
+			__dmsg(ds, ",\n%*s\"children\" : [\n", level * 3, " ");
+		first = true;
+		count = 0;
 		WT_INTL_FOREACH_BEGIN(session, page, ref) {
-			if (ref->state == WT_REF_MEM)
+			/*
+			 * Only print out every 10th entry, should still show
+			 * the shape of the tree, without overwhelming.
+			 */
+			if (ref->state == WT_REF_MEM) {
+				log_next = logged && count++ % 1 == 0;
+				if (log_next && !first)
+					__dmsg(ds, ",\n");
+				first = false;
 				__debug_tree_shape_worker(
-				    ds, ref->page, level + 1);
+				    ds, ref->page, level + 1, log_next);
+			}
 		} WT_INTL_FOREACH_END;
-	} else
-		__dmsg(ds, "%*s" "L" " %s\n",
-		    level * 3, " ", __debug_tree_shape_info(page));
+		if (logged)
+			__dmsg(ds, "\n%*s]\n", level * 3, " ");
+	}
+	if (logged)
+		__dmsg(ds, "%*s}", level * 3, " ");
 }
 
 /*
@@ -485,7 +530,7 @@ __wt_debug_tree_shape(
 	if (page == NULL)
 		page = S2BT(session)->root.page;
 
-	WT_WITH_PAGE_INDEX(session, __debug_tree_shape_worker(ds, page, 1));
+	WT_WITH_PAGE_INDEX(session, __debug_tree_shape_worker(ds, page, 1, true));
 
 	__dmsg_wrapup(ds);
 	return (0);
