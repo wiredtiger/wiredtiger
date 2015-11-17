@@ -151,13 +151,14 @@ done:	if (((inmem_split && ret == 0) || (forced_eviction && ret == EBUSY)) &&
 static int
 __evict_delete_ref(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 {
-	WT_DECL_RET;
 	WT_PAGE *parent;
 	WT_PAGE_INDEX *pindex;
 	uint32_t ndeleted;
 
 	if (__wt_ref_is_root(ref))
 		return (0);
+
+	WT_PUBLISH(ref->state, WT_REF_DELETED);
 
 	/*
 	 * Avoid doing reverse splits when closing the file, it is
@@ -179,20 +180,9 @@ __evict_delete_ref(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		 * something is busy, be sure that the page still ends up
 		 * marked deleted.
 		 */
-		if (ndeleted > pindex->entries / 10 && pindex->entries > 1) {
-			if ((ret = __wt_split_reverse(session, ref)) == 0)
-				return (0);
-			WT_RET_BUSY_OK(ret);
-
-			/*
-			 * The child must be locked after a failed reverse
-			 * split.
-			 */
-			WT_ASSERT(session, ref->state == WT_REF_LOCKED);
-		}
+		if (ndeleted > pindex->entries / 10 && pindex->entries > 1)
+			WT_RET(__wt_split_reverse(session, ref));
 	}
-
-	WT_PUBLISH(ref->state, WT_REF_DELETED);
 	return (0);
 }
 
@@ -222,7 +212,7 @@ __wt_evict_page_clean_update(
 	if (ref->addr == NULL) {
 		WT_WITH_PAGE_INDEX(session,
 		    ret = __evict_delete_ref(session, ref, closing));
-		WT_RET_BUSY_OK(ret);
+		WT_RET(ret);
 	} else
 		WT_PUBLISH(ref->state, WT_REF_DISK);
 
@@ -268,7 +258,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		ref->addr = NULL;
 		WT_WITH_PAGE_INDEX(session,
 		    ret = __evict_delete_ref(session, ref, closing));
-		WT_RET_BUSY_OK(ret);
+		WT_RET(ret);
 		break;
 	case WT_PM_REC_MULTIBLOCK:			/* Multiple blocks */
 		/*

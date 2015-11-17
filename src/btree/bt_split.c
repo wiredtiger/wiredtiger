@@ -702,14 +702,14 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	uint64_t split_gen;
 	uint32_t i, j;
 	uint32_t deleted_entries, parent_entries, result_entries;
-	bool complete, empty_parent;
+	bool complete;
 
 	parent = ref->home;
 
 	alloc_index = pindex = NULL;
 	parent_decr = 0;
 	parent_entries = 0;
-	complete = empty_parent = false;
+	complete = false;
 
 	/* The parent page will be marked dirty, make sure that will succeed. */
 	WT_RET(__wt_page_modify_init(session, parent));
@@ -722,10 +722,10 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	parent_entries = pindex->entries;
 
 	/*
-	 * Remove any refs to deleted pages while we are splitting, we have
-	 * the internal page locked down, and are copying the refs into a new
-	 * array anyway.  Switch them to the special split state, so that any
-	 * reading thread will restart.
+	 * Remove any refs to deleted pages while we are splitting, we have the
+	 * internal page locked down, and are copying the refs into a new array
+	 * anyway. Switch them to the special split state, so that any reading
+	 * thread will restart.
 	 */
 	for (deleted_entries = 0, i = 0; i < parent_entries; ++i) {
 		next_ref = pindex->index[i];
@@ -739,18 +739,16 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 
 	/*
 	 * The final entry count consists of the original count, plus any new
-	 * pages, less any WT_REFs we're removing (deleted entries plus the
-	 * entry we're replacing).
+	 * pages, less any WT_REFs we're removing.
 	 */
-	result_entries = (parent_entries + new_entries) - (deleted_entries + 1);
+	result_entries = (parent_entries + new_entries) - deleted_entries;
 
 	/*
 	 * If there are no remaining entries on the parent, give up, we can't
 	 * leave an empty internal page. Mark it to be evicted soon and clean
-	 * up any references that have changed state.
+	 * up the references that have changed state.
 	 */
 	if (result_entries == 0) {
-		empty_parent = true;
 		__wt_page_evict_soon(parent);
 		goto err;
 	}
@@ -919,14 +917,6 @@ err:	/*
 		}
 
 		__wt_free_ref_index(session, NULL, alloc_index, false);
-
-		/*
-		 * The split couldn't proceed because the parent would be empty,
-		 * return EBUSY so our caller knows to unlock the WT_REF that's
-		 * being deleted, but don't be noisy, there's nothing wrong.
-		 */
-		if (empty_parent)
-			return (EBUSY);
 	}
 
 	if (ret != 0 && ret != WT_PANIC)
