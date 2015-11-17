@@ -70,7 +70,7 @@ class backup_thread(threading.Thread):
 
             cursor.close()
 
-            bkp_conn = wiredtiger.wiredtiger_open(self.backup_dir)
+            bkp_conn = wiredtiger.wiredtiger_open(self.backup_dir, None)
             bkp_session = bkp_conn.open_session()
             # Verify that the backup was OK.
             uris = list()
