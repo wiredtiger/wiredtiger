@@ -1988,7 +1988,7 @@ __wt_split_reverse(WT_SESSION_IMPL *session, WT_REF *ref)
 	    session, WT_VERB_SPLIT, "%p: reverse-split", ref->page));
 
 	WT_RET(__split_internal_lock(session, ref, &parent, &hazard));
-	ret = __split_parent(session, ref, NULL, 0, 0, false, true);
+	ret = __split_parent(session, ref, NULL, 0, 0, false, false);
 	WT_TRET(__split_internal_unlock(session, parent, hazard));
 	return (ret);
 }
