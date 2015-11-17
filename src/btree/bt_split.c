@@ -738,11 +738,15 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	}
 
 	/*
-	 * The final entry count consists of the original count plus any new
-	 * pages, less any deleted WT_REFs and the WT_REF being replaced.
+	 * The final entry count is the original count plus any new pages, less
+	 * any deleted WT_REFs and the WT_REF being replaced. Care is required:
+	 * the WT_REF being replaced might have been in a WT_REF_DELETED state,
+	 * in which case it was switched to a WT_REF_SPLIT state and counted as
+	 * a deleted entry, don't double count it.
 	 */
-	result_entries =
-	    (parent_entries + new_entries) - (deleted_entries + 1);
+	result_entries = (parent_entries + new_entries) - deleted_entries;
+	if (ref->state != WT_REF_SPLIT)
+		--result_entries;
 
 	/*
 	 * If there are no remaining entries on the parent, give up, we can't
