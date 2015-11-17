@@ -740,17 +740,19 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	/*
 	 * The final entry count consists of the original count, plus any new
 	 * pages, less any WT_REFs we're removing.
+	 *
+	 * We can't leave an empty internal page: if there are no remaining
+	 * entries on the parent, leave the first element in place and mark
+	 * the page to be evicted soon.
 	 */
 	result_entries = (parent_entries + new_entries) - deleted_entries;
-
-	/*
-	 * If there are no remaining entries on the parent, give up, we can't
-	 * leave an empty internal page. Mark it to be evicted soon and clean
-	 * up the references that have changed state.
-	 */
 	if (result_entries == 0) {
+		pindex->index[0]->state = WT_REF_DELETED;
+
+		++result_entries;
+		--deleted_entries;
+
 		__wt_page_evict_soon(parent);
-		goto err;
 	}
 
 	/*
