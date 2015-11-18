@@ -877,17 +877,19 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 				    session, split_gen, exclusive, ikey, size));
 				parent_decr += size;
 			}
-			/*
-			 * The page_del structure can be freed immediately: it
-			 * is only read when the ref state is WT_REF_DELETED.
-			 * The size of the structure wasn't added to the parent,
-			 * don't decrement.
-			 */
-			if (next_ref->page_del != NULL) {
-				__wt_free(session,
-				    next_ref->page_del->update_list);
-				__wt_free(session, next_ref->page_del);
-			}
+		}
+
+		/*
+		 * Page-delete information is only read when the WT_REF state is
+		 * WT_REF_DELETED, but since it's not a common or large chunk of
+		 * memory, use safe-free to be cautious. The page-delete memory
+		 * wasn't added to the parent's footprint, ignore it here.
+		 */
+		if (next_ref->page_del != NULL) {
+			WT_TRET(__split_safe_free(session, split_gen,
+			    exclusive, next_ref->page_del->update_list, 0));
+			WT_TRET(__split_safe_free(session, split_gen, exclusive,
+			    next_ref->page_del, sizeof(WT_PAGE_DELETED)));
 		}
 
 		WT_TRET(__split_safe_free(
