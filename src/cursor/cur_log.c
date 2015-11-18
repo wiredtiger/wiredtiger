@@ -187,13 +187,14 @@ __curlog_kv(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 	if (FLD_ISSET(cursor->flags, WT_CURSTD_RAW)) {
 		memset(&item, 0, sizeof(item));
 		WT_RET(wiredtiger_struct_size((WT_SESSION *)session,
-		    &item.size, WT_LOGC_KEY_FORMAT, cl->cur_lsn->file,
-		    cl->cur_lsn->offset, key_count));
+		    &item.size, WT_LOGC_KEY_FORMAT, WT_LSN_FILE(cl->cur_lsn),
+		    WT_LSN_OFFSET(cl->cur_lsn), key_count));
 		WT_RET(__wt_realloc(session, NULL, item.size, &cl->packed_key));
 		item.data = cl->packed_key;
 		WT_RET(wiredtiger_struct_pack((WT_SESSION *)session,
 		    cl->packed_key, item.size, WT_LOGC_KEY_FORMAT,
-		    cl->cur_lsn->file, cl->cur_lsn->offset, key_count));
+		    WT_LSN_FILE(cl->cur_lsn),
+		    WT_LSN_OFFSET(cl->cur_lsn), key_count));
 		__wt_cursor_set_key(cursor, &item);
 
 		WT_RET(wiredtiger_struct_size((WT_SESSION *)session,
@@ -208,8 +209,8 @@ __curlog_kv(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 		    cl->opvalue));
 		__wt_cursor_set_value(cursor, &item);
 	} else {
-		__wt_cursor_set_key(cursor, cl->cur_lsn->file,
-		    cl->cur_lsn->offset, key_count);
+		__wt_cursor_set_key(cursor, WT_LSN_FILE(cl->cur_lsn),
+		    WT_LSN_OFFSET(cl->cur_lsn), key_count);
 		__wt_cursor_set_value(cursor, cl->txnid, cl->rectype, optype,
 		    fileid, cl->opkey, cl->opvalue);
 	}
@@ -264,7 +265,7 @@ __curlog_search(WT_CURSOR *cursor)
 	WT_DECL_RET;
 	WT_LSN key;
 	WT_SESSION_IMPL *session;
-	uint32_t counter;
+	uint32_t counter, lsn_file, lsn_offset;
 
 	cl = (WT_CURSOR_LOG *)cursor;
 
@@ -274,7 +275,8 @@ __curlog_search(WT_CURSOR *cursor)
 	 * !!! We are ignoring the counter and only searching based on the LSN.
 	 */
 	WT_ERR(__wt_cursor_get_key((WT_CURSOR *)cl,
-	    &key.file, &key.offset, &counter));
+	    &lsn_file, &lsn_offset, &counter));
+	WT_SET_LSN(&key, lsn_file, lsn_offset);
 	ret = __wt_log_scan(session, &key, WT_LOGSCAN_ONE,
 	    __curlog_logrec, cl);
 	if (ret == ENOENT)
