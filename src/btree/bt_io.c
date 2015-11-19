@@ -162,6 +162,62 @@ err:	__wt_scr_free(session, &tmp);
 }
 
 /*
+ * __compression_skip_tracking --
+ *	Track compression failures, then skip compression attempts if the data
+ * isn't compressing.
+ */
+static inline void
+__compression_skip_tracking(WT_BTREE *btree, bool failed)
+{
+	/*
+	 * Compression may be configured on a file that doesn't compress well
+	 * (but that may be transitory). Compression calls are expensive, and
+	 * compression algorithms get more expensive the worse they're doing.
+	 * A simple back-off strategy: if there are at least 10 compression
+	 * failures in a row, skip the next 10% attempts, until we're only
+	 * attempting to compress roughly 1 in every 100 block writes. When
+	 * any compression attempt succeeds, reset and start over. To restate,
+	 * be aggressive about skipping compression attempts, but err on the
+	 * side of compression if there's any evidence it's doing useful work.
+	 *
+	 * Avoid atomic operations and updating shared variables; we really care
+	 * about the count of operations to be skipped (we're in trouble if that
+	 * underflows), but other races don't matter.
+	 */
+	if (failed) {
+		if (btree->compression_fail_cnt < 1000)
+			++btree->compression_fail_cnt;
+		if (btree->compression_fail_cnt > 10 &&
+		    btree->compression_fail_skip == 0)
+			btree->compression_fail_skip =
+			    btree->compression_fail_cnt / 10;
+	} else {
+		if (btree->compression_fail_cnt)
+			btree->compression_fail_cnt = 0;
+		if (btree->compression_fail_skip)
+			btree->compression_fail_skip = 0;
+	}
+}
+
+/*
+ * __compression_skip_next --
+ *	Return if we should skip the next compression attempt.
+ */
+static inline bool
+__compression_skip_next(WT_BTREE *btree)
+{
+	uint32_t v;
+
+	if (btree->compression_fail_skip == 0)
+		return (false);
+
+	while ((v = btree->compression_fail_skip) > 0)
+		if (__wt_atomic_casv32(&btree->compression_fail_skip, v, v - 1))
+			break;
+	return (true);
+}
+
+/*
  * __wt_bt_write --
  *	Write a buffer into a block, returning the block's addr/size and
  * checksum.
@@ -226,7 +282,8 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 
 	/*
 	 * Optionally stream-compress the data, but don't compress blocks that
-	 * are already as small as they're going to get.
+	 * are already as small as they're going to get, or if this file simply
+	 * doesn't compress well.
 	 */
 	if (btree->compressor == NULL ||
 	    btree->compressor->compress == NULL || compressed)
@@ -234,7 +291,9 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 	else if (buf->size <= btree->allocsize) {
 		ip = buf;
 		WT_STAT_FAST_DATA_INCR(session, compress_write_too_small);
-	} else {
+	} else if (__compression_skip_next(btree))
+		ip = buf;
+	else {
 		/* Skip the header bytes of the source data. */
 		src = (uint8_t *)buf->mem + WT_BLOCK_COMPRESS_SKIP;
 		src_len = buf->size - WT_BLOCK_COMPRESS_SKIP;
@@ -283,6 +342,8 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 		    result_len / btree->allocsize) {
 			ip = buf;
 			WT_STAT_FAST_DATA_INCR(session, compress_write_fail);
+
+			__compression_skip_tracking(btree, true);
 		} else {
 			compressed = true;
 			WT_STAT_FAST_DATA_INCR(session, compress_write);
@@ -294,6 +355,8 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 			memcpy(ctmp->mem, buf->mem, WT_BLOCK_COMPRESS_SKIP);
 			ctmp->size = result_len;
 			ip = ctmp;
+
+			__compression_skip_tracking(btree, false);
 		}
 	}
 	/*
