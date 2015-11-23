@@ -456,6 +456,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	uint64_t bytes_inuse, bytes_max, dirty_inuse;
+	int64_t evict_count;
 
 	conn = S2C(session);
 	cache = conn->cache;
@@ -465,6 +466,21 @@ __evict_update_work(WT_SESSION_IMPL *session)
 
 	if (!F_ISSET(conn, WT_CONN_EVICTION_RUN))
 		return (false);
+
+	/*
+	 * Update the eviction progress tracking.
+	 * TODO: Don't use statistics for this tracking, but it's nice to have
+	 * the statistics performant counters.
+	 */
+	evict_count = WT_STAT_READ(conn->stats, cache_eviction_clean) +
+	    WT_STAT_READ(conn->stats, cache_eviction_dirty);
+	if (evict_count > cache->saved_evict_count)
+		evict_count = evict_count - cache->saved_evict_count;
+	else
+		evict_count = 0;
+	cache->evict_progress =
+	    (9 * cache->evict_progress + (uint64_t)evict_count) / 10;
+	cache->saved_evict_count = evict_count;
 
 	/*
 	 * Page eviction overrides the dirty target and other types of eviction,
@@ -560,7 +576,11 @@ __evict_pass(WT_SESSION_IMPL *session)
 		if (!__evict_update_work(session))
 			break;
 
-		if (loop > 10)
+		/*
+		 * Try harder if we are averaging less than five pages evicted
+		 * per eviction pass.
+		 */
+		if (cache->evict_progress < 5)
 			FLD_SET(cache->state, WT_EVICT_PASS_AGGRESSIVE);
 
 		/*
