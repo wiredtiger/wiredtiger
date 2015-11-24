@@ -34,8 +34,10 @@ static void	   config_compression(const char *);
 static void	   config_encryption(void);
 static const char *config_file_type(u_int);
 static CONFIG	  *config_find(const char *, size_t);
+static void	   config_in_memory(void);
 static int	   config_is_perm(const char *);
 static void	   config_isolation(void);
+static void	   config_lrt(void);
 static void	   config_map_checksum(const char *, u_int *);
 static void	   config_map_compression(const char *, u_int *);
 static void	   config_map_encryption(const char *, u_int *);
@@ -55,6 +57,13 @@ config_setup(void)
 	config_clear();
 
 	/*
+	 * Periodically, run in-memory; don't do it on the first run, all our
+	 * smoke tests would hit it.
+	 */
+	if (!config_is_perm("in_memory") && g.run_cnt % 20 == 19)
+		g.c_in_memory = 1;
+
+	/*
 	 * Choose a data source type and a file type: they're interrelated (LSM
 	 * trees are only compatible with row-store) and other items depend on
 	 * them.
@@ -65,8 +74,11 @@ config_setup(void)
 			config_single("data_source=file", 0);
 			break;
 		case 2:
-			config_single("data_source=lsm", 0);
-			break;
+			if (!g.c_in_memory) {
+				config_single("data_source=lsm", 0);
+				break;
+			}
+			/* FALLTHROUGH */
 		case 3:
 			config_single("data_source=table", 0);
 			break;
@@ -102,8 +114,7 @@ config_setup(void)
 	 * our configuration, LSM or KVS devices are "tables", but files are
 	 * tested as well.
 	 */
-	if ((g.uri = malloc(256)) == NULL)
-		die(errno, "malloc");
+	g.uri = dmalloc(256);
 	strcpy(g.uri, DATASOURCE("file") ? "file:" : "table:");
 	if (DATASOURCE("helium"))
 		strcat(g.uri, "dev1/");
@@ -135,12 +146,6 @@ config_setup(void)
 	if (DATASOURCE("helium") || DATASOURCE("kvsbdb"))
 		g.c_reverse = 0;
 
-	config_checksum();
-	config_compression("compression");
-	config_compression("logging_compression");
-	config_encryption();
-	config_isolation();
-
 	/*
 	 * Periodically, run single-threaded so we can compare the results to
 	 * a Berkeley DB copy, as long as the thread-count isn't nailed down.
@@ -148,6 +153,14 @@ config_setup(void)
 	 */
 	if (!g.replay && g.run_cnt % 20 == 19 && !config_is_perm("threads"))
 		g.c_threads = 1;
+
+	config_checksum();
+	config_compression("compression");
+	config_compression("logging_compression");
+	config_encryption();
+	config_in_memory();
+	config_isolation();
+	config_lrt();
 
 	/*
 	 * Periodically, set the delete percentage to 0 so salvage gets run,
@@ -168,6 +181,10 @@ config_setup(void)
 		if (!config_is_perm("insert_pct"))
 			g.c_insert_pct = mmrand(NULL, 50, 85);
 	}
+
+	/* Ensure there is at least 1MB of cache per thread. */
+	if (!config_is_perm("cache") && g.c_cache < g.c_threads)
+		g.c_cache = g.c_threads;
 
 	/* Make the default maximum-run length 20 minutes. */
 	if (!config_is_perm("timer"))
@@ -296,6 +313,43 @@ config_encryption(void)
 }
 
 /*
+ * config_in_memory --
+ *	In-memory configuration.
+ */
+static void
+config_in_memory(void)
+{
+	if (g.c_in_memory == 0)
+		return;
+
+	/* Turn off a lot of stuff. */
+	if (!config_is_perm("backups"))
+		g.c_backups = 0;
+	if (!config_is_perm("checkpoints"))
+		g.c_checkpoints = 0;
+	if (!config_is_perm("compression"))
+		g.c_compression = 0;
+	if (!config_is_perm("logging"))
+		g.c_logging = 0;
+	if (!config_is_perm("salvage"))
+		g.c_salvage = 0;
+	if (!config_is_perm("verify"))
+		g.c_verify = 0;
+
+	/*
+	 * Ensure there is 250MB of cache per thread; keep keys/values small,
+	 * overflow items aren't an issue for in-memory configurations and it
+	 * keeps us from overflowing the cache.
+	 */
+	if (!config_is_perm("cache"))
+		g.c_cache = g.c_threads * 250;
+	if (!config_is_perm("key_max"))
+		g.c_value_max = 64;
+	if (!config_is_perm("value_max"))
+		g.c_value_max = 128;
+}
+
+/*
  * config_isolation --
  *	Isolation configuration.
  */
@@ -325,6 +379,26 @@ config_isolation(void)
 			break;
 		}
 		config_single(cstr, 0);
+	}
+}
+
+/*
+ * config_lrt --
+ *	Long-running transaction configuration.
+ */
+static void
+config_lrt(void)
+{
+	/*
+	 * WiredTiger doesn't support a lookaside file for fixed-length column
+	 * stores.
+	 */
+	if (g.type == FIX) {
+		if (config_is_perm("long_running_txn"))
+			die(EINVAL,
+			    "long_running_txn not supported with fixed-length "
+			    "column store");
+		g.c_long_running_txn = 0;
 	}
 }
 

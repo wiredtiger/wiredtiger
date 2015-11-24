@@ -32,7 +32,7 @@ __cursor_pos_clear(WT_CURSOR_BTREE *cbt)
 	 * and it's a minimal set of things we need to clear. It would be a
 	 * lot simpler to clear everything, but we call this function a lot.
 	 */
-	cbt->recno = 0;
+	cbt->recno = WT_RECNO_OOB;
 
 	cbt->ins = NULL;
 	cbt->ins_head = NULL;
@@ -60,7 +60,7 @@ __cursor_enter(WT_SESSION_IMPL *session)
 	 * whether the cache is full.
 	 */
 	if (session->ncursors == 0)
-		WT_RET(__wt_cache_full_check(session));
+		WT_RET(__wt_cache_eviction_check(session, false, NULL));
 	++session->ncursors;
 	return (0);
 }
@@ -139,6 +139,70 @@ __curfile_leave(WT_CURSOR_BTREE *cbt)
 }
 
 /*
+ * __wt_curindex_get_valuev --
+ *	Internal implementation of WT_CURSOR->get_value for index cursors
+ */
+static inline int
+__wt_curindex_get_valuev(WT_CURSOR *cursor, va_list ap)
+{
+	WT_CURSOR_INDEX *cindex;
+	WT_DECL_RET;
+	WT_ITEM *item;
+	WT_SESSION_IMPL *session;
+
+	cindex = (WT_CURSOR_INDEX *)cursor;
+	session = (WT_SESSION_IMPL *)cursor->session;
+	WT_CURSOR_NEEDVALUE(cursor);
+
+	if (F_ISSET(cursor, WT_CURSOR_RAW_OK)) {
+		ret = __wt_schema_project_merge(session,
+		    cindex->cg_cursors, cindex->value_plan,
+		    cursor->value_format, &cursor->value);
+		if (ret == 0) {
+			item = va_arg(ap, WT_ITEM *);
+			item->data = cursor->value.data;
+			item->size = cursor->value.size;
+		}
+	} else
+		ret = __wt_schema_project_out(session,
+		    cindex->cg_cursors, cindex->value_plan, ap);
+err:	return (ret);
+}
+
+/*
+ * __wt_curtable_get_valuev --
+ *	Internal implementation of WT_CURSOR->get_value for table cursors.
+ */
+static inline int
+__wt_curtable_get_valuev(WT_CURSOR *cursor, va_list ap)
+{
+	WT_CURSOR *primary;
+	WT_CURSOR_TABLE *ctable;
+	WT_DECL_RET;
+	WT_ITEM *item;
+	WT_SESSION_IMPL *session;
+
+	ctable = (WT_CURSOR_TABLE *)cursor;
+	session = (WT_SESSION_IMPL *)cursor->session;
+	primary = *ctable->cg_cursors;
+	WT_CURSOR_NEEDVALUE(primary);
+
+	if (F_ISSET(cursor, WT_CURSOR_RAW_OK)) {
+		ret = __wt_schema_project_merge(session,
+		    ctable->cg_cursors, ctable->plan,
+		    cursor->value_format, &cursor->value);
+		if (ret == 0) {
+			item = va_arg(ap, WT_ITEM *);
+			item->data = cursor->value.data;
+			item->size = cursor->value.size;
+		}
+	} else
+		ret = __wt_schema_project_out(session,
+		    ctable->cg_cursors, ctable->plan, ap);
+err:	return (ret);
+}
+
+/*
  * __wt_cursor_dhandle_incr_use --
  *	Increment the in-use counter in cursor's data source.
  */
@@ -150,7 +214,7 @@ __wt_cursor_dhandle_incr_use(WT_SESSION_IMPL *session)
 	dhandle = session->dhandle;
 
 	/* If we open a handle with a time of death set, clear it. */
-	if (WT_ATOMIC_ADD4(dhandle->session_inuse, 1) == 1 &&
+	if (__wt_atomic_addi32(&dhandle->session_inuse, 1) == 1 &&
 	    dhandle->timeofdeath != 0)
 		dhandle->timeofdeath = 0;
 }
@@ -168,7 +232,7 @@ __wt_cursor_dhandle_decr_use(WT_SESSION_IMPL *session)
 
 	/* If we close a handle with a time of death set, clear it. */
 	WT_ASSERT(session, dhandle->session_inuse > 0);
-	if (WT_ATOMIC_SUB4(dhandle->session_inuse, 1) == 0 &&
+	if (__wt_atomic_subi32(&dhandle->session_inuse, 1) == 0 &&
 	    dhandle->timeofdeath != 0)
 		dhandle->timeofdeath = 0;
 }
@@ -178,7 +242,7 @@ __wt_cursor_dhandle_decr_use(WT_SESSION_IMPL *session)
  *	Cursor call setup.
  */
 static inline int
-__cursor_func_init(WT_CURSOR_BTREE *cbt, int reenter)
+__cursor_func_init(WT_CURSOR_BTREE *cbt, bool reenter)
 {
 	WT_SESSION_IMPL *session;
 
@@ -186,6 +250,12 @@ __cursor_func_init(WT_CURSOR_BTREE *cbt, int reenter)
 
 	if (reenter)
 		WT_RET(__curfile_leave(cbt));
+
+	/*
+	 * Any old insert position is now invalid.  We rely on this being
+	 * cleared to detect if a new skiplist is installed after a search.
+	 */
+	cbt->ins_stack[0] = NULL;
 
 	/* If the transaction is idle, check that the cache isn't full. */
 	WT_RET(__wt_txn_idle_cache_check(session));
@@ -290,7 +360,7 @@ __cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_UPDATE *upd)
 		 * already did __wt_row_leaf_key's fast-path checks inline.
 		 */
 slow:		WT_RET(__wt_row_leaf_key_work(
-		    session, page, rip, cbt->row_key, 0));
+		    session, page, rip, cbt->row_key, false));
 	}
 	kb->data = cbt->row_key->data;
 	kb->size = cbt->row_key->size;

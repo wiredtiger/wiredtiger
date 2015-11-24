@@ -8,63 +8,67 @@
 
 #include "wt_internal.h"
 
+#define	WT_DHANDLE_CAN_DISCARD(dhandle)					\
+	(!F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE | WT_DHANDLE_OPEN) &&	\
+	dhandle->session_inuse == 0 && dhandle->session_ref == 0)
+
 /*
  * __sweep_mark --
  *	Mark idle handles with a time of death, and note if we see dead
  *	handles.
  */
 static int
-__sweep_mark(WT_SESSION_IMPL *session, int *dead_handlesp)
+__sweep_mark(WT_SESSION_IMPL *session, time_t now)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
-	time_t now;
 
 	conn = S2C(session);
-	*dead_handlesp = 0;
 
-	/* Don't discard handles that have been open recently. */
-	WT_RET(__wt_seconds(session, &now));
-
-	WT_STAT_FAST_CONN_INCR(session, dh_conn_sweeps);
-	SLIST_FOREACH(dhandle, &conn->dhlh, l) {
+	TAILQ_FOREACH(dhandle, &conn->dhqh, q) {
 		if (WT_IS_METADATA(dhandle))
 			continue;
-		if (F_ISSET(dhandle, WT_DHANDLE_DEAD)) {
-			++*dead_handlesp;
-			continue;
-		}
-		if (dhandle->session_inuse != 0 ||
-		    now <= dhandle->timeofdeath + conn->sweep_idle_time)
-			continue;
-		if (dhandle->timeofdeath == 0) {
-			dhandle->timeofdeath = now;
-			WT_STAT_FAST_CONN_INCR(session, dh_conn_tod);
-			continue;
-		}
 
-		/* We now have a candidate to close. */
-		++*dead_handlesp;
+		/*
+		 * There are some internal increments of the in-use count such
+		 * as eviction.  Don't keep handles alive because of those
+		 * cases, but if we see multiple cursors open, clear the time
+		 * of death.
+		 */
+		if (dhandle->session_inuse > 1)
+			dhandle->timeofdeath = 0;
+
+		/*
+		 * If the handle is open exclusive or currently in use, or the
+		 * time of death is already set, move on.
+		 */
+		if (F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) ||
+		    dhandle->session_inuse > 0 ||
+		    dhandle->timeofdeath != 0)
+			continue;
+
+		dhandle->timeofdeath = now;
+		WT_STAT_FAST_CONN_INCR(session, dh_sweep_tod);
 	}
 
 	return (0);
 }
 
 /*
- * __sweep_expire_handle --
+ * __sweep_expire_one --
  *	Mark a single handle dead.
  */
 static int
-__sweep_expire_handle(WT_SESSION_IMPL *session)
+__sweep_expire_one(WT_SESSION_IMPL *session)
 {
 	WT_BTREE *btree;
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
-	int evict_reset;
+	bool evict_reset;
 
 	btree = S2BT(session);
 	dhandle = session->dhandle;
-	evict_reset = 0;
+	evict_reset = false;
 
 	/*
 	 * Acquire an exclusive lock on the handle and mark it dead.
@@ -96,7 +100,7 @@ __sweep_expire_handle(WT_SESSION_IMPL *session)
 	 * handle. Closing the handle decrements the open file count,
 	 * meaning the close loop won't overrun the configured minimum.
 	 */
-	ret = __wt_conn_btree_sync_and_close(session, 0, 1);
+	ret = __wt_conn_btree_sync_and_close(session, false, true);
 
 	if (evict_reset)
 		__wt_evict_file_exclusive_off(session);
@@ -112,38 +116,32 @@ err:	WT_TRET(__wt_writeunlock(session, dhandle->rwlock));
  *	until we have reached the configured minimum number of handles.
  */
 static int
-__sweep_expire(WT_SESSION_IMPL *session)
+__sweep_expire(WT_SESSION_IMPL *session, time_t now)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
-	time_t now;
 
 	conn = S2C(session);
 
-	/* Don't discard handles that have been open recently. */
-	WT_RET(__wt_seconds(session, &now));
-
-	WT_STAT_FAST_CONN_INCR(session, dh_conn_sweeps);
-	SLIST_FOREACH(dhandle, &conn->dhlh, l) {
+	TAILQ_FOREACH(dhandle, &conn->dhqh, q) {
 		/*
-		 * Ignore open files once the open file count reaches the
+		 * Ignore open files once the btree file count is below the
 		 * minimum number of handles.
 		 */
-		if (conn->open_file_count < conn->sweep_handles_min)
+		if (conn->open_btree_count < conn->sweep_handles_min)
 			break;
 
-		if (WT_IS_METADATA(dhandle))
-			continue;
-		if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
-		    F_ISSET(dhandle, WT_DHANDLE_DEAD))
-			continue;
-		if (dhandle->session_inuse != 0 ||
-		    now <= dhandle->timeofdeath + conn->sweep_idle_time)
+		if (WT_IS_METADATA(dhandle) ||
+		    !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
+		    dhandle->session_inuse != 0 ||
+		    dhandle->timeofdeath == 0 ||
+		    difftime(now, dhandle->timeofdeath) <=
+		    conn->sweep_idle_time)
 			continue;
 
 		WT_WITH_DHANDLE(session, dhandle,
-		    ret = __sweep_expire_handle(session));
+		    ret = __sweep_expire_one(session));
 		WT_RET_BUSY_OK(ret);
 	}
 
@@ -151,11 +149,11 @@ __sweep_expire(WT_SESSION_IMPL *session)
 }
 
 /*
- * __sweep_flush --
- *	Flush pages from dead trees.
+ * __sweep_discard_trees --
+ *	Discard pages from dead trees.
  */
 static int
-__sweep_flush(WT_SESSION_IMPL *session)
+__sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
@@ -163,19 +161,26 @@ __sweep_flush(WT_SESSION_IMPL *session)
 
 	conn = S2C(session);
 
-	WT_STAT_FAST_CONN_INCR(session, dh_conn_sweeps);
-	SLIST_FOREACH(dhandle, &conn->dhlh, l) {
+	*dead_handlesp = 0;
+
+	TAILQ_FOREACH(dhandle, &conn->dhqh, q) {
+		if (WT_DHANDLE_CAN_DISCARD(dhandle))
+			++*dead_handlesp;
+
 		if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
 		    !F_ISSET(dhandle, WT_DHANDLE_DEAD))
 			continue;
 
 		/* If the handle is marked "dead", flush it from cache. */
 		WT_WITH_DHANDLE(session, dhandle, ret =
-		    __wt_conn_btree_sync_and_close(session, 0, 0));
+		    __wt_conn_btree_sync_and_close(session, false, false));
 
-		/* We closed the btree handle, bump the statistic. */
-		if (ret == 0)
-			WT_STAT_FAST_CONN_INCR(session, dh_conn_handles);
+		/* We closed the btree handle. */
+		if (ret == 0) {
+			WT_STAT_FAST_CONN_INCR(session, dh_sweep_close);
+			++*dead_handlesp;
+		} else
+			WT_STAT_FAST_CONN_INCR(session, dh_sweep_ref);
 
 		WT_RET_BUSY_OK(ret);
 	}
@@ -184,8 +189,41 @@ __sweep_flush(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __sweep_remove_one --
+ *	Remove a closed handle from the connection list.
+ */
+static int
+__sweep_remove_one(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
+{
+	WT_DECL_RET;
+
+	/* Try to get exclusive access. */
+	WT_RET(__wt_try_writelock(session, dhandle->rwlock));
+
+	/*
+	 * If there are no longer any references to the handle in any
+	 * sessions, attempt to discard it.
+	 */
+	if (!WT_DHANDLE_CAN_DISCARD(dhandle))
+		WT_ERR(EBUSY);
+
+	WT_WITH_DHANDLE(session, dhandle,
+	    ret = __wt_conn_dhandle_discard_single(session, false, true));
+
+	/*
+	 * If the handle was not successfully discarded, unlock it and
+	 * don't retry the discard until it times out again.
+	 */
+	if (ret != 0) {
+err:		WT_TRET(__wt_writeunlock(session, dhandle->rwlock));
+	}
+
+	return (ret);
+}
+
+/*
  * __sweep_remove_handles --
- *	Remove closed dhandles from the connection list.
+ *	Remove closed handles from the connection list.
  */
 static int
 __sweep_remove_handles(WT_SESSION_IMPL *session)
@@ -195,41 +233,23 @@ __sweep_remove_handles(WT_SESSION_IMPL *session)
 	WT_DECL_RET;
 
 	conn = S2C(session);
-	dhandle = SLIST_FIRST(&conn->dhlh);
 
-	for (; dhandle != NULL; dhandle = dhandle_next) {
-		dhandle_next = SLIST_NEXT(dhandle, l);
+	for (dhandle = TAILQ_FIRST(&conn->dhqh);
+	    dhandle != NULL;
+	    dhandle = dhandle_next) {
+		dhandle_next = TAILQ_NEXT(dhandle, q);
 		if (WT_IS_METADATA(dhandle))
 			continue;
-		if (F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
-		    dhandle->session_inuse != 0 ||
-		    dhandle->session_ref != 0)
+		if (!WT_DHANDLE_CAN_DISCARD(dhandle))
 			continue;
 
-		/* Make sure we get exclusive access. */
-		if ((ret =
-		    __wt_try_writelock(session, dhandle->rwlock)) == EBUSY)
-			continue;
-		WT_RET(ret);
-
-		/*
-		 * If there are no longer any references to the handle in any
-		 * sessions, attempt to discard it.
-		 */
-		if (F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
-		    dhandle->session_inuse != 0 || dhandle->session_ref != 0) {
-			WT_RET(__wt_writeunlock(session, dhandle->rwlock));
-			continue;
-		}
-
-		WT_WITH_DHANDLE(session, dhandle,
-		    ret = __wt_conn_dhandle_discard_single(session, 0, 1));
-
-		/* If the handle was not successfully discarded, unlock it. */
-		if (ret != 0)
-			WT_TRET(__wt_writeunlock(session, dhandle->rwlock));
+		WT_WITH_HANDLE_LIST_LOCK(session,
+		    ret = __sweep_remove_one(session, dhandle));
+		if (ret == 0)
+			WT_STAT_FAST_CONN_INCR(session, dh_sweep_remove);
+		else
+			WT_STAT_FAST_CONN_INCR(session, dh_sweep_ref);
 		WT_RET_BUSY_OK(ret);
-		WT_STAT_FAST_CONN_INCR(session, dh_conn_ref);
 	}
 
 	return (ret == EBUSY ? 0 : ret);
@@ -245,7 +265,8 @@ __sweep_server(void *arg)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	int dead_handles;
+	time_t now;
+	u_int dead_handles;
 
 	session = arg;
 	conn = S2C(session);
@@ -256,31 +277,39 @@ __sweep_server(void *arg)
 	while (F_ISSET(conn, WT_CONN_SERVER_RUN) &&
 	    F_ISSET(conn, WT_CONN_SERVER_SWEEP)) {
 		/* Wait until the next event. */
-		WT_ERR(__wt_cond_wait(session, conn->sweep_cond,
-		    (uint64_t)conn->sweep_interval * WT_MILLION));
+		WT_ERR(__wt_cond_wait(session,
+		    conn->sweep_cond, conn->sweep_interval * WT_MILLION));
+		WT_ERR(__wt_seconds(session, &now));
+
+		WT_STAT_FAST_CONN_INCR(session, dh_sweeps);
+
+		/*
+		 * Sweep the lookaside table. If the lookaside table hasn't yet
+		 * been written, there's no work to do.
+		 */
+		if (__wt_las_is_written(session))
+			WT_ERR(__wt_las_sweep(session));
 
 		/*
 		 * Mark handles with a time of death, and report whether any
-		 * handles are marked dead.
+		 * handles are marked dead.  If sweep_idle_time is 0, handles
+		 * never become idle.
 		 */
-		WT_ERR(__sweep_mark(session, &dead_handles));
+		if (conn->sweep_idle_time != 0)
+			WT_ERR(__sweep_mark(session, now));
 
-		if (dead_handles == 0 &&
-		    conn->open_file_count < conn->sweep_handles_min)
-			continue;
+		/*
+		 * Close handles if we have reached the configured limit.
+		 * If sweep_idle_time is 0, handles never become idle.
+		 */
+		if (conn->sweep_idle_time != 0 &&
+		    conn->open_btree_count >= conn->sweep_handles_min)
+			WT_ERR(__sweep_expire(session, now));
 
-		/* Close handles if we have reached the configured limit */
-		if (conn->open_file_count >= conn->sweep_handles_min) {
-			WT_WITH_HANDLE_LIST_LOCK(session,
-			    ret = __sweep_expire(session));
-			WT_ERR(ret);
-		}
+		WT_ERR(__sweep_discard_trees(session, &dead_handles));
 
-		WT_ERR(__sweep_flush(session));
-
-		WT_WITH_HANDLE_LIST_LOCK(session,
-		    ret = __sweep_remove_handles(session));
-		WT_ERR(ret);
+		if (dead_handles > 0)
+			WT_ERR(__sweep_remove_handles(session));
 	}
 
 	if (0) {
@@ -301,18 +330,25 @@ __wt_sweep_config(WT_SESSION_IMPL *session, const char *cfg[])
 
 	conn = S2C(session);
 
-	/* Pull out the sweep configurations. */
-	WT_RET(__wt_config_gets(session,
-	    cfg, "file_manager.close_idle_time", &cval));
-	conn->sweep_idle_time = (time_t)cval.val;
+	/*
+	 * A non-zero idle time is incompatible with in-memory, and the default
+	 * is non-zero; set the in-memory configuration idle time to zero.
+	 */
+	conn->sweep_idle_time = 0;
+	WT_RET(__wt_config_gets(session, cfg, "in_memory", &cval));
+	if (cval.val == 0) {
+		WT_RET(__wt_config_gets(session,
+		    cfg, "file_manager.close_idle_time", &cval));
+		conn->sweep_idle_time = (uint64_t)cval.val;
+	}
 
 	WT_RET(__wt_config_gets(session,
 	    cfg, "file_manager.close_scan_interval", &cval));
-	conn->sweep_interval = (time_t)cval.val;
+	conn->sweep_interval = (uint64_t)cval.val;
 
 	WT_RET(__wt_config_gets(session,
 	    cfg, "file_manager.close_handle_minimum", &cval));
-	conn->sweep_handles_min = (u_int)cval.val;
+	conn->sweep_handles_min = (uint64_t)cval.val;
 
 	return (0);
 }
@@ -325,24 +361,30 @@ int
 __wt_sweep_create(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
+	uint32_t session_flags;
 
 	conn = S2C(session);
 
 	/* Set first, the thread might run before we finish up. */
 	F_SET(conn, WT_CONN_SERVER_SWEEP);
 
-	WT_RET(__wt_open_internal_session(
-	    conn, "sweep-server", 1, 1, &conn->sweep_session));
-	session = conn->sweep_session;
-
 	/*
 	 * Handle sweep does enough I/O it may be called upon to perform slow
 	 * operations for the block manager.
+	 *
+	 * The sweep thread sweeps the lookaside table for outdated records,
+	 * it gets its own cursor for that purpose.
+	 *
+	 * Don't tap the sweep thread for eviction.
 	 */
-	F_SET(session, WT_SESSION_CAN_WAIT);
+	session_flags = WT_SESSION_CAN_WAIT |
+	    WT_SESSION_LOOKASIDE_CURSOR | WT_SESSION_NO_EVICTION;
+	WT_RET(__wt_open_internal_session(
+	    conn, "sweep-server", true, session_flags, &conn->sweep_session));
+	session = conn->sweep_session;
 
 	WT_RET(__wt_cond_alloc(
-	    session, "handle sweep server", 0, &conn->sweep_cond));
+	    session, "handle sweep server", false, &conn->sweep_cond));
 
 	WT_RET(__wt_thread_create(
 	    session, &conn->sweep_tid, __sweep_server, session));
@@ -378,5 +420,9 @@ __wt_sweep_destroy(WT_SESSION_IMPL *session)
 
 		conn->sweep_session = NULL;
 	}
+
+	/* Discard any saved lookaside key. */
+	__wt_buf_free(session, &conn->las_sweep_key);
+
 	return (ret);
 }

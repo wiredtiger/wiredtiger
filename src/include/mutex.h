@@ -24,22 +24,20 @@ struct __wt_condvar {
 
 /*
  * !!!
- * Don't touch this structure without understanding the read/write
- * locking functions.
+ * Don't modify this structure without understanding the read/write locking
+ * functions.
  */
-typedef union {			/* Read/write lock */
-#ifdef WORDS_BIGENDIAN
-	WiredTiger read/write locks require modification for big-endian systems.
-#else
+typedef union {				/* Read/write lock */
 	uint64_t u;
-	uint32_t us;
 	struct {
-		uint16_t writers;
-		uint16_t readers;
-		uint16_t users;
-		uint16_t pad;
+		uint32_t wr;		/* Writers and readers */
+	} i;
+	struct {
+		uint16_t writers;	/* Now serving for writers */
+		uint16_t readers;	/* Now serving for readers */
+		uint16_t users;		/* Next available ticket number */
+		uint16_t __notused;	/* Padding */
 	} s;
-#endif
 } wt_rwlock_t;
 
 /*
@@ -51,6 +49,24 @@ struct __wt_rwlock {
 	const char *name;		/* Lock name for debugging */
 
 	wt_rwlock_t rwlock;		/* Read/write lock */
+};
+
+/*
+ * A light weight lock that can be used to replace spinlocks if fairness is
+ * necessary. Implements a ticket-based back off spin lock.
+ * The fields are available as a union to allow for atomically setting
+ * the state of the entire lock.
+ */
+struct __wt_fair_lock {
+	union {
+		uint32_t lock;
+		struct {
+			uint16_t owner;		/* Ticket for current owner */
+			uint16_t waiter;	/* Last allocated ticket */
+		} s;
+	} u;
+#define	fair_lock_owner u.s.owner
+#define	fair_lock_waiter u.s.waiter
 };
 
 /*
@@ -67,20 +83,21 @@ struct __wt_rwlock {
 
 #if SPINLOCK_TYPE == SPINLOCK_GCC
 
-typedef volatile int WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT)
-    WT_SPINLOCK;
+struct WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) __wt_spinlock {
+	volatile int lock;
+};
 
 #elif SPINLOCK_TYPE == SPINLOCK_PTHREAD_MUTEX ||\
 	SPINLOCK_TYPE == SPINLOCK_PTHREAD_MUTEX_ADAPTIVE ||\
 	SPINLOCK_TYPE == SPINLOCK_MSVC
 
-typedef WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) struct {
+struct WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) __wt_spinlock {
 	wt_mutex_t lock;
 
 	const char *name;		/* Statistics: mutex name */
 
 	int8_t initialized;		/* Lock initialized, for cleanup */
-} WT_SPINLOCK;
+};
 
 #else
 

@@ -32,6 +32,7 @@ BIGENDIAN
 BOOL
 BSR
 BTREE
+BUF
 BZ
 Barack
 Bitfield
@@ -58,6 +59,7 @@ CSV
 CURSORs
 CURSTD
 CallsCustDate
+Checkpointing
 Checksum
 Checksums
 CityHash
@@ -156,11 +158,13 @@ KVS
 Kanowski's
 Kounavis
 LANGID
+LAS
 LF
 LLLLLL
 LLLLLLL
 LOGREC
 LOGSCAN
+LOOKASIDE
 LRU
 LRVv
 LSB
@@ -176,6 +180,7 @@ Levyx
 Llqr
 Llqrt
 LockFile
+Lookaside
 Lookup
 MALLOC
 MEM
@@ -210,11 +215,13 @@ NetBSD
 NoAddr
 Noll
 Nul
+OOB
 OPTYPE
 OUTBUFF
 OVFL
 ObWgfvgw
 Obama
+Outfmt
 PARAM
 POSIX
 PREDEFINE
@@ -231,6 +238,7 @@ Preload
 Prepend
 Qsort
 RCS
+RECNO
 REF's
 REFs
 RET
@@ -291,10 +299,12 @@ ULINE
 URI
 URIs
 UTF
+Unbuffered
 UnixLib
 Unmap
 UnmapViewOfFile
 Unmarshall
+Unordered
 Uryyb
 VARCHAR
 VLDB
@@ -319,6 +329,7 @@ WiredTiger's
 WiredTigerCheckpoint
 WiredTigerException
 WiredTigerInit
+WiredTigerLAS
 WiredTigerLog
 WiredTigerPreplog
 WiredTigerTmplog
@@ -341,6 +352,7 @@ allocfile
 allocsize
 amd
 ao
+ap
 api
 arg
 argc
@@ -395,6 +407,7 @@ bzalloc
 bzfree
 bzip
 calloc
+cas
 catfmt
 cd
 centric
@@ -410,6 +423,7 @@ checksums
 chk
 chongo
 cip
+cjoin
 ckpt
 ckptfrag
 ckptlist
@@ -453,6 +467,7 @@ curdump
 curextract
 curfile
 curindex
+curjoin
 curlog
 curmetadata
 cursoring
@@ -493,23 +508,29 @@ desc
 dest
 destSize
 dev
+dh
 dhandle
 dhandles
+difftime
 dir
 dirlist
+disjunction
 dlclose
 dlh
 dll
 dlopen
 dlsym
+dmalloc
 dmsg
 doxgen
 doxygen
 ds
+dsb
 dsk
 dsrc
 dst
 dstlen
+dstrdup
 dsync
 dumpcmp
 dumpfile
@@ -525,6 +546,7 @@ enqueue
 enqueued
 env
 eof
+eq
 equalp
 errhandler
 errno
@@ -569,6 +591,7 @@ fopen
 fp
 fprintf
 free'd
+fscanf
 fstat
 fsync
 fsyncs
@@ -576,6 +599,7 @@ ftruncate
 func
 gcc
 gdb
+ge
 getenv
 getline
 getone
@@ -591,6 +615,7 @@ goesc
 gostring
 gostruct
 goutf
+gt
 hashval
 havesize
 hdr
@@ -607,6 +632,8 @@ icount
 idx
 ifdef's
 ikey
+impl
+incase
 incr
 incrementing
 indices
@@ -614,6 +641,7 @@ indirects
 indx
 infeasible
 inflateInit
+infmt
 init
 initn
 initsize
@@ -630,7 +658,9 @@ intrin
 inuse
 io
 ip
+islocked
 ispo
+iter
 iteratively
 jnr
 jrx
@@ -644,9 +674,12 @@ kvraw
 kvs
 kvsbdb
 lang
+las
 latencies
 lbrace
 lbracket
+ld
+le
 len
 lenp
 level's
@@ -670,9 +703,11 @@ logread
 logrec
 logsize
 logtest
+lookaside
 lookup
 lookups
 lossy
+lrt
 lru
 lseek
 lsm
@@ -691,6 +726,7 @@ mem
 memalign
 membar
 memcpy
+memget
 memmove
 memset
 memsize
@@ -739,6 +775,7 @@ nop
 noraw
 notfound
 notsup
+notused
 nset
 nsnap
 nul
@@ -756,6 +793,7 @@ opendir
 openfile
 optimizations
 optype
+ori
 os
 ovfl
 ownp
@@ -790,6 +828,7 @@ progname
 ps
 psp
 pthread
+ptr
 pushms
 putK
 putV
@@ -819,6 +858,7 @@ rectype
 recurse
 refp
 reinitialization
+relocked
 resize
 resizing
 ret
@@ -842,6 +882,7 @@ sd
 secretkey
 sed
 sessionp
+setkv
 setstr
 setv
 sfence
@@ -854,6 +895,7 @@ skiplists
 slotsp
 slvg
 snaplen
+snapsort
 snprintf
 sp
 spinlock
@@ -892,6 +934,7 @@ subtree
 sunique
 superset
 sw
+sy
 sys
 t's
 tV
@@ -927,6 +970,7 @@ uS
 uint
 uintmax
 unbare
+unbuffered
 uncompressing
 uncompresssed
 undef
@@ -935,11 +979,13 @@ unesc
 unescaped
 uninstantiated
 unistd
+unlinked
 unmap
 unmarshall
 unmarshalled
 unmerged
 unmodify
+unordered
 unpackv
 unpadded
 unreferenced

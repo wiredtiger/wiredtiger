@@ -134,6 +134,8 @@ DEF_OPT_AS_UINT32(random_range, 0,
     "if non zero choose a value from within this range as the key for "
     "insert operations")
 DEF_OPT_AS_BOOL(random_value, 0, "generate random content for the value")
+DEF_OPT_AS_BOOL(reopen_connection, 1,
+    "close and reopen the connection between populate and workload phases")
 DEF_OPT_AS_UINT32(report_interval, 2,
     "output throughput information every interval seconds, 0 to disable")
 DEF_OPT_AS_UINT32(run_ops, 0,
@@ -167,7 +169,8 @@ DEF_OPT_AS_STRING(threads, "", "workload configuration: each 'count' "
     "'threads=((count=2,reads=1)(count=8,reads=1,inserts=2,updates=1))' "
     "which would create 2 threads doing nothing but reads and 8 threads "
     "each doing 50% inserts and 25% reads and updates.  Allowed configuration "
-    "values are 'count', 'throttle', 'reads', 'inserts', 'updates'. There are "
+    "values are 'count', 'throttle', 'reads', 'inserts', 'updates', 'truncate',"
+    " 'truncate_pct' and 'truncate_count'. There are "
     "also behavior modifiers, supported modifiers are 'ops_per_txn'")
 DEF_OPT_AS_CONFIG_STRING(transaction_config, "",
     "transaction configuration string, relevant when populate_opts_per_txn "

@@ -12,7 +12,7 @@ static int __verify_ckptfrag_add(
 	WT_SESSION_IMPL *, WT_BLOCK *, wt_off_t, wt_off_t);
 static int __verify_ckptfrag_chk(WT_SESSION_IMPL *, WT_BLOCK *);
 static int __verify_filefrag_add(
-	WT_SESSION_IMPL *, WT_BLOCK *, const char *, wt_off_t, wt_off_t, int);
+	WT_SESSION_IMPL *, WT_BLOCK *, const char *, wt_off_t, wt_off_t, bool);
 static int __verify_filefrag_chk(WT_SESSION_IMPL *, WT_BLOCK *);
 static int __verify_last_avail(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *);
 static int __verify_last_truncate(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *);
@@ -28,10 +28,11 @@ static int __verify_last_truncate(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *);
  *	Start file verification.
  */
 int
-__wt_block_verify_start(
-    WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
+__wt_block_verify_start(WT_SESSION_IMPL *session,
+    WT_BLOCK *block, WT_CKPT *ckptbase, const char *cfg[])
 {
 	WT_CKPT *ckpt;
+	WT_CONFIG_ITEM cval;
 	wt_off_t size;
 
 	/*
@@ -86,11 +87,17 @@ __wt_block_verify_start(
 	WT_RET(__bit_alloc(session, block->frags, &block->fragfile));
 
 	/*
+	 * Set this before reading any extent lists: don't panic if we see
+	 * corruption.
+	 */
+	block->verify = true;
+
+	/*
 	 * We maintain an allocation list that is rolled forward through the
 	 * set of checkpoints.
 	 */
 	WT_RET(__wt_block_extlist_init(
-	    session, &block->verify_alloc, "verify", "alloc", 0));
+	    session, &block->verify_alloc, "verify", "alloc", false));
 
 	/*
 	 * The only checkpoint avail list we care about is the last one written;
@@ -98,7 +105,9 @@ __wt_block_verify_start(
 	 */
 	WT_RET(__verify_last_avail(session, block, ckpt));
 
-	block->verify = 1;
+	/* Configuration: strict behavior on any error. */
+	WT_RET(__wt_config_gets(session, cfg, "strict", &cval));
+	block->verify_strict = cval.val != 0;
 	return (0);
 }
 
@@ -124,8 +133,9 @@ __verify_last_avail(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt)
 		WT_ERR(__wt_block_extlist_read_avail(
 		    session, block, el, ci->file_size));
 		WT_EXT_FOREACH(ext, el->off)
-			if ((ret = __verify_filefrag_add(session, block,
-			    "avail-list chunk", ext->off, ext->size, 1)) != 0)
+			if ((ret = __verify_filefrag_add(
+			    session, block, "avail-list chunk",
+			    ext->off, ext->size, true)) != 0)
 				break;
 	}
 
@@ -164,14 +174,18 @@ __wt_block_verify_end(WT_SESSION_IMPL *session, WT_BLOCK *block)
 	/* Confirm we verified every file block. */
 	ret = __verify_filefrag_chk(session, block);
 
+	block->verify = false;
+	block->verify_strict = false;
+	block->verify_size = 0;
+
 	/* Discard the accumulated allocation list. */
 	__wt_block_extlist_free(session, &block->verify_alloc);
 
 	/* Discard the fragment tracking lists. */
+	block->frags = 0;
 	__wt_free(session, block->fragfile);
 	__wt_free(session, block->fragckpt);
 
-	block->verify = 0;
 	return (ret);
 }
 
@@ -196,22 +210,22 @@ __wt_verify_ckpt_load(
 	 */
 	if (ci->root_offset != WT_BLOCK_INVALID_OFFSET)
 		WT_RET(__verify_filefrag_add(session, block, "checkpoint",
-		    ci->root_offset, (wt_off_t)ci->root_size, 1));
+		    ci->root_offset, (wt_off_t)ci->root_size, true));
 	if (ci->alloc.offset != WT_BLOCK_INVALID_OFFSET)
 		WT_RET(__verify_filefrag_add(session, block, "alloc list",
-		    ci->alloc.offset, (wt_off_t)ci->alloc.size, 1));
+		    ci->alloc.offset, (wt_off_t)ci->alloc.size, true));
 	if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET)
 		WT_RET(__verify_filefrag_add(session, block, "avail list",
-		    ci->avail.offset, (wt_off_t)ci->avail.size, 1));
+		    ci->avail.offset, (wt_off_t)ci->avail.size, true));
 	if (ci->discard.offset != WT_BLOCK_INVALID_OFFSET)
 		WT_RET(__verify_filefrag_add(session, block, "discard list",
-		    ci->discard.offset, (wt_off_t)ci->discard.size, 1));
+		    ci->discard.offset, (wt_off_t)ci->discard.size, true));
 
 	/*
 	 * Checkpoint verification is similar to deleting checkpoints.  As we
 	 * read each new checkpoint, we merge the allocation lists (accumulating
 	 * all allocated pages as we move through the system), and then remove
-	 * any pages found in the discard list.   The result should be a
+	 * any pages found in the discard list. The result should be a
 	 * one-to-one mapping to the pages we find in this specific checkpoint.
 	 */
 	el = &ci->alloc;
@@ -219,7 +233,7 @@ __wt_verify_ckpt_load(
 		WT_RET(__wt_block_extlist_read(
 		    session, block, el, ci->file_size));
 		WT_RET(__wt_block_extlist_merge(
-		    session, el, &block->verify_alloc));
+		    session, block, el, &block->verify_alloc));
 		__wt_block_extlist_free(session, el);
 	}
 	el = &ci->discard;
@@ -227,7 +241,7 @@ __wt_verify_ckpt_load(
 		WT_RET(__wt_block_extlist_read(
 		    session, block, el, ci->file_size));
 		WT_EXT_FOREACH(ext, el->off)
-			WT_RET(__wt_block_off_remove_overlap(session,
+			WT_RET(__wt_block_off_remove_overlap(session, block,
 			    &block->verify_alloc, ext->off, ext->size));
 		__wt_block_extlist_free(session, el);
 	}
@@ -250,13 +264,13 @@ __wt_verify_ckpt_load(
 
 	/*
 	 * The root page of the checkpoint appears on the alloc list, but not,
-	 * at least until the checkpoint is deleted, on a discard list.   To
+	 * at least until the checkpoint is deleted, on a discard list. To
 	 * handle this case, remove the root page from the accumulated list of
 	 * checkpoint pages, so it doesn't add a new requirement for subsequent
 	 * checkpoints.
 	 */
 	if (ci->root_offset != WT_BLOCK_INVALID_OFFSET)
-		WT_RET(__wt_block_off_remove_overlap(session,
+		WT_RET(__wt_block_off_remove_overlap(session, block,
 		    &block->verify_alloc, ci->root_offset, ci->root_size));
 
 	/*
@@ -312,7 +326,8 @@ __wt_block_verify_addr(WT_SESSION_IMPL *session,
 	WT_RET(__wt_block_buffer_to_addr(block, addr, &offset, &size, &cksum));
 
 	/* Add to the per-file list. */ 
-	WT_RET(__verify_filefrag_add(session, block, NULL, offset, size, 0));
+	WT_RET(
+	    __verify_filefrag_add(session, block, NULL, offset, size, false));
 
 	/*
 	 * It's tempting to try and flag a page as "verified" when we read it.
@@ -341,7 +356,7 @@ __wt_block_verify_addr(WT_SESSION_IMPL *session,
  */
 static int
 __verify_filefrag_add(WT_SESSION_IMPL *session, WT_BLOCK *block,
-    const char *type, wt_off_t offset, wt_off_t size, int nodup)
+    const char *type, wt_off_t offset, wt_off_t size, bool nodup)
 {
 	uint64_t f, frag, frags, i;
 
@@ -434,7 +449,7 @@ __verify_filefrag_chk(WT_SESSION_IMPL *session, WT_BLOCK *block)
 		return (0);
 
 	__wt_errx(session, "file ranges never verified: %" PRIu64, count);
-	return (WT_ERROR);
+	return (block->verify_strict ? WT_ERROR : 0);
 }
 
 /*
@@ -527,5 +542,5 @@ __verify_ckptfrag_chk(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
 	__wt_errx(session,
 	    "checkpoint ranges never verified: %" PRIu64, count);
-	return (WT_ERROR);
+	return (block->verify_strict ? WT_ERROR : 0);
 }

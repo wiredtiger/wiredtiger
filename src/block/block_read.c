@@ -20,7 +20,7 @@ __wt_bm_preload(WT_BM *bm,
 	WT_DECL_RET;
 	wt_off_t offset;
 	uint32_t cksum, size;
-	int mapped;
+	bool mapped;
 
 	WT_UNUSED(addr_size);
 	block = bm->block;
@@ -63,9 +63,9 @@ __wt_bm_read(WT_BM *bm, WT_SESSION_IMPL *session,
     WT_ITEM *buf, const uint8_t *addr, size_t addr_size)
 {
 	WT_BLOCK *block;
-	int mapped;
 	wt_off_t offset;
 	uint32_t cksum, size;
+	bool mapped;
 
 	WT_UNUSED(addr_size);
 	block = bm->block;
@@ -192,24 +192,32 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	buf->size = size;
 
 	blk = WT_BLOCK_HEADER_REF(buf->mem);
-	page_cksum = blk->cksum;
-	if (page_cksum == cksum) {
+	if (blk->cksum == cksum) {
 		blk->cksum = 0;
 		page_cksum = __wt_cksum(buf->mem,
 		    F_ISSET(blk, WT_BLOCK_DATA_CKSUM) ?
 		    size : WT_BLOCK_COMPRESS_SKIP);
 		if (page_cksum == cksum)
 			return (0);
-	}
 
-	if (!F_ISSET(session, WT_SESSION_SALVAGE_CORRUPT_OK))
-		__wt_errx(session,
-		    "read checksum error [%" PRIu32 "B @ %" PRIuMAX ", %"
-		    PRIu32 " != %" PRIu32 "]",
-		    size, (uintmax_t)offset, cksum, page_cksum);
+		if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
+			__wt_errx(session,
+			    "read checksum error for %" PRIu32 "B block at "
+			    "offset %" PRIuMAX ": calculated block checksum "
+			    "of %" PRIu32 " doesn't match expected checksum "
+			    "of %" PRIu32,
+			    size, (uintmax_t)offset, page_cksum, cksum);
+	} else
+		if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
+			__wt_errx(session,
+			    "read checksum error for %" PRIu32 "B block at "
+			    "offset %" PRIuMAX ": block header checksum "
+			    "of %" PRIu32 " doesn't match expected checksum "
+			    "of %" PRIu32,
+			    size, (uintmax_t)offset, blk->cksum, cksum);
 
 	/* Panic if a checksum fails during an ordinary read. */
 	return (block->verify ||
-	    F_ISSET(session, WT_SESSION_SALVAGE_CORRUPT_OK) ?
+	    F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE) ?
 	    WT_ERROR : __wt_illegal_value(session, block->name));
 }

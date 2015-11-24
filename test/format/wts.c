@@ -149,6 +149,10 @@ wts_open(const char *home, int set_api, WT_CONNECTION **connp)
 	p += snprintf(p, REMAIN(p, end), ",error_prefix=\"%s\"", g.progname);
 #endif
 
+	/* In-memory configuration. */
+	if (g.c_in_memory != 0)
+		p += snprintf(p, REMAIN(p, end), ",in_memory=1");
+
 	/* LSM configuration. */
 	if (DATASOURCE("lsm"))
 		p += snprintf(p, REMAIN(p, end),
@@ -229,7 +233,7 @@ wts_open(const char *home, int set_api, WT_CONNECTION **connp)
 	/*
 	 * Direct I/O may not work with backups, doing copies through the buffer
 	 * cache after configuring direct I/O in Linux won't work.  If direct
-	 * I/O is configured, turn off backups.   This isn't a great place to do
+	 * I/O is configured, turn off backups. This isn't a great place to do
 	 * this check, but it's only here we have the configuration string.
 	 */
 	if (strstr(config, "direct_io") != NULL)
@@ -455,15 +459,19 @@ wts_dump(const char *tag, int dump_bdb)
 	int ret;
 	char *cmd;
 
-	/* Some data-sources don't support dump through the wt utility. */
+	/*
+	 * In-memory configurations and data-sources don't support dump through
+	 * the wt utility.
+	 */
+	if (g.c_in_memory != 0)
+		return;
 	if (DATASOURCE("helium") || DATASOURCE("kvsbdb"))
 		return;
 
 	track("dump files and compare", 0ULL, NULL);
 
 	len = strlen(g.home) + strlen(BERKELEY_DB_PATH) + strlen(g.uri) + 100;
-	if ((cmd = malloc(len)) == NULL)
-		die(errno, "malloc");
+	cmd = dmalloc(len);
 	(void)snprintf(cmd, len,
 	    "sh s_dumpcmp -h %s %s %s %s %s %s",
 	    g.home,
@@ -489,6 +497,9 @@ wts_verify(const char *tag)
 	WT_SESSION *session;
 	int ret;
 
+	if (g.c_verify == 0)
+		return;
+
 	conn = g.wts_conn;
 	track("verify", 0ULL, NULL);
 
@@ -499,7 +510,7 @@ wts_verify(const char *tag)
 		    "=============== verify start ===============");
 
 	/* Session operations for LSM can return EBUSY. */
-	ret = session->verify(session, g.uri, NULL);
+	ret = session->verify(session, g.uri, "strict");
 	if (ret != 0 && !(ret == EBUSY && DATASOURCE("lsm")))
 		die(ret, "session.verify: %s: %s", g.uri, tag);
 
@@ -561,9 +572,7 @@ wts_stats(void)
 
 	/* Data source statistics. */
 	fprintf(fp, "\n\n====== Data source statistics:\n");
-	if ((stat_name =
-	    malloc(strlen("statistics:") + strlen(g.uri) + 1)) == NULL)
-		die(errno, "malloc");
+	stat_name = dmalloc(strlen("statistics:") + strlen(g.uri) + 1);
 	sprintf(stat_name, "statistics:%s", g.uri);
 	if ((ret = session->open_cursor(
 	    session, stat_name, NULL, NULL, &cursor)) != 0)

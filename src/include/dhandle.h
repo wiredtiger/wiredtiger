@@ -28,14 +28,19 @@
  */
 #define	WT_SAVE_DHANDLE(s, e) WT_WITH_DHANDLE(s, (s)->dhandle, e)
 
+/* Check if a handle is inactive. */
+#define	WT_DHANDLE_INACTIVE(dhandle)					\
+	(F_ISSET(dhandle, WT_DHANDLE_DEAD) ||				\
+	!F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE | WT_DHANDLE_OPEN))
+
 /*
  * WT_DATA_HANDLE --
  *	A handle for a generic named data source.
  */
 struct __wt_data_handle {
 	WT_RWLOCK *rwlock;		/* Lock for shared/exclusive ops */
-	SLIST_ENTRY(__wt_data_handle) l;
-	SLIST_ENTRY(__wt_data_handle) hashl;
+	TAILQ_ENTRY(__wt_data_handle) q;
+	TAILQ_ENTRY(__wt_data_handle) hashq;
 
 	/*
 	 * Sessions caching a connection's data handle will have a non-zero
@@ -44,7 +49,9 @@ struct __wt_data_handle {
 	 */
 	uint32_t session_ref;		/* Sessions referencing this handle */
 	int32_t	 session_inuse;		/* Sessions using this handle */
+	uint32_t excl_ref;		/* Refs of handle by excl_session */
 	time_t	 timeofdeath;		/* Use count went to 0 */
+	WT_SESSION_IMPL *excl_session;	/* Session with exclusive use, if any */
 
 	uint64_t name_hash;		/* Hash of name */
 	const char *name;		/* Object name as a URI */
@@ -62,7 +69,9 @@ struct __wt_data_handle {
 	 */
 	WT_SPINLOCK	close_lock;	/* Lock to close the handle */
 
-	WT_DSRC_STATS stats;		/* Data-source statistics */
+					/* Data-source statistics */
+	WT_DSRC_STATS *stats[WT_COUNTER_SLOTS];
+	WT_DSRC_STATS  stat_array[WT_COUNTER_SLOTS];
 
 	/* Flags values over 0xff are reserved for WT_BTREE_* */
 #define	WT_DHANDLE_DEAD		        0x01	/* Dead, awaiting discard */

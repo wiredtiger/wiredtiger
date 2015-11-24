@@ -448,7 +448,7 @@ __wt_huffman_open(WT_SESSION_IMPL *session,
 
 	/*
 	 * The remaining node is in the node variable, this is the root of the
-	 * tree.   Calculate how many bytes it takes to hold numSymbols bytes
+	 * tree. Calculate how many bytes it takes to hold numSymbols bytes
 	 * bits.
 	 */
 	huffman->max_depth = 0;
@@ -665,7 +665,7 @@ __wt_huffman_encode(WT_SESSION_IMPL *session, void *huffman_arg,
 	/*
 	 * At this point, bitpos is the total number of used bits (including
 	 * the 3 bits at the beginning of the buffer, which we'll set now to
-	 * the number of bits used in the last byte).   Note if the number of
+	 * the number of bits used in the last byte). Note if the number of
 	 * bits used in the last byte is 8, we set the 3 bits to 0, in other
 	 * words, the first 3 bits of the encoded value are the number of bits
 	 * used in the last byte, unless they're 0, in which case there are 8
@@ -790,7 +790,18 @@ __wt_huffman_decode(WT_SESSION_IMPL *session, void *huffman_arg,
 		symbol = huffman->code2symbol[pattern & mask];
 		len = huffman->codes[symbol].length;
 		valid -= len;
-		WT_ASSERT(session, from_len_bits >= len);
+
+		/*
+		 * from_len_bits is the total number of input bits, reduced by
+		 * the number of bits we consume from input at each step.  For
+		 * all but the last step from_len_bits > len, then at the last
+		 * step from_len_bits == len (in other words, from_len_bits -
+		 * len = 0 input bits remaining). Generally, we cannot detect
+		 * corruption during huffman decompression, this is one place
+		 * where that's not true.
+		 */
+		if (from_len_bits < len)	/* corrupted */
+			WT_ERR(EINVAL);
 		from_len_bits -= len;
 
 		WT_ASSERT(session,

@@ -74,7 +74,7 @@ struct __wt_cursor_lsm {
  * WT_LSM_CHUNK --
  *	A single chunk (file) in an LSM tree.
  */
-struct WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) __wt_lsm_chunk {
+struct __wt_lsm_chunk {
 	const char *uri;		/* Data source for this chunk */
 	const char *bloom_uri;		/* URI of Bloom filter, if any */
 	struct timespec create_ts;	/* Creation time (for rate limiting) */
@@ -96,6 +96,7 @@ struct WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) __wt_lsm_chunk {
 
 	int8_t empty;			/* 1/0: checkpoint missing */
 	int8_t evicted;			/* 1/0: in-memory chunk was evicted */
+	uint8_t flushing;		/* 1/0: chunk flush in progress */
 
 #define	WT_LSM_CHUNK_BLOOM	0x01
 #define	WT_LSM_CHUNK_MERGING	0x02
@@ -157,7 +158,13 @@ struct __wt_lsm_manager {
 	WT_LSM_WORKER_ARGS lsm_worker_cookies[WT_LSM_MAX_WORKERS];
 };
 
-#define	WT_LSM_AGGRESSIVE_THRESHOLD	5
+/*
+ * The value aggressive needs to get to before it influences how merges
+ * are chosen. The default value translates to enough level 0 chunks being
+ * generated to create a second level merge.
+ */
+#define	WT_LSM_AGGRESSIVE_THRESHOLD	2
+
 /*
  * WT_LSM_TREE --
  *	An LSM tree.
@@ -171,15 +178,13 @@ struct __wt_lsm_tree {
 	const char *collator_name;
 	int collator_owned;
 
-	int refcnt;			/* Number of users of the tree */
-	int8_t exclusive;		/* Tree is locked exclusively */
+	uint32_t refcnt;		/* Number of users of the tree */
+	uint8_t exclusive;		/* Tree is locked exclusively */
 
 #define	LSM_TREE_MAX_QUEUE	100
-	int queue_ref;
+	uint32_t queue_ref;
 	WT_RWLOCK *rwlock;
 	TAILQ_ENTRY(__wt_lsm_tree) q;
-
-	WT_DSRC_STATS stats;		/* LSM-level statistics */
 
 	uint64_t dsk_gen;
 
@@ -187,6 +192,8 @@ struct __wt_lsm_tree {
 	uint64_t merge_throttle;	/* Rate limiting due to merges */
 	uint64_t chunk_fill_ms;		/* Estimate of time to fill a chunk */
 	struct timespec last_flush_ts;	/* Timestamp last flush finished */
+	uint64_t chunks_flushed;	/* Count of chunks flushed since open */
+	struct timespec merge_aggressive_ts;/* Timestamp for merge aggression */
 	struct timespec work_push_ts;	/* Timestamp last work unit added */
 	uint64_t merge_progressing;	/* Bumped when merges are active */
 	uint32_t merge_syncing;		/* Bumped when merges are syncing */
@@ -198,8 +205,6 @@ struct __wt_lsm_tree {
 	uint64_t chunk_size;
 	uint64_t chunk_max;		/* Maximum chunk a merge creates */
 	u_int merge_min, merge_max;
-
-	u_int merge_idle;		/* Count of idle merge threads */
 
 #define	WT_LSM_BLOOM_MERGED				0x00000001
 #define	WT_LSM_BLOOM_OFF				0x00000002
@@ -215,15 +220,35 @@ struct __wt_lsm_tree {
 	WT_LSM_CHUNK **old_chunks;	/* Array of old LSM chunks */
 	size_t old_alloc;		/* Space allocated for old chunks */
 	u_int nold_chunks;		/* Number of old chunks */
-	int freeing_old_chunks;		/* Whether chunks are being freed */
+	uint32_t freeing_old_chunks;	/* Whether chunks are being freed */
 	uint32_t merge_aggressiveness;	/* Increase amount of work per merge */
 
+	/*
+	 * We maintain a set of statistics outside of the normal statistics
+	 * area, copying them into place when a statistics cursor is created.
+	 */
+#define	WT_LSM_TREE_STAT_INCR(session, fld) do {			\
+	if (FLD_ISSET(S2C(session)->stat_flags, WT_CONN_STAT_FAST))	\
+		++(fld);						\
+} while (0)
+#define	WT_LSM_TREE_STAT_INCRV(session, fld, v) do {			\
+	if (FLD_ISSET(S2C(session)->stat_flags, WT_CONN_STAT_FAST))	\
+		(fld) += (int64_t)(v);					\
+} while (0)
+	int64_t bloom_false_positive;
+	int64_t bloom_hit;
+	int64_t bloom_miss;
+	int64_t lsm_checkpoint_throttle;
+	int64_t lsm_lookup_no_bloom;
+	int64_t lsm_merge_throttle;
+
 #define	WT_LSM_TREE_ACTIVE		0x01	/* Workers are active */
-#define	WT_LSM_TREE_COMPACTING		0x02	/* Tree being compacted */
-#define	WT_LSM_TREE_MERGES		0x04	/* Tree should run merges */
-#define	WT_LSM_TREE_NEED_SWITCH		0x08	/* New chunk needs creating */
-#define	WT_LSM_TREE_OPEN		0x10	/* The tree is open */
-#define	WT_LSM_TREE_THROTTLE		0x20	/* Throttle updates */
+#define	WT_LSM_TREE_AGGRESSIVE_TIMER	0x02	/* Timer for merge aggression */
+#define	WT_LSM_TREE_COMPACTING		0x04	/* Tree being compacted */
+#define	WT_LSM_TREE_MERGES		0x08	/* Tree should run merges */
+#define	WT_LSM_TREE_NEED_SWITCH		0x10	/* New chunk needs creating */
+#define	WT_LSM_TREE_OPEN		0x20	/* The tree is open */
+#define	WT_LSM_TREE_THROTTLE		0x40	/* Throttle updates */
 	uint32_t flags;
 };
 

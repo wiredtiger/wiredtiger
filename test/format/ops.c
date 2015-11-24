@@ -33,7 +33,6 @@ static int   col_remove(WT_CURSOR *, WT_ITEM *, uint64_t, int *);
 static int   col_update(TINFO *, WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t);
 static int   nextprev(WT_CURSOR *, int, int *);
 static void *ops(void *);
-static int   read_row(WT_CURSOR *, WT_ITEM *, uint64_t);
 static int   row_insert(TINFO *, WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t);
 static int   row_remove(WT_CURSOR *, WT_ITEM *, uint64_t, int *);
 static int   row_update(TINFO *, WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t);
@@ -54,7 +53,7 @@ wts_ops(int lastrun)
 	TINFO *tinfo, total;
 	WT_CONNECTION *conn;
 	WT_SESSION *session;
-	pthread_t backup_tid, compact_tid;
+	pthread_t backup_tid, compact_tid, lrt_tid;
 	int64_t fourths, thread_ops;
 	uint32_t i;
 	int ret, running;
@@ -64,6 +63,7 @@ wts_ops(int lastrun)
 	session = NULL;			/* -Wconditional-uninitialized */
 	memset(&backup_tid, 0, sizeof(backup_tid));
 	memset(&compact_tid, 0, sizeof(compact_tid));
+	memset(&lrt_tid, 0, sizeof(lrt_tid));
 
 	/*
 	 * There are two mechanisms to specify the length of the run, a number
@@ -114,13 +114,19 @@ wts_ops(int lastrun)
 			die(ret, "pthread_create");
 	}
 
-	/* If a multi-threaded run, start backup and compaction threads. */
+	/*
+	 * If a multi-threaded run, start optional backup, compaction and
+	 * long-running reader threads.
+	 */
 	if (g.c_backups &&
 	    (ret = pthread_create(&backup_tid, NULL, backup, NULL)) != 0)
 		die(ret, "pthread_create: backup");
 	if (g.c_compact &&
 	    (ret = pthread_create(&compact_tid, NULL, compact, NULL)) != 0)
 		die(ret, "pthread_create: compaction");
+	if (!SINGLETHREADED && g.c_long_running_txn &&
+	    (ret = pthread_create(&lrt_tid, NULL, lrt, NULL)) != 0)
+		die(ret, "pthread_create: long-running reader");
 
 	/* Spin on the threads, calculating the totals. */
 	for (;;) {
@@ -174,12 +180,14 @@ wts_ops(int lastrun)
 	}
 	free(tinfo);
 
-	/* Wait for the backup, compaction thread. */
+	/* Wait for the backup, compaction, long-running reader threads. */
 	g.workers_finished = 1;
 	if (g.c_backups)
 		(void)pthread_join(backup_tid, NULL);
 	if (g.c_compact)
 		(void)pthread_join(compact_tid, NULL);
+	if (!SINGLETHREADED && g.c_long_running_txn)
+		(void)pthread_join(lrt_tid, NULL);
 
 	if (g.logging != 0) {
 		(void)g.wt_api->msg_printf(g.wt_api, session,
@@ -194,7 +202,7 @@ wts_ops(int lastrun)
  *	Return the current session configuration.
  */
 static const char *
-ops_session_config(uint64_t *rnd)
+ops_session_config(WT_RAND_STATE *rnd)
 {
 	u_int v;
 
@@ -222,7 +230,7 @@ ops(void *arg)
 	WT_CURSOR *cursor, *cursor_insert;
 	WT_SESSION *session;
 	WT_ITEM key, value;
-	uint64_t keyno, ckpt_op, session_op;
+	uint64_t keyno, ckpt_op, reset_op, session_op;
 	uint32_t op;
 	uint8_t *keybuf, *valbuf;
 	u_int np;
@@ -231,12 +239,12 @@ ops(void *arg)
 
 	tinfo = arg;
 
-	/* Initialize the per-thread random number generator. */
-	__wt_random_init(&tinfo->rnd);
-
 	conn = g.wts_conn;
 	keybuf = valbuf = NULL;
 	readonly = 0;			/* -Wconditional-uninitialized */
+
+	/* Initialize the per-thread random number generator. */
+	__wt_random_init(&tinfo->rnd);
 
 	/* Set up the default key and value buffers. */
 	key_gen_setup(&keybuf);
@@ -250,6 +258,9 @@ ops(void *arg)
 	/* Set the first operation where we'll perform checkpoint operations. */
 	ckpt_op = g.c_checkpoints ? mmrand(&tinfo->rnd, 100, 10000) : 0;
 	ckpt_available = 0;
+
+	/* Set the first operation where we'll reset the session. */
+	reset_op = mmrand(&tinfo->rnd, 100, 10000);
 
 	for (intxn = 0; !tinfo->quit; ++tinfo->ops) {
 		/*
@@ -377,6 +388,19 @@ ops(void *arg)
 		}
 
 		/*
+		 * Reset the session every now and then, just to make sure that
+		 * operation gets tested. Note the test is not for equality, we
+		 * have to do the reset outside of a transaction.
+		 */
+		if (tinfo->ops > reset_op && !intxn) {
+			if ((ret = session->reset(session)) != 0)
+				die(ret, "session.reset");
+
+			/* Pick the next reset operation. */
+			reset_op += mmrand(&tinfo->rnd, 20000, 50000);
+		}
+
+		/*
 		 * If we're not single-threaded and we're not in a transaction,
 		 * start a transaction 20% of the time.
 		 */
@@ -467,7 +491,7 @@ skip_insert:			if (col_update(tinfo,
 			}
 		} else {
 			++tinfo->search;
-			if (read_row(cursor, &key, keyno))
+			if (read_row(cursor, &key, keyno, 0))
 				if (intxn)
 					goto deadlock;
 			continue;
@@ -490,7 +514,7 @@ skip_insert:			if (col_update(tinfo,
 
 		/* Read to confirm the operation. */
 		++tinfo->search;
-		if (read_row(cursor, &key, keyno))
+		if (read_row(cursor, &key, keyno, 0))
 			goto deadlock;
 
 		/* Reset the cursor: there is no reason to keep pages pinned. */
@@ -575,7 +599,7 @@ wts_read_scan(void)
 		}
 
 		key.data = keybuf;
-		if ((ret = read_row(cursor, &key, cnt)) != 0)
+		if ((ret = read_row(cursor, &key, cnt, 0)) != 0)
 			die(ret, "read_scan");
 	}
 
@@ -589,8 +613,8 @@ wts_read_scan(void)
  * read_row --
  *	Read and verify a single element in a row- or column-store file.
  */
-static int
-read_row(WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno)
+int
+read_row(WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno, int notfound_err)
 {
 	static int sn = 0;
 	WT_ITEM value;
@@ -626,19 +650,24 @@ read_row(WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno)
 		ret = cursor->search(cursor);
 		sn = 1;
 	}
-	if (ret == 0) {
+	switch (ret) {
+	case 0:
 		if (g.type == FIX) {
 			ret = cursor->get_value(cursor, &bitfield);
 			value.data = &bitfield;
 			value.size = 1;
-		} else {
+		} else
 			ret = cursor->get_value(cursor, &value);
-		}
-	}
-	if (ret == WT_ROLLBACK)
+		break;
+	case WT_ROLLBACK:
 		return (WT_ROLLBACK);
-	if (ret != 0 && ret != WT_NOTFOUND)
+	case WT_NOTFOUND:
+		if (notfound_err)
+			return (WT_NOTFOUND);
+		break;
+	default:
 		die(ret, "read_row: read row %" PRIu64, keyno);
+	}
 
 #ifdef HAVE_BERKELEY_DB
 	if (!SINGLETHREADED)
@@ -925,7 +954,7 @@ table_append(uint64_t keyno)
 
 	/*
 	 * We don't want to ignore records we append, which requires we update
-	 * the "last row" as we insert new records.   Threads allocating record
+	 * the "last row" as we insert new records. Threads allocating record
 	 * numbers can race with other threads, so the thread allocating record
 	 * N may return after the thread allocating N + 1.  We can't update a
 	 * record before it's been inserted, and so we can't leave gaps when the
@@ -943,7 +972,7 @@ table_append(uint64_t keyno)
 	 * to sleep (so the append table fills up), then N threads of control
 	 * used the same g.append_cnt value to decide there was an available
 	 * slot in the append table and both allocated new records, we could run
-	 * out of space in the table.   It's unfortunately not even unlikely in
+	 * out of space in the table. It's unfortunately not even unlikely in
 	 * the case of a large number of threads all inserting as fast as they
 	 * can and a single thread going to sleep for an unexpectedly long time.
 	 * If it happens, sleep and retry until earlier records are resolved

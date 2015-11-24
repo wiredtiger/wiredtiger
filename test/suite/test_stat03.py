@@ -83,8 +83,7 @@ class test_stat_cursor_reset(wttest.WiredTigerTestCase):
         if self.pop == simple_populate:
             c.set_value(value_populate(c, 200))
         else:
-            v = complex_value_populate(c, 200)
-            c.set_value(v[0], v[1], v[2], v[3])
+            c.set_value(tuple(complex_value_populate(c, 200)))
         c.insert()
 
         # Test that cursor reset re-loads the values.
@@ -98,11 +97,11 @@ class test_stat_cursor_reset(wttest.WiredTigerTestCase):
         if self.pop != simple_populate:
             statc.close()
             statc = self.stat_cursor(
-                complex_populate_index_name(self, self.uri))
+                complex_populate_index_name(self, self.uri, 0))
             self.assertEqual(statc[stat.dsrc.btree_entries][2], n)
             statc.close()
             statc = self.stat_cursor(
-                complex_populate_colgroup_name(self, self.uri))
+                complex_populate_colgroup_name(self, self.uri, 0))
             self.assertEqual(statc[stat.dsrc.btree_entries][2], n)
         statc.close()
 

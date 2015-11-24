@@ -167,6 +167,7 @@ if useTcmalloc:
     if conf.CheckCHeader('gperftools/tcmalloc.h'):
         wtlibs.append("libtcmalloc_minimal")
         conf.env.Append(CPPDEFINES=['HAVE_LIBTCMALLOC'])
+        conf.env.Append(CPPDEFINES=['HAVE_POSIX_MEMALIGN'])
     else:
         print 'tcmalloc.h must be installed!'
         Exit(1)
@@ -406,8 +407,11 @@ Default(t)
 t = env.Program("t_huge",
     "test/huge/huge.c",
     LIBS=[wtlib] + wtlibs)
-#env.Alias("check", env.SmokeTest(t))
-Default(t)
+
+#t = env.Program("t_recovery",
+#    "test/recovery/recovery.c",
+#    LIBS=[wtlib] + wtlibs)
+#Default(t)
 
 t = env.Program("t_fops",
     ["test/fops/file.c",
@@ -454,6 +458,7 @@ t = env.Program("wtperf", [
     "bench/wtperf/misc.c",
     "bench/wtperf/track.c",
     "bench/wtperf/wtperf.c",
+    "bench/wtperf/wtperf_truncate.c",
     ],
     LIBS=[wtlib, shim]  + wtlibs)
 Default(t)

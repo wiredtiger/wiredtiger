@@ -51,6 +51,11 @@ errors = [
         'recovery must be run to continue', '''
         This error is generated when wiredtiger_open is configured
         to return an error if recovery is required to use the database.'''),
+    Error('WT_CACHE_FULL', -31807,
+        'operation would overflow cache', '''
+        This error is generated when wiredtiger_open is configured
+        to run in-memory, and an insert or update operation requires more
+        than the configured cache size to complete.''', undoc=True),
 ]
 
 # Update the #defines in the wiredtiger.in file.
@@ -100,7 +105,7 @@ tfile.write('''/* DO NOT EDIT: automatically built by dist/api_err.py. */
 
 /*
  * __wt_wiredtiger_error --
- *\tReturn a constant string for WiredTiger POSIX-standard and errors.
+ *\tReturn a constant string for POSIX-standard and WiredTiger errors.
  */
 const char *
 __wt_wiredtiger_error(int error)
@@ -119,8 +124,8 @@ for err in errors:
 tfile.write('''\t}
 
 \t/*
-\t * POSIX errors are non-negative integers; check for 0 explicitly
-\t * in-case the underlying strerror doesn't handle 0, some don't.
+\t * POSIX errors are non-negative integers; check for 0 explicitly incase
+\t * the underlying strerror doesn't handle 0, some historically didn't.
 \t */
 \tif (error == 0)
 \t\treturn ("Successful return: 0");

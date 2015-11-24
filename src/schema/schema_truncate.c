@@ -13,19 +13,20 @@
  *	WT_SESSION::truncate for a file.
  */
 static int
-__truncate_file(WT_SESSION_IMPL *session, const char *name)
+__truncate_file(WT_SESSION_IMPL *session, const char *uri)
 {
 	WT_DECL_RET;
 	const char *filename;
 	uint32_t allocsize;
 
-	filename = name;
+	filename = uri;
 	if (!WT_PREFIX_SKIP(filename, "file:"))
 		return (EINVAL);
 
 	/* Open and lock the file. */
 	WT_RET(__wt_session_get_btree(
-	    session, name, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
+	    session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
+	WT_STAT_FAST_DATA_INCR(session, cursor_truncate);
 
 	/* Get the allocation size. */
 	allocsize = S2BT(session)->allocsize;
@@ -34,11 +35,11 @@ __truncate_file(WT_SESSION_IMPL *session, const char *name)
 
 	/* Close any btree handles in the file. */
 	WT_WITH_HANDLE_LIST_LOCK(session,
-	    ret = __wt_conn_dhandle_close_all(session, name, 0));
+	    ret = __wt_conn_dhandle_close_all(session, uri, false));
 	WT_RET(ret);
 
 	/* Delete the root address and truncate the file. */
-	WT_RET(__wt_meta_checkpoint_clear(session, name));
+	WT_RET(__wt_meta_checkpoint_clear(session, uri));
 	WT_RET(__wt_block_manager_truncate(session, filename, allocsize));
 
 	return (0);
@@ -49,13 +50,14 @@ __truncate_file(WT_SESSION_IMPL *session, const char *name)
  *	WT_SESSION::truncate for a table.
  */
 static int
-__truncate_table(WT_SESSION_IMPL *session, const char *name, const char *cfg[])
+__truncate_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 {
 	WT_DECL_RET;
 	WT_TABLE *table;
 	u_int i;
 
-	WT_RET(__wt_schema_get_table(session, name, strlen(name), 0, &table));
+	WT_RET(__wt_schema_get_table(session, uri, strlen(uri), false, &table));
+	WT_STAT_FAST_DATA_INCR(session, cursor_truncate);
 
 	/* Truncate the column groups. */
 	for (i = 0; i < WT_COLGROUPS(table); i++)
@@ -90,6 +92,7 @@ __truncate_dsrc(WT_SESSION_IMPL *session, const char *uri)
 	while ((ret = cursor->next(cursor)) == 0)
 		WT_ERR(cursor->remove(cursor));
 	WT_ERR_NOTFOUND_OK(ret);
+	WT_STAT_FAST_DATA_INCR(session, cursor_truncate);
 
 err:	WT_TRET(cursor->close(cursor));
 	return (ret);
