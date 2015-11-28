@@ -197,7 +197,14 @@ struct __wt_cursor_btree {
 #define	WT_CBT_ITERATE_NEXT	0x04	/* Next iteration configuration */
 #define	WT_CBT_ITERATE_PREV	0x08	/* Prev iteration configuration */
 #define	WT_CBT_MAX_RECORD	0x10	/* Col-store: past end-of-table */
-#define	WT_CBT_SEARCH_SMALLEST	0x20	/* Row-store: small-key insert list */
+#define	WT_CBT_NO_TXN   	0x20	/* Non-transactional cursor
+					   (e.g. on a checkpoint) */
+#define	WT_CBT_SEARCH_SMALLEST	0x40	/* Row-store: small-key insert list */
+
+#define	WT_CBT_POSITION_MASK		/* Flags associated with position */ \
+	(WT_CBT_ITERATE_APPEND | WT_CBT_ITERATE_NEXT | WT_CBT_ITERATE_PREV | \
+	WT_CBT_MAX_RECORD | WT_CBT_SEARCH_SMALLEST)
+
 	uint8_t flags;
 };
 
@@ -291,8 +298,8 @@ struct __wt_cursor_join_entry {
 	WT_INDEX		*index;
 	WT_CURSOR		*main;		/* raw main table cursor */
 	WT_BLOOM		*bloom;		/* Bloom filter handle */
-	uint64_t		 bloom_bit_count; /* bits per item in bloom */
-	uint64_t		 bloom_hash_count; /* hash functions in bloom */
+	uint32_t		 bloom_bit_count; /* bits per item in bloom */
+	uint32_t		 bloom_hash_count; /* hash functions in bloom */
 	uint64_t		 count;		/* approx number of matches */
 
 #define	WT_CURJOIN_ENTRY_BLOOM		0x01	/* use a bloom filter */
@@ -302,7 +309,7 @@ struct __wt_cursor_join_entry {
 
 	WT_CURSOR_JOIN_ENDPOINT	*ends;		/* reference endpoints */
 	size_t			 ends_allocated;
-	size_t			 ends_next;
+	u_int			 ends_next;
 
 	WT_JOIN_STATS		 stats;		/* Join statistics */
 };

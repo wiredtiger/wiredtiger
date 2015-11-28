@@ -340,8 +340,18 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home,
 			return (ret);
 		}
 		addr->size = (uint8_t)unpack.size;
-		addr->type =
-		    unpack.raw == WT_CELL_ADDR_INT ? WT_ADDR_INT : WT_ADDR_LEAF;
+		switch (unpack.raw) {
+		case WT_CELL_ADDR_INT:
+			addr->type = WT_ADDR_INT;
+			break;
+		case WT_CELL_ADDR_LEAF:
+			addr->type = WT_ADDR_LEAF;
+			break;
+		case WT_CELL_ADDR_LEAF_NO:
+			addr->type = WT_ADDR_LEAF_NO;
+			break;
+		WT_ILLEGAL_VALUE(session);
+		}
 		ref->addr = addr;
 	}
 
@@ -408,7 +418,7 @@ __split_ref_move_final(
 	 * until all threads are known to have exited the index of the page that
 	 * previously "owned" the WT_REF. Set that field to a safe value.
 	 */
-	txn_new_id = __wt_txn_new_id(session);
+	txn_new_id = __wt_txn_id_alloc(session, false);
 
 	/*
 	 * The WT_REF structures moved to newly allocated child pages reference
@@ -811,8 +821,19 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	 * those threads and causes them to re-calculate their position based
 	 * on the just-updated parent page's index.
 	 */
-	if (discard)
+	if (discard) {
+		/*
+		 * Page-delete information is only read when the WT_REF state is
+		 * WT_REF_DELETED.  The page-delete memory wasn't added to the
+		 * parent's footprint, ignore it here.
+		 */
+		if (ref->page_del != NULL) {
+			__wt_free(session, ref->page_del->update_list);
+			__wt_free(session, ref->page_del);
+		}
+
 		WT_PUBLISH(ref->state, WT_REF_SPLIT);
+	}
 
 	/*
 	 * Push out the changes: not required for correctness, but don't let
@@ -877,18 +898,13 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 				    session, split_gen, exclusive, ikey, size));
 				parent_decr += size;
 			}
-			/*
-			 * The page_del structure can be freed immediately: it
-			 * is only read when the ref state is WT_REF_DELETED.
-			 * The size of the structure wasn't added to the parent,
-			 * don't decrement.
-			 */
-			if (next_ref->page_del != NULL) {
-				__wt_free(session,
-				    next_ref->page_del->update_list);
-				__wt_free(session, next_ref->page_del);
-			}
 		}
+
+		/*
+		 * If this page was fast-truncated, any attached structure
+		 * should have been freed before now.
+		 */
+		WT_ASSERT(session, next_ref->page_del == NULL);
 
 		WT_TRET(__split_safe_free(
 		    session, split_gen, exclusive, next_ref, sizeof(WT_REF)));
@@ -1521,7 +1537,7 @@ __split_multi_inmem_final(WT_PAGE *orig, WT_MULTI *multi)
  *	Discard allocated pages after failure.
  */
 static void
-__split_multi_inmem_fail(WT_SESSION_IMPL *session, WT_REF *ref)
+__split_multi_inmem_fail(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_REF *ref)
 {
 	/*
 	 * We failed creating new in-memory pages. For error-handling reasons,
@@ -1531,7 +1547,7 @@ __split_multi_inmem_fail(WT_SESSION_IMPL *session, WT_REF *ref)
 	 */
 	if (ref->page != NULL) {
 		F_SET_ATOMIC(ref->page, WT_PAGE_UPDATE_IGNORE);
-		__wt_free_ref(session, ref->page, ref, true);
+		__wt_free_ref(session, ref, orig->type, true);
 	}
 }
 
@@ -1643,21 +1659,24 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * The first page in the split is the current page, but we still have
 	 * to create a replacement WT_REF, the original WT_REF will be set to
 	 * split status and eventually freed.
-	 */
-	WT_ERR(__wt_calloc_one(session, &split_ref[0]));
-	child = split_ref[0];
-	*child = *ref;
-
-	/*
+	 *
 	 * The new WT_REF is not quite identical: we have to instantiate a key,
 	 * and the new reference is visible to readers once the split completes.
 	 *
-	 * The key-instantiation code checks for races, clear the key fields so
-	 * we don't trigger them.
+	 * The key-instantiation code checks for races, leave the key fields
+	 * zeroed we don't trigger them.
+	 *
+	 * Don't copy any deleted page state: we may be splitting a page that
+	 * was instantiated after a truncate and that history should not be
+	 * carried onto these new child pages.
 	 */
-	child->key.recno = WT_RECNO_OOB;
-	child->key.ikey = NULL;
+	WT_ERR(__wt_calloc_one(session, &split_ref[0]));
+	child = split_ref[0];
+	child->page = ref->page;
+	child->home = ref->home;
+	child->pindex_hint = ref->pindex_hint;
 	child->state = WT_REF_MEM;
+	child->addr = ref->addr;
 
 	/*
 	 * Copy the first key from the original page into first ref in the new
@@ -1813,7 +1832,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * threads will not try to forcibly evict the page again until
 	 * all concurrent transactions commit.
 	 */
-	page->modify->inmem_split_txn = __wt_txn_new_id(session);
+	page->modify->inmem_split_txn = __wt_txn_id_alloc(session, false);
 
 	/*
 	 * Update the page accounting.
@@ -1953,7 +1972,7 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 
 	if (0) {
 err:		for (i = 0; i < new_entries; ++i)
-			__split_multi_inmem_fail(session, ref_new[i]);
+			__split_multi_inmem_fail(session, page, ref_new[i]);
 	}
 
 	__wt_free(session, ref_new);
@@ -2063,6 +2082,6 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref)
 
 	return (0);
 
-err:	__split_multi_inmem_fail(session, &new);
+err:	__split_multi_inmem_fail(session, page, &new);
 	return (ret);
 }
