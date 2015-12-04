@@ -653,7 +653,7 @@ op_err:			if (ret == WT_ROLLBACK && ops_per_txn != 0) {
 					goto err;
 				}
 				++trk->latency_ops;
-				usecs = ns_to_us(WT_TIMEDIFF(stop, start));
+				usecs = WT_TIMEDIFF_US(stop, start);
 				track_operation(trk, usecs);
 			}
 			/* Increment operation count */
@@ -936,7 +936,7 @@ populate_thread(void *arg)
 				goto err;
 			}
 			++trk->latency_ops;
-			usecs = ns_to_us(WT_TIMEDIFF(stop, start));
+			usecs = WT_TIMEDIFF_US(stop, start);
 			track_operation(trk, usecs);
 		}
 		++thread->insert.ops;	/* Same as trk->ops */
@@ -1068,7 +1068,7 @@ populate_async(void *arg)
 			goto err;
 		}
 		++trk->latency_ops;
-		usecs = ns_to_us(WT_TIMEDIFF(stop, start));
+		usecs = WT_TIMEDIFF_US(stop, start);
 		track_operation(trk, usecs);
 	}
 	if ((ret = session->close(session, NULL)) != 0) {
@@ -1386,7 +1386,7 @@ execute_populate(CONFIG *cfg)
 	}
 
 	lprintf(cfg, 0, 1, "Finished load of %" PRIu32 " items", cfg->icount);
-	msecs = ns_to_ms(WT_TIMEDIFF(stop, start));
+	msecs = WT_TIMEDIFF_MS(stop, start);
 
 	/*
 	 * This is needed as the divisions will fail if the insert takes no time
@@ -1444,7 +1444,7 @@ execute_populate(CONFIG *cfg)
 		}
 		lprintf(cfg, 0, 1,
 		    "Compact completed in %" PRIu64 " seconds",
-		    (uint64_t)(ns_to_sec(WT_TIMEDIFF(stop, start))));
+		    (uint64_t)(WT_TIMEDIFF_SEC(stop, start)));
 		assert(tables == 0);
 	}
 	return (0);
@@ -1534,8 +1534,10 @@ execute_workload(CONFIG *cfg)
 		lprintf(cfg, 0, 1,
 		    "Starting workload #%d: %" PRId64 " threads, inserts=%"
 		    PRId64 ", reads=%" PRId64 ", updates=%" PRId64
-		    ", truncate=%" PRId64, i + 1, workp->threads, workp->insert,
-		    workp->read, workp->update, workp->truncate);
+		    ", truncate=%" PRId64 ", throttle=%" PRId64,
+		    i + 1, workp->threads, workp->insert,
+		    workp->read, workp->update, workp->truncate,
+		    workp->throttle);
 
 		/* Figure out the workload's schedule. */
 		if ((ret = run_mix_schedule(cfg, workp)) != 0)
@@ -2423,10 +2425,15 @@ worker_throttle(int64_t throttle, int64_t *ops, struct timespec *interval)
 	 * If we did enough operations in less than a second, sleep for
 	 * the rest of the second.
 	 */
-	usecs_to_complete = ns_to_us(WT_TIMEDIFF(now, *interval));
+	usecs_to_complete = WT_TIMEDIFF_US(now, *interval);
 	if (usecs_to_complete < USEC_PER_SEC)
 		(void)usleep((useconds_t)(USEC_PER_SEC - usecs_to_complete));
 
+	/*
+	 * After sleeping, set the interval to the current time.
+	 */
+	if (__wt_epoch(NULL, &now) != 0)
+		return;
 	*ops = 0;
 	*interval = now;
 }
@@ -2457,7 +2464,7 @@ drop_all_tables(CONFIG *cfg)
 		}
 	}
 	(void)__wt_epoch(NULL, &stop);
-	msecs = ns_to_ms(WT_TIMEDIFF(stop, start));
+	msecs = WT_TIMEDIFF_MS(stop, start);
 	lprintf(cfg, 0, 1,
 	    "Executed %" PRIu32 " drop operations average time %" PRIu64 "ms",
 	    cfg->table_count, msecs / cfg->table_count);

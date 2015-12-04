@@ -643,11 +643,13 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
 {
 	WT_BTREE *btree;
 	WT_CONFIG_ITEM cval;
+	WT_CONNECTION_IMPL *conn;
 	uint64_t cache_size;
 	uint32_t intl_split_size, leaf_split_size;
 	const char **cfg;
 
 	btree = S2BT(session);
+	conn = S2C(session);
 	cfg = btree->dhandle->cfg;
 
 	/*
@@ -688,11 +690,18 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
 	WT_RET(__wt_config_gets(session, cfg, "memory_page_max", &cval));
 	btree->maxmempage =
 	    WT_MAX((uint64_t)cval.val, 50 * (uint64_t)btree->maxleafpage);
-	if (!F_ISSET(S2C(session), WT_CONN_CACHE_POOL)) {
-		if ((cache_size = S2C(session)->cache_size) > 0)
+	if (!F_ISSET(conn, WT_CONN_CACHE_POOL)) {
+		if ((cache_size = conn->cache_size) > 0)
 			btree->maxmempage =
 			    WT_MIN(btree->maxmempage, cache_size / 4);
 	}
+
+	/*
+	 * Try in-memory splits once we hit 80% of the maximum in-memory page
+	 * size.  This gives multi-threaded append workloads a better chance of
+	 * not stalling.
+	 */
+	btree->splitmempage = 8 * btree->maxmempage / 10;
 
 	/*
 	 * Get the split percentage (reconciliation splits pages into smaller
@@ -723,6 +732,17 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
 	/*
 	 * Get the maximum internal/leaf page key/value sizes.
 	 *
+	 * In-memory configuration overrides any key/value sizes, there's no
+	 * such thing as an overflow item in an in-memory configuration.
+	 */
+	if (F_ISSET(conn, WT_CONN_IN_MEMORY)) {
+		btree->maxintlkey = WT_BTREE_MAX_OBJECT_SIZE;
+		btree->maxleafkey = WT_BTREE_MAX_OBJECT_SIZE;
+		btree->maxleafvalue = WT_BTREE_MAX_OBJECT_SIZE;
+		return (0);
+	}
+
+	/*
 	 * In historic versions of WiredTiger, the maximum internal/leaf page
 	 * key/value sizes were set by the internal_item_max and leaf_item_max
 	 * configuration strings. Look for those strings if we don't find the
