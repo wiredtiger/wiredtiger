@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include <stdbool.h>
 
 /*
  * __wt_cond_alloc --
@@ -50,6 +51,7 @@ __wt_cond_wait(WT_SESSION_IMPL *session, WT_CONDVAR *cond, uint64_t usecs)
 	struct timespec ts;
 	WT_DECL_RET;
 	int locked;
+  bool check_ret;
 
 	locked = 0;
 
@@ -77,19 +79,21 @@ __wt_cond_wait(WT_SESSION_IMPL *session, WT_CONDVAR *cond, uint64_t usecs)
 		ts.tv_nsec = (long)
 		    (((uint64_t)ts.tv_nsec + 1000 * usecs) % WT_BILLION);
 		ret = pthread_cond_timedwait(&cond->cond, &cond->mtx, &ts);
-	} else
+  } else
 		ret = pthread_cond_wait(&cond->cond, &cond->mtx);
 
 	/*
 	 * Check pthread_cond_wait() return for EINTR, ETIME and
 	 * ETIMEDOUT, some systems return these errors.
 	 */
-	if (ret == EINTR ||
+   check_ret = (ret == EINTR);
 #ifdef ETIME
-	    ret == ETIME ||
+   check_ret = (check_ret || ret == ETIME);
 #endif
-	    ret == ETIMEDOUT)
-		ret = 0;
+   check_ret = (check_ret || ret == ETIMEDOUT);
+
+   if(check_ret)
+      ret = 0;
 
 	(void)WT_ATOMIC_SUB4(cond->waiters, 1);
 
