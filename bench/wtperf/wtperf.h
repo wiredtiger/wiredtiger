@@ -127,6 +127,15 @@ struct __truncate_queue_entry {
 };
 typedef struct __truncate_queue_entry TRUNCATE_QUEUE_ENTRY;
 
+/* Steering for the throttle configuration */
+struct __throttle_config {
+	struct timespec last_increment;
+        uint64_t ticket_queue;
+	uint64_t tickets_per_increment;
+	uint64_t usecs_increment;
+};
+typedef struct __throttle_config THROTTLE_CONFIG;
+
 #define	LOG_PARTIAL_CONFIG	",log=(enabled=false)"
 /*
  * NOTE:  If you add any fields to this structure here, you must also add
@@ -190,6 +199,7 @@ struct __config {			/* Configuration structure */
 #define	ELEMENTS(a)	(sizeof(a) / sizeof(a[0]))
 
 #define	THROTTLE_OPS	100
+#define THROTTLE_INTVL	(USEC_PER_SEC / THROTTLE_OPS)
 
 #define	THOUSAND	(1000ULL)
 #define	MILLION		(1000000ULL)
@@ -261,7 +271,7 @@ struct __config_thread {		/* Per-thread structure */
 	TRACK truncate;			/* Truncate operations */
 	TRACK truncate_sleep;		/* Truncate sleep operations */
 	TRUNCATE_CONFIG trunc_cfg;	/* Truncate configuration */
-
+	THROTTLE_CONFIG throttle_cfg;	/* Throttle configuration */
 };
 
 void	 cleanup_truncate_config(CONFIG *);
@@ -282,6 +292,7 @@ int	 run_truncate(
     CONFIG *, CONFIG_THREAD *, WT_CURSOR *, WT_SESSION *, int *);
 int	 setup_log_file(CONFIG *);
 int	 setup_truncate(CONFIG *, CONFIG_THREAD *, WT_SESSION *);
+int	 setup_throttle(CONFIG_THREAD*);
 uint64_t sum_ckpt_ops(CONFIG *);
 uint64_t sum_insert_ops(CONFIG *);
 uint64_t sum_pop_ops(CONFIG *);
@@ -289,6 +300,7 @@ uint64_t sum_read_ops(CONFIG *);
 uint64_t sum_truncate_ops(CONFIG *);
 uint64_t sum_update_ops(CONFIG *);
 void	 usage(void);
+int	 worker_throttle(CONFIG_THREAD*);
 
 void	 lprintf(const CONFIG *, int err, uint32_t, const char *, ...)
 #if defined(__GNUC__)
