@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+#include <stdbool.h>
 
 /*
  * __wt_mmap --
@@ -18,6 +19,7 @@ __wt_mmap(WT_SESSION_IMPL *session,
 {
 	void *map;
 	size_t orig_size;
+  bool check_map;
 
 	WT_UNUSED(mappingcookie);
 
@@ -29,16 +31,25 @@ __wt_mmap(WT_SESSION_IMPL *session,
 	 * the map call succeeds, it's all OK.
 	 */
 	orig_size = (size_t)fh->size;
-	if ((map = mmap(NULL, orig_size,
-	    PROT_READ,
+
 #ifdef MAP_NOCORE
-	    MAP_NOCORE |
+  check_map = ((map = mmap(NULL, orig_size,
+                PROT_READ,
+                MAP_NOCORE | 
+                MAP_PRIVATE,
+                fh->fd, (wt_off_t)0)) == MAP_FAILED);
+#else
+  check_map = ((map = mmap(NULL, orig_size,
+                PROT_READ,
+                MAP_PRIVATE,
+                fh->fd, (wt_off_t)0)) == MAP_FAILED);
+
 #endif
-	    MAP_PRIVATE,
-	    fh->fd, (wt_off_t)0)) == MAP_FAILED) {
-		WT_RET_MSG(session, __wt_errno(),
-		    "%s map error: failed to map %" WT_SIZET_FMT " bytes",
-		    fh->name, orig_size);
+
+  if (check_map) {
+    WT_RET_MSG(session, __wt_errno(),
+    "%s map error: failed to map %" WT_SIZET_FMT " bytes",
+    fh->name, orig_size);
 	}
 	(void)__wt_verbose(session, WT_VERB_FILEOPS,
 	    "%s: map %p: %" WT_SIZET_FMT " bytes", fh->name, map, orig_size);

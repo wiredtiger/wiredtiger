@@ -27,6 +27,7 @@
  */
 
 #include "wtperf.h"
+#include <stdbool.h>
 
 /* All options changeable on command line using -o or -O are listed here. */
 static CONFIG_OPT config_opts[] = {
@@ -198,7 +199,7 @@ config_threads(CONFIG *cfg, const char *config, size_t len)
 		if ((ret = wiredtiger_config_parser_open(
 		    NULL, groupk.str, groupk.len, &scan)) != 0)
 			goto err;
-		
+
 		/* Move to the next workload slot. */
 		if (cfg->workload_cnt == WORKLOAD_MAX) {
 			fprintf(stderr,
@@ -271,7 +272,7 @@ err:	if (group != NULL)
 		(void)group->close(group);
 	if (scan != NULL)
 		(void)scan->close(scan);
-		
+
 	fprintf(stderr,
 	    "invalid thread configuration or scan error: %.*s\n",
 	    (int)len, config);
@@ -414,6 +415,7 @@ config_opt_file(CONFIG *cfg, const char *filename)
 	int contline, fd, linenum, ret;
 	char option[1024];
 	char *comment, *file_buf, *line, *ltrim, *rtrim;
+	bool check_file_size;
 
 	file_buf = NULL;
 
@@ -434,12 +436,14 @@ config_opt_file(CONFIG *cfg, const char *filename)
 		goto err;
 	}
 	read_size = read(fd, file_buf, buf_size);
-	if (read_size == -1
+
+	check_file_size = (read_size == -1);
 #ifndef _WIN32
 	/* Windows automatically translates \r\n -> \n so counts will be off */
-	|| (size_t)read_size != buf_size
+	check_file_size = (check_file_size || (size_t)read_size != buf_size);
 #endif
-	) {
+
+	if(check_file_size){
 		fprintf(stderr,
 		    "wtperf: read unexpected amount from config file\n");
 		ret = EINVAL;
