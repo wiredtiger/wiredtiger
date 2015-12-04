@@ -130,7 +130,7 @@ typedef struct __truncate_queue_entry TRUNCATE_QUEUE_ENTRY;
 /* Steering for the throttle configuration */
 struct __throttle_config {
 	struct timespec last_increment;
-        uint64_t ticket_queue;
+	uint64_t ticket_queue;
 	uint64_t tickets_per_increment;
 	uint64_t usecs_increment;
 };
@@ -199,7 +199,7 @@ struct __config {			/* Configuration structure */
 #define	ELEMENTS(a)	(sizeof(a) / sizeof(a[0]))
 
 #define	THROTTLE_OPS	100
-#define THROTTLE_INTVL	(USEC_PER_SEC / THROTTLE_OPS)
+#define	THROTTLE_INTVL	(USEC_PER_SEC / THROTTLE_OPS)
 
 #define	THOUSAND	(1000ULL)
 #define	MILLION		(1000000ULL)
