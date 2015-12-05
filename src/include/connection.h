@@ -358,7 +358,7 @@ struct __wt_connection_impl {
 	bool		 log_wrlsn_tid_set;/* Log write lsn thread set */
 	WT_LOG		*log;		/* Logging structure */
 	WT_COMPRESSOR	*log_compressor;/* Logging compressor */
-	wt_off_t	 log_file_max;	/* Log file max size */
+	uint32_t	 log_file_max;	/* Log file max size */
 	const char	*log_path;	/* Logging path format */
 	uint32_t	 log_prealloc;	/* Log file pre-allocation */
 	uint32_t	 txn_logsync;	/* Log sync configuration */

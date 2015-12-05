@@ -259,14 +259,19 @@ __wt_txn_checkpoint_logread(
     WT_LSN *ckpt_lsn)
 {
 	WT_ITEM ckpt_snapshot;
+	uint32_t lsn_file, lsn_offset;
 	u_int ckpt_nsnapshot;
-	const char *fmt = WT_UNCHECKED_STRING(IQIU);
+	const char *fmt = WT_UNCHECKED_STRING(IIIU);
 
+	/*
+	 * !!! Backward compatibility for LSN offsets being 64 bits.
+	 */
 	WT_RET(__wt_struct_unpack(session, *pp, WT_PTRDIFF(end, *pp), fmt,
-	    &ckpt_lsn->file, &ckpt_lsn->offset,
+	    &lsn_file, &lsn_offset,
 	    &ckpt_nsnapshot, &ckpt_snapshot));
 	WT_UNUSED(ckpt_nsnapshot);
 	WT_UNUSED(ckpt_snapshot);
+	WT_SET_LSN(ckpt_lsn, lsn_file, (uint32_t)lsn_offset);
 	*pp = end;
 	return (0);
 }
@@ -287,7 +292,7 @@ __wt_txn_checkpoint_log(
 	uint8_t *end, *p;
 	size_t recsize;
 	uint32_t i, rectype = WT_LOGREC_CHECKPOINT;
-	const char *fmt = WT_UNCHECKED_STRING(IIQIU);
+	const char *fmt = WT_UNCHECKED_STRING(IIIIU);
 
 	txn = &session->txn;
 	ckpt_lsn = &txn->ckpt_lsn;
@@ -343,13 +348,15 @@ __wt_txn_checkpoint_log(
 
 		/* Write the checkpoint log record. */
 		WT_ERR(__wt_struct_size(session, &recsize, fmt,
-		    rectype, ckpt_lsn->file, ckpt_lsn->offset,
+		    rectype, WT_LSN_FILE(ckpt_lsn),
+		    WT_LSN_OFFSET(ckpt_lsn),
 		    txn->ckpt_nsnapshot, ckpt_snapshot));
 		WT_ERR(__wt_logrec_alloc(session, recsize, &logrec));
 
 		WT_ERR(__wt_struct_pack(session,
 		    (uint8_t *)logrec->data + logrec->size, recsize, fmt,
-		    rectype, ckpt_lsn->file, ckpt_lsn->offset,
+		    rectype, WT_LSN_FILE(ckpt_lsn),
+		    WT_LSN_OFFSET(ckpt_lsn),
 		    txn->ckpt_nsnapshot, ckpt_snapshot));
 		logrec->size += (uint32_t)recsize;
 		WT_ERR(__wt_log_write(session, logrec, lsnp,
@@ -458,11 +465,10 @@ __txn_printlog(WT_SESSION_IMPL *session,
 {
 	FILE *out;
 	WT_LOG_RECORD *logrec;
-	WT_LSN ckpt_lsn;
 	const uint8_t *end, *p;
 	const char *msg;
 	uint64_t txnid;
-	uint32_t fileid, rectype;
+	uint32_t fileid, lsn_file, lsn_offset, rectype;
 	int32_t start;
 	bool compressed;
 
@@ -481,8 +487,8 @@ __txn_printlog(WT_SESSION_IMPL *session,
 		WT_RET(__wt_fprintf(out, ",\n"));
 
 	WT_RET(__wt_fprintf(out,
-	    "  { \"lsn\" : [%" PRIu32 ",%" PRId64 "],\n",
-	    lsnp->file, lsnp->offset));
+	    "  { \"lsn\" : [%" PRIu32 ",%" PRIu32 "],\n",
+	    WT_LSN_FILE(lsnp), WT_LSN_OFFSET(lsnp)));
 	WT_RET(__wt_fprintf(out,
 	    "    \"hdr_flags\" : \"%s\",\n", compressed ? "compressed" : ""));
 	WT_RET(__wt_fprintf(out,
@@ -494,11 +500,11 @@ __txn_printlog(WT_SESSION_IMPL *session,
 	switch (rectype) {
 	case WT_LOGREC_CHECKPOINT:
 		WT_RET(__wt_struct_unpack(session, p, WT_PTRDIFF(end, p),
-		    WT_UNCHECKED_STRING(IQ), &ckpt_lsn.file, &ckpt_lsn.offset));
+		    WT_UNCHECKED_STRING(II), &lsn_file, &lsn_offset));
 		WT_RET(__wt_fprintf(out, "    \"type\" : \"checkpoint\",\n"));
 		WT_RET(__wt_fprintf(out,
-		    "    \"ckpt_lsn\" : [%" PRIu32 ",%" PRId64 "]\n",
-		    ckpt_lsn.file, ckpt_lsn.offset));
+		    "    \"ckpt_lsn\" : [%" PRIu32 ",%" PRIu32 "]\n",
+		    lsn_file, lsn_offset));
 		break;
 
 	case WT_LOGREC_COMMIT:

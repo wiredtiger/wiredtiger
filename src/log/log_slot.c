@@ -31,8 +31,8 @@ __wt_log_slot_activate(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 	 * are reset when the slot is freed.  See log_slot_free.
 	 */
 	slot->slot_start_lsn = slot->slot_end_lsn = log->alloc_lsn;
-	slot->slot_start_offset = log->alloc_lsn.offset;
-	slot->slot_last_offset = log->alloc_lsn.offset;
+	slot->slot_start_offset = WT_LSN_OFFSET(&log->alloc_lsn);
+	slot->slot_last_offset = WT_LSN_OFFSET(&log->alloc_lsn);
 	slot->slot_fh = log->log_fh;
 	slot->slot_error = 0;
 	slot->slot_unbuffered = 0;
@@ -96,14 +96,16 @@ retry:
 	slot->slot_end_lsn = slot->slot_start_lsn;
 	end_offset =
 	    WT_LOG_SLOT_JOINED_BUFFERED(old_state) + slot->slot_unbuffered;
-	slot->slot_end_lsn.offset += (wt_off_t)end_offset;
+	WT_SET_LSN_OFFSET(&slot->slot_end_lsn,
+	    WT_LSN_OFFSET(&slot->slot_end_lsn) + end_offset);
 	WT_STAT_FAST_CONN_INCRV(session,
 	    log_slot_consolidated, end_offset);
 	/*
 	 * XXX Would like to change so one piece of code advances the LSN.
 	 */
 	log->alloc_lsn = slot->slot_end_lsn;
-	WT_ASSERT(session, log->alloc_lsn.file >= log->write_lsn.file);
+	WT_ASSERT(session,
+	    WT_LSN_FILE(&log->alloc_lsn) >= WT_LSN_FILE(&log->write_lsn));
 	return (0);
 }
 
@@ -340,8 +342,8 @@ __wt_log_slot_destroy(WT_SESSION_IMPL *session)
 			rel = WT_LOG_SLOT_RELEASED_BUFFERED(slot->slot_state);
 			if (rel != 0)
 				WT_RET(__wt_write(session, slot->slot_fh,
-				    slot->slot_start_offset, (size_t)rel,
-				    slot->slot_buf.mem));
+				    (wt_off_t)slot->slot_start_offset,
+				    (size_t)rel, slot->slot_buf.mem));
 		}
 		__wt_buf_free(session, &log->slot_pool[i].slot_buf);
 	}
@@ -354,7 +356,7 @@ __wt_log_slot_destroy(WT_SESSION_IMPL *session)
  *	the read lock held.
  */
 void
-__wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
+__wt_log_slot_join(WT_SESSION_IMPL *session, uint32_t mysize,
     uint32_t flags, WT_MYSLOT *myslot)
 {
 	WT_CONNECTION_IMPL *conn;
@@ -440,7 +442,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 	}
 	myslot->slot = slot;
 	myslot->offset = join_offset;
-	myslot->end_offset = (wt_off_t)((uint64_t)join_offset + mysize);
+	myslot->end_offset = (uint32_t)join_offset + mysize;
 }
 
 /*
@@ -463,7 +465,7 @@ __wt_log_slot_release(WT_SESSION_IMPL *session, WT_MYSLOT *myslot, int64_t size)
 		/*
 		 * Set our offset if we are larger.
 		 */
-		if (__wt_atomic_casiv64(
+		if (__wt_atomic_casv32(
 		    &slot->slot_last_offset, cur_offset, my_start))
 			break;
 		/*
