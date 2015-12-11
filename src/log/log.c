@@ -1743,9 +1743,10 @@ __wt_log_write(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 		return (0);
 	ip = record;
 	if ((compressor = conn->log_compressor) != NULL &&
-	    record->size < log->allocsize) {
+	    record->size < log->allocsize)
 		WT_STAT_FAST_CONN_INCR(session, log_compress_small);
-	} else if (compressor != NULL) {
+	else if (compressor != NULL &&
+	     !__wt_compression_skip_next(&log->comp_fail_skip)) {
 		/* Skip the log header */
 		src = (uint8_t *)record->mem + WT_LOG_COMPRESS_SKIP;
 		src_len = record->size - WT_LOG_COMPRESS_SKIP;
@@ -1797,6 +1798,8 @@ __wt_log_write(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 			    record->size);
 			WT_STAT_FAST_CONN_INCRV(session, log_compress_len,
 			    result_len);
+			__wt_compression_skip_tracking(&log->comp_fail_cnt,
+			    &log->comp_fail_skip, false);
 
 			/*
 			 * Copy in the skipped header bytes, set the final data
@@ -1812,6 +1815,8 @@ __wt_log_write(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 			newlrp->mem_len = WT_STORE_SIZE(record->size);
 		}
 	}
+	if (compressor != NULL)
+		WT_STAT_FAST_CONN_INCR(session, log_compress_skipped);
 	if ((kencryptor = conn->kencryptor) != NULL) {
 		/*
 		 * Allocate enough space for the original record plus the
