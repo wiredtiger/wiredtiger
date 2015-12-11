@@ -432,6 +432,7 @@ dsrc_stats = [
     CompressStat('compress_read', 'compressed pages read'),
     CompressStat('compress_write', 'compressed pages written'),
     CompressStat('compress_write_fail', 'page written failed to compress'),
+    CompressStat('compress_write_skipped', 'page write compression skipped'),
     CompressStat('compress_write_too_small', 'page written was too small to compress'),
 
     ##########################################

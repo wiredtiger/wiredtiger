@@ -64,6 +64,7 @@ static const char * const __stats_dsrc_desc[] = {
 	"compression: compressed pages read",
 	"compression: compressed pages written",
 	"compression: page written failed to compress",
+	"compression: page write compression skipped",
 	"compression: page written was too small to compress",
 	"cursor: create calls",
 	"cursor: insert calls",
@@ -182,6 +183,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
 	stats->cache_eviction_clean = 0;
 	stats->compress_read = 0;
 	stats->compress_write = 0;
+	stats->compress_write_skipped = 0;
 	stats->compress_write_fail = 0;
 	stats->compress_write_too_small = 0;
 	stats->compress_raw_fail_temporary = 0;
@@ -308,6 +310,7 @@ __wt_stat_dsrc_aggregate_single(
 	to->cache_eviction_clean += from->cache_eviction_clean;
 	to->compress_read += from->compress_read;
 	to->compress_write += from->compress_write;
+	to->compress_write_skipped += from->compress_write_skipped;
 	to->compress_write_fail += from->compress_write_fail;
 	to->compress_write_too_small += from->compress_write_too_small;
 	to->compress_raw_fail_temporary += from->compress_raw_fail_temporary;
@@ -445,6 +448,8 @@ __wt_stat_dsrc_aggregate(
 	to->cache_eviction_clean += WT_STAT_READ(from, cache_eviction_clean);
 	to->compress_read += WT_STAT_READ(from, compress_read);
 	to->compress_write += WT_STAT_READ(from, compress_write);
+	to->compress_write_skipped +=
+	    WT_STAT_READ(from, compress_write_skipped);
 	to->compress_write_fail += WT_STAT_READ(from, compress_write_fail);
 	to->compress_write_too_small +=
 	    WT_STAT_READ(from, compress_write_too_small);

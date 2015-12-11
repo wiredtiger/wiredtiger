@@ -235,9 +235,10 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 	else if (buf->size <= btree->allocsize) {
 		ip = buf;
 		WT_STAT_FAST_DATA_INCR(session, compress_write_too_small);
-	} else if (__wt_compression_skip_next(&btree->compression_fail_skip))
+	} else if (__wt_compression_skip_next(&btree->compression_fail_skip)) {
 		ip = buf;
-	else {
+		WT_STAT_FAST_DATA_INCR(session, compress_write_skipped);
+	} else {
 		/* Skip the header bytes of the source data. */
 		src = (uint8_t *)buf->mem + WT_BLOCK_COMPRESS_SKIP;
 		src_len = buf->size - WT_BLOCK_COMPRESS_SKIP;
