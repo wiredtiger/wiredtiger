@@ -2333,7 +2333,7 @@ start_threads(CONFIG *cfg,
     WORKLOAD *workp, CONFIG_THREAD *base, u_int num, void *(*func)(void *))
 {
 	CONFIG_THREAD *thread;
-	u_int i;
+	u_int i, j;
 	int ret;
 
 	/* Initialize the threads. */
@@ -2345,10 +2345,12 @@ start_threads(CONFIG *cfg,
 		 * We don't want the threads executing in lock-step, seed each
 		 * one differently.
 		 */
-		if ((ret = __wt_random_init_seed(NULL, &thread->rnd)) != 0) {
-			lprintf(cfg, ret, 0, "Error initializing RNG");
-			return (ret);
-		}
+		if (i == 0)
+			__wt_random_init(&thread->rnd);
+		else
+			thread->rnd = (thread - 1)->rnd;
+		for (j = 0; j < 1000; ++j)
+			(void)__wt_random(&thread->rnd);
 
 		/*
 		 * Every thread gets a key/data buffer because we don't bother
