@@ -629,7 +629,10 @@ __wt_row_random_leaf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	WT_PAGE *page;
 	uint32_t entries;
 	int level;
+#define WT_MIN_ENTRIES_FOR_STEPDOWN	20
 
+	entries = 0;
+	start = stop = NULL;
 	page = cbt->ref->page;
 
 	/* If the page has disk-based entries, select from them. */
@@ -653,25 +656,22 @@ __wt_row_random_leaf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	if ((cbt->ins_head = WT_ROW_INSERT_SMALLEST(page)) == NULL)
 		return (WT_NOTFOUND);
 
+	ins_head = cbt->ins_head;
 	/*
-	 * Walk down the list until we find a level with at least two entries,
-	 * that's where we'll start rolling random numbers.
+	 * Skip empty levels, and set start the first time we see a level with
+	 * anything in it.
 	 */
-	for (ins_head = cbt->ins_head,
-	    level = WT_SKIP_MAXDEPTH - 1; level > 0; --level)
-		if (ins_head->head[level] != NULL &&
-		    ins_head->head[level]->next[level] != NULL)
-			break;
-
-	/*
-	 * Use all entries at this first level as the range for random
-	 * selection. Do that by counting the entries and setting the start
-	 * point as the first entry.
-	 */
-	for (entries = 0,
-	    ins = ins_head->head[level]; ins != NULL; ins = ins->next[level])
-		++entries;
-	start = &ins_head->head[level];
+	for (level = WT_SKIP_MAXDEPTH - 1; level > 0; --level) {
+		if (ins_head->head[level] == NULL)
+			continue;
+		/*
+		 * We found some content, setup start and stop to span the
+		 * entire first level.
+		 */
+		start = &ins_head->head[level];
+		stop = &ins_head->tail[level];
+		break;
+	}
 
 	/*
 	 * Keep stepping down the skip list selecting a random entry at each
@@ -679,31 +679,51 @@ __wt_row_random_leaf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	 * subsequently constrain the range to the entries between the selected
 	 * entry and it's neighbour from a level up the list.
 	 */
-	while (level > 0) {
-		/*
-		 * Select a random number from the calculated entry range and
-		 * convert that to a new start/stop pair. If there are only two
-		 * entries, the start/stop pair must be slots 0 and 1,
-		 * otherwise, use the random number as the start position. The
-		 * calculation uses "entries - 1" to ensure we never chose the
-		 * last node in the list as our new start point.
-		 */
-		entries = entries < 3 ?
-		    0 : __wt_random(&session->rnd) % (entries - 1);
-		/* Move forward to the randomly selected start entry. */
-		for (; entries > 0; --entries)
-			start = &(*start)->next[level];
-		stop = &(*start)->next[level];
-
-		/* Drop down a level. */
-		--start;
-		--stop;
-		--level;
-
+	while (true) {
 		/* Count the entries between the new start/stop pair. */
 		for (entries = 0, ins = *start;
 		    ins != *stop; ++entries, ins = ins->next[level])
 			;
+
+		/* We reached the bottom */
+		if (level == 0)
+			break;
+
+		/* Drop down a level */
+		--start;
+		--stop;
+		--level;
+
+		/*
+		 * Keep dropping down levels until we get a reasonable
+		 * number of entries to choose from, otherwise we tend to
+		 * bias excessively towards the left hand side of tall entries.
+		 */
+		if (entries < WT_MIN_ENTRIES_FOR_STEPDOWN || level == 0)
+			continue;
+		printf("Got %d entries at level %d\n",
+		    (int)entries, (int)level);
+
+		/*
+		 * Select a random number from the calculated entry range and
+		 * convert that to a new start/stop pair.
+		 */
+		entries = __wt_random(&session->rnd) % (entries);
+		printf("Moving forward: %d\n", (int)entries);
+
+		/* Move forward to the randomly selected start entry. */
+		for (; entries > 0; --entries) {
+			start = &(*start)->next[level];
+			/*
+			 * Stop walking if this is the second to last entry
+			 * in the skip list - we need a pair to make a range
+			 * for stepping down.
+			 */
+			if ((*start)->next[level] ==
+			    cbt->ins_head->tail[level])
+				break;
+		}
+		stop = &(*start)->next[level];
 	}
 
 	/*
