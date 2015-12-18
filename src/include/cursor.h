@@ -192,6 +192,22 @@ struct __wt_cursor_btree {
 	WT_UPDATE *modify_update;
 
 	/*
+	 * SUPPORT-1531 information.
+	 */
+	WT_ITEM *lastkey, _lastkey;
+	enum {
+	    WT_LASTOP_NONE=0,
+	    WT_LASTOP_NEXT,
+	    WT_LASTOP_PREV,
+	    WT_LASTOP_RESET,
+	    WT_LASTOP_SEARCH,
+	    WT_LASTOP_SEARCH_NEAR,
+	    WT_LASTOP_INSERT,
+	    WT_LASTOP_TRUNCATE,
+	    WT_LASTOP_UPDATE,
+	    WT_LASTOP_REMOVE } last_op[20];
+
+	/*
 	 * Fixed-length column-store items are a single byte, and it's simpler
 	 * and cheaper to allocate the space for it now than keep checking to
 	 * see if we need to grow the buffer.

@@ -431,6 +431,112 @@ __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
 }
 
 /*
+ * __wt_last_op_name --
+ *	Return the last operation name.
+ */
+static const char *
+__wt_last_op_name(int v)
+{
+	switch (v) {
+	case WT_LASTOP_NONE: return ("none");
+	case WT_LASTOP_NEXT: return ("next");
+	case WT_LASTOP_PREV: return ("prev");
+	case WT_LASTOP_RESET: return ("reset");
+	case WT_LASTOP_SEARCH: return ("search");
+	case WT_LASTOP_SEARCH_NEAR: return ("search-near");
+	case WT_LASTOP_INSERT: return ("insert");
+	case WT_LASTOP_TRUNCATE: return ("truncate");
+	case WT_LASTOP_UPDATE: return ("update");
+	case WT_LASTOP_REMOVE: return ("remove");
+	default:
+		break;
+	}
+	return ("UNKNOWN last op");
+}
+
+/*
+ * __wt_set_last_op --
+ *	Set the last operation.
+ */
+void
+__wt_set_last_op(WT_CURSOR_BTREE *cbt, int v)
+{
+	int i;
+
+	for (i = 20; --i > 0;)
+		cbt->last_op[i] = cbt->last_op[i - 1];
+	cbt->last_op[0] = v;
+}
+
+/* 
+ * __wt_key_order_check --
+ *	Check key ordering for cursor movements.
+ */
+static int
+__wt_key_order_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
+{
+	WT_BTREE *btree;
+	WT_DECL_ITEM(a);
+	WT_DECL_ITEM(b);
+	WT_ITEM *key;
+	WT_DECL_RET;
+	int cmp;
+
+	btree = S2BT(session);
+	key = &cbt->iface.key;
+
+	if ((ret = __wt_compare(
+	    session, btree->collator, cbt->lastkey, key, &cmp)) != 0)
+		WT_RET_MSG(session, ret,
+		    "SUPPORT-1531: comparison function failed");
+	if (cmp < 0)
+		return (0);
+
+	WT_ERR(__wt_scr_alloc(session, 512, &a));
+	WT_ERR(__wt_scr_alloc(session, 512, &b));
+
+	WT_ERR(__wt_buf_set_printable(session, a, key->data, key->size));
+	WT_ERR(__wt_buf_set_printable(
+	    session, b, cbt->lastkey->data, cbt->lastkey->size));
+
+	__wt_errx(session,
+	    "SUPPORT-1531: WT_CURSOR.next out-of-order keys: returning %.*s "
+	    "which is not larger than a previously returned key %.*s",
+	    (int)a->size, (const char *)a->data,
+	    (int)b->size, (const char *)b->data);
+
+	__wt_errx(session,
+	    "SUPPORT-1531: WT_CURSOR last operations (most-recent first): "
+	    "%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, "
+	    "%s, %s, %s, %s, %s, %s, %s, %s, %s, %s",
+	    __wt_last_op_name(cbt->last_op[0]),
+	    __wt_last_op_name(cbt->last_op[1]),
+	    __wt_last_op_name(cbt->last_op[2]),
+	    __wt_last_op_name(cbt->last_op[3]),
+	    __wt_last_op_name(cbt->last_op[4]),
+	    __wt_last_op_name(cbt->last_op[5]),
+	    __wt_last_op_name(cbt->last_op[6]),
+	    __wt_last_op_name(cbt->last_op[7]),
+	    __wt_last_op_name(cbt->last_op[8]),
+	    __wt_last_op_name(cbt->last_op[9]),
+	    __wt_last_op_name(cbt->last_op[10]),
+	    __wt_last_op_name(cbt->last_op[11]),
+	    __wt_last_op_name(cbt->last_op[12]),
+	    __wt_last_op_name(cbt->last_op[13]),
+	    __wt_last_op_name(cbt->last_op[14]),
+	    __wt_last_op_name(cbt->last_op[15]),
+	    __wt_last_op_name(cbt->last_op[16]),
+	    __wt_last_op_name(cbt->last_op[17]),
+	    __wt_last_op_name(cbt->last_op[18]),
+	    __wt_last_op_name(cbt->last_op[19]));
+	ret = EINVAL;
+
+err:	__wt_scr_free(session, &a);
+	__wt_scr_free(session, &b);
+	return (ret);
+}
+
+/*
  * __wt_btcur_next --
  *	Move to the next record in the tree.
  */
@@ -530,6 +636,20 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 		WT_ERR(__wt_tree_walk(session, &cbt->ref, flags));
 		WT_ERR_TEST(cbt->ref == NULL, WT_NOTFOUND);
 	}
+
+	/*
+	 * SUPPORT-1531 check that the previous key returned sorts less than
+	 * the current key being returned.
+	 */
+	if (ret == 0 && page->type == WT_PAGE_ROW_LEAF) {
+		if (cbt->last_op[0] == WT_LASTOP_NEXT &&
+		    cbt->lastkey != NULL && cbt->lastkey->size != 0)
+			WT_ERR(__wt_key_order_check(session, cbt));
+
+		WT_ERR(__wt_buf_set(session,
+		    cbt->lastkey, cbt->iface.key.data, cbt->iface.key.size));
+	}
+	__wt_set_last_op(cbt, WT_LASTOP_NEXT);
 
 err:	if (ret != 0)
 		WT_TRET(__cursor_reset(cbt));
