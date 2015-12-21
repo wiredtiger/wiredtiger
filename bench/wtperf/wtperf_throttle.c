@@ -55,15 +55,15 @@ setup_throttle(CONFIG_THREAD *thread)
 		throttle_cfg->usecs_increment =
 		    USEC_PER_SEC / thread->workload->throttle;
 		throttle_cfg->ops_per_increment = 1;
-	} else if (thread->workload->throttle < THROTTLE_INTVL) {
+	} else if (thread->workload->throttle < USEC_PER_SEC / THROTTLE_OPS) {
 		throttle_cfg->usecs_increment =
 		    USEC_PER_SEC / thread->workload->throttle * THROTTLE_OPS;
 		throttle_cfg->ops_per_increment = THROTTLE_OPS;
 	} else {
 		/* If the interval is large, we do more ops per interval */
-		throttle_cfg->usecs_increment = THROTTLE_OPS;
+		throttle_cfg->usecs_increment = USEC_PER_SEC / THROTTLE_OPS;
 		throttle_cfg->ops_per_increment =
-		    thread->workload->throttle / THROTTLE_INTVL;
+		    thread->workload->throttle / THROTTLE_OPS;
 	}
 
 	/* Give the queue some initial tickets to work with */
@@ -71,10 +71,12 @@ setup_throttle(CONFIG_THREAD *thread)
 
 	/* Set the first timestamp of when we incremented */
 	WT_RET(__wt_epoch(NULL, &throttle_cfg->last_increment));
-	printf("setup to run with throttle. This thread will do %lu ops every %lu us\n",
+	printf("setup to run with throttle."
+	    "This thread will do %lu ops every %lu us\n",
 	    throttle_cfg->ops_per_increment, throttle_cfg->usecs_increment);
 	printf("this means we are performing %llu ops per second\n",
-	    (USEC_PER_SEC / throttle_cfg->usecs_increment) * throttle_cfg->ops_per_increment); 
+	    (USEC_PER_SEC / throttle_cfg->usecs_increment)
+	    * throttle_cfg->ops_per_increment); 
 	return (0);
 }
 
@@ -98,7 +100,7 @@ worker_throttle(CONFIG_THREAD *thread)
 	 * the rest of the interval. Then add more tickets to the queue.
 	 */
 	usecs_delta = WT_TIMEDIFF_US(now, throttle_cfg->last_increment);
-	if (usecs_delta < throttle_cfg->usecs_increment - THROTTLE_OPS) {
+	if (usecs_delta < throttle_cfg->usecs_increment) {
 		(void)usleep(
 		    (useconds_t)(throttle_cfg->usecs_increment - usecs_delta));
 		throttle_cfg->ops_count =

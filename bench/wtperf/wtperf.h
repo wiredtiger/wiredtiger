@@ -197,7 +197,6 @@ struct __config {			/* Configuration structure */
 #define	ELEMENTS(a)	(sizeof(a) / sizeof(a[0]))
 
 #define	THROTTLE_OPS	100
-#define	THROTTLE_INTVL	(USEC_PER_SEC / THROTTLE_OPS)
 
 #define	THOUSAND	(1000ULL)
 #define	MILLION		(1000000ULL)
