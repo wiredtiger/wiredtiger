@@ -433,10 +433,8 @@ worker(void *arg)
 		}
 	}
 	/* Setup the timer for throttling. */
-	if (thread->workload->throttle != 0) {
-		if ((setup_throttle(thread) != 0))
+	if (thread->workload->throttle != 0 && setup_throttle(thread) != 0)
 			goto err;
-	}
 
 	/* Setup for truncate */
 	if (thread->workload->truncate != 0)
@@ -679,9 +677,10 @@ op_err:			if (ret == WT_ROLLBACK && ops_per_txn != 0) {
 			op = thread->workload->ops;
 
 		/*
-		 * Decrement throttle tickets and check if we need to reload
+		 * Decrement throttle tickets and check if needed check if we
+		 * should sleep and then get more tickets to perform more work.
 		 */
-		if (--thread->throttle_cfg.ticket_queue == 0)
+		if (--thread->throttle_cfg.ops_count == 0)
 			worker_throttle(thread);
 	}
 
