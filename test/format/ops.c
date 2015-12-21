@@ -787,7 +787,7 @@ static void
 nextprev_row_copy(WT_ITEM *ip)
 {
 	if (ip->mem == NULL || ip->data < ip->mem ||
-	    ip->data >= (uint8_t *)ip->mem + ip->memsize) {
+	    (uint8_t *)ip->data >= (uint8_t *)ip->mem + ip->memsize) {
 		if (ip->memsize != 0) {
 			free(ip->mem);
 			ip->memsize = 0;
