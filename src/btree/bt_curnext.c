@@ -468,11 +468,31 @@ __wt_set_last_op(WT_CURSOR_BTREE *cbt, int v)
 	cbt->last_op[0] = v;
 }
 
+/*
+ * __wt_track_location_name --
+ *	Return the last location name.
+ */
+static const char *
+__wt_track_location_name(int v)
+{
+	switch (v) {
+	case WT_TRACKOP_CUR_NEXT: return ("cursor-next");
+	case WT_TRACKOP_ROW_NEXT_START: return ("row-next-start");
+	case WT_TRACKOP_ROW_NEXT_STOP: return ("row-next-stop");
+	case WT_TRACKOP_WALK_START: return ("walk-start");
+	case WT_TRACKOP_WALK_STOP: return ("walk-stop");
+	case WT_TRACKOP_CUR_RETURN: return ("cursor-next-return");
+	default:
+		break;
+	}
+	return ("UNKNOWN location");
+}
+
 /* 
  * __wt_key_order_check --
  *	Check key ordering for cursor movements.
  */
-static int
+static void
 __wt_key_order_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 {
 	WT_BTREE *btree;
@@ -480,17 +500,17 @@ __wt_key_order_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	WT_DECL_ITEM(b);
 	WT_ITEM *key;
 	WT_DECL_RET;
-	int cmp;
+	int cmp, i;
 
 	btree = S2BT(session);
 	key = &cbt->iface.key;
 
 	if ((ret = __wt_compare(
 	    session, btree->collator, cbt->lastkey, key, &cmp)) != 0)
-		WT_RET_MSG(session, ret,
+		WT_ERR_MSG(session, ret,
 		    "SUPPORT-1531: comparison function failed");
 	if (cmp < 0)
-		return (0);
+		return;
 
 	WT_ERR(__wt_scr_alloc(session, 512, &a));
 	WT_ERR(__wt_scr_alloc(session, 512, &b));
@@ -529,11 +549,26 @@ __wt_key_order_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	    __wt_last_op_name(cbt->last_op[17]),
 	    __wt_last_op_name(cbt->last_op[18]),
 	    __wt_last_op_name(cbt->last_op[19]));
-	ret = EINVAL;
+
+	for (i = cbt->next_track - 1; i >= 0; --i)
+		__wt_errx(session,
+		    "SUPPORT-1531: WT_CURSOR tracking slot %d at %s: home: %p, "
+		    "split-gen: %u, page: %p, split_action: %u, flags: %#x",
+		    i, __wt_track_location_name(cbt->track[i].locate),
+		    cbt->track[i].home, (u_int)cbt->track[i].split_gen,
+		    cbt->track[i].page, (u_int)cbt->track[i].split_action,
+		    (u_int)cbt->track[i].flags);
+	for (i = 20 - 1; i >= cbt->next_track; --i)
+		__wt_errx(session,
+		    "SUPPORT-1531: WT_CURSOR tracking slot %d at %s: home: %p, "
+		    "split-gen: %u, page: %p, split_action: %u, flags: %#x",
+		    i, __wt_track_location_name(cbt->track[i].locate),
+		    cbt->track[i].home, (u_int)cbt->track[i].split_gen,
+		    cbt->track[i].page, (u_int)cbt->track[i].split_action,
+		    (u_int)cbt->track[i].flags);
 
 err:	__wt_scr_free(session, &a);
 	__wt_scr_free(session, &b);
-	return (ret);
 }
 
 /*
@@ -573,6 +608,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 	 * file.
 	 */
 	for (newpage = false;; newpage = true) {
+		__wt_track_op(cbt, WT_TRACKOP_CUR_NEXT);
 		page = cbt->ref == NULL ? NULL : cbt->ref->page;
 		WT_ASSERT(session, page == NULL || !WT_PAGE_IS_INTERNAL(page));
 
@@ -600,7 +636,9 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 				ret = __cursor_var_next(cbt, newpage);
 				break;
 			case WT_PAGE_ROW_LEAF:
+				__wt_track_op(cbt, WT_TRACKOP_ROW_NEXT_START);
 				ret = __cursor_row_next(cbt, newpage);
+				__wt_track_op(cbt, WT_TRACKOP_ROW_NEXT_STOP);
 				break;
 			WT_ILLEGAL_VALUE_ERR(session);
 			}
@@ -633,8 +671,10 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 			__wt_page_evict_soon(page);
 		cbt->page_deleted_count = 0;
 
+		__wt_track_op(cbt, WT_TRACKOP_WALK_START);
 		WT_ERR(__wt_tree_walk(session, &cbt->ref, flags));
 		WT_ERR_TEST(cbt->ref == NULL, WT_NOTFOUND);
+		__wt_track_op(cbt, WT_TRACKOP_WALK_STOP);
 	}
 
 	/*
@@ -644,12 +684,13 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 	if (ret == 0 && page->type == WT_PAGE_ROW_LEAF) {
 		if (cbt->last_op[0] == WT_LASTOP_NEXT &&
 		    cbt->lastkey != NULL && cbt->lastkey->size != 0)
-			WT_ERR(__wt_key_order_check(session, cbt));
+			__wt_key_order_check(session, cbt);
 
 		WT_ERR(__wt_buf_set(session,
 		    cbt->lastkey, cbt->iface.key.data, cbt->iface.key.size));
 	}
 	__wt_set_last_op(cbt, WT_LASTOP_NEXT);
+	__wt_track_op(cbt, WT_TRACKOP_CUR_RETURN);
 
 err:	if (ret != 0)
 		WT_TRET(__cursor_reset(cbt));

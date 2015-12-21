@@ -549,7 +549,13 @@ struct __wt_page {
 #define	WT_PAGE_UPDATE_IGNORE	0x80	/* Ignore updates on page discard */
 	uint8_t flags_atomic;		/* Atomic flags, use F_*_ATOMIC */
 
-	uint8_t unused[2];		/* Unused padding */
+#define	WT_SPLIT_ACTION_INSERT	1
+#define	WT_SPLIT_ACTION_MULTI	2
+#define	WT_SPLIT_ACTION_REVERSE	3
+#define	WT_SPLIT_ACTION_REWRITE	4
+	uint8_t split_action;
+
+	uint8_t split_gen;
 
 	/*
 	 * Used to protect and co-ordinate splits for internal pages and
