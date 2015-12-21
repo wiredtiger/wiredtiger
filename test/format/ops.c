@@ -31,7 +31,7 @@
 static int   col_insert(TINFO *, WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t *);
 static int   col_remove(WT_CURSOR *, WT_ITEM *, uint64_t, int *);
 static int   col_update(TINFO *, WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t);
-static int   nextprev(WT_CURSOR *, int, int *);
+static int   nextprev(WT_CURSOR *, bool, bool, WT_ITEM *, int *);
 static void *ops(void *);
 static int   row_insert(TINFO *, WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t);
 static int   row_remove(WT_CURSOR *, WT_ITEM *, uint64_t, int *);
@@ -229,12 +229,13 @@ ops(void *arg)
 	WT_CONNECTION *conn;
 	WT_CURSOR *cursor, *cursor_insert;
 	WT_SESSION *session;
-	WT_ITEM key, value;
+	WT_ITEM lkey, key, value;
 	uint64_t keyno, ckpt_op, reset_op, session_op;
 	uint32_t op;
 	uint8_t *keybuf, *valbuf;
 	u_int np;
-	int ckpt_available, dir, insert, intxn, notfound, readonly, ret;
+	int ckpt_available, insert, intxn, notfound, readonly, ret;
+	bool cmplast, next;
 	char *ckpt_config, ckpt_name[64];
 
 	tinfo = arg;
@@ -249,6 +250,7 @@ ops(void *arg)
 	/* Set up the default key and value buffers. */
 	key_gen_setup(&keybuf);
 	val_gen_setup(&tinfo->rnd, &valbuf);
+	memset(&lkey, 0, sizeof(lkey));
 
 	/* Set the first operation where we'll create sessions and cursors. */
 	session_op = 0;
@@ -412,6 +414,7 @@ ops(void *arg)
 			intxn = 1;
 		}
 
+		cmplast = false;
 		insert = notfound = 0;
 
 		keyno = mmrand(&tinfo->rnd, 1, (u_int)g.rows);
@@ -428,6 +431,7 @@ ops(void *arg)
 		op = readonly ? UINT32_MAX : mmrand(&tinfo->rnd, 1, 100);
 		if (op < g.c_delete_pct) {
 			++tinfo->remove;
+
 			switch (g.type) {
 			case ROW:
 				/*
@@ -445,6 +449,7 @@ ops(void *arg)
 			}
 		} else if (op < g.c_delete_pct + g.c_insert_pct) {
 			++tinfo->insert;
+
 			switch (g.type) {
 			case ROW:
 				if (row_insert(
@@ -475,7 +480,9 @@ ops(void *arg)
 			}
 		} else if (
 		    op < g.c_delete_pct + g.c_insert_pct + g.c_write_pct) {
+			cmplast = true;
 			++tinfo->update;
+
 			switch (g.type) {
 			case ROW:
 				if (row_update(
@@ -490,7 +497,9 @@ skip_insert:			if (col_update(tinfo,
 				break;
 			}
 		} else {
+			cmplast = true;
 			++tinfo->search;
+
 			if (read_row(cursor, &key, keyno, 0))
 				if (intxn)
 					goto deadlock;
@@ -503,12 +512,14 @@ skip_insert:			if (col_update(tinfo,
 		 * a random direction.
 		 */
 		if (!insert) {
-			dir = (int)mmrand(&tinfo->rnd, 0, 1);
+			next = mmrand(&tinfo->rnd, 0, 1) == 0;
 			for (np = 0; np < mmrand(&tinfo->rnd, 1, 8); ++np) {
 				if (notfound)
 					break;
-				if (nextprev(cursor, dir, &notfound))
+				if (nextprev(
+				    cursor, next, cmplast, &lkey, &notfound))
 					goto deadlock;
+				cmplast = true;
 			}
 		}
 
@@ -517,8 +528,12 @@ skip_insert:			if (col_update(tinfo,
 		if (read_row(cursor, &key, keyno, 0))
 			goto deadlock;
 
-		/* Reset the cursor: there is no reason to keep pages pinned. */
-		if ((ret = cursor->reset(cursor)) != 0)
+		/*
+		 * Reset the cursor most of the time: there is no reason to
+		 * keep pages pinned, but it's worth stressing it a bit.
+		 */
+		if (mmrand(&tinfo->rnd, 0, 5000) > 0 &&
+		    (ret = cursor->reset(cursor)) != 0)
 			die(ret, "cursor.reset");
 
 		/*
@@ -711,19 +726,113 @@ read_row(WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno, int notfound_err)
 }
 
 /*
+ * nextprev_col_cmp --
+ *	Compare the current key with the last key for column-store.
+ */
+static void
+nextprev_col_cmp(uint64_t lkeyno, uint64_t keyno, int next)
+{
+	if (next) {
+		if (lkeyno < keyno)
+			return;
+	} else
+		if (lkeyno > keyno)
+			return;
+
+	die(0,
+	    "out-of-order keys (cursor %s): %" PRIu64 " returned after %"
+	    PRIu64,
+	    next ? "next" : "prev", lkeyno, keyno);
+}
+
+/*
+ * nextprev_row_cmp --
+ *	Compare the current key with the last key for row-store.
+ */
+static void
+nextprev_row_cmp(WT_ITEM *lkey, WT_ITEM *key, int next)
+{
+	int cmp;
+
+	cmp = strncmp(lkey->data, key->data, MIN(lkey->size, key->size));
+
+	if (g.c_reverse) {
+		if (next) {
+			if (cmp > 0 || (cmp == 0 && lkey->size > key->size))
+				return;
+		} else
+			if (cmp < 0 || (cmp == 0 && lkey->size < key->size))
+				return;
+	} else {
+		if (next) {
+			if (cmp < 0 || (cmp == 0 && lkey->size < key->size))
+				return;
+		} else
+			if (cmp > 0 || (cmp == 0 && lkey->size > key->size))
+				return;
+	}
+
+	die(0,
+	    "out-of-order keys (cursor %s%s): \"%.*s\" returned after \"%.*s\"",
+	    next ? "next" : "prev",
+	    g.c_reverse ? ", reverse collation" : "",
+	    (int)key->size, key->data, (int)lkey->size, lkey->data);
+}
+
+/*
+ * nextprev_row_copy --
+ *	Get a local copy of a returned key.
+ */
+static void
+nextprev_row_copy(WT_ITEM *ip)
+{
+	if (ip->mem == NULL || ip->data < ip->mem ||
+	    ip->data >= (uint8_t *)ip->mem + ip->memsize) {
+		if (ip->memsize != 0) {
+			free(ip->mem);
+			ip->memsize = 0;
+		}
+		if ((ip->mem = malloc(ip->size + 256)) == NULL)
+			die(ENOMEM, NULL);
+		ip->memsize = ip->size + 256;
+	}
+	memcpy(ip->mem, ip->data, ip->size);
+	ip->data = ip->mem;
+}
+
+/*
  * nextprev --
  *	Read and verify the next/prev element in a row- or column-store file.
  */
 static int
-nextprev(WT_CURSOR *cursor, int next, int *notfoundp)
+nextprev(
+    WT_CURSOR *cursor, bool next, bool cmplast, WT_ITEM *lkey, int *notfoundp)
 {
 	WT_ITEM key, value;
-	uint64_t keyno;
+	uint64_t keyno, lkeyno;
 	int ret;
 	uint8_t bitfield;
 	const char *which;
 
 	which = next ? "next" : "prev";
+
+	/*
+	 * Get a copy of the current key, we check each movement against the
+	 * last position.
+	 */
+	if (cmplast)
+		switch (g.type) {
+		case FIX:
+		case VAR:
+			if ((ret = cursor->get_key(cursor, &lkeyno)) != 0)
+				die(ret, "last-key: %s", which);
+			break;
+		case ROW:
+			if ((ret = cursor->get_key(cursor, lkey)) != 0)
+				die(ret, "last-key: %s", which);
+			nextprev_row_copy(lkey);
+			break;
+		}
 
 	keyno = 0;
 	ret = next ? cursor->next(cursor) : cursor->prev(cursor);
@@ -737,14 +846,20 @@ nextprev(WT_CURSOR *cursor, int next, int *notfoundp)
 				value.data = &bitfield;
 				value.size = 1;
 			}
+			if (cmplast)
+				nextprev_col_cmp(lkeyno, keyno, next);
 			break;
 		case ROW:
 			if ((ret = cursor->get_key(cursor, &key)) == 0)
 				ret = cursor->get_value(cursor, &value);
+			if (cmplast)
+				nextprev_row_cmp(lkey, &key, next);
 			break;
 		case VAR:
 			if ((ret = cursor->get_key(cursor, &keyno)) == 0)
 				ret = cursor->get_value(cursor, &value);
+			if (cmplast)
+				nextprev_col_cmp(lkeyno, keyno, next);
 			break;
 		}
 	if (ret != 0 && ret != WT_NOTFOUND)
