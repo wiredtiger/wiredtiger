@@ -132,6 +132,76 @@ __wt_search_insert(
 }
 
 /*
+ * __check_leaf_key_range --
+ *	Check the search key is in the leaf page's key range.
+ */
+static inline int
+__check_leaf_key_range(WT_SESSION_IMPL *session,
+    WT_ITEM *srch_key, WT_REF *leaf, WT_CURSOR_BTREE *cbt)
+{
+	WT_BTREE *btree;
+	WT_COLLATOR *collator;
+	WT_ITEM *item;
+	WT_PAGE_INDEX *pindex;
+	uint32_t indx;
+	int cmp;
+
+	btree = S2BT(session);
+	collator = btree->collator;
+	item = cbt->tmp;
+
+	/*
+	 * There are reasons we can't do the fast checks, and we continue with
+	 * the leaf page search in those cases, only skipping the complete leaf
+	 * page search if we know it's not going to work.
+	 */
+	cbt->compare = 0;
+
+	/*
+	 * First, confirm we have the right parent page-index slot, and quit if
+	 * we don't. We don't search for the correct slot, that would make this
+	 * cheap test expensive.
+	 */
+	WT_INTL_INDEX_GET(session, leaf->home, pindex);
+	indx = leaf->pindex_hint;
+	if (indx >= pindex->entries || pindex->index[indx] != leaf)
+		return (0);
+
+	/*
+	 * Check if the search key is smaller than the parent's starting key for
+	 * this page.
+	 *
+	 * We can't compare against slot 0 on a row-store internal page because
+	 * reconciliation doesn't build it, it may not be a valid key.
+	 */
+	if (indx != 0) {
+		__wt_ref_key(leaf->home, leaf, &item->data, &item->size);
+		WT_RET(__wt_compare(session, collator, srch_key, item, &cmp));
+		if (cmp < 0) {
+			cbt->compare = 1;	/* page keys > search key */
+			return (0);
+		}
+	}
+
+	/*
+	 * Check if the search key is greater than or equal to the starting key
+	 * for the parent's next page.
+	 */
+	++indx;
+	if (indx < pindex->entries) {
+		__wt_ref_key(
+		    leaf->home, pindex->index[indx], &item->data, &item->size);
+		WT_RET(__wt_compare(session, collator, srch_key, item, &cmp));
+		if (cmp >= 0) {
+			cbt->compare = -1;	/* page keys < search key */
+			return (0);
+		}
+	}
+
+	return (0);
+}
+
+/*
  * __wt_row_search --
  *	Search a row-store tree for a specific key.
  */
@@ -179,8 +249,29 @@ __wt_row_search(WT_SESSION_IMPL *session,
 	append_check = insert && cbt->append_tree;
 	descend_right = true;
 
-	/* We may only be searching a single leaf page, not the full tree. */
+	/*
+	 * We may be searching only a single leaf page, not the full tree. In
+	 * the normal case where the page links to a parent, check the page's
+	 * parent keys before doing the full search, it's faster when the
+	 * cursor is being re-positioned. (One case where the page doesn't
+	 * have a parent is if it is being re-instantiated in memory as part
+	 * of a split).
+	 */
 	if (leaf != NULL) {
+		if (leaf->home != NULL) {
+			WT_RET(__check_leaf_key_range(
+			    session, srch_key, leaf, cbt));
+			if (cbt->compare != 0) {
+				/*
+				 * !!!
+				 * WT_CURSOR.search_near uses the slot value to
+				 * decide if there was an on-page match.
+				 */
+				cbt->slot = 0;
+				return (0);
+			}
+		}
+
 		current = leaf;
 		goto leaf_only;
 	}
@@ -195,15 +286,6 @@ restart_page:	page = current->page;
 			break;
 
 		WT_INTL_INDEX_GET(session, page, pindex);
-
-		/*
-		 * Fast-path internal pages with one child, a common case for
-		 * the root page in new trees.
-		 */
-		if (pindex->entries == 1) {
-			descent = pindex->index[0];
-			goto descend;
-		}
 
 		/* Fast-path appends. */
 		if (append_check) {
@@ -536,19 +618,123 @@ err:	/*
 }
 
 /*
- * __wt_row_random --
- *	Return a random key from a row-store tree.
+ * __wt_row_random_leaf --
+ *	Return a random key from a row-store leaf page.
  */
 int
-__wt_row_random(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
+__wt_row_random_leaf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
+{
+	WT_INSERT *ins, **start, **stop;
+	WT_INSERT_HEAD *ins_head;
+	WT_PAGE *page;
+	uint32_t entries;
+	int level;
+
+	page = cbt->ref->page;
+
+	/* If the page has disk-based entries, select from them. */
+	if (page->pg_row_entries != 0) {
+		cbt->compare = 0;
+		cbt->slot = __wt_random(&session->rnd) % page->pg_row_entries;
+
+		/*
+		 * The real row-store search function builds the key, so we
+		 * have to as well.
+		 */
+		return (__wt_row_leaf_key(session,
+		    page, page->pg_row_d + cbt->slot, cbt->tmp, false));
+	}
+
+	/*
+	 * If the tree is new (and not empty), it might have a large insert
+	 * list.
+	 */
+	F_SET(cbt, WT_CBT_SEARCH_SMALLEST);
+	if ((cbt->ins_head = WT_ROW_INSERT_SMALLEST(page)) == NULL)
+		return (WT_NOTFOUND);
+
+	/*
+	 * Walk down the list until we find a level with at least two entries,
+	 * that's where we'll start rolling random numbers.
+	 */
+	for (ins_head = cbt->ins_head,
+	    level = WT_SKIP_MAXDEPTH - 1; level > 0; --level)
+		if (ins_head->head[level] != NULL &&
+		    ins_head->head[level]->next[level] != NULL)
+			break;
+
+	/*
+	 * Use all entries at this first level as the range for random
+	 * selection. Do that by counting the entries and setting the start
+	 * point as the first entry.
+	 */
+	for (entries = 0,
+	    ins = ins_head->head[level]; ins != NULL; ins = ins->next[level])
+		++entries;
+	start = &ins_head->head[level];
+
+	/*
+	 * Keep stepping down the skip list selecting a random entry at each
+	 * level. Use all entries as the range the first time through,
+	 * subsequently constrain the range to the entries between the selected
+	 * entry and it's neighbour from a level up the list.
+	 */
+	while (level > 0) {
+		/*
+		 * Select a random number from the calculated entry range and
+		 * convert that to a new start/stop pair. If there are only two
+		 * entries, the start/stop pair must be slots 0 and 1,
+		 * otherwise, use the random number as the start position. The
+		 * calculation uses "entries - 1" to ensure we never chose the
+		 * last node in the list as our new start point.
+		 */
+		entries = entries < 3 ?
+		    0 : __wt_random(&session->rnd) % (entries - 1);
+		/* Move forward to the randomly selected start entry. */
+		for (; entries > 0; --entries)
+			start = &(*start)->next[level];
+		stop = &(*start)->next[level];
+
+		/* Drop down a level. */
+		--start;
+		--stop;
+		--level;
+
+		/* Count the entries between the new start/stop pair. */
+		for (entries = 0, ins = *start;
+		    ins != *stop; ++entries, ins = ins->next[level])
+			;
+	}
+
+	/*
+	 * When we reach the bottom level, select a random entry from the entry
+	 * range and return it.
+	 *
+	 * It should be impossible for the entries count to be 0 at this point,
+	 * but check for it out of paranoia and to quiet static testing tools.
+	 */
+	entries = entries < 1 ? 0 : __wt_random(&session->rnd) % entries;
+	for (ins = *start; entries > 0; --entries)
+		ins = ins->next[0];
+
+	cbt->ins = ins;
+	cbt->compare = 0;
+
+	return (0);
+}
+
+/*
+ * __wt_row_random_descent --
+ *	Find a random leaf page in a row-store tree.
+ */
+int
+__wt_row_random_descent(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 {
 	WT_BTREE *btree;
 	WT_DECL_RET;
-	WT_INSERT *p, *t;
 	WT_PAGE *page;
 	WT_PAGE_INDEX *pindex;
 	WT_REF *current, *descent;
-	uint32_t cnt;
 
 	btree = S2BT(session);
 
@@ -585,43 +771,6 @@ restart_root:
 		return (ret);
 	}
 
-	if (page->pg_row_entries != 0) {
-		cbt->ref = current;
-		cbt->compare = 0;
-		cbt->slot = __wt_random(&session->rnd) % page->pg_row_entries;
-
-		/*
-		 * The real row-store search function builds the key, so we
-		 * have to as well.
-		 */
-		return (__wt_row_leaf_key(session,
-		    page, page->pg_row_d + cbt->slot, cbt->tmp, false));
-	}
-
-	/*
-	 * If the tree is new (and not empty), it might have a large insert
-	 * list. Count how many records are in the list.
-	 */
-	F_SET(cbt, WT_CBT_SEARCH_SMALLEST);
-	if ((cbt->ins_head = WT_ROW_INSERT_SMALLEST(page)) == NULL)
-		WT_ERR(WT_NOTFOUND);
-	for (cnt = 1, p = WT_SKIP_FIRST(cbt->ins_head);; ++cnt)
-		if ((p = WT_SKIP_NEXT(p)) == NULL)
-			break;
-
-	/*
-	 * Select a random number from 0 to (N - 1), return that record.
-	 */
-	cnt = __wt_random(&session->rnd) % cnt;
-	for (p = t = WT_SKIP_FIRST(cbt->ins_head);; t = p)
-		if (cnt-- == 0 || (p = WT_SKIP_NEXT(p)) == NULL)
-			break;
 	cbt->ref = current;
-	cbt->compare = 0;
-	cbt->ins = t;
-
 	return (0);
-
-err:	WT_TRET(__wt_page_release(session, current, 0));
-	return (ret);
 }

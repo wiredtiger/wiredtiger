@@ -1091,9 +1091,10 @@ monitor(void *arg)
 	uint32_t read_avg, read_min, read_max;
 	uint32_t insert_avg, insert_min, insert_max;
 	uint32_t update_avg, update_min, update_max;
-	uint32_t latency_max;
+	uint32_t latency_max, level;
 	u_int i;
-	int ret;
+	int msg_err, ret;
+	const char *str;
 	char buf[64], *path;
 
 	cfg = (CONFIG *)arg;
@@ -1191,25 +1192,41 @@ monitor(void *arg)
 
 		if (latency_max != 0 &&
 		    (read_max > latency_max || insert_max > latency_max ||
-		     update_max > latency_max))
-			/*
-			 * Make this a non-fatal error and print WARNING in
-			 * the output so Jenkins can flag it as unstable.
-			 */
-			lprintf(cfg, 0, 0,
-			    "WARNING: max latency exceeded: threshold %" PRIu32
+		     update_max > latency_max)) {
+			if (cfg->max_latency_fatal) {
+				level = 1;
+				msg_err = WT_PANIC;
+				str = "ERROR";
+			} else {
+				level = 0;
+				msg_err = 0;
+				str = "WARNING";
+			}
+			lprintf(cfg, msg_err, level,
+			    "%s: max latency exceeded: threshold %" PRIu32
 			    " read max %" PRIu32 " insert max %" PRIu32
-			    " update max %" PRIu32, latency_max,
+			    " update max %" PRIu32, str, latency_max,
 			    read_max, insert_max, update_max);
+		}
 		if (min_thr != 0 &&
 		    ((cur_reads != 0 && cur_reads < min_thr) ||
 		    (cur_inserts != 0 && cur_inserts < min_thr) ||
-		    (cur_updates != 0 && cur_updates < min_thr)))
-			lprintf(cfg, WT_PANIC, 0,
-			    "minimum throughput not met: threshold %" PRIu64
+		    (cur_updates != 0 && cur_updates < min_thr))) {
+			if (cfg->min_throughput_fatal) {
+				level = 1;
+				msg_err = WT_PANIC;
+				str = "ERROR";
+			} else {
+				level = 0;
+				msg_err = 0;
+				str = "WARNING";
+			}
+			lprintf(cfg, msg_err, level,
+			    "%s: minimum throughput not met: threshold %" PRIu64
 			    " reads %" PRIu64 " inserts %" PRIu64
-			    " updates %" PRIu64, min_thr, cur_reads,
+			    " updates %" PRIu64, str, min_thr, cur_reads,
 			    cur_inserts, cur_updates);
+		}
 		last_reads = reads;
 		last_inserts = inserts;
 		last_updates = updates;
@@ -1528,8 +1545,10 @@ execute_workload(CONFIG *cfg)
 		lprintf(cfg, 0, 1,
 		    "Starting workload #%d: %" PRId64 " threads, inserts=%"
 		    PRId64 ", reads=%" PRId64 ", updates=%" PRId64
-		    ", truncate=%" PRId64, i + 1, workp->threads, workp->insert,
-		    workp->read, workp->update, workp->truncate);
+		    ", truncate=%" PRId64 ", throttle=%" PRId64,
+		    i + 1, workp->threads, workp->insert,
+		    workp->read, workp->update, workp->truncate,
+		    workp->throttle);
 
 		/* Figure out the workload's schedule. */
 		if ((ret = run_mix_schedule(cfg, workp)) != 0)
@@ -1900,7 +1919,7 @@ start_run(CONFIG *cfg)
 	monitor_created = ret = 0;
 					/* [-Wconditional-uninitialized] */
 	memset(&monitor_thread, 0, sizeof(monitor_thread));
-	
+
 	if ((ret = setup_log_file(cfg)) != 0)
 		goto err;
 
@@ -2308,7 +2327,7 @@ start_threads(CONFIG *cfg,
     WORKLOAD *workp, CONFIG_THREAD *base, u_int num, void *(*func)(void *))
 {
 	CONFIG_THREAD *thread;
-	u_int i, j;
+	u_int i;
 	int ret;
 
 	/* Initialize the threads. */
@@ -2317,15 +2336,13 @@ start_threads(CONFIG *cfg,
 		thread->workload = workp;
 
 		/*
-		 * We don't want the threads executing in lock-step, move each
-		 * new RNG state further along in the sequence.
+		 * We don't want the threads executing in lock-step, seed each
+		 * one differently.
 		 */
-		if (i == 0)
-			__wt_random_init(&thread->rnd);
-		else
-			thread->rnd = (thread - 1)->rnd;
-		for (j = 0; j < 1000; ++j)
-			(void)__wt_random(&thread->rnd);
+		if ((ret = __wt_random_init_seed(NULL, &thread->rnd)) != 0) {
+			lprintf(cfg, ret, 0, "Error initializing RNG");
+			return (ret);
+		}
 
 		/*
 		 * Every thread gets a key/data buffer because we don't bother
