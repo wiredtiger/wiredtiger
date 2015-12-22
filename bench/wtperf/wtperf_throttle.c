@@ -47,7 +47,7 @@ setup_throttle(CONFIG_THREAD *thread)
 	 * - For most workloads, we aim to do 100 ops per interval and adjust
 	 *   the sleep period accordingly.
 	 * - For high throughput workloads, we aim to do many ops in 100us
-	 *   increments. 
+	 *   increments.
 	 */
 
 	if (thread->workload->throttle < THROTTLE_OPS) {
