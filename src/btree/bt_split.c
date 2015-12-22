@@ -1629,7 +1629,8 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
 	WT_STAT_FAST_DATA_INCR(session, cache_inmem_split);
 
 	page = ref->page;
-	page->split_action = WT_SPLIT_ACTION_INSERT;
+	if (page != NULL)
+		page->split_action = WT_SPLIT_ACTION_INSERT;
 	right = NULL;
 	page_decr = parent_incr = right_incr = 0;
 
@@ -1993,7 +1994,8 @@ __wt_split_multi(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
 	    session, WT_VERB_SPLIT, "%p: split-multi", ref->page));
 
 	WT_RET(__split_internal_lock(session, ref, false, &parent, &hazard));
-	ref->page->split_action = WT_SPLIT_ACTION_MULTI;
+	if (ref->page != NULL)
+		ref->page->split_action = WT_SPLIT_ACTION_MULTI;
 	if ((ret = __split_multi(session, ref, closing)) != 0 || closing) {
 		WT_TRET(__split_internal_unlock(session, parent, hazard));
 		return (ret);
@@ -2023,7 +2025,8 @@ __wt_split_reverse(WT_SESSION_IMPL *session, WT_REF *ref)
 	    session, WT_VERB_SPLIT, "%p: reverse-split", ref->page));
 
 	WT_RET(__split_internal_lock(session, ref, false, &parent, &hazard));
-	ref->page->split_action = WT_SPLIT_ACTION_REVERSE;
+	if (ref->page != NULL)
+		ref->page->split_action = WT_SPLIT_ACTION_REVERSE;
 	ret = __split_parent(session, ref, NULL, 0, 0, false, true);
 	WT_TRET(__split_internal_unlock(session, parent, hazard));
 	return (ret);
@@ -2046,7 +2049,8 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref)
 
 	WT_RET(__wt_verbose(
 	    session, WT_VERB_SPLIT, "%p: split-rewrite", ref->page));
-	page->split_action = WT_SPLIT_ACTION_REWRITE;
+	if (page != NULL)
+		page->split_action = WT_SPLIT_ACTION_REWRITE;
 
 	/*
 	 * This isn't a split: a reconciliation failed because we couldn't write
