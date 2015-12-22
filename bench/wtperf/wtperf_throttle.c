@@ -71,12 +71,6 @@ setup_throttle(CONFIG_THREAD *thread)
 
 	/* Set the first timestamp of when we incremented */
 	WT_RET(__wt_epoch(NULL, &throttle_cfg->last_increment));
-	printf("setup to run with throttle."
-	    "This thread will do %lu ops every %lu us\n",
-	    throttle_cfg->ops_per_increment, throttle_cfg->usecs_increment);
-	printf("this means we are performing %llu ops per second\n",
-	    (USEC_PER_SEC / throttle_cfg->usecs_increment)
-	    * throttle_cfg->ops_per_increment); 
 	return (0);
 }
 
