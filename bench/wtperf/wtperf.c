@@ -374,7 +374,7 @@ err:		cfg->error = cfg->stop = 1;
 static void *
 worker(void *arg)
 {
-	struct timespec start, stop, interval;
+	struct timespec start, stop;
 	CONFIG *cfg;
 	CONFIG_THREAD *thread;
 	TRACK *trk;
