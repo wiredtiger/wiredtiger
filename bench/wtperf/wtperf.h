@@ -134,6 +134,12 @@ typedef struct {
 	uint64_t usecs_increment;	/* Time interval of each increment */
 } THROTTLE_CONFIG;
 
+struct __config_queue_entry {
+	char *string;
+	TAILQ_ENTRY(__config_queue_entry) c;
+};
+typedef struct __config_queue_entry CONFIG_QUEUE_ENTRY;
+
 #define	LOG_PARTIAL_CONFIG	",log=(enabled=false)"
 /*
  * NOTE:  If you add any fields to this structure here, you must also add
@@ -188,6 +194,9 @@ struct __config {			/* Configuration structure */
 	/* Queue head for use with the Truncate Logic */
 	TAILQ_HEAD(__truncate_qh, __truncate_queue_entry) stone_head;
 
+	/* Queue head to save a copy of the config to be output */
+	TAILQ_HEAD(__config_qh, __config_queue_entry) config_head;
+
 	/* Fields changeable on command line are listed in wtperf_opt.i */
 #define	OPT_DECLARE_STRUCT
 #include "wtperf_opt.i"
@@ -196,6 +205,7 @@ struct __config {			/* Configuration structure */
 
 #define	ELEMENTS(a)	(sizeof(a) / sizeof(a[0]))
 
+#define	READ_RANGE_OPS	10
 #define	THROTTLE_OPS	100
 
 #define	THOUSAND	(1000ULL)
@@ -280,6 +290,8 @@ void	 config_free(CONFIG *);
 int	 config_opt_file(CONFIG *, const char *);
 int	 config_opt_line(CONFIG *, const char *);
 int	 config_opt_str(CONFIG *, const char *, const char *);
+void	 config_to_file(CONFIG *);
+void	 config_consolidate(CONFIG *);
 void	 config_print(CONFIG *);
 int	 config_sanity(CONFIG *);
 void	 latency_insert(CONFIG *, uint32_t *, uint32_t *, uint32_t *);
@@ -314,6 +326,12 @@ generate_key(CONFIG *cfg, char *key_buf, uint64_t keyno)
 	 * Don't change to snprintf, sprintf is faster in some tests.
 	 */
 	sprintf(key_buf, "%0*" PRIu64, cfg->key_sz - 1, keyno);
+}
+
+static inline void
+extract_key(char *key_buf, uint64_t *keynop)
+{
+	sscanf(key_buf, "%" SCNu64, keynop);
 }
 
 #endif
