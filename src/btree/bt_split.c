@@ -1118,6 +1118,9 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 	WT_ERR(__split_parent(session, page_ref, alloc_index->index,
 	    alloc_index->entries, parent_incr, false, false));
 
+	/* !! Widen the window for races with other operations. */
+	__wt_sleep(0, 10000);
+
 	/*
 	 * A note on error handling: until this point, there's no problem with
 	 * unwinding on error.  We allocated a new page index, a new set of
