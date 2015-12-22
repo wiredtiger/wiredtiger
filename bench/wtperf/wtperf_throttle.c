@@ -107,8 +107,9 @@ worker_throttle(CONFIG_THREAD *thread)
 		     throttle_cfg->ops_per_increment;
 	} else
 		throttle_cfg->ops_count =
-		     (usecs_delta / throttle_cfg->usecs_increment) *
-		     throttle_cfg->ops_per_increment;
+		    (uint64_t) (float)(usecs_delta /
+		    throttle_cfg->usecs_increment) *
+		    (float)throttle_cfg->ops_per_increment;
 
 	/* Don't over-fill the queue */
 	throttle_cfg->ops_count =
