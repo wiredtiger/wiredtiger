@@ -192,9 +192,7 @@ struct __wt_cursor_btree {
 	WT_UPDATE *modify_update;
 
 	/*
-	 * SUPPORT-1531 information.
-	 *
-	 * Last returned keys.
+	 * WT-2307 tracking for a bug where cursor next jumps backwards.
 	 */
 	WT_ITEM *lastkey, _lastkey;
 

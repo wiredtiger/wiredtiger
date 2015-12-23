@@ -1119,7 +1119,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 	    alloc_index->entries, parent_incr, false, false));
 
 	/* !! Widen the window for races with other operations. */
-	__wt_sleep(0, 10000);
+	__wt_sleep(1, 0);
 
 	/*
 	 * A note on error handling: until this point, there's no problem with

@@ -431,30 +431,6 @@ __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
 }
 
 /*
- * __wt_last_op_name --
- *	Return the last operation name.
- */
-static const char *
-__wt_last_op_name(int v)
-{
-	switch (v) {
-	case WT_LASTOP_NONE: return ("none");
-	case WT_LASTOP_NEXT: return ("next");
-	case WT_LASTOP_PREV: return ("prev");
-	case WT_LASTOP_RESET: return ("reset");
-	case WT_LASTOP_SEARCH: return ("search");
-	case WT_LASTOP_SEARCH_NEAR: return ("search-near");
-	case WT_LASTOP_INSERT: return ("insert");
-	case WT_LASTOP_TRUNCATE: return ("truncate");
-	case WT_LASTOP_UPDATE: return ("update");
-	case WT_LASTOP_REMOVE: return ("remove");
-	default:
-		break;
-	}
-	return ("UNKNOWN last op");
-}
-
-/*
  * __wt_set_last_op --
  *	Set the last operation.
  */
@@ -468,107 +444,44 @@ __wt_set_last_op(WT_CURSOR_BTREE *cbt, int v)
 	cbt->last_op[0] = v;
 }
 
-/*
- * __wt_track_location_name --
- *	Return the last location name.
- */
-static const char *
-__wt_track_location_name(int v)
-{
-	switch (v) {
-	case WT_TRACKOP_CUR_NEXT: return ("cursor-next");
-	case WT_TRACKOP_ROW_NEXT_START: return ("row-next-start");
-	case WT_TRACKOP_ROW_NEXT_STOP: return ("row-next-stop");
-	case WT_TRACKOP_WALK_START: return ("walk-start");
-	case WT_TRACKOP_WALK_STOP: return ("walk-stop");
-	case WT_TRACKOP_CUR_RETURN: return ("cursor-next-return");
-	default:
-		break;
-	}
-	return ("UNKNOWN location");
-}
-
 /* 
  * __wt_key_order_check --
  *	Check key ordering for cursor movements.
  */
-static void
+static int
 __wt_key_order_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 {
 	WT_BTREE *btree;
-	WT_DECL_ITEM(a);
-	WT_DECL_ITEM(b);
 	WT_ITEM *key;
 	WT_DECL_RET;
-	int cmp, i;
+	int cmp;
 
 	btree = S2BT(session);
 	key = &cbt->iface.key;
 
 	if ((ret = __wt_compare(
 	    session, btree->collator, cbt->lastkey, key, &cmp)) != 0)
-		WT_ERR_MSG(session, ret,
-		    "SUPPORT-1531: comparison function failed");
+		WT_RET_MSG(session, ret,
+		    "WT-2307: comparison function failed");
 	if (cmp < 0)
-		return;
+		return (0);
 
-	WT_ERR(__wt_scr_alloc(session, 512, &a));
-	WT_ERR(__wt_scr_alloc(session, 512, &b));
+	/* Flag an error and keep going */
+	__wt_errx(session, "encountered out of order key");
 
-	WT_ERR(__wt_buf_set_printable(session, a, key->data, key->size));
-	WT_ERR(__wt_buf_set_printable(
-	    session, b, cbt->lastkey->data, cbt->lastkey->size));
-
-	__wt_errx(session,
-	    "SUPPORT-1531: WT_CURSOR.next out-of-order keys: returning %.*s "
-	    "which is not larger than a previously returned key %.*s",
-	    (int)a->size, (const char *)a->data,
-	    (int)b->size, (const char *)b->data);
-
-	__wt_errx(session,
-	    "SUPPORT-1531: WT_CURSOR last operations (most-recent first): "
-	    "%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, "
-	    "%s, %s, %s, %s, %s, %s, %s, %s, %s, %s",
-	    __wt_last_op_name(cbt->last_op[0]),
-	    __wt_last_op_name(cbt->last_op[1]),
-	    __wt_last_op_name(cbt->last_op[2]),
-	    __wt_last_op_name(cbt->last_op[3]),
-	    __wt_last_op_name(cbt->last_op[4]),
-	    __wt_last_op_name(cbt->last_op[5]),
-	    __wt_last_op_name(cbt->last_op[6]),
-	    __wt_last_op_name(cbt->last_op[7]),
-	    __wt_last_op_name(cbt->last_op[8]),
-	    __wt_last_op_name(cbt->last_op[9]),
-	    __wt_last_op_name(cbt->last_op[10]),
-	    __wt_last_op_name(cbt->last_op[11]),
-	    __wt_last_op_name(cbt->last_op[12]),
-	    __wt_last_op_name(cbt->last_op[13]),
-	    __wt_last_op_name(cbt->last_op[14]),
-	    __wt_last_op_name(cbt->last_op[15]),
-	    __wt_last_op_name(cbt->last_op[16]),
-	    __wt_last_op_name(cbt->last_op[17]),
-	    __wt_last_op_name(cbt->last_op[18]),
-	    __wt_last_op_name(cbt->last_op[19]));
-
-	for (i = cbt->next_track - 1; i >= 0; --i)
-		__wt_errx(session,
-		    "SUPPORT-1531: WT_CURSOR tracking slot %d at %s: home: %p, "
-		    "split-gen: %u, page: %p, split_action: %u, flags: %#x",
-		    i, __wt_track_location_name(cbt->track[i].locate),
-		    cbt->track[i].home, (u_int)cbt->track[i].split_gen,
-		    cbt->track[i].page, (u_int)cbt->track[i].split_action,
-		    (u_int)cbt->track[i].flags);
-	for (i = 20 - 1; i >= cbt->next_track; --i)
-		__wt_errx(session,
-		    "SUPPORT-1531: WT_CURSOR tracking slot %d at %s: home: %p, "
-		    "split-gen: %u, page: %p, split_action: %u, flags: %#x",
-		    i, __wt_track_location_name(cbt->track[i].locate),
-		    cbt->track[i].home, (u_int)cbt->track[i].split_gen,
-		    cbt->track[i].page, (u_int)cbt->track[i].split_action,
-		    (u_int)cbt->track[i].flags);
-
-err:	__wt_scr_free(session, &a);
-	__wt_scr_free(session, &b);
+	/*
+	 * The cursor next hit a bug due to a race in splits, move the cursor
+	 * back to the last known good position and retry the next.
+	 */
+	//WT_ASSERT(session, F_ISSET(&cbt->iface, WT_CURSTD_KEY_SET));
+	key->data = cbt->lastkey->data;
+	key->size = cbt->lastkey->size;
+	cbt->ref = &btree->root;
+	if ((ret = __wt_btcur_search(cbt)) != 0)
+		WT_RET_MSG(session, ret,
+		    "WT-2307: searching for the previous key failed");
+	/* Return a duplicate key error to tell next it needs to retry. */
+	return (WT_DUPLICATE_KEY);
 }
 
 /*
@@ -593,7 +506,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 	if (truncating)
 		LF_SET(WT_READ_TRUNCATE);
 
-	WT_RET(__cursor_func_init(cbt, false));
+retry:	WT_RET(__cursor_func_init(cbt, false));
 
 	/*
 	 * If we aren't already iterating in the right direction, there's
@@ -678,13 +591,18 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 	}
 
 	/*
-	 * SUPPORT-1531 check that the previous key returned sorts less than
-	 * the current key being returned.
+	 * WT-2307 check that the previous key returned sorts less than
+	 * the current key being returned. If it didn't we've searched back
+	 * to the previous key, retry the next operation.
 	 */
 	if (ret == 0 && page->type == WT_PAGE_ROW_LEAF) {
 		if (cbt->last_op[0] == WT_LASTOP_NEXT &&
-		    cbt->lastkey != NULL && cbt->lastkey->size != 0)
-			__wt_key_order_check(session, cbt);
+		    cbt->lastkey != NULL && cbt->lastkey->size != 0) {
+			ret = __wt_key_order_check(session, cbt);
+			if (ret == WT_DUPLICATE_KEY)
+				goto retry;
+			WT_ERR(ret);
+		}
 
 		WT_ERR(__wt_buf_set(session,
 		    cbt->lastkey, cbt->iface.key.data, cbt->iface.key.size));
