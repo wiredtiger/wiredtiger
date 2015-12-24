@@ -473,10 +473,8 @@ __wt_key_order_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	 * The cursor next hit a bug due to a race in splits, move the cursor
 	 * back to the last known good position and retry the next.
 	 */
-	//WT_ASSERT(session, F_ISSET(&cbt->iface, WT_CURSTD_KEY_SET));
 	key->data = cbt->lastkey->data;
 	key->size = cbt->lastkey->size;
-	cbt->ref = &btree->root;
 	if ((ret = __wt_btcur_search(cbt)) != 0)
 		WT_RET_MSG(session, ret,
 		    "WT-2307: searching for the previous key failed");
