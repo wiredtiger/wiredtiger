@@ -480,6 +480,10 @@ __wt_key_order_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	if ((ret = __wt_btcur_search(cbt)) != 0)
 		WT_RET_MSG(session, ret,
 		    "WT-2307: searching for the previous key failed");
+
+	/* Set last op as a next, in case we need to loop retrying */
+	cbt->last_op[0] = WT_LASTOP_NEXT;
+
 	/* Return a duplicate key error to tell next it needs to retry. */
 	return (WT_DUPLICATE_KEY);
 }
