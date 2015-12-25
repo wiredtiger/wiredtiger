@@ -368,6 +368,10 @@ __curfile_close(WT_CURSOR *cursor)
 		WT_TRET(__wt_bulk_wrapup(session, cbulk));
 		__wt_buf_free(session, &cbulk->last);
 	}
+	/* !!! Print debug tree shape on shutdown */
+	if (strcmp(cursor->internal_uri, "file:xx") == 0) {
+		(void)__wt_debug_tree_shape(session, NULL, "shape_close");
+	}
 
 	WT_TRET(__wt_btcur_close(cbt, false));
 	/* The URI is owned by the btree handle. */
