@@ -192,6 +192,42 @@ struct __wt_cursor_btree {
 	WT_UPDATE *modify_update;
 
 	/*
+	 * SUPPORT-1531 information.
+	 *
+	 * Last returned keys.
+	 */
+	WT_ITEM *lastkey, _lastkey;
+
+#define	WT_LASTOP_NONE		0
+#define	WT_LASTOP_NEXT		1
+#define	WT_LASTOP_PREV		2
+#define	WT_LASTOP_RESET		3
+#define	WT_LASTOP_SEARCH	4
+#define	WT_LASTOP_SEARCH_NEAR	5
+#define	WT_LASTOP_INSERT	6
+#define	WT_LASTOP_TRUNCATE	7
+#define	WT_LASTOP_UPDATE	8
+#define	WT_LASTOP_REMOVE	9
+	uint8_t last_op[20];		/* Last 20 operations */
+
+	struct {
+		void	*home;		/* Ref home */
+		void	*page;		/* Page reference */
+		uint8_t  flags;		/* Page flags */
+		uint8_t  split_action;	/* Page's split-action value */
+		uint8_t  split_gen;	/* Parent page's split-gen value */
+
+#define	WT_TRACKOP_CUR_NEXT		1
+#define	WT_TRACKOP_ROW_NEXT_START	2
+#define	WT_TRACKOP_ROW_NEXT_STOP	3
+#define	WT_TRACKOP_WALK_START		4
+#define	WT_TRACKOP_WALK_STOP		5
+#define	WT_TRACKOP_CUR_RETURN		6
+		uint8_t  locate;	/* Location */
+	} track[20];
+	int next_track;
+
+	/*
 	 * Fixed-length column-store items are a single byte, and it's simpler
 	 * and cheaper to allocate the space for it now than keep checking to
 	 * see if we need to grow the buffer.
@@ -214,6 +250,40 @@ struct __wt_cursor_btree {
 
 	uint8_t flags;
 };
+
+/*
+ * __wt_track_op --
+ *	Track a cursor movement through the code, saving selected WT_REF/WT_PAGE
+ * information.
+ */
+static inline void
+__wt_track_op(WT_CURSOR_BTREE *cbt, uint8_t locate)
+{
+	u_int n;
+
+	n = cbt->next_track;
+
+	if (cbt->ref == NULL || cbt->ref->home == NULL) {
+		cbt->track[n].home = NULL;
+		cbt->track[n].split_gen = 0;
+	} else {
+		cbt->track[n].home = cbt->ref->home;
+		cbt->track[n].split_gen = cbt->ref->home->split_gen;
+	}
+	if (cbt->ref == NULL || cbt->ref->page == NULL) {
+		cbt->track[n].page = NULL;
+		cbt->track[n].flags = 0;
+		cbt->track[n].split_action = 0;
+	} else {
+		cbt->track[n].page = cbt->ref->page;
+		cbt->track[n].flags = cbt->ref->page->flags_atomic;
+		cbt->track[n].split_action = cbt->ref->page->split_action;
+	}
+	cbt->track[n].locate = locate;
+
+	if (++cbt->next_track == 20)
+		cbt->next_track = 0;
+}
 
 struct __wt_cursor_bulk {
 	WT_CURSOR_BTREE cbt;
