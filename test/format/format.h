@@ -26,11 +26,13 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <sys/param.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+
 #ifndef _WIN32
 #include <sys/time.h>
 #endif
-#include <sys/types.h>
 
 #include <assert.h>
 #include <ctype.h>
