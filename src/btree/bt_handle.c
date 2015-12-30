@@ -601,7 +601,7 @@ __btree_preload(WT_SESSION_IMPL *session)
 
 	/* Pre-load the second-level internal pages. */
 	WT_INTL_FOREACH_BEGIN(session, btree->root.page, ref) {
-		WT_RET(__wt_ref_info(session, ref, &addr, &addr_size, NULL));
+		__wt_ref_info(ref, &addr, &addr_size, NULL);
 		if (addr != NULL)
 			WT_RET(bm->preload(bm, session, addr, addr_size));
 	} WT_INTL_FOREACH_END;
@@ -622,7 +622,7 @@ __btree_get_last_recno(WT_SESSION_IMPL *session)
 	btree = S2BT(session);
 
 	next_walk = NULL;
-	WT_RET(__wt_tree_walk(session, &next_walk, NULL, WT_READ_PREV));
+	WT_RET(__wt_tree_walk(session, &next_walk, WT_READ_PREV));
 	if (next_walk == NULL)
 		return (WT_NOTFOUND);
 
@@ -695,6 +695,13 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
 			btree->maxmempage =
 			    WT_MIN(btree->maxmempage, cache_size / 4);
 	}
+
+	/*
+	 * Try in-memory splits once we hit 80% of the maximum in-memory page
+	 * size.  This gives multi-threaded append workloads a better chance of
+	 * not stalling.
+	 */
+	btree->splitmempage = 8 * btree->maxmempage / 10;
 
 	/*
 	 * Get the split percentage (reconciliation splits pages into smaller

@@ -31,8 +31,8 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
 	/* Walk the tree, discarding pages. */
 	next_ref = NULL;
-	WT_ERR(__wt_tree_walk(session, &next_ref, NULL,
-	    WT_READ_CACHE | WT_READ_NO_EVICT));
+	WT_ERR(__wt_tree_walk(
+	    session, &next_ref, WT_READ_CACHE | WT_READ_NO_EVICT));
 	while ((ref = next_ref) != NULL) {
 		page = ref->page;
 
@@ -68,30 +68,24 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 		 * the reconciliation, the next walk call could miss a page in
 		 * the tree.
 		 */
-		WT_ERR(__wt_tree_walk(session, &next_ref, NULL,
-		    WT_READ_CACHE | WT_READ_NO_EVICT));
+		WT_ERR(__wt_tree_walk(session,
+		    &next_ref, WT_READ_CACHE | WT_READ_NO_EVICT));
 
 		switch (syncop) {
 		case WT_SYNC_CLOSE:
 			/*
 			 * Evict the page.
 			 */
-			WT_ERR(__wt_evict(session, ref, 1));
+			WT_ERR(__wt_evict(session, ref, true));
 			break;
 		case WT_SYNC_DISCARD:
 			/*
-			 * Dead handles may reference dirty pages; clean the
-			 * page, both to keep statistics correct, and to let
-			 * the page-discard function assert no dirty page is
-			 * ever discarded.
+			 * Discard the page regardless of whether it is dirty.
 			 */
-			if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
-				__wt_page_modify_clear(session, page);
-
 			WT_ASSERT(session,
 			    F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
-			    __wt_page_can_evict(session, ref, false, NULL));
-			__wt_evict_page_clean_update(session, ref, 1);
+			    __wt_page_can_evict(session, ref, NULL));
+			__wt_evict_page_clean_update(session, ref, true);
 			break;
 		WT_ILLEGAL_VALUE_ERR(session);
 		}

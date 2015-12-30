@@ -383,8 +383,7 @@ struct __wt_connection_impl {
 	bool		 las_written;	/* Lookaside table has been written */
 
 	WT_ITEM		 las_sweep_key;	/* Sweep server's saved key */
-	int		 las_sweep_call;/* Sweep server's call count */
-	uint64_t	 las_sweep_cnt;	/* Sweep server's per-call row count */
+	int64_t		 las_record_cnt;/* Count of lookaside records */
 
 					/* Locked: collator list */
 	TAILQ_HEAD(__wt_coll_qh, __wt_named_collator) collqh;
@@ -416,6 +415,7 @@ struct __wt_connection_impl {
 	uint32_t direct_io;
 	uint32_t write_through;		/* FILE_FLAG_WRITE_THROUGH type flags */
 	bool	 mmap;			/* mmap configuration */
+	int page_size;			/* OS page size for mmap alignment */
 	uint32_t verbose;
 
 	uint32_t flags;

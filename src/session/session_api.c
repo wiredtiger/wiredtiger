@@ -148,7 +148,7 @@ __session_close(WT_SESSION *wt_session, const char *config)
 		 * via the registered close callback.
 		 */
 		if (session->event_handler->handle_close != NULL &&
-		    !WT_STREQ(cursor->uri, WT_LAS_URI))
+		    !WT_STREQ(cursor->internal_uri, WT_LAS_URI))
 			WT_TRET(session->event_handler->handle_close(
 			    session->event_handler, wt_session, cursor));
 		WT_TRET(cursor->close(cursor));
@@ -205,6 +205,9 @@ __session_close(WT_SESSION *wt_session, const char *config)
 			break;
 
 	__wt_spin_unlock(session, &conn->api_lock);
+
+	/* We no longer have a session, don't try to update it. */
+	session = NULL;
 
 err:	API_END_RET_NOTFOUND_MAP(session, ret);
 }

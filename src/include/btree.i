@@ -38,6 +38,23 @@ __wt_page_is_modified(WT_PAGE *page)
 }
 
 /*
+ * __wt_btree_block_free --
+ *	Helper function to free a block from the current tree.
+ */
+static inline int
+__wt_btree_block_free(
+    WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
+{
+	WT_BM *bm;
+	WT_BTREE *btree;
+
+	btree = S2BT(session);
+	bm = btree->bm;
+
+	return (bm->free(bm, session, addr, addr_size));
+}
+
+/*
  * __wt_cache_page_inmem_incr --
  *	Increment a page's memory footprint in the cache.
  */
@@ -330,6 +347,8 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
 	uint64_t last_running;
 
+	WT_ASSERT(session, !F_ISSET(session->dhandle, WT_DHANDLE_DEAD));
+
 	last_running = 0;
 	if (page->modify->write_gen == 0)
 		last_running = S2C(session)->txn_global.last_running;
@@ -345,13 +364,6 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 */
 	if (__wt_atomic_add32(&page->modify->write_gen, 1) == 1) {
 		__wt_cache_dirty_incr(session, page);
-
-		/*
-		 * The page can never end up with changes older than the oldest
-		 * running transaction.
-		 */
-		if (F_ISSET(&session->txn, WT_TXN_HAS_SNAPSHOT))
-			page->modify->disk_snap_min = session->txn.snap_min;
 
 		/*
 		 * We won the race to dirty the page, but another thread could
@@ -468,6 +480,23 @@ __wt_off_page(WT_PAGE *page, const void *p)
 	return (page->dsk == NULL ||
 	    p < (void *)page->dsk ||
 	    p >= (void *)((uint8_t *)page->dsk + page->dsk->mem_size));
+}
+
+/*
+ * __wt_ref_addr_free --
+ *	Free the address in a reference, if necessary.
+ */
+static inline void
+__wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+	if (ref->addr == NULL)
+		return;
+
+	if (ref->home == NULL || __wt_off_page(ref->home, ref->addr)) {
+		__wt_free(session, ((WT_ADDR *)ref->addr)->addr);
+		__wt_free(session, ref->addr);
+	}
+	ref->addr = NULL;
 }
 
 /*
@@ -919,9 +948,8 @@ __wt_row_leaf_value(WT_PAGE *page, WT_ROW *rip, WT_ITEM *value)
  * __wt_ref_info --
  *	Return the addr/size and type triplet for a reference.
  */
-static inline int
-__wt_ref_info(WT_SESSION_IMPL *session,
-    WT_REF *ref, const uint8_t **addrp, size_t *sizep, u_int *typep)
+static inline void
+__wt_ref_info(WT_REF *ref, const uint8_t **addrp, size_t *sizep, u_int *typep)
 {
 	WT_ADDR *addr;
 	WT_CELL_UNPACK *unpack, _unpack;
@@ -955,7 +983,9 @@ __wt_ref_info(WT_SESSION_IMPL *session,
 			case WT_ADDR_LEAF_NO:
 				*typep = WT_CELL_ADDR_LEAF_NO;
 				break;
-			WT_ILLEGAL_VALUE(session);
+			default:
+				*typep = 0;
+				break;
 			}
 	} else {
 		__wt_cell_unpack((WT_CELL *)addr, unpack);
@@ -964,15 +994,35 @@ __wt_ref_info(WT_SESSION_IMPL *session,
 		if (typep != NULL)
 			*typep = unpack->type;
 	}
+}
+
+/*
+ * __wt_ref_block_free --
+ *	Free the on-disk block for a reference and clear the address.
+ */
+static inline int
+__wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+	const uint8_t *addr;
+	size_t addr_size;
+
+	if (ref->addr == NULL)
+		return (0);
+
+	__wt_ref_info(ref, &addr, &addr_size, NULL);
+	WT_RET(__wt_btree_block_free(session, addr, addr_size));
+
+	/* Clear the address (so we don't free it twice). */
+	__wt_ref_addr_free(session, ref);
 	return (0);
 }
 
 /*
- * __wt_page_can_split --
+ * __wt_leaf_page_can_split --
  *	Check whether a page can be split in memory.
  */
 static inline bool
-__wt_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
+__wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
 	WT_BTREE *btree;
 	WT_INSERT_HEAD *ins_head;
@@ -1003,7 +1053,7 @@ __wt_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 * reconciliation will be wrong, so we can't evict immediately).
 	 */
 	if (page->type != WT_PAGE_ROW_LEAF ||
-	    page->memory_footprint < btree->maxmempage ||
+	    page->memory_footprint < btree->splitmempage ||
 	    !__wt_page_is_modified(page))
 		return (false);
 
@@ -1046,13 +1096,12 @@ __wt_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
  *	Check whether a page can be evicted.
  */
 static inline bool
-__wt_page_can_evict(WT_SESSION_IMPL *session,
-    WT_REF *ref, bool check_splits, bool *inmem_splitp)
+__wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 {
 	WT_BTREE *btree;
 	WT_PAGE *page;
 	WT_PAGE_MODIFY *mod;
-	WT_TXN_GLOBAL *txn_global;
+	bool modified;
 
 	if (inmem_splitp != NULL)
 		*inmem_splitp = false;
@@ -1071,11 +1120,13 @@ __wt_page_can_evict(WT_SESSION_IMPL *session,
 	 * detailed eviction tests. We don't need further tests since the page
 	 * won't be written or discarded from the cache.
 	 */
-	if (__wt_page_can_split(session, page)) {
+	if (__wt_leaf_page_can_split(session, page)) {
 		if (inmem_splitp != NULL)
 			*inmem_splitp = true;
 		return (true);
 	}
+
+	modified = __wt_page_is_modified(page);
 
 	/*
 	 * If the file is being checkpointed, we can't evict dirty pages:
@@ -1083,8 +1134,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session,
 	 * previous version might be referenced by an internal page already
 	 * been written in the checkpoint, leaving the checkpoint inconsistent.
 	 */
-	if (btree->checkpointing != WT_CKPT_OFF &&
-	    __wt_page_is_modified(page)) {
+	if (btree->checkpointing != WT_CKPT_OFF && modified) {
 		WT_STAT_FAST_CONN_INCR(session, cache_eviction_checkpoint);
 		WT_STAT_FAST_DATA_INCR(session, cache_eviction_checkpoint);
 		return (false);
@@ -1105,28 +1155,24 @@ __wt_page_can_evict(WT_SESSION_IMPL *session,
 	 * pages cannot be evicted until all threads are known to have exited
 	 * the original parent page's index, because evicting an internal page
 	 * discards its WT_REF array, and a thread traversing the original
-	 * parent page index might see a freed WT_REF. During the split we set
-	 * a transaction value, we can evict the created page as soon as that
-	 * transaction value is globally visible.
+	 * parent page index might see a freed WT_REF.
 	 */
-	if (check_splits && WT_PAGE_IS_INTERNAL(page) &&
-	    (F_ISSET_ATOMIC(page, WT_PAGE_SPLIT_BLOCK) ||
-	    !__wt_txn_visible_all(session, mod->mod_split_txn)))
+	if (WT_PAGE_IS_INTERNAL(page) &&
+	    F_ISSET_ATOMIC(page, WT_PAGE_SPLIT_BLOCK))
 		return (false);
 
 	/*
-	 * If the page was recently split in-memory, don't evict it immediately:
-	 * we want to give application threads that are appending a chance to
-	 * move to the new leaf page created by the split.
-	 *
-	 * Note the check here is similar to __wt_txn_visible_all, but ignores
-	 * the checkpoint's transaction.
+	 * If the oldest transaction hasn't changed since the last time
+	 * this page was written, it's unlikely we can make progress.
+	 * Similarly, if the most recent update on the page is not yet
+	 * globally visible, eviction will fail.  These heuristics
+	 * attempt to avoid repeated attempts to evict the same page.
 	 */
-	if (check_splits) {
-		txn_global = &S2C(session)->txn_global;
-		if (WT_TXNID_LE(txn_global->oldest_id, mod->inmem_split_txn))
-			return (false);
-	}
+	if (modified &&
+	    !F_ISSET(S2C(session)->cache, WT_CACHE_STUCK) &&
+	    (mod->last_oldest_id == __wt_txn_oldest_id(session) ||
+	    !__wt_txn_visible_all(session, mod->update_txn)))
+		return (false);
 
 	return (true);
 }
@@ -1162,7 +1208,7 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 	(void)__wt_atomic_addv32(&btree->evict_busy, 1);
 
 	too_big = page->memory_footprint > btree->maxmempage;
-	if ((ret = __wt_evict(session, ref, 0)) == 0) {
+	if ((ret = __wt_evict(session, ref, false)) == 0) {
 		if (too_big)
 			WT_STAT_FAST_CONN_INCR(session, cache_eviction_force);
 		else
@@ -1221,7 +1267,7 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	    LF_ISSET(WT_READ_NO_EVICT) ||
 	    F_ISSET(session, WT_SESSION_NO_EVICTION) ||
 	    F_ISSET(btree, WT_BTREE_NO_EVICTION) ||
-	    !__wt_page_can_evict(session, ref, true, NULL))
+	    !__wt_page_can_evict(session, ref, NULL))
 		return (__wt_hazard_clear(session, page));
 
 	WT_RET_BUSY_OK(__wt_page_release_evict(session, ref));
