@@ -835,7 +835,7 @@ __session_truncate(WT_SESSION *wt_session,
 			/*
 			 * A URI truncate becomes a range truncate where we
 			 * set a start cursor at the beginning.  We already
-			 * know stop goes to the end of the range.
+			 * know the NULL stop goes to the end of the range.
 			 */
 			WT_ERR(__session_open_cursor(
 			    wt_session, uri, NULL, NULL, &start));
