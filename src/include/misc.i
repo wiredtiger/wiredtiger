@@ -70,3 +70,19 @@ __wt_verbose(WT_SESSION_IMPL *session, int flag, const char *fmt, ...)
 	return (0);
 #endif
 }
+
+/*
+ * __wt_diagnostic_yield --
+ * 	Yield, and optionally pause, in diagnostic mode.
+ */
+static inline void
+__wt_diagnostic_yield(uint64_t seconds, uint64_t micro_seconds)
+{
+#ifdef HAVE_DIAGNOSTIC
+	if (seconds == 0 && micro_seconds == 0)
+		__wt_yield();
+	else
+		__wt_sleep(seconds, micro_seconds);
+#else
+#endif
+}
