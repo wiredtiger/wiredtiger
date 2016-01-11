@@ -650,12 +650,16 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
 	/* Prepare the WT_REFs for the move. */
 	__split_ref_step1(session, alloc_index, false);
 
+	__wt_diagnostic_yield(0, 100000);	/* Encourage a race. */
+
 	/*
 	 * Confirm the root page's index hasn't moved, then update it, which
 	 * makes the split visible to threads descending the tree.
 	 */
 	WT_ASSERT(session, WT_INTL_INDEX_GET_SAFE(root) == pindex);
 	WT_INTL_INDEX_SET(root, alloc_index);
+
+	__wt_diagnostic_yield(0, 100000);	/* Encourage a race. */
 
 #ifdef HAVE_DIAGNOSTIC
 	WT_WITH_PAGE_INDEX(session,
@@ -1145,13 +1149,19 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 	/* Prepare the WT_REFs for the move. */
 	__split_ref_step1(session, alloc_index, true);
 
+	__wt_diagnostic_yield(0, 100000);	/* Encourage a race. */
+
 	/* Split into the parent. */
 	WT_ERR(__split_parent(session, page_ref, alloc_index->index,
 	    alloc_index->entries, parent_incr, false, false));
 
+	__wt_diagnostic_yield(0, 100000);	/* Encourage a race. */
+
 	/* Confirm the page's index hasn't moved, then update it. */
 	WT_ASSERT(session, WT_INTL_INDEX_GET_SAFE(page) == pindex);
 	WT_INTL_INDEX_SET(page, replace_index);
+
+	__wt_diagnostic_yield(0, 100000);	/* Encourage a race. */
 
 #ifdef HAVE_DIAGNOSTIC
 	WT_WITH_PAGE_INDEX(session,
