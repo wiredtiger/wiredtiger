@@ -83,6 +83,5 @@ __wt_diagnostic_yield(uint64_t seconds, uint64_t micro_seconds)
 		__wt_yield();
 	else
 		__wt_sleep(seconds, micro_seconds);
-#else
 #endif
 }
