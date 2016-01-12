@@ -525,7 +525,8 @@ __create_index(WT_SESSION_IMPL *session,
 	cfg[1] = sourceconf;
 	cfg[2] = confbuf.data;
 	WT_ERR(__wt_config_collapse(session, cfg, &idxconf));
-	if ((ret = __wt_metadata_insert(session, name, idxconf)) != 0) {
+	if ((ret = __wt_metadata_insert_no_overwrite(session, name, idxconf))
+	    != 0) {
 		/*
 		 * If the entry already exists in the metadata, we're done.
 		 * This is an error for exclusive creates but okay otherwise.
