@@ -74,24 +74,28 @@ __wt_metadata_cursor_open(
 }
 
 /*
- * __wt_metadata_cursor --
- *	Returns the session's cached metadata cursor, unless it's in use, in
- * which case it opens and returns another metadata cursor.
+ * __wt_metadata_configurable_cursor --
+ *	Returns the session's cached metadata cursor, unless it's in use or
+ * if special configuration is needed, in which case it opens and returns
+ * another metadata cursor.
  */
 int
-__wt_metadata_cursor(WT_SESSION_IMPL *session, WT_CURSOR **cursorp)
+__wt_metadata_configurable_cursor(
+    WT_SESSION_IMPL *session, const char *config, WT_CURSOR **cursorp)
 {
 	WT_CURSOR *cursor;
+	bool forcenew;
 
 	/*
 	 * If we don't have a cached metadata cursor, or it's already in use,
-	 * we'll need to open a new one.
+	 * or we have non-default configuration, we'll need to open a new one.
 	 */
 	cursor = NULL;
-	if (session->meta_cursor == NULL ||
+	forcenew = (config != NULL);
+	if (forcenew || session->meta_cursor == NULL ||
 	    F_ISSET(session->meta_cursor, WT_CURSTD_META_INUSE)) {
-		WT_RET(__wt_metadata_cursor_open(session, NULL, &cursor));
-		if (session->meta_cursor == NULL) {
+		WT_RET(__wt_metadata_cursor_open(session, config, &cursor));
+		if (session->meta_cursor == NULL && !forcenew) {
 			session->meta_cursor = cursor;
 			cursor = NULL;
 		}
@@ -110,13 +114,24 @@ __wt_metadata_cursor(WT_SESSION_IMPL *session, WT_CURSOR **cursorp)
 	 * If the cached cursor is in use, return the newly opened cursor, else
 	 * mark the cached cursor in use and return it.
 	 */
-	if (F_ISSET(session->meta_cursor, WT_CURSTD_META_INUSE))
+	if (forcenew || F_ISSET(session->meta_cursor, WT_CURSTD_META_INUSE))
 		*cursorp = cursor;
 	else {
 		*cursorp = session->meta_cursor;
 		F_SET(session->meta_cursor, WT_CURSTD_META_INUSE);
 	}
 	return (0);
+}
+
+/*
+ * __wt_metadata_cursor --
+ *	Returns the session's cached metadata cursor, unless it's in use, in
+ * which case it opens and returns another metadata cursor.
+ */
+int
+__wt_metadata_cursor(WT_SESSION_IMPL *session, WT_CURSOR **cursorp)
+{
+	return (__wt_metadata_configurable_cursor(session, NULL, cursorp));
 }
 
 /*
@@ -148,12 +163,13 @@ __wt_metadata_cursor_release(WT_SESSION_IMPL *session, WT_CURSOR **cursorp)
 }
 
 /*
- * __wt_metadata_insert --
+ * __metadata_insert --
  *	Insert a row into the metadata.
  */
-int
-__wt_metadata_insert(
-    WT_SESSION_IMPL *session, const char *key, const char *value)
+static int
+__metadata_insert(
+    WT_SESSION_IMPL *session, const char *key, const char *value,
+    const char *config)
 {
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
@@ -167,7 +183,7 @@ __wt_metadata_insert(
 		WT_RET_MSG(session, EINVAL,
 		    "%s: insert not supported on the turtle file", key);
 
-	WT_RET(__wt_metadata_cursor(session, &cursor));
+	WT_RET(__wt_metadata_configurable_cursor(session, config, &cursor));
 	cursor->set_key(cursor, key);
 	cursor->set_value(cursor, value);
 	WT_ERR(cursor->insert(cursor));
@@ -175,6 +191,28 @@ __wt_metadata_insert(
 		WT_ERR(__wt_meta_track_insert(session, key));
 err:	WT_TRET(__wt_metadata_cursor_release(session, &cursor));
 	return (ret);
+}
+
+/*
+ * __wt_metadata_insert --
+ *	Insert a row into the metadata.
+ */
+int
+__wt_metadata_insert(
+    WT_SESSION_IMPL *session, const char *key, const char *value)
+{
+	return (__metadata_insert(session, key, value, NULL));
+}
+
+/*
+ * __wt_metadata_insert_no_overwrite --
+ *	Insert a row into the metadata without overwriting
+ */
+int
+__wt_metadata_insert_no_overwrite(
+    WT_SESSION_IMPL *session, const char *key, const char *value)
+{
+	return (__metadata_insert(session, key, value, "overwrite=false"));
 }
 
 /*
