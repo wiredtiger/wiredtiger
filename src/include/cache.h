@@ -67,6 +67,9 @@ struct __wt_cache {
 	uint64_t pages_dirty;
 	uint64_t bytes_read;		/* Bytes read into memory */
 
+	uint64_t evict_progress;	/* Whether evicted recently */
+	int64_t saved_evict_count;	/* Page eviction count from last pass */
+
 	uint64_t app_evicts;		/* Pages evicted by user threads */
 	uint64_t app_waits;		/* User threads waited for cache */
 
