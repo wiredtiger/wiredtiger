@@ -11,6 +11,16 @@
 static int __desc_read(WT_SESSION_IMPL *, WT_BLOCK *);
 
 /*
+ * __wt_block_manager_drop --
+ *	Drop a file.
+ */
+int
+__wt_block_manager_drop(WT_SESSION_IMPL *session, const char *filename)
+{
+	 return (__wt_remove_if_exists(session, filename));
+}
+
+/*
  * __wt_block_manager_create --
  *	Create a file.
  */
