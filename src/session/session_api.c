@@ -836,6 +836,13 @@ __session_truncate(WT_SESSION *wt_session,
 				    "target after the log: URI prefix.");
 			ret = __wt_log_truncate_files(session, start, cfg);
 			goto done;
+		} else if (WT_PREFIX_MATCH(uri, "lsm:")) {
+			/*
+			 * LSM tree truncate needs to handle truncating each
+			 * chunk on its own.
+			 */
+			ret = __wt_lsm_tree_truncate(session, uri, cfg);
+			goto done;
 		} else {
 			/*
 			 * A URI truncate becomes a range truncate where we
