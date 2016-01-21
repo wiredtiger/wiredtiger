@@ -861,12 +861,27 @@ __session_truncate(WT_SESSION *wt_session,
 				    "the truncate method should not specify any"
 				    "target after the log: URI prefix.");
 			ret = __wt_log_truncate_files(session, start, cfg);
-		} else
-			/* Wait for checkpoints to avoid EBUSY errors. */
-			WT_WITH_CHECKPOINT_LOCK(session,
-			    WT_WITH_SCHEMA_LOCK(session,
-				ret = __wt_schema_truncate(session, uri, cfg)));
-		goto done;
+			goto done;
+		} else {
+			/*
+			 * A URI truncate becomes a range truncate where we
+			 * set a start cursor at the beginning.  We already
+			 * know the NULL stop goes to the end of the range.
+			 */
+			WT_ERR(__session_open_cursor(
+			    wt_session, uri, NULL, NULL, &start));
+			local_start = true;
+			ret = start->next(start);
+			if (ret == WT_NOTFOUND) {
+				/*
+				 * If there are no elements, there is nothing
+				 * to do.
+				 */
+				ret = 0;
+				goto done;
+			}
+			WT_ERR(ret);
+		}
 	}
 
 	/*

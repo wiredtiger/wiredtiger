@@ -44,7 +44,6 @@ extern void __wt_block_extlist_free(WT_SESSION_IMPL *session, WT_EXTLIST *el);
 extern int __wt_block_map( WT_SESSION_IMPL *session, WT_BLOCK *block, void *mapp, size_t *maplenp, void **mappingcookie);
 extern int __wt_block_unmap( WT_SESSION_IMPL *session, WT_BLOCK *block, void *map, size_t maplen, void **mappingcookie);
 extern int __wt_block_manager_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[], bool forced_salvage, bool readonly, uint32_t allocsize, WT_BM **bmp);
-extern int __wt_block_manager_truncate( WT_SESSION_IMPL *session, const char *filename, uint32_t allocsize);
 extern int __wt_block_manager_drop(WT_SESSION_IMPL *session, const char *filename);
 extern int __wt_block_manager_create( WT_SESSION_IMPL *session, const char *filename, uint32_t allocsize);
 extern void __wt_block_configure_first_fit(WT_BLOCK *block, bool on);
@@ -605,7 +604,6 @@ extern int __wt_schema_rename(WT_SESSION_IMPL *session, const char *uri, const c
 extern int __wt_curstat_colgroup_init(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], WT_CURSOR_STAT *cst);
 extern int __wt_curstat_index_init(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], WT_CURSOR_STAT *cst);
 extern int __wt_curstat_table_init(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], WT_CURSOR_STAT *cst);
-extern int __wt_schema_truncate( WT_SESSION_IMPL *session, const char *uri, const char *cfg[]);
 extern int __wt_range_truncate(WT_CURSOR *start, WT_CURSOR *stop);
 extern int __wt_schema_range_truncate( WT_SESSION_IMPL *session, WT_CURSOR *start, WT_CURSOR *stop);
 extern WT_DATA_SOURCE *__wt_schema_get_source(WT_SESSION_IMPL *session, const char *name);
