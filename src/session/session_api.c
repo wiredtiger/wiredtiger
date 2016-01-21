@@ -1376,8 +1376,15 @@ __open_session(WT_CONNECTION_IMPL *conn,
 
 	WT_ERR(__wt_cond_alloc(session, "session", false, &session_ret->cond));
 
-	if (WT_SESSION_FIRST_USE(session_ret))
-		__wt_random_init(&session_ret->rnd);
+	/*
+	 * The first use of a session initializes its PRNG. Use the refreshed
+	 * value from the connection's default session so sessions don't start
+	 * in lock step.
+	 */
+	if (WT_SESSION_FIRST_USE(session_ret)) {
+		(void)__wt_random(&conn->default_session->rnd);
+		session_ret->rnd = conn->default_session->rnd;
+	}
 
 	__wt_event_handler_set(session_ret,
 	    event_handler == NULL ? session->event_handler : event_handler);
