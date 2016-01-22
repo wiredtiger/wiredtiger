@@ -315,7 +315,6 @@ struct __wt_connection_stats {
 	int64_t log_close_yields;
 	int64_t log_compress_len;
 	int64_t log_compress_mem;
-	int64_t log_compress_skipped;
 	int64_t log_compress_small;
 	int64_t log_compress_write_fails;
 	int64_t log_compress_writes;
@@ -457,7 +456,6 @@ struct __wt_dsrc_stats {
 	int64_t compress_read;
 	int64_t compress_write;
 	int64_t compress_write_fail;
-	int64_t compress_write_skipped;
 	int64_t compress_write_too_small;
 	int64_t cursor_create;
 	int64_t cursor_insert;

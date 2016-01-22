@@ -1815,8 +1815,6 @@ __wt_log_write(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 			newlrp->mem_len = WT_STORE_SIZE(record->size);
 		}
 	}
-	if (compressor != NULL)
-		WT_STAT_FAST_CONN_INCR(session, log_compress_skipped);
 	if ((kencryptor = conn->kencryptor) != NULL) {
 		/*
 		 * Allocate enough space for the original record plus the
