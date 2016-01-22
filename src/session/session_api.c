@@ -1382,7 +1382,8 @@ __open_session(WT_CONNECTION_IMPL *conn,
 	 * in lock step.
 	 */
 	if (WT_SESSION_FIRST_USE(session_ret)) {
-		(void)__wt_random(&conn->default_session->rnd);
+		for (i = 0; i < 100; ++i)
+			(void)__wt_random(&conn->default_session->rnd);
 		session_ret->rnd = conn->default_session->rnd;
 	}
 
