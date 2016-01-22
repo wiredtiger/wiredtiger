@@ -212,7 +212,6 @@ connection_stats = [
     LogStat('log_close_yields', 'yields waiting for previous log file close'),
     LogStat('log_compress_len', 'total size of compressed records'),
     LogStat('log_compress_mem', 'total in-memory size of compressed records'),
-    LogStat('log_compress_skipped', 'log record compression skipped'),
     LogStat('log_compress_small', 'log records too small to compress'),
     LogStat('log_compress_write_fails', 'log records not compressed'),
     LogStat('log_compress_writes', 'log records compressed'),
@@ -432,7 +431,6 @@ dsrc_stats = [
     CompressStat('compress_read', 'compressed pages read'),
     CompressStat('compress_write', 'compressed pages written'),
     CompressStat('compress_write_fail', 'page written failed to compress'),
-    CompressStat('compress_write_skipped', 'page write compression skipped'),
     CompressStat('compress_write_too_small', 'page written was too small to compress'),
 
     ##########################################
