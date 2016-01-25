@@ -164,7 +164,7 @@ __wt_struct_repack(WT_SESSION_IMPL *session, const char *infmt,
 	 * The former case has the size embedded before the item, the latter
 	 * does not.
 	 */
-	if ((len = strlen(outfmt)) > 1 && outfmt[len - 1] == 'u' &&
+	if ((len = strlen(outfmt)) > 0 && outfmt[len - 1] == 'u' &&
 	    strlen(infmt) > len && infmt[len - 1] == 'U') {
 		WT_ERR(__wt_realloc(session, NULL, inbuf->size, reallocp));
 		pout = *reallocp;
