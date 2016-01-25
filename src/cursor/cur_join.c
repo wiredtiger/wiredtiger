@@ -548,7 +548,7 @@ err:	return (ret);
 typedef struct {
 	WT_CURSOR iface;
 	WT_CURSOR_JOIN_ENTRY *entry;
-	int ismember;
+	bool ismember;
 } WT_CURJOIN_EXTRACTOR;
 
 /*
@@ -558,9 +558,11 @@ typedef struct {
 static int
 __curjoin_extract_insert(WT_CURSOR *cursor) {
 	WT_CURJOIN_EXTRACTOR *cextract;
+	WT_CURSOR_JOIN_ENTRY *entry;
 	WT_DECL_RET;
 	WT_ITEM ikey;
 	WT_SESSION_IMPL *session;
+	void *allocbuf;
 
 	cextract = (WT_CURJOIN_EXTRACTOR *)cursor;
 	/*
@@ -571,22 +573,29 @@ __curjoin_extract_insert(WT_CURSOR *cursor) {
 	if (cextract->ismember)
 		return (0);
 
+	allocbuf = NULL;
+	entry = cextract->entry;
 	session = (WT_SESSION_IMPL *)cursor->session;
 
-	WT_ITEM_SET(ikey, cursor->key);
 	/*
 	 * We appended a padding byte to the key to avoid rewriting the last
-	 * column.  Strip that away here.
+	 * column.  Strip that away here, repacking for complex cases.
 	 */
-	WT_ASSERT(session, ikey.size > 0);
-	--ikey.size;
-
-	ret = __curjoin_entry_in_range(session, cextract->entry, &ikey, false);
+	if (entry->repack_infmt != NULL)
+		WT_ERR(__wt_struct_repack(session, entry->repack_infmt,
+		    entry->repack_outfmt, &cursor->key, &ikey, &allocbuf));
+	else {
+		WT_ITEM_SET(ikey, cursor->key);
+		WT_ASSERT(session, ikey.size > 0);
+		--ikey.size;
+	}
+	ret = __curjoin_entry_in_range(session, entry, &ikey, false);
 	if (ret == WT_NOTFOUND)
 		ret = 0;
-	else
-		cextract->ismember = 1;
+	else if (ret == 0)
+		cextract->ismember = true;
 
+err:	__wt_free(session, allocbuf);
 	return (ret);
 }
 
@@ -659,10 +668,11 @@ __curjoin_entry_member(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
 		v = *key;
 
 	if ((idx = entry->index) != NULL && idx->extractor != NULL) {
+		WT_CLEAR(extract_cursor);
 		extract_cursor.iface = iface;
 		extract_cursor.iface.session = &session->iface;
 		extract_cursor.iface.key_format = idx->exkey_format;
-		extract_cursor.ismember = 0;
+		extract_cursor.ismember = false;
 		extract_cursor.entry = entry;
 		WT_ERR(idx->extractor->extract(idx->extractor,
 		    &session->iface, key, &v, &extract_cursor.iface));
@@ -789,6 +799,7 @@ __curjoin_close(WT_CURSOR *cursor)
 				__wt_free(session, end->key.data);
 		}
 		__wt_free(session, entry->ends);
+		__wt_free(session, entry->repack_outfmt);
 	}
 
 	if (cjoin->iter != NULL)
@@ -899,7 +910,7 @@ __wt_curjoin_join(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
 	const char *raw_cfg[] = { WT_CONFIG_BASE(
 	    session, WT_SESSION_open_cursor), "raw", NULL };
 	char *main_uri;
-	size_t namesize, newsize;
+	size_t len, namesize, newsize;
 
 	entry = NULL;
 	hasins = needbloom = false;
@@ -1026,15 +1037,33 @@ __wt_curjoin_join(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
 	F_SET(newend, range);
 
 	/* Open the main file with a projection of the indexed columns. */
-	if (entry->main == NULL && entry->index != NULL) {
+	if (entry->main == NULL && idx != NULL) {
 		namesize = strlen(cjoin->table->name);
-		newsize = namesize + entry->index->colconf.len + 1;
+		newsize = namesize + idx->colconf.len + 1;
 		WT_ERR(__wt_calloc(session, 1, newsize, &main_uri));
 		snprintf(main_uri, newsize, "%s%.*s",
-		    cjoin->table->name, (int)entry->index->colconf.len,
-		    entry->index->colconf.str);
+		    cjoin->table->name, (int)idx->colconf.len,
+		    idx->colconf.str);
 		WT_ERR(__wt_open_cursor(session, main_uri,
 		    (WT_CURSOR *)cjoin, raw_cfg, &entry->main));
+	}
+
+	/*
+	 * We appended a padding byte to the key to avoid rewriting the last
+	 * column.  Extractors need to strip that, and in the case
+	 * where the resulting format is 'u', we need to repack the result
+	 * to strip away the size prefix to match the saved endpoint key.
+	 */
+	if (idx != NULL && idx->extractor != NULL) {
+		len = strlen(idx->exkey_format);
+		WT_ASSERT(session, idx->exkey_format[len - 1] == 'x');
+		if (len >= 2 && idx->exkey_format[len - 2] == 'U') {
+			entry->repack_infmt = idx->exkey_format;
+			WT_ERR(__wt_strdup(session, entry->repack_infmt,
+			    &entry->repack_outfmt));
+			entry->repack_outfmt[len - 2] = 'u';
+			entry->repack_outfmt[len - 1] = '\0';
+		}
 	}
 
 err:	if (main_uri != NULL)

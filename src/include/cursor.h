@@ -313,6 +313,8 @@ struct __wt_cursor_join_entry {
 	uint32_t		 bloom_bit_count; /* bits per item in bloom */
 	uint32_t		 bloom_hash_count; /* hash functions in bloom */
 	uint64_t		 count;		/* approx number of matches */
+	const char *		 repack_infmt;
+	char *			 repack_outfmt;
 
 #define	WT_CURJOIN_ENTRY_BLOOM		0x01	/* use a bloom filter */
 #define	WT_CURJOIN_ENTRY_DISJUNCTION	0x02	/* endpoints are or-ed */
