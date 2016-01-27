@@ -180,6 +180,8 @@ struct __wt_myslot {
 struct __wt_log {
 	uint32_t	allocsize;	/* Allocation alignment size */
 	wt_off_t	log_written;	/* Amount of log written this period */
+	uint32_t	comp_fail_cnt;	/* Sequential compression failures */
+	uint32_t	comp_fail_skip;	/* Skip N compression attempts */
 	/*
 	 * Log file information
 	 */

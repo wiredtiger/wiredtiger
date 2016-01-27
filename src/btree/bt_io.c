@@ -226,7 +226,8 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 
 	/*
 	 * Optionally stream-compress the data, but don't compress blocks that
-	 * are already as small as they're going to get.
+	 * are already as small as they're going to get, or if this file simply
+	 * doesn't compress well.
 	 */
 	if (btree->compressor == NULL ||
 	    btree->compressor->compress == NULL || compressed)
@@ -234,6 +235,9 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 	else if (buf->size <= btree->allocsize) {
 		ip = buf;
 		WT_STAT_FAST_DATA_INCR(session, compress_write_too_small);
+	} else if (__wt_compression_skip_next(&btree->compression_fail_skip)) {
+		ip = buf;
+		WT_STAT_FAST_DATA_INCR(session, compress_write_skipped);
 	} else {
 		/* Skip the header bytes of the source data. */
 		src = (uint8_t *)buf->mem + WT_BLOCK_COMPRESS_SKIP;
@@ -283,6 +287,10 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 		    result_len / btree->allocsize) {
 			ip = buf;
 			WT_STAT_FAST_DATA_INCR(session, compress_write_fail);
+
+			__wt_compression_skip_tracking(
+			    &btree->compression_fail_cnt,
+			    &btree->compression_fail_skip, true);
 		} else {
 			compressed = true;
 			WT_STAT_FAST_DATA_INCR(session, compress_write);
@@ -294,6 +302,10 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 			memcpy(ctmp->mem, buf->mem, WT_BLOCK_COMPRESS_SKIP);
 			ctmp->size = result_len;
 			ip = ctmp;
+
+			__wt_compression_skip_tracking(
+			    &btree->compression_fail_cnt,
+			    &btree->compression_fail_skip, false);
 		}
 	}
 	/*
