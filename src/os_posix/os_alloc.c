@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2015 MongoDB, Inc.
+ * Copyright (c) 2014-2016 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -22,16 +22,6 @@
 #define	posix_memalign 		tc_posix_memalign
 #define	free 			tc_free
 #endif
-
-/*
- * There's no malloc interface, WiredTiger never calls malloc.
- *
- * The problem is an application might allocate memory, write secret stuff in
- * it, free the memory, then WiredTiger allocates the memory and uses it for a
- * file page or log record, then writes it to disk, without having overwritten
- * it fully.  That results in the secret stuff being protected by WiredTiger's
- * permission mechanisms, potentially inappropriate for the secret stuff.
- */
 
 /*
  * __wt_calloc --
@@ -67,12 +57,46 @@ __wt_calloc(WT_SESSION_IMPL *session, size_t number, size_t size, void *retp)
 }
 
 /*
- * __wt_realloc --
- *	ANSI realloc function.
+ * __wt_malloc --
+ *	ANSI malloc function.
  */
 int
-__wt_realloc(WT_SESSION_IMPL *session,
-    size_t *bytes_allocated_ret, size_t bytes_to_allocate, void *retp)
+__wt_malloc(WT_SESSION_IMPL *session, size_t bytes_to_allocate, void *retp)
+{
+	void *p;
+
+	/*
+	 * Defensive: if our caller doesn't handle errors correctly, ensure a
+	 * free won't fail.
+	 */
+	*(void **)retp = NULL;
+
+	/*
+	 * !!!
+	 * This function MUST handle a NULL WT_SESSION_IMPL handle.
+	 */
+	WT_ASSERT(session, bytes_to_allocate != 0);
+
+	if (session != NULL)
+		WT_STAT_FAST_CONN_INCR(session, memory_allocation);
+
+	if ((p = malloc(bytes_to_allocate)) == NULL)
+		WT_RET_MSG(session, __wt_errno(),
+		    "memory allocation of %" WT_SIZET_FMT " bytes failed",
+		    bytes_to_allocate);
+
+	*(void **)retp = p;
+	return (0);
+}
+
+/*
+ * __realloc_func --
+ *	ANSI realloc function.
+ */
+static int
+__realloc_func(WT_SESSION_IMPL *session,
+    size_t *bytes_allocated_ret, size_t bytes_to_allocate, bool clear_memory,
+    void *retp)
 {
 	void *p;
 	size_t bytes_allocated;
@@ -107,15 +131,12 @@ __wt_realloc(WT_SESSION_IMPL *session,
 		    bytes_to_allocate);
 
 	/*
-	 * Clear the allocated memory -- an application might: allocate memory,
-	 * write secret stuff into it, free the memory, then we re-allocate the
-	 * memory and use it for a file page or log record, and then write it to
-	 * disk.  That would result in the secret stuff being protected by the
-	 * WiredTiger permission mechanisms, potentially inappropriate for the
-	 * secret stuff.
+	 * Clear the allocated memory, parts of WiredTiger depend on allocated
+	 * memory being cleared.
 	 */
-	memset((uint8_t *)
-	    p + bytes_allocated, 0, bytes_to_allocate - bytes_allocated);
+	if (clear_memory)
+		memset((uint8_t *)p + bytes_allocated,
+		    0, bytes_to_allocate - bytes_allocated);
 
 	/* Update caller's bytes allocated value. */
 	if (bytes_allocated_ret != NULL)
@@ -126,24 +147,42 @@ __wt_realloc(WT_SESSION_IMPL *session,
 }
 
 /*
- * __wt_realloc_aligned --
- *	ANSI realloc function that aligns to buffer boundaries, configured with
- *	the "buffer_alignment" key to wiredtiger_open.
+ * __wt_realloc --
+ *	WiredTiger's realloc API.
  */
 int
-__wt_realloc_aligned(WT_SESSION_IMPL *session,
+__wt_realloc(WT_SESSION_IMPL *session,
     size_t *bytes_allocated_ret, size_t bytes_to_allocate, void *retp)
 {
-#if defined(HAVE_POSIX_MEMALIGN)
-	WT_DECL_RET;
+	return (__realloc_func(
+	    session, bytes_allocated_ret, bytes_to_allocate, true, retp));
+}
 
+/*
+ * __wt_realloc_item --
+ *	Allocate or reallocate memory for a WT_ITEM, optionally aligning to
+ * buffer boundaries (configured with "buffer_alignment" to wiredtiger_open).
+ */
+int
+__wt_realloc_item(
+    WT_SESSION_IMPL *session, WT_ITEM *buf, size_t bytes_to_allocate)
+{
+	size_t *bytes_allocated_ret;
+	void *retp;
+
+	bytes_allocated_ret = &buf->memsize;
+	retp = &buf->mem;
+
+#if defined(HAVE_POSIX_MEMALIGN)
 	/*
 	 * !!!
 	 * This function MUST handle a NULL WT_SESSION_IMPL handle.
 	 */
-	if (session != NULL && S2C(session)->buffer_alignment > 0) {
-		void *p, *newp;
+	if (F_ISSET(buf, WT_ITEM_ALIGNED) &&
+	    session != NULL && S2C(session)->buffer_alignment > 0) {
+		WT_DECL_RET;
 		size_t bytes_allocated;
+		void *p, *newp;
 
 		/*
 		 * Sometimes we're allocating memory and we don't care about the
@@ -184,10 +223,6 @@ __wt_realloc_aligned(WT_SESSION_IMPL *session,
 		__wt_free(session, p);
 		p = newp;
 
-		/* Clear the allocated memory (see above). */
-		memset((uint8_t *)p + bytes_allocated, 0,
-		    bytes_to_allocate - bytes_allocated);
-
 		/* Update caller's bytes allocated value. */
 		if (bytes_allocated_ret != NULL)
 			*bytes_allocated_ret = bytes_to_allocate;
@@ -200,11 +235,11 @@ __wt_realloc_aligned(WT_SESSION_IMPL *session,
 	 * If there is no posix_memalign function, or no alignment configured,
 	 * fall back to realloc.
 	 *
-	 * Windows note: Visual C CRT memalign does not match Posix behavior
-	 * and would also double each allocation so it is bad for memory use
+	 * Windows note: Visual C CRT memalign does not match POSIX behavior
+	 * and would also double each allocation so it is bad for memory use.
 	 */
-	return (__wt_realloc(
-	    session, bytes_allocated_ret, bytes_to_allocate, retp));
+	return (__realloc_func(
+	    session, bytes_allocated_ret, bytes_to_allocate, false, retp));
 }
 
 /*
@@ -221,13 +256,14 @@ __wt_strndup(WT_SESSION_IMPL *session, const void *str, size_t len, void *retp)
 		return (0);
 	}
 
-	WT_RET(__wt_calloc(session, len + 1, 1, &p));
+	WT_RET(__wt_malloc(session, len + 1, &p));
 
 	/*
 	 * Don't change this to strncpy, we rely on this function to duplicate
 	 * "strings" that contain nul bytes.
 	 */
 	memcpy(p, str, len);
+	((uint8_t *)p)[len] = '\0';
 
 	*(void **)retp = p;
 	return (0);

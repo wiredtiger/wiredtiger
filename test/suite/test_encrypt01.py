@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2016 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -55,10 +55,8 @@ class test_encrypt01(wttest.WiredTigerTestCase):
         ('none', dict(log_compress=None, block_compress=None)),
         ('nop', dict(log_compress='nop', block_compress='nop')),
         ('lz4', dict(log_compress='lz4', block_compress='lz4')),
-        ('bzip2', dict(log_compress='bzip2', block_compress='bzip2')),
         ('snappy', dict(log_compress='snappy', block_compress='snappy')),
         ('zlib', dict(log_compress='zlib', block_compress='zlib')),
-        ('bzip2-none', dict(log_compress='bzip2', block_compress=None)),
         ('none-snappy', dict(log_compress=None, block_compress='snappy')),
         ('snappy-lz4', dict(log_compress='snappy', block_compress='lz4')),
     ]
@@ -79,7 +77,7 @@ class test_encrypt01(wttest.WiredTigerTestCase):
             ('encryptors', self.file_encrypt),
             ('compressors', self.block_compress),
             ('compressors', self.log_compress)])
-        conn = wiredtiger.wiredtiger_open(dir,
+        conn = self.wiredtiger_open(dir,
             'create,error_prefix="{0}: ",{1}{2}{3}'.format(
                 self.shortid(), encarg, comparg, extarg))
         self.pr(`conn`)
