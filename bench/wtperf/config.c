@@ -254,6 +254,12 @@ config_threads(CONFIG *cfg, const char *config, size_t len)
 					goto err;
 				continue;
 			}
+			if (STRING_MATCH("update_grow", k.str, k.len) ||
+			    STRING_MATCH("updates_grow", k.str, k.len)) {
+				if ((workp->update_grow = v.val) < 0)
+					goto err;
+				continue;
+			}
 			if (STRING_MATCH("update", k.str, k.len) ||
 			    STRING_MATCH("updates", k.str, k.len)) {
 				if ((workp->update = v.val) < 0)
@@ -293,7 +299,8 @@ config_threads(CONFIG *cfg, const char *config, size_t len)
 		if (ret != 0)
 			goto err;
 		if (workp->insert == 0 && workp->read == 0 &&
-		    workp->update == 0 && workp->truncate == 0)
+		    workp->update == 0 && workp->update_grow == 0 &&
+		    workp->truncate == 0)
 			goto err;
 		/* Why run with truncate if we don't want any truncation. */
 		if (workp->truncate != 0 &&
@@ -306,7 +313,8 @@ config_threads(CONFIG *cfg, const char *config, size_t len)
 		if (workp->truncate != 0 && workp->threads > 1)
 			goto err;
 		if (workp->truncate != 0 &&
-		    (workp->insert > 0 || workp->read > 0 || workp->update > 0))
+		    (workp->insert > 0 || workp->read > 0 ||
+		    workp->update > 0 || workp->update_grow > 0))
 			goto err;
 		cfg->workers_cnt += (u_int)workp->threads;
 	}
@@ -660,6 +668,12 @@ config_sanity(CONFIG *cfg)
 		    "Invalid pareto distribution - should be a percentage\n");
 		return (EINVAL);
 	}
+
+	if (cfg->value_sz > cfg->value_sz_max) {
+		fprintf(stderr,
+		    "Value size can't be greater than maximum value size\n");
+		return (EINVAL);
+	}
 	return (0);
 }
 
@@ -776,12 +790,15 @@ config_print(CONFIG *cfg)
 		printf("\t" "Workload configuration(s):\n");
 		for (i = 0, workp = cfg->workload;
 		    i < cfg->workload_cnt; ++i, ++workp)
-			printf("\t\t%" PRId64 " threads (inserts=%" PRId64
-			    ", reads=%" PRId64 ", updates=%" PRId64
+			printf("\t\t%" PRId64 " threads ("
+			    "inserts=%" PRId64
+			    ", reads=%" PRId64
+			    ", updates=%" PRId64
+			    ", grow updates=%" PRId64
 			    ", truncates=% " PRId64 ")\n",
 			    workp->threads,
 			    workp->insert, workp->read,
-			    workp->update, workp->truncate);
+			    workp->update, workp->update_grow, workp->truncate);
 	}
 
 	printf("\t" "Checkpoint threads, interval: %" PRIu32 ", %" PRIu32 "\n",

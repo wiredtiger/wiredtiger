@@ -238,12 +238,12 @@ the tables. Cursors are held open on all tables. Default 1, maximum
 number of tables to create, that won't be populated. Default 0.
 @par threads (string, default=)
 workload configuration: each 'count' entry is the total number of
-threads, and the 'insert', 'read' and 'update' entries are the ratios
-of insert, read and update operations done by each worker thread; If a
-throttle value is provided each thread will do a maximum of that
-number of operations per second; multiple workload configurations may
-be specified per threads configuration; for example, a more complex
-threads configuration might be
+threads, and the 'insert', 'read', 'update' and 'update_grow' entries
+are the ratios of insert, read and update operations done by each
+worker thread; If a throttle value is provided each thread will do a
+maximum of that number of operations per second; multiple workload
+configurations may be specified per threads configuration; for
+example, a more complex threads configuration might be
 'threads=((count=2,reads=1)(count=8,reads=1,inserts=2,updates=1))'
 which would create 2 threads doing nothing but reads and 8 threads
 each doing 50% inserts and 25% reads and updates.  Allowed
@@ -257,6 +257,11 @@ is nonzero
 table name
 @par value_sz (unsigned int, default=100)
 value size
+@par value_sz_grow_delta (unsigned int, default=1)
+When doing growing updates, how much to increase records by each time
+they are visited
+@par value_sz_max (unsigned int, default=1000)
+maximum value size to grow to if doing expanding updates
 @par verbose (unsigned int, default=1)
 verbosity
 @par warmup (unsigned int, default=0)
