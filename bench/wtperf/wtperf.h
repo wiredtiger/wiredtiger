@@ -88,6 +88,7 @@ typedef struct {
 	int64_t insert;			/* Insert ratio */
 	int64_t read;			/* Read ratio */
 	int64_t update;			/* Update ratio */
+	int64_t update_grow;		/* growing update ratio */
 	uint64_t throttle;              /* Maximum operations/second */
 		/* Number of operations per transaction. Zero for autocommit */
 	int64_t ops_per_txn;
@@ -100,6 +101,7 @@ typedef struct {
 #define	WORKER_READ		3	/* Read */
 #define	WORKER_TRUNCATE		4	/* Truncate */
 #define	WORKER_UPDATE		5	/* Update */
+#define	WORKER_UPDATE_GROW	6	/* Growing update */
 	uint8_t ops[100];		/* Operation schedule */
 } WORKLOAD;
 
@@ -176,6 +178,7 @@ struct __config {			/* Configuration structure */
 	uint64_t read_ops;		/* read operations */
 	uint64_t truncate_ops;		/* truncate operations */
 	uint64_t update_ops;		/* update operations */
+	uint64_t update_grow_ops;	/* growing update operations */
 
 	uint64_t insert_key;		/* insert key */
 
@@ -278,6 +281,7 @@ struct __config_thread {		/* Per-thread structure */
 	TRACK insert;			/* Insert operations */
 	TRACK read;			/* Read operations */
 	TRACK update;			/* Update operations */
+	TRACK update_grow;		/* Growing update operations */
 	TRACK truncate;			/* Truncate operations */
 	TRACK truncate_sleep;		/* Truncate sleep operations */
 };
@@ -296,6 +300,7 @@ int	 config_sanity(CONFIG *);
 void	 latency_insert(CONFIG *, uint32_t *, uint32_t *, uint32_t *);
 void	 latency_read(CONFIG *, uint32_t *, uint32_t *, uint32_t *);
 void	 latency_update(CONFIG *, uint32_t *, uint32_t *, uint32_t *);
+void	 latency_update_grow(CONFIG *, uint32_t *, uint32_t *, uint32_t *);
 void	 latency_print(CONFIG *);
 int	 run_truncate(
     CONFIG *, CONFIG_THREAD *, WT_CURSOR *, WT_SESSION *, int *);
@@ -310,6 +315,7 @@ uint64_t sum_pop_ops(CONFIG *);
 uint64_t sum_read_ops(CONFIG *);
 uint64_t sum_truncate_ops(CONFIG *);
 uint64_t sum_update_ops(CONFIG *);
+uint64_t sum_update_grow_ops(CONFIG *);
 void	 usage(void);
 int	 worker_throttle(CONFIG_THREAD*);
 

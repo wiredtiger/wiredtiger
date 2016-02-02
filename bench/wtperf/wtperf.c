@@ -52,6 +52,7 @@ static const CONFIG default_cfg = {
 	0,				/* read operations */
 	0,				/* truncate operations */
 	0,				/* update operations */
+	0,				/* growing update operations */
 	0,				/* insert key */
 	0,				/* checkpoint in progress */
 	0,				/* thread error */
@@ -86,6 +87,7 @@ static int	 start_threads(CONFIG *,
 		    WORKLOAD *, CONFIG_THREAD *, u_int, void *(*)(void *));
 static int	 stop_threads(CONFIG *, u_int, CONFIG_THREAD *);
 static void	*thread_run_wtperf(void *);
+static void	 update_value_grow(CONFIG_THREAD *);
 static void	*worker(void *);
 
 static uint64_t	 wtperf_rand(CONFIG_THREAD *);
@@ -104,25 +106,72 @@ get_next_incr(CONFIG *cfg)
 	return (__wt_atomic_add64(&cfg->insert_key, 1));
 }
 
+/*
+ * Each time this function is called we will overwrite the first and one
+ * other element in the value buffer.
+ */
 static void
 randomize_value(CONFIG_THREAD *thread, char *value_buf)
 {
 	uint8_t *vb;
-	uint32_t i;
+	uint32_t i, max_range, rand_val;
 
 	/*
-	 * Each time we're called overwrite value_buf[0] and one other
-	 * randomly chosen byte (other than the trailing NUL).
-	 * Make sure we don't write a NUL: keep the value the same length.
+	 * Limit how much of the buffer we validate for length, this means
+	 * that only threads that do growing updates will ever make changes to
+	 * values outside of the initial value size, but that's a fair trade
+	 * off for avoiding figuring out how long the value is more accurately
+	 * in this performance sensitive function.
 	 */
-	i = __wt_random(&thread->rnd) % (thread->cfg->value_sz - 1);
+	if (thread->workload->update_grow == 0)
+		max_range = thread->cfg->value_sz;
+	else
+		max_range = thread->cfg->value_sz_max;
+
+	/*
+	 * Generate a single random value and re-use it. We generally only
+	 * have small ranges in this function, so avoiding a bunch of calls
+	 * is worthwhile.
+	 */
+	rand_val = __wt_random(&thread->rnd);
+	i = rand_val % (max_range - 1);
+
+	/*
+	 * Ensure we don't write past the end of a value when configured for
+	 * randomly sized values.
+	 */
 	while (value_buf[i] == '\0' && i > 0)
 		--i;
-	if (i > 0) {
-		vb = (uint8_t *)value_buf;
-		vb[0] = (__wt_random(&thread->rnd) % 255) + 1;
-		vb[i] = (__wt_random(&thread->rnd) % 255) + 1;
-	}
+
+	vb = (uint8_t *)value_buf;
+	vb[0] = ((rand_val >> 8) % 255) + 1;
+	/*
+	 * If i happened to be 0, we'll be re-writing the same value
+	 * twice, but that doesn't matter.
+	 */
+	vb[i] = ((rand_val >> 16) % 255) + 1;
+}
+
+/*
+ * Figure out and extend the size of the value string, used for growing
+ * updates. We know that the value to be updated is in the threads value
+ * scratch buffer.
+ */
+static inline void
+update_value_grow(CONFIG_THREAD *thread)
+{
+	char * value;
+	size_t len, new_len;
+
+	value = thread->value_buf;
+	len = new_len = strlen(value);
+
+	/* Extend the value by the configured amount. */
+	for (new_len = len;
+	    new_len < thread->cfg->value_sz_max &&
+	    new_len - len < thread->cfg->value_sz_grow_delta;
+	    new_len++)
+		value[new_len] = 'a';
 }
 
 static int
@@ -257,6 +306,8 @@ op_name(uint8_t *op)
 		return ("truncate");
 	case WORKER_UPDATE:
 		return ("update");
+	case WORKER_UPDATE_GROW:
+		return ("update_grow");
 	default:
 		return ("unknown");
 	}
@@ -300,6 +351,7 @@ worker_async(void *arg)
 			break;
 		case WORKER_READ:
 		case WORKER_UPDATE:
+		case WORKER_UPDATE_GROW:
 			next_val = wtperf_rand(thread);
 
 			/*
@@ -344,6 +396,7 @@ worker_async(void *arg)
 				break;
 			goto op_err;
 		case WORKER_UPDATE:
+		case WORKER_UPDATE_GROW:
 			if (cfg->random_value)
 				randomize_value(thread, value_buf);
 			asyncop->set_value(asyncop, value_buf);
@@ -514,6 +567,8 @@ worker(void *arg)
 		case WORKER_READ:
 			trk = &thread->read;
 			/* FALLTHROUGH */
+		case WORKER_UPDATE_GROW:
+			trk = &thread->update_grow;
 		case WORKER_UPDATE:
 			if (*op == WORKER_UPDATE)
 				trk = &thread->update;
@@ -612,6 +667,7 @@ worker(void *arg)
 			}
 			goto op_err;
 		case WORKER_UPDATE:
+		case WORKER_UPDATE_GROW:
 			if ((ret = cursor->search(cursor)) == 0) {
 				if ((ret = cursor->get_value(
 				    cursor, &value)) != 0) {
@@ -623,8 +679,10 @@ worker(void *arg)
 				 * Copy as much of the previous value as is
 				 * safe, and be sure to NUL-terminate.
 				 */
-				strncpy(value_buf, value, cfg->value_sz);
-				value_buf[cfg->value_sz - 1] = '\0';
+				strncpy(value_buf,
+				    value, cfg->value_sz_max - 1);
+				if (*op == WORKER_UPDATE_GROW)
+					update_value_grow(thread);
 				if (value_buf[0] == 'a')
 					value_buf[0] = 'b';
 				else
@@ -800,8 +858,8 @@ run_mix_schedule(CONFIG *cfg, WORKLOAD *workp)
 	int64_t pct;
 
 	/* Confirm reads, inserts, truncates and updates cannot all be zero. */
-	if (workp->insert == 0 && workp->read == 0 &&
-	    workp->truncate == 0 && workp->update == 0) {
+	if (workp->insert == 0 && workp->read == 0 && workp->truncate == 0 &&
+	    workp->update == 0 && workp->update_grow == 0) {
 		lprintf(cfg, EINVAL, 0, "no operations scheduled");
 		return (EINVAL);
 	}
@@ -811,8 +869,8 @@ run_mix_schedule(CONFIG *cfg, WORKLOAD *workp)
 	 * a mixed workload.
 	 */
 	if (workp->truncate != 0) {
-		if (workp->insert != 0 ||
-		    workp->read != 0 || workp->update != 0) {
+		if (workp->insert != 0 || workp->read != 0 ||
+		    workp->update != 0 || workp->update_grow != 0) {
 			lprintf(cfg, EINVAL, 0,
 			    "Can't configure truncate in a mixed workload");
 			return (EINVAL);
@@ -827,14 +885,21 @@ run_mix_schedule(CONFIG *cfg, WORKLOAD *workp)
 	 * job-mix is read, the subsequent code works fine if only reads are
 	 * specified).
 	 */
-	if (workp->insert != 0 && workp->read == 0 && workp->update == 0) {
+	if (workp->insert != 0 && workp->read == 0 &&
+	    workp->update == 0 && workp->update_grow == 0) {
 		memset(workp->ops,
 		    cfg->insert_rmw ? WORKER_INSERT_RMW : WORKER_INSERT,
 		    sizeof(workp->ops));
 		return (0);
 	}
-	if (workp->insert == 0 && workp->read == 0 && workp->update != 0) {
+	if (workp->insert == 0 && workp->read == 0 &&
+	    workp->update != 0 && workp->update_grow == 0) {
 		memset(workp->ops, WORKER_UPDATE, sizeof(workp->ops));
+		return (0);
+	}
+	if (workp->insert == 0 && workp->read == 0 &&
+	    workp->update == 0 && workp->update_grow != 0) {
+		memset(workp->ops, WORKER_UPDATE_GROW, sizeof(workp->ops));
 		return (0);
 	}
 
@@ -858,14 +923,18 @@ run_mix_schedule(CONFIG *cfg, WORKLOAD *workp)
 	memset(workp->ops, WORKER_READ, sizeof(workp->ops));
 
 	pct = (workp->insert * 100) /
-	    (workp->insert + workp->read + workp->update);
+	    (workp->insert + workp->read + workp->update + workp->update_grow);
 	if (pct != 0)
 		run_mix_schedule_op(workp,
 		    cfg->insert_rmw ? WORKER_INSERT_RMW : WORKER_INSERT, pct);
 	pct = (workp->update * 100) /
-	    (workp->insert + workp->read + workp->update);
+	    (workp->insert + workp->read + workp->update + workp->update_grow);
 	if (pct != 0)
 		run_mix_schedule_op(workp, WORKER_UPDATE, pct);
+	pct = (workp->update_grow * 100) /
+	    (workp->insert + workp->read + workp->update + workp->update_grow);
+	if (pct != 0)
+		run_mix_schedule_op(workp, WORKER_UPDATE_GROW, pct);
 	return (0);
 }
 
@@ -1131,12 +1200,13 @@ monitor(void *arg)
 	CONFIG *cfg;
 	FILE *fp;
 	size_t len;
-	uint64_t min_thr, reads, inserts, updates;
-	uint64_t cur_reads, cur_inserts, cur_updates;
-	uint64_t last_reads, last_inserts, last_updates;
+	uint64_t min_thr, reads, inserts, updates, updates_grow;
+	uint64_t cur_reads, cur_inserts, cur_updates, cur_updates_grow;
+	uint64_t last_reads, last_inserts, last_updates, last_updates_grow;
 	uint32_t read_avg, read_min, read_max;
 	uint32_t insert_avg, insert_min, insert_max;
 	uint32_t update_avg, update_min, update_max;
+	uint32_t update_grow_avg, update_grow_min, update_grow_max;
 	uint32_t latency_max, level;
 	u_int i;
 	int msg_err, ret;
@@ -1167,6 +1237,7 @@ monitor(void *arg)
 	    "read ops per second,"
 	    "insert ops per second,"
 	    "update ops per second,"
+	    "update RMW ops per second,"
 	    "checkpoints,"
 	    "read average latency(uS),"
 	    "read minimum latency(uS),"
@@ -1177,8 +1248,11 @@ monitor(void *arg)
 	    "update average latency(uS),"
 	    "update min latency(uS),"
 	    "update maximum latency(uS)"
+	    "update RMW average latency(uS),"
+	    "update RMW min latency(uS),"
+	    "update RMW maximum latency(uS)"
 	    "\n");
-	last_reads = last_inserts = last_updates = 0;
+	last_reads = last_inserts = last_updates = last_updates_grow = 0;
 	while (!cfg->stop) {
 		for (i = 0; i < cfg->sample_interval; i++) {
 			sleep(1);
@@ -1201,12 +1275,17 @@ monitor(void *arg)
 		reads = sum_read_ops(cfg);
 		inserts = sum_insert_ops(cfg);
 		updates = sum_update_ops(cfg);
+		updates_grow = sum_update_grow_ops(cfg);
 		latency_read(cfg, &read_avg, &read_min, &read_max);
 		latency_insert(cfg, &insert_avg, &insert_min, &insert_max);
 		latency_update(cfg, &update_avg, &update_min, &update_max);
+		latency_update_grow(cfg,
+		    &update_grow_avg, &update_grow_min, &update_grow_max);
 
 		cur_reads = (reads - last_reads) / cfg->sample_interval;
 		cur_updates = (updates - last_updates) / cfg->sample_interval;
+		cur_updates_grow =
+		    (updates_grow - last_updates_grow) / cfg->sample_interval;
 		/*
 		 * For now the only item we need to worry about changing is
 		 * inserts when we transition from the populate phase to
@@ -1220,22 +1299,25 @@ monitor(void *arg)
 
 		(void)fprintf(fp,
 		    "%s,%" PRIu32
-		    ",%" PRIu64 ",%" PRIu64 ",%" PRIu64
+		    ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64
 		    ",%c"
+		    ",%" PRIu32 ",%" PRIu32 ",%" PRIu32
 		    ",%" PRIu32 ",%" PRIu32 ",%" PRIu32
 		    ",%" PRIu32 ",%" PRIu32 ",%" PRIu32
 		    ",%" PRIu32 ",%" PRIu32 ",%" PRIu32
 		    "\n",
 		    buf, cfg->totalsec,
-		    cur_reads, cur_inserts, cur_updates,
+		    cur_reads, cur_inserts, cur_updates, cur_updates_grow,
 		    cfg->ckpt ? 'Y' : 'N',
 		    read_avg, read_min, read_max,
 		    insert_avg, insert_min, insert_max,
-		    update_avg, update_min, update_max);
+		    update_avg, update_min, update_max,
+		    update_grow_avg, update_grow_min, update_grow_max);
 
 		if (latency_max != 0 &&
 		    (read_max > latency_max || insert_max > latency_max ||
-		     update_max > latency_max)) {
+		    update_max > latency_max ||
+		    update_grow_max > latency_max)) {
 			if (cfg->max_latency_fatal) {
 				level = 1;
 				msg_err = WT_PANIC;
@@ -1248,13 +1330,15 @@ monitor(void *arg)
 			lprintf(cfg, msg_err, level,
 			    "%s: max latency exceeded: threshold %" PRIu32
 			    " read max %" PRIu32 " insert max %" PRIu32
-			    " update max %" PRIu32, str, latency_max,
-			    read_max, insert_max, update_max);
+			    " update max %" PRIu32 " update RMW max %" PRIu32,
+			    str, latency_max,
+			    read_max, insert_max, update_max, update_grow_max);
 		}
 		if (min_thr != 0 &&
 		    ((cur_reads != 0 && cur_reads < min_thr) ||
 		    (cur_inserts != 0 && cur_inserts < min_thr) ||
-		    (cur_updates != 0 && cur_updates < min_thr))) {
+		    (cur_updates != 0 && cur_updates < min_thr) ||
+		    (cur_updates_grow != 0 && cur_updates_grow < min_thr))) {
 			if (cfg->min_throughput_fatal) {
 				level = 1;
 				msg_err = WT_PANIC;
@@ -1267,12 +1351,14 @@ monitor(void *arg)
 			lprintf(cfg, msg_err, level,
 			    "%s: minimum throughput not met: threshold %" PRIu64
 			    " reads %" PRIu64 " inserts %" PRIu64
-			    " updates %" PRIu64, str, min_thr, cur_reads,
-			    cur_inserts, cur_updates);
+			    " updates %" PRIu64 " updates RMW %" PRIu64,
+			    str, min_thr, cur_reads,
+			    cur_inserts, cur_updates, cur_updates_grow);
 		}
 		last_reads = reads;
 		last_inserts = inserts;
 		last_updates = updates;
+		last_updates_grow = updates_grow;
 	}
 
 	/* Notify our caller we failed and shut the system down. */
@@ -1560,7 +1646,7 @@ execute_workload(CONFIG *cfg)
 	WORKLOAD *workp;
 	pthread_t idle_table_cycle_thread;
 	uint64_t last_ckpts, last_inserts, last_reads, last_truncates;
-	uint64_t last_updates;
+	uint64_t last_updates, last_updates_grow;
 	uint32_t interval, run_ops, run_time;
 	u_int i;
 	int ret, t_ret;
@@ -1568,10 +1654,10 @@ execute_workload(CONFIG *cfg)
 
 	cfg->insert_key = 0;
 	cfg->insert_ops = cfg->read_ops = cfg->truncate_ops = 0;
-	cfg->update_ops = 0;
+	cfg->update_ops = cfg->update_grow_ops = 0;
 
 	last_ckpts = last_inserts = last_reads = last_truncates = 0;
-	last_updates = 0;
+	last_updates = last_updates_grow = 0;
 	ret = 0;
 
 	/* Start cycling idle tables. */
@@ -1597,10 +1683,11 @@ execute_workload(CONFIG *cfg)
 		lprintf(cfg, 0, 1,
 		    "Starting workload #%d: %" PRId64 " threads, inserts=%"
 		    PRId64 ", reads=%" PRId64 ", updates=%" PRId64
-		    ", truncate=%" PRId64 ", throttle=%" PRId64,
+		    ", update_grow=%" PRId64 ", truncate=%" PRId64
+		    ", throttle=%" PRId64,
 		    i + 1, workp->threads, workp->insert,
-		    workp->read, workp->update, workp->truncate,
-		    workp->throttle);
+		    workp->read, workp->update, workp->update_grow,
+		    workp->truncate, workp->throttle);
 
 		/* Figure out the workload's schedule. */
 		if ((ret = run_mix_schedule(cfg, workp)) != 0)
@@ -1640,11 +1727,12 @@ execute_workload(CONFIG *cfg)
 		cfg->insert_ops = sum_insert_ops(cfg);
 		cfg->read_ops = sum_read_ops(cfg);
 		cfg->update_ops = sum_update_ops(cfg);
+		cfg->update_grow_ops = sum_update_grow_ops(cfg);
 		cfg->truncate_ops = sum_truncate_ops(cfg);
 
 		/* If we're checking total operations, see if we're done. */
-		if (run_ops != 0 && run_ops <=
-		    cfg->insert_ops + cfg->read_ops + cfg->update_ops)
+		if (run_ops != 0 && run_ops <= cfg->insert_ops +
+		    cfg->read_ops + cfg->update_ops + cfg->update_grow_ops)
 			break;
 
 		/* If writing out throughput information, see if it's time. */
@@ -1655,17 +1743,20 @@ execute_workload(CONFIG *cfg)
 
 		lprintf(cfg, 0, 1,
 		    "%" PRIu64 " reads, %" PRIu64 " inserts, %" PRIu64
-		    " updates, %" PRIu64 " truncates, %" PRIu64
-		    " checkpoints in %" PRIu32 " secs (%" PRIu32 " total secs)",
+		    " updates, %" PRIu64 " updates_grow, %" PRIu64
+		    " truncates, %" PRIu64 " checkpoints in %" PRIu32
+		    " secs (%" PRIu32 " total secs)",
 		    cfg->read_ops - last_reads,
 		    cfg->insert_ops - last_inserts,
 		    cfg->update_ops - last_updates,
+		    cfg->update_grow_ops - last_updates_grow,
 		    cfg->truncate_ops - last_truncates,
 		    cfg->ckpt_ops - last_ckpts,
 		    cfg->report_interval, cfg->totalsec);
 		last_reads = cfg->read_ops;
 		last_inserts = cfg->insert_ops;
 		last_updates = cfg->update_ops;
+		last_updates_grow = cfg->update_grow_ops;
 		last_truncates = cfg->truncate_ops;
 		last_ckpts = cfg->ckpt_ops;
 	}
@@ -2015,8 +2106,10 @@ start_run(CONFIG *cfg)
 		cfg->insert_ops = sum_insert_ops(cfg);
 		cfg->truncate_ops = sum_truncate_ops(cfg);
 		cfg->update_ops = sum_update_ops(cfg);
+		cfg->update_grow_ops = sum_update_grow_ops(cfg);
 		cfg->ckpt_ops = sum_ckpt_ops(cfg);
-		total_ops = cfg->read_ops + cfg->insert_ops + cfg->update_ops;
+		total_ops = cfg->read_ops + cfg->insert_ops +
+		    cfg->update_ops + cfg->update_grow_ops;
 
 		lprintf(cfg, 0, 1,
 		    "Executed %" PRIu64 " read operations (%" PRIu64
@@ -2038,6 +2131,12 @@ start_run(CONFIG *cfg)
 		    "%%) %" PRIu64 " ops/sec",
 		    cfg->update_ops, (cfg->update_ops * 100) / total_ops,
 		    cfg->update_ops / cfg->run_time);
+		lprintf(cfg, 0, 1,
+		    "Executed %" PRIu64 " update RMW operations (%" PRIu64
+		    "%%) %" PRIu64 " ops/sec",
+		    cfg->update_grow_ops,
+		    (cfg->update_grow_ops * 100) / total_ops,
+		    cfg->update_grow_ops / cfg->run_time);
 		lprintf(cfg, 0, 1,
 		    "Executed %" PRIu64 " checkpoint operations",
 		    cfg->ckpt_ops);
@@ -2357,7 +2456,8 @@ start_threads(CONFIG *cfg,
 		 * strings: trailing NUL is included in the size.
 		 */
 		thread->key_buf = dcalloc(cfg->key_sz, 1);
-		thread->value_buf = dcalloc(cfg->value_sz, 1);
+		thread->value_buf = dcalloc(cfg->value_sz_max, 1);
+
 		/*
 		 * Initialize and then toss in a bit of random values if needed.
 		 */
@@ -2369,11 +2469,16 @@ start_threads(CONFIG *cfg,
 		 * Every thread gets tracking information and is initialized
 		 * for latency measurements, for the same reason.
 		 */
-		thread->ckpt.min_latency =
-		thread->insert.min_latency = thread->read.min_latency =
+		thread->ckpt.min_latency = UINT32_MAX;
+		thread->insert.min_latency = UINT32_MAX;
+		thread->read.min_latency = UINT32_MAX;
 		thread->update.min_latency = UINT32_MAX;
-		thread->ckpt.max_latency = thread->insert.max_latency =
-		thread->read.max_latency = thread->update.max_latency = 0;
+		thread->update_grow.min_latency = UINT32_MAX;
+		thread->ckpt.max_latency = 0;
+		thread->insert.max_latency = 0;
+		thread->read.max_latency = 0;
+		thread->update.max_latency = 0;
+		thread->update_grow.max_latency = 0;
 	}
 
 	/* Start the threads. */

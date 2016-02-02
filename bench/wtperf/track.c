@@ -107,6 +107,11 @@ sum_update_ops(CONFIG *cfg)
 {
 	return (sum_ops(cfg, offsetof(CONFIG_THREAD, update)));
 }
+uint64_t
+sum_update_grow_ops(CONFIG *cfg)
+{
+	return (sum_ops(cfg, offsetof(CONFIG_THREAD, update_grow)));
+}
 
 /*
  * latency_op --
@@ -223,6 +228,28 @@ latency_update(CONFIG *cfg, uint32_t *avgp, uint32_t *minp, uint32_t *maxp)
 	}
 }
 
+void
+latency_update_grow(CONFIG *cfg, uint32_t *avgp, uint32_t *minp, uint32_t *maxp)
+{
+	static uint32_t last_avg = 0, last_max = 0, last_min = 0;
+
+	latency_op(cfg, offsetof(CONFIG_THREAD, update_grow), avgp, minp, maxp);
+
+	/*
+	 * If nothing happened, graph the average, minimum and maximum as they
+	 * were the last time, it keeps the graphs from having discontinuities.
+	 */
+	if (*minp == 0) {
+		*avgp = last_avg;
+		*minp = last_min;
+		*maxp = last_max;
+	} else {
+		last_avg = *avgp;
+		last_min = *minp;
+		last_max = *maxp;
+	}
+}
+
 /*
  * sum_latency --
  *	Sum latency for a set of threads.
@@ -269,6 +296,11 @@ static void
 sum_update_latency(CONFIG *cfg, TRACK *total)
 {
 	sum_latency(cfg, offsetof(CONFIG_THREAD, update), total);
+}
+static void
+sum_update_grow_latency(CONFIG *cfg, TRACK *total)
+{
+	sum_latency(cfg, offsetof(CONFIG_THREAD, update_grow), total);
 }
 
 static void
@@ -327,4 +359,6 @@ latency_print(CONFIG *cfg)
 	latency_print_single(cfg, &total, "read");
 	sum_update_latency(cfg, &total);
 	latency_print_single(cfg, &total, "update");
+	sum_update_grow_latency(cfg, &total);
+	latency_print_single(cfg, &total, "update_grow");
 }

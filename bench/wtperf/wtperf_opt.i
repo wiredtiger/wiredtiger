@@ -171,12 +171,12 @@ DEF_OPT_AS_UINT32(table_count, 1,
 DEF_OPT_AS_UINT32(table_count_idle, 0,
     "number of tables to create, that won't be populated. Default 0.")
 DEF_OPT_AS_STRING(threads, "", "workload configuration: each 'count' "
-    "entry is the total number of threads, and the 'insert', 'read' and "
-    "'update' entries are the ratios of insert, read and update operations "
-    "done by each worker thread; If a throttle value is provided each thread "
-    "will do a maximum of that number of operations per second; multiple "
-    "workload configurations may be specified per threads configuration; "
-    "for example, a more complex threads configuration might be "
+    "entry is the total number of threads, and the 'insert', 'read', "
+    "'update' and 'update_grow' entries are the ratios of insert, read and "
+    "update operations done by each worker thread; If a throttle value is "
+    "provided each thread will do a maximum of that number of operations per "
+    "second; multiple workload configurations may be specified per threads "
+    "configuration; for example, a more complex threads configuration might be "
     "'threads=((count=2,reads=1)(count=8,reads=1,inserts=2,updates=1))' "
     "which would create 2 threads doing nothing but reads and 8 threads "
     "each doing 50% inserts and 25% reads and updates.  Allowed configuration "
@@ -188,6 +188,11 @@ DEF_OPT_AS_CONFIG_STRING(transaction_config, "",
     "is nonzero")
 DEF_OPT_AS_STRING(table_name, "test", "table name")
 DEF_OPT_AS_UINT32(value_sz, 100, "value size")
+DEF_OPT_AS_UINT32(value_sz_grow_delta, 1,
+    "When doing growing updates, how much to increase records by each time "
+    "they are visited")
+DEF_OPT_AS_UINT32(value_sz_max, 1000,
+    "maximum value size to grow to if doing expanding updates")
 DEF_OPT_AS_UINT32(verbose, 1, "verbosity")
 DEF_OPT_AS_UINT32(warmup, 0,
     "How long to run the workload phase before starting measurements")
