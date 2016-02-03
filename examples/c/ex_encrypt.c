@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2015 MongoDB, Inc.
+ * Public Domain 2014-2016 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -389,16 +389,15 @@ simple_walk_log(WT_SESSION *session)
 {
 	WT_CURSOR *cursor;
 	WT_ITEM logrec_key, logrec_value;
-	WT_LSN lsn;
 	uint64_t txnid;
-	uint32_t fileid, opcount, optype, rectype;
+	uint32_t fileid, log_file, log_offset, opcount, optype, rectype;
 	int found, ret;
 
 	ret = session->open_cursor(session, "log:", NULL, NULL, &cursor);
 
 	found = 0;
 	while ((ret = cursor->next(cursor)) == 0) {
-		ret = cursor->get_key(cursor, &lsn.file, &lsn.offset, &opcount);
+		ret = cursor->get_key(cursor, &log_file, &log_offset, &opcount);
 		ret = cursor->get_value(cursor, &txnid,
 		    &rectype, &optype, &fileid, &logrec_key, &logrec_value);
 

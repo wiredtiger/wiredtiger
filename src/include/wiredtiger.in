@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2015 MongoDB, Inc.
+ * Copyright (c) 2014-2016 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -72,7 +72,6 @@ struct __wt_event_handler;  typedef struct __wt_event_handler WT_EVENT_HANDLER;
 struct __wt_extension_api;  typedef struct __wt_extension_api WT_EXTENSION_API;
 struct __wt_extractor;	    typedef struct __wt_extractor WT_EXTRACTOR;
 struct __wt_item;	    typedef struct __wt_item WT_ITEM;
-struct __wt_lsn;	    typedef struct __wt_lsn WT_LSN;
 struct __wt_session;	    typedef struct __wt_session WT_SESSION;
 
 #if defined(SWIGJAVA)
@@ -124,22 +123,6 @@ struct __wt_item {
 	/*! Managed memory size (internal use). */
 	size_t memsize;
 #endif
-};
-
-/*
- * We rely on this structure being aligned at 64 bits by the compiler,
- * if we were paranoid we could add an unused field to ensure the padding
- * is correct.
- *
- * NOTE:  If you change the contents of this structure you must also update
- * the macros in log.h.
- */
-/*!
- * A log sequence number, representing a position in the transaction log.
- */
-struct __wt_lsn {
-	uint32_t        file;           /*!< Log file number */
-	wt_off_t        offset;         /*!< Log file offset */
 };
 
 /*!
@@ -566,20 +549,21 @@ struct __wt_cursor {
 	 */
 	const char *internal_uri;
 
-#define	WT_CURSTD_APPEND	0x0001
-#define	WT_CURSTD_BULK		0x0002
-#define	WT_CURSTD_DUMP_HEX	0x0004
-#define	WT_CURSTD_DUMP_JSON	0x0008
-#define	WT_CURSTD_DUMP_PRINT	0x0010
-#define	WT_CURSTD_KEY_EXT	0x0020	/* Key points out of the tree. */
-#define	WT_CURSTD_KEY_INT	0x0040	/* Key points into the tree. */
+#define	WT_CURSTD_APPEND	0x00001
+#define	WT_CURSTD_BULK		0x00002
+#define	WT_CURSTD_DUMP_HEX	0x00004
+#define	WT_CURSTD_DUMP_JSON	0x00008
+#define	WT_CURSTD_DUMP_PRINT	0x00010
+#define	WT_CURSTD_JOINED	0x00020
+#define	WT_CURSTD_KEY_EXT	0x00040	/* Key points out of the tree. */
+#define	WT_CURSTD_KEY_INT	0x00080	/* Key points into the tree. */
 #define	WT_CURSTD_KEY_SET	(WT_CURSTD_KEY_EXT | WT_CURSTD_KEY_INT)
-#define	WT_CURSTD_JOINED	0x0080
-#define	WT_CURSTD_OPEN		0x0100
-#define	WT_CURSTD_OVERWRITE	0x0200
-#define	WT_CURSTD_RAW		0x0400
-#define	WT_CURSTD_VALUE_EXT	0x0800	/* Value points out of the tree. */
-#define	WT_CURSTD_VALUE_INT	0x1000	/* Value points into the tree. */
+#define	WT_CURSTD_META_INUSE	0x00100
+#define	WT_CURSTD_OPEN		0x00200
+#define	WT_CURSTD_OVERWRITE	0x00400
+#define	WT_CURSTD_RAW		0x00800
+#define	WT_CURSTD_VALUE_EXT	0x01000	/* Value points out of the tree. */
+#define	WT_CURSTD_VALUE_INT	0x02000	/* Value points into the tree. */
 #define	WT_CURSTD_VALUE_SET	(WT_CURSTD_VALUE_EXT | WT_CURSTD_VALUE_INT)
 	uint32_t flags;
 #endif
@@ -896,18 +880,17 @@ struct __wt_session {
 	 * boolean flag; default \c false.}
 	 * @config{bulk, configure the cursor for bulk-loading\, a fast\,
 	 * initial load path (see @ref tune_bulk_load for more information).
-	 * Bulk-load may only be used for newly created objects and cursors
-	 * configured for bulk-load only support the WT_CURSOR::insert and
-	 * WT_CURSOR::close methods.  When bulk-loading row-store objects\, keys
-	 * must be loaded in sorted order.  The value is usually a true/false
-	 * flag; when bulk-loading fixed-length column store objects\, the
-	 * special value \c bitmap allows chunks of a memory resident bitmap to
-	 * be loaded directly into a file by passing a \c WT_ITEM to
-	 * WT_CURSOR::set_value where the \c size field indicates the number of
-	 * records in the bitmap (as specified by the object's \c value_format
-	 * configuration). Bulk-loaded bitmap values must end on a byte boundary
-	 * relative to the bit count (except for the last set of values
-	 * loaded)., a string; default \c false.}
+	 * Bulk-load may only be used for newly created objects and applications
+	 * should use the WT_CURSOR::insert method to insert rows.  When
+	 * bulk-loading\, rows must be loaded in sorted order.  The value is
+	 * usually a true/false flag; when bulk-loading fixed-length column
+	 * store objects\, the special value \c bitmap allows chunks of a memory
+	 * resident bitmap to be loaded directly into a file by passing a \c
+	 * WT_ITEM to WT_CURSOR::set_value where the \c size field indicates the
+	 * number of records in the bitmap (as specified by the object's \c
+	 * value_format configuration). Bulk-loaded bitmap values must end on a
+	 * byte boundary relative to the bit count (except for the last set of
+	 * values loaded)., a string; default \c false.}
 	 * @config{checkpoint, the name of a checkpoint to open (the reserved
 	 * name "WiredTigerCheckpoint" opens the most recent internal checkpoint
 	 * taken for the object). The cursor does not support data
@@ -921,10 +904,19 @@ struct __wt_session {
 	 * string\, chosen from the following options: \c "hex"\, \c "json"\, \c
 	 * "print"; default empty.}
 	 * @config{next_random, configure the cursor to return a pseudo-random
-	 * record from the object; valid only for row-store cursors.  Cursors
-	 * configured with \c next_random=true only support the WT_CURSOR::next
-	 * and WT_CURSOR::close methods.  See @ref cursor_random for details., a
-	 * boolean flag; default \c false.}
+	 * record from the object when the WT_CURSOR::next method is called;
+	 * valid only for row-store cursors.  See @ref cursor_random for
+	 * details., a boolean flag; default \c false.}
+	 * @config{next_random_sample_size, cursors configured by \c next_random
+	 * to return pseudo-random records from the object randomly select from
+	 * the entire object\, by default.  Setting \c next_random_sample_size
+	 * to a non-zero value sets the number of samples the application
+	 * expects to take using the \c next_random cursor.  A cursor configured
+	 * with both \c next_random and \c next_random_sample_size attempts to
+	 * divide the object into \c next_random_sample_size equal-sized
+	 * pieces\, and each retrieval returns a record from one of those
+	 * pieces.  See @ref cursor_random for details., a string; default \c
+	 * 0.}
 	 * @config{overwrite, configures whether the cursor's insert\, update
 	 * and remove methods check the existing state of the record.  If \c
 	 * overwrite is \c false\, WT_CURSOR::insert fails with
@@ -997,9 +989,9 @@ struct __wt_session {
 	 * @config{block_compressor, configure a compressor for file blocks.
 	 * Permitted values are \c "none" or custom compression engine name
 	 * created with WT_CONNECTION::add_compressor.  If WiredTiger has
-	 * builtin support for \c "bzip2"\, \c "snappy"\, \c "lz4" or \c "zlib"
-	 * compression\, these names are also available.  See @ref compression
-	 * for more information., a string; default \c none.}
+	 * builtin support for \c "snappy"\, \c "lz4" or \c "zlib" compression\,
+	 * these names are also available.  See @ref compression for more
+	 * information., a string; default \c none.}
 	 * @config{cache_resident, do not ever evict the object's pages from
 	 * cache.  Not compatible with LSM tables; see @ref
 	 * tuning_cache_resident for more information., a boolean flag; default
@@ -1228,6 +1220,9 @@ struct __wt_session {
 	 * @configstart{WT_SESSION.drop, see dist/api_data.py}
 	 * @config{force, return success if the object does not exist., a
 	 * boolean flag; default \c false.}
+	 * @config{lock_wait, wait for locks\, if \c lock_wait=false\, fail if
+	 * any required locks are not available immediately., a boolean flag;
+	 * default \c true.}
 	 * @config{remove_files, should the underlying files be removed?., a
 	 * boolean flag; default \c true.}
 	 * @configend
@@ -1319,6 +1314,19 @@ struct __wt_session {
 	 * @errors
 	 */
 	int __F(log_printf)(WT_SESSION *session, const char *fmt, ...);
+
+	/*!
+	 * Rebalance a table, see @ref rebalance.
+	 *
+	 * @snippet ex_all.c Rebalance a table
+	 *
+	 * @param session the session handle
+	 * @param uri the current URI of the object, such as \c "table:mytable"
+	 * @configempty{WT_SESSION.rebalance, see dist/api_data.py}
+	 * @ebusy_errors
+	 */
+	int __F(rebalance)(
+	    WT_SESSION *session, const char *uri, const char *config);
 
 	/*!
 	 * Rename an object.
@@ -1814,9 +1822,9 @@ struct __wt_connection {
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;compressor, configure a compressor
 	 * for log records.  Permitted values are \c "none" or custom
 	 * compression engine name created with WT_CONNECTION::add_compressor.
-	 * If WiredTiger has builtin support for \c "bzip2"\, \c "snappy"\, \c
-	 * "lz4" or \c "zlib" compression\, these names are also available.  See
-	 * @ref compression for more information., a string; default \c none.}
+	 * If WiredTiger has builtin support for \c "snappy"\, \c "lz4" or \c
+	 * "zlib" compression\, these names are also available.  See @ref
+	 * compression for more information., a string; default \c none.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable logging subsystem., a
 	 * boolean flag; default \c false.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;file_max, the maximum size of log
@@ -1912,9 +1920,10 @@ struct __wt_connection {
 	 * "block"\, \c "checkpoint"\, \c "compact"\, \c "evict"\, \c
 	 * "evictserver"\, \c "fileops"\, \c "log"\, \c "lsm"\, \c
 	 * "lsm_manager"\, \c "metadata"\, \c "mutex"\, \c "overflow"\, \c
-	 * "read"\, \c "reconcile"\, \c "recovery"\, \c "salvage"\, \c
-	 * "shared_cache"\, \c "split"\, \c "temporary"\, \c "transaction"\, \c
-	 * "verify"\, \c "version"\, \c "write"; default empty.}
+	 * "read"\, \c "rebalance"\, \c "reconcile"\, \c "recovery"\, \c
+	 * "salvage"\, \c "shared_cache"\, \c "split"\, \c "temporary"\, \c
+	 * "transaction"\, \c "verify"\, \c "version"\, \c "write"; default
+	 * empty.}
 	 * @configend
 	 * @errors
 	 */
@@ -2282,11 +2291,11 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;compressor, configure a compressor for log
  * records.  Permitted values are \c "none" or custom compression engine name
  * created with WT_CONNECTION::add_compressor.  If WiredTiger has builtin
- * support for \c "bzip2"\, \c "snappy"\, \c "lz4" or \c "zlib" compression\,
- * these names are also available.  See @ref compression for more information.,
- * a string; default \c none.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable
- * logging subsystem., a boolean flag; default \c false.}
+ * support for \c "snappy"\, \c "lz4" or \c "zlib" compression\, these names are
+ * also available.  See @ref compression for more information., a string;
+ * default \c none.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable logging
+ * subsystem., a boolean flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;file_max, the maximum size of log files., an
  * integer between 100KB and 2GB; default \c 100MB.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the path to a directory into which the
@@ -2397,9 +2406,9 @@ struct __wt_connection {
  * values chosen from the following options: \c "api"\, \c "block"\, \c
  * "checkpoint"\, \c "compact"\, \c "evict"\, \c "evictserver"\, \c "fileops"\,
  * \c "log"\, \c "lsm"\, \c "lsm_manager"\, \c "metadata"\, \c "mutex"\, \c
- * "overflow"\, \c "read"\, \c "reconcile"\, \c "recovery"\, \c "salvage"\, \c
- * "shared_cache"\, \c "split"\, \c "temporary"\, \c "transaction"\, \c
- * "verify"\, \c "version"\, \c "write"; default empty.}
+ * "overflow"\, \c "read"\, \c "rebalance"\, \c "reconcile"\, \c "recovery"\, \c
+ * "salvage"\, \c "shared_cache"\, \c "split"\, \c "temporary"\, \c
+ * "transaction"\, \c "verify"\, \c "version"\, \c "write"; default empty.}
  * @config{write_through, Use \c FILE_FLAG_WRITE_THROUGH on Windows to write to
  * files.  Ignored on non-Windows systems.  Options are given as a list\, such
  * as <code>"write_through=[data]"</code>. Configuring \c write_through requires

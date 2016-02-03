@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2015 MongoDB, Inc.
+ * Public Domain 2014-2016 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -45,10 +45,14 @@ main(int argc, char *argv[])
 
 	config = NULL;
 
+#ifdef _WIN32
+	g.progname = "t_format.exe";
+#else
 	if ((g.progname = strrchr(argv[0], DIR_DELIM)) == NULL)
 		g.progname = argv[0];
 	else
 		++g.progname;
+#endif
 
 #if 0
 	/* Configure the GNU malloc for debugging. */
@@ -236,6 +240,11 @@ main(int argc, char *argv[])
 			bdb_close();
 #endif
 		wts_close();
+
+		/*
+		 * Rebalance testing.
+		 */
+		wts_rebalance();
 
 		/*
 		 * If single-threaded, we can dump and compare the WiredTiger

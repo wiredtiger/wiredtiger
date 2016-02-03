@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2015 MongoDB, Inc.
+ * Copyright (c) 2014-2016 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -11,36 +11,13 @@
 static int __desc_read(WT_SESSION_IMPL *, WT_BLOCK *);
 
 /*
- * __wt_block_manager_truncate --
- *	Truncate a file.
+ * __wt_block_manager_drop --
+ *	Drop a file.
  */
 int
-__wt_block_manager_truncate(
-    WT_SESSION_IMPL *session, const char *filename, uint32_t allocsize)
+__wt_block_manager_drop(WT_SESSION_IMPL *session, const char *filename)
 {
-	WT_DECL_RET;
-	WT_FH *fh;
-
-	/* Open the underlying file handle. */
-	WT_RET(__wt_open(
-	    session, filename, false, false, WT_FILE_TYPE_DATA, &fh));
-
-	/* Truncate the file. */
-	WT_ERR(__wt_block_truncate(session, fh, (wt_off_t)0));
-
-	/* Write out the file's meta-data. */
-	WT_ERR(__wt_desc_init(session, fh, allocsize));
-
-	/*
-	 * Ensure the truncated file has made it to disk, then the upper-level
-	 * is never surprised.
-	 */
-	WT_ERR(__wt_fsync(session, fh));
-
-	/* Close the file handle. */
-err:	WT_TRET(__wt_close(session, &fh));
-
-	return (ret);
+	 return (__wt_remove_if_exists(session, filename));
 }
 
 /*
@@ -319,15 +296,21 @@ __wt_desc_init(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize)
 	WT_RET(__wt_scr_alloc(session, allocsize, &buf));
 	memset(buf->mem, 0, allocsize);
 
+	/*
+	 * Checksum a little-endian version of the header, and write everything
+	 * in little-endian format. The checksum is (potentially) returned in a
+	 * big-endian format, swap it into place in a separate step.
+	 */
 	desc = buf->mem;
 	desc->magic = WT_BLOCK_MAGIC;
 	desc->majorv = WT_BLOCK_MAJOR_VERSION;
 	desc->minorv = WT_BLOCK_MINOR_VERSION;
-
-	/* Update the checksum. */
 	desc->cksum = 0;
+	__wt_block_desc_byteswap(desc);
 	desc->cksum = __wt_cksum(desc, allocsize);
-
+#ifdef WORDS_BIGENDIAN
+	desc->cksum = __wt_bswap32(desc->cksum);
+#endif
 	ret = __wt_write(session, fh, (wt_off_t)0, (size_t)allocsize, desc);
 
 	__wt_scr_free(session, &buf);
@@ -344,7 +327,7 @@ __desc_read(WT_SESSION_IMPL *session, WT_BLOCK *block)
 	WT_BLOCK_DESC *desc;
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
-	uint32_t cksum;
+	uint32_t cksum_calculate, cksum_tmp;
 
 	/* Use a scratch buffer to get correct alignment for direct I/O. */
 	WT_RET(__wt_scr_alloc(session, block->allocsize, &buf));
@@ -353,14 +336,19 @@ __desc_read(WT_SESSION_IMPL *session, WT_BLOCK *block)
 	WT_ERR(__wt_read(session,
 	    block->fh, (wt_off_t)0, (size_t)block->allocsize, buf->mem));
 
+	/*
+	 * Handle little- and big-endian objects. Objects are written in little-
+	 * endian format: save the header checksum, and calculate the checksum
+	 * for the header in its little-endian form. Then, restore the header's
+	 * checksum, and byte-swap the whole thing as necessary, leaving us with
+	 * a calculated checksum that should match the checksum in the header.
+	 */
 	desc = buf->mem;
-	WT_ERR(__wt_verbose(session, WT_VERB_BLOCK,
-	    "%s: magic %" PRIu32
-	    ", major/minor: %" PRIu32 "/%" PRIu32
-	    ", checksum %#" PRIx32,
-	    block->name, desc->magic,
-	    desc->majorv, desc->minorv,
-	    desc->cksum));
+	cksum_tmp = desc->cksum;
+	desc->cksum = 0;
+	cksum_calculate = __wt_cksum(desc, block->allocsize);
+	desc->cksum = cksum_tmp;
+	__wt_block_desc_byteswap(desc);
 
 	/*
 	 * We fail the open if the checksum fails, or the magic number is wrong
@@ -371,10 +359,7 @@ __desc_read(WT_SESSION_IMPL *session, WT_BLOCK *block)
 	 * may have entered the wrong file name, and is now frantically pounding
 	 * their interrupt key.
 	 */
-	cksum = desc->cksum;
-	desc->cksum = 0;
-	if (desc->magic != WT_BLOCK_MAGIC ||
-	    cksum != __wt_cksum(desc, block->allocsize))
+	if (desc->magic != WT_BLOCK_MAGIC || desc->cksum != cksum_calculate)
 		WT_ERR_MSG(session, WT_ERROR,
 		    "%s does not appear to be a WiredTiger file", block->name);
 
@@ -387,6 +372,14 @@ __desc_read(WT_SESSION_IMPL *session, WT_BLOCK *block)
 		    "is version %d/%d",
 		    WT_BLOCK_MAJOR_VERSION, WT_BLOCK_MINOR_VERSION,
 		    desc->majorv, desc->minorv);
+
+	WT_ERR(__wt_verbose(session, WT_VERB_BLOCK,
+	    "%s: magic %" PRIu32
+	    ", major/minor: %" PRIu32 "/%" PRIu32
+	    ", checksum %#" PRIx32,
+	    block->name, desc->magic,
+	    desc->majorv, desc->minorv,
+	    desc->cksum));
 
 err:	__wt_scr_free(session, &buf);
 	return (ret);
@@ -405,27 +398,37 @@ __wt_block_stat(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_DSRC_STATS *stats)
 	 * Reading from the live system's structure normally requires locking,
 	 * but it's an 8B statistics read, there's no need.
 	 */
-	stats->allocation_size = block->allocsize;
-	stats->block_checkpoint_size = (int64_t)block->live.ckpt_size;
-	stats->block_magic = WT_BLOCK_MAGIC;
-	stats->block_major = WT_BLOCK_MAJOR_VERSION;
-	stats->block_minor = WT_BLOCK_MINOR_VERSION;
-	stats->block_reuse_bytes = (int64_t)block->live.avail.bytes;
-	stats->block_size = block->fh->size;
+	WT_STAT_WRITE(stats, allocation_size, block->allocsize);
+	WT_STAT_WRITE(
+	    stats, block_checkpoint_size, (int64_t)block->live.ckpt_size);
+	WT_STAT_WRITE(stats, block_magic, WT_BLOCK_MAGIC);
+	WT_STAT_WRITE(stats, block_major, WT_BLOCK_MAJOR_VERSION);
+	WT_STAT_WRITE(stats, block_minor, WT_BLOCK_MINOR_VERSION);
+	WT_STAT_WRITE(
+	    stats, block_reuse_bytes, (int64_t)block->live.avail.bytes);
+	WT_STAT_WRITE(stats, block_size, block->fh->size);
 }
 
 /*
  * __wt_block_manager_size --
- *	Set the size statistic for a file.
+ *	Return the size of a live block handle.
  */
 int
-__wt_block_manager_size(
-    WT_SESSION_IMPL *session, const char *filename, WT_DSRC_STATS *stats)
+__wt_block_manager_size(WT_BM *bm, WT_SESSION_IMPL *session, wt_off_t *sizep)
 {
-	wt_off_t filesize;
+	WT_UNUSED(session);
 
-	WT_RET(__wt_filesize_name(session, filename, false, &filesize));
-	stats->block_size = filesize;
-
+	*sizep = bm->block->fh == NULL ? 0 : bm->block->fh->size;
 	return (0);
+}
+
+/*
+ * __wt_block_manager_named_size --
+ *	Return the size of a named file.
+ */
+int
+__wt_block_manager_named_size(
+    WT_SESSION_IMPL *session, const char *name, wt_off_t *sizep)
+{
+	return (__wt_filesize_name(session, name, false, sizep));
 }

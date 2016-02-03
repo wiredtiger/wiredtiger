@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2016 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -42,7 +42,6 @@ class test_compress01(wttest.WiredTigerTestCase):
         ('table', dict(uri='table:test_compress01')),
     ]
     compress = [
-        ('bzip2', dict(compress='bzip2')),
         ('nop', dict(compress='nop')),
         ('snappy', dict(compress='snappy')),
         ('none', dict(compress=None)),
@@ -52,13 +51,9 @@ class test_compress01(wttest.WiredTigerTestCase):
     nrecords = 10000
     bigvalue = "abcdefghij" * 1000
 
-    # Override WiredTigerTestCase, we have extensions.
-    def setUpConnectionOpen(self, dir):
-        conn = wiredtiger.wiredtiger_open( dir, 'create,' +
-            ('error_prefix="%s: ",' % self.shortid()) +
-            self.extensionArg(self.compress))
-        self.pr(`conn`)
-        return conn
+    # Load the compression extension, compression is enabled elsewhere.
+    def conn_config(self, dir):
+        return self.extensionArg(self.compress)
 
     # Return the wiredtiger_open extension argument for a shared library.
     def extensionArg(self, name):

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2015 MongoDB, Inc.
+ * Copyright (c) 2014-2016 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -26,7 +26,7 @@ __sweep_mark(WT_SESSION_IMPL *session, time_t now)
 	conn = S2C(session);
 
 	TAILQ_FOREACH(dhandle, &conn->dhqh, q) {
-		if (WT_IS_METADATA(dhandle))
+		if (WT_IS_METADATA(session, dhandle))
 			continue;
 
 		/*
@@ -64,11 +64,9 @@ __sweep_expire_one(WT_SESSION_IMPL *session)
 	WT_BTREE *btree;
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
-	bool evict_reset;
 
 	btree = S2BT(session);
 	dhandle = session->dhandle;
-	evict_reset = false;
 
 	/*
 	 * Acquire an exclusive lock on the handle and mark it dead.
@@ -92,18 +90,12 @@ __sweep_expire_one(WT_SESSION_IMPL *session)
 	    !__wt_txn_visible_all(session, btree->rec_max_txn))
 		goto err;
 
-	/* Ensure that we aren't racing with the eviction server */
-	WT_ERR(__wt_evict_file_exclusive_on(session, &evict_reset));
-
 	/*
 	 * Mark the handle as dead and close the underlying file
 	 * handle. Closing the handle decrements the open file count,
 	 * meaning the close loop won't overrun the configured minimum.
 	 */
 	ret = __wt_conn_btree_sync_and_close(session, false, true);
-
-	if (evict_reset)
-		__wt_evict_file_exclusive_off(session);
 
 err:	WT_TRET(__wt_writeunlock(session, dhandle->rwlock));
 
@@ -132,7 +124,7 @@ __sweep_expire(WT_SESSION_IMPL *session, time_t now)
 		if (conn->open_btree_count < conn->sweep_handles_min)
 			break;
 
-		if (WT_IS_METADATA(dhandle) ||
+		if (WT_IS_METADATA(session, dhandle) ||
 		    !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
 		    dhandle->session_inuse != 0 ||
 		    dhandle->timeofdeath == 0 ||
@@ -238,7 +230,7 @@ __sweep_remove_handles(WT_SESSION_IMPL *session)
 	    dhandle != NULL;
 	    dhandle = dhandle_next) {
 		dhandle_next = TAILQ_NEXT(dhandle, q);
-		if (WT_IS_METADATA(dhandle))
+		if (WT_IS_METADATA(session, dhandle))
 			continue;
 		if (!WT_DHANDLE_CAN_DISCARD(dhandle))
 			continue;

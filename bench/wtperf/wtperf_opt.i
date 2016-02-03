@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2015 MongoDB, Inc.
+ * Public Domain 2014-2016 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -97,7 +97,7 @@ DEF_OPT_AS_CONFIG_STRING(conn_config, "create",
 DEF_OPT_AS_BOOL(compact, 0, "post-populate compact for LSM merging activity")
 DEF_OPT_AS_STRING(compression, "none",
     "compression extension.  Allowed configuration values are: "
-    "'none', 'bzip', 'lz4', 'snappy', 'zlib'")
+    "'none', 'lz4', 'snappy', 'zlib'")
 DEF_OPT_AS_BOOL(create, 1,
     "do population phase; false to use existing database")
 DEF_OPT_AS_UINT32(database_count, 1,
@@ -110,6 +110,10 @@ DEF_OPT_AS_UINT32(drop_tables, 0,
 DEF_OPT_AS_UINT32(icount, 5000,
     "number of records to initially populate. If multiple tables are "
     "configured the count is spread evenly across all tables.")
+DEF_OPT_AS_UINT32(idle_table_cycle, 0,
+    "Enable regular create and drop of idle tables, value is the maximum "
+    "number of seconds a create or drop is allowed before flagging an error. "
+    "Default 0 which means disabled.")
 DEF_OPT_AS_BOOL(index, 0,
     "Whether to create an index on the value field.")
 DEF_OPT_AS_BOOL(insert_rmw, 0,
@@ -117,11 +121,17 @@ DEF_OPT_AS_BOOL(insert_rmw, 0,
 DEF_OPT_AS_UINT32(key_sz, 20, "key size")
 DEF_OPT_AS_BOOL(log_partial, 0, "perform partial logging on first table only.")
 DEF_OPT_AS_UINT32(min_throughput, 0,
-    "abort if any throughput measured is less than this amount.  Requires "
-    "sample_interval to be configured")
-DEF_OPT_AS_UINT32(max_latency, 0,
-    "abort if any latency measured exceeds this number of milliseconds."
+    "notify if any throughput measured is less than this amount. "
+    "Aborts or prints warning based on min_throughput_fatal setting. "
     "Requires sample_interval to be configured")
+DEF_OPT_AS_BOOL(min_throughput_fatal, 0,
+    "print warning (false) or abort (true) of min_throughput failure.")
+DEF_OPT_AS_UINT32(max_latency, 0,
+    "notify if any latency measured exceeds this number of milliseconds."
+    "Aborts or prints warning based on min_throughput_fatal setting. "
+    "Requires sample_interval to be configured")
+DEF_OPT_AS_BOOL(max_latency_fatal, 0,
+    "print warning (false) or abort (true) of max_latency failure.")
 DEF_OPT_AS_UINT32(pareto, 0, "use pareto distribution for random numbers. Zero "
     "to disable, otherwise a percentage indicating how aggressive the "
     "distribution should be.")
@@ -134,6 +144,7 @@ DEF_OPT_AS_UINT32(random_range, 0,
     "if non zero choose a value from within this range as the key for "
     "insert operations")
 DEF_OPT_AS_BOOL(random_value, 0, "generate random content for the value")
+DEF_OPT_AS_UINT32(read_range, 0, "scan a range of keys after each search")
 DEF_OPT_AS_BOOL(reopen_connection, 1,
     "close and reopen the connection between populate and workload phases")
 DEF_OPT_AS_UINT32(report_interval, 2,

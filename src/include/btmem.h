@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2015 MongoDB, Inc.
+ * Copyright (c) 2014-2016 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -60,6 +60,23 @@ struct __wt_page_header {
  * the compiler inserts padding it will break the world.
  */
 #define	WT_PAGE_HEADER_SIZE		28
+
+/*
+ * __wt_page_header_byteswap --
+ *	Handle big- and little-endian transformation of a page header.
+ */
+static inline void
+__wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
+{
+#ifdef WORDS_BIGENDIAN
+	dsk->recno = __wt_bswap64(dsk->recno);
+	dsk->write_gen = __wt_bswap64(dsk->write_gen);
+	dsk->mem_size = __wt_bswap32(dsk->mem_size);
+	dsk->u.entries = __wt_bswap32(dsk->u.entries);
+#else
+	WT_UNUSED(dsk);
+#endif
+}
 
 /*
  * The block-manager specific information immediately follows the WT_PAGE_HEADER
@@ -305,7 +322,7 @@ struct __wt_page_modify {
 	struct {
 		/*
 		 * Appended items to column-stores: there is only a single one
-		 * of these per column-store tree.
+		 * of these active at a time per column-store tree.
 		 */
 		WT_INSERT_HEAD **append;
 
@@ -319,9 +336,18 @@ struct __wt_page_modify {
 		 * huge.
 		 */
 		WT_INSERT_HEAD **update;
+
+		/*
+		 * Split-saved last column-store page record. If a column-store
+		 * page is split, we save the first record number moved so that
+		 * during reconciliation we know the page's last record and can
+		 * write any implicitly created deleted records for the page.
+		 */
+		uint64_t split_recno;
 	} leaf;
 #define	mod_append		u2.leaf.append
 #define	mod_update		u2.leaf.update
+#define	mod_split_recno		u2.leaf.split_recno
 	} u2;
 
 	/*
@@ -478,7 +504,7 @@ struct __wt_page {
 #define	pg_row_ins	u.row.ins
 #undef	pg_row_upd
 #define	pg_row_upd	u.row.upd
-#define	pg_row_entries	u.row.entries
+#undef	pg_row_entries
 #define	pg_row_entries	u.row.entries
 
 		/* Fixed-length column-store leaf page. */
@@ -544,8 +570,8 @@ struct __wt_page {
 #define	WT_PAGE_DISK_MAPPED	0x04	/* Disk image in mapped memory */
 #define	WT_PAGE_EVICT_LRU	0x08	/* Page is on the LRU queue */
 #define	WT_PAGE_OVERFLOW_KEYS	0x10	/* Page has overflow keys */
-#define	WT_PAGE_SPLIT_INSERT	0x20	/* A leaf page was split for append */
-#define	WT_PAGE_SPLIT_BLOCK	0x40	/* Split blocking eviction and splits */
+#define	WT_PAGE_SPLIT_BLOCK	0x20	/* Split blocking eviction and splits */
+#define	WT_PAGE_SPLIT_INSERT	0x40	/* A leaf page was split for append */
 #define	WT_PAGE_UPDATE_IGNORE	0x80	/* Ignore updates on page discard */
 	uint8_t flags_atomic;		/* Atomic flags, use F_*_ATOMIC */
 
@@ -1049,7 +1075,7 @@ struct __wt_insert_head {
 	uint64_t __prev_split_gen = (session)->split_gen;		\
 	if (__prev_split_gen == 0)					\
 		do {                                                    \
-			WT_PUBLISH((session)->split_gen,                \
+			WT_PUBLISH((session)->split_gen,		\
 			    S2C(session)->split_gen);                   \
 		} while ((session)->split_gen != S2C(session)->split_gen)
 

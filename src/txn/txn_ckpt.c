@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2015 MongoDB, Inc.
+ * Copyright (c) 2014-2016 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -56,7 +56,7 @@ __checkpoint_name_check(WT_SESSION_IMPL *session, const char *uri)
 	 * confirm the metadata file contains no non-file objects.
 	 */
 	if (uri == NULL) {
-		WT_ERR(__wt_metadata_cursor(session, NULL, &cursor));
+		WT_RET(__wt_metadata_cursor(session, &cursor));
 		while ((ret = cursor->next(cursor)) == 0) {
 			WT_ERR(cursor->get_key(cursor, &uri));
 			if (!WT_PREFIX_MATCH(uri, "colgroup:") &&
@@ -79,8 +79,7 @@ __checkpoint_name_check(WT_SESSION_IMPL *session, const char *uri)
 		WT_ERR_MSG(session, EINVAL,
 		    "%s object does not support named checkpoints", fail);
 
-err:	if (cursor != NULL)
-		WT_TRET(cursor->close(cursor));
+err:	WT_TRET(__wt_metadata_cursor_release(session, &cursor));
 	return (ret);
 }
 
@@ -371,7 +370,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	full = idle = logging = tracking = false;
 
 	/* Ensure the metadata table is open before taking any locks. */
-	WT_RET(__wt_metadata_open(session));
+	WT_RET(__wt_metadata_cursor(session, NULL));
 
 	/*
 	 * Do a pass over the configuration arguments and figure out what kind
@@ -386,8 +385,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * Get a list of handles we want to flush; this may pull closed objects
 	 * into the session cache, but we're going to do that eventually anyway.
 	 */
-	WT_WITH_SCHEMA_LOCK(session,
-	    WT_WITH_TABLE_LOCK(session,
+	WT_WITH_SCHEMA_LOCK(session, ret,
+	    WT_WITH_TABLE_LOCK(session, ret,
 		WT_WITH_HANDLE_LIST_LOCK(session,
 		    ret = __checkpoint_apply_all(
 		    session, cfg, __wt_checkpoint_list, NULL))));
@@ -551,14 +550,16 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 		saved_meta_next = session->meta_track_next;
 		session->meta_track_next = NULL;
 		WT_WITH_DHANDLE(session,
-		    session->meta_dhandle, ret = __wt_checkpoint(session, cfg));
+		    WT_SESSION_META_DHANDLE(session),
+		    ret = __wt_checkpoint(session, cfg));
 		session->meta_track_next = saved_meta_next;
 		WT_ERR(ret);
 
 		WT_ERR(__checkpoint_verbose_track(session,
 		    "metadata sync completed", &verb_timer));
 	} else
-		WT_WITH_DHANDLE(session, session->meta_dhandle,
+		WT_WITH_DHANDLE(session,
+		    WT_SESSION_META_DHANDLE(session),
 		    ret = __wt_txn_checkpoint_log(
 		    session, false, WT_TXN_LOG_CKPT_SYNC, NULL));
 
@@ -601,8 +602,8 @@ err:	/*
 	 */
 	if (full && logging) {
 		if (ret == 0 &&
-		    F_ISSET((WT_BTREE *)session->meta_dhandle->handle,
-		    WT_BTREE_SKIP_CKPT))
+		    F_ISSET(((WT_CURSOR_BTREE *)
+		    session->meta_cursor)->btree, WT_BTREE_SKIP_CKPT))
 			idle = true;
 		WT_TRET(__wt_txn_checkpoint_log(session, full,
 		    (ret == 0 && !idle) ?
@@ -665,7 +666,8 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	WT_STAT_FAST_CONN_SET(session, txn_checkpoint_running, 1);
 
-	WT_WITH_CHECKPOINT_LOCK(session, ret = __txn_checkpoint(session, cfg));
+	WT_WITH_CHECKPOINT_LOCK(session, ret,
+	    ret = __txn_checkpoint(session, cfg));
 
 	WT_STAT_FAST_CONN_SET(session, txn_checkpoint_running, 0);
 
@@ -810,7 +812,7 @@ __checkpoint_worker(WT_SESSION_IMPL *session,
 	 *  - On connection close when we know there can't be any races.
 	 */
 	WT_ASSERT(session, !need_tracking ||
-	    WT_IS_METADATA(dhandle) || WT_META_TRACKING(session));
+	    WT_IS_METADATA(session, dhandle) || WT_META_TRACKING(session));
 
 	/*
 	 * Set the checkpoint LSN to the maximum LSN so that if logging is
@@ -1037,12 +1039,13 @@ nockpt:			F_SET(btree, WT_BTREE_SKIP_CKPT);
 					    "for a bulk-loaded file");
 			fake_ckpt = true;
 			goto fake;
+		case WT_BTREE_REBALANCE:
 		case WT_BTREE_SALVAGE:
 		case WT_BTREE_UPGRADE:
 		case WT_BTREE_VERIFY:
 			WT_ERR_MSG(session, EINVAL,
-			    "checkpoints are blocked during salvage, upgrade "
-			    "or verify operations");
+			    "checkpoints are blocked during rebalance, "
+			    "salvage, upgrade or verify operations");
 		}
 
 	/*
@@ -1132,7 +1135,7 @@ fake:	/*
 	 * recovery and open a checkpoint that isn't yet durable.
 	 */
 	if (F_ISSET(conn, WT_CONN_CKPT_SYNC) &&
-	    (WT_IS_METADATA(dhandle) ||
+	    (WT_IS_METADATA(session, dhandle) ||
 	    !F_ISSET(&session->txn, WT_TXN_RUNNING)))
 		WT_ERR(__wt_checkpoint_sync(session, NULL));
 

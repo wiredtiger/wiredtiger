@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2015 MongoDB, Inc.
+ * Copyright (c) 2014-2016 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -173,6 +173,7 @@ struct __wt_bm {
 	int (*compact_skip)(WT_BM *, WT_SESSION_IMPL *, bool *);
 	int (*compact_start)(WT_BM *, WT_SESSION_IMPL *);
 	int (*free)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
+	bool (*is_mapped)(WT_BM *, WT_SESSION_IMPL *);
 	int (*preload)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
 	int (*read)
 	    (WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, const uint8_t *, size_t);
@@ -182,6 +183,7 @@ struct __wt_bm {
 	int (*salvage_start)(WT_BM *, WT_SESSION_IMPL *);
 	int (*salvage_valid)
 	    (WT_BM *, WT_SESSION_IMPL *, uint8_t *, size_t, bool);
+	int (*size)(WT_BM *, WT_SESSION_IMPL *, wt_off_t *);
 	int (*stat)(WT_BM *, WT_SESSION_IMPL *, WT_DSRC_STATS *stats);
 	int (*sync)(WT_BM *, WT_SESSION_IMPL *, bool);
 	int (*verify_addr)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
@@ -244,7 +246,10 @@ struct __wt_block {
 	bool		ckpt_inprogress;/* Live checkpoint in progress */
 
 				/* Compaction support */
-	int	compact_pct_tenths;	/* Percent to compact */
+	int	 compact_pct_tenths;	/* Percent to compact */
+	uint64_t compact_pages_reviewed;/* Pages reviewed */
+	uint64_t compact_pages_skipped;	/* Pages skipped */
+	uint64_t compact_pages_written;	/* Pages rewritten */
 
 				/* Salvage support */
 	wt_off_t	slvg_off;	/* Salvage file offset */
@@ -282,6 +287,23 @@ struct __wt_block_desc {
  * but it would be worth investigation, regardless).
  */
 #define	WT_BLOCK_DESC_SIZE		16
+
+/*
+ * __wt_block_desc_byteswap --
+ *	Handle big- and little-endian transformation of a description block.
+ */
+static inline void
+__wt_block_desc_byteswap(WT_BLOCK_DESC *desc)
+{
+#ifdef WORDS_BIGENDIAN
+	desc->magic = __wt_bswap32(desc->magic);
+	desc->majorv = __wt_bswap16(desc->majorv);
+	desc->minorv = __wt_bswap16(desc->minorv);
+	desc->cksum = __wt_bswap32(desc->cksum);
+#else
+	WT_UNUSED(desc);
+#endif
+}
 
 /*
  * WT_BLOCK_HEADER --
@@ -324,6 +346,35 @@ struct __wt_block_header {
  * the compiler inserts padding it will break the world.
  */
 #define	WT_BLOCK_HEADER_SIZE		12
+
+/*
+ * __wt_block_header_byteswap_copy --
+ *	Handle big- and little-endian transformation of a header block,
+ * copying from a source to a target.
+ */
+static inline void
+__wt_block_header_byteswap_copy(WT_BLOCK_HEADER *from, WT_BLOCK_HEADER *to)
+{
+	*to = *from;
+#ifdef WORDS_BIGENDIAN
+	to->disk_size = __wt_bswap32(from->disk_size);
+	to->cksum = __wt_bswap32(from->cksum);
+#endif
+}
+
+/*
+ * __wt_block_header_byteswap --
+ *	Handle big- and little-endian transformation of a header block.
+ */
+static inline void
+__wt_block_header_byteswap(WT_BLOCK_HEADER *blk)
+{
+#ifdef WORDS_BIGENDIAN
+	__wt_block_header_byteswap_copy(blk, blk);
+#else
+	WT_UNUSED(blk);
+#endif
+}
 
 /*
  * WT_BLOCK_HEADER_BYTE

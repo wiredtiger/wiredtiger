@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2015 MongoDB, Inc.
+ * Copyright (c) 2014-2016 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -402,7 +402,7 @@ __wt_encryptor_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval,
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-	WT_ENCRYPTOR *encryptor;
+	WT_ENCRYPTOR *custom, *encryptor;
 	WT_KEYED_ENCRYPTOR *kenc;
 	WT_NAMED_ENCRYPTOR *nenc;
 	uint64_t bucket, hash;
@@ -440,12 +440,13 @@ __wt_encryptor_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval,
 	WT_ERR(__wt_strndup(session, keyid->str, keyid->len, &kenc->keyid));
 	encryptor = nenc->encryptor;
 	if (encryptor->customize != NULL) {
+		custom = NULL;
 		WT_ERR(encryptor->customize(encryptor, &session->iface,
-		    cfg_arg, &encryptor));
-		if (encryptor == NULL)
-			encryptor = nenc->encryptor;
-		else
+		    cfg_arg, &custom));
+		if (custom != NULL) {
 			kenc->owned = 1;
+			encryptor = custom;
+		}
 	}
 	WT_ERR(encryptor->sizing(encryptor, &session->iface,
 	    &kenc->size_const));
@@ -1605,6 +1606,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 		{ "mutex",		WT_VERB_MUTEX },
 		{ "overflow",		WT_VERB_OVERFLOW },
 		{ "read",		WT_VERB_READ },
+		{ "rebalance",		WT_VERB_REBALANCE },
 		{ "reconcile",		WT_VERB_RECONCILE },
 		{ "recovery",		WT_VERB_RECOVERY },
 		{ "salvage",		WT_VERB_SALVAGE },
@@ -1749,7 +1751,7 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_ERR_NOTFOUND_OK(ret);
 
 	/* Flush the handle and rename the file into place. */
-	ret = __wt_sync_and_rename_fp(
+	ret = __wt_sync_fp_and_rename(
 	    session, &fp, WT_BASECONFIG_SET, WT_BASECONFIG);
 
 	if (0) {
@@ -2003,6 +2005,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	WT_ERR(__wt_sweep_config(session, cfg));
 	WT_ERR(__wt_verbose_config(session, cfg));
 
+	/* Initialize the OS page size for mmap */
+	conn->page_size = __wt_get_vm_pagesize();
+
 	/* Now that we know if verbose is configured, output the version. */
 	WT_ERR(__wt_verbose(
 	    session, WT_VERB_VERSION, "%s", WIREDTIGER_VERSION_STRING));
@@ -2061,7 +2066,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	 * DATABASE HOME, IT'S WHAT WE USE TO DECIDE IF WE'RE CREATING OR NOT.
 	 */
 	WT_ERR(__wt_turtle_init(session));
-	WT_ERR(__wt_metadata_open(session));
+
+	__wt_metadata_init(session);
+	WT_ERR(__wt_metadata_cursor(session, NULL));
 
 	/* Start the worker threads and run recovery. */
 	WT_ERR(__wt_connection_workers(session, cfg));

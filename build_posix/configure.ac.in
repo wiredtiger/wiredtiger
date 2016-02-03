@@ -31,7 +31,7 @@ LT_INIT([pic-only])
 AC_SUBST([LIBTOOL_DEPS])
 
 AC_PROG_CC(cc gcc)
-# AC_PROG_CXX(c++ g++)
+AC_PROG_CXX(c++ g++)
 
 if test "$GCC" = "yes"; then
 	# The Solaris gcc compiler gets the additional -pthreads flag.
@@ -103,7 +103,7 @@ esac
 
 # Linux requires buffers aligned to 4KB boundaries for O_DIRECT to work.
 BUFFER_ALIGNMENT=0
-if test "$ac_cv_func_posix_memalign" = "yes" ; then
+if test "$ax_cv_func_posix_memalign_works" = "yes" ; then
 	case "$host_os" in
 	linux*)	BUFFER_ALIGNMENT=4096 ;;
 	esac

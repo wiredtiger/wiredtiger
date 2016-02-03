@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2015 MongoDB, Inc.
+ * Copyright (c) 2014-2016 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -168,7 +168,7 @@ __wt_lsm_work_switch(
 	*entryp = NULL;
 
 	if (F_ISSET(entry->lsm_tree, WT_LSM_TREE_NEED_SWITCH)) {
-		WT_WITH_SCHEMA_LOCK(session,
+		WT_WITH_SCHEMA_LOCK(session, ret,
 		    ret = __wt_lsm_tree_switch(session, entry->lsm_tree));
 		/* Failing to complete the switch is fine */
 		if (ret == EBUSY) {
@@ -336,7 +336,8 @@ __wt_lsm_checkpoint_chunk(WT_SESSION_IMPL *session,
 	 * necessary handle locks.
 	 */
 	WT_ERR(__wt_meta_track_on(session));
-	WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_worker(
+	WT_WITH_SCHEMA_LOCK(session, ret,
+	    ret = __wt_schema_worker(
 	    session, chunk->uri, __wt_checkpoint, NULL, NULL, 0));
 	WT_TRET(__wt_meta_track_off(session, false, ret != 0));
 	if (ret != 0)
@@ -514,7 +515,7 @@ __lsm_drop_file(WT_SESSION_IMPL *session, const char *uri)
 	 * results in the hot backup lock being taken when it updates the
 	 * metadata (which would be too late to prevent our drop).
 	 */
-	WT_WITH_SCHEMA_LOCK(session,
+	WT_WITH_SCHEMA_LOCK(session, ret,
 	    ret = __wt_schema_drop(session, uri, drop_cfg));
 
 	if (ret == 0)
