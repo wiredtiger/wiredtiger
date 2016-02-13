@@ -177,9 +177,6 @@ __page_descend(WT_SESSION_IMPL *session,
 	 * we have a hazard pointer.
 	 */
 	for (;; __wt_yield()) {
-		WT_INTL_INDEX_GET(session, page, pindex);
-		*slotp = prev ? pindex->entries - 1 : 0;
-
 		/*
 		 * There's a split race when a cursor moving backwards through
 		 * the tree descends the tree. If we're splitting an internal
@@ -237,12 +234,16 @@ __page_descend(WT_SESSION_IMPL *session,
 		 * No test is necessary for a next-cursor movement because we
 		 * do right-hand splits on internal pages and the initial part
 		 * of the page's namespace won't change as part of a split.
-		 * Instead of testing the direction boolean, do the test the
-		 * previous cursor movement requires in all cases, even though
-		 * it will always succeed for a next-cursor movement.
 		 */
-		if (pindex->index[*slotp]->home == page)
+		WT_INTL_INDEX_GET(session, page, pindex);
+		if (prev) {
+			*slotp = pindex->entries - 1;
+			if (pindex->index[*slotp]->home == page)
+				break;
+		} else {
+			*slotp = 0;
 			break;
+		}
 	}
 	*pindexp = pindex;
 }
