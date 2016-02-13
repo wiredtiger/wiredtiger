@@ -1446,19 +1446,25 @@ __wt_btree_lsm_over_size(WT_SESSION_IMPL *session, uint64_t maxsize)
 }
 
 /*
- * __wt_split_intl_race --
+ * __wt_split_descent_race --
  *	Return if we raced with an internal page split when descending the tree.
  */
 static inline bool
-__wt_split_intl_race(
-    WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE_INDEX *saved_pindex)
+__wt_split_descent_race(
+    WT_SESSION_IMPL *session, WT_PAGE_INDEX *saved_pindex, WT_REF *current)
 {
 	WT_PAGE_INDEX *pindex;
 
 	/*
+	 * If we are at the root, we won't have a saved index and it's OK.
+	 */
+	if (saved_pindex == NULL)
+		return (false);
+
+	/*
 	 * A place to hang this comment...
 	 *
-	 * There's a page-split race when we walk the tree: if we're splitting
+	 * There's a page-split race when descending the tree: when splitting
 	 * an internal page into its parent, we update the parent's page index
 	 * before updating the split page's page index, and it's not an atomic
 	 * update. A thread can read the parent page's original page index and
@@ -1466,11 +1472,12 @@ __wt_split_intl_race(
 	 *
 	 * Because internal page splits work by truncating the original page to
 	 * the initial part of the original page, the result of this race is we
-	 * will have a search key that points past the end of the current page.
-	 * This is only an issue when we search past the end of the page, if we
-	 * find a WT_REF in the page with the namespace we're searching for, we
-	 * don't care if the WT_REF moved or not while we were searching, we
-	 * have the correct page.
+	 * will have a movement past the end of the current page (either we're
+	 * descending the tree to the last page of the tree, or searching past
+	 * the end of the page). In the case of search, "past the end of the
+	 * page" is key: if there's a WT_REF in the page holding the namespace
+	 * we're searching for, we don't care if the WT_REF moved or not while
+	 * we were searching, we have the correct page.
 	 *
 	 * For example, imagine an internal page with 3 child pages, with the
 	 * namespaces a-f, g-h and i-j; the first child page splits. The parent
@@ -1496,7 +1503,7 @@ __wt_split_intl_race(
 	 * "b" page, which is wrong.
 	 *
 	 * To detect the problem, we remember the parent page's page index used
-	 * to descend the tree. Whenever we search past the end of a page, we
+	 * to descend the tree. Whenever we are moving past the end of a page,
 	 * check to see if the parent's page index has changed since our use of
 	 * it during descent. As the problem only appears if we read the split
 	 * page's replacement index, the parent page's index must already have
@@ -1505,10 +1512,11 @@ __wt_split_intl_race(
 	 * It's possible for the opposite race to happen (a thread could read
 	 * the parent page's replacement page index and then read the split
 	 * page's original index). This isn't a problem because internal splits
-	 * work by truncating the split page, so the split page search is for
+	 * work by truncating the split page, so in the case of movement to the
+	 * beginning of the current page, or searching the split page, is for
 	 * content the split page retains after the split, and we ignore this
 	 * race.
 	 */
-	WT_INTL_INDEX_GET(session, parent, pindex);
+	WT_INTL_INDEX_GET(session, current->home, pindex);
 	return (pindex != saved_pindex);
 }
