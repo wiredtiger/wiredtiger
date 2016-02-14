@@ -250,16 +250,18 @@ __page_descend(WT_SESSION_IMPL *session,
 
 /*
  * __firstlast --
- *	Initial move to the first or last page in the tree.
+ *	Initial move to the first or last leaf page in the tree.
  */
 static inline int
-__firstlast(WT_SESSION_IMPL *session, WT_REF **refp, bool prev)
+__firstlast(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags, bool prev)
 {
 	WT_BTREE *btree;
 	WT_DECL_RET;
 	WT_PAGE *page;
 	WT_PAGE_INDEX *pindex, *parent_pindex;
 	WT_REF *current, *descent;
+
+	*refp = NULL;
 
 	btree = S2BT(session);
 
@@ -268,10 +270,12 @@ restart:	/*
 		 * Discard the currently held page and restart the walk from
 		 * the root.
 		 */
-		WT_RET(__wt_page_release(session, current, 0));
+		WT_RET(__wt_page_release(session, current, flags));
 	}
 
 	current = &btree->root;
+	if (current->page == NULL)
+		return (0);
 	for (pindex = NULL;;) {
 		parent_pindex = pindex;
 		page = current->page;
@@ -299,8 +303,8 @@ restart:	/*
 		 * On other error, simply return, the swap call ensures we're
 		 * holding nothing on failure.
 		 */
-		if ((ret = __wt_page_swap(
-		    session, current, descent, WT_READ_RESTART_OK)) == 0) {
+		if ((ret = __wt_page_swap(session,
+		    current, descent, WT_READ_RESTART_OK | flags)) == 0) {
 			current = descent;
 			continue;
 		}
@@ -386,21 +390,17 @@ __tree_walk_internal(WT_SESSION_IMPL *session,
 	 * here.  We check when discarding pages that we're not discarding that
 	 * page, so this clear must be done before the page is released.
 	 */
-	couple = couple_orig = ref = *refp;
+	ref = *refp;
 	*refp = NULL;
 
 	/* If no page is active, begin a walk from the start/end of the tree. */
 	if (ref == NULL) {
-		ref = &btree->root;
-		if (ref->page == NULL)
+		WT_ERR_NOTFOUND_OK(__firstlast(session, &ref, flags, prev));
+		if (ref == NULL)
 			goto done;
 
-		/* Descend to the first/last leaf page in the tree. */
-		WT_ERR(__firstlast(session, &ref, prev));
-
-		/* Figure out the current slot in the WT_REF array. */
+		couple = couple_orig = ref;
 		__ref_index_slot(session, ref, &pindex, &slot);
-
 		goto firstlastleaf;
 	}
 
@@ -409,11 +409,12 @@ __tree_walk_internal(WT_SESSION_IMPL *session,
 	 * Release any hazard-pointer we're holding.
 	 */
 	if (__wt_ref_is_root(ref)) {
-		WT_ERR(__wt_page_release(session, couple, flags));
+		WT_ERR(__wt_page_release(session, ref, flags));
 		goto done;
 	}
 
 	/* Figure out the current slot in the WT_REF array. */
+	couple = couple_orig = ref;
 	__ref_index_slot(session, ref, &pindex, &slot);
 
 	for (;;) {
@@ -471,15 +472,16 @@ __tree_walk_internal(WT_SESSION_IMPL *session,
 		else
 			++slot;
 
+firstlastleaf:
 		if (walkcntp != NULL)
 			++*walkcntp;
 
 		for (;;) {
 			/*
-			 * Move to the next slot, and set the reference hint if
-			 * it's wrong (used when we continue the walk). We don't
-			 * update those hints when splitting, so it's common for
-			 * them to be incorrect in some workloads.
+			 * Set the reference hint if it's wrong (used when we
+			 * continue the walk). We don't always update hints
+			 * when splitting, it's reasonable for them to be wrong
+			 * in some workloads.
 			 */
 			ref = pindex->index[slot];
 			if (ref->pindex_hint != slot)
@@ -625,7 +627,7 @@ __tree_walk_internal(WT_SESSION_IMPL *session,
 				__page_descend(
 				    session, ref->page, &pindex, &slot, prev);
 			} else {
-firstlastleaf:			/*
+				/*
 				 * Optionally skip leaf pages, the second half.
 				 * We didn't have an on-page cell to figure out
 				 * if it was a leaf page, we had to acquire the
