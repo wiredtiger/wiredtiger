@@ -266,6 +266,12 @@ __firstlast(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags, bool prev)
 	btree = S2BT(session);
 	current = NULL;
 
+	/*
+	 * We need to read the smallest/largest page regardless of whether it's
+	 * currently in the cache or if it's been deleted.
+	 */
+	LF_CLR(WT_READ_NO_EMPTY | WT_READ_CACHE);
+
 	if (0) {
 restart:	/*
 		 * Discard the currently held page and restart the walk from
