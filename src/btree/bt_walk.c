@@ -264,6 +264,7 @@ __firstlast(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags, bool prev)
 	*refp = NULL;
 
 	btree = S2BT(session);
+	current = NULL;
 
 	if (0) {
 restart:	/*
