@@ -143,11 +143,11 @@ restart:	/*
 		if (recno >= descent->key.recno) {
 			/*
 			 * If on the last slot (the key is larger than any key
-			 * on the page), check for an internal page split race.
+			 * on the page), check for an right-hand descent page
+			 * split race.
 			 */
-			if (parent_pindex != NULL &&
-			    __wt_split_intl_race(
-			    session, current->home, parent_pindex))
+			if (__wt_split_descent_race(
+			    session, parent_pindex, current))
 				goto restart;
 
 			goto descend;

@@ -177,9 +177,6 @@ __page_descend(WT_SESSION_IMPL *session,
 	 * we have a hazard pointer.
 	 */
 	for (;; __wt_yield()) {
-		WT_INTL_INDEX_GET(session, page, pindex);
-		*slotp = prev ? pindex->entries - 1 : 0;
-
 		/*
 		 * There's a split race when a cursor moving backwards through
 		 * the tree descends the tree. If we're splitting an internal
@@ -228,7 +225,7 @@ __page_descend(WT_SESSION_IMPL *session,
 		 * is correct.
 		 *
 		 * This function takes an argument which is the internal page
-		 * from which we're descending. If the last slot on the page no
+		 * into which we're descending. If the last slot on the page no
 		 * longer points to the current page as its "home", the page is
 		 * being split and part of its namespace moved. We have the
 		 * correct page and we don't have to move, all we have to do is
@@ -237,14 +234,94 @@ __page_descend(WT_SESSION_IMPL *session,
 		 * No test is necessary for a next-cursor movement because we
 		 * do right-hand splits on internal pages and the initial part
 		 * of the page's namespace won't change as part of a split.
-		 * Instead of testing the direction boolean, do the test the
-		 * previous cursor movement requires in all cases, even though
-		 * it will always succeed for a next-cursor movement.
 		 */
-		if (pindex->index[*slotp]->home == page)
+		WT_INTL_INDEX_GET(session, page, pindex);
+		if (prev) {
+			*slotp = pindex->entries - 1;
+			if (pindex->index[*slotp]->home == page)
+				break;
+		} else {
+			*slotp = 0;
 			break;
+		}
 	}
 	*pindexp = pindex;
+}
+
+/*
+ * __firstlast --
+ *	Initial move to the first or last leaf page in the tree.
+ */
+static inline int
+__firstlast(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags, bool prev)
+{
+	WT_BTREE *btree;
+	WT_DECL_RET;
+	WT_PAGE *page;
+	WT_PAGE_INDEX *pindex, *parent_pindex;
+	WT_REF *current, *descent;
+
+	*refp = NULL;
+
+	btree = S2BT(session);
+	current = NULL;
+
+	/*
+	 * We need to read the smallest/largest page regardless of whether it's
+	 * currently in the cache or if it's been deleted.
+	 */
+	LF_CLR(WT_READ_NO_EMPTY | WT_READ_CACHE);
+
+	if (0) {
+restart:	/*
+		 * Discard the currently held page and restart the walk from
+		 * the root.
+		 */
+		WT_RET(__wt_page_release(session, current, flags));
+	}
+
+	current = &btree->root;
+	if (current->page == NULL)
+		return (0);
+	for (pindex = NULL;;) {
+		parent_pindex = pindex;
+		page = current->page;
+		if (!WT_PAGE_IS_INTERNAL(page))
+			break;
+
+		WT_INTL_INDEX_GET(session, page, pindex);
+
+		descent = pindex->index[prev ? pindex->entries - 1 : 0];
+
+		/* Check for an right-hand descent page split race. */
+		if (prev &&
+		    __wt_split_descent_race(session, parent_pindex, current))
+			goto restart;
+
+		/*
+		 * Swap the current page for the child page. If the page splits
+		 * while we're retrieving it, restart the walk at the root.
+		 * We cannot restart in the "current" page; for example, if a
+		 * thread is appending to the tree, the page it's waiting for
+		 * did an insert-split into the parent, then the parent split
+		 * into its parent, the name space we are looking for may have
+		 * moved above the current page in the tree.
+		 *
+		 * On other error, simply return, the swap call ensures we're
+		 * holding nothing on failure.
+		 */
+		if ((ret = __wt_page_swap(session,
+		    current, descent, WT_READ_RESTART_OK | flags)) == 0) {
+			current = descent;
+			continue;
+		}
+		if (ret == WT_RESTART)
+			goto restart;
+		return (ret);
+	}
+
+	*refp = current;
+	return (0);
 }
 
 /*
@@ -320,15 +397,18 @@ __tree_walk_internal(WT_SESSION_IMPL *session,
 	 * here.  We check when discarding pages that we're not discarding that
 	 * page, so this clear must be done before the page is released.
 	 */
-	couple = couple_orig = ref = *refp;
+	ref = *refp;
 	*refp = NULL;
 
-	/* If no page is active, begin a walk from the start of the tree. */
+	/* If no page is active, begin a walk from the start/end of the tree. */
 	if (ref == NULL) {
-		ref = &btree->root;
-		if (ref->page == NULL)
+		WT_ERR_NOTFOUND_OK(__firstlast(session, &ref, flags, prev));
+		if (ref == NULL)
 			goto done;
-		goto descend;
+
+		couple = couple_orig = ref;
+		__ref_index_slot(session, ref, &pindex, &slot);
+		goto firstlastleaf;
 	}
 
 	/*
@@ -336,11 +416,12 @@ __tree_walk_internal(WT_SESSION_IMPL *session,
 	 * Release any hazard-pointer we're holding.
 	 */
 	if (__wt_ref_is_root(ref)) {
-		WT_ERR(__wt_page_release(session, couple, flags));
+		WT_ERR(__wt_page_release(session, ref, flags));
 		goto done;
 	}
 
 	/* Figure out the current slot in the WT_REF array. */
+	couple = couple_orig = ref;
 	__ref_index_slot(session, ref, &pindex, &slot);
 
 	for (;;) {
@@ -398,15 +479,16 @@ __tree_walk_internal(WT_SESSION_IMPL *session,
 		else
 			++slot;
 
+firstlastleaf:
 		if (walkcntp != NULL)
 			++*walkcntp;
 
 		for (;;) {
 			/*
-			 * Move to the next slot, and set the reference hint if
-			 * it's wrong (used when we continue the walk). We don't
-			 * update those hints when splitting, so it's common for
-			 * them to be incorrect in some workloads.
+			 * Set the reference hint if it's wrong (used when we
+			 * continue the walk). We don't always update hints
+			 * when splitting, it's reasonable for them to be wrong
+			 * in some workloads.
 			 */
 			ref = pindex->index[slot];
 			if (ref->pindex_hint != slot)
@@ -521,18 +603,6 @@ __tree_walk_internal(WT_SESSION_IMPL *session,
 				ret = 0;
 
 				/*
-				 * If a new walk that never coupled from the
-				 * root to a new saved position in the tree,
-				 * restart the walk.
-				 */
-				if (couple == &btree->root) {
-					ref = &btree->root;
-					if (ref->page == NULL)
-						goto done;
-					goto descend;
-				}
-
-				/*
 				 * If restarting from some original position,
 				 * repeat the increment or decrement we made at
 				 * that time. Otherwise, couple is an internal
@@ -558,7 +628,7 @@ __tree_walk_internal(WT_SESSION_IMPL *session,
 			 * page's children, else return the leaf page.
 			 */
 			if (WT_PAGE_IS_INTERNAL(ref->page)) {
-descend:			couple = ref;
+				couple = ref;
 				empty_internal = true;
 
 				__page_descend(
