@@ -83,17 +83,17 @@ __wt_apply_single_idx(WT_SESSION_IMPL *session, WT_INDEX *idx,
 	    __wt_cursor_get_value,		/* get-value */
 	    __wt_cursor_set_key,		/* set-key */
 	    __wt_cursor_set_value,		/* set-value */
-	    __wt_cursor_compare_notsup,		/* compare */
-	    __wt_cursor_equals_notsup,		/* equals */
+	    __wt_cursor_notsup_sig_two,		/* compare */
+	    __wt_cursor_notsup_sig_two,		/* equals */
 	    __wt_cursor_notsup,			/* next */
 	    __wt_cursor_notsup,			/* prev */
 	    __wt_cursor_notsup,			/* reset */
 	    __wt_cursor_notsup,			/* search */
-	    __wt_cursor_search_near_notsup,	/* search-near */
+	    __wt_cursor_notsup_sig_three,	/* search-near */
 	    __curextract_insert,		/* insert */
 	    __wt_cursor_notsup,			/* update */
 	    __wt_cursor_notsup,			/* remove */
-	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
+	    __wt_cursor_notsup_sig_four,	/* reconfigure */
 	    __wt_cursor_notsup);		/* close */
 	WT_CURSOR_EXTRACTOR extract_cursor;
 	WT_DECL_RET;

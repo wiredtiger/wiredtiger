@@ -462,7 +462,7 @@ __wt_curmetadata_open(WT_SESSION_IMPL *session,
 	    __curmetadata_insert,		/* insert */
 	    __curmetadata_update,		/* update */
 	    __curmetadata_remove,		/* remove */
-	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
+	    __wt_cursor_notsup_sig_four,	/* reconfigure */
 	    __curmetadata_close);		/* close */
 	WT_CURSOR *cursor;
 	WT_CURSOR_METADATA *mdc;

@@ -587,17 +587,17 @@ __curjoin_entry_member(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
 	    __wt_cursor_get_value,		/* get-value */
 	    __wt_cursor_set_key,		/* set-key */
 	    __wt_cursor_set_value,		/* set-value */
-	    __wt_cursor_compare_notsup,		/* compare */
-	    __wt_cursor_equals_notsup,		/* equals */
+	    __wt_cursor_notsup_sig_two,		/* compare */
+	    __wt_cursor_notsup_sig_two,		/* equals */
 	    __wt_cursor_notsup,			/* next */
 	    __wt_cursor_notsup,			/* prev */
 	    __wt_cursor_notsup,			/* reset */
 	    __wt_cursor_notsup,			/* search */
-	    __wt_cursor_search_near_notsup,	/* search-near */
+	    __wt_cursor_notsup_sig_three,	/* search-near */
 	    __curjoin_extract_insert,		/* insert */
 	    __wt_cursor_notsup,			/* update */
 	    __wt_cursor_notsup,			/* remove */
-	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
+	    __wt_cursor_notsup_sig_four,	/* reconfigure */
 	    __wt_cursor_notsup);		/* close */
 	WT_DECL_RET;
 	WT_INDEX *idx;
@@ -799,19 +799,19 @@ __wt_curjoin_open(WT_SESSION_IMPL *session,
 	WT_CURSOR_STATIC_INIT(iface,
 	    __curjoin_get_key,			/* get-key */
 	    __curjoin_get_value,		/* get-value */
-	    __wt_cursor_set_key_notsup,		/* set-key */
-	    __wt_cursor_set_value_notsup,	/* set-value */
-	    __wt_cursor_compare_notsup,		/* compare */
-	    __wt_cursor_equals_notsup,		/* equals */
+	    __wt_cursor_notsup_sig_five,	/* set-key */
+	    __wt_cursor_notsup_sig_five,	/* set-value */
+	    __wt_cursor_notsup_sig_two,		/* compare */
+	    __wt_cursor_notsup_sig_two,		/* equals */
 	    __curjoin_next,			/* next */
 	    __wt_cursor_notsup,			/* prev */
 	    __curjoin_reset,			/* reset */
 	    __wt_cursor_notsup,			/* search */
-	    __wt_cursor_search_near_notsup,	/* search-near */
+	    __wt_cursor_notsup_sig_three,	/* search-near */
 	    __wt_cursor_notsup,			/* insert */
 	    __wt_cursor_notsup,			/* update */
 	    __wt_cursor_notsup,			/* remove */
-	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
+	    __wt_cursor_notsup_sig_four,	/* reconfigure */
 	    __curjoin_close);			/* close */
 	WT_CURSOR *cursor;
 	WT_CURSOR_JOIN *cjoin;

@@ -577,17 +577,17 @@ __wt_curstat_open(WT_SESSION_IMPL *session,
 	    __curstat_get_value,		/* get-value */
 	    __curstat_set_key,			/* set-key */
 	    __curstat_set_value,		/* set-value */
-	    __wt_cursor_compare_notsup,		/* compare */
-	    __wt_cursor_equals_notsup,		/* equals */
+	    __wt_cursor_notsup_sig_two,		/* compare */
+	    __wt_cursor_notsup_sig_two,		/* equals */
 	    __curstat_next,			/* next */
 	    __curstat_prev,			/* prev */
 	    __curstat_reset,			/* reset */
 	    __curstat_search,			/* search */
-	    __wt_cursor_search_near_notsup,	/* search-near */
+	    __wt_cursor_notsup_sig_three,	/* search-near */
 	    __wt_cursor_notsup,			/* insert */
 	    __wt_cursor_notsup,			/* update */
 	    __wt_cursor_notsup,			/* remove */
-	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
+	    __wt_cursor_notsup_sig_four,	/* reconfigure */
 	    __curstat_close);			/* close */
 	WT_CONFIG_ITEM cval, sval;
 	WT_CURSOR *cursor;
