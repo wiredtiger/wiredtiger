@@ -34,83 +34,60 @@ __wt_cursor_notsup(WT_CURSOR *cursor)
 }
 
 /*
- * __wt_cursor_get_value_notsup --
- *	WT_CURSOR.get_value not-supported.
+ * __wt_cursor_notsup_sig_one --
+ *	Cursor not-supported signature.
  */
 int
-__wt_cursor_get_value_notsup(WT_CURSOR *cursor, ...)
+__wt_cursor_notsup_sig_one(WT_CURSOR *cursor, ...)
 {
 	return (__wt_cursor_notsup(cursor));
 }
 
 /*
- * __wt_cursor_set_key_notsup --
- *	WT_CURSOR.set_key not-supported.
- */
-void
-__wt_cursor_set_key_notsup(WT_CURSOR *cursor, ...)
-{
-	(void)__wt_cursor_notsup(cursor);
-}
-
-/*
- * __wt_cursor_set_value_notsup --
- *	WT_CURSOR.set_value not-supported.
- */
-void
-__wt_cursor_set_value_notsup(WT_CURSOR *cursor, ...)
-{
-	(void)__wt_cursor_notsup(cursor);
-}
-
-/*
- * __wt_cursor_compare_notsup --
- *	Unsupported cursor comparison.
+ * __wt_cursor_notsup_sig_two --
+ *	Cursor not-supported signature.
  */
 int
-__wt_cursor_compare_notsup(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
+__wt_cursor_notsup_sig_two(WT_CURSOR *cursor, WT_CURSOR *a, int *b)
 {
+	WT_UNUSED(a);
 	WT_UNUSED(b);
-	WT_UNUSED(cmpp);
-
-	return (__wt_cursor_notsup(a));
-}
-
-/*
- * __wt_cursor_equals_notsup --
- *	Unsupported cursor equality.
- */
-int
-__wt_cursor_equals_notsup(WT_CURSOR *cursor, WT_CURSOR *other, int *equalp)
-{
-	WT_UNUSED(other);
-	WT_UNUSED(equalp);
 
 	return (__wt_cursor_notsup(cursor));
 }
 
 /*
- * __wt_cursor_search_near_notsup --
- *	Unsupported cursor search-near.
+ * __wt_cursor_notsup_sig_three --
+ *	Cursor not-supported signature.
  */
 int
-__wt_cursor_search_near_notsup(WT_CURSOR *cursor, int *exact)
+__wt_cursor_notsup_sig_three(WT_CURSOR *cursor, int *a)
 {
-	WT_UNUSED(exact);
+	WT_UNUSED(a);
 
 	return (__wt_cursor_notsup(cursor));
 }
 
 /*
- * __wt_cursor_reconfigure_notsup --
- *	Unsupported cursor reconfiguration.
+ * __wt_cursor_notsup_sig_four --
+ *	Cursor not-supported signature.
  */
 int
-__wt_cursor_reconfigure_notsup(WT_CURSOR *cursor, const char *config)
+__wt_cursor_notsup_sig_four(WT_CURSOR *cursor, const char *a)
 {
-	WT_UNUSED(config);
+	WT_UNUSED(a);
 
 	return (__wt_cursor_notsup(cursor));
+}
+
+/*
+ * __wt_cursor_notsup_sig_five --
+ *	Cursor not-supported signature.
+ */
+void
+__wt_cursor_notsup_sig_five(WT_CURSOR *cursor, ...)
+{
+	(void)__wt_cursor_notsup(cursor);
 }
 
 /*
@@ -127,12 +104,12 @@ __wt_cursor_set_notsup(WT_CURSOR *cursor)
 	 * cursors in a session. Reconfigure is left open in case it's possible
 	 * in the future to change these configurations.
 	 */
-	cursor->compare = __wt_cursor_compare_notsup;
+	cursor->compare = __wt_cursor_notsup_sig_two;
 	cursor->next = __wt_cursor_notsup;
 	cursor->prev = __wt_cursor_notsup;
 	cursor->reset = __wt_cursor_noop;
 	cursor->search = __wt_cursor_notsup;
-	cursor->search_near = __wt_cursor_search_near_notsup;
+	cursor->search_near = __wt_cursor_notsup_sig_three;
 	cursor->insert = __wt_cursor_notsup;
 	cursor->update = __wt_cursor_notsup;
 	cursor->remove = __wt_cursor_notsup;

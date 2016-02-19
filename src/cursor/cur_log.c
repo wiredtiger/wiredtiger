@@ -357,11 +357,11 @@ __wt_curlog_open(WT_SESSION_IMPL *session,
 	    __wt_cursor_notsup,			/* prev */
 	    __curlog_reset,			/* reset */
 	    __curlog_search,			/* search */
-	    __wt_cursor_search_near_notsup,	/* search-near */
+	    __wt_cursor_notsup_sig_three,	/* search-near */
 	    __wt_cursor_notsup,			/* insert */
 	    __wt_cursor_notsup,			/* update */
 	    __wt_cursor_notsup,			/* remove */
-	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
+	    __wt_cursor_notsup_sig_four,	/* reconfigure */
 	    __curlog_close);			/* close */
 	WT_CURSOR *cursor;
 	WT_CURSOR_LOG *cl;

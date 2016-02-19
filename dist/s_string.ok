@@ -930,6 +930,7 @@ setkv
 setstr
 setv
 sfence
+sig
 sii
 sizeof
 sizep

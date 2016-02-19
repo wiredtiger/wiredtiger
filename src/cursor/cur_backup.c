@@ -104,20 +104,20 @@ __wt_curbackup_open(WT_SESSION_IMPL *session,
 {
 	WT_CURSOR_STATIC_INIT(iface,
 	    __wt_cursor_get_key,		/* get-key */
-	    __wt_cursor_get_value_notsup,	/* get-value */
-	    __wt_cursor_set_key_notsup,		/* set-key */
-	    __wt_cursor_set_value_notsup,	/* set-value */
-	    __wt_cursor_compare_notsup,		/* compare */
-	    __wt_cursor_equals_notsup,		/* equals */
+	    __wt_cursor_notsup_sig_one,		/* get-value */
+	    __wt_cursor_notsup_sig_five,	/* set-key */
+	    __wt_cursor_notsup_sig_five,	/* set-value */
+	    __wt_cursor_notsup_sig_two,		/* compare */
+	    __wt_cursor_notsup_sig_two,		/* equals */
 	    __curbackup_next,			/* next */
 	    __wt_cursor_notsup,			/* prev */
 	    __curbackup_reset,			/* reset */
 	    __wt_cursor_notsup,			/* search */
-	    __wt_cursor_search_near_notsup,	/* search-near */
+	    __wt_cursor_notsup_sig_three,	/* search-near */
 	    __wt_cursor_notsup,			/* insert */
 	    __wt_cursor_notsup,			/* update */
 	    __wt_cursor_notsup,			/* remove */
-	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
+	    __wt_cursor_notsup_sig_four,	/* reconfigure */
 	    __curbackup_close);			/* close */
 	WT_CURSOR *cursor;
 	WT_CURSOR_BACKUP *cb;
