@@ -139,6 +139,36 @@ __session_compact_check_timeout(
 }
 
 /*
+ * __compact_start --
+ *	Start objection compaction.
+ */
+static int
+__compact_start(WT_SESSION_IMPL *session, const char *cfg[])
+{
+	WT_BM *bm;
+
+	WT_UNUSED(cfg);
+
+	bm = S2BT(session)->bm;
+	return (bm->compact_start(bm, session));
+}
+
+/*
+ * __compact_end --
+ *	End objection compaction.
+ */
+static int
+__compact_end(WT_SESSION_IMPL *session, const char *cfg[])
+{
+	WT_BM *bm;
+
+	WT_UNUSED(cfg);
+
+	bm = S2BT(session)->bm;
+	return (bm->compact_end(bm, session));
+}
+
+/*
  * __compact_file --
  *	Function to alternate between checkpoints and compaction calls.
  */
@@ -148,9 +178,27 @@ __compact_file(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 	struct timespec start_time;
 	WT_DECL_ITEM(t);
 	WT_DECL_RET;
-	int i;
+	int i, tret;
 	const char *checkpoint_cfg[] = {
 	    WT_CONFIG_BASE(session, WT_SESSION_checkpoint), NULL, NULL };
+
+	/*
+	 * Start object compaction.
+	 *
+	 * XXX
+	 * There's a bug here. We're configuring compaction on a block manager's
+	 * object, and if we fail in the middle of that process, we would either
+	 * leave a set of objects configured for compaction or try to undo that
+	 * configuration on objects we never configured. There isn't any simple
+	 * solution: we could track objects we've successfully configured for
+	 * later cleanup, but we aren't holding locks to prevent racing with
+	 * another compaction doing the same configuration, or the object being
+	 * dropped in the middle of compaction.
+	 */
+	WT_WITH_SCHEMA_LOCK(session, ret,
+	    ret = __wt_schema_worker(
+	    session, uri, __compact_start, NULL, cfg, 0));
+	WT_RET(ret);
 
 	/*
 	 * Force the checkpoint: we don't want to skip it because the work we
@@ -187,12 +235,18 @@ __compact_file(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 
 err:	session->compact_state = WT_COMPACT_NONE;
 
+	WT_WITH_SCHEMA_LOCK(session, tret,
+	    tret = __wt_schema_worker(
+	    session, uri, __compact_end, NULL, cfg, 0));
+	WT_TRET(tret);
+
 	__wt_scr_free(session, &t);
 	return (ret);
 }
 
 /*
  * __wt_session_compact --
+ *	WT_SESSION.compact method.
  */
 int
 __wt_session_compact(
@@ -259,4 +313,18 @@ err:	session->compact = NULL;
 	WT_TRET(__wt_session_release_resources(session));
 
 	API_END_RET_NOTFOUND_MAP(session, ret);
+}
+
+/*
+ * __wt_session_compact_readonly --
+ *	WT_SESSION.compact method; readonly version.
+ */
+int
+__wt_session_compact_readonly(
+    WT_SESSION *wt_session, const char *uri, const char *config)
+{
+	WT_UNUSED(uri);
+	WT_UNUSED(config);
+
+	return (__wt_session_notsup(wt_session));
 }
