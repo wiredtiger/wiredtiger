@@ -729,19 +729,18 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session, bool *evict_resetp)
 {
 	WT_BTREE *btree;
 	WT_CACHE *cache;
+	WT_DECL_RET;
 	WT_EVICT_ENTRY *evict;
 	u_int i, elem;
 
 	btree = S2BT(session);
 	cache = S2C(session)->cache;
 
-	/*
-	 * If the file isn't evictable, there's no work to do.
-	 */
-	if (F_ISSET(btree, WT_BTREE_NO_EVICTION)) {
-		*evict_resetp = false;
+	*evict_resetp = false;
+	/* If the file was never evictable, there's no work to do. */
+	if (F_ISSET(btree, WT_BTREE_NO_EVICTION))
 		return (0);
-	}
+
 	*evict_resetp = true;
 
 	/*
@@ -749,11 +748,18 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session, bool *evict_resetp)
 	 * the file will be queued for eviction after this point.
 	 */
 	__wt_spin_lock(session, &cache->evict_walk_lock);
-	F_SET(btree, WT_BTREE_NO_EVICTION);
+	if (!F_ISSET(btree, WT_BTREE_NO_EVICTION)) {
+		F_SET(btree, WT_BTREE_NO_EVICTION);
+		*evict_resetp = true;
+	}
 	__wt_spin_unlock(session, &cache->evict_walk_lock);
 
+	/* If some other operation has disabled eviction, we're done. */
+	if (!*evict_resetp)
+		return (0);
+
 	/* Clear any existing LRU eviction walk for the file. */
-	WT_RET(__evict_request_walk_clear(session));
+	WT_ERR(__evict_request_walk_clear(session));
 
 	/* Hold the evict lock to remove any queued pages from this file. */
 	__wt_spin_lock(session, &cache->evict_lock);
@@ -776,6 +782,10 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session, bool *evict_resetp)
 		__wt_yield();
 
 	return (0);
+
+err:	F_CLR(btree, WT_BTREE_NO_EVICTION);
+	*evict_resetp = false;
+	return (ret);
 }
 
 /*
@@ -789,7 +799,14 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
 
 	btree = S2BT(session);
 
-	WT_ASSERT(session, btree->evict_ref == NULL);
+	/*
+	 * We have seen subtle bugs with multiple threads racing to turn
+	 * eviction on/off.  Make races more likely in diagnostic builds.
+	 */
+	WT_DIAGNOSTIC_YIELD;
+
+	WT_ASSERT(session, btree->evict_ref == NULL &&
+	    F_ISSET(btree, WT_BTREE_NO_EVICTION));
 
 	F_CLR(btree, WT_BTREE_NO_EVICTION);
 }
