@@ -6,10 +6,12 @@ ACLOCAL_AMFLAGS = -I build_posix/aclocal
 lib_LTLIBRARIES = libwiredtiger.la
 LDADD = $(lib_LTLIBRARIES)
 
+noinst_LTLIBRARIES = libpower8.la
+
 # The LevelDB libraries prefer to include all of the objects in a single
 # library.  Create a convenience library for them.
 if LEVELDB
-noinst_LTLIBRARIES = libwiredtiger_static.la
+noinst_LTLIBRARIES += libwiredtiger_static.la
 endif
 
 # BEGIN SOURCES, maintained by makemake and dist/filelist
@@ -67,7 +69,10 @@ $(srcdir)/docs/index.html:
 $(srcdir)/docs/man/man1/wt.1: $(srcdir)/docs/index.html
 $(srcdir)/docs/man/man3/wiredtiger.3: $(srcdir)/docs/index.html
 
-libwiredtiger_la_LIBADD =
+libpower8_la_SOURCES = src/support/power8/crc32.S
+libpower8_la_LIBTOOLFLAGS = --tag=asm
+
+libwiredtiger_la_LIBADD = libpower8.la
 if HAVE_BUILTIN_EXTENSION_LZ4
 libwiredtiger_la_LIBADD += ext/compressors/lz4/libwiredtiger_lz4.la
 endif
