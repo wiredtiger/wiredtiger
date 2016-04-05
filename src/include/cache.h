@@ -110,6 +110,8 @@ struct __wt_cache {
 	/*
 	 * LRU eviction list information.
 	 */
+	WT_SPINLOCK evict_pass_lock;	/* Eviction pass lock */
+	WT_SESSION_IMPL *walk_session;	/* Eviction pass session */
 	WT_SPINLOCK evict_queue_lock;	/* Eviction current queue lock */
 	WT_EVICT_QUEUE evict_queues[WT_EVICT_QUEUE_MAX];
 	WT_EVICT_QUEUE *evict_current_queue;/* LRU current queue in use */
