@@ -9,7 +9,6 @@ void (*custom_die)(void) = NULL;
 
 /* Needs to be global for signal handling. */
 TEST_OPTS *opts;
-const char *fmt = "%" PRIu64 " VALUE ------";
 
 static void
 page_init(uint64_t n)
@@ -34,7 +33,8 @@ page_init(uint64_t n)
 		else {
 			if (recno % 3 == 0)
 				++vrecno;
-			snprintf(buf, sizeof(buf), fmt, vrecno);
+			snprintf(buf,
+			    sizeof(buf), "%" PRIu64 " VALUE ------", vrecno);
 			cursor->set_value(cursor, buf);
 		}
 		testutil_check(cursor->insert(cursor));
