@@ -26,13 +26,15 @@ main(int argc, char *argv[])
 	    "cache_size=2G,"
 	    "eviction=(threads_max=5),"
 	    "statistics=(fast)", &opts->conn));
-	testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
+	testutil_check(
+	    opts->conn->open_session(opts->conn, NULL, NULL, &session));
 	testutil_check(session->create(session, opts->uri,
 	    "key_format=Q,value_format=Q,"
 	    "leaf_page_max=32k,"));
 
 	/* Create the single record. */
-	testutil_check(session->open_cursor(session, opts->uri, NULL, NULL, &c));
+	testutil_check(
+	    session->open_cursor(session, opts->uri, NULL, NULL, &c));
 	c->set_key(c, 1);
 	c->set_value(c, 0);
 	testutil_check(c->insert(c));
@@ -44,13 +46,15 @@ main(int argc, char *argv[])
 	}
 	while (--i >= 0)
 		testutil_check(pthread_join(id[i], NULL));
-	testutil_check(session->open_cursor(session, opts->uri, NULL, NULL, &c));
+	testutil_check(
+	    session->open_cursor(session, opts->uri, NULL, NULL, &c));
 	c->set_key(c, 1);
 	testutil_check(c->search(c));
 	c->get_value(c, &current_value);
 	if (current_value != opts->nthreads * opts->nrecords) {
 		printf("WARNING: didn't get expected number of changes\n");
-		printf("got: %d, expected: %d\n", (int)current_value, (int)(opts->nthreads * opts->nrecords));
+		printf("got: %d, expected: %d\n",
+		    (int)current_value, (int)(opts->nthreads * opts->nrecords));
 	}
 	testutil_check(session->close(session, NULL));
 	ce = clock();

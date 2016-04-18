@@ -2,10 +2,10 @@
 
 void (*custom_die)(void) = NULL;
 
-#define NR_OBJECTS 100
-#define NR_FIELDS 8
-#define NR_THREADS 4
-#define BUF_SIZE 256
+#define	NR_OBJECTS 100
+#define	NR_FIELDS 8
+#define	NR_THREADS 4
+#define	BUF_SIZE 256
 
 static uint64_t g_ts;
 
@@ -66,7 +66,7 @@ static void *thread_func(void *arg)
 
 	testutil_check(session->close(session, NULL));
 	free(obj_data);
-	return NULL;
+	return (NULL);
 }
 
 int
@@ -98,7 +98,7 @@ main(int argc, char *argv[])
 	for (i = 0; i < NR_FIELDS; i++)
 		strcat(table_format, "Q");
 
-	/* recno -> timestamp + NR_FIELDS Q's */
+	/* recno -> timestamp + NR_FIELDS * Q */
 	testutil_check(session->create(
 	    session, opts->uri, table_format));
 	/* timestamp -> recno */
@@ -117,7 +117,7 @@ main(int argc, char *argv[])
 	testutil_check(opts->conn->open_session(
 	    opts->conn, NULL, NULL, &session));
 
-	/* recno -> timestamp + NR_FIELDS Q's */
+	/* recno -> timestamp + NR_FIELDS * Q */
 	testutil_check(session->create(session, opts->uri, table_format));
 
 	testutil_check(session->open_cursor(
@@ -141,5 +141,5 @@ main(int argc, char *argv[])
 
 	testutil_cleanup(opts);
 
-	return 0;
+	return (0);
 }

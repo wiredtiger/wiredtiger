@@ -68,7 +68,8 @@ thread_next(void *arg)
 
 	testutil_check(
 	    opts->conn->open_session(opts->conn, NULL, NULL, &session));
-	testutil_check(session->open_cursor(session, opts->uri, NULL, NULL, &cursor));
+	testutil_check(session->open_cursor(
+	    session, opts->uri, NULL, NULL, &cursor));
 	while (opts->running) {
 		while (opts->running && (ret = cursor->next(cursor)) == 0)
 			;
@@ -85,15 +86,18 @@ void *
 thread_insert_append(void *arg)
 {
 	TEST_OPTS *opts;
+	WT_CONNECTION *conn;
 	WT_SESSION *session;
 	WT_CURSOR *cursor;
 	uint64_t i;
 	char kbuf[64];
 
 	opts = (TEST_OPTS *)arg;
+	conn = opts->conn;
 
-	testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
-	testutil_check(session->open_cursor(session, opts->uri, NULL, NULL, &cursor));
+	testutil_check(conn->open_session(conn, NULL, NULL, &session));
+	testutil_check(session->open_cursor(
+	    session, opts->uri, NULL, NULL, &cursor));
 
 	for (i = 0; i < opts->nrecords; ++i) {
 		snprintf(kbuf, sizeof(kbuf), "%010d KEY------", (int)i);
@@ -116,19 +120,23 @@ void *
 thread_insert_race(void *arg)
 {
 	TEST_OPTS *opts;
+	WT_CONNECTION *conn;
 	WT_SESSION *session;
 	WT_CURSOR *cursor;
 	int ret;
 	uint64_t i, value;
 
 	opts = (TEST_OPTS *)arg;
+	conn = opts->conn;
 
-	testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
-	testutil_check(session->open_cursor(session, opts->uri, NULL, NULL, &cursor));
+	testutil_check(conn->open_session(conn, NULL, NULL, &session));
+	testutil_check(session->open_cursor(
+	    session, opts->uri, NULL, NULL, &cursor));
 
-	printf("Running inserter thread\n");
+	printf("Running insert thread\n");
 	for (i = 0; i < opts->nrecords; ++i) {
-		testutil_check(session->begin_transaction(session, "isolation=snapshot"));
+		testutil_check(
+		    session->begin_transaction(session, "isolation=snapshot"));
 		cursor->set_key(cursor, 1);
 		cursor->search(cursor);
 		cursor->get_value(cursor, &value);
@@ -136,7 +144,8 @@ thread_insert_race(void *arg)
 		cursor->set_value(cursor, value + 1);
 		if ((ret = cursor->update(cursor)) != 0) {
 			if (ret == WT_ROLLBACK) {
-				testutil_check(session->rollback_transaction(session, NULL));
+				testutil_check(session->rollback_transaction(
+				    session, NULL));
 				i--;
 				continue;
 			}
@@ -160,16 +169,17 @@ void *
 thread_append(void *arg)
 {
 	TEST_OPTS *opts;
+	WT_CONNECTION *conn;
 	WT_SESSION *session;
 	WT_CURSOR *cursor;
 	uint64_t id, recno;
 	char buf[64];
 
 	opts = (TEST_OPTS *)arg;
+	conn = opts->conn;
 
 	id = __wt_atomic_fetch_addv64(&opts->next_threadid, 1);
-	testutil_check(
-	    opts->conn->open_session(opts->conn, NULL, NULL, &session));
+	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 	testutil_check(
 	    session->open_cursor(session, opts->uri, NULL, "append", &cursor));
 
@@ -184,7 +194,8 @@ thread_append(void *arg)
 		}
 		testutil_check(cursor->insert(cursor));
 		if (id == 0) {
-			testutil_check(cursor->get_key(cursor, &opts->max_inserted_id));
+			testutil_check(
+			    cursor->get_key(cursor, &opts->max_inserted_id));
 			if (opts->max_inserted_id >= opts->nrecords)
 				opts->running = false;
 		}

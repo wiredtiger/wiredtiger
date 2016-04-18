@@ -910,6 +910,7 @@ pushms
 putK
 putV
 pv
+pvA
 pwrite
 py
 qdown

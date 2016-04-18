@@ -1,25 +1,28 @@
 #include "test_util.h"
 
-/* Don't move this into shared function until we have a cross platform solution */
+/* Don't move into shared function there is a cross platform solution */
 #include <signal.h>
 
 #define	MILLION		1000000
 
 void (*custom_die)(void) = NULL;
 
-/* Needs to be global for onsig. */
+/* Needs to be global for signal handling. */
 TEST_OPTS *opts;
 const char *fmt = "%" PRIu64 " VALUE ------";
 
 static void
 page_init(uint64_t n)
 {
+	WT_CONNECTION *conn;
 	WT_SESSION *session;
 	WT_CURSOR *cursor;
 	uint64_t recno, vrecno;
 	char buf[64];
 
-	testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
+	conn = opts->conn;
+
+	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 	testutil_check(
 	    session->open_cursor(session, opts->uri, NULL, "append", &cursor));
 
@@ -77,8 +80,9 @@ main(int argc, char *argv[])
 	    "statistics=(fast)",
 	    opts->table_type == TABLE_FIX ? "500MB" : "2GB");
 	testutil_check(wiredtiger_open(opts->home, NULL, buf, &opts->conn));
-	testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
-	snprintf(buf, sizeof(buf), 
+	testutil_check(
+	    opts->conn->open_session(opts->conn, NULL, NULL, &session));
+	snprintf(buf, sizeof(buf),
 	    "key_format=r,value_format=%s,"
 	    "allocation_size=4K,leaf_page_max=64K",
 	    opts->table_type == TABLE_FIX ? "8t" : "S");
@@ -115,7 +119,8 @@ main(int argc, char *argv[])
 
 	ce = clock();
 	printf("%" PRIu64 "M: %.2lf\n",
-	    opts->max_inserted_id / MILLION, (ce - cs) / (double)CLOCKS_PER_SEC);
+	    opts->max_inserted_id / MILLION,
+	    (ce - cs) / (double)CLOCKS_PER_SEC);
 
 	testutil_cleanup(opts);
 	/* NOTREACHED */
