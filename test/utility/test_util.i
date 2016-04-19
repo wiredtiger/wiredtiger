@@ -93,7 +93,6 @@ testutil_parse_opts(int argc, char *argv[], TEST_OPTS *opts)
 	int ch;
 	size_t len;
 
-	opts->home = strdup("WT_TEST");
 	opts->preserve = false;
 	opts->running = true;
 	opts->verbose = false;
@@ -162,6 +161,14 @@ testutil_parse_opts(int argc, char *argv[], TEST_OPTS *opts)
 			    opts->progname);
 			return (1);
 		}
+
+	/*
+	 * Setup the home directory. It needs to be unique for every test
+	 * or the auto make parallel tester gets upset.
+	 */
+	len = snprintf(NULL, 0, "WT_TEST.%s", opts->progname) + 1;
+	opts->home = (char *)malloc(len);
+	snprintf(opts->home, len, "WT_TEST.%s", opts->progname);
 
 	/* Setup the default URI string */
 	len = snprintf(NULL, 0, "table:%s", opts->progname) + 1;

@@ -21,7 +21,7 @@ main(int argc, char *argv[])
 	testutil_check(testutil_parse_opts(argc, argv, opts));
 	testutil_make_work_dir(opts->home);
 
-	testutil_check(wiredtiger_open("WT_TEST", NULL,
+	testutil_check(wiredtiger_open(opts->home, NULL,
 	    "create,"
 	    "cache_size=2G,"
 	    "eviction=(threads_max=5),"
