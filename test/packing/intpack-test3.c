@@ -45,10 +45,10 @@ test_value(int64_t val)
 	soutput = 0;	/* -Werror=maybe-uninitialized */
 	sinput = val;
 	p = buf;
-	testutil_check(__wt_vpack_int(&p, sizeof(buf), sinput) == 0);
+	testutil_check(__wt_vpack_int(&p, sizeof(buf), sinput));
 	used_len = (size_t)(p - buf);
 	cp = buf;
-	testutil_check(__wt_vunpack_int(&cp, used_len, &soutput) == 0);
+	testutil_check(__wt_vunpack_int(&cp, used_len, &soutput));
 	/* Ensure we got the correct value back */
 	if (sinput != soutput) {
 		fprintf(stderr, "mismatch %" PRIu64 ", %" PRIu64 "\n",
@@ -70,10 +70,10 @@ test_value(int64_t val)
 	uinput = (uint64_t)val;
 
 	p = buf;
-	testutil_check(__wt_vpack_uint(&p, sizeof(buf), uinput) == 0);
+	testutil_check(__wt_vpack_uint(&p, sizeof(buf), uinput));
 	cp = buf;
 	testutil_check(__wt_vunpack_uint(
-	    &cp, sizeof(buf), &uoutput) == 0);
+	    &cp, sizeof(buf), &uoutput));
 	/* Ensure we got the correct value back */
 	if (sinput != soutput) {
 		fprintf(stderr, "mismatch %" PRIu64 ", %" PRIu64 "\n",

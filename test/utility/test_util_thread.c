@@ -28,60 +28,54 @@
 
 #include "test_util.h"
 
+/*
+ * A thread dedicated to appending records into a table. Works with fixed
+ * length column stores and variable length column stores.
+ * One thread (the first thread created by an application) checks for a
+ * terminating condition after each insert.
+ */
 void *
-thread_prev(void *arg)
+thread_append(void *arg)
 {
 	TEST_OPTS *opts;
+	WT_CONNECTION *conn;
 	WT_SESSION *session;
 	WT_CURSOR *cursor;
-	int ret;
+	uint64_t id, recno;
+	char buf[64];
 
 	opts = (TEST_OPTS *)arg;
-	ret = 0;
+	conn = opts->conn;
 
+	id = __wt_atomic_fetch_addv64(&opts->next_threadid, 1);
+	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 	testutil_check(
-	    opts->conn->open_session(opts->conn, NULL, NULL, &session));
-	testutil_check(
-	    session->open_cursor(session, opts->uri, NULL, NULL, &cursor));
-	while (opts->running) {
-		while (opts->running && (ret = cursor->prev(cursor)) == 0)
-			;
-		if (ret == WT_NOTFOUND)
-			ret = 0;
-		testutil_check(ret);
+	    session->open_cursor(session, opts->uri, NULL, "append", &cursor));
+
+	buf[0] = '\2';
+	for (recno = 1; opts->running; ++recno) {
+		if (opts->table_type == TABLE_FIX)
+			cursor->set_value(cursor, buf[0]);
+		else {
+			snprintf(buf, sizeof(buf),
+			    "%" PRIu64 " VALUE ------", recno);
+			cursor->set_value(cursor, buf);
+		}
+		testutil_check(cursor->insert(cursor));
+		if (id == 0) {
+			testutil_check(
+			    cursor->get_key(cursor, &opts->max_inserted_id));
+			if (opts->max_inserted_id >= opts->nrecords)
+				opts->running = false;
+		}
 	}
 
-	testutil_check(session->close(session, NULL));
 	return (NULL);
 }
 
-void *
-thread_next(void *arg)
-{
-	TEST_OPTS *opts;
-	WT_SESSION *session;
-	WT_CURSOR *cursor;
-	int ret;
-
-	opts = (TEST_OPTS *)arg;
-	ret = 0;
-
-	testutil_check(
-	    opts->conn->open_session(opts->conn, NULL, NULL, &session));
-	testutil_check(session->open_cursor(
-	    session, opts->uri, NULL, NULL, &cursor));
-	while (opts->running) {
-		while (opts->running && (ret = cursor->next(cursor)) == 0)
-			;
-		if (ret == WT_NOTFOUND)
-			ret = 0;
-		testutil_check(ret);
-	}
-
-	testutil_check(session->close(session, NULL));
-	return (NULL);
-}
-
+/*
+ * Append into a row store table.
+ */
 void *
 thread_insert_append(void *arg)
 {
@@ -116,6 +110,10 @@ thread_insert_append(void *arg)
 	return (NULL);
 }
 
+/*
+ * Append to a table in a "racy" fashion - that is attempt to insert the
+ * same record another thread is likely to also be inserting.
+ */
 void *
 thread_insert_race(void *arg)
 {
@@ -165,42 +163,32 @@ thread_insert_race(void *arg)
 	return (NULL);
 }
 
+/*
+ * Repeatedly walk backwards through the records in a table.
+ */
 void *
-thread_append(void *arg)
+thread_prev(void *arg)
 {
 	TEST_OPTS *opts;
-	WT_CONNECTION *conn;
 	WT_SESSION *session;
 	WT_CURSOR *cursor;
-	uint64_t id, recno;
-	char buf[64];
+	int ret;
 
 	opts = (TEST_OPTS *)arg;
-	conn = opts->conn;
+	ret = 0;
 
-	id = __wt_atomic_fetch_addv64(&opts->next_threadid, 1);
-	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 	testutil_check(
-	    session->open_cursor(session, opts->uri, NULL, "append", &cursor));
-
-	buf[0] = '\2';
-	for (recno = 1; opts->running; ++recno) {
-		if (opts->table_type == TABLE_FIX)
-			cursor->set_value(cursor, buf[0]);
-		else {
-			snprintf(buf, sizeof(buf),
-			    "%" PRIu64 " VALUE ------", recno);
-			cursor->set_value(cursor, buf);
-		}
-		testutil_check(cursor->insert(cursor));
-		if (id == 0) {
-			testutil_check(
-			    cursor->get_key(cursor, &opts->max_inserted_id));
-			if (opts->max_inserted_id >= opts->nrecords)
-				opts->running = false;
-		}
+	    opts->conn->open_session(opts->conn, NULL, NULL, &session));
+	testutil_check(
+	    session->open_cursor(session, opts->uri, NULL, NULL, &cursor));
+	while (opts->running) {
+		while (opts->running && (ret = cursor->prev(cursor)) == 0)
+			;
+		if (ret == WT_NOTFOUND)
+			ret = 0;
+		testutil_check(ret);
 	}
 
+	testutil_check(session->close(session, NULL));
 	return (NULL);
 }
-

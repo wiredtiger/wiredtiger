@@ -34,5 +34,4 @@
 void *thread_append(void *);
 void *thread_insert_append(void *);
 void *thread_insert_race(void *);
-void *thread_next(void *);
 void *thread_prev(void *);
