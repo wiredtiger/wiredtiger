@@ -2644,7 +2644,7 @@ __rec_split_raw_worker(WT_SESSION_IMPL *session,
 	    WT_BLOCK_COMPRESS_SKIP + extra_skip,
 	    (uint8_t *)dsk + WT_BLOCK_COMPRESS_SKIP, r->raw_offsets, slots,
 	    (uint8_t *)dst->mem + WT_BLOCK_COMPRESS_SKIP, result_len,
-	    image_too_large | no_more_rows, &result_len, &result_slots);
+	    image_too_large || no_more_rows, &result_len, &result_slots);
 	switch (ret) {
 	case EAGAIN:
 		/*
