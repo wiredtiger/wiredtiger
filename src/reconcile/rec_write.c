@@ -2466,7 +2466,7 @@ __rec_split_raw_worker(WT_SESSION_IMPL *session,
 	size_t corrected_page_size, extra_skip, len, result_len;
 	uint64_t recno;
 	uint32_t entry, i, result_slots, slots;
-	bool last_block;
+	bool image_too_large, last_block;
 	uint8_t *dsk_start;
 
 	wt_session = (WT_SESSION *)session;
@@ -2575,15 +2575,6 @@ __rec_split_raw_worker(WT_SESSION_IMPL *session,
 		    dsk->type == WT_PAGE_COL_VAR)
 			r->raw_recnos[slots] = recno;
 		r->raw_entries[slots] = entry;
-
-		/*
-		 * Don't create an image so large that any future update will
-		 * cause a split in memory.  Use half of the maximum size so
-		 * we split very compressible pages that have reached the
-		 * maximum size in memory into two equal blocks.
-		 */
-		if (len > (size_t)btree->maxmempage / 2)
-			break;
 	}
 
 	/*
@@ -2635,29 +2626,41 @@ __rec_split_raw_worker(WT_SESSION_IMPL *session,
 	WT_RET(bm->write_size(bm, session, &corrected_page_size));
 	WT_RET(__wt_buf_init(session, dst, corrected_page_size));
 
-	/*
-	 * Copy the header bytes into the destination buffer, then call the
-	 * compression function.
-	 */
+	/* Copy the header bytes into the destination buffer. */
 	memcpy(dst->mem, dsk, WT_BLOCK_COMPRESS_SKIP);
+
+	/*
+	 * Don't create an image so large that any future update will cause a
+	 * split in memory. Use half of the maximum size so very compressible
+	 * pages that have reached the maximum size in memory are split into
+	 * two equal blocks. If we don't have any more rows, or the page is too
+	 * large, tell the compressor to wrap it up.
+	 */
+	image_too_large = result_len > (size_t)btree->maxmempage / 2;
+
+	/* Call the compression function. */
 	ret = compressor->compress_raw(compressor, wt_session,
 	    r->page_size_orig, btree->split_pct,
 	    WT_BLOCK_COMPRESS_SKIP + extra_skip,
-	    (uint8_t *)dsk + WT_BLOCK_COMPRESS_SKIP,
-	    r->raw_offsets, slots,
-	    (uint8_t *)dst->mem + WT_BLOCK_COMPRESS_SKIP,
-	    result_len, no_more_rows, &result_len, &result_slots);
+	    (uint8_t *)dsk + WT_BLOCK_COMPRESS_SKIP, r->raw_offsets, slots,
+	    (uint8_t *)dst->mem + WT_BLOCK_COMPRESS_SKIP, result_len,
+	    image_too_large | no_more_rows, &result_len, &result_slots);
 	switch (ret) {
 	case EAGAIN:
 		/*
-		 * The compression function wants more rows; accumulate and
-		 * retry.
-		 *
-		 * Reset the resulting slots count, just in case the compression
-		 * function modified it before giving up.
+		 * The compression function wants more rows. First, reset the
+		 * resulting slots count, the compression function might have
+		 * modified it before giving up.
 		 */
 		result_slots = 0;
-		break;
+
+		/*
+		 * If we have more rows to accumulate and are willing to build
+		 * a bigger image, do so.
+		 */
+		if (!image_too_large)
+			break;
+		/* FALLTHROUGH */
 	case 0:
 		/*
 		 * If the compression function returned zero result slots, it's
