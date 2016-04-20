@@ -14,8 +14,10 @@ static inline int
 __wt_dirlist(WT_SESSION_IMPL *session, const char *dir,
     const char *prefix, uint32_t flags, char ***dirlist, u_int *countp)
 {
+	WT_DECL_RET;
 	WT_FILE_SYSTEM *file_system;
 	WT_SESSION *wt_session;
+	char *path;
 
 	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
 
@@ -24,10 +26,15 @@ __wt_dirlist(WT_SESSION_IMPL *session, const char *dir,
 	    dir, LF_ISSET(WT_DIRLIST_INCLUDE) ? "include" : "exclude",
 	    prefix == NULL ? "all" : prefix));
 
+	WT_RET(__wt_filename(session, dir, &path));
+
 	file_system = S2C(session)->file_system;
 	wt_session = (WT_SESSION *)session;
-	return (file_system->directory_list(
-	    file_system, wt_session, dir, prefix, flags, dirlist, countp));
+	ret = file_system->directory_list(
+	    file_system, wt_session, path, prefix, flags, dirlist, countp);
+
+	__wt_free(session, path);
+	return (ret);
 }
 
 /*

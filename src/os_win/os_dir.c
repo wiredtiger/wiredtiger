@@ -25,25 +25,25 @@ __wt_win_directory_list(
 	size_t dirallocsz, pathlen;
 	u_int count, dirsz;
 	bool match;
-	char **entries, *path;
+	char **entries;
 
 	WT_UNUSED(file_system);
+
 	session = (WT_SESSION_IMPL *)wt_session;
+
 	*dirlist = NULL;
 	*countp = 0;
-
-	WT_RET(__wt_filename(session, dir, &path));
-
-	pathlen = strlen(path);
-	if (path[pathlen - 1] == '\\')
-		path[pathlen - 1] = '\0';
-	WT_ERR(__wt_scr_alloc(session, pathlen + 3, &pathbuf));
-	WT_ERR(__wt_buf_fmt(session, pathbuf, "%s\\*", path));
 
 	findhandle = INVALID_HANDLE_VALUE;
 	dirallocsz = 0;
 	dirsz = 0;
 	entries = NULL;
+
+	pathlen = strlen(dir);
+	if (dir[pathlen - 1] == '\\')
+		dir[pathlen - 1] = '\0';
+	WT_ERR(__wt_scr_alloc(session, pathlen + 3, &pathbuf));
+	WT_ERR(__wt_buf_fmt(session, pathbuf, "%s\\*", dir));
 
 	findhandle = FindFirstFileA(pathbuf->data, &finddata);
 	if (findhandle == INVALID_HANDLE_VALUE)
@@ -87,7 +87,6 @@ __wt_win_directory_list(
 
 err:	if (findhandle != INVALID_HANDLE_VALUE)
 		(void)FindClose(findhandle);
-	__wt_free(session, path);
 	__wt_scr_free(session, &pathbuf);
 
 	if (ret == 0)

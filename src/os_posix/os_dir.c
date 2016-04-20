@@ -26,23 +26,23 @@ __wt_posix_directory_list(
 	size_t dirallocsz;
 	u_int count, dirsz;
 	bool match;
-	char **entries, *path;
+	char **entries;
 
 	WT_UNUSED(file_system);
+
 	session = (WT_SESSION_IMPL *)wt_session;
+
 	*dirlist = NULL;
 	*countp = 0;
-
-	WT_RET(__wt_filename(session, dir, &path));
 
 	dirp = NULL;
 	dirallocsz = 0;
 	dirsz = 0;
 	entries = NULL;
 
-	WT_SYSCALL_RETRY(((dirp = opendir(path)) == NULL ? 1 : 0), ret);
+	WT_SYSCALL_RETRY(((dirp = opendir(dir)) == NULL ? 1 : 0), ret);
 	if (ret != 0)
-		WT_ERR_MSG(session, ret, "%s: directory-list: opendir", path);
+		WT_RET_MSG(session, ret, "%s: directory-list: opendir", dir);
 
 	for (count = 0; (dp = readdir(dirp)) != NULL;) {
 		/*
@@ -80,7 +80,6 @@ __wt_posix_directory_list(
 
 err:	if (dirp != NULL)
 		(void)closedir(dirp);
-	__wt_free(session, path);
 
 	if (ret == 0)
 		return (0);
