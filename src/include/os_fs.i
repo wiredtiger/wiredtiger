@@ -159,7 +159,7 @@ __wt_remove(WT_SESSION_IMPL *session, const char *name)
 	 * useful diagnostic to ensure WiredTiger doesn't hold the handle open
 	 * at this stage.
 	 */
-	if (__wt_handle_search(session, name, false, NULL, NULL))
+	if (__wt_handle_is_open(session, name))
 		WT_RET_MSG(session, EINVAL,
 		    "%s: file-remove: file has open handles", name);
 #endif
@@ -203,10 +203,10 @@ __wt_rename(WT_SESSION_IMPL *session, const char *from, const char *to)
 	 * useful diagnostic to ensure WiredTiger doesn't hold the handle open
 	 * at this stage.
 	 */
-	if (__wt_handle_search(session, from, false, NULL, NULL))
+	if (__wt_handle_is_open(session, from))
 		WT_RET_MSG(session, EINVAL,
 		    "%s: file-rename: file has open handles", from);
-	if (__wt_handle_search(session, to, false, NULL, NULL))
+	if (__wt_handle_is_open(session, to))
 		WT_RET_MSG(session, EINVAL,
 		    "%s: file-rename: file has open handles", to);
 #endif

@@ -713,7 +713,7 @@ extern int __wt_txn_named_snapshot_config(WT_SESSION_IMPL *session, const char *
 extern int __wt_txn_named_snapshot_destroy(WT_SESSION_IMPL *session);
 extern int __wt_txn_recover(WT_SESSION_IMPL *session);
 extern bool __wt_absolute_path(const char *path);
-extern bool __wt_handle_search(WT_SESSION_IMPL *session, const char *name, bool increment_ref, WT_FH *newfh, WT_FH **fhp);
+extern bool __wt_handle_is_open(WT_SESSION_IMPL *session, const char *name);
 extern bool __wt_has_priv(void);
 extern const char *__wt_path_separator(void);
 extern const char *__wt_strerror(WT_SESSION_IMPL *session, int error, char *errbuf, size_t errlen);

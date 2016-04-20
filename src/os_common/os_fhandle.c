@@ -259,21 +259,53 @@ __fhandle_method_finalize(WT_FH *fh)
 		handle->write = __fhandle_write_notsup;
 }
 
+#ifdef HAVE_DIAGNOSTIC
 /*
- * __wt_handle_search --
- *	Search for a matching handle.
+ * __wt_handle_is_open --
+ *	Return if there's an open handle matching a name.
  */
 bool
-__wt_handle_search(WT_SESSION_IMPL *session,
-    const char *name, bool increment_ref, WT_FH *newfh, WT_FH **fhp)
+__wt_handle_is_open(WT_SESSION_IMPL *session, const char *name)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_FH *fh;
 	uint64_t bucket, hash;
 	bool found;
 
-	if (fhp != NULL)
-		*fhp = NULL;
+	conn = S2C(session);
+	found = false;
+
+	hash = __wt_hash_city64(name, strlen(name));
+	bucket = hash % WT_HASH_ARRAY_SIZE;
+
+	__wt_spin_lock(session, &conn->fh_lock);
+
+	TAILQ_FOREACH(fh, &conn->fhhash[bucket], hashq)
+		if (strcmp(name, fh->name) == 0) {
+			found = true;
+			break;
+		}
+
+	__wt_spin_unlock(session, &conn->fh_lock);
+
+	return (found);
+}
+#endif
+
+/*
+ * __handle_search --
+ *	Search for a matching handle.
+ */
+static bool
+__handle_search(
+    WT_SESSION_IMPL *session, const char *name, WT_FH *newfh, WT_FH **fhp)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_FH *fh;
+	uint64_t bucket, hash;
+	bool found;
+
+	*fhp = NULL;
 
 	conn = S2C(session);
 	found = false;
@@ -284,15 +316,13 @@ __wt_handle_search(WT_SESSION_IMPL *session,
 	__wt_spin_lock(session, &conn->fh_lock);
 
 	/*
-	 * If we already have the file open, optionally increment the reference
-	 * count and return a pointer.
+	 * If we already have the file open, increment the reference count and
+	 * return a pointer.
 	 */
 	TAILQ_FOREACH(fh, &conn->fhhash[bucket], hashq)
 		if (strcmp(name, fh->name) == 0) {
-			if (increment_ref)
-				++fh->ref;
-			if (fhp != NULL)
-				*fhp = fh;
+			++fh->ref;
+			*fhp = fh;
 			found = true;
 			break;
 		}
@@ -303,10 +333,8 @@ __wt_handle_search(WT_SESSION_IMPL *session,
 		WT_CONN_FILE_INSERT(conn, newfh, bucket);
 		(void)__wt_atomic_add32(&conn->open_file_count, 1);
 
-		if (increment_ref)
-			++newfh->ref;
-		if (fhp != NULL)
-			*fhp = newfh;
+		++newfh->ref;
+		*fhp = newfh;
 	}
 
 	__wt_spin_unlock(session, &conn->fh_lock);
@@ -415,7 +443,7 @@ __wt_open(WT_SESSION_IMPL *session,
 	WT_RET(__open_verbose(session, name, file_type, flags));
 
 	/* Check if the handle is already open. */
-	if (__wt_handle_search(session, name, true, NULL, &fh)) {
+	if (__handle_search(session, name, NULL, &fh)) {
 		*fhp = fh;
 		return (0);
 	}
@@ -462,7 +490,7 @@ __wt_open(WT_SESSION_IMPL *session,
 	 * Repeat the check for a match: if there's no match, link our newly
 	 * created handle onto the database's list of files.
 	 */
-	if (__wt_handle_search(session, name, true, fh, fhp)) {
+	if (__handle_search(session, name, fh, fhp)) {
 err:		if (open_called)
 			WT_TRET(fh->handle->close(
 			    fh->handle, (WT_SESSION *)session));
