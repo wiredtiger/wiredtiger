@@ -341,7 +341,7 @@ __im_file_truncate(
 	WT_SESSION_IMPL *session;
 	size_t off;
 
-	session = (WT_SESSION_IMPL *)session;
+	session = (WT_SESSION_IMPL *)wtsession;
 	im_fs = (WT_INMEMORY_FILE_SYSTEM *)(S2C(session)->file_system);
 	im_fh = (WT_FILE_HANDLE_INMEM *)file_handle;
 
