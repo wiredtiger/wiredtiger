@@ -92,11 +92,11 @@ __wt_win_map_discard(
 }
 
 /*
- * __wt_win_map_unmap --
+ * __wt_win_unmap --
  *	Remove a memory mapping.
  */
 int
-__wt_win_map_unmap(WT_FILE_HANDLE *file_handle,
+__wt_win_unmap(WT_FILE_HANDLE *file_handle,
     WT_SESSION *wt_session, void *map, size_t len, void **mappingcookie)
 {
 	WT_DECL_RET;

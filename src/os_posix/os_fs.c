@@ -73,6 +73,7 @@ __posix_sync(WT_SESSION_IMPL *session,
 #endif
 }
 
+#ifdef __linux__
 /*
  * __posix_directory_sync --
  *	Flush a directory to ensure file creation is durable.
@@ -81,38 +82,13 @@ static int
 __posix_directory_sync(
     WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *path)
 {
-#ifdef __linux__
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	int fd, tret;
-	char *copy, *dir;
 
 	WT_UNUSED(file_system);
 
 	session = (WT_SESSION_IMPL *)wt_session;
-
-	/*
-	 * POSIX 1003.1 does not require that fsync of a file handle ensures the
-	 * entry in the directory containing the file has also reached disk (and
-	 * there are historic Linux filesystems requiring this), do an explicit
-	 * fsync on a file descriptor for the directory to be sure.
-	 */
-	copy = NULL;
-	if (path == NULL || strchr(path, '/') == NULL)
-		path = S2C(session)->home;
-	else {
-		/*
-		 * File name construction should not return a path without any
-		 * slash separator, but caution isn't unreasonable.
-		 */
-		WT_RET(__wt_filename(session, path, &copy));
-		if ((dir = strrchr(copy, '/')) == NULL)
-			path = S2C(session)->home;
-		else {
-			dir[1] = '\0';
-			path = copy;
-		}
-	}
 
 	WT_SYSCALL_RETRY((
 	    (fd = open(path, O_RDONLY, 0444)) == -1 ? 1 : 0), ret);
@@ -127,15 +103,9 @@ __posix_directory_sync(
 		if (ret == 0)
 			ret = tret;
 	}
-err:	__wt_free(session, copy);
 	return (ret);
-#else
-	WT_UNUSED(file_system);
-	WT_UNUSED(wt_session);
-	WT_UNUSED(path);
-	return (0);
-#endif
 }
+#endif
 
 /*
  * __posix_fs_exist --
@@ -148,26 +118,21 @@ __posix_fs_exist(WT_FILE_SYSTEM *file_system,
 	struct stat sb;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	char *path;
 
 	WT_UNUSED(file_system);
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	WT_RET(__wt_filename(session, name, &path));
-	name = path;
-
 	WT_SYSCALL_RETRY(stat(name, &sb), ret);
-	if (ret == 0)
+	if (ret == 0) {
 		*existp = true;
-	else if (ret == ENOENT) {
+		return (0);
+	}
+	if (ret == ENOENT) {
 		*existp = false;
-		ret = 0;
-	} else
-		__wt_err(session, ret, "%s: file-exist: stat", name);
-
-	__wt_free(session, path);
-	return (ret);
+		return (0);
+	}
+	WT_RET_MSG(session, ret, "%s: file-exist: stat", name);
 }
 
 /*
@@ -180,32 +145,15 @@ __posix_fs_remove(
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	char *path;
 
 	WT_UNUSED(file_system);
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
-#ifdef HAVE_DIAGNOSTIC
-	/*
-	 * It is a layering violation to retrieve a WT_FH here, but it is a
-	 * useful diagnostic to ensure WiredTiger doesn't hold the handle open
-	 * at this stage.
-	 */
-	if (__wt_handle_search(session, name, false, NULL, NULL))
-		WT_RET_MSG(session, EINVAL,
-		    "%s: file-remove: file has open handles", name);
-#endif
-
-	WT_RET(__wt_filename(session, name, &path));
-	name = path;
-
 	WT_SYSCALL_RETRY(remove(name), ret);
-	if (ret != 0)
-		__wt_err(session, ret, "%s: file-remove: remove", name);
-
-	__wt_free(session, path);
-	return (ret);
+	if (ret == 0)
+		return (0);
+	WT_RET_MSG(session, ret, "%s: file-remove: remove", name);
 }
 
 /*
@@ -218,40 +166,15 @@ __posix_fs_rename(WT_FILE_SYSTEM *file_system,
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	char *from_path, *to_path;
 
 	WT_UNUSED(file_system);
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
-#ifdef HAVE_DIAGNOSTIC
-	/*
-	 * It is a layering violation to retrieve a WT_FH here, but it is a
-	 * useful diagnostic to ensure WiredTiger doesn't hold the handle open
-	 * at this stage.
-	 */
-	if (__wt_handle_search(session, from, false, NULL, NULL))
-		WT_RET_MSG(session, EINVAL,
-		    "%s: file-rename: file has open handles", from);
-	if (__wt_handle_search(session, to, false, NULL, NULL))
-		WT_RET_MSG(session, EINVAL,
-		    "%s: file-rename: file has open handles", to);
-#endif
-
-	from_path = to_path = NULL;
-	WT_ERR(__wt_filename(session, from, &from_path));
-	from = from_path;
-	WT_ERR(__wt_filename(session, to, &to_path));
-	to = to_path;
-
 	WT_SYSCALL_RETRY(rename(from, to), ret);
-	if (ret != 0)
-		__wt_err(session, ret,
-		    "%s to %s: file-rename: rename", from, to);
-
-err:	__wt_free(session, from_path);
-	__wt_free(session, to_path);
-	return (ret);
+	if (ret == 0)
+		return (0);
+	WT_RET_MSG(session, ret, "%s to %s: file-rename: rename", from, to);
 }
 
 /*
@@ -265,27 +188,22 @@ __posix_fs_size(WT_FILE_SYSTEM *file_system,
 	struct stat sb;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	char *path;
 
 	WT_UNUSED(file_system);
 
 	session = (WT_SESSION_IMPL *)wt_session;
-
-	WT_RET(__wt_filename(session, name, &path));
-	name = path;
 
 	/*
 	 * Optionally don't log errors on ENOENT; some callers of this function
 	 * expect failure in that case and don't want an error message logged.
 	 */
 	WT_SYSCALL_RETRY(stat(name, &sb), ret);
-	if (ret == 0)
+	if (ret == 0) {
 		*sizep = sb.st_size;
-	else if (ret != ENOENT || !silent)
+		return (0);
+	}
+	if (ret != ENOENT || !silent)
 		__wt_err(session, ret, "%s: file-size: stat", name);
-
-	__wt_free(session, path);
-
 	return (ret);
 }
 
@@ -685,8 +603,8 @@ directory_open:
 	/* Configure fallocate calls. */
 	__wt_posix_file_allocate_configure(session, pfh);
 
+	/* Initialize public information. */
 	file_handle = (WT_FILE_HANDLE *)pfh;
-
 	WT_ERR(__wt_strdup(session, name, &file_handle->name));
 
 	file_handle->fadvise = __posix_file_advise;
@@ -706,7 +624,7 @@ directory_open:
 	file_handle->map = __wt_posix_map;
 	file_handle->map_discard = __wt_posix_map_discard;
 	file_handle->map_preload = __wt_posix_map_preload;
-	file_handle->unmap = __wt_posix_map_unmap;
+	file_handle->unmap = __wt_posix_unmap;
 #endif
 	file_handle->read = __posix_file_read;
 	file_handle->size = __posix_file_size;
@@ -747,7 +665,11 @@ __wt_os_posix(WT_SESSION_IMPL *session)
 
 	/* Initialize the POSIX jump table. */
 	file_system->directory_list = __wt_posix_directory_list;
+#ifdef __linux__
 	file_system->directory_sync = __posix_directory_sync;
+#else
+	file_system->directory_sync = NULL;
+#endif
 	file_system->exist = __posix_fs_exist;
 	file_system->open_file = __posix_open_file;
 	file_system->remove = __posix_fs_remove;

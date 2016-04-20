@@ -178,11 +178,11 @@ __wt_posix_map_discard(
 }
 
 /*
- * __wt_posix_map_unmap --
+ * __wt_posix_unmap --
  *	Remove a memory mapping.
  */
 int
-__wt_posix_map_unmap(WT_FILE_HANDLE *fh,
+__wt_posix_unmap(WT_FILE_HANDLE *fh,
     WT_SESSION *wt_session, void *map, size_t len, void **mappingcookie)
 {
 	WT_SESSION_IMPL *session;

@@ -45,20 +45,6 @@ __im_directory_list(
 }
 
 /*
- * __im_directory_sync --
- *	Flush a directory to ensure file creation is durable.
- */
-static int
-__im_directory_sync(
-    WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *path)
-{
-	WT_UNUSED(file_system);
-	WT_UNUSED(wt_session);
-	WT_UNUSED(path);
-	return (0);
-}
-
-/*
  * __im_fs_exist --
  *	Return if the file exists.
  */
@@ -98,7 +84,7 @@ __im_fs_remove(
 
 	__wt_spin_lock(session, &im_fs->lock);
 
-	/* The handle must be on the closed queue */
+	/* Only handles on the closed queue are removed. */
 	ret = ENOENT;
 	TAILQ_FOREACH(im_fh, &im_fs->closedq, q)
 		if (WT_STRING_MATCH(im_fh->iface.name, name, strlen(name))) {
@@ -118,58 +104,28 @@ static int
 __im_fs_rename(WT_FILE_SYSTEM *file_system,
     WT_SESSION *wt_session, const char *from, const char *to)
 {
-	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
+	WT_FILE_HANDLE_INMEM *im_fh;
+	WT_INMEMORY_FILE_SYSTEM *im_fs;
 	WT_SESSION_IMPL *session;
-	WT_FH *fh;
-	uint64_t bucket, hash;
-	char *to_name;
+	const char *copy;
 
-	/*
-	 * TODO: This is broken - needs to use internal handle information.
-	 */
-	WT_UNUSED(file_system);
 	session = (WT_SESSION_IMPL *)wt_session;
-	conn = S2C(session);
+	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_system;
 
-	/* We'll need a copy of the target name. */
-	WT_RET(__wt_strdup(session, to, &to_name));
+	__wt_spin_lock(session, &im_fs->lock);
 
-	__wt_spin_lock(session, &conn->fh_lock);
+	/* Only handles on the closed queue are renamed. */
+	ret = ENOENT;
+	TAILQ_FOREACH(im_fh, &im_fs->closedq, q)
+		if (WT_STRING_MATCH(im_fh->iface.name, from, strlen(from))) {
+			WT_ERR(__wt_strdup(session, to, &copy));
 
-	/* Make sure the target name isn't active. */
-	hash = __wt_hash_city64(to, strlen(to));
-	bucket = hash % WT_HASH_ARRAY_SIZE;
-	TAILQ_FOREACH(fh, &conn->fhhash[bucket], hashq)
-		if (strcmp(to, fh->name) == 0)
-			WT_ERR(EPERM);
+			__wt_free(session, im_fh->iface.name);
+			im_fh->iface.name = copy;
+		}
 
-	/* Find the source name. */
-	hash = __wt_hash_city64(from, strlen(from));
-	bucket = hash % WT_HASH_ARRAY_SIZE;
-	TAILQ_FOREACH(fh, &conn->fhhash[bucket], hashq)
-		if (strcmp(from, fh->name) == 0)
-			break;
-	if (fh == NULL)
-		WT_ERR(ENOENT);
-
-	/* Remove source from the list. */
-	WT_CONN_FILE_REMOVE(conn, fh, bucket);
-
-	/* Swap the names. */
-	__wt_free(session, fh->name);
-	fh->name = to_name;
-	to_name = NULL;
-
-	/* Put source back on the list. */
-	hash = __wt_hash_city64(to, strlen(to));
-	bucket = hash % WT_HASH_ARRAY_SIZE;
-	WT_CONN_FILE_INSERT(conn, fh, bucket);
-
-	if (0) {
-err:		__wt_free(session, to_name);
-	}
-	__wt_spin_unlock(session, &conn->fh_lock);
+err:	__wt_spin_lock(session, &im_fs->lock);
 
 	return (ret);
 }
@@ -405,10 +361,11 @@ err:	__wt_spin_unlock(session, &im_fs->lock);
  */
 static int
 __im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
-    const char *name, uint32_t file_type, uint32_t flags, WT_FILE_HANDLE **fhpp)
+    const char *name, uint32_t file_type, uint32_t flags,
+    WT_FILE_HANDLE **file_handlep)
 {
 	WT_DECL_RET;
-	WT_FILE_HANDLE *fhp;
+	WT_FILE_HANDLE *file_handle;
 	WT_FILE_HANDLE_INMEM *im_fh;
 	WT_INMEMORY_FILE_SYSTEM *im_fs;
 	WT_SESSION_IMPL *session;
@@ -420,29 +377,45 @@ __im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	im_fs = (WT_INMEMORY_FILE_SYSTEM *)(S2C(session)->file_system);
 	im_fh = NULL;
 
-	/* First search the closed queue */
+	/*
+	 * First search the closed queue, if we find it, ensure there's only
+	 * a single reference, in-memory only supports a single handle on any
+	 * file, for now.
+	 */
 	TAILQ_FOREACH(im_fh, &im_fs->closedq, q)
 		if (WT_STRING_MATCH(im_fh->iface.name, name, strlen(name))) {
+			if (im_fh->ref != 0)
+				WT_RET_MSG(session, EBUSY,
+				    "%s: file-open: already open", name);
+
+			im_fh->ref = 1;
+			im_fh->off = 0;
+
 			TAILQ_REMOVE(&im_fs->closedq, im_fh, q);
-			*fhpp = (WT_FILE_HANDLE *)im_fh;
+			*file_handlep = (WT_FILE_HANDLE *)im_fh;
 			return (0);
 		}
 
 	/* The file hasn't been opened before, create a new one. */
 	WT_RET(__wt_calloc_one(session, &im_fh));
 
-	fhp = (WT_FILE_HANDLE *)im_fh;
-	WT_ERR(__wt_strdup(session, name, &fhp->name));
+	/* Initialize private information. */
+	im_fh->ref = 1;
+	im_fh->off = 0;
 
-	fhp->close = __im_file_close;
-	fhp->lock = __im_file_lock;
-	fhp->read = __im_file_read;
-	fhp->size = __im_file_size;
-	fhp->sync = __im_file_sync;
-	fhp->truncate = __im_file_truncate;
-	fhp->write = __im_file_write;
+	/* Initialize public information. */
+	file_handle = (WT_FILE_HANDLE *)im_fh;
+	WT_ERR(__wt_strdup(session, name, &file_handle->name));
 
-	*fhpp = fhp;
+	file_handle->close = __im_file_close;
+	file_handle->lock = __im_file_lock;
+	file_handle->read = __im_file_read;
+	file_handle->size = __im_file_size;
+	file_handle->sync = __im_file_sync;
+	file_handle->truncate = __im_file_truncate;
+	file_handle->write = __im_file_write;
+
+	*file_handlep = file_handle;
 
 	if (0) {
 err:		__wt_free(session, im_fh);
@@ -504,7 +477,7 @@ __wt_os_inmemory(WT_SESSION_IMPL *session)
 	/* Initialize the in-memory jump table. */
 	file_system = (WT_FILE_SYSTEM *)im_fs;
 	file_system->directory_list = __im_directory_list;
-	file_system->directory_sync = __im_directory_sync;
+	file_system->directory_sync = NULL;
 	file_system->exist = __im_fs_exist;
 	file_system->open_file = __im_file_open;
 	file_system->remove = __im_fs_remove;

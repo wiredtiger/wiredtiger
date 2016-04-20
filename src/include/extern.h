@@ -755,7 +755,7 @@ extern int __wt_posix_file_allocate( WT_FILE_HANDLE *fh, WT_SESSION *wt_session,
 extern int __wt_posix_map(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void *mapp, size_t *lenp, void **mappingcookie);
 extern int __wt_posix_map_discard( WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void *p, size_t size);
 extern int __wt_posix_map_preload( WT_FILE_HANDLE *fh, WT_SESSION *wt_session, const void *p, size_t size);
-extern int __wt_posix_map_unmap(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void *map, size_t len, void **mappingcookie);
+extern int __wt_posix_unmap(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void *map, size_t len, void **mappingcookie);
 extern int __wt_realloc(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret, size_t bytes_to_allocate, void *retp);
 extern int __wt_realloc_aligned(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret, size_t bytes_to_allocate, void *retp);
 extern int __wt_realloc_noclear(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret, size_t bytes_to_allocate, void *retp);
@@ -768,7 +768,7 @@ extern int __wt_win_directory_list( WT_FILE_SYSTEM *file_system, WT_SESSION *wt_
 extern int __wt_win_map(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, void *mapp, size_t *lenp, void **mappingcookie);
 extern int __wt_win_map_discard( WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, void *p, size_t size);
 extern int __wt_win_map_preload(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, const void *p, size_t size);
-extern int __wt_win_map_unmap(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, void *map, size_t len, void **mappingcookie);
+extern int __wt_win_unmap(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, void *map, size_t len, void **mappingcookie);
 extern uint64_t __wt_strtouq(const char *nptr, char **endptr, int base);
 extern void __wt_abort(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 extern void __wt_free_int(WT_SESSION_IMPL *session, const void *p_arg);
