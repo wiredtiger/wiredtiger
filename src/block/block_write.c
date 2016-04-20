@@ -116,6 +116,7 @@ __wt_block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	    block->extend_len + (wt_off_t)align_size < block->extend_size))
 		return (0);
 
+#if 0
 	/*
 	 * File extension may require locking: some variants of the system call
 	 * used to extend the file initialize the extended space. If a writing
@@ -126,9 +127,10 @@ __wt_block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	 * based on the filesystem type, fall back to ftruncate in that case,
 	 * and remember that ftruncate requires locking.
 	 */
-#if 0
-TODO: This is a horrible layering violation. If we really need this we'll
-	      need to add methods to the file system API.
+	/*
+	 * TODO
+	 * LAYERING VIOLATION NEEDS FIXING.
+	 */
 	if (fh->fallocate_available != WT_FALLOCATE_NOT_AVAILABLE) {
 		/*
 		 * Release any locally acquired lock if not needed to extend the
