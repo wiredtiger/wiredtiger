@@ -89,7 +89,7 @@ __posix_directory_sync(
 
 	WT_UNUSED(file_system);
 
-	session = (WT_SESSION_IMPL *)session;
+	session = (WT_SESSION_IMPL *)wtsession;
 
 	/*
 	 * POSIX 1003.1 does not require that fsync of a file handle ensures the
