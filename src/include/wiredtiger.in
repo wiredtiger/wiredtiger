@@ -3741,10 +3741,9 @@ struct __wt_file_system {
 	 * @param session the current WiredTiger session
 	 * @param name the name of the directory
 	 * @param[out] existp The result of the existence check
-	 *      TODO: I get a compiler warning when this is a bool.
 	 */
 	int (*exist)(WT_FILE_SYSTEM *file_system,
-	    WT_SESSION *session, const char *name, int *existp);
+	    WT_SESSION *session, const char *name, bool *existp);
 
 	/*!
 	 * Remove an entry from the file system
@@ -3786,11 +3785,10 @@ struct __wt_file_system {
 	 * @param session the current WiredTiger session
 	 * @param name the name of the entry
 	 * @param silent whether to report an error if the entry does not exist
-	 *      TODO: I get a compiler warning when this is a bool.
 	 * @param[out] sizep the size of the file system entry
 	 */
-	int (*size)(WT_FILE_SYSTEM *file_system,
-	    WT_SESSION *session, const char *name, int silent, wt_off_t *sizep);
+	int (*size)(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
+	    const char *name, bool silent, wt_off_t *sizep);
 
 	/*!
 	 * Open a handle to an entry in the file system.
@@ -3896,9 +3894,8 @@ struct __wt_file_handle {
 	 * @param fh the WT_FILE_SYSTEM implementation
 	 * @param session the current WiredTiger session
 	 * @param lock whether to lock or unlock
-	 *      TODO: I get a compiler warning when this is a bool.
 	 */
-	int (*lock)(WT_FILE_HANDLE *fh, WT_SESSION *session, int lock);
+	int (*lock)(WT_FILE_HANDLE *fh, WT_SESSION *session, bool lock);
 
 	/*!
 	 * Map a file into memory, based on the POSIX 1003.1 standard mmap.
@@ -3948,8 +3945,8 @@ struct __wt_file_handle {
 	 * @param size the size of the region to discard
 	 * TODO: Surely this should accept a mapping cookie as well
 	 */
-	int (*map_preload)(WT_FILE_HANDLE *fh, WT_SESSION *session,
-	    const void *p, size_t size);
+	int (*map_preload)(WT_FILE_HANDLE *fh,
+	    WT_SESSION *session, const void *p, size_t size);
 
 	/*!
 	 * Unmap a memory mapped file, based on the POSIX 1003.1 standard
@@ -4007,9 +4004,8 @@ struct __wt_file_handle {
 	 * @param fh the WT_FILE_SYSTEM implementation
 	 * @param session the current WiredTiger session
 	 * @param block whether the flush should be synchronous or asynchronous
-	 *      TODO: I get a compiler warning when this is a bool.
 	 */
-	int (*sync)(WT_FILE_HANDLE *fh, WT_SESSION *session, int block);
+	int (*sync)(WT_FILE_HANDLE *fh, WT_SESSION *session, bool block);
 
 	/*!
 	 * Extend to truncate a file to the desired length, based on the POSIX

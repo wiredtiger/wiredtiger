@@ -14,10 +14,10 @@
  */
 static int
 __win_directory_sync(
-    WT_FILE_SYSTEM *file_system, WT_SESSION *wtsession, const char *path)
+    WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *path)
 {
 	WT_UNUSED(file_system);
-	WT_UNUSED(wtsession);
+	WT_UNUSED(wt_session);
 	WT_UNUSED(path);
 	return (0);
 }
@@ -28,14 +28,16 @@ __win_directory_sync(
  */
 static int
 __win_file_exist(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *wtsession, const char *name, int *existp)
+    WT_SESSION *wt_session, const char *name, bool *existp)
 {
 	WT_DECL_RET;
-	WT_SESSION *session;
+	WT_SESSION_IMPL *session;
 	char *path;
 
 	WT_UNUSED(file_system);
-	session = (WT_SESSION_IMPL *)wtsession;
+
+	session = (WT_SESSION_IMPL *)wt_session;
+
 	WT_RET(__wt_filename(session, name, &path));
 
 	ret = GetFileAttributesA(path);
@@ -56,14 +58,16 @@ __win_file_exist(WT_FILE_SYSTEM *file_system,
  */
 static int
 __win_file_remove(
-    WT_FILE_SYSTEM *file_system, WT_SESSION *wtsession, const char *name)
+    WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *name)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	char *path;
 
 	WT_UNUSED(file_system);
-	session = (WT_SESSION_IMPL *)wtsession;
+
+	session = (WT_SESSION_IMPL *)wt_session;
+
 #ifdef HAVE_DIAGNOSTIC
 	if (__wt_handle_search(session, name, false, NULL, NULL))
 		WT_RET_MSG(session, EINVAL,
@@ -88,14 +92,16 @@ __win_file_remove(
  */
 static int
 __win_file_rename(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *wtsession, const char *from, const char *to)
+    WT_SESSION *wt_session, const char *from, const char *to)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	char *from_path, *to_path;
 
 	WT_UNUSED(file_system);
-	session = (WT_SESSION_IMPL *)wtsession;
+
+	session = (WT_SESSION_IMPL *)wt_session;
+
 #ifdef HAVE_DIAGNOSTIC
 	if (__wt_handle_search(session, from, false, NULL, NULL))
 		WT_RET_MSG(session, EINVAL,
@@ -139,7 +145,7 @@ err:	__wt_free(session, from_path);
  */
 static int
 __win_file_size(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *wtsession, const char *name, int silent, wt_off_t *sizep)
+    WT_SESSION *wt_session, const char *name, bool silent, wt_off_t *sizep)
 {
 	WIN32_FILE_ATTRIBUTE_DATA data;
 	WT_DECL_RET;
@@ -147,7 +153,9 @@ __win_file_size(WT_FILE_SYSTEM *file_system,
 	char *path;
 
 	WT_UNUSED(file_system);
-	session = (WT_SESSION_IMPL *)wtsession;
+
+	session = (WT_SESSION_IMPL *)wt_session;
+
 	WT_RET(__wt_filename(session, name, &path));
 
 	ret = GetFileAttributesExA(path, GetFileExInfoStandard, &data);
@@ -196,14 +204,14 @@ __win_handle_allocate_configure(
  *	ANSI C close.
  */
 static int
-__win_handle_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession)
+__win_handle_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_WIN *win_fh;
 	WT_SESSION_IMPL *session;
 
 	win_fh = (WT_FILE_HANDLE_WIN *)file_handle;
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 
 	/*
 	 * Close the primary and secondary handles.
@@ -234,13 +242,15 @@ __win_handle_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession)
  *	Lock/unlock a file.
  */
 static int
-__win_handle_lock(WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession, int lock)
+__win_handle_lock(
+    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool lock)
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_WIN *win_fh;
 	WT_SESSION_IMPL *session;
 
 	win_fh = (WT_FILE_HANDLE_WIN *)file_handle;
+	session = (WT_SESSION_IMPL *)wt_session;
 
 	/*
 	 * WiredTiger requires this function be able to acquire locks past
@@ -278,7 +288,7 @@ __win_handle_lock(WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession, int lock)
  */
 static int
 __win_handle_read(WT_FILE_HANDLE *file_handle,
-    WT_SESSION *wtsession, wt_off_t offset, size_t len, void *buf)
+    WT_SESSION *wt_session, wt_off_t offset, size_t len, void *buf)
 {
 	DWORD chunk, nr;
 	uint8_t *addr;
@@ -287,6 +297,7 @@ __win_handle_read(WT_FILE_HANDLE *file_handle,
 	WT_SESSION_IMPL *session;
 
 	win_fh = (WT_FILE_HANDLE_WIN *)file_handle;
+	session = (WT_SESSION_IMPL *)wt_session;
 
 	nr = 0;
 
@@ -322,13 +333,14 @@ __win_handle_read(WT_FILE_HANDLE *file_handle,
  */
 static int
 __win_handle_size(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession, wt_off_t *sizep)
+    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t *sizep)
 {
 	WT_FILE_HANDLE_WIN *win_fh;
 	WT_SESSION_IMPL *session;
 	LARGE_INTEGER size;
 
 	win_fh = (WT_FILE_HANDLE_WIN *)file_handle;
+	session = (WT_SESSION_IMPL *)wt_session;
 
 	if (GetFileSizeEx(win_fh->filehandle, &size) != 0) {
 		*sizep = size.QuadPart;
@@ -345,13 +357,14 @@ __win_handle_size(
  */
 static int
 __win_handle_sync(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession, int block)
+    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool block)
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_WIN *win_fh;
 	WT_SESSION_IMPL *session;
 
 	win_fh = (WT_FILE_HANDLE_WIN *)file_handle;
+	session = (WT_SESSION_IMPL *)wt_session;
 
 	/*
 	 * We don't open Windows system handles when opening directories
@@ -383,7 +396,7 @@ __win_handle_sync(
  */
 static int
 __win_handle_truncate(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession, wt_off_t len)
+    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t len)
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_WIN *win_fh;
@@ -391,6 +404,7 @@ __win_handle_truncate(
 	LARGE_INTEGER largeint;
 
 	win_fh = (WT_FILE_HANDLE_WIN *)file_handle;
+	session = (WT_SESSION_IMPL *)wt_session;
 
 	largeint.QuadPart = len;
 
@@ -418,7 +432,7 @@ __win_handle_truncate(
  */
 static int
 __win_handle_write(WT_FILE_HANDLE *file_handle,
-    WT_SESSION *wtsession, wt_off_t offset, size_t len, const void *buf)
+    WT_SESSION *wt_session, wt_off_t offset, size_t len, const void *buf)
 {
 	DWORD chunk;
 	DWORD nw;
@@ -428,6 +442,7 @@ __win_handle_write(WT_FILE_HANDLE *file_handle,
 	WT_SESSION_IMPL *session;
 
 	win_fh = (WT_FILE_HANDLE_WIN *)file_handle;
+	session = (WT_SESSION_IMPL *)wt_session;
 
 	nw = 0;
 
@@ -461,7 +476,7 @@ __win_handle_write(WT_FILE_HANDLE *file_handle,
  *	Open a file handle.
  */
 static int
-__win_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wtsession,
+__win_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
     const char *name, uint32_t file_type, uint32_t flags, WT_FILE_HANDLE **fhp)
 {
 	DWORD dwCreationDisposition;
@@ -473,9 +488,11 @@ __win_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wtsession,
 	int desired_access, f;
 
 	WT_UNUSED(file_system);
-	session = (WT_SESSION_IMPL *)wtsession;
-	conn = S2C(session);
+
 	*fhp = NULL;
+
+	session = (WT_SESSION_IMPL *)wt_session;
+	conn = S2C(session);
 
 	WT_RET(__wt_calloc_one(session, new_handle));
 
@@ -578,11 +595,11 @@ directory_open:
 	new_handle->map = __wt_win_map;
 	new_handle->map_discard = __wt_win_map_discard;
 	new_handle->map_preload = __wt_win_map_preload;
-	new_handle->map_unmap = __wt_win_map_unmap;
 	new_handle->read = __win_handle_read;
 	new_handle->size = __win_handle_size;
 	new_handle->sync = __win_handle_sync;
 	new_handle->truncate = __win_handle_truncate;
+	new_handle->unmap = __wt_win_unmap;
 	new_handle->write = __win_handle_write;
 
 	*fhp = (WT_FILE_HANDLE *)new_handle;
@@ -611,11 +628,11 @@ __wt_os_win(WT_SESSION_IMPL *session)
 
 	WT_RET(__wt_calloc_one(session, file_system));
 
-	/* Initialize the POSIX jump table. */
+	/* Initialize the Windows jump table. */
 	file_system->directory_list = __wt_win_directory_list;
 	file_system->directory_sync = __win_directory_sync;
 	file_system->exist = __win_file_exist;
-	file_system->open = __win_file_open;
+	file_system->file_open = __win_file_open;
 	file_system->remove = __win_file_remove;
 	file_system->rename = __win_file_rename;
 	file_system->size = __win_file_size;
@@ -633,6 +650,6 @@ __wt_os_win(WT_SESSION_IMPL *session)
 int
 __wt_os_win_cleanup(WT_SESSION_IMPL *session)
 {
-	__wt_free(S2C(session)->file_system);
+	__wt_free(session, S2C(session)->file_system);
 	return (0);
 }

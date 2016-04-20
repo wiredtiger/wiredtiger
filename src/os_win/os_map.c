@@ -14,7 +14,7 @@
  */
 int
 __wt_win_map(WT_FILE_HANDLE *file_handle,
-    WT_SESSION *wtsession, void *mapp, size_t *lenp, void **mappingcookie)
+    WT_SESSION *wt_session, void *mapp, size_t *lenp, void **mappingcookie)
 {
 	WT_DECL_RET;
 	size_t len;
@@ -24,7 +24,7 @@ __wt_win_map(WT_FILE_HANDLE *file_handle,
 	WT_SESSION_IMPL *session;
 
 	win_fh = (WT_FILE_HANDLE_WIN *)file_handle;
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 
 	/*
 	 * There's no locking here to prevent the underlying file from changing
@@ -65,7 +65,7 @@ __wt_win_map(WT_FILE_HANDLE *file_handle,
  */
 int
 __wt_win_map_preload(WT_FILE_HANDLE *file_handle,
-    WT_SESSION *wtsession, const void *p, size_t size)
+    WT_SESSION *wt_session, const void *p, size_t size)
 {
 	WT_UNUSED(session);
 	WT_UNUSED(file_handle);
@@ -81,7 +81,7 @@ __wt_win_map_preload(WT_FILE_HANDLE *file_handle,
  */
 int
 __wt_win_map_discard(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession, void *p, size_t size)
+    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, void *p, size_t size)
 {
 	WT_UNUSED(session);
 	WT_UNUSED(file_handle);
@@ -97,14 +97,14 @@ __wt_win_map_discard(
  */
 int
 __wt_win_map_unmap(WT_FILE_HANDLE *file_handle,
-    WT_SESSION *wtsession, void *map, size_t len, void **mappingcookie)
+    WT_SESSION *wt_session, void *map, size_t len, void **mappingcookie)
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_WIN *win_fh;
 	WT_SESSION_IMPL *session;
 
 	win_fh = (WT_FILE_HANDLE_WIN *)file_handle;
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 
 	(void)__wt_verbose(session, WT_VERB_HANDLEOPS,
 	    "%s: memory-unmap: %" WT_SIZET_FMT " bytes", win_fh->name, len);

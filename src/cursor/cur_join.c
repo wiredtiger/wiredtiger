@@ -82,13 +82,13 @@ static int
 __curjoin_pack_recno(WT_SESSION_IMPL *session, uint64_t r, uint8_t *buf,
     size_t bufsize, WT_ITEM *item)
 {
-	WT_SESSION *wtsession;
+	WT_SESSION *wt_session;
 	size_t sz;
 
-	wtsession = (WT_SESSION *)session;
-	WT_RET(wiredtiger_struct_size(wtsession, &sz, "r", r));
+	wt_session = (WT_SESSION *)session;
+	WT_RET(wiredtiger_struct_size(wt_session, &sz, "r", r));
 	WT_ASSERT(session, sz < bufsize);
-	WT_RET(wiredtiger_struct_pack(wtsession, buf, bufsize, "r", r));
+	WT_RET(wiredtiger_struct_pack(wt_session, buf, bufsize, "r", r));
 	item->size = sz;
 	item->data = buf;
 	return (0);

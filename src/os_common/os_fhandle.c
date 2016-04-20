@@ -14,10 +14,10 @@
  */
 static int
 __fhandle_advise_notsup(WT_FILE_HANDLE *file_handle,
-    WT_SESSION *wtsession, wt_off_t offset, wt_off_t len, int advice)
+    WT_SESSION *wt_session, wt_off_t offset, wt_off_t len, int advice)
 {
 	WT_UNUSED(file_handle);
-	WT_UNUSED(wtsession);
+	WT_UNUSED(wt_session);
 	WT_UNUSED(offset);
 	WT_UNUSED(len);
 	WT_UNUSED(advice);
@@ -32,11 +32,11 @@ __fhandle_advise_notsup(WT_FILE_HANDLE *file_handle,
  */
 static int
 __fhandle_allocate_notsup(WT_FILE_HANDLE *file_handle,
-    WT_SESSION *wtsession, wt_off_t offset, wt_off_t len)
+    WT_SESSION *wt_session, wt_off_t offset, wt_off_t len)
 {
 	WT_SESSION_IMPL *session;
 
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 	WT_UNUSED(offset);
 	WT_UNUSED(len);
 	WT_RET_MSG(session, ENOTSUP, "%s: file-allocate", file_handle->name);
@@ -47,11 +47,11 @@ __fhandle_allocate_notsup(WT_FILE_HANDLE *file_handle,
  *	ANSI C close/fclose unsupported.
  */
 static int
-__fhandle_close_notsup(WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession)
+__fhandle_close_notsup(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
 	WT_SESSION_IMPL *session;
 
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 	WT_RET_MSG(session, ENOTSUP, "%s: file-close", file_handle->name);
 }
 
@@ -61,11 +61,11 @@ __fhandle_close_notsup(WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession)
  */
 static int
 __fhandle_lock_notsup(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession, int lock)
+    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, int lock)
 {
 	WT_SESSION_IMPL *session;
 
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 	WT_UNUSED(lock);
 	WT_RET_MSG(session, ENOTSUP, "%s: file-lock", file_handle->name);
 }
@@ -76,11 +76,11 @@ __fhandle_lock_notsup(
  */
 static int
 __fhandle_map_notsup(WT_FILE_HANDLE *file_handle,
-    WT_SESSION *wtsession, void *p, size_t *lenp, void **mappingcookie)
+    WT_SESSION *wt_session, void *p, size_t *lenp, void **mappingcookie)
 {
 	WT_SESSION_IMPL *session;
 
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 	WT_UNUSED(p);
 	WT_UNUSED(lenp);
 	WT_UNUSED(mappingcookie);
@@ -93,11 +93,11 @@ __fhandle_map_notsup(WT_FILE_HANDLE *file_handle,
  */
 static int
 __fhandle_map_discard_notsup(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession, void *p, size_t len)
+    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, void *p, size_t len)
 {
 	WT_SESSION_IMPL *session;
 
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 	WT_UNUSED(p);
 	WT_UNUSED(len);
 	WT_RET_MSG(session, ENOTSUP, "%s: file-map-discard", file_handle->name);
@@ -109,11 +109,11 @@ __fhandle_map_discard_notsup(
  */
 static int
 __fhandle_map_preload_notsup(WT_FILE_HANDLE *file_handle,
-    WT_SESSION *wtsession, const void *p, size_t len)
+    WT_SESSION *wt_session, const void *p, size_t len)
 {
 	WT_SESSION_IMPL *session;
 
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 	WT_UNUSED(p);
 	WT_UNUSED(len);
 	WT_RET_MSG(session, ENOTSUP, "%s: file-map-preload", file_handle->name);
@@ -125,11 +125,11 @@ __fhandle_map_preload_notsup(WT_FILE_HANDLE *file_handle,
  */
 static int
 __fhandle_map_unmap_notsup(WT_FILE_HANDLE *file_handle,
-    WT_SESSION *wtsession, void *p, size_t len, void **mappingcookie)
+    WT_SESSION *wt_session, void *p, size_t len, void **mappingcookie)
 {
 	WT_SESSION_IMPL *session;
 
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 	WT_UNUSED(p);
 	WT_UNUSED(len);
 	WT_UNUSED(mappingcookie);
@@ -142,11 +142,11 @@ __fhandle_map_unmap_notsup(WT_FILE_HANDLE *file_handle,
  */
 static int
 __fhandle_read_notsup(WT_FILE_HANDLE *file_handle,
-    WT_SESSION *wtsession, wt_off_t offset, size_t len, void *buf)
+    WT_SESSION *wt_session, wt_off_t offset, size_t len, void *buf)
 {
 	WT_SESSION_IMPL *session;
 
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 	WT_UNUSED(offset);
 	WT_UNUSED(len);
 	WT_UNUSED(buf);
@@ -159,11 +159,11 @@ __fhandle_read_notsup(WT_FILE_HANDLE *file_handle,
  */
 static int
 __fhandle_size_notsup(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession, wt_off_t *sizep)
+    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t *sizep)
 {
 	WT_SESSION_IMPL *session;
 
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 	WT_UNUSED(sizep);
 	WT_RET_MSG(session, ENOTSUP, "%s: file-size", file_handle->name);
 }
@@ -174,11 +174,11 @@ __fhandle_size_notsup(
  */
 static int
 __fhandle_sync_notsup(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession, int block)
+    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, int block)
 {
 	WT_SESSION_IMPL *session;
 
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 	WT_UNUSED(block);
 	WT_RET_MSG(session, ENOTSUP, "%s: file-sync", file_handle->name);
 }
@@ -189,11 +189,11 @@ __fhandle_sync_notsup(
  */
 static int
 __fhandle_truncate_notsup(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession, wt_off_t len)
+    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t len)
 {
 	WT_SESSION_IMPL *session;
 
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 	WT_UNUSED(len);
 	WT_RET_MSG(session, ENOTSUP, "%s: file-truncate", file_handle->name);
 }
@@ -204,11 +204,11 @@ __fhandle_truncate_notsup(
  */
 static int
 __fhandle_write_notsup(WT_FILE_HANDLE *file_handle,
-    WT_SESSION *wtsession, wt_off_t offset, size_t len, const void *buf)
+    WT_SESSION *wt_session, wt_off_t offset, size_t len, const void *buf)
 {
 	WT_SESSION_IMPL *session;
 
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 	WT_UNUSED(offset);
 	WT_UNUSED(len);
 	WT_UNUSED(buf);

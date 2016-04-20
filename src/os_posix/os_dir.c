@@ -16,7 +16,7 @@
  */
 int
 __wt_posix_directory_list(
-    WT_FILE_SYSTEM *file_system, WT_SESSION *wtsession, const char *dir,
+    WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *dir,
     const char *prefix, uint32_t flags, char ***dirlist, u_int *countp)
 {
 	struct dirent *dp;
@@ -29,7 +29,7 @@ __wt_posix_directory_list(
 	char **entries, *path;
 
 	WT_UNUSED(file_system);
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 	*dirlist = NULL;
 	*countp = 0;
 

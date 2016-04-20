@@ -113,13 +113,13 @@ __posix_posix_fallocate(
  */
 int
 __wt_posix_file_allocate(
-    WT_FILE_HANDLE *fh, WT_SESSION *wtsession, wt_off_t offset, wt_off_t len)
+    WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t offset, wt_off_t len)
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_POSIX *pfh;
 	WT_SESSION_IMPL *session;
 
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 	pfh = (WT_FILE_HANDLE_POSIX *)fh;
 
 	switch (pfh->fallocate_available) {

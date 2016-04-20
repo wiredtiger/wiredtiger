@@ -14,7 +14,7 @@
  */
 static int
 __posix_sync(WT_SESSION_IMPL *session,
-    int fd, const char *name, const char *func, int block)
+    int fd, const char *name, const char *func, bool block)
 {
 	WT_DECL_RET;
 
@@ -79,7 +79,7 @@ __posix_sync(WT_SESSION_IMPL *session,
  */
 static int
 __posix_directory_sync(
-    WT_FILE_SYSTEM *file_system, WT_SESSION *wtsession, const char *path)
+    WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *path)
 {
 #ifdef __linux__
 	WT_DECL_RET;
@@ -89,7 +89,7 @@ __posix_directory_sync(
 
 	WT_UNUSED(file_system);
 
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 
 	/*
 	 * POSIX 1003.1 does not require that fsync of a file handle ensures the
@@ -131,7 +131,7 @@ err:	__wt_free(session, copy);
 	return (ret);
 #else
 	WT_UNUSED(file_system);
-	WT_UNUSED(wtsession);
+	WT_UNUSED(wt_session);
 	WT_UNUSED(path);
 	return (0);
 #endif
@@ -143,7 +143,7 @@ err:	__wt_free(session, copy);
  */
 static int
 __posix_fs_exist(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *wtsession, const char *name, int *existp)
+    WT_SESSION *wt_session, const char *name, bool *existp)
 {
 	struct stat sb;
 	WT_DECL_RET;
@@ -152,7 +152,7 @@ __posix_fs_exist(WT_FILE_SYSTEM *file_system,
 
 	WT_UNUSED(file_system);
 
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 
 	WT_RET(__wt_filename(session, name, &path));
 	name = path;
@@ -176,7 +176,7 @@ __posix_fs_exist(WT_FILE_SYSTEM *file_system,
  */
 static int
 __posix_fs_remove(
-    WT_FILE_SYSTEM *file_system, WT_SESSION *wtsession, const char *name)
+    WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *name)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -184,7 +184,7 @@ __posix_fs_remove(
 
 	WT_UNUSED(file_system);
 
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 
 #ifdef HAVE_DIAGNOSTIC
 	/*
@@ -214,7 +214,7 @@ __posix_fs_remove(
  */
 static int
 __posix_fs_rename(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *wtsession, const char *from, const char *to)
+    WT_SESSION *wt_session, const char *from, const char *to)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -222,7 +222,7 @@ __posix_fs_rename(WT_FILE_SYSTEM *file_system,
 
 	WT_UNUSED(file_system);
 
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 
 #ifdef HAVE_DIAGNOSTIC
 	/*
@@ -260,7 +260,7 @@ err:	__wt_free(session, from_path);
  */
 static int
 __posix_fs_size(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *wtsession, const char *name, int silent, wt_off_t *sizep)
+    WT_SESSION *wt_session, const char *name, bool silent, wt_off_t *sizep)
 {
 	struct stat sb;
 	WT_DECL_RET;
@@ -269,7 +269,7 @@ __posix_fs_size(WT_FILE_SYSTEM *file_system,
 
 	WT_UNUSED(file_system);
 
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 
 	WT_RET(__wt_filename(session, name, &path));
 	name = path;
@@ -294,7 +294,7 @@ __posix_fs_size(WT_FILE_SYSTEM *file_system,
  *	POSIX fadvise.
  */
 static int
-__posix_file_advise(WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession,
+__posix_file_advise(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
     wt_off_t offset, wt_off_t len, int advice)
 {
 #if defined(HAVE_POSIX_FADVISE)
@@ -302,7 +302,7 @@ __posix_file_advise(WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession,
 	WT_FILE_HANDLE_POSIX *pfh;
 	WT_SESSION_IMPL *session;
 
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 	pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
 	/*
@@ -327,7 +327,7 @@ __posix_file_advise(WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession,
 	    "%s: handle-advise: posix_fadvise", file_handle->name);
 #else
 	WT_UNUSED(file_handle);
-	WT_UNUSED(wtsession);
+	WT_UNUSED(wt_session);
 	WT_UNUSED(offset);
 	WT_UNUSED(len);
 	WT_UNUSED(advice);
@@ -342,13 +342,13 @@ __posix_file_advise(WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession,
  *	ANSI C close.
  */
 static int
-__posix_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession)
+__posix_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_POSIX *pfh;
 	WT_SESSION_IMPL *session;
 
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 	pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
 	/* Close the file handle. */
@@ -367,14 +367,15 @@ __posix_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession)
  *	Lock/unlock a file.
  */
 static int
-__posix_file_lock(WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession, int lock)
+__posix_file_lock(
+    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool lock)
 {
 	struct flock fl;
 	WT_DECL_RET;
 	WT_FILE_HANDLE_POSIX *pfh;
 	WT_SESSION_IMPL *session;
 
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 	pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
 	/*
@@ -403,7 +404,7 @@ __posix_file_lock(WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession, int lock)
  */
 static int
 __posix_file_read(WT_FILE_HANDLE *file_handle,
-    WT_SESSION *wtsession, wt_off_t offset, size_t len, void *buf)
+    WT_SESSION *wt_session, wt_off_t offset, size_t len, void *buf)
 {
 	WT_FILE_HANDLE_POSIX *pfh;
 	WT_SESSION_IMPL *session;
@@ -411,7 +412,7 @@ __posix_file_read(WT_FILE_HANDLE *file_handle,
 	ssize_t nr;
 	uint8_t *addr;
 
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 	pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
 	/* Assert direct I/O is aligned and a multiple of the alignment. */
@@ -441,14 +442,14 @@ __posix_file_read(WT_FILE_HANDLE *file_handle,
  */
 static int
 __posix_file_size(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession, wt_off_t *sizep)
+    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t *sizep)
 {
 	struct stat sb;
 	WT_DECL_RET;
 	WT_FILE_HANDLE_POSIX *pfh;
 	WT_SESSION_IMPL *session;
 
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 	pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
 	WT_SYSCALL_RETRY(fstat(pfh->fd, &sb), ret);
@@ -465,12 +466,12 @@ __posix_file_size(
  */
 static int
 __posix_file_sync(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession, int block)
+    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool block)
 {
 	WT_FILE_HANDLE_POSIX *pfh;
 	WT_SESSION_IMPL *session;
 
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 	pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
 	return (__posix_sync(
@@ -483,13 +484,13 @@ __posix_file_sync(
  */
 static int
 __posix_file_truncate(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession, wt_off_t len)
+    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t len)
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_POSIX *pfh;
 	WT_SESSION_IMPL *session;
 
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 	pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
 	WT_SYSCALL_RETRY(ftruncate(pfh->fd, len), ret);
@@ -504,7 +505,7 @@ __posix_file_truncate(
  *	POSIX pwrite.
  */
 static int
-__posix_file_write(WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession,
+__posix_file_write(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
     wt_off_t offset, size_t len, const void *buf)
 {
 	WT_FILE_HANDLE_POSIX *pfh;
@@ -513,7 +514,7 @@ __posix_file_write(WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession,
 	ssize_t nw;
 	const uint8_t *addr;
 
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 	pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
 	/* Assert direct I/O is aligned and a multiple of the alignment. */
@@ -571,7 +572,7 @@ __posix_open_file_cloexec(WT_SESSION_IMPL *session, int fd, const char *name)
  *	Open a file handle.
  */
 static int
-__posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wtsession,
+__posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
     const char *name, uint32_t file_type, uint32_t flags,
     WT_FILE_HANDLE **file_handlep)
 {
@@ -585,7 +586,7 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wtsession,
 
 	WT_UNUSED(file_system);
 
-	session = (WT_SESSION_IMPL *)wtsession;
+	session = (WT_SESSION_IMPL *)wt_session;
 	conn = S2C(session);
 
 	WT_RET(__wt_calloc_one(session, &pfh));
