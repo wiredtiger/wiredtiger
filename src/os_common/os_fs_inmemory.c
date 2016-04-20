@@ -22,29 +22,6 @@ typedef struct {
 static int __im_handle_remove(WT_SESSION_IMPL *, WT_FILE_HANDLE_INMEM *);
 
 /*
- * __im_directory_list --
- *	Get a list of files from a directory, in-memory version.
- */
-static int
-__im_directory_list(
-    WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *dir,
-    const char *prefix, uint32_t flags, char ***dirlist, u_int *countp)
-{
-	WT_SESSION_IMPL *session;
-
-	WT_UNUSED(file_system);
-	WT_UNUSED(dir);
-	WT_UNUSED(prefix);
-	WT_UNUSED(flags);
-	WT_UNUSED(dirlist);
-	WT_UNUSED(countp);
-
-	session = (WT_SESSION_IMPL *)wt_session;
-
-	WT_RET_MSG(session, ENOTSUP, "directory-list");
-}
-
-/*
  * __im_fs_exist --
  *	Return if the file exists.
  */
@@ -87,10 +64,8 @@ __im_fs_remove(
 	/* Only handles on the closed queue are removed. */
 	ret = ENOENT;
 	TAILQ_FOREACH(im_fh, &im_fs->closedq, q)
-		if (WT_STRING_MATCH(im_fh->iface.name, name, strlen(name))) {
-			__im_handle_remove(session, im_fh);
-			ret = 0;
-		}
+		if (WT_STRING_MATCH(im_fh->iface.name, name, strlen(name)))
+			ret = __im_handle_remove(session, im_fh);
 
 	__wt_spin_lock(session, &im_fs->lock);
 	return (ret);
@@ -374,7 +349,7 @@ __im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	WT_UNUSED(flags);
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	im_fs = (WT_INMEMORY_FILE_SYSTEM *)(S2C(session)->file_system);
+	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_system;
 	im_fh = NULL;
 
 	/*
@@ -476,7 +451,7 @@ __wt_os_inmemory(WT_SESSION_IMPL *session)
 
 	/* Initialize the in-memory jump table. */
 	file_system = (WT_FILE_SYSTEM *)im_fs;
-	file_system->directory_list = __im_directory_list;
+	file_system->directory_list = NULL;
 	file_system->directory_sync = NULL;
 	file_system->exist = __im_fs_exist;
 	file_system->open_file = __im_file_open;

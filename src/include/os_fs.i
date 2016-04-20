@@ -26,9 +26,16 @@ __wt_dirlist(WT_SESSION_IMPL *session, const char *dir,
 	    dir, LF_ISSET(WT_DIRLIST_INCLUDE) ? "include" : "exclude",
 	    prefix == NULL ? "all" : prefix));
 
+	/*
+	 * directory-list is a required call, return ENOTSUP if there's no
+	 * method.
+	 */
+	file_system = S2C(session)->file_system;
+	if (file_system->directory_list == NULL)
+		WT_RET_MSG(session, ENOTSUP, "directory-list");
+
 	WT_RET(__wt_filename(session, dir, &path));
 
-	file_system = S2C(session)->file_system;
 	wt_session = (WT_SESSION *)session;
 	ret = file_system->directory_list(
 	    file_system, wt_session, path, prefix, flags, dirlist, countp);
@@ -60,6 +67,9 @@ __wt_directory_sync(WT_SESSION_IMPL *session, const char *name)
 	 * there are historic Linux filesystems requiring it). If the underlying
 	 * filesystem method is set, do an explicit fsync on a file descriptor
 	 * for the directory to be sure.
+	 *
+	 * directory-sync isn't a required call, no method means the call isn't
+	 * needed.
 	 */
 	file_system = S2C(session)->file_system;
 	if (file_system->directory_sync == NULL)
@@ -103,6 +113,13 @@ __wt_exist(WT_SESSION_IMPL *session, const char *name, bool *existp)
 
 	WT_RET(__wt_verbose(session, WT_VERB_FILEOPS, "%s: file-exist", name));
 
+	/*
+	 * exist is a required call, return ENOTSUP if there's no method.
+	 */
+	file_system = S2C(session)->file_system;
+	if (file_system->exist == NULL)
+		WT_RET_MSG(session, ENOTSUP, "exist");
+
 	WT_RET(__wt_filename(session, name, &path));
 
 	file_system = S2C(session)->file_system;
@@ -129,6 +146,13 @@ __wt_remove(WT_SESSION_IMPL *session, const char *name)
 
 	WT_RET(__wt_verbose(session, WT_VERB_FILEOPS, "%s: file-remove", name));
 
+	/*
+	 * remove is a required call, return ENOTSUP if there's no method.
+	 */
+	file_system = S2C(session)->file_system;
+	if (file_system->remove == NULL)
+		WT_RET_MSG(session, ENOTSUP, "remove");
+
 #ifdef HAVE_DIAGNOSTIC
 	/*
 	 * It is a layering violation to retrieve a WT_FH here, but it is a
@@ -142,7 +166,6 @@ __wt_remove(WT_SESSION_IMPL *session, const char *name)
 
 	WT_RET(__wt_filename(session, name, &path));
 
-	file_system = S2C(session)->file_system;
 	wt_session = (WT_SESSION *)session;
 	ret = file_system->remove(file_system, wt_session, path);
 
@@ -167,6 +190,13 @@ __wt_rename(WT_SESSION_IMPL *session, const char *from, const char *to)
 	WT_RET(__wt_verbose(
 	    session, WT_VERB_FILEOPS, "%s to %s: file-rename", from, to));
 
+	/*
+	 * rename is a required call, return ENOTSUP if there's no method.
+	 */
+	file_system = S2C(session)->file_system;
+	if (file_system->rename == NULL)
+		WT_RET_MSG(session, ENOTSUP, "rename");
+
 #ifdef HAVE_DIAGNOSTIC
 	/*
 	 * It is a layering violation to retrieve a WT_FH here, but it is a
@@ -185,7 +215,6 @@ __wt_rename(WT_SESSION_IMPL *session, const char *from, const char *to)
 	WT_ERR(__wt_filename(session, from, &from_path));
 	WT_ERR(__wt_filename(session, to, &to_path));
 
-	file_system = S2C(session)->file_system;
 	wt_session = (WT_SESSION *)session;
 	ret = file_system->rename(file_system, wt_session, from_path, to_path);
 
@@ -208,6 +237,13 @@ __wt_filesize_name(
 	char *path;
 
 	WT_RET(__wt_verbose(session, WT_VERB_FILEOPS, "%s: file-size", name));
+
+	/*
+	 * size is a required call, return ENOTSUP if there's no method.
+	 */
+	file_system = S2C(session)->file_system;
+	if (file_system->size == NULL)
+		WT_RET_MSG(session, ENOTSUP, "size");
 
 	WT_RET(__wt_filename(session, name, &path));
 
