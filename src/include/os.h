@@ -97,7 +97,6 @@ struct __wt_fh {
 };
 
 #ifdef _WIN32
-
 struct __wt_file_handle_win {
 	WT_FILE_HANDLE iface;
 	/*
@@ -136,12 +135,11 @@ struct __wt_file_handle_inmem {
 	/*
 	 * In memory specific file handle fields
 	 */
+	TAILQ_ENTRY(__wt_file_handle_inmem) q;	/* Closed file queue */
 
 	size_t	 off;				/* Read/write offset */
 	WT_ITEM  buf;				/* Data */
 	u_int	 ref;				/* Reference count */
-
-	TAILQ_ENTRY(__wt_file_handle_inmem) closedq; /* queue of closed files*/
 };
 
 struct __wt_fstream {

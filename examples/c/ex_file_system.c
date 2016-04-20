@@ -40,7 +40,7 @@ int
 main(void)
 {
 	WT_CONNECTION *conn;
-	WT_DECL_RET;
+	int ret = 0;
 
 	/*
 	 * Create a clean test directory for this run of the test program if the

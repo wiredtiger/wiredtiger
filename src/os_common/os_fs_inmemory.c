@@ -13,6 +13,9 @@
  */
 typedef struct {
 	WT_FILE_SYSTEM iface;
+
+	TAILQ_HEAD(__wt_closed_file_handle_qh, __wt_file_handle_inmem) closedq;
+
 	WT_SPINLOCK lock;
 } WT_INMEMORY_FILE_SYSTEM;
 
@@ -66,11 +69,12 @@ __im_fs_exist(WT_FILE_SYSTEM *file_system,
 	WT_SESSION_IMPL *session;
 
 	WT_UNUSED(file_system);
+
 	session = (WT_SESSION_IMPL *)wtsession;
 
 	/*
 	 * TODO: The in-memory file system really shouldn't be searching
-	 * in the WiredTiger handle cache. It needs to track it's own files.
+	 * in the WiredTiger handle cache. It needs to track its own files.
 	 */
 	*existp = __wt_handle_search(session, name, false, NULL, NULL);
 	return (0);
@@ -85,20 +89,25 @@ __im_fs_remove(
     WT_FILE_SYSTEM *file_system, WT_SESSION *wtsession, const char *name)
 {
 	WT_DECL_RET;
+	WT_FILE_HANDLE_INMEM *im_fh;
 	WT_INMEMORY_FILE_SYSTEM *im_fs;
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)wtsession;
 	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_system;
 
+	__wt_spin_lock(session, &im_fs->lock);
+
 	/* The handle must be on the closed queue */
-	TAILQ_FOREACH(im_fh, &im_fs->closedq, q) {
-		if (WT_STRING_MATCH(im_fh->name, name, strlen(name))) {
+	ret = ENOENT;
+	TAILQ_FOREACH(im_fh, &im_fs->closedq, q)
+		if (WT_STRING_MATCH(im_fh->iface.name, name, strlen(name))) {
 			__im_handle_remove(session, im_fh);
-			return (0);
+			ret = 0;
 		}
-	}
-	return (ENOENT);
+
+	__wt_spin_lock(session, &im_fs->lock);
+	return (ret);
 }
 
 /*
@@ -179,16 +188,17 @@ __im_fs_size(WT_FILE_SYSTEM *file_system,
 	WT_SESSION_IMPL *session;
 
 	WT_UNUSED(silent);
-	session = (WT_SESSION_IMPL *)wtsession;
 
-	im_fs = (WT_INMEMORY_FILE_SYSTEM *)(S2C(session)->file_system);
+	session = (WT_SESSION_IMPL *)wtsession;
+	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_system;
+
 	__wt_spin_lock(session, &im_fs->lock);
 
 	/*
 	 * TODO: Should use search internal to in-memory file system.
 	 */
 	if (__wt_handle_search(session, name, true, NULL, &fh)) {
-		WT_ERR(fh->fh_size(session, fh, sizep));
+		WT_ERR(fh->handle->size(fh->handle, wtsession, sizep));
 		WT_ERR(__wt_close(session, &fh));
 	} else
 		ret = ENOENT;
@@ -214,7 +224,7 @@ __im_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession)
 
 	if (--im_fh->ref == 0) {
 		im_fh->off = 0;
-		TAILQ_APPEND(&fs_im->closedq, im_fh);
+		TAILQ_INSERT_HEAD(&fs_im->closedq, im_fh, q);
 	}
 
 	return (0);
@@ -245,7 +255,12 @@ __im_file_read(WT_FILE_HANDLE *file_handle,
 	WT_DECL_RET;
 	WT_FILE_HANDLE_INMEM *im_fh;
 	WT_INMEMORY_FILE_SYSTEM *im_fs;
+	WT_SESSION_IMPL *session;
 	size_t off;
+
+	session = (WT_SESSION_IMPL *)wtsession;
+	im_fs = (WT_INMEMORY_FILE_SYSTEM *)(S2C(session)->file_system);
+	im_fh = (WT_FILE_HANDLE_INMEM *)file_handle;
 
 	/*
 	 * TODO: Each file handle should probably reference the file system,
@@ -254,8 +269,6 @@ __im_file_read(WT_FILE_HANDLE *file_handle,
 	 * handle structures that reference them - that would allow for type
 	 * checking.
 	 */
-	im_fs = (WT_INMEMORY_FILE_SYSTEM *)(S2C(session)->file_system);
-	im_fh = (WT_FILE_HANDLE_INMEM *)file_handle;
 	__wt_spin_lock(session, &im_fs->lock);
 
 	off = (size_t)offset;
@@ -272,7 +285,7 @@ __im_file_read(WT_FILE_HANDLE *file_handle,
 	WT_RET_MSG(session, WT_ERROR,
 	    "%s: handle-read: failed to read %" WT_SIZET_FMT " bytes at "
 	    "offset %" WT_SIZET_FMT,
-	    im_fh->name, len, off);
+	    im_fh->iface.name, len, off);
 }
 
 /*
@@ -325,10 +338,13 @@ __im_file_truncate(
 	WT_DECL_RET;
 	WT_FILE_HANDLE_INMEM *im_fh;
 	WT_INMEMORY_FILE_SYSTEM *im_fs;
+	WT_SESSION_IMPL *session;
 	size_t off;
 
+	session = (WT_SESSION_IMPL *)session;
 	im_fs = (WT_INMEMORY_FILE_SYSTEM *)(S2C(session)->file_system);
 	im_fh = (WT_FILE_HANDLE_INMEM *)file_handle;
+
 	__wt_spin_lock(session, &im_fs->lock);
 
 	/*
@@ -357,8 +373,10 @@ __im_file_write(WT_FILE_HANDLE *file_handle, WT_SESSION *wtsession,
 	WT_DECL_RET;
 	WT_FILE_HANDLE_INMEM *im_fh;
 	WT_INMEMORY_FILE_SYSTEM *im_fs;
+	WT_SESSION_IMPL *session;
 	size_t off;
 
+	session = (WT_SESSION_IMPL *)wtsession;
 	im_fs = (WT_INMEMORY_FILE_SYSTEM *)(S2C(session)->file_system);
 	im_fh = (WT_FILE_HANDLE_INMEM *)file_handle;
 
@@ -378,7 +396,7 @@ err:	__wt_spin_unlock(session, &im_fs->lock);
 	WT_RET_MSG(session, ret,
 	    "%s: handle-write: failed to write %" WT_SIZET_FMT " bytes at "
 	    "offset %" WT_SIZET_FMT,
-	    im_fh->name, len, off);
+	    im_fh->iface.name, len, off);
 }
 
 /*
@@ -387,43 +405,47 @@ err:	__wt_spin_unlock(session, &im_fs->lock);
  */
 static int
 __im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wtsession,
-    const char *name, uint32_t file_type, uint32_t flags, WT_FILE_HANDLE **fhp)
+    const char *name, uint32_t file_type, uint32_t flags, WT_FILE_HANDLE **fhpp)
 {
 	WT_DECL_RET;
+	WT_FILE_HANDLE *fhp;
 	WT_FILE_HANDLE_INMEM *im_fh;
+	WT_INMEMORY_FILE_SYSTEM *im_fs;
 	WT_SESSION_IMPL *session;
 
 	WT_UNUSED(file_type);
 	WT_UNUSED(flags);
 
 	session = (WT_SESSION_IMPL *)wtsession;
+	im_fs = (WT_INMEMORY_FILE_SYSTEM *)(S2C(session)->file_system);
+	im_fh = NULL;
 
 	/* First search the closed queue */
-	TAILQ_FOREACH(im_fh, &im_fs->closedq, q) {
-		if (WT_STRING_MATCH(im_fh->name, name, strlen(name))) {
-			TAILQ_REMOVE(&im_fs->closedq, im_fh);
-			*fhp = im_fh;
+	TAILQ_FOREACH(im_fh, &im_fs->closedq, q)
+		if (WT_STRING_MATCH(im_fh->iface.name, name, strlen(name))) {
+			TAILQ_REMOVE(&im_fs->closedq, im_fh, q);
+			*fhpp = (WT_FILE_HANDLE *)im_fh;
 			return (0);
 		}
-	}
 
 	/* The file hasn't been opened before, create a new one. */
-	WT_RET(__wt_calloc_one(session, im_fh));
-	WT_ERR(__wt_strdup(session, name, &im_fh->name));
-	im_fh->off = 0;
+	WT_RET(__wt_calloc_one(session, &im_fh));
 
-	im_fh->close = __im_file_close;
-	im_fh->lock = __im_file_lock;
-	im_fh->read = __im_file_read;
-	im_fh->size = __im_file_size;
-	im_fh->sync = __im_file_sync;
-	im_fh->truncate = __im_file_truncate;
-	im_fh->write = __im_file_write;
+	fhp = (WT_FILE_HANDLE *)im_fh;
+	WT_ERR(__wt_strdup(session, name, &fhp->name));
 
-	*fhp = im_fh;
+	fhp->close = __im_file_close;
+	fhp->lock = __im_file_lock;
+	fhp->read = __im_file_read;
+	fhp->size = __im_file_size;
+	fhp->sync = __im_file_sync;
+	fhp->truncate = __im_file_truncate;
+	fhp->write = __im_file_write;
+
+	*fhpp = fhp;
 
 	if (0) {
-err:		__wt_free(im_fh);
+err:		__wt_free(session, im_fh);
 	}
 	return (ret);
 }
@@ -437,14 +459,21 @@ static int
 __im_handle_remove(WT_SESSION_IMPL *session, WT_FILE_HANDLE_INMEM *im_fh)
 {
 	WT_INMEMORY_FILE_SYSTEM *im_fs;
+	WT_FILE_HANDLE *fhp;
 
 	im_fs = (WT_INMEMORY_FILE_SYSTEM *)(S2C(session)->file_system);
 
 	WT_ASSERT(session, im_fh->ref == 0);
-	TAILQ_REMOVE(&im_fs->closedq, im_fh);
+	TAILQ_REMOVE(&im_fs->closedq, im_fh, q);
+
+	/* Clean up private information. */
 	__wt_buf_free(session, &im_fh->buf);
-	__wt_free(im_fh->name);
-	__wt_free(im_fh);
+
+	/* Clean up public information. */
+	fhp = (WT_FILE_HANDLE *)im_fh;
+	__wt_free(session, fhp->name);
+
+	__wt_free(session, im_fh);
 
 	return (0);
 }
@@ -456,36 +485,34 @@ __im_handle_remove(WT_SESSION_IMPL *session, WT_FILE_HANDLE_INMEM *im_fh)
 int
 __wt_os_inmemory(WT_SESSION_IMPL *session)
 {
-	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_FILE_SYSTEM *file_system;
 	WT_INMEMORY_FILE_SYSTEM *im_fs;
 
-	conn = S2C(session);
-	WT_ASSERT(F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
+	WT_RET(__wt_calloc_one(session, &im_fs));
 
-	WT_RET(__wt_calloc_one(session, im_fs));
-	file_system = &im_fs->iface;
-
+	/*
+	 * Initialize private information.
+	 *
+	 * Maintain a list of handles that have been closed. We keep a reference
+	 * to all files until shutdown, otherwise WiredTiger periodic cleanup
+	 * can cause tables to be removed unexpectedly.
+	 */
+	TAILQ_INIT(&im_fs->closedq);
 	WT_ERR(__wt_spin_init(session, &im_fs->lock, "in-memory I/O"));
 
-	/* Initialize a list of handles that have been closed. We keep a
-	 * reference to all files until shutdown, otherwise WiredTiger
-	 * periodic cleanup can cause tables to be removed unexpectedly.
-	 */
-	TAILQ_INIT(file_system->closedq);
-
 	/* Initialize the in-memory jump table. */
+	file_system = (WT_FILE_SYSTEM *)im_fs;
 	file_system->directory_list = __im_directory_list;
 	file_system->directory_sync = __im_directory_sync;
 	file_system->exist = __im_fs_exist;
+	file_system->open_file = __im_file_open;
 	file_system->remove = __im_fs_remove;
 	file_system->rename = __im_fs_rename;
 	file_system->size = __im_fs_size;
-	file_system->open = __im_file_open;
 
 	/* Switch the file system into place. */
-	conn->file_system = im_fs;
+	S2C(session)->file_system = (WT_FILE_SYSTEM *)im_fs;
 
 	return (0);
 
@@ -504,16 +531,13 @@ __wt_os_inmemory_cleanup(WT_SESSION_IMPL *session)
 	WT_FILE_HANDLE_INMEM *im_fh;
 	WT_INMEMORY_FILE_SYSTEM *im_fs;
 
-	WT_ASSERT(F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
-
-	im_fs = (WT_INMEMORY_FILE_SYSTEM *)(S2C(session)->file_system);
+	im_fs = (WT_INMEMORY_FILE_SYSTEM *)S2C(session)->file_system;
 
 	while ((im_fh = TAILQ_FIRST(&im_fs->closedq)) != NULL)
 		WT_TRET(__im_handle_remove(session, im_fh));
 
 	__wt_spin_destroy(session, &im_fs->lock);
 	__wt_free(session, im_fs);
-	__wt_free(S2C(session)->file_system);
 
 	return (ret);
 }

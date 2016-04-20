@@ -13,23 +13,26 @@
  *	Map a file into memory.
  */
 int
-__wt_posix_map(WT_SESSION_IMPL *session,
-    WT_FH *fh, void *mapp, size_t *lenp, void **mappingcookie)
+__wt_posix_map(WT_FILE_HANDLE *fh,
+    WT_SESSION *wtsession, void *mapp, size_t *lenp, void **mappingcookie)
 {
+	WT_FILE_HANDLE_POSIX *pfh;
+	WT_SESSION_IMPL *session;
 	size_t len;
 	wt_off_t file_size;
 	void *map;
 
 	WT_UNUSED(mappingcookie);
 
-	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
+	session = (WT_SESSION_IMPL *)wtsession;
+	pfh = (WT_FILE_HANDLE_POSIX *)fh;
 
 	/*
 	 * Mapping isn't possible if direct I/O configured for the file, the
 	 * Linux open(2) documentation says applications should avoid mixing
 	 * mmap(2) of files with direct I/O to the same files.
 	 */
-	if (fh->direct_io)
+	if (pfh->direct_io)
 		return (ENOTSUP);
 
 	/*
@@ -37,7 +40,7 @@ __wt_posix_map(WT_SESSION_IMPL *session,
 	 * underneath us, our caller needs to ensure consistency of the mapped
 	 * region vs. any other file activity.
 	 */
-	WT_RET(__wt_filesize(session, fh, &file_size));
+	WT_RET(fh->size(fh, wtsession, &file_size));
 	len = (size_t)file_size;
 
 	(void)__wt_verbose(session, WT_VERB_HANDLEOPS,
@@ -49,7 +52,7 @@ __wt_posix_map(WT_SESSION_IMPL *session,
 	    MAP_NOCORE |
 #endif
 	    MAP_PRIVATE,
-	    fh->fd, (wt_off_t)0)) == MAP_FAILED)
+	    pfh->fd, (wt_off_t)0)) == MAP_FAILED)
 		WT_RET_MSG(session,
 		    __wt_errno(), "%s: memory-map: mmap", fh->name);
 
@@ -65,12 +68,15 @@ __wt_posix_map(WT_SESSION_IMPL *session,
  */
 static int
 __posix_map_preload_madvise(
-    WT_SESSION_IMPL *session, WT_FH *fh, const void *p, size_t size)
+    WT_FILE_HANDLE *fh, WT_SESSION *wtsession, const void *p, size_t size)
 {
 	WT_BM *bm;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
 	void *blk;
+
+	session = (WT_SESSION_IMPL *)wtsession;
 
 	conn = S2C(session);
 	bm = S2BT(session)->bm;
@@ -110,14 +116,13 @@ __posix_map_preload_madvise(
  */
 int
 __wt_posix_map_preload(
-    WT_SESSION_IMPL *session, WT_FH *fh, const void *p, size_t size)
+    WT_FILE_HANDLE *fh, WT_SESSION *wtsession, const void *p, size_t size)
 {
-	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
-
 #ifdef HAVE_POSIX_MADVISE
-	return (__posix_map_preload_madvise(session, fh, p, size));
+	return (__posix_map_preload_madvise(fh, wtsession, p, size));
 #else
 	WT_UNUSED(fh);
+	WT_UNUSED(wtsession);
 	WT_UNUSED(p);
 	WT_UNUSED(size);
 	return (ENOTSUP);
@@ -131,12 +136,14 @@ __wt_posix_map_preload(
  */
 static int
 __posix_map_discard_madvise(
-    WT_SESSION_IMPL *session, WT_FH *fh, void *p, size_t size)
+    WT_FILE_HANDLE *fh, WT_SESSION *wtsession, void *p, size_t size)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
 	void *blk;
 
+	session = (WT_SESSION_IMPL *)wtsession;
 	conn = S2C(session);
 
 	/* Linux requires the address be aligned to a 4KB boundary. */
@@ -157,16 +164,15 @@ __posix_map_discard_madvise(
  */
 int
 __wt_posix_map_discard(
-    WT_SESSION_IMPL *session, WT_FH *fh, void *p, size_t size)
+    WT_FILE_HANDLE *fh, WT_SESSION *wtsession, void *p, size_t size)
 {
-	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
-
 #ifdef HAVE_POSIX_MADVISE
-	return (__posix_map_discard_madvise(session, fh, p, size));
+	return (__posix_map_discard_madvise(fh, wtsession, p, size));
 #else
 	WT_UNUSED(fh);
 	WT_UNUSED(p);
 	WT_UNUSED(size);
+	WT_UNUSED(wtsession);
 	return (ENOTSUP);
 #endif
 }
@@ -176,12 +182,14 @@ __wt_posix_map_discard(
  *	Remove a memory mapping.
  */
 int
-__wt_posix_map_unmap(WT_SESSION_IMPL *session,
-    WT_FH *fh, void *map, size_t len, void **mappingcookie)
+__wt_posix_map_unmap(WT_FILE_HANDLE *fh,
+    WT_SESSION *wtsession, void *map, size_t len, void **mappingcookie)
 {
+	WT_SESSION_IMPL *session;
+
 	WT_UNUSED(mappingcookie);
 
-	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
+	session = (WT_SESSION_IMPL *)wtsession;
 
 	(void)__wt_verbose(session, WT_VERB_HANDLEOPS,
 	    "%s: memory-unmap: %" WT_SIZET_FMT " bytes", fh->name, len);

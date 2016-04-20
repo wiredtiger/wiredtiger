@@ -61,8 +61,7 @@ __wt_exist(WT_SESSION_IMPL *session, const char *name, bool *existp)
 
 	WT_RET(__wt_verbose(session, WT_VERB_FILEOPS, "%s: file-exist", name));
 
-	WT_RET(file_system->exist(
-	    file_system, &session->iface, name, &exist));
+	WT_RET(file_system->exist(file_system, &session->iface, name, &exist));
 	*existp = exist == 0;
 	return (0);
 }

@@ -22,15 +22,6 @@ __wt_block_map(
 	*(void **)mapp = NULL;
 	*maplenp = 0;
 
-#ifdef WORDS_BIGENDIAN
-	/*
-	 * The underlying objects are little-endian, mapping objects isn't
-	 * currently supported on big-endian systems.
-	 */
-	WT_UNUSED(session);
-	WT_UNUSED(block);
-	WT_UNUSED(mappingcookie);
-#else
 	/* Map support is configurable. */
 	if (!S2C(session)->mmap)
 		return (0);
@@ -51,15 +42,20 @@ __wt_block_map(
 		return (0);
 
 	/*
+	 * There may be no underlying functionality.
+	 */
+	if (block->fh->handle->map == NULL)
+		return (0);
+
+	/*
 	 * Map the file into memory.
 	 * Ignore not-supported errors, we'll read the file through the cache
 	 * if map fails.
 	 */
-	ret = block->fh->handle->map(block->fh->handle, (WT_SESSION *)session,
-	    mapp, maplenp, mappingcookie);
+	ret = block->fh->handle->map(block->fh->handle,
+	    (WT_SESSION *)session, mapp, maplenp, mappingcookie);
 	if (ret == ENOTSUP)
 		ret = 0;
-#endif
 
 	return (ret);
 }
@@ -74,7 +70,6 @@ __wt_block_unmap(
     void **mappingcookie)
 {
 	/* Unmap the file from memory. */
-	return (block->fh->handle->unmap(
-	    block->fh->handle, (WT_SESSION *)session,
-	    map, maplen, mappingcookie));
+	return (block->fh->handle->unmap(block->fh->handle,
+	    (WT_SESSION *)session, map, maplen, mappingcookie));
 }
