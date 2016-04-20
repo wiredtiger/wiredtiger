@@ -86,12 +86,12 @@ struct __wt_fh {
 	 * that is owned by the user (since we care about the content of the
 	 * file name). Keeping two copies seems most reasonable.
 	 */
-	const char *name;                       /* File name */
+	const char *name;			/* File name */
 
-	uint64_t name_hash;                     /* hash of name */
-	TAILQ_ENTRY(__wt_fh) q;                 /* internal queue */
-	TAILQ_ENTRY(__wt_fh) hashq;              /* internal queue */
-	u_int   ref;                            /* reference count */
+	uint64_t name_hash;			/* hash of name */
+	TAILQ_ENTRY(__wt_fh) q;			/* internal queue */
+	TAILQ_ENTRY(__wt_fh) hashq;		/* internal hash queue */
+	u_int ref;				/* reference count */
 
 	WT_FILE_HANDLE *handle;
 };
@@ -139,15 +139,15 @@ struct __wt_file_handle_inmem {
 
 	size_t	 off;				/* Read/write offset */
 	WT_ITEM  buf;				/* Data */
-	u_int    ref;				/* Reference count */
+	u_int	 ref;				/* Reference count */
 
 	TAILQ_ENTRY(__wt_file_handle_inmem) closedq; /* queue of closed files*/
 };
 
 struct __wt_fstream {
-	const char *name;                       /* Stream name */
+	const char *name;			/* Stream name */
 
-	FILE *fp;                               /* stdio FILE stream */
+	FILE *fp;				/* stdio FILE stream */
 	WT_FH *fh;				/* WT file handle */
 	wt_off_t off;				/* Read/write offset */
 	wt_off_t size;				/* File size */
