@@ -979,6 +979,10 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "timestamp=\"%b %d %H:%M:%S\",wait=0),verbose=",
 	  confchk_WT_CONNECTION_reconfigure, 18
 	},
+	{ "WT_CONNECTION.set_file_system",
+	  "",
+	  NULL, 0
+	},
 	{ "WT_CURSOR.close",
 	  "",
 	  NULL, 0

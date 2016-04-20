@@ -37,7 +37,7 @@ __wt_fallocate(
 	    fh->handle->name, (uintmax_t)len, (uintmax_t)offset));
 
 	return (fh->handle->fallocate(
-            fh->handle, (WT_SESSION *)session, offset, len));
+	    fh->handle, (WT_SESSION *)session, offset, len));
 }
 
 /*
@@ -68,7 +68,7 @@ __wt_read(
 	WT_STAT_FAST_CONN_INCR(session, read_io);
 
 	return (fh->handle->read(
-            fh->handle, (WT_SESSION *)session, offset, len, buf));
+	    fh->handle, (WT_SESSION *)session, offset, len, buf));
 }
 
 /*
@@ -108,7 +108,7 @@ __wt_ftruncate(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t len)
 
 	WT_RET(__wt_verbose(session, WT_VERB_HANDLEOPS,
 	    "%s: handle-truncate: %" PRIuMAX,
-            fh->handle->name, (uintmax_t)len));
+	    fh->handle->name, (uintmax_t)len));
 
 	return (fh->handle->truncate(fh->handle, (WT_SESSION *)session, len));
 }
@@ -132,5 +132,5 @@ __wt_write(WT_SESSION_IMPL *session,
 	WT_STAT_FAST_CONN_INCR(session, write_io);
 
 	return (fh->handle->write(
-            fh->handle, (WT_SESSION *)session, offset, len, buf));
+	    fh->handle, (WT_SESSION *)session, offset, len, buf));
 }

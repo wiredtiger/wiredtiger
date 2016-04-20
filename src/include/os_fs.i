@@ -44,7 +44,7 @@ __wt_directory_sync(WT_SESSION_IMPL *session, const char *name)
 	    session, WT_VERB_FILEOPS, "%s: directory-sync", name));
 
 	return (file_system->directory_sync(
-            file_system, &session->iface, name));
+	    file_system, &session->iface, name));
 }
 
 /*
@@ -55,16 +55,16 @@ static inline int
 __wt_exist(WT_SESSION_IMPL *session, const char *name, bool *existp)
 {
 	WT_FILE_SYSTEM *file_system;
-        int exist;
+	int exist;
 
 	file_system = S2C(session)->file_system;
 
 	WT_RET(__wt_verbose(session, WT_VERB_FILEOPS, "%s: file-exist", name));
 
 	WT_RET(file_system->exist(
-            file_system, &session->iface, name, &exist));
-        *existp = exist == 0;
-        return (0);
+	    file_system, &session->iface, name, &exist));
+	*existp = exist == 0;
+	return (0);
 }
 
 /*
@@ -116,5 +116,5 @@ __wt_filesize_name(
 	WT_RET(__wt_verbose(session, WT_VERB_FILEOPS, "%s: file-size", name));
 
 	return (file_system->size(
-            file_system, &session->iface, name, silent, sizep));
+	    file_system, &session->iface, name, silent, sizep));
 }

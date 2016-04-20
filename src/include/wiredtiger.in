@@ -2131,7 +2131,7 @@ struct __wt_connection {
 	    WT_EXTRACTOR *extractor, const char *config);
 
 	/*!
-	 * Configure a custom file system
+	 * Configure a custom file system.
 	 *
 	 * The application must first implement the WT_FILE_SYSTEM interface
 	 * and then register the implementation with WiredTiger:
@@ -2143,8 +2143,8 @@ struct __wt_connection {
 	 * @configempty{WT_CONNECTION.set_file_system, see dist/api_data.py}
 	 * @errors
 	 */
-	int __F(set_file_system)(WT_CONNECTION *connection,
-	    WT_FILE_SYSTEM *fs, const char *config);
+	int __F(set_file_system)(
+	    WT_CONNECTION *connection, WT_FILE_SYSTEM *fs, const char *config);
 
 	/*!
 	 * Return a reference to the WiredTiger extension functions.
@@ -3683,213 +3683,6 @@ struct __wt_extractor {
 };
 
 /*!
- * A handle for a file handle that is returned by WT_FILE_SYSTEM::open_file.
- *
- * See @ref custom_file_systems for more information.
- *
- */
-struct __wt_file_handle {
-	const char *name;                       /* File name */
-
-	/*!
-	 * The equivalent of POSIX fadvise, indicate to the file system how
-	 * the file is expected to be used
-	 *
-	 * @errors
-	 *
-	 * @snippet ex_file_system.c fadvise
-	 *
-	 * @param fh the WT_FILE_SYSTEM implementation
-	 * @param session the current WiredTiger session
-	 * @param offset the file offset
-	 * @param len the size of the advisory
-	 * @param advice the type of advice. Currently one of dont need, or
-	 *      will need. TODO: Expose constants
-	 */
-	int (*fadvise)(WT_FILE_HANDLE *fh, WT_SESSION *session,
-	    wt_off_t offset, wt_off_t len, int advice);
-
-	/*!
-	 * The equivalent of POSIX fallocate, ensures that disk space is
-	 * allocated for the file
-	 *
-	 * @errors
-	 *
-	 * @snippet ex_file_system.c fallocate
-	 *
-	 * @param fh the WT_FILE_SYSTEM implementation
-	 * @param session the current WiredTiger session
-	 * @param offset the file offset
-	 * @param len the size of the advisory
-	 */
-	int (*fallocate)(WT_FILE_HANDLE *fh, WT_SESSION *session,
-	    wt_off_t, wt_off_t);
-
-	/*!
-	 * Close a file handle and release any resources in the handle
-	 *
-	 * @errors
-	 *
-	 * @snippet ex_file_system.c close
-	 *
-	 * @param fh the WT_FILE_SYSTEM implementation
-	 * @param session the current WiredTiger session
-	 */
-	int (*close)(WT_FILE_HANDLE *fh, WT_SESSION *session);
-
-	/*!
-	 * Lock or unlock a file
-	 *
-	 * @errors
-	 *
-	 * @snippet ex_file_system.c lock
-	 *
-	 * @param fh the WT_FILE_SYSTEM implementation
-	 * @param session the current WiredTiger session
-	 * @param lock whether to lock or unlock
-	 *      TODO: I get a compiler warning when this is a bool.
-	 */
-	int (*lock)(WT_FILE_HANDLE *fh, WT_SESSION *session, int lock);
-
-	/*!
-	 * Map a file into memory. Similar to the POSIX mmap API.
-	 *
-	 * @errors
-	 *
-	 * @snippet ex_file_system.c map
-	 *
-	 * @param fh the WT_FILE_SYSTEM implementation
-	 * @param session the current WiredTiger session
-	 * @param[out] mapp the resulting mapped memory region
-	 * @param[out] lenp the length of the mapped memory region
-	 * @param[out] mappingcookie An opaque pointer available for tracking
-	 *     context about the memory mapping
-	 */
-	int (*map)(WT_FILE_HANDLE *fh, WT_SESSION *session,
-	    void *mapp, size_t *lenp, void **mappingcookie);
-
-	/*!
-	 * Discard a chunk of a memory mapped region
-	 *
-	 * @errors
-	 *
-	 * @snippet ex_file_system.c map_discard
-	 *
-	 * @param fh the WT_FILE_SYSTEM implementation
-	 * @param session the current WiredTiger session
-	 * @param p the region
-	 * @param size the size of the region to discard
-	 * TODO: Surely this should accept a mapping cookie as well
-	 */
-	int (*map_discard)(WT_FILE_HANDLE *fh, WT_SESSION *session,
-	    void *p, size_t size);
-
-	/*!
-	 * Preload a section of a memory mapped region
-	 *
-	 * @errors
-	 *
-	 * @snippet ex_file_system.c map_preload
-	 *
-	 * @param fh the WT_FILE_SYSTEM implementation
-	 * @param session the current WiredTiger session
-	 * @param p the region
-	 * @param size the size of the region to discard
-	 * TODO: Surely this should accept a mapping cookie as well
-	 */
-	int (*map_preload)(WT_FILE_HANDLE *fh, WT_SESSION *session,
-	    const void *p, size_t size);
-
-	/*!
-	 * Unmap a memory mapped region
-	 *
-	 * @errors
-	 *
-	 * @snippet ex_file_system.c directory_sync
-	 *
-	 * @param fh the WT_FILE_SYSTEM implementation
-	 * @param session the current WiredTiger session
-	 * @param map pointer to the mapped region
-	 * @param len the length of the mapped region
-	 * @param mappingcookie optional application provided data
-	 */
-	int (*unmap)(WT_FILE_HANDLE *fh, WT_SESSION *session,
-	    void *map, size_t len, void **mappingcookie);
-
-	/*!
-	 * Read content from a file, similar to POSIX pread
-	 *
-	 * @errors
-	 *
-	 * @snippet ex_file_system.c read
-	 *
-	 * @param fh the WT_FILE_SYSTEM implementation
-	 * @param session the current WiredTiger session
-	 * @param offset the offset in the file to start reading from
-	 * @param len the amount to read
-	 * @param[out] buf buffer to hold the content read from file
-	 */
-	int (*read)(WT_FILE_HANDLE *fh, WT_SESSION *session,
-	    wt_off_t offset, size_t len, void *buf);
-
-	/*!
-	 * Retrieve the size of a file
-	 *
-	 * @errors
-	 *
-	 * @snippet ex_file_system.c size
-	 *
-	 * @param fh the WT_FILE_SYSTEM implementation
-	 * @param session the current WiredTiger session
-	 * @param sizep the size of the file
-	 */
-	int (*size)(WT_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t *sizep);
-
-	/*!
-	 * Flush the file to stable storage
-	 *
-	 * @errors
-	 *
-	 * @snippet ex_file_system.c sync
-	 *
-	 * @param fh the WT_FILE_SYSTEM implementation
-	 * @param session the current WiredTiger session
-	 * @param block whether the flush should be synchronous or asynchronous
-	 *      TODO: I get a compiler warning when this is a bool.
-	 */
-	int (*sync)(WT_FILE_HANDLE *fh, WT_SESSION *session, int block);
-
-	/*!
-	 * Truncate a file to the desired length
-	 *
-	 * @errors
-	 *
-	 * @snippet ex_file_system.c truncate
-	 *
-	 * @param fh the WT_FILE_SYSTEM implementation
-	 * @param session the current WiredTiger session
-	 * @param len desired file size after truncate
-	 */
-	int (*truncate)(WT_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t len);
-
-	/*!
-	 * Write the contents of a buffer to a file, similar to POSIX pwrite
-	 *
-	 * @errors
-	 *
-	 * @snippet ex_file_system.c directory_sync
-	 *
-	 * @param fh the WT_FILE_SYSTEM implementation
-	 * @param session the current WiredTiger session
-	 * @param offset offset at which to start writing
-	 * @param len amount of data to write
-	 * @param buf content to be written to the file
-	 */
-	int (*write)(WT_FILE_HANDLE *fh, WT_SESSION *session,
-	    wt_off_t offset, size_t len, const void *buf);
-};
-
-/*!
  * The interface implemented by applications to provide a custom file system
  * implementation.
  *
@@ -4033,6 +3826,220 @@ struct __wt_file_system {
 	 * the handle will not be subsequently accessed by WiredTiger.
 	 */
 	int (*terminate)(WT_EXTRACTOR *extractor, WT_SESSION *session);
+};
+
+/*!
+ * A handle for a file handle that is returned by WT_FILE_SYSTEM::open_file.
+ *
+ * See @ref custom_file_systems for more information.
+ *
+ */
+struct __wt_file_handle {
+	/*!
+	 * The name of the file.
+	 */
+	const char *name;                       /* File name */
+
+	/*!
+	 * Indicate to the file system how the file is expected to be used,
+	 * based on the POSIX 1003.1 standard fadvise.
+	 *
+	 * @errors
+	 *
+	 * @snippet ex_file_system.c fadvise
+	 *
+	 * @param fh the WT_FILE_SYSTEM implementation
+	 * @param session the current WiredTiger session
+	 * @param offset the file offset
+	 * @param len the size of the advisory
+	 * @param advice the type of advice. Currently one of don't need, or
+	 *      will need. TODO: Expose constants
+	 */
+	int (*fadvise)(WT_FILE_HANDLE *fh,
+	    WT_SESSION *session, wt_off_t offset, wt_off_t len, int advice);
+
+	/*!
+	 * Ensure disk space is allocated for the file, based on the POSIX
+	 * 1003.1 standard fallocate.
+	 *
+	 * @errors
+	 *
+	 * @snippet ex_file_system.c fallocate
+	 *
+	 * @param fh the WT_FILE_SYSTEM implementation
+	 * @param session the current WiredTiger session
+	 * @param offset the file offset
+	 * @param len the size of the advisory
+	 */
+	int (*fallocate)(
+	    WT_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t, wt_off_t);
+
+	/*!
+	 * Close a file handle.
+	 *
+	 * @errors
+	 *
+	 * @snippet ex_file_system.c close
+	 *
+	 * @param fh the WT_FILE_SYSTEM implementation
+	 * @param session the current WiredTiger session
+	 */
+	int (*close)(WT_FILE_HANDLE *fh, WT_SESSION *session);
+
+	/*!
+	 * Lock or unlock a file.
+	 *
+	 * @errors
+	 *
+	 * @snippet ex_file_system.c lock
+	 *
+	 * @param fh the WT_FILE_SYSTEM implementation
+	 * @param session the current WiredTiger session
+	 * @param lock whether to lock or unlock
+	 *      TODO: I get a compiler warning when this is a bool.
+	 */
+	int (*lock)(WT_FILE_HANDLE *fh, WT_SESSION *session, int lock);
+
+	/*!
+	 * Map a file into memory, based on the POSIX 1003.1 standard mmap.
+	 *
+	 * @errors
+	 *
+	 * @snippet ex_file_system.c map
+	 *
+	 * @param fh the WT_FILE_SYSTEM implementation
+	 * @param session the current WiredTiger session
+	 * @param[out] mapp the resulting mapped memory region
+	 * @param[out] lenp the length of the mapped memory region
+	 * @param[out] mappingcookie An opaque pointer available for tracking
+	 *     context about the memory mapping
+	 */
+	int (*map)(WT_FILE_HANDLE *fh, WT_SESSION *session,
+	    void *mapp, size_t *lenp, void **mappingcookie);
+
+	/*!
+	 * Unmap part of a memory mapped file, based on the POSIX 1003.1
+	 * standard madvise.
+	 *
+	 * @errors
+	 *
+	 * @snippet ex_file_system.c map_discard
+	 *
+	 * @param fh the WT_FILE_SYSTEM implementation
+	 * @param session the current WiredTiger session
+	 * @param p the region
+	 * @param size the size of the region to discard
+	 * TODO: Surely this should accept a mapping cookie as well
+	 */
+	int (*map_discard)(
+	    WT_FILE_HANDLE *fh, WT_SESSION *session, void *p, size_t size);
+
+	/*!
+	 * Preload part of a memory mapped file, based on the POSIX 1003.1
+	 * standard madvise.
+	 *
+	 * @errors
+	 *
+	 * @snippet ex_file_system.c map_preload
+	 *
+	 * @param fh the WT_FILE_SYSTEM implementation
+	 * @param session the current WiredTiger session
+	 * @param p the region
+	 * @param size the size of the region to discard
+	 * TODO: Surely this should accept a mapping cookie as well
+	 */
+	int (*map_preload)(WT_FILE_HANDLE *fh, WT_SESSION *session,
+	    const void *p, size_t size);
+
+	/*!
+	 * Unmap a memory mapped file, based on the POSIX 1003.1 standard
+	 * munmap.
+	 *
+	 * @errors
+	 *
+	 * @snippet ex_file_system.c unmap
+	 *
+	 * @param fh the WT_FILE_SYSTEM implementation
+	 * @param session the current WiredTiger session
+	 * @param map pointer to the mapped region
+	 * @param len the length of the mapped region
+	 * @param mappingcookie optional application provided data
+	 */
+	int (*unmap)(WT_FILE_HANDLE *fh, WT_SESSION *session,
+	    void *map, size_t len, void **mappingcookie);
+
+	/*!
+	 * Read from a file, based on the POSIX 1003.1 standard pread.
+	 *
+	 * @errors
+	 *
+	 * @snippet ex_file_system.c read
+	 *
+	 * @param fh the WT_FILE_SYSTEM implementation
+	 * @param session the current WiredTiger session
+	 * @param offset the offset in the file to start reading from
+	 * @param len the amount to read
+	 * @param[out] buf buffer to hold the content read from file
+	 */
+	int (*read)(WT_FILE_HANDLE *fh, WT_SESSION *session,
+	    wt_off_t offset, size_t len, void *buf);
+
+	/*!
+	 * Return the size of a file.
+	 *
+	 * @errors
+	 *
+	 * @snippet ex_file_system.c size
+	 *
+	 * @param fh the WT_FILE_SYSTEM implementation
+	 * @param session the current WiredTiger session
+	 * @param sizep the size of the file
+	 */
+	int (*size)(WT_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t *sizep);
+
+	/*!
+	 * Make file writes durable.
+	 *
+	 * @errors
+	 *
+	 * @snippet ex_file_system.c sync
+	 *
+	 * @param fh the WT_FILE_SYSTEM implementation
+	 * @param session the current WiredTiger session
+	 * @param block whether the flush should be synchronous or asynchronous
+	 *      TODO: I get a compiler warning when this is a bool.
+	 */
+	int (*sync)(WT_FILE_HANDLE *fh, WT_SESSION *session, int block);
+
+	/*!
+	 * Extend to truncate a file to the desired length, based on the POSIX
+	 * 1003.1 standard ftruncate.
+	 *
+	 * @errors
+	 *
+	 * @snippet ex_file_system.c truncate
+	 *
+	 * @param fh the WT_FILE_SYSTEM implementation
+	 * @param session the current WiredTiger session
+	 * @param len desired file size after truncate
+	 */
+	int (*truncate)(WT_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t len);
+
+	/*!
+	 * Write to a file, based on the POSIX 1003.1 standard pwrite.
+	 *
+	 * @errors
+	 *
+	 * @snippet ex_file_system.c write
+	 *
+	 * @param fh the WT_FILE_SYSTEM implementation
+	 * @param session the current WiredTiger session
+	 * @param offset offset at which to start writing
+	 * @param len amount of data to write
+	 * @param buf content to be written to the file
+	 */
+	int (*write)(WT_FILE_HANDLE *fh, WT_SESSION *session,
+	    wt_off_t offset, size_t len, const void *buf);
 };
 
 /*!

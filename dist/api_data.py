@@ -1073,6 +1073,7 @@ methods = {
         type='boolean'),
 ]),
 'WT_CONNECTION.reconfigure' : Method(connection_runtime_config),
+'WT_CONNECTION.set_file_system' : Method([]),
 
 'WT_CONNECTION.load_extension' : Method([
     Config('config', '', r'''

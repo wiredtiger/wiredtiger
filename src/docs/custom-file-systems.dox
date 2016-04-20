@@ -1,0 +1,6 @@
+/*! @page custom_file_systems Custom File Systems
+
+Applications can implement their own custom file systems sources underneath
+WiredTiger using the WT_FILE_SYSTEM interface.
+
+*/
