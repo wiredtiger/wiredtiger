@@ -37,11 +37,12 @@ __wt_bm_preload(
 		mapped = bm->map != NULL &&
 		    offset + size <= (wt_off_t)bm->maplen;
 		if (mapped)
-			ret = block->fh->fh_map_preload(session,
-			    block->fh, (uint8_t *)bm->map + offset, size);
+			ret = block->fh->handle->map_preload(
+			    block->fh->handle, (WT_SESSION *)session,
+			    (uint8_t *)bm->map + offset, size);
 		else
-			ret = block->fh->fh_advise(session,
-			    block->fh, (wt_off_t)offset,
+			ret = block->fh->handle->fadvise(block->fh->handle,
+			    (WT_SESSION *)session, (wt_off_t)offset,
 			    (wt_off_t)size, POSIX_FADV_WILLNEED);
 		if (ret == 0)
 			return (0);
@@ -92,8 +93,9 @@ __wt_bm_read(WT_BM *bm, WT_SESSION_IMPL *session,
 		buf->data = (uint8_t *)bm->map + offset;
 		buf->size = size;
 		if (block->preload_available) {
-			ret = block->fh->fh_map_preload(
-			    session, block->fh, buf->data, buf->size);
+			ret = block->fh->handle->map_preload(
+			    block->fh->handle, (WT_SESSION *)session,
+			    buf->data, buf->size);
 
 			/* Ignore ENOTSUP, but don't try again. */
 			if (ret != ENOTSUP)

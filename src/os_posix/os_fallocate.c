@@ -17,12 +17,13 @@
  *	Configure POSIX file-extension behavior for a file handle.
  */
 void
-__wt_posix_file_allocate_configure(WT_SESSION_IMPL *session, WT_FH *fh)
+__wt_posix_file_allocate_configure(
+    WT_SESSION_IMPL *session, WT_FILE_HANDLE_POSIX *file_handle)
 {
 	WT_UNUSED(session);
 
-	fh->fallocate_available = WT_FALLOCATE_NOT_AVAILABLE;
-	fh->fallocate_requires_locking = false;
+	file_handle->fallocate_available = WT_FALLOCATE_NOT_AVAILABLE;
+	file_handle->fallocate_requires_locking = false;
 
 	/*
 	 * Check for the availability of some form of fallocate; in all cases,
@@ -30,12 +31,12 @@ __wt_posix_file_allocate_configure(WT_SESSION_IMPL *session, WT_FH *fh)
 	 * know which system calls work with the handle's underlying filesystem.
 	 */
 #if defined(HAVE_FALLOCATE) || defined(HAVE_POSIX_FALLOCATE)
-	fh->fallocate_available = WT_FALLOCATE_AVAILABLE;
-	fh->fallocate_requires_locking = true;
+	file_handle->fallocate_available = WT_FALLOCATE_AVAILABLE;
+	file_handle->fallocate_requires_locking = true;
 #endif
 #if defined(__linux__) && defined(SYS_fallocate)
-	fh->fallocate_available = WT_FALLOCATE_AVAILABLE;
-	fh->fallocate_requires_locking = true;
+	file_handle->fallocate_available = WT_FALLOCATE_AVAILABLE;
+	file_handle->fallocate_requires_locking = true;
 #endif
 }
 

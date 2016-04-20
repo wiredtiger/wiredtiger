@@ -55,8 +55,8 @@ __wt_block_map(
 	 * Ignore not-supported errors, we'll read the file through the cache
 	 * if map fails.
 	 */
-	ret = block->fh->fh_map(
-	    session, block->fh, mapp, maplenp, mappingcookie);
+	ret = block->fh->handle->map(block->fh->handle, (WT_SESSION *)session,
+	    mapp, maplenp, mappingcookie);
 	if (ret == ENOTSUP)
 		ret = 0;
 #endif
@@ -74,6 +74,7 @@ __wt_block_unmap(
     void **mappingcookie)
 {
 	/* Unmap the file from memory. */
-	return (block->fh->fh_map_unmap(
-	    session, block->fh, map, maplen, mappingcookie));
+	return (block->fh->handle->unmap(
+	    block->fh->handle, (WT_SESSION *)session,
+	    map, maplen, mappingcookie));
 }

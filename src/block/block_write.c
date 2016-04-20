@@ -60,8 +60,9 @@ __wt_block_discard(WT_SESSION_IMPL *session, WT_BLOCK *block, size_t added_size)
 		return (0);
 
 	block->os_cache = 0;
-	WT_ERR(block->fh->fh_advise(session,
-	    block->fh, (wt_off_t)0, (wt_off_t)0, POSIX_FADV_DONTNEED));
+	WT_ERR(block->fh->handle->fadvise(
+	    block->fh->handle, (WT_SESSION *)session,
+	    (wt_off_t)0, (wt_off_t)0, POSIX_FADV_DONTNEED));
 	return (0);
 
 err:	/* Ignore ENOTSUP, but don't try again. */
@@ -125,6 +126,9 @@ __wt_block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	 * based on the filesystem type, fall back to ftruncate in that case,
 	 * and remember that ftruncate requires locking.
 	 */
+#if 0
+TODO: This is a horrible layering violation. If we really need this we'll
+	      need to add methods to the file system API.
 	if (fh->fallocate_available != WT_FALLOCATE_NOT_AVAILABLE) {
 		/*
 		 * Release any locally acquired lock if not needed to extend the
@@ -152,6 +156,7 @@ __wt_block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block,
 		if (ret != ENOTSUP)
 			return (ret);
 	}
+#endif
 
 	/*
 	 * We may have a caller lock or a locally acquired lock, but we need a

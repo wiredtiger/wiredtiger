@@ -1863,6 +1863,21 @@ err:		WT_TRET(__wt_fclose(session, &fs));
 }
 
 /*
+ * __conn_set_file_system --
+ *	Configure a custom file system implementation on database open.
+ */
+static int
+__conn_set_file_system(
+    WT_CONNECTION *connection, WT_FILE_SYSTEM *fs, const char *config)
+{
+	/* TODO: Implement this function */
+	WT_UNUSED(connection);
+	WT_UNUSED(fs);
+	WT_UNUSED(config);
+	return (ENOTSUP);
+}
+
+/*
  * wiredtiger_open --
  *	Main library entry point: open a new connection to a WiredTiger
  *	database.
@@ -1886,6 +1901,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 		__conn_add_compressor,
 		__conn_add_encryptor,
 		__conn_add_extractor,
+		__conn_set_file_system,
 		__conn_get_extension_api
 	};
 	static const WT_NAME_FLAG file_types[] = {

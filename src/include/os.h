@@ -77,27 +77,47 @@
 #define	WT_OPEN_READONLY	0x010	/* Open readonly (internal) */
 
 struct __wt_fh {
-	const char *name;			/* File name */
-	uint64_t name_hash;			/* Hash of name */
-	TAILQ_ENTRY(__wt_fh) q;			/* List of open handles */
-	TAILQ_ENTRY(__wt_fh) hashq;		/* Hashed list of handles */
-
-	u_int	ref;				/* Reference count */
-
 	/*
-	 * Underlying file system handle support.
+	 * There is a file name field in both the WT_FH and WT_FILE_HANDLE
+	 * structures, which isn't ideal. There would be compromises to keeping
+	 * a single copy: If it were in WT_FH, file systems could not access
+	 * the name field, if it were just in the WT_FILE_HANDLE internal
+	 * WiredTiger code would need to maintain a string inside a structure
+	 * that is owned by the user (since we care about the content of the
+	 * file name). Keeping two copies seems most reasonable.
 	 */
+	const char *name;                       /* File name */
+
+	uint64_t name_hash;                     /* hash of name */
+	TAILQ_ENTRY(__wt_fh) q;                 /* internal queue */
+	TAILQ_ENTRY(__wt_fh) hashq;              /* internal queue */
+	u_int   ref;                            /* reference count */
+
+	WT_FILE_HANDLE *handle;
+};
+
 #ifdef _WIN32
+
+struct __wt_file_handle_win {
+	WT_FILE_HANDLE iface;
+	/*
+	 * Windows specific file handle fields
+	 */
 	HANDLE filehandle;			/* Windows file handle */
 	HANDLE filehandle_secondary;		/* Windows file handle
 						   for file size changes */
-#else
-	int	 fd;				/* POSIX file handle */
-#endif
+	bool	 direct_io;			/* O_DIRECT configured */
+};
 
-	/* In-memory specific fields. */
-	size_t	 off;				/* Read/write offset */
-	WT_ITEM  buf;				/* Data */
+#else
+
+struct __wt_file_handle_posix {
+	WT_FILE_HANDLE iface;
+
+	/*
+	 * POSIX specific file handle fields
+	 */
+	int	 fd;				/* POSIX file handle */
 
 	bool	 direct_io;			/* O_DIRECT configured */
 
@@ -108,25 +128,20 @@ struct __wt_fh {
 	    WT_FALLOCATE_STD,
 	    WT_FALLOCATE_SYS } fallocate_available;
 	bool fallocate_requires_locking;
+};
+#endif
 
-#define	WT_FH_IN_MEMORY		0x01		/* In-memory, don't remove */
-	uint32_t flags;
+struct __wt_file_handle_inmem {
+	WT_FILE_HANDLE iface;
+	/*
+	 * In memory specific file handle fields
+	 */
 
-	int (*fh_advise)(WT_SESSION_IMPL *, WT_FH *, wt_off_t, wt_off_t, int);
-	int (*fh_allocate)(WT_SESSION_IMPL *, WT_FH *, wt_off_t, wt_off_t);
-	int (*fh_close)(WT_SESSION_IMPL *, WT_FH *);
-	int (*fh_lock)(WT_SESSION_IMPL *, WT_FH *, bool);
-	int (*fh_map)(WT_SESSION_IMPL *, WT_FH *, void *, size_t *, void **);
-	int (*fh_map_discard)(WT_SESSION_IMPL *, WT_FH *, void *, size_t);
-	int (*fh_map_preload)(WT_SESSION_IMPL *, WT_FH *, const void *, size_t);
-	int (*fh_map_unmap)(
-	    WT_SESSION_IMPL *, WT_FH *, void *, size_t, void **);
-	int (*fh_read)(WT_SESSION_IMPL *, WT_FH *, wt_off_t, size_t, void *);
-	int (*fh_size)(WT_SESSION_IMPL *, WT_FH *, wt_off_t *);
-	int (*fh_sync)(WT_SESSION_IMPL *, WT_FH *, bool);
-	int (*fh_truncate)(WT_SESSION_IMPL *, WT_FH *, wt_off_t);
-	int (*fh_write)(
-	    WT_SESSION_IMPL *, WT_FH *, wt_off_t, size_t, const void *);
+	size_t	 off;				/* Read/write offset */
+	WT_ITEM  buf;				/* Data */
+	u_int    ref;				/* Reference count */
+
+	TAILQ_ENTRY(__wt_file_handle_inmem) closedq; /* queue of closed files*/
 };
 
 struct __wt_fstream {

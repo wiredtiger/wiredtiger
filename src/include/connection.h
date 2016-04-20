@@ -421,25 +421,15 @@ struct __wt_connection_impl {
 	int page_size;			/* OS page size for mmap alignment */
 	uint32_t verbose;
 
-	void *inmemory;			/* In-memory configuration cookie */
-
 #define	WT_STDERR(s)	(&S2C(s)->wt_stderr)
 #define	WT_STDOUT(s)	(&S2C(s)->wt_stdout)
 	WT_FSTREAM wt_stderr, wt_stdout;
 
 	/*
-	 * OS library/system call jump table, to support in-memory and readonly
-	 * configurations as well as special devices with other non-POSIX APIs.
+	 * File system interface abstracted to support alternative file system
+	 * implementations.
 	 */
-	int	(*file_directory_list)(WT_SESSION_IMPL *,
-		    const char *, const char *, uint32_t, char ***, u_int *);
-	int	(*file_directory_sync)(WT_SESSION_IMPL *, const char *);
-	int	(*file_exist)(WT_SESSION_IMPL *, const char *, bool *);
-	int	(*file_remove)(WT_SESSION_IMPL *, const char *);
-	int	(*file_rename)(WT_SESSION_IMPL *, const char *, const char *);
-	int	(*file_size)(WT_SESSION_IMPL *, const char *, bool, wt_off_t *);
-	int	(*file_open)(WT_SESSION_IMPL *,
-		    WT_FH *, const char *, uint32_t, uint32_t);
+	WT_FILE_SYSTEM *file_system;
 
 	uint32_t flags;
 };

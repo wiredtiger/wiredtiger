@@ -136,7 +136,8 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
 		__wt_overwrite_and_free_len(session, dsk, dsk->mem_size);
 	if (F_ISSET_ATOMIC(page, WT_PAGE_DISK_MAPPED)) {
 		fh = S2BT(session)->bm->block->fh;
-		(void)fh->fh_map_discard(session, fh, dsk, dsk->mem_size);
+		(void)fh->handle->map_discard(
+		    fh->handle, (WT_SESSION *)session, dsk, dsk->mem_size);
 	}
 
 	__wt_overwrite_and_free(session, page);

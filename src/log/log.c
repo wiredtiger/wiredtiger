@@ -452,11 +452,15 @@ __log_prealloc(WT_SESSION_IMPL *session, WT_FH *fh)
 	if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ZERO_FILL))
 		ret = __log_zero(session, fh,
 		    WT_LOG_FIRST_RECORD, conn->log_file_max);
+#if 0
+TODO: If we really need this information from the file system, need to
+	      expose it via the file system API
 	else if (fh->fallocate_available == WT_FALLOCATE_NOT_AVAILABLE ||
 	    (ret = __wt_fallocate(session, fh,
 	    WT_LOG_FIRST_RECORD, conn->log_file_max)) == ENOTSUP)
 		ret = __wt_ftruncate(session, fh,
 		    WT_LOG_FIRST_RECORD + conn->log_file_max);
+#endif
 	return (ret);
 }
 

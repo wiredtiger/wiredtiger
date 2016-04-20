@@ -14,6 +14,9 @@ static inline int
 __wt_dirlist(WT_SESSION_IMPL *session, const char *dir,
     const char *prefix, uint32_t flags, char ***dirlist, u_int *countp)
 {
+	WT_FILE_SYSTEM *file_system;
+	file_system = S2C(session)->file_system;
+
 	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
 
 	WT_RET(__wt_verbose(session, WT_VERB_FILEOPS,
@@ -21,8 +24,8 @@ __wt_dirlist(WT_SESSION_IMPL *session, const char *dir,
 	    dir, LF_ISSET(WT_DIRLIST_INCLUDE) ? "include" : "exclude",
 	    prefix == NULL ? "all" : prefix));
 
-	return (S2C(session)->file_directory_list(
-	    session, dir, prefix, flags, dirlist, countp));
+	return (file_system->directory_list(
+	    file_system, &session->iface, dir, prefix, flags, dirlist, countp));
 }
 
 /*
@@ -32,12 +35,16 @@ __wt_dirlist(WT_SESSION_IMPL *session, const char *dir,
 static inline int
 __wt_directory_sync(WT_SESSION_IMPL *session, const char *name)
 {
+	WT_FILE_SYSTEM *file_system;
+	file_system = S2C(session)->file_system;
+
 	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_READONLY));
 
 	WT_RET(__wt_verbose(
 	    session, WT_VERB_FILEOPS, "%s: directory-sync", name));
 
-	return (S2C(session)->file_directory_sync(session, name));
+	return (file_system->directory_sync(
+            file_system, &session->iface, name));
 }
 
 /*
@@ -47,9 +54,17 @@ __wt_directory_sync(WT_SESSION_IMPL *session, const char *name)
 static inline int
 __wt_exist(WT_SESSION_IMPL *session, const char *name, bool *existp)
 {
+	WT_FILE_SYSTEM *file_system;
+        int exist;
+
+	file_system = S2C(session)->file_system;
+
 	WT_RET(__wt_verbose(session, WT_VERB_FILEOPS, "%s: file-exist", name));
 
-	return (S2C(session)->file_exist(session, name, existp));
+	WT_RET(file_system->exist(
+            file_system, &session->iface, name, &exist));
+        *existp = exist == 0;
+        return (0);
 }
 
 /*
@@ -59,11 +74,14 @@ __wt_exist(WT_SESSION_IMPL *session, const char *name, bool *existp)
 static inline int
 __wt_remove(WT_SESSION_IMPL *session, const char *name)
 {
+	WT_FILE_SYSTEM *file_system;
+	file_system = S2C(session)->file_system;
+
 	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_READONLY));
 
 	WT_RET(__wt_verbose(session, WT_VERB_FILEOPS, "%s: file-remove", name));
 
-	return (S2C(session)->file_remove(session, name));
+	return (file_system->remove(file_system, &session->iface, name));
 }
 
 /*
@@ -73,12 +91,15 @@ __wt_remove(WT_SESSION_IMPL *session, const char *name)
 static inline int
 __wt_rename(WT_SESSION_IMPL *session, const char *from, const char *to)
 {
+	WT_FILE_SYSTEM *file_system;
+	file_system = S2C(session)->file_system;
+
 	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_READONLY));
 
 	WT_RET(__wt_verbose(
 	    session, WT_VERB_FILEOPS, "%s to %s: file-rename", from, to));
 
-	return (S2C(session)->file_rename(session, from, to));
+	return (file_system->rename(file_system, &session->iface, from, to));
 }
 
 /*
@@ -89,7 +110,11 @@ static inline int
 __wt_filesize_name(
     WT_SESSION_IMPL *session, const char *name, bool silent, wt_off_t *sizep)
 {
+	WT_FILE_SYSTEM *file_system;
+	file_system = S2C(session)->file_system;
+
 	WT_RET(__wt_verbose(session, WT_VERB_FILEOPS, "%s: file-size", name));
 
-	return (S2C(session)->file_size(session, name, silent, sizep));
+	return (file_system->size(
+            file_system, &session->iface, name, silent, sizep));
 }
