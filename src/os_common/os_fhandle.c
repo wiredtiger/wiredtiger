@@ -61,7 +61,7 @@ __fhandle_close_notsup(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
  */
 static int
 __fhandle_lock_notsup(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, int lock)
+    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool lock)
 {
 	WT_SESSION_IMPL *session;
 
@@ -174,7 +174,7 @@ __fhandle_size_notsup(
  */
 static int
 __fhandle_sync_notsup(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, int block)
+    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool block)
 {
 	WT_SESSION_IMPL *session;
 
