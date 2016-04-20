@@ -93,7 +93,7 @@ __posix_directory_sync(
 	WT_SYSCALL_RETRY((
 	    (fd = open(path, O_RDONLY, 0444)) == -1 ? 1 : 0), ret);
 	if (ret != 0)
-		WT_ERR_MSG(session, ret, "%s: directory-sync: open", path);
+		WT_RET_MSG(session, ret, "%s: directory-sync: open", path);
 
 	ret = __posix_sync(session, fd, path, "directory-sync", true);
 
