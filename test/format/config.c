@@ -35,6 +35,7 @@ static void	   config_encryption(void);
 static const char *config_file_type(u_int);
 static CONFIG	  *config_find(const char *, size_t);
 static void	   config_in_memory(void);
+static void	   config_in_memory_check(void);
 static int	   config_is_perm(const char *);
 static void	   config_isolation(void);
 static void	   config_lrt(void);
@@ -43,6 +44,7 @@ static void	   config_map_compression(const char *, u_int *);
 static void	   config_map_encryption(const char *, u_int *);
 static void	   config_map_file_type(const char *, u_int *);
 static void	   config_map_isolation(const char *, u_int *);
+static void	   config_reset(void);
 
 /*
  * config_setup --
@@ -54,14 +56,10 @@ config_setup(void)
 	CONFIG *cp;
 
 	/* Clear any temporary values. */
-	config_clear();
+	config_reset();
 
-	/*
-	 * Periodically run in-memory. Do in-memory configuration first before
-	 * anything else, it has many related requirements.
-	 */
-	if (!config_is_perm("in_memory") && mmrand(NULL, 1, 20) == 1)
-		g.c_in_memory = 1;
+	/* Periodically run in-memory. */
+	config_in_memory();
 
 	/*
 	 * Choose a data source type and a file type: they're interrelated (LSM
@@ -187,7 +185,7 @@ config_setup(void)
 		g.c_cache = g.c_threads;
 
 	/* Give in-memory configuration a final review. */
-	config_in_memory();
+	config_in_memory_check();
 
 	/* Make the default maximum-run length 20 minutes. */
 	if (!config_is_perm("timer"))
@@ -331,10 +329,44 @@ config_encryption(void)
 
 /*
  * config_in_memory --
- *	In-memory configuration.
+ *	Periodically set up an in-memory configuration.
  */
 static void
 config_in_memory(void)
+{
+	/*
+	 * Configure in-memory before configuring anything else, in-memory has
+	 * many related requirements. Don't configure in-memory if there's any
+	 * incompatible configurations, so we don't have to configure in-memory
+	 * every time we configure something like LSM, that's too painful.
+	 */
+	if (config_is_perm("backups"))
+		return;
+	if (config_is_perm("checkpoints"))
+		return;
+	if (config_is_perm("compression"))
+		return;
+	if (config_is_perm("data_source") && DATASOURCE("lsm"))
+		return;
+	if (config_is_perm("logging"))
+		return;
+	if (config_is_perm("rebalance"))
+		return;
+	if (config_is_perm("salvage"))
+		return;
+	if (config_is_perm("verify"))
+		return;
+
+	if (!config_is_perm("in_memory") && mmrand(NULL, 1, 20) == 1)
+		g.c_in_memory = 1;
+}
+
+/*
+ * config_in_memory_check --
+ *	In-memory configuration review.
+ */
+static void
+config_in_memory_check(void)
 {
 	size_t cache;
 
@@ -519,18 +551,36 @@ config_file(const char *name)
 
 /*
  * config_clear --
- *	Clear per-run values.
+ *	Clear all configuration values.
  */
 void
 config_clear(void)
 {
 	CONFIG *cp;
 
-	/* Clear configuration data. */
+	/* Clear all allocated configuration data. */
+	for (cp = c; cp->name != NULL; ++cp)
+		if (cp->vstr != NULL) {
+			free((void *)*cp->vstr);
+			*cp->vstr = NULL;
+		}
+	free(g.uri);
+	g.uri = NULL;
+}
+
+/*
+ * config_reset --
+ *	Clear per-run configuration values.
+ */
+static void
+config_reset(void)
+{
+	CONFIG *cp;
+
+	/* Clear temporary allocated configuration data. */
 	for (cp = c; cp->name != NULL; ++cp) {
 		F_CLR(cp, C_TEMP);
-		if (!F_ISSET(cp, C_PERM) &&
-		    F_ISSET(cp, C_STRING) && cp->vstr != NULL) {
+		if (!F_ISSET(cp, C_PERM) && cp->vstr != NULL) {
 			free((void *)*cp->vstr);
 			*cp->vstr = NULL;
 		}
