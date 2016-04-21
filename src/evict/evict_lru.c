@@ -1664,25 +1664,33 @@ static int
 __evict_page(WT_SESSION_IMPL *session, bool is_server)
 {
 	WT_BTREE *btree;
+	WT_CACHE *cache;
 	WT_DECL_RET;
 	WT_REF *ref;
 
 	WT_RET(__evict_get_ref(session, is_server, &btree, &ref));
 	WT_ASSERT(session, ref->state == WT_REF_LOCKED);
 
+	cache = S2C(session)->cache;
 	/*
 	 * An internal session flags either the server itself or an eviction
 	 * worker thread.
 	 */
 	if (F_ISSET(session, WT_SESSION_INTERNAL)) {
-		if (is_server)
+		if (is_server) {
+			cache->server_evicts++;
 			WT_STAT_FAST_CONN_INCR(
 			    session, cache_eviction_server_evicting);
-		else
+		}
+		else {
+			cache->worker_evicts++;
 			WT_STAT_FAST_CONN_INCR(
 			    session, cache_eviction_worker_evicting);
-	} else
+		}
+	} else {
+		cache->app_evicts++;
 		WT_STAT_FAST_CONN_INCR(session, cache_eviction_app);
+	}
 
 	/*
 	 * In case something goes wrong, don't pick the same set of pages every
@@ -1776,7 +1784,6 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 		/* Evict a page. */
 		switch (ret = __evict_page(session, false)) {
 		case 0:
-			cache->app_evicts++;
 			if (txn_busy)
 				return (0);
 			/* FALLTHROUGH */
