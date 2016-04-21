@@ -198,11 +198,6 @@ __wt_rename(WT_SESSION_IMPL *session, const char *from, const char *to)
 		WT_RET_MSG(session, ENOTSUP, "rename");
 
 #ifdef HAVE_DIAGNOSTIC
-	/*
-	 * It is a layering violation to retrieve a WT_FH here, but it is a
-	 * useful diagnostic to ensure WiredTiger doesn't hold the handle open
-	 * at this stage.
-	 */
 	if (__wt_handle_is_open(session, from))
 		WT_RET_MSG(session, EINVAL,
 		    "%s: file-rename: file has open handles", from);

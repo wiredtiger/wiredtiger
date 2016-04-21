@@ -15,6 +15,7 @@ noinst_PROGRAMS = \
 	ex_event_handler \
 	ex_extending \
 	ex_extractor \
+	ex_file_system \
 	ex_hello \
 	ex_log \
 	ex_pack \

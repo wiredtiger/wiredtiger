@@ -3823,7 +3823,7 @@ struct __wt_file_system {
 	 * The WT_FILE_SYSTEM::terminate callback is intended to allow cleanup,
 	 * the handle will not be subsequently accessed by WiredTiger.
 	 */
-	int (*terminate)(WT_EXTRACTOR *extractor, WT_SESSION *session);
+	int (*terminate)(WT_FILE_SYSTEM *file_system, WT_SESSION *session);
 };
 
 /*!
@@ -3836,7 +3836,7 @@ struct __wt_file_handle {
 	/*!
 	 * The name of the file.
 	 */
-	const char *name;                       /* File name */
+	const char *name;
 
 	/*!
 	 * Indicate to the file system how the file is expected to be used,
