@@ -497,7 +497,7 @@ demo_handle_remove(WT_SESSION *session, DEMO_FILE_HANDLE *demo_fh)
 	if (demo_fh->ref != 0) {
 		fprintf(stderr,
 		    "demo_handle_remove on file %s with non-zero reference "
-		    "count of %d\n", demo_fh->iface.name, (int)demo_fh->ref);
+		    "count of %u\n", demo_fh->iface.name, demo_fh->ref);
 		return (EINVAL);
 	}
 
