@@ -1081,9 +1081,9 @@ methods = {
         extension as its WT_CONFIG_ARG argument'''),
     Config('early_load', 'false', r'''
         whether this extension should be loaded at the beginning of
-		::wiredtiger_open. Only applicable to extensions loaded via the
-		wiredtiger_open configurations string''',
-		type='boolean'),
+        ::wiredtiger_open. Only applicable to extensions loaded via the
+        wiredtiger_open configurations string''',
+        type='boolean'),
     Config('entry', 'wiredtiger_extension_init', r'''
         the entry point of the extension, called to initialize the
         extension when it is loaded.  The signature of the function
