@@ -819,18 +819,16 @@ __conn_load_default_extensions(WT_CONNECTION_IMPL *conn)
 }
 
 /*
- * __conn_load_extension --
- *	WT_CONNECTION->load_extension method.
+ * __conn_load_extension_int --
+ *	Internal extension load interface
  */
 static int
-__conn_load_extension(
-    WT_CONNECTION *wt_conn, const char *path, const char *config)
+__conn_load_extension_int(WT_SESSION_IMPL *session,
+    const char *path, const char *cfg[], bool early)
 {
 	WT_CONFIG_ITEM cval;
-	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_DLH *dlh;
-	WT_SESSION_IMPL *session;
 	int (*load)(WT_CONNECTION *, WT_CONFIG_ARG *);
 	bool is_local;
 	const char *init_name, *terminate_name;
@@ -839,8 +837,11 @@ __conn_load_extension(
 	init_name = terminate_name = NULL;
 	is_local = strcmp(path, "local") == 0;
 
-	conn = (WT_CONNECTION_IMPL *)wt_conn;
-	CONNECTION_API_CALL(conn, session, load_extension, config, cfg);
+	/* Ensure that the load matches the phase of startup we are in */
+	WT_ERR(__wt_config_gets(session, cfg, "early_load", &cval));
+	if ((cval.val == false && early == true) ||
+	    (cval.val == true && early == false))
+		return (0);
 
 	/*
 	 * This assumes the underlying shared libraries are reference counted,
@@ -865,20 +866,82 @@ __conn_load_extension(
 	    __wt_dlsym(session, dlh, terminate_name, false, &dlh->terminate));
 
 	/* Call the load function last, it simplifies error handling. */
-	WT_ERR(load(wt_conn, (WT_CONFIG_ARG *)cfg));
+	WT_ERR(load(&S2C(session)->iface, (WT_CONFIG_ARG *)cfg));
 
 	/* Link onto the environment's list of open libraries. */
-	__wt_spin_lock(session, &conn->api_lock);
-	TAILQ_INSERT_TAIL(&conn->dlhqh, dlh, q);
-	__wt_spin_unlock(session, &conn->api_lock);
+	__wt_spin_lock(session, &S2C(session)->api_lock);
+	TAILQ_INSERT_TAIL(&S2C(session)->dlhqh, dlh, q);
+	__wt_spin_unlock(session, &S2C(session)->api_lock);
 	dlh = NULL;
 
 err:	if (dlh != NULL)
 		WT_TRET(__wt_dlclose(session, dlh));
 	__wt_free(session, init_name);
 	__wt_free(session, terminate_name);
+	return (ret);
+}
 
-	API_END_RET_NOTFOUND_MAP(session, ret);
+/*
+ * __conn_load_extension --
+ *	WT_CONNECTION->load_extension method.
+ */
+static int
+__conn_load_extension(
+    WT_CONNECTION *wt_conn, const char *path, const char *config)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	conn = (WT_CONNECTION_IMPL *)wt_conn;
+	CONNECTION_API_CALL(conn, session, load_extension, config, cfg);
+
+	ret = __conn_load_extension_int(session, path, cfg, false);
+
+err:	API_END_RET_NOTFOUND_MAP(session, ret);
+}
+
+/*
+ * __conn_load_early_extensions --
+ *	Load the list of application-configured extensions that request
+ *	early access to the connection.
+ */
+static int
+__conn_load_early_extensions(WT_SESSION_IMPL *session, const char *config)
+{
+	WT_CONFIG subconfig;
+	WT_CONFIG_ITEM cval, skey, sval;
+	WT_DECL_ITEM(exconfig);
+	WT_DECL_ITEM(expath);
+	WT_DECL_RET;
+	const char *sub_cfg[] = {
+	    WT_CONFIG_BASE(session, WT_CONNECTION_load_extension), NULL, NULL };
+
+	ret = __wt_config_getones_none(session, config, "extensions", &cval);
+	if (ret == WT_NOTFOUND || cval.len == 0)
+		return (0);
+	WT_ERR(__wt_config_subinit(session, &subconfig, &cval));
+	while ((ret = __wt_config_next(&subconfig, &skey, &sval)) == 0) {
+		if (expath == NULL)
+			WT_ERR(__wt_scr_alloc(session, 0, &expath));
+		WT_ERR(__wt_buf_fmt(
+		    session, expath, "%.*s", (int)skey.len, skey.str));
+		if (sval.len > 0) {
+			if (exconfig == NULL)
+				WT_ERR(__wt_scr_alloc(session, 0, &exconfig));
+			WT_ERR(__wt_buf_fmt(session,
+			    exconfig, "%.*s", (int)sval.len, sval.str));
+		}
+		sub_cfg[1] = sval.len > 0 ? exconfig->data : NULL;
+		WT_ERR(__conn_load_extension_int(
+		    session, expath->data, sub_cfg, true));
+	}
+	WT_ERR_NOTFOUND_OK(ret);
+
+err:	__wt_scr_free(session, &expath);
+	__wt_scr_free(session, &exconfig);
+
+	return (ret);
 }
 
 /*
@@ -894,6 +957,8 @@ __conn_load_extensions(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_DECL_ITEM(exconfig);
 	WT_DECL_ITEM(expath);
 	WT_DECL_RET;
+	const char *sub_cfg[] = {
+	    WT_CONFIG_BASE(session, WT_CONNECTION_load_extension), NULL, NULL };
 
 	conn = S2C(session);
 
@@ -912,8 +977,9 @@ __conn_load_extensions(WT_SESSION_IMPL *session, const char *cfg[])
 			WT_ERR(__wt_buf_fmt(session,
 			    exconfig, "%.*s", (int)sval.len, sval.str));
 		}
-		WT_ERR(conn->iface.load_extension(&conn->iface,
-		    expath->data, (sval.len > 0) ? exconfig->data : NULL));
+		sub_cfg[1] = sval.len > 0 ? exconfig->data : NULL;
+		WT_ERR(__conn_load_extension_int(
+		    session, expath->data, sub_cfg, true));
 	}
 	WT_ERR_NOTFOUND_OK(ret);
 
@@ -1870,11 +1936,13 @@ static int
 __conn_set_file_system(
     WT_CONNECTION *connection, WT_FILE_SYSTEM *fs, const char *config)
 {
-	/* TODO: Implement this function */
-	WT_UNUSED(connection);
-	WT_UNUSED(fs);
+	WT_CONNECTION_IMPL * conn;
+	/* TODO: Error checking? */
 	WT_UNUSED(config);
-	return (ENOTSUP);
+
+	conn = (WT_CONNECTION_IMPL *)connection;
+	conn->file_system = fs;
+	return (0);
 }
 
 /*
@@ -1958,6 +2026,18 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 
 	/* Basic initialization of the connection structure. */
 	WT_ERR(__wt_connection_init(conn));
+
+	/*
+	 * Load early extensions before doing further initialization. Some
+	 * extensions modify fundamentals that are used during connection
+	 * create. There are restrictions on which fields within the connection
+	 * those extension initializers can access.
+	 * This may need to move even earlier if we allowed overriding memory
+	 * allocators via the extensions mechanism.
+	 * TODO: Do we want to include the environment and/or default
+	 * configuration strings?
+	 */
+	WT_ERR(__conn_load_early_extensions(session, config));
 
 	/* Check the application-specified configuration string. */
 	WT_ERR(__wt_config_check(session,

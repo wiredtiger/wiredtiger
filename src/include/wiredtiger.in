@@ -2020,6 +2020,10 @@ struct __wt_connection {
 	 * @configstart{WT_CONNECTION.load_extension, see dist/api_data.py}
 	 * @config{config, configuration string passed to the entry point of the
 	 * extension as its WT_CONFIG_ARG argument., a string; default empty.}
+	 * @config{early_load, whether this extension should be loaded at the
+	 * beginning of ::wiredtiger_open.  Only applicable to extensions loaded
+	 * via the wiredtiger_open configurations string., a boolean flag;
+	 * default \c false.}
 	 * @config{entry, the entry point of the extension\, called to
 	 * initialize the extension when it is loaded.  The signature of the
 	 * function must match ::wiredtiger_extension_init., a string; default

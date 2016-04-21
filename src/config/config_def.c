@@ -17,6 +17,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_close[] = {
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_load_extension[] = {
 	{ "config", "string", NULL, NULL, NULL, 0 },
+	{ "early_load", "boolean", NULL, NULL, NULL, 0 },
 	{ "entry", "string", NULL, NULL, NULL, 0 },
 	{ "terminate", "string", NULL, NULL, NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
@@ -955,9 +956,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_WT_CONNECTION_close, 1
 	},
 	{ "WT_CONNECTION.load_extension",
-	  "config=,entry=wiredtiger_extension_init,"
+	  "config=,early_load=0,entry=wiredtiger_extension_init,"
 	  "terminate=wiredtiger_extension_terminate",
-	  confchk_WT_CONNECTION_load_extension, 3
+	  confchk_WT_CONNECTION_load_extension, 4
 	},
 	{ "WT_CONNECTION.open_session",
 	  "isolation=read-committed",

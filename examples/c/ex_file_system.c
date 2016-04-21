@@ -245,10 +245,7 @@ demo_fs_remove(
     WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name)
 {
 	DEMO_FILE_HANDLE *demo_fh;
-	DEMO_FILE_SYSTEM *demo_fs;
 	int ret;
-
-	demo_fs = (DEMO_FILE_SYSTEM *)file_system;
 
 	ret = ENOENT;
 	if ((demo_fh = demo_handle_search(file_system, name)) != NULL)
@@ -266,12 +263,10 @@ demo_fs_rename(WT_FILE_SYSTEM *file_system,
     WT_SESSION *session, const char *from, const char *to)
 {
 	DEMO_FILE_HANDLE *demo_fh;
-	DEMO_FILE_SYSTEM *demo_fs;
 	const char *copy;
 	int ret = 0;
 
 	(void)session;	/* Unused */
-	demo_fs = (DEMO_FILE_SYSTEM *)file_system;
 
 	ret = ENOENT;
 	if ((demo_fh = demo_handle_search(file_system, from)) != NULL) {
@@ -294,12 +289,9 @@ demo_fs_size(WT_FILE_SYSTEM *file_system,
     WT_SESSION *session, const char *name, bool silent, wt_off_t *sizep)
 {
 	DEMO_FILE_HANDLE *demo_fh;
-	DEMO_FILE_SYSTEM *demo_fs;
 	int ret = 0;
 
 	(void)silent;		/* Unused */
-
-	demo_fs = (DEMO_FILE_SYSTEM *)file_system;
 
 	ret = ENOENT;
 	if ((demo_fh = demo_handle_search(file_system, name)) != NULL)
