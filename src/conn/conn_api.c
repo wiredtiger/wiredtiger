@@ -837,10 +837,9 @@ __conn_load_extension_int(WT_SESSION_IMPL *session,
 	init_name = terminate_name = NULL;
 	is_local = strcmp(path, "local") == 0;
 
-	/* Ensure that the load matches the phase of startup we are in */
+	/* Ensure that the load matches the phase of startup we are in. */
 	WT_ERR(__wt_config_gets(session, cfg, "early_load", &cval));
-	if ((cval.val == false && early == true) ||
-	    (cval.val == true && early == false))
+	if ((cval.val == 0 && early) || (cval.val != 0 && !early))
 		return (0);
 
 	/*
