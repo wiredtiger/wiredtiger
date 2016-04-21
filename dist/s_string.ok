@@ -676,6 +676,7 @@ havesize
 hdr
 highjack
 hotbackup
+hselasky
 html
 huffman
 hval
@@ -700,6 +701,7 @@ infeasible
 inflateInit
 infmt
 init
+initializers
 initn
 initsize
 initval
