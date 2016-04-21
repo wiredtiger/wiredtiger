@@ -978,7 +978,7 @@ __conn_load_extensions(WT_SESSION_IMPL *session, const char *cfg[])
 		}
 		sub_cfg[1] = sval.len > 0 ? exconfig->data : NULL;
 		WT_ERR(__conn_load_extension_int(
-		    session, expath->data, sub_cfg, true));
+		    session, expath->data, sub_cfg, false));
 	}
 	WT_ERR_NOTFOUND_OK(ret);
 
