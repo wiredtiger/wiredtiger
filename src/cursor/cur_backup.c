@@ -251,7 +251,7 @@ __backup_start(
 		 * Close any hot backup file.
 		 * We're about to open the incremental backup file.
 		 */
-		WT_TRET(__wt_close(session, &cb->bfh));
+		WT_TRET(__wt_fclose(session, &cb->bfs));
 		WT_ERR(__backup_file_create(session, cb, log_only));
 		WT_ERR(__backup_list_append(
 		    session, cb, WT_INCREMENTAL_BACKUP));
@@ -269,7 +269,7 @@ __backup_start(
 	}
 
 err:	/* Close the hot backup file. */
-	WT_TRET(__wt_close(session, &cb->bfh));
+	WT_TRET(__wt_fclose(session, &cb->bfs));
 	if (ret != 0) {
 		WT_TRET(__backup_cleanup_handles(session, cb));
 		WT_TRET(__backup_stop(session));
@@ -384,11 +384,20 @@ __backup_uri(WT_SESSION_IMPL *session,
 			    uri);
 
 		/*
-		 * Handle log targets.  We do not need to go through the
-		 * schema worker, just call the function to append them.
-		 * Set log_only only if it is our only URI target.
+		 * Handle log targets. We do not need to go through the schema
+		 * worker, just call the function to append them. Set log_only
+		 * only if it is our only URI target.
 		 */
 		if (WT_PREFIX_MATCH(uri, "log:")) {
+			/*
+			 * Log archive cannot mix with incremental backup, don't
+			 * let that happen.
+			 */
+			if (FLD_ISSET(
+			    S2C(session)->log_flags, WT_CONN_LOG_ARCHIVE))
+				WT_ERR_MSG(session, EINVAL,
+				    "incremental backup not possible when "
+				    "automatic log archival configured");
 			*log_only = !target_list;
 			WT_ERR(__backup_list_uri_append(session, uri, NULL));
 		} else {
@@ -411,9 +420,9 @@ static int
 __backup_file_create(
     WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool incremental)
 {
-	return (__wt_open(session,
+	return (__wt_fopen(session,
 	    incremental ? WT_INCREMENTAL_BACKUP : WT_METADATA_BACKUP,
-	    WT_FILE_TYPE_REGULAR, WT_OPEN_CREATE | WT_STREAM_WRITE, &cb->bfh));
+	    WT_OPEN_CREATE, WT_STREAM_WRITE, &cb->bfs));
 }
 
 /*
@@ -473,7 +482,7 @@ __backup_list_uri_append(
 
 	/* Add the metadata entry to the backup file. */
 	WT_RET(__wt_metadata_search(session, name, &value));
-	ret = __wt_fprintf(session, cb->bfh, "%s\n%s\n", name, value);
+	ret = __wt_fprintf(session, cb->bfs, "%s\n%s\n", name, value);
 	__wt_free(session, value);
 	WT_RET(ret);
 

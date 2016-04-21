@@ -603,16 +603,16 @@ __evict_pass(WT_SESSION_IMPL *session, bool is_server)
 
 			/*
 			 * Update the oldest ID: we use it to decide whether
-			 * pages are candidates for eviction.  Without this,
-			 * if all threads are blocked after a long-running
-			 * transaction (such as a checkpoint) completes, we
-			 * may never start evicting again.
+			 * pages are candidates for eviction.  Without this, if
+			 * all threads are blocked after a long-running
+			 * transaction (such as a checkpoint) completes, we may
+			 * never start evicting again.
 			 *
 			 * Do this every time the eviction server wakes up,
 			 * regardless of whether the cache is full, to prevent
 			 * the oldest ID falling too far behind.
 			 */
-			__wt_txn_update_oldest(session, true);
+			WT_ERR(__wt_txn_update_oldest(session, loop > 0));
 
 			if (!__evict_update_work(session))
 				break;
@@ -667,6 +667,8 @@ __evict_pass(WT_SESSION_IMPL *session, bool is_server)
 		 * sleep, it's not something we can fix.
 		 */
 		if (pages_evicted == cache->pages_evict) {
+			WT_STAT_FAST_CONN_INCR(session,
+					       cache_eviction_server_slept);
 			/*
 			 * Back off if we aren't making progress: walks hold
 			 * the handle list lock, which blocks other operations
@@ -928,7 +930,27 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
 static int
 __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
 {
+	WT_CACHE *cache;
 	WT_DECL_RET;
+	uint64_t app_evict_percent, total_evict;
+
+	/*
+	 * The server will not help evict if the workers are coping with
+	 * eviction workload, that is, if fewer than the threshold of the
+	 * pages are evicted by application threads.
+	 */
+	if (is_server && S2C(session)->evict_workers > 1) {
+		cache = S2C(session)->cache;
+		total_evict = cache->app_evicts +
+		    cache->server_evicts + cache->worker_evicts;
+		app_evict_percent = (100 * cache->app_evicts) /
+			(total_evict + 1);
+		if (app_evict_percent < APP_EVICT_THRESHOLD) {
+			WT_STAT_FAST_CONN_INCR(session,
+			    cache_eviction_server_not_evicting);
+			return (0);
+		}
+	}
 
 	/*
 	 * Reconcile and discard some pages: EBUSY is returned if a page fails
@@ -1677,20 +1699,12 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 	 * worker thread.
 	 */
 	if (F_ISSET(session, WT_SESSION_INTERNAL)) {
-		if (is_server) {
+		if (is_server)
 			cache->server_evicts++;
-			WT_STAT_FAST_CONN_INCR(
-			    session, cache_eviction_server_evicting);
-		}
-		else {
+		else
 			cache->worker_evicts++;
-			WT_STAT_FAST_CONN_INCR(
-			    session, cache_eviction_worker_evicting);
-		}
-	} else {
+	} else
 		cache->app_evicts++;
-		WT_STAT_FAST_CONN_INCR(session, cache_eviction_app);
-	}
 
 	/*
 	 * In case something goes wrong, don't pick the same set of pages every
@@ -1838,7 +1852,7 @@ __wt_cache_dump(WT_SESSION_IMPL *session, const char *ofile)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle, *saved_dhandle;
-	WT_FH *fh;
+	WT_FSTREAM *fs;
 	WT_PAGE *page;
 	WT_REF *next_walk;
 	uint64_t dirty_bytes, dirty_pages, intl_bytes, intl_pages;
@@ -1850,13 +1864,13 @@ __wt_cache_dump(WT_SESSION_IMPL *session, const char *ofile)
 	total_bytes = 0;
 
 	if (ofile == NULL)
-		fh = WT_STDERR(session);
+		fs = WT_STDERR(session);
 	else
-		WT_RET(__wt_open(session, ofile, WT_FILE_TYPE_REGULAR,
-		    WT_OPEN_CREATE | WT_STREAM_WRITE, &fh));
+		WT_RET(__wt_fopen(session, ofile,
+		    WT_OPEN_CREATE, WT_STREAM_WRITE, &fs));
 
 	/* Note: odd string concatenation avoids spelling errors. */
-	(void)__wt_fprintf(session, fh, "==========\n" "cache dump\n");
+	(void)__wt_fprintf(session, fs, "==========\n" "cache dump\n");
 
 	saved_dhandle = session->dhandle;
 	TAILQ_FOREACH(dhandle, &conn->dhqh, q) {
@@ -1895,24 +1909,24 @@ __wt_cache_dump(WT_SESSION_IMPL *session, const char *ofile)
 		session->dhandle = NULL;
 
 		if (dhandle->checkpoint == NULL)
-			(void)__wt_fprintf(session, fh,
+			(void)__wt_fprintf(session, fs,
 			    "%s(<live>): \n", dhandle->name);
 		else
-			(void)__wt_fprintf(session, fh,
+			(void)__wt_fprintf(session, fs,
 			    "%s(checkpoint=%s): \n",
 			    dhandle->name, dhandle->checkpoint);
 		if (intl_pages != 0)
-			(void)__wt_fprintf(session, fh,
+			(void)__wt_fprintf(session, fs,
 			    "\t" "internal pages: %" PRIu64 " pages, %" PRIu64
 			    " max, %" PRIu64 "MB total\n",
 			    intl_pages, max_intl_bytes, intl_bytes >> 20);
 		if (leaf_pages != 0)
-			(void)__wt_fprintf(session, fh,
+			(void)__wt_fprintf(session, fs,
 			    "\t" "leaf pages: %" PRIu64 " pages, %" PRIu64
 			    " max, %" PRIu64 "MB total\n",
 			    leaf_pages, max_leaf_bytes, leaf_bytes >> 20);
 		if (dirty_pages != 0)
-			(void)__wt_fprintf(session, fh,
+			(void)__wt_fprintf(session, fs,
 			    "\t" "dirty pages: %" PRIu64 " pages, %" PRIu64
 			    " max, %" PRIu64 "MB total\n",
 			    dirty_pages, max_dirty_bytes, dirty_bytes >> 20);
@@ -1928,13 +1942,13 @@ __wt_cache_dump(WT_SESSION_IMPL *session, const char *ofile)
 	if (conn->cache->overhead_pct != 0)
 		total_bytes +=
 		    (total_bytes * (uint64_t)conn->cache->overhead_pct) / 100;
-	(void)__wt_fprintf(session, fh,
+	(void)__wt_fprintf(session, fs,
 	    "cache dump: total found = %" PRIu64
 	    "MB vs tracked inuse %" PRIu64 "MB\n",
 	    total_bytes >> 20, __wt_cache_bytes_inuse(conn->cache) >> 20);
-	(void)__wt_fprintf(session, fh, "==========\n");
+	(void)__wt_fprintf(session, fs, "==========\n");
 	if (ofile != NULL)
-		WT_RET(__wt_close(session, &fh));
+		WT_RET(__wt_fclose(session, &fs));
 	return (0);
 }
 #endif

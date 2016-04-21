@@ -80,8 +80,8 @@ struct __wt_cache {
 	uint64_t pages_dirty;
 	uint64_t bytes_read;		/* Bytes read into memory */
 
-	uint64_t app_evicts;		/* Pages evicted by user threads */
 	uint64_t app_waits;		/* User threads waited for cache */
+	uint64_t app_evicts;		/* Pages evicted by user threads */
 	uint64_t server_evicts;		/* Pages evicted by server thread */
 	uint64_t worker_evicts;		/* Pages evicted by worker threads */
 
