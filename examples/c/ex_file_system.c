@@ -28,15 +28,10 @@
  * ex_file_system.c
  * 	demonstrates how to use the custom file system interface
  */
-#include "wt_internal.h"/* queue uses WT_WRITE_BARRIER */
-#include <queue.h>
-#include <assert.h>
-#include <stdio.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <string.h>
 
-#include <wiredtiger.h>
+#include "wt_internal.h"		/* queue uses WT_WRITE_BARRIER */
+
+#include <assert.h>
 
 static const char *home;
 
@@ -48,8 +43,10 @@ static const char *home;
  */
 typedef struct {
 	WT_FILE_SYSTEM iface;
+
 	uint64_t opened_file_count;
 	uint64_t closed_file_count;
+
 	/* Queue of file handles */
 	TAILQ_HEAD(demo_file_handle_qh, demo_file_handle) fileq;
 
@@ -57,6 +54,7 @@ typedef struct {
 
 typedef struct demo_file_handle {
 	WT_FILE_HANDLE iface;
+
 	/*
 	 * Add custom file handle fields after the interface.
 	 */
@@ -72,8 +70,7 @@ typedef struct demo_file_handle {
  * Forward function declarations for file system API implementation
  */
 int demo_file_system_create(WT_CONNECTION *, WT_CONFIG_ARG *);
-static int
-demo_fs_open(WT_FILE_SYSTEM *, WT_SESSION *,
+static int demo_fs_open(WT_FILE_SYSTEM *, WT_SESSION *,
     const char *, uint32_t, uint32_t, WT_FILE_HANDLE **);
 static int demo_fs_exist(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *);
 static int demo_fs_remove(WT_FILE_SYSTEM *, WT_SESSION *, const char *);
@@ -100,7 +97,7 @@ static int demo_file_write(
  * Forward function declarations for internal functions
  */
 static int demo_handle_remove(WT_SESSION *, DEMO_FILE_HANDLE *);
-static DEMO_FILE_HANDLE * demo_handle_search(WT_FILE_SYSTEM *, const char *);
+static DEMO_FILE_HANDLE *demo_handle_search(WT_FILE_SYSTEM *, const char *);
 
 #define	DEMO_FILE_SIZE_INCREMENT	32768
 
@@ -117,7 +114,7 @@ demo_file_system_create(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
 
 	(void)config;	/* Unused */
 
-	if ((demo_fs = calloc(sizeof(WT_FILE_SYSTEM), 1)) == NULL)
+	if ((demo_fs = calloc(1, sizeof(DEMO_FILE_SYSTEM))) == NULL)
 		return (ENOMEM);
 	file_system = (WT_FILE_SYSTEM *)demo_fs;
 
@@ -186,14 +183,14 @@ demo_fs_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
 	}
 
 	/* The file hasn't been opened before, create a new one. */
-	if ((demo_fh = calloc(sizeof(WT_FILE_HANDLE), 1)) == NULL)
+	if ((demo_fh = calloc(1, sizeof(DEMO_FILE_HANDLE))) == NULL)
 		return (ENOMEM);
 
 	/* Initialize private information. */
 	demo_fh->ref = 1;
 	demo_fh->off = 0;
 	demo_fh->demo_fs = demo_fs;
-	demo_fh->buf = calloc(DEMO_FILE_SIZE_INCREMENT, 1);
+	demo_fh->buf = calloc(1, DEMO_FILE_SIZE_INCREMENT);
 	demo_fh->size = DEMO_FILE_SIZE_INCREMENT;
 
 	/* Initialize public information. */
@@ -212,6 +209,7 @@ demo_fs_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
 	file_handle->write = demo_file_write;
 
 	TAILQ_INSERT_HEAD(&demo_fs->fileq, demo_fh, q);
+	++demo_fs->opened_file_count;
 
 	*file_handlep = file_handle;
 
@@ -305,7 +303,7 @@ demo_fs_size(WT_FILE_SYSTEM *file_system,
  * demo_fs_terminate --
  *	Discard any resources on termination
  */
-int
+static int
 demo_fs_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
 {
 	DEMO_FILE_HANDLE *demo_fh;
@@ -337,6 +335,8 @@ demo_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
 
 	demo_fh = (DEMO_FILE_HANDLE *)file_handle;
 	--demo_fh->ref;
+
+	++demo_fh->demo_fs->closed_file_count;
 
 	return (0);
 }
