@@ -10,16 +10,18 @@
 
 static int __curjoin_entries_in_range(WT_SESSION_IMPL *, WT_CURSOR_JOIN *,
     WT_ITEM *, WT_CURSOR_JOIN_ITER *);
-static int __curjoin_entry_iter_close(WT_CURSOR_JOIN_ITER *);
-static int __curjoin_entry_iter_close_all(WT_CURSOR_JOIN_ITER *);
-static bool __curjoin_entry_iter_ready(WT_CURSOR_JOIN_ITER *);
 static int __curjoin_entry_in_range(WT_SESSION_IMPL *, WT_CURSOR_JOIN_ENTRY *,
     WT_ITEM *, WT_CURSOR_JOIN_ITER *);
 static int __curjoin_entry_member(WT_SESSION_IMPL *, WT_CURSOR_JOIN_ENTRY *,
     WT_ITEM *, WT_CURSOR_JOIN_ITER *);
 static int __curjoin_insert_endpoint(WT_SESSION_IMPL *,
     WT_CURSOR_JOIN_ENTRY *, u_int, WT_CURSOR_JOIN_ENDPOINT **);
+static int __curjoin_iter_close(WT_CURSOR_JOIN_ITER *);
+static int __curjoin_iter_close_all(WT_CURSOR_JOIN_ITER *);
+static bool __curjoin_iter_ready(WT_CURSOR_JOIN_ITER *);
 static int __curjoin_iter_set_entry(WT_CURSOR_JOIN_ITER *, u_int);
+static int __curjoin_split_key(WT_SESSION_IMPL *, WT_CURSOR_JOIN *, WT_ITEM *,
+    WT_CURSOR *, WT_CURSOR *, const char *, bool);
 
 #define	WT_CURJOIN_ITER_CONSUMED(iter) \
 	((iter)->entry_pos >= (iter)->entry_count)
@@ -39,12 +41,12 @@ __wt_curjoin_joined(WT_CURSOR *cursor)
 }
 
 /*
- * __curjoin_entry_iter_init --
+ * __curjoin_iter_init --
  *	Initialize an iteration for the index managed by a join entry.
  *
  */
 static int
-__curjoin_entry_iter_init(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
+__curjoin_iter_init(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
     WT_CURSOR_JOIN_ITER **iterp)
 {
 	WT_CURSOR_JOIN_ITER *iter;
@@ -57,6 +59,76 @@ __curjoin_entry_iter_init(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
 	cjoin->iter = iter;
 	WT_RET(__curjoin_iter_set_entry(iter, 0));
 	return (0);
+}
+
+/*
+ * __curjoin_iter_close --
+ *	Close the iteration, release resources.
+ *
+ */
+static int
+__curjoin_iter_close(WT_CURSOR_JOIN_ITER *iter)
+{
+	WT_DECL_RET;
+
+	if (iter->cursor != NULL)
+		WT_TRET(iter->cursor->close(iter->cursor));
+	__wt_free(iter->session, iter);
+	return (ret);
+}
+
+/*
+ * __curjoin_iter_close_all --
+ *	Free the iterator and all of its children recursively.
+ *
+ */
+static int
+__curjoin_iter_close_all(WT_CURSOR_JOIN_ITER *iter)
+{
+	WT_CURSOR_JOIN *parent;
+	WT_DECL_RET;
+
+	if (iter->child)
+		WT_TRET(__curjoin_iter_close_all(iter->child));
+	iter->child = NULL;
+	WT_ASSERT(iter->session, iter->cjoin->parent == NULL ||
+	    iter->cjoin->parent->iter->child == iter);
+	if ((parent = iter->cjoin->parent) != NULL)
+		parent->iter->child = NULL;
+	iter->cjoin->iter = NULL;
+	WT_TRET(__curjoin_iter_close(iter));
+	return (ret);
+}
+
+/*
+ * __curjoin_iter_reset --
+ *	Reset an iteration to the starting point.
+ *
+ */
+static int
+__curjoin_iter_reset(WT_CURSOR_JOIN_ITER *iter)
+{
+	if (iter->child != NULL)
+		WT_RET(__curjoin_iter_close_all(iter->child));
+	WT_RET(__curjoin_iter_set_entry(iter, 0));
+	iter->positioned = false;
+	return (0);
+}
+
+/*
+ * __curjoin_iter_ready --
+ *	Check the positioned flag for all nested iterators.
+ *
+ */
+static bool
+__curjoin_iter_ready(WT_CURSOR_JOIN_ITER *iter)
+{
+	while (iter != NULL) {
+		if (!iter->positioned)
+			return (false);
+		iter = iter->child;
+	}
+	return (true);
 }
 
 /*
@@ -136,6 +208,112 @@ err:	__wt_free(session, uri);
 }
 
 /*
+ * __curjoin_iter_bump --
+ *	Called to advance the iterator to the next endpoint,
+ *	which may in turn advance to the next entry.
+ *
+ */
+static int
+__curjoin_iter_bump(WT_CURSOR_JOIN_ITER *iter)
+{
+	WT_CURSOR_JOIN_ENTRY *entry;
+	WT_SESSION_IMPL *session;
+
+	session = iter->session;
+	iter->positioned = false;
+	entry = iter->entry;
+	if (entry->subjoin == NULL && iter->is_equal &&
+	    ++iter->end_pos < iter->end_count) {
+		WT_RET(__wt_cursor_dup_position(
+		    entry->ends[iter->end_pos].cursor, iter->cursor));
+		return (0);
+	}
+	iter->end_pos = iter->end_count = iter->end_skip = 0;
+	if (entry->subjoin != NULL && entry->subjoin->iter != NULL)
+		WT_RET(__curjoin_iter_close_all(entry->subjoin->iter));
+
+	if (++iter->entry_pos >= iter->entry_count) {
+		iter->entry = NULL;
+		return (0);
+	}
+	iter->entry = ++entry;
+	if (entry->subjoin != NULL) {
+		WT_RET(__curjoin_iter_init(session, entry->subjoin,
+		    &iter->child));
+		return (0);
+	}
+	WT_RET(__curjoin_iter_set_entry(iter, iter->entry_pos));
+	return (0);
+}
+
+/*
+ * __curjoin_iter_next --
+ *	Get the next item in an iteration.
+ *
+ */
+static int
+__curjoin_iter_next(WT_CURSOR_JOIN_ITER *iter, WT_CURSOR *cursor)
+{
+	WT_CURSOR_JOIN_ENTRY *entry;
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	session = iter->session;
+
+	if (WT_CURJOIN_ITER_CONSUMED(iter))
+		return (WT_NOTFOUND);
+again:
+	entry = iter->entry;
+	if (entry->subjoin != NULL) {
+		if (iter->child == NULL)
+			WT_RET(__curjoin_iter_init(session,
+			    entry->subjoin, &iter->child));
+		ret = __curjoin_iter_next(iter->child, cursor);
+		if (ret == 0) {
+			/* The child did the work, we're done. */
+			iter->curkey = &cursor->key;
+			iter->positioned = true;
+			return (ret);
+		}
+		else if (ret == WT_NOTFOUND) {
+			WT_RET(__curjoin_iter_close_all(iter->child));
+			entry->subjoin->iter = NULL;
+			iter->child = NULL;
+			WT_RET(__curjoin_iter_bump(iter));
+			ret = 0;
+		}
+	} else if (iter->positioned) {
+		ret = iter->cursor->next(iter->cursor);
+		if (ret == WT_NOTFOUND) {
+			WT_RET(__curjoin_iter_bump(iter));
+			ret = 0;
+		} else
+			WT_RET(ret);
+	} else
+		iter->positioned = true;
+
+	if (WT_CURJOIN_ITER_CONSUMED(iter))
+		return (WT_NOTFOUND);
+
+	if (!__curjoin_iter_ready(iter))
+		goto again;
+
+	WT_RET(ret);
+
+	/*
+	 * Set our key to the primary key, we'll also need this
+	 * to check membership.
+	 */
+	WT_RET(__curjoin_split_key(iter->session, iter->cjoin, &iter->idxkey,
+	    cursor, iter->cursor, iter->entry->repack_format,
+	    iter->entry->index != NULL));
+	iter->curkey = &cursor->key;
+	iter->entry->stats.actual_count++;
+	iter->entry->stats.accesses++;
+	return (0);
+}
+
+/*
  * __curjoin_pack_recno --
  *	Pack the given recno into a buffer; prepare an item referencing it.
  *
@@ -153,45 +331,6 @@ __curjoin_pack_recno(WT_SESSION_IMPL *session, uint64_t r, uint8_t *buf,
 	WT_RET(wiredtiger_struct_pack(wtsession, buf, bufsize, "r", r));
 	item->size = sz;
 	item->data = buf;
-	return (0);
-}
-
-/*
- * __curjoin_entry_iter_bump --
- *	Called to advance the iterator to the next endpoint,
- *	which may in turn advance to the next entry.
- *
- */
-static int
-__curjoin_entry_iter_bump(WT_CURSOR_JOIN_ITER *iter)
-{
-	WT_CURSOR_JOIN_ENTRY *entry;
-	WT_SESSION_IMPL *session;
-
-	session = iter->session;
-	iter->positioned = false;
-	entry = iter->entry;
-	if (entry->subjoin == NULL && iter->is_equal &&
-	    ++iter->end_pos < iter->end_count) {
-		WT_RET(__wt_cursor_dup_position(
-		    entry->ends[iter->end_pos].cursor, iter->cursor));
-		return (0);
-	}
-	iter->end_pos = iter->end_count = iter->end_skip = 0;
-	if (entry->subjoin != NULL && entry->subjoin->iter != NULL)
-		WT_RET(__curjoin_entry_iter_close_all(entry->subjoin->iter));
-
-	if (++iter->entry_pos >= iter->entry_count) {
-		iter->entry = NULL;
-		return (0);
-	}
-	iter->entry = ++entry;
-	if (entry->subjoin != NULL) {
-		WT_RET(__curjoin_entry_iter_init(session, entry->subjoin,
-		    &iter->child));
-		return (0);
-	}
-	WT_RET(__curjoin_iter_set_entry(iter, iter->entry_pos));
 	return (0);
 }
 
@@ -247,143 +386,6 @@ __curjoin_split_key(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
 		idxkey->size = 0;
 	}
 	return (0);
-}
-
-/*
- * __curjoin_entry_iter_next --
- *	Get the next item in an iteration.
- *
- */
-static int
-__curjoin_entry_iter_next(WT_CURSOR_JOIN_ITER *iter, WT_CURSOR *cursor)
-{
-	WT_CURSOR_JOIN_ENTRY *entry;
-	WT_DECL_RET;
-	WT_SESSION_IMPL *session;
-
-	session = iter->session;
-
-	if (WT_CURJOIN_ITER_CONSUMED(iter))
-		return (WT_NOTFOUND);
-again:
-	entry = iter->entry;
-	if (entry->subjoin != NULL) {
-		if (iter->child == NULL)
-			WT_RET(__curjoin_entry_iter_init(session,
-			    entry->subjoin, &iter->child));
-		ret = __curjoin_entry_iter_next(iter->child, cursor);
-		if (ret == 0) {
-			/* The child did the work, we're done. */
-			iter->curkey = &cursor->key;
-			iter->positioned = true;
-			return (ret);
-		}
-		else if (ret == WT_NOTFOUND) {
-			WT_RET(__curjoin_entry_iter_close_all(iter->child));
-			entry->subjoin->iter = NULL;
-			iter->child = NULL;
-			WT_RET(__curjoin_entry_iter_bump(iter));
-			ret = 0;
-		}
-	} else if (iter->positioned) {
-		ret = iter->cursor->next(iter->cursor);
-		if (ret == WT_NOTFOUND) {
-			WT_RET(__curjoin_entry_iter_bump(iter));
-			ret = 0;
-		} else
-			WT_RET(ret);
-	} else
-		iter->positioned = true;
-
-	if (WT_CURJOIN_ITER_CONSUMED(iter))
-		return (WT_NOTFOUND);
-
-	if (!__curjoin_entry_iter_ready(iter))
-		goto again;
-
-	WT_RET(ret);
-
-	/*
-	 * Set our key to the primary key, we'll also need this
-	 * to check membership.
-	 */
-	WT_RET(__curjoin_split_key(iter->session, iter->cjoin, &iter->idxkey,
-	    cursor, iter->cursor, iter->entry->repack_format,
-	    iter->entry->index != NULL));
-	iter->curkey = &cursor->key;
-	iter->entry->stats.actual_count++;
-	iter->entry->stats.accesses++;
-	return (0);
-}
-
-/*
- * __curjoin_entry_iter_reset --
- *	Reset an iteration to the starting point.
- *
- */
-static int
-__curjoin_entry_iter_reset(WT_CURSOR_JOIN_ITER *iter)
-{
-	if (iter->child != NULL)
-		WT_RET(__curjoin_entry_iter_close_all(iter->child));
-	WT_RET(__curjoin_iter_set_entry(iter, 0));
-	iter->positioned = false;
-	return (0);
-}
-
-/*
- * __curjoin_entry_iter_ready --
- *	Check the positioned flag for all nested iterators.
- *
- */
-static bool
-__curjoin_entry_iter_ready(WT_CURSOR_JOIN_ITER *iter)
-{
-	while (iter != NULL) {
-		if (!iter->positioned)
-			return (false);
-		iter = iter->child;
-	}
-	return (true);
-}
-
-/*
- * __curjoin_entry_iter_close --
- *	Close the iteration, release resources.
- *
- */
-static int
-__curjoin_entry_iter_close(WT_CURSOR_JOIN_ITER *iter)
-{
-	WT_DECL_RET;
-
-	if (iter->cursor != NULL)
-		WT_TRET(iter->cursor->close(iter->cursor));
-	__wt_free(iter->session, iter);
-	return (ret);
-}
-
-/*
- * __curjoin_entry_iter_close_all --
- *	Free the iterator and all of its children recursively.
- *
- */
-static int
-__curjoin_entry_iter_close_all(WT_CURSOR_JOIN_ITER *iter)
-{
-	WT_CURSOR_JOIN *parent;
-	WT_DECL_RET;
-
-	if (iter->child)
-		WT_TRET(__curjoin_entry_iter_close_all(iter->child));
-	iter->child = NULL;
-	WT_ASSERT(iter->session, iter->cjoin->parent == NULL ||
-	    iter->cjoin->parent->iter->child == iter);
-	if ((parent = iter->cjoin->parent) != NULL)
-		parent->iter->child = NULL;
-	iter->cjoin->iter = NULL;
-	WT_TRET(__curjoin_entry_iter_close(iter));
-	return (ret);
 }
 
 /*
@@ -629,6 +631,288 @@ __curjoin_endpoint_init_key(WT_SESSION_IMPL *session,
 }
 
 /*
+ * __curjoin_entries_in_range --
+ *	Check if a key is in the range specified by the remaining entries,
+ *	returning WT_NOTFOUND if not.
+ */
+static int
+__curjoin_entries_in_range(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
+    WT_ITEM *curkey, WT_CURSOR_JOIN_ITER *iterarg)
+{
+	WT_CURSOR_JOIN_ENTRY *entry;
+	WT_CURSOR_JOIN_ITER *iter;
+	WT_DECL_RET;
+	int fastret, slowret;
+	u_int pos;
+
+	iter = iterarg;
+	if (F_ISSET(cjoin, WT_CURJOIN_DISJUNCTION)) {
+		fastret = 0;
+		slowret = WT_NOTFOUND;
+	} else {
+		fastret = WT_NOTFOUND;
+		slowret = 0;
+	}
+	pos = iter == NULL ? 0 : iter->entry_pos;
+	for (entry = &cjoin->entries[pos]; pos < cjoin->entries_next;
+		entry++, pos++) {
+		ret = __curjoin_entry_member(session, entry, curkey, iter);
+		if (ret == fastret)
+			return (fastret);
+		if (ret != slowret)
+			break;
+		iter = NULL;
+	}
+
+	return (ret == 0 ? slowret : ret);
+}
+
+/*
+ * __curjoin_entry_in_range --
+ *	Check if a key is in the range specified by the entry, returning
+ *	WT_NOTFOUND if not.
+ */
+static int
+__curjoin_entry_in_range(WT_SESSION_IMPL *session, WT_CURSOR_JOIN_ENTRY *entry,
+    WT_ITEM *curkey, WT_CURSOR_JOIN_ITER *iter)
+{
+	WT_COLLATOR *collator;
+	WT_CURSOR_JOIN_ENDPOINT *end, *endmax;
+	bool disjunction, passed;
+	int cmp;
+	u_int pos;
+
+	collator = (entry->index != NULL) ? entry->index->collator : NULL;
+	endmax = &entry->ends[entry->ends_next];
+	disjunction = F_ISSET(entry, WT_CURJOIN_ENTRY_DISJUNCTION);
+	passed = false;
+
+	/*
+	 * The iterator may have already satisfied some endpoint conditions.
+	 * If so and we're a disjunction, we're done.  If so and we're a
+	 * conjunction, we can start past the satisfied conditions.
+	 */
+	if (iter == NULL)
+		pos = 0;
+	else {
+		if (disjunction && iter->end_skip)
+			return (0);
+		pos = iter->end_pos + iter->end_skip;
+	}
+
+	for (end = &entry->ends[pos]; end < endmax; end++) {
+		WT_RET(__wt_compare(session, collator, curkey, &end->key,
+		    &cmp));
+		switch (WT_CURJOIN_END_RANGE(end)) {
+		case WT_CURJOIN_END_EQ:
+			passed = (cmp == 0);
+			break;
+
+		case WT_CURJOIN_END_GT | WT_CURJOIN_END_EQ:
+			passed = (cmp >= 0);
+			WT_ASSERT(session, iter == NULL);
+			break;
+
+		case WT_CURJOIN_END_GT:
+			passed = (cmp > 0);
+			if (passed && iter != NULL && pos == 0)
+				iter->end_skip = 1;
+			break;
+
+		case WT_CURJOIN_END_LT | WT_CURJOIN_END_EQ:
+			passed = (cmp <= 0);
+			break;
+
+		case WT_CURJOIN_END_LT:
+			passed = (cmp < 0);
+			break;
+
+		default:
+			WT_RET(__wt_illegal_value(session, NULL));
+			break;
+		}
+
+		if (!passed) {
+			if (iter != NULL &&
+			    (iter->is_equal ||
+			    F_ISSET(end, WT_CURJOIN_END_LT))) {
+				WT_RET(__curjoin_iter_bump(iter));
+				return (WT_NOTFOUND);
+			}
+			if (!disjunction)
+				return (WT_NOTFOUND);
+			iter = NULL;
+		} else if (disjunction)
+			break;
+	}
+	if (disjunction && end == endmax)
+		return (WT_NOTFOUND);
+	else
+		return (0);
+}
+
+typedef struct {
+	WT_CURSOR iface;
+	WT_CURSOR_JOIN_ENTRY *entry;
+	bool ismember;
+} WT_CURJOIN_EXTRACTOR;
+
+/*
+ * __curjoin_extract_insert --
+ *	Handle a key produced by a custom extractor.
+ */
+static int
+__curjoin_extract_insert(WT_CURSOR *cursor) {
+	WT_CURJOIN_EXTRACTOR *cextract;
+	WT_DECL_RET;
+	WT_ITEM ikey;
+	WT_SESSION_IMPL *session;
+
+	cextract = (WT_CURJOIN_EXTRACTOR *)cursor;
+	/*
+	 * This insert method may be called multiple times during a single
+	 * extraction.  If we already have a definitive answer to the
+	 * membership question, exit early.
+	 */
+	if (cextract->ismember)
+		return (0);
+
+	session = (WT_SESSION_IMPL *)cursor->session;
+
+	WT_ITEM_SET(ikey, cursor->key);
+	/*
+	 * We appended a padding byte to the key to avoid rewriting the last
+	 * column.  Strip that away here.
+	 */
+	WT_ASSERT(session, ikey.size > 0);
+	--ikey.size;
+
+	ret = __curjoin_entry_in_range(session, cextract->entry, &ikey, false);
+	if (ret == WT_NOTFOUND)
+		ret = 0;
+	else if (ret == 0)
+		cextract->ismember = true;
+
+	return (ret);
+}
+
+/*
+ * __curjoin_entry_member --
+ *	Do a membership check for a particular index that was joined,
+ *	if not a member, returns WT_NOTFOUND.
+ */
+static int
+__curjoin_entry_member(WT_SESSION_IMPL *session, WT_CURSOR_JOIN_ENTRY *entry,
+    WT_ITEM *key, WT_CURSOR_JOIN_ITER *iter)
+{
+	WT_CURJOIN_EXTRACTOR extract_cursor;
+	WT_CURSOR *c;
+	WT_CURSOR_STATIC_INIT(iface,
+	    __wt_cursor_get_key,		/* get-key */
+	    __wt_cursor_get_value,		/* get-value */
+	    __wt_cursor_set_key,		/* set-key */
+	    __wt_cursor_set_value,		/* set-value */
+	    __wt_cursor_compare_notsup,		/* compare */
+	    __wt_cursor_equals_notsup,		/* equals */
+	    __wt_cursor_notsup,			/* next */
+	    __wt_cursor_notsup,			/* prev */
+	    __wt_cursor_notsup,			/* reset */
+	    __wt_cursor_notsup,			/* search */
+	    __wt_cursor_search_near_notsup,	/* search-near */
+	    __curjoin_extract_insert,		/* insert */
+	    __wt_cursor_notsup,			/* update */
+	    __wt_cursor_notsup,			/* remove */
+	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
+	    __wt_cursor_notsup);		/* close */
+	WT_DECL_RET;
+	WT_INDEX *idx;
+	WT_ITEM v;
+	bool bloom_found;
+
+	if (entry->subjoin == NULL && iter != NULL &&
+	    (iter->end_pos + iter->end_skip >= entry->ends_next ||
+	    (iter->end_skip > 0 &&
+	    F_ISSET(entry, WT_CURJOIN_ENTRY_DISJUNCTION))))
+		return (0);	/* no checks to make */
+
+	entry->stats.accesses++;
+	bloom_found = false;
+
+	if (entry->bloom != NULL) {
+		/*
+		 * If we don't own the Bloom filter, we must be sharing one
+		 * in a previous entry. So the shared filter has already
+		 * been checked and passed.
+		 */
+		if (!F_ISSET(entry, WT_CURJOIN_ENTRY_OWN_BLOOM))
+			return (0);
+
+		/*
+		 * If the item is not in the Bloom filter, we return
+		 * immediately, otherwise, we still need to check the
+		 * long way.
+		 */
+		WT_ERR(__wt_bloom_inmem_get(entry->bloom, key));
+		bloom_found = true;
+	}
+	if (entry->subjoin != NULL) {
+		WT_ASSERT(session,
+		    iter == NULL || entry->subjoin == iter->child->cjoin);
+		ret = __curjoin_entries_in_range(session, entry->subjoin,
+		    key, iter == NULL ? NULL : iter->child);
+		if (iter != NULL &&
+		    WT_CURJOIN_ITER_CONSUMED(iter->child)) {
+			WT_ERR(__curjoin_iter_bump(iter));
+			ret = WT_NOTFOUND;
+		}
+		return (ret);
+	}
+	if (entry->index != NULL) {
+		/*
+		 * If this entry is used by the iterator, then we already
+		 * have the index key, and we won't have to do any
+		 * extraction either.
+		 */
+		if (iter != NULL && entry == iter->entry)
+			WT_ITEM_SET(v, iter->idxkey);
+		else {
+			memset(&v, 0, sizeof(v));  /* Keep lint quiet. */
+			c = entry->main;
+			c->set_key(c, key);
+			if ((ret = c->search(c)) == 0)
+				ret = c->get_value(c, &v);
+			else if (ret == WT_NOTFOUND)
+				WT_ERR_MSG(session, WT_ERROR,
+				    "main table for join is missing entry");
+			WT_TRET(c->reset(c));
+			WT_ERR(ret);
+		}
+	} else
+		WT_ITEM_SET(v, *key);
+
+	if ((idx = entry->index) != NULL && idx->extractor != NULL &&
+	    (iter == NULL || entry != iter->entry)) {
+		WT_CLEAR(extract_cursor);
+		extract_cursor.iface = iface;
+		extract_cursor.iface.session = &session->iface;
+		extract_cursor.iface.key_format = idx->exkey_format;
+		extract_cursor.ismember = false;
+		extract_cursor.entry = entry;
+		WT_ERR(idx->extractor->extract(idx->extractor,
+		    &session->iface, key, &v, &extract_cursor.iface));
+		if (!extract_cursor.ismember)
+			WT_ERR(WT_NOTFOUND);
+	} else
+		WT_ERR(__curjoin_entry_in_range(session, entry, &v, iter));
+
+	if (0) {
+err:		if (ret == WT_NOTFOUND && bloom_found)
+			entry->stats.bloom_false_positive++;
+	}
+	return (ret);
+}
+
+/*
  * __curjoin_init_next --
  *	Initialize the cursor join when the next function is first called.
  */
@@ -774,288 +1058,6 @@ err:	__wt_free(session, mainbuf);
 }
 
 /*
- * __curjoin_entries_in_range --
- *	Check if a key is in the range specified by the remaining entries,
- *	returning WT_NOTFOUND if not.
- */
-static int
-__curjoin_entries_in_range(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
-    WT_ITEM *curkey, WT_CURSOR_JOIN_ITER *iterarg)
-{
-	WT_CURSOR_JOIN_ENTRY *entry;
-	WT_CURSOR_JOIN_ITER *iter;
-	WT_DECL_RET;
-	int fastret, slowret;
-	u_int pos;
-
-	iter = iterarg;
-	if (F_ISSET(cjoin, WT_CURJOIN_DISJUNCTION)) {
-		fastret = 0;
-		slowret = WT_NOTFOUND;
-	} else {
-		fastret = WT_NOTFOUND;
-		slowret = 0;
-	}
-	pos = iter == NULL ? 0 : iter->entry_pos;
-	for (entry = &cjoin->entries[pos]; pos < cjoin->entries_next;
-		entry++, pos++) {
-		ret = __curjoin_entry_member(session, entry, curkey, iter);
-		if (ret == fastret)
-			return (fastret);
-		if (ret != slowret)
-			break;
-		iter = NULL;
-	}
-
-	return (ret == 0 ? slowret : ret);
-}
-
-/*
- * __curjoin_entry_in_range --
- *	Check if a key is in the range specified by the entry, returning
- *	WT_NOTFOUND if not.
- */
-static int
-__curjoin_entry_in_range(WT_SESSION_IMPL *session, WT_CURSOR_JOIN_ENTRY *entry,
-    WT_ITEM *curkey, WT_CURSOR_JOIN_ITER *iter)
-{
-	WT_COLLATOR *collator;
-	WT_CURSOR_JOIN_ENDPOINT *end, *endmax;
-	bool disjunction, passed;
-	int cmp;
-	u_int pos;
-
-	collator = (entry->index != NULL) ? entry->index->collator : NULL;
-	endmax = &entry->ends[entry->ends_next];
-	disjunction = F_ISSET(entry, WT_CURJOIN_ENTRY_DISJUNCTION);
-	passed = false;
-
-	/*
-	 * The iterator may have already satisfied some endpoint conditions.
-	 * If so and we're a disjunction, we're done.  If so and we're a
-	 * conjunction, we can start past the satisfied conditions.
-	 */
-	if (iter == NULL)
-		pos = 0;
-	else {
-		if (disjunction && iter->end_skip)
-			return (0);
-		pos = iter->end_pos + iter->end_skip;
-	}
-
-	for (end = &entry->ends[pos]; end < endmax; end++) {
-		WT_RET(__wt_compare(session, collator, curkey, &end->key,
-		    &cmp));
-		switch (WT_CURJOIN_END_RANGE(end)) {
-		case WT_CURJOIN_END_EQ:
-			passed = (cmp == 0);
-			break;
-
-		case WT_CURJOIN_END_GT | WT_CURJOIN_END_EQ:
-			passed = (cmp >= 0);
-			WT_ASSERT(session, iter == NULL);
-			break;
-
-		case WT_CURJOIN_END_GT:
-			passed = (cmp > 0);
-			if (passed && iter != NULL && pos == 0)
-				iter->end_skip = 1;
-			break;
-
-		case WT_CURJOIN_END_LT | WT_CURJOIN_END_EQ:
-			passed = (cmp <= 0);
-			break;
-
-		case WT_CURJOIN_END_LT:
-			passed = (cmp < 0);
-			break;
-
-		default:
-			WT_RET(__wt_illegal_value(session, NULL));
-			break;
-		}
-
-		if (!passed) {
-			if (iter != NULL &&
-			    (iter->is_equal ||
-			    F_ISSET(end, WT_CURJOIN_END_LT))) {
-				WT_RET(__curjoin_entry_iter_bump(iter));
-				return (WT_NOTFOUND);
-			}
-			if (!disjunction)
-				return (WT_NOTFOUND);
-			iter = NULL;
-		} else if (disjunction)
-			break;
-	}
-	if (disjunction && end == endmax)
-		return (WT_NOTFOUND);
-	else
-		return (0);
-}
-
-typedef struct {
-	WT_CURSOR iface;
-	WT_CURSOR_JOIN_ENTRY *entry;
-	bool ismember;
-} WT_CURJOIN_EXTRACTOR;
-
-/*
- * __curjoin_extract_insert --
- *	Handle a key produced by a custom extractor.
- */
-static int
-__curjoin_extract_insert(WT_CURSOR *cursor) {
-	WT_CURJOIN_EXTRACTOR *cextract;
-	WT_DECL_RET;
-	WT_ITEM ikey;
-	WT_SESSION_IMPL *session;
-
-	cextract = (WT_CURJOIN_EXTRACTOR *)cursor;
-	/*
-	 * This insert method may be called multiple times during a single
-	 * extraction.  If we already have a definitive answer to the
-	 * membership question, exit early.
-	 */
-	if (cextract->ismember)
-		return (0);
-
-	session = (WT_SESSION_IMPL *)cursor->session;
-
-	WT_ITEM_SET(ikey, cursor->key);
-	/*
-	 * We appended a padding byte to the key to avoid rewriting the last
-	 * column.  Strip that away here.
-	 */
-	WT_ASSERT(session, ikey.size > 0);
-	--ikey.size;
-
-	ret = __curjoin_entry_in_range(session, cextract->entry, &ikey, false);
-	if (ret == WT_NOTFOUND)
-		ret = 0;
-	else if (ret == 0)
-		cextract->ismember = true;
-
-	return (ret);
-}
-
-/*
- * __curjoin_entry_member --
- *	Do a membership check for a particular index that was joined,
- *	if not a member, returns WT_NOTFOUND.
- */
-static int
-__curjoin_entry_member(WT_SESSION_IMPL *session, WT_CURSOR_JOIN_ENTRY *entry,
-    WT_ITEM *key, WT_CURSOR_JOIN_ITER *iter)
-{
-	WT_CURJOIN_EXTRACTOR extract_cursor;
-	WT_CURSOR *c;
-	WT_CURSOR_STATIC_INIT(iface,
-	    __wt_cursor_get_key,		/* get-key */
-	    __wt_cursor_get_value,		/* get-value */
-	    __wt_cursor_set_key,		/* set-key */
-	    __wt_cursor_set_value,		/* set-value */
-	    __wt_cursor_compare_notsup,		/* compare */
-	    __wt_cursor_equals_notsup,		/* equals */
-	    __wt_cursor_notsup,			/* next */
-	    __wt_cursor_notsup,			/* prev */
-	    __wt_cursor_notsup,			/* reset */
-	    __wt_cursor_notsup,			/* search */
-	    __wt_cursor_search_near_notsup,	/* search-near */
-	    __curjoin_extract_insert,		/* insert */
-	    __wt_cursor_notsup,			/* update */
-	    __wt_cursor_notsup,			/* remove */
-	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
-	    __wt_cursor_notsup);		/* close */
-	WT_DECL_RET;
-	WT_INDEX *idx;
-	WT_ITEM v;
-	bool bloom_found;
-
-	if (entry->subjoin == NULL && iter != NULL &&
-	    (iter->end_pos + iter->end_skip >= entry->ends_next ||
-	    (iter->end_skip > 0 &&
-	    F_ISSET(entry, WT_CURJOIN_ENTRY_DISJUNCTION))))
-		return (0);	/* no checks to make */
-
-	entry->stats.accesses++;
-	bloom_found = false;
-
-	if (entry->bloom != NULL) {
-		/*
-		 * If we don't own the Bloom filter, we must be sharing one
-		 * in a previous entry. So the shared filter has already
-		 * been checked and passed.
-		 */
-		if (!F_ISSET(entry, WT_CURJOIN_ENTRY_OWN_BLOOM))
-			return (0);
-
-		/*
-		 * If the item is not in the Bloom filter, we return
-		 * immediately, otherwise, we still need to check the
-		 * long way.
-		 */
-		WT_ERR(__wt_bloom_inmem_get(entry->bloom, key));
-		bloom_found = true;
-	}
-	if (entry->subjoin != NULL) {
-		WT_ASSERT(session,
-		    iter == NULL || entry->subjoin == iter->child->cjoin);
-		ret = __curjoin_entries_in_range(session, entry->subjoin,
-		    key, iter == NULL ? NULL : iter->child);
-		if (iter != NULL &&
-		    WT_CURJOIN_ITER_CONSUMED(iter->child)) {
-			WT_ERR(__curjoin_entry_iter_bump(iter));
-			ret = WT_NOTFOUND;
-		}
-		return (ret);
-	}
-	if (entry->index != NULL) {
-		/*
-		 * If this entry is used by the iterator, then we already
-		 * have the index key, and we won't have to do any
-		 * extraction either.
-		 */
-		if (iter != NULL && entry == iter->entry)
-			WT_ITEM_SET(v, iter->idxkey);
-		else {
-			memset(&v, 0, sizeof(v));  /* Keep lint quiet. */
-			c = entry->main;
-			c->set_key(c, key);
-			if ((ret = c->search(c)) == 0)
-				ret = c->get_value(c, &v);
-			else if (ret == WT_NOTFOUND)
-				WT_ERR_MSG(session, WT_ERROR,
-				    "main table for join is missing entry");
-			WT_TRET(c->reset(c));
-			WT_ERR(ret);
-		}
-	} else
-		WT_ITEM_SET(v, *key);
-
-	if ((idx = entry->index) != NULL && idx->extractor != NULL &&
-	    (iter == NULL || entry != iter->entry)) {
-		WT_CLEAR(extract_cursor);
-		extract_cursor.iface = iface;
-		extract_cursor.iface.session = &session->iface;
-		extract_cursor.iface.key_format = idx->exkey_format;
-		extract_cursor.ismember = false;
-		extract_cursor.entry = entry;
-		WT_ERR(idx->extractor->extract(idx->extractor,
-		    &session->iface, key, &v, &extract_cursor.iface));
-		if (!extract_cursor.ismember)
-			WT_ERR(WT_NOTFOUND);
-	} else
-		WT_ERR(__curjoin_entry_in_range(session, entry, &v, iter));
-
-	if (0) {
-err:		if (ret == WT_NOTFOUND && bloom_found)
-			entry->stats.bloom_false_positive++;
-	}
-	return (ret);
-}
-
-/*
  * __curjoin_next --
  *	WT_CURSOR::next for join cursors.
  */
@@ -1080,11 +1082,11 @@ __curjoin_next(WT_CURSOR *cursor)
 	if (!F_ISSET(cjoin, WT_CURJOIN_INITIALIZED))
 		WT_ERR(__curjoin_init_next(session, cjoin, true));
 	if (cjoin->iter == NULL)
-		WT_ERR(__curjoin_entry_iter_init(session, cjoin, &cjoin->iter));
+		WT_ERR(__curjoin_iter_init(session, cjoin, &cjoin->iter));
 	iter = cjoin->iter;
 	F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
-	while ((ret = __curjoin_entry_iter_next(iter, cursor)) == 0) {
+	while ((ret = __curjoin_iter_next(iter, cursor)) == 0) {
 		if ((ret = __curjoin_entries_in_range(session, cjoin,
 		    iter->curkey, iter)) != WT_NOTFOUND)
 			break;
@@ -1110,7 +1112,7 @@ __curjoin_next(WT_CURSOR *cursor)
 		WT_ERR(c->search(c));
 		F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 	} else if (ret == WT_NOTFOUND &&
-	    (tret = __curjoin_entry_iter_close_all(iter)) != 0)
+	    (tret = __curjoin_iter_close_all(iter)) != 0)
 		WT_ERR(tret);
 
 	if (0) {
@@ -1135,7 +1137,7 @@ __curjoin_reset(WT_CURSOR *cursor)
 	JOINABLE_CURSOR_API_CALL(cursor, session, reset, NULL);
 
 	if (cjoin->iter != NULL)
-		WT_ERR(__curjoin_entry_iter_reset(cjoin->iter));
+		WT_ERR(__curjoin_iter_reset(cjoin->iter));
 
 err:	API_END_RET(session, ret);
 }
@@ -1188,7 +1190,7 @@ __curjoin_close(WT_CURSOR *cursor)
 	}
 
 	if (cjoin->iter != NULL)
-		WT_TRET(__curjoin_entry_iter_close_all(cjoin->iter));
+		WT_TRET(__curjoin_iter_close_all(cjoin->iter));
 	if (cjoin->main != NULL)
 		WT_TRET(cjoin->main->close(cjoin->main));
 
