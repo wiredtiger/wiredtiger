@@ -1389,9 +1389,7 @@ __evict_walk_file(WT_SESSION_IMPL *session, uint32_t queue_index, u_int *slotp)
 		    page->memory_footprint < btree->splitmempage)
 			continue;
 
-		/*
-		 * Skip tiny pages unless we're aggressive for any space.
-		 */
+		/* Skip tiny pages unless we're aggressive.  */
 		if (!FLD_ISSET(cache->state, WT_EVICT_PASS_AGGRESSIVE) &&
 		    page->memory_footprint < btree->allocsize)
 			continue;
