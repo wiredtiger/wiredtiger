@@ -473,18 +473,16 @@ demo_file_write(WT_FILE_HANDLE *file_handle, WT_SESSION *session,
 {
 	DEMO_FILE_HANDLE *demo_fh;
 	int ret = 0;
-	size_t off;
 
 	demo_fh = (DEMO_FILE_HANDLE *)file_handle;
 
-	off = (size_t)offset;
 	/* Make sure the buffer is large enough for the write */
-	if ((ret = demo_file_truncate(
-	    file_handle, session, off + len + DEMO_FILE_SIZE_INCREMENT)) != 0)
+	if ((ret = demo_file_truncate(file_handle, session,
+	    offset + (wt_off_t)(len + DEMO_FILE_SIZE_INCREMENT))) != 0)
 		return (ret);
 
-	memcpy((uint8_t *)demo_fh->buf + off, buf, len);
-	demo_fh->off = off + len;
+	memcpy((uint8_t *)demo_fh->buf + offset, buf, len);
+	demo_fh->off = (size_t)offset + len;
 
 	return (0);
 }
