@@ -608,9 +608,9 @@ directory_open:
 	file_handle = (WT_FILE_HANDLE *)pfh;
 	WT_ERR(__wt_strdup(session, name, &file_handle->name));
 
+	file_handle->close = __posix_file_close;
 	file_handle->fadvise = __posix_file_advise;
 	file_handle->fallocate = __wt_posix_file_allocate;
-	file_handle->close = __posix_file_close;
 	file_handle->lock = __posix_file_lock;
 #ifdef WORDS_BIGENDIAN
 	/*

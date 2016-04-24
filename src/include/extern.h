@@ -740,7 +740,7 @@ extern int __wt_malloc(WT_SESSION_IMPL *session, size_t bytes_to_allocate, void 
 extern int __wt_map_error_rdonly(int error);
 extern int __wt_nfilename( WT_SESSION_IMPL *session, const char *name, size_t namelen, char **path);
 extern int __wt_once(void (*init_routine)(void));
-extern int __wt_open(WT_SESSION_IMPL *session, const char *name, uint32_t file_type, uint32_t flags, WT_FH **fhp);
+extern int __wt_open(WT_SESSION_IMPL *session, const char *name, int file_type, u_int flags, WT_FH **fhp);
 extern int __wt_os_inmemory(WT_SESSION_IMPL *session);
 extern int __wt_os_posix(WT_SESSION_IMPL *session);
 extern int __wt_os_stdio(WT_SESSION_IMPL *session);

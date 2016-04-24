@@ -25,21 +25,6 @@ __fhandle_allocate_notsup(WT_FILE_HANDLE *file_handle,
 }
 
 /*
- * __fhandle_lock_notsup --
- *	Lock/unlock a file unsupported.
- */
-static int
-__fhandle_lock_notsup(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool lock)
-{
-	WT_SESSION_IMPL *session;
-
-	session = (WT_SESSION_IMPL *)wt_session;
-	WT_UNUSED(lock);
-	WT_RET_MSG(session, ENOTSUP, "%s: file-lock", file_handle->name);
-}
-
-/*
  * __fhandle_map_notsup --
  *	Map a file unsupported.
  */
@@ -200,11 +185,9 @@ __fhandle_method_finalize(WT_SESSION_IMPL *session, WT_FILE_HANDLE *handle)
 
 	WT_HANDLE_METHOD_REQ(close);
 	/* fadvise is not required */
-
 	if (handle->fallocate == NULL)
 		handle->fallocate = __fhandle_allocate_notsup;
-	if (handle->lock == NULL)
-		handle->lock = __fhandle_lock_notsup;
+	WT_HANDLE_METHOD_REQ(lock);
 	if (handle->map == NULL)
 		handle->map = __fhandle_map_notsup;
 	if (handle->map_discard == NULL)
@@ -315,8 +298,8 @@ __handle_search(
  *	Optionally output a verbose message on handle open.
  */
 static inline int
-__open_verbose(WT_SESSION_IMPL *session,
-    const char *name, uint32_t file_type, uint32_t flags)
+__open_verbose(
+    WT_SESSION_IMPL *session, const char *name, int file_type, u_int flags)
 {
 #ifdef HAVE_VERBOSE
 	WT_DECL_RET;
@@ -391,7 +374,7 @@ err:	__wt_scr_free(session, &tmp);
  */
 int
 __wt_open(WT_SESSION_IMPL *session,
-    const char *name, uint32_t file_type, uint32_t flags, WT_FH **fhp)
+    const char *name, int file_type, u_int flags, WT_FH **fhp)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
