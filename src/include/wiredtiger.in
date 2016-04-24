@@ -3750,8 +3750,8 @@ struct __wt_file_system {
 	 * @param file_system the WT_FILE_SYSTEM implementation
 	 * @param session the current WiredTiger session
 	 * @param directory the name of the directory
-	 * @param prefix An optional filter on file names to return
-	 * @param flags One of WT_DIRLIST_INCLUDE or WT_DIRLIST_EXCLUDE to
+	 * @param prefix an optional filter on file names to return
+	 * @param flags one of WT_DIRLIST_INCLUDE or WT_DIRLIST_EXCLUDE to
 	 *      determine behavior of prefix filtering. TODO - expose constants
 	 * @param[out] dirlist the method returns an array of strings, one
 	 *      for each entry in the directory. The implementation should
@@ -3870,14 +3870,19 @@ struct __wt_file_system {
 	    const char *name, bool silent, wt_off_t *sizep);
 
 	/*!
-	 * If non-NULL a callback performed when the file system is closed
-	 * which generally only happens when the database is closed.
+	 * If non-NULL a callback performed when the file system is closed and
+	 * will no longer be used by the WiredTiger database.
 	 *
 	 * The WT_FILE_SYSTEM::terminate callback is intended to allow cleanup,
 	 * the handle will not be subsequently accessed by WiredTiger.
 	 */
 	int (*terminate)(WT_FILE_SYSTEM *file_system, WT_SESSION *session);
 };
+
+/*! WT_FILE_HANDLE::fadvise flags: no longer need */
+#define	WT_FILE_HANDLE_DONTNEED	1
+/*! WT_FILE_HANDLE::fadvise flags: will need */
+#define	WT_FILE_HANDLE_WILLNEED	2
 
 /*!
  * A handle for a file handle that is returned by WT_FILE_SYSTEM::open_file.
@@ -3892,8 +3897,20 @@ struct __wt_file_handle {
 	char *name;
 
 	/*!
-	 * Indicate to the file system how the file is expected to be used,
-	 * based on the POSIX 1003.1 standard fadvise.
+	 * Close a file handle.
+	 *
+	 * @errors
+	 *
+	 * @snippet ex_file_system.c close
+	 *
+	 * @param fh the WT_FILE_SYSTEM implementation
+	 * @param session the current WiredTiger session
+	 */
+	int (*close)(WT_FILE_HANDLE *fh, WT_SESSION *session);
+
+	/*!
+	 * Indicate expected future use of ranges in the file, based on the
+	 * POSIX 1003.1 standard fadvise.
 	 *
 	 * @errors
 	 *
@@ -3903,8 +3920,8 @@ struct __wt_file_handle {
 	 * @param session the current WiredTiger session
 	 * @param offset the file offset
 	 * @param len the size of the advisory
-	 * @param advice the type of advice. Currently one of don't need, or
-	 *      will need. TODO: Expose constants
+	 * @param advice one of ::WT_FILE_HANDLE_WILLNEED or
+	 *    ::WT_FILE_HANDLE_DONTNEED.
 	 */
 	int (*fadvise)(WT_FILE_HANDLE *fh,
 	    WT_SESSION *session, wt_off_t offset, wt_off_t len, int advice);
@@ -3924,18 +3941,6 @@ struct __wt_file_handle {
 	 */
 	int (*fallocate)(
 	    WT_FILE_HANDLE *fh, WT_SESSION *session, wt_off_t, wt_off_t);
-
-	/*!
-	 * Close a file handle.
-	 *
-	 * @errors
-	 *
-	 * @snippet ex_file_system.c close
-	 *
-	 * @param fh the WT_FILE_SYSTEM implementation
-	 * @param session the current WiredTiger session
-	 */
-	int (*close)(WT_FILE_HANDLE *fh, WT_SESSION *session);
 
 	/*!
 	 * Lock or unlock a file.

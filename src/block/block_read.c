@@ -43,7 +43,7 @@ __wt_bm_preload(
 		else
 			ret = block->fh->handle->fadvise(block->fh->handle,
 			    (WT_SESSION *)session, (wt_off_t)offset,
-			    (wt_off_t)size, POSIX_FADV_WILLNEED);
+			    (wt_off_t)size, WT_FILE_HANDLE_WILLNEED);
 		if (ret == 0)
 			return (0);
 

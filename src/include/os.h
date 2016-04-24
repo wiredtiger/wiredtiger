@@ -58,18 +58,6 @@
 	     (t1).tv_nsec < (t2).tv_nsec ? -1 :				\
 	     (t1).tv_nsec == (t2).tv_nsec ? 0 : 1 : 1)
 
-/*
- * The underlying OS calls return ENOTSUP if posix_fadvise functionality isn't
- * available, but WiredTiger uses the POSIX flag names in the API. Use distinct
- * values so the underlying code can distinguish.
- */
-#ifndef	POSIX_FADV_DONTNEED
-#define	POSIX_FADV_DONTNEED	0x01
-#endif
-#ifndef	POSIX_FADV_WILLNEED
-#define	POSIX_FADV_WILLNEED	0x02
-#endif
-
 struct __wt_fh {
 	/*
 	 * There is a file name field in both the WT_FH and WT_FILE_HANDLE

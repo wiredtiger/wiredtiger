@@ -62,7 +62,7 @@ __wt_block_discard(WT_SESSION_IMPL *session, WT_BLOCK *block, size_t added_size)
 	block->os_cache = 0;
 	WT_ERR(block->fh->handle->fadvise(
 	    block->fh->handle, (WT_SESSION *)session,
-	    (wt_off_t)0, (wt_off_t)0, POSIX_FADV_DONTNEED));
+	    (wt_off_t)0, (wt_off_t)0, WT_FILE_HANDLE_DONTNEED));
 	return (0);
 
 err:	/* Ignore ENOTSUP, but don't try again. */
