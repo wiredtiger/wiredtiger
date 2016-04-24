@@ -122,7 +122,7 @@ __wt_write(WT_SESSION_IMPL *session,
     WT_FH *fh, wt_off_t offset, size_t len, const void *buf)
 {
 	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_READONLY) ||
-	    WT_STRING_MATCH(fh->handle->name,
+	    WT_STRING_MATCH(fh->name,
 	    WT_SINGLETHREAD, strlen(WT_SINGLETHREAD)));
 
 	WT_RET(__wt_verbose(session, WT_VERB_HANDLEOPS,
