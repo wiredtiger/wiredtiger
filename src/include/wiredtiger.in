@@ -3959,6 +3959,10 @@ struct __wt_file_handle {
 
 	/*!
 	 * Map a file into memory, based on the POSIX 1003.1 standard mmap.
+	 * This method is not required, and should be set to NULL when not
+	 * supported by the file. If mapping may or may not be available for
+	 * a file, the method can be set, and ENOTSUP should be returned if
+	 * mapping is not available when attempted.
 	 *
 	 * @errors
 	 *
@@ -3966,17 +3970,21 @@ struct __wt_file_handle {
 	 *
 	 * @param file_handle the WT_FILE_HANDLE
 	 * @param session the current WiredTiger session
-	 * @param[out] mapp the resulting mapped memory region
-	 * @param[out] lenp the length of the mapped memory region
-	 * @param[out] mappingcookie An opaque pointer available for tracking
-	 *     context about the memory mapping
+	 * @param[out] mapped_regionp a reference to a memory location into
+	 *    which should be stored a pointer to the start of the mapped region
+	 * @param[out] lengthp a reference to a memory location into which
+	 *    should be stored the length of the region
+	 * @param[out] mapped_cookiep a reference to a memory location into
+	 *    which can be optionally stored a pointer to an opaque cookie
+	 *    which is subsequently passed to WT_FILE_HANDLE::unmap.
 	 */
 	int (*map)(WT_FILE_HANDLE *file_handle, WT_SESSION *session,
-	    void *mapp, size_t *lenp, void **mappingcookie);
+	    void *mapped_regionp, size_t *lengthp, void *mapped_cookiep);
 
 	/*!
 	 * Unmap part of a memory mapped file, based on the POSIX 1003.1
-	 * standard madvise.
+	 * standard madvise. This method is not required, and should be
+	 * set to NULL when not supported by the file.
 	 *
 	 * @errors
 	 *
@@ -3984,16 +3992,17 @@ struct __wt_file_handle {
 	 *
 	 * @param file_handle the WT_FILE_HANDLE
 	 * @param session the current WiredTiger session
-	 * @param p the region
-	 * @param size the size of the region to discard
-	 * TODO: Surely this should accept a mapping cookie as well
+	 * @param map a location in the mapped region unlikely to be used in the
+	 *    near future
+	 * @param length the length of the mapped region to discard
 	 */
 	int (*map_discard)(WT_FILE_HANDLE *file_handle,
-	    WT_SESSION *session, void *p, size_t size);
+	    WT_SESSION *session, void *map, size_t length);
 
 	/*!
 	 * Preload part of a memory mapped file, based on the POSIX 1003.1
-	 * standard madvise.
+	 * standard madvise. This method is not required, and should be set
+	 * to NULL when not supported by the file.
 	 *
 	 * @errors
 	 *
@@ -4001,16 +4010,17 @@ struct __wt_file_handle {
 	 *
 	 * @param file_handle the WT_FILE_HANDLE
 	 * @param session the current WiredTiger session
-	 * @param p the region
-	 * @param size the size of the region to discard
-	 * TODO: Surely this should accept a mapping cookie as well
+	 * @param map a location in the mapped region likely to be used in the
+	 *    near future
+	 * @param length the size of the mapped region to preload
 	 */
 	int (*map_preload)(WT_FILE_HANDLE *file_handle,
-	    WT_SESSION *session, const void *p, size_t size);
+	    WT_SESSION *session, const void *map, size_t length);
 
 	/*!
 	 * Unmap a memory mapped file, based on the POSIX 1003.1 standard
-	 * munmap.
+	 * munmap. This method is not required, and should be set to NULL
+	 * when not supported by the file.
 	 *
 	 * @errors
 	 *
@@ -4018,12 +4028,12 @@ struct __wt_file_handle {
 	 *
 	 * @param file_handle the WT_FILE_HANDLE
 	 * @param session the current WiredTiger session
-	 * @param map pointer to the mapped region
-	 * @param len the length of the mapped region
-	 * @param mappingcookie optional application provided data
+	 * @param mapped_region a pointer to the start of the mapped region
+	 * @param length the length of the mapped region
+	 * @param mapped_cookie any cookie set by the WT_FILE_HANDLE::map method
 	 */
-	int (*unmap)(WT_FILE_HANDLE *file_handle,
-	    WT_SESSION *session, void *map, size_t len, void **mappingcookie);
+	int (*unmap)(WT_FILE_HANDLE *file_handle, WT_SESSION *session,
+	    void *mapped_region, size_t length, void *mapped_cookie);
 
 	/*!
 	 * Read from a file, based on the POSIX 1003.1 standard pread.

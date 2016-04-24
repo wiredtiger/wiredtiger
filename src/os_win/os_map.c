@@ -13,15 +13,15 @@
  *	Map a file into memory.
  */
 int
-__wt_win_map(WT_FILE_HANDLE *file_handle,
-    WT_SESSION *wt_session, void *mapp, size_t *lenp, void **mappingcookie)
+__wt_win_map(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
+    void *mapped_regionp, size_t *lenp, void *mapped_cookiep)
 {
 	WT_DECL_RET;
-	size_t len;
-	wt_off_t file_size;
-	void *map;
 	WT_FILE_HANDLE_WIN *win_fh;
 	WT_SESSION_IMPL *session;
+	size_t len;
+	wt_off_t file_size;
+	void *map, *mapped_cookie;
 
 	win_fh = (WT_FILE_HANDLE_WIN *)file_handle;
 	session = (WT_SESSION_IMPL *)wt_session;
@@ -37,58 +37,26 @@ __wt_win_map(WT_FILE_HANDLE *file_handle,
 	(void)__wt_verbose(session, WT_VERB_HANDLEOPS,
 	    "%s: memory-map: %" WT_SIZET_FMT " bytes", win_fh->name, len);
 
-	*mappingcookie = CreateFileMappingA(
+	mapped_cookie = CreateFileMappingA(
 	    win_fh->filehandle, NULL, PAGE_READONLY, 0, 0, NULL);
-	if (*mappingcookie == NULL)
+	if (mapped_cookie == NULL)
 		WT_RET_MSG(session, __wt_getlasterror(),
 		    "%s: memory-map: CreateFileMappingA", win_fh->name);
 
 	if ((map =
-	    MapViewOfFile(*mappingcookie, FILE_MAP_READ, 0, 0, len)) == NULL) {
+	    MapViewOfFile(mapped_cookie, FILE_MAP_READ, 0, 0, len)) == NULL) {
 		/* Retrieve the error before cleaning up. */
 		ret = __wt_getlasterror();
-		CloseHandle(*mappingcookie);
-		*mappingcookie = NULL;
+		CloseHandle(mapped_cookie);
 
 		WT_RET_MSG(session, ret,
 		    "%s: memory-map: MapViewOfFile",  win_fh->name);
 	}
 
-	*(void **)mapp = map;
+	*(void **)mapped_cookiep = mapped_cookie;
+	*(void **)mapped_regionp = map;
 	*lenp = len;
 	return (0);
-}
-
-/*
- * __wt_win_map_preload --
- *	Cause a section of a memory map to be faulted in.
- */
-int
-__wt_win_map_preload(WT_FILE_HANDLE *file_handle,
-    WT_SESSION *wt_session, const void *p, size_t size)
-{
-	WT_UNUSED(session);
-	WT_UNUSED(file_handle);
-	WT_UNUSED(p);
-	WT_UNUSED(size);
-
-	return (ENOTSUP);
-}
-
-/*
- * __wt_win_map_discard --
- *	Discard a chunk of the memory map.
- */
-int
-__wt_win_map_discard(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, void *p, size_t size)
-{
-	WT_UNUSED(session);
-	WT_UNUSED(file_handle);
-	WT_UNUSED(p);
-	WT_UNUSED(size);
-
-	return (ENOTSUP);
 }
 
 /*
@@ -96,8 +64,8 @@ __wt_win_map_discard(
  *	Remove a memory mapping.
  */
 int
-__wt_win_unmap(WT_FILE_HANDLE *file_handle,
-    WT_SESSION *wt_session, void *map, size_t len, void **mappingcookie)
+__wt_win_unmap(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
+    void *mapped_region, size_t length, void *mapped_cookie)
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_WIN *win_fh;
@@ -107,23 +75,19 @@ __wt_win_unmap(WT_FILE_HANDLE *file_handle,
 	session = (WT_SESSION_IMPL *)wt_session;
 
 	(void)__wt_verbose(session, WT_VERB_HANDLEOPS,
-	    "%s: memory-unmap: %" WT_SIZET_FMT " bytes", win_fh->name, len);
+	    "%s: memory-unmap: %" WT_SIZET_FMT " bytes", win_fh->name, length);
 
-	WT_ASSERT(session, *mappingcookie != NULL);
-
-	if (UnmapViewOfFile(map) == 0) {
+	if (UnmapViewOfFile(mapped_region) == 0) {
 		ret = __wt_getlasterror();
 		__wt_err(session, ret,
 		    "%s: memory-unmap: UnmapViewOfFile", win_fh->name);
 	}
 
-	if (CloseHandle(*mappingcookie) == 0) {
+	if (CloseHandle(mapped_cookei) == 0) {
 		ret = __wt_getlasterror();
 		__wt_err(session, ret,
 		    "%s: memory-unmap: CloseHandle", win_fh->name);
 	}
-
-	*mappingcookie = NULL;
 
 	return (ret);
 }

@@ -617,14 +617,12 @@ directory_open:
 	 * The underlying objects are little-endian, mapping objects isn't
 	 * currently supported on big-endian systems.
 	 */
-	file_handle->map = NULL;
-	file_handle->map_discard = NULL;
-	file_handle->map_preload = NULL;
-	file_handle->unmap = NULL;
 #else
 	file_handle->map = __wt_posix_map;
+#ifdef HAVE_POSIX_MADVISE
 	file_handle->map_discard = __wt_posix_map_discard;
 	file_handle->map_preload = __wt_posix_map_preload;
+#endif
 	file_handle->unmap = __wt_posix_unmap;
 #endif
 	file_handle->read = __posix_file_read;

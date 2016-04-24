@@ -196,9 +196,9 @@ struct __wt_bm {
 
 	WT_BLOCK *block;			/* Underlying file */
 
-	void  *map;				/* Mapped region */
-	size_t maplen;
-	void *mappingcookie;
+	void	*map;				/* Mapped region */
+	size_t	 maplen;
+	void	*mapped_cookie;
 
 	/*
 	 * There's only a single block manager handle that can be written, all
@@ -225,7 +225,6 @@ struct __wt_block {
 	wt_off_t extend_size;		/* File extended size */
 	wt_off_t extend_len;		/* File extend chunk size */
 	bool	 nowait_sync_available;	/* File can flush asynchronously */
-	bool	 preload_available;	/* File pages can be preloaded */
 
 	/* Configuration information, set when the file is opened. */
 	uint32_t allocfirst;		/* Allocation is first-fit */

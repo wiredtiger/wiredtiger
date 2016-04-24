@@ -13,14 +13,15 @@
  *	Map a segment of the file in, if possible.
  */
 int
-__wt_block_map(
-    WT_SESSION_IMPL *session, WT_BLOCK *block, void *mapp, size_t *maplenp,
-    void **mappingcookie)
+__wt_block_map(WT_SESSION_IMPL *session, WT_BLOCK *block,
+    void *mapped_regionp, size_t *lengthp, void *mapped_cookiep)
 {
 	WT_DECL_RET;
+	WT_FILE_HANDLE *handle;
 
-	*(void **)mapp = NULL;
-	*maplenp = 0;
+	*(void **)mapped_regionp = NULL;
+	*lengthp = 0;
+	*(void **)mapped_cookiep = NULL;
 
 	/* Map support is configurable. */
 	if (!S2C(session)->mmap)
@@ -44,7 +45,8 @@ __wt_block_map(
 	/*
 	 * There may be no underlying functionality.
 	 */
-	if (block->fh->handle->map == NULL)
+	handle = block->fh->handle;
+	if (handle->map == NULL)
 		return (0);
 
 	/*
@@ -52,10 +54,12 @@ __wt_block_map(
 	 * Ignore not-supported errors, we'll read the file through the cache
 	 * if map fails.
 	 */
-	ret = block->fh->handle->map(block->fh->handle,
-	    (WT_SESSION *)session, mapp, maplenp, mappingcookie);
-	if (ret == ENOTSUP)
+	ret = handle->map(handle,
+	    (WT_SESSION *)session, mapped_regionp, lengthp, mapped_cookiep);
+	if (ret == ENOTSUP) {
+		*(void **)mapped_regionp = NULL;
 		ret = 0;
+	}
 
 	return (ret);
 }
@@ -65,11 +69,13 @@ __wt_block_map(
  *	Unmap any mapped-in segment of the file.
  */
 int
-__wt_block_unmap(
-    WT_SESSION_IMPL *session, WT_BLOCK *block, void *map, size_t maplen,
-    void **mappingcookie)
+__wt_block_unmap(WT_SESSION_IMPL *session,
+    WT_BLOCK *block, void *mapped_region, size_t length, void *mapped_cookie)
 {
+	WT_FILE_HANDLE *handle;
+
 	/* Unmap the file from memory. */
-	return (block->fh->handle->unmap(block->fh->handle,
-	    (WT_SESSION *)session, map, maplen, mappingcookie));
+	handle = block->fh->handle;
+	return (handle->unmap(handle,
+	    (WT_SESSION *)session, mapped_region, length, mapped_cookie));
 }

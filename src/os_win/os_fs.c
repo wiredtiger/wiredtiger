@@ -533,14 +533,21 @@ directory_open:
 
 	file_handle->close = __win_file_close;
 	file_handle->lock = __win_file_lock;
+#ifdef WORDS_BIGENDIAN
+	/*
+	 * The underlying objects are little-endian, mapping objects isn't
+	 * currently supported on big-endian systems.
+	 */
+#else
 	file_handle->map = __wt_win_map;
 	file_handle->map_discard = __wt_win_map_discard;
 	file_handle->map_preload = __wt_win_map_preload;
+	file_handle->unmap = __wt_win_unmap;
+#endif
 	file_handle->read = __win_file_read;
 	file_handle->size = __win_file_size;
 	file_handle->sync = __win_file_sync;
 	file_handle->truncate = __win_file_truncate;
-	file_handle->unmap = __wt_win_unmap;
 	file_handle->write = __win_file_write;
 
 	*file_handlep = file_handle;

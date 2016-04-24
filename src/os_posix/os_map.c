@@ -13,8 +13,8 @@
  *	Map a file into memory.
  */
 int
-__wt_posix_map(WT_FILE_HANDLE *fh,
-    WT_SESSION *wt_session, void *mapp, size_t *lenp, void **mappingcookie)
+__wt_posix_map(WT_FILE_HANDLE *fh, WT_SESSION *wt_session,
+    void *mapped_regionp, size_t *lenp, void *mapped_cookiep)
 {
 	WT_FILE_HANDLE_POSIX *pfh;
 	WT_SESSION_IMPL *session;
@@ -22,7 +22,7 @@ __wt_posix_map(WT_FILE_HANDLE *fh,
 	wt_off_t file_size;
 	void *map;
 
-	WT_UNUSED(mappingcookie);
+	WT_UNUSED(mapped_cookiep);
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	pfh = (WT_FILE_HANDLE_POSIX *)fh;
@@ -56,19 +56,19 @@ __wt_posix_map(WT_FILE_HANDLE *fh,
 		WT_RET_MSG(session,
 		    __wt_errno(), "%s: memory-map: mmap", fh->name);
 
-	*(void **)mapp = map;
+	*(void **)mapped_regionp = map;
 	*lenp = len;
 	return (0);
 }
 
 #ifdef HAVE_POSIX_MADVISE
 /*
- * __posix_map_preload_madvise --
+ * __wt_posix_map_preload --
  *	Cause a section of a memory map to be faulted in.
  */
-static int
-__posix_map_preload_madvise(
-    WT_FILE_HANDLE *fh, WT_SESSION *wt_session, const void *p, size_t size)
+int
+__wt_posix_map_preload(
+    WT_FILE_HANDLE *fh, WT_SESSION *wt_session, const void *map, size_t length)
 {
 	WT_BM *bm;
 	WT_CONNECTION_IMPL *conn;
@@ -82,16 +82,16 @@ __posix_map_preload_madvise(
 	bm = S2BT(session)->bm;
 
 	/* Linux requires the address be aligned to a 4KB boundary. */
-	blk = (void *)((uintptr_t)p & ~(uintptr_t)(conn->page_size - 1));
-	size += WT_PTRDIFF(p, blk);
+	blk = (void *)((uintptr_t)map & ~(uintptr_t)(conn->page_size - 1));
+	length += WT_PTRDIFF(map, blk);
 
 	/* XXX proxy for "am I doing a scan?" -- manual read-ahead */
 	if (F_ISSET(session, WT_SESSION_NO_CACHE)) {
 		/* Read in 2MB blocks every 1MB of data. */
-		if (((uintptr_t)((uint8_t *)blk + size) &
+		if (((uintptr_t)((uint8_t *)blk + length) &
 		    (uintptr_t)((1<<20) - 1)) < (uintptr_t)blk)
 			return (0);
-		size = WT_MIN(WT_MAX(20 * size, 2 << 20),
+		length = WT_MIN(WT_MAX(20 * length, 2 << 20),
 		    WT_PTRDIFF((uint8_t *)bm->map + bm->maplen, blk));
 	}
 
@@ -99,10 +99,10 @@ __posix_map_preload_madvise(
 	 * Manual pages aren't clear on whether alignment is required for the
 	 * size, so we will be conservative.
 	 */
-	size &= ~(size_t)(conn->page_size - 1);
+	length &= ~(size_t)(conn->page_size - 1);
 
-	if (size <= (size_t)conn->page_size ||
-	    (ret = posix_madvise(blk, size, POSIX_MADV_WILLNEED)) == 0)
+	if (length <= (size_t)conn->page_size ||
+	    (ret = posix_madvise(blk, length, POSIX_MADV_WILLNEED)) == 0)
 		return (0);
 	WT_RET_MSG(session, ret,
 	    "%s: memory-map preload: posix_madvise: POSIX_MADV_WILLNEED",
@@ -110,33 +110,14 @@ __posix_map_preload_madvise(
 }
 #endif
 
-/*
- * __wt_posix_map_preload --
- *	Cause a section of a memory map to be faulted in.
- */
-int
-__wt_posix_map_preload(
-    WT_FILE_HANDLE *fh, WT_SESSION *wt_session, const void *p, size_t size)
-{
-#ifdef HAVE_POSIX_MADVISE
-	return (__posix_map_preload_madvise(fh, wt_session, p, size));
-#else
-	WT_UNUSED(fh);
-	WT_UNUSED(wt_session);
-	WT_UNUSED(p);
-	WT_UNUSED(size);
-	return (ENOTSUP);
-#endif
-}
-
 #ifdef HAVE_POSIX_MADVISE
 /*
- * __posix_map_discard_madvise --
+ * __wt_posix_map_discard --
  *	Discard a chunk of the memory map.
  */
-static int
-__posix_map_discard_madvise(
-    WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void *p, size_t size)
+int
+__wt_posix_map_discard(
+    WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void *map, size_t length)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
@@ -147,10 +128,10 @@ __posix_map_discard_madvise(
 	conn = S2C(session);
 
 	/* Linux requires the address be aligned to a 4KB boundary. */
-	blk = (void *)((uintptr_t)p & ~(uintptr_t)(conn->page_size - 1));
-	size += WT_PTRDIFF(p, blk);
+	blk = (void *)((uintptr_t)map & ~(uintptr_t)(conn->page_size - 1));
+	length += WT_PTRDIFF(map, blk);
 
-	if ((ret = posix_madvise(blk, size, POSIX_MADV_DONTNEED)) == 0)
+	if ((ret = posix_madvise(blk, length, POSIX_MADV_DONTNEED)) == 0)
 		return (0);
 	WT_RET_MSG(session, ret,
 	    "%s: memory-map discard: posix_madvise: POSIX_MADV_DONTNEED",
@@ -159,42 +140,23 @@ __posix_map_discard_madvise(
 #endif
 
 /*
- * __wt_posix_map_discard --
- *	Discard a chunk of the memory map.
- */
-int
-__wt_posix_map_discard(
-    WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void *p, size_t size)
-{
-#ifdef HAVE_POSIX_MADVISE
-	return (__posix_map_discard_madvise(fh, wt_session, p, size));
-#else
-	WT_UNUSED(fh);
-	WT_UNUSED(p);
-	WT_UNUSED(size);
-	WT_UNUSED(wt_session);
-	return (ENOTSUP);
-#endif
-}
-
-/*
  * __wt_posix_unmap --
  *	Remove a memory mapping.
  */
 int
-__wt_posix_unmap(WT_FILE_HANDLE *fh,
-    WT_SESSION *wt_session, void *map, size_t len, void **mappingcookie)
+__wt_posix_unmap(WT_FILE_HANDLE *fh, WT_SESSION *wt_session,
+    void *mapped_region, size_t len, void *mapped_cookie)
 {
 	WT_SESSION_IMPL *session;
 
-	WT_UNUSED(mappingcookie);
+	WT_UNUSED(mapped_cookie);
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
 	(void)__wt_verbose(session, WT_VERB_HANDLEOPS,
 	    "%s: memory-unmap: %" WT_SIZET_FMT " bytes", fh->name, len);
 
-	if (munmap(map, len) == 0)
+	if (munmap(mapped_region, len) == 0)
 		return (0);
 
 	WT_RET_MSG(session, __wt_errno(), "%s: memory-unmap: munmap", fh->name);

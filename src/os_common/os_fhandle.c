@@ -25,72 +25,6 @@ __fhandle_allocate_notsup(WT_FILE_HANDLE *file_handle,
 }
 
 /*
- * __fhandle_map_notsup --
- *	Map a file unsupported.
- */
-static int
-__fhandle_map_notsup(WT_FILE_HANDLE *file_handle,
-    WT_SESSION *wt_session, void *p, size_t *lenp, void **mappingcookie)
-{
-	WT_SESSION_IMPL *session;
-
-	session = (WT_SESSION_IMPL *)wt_session;
-	WT_UNUSED(p);
-	WT_UNUSED(lenp);
-	WT_UNUSED(mappingcookie);
-	WT_RET_MSG(session, ENOTSUP, "%s: file-map", file_handle->name);
-}
-
-/*
- * __fhandle_map_discard_notsup --
- *	Discard a section of a mapped region unsupported.
- */
-static int
-__fhandle_map_discard_notsup(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, void *p, size_t len)
-{
-	WT_SESSION_IMPL *session;
-
-	session = (WT_SESSION_IMPL *)wt_session;
-	WT_UNUSED(p);
-	WT_UNUSED(len);
-	WT_RET_MSG(session, ENOTSUP, "%s: file-map-discard", file_handle->name);
-}
-
-/*
- * __fhandle_map_preload_notsup --
- *	Preload a section of a mapped region unsupported.
- */
-static int
-__fhandle_map_preload_notsup(WT_FILE_HANDLE *file_handle,
-    WT_SESSION *wt_session, const void *p, size_t len)
-{
-	WT_SESSION_IMPL *session;
-
-	session = (WT_SESSION_IMPL *)wt_session;
-	WT_UNUSED(p);
-	WT_UNUSED(len);
-	WT_RET_MSG(session, ENOTSUP, "%s: file-map-preload", file_handle->name);
-}
-
-/*
- * __fhandle_map_unmap_notsup --
- *	Unmap a file unsupported.
- */
-static int
-__fhandle_map_unmap_notsup(WT_FILE_HANDLE *file_handle,
-    WT_SESSION *wt_session, void *p, size_t len, void **mappingcookie)
-{
-	WT_SESSION_IMPL *session;
-
-	session = (WT_SESSION_IMPL *)wt_session;
-	WT_UNUSED(p);
-	WT_UNUSED(len);
-	WT_UNUSED(mappingcookie);
-	WT_RET_MSG(session, ENOTSUP, "%s: file-map-unmap", file_handle->name);
-}
-
-/*
  * __fhandle_read_notsup --
  *	POSIX pread unsupported.
  */
@@ -188,14 +122,10 @@ __fhandle_method_finalize(WT_SESSION_IMPL *session, WT_FILE_HANDLE *handle)
 	if (handle->fallocate == NULL)
 		handle->fallocate = __fhandle_allocate_notsup;
 	WT_HANDLE_METHOD_REQ(lock);
-	if (handle->map == NULL)
-		handle->map = __fhandle_map_notsup;
-	if (handle->map_discard == NULL)
-		handle->map_discard = __fhandle_map_discard_notsup;
-	if (handle->map_preload == NULL)
-		handle->map_preload = __fhandle_map_preload_notsup;
-	if (handle->unmap == NULL)
-		handle->unmap = __fhandle_map_unmap_notsup;
+	/* map is not required */
+	/* map_discard is not required */
+	/* map_preload is not required */
+	/* map_unmap is not required */
 	if (handle->read == NULL)
 		handle->read = __fhandle_read_notsup;
 	if (handle->size == NULL)

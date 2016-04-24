@@ -103,7 +103,7 @@ __bm_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session,
 		 * of being read into cache buffers.
 		 */
 		WT_RET(__wt_block_map(session,
-		    bm->block, &bm->map, &bm->maplen, &bm->mappingcookie));
+		    bm->block, &bm->map, &bm->maplen, &bm->mapped_cookie));
 
 		/*
 		 * If this handle is for a checkpoint, that is, read-only, there
@@ -149,7 +149,7 @@ __bm_checkpoint_unload(WT_BM *bm, WT_SESSION_IMPL *session)
 	/* Unmap any mapped segment. */
 	if (bm->map != NULL)
 		WT_TRET(__wt_block_unmap(session,
-		    bm->block, bm->map, bm->maplen, &bm->mappingcookie));
+		    bm->block, bm->map, bm->maplen, &bm->mapped_cookie));
 
 	/* Unload the checkpoint. */
 	WT_TRET(__wt_block_checkpoint_unload(session, bm->block, !bm->is_live));
