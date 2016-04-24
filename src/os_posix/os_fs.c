@@ -491,8 +491,7 @@ __posix_open_file_cloexec(WT_SESSION_IMPL *session, int fd, const char *name)
  */
 static int
 __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
-    const char *name, uint32_t file_type, uint32_t flags,
-    WT_FILE_HANDLE **file_handlep)
+    const char *name, int file_type, u_int flags, WT_FILE_HANDLE **file_handlep)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
@@ -503,6 +502,8 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	int f, fd, tret;
 
 	WT_UNUSED(file_system);
+
+	*file_handlep = NULL;
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	conn = S2C(session);
@@ -650,6 +651,23 @@ err:	if (fd != -1) {
 }
 
 /*
+ * __posix_terminate --
+ *	Terminate a POSIX configuration.
+ */
+static int
+__posix_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session)
+{
+	WT_SESSION_IMPL *session;
+
+	WT_UNUSED(file_system);
+
+	session = (WT_SESSION_IMPL *)wt_session;
+
+	__wt_free(session, S2C(session)->file_system);
+	return (0);
+}
+
+/*
  * __wt_os_posix --
  *	Initialize a POSIX configuration.
  */
@@ -675,20 +693,10 @@ __wt_os_posix(WT_SESSION_IMPL *session)
 	file_system->remove = __posix_fs_remove;
 	file_system->rename = __posix_fs_rename;
 	file_system->size = __posix_fs_size;
+	file_system->terminate = __posix_terminate;
 
 	/* Switch it into place. */
 	conn->file_system = file_system;
 
-	return (0);
-}
-
-/*
- * __wt_os_posix_cleanup --
- *	Discard a POSIX configuration.
- */
-int
-__wt_os_posix_cleanup(WT_SESSION_IMPL *session)
-{
-	__wt_free(session, S2C(session)->file_system);
 	return (0);
 }

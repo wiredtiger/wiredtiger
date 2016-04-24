@@ -130,7 +130,7 @@ __im_fs_rename(WT_FILE_SYSTEM *file_system,
 	WT_FILE_HANDLE_INMEM *im_fh;
 	WT_INMEMORY_FILE_SYSTEM *im_fs;
 	WT_SESSION_IMPL *session;
-	const char *copy;
+	char *copy;
 
 	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_system;
 	session = (WT_SESSION_IMPL *)wt_session;
@@ -370,8 +370,7 @@ err:	__wt_spin_unlock(session, &im_fs->lock);
  */
 static int
 __im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
-    const char *name, uint32_t file_type, uint32_t flags,
-    WT_FILE_HANDLE **file_handlep)
+    const char *name, int file_type, u_int flags, WT_FILE_HANDLE **file_handlep)
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE *file_handle;
@@ -437,6 +436,32 @@ err:	__wt_spin_unlock(session, &im_fs->lock);
 }
 
 /*
+ * __im_terminate --
+ *	Terminate an in-memory configuration.
+ */
+static int
+__im_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session)
+{
+	WT_DECL_RET;
+	WT_FILE_HANDLE_INMEM *im_fh;
+	WT_INMEMORY_FILE_SYSTEM *im_fs;
+	WT_SESSION_IMPL *session;
+
+	WT_UNUSED(file_system);
+
+	session = (WT_SESSION_IMPL *)wt_session;
+	im_fs = (WT_INMEMORY_FILE_SYSTEM *)S2C(session)->file_system;
+
+	while ((im_fh = TAILQ_FIRST(&im_fs->fileq)) != NULL)
+		WT_TRET(__im_handle_remove(session, im_fh));
+
+	__wt_spin_destroy(session, &im_fs->lock);
+	__wt_free(session, im_fs);
+
+	return (ret);
+}
+
+/*
  * __wt_os_inmemory --
  *	Initialize an in-memory configuration.
  */
@@ -462,6 +487,7 @@ __wt_os_inmemory(WT_SESSION_IMPL *session)
 	file_system->remove = __im_fs_remove;
 	file_system->rename = __im_fs_rename;
 	file_system->size = __im_fs_size;
+	file_system->terminate = __im_terminate;
 
 	/* Switch the file system into place. */
 	S2C(session)->file_system = (WT_FILE_SYSTEM *)im_fs;
@@ -469,27 +495,5 @@ __wt_os_inmemory(WT_SESSION_IMPL *session)
 	return (0);
 
 err:	__wt_free(session, im_fs);
-	return (ret);
-}
-
-/*
- * __wt_os_inmemory_cleanup --
- *	Discard an in-memory configuration.
- */
-int
-__wt_os_inmemory_cleanup(WT_SESSION_IMPL *session)
-{
-	WT_DECL_RET;
-	WT_FILE_HANDLE_INMEM *im_fh;
-	WT_INMEMORY_FILE_SYSTEM *im_fs;
-
-	im_fs = (WT_INMEMORY_FILE_SYSTEM *)S2C(session)->file_system;
-
-	while ((im_fh = TAILQ_FIRST(&im_fs->fileq)) != NULL)
-		WT_TRET(__im_handle_remove(session, im_fh));
-
-	__wt_spin_destroy(session, &im_fs->lock);
-	__wt_free(session, im_fs);
-
 	return (ret);
 }

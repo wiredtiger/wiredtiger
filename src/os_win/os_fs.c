@@ -413,29 +413,30 @@ __win_file_write(WT_FILE_HANDLE *file_handle,
  */
 static int
 __win_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
-    const char *name, uint32_t file_type, uint32_t flags, WT_FILE_HANDLE **fhp)
+    const char *name, int file_type, u_int flags, WT_FILE_HANDLE **file_handlep)
 {
 	DWORD dwCreationDisposition;
 	HANDLE filehandle, filehandle_secondary;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-	WT_FILE_HANDLE_WIN *new_handle;
+	WT_FILE_HANDLE *file_handle;
+	WT_FILE_HANDLE_WIN *win_fh;
 	WT_SESSION_IMPL *session;
 	int desired_access, f;
 
 	WT_UNUSED(file_system);
 
-	*fhp = NULL;
+	*file_handlep = NULL;
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	conn = S2C(session);
 
-	WT_RET(__wt_calloc_one(session, new_handle));
+	WT_RET(__wt_calloc_one(session, win_fh));
 
-	new_handle->direct_io = false;
+	win_fh->direct_io = false;
 
 	/* Set up error handling. */
-	new_handle->filehandle = new_handle->filehandle_secondary =
+	win_fh->filehandle = win_fh->filehandle_secondary =
 	    filehandle = filehandle_secondary = INVALID_HANDLE_VALUE;
 
 	/*
@@ -472,7 +473,7 @@ __win_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	/* Direct I/O. */
 	if (LF_ISSET(WT_OPEN_DIRECTIO)) {
 		f |= FILE_FLAG_NO_BUFFERING;
-		new_handle->direct_io = true;
+		win_fh->direct_io = true;
 	}
 
 	/* FILE_FLAG_WRITE_THROUGH does not require aligned buffers */
@@ -498,7 +499,7 @@ __win_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 			    NULL, OPEN_EXISTING, f, NULL);
 		if (filehandle == INVALID_HANDLE_VALUE)
 			WT_ERR_MSG(session, __wt_getlasterror(),
-			    new_handle->direct_io ?
+			    win_fh->direct_io ?
 			    "%s: handle-open: CreateFileA: failed with direct "
 			    "I/O configured, some filesystem types do not "
 			    "support direct I/O" :
@@ -520,25 +521,29 @@ __win_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	}
 
 	/* Configure fallocate/posix_fallocate calls. */
-	__win_file_allocate_configure(session, new_handle);
+	__win_file_allocate_configure(session, win_fh);
 
 directory_open:
-	new_handle->filehandle = filehandle;
-	new_handle->filehandle_secondary = filehandle_secondary;
+	win_fh->filehandle = filehandle;
+	win_fh->filehandle_secondary = filehandle_secondary;
 
-	new_handle->close = __win_file_close;
-	new_handle->lock = __win_file_lock;
-	new_handle->map = __wt_win_map;
-	new_handle->map_discard = __wt_win_map_discard;
-	new_handle->map_preload = __wt_win_map_preload;
-	new_handle->read = __win_file_read;
-	new_handle->size = __win_file_size;
-	new_handle->sync = __win_file_sync;
-	new_handle->truncate = __win_file_truncate;
-	new_handle->unmap = __wt_win_unmap;
-	new_handle->write = __win_file_write;
+	/* Initialize public information. */
+	file_handle = (WT_FILE_HANDLE *)win_fh;
+	WT_ERR(__wt_strdup(session, name, &file_handle->name));
 
-	*fhp = (WT_FILE_HANDLE *)new_handle;
+	file_handle->close = __win_file_close;
+	file_handle->lock = __win_file_lock;
+	file_handle->map = __wt_win_map;
+	file_handle->map_discard = __wt_win_map_discard;
+	file_handle->map_preload = __wt_win_map_preload;
+	file_handle->read = __win_file_read;
+	file_handle->size = __win_file_size;
+	file_handle->sync = __win_file_sync;
+	file_handle->truncate = __win_file_truncate;
+	file_handle->unmap = __wt_win_unmap;
+	file_handle->write = __win_file_write;
+
+	*file_handlep = file_handle;
 
 	return (0);
 
@@ -548,6 +553,21 @@ err:	if (filehandle != INVALID_HANDLE_VALUE)
 		(void)CloseHandle(filehandle_secondary);
 
 	return (ret);
+}
+
+/*
+ * __win_terminate --
+ *	Discard a Windows configuration.
+ */
+static int
+__win_terminate(WT_SESSION_IMPL *session)
+{
+	WT_SESSION_IMPL *session;
+
+	session = (WT_SESSION_IMPL *)wt_session;
+
+	__wt_free(session, S2C(session)->file_system);
+	return (0);
 }
 
 /*
@@ -572,20 +592,10 @@ __wt_os_win(WT_SESSION_IMPL *session)
 	file_system->remove = __win_fs_remove;
 	file_system->rename = __win_fs_rename;
 	file_system->size = __win_fs_size;
+	file_system->terminate = __win_terminate;
 
 	/* Switch it into place. */
 	conn->file_system = file_system;
 
-	return (0);
-}
-
-/*
- * __wt_os_win_cleanup --
- *	Discard a POSIX configuration.
- */
-int
-__wt_os_win_cleanup(WT_SESSION_IMPL *session)
-{
-	__wt_free(session, S2C(session)->file_system);
 	return (0);
 }

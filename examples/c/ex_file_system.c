@@ -73,11 +73,15 @@ typedef struct demo_file_handle {
 } DEMO_FILE_HANDLE;
 
 /*
- * Forward function declarations for file system API implementation
+ * Extension initialization function.
  */
 int demo_file_system_create(WT_CONNECTION *, WT_CONFIG_ARG *);
-static int demo_fs_open(WT_FILE_SYSTEM *, WT_SESSION *,
-    const char *, uint32_t, uint32_t, WT_FILE_HANDLE **);
+
+/*
+ * Forward function declarations for file system API implementation
+ */
+static int demo_fs_open(WT_FILE_SYSTEM *,
+    WT_SESSION *, const char *, int, u_int, WT_FILE_HANDLE **);
 static int demo_fs_exist(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *);
 static int demo_fs_remove(WT_FILE_SYSTEM *, WT_SESSION *, const char *);
 static int demo_fs_rename(
@@ -153,8 +157,7 @@ err:	free(demo_fs);
  */
 static int
 demo_fs_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
-    const char *name, uint32_t file_type, uint32_t flags,
-    WT_FILE_HANDLE **file_handlep)
+    const char *name, int file_type, u_int flags, WT_FILE_HANDLE **file_handlep)
 {
 	WT_FILE_HANDLE *file_handle;
 	DEMO_FILE_HANDLE *demo_fh;
@@ -201,7 +204,7 @@ demo_fs_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
 
 	/* Initialize public information. */
 	file_handle = (WT_FILE_HANDLE *)demo_fh;
-	if ((file_handle->name = (const char *)strdup(name)) == NULL) {
+	if ((file_handle->name = strdup(name)) == NULL) {
 		ret = ENOMEM;
 		goto err;
 	}
@@ -267,14 +270,14 @@ demo_fs_rename(WT_FILE_SYSTEM *file_system,
     WT_SESSION *session, const char *from, const char *to)
 {
 	DEMO_FILE_HANDLE *demo_fh;
-	const char *copy;
+	char *copy;
 
 	(void)session;						/* Unused */
 
 	if ((demo_fh = demo_handle_search(file_system, from)) == NULL)
 		return (ENOENT);
 
-	if ((copy = (const char *)strdup(to)) == NULL)
+	if ((copy = strdup(to)) == NULL)
 		return (ENOMEM);
 
 	free(demo_fh->iface.name);

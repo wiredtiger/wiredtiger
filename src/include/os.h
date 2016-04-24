@@ -70,12 +70,6 @@
 #define	POSIX_FADV_WILLNEED	0x02
 #endif
 
-#define	WT_OPEN_CREATE		0x001	/* Create */
-#define	WT_OPEN_DIRECTIO	0x002	/* Direct I/O (if available) */
-#define	WT_OPEN_EXCLUSIVE	0x004	/* Open exclusively */
-#define	WT_OPEN_FIXED		0x008	/* Path isn't relative to home */
-#define	WT_OPEN_READONLY	0x010	/* Open readonly (internal) */
-
 struct __wt_fh {
 	/*
 	 * There is a file name field in both the WT_FH and WT_FILE_HANDLE

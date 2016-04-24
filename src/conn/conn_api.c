@@ -1933,15 +1933,33 @@ err:		WT_TRET(__wt_fclose(session, &fs));
  */
 static int
 __conn_set_file_system(
-    WT_CONNECTION *connection, WT_FILE_SYSTEM *fs, const char *config)
+    WT_CONNECTION *wt_conn, WT_FILE_SYSTEM *fs, const char *config)
 {
-	WT_CONNECTION_IMPL * conn;
-	/* TODO: Error checking? */
-	WT_UNUSED(config);
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
 
-	conn = (WT_CONNECTION_IMPL *)connection;
+	conn = (WT_CONNECTION_IMPL *)wt_conn;
+	CONNECTION_API_CALL(conn, session, set_file_system, config, cfg);
+	WT_UNUSED(cfg);
+
+	/*
+	 * We don't require directory-list, directory-sync or terminate methods,
+	 * all others are required.
+	 */
+#define	WT_CONN_SET_FILE_SYSTEM_REQ(method)				\
+	if (fs->method == NULL)						\
+		WT_RET_MSG(session, EINVAL,				\
+		    "a %s function must be configured", #method)
+	WT_CONN_SET_FILE_SYSTEM_REQ(exist);
+	WT_CONN_SET_FILE_SYSTEM_REQ(open_file);
+	WT_CONN_SET_FILE_SYSTEM_REQ(remove);
+	WT_CONN_SET_FILE_SYSTEM_REQ(rename);
+	WT_CONN_SET_FILE_SYSTEM_REQ(size);
+
 	conn->file_system = fs;
-	return (0);
+
+err:	API_END_RET(session, ret);
 }
 
 /*
@@ -2026,18 +2044,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	/* Basic initialization of the connection structure. */
 	WT_ERR(__wt_connection_init(conn));
 
-	/*
-	 * Load early extensions before doing further initialization. Some
-	 * extensions modify fundamentals that are used during connection
-	 * create. There are restrictions on which fields within the connection
-	 * those extension initializers can access.
-	 * This may need to move even earlier if we allowed overriding memory
-	 * allocators via the extensions mechanism.
-	 * TODO: Do we want to include the environment and/or default
-	 * configuration strings?
-	 */
-	WT_ERR(__conn_load_early_extensions(session, config));
-
 	/* Check the application-specified configuration string. */
 	WT_ERR(__wt_config_check(session,
 	    WT_CONFIG_REF(session, wiredtiger_open), config, 0));
@@ -2076,10 +2082,25 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 		F_SET(conn, WT_CONN_READONLY);
 
 	/*
-	 * After checking readonly and in-memory, but before we do anything that
-	 * touches the filesystem, configure the OS layer.
+	 * Load early extensions before doing further initialization (one early
+	 * extension is to configure a file system).
 	 */
-	WT_ERR(__wt_os_init(session));
+	WT_ERR(__conn_load_early_extensions(session, config));
+
+	/*
+	 * If the application didn't configure its own file system, configure
+	 * one of ours.
+	 */
+	if (conn->file_system == NULL) {
+		if (F_ISSET(conn, WT_CONN_IN_MEMORY))
+			WT_ERR(__wt_os_inmemory(session));
+		else
+#if defined(_MSC_VER)
+			WT_ERR(__wt_os_win(session));
+#else
+			WT_ERR(__wt_os_posix(session));
+#endif
+	}
 
 	/*
 	 * Capture the config_base setting file for later use. Again, if the
