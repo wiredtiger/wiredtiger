@@ -25,45 +25,14 @@ __fhandle_allocate_notsup(WT_FILE_HANDLE *file_handle,
 }
 
 /*
- * __fhandle_truncate_notsup --
- *	POSIX ftruncate.
- */
-static int
-__fhandle_truncate_notsup(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t len)
-{
-	WT_SESSION_IMPL *session;
-
-	session = (WT_SESSION_IMPL *)wt_session;
-	WT_UNUSED(len);
-	WT_RET_MSG(session, ENOTSUP, "%s: file-truncate", file_handle->name);
-}
-
-/*
- * __fhandle_write_notsup --
- *	POSIX pwrite.
- */
-static int
-__fhandle_write_notsup(WT_FILE_HANDLE *file_handle,
-    WT_SESSION *wt_session, wt_off_t offset, size_t len, const void *buf)
-{
-	WT_SESSION_IMPL *session;
-
-	session = (WT_SESSION_IMPL *)wt_session;
-	WT_UNUSED(offset);
-	WT_UNUSED(len);
-	WT_UNUSED(buf);
-	WT_RET_MSG(session, ENOTSUP, "%s: file-write", file_handle->name);
-}
-
-/*
  * __fhandle_method_finalize --
  *	Initialize any NULL WT_FH structure methods to not-supported. Doing
  *	this means that custom file systems with incomplete implementations
  *	won't dereference NULL pointers.
  */
 static int
-__fhandle_method_finalize(WT_SESSION_IMPL *session, WT_FILE_HANDLE *handle)
+__fhandle_method_finalize(
+    WT_SESSION_IMPL *session, WT_FILE_HANDLE *handle, bool readonly)
 {
 #define	WT_HANDLE_METHOD_REQ(name)					\
 	if (handle->name == NULL)					\
@@ -82,10 +51,10 @@ __fhandle_method_finalize(WT_SESSION_IMPL *session, WT_FILE_HANDLE *handle)
 	WT_HANDLE_METHOD_REQ(read);
 	WT_HANDLE_METHOD_REQ(size);
 	/* sync is not required */
-	if (handle->truncate == NULL)
-		handle->truncate = __fhandle_truncate_notsup;
-	if (handle->write == NULL)
-		handle->write = __fhandle_write_notsup;
+	if (!readonly) {
+		WT_HANDLE_METHOD_REQ(truncate);
+		WT_HANDLE_METHOD_REQ(write);
+	}
 
 	return (0);
 }
@@ -315,7 +284,8 @@ __wt_open(WT_SESSION_IMPL *session,
 	    path == NULL ? name : path, file_type, flags, &fh->handle));
 	open_called = true;
 
-	WT_ERR(__fhandle_method_finalize(session, fh->handle));
+	WT_ERR(__fhandle_method_finalize(
+	    session, fh->handle, LF_ISSET(WT_OPEN_READONLY)));
 
 	/*
 	 * Repeat the check for a match: if there's no match, link our newly

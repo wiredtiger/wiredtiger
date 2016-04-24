@@ -3724,7 +3724,7 @@ struct __wt_extractor {
 #ifndef DOXYGEN
 #define	WT_OPEN_FIXED		0x008	/* Path not home relative (internal) */
 #endif
-/*! WT_FILE_SYSTEM::open_file flags: open is readonly */
+/*! WT_FILE_SYSTEM::open_file flags: open is read-only */
 #define	WT_OPEN_READONLY	0x010
 
 /*!
@@ -4092,8 +4092,10 @@ struct __wt_file_handle {
 	int (*sync_nowait)(WT_FILE_HANDLE *file_handle, WT_SESSION *session);
 
 	/*!
-	 * Extend to truncate a file to the desired length, based on the POSIX
-	 * 1003.1 standard ftruncate.
+	 * Lengthen or shorten a file to the specified length, based on the
+	 * POSIX 1003.1 standard ftruncate. This method is not required for
+	 * read-only files, and should be set to NULL when not supported by
+	 * the file.
 	 *
 	 * @errors
 	 *
@@ -4101,13 +4103,15 @@ struct __wt_file_handle {
 	 *
 	 * @param file_handle the WT_FILE_HANDLE
 	 * @param session the current WiredTiger session
-	 * @param len desired file size after truncate
+	 * @param length desired file size after truncate
 	 */
 	int (*truncate)(
-	    WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t len);
+	    WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t length);
 
 	/*!
-	 * Write to a file, based on the POSIX 1003.1 standard pwrite.
+	 * Write to a file, based on the POSIX 1003.1 standard pwrite. This
+	 * method is not required for read-only files, and should be set to
+	 * NULL when not supported by the file.
 	 *
 	 * @errors
 	 *
@@ -4116,11 +4120,11 @@ struct __wt_file_handle {
 	 * @param file_handle the WT_FILE_HANDLE
 	 * @param session the current WiredTiger session
 	 * @param offset offset at which to start writing
-	 * @param len amount of data to write
+	 * @param length amount of data to write
 	 * @param buf content to be written to the file
 	 */
-	int (*write)(WT_FILE_HANDLE *file_handle,
-	    WT_SESSION *session, wt_off_t offset, size_t len, const void *buf);
+	int (*write)(WT_FILE_HANDLE *file_handle, WT_SESSION *session,
+	    wt_off_t offset, size_t length, const void *buf);
 };
 
 /*!
