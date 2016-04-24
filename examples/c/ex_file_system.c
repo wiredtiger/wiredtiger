@@ -268,20 +268,18 @@ demo_fs_rename(WT_FILE_SYSTEM *file_system,
 {
 	DEMO_FILE_HANDLE *demo_fh;
 	const char *copy;
-	int ret = 0;
 
 	(void)session;						/* Unused */
 
-	ret = ENOENT;
-	if ((demo_fh = demo_handle_search(file_system, from)) != NULL) {
-		if ((copy = (const char *)strdup(to)) == NULL)
-			return (ENOMEM);
+	if ((demo_fh = demo_handle_search(file_system, from)) == NULL)
+		return (ENOENT);
 
-		free((char *)demo_fh->iface.name);
-		demo_fh->iface.name = copy;
-	}
+	if ((copy = (const char *)strdup(to)) == NULL)
+		return (ENOMEM);
 
-	return (ret);
+	free(demo_fh->iface.name);
+	demo_fh->iface.name = copy;
+	return (0);
 }
 
 /*
@@ -515,7 +513,7 @@ demo_handle_remove(WT_SESSION *session, DEMO_FILE_HANDLE *demo_fh)
 	demo_fh->buf = NULL;
 
 	/* Clean up public information. */
-	free((void *)demo_fh->iface.name);
+	free(demo_fh->iface.name);
 
 	free(demo_fh);
 
