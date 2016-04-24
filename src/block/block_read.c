@@ -19,6 +19,7 @@ __wt_bm_preload(
 	WT_BLOCK *block;
 	WT_DECL_ITEM(tmp);
 	WT_DECL_RET;
+	WT_FILE_HANDLE *handle;
 	wt_off_t offset;
 	uint32_t cksum, size;
 	bool mapped;
@@ -40,10 +41,14 @@ __wt_bm_preload(
 			ret = block->fh->handle->map_preload(
 			    block->fh->handle, (WT_SESSION *)session,
 			    (uint8_t *)bm->map + offset, size);
-		else
-			ret = block->fh->handle->fadvise(block->fh->handle,
+		else {
+			handle = block->fh->handle;
+			ret = handle->fadvise == NULL ? 0:
+			    handle->fadvise(handle,
 			    (WT_SESSION *)session, (wt_off_t)offset,
 			    (wt_off_t)size, WT_FILE_HANDLE_WILLNEED);
+		}
+
 		if (ret == 0)
 			return (0);
 

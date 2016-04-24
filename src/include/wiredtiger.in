@@ -3909,8 +3909,9 @@ struct __wt_file_handle {
 	int (*close)(WT_FILE_HANDLE *file_handle, WT_SESSION *session);
 
 	/*!
-	 * Indicate expected future use of ranges in the file, based on the
-	 * POSIX 1003.1 standard fadvise.
+	 * Indicate expected future use of file ranges, based on the POSIX
+	 * 1003.1 standard fadvise. This method is not required, and should
+	 * be set to NULL when not supported by the file.
 	 *
 	 * @errors
 	 *
@@ -4021,8 +4022,8 @@ struct __wt_file_handle {
 	 * @param len the length of the mapped region
 	 * @param mappingcookie optional application provided data
 	 */
-	int (*unmap)(WT_FILE_HANDLE *file_handle, WT_SESSION *session,
-	    void *map, size_t len, void **mappingcookie);
+	int (*unmap)(WT_FILE_HANDLE *file_handle,
+	    WT_SESSION *session, void *map, size_t len, void **mappingcookie);
 
 	/*!
 	 * Read from a file, based on the POSIX 1003.1 standard pread.
@@ -4037,8 +4038,8 @@ struct __wt_file_handle {
 	 * @param len the amount to read
 	 * @param[out] buf buffer to hold the content read from file
 	 */
-	int (*read)(WT_FILE_HANDLE *file_handle, WT_SESSION *session,
-	    wt_off_t offset, size_t len, void *buf);
+	int (*read)(WT_FILE_HANDLE *file_handle,
+	    WT_SESSION *session, wt_off_t offset, size_t len, void *buf);
 
 	/*!
 	 * Return the size of a file.

@@ -1947,10 +1947,10 @@ __conn_set_file_system(
 	 * We don't require directory-list, directory-sync or terminate methods,
 	 * all others are required.
 	 */
-#define	WT_CONN_SET_FILE_SYSTEM_REQ(method)				\
-	if (fs->method == NULL)						\
+#define	WT_CONN_SET_FILE_SYSTEM_REQ(name)				\
+	if (fs->name == NULL)						\
 		WT_RET_MSG(session, EINVAL,				\
-		    "a %s function must be configured", #method)
+		    "a %s file system method must be configured", #name)
 	WT_CONN_SET_FILE_SYSTEM_REQ(exist);
 	WT_CONN_SET_FILE_SYSTEM_REQ(open_file);
 	WT_CONN_SET_FILE_SYSTEM_REQ(remove);

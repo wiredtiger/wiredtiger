@@ -47,29 +47,27 @@ __wt_block_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t len)
 int
 __wt_block_discard(WT_SESSION_IMPL *session, WT_BLOCK *block, size_t added_size)
 {
-	WT_DECL_RET;
+	WT_FILE_HANDLE *handle;
 
+	/* The file may not support this call. */
+	handle = block->fh->handle;
+	if (handle->fadvise == NULL)
+		return (0);
+
+	/* The call may not be configured. */
 	if (block->os_cache_max == 0)
 		return (0);
 
 	/*
 	 * We're racing on the addition, but I'm not willing to serialize on it
-	 * in the standard read path with more evidence it's needed.
+	 * in the standard read path without evidence it's needed.
 	 */
 	if ((block->os_cache += added_size) <= block->os_cache_max)
 		return (0);
 
 	block->os_cache = 0;
-	WT_ERR(block->fh->handle->fadvise(
-	    block->fh->handle, (WT_SESSION *)session,
+	return (handle->fadvise(handle, (WT_SESSION *)session,
 	    (wt_off_t)0, (wt_off_t)0, WT_FILE_HANDLE_DONTNEED));
-	return (0);
-
-err:	/* Ignore ENOTSUP, but don't try again. */
-	if (ret != ENOTSUP)
-		return (ret);
-	block->os_cache_max = 0;
-	return (0);
 }
 
 /*

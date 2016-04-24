@@ -9,24 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __fhandle_advise_notsup --
- *	POSIX fadvise unsupported.
- */
-static int
-__fhandle_advise_notsup(WT_FILE_HANDLE *file_handle,
-    WT_SESSION *wt_session, wt_off_t offset, wt_off_t len, int advice)
-{
-	WT_UNUSED(file_handle);
-	WT_UNUSED(wt_session);
-	WT_UNUSED(offset);
-	WT_UNUSED(len);
-	WT_UNUSED(advice);
-
-	/* Quietly fail, callers expect not-supported failures. */
-	return (ENOTSUP);
-}
-
-/*
  * __fhandle_allocate_notsup --
  *	POSIX fallocate unsupported.
  */
@@ -40,19 +22,6 @@ __fhandle_allocate_notsup(WT_FILE_HANDLE *file_handle,
 	WT_UNUSED(offset);
 	WT_UNUSED(len);
 	WT_RET_MSG(session, ENOTSUP, "%s: file-allocate", file_handle->name);
-}
-
-/*
- * __fhandle_close_notsup --
- *	ANSI C close/fclose unsupported.
- */
-static int
-__fhandle_close_notsup(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
-{
-	WT_SESSION_IMPL *session;
-
-	session = (WT_SESSION_IMPL *)wt_session;
-	WT_RET_MSG(session, ENOTSUP, "%s: file-close", file_handle->name);
 }
 
 /*
@@ -221,22 +190,19 @@ __fhandle_write_notsup(WT_FILE_HANDLE *file_handle,
  *	this means that custom file systems with incomplete implementations
  *	won't dereference NULL pointers.
  */
-static void
-__fhandle_method_finalize(WT_FH *fh)
+static int
+__fhandle_method_finalize(WT_SESSION_IMPL *session, WT_FILE_HANDLE *handle)
 {
-	WT_FILE_HANDLE *handle;
+#define	WT_HANDLE_METHOD_REQ(name)					\
+	if (handle->name == NULL)					\
+		WT_RET_MSG(session, EINVAL,				\
+		    "a %s handle method must be configured", #name)
 
-	handle = fh->handle;
-	/*
-	 * Set up the initial set of handle methods to standard "not-supported"
-	 * functions, the underlying open functions turn on supported functions.
-	 */
-	if (handle->fadvise == NULL)
-		handle->fadvise = __fhandle_advise_notsup;
+	WT_HANDLE_METHOD_REQ(close);
+	/* fadvise is not required */
+
 	if (handle->fallocate == NULL)
 		handle->fallocate = __fhandle_allocate_notsup;
-	if (handle->close == NULL)
-		handle->close = __fhandle_close_notsup;
 	if (handle->lock == NULL)
 		handle->lock = __fhandle_lock_notsup;
 	if (handle->map == NULL)
@@ -257,6 +223,8 @@ __fhandle_method_finalize(WT_FH *fh)
 		handle->truncate = __fhandle_truncate_notsup;
 	if (handle->write == NULL)
 		handle->write = __fhandle_write_notsup;
+
+	return (0);
 }
 
 #ifdef HAVE_DIAGNOSTIC
@@ -484,7 +452,7 @@ __wt_open(WT_SESSION_IMPL *session,
 	    path == NULL ? name : path, file_type, flags, &fh->handle));
 	open_called = true;
 
-	__fhandle_method_finalize(fh);
+	WT_ERR(__fhandle_method_finalize(session, fh->handle));
 
 	/*
 	 * Repeat the check for a match: if there's no match, link our newly
