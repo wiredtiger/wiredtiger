@@ -383,8 +383,7 @@ __posix_file_size(
  *	POSIX fsync.
  */
 static int
-__posix_file_sync(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool block)
+__posix_file_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
 	WT_FILE_HANDLE_POSIX *pfh;
 	WT_SESSION_IMPL *session;
@@ -393,7 +392,24 @@ __posix_file_sync(
 	pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
 	return (__posix_sync(
-	    session, pfh->fd, file_handle->name, "handle-sync", block));
+	    session, pfh->fd, file_handle->name, "handle-sync", true));
+}
+
+/*
+ * __posix_file_sync_nowait --
+ *	POSIX fsync.
+ */
+static int
+__posix_file_sync_nowait(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
+{
+	WT_FILE_HANDLE_POSIX *pfh;
+	WT_SESSION_IMPL *session;
+
+	session = (WT_SESSION_IMPL *)wt_session;
+	pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
+
+	return (__posix_sync(
+	    session, pfh->fd, file_handle->name, "handle-sync", false));
 }
 
 /*
@@ -628,6 +644,7 @@ directory_open:
 	file_handle->read = __posix_file_read;
 	file_handle->size = __posix_file_size;
 	file_handle->sync = __posix_file_sync;
+	file_handle->sync_nowait = __posix_file_sync_nowait;
 	file_handle->truncate = __posix_file_truncate;
 	file_handle->write = __posix_file_write;
 

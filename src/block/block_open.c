@@ -200,9 +200,6 @@ __wt_block_open(WT_SESSION_IMPL *session,
 	/* Set the file extension information. */
 	block->extend_len = conn->data_extend_len;
 
-	/* Set the asynchronous flush availability. */
-	block->nowait_sync_available = true;
-
 	/*
 	 * Open the underlying file handle.
 	 *

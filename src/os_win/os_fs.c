@@ -292,8 +292,7 @@ __win_file_size(
  *	MSVC fsync.
  */
 static int
-__win_file_sync(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool block)
+__win_file_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_WIN *win_fh;
@@ -310,13 +309,6 @@ __win_file_sync(
 	 */
 	if (win_fh->filehandle == INVALID_HANDLE_VALUE)
 		return (0);
-
-	/*
-	 * Callers attempting asynchronous flush handle ENOTSUP returns,
-	 * and won't make further attempts.
-	 */
-	if (!block)
-		return (ENOTSUP);
 
 	if (FlushFileBuffers(win_fh->filehandle) == FALSE) {
 		ret = __wt_getlasterror();

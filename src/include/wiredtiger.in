@@ -4066,7 +4066,9 @@ struct __wt_file_handle {
 	    WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *sizep);
 
 	/*!
-	 * Make file writes durable.
+	 * Make file writes durable and do not return until writes are complete.
+	 * This method is not required, and should be set to NULL when not
+	 * supported by the file.
 	 *
 	 * @errors
 	 *
@@ -4074,10 +4076,20 @@ struct __wt_file_handle {
 	 *
 	 * @param file_handle the WT_FILE_HANDLE
 	 * @param session the current WiredTiger session
-	 * @param block whether the flush should be synchronous or asynchronous
 	 */
-	int (*sync)(
-	    WT_FILE_HANDLE *file_handle, WT_SESSION *session, bool block);
+	int (*sync)(WT_FILE_HANDLE *file_handle, WT_SESSION *session);
+
+	/*!
+	 * Start the file writes required for durability and return immediately.
+	 * This method is not required, and should be set to NULL when not
+	 * supported by the file.
+	 *
+	 * @errors
+	 *
+	 * @param file_handle the WT_FILE_HANDLE
+	 * @param session the current WiredTiger session
+	 */
+	int (*sync_nowait)(WT_FILE_HANDLE *file_handle, WT_SESSION *session);
 
 	/*!
 	 * Extend to truncate a file to the desired length, based on the POSIX

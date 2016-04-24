@@ -98,7 +98,6 @@ static int demo_file_lock(WT_FILE_HANDLE *, WT_SESSION *, bool);
 static int demo_file_read(
     WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t, void *);
 static int demo_file_size(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t *);
-static int demo_file_sync(WT_FILE_HANDLE *, WT_SESSION *, bool);
 static int demo_file_truncate(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t);
 static int demo_file_write(
     WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t, const void *);
@@ -213,7 +212,8 @@ demo_fs_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
 	file_handle->lock = demo_file_lock;
 	file_handle->read = demo_file_read;
 	file_handle->size = demo_file_size;
-	file_handle->sync = demo_file_sync;
+	file_handle->sync = NULL;
+	file_handle->sync_nowait = NULL;
 	file_handle->truncate = demo_file_truncate;
 	file_handle->write = demo_file_write;
 
@@ -415,20 +415,6 @@ demo_file_size(
 
 	assert(demo_fh->size != 0);
 	*sizep = (wt_off_t)demo_fh->size;
-	return (0);
-}
-
-/*
- * demo_file_sync --
- *	POSIX fflush/fsync.
- */
-static int
-demo_file_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *session, bool block)
-{
-	(void)file_handle;					/* Unused */
-	(void)session;						/* Unused */
-	(void)block;						/* Unused */
-
 	return (0);
 }
 

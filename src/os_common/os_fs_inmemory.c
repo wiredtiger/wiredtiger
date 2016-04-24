@@ -276,23 +276,6 @@ __im_file_size(
 }
 
 /*
- * __im_file_sync --
- *	POSIX fflush/fsync.
- */
-static int
-__im_file_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool block)
-{
-	WT_UNUSED(file_handle);
-	WT_UNUSED(wt_session);
-
-	/*
-	 * Callers attempting asynchronous flush handle ENOTSUP returns, and
-	 * won't make further attempts.
-	 */
-	return (block ? 0 : ENOTSUP);
-}
-
-/*
  * __im_file_truncate --
  *	POSIX ftruncate.
  */
@@ -421,7 +404,6 @@ __im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	file_handle->lock = __im_file_lock;
 	file_handle->read = __im_file_read;
 	file_handle->size = __im_file_size;
-	file_handle->sync = __im_file_sync;
 	file_handle->truncate = __im_file_truncate;
 	file_handle->write = __im_file_write;
 

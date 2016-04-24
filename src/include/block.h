@@ -224,7 +224,6 @@ struct __wt_block {
 	wt_off_t size;			/* File size */
 	wt_off_t extend_size;		/* File extended size */
 	wt_off_t extend_len;		/* File extend chunk size */
-	bool	 nowait_sync_available;	/* File can flush asynchronously */
 
 	/* Configuration information, set when the file is opened. */
 	uint32_t allocfirst;		/* Allocation is first-fit */

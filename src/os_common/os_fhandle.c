@@ -25,53 +25,6 @@ __fhandle_allocate_notsup(WT_FILE_HANDLE *file_handle,
 }
 
 /*
- * __fhandle_read_notsup --
- *	POSIX pread unsupported.
- */
-static int
-__fhandle_read_notsup(WT_FILE_HANDLE *file_handle,
-    WT_SESSION *wt_session, wt_off_t offset, size_t len, void *buf)
-{
-	WT_SESSION_IMPL *session;
-
-	session = (WT_SESSION_IMPL *)wt_session;
-	WT_UNUSED(offset);
-	WT_UNUSED(len);
-	WT_UNUSED(buf);
-	WT_RET_MSG(session, ENOTSUP, "%s: file-read", file_handle->name);
-}
-
-/*
- * __fhandle_size_notsup --
- *	Get the size of a file in bytes unsupported.
- */
-static int
-__fhandle_size_notsup(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t *sizep)
-{
-	WT_SESSION_IMPL *session;
-
-	session = (WT_SESSION_IMPL *)wt_session;
-	WT_UNUSED(sizep);
-	WT_RET_MSG(session, ENOTSUP, "%s: file-size", file_handle->name);
-}
-
-/*
- * __fhandle_sync_notsup --
- *	POSIX fsync unsupported.
- */
-static int
-__fhandle_sync_notsup(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool block)
-{
-	WT_SESSION_IMPL *session;
-
-	session = (WT_SESSION_IMPL *)wt_session;
-	WT_UNUSED(block);
-	WT_RET_MSG(session, ENOTSUP, "%s: file-sync", file_handle->name);
-}
-
-/*
  * __fhandle_truncate_notsup --
  *	POSIX ftruncate.
  */
@@ -126,12 +79,9 @@ __fhandle_method_finalize(WT_SESSION_IMPL *session, WT_FILE_HANDLE *handle)
 	/* map_discard is not required */
 	/* map_preload is not required */
 	/* map_unmap is not required */
-	if (handle->read == NULL)
-		handle->read = __fhandle_read_notsup;
-	if (handle->size == NULL)
-		handle->size = __fhandle_size_notsup;
-	if (handle->sync == NULL)
-		handle->sync = __fhandle_sync_notsup;
+	WT_HANDLE_METHOD_REQ(read);
+	WT_HANDLE_METHOD_REQ(size);
+	/* sync is not required */
 	if (handle->truncate == NULL)
 		handle->truncate = __fhandle_truncate_notsup;
 	if (handle->write == NULL)
