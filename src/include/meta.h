@@ -16,6 +16,7 @@
 
 #define	WT_METADATA_BACKUP	"WiredTiger.backup"	/* Hot backup file */
 #define	WT_INCREMENTAL_BACKUP	"WiredTiger.ibackup"	/* Incremental backup */
+#define	WT_INCREMENTAL_SRC	"WiredTiger.isrc"	/* Incremental source */
 
 #define	WT_METADATA_TURTLE	"WiredTiger.turtle"	/* Metadata metadata */
 #define	WT_METADATA_TURTLE_SET	"WiredTiger.turtle.set"	/* Turtle temp file */
