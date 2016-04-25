@@ -13,29 +13,12 @@
  *	Underlying support function to flush a file handle.
  */
 static int
-__posix_sync(WT_SESSION_IMPL *session,
-    int fd, const char *name, const char *func, bool block)
+__posix_sync(
+    WT_SESSION_IMPL *session, int fd, const char *name, const char *func)
 {
 	WT_DECL_RET;
 
 	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_READONLY));
-
-#ifdef	HAVE_SYNC_FILE_RANGE
-	if (!block) {
-		WT_SYSCALL_RETRY(sync_file_range(fd,
-		    (off64_t)0, (off64_t)0, SYNC_FILE_RANGE_WRITE), ret);
-		if (ret == 0)
-			return (0);
-		WT_RET_MSG(session, ret, "%s: %s: sync_file_range", name, func);
-	}
-#else
-	/*
-	 * Callers attempting asynchronous flush handle ENOTSUP returns, and
-	 * won't make further attempts.
-	 */
-	if (!block)
-		return (ENOTSUP);
-#endif
 
 #if defined(F_FULLFSYNC)
 	/*
@@ -95,7 +78,7 @@ __posix_directory_sync(
 	if (ret != 0)
 		WT_RET_MSG(session, ret, "%s: directory-sync: open", path);
 
-	ret = __posix_sync(session, fd, path, "directory-sync", true);
+	ret = __posix_sync(session, fd, path, "directory-sync")
 
 	WT_SYSCALL_RETRY(close(fd), tret);
 	if (tret != 0) {
@@ -391,10 +374,11 @@ __posix_file_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 	session = (WT_SESSION_IMPL *)wt_session;
 	pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-	return (__posix_sync(
-	    session, pfh->fd, file_handle->name, "handle-sync", true));
+	return (
+	    __posix_sync(session, pfh->fd, file_handle->name, "handle-sync"));
 }
 
+#ifdef HAVE_SYNC_FILE_RANGE
 /*
  * __posix_file_sync_nowait --
  *	POSIX fsync.
@@ -402,15 +386,21 @@ __posix_file_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 static int
 __posix_file_sync_nowait(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
+	WT_DECL_RET;
 	WT_FILE_HANDLE_POSIX *pfh;
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-	return (__posix_sync(
-	    session, pfh->fd, file_handle->name, "handle-sync", false));
+	WT_SYSCALL_RETRY(sync_file_range(pfh->fd,
+	    (off64_t)0, (off64_t)0, SYNC_FILE_RANGE_WRITE), ret);
+	if (ret == 0)
+		return (0);
+	WT_RET_MSG(session, ret,
+	    "%s: handle-sync-nowait: sync_file_range", file_handle->name);
 }
+#endif
 
 /*
  * __posix_file_truncate --
@@ -644,7 +634,9 @@ directory_open:
 	file_handle->read = __posix_file_read;
 	file_handle->size = __posix_file_size;
 	file_handle->sync = __posix_file_sync;
+#ifdef HAVE_SYNC_FILE_RANGE
 	file_handle->sync_nowait = __posix_file_sync_nowait;
+#endif
 	file_handle->truncate = __posix_file_truncate;
 	file_handle->write = __posix_file_write;
 
