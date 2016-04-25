@@ -259,6 +259,7 @@ __backup_start(
 		 * the source directory versus an improper destination.
 		 */
 		WT_TRET(__wt_fclose(session, &cb->bfs));
+		WT_TRET(__wt_remove_if_exists(session, WT_METADATA_BACKUP));
 		WT_ERR(__wt_fopen(session, WT_INCREMENTAL_BACKUP,
 		    WT_OPEN_CREATE, WT_STREAM_WRITE, &cb->bfs));
 		WT_ERR(__wt_fopen(session, WT_INCREMENTAL_SRC,
