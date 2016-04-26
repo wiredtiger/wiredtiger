@@ -170,6 +170,8 @@ __win_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 		    "%s: handle-close: secondary: CloseHandle", win_fh->name);
 	}
 
+	__wt_free(session, file_handle->name);
+	__wt_free(session, win_fh;
 	return (ret);
 }
 
@@ -408,7 +410,6 @@ __win_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
     const char *name, int file_type, u_int flags, WT_FILE_HANDLE **file_handlep)
 {
 	DWORD dwCreationDisposition;
-	HANDLE filehandle, filehandle_secondary;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_FILE_HANDLE *file_handle;
@@ -428,8 +429,8 @@ __win_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	win_fh->direct_io = false;
 
 	/* Set up error handling. */
-	win_fh->filehandle = win_fh->filehandle_secondary =
-	    filehandle = filehandle_secondary = INVALID_HANDLE_VALUE;
+	win_fh->filehandle =
+	    win_fh->filehandle_secondary = INVALID_HANDLE_VALUE;
 
 	/*
 	 * Opening a file handle on a directory is only to support filesystems
@@ -480,16 +481,16 @@ __win_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	if (file_type == WT_FILE_TYPE_DATA)
 		f |= FILE_FLAG_RANDOM_ACCESS;
 
-	filehandle = CreateFileA(name, desired_access,
+	win_fh->filehandle = CreateFileA(name, desired_access,
 	    FILE_SHARE_READ | FILE_SHARE_WRITE,
 	    NULL, dwCreationDisposition, f, NULL);
-	if (filehandle == INVALID_HANDLE_VALUE) {
+	if (win_fh->filehandle == INVALID_HANDLE_VALUE) {
 		if (LF_ISSET(WT_OPEN_CREATE) &&
 		    GetLastError() == ERROR_FILE_EXISTS)
-			filehandle = CreateFileA(name, desired_access,
+			win_fh->filehandle = CreateFileA(name, desired_access,
 			    FILE_SHARE_READ | FILE_SHARE_WRITE,
 			    NULL, OPEN_EXISTING, f, NULL);
-		if (filehandle == INVALID_HANDLE_VALUE)
+		if (win_fh->filehandle == INVALID_HANDLE_VALUE)
 			WT_ERR_MSG(session, __wt_getlasterror(),
 			    win_fh->direct_io ?
 			    "%s: handle-open: CreateFileA: failed with direct "
@@ -504,10 +505,10 @@ __win_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	 * pointer.
 	 */
 	if (!LF_ISSET(WT_OPEN_READONLY)) {
-		filehandle_secondary = CreateFileA(name, desired_access,
+		win_fh->filehandle_secondary = CreateFileA(name, desired_access,
 		    FILE_SHARE_READ | FILE_SHARE_WRITE,
 		    NULL, OPEN_EXISTING, f, NULL);
-		if (filehandle_secondary == INVALID_HANDLE_VALUE)
+		if (win_fh->filehandle_secondary == INVALID_HANDLE_VALUE)
 			WT_ERR_MSG(session, __wt_getlasterror(),
 			    "%s: handle-open: CreateFileA: secondary", name);
 	}
@@ -516,9 +517,6 @@ __win_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	__win_file_allocate_configure(session, win_fh);
 
 directory_open:
-	win_fh->filehandle = filehandle;
-	win_fh->filehandle_secondary = filehandle_secondary;
-
 	/* Initialize public information. */
 	file_handle = (WT_FILE_HANDLE *)win_fh;
 	WT_ERR(__wt_strdup(session, name, &file_handle->name));
@@ -546,11 +544,7 @@ directory_open:
 
 	return (0);
 
-err:	if (filehandle != INVALID_HANDLE_VALUE)
-		(void)CloseHandle(filehandle);
-	if (filehandle_secondary != INVALID_HANDLE_VALUE)
-		(void)CloseHandle(filehandle_secondary);
-
+err:	WT_TRET(__win_file_close((WT_FILE_HANDLE *)win_fh, wt_session));
 	return (ret);
 }
 

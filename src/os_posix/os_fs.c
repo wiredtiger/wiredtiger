@@ -259,6 +259,7 @@ __posix_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 			__wt_err(session, ret,
 			    "%s: handle-close: close", file_handle->name);
 	}
+
 	__wt_free(session, file_handle->name);
 	__wt_free(session, pfh);
 	return (ret);
@@ -506,7 +507,7 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	WT_FILE_HANDLE_POSIX *pfh;
 	WT_SESSION_IMPL *session;
 	mode_t mode;
-	int f, fd, tret;
+	int f;
 
 	WT_UNUSED(file_system);
 
@@ -518,7 +519,7 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	WT_RET(__wt_calloc_one(session, &pfh));
 
 	/* Set up error handling. */
-	pfh->fd = fd = -1;
+	pfh->fd = -1;
 
 	if (file_type == WT_FILE_TYPE_DIRECTORY) {
 		f = O_RDONLY;
@@ -531,10 +532,10 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 		f |= O_CLOEXEC;
 #endif
 		WT_SYSCALL_RETRY((
-		    (fd = open(name, f, 0444)) == -1 ? 1 : 0), ret);
+		    (pfh->fd = open(name, f, 0444)) == -1 ? 1 : 0), ret);
 		if (ret != 0)
 			WT_ERR_MSG(session, ret, "%s: handle-open: open", name);
-		WT_ERR(__posix_open_file_cloexec(session, fd, name));
+		WT_ERR(__posix_open_file_cloexec(session, pfh->fd, name));
 		goto directory_open;
 	}
 
@@ -585,20 +586,20 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 #endif
 	}
 
-	WT_SYSCALL_RETRY(((fd = open(name, f, mode)) == -1 ? 1 : 0), ret);
+	WT_SYSCALL_RETRY(((pfh->fd = open(name, f, mode)) == -1 ? 1 : 0), ret);
 	if (ret != 0)
 		WT_ERR_MSG(session, ret,
 		    pfh->direct_io ?
 		    "%s: handle-open: open: failed with direct I/O configured, "
 		    "some filesystem types do not support direct I/O" :
 		    "%s: handle-open: open", name);
-	WT_ERR(__posix_open_file_cloexec(session, fd, name));
+	WT_ERR(__posix_open_file_cloexec(session, pfh->fd, name));
 
 	/* Disable read-ahead on trees: it slows down random read workloads. */
 #if defined(HAVE_POSIX_FADVISE)
 	if (file_type == WT_FILE_TYPE_DATA) {
 		WT_SYSCALL_RETRY(
-		    posix_fadvise(fd, 0, 0, POSIX_FADV_RANDOM), ret);
+		    posix_fadvise(pfh->fd, 0, 0, POSIX_FADV_RANDOM), ret);
 		if (ret != 0)
 			WT_ERR_MSG(session, ret,
 			    "%s: handle-open: posix_fadvise", name);
@@ -606,8 +607,6 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 #endif
 
 directory_open:
-	pfh->fd = fd;
-
 	/* Configure fallocate calls. */
 	__wt_posix_file_allocate_configure(session, pfh);
 
@@ -645,16 +644,7 @@ directory_open:
 
 	return (0);
 
-err:	if (fd != -1) {
-		WT_SYSCALL_RETRY(close(fd), tret);
-		if (tret != 0)
-			__wt_err(session, tret, "%s: handle-open: close", name);
-	}
-	if (pfh != NULL) {
-		file_handle = (WT_FILE_HANDLE *)pfh;
-		__wt_free(session, file_handle->name);
-		__wt_free(session, pfh);
-	}
+err:	WT_TRET(__posix_file_close((WT_FILE_HANDLE *)pfh, wt_session));
 	return (ret);
 }
 
