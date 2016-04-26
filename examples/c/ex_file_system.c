@@ -381,7 +381,7 @@ demo_file_read(WT_FILE_HANDLE *file_handle,
 
 	off = (size_t)offset;
 	if (off < demo_fh->size) {
-		if (len < demo_fh->size - off)
+		if (len > demo_fh->size - off)
 			len = demo_fh->size - off;
 		memcpy(buf, (uint8_t *)demo_fh->buf + off, len);
 		demo_fh->off = off + len;
