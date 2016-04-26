@@ -193,6 +193,7 @@ __backup_start(
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_FSTREAM *srcfs;
+	const char *dest;
 	bool exist, log_only, target_list;
 
 	conn = S2C(session);
@@ -226,12 +227,14 @@ __backup_start(
 	WT_ERR(__wt_writeunlock(session, conn->hot_backup_lock));
 
 	/*
-	 * Create the hot backup file.  This must be opened before generating
-	 * the list of targets in backup_uri.  If we are doing an incremental
-	 * backup, we do not know that until later, when we'll close this file
-	 * and open up the incremental backup file.
+	 * Create a temporary backup file.  This must be opened before
+	 * generating the list of targets in backup_uri.  This file will
+	 * later be renamed to the correct name depending on whether or not
+	 * we're doing an incremental backup.  We need a temp file so that if
+	 * we fail or crash while filling it, the existence of a partial file
+	 * doesn't confuse restarting in the source database.
 	 */
-	WT_ERR(__wt_fopen(session, WT_METADATA_BACKUP,
+	WT_ERR(__wt_fopen(session, WT_BACKUP_TMP,
 	    WT_OPEN_CREATE, WT_STREAM_WRITE, &cb->bfs));
 	/*
 	 * If a list of targets was specified, work our way through them.
@@ -252,21 +255,17 @@ __backup_start(
 	/* Add the hot backup and standard WiredTiger files to the list. */
 	if (log_only) {
 		/*
-		 * Close any hot backup file.
-		 * We're about to open the incremental backup file.
 		 * We also open an incremental backup source file so that we
 		 * can detect a crash with an incremental backup existing on
 		 * the source directory versus an improper destination.
 		 */
-		WT_TRET(__wt_fclose(session, &cb->bfs));
-		WT_TRET(__wt_remove_if_exists(session, WT_METADATA_BACKUP));
-		WT_ERR(__wt_fopen(session, WT_INCREMENTAL_BACKUP,
-		    WT_OPEN_CREATE, WT_STREAM_WRITE, &cb->bfs));
+		dest = WT_INCREMENTAL_BACKUP;
 		WT_ERR(__wt_fopen(session, WT_INCREMENTAL_SRC,
 		    WT_OPEN_CREATE, WT_STREAM_WRITE, &srcfs));
 		WT_ERR(__backup_list_append(
 		    session, cb, WT_INCREMENTAL_BACKUP));
 	} else {
+		dest = WT_METADATA_BACKUP;
 		WT_ERR(__backup_list_append(session, cb, WT_METADATA_BACKUP));
 		WT_ERR(__wt_exist(session, WT_BASECONFIG, &exist));
 		if (exist)
@@ -286,7 +285,8 @@ err:	/* Close the hot backup file. */
 	if (ret != 0) {
 		WT_TRET(__backup_cleanup_handles(session, cb));
 		WT_TRET(__backup_stop(session));
-	}
+	} else
+		WT_TRET(__wt_rename(session, WT_BACKUP_TMP, dest));
 
 	return (ret);
 }
@@ -435,6 +435,7 @@ __wt_backup_file_remove(WT_SESSION_IMPL *session)
 {
 	WT_DECL_RET;
 
+	WT_TRET(__wt_remove_if_exists(session, WT_BACKUP_TMP));
 	WT_TRET(__wt_remove_if_exists(session, WT_INCREMENTAL_BACKUP));
 	WT_TRET(__wt_remove_if_exists(session, WT_INCREMENTAL_SRC));
 	WT_TRET(__wt_remove_if_exists(session, WT_METADATA_BACKUP));
