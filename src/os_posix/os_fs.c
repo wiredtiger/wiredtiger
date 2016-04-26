@@ -190,6 +190,7 @@ __posix_fs_size(WT_FILE_SYSTEM *file_system,
 	return (ret);
 }
 
+#if defined(HAVE_POSIX_FADVISE)
 /*
  * __posix_file_advise --
  *	POSIX fadvise.
@@ -198,7 +199,6 @@ static int
 __posix_file_advise(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
     wt_off_t offset, wt_off_t len, int advice)
 {
-#if defined(HAVE_POSIX_FADVISE)
 	WT_DECL_RET;
 	WT_FILE_HANDLE_POSIX *pfh;
 	WT_SESSION_IMPL *session;
@@ -206,37 +206,25 @@ __posix_file_advise(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
 	session = (WT_SESSION_IMPL *)wt_session;
 	pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-	/*
-	 * Refuse pre-load when direct I/O is configured for the file, the
-	 * kernel cache isn't interesting.
-	 */
-	if (advice == POSIX_MADV_WILLNEED && pfh->direct_io)
-		return (ENOTSUP);
-
 	WT_SYSCALL_RETRY(posix_fadvise(pfh->fd, offset, len, advice), ret);
 	if (ret == 0)
 		return (0);
 
 	/*
 	 * Treat EINVAL as not-supported, some systems don't support some flags.
-	 * Quietly fail, callers expect not-supported failures.
+	 * Quietly fail, callers expect not-supported failures, and reset the
+	 * handle method to prevent future calls.
 	 */
-	if (ret == EINVAL)
+	if (ret == EINVAL) {
+		file_handle->fadvise = NULL;
 		return (ENOTSUP);
+	}
 
 	WT_RET_MSG(session, ret,
 	    "%s: handle-advise: posix_fadvise", file_handle->name);
-#else
-	WT_UNUSED(file_handle);
-	WT_UNUSED(wt_session);
-	WT_UNUSED(offset);
-	WT_UNUSED(len);
-	WT_UNUSED(advice);
 
-	/* Quietly fail, callers expect not-supported failures. */
-	return (ENOTSUP);
-#endif
 }
+#endif
 
 /*
  * __posix_file_close --
@@ -595,9 +583,13 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 		    "%s: handle-open: open", name);
 	WT_ERR(__posix_open_file_cloexec(session, pfh->fd, name));
 
-	/* Disable read-ahead on trees: it slows down random read workloads. */
 #if defined(HAVE_POSIX_FADVISE)
-	if (file_type == WT_FILE_TYPE_DATA) {
+	/*
+	 * Disable read-ahead on trees: it slows down random read workloads.
+	 * Ignore fadvise when doing direct I/O, the kernel cache isn't
+	 * interesting.
+	 */
+	if (!pfh->direct_io && file_type == WT_FILE_TYPE_DATA) {
 		WT_SYSCALL_RETRY(
 		    posix_fadvise(pfh->fd, 0, 0, POSIX_FADV_RANDOM), ret);
 		if (ret != 0)
@@ -612,7 +604,14 @@ directory_open:
 	WT_ERR(__wt_strdup(session, name, &file_handle->name));
 
 	file_handle->close = __posix_file_close;
-	file_handle->fadvise = __posix_file_advise;
+#if defined(HAVE_POSIX_FADVISE)
+	/*
+	 * Ignore fadvise when doing direct I/O, the kernel cache isn't
+	 * interesting.
+	 */
+	if (!pfh->direct_io)
+		file_handle->fadvise = __posix_file_advise;
+#endif
 	file_handle->fallocate = __wt_posix_file_fallocate;
 	file_handle->lock = __posix_file_lock;
 #ifdef WORDS_BIGENDIAN

@@ -422,5 +422,5 @@ int
 __wt_block_manager_named_size(
     WT_SESSION_IMPL *session, const char *name, wt_off_t *sizep)
 {
-	return (__wt_filesize_name(session, name, false, sizep));
+	return (__wt_size(session, name, false, sizep));
 }

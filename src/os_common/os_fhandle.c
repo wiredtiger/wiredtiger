@@ -27,7 +27,7 @@ __fhandle_method_finalize(
 	/* not required: fadvise */
 	/* not required: fallocate */
 	/* not required: fallocate_nolock */
-	WT_HANDLE_METHOD_REQ(lock);
+	/* not required: lock */
 	/* not required: map */
 	/* not required: map_discard */
 	/* not required: map_preload */

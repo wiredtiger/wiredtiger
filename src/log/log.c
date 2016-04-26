@@ -438,7 +438,6 @@ __log_prealloc(WT_SESSION_IMPL *session, WT_FH *fh)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-	WT_FILE_HANDLE *handle;
 	WT_LOG *log;
 
 	conn = S2C(session);
@@ -454,18 +453,14 @@ __log_prealloc(WT_SESSION_IMPL *session, WT_FH *fh)
 		    WT_LOG_FIRST_RECORD, conn->log_file_max));
 
 	/*
-	 * We have exclusive access to the log file and  there are no other
+	 * We have exclusive access to the log file and there are no other
 	 * writes happening concurrently, so there are no locking issues.
-	 * Call the underlying inline calls instead of calling directly so
-	 * we pick up verbose logging and other diagnostic checks.
 	 */
-	handle = fh->handle;
-	if (handle->fallocate != NULL || handle->fallocate_nolock != NULL) {
-		if ((ret = __wt_fallocate(session,
-		    fh, WT_LOG_FIRST_RECORD, conn->log_file_max)) == 0)
-			return (0);
-		WT_RET_ERROR_OK(ret, ENOTSUP);
-	}
+	if ((ret = __wt_fallocate(
+	    session, fh, WT_LOG_FIRST_RECORD, conn->log_file_max)) == 0)
+		return (0);
+	WT_RET_ERROR_OK(ret, ENOTSUP);
+
 	return (__wt_ftruncate(
 	    session, fh, WT_LOG_FIRST_RECORD + conn->log_file_max));
 }

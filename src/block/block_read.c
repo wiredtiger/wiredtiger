@@ -36,11 +36,13 @@ __wt_bm_preload(
 	handle = block->fh->handle;
 	mapped = bm->map != NULL && offset + size <= (wt_off_t)bm->maplen;
 	if (mapped && handle->map_preload != NULL)
-		return (handle->map_preload(handle,
-		    (WT_SESSION *)session, (uint8_t *)bm->map + offset, size));
+		ret = handle->map_preload(handle,
+		    (WT_SESSION *)session, (uint8_t *)bm->map + offset, size);
 	if (!mapped && handle->fadvise != NULL)
-		return (handle->fadvise(handle, (WT_SESSION *)session,
-		    (wt_off_t)offset, (wt_off_t)size, WT_FILE_HANDLE_WILLNEED));
+		ret = handle->fadvise(handle, (WT_SESSION *)session,
+		    (wt_off_t)offset, (wt_off_t)size, WT_FILE_HANDLE_WILLNEED);
+	if (ret != EBUSY && ret != ENOTSUP)
+		return (ret);
 
 	/* If preload isn't supported, do it the slow way. */
 	WT_RET(__wt_scr_alloc(session, 0, &tmp));

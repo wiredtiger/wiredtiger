@@ -19,8 +19,6 @@ __wt_dirlist(WT_SESSION_IMPL *session,
 	WT_SESSION *wt_session;
 	char *path;
 
-	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
-
 	WT_RET(__wt_verbose(session, WT_VERB_FILEOPS,
 	    "%s: directory-list: %s prefix %s",
 	    dir, prefix == NULL ? "all" : prefix));
@@ -55,8 +53,6 @@ __wt_directory_sync(WT_SESSION_IMPL *session, const char *name)
 	WT_FILE_SYSTEM *file_system;
 	WT_SESSION *wt_session;
 	char *copy, *dir;
-
-	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_READONLY));
 
 	WT_RET(__wt_verbose(
 	    session, WT_VERB_FILEOPS, "%s: directory-sync", name));
@@ -142,8 +138,7 @@ __wt_remove(WT_SESSION_IMPL *session, const char *name)
 #ifdef HAVE_DIAGNOSTIC
 	/*
 	 * It is a layering violation to retrieve a WT_FH here, but it is a
-	 * useful diagnostic to ensure WiredTiger doesn't hold the handle open
-	 * at this stage.
+	 * useful diagnostic to ensure WiredTiger doesn't have the handle open.
 	 */
 	if (__wt_handle_is_open(session, name))
 		WT_RET_MSG(session, EINVAL,
@@ -178,6 +173,10 @@ __wt_rename(WT_SESSION_IMPL *session, const char *from, const char *to)
 	    session, WT_VERB_FILEOPS, "%s to %s: file-rename", from, to));
 
 #ifdef HAVE_DIAGNOSTIC
+	/*
+	 * It is a layering violation to retrieve a WT_FH here, but it is a
+	 * useful diagnostic to ensure WiredTiger doesn't have the handle open.
+	 */
 	if (__wt_handle_is_open(session, from))
 		WT_RET_MSG(session, EINVAL,
 		    "%s: file-rename: file has open handles", from);
@@ -200,11 +199,11 @@ err:	__wt_free(session, from_path);
 }
 
 /*
- * __wt_filesize_name --
+ * __wt_size --
  *	Get the size of a file in bytes, by file name.
  */
 static inline int
-__wt_filesize_name(
+__wt_size(
     WT_SESSION_IMPL *session, const char *name, bool silent, wt_off_t *sizep)
 {
 	WT_DECL_RET;

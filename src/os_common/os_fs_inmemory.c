@@ -196,20 +196,6 @@ __im_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 }
 
 /*
- * __im_file_lock --
- *	Lock/unlock a file.
- */
-static int
-__im_file_lock(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool lock)
-{
-	/* Locks are always granted. */
-	WT_UNUSED(file_handle);
-	WT_UNUSED(wt_session);
-	WT_UNUSED(lock);
-	return (0);
-}
-
-/*
  * __im_file_read --
  *	POSIX pread.
  */
@@ -401,7 +387,6 @@ __im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	WT_ERR(__wt_strdup(session, name, &file_handle->name));
 
 	file_handle->close = __im_file_close;
-	file_handle->lock = __im_file_lock;
 	file_handle->read = __im_file_read;
 	file_handle->size = __im_file_size;
 	file_handle->truncate = __im_file_truncate;
@@ -462,8 +447,6 @@ __wt_os_inmemory(WT_SESSION_IMPL *session)
 
 	/* Initialize the in-memory jump table. */
 	file_system = (WT_FILE_SYSTEM *)im_fs;
-	file_system->directory_list = NULL;
-	file_system->directory_sync = NULL;
 	file_system->exist = __im_fs_exist;
 	file_system->open_file = __im_file_open;
 	file_system->remove = __im_fs_remove;

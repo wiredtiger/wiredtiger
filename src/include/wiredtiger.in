@@ -3739,9 +3739,14 @@ struct __wt_extractor {
  */
 struct __wt_file_system {
 	/*!
-	 * Return the list of file names for the named directory. Only required
-	 * for applications configuring logging. If not required, may be set to
-	 * NULL.
+	 * Return the list of file names for the named directory.
+	 *
+	 * This method is not required by applications that do not configure
+	 * logging, and should be set to NULL when not required by the
+	 * application.
+	 *
+	 * This method is not called concurrently with other file system or
+	 * handle operations.
 	 *
 	 * @errors
 	 *
@@ -3760,9 +3765,15 @@ struct __wt_file_system {
 	    u_int *countp);
 
 	/*!
-	 * Flush the named directory. Only required if flushing the directory
-	 * is necessary to ensure the durability of file system operations. If
-	 * not required, may be set to NULL.
+	 * Flush the named directory.
+	 *
+	 * This method is not required on file systems where it is not necessary
+	 * to flush a file's directory to ensure the durability of file system
+	 * operations, and should be set to NULL when not required by the file
+	 * system.
+	 *
+	 * This method is not called concurrently with other file system or
+	 * handle operations.
 	 *
 	 * @errors
 	 *
@@ -3776,6 +3787,9 @@ struct __wt_file_system {
 	/*!
 	 * Return if the named file system object exists.
 	 *
+	 * This method may be called concurrently with other file system or
+	 * handle operations.
+	 *
 	 * @errors
 	 *
 	 * @param file_system the WT_FILE_SYSTEM
@@ -3788,6 +3802,9 @@ struct __wt_file_system {
 
 	/*!
 	 * Open a handle for a named file system object
+	 *
+	 * This method is not called concurrently with other file system or
+	 * handle operations.
 	 *
 	 * @errors
 	 *
@@ -3817,6 +3834,9 @@ struct __wt_file_system {
 	/*!
 	 * Remove a named file system object
 	 *
+	 * This method is not called concurrently with other file system or
+	 * handle operations.
+	 *
 	 * @errors
 	 *
 	 * @param file_system the WT_FILE_SYSTEM
@@ -3828,6 +3848,9 @@ struct __wt_file_system {
 
 	/*!
 	 * Rename a named file system object
+	 *
+	 * This method is not called concurrently with other file system or
+	 * handle operations.
 	 *
 	 * @errors
 	 *
@@ -3841,6 +3864,9 @@ struct __wt_file_system {
 
 	/*!
 	 * Return the size of a named file system object
+	 *
+	 * This method may be called concurrently with other file system or
+	 * handle operations.
 	 *
 	 * @errors
 	 *
@@ -3881,7 +3907,11 @@ struct __wt_file_handle {
 	char *name;
 
 	/*!
-	 * Close a file handle.
+	 * Close a file handle; the WT_FILE_HANDLE will not be further accessed
+	 * by WiredTiger.
+	 *
+	 * This method is not called concurrently with other file system or
+	 * handle operations.
 	 *
 	 * @errors
 	 *
@@ -3892,8 +3922,13 @@ struct __wt_file_handle {
 
 	/*!
 	 * Indicate expected future use of file ranges, based on the POSIX
-	 * 1003.1 standard fadvise. This method is not required, and should
-	 * be set to NULL when not supported by the file.
+	 * 1003.1 standard fadvise.
+	 *
+	 * This method is not required, and should be set to NULL when not
+	 * supported by the file.
+	 *
+	 * This method may be called concurrently with other file system or
+	 * handle operations.
 	 *
 	 * @errors
 	 *
@@ -3909,13 +3944,16 @@ struct __wt_file_handle {
 
 	/*!
 	 * Ensure disk space is allocated for the file, based on the POSIX
-	 * 1003.1 standard fallocate. This method is not required, and should
-	 * be set to NULL when not supported by the file.
+	 * 1003.1 standard fallocate.
 	 *
-	 * Calls to this method will not be made concurrently with other write
-	 * operations to the file. If the file handle's fallocate support can
-	 * support concurrent fallocate calls and other file write operations,
-	 * set WT_FILE_HANDLE::fallocate_nolock instead.
+	 * This method is not required, and should be set to NULL when not
+	 * supported by the file.
+	 *
+	 * This method is not called concurrently with other file system or
+	 * handle operations. If the file handle's fallocate function can
+	 * support fallocate calls concurrently with other file system or
+	 * handle operations, set the WT_FILE_HANDLE::fallocate_nolock method
+	 * instead.
 	 *
 	 * @errors
 	 *
@@ -3929,13 +3967,15 @@ struct __wt_file_handle {
 
 	/*!
 	 * Ensure disk space is allocated for the file, based on the POSIX
-	 * 1003.1 standard fallocate. This method is not required, and should
-	 * be set to NULL when not supported by the file.
+	 * 1003.1 standard fallocate.
 	 *
-	 * Calls to this method will be made concurrently with other write
-	 * operations to the file. If the file handle's fallocate support cannot
-	 * support concurrent fallocate calls and other file write operations,
-	 * set WT_FILE_HANDLE::fallocate instead.
+	 * This method is not required, and should be set to NULL when not
+	 * supported by the file.
+	 *
+	 * This method may be called concurrently with other file system or
+	 * handle operations. If the file handle's fallocate function cannot
+	 * support fallocate calls concurrently with other file system or
+	 * handle operations, set the WT_FILE_HANDLE::fallocate method instead.
 	 *
 	 * @errors
 	 *
@@ -3948,7 +3988,14 @@ struct __wt_file_handle {
 	    WT_SESSION *session, wt_off_t, wt_off_t);
 
 	/*!
-	 * Lock or unlock a file.
+	 * Lock/unlock a file from the perspective of other processes running
+	 * in the system.
+	 *
+	 * This method is not required, and should be set to NULL when not
+	 * required by the system.
+	 *
+	 * This method is not called concurrently with other file system or
+	 * handle operations.
 	 *
 	 * @errors
 	 *
@@ -3961,10 +4008,12 @@ struct __wt_file_handle {
 
 	/*!
 	 * Map a file into memory, based on the POSIX 1003.1 standard mmap.
+	 *
 	 * This method is not required, and should be set to NULL when not
-	 * supported by the file. If mapping may or may not be available for
-	 * a file, the method can be set, and ENOTSUP should be returned if
-	 * mapping is not available when attempted.
+	 * supported by the file.
+	 *
+	 * This method may be called concurrently with other file system or
+	 * handle operations.
 	 *
 	 * @errors
 	 *
@@ -3983,8 +4032,13 @@ struct __wt_file_handle {
 
 	/*!
 	 * Unmap part of a memory mapped file, based on the POSIX 1003.1
-	 * standard madvise. This method is not required, and should be
-	 * set to NULL when not supported by the file.
+	 * standard madvise.
+	 *
+	 * This method is not required, and should be set to NULL when not
+	 * supported by the file.
+	 *
+	 * This method may be called concurrently with other file system or
+	 * handle operations.
 	 *
 	 * @errors
 	 *
@@ -3999,8 +4053,13 @@ struct __wt_file_handle {
 
 	/*!
 	 * Preload part of a memory mapped file, based on the POSIX 1003.1
-	 * standard madvise. This method is not required, and should be set
-	 * to NULL when not supported by the file.
+	 * standard madvise.
+	 *
+	 * This method is not required, and should be set to NULL when not
+	 * supported by the file.
+	 *
+	 * This method may be called concurrently with other file system or
+	 * handle operations.
 	 *
 	 * @errors
 	 *
@@ -4015,8 +4074,13 @@ struct __wt_file_handle {
 
 	/*!
 	 * Unmap a memory mapped file, based on the POSIX 1003.1 standard
-	 * munmap. This method is not required, and should be set to NULL
-	 * when not supported by the file.
+	 * munmap.
+	 *
+	 * This method is not required, and should be set to NULL when not
+	 * supported by the file.
+	 *
+	 * This method may be called concurrently with other file system or
+	 * handle operations.
 	 *
 	 * @errors
 	 *
@@ -4032,6 +4096,9 @@ struct __wt_file_handle {
 	/*!
 	 * Read from a file, based on the POSIX 1003.1 standard pread.
 	 *
+	 * This method may be called concurrently with other file system or
+	 * handle operations.
+	 *
 	 * @errors
 	 *
 	 * @param file_handle the WT_FILE_HANDLE
@@ -4046,6 +4113,9 @@ struct __wt_file_handle {
 	/*!
 	 * Return the size of a file.
 	 *
+	 * This method may be called concurrently with other file system or
+	 * handle operations.
+	 *
 	 * @errors
 	 *
 	 * @param file_handle the WT_FILE_HANDLE
@@ -4056,9 +4126,14 @@ struct __wt_file_handle {
 	    WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *sizep);
 
 	/*!
-	 * Make file writes durable and do not return until writes are complete.
+	 * Make outstanding file writes durable and do not return until writes
+	 * are complete.
+	 *
 	 * This method is not required, and should be set to NULL when not
-	 * supported by the file.
+	 * required by the file.
+	 *
+	 * This method may be called concurrently with other file system or
+	 * handle operations.
 	 *
 	 * @errors
 	 *
@@ -4068,9 +4143,14 @@ struct __wt_file_handle {
 	int (*sync)(WT_FILE_HANDLE *file_handle, WT_SESSION *session);
 
 	/*!
-	 * Start the file writes required for durability and return immediately.
+	 * Schedule the outstanding file writes required for durability and
+	 * return immediately.
+	 *
 	 * This method is not required, and should be set to NULL when not
 	 * supported by the file.
+	 *
+	 * This method may be called concurrently with other file system or
+	 * handle operations.
 	 *
 	 * @errors
 	 *
@@ -4081,9 +4161,13 @@ struct __wt_file_handle {
 
 	/*!
 	 * Lengthen or shorten a file to the specified length, based on the
-	 * POSIX 1003.1 standard ftruncate. This method is not required for
-	 * read-only files, and should be set to NULL when not supported by
-	 * the file.
+	 * POSIX 1003.1 standard ftruncate.
+	 *
+	 * This method is not required for read-only files, and should be set
+	 * to NULL when not supported by the file.
+	 *
+	 * This method may be called concurrently with other file system or
+	 * handle operations.
 	 *
 	 * @errors
 	 *
@@ -4095,9 +4179,13 @@ struct __wt_file_handle {
 	    WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t length);
 
 	/*!
-	 * Write to a file, based on the POSIX 1003.1 standard pwrite. This
-	 * method is not required for read-only files, and should be set to
-	 * NULL when not supported by the file.
+	 * Write to a file, based on the POSIX 1003.1 standard pwrite.
+	 *
+	 * This method is not required for read-only files, and should be set
+	 * to NULL when not supported by the file.
+	 *
+	 * This method may be called concurrently with other file system or
+	 * handle operations.
 	 *
 	 * @errors
 	 *

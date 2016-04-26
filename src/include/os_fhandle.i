@@ -42,6 +42,9 @@ __wt_fallocate(
 	/*
 	 * Our caller is responsible for handling any locking issues, all we
 	 * have to do is find a function to call.
+	 *
+	 * Be cautious, the underlying system might have configured the nolock
+	 * flavor, that failed, and we have to fallback to the locking flavor.
 	 */
 	handle = fh->handle;
 	if (handle->fallocate_nolock != NULL) {
@@ -63,10 +66,14 @@ __wt_fallocate(
 static inline int
 __wt_file_lock(WT_SESSION_IMPL * session, WT_FH *fh, bool lock)
 {
+	WT_FILE_HANDLE *handle;
+
 	WT_RET(__wt_verbose(session, WT_VERB_HANDLEOPS,
 	    "%s: handle-lock: %s", fh->handle->name, lock ? "lock" : "unlock"));
 
-	return (fh->handle->lock(fh->handle, (WT_SESSION*)session, lock));
+	handle = fh->handle;
+	return (handle->lock == NULL ? 0 :
+	    handle->lock(handle, (WT_SESSION*)session, lock));
 }
 
 /*

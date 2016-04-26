@@ -99,7 +99,7 @@ __curstat_size_only(WT_SESSION_IMPL *session,
 	 * !!! Deliberately discard the return code from a failed call - the
 	 * error is flagged by not setting fast to true.
 	 */
-	if (__wt_filesize_name(session, namebuf.data, true, &filesize) == 0) {
+	if (__wt_size(session, namebuf.data, true, &filesize) == 0) {
 		/* Setup and populate the statistics structure */
 		__wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
 		cst->u.dsrc_stats.block_size = filesize;

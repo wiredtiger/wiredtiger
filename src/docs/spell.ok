@@ -25,6 +25,7 @@ EBUSY
 ECMA
 EINVAL
 ENCRYPTOR
+ENOTSUP
 EmpId
 Encryptors
 Facebook

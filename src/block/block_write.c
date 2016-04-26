@@ -47,6 +47,7 @@ __wt_block_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t len)
 int
 __wt_block_discard(WT_SESSION_IMPL *session, WT_BLOCK *block, size_t added_size)
 {
+	WT_DECL_RET;
 	WT_FILE_HANDLE *handle;
 
 	/* The file may not support this call. */
@@ -66,8 +67,9 @@ __wt_block_discard(WT_SESSION_IMPL *session, WT_BLOCK *block, size_t added_size)
 		return (0);
 
 	block->os_cache = 0;
-	return (handle->fadvise(handle, (WT_SESSION *)session,
-	    (wt_off_t)0, (wt_off_t)0, WT_FILE_HANDLE_DONTNEED));
+	ret = handle->fadvise(handle, (WT_SESSION *)session,
+	    (wt_off_t)0, (wt_off_t)0, WT_FILE_HANDLE_DONTNEED);
+	return (ret == EBUSY || ret == ENOTSUP ? 0 : ret);
 }
 
 /*
