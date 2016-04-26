@@ -79,7 +79,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
 	if (!exist)
 		return (0);
 	WT_RET(__wt_fopen(session,
-	    WT_METADATA_BACKUP, WT_FILE_TYPE_REGULAR, WT_STREAM_READ, &fs));
+	    WT_METADATA_BACKUP, 0, WT_STREAM_READ, &fs));
 
 	/* Read line pairs and load them into the metadata file. */
 	WT_ERR(__wt_scr_alloc(session, 512, &key));
