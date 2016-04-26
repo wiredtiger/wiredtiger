@@ -132,7 +132,7 @@ __wt_posix_file_fallocate(WT_FILE_HANDLE *file_handle,
 	if (__posix_posix_fallocate(
 	    file_handle, wt_session, offset, len) == 0) {
 #if defined(__linux__)
-		file_handle->fallocate_lock = __posix_posix_fallocate;
+		file_handle->fallocate = __posix_posix_fallocate;
 #else
 		file_handle->fallocate = NULL;
 		file_handle->fallocate_nolock = __posix_posix_fallocate;
