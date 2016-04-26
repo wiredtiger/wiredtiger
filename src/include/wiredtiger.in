@@ -4166,7 +4166,7 @@ struct __wt_file_handle {
 	 * This method is not required for read-only files, and should be set
 	 * to NULL when not supported by the file.
 	 *
-	 * This method may be called concurrently with other file system or
+	 * This method is not called concurrently with other file system or
 	 * handle operations.
 	 *
 	 * @errors
