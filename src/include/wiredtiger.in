@@ -3704,6 +3704,7 @@ struct __wt_extractor {
 	int (*terminate)(WT_EXTRACTOR *extractor, WT_SESSION *session);
 };
 
+#if !defined(SWIG)
 /*! WT_FILE_SYSTEM::open_file type: checkpoint */
 #define	WT_FILE_TYPE_CHECKPOINT	1
 /*! WT_FILE_SYSTEM::open_file type: read/write data object */
@@ -4198,6 +4199,7 @@ struct __wt_file_handle {
 	int (*write)(WT_FILE_HANDLE *file_handle, WT_SESSION *session,
 	    wt_off_t offset, size_t length, const void *buf);
 };
+#endif /* !defined(SWIG) */
 
 /*!
  * Entry point to an extension, called when the extension is loaded.
