@@ -806,6 +806,7 @@ static int
 __conn_load_default_extensions(WT_CONNECTION_IMPL *conn)
 {
 	WT_UNUSED(conn);
+
 #ifdef HAVE_BUILTIN_EXTENSION_SNAPPY
 	WT_RET(snappy_extension_init(&conn->iface, NULL));
 #endif
@@ -824,7 +825,7 @@ __conn_load_default_extensions(WT_CONNECTION_IMPL *conn)
  */
 static int
 __conn_load_extension_int(WT_SESSION_IMPL *session,
-    const char *path, const char *cfg[], bool early)
+    const char *path, const char *cfg[], bool early_load)
 {
 	WT_CONFIG_ITEM cval;
 	WT_DECL_RET;
@@ -839,7 +840,7 @@ __conn_load_extension_int(WT_SESSION_IMPL *session,
 
 	/* Ensure that the load matches the phase of startup we are in. */
 	WT_ERR(__wt_config_gets(session, cfg, "early_load", &cval));
-	if ((cval.val == 0 && early) || (cval.val != 0 && !early))
+	if ((cval.val == 0 && early_load) || (cval.val != 0 && !early_load))
 		return (0);
 
 	/*
@@ -901,67 +902,20 @@ err:	API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
 /*
- * __conn_load_early_extensions --
- *	Load the list of application-configured extensions that request
- *	early access to the connection.
- */
-static int
-__conn_load_early_extensions(WT_SESSION_IMPL *session, const char *config)
-{
-	WT_CONFIG subconfig;
-	WT_CONFIG_ITEM cval, skey, sval;
-	WT_DECL_ITEM(exconfig);
-	WT_DECL_ITEM(expath);
-	WT_DECL_RET;
-	const char *sub_cfg[] = {
-	    WT_CONFIG_BASE(session, WT_CONNECTION_load_extension), NULL, NULL };
-
-	ret = __wt_config_getones_none(session, config, "extensions", &cval);
-	if (ret == WT_NOTFOUND || cval.len == 0)
-		return (0);
-	WT_ERR(__wt_config_subinit(session, &subconfig, &cval));
-	while ((ret = __wt_config_next(&subconfig, &skey, &sval)) == 0) {
-		if (expath == NULL)
-			WT_ERR(__wt_scr_alloc(session, 0, &expath));
-		WT_ERR(__wt_buf_fmt(
-		    session, expath, "%.*s", (int)skey.len, skey.str));
-		if (sval.len > 0) {
-			if (exconfig == NULL)
-				WT_ERR(__wt_scr_alloc(session, 0, &exconfig));
-			WT_ERR(__wt_buf_fmt(session,
-			    exconfig, "%.*s", (int)sval.len, sval.str));
-		}
-		sub_cfg[1] = sval.len > 0 ? exconfig->data : NULL;
-		WT_ERR(__conn_load_extension_int(
-		    session, expath->data, sub_cfg, true));
-	}
-	WT_ERR_NOTFOUND_OK(ret);
-
-err:	__wt_scr_free(session, &expath);
-	__wt_scr_free(session, &exconfig);
-
-	return (ret);
-}
-
-/*
  * __conn_load_extensions --
  *	Load the list of application-configured extensions.
  */
 static int
-__conn_load_extensions(WT_SESSION_IMPL *session, const char *cfg[])
+__conn_load_extensions(
+    WT_SESSION_IMPL *session, const char *cfg[], bool early_load)
 {
 	WT_CONFIG subconfig;
 	WT_CONFIG_ITEM cval, skey, sval;
-	WT_CONNECTION_IMPL *conn;
 	WT_DECL_ITEM(exconfig);
 	WT_DECL_ITEM(expath);
 	WT_DECL_RET;
 	const char *sub_cfg[] = {
 	    WT_CONFIG_BASE(session, WT_CONNECTION_load_extension), NULL, NULL };
-
-	conn = S2C(session);
-
-	WT_ERR(__conn_load_default_extensions(conn));
 
 	WT_ERR(__wt_config_gets(session, cfg, "extensions", &cval));
 	WT_ERR(__wt_config_subinit(session, &subconfig, &cval));
@@ -978,7 +932,7 @@ __conn_load_extensions(WT_SESSION_IMPL *session, const char *cfg[])
 		}
 		sub_cfg[1] = sval.len > 0 ? exconfig->data : NULL;
 		WT_ERR(__conn_load_extension_int(
-		    session, expath->data, sub_cfg, false));
+		    session, expath->data, sub_cfg, early_load));
 	}
 	WT_ERR_NOTFOUND_OK(ret);
 
@@ -2086,7 +2040,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	 * Load early extensions before doing further initialization (one early
 	 * extension is to configure a file system).
 	 */
-	WT_ERR(__conn_load_early_extensions(session, config));
+	WT_ERR(__conn_load_extensions(session, cfg, true));
 
 	/*
 	 * If the application didn't configure its own file system, configure
@@ -2306,7 +2260,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	 * everything else to be in place, and the extensions call back into the
 	 * library.
 	 */
-	WT_ERR(__conn_load_extensions(session, cfg));
+	WT_ERR(__conn_load_default_extensions(conn));
+	WT_ERR(__conn_load_extensions(session, cfg, false));
 
 	/*
 	 * The metadata/log encryptor is configured after extensions, since
