@@ -150,7 +150,7 @@ __wt_connection_destroy(WT_CONNECTION_IMPL *conn)
 	__wt_free(session, conn->page_lock);
 
 	/* Destroy the file-system configuration. */
-	if (conn->file_system->terminate != NULL)
+	if (conn->file_system != NULL && conn->file_system->terminate != NULL)
 		WT_TRET(conn->file_system->terminate(
 		    conn->file_system, (WT_SESSION *)session));
 
