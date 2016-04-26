@@ -11,8 +11,8 @@
  *	Get a list of files from a directory.
  */
 static inline int
-__wt_dirlist(WT_SESSION_IMPL *session, const char *dir,
-    const char *prefix, uint32_t flags, char ***dirlist, u_int *countp)
+__wt_dirlist(WT_SESSION_IMPL *session,
+    const char *dir, const char *prefix, char ***dirlist, u_int *countp)
 {
 	WT_DECL_RET;
 	WT_FILE_SYSTEM *file_system;
@@ -23,22 +23,22 @@ __wt_dirlist(WT_SESSION_IMPL *session, const char *dir,
 
 	WT_RET(__wt_verbose(session, WT_VERB_FILEOPS,
 	    "%s: directory-list: %s prefix %s",
-	    dir, LF_ISSET(WT_DIRLIST_INCLUDE) ? "include" : "exclude",
-	    prefix == NULL ? "all" : prefix));
+	    dir, prefix == NULL ? "all" : prefix));
 
 	/*
-	 * directory-list is not a required call, no method means the call isn't
-	 * needed.
+	 * directory-list is not a required call for some configurations, but
+	 * the call isn't optional, if we're here and we don't have the call,
+	 * there's a serious problem.
 	 */
 	file_system = S2C(session)->file_system;
 	if (file_system->directory_list == NULL)
-		return (0);
+		WT_RET_MSG(session, ENOTSUP, "%s: directory-list", dir);
 
 	WT_RET(__wt_filename(session, dir, &path));
 
 	wt_session = (WT_SESSION *)session;
 	ret = file_system->directory_list(
-	    file_system, wt_session, path, prefix, flags, dirlist, countp);
+	    file_system, wt_session, path, prefix, dirlist, countp);
 
 	__wt_free(session, path);
 	return (ret);

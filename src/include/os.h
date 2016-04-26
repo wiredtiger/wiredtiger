@@ -6,14 +6,6 @@
  * See the file LICENSE for redistribution information.
  */
 
-/*
- * Number of directory entries can grow dynamically.
- */
-#define	WT_DIR_ENTRY	32
-
-#define	WT_DIRLIST_EXCLUDE	0x1	/* Exclude files matching prefix */
-#define	WT_DIRLIST_INCLUDE	0x2	/* Include files matching prefix */
-
 #define	WT_SYSCALL_RETRY(call, ret) do {				\
 	int __retry;							\
 	for (__retry = 0; __retry < 10; ++__retry) {			\

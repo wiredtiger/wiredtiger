@@ -3741,8 +3741,8 @@ struct __wt_extractor {
 struct __wt_file_system {
 	/*!
 	 * Return the list of file names for the named directory. Only required
-	 * for applications that will configure logging. If not required, may
-	 * be initialized to NULL.
+	 * for applications configuring logging. If not required, may be set to
+	 * NULL.
 	 *
 	 * @errors
 	 *
@@ -3751,23 +3751,20 @@ struct __wt_file_system {
 	 * @param file_system the WT_FILE_SYSTEM
 	 * @param session the current WiredTiger session
 	 * @param directory the name of the directory
-	 * @param prefix an optional filter on file names to return
-	 * @param flags one of WT_DIRLIST_INCLUDE or WT_DIRLIST_EXCLUDE to
-	 *      determine behavior of prefix filtering. TODO - expose constants
-	 * @param[out] dirlist the method returns an array of strings, one
-	 *      for each entry in the directory. The implementation should
-	 *      allocate memory for the list and each entry. WiredTiger will
-	 *      free the memory. TODO - memory allocation across libraries?
-	 * @param[out] countp the method returns the number of entries listed
+	 * @param prefix if not NULL, only files with names matching the prefix
+	 *    are returned
+	 * @param[out] dirlist the method returns an allocated array of
+	 *    individually allocated strings, one for each entry in the
+	 *    directory. WiredTiger will free the array and the strings.
+	 * @param[out] countp the method the number of entries returned
 	 */
 	int (*directory_list)(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
-	    const char *directory, const char *prefix,
-	    uint32_t flags, char ***dirlist, u_int *countp);
+	    const char *directory, const char *prefix, char ***dirlist, u_int *countp);
 
 	/*!
 	 * Flush the named directory. Only required if flushing the directory
 	 * is necessary to ensure the durability of file system operations. If
-	 * not required, may be initialized to NULL.
+	 * not required, may be set to NULL.
 	 *
 	 * @errors
 	 *

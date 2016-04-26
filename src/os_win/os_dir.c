@@ -8,14 +8,16 @@
 
 #include "wt_internal.h"
 
+#define	WT_DIR_ENTRIES_PER_ALLOC	64
+
 /*
  * __wt_win_directory_list --
  *	Get a list of files from a directory, MSVC version.
  */
 int
 __wt_win_directory_list(
-    WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *dir,
-    const char *prefix, uint32_t flags, char ***dirlist, u_int *countp)
+    WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
+    const char *dir, const char *prefix, char ***dirlist, u_int *countp)
 {
 	HANDLE findhandle;
 	WIN32_FIND_DATA finddata;
@@ -61,19 +63,12 @@ __wt_win_directory_list(
 
 		/* The list of files is optionally filtered by a prefix. */
 		match = false;
-		if (prefix != NULL &&
-		    ((LF_ISSET(WT_DIRLIST_INCLUDE) &&
-		    WT_PREFIX_MATCH(finddata.cFileName, prefix)) ||
-		    (LF_ISSET(WT_DIRLIST_EXCLUDE) &&
-		    !WT_PREFIX_MATCH(finddata.cFileName, prefix))))
-			match = true;
-		if (prefix == NULL || match) {
+		if (prefix == NULL || WT_PREFIX_MATCH(dp->d_name, prefix)) {
 			/*
 			 * We have a file name we want to return.
 			 */
-			count++;
-			if (count > dirsz) {
-				dirsz += WT_DIR_ENTRY;
+			if (++count > dirsz) {
+				dirsz += WT_DIR_ENTRIES_PER_ALLOC;
 				WT_ERR(__wt_realloc_def(session,
 				    &dirallocsz, dirsz, &entries));
 			}

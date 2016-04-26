@@ -258,8 +258,7 @@ __log_get_files(WT_SESSION_IMPL *session,
 	log_path = conn->log_path;
 	if (log_path == NULL)
 		log_path = "";
-	return (__wt_dirlist(session, log_path, file_prefix,
-	    WT_DIRLIST_INCLUDE, filesp, countp));
+	return (__wt_dirlist(session, log_path, file_prefix, filesp, countp));
 }
 
 /*
