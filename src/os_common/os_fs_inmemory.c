@@ -84,11 +84,11 @@ __im_fs_exist(WT_FILE_SYSTEM *file_system,
 	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_system;
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	__wt_spin_unlock(session, &im_fs->lock);
+	__wt_spin_lock(session, &im_fs->lock);
 
 	*existp = __im_handle_search(file_system, name) != NULL;
 
-	__wt_spin_lock(session, &im_fs->lock);
+	__wt_spin_unlock(session, &im_fs->lock);
 	return (0);
 }
 
