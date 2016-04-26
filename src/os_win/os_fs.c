@@ -116,26 +116,6 @@ __win_fs_size(WT_FILE_SYSTEM *file_system,
 }
 
 /*
- * __win_file_allocate_configure --
- *	Configure fallocate behavior for a file handle.
- */
-static void
-__win_file_allocate_configure(
-    WT_SESSION_IMPL *session, WT_FILE_HANDLE_WIN *handle)
-{
-	WT_UNUSED(session);
-
-	/*
-	 * fallocate on Windows would be implemented using SetEndOfFile, which
-	 * can also truncate the file. WiredTiger expects fallocate to ignore
-	 * requests to truncate the file which Windows does not do, so we don't
-	 * support the call.
-	 */
-	handle->fallocate_available = WT_FALLOCATE_NOT_AVAILABLE;
-	handle->fallocate_requires_locking = false;
-}
-
-/*
  * __win_file_close --
  *	ANSI C close.
  */
@@ -512,9 +492,6 @@ __win_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 			WT_ERR_MSG(session, __wt_getlasterror(),
 			    "%s: handle-open: CreateFileA: secondary", name);
 	}
-
-	/* Configure fallocate/posix_fallocate calls. */
-	__win_file_allocate_configure(session, win_fh);
 
 directory_open:
 	/* Initialize public information. */

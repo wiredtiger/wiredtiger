@@ -3079,7 +3079,7 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp);
 /*******************************************
  * Forward structure declarations for the extension API
  *******************************************/
-struct __wt_config_arg;     typedef struct __wt_config_arg WT_CONFIG_ARG;
+struct __wt_config_arg;	typedef struct __wt_config_arg WT_CONFIG_ARG;
 
 /*!
  * The interface implemented by applications to provide custom ordering of
@@ -3610,7 +3610,7 @@ struct __wt_encryptor {
 	 * number of bytes needed.
 	 *
 	 * @param[out] expansion_constantp the additional number of bytes needed
-	 *             when encrypting.
+	 *    when encrypting.
 	 * @returns zero for success, non-zero to indicate an error.
 	 *
 	 * @snippet nop_encrypt.c WT_ENCRYPTOR sizing
@@ -3629,8 +3629,7 @@ struct __wt_encryptor {
 	 * is used instead of this one for any callbacks.
 	 *
 	 * @param[in] encrypt_config the "encryption" portion of the
-	 *            configuration from the wiredtiger_open or
-	 *            WT_SESSION::create call
+	 *    configuration from the wiredtiger_open or WT_SESSION::create call
 	 * @param[out] customp the new modified encryptor, or NULL.
 	 * @returns zero for success, non-zero to indicate an error.
 	 */
@@ -3746,8 +3745,6 @@ struct __wt_file_system {
 	 *
 	 * @errors
 	 *
-	 * @snippet ex_file_system.c directory_list
-	 *
 	 * @param file_system the WT_FILE_SYSTEM
 	 * @param session the current WiredTiger session
 	 * @param directory the name of the directory
@@ -3759,7 +3756,8 @@ struct __wt_file_system {
 	 * @param[out] countp the method the number of entries returned
 	 */
 	int (*directory_list)(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
-	    const char *directory, const char *prefix, char ***dirlist, u_int *countp);
+	    const char *directory, const char *prefix, char ***dirlist,
+	    u_int *countp);
 
 	/*!
 	 * Flush the named directory. Only required if flushing the directory
@@ -3767,8 +3765,6 @@ struct __wt_file_system {
 	 * not required, may be set to NULL.
 	 *
 	 * @errors
-	 *
-	 * @snippet ex_file_system.c directory_sync
 	 *
 	 * @param file_system the WT_FILE_SYSTEM
 	 * @param session the current WiredTiger session
@@ -3782,8 +3778,6 @@ struct __wt_file_system {
 	 *
 	 * @errors
 	 *
-	 * @snippet ex_file_system.c exist
-	 *
 	 * @param file_system the WT_FILE_SYSTEM
 	 * @param session the current WiredTiger session
 	 * @param name the name of the file
@@ -3796,8 +3790,6 @@ struct __wt_file_system {
 	 * Open a handle for a named file system object
 	 *
 	 * @errors
-	 *
-	 * @snippet ex_file_system.c open_file
 	 *
 	 * @param file_system the WT_FILE_SYSTEM
 	 * @param session the current WiredTiger session
@@ -3827,8 +3819,6 @@ struct __wt_file_system {
 	 *
 	 * @errors
 	 *
-	 * @snippet ex_file_system.c remove
-	 *
 	 * @param file_system the WT_FILE_SYSTEM
 	 * @param session the current WiredTiger session
 	 * @param name the name of the file system object
@@ -3840,8 +3830,6 @@ struct __wt_file_system {
 	 * Rename a named file system object
 	 *
 	 * @errors
-	 *
-	 * @snippet ex_file_system.c rename
 	 *
 	 * @param file_system the WT_FILE_SYSTEM
 	 * @param session the current WiredTiger session
@@ -3855,8 +3843,6 @@ struct __wt_file_system {
 	 * Return the size of a named file system object
 	 *
 	 * @errors
-	 *
-	 * @snippet ex_file_system.c size
 	 *
 	 * @param file_system the WT_FILE_SYSTEM
 	 * @param session the current WiredTiger session
@@ -3899,8 +3885,6 @@ struct __wt_file_handle {
 	 *
 	 * @errors
 	 *
-	 * @snippet ex_file_system.c close
-	 *
 	 * @param file_handle the WT_FILE_HANDLE
 	 * @param session the current WiredTiger session
 	 */
@@ -3912,8 +3896,6 @@ struct __wt_file_handle {
 	 * be set to NULL when not supported by the file.
 	 *
 	 * @errors
-	 *
-	 * @snippet ex_file_system.c fadvise
 	 *
 	 * @param file_handle the WT_FILE_HANDLE
 	 * @param session the current WiredTiger session
@@ -3927,11 +3909,15 @@ struct __wt_file_handle {
 
 	/*!
 	 * Ensure disk space is allocated for the file, based on the POSIX
-	 * 1003.1 standard fallocate.
+	 * 1003.1 standard fallocate. This method is not required, and should
+	 * be set to NULL when not supported by the file.
+	 *
+	 * Calls to this method will not be made concurrently with other write
+	 * operations to the file. If the file handle's fallocate support can
+	 * support concurrent fallocate calls and other file write operations,
+	 * set WT_FILE_HANDLE::fallocate_nolock instead.
 	 *
 	 * @errors
-	 *
-	 * @snippet ex_file_system.c fallocate
 	 *
 	 * @param file_handle the WT_FILE_HANDLE
 	 * @param session the current WiredTiger session
@@ -3942,11 +3928,29 @@ struct __wt_file_handle {
 	    WT_SESSION *session, wt_off_t, wt_off_t);
 
 	/*!
-	 * Lock or unlock a file.
+	 * Ensure disk space is allocated for the file, based on the POSIX
+	 * 1003.1 standard fallocate. This method is not required, and should
+	 * be set to NULL when not supported by the file.
+	 *
+	 * Calls to this method will be made concurrently with other write
+	 * operations to the file. If the file handle's fallocate support cannot
+	 * support concurrent fallocate calls and other file write operations,
+	 * set WT_FILE_HANDLE::fallocate instead.
 	 *
 	 * @errors
 	 *
-	 * @snippet ex_file_system.c lock
+	 * @param file_handle the WT_FILE_HANDLE
+	 * @param session the current WiredTiger session
+	 * @param offset the file offset
+	 * @param len the size of the advisory
+	 */
+	int (*fallocate_nolock)(WT_FILE_HANDLE *file_handle,
+	    WT_SESSION *session, wt_off_t, wt_off_t);
+
+	/*!
+	 * Lock or unlock a file.
+	 *
+	 * @errors
 	 *
 	 * @param file_handle the WT_FILE_HANDLE
 	 * @param session the current WiredTiger session
@@ -3963,8 +3967,6 @@ struct __wt_file_handle {
 	 * mapping is not available when attempted.
 	 *
 	 * @errors
-	 *
-	 * @snippet ex_file_system.c map
 	 *
 	 * @param file_handle the WT_FILE_HANDLE
 	 * @param session the current WiredTiger session
@@ -3986,8 +3988,6 @@ struct __wt_file_handle {
 	 *
 	 * @errors
 	 *
-	 * @snippet ex_file_system.c map_discard
-	 *
 	 * @param file_handle the WT_FILE_HANDLE
 	 * @param session the current WiredTiger session
 	 * @param map a location in the mapped region unlikely to be used in the
@@ -4003,8 +4003,6 @@ struct __wt_file_handle {
 	 * to NULL when not supported by the file.
 	 *
 	 * @errors
-	 *
-	 * @snippet ex_file_system.c map_preload
 	 *
 	 * @param file_handle the WT_FILE_HANDLE
 	 * @param session the current WiredTiger session
@@ -4022,8 +4020,6 @@ struct __wt_file_handle {
 	 *
 	 * @errors
 	 *
-	 * @snippet ex_file_system.c unmap
-	 *
 	 * @param file_handle the WT_FILE_HANDLE
 	 * @param session the current WiredTiger session
 	 * @param mapped_region a pointer to the start of the mapped region
@@ -4037,8 +4033,6 @@ struct __wt_file_handle {
 	 * Read from a file, based on the POSIX 1003.1 standard pread.
 	 *
 	 * @errors
-	 *
-	 * @snippet ex_file_system.c read
 	 *
 	 * @param file_handle the WT_FILE_HANDLE
 	 * @param session the current WiredTiger session
@@ -4054,8 +4048,6 @@ struct __wt_file_handle {
 	 *
 	 * @errors
 	 *
-	 * @snippet ex_file_system.c size
-	 *
 	 * @param file_handle the WT_FILE_HANDLE
 	 * @param session the current WiredTiger session
 	 * @param sizep the size of the file
@@ -4069,8 +4061,6 @@ struct __wt_file_handle {
 	 * supported by the file.
 	 *
 	 * @errors
-	 *
-	 * @snippet ex_file_system.c sync
 	 *
 	 * @param file_handle the WT_FILE_HANDLE
 	 * @param session the current WiredTiger session
@@ -4097,8 +4087,6 @@ struct __wt_file_handle {
 	 *
 	 * @errors
 	 *
-	 * @snippet ex_file_system.c truncate
-	 *
 	 * @param file_handle the WT_FILE_HANDLE
 	 * @param session the current WiredTiger session
 	 * @param length desired file size after truncate
@@ -4112,8 +4100,6 @@ struct __wt_file_handle {
 	 * NULL when not supported by the file.
 	 *
 	 * @errors
-	 *
-	 * @snippet ex_file_system.c write
 	 *
 	 * @param file_handle the WT_FILE_HANDLE
 	 * @param session the current WiredTiger session

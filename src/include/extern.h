@@ -746,7 +746,7 @@ extern int __wt_os_posix(WT_SESSION_IMPL *session);
 extern int __wt_os_stdio(WT_SESSION_IMPL *session);
 extern int __wt_os_win(WT_SESSION_IMPL *session);
 extern int __wt_posix_directory_list( WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *dir, const char *prefix, char ***dirlist, u_int *countp);
-extern int __wt_posix_file_allocate( WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t offset, wt_off_t len);
+extern int __wt_posix_file_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset, wt_off_t len);
 extern int __wt_posix_map(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void *mapped_regionp, size_t *lenp, void *mapped_cookiep);
 extern int __wt_posix_map_discard( WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void *map, size_t length);
 extern int __wt_posix_map_preload( WT_FILE_HANDLE *fh, WT_SESSION *wt_session, const void *map, size_t length);
@@ -765,7 +765,6 @@ extern int __wt_win_unmap(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, v
 extern uint64_t __wt_strtouq(const char *nptr, char **endptr, int base);
 extern void __wt_abort(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 extern void __wt_free_int(WT_SESSION_IMPL *session, const void *p_arg);
-extern void __wt_posix_file_allocate_configure( WT_SESSION_IMPL *session, WT_FILE_HANDLE_POSIX *file_handle);
 extern void __wt_sleep(uint64_t seconds, uint64_t micro_seconds);
 extern void __wt_stream_set_line_buffer(FILE *fp);
 extern void __wt_stream_set_no_buffer(FILE *fp);

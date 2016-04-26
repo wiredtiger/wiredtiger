@@ -607,16 +607,13 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 #endif
 
 directory_open:
-	/* Configure fallocate calls. */
-	__wt_posix_file_allocate_configure(session, pfh);
-
 	/* Initialize public information. */
 	file_handle = (WT_FILE_HANDLE *)pfh;
 	WT_ERR(__wt_strdup(session, name, &file_handle->name));
 
 	file_handle->close = __posix_file_close;
 	file_handle->fadvise = __posix_file_advise;
-	file_handle->fallocate = __wt_posix_file_allocate;
+	file_handle->fallocate = __wt_posix_file_fallocate;
 	file_handle->lock = __posix_file_lock;
 #ifdef WORDS_BIGENDIAN
 	/*

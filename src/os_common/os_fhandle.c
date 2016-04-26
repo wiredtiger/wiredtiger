@@ -9,22 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __fhandle_allocate_notsup --
- *	POSIX fallocate unsupported.
- */
-static int
-__fhandle_allocate_notsup(WT_FILE_HANDLE *file_handle,
-    WT_SESSION *wt_session, wt_off_t offset, wt_off_t len)
-{
-	WT_SESSION_IMPL *session;
-
-	session = (WT_SESSION_IMPL *)wt_session;
-	WT_UNUSED(offset);
-	WT_UNUSED(len);
-	WT_RET_MSG(session, ENOTSUP, "%s: file-allocate", file_handle->name);
-}
-
-/*
  * __fhandle_method_finalize --
  *	Initialize any NULL WT_FH structure methods to not-supported. Doing
  *	this means that custom file systems with incomplete implementations
@@ -40,17 +24,18 @@ __fhandle_method_finalize(
 		    "a %s handle method must be configured", #name)
 
 	WT_HANDLE_METHOD_REQ(close);
-	/* fadvise is not required */
-	if (handle->fallocate == NULL)
-		handle->fallocate = __fhandle_allocate_notsup;
+	/* not required: fadvise */
+	/* not required: fallocate */
+	/* not required: fallocate_nolock */
 	WT_HANDLE_METHOD_REQ(lock);
-	/* map is not required */
-	/* map_discard is not required */
-	/* map_preload is not required */
-	/* map_unmap is not required */
+	/* not required: map */
+	/* not required: map_discard */
+	/* not required: map_preload */
+	/* not required: map_unmap */
 	WT_HANDLE_METHOD_REQ(read);
 	WT_HANDLE_METHOD_REQ(size);
-	/* sync is not required */
+	/* not required: sync */
+	/* not required: sync_nowait */
 	if (!readonly) {
 		WT_HANDLE_METHOD_REQ(truncate);
 		WT_HANDLE_METHOD_REQ(write);

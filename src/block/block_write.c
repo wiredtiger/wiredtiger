@@ -79,6 +79,7 @@ __wt_block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block,
     WT_FH *fh, wt_off_t offset, size_t align_size, bool *release_lockp)
 {
 	WT_DECL_RET;
+	WT_FILE_HANDLE *handle;
 	bool locked;
 
 	/*
@@ -114,7 +115,6 @@ __wt_block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	    block->extend_len + (wt_off_t)align_size < block->extend_size))
 		return (0);
 
-#if 0
 	/*
 	 * File extension may require locking: some variants of the system call
 	 * used to extend the file initialize the extended space. If a writing
@@ -125,11 +125,8 @@ __wt_block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	 * based on the filesystem type, fall back to ftruncate in that case,
 	 * and remember that ftruncate requires locking.
 	 */
-	/*
-	 * TODO
-	 * LAYERING VIOLATION NEEDS FIXING.
-	 */
-	if (fh->fallocate_available != WT_FALLOCATE_NOT_AVAILABLE) {
+	handle = fh->handle;
+	if (handle->fallocate != NULL || handle->fallocate_nolock != NULL) {
 		/*
 		 * Release any locally acquired lock if not needed to extend the
 		 * file, extending the file may require updating on-disk file's
@@ -137,7 +134,7 @@ __wt_block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block,
 		 * configure for file extension on systems that require locking
 		 * over the extend call.)
 		 */
-		if (!fh->fallocate_requires_locking && *release_lockp) {
+		if (handle->fallocate_nolock != NULL && *release_lockp) {
 			*release_lockp = locked = false;
 			__wt_spin_unlock(session, &block->live_lock);
 		}
@@ -153,10 +150,8 @@ __wt_block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block,
 		if ((ret = __wt_fallocate(
 		    session, fh, block->size, block->extend_len * 2)) == 0)
 			return (0);
-		if (ret != ENOTSUP)
-			return (ret);
+		WT_RET_ERROR_OK(ret, ENOTSUP);
 	}
-#endif
 
 	/*
 	 * We may have a caller lock or a locally acquired lock, but we need a
@@ -178,9 +173,8 @@ __wt_block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	 * The truncate might fail if there's a mapped file (in other words, if
 	 * there's an open checkpoint on the file), that's OK.
 	 */
-	if ((ret = __wt_ftruncate(session, fh, block->extend_size)) == EBUSY)
-		ret = 0;
-	return (ret);
+	WT_RET_BUSY_OK(__wt_ftruncate(session, fh, block->extend_size));
+	return (0);
 }
 
 /*

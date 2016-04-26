@@ -29,6 +29,9 @@ static inline int
 __wt_fallocate(
     WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, wt_off_t len)
 {
+	WT_DECL_RET;
+	WT_FILE_HANDLE *handle;
+
 	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_READONLY));
 	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
 
@@ -36,8 +39,21 @@ __wt_fallocate(
 	    "%s: handle-allocate: %" PRIuMAX " at %" PRIuMAX,
 	    fh->handle->name, (uintmax_t)len, (uintmax_t)offset));
 
-	return (fh->handle->fallocate(
-	    fh->handle, (WT_SESSION *)session, offset, len));
+	/*
+	 * Our caller is responsible for handling any locking issues, all we
+	 * have to do is find a function to call.
+	 */
+	handle = fh->handle;
+	if (handle->fallocate_nolock != NULL) {
+		if ((ret = handle->fallocate_nolock(
+		    handle, (WT_SESSION *)session, offset, len)) == 0)
+			return (0);
+		WT_RET_ERROR_OK(ret, ENOTSUP);
+	}
+	if (handle->fallocate != NULL)
+		return (handle->fallocate(
+		    handle, (WT_SESSION *)session, offset, len));
+	return (ENOTSUP);
 }
 
 /*

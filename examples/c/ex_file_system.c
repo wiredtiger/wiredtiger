@@ -161,7 +161,6 @@ demo_fs_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
 	WT_FILE_HANDLE *file_handle;
 	DEMO_FILE_HANDLE *demo_fh;
 	DEMO_FILE_SYSTEM *demo_fs;
-	int ret = 0;
 
 	(void)file_type;					/* Unused */
 	(void)session;						/* Unused */
@@ -198,22 +197,19 @@ demo_fs_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
 	demo_fh->ref = 1;
 	demo_fh->off = 0;
 	demo_fh->demo_fs = demo_fs;
-	demo_fh->buf = calloc(1, DEMO_FILE_SIZE_INCREMENT);
+	if ((demo_fh->buf = calloc(1, DEMO_FILE_SIZE_INCREMENT)) == NULL)
+		goto enomem;
 	demo_fh->size = DEMO_FILE_SIZE_INCREMENT;
 
 	/* Initialize public information. */
 	file_handle = (WT_FILE_HANDLE *)demo_fh;
-	if ((file_handle->name = strdup(name)) == NULL) {
-		ret = ENOMEM;
-		goto err;
-	}
+	if ((file_handle->name = strdup(name)) == NULL)
+		goto enomem;
 
 	file_handle->close = demo_file_close;
 	file_handle->lock = demo_file_lock;
 	file_handle->read = demo_file_read;
 	file_handle->size = demo_file_size;
-	file_handle->sync = NULL;
-	file_handle->sync_nowait = NULL;
 	file_handle->truncate = demo_file_truncate;
 	file_handle->write = demo_file_write;
 
@@ -221,10 +217,11 @@ demo_fs_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
 	++demo_fs->opened_file_count;
 
 	*file_handlep = file_handle;
+	return (0);
 
-err:	if (ret != 0)
-		free(demo_fh);
-	return (ret);
+enomem:	free(demo_fh->buf);
+	free(demo_fh);
+	return (ENOMEM);
 }
 
 /*
@@ -560,122 +557,7 @@ main(void)
 		    home, wiredtiger_strerror(ret));
 		return (ret);
 	}
-
 	/*! [WT_FILE_SYSTEM register] */
-
-	/*! [open_file] */
-	/*
-	 * TODO.
-	 */
-	/*! [open_file] */
-
-	/*! [directory_list] */
-	/*
-	 * TODO.
-	 */
-	/*! [directory_list] */
-
-	/*! [directory_sync] */
-	/*
-	 * TODO.
-	 */
-	/*! [directory_sync] */
-
-	/*! [exist] */
-	/*
-	 * TODO.
-	 */
-	/*! [exist] */
-
-	/*! [fadvise] */
-	/*
-	 * TODO.
-	 */
-	/*! [fadvise] */
-
-	/*! [fallocate] */
-	/*
-	 * TODO.
-	 */
-	/*! [fallocate] */
-
-	/*! [lock] */
-	/*
-	 * TODO.
-	 */
-	/*! [lock] */
-
-	/*! [map] */
-	/*
-	 * TODO.
-	 */
-	/*! [map] */
-
-	/*! [map_discard] */
-	/*
-	 * TODO.
-	 */
-	/*! [map_discard] */
-
-	/*! [map_preload] */
-	/*
-	 * TODO.
-	 */
-	/*! [map_preload] */
-
-	/*! [read] */
-	/*
-	 * TODO.
-	 */
-	/*! [read] */
-
-	/*! [remove] */
-	/*
-	 * TODO.
-	 */
-	/*! [remove] */
-
-	/*! [rename] */
-	/*
-	 * TODO.
-	 */
-	/*! [rename] */
-
-	/*! [size] */
-	/*
-	 * TODO.
-	 */
-	/*! [size] */
-
-	/*! [sync] */
-	/*
-	 * TODO.
-	 */
-	/*! [sync] */
-
-	/*! [truncate] */
-	/*
-	 * TODO.
-	 */
-	/*! [truncate] */
-
-	/*! [unmap] */
-	/*
-	 * TODO.
-	 */
-	/*! [unmap] */
-
-	/*! [write] */
-	/*
-	 * TODO.
-	 */
-	/*! [write] */
-
-	/*! [close] */
-	/*
-	 * TODO.
-	 */
-	/*! [close] */
 
 	return (0);
 }

@@ -93,14 +93,6 @@ struct __wt_file_handle_posix {
 	int	 fd;				/* POSIX file handle */
 
 	bool	 direct_io;			/* O_DIRECT configured */
-
-	enum {					/* file extend configuration */
-	    WT_FALLOCATE_AVAILABLE,
-	    WT_FALLOCATE_NOT_AVAILABLE,
-	    WT_FALLOCATE_POSIX,
-	    WT_FALLOCATE_STD,
-	    WT_FALLOCATE_SYS } fallocate_available;
-	bool fallocate_requires_locking;
 };
 #endif
 
