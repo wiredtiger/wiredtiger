@@ -155,14 +155,12 @@ err:	__wt_spin_lock(session, &im_fs->lock);
  */
 static int
 __im_fs_size(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *wt_session, const char *name, bool silent, wt_off_t *sizep)
+    WT_SESSION *wt_session, const char *name, wt_off_t *sizep)
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_INMEM *im_fh;
 	WT_INMEMORY_FILE_SYSTEM *im_fs;
 	WT_SESSION_IMPL *session;
-
-	WT_UNUSED(silent);
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_system;

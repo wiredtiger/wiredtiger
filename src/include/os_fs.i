@@ -203,8 +203,7 @@ err:	__wt_free(session, from_path);
  *	Get the size of a file in bytes, by file name.
  */
 static inline int
-__wt_size(
-    WT_SESSION_IMPL *session, const char *name, bool silent, wt_off_t *sizep)
+__wt_size(WT_SESSION_IMPL *session, const char *name, wt_off_t *sizep)
 {
 	WT_DECL_RET;
 	WT_FILE_SYSTEM *file_system;
@@ -217,7 +216,7 @@ __wt_size(
 
 	file_system = S2C(session)->file_system;
 	wt_session = (WT_SESSION *)session;
-	ret = file_system->size(file_system, wt_session, path, silent, sizep);
+	ret = file_system->size(file_system, wt_session, path, sizep);
 
 	__wt_free(session, path);
 	return (ret);

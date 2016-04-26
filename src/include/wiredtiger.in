@@ -3874,11 +3874,10 @@ struct __wt_file_system {
 	 * @param file_system the WT_FILE_SYSTEM
 	 * @param session the current WiredTiger session
 	 * @param name the name of the file system object
-	 * @param silent whether to report an error if the entry does not exist
 	 * @param[out] sizep the size of the file system entry
 	 */
-	int (*size)(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
-	    const char *name, bool silent, wt_off_t *sizep);
+	int (*size)(WT_FILE_SYSTEM *file_system,
+	    WT_SESSION *session, const char *name, wt_off_t *sizep);
 
 	/*!
 	 * If non-NULL a callback performed when the file system is closed and

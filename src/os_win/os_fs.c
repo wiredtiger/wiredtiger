@@ -90,7 +90,7 @@ __win_fs_rename(WT_FILE_SYSTEM *file_system,
  */
 static int
 __win_fs_size(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *wt_session, const char *name, bool silent, wt_off_t *sizep)
+    WT_SESSION *wt_session, const char *name, wt_off_t *sizep)
 {
 	WIN32_FILE_ATTRIBUTE_DATA data;
 	WT_SESSION_IMPL *session;
@@ -105,14 +105,8 @@ __win_fs_size(WT_FILE_SYSTEM *file_system,
 		return (0);
 	}
 
-	/*
-	 * Some callers of this function expect failure if the file doesn't
-	 * exist, and don't want an error message logged.
-	 */
-	if (!silent)
-		WT_RET_MSG(session, __wt_getlasterror(),
-		    "%s: file-size: GetFileAttributesEx", name);
-	return (ret);
+	WT_RET_MSG(session, __wt_getlasterror(),
+	    "%s: file-size: GetFileAttributesEx", name);
 }
 
 /*

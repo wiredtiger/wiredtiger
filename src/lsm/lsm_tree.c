@@ -235,7 +235,7 @@ __wt_lsm_tree_set_chunk_size(
 	if (!WT_PREFIX_SKIP(filename, "file:"))
 		WT_RET_MSG(session, EINVAL,
 		    "Expected a 'file:' URI: %s", chunk->uri);
-	WT_RET(__wt_size(session, filename, false, &size));
+	WT_RET(__wt_size(session, filename, &size));
 
 	chunk->size = (uint64_t)size;
 

@@ -166,7 +166,7 @@ __posix_fs_rename(WT_FILE_SYSTEM *file_system,
  */
 static int
 __posix_fs_size(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *wt_session, const char *name, bool silent, wt_off_t *sizep)
+    WT_SESSION *wt_session, const char *name, wt_off_t *sizep)
 {
 	struct stat sb;
 	WT_DECL_RET;
@@ -176,18 +176,12 @@ __posix_fs_size(WT_FILE_SYSTEM *file_system,
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	/*
-	 * Optionally don't log errors on ENOENT; some callers of this function
-	 * expect failure in that case and don't want an error message logged.
-	 */
 	WT_SYSCALL_RETRY(stat(name, &sb), ret);
 	if (ret == 0) {
 		*sizep = sb.st_size;
 		return (0);
 	}
-	if (ret != ENOENT || !silent)
-		__wt_err(session, ret, "%s: file-size: stat", name);
-	return (ret);
+	WT_RET_MSG(session, ret, "%s: file-size: stat", name);
 }
 
 #if defined(HAVE_POSIX_FADVISE)
