@@ -87,7 +87,7 @@ static int demo_fs_remove(WT_FILE_SYSTEM *, WT_SESSION *, const char *);
 static int demo_fs_rename(
     WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *);
 static int demo_fs_size(
-    WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool, wt_off_t *);
+    WT_FILE_SYSTEM *, WT_SESSION *, const char *, wt_off_t *);
 static int demo_fs_terminate(WT_FILE_SYSTEM *, WT_SESSION *);
 
 /*
@@ -288,12 +288,10 @@ demo_fs_rename(WT_FILE_SYSTEM *file_system,
  */
 static int
 demo_fs_size(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *session, const char *name, bool silent, wt_off_t *sizep)
+    WT_SESSION *session, const char *name, wt_off_t *sizep)
 {
 	DEMO_FILE_HANDLE *demo_fh;
 	int ret = 0;
-
-	(void)silent;						/* Unused */
 
 	ret = ENOENT;
 	if ((demo_fh = demo_handle_search(file_system, name)) != NULL)

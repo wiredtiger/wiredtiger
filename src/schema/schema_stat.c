@@ -98,9 +98,9 @@ __curstat_size_only(WT_SESSION_IMPL *session,
 	 * fine - failing here results in falling back to the slow path of
 	 * opening the handle.
 	 */
-	WT_ERR(__wt_exist(session, namebuf.data, &exist));
+	WT_ERR(__wt_fs_exist(session, namebuf.data, &exist));
 	if (exist) {
-		WT_ERR(__wt_size(session, namebuf.data, &filesize));
+		WT_ERR(__wt_fs_size(session, namebuf.data, &filesize));
 
 		/* Setup and populate the statistics structure */
 		__wt_stat_dsrc_init_single(&cst->u.dsrc_stats);

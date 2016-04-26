@@ -60,9 +60,9 @@ __wt_remove_if_exists(WT_SESSION_IMPL *session, const char *name)
 {
 	bool exist;
 
-	WT_RET(__wt_exist(session, name, &exist));
+	WT_RET(__wt_fs_exist(session, name, &exist));
 	if (exist)
-		WT_RET(__wt_remove(session, name));
+		WT_RET(__wt_fs_remove(session, name));
 	return (0);
 }
 
@@ -78,7 +78,7 @@ __wt_rename_and_sync_directory(
 	bool same_directory;
 
 	/* Rename the source file to the target. */
-	WT_RET(__wt_rename(session, from, to));
+	WT_RET(__wt_fs_rename(session, from, to));
 
 	/*
 	 * Flush the backing directory to guarantee the rename. My reading of
@@ -89,7 +89,7 @@ __wt_rename_and_sync_directory(
 	 * with specific mount options. Flush both of the from/to directories
 	 * until it's a performance problem.
 	 */
-	WT_RET(__wt_directory_sync(session, from));
+	WT_RET(__wt_fs_directory_sync(session, from));
 
 	/*
 	 * In almost all cases, we're going to be renaming files in the same
@@ -101,7 +101,7 @@ __wt_rename_and_sync_directory(
 	    (fp != NULL && tp != NULL &&
 	    fp - from == tp - to && memcmp(from, to, (size_t)(fp - from)) == 0);
 
-	return (same_directory ? 0 : __wt_directory_sync(session, to));
+	return (same_directory ? 0 : __wt_fs_directory_sync(session, to));
 }
 
 /*

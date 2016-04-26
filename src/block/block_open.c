@@ -53,10 +53,10 @@ __wt_block_manager_create(
 		for (suffix = 1;; ++suffix) {
 			WT_ERR(__wt_buf_fmt(
 			    session, tmp, "%s.%d", filename, suffix));
-			WT_ERR(__wt_exist(session, tmp->data, &exists));
+			WT_ERR(__wt_fs_exist(session, tmp->data, &exists));
 			if (!exists) {
-				WT_ERR(
-				    __wt_rename(session, filename, tmp->data));
+				WT_ERR(__wt_fs_rename(
+				    session, filename, tmp->data));
 				WT_ERR(__wt_msg(session,
 				    "unexpected file %s found, renamed to %s",
 				    filename, (char *)tmp->data));
@@ -82,11 +82,11 @@ __wt_block_manager_create(
 	 * that the file will appear.
 	 */
 	if (ret == 0)
-		WT_TRET(__wt_directory_sync(session, filename));
+		WT_TRET(__wt_fs_directory_sync(session, filename));
 
 	/* Undo any create on error. */
 	if (ret != 0)
-		WT_TRET(__wt_remove(session, filename));
+		WT_TRET(__wt_fs_remove(session, filename));
 
 err:	__wt_scr_free(session, &tmp);
 
@@ -422,5 +422,5 @@ int
 __wt_block_manager_named_size(
     WT_SESSION_IMPL *session, const char *name, wt_off_t *sizep)
 {
-	return (__wt_size(session, name, sizep));
+	return (__wt_fs_size(session, name, sizep));
 }

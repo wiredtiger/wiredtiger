@@ -1211,7 +1211,7 @@ __conn_config_file(WT_SESSION_IMPL *session,
 	fh = NULL;
 
 	/* Configuration files are always optional. */
-	WT_RET(__wt_exist(session, filename, &exist));
+	WT_RET(__wt_fs_exist(session, filename, &exist));
 	if (!exist)
 		return (0);
 
@@ -1507,7 +1507,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	exist = false;
 	if (!is_create)
-		WT_ERR(__wt_exist(session, WT_WIREDTIGER, &exist));
+		WT_ERR(__wt_fs_exist(session, WT_WIREDTIGER, &exist));
 	ret = __wt_open(session, WT_SINGLETHREAD, WT_FILE_TYPE_REGULAR,
 	    is_create || exist ? WT_OPEN_CREATE : 0, &conn->lock_fh);
 
@@ -1601,7 +1601,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 	 * and there's never a database home after that point without a turtle
 	 * file. If the turtle file doesn't exist, it's a create.
 	 */
-	WT_ERR(__wt_exist(session, WT_METADATA_TURTLE, &exist));
+	WT_ERR(__wt_fs_exist(session, WT_METADATA_TURTLE, &exist));
 	conn->is_new = exist ? 0 : 1;
 
 	if (conn->is_new) {
@@ -1808,7 +1808,7 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
 	 * only NOT exist if we crashed before it was created; in other words,
 	 * if the base configuration file exists, we're done.
 	 */
-	WT_RET(__wt_exist(session, WT_BASECONFIG, &exist));
+	WT_RET(__wt_fs_exist(session, WT_BASECONFIG, &exist));
 	if (exist)
 		return (0);
 

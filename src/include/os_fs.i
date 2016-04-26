@@ -7,11 +7,11 @@
  */
 
 /*
- * __wt_dirlist --
+ * __wt_fs_directory_list --
  *	Get a list of files from a directory.
  */
 static inline int
-__wt_dirlist(WT_SESSION_IMPL *session,
+__wt_fs_directory_list(WT_SESSION_IMPL *session,
     const char *dir, const char *prefix, char ***dirlist, u_int *countp)
 {
 	WT_DECL_RET;
@@ -43,11 +43,11 @@ __wt_dirlist(WT_SESSION_IMPL *session,
 }
 
 /*
- * __wt_directory_sync --
+ * __wt_fs_directory_sync --
  *	Flush a directory to ensure file creation is durable.
  */
 static inline int
-__wt_directory_sync(WT_SESSION_IMPL *session, const char *name)
+__wt_fs_directory_sync(WT_SESSION_IMPL *session, const char *name)
 {
 	WT_DECL_RET;
 	WT_FILE_SYSTEM *file_system;
@@ -96,11 +96,11 @@ __wt_directory_sync(WT_SESSION_IMPL *session, const char *name)
 }
 
 /*
- * __wt_exist --
+ * __wt_fs_exist --
  *	Return if the file exists.
  */
 static inline int
-__wt_exist(WT_SESSION_IMPL *session, const char *name, bool *existp)
+__wt_fs_exist(WT_SESSION_IMPL *session, const char *name, bool *existp)
 {
 	WT_DECL_RET;
 	WT_FILE_SYSTEM *file_system;
@@ -120,11 +120,11 @@ __wt_exist(WT_SESSION_IMPL *session, const char *name, bool *existp)
 }
 
 /*
- * __wt_remove --
+ * __wt_fs_remove --
  *	POSIX remove.
  */
 static inline int
-__wt_remove(WT_SESSION_IMPL *session, const char *name)
+__wt_fs_remove(WT_SESSION_IMPL *session, const char *name)
 {
 	WT_DECL_RET;
 	WT_FILE_SYSTEM *file_system;
@@ -156,11 +156,11 @@ __wt_remove(WT_SESSION_IMPL *session, const char *name)
 }
 
 /*
- * __wt_rename --
+ * __wt_fs_rename --
  *	POSIX rename.
  */
 static inline int
-__wt_rename(WT_SESSION_IMPL *session, const char *from, const char *to)
+__wt_fs_rename(WT_SESSION_IMPL *session, const char *from, const char *to)
 {
 	WT_DECL_RET;
 	WT_FILE_SYSTEM *file_system;
@@ -199,11 +199,11 @@ err:	__wt_free(session, from_path);
 }
 
 /*
- * __wt_size --
+ * __wt_fs_size --
  *	Get the size of a file in bytes, by file name.
  */
 static inline int
-__wt_size(WT_SESSION_IMPL *session, const char *name, wt_off_t *sizep)
+__wt_fs_size(WT_SESSION_IMPL *session, const char *name, wt_off_t *sizep)
 {
 	WT_DECL_RET;
 	WT_FILE_SYSTEM *file_system;

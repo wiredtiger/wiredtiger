@@ -258,7 +258,8 @@ __log_get_files(WT_SESSION_IMPL *session,
 	log_path = conn->log_path;
 	if (log_path == NULL)
 		log_path = "";
-	return (__wt_dirlist(session, log_path, file_prefix, filesp, countp));
+	return (__wt_fs_directory_list(
+	    session, log_path, file_prefix, filesp, countp));
 }
 
 /*
@@ -762,7 +763,7 @@ __log_alloc_prealloc(WT_SESSION_IMPL *session, uint32_t to_num)
 	 * All file setup, writing the header and pre-allocation was done
 	 * before.  We only need to rename it.
 	 */
-	WT_ERR(__wt_rename(session, from_path->data, to_path->data));
+	WT_ERR(__wt_fs_rename(session, from_path->data, to_path->data));
 
 err:	__wt_scr_free(session, &from_path);
 	__wt_scr_free(session, &to_path);
@@ -1042,7 +1043,7 @@ __wt_log_allocfile(
 	/*
 	 * Rename it into place and make it available.
 	 */
-	WT_ERR(__wt_rename(session, from_path->data, to_path->data));
+	WT_ERR(__wt_fs_rename(session, from_path->data, to_path->data));
 
 err:	__wt_scr_free(session, &from_path);
 	__wt_scr_free(session, &to_path);
@@ -1065,7 +1066,7 @@ __wt_log_remove(WT_SESSION_IMPL *session,
 	WT_ERR(__log_filename(session, lognum, file_prefix, path));
 	WT_ERR(__wt_verbose(session, WT_VERB_LOG,
 	    "log_remove: remove log %s", (char *)path->data));
-	WT_ERR(__wt_remove(session, path->data));
+	WT_ERR(__wt_fs_remove(session, path->data));
 err:	__wt_scr_free(session, &path);
 	return (ret);
 }
