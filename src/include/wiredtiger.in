@@ -2153,8 +2153,9 @@ struct __wt_connection {
 	/*!
 	 * Configure a custom file system.
 	 *
-	 * The application must first implement the WT_FILE_SYSTEM interface
-	 * and then register the implementation with WiredTiger:
+	 * This method can only be called from an early loaded extension
+	 * module. The application must first implement the WT_FILE_SYSTEM
+	 * interface and then register the implementation with WiredTiger:
 	 *
 	 * @snippet ex_file_system.c WT_FILE_SYSTEM register
 	 *

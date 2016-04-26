@@ -260,6 +260,7 @@ __posix_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 			    "%s: handle-close: close", file_handle->name);
 	}
 	__wt_free(session, file_handle->name);
+	__wt_free(session, pfh);
 	return (ret);
 }
 
