@@ -114,7 +114,7 @@ __im_fs_remove(
 	if ((im_fh = __im_handle_search(file_system, name)) != NULL)
 		ret = __im_handle_remove(session, im_fh);
 
-	__wt_spin_lock(session, &im_fs->lock);
+	__wt_spin_unlock(session, &im_fs->lock);
 	return (ret);
 }
 
@@ -145,7 +145,7 @@ __im_fs_rename(WT_FILE_SYSTEM *file_system,
 		im_fh->iface.name = copy;
 	}
 
-err:	__wt_spin_lock(session, &im_fs->lock);
+err:	__wt_spin_unlock(session, &im_fs->lock);
 	return (ret);
 }
 
