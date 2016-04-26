@@ -257,7 +257,7 @@ __backup_start(
 	if (log_only) {
 		/*
 		 * We also open an incremental backup source file so that we
-		 * can detect a crash with an incremental backup existing on
+		 * can detect a crash with an incremental backup existing in
 		 * the source directory versus an improper destination.
 		 */
 		dest = WT_INCREMENTAL_BACKUP;
