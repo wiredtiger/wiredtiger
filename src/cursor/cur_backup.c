@@ -198,6 +198,7 @@ __backup_start(
 
 	conn = S2C(session);
 	srcfs = NULL;
+	dest = NULL;
 
 	cb->next = 0;
 	cb->list = NULL;
@@ -285,8 +286,10 @@ err:	/* Close the hot backup file. */
 	if (ret != 0) {
 		WT_TRET(__backup_cleanup_handles(session, cb));
 		WT_TRET(__backup_stop(session));
-	} else
+	} else {
+		WT_ASSERT(session, dest != NULL);
 		WT_TRET(__wt_rename(session, WT_BACKUP_TMP, dest));
+	}
 
 	return (ret);
 }
