@@ -3730,6 +3730,10 @@ typedef enum {
  * The interface implemented by applications to provide a custom file system
  * implementation.
  *
+ * <b>Thread safety:</b> WiredTiger may invoke methods on the WT_FILE_SYSTEM
+ * interface from multiple threads concurrently. It is the responsibility of
+ * the implementation to protect any shared data.
+ *
  * Applications register implementations with WiredTiger by calling
  * WT_CONNECTION::add_file_system.  See @ref custom_file_systems for more
  * information.
@@ -3739,9 +3743,6 @@ typedef enum {
 struct __wt_file_system {
 	/*!
 	 * Return the list of file names for the named directory.
-	 *
-	 * This method is not called concurrently with other file system or
-	 * handle operations.
 	 *
 	 * @errors
 	 *
@@ -3767,9 +3768,6 @@ struct __wt_file_system {
 	 * durability of file system operations, and should be set to NULL when
 	 * not required by the file system.
 	 *
-	 * This method is not called concurrently with other file system or
-	 * handle operations.
-	 *
 	 * @errors
 	 *
 	 * @param file_system the WT_FILE_SYSTEM
@@ -3781,9 +3779,6 @@ struct __wt_file_system {
 
 	/*!
 	 * Return if the named file system object exists.
-	 *
-	 * This method may be called concurrently with other file system or
-	 * handle operations.
 	 *
 	 * @errors
 	 *
@@ -3797,9 +3792,6 @@ struct __wt_file_system {
 
 	/*!
 	 * Open a handle for a named file system object
-	 *
-	 * This method is not called concurrently with other file system or
-	 * handle operations.
 	 *
 	 * @errors
 	 *
@@ -3829,9 +3821,6 @@ struct __wt_file_system {
 	 * This method is not required for readonly file systems and should be
 	 * set to NULL when not required by the file system.
 	 *
-	 * This method is not called concurrently with other file system or
-	 * handle operations.
-	 *
 	 * @errors
 	 *
 	 * @param file_system the WT_FILE_SYSTEM
@@ -3847,9 +3836,6 @@ struct __wt_file_system {
 	 * This method is not required for readonly file systems and should be
 	 * set to NULL when not required by the file system.
 	 *
-	 * This method is not called concurrently with other file system or
-	 * handle operations.
-	 *
 	 * @errors
 	 *
 	 * @param file_system the WT_FILE_SYSTEM
@@ -3863,9 +3849,6 @@ struct __wt_file_system {
 	/*!
 	 * Return the size of a named file system object
 	 *
-	 * This method may be called concurrently with other file system or
-	 * handle operations.
-	 *
 	 * @errors
 	 *
 	 * @param file_system the WT_FILE_SYSTEM
@@ -3878,7 +3861,7 @@ struct __wt_file_system {
 
 	/*!
 	 * If non-NULL a callback performed when the file system is closed and
-	 * will no longer be used by the WiredTiger database.
+	 * will no longer be accessed by the WiredTiger database.
 	 *
 	 * The WT_FILE_SYSTEM::terminate callback is intended to allow cleanup,
 	 * the handle will not be subsequently accessed by WiredTiger.
@@ -3894,21 +3877,27 @@ struct __wt_file_system {
 /*!
  * A file handle implementation returned by WT_FILE_SYSTEM::open_file.
  *
- * See @ref custom_file_systems for more information.
+ * <b>Thread safety:</b> Unless explicitly stated otherwise, WiredTiger may
+ * invoke methods on the WT_FILE_HANDLE interface from multiple threads
+ * concurrently. It is the responsibility of the implementation to protect
+ * any shared data.
  *
+ * See @ref custom_file_systems for more information.
  */
 struct __wt_file_handle {
 	/*!
-	 * The name of the file.
+	 * The enclosing file system, set by WT_FILE_SYSTEM::open_file.
+	 */
+	WT_FILE_SYSTEM *file_system;
+
+	/*!
+	 * The name of the file, set by WT_FILE_SYSTEM::open_file.
 	 */
 	char *name;
 
 	/*!
-	 * Close a file handle; the WT_FILE_HANDLE will not be further accessed
-	 * by WiredTiger.
-	 *
-	 * This method is not called concurrently with other file system or
-	 * handle operations.
+	 * Close a file handle, the handle will not be further accessed by
+	 * WiredTiger.
 	 *
 	 * @errors
 	 *
@@ -3923,9 +3912,6 @@ struct __wt_file_handle {
 	 *
 	 * This method is not required, and should be set to NULL when not
 	 * supported by the file.
-	 *
-	 * This method may be called concurrently with other file system or
-	 * handle operations.
 	 *
 	 * @errors
 	 *
@@ -3946,10 +3932,9 @@ struct __wt_file_handle {
 	 * This method is not required, and should be set to NULL when not
 	 * supported by the file.
 	 *
-	 * This method is not called concurrently with other file system or
-	 * handle operations. If the file handle's fallocate function can
-	 * support fallocate calls concurrently with other file system or
-	 * handle operations, set the WT_FILE_HANDLE::fallocate_nolock method
+	 * This method is not called by multiple threads concurrently (on the
+	 * same file handle). If the file handle's fallocate method supports
+	 * concurrent calls, set the WT_FILE_HANDLE::fallocate_nolock method
 	 * instead.
 	 *
 	 * @errors
@@ -3969,10 +3954,10 @@ struct __wt_file_handle {
 	 * This method is not required, and should be set to NULL when not
 	 * supported by the file.
 	 *
-	 * This method may be called concurrently with other file system or
-	 * handle operations. If the file handle's fallocate function cannot
-	 * support fallocate calls concurrently with other file system or
-	 * handle operations, set the WT_FILE_HANDLE::fallocate method instead.
+	 * This method may be called by multiple threads concurrently (on the
+	 * same file handle). If the file handle's fallocate method does not
+	 * support concurrent calls, set the WT_FILE_HANDLE::fallocate method
+	 * instead.
 	 *
 	 * @errors
 	 *
@@ -3991,9 +3976,6 @@ struct __wt_file_handle {
 	 * This method is not required, and should be set to NULL when not
 	 * required by the system.
 	 *
-	 * This method is not called concurrently with other file system or
-	 * handle operations.
-	 *
 	 * @errors
 	 *
 	 * @param file_handle the WT_FILE_HANDLE
@@ -4008,9 +3990,6 @@ struct __wt_file_handle {
 	 *
 	 * This method is not required, and should be set to NULL when not
 	 * supported by the file.
-	 *
-	 * This method may be called concurrently with other file system or
-	 * handle operations.
 	 *
 	 * @errors
 	 *
@@ -4034,9 +4013,6 @@ struct __wt_file_handle {
 	 * This method is not required, and should be set to NULL when not
 	 * supported by the file.
 	 *
-	 * This method may be called concurrently with other file system or
-	 * handle operations.
-	 *
 	 * @errors
 	 *
 	 * @param file_handle the WT_FILE_HANDLE
@@ -4055,9 +4031,6 @@ struct __wt_file_handle {
 	 *
 	 * This method is not required, and should be set to NULL when not
 	 * supported by the file.
-	 *
-	 * This method may be called concurrently with other file system or
-	 * handle operations.
 	 *
 	 * @errors
 	 *
@@ -4078,9 +4051,6 @@ struct __wt_file_handle {
 	 * This method is not required, and should be set to NULL when not
 	 * supported by the file.
 	 *
-	 * This method may be called concurrently with other file system or
-	 * handle operations.
-	 *
 	 * @errors
 	 *
 	 * @param file_handle the WT_FILE_HANDLE
@@ -4095,9 +4065,6 @@ struct __wt_file_handle {
 	/*!
 	 * Read from a file, based on the POSIX 1003.1 standard pread.
 	 *
-	 * This method may be called concurrently with other file system or
-	 * handle operations.
-	 *
 	 * @errors
 	 *
 	 * @param file_handle the WT_FILE_HANDLE
@@ -4111,9 +4078,6 @@ struct __wt_file_handle {
 
 	/*!
 	 * Return the size of a file.
-	 *
-	 * This method may be called concurrently with other file system or
-	 * handle operations.
 	 *
 	 * @errors
 	 *
@@ -4131,9 +4095,6 @@ struct __wt_file_handle {
 	 * This method is not required, and should be set to NULL when not
 	 * required by the file.
 	 *
-	 * This method may be called concurrently with other file system or
-	 * handle operations.
-	 *
 	 * @errors
 	 *
 	 * @param file_handle the WT_FILE_HANDLE
@@ -4147,9 +4108,6 @@ struct __wt_file_handle {
 	 *
 	 * This method is not required, and should be set to NULL when not
 	 * supported by the file.
-	 *
-	 * This method may be called concurrently with other file system or
-	 * handle operations.
 	 *
 	 * @errors
 	 *
@@ -4165,9 +4123,6 @@ struct __wt_file_handle {
 	 * This method is not required for read-only files, and should be set
 	 * to NULL when not supported by the file.
 	 *
-	 * This method is not called concurrently with other file system or
-	 * handle operations.
-	 *
 	 * @errors
 	 *
 	 * @param file_handle the WT_FILE_HANDLE
@@ -4182,9 +4137,6 @@ struct __wt_file_handle {
 	 *
 	 * This method is not required for read-only files, and should be set
 	 * to NULL when not supported by the file.
-	 *
-	 * This method may be called concurrently with other file system or
-	 * handle operations.
 	 *
 	 * @errors
 	 *

@@ -45,12 +45,13 @@ __im_handle_search(WT_FILE_SYSTEM *file_system, const char *name)
  *	shutdown.
  */
 static int
-__im_handle_remove(WT_SESSION_IMPL *session, WT_FILE_HANDLE_INMEM *im_fh)
+__im_handle_remove(WT_SESSION_IMPL *session,
+    WT_FILE_SYSTEM *file_system, WT_FILE_HANDLE_INMEM *im_fh)
 {
 	WT_INMEMORY_FILE_SYSTEM *im_fs;
 	WT_FILE_HANDLE *fhp;
 
-	im_fs = (WT_INMEMORY_FILE_SYSTEM *)(S2C(session)->file_system);
+	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_system;
 
 	if (im_fh->ref != 0)
 		WT_RET_MSG(session, EBUSY,
@@ -171,7 +172,7 @@ __im_fs_remove(
 
 	ret = ENOENT;
 	if ((im_fh = __im_handle_search(file_system, name)) != NULL)
-		ret = __im_handle_remove(session, im_fh);
+		ret = __im_handle_remove(session, file_system, im_fh);
 
 	__wt_spin_unlock(session, &im_fs->lock);
 	return (ret);
@@ -221,8 +222,8 @@ __im_fs_size(WT_FILE_SYSTEM *file_system,
 	WT_INMEMORY_FILE_SYSTEM *im_fs;
 	WT_SESSION_IMPL *session;
 
-	session = (WT_SESSION_IMPL *)wt_session;
 	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_system;
+	session = (WT_SESSION_IMPL *)wt_session;
 
 	__wt_spin_lock(session, &im_fs->lock);
 
@@ -243,11 +244,18 @@ static int
 __im_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
 	WT_FILE_HANDLE_INMEM *im_fh;
-
-	WT_UNUSED(wt_session);
+	WT_INMEMORY_FILE_SYSTEM *im_fs;
+	WT_SESSION_IMPL *session;
 
 	im_fh = (WT_FILE_HANDLE_INMEM *)file_handle;
+	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_handle->file_system;
+	session = (WT_SESSION_IMPL *)wt_session;
+
+	__wt_spin_lock(session, &im_fs->lock);
+
 	--im_fh->ref;
+
+	__wt_spin_unlock(session, &im_fs->lock);
 
 	return (0);
 }
@@ -266,9 +274,9 @@ __im_file_read(WT_FILE_HANDLE *file_handle,
 	WT_SESSION_IMPL *session;
 	size_t off;
 
-	session = (WT_SESSION_IMPL *)wt_session;
-	im_fs = (WT_INMEMORY_FILE_SYSTEM *)(S2C(session)->file_system);
 	im_fh = (WT_FILE_HANDLE_INMEM *)file_handle;
+	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_handle->file_system;
+	session = (WT_SESSION_IMPL *)wt_session;
 
 	/*
 	 * TODO: Each file handle should probably reference the file system,
@@ -305,9 +313,14 @@ __im_file_size(
     WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t *sizep)
 {
 	WT_FILE_HANDLE_INMEM *im_fh;
+	WT_INMEMORY_FILE_SYSTEM *im_fs;
+	WT_SESSION_IMPL *session;
 
-	WT_UNUSED(wt_session);
 	im_fh = (WT_FILE_HANDLE_INMEM *)file_handle;
+	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_handle->file_system;
+	session = (WT_SESSION_IMPL *)wt_session;
+
+	__wt_spin_lock(session, &im_fs->lock);
 
 	/*
 	 * XXX hack - MongoDB assumes that any file with content will have a
@@ -315,6 +328,9 @@ __im_file_size(
 	 * MongoDB happy.
 	 */
 	*sizep = im_fh->buf.size == 0 ? 1024 : (wt_off_t)im_fh->buf.size;
+
+	__wt_spin_unlock(session, &im_fs->lock);
+
 	return (0);
 }
 
@@ -332,9 +348,9 @@ __im_file_truncate(
 	WT_SESSION_IMPL *session;
 	size_t off;
 
-	session = (WT_SESSION_IMPL *)wt_session;
-	im_fs = (WT_INMEMORY_FILE_SYSTEM *)(S2C(session)->file_system);
 	im_fh = (WT_FILE_HANDLE_INMEM *)file_handle;
+	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_handle->file_system;
+	session = (WT_SESSION_IMPL *)wt_session;
 
 	__wt_spin_lock(session, &im_fs->lock);
 
@@ -367,9 +383,9 @@ __im_file_write(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
 	WT_SESSION_IMPL *session;
 	size_t off;
 
-	session = (WT_SESSION_IMPL *)wt_session;
-	im_fs = (WT_INMEMORY_FILE_SYSTEM *)(S2C(session)->file_system);
 	im_fh = (WT_FILE_HANDLE_INMEM *)file_handle;
+	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_handle->file_system;
+	session = (WT_SESSION_IMPL *)wt_session;
 
 	__wt_spin_lock(session, &im_fs->lock);
 
@@ -408,19 +424,18 @@ __im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	WT_UNUSED(file_type);
 	WT_UNUSED(flags);
 
-	session = (WT_SESSION_IMPL *)wt_session;
 	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_system;
-	im_fh = NULL;
+	session = (WT_SESSION_IMPL *)wt_session;
+
+	__wt_spin_lock(session, &im_fs->lock);
 
 	/*
 	 * First search the file queue, if we find it, assert there's only a
 	 * single reference, in-memory only supports a single handle on any
 	 * file, for now.
 	 */
-	__wt_spin_lock(session, &im_fs->lock);
 	im_fh = __im_handle_search(file_system, name);
 	if (im_fh != NULL) {
-		__wt_spin_unlock(session, &im_fs->lock);
 
 		if (im_fh->ref != 0)
 			WT_ERR_MSG(session, EBUSY,
@@ -430,6 +445,8 @@ __im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 		im_fh->off = 0;
 
 		*file_handlep = (WT_FILE_HANDLE *)im_fh;
+
+		__wt_spin_unlock(session, &im_fs->lock);
 		return (0);
 	}
 
@@ -442,6 +459,7 @@ __im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 
 	/* Initialize public information. */
 	file_handle = (WT_FILE_HANDLE *)im_fh;
+	file_handle->file_system = file_system;
 	WT_ERR(__wt_strdup(session, name, &file_handle->name));
 
 	file_handle->close = __im_file_close;
@@ -454,9 +472,11 @@ __im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 
 	*file_handlep = file_handle;
 
-err:	__wt_spin_unlock(session, &im_fs->lock);
-	if (ret != 0)
-		__wt_free(session, im_fh);
+	if (0) {
+err:		__wt_free(session, im_fh);
+	}
+
+	__wt_spin_unlock(session, &im_fs->lock);
 	return (ret);
 }
 
@@ -475,10 +495,10 @@ __im_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session)
 	WT_UNUSED(file_system);
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	im_fs = (WT_INMEMORY_FILE_SYSTEM *)S2C(session)->file_system;
+	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_system;
 
 	while ((im_fh = TAILQ_FIRST(&im_fs->fileq)) != NULL)
-		WT_TRET(__im_handle_remove(session, im_fh));
+		WT_TRET(__im_handle_remove(session, file_system, im_fh));
 
 	__wt_spin_destroy(session, &im_fs->lock);
 	__wt_free(session, im_fs);

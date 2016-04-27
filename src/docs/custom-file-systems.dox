@@ -20,4 +20,9 @@ system or file handle operations. Where concurrent calls are possible,
 the underlying method support is responsible for any necessary
 serialization.
 
+Unless explicitly stated otherwise, WiredTiger may invoke methods on the
+WT_FILE_SYSTEM and WT_FILE_HANDLE interfaces from multiple threads
+concurrently. It is the responsibility of the implementation to protect
+any shared data.
+
 */
