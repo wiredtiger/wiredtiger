@@ -75,7 +75,6 @@ err:	if (dirp != NULL)
 	WT_RET_MSG(session, ret,
 	    "%s: directory-list, prefix \"%s\"",
 	    directory, prefix == NULL ? "" : prefix);
-	return (ret);
 }
 
 /*
