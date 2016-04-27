@@ -3742,7 +3742,7 @@ typedef enum {
  */
 struct __wt_file_system {
 	/*!
-	 * Return the list of file names for the named directory.
+	 * Return a list of file names for the named directory.
 	 *
 	 * @errors
 	 *
@@ -3759,6 +3759,19 @@ struct __wt_file_system {
 	int (*directory_list)(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
 	    const char *directory, const char *prefix, char ***dirlist,
 	    u_int *countp);
+
+	/*!
+	 * Free memory allocated by WT_FILE_SYSTEM::directory_list.
+	 *
+	 * @errors
+	 *
+	 * @param file_system the WT_FILE_SYSTEM
+	 * @param session the current WiredTiger session
+	 * @param dirlist array returned by WT_FILE_SYSTEM::directory_list
+	 * @param count count returned by WT_FILE_SYSTEM::directory_list
+	 */
+	int (*directory_list_free)(WT_FILE_SYSTEM *file_system,
+	    WT_SESSION *session, char **dirlist, u_int count);
 
 	/*!
 	 * Flush the named directory.

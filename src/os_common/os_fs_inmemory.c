@@ -131,6 +131,28 @@ err:	__wt_spin_unlock(session, &im_fs->lock);
 }
 
 /*
+ * __im_fs_directory_list_free --
+ *	Free memory returned by __im_fs_directory_list.
+ */
+static int
+__im_fs_directory_list_free(WT_FILE_SYSTEM *file_system,
+    WT_SESSION *wt_session, char **dirlist, u_int count)
+{
+	WT_SESSION_IMPL *session;
+
+	WT_UNUSED(file_system);
+
+	session = (WT_SESSION_IMPL *)wt_session;
+
+	if (dirlist != NULL) {
+		while (count > 0)
+			__wt_free(session, dirlist[--count]);
+		__wt_free(session, dirlist);
+	}
+	return (0);
+}
+
+/*
  * __im_fs_exist --
  *	Return if the file exists.
  */
@@ -526,6 +548,7 @@ __wt_os_inmemory(WT_SESSION_IMPL *session)
 	/* Initialize the in-memory jump table. */
 	file_system = (WT_FILE_SYSTEM *)im_fs;
 	file_system->directory_list = __im_fs_directory_list;
+	file_system->directory_list_free = __im_fs_directory_list_free;
 	file_system->exist = __im_fs_exist;
 	file_system->open_file = __im_file_open;
 	file_system->remove = __im_fs_remove;

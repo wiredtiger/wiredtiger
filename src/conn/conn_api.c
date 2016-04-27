@@ -1906,6 +1906,8 @@ __conn_set_file_system(
 	if (fs->name == NULL)						\
 		WT_RET_MSG(session, EINVAL,				\
 		    "a %s file system method must be configured", #name)
+	WT_CONN_SET_FILE_SYSTEM_REQ(directory_list);
+	WT_CONN_SET_FILE_SYSTEM_REQ(directory_list_free);
 	WT_CONN_SET_FILE_SYSTEM_REQ(exist);
 	WT_CONN_SET_FILE_SYSTEM_REQ(open_file);
 	WT_CONN_SET_FILE_SYSTEM_REQ(remove);

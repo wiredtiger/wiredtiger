@@ -85,6 +85,8 @@ static int demo_fs_open(WT_FILE_SYSTEM *,
     WT_SESSION *, const char *, WT_OPEN_FILE_TYPE, u_int, WT_FILE_HANDLE **);
 static int demo_fs_directory_list(WT_FILE_SYSTEM *, WT_SESSION *,
     const char *, const char *, char ***, u_int *);
+static int demo_fs_directory_list_free(
+    WT_FILE_SYSTEM *, WT_SESSION *, char **, u_int);
 static int demo_fs_directory_sync(WT_FILE_SYSTEM *file_system,
     WT_SESSION *session, const char *directory);
 static int demo_fs_exist(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *);
@@ -134,6 +136,7 @@ demo_file_system_create(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
 
 	/* Initialize the in-memory jump table. */
 	file_system->directory_list = demo_fs_directory_list;
+	file_system->directory_list_free = demo_fs_directory_list_free;
 	file_system->directory_sync = demo_fs_directory_sync;
 	file_system->exist = demo_fs_exist;
 	file_system->open_file = demo_fs_open;
@@ -279,6 +282,25 @@ demo_fs_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
 	*dirlistp = entries;
 	*countp = count;
 
+	return (0);
+}
+
+/*
+ * demo_fs_directory_list_free --
+ *	Free memory allocated by demo_fs_directory_list.
+ */
+static int
+demo_fs_directory_list_free(WT_FILE_SYSTEM *file_system,
+    WT_SESSION *session, char **dirlist, u_int count)
+{
+	(void)file_system;
+	(void)session;
+
+	if (dirlist != NULL) {
+		while (count > 0)
+			free(dirlist[--count]);
+		free(dirlist);
+	}
 	return (0);
 }
 

@@ -69,12 +69,33 @@ err:	if (dirp != NULL)
 	if (ret == 0)
 		return (0);
 
-	if (entries != NULL) {
-		while (count > 0)
-			__wt_free(session, entries[--count]);
-		__wt_free(session, entries);
-	}
+	WT_TRET(__wt_posix_directory_list_free(
+	    file_system, wt_session, entries, count));
+
 	WT_RET_MSG(session, ret,
 	    "%s: directory-list, prefix \"%s\"",
 	    directory, prefix == NULL ? "" : prefix);
+	return (ret);
+}
+
+/*
+ * __wt_posix_directory_list_free --
+ *	Free memory returned by __wt_posix_directory_list.
+ */
+int
+__wt_posix_directory_list_free(WT_FILE_SYSTEM *file_system,
+    WT_SESSION *wt_session, char **dirlist, u_int count)
+{
+	WT_SESSION_IMPL *session;
+
+	WT_UNUSED(file_system);
+
+	session = (WT_SESSION_IMPL *)wt_session;
+
+	if (dirlist != NULL) {
+		while (count > 0)
+			__wt_free(session, dirlist[--count]);
+		__wt_free(session, dirlist);
+	}
+	return (0);
 }

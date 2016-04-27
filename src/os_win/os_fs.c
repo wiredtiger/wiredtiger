@@ -551,6 +551,7 @@ __wt_os_win(WT_SESSION_IMPL *session)
 
 	/* Initialize the Windows jump table. */
 	file_system->directory_list = __wt_win_directory_list;
+	file_system->directory_list_free = __wt_win_directory_list_free;
 	file_system->directory_sync = NULL;
 	file_system->exist = __win_fs_exist;
 	file_system->open_file = __win_open_file;

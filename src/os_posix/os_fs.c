@@ -672,6 +672,7 @@ __wt_os_posix(WT_SESSION_IMPL *session)
 
 	/* Initialize the POSIX jump table. */
 	file_system->directory_list = __wt_posix_directory_list;
+	file_system->directory_list_free = __wt_posix_directory_list_free;
 #ifdef __linux__
 	file_system->directory_sync = __posix_directory_sync;
 #else

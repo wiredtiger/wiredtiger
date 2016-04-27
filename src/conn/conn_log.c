@@ -178,6 +178,7 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
 	conn = S2C(session);
 	log = conn->log;
 	logcount = 0;
+	locked = false;
 	logfiles = NULL;
 
 	/*
@@ -198,14 +199,14 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
 	 * Main archive code.  Get the list of all log files and
 	 * remove any earlier than the minimum log number.
 	 */
-	WT_RET(__wt_fs_directory_list(
+	WT_ERR(__wt_fs_directory_list(
 	    session, conn->log_path, WT_LOG_FILENAME, &logfiles, &logcount));
 
 	/*
 	 * We can only archive files if a hot backup is not in progress or
 	 * if we are the backup.
 	 */
-	WT_RET(__wt_readlock(session, conn->hot_backup_lock));
+	WT_ERR(__wt_readlock(session, conn->hot_backup_lock));
 	locked = true;
 	if (!conn->hot_backup || backup_file != 0) {
 		for (i = 0; i < logcount; i++) {
@@ -218,9 +219,6 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
 	}
 	WT_ERR(__wt_readunlock(session, conn->hot_backup_lock));
 	locked = false;
-	__wt_log_files_free(session, logfiles, logcount);
-	logfiles = NULL;
-	logcount = 0;
 
 	/*
 	 * Indicate what is our new earliest LSN.  It is the start
@@ -232,8 +230,7 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
 err:		__wt_err(session, ret, "log archive server error");
 	if (locked)
 		WT_TRET(__wt_readunlock(session, conn->hot_backup_lock));
-	if (logfiles != NULL)
-		__wt_log_files_free(session, logfiles, logcount);
+	WT_TRET(__wt_fs_directory_list_free(session, &logfiles, &logcount));
 	return (ret);
 }
 
@@ -261,8 +258,8 @@ __log_prealloc_once(WT_SESSION_IMPL *session)
 	 */
 	WT_ERR(__wt_fs_directory_list(
 	    session, conn->log_path, WT_LOG_PREPNAME, &recfiles, &reccount));
-	__wt_log_files_free(session, recfiles, reccount);
-	recfiles = NULL;
+	WT_ERR(__wt_fs_directory_list_free(session, &recfiles, &reccount));
+
 	/*
 	 * Adjust the number of files to pre-allocate if we find that
 	 * the critical path had to allocate them since we last ran.
@@ -292,8 +289,7 @@ __log_prealloc_once(WT_SESSION_IMPL *session)
 
 	if (0)
 err:		__wt_err(session, ret, "log pre-alloc server error");
-	if (recfiles != NULL)
-		__wt_log_files_free(session, recfiles, reccount);
+	WT_TRET(__wt_fs_directory_list_free(session, &recfiles, &reccount));
 	return (ret);
 }
 

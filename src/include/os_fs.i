@@ -12,12 +12,15 @@
  */
 static inline int
 __wt_fs_directory_list(WT_SESSION_IMPL *session,
-    const char *dir, const char *prefix, char ***dirlist, u_int *countp)
+    const char *dir, const char *prefix, char ***dirlistp, u_int *countp)
 {
 	WT_DECL_RET;
 	WT_FILE_SYSTEM *file_system;
 	WT_SESSION *wt_session;
 	char *path;
+
+	*dirlistp = NULL;
+	*countp = 0;
 
 	WT_RET(__wt_verbose(session, WT_VERB_FILEOPS,
 	    "%s: directory-list: %s prefix %s",
@@ -28,9 +31,33 @@ __wt_fs_directory_list(WT_SESSION_IMPL *session,
 	file_system = S2C(session)->file_system;
 	wt_session = (WT_SESSION *)session;
 	ret = file_system->directory_list(
-	    file_system, wt_session, path, prefix, dirlist, countp);
+	    file_system, wt_session, path, prefix, dirlistp, countp);
 
 	__wt_free(session, path);
+	return (ret);
+}
+
+/*
+ * __wt_fs_directory_list_free --
+ *	Free memory allocated by __wt_fs_directory_list.
+ */
+static inline int
+__wt_fs_directory_list_free(
+    WT_SESSION_IMPL *session, char ***dirlistp, u_int *countp)
+{
+	WT_DECL_RET;
+	WT_FILE_SYSTEM *file_system;
+	WT_SESSION *wt_session;
+
+	if (*dirlistp != NULL) {
+		file_system = S2C(session)->file_system;
+		wt_session = (WT_SESSION *)session;
+		ret = file_system->directory_list_free(
+		    file_system, wt_session, *dirlistp, *countp);
+	}
+
+	*dirlistp = NULL;
+	*countp = 0;
 	return (ret);
 }
 
