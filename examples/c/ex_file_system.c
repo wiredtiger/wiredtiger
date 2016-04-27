@@ -260,22 +260,20 @@ demo_fs_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
 			    strncmp(name, prefix, prefix_len) != 0)
 				continue;
 
-			++count;
 			/*
 			 * Increase the list size in groups of 10, it doesn't
 			 * matter if the list is a bit longer than necessary.
 			 */
-			if (count > allocated) {
+			if (count >= allocated) {
 				list = realloc(
-				    list, allocated + 10 * sizeof(char *));
+				    list, (allocated + 10) * sizeof(char *));
 				if (list == NULL)
 					return (ENOMEM);
-				/* Be paranoid and clear the new memory */
-				allocated += 10;
-				memset(list + count * sizeof(char *),
+				memset(list + allocated * sizeof(char *),
 				    0, 10 * sizeof(char *));
+				allocated += 10;
 			}
-			list[count - 1] = strdup(name);
+			list[count++] = strdup(name);
 		}
 	}
 	*dirlistp = list;
