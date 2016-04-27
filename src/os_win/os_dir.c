@@ -8,8 +8,6 @@
 
 #include "wt_internal.h"
 
-#define	WT_DIR_ENTRIES_PER_ALLOC	64
-
 /*
  * __wt_win_directory_list --
  *	Get a list of files from a directory, MSVC version.
@@ -25,7 +23,7 @@ __wt_win_directory_list(
 	WT_DECL_RET;
 	WT_SESSION *session;
 	size_t dirallocsz, pathlen;
-	u_int count, dirsz;
+	u_int count;
 	bool match;
 	char **entries;
 
@@ -38,7 +36,6 @@ __wt_win_directory_list(
 
 	findhandle = INVALID_HANDLE_VALUE;
 	dirallocsz = 0;
-	dirsz = 0;
 	entries = NULL;
 
 	pathlen = strlen(dir);
@@ -64,20 +61,14 @@ __wt_win_directory_list(
 		/* The list of files is optionally filtered by a prefix. */
 		match = false;
 		if (prefix == NULL || WT_PREFIX_MATCH(dp->d_name, prefix)) {
-			/*
-			 * We have a file name we want to return.
-			 */
-			if (++count > dirsz) {
-				dirsz += WT_DIR_ENTRIES_PER_ALLOC;
-				WT_ERR(__wt_realloc_def(session,
-				    &dirallocsz, dirsz, &entries));
-			}
+			WT_ERR(__wt_realloc_def(session,
+			    &dirallocsz, count + 1, &entries));
 			WT_ERR(__wt_strdup(session,
-			    finddata.cFileName, &entries[count - 1]));
+			    finddata.cFileName, &entries[count]));
+			++count;
 		}
 	} while (FindNextFileA(findhandle, &finddata) != 0);
-	if (count > 0)
-		*dirlist = entries;
+	*dirlist = entries;
 	*countp = count;
 
 err:	if (findhandle != INVALID_HANDLE_VALUE)
@@ -87,9 +78,9 @@ err:	if (findhandle != INVALID_HANDLE_VALUE)
 	if (ret == 0)
 		return (0);
 
-	if (*dirlist != NULL) {
-		for (count = dirsz; count > 0; count--)
-			__wt_free(session, entries[count]);
+	if (entries != NULL) {
+		while (count > 0)
+			__wt_free(session, entries[--count]);
 		__wt_free(session, entries);
 	}
 

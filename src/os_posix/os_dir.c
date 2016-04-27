@@ -10,8 +10,6 @@
 /* I'm sure we need to config this */
 #include <dirent.h>
 
-#define	WT_DIR_ENTRIES_PER_ALLOC	64
-
 /*
  * __wt_posix_directory_list --
  *	Get a list of files from a directory, POSIX version.
@@ -26,7 +24,7 @@ __wt_posix_directory_list(
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	size_t dirallocsz;
-	u_int count, dirsz;
+	u_int count;
 	char **entries;
 
 	WT_UNUSED(file_system);
@@ -38,7 +36,6 @@ __wt_posix_directory_list(
 
 	dirp = NULL;
 	dirallocsz = 0;
-	dirsz = 0;
 	entries = NULL;
 
 	WT_SYSCALL_RETRY(((dirp = opendir(dir)) == NULL ? 1 : 0), ret);
@@ -55,20 +52,14 @@ __wt_posix_directory_list(
 
 		/* The list of files is optionally filtered by a prefix. */
 		if (prefix == NULL || WT_PREFIX_MATCH(dp->d_name, prefix)) {
-			/*
-			 * We have a file name we want to return.
-			 */
-			if (++count > dirsz) {
-				dirsz += WT_DIR_ENTRIES_PER_ALLOC;
-				WT_ERR(__wt_realloc_def(
-				    session, &dirallocsz, dirsz, &entries));
-			}
+			WT_ERR(__wt_realloc_def(
+			    session, &dirallocsz, count + 1, &entries));
 			WT_ERR(__wt_strdup(
-			    session, dp->d_name, &entries[count-1]));
+			    session, dp->d_name, &entries[count]));
+			++count;
 		}
 	}
-	if (count > 0)
-		*dirlist = entries;
+	*dirlist = entries;
 	*countp = count;
 
 err:	if (dirp != NULL)
@@ -77,9 +68,9 @@ err:	if (dirp != NULL)
 	if (ret == 0)
 		return (0);
 
-	if (*dirlist != NULL) {
-		for (count = dirsz; count > 0; count--)
-			__wt_free(session, entries[count]);
+	if (entries != NULL) {
+		while (count > 0)
+			__wt_free(session, entries[--count]);
 		__wt_free(session, entries);
 	}
 	WT_RET_MSG(session, ret,
