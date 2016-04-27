@@ -85,6 +85,8 @@ static int demo_fs_open(WT_FILE_SYSTEM *,
     WT_SESSION *, const char *, int, u_int, WT_FILE_HANDLE **);
 static int demo_fs_directory_list(WT_FILE_SYSTEM *, WT_SESSION *,
     const char *, const char *, char ***, u_int *);
+static int demo_fs_directory_sync(WT_FILE_SYSTEM *file_system,
+    WT_SESSION *session, const char *directory);
 static int demo_fs_exist(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *);
 static int demo_fs_remove(WT_FILE_SYSTEM *, WT_SESSION *, const char *);
 static int demo_fs_rename(
@@ -132,6 +134,7 @@ demo_file_system_create(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
 
 	/* Initialize the in-memory jump table. */
 	file_system->directory_list = demo_fs_directory_list;
+	file_system->directory_sync = demo_fs_directory_sync;
 	file_system->exist = demo_fs_exist;
 	file_system->open_file = demo_fs_open;
 	file_system->remove = demo_fs_remove;
@@ -245,6 +248,7 @@ demo_fs_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
 	(void)session;						/* Unused */
 
 	demo_fs = (DEMO_FILE_SYSTEM *)file_system;
+	list = NULL;
 	allocated = count = 0;
 	dir_len = strlen(directory);
 	prefix_len = prefix == NULL ? 0 : strlen(prefix);
@@ -276,6 +280,21 @@ demo_fs_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
 	}
 	*dirlistp = list;
 	*countp = count;
+
+	return (0);
+}
+
+/*
+ * demo_fs_directory_sync --
+ *	Directory sync for our demo file system, which is a no-op.
+ */
+static int
+demo_fs_directory_sync(WT_FILE_SYSTEM *file_system,
+    WT_SESSION *session, const char *directory)
+{
+	(void)file_system;		/* Unused */
+	(void)session;			/* Unused */
+	(void)directory;		/* Unused */
 
 	return (0);
 }

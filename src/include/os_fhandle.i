@@ -7,6 +7,27 @@
  */
 
 /*
+ * __wt_fsync --
+ *	POSIX fsync.
+ */
+static inline int
+__wt_fsync(WT_SESSION_IMPL *session, WT_FH *fh, bool block)
+{
+	WT_FILE_HANDLE *handle;
+
+	WT_RET(__wt_verbose(
+	    session, WT_VERB_HANDLEOPS, "%s: handle-sync", fh->handle->name));
+
+	handle = fh->handle;
+	if (block)
+		return (handle->sync == NULL ? 0 :
+		    handle->sync(handle, (WT_SESSION *)session));
+	else
+		return (handle->sync_nowait == NULL ? 0 :
+		    handle->sync_nowait(handle, (WT_SESSION *)session));
+}
+
+/*
  * __wt_directory_sync_fh --
  *	Flush a directory file handle to ensure file creation is durable.
  *
@@ -17,8 +38,7 @@ static inline int
 __wt_directory_sync_fh(WT_SESSION_IMPL *session, WT_FH *fh)
 {
 	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_READONLY));
-
-	return (fh->handle->sync(fh->handle, (WT_SESSION *)session));
+        return (__wt_fsync(session, fh, true));
 }
 
 /*
@@ -105,27 +125,6 @@ __wt_filesize(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t *sizep)
 	    session, WT_VERB_HANDLEOPS, "%s: handle-size", fh->handle->name));
 
 	return (fh->handle->size(fh->handle, (WT_SESSION *)session, sizep));
-}
-
-/*
- * __wt_fsync --
- *	POSIX fsync.
- */
-static inline int
-__wt_fsync(WT_SESSION_IMPL *session, WT_FH *fh, bool block)
-{
-	WT_FILE_HANDLE *handle;
-
-	WT_RET(__wt_verbose(
-	    session, WT_VERB_HANDLEOPS, "%s: handle-sync", fh->handle->name));
-
-	handle = fh->handle;
-	if (block)
-		return (handle->sync == NULL ? 0 :
-		    handle->sync(handle, (WT_SESSION *)session));
-	else
-		return (handle->sync_nowait == NULL ? 0 :
-		    handle->sync_nowait(handle, (WT_SESSION *)session));
 }
 
 /*
