@@ -17,7 +17,7 @@ typedef struct {
 	TAILQ_HEAD(__wt_closed_file_handle_qh, __wt_file_handle_inmem) fileq;
 
 	WT_SPINLOCK lock;
-} WT_INMEMORY_FILE_SYSTEM;
+} WT_FILE_SYSTEM_INMEM;
 
 static int __im_file_size(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t *);
 
@@ -29,9 +29,9 @@ static WT_FILE_HANDLE_INMEM *
 __im_handle_search(WT_FILE_SYSTEM *file_system, const char *name)
 {
 	WT_FILE_HANDLE_INMEM *im_fh;
-	WT_INMEMORY_FILE_SYSTEM *im_fs;
+	WT_FILE_SYSTEM_INMEM *im_fs;
 
-	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_system;
+	im_fs = (WT_FILE_SYSTEM_INMEM *)file_system;
 
 	TAILQ_FOREACH(im_fh, &im_fs->fileq, q)
 		if (strcmp(im_fh->iface.name, name) == 0)
@@ -48,10 +48,10 @@ static int
 __im_handle_remove(WT_SESSION_IMPL *session,
     WT_FILE_SYSTEM *file_system, WT_FILE_HANDLE_INMEM *im_fh)
 {
-	WT_INMEMORY_FILE_SYSTEM *im_fs;
 	WT_FILE_HANDLE *fhp;
+	WT_FILE_SYSTEM_INMEM *im_fs;
 
-	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_system;
+	im_fs = (WT_FILE_SYSTEM_INMEM *)file_system;
 
 	if (im_fh->ref != 0)
 		WT_RET_MSG(session, EBUSY,
@@ -81,13 +81,13 @@ __im_fs_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_INMEM *im_fh;
-	WT_INMEMORY_FILE_SYSTEM *im_fs;
+	WT_FILE_SYSTEM_INMEM *im_fs;
 	WT_SESSION_IMPL *session;
 	size_t dirallocsz, len;
 	u_int count;
 	char *name, **entries;
 
-	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_system;
+	im_fs = (WT_FILE_SYSTEM_INMEM *)file_system;
 	session = (WT_SESSION_IMPL *)wt_session;
 
 	*dirlistp = NULL;
@@ -138,10 +138,10 @@ static int
 __im_fs_exist(WT_FILE_SYSTEM *file_system,
     WT_SESSION *wt_session, const char *name, bool *existp)
 {
-	WT_INMEMORY_FILE_SYSTEM *im_fs;
+	WT_FILE_SYSTEM_INMEM *im_fs;
 	WT_SESSION_IMPL *session;
 
-	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_system;
+	im_fs = (WT_FILE_SYSTEM_INMEM *)file_system;
 	session = (WT_SESSION_IMPL *)wt_session;
 
 	__wt_spin_lock(session, &im_fs->lock);
@@ -162,10 +162,10 @@ __im_fs_remove(
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_INMEM *im_fh;
-	WT_INMEMORY_FILE_SYSTEM *im_fs;
+	WT_FILE_SYSTEM_INMEM *im_fs;
 	WT_SESSION_IMPL *session;
 
-	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_system;
+	im_fs = (WT_FILE_SYSTEM_INMEM *)file_system;
 	session = (WT_SESSION_IMPL *)wt_session;
 
 	__wt_spin_lock(session, &im_fs->lock);
@@ -188,11 +188,11 @@ __im_fs_rename(WT_FILE_SYSTEM *file_system,
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_INMEM *im_fh;
-	WT_INMEMORY_FILE_SYSTEM *im_fs;
+	WT_FILE_SYSTEM_INMEM *im_fs;
 	WT_SESSION_IMPL *session;
 	char *copy;
 
-	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_system;
+	im_fs = (WT_FILE_SYSTEM_INMEM *)file_system;
 	session = (WT_SESSION_IMPL *)wt_session;
 
 	__wt_spin_lock(session, &im_fs->lock);
@@ -219,10 +219,10 @@ __im_fs_size(WT_FILE_SYSTEM *file_system,
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_INMEM *im_fh;
-	WT_INMEMORY_FILE_SYSTEM *im_fs;
+	WT_FILE_SYSTEM_INMEM *im_fs;
 	WT_SESSION_IMPL *session;
 
-	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_system;
+	im_fs = (WT_FILE_SYSTEM_INMEM *)file_system;
 	session = (WT_SESSION_IMPL *)wt_session;
 
 	__wt_spin_lock(session, &im_fs->lock);
@@ -244,11 +244,11 @@ static int
 __im_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
 	WT_FILE_HANDLE_INMEM *im_fh;
-	WT_INMEMORY_FILE_SYSTEM *im_fs;
+	WT_FILE_SYSTEM_INMEM *im_fs;
 	WT_SESSION_IMPL *session;
 
 	im_fh = (WT_FILE_HANDLE_INMEM *)file_handle;
-	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_handle->file_system;
+	im_fs = (WT_FILE_SYSTEM_INMEM *)file_handle->file_system;
 	session = (WT_SESSION_IMPL *)wt_session;
 
 	__wt_spin_lock(session, &im_fs->lock);
@@ -270,12 +270,12 @@ __im_file_read(WT_FILE_HANDLE *file_handle,
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_INMEM *im_fh;
-	WT_INMEMORY_FILE_SYSTEM *im_fs;
+	WT_FILE_SYSTEM_INMEM *im_fs;
 	WT_SESSION_IMPL *session;
 	size_t off;
 
 	im_fh = (WT_FILE_HANDLE_INMEM *)file_handle;
-	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_handle->file_system;
+	im_fs = (WT_FILE_SYSTEM_INMEM *)file_handle->file_system;
 	session = (WT_SESSION_IMPL *)wt_session;
 
 	/*
@@ -313,11 +313,11 @@ __im_file_size(
     WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t *sizep)
 {
 	WT_FILE_HANDLE_INMEM *im_fh;
-	WT_INMEMORY_FILE_SYSTEM *im_fs;
+	WT_FILE_SYSTEM_INMEM *im_fs;
 	WT_SESSION_IMPL *session;
 
 	im_fh = (WT_FILE_HANDLE_INMEM *)file_handle;
-	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_handle->file_system;
+	im_fs = (WT_FILE_SYSTEM_INMEM *)file_handle->file_system;
 	session = (WT_SESSION_IMPL *)wt_session;
 
 	__wt_spin_lock(session, &im_fs->lock);
@@ -344,12 +344,12 @@ __im_file_truncate(
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_INMEM *im_fh;
-	WT_INMEMORY_FILE_SYSTEM *im_fs;
+	WT_FILE_SYSTEM_INMEM *im_fs;
 	WT_SESSION_IMPL *session;
 	size_t off;
 
 	im_fh = (WT_FILE_HANDLE_INMEM *)file_handle;
-	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_handle->file_system;
+	im_fs = (WT_FILE_SYSTEM_INMEM *)file_handle->file_system;
 	session = (WT_SESSION_IMPL *)wt_session;
 
 	__wt_spin_lock(session, &im_fs->lock);
@@ -379,12 +379,12 @@ __im_file_write(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_INMEM *im_fh;
-	WT_INMEMORY_FILE_SYSTEM *im_fs;
+	WT_FILE_SYSTEM_INMEM *im_fs;
 	WT_SESSION_IMPL *session;
 	size_t off;
 
 	im_fh = (WT_FILE_HANDLE_INMEM *)file_handle;
-	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_handle->file_system;
+	im_fs = (WT_FILE_SYSTEM_INMEM *)file_handle->file_system;
 	session = (WT_SESSION_IMPL *)wt_session;
 
 	__wt_spin_lock(session, &im_fs->lock);
@@ -418,13 +418,13 @@ __im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	WT_DECL_RET;
 	WT_FILE_HANDLE *file_handle;
 	WT_FILE_HANDLE_INMEM *im_fh;
-	WT_INMEMORY_FILE_SYSTEM *im_fs;
+	WT_FILE_SYSTEM_INMEM *im_fs;
 	WT_SESSION_IMPL *session;
 
 	WT_UNUSED(file_type);
 	WT_UNUSED(flags);
 
-	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_system;
+	im_fs = (WT_FILE_SYSTEM_INMEM *)file_system;
 	session = (WT_SESSION_IMPL *)wt_session;
 
 	__wt_spin_lock(session, &im_fs->lock);
@@ -489,13 +489,13 @@ __im_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session)
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_INMEM *im_fh;
-	WT_INMEMORY_FILE_SYSTEM *im_fs;
+	WT_FILE_SYSTEM_INMEM *im_fs;
 	WT_SESSION_IMPL *session;
 
 	WT_UNUSED(file_system);
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_system;
+	im_fs = (WT_FILE_SYSTEM_INMEM *)file_system;
 
 	while ((im_fh = TAILQ_FIRST(&im_fs->fileq)) != NULL)
 		WT_TRET(__im_handle_remove(session, file_system, im_fh));
@@ -515,7 +515,7 @@ __wt_os_inmemory(WT_SESSION_IMPL *session)
 {
 	WT_DECL_RET;
 	WT_FILE_SYSTEM *file_system;
-	WT_INMEMORY_FILE_SYSTEM *im_fs;
+	WT_FILE_SYSTEM_INMEM *im_fs;
 
 	WT_RET(__wt_calloc_one(session, &im_fs));
 
