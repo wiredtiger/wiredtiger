@@ -1478,6 +1478,15 @@ __split_multi_inmem(
 	uint32_t i, slot;
 
 	/*
+	 * In 04/2016, we removed column-store record numbers from the WT_PAGE
+	 * structure, leading to hard-to-debug problems because we corrupt the
+	 * page if we search it using the wrong initial record number. For now,
+	 * assert the record number is set.
+	 */
+	WT_ASSERT(session,
+	    orig->type != WT_PAGE_COL_VAR || ref->ref_recno != 0);
+
+	/*
 	 * This code re-creates an in-memory page that is part of a set created
 	 * while evicting a large page, and adds references to any unresolved
 	 * update chains to the new page. We get here due to choosing to keep
@@ -1603,10 +1612,15 @@ __split_multi_inmem_fail(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_REF *ref)
 	 * new pages. Discard the new allocated WT_REF structures and their
 	 * pages (setting a flag so the discard code doesn't discard the updates
 	 * on the page).
+	 *
+	 * Our callers allocate WT_REF arrays, then individual WT_REFs, check
+	 * for uninitialized information.
 	 */
-	if (ref->page != NULL)
-		F_SET_ATOMIC(ref->page, WT_PAGE_UPDATE_IGNORE);
-	__wt_free_ref(session, ref, orig->type, true);
+	if (ref != NULL) {
+		if (ref->page != NULL)
+			F_SET_ATOMIC(ref->page, WT_PAGE_UPDATE_IGNORE);
+		__wt_free_ref(session, ref, orig->type, true);
+	}
 }
 
 /*
@@ -1622,7 +1636,6 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 	WT_REF *ref;
 	size_t incr;
 
-	addr = NULL;
 	incr = 0;
 
 	/* Allocate an underlying WT_REF. */
@@ -1630,25 +1643,10 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 	ref = *refp;
 	incr += sizeof(WT_REF);
 
-	/* Any parent reference is filled in by our caller. */
-	ref->home = NULL;
-
-	if (multi->disk_image == NULL) {
-		/*
-		 * Copy the address: we could simply take the buffer, but that
-		 * would complicate error handling, freeing the reference array
-		 * would have to avoid freeing the memory, and it's not worth
-		 * the confusion.
-		 */
-		WT_RET(__wt_calloc_one(session, &addr));
-		ref->addr = addr;
-		addr->size = multi->addr.size;
-		addr->type = multi->addr.type;
-		WT_RET(__wt_strndup(session,
-		    multi->addr.addr, addr->size, &addr->addr));
-	} else
-		WT_RET(__split_multi_inmem(session, page, ref, multi));
-
+	/*
+	 * Set the WT_REF key before (optionally) building the page, underlying
+	 * column-store functions need the page's key space to search it.
+	 */
 	switch (page->type) {
 	case WT_PAGE_ROW_INT:
 	case WT_PAGE_ROW_LEAF:
@@ -1662,12 +1660,27 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 		break;
 	}
 
-	ref->state = addr != NULL ? WT_REF_DISK : WT_REF_MEM;
+	/* If there's a disk image, build a page, otherwise set the address. */
+	if (multi->disk_image == NULL) {
+		/*
+		 * Copy the address: we could simply take the buffer, but that
+		 * would complicate error handling, freeing the reference array
+		 * would have to avoid freeing the memory, and it's not worth
+		 * the confusion.
+		 */
+		WT_RET(__wt_calloc_one(session, &addr));
+		ref->addr = addr;
+		addr->size = multi->addr.size;
+		addr->type = multi->addr.type;
+		WT_RET(__wt_strndup(session,
+		    multi->addr.addr, addr->size, &addr->addr));
+		ref->state = WT_REF_DISK;
+	} else {
+		WT_RET(__split_multi_inmem(session, page, ref, multi));
+		ref->state = WT_REF_MEM;
+	}
 
-	/*
-	 * If our caller wants to track the memory allocations, we have a return
-	 * reference.
-	 */
+	/* Optionally return changes in the memory footprint. */
 	if (incrp != NULL)
 		*incrp += incr;
 	return (0);
@@ -2180,10 +2193,15 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * to re-create a page in memory after it's been reconciled, and that's
 	 * exactly what we want to do.
 	 *
-	 * Build the new page. (Allocate a WT_REF because the error path uses
-	 * routines that want to free memory).
+	 * Build the new page.
+	 *
+	 * Allocate a WT_REF because the error path uses routines that will ea
+	 * free memory. The only field we need to set is the record number, as
+	 * it's used by the search routines.
 	 */
 	WT_RET(__wt_calloc_one(session, &new));
+	new->ref_recno = ref->ref_recno;
+
 	WT_ERR(__split_multi_inmem(session, page, new, &mod->mod_multi[0]));
 
 	/*

@@ -5459,18 +5459,24 @@ __rec_split_discard(WT_SESSION_IMPL *session, WT_PAGE *page)
 			__wt_free(session, multi->key.ikey);
 			break;
 		}
-		if (multi->disk_image == NULL) {
-			if (multi->addr.reuse)
-				multi->addr.addr = NULL;
-			else {
-				WT_RET(__wt_btree_block_free(session,
-				    multi->addr.addr, multi->addr.size));
-				__wt_free(session, multi->addr.addr);
-			}
-		} else {
-			__wt_free(session, multi->supd);
-			__wt_free(session, multi->disk_image);
+
+		/*
+		 * If the page was re-written free the backing disk blocks used
+		 * in the previous write (unless the blocks were reused in this
+		 * write). The page may instead have been a disk image with
+		 * associated saved updates: ownership of the disk image is
+		 * transferred when rewriting the page in-memory and there may
+		 * not have been saved updates. We've gotten this wrong a few
+		 * times, so use the existence of an address to confirm backing
+		 * blocks we care about, and free any disk image/saved updates.
+		 */
+		if (multi->addr.addr != NULL && !multi->addr.reuse) {
+			WT_RET(__wt_btree_block_free(
+			    session, multi->addr.addr, multi->addr.size));
+			__wt_free(session, multi->addr.addr);
 		}
+		__wt_free(session, multi->supd);
+		__wt_free(session, multi->disk_image);
 	}
 	__wt_free(session, mod->mod_multi);
 	mod->mod_multi_entries = 0;

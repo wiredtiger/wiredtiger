@@ -112,6 +112,7 @@ int
 __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_STATE *s, *txn_state;
@@ -124,7 +125,15 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 	txn_global = &conn->txn_global;
 	txn_state = WT_SESSION_TXN_STATE(session);
 
-	WT_RET(__wt_readlock(session, txn_global->scan_rwlock));
+	/*
+	 * Spin waiting for the lock: the sleeps in our blocking readlock
+	 * implementation are too slow for scanning the transaction table.
+	 */
+	while ((ret =
+	    __wt_try_readlock(session, txn_global->scan_rwlock)) == EBUSY)
+		WT_PAUSE();
+	WT_RET(ret);
+
 	current_id = snap_min = txn_global->current;
 	prev_oldest_id = txn_global->oldest_id;
 
@@ -273,7 +282,11 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, bool force)
 		return (0);
 
 	/* First do a read-only scan. */
-	WT_RET(__wt_readlock(session, txn_global->scan_rwlock));
+	if (force)
+		WT_RET(__wt_readlock(session, txn_global->scan_rwlock));
+	else if ((ret =
+	    __wt_try_readlock(session, txn_global->scan_rwlock)) != 0)
+		return (ret == EBUSY ? 0 : ret);
 	__txn_oldest_scan(session, &oldest_id, &last_running, &oldest_session);
 	WT_RET(__wt_readunlock(session, txn_global->scan_rwlock));
 
@@ -288,7 +301,11 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, bool force)
 		return (0);
 
 	/* It looks like an update is necessary, wait for exclusive access. */
-	WT_RET(__wt_writelock(session, txn_global->scan_rwlock));
+	if (force)
+		WT_RET(__wt_writelock(session, txn_global->scan_rwlock));
+	else if ((ret =
+	    __wt_try_writelock(session, txn_global->scan_rwlock)) != 0)
+		return (ret == EBUSY ? 0 : ret);
 
 	/*
 	 * If the oldest ID has been updated while we waited, don't bother
@@ -502,7 +519,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		 */
 		if (F_ISSET(txn, WT_TXN_SYNC_SET))
 			WT_RET_MSG(session, EINVAL,
-			    "Sync already set during begin_transaction.");
+			    "Sync already set during begin_transaction");
 		if (WT_STRING_MATCH("background", cval.str, cval.len))
 			txn->txn_logsync = WT_LOG_BACKGROUND;
 		else if (WT_STRING_MATCH("off", cval.str, cval.len))
