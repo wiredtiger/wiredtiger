@@ -46,6 +46,8 @@ __wt_fs_directory_sync(WT_SESSION_IMPL *session, const char *name)
 	WT_SESSION *wt_session;
 	char *copy, *dir;
 
+	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_READONLY));
+
 	WT_RET(__wt_verbose(
 	    session, WT_VERB_FILEOPS, "%s: directory-sync", name));
 

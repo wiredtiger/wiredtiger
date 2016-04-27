@@ -3764,10 +3764,10 @@ struct __wt_file_system {
 	/*!
 	 * Flush the named directory.
 	 *
-	 * This method is not required on file systems where it is not necessary
-	 * to flush a file's directory to ensure the durability of file system
-	 * operations, and should be set to NULL when not required by the file
-	 * system.
+	 * This method is not required for readonly file systems or file systems
+	 * where it is not necessary to flush a file's directory to ensure the
+	 * durability of file system operations, and should be set to NULL when
+	 * not required by the file system.
 	 *
 	 * This method is not called concurrently with other file system or
 	 * handle operations.
@@ -3831,6 +3831,9 @@ struct __wt_file_system {
 	/*!
 	 * Remove a named file system object
 	 *
+	 * This method is not required for readonly file systems and should be
+	 * set to NULL when not required by the file system.
+	 *
 	 * This method is not called concurrently with other file system or
 	 * handle operations.
 	 *
@@ -3845,6 +3848,9 @@ struct __wt_file_system {
 
 	/*!
 	 * Rename a named file system object
+	 *
+	 * This method is not required for readonly file systems and should be
+	 * set to NULL when not required by the file system.
 	 *
 	 * This method is not called concurrently with other file system or
 	 * handle operations.
