@@ -15,9 +15,8 @@
  *	Get a list of files from a directory, POSIX version.
  */
 int
-__wt_posix_directory_list(
-    WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
-    const char *dir, const char *prefix, char ***dirlist, u_int *countp)
+__wt_posix_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
+    const char *directory, const char *prefix, char ***dirlistp, u_int *countp)
 {
 	struct dirent *dp;
 	DIR *dirp;
@@ -31,16 +30,17 @@ __wt_posix_directory_list(
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	*dirlist = NULL;
+	*dirlistp = NULL;
 	*countp = 0;
 
 	dirp = NULL;
 	dirallocsz = 0;
 	entries = NULL;
 
-	WT_SYSCALL_RETRY(((dirp = opendir(dir)) == NULL ? 1 : 0), ret);
+	WT_SYSCALL_RETRY(((dirp = opendir(directory)) == NULL ? 1 : 0), ret);
 	if (ret != 0)
-		WT_RET_MSG(session, ret, "%s: directory-list: opendir", dir);
+		WT_RET_MSG(session, ret,
+		    "%s: directory-list: opendir", directory);
 
 	for (count = 0; (dp = readdir(dirp)) != NULL;) {
 		/*
@@ -51,15 +51,16 @@ __wt_posix_directory_list(
 			continue;
 
 		/* The list of files is optionally filtered by a prefix. */
-		if (prefix == NULL || WT_PREFIX_MATCH(dp->d_name, prefix)) {
-			WT_ERR(__wt_realloc_def(
-			    session, &dirallocsz, count + 1, &entries));
-			WT_ERR(__wt_strdup(
-			    session, dp->d_name, &entries[count]));
-			++count;
-		}
+		if (prefix != NULL && !WT_PREFIX_MATCH(dp->d_name, prefix))
+			continue;
+
+		WT_ERR(__wt_realloc_def(
+		    session, &dirallocsz, count + 1, &entries));
+		WT_ERR(__wt_strdup(session, dp->d_name, &entries[count]));
+		++count;
 	}
-	*dirlist = entries;
+
+	*dirlistp = entries;
 	*countp = count;
 
 err:	if (dirp != NULL)
@@ -75,5 +76,5 @@ err:	if (dirp != NULL)
 	}
 	WT_RET_MSG(session, ret,
 	    "%s: directory-list, prefix \"%s\"",
-	    dir, prefix == NULL ? "" : prefix);
+	    directory, prefix == NULL ? "" : prefix);
 }

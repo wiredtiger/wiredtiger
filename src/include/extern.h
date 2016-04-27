@@ -745,7 +745,7 @@ extern int __wt_os_inmemory(WT_SESSION_IMPL *session);
 extern int __wt_os_posix(WT_SESSION_IMPL *session);
 extern int __wt_os_stdio(WT_SESSION_IMPL *session);
 extern int __wt_os_win(WT_SESSION_IMPL *session);
-extern int __wt_posix_directory_list( WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *dir, const char *prefix, char ***dirlist, u_int *countp);
+extern int __wt_posix_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *directory, const char *prefix, char ***dirlistp, u_int *countp);
 extern int __wt_posix_file_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset, wt_off_t len);
 extern int __wt_posix_map(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void *mapped_regionp, size_t *lenp, void *mapped_cookiep);
 extern int __wt_posix_map_discard(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void *map, size_t length, void *mapped_cookie);
@@ -759,7 +759,7 @@ extern int __wt_rename_and_sync_directory( WT_SESSION_IMPL *session, const char 
 extern int __wt_strndup(WT_SESSION_IMPL *session, const void *str, size_t len, void *retp);
 extern int __wt_thread_create(WT_SESSION_IMPL *session, wt_thread_t *tidret, WT_THREAD_CALLBACK(*func)(void *), void *arg);
 extern int __wt_thread_join(WT_SESSION_IMPL *session, wt_thread_t tid);
-extern int __wt_win_directory_list( WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *dir, const char *prefix, char ***dirlist, u_int *countp);
+extern int __wt_win_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *directory, const char *prefix, char ***dirlistp, u_int *countp);
 extern int __wt_win_map(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, void *mapped_regionp, size_t *lenp, void *mapped_cookiep);
 extern int __wt_win_unmap(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, void *mapped_region, size_t length, void *mapped_cookie);
 extern uint64_t __wt_strtouq(const char *nptr, char **endptr, int base);

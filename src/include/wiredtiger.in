@@ -3742,10 +3742,6 @@ struct __wt_file_system {
 	/*!
 	 * Return the list of file names for the named directory.
 	 *
-	 * This method is not required by applications that do not configure
-	 * logging, and should be set to NULL when not required by the
-	 * application.
-	 *
 	 * This method is not called concurrently with other file system or
 	 * handle operations.
 	 *

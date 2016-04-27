@@ -242,41 +242,40 @@ demo_fs_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
 	DEMO_FILE_HANDLE *demo_fh;
 	DEMO_FILE_SYSTEM *demo_fs;
 	size_t dir_len, prefix_len;
-	char *name, **list;
+	char *name, **entries;
 	u_int allocated, count;
 
 	(void)session;						/* Unused */
 
 	demo_fs = (DEMO_FILE_SYSTEM *)file_system;
-	list = NULL;
+	entries = NULL;
 	allocated = count = 0;
 	dir_len = strlen(directory);
 	prefix_len = prefix == NULL ? 0 : strlen(prefix);
 
 	TAILQ_FOREACH(demo_fh, &demo_fs->fileq, q) {
 		name = demo_fh->iface.name;
-		if (strncmp(name, directory, dir_len) == 0) {
-			if (prefix != NULL &&
-			    strncmp(name, prefix, prefix_len) != 0)
-				continue;
+		if (strncmp(name, directory, dir_len) != 0 ||
+		    (prefix != NULL && strncmp(name, prefix, prefix_len) != 0))
+			continue;
 
-			/*
-			 * Increase the list size in groups of 10, it doesn't
-			 * matter if the list is a bit longer than necessary.
-			 */
-			if (count >= allocated) {
-				list = realloc(
-				    list, (allocated + 10) * sizeof(char *));
-				if (list == NULL)
-					return (ENOMEM);
-				memset(list + allocated * sizeof(char *),
-				    0, 10 * sizeof(char *));
-				allocated += 10;
-			}
-			list[count++] = strdup(name);
+		/*
+		 * Increase the list size in groups of 10, it doesn't
+		 * matter if the list is a bit longer than necessary.
+		 */
+		if (count >= allocated) {
+			entries = realloc(
+			    entries, (allocated + 10) * sizeof(char *));
+			if (entries == NULL)
+				return (ENOMEM);
+			memset(entries + allocated * sizeof(char *),
+			    0, 10 * sizeof(char *));
+			allocated += 10;
 		}
+		entries[count++] = strdup(name);
 	}
-	*dirlistp = list;
+
+	*dirlistp = entries;
 	*countp = count;
 
 	return (0);

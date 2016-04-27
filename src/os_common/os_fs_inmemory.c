@@ -71,6 +71,65 @@ __im_handle_remove(WT_SESSION_IMPL *session, WT_FILE_HANDLE_INMEM *im_fh)
 }
 
 /*
+ * __im_fs_directory_list --
+ *	Return the directory contents.
+ */
+static int
+__im_fs_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
+    const char *directory, const char *prefix, char ***dirlistp, u_int *countp)
+{
+	WT_DECL_RET;
+	WT_FILE_HANDLE_INMEM *im_fh;
+	WT_INMEMORY_FILE_SYSTEM *im_fs;
+	WT_SESSION_IMPL *session;
+	size_t dirallocsz, len;
+	u_int count;
+	char *name, **entries;
+
+	im_fs = (WT_INMEMORY_FILE_SYSTEM *)file_system;
+	session = (WT_SESSION_IMPL *)wt_session;
+
+	*dirlistp = NULL;
+	*countp = 0;
+
+	dirallocsz = 0;
+	len = strlen(directory);
+	entries = NULL;
+
+	__wt_spin_lock(session, &im_fs->lock);
+
+	count = 0;
+	TAILQ_FOREACH(im_fh, &im_fs->fileq, q) {
+		name = im_fh->iface.name;
+		if (strncmp(name, directory, len) != 0 ||
+		    (prefix != NULL && !WT_PREFIX_MATCH(name + len, prefix)))
+			continue;
+
+		WT_ERR(__wt_realloc_def(
+		    session, &dirallocsz, count + 1, &entries));
+		WT_ERR(__wt_strdup(session, name, &entries[count]));
+		++count;
+	}
+
+	*dirlistp = entries;
+	*countp = count;
+
+err:	__wt_spin_unlock(session, &im_fs->lock);
+	if (ret == 0)
+		return (0);
+
+	if (entries != NULL) {
+		while (count > 0)
+			__wt_free(session, entries[--count]);
+		__wt_free(session, entries);
+	}
+
+	WT_RET_MSG(session, ret,
+	    "%s: directory-list, prefix \"%s\"",
+	    directory, prefix == NULL ? "" : prefix);
+}
+
+/*
  * __im_fs_exist --
  *	Return if the file exists.
  */
@@ -445,6 +504,7 @@ __wt_os_inmemory(WT_SESSION_IMPL *session)
 
 	/* Initialize the in-memory jump table. */
 	file_system = (WT_FILE_SYSTEM *)im_fs;
+	file_system->directory_list = __im_fs_directory_list;
 	file_system->exist = __im_fs_exist;
 	file_system->open_file = __im_file_open;
 	file_system->remove = __im_fs_remove;

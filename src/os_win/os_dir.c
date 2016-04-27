@@ -13,9 +13,8 @@
  *	Get a list of files from a directory, MSVC version.
  */
 int
-__wt_win_directory_list(
-    WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
-    const char *dir, const char *prefix, char ***dirlist, u_int *countp)
+__wt_win_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
+    const char *directory, const char *prefix, char ***dirlistp, u_int *countp)
 {
 	HANDLE findhandle;
 	WIN32_FIND_DATA finddata;
@@ -24,25 +23,24 @@ __wt_win_directory_list(
 	WT_SESSION *session;
 	size_t dirallocsz, pathlen;
 	u_int count;
-	bool match;
 	char **entries;
 
 	WT_UNUSED(file_system);
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	*dirlist = NULL;
+	*dirlistp = NULL;
 	*countp = 0;
 
 	findhandle = INVALID_HANDLE_VALUE;
 	dirallocsz = 0;
 	entries = NULL;
 
-	pathlen = strlen(dir);
-	if (dir[pathlen - 1] == '\\')
-		dir[pathlen - 1] = '\0';
+	pathlen = strlen(directory);
+	if (directory[pathlen - 1] == '\\')
+		directory[pathlen - 1] = '\0';
 	WT_ERR(__wt_scr_alloc(session, pathlen + 3, &pathbuf));
-	WT_ERR(__wt_buf_fmt(session, pathbuf, "%s\\*", dir));
+	WT_ERR(__wt_buf_fmt(session, pathbuf, "%s\\*", directory));
 
 	findhandle = FindFirstFileA(pathbuf->data, &finddata);
 	if (findhandle == INVALID_HANDLE_VALUE)
@@ -59,16 +57,17 @@ __wt_win_directory_list(
 			continue;
 
 		/* The list of files is optionally filtered by a prefix. */
-		match = false;
-		if (prefix == NULL || WT_PREFIX_MATCH(dp->d_name, prefix)) {
-			WT_ERR(__wt_realloc_def(session,
-			    &dirallocsz, count + 1, &entries));
-			WT_ERR(__wt_strdup(session,
-			    finddata.cFileName, &entries[count]));
-			++count;
-		}
+		if (prefix != NULL && !WT_PREFIX_MATCH(dp->d_name, prefix))
+			continue;
+
+		WT_ERR(__wt_realloc_def(
+		    session, &dirallocsz, count + 1, &entries));
+		WT_ERR(__wt_strdup(
+		    session, finddata.cFileName, &entries[count]));
+		++count;
 	} while (FindNextFileA(findhandle, &finddata) != 0);
-	*dirlist = entries;
+
+	*dirlistp = entries;
 	*countp = count;
 
 err:	if (findhandle != INVALID_HANDLE_VALUE)
@@ -86,5 +85,5 @@ err:	if (findhandle != INVALID_HANDLE_VALUE)
 
 	WT_RET_MSG(session, ret,
 	    "%s: directory-list, prefix \"%s\"",
-	    dir, prefix == NULL ? "" : prefix);
+	    directory, prefix == NULL ? "" : prefix);
 }
