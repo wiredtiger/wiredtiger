@@ -23,7 +23,7 @@ __wt_fs_directory_list(WT_SESSION_IMPL *session,
 	    "%s: directory-list: %s prefix %s",
 	    dir, prefix == NULL ? "all" : prefix));
 
-        *dirlist = NULL;
+	*dirlist = NULL;
 
 	/*
 	 * directory-list is not a required call for some configurations, but

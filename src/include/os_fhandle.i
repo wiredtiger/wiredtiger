@@ -38,7 +38,7 @@ static inline int
 __wt_directory_sync_fh(WT_SESSION_IMPL *session, WT_FH *fh)
 {
 	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_READONLY));
-        return (__wt_fsync(session, fh, true));
+	return (__wt_fsync(session, fh, true));
 }
 
 /*
