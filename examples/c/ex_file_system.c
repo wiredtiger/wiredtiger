@@ -48,8 +48,9 @@ static const char *home;
 typedef struct {
 	WT_FILE_SYSTEM iface;
 
-	uint64_t opened_file_count;
-	uint64_t closed_file_count;
+	int opened_file_count;
+	int opened_unique_file_count;
+	int closed_file_count;
 
 	/* Queue of file handles */
 	TAILQ_HEAD(demo_file_handle_qh, demo_file_handle) fileq;
@@ -82,6 +83,8 @@ int demo_file_system_create(WT_CONNECTION *, WT_CONFIG_ARG *);
  */
 static int demo_fs_open(WT_FILE_SYSTEM *,
     WT_SESSION *, const char *, int, u_int, WT_FILE_HANDLE **);
+static int demo_fs_directory_list(WT_FILE_SYSTEM *, WT_SESSION *,
+    const char *, const char *, char ***, u_int *);
 static int demo_fs_exist(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *);
 static int demo_fs_remove(WT_FILE_SYSTEM *, WT_SESSION *, const char *);
 static int demo_fs_rename(
@@ -128,8 +131,7 @@ demo_file_system_create(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
 	file_system = (WT_FILE_SYSTEM *)demo_fs;
 
 	/* Initialize the in-memory jump table. */
-	file_system->directory_list = NULL;
-	file_system->directory_sync = NULL;
+	file_system->directory_list = demo_fs_directory_list;
 	file_system->exist = demo_fs_exist;
 	file_system->open_file = demo_fs_open;
 	file_system->remove = demo_fs_remove;
@@ -168,6 +170,8 @@ demo_fs_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
 
 	demo_fs = (DEMO_FILE_SYSTEM *)file_system;
 	demo_fh = NULL;
+
+	++demo_fs->opened_file_count;
 
 	/*
 	 * First search the file queue, if we find it, assert there's only a
@@ -214,7 +218,7 @@ demo_fs_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
 	file_handle->write = demo_file_write;
 
 	TAILQ_INSERT_HEAD(&demo_fs->fileq, demo_fh, q);
-	++demo_fs->opened_file_count;
+	++demo_fs->opened_unique_file_count;
 
 	*file_handlep = file_handle;
 	return (0);
@@ -222,6 +226,58 @@ demo_fs_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
 enomem:	free(demo_fh->buf);
 	free(demo_fh);
 	return (ENOMEM);
+}
+
+/*
+ * demo_fs_directory_list --
+ *	Return a list of files in a given sub-directory.
+ */
+static int
+demo_fs_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
+    const char *directory, const char *prefix, char ***dirlistp, u_int *countp)
+{
+	DEMO_FILE_HANDLE *demo_fh;
+	DEMO_FILE_SYSTEM *demo_fs;
+	size_t dir_len, prefix_len;
+	char *name, **list;
+	u_int allocated, count;
+
+	(void)session;						/* Unused */
+
+	demo_fs = (DEMO_FILE_SYSTEM *)file_system;
+	allocated = count = 0;
+	dir_len = strlen(directory);
+	prefix_len = prefix == NULL ? 0 : strlen(prefix);
+
+	TAILQ_FOREACH(demo_fh, &demo_fs->fileq, q) {
+		name = demo_fh->iface.name;
+		if (strncmp(name, directory, dir_len) == 0) {
+			if (prefix != NULL &&
+			    strncmp(name, prefix, prefix_len) != 0)
+				continue;
+
+			++count;
+			/*
+			 * Increase the list size in groups of 10, it doesn't
+			 * matter if the list is a bit longer than necessary.
+			 */
+			if (count > allocated) {
+				list = realloc(
+				    list, allocated + 10 * sizeof(char *));
+				if (list == NULL)
+					return (ENOMEM);
+				/* Be paranoid and clear the new memory */
+				allocated += 10;
+				memset(list + count * sizeof(char *),
+				    0, 10 * sizeof(char *));
+			}
+			list[count - 1] = strdup(name);
+		}
+	}
+	*dirlistp = list;
+	*countp = count;
+
+	return (0);
 }
 
 /*
@@ -321,6 +377,10 @@ demo_fs_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
 		    demo_handle_remove(session, demo_fh)) != 0 && ret == 0)
 			ret = tret;
 
+	printf("Custom file system\n");
+	printf("\t%d unique file opens\n", demo_fs->opened_unique_file_count);
+	printf("\t%d opened\n", demo_fs->opened_file_count);
+	printf("\t%d closed\n", demo_fs->closed_file_count);
 	free(demo_fs);
 
 	return (ret);
@@ -338,9 +398,15 @@ demo_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
 	(void)session;						/* Unused */
 
 	demo_fh = (DEMO_FILE_HANDLE *)file_handle;
+	if (demo_fh->ref < 1) {
+		fprintf(stderr, "Closing already closed handle: %s\n",
+		    demo_fh->iface.name);
+		return (EINVAL);
+	}
 	--demo_fh->ref;
 
-	++demo_fh->demo_fs->closed_file_count;
+	if (demo_fh->ref == 0)
+		++demo_fh->demo_fs->closed_file_count;
 
 	return (0);
 }
@@ -547,7 +613,7 @@ main(void)
 	 * since WiredTiger needs to be able to find it before doing any file
 	 * operations.
 	 */
-	open_config = "create,extensions=(local="
+	open_config = "create,log=(enabled=true),extensions=(local="
 	    "{entry=demo_file_system_create,early_load=true})";
 	/* Open a connection to the database, creating it if necessary. */
 	if ((ret = wiredtiger_open(home, NULL, open_config, &conn)) != 0) {
@@ -557,5 +623,9 @@ main(void)
 	}
 	/*! [WT_FILE_SYSTEM register] */
 
-	return (0);
+	if ((ret = conn->close(conn, NULL)) != 0)
+		fprintf(stderr, "Error closing connection to %s: %s\n",
+		    home, wiredtiger_strerror(ret));
+
+	return (ret);
 }
