@@ -686,7 +686,7 @@ __log_openfile(WT_SESSION_IMPL *session,
 	flags = 0;
 	if (ok_create)
 		LF_SET(WT_OPEN_CREATE);
-	if (FLD_ISSET(conn->direct_io, WT_DIRECT_IO_CHECKPOINT))
+	if (FLD_ISSET(conn->direct_io, WT_DIRECT_IO_LOG))
 		LF_SET(WT_OPEN_DIRECTIO);
 	WT_ERR(__wt_open(
 	    session, buf->data, WT_OPEN_FILE_TYPE_LOG, flags, fhp));
