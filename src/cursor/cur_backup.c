@@ -438,6 +438,12 @@ __wt_backup_file_remove(WT_SESSION_IMPL *session)
 {
 	WT_DECL_RET;
 
+	/*
+	 * Note that order matters for removing the incremental files.  We must
+	 * remove the backup file before removing the source file so that we
+	 * always know we were a source directory while there's any chance of
+	 * an incremental backup file existing.
+	 */
 	WT_TRET(__wt_remove_if_exists(session, WT_BACKUP_TMP));
 	WT_TRET(__wt_remove_if_exists(session, WT_INCREMENTAL_BACKUP));
 	WT_TRET(__wt_remove_if_exists(session, WT_INCREMENTAL_SRC));
