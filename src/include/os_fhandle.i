@@ -28,20 +28,6 @@ __wt_fsync(WT_SESSION_IMPL *session, WT_FH *fh, bool block)
 }
 
 /*
- * __wt_directory_sync_fh --
- *	Flush a directory file handle to ensure file creation is durable.
- *
- * We don't use the normal sync path because many file systems don't require
- * this step and we don't want to penalize them.
- */
-static inline int
-__wt_directory_sync_fh(WT_SESSION_IMPL *session, WT_FH *fh)
-{
-	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_READONLY));
-	return (__wt_fsync(session, fh, true));
-}
-
-/*
  * __wt_fallocate --
  *	Extend a file.
  */
