@@ -1888,7 +1888,7 @@ err:		WT_TRET(__wt_fclose(session, &fs));
  */
 static int
 __conn_set_file_system(
-    WT_CONNECTION *wt_conn, WT_FILE_SYSTEM *fs, const char *config)
+    WT_CONNECTION *wt_conn, WT_FILE_SYSTEM *file_system, const char *config)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
@@ -1898,25 +1898,39 @@ __conn_set_file_system(
 	CONNECTION_API_CALL(conn, session, set_file_system, config, cfg);
 	WT_UNUSED(cfg);
 
-	/*
-	 * We don't require directory-list, directory-sync or terminate methods,
-	 * all others are required.
-	 */
-#define	WT_CONN_SET_FILE_SYSTEM_REQ(name)				\
-	if (fs->name == NULL)						\
-		WT_RET_MSG(session, EINVAL,				\
-		    "a %s file system method must be configured", #name)
-	WT_CONN_SET_FILE_SYSTEM_REQ(directory_list);
-	WT_CONN_SET_FILE_SYSTEM_REQ(directory_list_free);
-	WT_CONN_SET_FILE_SYSTEM_REQ(exist);
-	WT_CONN_SET_FILE_SYSTEM_REQ(open_file);
-	WT_CONN_SET_FILE_SYSTEM_REQ(remove);
-	WT_CONN_SET_FILE_SYSTEM_REQ(rename);
-	WT_CONN_SET_FILE_SYSTEM_REQ(size);
-
-	conn->file_system = fs;
+	conn->file_system = file_system;
 
 err:	API_END_RET(session, ret);
+}
+
+/*
+ * __conn_chk_file_system --
+ *	Check the configured file system.
+ */
+static int
+__conn_chk_file_system(WT_SESSION_IMPL *session, bool readonly)
+{
+	WT_CONNECTION_IMPL *conn;
+
+	conn = S2C(session);
+
+#define	WT_CONN_SET_FILE_SYSTEM_REQ(name)				\
+	if (conn->file_system->name == NULL)				\
+		WT_RET_MSG(session, EINVAL,				\
+		    "a WT_FILE_SYSTEM.%s method must be configured", #name)
+
+	WT_CONN_SET_FILE_SYSTEM_REQ(directory_list);
+	WT_CONN_SET_FILE_SYSTEM_REQ(directory_list_free);
+	/* not required: directory_sync */
+	WT_CONN_SET_FILE_SYSTEM_REQ(exist);
+	WT_CONN_SET_FILE_SYSTEM_REQ(open_file);
+	if (!readonly) {
+		WT_CONN_SET_FILE_SYSTEM_REQ(remove);
+		WT_CONN_SET_FILE_SYSTEM_REQ(rename);
+	}
+	WT_CONN_SET_FILE_SYSTEM_REQ(size);
+
+	return (0);
 }
 
 /*
@@ -2046,7 +2060,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 
 	/*
 	 * If the application didn't configure its own file system, configure
-	 * one of ours.
+	 * one of ours. Check to ensure we have a valid file system.
 	 */
 	if (conn->file_system == NULL) {
 		if (F_ISSET(conn, WT_CONN_IN_MEMORY))
@@ -2058,6 +2072,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 			WT_ERR(__wt_os_posix(session));
 #endif
 	}
+	WT_ERR(
+	    __conn_chk_file_system(session, F_ISSET(conn, WT_CONN_READONLY)));
 
 	/*
 	 * Capture the config_base setting file for later use. Again, if the

@@ -21,7 +21,7 @@ __fhandle_method_finalize(
 #define	WT_HANDLE_METHOD_REQ(name)					\
 	if (handle->name == NULL)					\
 		WT_RET_MSG(session, EINVAL,				\
-		    "a %s handle method must be configured", #name)
+		    "a WT_FILE_HANDLE.%s method must be configured", #name)
 
 	WT_HANDLE_METHOD_REQ(close);
 	/* not required: fadvise */
