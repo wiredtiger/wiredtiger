@@ -396,7 +396,8 @@ err:	__wt_spin_unlock(session, &im_fs->lock);
  */
 static int
 __im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
-    const char *name, int file_type, u_int flags, WT_FILE_HANDLE **file_handlep)
+    const char *name, WT_OPEN_FILE_TYPE file_type, u_int flags,
+    WT_FILE_HANDLE **file_handlep)
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE *file_handle;

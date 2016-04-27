@@ -675,14 +675,17 @@ static int
 __log_openfile(WT_SESSION_IMPL *session,
     bool ok_create, WT_FH **fhp, const char *file_prefix, uint32_t id)
 {
+	WT_CONNECTION_IMPL *conn;
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
 	WT_LOG *log;
 	WT_LOG_DESC *desc;
 	WT_LOG_RECORD *logrec;
 	uint32_t allocsize;
+	u_int flags;
 
-	log = S2C(session)->log;
+	conn = S2C(session);
+	log = conn->log;
 	if (log == NULL)
 		allocsize = WT_LOG_ALIGN;
 	else
@@ -691,8 +694,14 @@ __log_openfile(WT_SESSION_IMPL *session,
 	WT_ERR(__log_filename(session, id, file_prefix, buf));
 	WT_ERR(__wt_verbose(session, WT_VERB_LOG,
 	    "opening log %s", (const char *)buf->data));
-	WT_ERR(__wt_open(session, buf->data,
-	    WT_FILE_TYPE_LOG, ok_create ? WT_OPEN_CREATE : 0, fhp));
+	flags = 0;
+	if (ok_create)
+		LF_SET(WT_OPEN_CREATE);
+	if (FLD_ISSET(conn->direct_io, WT_DIRECT_IO_CHECKPOINT))
+		LF_SET(WT_OPEN_DIRECTIO);
+	WT_ERR(__wt_open(
+	    session, buf->data, WT_OPEN_FILE_TYPE_LOG, flags, fhp));
+
 	/*
 	 * If we are not creating the log file but opening it for reading,
 	 * check that the magic number and versions are correct.
@@ -1102,7 +1111,7 @@ __wt_log_open(WT_SESSION_IMPL *session)
 		WT_RET(__wt_verbose(session, WT_VERB_LOG,
 		    "log_open: open fh to directory %s", conn->log_path));
 		WT_RET(__wt_open(session, conn->log_path,
-		    WT_FILE_TYPE_DIRECTORY, 0, &log->log_dir_fh));
+		    WT_OPEN_FILE_TYPE_DIRECTORY, 0, &log->log_dir_fh));
 	}
 
 	if (!F_ISSET(conn, WT_CONN_READONLY)) {

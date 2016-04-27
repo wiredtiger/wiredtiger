@@ -43,7 +43,7 @@ __wt_block_manager_create(
 	 * in our space. Move any existing files out of the way and complain.
 	 */
 	for (;;) {
-		if ((ret = __wt_open(session, filename, WT_FILE_TYPE_DATA,
+		if ((ret = __wt_open(session, filename, WT_OPEN_FILE_TYPE_DATA,
 		    WT_OPEN_CREATE | WT_OPEN_EXCLUSIVE, &fh)) == 0)
 			break;
 		WT_ERR_TEST(ret != EEXIST, ret);
@@ -206,10 +206,12 @@ __wt_block_open(WT_SESSION_IMPL *session,
 	 * "direct_io=checkpoint" configures direct I/O for readonly data files.
 	 */
 	flags = 0;
-	if (readonly && FLD_ISSET(conn->direct_io, WT_FILE_TYPE_CHECKPOINT))
+	if (readonly && FLD_ISSET(conn->direct_io, WT_DIRECT_IO_CHECKPOINT))
+		LF_SET(WT_OPEN_DIRECTIO);
+	if (!readonly && FLD_ISSET(conn->direct_io, WT_DIRECT_IO_DATA))
 		LF_SET(WT_OPEN_DIRECTIO);
 	WT_ERR(__wt_open(
-	    session, filename, WT_FILE_TYPE_DATA, flags, &block->fh));
+	    session, filename, WT_OPEN_FILE_TYPE_DATA, flags, &block->fh));
 
 	/* Set the file's size. */
 	WT_ERR(__wt_filesize(session, block->fh, &block->size));

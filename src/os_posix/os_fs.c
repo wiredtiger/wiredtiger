@@ -481,7 +481,8 @@ __posix_open_file_cloexec(WT_SESSION_IMPL *session, int fd, const char *name)
  */
 static int
 __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
-    const char *name, int file_type, u_int flags, WT_FILE_HANDLE **file_handlep)
+    const char *name, WT_OPEN_FILE_TYPE file_type, u_int flags,
+    WT_FILE_HANDLE **file_handlep)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
@@ -503,7 +504,7 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	/* Set up error handling. */
 	pfh->fd = -1;
 
-	if (file_type == WT_FILE_TYPE_DIRECTORY) {
+	if (file_type == WT_OPEN_FILE_TYPE_DIRECTORY) {
 		f = O_RDONLY;
 #ifdef O_CLOEXEC
 		/*
@@ -552,11 +553,11 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 #endif
 #ifdef O_NOATIME
 	/* Avoid updating metadata for read-only workloads. */
-	if (file_type == WT_FILE_TYPE_DATA)
+	if (file_type == WT_OPEN_FILE_TYPE_DATA)
 		f |= O_NOATIME;
 #endif
 
-	if (file_type == WT_FILE_TYPE_LOG &&
+	if (file_type == WT_OPEN_FILE_TYPE_LOG &&
 	    FLD_ISSET(conn->txn_logsync, WT_LOG_DSYNC)) {
 #ifdef O_DSYNC
 		f |= O_DSYNC;
@@ -583,7 +584,7 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	 * Ignore fadvise when doing direct I/O, the kernel cache isn't
 	 * interesting.
 	 */
-	if (!pfh->direct_io && file_type == WT_FILE_TYPE_DATA) {
+	if (!pfh->direct_io && file_type == WT_OPEN_FILE_TYPE_DATA) {
 		WT_SYSCALL_RETRY(
 		    posix_fadvise(pfh->fd, 0, 0, POSIX_FADV_RANDOM), ret);
 		if (ret != 0)

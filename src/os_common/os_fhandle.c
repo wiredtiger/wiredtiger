@@ -149,19 +149,19 @@ __open_verbose(
 	 */
 
 	switch (file_type) {
-	case WT_FILE_TYPE_CHECKPOINT:
+	case WT_OPEN_FILE_TYPE_CHECKPOINT:
 		file_type_tag = "checkpoint";
 		break;
-	case WT_FILE_TYPE_DATA:
+	case WT_OPEN_FILE_TYPE_DATA:
 		file_type_tag = "data";
 		break;
-	case WT_FILE_TYPE_DIRECTORY:
+	case WT_OPEN_FILE_TYPE_DIRECTORY:
 		file_type_tag = "directory";
 		break;
-	case WT_FILE_TYPE_LOG:
+	case WT_OPEN_FILE_TYPE_LOG:
 		file_type_tag = "log";
 		break;
-	case WT_FILE_TYPE_REGULAR:
+	case WT_OPEN_FILE_TYPE_REGULAR:
 		file_type_tag = "regular";
 		break;
 	default:
@@ -208,7 +208,7 @@ err:	__wt_scr_free(session, &tmp);
  */
 int
 __wt_open(WT_SESSION_IMPL *session,
-    const char *name, int file_type, u_int flags, WT_FH **fhp)
+    const char *name, WT_OPEN_FILE_TYPE file_type, u_int flags, WT_FH **fhp)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
@@ -249,16 +249,6 @@ __wt_open(WT_SESSION_IMPL *session,
 			LF_SET(WT_OPEN_READONLY);
 		WT_ASSERT(session, lock_file || !LF_ISSET(WT_OPEN_CREATE));
 	}
-
-	/*
-	 * Direct I/O: file-type is a flag from the set of possible flags stored
-	 * in the connection handle during configuration, check for a match.
-	 */
-	/*
-	 * TODO: Ensure Windows and POSIX initialize this
-	fh->direct_io = false;*/
-	if (FLD_ISSET(conn->direct_io, file_type))
-		LF_SET(WT_OPEN_DIRECTIO);
 
 	/* Create the path to the file. */
 	if (!LF_ISSET(WT_OPEN_FIXED))

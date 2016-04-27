@@ -138,9 +138,9 @@ __wt_copy_and_sync(WT_SESSION *wt_session, const char *from, const char *to)
 	WT_ERR(__wt_remove_if_exists(session, tmp->data));
 
 	/* Open the from and temporary file handles. */
-	WT_ERR(__wt_open(session, from, WT_FILE_TYPE_REGULAR, 0, &ffh));
-	WT_ERR(__wt_open(session, tmp->data,
-	    WT_FILE_TYPE_REGULAR, WT_OPEN_CREATE | WT_OPEN_EXCLUSIVE, &tfh));
+	WT_ERR(__wt_open(session, from, WT_OPEN_FILE_TYPE_REGULAR, 0, &ffh));
+	WT_ERR(__wt_open(session, tmp->data, WT_OPEN_FILE_TYPE_REGULAR,
+	    WT_OPEN_CREATE | WT_OPEN_EXCLUSIVE, &tfh));
 
 	/*
 	 * Allocate a copy buffer. Don't use a scratch buffer, this thing is

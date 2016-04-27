@@ -3705,16 +3705,14 @@ struct __wt_extractor {
 };
 
 #if !defined(SWIG)
-/*! WT_FILE_SYSTEM::open_file type: checkpoint */
-#define	WT_FILE_TYPE_CHECKPOINT	1
-/*! WT_FILE_SYSTEM::open_file type: read/write data object */
-#define	WT_FILE_TYPE_DATA	2
-/*! WT_FILE_SYSTEM::open_file type: directory */
-#define	WT_FILE_TYPE_DIRECTORY	3
-/*! WT_FILE_SYSTEM::open_file type: log file */
-#define	WT_FILE_TYPE_LOG	4
-/*! WT_FILE_SYSTEM::open_file type: regular file */
-#define	WT_FILE_TYPE_REGULAR	5
+/*! WT_FILE_SYSTEM::open_file file types */
+typedef enum {
+	WT_OPEN_FILE_TYPE_CHECKPOINT,	/*!< open a data file checkpoint */
+	WT_OPEN_FILE_TYPE_DATA,		/*!< open a data file */
+	WT_OPEN_FILE_TYPE_DIRECTORY,	/*!< open a directory */
+	WT_OPEN_FILE_TYPE_LOG,		/*!< open a log file */
+	WT_OPEN_FILE_TYPE_REGULAR	/*!< open a regular file */
+} WT_OPEN_FILE_TYPE;
 
 /*! WT_FILE_SYSTEM::open_file flags: create if does not exist */
 #define	WT_OPEN_CREATE		0x001
@@ -3808,10 +3806,7 @@ struct __wt_file_system {
 	 * @param file_system the WT_FILE_SYSTEM
 	 * @param session the current WiredTiger session
 	 * @param name the name of the file system object
-	 * @param file_type the type of the file, one of
-	 *    ::WT_FILE_TYPE_CHECKPOINT, ::WT_FILE_TYPE_DATA,
-	 *    ::WT_FILE_TYPE_DIRECTORY, ::WT_FILE_TYPE_LOG, or
-	 *    ::WT_FILE_TYPE_REGULAR.
+	 * @param file_type the type of the file
 	 *    The file type is provided to allow optimization for different file
 	 *    access patterns.
 	 * @param flags flags indicating how to open the file, one or more of
@@ -3824,8 +3819,8 @@ struct __wt_file_system {
 	 *    with the WT_FILE_HANDLE:: structure should declare and allocate
 	 *    their own structure as a superset of a WT_FILE_HANDLE:: structure.
 	 */
-	int (*open_file)(WT_FILE_SYSTEM *file_system,
-	    WT_SESSION *session, const char *name, int file_type, u_int flags,
+	int (*open_file)(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
+	    const char *name, WT_OPEN_FILE_TYPE file_type, u_int flags,
 	    WT_FILE_HANDLE **file_handlep);
 
 	/*!

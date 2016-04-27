@@ -1216,7 +1216,7 @@ __conn_config_file(WT_SESSION_IMPL *session,
 		return (0);
 
 	/* Open the configuration file. */
-	WT_RET(__wt_open(session, filename, WT_FILE_TYPE_REGULAR, 0, &fh));
+	WT_RET(__wt_open(session, filename, WT_OPEN_FILE_TYPE_REGULAR, 0, &fh));
 	WT_ERR(__wt_filesize(session, fh, &size));
 	if (size == 0)
 		goto err;
@@ -1508,7 +1508,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 	exist = false;
 	if (!is_create)
 		WT_ERR(__wt_fs_exist(session, WT_WIREDTIGER, &exist));
-	ret = __wt_open(session, WT_SINGLETHREAD, WT_FILE_TYPE_REGULAR,
+	ret = __wt_open(session, WT_SINGLETHREAD, WT_OPEN_FILE_TYPE_REGULAR,
 	    is_create || exist ? WT_OPEN_CREATE : 0, &conn->lock_fh);
 
 	/*
@@ -1564,7 +1564,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/* We own the lock file, optionally create the WiredTiger file. */
 	ret = __wt_open(session, WT_WIREDTIGER,
-	    WT_FILE_TYPE_REGULAR, is_create ? WT_OPEN_CREATE : 0, &fh);
+	    WT_OPEN_FILE_TYPE_REGULAR, is_create ? WT_OPEN_CREATE : 0, &fh);
 
 	/*
 	 * If we're read-only, check for success as well as handled errors.
@@ -1945,9 +1945,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 		__conn_get_extension_api
 	};
 	static const WT_NAME_FLAG file_types[] = {
-		{ "checkpoint",	WT_FILE_TYPE_CHECKPOINT },
-		{ "data",	WT_FILE_TYPE_DATA },
-		{ "log",	WT_FILE_TYPE_LOG },
+		{ "checkpoint",	WT_DIRECT_IO_CHECKPOINT },
+		{ "data",	WT_DIRECT_IO_DATA },
+		{ "log",	WT_DIRECT_IO_LOG },
 		{ NULL, 0 }
 	};
 
@@ -2188,8 +2188,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 		if (ret == 0) {
 			if (sval.val)
 				FLD_SET(conn->direct_io, ft->flag);
-		} else if (ret != WT_NOTFOUND)
-			goto err;
+		} else
+			WT_ERR_NOTFOUND_OK(ret);
 	}
 
 	WT_ERR(__wt_config_gets(session, cfg, "write_through", &cval));
@@ -2198,8 +2198,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 		if (ret == 0) {
 			if (sval.val)
 				FLD_SET(conn->write_through, ft->flag);
-		} else if (ret != WT_NOTFOUND)
-			goto err;
+		} else
+			WT_ERR_NOTFOUND_OK(ret);
 	}
 
 	/*
@@ -2223,15 +2223,15 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 		ret = __wt_config_subgets(session, &cval, ft->name, &sval);
 		if (ret == 0) {
 			switch (ft->flag) {
-			case WT_FILE_TYPE_DATA:
+			case WT_DIRECT_IO_DATA:
 				conn->data_extend_len = sval.val;
 				break;
-			case WT_FILE_TYPE_LOG:
+			case WT_DIRECT_IO_LOG:
 				conn->log_extend_len = sval.val;
 				break;
 			}
-		} else if (ret != WT_NOTFOUND)
-			goto err;
+		} else
+			WT_ERR_NOTFOUND_OK(ret);
 	}
 
 	WT_ERR(__wt_config_gets(session, cfg, "mmap", &cval));

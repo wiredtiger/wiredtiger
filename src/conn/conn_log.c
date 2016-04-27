@@ -868,9 +868,9 @@ __wt_logmgr_create(WT_SESSION_IMPL *session, const char *cfg[])
 	    "log write LSN"));
 	WT_RET(__wt_rwlock_alloc(session,
 	    &log->log_archive_lock, "log archive lock"));
-	if (FLD_ISSET(conn->direct_io, WT_FILE_TYPE_LOG))
-		log->allocsize =
-		    WT_MAX((uint32_t)conn->buffer_alignment, WT_LOG_ALIGN);
+	if (FLD_ISSET(conn->direct_io, WT_DIRECT_IO_LOG))
+		log->allocsize = (uint32_t)
+		    WT_MAX(conn->buffer_alignment, WT_LOG_ALIGN);
 	else
 		log->allocsize = WT_LOG_ALIGN;
 	WT_INIT_LSN(&log->alloc_lsn);

@@ -414,9 +414,13 @@ struct __wt_connection_impl {
 	wt_off_t data_extend_len;	/* file_extend data length */
 	wt_off_t log_extend_len;	/* file_extend log length */
 
-	/* O_DIRECT/FILE_FLAG_NO_BUFFERING file type flags */
-	uint32_t direct_io;
-	uint32_t write_through;		/* FILE_FLAG_WRITE_THROUGH type flags */
+#define	WT_DIRECT_IO_CHECKPOINT	0x01	/* Checkpoints */
+#define	WT_DIRECT_IO_DATA	0x02	/* Data files */
+#define	WT_DIRECT_IO_LOG	0x04	/* Log files */
+	uint32_t direct_io;		/* O_DIRECT, FILE_FLAG_NO_BUFFERING */
+
+	uint32_t write_through;		/* FILE_FLAG_WRITE_THROUGH */
+
 	bool	 mmap;			/* mmap configuration */
 	int page_size;			/* OS page size for mmap alignment */
 	uint32_t verbose;

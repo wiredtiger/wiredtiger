@@ -381,7 +381,8 @@ __win_file_write(WT_FILE_HANDLE *file_handle,
  */
 static int
 __win_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
-    const char *name, int file_type, u_int flags, WT_FILE_HANDLE **file_handlep)
+    const char *name, WT_OPEN_FILE_TYPE file_type, u_int flags,
+    WT_FILE_HANDLE **file_handlep)
 {
 	DWORD dwCreationDisposition;
 	WT_CONNECTION_IMPL *conn;
@@ -412,7 +413,7 @@ __win_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	 * require that functionality: create an empty WT_FH structure with
 	 * invalid handles.
 	 */
-	if (file_type == WT_FILE_TYPE_DIRECTORY)
+	if (file_type == WT_OPEN_FILE_TYPE_DIRECTORY)
 		goto directory_open;
 
 	desired_access = GENERIC_READ;
@@ -447,12 +448,12 @@ __win_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	if (FLD_ISSET(conn->write_through, file_type))
 		f |= FILE_FLAG_WRITE_THROUGH;
 
-	if (file_type == WT_FILE_TYPE_LOG &&
+	if (file_type == WT_OPEN_FILE_TYPE_LOG &&
 	    FLD_ISSET(conn->txn_logsync, WT_LOG_DSYNC))
 		f |= FILE_FLAG_WRITE_THROUGH;
 
 	/* Disable read-ahead on trees: it slows down random read workloads. */
-	if (file_type == WT_FILE_TYPE_DATA)
+	if (file_type == WT_OPEN_FILE_TYPE_DATA)
 		f |= FILE_FLAG_RANDOM_ACCESS;
 
 	win_fh->filehandle = CreateFileA(name, desired_access,

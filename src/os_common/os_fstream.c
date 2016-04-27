@@ -183,7 +183,8 @@ __wt_fopen(WT_SESSION_IMPL *session,
 
 	fs = NULL;
 
-	WT_RET(__wt_open(session, name, WT_FILE_TYPE_REGULAR, open_flags, &fh));
+	WT_RET(__wt_open(
+	    session, name, WT_OPEN_FILE_TYPE_REGULAR, open_flags, &fh));
 
 	WT_ERR(__wt_calloc_one(session, &fs));
 	fs->fh = fh;
@@ -207,7 +208,7 @@ __wt_fopen(WT_SESSION_IMPL *session,
 	*fsp = fs;
 	return (0);
 
-err:	__wt_close(session, &fh);
+err:	WT_TRET(__wt_close(session, &fh));
 	__wt_free(session, *fsp);
 	return (ret);
 }
