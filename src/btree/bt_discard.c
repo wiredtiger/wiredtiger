@@ -40,7 +40,6 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
 void
 __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
 {
-	WT_FILE_HANDLE *handle;
 	WT_PAGE *page;
 	WT_PAGE_HEADER *dsk;
 	WT_PAGE_MODIFY *mod;
@@ -136,11 +135,9 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
 		__wt_overwrite_and_free_len(session, dsk, dsk->mem_size);
 
 	/* Discard any mapped image. */
-	if (F_ISSET_ATOMIC(page, WT_PAGE_DISK_MAPPED)) {
-		handle = S2BT(session)->bm->block->fh->handle;
-		(void)handle->map_discard(
-		    handle, (WT_SESSION *)session, dsk, dsk->mem_size);
-	}
+	if (F_ISSET_ATOMIC(page, WT_PAGE_DISK_MAPPED))
+		(void)S2BT(session)->bm->map_discard(
+		    S2BT(session)->bm, session, dsk, (size_t)dsk->mem_size);
 
 	__wt_overwrite_and_free(session, page);
 }

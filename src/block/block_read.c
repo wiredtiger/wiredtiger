@@ -36,8 +36,8 @@ __wt_bm_preload(
 	handle = block->fh->handle;
 	mapped = bm->map != NULL && offset + size <= (wt_off_t)bm->maplen;
 	if (mapped && handle->map_preload != NULL)
-		ret = handle->map_preload(handle,
-		    (WT_SESSION *)session, (uint8_t *)bm->map + offset, size);
+		ret = handle->map_preload(handle, (WT_SESSION *)session,
+		    (uint8_t *)bm->map + offset, size, bm->mapped_cookie);
 	if (!mapped && handle->fadvise != NULL)
 		ret = handle->fadvise(handle, (WT_SESSION *)session,
 		    (wt_off_t)offset, (wt_off_t)size, WT_FILE_HANDLE_WILLNEED);
@@ -81,8 +81,8 @@ __wt_bm_read(WT_BM *bm, WT_SESSION_IMPL *session,
 	if (mapped && handle->map_preload != NULL) {
 		buf->data = (uint8_t *)bm->map + offset;
 		buf->size = size;
-		ret = handle->map_preload(
-		    handle, (WT_SESSION *)session, buf->data, buf->size);
+		ret = handle->map_preload(handle, (WT_SESSION *)session,
+		    buf->data, buf->size,bm->mapped_cookie);
 
 		WT_STAT_FAST_CONN_INCR(session, block_map_read);
 		WT_STAT_FAST_CONN_INCRV(session, block_byte_map_read, size);

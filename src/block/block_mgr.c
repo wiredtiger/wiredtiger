@@ -302,6 +302,20 @@ __bm_is_mapped(WT_BM *bm, WT_SESSION_IMPL *session)
 }
 
 /*
+ * __bm_map_discard --
+ *	Discard a mapped segment.
+ */
+static int
+__bm_map_discard(WT_BM *bm, WT_SESSION_IMPL *session, void *map, size_t len)
+{
+	WT_FILE_HANDLE *handle;
+
+	handle = bm->block->fh->handle;
+	return (handle->map_discard(
+	    handle, (WT_SESSION *)session, map, len, bm->mapped_cookie));
+}
+
+/*
  * __bm_salvage_end --
  *	End a block manager salvage.
  */
@@ -532,6 +546,7 @@ __bm_method_set(WT_BM *bm, bool readonly)
 	bm->compact_start = __bm_compact_start;
 	bm->free = __bm_free;
 	bm->is_mapped = __bm_is_mapped;
+	bm->map_discard = __bm_map_discard;
 	bm->preload = __wt_bm_preload;
 	bm->read = __wt_bm_read;
 	bm->salvage_end = __bm_salvage_end;

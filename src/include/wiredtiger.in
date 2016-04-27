@@ -4047,9 +4047,10 @@ struct __wt_file_handle {
 	 * @param map a location in the mapped region unlikely to be used in the
 	 *    near future
 	 * @param length the length of the mapped region to discard
+	 * @param mapped_cookie any cookie set by the WT_FILE_HANDLE::map method
 	 */
 	int (*map_discard)(WT_FILE_HANDLE *file_handle,
-	    WT_SESSION *session, void *map, size_t length);
+	    WT_SESSION *session, void *map, size_t length, void *mapped_cookie);
 
 	/*!
 	 * Preload part of a memory mapped file, based on the POSIX 1003.1
@@ -4068,9 +4069,10 @@ struct __wt_file_handle {
 	 * @param map a location in the mapped region likely to be used in the
 	 *    near future
 	 * @param length the size of the mapped region to preload
+	 * @param mapped_cookie any cookie set by the WT_FILE_HANDLE::map method
 	 */
-	int (*map_preload)(WT_FILE_HANDLE *file_handle,
-	    WT_SESSION *session, const void *map, size_t length);
+	int (*map_preload)(WT_FILE_HANDLE *file_handle, WT_SESSION *session,
+	    const void *map, size_t length, void *mapped_cookie);
 
 	/*!
 	 * Unmap a memory mapped file, based on the POSIX 1003.1 standard

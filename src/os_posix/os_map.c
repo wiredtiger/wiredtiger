@@ -67,14 +67,16 @@ __wt_posix_map(WT_FILE_HANDLE *fh, WT_SESSION *wt_session,
  *	Cause a section of a memory map to be faulted in.
  */
 int
-__wt_posix_map_preload(
-    WT_FILE_HANDLE *fh, WT_SESSION *wt_session, const void *map, size_t length)
+__wt_posix_map_preload(WT_FILE_HANDLE *fh,
+    WT_SESSION *wt_session, const void *map, size_t length, void *mapped_cookie)
 {
 	WT_BM *bm;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	void *blk;
+
+	WT_UNUSED(mapped_cookie);
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
@@ -116,13 +118,15 @@ __wt_posix_map_preload(
  *	Discard a chunk of the memory map.
  */
 int
-__wt_posix_map_discard(
-    WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void *map, size_t length)
+__wt_posix_map_discard(WT_FILE_HANDLE *fh,
+    WT_SESSION *wt_session, void *map, size_t length, void *mapped_cookie)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	void *blk;
+
+	WT_UNUSED(mapped_cookie);
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	conn = S2C(session);

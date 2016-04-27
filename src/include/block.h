@@ -174,6 +174,7 @@ struct __wt_bm {
 	int (*compact_start)(WT_BM *, WT_SESSION_IMPL *);
 	int (*free)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
 	bool (*is_mapped)(WT_BM *, WT_SESSION_IMPL *);
+	int (*map_discard)(WT_BM *, WT_SESSION_IMPL *, void *, size_t);
 	int (*preload)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
 	int (*read)
 	    (WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, const uint8_t *, size_t);
