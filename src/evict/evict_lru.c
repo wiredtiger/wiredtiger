@@ -648,7 +648,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 		 */
 		if (pages_evicted == cache->pages_evict) {
 			WT_STAT_FAST_CONN_INCR(session,
-					       cache_eviction_server_slept);
+			    cache_eviction_server_slept);
 			/*
 			 * Back off if we aren't making progress: walks hold
 			 * the handle list lock, which blocks other operations
@@ -1387,6 +1387,11 @@ __evict_walk_file(WT_SESSION_IMPL *session, uint32_t queue_index, u_int *slotp)
 		 */
 		if (FLD_ISSET(cache->state, WT_EVICT_PASS_WOULD_BLOCK) &&
 		    page->memory_footprint < btree->splitmempage)
+			continue;
+
+		/* Skip tiny pages unless we're aggressive.  */
+		if (!FLD_ISSET(cache->state, WT_EVICT_PASS_AGGRESSIVE) &&
+		    page->memory_footprint < btree->allocsize)
 			continue;
 
 		/* Limit internal pages to 50% unless we get aggressive. */
