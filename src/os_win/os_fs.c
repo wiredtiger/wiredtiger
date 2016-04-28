@@ -535,7 +535,7 @@ __win_terminate(WT_SESSION *wt_session)
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	__wt_free(session, S2C(session)->file_system);
+	__wt_free(session, file_system);
 	return (0);
 }
 
