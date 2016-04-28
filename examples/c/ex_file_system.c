@@ -105,6 +105,8 @@ static int demo_file_lock(WT_FILE_HANDLE *, WT_SESSION *, bool);
 static int demo_file_read(
     WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t, void *);
 static int demo_file_size(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t *);
+static int demo_file_sync(WT_FILE_HANDLE *, WT_SESSION *);
+static int demo_file_sync_nowait(WT_FILE_HANDLE *, WT_SESSION *);
 static int demo_file_truncate(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t);
 static int demo_file_write(
     WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t, const void *);
@@ -217,10 +219,24 @@ demo_fs_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
 	if ((file_handle->name = strdup(name)) == NULL)
 		goto enomem;
 
+	/*
+	 * Setup the function call table for our custom file system. Set the
+	 * function pointer to NULL where our implementation doesn't support
+	 * the functionality.
+	 */
 	file_handle->close = demo_file_close;
+	file_handle->fadvise = NULL;
+	file_handle->fallocate = NULL;
+	file_handle->fallocate_nolock = NULL;
 	file_handle->lock = demo_file_lock;
+	file_handle->map = NULL;
+	file_handle->map_discard = NULL;
+	file_handle->map_preload = NULL;
+	file_handle->unmap = NULL;
 	file_handle->read = demo_file_read;
 	file_handle->size = demo_file_size;
+	file_handle->sync = demo_file_sync;
+	file_handle->sync_nowait = demo_file_sync_nowait;
 	file_handle->truncate = demo_file_truncate;
 	file_handle->write = demo_file_write;
 
@@ -516,6 +532,34 @@ demo_file_size(
 
 	assert(demo_fh->size != 0);
 	*sizep = (wt_off_t)demo_fh->size;
+	return (0);
+}
+
+/*
+ * demo_file_sync --
+ *	Ensure the content of the file is stable. This is a no-op in our
+ *	memory backed file system.
+ */
+static int
+demo_file_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
+{
+	(void)file_handle;					/* Unused */
+	(void)session;						/* Unused */
+
+	return (0);
+}
+
+/*
+ * demo_file_sync_nowait --
+ *	Ensure the content of the file is stable. This is a no-op in our
+ *	memory backed file system.
+ */
+static int
+demo_file_sync_nowait(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
+{
+	(void)file_handle;					/* Unused */
+	(void)session;						/* Unused */
+
 	return (0);
 }
 
