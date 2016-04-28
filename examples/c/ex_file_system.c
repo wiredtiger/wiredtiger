@@ -76,6 +76,12 @@ typedef struct demo_file_handle {
 /*
  * Extension initialization function.
  */
+#ifdef _WIN32
+/*
+ * Explicitly export this function so it is visible when loading extensions.
+ */
+__declspec(dllexport)
+#endif
 int demo_file_system_create(WT_CONNECTION *, WT_CONFIG_ARG *);
 
 /*
