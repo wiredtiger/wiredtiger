@@ -85,7 +85,7 @@ __wt_win_unmap(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
 		    "%s: memory-unmap: UnmapViewOfFile", file_handle->name);
 	}
 
-	if (CloseHandle(mapped_cookie) == 0) {
+	if (CloseHandle(*(void **)mapped_cookie) == 0) {
 		ret = __wt_getlasterror();
 		__wt_err(session, ret,
 		    "%s: memory-unmap: CloseHandle", file_handle->name);
