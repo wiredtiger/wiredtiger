@@ -134,17 +134,18 @@ __win_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 	    CloseHandle(win_fh->filehandle) == 0) {
 		ret = __wt_getlasterror();
 		__wt_err(session, ret,
-		    "%s: handle-close: CloseHandle", win_fh->iface.name);
+		    "%s: handle-close: CloseHandle", file_handle->name);
 	}
 
 	if (win_fh->filehandle_secondary != INVALID_HANDLE_VALUE &&
 	    CloseHandle(win_fh->filehandle_secondary) == 0) {
 		ret = __wt_getlasterror();
 		__wt_err(session, ret,
-		    "%s: handle-close: secondary: CloseHandle", win_fh->iface.name);
+		    "%s: handle-close: secondary: CloseHandle",
+		    file_handle->name);
 	}
 
-	__wt_free(session, win_fh->iface.name);
+	__wt_free(session, file_handle->name);
 	__wt_free(session, win_fh);
 	return (ret);
 }
@@ -183,13 +184,13 @@ __win_file_lock(
 		if (LockFile(win_fh->filehandle, 0, 0, 1, 0) == FALSE) {
 			ret = __wt_getlasterror();
 			__wt_err(session, ret,
-			    "%s: handle-lock: LockFile", win_fh->iface.name);
+			    "%s: handle-lock: LockFile", file_handle->name);
 		}
 	} else
 		if (UnlockFile(win_fh->filehandle, 0, 0, 1, 0) == FALSE) {
 			ret = __wt_getlasterror();
 			__wt_err(session, ret,
-			    "%s: handle-lock: UnlockFile", win_fh->iface.name);
+			    "%s: handle-lock: UnlockFile", file_handle->name);
 		}
 	return (ret);
 }
@@ -234,7 +235,7 @@ __win_file_read(WT_FILE_HANDLE *file_handle,
 			    __wt_getlasterror(),
 			    "%s: handle-read: ReadFile: failed to read %lu "
 			    "bytes at offset %" PRIuMAX,
-			    win_fh->iface.name, chunk, (uintmax_t)offset);
+			    file_handle->name, chunk, (uintmax_t)offset);
 	}
 	return (0);
 }
@@ -260,7 +261,7 @@ __win_file_size(
 	}
 
 	WT_RET_MSG(session, __wt_getlasterror(),
-	    "%s: handle-size: GetFileSizeEx", win_fh->iface.name);
+	    "%s: handle-size: GetFileSizeEx", file_handle->name);
 }
 
 /*
@@ -289,7 +290,8 @@ __win_file_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 	if (FlushFileBuffers(win_fh->filehandle) == FALSE) {
 		ret = __wt_getlasterror();
 		WT_RET_MSG(session, ret,
-		    "%s handle-sync: FlushFileBuffers error", win_fh->iface.name);
+		    "%s handle-sync: FlushFileBuffers error",
+		    file_handle->name);
 	}
 	return (0);
 }
@@ -314,18 +316,20 @@ __win_file_truncate(
 
 	if (win_fh->filehandle_secondary == INVALID_HANDLE_VALUE)
 		WT_RET_MSG(session, EINVAL,
-		    "%s: handle-truncate: read-only", win_fh->iface.name);
+		    "%s: handle-truncate: read-only", file_handle->name);
 
 	if (SetFilePointerEx(
 	    win_fh->filehandle_secondary, largeint, NULL, FILE_BEGIN) == FALSE)
 		WT_RET_MSG(session, __wt_getlasterror(),
-		    "%s: handle-truncate: SetFilePointerEx", win_fh->iface.name);
+		    "%s: handle-truncate: SetFilePointerEx",
+		    file_handle->name);
 
 	if (SetEndOfFile(win_fh->filehandle_secondary) == FALSE) {
 		if (GetLastError() == ERROR_USER_MAPPED_FILE)
 			return (EBUSY);
 		WT_RET_MSG(session, __wt_getlasterror(),
-		    "%s: handle-truncate: SetEndOfFile error", win_fh->iface.name);
+		    "%s: handle-truncate: SetEndOfFile error",
+		    file_handle->name);
 	}
 	return (0);
 }
@@ -370,7 +374,7 @@ __win_file_write(WT_FILE_HANDLE *file_handle,
 			WT_RET_MSG(session, __wt_getlasterror(),
 			    "%s: handle-write: WriteFile: failed to write %lu "
 			    "bytes at offset %" PRIuMAX,
-			    win_fh->iface.name, chunk, (uintmax_t)offset);
+			    file_handle->name, chunk, (uintmax_t)offset);
 	}
 	return (0);
 }

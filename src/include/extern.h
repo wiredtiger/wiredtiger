@@ -761,6 +761,7 @@ extern int __wt_thread_create(WT_SESSION_IMPL *session, wt_thread_t *tidret, WT_
 extern int __wt_thread_join(WT_SESSION_IMPL *session, wt_thread_t tid);
 extern int __wt_win_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *directory, const char *prefix, char ***dirlistp, uint32_t *countp);
 extern int __wt_win_directory_list_free(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, char **dirlist, uint32_t count);
+extern int __wt_win_fs_size(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *name, wt_off_t *sizep);
 extern int __wt_win_map(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, void *mapped_regionp, size_t *lenp, void *mapped_cookiep);
 extern int __wt_win_unmap(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, void *mapped_region, size_t length, void *mapped_cookie);
 extern uint64_t __wt_strtouq(const char *nptr, char **endptr, int base);

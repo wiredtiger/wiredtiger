@@ -59,7 +59,8 @@ __wt_win_directory_list(WT_FILE_SYSTEM *file_system,
 			continue;
 
 		/* The list of files is optionally filtered by a prefix. */
-		if (prefix != NULL && !WT_PREFIX_MATCH(finddata.cFileName, prefix))
+		if (prefix != NULL &&
+		    !WT_PREFIX_MATCH(finddata.cFileName, prefix))
 			continue;
 
 		WT_ERR(__wt_realloc_def(
