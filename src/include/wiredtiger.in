@@ -3753,7 +3753,7 @@ struct __wt_file_system {
 	 *    are returned
 	 * @param[out] dirlist the method returns an allocated array of
 	 *    individually allocated strings, one for each entry in the
-	 *    directory. WiredTiger will free the array and the strings.
+	 *    directory.
 	 * @param[out] countp the method the number of entries returned
 	 */
 	int (*directory_list)(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
@@ -3873,8 +3873,11 @@ struct __wt_file_system {
 	    WT_SESSION *session, const char *name, wt_off_t *sizep);
 
 	/*!
-	 * If non-NULL a callback performed when the file system is closed and
-	 * will no longer be accessed by the WiredTiger database.
+	 * A callback performed when the file system is closed and will no
+	 * longer be accessed by the WiredTiger database.
+	 *
+	 * This method is not required and should be set to NULL when not
+	 * required by the file system.
 	 *
 	 * The WT_FILE_SYSTEM::terminate callback is intended to allow cleanup,
 	 * the handle will not be subsequently accessed by WiredTiger.
@@ -3986,9 +3989,6 @@ struct __wt_file_handle {
 	 * Lock/unlock a file from the perspective of other processes running
 	 * in the system.
 	 *
-	 * This method is not required, and should be set to NULL when not
-	 * required by the system.
-	 *
 	 * @errors
 	 *
 	 * @param file_handle the WT_FILE_HANDLE
@@ -4061,8 +4061,8 @@ struct __wt_file_handle {
 	 * Unmap a memory mapped file, based on the POSIX 1003.1 standard
 	 * munmap.
 	 *
-	 * This method is not required, and should be set to NULL when not
-	 * supported by the file.
+	 * This method is only required if a valid implementation of map is
+	 * provided by the file, and should be set to NULL otherwise.
 	 *
 	 * @errors
 	 *
@@ -4105,8 +4105,8 @@ struct __wt_file_handle {
 	 * Make outstanding file writes durable and do not return until writes
 	 * are complete.
 	 *
-	 * This method is not required, and should be set to NULL when not
-	 * required by the file.
+	 * This method is not required for read-only files, and should be set
+	 * to NULL when not supported by the file.
 	 *
 	 * @errors
 	 *

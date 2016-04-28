@@ -1,24 +1,21 @@
 /*! @page custom_file_systems Custom File Systems
 
-Applications can implement their own custom file systems sources
-underneath WiredTiger using the WT_FILE_SYSTEM and WT_FILE_HANDLE
-interfaces.
+Applications can provide a custom file system implementation that will be
+used by WiredTiger to interact with the I/O subsystem using the
+WT_FILE_SYSTEM and WT_FILE_HANDLE interfaces.
 
-WT_FILE_SYSTEM and WT_FILE_HANDLE methods which are not required should
-be set to NULL. Methods originally configured but later discovered to
-not be available (for example, a file extension call that turns out to
-be unsupported when actually attempted), should set the method to NULL
-to prevent future calls, and return ENOTSUP.
+It is not necessary for all file system providers to implement all methods
+in the WT_FILE_SYSTEM and WT_FILE_HANDLE structures. The documentation for
+those structures indicate which methods are optional. Methods which are not
+provided should be set to NULL. Generally the function pointers should not
+be changed once a handle is created. There is one exception to this, which
+are the fallocate and fallocate_nolock - for an example of how fallocate
+can be changed after create see the WiredTiger POSIX file system
+implementation.
 
 WT_FILE_SYSTEM and WT_FILE_HANDLE methods which fail but not fatally
 (for example, a file truncation call which fails because the file is
 currently mapped into memory), should return EBUSY.
-
-The documentation for each WT_FILE_SYSTEM and WT_FILE_HANDLE method
-includes if the method may be called concurrently with other file
-system or file handle operations. Where concurrent calls are possible,
-the underlying method support is responsible for any necessary
-serialization.
 
 Unless explicitly stated otherwise, WiredTiger may invoke methods on the
 WT_FILE_SYSTEM and WT_FILE_HANDLE interfaces from multiple threads
