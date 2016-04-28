@@ -258,7 +258,6 @@ __log_prealloc_once(WT_SESSION_IMPL *session)
 	 */
 	WT_ERR(__wt_fs_directory_list(
 	    session, conn->log_path, WT_LOG_PREPNAME, &recfiles, &reccount));
-	WT_ERR(__wt_fs_directory_list_free(session, &recfiles, &reccount));
 
 	/*
 	 * Adjust the number of files to pre-allocate if we find that
