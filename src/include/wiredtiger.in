@@ -3758,7 +3758,7 @@ struct __wt_file_system {
 	 */
 	int (*directory_list)(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
 	    const char *directory, const char *prefix, char ***dirlist,
-	    u_int *countp);
+	    uint32_t *countp);
 
 	/*!
 	 * Free memory allocated by WT_FILE_SYSTEM::directory_list.
@@ -3771,7 +3771,7 @@ struct __wt_file_system {
 	 * @param count count returned by WT_FILE_SYSTEM::directory_list
 	 */
 	int (*directory_list_free)(WT_FILE_SYSTEM *file_system,
-	    WT_SESSION *session, char **dirlist, u_int count);
+	    WT_SESSION *session, char **dirlist, uint32_t count);
 
 	/*!
 	 * Flush the named directory.
@@ -3825,7 +3825,7 @@ struct __wt_file_system {
 	 *    their own structure as a superset of a WT_FILE_HANDLE:: structure.
 	 */
 	int (*open_file)(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
-	    const char *name, WT_OPEN_FILE_TYPE file_type, u_int flags,
+	    const char *name, WT_OPEN_FILE_TYPE file_type, uint32_t flags,
 	    WT_FILE_HANDLE **file_handlep);
 
 	/*!

@@ -13,17 +13,18 @@
  *	Get a list of files from a directory, MSVC version.
  */
 int
-__wt_win_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
-    const char *directory, const char *prefix, char ***dirlistp, u_int *countp)
+__wt_win_directory_list(WT_FILE_SYSTEM *file_system,
+    WT_SESSION *wt_session, const char *directory,
+    const char *prefix, char ***dirlistp, uint32_t *countp)
 {
 	HANDLE findhandle;
 	WIN32_FIND_DATA finddata;
 	WT_DECL_ITEM(pathbuf);
 	WT_DECL_RET;
-	WT_SESSION *session;
+	WT_SESSION_IMPL *session;
 	size_t dirallocsz, pathlen;
-	u_int count;
-	char **entries;
+	uint32_t count;
+	char *dir_copy, **entries;
 
 	WT_UNUSED(file_system);
 
@@ -36,11 +37,12 @@ __wt_win_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	dirallocsz = 0;
 	entries = NULL;
 
-	pathlen = strlen(directory);
-	if (directory[pathlen - 1] == '\\')
-		directory[pathlen - 1] = '\0';
+	WT_ERR(__wt_strdup(session, directory, &dir_copy));
+	pathlen = strlen(dir_copy);
+	if (dir_copy[pathlen - 1] == '\\')
+		dir_copy[pathlen - 1] = '\0';
 	WT_ERR(__wt_scr_alloc(session, pathlen + 3, &pathbuf));
-	WT_ERR(__wt_buf_fmt(session, pathbuf, "%s\\*", directory));
+	WT_ERR(__wt_buf_fmt(session, pathbuf, "%s\\*", dir_copy));
 
 	findhandle = FindFirstFileA(pathbuf->data, &finddata);
 	if (findhandle == INVALID_HANDLE_VALUE)
@@ -57,7 +59,7 @@ __wt_win_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 			continue;
 
 		/* The list of files is optionally filtered by a prefix. */
-		if (prefix != NULL && !WT_PREFIX_MATCH(dp->d_name, prefix))
+		if (prefix != NULL && !WT_PREFIX_MATCH(finddata.cFileName, prefix))
 			continue;
 
 		WT_ERR(__wt_realloc_def(
@@ -72,6 +74,7 @@ __wt_win_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 
 err:	if (findhandle != INVALID_HANDLE_VALUE)
 		(void)FindClose(findhandle);
+	__wt_free(session, dir_copy);
 	__wt_scr_free(session, &pathbuf);
 
 	if (ret == 0)
@@ -91,7 +94,7 @@ err:	if (findhandle != INVALID_HANDLE_VALUE)
  */
 int
 __wt_win_directory_list_free(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *wt_session, char **dirlist, u_int count)
+    WT_SESSION *wt_session, char **dirlist, uint32_t count)
 {
 	WT_SESSION_IMPL *session;
 

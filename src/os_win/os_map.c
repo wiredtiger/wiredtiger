@@ -31,17 +31,18 @@ __wt_win_map(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
 	 * underneath us, our caller needs to ensure consistency of the mapped
 	 * region vs. any other file activity.
 	 */
-	WT_RET(__wt_filesize(session, win_fh, &file_size));
+	WT_RET(__wt_win_fs_size(file_handle->file_system,
+		wt_session, file_handle->name, &file_size));
 	len = (size_t)file_size;
 
 	(void)__wt_verbose(session, WT_VERB_HANDLEOPS,
-	    "%s: memory-map: %" WT_SIZET_FMT " bytes", win_fh->name, len);
+	    "%s: memory-map: %" WT_SIZET_FMT " bytes", win_fh->iface.name, len);
 
 	mapped_cookie = CreateFileMappingA(
 	    win_fh->filehandle, NULL, PAGE_READONLY, 0, 0, NULL);
 	if (mapped_cookie == NULL)
 		WT_RET_MSG(session, __wt_getlasterror(),
-		    "%s: memory-map: CreateFileMappingA", win_fh->name);
+		    "%s: memory-map: CreateFileMappingA", win_fh->iface.name);
 
 	if ((map =
 	    MapViewOfFile(mapped_cookie, FILE_MAP_READ, 0, 0, len)) == NULL) {
@@ -50,7 +51,7 @@ __wt_win_map(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
 		CloseHandle(mapped_cookie);
 
 		WT_RET_MSG(session, ret,
-		    "%s: memory-map: MapViewOfFile",  win_fh->name);
+		    "%s: memory-map: MapViewOfFile",  win_fh->iface.name);
 	}
 
 	*(void **)mapped_cookiep = mapped_cookie;
@@ -75,18 +76,18 @@ __wt_win_unmap(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
 	session = (WT_SESSION_IMPL *)wt_session;
 
 	(void)__wt_verbose(session, WT_VERB_HANDLEOPS,
-	    "%s: memory-unmap: %" WT_SIZET_FMT " bytes", win_fh->name, length);
+	    "%s: memory-unmap: %" WT_SIZET_FMT " bytes", win_fh->iface.name, length);
 
 	if (UnmapViewOfFile(mapped_region) == 0) {
 		ret = __wt_getlasterror();
 		__wt_err(session, ret,
-		    "%s: memory-unmap: UnmapViewOfFile", win_fh->name);
+		    "%s: memory-unmap: UnmapViewOfFile", win_fh->iface.name);
 	}
 
-	if (CloseHandle(mapped_cookei) == 0) {
+	if (CloseHandle(mapped_cookie) == 0) {
 		ret = __wt_getlasterror();
 		__wt_err(session, ret,
-		    "%s: memory-unmap: CloseHandle", win_fh->name);
+		    "%s: memory-unmap: CloseHandle", win_fh->iface.name);
 	}
 
 	return (ret);

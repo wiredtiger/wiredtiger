@@ -481,7 +481,7 @@ __posix_open_file_cloexec(WT_SESSION_IMPL *session, int fd, const char *name)
  */
 static int
 __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
-    const char *name, WT_OPEN_FILE_TYPE file_type, u_int flags,
+    const char *name, WT_OPEN_FILE_TYPE file_type, uint32_t flags,
     WT_FILE_HANDLE **file_handlep)
 {
 	WT_CONNECTION_IMPL *conn;

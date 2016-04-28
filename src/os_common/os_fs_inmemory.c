@@ -76,15 +76,16 @@ __im_handle_remove(WT_SESSION_IMPL *session,
  *	Return the directory contents.
  */
 static int
-__im_fs_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
-    const char *directory, const char *prefix, char ***dirlistp, u_int *countp)
+__im_fs_directory_list(WT_FILE_SYSTEM *file_system,
+    WT_SESSION *wt_session, const char *directory,
+    const char *prefix, char ***dirlistp, uint32_t *countp)
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_INMEM *im_fh;
 	WT_FILE_SYSTEM_INMEM *im_fs;
 	WT_SESSION_IMPL *session;
 	size_t dirallocsz, len;
-	u_int count;
+	uint32_t count;
 	char *name, **entries;
 
 	im_fs = (WT_FILE_SYSTEM_INMEM *)file_system;
@@ -136,7 +137,7 @@ err:	__wt_spin_unlock(session, &im_fs->lock);
  */
 static int
 __im_fs_directory_list_free(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *wt_session, char **dirlist, u_int count)
+    WT_SESSION *wt_session, char **dirlist, uint32_t count)
 {
 	WT_SESSION_IMPL *session;
 
@@ -434,7 +435,7 @@ err:	__wt_spin_unlock(session, &im_fs->lock);
  */
 static int
 __im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
-    const char *name, WT_OPEN_FILE_TYPE file_type, u_int flags,
+    const char *name, WT_OPEN_FILE_TYPE file_type, uint32_t flags,
     WT_FILE_HANDLE **file_handlep)
 {
 	WT_DECL_RET;

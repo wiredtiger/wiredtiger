@@ -15,15 +15,16 @@
  *	Get a list of files from a directory, POSIX version.
  */
 int
-__wt_posix_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
-    const char *directory, const char *prefix, char ***dirlistp, u_int *countp)
+__wt_posix_directory_list(WT_FILE_SYSTEM *file_system,
+    WT_SESSION *wt_session, const char *directory,
+    const char *prefix, char ***dirlistp, uint32_t *countp)
 {
 	struct dirent *dp;
 	DIR *dirp;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	size_t dirallocsz;
-	u_int count;
+	uint32_t count;
 	char **entries;
 
 	WT_UNUSED(file_system);
@@ -83,7 +84,7 @@ err:	if (dirp != NULL)
  */
 int
 __wt_posix_directory_list_free(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *wt_session, char **dirlist, u_int count)
+    WT_SESSION *wt_session, char **dirlist, uint32_t count)
 {
 	WT_SESSION_IMPL *session;
 

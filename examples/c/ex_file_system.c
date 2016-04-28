@@ -66,7 +66,7 @@ typedef struct demo_file_handle {
 	DEMO_FILE_SYSTEM *demo_fs;
 
 	TAILQ_ENTRY(demo_file_handle) q;
-	u_int	 ref;				/* Reference count */
+	uint32_t ref;				/* Reference count */
 
 	char	*buf;				/* In-memory contents */
 	size_t	 size;
@@ -82,11 +82,11 @@ int demo_file_system_create(WT_CONNECTION *, WT_CONFIG_ARG *);
  * Forward function declarations for file system API implementation
  */
 static int demo_fs_open(WT_FILE_SYSTEM *,
-    WT_SESSION *, const char *, WT_OPEN_FILE_TYPE, u_int, WT_FILE_HANDLE **);
+    WT_SESSION *, const char *, WT_OPEN_FILE_TYPE, uint32_t, WT_FILE_HANDLE **);
 static int demo_fs_directory_list(WT_FILE_SYSTEM *, WT_SESSION *,
-    const char *, const char *, char ***, u_int *);
+    const char *, const char *, char ***, uint32_t *);
 static int demo_fs_directory_list_free(
-    WT_FILE_SYSTEM *, WT_SESSION *, char **, u_int);
+    WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t);
 static int demo_fs_directory_sync(WT_FILE_SYSTEM *file_system,
     WT_SESSION *session, const char *directory);
 static int demo_fs_exist(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *);
@@ -164,7 +164,7 @@ err:	free(demo_fs);
  */
 static int
 demo_fs_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
-    const char *name, WT_OPEN_FILE_TYPE file_type, u_int flags,
+    const char *name, WT_OPEN_FILE_TYPE file_type, uint32_t flags,
     WT_FILE_HANDLE **file_handlep)
 {
 	WT_FILE_HANDLE *file_handle;
@@ -240,14 +240,15 @@ enomem:	free(demo_fh->buf);
  *	Return a list of files in a given sub-directory.
  */
 static int
-demo_fs_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
-    const char *directory, const char *prefix, char ***dirlistp, u_int *countp)
+demo_fs_directory_list(WT_FILE_SYSTEM *file_system,
+    WT_SESSION *session, const char *directory,
+    const char *prefix, char ***dirlistp, uint32_t *countp)
 {
 	DEMO_FILE_HANDLE *demo_fh;
 	DEMO_FILE_SYSTEM *demo_fs;
 	size_t dir_len, prefix_len;
 	char *name, **entries;
-	u_int allocated, count;
+	uint32_t allocated, count;
 
 	(void)session;						/* Unused */
 
@@ -291,7 +292,7 @@ demo_fs_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
  */
 static int
 demo_fs_directory_list_free(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *session, char **dirlist, u_int count)
+    WT_SESSION *session, char **dirlist, uint32_t count)
 {
 	(void)file_system;
 	(void)session;
