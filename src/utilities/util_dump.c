@@ -352,7 +352,9 @@ dump_table_config_complex(WT_SESSION *session, WT_CURSOR *cursor,
 	const char *v;
 	char *p, *cfg[3] = {NULL, NULL, NULL};
 
+	multiple = false;
 	sep = "";
+
 	if (json) {
 		if (strcmp(entry, "colgroup:") == 0) {
 			groupname = "colgroups";
@@ -377,7 +379,6 @@ dump_table_config_complex(WT_SESSION *session, WT_CURSOR *cursor,
 	}
 	if (exact >= 0)
 		goto match;
-	multiple = false;
 	while ((ret = cursor->next(cursor)) == 0) {
 match:		if ((ret = cursor->get_key(cursor, &key)) != 0)
 			return (util_cerr(cursor, "get_key", ret));
