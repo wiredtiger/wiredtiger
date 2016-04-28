@@ -230,7 +230,7 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
 err:		__wt_err(session, ret, "log archive server error");
 	if (locked)
 		WT_TRET(__wt_readunlock(session, conn->hot_backup_lock));
-	WT_TRET(__wt_fs_directory_list_free(session, &logfiles, &logcount));
+	WT_TRET(__wt_fs_directory_list_free(session, &logfiles, logcount));
 	return (ret);
 }
 
@@ -288,7 +288,7 @@ __log_prealloc_once(WT_SESSION_IMPL *session)
 
 	if (0)
 err:		__wt_err(session, ret, "log pre-alloc server error");
-	WT_TRET(__wt_fs_directory_list_free(session, &recfiles, &reccount));
+	WT_TRET(__wt_fs_directory_list_free(session, &recfiles, reccount));
 	return (ret);
 }
 
