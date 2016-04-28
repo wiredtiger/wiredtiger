@@ -648,7 +648,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 		 */
 		if (pages_evicted == cache->pages_evict) {
 			WT_STAT_FAST_CONN_INCR(session,
-					       cache_eviction_server_slept);
+			    cache_eviction_server_slept);
 			/*
 			 * Back off if we aren't making progress: walks hold
 			 * the handle list lock, which blocks other operations
