@@ -301,13 +301,6 @@ __im_file_read(WT_FILE_HANDLE *file_handle,
 	im_fs = (WT_FILE_SYSTEM_INMEM *)file_handle->file_system;
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	/*
-	 * TODO: Each file handle should probably reference the file system,
-	 * so external implementations can easily access fields in their file
-	 * system. Maybe alternatively they could allocate customized file
-	 * handle structures that reference them - that would allow for type
-	 * checking.
-	 */
 	__wt_spin_lock(session, &im_fs->lock);
 
 	off = (size_t)offset;
