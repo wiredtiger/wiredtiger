@@ -529,7 +529,7 @@ err:	WT_TRET(__win_file_close((WT_FILE_HANDLE *)win_fh, wt_session));
  *	Discard a Windows configuration.
  */
 static int
-__win_terminate(WT_SESSION *wt_session)
+__win_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session)
 {
 	WT_SESSION_IMPL *session;
 
