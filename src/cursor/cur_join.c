@@ -1113,7 +1113,11 @@ __curjoin_next(WT_CURSOR *cursor)
 		c->set_key(c, iter->curkey);
 		if (!F_ISSET(cursor, WT_CURSTD_RAW))
 			F_CLR(c, WT_CURSTD_RAW);
-		WT_ERR(c->search(c));
+
+		/* A failed search is not expected, don't return WT_NOTFOUND. */
+		if ((ret = c->search(c)) == WT_NOTFOUND)
+			ret = WT_ERROR;
+		WT_ERR(ret);
 		F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 	} else if (ret == WT_NOTFOUND &&
 	    (tret = __curjoin_iter_close_all(iter)) != 0)
