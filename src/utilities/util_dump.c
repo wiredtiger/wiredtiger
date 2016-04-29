@@ -463,7 +463,7 @@ dump_prefix(WT_SESSION *session, bool hex, bool json)
 
 	if (printf(
 	    "WiredTiger Dump (WiredTiger Version %d.%d.%d)\n",
-		vmajor, vminor, vpatch) < 0 ||
+	    vmajor, vminor, vpatch) < 0 ||
 	    printf("Format=%s\n", hex ? "hex" : "print") < 0 ||
 	    printf("Header\n") < 0)
 		return (util_err(session, EIO, NULL));
