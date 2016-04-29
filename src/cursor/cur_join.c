@@ -1076,7 +1076,6 @@ __curjoin_next(WT_CURSOR *cursor)
 	WT_CURSOR_JOIN_ITER *iter;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	const uint8_t *p;
 	int tret;
 
 	cjoin = (WT_CURSOR_JOIN *)cursor;
@@ -1104,18 +1103,16 @@ __curjoin_next(WT_CURSOR *cursor)
 
 	if (ret == 0) {
 		/*
-		 * Position the 'main' cursor, this will be used to
-		 * retrieve values from the cursor join.
+		 * Position the 'main' cursor, this will be used to retrieve
+		 * values from the cursor join.  The key we have is raw, but
+		 * the values we retrieve may not be raw.  So we need to
+		 * turn on the raw interface temporarily.
 		 */
 		c = cjoin->main;
-		if (WT_CURSOR_RECNO(cursor) &&
-		    !F_ISSET(cursor, WT_CURSTD_RAW)) {
-			p = (const uint8_t *)iter->curkey->data;
-			WT_ERR(__wt_vunpack_uint(&p, iter->curkey->size,
-			    &cjoin->iface.recno));
-			c->set_key(c, cjoin->iface.recno);
-		} else
-			c->set_key(c, iter->curkey);
+		F_SET(c, WT_CURSTD_RAW);
+		c->set_key(c, iter->curkey);
+		if (!F_ISSET(cursor, WT_CURSTD_RAW))
+			F_CLR(c, WT_CURSTD_RAW);
 		WT_ERR(c->search(c));
 		F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 	} else if (ret == WT_NOTFOUND &&
