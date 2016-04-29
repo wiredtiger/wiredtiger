@@ -226,8 +226,8 @@ dump_json_table_end(WT_SESSION *session)
  *	Dump the config for a table.
  */
 static int
-dump_table_config(WT_SESSION *session, WT_CURSOR *cursor, const char *uri,
-    bool json)
+dump_table_config(
+    WT_SESSION *session, WT_CURSOR *cursor, const char *uri, bool json)
 {
 	WT_CONFIG_ITEM cval;
 	WT_CURSOR *srch;
@@ -426,7 +426,7 @@ match:		if ((ret = cursor->get_key(cursor, &key)) != 0)
 		if ((cfg[0] = strdup(v)) == NULL)
 			return (util_err(session, errno, NULL));
 
-		if (json && printf("%s\n", (multiple ? "," : "")) < 0)
+		if (json && printf("%s\n", multiple ? "," : "") < 0)
 			return (util_err(session, EIO, NULL));
 		/*
 		 * The dumped configuration string is the original key plus the
@@ -437,10 +437,8 @@ match:		if ((ret = cursor->get_key(cursor, &key)) != 0)
 			return (util_err(session, EIO, NULL));
 		multiple = true;
 	}
-	if (json) {
-		if (printf("\n            ]%s\n", sep) < 0)
-			return (util_err(session, EIO, NULL));
-	}
+	if (json && printf("\n            ]%s\n", sep) < 0)
+		return (util_err(session, EIO, NULL));
 	free(cfg[0]);
 	free(cfg[1]);
 
@@ -458,13 +456,16 @@ dump_prefix(WT_SESSION *session, bool hex, bool json)
 {
 	int vmajor, vminor, vpatch;
 
+	if (json)
+		return (0);
+
 	(void)wiredtiger_version(&vmajor, &vminor, &vpatch);
 
-	if (!json && (printf(
+	if (printf(
 	    "WiredTiger Dump (WiredTiger Version %d.%d.%d)\n",
 		vmajor, vminor, vpatch) < 0 ||
 	    printf("Format=%s\n", hex ? "hex" : "print") < 0 ||
-	    printf("Header\n") < 0))
+	    printf("Header\n") < 0)
 		return (util_err(session, EIO, NULL));
 	return (0);
 }
@@ -565,8 +566,8 @@ dup_json_string(const char *str, char **result)
  *	Output a key/value URI pair by combining v1 and v2.
  */
 static int
-print_config(WT_SESSION *session, const char *key, char *cfg[], bool json,
-    bool toplevel)
+print_config(
+    WT_SESSION *session, const char *key, char *cfg[], bool json, bool toplevel)
 {
 	WT_DECL_RET;
 	char *jsonconfig, *value_ret;
