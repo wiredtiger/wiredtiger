@@ -765,6 +765,15 @@ __wt_row_random_leaf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	cbt->ins_head = ins_head;
 	cbt->compare = 0;
 
+	/*
+	 * MongoDB $sample can be significantly slower than expected if the
+	 * collection is newly created and the content is in a in a single
+	 * skiplist. If searching a relatively large skiplist, schedule it
+	 * for eviction to split up the skiplist.
+	 */
+	if (page->memory_footprint > 5 * WT_MEGABYTE)
+		__wt_page_evict_soon(page);
+
 	return (0);
 }
 
