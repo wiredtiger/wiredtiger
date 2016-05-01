@@ -197,8 +197,7 @@ main(int argc, char *argv[])
 
 	/* Allocate a buffer to use. */
 	len = small ? ((size_t)SMALL_MAX) : ((size_t)4 * GIGABYTE);
-	if ((big = malloc(len)) == NULL)
-		testutil_die(errno, "");
+	big = dmalloc(len);
 	memset(big, 'a', len);
 
 	/* Make sure the configurations all work. */
