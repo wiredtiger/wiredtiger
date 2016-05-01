@@ -26,18 +26,6 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <sys/wait.h>
-#include <errno.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#ifndef _WIN32
-#include <unistd.h>
-#endif
-
-#include <wiredtiger.h>
-
 #include "test_util.i"
 
 #define	HOME_SIZE	512

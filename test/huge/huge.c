@@ -26,14 +26,6 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <errno.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#ifndef _WIN32
-#include <unistd.h>
-#endif
-
 #include "test_util.i"
 
 static char home[512];				/* Program working dir */

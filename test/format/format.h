@@ -26,33 +26,10 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <sys/stat.h>
-#ifndef _WIN32
-#include <sys/time.h>
-#endif
-#include <sys/types.h>
-
-#include <assert.h>
-#include <ctype.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <inttypes.h>
-#include <limits.h>
-#ifndef _WIN32
-#include <pthread.h>
-#endif
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#ifndef _WIN32
-#include <unistd.h>
-#endif
-#include <time.h>
-
 #include "test_util.i"
 
 #ifdef BDB
+#include <assert.h>
 #include <db.h>
 #endif
 
