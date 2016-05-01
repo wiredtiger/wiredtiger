@@ -40,10 +40,17 @@ __conn_dhandle_alloc(WT_SESSION_IMPL *session,
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
 
+	*dhandlep = NULL;
+
 	WT_RET(__wt_calloc_one(session, &dhandle));
 
 	WT_ERR(__wt_rwlock_alloc(session, &dhandle->rwlock, "data handle"));
-	dhandle->name_hash = __wt_hash_city64(uri, strlen(uri));
+
+	dhandle->name_bucket =
+	    __wt_hash_city64(uri, strlen(uri)) % WT_HASH_ARRAY_SIZE;
+
+	dhandle->is_metadata = strcmp(uri, WT_METAFILE_URI) == 0;
+
 	WT_ERR(__wt_strdup(session, uri, &dhandle->name));
 	WT_ERR(__wt_strdup(session, checkpoint, &dhandle->checkpoint));
 
@@ -56,6 +63,12 @@ __conn_dhandle_alloc(WT_SESSION_IMPL *session,
 	    session, &dhandle->close_lock, "data handle close"));
 
 	__wt_stat_dsrc_init(dhandle);
+
+	/*
+	 * Prepend the handle to the connection list, assuming we're likely to
+	 * need new files again soon, until they are cached by all sessions.
+	 */
+	WT_CONN_DHANDLE_INSERT(S2C(session), dhandle, dhandle->name_bucket);
 
 	*dhandlep = dhandle;
 	return (0);
@@ -105,14 +118,6 @@ __wt_conn_dhandle_find(
 		}
 
 	WT_RET(__conn_dhandle_alloc(session, uri, checkpoint, &dhandle));
-
-	/*
-	 * Prepend the handle to the connection list, assuming we're likely to
-	 * need new files again soon, until they are cached by all sessions.
-	 * Find the right hash bucket to insert into as well.
-	 */
-	bucket = dhandle->name_hash % WT_HASH_ARRAY_SIZE;
-	WT_CONN_DHANDLE_INSERT(conn, dhandle, bucket);
 
 	session->dhandle = dhandle;
 	return (0);
@@ -508,11 +513,9 @@ __conn_dhandle_remove(WT_SESSION_IMPL *session, bool final)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
-	uint64_t bucket;
 
 	conn = S2C(session);
 	dhandle = session->dhandle;
-	bucket = dhandle->name_hash % WT_HASH_ARRAY_SIZE;
 
 	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST));
 	WT_ASSERT(session, dhandle != conn->cache->evict_file_next);
@@ -522,7 +525,7 @@ __conn_dhandle_remove(WT_SESSION_IMPL *session, bool final)
 	    (dhandle->session_inuse != 0 || dhandle->session_ref != 0))
 		return (EBUSY);
 
-	WT_CONN_DHANDLE_REMOVE(conn, dhandle, bucket);
+	WT_CONN_DHANDLE_REMOVE(conn, dhandle, dhandle->name_bucket);
 	return (0);
 
 }

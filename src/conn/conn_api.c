@@ -405,7 +405,7 @@ __wt_encryptor_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval,
 	WT_ENCRYPTOR *custom, *encryptor;
 	WT_KEYED_ENCRYPTOR *kenc;
 	WT_NAMED_ENCRYPTOR *nenc;
-	uint64_t bucket, hash;
+	uint64_t bucket;
 
 	*kencryptorp = NULL;
 
@@ -430,8 +430,7 @@ __wt_encryptor_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval,
 	if (conn->kencryptor == NULL && kencryptorp != &conn->kencryptor)
 		WT_ERR_MSG(session, EINVAL, "table encryption "
 		    "requires connection encryption to be set");
-	hash = __wt_hash_city64(keyid->str, keyid->len);
-	bucket = hash % WT_HASH_ARRAY_SIZE;
+	bucket = __wt_hash_city64(keyid->str, keyid->len) % WT_HASH_ARRAY_SIZE;
 	TAILQ_FOREACH(kenc, &nenc->keyedhashqh[bucket], q)
 		if (WT_STRING_MATCH(kenc->keyid, keyid->str, keyid->len))
 			goto out;
@@ -2322,7 +2321,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	 */
 	WT_ERR(__wt_turtle_init(session));
 
-	__wt_metadata_init(session);
 	WT_ERR(__wt_metadata_cursor(session, NULL));
 
 	/* Start the worker threads and run recovery. */
