@@ -9,20 +9,88 @@
 #include "wt_internal.h"
 
 /*
- * __wt_handle_search --
- *	Search for a matching handle.
+ * __fhandle_method_finalize --
+ *	Initialize any NULL WT_FH structure methods to not-supported. Doing
+ *	this means that custom file systems with incomplete implementations
+ *	won't dereference NULL pointers.
+ */
+static int
+__fhandle_method_finalize(
+    WT_SESSION_IMPL *session, WT_FILE_HANDLE *handle, bool readonly)
+{
+#define	WT_HANDLE_METHOD_REQ(name)					\
+	if (handle->name == NULL)					\
+		WT_RET_MSG(session, EINVAL,				\
+		    "a WT_FILE_HANDLE.%s method must be configured", #name)
+
+	WT_HANDLE_METHOD_REQ(close);
+	/* not required: fadvise */
+	/* not required: fallocate */
+	/* not required: fallocate_nolock */
+	/* not required: lock */
+	/* not required: map */
+	/* not required: map_discard */
+	/* not required: map_preload */
+	/* not required: map_unmap */
+	WT_HANDLE_METHOD_REQ(read);
+	WT_HANDLE_METHOD_REQ(size);
+	/* not required: sync */
+	/* not required: sync_nowait */
+	if (!readonly) {
+		WT_HANDLE_METHOD_REQ(truncate);
+		WT_HANDLE_METHOD_REQ(write);
+	}
+
+	return (0);
+}
+
+#ifdef HAVE_DIAGNOSTIC
+/*
+ * __wt_handle_is_open --
+ *	Return if there's an open handle matching a name.
  */
 bool
-__wt_handle_search(WT_SESSION_IMPL *session,
-    const char *name, bool increment_ref, WT_FH *newfh, WT_FH **fhp)
+__wt_handle_is_open(WT_SESSION_IMPL *session, const char *name)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_FH *fh;
 	uint64_t bucket, hash;
 	bool found;
 
-	if (fhp != NULL)
-		*fhp = NULL;
+	conn = S2C(session);
+	found = false;
+
+	hash = __wt_hash_city64(name, strlen(name));
+	bucket = hash % WT_HASH_ARRAY_SIZE;
+
+	__wt_spin_lock(session, &conn->fh_lock);
+
+	TAILQ_FOREACH(fh, &conn->fhhash[bucket], hashq)
+		if (strcmp(name, fh->name) == 0) {
+			found = true;
+			break;
+		}
+
+	__wt_spin_unlock(session, &conn->fh_lock);
+
+	return (found);
+}
+#endif
+
+/*
+ * __handle_search --
+ *	Search for a matching handle.
+ */
+static bool
+__handle_search(
+    WT_SESSION_IMPL *session, const char *name, WT_FH *newfh, WT_FH **fhp)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_FH *fh;
+	uint64_t bucket, hash;
+	bool found;
+
+	*fhp = NULL;
 
 	conn = S2C(session);
 	found = false;
@@ -33,15 +101,13 @@ __wt_handle_search(WT_SESSION_IMPL *session,
 	__wt_spin_lock(session, &conn->fh_lock);
 
 	/*
-	 * If we already have the file open, optionally increment the reference
-	 * count and return a pointer.
+	 * If we already have the file open, increment the reference count and
+	 * return a pointer.
 	 */
 	TAILQ_FOREACH(fh, &conn->fhhash[bucket], hashq)
 		if (strcmp(name, fh->name) == 0) {
-			if (increment_ref)
-				++fh->ref;
-			if (fhp != NULL)
-				*fhp = fh;
+			++fh->ref;
+			*fhp = fh;
 			found = true;
 			break;
 		}
@@ -52,10 +118,8 @@ __wt_handle_search(WT_SESSION_IMPL *session,
 		WT_CONN_FILE_INSERT(conn, newfh, bucket);
 		(void)__wt_atomic_add32(&conn->open_file_count, 1);
 
-		if (increment_ref)
-			++newfh->ref;
-		if (fhp != NULL)
-			*fhp = newfh;
+		++newfh->ref;
+		*fhp = newfh;
 	}
 
 	__wt_spin_unlock(session, &conn->fh_lock);
@@ -68,8 +132,8 @@ __wt_handle_search(WT_SESSION_IMPL *session,
  *	Optionally output a verbose message on handle open.
  */
 static inline int
-__open_verbose(WT_SESSION_IMPL *session,
-    const char *name, uint32_t file_type, uint32_t flags)
+__open_verbose(
+    WT_SESSION_IMPL *session, const char *name, int file_type, u_int flags)
 {
 #ifdef HAVE_VERBOSE
 	WT_DECL_RET;
@@ -85,19 +149,19 @@ __open_verbose(WT_SESSION_IMPL *session,
 	 */
 
 	switch (file_type) {
-	case WT_FILE_TYPE_CHECKPOINT:
+	case WT_OPEN_FILE_TYPE_CHECKPOINT:
 		file_type_tag = "checkpoint";
 		break;
-	case WT_FILE_TYPE_DATA:
+	case WT_OPEN_FILE_TYPE_DATA:
 		file_type_tag = "data";
 		break;
-	case WT_FILE_TYPE_DIRECTORY:
+	case WT_OPEN_FILE_TYPE_DIRECTORY:
 		file_type_tag = "directory";
 		break;
-	case WT_FILE_TYPE_LOG:
+	case WT_OPEN_FILE_TYPE_LOG:
 		file_type_tag = "log";
 		break;
-	case WT_FILE_TYPE_REGULAR:
+	case WT_OPEN_FILE_TYPE_REGULAR:
 		file_type_tag = "regular";
 		break;
 	default:
@@ -119,16 +183,12 @@ __open_verbose(WT_SESSION_IMPL *session,
 	WT_OPEN_VERBOSE_FLAG(WT_OPEN_EXCLUSIVE, "exclusive");
 	WT_OPEN_VERBOSE_FLAG(WT_OPEN_FIXED, "fixed");
 	WT_OPEN_VERBOSE_FLAG(WT_OPEN_READONLY, "readonly");
-	WT_OPEN_VERBOSE_FLAG(WT_STREAM_APPEND, "stream-append");
-	WT_OPEN_VERBOSE_FLAG(WT_STREAM_LINE_BUFFER, "stream-line-buffer");
-	WT_OPEN_VERBOSE_FLAG(WT_STREAM_READ, "stream-read");
-	WT_OPEN_VERBOSE_FLAG(WT_STREAM_WRITE, "stream-write");
 
 	if (tmp->size != 0)
 		WT_ERR(__wt_buf_catfmt(session, tmp, ")"));
 
 	ret = __wt_verbose(session, WT_VERB_FILEOPS,
-	    "%s: handle-open: type %s%s",
+	    "%s: file-open: type %s%s",
 	    name, file_type_tag, tmp->size == 0 ? "" : (char *)tmp->data);
 
 err:	__wt_scr_free(session, &tmp);
@@ -143,53 +203,24 @@ err:	__wt_scr_free(session, &tmp);
 }
 
 /*
- * __open_refresh --
- *	Refresh a file handle.
- */
-static inline int
-__open_refresh(WT_SESSION_IMPL *session,
-    WT_FH *fh, const char *name, uint32_t file_type, uint32_t flags)
-{
-	WT_DECL_RET;
-
-	/*
-	 * !!!
-	 * The in-memory file handle open must repeat if the reference count
-	 * goes to 0, no other file handle requires refresh.
-	 */
-	if (!F_ISSET(fh, WT_FH_IN_MEMORY) || fh->ref > 1)
-		return (0);
-
-	__wt_fh_method_init(fh);
-
-	WT_ERR(S2C(session)->handle_open(session, fh, name, file_type, flags));
-	return (0);
-
-err:	/*
-	 * We've already incremented the handle's reference count, close the
-	 * handle to discard that reference.
-	 */
-	WT_TRET(fh->fh_close(session, fh));
-	return (ret);
-}
-
-/*
  * __wt_open --
  *	Open a file handle.
  */
 int
 __wt_open(WT_SESSION_IMPL *session,
-    const char *name, uint32_t file_type, uint32_t flags, WT_FH **fhp)
+    const char *name, WT_OPEN_FILE_TYPE file_type, u_int flags, WT_FH **fhp)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_FH *fh;
+	WT_FILE_SYSTEM *file_system;
 	bool lock_file, open_called;
 	char *path;
 
 	WT_ASSERT(session, file_type != 0);	/* A file type is required. */
 
 	conn = S2C(session);
+	file_system = conn->file_system;
 	fh = NULL;
 	open_called = false;
 	path = NULL;
@@ -197,9 +228,7 @@ __wt_open(WT_SESSION_IMPL *session,
 	WT_RET(__open_verbose(session, name, file_type, flags));
 
 	/* Check if the handle is already open. */
-	if (__wt_handle_search(session, name, true, NULL, &fh)) {
-		WT_RET(__open_refresh(session, fh, name, file_type, flags));
-
+	if (__handle_search(session, name, NULL, &fh)) {
 		*fhp = fh;
 		return (0);
 	}
@@ -207,7 +236,6 @@ __wt_open(WT_SESSION_IMPL *session,
 	/* Allocate and initialize the handle. */
 	WT_ERR(__wt_calloc_one(session, &fh));
 	WT_ERR(__wt_strdup(session, name, &fh->name));
-	__wt_fh_method_init(fh);
 
 	/*
 	 * If this is a read-only connection, open all files read-only except
@@ -222,30 +250,26 @@ __wt_open(WT_SESSION_IMPL *session,
 		WT_ASSERT(session, lock_file || !LF_ISSET(WT_OPEN_CREATE));
 	}
 
-	/*
-	 * Direct I/O: file-type is a flag from the set of possible flags stored
-	 * in the connection handle during configuration, check for a match.
-	 */
-	fh->direct_io = false;
-	if (FLD_ISSET(conn->direct_io, file_type))
-		LF_SET(WT_OPEN_DIRECTIO);
-
 	/* Create the path to the file. */
 	if (!LF_ISSET(WT_OPEN_FIXED))
 		WT_ERR(__wt_filename(session, name, &path));
 
 	/* Call the underlying open function. */
-	WT_ERR(conn->handle_open(
-	    session, fh, path == NULL ? name : path, file_type, flags));
+	WT_ERR(file_system->open_file(file_system, &session->iface,
+	    path == NULL ? name : path, file_type, flags, &fh->handle));
 	open_called = true;
+
+	WT_ERR(__fhandle_method_finalize(
+	    session, fh->handle, LF_ISSET(WT_OPEN_READONLY)));
 
 	/*
 	 * Repeat the check for a match: if there's no match, link our newly
 	 * created handle onto the database's list of files.
 	 */
-	if (__wt_handle_search(session, name, true, fh, fhp)) {
+	if (__handle_search(session, name, fh, fhp)) {
 err:		if (open_called)
-			WT_TRET(fh->fh_close(session, fh));
+			WT_TRET(fh->handle->close(
+			    fh->handle, (WT_SESSION *)session));
 		if (fh != NULL) {
 			__wt_free(session, fh->name);
 			__wt_free(session, fh);
@@ -277,7 +301,7 @@ __wt_close(WT_SESSION_IMPL *session, WT_FH **fhp)
 
 	/* Track handle-close as a file operation, so open and close match. */
 	WT_RET(__wt_verbose(
-	    session, WT_VERB_FILEOPS, "%s: handle-close", fh->name));
+	    session, WT_VERB_FILEOPS, "%s: file-close", fh->name));
 
 	/*
 	 * If the reference count hasn't gone to 0, or if it's an in-memory
@@ -287,7 +311,7 @@ __wt_close(WT_SESSION_IMPL *session, WT_FH **fhp)
 	 */
 	__wt_spin_lock(session, &conn->fh_lock);
 	WT_ASSERT(session, fh->ref > 0);
-	if ((fh->ref > 0 && --fh->ref > 0) || F_ISSET(fh, WT_FH_IN_MEMORY)) {
+	if ((fh->ref > 0 && --fh->ref > 0)) {
 		__wt_spin_unlock(session, &conn->fh_lock);
 		return (0);
 	}
@@ -300,7 +324,7 @@ __wt_close(WT_SESSION_IMPL *session, WT_FH **fhp)
 	__wt_spin_unlock(session, &conn->fh_lock);
 
 	/* Discard underlying resources. */
-	ret = fh->fh_close(session, fh);
+	ret = fh->handle->close(fh->handle, (WT_SESSION *)session);
 
 	__wt_free(session, fh->name);
 	__wt_free(session, fh);
@@ -322,18 +346,13 @@ __wt_close_connection_close(WT_SESSION_IMPL *session)
 	conn = S2C(session);
 
 	while ((fh = TAILQ_FIRST(&conn->fhqh)) != NULL) {
-		/*
-		 * In-memory configurations will have open files, but the ref
-		 * counts should be zero.
-		 */
-		if (!F_ISSET(conn, WT_CONN_IN_MEMORY) || fh->ref != 0) {
+		if (fh->ref != 0) {
 			ret = EBUSY;
 			__wt_errx(session,
 			    "Connection has open file handles: %s", fh->name);
 		}
 
 		fh->ref = 1;
-		F_CLR(fh, WT_FH_IN_MEMORY);
 
 		WT_TRET(__wt_close(session, &fh));
 	}

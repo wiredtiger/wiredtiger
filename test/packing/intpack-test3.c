@@ -44,6 +44,7 @@ test_value(int64_t val)
 
 	soutput = 0;	/* -Werror=maybe-uninitialized */
 	sinput = val;
+	soutput = 0;	/* Make GCC happy. */
 	p = buf;
 	testutil_check(__wt_vpack_int(&p, sizeof(buf), sinput));
 	used_len = (size_t)(p - buf);
@@ -72,8 +73,7 @@ test_value(int64_t val)
 	p = buf;
 	testutil_check(__wt_vpack_uint(&p, sizeof(buf), uinput));
 	cp = buf;
-	testutil_check(__wt_vunpack_uint(
-	    &cp, sizeof(buf), &uoutput));
+	testutil_check(__wt_vunpack_uint(&cp, sizeof(buf), &uoutput));
 	/* Ensure we got the correct value back */
 	if (sinput != soutput) {
 		fprintf(stderr, "mismatch %" PRIu64 ", %" PRIu64 "\n",
