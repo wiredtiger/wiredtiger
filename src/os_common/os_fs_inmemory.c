@@ -221,7 +221,7 @@ __im_fs_rename(WT_FILE_SYSTEM *file_system,
 	WT_FILE_HANDLE_INMEM *im_fh;
 	WT_FILE_SYSTEM_INMEM *im_fs;
 	WT_SESSION_IMPL *session;
-	uint64_t bucket, hash;
+	uint64_t bucket;
 	char *copy;
 
 	im_fs = (WT_FILE_SYSTEM_INMEM *)file_system;
@@ -237,8 +237,8 @@ __im_fs_rename(WT_FILE_SYSTEM *file_system,
 
 		bucket = im_fh->name_hash % WT_HASH_ARRAY_SIZE;
 		WT_FILE_HANDLE_REMOVE(im_fs, im_fh, bucket);
-		hash = __wt_hash_city64(to, strlen(to));
-		bucket = hash % WT_HASH_ARRAY_SIZE;
+		im_fh->name_hash = __wt_hash_city64(to, strlen(to));
+		bucket = im_fh->name_hash % WT_HASH_ARRAY_SIZE;
 		WT_FILE_HANDLE_INSERT(im_fs, im_fh, bucket);
 	}
 
