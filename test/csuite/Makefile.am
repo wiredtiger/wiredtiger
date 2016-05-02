@@ -4,14 +4,14 @@ LDADD = $(top_builddir)/libwiredtiger.la \
     $(top_builddir)/test/utility/libtest_util.la
 AM_LDFLAGS = -static
 
-test_wt1965_SOURCES = test_wt1965.c
-noinst_PROGRAMS = test_wt1965
+test_wt1965_col_efficiency_SOURCES = test_wt1965_col_efficiency.c
+noinst_PROGRAMS = test_wt1965_col_efficiency
 
-test_wt2246_SOURCES = test_wt2246.c
-noinst_PROGRAMS += test_wt2246
+test_wt2246_col_append_SOURCES = test_wt2246_col_append.c
+noinst_PROGRAMS += test_wt2246_col_append
 
-test_wt2535_SOURCES = test_wt2535.c
-noinst_PROGRAMS += test_wt2535
+test_wt2535_prev_bug_SOURCES = test_wt2535_prev_bug.c
+noinst_PROGRAMS += test_wt2535_prev_bug
 
 # Run this during a "make check" smoke test.
 TESTS = $(noinst_PROGRAMS)
