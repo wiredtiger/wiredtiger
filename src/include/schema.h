@@ -54,6 +54,7 @@ struct __wt_index {
 struct __wt_table {
 	const char *name, *config, *plan;
 	const char *key_format, *value_format;
+	uint64_t name_hash;		/* Hash of name */
 
 	WT_CONFIG_ITEM cgconf, colconf;
 
@@ -61,7 +62,6 @@ struct __wt_table {
 	WT_INDEX **indices;
 	size_t idx_alloc;
 
-	uint64_t name_bucket;		/* Name's hash bucket */
 	TAILQ_ENTRY(__wt_table) q;
 	TAILQ_ENTRY(__wt_table) hashq;
 

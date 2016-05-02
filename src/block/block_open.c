@@ -102,9 +102,11 @@ __block_destroy(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
+	uint64_t bucket;
 
 	conn = S2C(session);
-	WT_CONN_BLOCK_REMOVE(conn, block, block->name_bucket);
+	bucket = block->name_hash % WT_HASH_ARRAY_SIZE;
+	WT_CONN_BLOCK_REMOVE(conn, block, bucket);
 
 	__wt_free(session, block->name);
 
@@ -150,17 +152,15 @@ __wt_block_open(WT_SESSION_IMPL *session,
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-	uint64_t bucket;
+	uint64_t bucket, hash;
 	uint32_t flags;
-
-	*blockp = NULL;
 
 	WT_RET(__wt_verbose(session, WT_VERB_BLOCK, "open: %s", filename));
 
 	conn = S2C(session);
-	block = NULL;
-	bucket =
-	    __wt_hash_city64(filename, strlen(filename)) % WT_HASH_ARRAY_SIZE;
+	*blockp = block = NULL;
+	hash = __wt_hash_city64(filename, strlen(filename));
+	bucket = hash % WT_HASH_ARRAY_SIZE;
 	__wt_spin_lock(session, &conn->block_lock);
 	TAILQ_FOREACH(block, &conn->blockhash[bucket], hashq) {
 		if (strcmp(filename, block->name) == 0) {
@@ -180,7 +180,7 @@ __wt_block_open(WT_SESSION_IMPL *session,
 	 */
 	WT_ERR(__wt_calloc_one(session, &block));
 	block->ref = 1;
-	block->name_bucket = bucket;
+	block->name_hash = hash;
 	block->allocsize = allocsize;
 	WT_CONN_BLOCK_INSERT(conn, block, bucket);
 

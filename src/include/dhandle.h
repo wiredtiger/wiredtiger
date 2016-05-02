@@ -43,12 +43,8 @@
  */
 struct __wt_data_handle {
 	WT_RWLOCK *rwlock;		/* Lock for shared/exclusive ops */
-
-	uint64_t name_bucket;		/* Name's hash bucket */
 	TAILQ_ENTRY(__wt_data_handle) q;
 	TAILQ_ENTRY(__wt_data_handle) hashq;
-
-	bool	is_metadata;		/* Is the metadata file */
 
 	/*
 	 * Sessions caching a connection's data handle will have a non-zero
@@ -61,6 +57,7 @@ struct __wt_data_handle {
 	time_t	 timeofdeath;		/* Use count went to 0 */
 	WT_SESSION_IMPL *excl_session;	/* Session with exclusive use, if any */
 
+	uint64_t name_hash;		/* Hash of name */
 	const char *name;		/* Object name as a URI */
 	const char *checkpoint;		/* Checkpoint name (or NULL) */
 	const char **cfg;		/* Configuration information */

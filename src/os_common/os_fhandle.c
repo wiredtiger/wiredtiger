@@ -54,13 +54,14 @@ __wt_handle_is_open(WT_SESSION_IMPL *session, const char *name)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_FH *fh;
-	uint64_t bucket;
+	uint64_t bucket, hash;
 	bool found;
 
 	conn = S2C(session);
 	found = false;
 
-	bucket = __wt_hash_city64(name, strlen(name)) % WT_HASH_ARRAY_SIZE;
+	hash = __wt_hash_city64(name, strlen(name));
+	bucket = hash % WT_HASH_ARRAY_SIZE;
 
 	__wt_spin_lock(session, &conn->fh_lock);
 
@@ -86,7 +87,7 @@ __handle_search(
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_FH *fh;
-	uint64_t bucket;
+	uint64_t bucket, hash;
 	bool found;
 
 	*fhp = NULL;
@@ -94,7 +95,8 @@ __handle_search(
 	conn = S2C(session);
 	found = false;
 
-	bucket = __wt_hash_city64(name, strlen(name)) % WT_HASH_ARRAY_SIZE;
+	hash = __wt_hash_city64(name, strlen(name));
+	bucket = hash % WT_HASH_ARRAY_SIZE;
 
 	__wt_spin_lock(session, &conn->fh_lock);
 
@@ -112,7 +114,7 @@ __handle_search(
 
 	/* If we don't find a match, optionally add a new entry. */
 	if (!found && newfh != NULL) {
-		newfh->name_bucket = bucket;
+		newfh->name_hash = hash;
 		WT_FILE_HANDLE_INSERT(conn, newfh, bucket);
 		(void)__wt_atomic_add32(&conn->open_file_count, 1);
 
@@ -288,6 +290,7 @@ __wt_close(WT_SESSION_IMPL *session, WT_FH **fhp)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_FH *fh;
+	uint64_t bucket;
 
 	conn = S2C(session);
 
@@ -314,7 +317,8 @@ __wt_close(WT_SESSION_IMPL *session, WT_FH **fhp)
 	}
 
 	/* Remove from the list. */
-	WT_FILE_HANDLE_REMOVE(conn, fh, fh->name_bucket);
+	bucket = fh->name_hash % WT_HASH_ARRAY_SIZE;
+	WT_FILE_HANDLE_REMOVE(conn, fh, bucket);
 	(void)__wt_atomic_sub32(&conn->open_file_count, 1);
 
 	__wt_spin_unlock(session, &conn->fh_lock);

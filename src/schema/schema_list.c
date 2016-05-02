@@ -18,6 +18,7 @@ __schema_add_table(WT_SESSION_IMPL *session,
 {
 	WT_DECL_RET;
 	WT_TABLE *table;
+	uint64_t bucket;
 
 	/* Make sure the metadata is open before getting other locks. */
 	WT_RET(__wt_metadata_cursor(session, NULL));
@@ -27,9 +28,9 @@ __schema_add_table(WT_SESSION_IMPL *session,
 	    session, name, namelen, ok_incomplete, &table));
 	WT_RET(ret);
 
+	bucket = table->name_hash % WT_HASH_ARRAY_SIZE;
 	TAILQ_INSERT_HEAD(&session->tables, table, q);
-	TAILQ_INSERT_HEAD(
-	    &session->tablehash[table->name_bucket], table, hashq);
+	TAILQ_INSERT_HEAD(&session->tablehash[bucket], table, hashq);
 	*tablep = table;
 
 	return (0);
@@ -223,10 +224,12 @@ __wt_schema_destroy_table(WT_SESSION_IMPL *session, WT_TABLE **tablep)
 int
 __wt_schema_remove_table(WT_SESSION_IMPL *session, WT_TABLE *table)
 {
+	uint64_t bucket;
 	WT_ASSERT(session, table->refcnt <= 1);
 
+	bucket = table->name_hash % WT_HASH_ARRAY_SIZE;
 	TAILQ_REMOVE(&session->tables, table, q);
-	TAILQ_REMOVE(&session->tablehash[table->name_bucket], table, hashq);
+	TAILQ_REMOVE(&session->tablehash[bucket], table, hashq);
 	return (__wt_schema_destroy_table(session, &table));
 }
 

@@ -76,7 +76,7 @@ struct __wt_fh {
 	 */
 	const char *name;			/* File name */
 
-	uint64_t name_bucket;			/* name's hash bucket */
+	uint64_t name_hash;			/* hash of name */
 	TAILQ_ENTRY(__wt_fh) q;			/* internal queue */
 	TAILQ_ENTRY(__wt_fh) hashq;		/* internal hash queue */
 	u_int ref;				/* reference count */
@@ -117,7 +117,7 @@ struct __wt_file_handle_inmem {
 	/*
 	 * In memory specific file handle fields
 	 */
-	uint64_t name_bucket;			/* name's hash bucket */
+	uint64_t name_hash;			/* hash of name */
 	TAILQ_ENTRY(__wt_file_handle_inmem) q;	/* internal queue, hash queue */
 	TAILQ_ENTRY(__wt_file_handle_inmem) hashq;
 
