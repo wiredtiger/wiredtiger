@@ -1105,14 +1105,10 @@ __curjoin_next(WT_CURSOR *cursor)
 		/*
 		 * Position the 'main' cursor, this will be used to retrieve
 		 * values from the cursor join.  The key we have is raw, but
-		 * the values we retrieve may not be raw.  So we need to
-		 * turn on the raw interface temporarily.
+		 * the main cursor may not be raw.
 		 */
 		c = cjoin->main;
-		F_SET(c, WT_CURSTD_RAW);
-		c->set_key(c, iter->curkey);
-		if (!F_ISSET(cursor, WT_CURSTD_RAW))
-			F_CLR(c, WT_CURSTD_RAW);
+		__wt_cursor_set_raw_key(c, iter->curkey);
 
 		/* A failed search is not expected, don't return WT_NOTFOUND. */
 		if ((ret = c->search(c)) == WT_NOTFOUND)
