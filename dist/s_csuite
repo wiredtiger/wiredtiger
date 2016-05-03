@@ -1,0 +1,41 @@
+#! /bin/sh
+
+# Build C test program Makefiles.
+t=__wt.$$
+trap 'rm -f $t; exit 0' 0 1 2 3 13 15
+
+cd ..
+
+create_make()
+{
+	echo 'AM_CPPFLAGS=-I$(top_builddir)'
+	echo 'AM_CPPFLAGS+=-I$(top_srcdir)/src/include'
+	echo 'AM_CPPFLAGS+=-I$(top_srcdir)/test/utility'
+	echo
+	echo 'noinst_PROGRAMS=t'
+	echo "t_SOURCES=$*"
+	echo
+	echo 't_LDADD=$(top_builddir)/libwiredtiger.la'
+	echo 't_LDADD+=$(top_builddir)/test/utility/libtest_util.la'
+	echo 't_LDFLAGS=-static'
+	echo
+	echo 'TESTS=$(noinst_PROGRAMS)'
+	echo
+	echo 'clean-local:'
+	echo '	rm -rf *.o *.core WT_HOME WT_TEST'
+}
+
+d="test/csuite"
+subdirs="build_posix/Make.subdirs"
+for i in $d/*; do
+	grep $i $subdirs > /dev/null || {
+		echo "$i: not found in $subdirs"
+		exit 1
+	}
+	(cd $i || exit 1
+	create_make *.c) > $t
+
+	f=$i/Makefile.am
+	cmp $t $f > /dev/null 2>&1 ||
+	    (echo "Building $f" && rm -f $f && cp $t $f)
+done
