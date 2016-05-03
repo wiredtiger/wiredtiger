@@ -634,6 +634,7 @@ __wt_row_random_leaf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	WT_INSERT *ins, **start, **stop;
 	WT_INSERT_HEAD *ins_head;
 	WT_PAGE *page;
+	uint64_t samples;
 	uint32_t choice, entries, i;
 	int level;
 
@@ -688,7 +689,7 @@ __wt_row_random_leaf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	 * Step down the skip list levels, selecting a random chunk of the name
 	 * space at each level.
 	 */
-	while (level > 0) {
+	for (samples = entries; level > 0; samples += entries) {
 		/*
 		 * There are (entries) or (entries + 1) chunks of the name space
 		 * considered at each level. They are: between start and the 1st
@@ -766,12 +767,14 @@ __wt_row_random_leaf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	cbt->compare = 0;
 
 	/*
-	 * MongoDB $sample can be significantly slower than expected if the
-	 * collection is newly created and the content is in a in a single
-	 * skiplist. If searching a relatively large skiplist, schedule it
-	 * for eviction to split up the skiplist.
+	 * MongoDB $sample can be slow in a newly created collection where the
+	 * content is a single skiplist. If searching a large skiplist in a
+	 * large page, schedule the page for eviction to split up the skiplist.
+	 * The check of both the number of sampled entries and page footprint
+	 * is to avoid repeatedly evicting a small page with large individual
+	 * items, to no effect.
 	 */
-	if (page->memory_footprint > 5 * WT_MEGABYTE)
+	if (samples > 5000 && page->memory_footprint > 5 * WT_MEGABYTE)
 		__wt_page_evict_soon(page);
 
 	return (0);
