@@ -211,9 +211,8 @@ err:	__wt_free(session, uri);
 
 /*
  * __curjoin_iter_bump --
- *	Called to advance the iterator to the next endpoint,
- *	which may in turn advance to the next entry.
- *
+ *	Called to advance the iterator to the next endpoint, which may in turn
+ * advance to the next entry.
  */
 static int
 __curjoin_iter_bump(WT_CURSOR_JOIN_ITER *iter)
@@ -1077,7 +1076,6 @@ __curjoin_next(WT_CURSOR *cursor)
 	WT_CURSOR_JOIN_ITER *iter;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	const uint8_t *p;
 	int tret;
 
 	cjoin = (WT_CURSOR_JOIN *)cursor;
@@ -1105,19 +1103,17 @@ __curjoin_next(WT_CURSOR *cursor)
 
 	if (ret == 0) {
 		/*
-		 * Position the 'main' cursor, this will be used to
-		 * retrieve values from the cursor join.
+		 * Position the 'main' cursor, this will be used to retrieve
+		 * values from the cursor join.  The key we have is raw, but
+		 * the main cursor may not be raw.
 		 */
 		c = cjoin->main;
-		if (WT_CURSOR_RECNO(cursor) &&
-		    !F_ISSET(cursor, WT_CURSTD_RAW)) {
-			p = (const uint8_t *)iter->curkey->data;
-			WT_ERR(__wt_vunpack_uint(&p, iter->curkey->size,
-			    &cjoin->iface.recno));
-			c->set_key(c, cjoin->iface.recno);
-		} else
-			c->set_key(c, iter->curkey);
-		WT_ERR(c->search(c));
+		__wt_cursor_set_raw_key(c, iter->curkey);
+
+		/* A failed search is not expected, don't return WT_NOTFOUND. */
+		if ((ret = c->search(c)) == WT_NOTFOUND)
+			ret = WT_ERROR;
+		WT_ERR(ret);
 		F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 	} else if (ret == WT_NOTFOUND &&
 	    (tret = __curjoin_iter_close_all(iter)) != 0)
