@@ -757,7 +757,7 @@ __evict_clear_walks(WT_SESSION_IMPL *session)
 		if (!s->active || !F_ISSET(s, WT_SESSION_CLEAR_EVICT_WALK))
 			continue;
 		WT_WITH_DHANDLE(session, s->dhandle,
-		    WT_TRET(__evict_clear_walk(session, false)));
+		    WT_TRET(__evict_clear_walk(session, true)));
 	}
 	return (ret);
 }
