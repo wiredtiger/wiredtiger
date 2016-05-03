@@ -24,11 +24,15 @@ lang/java JAVA
 examples/java JAVA
 lang/python PYTHON
 
-# Make the tests
+# Make the test library first.
 test/utility
+
+# Then, make the tests
 test/bloom
 test/checkpoint
-test/csuite
+test/csuite/wt1965
+test/csuite/wt2246
+test/csuite/wt2535
 test/cursor_order
 test/fops
 test/format

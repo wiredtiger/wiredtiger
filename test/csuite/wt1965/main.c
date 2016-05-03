@@ -25,7 +25,7 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
-#include "test_util.i"
+#include "test_util.h"
 
 void (*custom_die)(void) = NULL;
 
