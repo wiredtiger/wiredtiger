@@ -15,8 +15,8 @@ create_make()
 	echo 'noinst_PROGRAMS=t'
 	echo "t_SOURCES=$*"
 	echo
-	echo 't_LDADD = $(top_builddir)/libwiredtiger.la'
-	echo 't_LDADD +=$(top_builddir)/test/utility/libtest_util.la'
+	echo 't_LDADD = $(top_builddir)/test/utility/libtest_util.la'
+	echo 't_LDADD +=$(top_builddir)/libwiredtiger.la'
 	echo 't_LDFLAGS=-static'
 	echo
 	echo 'TESTS=$(noinst_PROGRAMS)'

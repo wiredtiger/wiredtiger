@@ -27,6 +27,12 @@
  */
 #include "test_util.h"
 
+extern int   __wt_opterr;		/* if error message should be printed */
+extern int   __wt_optind;		/* index into parent argv vector */
+extern int   __wt_optopt;		/* character checked for validity */
+extern int   __wt_optreset;		/* reset getopt */
+extern char *__wt_optarg;		/* argument associated with option */
+
 /*
  * testutil_parse_opts --
  *    Parse command line options for a test case.
@@ -46,22 +52,23 @@ testutil_parse_opts(int argc, char *argv[], TEST_OPTS *opts)
 	else
 		++opts->progname;
 
-	while ((ch = getopt(argc, argv, "h:n:o:pvA:R:T:W:")) != EOF)
+	while ((ch =
+	    __wt_getopt(opts->progname, argc, argv, "h:n:o:pvA:R:T:W:")) != EOF)
 		switch (ch) {
 		case 'h': /* Home directory */
-			opts->home = optarg;
+			opts->home = __wt_optarg;
 			break;
 		case 'n': /* Number of records */
-			opts->nrecords = (uint64_t)atoll(optarg);
+			opts->nrecords = (uint64_t)atoll(__wt_optarg);
 			break;
 		case 'o': /* Number of operations */
-			opts->nops = (uint64_t)atoll(optarg);
+			opts->nops = (uint64_t)atoll(__wt_optarg);
 			break;
 		case 'p': /* Preserve directory contents */
 			opts->preserve = true;
 			break;
 		case 't': /* Table type */
-			switch (optarg[0]) {
+			switch (__wt_optarg[0]) {
 			case 'c':
 			case 'C':
 				opts->table_type = TABLE_COL;
@@ -80,16 +87,16 @@ testutil_parse_opts(int argc, char *argv[], TEST_OPTS *opts)
 			opts->verbose = true;
 			break;
 		case 'A': /* Number of append threads */
-			opts->n_append_threads = (uint64_t)atoll(optarg);
+			opts->n_append_threads = (uint64_t)atoll(__wt_optarg);
 			break;
 		case 'R': /* Number of reader threads */
-			opts->n_read_threads = (uint64_t)atoll(optarg);
+			opts->n_read_threads = (uint64_t)atoll(__wt_optarg);
 			break;
 		case 'T': /* Number of threads */
-			opts->nthreads = (uint64_t)atoll(optarg);
+			opts->nthreads = (uint64_t)atoll(__wt_optarg);
 			break;
 		case 'W': /* Number of writer threads */
-			opts->n_write_threads = (uint64_t)atoll(optarg);
+			opts->n_write_threads = (uint64_t)atoll(__wt_optarg);
 			break;
 		case '?':
 		default:
