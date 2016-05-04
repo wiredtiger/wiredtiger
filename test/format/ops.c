@@ -505,7 +505,7 @@ ops(void *arg)
 		if (tinfo->ops == ckpt_op && g.c_checkpoints) {
 			/*
 			 * Checkpoints are single-threaded inside WiredTiger,
-			 * skip our checkpoint if anoother thread is already
+			 * skip our checkpoint if another thread is already
 			 * doing one.
 			 */
 			ret = pthread_rwlock_trywrlock(&g.checkpoint_lock);
