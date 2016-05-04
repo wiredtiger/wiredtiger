@@ -61,7 +61,7 @@ main(void)
 	    (ret = conn->open_session(conn, NULL, NULL, &session)) != 0) {
 		fprintf(stderr, "Error connecting to %s: %s\n",
 		    home == NULL ? "." : home, wiredtiger_strerror(ret));
-		return (ret);
+		return (EXIT_FAILURE);
 	}
 	/*! [access example connection] */
 
@@ -95,5 +95,5 @@ main(void)
 	ret = conn->close(conn, NULL);
 	/*! [access example close] */
 
-	return (ret);
+	return (ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
 }

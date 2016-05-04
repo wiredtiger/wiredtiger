@@ -587,6 +587,8 @@ main(void)
 
 		printf("Verified key %s; value %s\n", key1, val1);
 	}
+
 	ret = conn->close(conn, NULL);
-	return (ret);
+
+	return (ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
 }

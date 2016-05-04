@@ -220,9 +220,11 @@ main(void)
 	ret = cursor->close(cursor);
 
 	/* Note: closing the connection implicitly closes open session(s). */
-	if ((ret = conn->close(conn, NULL)) != 0)
+	if ((ret = conn->close(conn, NULL)) != 0) {
 		fprintf(stderr, "Error closing %s: %s\n",
 		    home == NULL ? "." : home, wiredtiger_strerror(ret));
+		return (EXIT_FAILURE);
+	}
 
-	return (ret);
+	return (EXIT_SUCCESS);
 }

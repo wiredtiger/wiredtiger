@@ -121,13 +121,10 @@ main(void)
 		fprintf(stderr, "Error opening a session on %s: %s\n",
 		    home == NULL ? "." : home, wiredtiger_strerror(ret));
 
-	/* XXX Do some work... */
+	/* Do some work... */
 
-	/* Note: closing the connection implicitly closes open session(s). */
-	if ((ret = conn->close(conn, NULL)) != 0)
+	ret = conn->close(conn, NULL);
 	/*! [add collator prefix10] */
-		fprintf(stderr, "Error closing %s: %s\n",
-		    home == NULL ? "." : home, wiredtiger_strerror(ret));
 
-	return (ret);
+	return (ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
 }

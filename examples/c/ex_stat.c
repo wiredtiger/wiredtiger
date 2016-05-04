@@ -257,5 +257,7 @@ main(void)
 
 	ret = print_derived_stats(session);
 
-	return (conn->close(conn, NULL) == 0 ? ret : EXIT_FAILURE);
+	ret = conn->close(conn, NULL);
+
+	return (ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
 }

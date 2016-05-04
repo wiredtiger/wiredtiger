@@ -123,7 +123,7 @@ main(void)
 	int i, ret;
 	const char *home;
 	char k[MAX_KEYS][16], v[MAX_KEYS][16];
-	
+
 	/*
 	 * Create a clean test directory for this run of the test program if the
 	 * environment variable isn't already set (as is done by make check).
@@ -160,7 +160,7 @@ main(void)
 			if (ret == EBUSY)
 				sleep(1);
 			else
-				return (ret);
+				return (EXIT_FAILURE);
 		}
 		/*! [async handle allocation] */
 
@@ -210,7 +210,7 @@ main(void)
 			if (ret == EBUSY)
 				sleep(1);
 			else
-				return (ret);
+				return (EXIT_FAILURE);
 		}
 
 		/*! [async search] */
@@ -232,5 +232,5 @@ main(void)
 
 	printf("Searched for %" PRIu32 " keys\n", ex_asynckeys.num_keys);
 
-	return (ret);
+	return (ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
 }
