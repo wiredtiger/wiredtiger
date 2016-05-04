@@ -767,14 +767,13 @@ __wt_row_random_leaf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	cbt->compare = 0;
 
 	/*
-	 * MongoDB $sample can be slow in a newly created collection where the
-	 * content is a single skiplist. If searching a large skiplist in a
-	 * large page, schedule the page for eviction to split up the skiplist.
-	 * The check of both the number of sampled entries and page footprint
-	 * is to avoid repeatedly evicting a small page with large individual
-	 * items, to no effect.
+	 * Random lookups in newly created collections can be slow if a page
+	 * consists of a large skiplist. Schedule the page for eviction if we
+	 * encounter a large skiplist. This worthwhile because applications
+	 * that take a sample often take many samples, so the overhead of
+	 * traversing the skip list each time accumulates to real time.
 	 */
-	if (samples > 5000 && page->memory_footprint > 5 * WT_MEGABYTE)
+	if (samples > 5000)
 		__wt_page_evict_soon(page);
 
 	return (0);
