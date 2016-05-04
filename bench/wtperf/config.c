@@ -51,7 +51,7 @@ static void config_opt_usage(void);
  *	Modify a string in place, replacing any backslash escape sequences.
  *	The modified string is always shorter.
  */
-int
+static int
 config_unescape(char *orig)
 {
 	char ch, *dst, *s;
@@ -77,11 +77,11 @@ config_unescape(char *orig)
 				break;
 			case '\\':
 			case '/':
-			case '"':
+			case '\"':	/* Backslash needed for spell check. */
 				*dst++ = ch;
 				break;
 			default:
-				// Note: Unicode (\u) not implemented
+				/* Note: Unicode (\u) not implemented. */
 				fprintf(stderr,
 				    "invalid escape in string: %s\n", orig);
 				return (EINVAL);
