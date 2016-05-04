@@ -708,14 +708,14 @@ main(void)
 	/* Open a connection to the database, creating it if necessary. */
 	if ((ret = wiredtiger_open(home, NULL, open_config, &conn)) != 0) {
 		fprintf(stderr, "Error connecting to %s: %s\n",
-		    home, wiredtiger_strerror(ret));
+		    home == NULL ? "." : home, wiredtiger_strerror(ret));
 		return (ret);
 	}
 	/*! [WT_FILE_SYSTEM register] */
 
 	if ((ret = conn->close(conn, NULL)) != 0)
 		fprintf(stderr, "Error closing connection to %s: %s\n",
-		    home, wiredtiger_strerror(ret));
+		    home == NULL ? "." : home, wiredtiger_strerror(ret));
 
 	return (ret);
 }

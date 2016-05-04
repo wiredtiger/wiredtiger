@@ -235,9 +235,8 @@ main(void)
 
 	ret = wiredtiger_open(home, NULL, "create,statistics=(all)", &conn);
 	ret = conn->open_session(conn, NULL, NULL, &session);
-	ret = session->create(
-	    session, "table:access",
-	    "key_format=S,value_format=S,columns=(k,v)");
+	ret = session->create(session,
+	    "table:access", "key_format=S,value_format=S,columns=(k,v)");
 
 	ret = session->open_cursor(
 	    session, "table:access", NULL, NULL, &cursor);

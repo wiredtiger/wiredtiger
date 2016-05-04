@@ -51,7 +51,7 @@ __declspec(dllexport)
 #endif
 int add_my_encryptors(WT_CONNECTION *connection);
 
-static const char *home = NULL;
+static const char *home;
 
 #define	SYS_KEYID	"system"
 #define	SYS_PW		"system_password"

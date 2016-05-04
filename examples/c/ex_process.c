@@ -60,19 +60,19 @@ main(void)
 	if ((ret =
 	    wiredtiger_open(home, NULL, "create,multiprocess", &conn)) != 0)
 		fprintf(stderr, "Error connecting to %s: %s\n",
-		    home, wiredtiger_strerror(ret));
+		    home == NULL ? "." : home, wiredtiger_strerror(ret));
 
 	/* Open a session for the current thread's work. */
 	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
 		fprintf(stderr, "Error opening a session on %s: %s\n",
-		    home, wiredtiger_strerror(ret));
+		    home == NULL ? "." : home, wiredtiger_strerror(ret));
 
 	/* XXX Do some work... */
 
 	/* Note: closing the connection implicitly closes open session(s). */
 	if ((ret = conn->close(conn, NULL)) != 0)
 		fprintf(stderr, "Error closing %s: %s\n",
-		    home, wiredtiger_strerror(ret));
+		    home == NULL ? "." : home, wiredtiger_strerror(ret));
 	/*! [processes] */
 
 	return (ret);
