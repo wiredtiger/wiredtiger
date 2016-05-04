@@ -28,9 +28,8 @@
  * ex_file_system.c
  * 	demonstrates how to use the custom file system interface
  */
-#include <assert.h>
-#include <stdlib.h>
 #include <errno.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <wiredtiger.h>
@@ -69,8 +68,10 @@ typedef struct demo_file_handle {
 	uint32_t ref;				/* Reference count */
 
 	char	*buf;				/* In-memory contents */
-	size_t	 size;
+	size_t	 bufsize;			/* In-memory buffer size */
+
 	size_t	 off;				/* Read/write offset */
+	size_t	 size;				/* Read/write data size */
 } DEMO_FILE_HANDLE;
 
 /*
@@ -212,11 +213,11 @@ demo_fs_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
 
 	/* Initialize private information. */
 	demo_fh->ref = 1;
-	demo_fh->off = 0;
+	demo_fh->off = demo_fh->size = 0;
 	demo_fh->demo_fs = demo_fs;
 	if ((demo_fh->buf = calloc(1, DEMO_FILE_SIZE_INCREMENT)) == NULL)
 		goto enomem;
-	demo_fh->size = DEMO_FILE_SIZE_INCREMENT;
+	demo_fh->bufsize = DEMO_FILE_SIZE_INCREMENT;
 
 	/* Initialize public information. */
 	file_handle = (WT_FILE_HANDLE *)demo_fh;
@@ -494,8 +495,8 @@ demo_file_read(WT_FILE_HANDLE *file_handle,
     WT_SESSION *session, wt_off_t offset, size_t len, void *buf)
 {
 	DEMO_FILE_HANDLE *demo_fh;
-	int ret = 0;
 	size_t off;
+	int ret = 0;
 
 	(void)session;						/* Unused */
 	demo_fh = (DEMO_FILE_HANDLE *)file_handle;
@@ -507,7 +508,7 @@ demo_file_read(WT_FILE_HANDLE *file_handle,
 		memcpy(buf, (uint8_t *)demo_fh->buf + off, len);
 		demo_fh->off = off + len;
 	} else
-		ret = EINVAL;
+		ret = EINVAL;		/* EOF */
 
 	if (ret == 0)
 		return (0);
@@ -534,7 +535,6 @@ demo_file_size(
 	(void)session;						/* Unused */
 	demo_fh = (DEMO_FILE_HANDLE *)file_handle;
 
-	assert(demo_fh->size != 0);
 	*sizep = (wt_off_t)demo_fh->size;
 	return (0);
 }
@@ -558,10 +558,13 @@ demo_file_truncate(
 	 * and reset the file's data length.
 	 */
 	off = (size_t)offset;
-	demo_fh->buf = realloc(demo_fh->buf, off);
-	if (demo_fh->buf == NULL) {
-		fprintf(stderr, "Failed to resize buffer in truncate\n");
-		return (ENOSPC);
+	if (demo_fh->bufsize < off ) {
+		if ((demo_fh->buf = realloc(demo_fh->buf, off)) == NULL) {
+			fprintf(stderr,
+			    "Failed to resize buffer in truncate\n");
+			return (ENOSPC);
+		}
+		demo_fh->bufsize = off;
 	}
 	if (demo_fh->size < off)
 		memset((uint8_t *)demo_fh->buf + demo_fh->size,
@@ -580,6 +583,7 @@ demo_file_write(WT_FILE_HANDLE *file_handle, WT_SESSION *session,
     wt_off_t offset, size_t len, const void *buf)
 {
 	DEMO_FILE_HANDLE *demo_fh;
+	size_t off;
 	int ret = 0;
 
 	demo_fh = (DEMO_FILE_HANDLE *)file_handle;
@@ -589,8 +593,11 @@ demo_file_write(WT_FILE_HANDLE *file_handle, WT_SESSION *session,
 	    offset + (wt_off_t)(len + DEMO_FILE_SIZE_INCREMENT))) != 0)
 		return (ret);
 
-	memcpy((uint8_t *)demo_fh->buf + offset, buf, len);
-	demo_fh->off = (size_t)offset + len;
+	off = (size_t)offset;
+	memcpy((uint8_t *)demo_fh->buf + off, buf, len);
+	if (off + len > demo_fh->size)
+		demo_fh->size = off + len;
+	demo_fh->off = off + len;
 
 	return (0);
 }
