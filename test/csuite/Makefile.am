@@ -1,7 +1,7 @@
 AM_CPPFLAGS = -I$(top_builddir) -I$(top_srcdir)/src/include \
     -I$(top_srcdir)/test/utility
-LDADD = $(top_builddir)/libwiredtiger.la \
-    $(top_builddir)/test/utility/libtest_util.la
+LDADD = $(top_builddir)/test/utility/libtest_util.la \
+    $(top_builddir)/libwiredtiger.la
 AM_LDFLAGS = -static
 
 test_wt1965_col_efficiency_SOURCES = wt1965_col_efficiency/main.c
