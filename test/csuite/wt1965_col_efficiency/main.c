@@ -27,6 +27,14 @@
  */
 #include "test_util.h"
 
+/*
+ * JIRA ticket reference: WT-1965
+ * Test case description: The reported issue was that column store tables
+ * exhibit high CPU usage when populated with sparse record IDs.
+ * Failure mode: It isn't simple to make this test case failure explicit since
+ * it is demonstrating an inefficiency rather than a correctness bug.
+ */
+
 void (*custom_die)(void) = NULL;
 
 #define	BUF_SIZE 256
@@ -37,6 +45,10 @@ void (*custom_die)(void) = NULL;
 
 static uint64_t g_ts;
 
+/*
+ * Each thread inserts a set of keys into the record store database. The keys
+ * are generated in such a way that there are large gaps in the key range.
+ */
 static void *thread_func(void *arg)
 {
 	TEST_OPTS *opts;

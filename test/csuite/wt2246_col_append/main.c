@@ -27,6 +27,16 @@
  */
 #include "test_util.h"
 
+/*
+ * JIRA ticket reference: WT-2246
+ * Test case description: The column-store search routine used to search the
+ * target leaf page even when the cursor is configured with append and we're
+ * allocating a record number. That was inefficient, this test case
+ * demonstrates the inefficiency.
+ * Failure mode: It isn't simple to make this test case failure explicit since
+ * it is demonstrating an inefficiency rather than a correctness bug.
+ */
+
 /* Don't move into shared function there is a cross platform solution */
 #include <signal.h>
 
@@ -132,15 +142,6 @@ main(int argc, char *argv[])
 		    &idlist[id], NULL, thread_append, (void *)opts));
 	}
 
-#if 0
-	while (opts->running) {
-		for (i = 0; i < 5; ++i) {
-			if (!opts->running)
-				break;
-			sleep(1);
-		}
-	}
-#endif
 	for (i = 0; i < id; ++i)
 		testutil_check(pthread_join(idlist[i], NULL));
 

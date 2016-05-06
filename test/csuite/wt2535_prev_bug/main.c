@@ -27,6 +27,15 @@
  */
 #include "test_util.h"
 
+/*
+ * JIRA ticket reference: WT-2535
+ * Test case description: This is a test case that looks for lost updates to
+ * a single record. That is multiple threads each do the same number of read
+ * modify write operations on a single record. At the end verify that the
+ * data contains the expected value.
+ * Failure mode: Check that the data is correct at the end of the run.
+ */
+
 void (*custom_die)(void) = NULL;
 
 int
@@ -79,9 +88,11 @@ main(int argc, char *argv[])
 	testutil_check(c->search(c));
 	c->get_value(c, &current_value);
 	if (current_value != opts->nthreads * opts->nrecords) {
-		printf("WARNING: didn't get expected number of changes\n");
-		printf("got: %d, expected: %d\n",
+		fprintf(stderr,
+		    "ERROR: didn't get expected number of changes\n");
+		fprintf(stderr, "got: %d, expected: %d\n",
 		    (int)current_value, (int)(opts->nthreads * opts->nrecords));
+		return (EXIT_FAILURE);
 	}
 	testutil_check(session->close(session, NULL));
 	ce = clock();
@@ -89,5 +100,5 @@ main(int argc, char *argv[])
 	    opts->nrecords, (ce - cs) / (double)CLOCKS_PER_SEC);
 
 	testutil_cleanup(opts);
-	return (0);
+	return (EXIT_SUCCESS);
 }
