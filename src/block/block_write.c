@@ -9,29 +9,67 @@
 #include "wt_internal.h"
 
 /*
- * __wt_block_header --
- *	Return the size of the block-specific header.
- */
-u_int
-__wt_block_header(WT_BLOCK *block)
-{
-	WT_UNUSED(block);
-
-	return ((u_int)WT_BLOCK_HEADER_SIZE);
-}
-
-/*
  * __wt_block_truncate --
  *	Truncate the file.
  */
 int
-__wt_block_truncate(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t len)
+__wt_block_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t len)
 {
-	WT_RET(__wt_ftruncate(session, fh, len));
+	/*
+	 * Backups are done by copying files outside of WiredTiger, potentially
+	 * by system utilities. We cannot truncate the file during the backup
+	 * window, we might surprise an application.
+	 *
+	 * Stop block truncation. This affects files that aren't involved in the
+	 * backup (for example, doing incremental backups, which only copies log
+	 * files, or targeted backups, stops all truncation). We may want a more
+	 * targeted solution at some point.
+	 */
+	if (S2C(session)->hot_backup)
+		return (EBUSY);
 
-	fh->size = fh->extend_size = len;
+	/*
+	 * Additionally, the truncate might fail if there's a file mapping (if
+	 * there's an open checkpoint on the file), in which case the underlying
+	 * function returns EBUSY.
+	 */
+	WT_RET(__wt_ftruncate(session, block->fh, len));
+
+	block->size = block->extend_size = len;
 
 	return (0);
+}
+
+/*
+ * __wt_block_discard --
+ *	Discard blocks from the system buffer cache.
+ */
+int
+__wt_block_discard(WT_SESSION_IMPL *session, WT_BLOCK *block, size_t added_size)
+{
+	WT_DECL_RET;
+	WT_FILE_HANDLE *handle;
+
+	/* The file may not support this call. */
+	handle = block->fh->handle;
+	if (handle->fadvise == NULL)
+		return (0);
+
+	/* The call may not be configured. */
+	if (block->os_cache_max == 0)
+		return (0);
+
+	/*
+	 * We're racing on the addition, but I'm not willing to serialize on it
+	 * in the standard read path without evidence it's needed.
+	 */
+	if ((block->os_cache += added_size) <= block->os_cache_max)
+		return (0);
+
+	block->os_cache = 0;
+	ret = handle->fadvise(handle, (WT_SESSION *)session,
+	    (wt_off_t)0, (wt_off_t)0, WT_FILE_HANDLE_DONTNEED);
+	return (ret == EBUSY || ret == ENOTSUP ? 0 : ret);
 }
 
 /*
@@ -43,6 +81,7 @@ __wt_block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block,
     WT_FH *fh, wt_off_t offset, size_t align_size, bool *release_lockp)
 {
 	WT_DECL_RET;
+	WT_FILE_HANDLE *handle;
 	bool locked;
 
 	/*
@@ -61,7 +100,7 @@ __wt_block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	locked = true;
 
 	/* If not configured to extend the file, we're done. */
-	if (fh->extend_len == 0)
+	if (block->extend_len == 0)
 		return (0);
 
 	/*
@@ -73,9 +112,9 @@ __wt_block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	 * why there's a check in case the extended file size becomes too small:
 	 * if the file size catches up, every thread tries to extend it.
 	 */
-	if (fh->extend_size > fh->size &&
-	    (offset > fh->extend_size ||
-	    offset + fh->extend_len + (wt_off_t)align_size < fh->extend_size))
+	if (block->extend_size > block->size &&
+	    (offset > block->extend_size || offset +
+	    block->extend_len + (wt_off_t)align_size < block->extend_size))
 		return (0);
 
 	/*
@@ -88,7 +127,8 @@ __wt_block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	 * based on the filesystem type, fall back to ftruncate in that case,
 	 * and remember that ftruncate requires locking.
 	 */
-	if (fh->fallocate_available != WT_FALLOCATE_NOT_AVAILABLE) {
+	handle = fh->handle;
+	if (handle->fallocate != NULL || handle->fallocate_nolock != NULL) {
 		/*
 		 * Release any locally acquired lock if not needed to extend the
 		 * file, extending the file may require updating on-disk file's
@@ -96,7 +136,7 @@ __wt_block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block,
 		 * configure for file extension on systems that require locking
 		 * over the extend call.)
 		 */
-		if (!fh->fallocate_requires_locking && *release_lockp) {
+		if (handle->fallocate_nolock != NULL && *release_lockp) {
 			*release_lockp = locked = false;
 			__wt_spin_unlock(session, &block->live_lock);
 		}
@@ -108,12 +148,11 @@ __wt_block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block,
 		 * and that's OK, we simply may do another extension sooner than
 		 * otherwise.
 		 */
-		fh->extend_size = fh->size + fh->extend_len * 2;
+		block->extend_size = block->size + block->extend_len * 2;
 		if ((ret = __wt_fallocate(
-		    session, fh, fh->size, fh->extend_len * 2)) == 0)
+		    session, fh, block->size, block->extend_len * 2)) == 0)
 			return (0);
-		if (ret != ENOTSUP)
-			return (ret);
+		WT_RET_ERROR_OK(ret, ENOTSUP);
 	}
 
 	/*
@@ -130,15 +169,14 @@ __wt_block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	 * extend length after locking so we don't overwrite already-written
 	 * blocks.
 	 */
-	fh->extend_size = fh->size + fh->extend_len * 2;
+	block->extend_size = block->size + block->extend_len * 2;
 
 	/*
 	 * The truncate might fail if there's a mapped file (in other words, if
 	 * there's an open checkpoint on the file), that's OK.
 	 */
-	if ((ret = __wt_ftruncate(session, fh, fh->extend_size)) == EBUSY)
-		ret = 0;
-	return (ret);
+	WT_RET_BUSY_OK(__wt_ftruncate(session, fh, block->extend_size));
+	return (0);
 }
 
 /*
@@ -318,7 +356,6 @@ __wt_block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 		WT_RET(ret);
 	}
 
-#ifdef HAVE_SYNC_FILE_RANGE
 	/*
 	 * Optionally schedule writes for dirty pages in the system buffer
 	 * cache, but only if the current session can wait.
@@ -327,20 +364,19 @@ __wt_block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	    (block->os_cache_dirty += align_size) > block->os_cache_dirty_max &&
 	    __wt_session_can_wait(session)) {
 		block->os_cache_dirty = 0;
-		WT_RET(__wt_fsync_async(session, fh));
+		if ((ret = __wt_fsync(session, fh, false)) != 0) {
+			 /*
+			  * Ignore ENOTSUP, but don't try again.
+			  */
+			if (ret != ENOTSUP)
+				return (ret);
+			block->os_cache_dirty_max = 0;
+		}
 	}
-#endif
-#ifdef HAVE_POSIX_FADVISE
-	/* Optionally discard blocks from the system buffer cache. */
-	if (block->os_cache_max != 0 &&
-	    (block->os_cache += align_size) > block->os_cache_max) {
-		block->os_cache = 0;
-		if ((ret = posix_fadvise(fh->fd,
-		    (wt_off_t)0, (wt_off_t)0, POSIX_FADV_DONTNEED)) != 0)
-			WT_RET_MSG(
-			    session, ret, "%s: posix_fadvise", block->name);
-	}
-#endif
+
+	/* Optionally discard blocks from the buffer cache. */
+	WT_RET(__wt_block_discard(session, block, align_size));
+
 	WT_STAT_FAST_CONN_INCR(session, block_write);
 	WT_STAT_FAST_CONN_INCRV(session, block_byte_write, align_size);
 

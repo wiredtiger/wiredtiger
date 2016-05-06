@@ -404,7 +404,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * This is particularly important for compact, so that all dirty pages
 	 * can be fully written.
 	 */
-	__wt_txn_update_oldest(session, true);
+	WT_ERR(__wt_txn_update_oldest(session, true));
 
 	/* Flush data-sources before we start the checkpoint. */
 	WT_ERR(__checkpoint_data_source(session, cfg));
@@ -441,14 +441,15 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * Start the checkpoint for real.
 	 *
 	 * Bump the global checkpoint generation, used to figure out whether
-	 * checkpoint has visited a tree.  There is no need for this to be
-	 * atomic: it is only written while holding the checkpoint lock.
+	 * checkpoint has visited a tree.  Use an atomic increment even though
+	 * we are single-threaded because readers of the checkpoint generation
+	 * don't hold the checkpoint lock.
 	 *
 	 * We do need to update it before clearing the checkpoint's entry out
 	 * of the transaction table, or a thread evicting in a tree could
 	 * ignore the checkpoint's transaction.
 	 */
-	++txn_global->checkpoint_gen;
+	(void)__wt_atomic_addv64(&txn_global->checkpoint_gen, 1);
 	WT_STAT_FAST_CONN_SET(session,
 	    txn_checkpoint_generation, txn_global->checkpoint_gen);
 
@@ -790,6 +791,9 @@ __checkpoint_lock_tree(WT_SESSION_IMPL *session,
 	dhandle = session->dhandle;
 	hot_backup_locked = false;
 	name_alloc = NULL;
+
+	/* Only referenced in diagnostic builds. */
+	WT_UNUSED(is_checkpoint);
 
 	/*
 	 * Only referenced in diagnostic builds and gcc 5.1 isn't satisfied
@@ -1246,7 +1250,7 @@ __wt_checkpoint_sync(WT_SESSION_IMPL *session, const char *cfg[])
 	if (!F_ISSET(S2C(session), WT_CONN_CKPT_SYNC))
 		return (0);
 
-	return (bm->sync(bm, session, false));
+	return (bm->sync(bm, session, true));
 }
 
 /*
@@ -1280,7 +1284,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
 	 * for active readers.
 	 */
 	if (!btree->modified && !bulk) {
-		__wt_txn_update_oldest(session, true);
+		WT_RET(__wt_txn_update_oldest(session, true));
 		return (__wt_txn_visible_all(session, btree->rec_max_txn) ?
 		    __wt_cache_op(session, WT_SYNC_DISCARD) : EBUSY);
 	}

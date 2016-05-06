@@ -81,7 +81,7 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 			if (__wt_page_is_modified(page) &&
 			    WT_TXNID_LT(page->modify->update_txn, oldest_id)) {
 				if (txn->isolation == WT_ISO_READ_COMMITTED)
-					__wt_txn_get_snapshot(session);
+					WT_ERR(__wt_txn_get_snapshot(session));
 				leaf_bytes += page->memory_footprint;
 				++leaf_pages;
 				WT_ERR(__wt_reconcile(session, walk, NULL, 0));
@@ -100,7 +100,7 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 		 * the metadata shouldn't be that big, and (b) if we do ever
 		 */
 		if (txn->isolation == WT_ISO_READ_COMMITTED)
-			__wt_txn_get_snapshot(session);
+			WT_ERR(__wt_txn_get_snapshot(session));
 
 		/*
 		 * We cannot check the tree modified flag in the case of a
@@ -259,7 +259,7 @@ err:	/* On error, clear any left-over tree walk. */
 	 */
 	if (ret == 0 &&
 	    syncop == WT_SYNC_WRITE_LEAVES && F_ISSET(conn, WT_CONN_CKPT_SYNC))
-		WT_RET(btree->bm->sync(btree->bm, session, true));
+		WT_RET(btree->bm->sync(btree->bm, session, false));
 
 	return (ret);
 }

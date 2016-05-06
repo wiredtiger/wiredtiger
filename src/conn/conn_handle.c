@@ -41,6 +41,9 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
 	TAILQ_INIT(&conn->lsm_manager.appqh);
 	TAILQ_INIT(&conn->lsm_manager.managerqh);
 
+	/* Random numbers. */
+	__wt_random_init(&session->rnd);
+
 	/* Configuration. */
 	WT_RET(__wt_conn_config_init(session));
 
@@ -119,14 +122,6 @@ __wt_connection_destroy(WT_CONNECTION_IMPL *conn)
 
 	session = conn->default_session;
 
-	/*
-	 * Close remaining open files (before discarding the mutex, the
-	 * underlying file-close code uses the mutex to guard lists of
-	 * open files.
-	 */
-	if (conn->lock_fh)
-		WT_TRET(__wt_close(session, &conn->lock_fh));
-
 	/* Remove from the list of connections. */
 	__wt_spin_lock(session, &__wt_process.spinlock);
 	TAILQ_REMOVE(&__wt_process.connqh, conn, q);
@@ -153,6 +148,11 @@ __wt_connection_destroy(WT_CONNECTION_IMPL *conn)
 	for (i = 0; i < WT_PAGE_LOCKS; ++i)
 		__wt_spin_destroy(session, &conn->page_lock[i]);
 	__wt_free(session, conn->page_lock);
+
+	/* Destroy the file-system configuration. */
+	if (conn->file_system != NULL && conn->file_system->terminate != NULL)
+		WT_TRET(conn->file_system->terminate(
+		    conn->file_system, (WT_SESSION *)session));
 
 	/* Free allocated memory. */
 	__wt_free(session, conn->cfg);

@@ -145,20 +145,6 @@ struct __wt_named_extractor {
 } while (0)
 
 /*
- * Macros to ensure the file handle is inserted or removed from both the
- * main queue and the hashed queue.
- */
-#define	WT_CONN_FILE_INSERT(conn, fh, bucket) do {			\
-	TAILQ_INSERT_HEAD(&(conn)->fhqh, fh, q);			\
-	TAILQ_INSERT_HEAD(&(conn)->fhhash[bucket], fh, hashq);		\
-} while (0)
-
-#define	WT_CONN_FILE_REMOVE(conn, fh, bucket) do {			\
-	TAILQ_REMOVE(&(conn)->fhqh, fh, q);				\
-	TAILQ_REMOVE(&(conn)->fhhash[bucket], fh, hashq);		\
-} while (0)
-
-/*
  * WT_CONNECTION_IMPL --
  *	Implementation of WT_CONNECTION
  */
@@ -333,7 +319,7 @@ struct __wt_connection_impl {
 	bool		 stat_tid_set;	/* Statistics log thread set */
 	WT_CONDVAR	*stat_cond;	/* Statistics log wait mutex */
 	const char	*stat_format;	/* Statistics log timestamp format */
-	FILE		*stat_fp;	/* Statistics log file handle */
+	WT_FSTREAM	*stat_fs;	/* Statistics log stream */
 	char		*stat_path;	/* Statistics log path format */
 	char	       **stat_sources;	/* Statistics log list of objects */
 	const char	*stat_stamp;	/* Statistics log entry timestamp */
@@ -414,12 +400,26 @@ struct __wt_connection_impl {
 	wt_off_t data_extend_len;	/* file_extend data length */
 	wt_off_t log_extend_len;	/* file_extend log length */
 
-	/* O_DIRECT/FILE_FLAG_NO_BUFFERING file type flags */
-	uint32_t direct_io;
-	uint32_t write_through;		/* FILE_FLAG_WRITE_THROUGH type flags */
+#define	WT_DIRECT_IO_CHECKPOINT	0x01	/* Checkpoints */
+#define	WT_DIRECT_IO_DATA	0x02	/* Data files */
+#define	WT_DIRECT_IO_LOG	0x04	/* Log files */
+	uint32_t direct_io;		/* O_DIRECT, FILE_FLAG_NO_BUFFERING */
+
+	uint32_t write_through;		/* FILE_FLAG_WRITE_THROUGH */
+
 	bool	 mmap;			/* mmap configuration */
 	int page_size;			/* OS page size for mmap alignment */
 	uint32_t verbose;
+
+#define	WT_STDERR(s)	(&S2C(s)->wt_stderr)
+#define	WT_STDOUT(s)	(&S2C(s)->wt_stdout)
+	WT_FSTREAM wt_stderr, wt_stdout;
+
+	/*
+	 * File system interface abstracted to support alternative file system
+	 * implementations.
+	 */
+	WT_FILE_SYSTEM *file_system;
 
 	uint32_t flags;
 };

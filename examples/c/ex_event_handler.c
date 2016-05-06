@@ -90,7 +90,7 @@ handle_wiredtiger_message(
 /*! [Function event_handler] */
 
 static int
-config_event_handler()
+config_event_handler(void)
 {
 	WT_CONNECTION *conn;
 	WT_SESSION *session;
@@ -111,10 +111,10 @@ config_event_handler()
 	/*! [Configure event_handler] */
 
 	/* Make an invalid API call, to ensure the event handler works. */
-	(void)conn->open_session(conn, NULL, "isolation=invalid", &session);
+	printf("ex_event_handler: expect an error message to follow\n");
+	ret = conn->open_session(conn, NULL, "isolation=invalid", &session);
 
-	if (ret == 0)
-		ret = conn->close(conn, NULL);
+	ret = conn->close(conn, NULL);
 
 	return (ret);
 }
@@ -122,6 +122,8 @@ config_event_handler()
 int
 main(void)
 {
+	int ret;
+
 	/*
 	 * Create a clean test directory for this run of the test program if the
 	 * environment variable isn't already set (as is done by make check).
@@ -132,5 +134,7 @@ main(void)
 	} else
 		home = NULL;
 
-	return (config_event_handler());
+	ret = config_event_handler();
+
+	return (ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
 }

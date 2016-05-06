@@ -8,13 +8,6 @@ flags = {
 ###################################################
 # Internal routine flag declarations
 ###################################################
-    'file_types' : [
-        'FILE_TYPE_CHECKPOINT',
-        'FILE_TYPE_DATA',
-        'FILE_TYPE_DIRECTORY',
-        'FILE_TYPE_LOG',
-        'FILE_TYPE_TURTLE',
-    ],
     'log_scan' : [
         'LOGSCAN_FIRST',
         'LOGSCAN_FROM_CKP',
@@ -65,6 +58,7 @@ flags = {
         'VERB_EVICT',
         'VERB_EVICTSERVER',
         'VERB_FILEOPS',
+        'VERB_HANDLEOPS',
         'VERB_LOG',
         'VERB_LSM',
         'VERB_LSM_MANAGER',

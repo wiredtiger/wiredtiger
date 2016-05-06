@@ -174,6 +174,7 @@ struct __wt_bm {
 	int (*compact_start)(WT_BM *, WT_SESSION_IMPL *);
 	int (*free)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
 	bool (*is_mapped)(WT_BM *, WT_SESSION_IMPL *);
+	int (*map_discard)(WT_BM *, WT_SESSION_IMPL *, void *, size_t);
 	int (*preload)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
 	int (*read)
 	    (WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, const uint8_t *, size_t);
@@ -196,9 +197,9 @@ struct __wt_bm {
 
 	WT_BLOCK *block;			/* Underlying file */
 
-	void  *map;				/* Mapped region */
-	size_t maplen;
-	void *mappingcookie;
+	void	*map;				/* Mapped region */
+	size_t	 maplen;
+	void	*mapped_cookie;
 
 	/*
 	 * There's only a single block manager handle that can be written, all
@@ -217,9 +218,13 @@ struct __wt_block {
 
 	/* A list of block manager handles, sharing a file descriptor. */
 	uint32_t ref;			/* References */
-	WT_FH	*fh;			/* Backing file handle */
 	TAILQ_ENTRY(__wt_block) q;	/* Linked list of handles */
 	TAILQ_ENTRY(__wt_block) hashq;	/* Hashed list of handles */
+
+	WT_FH	*fh;			/* Backing file handle */
+	wt_off_t size;			/* File size */
+	wt_off_t extend_size;		/* File extended size */
+	wt_off_t extend_len;		/* File extend chunk size */
 
 	/* Configuration information, set when the file is opened. */
 	uint32_t allocfirst;		/* Allocation is first-fit */
@@ -399,3 +404,15 @@ __wt_block_header_byteswap(WT_BLOCK_HEADER *blk)
  */
 #define	WT_BLOCK_COMPRESS_SKIP	64
 #define	WT_BLOCK_ENCRYPT_SKIP	WT_BLOCK_HEADER_BYTE_SIZE
+
+/*
+ * __wt_block_header --
+ *	Return the size of the block-specific header.
+ */
+static inline u_int
+__wt_block_header(WT_BLOCK *block)
+{
+	WT_UNUSED(block);
+
+	return ((u_int)WT_BLOCK_HEADER_SIZE);
+}
