@@ -396,8 +396,7 @@ __curjoin_endpoint_init_key(WT_SESSION_IMPL *session,
 				    endpoint->recno_buf,
 				    sizeof(endpoint->recno_buf),
 				    &endpoint->key));
-			}
-			else
+			} else
 				endpoint->key = *k;
 		}
 	}
@@ -1145,8 +1144,7 @@ __curjoin_open_main(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
 	newsize = strlen(cjoin->table->name) + idx->colconf.len + 1;
 	WT_ERR(__wt_calloc(session, 1, newsize, &main_uri));
 	snprintf(main_uri, newsize, "%s%.*s",
-	    cjoin->table->name, (int)idx->colconf.len,
-	    idx->colconf.str);
+	    cjoin->table->name, (int)idx->colconf.len, idx->colconf.str);
 	WT_ERR(__wt_open_cursor(session, main_uri,
 	    (WT_CURSOR *)cjoin, raw_cfg, &entry->main));
 	if (idx->extractor == NULL) {
@@ -1159,8 +1157,7 @@ __curjoin_open_main(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
 		 */
 		len = strlen(entry->main->value_format) + 3;
 		WT_ERR(__wt_calloc(session, len, 1, &newformat));
-		snprintf(newformat, len, "%s0x",
-		    entry->main->value_format);
+		snprintf(newformat, len, "%s0x", entry->main->value_format);
 		__wt_free(session, entry->main->value_format);
 		entry->main->value_format = newformat;
 	}
