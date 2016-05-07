@@ -5183,7 +5183,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 					 * can't remove them from the in-memory
 					 * tree; if an overflow key was deleted
 					 * without being instantiated (for
-					 * example, cursor-based truncation, do
+					 * example, cursor-based truncation), do
 					 * it now.
 					 */
 					if (ikey == NULL)
