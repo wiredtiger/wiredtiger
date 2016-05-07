@@ -383,8 +383,11 @@ __wt_reconcile(WT_SESSION_IMPL *session,
 	mod->last_oldest_id = oldest_id;
 
 	/* Initialize the reconciliation structure for each new run. */
-	WT_ERR(__rec_write_init(
-	    session, ref, flags, salvage, &session->reconcile));
+	if ((ret = __rec_write_init(
+	    session, ref, flags, salvage, &session->reconcile)) != 0) {
+		WT_TRET(__wt_fair_unlock(session, &page->page_lock));
+		return (ret);
+	}
 	r = session->reconcile;
 
 	/* Reconcile the page. */
@@ -416,7 +419,7 @@ __wt_reconcile(WT_SESSION_IMPL *session,
 	if (ret == 0)
 		ret = __rec_write_status(session, r, page);
 
-err:	/* Wrap up the page reconciliation. */
+	/* Wrap up the page reconciliation. */
 	if (ret == 0)
 		ret = __rec_write_wrapup(session, r, page);
 	else
