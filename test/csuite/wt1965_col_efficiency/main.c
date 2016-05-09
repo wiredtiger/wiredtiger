@@ -49,15 +49,14 @@ static uint64_t g_ts;
  * Each thread inserts a set of keys into the record store database. The keys
  * are generated in such a way that there are large gaps in the key range.
  */
-static void *thread_func(void *arg)
+static void
+*thread_func(void *arg)
 {
 	TEST_OPTS *opts;
-	int i, o, r;
-	WT_SESSION *session;
 	WT_CURSOR *cursor, *idx_cursor;
-	uint64_t thr_idx;
-	uint64_t *obj_data;
-	uint64_t ts = g_ts;
+	WT_SESSION *session;
+	uint64_t *obj_data, thr_idx, ts = g_ts;
+	int i, o, r;
 
 	opts = (TEST_OPTS *)arg;
 	thr_idx = __wt_atomic_fetch_addv64(&opts->next_threadid, 1);
@@ -113,13 +112,13 @@ int
 main(int argc, char *argv[])
 {
 	TEST_OPTS *opts, _opts;
-	WT_SESSION *session;
 	WT_CURSOR *cursor;
-	char table_format[256];
-	int i, ret;
-	size_t t;
-	uint64_t r, ts, f[NR_FIELDS];
+	WT_SESSION *session;
 	pthread_t thr[NR_THREADS];
+	size_t t;
+	uint64_t f[NR_FIELDS], r, ts;
+	int i, ret;
+	char table_format[256];
 
 	opts = &_opts;
 	memset(opts, 0, sizeof(*opts));

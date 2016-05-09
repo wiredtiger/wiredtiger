@@ -51,8 +51,8 @@ static void
 page_init(uint64_t n)
 {
 	WT_CONNECTION *conn;
-	WT_SESSION *session;
 	WT_CURSOR *cursor;
+	WT_SESSION *session;
 	uint64_t recno, vrecno;
 	char buf[64];
 

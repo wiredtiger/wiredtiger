@@ -53,8 +53,12 @@ testutil_parse_opts(int argc, char *argv[], TEST_OPTS *opts)
 		++opts->progname;
 
 	while ((ch =
-	    __wt_getopt(opts->progname, argc, argv, "h:n:o:pvA:R:T:W:")) != EOF)
+	    __wt_getopt(opts->progname,
+		argc, argv, "A:h:n:o:pR:T:t:vW:")) != EOF)
 		switch (ch) {
+		case 'A': /* Number of append threads */
+			opts->n_append_threads = (uint64_t)atoll(__wt_optarg);
+			break;
 		case 'h': /* Home directory */
 			opts->home = __wt_optarg;
 			break;
@@ -67,33 +71,30 @@ testutil_parse_opts(int argc, char *argv[], TEST_OPTS *opts)
 		case 'p': /* Preserve directory contents */
 			opts->preserve = true;
 			break;
-		case 't': /* Table type */
-			switch (__wt_optarg[0]) {
-			case 'c':
-			case 'C':
-				opts->table_type = TABLE_COL;
-				break;
-			case 'f':
-			case 'F':
-				opts->table_type = TABLE_FIX;
-				break;
-			case 'r':
-			case 'R':
-				opts->table_type = TABLE_ROW;
-				break;
-			}
-			break;
-		case 'v': /* Number of append threads */
-			opts->verbose = true;
-			break;
-		case 'A': /* Number of append threads */
-			opts->n_append_threads = (uint64_t)atoll(__wt_optarg);
-			break;
 		case 'R': /* Number of reader threads */
 			opts->n_read_threads = (uint64_t)atoll(__wt_optarg);
 			break;
 		case 'T': /* Number of threads */
 			opts->nthreads = (uint64_t)atoll(__wt_optarg);
+			break;
+		case 't': /* Table type */
+			switch (__wt_optarg[0]) {
+			case 'C':
+			case 'c':
+				opts->table_type = TABLE_COL;
+				break;
+			case 'F':
+			case 'f':
+				opts->table_type = TABLE_FIX;
+				break;
+			case 'R':
+			case 'r':
+				opts->table_type = TABLE_ROW;
+				break;
+			}
+			break;
+		case 'v':
+			opts->verbose = true;
 			break;
 		case 'W': /* Number of writer threads */
 			opts->n_write_threads = (uint64_t)atoll(__wt_optarg);
@@ -101,13 +102,15 @@ testutil_parse_opts(int argc, char *argv[], TEST_OPTS *opts)
 		case '?':
 		default:
 			(void)fprintf(stderr, "usage: %s "
+			    "[-A append thread count] "
 			    "[-h home] "
 			    "[-n record count] "
 			    "[-o op count] "
-			    "[-t table type] "
-			    "[-A append thread count] "
+			    "[-p] "
 			    "[-R read thread count] "
 			    "[-T thread count] "
+			    "[-t c|f|r table type] "
+			    "[-v] "
 			    "[-W write thread count] ",
 			    opts->progname);
 			return (1);
