@@ -21,7 +21,7 @@ __fstream_close(WT_SESSION_IMPL *session, WT_FSTREAM *fs)
 	WT_DECL_RET;
 
 	if (!F_ISSET(fs, WT_STREAM_READ))
-		WT_TRET(fs->flush(session, fs));
+		WT_TRET(fs->fstream_flush(session, fs));
 
 	WT_TRET(__wt_close(session, &fs->fh));
 	__wt_buf_free(session, &fs->buf);
@@ -192,19 +192,19 @@ __wt_fopen(WT_SESSION_IMPL *session,
 	fs->name = fh->name;
 	fs->flags = flags;
 
-	fs->close = __fstream_close;
+	fs->fstream_close = __fstream_close;
 	WT_ERR(__wt_filesize(session, fh, &fs->size));
 	if (LF_ISSET(WT_STREAM_APPEND))
 		fs->off = fs->size;
 	if (LF_ISSET(WT_STREAM_APPEND | WT_STREAM_WRITE)) {
-		fs->flush = __fstream_flush;
-		fs->getline = __fstream_getline_notsup;
-		fs->printf = __fstream_printf;
+		fs->fstream_flush = __fstream_flush;
+		fs->fstream_getline = __fstream_getline_notsup;
+		fs->fstream_printf = __fstream_printf;
 	} else {
 		WT_ASSERT(session, LF_ISSET(WT_STREAM_READ));
-		fs->flush = __fstream_flush_notsup;
-		fs->getline = __fstream_getline;
-		fs->printf = __fstream_printf_notsup;
+		fs->fstream_flush = __fstream_flush_notsup;
+		fs->fstream_getline = __fstream_getline;
+		fs->fstream_printf = __fstream_printf_notsup;
 	}
 	*fsp = fs;
 	return (0);
