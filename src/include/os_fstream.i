@@ -13,7 +13,7 @@
 static inline int
 __wt_getline(WT_SESSION_IMPL *session, WT_FSTREAM *fs, WT_ITEM *buf)
 {
-	return (fs->getline(session, fs, buf));
+	return (fs->fstream_getline(session, fs, buf));
 }
 
 /*
@@ -28,7 +28,7 @@ __wt_fclose(WT_SESSION_IMPL *session, WT_FSTREAM **fsp)
 	if ((fs = *fsp) == NULL)
 		return (0);
 	*fsp = NULL;
-	return (fs->close(session, fs));
+	return (fs->fstream_close(session, fs));
 }
 
 /*
@@ -38,7 +38,7 @@ __wt_fclose(WT_SESSION_IMPL *session, WT_FSTREAM **fsp)
 static inline int
 __wt_fflush(WT_SESSION_IMPL *session, WT_FSTREAM *fs)
 {
-	return (fs->flush(session, fs));
+	return (fs->fstream_flush(session, fs));
 }
 
 /*
@@ -52,7 +52,7 @@ __wt_vfprintf(
 	WT_RET(__wt_verbose(
 	    session, WT_VERB_HANDLEOPS, "%s: handle-printf", fs->name));
 
-	return (fs->printf(session, fs, fmt, ap));
+	return (fs->fstream_printf(session, fs, fmt, ap));
 }
 
 /*

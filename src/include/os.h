@@ -140,8 +140,9 @@ struct __wt_fstream {
 #define	WT_STREAM_WRITE		0x04		/* Open a stream for write */
 	uint32_t flags;
 
-	int (*close)(WT_SESSION_IMPL *, WT_FSTREAM *);
-	int (*flush)(WT_SESSION_IMPL *, WT_FSTREAM *);
-	int (*getline)(WT_SESSION_IMPL *, WT_FSTREAM *, WT_ITEM *);
-	int (*printf)(WT_SESSION_IMPL *, WT_FSTREAM *, const char *, va_list);
+	int (*fstream_close)(WT_SESSION_IMPL *, WT_FSTREAM *);
+	int (*fstream_flush)(WT_SESSION_IMPL *, WT_FSTREAM *);
+	int (*fstream_getline)(WT_SESSION_IMPL *, WT_FSTREAM *, WT_ITEM *);
+	int (*fstream_printf)(
+	    WT_SESSION_IMPL *, WT_FSTREAM *, const char *, va_list);
 };
