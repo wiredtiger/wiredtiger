@@ -208,7 +208,7 @@ __posix_file_advise(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
 	 * handle method to prevent future calls.
 	 */
 	if (ret == EINVAL) {
-		file_handle->fadvise = NULL;
+		file_handle->fh_advise = NULL;
 		return (ENOTSUP);
 	}
 
