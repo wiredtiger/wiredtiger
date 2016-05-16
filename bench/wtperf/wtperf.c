@@ -1668,15 +1668,17 @@ execute_workload(CONFIG *cfg)
 	} else
 		pfunc = worker;
 
-	for (i = 0; i < cfg->session_count_idle; i++) {
+	if (cfg->session_count_idle != 0) {
 		sessions = dcalloc((size_t)cfg->session_count_idle,
 		    sizeof(WT_SESSION *));
 		conn = cfg->conn;
-		if ((ret = conn->open_session(
-		    conn, NULL, cfg->sess_config, &sessions[i])) != 0) {
-			lprintf(cfg, ret, 0,
-			    "execut_workload: WT_CONNECTION.open_session");
-			goto err;
+		for (i = 0; i < cfg->session_count_idle; i++) {
+			if ((ret = conn->open_session(
+			conn, NULL, cfg->sess_config, &sessions[i])) != 0) {
+				lprintf(cfg, ret, 0,
+				"execut_workload: WT_CONNECTION.open_session");
+				goto err;
+			}
 		}
 	}
 	/* Start each workload. */
