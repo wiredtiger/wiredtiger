@@ -1672,14 +1672,13 @@ execute_workload(CONFIG *cfg)
 		sessions = dcalloc((size_t)cfg->session_count_idle,
 		    sizeof(WT_SESSION *));
 		conn = cfg->conn;
-		for (i = 0; i < cfg->session_count_idle; i++) {
+		for (i = 0; i < cfg->session_count_idle; ++i)
 			if ((ret = conn->open_session(
-			conn, NULL, cfg->sess_config, &sessions[i])) != 0) {
+			    conn, NULL, cfg->sess_config, &sessions[i])) != 0) {
 				lprintf(cfg, ret, 0,
-				"execut_workload: WT_CONNECTION.open_session");
+				    "execute_workload: idle open_session");
 				goto err;
 			}
-		}
 	}
 	/* Start each workload. */
 	for (threads = cfg->workers, i = 0,
@@ -2335,8 +2334,8 @@ main(int argc, char *argv[])
 
 	/* Concatenate non-default configuration strings. */
 	if (cfg->verbose > 1 || user_cconfig != NULL ||
-	    cfg->session_count_idle > 0 ||
-	    cfg->compress_ext != NULL || cfg->async_config != NULL) {
+	    cfg->session_count_idle > 0 || cfg->compress_ext != NULL ||
+	    cfg->async_config != NULL) {
 		req_len = strlen(cfg->conn_config) + strlen(debug_cconfig) + 3;
 		if (user_cconfig != NULL)
 			req_len += strlen(user_cconfig);
