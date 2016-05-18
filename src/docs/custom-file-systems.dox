@@ -15,9 +15,7 @@ WT_FILE_HANDLE::fallocate_nolock methods, because a file system
 implementation may not know what support the system provides until file
 allocation is attempted. See the WiredTiger POSIX file system
 implementation for an example of how the fallocate method might be
-changed after initialization. (Note that the WiredTiger POSIX file
-system implementation code is in the public domain, and may be used as
-a starting point for other file system implementations.)
+changed after initialization.
 
 WT_FILE_SYSTEM and WT_FILE_HANDLE methods which fail but not fatally
 (for example, a WT_FILE_HANDLE::truncate method call which fails because
@@ -31,5 +29,10 @@ Unless explicitly stated otherwise, WiredTiger may invoke methods on the
 WT_FILE_SYSTEM and WT_FILE_HANDLE interfaces from multiple threads
 concurrently. It is the responsibility of the implementation to protect
 any shared data.
+
+See @ex_ref{ex_file_system.c} for an example implementation of a custom
+file system; the WiredTiger code for a POSIX standard file system is in
+the public domain and may also be useful as a starting point for a custom
+file system implementation.
 
 */
