@@ -1227,7 +1227,7 @@ struct __wt_session {
 	 * @param session the session handle
 	 * @param name the URI of the object to drop, such as \c "table:stock"
 	 * @configstart{WT_SESSION.drop, see dist/api_data.py}
-	 * @config{checkpoint_wait, do not wait for the chheckpoint lock\, if \c
+	 * @config{checkpoint_wait, wait for the checkpoint lock\, if \c
 	 * checkpoint_wait=false\, fail if this lock is not available
 	 * immediately., a boolean flag; default \c true.}
 	 * @config{force, return success if the object does not exist., a

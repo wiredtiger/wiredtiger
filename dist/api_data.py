@@ -788,8 +788,8 @@ methods = {
 
 'WT_SESSION.drop' : Method([
     Config('checkpoint_wait', 'true', r'''
-        do not wait for the chheckpoint lock, if \c checkpoint_wait=false,
-        fail if this lock is not available immediately''',
+        wait for the checkpoint lock, if \c checkpoint_wait=false, fail if
+        this lock is not available immediately''',
         type='boolean'),
     Config('force', 'false', r'''
         return success if the object does not exist''',
