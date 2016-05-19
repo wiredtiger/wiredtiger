@@ -534,12 +534,12 @@ ops(void *arg)
 			/*
 			 * We may be trying to create a named checkpoint while
 			 * we hold a cursor open to the previous checkpoint.
-			 * In that case we'll get back EBUSY.  Tolerate EBUSY
-			 * if we have the readonly cursor open.
+			 * Tolerate EBUSY.
 			 */
-			if (ret != 0 && (ret != EBUSY || !readonly))
+			if (ret != 0 && ret != EBUSY)
 				testutil_die(ret, "%s",
 				    ckpt_config == NULL ? "" : ckpt_config);
+			ret = 0;
 
 			if (ckpt_config != NULL)
 				testutil_check(
