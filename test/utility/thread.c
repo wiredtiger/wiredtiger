@@ -111,59 +111,6 @@ thread_insert_append(void *arg)
 }
 
 /*
- * Append to a table in a "racy" fashion - that is attempt to insert the
- * same record another thread is likely to also be inserting.
- */
-void *
-thread_insert_race(void *arg)
-{
-	TEST_OPTS *opts;
-	WT_CONNECTION *conn;
-	WT_SESSION *session;
-	WT_CURSOR *cursor;
-	int ret;
-	uint64_t i, value;
-
-	opts = (TEST_OPTS *)arg;
-	conn = opts->conn;
-
-	testutil_check(conn->open_session(conn, NULL, NULL, &session));
-	testutil_check(session->open_cursor(
-	    session, opts->uri, NULL, NULL, &cursor));
-
-	printf("Running insert thread\n");
-	for (i = 0; i < opts->nrecords; ++i) {
-		testutil_check(
-		    session->begin_transaction(session, "isolation=snapshot"));
-		cursor->set_key(cursor, 1);
-		cursor->search(cursor);
-		cursor->get_value(cursor, &value);
-		cursor->set_key(cursor, 1);
-		cursor->set_value(cursor, value + 1);
-		if ((ret = cursor->update(cursor)) != 0) {
-			if (ret == WT_ROLLBACK) {
-				testutil_check(session->rollback_transaction(
-				    session, NULL));
-				i--;
-				continue;
-			}
-			printf("Error in update: %d\n", ret);
-		}
-		testutil_check(session->commit_transaction(session, NULL));
-		if (i % 10000 == 0) {
-			printf("insert: %d\r", (int)i);
-			fflush(stdout);
-		}
-	}
-	if (1 > 10000)
-		printf("\n");
-
-	opts->running = false;
-
-	return (NULL);
-}
-
-/*
  * Repeatedly walk backwards through the records in a table.
  */
 void *

@@ -10,8 +10,8 @@ noinst_PROGRAMS = test_wt1965_col_efficiency
 test_wt2246_col_append_SOURCES = wt2246_col_append/main.c
 noinst_PROGRAMS += test_wt2246_col_append
 
-test_wt2535_prev_bug_SOURCES = wt2535_prev_bug/main.c
-noinst_PROGRAMS += test_wt2535_prev_bug
+test_wt2535_insert_race_SOURCES = wt2535_insert_race/main.c
+noinst_PROGRAMS += test_wt2535_insert_race
 
 # Run this during a "make check" smoke test.
 TESTS = $(noinst_PROGRAMS)

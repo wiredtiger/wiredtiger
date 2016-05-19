@@ -50,14 +50,14 @@ typedef struct {
 		TABLE_FIX=2,	/* Variable-length column store */
 		TABLE_ROW=3	/* Row-store */
 	} table_type;
-	bool	 preserve;
-	bool	 verbose;
-	uint64_t     nrecords;
-	uint64_t     nops;
-	uint64_t     nthreads;
-	uint64_t     n_append_threads;
-	uint64_t     n_read_threads;
-	uint64_t     n_write_threads;
+	bool	     preserve;			/* Don't remove files on exit */
+	bool	     verbose;			/* Run in verbose mode */
+	uint64_t     nrecords;			/* Number of records */
+	uint64_t     nops;			/* Number of operations */
+	uint64_t     nthreads;			/* Number of threads */
+	uint64_t     n_append_threads;		/* Number of append threads */
+	uint64_t     n_read_threads;		/* Number of read threads */
+	uint64_t     n_write_threads;		/* Number of write threads */
 
 	/*
 	 * Fields commonly shared within a test program. The test cleanup
@@ -115,5 +115,4 @@ int   testutil_parse_opts(int, char *[], TEST_OPTS *);
 void  testutil_work_dir_from_path(char *, size_t, const char *);
 void *thread_append(void *);
 void *thread_insert_append(void *);
-void *thread_insert_race(void *);
 void *thread_prev(void *);
