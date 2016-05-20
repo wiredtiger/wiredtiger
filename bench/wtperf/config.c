@@ -497,8 +497,10 @@ config_opt(CONFIG *cfg, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v)
 			free(*strp);
 			begin = &newstr[newlen - 1 - v->len];
 		}
-		if ((ret = config_unescape(begin)) != 0)
+		if ((ret = config_unescape(begin)) != 0) {
+			free(newstr);
 			return (ret);
+		}
 		*strp = newstr;
 		break;
 	case STRING_TYPE:
