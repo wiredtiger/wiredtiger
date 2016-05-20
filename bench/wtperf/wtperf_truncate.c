@@ -102,8 +102,9 @@ setup_truncate(CONFIG *cfg, CONFIG_THREAD *thread, WT_SESSION *session) {
 	if (trunc_cfg->stone_gap != 0) {
 		trunc_cfg->expected_total = (end_point - start_point);
 		for (i = 1; i <= trunc_cfg->needed_stones; i++) {
-			truncate_item = dmalloc(sizeof(TRUNCATE_QUEUE_ENTRY));
-			truncate_item->key = dmalloc(cfg->key_sz);
+			truncate_item =
+			    dcalloc(sizeof(TRUNCATE_QUEUE_ENTRY), 1);
+			truncate_item->key = dcalloc(cfg->key_sz, 1);
 			generate_key(
 			    cfg, truncate_item->key, trunc_cfg->stone_gap * i);
 			truncate_item->diff =
@@ -167,8 +168,8 @@ run_truncate(CONFIG *cfg, CONFIG_THREAD *thread,
 
 	while (trunc_cfg->num_stones < trunc_cfg->needed_stones) {
 		trunc_cfg->last_key += used_stone_gap;
-		truncate_item = dmalloc(sizeof(TRUNCATE_QUEUE_ENTRY));
-		truncate_item->key = dmalloc(cfg->key_sz);
+		truncate_item = dcalloc(sizeof(TRUNCATE_QUEUE_ENTRY), 1);
+		truncate_item->key = dcalloc(cfg->key_sz, 1);
 		generate_key(cfg, truncate_item->key, trunc_cfg->last_key);
 		truncate_item->diff = used_stone_gap;
 		TAILQ_INSERT_TAIL(&cfg->stone_head, truncate_item, q);
