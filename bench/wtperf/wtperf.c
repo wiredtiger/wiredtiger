@@ -1858,7 +1858,7 @@ create_uris(CONFIG *cfg)
 	base_uri_len = strlen(cfg->base_uri);
 	cfg->uris = dcalloc(cfg->table_count, sizeof(char *));
 	for (i = 0; i < cfg->table_count; i++) {
-		uri = cfg->uris[i] = dcalloc(base_uri_len + 5, 1);
+		uri = cfg->uris[i] = dmalloc(base_uri_len + 5);
 		/*
 		 * If there is only one table, just use base name.
 		 */
@@ -1955,9 +1955,9 @@ start_all_runs(CONFIG *cfg)
 
 	home_len = strlen(cfg->home);
 	cmd_len = (home_len * 2) + 30; /* Add some slop. */
-	cmd_buf = dcalloc(cmd_len, 1);
+	cmd_buf = dmalloc(cmd_len);
 	for (i = 0; i < cfg->database_count; i++) {
-		next_cfg = dcalloc(1, sizeof(CONFIG));
+		next_cfg = dmalloc(sizeof(CONFIG));
 		configs[i] = next_cfg;
 		if ((ret = config_assign(next_cfg, cfg)) != 0)
 			goto err;
@@ -2300,7 +2300,7 @@ main(int argc, char *argv[])
 		 * to 4096 if needed.
 		 */
 		req_len = strlen(",async=(enabled=true,threads=)") + 4;
-		cfg->async_config = dcalloc(req_len, 1);
+		cfg->async_config = dmalloc(req_len);
 		snprintf(cfg->async_config, req_len,
 		    ",async=(enabled=true,threads=%" PRIu32 ")",
 		    cfg->async_threads);
@@ -2323,7 +2323,7 @@ main(int argc, char *argv[])
 	/* Build the URI from the table name. */
 	req_len = strlen("table:") +
 	    strlen(HELIUM_NAME) + strlen(cfg->table_name) + 2;
-	cfg->base_uri = dcalloc(req_len, 1);
+	cfg->base_uri = dmalloc(req_len);
 	snprintf(cfg->base_uri, req_len, "table:%s%s%s",
 	    cfg->helium_mount == NULL ? "" : HELIUM_NAME,
 	    cfg->helium_mount == NULL ? "" : "/",
@@ -2346,13 +2346,13 @@ main(int argc, char *argv[])
 		if (cfg->session_count_idle > 0) {
 			sreq_len = strlen(",session_max=") + 6;
 			req_len += sreq_len;
-			sess_cfg = dcalloc(sreq_len, 1);
+			sess_cfg = dmalloc(sreq_len);
 			snprintf(sess_cfg, sreq_len,
 			    ",session_max=%" PRIu32,
 			    cfg->session_count_idle + cfg->workers_cnt +
 			    cfg->populate_threads + 10);
 		}
-		cc_buf = dcalloc(req_len, 1);
+		cc_buf = dmalloc(req_len);
 		/*
 		 * This is getting hard to parse.
 		 */
@@ -2378,7 +2378,7 @@ main(int argc, char *argv[])
 			req_len += strlen(cfg->compress_table);
 		if (cfg->index)
 			req_len += strlen(INDEX_COL_NAMES);
-		tc_buf = dcalloc(req_len, 1);
+		tc_buf = dmalloc(req_len);
 		/*
 		 * This is getting hard to parse.
 		 */
@@ -2397,7 +2397,7 @@ main(int argc, char *argv[])
 	if (cfg->log_partial && cfg->table_count > 1) {
 		req_len = strlen(cfg->table_config) +
 		    strlen(LOG_PARTIAL_CONFIG) + 1;
-		cfg->partial_config = dcalloc(req_len, 1);
+		cfg->partial_config = dmalloc(req_len);
 		snprintf(cfg->partial_config, req_len, "%s%s",
 		    cfg->table_config, LOG_PARTIAL_CONFIG);
 	}
@@ -2410,7 +2410,7 @@ main(int argc, char *argv[])
 		    strlen(READONLY_CONFIG) + 1;
 	else
 		req_len = strlen(cfg->conn_config) + 1;
-	cfg->reopen_config = dcalloc(req_len, 1);
+	cfg->reopen_config = dmalloc(req_len);
 	if (cfg->readonly)
 		snprintf(cfg->reopen_config, req_len, "%s%s",
 		    cfg->conn_config, READONLY_CONFIG);
@@ -2474,8 +2474,8 @@ start_threads(CONFIG *cfg,
 		 * don't, it's not enough memory to bother.  These buffers hold
 		 * strings: trailing NUL is included in the size.
 		 */
-		thread->key_buf = dcalloc(cfg->key_sz, 1);
-		thread->value_buf = dcalloc(cfg->value_sz_max, 1);
+		thread->key_buf = dmalloc(cfg->key_sz);
+		thread->value_buf = dmalloc(cfg->value_sz_max);
 
 		/*
 		 * Initialize and then toss in a bit of random values if needed.

@@ -141,7 +141,7 @@ config_assign(CONFIG *dest, const CONFIG *src)
 
 	/* Clone the config string information into the new cfg object */
 	TAILQ_FOREACH(conf_line, &src->config_head, c) {
-		tmp_line = dcalloc(sizeof(CONFIG_QUEUE_ENTRY), 1);
+		tmp_line = dmalloc(sizeof(CONFIG_QUEUE_ENTRY));
 		tmp_line->string = dstrdup(conf_line->string);
 		TAILQ_INSERT_TAIL(&dest->config_head, tmp_line, c);
 	}
@@ -490,7 +490,7 @@ config_opt(CONFIG *cfg, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v)
 			begin = newstr = dstrdup(v->str);
 		else {
 			newlen += strlen(*strp) + 1;
-			newstr = dcalloc(newlen, sizeof(char));
+			newstr = dmalloc(newlen);
 			snprintf(newstr, newlen,
 			    "%s,%*s", *strp, (int)v->len, v->str);
 			/* Free the old value now we've copied it. */
@@ -560,7 +560,7 @@ config_opt_file(CONFIG *cfg, const char *filename)
 		goto err;
 	}
 	buf_size = (size_t)sb.st_size;
-	file_buf = dcalloc(buf_size + 2, 1);
+	file_buf = dmalloc(buf_size + 2);
 	read_size = read(fd, file_buf, buf_size);
 	if (read_size == -1
 #ifndef _WIN32
@@ -670,7 +670,7 @@ config_opt_line(CONFIG *cfg, const char *optstr)
 	 * any parsed from the original config. We allocate len + 1 to allow for
 	 * a null byte to be added.
 	 */
-	config_line = dcalloc(sizeof(CONFIG_QUEUE_ENTRY), 1);
+	config_line = dmalloc(sizeof(CONFIG_QUEUE_ENTRY));
 	config_line->string = dstrdup(optstr);
 	TAILQ_INSERT_TAIL(&cfg->config_head, config_line, c);
 
@@ -836,7 +836,7 @@ config_to_file(CONFIG *cfg)
 
 	/* Backup the config */
 	req_len = strlen(cfg->home) + strlen("/CONFIG.wtperf") + 1;
-	path = dcalloc(req_len, 1);
+	path = dmalloc(req_len);
 	snprintf(path, req_len, "%s/CONFIG.wtperf", cfg->home);
 	if ((fp = fopen(path, "w")) == NULL) {
 		lprintf(cfg, errno, 0, "%s", path);
