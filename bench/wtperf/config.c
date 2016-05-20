@@ -489,7 +489,7 @@ config_opt(CONFIG *cfg, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v)
 		if (*strp == NULL)
 			begin = newstr = dstrdup(v->str);
 		else {
-			newlen += (strlen(*strp) + 1);
+			newlen += strlen(*strp) + 1;
 			newstr = dcalloc(newlen, sizeof(char));
 			snprintf(newstr, newlen,
 			    "%s,%*s", *strp, (int)v->len, v->str);
