@@ -495,7 +495,7 @@ config_opt(CONFIG *cfg, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v)
 			    "%s,%*s", *strp, (int)v->len, v->str);
 			/* Free the old value now we've copied it. */
 			free(*strp);
-			begin = &newstr[newlen - 1 - v->len];
+			begin = &newstr[(newlen - 1) - v->len];
 		}
 		if ((ret = config_unescape(begin)) != 0) {
 			free(newstr);
@@ -807,7 +807,7 @@ config_consolidate(CONFIG *cfg)
 			 * as being the same key.
 			 */
 			if (strncmp(conf_line->string, test_line->string,
-			    (size_t)(string_key - conf_line->string + 1))
+			    (size_t)((string_key - conf_line->string) + 1))
 			    == 0) {
 				TAILQ_REMOVE(&cfg->config_head, conf_line, c);
 				free(conf_line->string);
