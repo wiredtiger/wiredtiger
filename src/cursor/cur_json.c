@@ -48,6 +48,10 @@ static int __json_pack_size(WT_SESSION_IMPL *, const char *, WT_CONFIG_ITEM *,
 	case 't':							\
 		WT_RET(json_uint_arg(session, &jstr, &pv.u.u));		\
 		break;							\
+	case 'u':							\
+		WT_RET(json_string_arg(session, &jstr, &pv.u.item));	\
+		pv.type = 'J';						\
+		break;							\
 	/* User format strings have already been validated. */		\
 	WT_ILLEGAL_VALUE(session);					\
 	}								\
@@ -848,9 +852,9 @@ __wt_json_strlen(const char *src, size_t srclen)
 					 */
 					return (-1);
 			}
-		}
+		} else
+			src++;
 		dstlen++;
-		src++;
 	}
 	if (src != srcend)
 		return (-1);   /* invalid input, e.g. final char is '\\' */
