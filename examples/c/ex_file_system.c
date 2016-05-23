@@ -31,6 +31,10 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#if (defined(_WIN32) && _MSC_VER < 1900)
+/* snprintf is not supported on <= VS2013 */
+#define	snprintf _snprintf
+#endif
 
 #include <wiredtiger.h>
 #include "queue_example.h"
