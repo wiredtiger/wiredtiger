@@ -28,10 +28,11 @@
 
 import os
 import wiredtiger, wttest
+from suite_subprocess import suite_subprocess
 
 # test_jsondump.py
 # Test dump output from json cursors.
-class test_jsondump02(wttest.WiredTigerTestCase):
+class test_jsondump02(wttest.WiredTigerTestCase, suite_subprocess):
 
     table_uri1 = 'table:jsondump02a.wt'
     table_uri2 = 'table:jsondump02b.wt'
@@ -212,11 +213,12 @@ class test_jsondump02(wttest.WiredTigerTestCase):
               (('  "key0"\n:\t"KEY003"    ',
                 '"value0":456,"value1"\n\n\r\n:\t\n"str3"'),))
 
-        self.check_json(self.table_uri3, (
-                ('"key0" : 1', '"value0" : "\\u0001\\u0002\\u0003"'),
-                ('"key0" : 2',
-                 '"value0" : "\\u0077\\u0088\\u0099\\u0000\\u00ff\\u00fe"')))
-        self.check_json(self.table_uri4, (
+        table3_json =  (
+            ('"key0" : 1', '"value0" : "\\u0001\\u0002\\u0003"'),
+            ('"key0" : 2',
+             '"value0" : "\\u0077\\u0088\\u0099\\u0000\\u00ff\\u00fe"'))
+        self.check_json(self.table_uri3, table3_json)
+        table4_json = (
                 ('"ikey" : 1,\n"Skey" : "key1"',
                  '"S1" : "val1",\n"i2" : 1,\n"S3" : "val1",\n"i4" : 1'),
                 ('"ikey" : 2,\n"Skey" : "key2"',
@@ -224,7 +226,8 @@ class test_jsondump02(wttest.WiredTigerTestCase):
                 ('"ikey" : 3,\n"Skey" : "key3"',
                  '"S1" : "val9",\n"i2" : 9,\n"S3" : "val27",\n"i4" : 27'),
                 ('"ikey" : 4,\n"Skey" : "key4"',
-                 '"S1" : "val16",\n"i2" : 16,\n"S3" : "val64",\n"i4" : 64')))
+                 '"S1" : "val16",\n"i2" : 16,\n"S3" : "val64",\n"i4" : 64'))
+        self.check_json(self.table_uri4, table4_json)
         # The dump config currently is not supported for the index type.
         self.check_json(uri4index1, (
                 ('"Skey" : "key1"',
@@ -253,6 +256,38 @@ class test_jsondump02(wttest.WiredTigerTestCase):
                  '"S1" : "val9",\n"i2" : 9,\n"S3" : "val27",\n"i4" : 27'),
                 ('"i2" : 16,\n"i4" : 64',
                  '"S1" : "val16",\n"i2" : 16,\n"S3" : "val64",\n"i4" : 64')))
+
+        # Dump all the tables into a single file, and also each
+        # table into its own file.
+        self.runWt(['dump', '-j',
+                    self.table_uri1,
+                    self.table_uri2,
+                    self.table_uri3,
+                    self.table_uri4],
+                   outfilename='jsondump-all.out')
+        self.runWt(['dump', '-j', self.table_uri1], outfilename='jsondump1.out')
+        self.runWt(['dump', '-j', self.table_uri2], outfilename='jsondump2.out')
+        self.runWt(['dump', '-j', self.table_uri3], outfilename='jsondump3.out')
+        self.runWt(['dump', '-j', self.table_uri4], outfilename='jsondump4.out')
+        self.session.drop(self.table_uri1)
+        self.session.drop(self.table_uri2)
+        self.session.drop(self.table_uri3)
+        self.session.drop(self.table_uri4)
+        self.runWt(['load', '-jf', 'jsondump1.out'])
+        self.session.drop(self.table_uri1)
+        self.runWt(['load', '-jf', 'jsondump2.out'])
+        self.session.drop(self.table_uri2)
+        self.runWt(['load', '-jf', 'jsondump3.out'])
+        self.session.drop(self.table_uri3)
+        self.runWt(['load', '-jf', 'jsondump4.out'])
+        self.session.drop(self.table_uri4)
+
+        # Note: only the first table is loaded.
+        self.runWt(['load', '-jf', 'jsondump-all.out'])
+        self.check_json(self.table_uri1, table1_json)
+        #self.check_json(self.table_uri2, table2_json)
+        #self.check_json(self.table_uri3, table3_json)
+        #self.check_json(self.table_uri4, table4_json)
 
 if __name__ == '__main__':
     wttest.run()
