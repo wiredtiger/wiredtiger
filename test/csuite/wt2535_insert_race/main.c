@@ -150,7 +150,7 @@ thread_insert_race(void *arg)
 			fflush(stdout);
 		}
 	}
-	if (1 > 10000)
+	if (i > 10000)
 		printf("\n");
 
 	opts->running = false;

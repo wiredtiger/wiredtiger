@@ -1,6 +1,15 @@
 #! /bin/sh
 
-# Create a new test case in the C test suite
+#
+# Usage: s_c_test_create test_name
+#
+# Create a new test case in the C test suite.
+# This will create the infrastructure for a new C test case.  The given
+# test name is a new directory in the C suite directory and the Makefile
+# components and C program template are created.
+#
+# Any 'make check' variations of this test should be added to the smoke.sh
+# script in the main C suite directory.
 #
 tmp=__a
 trap 'rm -f $tmp; exit 0' 0 1 2 3 13 15
@@ -72,7 +81,10 @@ main(int argc, char *argv[])
 	testutil_check(testutil_parse_opts(argc, argv, opts));
 	testutil_make_work_dir(opts->home);
 
-	/* Insert test implementation here. */
+	/*
+	 * Insert test implementation here.
+	 */
+
 	testutil_cleanup(opts);
 
 	return (0);
