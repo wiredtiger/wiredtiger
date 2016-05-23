@@ -37,6 +37,8 @@
 #endif
 
 #include <wiredtiger.h>
+#include <wiredtiger_ext.h>
+
 #include "queue_example.h"
 
 static const char *home;
@@ -131,21 +133,86 @@ static DEMO_FILE_HANDLE *demo_handle_search(WT_FILE_SYSTEM *, const char *);
 #define	DEMO_FILE_SIZE_INCREMENT	32768
 
 /*
+ * string_match --
+ *      Return if a string matches a byte string of len bytes.
+ */
+static inline bool
+byte_string_match(const char *str, const char *bytes, size_t len)
+{
+	return (strncmp(str, bytes, len) == 0 && (str)[(len)] == '\0');
+}
+
+/*
  * demo_file_system_create --
  *	Initialization point for demo file system
  */
 int
 demo_file_system_create(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
 {
-	WT_FILE_SYSTEM *file_system;
 	DEMO_FILE_SYSTEM *demo_fs;
+	WT_CONFIG_ITEM k, v;
+	WT_CONFIG_PARSER *config_parser;
+	WT_EXTENSION_API *wtext;
+	WT_FILE_SYSTEM *file_system;
 	int ret = 0;
-
-	(void)config;						/* Unused */
 
 	if ((demo_fs = calloc(1, sizeof(DEMO_FILE_SYSTEM))) == NULL)
 		return (ENOMEM);
 	file_system = (WT_FILE_SYSTEM *)demo_fs;
+
+	/* Retrieve our configuration information, the "config" value. */
+	wtext = conn->get_extension_api(conn);
+	if ((ret = wtext->config_get(wtext, NULL, config, "config", &v)) != 0) {
+		(void)wtext->err_printf(wtext, NULL,
+		    "WT_EXTENSION_API.config_get: config: %s",
+		    wtext->strerror(wtext, NULL, ret));
+		goto err;
+	}
+
+	/* Open a WiredTiger parser on the "config" value. */
+	if ((ret = wtext->config_parser_open(
+	    wtext, NULL, v.str, v.len, &config_parser)) != 0) {
+		(void)wtext->err_printf(wtext, NULL,
+		    "WT_EXTENSION_API.config_parser_open: config: %s",
+		    wtext->strerror(wtext, NULL, ret));
+		goto err;
+	}
+
+	/* Step through our configuration values. */
+	printf("Custom file system configuration\n");
+	while ((ret = config_parser->next(config_parser, &k, &v)) == 0) {
+		if (byte_string_match("config_string", k.str, k.len)) {
+			printf("\t" "key %.*s=\"%.*s\"\n",
+			    (int)k.len, k.str, (int)v.len, v.str);
+			continue;
+		}
+		if (byte_string_match("config_value", k.str, k.len)) {
+			printf("\t" "key %.*s=%" PRIi64 "\n",
+			    (int)k.len, k.str, v.val);
+			continue;
+		}
+		ret = EINVAL;
+		(void)wtext->err_printf(wtext, NULL,
+		    "WT_CONFIG_PARSER.next: unexpected configuration "
+		    "information: %.*s=%.*s: %s",
+		    (int)k.len, k.str, (int)v.len, v.str,
+		    wtext->strerror(wtext, NULL, ret));
+		goto err;
+	}
+
+	/* Check for expected parser termination and close the parser. */
+	if (ret != WT_NOTFOUND) {
+		(void)wtext->err_printf(wtext, NULL,
+		    "WT_CONFIG_PARSER.next: config: %s",
+		    wtext->strerror(wtext, NULL, ret));
+		goto err;
+	}
+	if ((ret = config_parser->close(config_parser)) != 0) {
+		(void)wtext->err_printf(wtext, NULL,
+		    "WT_CONFIG_PARSER.close: config: %s",
+		    wtext->strerror(wtext, NULL, ret));
+		goto err;
+	}
 
 	/* Initialize the in-memory jump table. */
 	file_system->directory_list = demo_fs_directory_list;
@@ -159,11 +226,11 @@ demo_file_system_create(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
 	file_system->terminate = demo_fs_terminate;
 
 	if ((ret = conn->set_file_system(conn, file_system, NULL)) != 0) {
-		fprintf(stderr, "Error setting custom file system: %s\n",
-		    wiredtiger_strerror(ret));
+		(void)wtext->err_printf(wtext, NULL,
+		    "WT_CONNECTION.set_file_system: %s",
+		    wtext->strerror(wtext, NULL, ret));
 		goto err;
 	}
-
 	return (0);
 
 err:	free(demo_fs);
@@ -716,10 +783,13 @@ main(void)
 	 * Use the special local extension to indicate that the entry point is
 	 * in the same executable. Also enable early load for this extension,
 	 * since WiredTiger needs to be able to find it before doing any file
-	 * operations.
+	 * operations. Finally, pass in two pieces of configuration information
+	 * to our initialization function as the "config" value.
 	 */
-	open_config = "create,log=(enabled=true),extensions=(local="
-	    "{entry=demo_file_system_create,early_load=true})";
+	open_config = "create,log=(enabled=true),extensions=(local={"
+	    "entry=demo_file_system_create,early_load=true,"
+	    "config={config_string=\"demo-file-system\",config_value=37}"
+	    "})";
 	/* Open a connection to the database, creating it if necessary. */
 	if ((ret = wiredtiger_open(home, NULL, open_config, &conn)) != 0) {
 		fprintf(stderr, "Error connecting to %s: %s\n",
