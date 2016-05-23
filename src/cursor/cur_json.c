@@ -493,7 +493,7 @@ __wt_json_token(WT_SESSION *wt_session, const char *src, int *toktype,
 				    "invalid Unicode within JSON string");
 						return (-1);
 					}
-					src += 5;
+					src += 4;
 				}
 				backslash = false;
 			}
@@ -840,16 +840,13 @@ __wt_json_strlen(const char *src, size_t srclen)
 				if (__wt_hex2byte((const u_char *)src, &lo))
 					return (-1);
 				src += 2;
-				/* RFC 3629 */
-				if (hi >= 0x8) {
-					/* 3 bytes total */
-					dstlen += 2;
-				}
-				else if (hi != 0 || lo >= 0x80) {
-					/* 2 bytes total */
-					dstlen++;
-				}
-				/* else 1 byte total */
+				if (hi != 0)
+					/*
+					 * For our dump representation,
+					 * every Unicode character on input
+					 * represents a single byte.
+					 */
+					return (-1);
 			}
 		}
 		dstlen++;
@@ -878,44 +875,22 @@ __wt_json_strncpy(char **pdst, size_t dstlen, const char *src, size_t srclen)
 	srcend = src + srclen;
 	while (src < srcend && dst < dstend) {
 		/* JSON can include any UTF-8 expressed in 4 hex chars. */
-		if (*src == '\\') {
-			if (*++src == 'u') {
-				if (__wt_hex2byte((const u_char *)++src, &hi))
-					return (EINVAL);
-				src += 2;
-				if (__wt_hex2byte((const u_char *)src, &lo))
-					return (EINVAL);
-				src += 2;
-				/* RFC 3629 */
-				if (hi >= 0x8) {
-					/* 3 bytes total */
-					/* byte 0: 1110HHHH */
-					/* byte 1: 10HHHHLL */
-					/* byte 2: 10LLLLLL */
-					*dst++ = (char)(0xe0 |
-					    ((hi >> 4) & 0x0f));
-					*dst++ = (char)(0x80 |
-					    ((hi << 2) & 0x3c) |
-					    ((lo >> 6) & 0x03));
-					*dst++ = (char)(0x80 | (lo & 0x3f));
-				} else if (hi != 0 || lo >= 0x80) {
-					/* 2 bytes total */
-					/* byte 0: 110HHHLL */
-					/* byte 1: 10LLLLLL */
-					*dst++ = (char)(0xc0 |
-					    (hi << 2) |
-					    ((lo >> 6) & 0x03));
-					*dst++ = (char)(0x80 | (lo & 0x3f));
-				} else
-					/* else 1 byte total */
-					/* byte 0: 0LLLLLLL */
-					*dst++ = (char)lo;
-			}
-			else
-				*dst++ = *src;
+		if (*src == '\\' && *++src == 'u') {
+			if (__wt_hex2byte((const u_char *)++src, &hi))
+				return (EINVAL);
+			src += 2;
+			if (__wt_hex2byte((const u_char *)src, &lo))
+				return (EINVAL);
+			src += 2;
+			if (hi != 0) {
+				__wt_errx(NULL, "Unicode \"%6.6s\""
+				    " byte out of range in JSON",
+				    src - 6);
+				return (EINVAL);
+			} else
+				*dst++ = (char)lo;
 		} else
-			*dst++ = *src;
-		src++;
+			*dst++ = *src++;
 	}
 	if (src != srcend)
 		return (ENOMEM);
