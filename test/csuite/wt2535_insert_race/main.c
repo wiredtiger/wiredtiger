@@ -88,7 +88,7 @@ main(int argc, char *argv[])
 	    session->open_cursor(session, opts->uri, NULL, NULL, &c));
 	c->set_key(c, 1);
 	testutil_check(c->search(c));
-	c->get_value(c, &current_value);
+	testutil_check(c->get_value(c, &current_value));
 	if (current_value != opts->nthreads * opts->nrecords) {
 		fprintf(stderr,
 		    "ERROR: didn't get expected number of changes\n");
@@ -131,8 +131,8 @@ thread_insert_race(void *arg)
 		testutil_check(
 		    session->begin_transaction(session, "isolation=snapshot"));
 		cursor->set_key(cursor, 1);
-		cursor->search(cursor);
-		cursor->get_value(cursor, &value);
+		testutil_check(cursor->search(cursor));
+		testutil_check(cursor->get_value(cursor, &value));
 		cursor->set_key(cursor, 1);
 		cursor->set_value(cursor, value + 1);
 		if ((ret = cursor->update(cursor)) != 0) {
