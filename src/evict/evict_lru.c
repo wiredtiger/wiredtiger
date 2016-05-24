@@ -188,7 +188,7 @@ __evict_thread_run(void *arg)
 
 #ifdef HAVE_DIAGNOSTIC
 	if (session == conn->evict_session)
-		WT_RET(__wt_epoch(
+		WT_ERR(__wt_epoch(
 		    session, &cache->stuck_ts));	/* -Wuninitialized */
 #endif
 	while (F_ISSET(conn, WT_CONN_EVICTION_RUN)) {
