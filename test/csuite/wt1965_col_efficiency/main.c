@@ -179,6 +179,7 @@ main(int argc, char *argv[])
 			printf("\t%" PRIu64, f[i]);
 		printf("\n");
 	}
+	testutil_assert(ret == WT_NOTFOUND);
 
 	testutil_cleanup(opts);
 
