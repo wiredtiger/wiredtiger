@@ -55,8 +55,7 @@ static void
 	TEST_OPTS *opts;
 	WT_CURSOR *cursor, *idx_cursor;
 	WT_SESSION *session;
-	uint64_t *obj_data, thr_idx, ts = g_ts;
-	int i, o, r;
+	uint64_t i, o, *obj_data, r, thr_idx, ts = g_ts;
 
 	opts = (TEST_OPTS *)arg;
 	thr_idx = __wt_atomic_fetch_addv64(&opts->next_threadid, 1);
