@@ -467,7 +467,7 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
 }
 
 /*
- * __evict_worker --
+ * __evict_helper --
  *	Thread to help evict pages from the cache.
  */
 static int
