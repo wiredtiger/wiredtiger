@@ -29,6 +29,7 @@
  * 	demonstrates how to use the custom file system interface
  */
 #include <errno.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
 #if (defined(_WIN32) && _MSC_VER < 1900)
