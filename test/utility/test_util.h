@@ -79,7 +79,7 @@ typedef struct {
  *	Complain and quit if something isn't true.
  */
 #define	testutil_assert(a) do {						\
-	if ((a) != true)						\
+	if (!(a))							\
 		testutil_die(0, "%s/%d: %s", __func__, __LINE__, #a);	\
 } while (0)
 
