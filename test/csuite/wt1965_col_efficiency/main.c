@@ -37,7 +37,6 @@
 
 void (*custom_die)(void) = NULL;
 
-#define	BUF_SIZE 256
 /* If changing field count also need to change set_value and get_value calls */
 #define	NR_FIELDS 8
 #define	NR_OBJECTS 100
