@@ -187,7 +187,7 @@ demo_file_system_create(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
 			continue;
 		}
 		if (byte_string_match("config_value", k.str, k.len)) {
-			printf("\t" "key %.*s=%" PRIi64 "\n",
+			printf("\t" "key %.*s=%" PRId64 "\n",
 			    (int)k.len, k.str, v.val);
 			continue;
 		}
