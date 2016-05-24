@@ -734,7 +734,7 @@ demo_handle_remove(WT_SESSION *session, DEMO_FILE_HANDLE *demo_fh)
 
 	if (demo_fh->ref != 0) {
 		(void)wtext->err_printf(wtext, session,
-		    "demo_handle_remove: %s: file is currently open", 
+		    "demo_handle_remove: %s: file is currently open",
 		    demo_fh->iface.name, wtext->strerror(wtext, NULL, EBUSY));
 		return (EBUSY);
 	}
