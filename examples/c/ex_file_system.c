@@ -60,6 +60,8 @@ typedef struct {
 	/* Queue of file handles */
 	TAILQ_HEAD(demo_file_handle_qh, demo_file_handle) fileq;
 
+	WT_EXTENSION_API *wtext;		/* Extension functions */
+
 } DEMO_FILE_SYSTEM;
 
 typedef struct demo_file_handle {
@@ -156,12 +158,18 @@ demo_file_system_create(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
 	WT_FILE_SYSTEM *file_system;
 	int ret = 0;
 
-	if ((demo_fs = calloc(1, sizeof(DEMO_FILE_SYSTEM))) == NULL)
+	wtext = conn->get_extension_api(conn);
+
+	if ((demo_fs = calloc(1, sizeof(DEMO_FILE_SYSTEM))) == NULL) {
+		(void)wtext->err_printf(wtext, NULL,
+		    "demo_file_system_create: %s",
+		    wtext->strerror(wtext, NULL, ENOMEM));
 		return (ENOMEM);
+	}
+	demo_fs->wtext = wtext;
 	file_system = (WT_FILE_SYSTEM *)demo_fs;
 
 	/* Retrieve our configuration information, the "config" value. */
-	wtext = conn->get_extension_api(conn);
 	if ((ret = wtext->config_get(wtext, NULL, config, "config", &v)) != 0) {
 		(void)wtext->err_printf(wtext, NULL,
 		    "WT_EXTENSION_API.config_get: config: %s",
@@ -247,16 +255,17 @@ demo_fs_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
     const char *name, WT_OPEN_FILE_TYPE file_type, uint32_t flags,
     WT_FILE_HANDLE **file_handlep)
 {
-	WT_FILE_HANDLE *file_handle;
 	DEMO_FILE_HANDLE *demo_fh;
 	DEMO_FILE_SYSTEM *demo_fs;
+	WT_EXTENSION_API *wtext;
+	WT_FILE_HANDLE *file_handle;
 
 	(void)file_type;					/* Unused */
-	(void)session;						/* Unused */
 	(void)flags;						/* Unused */
 
 	demo_fs = (DEMO_FILE_SYSTEM *)file_system;
 	demo_fh = NULL;
+	wtext = demo_fs->wtext;
 
 	++demo_fs->opened_file_count;
 
@@ -267,9 +276,8 @@ demo_fs_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
 	demo_fh = demo_handle_search(file_system, name);
 	if (demo_fh != NULL) {
 		if (demo_fh->ref != 0) {
-			fprintf(stderr,
-			    "demo_file_open of already open file %s\n",
-			    name);
+			(void)wtext->err_printf(wtext, session,
+			    "demo_fs_open: %s: file already open", name);
 			return (EBUSY);
 		}
 
@@ -528,12 +536,14 @@ static int
 demo_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
 {
 	DEMO_FILE_HANDLE *demo_fh;
-
-	(void)session;						/* Unused */
+	WT_EXTENSION_API *wtext;
 
 	demo_fh = (DEMO_FILE_HANDLE *)file_handle;
+	wtext = demo_fh->demo_fs->wtext;
+
 	if (demo_fh->ref < 1) {
-		fprintf(stderr, "Closing already closed handle: %s\n",
+		(void)wtext->err_printf(wtext, session,
+		    "demo_file_close: %s: handle already closed",
 		    demo_fh->iface.name);
 		return (EINVAL);
 	}
@@ -568,11 +578,12 @@ demo_file_read(WT_FILE_HANDLE *file_handle,
     WT_SESSION *session, wt_off_t offset, size_t len, void *buf)
 {
 	DEMO_FILE_HANDLE *demo_fh;
+	WT_EXTENSION_API *wtext;
 	size_t off;
 	int ret = 0;
 
-	(void)session;						/* Unused */
 	demo_fh = (DEMO_FILE_HANDLE *)file_handle;
+	wtext = demo_fh->demo_fs->wtext;
 
 	off = (size_t)offset;
 	if (off < demo_fh->size) {
@@ -585,14 +596,15 @@ demo_file_read(WT_FILE_HANDLE *file_handle,
 
 	if (ret == 0)
 		return (0);
+
 	/*
 	 * WiredTiger should never request data past the end of a file, so
 	 * flag an error if it does.
 	 */
-	fprintf(stderr,
-	    "%s: handle-read: failed to read %zu bytes at offset %zu\n",
-	    demo_fh->iface.name, len, off);
-	return (EINVAL);
+	(void)wtext->err_printf(wtext, session,
+	    "%s: handle-read: failed to read %zu bytes at offset %zu: %s",
+	    demo_fh->iface.name, len, off, wtext->strerror(wtext, NULL, ret));
+	return (ret);
 }
 
 /*
@@ -649,10 +661,11 @@ demo_file_truncate(
     WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t offset)
 {
 	DEMO_FILE_HANDLE *demo_fh;
+	WT_EXTENSION_API *wtext;
 	size_t off;
 
-	(void)session;						/* Unused */
 	demo_fh = (DEMO_FILE_HANDLE *)file_handle;
+	wtext = demo_fh->demo_fs->wtext;
 
 	/*
 	 * Grow the buffer as necessary, clear any new space in the file,
@@ -661,9 +674,11 @@ demo_file_truncate(
 	off = (size_t)offset;
 	if (demo_fh->bufsize < off ) {
 		if ((demo_fh->buf = realloc(demo_fh->buf, off)) == NULL) {
-			fprintf(stderr,
-			    "Failed to resize buffer in truncate\n");
-			return (ENOSPC);
+			(void)wtext->err_printf(wtext, session,
+			    "demo_file_truncate: %s: failed to resize buffer",
+			    demo_fh->iface.name,
+			    wtext->strerror(wtext, NULL, ENOMEM));
+			return (ENOMEM);
 		}
 		demo_fh->bufsize = off;
 	}
@@ -712,16 +727,16 @@ static int
 demo_handle_remove(WT_SESSION *session, DEMO_FILE_HANDLE *demo_fh)
 {
 	DEMO_FILE_SYSTEM *demo_fs;
+	WT_EXTENSION_API *wtext;
 
-	(void)session;						/* Unused */
 	demo_fs = demo_fh->demo_fs;
+	wtext = demo_fh->demo_fs->wtext;
 
 	if (demo_fh->ref != 0) {
-		fprintf(stderr,
-		    "demo_handle_remove on file %s with non-zero reference "
-		    "count of %u\n",
-		    demo_fh->iface.name, demo_fh->ref);
-		return (EINVAL);
+		(void)wtext->err_printf(wtext, session,
+		    "demo_handle_remove: %s: file is currently open", 
+		    demo_fh->iface.name, wtext->strerror(wtext, NULL, EBUSY));
+		return (EBUSY);
 	}
 
 	TAILQ_REMOVE(&demo_fs->fileq, demo_fh, q);
