@@ -217,7 +217,6 @@ err:		WT_PANIC_MSG(session, ret, "cache eviction thread error");
 	return (WT_THREAD_RET_VALUE);
 }
 
-
 /*
  * __evict_server --
  *	Thread to evict pages from the cache.
