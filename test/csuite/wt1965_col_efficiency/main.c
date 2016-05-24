@@ -43,7 +43,7 @@ void (*custom_die)(void) = NULL;
 #define	NR_OBJECTS 100
 #define	NR_THREADS 4
 
-static uint64_t g_ts;
+static uint64_t g_ts = 0;
 
 /*
  * Each thread inserts a set of keys into the record store database. The keys
