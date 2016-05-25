@@ -651,35 +651,44 @@ __evict_pass(WT_SESSION_IMPL *session)
 
 		WT_RET(__evict_lru_walk(session));
 		WT_RET_NOTFOUND_OK(__evict_lru_pages(session, true));
-	}
 
-	/*
-	 * If we're making progress, keep going; if we're not making
-	 * any progress at all, mark the cache "stuck" and go back to
-	 * sleep, it's not something we can fix.
-	 */
-	if (pages_evicted == cache->pages_evict) {
-		if (loop == 100) {
+		/*
+		 * If we're making progress, keep going; if we're not making
+		 * any progress at all, mark the cache "stuck" and go back to
+		 * sleep, it's not something we can fix.
+		 */
+		if (pages_evicted == cache->pages_evict) {
+			WT_STAT_FAST_CONN_INCR(session,
+					       cache_eviction_server_slept);
 			/*
-			 * Mark the cache as stuck if we need space and aren't
-			 * evicting any pages.
+			 * Back off if we aren't making progress: walks hold
+			 * the handle list lock, which blocks other operations
+			 * that can free space in cache, such as LSM discarding
+			 * handles.
 			 */
-			if (!FLD_ISSET(cache->state,
-			    WT_EVICT_PASS_WOULD_BLOCK)) {
-				F_SET(cache, WT_CACHE_STUCK);
-				WT_STAT_FAST_CONN_INCR(
-				    session, cache_eviction_slow);
-				WT_RET(__wt_verbose(
-				    session, WT_VERB_EVICTSERVER,
-				    "unable to reach eviction goal"));
+			__wt_sleep(0, WT_THOUSAND * (uint64_t)loop);
+			if (loop == 100) {
+				/*
+				 * Mark the cache as stuck if we need space
+				 * and aren't evicting any pages.
+				 */
+				if (!FLD_ISSET(cache->state,
+				    WT_EVICT_PASS_WOULD_BLOCK)) {
+					F_SET(cache, WT_CACHE_STUCK);
+					WT_STAT_FAST_CONN_INCR(
+					    session, cache_eviction_slow);
+					WT_RET(__wt_verbose(
+					    session, WT_VERB_EVICTSERVER,
+					    "unable to reach eviction goal"));
+				}
+				break;
 			}
-			goto out;
+		} else {
+			loop = 0;
+			pages_evicted = cache->pages_evict;
 		}
-	} else {
-		loop = 0;
-		pages_evicted = cache->pages_evict;
 	}
-out:	return (0);
+	return (0);
 }
 
 /*
