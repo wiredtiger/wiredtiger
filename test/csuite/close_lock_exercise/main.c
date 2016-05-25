@@ -32,59 +32,6 @@ void (*custom_die)(void) = NULL;
 #define	NR_THREADS 10
 #define	NR_RUNS 1000
 
-pthread_mutex_t lock;
-pthread_cond_t cond;
-
-static void
-*thread_func_create(void *arg)
-{
-	TEST_OPTS *opts;
-	WT_SESSION *session;
-	size_t i;
-
-	opts = (TEST_OPTS *)arg;
-
-	testutil_check(opts->conn->open_session(
-	    opts->conn, NULL, NULL, &session));
-
-	for (i = 0; i < NR_RUNS; ++i) {
-		// Create a table and let everyone rush to delete it
-		pthread_mutex_lock(&lock);
-		testutil_check(session->create(session,
-		    "table:test", "key_format=Q,value_format=Q"));
-		pthread_cond_signal(&cond);
-		pthread_mutex_unlock(&lock);
-	}
-
-	testutil_check(session->close(session, NULL));
-
-	return (NULL);
-}
-
-static void
-*thread_func_drop(void *arg)
-{
-	TEST_OPTS *opts;
-	WT_SESSION *session;
-	size_t i;
-
-	opts = (TEST_OPTS *)arg;
-
-	testutil_check(opts->conn->open_session(
-	    opts->conn, NULL, NULL, &session));
-
-	// Create a table and let everyone rush to delete it
-	for (i = 0; i < NR_RUNS; ++i) {
-		pthread_mutex_lock(&lock);
-		pthread_cond_wait(&cond, &lock);
-		session->drop(session, "table:test", NULL);
-		pthread_mutex_unlock(&lock);
-	}
-
-	testutil_check(session->close(session, NULL));
-
-	return (NULL);
-}
 static void
 *sweep_work_thread(void *arg) {
 	TEST_OPTS *opts;
