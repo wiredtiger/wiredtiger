@@ -21,7 +21,6 @@ __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
 	__wt_free(session, dhandle->name);
 	__wt_free(session, dhandle->checkpoint);
 	__wt_free(session, dhandle->handle);
-	__wt_spin_destroy(session, &dhandle->close_lock);
 	__wt_overwrite_and_free(session, dhandle);
 
 	return (ret);
@@ -51,9 +50,6 @@ __conn_dhandle_alloc(WT_SESSION_IMPL *session,
 	WT_ERR(__wt_calloc_one(session, &btree));
 	dhandle->handle = btree;
 	btree->dhandle = dhandle;
-
-	WT_ERR(__wt_spin_init(
-	    session, &dhandle->close_lock, "data handle close"));
 
 	__wt_stat_dsrc_init(dhandle);
 

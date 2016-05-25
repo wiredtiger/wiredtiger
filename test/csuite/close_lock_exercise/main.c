@@ -29,8 +29,8 @@
 
 void (*custom_die)(void) = NULL;
 
-#define NR_THREADS 10
-#define NR_RUNS 1000
+#define	NR_THREADS 10
+#define	NR_RUNS 1000
 
 pthread_mutex_t lock;
 pthread_cond_t cond;
@@ -40,7 +40,7 @@ static void
 {
 	TEST_OPTS *opts;
 	WT_SESSION *session;
-	size_t i; 
+	size_t i;
 
 	opts = (TEST_OPTS *)arg;
 
@@ -49,7 +49,7 @@ static void
 
 	for (i = 0; i < NR_RUNS; ++i) {
 		// Create a table and let everyone rush to delete it
-		pthread_mutex_lock(&lock);	
+		pthread_mutex_lock(&lock);
 		testutil_check(session->create(session,
 		    "table:test", "key_format=Q,value_format=Q"));
 		pthread_cond_signal(&cond);
@@ -105,7 +105,7 @@ static void
 	testutil_check(session->create(session,
 	    uri, "key_format=Q,value_format=Q"));
 	testutil_check(
-            session->open_cursor(session, uri, NULL, "append", &cursor));
+	    session->open_cursor(session, uri, NULL, "append", &cursor));
 	for (i = 0; i < 10; ++i) {
 		cursor->set_key(cursor, i);
 		cursor->set_value(cursor, i);
@@ -139,7 +139,7 @@ main(int argc, char *argv[])
 	size_t t;
 
 	opts = &_opts;
-	
+
 	memset(opts, 0, sizeof(*opts));
 	testutil_check(pthread_mutex_init(&lock, NULL));
 	testutil_check(testutil_parse_opts(argc, argv, opts));
