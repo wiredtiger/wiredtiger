@@ -39,6 +39,8 @@ class test_jsondump02(wttest.WiredTigerTestCase, suite_subprocess):
     table_uri3 = 'table:jsondump02c.wt'
     basename_uri4 = 'jsondump02d.wt'
     table_uri4 = 'table:' + basename_uri4
+    table_uri5 = 'table:jsondump02e.wt'
+    table_uri6 = 'table:jsondump02f.wt'
 
     def set_kv(self, uri, key, val):
         cursor = self.session.open_cursor(uri, None, None)
@@ -85,10 +87,10 @@ class test_jsondump02(wttest.WiredTigerTestCase, suite_subprocess):
         finally:
             cursor.close()
 
-    # Create JSON cursors and test them directly.
     def test_json_cursor(self):
         """
-        Create a table, add a key, get it back
+        Create JSON cursors and test them directly, also test
+        dump/load commands.
         """
         extra_params = ',allocation_size=512,' +\
             'internal_page_max=16384,leaf_page_max=131072'
@@ -288,6 +290,111 @@ class test_jsondump02(wttest.WiredTigerTestCase, suite_subprocess):
         #self.check_json(self.table_uri2, table2_json)
         #self.check_json(self.table_uri3, table3_json)
         #self.check_json(self.table_uri4, table4_json)
+
+    # Generate two byte keys that cover some range of byte values.
+    # For simplicity, the keys are monotonically increasing.
+    # A null byte is disallowed in a string key, so we don't use it.
+    def generate_key(self, i, k):
+        k[0] = ((i & 0xffc0) >> 6) + 1
+        k[1] = (i & 0x3f) + 1
+
+    # Generate three byte values:
+    #    i==0  :  v:[0x00, 0x01, 0x02]
+    #    i==1  :  v:[0x01, 0x02, 0x03]
+    # etc.
+    # A null byte is disallowed in a string value, it is replaced by 'X'
+    def generate_value(self, i, v, isstring):
+        for j in range(0, 3):
+            val = (i + j) % 256
+            if isstring and val == 0:
+                val = 88  # 'X'
+            v[j] = val
+
+    def test_json_all_bytes(self):
+        """
+        Test the generated JSON for all byte values in byte array and
+        string formats.
+        """
+        self.session.create(self.table_uri5, 'key_format=u,value_format=u')
+        self.session.create(self.table_uri6, 'key_format=S,value_format=S')
+
+        c5 = self.session.open_cursor(self.table_uri5, None, None)
+        c6 = self.session.open_cursor(self.table_uri6, None, None)
+        k = bytearray(b'\x00\x00')
+        v = bytearray(b'\x00\x00\x00')
+        for i in range(0, 512):
+            self.generate_key(i, k)
+            self.generate_value(i, v, False)
+            c5[str(k)] = str(v)
+            self.generate_value(i, v, True)   # no embedded nuls
+            c6[str(k)] = str(v)
+        c5.close()
+        c6.close()
+
+        # Build table5_json, we want it to look like this:
+        #    ('"key0" : "\u0001\u0001"', '"value0" : "\u0000\u0001\u0002"'),
+        #    ('"key0" : "\u0001\u0002"', '"value0" : "\u0001\u0002\u0003"'))
+        #    ('"key0" : "\u0001\u0003"', '"value0" : "\u0003\u0003\u0004"'))
+        #    ...
+        # table6_json is similar, except that printable values like '\u0041'
+        # would appear as 'A'.  The string type cannot have embedded nulls,
+        # so '\u0000' in table6_json appears instead as an 'X'.
+        #
+        # Start by creating two tables of individual Unicode values.
+        # bin_unicode[] contains only the \u escape sequences.
+        # mix_unicode[] contains printable characters or \t \n etc. escapes
+        bin_unicode = []
+        mix_unicode = []
+        for i in range(0, 256):
+            u = "\\u00" + hex(256 + i)[3:]  # e.g. "\u00ab")
+            bin_unicode.append(u)
+            mix_unicode.append(u)
+        for i in range(0x20, 0x7f):
+            mix_unicode[i] = chr(i)
+        mix_unicode[ord('"')] = '\\"'
+        mix_unicode[ord('\\')] = '\\\\'
+        mix_unicode[ord('\f')] = '\\f'
+        mix_unicode[ord('\n')] = '\\n'
+        mix_unicode[ord('\r')] = '\\r'
+        mix_unicode[ord('\t')] = '\\t'
+
+        table5_json = []
+        table6_json = []
+        for i in range(0, 512):
+            self.generate_key(i, k)
+            self.generate_value(i, v, False)
+            j = i if (i > 0 and i < 254) or (i > 256 and i < 510) else 88
+            table5_json.append(('"key0" : "' + bin_unicode[k[0]] +
+                                bin_unicode[k[1]] + '"',
+                                '"value0" : "' + bin_unicode[v[0]] +
+                                bin_unicode[v[1]] +
+                                bin_unicode[v[2]] + '"'))
+            self.generate_value(i, v, True)
+            table6_json.append(('"key0" : "' + mix_unicode[k[0]] +
+                                mix_unicode[k[1]] + '"',
+                                '"value0" : "' + mix_unicode[v[0]] +
+                                mix_unicode[v[1]] +
+                                mix_unicode[v[2]] + '"'))
+
+        self.check_json(self.table_uri5, table5_json)
+        self.check_json(self.table_uri6, table6_json)
+
+        self.session.truncate(self.table_uri5, None, None, None)
+        self.session.truncate(self.table_uri6, None, None, None)
+        self.load_json(self.table_uri5, table5_json)
+        self.load_json(self.table_uri6, table6_json)
+        self.check_json(self.table_uri5, table5_json)
+        self.check_json(self.table_uri6, table6_json)
+
+        self.runWt(['dump', '-j', self.table_uri5], outfilename='jsondump5.out')
+        self.runWt(['dump', '-j', self.table_uri6], outfilename='jsondump6.out')
+        self.session.drop(self.table_uri5)
+        self.session.drop(self.table_uri6)
+        self.runWt(['load', '-jf', 'jsondump5.out'])
+        self.runWt(['load', '-jf', 'jsondump6.out'])
+        self.session.drop(self.table_uri5)
+        self.session.drop(self.table_uri6)
+
 
 if __name__ == '__main__':
     wttest.run()
