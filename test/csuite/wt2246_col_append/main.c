@@ -45,7 +45,7 @@
 void (*custom_die)(void) = NULL;
 
 /* Needs to be global for signal handling. */
-TEST_OPTS *opts;
+TEST_OPTS *opts, _opts;
 
 static void
 page_init(uint64_t n)
@@ -96,7 +96,6 @@ onsig(int signo)
 int
 main(int argc, char *argv[])
 {
-	TEST_OPTS _opts;
 	WT_SESSION *session;
 	clock_t ce, cs;
 	pthread_t idlist[100];
