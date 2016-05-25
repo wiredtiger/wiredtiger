@@ -574,7 +574,6 @@ __evict_pass(WT_SESSION_IMPL *session)
 {
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
-	WT_DECL_RET;
 	WT_EVICT_WORKER *worker;
 	uint64_t pages_evicted;
 	int loop;
@@ -588,8 +587,8 @@ __evict_pass(WT_SESSION_IMPL *session)
 	/* Evict pages from the cache. */
 	for (loop = 0;; loop++) {
 		/*
-		 * If there is a request to clear eviction walks,
-		 * do that now, before checking if the cache is full.
+		 * If there is a request to clear eviction walks, do that now,
+		 * before checking if the cache is full.
 		 */
 		if (F_ISSET(cache, WT_CACHE_CLEAR_WALKS)) {
 			F_CLR(cache, WT_CACHE_CLEAR_WALKS);
@@ -599,24 +598,22 @@ __evict_pass(WT_SESSION_IMPL *session)
 		}
 
 		/*
-		 * Increment the shared read generation. Do this
-		 * occasionally even if eviction is not currently
-		 * required, so that pages have some relative read
-		 * generation when the eviction server
+		 * Increment the shared read generation. Do this occasionally
+		 * even if eviction is not currently required, so that pages
+		 * have some relative read generation when the eviction server
 		 * does need to do some work.
 		 */
 		__wt_cache_read_gen_incr(session);
 
 		/*
-		 * Update the oldest ID: we use it to decide whether
-		 * pages are candidates for eviction.  Without this, if
-		 * all threads are blocked after a long-running
-		 * transaction (such as a checkpoint) completes, we may
-		 * never start evicting again.
+		 * Update the oldest ID: we use it to decide whether pages are
+		 * candidates for eviction.  Without this, if all threads are
+		 * blocked after a long-running transaction (such as a
+		 * checkpoint) completes, we may never start evicting again.
 		 *
-		 * Do this every time the eviction server wakes up,
-		 * regardless of whether the cache is full, to prevent
-		 * the oldest ID falling too far behind.
+		 * Do this every time the eviction server wakes up, regardless
+		 * of whether the cache is full, to prevent the oldest ID
+		 * falling too far behind.
 		 */
 		WT_RET(__wt_txn_update_oldest(session, loop > 0));
 
@@ -630,21 +627,18 @@ __evict_pass(WT_SESSION_IMPL *session)
 		}
 
 		/*
-		 * Start a worker if we have capacity and we haven't
-		 * reached the eviction targets.
+		 * Start a worker if we have capacity and we haven't reached
+		 * the eviction targets.
 		 */
 		if (FLD_ISSET(cache->state, WT_EVICT_PASS_ALL |
 		    WT_EVICT_PASS_DIRTY | WT_EVICT_PASS_WOULD_BLOCK) &&
 		    conn->evict_workers < conn->evict_workers_max) {
-			WT_RET(__wt_verbose(session,
-			    WT_VERB_EVICTSERVER,
+			WT_RET(__wt_verbose(session, WT_VERB_EVICTSERVER,
 			    "Starting evict worker: %"PRIu32"\n",
 			    conn->evict_workers));
-			if (conn->evict_workers >=
-			    conn->evict_workers_alloc)
+			if (conn->evict_workers >= conn->evict_workers_alloc)
 				WT_RET(__evict_workers_resize(session));
-			worker =
-			    &conn->evict_workctx[conn->evict_workers++];
+			worker = &conn->evict_workctx[conn->evict_workers++];
 			F_SET(worker, WT_EVICT_WORKER_RUN);
 			WT_RET(__wt_thread_create(session,
 			    &worker->tid, __evict_thread_run, worker));
@@ -653,14 +647,12 @@ __evict_pass(WT_SESSION_IMPL *session)
 		WT_RET(__wt_verbose(session, WT_VERB_EVICTSERVER,
 		    "Eviction pass with: Max: %" PRIu64
 		    " In use: %" PRIu64 " Dirty: %" PRIu64,
-		    conn->cache_size, cache->bytes_inmem,
-		    cache->bytes_dirty));
+		    conn->cache_size, cache->bytes_inmem, cache->bytes_dirty));
 
 		WT_RET(__evict_lru_walk(session));
+		WT_RET_NOTFOUND_OK(__evict_lru_pages(session, true));
 	}
 
-	ret = __evict_lru_pages(session, true);
-	WT_RET_NOTFOUND_OK(ret);
 
 	/*
 	 * If we're making progress, keep going; if we're not making
@@ -670,8 +662,8 @@ __evict_pass(WT_SESSION_IMPL *session)
 	if (pages_evicted == cache->pages_evict) {
 		if (loop == 100) {
 			/*
-			 * Mark the cache as stuck if we need space
-			 * and aren't evicting any pages.
+			 * Mark the cache as stuck if we need space and aren't
+			 * evicting any pages.
 			 */
 			if (!FLD_ISSET(cache->state,
 			    WT_EVICT_PASS_WOULD_BLOCK)) {
