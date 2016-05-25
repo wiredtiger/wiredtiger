@@ -741,8 +741,8 @@ __evict_clear_walks(WT_SESSION_IMPL *session)
 	for (s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
 		if (!s->active || !F_ISSET(s, WT_SESSION_CLEAR_EVICT_WALK))
 			continue;
-		WT_WITH_DHANDLE(session, s->dhandle,
-		    WT_TRET(__evict_clear_walk(session)));
+		WT_WITH_DHANDLE(
+		    session, s->dhandle, WT_TRET(__evict_clear_walk(session)));
 	}
 	return (ret);
 }
@@ -762,8 +762,8 @@ __evict_clear_all_walks(WT_SESSION_IMPL *session)
 
 	TAILQ_FOREACH(dhandle, &conn->dhqh, q)
 		if (WT_PREFIX_MATCH(dhandle->name, "file:"))
-			WT_WITH_DHANDLE(session, dhandle,
-			    WT_TRET(__evict_clear_walk(session)));
+			WT_WITH_DHANDLE(session,
+			    dhandle, WT_TRET(__evict_clear_walk(session)));
 	return (ret);
 }
 
