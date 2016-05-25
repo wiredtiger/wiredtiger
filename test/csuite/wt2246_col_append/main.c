@@ -92,6 +92,7 @@ onsig(int signo)
 }
 
 #define	N_APPEND_THREADS	6
+#define	N_RECORDS		(20 * WT_MILLION)
 
 int
 main(int argc, char *argv[])
@@ -106,6 +107,7 @@ main(int argc, char *argv[])
 	memset(opts, 0, sizeof(*opts));
 	opts->table_type = TABLE_ROW;
 	opts->n_append_threads = N_APPEND_THREADS;
+	opts->nrecords = N_RECORDS;
 	testutil_check(testutil_parse_opts(argc, argv, opts));
 	testutil_make_work_dir(opts->home);
 
@@ -145,7 +147,7 @@ main(int argc, char *argv[])
 		testutil_check(pthread_join(idlist[i], NULL));
 
 	ce = clock();
-	printf("%" PRIu64 "M: %.2lf\n",
+	printf("%" PRIu64 "M records: %.2lf processor seconds\n",
 	    opts->max_inserted_id / MILLION,
 	    (ce - cs) / (double)CLOCKS_PER_SEC);
 
