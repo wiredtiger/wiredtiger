@@ -434,10 +434,6 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
 
 		conn->evict_session = NULL;
 	}
-	__wt_spin_lock(session, &cache->evict_queue_lock);
-	cache->evict_current = NULL;
-	cache->evict_current_queue = NULL;
-	__wt_spin_unlock(session, &cache->evict_queue_lock);
 
 	return (ret);
 }
@@ -1732,9 +1728,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 
 		/* See if eviction is still needed. */
 		if (!__wt_eviction_needed(session, NULL) ||
-#if 0
 		    F_ISSET(conn, WT_CONN_CLOSING) ||
-#endif
 		    cache->pages_evict > init_evict_count + max_pages_evicted)
 			return (0);
 
