@@ -121,12 +121,12 @@ testutil_parse_opts(int argc, char *argv[], TEST_OPTS *opts)
 	 * or the auto make parallel tester gets upset.
 	 */
 	len = (size_t)snprintf(NULL, 0, "WT_TEST.%s", opts->progname) + 1;
-	opts->home = (char *)malloc(len);
+	opts->home = dmalloc(len);
 	snprintf(opts->home, len, "WT_TEST.%s", opts->progname);
 
 	/* Setup the default URI string */
 	len = (size_t)snprintf(NULL, 0, "table:%s", opts->progname) + 1;
-	opts->uri = (char *)malloc(len);
+	opts->uri = dmalloc(len);
 	snprintf(opts->uri, len, "table:%s", opts->progname);
 
 	return (0);
