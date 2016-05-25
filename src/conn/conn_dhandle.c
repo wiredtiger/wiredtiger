@@ -160,7 +160,6 @@ __wt_conn_btree_sync_and_close(WT_SESSION_IMPL *session, bool final, bool force)
 	 * the list of open handles (for example, checkpoint).  Acquire the
 	 * handle's close lock.
 	 */
-	__wt_spin_lock(session, &dhandle->close_lock);
 
 	/*
 	 * The close can fail if an update cannot be written, return the EBUSY
@@ -200,9 +199,7 @@ __wt_conn_btree_sync_and_close(WT_SESSION_IMPL *session, bool final, bool force)
 	    F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
 	    !F_ISSET(dhandle, WT_DHANDLE_OPEN));
 
-err:	__wt_spin_unlock(session, &dhandle->close_lock);
-
-	if (no_schema_lock)
+err:	if (no_schema_lock)
 		F_CLR(session, WT_SESSION_NO_SCHEMA_LOCK);
 
 	__wt_evict_file_exclusive_off(session);
