@@ -50,7 +50,7 @@ static int __json_pack_size(WT_SESSION_IMPL *, const char *, WT_CONFIG_ITEM *,
 		break;							\
 	case 'u':							\
 		WT_RET(json_string_arg(session, &jstr, &pv.u.item));	\
-		pv.type = 'J';						\
+		pv.type = 'K';						\
 		break;							\
 	/* User format strings have already been validated. */		\
 	WT_ILLEGAL_VALUE(session);					\
@@ -868,33 +868,58 @@ __wt_json_strlen(const char *src, size_t srclen)
  *	the result if zero padded.
  */
 int
-__wt_json_strncpy(char **pdst, size_t dstlen, const char *src, size_t srclen)
+__wt_json_strncpy(WT_SESSION *wt_session, char **pdst, size_t dstlen,
+    const char *src, size_t srclen)
 {
-	char *dst;
+	WT_SESSION_IMPL *session;
+	char ch, *dst;
 	const char *dstend, *srcend;
 	u_char hi, lo;
+
+	session = (WT_SESSION_IMPL *)wt_session;
 
 	dst = *pdst;
 	dstend = dst + dstlen;
 	srcend = src + srclen;
 	while (src < srcend && dst < dstend) {
 		/* JSON can include any UTF-8 expressed in 4 hex chars. */
-		if (*src == '\\' && *++src == 'u') {
-			if (__wt_hex2byte((const u_char *)++src, &hi))
-				return (EINVAL);
-			src += 2;
-			if (__wt_hex2byte((const u_char *)src, &lo))
-				return (EINVAL);
-			src += 2;
-			if (hi != 0) {
-				__wt_errx(NULL, "Unicode \"%6.6s\""
-				    " byte out of range in JSON",
-				    src - 6);
-				return (EINVAL);
-			} else
+		if ((ch = *src++) == '\\')
+			switch (ch = *src++) {
+			case 'u':
+				if (__wt_hex2byte((const u_char *)src, &hi))
+					return (EINVAL);
+				src += 2;
+				if (__wt_hex2byte((const u_char *)src, &lo))
+					return (EINVAL);
+				src += 2;
+				if (hi != 0) {
+					__wt_errx(NULL, "Unicode \"%6.6s\""
+					    " byte out of range in JSON",
+					    src - 6);
+					return (EINVAL);
+				}
 				*dst++ = (char)lo;
-		} else
-			*dst++ = *src++;
+				break;
+			case 'f':
+				*dst++ = '\f';
+				break;
+			case 'n':
+				*dst++ = '\n';
+				break;
+			case 'r':
+				*dst++ = '\r';
+				break;
+			case 't':
+				*dst++ = '\t';
+				break;
+			case '"':
+			case '\\':
+				*dst++ = ch;
+				break;
+			WT_ILLEGAL_VALUE(session);
+			}
+		else
+			*dst++ = ch;
 	}
 	if (src != srcend)
 		return (ENOMEM);

@@ -187,8 +187,8 @@ json_strdup(WT_SESSION *session, JSON_INPUT_STATE *ins, char **resultp)
 	}
 	*resultp = result;
 	resultcpy = result;
-	if ((ret = __wt_json_strncpy(&resultcpy, (size_t)resultlen, src,
-	    srclen))
+	if ((ret = __wt_json_strncpy(session, &resultcpy, (size_t)resultlen,
+	    src, srclen))
 	    != 0) {
 		ret = util_err(session, ret, NULL);
 		goto err;
