@@ -653,7 +653,6 @@ __evict_pass(WT_SESSION_IMPL *session)
 		WT_RET_NOTFOUND_OK(__evict_lru_pages(session, true));
 	}
 
-
 	/*
 	 * If we're making progress, keep going; if we're not making
 	 * any progress at all, mark the cache "stuck" and go back to
