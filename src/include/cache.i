@@ -182,8 +182,8 @@ __wt_eviction_needed(WT_SESSION_IMPL *session, u_int *pct_fullp)
 	/*
 	 * If the connection is closing we do not need eviction from an
 	 * application thread.  The eviction subsystem is already closed.
-         * We return here because some callers depend on the percent full
-         * having been filled in.
+	 * We return here because some callers depend on the percent full
+	 * having been filled in.
 	 */
 	if (F_ISSET(conn, WT_CONN_CLOSING))
 		return (false);
