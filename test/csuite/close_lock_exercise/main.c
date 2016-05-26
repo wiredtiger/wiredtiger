@@ -75,6 +75,7 @@ static void
 		sleep(1);
 	}
 	testutil_check(session->close(session, NULL));
+	return (0);
 }
 
 int
@@ -88,7 +89,6 @@ main(int argc, char *argv[])
 	opts = &_opts;
 
 	memset(opts, 0, sizeof(*opts));
-	testutil_check(pthread_mutex_init(&lock, NULL));
 	testutil_check(testutil_parse_opts(argc, argv, opts));
 	testutil_make_work_dir(opts->home);
 
@@ -104,7 +104,6 @@ main(int argc, char *argv[])
 	for (t = 0; t < NR_THREADS; ++t)
 		(void)pthread_join(thr[t], NULL);
 
-	pthread_mutex_destroy(&lock);
 	testutil_cleanup(opts);
 
 	return (0);
