@@ -44,7 +44,6 @@ static void
 	opts = (TEST_OPTS *)arg;
 	id = __wt_atomic_fetch_addv64(&opts->next_threadid, 1);
 	snprintf(uri, 20, "table:test%" PRIu64, id);
-	printf("my URI is %s\n", uri);
 
 	testutil_check(opts->conn->open_session(
 	    opts->conn, NULL, NULL, &session));
@@ -83,7 +82,6 @@ main(int argc, char *argv[])
 {
 	TEST_OPTS *opts, _opts;
 	pthread_t thr[NR_THREADS];
-	pthread_t create;
 	size_t t;
 
 	opts = &_opts;
