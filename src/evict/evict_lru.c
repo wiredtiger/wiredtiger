@@ -550,6 +550,8 @@ done:	if (F_ISSET(cache, WT_CACHE_STUCK)) {
 		WT_STAT_FAST_CONN_SET(session,
 		    cache_eviction_aggressive_set, 1);
 		FLD_SET(cache->state, WT_EVICT_PASS_AGGRESSIVE);
+		WT_RET(__wt_verbose(session, WT_VERB_EVICTSERVER,
+		    "Set AGGRESSIVE"));
 	}
 	return (true);
 }
@@ -1086,7 +1088,7 @@ __evict_walk(WT_SESSION_IMPL *session, uint32_t queue_index)
 	WT_EVICT_QUEUE *evict_queue;
 	u_int max_entries, prev_slot, retries;
 	u_int slot, start_slot, spins;
-	bool dhandle_locked, incr;
+	bool agg, dhandle_locked, incr;
 
 	conn = S2C(session);
 	cache = S2C(session)->cache;
@@ -1104,12 +1106,18 @@ __evict_walk(WT_SESSION_IMPL *session, uint32_t queue_index)
 	max_entries = slot + WT_EVICT_WALK_INCR;
 
 retry:	while (slot < max_entries && ret == 0) {
+		agg = FLD_ISSET(cache->state, WT_EVICT_PASS_AGGRESSIVE);
 		/*
 		 * If another thread is waiting on the eviction server to clear
 		 * the walk point in a tree, give up.
 		 */
-		if (F_ISSET(cache, WT_CACHE_CLEAR_WALKS))
+		if (F_ISSET(cache, WT_CACHE_CLEAR_WALKS)) {
+			if (agg)
+				WT_RET(__wt_verbose(session,
+				    WT_VERB_EVICTSERVER,
+				    "evict_walk: break for clear walk"));
 			break;
+		}
 
 		/*
 		 * Lock the dhandle list to find the next handle and bump its
@@ -1162,8 +1170,14 @@ retry:	while (slot < max_entries && ret == 0) {
 
 		/* Skip files that don't allow eviction. */
 		btree = dhandle->handle;
-		if (F_ISSET(btree, WT_BTREE_NO_EVICTION))
+		if (F_ISSET(btree, WT_BTREE_NO_EVICTION)) {
+			if (agg)
+				(void)__wt_verbose(session,
+				    WT_VERB_EVICTSERVER,
+				    "evict_walk: skip file NO_EVICTION: %s",
+				    dhandle->name);
 			continue;
+		}
 
 		/*
 		 * Also skip files that are checkpointing or configured to
@@ -1176,8 +1190,12 @@ retry:	while (slot < max_entries && ret == 0) {
 
 		/* Skip files if we have used all available hazard pointers. */
 		if (btree->evict_ref == NULL && session->nhazard >=
-		    conn->hazard_max - WT_MIN(conn->hazard_max / 2, 10))
+		    conn->hazard_max - WT_MIN(conn->hazard_max / 2, 10)) {
+			(void)__wt_verbose(session, WT_VERB_EVICTSERVER,
+			    "evict_walk: no hazard pointers for file: %s",
+			    dhandle->name);
 			continue;
+		}
 
 		/*
 		 * If we are filling the queue, skip files that haven't been
@@ -1185,8 +1203,12 @@ retry:	while (slot < max_entries && ret == 0) {
 		 */
 		if (btree->evict_walk_period != 0 &&
 		    evict_queue->evict_entries >= WT_EVICT_WALK_INCR &&
-		    btree->evict_walk_skips++ < btree->evict_walk_period)
+		    btree->evict_walk_skips++ < btree->evict_walk_period) {
+			(void)__wt_verbose(session, WT_VERB_EVICTSERVER,
+			    "evict_walk: skip not useful file: %s",
+			    dhandle->name);
 			continue;
+		}
 		btree->evict_walk_skips = 0;
 		prev_slot = slot;
 
@@ -1301,7 +1323,7 @@ __evict_walk_file(WT_SESSION_IMPL *session, uint32_t queue_index, u_int *slotp)
 	uint64_t pages_walked;
 	uint32_t walk_flags;
 	int internal_pages, restarts;
-	bool enough, modified;
+	bool agg, enough, modified;
 
 	conn = S2C(session);
 	btree = S2BT(session);
@@ -1333,12 +1355,18 @@ __evict_walk_file(WT_SESSION_IMPL *session, uint32_t queue_index, u_int *slotp)
 	 * Once we hit the page limit, do one more step through the walk in
 	 * case we are appending and only the last page in the file is live.
 	 */
+	agg = FLD_ISSET(cache->state, WT_EVICT_PASS_AGGRESSIVE);
 	for (evict = start, pages_walked = 0;
 	    evict < end && !enough && (ret == 0 || ret == WT_NOTFOUND);
 	    ret = __wt_tree_walk_count(
 	    session, &btree->evict_ref, &pages_walked, walk_flags)) {
 		enough = pages_walked > cache->evict_max_refs_per_file;
 		if ((ref = btree->evict_ref) == NULL) {
+			if (agg)
+				WT_RET(__wt_verbose(session,
+				    WT_VERB_EVICTSERVER, "evict_walk_file:"
+				    " no pages from tree_walk for %s",
+				    session->dhandle->name));
 			if (++restarts == 2 || enough)
 				break;
 			continue;
@@ -1351,12 +1379,24 @@ __evict_walk_file(WT_SESSION_IMPL *session, uint32_t queue_index, u_int *slotp)
 		page = ref->page;
 		modified = __wt_page_is_modified(page);
 
+		if (agg && page->memory_footprint > btree->maxmempage * 4)
+			WT_RET(__wt_verbose(session,
+			    WT_VERB_EVICTSERVER, "evict_walk_file:"
+			    " large page %p mem %" PRIu64 " file: %s",
+			    page, page->memory_footprint,
+			    session->dhandle->name));
 		/*
 		 * Use the EVICT_LRU flag to avoid putting pages onto the list
 		 * multiple times.
 		 */
-		if (F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU))
+		if (F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU)) {
+			if (agg)
+				WT_RET(__wt_verbose(session,
+				    WT_VERB_EVICTSERVER, "evict_walk_file:"
+				    " page %p EVICT_LRU set file: %s",
+				    page, session->dhandle->name));
 			continue;
+		}
 
 		/*
 		 * It's possible (but unlikely) to visit a page without a read
@@ -1366,6 +1406,11 @@ __evict_walk_file(WT_SESSION_IMPL *session, uint32_t queue_index, u_int *slotp)
 		 * generation.
 		 */
 		if (page->read_gen == WT_READGEN_NOTSET) {
+			if (agg)
+				WT_RET(__wt_verbose(session,
+				    WT_VERB_EVICTSERVER, "evict_walk_file:"
+				    " page %p read_gen not set file: %s",
+				    page, session->dhandle->name));
 			__wt_cache_read_gen_new(session, page);
 			continue;
 		}
@@ -1386,8 +1431,14 @@ __evict_walk_file(WT_SESSION_IMPL *session, uint32_t queue_index, u_int *slotp)
 		 * eviction, skip anything that isn't marked.
 		 */
 		if (FLD_ISSET(cache->state, WT_EVICT_PASS_WOULD_BLOCK) &&
-		    page->memory_footprint < btree->splitmempage)
+		    page->memory_footprint < btree->splitmempage) {
+			if (agg)
+				WT_RET(__wt_verbose(session,
+				    WT_VERB_EVICTSERVER, "evict_walk_file:"
+				    " page %p WOULD BLOCK file: %s",
+				    page, session->dhandle->name));
 			continue;
+		}
 
 		/* Limit internal pages to 50% unless we get aggressive. */
 		if (WT_PAGE_IS_INTERNAL(page) &&
@@ -1396,8 +1447,14 @@ __evict_walk_file(WT_SESSION_IMPL *session, uint32_t queue_index, u_int *slotp)
 			continue;
 
 fast:		/* If the page can't be evicted, give up. */
-		if (!__wt_page_can_evict(session, ref, NULL))
+		if (!__wt_page_can_evict(session, ref, NULL)) {
+			if (agg)
+				WT_RET(__wt_verbose(session,
+				    WT_VERB_EVICTSERVER, "evict_walk_file:"
+				    " page %p cannot be evicted file: %s",
+				    page, session->dhandle->name));
 			continue;
+		}
 
 		/*
 		 * Note: take care with ordering: if we detected that

@@ -367,13 +367,13 @@ union __wt_rand_state;
 #include "mutex.i"			/* required by btree.i */
 #include "txn.i"			/* required by btree.i */
 
+#include "misc.i"
 #include "bitstring.i"
 #include "btree.i"			/* required by cursor.i */
 #include "btree_cmp.i"
 #include "column.i"
 #include "cursor.i"
 #include "log.i"
-#include "misc.i"
 #include "os_fhandle.i"
 #include "os_fs.i"
 #include "os_fstream.i"
