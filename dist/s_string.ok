@@ -881,6 +881,7 @@ osfhandle
 ovfl
 ownp
 packv
+pageheap
 pagesize
 parens
 pareto
@@ -1042,6 +1043,7 @@ t's
 tV
 tablename
 tcbench
+tcmalloc
 td
 testutil
 th
@@ -1085,6 +1087,7 @@ uninstantiated
 unistd
 unlinked
 unmap
+unmapped
 unmarshall
 unmarshalled
 unmerged

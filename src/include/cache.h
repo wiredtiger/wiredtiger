@@ -87,6 +87,10 @@ struct __wt_cache {
 
 	uint64_t evict_max_page_size;	/* Largest page seen at eviction */
 
+#ifdef HAVE_LIBTCMALLOC
+	size_t tcmalloc_freed;
+#endif
+
 	/*
 	 * Read information.
 	 */

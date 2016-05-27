@@ -15,6 +15,10 @@ endif
 # BEGIN SOURCES, maintained by makemake and dist/filelist
 # END SOURCES
 
+if TCMalloc
+libwiredtiger_la_SOURCES += src/cache/cache_tcmalloc.c
+endif
+
 bin_PROGRAMS = wt
 wt_SOURCES =\
 	src/utilities/util_backup.c \
