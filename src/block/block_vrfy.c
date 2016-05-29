@@ -213,27 +213,6 @@ __wt_block_verify_end(WT_SESSION_IMPL *session, WT_BLOCK *block)
 }
 
 /*
- * __verify_dump_extlist_layout --
- *	Dump an extent list information.
- */
-static int
-__verify_dump_extlist_layout(
-    WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el)
-{
-	WT_DECL_ITEM(tmp);
-	WT_DECL_RET;
-
-	if (!block->verify_layout)
-		return (0);
-
-	WT_RET(__wt_scr_alloc(session, 0, &tmp));
-	ret = __wt_msg(session, "%s: %" PRIu32 " elements, %s",
-	    el->name, el->entries, __wt_buf_set_size(session, el->bytes, tmp));
-	__wt_scr_free(session, &tmp);
-	return (ret);
-}
-
-/*
  * __wt_verify_ckpt_load --
  *	Verify work done when a checkpoint is loaded.
  */
@@ -276,7 +255,6 @@ __wt_verify_ckpt_load(
 	if (el->offset != WT_BLOCK_INVALID_OFFSET) {
 		WT_RET(__wt_block_extlist_read(
 		    session, block, el, ci->file_size));
-		WT_RET(__verify_dump_extlist_layout(session, block, el));
 		WT_RET(__wt_block_extlist_merge(
 		    session, block, el, &block->verify_alloc));
 		__wt_block_extlist_free(session, el);
@@ -285,7 +263,6 @@ __wt_verify_ckpt_load(
 	if (el->offset != WT_BLOCK_INVALID_OFFSET) {
 		WT_RET(__wt_block_extlist_read(
 		    session, block, el, ci->file_size));
-		WT_RET(__verify_dump_extlist_layout(session, block, el));
 		WT_EXT_FOREACH(ext, el->off)
 			WT_RET(__wt_block_off_remove_overlap(session, block,
 			    &block->verify_alloc, ext->off, ext->size));
@@ -305,7 +282,6 @@ __wt_verify_ckpt_load(
 	if (el->offset != WT_BLOCK_INVALID_OFFSET) {
 		WT_RET(__wt_block_extlist_read(
 		    session, block, el, ci->file_size));
-		WT_RET(__verify_dump_extlist_layout(session, block, el));
 		__wt_block_extlist_free(session, el);
 	}
 
