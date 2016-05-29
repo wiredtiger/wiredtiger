@@ -156,30 +156,35 @@ __wt_buf_set_printable(
  * byte size.
  */
 const char *
-__wt_buf_set_size(WT_SESSION_IMPL *session, uint64_t size, WT_ITEM *buf)
+__wt_buf_set_size(
+    WT_SESSION_IMPL *session, uint64_t size, bool exact, WT_ITEM *buf)
 {
 	WT_DECL_RET;
 
-	if (size > WT_EXABYTE)
+	if (size >= WT_EXABYTE)
 		ret = __wt_buf_fmt(session, buf,
-		    "%" PRIu64 "EB (%" PRIu64 ")", size / WT_EXABYTE, size);
-	else if (size > WT_PETABYTE)
+		    "%" PRIu64 "EB", size / WT_EXABYTE);
+	else if (size >= WT_PETABYTE)
 		ret = __wt_buf_fmt(session, buf,
-		    "%" PRIu64 "PB (%" PRIu64 ")", size / WT_PETABYTE, size);
-	else if (size > WT_TERABYTE)
+		    "%" PRIu64 "PB", size / WT_PETABYTE);
+	else if (size >= WT_TERABYTE)
 		ret = __wt_buf_fmt(session, buf,
-		    "%" PRIu64 "TB (%" PRIu64 ")", size / WT_TERABYTE, size);
-	else if (size > WT_GIGABYTE)
+		    "%" PRIu64 "TB", size / WT_TERABYTE);
+	else if (size >= WT_GIGABYTE)
 		ret = __wt_buf_fmt(session, buf,
-		    "%" PRIu64 "GB (%" PRIu64 ")", size / WT_GIGABYTE, size);
-	else if (size > WT_MEGABYTE)
+		    "%" PRIu64 "GB", size / WT_GIGABYTE);
+	else if (size >= WT_MEGABYTE)
 		ret = __wt_buf_fmt(session, buf,
-		    "%" PRIu64 "MB (%" PRIu64 ")", size / WT_MEGABYTE, size);
-	else if (size > WT_KILOBYTE)
+		    "%" PRIu64 "MB", size / WT_MEGABYTE);
+	else if (size >= WT_KILOBYTE)
 		ret = __wt_buf_fmt(session, buf,
-		    "%" PRIu64 "KB (%" PRIu64 ")", size / WT_KILOBYTE, size);
+		    "%" PRIu64 "KB", size / WT_KILOBYTE);
 	else
 		ret = __wt_buf_fmt(session, buf, "%" PRIu64 "B", size);
+
+	if (ret == 0 && exact && size >= WT_KILOBYTE)
+		ret = __wt_buf_catfmt(session, buf, " (%" PRIu64 ")", size);
+
 	if (ret != 0) {
 		buf->data = "[Error]";
 		buf->size = strlen("[Error]");

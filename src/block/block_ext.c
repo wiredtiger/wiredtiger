@@ -1427,28 +1427,28 @@ static int
 __block_extlist_dump(
     WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, const char *tag)
 {
-	WT_DECL_ITEM(tmp);
+	WT_DECL_ITEM(t1);
+	WT_DECL_ITEM(t2);
 	WT_DECL_RET;
 	WT_EXT *ext;
-	wt_off_t pow;
-	uint64_t sizes[64];
+	uint64_t pow, sizes[64];
 	u_int i;
 	const char *sep;
 
 	if (!block->verify_layout && !WT_VERBOSE_ISSET(session, WT_VERB_BLOCK))
 		return (0);
 
-	WT_RET(__wt_scr_alloc(session, 0, &tmp));
+	WT_ERR(__wt_scr_alloc(session, 0, &t1));
 	if (block->verify_layout)
 		WT_ERR(__wt_msg(session,
 		    "%s extent list %s, %" PRIu32 " entries, %s bytes",
 		    tag, el->name, el->entries,
-		    __wt_buf_set_size(session, el->bytes, tmp)));
+		    __wt_buf_set_size(session, el->bytes, true, t1)));
 	else
 		WT_ERR(__wt_verbose(session, WT_VERB_BLOCK,
 		    "%s extent list %s, %" PRIu32 " entries, %s bytes",
 		    tag, el->name, el->entries,
-		    __wt_buf_set_size(session, el->bytes, tmp)));
+		    __wt_buf_set_size(session, el->bytes, true, t1)));
 
 	if (ret != 0 || el->entries == 0)
 		goto done;
@@ -1456,26 +1456,30 @@ __block_extlist_dump(
 	memset(sizes, 0, sizeof(sizes));
 	WT_EXT_FOREACH(ext, el->off)
 		for (i = 9, pow = 512;; ++i, pow *= 2)
-			if (ext->size <= pow) {
+			if (ext->size <= (wt_off_t)pow) {
 				++sizes[i];
 				break;
 			}
 	sep = "extents by bucket:";
-	tmp->size = 0;
+	t1->size = 0;
+	WT_ERR(__wt_scr_alloc(session, 0, &t2));
 	for (i = 9, pow = 512; i < WT_ELEMENTS(sizes); ++i, pow *= 2)
 		if (sizes[i] != 0) {
-			WT_ERR(__wt_buf_catfmt(session, tmp,
-			    "%s {%" PRIu64 ": %" PRIu64 "}",
-			    sep, pow, sizes[i]));
+			WT_ERR(__wt_buf_catfmt(session, t1,
+			    "%s {%s: %" PRIu64 "}",
+			    sep,
+			    __wt_buf_set_size(session, pow, false, t2),
+			    sizes[i]));
 			sep = ",";
 		}
 
 	if (block->verify_layout)
-		WT_ERR(__wt_msg(session, "%s", tmp->data));
+		WT_ERR(__wt_msg(session, "%s", t1->data));
 	else
-		WT_ERR(__wt_verbose(session, WT_VERB_BLOCK, "%s", tmp->data));
+		WT_ERR(__wt_verbose(session, WT_VERB_BLOCK, "%s", t1->data));
 
 done: err:
-	__wt_scr_free(session, &tmp);
+	__wt_scr_free(session, &t1);
+	__wt_scr_free(session, &t2);
 	return (ret);
 }
