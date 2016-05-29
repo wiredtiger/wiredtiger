@@ -1474,9 +1474,10 @@ __block_extlist_dump(
 		}
 
 	if (block->verify_layout)
-		WT_ERR(__wt_msg(session, "%s", t1->data));
+		WT_ERR(__wt_msg(session, "%s", (char *)t1->data));
 	else
-		WT_ERR(__wt_verbose(session, WT_VERB_BLOCK, "%s", t1->data));
+		WT_ERR(__wt_verbose(
+		    session, WT_VERB_BLOCK, "%s", (char *)t1->data));
 
 done: err:
 	__wt_scr_free(session, &t1);
