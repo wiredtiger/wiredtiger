@@ -135,6 +135,59 @@ __wt_buf_catfmt(WT_SESSION_IMPL *session, WT_ITEM *buf, const char *fmt, ...)
 }
 
 /*
+ * __wt_buf_set_printable --
+ *	Set the contents of the buffer to a printable representation of a
+ * byte string.
+ */
+const char *
+__wt_buf_set_printable(
+    WT_SESSION_IMPL *session, const void *p, size_t size, WT_ITEM *buf)
+{
+	if (__wt_raw_to_esc_hex(session, p, size, buf)) {
+		buf->data = "[Error]";
+		buf->size = strlen("[Error]");
+	}
+	return (buf->data);
+}
+
+/*
+ * __wt_buf_set_size --
+ *	Set the contents of the buffer to a printable representation of a
+ * byte size.
+ */
+const char *
+__wt_buf_set_size(WT_SESSION_IMPL *session, uint64_t size, WT_ITEM *buf)
+{
+	WT_DECL_RET;
+
+	if (size > WT_EXABYTE)
+		ret = __wt_buf_fmt(session, buf,
+		    "%" PRIu64 "EB (%" PRIu64 ")", size / WT_EXABYTE, size);
+	else if (size > WT_PETABYTE)
+		ret = __wt_buf_fmt(session, buf,
+		    "%" PRIu64 "PB (%" PRIu64 ")", size / WT_PETABYTE, size);
+	else if (size > WT_TERABYTE)
+		ret = __wt_buf_fmt(session, buf,
+		    "%" PRIu64 "TB (%" PRIu64 ")", size / WT_TERABYTE, size);
+	else if (size > WT_GIGABYTE)
+		ret = __wt_buf_fmt(session, buf,
+		    "%" PRIu64 "GB (%" PRIu64 ")", size / WT_GIGABYTE, size);
+	else if (size > WT_MEGABYTE)
+		ret = __wt_buf_fmt(session, buf,
+		    "%" PRIu64 "MB (%" PRIu64 ")", size / WT_MEGABYTE, size);
+	else if (size > WT_KILOBYTE)
+		ret = __wt_buf_fmt(session, buf,
+		    "%" PRIu64 "KB (%" PRIu64 ")", size / WT_KILOBYTE, size);
+	else
+		ret = __wt_buf_fmt(session, buf, "%" PRIu64 "B", size);
+	if (ret != 0) {
+		buf->data = "[Error]";
+		buf->size = strlen("[Error]");
+	}
+	return (buf->data);
+}
+
+/*
  * __wt_scr_alloc_func --
  *	Scratch buffer allocation function.
  */
