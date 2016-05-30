@@ -6,18 +6,16 @@
  * See the file LICENSE for redistribution information.
  */
 
-#define	WT_SYSCALL_RETRY(call, ret) do {				\
-	int __retry;							\
-	for (__retry = 0; __retry < 10; ++__retry) {			\
-		if ((call) == 0) {					\
-			(ret) = 0;					\
-			break;						\
-		}							\
-		switch ((ret) = __wt_errno()) {				\
-		case 0:							\
-			/* The call failed but didn't set errno. */	\
-			(ret) = WT_ERROR;				\
-			break;						\
+/*
+ * System call macro to retry system/library calls on "expected" errors.
+ * Three versions: one of which looks for a -1 return value on error and
+ * usually expects errno to be set on failure, one of which looks for a
+ * non-zero return value on error and usually expects errno to be set on
+ * failure, one of which looks for a 0 return on success, and expects any
+ * non-0 return to be an errno value.
+ */
+#define	WT_SYSCALL_RETRY(error)						\
+		switch (error) {					\
 		case EAGAIN:						\
 		case EBUSY:						\
 		case EINTR:						\
@@ -29,7 +27,51 @@
 			continue;					\
 		default:						\
 			break;						\
+		}
+#define	WT_SYSCALL_NEGATIVE_ONE(call, ret) do {				\
+	int __retry;							\
+	for (__retry = 0; __retry < 10; ++__retry) {			\
+		if ((call) != -1) {					\
+			(ret) = 0;					\
+			break;						\
 		}							\
+		/*							\
+		 * A failing call may not have set errno (as an example,\
+		 * the ISO C standard does not mandate rename set errno	\
+		 * on failure, although POSIX 1003.1 extends C with that\
+		 * requirement).					\
+		 */							\
+		if (((ret) = __wt_errno()) == 0)			\
+			(ret) = WT_ERROR;				\
+		WT_SYSCALL_RETRY(ret);					\
+		break;							\
+	}								\
+} while (0)
+#define	WT_SYSCALL_NON_ZERO(call, ret) do {				\
+	int __retry;							\
+	for (__retry = 0; __retry < 10; ++__retry) {			\
+		if ((call) == 0) {					\
+			(ret) = 0;					\
+			break;						\
+		}							\
+		/*							\
+		 * A failing call may not have set errno (as an example,\
+		 * the ISO C standard does not mandate rename set errno	\
+		 * on failure, although POSIX 1003.1 extends C with that\
+		 * requirement).					\
+		 */							\
+		if (((ret) = __wt_errno()) == 0)			\
+			(ret) = WT_ERROR;				\
+		WT_SYSCALL_RETRY(ret);					\
+		break;							\
+	}								\
+} while (0)
+#define	WT_SYSCALL_ERROR_VALUE(call, ret) do {				\
+	int __retry;							\
+	for (__retry = 0; __retry < 10; ++__retry) {			\
+		if (((ret) = (call)) == 0)				\
+			break;						\
+		WT_SYSCALL_RETRY(ret);					\
 		break;							\
 	}								\
 } while (0)

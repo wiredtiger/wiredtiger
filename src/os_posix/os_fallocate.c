@@ -29,7 +29,7 @@ __posix_std_fallocate(WT_FILE_HANDLE *file_handle,
 
 	pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-	WT_SYSCALL_RETRY(fallocate(pfh->fd, 0, offset, len), ret);
+	WT_SYSCALL_NEGATIVE_ONE(fallocate(pfh->fd, 0, offset, len), ret);
 	return (ret);
 #else
 	WT_UNUSED(file_handle);
@@ -62,7 +62,8 @@ __posix_sys_fallocate(WT_FILE_HANDLE *file_handle,
 	 * Linux versions (RHEL 5.5), but not in the version of the C library.
 	 * This allows it to work everywhere the kernel supports it.
 	 */
-	WT_SYSCALL_RETRY(syscall(SYS_fallocate, pfh->fd, 0, offset, len), ret);
+	WT_SYSCALL_NEGATIVE_ONE(
+	    syscall(SYS_fallocate, pfh->fd, 0, offset, len), ret);
 	return (ret);
 #else
 	WT_UNUSED(file_handle);
@@ -89,7 +90,7 @@ __posix_posix_fallocate(WT_FILE_HANDLE *file_handle,
 
 	pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-	WT_SYSCALL_RETRY(posix_fallocate(pfh->fd, offset, len), ret);
+	WT_SYSCALL_ERROR_VALUE(posix_fallocate(pfh->fd, offset, len), ret);
 	return (ret);
 #else
 	WT_UNUSED(file_handle);

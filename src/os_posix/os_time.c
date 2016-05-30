@@ -15,23 +15,24 @@
 int
 __wt_epoch(WT_SESSION_IMPL *session, struct timespec *tsp)
 {
+#if defined(HAVE_CLOCK_GETTIME)
 	WT_DECL_RET;
 
-#if defined(HAVE_CLOCK_GETTIME)
-	WT_SYSCALL_RETRY(clock_gettime(CLOCK_REALTIME, tsp), ret);
+	WT_SYSCALL_NEGATIVE_ONE(clock_gettime(CLOCK_REALTIME, tsp), ret);
 	if (ret == 0)
 		return (0);
 	WT_RET_MSG(session, ret, "clock_gettime");
 #elif defined(HAVE_GETTIMEOFDAY)
 	struct timeval v;
 
-	WT_SYSCALL_RETRY(gettimeofday(&v, NULL), ret);
-	if (ret == 0) {
-		tsp->tv_sec = v.tv_sec;
-		tsp->tv_nsec = v.tv_usec * WT_THOUSAND;
-		return (0);
-	}
-	WT_RET_MSG(session, ret, "gettimeofday");
+	/*
+	 * POSIX 1003.1 mandates gettimeofday never return anything other than
+	 * success, there is no reserved error value.
+	 */
+	(void)gettimeofday(&v, NULL);
+	tsp->tv_sec = v.tv_sec;
+	tsp->tv_nsec = v.tv_usec * WT_THOUSAND;
+	return (0);
 #else
 	NO TIME-OF-DAY IMPLEMENTATION: see src/os_posix/os_time.c
 #endif
