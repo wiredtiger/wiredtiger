@@ -5,7 +5,6 @@
 #
 # If the directory exists, it is added to AUTO_SUBDIRS.
 # If a condition is included, the subdir is made conditional via AM_CONDITIONAL
-
 ext/collators/reverse
 ext/collators/revint
 ext/compressors/lz4 LZ4
@@ -21,8 +20,8 @@ ext/test/kvs_bdb HAVE_BERKELEY_DB
 api/leveldb LEVELDB
 bench/wtperf
 examples/c
-examples/java JAVA
 lang/java JAVA
+examples/java JAVA
 lang/python PYTHON
 
 # Make the tests
