@@ -1,6 +1,3 @@
-
-#	List of source files for WiredTiger library.
-# filelist --
 src/async/async_api.c
 src/async/async_op.c
 src/async/async_worker.c

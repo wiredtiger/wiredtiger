@@ -2,21 +2,18 @@ import filecmp, glob, os, re, shutil
 
 # source_files --
 #    Return a list of the WiredTiger source file names.
-def source_files(skip_includes=False):
-    if not skip_includes:
-        for line in glob.iglob('../src/include/*.[hi]'):
-            yield line
+def source_files():
     file_re = re.compile(r'^\w')
     for line in open('filelist', 'r'):
         if file_re.match(line):
-            yield os.path.join('..', line.rstrip())
+            yield os.path.join('..', line.split(None, 1)[0])
     # Return only the Windows-specific files in the Windows filelist
     for line in open('../build_win/filelist.win', 'r'):
         if 'os_win' in line and file_re.match(line):
-            yield os.path.join('..', line.rstrip())
+            yield os.path.join('..', line.split(None, 1)[0])
     for line in open('extlist', 'r'):
         if file_re.match(line):
-            yield os.path.join('..', line.rstrip())
+            yield os.path.join('..', line.split(None, 1)[0])
 
 # source_dirs --
 #    Return a list of the WiredTiger source directory names.

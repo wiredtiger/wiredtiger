@@ -34,6 +34,13 @@ AC_PROG_CC(cc gcc)
 AC_PROG_CXX(c++ g++)
 AM_PROG_AS(as gas)
 
+AS_CASE([$host_cpu],
+	[ppc64*], [wt_powerpc="yes"],
+	[elf64lppc], [wt_powerpc="yes"],
+	[powerpc*], [wt_powerpc="yes"],
+	[wt_powerpc="no"])
+AM_CONDITIONAL([POWERPC_HOST], [test "$wt_powerpc" = "yes"])
+
 # This is a workaround as part of WT-2459. Currently, clang (v3.7) does not
 # support compiling the ASM code we have to perform the CRC checks on PowerPC.
 # To compile with clang we need to override the ASM compiler with CCAS to use
@@ -41,12 +48,11 @@ AM_PROG_AS(as gas)
 # determine what tag to use for that one .S file. If we catch that we are using
 # two different compilers for CC and CCAS and we are on a PowerPC system we
 # overload the libtool flags to provide CC by default.
-if test "$CC" != "$CCAS"; then
-	AS_CASE([$host_cpu],
-		[ppc64*], [AM_LIBTOOLFLAGS+="--tag=CC"],
-		[elf64lppc], [AM_LIBTOOLFLAGS+="--tag=CC"],
-		[powerpc*], [AM_LIBTOOLFLAGS+="--tag=CC"],
-		[])
+#if test "$CC" != "$CCAS"; then
+#	AM_LIBTOOLFLAGS+="--tag=CC"
+#fi
+if test "$wt_powerpc" = "yes" -a "$CC" != "$CCAS"; then
+	[AM_LIBTOOLFLAGS+="--tag=CC"]
 fi
 AC_SUBST(AM_LIBTOOLFLAGS)
 

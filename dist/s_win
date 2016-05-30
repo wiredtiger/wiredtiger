@@ -45,10 +45,10 @@ win_filelist()
 
 	# Discard POSIX-only and PPC-only files, add in Windows-only files.
 	(
-	sed \
+	sed -e '/^[a-z]/!d' \
+	    -e 's/[	 ].*$//' \
 	    -e '/\/os_posix\//d' \
-	    -e '/src\/checksum\/power8\/crc32.S/d' \
-	    -e '/src\/checksum\/power8\/crc32_wrapper.c/d'
+	    -e '/src\/checksum\/power8/d' < filelist
 
 	echo 'src/os_win/os_dir.c'
 	echo 'src/os_win/os_dlopen.c'
@@ -67,7 +67,7 @@ win_filelist()
 	echo 'src/os_win/os_thread.c'
 	echo 'src/os_win/os_time.c'
 	echo 'src/os_win/os_vsnprintf.c'
-	echo 'src/os_win/os_yield.c') < filelist | sort > $t
+	echo 'src/os_win/os_yield.c') | sort > $t
 
 	cmp $t $f > /dev/null 2>&1 ||
 	     (echo "Building $f" && rm -f $f && cp $t $f)
