@@ -13,9 +13,6 @@ noinst_PROGRAMS += test_wt2246_col_append
 test_wt2535_insert_race_SOURCES = wt2535_insert_race/main.c
 noinst_PROGRAMS += test_wt2535_insert_race
 
-close_lock_test_SOURCES = close_lock_exercise/main.c
-noinst_PROGRAMS += close_lock_test
-
 # Run this during a "make check" smoke test.
 TESTS = $(noinst_PROGRAMS)
 LOG_COMPILER = $(TEST_WRAPPER)
