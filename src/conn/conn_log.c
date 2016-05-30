@@ -732,18 +732,21 @@ __log_server(void *arg)
 	WT_LOG *log;
 	WT_SESSION_IMPL *session;
 	uint64_t timediff;
-	bool did_work, locked, signalled;
+	bool did_work, locked;
 
 	session = arg;
 	conn = S2C(session);
 	log = conn->log;
-	locked = signalled = false;
+	locked = false;
 
 	/*
 	 * Set this to the number of milliseconds we want to run archive and
 	 * pre-allocation.  Start it so that we run on the first time through.
 	 */
 	timediff = WT_THOUSAND;
+
+	/* Start the clock to avoid uninitialized variable warnings. */
+	WT_ERR(__wt_epoch(session, &start));
 
 	/*
 	 * The log server thread does a variety of work.  It forces out any
@@ -768,55 +771,50 @@ __log_server(void *arg)
 		WT_ERR_BUSY_OK(__wt_log_force_write(session, 0, &did_work));
 
 		/*
-		 * We don't want to archive or pre-allocate files as often as
-		 * we want to force out log buffers.  Only do it once per second
-		 * or if the condition was signalled.
+		 * Heavyweight operations including pre-allocation and
+		 * archiving should only be performed once per second.
 		 */
-		if (timediff >= WT_THOUSAND || signalled) {
+		if (timediff < WT_THOUSAND)
+			goto wait;
 
-			/*
-			 * Perform log pre-allocation.
-			 */
-			if (conn->log_prealloc > 0) {
-				/*
-				 * Log file pre-allocation is disabled when a
-				 * hot backup cursor is open because we have
-				 * agreed not to rename or remove any files in
-				 * the database directory.
-				 */
-				WT_ERR(__wt_readlock(
-				    session, conn->hot_backup_lock));
-				locked = true;
-				if (!conn->hot_backup)
-					WT_ERR(__log_prealloc_once(session));
-				WT_ERR(__wt_readunlock(
-				    session, conn->hot_backup_lock));
-				locked = false;
-			}
+		/* Restart the clock. */
+		WT_ERR(__wt_epoch(session, &start));
 
+		/* Perform log pre-allocation. */
+		if (conn->log_prealloc > 0) {
 			/*
-			 * Perform the archive.
+			 * Log file pre-allocation is disabled when a
+			 * hot backup cursor is open because we have
+			 * agreed not to rename or remove any files in
+			 * the database directory.
 			 */
-			if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ARCHIVE)) {
-				if (__wt_try_writelock(
-				    session, log->log_archive_lock) == 0) {
-					ret = __log_archive_once(session, 0);
-					WT_TRET(__wt_writeunlock(
-					    session, log->log_archive_lock));
-					WT_ERR(ret);
-				} else
-					WT_ERR(
-					    __wt_verbose(session, WT_VERB_LOG,
-					    "log_archive: Blocked due to open "
-					    "log cursor holding archive lock"));
-			}
+			WT_ERR(__wt_readlock(
+			    session, conn->hot_backup_lock));
+			locked = true;
+			if (!conn->hot_backup)
+				WT_ERR(__log_prealloc_once(session));
+			WT_ERR(__wt_readunlock(
+			    session, conn->hot_backup_lock));
+			locked = false;
 		}
 
-		/* Wait until the next event. */
+		/* Perform archiving. */
+		if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ARCHIVE)) {
+			if (__wt_try_writelock(
+			    session, log->log_archive_lock) == 0) {
+				ret = __log_archive_once(session, 0);
+				WT_TRET(__wt_writeunlock(
+				    session, log->log_archive_lock));
+				WT_ERR(ret);
+			} else
+				WT_ERR(
+				    __wt_verbose(session, WT_VERB_LOG,
+				    "log_archive: Blocked due to open "
+				    "log cursor holding archive lock"));
+		}
 
-		WT_ERR(__wt_epoch(session, &start));
-		WT_ERR(__wt_cond_auto_wait_signal(session, conn->log_cond,
-		    did_work, &signalled));
+wait:		/* Wait until the next event. */
+		WT_ERR(__wt_cond_auto_wait(session, conn->log_cond, did_work));
 		WT_ERR(__wt_epoch(session, &now));
 		timediff = WT_TIMEDIFF_MS(now, start);
 	}
