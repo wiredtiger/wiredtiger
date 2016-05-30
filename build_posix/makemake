@@ -23,14 +23,16 @@ done
 # Write the rest of Make.base, up to SOURCES
 sed -n '/END SUBDIRS/,/BEGIN SOURCES/p' Make.base
 
+# Write the list of sources.
 echo
 echo "libwiredtiger_la_LDFLAGS = -release @VERSION@"
 echo "libwiredtiger_la_SOURCES ="
 sed -e '/^[a-z]/!d' < ../dist/filelist | while read file cond; do
 	if test -n "$cond"; then
 		cat <<END_CONDITIONAL
+# DO NOT indent the "libwiredtiger_la_SOURCES" lines, it breaks the build.
 if ${cond}
-	libwiredtiger_la_SOURCES += $file
+libwiredtiger_la_SOURCES += $file
 endif
 END_CONDITIONAL
 	else
