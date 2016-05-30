@@ -48,9 +48,6 @@ AM_CONDITIONAL([POWERPC_HOST], [test "$wt_powerpc" = "yes"])
 # determine what tag to use for that one .S file. If we catch that we are using
 # two different compilers for CC and CCAS and we are on a PowerPC system we
 # overload the libtool flags to provide CC by default.
-#if test "$CC" != "$CCAS"; then
-#	AM_LIBTOOLFLAGS+="--tag=CC"
-#fi
 if test "$wt_powerpc" = "yes" -a "$CC" != "$CCAS"; then
 	[AM_LIBTOOLFLAGS+="--tag=CC"]
 fi
