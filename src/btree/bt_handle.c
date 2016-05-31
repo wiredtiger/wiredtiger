@@ -699,7 +699,7 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
 	if (!F_ISSET(conn, WT_CONN_CACHE_POOL)) {
 		if ((cache_size = conn->cache_size) > 0) {
 			btree->maxmempage =
-			    WT_MIN(btree->maxmempage, cache_size / 4);
+			    WT_MIN(btree->maxmempage, cache_size / 10);
 			/* Use a lower bound of a single disk leaf page */
 			btree->maxmempage =
 			    WT_MAX(btree->maxmempage, btree->maxleafpage);
