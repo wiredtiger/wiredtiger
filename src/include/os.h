@@ -7,12 +7,17 @@
  */
 
 /*
- * System call macro to retry system/library calls on "expected" errors.
- * Three versions: one of which looks for a -1 return value on error and
- * usually expects errno to be set on failure, one of which looks for a
- * non-zero return value on error and usually expects errno to be set on
- * failure, one of which looks for a 0 return on success, and expects any
- * non-0 return to be an errno value.
+ * System call macros to retry system/library calls on "expected" errors,
+ * three versions.
+ *
+ * WT_SYSCALL_ERROR_VALUE
+ *	Expects a non-zero return of an errno value on error.
+ * WT_SYSCALL_NEGATIVE_ONE
+ *	Expects a -1 return with errno set on error (but checks and returns
+ *	WT_ERROR if errno is 0).
+ * WT_SYSCALL_NON_ZERO
+ *	Expects a non-zero return with errno set on error (but checks and
+ *	returns WT_ERROR if errno is 0).
  */
 #define	WT_SYSCALL_RETRY(error)						\
 		switch (error) {					\
@@ -28,6 +33,15 @@
 		default:						\
 			break;						\
 		}
+#define	WT_SYSCALL_ERROR_VALUE(call, ret) do {				\
+	int __retry;							\
+	for (__retry = 0; __retry < 10; ++__retry) {			\
+		if (((ret) = (call)) == 0)				\
+			break;						\
+		WT_SYSCALL_RETRY(ret);					\
+		break;							\
+	}								\
+} while (0)
 #define	WT_SYSCALL_NEGATIVE_ONE(call, ret) do {				\
 	int __retry;							\
 	for (__retry = 0; __retry < 10; ++__retry) {			\
@@ -62,15 +76,6 @@
 		 */							\
 		if (((ret) = __wt_errno()) == 0)			\
 			(ret) = WT_ERROR;				\
-		WT_SYSCALL_RETRY(ret);					\
-		break;							\
-	}								\
-} while (0)
-#define	WT_SYSCALL_ERROR_VALUE(call, ret) do {				\
-	int __retry;							\
-	for (__retry = 0; __retry < 10; ++__retry) {			\
-		if (((ret) = (call)) == 0)				\
-			break;						\
 		WT_SYSCALL_RETRY(ret);					\
 		break;							\
 	}								\
