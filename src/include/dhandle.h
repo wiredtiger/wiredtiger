@@ -43,6 +43,8 @@
  */
 struct __wt_data_handle {
 	WT_RWLOCK *rwlock;		/* Lock for shared/exclusive ops */
+
+	uint64_t name_bucket;		/* Name's hash bucket */
 	TAILQ_ENTRY(__wt_data_handle) q;
 	TAILQ_ENTRY(__wt_data_handle) hashq;
 
@@ -57,7 +59,6 @@ struct __wt_data_handle {
 	time_t	 timeofdeath;		/* Use count went to 0 */
 	WT_SESSION_IMPL *excl_session;	/* Session with exclusive use, if any */
 
-	uint64_t name_hash;		/* Hash of name */
 	const char *name;		/* Object name as a URI */
 	const char *checkpoint;		/* Checkpoint name (or NULL) */
 	const char **cfg;		/* Configuration information */
@@ -82,7 +83,8 @@ struct __wt_data_handle {
 #define	WT_DHANDLE_DISCARD	        0x02	/* Discard on release */
 #define	WT_DHANDLE_DISCARD_FORCE	0x04	/* Force discard on release */
 #define	WT_DHANDLE_EXCLUSIVE	        0x08	/* Need exclusive access */
-#define	WT_DHANDLE_LOCK_ONLY	        0x10	/* Handle only used as a lock */
-#define	WT_DHANDLE_OPEN		        0x20	/* Handle is open */
+#define	WT_DHANDLE_IS_METADATA	        0x10	/* Metadata handle */
+#define	WT_DHANDLE_LOCK_ONLY	        0x20	/* Handle only used as a lock */
+#define	WT_DHANDLE_OPEN		        0x40	/* Handle is open */
 	uint32_t flags;
 };

@@ -447,7 +447,8 @@ __schema_open_table(WT_SESSION_IMPL *session,
 	WT_ERR(__wt_calloc_one(session, &table));
 	table->name = tablename;
 	tablename = NULL;
-	table->name_hash = __wt_hash_city64(name, namelen);
+	table->name_bucket =
+	    __wt_hash_city64(name, namelen) % WT_HASH_ARRAY_SIZE;
 
 	WT_ERR(__wt_config_getones(session, tconfig, "columns", &cval));
 

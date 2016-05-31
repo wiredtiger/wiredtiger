@@ -32,12 +32,11 @@ __im_handle_search(WT_FILE_SYSTEM *file_system, const char *name)
 {
 	WT_FILE_HANDLE_INMEM *im_fh;
 	WT_FILE_SYSTEM_INMEM *im_fs;
-	uint64_t bucket, hash;
+	uint64_t bucket;
 
 	im_fs = (WT_FILE_SYSTEM_INMEM *)file_system;
 
-	hash = __wt_hash_city64(name, strlen(name));
-	bucket = hash % WT_HASH_ARRAY_SIZE;
+	bucket = __wt_hash_city64(name, strlen(name)) % WT_HASH_ARRAY_SIZE;
 	TAILQ_FOREACH(im_fh, &im_fs->fhhash[bucket], hashq)
 		if (strcmp(im_fh->iface.name, name) == 0)
 			break;
@@ -56,7 +55,6 @@ __im_handle_remove(WT_SESSION_IMPL *session,
 {
 	WT_FILE_HANDLE *fhp;
 	WT_FILE_SYSTEM_INMEM *im_fs;
-	uint64_t bucket;
 
 	im_fs = (WT_FILE_SYSTEM_INMEM *)file_system;
 
@@ -64,8 +62,7 @@ __im_handle_remove(WT_SESSION_IMPL *session,
 		WT_RET_MSG(session, EBUSY,
 		    "%s: file-remove", im_fh->iface.name);
 
-	bucket = im_fh->name_hash % WT_HASH_ARRAY_SIZE;
-	WT_FILE_HANDLE_REMOVE(im_fs, im_fh, bucket);
+	WT_FILE_HANDLE_REMOVE(im_fs, im_fh, im_fh->name_bucket);
 
 	/* Clean up private information. */
 	__wt_buf_free(session, &im_fh->buf);
@@ -237,7 +234,6 @@ __im_fs_rename(WT_FILE_SYSTEM *file_system,
 	WT_FILE_HANDLE_INMEM *im_fh;
 	WT_FILE_SYSTEM_INMEM *im_fs;
 	WT_SESSION_IMPL *session;
-	uint64_t bucket;
 	char *copy;
 
 	im_fs = (WT_FILE_SYSTEM_INMEM *)file_system;
@@ -251,11 +247,10 @@ __im_fs_rename(WT_FILE_SYSTEM *file_system,
 		__wt_free(session, im_fh->iface.name);
 		im_fh->iface.name = copy;
 
-		bucket = im_fh->name_hash % WT_HASH_ARRAY_SIZE;
-		WT_FILE_HANDLE_REMOVE(im_fs, im_fh, bucket);
-		im_fh->name_hash = __wt_hash_city64(to, strlen(to));
-		bucket = im_fh->name_hash % WT_HASH_ARRAY_SIZE;
-		WT_FILE_HANDLE_INSERT(im_fs, im_fh, bucket);
+		WT_FILE_HANDLE_REMOVE(im_fs, im_fh, im_fh->name_bucket);
+		im_fh->name_bucket =
+		    __wt_hash_city64(to, strlen(to)) % WT_HASH_ARRAY_SIZE;
+		WT_FILE_HANDLE_INSERT(im_fs, im_fh, im_fh->name_bucket);
 	}
 
 err:	__wt_spin_unlock(session, &im_fs->lock);
@@ -463,7 +458,6 @@ __im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	WT_FILE_HANDLE_INMEM *im_fh;
 	WT_FILE_SYSTEM_INMEM *im_fs;
 	WT_SESSION_IMPL *session;
-	uint64_t bucket, hash;
 
 	WT_UNUSED(file_type);
 	WT_UNUSED(flags);
@@ -503,13 +497,11 @@ __im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	WT_ERR(__wt_strdup(session, name, &file_handle->name));
 
 	/* Initialize private information. */
-	im_fh->ref = 1;
+	im_fh->name_bucket =
+	    __wt_hash_city64(name, strlen(name)) % WT_HASH_ARRAY_SIZE;
+	WT_FILE_HANDLE_INSERT(im_fs, im_fh, im_fh->name_bucket);
 	im_fh->off = 0;
-
-	hash = __wt_hash_city64(name, strlen(name));
-	bucket = hash % WT_HASH_ARRAY_SIZE;
-	im_fh->name_hash = hash;
-	WT_FILE_HANDLE_INSERT(im_fs, im_fh, bucket);
+	im_fh->ref = 1;
 
 	file_handle->close = __im_file_close;
 	file_handle->fh_read = __im_file_read;
