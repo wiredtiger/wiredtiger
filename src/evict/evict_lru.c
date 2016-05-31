@@ -197,9 +197,8 @@ __evict_thread_run(void *arg)
 			ret = __evict_server(session);
 			__wt_spin_unlock(session, &cache->evict_pass_lock);
 			WT_ERR(ret);
-		} else {
+		} else
 			WT_ERR(__evict_helper(session));
-		}
 	}
 
 	if (session == conn->evict_session)
@@ -343,7 +342,8 @@ __evict_workers_resize(WT_SESSION_IMPL *session)
 			++conn->evict_workers;
 			F_SET(&workers[i], WT_EVICT_WORKER_RUN);
 			WT_ERR(__wt_thread_create(workers[i].session,
-			    &workers[i].tid, __evict_thread_run, &workers[i]));
+			    &workers[i].tid, __evict_thread_run,
+			    &workers[i].session));
 		}
 	}
 
@@ -641,7 +641,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 			worker = &conn->evict_workctx[conn->evict_workers++];
 			F_SET(worker, WT_EVICT_WORKER_RUN);
 			WT_RET(__wt_thread_create(session,
-			    &worker->tid, __evict_thread_run, worker));
+			    &worker->tid, __evict_thread_run, worker->session));
 		}
 
 		WT_RET(__wt_verbose(session, WT_VERB_EVICTSERVER,
