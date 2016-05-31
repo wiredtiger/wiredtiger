@@ -2141,6 +2141,15 @@ __wt_log_flush(WT_SESSION_IMPL *session, uint32_t flags)
 	last_lsn = log->alloc_lsn;
 
 	/*
+	 * If the last write caused a switch to a new log file, we should only
+	 * wait for the last write to be flushed.  Otherwise, if the workload
+	 * is single-threaded we could wait here forever because the write LSN
+	 * doesn't switch into the new file until it contains a record.
+	 */
+	if (last_lsn.l.offset == WT_LOG_FIRST_RECORD)
+		last_lsn = log->log_close_lsn;
+
+	/*
 	 * Wait until all current outstanding writes have been written
 	 * to the file system.
 	 */
