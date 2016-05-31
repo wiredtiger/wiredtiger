@@ -2137,7 +2137,7 @@ __wt_log_flush(WT_SESSION_IMPL *session, uint32_t flags)
 	 * We need to flush out the current slot first to get the real
 	 * end of log LSN in log->alloc_lsn.
 	 */
-	WT_RET(__wt_log_flush_lsn(session, &lsn, 0));
+	WT_RET(__wt_log_flush_lsn(session, &lsn, false));
 	last_lsn = log->alloc_lsn;
 
 	/*
