@@ -16,7 +16,7 @@ static int  __evict_lru_pages(WT_SESSION_IMPL *, bool);
 static int  __evict_lru_walk(WT_SESSION_IMPL *);
 static int  __evict_page(WT_SESSION_IMPL *, bool);
 static int  __evict_pass(WT_SESSION_IMPL *);
-static int  __evict_server(WT_SESSION_IMPL *);
+static int  __evict_server(WT_SESSION_IMPL *, bool *);
 static int  __evict_walk(WT_SESSION_IMPL *, uint32_t);
 static int  __evict_walk_file(WT_SESSION_IMPL *, uint32_t, u_int *);
 
@@ -181,6 +181,7 @@ __evict_thread_run(void *arg)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	bool did_work;
 
 	session = arg;
 	conn = S2C(session);
@@ -194,9 +195,16 @@ __evict_thread_run(void *arg)
 	while (F_ISSET(conn, WT_CONN_EVICTION_RUN)) {
 		if (conn->evict_tid_set &&
 		    __wt_spin_trylock(session, &cache->evict_pass_lock) == 0) {
-			ret = __evict_server(session);
+			ret = __evict_server(session, &did_work);
 			__wt_spin_unlock(session, &cache->evict_pass_lock);
 			WT_ERR(ret);
+			WT_RET(__wt_verbose(
+			    session, WT_VERB_EVICTSERVER, "sleeping"));
+			/* Don't rely on signals: check periodically. */
+			WT_RET(__wt_cond_auto_wait(
+			    session, cache->evict_cond, did_work));
+			WT_RET(__wt_verbose(
+			    session, WT_VERB_EVICTSERVER, "waking"));
 		} else
 			WT_ERR(__evict_helper(session));
 	}
@@ -221,7 +229,7 @@ err:		WT_PANIC_MSG(session, ret, "cache eviction thread error");
  *	Thread to evict pages from the cache.
  */
 static int
-__evict_server(WT_SESSION_IMPL *session)
+__evict_server(WT_SESSION_IMPL *session, bool *did_work)
 {
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
@@ -234,6 +242,8 @@ __evict_server(WT_SESSION_IMPL *session)
 
 	conn = S2C(session);
 	cache = conn->cache;
+	WT_ASSERT(session, did_work != NULL);
+	*did_work = false;
 
 	/* Evict pages from the cache as needed. */
 	WT_RET(__evict_pass(session));
@@ -285,13 +295,7 @@ __evict_server(WT_SESSION_IMPL *session)
 		}
 #endif
 	}
-
-	WT_RET(__wt_verbose(session, WT_VERB_EVICTSERVER, "sleeping"));
-	/* Don't rely on signals: check periodically. */
-	WT_RET(__wt_cond_auto_wait(
-	    session, cache->evict_cond, pages_evicted != 0));
-	WT_RET(__wt_verbose(session, WT_VERB_EVICTSERVER, "waking"));
-
+	*did_work = pages_evicted != 0;
 	return (0);
 }
 
