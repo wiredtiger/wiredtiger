@@ -53,7 +53,7 @@ __posix_sync(
 	 * "This is currently implemented on HFS, MS-DOS (FAT), and Universal
 	 * Disk Format (UDF) file systems."
 	 */
-	WT_SYSCALL_RETRY(fcntl(fd, F_FULLFSYNC, 0), ret);
+	WT_SYSCALL_NEGATIVE_ONE(fcntl(fd, F_FULLFSYNC, 0), ret);
 	if (ret == 0)
 		return (0);
 	/*
@@ -62,12 +62,12 @@ __posix_sync(
 	 */
 #endif
 #if defined(HAVE_FDATASYNC)
-	WT_SYSCALL_RETRY(fdatasync(fd), ret);
+	WT_SYSCALL_NEGATIVE_ONE(fdatasync(fd), ret);
 	if (ret == 0)
 		return (0);
 	WT_RET_MSG(session, ret, "%s: %s: fdatasync", name, func);
 #else
-	WT_SYSCALL_RETRY(fsync(fd), ret);
+	WT_SYSCALL_NEGATIVE_ONE(fsync(fd), ret);
 	if (ret == 0)
 		return (0);
 	WT_RET_MSG(session, ret, "%s: %s: fsync", name, func);
@@ -91,14 +91,14 @@ __posix_directory_sync(
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	WT_SYSCALL_RETRY((
-	    (fd = open(path, O_RDONLY, 0444)) == -1 ? 1 : 0), ret);
+	WT_SYSCALL_NEGATIVE_ONE((
+	    (fd = open(path, O_RDONLY, 0444)) == -1 ? -1 : 0), ret);
 	if (ret != 0)
 		WT_RET_MSG(session, ret, "%s: directory-sync: open", path);
 
 	ret = __posix_sync(session, fd, path, "directory-sync");
 
-	WT_SYSCALL_RETRY(close(fd), tret);
+	WT_SYSCALL_NEGATIVE_ONE(close(fd), tret);
 	if (tret != 0) {
 		__wt_err(session, tret, "%s: directory-sync: close", path);
 		if (ret == 0)
@@ -124,7 +124,7 @@ __posix_fs_exist(WT_FILE_SYSTEM *file_system,
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	WT_SYSCALL_RETRY(stat(name, &sb), ret);
+	WT_SYSCALL_NEGATIVE_ONE(stat(name, &sb), ret);
 	if (ret == 0) {
 		*existp = true;
 		return (0);
@@ -151,7 +151,14 @@ __posix_fs_remove(
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	WT_SYSCALL_RETRY(remove(name), ret);
+	/*
+	 * Use the unlink system call instead of remove. ISO C doesn't mandate
+	 * remove set errno, while POSIX 1003.1 does mandate unlink set errno.
+	 * (To be fair, POSIX extends C to require errno from the remove call,
+	 * but on systems with both where we're not doing any special checking
+	 * for standards compliance, using unlink may be marginally safer.)
+	 */
+	WT_SYSCALL_NEGATIVE_ONE(unlink(name), ret);
 	if (ret == 0)
 		return (0);
 	WT_RET_MSG(session, ret, "%s: file-remove: remove", name);
@@ -172,7 +179,7 @@ __posix_fs_rename(WT_FILE_SYSTEM *file_system,
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	WT_SYSCALL_RETRY(rename(from, to), ret);
+	WT_SYSCALL_NON_ZERO(rename(from, to), ret);
 	if (ret == 0)
 		return (0);
 	WT_RET_MSG(session, ret, "%s to %s: file-rename: rename", from, to);
@@ -194,7 +201,7 @@ __posix_fs_size(WT_FILE_SYSTEM *file_system,
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	WT_SYSCALL_RETRY(stat(name, &sb), ret);
+	WT_SYSCALL_NEGATIVE_ONE(stat(name, &sb), ret);
 	if (ret == 0) {
 		*sizep = sb.st_size;
 		return (0);
@@ -218,7 +225,8 @@ __posix_file_advise(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
 	session = (WT_SESSION_IMPL *)wt_session;
 	pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-	WT_SYSCALL_RETRY(posix_fadvise(pfh->fd, offset, len, advice), ret);
+	WT_SYSCALL_ERROR_VALUE(
+	    posix_fadvise(pfh->fd, offset, len, advice), ret);
 	if (ret == 0)
 		return (0);
 
@@ -254,7 +262,7 @@ __posix_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 
 	/* Close the file handle. */
 	if (pfh->fd != -1) {
-		WT_SYSCALL_RETRY(close(pfh->fd), ret);
+		WT_SYSCALL_NEGATIVE_ONE(close(pfh->fd), ret);
 		if (ret != 0)
 			__wt_err(session, ret,
 			    "%s: handle-close: close", file_handle->name);
@@ -295,7 +303,7 @@ __posix_file_lock(
 	fl.l_type = lock ? F_WRLCK : F_UNLCK;
 	fl.l_whence = SEEK_SET;
 
-	WT_SYSCALL_RETRY(fcntl(pfh->fd, F_SETLK, &fl), ret);
+	WT_SYSCALL_NEGATIVE_ONE(fcntl(pfh->fd, F_SETLK, &fl), ret);
 	if (ret == 0)
 		return (0);
 	WT_RET_MSG(session, ret, "%s: handle-lock: fcntl", file_handle->name);
@@ -355,7 +363,7 @@ __posix_file_size(
 	session = (WT_SESSION_IMPL *)wt_session;
 	pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-	WT_SYSCALL_RETRY(fstat(pfh->fd, &sb), ret);
+	WT_SYSCALL_NEGATIVE_ONE(fstat(pfh->fd, &sb), ret);
 	if (ret == 0) {
 		*sizep = sb.st_size;
 		return (0);
@@ -395,7 +403,7 @@ __posix_file_sync_nowait(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 	session = (WT_SESSION_IMPL *)wt_session;
 	pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-	WT_SYSCALL_RETRY(sync_file_range(pfh->fd,
+	WT_SYSCALL_NEGATIVE_ONE(sync_file_range(pfh->fd,
 	    (off64_t)0, (off64_t)0, SYNC_FILE_RANGE_WRITE), ret);
 	if (ret == 0)
 		return (0);
@@ -419,7 +427,7 @@ __posix_file_truncate(
 	session = (WT_SESSION_IMPL *)wt_session;
 	pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-	WT_SYSCALL_RETRY(ftruncate(pfh->fd, len), ret);
+	WT_SYSCALL_NEGATIVE_ONE(ftruncate(pfh->fd, len), ret);
 	if (ret == 0)
 		return (0);
 	WT_RET_MSG(session, ret,
@@ -532,8 +540,8 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 		 */
 		f |= O_CLOEXEC;
 #endif
-		WT_SYSCALL_RETRY((
-		    (pfh->fd = open(name, f, 0444)) == -1 ? 1 : 0), ret);
+		WT_SYSCALL_NEGATIVE_ONE((
+		    (pfh->fd = open(name, f, 0444)) == -1 ? -1 : 0), ret);
 		if (ret != 0)
 			WT_ERR_MSG(session, ret, "%s: handle-open: open", name);
 		WT_ERR(__posix_open_file_cloexec(session, pfh->fd, name));
@@ -587,7 +595,8 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 #endif
 	}
 
-	WT_SYSCALL_RETRY(((pfh->fd = open(name, f, mode)) == -1 ? 1 : 0), ret);
+	WT_SYSCALL_NEGATIVE_ONE(
+	    ((pfh->fd = open(name, f, mode)) == -1 ? -1 : 0), ret);
 	if (ret != 0)
 		WT_ERR_MSG(session, ret,
 		    pfh->direct_io ?
@@ -603,7 +612,7 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	 * interesting.
 	 */
 	if (!pfh->direct_io && file_type == WT_OPEN_FILE_TYPE_DATA) {
-		WT_SYSCALL_RETRY(
+		WT_SYSCALL_ERROR_VALUE(
 		    posix_fadvise(pfh->fd, 0, 0, POSIX_FADV_RANDOM), ret);
 		if (ret != 0)
 			WT_ERR_MSG(session, ret,
