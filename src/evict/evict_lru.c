@@ -198,12 +198,12 @@ __evict_thread_run(void *arg)
 			ret = __evict_server(session, &did_work);
 			__wt_spin_unlock(session, &cache->evict_pass_lock);
 			WT_ERR(ret);
-			WT_RET(__wt_verbose(
+			WT_ERR(__wt_verbose(
 			    session, WT_VERB_EVICTSERVER, "sleeping"));
 			/* Don't rely on signals: check periodically. */
-			WT_RET(__wt_cond_auto_wait(
+			WT_ERR(__wt_cond_auto_wait(
 			    session, cache->evict_cond, did_work));
-			WT_RET(__wt_verbose(
+			WT_ERR(__wt_verbose(
 			    session, WT_VERB_EVICTSERVER, "waking"));
 		} else
 			WT_ERR(__evict_helper(session));
