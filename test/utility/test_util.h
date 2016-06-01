@@ -75,13 +75,23 @@ typedef struct {
 } TEST_OPTS;
 
 /*
+ * testutil_assert --
+ *	Complain and quit if something isn't true.
+ */
+#define	testutil_assert(a) do {						\
+	if (!(a))							\
+		testutil_die(0, "%s/%d: %s", __func__, __LINE__, #a);	\
+} while (0)
+
+/*
  * testutil_check --
  *	Complain and quit if a function call fails.
  */
 #define	testutil_check(call) do {					\
 	int __r;							\
 	if ((__r = (call)) != 0)					\
-		testutil_die(__r, "%s/%d: %s", __func__, __LINE__, #call);\
+		testutil_die(						\
+		    __r, "%s/%d: %s", __func__, __LINE__, #call);	\
 } while (0)
 
 /*
@@ -111,7 +121,7 @@ void *dstrdup(const void *);
 void  testutil_clean_work_dir(char *);
 void  testutil_cleanup(TEST_OPTS *);
 void  testutil_make_work_dir(char *);
-int   testutil_parse_opts(int, char *[], TEST_OPTS *);
+int   testutil_parse_opts(int, char * const *, TEST_OPTS *);
 void  testutil_work_dir_from_path(char *, size_t, const char *);
 void *thread_append(void *);
 void *thread_insert_append(void *);
