@@ -104,7 +104,6 @@ flags = {
     ],
     'session' : [
         'SESSION_CAN_WAIT',
-        'SESSION_CLEAR_EVICT_WALK',
         'SESSION_INTERNAL',
         'SESSION_LOCK_NO_WAIT',
         'SESSION_LOCKED_CHECKPOINT',

@@ -9,7 +9,6 @@
 #include "wt_internal.h"
 
 static int  __evict_clear_all_walks(WT_SESSION_IMPL *);
-static int  __evict_clear_walks(WT_SESSION_IMPL *);
 static int  __evict_helper(WT_SESSION_IMPL *);
 static int  WT_CDECL __evict_lru_cmp(const void *, const void *);
 static int  __evict_lru_pages(WT_SESSION_IMPL *, bool);
@@ -237,13 +236,14 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 #ifdef HAVE_DIAGNOSTIC
 	struct timespec now;
 #endif
-	uint64_t pages_evicted = 0;
+	uint64_t pages_evicted;
 	u_int spins;
 
 	conn = S2C(session);
 	cache = conn->cache;
 	WT_ASSERT(session, did_work != NULL);
 	*did_work = false;
+	pages_evicted = 0;
 
 	/* Evict pages from the cache as needed. */
 	WT_RET(__evict_pass(session));
@@ -594,12 +594,8 @@ __evict_pass(WT_SESSION_IMPL *session)
 		 * If there is a request to clear eviction walks, do that now,
 		 * before checking if the cache is full.
 		 */
-		if (F_ISSET(cache, WT_CACHE_CLEAR_WALKS)) {
-			F_CLR(cache, WT_CACHE_CLEAR_WALKS);
-			WT_RET(__evict_clear_walks(session));
-			WT_RET(__wt_cond_signal(
-			    session, cache->evict_waiter_cond));
-		}
+		if (F_ISSET(cache, WT_CACHE_CLEAR_WALKS))
+			break;
 
 		/*
 		 * Increment the shared read generation. Do this occasionally
@@ -728,30 +724,6 @@ __evict_clear_walk(WT_SESSION_IMPL *session)
 }
 
 /*
- * __evict_clear_walks --
- *	Clear the eviction walk points for any file a session is waiting on.
- */
-static int
-__evict_clear_walks(WT_SESSION_IMPL *session)
-{
-	WT_CONNECTION_IMPL *conn;
-	WT_DECL_RET;
-	WT_SESSION_IMPL *s;
-	u_int i, session_cnt;
-
-	conn = S2C(session);
-
-	WT_ORDERED_READ(session_cnt, conn->session_cnt);
-	for (s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
-		if (!s->active || !F_ISSET(s, WT_SESSION_CLEAR_EVICT_WALK))
-			continue;
-		WT_WITH_DHANDLE(
-		    session, s->dhandle, WT_TRET(__evict_clear_walk(session)));
-	}
-	return (ret);
-}
-
-/*
  * __evict_clear_all_walks --
  *	Clear the eviction walk points for all files a session is waiting on.
  */
@@ -768,39 +740,6 @@ __evict_clear_all_walks(WT_SESSION_IMPL *session)
 		if (WT_PREFIX_MATCH(dhandle->name, "file:"))
 			WT_WITH_DHANDLE(session,
 			    dhandle, WT_TRET(__evict_clear_walk(session)));
-	return (ret);
-}
-
-/*
- * __evict_request_clear_walk --
- *	Request that the eviction server clear the tree's current eviction
- *	point.
- */
-static int
-__evict_request_clear_walk(WT_SESSION_IMPL *session)
-{
-	WT_BTREE *btree;
-	WT_CACHE *cache;
-	WT_DECL_RET;
-
-	btree = S2BT(session);
-	cache = S2C(session)->cache;
-
-	F_SET(session, WT_SESSION_CLEAR_EVICT_WALK);
-
-	while (ret == 0 && (btree->evict_ref != NULL ||
-	    cache->evict_file_next == session->dhandle)) {
-		F_SET(cache, WT_CACHE_CLEAR_WALKS);
-		ret = __wt_cond_wait(
-		    session, cache->evict_waiter_cond, 100000);
-	}
-
-	F_CLR(session, WT_SESSION_CLEAR_EVICT_WALK);
-
-	/* An error is unexpected - flag the failure. */
-	if (ret != 0)
-		__wt_err(session, ret, "Failed to clear eviction walk point");
-
 	return (ret);
 }
 
@@ -841,10 +780,15 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
 	 * this point.
 	 */
 	F_SET(btree, WT_BTREE_NO_EVICTION);
+	F_SET(cache, WT_CACHE_CLEAR_WALKS);
 	WT_FULL_BARRIER();
 
 	/* Clear any existing LRU eviction walk for the file. */
-	WT_ERR(__evict_request_clear_walk(session));
+	__wt_spin_lock(session, &cache->evict_pass_lock);
+	ret = __evict_clear_walk(session);
+	__wt_spin_unlock(session, &cache->evict_pass_lock);
+	F_CLR(cache, WT_CACHE_CLEAR_WALKS);
+	WT_ERR(ret);
 
 	/*
 	 * The eviction candidate list might reference pages from the file,
@@ -1082,8 +1026,8 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 	__wt_spin_unlock(session, &cache->evict_queue_lock);
 
 	/*
-	 * The eviction server thread doesn't do any actual eviction if there
-	 * are multiple eviction workers running.
+	 * Signal any application or helper threads that may be waiting
+	 * to help with eviction.
 	 */
 	WT_RET(__wt_cond_signal(session, cache->evict_waiter_cond));
 
