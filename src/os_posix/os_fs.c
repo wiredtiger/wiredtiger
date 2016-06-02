@@ -98,7 +98,7 @@ __posix_directory_sync(
 
 	ret = __posix_sync(session, fd, path, "directory-sync");
 
-	WT_SYSCALL_RETRY(close(fd), tret);
+	WT_SYSCALL(close(fd), tret);
 	if (tret != 0) {
 		__wt_err(session, tret, "%s: directory-sync: close", path);
 		if (ret == 0)
