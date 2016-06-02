@@ -1104,7 +1104,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 	WT_BTREE *btree;
 	WT_PAGE *page;
 	WT_PAGE_MODIFY *mod;
-	bool modified;
+	bool agg, modified;
 
 	if (inmem_splitp != NULL)
 		*inmem_splitp = false;
@@ -1112,6 +1112,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 	btree = S2BT(session);
 	page = ref->page;
 	mod = page->modify;
+	agg = FLD_ISSET(S2C(session)->cache->state, WT_EVICT_PASS_AGGRESSIVE);
 
 	/* Pages that have never been modified can always be evicted. */
 	if (mod == NULL)
@@ -1140,6 +1141,11 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 	if (btree->checkpointing != WT_CKPT_OFF && modified) {
 		WT_STAT_FAST_CONN_INCR(session, cache_eviction_checkpoint);
 		WT_STAT_FAST_DATA_INCR(session, cache_eviction_checkpoint);
+		if (agg)
+			(void)__wt_verbose(session,
+			    WT_VERB_EVICTSERVER, "page_can_evict:"
+			    " page %p checkpointing file: %s",
+			    page, session->dhandle->name);
 		return (false);
 	}
 
@@ -1150,8 +1156,14 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 	 * which will corrupt the checkpoint's block management.
 	 */
 	if (btree->checkpointing != WT_CKPT_OFF &&
-	    F_ISSET_ATOMIC(ref->home, WT_PAGE_OVERFLOW_KEYS))
+	    F_ISSET_ATOMIC(ref->home, WT_PAGE_OVERFLOW_KEYS)) {
+		if (agg)
+			(void)__wt_verbose(session,
+			    WT_VERB_EVICTSERVER, "page_can_evict:"
+			    " page %p checkpointing overflow file: %s",
+			    page, session->dhandle->name);
 		return (false);
+	}
 
 	/*
 	 * If a split created new internal pages, those newly created internal
