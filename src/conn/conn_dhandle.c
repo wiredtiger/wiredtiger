@@ -21,6 +21,7 @@ __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
 	__wt_free(session, dhandle->name);
 	__wt_free(session, dhandle->checkpoint);
 	__wt_free(session, dhandle->handle);
+	__wt_spin_destroy(session, &dhandle->close_lock);
 	__wt_overwrite_and_free(session, dhandle);
 
 	return (ret);
@@ -38,6 +39,9 @@ __conn_dhandle_alloc(WT_SESSION_IMPL *session,
 	WT_BTREE *btree;
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
+	uint64_t bucket;
+
+	*dhandlep = NULL;
 
 	WT_RET(__wt_calloc_one(session, &dhandle));
 
@@ -51,7 +55,20 @@ __conn_dhandle_alloc(WT_SESSION_IMPL *session,
 	dhandle->handle = btree;
 	btree->dhandle = dhandle;
 
+	WT_ERR(__wt_spin_init(
+	    session, &dhandle->close_lock, "data handle close"));
+
 	__wt_stat_dsrc_init(dhandle);
+
+	if (strcmp(uri, WT_METAFILE_URI) == 0)
+		F_SET(dhandle, WT_DHANDLE_IS_METADATA);
+
+	/*
+	 * Prepend the handle to the connection list, assuming we're likely to
+	 * need new files again soon, until they are cached by all sessions.
+	 */
+	bucket = dhandle->name_hash % WT_HASH_ARRAY_SIZE;
+	WT_CONN_DHANDLE_INSERT(S2C(session), dhandle, bucket);
 
 	*dhandlep = dhandle;
 	return (0);
@@ -102,14 +119,6 @@ __wt_conn_dhandle_find(
 
 	WT_RET(__conn_dhandle_alloc(session, uri, checkpoint, &dhandle));
 
-	/*
-	 * Prepend the handle to the connection list, assuming we're likely to
-	 * need new files again soon, until they are cached by all sessions.
-	 * Find the right hash bucket to insert into as well.
-	 */
-	bucket = dhandle->name_hash % WT_HASH_ARRAY_SIZE;
-	WT_CONN_DHANDLE_INSERT(conn, dhandle, bucket);
-
 	session->dhandle = dhandle;
 	return (0);
 }
@@ -154,8 +163,10 @@ __wt_conn_btree_sync_and_close(WT_SESSION_IMPL *session, bool final, bool force)
 	/*
 	 * We may not be holding the schema lock, and threads may be walking
 	 * the list of open handles (for example, checkpoint).  Acquire the
-	 * handle's close lock.
+	 * handle's close lock. We don't have the sweep server acquire the
+	 * handle's rwlock so we have to prevent races through the close code.
 	 */
+	__wt_spin_lock(session, &dhandle->close_lock);
 
 	/*
 	 * The close can fail if an update cannot be written, return the EBUSY
@@ -195,7 +206,9 @@ __wt_conn_btree_sync_and_close(WT_SESSION_IMPL *session, bool final, bool force)
 	    F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
 	    !F_ISSET(dhandle, WT_DHANDLE_OPEN));
 
-err:	if (no_schema_lock)
+err:	__wt_spin_unlock(session, &dhandle->close_lock);
+
+	if (no_schema_lock)
 		F_CLR(session, WT_SESSION_NO_SCHEMA_LOCK);
 
 	__wt_evict_file_exclusive_off(session);
