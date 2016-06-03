@@ -194,7 +194,13 @@ __evict_thread_run(void *arg)
 	while (F_ISSET(conn, WT_CONN_EVICTION_RUN)) {
 		if (conn->evict_tid_set &&
 		    __wt_spin_trylock(session, &cache->evict_pass_lock) == 0) {
+			/*
+			 * Cannot use WT_WITH_PASS_LOCK because this is a try
+			 * lock.  Fix when that is supported.
+			 */
+			F_SET(session, WT_SESSION_LOCKED_PASS);
 			ret = __evict_server(session, &did_work);
+			F_CLR(session, WT_SESSION_LOCKED_PASS);
 			__wt_spin_unlock(session, &cache->evict_pass_lock);
 			WT_ERR(ret);
 			WT_ERR(__wt_verbose(
@@ -258,7 +264,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 	if (!F_ISSET(cache, WT_CACHE_STUCK)) {
 		for (spins = 0; (ret = __wt_spin_trylock(
 		    session, &conn->dhandle_lock)) == EBUSY &&
-		    !F_ISSET(cache, WT_CACHE_CLEAR_WALKS); spins++) {
+		    !F_ISSET(cache, WT_CACHE_PASS_INTERRUPT); spins++) {
 			if (spins < WT_THOUSAND)
 				__wt_yield();
 			else
@@ -594,7 +600,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 		 * If there is a request to clear eviction walks, do that now,
 		 * before checking if the cache is full.
 		 */
-		if (F_ISSET(cache, WT_CACHE_CLEAR_WALKS))
+		if (F_ISSET(cache, WT_CACHE_PASS_INTERRUPT))
 			break;
 
 		/*
@@ -780,14 +786,13 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
 	 * this point.
 	 */
 	F_SET(btree, WT_BTREE_NO_EVICTION);
-	F_SET(cache, WT_CACHE_CLEAR_WALKS);
+	F_SET(cache, WT_CACHE_PASS_INTERRUPT);
 	WT_FULL_BARRIER();
 
 	/* Clear any existing LRU eviction walk for the file. */
-	__wt_spin_lock(session, &cache->evict_pass_lock);
-	ret = __evict_clear_walk(session);
-	__wt_spin_unlock(session, &cache->evict_pass_lock);
-	F_CLR(cache, WT_CACHE_CLEAR_WALKS);
+	WT_WITH_PASS_LOCK(session, ret,
+	    ret = __evict_clear_walk(session));
+	F_CLR(cache, WT_CACHE_PASS_INTERRUPT);
 	WT_ERR(ret);
 
 	/*
@@ -1071,7 +1076,7 @@ retry:	while (slot < max_entries && ret == 0) {
 		 * If another thread is waiting on the eviction server to clear
 		 * the walk point in a tree, give up.
 		 */
-		if (F_ISSET(cache, WT_CACHE_CLEAR_WALKS))
+		if (F_ISSET(cache, WT_CACHE_PASS_INTERRUPT))
 			break;
 
 		/*
@@ -1081,7 +1086,7 @@ retry:	while (slot < max_entries && ret == 0) {
 		if (!dhandle_locked) {
 			for (spins = 0; (ret = __wt_spin_trylock(
 			    session, &conn->dhandle_lock)) == EBUSY &&
-			    !F_ISSET(cache, WT_CACHE_CLEAR_WALKS);
+			    !F_ISSET(cache, WT_CACHE_PASS_INTERRUPT);
 			    spins++) {
 				if (spins < WT_THOUSAND)
 					__wt_yield();
@@ -1207,7 +1212,7 @@ retry:	while (slot < max_entries && ret == 0) {
 	 * Try two passes through all the files, give up when we have some
 	 * candidates and we aren't finding more.
 	 */
-	if (!F_ISSET(cache, WT_CACHE_CLEAR_WALKS) && ret == 0 &&
+	if (!F_ISSET(cache, WT_CACHE_PASS_INTERRUPT) && ret == 0 &&
 	    slot < max_entries && (retries < 2 ||
 	    (retries < 10 &&
 	    !FLD_ISSET(cache->state, WT_EVICT_PASS_WOULD_BLOCK) &&
