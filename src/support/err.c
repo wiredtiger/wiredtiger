@@ -469,6 +469,9 @@ void
 __wt_assert(WT_SESSION_IMPL *session,
     int error, const char *file_name, int line_number, const char *fmt, ...)
     WT_GCC_FUNC_ATTRIBUTE((format (printf, 5, 6)))
+#ifdef HAVE_DIAGNOSTIC
+    WT_GCC_FUNC_ATTRIBUTE((noreturn))
+#endif
 {
 	va_list ap;
 

@@ -50,7 +50,7 @@ static const char * const uri = "table:main";
 #define	K_SIZE	16
 #define	V_SIZE	256
 
-static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((__noreturn__));
+static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
 usage(void)
 {
@@ -62,7 +62,7 @@ usage(void)
  * Child process creates the database and table, and then writes data into
  * the table until it is killed by the parent.
  */
-static void fill_db(void) WT_GCC_FUNC_DECL_ATTRIBUTE((__noreturn__));
+static void fill_db(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
 fill_db(void)
 {
