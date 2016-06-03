@@ -274,6 +274,8 @@ err:	/* On error, clear any left-over tree walk. */
 int
 __wt_cache_op(WT_SESSION_IMPL *session, WT_CACHE_OP op)
 {
+	WT_DECL_RET;
+
 	switch (op) {
 	case WT_SYNC_CHECKPOINT:
 	case WT_SYNC_CLOSE:
@@ -293,9 +295,12 @@ __wt_cache_op(WT_SESSION_IMPL *session, WT_CACHE_OP op)
 	switch (op) {
 	case WT_SYNC_CHECKPOINT:
 	case WT_SYNC_WRITE_LEAVES:
-		return (__sync_file(session, op));
+		ret = __sync_file(session, op);
+		break;
 	case WT_SYNC_CLOSE:
 	case WT_SYNC_DISCARD:
-		return (__wt_evict_file(session, op));
+		ret = __wt_evict_file(session, op);
+		break;
 	}
+	return (ret);
 }

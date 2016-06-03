@@ -152,6 +152,7 @@ __wt_evict_server_wake(WT_SESSION_IMPL *session)
 	conn = S2C(session);
 	cache = conn->cache;
 
+#ifdef HAVE_VERBOSE
 	if (WT_VERBOSE_ISSET(session, WT_VERB_EVICTSERVER)) {
 		uint64_t bytes_inuse, bytes_max;
 
@@ -165,6 +166,7 @@ __wt_evict_server_wake(WT_SESSION_IMPL *session)
 		    bytes_inuse <= bytes_max ? "<=" : ">",
 		    bytes_max / WT_MEGABYTE));
 	}
+#endif
 
 	return (__wt_cond_auto_signal(session, cache->evict_cond));
 }
