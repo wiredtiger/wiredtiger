@@ -65,7 +65,8 @@ static size_t lengths[] = {
     0
 };
 
-static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+static void usage(void)
+    WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
 usage(void)
 {

@@ -20,7 +20,7 @@ __schema_add_table(WT_SESSION_IMPL *session,
 	WT_TABLE *table;
 	uint64_t bucket;
 
-	table = NULL;				/* -Wconditional-uninitialized */
+	table = NULL;			/* -Wconditional-uninitialized */
 
 	/* Make sure the metadata is open before getting other locks. */
 	WT_RET(__wt_metadata_cursor(session, NULL));

@@ -83,7 +83,8 @@ handle_wiredtiger_message(
 {
 	/* Cast the handler back to our custom handler. */
 	printf("app id %s, thread context %p, message %s\n",
-	    ((CUSTOM_EVENT_HANDLER *)handler)->app_id, (void *)session, message);
+	    ((CUSTOM_EVENT_HANDLER *)handler)->app_id,
+	    (void *)session, message);
 
 	return (0);
 }

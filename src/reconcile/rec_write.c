@@ -1041,7 +1041,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	bool append_origv, skipped;
 
 	*updp = NULL;
-	append = NULL;				/* -Wconditional-uninitialized */
+	append = NULL;			/* -Wconditional-uninitialized */
 
 	btree = S2BT(session);
 	page = r->page;
@@ -3530,7 +3530,7 @@ __wt_bulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 	r = cbulk->reconcile;
 	r->is_bulk_load = true;
 
-	recno = WT_RECNO_OOB;			/* -Werror=maybe-uninitialized */
+	recno = WT_RECNO_OOB;		/* -Werror=maybe-uninitialized */
 	switch (btree->type) {
 	case BTREE_COL_FIX:
 	case BTREE_COL_VAR:

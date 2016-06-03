@@ -663,7 +663,8 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
 	}
 
 	__dmsg(ds, ": %s\n", __wt_page_type_string(page->type));
-	__dmsg(ds, "\t" "disk %p, entries %" PRIu32, (void *)page->dsk, entries);
+	__dmsg(ds,
+	    "\t" "disk %p, entries %" PRIu32, (void *)page->dsk, entries);
 	__dmsg(ds, ", %s", __wt_page_is_modified(page) ? "dirty" : "clean");
 	__dmsg(ds, ", %s", __wt_fair_islocked(
 	    session, &page->page_lock) ? "locked" : "unlocked");

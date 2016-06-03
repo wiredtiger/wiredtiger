@@ -55,7 +55,8 @@ static const char * const uri = "table:main";
 #define	MAX_KV		100
 #define	MAX_VAL		128
 
-static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+static void usage(void)
+    WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
 usage(void)
 {
