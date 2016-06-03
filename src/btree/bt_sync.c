@@ -188,7 +188,8 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 		break;
 	case WT_SYNC_CLOSE:
 	case WT_SYNC_DISCARD:
-	WT_ILLEGAL_VALUE_ERR(session);
+		WT_ERR(__wt_illegal_value(session, NULL));
+		break;
 	}
 
 	if (WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT)) {
@@ -296,6 +297,5 @@ __wt_cache_op(WT_SESSION_IMPL *session, WT_CACHE_OP op)
 	case WT_SYNC_CLOSE:
 	case WT_SYNC_DISCARD:
 		return (__wt_evict_file(session, op));
-	WT_ILLEGAL_VALUE(session);
 	}
 }

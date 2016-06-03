@@ -32,7 +32,7 @@ GLOBAL g;
 
 static int  handle_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *);
 static int  handle_message(WT_EVENT_HANDLER *, WT_SESSION *, const char *);
-static void onint(int);
+static void onint(int) WT_GCC_FUNC_DECL_ATTRIBUTE((__noreturn__));
 static int  cleanup(void);
 static int  usage(void);
 static int  wt_connect(const char *);

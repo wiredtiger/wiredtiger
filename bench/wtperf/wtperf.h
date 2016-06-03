@@ -319,6 +319,8 @@ extract_key(char *key_buf, uint64_t *keynop)
  * die --
  *      Print message and exit on failure.
  */
+static inline void die(int, const char *)
+    WT_GCC_FUNC_DECL_ATTRIBUTE((__noreturn__));
 static inline void
 die(int e, const char *str)
 {

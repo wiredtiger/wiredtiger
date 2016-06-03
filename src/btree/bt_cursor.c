@@ -559,7 +559,6 @@ retry:	WT_RET(__cursor_func_init(cbt, true));
 
 		ret = __cursor_row_modify(session, cbt, false);
 		break;
-	WT_ILLEGAL_VALUE_ERR(session);
 	}
 
 err:	if (ret == WT_RESTART) {
@@ -640,7 +639,8 @@ retry:	WT_RET(__cursor_func_init(cbt, true));
 		break;
 	case BTREE_COL_FIX:
 	case BTREE_COL_VAR:
-	WT_ILLEGAL_VALUE_ERR(session);
+		WT_ERR(__wt_illegal_value(session, NULL));
+		break;
 	}
 
 err:	if (ret == WT_RESTART) {
@@ -718,7 +718,6 @@ retry:	WT_RET(__cursor_func_init(cbt, true));
 
 		ret = __cursor_row_modify(session, cbt, true);
 		break;
-	WT_ILLEGAL_VALUE_ERR(session);
 	}
 
 err:	if (ret == WT_RESTART) {
@@ -809,7 +808,6 @@ retry:	WT_RET(__cursor_func_init(cbt, true));
 		}
 		ret = __cursor_row_modify(session, cbt, false);
 		break;
-	WT_ILLEGAL_VALUE_ERR(session);
 	}
 
 err:	if (ret == WT_RESTART) {
@@ -976,7 +974,6 @@ __wt_btcur_compare(WT_CURSOR_BTREE *a_arg, WT_CURSOR_BTREE *b_arg, int *cmpp)
 		WT_RET(__wt_compare(
 		    session, a_arg->btree->collator, &a->key, &b->key, cmpp));
 		break;
-	WT_ILLEGAL_VALUE(session);
 	}
 	return (0);
 }

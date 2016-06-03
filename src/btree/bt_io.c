@@ -351,7 +351,6 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 		data_cksum = false;
 		break;
 	case CKSUM_UNCOMPRESSED:
-	default:
 		data_cksum = !compressed;
 		break;
 	}

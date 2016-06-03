@@ -55,6 +55,7 @@ static const char * const uri = "table:main";
 #define	MAX_KV		100
 #define	MAX_VAL		128
 
+static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((__noreturn__));
 static void
 usage(void)
 {
@@ -68,10 +69,10 @@ extern char *__wt_optarg;
 
 void (*custom_die)(void) = NULL;
 
-WT_CONNECTION **connections = NULL;
-WT_CURSOR **cursors = NULL;
-WT_RAND_STATE rnd;
-WT_SESSION **sessions = NULL;
+static WT_CONNECTION **connections = NULL;
+static WT_CURSOR **cursors = NULL;
+static WT_RAND_STATE rnd;
+static WT_SESSION **sessions = NULL;
 
 static int
 get_stat(WT_SESSION *stat_session, int stat_field, uint64_t *valuep)

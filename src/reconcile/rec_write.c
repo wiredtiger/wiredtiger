@@ -1041,6 +1041,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	bool append_origv, skipped;
 
 	*updp = NULL;
+	append = NULL;				/* -Wconditional-uninitialized */
 
 	btree = S2BT(session);
 	page = r->page;
@@ -2428,7 +2429,7 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 		    r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
 		break;
 	case SPLIT_TRACKING_RAW:
-	WT_ILLEGAL_VALUE(session);
+		return (__wt_illegal_value(session, NULL));
 	}
 
 	/*
@@ -2959,7 +2960,6 @@ __rec_split_finish_std(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		 * wrote anything, or there's a remaindered block of data.
 		 */
 		break;
-	WT_ILLEGAL_VALUE(session);
 	}
 
 	/*
@@ -3535,7 +3535,6 @@ __wt_bulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 	case BTREE_ROW:
 		recno = WT_RECNO_OOB;
 		break;
-	WT_ILLEGAL_VALUE(session);
 	}
 
 	return (__rec_split_init(
@@ -3569,7 +3568,6 @@ __wt_bulk_wrapup(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 		break;
 	case BTREE_ROW:
 		break;
-	WT_ILLEGAL_VALUE(session);
 	}
 
 	WT_RET(__rec_split_finish(session, r));

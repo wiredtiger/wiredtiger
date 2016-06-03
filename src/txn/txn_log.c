@@ -193,7 +193,6 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 		    op->fileid,
 		    &op->u.truncate_row.start, &op->u.truncate_row.stop,
 		    (uint32_t)op->u.truncate_row.mode));
-	WT_ILLEGAL_VALUE(session);
 	}
 
 	/* NOTREACHED */

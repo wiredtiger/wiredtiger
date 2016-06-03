@@ -284,6 +284,7 @@ __evict_workers_resize(WT_SESSION_IMPL *session)
 	uint32_t i, session_flags;
 
 	conn = S2C(session);
+	workers = NULL;				/* -Wconditional-uninitialized */
 
 	if (conn->evict_workers_alloc < conn->evict_workers_max) {
 		alloc = conn->evict_workers_alloc * sizeof(*workers);
