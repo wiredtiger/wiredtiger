@@ -19,7 +19,7 @@ __wt_thread_create(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 
 	/* Spawn a new thread of control. */
-	WT_SYSCALL(pthread_create(tidret, NULL, func, arg), ret);
+	WT_SYSCALL_RETRY(pthread_create(tidret, NULL, func, arg), ret);
 	if (ret == 0)
 		return (0);
 	WT_RET_MSG(session, ret, "pthread_create");
