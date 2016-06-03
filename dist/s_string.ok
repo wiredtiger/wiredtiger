@@ -117,6 +117,7 @@ FNV
 FORALL
 FOREACH
 FULLFSYNC
+FindClose
 FindFirstFile
 Fixup
 Fk
@@ -442,6 +443,7 @@ bzDecompressInit
 bzalloc
 bzfree
 bzip
+call's
 calloc
 cas
 catfmt
@@ -470,6 +472,7 @@ ckptfrag
 ckptlist
 cksum
 cloexec
+closedir
 clsm
 cmd
 cmp
