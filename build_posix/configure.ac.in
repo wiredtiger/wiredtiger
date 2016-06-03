@@ -34,6 +34,59 @@ AC_PROG_CC(cc gcc)
 AC_PROG_CXX(c++ g++)
 AM_PROG_AS(as gas)
 
+# If enable-strict is configured, try and find a set of flags to turn on as much
+# error checking as we can for this compiler version. This isn't robust and only
+# works for gcc and clang, but it fills a need.
+if test "$wt_cv_enable_strict" = "yes" -a "$GCC" = "yes"; then
+wt_cv_compiler_version="`$CC -dumpversion`"
+case "$wt_cv_compiler_version" in
+4\.*)	warnings="$warnings -Wall -Wextra -Werror"
+	warnings="$warnings -Waggregate-return"
+	warnings="$warnings -Wbad-function-cast"
+	warnings="$warnings -Wcast-align"
+	warnings="$warnings -Wdeclaration-after-statement"
+	warnings="$warnings -Wdouble-promotion"
+	warnings="$warnings -Wfloat-equal"
+	warnings="$warnings -Wformat-nonliteral"
+	warnings="$warnings -Wformat-security"
+	warnings="$warnings -Wformat=2"
+	warnings="$warnings -Winit-self"
+	warnings="$warnings -Wjump-misses-init"
+	warnings="$warnings -Wmissing-declarations"
+	warnings="$warnings -Wmissing-field-initializers"
+	warnings="$warnings -Wmissing-parameter-type"
+	warnings="$warnings -Wmissing-prototypes"
+	warnings="$warnings -Wnested-externs"
+	warnings="$warnings -Wold-style-definition"
+	warnings="$warnings -Woverlength-strings"
+	warnings="$warnings -Wpacked"
+	warnings="$warnings -Wpointer-arith"
+	warnings="$warnings -Wpointer-sign"
+	warnings="$warnings -Wredundant-decls"
+	warnings="$warnings -Wshadow"
+	warnings="$warnings -Wsign-conversion"
+	warnings="$warnings -Wstrict-prototypes"
+	warnings="$warnings -Wswitch-enum"
+	warnings="$warnings -Wundef"
+	warnings="$warnings -Wunreachable-code"
+	warnings="$warnings -Wunsafe-loop-optimizations"
+	warnings="$warnings -Wunused"
+	warnings="$warnings -Wwrite-strings"
+
+	# Some warnings remain, but aren't fatal.
+	warnings="$warnings -Wno-error=inline"
+	warnings="$warnings -Wno-error=unsafe-loop-optimizations"
+
+	# Waiting on WT-2677.
+	warnings="$warnings -Wno-error=sign-conversion"			# XXX
+
+	AM_CFLAGS="$AM_CFLAGS $warnings";;
+*)
+	AC_MSG_ERROR(
+	    [--enable-strict does not support gcc $wt_cv_compiler_version.]);;
+esac
+fi
+
 # This is a workaround as part of WT-2459. Currently, clang (v3.7) does not
 # support compiling the ASM code we have to perform the CRC checks on PowerPC.
 # To compile with clang we need to override the ASM compiler with CCAS to use

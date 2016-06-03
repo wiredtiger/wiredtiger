@@ -215,6 +215,18 @@ pthread_adaptive|pthreads_adaptive)
 esac
 AC_MSG_RESULT($with_spinlock)
 
+AH_TEMPLATE(HAVE_STRICT, [Enable strict compiler checking.])
+AC_MSG_CHECKING(if --enable-strict option specified)
+AC_ARG_ENABLE(strict,
+	[AS_HELP_STRING([--enable-strict],
+	    [Enable strict compiler checking.])], r=$enableval, r=no)
+case "$r" in
+no)	wt_cv_enable_strict=no;;
+*)	AC_DEFINE(HAVE_STRICT)
+	wt_cv_enable_strict=yes;;
+esac
+AC_MSG_RESULT($wt_cv_enable_strict)
+
 AH_TEMPLATE(HAVE_VERBOSE, [Enable verbose message configuration.])
 AC_MSG_CHECKING(if --enable-verbose option specified)
 AC_ARG_ENABLE(verbose,

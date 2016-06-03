@@ -97,6 +97,9 @@
 /* Define to 1 if you have the <stdlib.h> header file. */
 #define HAVE_STDLIB_H 1
 
+/* Enable strict compiler checking. */
+/* #undef HAVE_STRICT */
+
 /* Define to 1 if you have the <strings.h> header file. */
 /* #undef HAVE_STRINGS_H */
 
