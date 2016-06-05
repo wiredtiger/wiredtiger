@@ -40,8 +40,6 @@ AC_DEFUN([AM_GCC_WARNINGS], [
 	w="$w -Wno-error=inline"
 	w="$w -Wno-error=unsafe-loop-optimizations"
 
-	w="$w -Wno-error=sign-conversion"	# Waiting on WT-2677.
-
 	wt_cv_strict_warnings="$w"
 ])
 
