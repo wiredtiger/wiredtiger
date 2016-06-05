@@ -29,10 +29,10 @@ proto()
 	    -e 's/  */ /g' \
 	    -e 's/^/extern /' \
 	    -e 's/WT_GCC_FUNC_/WT_GCC_FUNC_DECL_/g' \
-	    -e '# If the expression ends in #endif, appending a semicolon will' \
-	    -e '# result in an illegal expression, force an appended newline' \
-	    -e '# using the G command because substitute may not allow newline' \
-	    -e '# in the RHS of the expression.' \
+	    -e '# If a line ends in #endif, appending a semicolon will result' \
+	    -e '# in an illegal expression, force an appended newline using' \
+	    -e '# the H command because substitute may not allow newline in' \
+	    -e '# the RHS of the expression.' \
 	    -e '/#endif$/{' \
 		-e x \
 		-e 's/.*//' \
