@@ -56,7 +56,6 @@ AC_DEFUN([AM_CLANG_WARNINGS], [
 	w="$w -Wno-zero-length-array"
 
 	# Turning on cast-qual, but it's not a fatal error.
-	w="$w -Wno-cast-qual"
 	w="$w -Wno-error=cast-qual"
 
 	# Ignore unrecognized options.
