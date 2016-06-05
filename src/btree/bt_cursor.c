@@ -1111,7 +1111,7 @@ __cursor_truncate_fix(WT_SESSION_IMPL *session,
     int (*rmfunc)(WT_SESSION_IMPL *, WT_CURSOR_BTREE *, bool))
 {
 	WT_DECL_RET;
-	uint8_t *value;
+	const uint8_t *value;
 
 	/*
 	 * Handle fixed-length column-store objects separately: for row-store
@@ -1140,7 +1140,7 @@ retry:	WT_RET(__wt_btcur_remove(start));
 		if ((ret = __wt_btcur_next(start, true)) != 0)
 			break;
 		start->compare = 0;	/* Exact match */
-		value = (uint8_t *)start->iface.value.data;
+		value = (const uint8_t *)start->iface.value.data;
 		if (*value != 0 &&
 		    (ret = rmfunc(session, start, 1)) != 0)
 			break;
