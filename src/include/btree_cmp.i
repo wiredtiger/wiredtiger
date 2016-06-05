@@ -123,8 +123,8 @@ __wt_lex_compare_skip(
 	tsz = tree_item->size;
 	len = WT_MIN(usz, tsz) - *matchp;
 
-	userp = (uint8_t *)user_item->data + *matchp;
-	treep = (uint8_t *)tree_item->data + *matchp;
+	userp = (const uint8_t *)user_item->data + *matchp;
+	treep = (const uint8_t *)tree_item->data + *matchp;
 
 #ifdef HAVE_X86INTRIN_H
 	/* Use vector instructions if we'll execute at least 2 of them. */
