@@ -55,8 +55,10 @@ AC_DEFUN([AM_CLANG_WARNINGS], [
 	w="$w -Wno-reserved-id-macro"
 	w="$w -Wno-zero-length-array"
 
-	# Turning on cast-qual, but it's not a fatal error.
-	w="$w -Wno-error=cast-qual"
+	# We should turn on cast-qual, but not as a fatal error: see WT-2690.
+	# For now, turn it off.
+	# w="$w -Wno-error=cast-qual"
+	w="$w -Wno-cast-qual"
 
 	# Ignore unrecognized options.
 	w="$w -Wno-unknown-warning-option"
