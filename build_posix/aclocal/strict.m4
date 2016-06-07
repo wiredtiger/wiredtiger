@@ -52,7 +52,9 @@ AC_DEFUN([AM_CLANG_WARNINGS], [
 	w="$w -Wno-format-nonliteral"
 	w="$w -Wno-packed"
 	w="$w -Wno-padded"
+	w="$w -Wno-pedantic"
 	w="$w -Wno-reserved-id-macro"
+	w="$w -Wno-unused-command-line-argument"
 	w="$w -Wno-zero-length-array"
 
 	# We should turn on cast-qual, but not as a fatal error: see WT-2690.
