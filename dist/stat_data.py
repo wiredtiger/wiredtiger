@@ -249,7 +249,9 @@ connection_stats = [
     LogStat('log_slot_transitions', 'consolidated slot join transitions'),
     LogStat('log_slot_unbuffered', 'consolidated slot unbuffered writes'),
     LogStat('log_sync', 'log sync operations'),
+    LogStat('log_sync_duration', 'log sync time duration (usecs)'),
     LogStat('log_sync_dir', 'log sync_dir operations'),
+    LogStat('log_sync_dir_duration', 'log sync_dir time duration (usecs)'),
     LogStat('log_write_lsn', 'log server thread advances write LSN'),
     LogStat('log_write_lsn_skip', 'log server thread write LSN walk skipped'),
     LogStat('log_writes', 'log write operations'),
@@ -285,6 +287,10 @@ connection_stats = [
     TxnStat('txn_snapshots_created', 'number of named snapshots created'),
     TxnStat('txn_snapshots_dropped', 'number of named snapshots dropped'),
     TxnStat('txn_sync', 'transaction sync calls'),
+    TxnStat('txn_fsync_pre', 'transaction fsync calls before creating a transaction id'),
+    TxnStat('txn_fsync_duration_pre', 'transaction fsync duration before creating a transaction id'),
+    TxnStat('txn_fsync_post', 'transaction fsync calls after creating a transaction id'),
+    TxnStat('txn_fsync_duration_post', 'transaction fsync duration after creating a transaction id'),
 
     ##########################################
     # LSM statistics

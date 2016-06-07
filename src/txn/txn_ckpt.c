@@ -351,6 +351,8 @@ static int
 __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	struct timespec start, stop, verb_timer;
+	struct timespec fsync_start, fsync_stop;
+	uint64_t fsync_duration_usecs = 0;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_TXN *txn;
@@ -424,7 +426,13 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * completion. Do it after flushing the pages to give the
 	 * asynchronous flush as much time as possible before we wait.
 	 */
+	WT_ERR(__wt_epoch(session, &fsync_start));
 	WT_ERR(__checkpoint_apply(session, cfg, __wt_checkpoint_sync));
+	WT_ERR(__wt_epoch(session, &fsync_stop));
+	fsync_duration_usecs = WT_TIMEDIFF_US(fsync_stop, fsync_start);
+	WT_STAT_FAST_CONN_INCR(session, txn_fsync_pre);
+	WT_STAT_FAST_CONN_INCRV(session,
+	    txn_fsync_duration_pre, fsync_duration_usecs);
 
 	/* Tell logging that we are about to start a database checkpoint. */
 	if (full && logging)
@@ -523,7 +531,13 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * Checkpoints have to hit disk (it would be reasonable to configure for
 	 * lazy checkpoints, but we don't support them yet).
 	 */
+	WT_ERR(__wt_epoch(session, &fsync_start));
 	WT_ERR(__checkpoint_apply(session, cfg, __wt_checkpoint_sync));
+	WT_ERR(__wt_epoch(session, &fsync_stop));
+	fsync_duration_usecs = WT_TIMEDIFF_US(fsync_stop, fsync_start);
+	WT_STAT_FAST_CONN_INCR(session, txn_fsync_post);
+	WT_STAT_FAST_CONN_INCRV(session,
+	    txn_fsync_duration_post, fsync_duration_usecs);
 
 	WT_ERR(__checkpoint_verbose_track(session,
 	    "sync completed", &verb_timer));
