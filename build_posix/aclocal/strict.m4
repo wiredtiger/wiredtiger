@@ -60,6 +60,13 @@ AC_DEFUN([AM_CLANG_WARNINGS], [
 	# w="$w -Wno-error=cast-qual"
 	w="$w -Wno-cast-qual"
 
+	# Older OS X releases need some special love; these flags should be
+	# removed in the not-too-distant future.
+	# Apple clang version 4.1
+	#	(tags/Apple/clang-421.11.66) (based on LLVM 3.1svn)
+	w="$w -Wno-pedantic"
+	w="$w -Wno-unused-command-line-argument"
+
 	# Ignore unrecognized options.
 	w="$w -Wno-unknown-warning-option"
 
