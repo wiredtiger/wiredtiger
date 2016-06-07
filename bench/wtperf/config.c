@@ -54,9 +54,9 @@ static void config_opt_usage(void);
 static int
 config_unescape(char *orig)
 {
-	char ch, *dst, *s;
+	u_char *dst, *s, ch;
 
-	for (dst = s = orig; *s != '\0';) {
+	for (dst = s = (u_char *)orig; *s != '\0';) {
 		if ((ch = *s++) == '\\') {
 			ch = *s++;
 			switch (ch) {

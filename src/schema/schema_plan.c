@@ -14,7 +14,7 @@
  */
 static int
 __find_next_col(WT_SESSION_IMPL *session, WT_TABLE *table,
-    WT_CONFIG_ITEM *colname, u_int *cgnump, u_int *colnump, char *coltype)
+    WT_CONFIG_ITEM *colname, u_int *cgnump, u_int *colnump, u_char *coltype)
 {
 	WT_COLGROUP *colgroup;
 	WT_CONFIG conf;
@@ -134,7 +134,7 @@ __wt_table_check(WT_SESSION_IMPL *session, WT_TABLE *table)
 	WT_CONFIG_ITEM k, v;
 	WT_DECL_RET;
 	u_int cg, col, i;
-	char coltype;
+	u_char coltype;
 
 	if (table->is_simple)
 		return (0);
@@ -181,7 +181,7 @@ __wt_struct_plan(WT_SESSION_IMPL *session, WT_TABLE *table,
 	WT_DECL_RET;
 	u_int cg, col, current_cg, current_col, i, start_cg, start_col;
 	bool have_it;
-	char coltype, current_coltype;
+	u_char coltype, current_coltype;
 
 	start_cg = start_col = UINT_MAX;	/* -Wuninitialized */
 

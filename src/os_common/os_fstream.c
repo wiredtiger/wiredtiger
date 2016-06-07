@@ -72,7 +72,7 @@ __fstream_getline(WT_SESSION_IMPL *session, WT_FSTREAM *fstr, WT_ITEM *buf)
 {
 	const char *p;
 	size_t len;
-	char c;
+	u_char c;
 
 	/*
 	 * We always NUL-terminate the returned string (even if it's empty),
@@ -94,7 +94,7 @@ __fstream_getline(WT_SESSION_IMPL *session, WT_FSTREAM *fstr, WT_ITEM *buf)
 			fstr->off += (wt_off_t)len;
 		}
 
-		c = *(p = fstr->buf.data);
+		c = (u_char)*(p = fstr->buf.data);
 		fstr->buf.data = ++p;
 
 		/* Leave space for a trailing NUL. */
@@ -104,10 +104,10 @@ __fstream_getline(WT_SESSION_IMPL *session, WT_FSTREAM *fstr, WT_ITEM *buf)
 				continue;
 			break;
 		}
-		((char *)buf->mem)[buf->size++] = c;
+		((u_char *)buf->mem)[buf->size++] = c;
 	}
 
-	((char *)buf->mem)[buf->size] = '\0';
+	((u_char *)buf->mem)[buf->size] = '\0';
 
 	return (0);
 }

@@ -456,7 +456,7 @@ __wt_json_token(WT_SESSION *wt_session, const char *src, int *toktype,
 	int result;
 	bool backslash, isalph, isfloat;
 	const char *bad;
-	char ch;
+	u_char ch;
 
 	result = -1;
 	session = (WT_SESSION_IMPL *)wt_session;
@@ -475,7 +475,7 @@ __wt_json_token(WT_SESSION *wt_session, const char *src, int *toktype,
 	case '"':
 		backslash = false;
 		src++;
-		while ((ch = *src) != '\0') {
+		while ((ch = (u_char)*src) != '\0') {
 			if (!backslash) {
 				if (ch == '"') {
 					src++;
@@ -520,12 +520,12 @@ __wt_json_token(WT_SESSION *wt_session, const char *src, int *toktype,
 		isfloat = false;
 		if (*src == '-')
 			src++;
-		while ((ch = *src) != '\0' && isdigit(ch))
+		while ((ch = (u_char)*src) != '\0' && isdigit(ch))
 			src++;
 		if (*src == '.') {
 			isfloat = true;
 			src++;
-			while ((ch = *src) != '\0' &&
+			while ((ch = (u_char)*src) != '\0' &&
 			    isdigit(ch))
 				src++;
 		}
@@ -534,7 +534,7 @@ __wt_json_token(WT_SESSION *wt_session, const char *src, int *toktype,
 			src++;
 			if (*src == '+' || *src == '-')
 				src++;
-			while ((ch = *src) != '\0' &&
+			while ((ch = (u_char)*src) != '\0' &&
 			    isdigit(ch))
 				src++;
 		}
@@ -729,7 +729,7 @@ __json_pack_struct(WT_SESSION_IMPL *session, void *buffer, size_t size,
 		JSON_EXPECT_TOKEN_GET(session, jstr, 's', tokstart, toksize);
 		/* the key name was verified in __json_pack_size */
 		JSON_EXPECT_TOKEN(session, jstr, ':');
-		pv.type = fmt[0];
+		pv.type = (u_char)fmt[0];
 		WT_PACK_JSON_GET(session, pv, jstr);
 		return (__pack_write(session, &pv, &p, size));
 	}
@@ -869,16 +869,17 @@ __wt_json_strlen(const char *src, size_t srclen)
  */
 int
 __wt_json_strncpy(WT_SESSION *wt_session, char **pdst, size_t dstlen,
-    const char *src, size_t srclen)
+    const char *srcarg, size_t srclen)
 {
 	WT_SESSION_IMPL *session;
-	char ch, *dst;
-	const char *dstend, *srcend;
+	u_char ch, *dst, *src;
+	const u_char *dstend, *srcend;
 	u_char hi, lo;
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	dst = *pdst;
+	dst = (u_char *)*pdst;
+	src = (u_char *)srcarg;
 	dstend = dst + dstlen;
 	srcend = src + srclen;
 	while (src < srcend && dst < dstend) {
@@ -898,7 +899,7 @@ __wt_json_strncpy(WT_SESSION *wt_session, char **pdst, size_t dstlen,
 					    src - 6);
 					return (EINVAL);
 				}
-				*dst++ = (char)lo;
+				*dst++ = lo;
 				break;
 			case 'f':
 				*dst++ = '\f';
@@ -923,7 +924,7 @@ __wt_json_strncpy(WT_SESSION *wt_session, char **pdst, size_t dstlen,
 	}
 	if (src != srcend)
 		return (ENOMEM);
-	*pdst = dst;
+	*pdst = (char *)dst;
 	while (dst < dstend)
 		*dst++ = '\0';
 	return (0);
