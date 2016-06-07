@@ -95,13 +95,14 @@ __wt_log_background(WT_SESSION_IMPL *session, WT_LSN *lsn)
 int
 __wt_log_force_sync(WT_SESSION_IMPL *session, WT_LSN *min_lsn)
 {
+	struct timespec fsync_start, fsync_stop;
 	WT_DECL_RET;
 	WT_FH *log_fh;
 	WT_LOG *log;
-	struct timespec fsync_start, fsync_stop;
-	uint64_t fsync_duration_usecs = 0;
+	uint64_t fsync_duration_usecs;
 
 	log = S2C(session)->log;
+	fsync_duration_usecs = 0;
 
 	/*
 	 * We need to wait for the previous log file to get written
@@ -1285,15 +1286,15 @@ err:	__wt_free(session, buf);
 int
 __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
 {
+	struct timespec fsync_start, fsync_stop;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_LOG *log;
 	WT_LSN sync_lsn;
 	int64_t release_buffered, release_bytes;
+	uint64_t fsync_duration_usecs;
 	int yield_count;
 	bool locked;
-	struct timespec fsync_start, fsync_stop;
-	uint64_t fsync_duration_usecs = 0;
 
 	conn = S2C(session);
 	log = conn->log;
@@ -1304,6 +1305,7 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
 	release_buffered =
 	    WT_LOG_SLOT_RELEASED_BUFFERED(slot->slot_state);
 	release_bytes = release_buffered + slot->slot_unbuffered;
+	fsync_duration_usecs = 0;
 
 	/*
 	 * Checkpoints can be configured based on amount of log written.

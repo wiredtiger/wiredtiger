@@ -352,7 +352,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	struct timespec start, stop, verb_timer;
 	struct timespec fsync_start, fsync_stop;
-	uint64_t fsync_duration_usecs = 0;
+	uint64_t fsync_duration_usecs;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_TXN *txn;
@@ -365,6 +365,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	const char *txn_cfg[] = { WT_CONFIG_BASE(session,
 	    WT_SESSION_begin_transaction), "isolation=snapshot", NULL };
 
+	fsync_duration_usecs = 0;
 	conn = S2C(session);
 	txn = &session->txn;
 	txn_global = &conn->txn_global;
