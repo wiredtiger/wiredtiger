@@ -138,6 +138,14 @@ else
 		}
 	fi
 
+	# Plain char declarations.
+	egrep '\<char[[:space:]]+[[:alnum:]_]+[,;)]' $f |
+	    sed -e '/unsigned char/d' > $t
+	test -s $t && {
+	    echo "$f: type "char" declaration, undefined if signed"
+	    cat $t
+	}
+
 	tr -cd '[:alnum:][:space:][:punct:]' < $f |
 	unexpand |
 	sed -e 's/){/) {/' \
