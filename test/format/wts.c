@@ -190,11 +190,10 @@ wts_open(const char *home, bool set_api, WT_CONNECTION **connp)
 	 * Sometimes specify a set of sources just to exercise that code.
 	 */
 	if (g.c_statistics_server) {
-		if (mmrand(NULL, 0, 5) == 1 &&
-		    memcmp(g.uri, "file:", strlen("file:")) == 0)
+		if (mmrand(NULL, 0, 5) == 1)
 			p += snprintf(p, REMAIN(p, end),
 			    ",statistics=(fast)"
-			    ",statistics_log=(wait=5,sources=(\"file:\"))");
+			    ",statistics_log=(wait=5,sources=(\"%s\"))", g.uri);
 		else
 			p += snprintf(p, REMAIN(p, end),
 			    ",statistics=(fast),statistics_log=(wait=5)");
