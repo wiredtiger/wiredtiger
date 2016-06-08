@@ -151,6 +151,11 @@ currently open in the database, nor will any statistics requiring the
 traversal of a tree (as if the \c statistics_fast configuration string
 were set).
 
+<b>
+Note: source statistics can only be logged for "file:", "lsm:" and simple
+"table:" objects (table objects stored in a single underlying file).
+</b>
+
 The location of the log files may be changed with the \c statistics_log.path
 configuration string.  The \c path value value may contain ISO C90 standard
 strftime conversion specifications.  WiredTiger will not create non-existent

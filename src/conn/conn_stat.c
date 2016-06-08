@@ -75,7 +75,7 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	int cnt;
-	char **sources;
+	char *p, **sources;
 
 	conn = S2C(session);
 	sources = NULL;
@@ -116,21 +116,31 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 		WT_RET(__wt_config_subinit(session, &objectconf, &cval));
 		for (cnt = 0;
 		    (ret = __wt_config_next(&objectconf, &k, &v)) == 0; ++cnt) {
-			/*
-			 * XXX
-			 * Only allow "file:" and "lsm:" for now: "file:" works
-			 * because it's been converted to data handles, "lsm:"
-			 * works because we can easily walk the list of open LSM
-			 * objects, even though it hasn't been converted.
-			 */
-			if (!WT_PREFIX_MATCH(k.str, "file:") &&
-			    !WT_PREFIX_MATCH(k.str, "lsm:"))
-				WT_ERR_MSG(session, EINVAL,
-				    "statistics_log sources configuration only "
-				    "supports objects of type \"file\" or "
-				    "\"lsm\"");
 			WT_ERR(
 			    __wt_strndup(session, k.str, k.len, &sources[cnt]));
+
+			/*
+			 * XXX
+			 * We walk data handle lists to dump source statistics
+			 * and neither lsm: or table: have been converted to
+			 * data handles. Allow lsm: because we can easily walk
+			 * the list of open LSM objects, even though it hasn't
+			 * been converted. Allow table:, but translate it to
+			 * file: which allows us to dump simple tables (where
+			 * the data handle name will be the matching file uri).
+			 */
+			if (!WT_PREFIX_MATCH(k.str, "file:") &&
+			    !WT_PREFIX_MATCH(k.str, "lsm:") &&
+			    !WT_PREFIX_MATCH(k.str, "table:"))
+				WT_ERR(__wt_bad_object_type(
+				    session, sources[cnt]));
+
+			if (WT_PREFIX_MATCH(k.str, "table:")) {
+				p = sources[cnt];
+				strcpy(p, "file");
+				p += strlen("file");
+				memmove(p, p + 1, strlen(p + 1) + 1);
+			}
 		}
 		WT_ERR_NOTFOUND_OK(ret);
 
