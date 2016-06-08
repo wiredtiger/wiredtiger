@@ -287,10 +287,10 @@ connection_stats = [
     TxnStat('txn_snapshots_created', 'number of named snapshots created'),
     TxnStat('txn_snapshots_dropped', 'number of named snapshots dropped'),
     TxnStat('txn_sync', 'transaction sync calls'),
-    TxnStat('txn_fsync_pre', 'transaction fsync calls before creating a transaction id'),
-    TxnStat('txn_fsync_duration_pre', 'transaction fsync duration before creating a transaction id'),
-    TxnStat('txn_fsync_post', 'transaction fsync calls after creating a transaction id'),
-    TxnStat('txn_fsync_duration_post', 'transaction fsync duration after creating a transaction id'),
+    TxnStat('txn_fsync_post', 'transaction fsync calls for checkpoint after allocating the transaction ID'),
+    TxnStat('txn_fsync_post_duration', 'transaction fsync duration for checkpoint after allocating the transaction ID'),
+    TxnStat('txn_fsync_pre', 'transaction fsync calls for checkpoint before allocating the transaction ID'),
+    TxnStat('txn_fsync_pre_duration', 'transaction fsync duration for checkpoint before allocating the transaction ID'),
 
     ##########################################
     # LSM statistics

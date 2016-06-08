@@ -102,7 +102,6 @@ __wt_log_force_sync(WT_SESSION_IMPL *session, WT_LSN *min_lsn)
 	uint64_t fsync_duration_usecs;
 
 	log = S2C(session)->log;
-	fsync_duration_usecs = 0;
 
 	/*
 	 * We need to wait for the previous log file to get written
@@ -1305,7 +1304,6 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
 	release_buffered =
 	    WT_LOG_SLOT_RELEASED_BUFFERED(slot->slot_state);
 	release_bytes = release_buffered + slot->slot_unbuffered;
-	fsync_duration_usecs = 0;
 
 	/*
 	 * Checkpoints can be configured based on amount of log written.

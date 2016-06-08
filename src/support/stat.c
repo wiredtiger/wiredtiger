@@ -686,10 +686,10 @@ static const char * const __stats_connection_desc[] = {
 	"transaction: transaction checkpoint total time (msecs)",
 	"transaction: transaction checkpoints",
 	"transaction: transaction failures due to cache overflow",
-	"transaction: transaction fsync calls after creating a transaction id",
-	"transaction: transaction fsync calls before creating a transaction id",
-	"transaction: transaction fsync duration after creating a transaction id",
-	"transaction: transaction fsync duration before creating a transaction id",
+	"transaction: transaction fsync calls for checkpoint after allocating the transaction ID",
+	"transaction: transaction fsync calls for checkpoint before allocating the transaction ID",
+	"transaction: transaction fsync duration for checkpoint after allocating the transaction ID",
+	"transaction: transaction fsync duration for checkpoint before allocating the transaction ID",
 	"transaction: transaction range of IDs currently pinned",
 	"transaction: transaction range of IDs currently pinned by a checkpoint",
 	"transaction: transaction range of IDs currently pinned by named snapshots",
@@ -900,8 +900,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->txn_fail_cache = 0;
 	stats->txn_fsync_post = 0;
 	stats->txn_fsync_pre = 0;
-	stats->txn_fsync_duration_post = 0;
-	stats->txn_fsync_duration_pre = 0;
+	stats->txn_fsync_post_duration = 0;
+	stats->txn_fsync_pre_duration = 0;
 		/* not clearing txn_pinned_range */
 		/* not clearing txn_pinned_checkpoint_range */
 		/* not clearing txn_pinned_snapshot_range */
@@ -1145,10 +1145,10 @@ __wt_stat_connection_aggregate(
 	to->txn_fail_cache += WT_STAT_READ(from, txn_fail_cache);
 	to->txn_fsync_post += WT_STAT_READ(from, txn_fsync_post);
 	to->txn_fsync_pre += WT_STAT_READ(from, txn_fsync_pre);
-	to->txn_fsync_duration_post +=
-	    WT_STAT_READ(from, txn_fsync_duration_post);
-	to->txn_fsync_duration_pre +=
-	    WT_STAT_READ(from, txn_fsync_duration_pre);
+	to->txn_fsync_post_duration +=
+	    WT_STAT_READ(from, txn_fsync_post_duration);
+	to->txn_fsync_pre_duration +=
+	    WT_STAT_READ(from, txn_fsync_pre_duration);
 	to->txn_pinned_range += WT_STAT_READ(from, txn_pinned_range);
 	to->txn_pinned_checkpoint_range +=
 	    WT_STAT_READ(from, txn_pinned_checkpoint_range);
