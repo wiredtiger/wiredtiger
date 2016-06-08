@@ -350,9 +350,8 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session,
 static int
 __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 {
-	struct timespec start, stop, verb_timer;
 	struct timespec fsync_start, fsync_stop;
-	uint64_t fsync_duration_usecs;
+	struct timespec start, stop, verb_timer;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_TXN *txn;
@@ -361,6 +360,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN_STATE *txn_state;
 	void *saved_meta_next;
 	u_int i;
+	uint64_t fsync_duration_usecs;
 	bool full, idle, logging, tracking;
 	const char *txn_cfg[] = { WT_CONFIG_BASE(session,
 	    WT_SESSION_begin_transaction), "isolation=snapshot", NULL };
