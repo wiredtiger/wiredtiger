@@ -93,7 +93,7 @@ main(int argc, char *argv[])
 	WT_SESSION *session;
 	uint64_t maincount;
 	int half, i, j;
-	const char *basename;
+	const char *tablename;
 	char bloom_cfg[128], index1uri[256], index2uri[256], joinuri[256];
 
 	opts = &_opts;
@@ -101,10 +101,10 @@ main(int argc, char *argv[])
 	testutil_check(testutil_parse_opts(argc, argv, opts));
 	testutil_make_work_dir(opts->home);
 
-	testutil_assert((basename = strchr(opts->uri, ':')) != 0);
-	basename++;
-	snprintf(index1uri, sizeof(index1uri), "index:%s:index1", basename);
-	snprintf(index2uri, sizeof(index2uri), "index:%s:index2", basename);
+	testutil_assert((tablename = strchr(opts->uri, ':')) != 0);
+	tablename++;
+	snprintf(index1uri, sizeof(index1uri), "index:%s:index1", tablename);
+	snprintf(index2uri, sizeof(index2uri), "index:%s:index2", tablename);
 	snprintf(joinuri, sizeof(joinuri), "join:%s", opts->uri);
 
 	testutil_check(wiredtiger_open(opts->home, NULL,
