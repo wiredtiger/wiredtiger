@@ -141,6 +141,8 @@ connection_stats = [
     ##########################################
     # Block manager statistics
     ##########################################
+    BlockStat('block_active_read', 'active readers','no_clear,no_scale'),
+    BlockStat('block_active_write', 'active writers','no_clear,no_scale'),
     BlockStat('block_byte_map_read', 'mapped bytes read', 'size'),
     BlockStat('block_byte_read', 'bytes read', 'size'),
     BlockStat('block_byte_write', 'bytes written', 'size'),

@@ -250,6 +250,8 @@ struct __wt_connection_stats {
 	int64_t async_op_remove;
 	int64_t async_op_search;
 	int64_t async_op_update;
+	int64_t block_active_read;
+	int64_t block_active_write;
 	int64_t block_preload;
 	int64_t block_read;
 	int64_t block_write;

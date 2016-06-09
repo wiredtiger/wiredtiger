@@ -3,6 +3,8 @@
 no_scale_per_second_list = [
     'async: current work queue length',
     'async: maximum work queue length',
+    'block-manager: active readers',
+    'block-manager: active writers',
     'cache: bytes currently in the cache',
     'cache: eviction currently operating in aggressive mode',
     'cache: hazard pointer maximum array length',
@@ -70,6 +72,8 @@ no_scale_per_second_list = [
 ]
 no_clear_list = [
     'async: maximum work queue length',
+    'block-manager: active readers',
+    'block-manager: active writers',
     'cache: bytes currently in the cache',
     'cache: eviction currently operating in aggressive mode',
     'cache: maximum bytes configured',
