@@ -371,7 +371,7 @@ __win_file_write(WT_FILE_HANDLE *file_handle,
 
 		if (!WriteFile(
 		    win_fh->filehandle, addr, chunk, &nw, &overlapped))
-			WT_RET_MSG(session, __wt_getlasterror(),
+			WT_ERR_MSG(session, __wt_getlasterror(),
 			    "%s: handle-write: WriteFile: failed to write %lu "
 			    "bytes at offset %" PRIuMAX,
 			    file_handle->name, chunk, (uintmax_t)offset);
