@@ -47,7 +47,8 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
 	/*
 	 * Kill our caller's reference, do our best to catch races.
 	 */
-	page = *pagep;
+	if ((page = *pagep) == NULL)
+		return;
 	*pagep = NULL;
 
 	if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
