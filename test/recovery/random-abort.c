@@ -69,7 +69,7 @@ thread_run(void *arg)
 	WT_SESSION *session;
 	WT_THREAD_DATA *td;
 	uint64_t i;
-	int fd, ret;
+	int ret;
 	char buf[MAX_VAL], kname[64];
 
 	__wt_random_init(&rnd);
@@ -151,7 +151,8 @@ fill_db(uint32_t nth)
 		td[i].conn = conn;
 		td[i].start = (UINT64_MAX / nth) * i;
 		td[i].id = i;
-		if ((ret = pthread_create(&thr[i], NULL, thread_run, &td[i])) != 0)
+		if ((ret = pthread_create(
+		    &thr[i], NULL, thread_run, &td[i])) != 0)
 			testutil_die(ret, "pthread_create");
 	}
 	printf("Spawned %" PRIu32 " writer threads\n", nth);
@@ -162,8 +163,12 @@ fill_db(uint32_t nth)
 	 */
 	for (i = 0; i < nth; ++i)
 		pthread_join(thr[i], NULL);
+	/*
+	 * NOTREACHED
+	 */
 	free(thr);
 	free(td);
+	exit(EXIT_SUCCESS);
 }
 
 extern int __wt_optind;
@@ -260,7 +265,7 @@ main(int argc, char *argv[])
 	    session->open_cursor(session, uri, NULL, NULL, &cursor)) != 0)
 		testutil_die(ret, "WT_SESSION.open_cursor: %s", uri);
 
-	absent = 0;
+	absent = count = 0;
 	for (i = 0; i < nth; ++i) {
 		snprintf(fname, sizeof(fname), RECORDS_FILE, i);
 		if ((fp = fopen(fname, "r")) == NULL)
