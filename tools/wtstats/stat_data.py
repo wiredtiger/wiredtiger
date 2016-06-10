@@ -3,8 +3,6 @@
 no_scale_per_second_list = [
     'async: current work queue length',
     'async: maximum work queue length',
-    'block-manager: active readers',
-    'block-manager: active writers',
     'cache: bytes currently in the cache',
     'cache: eviction currently operating in aggressive mode',
     'cache: hazard pointer maximum array length',
@@ -17,6 +15,8 @@ no_scale_per_second_list = [
     'cache: tracked bytes belonging to overflow pages in the cache',
     'cache: tracked dirty bytes in the cache',
     'cache: tracked dirty pages in the cache',
+    'connection: active filesystem read calls',
+    'connection: active filesystem write calls',
     'connection: files currently open',
     'data-handle: connection data handles currently active',
     'log: maximum log file size',
@@ -72,8 +72,6 @@ no_scale_per_second_list = [
 ]
 no_clear_list = [
     'async: maximum work queue length',
-    'block-manager: active readers',
-    'block-manager: active writers',
     'cache: bytes currently in the cache',
     'cache: eviction currently operating in aggressive mode',
     'cache: maximum bytes configured',
@@ -85,6 +83,8 @@ no_clear_list = [
     'cache: tracked bytes belonging to overflow pages in the cache',
     'cache: tracked dirty bytes in the cache',
     'cache: tracked dirty pages in the cache',
+    'connection: active filesystem read calls',
+    'connection: active filesystem write calls',
     'connection: files currently open',
     'data-handle: connection data handles currently active',
     'log: maximum log file size',

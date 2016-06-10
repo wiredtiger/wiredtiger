@@ -116,9 +116,11 @@ connection_stats = [
     ConnStat('memory_allocation', 'memory allocations'),
     ConnStat('memory_free', 'memory frees'),
     ConnStat('memory_grow', 'memory re-allocations'),
+    ConnStat('read_active', 'active filesystem read calls','no_clear,no_scale'),
     ConnStat('read_io', 'total read I/Os'),
     ConnStat('rwlock_read', 'pthread mutex shared lock read-lock calls'),
     ConnStat('rwlock_write', 'pthread mutex shared lock write-lock calls'),
+    ConnStat('write_active', 'active filesystem write calls','no_clear,no_scale'),
     ConnStat('write_io', 'total write I/Os'),
 
     ##########################################
@@ -141,8 +143,6 @@ connection_stats = [
     ##########################################
     # Block manager statistics
     ##########################################
-    BlockStat('block_active_read', 'active readers','no_clear,no_scale'),
-    BlockStat('block_active_write', 'active writers','no_clear,no_scale'),
     BlockStat('block_byte_map_read', 'mapped bytes read', 'size'),
     BlockStat('block_byte_read', 'bytes read', 'size'),
     BlockStat('block_byte_write', 'bytes written', 'size'),

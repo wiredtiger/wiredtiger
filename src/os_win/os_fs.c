@@ -201,7 +201,6 @@ __win_file_read(WT_FILE_HANDLE *file_handle,
 	DWORD chunk, nr;
 	uint8_t *addr;
 	OVERLAPPED overlapped = { 0 };
-	WT_DECL_RET;
 	WT_FILE_HANDLE_WIN *win_fh;
 	WT_SESSION_IMPL *session;
 
@@ -219,7 +218,6 @@ __win_file_read(WT_FILE_HANDLE *file_handle,
 	    len >= S2C(session)->buffer_alignment &&
 	    len % S2C(session)->buffer_alignment == 0));
 
-	WT_STAT_FAST_CONN_INCR(session, block_active_read);
 	/* Break reads larger than 1GB into 1GB chunks. */
 	for (addr = buf; len > 0; addr += nr, len -= (size_t)nr, offset += nr) {
 		chunk = (DWORD)WT_MIN(len, WT_GIGABYTE);
@@ -228,14 +226,13 @@ __win_file_read(WT_FILE_HANDLE *file_handle,
 
 		if (!ReadFile(
 		    win_fh->filehandle, addr, chunk, &nr, &overlapped))
-			WT_ERR_MSG(session,
+			WT_RET_MSG(session,
 			    __wt_getlasterror(),
 			    "%s: handle-read: ReadFile: failed to read %lu "
 			    "bytes at offset %" PRIuMAX,
 			    file_handle->name, chunk, (uintmax_t)offset);
 	}
-err:	WT_STAT_FAST_CONN_DECR(session, block_active_read);
-	return (ret);
+	return (0);
 }
 
 /*
@@ -344,7 +341,6 @@ __win_file_write(WT_FILE_HANDLE *file_handle,
 	DWORD nw;
 	const uint8_t *addr;
 	OVERLAPPED overlapped = { 0 };
-	WT_DECL_RET;
 	WT_FILE_HANDLE_WIN *win_fh;
 	WT_SESSION_IMPL *session;
 
@@ -362,7 +358,6 @@ __win_file_write(WT_FILE_HANDLE *file_handle,
 	    len >= S2C(session)->buffer_alignment &&
 	    len % S2C(session)->buffer_alignment == 0));
 
-	WT_STAT_FAST_CONN_INCR(session, block_active_write);
 	/* Break writes larger than 1GB into 1GB chunks. */
 	for (addr = buf; len > 0; addr += nw, len -= (size_t)nw, offset += nw) {
 		chunk = (DWORD)WT_MIN(len, WT_GIGABYTE);
@@ -371,13 +366,12 @@ __win_file_write(WT_FILE_HANDLE *file_handle,
 
 		if (!WriteFile(
 		    win_fh->filehandle, addr, chunk, &nw, &overlapped))
-			WT_ERR_MSG(session, __wt_getlasterror(),
+			WT_RET_MSG(session, __wt_getlasterror(),
 			    "%s: handle-write: WriteFile: failed to write %lu "
 			    "bytes at offset %" PRIuMAX,
 			    file_handle->name, chunk, (uintmax_t)offset);
 	}
-err:	WT_STAT_FAST_CONN_DECR(session, block_active_write);
-	return (ret);
+	return (0);
 }
 
 /*

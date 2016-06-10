@@ -92,14 +92,19 @@ static inline int
 __wt_read(
     WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t len, void *buf)
 {
+	WT_DECL_RET;
 	WT_RET(__wt_verbose(session, WT_VERB_HANDLEOPS,
 	    "%s: handle-read: %" WT_SIZET_FMT " at %" PRIuMAX,
 	    fh->handle->name, len, (uintmax_t)offset));
 
 	WT_STAT_FAST_CONN_INCR(session, read_io);
+	WT_STAT_FAST_CONN_INCR(session, read_active);
 
-	return (fh->handle->fh_read(
-	    fh->handle, (WT_SESSION *)session, offset, len, buf));
+	ret = fh->handle->fh_read(
+	    fh->handle, (WT_SESSION *)session, offset, len, buf);
+
+	WT_STAT_FAST_CONN_DECR(session, read_active);
+	return (ret);
 }
 
 /*
@@ -140,6 +145,7 @@ static inline int
 __wt_write(WT_SESSION_IMPL *session,
     WT_FH *fh, wt_off_t offset, size_t len, const void *buf)
 {
+	WT_DECL_RET;
 	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_READONLY) ||
 	    WT_STRING_MATCH(fh->name,
 	    WT_SINGLETHREAD, strlen(WT_SINGLETHREAD)));
@@ -149,7 +155,11 @@ __wt_write(WT_SESSION_IMPL *session,
 	    fh->handle->name, len, (uintmax_t)offset));
 
 	WT_STAT_FAST_CONN_INCR(session, write_io);
+	WT_STAT_FAST_CONN_INCR(session, write_active);
 
-	return (fh->handle->fh_write(
-	    fh->handle, (WT_SESSION *)session, offset, len, buf));
+	ret = fh->handle->fh_write(
+	    fh->handle, (WT_SESSION *)session, offset, len, buf);
+
+	WT_STAT_FAST_CONN_DECR(session, write_active);
+	return (ret);
 }

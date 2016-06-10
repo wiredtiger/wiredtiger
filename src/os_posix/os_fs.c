@@ -323,7 +323,6 @@ static int
 __posix_file_read(WT_FILE_HANDLE *file_handle,
     WT_SESSION *wt_session, wt_off_t offset, size_t len, void *buf)
 {
-	WT_DECL_RET;
 	WT_FILE_HANDLE_POSIX *pfh;
 	WT_SESSION_IMPL *session;
 	size_t chunk;
@@ -342,19 +341,16 @@ __posix_file_read(WT_FILE_HANDLE *file_handle,
 	    len >= S2C(session)->buffer_alignment &&
 	    len % S2C(session)->buffer_alignment == 0));
 
-	WT_STAT_FAST_CONN_INCR(session, block_active_read);
 	/* Break reads larger than 1GB into 1GB chunks. */
 	for (addr = buf; len > 0; addr += nr, len -= (size_t)nr, offset += nr) {
 		chunk = WT_MIN(len, WT_GIGABYTE);
-		WT_STAT_FAST_CONN_DECR(session, block_active_write);
 		if ((nr = pread(pfh->fd, addr, chunk, offset)) <= 0)
-			WT_ERR_MSG(session, nr == 0 ? WT_ERROR : __wt_errno(),
+			WT_RET_MSG(session, nr == 0 ? WT_ERROR : __wt_errno(),
 			    "%s: handle-read: pread: failed to read %"
 			    WT_SIZET_FMT " bytes at offset %" PRIuMAX,
 			    file_handle->name, chunk, (uintmax_t)offset);
 	}
-err:	WT_STAT_FAST_CONN_DECR(session, block_active_read);
-	return (ret);
+	return (0);
 }
 
 /*
@@ -452,7 +448,6 @@ static int
 __posix_file_write(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
     wt_off_t offset, size_t len, const void *buf)
 {
-	WT_DECL_RET;
 	WT_FILE_HANDLE_POSIX *pfh;
 	WT_SESSION_IMPL *session;
 	size_t chunk;
@@ -471,19 +466,16 @@ __posix_file_write(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
 	    len >= S2C(session)->buffer_alignment &&
 	    len % S2C(session)->buffer_alignment == 0));
 
-	WT_STAT_FAST_CONN_INCR(session, block_active_write);
 	/* Break writes larger than 1GB into 1GB chunks. */
 	for (addr = buf; len > 0; addr += nw, len -= (size_t)nw, offset += nw) {
 		chunk = WT_MIN(len, WT_GIGABYTE);
-		if ((nw = pwrite(pfh->fd, addr, chunk, offset)) < 0) {
-			WT_ERR_MSG(session, __wt_errno(),
+		if ((nw = pwrite(pfh->fd, addr, chunk, offset)) < 0)
+			WT_RET_MSG(session, __wt_errno(),
 			    "%s: handle-write: pwrite: failed to write %"
 			    WT_SIZET_FMT " bytes at offset %" PRIuMAX,
 			    file_handle->name, chunk, (uintmax_t)offset);
-		}
 	}
-err:	WT_STAT_FAST_CONN_DECR(session, block_active_write);
-	return (ret);
+	return (0);
 }
 
 /*

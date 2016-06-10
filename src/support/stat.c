@@ -537,8 +537,6 @@ static const char * const __stats_connection_desc[] = {
 	"async: total remove calls",
 	"async: total search calls",
 	"async: total update calls",
-	"block-manager: active readers",
-	"block-manager: active writers",
 	"block-manager: blocks pre-loaded",
 	"block-manager: blocks read",
 	"block-manager: blocks written",
@@ -597,6 +595,8 @@ static const char * const __stats_connection_desc[] = {
 	"cache: tracked dirty bytes in the cache",
 	"cache: tracked dirty pages in the cache",
 	"cache: unmodified pages evicted",
+	"connection: active filesystem read calls",
+	"connection: active filesystem write calls",
 	"connection: auto adjusting condition resets",
 	"connection: auto adjusting condition wait calls",
 	"connection: files currently open",
@@ -751,8 +751,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->async_op_remove = 0;
 	stats->async_op_search = 0;
 	stats->async_op_update = 0;
-		/* not clearing block_active_read */
-		/* not clearing block_active_write */
 	stats->block_preload = 0;
 	stats->block_read = 0;
 	stats->block_write = 0;
@@ -811,6 +809,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing cache_bytes_dirty */
 		/* not clearing cache_pages_dirty */
 	stats->cache_eviction_clean = 0;
+		/* not clearing read_active */
+		/* not clearing write_active */
 	stats->cond_auto_wait_reset = 0;
 	stats->cond_auto_wait = 0;
 		/* not clearing file_open */
@@ -957,8 +957,6 @@ __wt_stat_connection_aggregate(
 	to->async_op_remove += WT_STAT_READ(from, async_op_remove);
 	to->async_op_search += WT_STAT_READ(from, async_op_search);
 	to->async_op_update += WT_STAT_READ(from, async_op_update);
-	to->block_active_read += WT_STAT_READ(from, block_active_read);
-	to->block_active_write += WT_STAT_READ(from, block_active_write);
 	to->block_preload += WT_STAT_READ(from, block_preload);
 	to->block_read += WT_STAT_READ(from, block_read);
 	to->block_write += WT_STAT_READ(from, block_write);
@@ -1043,6 +1041,8 @@ __wt_stat_connection_aggregate(
 	to->cache_bytes_dirty += WT_STAT_READ(from, cache_bytes_dirty);
 	to->cache_pages_dirty += WT_STAT_READ(from, cache_pages_dirty);
 	to->cache_eviction_clean += WT_STAT_READ(from, cache_eviction_clean);
+	to->read_active += WT_STAT_READ(from, read_active);
+	to->write_active += WT_STAT_READ(from, write_active);
 	to->cond_auto_wait_reset += WT_STAT_READ(from, cond_auto_wait_reset);
 	to->cond_auto_wait += WT_STAT_READ(from, cond_auto_wait);
 	to->file_open += WT_STAT_READ(from, file_open);

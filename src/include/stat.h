@@ -250,8 +250,6 @@ struct __wt_connection_stats {
 	int64_t async_op_remove;
 	int64_t async_op_search;
 	int64_t async_op_update;
-	int64_t block_active_read;
-	int64_t block_active_write;
 	int64_t block_preload;
 	int64_t block_read;
 	int64_t block_write;
@@ -310,6 +308,8 @@ struct __wt_connection_stats {
 	int64_t cache_bytes_dirty;
 	int64_t cache_pages_dirty;
 	int64_t cache_eviction_clean;
+	int64_t read_active;
+	int64_t write_active;
 	int64_t cond_auto_wait_reset;
 	int64_t cond_auto_wait;
 	int64_t file_open;
