@@ -17,11 +17,12 @@ static int
 __block_buffer_to_addr(uint32_t allocsize,
     const uint8_t **pp, wt_off_t *offsetp, uint32_t *sizep, uint32_t *cksump)
 {
+	WT_DECL_RET;
 	uint64_t o, s, c;
 
-	WT_RET(__wt_vunpack_uint(pp, 0, &o));
-	WT_RET(__wt_vunpack_uint(pp, 0, &s));
-	WT_RET(__wt_vunpack_uint(pp, 0, &c));
+	WT_ERR(__wt_vunpack_uint(pp, 0, &o));
+	WT_ERR(__wt_vunpack_uint(pp, 0, &s));
+	WT_ERR(__wt_vunpack_uint(pp, 0, &c));
 
 	/*
 	 * To avoid storing large offsets, we minimize the value by subtracting
@@ -44,6 +45,13 @@ __block_buffer_to_addr(uint32_t allocsize,
 		*cksump = (uint32_t)c;
 	}
 	return (0);
+
+err:	/*
+	 * XXX KEITH XXX
+	 * Fix the error handling.
+	 */
+	fprintf(stderr, "\n\t\t!!! corrupted address\n");
+	return (ret);
 }
 
 /*
@@ -54,6 +62,7 @@ int
 __wt_block_addr_to_buffer(WT_BLOCK *block,
     uint8_t **pp, wt_off_t offset, uint32_t size, uint32_t cksum)
 {
+	WT_DECL_RET;
 	uint64_t o, s, c;
 
 	/* See the comment above: this is the reverse operation. */
@@ -65,9 +74,36 @@ __wt_block_addr_to_buffer(WT_BLOCK *block,
 		s = size / block->allocsize;
 		c = cksum;
 	}
-	WT_RET(__wt_vpack_uint(pp, 0, o));
-	WT_RET(__wt_vpack_uint(pp, 0, s));
-	WT_RET(__wt_vpack_uint(pp, 0, c));
+	WT_ERR(__wt_vpack_uint(pp, 0, o));
+	WT_ERR(__wt_vpack_uint(pp, 0, s));
+	WT_ERR(__wt_vpack_uint(pp, 0, c));
+	return (0);
+
+err:	/*
+	 * XXX KEITH XXX
+	 * Fix the error handling.
+	 */
+	fprintf(stderr, "\n\t\t!!! corrupted address\n");
+	return (ret);
+}
+
+/*
+ * __wt_block_addr_len --
+ *	Update the length of the address to skip past it.
+ */
+int
+__wt_block_addr_len(
+    WT_SESSION_IMPL *session, const uint8_t **addrp, size_t *addr_sizep)
+{
+	WT_BLOCK *block;
+	const uint8_t *start;
+	wt_off_t o;
+	uint32_t s, c;
+
+	block = S2BT(session)->bm->block;
+	start = *addrp;
+	WT_RET(__block_buffer_to_addr(block->allocsize, addrp, &o, &s, &c));
+	*addr_sizep -= WT_PTRDIFF(*addrp, start);
 	return (0);
 }
 
@@ -133,7 +169,7 @@ __wt_block_addr_string(WT_SESSION_IMPL *session,
 
 	/* Printable representation. */
 	WT_RET(__wt_buf_fmt(session, buf,
-	    "[%" PRIuMAX "-%" PRIuMAX ", %" PRIu32 ", %" PRIu32 "]",
+	    "%" PRIuMAX "-%" PRIuMAX ", %" PRIu32 ", %" PRIu32,
 	    (uintmax_t)offset, (uintmax_t)offset + size, size, cksum));
 
 	return (0);

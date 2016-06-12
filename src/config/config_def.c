@@ -243,6 +243,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_create[] = {
 	{ "colgroups", "list", NULL, NULL, NULL, 0 },
 	{ "collator", "string", NULL, NULL, NULL, 0 },
 	{ "columns", "list", NULL, NULL, NULL, 0 },
+	{ "delta_pages", "boolean", NULL, NULL, NULL, 0 },
 	{ "dictionary", "int", NULL, "min=0", NULL, 0 },
 	{ "encryption", "category",
 	    NULL, NULL,
@@ -411,6 +412,7 @@ static const WT_CONFIG_CHECK confchk_file_config[] = {
 	    NULL, 0 },
 	{ "collator", "string", NULL, NULL, NULL, 0 },
 	{ "columns", "list", NULL, NULL, NULL, 0 },
+	{ "delta_pages", "boolean", NULL, NULL, NULL, 0 },
 	{ "dictionary", "int", NULL, "min=0", NULL, 0 },
 	{ "encryption", "category",
 	    NULL, NULL,
@@ -468,6 +470,7 @@ static const WT_CONFIG_CHECK confchk_file_meta[] = {
 	    NULL, 0 },
 	{ "collator", "string", NULL, NULL, NULL, 0 },
 	{ "columns", "list", NULL, NULL, NULL, 0 },
+	{ "delta_pages", "boolean", NULL, NULL, NULL, 0 },
 	{ "dictionary", "int", NULL, "min=0", NULL, 0 },
 	{ "encryption", "category",
 	    NULL, NULL,
@@ -542,6 +545,7 @@ static const WT_CONFIG_CHECK confchk_lsm_meta[] = {
 	{ "chunks", "string", NULL, NULL, NULL, 0 },
 	{ "collator", "string", NULL, NULL, NULL, 0 },
 	{ "columns", "list", NULL, NULL, NULL, 0 },
+	{ "delta_pages", "boolean", NULL, NULL, NULL, 0 },
 	{ "dictionary", "int", NULL, "min=0", NULL, 0 },
 	{ "encryption", "category",
 	    NULL, NULL,
@@ -1019,9 +1023,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	{ "WT_SESSION.create",
 	  "allocation_size=4KB,app_metadata=,block_allocation=best,"
 	  "block_compressor=,cache_resident=0,checksum=uncompressed,"
-	  "colgroups=,collator=,columns=,dictionary=0,encryption=(keyid=,"
-	  "name=),exclusive=0,extractor=,format=btree,huffman_key=,"
-	  "huffman_value=,immutable=0,internal_item_max=0,"
+	  "colgroups=,collator=,columns=,delta_pages=0,dictionary=0,"
+	  "encryption=(keyid=,name=),exclusive=0,extractor=,format=btree,"
+	  "huffman_key=,huffman_value=,immutable=0,internal_item_max=0,"
 	  "internal_key_max=0,internal_key_truncate=,internal_page_max=4KB,"
 	  "key_format=u,key_gap=10,leaf_item_max=0,leaf_key_max=0,"
 	  "leaf_page_max=32KB,leaf_value_max=0,log=(enabled=),"
@@ -1032,7 +1036,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "prefix_compression=0,prefix_compression_min=4,source=,"
 	  "split_deepen_min_child=0,split_deepen_per_child=0,split_pct=75,"
 	  "type=file,value_format=u",
-	  confchk_WT_SESSION_create, 40
+	  confchk_WT_SESSION_create, 41
 	},
 	{ "WT_SESSION.drop",
 	  "checkpoint_wait=,force=0,lock_wait=,remove_files=",
@@ -1113,23 +1117,23 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	{ "file.config",
 	  "allocation_size=4KB,app_metadata=,block_allocation=best,"
 	  "block_compressor=,cache_resident=0,checksum=uncompressed,"
-	  "collator=,columns=,dictionary=0,encryption=(keyid=,name=),"
-	  "format=btree,huffman_key=,huffman_value=,internal_item_max=0,"
-	  "internal_key_max=0,internal_key_truncate=,internal_page_max=4KB,"
-	  "key_format=u,key_gap=10,leaf_item_max=0,leaf_key_max=0,"
-	  "leaf_page_max=32KB,leaf_value_max=0,log=(enabled=),"
-	  "memory_page_max=5MB,os_cache_dirty_max=0,os_cache_max=0,"
-	  "prefix_compression=0,prefix_compression_min=4,"
+	  "collator=,columns=,delta_pages=0,dictionary=0,encryption=(keyid="
+	  ",name=),format=btree,huffman_key=,huffman_value=,"
+	  "internal_item_max=0,internal_key_max=0,internal_key_truncate=,"
+	  "internal_page_max=4KB,key_format=u,key_gap=10,leaf_item_max=0,"
+	  "leaf_key_max=0,leaf_page_max=32KB,leaf_value_max=0,"
+	  "log=(enabled=),memory_page_max=5MB,os_cache_dirty_max=0,"
+	  "os_cache_max=0,prefix_compression=0,prefix_compression_min=4,"
 	  "split_deepen_min_child=0,split_deepen_per_child=0,split_pct=75,"
 	  "value_format=u",
-	  confchk_file_config, 33
+	  confchk_file_config, 34
 	},
 	{ "file.meta",
 	  "allocation_size=4KB,app_metadata=,block_allocation=best,"
 	  "block_compressor=,cache_resident=0,checkpoint=,checkpoint_lsn=,"
-	  "checksum=uncompressed,collator=,columns=,dictionary=0,"
-	  "encryption=(keyid=,name=),format=btree,huffman_key=,"
-	  "huffman_value=,id=,internal_item_max=0,internal_key_max=0,"
+	  "checksum=uncompressed,collator=,columns=,delta_pages=0,"
+	  "dictionary=0,encryption=(keyid=,name=),format=btree,huffman_key="
+	  ",huffman_value=,id=,internal_item_max=0,internal_key_max=0,"
 	  "internal_key_truncate=,internal_page_max=4KB,key_format=u,"
 	  "key_gap=10,leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,"
 	  "leaf_value_max=0,log=(enabled=),memory_page_max=5MB,"
@@ -1137,7 +1141,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "prefix_compression_min=4,split_deepen_min_child=0,"
 	  "split_deepen_per_child=0,split_pct=75,value_format=u,"
 	  "version=(major=0,minor=0)",
-	  confchk_file_meta, 37
+	  confchk_file_meta, 38
 	},
 	{ "index.meta",
 	  "app_metadata=,collator=,columns=,extractor=,immutable=0,"
@@ -1147,10 +1151,11 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	{ "lsm.meta",
 	  "allocation_size=4KB,app_metadata=,block_allocation=best,"
 	  "block_compressor=,cache_resident=0,checksum=uncompressed,chunks="
-	  ",collator=,columns=,dictionary=0,encryption=(keyid=,name=),"
-	  "format=btree,huffman_key=,huffman_value=,internal_item_max=0,"
-	  "internal_key_max=0,internal_key_truncate=,internal_page_max=4KB,"
-	  "key_format=u,key_gap=10,last=,leaf_item_max=0,leaf_key_max=0,"
+	  ",collator=,columns=,delta_pages=0,dictionary=0,"
+	  "encryption=(keyid=,name=),format=btree,huffman_key=,"
+	  "huffman_value=,internal_item_max=0,internal_key_max=0,"
+	  "internal_key_truncate=,internal_page_max=4KB,key_format=u,"
+	  "key_gap=10,last=,leaf_item_max=0,leaf_key_max=0,"
 	  "leaf_page_max=32KB,leaf_value_max=0,log=(enabled=),"
 	  "lsm=(auto_throttle=,bloom=,bloom_bit_count=16,bloom_config=,"
 	  "bloom_hash_count=8,bloom_oldest=0,chunk_count_limit=0,"
@@ -1159,7 +1164,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "os_cache_max=0,prefix_compression=0,prefix_compression_min=4,"
 	  "split_deepen_min_child=0,split_deepen_per_child=0,split_pct=75,"
 	  "value_format=u",
-	  confchk_lsm_meta, 37
+	  confchk_lsm_meta, 38
 	},
 	{ "table.meta",
 	  "app_metadata=,colgroups=,collator=,columns=,key_format=u,"

@@ -261,6 +261,8 @@ struct __wt_connection_stats {
 	int64_t cache_bytes_read;
 	int64_t cache_bytes_write;
 	int64_t cache_eviction_checkpoint;
+	int64_t cache_read_delta;
+	int64_t cache_write_delta;
 	int64_t cache_eviction_get_ref;
 	int64_t cache_eviction_get_ref_empty;
 	int64_t cache_eviction_get_ref_empty2;
@@ -460,6 +462,8 @@ struct __wt_dsrc_stats {
 	int64_t cache_bytes_write;
 	int64_t cache_eviction_checkpoint;
 	int64_t cache_eviction_fail;
+	int64_t cache_read_delta;
+	int64_t cache_write_delta;
 	int64_t cache_eviction_hazard;
 	int64_t cache_inmem_splittable;
 	int64_t cache_inmem_split;

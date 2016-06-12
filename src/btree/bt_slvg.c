@@ -371,7 +371,7 @@ static int
 __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
 {
 	WT_BM *bm;
-	WT_DECL_ITEM(as);
+	WT_DECL_ITEM(addr_print);
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
 	const WT_PAGE_HEADER *dsk;
@@ -380,7 +380,7 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
 	bool eof, valid;
 
 	bm = S2BT(session)->bm;
-	WT_ERR(__wt_scr_alloc(session, 0, &as));
+	WT_ERR(__wt_scr_alloc(session, 0, &addr_print));
 	WT_ERR(__wt_scr_alloc(session, 0, &buf));
 
 	for (;;) {
@@ -415,7 +415,7 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
 			continue;
 
 		/* Create a printable version of the address. */
-		WT_ERR(bm->addr_string(bm, session, as, addr, addr_size));
+		(void)__wt_addr_string(session, addr, addr_size, addr_print);
 
 		/*
 		 * Make sure it's an expected page type for the file.
@@ -434,7 +434,7 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
 			WT_ERR(__wt_verbose(session, WT_VERB_SALVAGE,
 			    "%s page ignored %s",
 			    __wt_page_type_string(dsk->type),
-			    (const char *)as->data));
+			    (const char *)addr_print->data));
 			WT_ERR(bm->free(bm, session, addr, addr_size));
 			continue;
 		}
@@ -448,11 +448,11 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
 		 * overflow references to non-existent pages, might as well
 		 * discard these pages now.
 		 */
-		if (__wt_verify_dsk(session, as->data, buf) != 0) {
+		if (__wt_verify_dsk(session, addr_print->data, buf) != 0) {
 			WT_ERR(__wt_verbose(session, WT_VERB_SALVAGE,
 			    "%s page failed verify %s",
 			    __wt_page_type_string(dsk->type),
-			    (const char *)as->data));
+			    (const char *)addr_print->data));
 			WT_ERR(bm->free(bm, session, addr, addr_size));
 			continue;
 		}
@@ -460,7 +460,7 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
 		WT_ERR(__wt_verbose(session, WT_VERB_SALVAGE,
 		    "tracking %s page, generation %" PRIu64 " %s",
 		    __wt_page_type_string(dsk->type), dsk->write_gen,
-		    (const char *)as->data));
+		    (const char *)addr_print->data));
 
 		switch (dsk->type) {
 		case WT_PAGE_COL_FIX:
@@ -485,7 +485,7 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
 		}
 	}
 
-err:	__wt_scr_free(session, &as);
+err:	__wt_scr_free(session, &addr_print);
 	__wt_scr_free(session, &buf);
 
 	return (ret);

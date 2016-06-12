@@ -30,7 +30,9 @@
  *
  * WT_PAGE_ROW_LEAF (row-store leaf page):
  *	Keys with optional data cells (a WT_CELL_KEY or WT_CELL_KEY_OVFL cell,
- *	normally followed by a WT_CELL_{VALUE,VALUE_COPY,VALUE_OVFL} cell).
+ *	normally followed by a WT_CELL_{VALUE,VALUE_COPY,VALUE_OVFL} cell), or
+ *	deleted cells (a WT_CELL_DEL cell). Deleted cells only appear on delta
+ *	pages.
  *
  *	WT_PAGE_ROW_LEAF pages optionally prefix-compress keys, using a single
  *	byte count immediately following the cell.

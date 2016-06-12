@@ -129,6 +129,10 @@ static CONFIG c[] = {
 	  "percent operations that are deletes",
 	  0x0, 0, 45, 90, &g.c_delete_pct, NULL },
 
+	{ "delta_pages",
+	  "if delta pages are written",			/* 20% */
+	  C_BOOL, 20, 0, 0, &g.c_delta_pages, NULL },
+
 	{ "dictionary",
 	  "if values are dictionary compressed",		/* 20% */
 	  C_BOOL, 20, 0, 0, &g.c_dictionary, NULL },

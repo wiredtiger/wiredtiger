@@ -302,8 +302,10 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_VSTUFF *vs)
 	WT_DECL_RET;
 	WT_PAGE *page;
 	WT_REF *child_ref;
+	size_t addr_size;
 	uint64_t recno;
 	uint32_t entry, i;
+	const uint8_t *addr;
 	bool found;
 
 	bm = S2BT(session)->bm;
@@ -512,8 +514,13 @@ celltype_err:			WT_RET_MSG(session, WT_ERROR,
 			WT_RET(ret);
 
 			__wt_cell_unpack(child_ref->addr, unpack);
-			WT_RET(bm->verify_addr(
-			    bm, session, unpack->data, unpack->size));
+			addr = unpack->data;
+			addr_size = unpack->size;
+			WT_RET(bm->verify_addr(bm, session, addr, addr_size));
+			WT_RET(__wt_block_addr_len(session, &addr, &addr_size));
+			if (addr_size != 0)
+				WT_RET(bm->verify_addr(
+				    bm, session, addr, addr_size));
 		} WT_INTL_FOREACH_END;
 		break;
 	case WT_PAGE_ROW_INT:
@@ -542,8 +549,14 @@ celltype_err:			WT_RET_MSG(session, WT_ERROR,
 			WT_RET(ret);
 
 			__wt_cell_unpack(child_ref->addr, unpack);
-			WT_RET(bm->verify_addr(
-			    bm, session, unpack->data, unpack->size));
+			addr = unpack->data;
+			addr_size = unpack->size;
+			WT_RET(bm->verify_addr(bm, session, addr, addr_size));
+			WT_RET(__wt_block_addr_len(session, &addr, &addr_size));
+			if (addr_size != 0)
+				WT_RET(bm->verify_addr(
+				    bm, session, addr, addr_size));
+
 		} WT_INTL_FOREACH_END;
 		break;
 	}

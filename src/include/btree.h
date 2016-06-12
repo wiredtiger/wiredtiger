@@ -105,6 +105,7 @@ struct __wt_btree {
 	u_int dictionary;		/* Dictionary slots */
 	bool  internal_key_truncate;	/* Internal key truncate */
 	int   maximum_depth;		/* Maximum tree depth */
+	bool  delta_pages;		/* Write delta pages */
 	bool  prefix_compression;	/* Prefix compression */
 	u_int prefix_compression_min;	/* Prefix compression min */
 #define	WT_SPLIT_DEEPEN_MIN_CHILD_DEF	10000

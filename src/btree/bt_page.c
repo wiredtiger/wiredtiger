@@ -540,6 +540,7 @@ __inmem_row_leaf_entries(
 		case WT_CELL_KEY_OVFL:
 			++nindx;
 			break;
+		case WT_CELL_DEL:
 		case WT_CELL_VALUE:
 		case WT_CELL_VALUE_OVFL:
 			break;
@@ -574,9 +575,11 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
 	WT_CELL_FOREACH(btree, dsk, cell, unpack, i) {
 		__wt_cell_unpack(cell, unpack);
 		switch (unpack->type) {
-		case WT_CELL_KEY_OVFL:
-			__wt_row_leaf_key_set_cell(page, rip, cell);
-			++rip;
+		case WT_CELL_DEL:
+			/*
+			 * Deleted items only appear on delta pages (items on
+			 * the base page have been deleted).
+			 */
 			break;
 		case WT_CELL_KEY:
 			/*
@@ -588,6 +591,10 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
 				__wt_row_leaf_key_set(page, rip, unpack);
 			else
 				__wt_row_leaf_key_set_cell(page, rip, cell);
+			++rip;
+			break;
+		case WT_CELL_KEY_OVFL:
+			__wt_row_leaf_key_set_cell(page, rip, cell);
 			++rip;
 			break;
 		case WT_CELL_VALUE:

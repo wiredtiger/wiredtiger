@@ -320,10 +320,14 @@ wts_init(void)
 	}
 	p += snprintf(p, REMAIN(p, end),
 	    "key_format=%s,"
-	    "allocation_size=512,%s"
-	    "internal_page_max=%" PRIu32 ",leaf_page_max=%" PRIu32,
+	    "allocation_size=512,"
+	    "%s,"
+	    "delta_pages=%s,"
+	    "internal_page_max=%" PRIu32 ","
+	    "leaf_page_max=%" PRIu32,
 	    (g.type == ROW) ? "u" : "r",
-	    g.c_firstfit ? "block_allocation=first," : "",
+	    g.c_firstfit ? "block_allocation=first" : "",
+	    g.c_delta_pages ? "true" : "false",
 	    maxintlpage, maxleafpage);
 
 	/*

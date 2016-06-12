@@ -293,6 +293,107 @@ err:	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 }
 
 /*
+ * __delta_page_instantiate --
+ *	Instantiate change records in a recently read page.
+ */
+static int
+__delta_page_instantiate(WT_SESSION_IMPL *session,
+    WT_REF *ref, const uint8_t *addr, size_t addr_size)
+{
+	WT_CELL *cell;
+	WT_CELL_UNPACK unpack;
+	WT_CURSOR_BTREE cbt;
+	WT_DECL_ITEM(image);
+	WT_DECL_ITEM(key);
+	WT_DECL_ITEM(value);
+	WT_DECL_RET;
+	WT_PAGE *page;
+	WT_ROW *rip;
+	WT_UPDATE *upd;
+	size_t size, total_incr;
+	uint32_t i;
+	bool deleted;
+
+	page = NULL;
+	upd = NULL;
+	total_incr = 0;
+
+	/*
+	 * Allocate a temporary buffer, read the page with the list of changes
+	 * to the original page, and build an in-memory version of it.
+	 *
+	 * Don't pass WT_PAGE_DISK_ALLOC to the in-memory function in the case
+	 * we didn't map the page, the image is held in a scratch buffer and
+	 * should never be freed.
+	 */
+	WT_ERR(__wt_scr_alloc(session, 8 * 1024, &image));
+	WT_ERR(__wt_bt_read(session, image, addr, addr_size));
+	WT_ERR(__wt_page_inmem(session, NULL, image->data, image->memsize,
+	    WT_DATA_IN_ITEM(image) ? 0 : WT_PAGE_DISK_MAPPED, &page));
+
+	/* Open a cursor, used to apply the changes. */
+	__wt_btcur_init(session, &cbt);
+	__wt_btcur_open(&cbt);
+
+	/* Walk the page, applying the changes to the original page. */
+	WT_ERR(__wt_scr_alloc(session, 0, &key));
+	WT_ERR(__wt_scr_alloc(session, 0, &value));
+	WT_ROW_FOREACH(page, rip, i) {
+		WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
+		deleted = false;
+		if (__wt_row_leaf_value(page, rip, value) == false) {
+			if ((cell =
+			    __wt_row_leaf_value_cell(page, rip, NULL)) == NULL)
+				value->size = 0;
+			else if (__wt_cell_type(cell) == WT_CELL_DEL)
+				deleted = true;
+			else {
+				__wt_cell_unpack(cell, &unpack);
+				WT_ERR(__wt_dsk_cell_data_ref(
+				    session, page->type, &unpack, value));
+			}
+		}
+		WT_ERR(__wt_update_alloc(
+		    session, deleted ? NULL : value, &upd, &size));
+		upd->txnid = WT_TXN_NONE;	/* Globally visible */
+
+		WT_ERR(__wt_row_search(session, key, ref, &cbt, true));
+		WT_ERR(__wt_row_modify(session, &cbt, key, NULL, upd, false));
+		upd = NULL;			/* Ignore on error. */
+
+		total_incr += size;
+	}
+
+	WT_ASSERT(session, total_incr != 0);
+	__wt_cache_page_inmem_incr(session, ref->page, total_incr);
+
+	/*
+	 * We've modified/dirtied the page, but that's not necessary and if we
+	 * keep the page clean, it's easier to evict.
+	 *
+	 * If a checkpoint, return the tree to a clean state. (Any checkpoint
+	 * tree must be clean when discarded, because normal trees are written
+	 * and checkpoint trees cannot be written.) Our caller has an atomic
+	 * operation to ensure this store is visible before the page is visible,
+	 * guaranteeing a clean tree before the tree can be discarded.
+	 */
+	__wt_page_modify_clear(session, ref->page);
+	if (session->dhandle->checkpoint != NULL)
+		S2BT(session)->modified = 0;
+
+err:	WT_TRET(__wt_btcur_close(&cbt, true));
+
+	__wt_scr_free(session, &image);
+	__wt_page_out(session, &page);
+
+	__wt_free(session, upd);
+	__wt_scr_free(session, &key);
+	__wt_scr_free(session, &value);
+
+	return (ret);
+}
+
+/*
  * __evict_force_check --
  *	Check if a page matches the criteria for forced eviction.
  */
@@ -397,16 +498,30 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref)
 	 */
 	tmp.mem = NULL;
 
+	/* Instantiate updates from any delta page. */
+	WT_ERR(__wt_block_addr_len(session, &addr, &addr_size));
+	if (addr_size != 0) {
+		WT_STAT_FAST_CONN_INCR(session, cache_read_delta);
+		WT_STAT_FAST_DATA_INCR(session, cache_read_delta);
+
+		WT_ERR(__delta_page_instantiate(session, ref, addr, addr_size));
+	}
+
 	/*
 	 * If reading for a checkpoint, there's no additional work to do, the
-	 * page on disk is correct as written.
+	 * page(s) on disk are correct as written.
 	 */
 	if (session->dhandle->checkpoint != NULL)
 		goto done;
 
 	/* If the page was deleted, instantiate that information. */
-	if (previous_state == WT_REF_DELETED)
+	if (previous_state == WT_REF_DELETED) {
 		WT_ERR(__wt_delete_page_instantiate(session, ref));
+		/*
+		 * XXX KEITH XXX
+		 * Is it possible for a deleted page to have LAS records?
+		 */
+	}
 
 	/*
 	 * Instantiate updates from the database's lookaside table. The page

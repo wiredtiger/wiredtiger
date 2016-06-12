@@ -49,6 +49,9 @@ typedef struct {
 	 */
 	bool leave_dirty;
 
+	/* If writing a delta-page instead of a complete replacement page. */
+	bool delta_page;
+
 	/*
 	 * Raw compression (don't get me started, as if normal reconciliation
 	 * wasn't bad enough).  If an application wants absolute control over
@@ -315,6 +318,10 @@ static int  __rec_row_leaf(WT_SESSION_IMPL *,
 		WT_RECONCILE *, WT_PAGE *, WT_SALVAGE_COOKIE *);
 static int  __rec_row_leaf_insert(
 		WT_SESSION_IMPL *, WT_RECONCILE *, WT_INSERT *);
+static int  __rec_row_leaf_page_delta(
+		WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
+static bool __rec_row_leaf_page_delta_possible(
+		WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
 static int  __rec_row_merge(WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
 static int  __rec_split_col(WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
 static int  __rec_split_discard(WT_SESSION_IMPL *, WT_PAGE *);
@@ -352,6 +359,7 @@ __wt_reconcile(WT_SESSION_IMPL *session,
 	WT_PAGE_MODIFY *mod;
 	WT_RECONCILE *r;
 	uint64_t oldest_id;
+	bool restarted;
 
 	page = ref->page;
 	mod = page->modify;
@@ -359,8 +367,12 @@ __wt_reconcile(WT_SESSION_IMPL *session,
 	WT_RET(__wt_verbose(session,
 	    WT_VERB_RECONCILE, "%s", __wt_page_type_string(page->type)));
 
-	/* We shouldn't get called with a clean page, that's an error. */
+	/* It's an error to be called with a clean page. */
 	WT_ASSERT(session, __wt_page_is_modified(page));
+
+	/* It's an error to reenter reconciliation. */
+	WT_ASSERT(session, !F_ISSET(session, WT_SESSION_RECONCILIATION));
+	F_SET(session, WT_SESSION_RECONCILIATION);
 
 	/*
 	 * Reconciliation locks the page for three reasons:
@@ -373,6 +385,10 @@ __wt_reconcile(WT_SESSION_IMPL *session,
 	 */
 	WT_RET(__wt_fair_lock(session, &page->page_lock));
 
+	restarted = false;
+	if (0) {
+restart:	restarted = true;
+	}
 	/*
 	 * Check that transaction time always moves forward for a given page.
 	 * If this check fails, reconciliation can free something that a future
@@ -410,7 +426,23 @@ __wt_reconcile(WT_SESSION_IMPL *session,
 		    ret = __rec_row_int(session, r, page));
 		break;
 	case WT_PAGE_ROW_LEAF:
-		ret = __rec_row_leaf(session, r, page, salvage);
+		/*
+		 * Consider building build a delta page. Skipped if compacting
+		 * (where the goal is to move the current page).
+		 */
+		if (restarted || salvage != NULL ||
+		    session->compact_state != WT_COMPACT_NONE ||
+		    !__rec_row_leaf_page_delta_possible(session, r, page))
+			ret = __rec_row_leaf(session, r, page, salvage);
+		else  {
+			r->delta_page = true;
+			ret = __rec_row_leaf_page_delta(session, r, page);
+			if (ret == WT_RESTART) {
+				r->delta_page = false;
+				ret = 0;
+				goto restart;
+			}
+		}
 		break;
 	WT_ILLEGAL_VALUE_SET(session);
 	}
@@ -428,12 +460,19 @@ __wt_reconcile(WT_SESSION_IMPL *session,
 	/* Release the reconciliation lock. */
 	WT_TRET(__wt_fair_unlock(session, &page->page_lock));
 
+	/* Reconciliation is not re-entrant, make sure that doesn't happen. */
+	F_CLR(session, WT_SESSION_RECONCILIATION);
+
 	/* Update statistics. */
 	WT_STAT_FAST_CONN_INCR(session, rec_pages);
 	WT_STAT_FAST_DATA_INCR(session, rec_pages);
 	if (LF_ISSET(WT_EVICTING)) {
 		WT_STAT_FAST_CONN_INCR(session, rec_pages_eviction);
 		WT_STAT_FAST_DATA_INCR(session, rec_pages_eviction);
+	}
+	if (r->delta_page) {
+		WT_STAT_FAST_CONN_INCR(session, cache_write_delta);
+		WT_STAT_FAST_DATA_INCR(session, cache_write_delta);
 	}
 	if (r->cache_write_lookaside) {
 		WT_STAT_FAST_CONN_INCR(session, cache_write_lookaside);
@@ -758,9 +797,6 @@ __rec_write_init(WT_SESSION_IMPL *session,
 		F_SET(&r->disk_image, WT_ITEM_ALIGNED);
 	}
 
-	/* Reconciliation is not re-entrant, make sure that doesn't happen. */
-	WT_ASSERT(session, r->ref == NULL);
-
 	/* Remember the configuration. */
 	r->ref = ref;
 	r->page = page;
@@ -815,6 +851,9 @@ __rec_write_init(WT_SESSION_IMPL *session,
 
 	/* Track the page's maximum transaction ID. */
 	r->max_txn = WT_TXN_NONE;
+
+	/* Default to not creating delta pages. */
+	r->delta_page = false;
 
 	/* Track if the page can be marked clean. */
 	r->leave_dirty = false;
@@ -941,9 +980,6 @@ __rec_bnd_cleanup(WT_SESSION_IMPL *session, WT_RECONCILE *r, bool destroy)
 
 	if (r->bnd == NULL)
 		return;
-
-	/* Reconciliation is not re-entrant, make sure that doesn't happen. */
-	r->ref = NULL;
 
 	/*
 	 * Free the boundary structures' memory.  In the case of normal cleanup,
@@ -4980,6 +5016,271 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 }
 
 /*
+ * __rec_row_leaf_page_delta_possible --
+ *	Return if a delta-page reconciliation is possible.
+ */
+static bool
+__rec_row_leaf_page_delta_possible(
+    WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
+{
+	WT_BTREE *btree;
+	WT_REF *ref;
+
+	btree = S2BT(session);
+	ref = r->ref;
+
+	/*
+	 * Optionally write a substitute page with only changed records since
+	 * the page was read.
+	 */
+	if (!btree->delta_pages)
+		return (false);
+
+	/* Root pages are always written in their entirety. */
+	if (__wt_ref_is_root(ref))
+		return (false);
+
+	/* Ignore small pages (or pages that are just big skiplists). */
+	if (page->pg_row_entries < 100)
+		return (false);
+
+	/*
+	 * Non-standard reconciliation: only interested in going to disk.
+	 *
+	 * XXX KEITH XXX
+	 * Lookaside eviction might work if we restore lookaside records to both
+	 * the original and the page-delta page.
+	 */
+	if (F_ISSET(r,
+	    WT_EVICT_IN_MEMORY | WT_EVICT_LOOKASIDE | WT_EVICT_UPDATE_RESTORE))
+		return (false);
+
+	/*
+	 * If we've never done reconciliation before, we'll need a base page.
+	 * If we've done replacement reconciliation before, we can do a delta
+	 * page. Else, delta pages aren't supported.
+	 */
+	switch (page->modify->rec_result) {
+	case 0:
+		if (ref->addr == NULL)
+			return (false);
+		break;
+	case WT_PM_REC_EMPTY:
+	case WT_PM_REC_MULTIBLOCK:
+		return (false);
+	case WT_PM_REC_REPLACE:
+		break;
+	}
+
+	return (true);
+}
+
+/*
+ * __rec_row_leaf_insert_delta --
+ *	Walk an insert chain, writing K/V pairs; delta version.
+ */
+static int
+__rec_row_leaf_insert_delta(
+    WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
+{
+	WT_BTREE *btree;
+	WT_KV *key, *val;
+	WT_UPDATE *upd;
+	bool ovfl_key;
+
+	btree = S2BT(session);
+
+	key = &r->k;
+	val = &r->v;
+
+	for (; ins != NULL; ins = WT_SKIP_NEXT(ins)) {
+		/* Look for an update. */
+		WT_RET(__rec_txn_read(session, r, ins, NULL, NULL, &upd));
+		if (upd == NULL)
+			continue;
+		if (WT_UPDATE_DELETED_ISSET(upd)) {	/* Build value cell */
+			val->cell_len = __wt_cell_pack_del(&val->cell, 0);
+			val->buf.data = NULL;
+			val->buf.size = 0;
+			val->len = val->cell_len;
+		} else if (upd->size == 0)
+			val->len = 0;
+		else
+			WT_RET(__rec_cell_build_val(session, r,
+			    WT_UPDATE_DATA(upd), upd->size, (uint64_t)0));
+
+							/* Build key cell. */
+		WT_RET(__rec_cell_build_leaf_key(session, r,
+		    WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins), &ovfl_key));
+
+		/* Boundary: split or write the page. */
+		if (key->len + val->len > r->space_avail)
+			return (WT_RESTART);
+
+		/* Copy the key/value pair onto the page. */
+		__rec_copy_incr(session, r, key);
+		if (val->len == 0)
+			r->any_empty_value = true;
+		else {
+			r->all_empty_value = false;
+			if (btree->dictionary)
+				WT_RET(__rec_dict_replace(session, r, 0, val));
+			__rec_copy_incr(session, r, val);
+		}
+
+		/* Update compression state. */
+		__rec_key_state_update(r, ovfl_key);
+	}
+
+	return (0);
+}
+
+/*
+ * __rec_row_leaf_page_delta --
+ *	Reconcile a row-store leaf page; delta version.
+ */
+static int
+__rec_row_leaf_page_delta(
+    WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
+{
+	WT_BTREE *btree;
+	WT_CELL *cell, *val_cell;
+	WT_CELL_UNPACK *kpack, _kpack, *vpack, _vpack;
+	WT_DECL_ITEM(tmpkey);
+	WT_DECL_RET;
+	WT_INSERT *ins;
+	WT_KV *key, *val;
+	WT_ROW *rip;
+	WT_UPDATE *upd;
+	uint32_t i, max;
+	bool dictionary, ovfl_key;
+	void *copy;
+
+	btree = S2BT(session);
+
+	key = &r->k;
+	val = &r->v;
+
+	/* Temporary buffer in which to instantiate any uninstantiated keys. */
+	WT_ERR(__wt_scr_alloc(session, 0, &tmpkey));
+
+	/* Limit the attempt to 25% of a page. */
+	max = (uint32_t)
+	    WT_ALIGN_NEAREST(btree->maxleafpage / 4, btree->allocsize);
+	WT_ERR(__rec_split_init(session, r, page, 0ULL, max));
+
+	/*
+	 * Write any K/V pairs inserted into the page before the first from-disk
+	 * key on the page.
+	 */
+	if ((ins = WT_SKIP_FIRST(WT_ROW_INSERT_SMALLEST(page))) != NULL)
+		WT_ERR(__rec_row_leaf_insert_delta(session, r, ins));
+
+	/* For each entry in the page... */
+	WT_ROW_FOREACH(page, rip, i) {
+		/* Unpack the on-page value cell, and look for an update. */
+		if ((val_cell =
+		    __wt_row_leaf_value_cell(page, rip, NULL)) == NULL)
+			vpack = NULL;
+		else {
+			vpack = &_vpack;
+			__wt_cell_unpack(val_cell, vpack);
+		}
+		WT_ERR(__rec_txn_read(session, r, NULL, rip, vpack, &upd));
+
+		/*
+		 * Ignore anything invisible or unchanged since the page was
+		 * read.
+		 */
+		if (upd == NULL)
+			goto leaf_insert;
+
+		/*
+		 * If no value, nothing needs to be copied.  Otherwise,
+		 * build the value's WT_CELL chunk from the most recent
+		 * update value.
+		 */
+		dictionary = false;
+		if (WT_UPDATE_DELETED_ISSET(upd)) {	/* Build value cell */
+			val->cell_len = __wt_cell_pack_del(&val->cell, 0);
+			val->buf.data = NULL;
+			val->buf.size = 0;
+			val->len = val->cell_len;
+		} else if (upd->size == 0) {
+			val->buf.data = NULL;
+			val->cell_len = val->len = val->buf.size = 0;
+		} else {
+			WT_ERR(__rec_cell_build_val(session, r,
+			    WT_UPDATE_DATA(upd), upd->size, (uint64_t)0));
+			dictionary = true;
+		}
+
+		/*
+		 * Build key cell.
+		 *
+		 * Get the key from the page or an instantiated key, or
+		 * inline building the key from a previous key (it's a
+		 * fast path for simple, prefix-compressed keys), or by
+		 * by building the key from scratch.
+		 */
+		copy = WT_ROW_KEY_COPY(rip);
+		if (!__wt_row_leaf_key_info(page, copy,
+		    NULL, &cell, &tmpkey->data, &tmpkey->size)) {
+			kpack = &_kpack;
+			__wt_cell_unpack(cell, kpack);
+			if (kpack->ovfl)
+				WT_ERR(WT_RESTART);
+			WT_ERR(
+			    __wt_row_leaf_key_copy(session, page, rip, tmpkey));
+		}
+		WT_ERR(__rec_cell_build_leaf_key(session, r,
+		    tmpkey->data, tmpkey->size, &ovfl_key));
+
+		/* Boundary: split or write the page. */
+		if (key->len + val->len > r->space_avail)
+			WT_ERR(WT_RESTART);
+
+		/* Copy the key/value pair onto the page. */
+		__rec_copy_incr(session, r, key);
+		if (val->len == 0)
+			r->any_empty_value = true;
+		else {
+			r->all_empty_value = false;
+			if (dictionary && btree->dictionary)
+				WT_ERR(__rec_dict_replace(session, r, 0, val));
+			__rec_copy_incr(session, r, val);
+		}
+
+		/* Update compression state. */
+		__rec_key_state_update(r, ovfl_key);
+
+leaf_insert:	/* Write any K/V pairs inserted into the page after this key. */
+		if ((ins = WT_SKIP_FIRST(WT_ROW_INSERT(page, rip))) != NULL)
+		    WT_ERR(__rec_row_leaf_insert_delta(session, r, ins));
+	}
+
+	/*
+	 * XXX KEITH XXX
+	 * There's a problem if we didn't find anything to write, we can't write
+	 * an "empty" delta page. The checkpoint should reuse the previous page
+	 * (and that's what I expect if/when the restart doesn't find anything
+	 * to write, because old and new page images will match). I don't see an
+	 * obvious path to short-circuiting that choice, at the moment; if this
+	 * change is ever real, it deserves some thought.
+	 */
+	if (r->entries == 0)
+		WT_ERR(WT_RESTART);
+
+	/* Write the remnant page. */
+	ret = __rec_split_finish(session, r);
+
+	WT_ASSERT(session, r->ovfl_items == false);
+
+err:	__wt_scr_free(session, &tmpkey);
+	return (ret);
+}
+
+/*
  * __rec_row_leaf --
  *	Reconcile a row-store leaf page.
  */
@@ -5556,11 +5857,15 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 	WT_BTREE *btree;
 	WT_PAGE_MODIFY *mod;
 	WT_REF *ref;
+	size_t addr_size, orig_addr_size;
+	const uint8_t *addr, *orig_addr;
+	uint8_t addr_tmp[WT_BTREE_MAX_ADDR_COOKIE * 2];
 
 	btree = S2BT(session);
 	bm = btree->bm;
 	mod = page->modify;
 	ref = r->ref;
+	addr_size = 0;
 
 	/*
 	 * This page may have previously been reconciled, and that information
@@ -5569,7 +5874,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 	 * new reality.
 	 */
 	switch (mod->rec_result) {
-	case 0:	/*
+	case 0:						/* New reconciliation */
+		/*
 		 * The page has never been reconciled before, free the original
 		 * address blocks (if any).  The "if any" is for empty trees
 		 * created when a new tree is opened or previously deleted pages
@@ -5578,13 +5884,49 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		 * The exception is root pages are never tracked or free'd, they
 		 * are checkpoints, and must be explicitly dropped.
 		 */
-		if (__wt_ref_is_root(ref))
+		if (__wt_ref_is_root(ref) || ref->addr == NULL)
 			break;
-		WT_RET(__wt_ref_block_free(session, ref));
+
+		/*
+		 * Page deltas complicate stuff: if we are writing a page delta
+		 * and we end up here, the original address might or might not
+		 * include a page delta. In both cases, the new replacement
+		 * address is the base page (the first address in the current
+		 * replacement address) plus the new delta, and we must free
+		 * the old page delta (if there is one).
+		 *
+		 * If not writing a page delta and we end up here, free any/all
+		 * original blocks.
+		 */
+		__wt_ref_info(ref, &addr, &addr_size, NULL);
+		if (r->delta_page) {
+			orig_addr = addr;
+			orig_addr_size = addr_size;
+
+			/*
+			 * Skip past the base page address, and free any delta
+			 * page address.
+			 */
+			WT_RET(__wt_block_addr_len(session, &addr, &addr_size));
+			if (addr_size != 0)
+				WT_RET(__wt_btree_block_free(
+				    session, addr, addr_size));
+
+			/* Copy the base page address into the build buffer. */
+			addr_size = orig_addr_size - addr_size;
+			memcpy(addr_tmp, orig_addr, addr_size);
+
+			/* Discard the original address. */
+			__wt_ref_addr_free(session, ref);
+			break;
+		} else
+			WT_RET(__wt_ref_block_free(session, ref));
 		break;
 	case WT_PM_REC_EMPTY:				/* Page deleted */
+		WT_ASSERT(session, r->delta_page == false);
 		break;
 	case WT_PM_REC_MULTIBLOCK:			/* Multiple blocks */
+		WT_ASSERT(session, r->delta_page == false);
 		/*
 		 * Discard the multiple replacement blocks.
 		 */
@@ -5592,14 +5934,41 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		break;
 	case WT_PM_REC_REPLACE:				/* 1-for-1 page swap */
 		/*
-		 * Discard the replacement leaf page's blocks.
-		 *
-		 * The exception is root pages are never tracked or free'd, they
-		 * are checkpoints, and must be explicitly dropped.
+		 * Discard the replacement leaf page's blocks. The exception is
+		 * root pages are never tracked or free'd, they are checkpoints
+		 * and must be explicitly dropped.
 		 */
-		if (!__wt_ref_is_root(ref))
-			WT_RET(__wt_btree_block_free(session,
-			    mod->mod_replace.addr, mod->mod_replace.size));
+		if (__wt_ref_is_root(ref))
+			break;
+
+		/*
+		 * Page deltas complicate stuff: if we are writing a page delta
+		 * and we end up here, the last page we wrote may or may not
+		 * have been a page delta. In both cases, the new replacement
+		 * address is the base page (the first address in the current
+		 * replacement address) plus the new delta, and we must free
+		 * the old page delta (if there is one).
+		 *
+		 * If not writing a page delta and we end up here, free any/all
+		 * previously written replacement blocks.
+		 */
+		addr = mod->mod_replace.addr;
+		addr_size = mod->mod_replace.size;
+		if (r->delta_page) {
+			/*
+			 * Skip past the base page address, and free any delta
+			 * page address.
+			 */
+			WT_RET(__wt_block_addr_len(session, &addr, &addr_size));
+			if (addr_size != 0)
+				WT_RET(__wt_btree_block_free(
+				    session, addr, addr_size));
+
+			/* Copy the base page address into the build buffer. */
+			addr_size = mod->mod_replace.size - addr_size;
+			memcpy(addr_tmp, mod->mod_replace.addr, addr_size);
+		} else
+			WT_RET(__wt_btree_block_free(session, addr, addr_size));
 
 		/* Discard the replacement page's address. */
 		__wt_free(session, mod->mod_replace.addr);
@@ -5622,6 +5991,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
 	switch (r->bnd_next) {
 	case 0:						/* Page delete */
+		WT_ASSERT(session, r->delta_page == false);
+
 		WT_RET(__wt_verbose(
 		    session, WT_VERB_RECONCILE, "page %p empty", page));
 		WT_STAT_FAST_CONN_INCR(session, rec_page_delete);
@@ -5664,11 +6035,31 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		 * If this is a root page, then we don't have an address and we
 		 * have to create a sync point.  The address was cleared when
 		 * we were about to write the buffer so we know what to do here.
+		 *
+		 * If writing a page delta, the base page address is already in
+		 * the temporary buffer, append the page delta address and make
+		 * a copy.
+		 *
+		 * Else, the replacement page's address is the same as the page
+		 * we wrote.
 		 */
-		if (bnd->addr.addr == NULL)
+		if (bnd->addr.addr == NULL) {
+			WT_ASSERT(session, r->delta_page == false);
+
 			WT_RET(__wt_bt_write(session, &r->disk_image,
 			    NULL, NULL, true, bnd->already_compressed));
-		else {
+		} else if (r->delta_page) {
+			/* Assert there's a base page address. */
+			WT_ASSERT(session, addr_size != 0);
+
+			memcpy(addr_tmp + addr_size,
+			    bnd->addr.addr, bnd->addr.size);
+			addr_size += bnd->addr.size;
+			WT_ASSERT(session, mod->mod_replace.addr == NULL);
+			WT_RET(__wt_strndup(session,
+			    addr_tmp, addr_size, &mod->mod_replace.addr));
+			mod->mod_replace.size = (uint8_t)addr_size;
+		} else {
 			mod->mod_replace = bnd->addr;
 			bnd->addr.addr = NULL;
 		}
@@ -5676,6 +6067,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		mod->rec_result = WT_PM_REC_REPLACE;
 		break;
 	default:					/* Page split */
+		WT_ASSERT(session, r->delta_page == false);
+
 		WT_RET(__wt_verbose(session, WT_VERB_RECONCILE,
 		    "page %p reconciled into %" PRIu32 " pages",
 		    page, r->bnd_next));
@@ -5908,7 +6301,7 @@ __rec_cell_build_int_key(WT_SESSION_IMPL *session,
  */
 static int
 __rec_cell_build_leaf_key(WT_SESSION_IMPL *session,
-    WT_RECONCILE *r, const void *data, size_t size, bool *is_ovflp)
+    WT_RECONCILE *r, const void *data, size_t size, bool *ovfl_keyp)
 {
 	WT_BTREE *btree;
 	WT_KV *key;
@@ -5916,7 +6309,7 @@ __rec_cell_build_leaf_key(WT_SESSION_IMPL *session,
 	uint8_t pfx;
 	const uint8_t *a, *b;
 
-	*is_ovflp = false;
+	*ovfl_keyp = false;
 
 	btree = S2BT(session);
 
@@ -5990,12 +6383,12 @@ __rec_cell_build_leaf_key(WT_SESSION_IMPL *session,
 		if (pfx == 0) {
 			WT_STAT_FAST_DATA_INCR(session, rec_overflow_key_leaf);
 
-			*is_ovflp = true;
+			*ovfl_keyp = true;
 			return (__rec_cell_build_ovfl(
 			    session, r, key, WT_CELL_KEY_OVFL, (uint64_t)0));
 		}
 		return (
-		    __rec_cell_build_leaf_key(session, r, NULL, 0, is_ovflp));
+		    __rec_cell_build_leaf_key(session, r, NULL, 0, ovfl_keyp));
 	}
 
 	key->cell_len = __wt_cell_pack_leaf_key(&key->cell, pfx, key->buf.size);
@@ -6104,6 +6497,13 @@ __rec_cell_build_ovfl(WT_SESSION_IMPL *session,
 	btree = S2BT(session);
 	bm = btree->bm;
 	page = r->page;
+
+	/*
+	 * Quit if we're trying to write delta pages, overflow records aren't
+	 * part of that plan.
+	 */
+	if (r->delta_page)
+		return (WT_RESTART);
 
 	/* Track if page has overflow items. */
 	r->ovfl_items = true;

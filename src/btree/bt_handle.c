@@ -301,6 +301,19 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 	case BTREE_COL_FIX:
 		break;
 	case BTREE_ROW:
+		/*
+		 * Don't write delta pages absent some significant gain. A delta
+		 * page wins if we write much less than a maximum leaf page. If
+		 * the allocation size is more than 25% of a page, don't bother.
+		 */
+		WT_RET(__wt_config_gets(session, cfg, "delta_pages", &cval));
+		btree->delta_pages = cval.val != 0;
+		if (btree->delta_pages &&
+		    btree->allocsize * 4 > btree->maxleafpage)
+			WT_RET_MSG(session, EINVAL,
+			    "delta_pages configuration ignored if allocation "
+			    "size is more than 25%% of the maximum page size");
+
 		WT_RET(__wt_config_gets(
 		    session, cfg, "internal_key_truncate", &cval));
 		btree->internal_key_truncate = cval.val != 0;
@@ -384,7 +397,6 @@ int
 __wt_btree_tree_open(
     WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
-	WT_BM *bm;
 	WT_BTREE *btree;
 	WT_DECL_ITEM(tmp);
 	WT_DECL_RET;
@@ -392,7 +404,6 @@ __wt_btree_tree_open(
 	WT_PAGE *page;
 
 	btree = S2BT(session);
-	bm = btree->bm;
 
 	/*
 	 * A buffer into which we read a root page; don't use a scratch buffer,
@@ -408,7 +419,7 @@ __wt_btree_tree_open(
 	 * Create a printable version of the address to pass to verify.
 	 */
 	WT_ERR(__wt_scr_alloc(session, 0, &tmp));
-	WT_ERR(bm->addr_string(bm, session, tmp, addr, addr_size));
+	(void)__wt_addr_string(session, addr, addr_size, tmp);
 
 	F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
 	if ((ret = __wt_bt_read(session, &dsk, addr, addr_size)) == 0)

@@ -999,7 +999,10 @@ nextprev(WT_CURSOR *cursor, int next)
 	}
 	if (value.size != bdb_value.size ||
 	    memcmp(value.data, bdb_value.data, value.size) != 0) {
-		fprintf(stderr, "nextprev: %s value mismatch:\n", which);
+		fprintf(stderr,
+		    "nextprev: %s keys OK, value mismatch:\n", which);
+		print_item("  bdb-key", &bdb_key);
+		print_item("   wt-key", &key);
 		print_item("bdb-value", &bdb_value);
 		print_item(" wt-value", &value);
 		testutil_die(0, NULL);

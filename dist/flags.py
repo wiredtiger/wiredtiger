@@ -122,6 +122,7 @@ flags = {
         'SESSION_NO_LOGGING',
         'SESSION_NO_SCHEMA_LOCK',
         'SESSION_QUIET_CORRUPT_FILE',
+        'SESSION_RECONCILIATION',
         'SESSION_SERVER_ASYNC',
     ],
 }

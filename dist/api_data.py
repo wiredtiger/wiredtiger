@@ -120,18 +120,18 @@ lsm_config = [
 
 # Per-file configuration
 file_config = format_meta + [
-    Config('block_allocation', 'best', r'''
-        configure block allocation. Permitted values are \c "first" or
-        \c "best"; the \c "first" configuration uses a first-available
-        algorithm during block allocation, the \c "best" configuration
-        uses a best-fit algorithm''',
-        choices=['first', 'best',]),
     Config('allocation_size', '4KB', r'''
         the file unit allocation size, in bytes, must a power-of-two;
         smaller values decrease the file space required by overflow
         items, and the default value of 4KB is a good choice absent
         requirements from the operating system or storage device''',
         min='512B', max='128MB'),
+    Config('block_allocation', 'best', r'''
+        configure block allocation. Permitted values are \c "first" or
+        \c "best"; the \c "first" configuration uses a first-available
+        algorithm during block allocation, the \c "best" configuration
+        uses a best-fit algorithm''',
+        choices=['first', 'best',]),
     Config('block_compressor', 'none', r'''
         configure a compressor for file blocks.  Permitted values are \c "none"
         or custom compression engine name created with
@@ -150,6 +150,10 @@ file_config = format_meta + [
         applications which can rely on decompression to fail if a block
         has been corrupted''',
         choices=['on', 'off', 'uncompressed']),
+    Config('delta_pages', 'false', r'''
+        configure page reconciliation to write delta pages (instead of
+        complete replacement pages), when possible''',
+        type='boolean'),
     Config('dictionary', '0', r'''
         the maximum number of unique values remembered in the Btree
         row-store leaf page value dictionary; see

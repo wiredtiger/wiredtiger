@@ -107,8 +107,8 @@ __wt_page_addr_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
 
 /*
  * __wt_addr_string --
- *	Load a buffer with a printable, nul-terminated representation of an
- * address.
+ *	Load a buffer with a printable, nul-terminated representation of one
+ * or two addresses.
  */
 const char *
 __wt_addr_string(WT_SESSION_IMPL *session,
@@ -116,16 +116,35 @@ __wt_addr_string(WT_SESSION_IMPL *session,
 {
 	WT_BM *bm;
 	WT_BTREE *btree;
+	WT_DECL_ITEM(tmp);
+	WT_DECL_RET;
 
 	btree = S2BT_SAFE(session);
 
 	if (addr == NULL) {
 		buf->data = "[NoAddr]";
 		buf->size = strlen("[NoAddr]");
-	} else if (btree == NULL || (bm = btree->bm) == NULL ||
-	    bm->addr_string(bm, session, buf, addr, addr_size) != 0) {
+		return (buf->data);
+	}
+	if (btree != NULL && (bm = btree->bm) != NULL) {
+		WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+		WT_ERR(bm->addr_string(bm, session, tmp, addr, addr_size));
+		WT_ERR(__wt_buf_fmt(session, buf, "[%s", tmp->data));
+		WT_ERR(__wt_block_addr_len(session, &addr, &addr_size));
+		if (addr_size != 0) {
+			WT_ERR(
+			    bm->addr_string(bm, session, tmp, addr, addr_size));
+			WT_ERR(__wt_buf_catfmt(
+			    session, buf, "; %s", tmp->data));
+		}
+		WT_ERR(__wt_buf_catfmt(session, buf, "]"));
+	}
+
+err:	if (ret != 0) {
 		buf->data = "[Error]";
 		buf->size = strlen("[Error]");
 	}
+	__wt_scr_free(session, &tmp);
+
 	return (buf->data);
 }

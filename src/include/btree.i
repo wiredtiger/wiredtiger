@@ -46,12 +46,14 @@ __wt_btree_block_free(
     WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
 	WT_BM *bm;
-	WT_BTREE *btree;
 
-	btree = S2BT(session);
-	bm = btree->bm;
+	bm = S2BT(session)->bm;
 
-	return (bm->free(bm, session, addr, addr_size));
+	while (addr_size > 0) {
+		WT_RET(bm->free(bm, session, addr, addr_size));
+		WT_RET(__wt_block_addr_len(session, &addr, &addr_size));
+	}
+	return (0);
 }
 
 /*
@@ -426,9 +428,6 @@ __wt_page_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 * shouldn't cause problems; regardless, let's play it safe.)
 	 */
 	if (S2BT(session)->modified == 0) {
-		/* Assert we never dirty a checkpoint handle. */
-		WT_ASSERT(session, session->dhandle->checkpoint == NULL);
-
 		S2BT(session)->modified = 1;
 		WT_FULL_BARRIER();
 	}
@@ -1003,6 +1002,7 @@ __wt_ref_info(WT_REF *ref, const uint8_t **addrp, size_t *sizep, u_int *typep)
 static inline int
 __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+	WT_DECL_RET;
 	const uint8_t *addr;
 	size_t addr_size;
 
@@ -1010,11 +1010,12 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
 		return (0);
 
 	__wt_ref_info(ref, &addr, &addr_size, NULL);
-	WT_RET(__wt_btree_block_free(session, addr, addr_size));
+	ret = __wt_btree_block_free(session, addr, addr_size);
 
 	/* Clear the address (so we don't free it twice). */
 	__wt_ref_addr_free(session, ref);
-	return (0);
+
+	return (ret);
 }
 
 /*

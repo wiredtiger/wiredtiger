@@ -202,9 +202,11 @@ __verify_dsk_row(
 	WT_DECL_RET;
 	WT_ITEM *last;
 	enum { FIRST, WAS_KEY, WAS_VALUE } last_cell_type;
+	size_t size;
 	void *huffman;
 	uint32_t cell_num, cell_type, i, key_cnt, prefix;
 	uint8_t *end;
+	const uint8_t *addr;
 	int cmp;
 
 	btree = S2BT(session);
@@ -272,6 +274,7 @@ __verify_dsk_row(
 		case WT_CELL_ADDR_INT:
 		case WT_CELL_ADDR_LEAF:
 		case WT_CELL_ADDR_LEAF_NO:
+		case WT_CELL_DEL:
 		case WT_CELL_VALUE:
 		case WT_CELL_VALUE_OVFL:
 			switch (last_cell_type) {
@@ -298,14 +301,19 @@ __verify_dsk_row(
 		case WT_CELL_ADDR_LEAF_NO:
 		case WT_CELL_KEY_OVFL:
 		case WT_CELL_VALUE_OVFL:
-			ret = bm->addr_invalid(
-			    bm, session, unpack->data, unpack->size);
-			WT_RET_ERROR_OK(ret, EINVAL);
-			if (ret == EINVAL) {
-				ret = __err_cell_corrupt_or_eof(
-				    session, cell_num, tag);
-				goto err;
-			}
+			addr = unpack->data;
+			size = unpack->size;
+			do {
+				ret = bm->addr_invalid(bm, session, addr, size);
+				WT_RET_ERROR_OK(ret, EINVAL);
+				if (ret == EINVAL) {
+					ret = __err_cell_corrupt_or_eof(
+					    session, cell_num, tag);
+					goto err;
+				}
+				WT_ERR(
+				    __wt_block_addr_len(session, &addr, &size));
+			} while (size > 0);
 			break;
 		}
 
@@ -737,7 +745,8 @@ __err_cell_type(WT_SESSION_IMPL *session,
 			return (0);
 		break;
 	case WT_CELL_DEL:
-		if (dsk_type == WT_PAGE_COL_VAR)
+		if (dsk_type == WT_PAGE_COL_VAR ||
+		    dsk_type == WT_PAGE_ROW_LEAF)
 			return (0);
 		break;
 	case WT_CELL_KEY:

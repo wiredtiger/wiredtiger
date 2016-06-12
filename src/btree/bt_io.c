@@ -135,7 +135,7 @@ __wt_bt_read(WT_SESSION_IMPL *session,
 	if (F_ISSET(btree, WT_BTREE_VERIFY)) {
 		if (tmp == NULL)
 			WT_ERR(__wt_scr_alloc(session, 0, &tmp));
-		WT_ERR(bm->addr_string(bm, session, tmp, addr, addr_size));
+		(void)__wt_addr_string(session, addr, addr_size, tmp);
 		WT_ERR(__wt_verify_dsk(session, tmp->data, buf));
 	}
 
