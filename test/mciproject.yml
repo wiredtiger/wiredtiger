@@ -135,7 +135,7 @@ buildvariants:
   expansions:
     # It's ugly, but we need the absolute path here, not the relative
     test_env_vars: LD_LIBRARY_PATH=`pwd`/.libs
-    smp_command: -j$(grep -c ^processor /proc/cpuinfo)
+    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     configure_env_vars: CC=/opt/mongodbtoolchain/bin/gcc CXX=/opt/mongodbtoolchain/bin/g++
   tasks:
     - name: compile-posix
@@ -148,7 +148,7 @@ buildvariants:
   expansions:
     make_command: PATH=/opt/mongodbtoolchain/bin:$PATH gmake
     test_env_vars: LD_LIBRARY_PATH=`pwd`/.libs
-    smp_command: -j$(kstat cpu | sort -u | grep -c "^module")
+    smp_command: -j $(kstat cpu | sort -u | grep -c "^module")
     configure_env_vars: PATH=/opt/mongodbtoolchain/bin:$PATH CFLAGS="-m64"
   tasks:
     - name: compile-posix
@@ -159,7 +159,7 @@ buildvariants:
   run_on:
   - windows-64-vs2013-test
   expansions:
-    smp_command: -j$(grep -c ^processor /proc/cpuinfo)
+    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
   tasks:
     - name: compile-windows
     - name: compile-windows-alt
@@ -170,7 +170,7 @@ buildvariants:
   run_on:
   - osx-1010
   expansions:
-    smp_command: -j$(sysctl -n hw.logicalcpu)
+    smp_command: -j $(sysctl -n hw.logicalcpu)
     configure_env_vars: PATH=/opt/local/bin:$PATH
     make_command: PATH=/opt/local/bin:$PATH ARCHFLAGS=-Wno-error=unused-command-line-argument-hard-error-in-future make
     test_env_vars: DYLD_LIBRARY_PATH=`pwd`/.libs
