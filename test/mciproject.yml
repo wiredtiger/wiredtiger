@@ -14,12 +14,8 @@ functions:
         aws_key: ${aws_key}
         aws_secret: ${aws_secret}
         remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${build_id}.tgz
-        local_file: wiredtiger.tgz
         bucket: build_external
-    - command: shell.exec
-      params:
-        script: |
-          tar -xvf wiredtiger.tgz
+        extract_to: wiredtiger
 
 pre:
   - command: shell.exec
@@ -52,10 +48,12 @@ tasks:
             ${configure_env_vars|} ../configure --enable-diagnostic --enable-python --enable-zlib
             ${make_command|make} ${smp_command|}
             ${make_command|make} check
-      - command: shell.exec
+      - command: archive.targz_pack
         params:
-          script: |
-            tar cfz wiredtiger.tgz wiredtiger
+          target: "wiredtiger.tgz"
+          source_dir: "wiredtiger"
+          include:
+             - "./**"
       - command: s3.put
         params:
           aws_secret: ${aws_secret}
