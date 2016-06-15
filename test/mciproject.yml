@@ -45,7 +45,7 @@ tasks:
             set -o verbose
 
             ./reconf
-            ${configure_env_vars|} ../configure --enable-diagnostic --enable-python --enable-zlib
+            ${configure_env_vars|} ../configure --enable-diagnostic --enable-python --enable-zlib --enable-strict
             ${make_command|make} ${smp_command|}
             ${make_command|make} check
       - command: archive.targz_pack
