@@ -678,7 +678,8 @@ __evict_pass(WT_SESSION_IMPL *session)
 		    " In use: %" PRIu64 " Dirty: %" PRIu64,
 		    conn->cache_size, cache->bytes_inmem, cache->bytes_dirty));
 
-		WT_RET(__evict_lru_walk(session));
+		if (!FLD_ISSET(cache->state, WT_EVICT_STATE_WOULD_BLOCK))
+			WT_RET(__evict_lru_walk(session));
 		WT_RET_NOTFOUND_OK(__evict_lru_pages(session, true));
 
 		/*
@@ -1397,10 +1398,9 @@ __evict_walk_file(WT_SESSION_IMPL *session, uint32_t queue_index, u_int *slotp)
 		    page->memory_footprint < btree->splitmempage)
 			continue;
 
-		/* Limit internal pages to 50% unless we get aggressive. */
+		/* Limit internal pages to 50% of the total. */
 		if (WT_PAGE_IS_INTERNAL(page) &&
-		    !FLD_ISSET(cache->state, WT_EVICT_STATE_AGGRESSIVE) &&
-		    internal_pages >= (int)(evict - start) / 2)
+		    internal_pages > (int)(evict - start) / 2)
 			continue;
 
 fast:		/* If the page can't be evicted, give up. */
@@ -1486,19 +1486,21 @@ __evict_check_entry_size(WT_SESSION_IMPL *session, WT_EVICT_ENTRY *entry)
 
 	cache = S2C(session)->cache;
 
-	if (cache->pages_evict == 0)
+	if (cache->pages_evict == 0 || cache->bytes_evict < WT_MEGABYTE)
 		return (true);
 
 	max = (cache->bytes_evict / cache->pages_evict) * 4;
 	if ((ref = entry->ref) != NULL) {
 		if ((page = ref->page) == NULL)
 			return (true);
+
 		/*
-		 * If this page is more than four times the average evicted page
-		 * size then return false.  Return true in all other cases.
-		 * XXX Should we care here if the page is dirty?  Probably...
+		 * If this page is dirty and more than four times the average
+		 * evicted page size then return false.  Return true in all
+		 * other cases.
 		 */
-		if (page->memory_footprint > max) {
+		if (__wt_page_is_modified(page) &&
+		    page->memory_footprint > max) {
 			WT_STAT_FAST_CONN_INCR(
 			    session, cache_eviction_server_toobig);
 			return (false);
