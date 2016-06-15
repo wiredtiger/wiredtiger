@@ -70,14 +70,15 @@ struct __wt_cache {
 	 * be exact, they can't be garbage, we track what comes in and what goes
 	 * out and calculate the difference as needed.
 	 */
+	uint64_t bytes_dirty;		/* Bytes/pages currently dirty */
+	uint64_t pages_dirty;
+	uint64_t bytes_evict;		/* Bytes/pages discarded by eviction */
+	uint64_t pages_evict;
+	uint64_t bytes_image;		/* Bytes of disk images */
 	uint64_t bytes_inmem;		/* Bytes/pages in memory */
 	uint64_t pages_inmem;
 	uint64_t bytes_internal;	/* Bytes of internal pages */
 	uint64_t bytes_overflow;	/* Bytes of overflow pages */
-	uint64_t bytes_evict;		/* Bytes/pages discarded by eviction */
-	uint64_t pages_evict;
-	uint64_t bytes_dirty;		/* Bytes/pages currently dirty */
-	uint64_t pages_dirty;
 	uint64_t bytes_read;		/* Bytes read into memory */
 
 	uint64_t app_waits;		/* User threads waited for cache */

@@ -261,6 +261,34 @@ __wt_cache_dirty_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
+ * __wt_cache_page_image_decr --
+ *	Decrement a page image's size to the cache.
+ */
+static inline void
+__wt_cache_page_image_decr(WT_SESSION_IMPL *session, uint32_t size)
+{
+	WT_CACHE *cache;
+
+	cache = S2C(session)->cache;
+
+	__wt_cache_decr_check_uint64(
+	    session, &cache->bytes_image, size, "WT_CACHE.image_inmem");
+}
+
+/*
+ * __wt_cache_page_image_incr --
+ *	Increment a page image's size to the cache.
+ */
+static inline void
+__wt_cache_page_image_incr(WT_SESSION_IMPL *session, uint32_t size)
+{
+	WT_CACHE *cache;
+
+	cache = S2C(session)->cache;
+	(void)__wt_atomic_add64(&cache->bytes_image, size);
+}
+
+/*
  * __wt_cache_page_evict --
  *	Evict pages from the cache.
  */
