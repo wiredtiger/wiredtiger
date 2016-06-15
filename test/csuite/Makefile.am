@@ -13,6 +13,9 @@ noinst_PROGRAMS += test_wt2246_col_append
 test_wt2535_insert_race_SOURCES = wt2535_insert_race/main.c
 noinst_PROGRAMS += test_wt2535_insert_race
 
+test_wt2611_config_quoting_SOURCES = wt2611_config_quoting/main.c
+noinst_PROGRAMS += test_wt2611_config_quoting
+
 # Run this during a "make check" smoke test.
 TESTS = $(noinst_PROGRAMS)
 LOG_COMPILER = $(TEST_WRAPPER)

@@ -72,6 +72,7 @@ __curstat_size_only(WT_SESSION_IMPL *session,
 	bool exist;
 
 	WT_CLEAR(namebuf);
+	WT_CLEAR(cparser);
 	*was_fast = false;
 
 	/* Retrieve the metadata for this table. */
@@ -112,6 +113,7 @@ __curstat_size_only(WT_SESSION_IMPL *session,
 
 err:	__wt_free(session, tableconf);
 	__wt_buf_free(session, &namebuf);
+	__wt_config_free(&cparser);
 
 	return (ret);
 }

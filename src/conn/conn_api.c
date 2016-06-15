@@ -917,6 +917,7 @@ __conn_load_extensions(
 	const char *sub_cfg[] = {
 	    WT_CONFIG_BASE(session, WT_CONNECTION_load_extension), NULL, NULL };
 
+	WT_CLEAR(subconfig);
 	WT_ERR(__wt_config_gets(session, cfg, "extensions", &cval));
 	WT_ERR(__wt_config_subinit(session, &subconfig, &cval));
 	while ((ret = __wt_config_next(&subconfig, &skey, &sval)) == 0) {
@@ -938,6 +939,7 @@ __conn_load_extensions(
 
 err:	__wt_scr_free(session, &expath);
 	__wt_scr_free(session, &exconfig);
+	__wt_config_free(&subconfig);
 
 	return (ret);
 }
@@ -1782,6 +1784,7 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
 
 	fs = NULL;
 	base_config = NULL;
+	WT_CLEAR(parser);
 
 	/*
 	 * Discard any base configuration setup file left-over from previous
@@ -1878,6 +1881,7 @@ err:		WT_TRET(__wt_fclose(session, &fs));
 	}
 
 	__wt_free(session, base_config);
+	__wt_config_free(&parser);
 
 	return (ret);
 }

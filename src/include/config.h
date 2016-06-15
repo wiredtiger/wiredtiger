@@ -11,6 +11,7 @@ struct __wt_config {
 	const char *orig;
 	const char *end;
 	const char *cur;
+	char *unescaped;
 
 	int depth, top;
 	const int8_t *go;

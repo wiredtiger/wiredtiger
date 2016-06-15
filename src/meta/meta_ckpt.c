@@ -137,6 +137,8 @@ __ckpt_named(WT_SESSION_IMPL *session,
 {
 	WT_CONFIG ckptconf;
 	WT_CONFIG_ITEM k, v;
+	WT_DECL_RET;
+	bool found;
 
 	WT_RET(__wt_config_getones(session, config, "checkpoint", &v));
 	WT_RET(__wt_config_subinit(session, &ckptconf, &v));
@@ -145,11 +147,17 @@ __ckpt_named(WT_SESSION_IMPL *session,
 	 * Take the first match: there should never be more than a single
 	 * checkpoint of any name.
 	 */
-	while (__wt_config_next(&ckptconf, &k, &v) == 0)
-		if (WT_STRING_MATCH(checkpoint, k.str, k.len))
-			return (__ckpt_load(session, &k, &v, ckpt));
+	found = false;
+	while (!found && (ret = __wt_config_next(&ckptconf, &k, &v)) == 0)
+		if (WT_STRING_MATCH(checkpoint, k.str, k.len)) {
+			WT_ERR(__ckpt_load(session, &k, &v, ckpt));
+			found = true;
+		}
+	if (!found)
+		ret = WT_NOTFOUND;
 
-	return (WT_NOTFOUND);
+err:	__wt_config_free(&ckptconf);
+	return (ret);
 }
 
 /*
@@ -161,23 +169,27 @@ __ckpt_last(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt)
 {
 	WT_CONFIG ckptconf;
 	WT_CONFIG_ITEM a, k, v;
+	WT_DECL_RET;
 	int64_t found;
 
 	WT_RET(__wt_config_getones(session, config, "checkpoint", &v));
 	WT_RET(__wt_config_subinit(session, &ckptconf, &v));
 	for (found = 0; __wt_config_next(&ckptconf, &k, &v) == 0;) {
 		/* Ignore checkpoints before the ones we've already seen. */
-		WT_RET(__wt_config_subgets(session, &v, "order", &a));
+		WT_ERR(__wt_config_subgets(session, &v, "order", &a));
 		if (found) {
 			if (a.val < found)
 				continue;
 			__wt_meta_checkpoint_free(session, ckpt);
 		}
 		found = a.val;
-		WT_RET(__ckpt_load(session, &k, &v, ckpt));
+		WT_ERR(__ckpt_load(session, &k, &v, ckpt));
 	}
+	if (!found)
+		ret = WT_NOTFOUND;
 
-	return (found ? 0 : WT_NOTFOUND);
+err:	__wt_config_free(&ckptconf);
+	return (ret);
 }
 
 /*
@@ -222,6 +234,7 @@ __ckpt_last_name(
 	if (0) {
 err:		__wt_free(session, *namep);
 	}
+	__wt_config_free(&ckptconf);
 	return (ret);
 }
 
@@ -261,6 +274,7 @@ __wt_meta_ckptlist_get(
 	ckptbase = NULL;
 	allocated = slot = 0;
 	config = NULL;
+	WT_CLEAR(ckptconf);
 
 	/* Retrieve the metadata information for the file. */
 	WT_RET(__wt_metadata_search(session, fname, &config));
@@ -300,6 +314,7 @@ err:		__wt_meta_ckptlist_free(session, ckptbase);
 	}
 	__wt_free(session, config);
 	__wt_scr_free(session, &buf);
+	__wt_config_free(&ckptconf);
 
 	return (ret);
 }

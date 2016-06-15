@@ -375,6 +375,7 @@ __backup_uri(WT_SESSION_IMPL *session,
 	const char *uri;
 
 	*foundp = *log_only = false;
+	WT_CLEAR(targetconf);
 
 	/*
 	 * If we find a non-empty target configuration string, we have a job,
@@ -425,6 +426,7 @@ __backup_uri(WT_SESSION_IMPL *session,
 	WT_ERR_NOTFOUND_OK(ret);
 
 err:	__wt_scr_free(session, &tmp);
+	__wt_config_free(&targetconf);
 	return (ret);
 }
 

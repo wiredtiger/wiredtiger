@@ -380,6 +380,8 @@ __create_index(WT_SESSION_IMPL *session,
 	WT_CLEAR(fmt);
 	WT_CLEAR(extra_cols);
 	WT_CLEAR(namebuf);
+	WT_CLEAR(kcols);
+	WT_CLEAR(pkcols);
 	exists = have_extractor = false;
 
 	tablename = name;
@@ -538,6 +540,8 @@ err:	__wt_free(session, idxconf);
 	__wt_buf_free(session, &extra_cols);
 	__wt_buf_free(session, &fmt);
 	__wt_buf_free(session, &namebuf);
+	__wt_config_free(&kcols);
+	__wt_config_free(&pkcols);
 
 	__wt_schema_release_table(session, table);
 	return (ret);
@@ -567,6 +571,7 @@ __create_table(WT_SESSION_IMPL *session,
 	table = NULL;
 	tableconf = NULL;
 	exists = false;
+	WT_CLEAR(conf);
 
 	tablename = name;
 	if (!WT_PREFIX_SKIP(tablename, "table:"))
@@ -616,6 +621,7 @@ err:		if (table != NULL) {
 		__wt_schema_release_table(session, table);
 	__wt_free(session, cgname);
 	__wt_free(session, tableconf);
+	__wt_config_free(&conf);
 	return (ret);
 }
 

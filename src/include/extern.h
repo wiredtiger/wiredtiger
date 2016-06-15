@@ -206,6 +206,7 @@ extern uint32_t __wt_cksum(const void *chunk, size_t len);
 extern void __wt_cksum_init(void);
 extern int __wt_config_initn( WT_SESSION_IMPL *session, WT_CONFIG *conf, const char *str, size_t len);
 extern int __wt_config_init(WT_SESSION_IMPL *session, WT_CONFIG *conf, const char *str);
+extern void __wt_config_free(WT_CONFIG *conf);
 extern int __wt_config_subinit( WT_SESSION_IMPL *session, WT_CONFIG *conf, WT_CONFIG_ITEM *item);
 extern int __wt_config_next(WT_CONFIG *conf, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value);
 extern int __wt_config_get(WT_SESSION_IMPL *session, const char **cfg_arg, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value);

@@ -33,6 +33,7 @@ __wt_config_initn(
 	conf->session = session;
 	conf->orig = conf->cur = str;
 	conf->end = str + len;
+	conf->unescaped = NULL;
 	conf->depth = 0;
 	conf->top = -1;
 	conf->go = NULL;
@@ -53,6 +54,17 @@ __wt_config_init(WT_SESSION_IMPL *session, WT_CONFIG *conf, const char *str)
 	len = (str == NULL) ? 0 : strlen(str);
 
 	return (__wt_config_initn(session, conf, str, len));
+}
+
+/*
+ * __wt_config_free --
+ *	Free resources for the config handle.
+ */
+void
+__wt_config_free(WT_CONFIG *conf)
+{
+	__wt_free(conf->session, conf->unescaped);
+	conf->unescaped = NULL;
 }
 
 /*
@@ -478,6 +490,21 @@ __config_next(WT_CONFIG *conf, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value)
 }
 
 /*
+ * __config_strnchr --
+ *	Implementation of strchr for a limited length.
+ */
+static const char *
+__config_strnchr(const char *s, char match, size_t len)
+{
+	const char *end;
+
+	for (end = s + len; s < end; s++)
+		if (*s == match)
+			return (s);
+	return (NULL);
+}
+
+/*
  * Arithmetic shift of a negative number is undefined by ISO/IEC 9899, and the
  * WiredTiger API supports negative numbers.  Check it's not a negative number,
  * and then cast the shift out of paranoia.
@@ -490,12 +517,14 @@ __config_next(WT_CONFIG *conf, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value)
 
 /*
  * __config_process_value --
- *	Deal with special config values like true / false.
+ *	Remove string escapes, and deal with special config values like
+ *	true / false.
  */
 static int
 __config_process_value(WT_CONFIG *conf, WT_CONFIG_ITEM *value)
 {
-	char *endptr;
+	char ch, *dst, *endptr;
+	const char *s;
 
 	/* Empty values are okay: we can't do anything interesting with them. */
 	if (value->len == 0)
@@ -558,6 +587,50 @@ __config_process_value(WT_CONFIG *conf, WT_CONFIG_ITEM *value)
 		 */
 		if (value->type == WT_CONFIG_ITEM_NUM && errno == ERANGE)
 			goto range;
+	} else if (value->type == WT_CONFIG_ITEM_STRING &&
+	    __config_strnchr(value->str, '\\', value->len) != NULL) {
+		__wt_realloc(conf->session, NULL, value->len, &conf->unescaped);
+		dst = conf->unescaped;
+		s = value->str;
+		while (s < value->str + value->len) {
+			if ((ch = *s++) == '\\') {
+				ch = *s++;
+				switch (ch) {
+				case 'b':
+					*dst++ = '\b';
+					break;
+				case 'f':
+					*dst++ = '\f';
+					break;
+				case 'n':
+					*dst++ = '\n';
+					break;
+				case 'r':
+					*dst++ = '\r';
+					break;
+				case 't':
+					*dst++ = '\t';
+					break;
+				case '\\':
+				case '/':
+				case '\"':	/* Backslash for spell check. */
+					*dst++ = ch;
+					break;
+				default:
+					/*
+					 * Note: Unicode escapes (\u) are
+					 * not implemented.
+					 */
+					WT_RET_MSG(conf->session, EINVAL,
+					    "invalid escape in string: %.*s",
+					    (int)value->len, value->str);
+				}
+			} else
+				*dst++ = ch;
+		}
+		*dst = '\0';
+		value->str = conf->unescaped;
+		return (0);
 	}
 
 	return (0);
@@ -606,6 +679,7 @@ __config_getraw(
 			if ((ret = __config_getraw(
 			    &sparser, &subk, value, false)) == 0)
 				found = true;
+			__wt_config_free(&sparser);
 			WT_RET_NOTFOUND_OK(ret);
 		}
 	}
@@ -644,6 +718,7 @@ __wt_config_get(WT_SESSION_IMPL *session,
 		WT_RET(__wt_config_init(session, &cparser, *cfg));
 		if ((ret = __config_getraw(&cparser, key, value, true)) == 0)
 			return (0);
+		__wt_config_free(&cparser);
 		WT_RET_NOTFOUND_OK(ret);
 	} while (cfg != cfg_arg);
 
@@ -689,9 +764,12 @@ __wt_config_getone(WT_SESSION_IMPL *session,
     const char *config, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value)
 {
 	WT_CONFIG cparser;
+	WT_DECL_RET;
 
 	WT_RET(__wt_config_init(session, &cparser, config));
-	return (__config_getraw(&cparser, key, value, true));
+	ret = __config_getraw(&cparser, key, value, true);
+	__wt_config_free(&cparser);
+	return (ret);
 }
 
 /*
@@ -705,9 +783,12 @@ __wt_config_getones(WT_SESSION_IMPL *session,
 	WT_CONFIG cparser;
 	WT_CONFIG_ITEM key_item =
 	    { key, strlen(key), 0, WT_CONFIG_ITEM_STRING };
+	WT_DECL_RET;
 
 	WT_RET(__wt_config_init(session, &cparser, config));
-	return (__config_getraw(&cparser, &key_item, value, true));
+	ret = __config_getraw(&cparser, &key_item, value, true);
+	__wt_config_free(&cparser);
+	return (ret);
 }
 
 /*
@@ -770,9 +851,12 @@ __wt_config_subgetraw(WT_SESSION_IMPL *session,
     WT_CONFIG_ITEM *cfg, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value)
 {
 	WT_CONFIG cparser;
+	WT_DECL_RET;
 
 	WT_RET(__wt_config_initn(session, &cparser, cfg->str, cfg->len));
-	return (__config_getraw(&cparser, key, value, true));
+	ret = __config_getraw(&cparser, key, value, true);
+	__wt_config_free(&cparser);
+	return (ret);
 }
 
 /*

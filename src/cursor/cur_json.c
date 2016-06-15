@@ -187,13 +187,13 @@ __json_struct_size(WT_SESSION_IMPL *session, const void *buffer,
 	needcr = false;
 
 	WT_RET(__pack_name_init(session, names, iskey, &packname));
-	WT_RET(__pack_init(session, &pack, fmt));
+	WT_ERR(__pack_init(session, &pack, fmt));
 	while ((ret = __pack_next(&pack, &pv)) == 0) {
 		if (needcr)
 			result += 2;
 		needcr = true;
-		WT_RET(__unpack_read(session, &pv, &p, (size_t)(end - p)));
-		WT_RET(__pack_name_next(&packname, &name));
+		WT_ERR(__unpack_read(session, &pv, &p, (size_t)(end - p)));
+		WT_ERR(__pack_name_next(&packname, &name));
 		result += __json_unpack_put(session, &pv, NULL, 0, &name);
 	}
 	if (ret == WT_NOTFOUND)
@@ -203,6 +203,7 @@ __json_struct_size(WT_SESSION_IMPL *session, const void *buffer,
 	WT_ASSERT(session, p <= end);
 
 	*presult = result;
+err:	__pack_name_free(&packname);
 	return (ret);
 }
 
@@ -232,7 +233,7 @@ __json_struct_unpackv(WT_SESSION_IMPL *session,
 	*va_arg(ap, const char **) = (char *)jbuf;
 
 	WT_RET(__pack_name_init(session, names, iskey, &packname));
-	WT_RET(__pack_init(session, &pack, fmt));
+	WT_ERR(__pack_init(session, &pack, fmt));
 	while ((ret = __pack_next(&pack, &pv)) == 0) {
 		if (needcr) {
 			WT_ASSERT(session, jbufsize >= 3);
@@ -241,8 +242,8 @@ __json_struct_unpackv(WT_SESSION_IMPL *session,
 			jbufsize -= 2;
 		}
 		needcr = true;
-		WT_RET(__unpack_read(session, &pv, &p, (size_t)(end - p)));
-		WT_RET(__pack_name_next(&packname, &name));
+		WT_ERR(__unpack_read(session, &pv, &p, (size_t)(end - p)));
+		WT_ERR(__pack_name_next(&packname, &name));
 		jsize = __json_unpack_put(session,
 		    (u_char *)&pv, jbuf, jbufsize, &name);
 		WT_ASSERT(session, jsize <= jbufsize);
@@ -257,6 +258,7 @@ __json_struct_unpackv(WT_SESSION_IMPL *session,
 
 	WT_ASSERT(session, jbufsize == 1);
 
+err:	__pack_name_free(&packname);
 	return (ret);
 }
 
@@ -769,6 +771,7 @@ __json_pack_size(
 {
 	WT_CONFIG_ITEM name;
 	WT_DECL_PACK_VALUE(pv);
+	WT_DECL_RET;
 	WT_PACK pack;
 	WT_PACK_NAME packname;
 	size_t toksize, total;
@@ -777,17 +780,17 @@ __json_pack_size(
 
 	WT_RET(__pack_name_init(session, names, iskey, &packname));
 	multi = false;
-	WT_RET(__pack_init(session, &pack, fmt));
+	WT_ERR(__pack_init(session, &pack, fmt));
 	for (total = 0; __pack_next(&pack, &pv) == 0;) {
 		if (multi)
 			JSON_EXPECT_TOKEN(session, jstr, ',');
 		JSON_EXPECT_TOKEN_GET(session, jstr, 's', tokstart, toksize);
-		WT_RET(__pack_name_next(&packname, &name));
+		WT_ERR(__pack_name_next(&packname, &name));
 		if (toksize - 2 != name.len ||
 		    strncmp(tokstart + 1, name.str, toksize - 2) != 0) {
 			__wt_errx(session, "JSON expected %s name: \"%.*s\"",
 			    iskey ? "key" : "value", (int)name.len, name.str);
-			return (EINVAL);
+			WT_ERR(EINVAL);
 		}
 		JSON_EXPECT_TOKEN(session, jstr, ':');
 		WT_PACK_JSON_GET(session, pv, jstr);
@@ -798,7 +801,8 @@ __json_pack_size(
 	JSON_EXPECT_TOKEN(session, jstr, 0);
 
 	*sizep = total;
-	return (0);
+err:	__pack_name_free(&packname);
+	return (ret);
 }
 
 /*

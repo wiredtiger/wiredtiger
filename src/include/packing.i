@@ -44,7 +44,7 @@ typedef struct {
 	char buf[20];
 	int count;
 	bool iskey;
-	int genname;
+	bool genname;
 } WT_PACK_NAME;
 
 /*
@@ -91,7 +91,7 @@ __pack_name_init(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *names,
 	if (names->str != NULL)
 		WT_RET(__wt_config_subinit(session, &pn->config, names));
 	else
-		pn->genname = 1;
+		pn->genname = true;
 
 	return (0);
 }
@@ -118,6 +118,17 @@ __pack_name_next(WT_PACK_NAME *pn, WT_CONFIG_ITEM *name)
 		WT_RET(__wt_config_next(&pn->config, name, &ignore));
 
 	return (0);
+}
+
+/*
+ * __pack_name_free --
+ *      Free resources for a pack name iterator.
+ */
+static inline void
+__pack_name_free(WT_PACK_NAME *pn)
+{
+	if (!pn->genname)
+		__wt_config_free(&pn->config);
 }
 
 /*

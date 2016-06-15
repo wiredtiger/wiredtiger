@@ -42,6 +42,7 @@ __wt_config_collapse(
 
 	WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
+	WT_CLEAR(cparser);
 	WT_ERR(__wt_config_init(session, &cparser, cfg[0]));
 	while ((ret = __wt_config_next(&cparser, &k, &v)) == 0) {
 		if (k.type != WT_CONFIG_ITEM_STRING &&
@@ -77,7 +78,8 @@ __wt_config_collapse(
 		--tmp->size;
 	ret = __wt_strndup(session, tmp->data, tmp->size, config_ret);
 
-err:	__wt_scr_free(session, &tmp);
+err:	__wt_config_free(&cparser);
+	__wt_scr_free(session, &tmp);
 	return (ret);
 }
 
@@ -124,6 +126,7 @@ __config_merge_scan(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	size_t len;
 
+	WT_CLEAR(cparser);
 	WT_ERR(__wt_scr_alloc(session, 0, &kb));
 	WT_ERR(__wt_scr_alloc(session, 0, &vb));
 
@@ -205,6 +208,7 @@ __config_merge_scan(WT_SESSION_IMPL *session,
 
 err:	__wt_scr_free(session, &kb);
 	__wt_scr_free(session, &vb);
+	__wt_config_free(&cparser);
 	return (ret);
 }
 
