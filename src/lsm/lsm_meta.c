@@ -23,6 +23,7 @@ __lsm_meta_read_v0(
 	u_int nchunks;
 
 	chunk = NULL;			/* -Wconditional-uninitialized */
+	WT_CLEAR(lparser);
 
 	/* LSM trees inherit the merge setting from the connection. */
 	if (F_ISSET(S2C(session), WT_CONN_LSM_MERGE))
@@ -129,6 +130,7 @@ __lsm_meta_read_v0(
 					continue;
 				}
 			}
+			__wt_config_free(&lparser);
 			WT_ERR_NOTFOUND_OK(ret);
 			lsm_tree->nchunks = nchunks;
 		} else if (WT_STRING_MATCH("old_chunks", ck.str, ck.len)) {
@@ -150,6 +152,7 @@ __lsm_meta_read_v0(
 				    lk.str, lk.len, &chunk->uri));
 				F_SET(chunk, WT_LSM_CHUNK_ONDISK);
 			}
+			__wt_config_free(&lparser);
 			WT_ERR_NOTFOUND_OK(ret);
 			lsm_tree->nold_chunks = nchunks;
 		}
@@ -159,7 +162,10 @@ __lsm_meta_read_v0(
 		 */
 	}
 	WT_ERR_NOTFOUND_OK(ret);
-err:	return (ret);
+
+err:	__wt_config_free(&cparser);
+	__wt_config_free(&lparser);
+	return (ret);
 }
 
 /*
@@ -181,6 +187,7 @@ __lsm_meta_read_v1(
 	u_int nchunks;
 
 	chunk = NULL;			/* -Wconditional-uninitialized */
+	WT_CLEAR(lparser);
 
 	WT_ERR(__wt_config_getones(session, lsmconf, "key_format", &cv));
 	WT_ERR(__wt_strndup(session, cv.str, cv.len, &lsm_tree->key_format));
@@ -295,6 +302,7 @@ __lsm_meta_read_v1(
 			continue;
 		}
 	}
+	__wt_config_free(&lparser);
 	WT_ERR_NOTFOUND_OK(ret);
 	lsm_tree->nchunks = nchunks;
 
@@ -341,6 +349,7 @@ __lsm_meta_read_v1(
 	 * created by a future release, with unknown options.
 	 */
 err:	__wt_scr_free(session, &buf);
+	__wt_config_free(&lparser);
 	return (ret);
 }
 

@@ -45,7 +45,7 @@ __find_next_col(WT_SESSION_IMPL *session, WT_TABLE *table,
 cgcols:			cval = colgroup->colconf;
 			col = table->nkey_columns;
 		}
-		WT_RET(__wt_config_subinit(session, &conf, &cval));
+		WT_ERR(__wt_config_subinit(session, &conf, &cval));
 		for (; (ret = __wt_config_next(&conf, &k, &v)) == 0; col++) {
 			if (k.len == colname->len &&
 			    strncmp(colname->str, k.str, k.len) == 0) {
@@ -59,13 +59,14 @@ cgcols:			cval = colgroup->colconf;
 			    col == table->nkey_columns - 1)
 				goto cgcols;
 		}
-		WT_RET_TEST(ret != WT_NOTFOUND, ret);
+		WT_ERR_TEST(ret != WT_NOTFOUND, ret);
 
+		__wt_config_free(&conf);
 		colgroup = NULL;
 	}
 
 	if (foundcg == UINT_MAX)
-		return (WT_NOTFOUND);
+		WT_ERR(WT_NOTFOUND);
 
 	*cgnump = foundcg;
 	if (foundcol < table->nkey_columns) {
@@ -75,7 +76,9 @@ cgcols:			cval = colgroup->colconf;
 		*coltype = WT_PROJ_VALUE;
 		*colnump = foundcol - table->nkey_columns;
 	}
-	return (0);
+
+err:	__wt_config_free(&conf);
+	return (ret);
 }
 
 /*
@@ -108,10 +111,10 @@ __wt_schema_colcheck(WT_SESSION_IMPL *session,
 	WT_RET(__wt_config_subinit(session, &conf, colconf));
 	for (ncols = 0; (ret = __wt_config_next(&conf, &k, &v)) == 0; ncols++)
 		;
-	WT_RET_TEST(ret != WT_NOTFOUND, ret);
+	WT_ERR_TEST(ret != WT_NOTFOUND, ret);
 
 	if (ncols != 0 && ncols != kcols + vcols)
-		WT_RET_MSG(session, EINVAL, "Number of columns in '%.*s' "
+		WT_ERR_MSG(session, EINVAL, "Number of columns in '%.*s' "
 		    "does not match key format '%s' plus value format '%s'",
 		    (int)colconf->len, colconf->str, key_format, value_format);
 
@@ -120,7 +123,8 @@ __wt_schema_colcheck(WT_SESSION_IMPL *session,
 	if (vcolsp != NULL)
 		*vcolsp = vcols;
 
-	return (0);
+err:	__wt_config_free(&conf);
+	return (ret);
 }
 
 /*
@@ -144,13 +148,13 @@ __wt_table_check(WT_SESSION_IMPL *session, WT_TABLE *table)
 
 	/* Skip over the key columns. */
 	for (i = 0; i < table->nkey_columns; i++)
-		WT_RET(__wt_config_next(&conf, &k, &v));
+		WT_ERR(__wt_config_next(&conf, &k, &v));
 	cg = col = 0;
 	coltype = 0;
 	while ((ret = __wt_config_next(&conf, &k, &v)) == 0) {
 		if (__find_next_col(
 		    session, table, &k, &cg, &col, &coltype) != 0)
-			WT_RET_MSG(session, EINVAL,
+			WT_ERR_MSG(session, EINVAL,
 			    "Column '%.*s' in '%s' does not appear in a "
 			    "column group",
 			    (int)k.len, k.str, table->name);
@@ -161,9 +165,10 @@ __wt_table_check(WT_SESSION_IMPL *session, WT_TABLE *table)
 		WT_ASSERT(session, coltype == WT_PROJ_VALUE);
 
 	}
-	WT_RET_TEST(ret != WT_NOTFOUND, ret);
+	WT_ERR_TEST(ret != WT_NOTFOUND, ret);
 
-	return (0);
+err:	__wt_config_free(&conf);
+	return (ret);
 }
 
 /*
@@ -211,7 +216,7 @@ __wt_struct_plan(WT_SESSION_IMPL *session, WT_TABLE *table,
 			    current_coltype != coltype) {
 				WT_ASSERT(session, !value_only ||
 				    coltype == WT_PROJ_VALUE);
-				WT_RET(__wt_buf_catfmt(
+				WT_ERR(__wt_buf_catfmt(
 				    session, plan, "%u%c", cg, coltype));
 
 				/*
@@ -225,9 +230,9 @@ __wt_struct_plan(WT_SESSION_IMPL *session, WT_TABLE *table,
 			/* Now move to the column we want. */
 			if (current_col < col) {
 				if (col - current_col > 1)
-					WT_RET(__wt_buf_catfmt(session,
+					WT_ERR(__wt_buf_catfmt(session,
 					    plan, "%u", col - current_col));
-				WT_RET(__wt_buf_catfmt(session,
+				WT_ERR(__wt_buf_catfmt(session,
 				    plan, "%c", WT_PROJ_SKIP));
 			}
 			/*
@@ -237,14 +242,14 @@ __wt_struct_plan(WT_SESSION_IMPL *session, WT_TABLE *table,
 			 * a "reuse" operation to avoid making another copy.
 			 */
 			if (!have_it) {
-				WT_RET(__wt_buf_catfmt(session,
+				WT_ERR(__wt_buf_catfmt(session,
 				    plan, "%c", WT_PROJ_NEXT));
 
 				start_cg = cg;
 				start_col = col;
 				have_it = true;
 			} else
-				WT_RET(__wt_buf_catfmt(session,
+				WT_ERR(__wt_buf_catfmt(session,
 				    plan, "%c", WT_PROJ_REUSE));
 			current_col = col + 1;
 		}
@@ -255,16 +260,17 @@ __wt_struct_plan(WT_SESSION_IMPL *session, WT_TABLE *table,
 		 * index.
 		 */
 		if (ret == WT_NOTFOUND)
-			WT_RET(__wt_buf_catfmt(session, plan,
+			WT_ERR(__wt_buf_catfmt(session, plan,
 			    "0%c%c", WT_PROJ_VALUE, WT_PROJ_NEXT));
 	}
-	WT_RET_TEST(ret != WT_NOTFOUND, ret);
+	WT_ERR_TEST(ret != WT_NOTFOUND, ret);
 
 	/* Special case empty plans. */
 	if (i == 0 && plan->size == 0)
-		WT_RET(__wt_buf_set(session, plan, "", 1));
+		WT_ERR(__wt_buf_set(session, plan, "", 1));
 
-	return (0);
+err:	__wt_config_free(&conf);
+	return (ret);
 }
 
 /*
@@ -282,7 +288,7 @@ __find_column_format(WT_SESSION_IMPL *session, WT_TABLE *table,
 	bool inkey;
 
 	WT_RET(__wt_config_subinit(session, &conf, &table->colconf));
-	WT_RET(__pack_init(session, &pack, table->key_format));
+	WT_ERR(__pack_init(session, &pack, table->key_format));
 	inkey = true;
 
 	while ((ret = __wt_config_next(&conf, &k, &v)) == 0) {
@@ -292,17 +298,18 @@ __find_column_format(WT_SESSION_IMPL *session, WT_TABLE *table,
 				ret = __pack_next(&pack, pv);
 			inkey = false;
 		}
-		if (ret != 0)
-			return (ret);
+		WT_ERR(ret);
 
 		if (k.len == colname->len &&
 		    strncmp(colname->str, k.str, k.len) == 0) {
 			if (value_only && inkey)
-				return (EINVAL);
-			return (0);
+				WT_ERR(EINVAL);
+			ret = 0;
+			break;
 		}
 	}
 
+err:	__wt_config_free(&conf);
 	return (ret);
 }
 
@@ -328,27 +335,29 @@ __wt_struct_reformat(WT_SESSION_IMPL *session, WT_TABLE *table,
 	 * If an empty column list is specified, this will fail with
 	 * WT_NOTFOUND, that's okay.
 	 */
-	WT_RET_NOTFOUND_OK(ret = __wt_config_next(&config, &next_k, &next_v));
+	if ((ret = __wt_config_next(&config, &next_k, &next_v)) != WT_NOTFOUND)
+		WT_ERR(ret);
 	if (ret == WT_NOTFOUND) {
 		if (extra_cols != NULL) {
-			WT_RET(__wt_config_init(session, &config, extra_cols));
-			WT_RET(__wt_config_next(&config, &next_k, &next_v));
+			WT_ERR(__wt_config_init(session, &config, extra_cols));
+			WT_ERR(__wt_config_next(&config, &next_k, &next_v));
 			extra_cols = NULL;
 		} else if (format->size == 0) {
-			WT_RET(__wt_buf_set(session, format, "", 1));
-			return (0);
+			WT_ERR(__wt_buf_set(session, format, "", 1));
+			ret = 0;
+			goto err;
 		}
 	}
 	do {
 		k = next_k;
 		ret = __wt_config_next(&config, &next_k, &next_v);
-		if (ret != 0 && ret != WT_NOTFOUND)
-			return (ret);
+		if (ret != WT_NOTFOUND)
+			WT_ERR(ret);
 		have_next = ret == 0;
 
 		if (!have_next && extra_cols != NULL) {
-			WT_RET(__wt_config_init(session, &config, extra_cols));
-			WT_RET(__wt_config_next(&config, &next_k, &next_v));
+			WT_ERR(__wt_config_init(session, &config, extra_cols));
+			WT_ERR(__wt_config_next(&config, &next_k, &next_v));
 			have_next = true;
 			extra_cols = NULL;
 		}
@@ -356,10 +365,10 @@ __wt_struct_reformat(WT_SESSION_IMPL *session, WT_TABLE *table,
 		if ((ret = __find_column_format(session,
 		    table, &k, value_only, &pv)) != 0) {
 			if (value_only && ret == EINVAL)
-				WT_RET_MSG(session, EINVAL,
+				WT_ERR_MSG(session, EINVAL,
 				    "A column group cannot store key column "
 				    "'%.*s' in its value", (int)k.len, k.str);
-			WT_RET_MSG(session, EINVAL,
+			WT_ERR_MSG(session, EINVAL,
 			    "Column '%.*s' not found", (int)k.len, k.str);
 		}
 
@@ -375,13 +384,14 @@ __wt_struct_reformat(WT_SESSION_IMPL *session, WT_TABLE *table,
 			pv.type = 'u';
 
 		if (pv.havesize)
-			WT_RET(__wt_buf_catfmt(session,
+			WT_ERR(__wt_buf_catfmt(session,
 			    format, "%" PRIu32 "%c", pv.size, pv.type));
 		else
-			WT_RET(__wt_buf_catfmt(session, format, "%c", pv.type));
+			WT_ERR(__wt_buf_catfmt(session, format, "%c", pv.type));
 	} while (have_next);
 
-	return (0);
+err:	__wt_config_free(&config);
+	return (ret);
 }
 
 /*

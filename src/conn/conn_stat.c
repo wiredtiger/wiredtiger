@@ -79,6 +79,7 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 
 	conn = S2C(session);
 	sources = NULL;
+	WT_CLEAR(objectconf);
 
 	WT_RET(__wt_config_gets(session, cfg, "statistics_log.wait", &cval));
 	/* Only start the server if wait time is non-zero */
@@ -110,10 +111,11 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 	WT_RET(__wt_config_subinit(session, &objectconf, &cval));
 	for (cnt = 0; (ret = __wt_config_next(&objectconf, &k, &v)) == 0; ++cnt)
 		;
-	WT_RET_NOTFOUND_OK(ret);
+	WT_ERR_NOTFOUND_OK(ret);
+	__wt_config_free(&objectconf);
 	if (cnt != 0) {
-		WT_RET(__wt_calloc_def(session, cnt + 1, &sources));
-		WT_RET(__wt_config_subinit(session, &objectconf, &cval));
+		WT_ERR(__wt_calloc_def(session, cnt + 1, &sources));
+		WT_ERR(__wt_config_subinit(session, &objectconf, &cval));
 		for (cnt = 0;
 		    (ret = __wt_config_next(&objectconf, &k, &v)) == 0; ++cnt) {
 			/*
@@ -161,6 +163,7 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 	}
 
 err:	__stat_sources_free(session, &sources);
+	__wt_config_free(&objectconf);
 	return (ret);
 }
 

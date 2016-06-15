@@ -203,6 +203,8 @@ __wt_txn_named_snapshot_drop(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_CONFIG_ITEM all_config, k, names_config, to_config, before_config, v;
 	WT_DECL_RET;
 
+	WT_CLEAR(objectconf);
+
 	WT_RET(__wt_config_gets_def(session, cfg, "drop.all", 0, &all_config));
 	WT_RET(__wt_config_gets_def(
 	    session, cfg, "drop.names", 0, &names_config));
@@ -225,7 +227,7 @@ __wt_txn_named_snapshot_drop(WT_SESSION_IMPL *session, const char *cfg[])
 		while ((ret = __wt_config_next(&objectconf, &k, &v)) == 0) {
 			ret = __nsnap_drop_one(session, &k);
 			if (ret != 0)
-				WT_RET_MSG(session, EINVAL,
+				WT_ERR_MSG(session, EINVAL,
 				    "Named snapshot '%.*s' for drop not found",
 				    (int)k.len, k.str);
 		}
@@ -233,6 +235,7 @@ __wt_txn_named_snapshot_drop(WT_SESSION_IMPL *session, const char *cfg[])
 			ret = 0;
 	}
 
+err:	__wt_config_free(&objectconf);
 	return (ret);
 }
 

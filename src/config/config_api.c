@@ -22,6 +22,7 @@ __config_parser_close(WT_CONFIG_PARSER *wt_config_parser)
 	if (config_parser == NULL)
 		return (EINVAL);
 
+	__wt_config_free(&config_parser->config);
 	__wt_free(config_parser->session, config_parser);
 	return (0);
 }

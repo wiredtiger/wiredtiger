@@ -94,15 +94,16 @@ config_check(WT_SESSION_IMPL *session,
 		WT_RET(__wt_config_init(session, &parser, config));
 	else
 		WT_RET(__wt_config_initn(session, &parser, config, config_len));
+	WT_CLEAR(cparser);
 	while ((ret = __wt_config_next(&parser, &k, &v)) == 0) {
 		if (k.type != WT_CONFIG_ITEM_STRING &&
 		    k.type != WT_CONFIG_ITEM_ID)
-			WT_RET_MSG(session, EINVAL,
+			WT_ERR_MSG(session, EINVAL,
 			    "Invalid configuration key found: '%.*s'",
 			    (int)k.len, k.str);
 
 		/* Search for a matching entry. */
-		WT_RET(config_check_search(
+		WT_ERR(config_check_search(
 		    session, checks, checks_entries, k.str, k.len, &i));
 
 		if (strcmp(checks[i].type, "boolean") == 0) {
@@ -127,41 +128,41 @@ config_check(WT_SESSION_IMPL *session,
 		} else if (strcmp(checks[i].type, "string") == 0) {
 			badtype = false;
 		} else
-			WT_RET_MSG(session, EINVAL,
+			WT_ERR_MSG(session, EINVAL,
 			    "unknown configuration type: '%s'",
 			    checks[i].type);
 
 		if (badtype)
-			WT_RET_MSG(session, EINVAL,
+			WT_ERR_MSG(session, EINVAL,
 			    "Invalid value for key '%.*s': expected a %s",
 			    (int)k.len, k.str, checks[i].type);
 
 		if (checks[i].checkf != NULL)
-			WT_RET(checks[i].checkf(session, &v));
+			WT_ERR(checks[i].checkf(session, &v));
 
 		if (checks[i].checks == NULL)
 			continue;
 
 		/* Setup an iterator for the check string. */
-		WT_RET(__wt_config_init(session, &cparser, checks[i].checks));
+		WT_ERR(__wt_config_init(session, &cparser, checks[i].checks));
 		while ((ret = __wt_config_next(&cparser, &ck, &cv)) == 0) {
 			if (WT_STRING_MATCH("min", ck.str, ck.len)) {
 				if (v.val < cv.val)
-					WT_RET_MSG(session, EINVAL,
+					WT_ERR_MSG(session, EINVAL,
 					    "Value too small for key '%.*s' "
 					    "the minimum is %.*s",
 					    (int)k.len, k.str,
 					    (int)cv.len, cv.str);
 			} else if (WT_STRING_MATCH("max", ck.str, ck.len)) {
 				if (v.val > cv.val)
-					WT_RET_MSG(session, EINVAL,
+					WT_ERR_MSG(session, EINVAL,
 					    "Value too large for key '%.*s' "
 					    "the maximum is %.*s",
 					    (int)k.len, k.str,
 					    (int)cv.len, cv.str);
 			} else if (WT_STRING_MATCH("choices", ck.str, ck.len)) {
 				if (v.len == 0)
-					WT_RET_MSG(session, EINVAL,
+					WT_ERR_MSG(session, EINVAL,
 					    "Key '%.*s' requires a value",
 					    (int)k.len, k.str);
 				if (v.type == WT_CONFIG_ITEM_STRUCT) {
@@ -169,7 +170,7 @@ config_check(WT_SESSION_IMPL *session,
 					 * Handle the 'verbose' case of a list
 					 * containing restricted choices.
 					 */
-					WT_RET(__wt_config_subinit(session,
+					WT_ERR(__wt_config_subinit(session,
 					    &sparser, &v));
 					found = true;
 					while (found &&
@@ -179,6 +180,7 @@ config_check(WT_SESSION_IMPL *session,
 						    session, &cv, &v, &dummy);
 						found = ret == 0;
 					}
+					__wt_config_free(&sparser);
 				} else  {
 					ret = __wt_config_subgetraw(session,
 					    &cv, &v, &dummy);
@@ -188,13 +190,13 @@ config_check(WT_SESSION_IMPL *session,
 				if (ret != 0 && ret != WT_NOTFOUND)
 					return (ret);
 				if (!found)
-					WT_RET_MSG(session, EINVAL,
+					WT_ERR_MSG(session, EINVAL,
 					    "Value '%.*s' not a "
 					    "permitted choice for key '%.*s'",
 					    (int)v.len, v.str,
 					    (int)k.len, k.str);
 			} else
-				WT_RET_MSG(session, EINVAL,
+				WT_ERR_MSG(session, EINVAL,
 				    "unexpected configuration description "
 				    "keyword %.*s", (int)ck.len, ck.str);
 		}
@@ -203,5 +205,7 @@ config_check(WT_SESSION_IMPL *session,
 	if (ret == WT_NOTFOUND)
 		ret = 0;
 
+err:	__wt_config_free(&parser);
+	__wt_config_free(&cparser);
 	return (ret);
 }

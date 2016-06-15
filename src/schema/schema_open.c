@@ -110,6 +110,7 @@ __wt_schema_open_colgroups(WT_SESSION_IMPL *session, WT_TABLE *table)
 err:	__wt_scr_free(session, &buf);
 	__wt_schema_destroy_colgroup(session, &colgroup);
 	__wt_free(session, cgconfig);
+	__wt_config_free(&cparser);
 	return (ret);
 }
 
@@ -126,6 +127,8 @@ __open_index(WT_SESSION_IMPL *session, WT_TABLE *table, WT_INDEX *idx)
 	WT_DECL_ITEM(plan);
 	WT_DECL_RET;
 	u_int npublic_cols, i;
+
+	WT_CLEAR(colconf);
 
 	WT_ERR(__wt_scr_alloc(session, 0, &buf));
 
@@ -202,6 +205,7 @@ __open_index(WT_SESSION_IMPL *session, WT_TABLE *table, WT_INDEX *idx)
 	 * Now add any primary key columns from the table that are not
 	 * already part of the index key.
 	 */
+	__wt_config_free(&colconf);
 	WT_ERR(__wt_config_subinit(session, &colconf, &table->colconf));
 	for (i = 0; i < table->nkey_columns &&
 	    (ret = __wt_config_next(&colconf, &ckey, &cval)) == 0;
@@ -255,6 +259,7 @@ __open_index(WT_SESSION_IMPL *session, WT_TABLE *table, WT_INDEX *idx)
 
 err:	__wt_scr_free(session, &buf);
 	__wt_scr_free(session, &plan);
+	__wt_config_free(&colconf);
 	return (ret);
 }
 
@@ -428,6 +433,7 @@ __schema_open_table(WT_SESSION_IMPL *session,
 	char *tablename;
 
 	*tablep = NULL;
+	WT_CLEAR(cparser);
 
 	cursor = NULL;
 	table = NULL;
@@ -482,6 +488,7 @@ __schema_open_table(WT_SESSION_IMPL *session,
 	    "colgroups", &table->cgconf));
 
 	/* Count the number of column groups. */
+	__wt_config_free(&cparser);
 	WT_ERR(__wt_config_subinit(session, &cparser, &table->cgconf));
 	table->ncolgroups = 0;
 	while ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0)
@@ -513,6 +520,7 @@ err:		WT_TRET(__wt_schema_destroy_table(session, &table));
 
 	__wt_free(session, tablename);
 	__wt_scr_free(session, &buf);
+	__wt_config_free(&cparser);
 	return (ret);
 }
 

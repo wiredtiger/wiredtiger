@@ -102,6 +102,7 @@ __checkpoint_apply_all(WT_SESSION_IMPL *session, const char *cfg[],
 	bool ckpt_closed, named, target_list;
 
 	target_list = false;
+	WT_CLEAR(targetconf);
 
 	/* Flag if this is a named checkpoint, and check if the name is OK. */
 	WT_RET(__wt_config_gets(session, cfg, "name", &cval));
@@ -167,6 +168,7 @@ __checkpoint_apply_all(WT_SESSION_IMPL *session, const char *cfg[],
 		*fullp = !target_list;
 
 err:	__wt_scr_free(session, &tmp);
+	__wt_config_free(&targetconf);
 	return (ret);
 }
 
@@ -805,6 +807,7 @@ __checkpoint_lock_tree(WT_SESSION_IMPL *session,
 	dhandle = session->dhandle;
 	hot_backup_locked = false;
 	name_alloc = NULL;
+	WT_CLEAR(dropconf);
 
 	/* Only referenced in diagnostic builds. */
 	WT_UNUSED(is_checkpoint);
@@ -980,6 +983,7 @@ err:	if (hot_backup_locked)
 
 	__wt_meta_ckptlist_free(session, ckptbase);
 	__wt_free(session, name_alloc);
+	__wt_config_free(&dropconf);
 
 	return (ret);
 }
