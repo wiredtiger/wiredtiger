@@ -1206,56 +1206,6 @@ __wt_page_can_evict(
 }
 
 /*
- * __wt_page_release_evict --
- *	Release a reference to a page, and attempt to immediately evict it.
- */
-static inline int
-__wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
-{
-	WT_BTREE *btree;
-	WT_DECL_RET;
-	WT_PAGE *page;
-	bool locked, too_big;
-
-	btree = S2BT(session);
-	page = ref->page;
-
-	/*
-	 * Take some care with order of operations: if we release the hazard
-	 * reference without first locking the page, it could be evicted in
-	 * between.
-	 */
-	locked = __wt_atomic_casv32(
-	    &ref->state, WT_REF_MEM, WT_REF_LOCKED) ? true : false;
-	if ((ret = __wt_hazard_clear(session, page)) != 0 || !locked) {
-		if (locked)
-			ref->state = WT_REF_MEM;
-		return (ret == 0 ? EBUSY : ret);
-	}
-
-	(void)__wt_atomic_addv32(&btree->evict_busy, 1);
-
-	too_big = page->memory_footprint > btree->maxmempage;
-	if ((ret = __wt_evict(session, ref, false)) == 0) {
-		if (too_big)
-			WT_STAT_FAST_CONN_INCR(session, cache_eviction_force);
-		else
-			/*
-			 * If the page isn't too big, we are evicting it because
-			 * it had a chain of deleted entries that make traversal
-			 * expensive.
-			 */
-			WT_STAT_FAST_CONN_INCR(
-			    session, cache_eviction_force_delete);
-	} else
-		WT_STAT_FAST_CONN_INCR(session, cache_eviction_force_fail);
-
-	(void)__wt_atomic_subv32(&btree->evict_busy, 1);
-
-	return (ret);
-}
-
-/*
  * __wt_page_release --
  *	Release a reference to a page.
  */

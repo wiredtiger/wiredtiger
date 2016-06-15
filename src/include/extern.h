@@ -350,6 +350,7 @@ extern int __wt_page_evict_soon(WT_SESSION_IMPL *session, WT_REF *ref);
 extern void __wt_evict_priority_set(WT_SESSION_IMPL *session, uint64_t v);
 extern void __wt_evict_priority_clear(WT_SESSION_IMPL *session);
 extern int __wt_cache_dump(WT_SESSION_IMPL *session, const char *ofile);
+extern int __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref);
 extern int __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing);
 extern int __wt_log_ckpt(WT_SESSION_IMPL *session, WT_LSN *ckp_lsn);
 extern int __wt_log_flush_lsn(WT_SESSION_IMPL *session, WT_LSN *lsn, bool start);
