@@ -3,7 +3,9 @@
 no_scale_per_second_list = [
     'async: current work queue length',
     'async: maximum work queue length',
+    'cache: bytes belonging to page images in the cache',
     'cache: bytes currently in the cache',
+    'cache: bytes not belonging to page images in the cache',
     'cache: eviction currently operating in aggressive mode',
     'cache: hazard pointer maximum array length',
     'cache: maximum bytes configured',
@@ -70,7 +72,9 @@ no_scale_per_second_list = [
 ]
 no_clear_list = [
     'async: maximum work queue length',
+    'cache: bytes belonging to page images in the cache',
     'cache: bytes currently in the cache',
+    'cache: bytes not belonging to page images in the cache',
     'cache: eviction currently operating in aggressive mode',
     'cache: maximum bytes configured',
     'cache: maximum page size at eviction',

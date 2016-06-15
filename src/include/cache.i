@@ -113,6 +113,47 @@ __wt_cache_dirty_inuse(WT_CACHE *cache)
 }
 
 /*
+ * __wt_cache_bytes_image --
+ *	Return the number of page image bytes in use.
+ */
+static inline uint64_t
+__wt_cache_bytes_image(WT_CACHE *cache)
+{
+	uint64_t bytes_image;
+
+	bytes_image = cache->bytes_image;
+	if (cache->overhead_pct != 0)
+		bytes_image +=
+		    (bytes_image * (uint64_t)cache->overhead_pct) / 100;
+
+	return (bytes_image);
+}
+
+/*
+ * __wt_cache_bytes_other --
+ *	Return the number of bytes in use not for page images.
+ */
+static inline uint64_t
+__wt_cache_bytes_other(WT_CACHE *cache)
+{
+	uint64_t bytes_image, bytes_inmem, bytes_other;
+
+	bytes_image = cache->bytes_image;
+	bytes_inmem = cache->bytes_inmem;
+
+	/* XXX Some kind of race or accounting error. */
+	if (bytes_image > bytes_inmem)
+		return (0);
+
+	bytes_other = bytes_inmem - bytes_image;
+	if (cache->overhead_pct != 0)
+		bytes_other +=
+		    (bytes_other * (uint64_t)cache->overhead_pct) / 100;
+
+	return (bytes_other);
+}
+
+/*
  * __wt_session_can_wait --
  *	Return if a session available for a potentially slow operation.
  */
