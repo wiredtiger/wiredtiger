@@ -3254,7 +3254,7 @@ supd_check_complete:
 	 * image, we can't actually write it. Instead, we will re-instantiate
 	 * the page using the disk image and any list of updates we skipped.
 	 */
-	if (F_ISSET(r, WT_EVICT_IN_MEMORY) ||
+	if (F_ISSET(r, WT_EVICT_IN_MEMORY | WT_EVICT_SCRUB) ||
 	    (F_ISSET(r, WT_EVICT_UPDATE_RESTORE) && bnd->supd != NULL)) {
 
 		/* Statistics tracking that we used update/restore. */

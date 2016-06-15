@@ -180,17 +180,6 @@ __wt_session_can_wait(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_eviction_dirty_target --
- *	Return if the eviction server is running to reduce the number of dirty
- * pages (versus running to discard pages from the cache).
- */
-static inline bool
-__wt_eviction_dirty_target(WT_SESSION_IMPL *session)
-{
-	return (FLD_ISSET(S2C(session)->cache->state, WT_EVICT_PASS_DIRTY));
-}
-
-/*
  * __wt_eviction_needed --
  *	Return if an application thread should do eviction, and the cache full
  * percentage as a side-effect.
@@ -227,14 +216,6 @@ __wt_eviction_needed(WT_SESSION_IMPL *session, u_int *pct_fullp)
 	pct_full = (u_int)((100 * bytes_inuse) / bytes_max);
 	if (pct_fullp != NULL)
 		*pct_fullp = pct_full;
-	/*
-	 * If the connection is closing we do not need eviction from an
-	 * application thread.  The eviction subsystem is already closed.
-	 * We return here because some callers depend on the percent full
-	 * having been filled in.
-	 */
-	if (F_ISSET(conn, WT_CONN_CLOSING))
-		return (false);
 
 	if (pct_full > cache->eviction_trigger)
 		return (true);

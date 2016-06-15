@@ -1127,23 +1127,27 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
  *	Check whether a page can be evicted.
  */
 static inline bool
-__wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
+__wt_page_can_evict(
+    WT_SESSION_IMPL *session, WT_REF *ref, uint32_t *evict_flagsp)
 {
 	WT_BTREE *btree;
 	WT_PAGE *page;
 	WT_PAGE_MODIFY *mod;
 	bool modified;
 
-	if (inmem_splitp != NULL)
-		*inmem_splitp = false;
+	if (evict_flagsp != NULL)
+		*evict_flagsp = WT_EVICTING;
 
 	btree = S2BT(session);
 	page = ref->page;
 	mod = page->modify;
 
 	/* Pages that have never been modified can always be evicted. */
-	if (mod == NULL)
+	if (mod == NULL) {
+		if (evict_flagsp != NULL)
+			FLD_SET(*evict_flagsp, WT_EVICT_CLEAN);
 		return (true);
+	}
 
 	/*
 	 * Check for in-memory splits before other eviction tests. If the page
@@ -1152,8 +1156,8 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 	 * won't be written or discarded from the cache.
 	 */
 	if (__wt_leaf_page_can_split(session, page)) {
-		if (inmem_splitp != NULL)
-			*inmem_splitp = true;
+		if (evict_flagsp != NULL)
+			FLD_SET(*evict_flagsp, WT_EVICT_INMEM_SPLIT);
 		return (true);
 	}
 
@@ -1192,6 +1196,10 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 	    F_ISSET_ATOMIC(page, WT_PAGE_SPLIT_BLOCK))
 		return (false);
 
+	/* If the cache is stuck, try anything else. */
+	if (F_ISSET(S2C(session)->cache, WT_CACHE_STUCK))
+		return (true);
+
 	/*
 	 * If the oldest transaction hasn't changed since the last time
 	 * this page was written, it's unlikely we can make progress.
@@ -1200,7 +1208,6 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 	 * attempt to avoid repeated attempts to evict the same page.
 	 */
 	if (modified &&
-	    !F_ISSET(S2C(session)->cache, WT_CACHE_STUCK) &&
 	    (mod->last_oldest_id == __wt_txn_oldest_id(session) ||
 	    !__wt_txn_visible_all(session, mod->update_txn)))
 		return (false);

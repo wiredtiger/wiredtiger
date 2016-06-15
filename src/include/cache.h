@@ -146,10 +146,11 @@ struct __wt_cache {
 	/*
 	 * Work state.
 	 */
-#define	WT_EVICT_PASS_AGGRESSIVE	0x01
-#define	WT_EVICT_PASS_ALL		0x02
-#define	WT_EVICT_PASS_DIRTY		0x04
-#define	WT_EVICT_PASS_WOULD_BLOCK	0x08
+#define	WT_EVICT_STATE_AGGRESSIVE	0x01
+#define	WT_EVICT_STATE_ALL		0x02
+#define	WT_EVICT_STATE_DIRTY		0x04
+#define	WT_EVICT_STATE_SCRUB		0x08
+#define	WT_EVICT_STATE_WOULD_BLOCK	0x10
 	uint32_t state;
 	/*
 	 * Pass interrupt counter.
