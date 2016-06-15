@@ -1772,6 +1772,8 @@ struct __wt_connection {
 	 * patterns\, therefore applications may need to adjust this value based
 	 * on allocator choice and behavior in measured workloads., an integer
 	 * between 0 and 30; default \c 8.}
+	 * @config{cache_page_reserve, reserve this percentage of the cache for
+	 * page images., an integer between 0 and 99; default \c 75.}
 	 * @config{cache_size, maximum heap memory to allocate for the cache.  A
 	 * database should configure either \c cache_size or \c shared_cache but
 	 * not both., an integer between 1MB and 10TB; default \c 100MB.}
@@ -2212,6 +2214,8 @@ struct __wt_connection {
  * allocation sizes and patterns\, therefore applications may need to adjust
  * this value based on allocator choice and behavior in measured workloads., an
  * integer between 0 and 30; default \c 8.}
+ * @config{cache_page_reserve, reserve this percentage of the cache for page
+ * images., an integer between 0 and 99; default \c 75.}
  * @config{cache_size, maximum heap memory to allocate for the cache.  A
  * database should configure either \c cache_size or \c shared_cache but not
  * both., an integer between 1MB and 10TB; default \c 100MB.}

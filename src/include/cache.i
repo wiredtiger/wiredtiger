@@ -200,7 +200,7 @@ __wt_eviction_needed(WT_SESSION_IMPL *session, u_int *pct_fullp)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_CACHE *cache;
-	uint64_t bytes_inuse, bytes_max;
+	uint64_t bytes_inuse, bytes_max, max_other_bytes;
 	u_int pct_full;
 
 	conn = S2C(session);
@@ -243,6 +243,13 @@ __wt_eviction_needed(WT_SESSION_IMPL *session, u_int *pct_fullp)
 	if (__wt_cache_dirty_inuse(cache) >
 	    (cache->eviction_dirty_trigger * bytes_max) / 100)
 		return (true);
+
+	/* Eviction is required if the "other" bytes is too high. */
+	max_other_bytes = WT_MAX(WT_MEGABYTE,
+	    ((100 - cache->page_reserve_pct) * bytes_max) / 100);
+	if (__wt_cache_bytes_other(cache) > max_other_bytes)
+		return (true);
+
 	return (false);
 }
 

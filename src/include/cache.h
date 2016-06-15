@@ -112,6 +112,7 @@ struct __wt_cache {
 	u_int eviction_dirty_trigger;	/* Percent to trigger dirty eviction */
 
 	u_int overhead_pct;	        /* Cache percent adjustment */
+	u_int page_reserve_pct;	        /* Percent page image reserve */
 
 	/*
 	 * LRU eviction list information.

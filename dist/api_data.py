@@ -369,6 +369,9 @@ connection_runtime_config = [
         adjust this value based on allocator choice and behavior in measured
         workloads''',
         min='0', max='30'),
+    Config('cache_page_reserve', '75', r'''
+        reserve this percentage of the cache for page images''',
+        min=0, max=99),
     Config('checkpoint', '', r'''
         periodically checkpoint the database. Enabling the checkpoint server
         uses a session from the configured session_max''',
@@ -388,6 +391,21 @@ connection_runtime_config = [
         ]),
     Config('error_prefix', '', r'''
         prefix string for error messages'''),
+    Config('eviction', '', r'''
+        eviction configuration options.''',
+        type='category', subconfig=[
+            Config('threads_max', '1', r'''
+                maximum number of threads WiredTiger will start to help evict
+                pages from cache. The number of threads started will vary
+                depending on the current eviction load. Each eviction worker
+                thread uses a session from the configured session_max''',
+                min=1, max=20),
+            Config('threads_min', '1', r'''
+                minimum number of threads WiredTiger will start to help evict
+                pages from cache. The number of threads currently running will
+                vary depending on the current eviction load''',
+                min=1, max=20),
+            ]),
     Config('eviction_dirty_target', '80', r'''
         continue evicting until the cache has less dirty memory than the
         value, as a percentage of the total cache size. Dirty pages will
@@ -472,21 +490,6 @@ connection_runtime_config = [
     Config('lsm_merge', 'true', r'''
         merge LSM chunks where possible (deprecated)''',
         type='boolean', undoc=True),
-    Config('eviction', '', r'''
-        eviction configuration options.''',
-        type='category', subconfig=[
-            Config('threads_max', '1', r'''
-                maximum number of threads WiredTiger will start to help evict
-                pages from cache. The number of threads started will vary
-                depending on the current eviction load. Each eviction worker
-                thread uses a session from the configured session_max''',
-                min=1, max=20),
-            Config('threads_min', '1', r'''
-                minimum number of threads WiredTiger will start to help evict
-                pages from cache. The number of threads currently running will
-                vary depending on the current eviction load''',
-                min=1, max=20),
-            ]),
     Config('shared_cache', '', r'''
         shared cache configuration options. A database should configure
         either a cache_size or a shared_cache not both. Enabling a

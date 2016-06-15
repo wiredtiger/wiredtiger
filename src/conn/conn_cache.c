@@ -36,6 +36,9 @@ __cache_config_local(WT_SESSION_IMPL *session, bool shared, const char *cfg[])
 	WT_RET(__wt_config_gets(session, cfg, "cache_overhead", &cval));
 	cache->overhead_pct = (u_int)cval.val;
 
+	WT_RET(__wt_config_gets(session, cfg, "cache_page_reserve", &cval));
+	cache->page_reserve_pct = (u_int)cval.val;
+
 	WT_RET(__wt_config_gets(session, cfg, "eviction_target", &cval));
 	cache->eviction_target = (u_int)cval.val;
 
