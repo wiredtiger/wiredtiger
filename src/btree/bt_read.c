@@ -319,14 +319,15 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 	/* Pages are usually small enough, check that first. */
 	if (page->memory_footprint < btree->splitmempage)
 		return (0);
-	else if (page->memory_footprint < btree->maxmempage)
-		return (__wt_leaf_page_can_split(session, page));
 
 	/* Trigger eviction on the next page release. */
-	__wt_page_evict_soon(page);
+	__wt_page_evict_soon(session, ref);
+
+	if (page->memory_footprint < btree->maxmempage)
+		return (__wt_leaf_page_can_split(session, page));
 
 	/* Bump the oldest ID, we're about to do some visibility checks. */
-	WT_RET(__wt_txn_update_oldest(session, false));
+	(void)__wt_txn_update_oldest(session, false);
 
 	/* If eviction cannot succeed, don't try. */
 	return (__wt_page_can_evict(session, ref, NULL));
@@ -595,7 +596,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			page = ref->page;
 			if (page->read_gen == WT_READGEN_NOTSET) {
 				if (evict_soon)
-					__wt_page_evict_soon(page);
+					__wt_page_evict_soon(session, ref);
 				else
 					__wt_cache_read_gen_new(session, page);
 			} else if (!LF_ISSET(WT_READ_NO_GEN))

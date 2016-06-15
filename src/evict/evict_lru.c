@@ -535,6 +535,11 @@ __evict_update_work(WT_SESSION_IMPL *session)
 	cache->evict_max_refs_per_file =
 	    WT_MAX(100, WT_MILLION / (conn->open_file_count + 1));
 
+	if (cache->evict_queues[WT_EVICT_URGENT_QUEUE].evict_current != NULL) {
+		FLD_SET(cache->state, WT_EVICT_STATE_WOULD_BLOCK);
+		goto done;
+	}
+
 	/*
 	 * Page eviction overrides the dirty target and other types of eviction,
 	 * that is, we don't care where we are with respect to the dirty target
@@ -934,6 +939,8 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 	cache = S2C(session)->cache;
 
 	queue_index = cache->evict_queue_fill++ % WT_EVICT_QUEUE_MAX;
+	if (queue_index == 0)
+		++queue_index;
 	evict_queue = &cache->evict_queues[queue_index];
 	/* Get some more pages to consider for eviction. */
 	if ((ret = __evict_walk(cache->walk_session, queue_index)) != 0)
@@ -969,8 +976,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 		evict_queue->evict_candidates = 0;
 		__wt_spin_unlock(session, &evict_queue->evict_lock);
 		__wt_spin_lock(session, &cache->evict_queue_lock);
-		cache->evict_current = NULL;
-		cache->evict_current_queue = NULL;
+		evict_queue->evict_current = NULL;
 		__wt_spin_unlock(session, &cache->evict_queue_lock);
 		return (0);
 	}
@@ -1040,12 +1046,12 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 	 * Now we can set the next queue.
 	 */
 	__wt_spin_lock(session, &cache->evict_queue_lock);
-	if (cache->evict_current == NULL)
+	if (cache->evict_current_queue->evict_current == NULL)
 		WT_STAT_FAST_CONN_INCR(session, cache_eviction_queue_empty);
 	else
 		WT_STAT_FAST_CONN_INCR(session, cache_eviction_queue_not_empty);
 
-	cache->evict_current = evict_queue->evict_queue;
+	evict_queue->evict_current = evict_queue->evict_queue;
 	cache->evict_current_queue = evict_queue;
 	__wt_spin_unlock(session, &cache->evict_queue_lock);
 
@@ -1246,14 +1252,25 @@ retry:	while (slot < max_entries && ret == 0) {
 }
 
 /*
- * __evict_init_candidate --
+ * __evict_push_candidate --
  *	Initialize a WT_EVICT_ENTRY structure with a given page.
  */
-static void
-__evict_init_candidate(WT_SESSION_IMPL *session,
+static bool
+__evict_push_candidate(WT_SESSION_IMPL *session,
     WT_EVICT_QUEUE *evict_queue, WT_EVICT_ENTRY *evict, WT_REF *ref)
 {
 	u_int slot;
+	uint8_t orig_flags, new_flags;
+
+	/*
+	 * Threads can race to queue a page (e.g., an ordinary LRU walk can
+	 * race with a page being queued for urgent eviction.
+	 */
+	orig_flags = new_flags = ref->page->flags_atomic;
+	FLD_SET(new_flags, WT_PAGE_EVICT_LRU);
+	if (orig_flags == new_flags ||
+	    !__wt_atomic_cas8(&ref->page->flags_atomic, orig_flags, new_flags))
+		return (false);
 
 	/* Keep track of the maximum slot we are using. */
 	slot = (u_int)(evict - evict_queue->evict_queue);
@@ -1264,9 +1281,7 @@ __evict_init_candidate(WT_SESSION_IMPL *session,
 		__evict_list_clear(session, evict);
 	evict->ref = ref;
 	evict->btree = S2BT(session);
-
-	/* Mark the page on the list; set last to flush the other updates. */
-	F_SET_ATOMIC(ref->page, WT_PAGE_EVICT_LRU);
+	return (true);
 }
 
 /*
@@ -1420,7 +1435,8 @@ fast:		/* If the page can't be evicted, give up. */
 		}
 
 		WT_ASSERT(session, evict->ref == NULL);
-		__evict_init_candidate(session, evict_queue, evict, ref);
+		if (!__evict_push_candidate(session, evict_queue, evict, ref))
+			continue;
 		++evict;
 
 		if (WT_PAGE_IS_INTERNAL(page))
@@ -1501,41 +1517,49 @@ __evict_get_ref(
 {
 	WT_CACHE *cache;
 	WT_EVICT_ENTRY *evict;
-	WT_EVICT_QUEUE *evict_queue;
+	WT_EVICT_QUEUE *evict_queue, *urgent_queue;
 	uint32_t candidates;
 
 	cache = S2C(session)->cache;
+	urgent_queue = &cache->evict_queues[WT_EVICT_URGENT_QUEUE];
 	*btreep = NULL;
 	*refp = NULL;
 
-	/*
-	 * Avoid the LRU lock if no pages are available.
-	 */
+	/* Avoid the LRU lock if no pages are available. */
 	WT_STAT_FAST_CONN_INCR(session, cache_eviction_get_ref);
-	if (cache->evict_current == NULL) {
+	if (cache->evict_current_queue->evict_current == NULL &&
+	    urgent_queue->evict_current == NULL) {
 		WT_STAT_FAST_CONN_INCR(session, cache_eviction_get_ref_empty);
 		return (WT_NOTFOUND);
 	}
+
 	__wt_spin_lock(session, &cache->evict_queue_lock);
-	/*
-	 * Verify there are still pages available.
-	 */
-	if (cache->evict_current == NULL) {
+
+	/* Check the urgent queue first. */
+	evict_queue = urgent_queue->evict_current != NULL &&
+	    (FLD_ISSET(cache->state, WT_EVICT_STATE_AGGRESSIVE) ||
+	    (F_ISSET(session, WT_SESSION_INTERNAL) &&
+	    (!is_server || S2C(session)->evict_workers <= 1))) ?
+	    urgent_queue : cache->evict_current_queue;
+
+	/* Verify there are still pages available. */
+	if (evict_queue->evict_current == NULL) {
 		__wt_spin_unlock(session, &cache->evict_queue_lock);
 		WT_STAT_FAST_CONN_INCR(session, cache_eviction_get_ref_empty2);
 		return (WT_NOTFOUND);
 	}
+
 	/*
 	 * We got the queue lock, which should be fast, and now we want to
 	 * get the lock on the individual queue.  We know that the shared
 	 * queue fields cannot change now.
 	 */
-	evict_queue = cache->evict_current_queue;
 	for (;;) {
 		if (__wt_spin_trylock(session, &evict_queue->evict_lock) == 0)
 			break;
 		__wt_yield();
 	}
+
 	/*
 	 * Only evict half of the pages before looking for more. The remainder
 	 * are left to eviction workers (if configured), or application threads
@@ -1546,10 +1570,14 @@ __evict_get_ref(
 		candidates /= 2;
 
 	/* Get the next page queued for eviction. */
-	while ((evict = cache->evict_current) != NULL &&
-	    evict < evict_queue->evict_queue + candidates &&
-	    evict->ref != NULL) {
+	for (evict = evict_queue->evict_current;
+	    evict != NULL && evict < evict_queue->evict_queue + candidates;
+	    ++evict) {
+		if (evict->ref == NULL)
+			continue;
+
 		WT_ASSERT(session, evict->btree != NULL);
+
 		/*
 		 * If the server is helping out and encounters an entry that
 		 * is too large, it stops helping.  Evicting a very large
@@ -1559,9 +1587,6 @@ __evict_get_ref(
 		if (is_server && S2C(session)->evict_workers > 1 &&
 		    !__evict_check_entry_size(session, evict))
 			break;
-
-		/* Move to the next item. */
-		++cache->evict_current;
 
 		/*
 		 * Lock the page while holding the eviction mutex to prevent
@@ -1592,8 +1617,11 @@ __evict_get_ref(
 	}
 
 	/* Clear the current pointer if there are no more candidates. */
-	if (evict >= evict_queue->evict_queue + evict_queue->evict_candidates)
-		cache->evict_current = NULL;
+	if (evict >= evict_queue->evict_queue + evict_queue->evict_candidates) {
+		evict_queue->evict_current = NULL;
+		evict_queue->evict_candidates = 0;
+	} else /* Move to the next item. */
+		evict_queue->evict_current = evict + 1;
 	__wt_spin_unlock(session, &evict_queue->evict_lock);
 	__wt_spin_unlock(session, &cache->evict_queue_lock);
 
@@ -1749,6 +1777,55 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 			txn_busy = true;
 	}
 	/* NOTREACHED */
+}
+
+/*
+ * __wt_page_evict_soon --
+ *      Set a page to be evicted as soon as possible.
+ */
+int
+__wt_page_evict_soon(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+	WT_CACHE *cache;
+	WT_EVICT_ENTRY *evict;
+	WT_EVICT_QUEUE *urgent_queue;
+	WT_PAGE *page;
+	bool queued;
+
+	page = ref->page;
+	page->read_gen = WT_READGEN_OLDEST;
+	if (F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU))
+		return (0);
+
+	/* Append to the urgent queue if we can. */
+	cache = S2C(session)->cache;
+	urgent_queue = &cache->evict_queues[WT_EVICT_URGENT_QUEUE];
+	queued = false;
+
+	__wt_spin_lock(session, &cache->evict_queue_lock);
+	if (F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU))
+		goto done;
+
+	__wt_spin_lock(session, &urgent_queue->evict_lock);
+	evict = urgent_queue->evict_queue + urgent_queue->evict_candidates;
+	if (evict < urgent_queue->evict_queue + WT_EVICT_QUEUE_MAX &&
+	    __evict_push_candidate(session, urgent_queue, evict, ref)) {
+		++urgent_queue->evict_candidates;
+		if (urgent_queue->evict_current == NULL)
+			urgent_queue->evict_current = urgent_queue->evict_queue;
+		queued = true;
+	}
+	__wt_spin_unlock(session, &urgent_queue->evict_lock);
+
+done:	__wt_spin_unlock(session, &cache->evict_queue_lock);
+	if (queued) {
+		if (S2C(session)->evict_workers > 1)
+			WT_RET(__wt_cond_signal(
+			    session, cache->evict_waiter_cond));
+		else
+			WT_RET(__wt_evict_server_wake(session));
+	}
+	return (0);
 }
 
 /*

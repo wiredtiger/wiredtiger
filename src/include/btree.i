@@ -346,16 +346,6 @@ __wt_update_list_memsize(WT_UPDATE *upd)
 }
 
 /*
- * __wt_page_evict_soon --
- *      Set a page to be evicted as soon as possible.
- */
-static inline void
-__wt_page_evict_soon(WT_PAGE *page)
-{
-	page->read_gen = WT_READGEN_OLDEST;
-}
-
-/*
  * __wt_page_modify_init --
  *	A page is about to be modified, allocate the modification structure.
  */

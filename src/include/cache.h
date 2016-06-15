@@ -26,7 +26,9 @@ struct __wt_evict_entry {
 	WT_REF	 *ref;			/* Page to flush/evict */
 };
 
-#define	WT_EVICT_QUEUE_MAX	2
+#define	WT_EVICT_URGENT_QUEUE	0	/* Urgent queue index */
+#define	WT_EVICT_QUEUE_MAX	3	/* Urgent plus two ordinary queues */
+
 /*
  * WT_EVICT_QUEUE --
  *	Encapsulation of an eviction candidate queue.
@@ -34,6 +36,7 @@ struct __wt_evict_entry {
 struct __wt_evict_queue {
 	WT_SPINLOCK evict_lock;		/* Eviction LRU queue */
 	WT_EVICT_ENTRY *evict_queue;	/* LRU pages being tracked */
+	WT_EVICT_ENTRY *evict_current;	/* LRU current page to be evicted */
 	uint32_t evict_candidates;	/* LRU list pages to evict */
 	uint32_t evict_entries;		/* LRU entries in the queue */
 	volatile uint32_t evict_max;	/* LRU maximum eviction slot used */
@@ -122,7 +125,6 @@ struct __wt_cache {
 	WT_SPINLOCK evict_queue_lock;	/* Eviction current queue lock */
 	WT_EVICT_QUEUE evict_queues[WT_EVICT_QUEUE_MAX];
 	WT_EVICT_QUEUE *evict_current_queue;/* LRU current queue in use */
-	WT_EVICT_ENTRY *evict_current;	/* LRU current page to be evicted */
 	uint32_t evict_queue_fill;	/* LRU eviction queue index to fill */
 	uint32_t evict_slots;		/* LRU list eviction slots */
 	WT_DATA_HANDLE

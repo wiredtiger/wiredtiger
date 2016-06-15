@@ -179,6 +179,10 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
 		    &cache->evict_queues[i].evict_lock, "cache eviction"));
 	}
 
+	/* Ensure there is always a non-NULL current queue. */
+	cache->evict_current_queue =
+	    &cache->evict_queues[WT_EVICT_URGENT_QUEUE + 1];
+
 	/*
 	 * We get/set some values in the cache statistics (rather than have
 	 * two copies), configure them.
@@ -286,6 +290,7 @@ __wt_cache_destroy(WT_SESSION_IMPL *session)
 		__wt_spin_destroy(session, &cache->evict_queues[i].evict_lock);
 		__wt_free(session, cache->evict_queues[i].evict_queue);
 	}
+
 	__wt_free(session, conn->cache);
 	return (ret);
 }
