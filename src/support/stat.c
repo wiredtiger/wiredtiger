@@ -595,6 +595,7 @@ static const char * const __stats_connection_desc[] = {
 	"cache: tracked dirty bytes in the cache",
 	"cache: tracked dirty pages in the cache",
 	"cache: unmodified pages evicted",
+	"connection: active filesystem fsync calls",
 	"connection: active filesystem read calls",
 	"connection: active filesystem write calls",
 	"connection: auto adjusting condition resets",
@@ -809,6 +810,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing cache_bytes_dirty */
 		/* not clearing cache_pages_dirty */
 	stats->cache_eviction_clean = 0;
+		/* not clearing fsync_active */
 		/* not clearing read_active */
 		/* not clearing write_active */
 	stats->cond_auto_wait_reset = 0;
@@ -1041,6 +1043,7 @@ __wt_stat_connection_aggregate(
 	to->cache_bytes_dirty += WT_STAT_READ(from, cache_bytes_dirty);
 	to->cache_pages_dirty += WT_STAT_READ(from, cache_pages_dirty);
 	to->cache_eviction_clean += WT_STAT_READ(from, cache_eviction_clean);
+	to->fsync_active += WT_STAT_READ(from, fsync_active);
 	to->read_active += WT_STAT_READ(from, read_active);
 	to->write_active += WT_STAT_READ(from, write_active);
 	to->cond_auto_wait_reset += WT_STAT_READ(from, cond_auto_wait_reset);

@@ -308,6 +308,7 @@ struct __wt_connection_stats {
 	int64_t cache_bytes_dirty;
 	int64_t cache_pages_dirty;
 	int64_t cache_eviction_clean;
+	int64_t fsync_active;
 	int64_t read_active;
 	int64_t write_active;
 	int64_t cond_auto_wait_reset;
