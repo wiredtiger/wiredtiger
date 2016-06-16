@@ -211,7 +211,7 @@ __open_index(WT_SESSION_IMPL *session, WT_TABLE *table, WT_INDEX *idx)
 		 * don't add it again.
 		 */
 		if (__wt_config_subgetraw(
-		    session, &idx->colconf, &ckey, &cval) == 0)
+		    session, &idx->colconf, &ckey, &cval, NULL) == 0)
 			continue;
 		WT_ERR(__wt_buf_catfmt(
 		    session, buf, "%.*s,", (int)ckey.len, ckey.str));

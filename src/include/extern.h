@@ -208,6 +208,7 @@ extern int __wt_config_initn( WT_SESSION_IMPL *session, WT_CONFIG *conf, const c
 extern int __wt_config_init(WT_SESSION_IMPL *session, WT_CONFIG *conf, const char *str);
 extern int __wt_config_subinit( WT_SESSION_IMPL *session, WT_CONFIG *conf, WT_CONFIG_ITEM *item);
 extern int __wt_config_next(WT_CONFIG *conf, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value);
+extern int __wt_config_next_unescape(WT_CONFIG *conf, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value, char **punescaped);
 extern int __wt_config_get(WT_SESSION_IMPL *session, const char **cfg_arg, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value);
 extern int __wt_config_gets(WT_SESSION_IMPL *session, const char **cfg, const char *key, WT_CONFIG_ITEM *value);
 extern int __wt_config_gets_none(WT_SESSION_IMPL *session, const char **cfg, const char *key, WT_CONFIG_ITEM *value);
@@ -215,8 +216,9 @@ extern int __wt_config_getone(WT_SESSION_IMPL *session, const char *config, WT_C
 extern int __wt_config_getones(WT_SESSION_IMPL *session, const char *config, const char *key, WT_CONFIG_ITEM *value);
 extern int __wt_config_getones_none(WT_SESSION_IMPL *session, const char *config, const char *key, WT_CONFIG_ITEM *value);
 extern int __wt_config_gets_def(WT_SESSION_IMPL *session, const char **cfg, const char *key, int def, WT_CONFIG_ITEM *value);
-extern int __wt_config_subgetraw(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cfg, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value);
+extern int __wt_config_subgetraw(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cfg, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value, char **punescaped);
 extern int __wt_config_subgets(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cfg, const char *key, WT_CONFIG_ITEM *value);
+extern int __wt_config_subgets_unescape(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cfg, const char *key, WT_CONFIG_ITEM *value, char **punescaped);
 extern void __wt_conn_foc_discard(WT_SESSION_IMPL *session);
 extern int __wt_configure_method(WT_SESSION_IMPL *session, const char *method, const char *uri, const char *config, const char *type, const char *check);
 extern int __wt_config_check(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *entry, const char *config, size_t config_len);

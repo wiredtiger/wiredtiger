@@ -473,7 +473,8 @@ __create_index(WT_SESSION_IMPL *session,
 		 * If the primary key column is already in the secondary key,
 		 * don't add it again.
 		 */
-		if (__wt_config_subgetraw(session, &icols, &ckey, &cval) == 0) {
+		if (__wt_config_subgetraw(
+		    session, &icols, &ckey, &cval, NULL) == 0) {
 			if (have_extractor)
 				WT_ERR_MSG(session, EINVAL,
 				    "an index with a custom extractor may not "

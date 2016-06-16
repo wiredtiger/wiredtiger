@@ -176,12 +176,13 @@ config_check(WT_SESSION_IMPL *session,
 					    (ret = __wt_config_next(&sparser,
 					    &v, &dummy)) == 0) {
 						ret = __wt_config_subgetraw(
-						    session, &cv, &v, &dummy);
+						    session, &cv, &v, &dummy,
+						    NULL);
 						found = ret == 0;
 					}
 				} else  {
 					ret = __wt_config_subgetraw(session,
-					    &cv, &v, &dummy);
+					    &cv, &v, &dummy, NULL);
 					found = ret == 0;
 				}
 
