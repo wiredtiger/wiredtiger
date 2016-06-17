@@ -871,7 +871,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
 	 */
 	WT_RET(__log_openfile(session,
 	    false, &log_fh, WT_LOG_FILENAME, log->fileid));
-	log->log_fh = log_fh;
+	WT_PUBLISH(log->log_fh, log_fh);
 	/*
 	 * We need to setup the LSNs.  Set the end LSN and alloc LSN to
 	 * the end of the header.
