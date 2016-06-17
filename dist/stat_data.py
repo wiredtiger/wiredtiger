@@ -81,14 +81,14 @@ class SessionStat(Stat):
     prefix = 'session'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, SessionStat.prefix, desc, flags)
-class TxnStat(Stat):
-    prefix = 'transaction'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, TxnStat.prefix, desc, flags)
 class ThreadState(Stat):
     prefix = 'thread-state'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, ThreadState.prefix, desc, flags)
+class TxnStat(Stat):
+    prefix = 'transaction'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, TxnStat.prefix, desc, flags)
 class YieldStat(Stat):
     prefix = 'thread-yield'
     def __init__(self, name, desc, flags=''):
