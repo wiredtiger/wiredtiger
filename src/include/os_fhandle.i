@@ -27,6 +27,7 @@ __wt_fsync(WT_SESSION_IMPL *session, WT_FH *fh, bool block)
 	 * complete, but we track the time taken in the call for completeness.
 	 */
 	WT_STAT_FAST_CONN_INCR(session, fsync_active);
+	WT_STAT_FAST_CONN_INCR(session, fsync_io);
 	if (block)
 		ret = (handle->fh_sync == NULL ? 0 :
 		    handle->fh_sync(handle, (WT_SESSION *)session));
@@ -105,8 +106,8 @@ __wt_read(
 	    "%s: handle-read: %" WT_SIZET_FMT " at %" PRIuMAX,
 	    fh->handle->name, len, (uintmax_t)offset));
 
-	WT_STAT_FAST_CONN_INCR(session, read_io);
 	WT_STAT_FAST_CONN_INCR(session, read_active);
+	WT_STAT_FAST_CONN_INCR(session, read_io);
 
 	ret = fh->handle->fh_read(
 	    fh->handle, (WT_SESSION *)session, offset, len, buf);
@@ -162,8 +163,8 @@ __wt_write(WT_SESSION_IMPL *session,
 	    "%s: handle-write: %" WT_SIZET_FMT " at %" PRIuMAX,
 	    fh->handle->name, len, (uintmax_t)offset));
 
-	WT_STAT_FAST_CONN_INCR(session, write_io);
 	WT_STAT_FAST_CONN_INCR(session, write_active);
+	WT_STAT_FAST_CONN_INCR(session, write_io);
 
 	ret = fh->handle->fh_write(
 	    fh->handle, (WT_SESSION *)session, offset, len, buf);

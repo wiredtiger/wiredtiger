@@ -595,9 +595,6 @@ static const char * const __stats_connection_desc[] = {
 	"cache: tracked dirty bytes in the cache",
 	"cache: tracked dirty pages in the cache",
 	"cache: unmodified pages evicted",
-	"connection: active filesystem fsync calls",
-	"connection: active filesystem read calls",
-	"connection: active filesystem write calls",
 	"connection: auto adjusting condition resets",
 	"connection: auto adjusting condition wait calls",
 	"connection: files currently open",
@@ -607,8 +604,6 @@ static const char * const __stats_connection_desc[] = {
 	"connection: pthread mutex condition wait calls",
 	"connection: pthread mutex shared lock read-lock calls",
 	"connection: pthread mutex shared lock write-lock calls",
-	"connection: total read I/Os",
-	"connection: total write I/Os",
 	"cursor: cursor create calls",
 	"cursor: cursor insert calls",
 	"cursor: cursor next calls",
@@ -673,6 +668,12 @@ static const char * const __stats_connection_desc[] = {
 	"reconciliation: split objects currently awaiting free",
 	"session: open cursor count",
 	"session: open session count",
+	"thread-state: active filesystem fsync calls",
+	"thread-state: active filesystem read calls",
+	"thread-state: active filesystem write calls",
+	"thread-state: total fsync I/Os",
+	"thread-state: total read I/Os",
+	"thread-state: total write I/Os",
 	"thread-yield: page acquire busy blocked",
 	"thread-yield: page acquire eviction blocked",
 	"thread-yield: page acquire locked blocked",
@@ -810,9 +811,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing cache_bytes_dirty */
 		/* not clearing cache_pages_dirty */
 	stats->cache_eviction_clean = 0;
-		/* not clearing fsync_active */
-		/* not clearing read_active */
-		/* not clearing write_active */
 	stats->cond_auto_wait_reset = 0;
 	stats->cond_auto_wait = 0;
 		/* not clearing file_open */
@@ -822,8 +820,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cond_wait = 0;
 	stats->rwlock_read = 0;
 	stats->rwlock_write = 0;
-	stats->read_io = 0;
-	stats->write_io = 0;
 	stats->cursor_create = 0;
 	stats->cursor_insert = 0;
 	stats->cursor_next = 0;
@@ -888,6 +884,12 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing rec_split_stashed_objects */
 		/* not clearing session_cursor_open */
 		/* not clearing session_open */
+		/* not clearing fsync_active */
+		/* not clearing read_active */
+		/* not clearing write_active */
+	stats->fsync_io = 0;
+	stats->read_io = 0;
+	stats->write_io = 0;
 	stats->page_busy_blocked = 0;
 	stats->page_forcible_evict_blocked = 0;
 	stats->page_locked_blocked = 0;
@@ -1043,9 +1045,6 @@ __wt_stat_connection_aggregate(
 	to->cache_bytes_dirty += WT_STAT_READ(from, cache_bytes_dirty);
 	to->cache_pages_dirty += WT_STAT_READ(from, cache_pages_dirty);
 	to->cache_eviction_clean += WT_STAT_READ(from, cache_eviction_clean);
-	to->fsync_active += WT_STAT_READ(from, fsync_active);
-	to->read_active += WT_STAT_READ(from, read_active);
-	to->write_active += WT_STAT_READ(from, write_active);
 	to->cond_auto_wait_reset += WT_STAT_READ(from, cond_auto_wait_reset);
 	to->cond_auto_wait += WT_STAT_READ(from, cond_auto_wait);
 	to->file_open += WT_STAT_READ(from, file_open);
@@ -1055,8 +1054,6 @@ __wt_stat_connection_aggregate(
 	to->cond_wait += WT_STAT_READ(from, cond_wait);
 	to->rwlock_read += WT_STAT_READ(from, rwlock_read);
 	to->rwlock_write += WT_STAT_READ(from, rwlock_write);
-	to->read_io += WT_STAT_READ(from, read_io);
-	to->write_io += WT_STAT_READ(from, write_io);
 	to->cursor_create += WT_STAT_READ(from, cursor_create);
 	to->cursor_insert += WT_STAT_READ(from, cursor_insert);
 	to->cursor_next += WT_STAT_READ(from, cursor_next);
@@ -1127,6 +1124,12 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, rec_split_stashed_objects);
 	to->session_cursor_open += WT_STAT_READ(from, session_cursor_open);
 	to->session_open += WT_STAT_READ(from, session_open);
+	to->fsync_active += WT_STAT_READ(from, fsync_active);
+	to->read_active += WT_STAT_READ(from, read_active);
+	to->write_active += WT_STAT_READ(from, write_active);
+	to->fsync_io += WT_STAT_READ(from, fsync_io);
+	to->read_io += WT_STAT_READ(from, read_io);
+	to->write_io += WT_STAT_READ(from, write_io);
 	to->page_busy_blocked += WT_STAT_READ(from, page_busy_blocked);
 	to->page_forcible_evict_blocked +=
 	    WT_STAT_READ(from, page_forcible_evict_blocked);

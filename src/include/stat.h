@@ -308,9 +308,6 @@ struct __wt_connection_stats {
 	int64_t cache_bytes_dirty;
 	int64_t cache_pages_dirty;
 	int64_t cache_eviction_clean;
-	int64_t fsync_active;
-	int64_t read_active;
-	int64_t write_active;
 	int64_t cond_auto_wait_reset;
 	int64_t cond_auto_wait;
 	int64_t file_open;
@@ -320,8 +317,6 @@ struct __wt_connection_stats {
 	int64_t cond_wait;
 	int64_t rwlock_read;
 	int64_t rwlock_write;
-	int64_t read_io;
-	int64_t write_io;
 	int64_t cursor_create;
 	int64_t cursor_insert;
 	int64_t cursor_next;
@@ -386,6 +381,12 @@ struct __wt_connection_stats {
 	int64_t rec_split_stashed_objects;
 	int64_t session_cursor_open;
 	int64_t session_open;
+	int64_t fsync_active;
+	int64_t read_active;
+	int64_t write_active;
+	int64_t fsync_io;
+	int64_t read_io;
+	int64_t write_io;
 	int64_t page_busy_blocked;
 	int64_t page_forcible_evict_blocked;
 	int64_t page_locked_blocked;
