@@ -188,7 +188,7 @@ main(int argc, char *argv[])
 	WT_CURSOR *cursor;
 	WT_SESSION *session;
 	WT_RAND_STATE rnd;
-	uint64_t key;
+	uint64_t key, last_key;
 	uint32_t absent, count, i, nth, timeout;
 	int ch, status, ret;
 	pid_t pid;
@@ -317,12 +317,23 @@ main(int argc, char *argv[])
 		 * in the table after recovery.  Since we did write-no-sync, we
 		 * expect every key to have been recovered.
 		 */
-		for (;; ++count) {
+		for (last_key = UINT64_MAX;; ++count, last_key = key) {
 			ret = fscanf(fp, "%" SCNu64 "\n", &key);
 			if (ret != EOF && ret != 1)
 				testutil_die(errno, "fscanf");
 			if (ret == EOF)
 				break;
+			/*
+			 * If we're unlucky, the last find may be a partially
+			 * written key at the end and that can result in a false
+			 * negative missing record error.  Detect it and break.
+			 */
+			if (last_key != UINT64_MAX && key != last_key + 1) {
+				printf("%s: Read partial record %" PRIu64
+				    " last valid key %" PRIu64 "\n",
+				    fname, key, last_key);
+				break;
+			}
 			snprintf(kname, sizeof(kname), "%" PRIu64, key);
 			cursor->set_key(cursor, kname);
 			if ((ret = cursor->search(cursor)) != 0) {
