@@ -298,13 +298,10 @@ __verify_dsk_row(
 		case WT_CELL_ADDR_LEAF_NO:
 		case WT_CELL_KEY_OVFL:
 		case WT_CELL_VALUE_OVFL:
-			ret = bm->addr_invalid(
-			    bm, session, unpack->data, unpack->size);
-			if (ret == EINVAL) {
+			if ((ret = bm->addr_invalid(
+			    bm, session, unpack->data, unpack->size)) == EINVAL)
 				ret = __err_cell_corrupt_or_eof(
 				    session, cell_num, tag);
-				goto err;
-			}
 			WT_ERR(ret);
 			break;
 		}
