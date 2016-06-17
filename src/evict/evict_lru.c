@@ -631,7 +631,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 		 * of whether the cache is full, to prevent the oldest ID
 		 * falling too far behind.
 		 */
-		WT_RET(__wt_txn_update_oldest(session, loop > 0));
+		WT_RET(__wt_txn_update_oldest(session, false));
 
 		if (!__evict_update_work(session))
 			break;
@@ -1520,6 +1520,10 @@ __evict_get_ref(
 	for (;;) {
 		if (__wt_spin_trylock(session, &evict_queue->evict_lock) == 0)
 			break;
+		if (!F_ISSET(session, WT_SESSION_INTERNAL)) {
+			__wt_spin_unlock(session, &cache->evict_queue_lock);
+			return (WT_NOTFOUND);
+		}
 		__wt_yield();
 	}
 	/*
