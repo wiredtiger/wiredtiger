@@ -36,39 +36,28 @@
  * Application-writers SHOULD NOT INCLUDE "wt_internal.h", the public WiredTiger
  * include files should be used instead:
  *
- *	#include <wiredtiger.h>		
+ *	#include <wiredtiger.h>
  *	#include <wiredtiger_ext.h>
  */
 #include "wt_internal.h"
 
 /*
- * This example code uses WiredTiger interanl functions for portable read/write
+ * This example code uses WiredTiger internal functions for portable read/write
  * locking. We use #defines to clarify the meaning and ignore errors to simplify
  * the code.
  *
  * Application writers SHOULD NOT COPY THIS LOCKING CODE, it's special-case code
  * to make this example portable across platforms.
- *
- * Note we need a WT_SESSION_IMPL handle to allocate the internal WiredTiger
- * read/write lock, and no such thing exists when the initial load call to
- * create the file system handle happens. Reach into WiredTiger internals to
- * get a session handle. Applications don't ever need to do that, they won't
- * be using WiredTiger internal locking and won't ever need a session handle.
  */
-#define	ALLOCATE_FILE_SYSTEM_LOCK(conn, demo_fs)			\
-	(void)__wt_rwlock_alloc(					\
-	    ((WT_CONNECTION_IMPL *)(conn))->default_session,		\
-	    &(demo_fs)->rwlock, "demo file handle lock")
-#define	DESTROY_FILE_SYSTEM_LOCK(wt_session, demo_fs) do {		\
-	if ((demo_fs)->rwlock != NULL)					\
-		(void)__wt_rwlock_destroy((WT_SESSION_IMPL *)		\
-		    (wt_session), &(demo_fs)->rwlock);			\
-} while (0)
+#define	ALLOCATE_FILE_SYSTEM_LOCK(demo_fs)				\
+	(void)__wt_spin_init(NULL, &(demo_fs)->lock, "demo file handle lock")
+#define	DESTROY_FILE_SYSTEM_LOCK(wt_session, demo_fs)			\
+	__wt_spin_destroy((WT_SESSION_IMPL *)(wt_session), &(demo_fs)->lock)
 #define	LOCK_FILE_SYSTEM(wt_session, demo_fs)				\
-	(void)__wt_writelock((WT_SESSION_IMPL *)(wt_session), (demo_fs)->rwlock)
+	__wt_spin_lock((WT_SESSION_IMPL *)(wt_session), &(demo_fs)->lock)
 #define	UNLOCK_FILE_SYSTEM(wt_session, demo_fs)				\
-	(void)__wt_writeunlock(						\
-	    (WT_SESSION_IMPL *)(wt_session), (demo_fs)->rwlock)
+	__wt_spin_unlock(						\
+	    (WT_SESSION_IMPL *)(wt_session), &(demo_fs)->lock)
 
 /*
  * Example file system implementation, using memory buffers to represent files.
@@ -83,7 +72,7 @@ typedef struct {
 	 * might require finer granularity, for example, a single lock for the
 	 * file system handle list and per-handle locks serializing I/O.
 	 */
-	WT_RWLOCK *rwlock;			/* Lock */
+	WT_SPINLOCK lock;			/* Lock */
 
 	int opened_file_count;
 	int opened_unique_file_count;
@@ -261,7 +250,7 @@ demo_file_system_create(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
 		goto err;
 	}
 
-	ALLOCATE_FILE_SYSTEM_LOCK(conn, demo_fs);
+	ALLOCATE_FILE_SYSTEM_LOCK(demo_fs);
 
 	/* Initialize the in-memory jump table. */
 	file_system->fs_directory_list = demo_fs_directory_list;
