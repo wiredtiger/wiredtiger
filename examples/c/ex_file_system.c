@@ -32,15 +32,22 @@
 /*
  * Include WiredTiger internal functions: we need architecture portable locking
  * in this example, and we use the TAILQ_XXX functions to keep the code simple.
+ *
+ * Application-writers SHOULD NOT INCLUDE "wt_internal.h", the public WiredTiger
+ * include files should be used instead:
+ *
+ *	#include <wiredtiger.h>		
+ *	#include <wiredtiger_ext.h>
  */
 #include "wt_internal.h"
 
 /*
- * We're using internal WiredTiger functions for portable read/write locking:
- * use #defines to clarify the meaning and ignore errors to simplify the code.
+ * This example code uses WiredTiger interanl functions for portable read/write
+ * locking. We use #defines to clarify the meaning and ignore errors to simplify
+ * the code.
  *
- * Application writers SHOULD NOT COPY THIS LOCKING CODE, it's special-case
- * code to make this example portable across platforms.
+ * Application writers SHOULD NOT COPY THIS LOCKING CODE, it's special-case code
+ * to make this example portable across platforms.
  *
  * Note we need a WT_SESSION_IMPL handle to allocate the internal WiredTiger
  * read/write lock, and no such thing exists when the initial load call to
@@ -64,7 +71,7 @@
 	    (WT_SESSION_IMPL *)(wt_session), (demo_fs)->rwlock)
 
 /*
- * Example file system implementation. Using memory buffers to represent files.
+ * Example file system implementation, using memory buffers to represent files.
  */
 typedef struct {
 	WT_FILE_SYSTEM iface;
@@ -72,9 +79,9 @@ typedef struct {
 	/*
 	 * WiredTiger performs schema and I/O operations in parallel, all file
 	 * system and file handle access must be thread-safe. This example uses
-	 * a single, global lock for simplicity; in real applications, per-file
-	 * system locking of the handle list, and per-handle locks serializing
-	 * I/O may make more sense.
+	 * a single, global file system lock for simplicity; real applications
+	 * might require finer granularity, for example, a single lock for the
+	 * file system handle list and per-handle locks serializing I/O.
 	 */
 	WT_RWLOCK *rwlock;			/* Lock */
 
@@ -194,7 +201,14 @@ demo_file_system_create(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
 	demo_fs->wtext = wtext;
 	file_system = (WT_FILE_SYSTEM *)demo_fs;
 
-	/* Retrieve our configuration information, the "config" value. */
+	/*
+	 * Applications may have their own configuration information to pass to
+	 * the underlying filesystem implementation. See the main function for
+	 * the setup of those configuration strings; here we parse configuration
+	 * information as passed in by main, through WiredTiger.
+	 *
+	 * Retrieve our configuration information, the "config" value.
+	 */
 	if ((ret = wtext->config_get(wtext, NULL, config, "config", &v)) != 0) {
 		(void)wtext->err_printf(wtext, NULL,
 		    "WT_EXTENSION_API.config_get: config: %s",
@@ -595,8 +609,8 @@ demo_fs_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
 	printf("\t%d unique file opens\n", demo_fs->opened_unique_file_count);
 	printf("\t%d files opened\n", demo_fs->opened_file_count);
 	printf("\t%d files closed\n", demo_fs->closed_file_count);
-	printf("\t%d reads\n", demo_fs->read_ops);
-	printf("\t%d writes\n", demo_fs->write_ops);
+	printf("\t%d reads, %d writes\n",
+	    demo_fs->read_ops, demo_fs->write_ops);
 
 	DESTROY_FILE_SYSTEM_LOCK(session, demo_fs);
 	free(demo_fs);
