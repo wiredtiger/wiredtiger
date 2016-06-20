@@ -1424,7 +1424,7 @@ fast:		/* If the page can't be evicted, give up. */
 	 * hazard pointers, and the root page complicates that calculation.
 	 *
 	 * Likewise if we found no new candidates during the walk: there is no
-	 * point keeping a page pinned, since it may be the only candiate in an
+	 * point keeping a page pinned, since it may be the only candidate in an
 	 * idle tree.
 	 *
 	 * If we land on a page requiring forced eviction, move on to the next
