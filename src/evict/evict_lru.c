@@ -1423,11 +1423,15 @@ fast:		/* If the page can't be evicted, give up. */
 	 * If we happen to end up on the root page, clear it.  We have to track
 	 * hazard pointers, and the root page complicates that calculation.
 	 *
+	 * Likewise if we found no new candidates during the walk: there is no
+	 * point keeping a page pinned, since it may be the only candiate in an
+	 * idle tree.
+	 *
 	 * If we land on a page requiring forced eviction, move on to the next
 	 * page: we want this page evicted as quickly as possible.
 	 */
 	if ((ref = btree->evict_ref) != NULL) {
-		if (__wt_ref_is_root(ref))
+		if (__wt_ref_is_root(ref) || evict == start)
 			WT_RET(__evict_clear_walk(session));
 		else if (ref->page->read_gen == WT_READGEN_OLDEST)
 			WT_RET_NOTFOUND_OK(__wt_tree_walk_count(
