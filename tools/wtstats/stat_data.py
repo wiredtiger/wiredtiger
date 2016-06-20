@@ -128,4 +128,4 @@ prefix_list = [
     'thread-state',
     'compression',
 ]
-groups = {'cursor': ['cursor', 'session'], 'lsm': ['LSM', 'transaction'], 'system': ['connection', 'data-handle', 'session', 'thread-state'], 'evict': ['cache', 'connection', 'block-manager', 'thread-state'], 'memory': ['cache', 'connection', 'reconciliation']}
+groups = {'cursor': ['cursor', 'session'], 'lsm': ['LSM', 'transaction'], 'system': ['connection', 'data-handle', 'session', 'thread-state'], 'evict': ['block-manager', 'cache', 'connection', 'thread-state'], 'memory': ['cache', 'connection', 'reconciliation']}

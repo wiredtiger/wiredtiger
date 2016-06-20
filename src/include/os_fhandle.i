@@ -102,6 +102,7 @@ __wt_read(
     WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t len, void *buf)
 {
 	WT_DECL_RET;
+
 	WT_RET(__wt_verbose(session, WT_VERB_HANDLEOPS,
 	    "%s: handle-read: %" WT_SIZET_FMT " at %" PRIuMAX,
 	    fh->handle->name, len, (uintmax_t)offset));
@@ -155,6 +156,7 @@ __wt_write(WT_SESSION_IMPL *session,
     WT_FH *fh, wt_off_t offset, size_t len, const void *buf)
 {
 	WT_DECL_RET;
+
 	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_READONLY) ||
 	    WT_STRING_MATCH(fh->name,
 	    WT_SINGLETHREAD, strlen(WT_SINGLETHREAD)));

@@ -102,9 +102,9 @@ class YieldStat(Stat):
 groups = {}
 groups['cursor'] = [CursorStat.prefix, SessionStat.prefix]
 groups['evict'] = [
+    BlockStat.prefix,
     CacheStat.prefix,
     ConnStat.prefix,
-    BlockStat.prefix,
     ThreadState.prefix
 ]
 groups['lsm'] = [LSMStat.prefix, TxnStat.prefix]
