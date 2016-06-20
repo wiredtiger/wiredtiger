@@ -34,7 +34,8 @@ __fhandle_method_finalize(
 	/* not required: map_unmap */
 	WT_HANDLE_METHOD_REQ(fh_read);
 	WT_HANDLE_METHOD_REQ(fh_size);
-	WT_HANDLE_METHOD_REQ(fh_sync);
+	if (!readonly)
+		WT_HANDLE_METHOD_REQ(fh_sync);
 	/* not required: sync_nowait */
 	if (!readonly) {
 		WT_HANDLE_METHOD_REQ(fh_truncate);
