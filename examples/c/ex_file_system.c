@@ -42,9 +42,9 @@
 #include "wt_internal.h"
 
 /*
- * This example code uses WiredTiger internal functions for portable read/write
- * locking. We use #defines to clarify the meaning and ignore errors to simplify
- * the code.
+ * This example code uses internal WiredTiger functions for portable locking.
+ * We use #defines to clarify the meaning and ignore errors to simplify the
+ * code.
  *
  * Application writers SHOULD NOT COPY THIS LOCKING CODE, it's special-case code
  * to make this example portable across platforms.
