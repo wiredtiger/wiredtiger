@@ -86,6 +86,7 @@ DbEnv
 Decrement
 Decrypt
 DeleteFileA
+EACCES
 EAGAIN
 EB
 EBUSY
@@ -601,6 +602,7 @@ eof
 eq
 equalp
 errhandler
+errmap
 errno
 errx
 esc

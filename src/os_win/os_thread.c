@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __wt_thread_create --
+ * __win_thread_create --
  *	Create a new thread of control.
  */
-int
-__wt_thread_create(WT_SESSION_IMPL *session,
+static inline int
+__win_thread_create(WT_SESSION_IMPL *session,
     wt_thread_t *tidret, WT_THREAD_CALLBACK(*func)(void *), void *arg)
 {
 	/* Spawn a new thread of control. */
@@ -25,11 +25,25 @@ __wt_thread_create(WT_SESSION_IMPL *session,
 }
 
 /*
- * __wt_thread_join --
- *	Wait for a thread of control to exit.
+ * __wt_thread_create --
+ *	Create a new thread of control.
  */
 int
-__wt_thread_join(WT_SESSION_IMPL *session, wt_thread_t tid)
+__wt_thread_create(WT_SESSION_IMPL *session,
+    wt_thread_t *tidret, WT_THREAD_CALLBACK(*func)(void *), void *arg)
+{
+	WT_DECL_RET;
+
+	ret = __win_thread_create(session, tidret, func, arg);
+	return (ret >= 0 ? ret : __wt_map_windows_error_to_posix_error(ret));
+}
+
+/*
+ * __win_thread_join --
+ *	Wait for a thread of control to exit.
+ */
+static inline int
+__win_thread_join(WT_SESSION_IMPL *session, wt_thread_t tid)
 {
 	WT_DECL_RET;
 
@@ -41,12 +55,24 @@ __wt_thread_join(WT_SESSION_IMPL *session, wt_thread_t tid)
 		    ret == WAIT_FAILED ? __wt_getlasterror() : ret,
 		    "thread join: WaitForSingleObject");
 
-	if (CloseHandle(tid) == 0) {
+	if (CloseHandle(tid) == 0)
 		WT_RET_MSG(session,
 		    __wt_getlasterror(), "thread join: CloseHandle");
-	}
 
 	return (0);
+}
+
+/*
+ * __wt_thread_join --
+ *	Wait for a thread of control to exit.
+ */
+int
+__wt_thread_join(WT_SESSION_IMPL *session, wt_thread_t tid)
+{
+	WT_DECL_RET;
+
+	ret = __win_thread_join(session, tid);
+	return (ret >= 0 ? ret : __wt_map_windows_error_to_posix_error(ret));
 }
 
 /*

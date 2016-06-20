@@ -12,7 +12,7 @@
  * __win_fs_exist --
  *	Return if the file exists.
  */
-static int
+static inline int
 __win_fs_exist(WT_FILE_SYSTEM *file_system,
     WT_SESSION *wt_session, const char *name, bool *existp)
 {
@@ -32,10 +32,24 @@ __win_fs_exist(WT_FILE_SYSTEM *file_system,
 }
 
 /*
+ * __win_fs_exist_errmap --
+ *	Return if the file exists.
+ */
+static int
+__win_fs_exist_errmap(WT_FILE_SYSTEM *file_system,
+    WT_SESSION *wt_session, const char *name, bool *existp)
+{
+	WT_DECL_RET;
+
+	ret = __win_fs_exist(file_system, wt_session, name, existp);
+	return (ret >= 0 ? ret : __wt_map_windows_error_to_posix_error(ret));
+}
+
+/*
  * __win_fs_remove --
  *	Remove a file.
  */
-static int
+static inline int
 __win_fs_remove(
     WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *name)
 {
@@ -54,10 +68,24 @@ __win_fs_remove(
 }
 
 /*
+ * __win_fs_remove_errmap --
+ *	Remove a file.
+ */
+static int
+__win_fs_remove_errmap(
+    WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *name)
+{
+	WT_DECL_RET;
+
+	ret = __win_fs_remove(file_system, wt_session, name);
+	return (ret >= 0 ? ret : __wt_map_windows_error_to_posix_error(ret));
+}
+
+/*
  * __win_fs_rename --
  *	Rename a file.
  */
-static int
+static inline int
 __win_fs_rename(WT_FILE_SYSTEM *file_system,
     WT_SESSION *wt_session, const char *from, const char *to)
 {
@@ -85,11 +113,25 @@ __win_fs_rename(WT_FILE_SYSTEM *file_system,
 }
 
 /*
- * __wt_win_fs_size --
+ * __win_fs_rename_errmap --
+ *	Rename a file.
+ */
+static int
+__win_fs_rename_errmap(WT_FILE_SYSTEM *file_system,
+    WT_SESSION *wt_session, const char *from, const char *to)
+{
+	WT_DECL_RET;
+
+	ret = __win_fs_rename(file_system, wt_session, from, to);
+	return (ret >= 0 ? ret : __wt_map_windows_error_to_posix_error(ret));
+}
+
+/*
+ * __win_fs_size --
  *	Get the size of a file in bytes, by file name.
  */
-int
-__wt_win_fs_size(WT_FILE_SYSTEM *file_system,
+static inline int
+__win_fs_size(WT_FILE_SYSTEM *file_system,
     WT_SESSION *wt_session, const char *name, wt_off_t *sizep)
 {
 	WIN32_FILE_ATTRIBUTE_DATA data;
@@ -110,10 +152,24 @@ __wt_win_fs_size(WT_FILE_SYSTEM *file_system,
 }
 
 /*
+ * __win_fs_size_errmap --
+ *	Get the size of a file in bytes, by file name.
+ */
+static int
+__win_fs_size_errmap(WT_FILE_SYSTEM *file_system,
+    WT_SESSION *wt_session, const char *name, wt_off_t *sizep)
+{
+	WT_DECL_RET;
+
+	ret = __win_fs_size(file_system, wt_session, name, sizep);
+	return (ret >= 0 ? ret : __wt_map_windows_error_to_posix_error(ret));
+}
+
+/*
  * __win_file_close --
  *	ANSI C close.
  */
-static int
+static inline int
 __win_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
 	WT_DECL_RET;
@@ -151,10 +207,23 @@ __win_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 }
 
 /*
+ * __win_file_close_errmap --
+ *	ANSI C close.
+ */
+static int
+__win_file_close_errmap(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
+{
+	WT_DECL_RET;
+
+	ret = __win_file_close(file_handle, wt_session);
+	return (ret >= 0 ? ret : __wt_map_windows_error_to_posix_error(ret));
+}
+
+/*
  * __win_file_lock --
  *	Lock/unlock a file.
  */
-static int
+static inline int
 __win_file_lock(
     WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool lock)
 {
@@ -191,10 +260,24 @@ __win_file_lock(
 }
 
 /*
+ * __win_file_lock_errmap --
+ *	Lock/unlock a file.
+ */
+static int
+__win_file_lock_errmap(
+    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool lock)
+{
+	WT_DECL_RET;
+
+	ret = __win_file_lock(file_handle, wt_session, lock);
+	return (ret >= 0 ? ret : __wt_map_windows_error_to_posix_error(ret));
+}
+
+/*
  * __win_file_read --
  *	Read a chunk.
  */
-static int
+static inline int
 __win_file_read(WT_FILE_HANDLE *file_handle,
     WT_SESSION *wt_session, wt_off_t offset, size_t len, void *buf)
 {
@@ -236,10 +319,24 @@ __win_file_read(WT_FILE_HANDLE *file_handle,
 }
 
 /*
+ * __win_file_read_errmap --
+ *	Read a chunk.
+ */
+static int
+__win_file_read_errmap(WT_FILE_HANDLE *file_handle,
+    WT_SESSION *wt_session, wt_off_t offset, size_t len, void *buf)
+{
+	WT_DECL_RET;
+
+	ret = __win_file_read(file_handle, wt_session, offset, len, buf);
+	return (ret >= 0 ? ret : __wt_map_windows_error_to_posix_error(ret));
+}
+
+/*
  * __win_file_size --
  *	Get the size of a file in bytes, by file handle.
  */
-static int
+static inline int
 __win_file_size(
     WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t *sizep)
 {
@@ -260,10 +357,24 @@ __win_file_size(
 }
 
 /*
+ * __win_file_size_errmap --
+ *	Get the size of a file in bytes, by file handle.
+ */
+static int
+__win_file_size_errmap(
+    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t *sizep)
+{
+	WT_DECL_RET;
+
+	ret = __win_file_size(file_handle, wt_session, sizep);
+	return (ret >= 0 ? ret : __wt_map_windows_error_to_posix_error(ret));
+}
+
+/*
  * __win_file_sync --
  *	MSVC fsync.
  */
-static int
+static inline int
 __win_file_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
 	WT_DECL_RET;
@@ -292,10 +403,23 @@ __win_file_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 }
 
 /*
+ * __win_file_sync_errmap --
+ *	MSVC fsync.
+ */
+static int
+__win_file_sync_errmap(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
+{
+	WT_DECL_RET;
+
+	ret = __win_file_sync(file_handle, wt_session);
+	return (ret >= 0 ? ret : __wt_map_windows_error_to_posix_error(ret));
+}
+
+/*
  * __win_file_truncate --
  *	Truncate a file.
  */
-static int
+static inline int
 __win_file_truncate(
     WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t len)
 {
@@ -330,10 +454,24 @@ __win_file_truncate(
 }
 
 /*
+ * __win_file_truncate_errmap --
+ *	Truncate a file.
+ */
+static int
+__win_file_truncate_errmap(
+    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t len)
+{
+	WT_DECL_RET;
+
+	ret = __win_file_truncate(file_handle, wt_session, len);
+	return (ret >= 0 ? ret : __wt_map_windows_error_to_posix_error(ret));
+}
+
+/*
  * __win_file_write --
  *	Write a chunk.
  */
-static int
+static inline int
 __win_file_write(WT_FILE_HANDLE *file_handle,
     WT_SESSION *wt_session, wt_off_t offset, size_t len, const void *buf)
 {
@@ -375,10 +513,24 @@ __win_file_write(WT_FILE_HANDLE *file_handle,
 }
 
 /*
+ * __win_file_write_errmap --
+ *	Write a chunk.
+ */
+static int
+__win_file_write_errmap(WT_FILE_HANDLE *file_handle,
+    WT_SESSION *wt_session, wt_off_t offset, size_t len, const void *buf)
+{
+	WT_DECL_RET;
+
+	ret = __win_file_write(file_handle, wt_session, offset, len, buf);
+	return (ret >= 0 ? ret : __wt_map_windows_error_to_posix_error(ret));
+}
+
+/*
  * __win_open_file --
  *	Open a file handle.
  */
-static int
+static inline int
 __win_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
     const char *name, WT_OPEN_FILE_TYPE file_type, uint32_t flags,
     WT_FILE_HANDLE **file_handlep)
@@ -492,22 +644,22 @@ directory_open:
 	file_handle = (WT_FILE_HANDLE *)win_fh;
 	WT_ERR(__wt_strdup(session, name, &file_handle->name));
 
-	file_handle->close = __win_file_close;
-	file_handle->fh_lock = __win_file_lock;
+	file_handle->close = __win_file_close_errmap;
+	file_handle->fh_lock = __win_file_lock_errmap;
 #ifdef WORDS_BIGENDIAN
 	/*
 	 * The underlying objects are little-endian, mapping objects isn't
 	 * currently supported on big-endian systems.
 	 */
 #else
-	file_handle->fh_map = __wt_win_map;
-	file_handle->fh_unmap = __wt_win_unmap;
+	file_handle->fh_map = __wt_win_map_errmap;
+	file_handle->fh_unmap = __wt_win_unmap_errmap;
 #endif
-	file_handle->fh_read = __win_file_read;
-	file_handle->fh_size = __win_file_size;
-	file_handle->fh_sync = __win_file_sync;
-	file_handle->fh_truncate = __win_file_truncate;
-	file_handle->fh_write = __win_file_write;
+	file_handle->fh_read = __win_file_read_errmap;
+	file_handle->fh_size = __win_file_size_errmap;
+	file_handle->fh_sync = __win_file_sync_errmap;
+	file_handle->fh_truncate = __win_file_truncate_errmap;
+	file_handle->fh_write = __win_file_write_errmap;
 
 	*file_handlep = file_handle;
 
@@ -515,6 +667,22 @@ directory_open:
 
 err:	WT_TRET(__win_file_close((WT_FILE_HANDLE *)win_fh, wt_session));
 	return (ret);
+}
+
+/*
+ * __win_open_file_errmap --
+ *	Open a file handle.
+ */
+static int
+__win_open_file_errmap(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
+    const char *name, WT_OPEN_FILE_TYPE file_type, uint32_t flags,
+    WT_FILE_HANDLE **file_handlep)
+{
+	WT_DECL_RET;
+
+	ret = __win_open_file(
+	    file_system, wt_session, name, file_type, flags, file_handlep);
+	return (ret >= 0 ? ret : __wt_map_windows_error_to_posix_error(ret));
 }
 
 /*
@@ -547,13 +715,14 @@ __wt_os_win(WT_SESSION_IMPL *session)
 	WT_RET(__wt_calloc_one(session, &file_system));
 
 	/* Initialize the Windows jump table. */
-	file_system->fs_directory_list = __wt_win_directory_list;
-	file_system->fs_directory_list_free = __wt_win_directory_list_free;
-	file_system->fs_exist = __win_fs_exist;
-	file_system->fs_open_file = __win_open_file;
-	file_system->fs_remove = __win_fs_remove;
-	file_system->fs_rename = __win_fs_rename;
-	file_system->fs_size = __wt_win_fs_size;
+	file_system->fs_directory_list = __wt_win_directory_list_errmap;
+	file_system->fs_directory_list_free =
+	    __wt_win_directory_list_free_errmap;
+	file_system->fs_exist = __win_fs_exist_errmap;
+	file_system->fs_open_file = __win_open_file_errmap;
+	file_system->fs_remove = __win_fs_remove_errmap;
+	file_system->fs_rename = __win_fs_rename_errmap;
+	file_system->fs_size = __win_fs_size_errmap;
 	file_system->terminate = __win_terminate;
 
 	/* Switch it into place. */

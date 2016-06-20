@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __wt_dlopen --
+ * __win_dlopen --
  *	Open a dynamic library.
  */
-int
-__wt_dlopen(WT_SESSION_IMPL *session, const char *path, WT_DLH **dlhp)
+static inline int
+__win_dlopen(WT_SESSION_IMPL *session, const char *path, WT_DLH **dlhp)
 {
 	WT_DECL_RET;
 	WT_DLH *dlh;
@@ -44,11 +44,24 @@ err:		__wt_free(session, dlh->name);
 }
 
 /*
- * __wt_dlsym --
- *	Lookup a symbol in a dynamic library.
+ * __wt_dlopen --
+ *	Open a dynamic library.
  */
 int
-__wt_dlsym(WT_SESSION_IMPL *session,
+__wt_dlopen(WT_SESSION_IMPL *session, const char *path, WT_DLH **dlhp)
+{
+	WT_DECL_RET;
+
+	ret = __win_dlopen(session, path, dlhp);
+	return (ret >= 0 ? ret : __wt_map_windows_error_to_posix_error(ret));
+}
+
+/*
+ * __win_dlsym --
+ *	Lookup a symbol in a dynamic library.
+ */
+static inline int
+__win_dlsym(WT_SESSION_IMPL *session,
     WT_DLH *dlh, const char *name, bool fail, void *sym_ret)
 {
 	void *sym;
@@ -65,11 +78,25 @@ __wt_dlsym(WT_SESSION_IMPL *session,
 }
 
 /*
- * __wt_dlclose --
- *	Close a dynamic library
+ * __wt_dlsym --
+ *	Lookup a symbol in a dynamic library.
  */
 int
-__wt_dlclose(WT_SESSION_IMPL *session, WT_DLH *dlh)
+__wt_dlsym(WT_SESSION_IMPL *session,
+    WT_DLH *dlh, const char *name, bool fail, void *sym_ret)
+{
+	WT_DECL_RET;
+
+	ret = __win_dlsym(session, dlh, name, fail, sym_ret);
+	return (ret >= 0 ? ret : __wt_map_windows_error_to_posix_error(ret));
+}
+
+/*
+ * __win_dlclose --
+ *	Close a dynamic library
+ */
+static inline int
+__win_dlclose(WT_SESSION_IMPL *session, WT_DLH *dlh)
 {
 	WT_DECL_RET;
 
@@ -81,4 +108,17 @@ __wt_dlclose(WT_SESSION_IMPL *session, WT_DLH *dlh)
 	__wt_free(session, dlh->name);
 	__wt_free(session, dlh);
 	return (ret);
+}
+
+/*
+ * __wt_dlclose --
+ *	Close a dynamic library
+ */
+int
+__wt_dlclose(WT_SESSION_IMPL *session, WT_DLH *dlh)
+{
+	WT_DECL_RET;
+
+	ret = __win_dlclose(session, dlh);
+	return (ret >= 0 ? ret : __wt_map_windows_error_to_posix_error(ret));
 }
