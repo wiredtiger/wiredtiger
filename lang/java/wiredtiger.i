@@ -2043,7 +2043,7 @@ err:		if (ret != 0)
 %extend __wt_async_op {
 	long get_id_wrap(JNIEnv *jenv) {
 		WT_UNUSED(jenv);
-		return (self->get_id(self));
+		return (long)(self->get_id(self));
 	}
 }
 
@@ -2054,6 +2054,6 @@ err:		if (ret != 0)
 		ret = self->transaction_pinned_range(self, &range);
 		if (ret != 0)
 			throwWiredTigerException(jenv, ret);
-		return range;
+		return (long)range;
 	}
 }

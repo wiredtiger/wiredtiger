@@ -22,7 +22,7 @@ typedef struct {
 	} u;
 	uint32_t size;
 	int8_t havesize;
-	char type;
+	u_char type;
 } WT_PACK_VALUE;
 
 /* Default to size = 1 if there is no size prefix. */
@@ -147,7 +147,7 @@ next:	if (pack->cur == pack->end)
 		pv->size = 1;
 	}
 
-	pv->type = *pack->cur++;
+	pv->type = (u_char)*pack->cur++;
 	pack->repeats = 0;
 
 	switch (pv->type) {
@@ -617,7 +617,7 @@ __wt_struct_packv(WT_SESSION_IMPL *session,
 	end = p + size;
 
 	if (fmt[0] != '\0' && fmt[1] == '\0') {
-		pv.type = fmt[0];
+		pv.type = (u_char)fmt[0];
 		WT_PACK_GET(session, pv, ap);
 		return (__pack_write(session, &pv, &p, size));
 	}
@@ -650,7 +650,7 @@ __wt_struct_sizev(
 	size_t total;
 
 	if (fmt[0] != '\0' && fmt[1] == '\0') {
-		pv.type = fmt[0];
+		pv.type = (u_char)fmt[0];
 		WT_PACK_GET(session, pv, ap);
 		*sizep = __pack_size(session, &pv);
 		return (0);
@@ -682,7 +682,7 @@ __wt_struct_unpackv(WT_SESSION_IMPL *session,
 	end = p + size;
 
 	if (fmt[0] != '\0' && fmt[1] == '\0') {
-		pv.type = fmt[0];
+		pv.type = (u_char)fmt[0];
 		WT_RET(__unpack_read(session, &pv, &p, size));
 		WT_UNPACK_PUT(session, pv, ap);
 		return (0);
