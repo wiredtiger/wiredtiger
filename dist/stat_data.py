@@ -117,11 +117,14 @@ connection_stats = [
     ConnStat('cond_auto_wait_reset', 'auto adjusting condition resets'),
     ConnStat('cond_wait', 'pthread mutex condition wait calls'),
     ConnStat('file_open', 'files currently open', 'no_clear,no_scale'),
+    ConnStat('fsync_io', 'total fsync I/Os'),
     ConnStat('memory_allocation', 'memory allocations'),
     ConnStat('memory_free', 'memory frees'),
     ConnStat('memory_grow', 'memory re-allocations'),
+    ConnStat('read_io', 'total read I/Os'),
     ConnStat('rwlock_read', 'pthread mutex shared lock read-lock calls'),
     ConnStat('rwlock_write', 'pthread mutex shared lock write-lock calls'),
+    ConnStat('write_io', 'total write I/Os'),
 
     ##########################################
     # Async API statistics
@@ -333,11 +336,8 @@ connection_stats = [
     # Thread State statistics
     ##########################################
     ThreadState('fsync_active', 'active filesystem fsync calls','no_clear,no_scale'),
-    ThreadState('fsync_io', 'total fsync I/Os'),
     ThreadState('read_active', 'active filesystem read calls','no_clear,no_scale'),
-    ThreadState('read_io', 'total read I/Os'),
     ThreadState('write_active', 'active filesystem write calls','no_clear,no_scale'),
-    ThreadState('write_io', 'total write I/Os'),
 
     ##########################################
     # Yield statistics

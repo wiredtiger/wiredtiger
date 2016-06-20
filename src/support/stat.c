@@ -604,6 +604,9 @@ static const char * const __stats_connection_desc[] = {
 	"connection: pthread mutex condition wait calls",
 	"connection: pthread mutex shared lock read-lock calls",
 	"connection: pthread mutex shared lock write-lock calls",
+	"connection: total fsync I/Os",
+	"connection: total read I/Os",
+	"connection: total write I/Os",
 	"cursor: cursor create calls",
 	"cursor: cursor insert calls",
 	"cursor: cursor next calls",
@@ -671,9 +674,6 @@ static const char * const __stats_connection_desc[] = {
 	"thread-state: active filesystem fsync calls",
 	"thread-state: active filesystem read calls",
 	"thread-state: active filesystem write calls",
-	"thread-state: total fsync I/Os",
-	"thread-state: total read I/Os",
-	"thread-state: total write I/Os",
 	"thread-yield: page acquire busy blocked",
 	"thread-yield: page acquire eviction blocked",
 	"thread-yield: page acquire locked blocked",
@@ -820,6 +820,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cond_wait = 0;
 	stats->rwlock_read = 0;
 	stats->rwlock_write = 0;
+	stats->fsync_io = 0;
+	stats->read_io = 0;
+	stats->write_io = 0;
 	stats->cursor_create = 0;
 	stats->cursor_insert = 0;
 	stats->cursor_next = 0;
@@ -887,9 +890,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing fsync_active */
 		/* not clearing read_active */
 		/* not clearing write_active */
-	stats->fsync_io = 0;
-	stats->read_io = 0;
-	stats->write_io = 0;
 	stats->page_busy_blocked = 0;
 	stats->page_forcible_evict_blocked = 0;
 	stats->page_locked_blocked = 0;
@@ -1054,6 +1054,9 @@ __wt_stat_connection_aggregate(
 	to->cond_wait += WT_STAT_READ(from, cond_wait);
 	to->rwlock_read += WT_STAT_READ(from, rwlock_read);
 	to->rwlock_write += WT_STAT_READ(from, rwlock_write);
+	to->fsync_io += WT_STAT_READ(from, fsync_io);
+	to->read_io += WT_STAT_READ(from, read_io);
+	to->write_io += WT_STAT_READ(from, write_io);
 	to->cursor_create += WT_STAT_READ(from, cursor_create);
 	to->cursor_insert += WT_STAT_READ(from, cursor_insert);
 	to->cursor_next += WT_STAT_READ(from, cursor_next);
@@ -1127,9 +1130,6 @@ __wt_stat_connection_aggregate(
 	to->fsync_active += WT_STAT_READ(from, fsync_active);
 	to->read_active += WT_STAT_READ(from, read_active);
 	to->write_active += WT_STAT_READ(from, write_active);
-	to->fsync_io += WT_STAT_READ(from, fsync_io);
-	to->read_io += WT_STAT_READ(from, read_io);
-	to->write_io += WT_STAT_READ(from, write_io);
 	to->page_busy_blocked += WT_STAT_READ(from, page_busy_blocked);
 	to->page_forcible_evict_blocked +=
 	    WT_STAT_READ(from, page_forcible_evict_blocked);
