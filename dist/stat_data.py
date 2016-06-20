@@ -101,10 +101,20 @@ class YieldStat(Stat):
 ##########################################
 groups = {}
 groups['cursor'] = [CursorStat.prefix, SessionStat.prefix]
-groups['evict'] = [CacheStat.prefix, ConnStat.prefix, BlockStat.prefix]
+groups['evict'] = [
+    CacheStat.prefix,
+    ConnStat.prefix,
+    BlockStat.prefix,
+    ThreadState.prefix
+]
 groups['lsm'] = [LSMStat.prefix, TxnStat.prefix]
 groups['memory'] = [CacheStat.prefix, ConnStat.prefix, RecStat.prefix]
-groups['system'] = [ConnStat.prefix, DhandleStat.prefix, SessionStat.prefix]
+groups['system'] = [
+    ConnStat.prefix,
+    DhandleStat.prefix,
+    SessionStat.prefix,
+    ThreadState.prefix
+]
 
 ##########################################
 # CONNECTION statistics
