@@ -111,18 +111,20 @@ __wt_map_windows_error(DWORD windows_error)
 const char *
 __wt_formatmessage(WT_SESSION_IMPL *session, DWORD windows_error)
 {
-	DWORD format_error;
+	/*
+	 * !!!
+	 * This function MUST handle a NULL session handle.
+	 *
+	 * Grow the session error buffer as necessary.
+	 */
+	if (session != NULL &&
+	    __wt_buf_initsize(session, &session->err, 512) == 0 &&
+	    FormatMessageA(
+	    FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+	    NULL, windows_error,
+	    0, 			/* Let system choose the correct LANGID. */
+	    session->err.mem, (DWORD)512, NULL) != 0)
+		return (session->err.data);
 
-	/* Grow the session error buffer as necessary. */
-	if (__wt_buf_initsize(session, &session->err, 512) == 0) {
-		format_error = FormatMessageA(
-		    FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-		    NULL, windows_error,
-		    0, 		/* Let system choose the correct LANGID. */
-		    session->err.mem, (DWORD)512, NULL);
-
-		if (format_error != 0)
-			return (session->err.data);
-	}
 	return ("Unable to format Windows error string");
 }
