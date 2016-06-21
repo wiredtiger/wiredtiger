@@ -498,6 +498,7 @@ extern int __wt_strndup(WT_SESSION_IMPL *session, const void *str, size_t len, v
 extern void __wt_free_int(WT_SESSION_IMPL *session, const void *p_arg);
 extern int __wt_errno(void);
 extern const char *__wt_strerror(WT_SESSION_IMPL *session, int error, char *errbuf, size_t errlen);
+extern int __wt_ext_map_windows_error( WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, uint32_t windows_error);
 extern bool __wt_handle_is_open(WT_SESSION_IMPL *session, const char *name);
 extern int __wt_open(WT_SESSION_IMPL *session, const char *name, WT_OPEN_FILE_TYPE file_type, u_int flags, WT_FH **fhp);
 extern int __wt_close(WT_SESSION_IMPL *session, WT_FH **fhp);

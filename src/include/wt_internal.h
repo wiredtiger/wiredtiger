@@ -356,7 +356,7 @@ union __wt_rand_state;
 #include "session.h"			/* required by connection.h */
 #include "connection.h"
 
-#if defined(_MSC_VER)
+#ifdef _WIN32
 #include "extern_win.h"
 #else
 #include "extern.h"

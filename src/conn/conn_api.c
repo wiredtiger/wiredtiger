@@ -751,6 +751,7 @@ __conn_get_extension_api(WT_CONNECTION *wt_conn)
 	conn->extension_api.err_printf = __wt_ext_err_printf;
 	conn->extension_api.msg_printf = __wt_ext_msg_printf;
 	conn->extension_api.strerror = __wt_ext_strerror;
+	conn->extension_api.map_windows_error = __wt_ext_map_windows_error;
 	conn->extension_api.scr_alloc = __wt_ext_scr_alloc;
 	conn->extension_api.scr_free = __wt_ext_scr_free;
 	conn->extension_api.collator_config = ext_collator_config;
