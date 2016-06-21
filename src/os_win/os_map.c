@@ -9,15 +9,16 @@
 #include "wt_internal.h"
 
 /*
- * __wt_win_map --
+ * __win_map --
  *	Map a file into memory.
  */
-int
-__wt_win_map(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
+static inline int
+__win_map(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
     void *mapped_regionp, size_t *lenp, void *mapped_cookiep)
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_WIN *win_fh;
+	WT_FILE_SYSTEM *file_system;
 	WT_SESSION_IMPL *session;
 	size_t len;
 	wt_off_t file_size;
@@ -31,8 +32,9 @@ __wt_win_map(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
 	 * underneath us, our caller needs to ensure consistency of the mapped
 	 * region vs. any other file activity.
 	 */
-	WT_RET(__wt_win_fs_size(file_handle->file_system,
-		wt_session, file_handle->name, &file_size));
+	file_system = file_handle->file_system;
+	WT_RET(file_system->fs_size(
+	    file_system, wt_session, file_handle->name, &file_size));
 	len = (size_t)file_size;
 
 	(void)__wt_verbose(session, WT_VERB_HANDLEOPS,
@@ -61,11 +63,26 @@ __wt_win_map(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
 }
 
 /*
- * __wt_win_unmap --
- *	Remove a memory mapping.
+ * __wt_win_map_errmap --
+ *	Map a file into memory.
  */
 int
-__wt_win_unmap(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
+__wt_win_map_errmap(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
+    void *mapped_regionp, size_t *lenp, void *mapped_cookiep)
+{
+	WT_DECL_RET;
+
+	ret = __win_map(
+	    file_handle, wt_session, mapped_regionp, lenp, mapped_cookiep);
+	return (ret >= 0 ? ret : __wt_map_windows_error_to_posix_error(ret));
+}
+
+/*
+ * __win_unmap --
+ *	Remove a memory mapping.
+ */
+static inline int
+__win_unmap(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
     void *mapped_region, size_t length, void *mapped_cookie)
 {
 	WT_DECL_RET;
@@ -92,4 +109,19 @@ __wt_win_unmap(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
 	}
 
 	return (ret);
+}
+
+/*
+ * __wt_win_unmap_errmap --
+ *	Remove a memory mapping.
+ */
+int
+__wt_win_unmap_errmap(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
+    void *mapped_region, size_t length, void *mapped_cookie)
+{
+	WT_DECL_RET;
+
+	ret = __win_unmap(
+	    file_handle, wt_session, mapped_region, length, mapped_cookie);
+	return (ret >= 0 ? ret : __wt_map_windows_error_to_posix_error(ret));
 }

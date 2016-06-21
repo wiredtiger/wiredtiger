@@ -11,6 +11,28 @@
 #include <dirent.h>
 
 /*
+ * __wt_posix_directory_list_free --
+ *	Free memory returned by __wt_posix_directory_list.
+ */
+int
+__wt_posix_directory_list_free(WT_FILE_SYSTEM *file_system,
+    WT_SESSION *wt_session, char **dirlist, uint32_t count)
+{
+	WT_SESSION_IMPL *session;
+
+	WT_UNUSED(file_system);
+
+	session = (WT_SESSION_IMPL *)wt_session;
+
+	if (dirlist != NULL) {
+		while (count > 0)
+			__wt_free(session, dirlist[--count]);
+		__wt_free(session, dirlist);
+	}
+	return (0);
+}
+
+/*
  * __wt_posix_directory_list --
  *	Get a list of files from a directory, POSIX version.
  */
@@ -84,26 +106,4 @@ err:	if (dirp != NULL) {
 	WT_RET_MSG(session, ret,
 	    "%s: directory-list, prefix \"%s\"",
 	    directory, prefix == NULL ? "" : prefix);
-}
-
-/*
- * __wt_posix_directory_list_free --
- *	Free memory returned by __wt_posix_directory_list.
- */
-int
-__wt_posix_directory_list_free(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *wt_session, char **dirlist, uint32_t count)
-{
-	WT_SESSION_IMPL *session;
-
-	WT_UNUSED(file_system);
-
-	session = (WT_SESSION_IMPL *)wt_session;
-
-	if (dirlist != NULL) {
-		while (count > 0)
-			__wt_free(session, dirlist[--count]);
-		__wt_free(session, dirlist);
-	}
-	return (0);
 }

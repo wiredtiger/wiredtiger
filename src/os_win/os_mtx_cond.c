@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __wt_cond_alloc --
+ * __win_cond_alloc --
  *	Allocate and initialize a condition variable.
  */
-int
-__wt_cond_alloc(WT_SESSION_IMPL *session,
+static inline int
+__win_cond_alloc(WT_SESSION_IMPL *session,
     const char *name, bool is_signalled, WT_CONDVAR **condp)
 {
 	WT_CONDVAR *cond;
@@ -37,12 +37,26 @@ __wt_cond_alloc(WT_SESSION_IMPL *session,
 }
 
 /*
- * __wt_cond_wait_signal --
+ * __wt_cond_alloc --
+ *	Allocate and initialize a condition variable.
+ */
+int
+__wt_cond_alloc(WT_SESSION_IMPL *session,
+    const char *name, bool is_signalled, WT_CONDVAR **condp)
+{
+	WT_DECL_RET;
+
+	ret = __win_cond_alloc(session, name, is_signalled, condp);
+	return (ret >= 0 ? ret : __wt_map_windows_error_to_posix_error(ret));
+}
+
+/*
+ * __win_cond_wait_signal --
  *	Wait on a mutex, optionally timing out.  If we get it
  *	before the time out period expires, let the caller know.
  */
-int
-__wt_cond_wait_signal(
+static inline int
+__win_cond_wait_signal(
     WT_SESSION_IMPL *session, WT_CONDVAR *cond, uint64_t usecs, bool *signalled)
 {
 	DWORD err, milliseconds;
@@ -118,11 +132,26 @@ __wt_cond_wait_signal(
 }
 
 /*
- * __wt_cond_signal --
- *	Signal a waiting thread.
+ * __wt_cond_wait_signal --
+ *	Wait on a mutex, optionally timing out.  If we get it
+ *	before the time out period expires, let the caller know.
  */
 int
-__wt_cond_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond)
+__wt_cond_wait_signal(
+    WT_SESSION_IMPL *session, WT_CONDVAR *cond, uint64_t usecs, bool *signalled)
+{
+	WT_DECL_RET;
+
+	ret = __win_cond_wait_signal(session, cond, usecs, signalled);
+	return (ret >= 0 ? ret : __wt_map_windows_error_to_posix_error(ret));
+}
+
+/*
+ * __win_cond_signal --
+ *	Signal a waiting thread.
+ */
+static inline int
+__win_cond_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond)
 {
 	WT_DECL_RET;
 	bool locked;
@@ -155,6 +184,19 @@ __wt_cond_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond)
 }
 
 /*
+ * __wt_cond_signal --
+ *	Signal a waiting thread.
+ */
+int
+__wt_cond_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond)
+{
+	WT_DECL_RET;
+
+	ret = __win_cond_signal(session, cond);
+	return (ret >= 0 ? ret : __wt_map_windows_error_to_posix_error(ret));
+}
+
+/*
  * __wt_cond_destroy --
  *	Destroy a condition variable.
  */
@@ -162,7 +204,6 @@ int
 __wt_cond_destroy(WT_SESSION_IMPL *session, WT_CONDVAR **condp)
 {
 	WT_CONDVAR *cond;
-	WT_DECL_RET;
 
 	cond = *condp;
 	if (cond == NULL)
@@ -172,5 +213,5 @@ __wt_cond_destroy(WT_SESSION_IMPL *session, WT_CONDVAR **condp)
 	DeleteCriticalSection(&cond->mtx);
 	__wt_free(session, *condp);
 
-	return (ret);
+	return (0);
 }

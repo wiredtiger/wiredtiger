@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __wt_getenv --
+ * __win_getenv --
  * 	Get a non-NULL, greater than zero-length environment variable.
  */
-int
-__wt_getenv(WT_SESSION_IMPL *session, const char *variable, const char **envp)
+static inline int
+__win_getenv(WT_SESSION_IMPL *session, const char *variable, const char **envp)
 {
 	WT_DECL_RET;
 	DWORD size;
@@ -33,4 +33,17 @@ __wt_getenv(WT_SESSION_IMPL *session, const char *variable, const char **envp)
 		    "GetEnvironmentVariableA failed: %s", variable);
 
 	return (0);
+}
+
+/*
+ * __wt_getenv --
+ * 	Get a non-NULL, greater than zero-length environment variable.
+ */
+int
+__wt_getenv(WT_SESSION_IMPL *session, const char *variable, const char **envp)
+{
+	WT_DECL_RET;
+
+	ret = __win_getenv(session, variable, envp);
+	return (ret >= 0 ? ret : __wt_map_windows_error_to_posix_error(ret));
 }

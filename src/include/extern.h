@@ -744,7 +744,7 @@ extern int __wt_getenv(WT_SESSION_IMPL *session, const char *variable, const cha
 extern int __wt_getlasterror(void);
 extern int __wt_getopt( const char *progname, int nargc, char *const *nargv, const char *ostr);
 extern int __wt_malloc(WT_SESSION_IMPL *session, size_t bytes_to_allocate, void *retp);
-extern int __wt_map_error_rdonly(int error);
+extern int __wt_map_windows_error_to_posix_error(int error);
 extern int __wt_nfilename( WT_SESSION_IMPL *session, const char *name, size_t namelen, char **path);
 extern int __wt_once(void (*init_routine)(void));
 extern int __wt_open(WT_SESSION_IMPL *session, const char *name, WT_OPEN_FILE_TYPE file_type, u_int flags, WT_FH **fhp);
@@ -767,11 +767,10 @@ extern int __wt_rename_and_sync_directory( WT_SESSION_IMPL *session, const char 
 extern int __wt_strndup(WT_SESSION_IMPL *session, const void *str, size_t len, void *retp);
 extern int __wt_thread_create(WT_SESSION_IMPL *session, wt_thread_t *tidret, WT_THREAD_CALLBACK(*func)(void *), void *arg);
 extern int __wt_thread_join(WT_SESSION_IMPL *session, wt_thread_t tid);
-extern int __wt_win_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *directory, const char *prefix, char ***dirlistp, uint32_t *countp);
-extern int __wt_win_directory_list_free(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, char **dirlist, uint32_t count);
-extern int __wt_win_fs_size(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *name, wt_off_t *sizep);
-extern int __wt_win_map(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, void *mapped_regionp, size_t *lenp, void *mapped_cookiep);
-extern int __wt_win_unmap(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, void *mapped_region, size_t length, void *mapped_cookie);
+extern int __wt_win_directory_list_errmap(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *directory, const char *prefix, char ***dirlistp, uint32_t *countp);
+extern int __wt_win_directory_list_free_errmap(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, char **dirlist, uint32_t count);
+extern int __wt_win_map_errmap(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, void *mapped_regionp, size_t *lenp, void *mapped_cookiep);
+extern int __wt_win_unmap_errmap(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, void *mapped_region, size_t length, void *mapped_cookie);
 extern uint64_t __wt_strtouq(const char *nptr, char **endptr, int base);
 extern void __wt_abort(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 extern void __wt_free_int(WT_SESSION_IMPL *session, const void *p_arg);

@@ -9,11 +9,48 @@
 #include "wt_internal.h"
 
 /*
- * __wt_win_directory_list --
- *	Get a list of files from a directory, MSVC version.
+ * __win_directory_list_free --
+ *	Free memory returned by __wt_win_directory_list, Windows version.
+ */
+static inline int
+__win_directory_list_free(WT_FILE_SYSTEM *file_system,
+    WT_SESSION *wt_session, char **dirlist, uint32_t count)
+{
+	WT_SESSION_IMPL *session;
+
+	WT_UNUSED(file_system);
+
+	session = (WT_SESSION_IMPL *)wt_session;
+
+	if (dirlist != NULL) {
+		while (count > 0)
+			__wt_free(session, dirlist[--count]);
+		__wt_free(session, dirlist);
+	}
+	return (0);
+}
+
+/*
+ * __wt_win_directory_list_free_errmap --
+ *	Free memory returned by __wt_win_directory_list, Windows version.
  */
 int
-__wt_win_directory_list(WT_FILE_SYSTEM *file_system,
+__wt_win_directory_list_free_errmap(WT_FILE_SYSTEM *file_system,
+    WT_SESSION *wt_session, char **dirlist, uint32_t count)
+{
+	WT_DECL_RET;
+
+	ret = __win_directory_list_free(
+	    file_system, wt_session, dirlist, count);
+	return (ret >= 0 ? ret : __wt_map_windows_error_to_posix_error(ret));
+}
+
+/*
+ * __win_directory_list --
+ *	Get a list of files from a directory, MSVC version.
+ */
+static inline int
+__win_directory_list(WT_FILE_SYSTEM *file_system,
     WT_SESSION *wt_session, const char *directory,
     const char *prefix, char ***dirlistp, uint32_t *countp)
 {
@@ -89,7 +126,7 @@ err:	if (findhandle != INVALID_HANDLE_VALUE)
 	if (ret == 0)
 		return (0);
 
-	WT_TRET(__wt_win_directory_list_free(
+	WT_TRET(__win_directory_list_free(
 	    file_system, wt_session, entries, count));
 
 	WT_RET_MSG(session, ret,
@@ -98,23 +135,17 @@ err:	if (findhandle != INVALID_HANDLE_VALUE)
 }
 
 /*
- * __wt_win_directory_list_free --
- *	Free memory returned by __wt_win_directory_list, Windows version.
+ * __wt_win_directory_list_errmap --
+ *	Get a list of files from a directory, MSVC version.
  */
 int
-__wt_win_directory_list_free(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *wt_session, char **dirlist, uint32_t count)
+__wt_win_directory_list_errmap(WT_FILE_SYSTEM *file_system,
+    WT_SESSION *wt_session, const char *directory,
+    const char *prefix, char ***dirlistp, uint32_t *countp)
 {
-	WT_SESSION_IMPL *session;
+	WT_DECL_RET;
 
-	WT_UNUSED(file_system);
-
-	session = (WT_SESSION_IMPL *)wt_session;
-
-	if (dirlist != NULL) {
-		while (count > 0)
-			__wt_free(session, dirlist[--count]);
-		__wt_free(session, dirlist);
-	}
-	return (0);
+	ret = __win_directory_list(
+	    file_system, wt_session, directory, prefix, dirlistp, countp);
+	return (ret >= 0 ? ret : __wt_map_windows_error_to_posix_error(ret));
 }

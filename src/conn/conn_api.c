@@ -1517,17 +1517,14 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 	 * if the file does not exist.  If so, then ignore the error.
 	 * XXX Ignoring the error does allow multiple read-only
 	 * connections to exist at the same time on a read-only directory.
+	 *
+	 * If we got an expected permission or non-existence error then skip
+	 * the byte lock.
 	 */
-	if (F_ISSET(conn, WT_CONN_READONLY)) {
-		/*
-		 * If we got an expected permission or non-existence error
-		 * then skip the byte lock.
-		 */
-		ret = __wt_map_error_rdonly(ret);
-		if (ret == WT_NOTFOUND || ret == WT_PERM_DENIED) {
-			bytelock = false;
-			ret = 0;
-		}
+	if (F_ISSET(conn, WT_CONN_READONLY) &&
+	    (ret == EACCES || ret == ENOENT)) {
+		bytelock = false;
+		ret = 0;
 	}
 	WT_ERR(ret);
 	if (bytelock) {
@@ -1567,19 +1564,16 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 	    WT_OPEN_FILE_TYPE_REGULAR, is_create ? WT_OPEN_CREATE : 0, &fh);
 
 	/*
-	 * If we're read-only, check for success as well as handled errors.
-	 * Even if we're able to open the WiredTiger file successfully, we
-	 * do not try to lock it.  The lock file test above is the only
-	 * one we do for read-only.
+	 * If we're read-only, check for handled errors. Even if able to open
+	 * the WiredTiger file successfully, we do not try to lock it.  The
+	 * lock file test above is the only one we do for read-only.
 	 */
 	if (F_ISSET(conn, WT_CONN_READONLY)) {
-		ret = __wt_map_error_rdonly(ret);
-		if (ret == 0 || ret == WT_NOTFOUND || ret == WT_PERM_DENIED)
+		if ((ret == EACCES || ret == ENOENT))
 			ret = 0;
 		WT_ERR(ret);
 	} else {
 		WT_ERR(ret);
-
 		/*
 		 * Lock the WiredTiger file (for backward compatibility reasons
 		 * as described above).  Immediately release the lock, it's
