@@ -318,4 +318,4 @@ if __name__ == '__main__':
         pdb.set_trace()
 
     result = wttest.runsuite(tests, parallel)
-    sys.exit(not result.wasSuccessful())
+    sys.exit(0 if result.wasSuccessful() else 1)
