@@ -44,7 +44,7 @@ tasks:
             set -o errexit
             set -o verbose
             if [ "Windows_NT" = "$OS" ]; then
-              scons.bat --enable-python=c:\\swigwin-3.0.2\\swig.exe ${smp_command|}
+              scons.bat --enable-python=c:\\swigwin-3.0.2\\swig.exe --enable-diagnostic ${smp_command|}
             else
               ./build_posix/reconf
               ${configure_env_vars|} ./configure --enable-diagnostic --enable-python --enable-zlib --enable-strict
