@@ -2197,7 +2197,7 @@ helium_session_open_cursor(WT_DATA_SOURCE *wtds, WT_SESSION *session,
 			    "value_format configuration: %s",
 			    wtext->strerror(wtext, session, ret));
 		ws->config_bitfield = v.len == 2 &&
-		    isdigit((unsigned char)v.str[0]) && v.str[1] == 't';
+		    isdigit((u_char)v.str[0]) && v.str[1] == 't';
 
 		if ((ret = config_parser->get(
 		    config_parser, "helium_o_compress", &v)) != 0)
