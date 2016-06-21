@@ -560,7 +560,8 @@ config_opt_file(CONFIG *cfg, const char *filename)
 		linenum++;
 
 		/* Skip leading space. */
-		for (ltrim = line; *ltrim && isspace(*ltrim); ltrim++)
+		for (ltrim = line; *ltrim && isspace((unsigned char)*ltrim);
+		     ltrim++)
 			;
 
 		/*
@@ -579,7 +580,7 @@ config_opt_file(CONFIG *cfg, const char *filename)
 		}
 
 		/* Skip trailing space. */
-		while (rtrim > ltrim && isspace(rtrim[-1]))
+		while (rtrim > ltrim && isspace((unsigned char)rtrim[-1]))
 			rtrim--;
 
 		/*
@@ -599,7 +600,7 @@ config_opt_file(CONFIG *cfg, const char *filename)
 			rtrim = comment;
 
 		/* Skip trailing space again. */
-		while (rtrim > ltrim && isspace(rtrim[-1]))
+		while (rtrim > ltrim && isspace((unsigned char)rtrim[-1]))
 			rtrim--;
 
 		/*
