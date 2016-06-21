@@ -23,24 +23,8 @@ __wt_errno(void)
 }
 
 /*
- * __wt_map_error_rdonly --
- *	Map an error into a  WiredTiger error code specific for
- *	read-only operation which intercepts based on certain types
- *	of failures.
- */
-int
-__wt_map_error_rdonly(int error)
-{
-	if (error == ENOENT)
-		return (WT_NOTFOUND);
-	else if (error == EACCES)
-		return (WT_PERM_DENIED);
-	return (error);
-}
-
-/*
  * __wt_strerror --
- *	POSIX implementation of WT_SESSION.strerror and wiredtiger_strerror.
+ *	WT_SESSION.strerror and wiredtiger_strerror.
  */
 const char *
 __wt_strerror(WT_SESSION_IMPL *session, int error, char *errbuf, size_t errlen)

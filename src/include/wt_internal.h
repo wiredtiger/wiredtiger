@@ -356,7 +356,11 @@ union __wt_rand_state;
 #include "session.h"			/* required by connection.h */
 #include "connection.h"
 
+#if defined(_MSC_VER)
+#include "extern_win.h"
+#else
 #include "extern.h"
+#endif
 #include "verify_build.h"
 
 #include "intpack.i"			/* required by cell.i, packing.i */
