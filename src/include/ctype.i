@@ -12,128 +12,58 @@
  * __wt_isalnum --
  *	Wrap the ctype function without sign extension.
  */
-static inline int
-__wt_isalnum(int c)
+static inline bool
+__wt_isalnum(u_char c)
 {
-	return isalnum((unsigned char)c);
+	return (isalnum(c) != 0);
 }
 
 /*
  * __wt_isalpha --
  *	Wrap the ctype function without sign extension.
  */
-static inline int
-__wt_isalpha(int c)
+static inline bool
+__wt_isalpha(u_char c)
 {
-	return isalpha((unsigned char)c);
-}
-
-/*
- * __wt_iscntrl --
- *	Wrap the ctype function without sign extension.
- */
-static inline int
-__wt_iscntrl(int c)
-{
-	return iscntrl((unsigned char)c);
+	return (isalpha(c) != 0);
 }
 
 /*
  * __wt_isdigit --
  *	Wrap the ctype function without sign extension.
  */
-static inline int
-__wt_isdigit(int c)
+static inline bool
+__wt_isdigit(u_char c)
 {
-	return isdigit((unsigned char)c);
-}
-
-/*
- * __wt_isgraph --
- *	Wrap the ctype function without sign extension.
- */
-static inline int
-__wt_isgraph(int c)
-{
-	return isgraph((unsigned char)c);
-}
-
-/*
- * __wt_islower --
- *	Wrap the ctype function without sign extension.
- */
-static inline int
-__wt_islower(int c)
-{
-	return islower((unsigned char)c);
+	return (isdigit(c) != 0);
 }
 
 /*
  * __wt_isprint --
  *	Wrap the ctype function without sign extension.
  */
-static inline int
-__wt_isprint(int c)
+static inline bool
+__wt_isprint(u_char c)
 {
-	return isprint((unsigned char)c);
-}
-
-/*
- * __wt_ispunct --
- *	Wrap the ctype function without sign extension.
- */
-static inline int
-__wt_ispunct(int c)
-{
-	return ispunct((unsigned char)c);
+	return (isprint(c) != 0);
 }
 
 /*
  * __wt_isspace --
  *	Wrap the ctype function without sign extension.
  */
-static inline int
-__wt_isspace(int c)
+static inline bool
+__wt_isspace(u_char c)
 {
-	return isspace((unsigned char)c);
-}
-
-/*
- * __wt_isupper --
- *	Wrap the ctype function without sign extension.
- */
-static inline int
-__wt_isupper(int c)
-{
-	return isupper((unsigned char)c);
-}
-
-/*
- * __wt_isxdigit --
- *	Wrap the ctype function without sign extension.
- */
-static inline int
-__wt_isxdigit(int c)
-{
-	return isxdigit((unsigned char)c);
+	return (isspace(c) != 0);
 }
 
 /*
  * __wt_tolower --
  *	Wrap the ctype function without sign extension.
  */
-static inline int
-__wt_tolower(int c)
+static inline u_char
+__wt_tolower(u_char c)
 {
-	return tolower((unsigned char)c);
-}
-
-/*
- * __wt_toupper --
- *	Wrap the ctype function without sign extension.
- */
-static inline int
-__wt_toupper(int c)
-{
-	return toupper((unsigned char)c);
+	return ((u_char)tolower(c));
 }
