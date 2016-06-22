@@ -87,7 +87,7 @@ struct __wt_cache {
 	uint64_t worker_evicts;		/* Pages evicted by worker threads */
 
 	uint64_t evict_max_page_size;	/* Largest page seen at eviction */
-#ifdef	HAVE_DIAGNOSTIC
+#ifdef	NOTDEF
 	struct timespec stuck_ts;	/* Stuck timestamp */
 #endif
 

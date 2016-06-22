@@ -188,7 +188,7 @@ __evict_thread_run(void *arg)
 	conn = S2C(session);
 	cache = conn->cache;
 
-#ifdef HAVE_DIAGNOSTIC
+#ifdef NOTDEF
 	if (session == conn->evict_session)
 		WT_ERR(__wt_epoch(
 		    session, &cache->stuck_ts));	/* -Wuninitialized */
@@ -297,7 +297,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 		cache->pages_evicted = 0;
 	} else if (cache->pages_evicted != cache->pages_evict) {
 		cache->pages_evicted = cache->pages_evict;
-#ifdef HAVE_DIAGNOSTIC
+#ifdef NOTDEF
 		WT_RET(__wt_epoch(session, &cache->stuck_ts));
 	} else {
 		/* After being stuck for 5 minutes, give up. */
