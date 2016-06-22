@@ -99,7 +99,7 @@ main(int argc, char *argv[])
 	testutil_check(
 	    opts->conn->open_session(opts->conn, NULL, NULL, &session));
 	testutil_check(session->create(session, opts->uri,
-	    "key_format=i,"
+	    "key_format=r,"
 	    "value_format=5sHQ,"
 	    "columns=(id,country,year,population)"));
 
