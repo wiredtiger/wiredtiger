@@ -248,7 +248,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-#ifdef HAVE_DIAGNOSTIC
+#ifdef NOTDEF
 	struct timespec now;
 #endif
 	uint64_t orig_pages_evicted;
@@ -1765,7 +1765,7 @@ __wt_evict_priority_clear(WT_SESSION_IMPL *session)
 	S2BT(session)->evict_priority = 0;
 }
 
-#ifdef HAVE_DIAGNOSTIC
+#ifdef NOTDEF
 /*
  * __wt_cache_dump --
  *	Dump debugging information to a file (default stderr) about the size of
