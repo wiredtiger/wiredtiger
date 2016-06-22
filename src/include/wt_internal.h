@@ -356,10 +356,11 @@ union __wt_rand_state;
 #include "session.h"			/* required by connection.h */
 #include "connection.h"
 
+#include "extern.h"
 #ifdef _WIN32
 #include "extern_win.h"
 #else
-#include "extern.h"
+#include "extern_posix.h"
 #endif
 #include "verify_build.h"
 
