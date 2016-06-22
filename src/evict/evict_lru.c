@@ -188,7 +188,7 @@ __evict_thread_run(void *arg)
 	conn = S2C(session);
 	cache = conn->cache;
 
-#ifdef HAVE_DIAGNOSTIC
+#ifdef NOTDEF
 	if (session == conn->evict_session)
 		WT_ERR(__wt_epoch(
 		    session, &cache->stuck_ts));	/* -Wuninitialized */
@@ -248,7 +248,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-#ifdef HAVE_DIAGNOSTIC
+#ifdef NOTDEF
 	struct timespec now;
 #endif
 	uint64_t orig_pages_evicted;
@@ -297,7 +297,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 		cache->pages_evicted = 0;
 	} else if (cache->pages_evicted != cache->pages_evict) {
 		cache->pages_evicted = cache->pages_evict;
-#ifdef HAVE_DIAGNOSTIC
+#ifdef NOTDEF
 		WT_RET(__wt_epoch(session, &cache->stuck_ts));
 	} else {
 		/* After being stuck for 5 minutes, give up. */
@@ -1765,7 +1765,7 @@ __wt_evict_priority_clear(WT_SESSION_IMPL *session)
 	S2BT(session)->evict_priority = 0;
 }
 
-#ifdef HAVE_DIAGNOSTIC
+#ifdef NOTDEF
 /*
  * __wt_cache_dump --
  *	Dump debugging information to a file (default stderr) about the size of
