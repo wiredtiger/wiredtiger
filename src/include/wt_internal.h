@@ -28,7 +28,6 @@ extern "C" {
 #include <sys/time.h>
 #include <sys/uio.h>
 #endif
-#include <ctype.h>
 #ifndef _WIN32
 #include <dlfcn.h>
 #endif
@@ -364,6 +363,7 @@ union __wt_rand_state;
 #endif
 #include "verify_build.h"
 
+#include "ctype.i"			/* required by packing.i */
 #include "intpack.i"			/* required by cell.i, packing.i */
 
 #include "buf.i"                        /* required by cell.i */
