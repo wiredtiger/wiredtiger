@@ -363,7 +363,7 @@ __evict_workers_resize(WT_SESSION_IMPL *session)
 			F_SET(&workers[i], WT_EVICT_WORKER_RUN);
 			WT_ERR(__wt_thread_create(workers[i].session,
 			    &workers[i].tid, __evict_thread_run,
-			    &workers[i].session));
+			    workers[i].session));
 		}
 	}
 
