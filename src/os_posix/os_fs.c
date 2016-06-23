@@ -1,9 +1,29 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
- * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2008-2014 WiredTiger, Inc.
  *
- * See the file LICENSE for redistribution information.
+ * This is free and unencumbered software released into the public domain.
+ *
+ * Anyone is free to copy, modify, publish, use, compile, sell, or
+ * distribute this software, either in source code form or as a compiled
+ * binary, for any purpose, commercial or non-commercial, and by any
+ * means.
+ *
+ * In jurisdictions that recognize copyright laws, the author or authors
+ * of this software dedicate any and all copyright interest in the
+ * software to the public domain. We make this dedication for the benefit
+ * of the public at large and to the detriment of our heirs and
+ * successors. We intend this dedication to be an overt act of
+ * relinquishment in perpetuity of all present and future rights to this
+ * software under copyright law.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
  */
 
 #include "wt_internal.h"
@@ -33,7 +53,7 @@ __posix_sync(
 	 * "This is currently implemented on HFS, MS-DOS (FAT), and Universal
 	 * Disk Format (UDF) file systems."
 	 */
-	WT_SYSCALL_RETRY(fcntl(fd, F_FULLFSYNC, 0), ret);
+	WT_SYSCALL_RETRY(fcntl(fd, F_FULLFSYNC, 0) == -1 ? -1 : 0, ret);
 	if (ret == 0)
 		return (0);
 	/*
@@ -72,13 +92,13 @@ __posix_directory_sync(
 	session = (WT_SESSION_IMPL *)wt_session;
 
 	WT_SYSCALL_RETRY((
-	    (fd = open(path, O_RDONLY, 0444)) == -1 ? 1 : 0), ret);
+	    (fd = open(path, O_RDONLY, 0444)) == -1 ? -1 : 0), ret);
 	if (ret != 0)
 		WT_RET_MSG(session, ret, "%s: directory-sync: open", path);
 
 	ret = __posix_sync(session, fd, path, "directory-sync");
 
-	WT_SYSCALL_RETRY(close(fd), tret);
+	WT_SYSCALL(close(fd), tret);
 	if (tret != 0) {
 		__wt_err(session, tret, "%s: directory-sync: close", path);
 		if (ret == 0)
@@ -104,7 +124,7 @@ __posix_fs_exist(WT_FILE_SYSTEM *file_system,
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	WT_SYSCALL_RETRY(stat(name, &sb), ret);
+	WT_SYSCALL(stat(name, &sb), ret);
 	if (ret == 0) {
 		*existp = true;
 		return (0);
@@ -131,10 +151,17 @@ __posix_fs_remove(
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	WT_SYSCALL_RETRY(remove(name), ret);
+	/*
+	 * ISO C doesn't require remove return -1 on failure or set errno (note
+	 * POSIX 1003.1 extends C with those requirements). Regardless, use the
+	 * unlink system call, instead of remove, to simplify error handling;
+	 * where we're not doing any special checking for standards compliance,
+	 * using unlink may be marginally safer.
+	 */
+	WT_SYSCALL(unlink(name), ret);
 	if (ret == 0)
 		return (0);
-	WT_RET_MSG(session, ret, "%s: file-remove: remove", name);
+	WT_RET_MSG(session, ret, "%s: file-remove: unlink", name);
 }
 
 /*
@@ -152,7 +179,14 @@ __posix_fs_rename(WT_FILE_SYSTEM *file_system,
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	WT_SYSCALL_RETRY(rename(from, to), ret);
+	/*
+	 * ISO C doesn't require rename return -1 on failure or set errno (note
+	 * POSIX 1003.1 extends C with those requirements). Be cautious, force
+	 * any non-zero return to -1 so we'll check errno. We can still end up
+	 * with the wrong errno (if errno is garbage), or the generic WT_ERROR
+	 * return (if errno is 0), but we've done the best we can.
+	 */
+	WT_SYSCALL(rename(from, to) != 0 ? -1 : 0, ret);
 	if (ret == 0)
 		return (0);
 	WT_RET_MSG(session, ret, "%s to %s: file-rename: rename", from, to);
@@ -174,7 +208,7 @@ __posix_fs_size(WT_FILE_SYSTEM *file_system,
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	WT_SYSCALL_RETRY(stat(name, &sb), ret);
+	WT_SYSCALL(stat(name, &sb), ret);
 	if (ret == 0) {
 		*sizep = sb.st_size;
 		return (0);
@@ -198,7 +232,7 @@ __posix_file_advise(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
 	session = (WT_SESSION_IMPL *)wt_session;
 	pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-	WT_SYSCALL_RETRY(posix_fadvise(pfh->fd, offset, len, advice), ret);
+	WT_SYSCALL(posix_fadvise(pfh->fd, offset, len, advice), ret);
 	if (ret == 0)
 		return (0);
 
@@ -208,7 +242,7 @@ __posix_file_advise(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
 	 * handle method to prevent future calls.
 	 */
 	if (ret == EINVAL) {
-		file_handle->fadvise = NULL;
+		file_handle->fh_advise = NULL;
 		return (ENOTSUP);
 	}
 
@@ -234,7 +268,7 @@ __posix_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 
 	/* Close the file handle. */
 	if (pfh->fd != -1) {
-		WT_SYSCALL_RETRY(close(pfh->fd), ret);
+		WT_SYSCALL(close(pfh->fd), ret);
 		if (ret != 0)
 			__wt_err(session, ret,
 			    "%s: handle-close: close", file_handle->name);
@@ -275,7 +309,7 @@ __posix_file_lock(
 	fl.l_type = lock ? F_WRLCK : F_UNLCK;
 	fl.l_whence = SEEK_SET;
 
-	WT_SYSCALL_RETRY(fcntl(pfh->fd, F_SETLK, &fl), ret);
+	WT_SYSCALL(fcntl(pfh->fd, F_SETLK, &fl) == -1 ? -1 : 0, ret);
 	if (ret == 0)
 		return (0);
 	WT_RET_MSG(session, ret, "%s: handle-lock: fcntl", file_handle->name);
@@ -335,7 +369,7 @@ __posix_file_size(
 	session = (WT_SESSION_IMPL *)wt_session;
 	pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-	WT_SYSCALL_RETRY(fstat(pfh->fd, &sb), ret);
+	WT_SYSCALL(fstat(pfh->fd, &sb), ret);
 	if (ret == 0) {
 		*sizep = sb.st_size;
 		return (0);
@@ -513,7 +547,7 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 		f |= O_CLOEXEC;
 #endif
 		WT_SYSCALL_RETRY((
-		    (pfh->fd = open(name, f, 0444)) == -1 ? 1 : 0), ret);
+		    (pfh->fd = open(name, f, 0444)) == -1 ? -1 : 0), ret);
 		if (ret != 0)
 			WT_ERR_MSG(session, ret, "%s: handle-open: open", name);
 		WT_ERR(__posix_open_file_cloexec(session, pfh->fd, name));
@@ -567,7 +601,7 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 #endif
 	}
 
-	WT_SYSCALL_RETRY(((pfh->fd = open(name, f, mode)) == -1 ? 1 : 0), ret);
+	WT_SYSCALL_RETRY(((pfh->fd = open(name, f, mode)) == -1 ? -1 : 0), ret);
 	if (ret != 0)
 		WT_ERR_MSG(session, ret,
 		    pfh->direct_io ?
@@ -583,7 +617,7 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	 * interesting.
 	 */
 	if (!pfh->direct_io && file_type == WT_OPEN_FILE_TYPE_DATA) {
-		WT_SYSCALL_RETRY(
+		WT_SYSCALL(
 		    posix_fadvise(pfh->fd, 0, 0, POSIX_FADV_RANDOM), ret);
 		if (ret != 0)
 			WT_ERR_MSG(session, ret,
@@ -603,31 +637,31 @@ directory_open:
 	 * interesting.
 	 */
 	if (!pfh->direct_io)
-		file_handle->fadvise = __posix_file_advise;
+		file_handle->fh_advise = __posix_file_advise;
 #endif
-	file_handle->fallocate = __wt_posix_file_fallocate;
-	file_handle->lock = __posix_file_lock;
+	file_handle->fh_allocate = __wt_posix_file_fallocate;
+	file_handle->fh_lock = __posix_file_lock;
 #ifdef WORDS_BIGENDIAN
 	/*
 	 * The underlying objects are little-endian, mapping objects isn't
 	 * currently supported on big-endian systems.
 	 */
 #else
-	file_handle->map = __wt_posix_map;
+	file_handle->fh_map = __wt_posix_map;
 #ifdef HAVE_POSIX_MADVISE
-	file_handle->map_discard = __wt_posix_map_discard;
-	file_handle->map_preload = __wt_posix_map_preload;
+	file_handle->fh_map_discard = __wt_posix_map_discard;
+	file_handle->fh_map_preload = __wt_posix_map_preload;
 #endif
-	file_handle->unmap = __wt_posix_unmap;
+	file_handle->fh_unmap = __wt_posix_unmap;
 #endif
-	file_handle->read = __posix_file_read;
-	file_handle->size = __posix_file_size;
-	file_handle->sync = __posix_file_sync;
+	file_handle->fh_read = __posix_file_read;
+	file_handle->fh_size = __posix_file_size;
+	file_handle->fh_sync = __posix_file_sync;
 #ifdef HAVE_SYNC_FILE_RANGE
-	file_handle->sync_nowait = __posix_file_sync_nowait;
+	file_handle->fh_sync_nowait = __posix_file_sync_nowait;
 #endif
-	file_handle->truncate = __posix_file_truncate;
-	file_handle->write = __posix_file_write;
+	file_handle->fh_truncate = __posix_file_truncate;
+	file_handle->fh_write = __posix_file_write;
 
 	*file_handlep = file_handle;
 
@@ -669,16 +703,16 @@ __wt_os_posix(WT_SESSION_IMPL *session)
 	WT_RET(__wt_calloc_one(session, &file_system));
 
 	/* Initialize the POSIX jump table. */
-	file_system->directory_list = __wt_posix_directory_list;
-	file_system->directory_list_free = __wt_posix_directory_list_free;
+	file_system->fs_directory_list = __wt_posix_directory_list;
+	file_system->fs_directory_list_free = __wt_posix_directory_list_free;
 #ifdef __linux__
-	file_system->directory_sync = __posix_directory_sync;
+	file_system->fs_directory_sync = __posix_directory_sync;
 #endif
-	file_system->exist = __posix_fs_exist;
-	file_system->open_file = __posix_open_file;
-	file_system->remove = __posix_fs_remove;
-	file_system->rename = __posix_fs_rename;
-	file_system->size = __posix_fs_size;
+	file_system->fs_exist = __posix_fs_exist;
+	file_system->fs_open_file = __posix_open_file;
+	file_system->fs_remove = __posix_fs_remove;
+	file_system->fs_rename = __posix_fs_rename;
+	file_system->fs_size = __posix_fs_size;
 	file_system->terminate = __posix_terminate;
 
 	/* Switch it into place. */

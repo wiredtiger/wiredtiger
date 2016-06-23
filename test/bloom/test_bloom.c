@@ -26,7 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "test_util.i"
+#include "test_util.h"
 
 static struct {
 	char *progname;				/* Program name */
@@ -50,7 +50,8 @@ void cleanup(void);
 void populate_entries(void);
 void run(void);
 void setup(void);
-void usage(void);
+void usage(void)
+    WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 extern char *__wt_optarg;
 extern int __wt_optind;

@@ -26,17 +26,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "test_util.i"
+#include "test_util.h"
 
 #ifdef BDB
 #include <assert.h>
 #include <db.h>
-#endif
-
-#if defined(__GNUC__)
-#define	WT_GCC_ATTRIBUTE(x)	__attribute__(x)
-#else
-#define	WT_GCC_ATTRIBUTE(x)
 #endif
 
 #define	EXTPATH	"../../ext/"			/* Extensions path */
@@ -266,7 +260,7 @@ typedef struct {
 #define	TINFO_COMPLETE	2			/* Finished */
 #define	TINFO_JOINED	3			/* Resolved */
 	volatile int state;			/* state */
-} TINFO WT_GCC_ATTRIBUTE((aligned(WT_CACHE_LINE_ALIGNMENT)));
+} TINFO WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT);
 
 #ifdef HAVE_BERKELEY_DB
 void	 bdb_close(void);

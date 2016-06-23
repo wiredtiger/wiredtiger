@@ -562,6 +562,9 @@ static const char * const __stats_connection_desc[] = {
 	"cache: eviction worker thread evicting pages",
 	"cache: failed eviction of pages that exceeded the in-memory maximum",
 	"cache: hazard pointer blocked page eviction",
+	"cache: hazard pointer check calls",
+	"cache: hazard pointer check entries walked",
+	"cache: hazard pointer maximum array length",
 	"cache: in-memory page passed criteria to be split",
 	"cache: in-memory page splits",
 	"cache: internal pages evicted",
@@ -601,6 +604,7 @@ static const char * const __stats_connection_desc[] = {
 	"connection: pthread mutex condition wait calls",
 	"connection: pthread mutex shared lock read-lock calls",
 	"connection: pthread mutex shared lock write-lock calls",
+	"connection: total fsync I/Os",
 	"connection: total read I/Os",
 	"connection: total write I/Os",
 	"cursor: cursor create calls",
@@ -643,7 +647,9 @@ static const char * const __stats_connection_desc[] = {
 	"log: log server thread advances write LSN",
 	"log: log server thread write LSN walk skipped",
 	"log: log sync operations",
+	"log: log sync time duration (usecs)",
 	"log: log sync_dir operations",
+	"log: log sync_dir time duration (usecs)",
 	"log: log write operations",
 	"log: logging bytes consolidated",
 	"log: maximum log file size",
@@ -665,6 +671,9 @@ static const char * const __stats_connection_desc[] = {
 	"reconciliation: split objects currently awaiting free",
 	"session: open cursor count",
 	"session: open session count",
+	"thread-state: active filesystem fsync calls",
+	"thread-state: active filesystem read calls",
+	"thread-state: active filesystem write calls",
 	"thread-yield: page acquire busy blocked",
 	"thread-yield: page acquire eviction blocked",
 	"thread-yield: page acquire locked blocked",
@@ -681,6 +690,10 @@ static const char * const __stats_connection_desc[] = {
 	"transaction: transaction checkpoint total time (msecs)",
 	"transaction: transaction checkpoints",
 	"transaction: transaction failures due to cache overflow",
+	"transaction: transaction fsync calls for checkpoint after allocating the transaction ID",
+	"transaction: transaction fsync calls for checkpoint before allocating the transaction ID",
+	"transaction: transaction fsync duration for checkpoint after allocating the transaction ID (usecs)",
+	"transaction: transaction fsync duration for checkpoint before allocating the transaction ID (usecs)",
 	"transaction: transaction range of IDs currently pinned",
 	"transaction: transaction range of IDs currently pinned by a checkpoint",
 	"transaction: transaction range of IDs currently pinned by named snapshots",
@@ -765,6 +778,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cache_eviction_worker_evicting = 0;
 	stats->cache_eviction_force_fail = 0;
 	stats->cache_eviction_hazard = 0;
+	stats->cache_hazard_checks = 0;
+	stats->cache_hazard_walks = 0;
+	stats->cache_hazard_max = 0;
 	stats->cache_inmem_splittable = 0;
 	stats->cache_inmem_split = 0;
 	stats->cache_eviction_internal = 0;
@@ -804,6 +820,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cond_wait = 0;
 	stats->rwlock_read = 0;
 	stats->rwlock_write = 0;
+	stats->fsync_io = 0;
 	stats->read_io = 0;
 	stats->write_io = 0;
 	stats->cursor_create = 0;
@@ -846,7 +863,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->log_write_lsn = 0;
 	stats->log_write_lsn_skip = 0;
 	stats->log_sync = 0;
+	stats->log_sync_duration = 0;
 	stats->log_sync_dir = 0;
+	stats->log_sync_dir_duration = 0;
 	stats->log_writes = 0;
 	stats->log_slot_consolidated = 0;
 		/* not clearing log_max_filesize */
@@ -868,6 +887,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing rec_split_stashed_objects */
 		/* not clearing session_cursor_open */
 		/* not clearing session_open */
+		/* not clearing fsync_active */
+		/* not clearing read_active */
+		/* not clearing write_active */
 	stats->page_busy_blocked = 0;
 	stats->page_forcible_evict_blocked = 0;
 	stats->page_locked_blocked = 0;
@@ -884,6 +906,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing txn_checkpoint_time_total */
 	stats->txn_checkpoint = 0;
 	stats->txn_fail_cache = 0;
+	stats->txn_checkpoint_fsync_post = 0;
+	stats->txn_checkpoint_fsync_pre = 0;
+	stats->txn_checkpoint_fsync_post_duration = 0;
+	stats->txn_checkpoint_fsync_pre_duration = 0;
 		/* not clearing txn_pinned_range */
 		/* not clearing txn_pinned_checkpoint_range */
 		/* not clearing txn_pinned_snapshot_range */
@@ -905,6 +931,8 @@ void
 __wt_stat_connection_aggregate(
     WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *to)
 {
+	int64_t v;
+
 	to->lsm_work_queue_app += WT_STAT_READ(from, lsm_work_queue_app);
 	to->lsm_work_queue_manager +=
 	    WT_STAT_READ(from, lsm_work_queue_manager);
@@ -972,6 +1000,10 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, cache_eviction_force_fail);
 	to->cache_eviction_hazard +=
 	    WT_STAT_READ(from, cache_eviction_hazard);
+	to->cache_hazard_checks += WT_STAT_READ(from, cache_hazard_checks);
+	to->cache_hazard_walks += WT_STAT_READ(from, cache_hazard_walks);
+	if ((v = WT_STAT_READ(from, cache_hazard_max)) > to->cache_hazard_max)
+		to->cache_hazard_max = v;
 	to->cache_inmem_splittable +=
 	    WT_STAT_READ(from, cache_inmem_splittable);
 	to->cache_inmem_split += WT_STAT_READ(from, cache_inmem_split);
@@ -1022,6 +1054,7 @@ __wt_stat_connection_aggregate(
 	to->cond_wait += WT_STAT_READ(from, cond_wait);
 	to->rwlock_read += WT_STAT_READ(from, rwlock_read);
 	to->rwlock_write += WT_STAT_READ(from, rwlock_write);
+	to->fsync_io += WT_STAT_READ(from, fsync_io);
 	to->read_io += WT_STAT_READ(from, read_io);
 	to->write_io += WT_STAT_READ(from, write_io);
 	to->cursor_create += WT_STAT_READ(from, cursor_create);
@@ -1066,7 +1099,10 @@ __wt_stat_connection_aggregate(
 	to->log_write_lsn += WT_STAT_READ(from, log_write_lsn);
 	to->log_write_lsn_skip += WT_STAT_READ(from, log_write_lsn_skip);
 	to->log_sync += WT_STAT_READ(from, log_sync);
+	to->log_sync_duration += WT_STAT_READ(from, log_sync_duration);
 	to->log_sync_dir += WT_STAT_READ(from, log_sync_dir);
+	to->log_sync_dir_duration +=
+	    WT_STAT_READ(from, log_sync_dir_duration);
 	to->log_writes += WT_STAT_READ(from, log_writes);
 	to->log_slot_consolidated +=
 	    WT_STAT_READ(from, log_slot_consolidated);
@@ -1091,6 +1127,9 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, rec_split_stashed_objects);
 	to->session_cursor_open += WT_STAT_READ(from, session_cursor_open);
 	to->session_open += WT_STAT_READ(from, session_open);
+	to->fsync_active += WT_STAT_READ(from, fsync_active);
+	to->read_active += WT_STAT_READ(from, read_active);
+	to->write_active += WT_STAT_READ(from, write_active);
 	to->page_busy_blocked += WT_STAT_READ(from, page_busy_blocked);
 	to->page_forcible_evict_blocked +=
 	    WT_STAT_READ(from, page_forcible_evict_blocked);
@@ -1116,6 +1155,14 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, txn_checkpoint_time_total);
 	to->txn_checkpoint += WT_STAT_READ(from, txn_checkpoint);
 	to->txn_fail_cache += WT_STAT_READ(from, txn_fail_cache);
+	to->txn_checkpoint_fsync_post +=
+	    WT_STAT_READ(from, txn_checkpoint_fsync_post);
+	to->txn_checkpoint_fsync_pre +=
+	    WT_STAT_READ(from, txn_checkpoint_fsync_pre);
+	to->txn_checkpoint_fsync_post_duration +=
+	    WT_STAT_READ(from, txn_checkpoint_fsync_post_duration);
+	to->txn_checkpoint_fsync_pre_duration +=
+	    WT_STAT_READ(from, txn_checkpoint_fsync_pre_duration);
 	to->txn_pinned_range += WT_STAT_READ(from, txn_pinned_range);
 	to->txn_pinned_checkpoint_range +=
 	    WT_STAT_READ(from, txn_pinned_checkpoint_range);
@@ -1127,9 +1174,11 @@ __wt_stat_connection_aggregate(
 }
 
 static const char * const __stats_join_desc[] = {
-	": accesses",
-	": actual count of items",
+	": accesses to the main table",
 	": bloom filter false positives",
+	": checks that conditions of membership are satisfied",
+	": items inserted into a bloom filter",
+	": items iterated",
 };
 
 int
@@ -1149,9 +1198,11 @@ __wt_stat_join_init_single(WT_JOIN_STATS *stats)
 void
 __wt_stat_join_clear_single(WT_JOIN_STATS *stats)
 {
-	stats->accesses = 0;
-	stats->actual_count = 0;
+	stats->main_access = 0;
 	stats->bloom_false_positive = 0;
+	stats->membership_check = 0;
+	stats->bloom_insert = 0;
+	stats->iterated = 0;
 }
 
 void
@@ -1167,7 +1218,9 @@ void
 __wt_stat_join_aggregate(
     WT_JOIN_STATS **from, WT_JOIN_STATS *to)
 {
-	to->accesses += WT_STAT_READ(from, accesses);
-	to->actual_count += WT_STAT_READ(from, actual_count);
+	to->main_access += WT_STAT_READ(from, main_access);
 	to->bloom_false_positive += WT_STAT_READ(from, bloom_false_positive);
+	to->membership_check += WT_STAT_READ(from, membership_check);
+	to->bloom_insert += WT_STAT_READ(from, bloom_insert);
+	to->iterated += WT_STAT_READ(from, iterated);
 }

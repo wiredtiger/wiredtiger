@@ -81,6 +81,10 @@ class SessionStat(Stat):
     prefix = 'session'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, SessionStat.prefix, desc, flags)
+class ThreadState(Stat):
+    prefix = 'thread-state'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, ThreadState.prefix, desc, flags)
 class TxnStat(Stat):
     prefix = 'transaction'
     def __init__(self, name, desc, flags=''):
@@ -97,10 +101,20 @@ class YieldStat(Stat):
 ##########################################
 groups = {}
 groups['cursor'] = [CursorStat.prefix, SessionStat.prefix]
-groups['evict'] = [CacheStat.prefix, ConnStat.prefix, BlockStat.prefix]
+groups['evict'] = [
+    BlockStat.prefix,
+    CacheStat.prefix,
+    ConnStat.prefix,
+    ThreadState.prefix
+]
 groups['lsm'] = [LSMStat.prefix, TxnStat.prefix]
 groups['memory'] = [CacheStat.prefix, ConnStat.prefix, RecStat.prefix]
-groups['system'] = [ConnStat.prefix, DhandleStat.prefix, SessionStat.prefix]
+groups['system'] = [
+    ConnStat.prefix,
+    DhandleStat.prefix,
+    SessionStat.prefix,
+    ThreadState.prefix
+]
 
 ##########################################
 # CONNECTION statistics
@@ -113,6 +127,7 @@ connection_stats = [
     ConnStat('cond_auto_wait_reset', 'auto adjusting condition resets'),
     ConnStat('cond_wait', 'pthread mutex condition wait calls'),
     ConnStat('file_open', 'files currently open', 'no_clear,no_scale'),
+    ConnStat('fsync_io', 'total fsync I/Os'),
     ConnStat('memory_allocation', 'memory allocations'),
     ConnStat('memory_free', 'memory frees'),
     ConnStat('memory_grow', 'memory re-allocations'),
@@ -187,6 +202,9 @@ connection_stats = [
     CacheStat('cache_eviction_split_leaf', 'leaf pages split during eviction'),
     CacheStat('cache_eviction_walk', 'pages walked for eviction'),
     CacheStat('cache_eviction_worker_evicting', 'eviction worker thread evicting pages'),
+    CacheStat('cache_hazard_checks', 'hazard pointer check calls'),
+    CacheStat('cache_hazard_max', 'hazard pointer maximum array length', 'max_aggregate,no_scale'),
+    CacheStat('cache_hazard_walks', 'hazard pointer check entries walked'),
     CacheStat('cache_inmem_split', 'in-memory page splits'),
     CacheStat('cache_inmem_splittable', 'in-memory page passed criteria to be split'),
     CacheStat('cache_lookaside_insert', 'lookaside table insert calls'),
@@ -247,6 +265,8 @@ connection_stats = [
     LogStat('log_slot_unbuffered', 'consolidated slot unbuffered writes'),
     LogStat('log_sync', 'log sync operations'),
     LogStat('log_sync_dir', 'log sync_dir operations'),
+    LogStat('log_sync_dir_duration', 'log sync_dir time duration (usecs)'),
+    LogStat('log_sync_duration', 'log sync time duration (usecs)'),
     LogStat('log_write_lsn', 'log server thread advances write LSN'),
     LogStat('log_write_lsn_skip', 'log server thread write LSN walk skipped'),
     LogStat('log_writes', 'log write operations'),
@@ -267,6 +287,10 @@ connection_stats = [
     ##########################################
     TxnStat('txn_begin', 'transaction begins'),
     TxnStat('txn_checkpoint', 'transaction checkpoints'),
+    TxnStat('txn_checkpoint_fsync_post', 'transaction fsync calls for checkpoint after allocating the transaction ID'),
+    TxnStat('txn_checkpoint_fsync_post_duration', 'transaction fsync duration for checkpoint after allocating the transaction ID (usecs)'),
+    TxnStat('txn_checkpoint_fsync_pre', 'transaction fsync calls for checkpoint before allocating the transaction ID'),
+    TxnStat('txn_checkpoint_fsync_pre_duration', 'transaction fsync duration for checkpoint before allocating the transaction ID (usecs)'),
     TxnStat('txn_checkpoint_generation', 'transaction checkpoint generation', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_running', 'transaction checkpoint currently running', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_time_max', 'transaction checkpoint max time (msecs)', 'no_clear,no_scale'),
@@ -317,6 +341,13 @@ connection_stats = [
     CursorStat('cursor_search_near', 'cursor search near calls'),
     CursorStat('cursor_truncate', 'truncate calls'),
     CursorStat('cursor_update', 'cursor update calls'),
+
+    ##########################################
+    # Thread State statistics
+    ##########################################
+    ThreadState('fsync_active', 'active filesystem fsync calls','no_clear,no_scale'),
+    ThreadState('read_active', 'active filesystem read calls','no_clear,no_scale'),
+    ThreadState('write_active', 'active filesystem write calls','no_clear,no_scale'),
 
     ##########################################
     # Yield statistics
@@ -477,9 +508,11 @@ dsrc_stats = sorted(dsrc_stats, key=attrgetter('desc'))
 # Cursor Join statistics
 ##########################################
 join_stats = [
-    JoinStat('accesses', 'accesses'),
-    JoinStat('actual_count', 'actual count of items'),
     JoinStat('bloom_false_positive', 'bloom filter false positives'),
+    JoinStat('bloom_insert', 'items inserted into a bloom filter'),
+    JoinStat('iterated', 'items iterated'),
+    JoinStat('main_access', 'accesses to the main table'),
+    JoinStat('membership_check', 'checks that conditions of membership are satisfied'),
 ]
 
 join_stats = sorted(join_stats, key=attrgetter('desc'))

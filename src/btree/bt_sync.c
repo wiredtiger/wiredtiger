@@ -96,8 +96,10 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 		 * snapshot now.
 		 *
 		 * All changes committed up to this point should be included.
-		 * We don't update the snapshot in between pages because (a)
-		 * the metadata shouldn't be that big, and (b) if we do ever
+		 * We don't update the snapshot in between pages because the
+		 * metadata shouldn't have many pages.  Instead, read-committed
+		 * isolation ensures that all metadata updates completed before
+		 * the checkpoint are included.
 		 */
 		if (txn->isolation == WT_ISO_READ_COMMITTED)
 			WT_ERR(__wt_txn_get_snapshot(session));
@@ -186,7 +188,8 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 		break;
 	case WT_SYNC_CLOSE:
 	case WT_SYNC_DISCARD:
-	WT_ILLEGAL_VALUE_ERR(session);
+		WT_ERR(__wt_illegal_value(session, NULL));
+		break;
 	}
 
 	if (WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT)) {
@@ -271,6 +274,8 @@ err:	/* On error, clear any left-over tree walk. */
 int
 __wt_cache_op(WT_SESSION_IMPL *session, WT_CACHE_OP op)
 {
+	WT_DECL_RET;
+
 	switch (op) {
 	case WT_SYNC_CHECKPOINT:
 	case WT_SYNC_CLOSE:
@@ -290,10 +295,12 @@ __wt_cache_op(WT_SESSION_IMPL *session, WT_CACHE_OP op)
 	switch (op) {
 	case WT_SYNC_CHECKPOINT:
 	case WT_SYNC_WRITE_LEAVES:
-		return (__sync_file(session, op));
+		ret = __sync_file(session, op);
+		break;
 	case WT_SYNC_CLOSE:
 	case WT_SYNC_DISCARD:
-		return (__wt_evict_file(session, op));
-	WT_ILLEGAL_VALUE(session);
+		ret = __wt_evict_file(session, op);
+		break;
 	}
+	return (ret);
 }

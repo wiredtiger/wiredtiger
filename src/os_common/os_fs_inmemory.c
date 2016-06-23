@@ -80,22 +80,6 @@ __im_handle_remove(WT_SESSION_IMPL *session,
 }
 
 /*
- * __im_handle_size --
- *	Return the handle's data size.
- */
-static void
-__im_handle_size(WT_FILE_HANDLE_INMEM *im_fh, wt_off_t *sizep)
-{
-	/*
-	 * XXX
-	 * This function exists as a place for this comment. MongoDB assumes
-	 * any file with content will have a non-zero size. In memory tables
-	 * generally are zero-sized, make MongoDB happy.
-	 */
-	*sizep = im_fh->buf.size == 0 ? 1024 : (wt_off_t)im_fh->buf.size;
-}
-
-/*
  * __im_fs_directory_list --
  *	Return the directory contents.
  */
@@ -284,7 +268,7 @@ __im_fs_size(WT_FILE_SYSTEM *file_system,
 	if ((im_fh = __im_handle_search(file_system, name)) == NULL)
 		ret = ENOENT;
 	else
-		__im_handle_size(im_fh, sizep);
+		*sizep = (wt_off_t)im_fh->buf.size;
 
 	__wt_spin_unlock(session, &im_fs->lock);
 
@@ -316,6 +300,20 @@ __im_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 }
 
 /*
+ * __im_file_lock --
+ *	Lock/unlock a file.
+ */
+static int
+__im_file_lock(
+    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool lock)
+{
+	WT_UNUSED(file_handle);
+	WT_UNUSED(wt_session);
+	WT_UNUSED(lock);
+	return (0);
+}
+
+/*
  * __im_file_read --
  *	POSIX pread.
  */
@@ -339,7 +337,6 @@ __im_file_read(WT_FILE_HANDLE *file_handle,
 	if (off < im_fh->buf.size) {
 		len = WT_MIN(len, im_fh->buf.size - off);
 		memcpy(buf, (uint8_t *)im_fh->buf.mem + off, len);
-		im_fh->off = off + len;
 	} else
 		ret = WT_ERROR;
 
@@ -370,10 +367,22 @@ __im_file_size(
 
 	__wt_spin_lock(session, &im_fs->lock);
 
-	__im_handle_size(im_fh, sizep);
+	*sizep = (wt_off_t)im_fh->buf.size;
 
 	__wt_spin_unlock(session, &im_fs->lock);
 
+	return (0);
+}
+
+/*
+ * __im_file_sync --
+ *	In-memory sync.
+ */
+static int
+__im_file_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
+{
+	WT_UNUSED(file_handle);
+	WT_UNUSED(wt_session);
 	return (0);
 }
 
@@ -438,7 +447,6 @@ __im_file_write(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
 	memcpy((uint8_t *)im_fh->buf.data + off, buf, len);
 	if (off + len > im_fh->buf.size)
 		im_fh->buf.size = off + len;
-	im_fh->off = off + len;
 
 err:	__wt_spin_unlock(session, &im_fs->lock);
 	if (ret == 0)
@@ -486,7 +494,6 @@ __im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 			    "%s: file-open: already open", name);
 
 		im_fh->ref = 1;
-		im_fh->off = 0;
 
 		*file_handlep = (WT_FILE_HANDLE *)im_fh;
 
@@ -504,7 +511,6 @@ __im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 
 	/* Initialize private information. */
 	im_fh->ref = 1;
-	im_fh->off = 0;
 
 	hash = __wt_hash_city64(name, strlen(name));
 	bucket = hash % WT_HASH_ARRAY_SIZE;
@@ -512,10 +518,12 @@ __im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	WT_FILE_HANDLE_INSERT(im_fs, im_fh, bucket);
 
 	file_handle->close = __im_file_close;
-	file_handle->read = __im_file_read;
-	file_handle->size = __im_file_size;
-	file_handle->truncate = __im_file_truncate;
-	file_handle->write = __im_file_write;
+	file_handle->fh_lock = __im_file_lock;
+	file_handle->fh_read = __im_file_read;
+	file_handle->fh_size = __im_file_size;
+	file_handle->fh_sync = __im_file_sync;
+	file_handle->fh_truncate = __im_file_truncate;
+	file_handle->fh_write = __im_file_write;
 
 	*file_handlep = file_handle;
 
@@ -576,13 +584,13 @@ __wt_os_inmemory(WT_SESSION_IMPL *session)
 
 	/* Initialize the in-memory jump table. */
 	file_system = (WT_FILE_SYSTEM *)im_fs;
-	file_system->directory_list = __im_fs_directory_list;
-	file_system->directory_list_free = __im_fs_directory_list_free;
-	file_system->exist = __im_fs_exist;
-	file_system->open_file = __im_file_open;
-	file_system->remove = __im_fs_remove;
-	file_system->rename = __im_fs_rename;
-	file_system->size = __im_fs_size;
+	file_system->fs_directory_list = __im_fs_directory_list;
+	file_system->fs_directory_list_free = __im_fs_directory_list_free;
+	file_system->fs_exist = __im_fs_exist;
+	file_system->fs_open_file = __im_file_open;
+	file_system->fs_remove = __im_fs_remove;
+	file_system->fs_rename = __im_fs_rename;
+	file_system->fs_size = __im_fs_size;
 	file_system->terminate = __im_terminate;
 
 	/* Switch the file system into place. */

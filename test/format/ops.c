@@ -530,9 +530,16 @@ ops(void *arg)
 				ckpt_config = ckpt_name;
 			}
 
-			testutil_checkfmt(
-			    session->checkpoint(session, ckpt_config),
-			    "%s", ckpt_config == NULL ? "" : ckpt_config);
+			ret = session->checkpoint(session, ckpt_config);
+			/*
+			 * We may be trying to create a named checkpoint while
+			 * we hold a cursor open to the previous checkpoint.
+			 * Tolerate EBUSY.
+			 */
+			if (ret != 0 && ret != EBUSY)
+				testutil_die(ret, "%s",
+				    ckpt_config == NULL ? "" : ckpt_config);
+			ret = 0;
 
 			if (ckpt_config != NULL)
 				testutil_check(
@@ -1458,7 +1465,7 @@ print_item(const char *tag, WT_ITEM *item)
 	static const char hex[] = "0123456789abcdef";
 	const uint8_t *data;
 	size_t size;
-	int ch;
+	u_char ch;
 
 	data = item->data;
 	size = item->size;
@@ -1469,8 +1476,8 @@ print_item(const char *tag, WT_ITEM *item)
 	else
 		for (; size > 0; --size, ++data) {
 			ch = data[0];
-			if (isprint(ch))
-				fprintf(stderr, "%c", ch);
+			if (__wt_isprint(ch))
+				fprintf(stderr, "%c", (int)ch);
 			else
 				fprintf(stderr, "%x%x",
 				    hex[(data[0] & 0xf0) >> 4],

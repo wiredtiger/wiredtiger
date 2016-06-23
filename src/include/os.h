@@ -6,18 +6,33 @@
  * See the file LICENSE for redistribution information.
  */
 
+#define	WT_SYSCALL(call, ret) do {					\
+	/*								\
+	 * A call returning 0 indicates success; any call where		\
+	 * 0 is not the only successful return must provide an		\
+	 * expression evaluating to 0 in all successful	cases.		\
+	 */								\
+	if (((ret) = (call)) == 0)					\
+		break;							\
+	/*								\
+	 * The call's error was either returned by the call or		\
+	 * is in errno, and there are cases where it depends on		\
+	 * the software release as to which it is (for example,		\
+	 * posix_fadvise on FreeBSD and OS X). Failing calls		\
+	 * must either return a non-zero error value, or -1 if		\
+	 * the error value is in errno. (The WiredTiger errno		\
+	 * function returns WT_ERROR if errno is 0, which isn't		\
+	 * ideal but won't discard the failure.)			\
+	 */								\
+	if ((ret) == -1)						\
+		(ret) = __wt_errno();					\
+} while (0)
+
 #define	WT_SYSCALL_RETRY(call, ret) do {				\
 	int __retry;							\
 	for (__retry = 0; __retry < 10; ++__retry) {			\
-		if ((call) == 0) {					\
-			(ret) = 0;					\
-			break;						\
-		}							\
-		switch ((ret) = __wt_errno()) {				\
-		case 0:							\
-			/* The call failed but didn't set errno. */	\
-			(ret) = WT_ERROR;				\
-			break;						\
+		WT_SYSCALL(call, ret);					\
+		switch (ret) {						\
 		case EAGAIN:						\
 		case EBUSY:						\
 		case EINTR:						\
@@ -121,7 +136,6 @@ struct __wt_file_handle_inmem {
 	TAILQ_ENTRY(__wt_file_handle_inmem) q;	/* internal queue, hash queue */
 	TAILQ_ENTRY(__wt_file_handle_inmem) hashq;
 
-	size_t	 off;				/* Read/write offset */
 	WT_ITEM  buf;				/* Data */
 	u_int	 ref;				/* Reference count */
 };
@@ -141,7 +155,8 @@ struct __wt_fstream {
 	uint32_t flags;
 
 	int (*close)(WT_SESSION_IMPL *, WT_FSTREAM *);
-	int (*flush)(WT_SESSION_IMPL *, WT_FSTREAM *);
-	int (*getline)(WT_SESSION_IMPL *, WT_FSTREAM *, WT_ITEM *);
-	int (*printf)(WT_SESSION_IMPL *, WT_FSTREAM *, const char *, va_list);
+	int (*fstr_flush)(WT_SESSION_IMPL *, WT_FSTREAM *);
+	int (*fstr_getline)(WT_SESSION_IMPL *, WT_FSTREAM *, WT_ITEM *);
+	int (*fstr_printf)(
+	    WT_SESSION_IMPL *, WT_FSTREAM *, const char *, va_list);
 };

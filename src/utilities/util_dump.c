@@ -7,6 +7,7 @@
  */
 
 #include "util.h"
+#include "util_dump.h"
 
 static int dump_config(WT_SESSION *, const char *, bool, bool);
 static int dump_json_begin(WT_SESSION *);
@@ -73,7 +74,9 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
 	if (argc < 1 || (argc != 1 && !json))
 		return (usage());
 
-	if (json && (ret = dump_json_begin(session)) != 0)
+	if (json &&
+	    ((ret = dump_json_begin(session)) != 0 ||
+	    (ret = dump_prefix(session, hex, json)) != 0))
 		goto err;
 
 	for (i = 0; i < argc; i++) {
@@ -155,7 +158,7 @@ dump_config(WT_SESSION *session, const char *uri, bool hex, bool json)
 	 */
 	cursor->set_key(cursor, uri);
 	if ((ret = cursor->search(cursor)) == 0) {
-		if (dump_prefix(session, hex, json) != 0 ||
+		if ((!json && dump_prefix(session, hex, json) != 0) ||
 		    dump_table_config(session, cursor, uri, json) != 0 ||
 		    dump_suffix(session, json) != 0)
 			ret = 1;
@@ -456,17 +459,20 @@ dump_prefix(WT_SESSION *session, bool hex, bool json)
 {
 	int vmajor, vminor, vpatch;
 
-	if (json)
-		return (0);
-
 	(void)wiredtiger_version(&vmajor, &vminor, &vpatch);
 
-	if (printf(
+	if (!json && (printf(
 	    "WiredTiger Dump (WiredTiger Version %d.%d.%d)\n",
 	    vmajor, vminor, vpatch) < 0 ||
 	    printf("Format=%s\n", hex ? "hex" : "print") < 0 ||
-	    printf("Header\n") < 0)
+	    printf("Header\n") < 0))
 		return (util_err(session, EIO, NULL));
+	else if (json && printf(
+	    "    \"%s\" : \"%d (%d.%d.%d)\",\n",
+	    DUMP_JSON_VERSION_MARKER, DUMP_JSON_CURRENT_VERSION,
+	    vmajor, vminor, vpatch) < 0)
+		return (util_err(session, EIO, NULL));
+
 	return (0);
 }
 
@@ -546,14 +552,15 @@ dup_json_string(const char *str, char **result)
 
 	nchars = 0;
 	for (p = str; *p; p++, nchars++)
-		nchars += __wt_json_unpack_char(*p, NULL, 0, false);
+		nchars += __wt_json_unpack_char((u_char)*p, NULL, 0, false);
 	q = malloc(nchars + 1);
 	if (q == NULL)
 		return (1);
 	*result = q;
 	left = nchars;
 	for (p = str; *p; p++, nchars++) {
-		nchars = __wt_json_unpack_char(*p, (u_char *)q, left, false);
+		nchars = __wt_json_unpack_char((u_char)*p, (u_char *)q, left,
+		    false);
 		left -= nchars;
 		q += nchars;
 	}

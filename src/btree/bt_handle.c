@@ -519,7 +519,6 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
 		ref->state = WT_REF_DELETED;
 		WT_ERR(__wt_row_ikey_incr(session, root, 0, "", 1, ref));
 		break;
-	WT_ILLEGAL_VALUE_ERR(session);
 	}
 
 	/* Bulk loads require a leaf page for reconciliation: create it now. */
@@ -567,7 +566,6 @@ __wt_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_PAGE **pagep)
 		WT_RET(__wt_page_alloc(
 		    session, WT_PAGE_ROW_LEAF, 0, false, pagep));
 		break;
-	WT_ILLEGAL_VALUE(session);
 	}
 	return (0);
 }
@@ -689,22 +687,19 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
 		    "size (%" PRIu32 "B)", btree->allocsize);
 
 	/*
-	 * When a page is forced to split, we want at least 50 entries on its
-	 * parent.
-	 *
-	 * Don't let pages grow larger than a quarter of the cache, with too-
-	 * small caches, we can end up in a situation where nothing can be
-	 * evicted.  Take care getting the cache size: with a shared cache,
-	 * it may not have been set.
+	 * Don't let pages grow large compared to the cache size or we can end
+	 * up in a situation where nothing can be evicted.  Take care getting
+	 * the cache size: with a shared cache, it may not have been set.
 	 */
 	WT_RET(__wt_config_gets(session, cfg, "memory_page_max", &cval));
-	btree->maxmempage =
-	    WT_MAX((uint64_t)cval.val, 50 * (uint64_t)btree->maxleafpage);
+	btree->maxmempage = (uint64_t)cval.val;
 	if (!F_ISSET(conn, WT_CONN_CACHE_POOL)) {
 		if ((cache_size = conn->cache_size) > 0)
 			btree->maxmempage =
-			    WT_MIN(btree->maxmempage, cache_size / 4);
+			    WT_MIN(btree->maxmempage, cache_size / 10);
 	}
+	/* Enforce a lower bound of a single disk leaf page */
+	btree->maxmempage = WT_MAX(btree->maxmempage, btree->maxleafpage);
 
 	/*
 	 * Try in-memory splits once we hit 80% of the maximum in-memory page

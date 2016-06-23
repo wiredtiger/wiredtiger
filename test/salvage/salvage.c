@@ -26,7 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "test_util.i"
+#include "test_util.h"
 
 #include <assert.h>
 
@@ -701,7 +701,7 @@ print_res(int key, int value, int cnt)
 		switch (page_type) {			/* Print value */
 		case WT_PAGE_COL_FIX:
 			ch = value & 0x7f;
-			if (isprint(ch)) {
+			if (__wt_isprint((u_char)ch)) {
 				if (ch == '\\')
 					fputc('\\', res_fp);
 				fputc(ch, res_fp);

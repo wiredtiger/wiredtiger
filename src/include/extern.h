@@ -144,7 +144,6 @@ extern const char *__wt_page_type_string(u_int type);
 extern const char *__wt_cell_type_string(uint8_t type);
 extern const char *__wt_page_addr_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf);
 extern const char *__wt_addr_string(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, WT_ITEM *buf);
-extern const char *__wt_buf_set_printable( WT_SESSION_IMPL *session, const void *p, size_t size, WT_ITEM *buf);
 extern int __wt_ovfl_read(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK *unpack, WT_ITEM *store);
 extern int __wt_ovfl_cache(WT_SESSION_IMPL *session, WT_PAGE *page, void *cookie, WT_CELL_UNPACK *vpack);
 extern int __wt_ovfl_discard(WT_SESSION_IMPL *session, WT_CELL *cell);
@@ -291,13 +290,13 @@ extern int __wt_curjoin_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSO
 extern int __wt_curjoin_join(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin, WT_INDEX *idx, WT_CURSOR *ref_cursor, uint8_t flags, uint8_t range, uint64_t count, uint32_t bloom_bit_count, uint32_t bloom_hash_count);
 extern int __wt_json_alloc_unpack(WT_SESSION_IMPL *session, const void *buffer, size_t size, const char *fmt, WT_CURSOR_JSON *json, bool iskey, va_list ap);
 extern void __wt_json_close(WT_SESSION_IMPL *session, WT_CURSOR *cursor);
-extern size_t __wt_json_unpack_char(char ch, u_char *buf, size_t bufsz, bool force_unicode);
+extern size_t __wt_json_unpack_char(u_char ch, u_char *buf, size_t bufsz, bool force_unicode);
 extern int __wt_json_column_init(WT_CURSOR *cursor, const char *keyformat, const WT_CONFIG_ITEM *idxconf, const WT_CONFIG_ITEM *colconf);
 extern int __wt_json_token(WT_SESSION *wt_session, const char *src, int *toktype, const char **tokstart, size_t *toklen);
 extern const char *__wt_json_tokname(int toktype);
 extern int __wt_json_to_item(WT_SESSION_IMPL *session, const char *jstr, const char *format, WT_CURSOR_JSON *json, bool iskey, WT_ITEM *item);
 extern ssize_t __wt_json_strlen(const char *src, size_t srclen);
-extern int __wt_json_strncpy(char **pdst, size_t dstlen, const char *src, size_t srclen);
+extern int __wt_json_strncpy(WT_SESSION *wt_session, char **pdst, size_t dstlen, const char *src, size_t srclen);
 extern int __wt_curlog_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], WT_CURSOR **cursorp);
 extern int __wt_schema_create_final( WT_SESSION_IMPL *session, char *cfg_arg[], char **value_ret);
 extern int __wt_curmetadata_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, const char *cfg[], WT_CURSOR **cursorp);
@@ -461,7 +460,6 @@ extern int __wt_ext_metadata_search(WT_EXTENSION_API *wt_api, WT_SESSION *wt_ses
 extern int __wt_ext_metadata_update(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, const char *key, const char *value);
 extern int __wt_metadata_get_ckptlist( WT_SESSION *session, const char *name, WT_CKPT **ckptbasep);
 extern void __wt_metadata_free_ckptlist(WT_SESSION *session, WT_CKPT *ckptbase);
-extern void __wt_metadata_init(WT_SESSION_IMPL *session);
 extern int __wt_metadata_cursor_open( WT_SESSION_IMPL *session, const char *config, WT_CURSOR **cursorp);
 extern int __wt_metadata_cursor(WT_SESSION_IMPL *session, WT_CURSOR **cursorp);
 extern int __wt_metadata_cursor_release(WT_SESSION_IMPL *session, WT_CURSOR **cursorp);
@@ -570,6 +568,7 @@ extern int __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR
 extern int __wt_session_create( WT_SESSION_IMPL *session, const char *uri, const char *config);
 extern int __wt_session_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[]);
 extern int __wt_session_range_truncate(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *start, WT_CURSOR *stop);
+extern const char *__wt_session_strerror(WT_SESSION *wt_session, int error);
 extern int __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const char *config, bool open_metadata, WT_SESSION_IMPL **sessionp);
 extern int __wt_open_internal_session(WT_CONNECTION_IMPL *conn, const char *name, bool open_metadata, uint32_t session_flags, WT_SESSION_IMPL **sessionp);
 extern int __wt_session_compact( WT_SESSION *wt_session, const char *uri, const char *config);
@@ -598,7 +597,14 @@ extern int __wt_msg(WT_SESSION_IMPL *session, const char *fmt, ...) WT_GCC_FUNC_
 extern int __wt_ext_msg_printf( WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, const char *fmt, ...) WT_GCC_FUNC_DECL_ATTRIBUTE((format (printf, 3, 4)));
 extern const char *__wt_ext_strerror(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, int error);
 extern int __wt_progress(WT_SESSION_IMPL *session, const char *s, uint64_t v);
-extern void __wt_assert(WT_SESSION_IMPL *session, int error, const char *file_name, int line_number, const char *fmt, ...) WT_GCC_FUNC_DECL_ATTRIBUTE((format (printf, 5, 6)));
+extern void
+__wt_assert(WT_SESSION_IMPL *session,
+ int error, const char *file_name, int line_number, const char *fmt, ...)
+ WT_GCC_FUNC_DECL_ATTRIBUTE((format (printf, 5, 6)))
+#ifdef HAVE_DIAGNOSTIC
+ WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn))
+#endif
+;
 extern int __wt_panic(WT_SESSION_IMPL *session);
 extern int __wt_illegal_value(WT_SESSION_IMPL *session, const char *name);
 extern int __wt_object_unsupported(WT_SESSION_IMPL *session, const char *uri);
@@ -647,6 +653,8 @@ extern uint32_t __wt_random(WT_RAND_STATE volatile *rnd_state);
 extern int __wt_buf_grow_worker(WT_SESSION_IMPL *session, WT_ITEM *buf, size_t size);
 extern int __wt_buf_fmt(WT_SESSION_IMPL *session, WT_ITEM *buf, const char *fmt, ...) WT_GCC_FUNC_DECL_ATTRIBUTE((format (printf, 3, 4)));
 extern int __wt_buf_catfmt(WT_SESSION_IMPL *session, WT_ITEM *buf, const char *fmt, ...) WT_GCC_FUNC_DECL_ATTRIBUTE((format (printf, 3, 4)));
+extern const char *__wt_buf_set_printable( WT_SESSION_IMPL *session, const void *p, size_t size, WT_ITEM *buf);
+extern const char *__wt_buf_set_size( WT_SESSION_IMPL *session, uint64_t size, bool exact, WT_ITEM *buf);
 extern int
 __wt_scr_alloc_func(WT_SESSION_IMPL *session, size_t size, WT_ITEM **scratchp
 #ifdef HAVE_DIAGNOSTIC
@@ -676,7 +684,7 @@ extern void __wt_stat_join_clear_all(WT_JOIN_STATS **stats);
 extern void __wt_stat_join_aggregate( WT_JOIN_STATS **from, WT_JOIN_STATS *to);
 extern void __wt_txn_release_snapshot(WT_SESSION_IMPL *session);
 extern int __wt_txn_get_snapshot(WT_SESSION_IMPL *session);
-extern int __wt_txn_update_oldest(WT_SESSION_IMPL *session, bool force);
+extern int __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags);
 extern int __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[]);
 extern void __wt_txn_release(WT_SESSION_IMPL *session);
 extern int __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[]);
@@ -730,7 +738,7 @@ extern int __wt_dlsym(WT_SESSION_IMPL *session, WT_DLH *dlh, const char *name, b
 extern int __wt_epoch(WT_SESSION_IMPL *session, struct timespec *tsp);
 extern int __wt_errno(void);
 extern int __wt_filename(WT_SESSION_IMPL *session, const char *name, char **path);
-extern int __wt_fopen(WT_SESSION_IMPL *session, const char *name, uint32_t open_flags, uint32_t flags, WT_FSTREAM **fsp);
+extern int __wt_fopen(WT_SESSION_IMPL *session, const char *name, uint32_t open_flags, uint32_t flags, WT_FSTREAM **fstrp);
 extern int __wt_get_vm_pagesize(void);
 extern int __wt_getenv(WT_SESSION_IMPL *session, const char *variable, const char **envp);
 extern int __wt_getlasterror(void);
