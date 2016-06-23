@@ -473,7 +473,8 @@ __evict_review(
 		 * fallen behind current.
 		 */
 		if (modified)
-			WT_RET(__wt_txn_update_oldest(session, false));
+			WT_RET(__wt_txn_update_oldest(
+			    session, WT_TXN_OLDEST_STRICT));
 
 		if (!__wt_page_can_evict(session, ref, flagsp))
 			return (EBUSY);

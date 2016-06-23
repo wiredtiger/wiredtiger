@@ -296,7 +296,7 @@ err:	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
  * __evict_force_check --
  *	Check if a page matches the criteria for forced eviction.
  */
-static int
+static bool
 __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	WT_BTREE *btree;
@@ -307,18 +307,18 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 
 	/* Leaf pages only. */
 	if (WT_PAGE_IS_INTERNAL(page))
-		return (0);
+		return (false);
 
 	/*
 	 * It's hard to imagine a page with a huge memory footprint that has
 	 * never been modified, but check to be sure.
 	 */
 	if (page->modify == NULL)
-		return (0);
+		return (false);
 
 	/* Pages are usually small enough, check that first. */
 	if (page->memory_footprint < btree->splitmempage)
-		return (0);
+		return (false);
 
 	/* Trigger eviction on the next page release. */
 	__wt_page_evict_soon(session, ref);
@@ -327,7 +327,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 		return (__wt_leaf_page_can_split(session, page));
 
 	/* Bump the oldest ID, we're about to do some visibility checks. */
-	(void)__wt_txn_update_oldest(session, false);
+	(void)__wt_txn_update_oldest(session, 0);
 
 	/* If eviction cannot succeed, don't try. */
 	return (__wt_page_can_evict(session, ref, NULL));

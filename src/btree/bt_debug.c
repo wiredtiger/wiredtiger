@@ -895,7 +895,7 @@ __debug_page_row_leaf(WT_DBG *ds, WT_PAGE *page)
 
 	/* Dump the page's K/V pairs. */
 	WT_ROW_FOREACH(page, rip, i) {
-		WT_RET(__wt_row_leaf_key(session, page, rip, key, false));
+		WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
 		__debug_item(ds, "K", key->data, key->size);
 
 		if ((cell = __wt_row_leaf_value_cell(page, rip, NULL)) == NULL)
@@ -1156,14 +1156,14 @@ static void
 __debug_item(WT_DBG *ds, const char *tag, const void *data_arg, size_t size)
 {
 	size_t i;
-	int ch;
+	u_char ch;
 	const uint8_t *data;
 
 	__dmsg(ds, "\t%s%s{", tag == NULL ? "" : tag, tag == NULL ? "" : " ");
 	for (data = data_arg, i = 0; i < size; ++i, ++data) {
 		ch = data[0];
-		if (isprint(ch))
-			__dmsg(ds, "%c", ch);
+		if (__wt_isprint(ch))
+			__dmsg(ds, "%c", (int)ch);
 		else
 			__debug_hex_byte(ds, data[0]);
 	}

@@ -77,6 +77,7 @@ struct __wt_cache {
 	uint64_t pages_dirty;
 	uint64_t bytes_evict;		/* Bytes/pages discarded by eviction */
 	uint64_t pages_evict;
+	uint64_t pages_evicted;		/* Pages evicted during a pass */
 	uint64_t bytes_image;		/* Bytes of disk images */
 	uint64_t bytes_inmem;		/* Bytes/pages in memory */
 	uint64_t pages_inmem;
