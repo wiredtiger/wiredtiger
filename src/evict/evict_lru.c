@@ -232,6 +232,12 @@ __evict_thread_run(void *arg)
 	WT_ERR(__wt_verbose(
 	    session, WT_VERB_EVICTSERVER, "cache eviction thread exiting"));
 
+	/*
+	 * Eviction threads should only ever stop when the connection is
+	 * closing - check that otherwise fewer eviction worker threads may be
+	 * running than expected.
+	 */
+	WT_ASSERT(session, ret == 0 || F_ISSET(conn, WT_CONN_CLOSING));
 	if (0) {
 err:		WT_PANIC_MSG(session, ret, "cache eviction thread error");
 	}
