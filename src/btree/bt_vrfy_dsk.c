@@ -304,13 +304,11 @@ __verify_dsk_row(
 			addr = unpack->data;
 			size = unpack->size;
 			do {
-				ret = bm->addr_invalid(bm, session, addr, size);
-				WT_RET_ERROR_OK(ret, EINVAL);
-				if (ret == EINVAL) {
+				if ((ret = bm->addr_invalid(
+				    bm, session, addr, size)) == EINVAL)
 					ret = __err_cell_corrupt_or_eof(
 					    session, cell_num, tag);
-					goto err;
-				}
+				WT_ERR(ret);
 				WT_ERR(
 				    __wt_block_addr_len(session, &addr, &size));
 			} while (size > 0);

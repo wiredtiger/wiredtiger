@@ -571,6 +571,8 @@ static const char * const __stats_connection_desc[] = {
 	"cache: eviction server unable to reach eviction goal",
 	"cache: eviction worker thread evicting pages",
 	"cache: failed eviction of pages that exceeded the in-memory maximum",
+	"cache: files with active eviction walks",
+	"cache: files with new eviction walks started",
 	"cache: hazard pointer blocked page eviction",
 	"cache: hazard pointer check calls",
 	"cache: hazard pointer check entries walked",
@@ -585,15 +587,19 @@ static const char * const __stats_connection_desc[] = {
 	"cache: maximum bytes configured",
 	"cache: maximum page size at eviction",
 	"cache: modified pages evicted",
+	"cache: modified pages evicted by application threads",
 	"cache: page split during eviction deepened the tree",
 	"cache: page written requiring lookaside records",
 	"cache: pages currently held in the cache",
 	"cache: pages evicted because they exceeded the in-memory maximum",
 	"cache: pages evicted because they had chains of deleted items",
 	"cache: pages evicted by application threads",
+	"cache: pages queued for eviction",
+	"cache: pages queued for urgent eviction",
 	"cache: pages read into cache",
 	"cache: pages read into cache requiring lookaside entries",
 	"cache: pages requested from the cache",
+	"cache: pages seen by eviction walk",
 	"cache: pages selected for eviction unable to be evicted",
 	"cache: pages walked for eviction",
 	"cache: pages written from cache",
@@ -614,6 +620,7 @@ static const char * const __stats_connection_desc[] = {
 	"connection: pthread mutex condition wait calls",
 	"connection: pthread mutex shared lock read-lock calls",
 	"connection: pthread mutex shared lock write-lock calls",
+	"connection: total fsync I/Os",
 	"connection: total read I/Os",
 	"connection: total write I/Os",
 	"cursor: cursor create calls",
@@ -680,6 +687,9 @@ static const char * const __stats_connection_desc[] = {
 	"reconciliation: split objects currently awaiting free",
 	"session: open cursor count",
 	"session: open session count",
+	"thread-state: active filesystem fsync calls",
+	"thread-state: active filesystem read calls",
+	"thread-state: active filesystem write calls",
 	"thread-yield: page acquire busy blocked",
 	"thread-yield: page acquire eviction blocked",
 	"thread-yield: page acquire locked blocked",
@@ -785,6 +795,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cache_eviction_slow = 0;
 	stats->cache_eviction_worker_evicting = 0;
 	stats->cache_eviction_force_fail = 0;
+		/* not clearing cache_eviction_walks_active */
+	stats->cache_eviction_walks_started = 0;
 	stats->cache_eviction_hazard = 0;
 	stats->cache_hazard_checks = 0;
 	stats->cache_hazard_walks = 0;
@@ -799,15 +811,19 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing cache_bytes_max */
 		/* not clearing cache_eviction_maximum_page_size */
 	stats->cache_eviction_dirty = 0;
+	stats->cache_eviction_app_dirty = 0;
 	stats->cache_eviction_deepen = 0;
 	stats->cache_write_lookaside = 0;
 		/* not clearing cache_pages_inuse */
 	stats->cache_eviction_force = 0;
 	stats->cache_eviction_force_delete = 0;
 	stats->cache_eviction_app = 0;
+	stats->cache_eviction_pages_queued = 0;
+	stats->cache_eviction_pages_queued_oldest = 0;
 	stats->cache_read = 0;
 	stats->cache_read_lookaside = 0;
 	stats->cache_pages_requested = 0;
+	stats->cache_eviction_pages_seen = 0;
 	stats->cache_eviction_fail = 0;
 	stats->cache_eviction_walk = 0;
 	stats->cache_write = 0;
@@ -828,6 +844,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cond_wait = 0;
 	stats->rwlock_read = 0;
 	stats->rwlock_write = 0;
+	stats->fsync_io = 0;
 	stats->read_io = 0;
 	stats->write_io = 0;
 	stats->cursor_create = 0;
@@ -894,6 +911,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing rec_split_stashed_objects */
 		/* not clearing session_cursor_open */
 		/* not clearing session_open */
+		/* not clearing fsync_active */
+		/* not clearing read_active */
+		/* not clearing write_active */
 	stats->page_busy_blocked = 0;
 	stats->page_forcible_evict_blocked = 0;
 	stats->page_locked_blocked = 0;
@@ -1004,6 +1024,10 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, cache_eviction_worker_evicting);
 	to->cache_eviction_force_fail +=
 	    WT_STAT_READ(from, cache_eviction_force_fail);
+	to->cache_eviction_walks_active +=
+	    WT_STAT_READ(from, cache_eviction_walks_active);
+	to->cache_eviction_walks_started +=
+	    WT_STAT_READ(from, cache_eviction_walks_started);
 	to->cache_eviction_hazard +=
 	    WT_STAT_READ(from, cache_eviction_hazard);
 	to->cache_hazard_checks += WT_STAT_READ(from, cache_hazard_checks);
@@ -1027,6 +1051,8 @@ __wt_stat_connection_aggregate(
 	to->cache_eviction_maximum_page_size +=
 	    WT_STAT_READ(from, cache_eviction_maximum_page_size);
 	to->cache_eviction_dirty += WT_STAT_READ(from, cache_eviction_dirty);
+	to->cache_eviction_app_dirty +=
+	    WT_STAT_READ(from, cache_eviction_app_dirty);
 	to->cache_eviction_deepen +=
 	    WT_STAT_READ(from, cache_eviction_deepen);
 	to->cache_write_lookaside +=
@@ -1036,10 +1062,16 @@ __wt_stat_connection_aggregate(
 	to->cache_eviction_force_delete +=
 	    WT_STAT_READ(from, cache_eviction_force_delete);
 	to->cache_eviction_app += WT_STAT_READ(from, cache_eviction_app);
+	to->cache_eviction_pages_queued +=
+	    WT_STAT_READ(from, cache_eviction_pages_queued);
+	to->cache_eviction_pages_queued_oldest +=
+	    WT_STAT_READ(from, cache_eviction_pages_queued_oldest);
 	to->cache_read += WT_STAT_READ(from, cache_read);
 	to->cache_read_lookaside += WT_STAT_READ(from, cache_read_lookaside);
 	to->cache_pages_requested +=
 	    WT_STAT_READ(from, cache_pages_requested);
+	to->cache_eviction_pages_seen +=
+	    WT_STAT_READ(from, cache_eviction_pages_seen);
 	to->cache_eviction_fail += WT_STAT_READ(from, cache_eviction_fail);
 	to->cache_eviction_walk += WT_STAT_READ(from, cache_eviction_walk);
 	to->cache_write += WT_STAT_READ(from, cache_write);
@@ -1060,6 +1092,7 @@ __wt_stat_connection_aggregate(
 	to->cond_wait += WT_STAT_READ(from, cond_wait);
 	to->rwlock_read += WT_STAT_READ(from, rwlock_read);
 	to->rwlock_write += WT_STAT_READ(from, rwlock_write);
+	to->fsync_io += WT_STAT_READ(from, fsync_io);
 	to->read_io += WT_STAT_READ(from, read_io);
 	to->write_io += WT_STAT_READ(from, write_io);
 	to->cursor_create += WT_STAT_READ(from, cursor_create);
@@ -1132,6 +1165,9 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, rec_split_stashed_objects);
 	to->session_cursor_open += WT_STAT_READ(from, session_cursor_open);
 	to->session_open += WT_STAT_READ(from, session_open);
+	to->fsync_active += WT_STAT_READ(from, fsync_active);
+	to->read_active += WT_STAT_READ(from, read_active);
+	to->write_active += WT_STAT_READ(from, write_active);
 	to->page_busy_blocked += WT_STAT_READ(from, page_busy_blocked);
 	to->page_forcible_evict_blocked +=
 	    WT_STAT_READ(from, page_forcible_evict_blocked);

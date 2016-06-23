@@ -50,6 +50,10 @@ flags = {
         'TXN_LOG_CKPT_STOP',
         'TXN_LOG_CKPT_SYNC',
     ],
+    'txn_update_oldest' : [
+        'TXN_OLDEST_STRICT',
+        'TXN_OLDEST_WAIT',
+    ],
     'verbose' : [
         'VERB_API',
         'VERB_BLOCK',
@@ -94,6 +98,7 @@ flags = {
         'CONN_LSM_MERGE',
         'CONN_PANIC',
         'CONN_READONLY',
+        'CONN_RECOVERING',
         'CONN_SERVER_ASYNC',
         'CONN_SERVER_CHECKPOINT',
         'CONN_SERVER_LSM',
