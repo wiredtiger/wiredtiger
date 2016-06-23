@@ -1247,18 +1247,7 @@ fast:		/* If the page can't be evicted, give up. */
 		if (!__wt_page_can_evict(session, page, true, NULL))
 			continue;
 
-		/*
-		 * If the page is clean but has modifications that appear too
-		 * new to evict, skip it.
-		 *
-		 * Note: take care with ordering: if we detected that the page
-		 * is modified above, we expect mod != NULL.
-		 */
 		mod = page->modify;
-		if (!modified && mod != NULL && !LF_ISSET(
-		    WT_EVICT_PASS_AGGRESSIVE | WT_EVICT_PASS_WOULD_BLOCK) &&
-		    !__wt_txn_visible_all(session, mod->rec_max_txn))
-			continue;
 
 		/*
 		 * If the oldest transaction hasn't changed since the last time
@@ -1273,8 +1262,7 @@ fast:		/* If the page can't be evicted, give up. */
 		 * running last time we wrote the page has since rolled back,
 		 * or we can help get the checkpoint completed sooner.
 		 */
-		if (modified && !LF_ISSET(
-		    WT_EVICT_PASS_AGGRESSIVE | WT_EVICT_PASS_WOULD_BLOCK) &&
+		if (modified &&
 		    (mod->disk_snap_min == S2C(session)->txn_global.oldest_id ||
 		    !__wt_txn_visible_all(session, mod->update_txn)))
 			continue;
