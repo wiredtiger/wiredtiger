@@ -1571,7 +1571,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 	 * lock file test above is the only one we do for read-only.
 	 */
 	if (F_ISSET(conn, WT_CONN_READONLY)) {
-		if ((ret == EACCES || ret == ENOENT))
+		if (ret == EACCES || ret == ENOENT)
 			ret = 0;
 		WT_ERR(ret);
 	} else {
