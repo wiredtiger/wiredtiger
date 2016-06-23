@@ -257,7 +257,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session,
  *	Sweep the running transactions to update the oldest ID required.
  */
 int
-__wt_txn_update_oldest(WT_SESSION_IMPL *session, bool strict, bool wait)
+__wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
@@ -265,9 +265,12 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, bool strict, bool wait)
 	WT_TXN_GLOBAL *txn_global;
 	uint64_t current_id, last_running, oldest_id;
 	uint64_t prev_last_running, prev_oldest_id;
+	bool strict, wait;
 
 	conn = S2C(session);
 	txn_global = &conn->txn_global;
+	strict = LF_ISSET(WT_TXN_OLDEST_STRICT);
+	wait = LF_ISSET(WT_TXN_OLDEST_WAIT);
 
 	current_id = last_running = txn_global->current;
 	prev_last_running = txn_global->last_running;
