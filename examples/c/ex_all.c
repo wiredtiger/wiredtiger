@@ -1172,8 +1172,10 @@ main(void)
 	/*! [Statistics logging with a table] */
 	if (ret == 0)
 		(void)conn->close(conn, NULL);
-#endif
 
+	/*
+	 * Don't run this code, statistics logging doesn't yet support indexes.
+	 */
 	/*! [Statistics logging with a source type] */
 	ret = wiredtiger_open(home, NULL,
 	    "create, statistics_log=(sources=(\"index:\"), wait=5)",
@@ -1182,7 +1184,6 @@ main(void)
 	if (ret == 0)
 		(void)conn->close(conn, NULL);
 
-#ifdef MIGHT_NOT_RUN
 	/*
 	 * Don't run this code, because memory checkers get very upset when we
 	 * leak memory.

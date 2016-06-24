@@ -988,6 +988,10 @@ allExample()
     /*! [Statistics logging] */
     conn.close(null);
 
+    if (false) {  // MIGHT_NOT_RUN
+    /*
+     * Don't run this code, statistics logging doesn't yet support tables.
+     */
     /*! [Statistics logging with a table] */
     conn = wiredtiger.open(home,
         "create," +
@@ -995,13 +999,15 @@ allExample()
     /*! [Statistics logging with a table] */
     conn.close(null);
 
+    /*
+     * Don't run this code, statistics logging doesn't yet support indexes.
+     */
     /*! [Statistics logging with a source type] */
     conn = wiredtiger.open(home,
         "create,statistics_log=(sources=(\"index:\"))");
     /*! [Statistics logging with a source type] */
     conn.close(null);
 
-    if (false) {  // MIGHT_NOT_RUN
     /*
      * Don't run this code, because memory checkers get very upset when we
      * leak memory.
