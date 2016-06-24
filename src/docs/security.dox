@@ -12,9 +12,10 @@ See @ref home for more information.
 WiredTiger prepends the name of the database home to file names which
 do not appear to be absolute paths. (The absolute path test is
 simplistic, matching a leading slash character on POSIX systems or a
-leading alphabetic character, colon and forward or backward slash on
-Windows.) No file path validation is done by WiredTiger, for example, file
-paths may include symbolic links or \c ../ (dot dot slash) components.
+leading alphabetic character and colon on Windows.) No file path
+sanitization or validation is done by WiredTiger, for example, file
+paths may match universal naming conventions (UNC), or include \c "../"
+(dot dot slash) components.
 
 Applications are responsible for validating user-supplied file paths as
 necessary to prevent directory traversal attacks.
