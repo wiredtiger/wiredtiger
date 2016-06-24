@@ -1846,9 +1846,10 @@ struct __wt_connection {
 	 * boolean flag; default \c false.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;file_max, the maximum size of log
 	 * files., an integer between 100KB and 2GB; default \c 100MB.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the path to a directory into
-	 * which the log files are written.  If the value is not an absolute
-	 * path name\, the files are created relative to the database home., a
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the name of a directory into
+	 * which log files are written.  The directory must already exist.  If
+	 * the value is not an absolute path\, the path is relative to the
+	 * database home (see @ref absolute_path for more information)., a
 	 * string; default \c ".".}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;prealloc,
 	 * pre-allocate log files., a boolean flag; default \c true.}
@@ -1914,24 +1915,25 @@ struct __wt_connection {
 	 * statistics in JSON format., a boolean flag; default \c false.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;on_close, log statistics on database
 	 * close., a boolean flag; default \c false.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the pathname to a file into
-	 * which the log records are written\, may contain ISO C standard
-	 * strftime conversion specifications.  If the value is not an absolute
-	 * path name\, the file is created relative to the database home., a
-	 * string; default \c "WiredTigerStat.%d.%H".}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;sources, if non-empty\, include
-	 * statistics for the list of data source URIs\, if they are open at the
-	 * time of the statistics logging.  The list may include URIs matching a
-	 * single data source ("table:mytable")\, or a URI matching all data
-	 * sources of a particular type ("table:")., a list of strings; default
-	 * empty.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;timestamp, a timestamp
-	 * prepended to each log record\, may contain strftime conversion
-	 * specifications\, when \c json is configured\, defaults to \c
-	 * "%FT%Y.000Z"., a string; default \c "%b %d %H:%M:%S".}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait between each
-	 * write of the log records; setting this value above 0 configures
-	 * statistics logging., an integer between 0 and 100000; default \c 0.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the name of a directory into
+	 * which statistics files are written.  The directory must already
+	 * exist.  If the value is not an absolute path\, the path is relative
+	 * to the database home (see @ref absolute_path for more information).,
+	 * a string; default \c ".".}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;sources,
+	 * if non-empty\, include statistics for the list of data source URIs\,
+	 * if they are open at the time of the statistics logging.  The list may
+	 * include URIs matching a single data source ("table:mytable")\, or a
+	 * URI matching all data sources of a particular type ("table:")., a
+	 * list of strings; default empty.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;timestamp, a timestamp prepended to
+	 * each log record\, may contain strftime conversion specifications\,
+	 * when \c json is configured\, defaults to \c "%FT%Y.000Z"., a string;
+	 * default \c "%b %d %H:%M:%S".}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait,
+	 * seconds to wait between each write of the log records; setting this
+	 * value above 0 configures statistics logging., an integer between 0
+	 * and 100000; default \c 0.}
 	 * @config{ ),,}
 	 * @config{verbose, enable messages for various events.  Only available
 	 * if WiredTiger is configured with --enable-verbose.  Options are given
@@ -2343,9 +2345,10 @@ struct __wt_connection {
  * subsystem., a boolean flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;file_max, the maximum size of log files., an
  * integer between 100KB and 2GB; default \c 100MB.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the path to a directory into which the
- * log files are written.  If the value is not an absolute path name\, the files
- * are created relative to the database home., a string; default \c ".".}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the name of a directory into which log
+ * files are written.  The directory must already exist.  If the value is not an
+ * absolute path\, the path is relative to the database home (see @ref
+ * absolute_path for more information)., a string; default \c ".".}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;prealloc, pre-allocate log files., a boolean
  * flag; default \c true.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;recover, run recovery
@@ -2415,16 +2418,15 @@ struct __wt_connection {
  * boolean flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;on_close,
  * log statistics on database close., a boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the pathname to a file into which the
- * log records are written\, may contain ISO C standard strftime conversion
- * specifications.  If the value is not an absolute path name\, the file is
- * created relative to the database home., a string; default \c
- * "WiredTigerStat.%d.%H".}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;sources, if
- * non-empty\, include statistics for the list of data source URIs\, if they are
- * open at the time of the statistics logging.  The list may include URIs
- * matching a single data source ("table:mytable")\, or a URI matching all data
- * sources of a particular type ("table:")., a list of strings; default empty.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the name of a directory into which
+ * statistics files are written.  The directory must already exist.  If the
+ * value is not an absolute path\, the path is relative to the database home
+ * (see @ref absolute_path for more information)., a string; default \c ".".}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;sources, if non-empty\, include statistics
+ * for the list of data source URIs\, if they are open at the time of the
+ * statistics logging.  The list may include URIs matching a single data source
+ * ("table:mytable")\, or a URI matching all data sources of a particular type
+ * ("table:")., a list of strings; default empty.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;timestamp, a timestamp prepended to each log
  * record\, may contain strftime conversion specifications\, when \c json is
  * configured\, defaults to \c "%FT%Y.000Z"., a string; default \c "%b %d

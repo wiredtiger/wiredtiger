@@ -440,9 +440,10 @@ connection_runtime_config = [
             the maximum size of log files''',
             min='100KB', max='2GB'),
         Config('path', '"."', r'''
-            the path to a directory into which the log files are written.
-            If the value is not an absolute path name, the files are created
-            relative to the database home'''),
+            the name of a directory into which log files are written. The
+            directory must already exist. If the value is not an absolute
+            path, the path is relative to the database home (see @ref
+            absolute_path for more information)'''),
         Config('prealloc', 'true', r'''
             pre-allocate log files.''',
             type='boolean'),
@@ -536,11 +537,11 @@ connection_runtime_config = [
             type='boolean'),
         Config('on_close', 'false', r'''log statistics on database close''',
             type='boolean'),
-        Config('path', '"WiredTigerStat.%d.%H"', r'''
-            the pathname to a file into which the log records are written,
-            may contain ISO C standard strftime conversion specifications.
-            If the value is not an absolute path name, the file is created
-            relative to the database home'''),
+        Config('path', '"."', r'''
+            the name of a directory into which statistics files are written.
+            The directory must already exist. If the value is not an absolute
+            path, the path is relative to the database home (see @ref
+            absolute_path for more information)'''),
         Config('sources', '', r'''
             if non-empty, include statistics for the list of data source
             URIs, if they are open at the time of the statistics logging.

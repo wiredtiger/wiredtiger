@@ -73,6 +73,7 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 	WT_CONFIG objectconf;
 	WT_CONFIG_ITEM cval, k, v;
 	WT_CONNECTION_IMPL *conn;
+	WT_DECL_ITEM(tmp);
 	WT_DECL_RET;
 	int cnt;
 	char **sources;
@@ -139,7 +140,10 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 	}
 
 	WT_ERR(__wt_config_gets(session, cfg, "statistics_log.path", &cval));
-	WT_ERR(__wt_nfilename(session, cval.str, cval.len, &conn->stat_path));
+	WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+	WT_ERR(__wt_buf_fmt(session,
+	    tmp, "%.*s/%s", (int)cval.len, cval.str, WT_STATLOG_FILENAME));
+	WT_ERR(__wt_filename(session, tmp->data, &conn->stat_path));
 
 	/*
 	 * When using JSON format, use the same timestamp format as MongoDB by
@@ -161,6 +165,8 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 	}
 
 err:	__stat_sources_free(session, &sources);
+	__wt_scr_free(session, &tmp);
+
 	return (ret);
 }
 

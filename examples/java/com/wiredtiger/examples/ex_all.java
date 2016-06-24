@@ -995,25 +995,13 @@ allExample()
     /*! [Statistics logging with a table] */
     conn.close(null);
 
-    /*! [Statistics logging with all tables] */
+    /*! [Statistics logging with a source type] */
     conn = wiredtiger.open(home,
-        "create,statistics_log=(sources=(\"table:\"))");
-    /*! [Statistics logging with all tables] */
+        "create,statistics_log=(sources=(\"index:\"))");
+    /*! [Statistics logging with a source type] */
     conn.close(null);
 
     if (false) {  // MIGHT_NOT_RUN
-    /*
-     * This example code gets run, and a non-existent log file path might
-     * cause the open to fail.  The documentation requires code snippets,
-     * use if (false) to avoid running it.
-     */
-    /*! [Statistics logging with path] */
-    conn = wiredtiger.open(home,
-        "create," +
-        "statistics_log=(wait=120,path=/log/log.%m.%d.%y)");
-    /*! [Statistics logging with path] */
-    conn.close(null);
-
     /*
      * Don't run this code, because memory checkers get very upset when we
      * leak memory.
