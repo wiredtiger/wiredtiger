@@ -1083,13 +1083,14 @@ __wt_page_can_evict(WT_SESSION_IMPL *session,
 	/* Pages that have never been modified can always be evicted. */
 	if (mod == NULL)
 		return (true);
-	 /*
-	  * If the page is clean but has modifications that appear too
-	  * new to evict, skip it.
-	  */
-	if (!__wt_page_is_modified(page) &&
-	    !__wt_txn_visible_all(session, mod->rec_max_txn))
-	        return (false);
+
+	/*
+	 * If the page is clean but has modifications that appear too
+	 * new to evict, skip it.
+	 */
+	if (!__wt_txn_visible_all(session, mod->rec_max_txn) ||
+	    !__wt_txn_visible_all(session, mod->update_txn))
+		return (false);
 
 	/*
 	 * Check for in-memory splits before other eviction tests. If the page
