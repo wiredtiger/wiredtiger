@@ -1160,6 +1160,10 @@ main(void)
 	if (ret == 0)
 		(void)conn->close(conn, NULL);
 
+#ifdef MIGHT_NOT_RUN
+	/*
+	 * Don't run this code, statistics logging doesn't yet support tables.
+	 */
 	/*! [Statistics logging with a table] */
 	ret = wiredtiger_open(home, NULL,
 	    "create, statistics_log=("
@@ -1168,6 +1172,7 @@ main(void)
 	/*! [Statistics logging with a table] */
 	if (ret == 0)
 		(void)conn->close(conn, NULL);
+#endif
 
 	/*! [Statistics logging with a source type] */
 	ret = wiredtiger_open(home, NULL,
