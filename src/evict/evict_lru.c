@@ -1052,7 +1052,7 @@ __evict_walk(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
-	u_int max_entries, prev_slot, retries, slot, start_slot, spins;
+	u_int prev_slot, retries, slot, start_slot, spins;
 	bool dhandle_locked, incr;
 
 	conn = S2C(session);
@@ -1072,9 +1072,8 @@ __evict_walk(WT_SESSION_IMPL *session)
 	 * per walk.
 	 */
 	start_slot = slot = cache->evict_entries;
-	max_entries = slot + WT_EVICT_WALK_INCR;
 
-retry:	while (slot < max_entries && ret == 0) {
+retry:	while (slot < cache->evict_slots && ret == 0) {
 		/*
 		 * If another thread is waiting on the eviction server to clear
 		 * the walk point in a tree, give up.
@@ -1155,7 +1154,6 @@ retry:	while (slot < max_entries && ret == 0) {
 		 * useful in the past.
 		 */
 		if (btree->evict_walk_period != 0 &&
-		    cache->evict_entries >= WT_EVICT_WALK_INCR &&
 		    btree->evict_walk_skips++ < btree->evict_walk_period)
 			continue;
 		btree->evict_walk_skips = 0;
@@ -1215,7 +1213,7 @@ retry:	while (slot < max_entries && ret == 0) {
 	 * candidates and we aren't finding more.
 	 */
 	if (!F_ISSET(cache, WT_CACHE_CLEAR_WALKS) && ret == 0 &&
-	    slot < max_entries && (retries < 2 ||
+	    slot < cache->evict_slots && (retries < 2 ||
 	    (retries < 10 &&
 	    !FLD_ISSET(cache->state, WT_EVICT_PASS_WOULD_BLOCK) &&
 	    (slot == cache->evict_entries || slot > start_slot)))) {
@@ -1270,8 +1268,8 @@ __evict_walk_file(WT_SESSION_IMPL *session, u_int *slotp)
 	WT_PAGE *page;
 	WT_PAGE_MODIFY *mod;
 	WT_REF *ref;
-	uint64_t pages_seen, refs_walked;
-	uint32_t walk_flags;
+	uint64_t btree_inuse, cache_inuse, pages_seen, refs_walked;
+	uint32_t remaining_slots, target_pages, total_slots, walk_flags;
 	int internal_pages, restarts;
 	bool enough, modified;
 
@@ -1281,11 +1279,33 @@ __evict_walk_file(WT_SESSION_IMPL *session, u_int *slotp)
 	internal_pages = restarts = 0;
 	enough = false;
 
+	/*
+	 * Figure out how many slots to fill from this tree.
+	 * Note that some care is taken in the calculation to avoid overflow.
+	 */
 	start = cache->evict_queue + *slotp;
-	end = start + WT_EVICT_WALK_PER_FILE;
+	btree_inuse = __wt_btree_bytes_inuse(session);
+	cache_inuse = __wt_cache_bytes_inuse(cache);
+	remaining_slots = cache->evict_slots - *slotp;
+	total_slots = cache->evict_slots - cache->evict_entries;
+	target_pages = (uint32_t)(btree_inuse /
+	    (cache_inuse / total_slots));
+	if (target_pages == 0) {
+		/*
+		 * Randomly walk trees with a tiny fraction of the cache in
+		 * case there are so many trees that none of them use enough of
+		 * the cache to be allocated slots.
+		 */
+		if (__wt_random(&session->rnd) / (double)UINT32_MAX >
+		    btree_inuse / (double)cache_inuse)
+			return (0);
+		target_pages = 10;
+	}
+
 	if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
-	    end > cache->evict_queue + cache->evict_slots)
-		end = cache->evict_queue + cache->evict_slots;
+	    target_pages > remaining_slots)
+		target_pages = remaining_slots;
+	end = start + target_pages;
 
 	walk_flags =
 	    WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN | WT_READ_NO_WAIT;
