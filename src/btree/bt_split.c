@@ -345,12 +345,14 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home,
 	}
 
 	/*
-	 * If there's no address (the page has never been written), or the
-	 * address has been instantiated, there's no work to do.  Otherwise,
-	 * instantiate the address in-memory, from the on-page cell. We can
-	 * race with reconciliation and/or eviction of the child pages, so
-	 * be cautious: read the address and verify it, and only update it if
-	 * the value is unchanged from the original.
+	 * If there's no address at all (the page has never been written), or
+	 * the address has already been instantiated, there's no work to do.
+	 * Otherwise, the address still references a split page on-page cell,
+	 * instantiate it. We can race with reconciliation and/or eviction of
+	 * the child pages, be cautious: read the address and verify it, and
+	 * only update it if the value is unchanged from the original. In the
+	 * case of a race, the address must no longer reference the split page,
+	 * we're done.
 	 */
 	WT_ORDERED_READ(ref_addr, ref->addr);
 	if (ref_addr != NULL && !__wt_off_page(from_home, ref_addr)) {
