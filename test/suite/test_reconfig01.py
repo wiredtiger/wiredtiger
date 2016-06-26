@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import time
+import os, time
 import wiredtiger, wttest
 from helper import simple_populate
 
@@ -104,7 +104,8 @@ class test_reconfig01(wttest.WiredTigerTestCase):
         self.conn.reconfigure("statistics_log=(wait=0)")
         self.conn.reconfigure("statistics_log=(wait=2,timestamp=\"t%b %d\")")
         self.conn.reconfigure("statistics_log=(wait=0)")
-        self.conn.reconfigure("statistics_log=(wait=2,path=\"wts.%d.%H\")")
+	os.mkdir("foo")
+        self.conn.reconfigure("statistics_log=(wait=2,path=foo)")
         self.conn.reconfigure("statistics_log=(wait=0)")
         self.conn.reconfigure(
              "statistics_log=(wait=2,sources=[lsm:],timestamp=\"%b\")")
