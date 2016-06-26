@@ -298,7 +298,7 @@ static int
 __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home,
     WT_REF **from_refp, size_t *decrp, WT_REF **to_refp, size_t *incrp)
 {
-	WT_ADDR *addr;
+	WT_ADDR *addr, *ref_addr;
 	WT_CELL_UNPACK unpack;
 	WT_DECL_RET;
 	WT_IKEY *ikey;
@@ -347,11 +347,14 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home,
 	/*
 	 * If there's no address (the page has never been written), or the
 	 * address has been instantiated, there's no work to do.  Otherwise,
-	 * instantiate the address in-memory, from the on-page cell.
+	 * instantiate the address in-memory, from the on-page cell. We can
+	 * race with reconciliation and/or eviction of the child pages, so
+	 * be cautious: read the address and verify it, and only update it if
+	 * the value is unchanged from the original.
 	 */
-	addr = ref->addr;
-	if (addr != NULL && !__wt_off_page(from_home, addr)) {
-		__wt_cell_unpack((WT_CELL *)ref->addr, &unpack);
+	WT_ORDERED_READ(ref_addr, ref->addr);
+	if (ref_addr != NULL && !__wt_off_page(from_home, ref_addr)) {
+		__wt_cell_unpack((WT_CELL *)ref_addr, &unpack);
 		WT_RET(__wt_calloc_one(session, &addr));
 		if ((ret = __wt_strndup(
 		    session, unpack.data, unpack.size, &addr->addr)) != 0) {
@@ -371,7 +374,10 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home,
 			break;
 		WT_ILLEGAL_VALUE(session);
 		}
-		ref->addr = addr;
+		if (!__wt_atomic_cas_ptr(&ref->addr, ref_addr, addr)) {
+			__wt_free(session, addr->addr);
+			__wt_free(session, addr);
+		}
 	}
 
 	/* And finally, copy the WT_REF pointer itself. */
