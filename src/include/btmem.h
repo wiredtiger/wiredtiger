@@ -564,6 +564,7 @@ struct __wt_page {
 #define	WT_PAGE_SPLIT_BLOCK	0x20	/* Split blocking eviction and splits */
 #define	WT_PAGE_SPLIT_INSERT	0x40	/* A leaf page was split for append */
 #define	WT_PAGE_UPDATE_IGNORE	0x80	/* Ignore updates on page discard */
+#define	WT_PAGE_FORCE_EVICTING  0x100   /* Page is being force evicted */
 	uint8_t flags_atomic;		/* Atomic flags, use F_*_ATOMIC */
 
 	uint8_t unused[2];		/* Unused padding */
