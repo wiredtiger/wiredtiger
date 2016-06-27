@@ -23,6 +23,7 @@
 struct __wt_evict_entry {
 	WT_BTREE *btree;		/* Enclosing btree object */
 	WT_REF	 *ref;			/* Page to flush/evict */
+	uint64_t  score;		/* Relative eviction priority */
 };
 
 /*
