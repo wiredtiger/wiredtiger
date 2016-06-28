@@ -1062,7 +1062,7 @@ __evict_walk(WT_SESSION_IMPL *session)
 	 * per walk.
 	 */
 	start_slot = slot = cache->evict_entries;
-	max_entries = slot + WT_EVICT_WALK_INCR;
+	max_entries = WT_MIN(slot + WT_EVICT_WALK_INCR, cache->evict_slots);
 
 retry:	while (slot < max_entries && ret == 0) {
 		/*
