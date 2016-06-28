@@ -240,6 +240,13 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
 	    cache_eviction_maximum_page_size, cache->evict_max_page_size);
 	WT_STAT_SET(session, stats, cache_pages_dirty, cache->pages_dirty);
 
+	/*
+	 * The number of files with active walks ~= number of hazard pointers
+	 * in the walk session.  Note: reading without locking.
+	 */
+	if (conn->evict_session != NULL)
+		WT_STAT_SET(session, stats, cache_eviction_walks_active,
+		    cache->walk_session->nhazard);
 }
 
 /*
