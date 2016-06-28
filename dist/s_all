@@ -17,6 +17,8 @@ force=
 reconf=0
 errmode=0
 errfound=0
+# Some tests just shouldn't return an error. We exclude them here
+err_exclusions=('\./s_export')
 while :
 	do case "$1" in
 	-A)	# Reconfigure the library build.
@@ -53,7 +55,9 @@ errchk()
 	echo "#######################"
 
 	rm -f $2
-	errfound=1
+	if ! [[ "${err_exclusions[@]}" =~ "$1" ]]; then
+		errfound=1
+	fi
 }
 
 run()
