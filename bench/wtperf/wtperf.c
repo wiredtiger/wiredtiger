@@ -160,10 +160,14 @@ randomize_value(CONFIG_THREAD *thread, char *value_buf)
 static uint32_t
 map_key_to_table(CONFIG *cfg, uint64_t k)
 {
-	if (cfg->range_partition)
-		return ((uint32_t)(k /
-		    ((cfg->icount + cfg->random_range) / cfg->table_count)));
-	else
+	if (cfg->range_partition) {
+		/* Take care to return a result in [0..table_count-1]. */
+		if (k > cfg->icount + cfg->random_range)
+			return (0);
+		return ((uint32_t)((k - 1) /
+		    ((cfg->icount + cfg->random_range + cfg->table_count - 1) /
+		    cfg->table_count)));
+	} else
 		return ((uint32_t)(k % cfg->table_count));
 }
 
@@ -2631,7 +2635,7 @@ wtperf_rand(CONFIG_THREAD *thread)
 		 * first item in the table being "hot".
 		 */
 		if (rval > wtperf_value_range(cfg))
-			rval = wtperf_value_range(cfg);
+			rval = 0;
 	}
 	/*
 	 * Wrap the key to within the expected range and avoid zero: we never

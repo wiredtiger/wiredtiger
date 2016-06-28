@@ -1076,7 +1076,7 @@ __evict_walk(WT_SESSION_IMPL *session, uint32_t queue_index)
 	 */
 	evict_queue = &cache->evict_queues[queue_index];
 	start_slot = slot = evict_queue->evict_entries;
-	max_entries = slot + WT_EVICT_WALK_INCR;
+	max_entries = WT_MIN(slot + WT_EVICT_WALK_INCR, cache->evict_slots);
 
 retry:	while (slot < max_entries && ret == 0) {
 		/*
