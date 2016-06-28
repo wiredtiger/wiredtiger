@@ -435,6 +435,10 @@ __evict_review(
 		 */
 		if (*inmem_splitp)
 			return (__wt_split_insert(session, ref));
+
+		WT_ASSERT(session,
+		    F_ISSET(session->dhandle, WT_DHANDLE_EXCLUSIVE) ||
+		    (!F_ISSET(S2BT(session), WT_BTREE_NO_EVICTION)));
 	}
 
 	/* If the page is clean, we're done and we can evict. */
