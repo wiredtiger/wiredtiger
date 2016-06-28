@@ -2097,7 +2097,8 @@ start_run(CONFIG *cfg)
 			goto err;
 
 		/* Didn't create, set insert count. */
-		if (cfg->create == 0 && find_table_count(cfg) != 0)
+		if (cfg->create == 0 && cfg->random_range == 0 &&
+		    find_table_count(cfg) != 0)
 			goto err;
 		/* Start the checkpoint thread. */
 		if (cfg->checkpoint_threads != 0) {
