@@ -1311,6 +1311,13 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 		 * Randomly walk trees with a tiny fraction of the cache in
 		 * case there are so many trees that none of them use enough of
 		 * the cache to be allocated slots.
+		 *
+		 * Map a random number into the range [0..1], and if the result
+		 * is greater than the fraction of the cache used by this tree,
+		 * give up.  In other words, there is a small chance we will
+		 * visit trees that use a small fraction of the cache.  Arrange
+		 * this calculation to avoid overflow (e.g., don't multiply
+		 * anything by UINT32_MAX).
 		 */
 		if (__wt_random(&session->rnd) / (double)UINT32_MAX >
 		    btree_inuse / (double)cache_inuse)
