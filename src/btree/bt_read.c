@@ -550,17 +550,19 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			 * done on this file, we're done.
 			 */
 			if (LF_ISSET(WT_READ_NO_EVICT) ||
-			    F_ISSET(session, WT_SESSION_NO_EVICTION) ||
-			    F_ISSET(btree, WT_BTREE_NO_EVICTION))
+			    F_ISSET(session, WT_SESSION_NO_EVICTION))
 				goto skip_evict;
 
 			/*
 			 * Forcibly evict pages that are too big.
 			 */
+			page = ref->page;
 			if (force_attempts < 10 &&
 			    __evict_force_check(session, ref)) {
 				++force_attempts;
+				F_SET_ATOMIC(page, WT_PAGE_FORCE_EVICTING);
 				ret = __wt_page_release_evict(session, ref);
+				F_CLR_ATOMIC(page, WT_PAGE_FORCE_EVICTING);
 				/* If forced eviction fails, stall. */
 				if (ret == EBUSY) {
 					ret = 0;
@@ -592,7 +594,6 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			 * already flagged for forced eviction, update the page
 			 * read generation.
 			 */
-			page = ref->page;
 			if (page->read_gen == WT_READGEN_NOTSET) {
 				if (evict_soon)
 					__wt_page_evict_soon(page);

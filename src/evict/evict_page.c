@@ -435,6 +435,14 @@ __evict_review(
 		 */
 		if (*inmem_splitp)
 			return (__wt_split_insert(session, ref));
+
+		/*
+		 * Make sure that BTREE_NO_EVICTION flag is not set
+		 * if this page is being force evicted
+		 */
+		WT_ASSERT(session,
+		    !(F_ISSET_ATOMIC(page, WT_PAGE_FORCE_EVICTING) &&
+		    F_ISSET(S2BT(session), WT_BTREE_NO_EVICTION)));
 	}
 
 	/* If the page is clean, we're done and we can evict. */
