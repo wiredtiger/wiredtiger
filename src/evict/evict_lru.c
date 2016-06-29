@@ -641,8 +641,8 @@ __evict_pass(WT_SESSION_IMPL *session)
 		 * Start a worker if we have capacity and we haven't reached
 		 * the eviction targets.
 		 */
-		if (FLD_ISSET(cache->state, WT_EVICT_STATE_ALL |
-		    WT_EVICT_STATE_DIRTY | WT_EVICT_STATE_SCRUB) &&
+		if (FLD_ISSET(cache->state,
+		    WT_EVICT_STATE_ALL | WT_EVICT_STATE_DIRTY) &&
 		    conn->evict_workers < conn->evict_workers_max) {
 			WT_RET(__wt_verbose(session, WT_VERB_EVICTSERVER,
 			    "Starting evict worker: %"PRIu32"\n",
@@ -1398,11 +1398,6 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 		/* Skip clean pages if appropriate. */
 		if (!modified && (F_ISSET(conn, WT_CONN_IN_MEMORY) ||
 		    FLD_ISSET(cache->state, WT_EVICT_STATE_DIRTY)))
-			continue;
-
-		/* Skip pages that have never been modified if scrubbing. */
-		if (page->modify == NULL &&
-		    FLD_ISSET(cache->state, WT_EVICT_STATE_SCRUB))
 			continue;
 
 		/* Limit internal pages to 50% of the total. */

@@ -521,11 +521,6 @@ __evict_review(
 		else if (page->read_gen == WT_READGEN_OLDEST ||
 		    page->memory_footprint > S2BT(session)->splitmempage)
 			LF_SET(WT_EVICT_UPDATE_RESTORE);
-#if 0
-		else if (FLD_ISSET(cache->state,
-		    WT_EVICT_STATE_DIRTY | WT_EVICT_STATE_SCRUB))
-			LF_SET(WT_EVICT_SCRUB);
-#endif
 		else if (F_ISSET(cache, WT_CACHE_STUCK))
 			LF_SET(WT_EVICT_LOOKASIDE);
 	}
