@@ -369,9 +369,6 @@ connection_runtime_config = [
         adjust this value based on allocator choice and behavior in measured
         workloads''',
         min='0', max='30'),
-    Config('cache_page_reserve', '75', r'''
-        reserve this percentage of the cache for page images''',
-        min=0, max=99),
     Config('checkpoint', '', r'''
         periodically checkpoint the database. Enabling the checkpoint server
         uses a session from the configured session_max''',

@@ -517,7 +517,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
 {
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
-	uint64_t bytes_inuse, bytes_max, dirty_inuse, max_other_bytes;
+	uint64_t bytes_inuse, bytes_max, dirty_inuse;
 
 	conn = S2C(session);
 	cache = conn->cache;
@@ -568,17 +568,6 @@ __evict_update_work(WT_SESSION_IMPL *session)
 		FLD_SET(cache->state, WT_EVICT_STATE_DIRTY);
 		goto done;
 	}
-
-#if 0
-	max_other_bytes = WT_MAX(WT_MEGABYTE,
-	    ((100 - cache->page_reserve_pct) * bytes_max) / 100);
-	if (__wt_cache_bytes_other(cache) > max_other_bytes) {
-		FLD_SET(cache->state, WT_EVICT_STATE_SCRUB);
-		goto done;
-	}
-#else
-	WT_UNUSED(max_other_bytes);
-#endif
 
 	return (false);
 
