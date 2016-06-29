@@ -75,23 +75,6 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 
 	(void)__wt_atomic_addv32(&btree->evict_busy, 1);
 
-#if 0
-	/*
-	 * We've won the race to lock the page, but it's likely to be busy.
-	 * Rather than giving up immediately if the page is busy, wait a while
-	 * for other operations to complete.
-	 *
-	 * We have to continue on to __wt_evict to unlock the ref even if we
-	 * get an unexpected error here.
-	 */
-	for (tries = 0;
-	    __evict_exclusive(session, ref) == EBUSY && tries < 10;
-	    ++tries)
-		__wt_sleep(0, tries * WT_THOUSAND);
-#else
-	WT_UNUSED(tries);
-#endif
-
 	too_big = page->memory_footprint > btree->splitmempage;
 	if ((ret = __wt_evict(session, ref, false)) == 0) {
 		if (too_big)
