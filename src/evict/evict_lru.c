@@ -741,8 +741,6 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session, bool *evict_resetp)
 	if (F_ISSET(btree, WT_BTREE_NO_EVICTION))
 		return (0);
 
-	*evict_resetp = true;
-
 	/*
 	 * Hold the walk lock to set the "no eviction" flag: no new pages from
 	 * the file will be queued for eviction after this point.
