@@ -1811,7 +1811,8 @@ __wt_page_evict_soon(WT_SESSION_IMPL *session, WT_REF *ref)
 
 	page = ref->page;
 	page->read_gen = WT_READGEN_OLDEST;
-	if (F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU))
+	if (F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU) ||
+	    F_ISSET(S2BT(session), WT_BTREE_NO_EVICTION))
 		return (0);
 
 	/* Append to the urgent queue if we can. */
@@ -1820,7 +1821,8 @@ __wt_page_evict_soon(WT_SESSION_IMPL *session, WT_REF *ref)
 	queued = false;
 
 	__wt_spin_lock(session, &cache->evict_queue_lock);
-	if (F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU))
+	if (F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU) ||
+	    F_ISSET(S2BT(session), WT_BTREE_NO_EVICTION))
 		goto done;
 
 	__wt_spin_lock(session, &urgent_queue->evict_lock);
