@@ -225,11 +225,15 @@ __wt_eviction_needed(WT_SESSION_IMPL *session, u_int *pct_fullp)
 	    (cache->eviction_dirty_trigger * bytes_max) / 100)
 		return (true);
 
+#if 0
 	/* Eviction is required if the "other" bytes is too high. */
 	max_other_bytes = WT_MAX(WT_MEGABYTE,
 	    ((100 - cache->page_reserve_pct) * bytes_max) / 100);
 	if (__wt_cache_bytes_other(cache) > max_other_bytes)
 		return (true);
+#else
+	WT_UNUSED(max_other_bytes);
+#endif
 
 	return (false);
 }

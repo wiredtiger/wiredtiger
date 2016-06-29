@@ -319,12 +319,11 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 	/* Pages are usually small enough, check that first. */
 	if (page->memory_footprint < btree->splitmempage)
 		return (false);
+	else if (page->memory_footprint < btree->maxmempage)
+		return (__wt_leaf_page_can_split(session, page));
 
 	/* Trigger eviction on the next page release. */
 	__wt_page_evict_soon(session, ref);
-
-	if (page->memory_footprint < btree->maxmempage)
-		return (__wt_leaf_page_can_split(session, page));
 
 	/* Bump the oldest ID, we're about to do some visibility checks. */
 	(void)__wt_txn_update_oldest(session, 0);

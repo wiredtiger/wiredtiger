@@ -529,6 +529,9 @@ __evict_update_work(WT_SESSION_IMPL *session)
 	if (!F_ISSET(conn, WT_CONN_EVICTION_RUN))
 		return (false);
 
+	if (cache->evict_queues[WT_EVICT_URGENT_QUEUE].evict_current != NULL)
+		goto done;
+
 	/*
 	 * Setup the number of refs to consider in each handle, depending
 	 * on how many handles are open. We want to consider less candidates
@@ -537,11 +540,6 @@ __evict_update_work(WT_SESSION_IMPL *session)
 	 */
 	cache->evict_max_refs_per_file =
 	    WT_MAX(100, WT_MILLION / (conn->open_file_count + 1));
-
-	if (cache->evict_queues[WT_EVICT_URGENT_QUEUE].evict_current != NULL) {
-		FLD_SET(cache->state, WT_EVICT_STATE_WOULD_BLOCK);
-		goto done;
-	}
 
 	/*
 	 * Page eviction overrides the dirty target and other types of eviction,
@@ -571,24 +569,16 @@ __evict_update_work(WT_SESSION_IMPL *session)
 		goto done;
 	}
 
+#if 0
 	max_other_bytes = WT_MAX(WT_MEGABYTE,
 	    ((100 - cache->page_reserve_pct) * bytes_max) / 100);
 	if (__wt_cache_bytes_other(cache) > max_other_bytes) {
 		FLD_SET(cache->state, WT_EVICT_STATE_SCRUB);
 		goto done;
 	}
-
-	/*
-	 * Evict pages with oldest generation (which would otherwise block
-	 * application threads), set regardless of whether we have reached
-	 * the eviction trigger.
-	 */
-	if (F_ISSET(cache, WT_CACHE_WOULD_BLOCK)) {
-		FLD_SET(cache->state, WT_EVICT_STATE_WOULD_BLOCK);
-
-		F_CLR(cache, WT_CACHE_WOULD_BLOCK);
-		goto done;
-	}
+#else
+	WT_UNUSED(max_other_bytes);
+#endif
 
 	return (false);
 
@@ -663,8 +653,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 		 * the eviction targets.
 		 */
 		if (FLD_ISSET(cache->state, WT_EVICT_STATE_ALL |
-		    WT_EVICT_STATE_DIRTY | WT_EVICT_STATE_SCRUB |
-		    WT_EVICT_STATE_WOULD_BLOCK) &&
+		    WT_EVICT_STATE_DIRTY | WT_EVICT_STATE_SCRUB) &&
 		    conn->evict_workers < conn->evict_workers_max) {
 			WT_RET(__wt_verbose(session, WT_VERB_EVICTSERVER,
 			    "Starting evict worker: %"PRIu32"\n",
@@ -682,8 +671,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 		    " In use: %" PRIu64 " Dirty: %" PRIu64,
 		    conn->cache_size, cache->bytes_inmem, cache->bytes_dirty));
 
-		if (!FLD_ISSET(cache->state, WT_EVICT_STATE_WOULD_BLOCK))
-			WT_RET(__evict_lru_walk(session));
+		WT_RET(__evict_lru_walk(session));
 		WT_RET_NOTFOUND_OK(__evict_lru_pages(session, true));
 
 		/*
@@ -706,15 +694,12 @@ __evict_pass(WT_SESSION_IMPL *session)
 				 * Mark the cache as stuck if we need space
 				 * and aren't evicting any pages.
 				 */
-				if (!FLD_ISSET(cache->state,
-				    WT_EVICT_STATE_WOULD_BLOCK)) {
-					F_SET(cache, WT_CACHE_STUCK);
-					WT_STAT_FAST_CONN_INCR(
-					    session, cache_eviction_slow);
-					WT_RET(__wt_verbose(
-					    session, WT_VERB_EVICTSERVER,
-					    "unable to reach eviction goal"));
-				}
+				F_SET(cache, WT_CACHE_STUCK);
+				WT_STAT_FAST_CONN_INCR(
+				    session, cache_eviction_slow);
+				WT_RET(__wt_verbose(
+				    session, WT_VERB_EVICTSERVER,
+				    "unable to reach eviction goal"));
 				break;
 			}
 		} else {
@@ -988,8 +973,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 	}
 
 	/* Decide how many of the candidates we're going to try and evict. */
-	if (FLD_ISSET(cache->state,
-	    WT_EVICT_STATE_AGGRESSIVE | WT_EVICT_STATE_WOULD_BLOCK)) {
+	if (FLD_ISSET(cache->state, WT_EVICT_STATE_AGGRESSIVE)) {
 		/*
 		 * Take all candidates if we only gathered pages with an oldest
 		 * read generation set.
@@ -1235,9 +1219,7 @@ retry:	while (slot < max_entries && ret == 0) {
 	 */
 	if (cache->pass_intr == 0 && ret == 0 &&
 	    slot < max_entries && (retries < 2 ||
-	    (retries < 10 &&
-	    !FLD_ISSET(cache->state, WT_EVICT_STATE_WOULD_BLOCK) &&
-	    (slot == evict_queue->evict_entries || slot > start_slot)))) {
+	    (retries < 10 && slot > start_slot))) {
 		start_slot = slot;
 		++retries;
 		goto retry;
@@ -1434,14 +1416,6 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 		    FLD_ISSET(cache->state, WT_EVICT_STATE_SCRUB))
 			continue;
 
-		/*
-		 * If we are only trickling out pages marked for definite
-		 * eviction, skip anything that isn't marked.
-		 */
-		if (FLD_ISSET(cache->state, WT_EVICT_STATE_WOULD_BLOCK) &&
-		    page->memory_footprint < btree->splitmempage)
-			continue;
-
 		/* Limit internal pages to 50% of the total. */
 		if (WT_PAGE_IS_INTERNAL(page) &&
 		    internal_pages > (int)(evict - start) / 2)
@@ -1467,8 +1441,7 @@ fast:		/* If the page can't be evicted, give up. */
 		 * configure lookaside table writes in reconciliation, allowing
 		 * us to evict pages we can't usually evict.
 		 */
-		if (!FLD_ISSET(cache->state,
-		    WT_EVICT_STATE_AGGRESSIVE | WT_EVICT_STATE_WOULD_BLOCK)) {
+		if (!FLD_ISSET(cache->state, WT_EVICT_STATE_AGGRESSIVE)) {
 			/*
 			 * If the page is clean but has modifications that
 			 * appear too new to evict, skip it.

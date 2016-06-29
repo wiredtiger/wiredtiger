@@ -153,7 +153,6 @@ struct __wt_cache {
 #define	WT_EVICT_STATE_ALL		0x02
 #define	WT_EVICT_STATE_DIRTY		0x04
 #define	WT_EVICT_STATE_SCRUB		0x08
-#define	WT_EVICT_STATE_WOULD_BLOCK	0x10
 	uint32_t state;
 	/*
 	 * Pass interrupt counter.
@@ -167,7 +166,6 @@ struct __wt_cache {
 #define	WT_CACHE_POOL_RUN	0x02	/* Cache pool thread running */
 #define	WT_CACHE_STUCK		0x04	/* Eviction server is stuck */
 #define	WT_CACHE_WALK_REVERSE	0x08	/* Scan backwards for candidates */
-#define	WT_CACHE_WOULD_BLOCK	0x10	/* Pages that would block apps */
 	uint32_t flags;
 };
 

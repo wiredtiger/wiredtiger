@@ -75,6 +75,7 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 
 	(void)__wt_atomic_addv32(&btree->evict_busy, 1);
 
+#if 0
 	/*
 	 * We've won the race to lock the page, but it's likely to be busy.
 	 * Rather than giving up immediately if the page is busy, wait a while
@@ -87,6 +88,9 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 	    __evict_exclusive(session, ref) == EBUSY && tries < 10;
 	    ++tries)
 		__wt_sleep(0, tries * WT_THOUSAND);
+#else
+	WT_UNUSED(tries);
+#endif
 
 	too_big = page->memory_footprint > btree->splitmempage;
 	if ((ret = __wt_evict(session, ref, false)) == 0) {
@@ -120,7 +124,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 	WT_PAGE *page;
 	WT_PAGE_MODIFY *mod;
 	uint32_t flags;
-	bool clean_page, forced_eviction, tree_dead;
+	bool clean_page, tree_dead;
 
 	conn = S2C(session);
 
@@ -128,7 +132,6 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 	WT_ASSERT(session, !WT_SESSION_IS_CHECKPOINT(session));
 
 	page = ref->page;
-	forced_eviction = page->read_gen == WT_READGEN_OLDEST;
 	tree_dead = F_ISSET(session->dhandle, WT_DHANDLE_DEAD);
 
 	WT_RET(__wt_verbose(session, WT_VERB_EVICT,
@@ -148,7 +151,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 	 * we want: there is nothing more to do.
 	 */
 	if (LF_ISSET(WT_EVICT_INMEM_SPLIT))
-		goto done;
+		return (0);
 
 	/*
 	 * Update the page's modification reference, reconciliation might have
@@ -200,13 +203,6 @@ err:		if (!closing)
 
 		WT_STAT_FAST_CONN_INCR(session, cache_eviction_fail);
 		WT_STAT_FAST_DATA_INCR(session, cache_eviction_fail);
-	}
-
-done:	if (((LF_ISSET(WT_EVICT_INMEM_SPLIT) && ret == 0) ||
-	    (forced_eviction && ret == EBUSY)) &&
-	    !F_ISSET(conn->cache, WT_CACHE_WOULD_BLOCK)) {
-		F_SET(conn->cache, WT_CACHE_WOULD_BLOCK);
-		WT_TRET(__wt_evict_server_wake(session));
 	}
 
 	return (ret);
