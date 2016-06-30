@@ -141,7 +141,10 @@ __wt_cache_bytes_other(WT_CACHE *cache)
 	bytes_image = cache->bytes_image;
 	bytes_inmem = cache->bytes_inmem;
 
-	/* XXX Some kind of race or accounting error. */
+	/*
+	 * The reads above could race with changes to the values, so protect
+	 * against underflow.
+	 */
 	if (bytes_image > bytes_inmem)
 		return (0);
 

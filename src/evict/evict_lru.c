@@ -1560,7 +1560,7 @@ __evict_get_ref(
 	 * if necessary.
 	 */
 	candidates = queue->evict_candidates;
-	if (is_server && candidates > 1)
+	if (is_server && queue != urgent_queue && candidates > 1)
 		candidates /= 2;
 
 	/*
@@ -1593,12 +1593,16 @@ __evict_get_ref(
 		WT_ASSERT(session, evict->btree != NULL);
 
 		/*
-		 * If the server is helping out and encounters an entry that
-		 * is too large, it stops helping.  Evicting a very large
-		 * page in the server thread could stall eviction from finding
-		 * new work.
+		 * If the server is helping out and encounters an entry that is
+		 * too large, it stops helping.  Evicting a very large page in
+		 * the server thread could stall eviction from finding new
+		 * work.
+		 *
+		 * However, we can't skip entries in the urgent queue or they
+		 * may never be found again.
 		 */
-		if (is_server && S2C(session)->evict_workers > 1 &&
+		if (is_server && queue != urgent_queue &&
+		    S2C(session)->evict_workers > 1 &&
 		    !__evict_check_entry_size(session, evict))
 			continue;
 
@@ -1630,12 +1634,12 @@ __evict_get_ref(
 		break;
 	}
 
-	/* Clear the current pointer if there are no more candidates. */
-	if (evict == NULL || evict + 1 >=
+	/* Move to the next item. */
+	if (evict != NULL && evict + 1 <
 	    queue->evict_queue + queue->evict_candidates)
-		queue->evict_current = NULL;
-	else /* Move to the next item. */
 		queue->evict_current = evict + 1;
+	else /* Clear the current pointer if there are no more candidates. */
+		queue->evict_current = NULL;
 
 	__wt_spin_unlock(session, &queue->evict_lock);
 
@@ -1824,12 +1828,14 @@ __wt_page_evict_soon(WT_SESSION_IMPL *session, WT_REF *ref)
 		goto done;
 
 	__wt_spin_lock(session, &urgent_queue->evict_lock);
+	if (urgent_queue->evict_current == NULL) {
+		urgent_queue->evict_current = urgent_queue->evict_queue;
+		urgent_queue->evict_candidates = 0;
+	}
 	evict = urgent_queue->evict_queue + urgent_queue->evict_candidates;
 	if (evict < urgent_queue->evict_queue + WT_EVICT_QUEUE_MAX &&
 	    __evict_push_candidate(session, urgent_queue, evict, ref)) {
 		++urgent_queue->evict_candidates;
-		if (urgent_queue->evict_current == NULL)
-			urgent_queue->evict_current = urgent_queue->evict_queue;
 		queued = true;
 	}
 	__wt_spin_unlock(session, &urgent_queue->evict_lock);
