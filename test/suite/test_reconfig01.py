@@ -104,7 +104,7 @@ class test_reconfig01(wttest.WiredTigerTestCase):
         self.conn.reconfigure("statistics_log=(wait=0)")
         self.conn.reconfigure("statistics_log=(wait=2,timestamp=\"t%b %d\")")
         self.conn.reconfigure("statistics_log=(wait=0)")
-	os.mkdir("foo")
+        os.mkdir("foo")
         self.conn.reconfigure("statistics_log=(wait=2,path=foo)")
         self.conn.reconfigure("statistics_log=(wait=0)")
         self.conn.reconfigure(
