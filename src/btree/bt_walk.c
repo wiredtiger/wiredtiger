@@ -386,7 +386,7 @@ restart:	/*
 			 * eviction.
 			 */
 			if (empty_internal && pindex->entries > 1) {
-				__wt_page_evict_soon(session, ref);
+				WT_ERR(__wt_page_evict_soon(session, ref));
 				empty_internal = false;
 			}
 
