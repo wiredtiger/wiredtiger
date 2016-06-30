@@ -1577,8 +1577,7 @@ __evict_get_ref(
 		}
 		if (!is_server)
 			__wt_spin_lock(session, &queue->evict_lock);
-		else if (__wt_spin_trylock(
-		    session, &queue->evict_lock) != 0)
+		else if (__wt_spin_trylock(session, &queue->evict_lock) != 0)
 			continue;
 		break;
 	}
