@@ -95,20 +95,24 @@ class test_reconfig01(wttest.WiredTigerTestCase):
         self.conn.reconfigure("checkpoint=(wait=0,name=hi)")
         self.conn.reconfigure("checkpoint=(wait=5,name=hi)")
 
-    def test_reconfig_stat_log(self):
+    # Statistics logging: reconfigure the things we can reconfigure.
+    def test_reconfig_statistics_log_ok(self):
         self.conn.reconfigure("statistics=[all],statistics_log=(wait=0)")
-        self.conn.reconfigure("statistics_log=(wait=0)")
         self.conn.reconfigure("statistics_log=(wait=2)")
-        self.conn.reconfigure("statistics_log=(wait=0)")
-        self.conn.reconfigure("statistics_log=(wait=2,sources=[lsm:])")
-        self.conn.reconfigure("statistics_log=(wait=0)")
-        self.conn.reconfigure("statistics_log=(wait=2,timestamp=\"t%b %d\")")
-        self.conn.reconfigure("statistics_log=(wait=0)")
-        os.mkdir("foo")
-        self.conn.reconfigure("statistics_log=(wait=2,path=foo)")
-        self.conn.reconfigure("statistics_log=(wait=0)")
-        self.conn.reconfigure(
-             "statistics_log=(wait=2,sources=[lsm:],timestamp=\"%b\")")
+        self.conn.reconfigure("statistics_log=(wait=1,json=true)")
+        self.conn.reconfigure("statistics_log=(wait=2)")
+        self.conn.reconfigure("statistics_log=(wait=1,on_close=false)")
+        self.conn.reconfigure("statistics_log=(wait=2)")
+        self.conn.reconfigure("statistics_log=(wait=1,sources=[lsm:])")
+        self.conn.reconfigure("statistics_log=(wait=2)")
+        self.conn.reconfigure("statistics_log=(wait=1,timestamp=\"t%b %d\")")
+        self.conn.reconfigure("statistics_log=(wait=2)")
+
+    # Statistics logging: reconfigure the things we can't reconfigure.
+    def test_reconfig_statistics_log_fail(self):
+        msg = '/unknown configuration key/'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.conn.reconfigure("log=(path=foo)"), msg)
 
     def test_file_manager(self):
         self.conn.reconfigure("file_manager=(close_scan_interval=3)")
