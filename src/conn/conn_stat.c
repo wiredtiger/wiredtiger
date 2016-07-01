@@ -119,7 +119,9 @@ __statlog_config(
 	WT_RET(__wt_config_subinit(session, &objectconf, &cval));
 	for (cnt = 0; (ret = __wt_config_next(&objectconf, &k, &v)) == 0; ++cnt)
 		;
-	WT_RET_NOTFOUND_OK(ret);
+	if (ret == WT_NOTFOUND)
+		ret = 0;
+	WT_RET(ret);
 	if (cnt != 0) {
 		WT_RET(__wt_calloc_def(session, cnt + 1, &sources));
 		WT_RET(__wt_config_subinit(session, &objectconf, &cval));
