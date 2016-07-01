@@ -166,7 +166,7 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 	/*
 	 * When using JSON format, use the same timestamp format as MongoDB by
 	 * default. This requires caution: the user might have set the timestamp
-	 * in a previous reconfigure call and we don't want to overide that, so
+	 * in a previous reconfigure call and we don't want to override that, so
 	 * compare the retrieved value with the default value to decide if we
 	 * should use the JSON default.
 	 *
