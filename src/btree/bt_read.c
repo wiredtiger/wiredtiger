@@ -322,6 +322,13 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 	else if (page->memory_footprint < btree->maxmempage)
 		return (__wt_leaf_page_can_split(session, page));
 
+	/*
+	 * If we can't split the page, check if eviction is possible for this
+	 * file (eviction is turned off during some parts of checkpoint).
+	 */
+	if (F_ISSET(btree, WT_BTREE_NO_EVICTION))
+		return (false);
+
 	/* Trigger eviction on the next page release. */
 	(void)__wt_page_evict_soon(session, ref);
 
@@ -543,19 +550,13 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 				break;
 			}
 
-			/*
-			 * If eviction is configured for this file, check to see
-			 * if the page qualifies for forced eviction and update
-			 * the page's generation number. If eviction isn't being
-			 * done on this file, we're done.
-			 */
+			/* If this handle/call cannot evict, we're done. */
 			if (LF_ISSET(WT_READ_NO_EVICT) ||
-			    F_ISSET(session, WT_SESSION_NO_EVICTION) ||
-			    F_ISSET(btree, WT_BTREE_NO_EVICTION))
+			    F_ISSET(session, WT_SESSION_NO_EVICTION))
 				goto skip_evict;
 
 			/*
-			 * Forcibly evict pages that are too big.
+			 * Forcibly evict or split pages that are too big.
 			 */
 			if (force_attempts < 10 &&
 			    __evict_force_check(session, ref)) {
