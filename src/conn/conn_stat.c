@@ -165,22 +165,28 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 
 	/*
 	 * When using JSON format, use the same timestamp format as MongoDB by
-	 * default.
+	 * default. This requires caution: the user might have set the timestamp
+	 * in a previous reconfigure call and we don't want to overide that, so
+	 * compare the retrieved value with the default value to decide if we
+	 * should use the JSON default.
+	 *
+	 * (This still implies if the user explicitly sets the timestamp to the
+	 * default value, then sets the JSON flag in a separate reconfigure
+	 * call, or vice-versa, we will incorrectly switch to the JSON default
+	 * timestamp. But there's no way to detect that, and this is all a low
+	 * probability path.)
 	 */
-	if (FLD_ISSET(conn->stat_flags, WT_CONN_STAT_JSON)) {
-		ret = __wt_config_gets(
-		    session, &cfg[1], "statistics_log.timestamp", &cval);
-		if (ret == WT_NOTFOUND)
-			WT_ERR(__wt_strdup(
-			    session, "%FT%T.000Z", &conn->stat_format));
-		WT_ERR_NOTFOUND_OK(ret);
-	}
-	if (conn->stat_format == NULL) {
-		WT_ERR(__wt_config_gets(
-		    session, cfg, "statistics_log.timestamp", &cval));
+#define	WT_TIMESTAMP_DEFAULT		"%b %d %H:%M:%S"
+#define	WT_TIMESTAMP_JSON_DEFAULT	"%FT%T.000Z"
+	WT_ERR(__wt_config_gets(
+	    session, cfg, "statistics_log.timestamp", &cval));
+	if (FLD_ISSET(conn->stat_flags, WT_CONN_STAT_JSON) &&
+	    WT_STRING_MATCH(WT_TIMESTAMP_DEFAULT, cval.str, cval.len))
+		WT_ERR(__wt_strdup(
+		    session, WT_TIMESTAMP_JSON_DEFAULT, &conn->stat_format));
+	else
 		WT_ERR(__wt_strndup(
 		    session, cval.str, cval.len, &conn->stat_format));
-	}
 
 err:	__stat_sources_free(session, &sources);
 	__wt_scr_free(session, &tmp);
