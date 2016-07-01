@@ -112,16 +112,33 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 	if (cval.val != 0)
 		FLD_SET(conn->stat_flags, WT_CONN_STAT_ON_CLOSE);
 
-	WT_RET(__wt_config_gets(session, cfg, "statistics_log.sources", &cval));
-	WT_RET(__wt_config_subinit(session, &objectconf, &cval));
+	/*
+	 * We don't allow the path to be reconfigured. The reason is MongoDB
+	 * allows admin privileges to reconfigure running WiredTiger instances,
+	 * but admin privileges may be different from the privileges used to
+	 * start MongoDB. There's no strong reason it's useful to reconfigure
+	 * the statistics logging path, and we don't want admins to point the
+	 * statistics logs somewhere else, so we don't allow it.
+	 *
+	 * See above for the details, but during reconfiguration we're loading
+	 * the path value from the saved configuration information, and it's
+	 * required during reconfiguration because we potentially stopped and
+	 * are restarting, the server.
+	 */
+	WT_RET(__wt_config_gets(session, cfg, "statistics_log.path", &cval));
+	WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+	WT_ERR(__wt_buf_fmt(session,
+	    tmp, "%.*s/%s", (int)cval.len, cval.str, WT_STATLOG_FILENAME));
+	WT_ERR(__wt_filename(session, tmp->data, &conn->stat_path));
+
+	WT_ERR(__wt_config_gets(session, cfg, "statistics_log.sources", &cval));
+	WT_ERR(__wt_config_subinit(session, &objectconf, &cval));
 	for (cnt = 0; (ret = __wt_config_next(&objectconf, &k, &v)) == 0; ++cnt)
 		;
-	if (ret == WT_NOTFOUND)
-		ret = 0;
-	WT_RET(ret);
+	WT_ERR_NOTFOUND_OK(ret);
 	if (cnt != 0) {
-		WT_RET(__wt_calloc_def(session, cnt + 1, &sources));
-		WT_RET(__wt_config_subinit(session, &objectconf, &cval));
+		WT_ERR(__wt_calloc_def(session, cnt + 1, &sources));
+		WT_ERR(__wt_config_subinit(session, &objectconf, &cval));
 		for (cnt = 0;
 		    (ret = __wt_config_next(&objectconf, &k, &v)) == 0; ++cnt) {
 			/*
@@ -145,25 +162,6 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 		conn->stat_sources = sources;
 		sources = NULL;
 	}
-
-	/*
-	 * We don't allow the path to be reconfigured. The reason is MongoDB
-	 * allows admin privileges to reconfigure running WiredTiger instances,
-	 * but admin privileges may be different from the privileges used to
-	 * start MongoDB. There's no strong reason it's useful to reconfigure
-	 * the statistics logging path, and we don't want admins to point the
-	 * statistics logs somewhere else, so we don't allow it.
-	 *
-	 * See above for the details, but during reconfiguration we're loading
-	 * the path value from the saved configuration information, and it's
-	 * required during reconfiguration because we potentially stopped and
-	 * are restarting, the server.
-	 */
-	WT_ERR(__wt_config_gets(session, cfg, "statistics_log.path", &cval));
-	WT_ERR(__wt_scr_alloc(session, 0, &tmp));
-	WT_ERR(__wt_buf_fmt(session,
-	    tmp, "%.*s/%s", (int)cval.len, cval.str, WT_STATLOG_FILENAME));
-	WT_ERR(__wt_filename(session, tmp->data, &conn->stat_path));
 
 	/*
 	 * When using JSON format, use the same timestamp format as MongoDB by
