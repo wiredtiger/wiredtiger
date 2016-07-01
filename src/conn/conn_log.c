@@ -60,14 +60,14 @@ __logmgr_config(
 	 * are the currently configured values (so we don't revert to default
 	 * values when repeatedly reconfiguring), and configuration processing
 	 * of a currently set value should not change the currently set value.
-	 * That said, bugs in the reconfiguration string declarations or in the
-	 * configuration processing might cause us to reconfigure values we
-	 * don't want to reconfigure, and while configuration starting with the
-	 * current value (and no other information) should give the same results
-	 * as the original configuration, there's little testing to prove it.
-	 * Best practices: skip tests for configuration values which don't make
-	 * sense during reconfiguration, but don't worry about error reporting
-	 * because the problems should never happen.
+	 *
+	 * In this code path, log server reconfiguration does not stop/restart
+	 * the log server, so there's no point in re-evaluating configuration
+	 * strings that cannot be reconfigured, risking bugs in configuration
+	 * setup, and depending on evaluation of currently set values to always
+	 * result in the currently set value. Skip tests for any configuration
+	 * strings which don't make sense during reconfiguration, but don't
+	 * worry about error reporting because it should never happen.
 	 */
 
 	conn = S2C(session);
@@ -150,12 +150,17 @@ __logmgr_config(
 		conn->log_prealloc = 1;
 
 	/*
-	 * Note that it is meaningless to reconfigure this value during
-	 * runtime.  It only matters on create before recovery runs.
+	 * Note it's meaningless to reconfigure this value during runtime, it
+	 * only matters on create before recovery runs.
+	 *
+	 * See above: should never happen.
 	 */
-	WT_RET(__wt_config_gets_def(session, cfg, "log.recover", 0, &cval));
-	if (cval.len != 0  && WT_STRING_MATCH("error", cval.str, cval.len))
-		FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_ERR);
+	if (!reconfig) {
+		WT_RET(__wt_config_gets_def(
+		    session, cfg, "log.recover", 0, &cval));
+		if (WT_STRING_MATCH("error", cval.str, cval.len))
+			FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_ERR);
+	}
 
 	WT_RET(__wt_config_gets(session, cfg, "log.zero_fill", &cval));
 	if (cval.val != 0) {

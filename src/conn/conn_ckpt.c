@@ -178,7 +178,16 @@ __wt_checkpoint_server_create(WT_SESSION_IMPL *session, const char *cfg[])
 	conn = S2C(session);
 	start = false;
 
-	/* If there is already a server running, shut it down. */
+	/*
+	 * Stop any server that is already running. This means that each time
+	 * reconfigure is called we'll bounce the server even if there are no
+	 * configuration changes. This makes our life easier as the underlying
+	 * configuration routine doesn't have to worry about freeing objects
+	 * in the connection structure (it's guaranteed to always start with a
+	 * blank slate), and we don't have to worry about races where a running
+	 * server is reading configuration information that we're updating, and
+	 * it's not expected that reconfiguration will happen a lot.
+	 */
 	if (conn->ckpt_session != NULL)
 		WT_RET(__wt_checkpoint_server_destroy(session));
 

@@ -68,8 +68,7 @@ __wt_conn_stat_init(WT_SESSION_IMPL *session)
  *	Parse and setup the statistics server options.
  */
 static int
-__statlog_config(
-    WT_SESSION_IMPL *session, bool reconfig, const char **cfg, bool *runp)
+__statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 {
 	WT_CONFIG objectconf;
 	WT_CONFIG_ITEM cval, k, v;
@@ -88,21 +87,19 @@ __statlog_config(
 	 * are the currently configured values (so we don't revert to default
 	 * values when repeatedly reconfiguring), and configuration processing
 	 * of a currently set value should not change the currently set value.
-	 * That said, bugs in the reconfiguration string declarations or in the
-	 * configuration processing might cause us to reconfigure values we
-	 * don't want to reconfigure, and while configuration starting with the
-	 * current value (and no other information) should give the same results
-	 * as the original configuration, there's little testing to prove it.
-	 * Best practices: skip tests for configuration values which don't make
-	 * sense during reconfiguration, but don't worry about error reporting
-	 * because the problems should never happen.
+	 *
+	 * In this code path, a previous statistics log server reconfiguration
+	 * may have stopped the server (and we're about to restart it). Because
+	 * stopping the server discarded the configured information stored in
+	 * the connection structure, we have to re-evaluate all configuration
+	 * values, reconfiguration can't skip any of them.
 	 */
 
 	conn = S2C(session);
 	sources = NULL;
 
-	WT_RET(__wt_config_gets(session, cfg, "statistics_log.wait", &cval));
 	/* Only start the server if wait time is non-zero */
+	WT_RET(__wt_config_gets(session, cfg, "statistics_log.wait", &cval));
 	*runp = cval.val != 0;
 	conn->stat_usecs = (uint64_t)cval.val * WT_MILLION;
 
@@ -154,19 +151,19 @@ __statlog_config(
 	 * allows admin privileges to reconfigure running WiredTiger instances,
 	 * but admin privileges may be different from the privileges used to
 	 * start MongoDB. There's no strong reason it's useful to reconfigure
-	 * the statistics logging path and we don't want admins to point the
+	 * the statistics logging path, and we don't want admins to point the
 	 * statistics logs somewhere else, so we don't allow it.
 	 *
-	 * See above: should never happen.
+	 * See above for the details, but during reconfiguration we're loading
+	 * the path value from the saved configuration information, and it's
+	 * required during reconfiguration because we potentially stopped and
+	 * are restarting, the server.
 	 */
-	if (!reconfig) {
-		WT_ERR(__wt_config_gets(
-		    session, cfg, "statistics_log.path", &cval));
-		WT_ERR(__wt_scr_alloc(session, 0, &tmp));
-		WT_ERR(__wt_buf_fmt(session, tmp, "%.*s/%s",
-		    (int)cval.len, cval.str, WT_STATLOG_FILENAME));
-		WT_ERR(__wt_filename(session, tmp->data, &conn->stat_path));
-	}
+	WT_ERR(__wt_config_gets(session, cfg, "statistics_log.path", &cval));
+	WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+	WT_ERR(__wt_buf_fmt(session,
+	    tmp, "%.*s/%s", (int)cval.len, cval.str, WT_STATLOG_FILENAME));
+	WT_ERR(__wt_filename(session, tmp->data, &conn->stat_path));
 
 	/*
 	 * When using JSON format, use the same timestamp format as MongoDB by
@@ -561,23 +558,28 @@ __statlog_start(WT_CONNECTION_IMPL *conn)
  *	Start the statistics server thread.
  */
 int
-__wt_statlog_create(
-    WT_SESSION_IMPL *session, bool reconfigure, const char *cfg[])
+__wt_statlog_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_CONNECTION_IMPL *conn;
 	bool start;
 
 	conn = S2C(session);
 
-	WT_RET(__statlog_config(session, reconfigure, cfg, &start));
-
 	/*
-	 * Stop the statistics server if it's no longer running, start the
-	 * statistics server if it's not yet running.
+	 * Stop any server that is already running. This means that each time
+	 * reconfigure is called we'll bounce the server even if there are no
+	 * configuration changes. This makes our life easier as the underlying
+	 * configuration routine doesn't have to worry about freeing objects
+	 * in the connection structure (it's guaranteed to always start with a
+	 * blank slate), and we don't have to worry about races where a running
+	 * server is reading configuration information that we're updating, and
+	 * it's not expected that reconfiguration will happen a lot.
 	 */
-	if (!start && conn->stat_session != NULL)
+	if (conn->stat_session != NULL)
 		WT_RET(__wt_statlog_destroy(session, false));
-	if (start && conn->stat_session == NULL)
+
+	WT_RET(__statlog_config(session, cfg, &start));
+	if (start)
 		WT_RET(__statlog_start(conn));
 
 	return (0);
