@@ -287,7 +287,7 @@ __wt_cache_page_evict(WT_SESSION_IMPL *session, WT_PAGE *page)
 
 /*
  * __wt_update_list_memsize --
- *      The size in memory of a list of updates.
+ *	The size in memory of a list of updates.
  */
 static inline size_t
 __wt_update_list_memsize(WT_UPDATE *upd)
@@ -302,7 +302,7 @@ __wt_update_list_memsize(WT_UPDATE *upd)
 
 /*
  * __wt_page_evict_soon --
- *      Set a page to be evicted as soon as possible.
+ *	Set a page to be evicted as soon as possible.
  */
 static inline void
 __wt_page_evict_soon(WT_PAGE *page)
@@ -988,7 +988,7 @@ __wt_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 */
 #define	WT_MIN_SPLIT_DEPTH	2
 #define	WT_MIN_SPLIT_COUNT	30
-#define	WT_MIN_SPLIT_MULTIPLIER 16      /* At level 2, we see 1/16th entries */
+#define	WT_MIN_SPLIT_MULTIPLIER 16	/* At level 2, we see 1/16th entries */
 
 	ins_head = page->pg_row_entries == 0 ?
 	    WT_ROW_INSERT_SMALLEST(page) :
@@ -1083,6 +1083,14 @@ __wt_page_can_evict(WT_SESSION_IMPL *session,
 	/* Pages that have never been modified can always be evicted. */
 	if (mod == NULL)
 		return (true);
+
+	/*
+	 * If the page is clean but has modifications that appear too
+	 * new to evict, skip it.
+	 */
+	if (!__wt_txn_visible_all(session, mod->rec_max_txn) ||
+	    !__wt_txn_visible_all(session, mod->update_txn))
+		return (false);
 
 	/*
 	 * Check for in-memory splits before other eviction tests. If the page
