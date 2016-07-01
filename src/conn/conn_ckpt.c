@@ -23,6 +23,8 @@ __ckpt_server_config(WT_SESSION_IMPL *session, const char **cfg, bool *startp)
 	WT_DECL_RET;
 	char *p;
 
+	*startp = false;
+
 	conn = S2C(session);
 
 	WT_RET(__wt_config_gets(session, cfg, "checkpoint.wait", &cval));
@@ -50,27 +52,24 @@ __ckpt_server_config(WT_SESSION_IMPL *session, const char **cfg, bool *startp)
 	}
 
 	/*
-	 * The checkpoint configuration requires a wait time and/or a log
-	 * size -- if neither is set, we're not running at all.
-	 * Checkpoints based on log size also require logging be enabled.
+	 * The checkpoint configuration requires a wait time and/or a log size,
+	 * if neither is set, we're not running at all. Checkpoints based on log
+	 * size also require logging be enabled.
 	 */
-	if ((conn->ckpt_usecs == 0 && conn->ckpt_logsize == 0) ||
-	    (conn->ckpt_logsize && conn->ckpt_usecs == 0 &&
-	     !FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))) {
-		*startp = false;
-		return (0);
+	if (conn->ckpt_usecs != 0 ||
+	    (conn->ckpt_logsize != 0 &&
+	    FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))) {
+		/* Checkpoints are incompatible with in-memory configuration */
+		WT_ERR(__wt_config_gets(session, cfg, "in_memory", &cval));
+		if (cval.val != 0)
+			WT_ERR_MSG(session, EINVAL,
+			    "checkpoint configuration incompatible with "
+			    "in-memory configuration");
+
+		__wt_log_written_reset(session);
+
+		*startp = true;
 	}
-
-	/* Checkpoints are incompatible with in-memory configuration */
-	WT_ERR(__wt_config_gets(session, cfg, "in_memory", &cval));
-	if (cval.val != 0)
-		WT_ERR_MSG(session, EINVAL,
-		    "checkpoint configuration incompatible with in-memory "
-		    "configuration");
-
-	__wt_log_written_reset(session);
-
-	*startp = true;
 
 err:	__wt_scr_free(session, &tmp);
 	return (ret);
