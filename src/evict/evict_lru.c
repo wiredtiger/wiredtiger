@@ -1810,6 +1810,9 @@ __wt_page_evict_soon(WT_SESSION_IMPL *session, WT_REF *ref)
 	WT_PAGE *page;
 	bool queued;
 
+	/* Root pages should never be evicted via LRU. */
+	WT_ASSERT(session, !__wt_ref_is_root(ref));
+
 	page = ref->page;
 	page->read_gen = WT_READGEN_OLDEST;
 	if (F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU) ||
