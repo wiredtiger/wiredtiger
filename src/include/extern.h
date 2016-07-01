@@ -270,7 +270,7 @@ extern int __wt_connection_close(WT_CONNECTION_IMPL *conn);
 extern int __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[]);
 extern void __wt_conn_stat_init(WT_SESSION_IMPL *session);
 extern int __wt_statlog_log_one(WT_SESSION_IMPL *session);
-extern int __wt_statlog_create(WT_SESSION_IMPL *session, const char *cfg[]);
+extern int __wt_statlog_create( WT_SESSION_IMPL *session, bool reconfigure, const char *cfg[]);
 extern int __wt_statlog_destroy(WT_SESSION_IMPL *session, bool is_close);
 extern int __wt_sweep_config(WT_SESSION_IMPL *session, const char *cfg[]);
 extern int __wt_sweep_create(WT_SESSION_IMPL *session);

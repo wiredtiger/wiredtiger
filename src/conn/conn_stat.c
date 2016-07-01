@@ -68,7 +68,8 @@ __wt_conn_stat_init(WT_SESSION_IMPL *session)
  *	Parse and setup the statistics server options.
  */
 static int
-__statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
+__statlog_config(
+    WT_SESSION_IMPL *session, bool reconfig, const char **cfg, bool *runp)
 {
 	WT_CONFIG objectconf;
 	WT_CONFIG_ITEM cval, k, v;
@@ -78,6 +79,25 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 	int cnt;
 	char **sources;
 
+	/*
+	 * A note on reconfiguration: the standard "is this configuration string
+	 * allowed" checks should fail if reconfiguration has invalid strings,
+	 * for example, "log=(enabled)", or "statistics_log=(path=XXX)", because
+	 * the connection reconfiguration method doesn't allow those strings.
+	 * Additionally, the base configuration values during reconfiguration
+	 * are the currently configured values (so we don't revert to default
+	 * values when repeatedly reconfiguring), and configuration processing
+	 * of a currently set value should not change the currently set value.
+	 * That said, bugs in the reconfiguration string declarations or in the
+	 * configuration processing might cause us to reconfigure values we
+	 * don't want to reconfigure, and while configuration starting with the
+	 * current value (and no other information) should give the same results
+	 * as the original configuration, there's little testing to prove it.
+	 * Best practices: skip tests for configuration values which don't make
+	 * sense during reconfiguration, but don't worry about error reporting
+	 * because the problems should never happen.
+	 */
+
 	conn = S2C(session);
 	sources = NULL;
 
@@ -86,8 +106,7 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 	*runp = cval.val != 0;
 	conn->stat_usecs = (uint64_t)cval.val * WT_MILLION;
 
-	WT_RET(__wt_config_gets(
-	    session, cfg, "statistics_log.json", &cval));
+	WT_RET(__wt_config_gets(session, cfg, "statistics_log.json", &cval));
 	if (cval.val != 0)
 		FLD_SET(conn->stat_flags, WT_CONN_STAT_JSON);
 
@@ -96,17 +115,6 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 	if (cval.val != 0)
 		FLD_SET(conn->stat_flags, WT_CONN_STAT_ON_CLOSE);
 
-	/*
-	 * Statistics logging configuration requires either a wait time or an
-	 * on-close setting.
-	 */
-	if (!*runp && !FLD_ISSET(conn->stat_flags, WT_CONN_STAT_ON_CLOSE))
-		return (0);
-
-	/*
-	 * If any statistics logging is done, this must not be a read-only
-	 * connection.
-	 */
 	WT_RET(__wt_config_gets(session, cfg, "statistics_log.sources", &cval));
 	WT_RET(__wt_config_subinit(session, &objectconf, &cval));
 	for (cnt = 0; (ret = __wt_config_next(&objectconf, &k, &v)) == 0; ++cnt)
@@ -139,11 +147,24 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 		sources = NULL;
 	}
 
-	WT_ERR(__wt_config_gets(session, cfg, "statistics_log.path", &cval));
-	WT_ERR(__wt_scr_alloc(session, 0, &tmp));
-	WT_ERR(__wt_buf_fmt(session,
-	    tmp, "%.*s/%s", (int)cval.len, cval.str, WT_STATLOG_FILENAME));
-	WT_ERR(__wt_filename(session, tmp->data, &conn->stat_path));
+	/*
+	 * We don't allow the path to be reconfigured. The reason is MongoDB
+	 * allows admin privileges to reconfigure running WiredTiger instances,
+	 * but admin privileges may be different from the privileges used to
+	 * start MongoDB. There's no strong reason it's useful to reconfigure
+	 * the statistics logging path and we don't want admins to point the
+	 * statistics logs somewhere else, so we don't allow it.
+	 *
+	 * See above: should never happen.
+	 */
+	if (!reconfig) {
+		WT_ERR(__wt_config_gets(
+		    session, cfg, "statistics_log.path", &cval));
+		WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+		WT_ERR(__wt_buf_fmt(session, tmp, "%.*s/%s",
+		    (int)cval.len, cval.str, WT_STATLOG_FILENAME));
+		WT_ERR(__wt_filename(session, tmp->data, &conn->stat_path));
+	}
 
 	/*
 	 * When using JSON format, use the same timestamp format as MongoDB by
@@ -538,24 +559,23 @@ __statlog_start(WT_CONNECTION_IMPL *conn)
  *	Start the statistics server thread.
  */
 int
-__wt_statlog_create(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_statlog_create(
+    WT_SESSION_IMPL *session, bool reconfigure, const char *cfg[])
 {
 	WT_CONNECTION_IMPL *conn;
 	bool start;
 
 	conn = S2C(session);
-	start = false;
+
+	WT_RET(__statlog_config(session, reconfigure, cfg, &start));
 
 	/*
-	 * Stop any server that is already running. This means that each time
-	 * reconfigure is called we'll bounce the server even if there are no
-	 * configuration changes - but that makes our lives easier.
+	 * Stop the statistics server if it's no longer running, start the
+	 * statistics server if it's not yet running.
 	 */
-	if (conn->stat_session != NULL)
+	if (!start && conn->stat_session != NULL)
 		WT_RET(__wt_statlog_destroy(session, false));
-
-	WT_RET(__statlog_config(session, cfg, &start));
-	if (start)
+	if (start && conn->stat_session == NULL)
 		WT_RET(__statlog_start(conn));
 
 	return (0);

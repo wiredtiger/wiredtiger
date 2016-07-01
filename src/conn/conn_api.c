@@ -1087,7 +1087,7 @@ __conn_reconfigure(WT_CONNECTION *wt_conn, const char *config)
 	WT_ERR(__wt_checkpoint_server_create(session, cfg));
 	WT_ERR(__wt_logmgr_reconfig(session, cfg));
 	WT_ERR(__wt_lsm_manager_reconfig(session, cfg));
-	WT_ERR(__wt_statlog_create(session, cfg));
+	WT_ERR(__wt_statlog_create(session, true, cfg));
 	WT_ERR(__wt_sweep_config(session, cfg));
 	WT_ERR(__wt_verbose_config(session, cfg));
 
