@@ -378,11 +378,14 @@ static int
 __evict_review(
     WT_SESSION_IMPL *session, WT_REF *ref, uint32_t *flagsp, bool closing)
 {
+	WT_BTREE *btree;
 	WT_CACHE *cache;
 	WT_DECL_RET;
 	WT_PAGE *page;
 	uint32_t flags;
 	bool modified;
+
+	btree = S2BT(session);
 
 	flags = WT_EVICTING;
 	if (closing)
@@ -459,14 +462,22 @@ __evict_review(
 		flags = *flagsp;
 
 		/*
-		 * Check for an append-only workload needing an in-memory
-		 * split; we can't do this earlier because in-memory splits
-		 * require exclusive access. If an in-memory split completes,
-		 * the page stays in memory and the tree is left in the desired
-		 * state: avoid the usual cleanup.
+		 * Check for an append-only workload needing an in-memory split;
+		 * we can't do this earlier because in-memory splits require
+		 * exclusive access. If an in-memory split completes, the page
+		 * stays in memory and the tree is left in the desired state:
+		 * avoid the usual cleanup.
 		 */
 		if (LF_ISSET(WT_EVICT_INMEM_SPLIT))
 			return (__wt_split_insert(session, ref));
+
+		/*
+		 * If we can't split the page, check if eviction is possible
+		 * for this file (eviction is turned off during some parts of
+		 * checkpoint).
+		 */
+		if (F_ISSET(btree, WT_BTREE_NO_EVICTION))
+			return (EBUSY);
 	}
 
 	/* If the page is clean, we're done and we can evict. */
@@ -501,7 +512,7 @@ __evict_review(
 		if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
 			LF_SET(WT_EVICT_IN_MEMORY | WT_EVICT_UPDATE_RESTORE);
 		else if (page->read_gen == WT_READGEN_OLDEST ||
-		    page->memory_footprint > S2BT(session)->splitmempage)
+		    page->memory_footprint > btree->splitmempage)
 			LF_SET(WT_EVICT_UPDATE_RESTORE);
 		else if (F_ISSET(cache, WT_CACHE_STUCK))
 			LF_SET(WT_EVICT_LOOKASIDE);
@@ -522,7 +533,7 @@ __evict_review(
 	WT_ASSERT(session,
 	    __wt_page_is_modified(page) ||
 	    LF_ISSET(WT_EVICT_LOOKASIDE) ||
-	    F_ISSET(S2BT(session), WT_BTREE_LOOKASIDE) ||
+	    F_ISSET(btree, WT_BTREE_LOOKASIDE) ||
 	    __wt_txn_visible_all(session, page->modify->rec_max_txn));
 
 	return (0);
