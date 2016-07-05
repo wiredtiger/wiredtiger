@@ -519,10 +519,12 @@ __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
 	 */
 	F_SET(cbt, WT_CBT_ITERATE_NEXT | WT_CBT_ITERATE_PREV);
 
-	/*
-	 * Clear the count of deleted items on the page.
-	 */
+	/* Clear the count of deleted items on the page. */
 	cbt->page_deleted_count = 0;
+
+	/* Clear saved iteration cursor position information. */
+	cbt->cip_saved = NULL;
+	cbt->rip_saved = NULL;
 
 	/*
 	 * If we don't have a search page, then we're done, we're starting at
