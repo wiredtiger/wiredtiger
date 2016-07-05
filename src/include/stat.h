@@ -275,7 +275,9 @@ struct __wt_connection_stats {
 	int64_t block_byte_write;
 	int64_t block_map_read;
 	int64_t block_byte_map_read;
+	int64_t cache_bytes_image;
 	int64_t cache_bytes_inuse;
+	int64_t cache_bytes_other;
 	int64_t cache_bytes_read;
 	int64_t cache_bytes_write;
 	int64_t cache_eviction_checkpoint;
@@ -486,6 +488,7 @@ struct __wt_dsrc_stats {
 	int64_t btree_compact_rewrite;
 	int64_t btree_row_internal;
 	int64_t btree_row_leaf;
+	int64_t cache_bytes_inuse;
 	int64_t cache_bytes_read;
 	int64_t cache_bytes_write;
 	int64_t cache_eviction_checkpoint;

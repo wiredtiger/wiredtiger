@@ -87,6 +87,7 @@ DbEnv
 Decrement
 Decrypt
 DeleteFileA
+EACCES
 EAGAIN
 EB
 EBUSY

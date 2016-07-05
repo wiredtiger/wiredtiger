@@ -325,6 +325,7 @@ __cursor_var_prev(WT_CURSOR_BTREE *cbt, bool newpage)
 
 	/* Initialize for each new page. */
 	if (newpage) {
+		cbt->cip_saved = NULL;
 		cbt->last_standard_recno = __col_var_last_recno(cbt->ref);
 		if (cbt->last_standard_recno == 0)
 			return (WT_NOTFOUND);
@@ -619,7 +620,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 		if (page != NULL &&
 		    (cbt->page_deleted_count > WT_BTREE_DELETE_THRESHOLD ||
 		    (newpage && cbt->page_deleted_count > 0)))
-			__wt_page_evict_soon(page);
+			WT_ERR(__wt_page_evict_soon(session, cbt->ref));
 		cbt->page_deleted_count = 0;
 
 		WT_ERR(__wt_tree_walk(session, &cbt->ref, flags));

@@ -397,7 +397,7 @@ err:	WT_TRET(__wt_btcur_close(&cbt, true));
  * __evict_force_check --
  *	Check if a page matches the criteria for forced eviction.
  */
-static int
+static bool
 __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	WT_BTREE *btree;
@@ -408,26 +408,26 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 
 	/* Leaf pages only. */
 	if (WT_PAGE_IS_INTERNAL(page))
-		return (0);
+		return (false);
 
 	/*
 	 * It's hard to imagine a page with a huge memory footprint that has
 	 * never been modified, but check to be sure.
 	 */
 	if (page->modify == NULL)
-		return (0);
+		return (false);
 
 	/* Pages are usually small enough, check that first. */
 	if (page->memory_footprint < btree->splitmempage)
-		return (0);
+		return (false);
 	else if (page->memory_footprint < btree->maxmempage)
 		return (__wt_leaf_page_can_split(session, page));
 
 	/* Trigger eviction on the next page release. */
-	__wt_page_evict_soon(page);
+	(void)__wt_page_evict_soon(session, ref);
 
 	/* Bump the oldest ID, we're about to do some visibility checks. */
-	WT_RET(__wt_txn_update_oldest(session, 0));
+	(void)__wt_txn_update_oldest(session, 0);
 
 	/* If eviction cannot succeed, don't try. */
 	return (__wt_page_can_evict(session, ref, NULL));
@@ -710,7 +710,14 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			page = ref->page;
 			if (page->read_gen == WT_READGEN_NOTSET) {
 				if (evict_soon)
-					__wt_page_evict_soon(page);
+					/*
+					 * Ignore error returns, since the
+					 * evict soon call is advisory and we
+					 * are holding a hazard pointer to the
+					 * page already.
+					 */
+					(void)__wt_page_evict_soon(
+					    session, ref);
 				else
 					__wt_cache_read_gen_new(session, page);
 			} else if (!LF_ISSET(WT_READ_NO_GEN))
