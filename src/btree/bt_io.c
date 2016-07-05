@@ -168,7 +168,8 @@ err:	__wt_scr_free(session, &tmp);
  */
 int
 __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
-    uint8_t *addr, size_t *addr_sizep, bool checkpoint, bool compressed)
+    uint8_t *addr, size_t *addr_sizep,
+    bool checkpoint, bool checkpoint_io, bool compressed)
 {
 	WT_BM *bm;
 	WT_BTREE *btree;
@@ -365,6 +366,12 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 	WT_STAT_FAST_DATA_INCR(session, cache_write);
 	WT_STAT_FAST_CONN_INCRV(session, cache_bytes_write, dsk->mem_size);
 	WT_STAT_FAST_DATA_INCRV(session, cache_bytes_write, dsk->mem_size);
+	if (checkpoint_io) {
+		WT_STAT_FAST_CONN_INCRV(
+		    session, cache_bytes_write_checkpoint, dsk->mem_size);
+		WT_STAT_FAST_DATA_INCRV(
+		    session, cache_bytes_write_checkpoint, dsk->mem_size);
+	}
 
 err:	__wt_scr_free(session, &ctmp);
 	__wt_scr_free(session, &etmp);

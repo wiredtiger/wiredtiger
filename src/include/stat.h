@@ -280,6 +280,7 @@ struct __wt_connection_stats {
 	int64_t cache_bytes_other;
 	int64_t cache_bytes_read;
 	int64_t cache_bytes_write;
+	int64_t cache_bytes_write_checkpoint;
 	int64_t cache_eviction_checkpoint;
 	int64_t cache_eviction_get_ref;
 	int64_t cache_eviction_get_ref_empty;
@@ -489,6 +490,7 @@ struct __wt_dsrc_stats {
 	int64_t cache_bytes_inuse;
 	int64_t cache_bytes_read;
 	int64_t cache_bytes_write;
+	int64_t cache_bytes_write_checkpoint;
 	int64_t cache_eviction_checkpoint;
 	int64_t cache_eviction_fail;
 	int64_t cache_eviction_hazard;

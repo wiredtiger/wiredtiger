@@ -46,6 +46,7 @@ static const char * const __stats_dsrc_desc[] = {
 	"cache: bytes currently in the cache",
 	"cache: bytes read into cache",
 	"cache: bytes written from cache",
+	"cache: bytes written from cache as part of creating a checkpoint",
 	"cache: checkpoint blocked page eviction",
 	"cache: data source pages selected for eviction unable to be evicted",
 	"cache: hazard pointer blocked page eviction",
@@ -177,6 +178,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
 		/* not clearing cache_bytes_inuse */
 	stats->cache_bytes_read = 0;
 	stats->cache_bytes_write = 0;
+	stats->cache_bytes_write_checkpoint = 0;
 	stats->cache_eviction_checkpoint = 0;
 	stats->cache_eviction_fail = 0;
 	stats->cache_eviction_hazard = 0;
@@ -305,6 +307,8 @@ __wt_stat_dsrc_aggregate_single(
 	to->cache_bytes_inuse += from->cache_bytes_inuse;
 	to->cache_bytes_read += from->cache_bytes_read;
 	to->cache_bytes_write += from->cache_bytes_write;
+	to->cache_bytes_write_checkpoint +=
+	    from->cache_bytes_write_checkpoint;
 	to->cache_eviction_checkpoint += from->cache_eviction_checkpoint;
 	to->cache_eviction_fail += from->cache_eviction_fail;
 	to->cache_eviction_hazard += from->cache_eviction_hazard;
@@ -439,6 +443,8 @@ __wt_stat_dsrc_aggregate(
 	to->cache_bytes_inuse += WT_STAT_READ(from, cache_bytes_inuse);
 	to->cache_bytes_read += WT_STAT_READ(from, cache_bytes_read);
 	to->cache_bytes_write += WT_STAT_READ(from, cache_bytes_write);
+	to->cache_bytes_write_checkpoint +=
+	    WT_STAT_READ(from, cache_bytes_write_checkpoint);
 	to->cache_eviction_checkpoint +=
 	    WT_STAT_READ(from, cache_eviction_checkpoint);
 	to->cache_eviction_fail += WT_STAT_READ(from, cache_eviction_fail);
@@ -553,6 +559,7 @@ static const char * const __stats_connection_desc[] = {
 	"cache: bytes not belonging to page images in the cache",
 	"cache: bytes read into cache",
 	"cache: bytes written from cache",
+	"cache: bytes written from cache as part of creating a checkpoint",
 	"cache: checkpoint blocked page eviction",
 	"cache: eviction calls to get a page",
 	"cache: eviction calls to get a page found queue empty",
@@ -777,6 +784,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing cache_bytes_other */
 	stats->cache_bytes_read = 0;
 	stats->cache_bytes_write = 0;
+	stats->cache_bytes_write_checkpoint = 0;
 	stats->cache_eviction_checkpoint = 0;
 	stats->cache_eviction_get_ref = 0;
 	stats->cache_eviction_get_ref_empty = 0;
@@ -993,6 +1001,8 @@ __wt_stat_connection_aggregate(
 	to->cache_bytes_other += WT_STAT_READ(from, cache_bytes_other);
 	to->cache_bytes_read += WT_STAT_READ(from, cache_bytes_read);
 	to->cache_bytes_write += WT_STAT_READ(from, cache_bytes_write);
+	to->cache_bytes_write_checkpoint +=
+	    WT_STAT_READ(from, cache_bytes_write_checkpoint);
 	to->cache_eviction_checkpoint +=
 	    WT_STAT_READ(from, cache_eviction_checkpoint);
 	to->cache_eviction_get_ref +=
