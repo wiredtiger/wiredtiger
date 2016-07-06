@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, time
+import time
 import wiredtiger, wttest
 from helper import simple_populate
 
@@ -98,15 +98,15 @@ class test_reconfig01(wttest.WiredTigerTestCase):
     # Statistics logging: reconfigure the things we can reconfigure.
     def test_reconfig_statistics_log_ok(self):
         self.conn.reconfigure("statistics=[all],statistics_log=(wait=0)")
-        self.conn.reconfigure("statistics_log=(wait=2)")
-        self.conn.reconfigure("statistics_log=(wait=1,json=true)")
-        self.conn.reconfigure("statistics_log=(wait=2)")
-        self.conn.reconfigure("statistics_log=(wait=1,on_close=false)")
-        self.conn.reconfigure("statistics_log=(wait=2)")
-        self.conn.reconfigure("statistics_log=(wait=1,sources=[lsm:])")
-        self.conn.reconfigure("statistics_log=(wait=2)")
-        self.conn.reconfigure("statistics_log=(wait=1,timestamp=\"t%b %d\")")
-        self.conn.reconfigure("statistics_log=(wait=2)")
+        self.conn.reconfigure("statistics_log=(wait=0)")
+        self.conn.reconfigure("statistics_log=(wait=2,json=true)")
+        self.conn.reconfigure("statistics_log=(wait=0)")
+        self.conn.reconfigure("statistics_log=(wait=2,on_close=true)")
+        self.conn.reconfigure("statistics_log=(wait=0)")
+        self.conn.reconfigure("statistics_log=(wait=2,sources=[lsm:])")
+        self.conn.reconfigure("statistics_log=(wait=0)")
+        self.conn.reconfigure("statistics_log=(wait=2,timestamp=\"t%b %d\")")
+        self.conn.reconfigure("statistics_log=(wait=0)")
 
     # Statistics logging: reconfigure the things we can't reconfigure.
     def test_reconfig_statistics_log_fail(self):
