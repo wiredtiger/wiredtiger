@@ -3778,6 +3778,11 @@ struct __wt_file_system {
 	/*!
 	 * Open a handle for a named file system object
 	 *
+	 * The method should return ENOENT if the file does not exist.
+	 * The method should return EACCES if the file cannot be opened in the
+	 * requested mode (for example, a file opened for writing in a readonly
+	 * file system).
+	 *
 	 * @errors
 	 *
 	 * @param file_system the WT_FILE_SYSTEM
@@ -3959,7 +3964,7 @@ struct __wt_file_handle {
 
 	/*!
 	 * Lock/unlock a file from the perspective of other processes running
-	 * in the system.
+	 * in the system, where necessary.
 	 *
 	 * @errors
 	 *
@@ -4510,11 +4515,11 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! session: open session count */
 #define	WT_STAT_CONN_SESSION_OPEN			1164
 /*! thread-state: active filesystem fsync calls */
-#define	WT_STAT_CONN_FSYNC_ACTIVE			1165
+#define	WT_STAT_CONN_THREAD_FSYNC_ACTIVE		1165
 /*! thread-state: active filesystem read calls */
-#define	WT_STAT_CONN_READ_ACTIVE			1166
+#define	WT_STAT_CONN_THREAD_READ_ACTIVE			1166
 /*! thread-state: active filesystem write calls */
-#define	WT_STAT_CONN_WRITE_ACTIVE			1167
+#define	WT_STAT_CONN_THREAD_WRITE_ACTIVE		1167
 /*! thread-yield: page acquire busy blocked */
 #define	WT_STAT_CONN_PAGE_BUSY_BLOCKED			1168
 /*! thread-yield: page acquire eviction blocked */

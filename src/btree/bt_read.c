@@ -323,7 +323,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 		return (__wt_leaf_page_can_split(session, page));
 
 	/* Trigger eviction on the next page release. */
-	__wt_page_evict_soon(session, ref);
+	(void)__wt_page_evict_soon(session, ref);
 
 	/* Bump the oldest ID, we're about to do some visibility checks. */
 	(void)__wt_txn_update_oldest(session, 0);
@@ -548,10 +548,14 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			 * if the page qualifies for forced eviction and update
 			 * the page's generation number. If eviction isn't being
 			 * done on this file, we're done.
+			 * In-memory split of large pages is allowed while
+			 * no_eviction is set on btree, whereas reconciliation
+			 * is not allowed.
 			 */
 			if (LF_ISSET(WT_READ_NO_EVICT) ||
 			    F_ISSET(session, WT_SESSION_NO_EVICTION) ||
-			    F_ISSET(btree, WT_BTREE_NO_EVICTION))
+			    (F_ISSET(btree, WT_BTREE_NO_EVICTION) &&
+			     !F_ISSET(btree, WT_BTREE_NO_RECONCILE)))
 				goto skip_evict;
 
 			/*
@@ -595,7 +599,14 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			page = ref->page;
 			if (page->read_gen == WT_READGEN_NOTSET) {
 				if (evict_soon)
-					__wt_page_evict_soon(session, ref);
+					/*
+					 * Ignore error returns, since the
+					 * evict soon call is advisory and we
+					 * are holding a hazard pointer to the
+					 * page already.
+					 */
+					(void)__wt_page_evict_soon(
+					    session, ref);
 				else
 					__wt_cache_read_gen_new(session, page);
 			} else if (!LF_ISSET(WT_READ_NO_GEN))
