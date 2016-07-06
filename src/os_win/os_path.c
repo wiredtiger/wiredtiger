@@ -41,13 +41,9 @@ __wt_absolute_path(const char *path)
 	 * -- "C:tempdir\tmp.txt" refers to a file in a subdirectory to the
 	 *    current directory on drive C.
 	 */
-	if (path[0] == '\\')
-		return (true);
-
 	if (__wt_isalpha(path[0]) && path[1] == ':')
-		return (true);
-
-	return (false);
+		path += 2;
+	return (path[0] == '/' || path[0] == '\\');
 }
 
 /*
