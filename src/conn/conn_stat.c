@@ -113,12 +113,10 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 		FLD_SET(conn->stat_flags, WT_CONN_STAT_ON_CLOSE);
 
 	/*
-	 * We don't allow the path to be reconfigured. The reason is MongoDB
-	 * allows admin privileges to reconfigure running WiredTiger instances,
-	 * but admin privileges may be different from the privileges used to
-	 * start MongoDB. There's no strong reason it's useful to reconfigure
-	 * the statistics logging path, and we don't want admins to point the
-	 * statistics logs somewhere else, so we don't allow it.
+	 * We don't allow the log path to be reconfigured for security reasons.
+	 * (Applications passing input strings directly to reconfigure would
+	 * expose themselves to a potential security problem, the utility of
+	 * reconfiguring a statistics log path isn't worth the security risk.)
 	 *
 	 * See above for the details, but during reconfiguration we're loading
 	 * the path value from the saved configuration information, and it's
