@@ -76,8 +76,8 @@ extern int __wt_block_verify_addr(WT_SESSION_IMPL *session, WT_BLOCK *block, con
 extern int __wt_block_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t len);
 extern int __wt_block_discard(WT_SESSION_IMPL *session, WT_BLOCK *block, size_t added_size);
 extern int __wt_block_write_size(WT_SESSION_IMPL *session, WT_BLOCK *block, size_t *sizep);
-extern int __wt_block_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint8_t *addr, size_t *addr_sizep, bool data_cksum);
-extern int __wt_block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_off_t *offsetp, uint32_t *sizep, uint32_t *cksump, bool data_cksum, bool caller_locked);
+extern int __wt_block_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint8_t *addr, size_t *addr_sizep, bool data_cksum, bool checkpoint_io);
+extern int __wt_block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_off_t *offsetp, uint32_t *sizep, uint32_t *cksump, bool data_cksum, bool checkpoint_io, bool caller_locked);
 extern int __wt_bloom_create( WT_SESSION_IMPL *session, const char *uri, const char *config, uint64_t count, uint32_t factor, uint32_t k, WT_BLOOM **bloomp);
 extern int __wt_bloom_open(WT_SESSION_IMPL *session, const char *uri, uint32_t factor, uint32_t k, WT_CURSOR *owner, WT_BLOOM **bloomp);
 extern int __wt_bloom_insert(WT_BLOOM *bloom, WT_ITEM *key);
