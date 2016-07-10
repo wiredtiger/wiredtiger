@@ -2208,9 +2208,9 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref)
 	 *
 	 * Build the new page.
 	 *
-	 * Allocate a WT_REF because the error path uses routines that will ea
-	 * free memory. The only field we need to set is the record number, as
-	 * it's used by the search routines.
+	 * Allocate a WT_REF, the error path calls routines that free memory.
+	 * The only field we need to set is the record number, as it's used by
+	 * the search routines.
 	 */
 	WT_RET(__wt_calloc_one(session, &new));
 	new->ref_recno = ref->ref_recno;
