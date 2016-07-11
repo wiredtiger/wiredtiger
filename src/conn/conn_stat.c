@@ -200,7 +200,7 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 	 * probability path.)
 	 */
 #define	WT_TIMESTAMP_DEFAULT		"%b %d %H:%M:%S"
-#define	WT_TIMESTAMP_JSON_DEFAULT	"%FT%T.000Z"
+#define	WT_TIMESTAMP_JSON_DEFAULT	"%Y-%m-%dT%H:%M:%S.000Z"
 	WT_ERR(__wt_config_gets(
 	    session, cfg, "statistics_log.timestamp", &cval));
 	if (FLD_ISSET(conn->stat_flags, WT_CONN_STAT_JSON) &&
