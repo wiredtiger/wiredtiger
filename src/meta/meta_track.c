@@ -188,7 +188,7 @@ __meta_track_unroll(WT_SESSION_IMPL *session, WT_META_TRACK *trk)
 		 * For removes, b is NULL.
 		 */
 		if (trk->a != NULL && trk->b != NULL &&
-		    (ret = __wt_rename_and_sync_directory(session,
+		    (ret = __wt_fs_rename(session,
 		    trk->b + strlen("file:"), trk->a + strlen("file:"))) != 0)
 			__wt_err(session, ret,
 			    "metadata unroll rename %s to %s", trk->b, trk->a);

@@ -487,7 +487,6 @@ extern int __wt_turtle_update(WT_SESSION_IMPL *session, const char *key, const c
 extern int __wt_filename(WT_SESSION_IMPL *session, const char *name, char **path);
 extern int __wt_nfilename( WT_SESSION_IMPL *session, const char *name, size_t namelen, char **path);
 extern int __wt_remove_if_exists(WT_SESSION_IMPL *session, const char *name);
-extern int __wt_rename_and_sync_directory( WT_SESSION_IMPL *session, const char *from, const char *to);
 extern int __wt_copy_and_sync(WT_SESSION *wt_session, const char *from, const char *to);
 extern void __wt_abort(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 extern int __wt_calloc(WT_SESSION_IMPL *session, size_t number, size_t size, void *retp);

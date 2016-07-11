@@ -169,9 +169,12 @@ __wt_fs_remove(WT_SESSION_IMPL *session, const char *name)
 
 	file_system = S2C(session)->file_system;
 	wt_session = (WT_SESSION *)session;
-	ret = file_system->fs_remove(file_system, wt_session, path);
+	WT_ERR(file_system->fs_remove(file_system, wt_session, path));
 
-	__wt_free(session, path);
+	/* Flush the backing directory to guarantee the remove. */
+	ret = __wt_fs_directory_sync(session, name);
+
+err:	__wt_free(session, path);
 	return (ret);
 }
 
@@ -185,7 +188,9 @@ __wt_fs_rename(WT_SESSION_IMPL *session, const char *from, const char *to)
 	WT_DECL_RET;
 	WT_FILE_SYSTEM *file_system;
 	WT_SESSION *wt_session;
+	const char *fp, *tp;
 	char *from_path, *to_path;
+	bool same_directory;
 
 	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_READONLY));
 
@@ -211,8 +216,31 @@ __wt_fs_rename(WT_SESSION_IMPL *session, const char *from, const char *to)
 
 	file_system = S2C(session)->file_system;
 	wt_session = (WT_SESSION *)session;
-	ret = file_system->fs_rename(
-	    file_system, wt_session, from_path, to_path);
+	WT_ERR(file_system->fs_rename(
+	    file_system, wt_session, from_path, to_path));
+
+	/*
+	 * Flush the backing directory to guarantee the rename. My reading of
+	 * POSIX 1003.1 is there's no guarantee flushing only one of the from
+	 * or to directories, or flushing a common parent, is sufficient, and
+	 * even if POSIX were to make that guarantee, existing filesystems are
+	 * known to not provide the guarantee or only provide the guarantee
+	 * with specific mount options. Flush both of the from/to directories
+	 * until it's a performance problem.
+	 */
+	WT_ERR(__wt_fs_directory_sync(session, from));
+
+	/*
+	 * In almost all cases, we're going to be renaming files in the same
+	 * directory, we can at least fast-path that.
+	 */
+	fp = strrchr(from, '/');
+	tp = strrchr(to, '/');
+	same_directory = (fp == NULL && tp == NULL) ||
+	    (fp != NULL && tp != NULL &&
+	    fp - from == tp - to && memcmp(from, to, (size_t)(fp - from)) == 0);
+
+	ret = same_directory ? 0 : __wt_fs_directory_sync(session, to);
 
 err:	__wt_free(session, from_path);
 	__wt_free(session, to_path);

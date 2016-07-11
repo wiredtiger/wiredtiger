@@ -67,44 +67,6 @@ __wt_remove_if_exists(WT_SESSION_IMPL *session, const char *name)
 }
 
 /*
- * __wt_rename_and_sync_directory --
- *	Rename a file and sync the enclosing directory.
- */
-int
-__wt_rename_and_sync_directory(
-    WT_SESSION_IMPL *session, const char *from, const char *to)
-{
-	const char *fp, *tp;
-	bool same_directory;
-
-	/* Rename the source file to the target. */
-	WT_RET(__wt_fs_rename(session, from, to));
-
-	/*
-	 * Flush the backing directory to guarantee the rename. My reading of
-	 * POSIX 1003.1 is there's no guarantee flushing only one of the from
-	 * or to directories, or flushing a common parent, is sufficient, and
-	 * even if POSIX were to make that guarantee, existing filesystems are
-	 * known to not provide the guarantee or only provide the guarantee
-	 * with specific mount options. Flush both of the from/to directories
-	 * until it's a performance problem.
-	 */
-	WT_RET(__wt_fs_directory_sync(session, from));
-
-	/*
-	 * In almost all cases, we're going to be renaming files in the same
-	 * directory, we can at least fast-path that.
-	 */
-	fp = strrchr(from, '/');
-	tp = strrchr(to, '/');
-	same_directory = (fp == NULL && tp == NULL) ||
-	    (fp != NULL && tp != NULL &&
-	    fp - from == tp - to && memcmp(from, to, (size_t)(fp - from)) == 0);
-
-	return (same_directory ? 0 : __wt_fs_directory_sync(session, to));
-}
-
-/*
  * __wt_copy_and_sync --
  *	Copy a file safely; here to support the wt utility.
  */
@@ -162,7 +124,7 @@ __wt_copy_and_sync(WT_SESSION *wt_session, const char *from, const char *to)
 	WT_ERR(__wt_fsync(session, tfh, true));
 	WT_ERR(__wt_close(session, &tfh));
 
-	ret = __wt_rename_and_sync_directory(session, tmp->data, to);
+	ret = __wt_fs_rename(session, tmp->data, to);
 
 err:	WT_TRET(__wt_close(session, &ffh));
 	WT_TRET(__wt_close(session, &tfh));
