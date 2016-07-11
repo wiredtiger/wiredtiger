@@ -589,6 +589,7 @@ dstlen
 dstrdup
 dstrndup
 dsync
+dT
 dumpcmp
 dumpfile
 dup
