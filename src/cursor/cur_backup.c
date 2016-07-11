@@ -83,8 +83,13 @@ __curbackup_close(WT_CURSOR *cursor)
 	CURSOR_API_CALL(cursor, session, close, NULL);
 
 	/*
-	 * If we got far enough to hold the hot backup lock, then we own all
-	 * of the necessary cleanup (on error or success).
+	 * When starting a hot backup, we serialize hot backup cursors and set
+	 * the connection's hot-backup flag. Once that's done, we set the
+	 * cursor's backup-locker flag, implying the cursor owns all necessary
+	 * cleanup (including removing temporary files), regardless of error or
+	 * success. The cursor's backup-locker flag is never cleared (it's just
+	 * discarded when the cursor is closed), because that cursor will never
+	 * not be responsible for cleanup.
 	 */
 	if (F_ISSET(cb, WT_CURBACKUP_LOCKER)) {
 		WT_TRET(__backup_cleanup_handles(session, cb));
