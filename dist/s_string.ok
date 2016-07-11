@@ -530,6 +530,7 @@ cust
 customp
 cv
 cxa
+dT
 data's
 database's
 datalen
@@ -589,7 +590,6 @@ dstlen
 dstrdup
 dstrndup
 dsync
-dT
 dumpcmp
 dumpfile
 dup
