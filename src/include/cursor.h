@@ -75,7 +75,7 @@ struct __wt_cursor_backup {
 	size_t list_next;
 
 #define	WT_CURBACKUP_LOCKER	0x01	/* Hot-backup started */
-	u_int		flags;
+	uint8_t	flags;
 };
 #define	WT_CURSOR_BACKUP_ID(cursor)	(((WT_CURSOR_BACKUP *)cursor)->maxid)
 
@@ -418,7 +418,7 @@ struct __wt_cursor_log {
 	uint64_t	txnid;		/* Record txnid */
 
 #define	WT_CURLOG_ARCHIVE_LOCK	0x01	/* Archive lock held */
-	u_int		flags;
+	uint8_t		flags;
 };
 
 struct __wt_cursor_metadata {
@@ -429,7 +429,7 @@ struct __wt_cursor_metadata {
 #define	WT_MDC_CREATEONLY	0x01
 #define	WT_MDC_ONMETADATA	0x02
 #define	WT_MDC_POSITIONED	0x04
-	uint32_t flags;
+	uint8_t	flags;
 };
 
 struct __wt_join_stats_group {
