@@ -124,12 +124,10 @@ static int demo_fs_directory_list(WT_FILE_SYSTEM *, WT_SESSION *,
     const char *, const char *, char ***, uint32_t *);
 static int demo_fs_directory_list_free(
     WT_FILE_SYSTEM *, WT_SESSION *, char **, uint32_t);
-static int demo_fs_directory_sync(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *session, const char *directory);
 static int demo_fs_exist(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool *);
-static int demo_fs_remove(WT_FILE_SYSTEM *, WT_SESSION *, const char *);
+static int demo_fs_remove(WT_FILE_SYSTEM *, WT_SESSION *, const char *, bool);
 static int demo_fs_rename(
-    WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *);
+    WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, bool);
 static int demo_fs_size(
     WT_FILE_SYSTEM *, WT_SESSION *, const char *, wt_off_t *);
 static int demo_fs_terminate(WT_FILE_SYSTEM *, WT_SESSION *);
@@ -255,7 +253,6 @@ demo_file_system_create(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
 	/* Initialize the in-memory jump table. */
 	file_system->fs_directory_list = demo_fs_directory_list;
 	file_system->fs_directory_list_free = demo_fs_directory_list_free;
-	file_system->fs_directory_sync = demo_fs_directory_sync;
 	file_system->fs_exist = demo_fs_exist;
 	file_system->fs_open_file = demo_fs_open;
 	file_system->fs_remove = demo_fs_remove;
@@ -469,21 +466,6 @@ demo_fs_directory_list_free(WT_FILE_SYSTEM *file_system,
 }
 
 /*
- * demo_fs_directory_sync --
- *	Directory sync for our demo file system, which is a no-op.
- */
-static int
-demo_fs_directory_sync(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *session, const char *directory)
-{
-	(void)file_system;		/* Unused */
-	(void)session;			/* Unused */
-	(void)directory;		/* Unused */
-
-	return (0);
-}
-
-/*
  * demo_fs_exist --
  *	Return if the file exists.
  */
@@ -507,12 +489,14 @@ demo_fs_exist(WT_FILE_SYSTEM *file_system,
  *	POSIX remove.
  */
 static int
-demo_fs_remove(
-    WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name)
+demo_fs_remove(WT_FILE_SYSTEM *file_system,
+    WT_SESSION *session, const char *name, bool durable)
 {
 	DEMO_FILE_SYSTEM *demo_fs;
 	DEMO_FILE_HANDLE *demo_fh;
 	int ret = 0;
+
+	(void)durable;					/* Unused */
 
 	demo_fs = (DEMO_FILE_SYSTEM *)file_system;
 
@@ -531,12 +515,14 @@ demo_fs_remove(
  */
 static int
 demo_fs_rename(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *session, const char *from, const char *to)
+    WT_SESSION *session, const char *from, const char *to, bool durable)
 {
 	DEMO_FILE_HANDLE *demo_fh;
 	DEMO_FILE_SYSTEM *demo_fs;
 	char *copy;
 	int ret = 0;
+
+	(void)durable;					/* Unused */
 
 	demo_fs = (DEMO_FILE_SYSTEM *)file_system;
 
