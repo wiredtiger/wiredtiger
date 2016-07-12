@@ -3690,13 +3690,15 @@ typedef enum {
 #define	WT_OPEN_CREATE		0x001
 /*! WT_FILE_SYSTEM::open_file flags: direct I/O requested */
 #define	WT_OPEN_DIRECTIO	0x002
+/*! WT_FILE_SYSTEM::open_file flags: durable creation required */
+#define	WT_OPEN_DURABLE		0x004
 /*! WT_FILE_SYSTEM::open_file flags: error if exclusive use not available */
-#define	WT_OPEN_EXCLUSIVE	0x004
+#define	WT_OPEN_EXCLUSIVE	0x008
 #ifndef DOXYGEN
-#define	WT_OPEN_FIXED		0x008	/* Path not home relative (internal) */
+#define	WT_OPEN_FIXED		0x010	/* Path not home relative (internal) */
 #endif
 /*! WT_FILE_SYSTEM::open_file flags: open is read-only */
-#define	WT_OPEN_READONLY	0x010
+#define	WT_OPEN_READONLY	0x020
 
 /*!
  * The interface implemented by applications to provide a custom file system
@@ -3746,23 +3748,6 @@ struct __wt_file_system {
 	    WT_SESSION *session, char **dirlist, uint32_t count);
 
 	/*!
-	 * Flush the named directory.
-	 *
-	 * This method is not required for readonly file systems or file systems
-	 * where it is not necessary to flush a file's directory to ensure the
-	 * durability of file system operations, and should be set to NULL when
-	 * not required by the file system.
-	 *
-	 * @errors
-	 *
-	 * @param file_system the WT_FILE_SYSTEM
-	 * @param session the current WiredTiger session
-	 * @param directory the name of the directory
-	 */
-	int (*fs_directory_sync)(WT_FILE_SYSTEM *file_system,
-	    WT_SESSION *session, const char *directory);
-
-	/*!
 	 * Return if the named file system object exists.
 	 *
 	 * @errors
@@ -3778,10 +3763,15 @@ struct __wt_file_system {
 	/*!
 	 * Open a handle for a named file system object
 	 *
-	 * The method should return ENOENT if the file does not exist.
+	 * The method should return ENOENT if the file is not being created and
+	 * does not exist.
+	 *
 	 * The method should return EACCES if the file cannot be opened in the
 	 * requested mode (for example, a file opened for writing in a readonly
 	 * file system).
+	 *
+	 * The method should return EBUSY if ::WT_OPEN_EXCLUSIVE is set and the
+	 * file is in use.
 	 *
 	 * @errors
 	 *
@@ -3792,8 +3782,8 @@ struct __wt_file_system {
 	 *    The file type is provided to allow optimization for different file
 	 *    access patterns.
 	 * @param flags flags indicating how to open the file, one or more of
-	 *    ::WT_OPEN_CREATE, ::WT_OPEN_DIRECTIO, ::WT_OPEN_EXCLUSIVE or
-	 *    ::WT_OPEN_READONLY.
+	 *    ::WT_OPEN_CREATE, ::WT_OPEN_DIRECTIO, ::WT_OPEN_DURABLE,
+	 *    ::WT_OPEN_EXCLUSIVE or ::WT_OPEN_READONLY.
 	 * @param[out] file_handlep the handle to the newly opened file. File
 	 *    system implementations must allocate memory for the handle and
 	 *    the WT_FILE_HANDLE::name field, and fill in the WT_FILE_HANDLE::
@@ -3816,9 +3806,10 @@ struct __wt_file_system {
 	 * @param file_system the WT_FILE_SYSTEM
 	 * @param session the current WiredTiger session
 	 * @param name the name of the file system object
+	 * @param durable if the operation requires durability
 	 */
-	int (*fs_remove)(
-	    WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name);
+	int (*fs_remove)(WT_FILE_SYSTEM *file_system,
+	    WT_SESSION *session, const char *name, bool durable);
 
 	/*!
 	 * Rename a named file system object
@@ -3832,9 +3823,10 @@ struct __wt_file_system {
 	 * @param session the current WiredTiger session
 	 * @param from the original name of the object
 	 * @param to the new name for the object
+	 * @param durable if the operation requires durability
 	 */
-	int (*fs_rename)(WT_FILE_SYSTEM *file_system,
-	    WT_SESSION *session, const char *from, const char *to);
+	int (*fs_rename)(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
+	    const char *from, const char *to, bool durable);
 
 	/*!
 	 * Return the size of a named file system object

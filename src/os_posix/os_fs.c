@@ -30,7 +30,7 @@
 
 /*
  * __posix_sync --
- *	Underlying support function to flush a file handle.
+ *	Underlying support function to flush a file descriptor.
  */
 static int
 __posix_sync(
@@ -77,33 +77,42 @@ __posix_sync(
 #ifdef __linux__
 /*
  * __posix_directory_sync --
- *	Flush a directory to ensure file creation is durable.
+ *	Flush a directory to ensure file creation, remove or rename is durable.
  */
 static int
-__posix_directory_sync(
-    WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *path)
+__posix_directory_sync(WT_SESSION_IMPL *session, const char *path)
 {
+	WT_DECL_ITEM(tmp);
 	WT_DECL_RET;
-	WT_SESSION_IMPL *session;
 	int fd, tret;
+	char *dir;
 
-	WT_UNUSED(file_system);
+	WT_RET(__wt_scr_alloc(session, 0, &tmp));
+	WT_ERR(__wt_buf_setstr(session, tmp, path));
 
-	session = (WT_SESSION_IMPL *)wt_session;
+	/*
+	 * This layer should never see a path that doesn't include a trailing
+	 * path separator, this code asserts that fact.
+	 */
+	dir = tmp->mem;
+	strrchr(dir, '/')[1] = '\0';
 
+	fd = -1;			/* -Wconditional-uninitialized */
 	WT_SYSCALL_RETRY((
-	    (fd = open(path, O_RDONLY, 0444)) == -1 ? -1 : 0), ret);
+	    (fd = open(dir, O_RDONLY, 0444)) == -1 ? -1 : 0), ret);
 	if (ret != 0)
-		WT_RET_MSG(session, ret, "%s: directory-sync: open", path);
+		WT_ERR_MSG(session, ret, "%s: directory-sync: open", dir);
 
-	ret = __posix_sync(session, fd, path, "directory-sync");
+	ret = __posix_sync(session, fd, dir, "directory-sync");
 
 	WT_SYSCALL(close(fd), tret);
 	if (tret != 0) {
-		__wt_err(session, tret, "%s: directory-sync: close", path);
+		__wt_err(session, tret, "%s: directory-sync: close", dir);
 		if (ret == 0)
 			ret = tret;
 	}
+
+err:	__wt_scr_free(session, &tmp);
 	return (ret);
 }
 #endif
@@ -141,8 +150,8 @@ __posix_fs_exist(WT_FILE_SYSTEM *file_system,
  *	Remove a file.
  */
 static int
-__posix_fs_remove(
-    WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *name)
+__posix_fs_remove(WT_FILE_SYSTEM *file_system,
+    WT_SESSION *wt_session, const char *name, bool durable)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -159,9 +168,15 @@ __posix_fs_remove(
 	 * using unlink may be marginally safer.
 	 */
 	WT_SYSCALL(unlink(name), ret);
-	if (ret == 0)
-		return (0);
-	WT_RET_MSG(session, ret, "%s: file-remove: unlink", name);
+	if (ret != 0)
+		WT_RET_MSG(session, ret, "%s: file-remove: unlink", name);
+
+#ifdef __linux__
+	/* Flush the backing directory to guarantee the remove. */
+	return (durable ? __posix_directory_sync(session, name) : 0);
+#else
+	return (0);
+#endif
 }
 
 /*
@@ -170,10 +185,12 @@ __posix_fs_remove(
  */
 static int
 __posix_fs_rename(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *wt_session, const char *from, const char *to)
+    WT_SESSION *wt_session, const char *from, const char *to, bool durable)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	bool same_directory;
+	const char *fp, *tp;
 
 	WT_UNUSED(file_system);
 
@@ -187,9 +204,39 @@ __posix_fs_rename(WT_FILE_SYSTEM *file_system,
 	 * return (if errno is 0), but we've done the best we can.
 	 */
 	WT_SYSCALL(rename(from, to) != 0 ? -1 : 0, ret);
-	if (ret == 0)
+	if (ret != 0)
+		WT_RET_MSG(
+		    session, ret, "%s to %s: file-rename: rename", from, to);
+
+#ifdef __linux__
+	if (!durable)
 		return (0);
-	WT_RET_MSG(session, ret, "%s to %s: file-rename: rename", from, to);
+
+	/*
+	 * Flush the backing directory to guarantee the rename. My reading of
+	 * POSIX 1003.1 is there's no guarantee flushing only one of the from
+	 * or to directories, or flushing a common parent, is sufficient, and
+	 * even if POSIX were to make that guarantee, existing filesystems are
+	 * known to not provide the guarantee or only provide the guarantee
+	 * with specific mount options. Flush both of the from/to directories
+	 * until it's a performance problem.
+	 */
+	WT_RET(__posix_directory_sync(session, from));
+
+	/*
+	 * In almost all cases, we're going to be renaming files in the same
+	 * directory, we can at least fast-path that.
+	 */
+	fp = strrchr(from, '/');
+	tp = strrchr(to, '/');
+	same_directory = (fp == NULL && tp == NULL) ||
+	    (fp != NULL && tp != NULL &&
+	    fp - from == tp - to && memcmp(from, to, (size_t)(fp - from)) == 0);
+
+	return (same_directory ? 0 : __posix_directory_sync(session, to));
+#else
+	return (0);
+#endif
 }
 
 /*
@@ -601,6 +648,7 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 #endif
 	}
 
+	/* Create/Open the file. */
 	WT_SYSCALL_RETRY(((pfh->fd = open(name, f, mode)) == -1 ? -1 : 0), ret);
 	if (ret != 0)
 		WT_ERR_MSG(session, ret,
@@ -608,6 +656,16 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 		    "%s: handle-open: open: failed with direct I/O configured, "
 		    "some filesystem types do not support direct I/O" :
 		    "%s: handle-open: open", name);
+
+#ifdef __linux__
+	/*
+	 * Durability: some filesystems require a directory sync to be confident
+	 * the file will appear.
+	 */
+	if (LF_ISSET(WT_OPEN_DURABLE))
+		WT_ERR(__posix_directory_sync(session, name));
+#endif
+
 	WT_ERR(__posix_open_file_cloexec(session, pfh->fd, name));
 
 #if defined(HAVE_POSIX_FADVISE)
@@ -705,9 +763,6 @@ __wt_os_posix(WT_SESSION_IMPL *session)
 	/* Initialize the POSIX jump table. */
 	file_system->fs_directory_list = __wt_posix_directory_list;
 	file_system->fs_directory_list_free = __wt_posix_directory_list_free;
-#ifdef __linux__
-	file_system->fs_directory_sync = __posix_directory_sync;
-#endif
 	file_system->fs_exist = __posix_fs_exist;
 	file_system->fs_open_file = __posix_open_file;
 	file_system->fs_remove = __posix_fs_remove;

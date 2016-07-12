@@ -36,13 +36,14 @@ __win_fs_exist(WT_FILE_SYSTEM *file_system,
  *	Remove a file.
  */
 static int
-__win_fs_remove(
-    WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *name)
+__win_fs_remove(WT_FILE_SYSTEM *file_system,
+    WT_SESSION *wt_session, const char *name, bool durable)
 {
 	DWORD windows_error;
 	WT_SESSION_IMPL *session;
 
 	WT_UNUSED(file_system);
+	WT_UNUSED(durable);
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
@@ -62,12 +63,13 @@ __win_fs_remove(
  */
 static int
 __win_fs_rename(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *wt_session, const char *from, const char *to)
+    WT_SESSION *wt_session, const char *from, const char *to, bool durable)
 {
 	DWORD windows_error;
 	WT_SESSION_IMPL *session;
 
 	WT_UNUSED(file_system);
+	WT_UNUSED(durable);
 
 	session = (WT_SESSION_IMPL *)wt_session;
 

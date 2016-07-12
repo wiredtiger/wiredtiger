@@ -44,7 +44,8 @@ __wt_block_manager_create(
 	 */
 	for (;;) {
 		if ((ret = __wt_open(session, filename, WT_OPEN_FILE_TYPE_DATA,
-		    WT_OPEN_CREATE | WT_OPEN_EXCLUSIVE, &fh)) == 0)
+		    WT_OPEN_CREATE | WT_OPEN_DURABLE | WT_OPEN_EXCLUSIVE,
+		    &fh)) == 0)
 			break;
 		WT_ERR_TEST(ret != EEXIST, ret);
 
@@ -76,13 +77,6 @@ __wt_block_manager_create(
 
 	/* Close the file handle. */
 	WT_TRET(__wt_close(session, &fh));
-
-	/*
-	 * Some filesystems require that we sync the directory to be confident
-	 * that the file will appear.
-	 */
-	if (ret == 0)
-		WT_TRET(__wt_fs_directory_sync(session, filename));
 
 	/* Undo any create on error. */
 	if (ret != 0)
