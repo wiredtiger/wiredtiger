@@ -171,12 +171,14 @@ __posix_fs_remove(WT_FILE_SYSTEM *file_system,
 	if (ret != 0)
 		WT_RET_MSG(session, ret, "%s: file-remove: unlink", name);
 
+	if (!durable)
+		return (0);
+
 #ifdef __linux__
 	/* Flush the backing directory to guarantee the remove. */
-	return (durable ? __posix_directory_sync(session, name) : 0);
-#else
-	return (0);
+	WT_RET (__posix_directory_sync(session, name));
 #endif
+	return (0);
 }
 
 /*
@@ -189,8 +191,6 @@ __posix_fs_rename(WT_FILE_SYSTEM *file_system,
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	bool same_directory;
-	const char *fp, *tp;
 
 	WT_UNUSED(file_system);
 
@@ -208,10 +208,9 @@ __posix_fs_rename(WT_FILE_SYSTEM *file_system,
 		WT_RET_MSG(
 		    session, ret, "%s to %s: file-rename: rename", from, to);
 
-#ifdef __linux__
 	if (!durable)
 		return (0);
-
+#ifdef __linux__
 	/*
 	 * Flush the backing directory to guarantee the rename. My reading of
 	 * POSIX 1003.1 is there's no guarantee flushing only one of the from
@@ -227,16 +226,21 @@ __posix_fs_rename(WT_FILE_SYSTEM *file_system,
 	 * In almost all cases, we're going to be renaming files in the same
 	 * directory, we can at least fast-path that.
 	 */
+	{
+	bool same_directory;
+	const char *fp, *tp;
+
 	fp = strrchr(from, '/');
 	tp = strrchr(to, '/');
 	same_directory = (fp == NULL && tp == NULL) ||
 	    (fp != NULL && tp != NULL &&
 	    fp - from == tp - to && memcmp(from, to, (size_t)(fp - from)) == 0);
 
-	return (same_directory ? 0 : __posix_directory_sync(session, to));
-#else
-	return (0);
+	if (!same_directory)
+		WT_RET(__posix_directory_sync(session, to));
+	}
 #endif
+	return (0);
 }
 
 /*

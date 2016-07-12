@@ -15,9 +15,10 @@ static int __desc_read(WT_SESSION_IMPL *, WT_BLOCK *);
  *	Drop a file.
  */
 int
-__wt_block_manager_drop(WT_SESSION_IMPL *session, const char *filename)
+__wt_block_manager_drop(
+    WT_SESSION_IMPL *session, const char *filename, bool durable)
 {
-	 return (__wt_remove_if_exists(session, filename));
+	return (__wt_remove_if_exists(session, filename, durable));
 }
 
 /*
@@ -57,7 +58,7 @@ __wt_block_manager_create(
 			WT_ERR(__wt_fs_exist(session, tmp->data, &exists));
 			if (!exists) {
 				WT_ERR(__wt_fs_rename(
-				    session, filename, tmp->data));
+				    session, filename, tmp->data, false));
 				WT_ERR(__wt_msg(session,
 				    "unexpected file %s found, renamed to %s",
 				    filename, (const char *)tmp->data));
@@ -80,7 +81,7 @@ __wt_block_manager_create(
 
 	/* Undo any create on error. */
 	if (ret != 0)
-		WT_TRET(__wt_fs_remove(session, filename));
+		WT_TRET(__wt_fs_remove(session, filename, false));
 
 err:	__wt_scr_free(session, &tmp);
 

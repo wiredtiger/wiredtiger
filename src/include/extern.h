@@ -44,7 +44,7 @@ extern void __wt_block_extlist_free(WT_SESSION_IMPL *session, WT_EXTLIST *el);
 extern int __wt_block_map(WT_SESSION_IMPL *session, WT_BLOCK *block, void *mapped_regionp, size_t *lengthp, void *mapped_cookiep);
 extern int __wt_block_unmap(WT_SESSION_IMPL *session, WT_BLOCK *block, void *mapped_region, size_t length, void *mapped_cookie);
 extern int __wt_block_manager_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[], bool forced_salvage, bool readonly, uint32_t allocsize, WT_BM **bmp);
-extern int __wt_block_manager_drop(WT_SESSION_IMPL *session, const char *filename);
+extern int __wt_block_manager_drop( WT_SESSION_IMPL *session, const char *filename, bool durable);
 extern int __wt_block_manager_create( WT_SESSION_IMPL *session, const char *filename, uint32_t allocsize);
 extern void __wt_block_configure_first_fit(WT_BLOCK *block, bool on);
 extern int __wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[], bool forced_salvage, bool readonly, uint32_t allocsize, WT_BLOCK **blockp);
@@ -486,7 +486,7 @@ extern int __wt_turtle_read(WT_SESSION_IMPL *session, const char *key, char **va
 extern int __wt_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value);
 extern int __wt_filename(WT_SESSION_IMPL *session, const char *name, char **path);
 extern int __wt_nfilename( WT_SESSION_IMPL *session, const char *name, size_t namelen, char **path);
-extern int __wt_remove_if_exists(WT_SESSION_IMPL *session, const char *name);
+extern int __wt_remove_if_exists(WT_SESSION_IMPL *session, const char *name, bool durable);
 extern int __wt_copy_and_sync(WT_SESSION *wt_session, const char *from, const char *to);
 extern void __wt_abort(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 extern int __wt_calloc(WT_SESSION_IMPL *session, size_t number, size_t size, void *retp);

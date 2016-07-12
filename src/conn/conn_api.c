@@ -1784,7 +1784,7 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
 	 * runs.  This doesn't matter for correctness, it's just cleaning up
 	 * random files.
 	 */
-	WT_RET(__wt_remove_if_exists(session, WT_BASECONFIG_SET));
+	WT_RET(__wt_remove_if_exists(session, WT_BASECONFIG_SET, false));
 
 	/*
 	 * The base configuration file is only written if creating the database,
@@ -1870,7 +1870,8 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
 	if (0) {
 		/* Close open file handle, remove any temporary file. */
 err:		WT_TRET(__wt_fclose(session, &fs));
-		WT_TRET(__wt_remove_if_exists(session, WT_BASECONFIG_SET));
+		WT_TRET(
+		    __wt_remove_if_exists(session, WT_BASECONFIG_SET, false));
 	}
 
 	__wt_free(session, base_config);

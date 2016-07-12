@@ -56,13 +56,13 @@ __wt_nfilename(
  *	Remove a file if it exists.
  */
 int
-__wt_remove_if_exists(WT_SESSION_IMPL *session, const char *name)
+__wt_remove_if_exists(WT_SESSION_IMPL *session, const char *name, bool durable)
 {
 	bool exist;
 
 	WT_RET(__wt_fs_exist(session, name, &exist));
 	if (exist)
-		WT_RET(__wt_fs_remove(session, name));
+		WT_RET(__wt_fs_remove(session, name, durable));
 	return (0);
 }
 
@@ -96,8 +96,8 @@ __wt_copy_and_sync(WT_SESSION *wt_session, const char *from, const char *to)
 	WT_ERR(__wt_scr_alloc(session, 0, &tmp));
 	WT_ERR(__wt_buf_fmt(session, tmp, "%s.copy", to));
 
-	WT_ERR(__wt_remove_if_exists(session, to));
-	WT_ERR(__wt_remove_if_exists(session, tmp->data));
+	WT_ERR(__wt_remove_if_exists(session, to, false));
+	WT_ERR(__wt_remove_if_exists(session, tmp->data, false));
 
 	/* Open the from and temporary file handles. */
 	WT_ERR(__wt_open(session, from, WT_OPEN_FILE_TYPE_REGULAR, 0, &ffh));
@@ -124,7 +124,7 @@ __wt_copy_and_sync(WT_SESSION *wt_session, const char *from, const char *to)
 	WT_ERR(__wt_fsync(session, tfh, true));
 	WT_ERR(__wt_close(session, &tfh));
 
-	ret = __wt_fs_rename(session, tmp->data, to);
+	ret = __wt_fs_rename(session, tmp->data, to, true);
 
 err:	WT_TRET(__wt_close(session, &ffh));
 	WT_TRET(__wt_close(session, &tfh));

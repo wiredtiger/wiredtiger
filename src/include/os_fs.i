@@ -8,7 +8,7 @@
 
 /*
  * __wt_fs_directory_list --
- *	Get a list of files from a directory.
+ *	Return a list of files from a directory.
  */
 static inline int
 __wt_fs_directory_list(WT_SESSION_IMPL *session,
@@ -86,10 +86,10 @@ __wt_fs_exist(WT_SESSION_IMPL *session, const char *name, bool *existp)
 
 /*
  * __wt_fs_remove --
- *	POSIX remove.
+ *	Remove the file.
  */
 static inline int
-__wt_fs_remove(WT_SESSION_IMPL *session, const char *name)
+__wt_fs_remove(WT_SESSION_IMPL *session, const char *name, bool durable)
 {
 	WT_DECL_RET;
 	WT_FILE_SYSTEM *file_system;
@@ -114,7 +114,7 @@ __wt_fs_remove(WT_SESSION_IMPL *session, const char *name)
 
 	file_system = S2C(session)->file_system;
 	wt_session = (WT_SESSION *)session;
-	ret = file_system->fs_remove(file_system, wt_session, path, true);
+	ret = file_system->fs_remove(file_system, wt_session, path, durable);
 
 	__wt_free(session, path);
 	return (ret);
@@ -122,10 +122,11 @@ __wt_fs_remove(WT_SESSION_IMPL *session, const char *name)
 
 /*
  * __wt_fs_rename --
- *	POSIX rename.
+ *	Rename the file.
  */
 static inline int
-__wt_fs_rename(WT_SESSION_IMPL *session, const char *from, const char *to)
+__wt_fs_rename(
+    WT_SESSION_IMPL *session, const char *from, const char *to, bool durable)
 {
 	WT_DECL_RET;
 	WT_FILE_SYSTEM *file_system;
@@ -157,7 +158,7 @@ __wt_fs_rename(WT_SESSION_IMPL *session, const char *from, const char *to)
 	file_system = S2C(session)->file_system;
 	wt_session = (WT_SESSION *)session;
 	ret = file_system->fs_rename(
-	    file_system, wt_session, from_path, to_path, true);
+	    file_system, wt_session, from_path, to_path, durable);
 
 err:	__wt_free(session, from_path);
 	__wt_free(session, to_path);
@@ -166,7 +167,7 @@ err:	__wt_free(session, from_path);
 
 /*
  * __wt_fs_size --
- *	Get the size of a file in bytes, by file name.
+ *	Return the size of a file in bytes, by file name.
  */
 static inline int
 __wt_fs_size(WT_SESSION_IMPL *session, const char *name, wt_off_t *sizep)
