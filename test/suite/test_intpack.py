@@ -127,19 +127,19 @@ class test_intpack(wttest.WiredTigerTestCase):
     name = 'test_intpack'
 
     scenarios = check_scenarios([
-        ('b', dict(formatcode='b', low=-128, high=127, nbits=8)),
-        ('B', dict(formatcode='B', low=0, high=255, nbits=8)),
+        ('1b', dict(formatcode='b', low=-128, high=127, nbits=8)),
+        ('2B', dict(formatcode='B', low=0, high=255, nbits=8)),
         ('8t', dict(formatcode='8t', low=0, high=255, nbits=8)),
         ('5t', dict(formatcode='5t', low=0, high=31, nbits=5)),
-        ('h', dict(formatcode='h', low=-32768, high=32767, nbits=16)),
-        ('H', dict(formatcode='H', low=0, high=65535, nbits=16)),
-        ('i', dict(formatcode='i', low=-2147483648, high=2147483647, nbits=32)),
-        ('I', dict(formatcode='I', low=0, high=4294967295, nbits=32)),
-        ('l', dict(formatcode='l', low=-2147483648, high=2147483647, nbits=32)),
-        ('L', dict(formatcode='L', low=0, high=4294967295, nbits=32)),
-        ('q', dict(formatcode='q', low=-9223372036854775808,
+        ('1h', dict(formatcode='h', low=-32768, high=32767, nbits=16)),
+        ('2H', dict(formatcode='H', low=0, high=65535, nbits=16)),
+        ('1i', dict(formatcode='i', low=-2147483648, high=2147483647, nbits=32)),
+        ('2I', dict(formatcode='I', low=0, high=4294967295, nbits=32)),
+        ('1l', dict(formatcode='l', low=-2147483648, high=2147483647, nbits=32)),
+        ('2L', dict(formatcode='L', low=0, high=4294967295, nbits=32)),
+        ('1q', dict(formatcode='q', low=-9223372036854775808,
                    high=9223372036854775807, nbits=64)),
-        ('Q', dict(formatcode='Q', low=0, high=18446744073709551615, nbits=64)),
+        ('2Q', dict(formatcode='Q', low=0, high=18446744073709551615, nbits=64)),
     ])
     scenarios = check_scenarios(number_scenarios(scenarios))
 
