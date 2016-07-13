@@ -3685,26 +3685,26 @@ struct __wt_extractor {
 #if !defined(SWIG)
 /*! WT_FILE_SYSTEM::open_file file types */
 typedef enum {
-	WT_OPEN_FILE_TYPE_CHECKPOINT,	/*!< open a data file checkpoint */
-	WT_OPEN_FILE_TYPE_DATA,		/*!< open a data file */
-	WT_OPEN_FILE_TYPE_DIRECTORY,	/*!< open a directory */
-	WT_OPEN_FILE_TYPE_LOG,		/*!< open a log file */
-	WT_OPEN_FILE_TYPE_REGULAR	/*!< open a regular file */
-} WT_OPEN_FILE_TYPE;
+	WT_FS_OPEN_FILE_TYPE_CHECKPOINT,/*!< open a data file checkpoint */
+	WT_FS_OPEN_FILE_TYPE_DATA,	/*!< open a data file */
+	WT_FS_OPEN_FILE_TYPE_DIRECTORY,	/*!< open a directory */
+	WT_FS_OPEN_FILE_TYPE_LOG,	/*!< open a log file */
+	WT_FS_OPEN_FILE_TYPE_REGULAR	/*!< open a regular file */
+} WT_FS_OPEN_FILE_TYPE;
 
 /*! WT_FILE_SYSTEM::open_file flags: create if does not exist */
-#define	WT_OPEN_CREATE		0x001
+#define	WT_FS_OPEN_CREATE	0x001
 /*! WT_FILE_SYSTEM::open_file flags: direct I/O requested */
-#define	WT_OPEN_DIRECTIO	0x002
+#define	WT_FS_OPEN_DIRECTIO	0x002
 /*! WT_FILE_SYSTEM::open_file flags: durable creation required */
-#define	WT_OPEN_DURABLE		0x004
+#define	WT_FS_OPEN_DURABLE	0x004
 /*! WT_FILE_SYSTEM::open_file flags: error if exclusive use not available */
-#define	WT_OPEN_EXCLUSIVE	0x008
+#define	WT_FS_OPEN_EXCLUSIVE	0x008
 #ifndef DOXYGEN
-#define	WT_OPEN_FIXED		0x010	/* Path not home relative (internal) */
+#define	WT_FS_OPEN_FIXED	0x010	/* Path not home relative (internal) */
 #endif
 /*! WT_FILE_SYSTEM::open_file flags: open is read-only */
-#define	WT_OPEN_READONLY	0x020
+#define	WT_FS_OPEN_READONLY	0x020
 
 /*!
  * The interface implemented by applications to provide a custom file system
@@ -3776,8 +3776,8 @@ struct __wt_file_system {
 	 * requested mode (for example, a file opened for writing in a readonly
 	 * file system).
 	 *
-	 * The method should return EBUSY if ::WT_OPEN_EXCLUSIVE is set and the
-	 * file is in use.
+	 * The method should return EBUSY if ::WT_FS_OPEN_EXCLUSIVE is set and
+	 * the file is in use.
 	 *
 	 * @errors
 	 *
@@ -3788,8 +3788,8 @@ struct __wt_file_system {
 	 *    The file type is provided to allow optimization for different file
 	 *    access patterns.
 	 * @param flags flags indicating how to open the file, one or more of
-	 *    ::WT_OPEN_CREATE, ::WT_OPEN_DIRECTIO, ::WT_OPEN_DURABLE,
-	 *    ::WT_OPEN_EXCLUSIVE or ::WT_OPEN_READONLY.
+	 *    ::WT_FS_OPEN_CREATE, ::WT_FS_OPEN_DIRECTIO, ::WT_FS_OPEN_DURABLE,
+	 *    ::WT_FS_OPEN_EXCLUSIVE or ::WT_FS_OPEN_READONLY.
 	 * @param[out] file_handlep the handle to the newly opened file. File
 	 *    system implementations must allocate memory for the handle and
 	 *    the WT_FILE_HANDLE::name field, and fill in the WT_FILE_HANDLE::
@@ -3798,7 +3798,7 @@ struct __wt_file_system {
 	 *    their own structure as a superset of a WT_FILE_HANDLE:: structure.
 	 */
 	int (*fs_open_file)(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
-	    const char *name, WT_OPEN_FILE_TYPE file_type, uint32_t flags,
+	    const char *name, WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags,
 	    WT_FILE_HANDLE **file_handlep);
 
 	/*!

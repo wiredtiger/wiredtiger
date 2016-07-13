@@ -1217,7 +1217,8 @@ __conn_config_file(WT_SESSION_IMPL *session,
 		return (0);
 
 	/* Open the configuration file. */
-	WT_RET(__wt_open(session, filename, WT_OPEN_FILE_TYPE_REGULAR, 0, &fh));
+	WT_RET(__wt_open(
+	    session, filename, WT_FS_OPEN_FILE_TYPE_REGULAR, 0, &fh));
 	WT_ERR(__wt_filesize(session, fh, &size));
 	if (size == 0)
 		goto err;
@@ -1510,8 +1511,8 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 	exist = false;
 	if (!is_create)
 		WT_ERR(__wt_fs_exist(session, WT_WIREDTIGER, &exist));
-	ret = __wt_open(session, WT_SINGLETHREAD, WT_OPEN_FILE_TYPE_REGULAR,
-	    is_create || exist ? WT_OPEN_CREATE : 0, &conn->lock_fh);
+	ret = __wt_open(session, WT_SINGLETHREAD, WT_FS_OPEN_FILE_TYPE_REGULAR,
+	    is_create || exist ? WT_FS_OPEN_CREATE : 0, &conn->lock_fh);
 
 	/*
 	 * If this is a read-only connection and we cannot grab the lock
@@ -1563,7 +1564,8 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/* We own the lock file, optionally create the WiredTiger file. */
 	ret = __wt_open(session, WT_WIREDTIGER,
-	    WT_OPEN_FILE_TYPE_REGULAR, is_create ? WT_OPEN_CREATE : 0, &fh);
+	    WT_FS_OPEN_FILE_TYPE_REGULAR, is_create ? WT_FS_OPEN_CREATE : 0,
+	    &fh);
 
 	/*
 	 * If we're read-only, check for handled errors. Even if able to open
@@ -1809,7 +1811,7 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
 		return (0);
 
 	WT_RET(__wt_fopen(session, WT_BASECONFIG_SET,
-	    WT_OPEN_CREATE | WT_OPEN_EXCLUSIVE, WT_STREAM_WRITE, &fs));
+	    WT_FS_OPEN_CREATE | WT_FS_OPEN_EXCLUSIVE, WT_STREAM_WRITE, &fs));
 
 	WT_ERR(__wt_fprintf(session, fs, "%s\n\n",
 	    "# Do not modify this file.\n"

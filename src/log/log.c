@@ -701,11 +701,11 @@ __log_openfile(WT_SESSION_IMPL *session,
 	    "opening log %s", (const char *)buf->data));
 	wtopen_flags = 0;
 	if (LF_ISSET(WT_LOG_OPEN_CREATE_OK))
-		FLD_SET(wtopen_flags, WT_OPEN_CREATE);
+		FLD_SET(wtopen_flags, WT_FS_OPEN_CREATE);
 	if (FLD_ISSET(conn->direct_io, WT_DIRECT_IO_LOG))
-		FLD_SET(wtopen_flags, WT_OPEN_DIRECTIO);
+		FLD_SET(wtopen_flags, WT_FS_OPEN_DIRECTIO);
 	WT_ERR(__wt_open(
-	    session, buf->data, WT_OPEN_FILE_TYPE_LOG, wtopen_flags, fhp));
+	    session, buf->data, WT_FS_OPEN_FILE_TYPE_LOG, wtopen_flags, fhp));
 
 	/*
 	 * If we are not creating the log file but opening it for reading,
@@ -1122,7 +1122,7 @@ __wt_log_open(WT_SESSION_IMPL *session)
 		WT_RET(__wt_verbose(session, WT_VERB_LOG,
 		    "log_open: open fh to directory %s", conn->log_path));
 		WT_RET(__wt_open(session, conn->log_path,
-		    WT_OPEN_FILE_TYPE_DIRECTORY, 0, &log->log_dir_fh));
+		    WT_FS_OPEN_FILE_TYPE_DIRECTORY, 0, &log->log_dir_fh));
 	}
 
 	if (!F_ISSET(conn, WT_CONN_READONLY)) {

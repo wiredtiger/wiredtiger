@@ -564,7 +564,7 @@ __posix_open_file_cloexec(WT_SESSION_IMPL *session, int fd, const char *name)
  */
 static int
 __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
-    const char *name, WT_OPEN_FILE_TYPE file_type, uint32_t flags,
+    const char *name, WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags,
     WT_FILE_HANDLE **file_handlep)
 {
 	WT_CONNECTION_IMPL *conn;
@@ -587,7 +587,7 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	/* Set up error handling. */
 	pfh->fd = -1;
 
-	if (file_type == WT_OPEN_FILE_TYPE_DIRECTORY) {
+	if (file_type == WT_FS_OPEN_FILE_TYPE_DIRECTORY) {
 		f = O_RDONLY;
 #ifdef O_CLOEXEC
 		/*
@@ -605,10 +605,10 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 		goto directory_open;
 	}
 
-	f = LF_ISSET(WT_OPEN_READONLY) ? O_RDONLY : O_RDWR;
-	if (LF_ISSET(WT_OPEN_CREATE)) {
+	f = LF_ISSET(WT_FS_OPEN_READONLY) ? O_RDONLY : O_RDWR;
+	if (LF_ISSET(WT_FS_OPEN_CREATE)) {
 		f |= O_CREAT;
-		if (LF_ISSET(WT_OPEN_EXCLUSIVE))
+		if (LF_ISSET(WT_FS_OPEN_EXCLUSIVE))
 			f |= O_EXCL;
 		mode = 0666;
 	} else
@@ -628,7 +628,7 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 #endif
 #ifdef O_DIRECT
 	/* Direct I/O. */
-	if (LF_ISSET(WT_OPEN_DIRECTIO)) {
+	if (LF_ISSET(WT_FS_OPEN_DIRECTIO)) {
 		f |= O_DIRECT;
 		pfh->direct_io = true;
 	} else
@@ -636,11 +636,11 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 #endif
 #ifdef O_NOATIME
 	/* Avoid updating metadata for read-only workloads. */
-	if (file_type == WT_OPEN_FILE_TYPE_DATA)
+	if (file_type == WT_FS_OPEN_FILE_TYPE_DATA)
 		f |= O_NOATIME;
 #endif
 
-	if (file_type == WT_OPEN_FILE_TYPE_LOG &&
+	if (file_type == WT_FS_OPEN_FILE_TYPE_LOG &&
 	    FLD_ISSET(conn->txn_logsync, WT_LOG_DSYNC)) {
 #ifdef O_DSYNC
 		f |= O_DSYNC;
@@ -666,7 +666,7 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	 * Durability: some filesystems require a directory sync to be confident
 	 * the file will appear.
 	 */
-	if (LF_ISSET(WT_OPEN_DURABLE))
+	if (LF_ISSET(WT_FS_OPEN_DURABLE))
 		WT_ERR(__posix_directory_sync(session, name));
 #endif
 
@@ -678,7 +678,7 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	 * Ignore fadvise when doing direct I/O, the kernel cache isn't
 	 * interesting.
 	 */
-	if (!pfh->direct_io && file_type == WT_OPEN_FILE_TYPE_DATA) {
+	if (!pfh->direct_io && file_type == WT_FS_OPEN_FILE_TYPE_DATA) {
 		WT_SYSCALL(
 		    posix_fadvise(pfh->fd, 0, 0, POSIX_FADV_RANDOM), ret);
 		if (ret != 0)

@@ -500,7 +500,7 @@ extern int __wt_errno(void);
 extern const char *__wt_strerror(WT_SESSION_IMPL *session, int error, char *errbuf, size_t errlen);
 extern int __wt_ext_map_windows_error( WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, uint32_t windows_error);
 extern bool __wt_handle_is_open(WT_SESSION_IMPL *session, const char *name);
-extern int __wt_open(WT_SESSION_IMPL *session, const char *name, WT_OPEN_FILE_TYPE file_type, u_int flags, WT_FH **fhp);
+extern int __wt_open(WT_SESSION_IMPL *session, const char *name, WT_FS_OPEN_FILE_TYPE file_type, u_int flags, WT_FH **fhp);
 extern int __wt_close(WT_SESSION_IMPL *session, WT_FH **fhp);
 extern int __wt_close_connection_close(WT_SESSION_IMPL *session);
 extern int __wt_os_inmemory(WT_SESSION_IMPL *session);

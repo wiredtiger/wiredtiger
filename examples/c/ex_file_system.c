@@ -118,8 +118,8 @@ int demo_file_system_create(WT_CONNECTION *, WT_CONFIG_ARG *);
 /*
  * Forward function declarations for file system API implementation
  */
-static int demo_fs_open(WT_FILE_SYSTEM *,
-    WT_SESSION *, const char *, WT_OPEN_FILE_TYPE, uint32_t, WT_FILE_HANDLE **);
+static int demo_fs_open(WT_FILE_SYSTEM *, WT_SESSION *,
+    const char *, WT_FS_OPEN_FILE_TYPE, uint32_t, WT_FILE_HANDLE **);
 static int demo_fs_directory_list(WT_FILE_SYSTEM *, WT_SESSION *,
     const char *, const char *, char ***, uint32_t *);
 static int demo_fs_directory_list_free(
@@ -279,7 +279,7 @@ err:	free(demo_fs);
  */
 static int
 demo_fs_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
-    const char *name, WT_OPEN_FILE_TYPE file_type, uint32_t flags,
+    const char *name, WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags,
     WT_FILE_HANDLE **file_handlep)
 {
 	DEMO_FILE_HANDLE *demo_fh;

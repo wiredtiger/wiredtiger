@@ -243,7 +243,7 @@ __backup_start(
 	 * doesn't confuse restarting in the source database.
 	 */
 	WT_ERR(__wt_fopen(session, WT_BACKUP_TMP,
-	    WT_OPEN_CREATE, WT_STREAM_WRITE, &cb->bfs));
+	    WT_FS_OPEN_CREATE, WT_STREAM_WRITE, &cb->bfs));
 	/*
 	 * If a list of targets was specified, work our way through them.
 	 * Else, generate a list of all database objects.
@@ -269,7 +269,7 @@ __backup_start(
 		 */
 		dest = WT_INCREMENTAL_BACKUP;
 		WT_ERR(__wt_fopen(session, WT_INCREMENTAL_SRC,
-		    WT_OPEN_CREATE, WT_STREAM_WRITE, &srcfs));
+		    WT_FS_OPEN_CREATE, WT_STREAM_WRITE, &srcfs));
 		WT_ERR(__backup_list_append(
 		    session, cb, WT_INCREMENTAL_BACKUP));
 	} else {

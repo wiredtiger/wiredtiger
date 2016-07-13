@@ -306,7 +306,7 @@ __wt_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value)
 	 * every time.
 	 */
 	WT_RET(__wt_fopen(session, WT_METADATA_TURTLE_SET,
-	    WT_OPEN_CREATE | WT_OPEN_EXCLUSIVE, WT_STREAM_WRITE, &fs));
+	    WT_FS_OPEN_CREATE | WT_FS_OPEN_EXCLUSIVE, WT_STREAM_WRITE, &fs));
 
 	version = wiredtiger_version(&vmajor, &vminor, &vpatch);
 	WT_ERR(__wt_fprintf(session, fs,
