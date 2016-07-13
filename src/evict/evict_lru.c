@@ -556,18 +556,17 @@ __evict_update_work(WT_SESSION_IMPL *session)
 		goto done;
 	}
 
-	/*
-	 * If the cache has been stuck and is now under control, clear the
-	 * stuck flag.
-	 */
-	if (bytes_inuse < bytes_max)
-		F_CLR(cache, WT_CACHE_STUCK);
-
 	dirty_inuse = __wt_cache_dirty_inuse(cache);
 	if (dirty_inuse > (cache->eviction_dirty_target * bytes_max) / 100) {
 		FLD_SET(cache->state, WT_EVICT_STATE_DIRTY);
 		goto done;
 	}
+
+	/*
+	 * If the cache has been stuck and is now under control, clear the
+	 * stuck flag.
+	 */
+	F_CLR(cache, WT_CACHE_STUCK);
 
 	return (false);
 
