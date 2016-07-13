@@ -3696,15 +3696,23 @@ typedef enum {
 #define	WT_FS_OPEN_CREATE	0x001
 /*! WT_FILE_SYSTEM::open_file flags: direct I/O requested */
 #define	WT_FS_OPEN_DIRECTIO	0x002
-/*! WT_FILE_SYSTEM::open_file flags: durable creation required */
+/*! WT_FILE_SYSTEM::open_file flags: file creation must be durable */
 #define	WT_FS_OPEN_DURABLE	0x004
-/*! WT_FILE_SYSTEM::open_file flags: error if exclusive use not available */
+/*!
+ * WT_FILE_SYSTEM::open_file flags: return EBUSY if exclusive use not available
+ */
 #define	WT_FS_OPEN_EXCLUSIVE	0x008
 #ifndef DOXYGEN
 #define	WT_FS_OPEN_FIXED	0x010	/* Path not home relative (internal) */
 #endif
 /*! WT_FILE_SYSTEM::open_file flags: open is read-only */
 #define	WT_FS_OPEN_READONLY	0x020
+
+/*!
+ * WT_FILE_SYSTEM::remove or WT_FILE_SYSTEM::rename flags: the remove or rename
+ * operation must be durable
+ */
+#define	WT_FS_DURABLE		0x001
 
 /*!
  * The interface implemented by applications to provide a custom file system
@@ -3813,9 +3821,10 @@ struct __wt_file_system {
 	 * @param session the current WiredTiger session
 	 * @param name the name of the file system object
 	 * @param durable if the operation requires durability
+	 * @param flags 0 or ::WT_FS_DURABLE
 	 */
 	int (*fs_remove)(WT_FILE_SYSTEM *file_system,
-	    WT_SESSION *session, const char *name, bool durable);
+	    WT_SESSION *session, const char *name, uint32_t flags);
 
 	/*!
 	 * Rename a named file system object
@@ -3829,10 +3838,10 @@ struct __wt_file_system {
 	 * @param session the current WiredTiger session
 	 * @param from the original name of the object
 	 * @param to the new name for the object
-	 * @param durable if the operation requires durability
+	 * @param flags 0 or ::WT_FS_DURABLE
 	 */
 	int (*fs_rename)(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
-	    const char *from, const char *to, bool durable);
+	    const char *from, const char *to, uint32_t flags);
 
 	/*!
 	 * Return the size of a named file system object

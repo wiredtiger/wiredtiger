@@ -151,7 +151,7 @@ __posix_fs_exist(WT_FILE_SYSTEM *file_system,
  */
 static int
 __posix_fs_remove(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *wt_session, const char *name, bool durable)
+    WT_SESSION *wt_session, const char *name, uint32_t flags)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -171,7 +171,7 @@ __posix_fs_remove(WT_FILE_SYSTEM *file_system,
 	if (ret != 0)
 		WT_RET_MSG(session, ret, "%s: file-remove: unlink", name);
 
-	if (!durable)
+	if (!LF_ISSET(WT_FS_DURABLE))
 		return (0);
 
 #ifdef __linux__
@@ -187,7 +187,7 @@ __posix_fs_remove(WT_FILE_SYSTEM *file_system,
  */
 static int
 __posix_fs_rename(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *wt_session, const char *from, const char *to, bool durable)
+    WT_SESSION *wt_session, const char *from, const char *to, uint32_t flags)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -208,7 +208,7 @@ __posix_fs_rename(WT_FILE_SYSTEM *file_system,
 		WT_RET_MSG(
 		    session, ret, "%s to %s: file-rename: rename", from, to);
 
-	if (!durable)
+	if (!LF_ISSET(WT_FS_DURABLE))
 		return (0);
 #ifdef __linux__
 	/*

@@ -114,7 +114,8 @@ __wt_fs_remove(WT_SESSION_IMPL *session, const char *name, bool durable)
 
 	file_system = S2C(session)->file_system;
 	wt_session = (WT_SESSION *)session;
-	ret = file_system->fs_remove(file_system, wt_session, path, durable);
+	ret = file_system->fs_remove(
+	    file_system, wt_session, path, durable ? WT_FS_DURABLE : 0);
 
 	__wt_free(session, path);
 	return (ret);
@@ -157,8 +158,8 @@ __wt_fs_rename(
 
 	file_system = S2C(session)->file_system;
 	wt_session = (WT_SESSION *)session;
-	ret = file_system->fs_rename(
-	    file_system, wt_session, from_path, to_path, durable);
+	ret = file_system->fs_rename(file_system,
+	    wt_session, from_path, to_path, durable ? WT_FS_DURABLE : 0);
 
 err:	__wt_free(session, from_path);
 	__wt_free(session, to_path);

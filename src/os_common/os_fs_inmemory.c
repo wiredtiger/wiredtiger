@@ -189,14 +189,14 @@ __im_fs_exist(WT_FILE_SYSTEM *file_system,
  */
 static int
 __im_fs_remove(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *wt_session, const char *name, bool durable)
+    WT_SESSION *wt_session, const char *name, uint32_t flags)
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_INMEM *im_fh;
 	WT_FILE_SYSTEM_INMEM *im_fs;
 	WT_SESSION_IMPL *session;
 
-	WT_UNUSED(durable);
+	WT_UNUSED(flags);
 
 	im_fs = (WT_FILE_SYSTEM_INMEM *)file_system;
 	session = (WT_SESSION_IMPL *)wt_session;
@@ -217,7 +217,7 @@ __im_fs_remove(WT_FILE_SYSTEM *file_system,
  */
 static int
 __im_fs_rename(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *wt_session, const char *from, const char *to, bool durable)
+    WT_SESSION *wt_session, const char *from, const char *to, uint32_t flags)
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_INMEM *im_fh;
@@ -226,7 +226,7 @@ __im_fs_rename(WT_FILE_SYSTEM *file_system,
 	uint64_t bucket;
 	char *copy;
 
-	WT_UNUSED(durable);
+	WT_UNUSED(flags);
 
 	im_fs = (WT_FILE_SYSTEM_INMEM *)file_system;
 	session = (WT_SESSION_IMPL *)wt_session;
