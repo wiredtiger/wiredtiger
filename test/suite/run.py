@@ -87,6 +87,7 @@ Options:\n\
   -j N    | --parallel N         run all tests in parallel using N processes\n\
   -l      | --long               run the entire test suite\n\
   -p      | --preserve           preserve output files in WT_TEST/<testname>\n\
+  -s N    | --scenario N         use scenario N (N can be number or symbolic)\n\
   -t      | --timestamp          name WT_TEST according to timestamp\n\
   -v N    | --verbose N          set verboseness to N (0<=N<=3, default=1)\n\
 \n\
@@ -101,9 +102,20 @@ Tests:\n\
 # e.g. test_util03 -> util
 reCatname = re.compile(r"test_([^0-9]+)[0-9]*")
 
-def addScenarioTests(tests, loader, testname):
+def restrictScenario(testcases, restrict):
+    if restrict == '':
+        return testcases
+    elif restrict.isdigit():
+        s = int(restrict)
+        return [t for t in testcases
+                if hasattr(t, 'scenario_number') and t.scenario_number == s]
+    else:
+        return [t for t in testcases
+                if hasattr(t, 'scenario_name') and t.scenario_name == restrict]
+
+def addScenarioTests(tests, loader, testname, scenario):
     loaded = loader.loadTestsFromName(testname)
-    tests.addTests(generate_scenarios(loaded))
+    tests.addTests(restrictScenario(generate_scenarios(loaded), scenario))
 
 def configRecord(cmap, tup):
     """
@@ -195,20 +207,20 @@ def configApply(suites, configfilename, configwrite):
             json.dump(configmap, f, sort_keys=True, indent=4)
     return newsuite
 
-def testsFromArg(tests, loader, arg):
+def testsFromArg(tests, loader, arg, scenario):
     # If a group of test is mentioned, do all tests in that group
     # e.g. 'run.py base'
     groupedfiles = glob.glob(suitedir + os.sep + 'test_' + arg + '*.py')
     if len(groupedfiles) > 0:
         for file in groupedfiles:
-            testsFromArg(tests, loader, os.path.basename(file))
+            testsFromArg(tests, loader, os.path.basename(file), scenario)
         return
 
     # Explicit test class names
     if not arg[0].isdigit():
         if arg.endswith('.py'):
             arg = arg[:-3]
-        addScenarioTests(tests, loader, arg)
+        addScenarioTests(tests, loader, arg, scenario)
         return
 
     # Deal with ranges
@@ -217,7 +229,7 @@ def testsFromArg(tests, loader, arg):
     else:
         start, end = int(arg), int(arg)
     for t in xrange(start, end+1):
-        addScenarioTests(tests, loader, 'test%03d' % t)
+        addScenarioTests(tests, loader, 'test%03d' % t, scenario)
 
 if __name__ == '__main__':
     tests = unittest.TestSuite()
@@ -228,6 +240,7 @@ if __name__ == '__main__':
     configfile = None
     configwrite = False
     dirarg = None
+    scenario = ''
     verbose = 1
     args = sys.argv[1:]
     testargs = []
@@ -264,6 +277,12 @@ if __name__ == '__main__':
                 continue
             if option == '-preserve' or option == 'p':
                 preserve = True
+                continue
+            if option == '-scenario' or option == 's':
+                if scenario != '' or len(args) == 0:
+                    usage()
+                    sys.exit(2)
+                scenario = args.pop(0)
                 continue
             if option == '-timestamp' or option == 't':
                 timestamp = True
@@ -308,10 +327,10 @@ if __name__ == '__main__':
         suites = sorted(suites, key=lambda c: str(list(c)[0]))
         if configfile != None:
             suites = configApply(suites, configfile, configwrite)
-        tests.addTests(generate_scenarios(suites))
+        tests.addTests(restrictScenario(generate_scenarios(suites), scenario))
     else:
         for arg in testargs:
-            testsFromArg(tests, loader, arg)
+            testsFromArg(tests, loader, arg, scenario)
 
     if debug:
         import pdb
