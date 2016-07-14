@@ -269,6 +269,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 	return (0);
 }
 
+#if 0
 /*
  * __checkpoint_write_leaves --
  *	Write any dirty leaf pages for all checkpoint handles.
@@ -280,6 +281,7 @@ __checkpoint_write_leaves(WT_SESSION_IMPL *session, const char *cfg[])
 
 	return (__wt_cache_op(session, WT_SYNC_WRITE_LEAVES));
 }
+#endif
 
 /*
  * __checkpoint_stats --
@@ -360,10 +362,17 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN_STATE *txn_state;
 	void *saved_meta_next;
 	u_int i;
-	uint64_t fsync_duration_usecs;
+	uint64_t fsync_duration_usecs, current_usecs;
 	bool full, idle, logging, tracking;
 	const char *txn_cfg[] = { WT_CONFIG_BASE(session,
 	    WT_SESSION_begin_transaction), "isolation=snapshot", NULL };
+
+#if 1
+	WT_CACHE *cache = S2C(session)->cache;
+	u_int orig_trigger, orig_target, current_dirty;
+	orig_target = cache->eviction_dirty_target;
+	orig_trigger = cache->eviction_dirty_trigger;
+#endif
 
 	conn = S2C(session);
 	txn = &session->txn;
@@ -415,6 +424,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	/* Flush data-sources before we start the checkpoint. */
 	WT_ERR(__checkpoint_data_source(session, cfg));
 
+#if 0
 	WT_ERR(__wt_epoch(session, &verb_timer));
 	WT_ERR(__checkpoint_verbose_track(session,
 	    "starting write leaves", &verb_timer));
@@ -437,6 +447,60 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_STAT_FAST_CONN_INCR(session, txn_checkpoint_fsync_pre);
 	WT_STAT_FAST_CONN_INCRV(session,
 	    txn_checkpoint_fsync_pre_duration, fsync_duration_usecs);
+#else
+	printf("Stepping down dirty target from %u to %u\n", orig_trigger, orig_target);
+	WT_ERR(__wt_epoch(session, &fsync_start));
+	fsync_duration_usecs = 0;
+
+	/* Step down the dirty target to the eviction trigger */
+	cache->eviction_dirty_target = 1;
+	for (;;) {
+		current_dirty = (100 * __wt_cache_dirty_inuse(cache)) / conn->cache_size;
+		if (current_dirty <= orig_target) {
+			WT_ERR(__wt_epoch(session, &fsync_stop));
+			fsync_duration_usecs = WT_TIMEDIFF_US(fsync_stop, fsync_start);
+			printf("Took %" PRIu64 " ms to step to %u, done\n", fsync_duration_usecs / WT_THOUSAND, current_dirty);
+			fflush(stdout);
+			break;
+		}
+
+		if (cache->eviction_dirty_trigger >= current_dirty) {
+			/* How long did it take to step down the last percent? */
+			WT_ERR(__wt_epoch(session, &fsync_stop));
+			fsync_duration_usecs = WT_MAX(1000, WT_TIMEDIFF_US(fsync_stop, fsync_start));
+			printf("Took %" PRIu64 " ms to step to %u\n", fsync_duration_usecs / WT_THOUSAND, current_dirty);
+
+			/*
+			 * Smooth out step down: try to limit the impact on
+			 * performance to 10% by waiting once we reach the last
+			 * level.
+			 */
+			__wt_sleep(0, 10 * fsync_duration_usecs);
+			cache->eviction_dirty_trigger = current_dirty - 1;
+			WT_ERR(__wt_epoch(session, &fsync_start));
+		} else {
+			WT_ERR(__wt_epoch(session, &fsync_stop));
+			current_usecs = WT_TIMEDIFF_US(fsync_stop, fsync_start);
+			/*
+			 * Don't wait indefinitely: there might be dirty
+			 * internal pages taking up more than the eviction
+			 * dirty target that can't be evicted.  If we can't
+			 * meet the target, just give up and start the
+			 * checkpoint for real.
+			 */
+			if (current_usecs > 10 * WT_MAX(fsync_duration_usecs, 100000))
+				break;
+		}
+
+		__wt_sleep(0, fsync_duration_usecs / 4);
+	}
+
+#if 0
+	/* Kludge: make it clear whether perf drops due to stepping down or checkpoint staring */
+	__wt_sleep(10, 0);
+#endif
+	printf("Checkpoint starting for real\n");
+#endif
 
 	/* Tell logging that we are about to start a database checkpoint. */
 	if (full && logging)
@@ -484,6 +548,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_ASSERT(session, session->id != 0 && txn_global->checkpoint_id == 0);
 	txn_global->checkpoint_id = session->id;
 
+	/* Save the oldest transaction ID that the checkpoint is pinning. */
 	txn_global->checkpoint_pinned =
 	    WT_MIN(txn_state->id, txn_state->snap_min);
 
@@ -511,6 +576,13 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	txn_state->id = txn_state->snap_min = WT_TXN_NONE;
 
+	/*
+	 * Unblock updates -- we can figure out that any updates to clean pages
+	 * after this point are too new to be written in the checkpoint.
+	 */
+	cache->eviction_dirty_target = orig_target;
+	cache->eviction_dirty_trigger = orig_trigger;
+
 	/* Tell logging that we have started a database checkpoint. */
 	if (full && logging)
 		WT_ERR(__wt_txn_checkpoint_log(
@@ -525,8 +597,9 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	session->dhandle = NULL;
 
-	/* Release the snapshot so we aren't pinning pages in cache. */
+	/* Release the snapshot so we aren't pinning updates in cache. */
 	__wt_txn_release_snapshot(session);
+	txn_global->checkpoint_pinned = WT_TXN_NONE;
 
 	WT_ERR(__checkpoint_verbose_track(session,
 	    "committing transaction", &verb_timer));
@@ -611,6 +684,9 @@ err:	/*
 	session->isolation = txn->isolation = WT_ISO_READ_UNCOMMITTED;
 	if (tracking)
 		WT_TRET(__wt_meta_track_off(session, false, ret != 0));
+
+	cache->eviction_dirty_target = orig_target;
+	cache->eviction_dirty_trigger = orig_trigger;
 
 	if (F_ISSET(txn, WT_TXN_RUNNING)) {
 		/*
