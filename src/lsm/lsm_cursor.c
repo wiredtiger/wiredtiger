@@ -889,6 +889,80 @@ err:	__clsm_leave(clsm);
 }
 
 /*
+ * __clsm_next_random --
+ *	WT_CURSOR->next method for the LSM cursor type when configured with
+ * next_random.
+ */
+static int
+__clsm_next_random(WT_CURSOR *cursor)
+{
+	WT_CURSOR_LSM *clsm;
+	WT_CURSOR *c, *rand_cur;
+	WT_DECL_RET;
+	WT_LSM_CHUNK *chunk;
+	WT_SESSION_IMPL *session;
+	uint64_t checked_docs, i, rand_chunk, rand_doc, total_docs;
+	const char *cfg[3];
+
+	clsm = (WT_CURSOR_LSM *)cursor;
+
+	CURSOR_API_CALL(cursor, session, next, NULL);
+	WT_CURSOR_NOVALUE(cursor);
+	WT_ERR(__clsm_enter(clsm, false, false));
+
+	cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_drop);
+	cfg[1] = "next_random=true";
+	cfg[2] = NULL;
+
+retry:	total_docs = 0;
+	/* We need to know roughly how many docs are in the tree */
+	for (i = clsm->lsm_tree->nchunks; i > 0; i--) {
+		total_docs += clsm->lsm_tree->chunk[i-1]->count;
+	}
+
+	/*
+	 * We pick one of the docs at random from the tree to pick a random
+	 * chunk, weighted by the size of the chunks.
+	 */
+	rand_doc = __wt_random(&session->rnd);
+	rand_doc = rand_doc % total_docs;
+	checked_docs = rand_chunk = 0;
+	for (i = clsm->lsm_tree->nchunks; i > 0; i--) {
+		checked_docs += clsm->lsm_tree->chunk[i-1]->count;
+		if (rand_doc < checked_docs) {
+			rand_chunk = i-1;
+			break;
+		}
+	}
+	chunk = clsm->lsm_tree->chunk[rand_chunk];
+
+	/* Open a cursor on the chunk and pick a random key from within */
+	WT_ERR(__wt_open_cursor(session, chunk->uri, NULL, cfg, &rand_cur));
+	WT_ERR(rand_cur->next(rand_cur));
+	WT_ERR(rand_cur->get_key(rand_cur, &cursor->key));
+	WT_ERR(rand_cur->close(rand_cur));
+
+	/*
+	 * Search back through the tree from the top to resolve any updates or
+	 * tombstones. If we find a tombstone, then pick a new random doc and
+	 * try again. We retry forever as eventually we should see a current
+	 * doc or the tombstones will get merged out.
+	 */
+	ret = __clsm_lookup(clsm, &cursor->value);
+	if (ret == WT_NOTFOUND)
+		goto retry;
+	WT_ERR(ret);
+	/* We have found a valid doc. Set that we are now positioned */
+
+err:	F_CLR(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);	
+	__clsm_leave(clsm);
+	API_END(session, ret);
+	if (ret == 0)
+		F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+	return (ret);
+}
+
+/*
  * __clsm_prev --
  *	WT_CURSOR->prev method for the LSM cursor type.
  */
@@ -1575,6 +1649,14 @@ __wt_clsm_open(WT_SESSION_IMPL *session,
 	 * will force a call into open_cursors on the first operation.
 	 */
 	clsm->dsk_gen = 0;
+
+	/* If the next_random option is set, configure a random cursor */
+	WT_ERR(__wt_config_gets_def(session, cfg, "next_random", 0, &cval));
+	if (cval.val != 0) {
+		__wt_cursor_set_notsup(cursor);
+		cursor->next = __clsm_next_random;
+		cursor->reset = __clsm_reset;
+	}
 
 	WT_ERR(__wt_cursor_init(cursor, cursor->uri, owner, cfg, cursorp));
 
