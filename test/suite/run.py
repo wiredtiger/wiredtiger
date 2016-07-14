@@ -108,10 +108,10 @@ def restrictScenario(testcases, restrict):
     elif restrict.isdigit():
         s = int(restrict)
         return [t for t in testcases
-                if hasattr(t, 'scenario_number') and t.scenario_number == s]
+            if hasattr(t, 'scenario_number') and t.scenario_number == s]
     else:
         return [t for t in testcases
-                if hasattr(t, 'scenario_name') and t.scenario_name == restrict]
+            if hasattr(t, 'scenario_name') and t.scenario_name == restrict]
 
 def addScenarioTests(tests, loader, testname, scenario):
     loaded = loader.loadTestsFromName(testname)
