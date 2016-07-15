@@ -298,8 +298,6 @@ connection_stats = [
     TxnStat('txn_checkpoint', 'transaction checkpoints'),
     TxnStat('txn_checkpoint_fsync_post', 'transaction fsync calls for checkpoint after allocating the transaction ID'),
     TxnStat('txn_checkpoint_fsync_post_duration', 'transaction fsync duration for checkpoint after allocating the transaction ID (usecs)'),
-    TxnStat('txn_checkpoint_fsync_pre', 'transaction fsync calls for checkpoint before allocating the transaction ID'),
-    TxnStat('txn_checkpoint_fsync_pre_duration', 'transaction fsync duration for checkpoint before allocating the transaction ID (usecs)'),
     TxnStat('txn_checkpoint_generation', 'transaction checkpoint generation', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_running', 'transaction checkpoint currently running', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_time_max', 'transaction checkpoint max time (msecs)', 'no_clear,no_scale'),
