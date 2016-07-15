@@ -1951,7 +1951,7 @@ __rec_split_init(WT_SESSION_IMPL *session,
 	 * we don't want to increment our way up to the amount of data needed by
 	 * the application to successfully compress to the target page size.
 	 * Ideally accumulate data several times the page size without
-	 * approaching the memory page maximum, but atleast have data worth
+	 * approaching the memory page maximum, but at least have data worth
 	 * one page.
 	 */
 	r->page_size = r->page_size_orig = max;
