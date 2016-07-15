@@ -556,17 +556,18 @@ __evict_update_work(WT_SESSION_IMPL *session)
 		goto done;
 	}
 
+	/*
+	 * If the cache has been stuck and is now under control, clear the
+	 * stuck flag.
+	 */
+	if (bytes_inuse < bytes_max)
+		F_CLR(cache, WT_CACHE_STUCK);
+
 	dirty_inuse = __wt_cache_dirty_inuse(cache);
 	if (dirty_inuse > (cache->eviction_dirty_target * bytes_max) / 100) {
 		FLD_SET(cache->state, WT_EVICT_STATE_DIRTY);
 		goto done;
 	}
-
-	/*
-	 * If the cache has been stuck and is now under control, clear the
-	 * stuck flag.
-	 */
-	F_CLR(cache, WT_CACHE_STUCK);
 
 	return (false);
 
@@ -668,16 +669,10 @@ __evict_pass(WT_SESSION_IMPL *session)
 		 * sleep, it's not something we can fix.
 		 */
 		if (pages_evicted == cache->pages_evict) {
-			if (loop < 100 && loop > 5) {
-				F_SET(cache, WT_CACHE_STUCK);
-				continue;
-			}
-
 			/*
-			 * Back off if we aren't making progress: walks hold
-			 * the handle list lock, which blocks other operations
-			 * that can free space in cache, such as LSM discarding
-			 * handles.
+			 * Back off if we aren't making progress: walks hold the
+			 * handle list lock, blocking other operations that can
+			 * free space in cache, such as LSM discarding handles.
 			 */
 			WT_STAT_FAST_CONN_INCR(session,
 			    cache_eviction_server_slept);
