@@ -397,8 +397,6 @@ __evict_review(
 	bool modified;
 
 	flags = WT_EVICTING;
-	if (closing)
-		LF_SET(WT_VISIBILITY_ERR);
 	*flagsp = flags;
 
 	/*
@@ -513,7 +511,9 @@ __evict_review(
 	 * pages, they don't have update lists that can be saved and restored.
 	 */
 	cache = S2C(session)->cache;
-	if (!closing && !WT_PAGE_IS_INTERNAL(page)) {
+	if (closing)
+		LF_SET(WT_VISIBILITY_ERR);
+	else if (!WT_PAGE_IS_INTERNAL(page)) {
 		if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) ||
 		    F_ISSET_ATOMIC(page, WT_PAGE_SPLIT_INSERT))
 			LF_SET(WT_EVICT_IN_MEMORY | WT_EVICT_UPDATE_RESTORE);
