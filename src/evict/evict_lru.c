@@ -669,14 +669,13 @@ __evict_pass(WT_SESSION_IMPL *session)
 		 * sleep, it's not something we can fix.
 		 */
 		if (pages_evicted == cache->pages_evict) {
+			/*
+			 * Back off if we aren't making progress: walks hold the
+			 * handle list lock, blocking other operations that can
+			 * free space in cache, such as LSM discarding handles.
+			 */
 			WT_STAT_FAST_CONN_INCR(session,
 			    cache_eviction_server_slept);
-			/*
-			 * Back off if we aren't making progress: walks hold
-			 * the handle list lock, which blocks other operations
-			 * that can free space in cache, such as LSM discarding
-			 * handles.
-			 */
 			__wt_sleep(0, WT_THOUSAND * (uint64_t)loop);
 			if (loop == 100) {
 				/*
