@@ -96,6 +96,7 @@ Tests:\n\
   may be a subsuite name (e.g. \'base\' runs test_base*.py)\n\
 \n\
   When -C or -c are present, there may not be any tests named.\n\
+  When -s is present, there must be a test named.\n\
 '
 
 # capture the category (AKA 'subsuite') part of a test name,
@@ -322,12 +323,17 @@ if __name__ == '__main__':
 
     # Without any tests listed as arguments, do discovery
     if len(testargs) == 0:
+        if scenario != '':
+            sys.stderr.write(
+                'run.py: specifying a scenario requires a test name\n')
+            usage()
+            sys.exit(2)
         from discover import defaultTestLoader as loader
         suites = loader.discover(suitedir)
         suites = sorted(suites, key=lambda c: str(list(c)[0]))
         if configfile != None:
             suites = configApply(suites, configfile, configwrite)
-        tests.addTests(restrictScenario(generate_scenarios(suites), scenario))
+        tests.addTests(restrictScenario(generate_scenarios(suites), ''))
     else:
         for arg in testargs:
             testsFromArg(tests, loader, arg, scenario)
