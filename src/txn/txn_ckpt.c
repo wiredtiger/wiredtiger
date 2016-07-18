@@ -1109,11 +1109,6 @@ __checkpoint_tree(
 		    (WT_PREFIX_MATCH(name, WT_CHECKPOINT) &&
 		    WT_PREFIX_MATCH((ckpt - 2)->name, WT_CHECKPOINT)))) {
 nockpt:			F_SET(btree, WT_BTREE_SKIP_CKPT);
-			WT_PUBLISH(btree->checkpoint_gen,
-			    S2C(session)->txn_global.checkpoint_gen);
-			WT_STAT_FAST_DATA_SET(session,
-			    btree_checkpoint_generation,
-			    btree->checkpoint_gen);
 			ret = 0;
 			goto err;
 		}
@@ -1241,6 +1236,17 @@ err:	/*
 	__wt_meta_ckptlist_free(session, ckptbase);
 	btree->ckpt = NULL;
 
+	/*
+	 * Whatever happened, we aren't visiting this tree again in this
+	 * checkpoint.  Don't keep updates pinned any longer.
+	 */
+	if (is_checkpoint) {
+		WT_PUBLISH(btree->checkpoint_gen,
+		    S2C(session)->txn_global.checkpoint_gen);
+		WT_STAT_FAST_DATA_SET(session,
+		    btree_checkpoint_generation, btree->checkpoint_gen);
+	}
+
 	return (ret);
 }
 
@@ -1258,10 +1264,7 @@ __checkpoint_presync(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_UNUSED(cfg);
 
 	btree = S2BT(session);
-
-	WT_ASSERT(session,
-	    btree->checkpoint_gen == S2C(session)->txn_global.checkpoint_gen);
-	btree->evict_walk_period = 0;
+	btree->evict_walk_period = btree->evict_walk_saved;
 	return (0);
 }
 
