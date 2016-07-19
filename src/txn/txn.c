@@ -149,15 +149,6 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 		return (0);
 	}
 
-	/*
-	 * Include the checkpoint transaction, if one is running: we should
-	 * ignore any uncommitted changes the checkpoint has written to the
-	 * metadata.  We don't have to keep the checkpoint's changes pinned
-	 * so don't including it in the published snap_min.
-	 */
-	if ((id = txn_global->checkpoint_id) != WT_TXN_NONE)
-		txn->snapshot[n++] = id;
-
 	/* Walk the array of concurrent transactions. */
 	WT_ORDERED_READ(session_cnt, conn->session_cnt);
 	for (i = 0, s = txn_global->states; i < session_cnt; i++, s++) {
@@ -179,6 +170,15 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 				snap_min = id;
 		}
 	}
+
+	/*
+	 * Include the checkpoint transaction, if one is running: we should
+	 * ignore any uncommitted changes the checkpoint has written to the
+	 * metadata.  We don't have to keep the checkpoint's changes pinned
+	 * so don't including it in the published snap_min.
+	 */
+	if ((id = txn_global->checkpoint_txnid) != WT_TXN_NONE)
+		txn->snapshot[n++] = id;
 
 	/*
 	 * If we got a new snapshot, update the published snap_min for this
@@ -452,7 +452,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 	/* Clear the transaction's ID from the global table. */
 	if (WT_SESSION_IS_CHECKPOINT(session)) {
 		WT_ASSERT(session, txn_state->id == WT_TXN_NONE);
-		txn->id = WT_TXN_NONE;
+		txn->id = txn_global->checkpoint_txnid = WT_TXN_NONE;
 
 		/*
 		 * Be extra careful to cleanup everything for checkpoints: once

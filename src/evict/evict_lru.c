@@ -556,6 +556,13 @@ __evict_update_work(WT_SESSION_IMPL *session)
 		goto done;
 	}
 
+	/*
+	 * If the cache has been stuck and is now under control, clear the
+	 * stuck flag.
+	 */
+	if (bytes_inuse < bytes_max)
+		F_CLR(cache, WT_CACHE_STUCK);
+
 	dirty_inuse = __wt_cache_dirty_inuse(cache);
 	if (dirty_inuse > (cache->eviction_dirty_target * bytes_max) / 100) {
 		FLD_SET(cache->state, WT_EVICT_STATE_DIRTY);
@@ -675,7 +682,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 			WT_STAT_FAST_CONN_INCR(session,
 			    cache_eviction_server_slept);
 			__wt_cond_wait(session, cache->evict_cond,
-			    WT_THOUSAND * (uint64_t)(loop + 1));
+			    WT_THOUSAND * WT_MAX(loop, 1));
 
 			if (loop == 100) {
 				/*
@@ -1694,13 +1701,6 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 	WT_WITH_BTREE(session, btree, ret = __wt_evict(session, ref, false));
 
 	(void)__wt_atomic_subv32(&btree->evict_busy, 1);
-
-	/*
-	 * If the cache has been stuck and is now under control, clear the
-	 * stuck flag.
-	 */
-	if (ret == 0 && F_ISSET(cache, WT_CACHE_STUCK))
-		F_CLR(cache, WT_CACHE_STUCK);
 
 	return (ret);
 }

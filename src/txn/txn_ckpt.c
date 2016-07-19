@@ -235,8 +235,11 @@ __checkpoint_data_source(WT_SESSION_IMPL *session, const char *cfg[])
 int
 __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 {
+	WT_BTREE *btree;
+	WT_CONFIG_ITEM cval;
 	WT_DECL_RET;
 	const char *name;
+	bool forced, named;
 
 	WT_UNUSED(cfg);
 
@@ -258,6 +261,24 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 
 	if ((ret = __wt_session_get_btree(session, name, NULL, NULL, 0)) != 0)
 		return (ret == EBUSY ? 0 : ret);
+
+	/*
+	 * Save the current eviction walk setting: checkpoint can interfere
+	 * with eviction and we don't want to unfairly penalize (or promote)
+	 * eviction in trees due to checkpoints.
+	 */
+	btree = S2BT(session);
+	btree->evict_walk_saved = btree->evict_walk_period;
+	if (!btree->modified) {
+		WT_TRET(__wt_config_gets_def(session, cfg, "force", 0, &cval));
+		forced = cval.val != 0;
+		WT_TRET(__wt_config_gets(session, cfg, "name", &cval));
+		named = cval.len != 0;
+		if (ret != 0 || (!forced && !named)) {
+			WT_TRET(__wt_session_release_btree(session));
+			return (ret);
+		}
+	}
 
 	WT_SAVE_DHANDLE(session,
 	    ret = __checkpoint_lock_tree(session, true, true, cfg));
@@ -377,22 +398,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	/* Configure logging only if doing a full checkpoint. */
 	logging = FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED);
 
-	/* Keep track of handles acquired for locking. */
-	WT_ERR(__wt_meta_track_on(session));
-	tracking = true;
-
-	/*
-	 * Get a list of handles we want to flush; this may pull closed objects
-	 * into the session cache, but we're going to do that eventually anyway.
-	 */
-	WT_ASSERT(session, session->ckpt_handle_next == 0);
-	WT_WITH_SCHEMA_LOCK(session, ret,
-	    WT_WITH_TABLE_LOCK(session, ret,
-		WT_WITH_HANDLE_LIST_LOCK(session,
-		    ret = __checkpoint_apply_all(
-		    session, cfg, __wt_checkpoint_get_handles, NULL))));
-	WT_ERR(ret);
-
 	/* Reset the maximum page size seen by eviction. */
 	conn->cache->evict_max_page_size = 0;
 
@@ -496,9 +501,11 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_ASSERT(session, session->id != 0 && txn_global->checkpoint_id == 0);
 	txn_global->checkpoint_id = session->id;
 
+	/* Save the checkpoint transaction ID. */
+	txn_global->checkpoint_txnid = txn->id;
+
 	/* Save the oldest transaction ID that the checkpoint is pinning. */
-	txn_global->checkpoint_pinned =
-	    WT_MIN(txn_state->id, txn_state->snap_min);
+	txn_global->checkpoint_pinned = WT_MIN(txn->id, txn->snap_min);
 
 	/*
 	 * We're about to clear the checkpoint transaction from the global
@@ -530,6 +537,22 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	cache->eviction_dirty_target = orig_target;
 	cache->eviction_dirty_trigger = orig_trigger;
+
+	/* Keep track of handles acquired for locking. */
+	WT_ERR(__wt_meta_track_on(session));
+	tracking = true;
+
+	/*
+	 * Get a list of handles we want to flush; this may pull closed objects
+	 * into the session cache, but we're going to do that eventually anyway.
+	 */
+	WT_ASSERT(session, session->ckpt_handle_next == 0);
+	WT_WITH_SCHEMA_LOCK(session, ret,
+	    WT_WITH_TABLE_LOCK(session, ret,
+		WT_WITH_HANDLE_LIST_LOCK(session,
+		    ret = __checkpoint_apply_all(
+		    session, cfg, __wt_checkpoint_get_handles, NULL))));
+	WT_ERR(ret);
 
 	/* Tell logging that we have started a database checkpoint. */
 	if (full && logging)
