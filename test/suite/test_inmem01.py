@@ -30,7 +30,7 @@ import wiredtiger, wttest
 from time import sleep
 from helper import simple_populate, simple_populate_check
 from helper import key_populate, value_populate
-from wtscenario import check_scenarios
+from wtscenario import make_scenarios
 
 # test_inmem01.py
 #    Test in-memory configuration.
@@ -47,7 +47,7 @@ class test_inmem01(wttest.WiredTigerTestCase):
      - Run queries after adding, removing and re-inserting data.
      - Try out keeping a cursor open while adding new data.
     """
-    scenarios = check_scenarios([
+    scenarios = make_scenarios([
         ('col', dict(tablekind='col')),
         # Fixed length is very slow, disable it for now
         #('fix', dict(tablekind='fix')),
