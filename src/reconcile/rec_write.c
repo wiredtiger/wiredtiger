@@ -445,17 +445,32 @@ __wt_reconcile(WT_SESSION_IMPL *session,
 	}
 
 	/*
-	 * Clean up reconciliation resources: some workloads have millions of
-	 * boundary structures, and if associated with an application session
-	 * pulled into doing forced eviction, they won't be discarded for the
-	 * life of the session (or until session.reset is called). Discard all
-	 * of the reconciliation resources if an application thread, not doing
-	 * a checkpoint.
+	 * When application threads perform eviction, don't cache block manager
+	 * or reconciliation structures (even across calls), we can have a
+	 * significant number of application threads doing eviction at the same
+	 * time with large items. We ignore checkpoints, once the checkpoint
+	 * completes, all unnecessary session resources will be discarded.
+	 *
+	 * Even in application threads doing checkpoints or in internal threads
+	 * doing any reconciliation, clean up reconciliation resources. Some
+	 * workloads have millions of boundary structures in a reconciliation
+	 * and we don't want to tie that memory down, even across calls.
 	 */
-	__rec_bnd_cleanup(session, r,
-	    F_ISSET(session, WT_SESSION_INTERNAL) ||
-	    WT_SESSION_IS_CHECKPOINT(session) ? false : true);
+	if (WT_SESSION_IS_CHECKPOINT(session) ||
+	    F_ISSET(session, WT_SESSION_INTERNAL))
+		__rec_bnd_cleanup(session, r, false);
+	else {
+		/*
+		 * Clean up the underlying block manager memory too: it's not
+		 * reconciliation, but threads discarding reconciliation
+		 * structures want to clean up the block manager's structures
+		 * as well, and there's no obvious place to do that.
+		 */
+		if (session->block_manager_cleanup != NULL)
+			WT_TRET(session->block_manager_cleanup(session));
 
+		WT_TRET(__rec_destroy_session(session));
+	}
 	WT_RET(ret);
 
 	/*
@@ -1950,10 +1965,14 @@ __rec_split_init(WT_SESSION_IMPL *session,
 	 * additional data because we don't know how well it will compress, and
 	 * we don't want to increment our way up to the amount of data needed by
 	 * the application to successfully compress to the target page size.
+	 * Ideally accumulate data several times the page size without
+	 * approaching the memory page maximum, but at least have data worth
+	 * one page.
 	 */
 	r->page_size = r->page_size_orig = max;
 	if (r->raw_compression)
-		r->page_size *= 10;
+		r->page_size = (uint32_t)WT_MIN(r->page_size * 10,
+		    WT_MAX(r->page_size, btree->maxmempage / 2));
 
 	/*
 	 * Ensure the disk image buffer is large enough for the max object, as

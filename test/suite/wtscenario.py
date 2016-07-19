@@ -66,9 +66,9 @@ megabyte = 1024 * 1024
 
 def check_scenarios(scenes):
     """
-    Make sure all scenarios have unique names
+    Make sure all scenarios have unique case insensitive names
     """
-    assert len(scenes) == len(dict(scenes))
+    assert len(scenes) == len(dict((k.lower(), v) for k, v in scenes))
     return scenes
 
 def multiply_scenarios(sep, *args):
@@ -81,8 +81,8 @@ def multiply_scenarios(sep, *args):
             result = scenes
         else:
             total = []
-            for scena in scenes:
-                for scenb in result:
+            for scena in result:
+                for scenb in scenes:
                     # Create a merged scenario with a concatenated name
                     name = scena[0] + sep + scenb[0]
                     tdict = {}
