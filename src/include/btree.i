@@ -1150,9 +1150,6 @@ __wt_page_can_evict(
 	WT_PAGE_MODIFY *mod;
 	bool modified;
 
-	if (evict_flagsp != NULL)
-		*evict_flagsp = WT_EVICTING;
-
 	btree = S2BT(session);
 	page = ref->page;
 	mod = page->modify;
