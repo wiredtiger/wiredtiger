@@ -2287,12 +2287,8 @@ main(int argc, char *argv[])
 	if (create_home) {
 		len = strlen(cfg->home) * 2 + 100;
 		cmd = dmalloc(len);
-#ifdef _WIN32
-#define	CMD	"rd %s /q /s && mkdir %s"
-#else
-#define	CMD	"rm -rf %s && mkdir %s"
-#endif
-		(void)snprintf(cmd, len, CMD, cfg->home, cfg->home);
+		(void)snprintf(
+		    cmd, len, "rm -rf %s && mkdir %s", cfg->home, cfg->home);
 		testutil_checkfmt(system(cmd), "system: %s", cmd);
 		free(cmd);
 	}

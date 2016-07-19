@@ -199,7 +199,7 @@ dstrdup(const void *str)
  *	as it is not supported within MSVC.
  */
 void *
-dstrndup(const char *str, const size_t len)
+dstrndup(const char *str, size_t len)
 {
 	char *p;
 

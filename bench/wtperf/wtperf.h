@@ -34,10 +34,6 @@
 #include <assert.h>
 #include <math.h>
 
-#ifdef _WIN32
-#include "windows_shim.h"
-#endif
-
 #include "config_opt.h"
 
 typedef struct __config CONFIG;
