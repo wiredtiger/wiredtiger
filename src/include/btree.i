@@ -99,6 +99,13 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
 		(void)__wt_atomic_add64(&cache->bytes_internal, size);
 	else if (page->type == WT_PAGE_OVFL)
 		(void)__wt_atomic_add64(&cache->bytes_overflow, size);
+
+	/*
+         * Ensure that the page hasn't grown unreasonably greater than the
+         * configured maximum.
+	 */
+	WT_ASSERT(session,
+	    page->memory_footprint < 2 * S2BT(session)->maxmempage);
 }
 
 /*
