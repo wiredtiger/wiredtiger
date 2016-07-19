@@ -2202,18 +2202,21 @@ err:		if (ret == 0)
 
 extern int __wt_optind, __wt_optreset;
 extern char *__wt_optarg;
+void (*custom_die)(void) = NULL;
 
 int
 main(int argc, char *argv[])
 {
 	CONFIG *cfg, _cfg;
-	size_t req_len, sreq_len;
-	int ch, monitor_set, ret;
-	const char *opts = "C:H:h:m:O:o:T:";
+	size_t len, req_len, sreq_len;
+	bool create_home, monitor_set;
+	int ch, ret;
+	const char *opts = "C:H:h:m:O:o:RT:";
 	const char *config_opts;
-	char *cc_buf, *sess_cfg, *tc_buf, *user_cconfig, *user_tconfig;
+	char *cc_buf, *cmd, *sess_cfg, *tc_buf, *user_cconfig, *user_tconfig;
 
-	monitor_set = ret = 0;
+	create_home = monitor_set = false;
+	ret = 0;
 	config_opts = NULL;
 	cc_buf = sess_cfg = tc_buf = user_cconfig = user_tconfig = NULL;
 
@@ -2242,8 +2245,18 @@ main(int argc, char *argv[])
 		case 'H':
 			cfg->helium_mount = __wt_optarg;
 			break;
+		case 'h':
+			cfg->home = __wt_optarg;
+			break;
+		case 'm':
+			cfg->monitor_dir = __wt_optarg;
+			monitor_set = true;
+			break;
 		case 'O':
 			config_opts = __wt_optarg;
+			break;
+		case 'R':
+			create_home = true;
 			break;
 		case 'T':
 			if (user_tconfig == NULL)
@@ -2256,15 +2269,7 @@ main(int argc, char *argv[])
 				strcat(user_tconfig, __wt_optarg);
 			}
 			break;
-		case 'h':
-			cfg->home = __wt_optarg;
-			break;
-		case 'm':
-			cfg->monitor_dir = __wt_optarg;
-			monitor_set = 1;
-			break;
 		case '?':
-			fprintf(stderr, "Invalid option\n");
 			usage();
 			goto einval;
 		}
@@ -2275,6 +2280,22 @@ main(int argc, char *argv[])
 	 */
 	if (!monitor_set)
 		cfg->monitor_dir = cfg->home;
+
+	/*
+	 * Optionally remove and re-create the home directory.
+	 */
+	if (create_home) {
+		len = strlen(cfg->home) * 2 + 100;
+		cmd = dmalloc(len);
+#ifdef _WIN32
+#define	CMD	"rd %s /q /s && mkdir %s"
+#else
+#define	CMD	"rm -rf %s && mkdir %s"
+#endif
+		(void)snprintf(cmd, len, CMD, cfg->home, cfg->home);
+		testutil_checkfmt(system(cmd), "system: %s", cmd);
+		free(cmd);
+	}
 
 	/* Parse configuration settings from configuration file. */
 	if (config_opts != NULL && config_opt_file(cfg, config_opts) != 0)
