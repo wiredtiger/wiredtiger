@@ -39,8 +39,8 @@ flags = {
     'rec_write' : [
         'CHECKPOINTING',
         'EVICTING',
+        'EVICT_DISK_IMAGE',
         'EVICT_INMEM_SPLIT',
-        'EVICT_IN_MEMORY',
         'EVICT_LOOKASIDE',
         'EVICT_UPDATE_RESTORE',
         'VISIBILITY_ERR',

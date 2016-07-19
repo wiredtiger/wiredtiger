@@ -1476,7 +1476,7 @@ err:	if (parent != NULL)
  */
 static int
 __split_multi_inmem(
-    WT_SESSION_IMPL *session, WT_PAGE *orig, WT_REF *ref, WT_MULTI *multi)
+    WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi,WT_REF *ref)
 {
 	WT_CURSOR_BTREE cbt;
 	WT_DECL_ITEM(key);
@@ -1559,6 +1559,14 @@ __split_multi_inmem(
 			break;
 		WT_ILLEGAL_VALUE_ERR(session);
 		}
+
+	/*
+	 * Put the re-instantiated page in the same LRU queue location as the
+	 * original page (unless it was a forced eviction, in which case it's
+	 * left unset).
+	 */
+	if (orig->read_gen != WT_READGEN_OLDEST)
+		page->read_gen = orig->read_gen;
 
 	/*
 	 * If we modified the page above, it will have set the first dirty
@@ -1670,14 +1678,14 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 		break;
 	}
 
-	/* If there's a disk image, build a page, otherwise set the address. */
-	if (multi->disk_image == NULL) {
-		/*
-		 * Copy the address: we could simply take the buffer, but that
-		 * would complicate error handling, freeing the reference array
-		 * would have to avoid freeing the memory, and it's not worth
-		 * the confusion.
-		 */
+	/*
+	 * If there's an address, the page was written, set it.
+	 *
+	 * Copy the address: we could simply take the buffer, but that would
+	 * complicate error handling, freeing the reference array would have
+	 * to avoid freeing the memory, and it's not worth the confusion.
+	 */
+	if (multi->addr.addr != NULL) {
 		WT_RET(__wt_calloc_one(session, &addr));
 		ref->addr = addr;
 		addr->size = multi->addr.size;
@@ -1685,8 +1693,22 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 		WT_RET(__wt_strndup(session,
 		    multi->addr.addr, addr->size, &addr->addr));
 		ref->state = WT_REF_DISK;
-	} else {
-		WT_RET(__split_multi_inmem(session, page, ref, multi));
+	}
+
+	/*
+	 * If there's no address, or if we have a disk image and there's enough
+	 * room in the cache, re-instantiate the page. (If there's no address,
+	 * there must be a disk image, the page wasn't written.)
+	 */
+	WT_ASSERT(session,
+	    multi->addr.addr != NULL || multi->disk_image != NULL);
+	WT_ASSERT(session, multi->disk_image == NULL ||
+	    __wt_verify_dsk_image(session,
+	    "[page instantiate]", multi->disk_image, 0, false) == 0);
+	if (multi->disk_image != NULL &&
+	    (multi->addr.addr == NULL ||
+	    !__wt_eviction_needed(session, NULL))) {
+		WT_RET(__split_multi_inmem(session, page, multi, ref));
 		ref->state = WT_REF_MEM;
 	}
 
@@ -2215,7 +2237,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref)
 	WT_RET(__wt_calloc_one(session, &new));
 	new->ref_recno = ref->ref_recno;
 
-	WT_ERR(__split_multi_inmem(session, page, new, &mod->mod_multi[0]));
+	WT_ERR(__split_multi_inmem(session, page, &mod->mod_multi[0], new));
 
 	/*
 	 * The rewrite succeeded, we can no longer fail.
