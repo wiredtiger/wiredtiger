@@ -897,7 +897,7 @@ static int
 __clsm_next_random(WT_CURSOR *cursor)
 {
 	WT_CURSOR_LSM *clsm;
-	WT_CURSOR *c, *rand_cur;
+	WT_CURSOR *c;
 	WT_DECL_RET;
 	WT_LSM_CHUNK *chunk;
 	WT_SESSION_IMPL *session;
@@ -937,10 +937,10 @@ retry:	total_docs = 0;
 	chunk = clsm->lsm_tree->chunk[rand_chunk];
 
 	/* Open a cursor on the chunk and pick a random key from within */
-	WT_ERR(__wt_open_cursor(session, chunk->uri, NULL, cfg, &rand_cur));
-	WT_ERR(rand_cur->next(rand_cur));
-	WT_ERR(rand_cur->get_key(rand_cur, &cursor->key));
-	WT_ERR(rand_cur->close(rand_cur));
+	WT_ERR(__wt_open_cursor(session, chunk->uri, NULL, cfg, &c));
+	WT_ERR(c->next(c));
+	WT_ERR(c->get_key(c, &cursor->key));
+	WT_ERR(c->close(c));
 
 	/*
 	 * Search back through the tree from the top to resolve any updates or
