@@ -36,7 +36,6 @@ static const CONFIG default_cfg = {
 	NULL,				/* reopen config */
 	NULL,				/* base_uri */
 	NULL,				/* uris */
-	NULL,				/* helium_mount */
 	NULL,				/* conn */
 	NULL,				/* logf */
 	NULL,				/* async */
@@ -92,10 +91,6 @@ static void	*worker(void *);
 static uint64_t	 wtperf_rand(CONFIG_THREAD *);
 static uint64_t	 wtperf_value_range(CONFIG *);
 
-#define	HELIUM_NAME	"dev1"
-#define	HELIUM_PATH							\
-	"../../ext/test/helium/.libs/libwiredtiger_helium.so"
-#define	HELIUM_CONFIG	",type=helium"
 #define	INDEX_COL_NAMES	",columns=(key,val)"
 
 /* Retrieve an ID for the next insert operation. */
@@ -2058,21 +2053,6 @@ start_run(CONFIG *cfg)
 		goto err;
 	}
 
-	/* Configure optional Helium volume. */
-	if (cfg->helium_mount != NULL) {
-		len = strlen(HELIUM_NAME) + strlen(cfg->helium_mount) + 100;
-		buf = dmalloc(len);
-		snprintf(buf, len,
-		    "entry=wiredtiger_extension_init,config=["
-		    "%s=[helium_devices=\"he://./%s\","
-		    "helium_o_volume_truncate=1]]",
-		    HELIUM_NAME, cfg->helium_mount);
-		if ((ret = cfg->conn->load_extension(
-		    cfg->conn, HELIUM_PATH, buf)) != 0)
-			lprintf(cfg, ret, 0, "Error loading Helium: %s", buf);
-		free(buf);
-	}
-
 	create_uris(cfg);
 
 	/* If creating, create the tables. */
@@ -2215,7 +2195,7 @@ main(int argc, char *argv[])
 	size_t req_len, sreq_len;
 	bool monitor_set;
 	int ch, ret;
-	const char *opts = "C:H:h:m:O:o:T:";
+	const char *opts = "C:h:m:O:o:T:";
 	const char *config_opts;
 	char *cc_buf, *sess_cfg, *tc_buf, *user_cconfig, *user_tconfig;
 
@@ -2245,9 +2225,6 @@ main(int argc, char *argv[])
 				strcat(user_cconfig, ",");
 				strcat(user_cconfig, __wt_optarg);
 			}
-			break;
-		case 'H':
-			cfg->helium_mount = __wt_optarg;
 			break;
 		case 'h':
 			cfg->home = __wt_optarg;
@@ -2326,7 +2303,7 @@ main(int argc, char *argv[])
 		 * to 4096 if needed.
 		 */
 		req_len = strlen(",async=(enabled=true,threads=)") + 4;
-		cfg->async_config = dcalloc(req_len, 1);
+		cfg->async_config = dmalloc(req_len);
 		snprintf(cfg->async_config, req_len,
 		    ",async=(enabled=true,threads=%" PRIu32 ")",
 		    cfg->async_threads);
@@ -2347,13 +2324,9 @@ main(int argc, char *argv[])
 	}
 
 	/* Build the URI from the table name. */
-	req_len = strlen("table:") +
-	    strlen(HELIUM_NAME) + strlen(cfg->table_name) + 2;
-	cfg->base_uri = dcalloc(req_len, 1);
-	snprintf(cfg->base_uri, req_len, "table:%s%s%s",
-	    cfg->helium_mount == NULL ? "" : HELIUM_NAME,
-	    cfg->helium_mount == NULL ? "" : "/",
-	    cfg->table_name);
+	req_len = strlen("table:") + strlen(cfg->table_name) + 2;
+	cfg->base_uri = dmalloc(req_len);
+	snprintf(cfg->base_uri, req_len, "table:%s", cfg->table_name);
 
 	/* Make stdout line buffered, so verbose output appears quickly. */
 	__wt_stream_set_line_buffer(stdout);
@@ -2372,13 +2345,13 @@ main(int argc, char *argv[])
 		if (cfg->session_count_idle > 0) {
 			sreq_len = strlen(",session_max=") + 6;
 			req_len += sreq_len;
-			sess_cfg = dcalloc(sreq_len, 1);
+			sess_cfg = dmalloc(sreq_len);
 			snprintf(sess_cfg, sreq_len,
 			    ",session_max=%" PRIu32,
 			    cfg->session_count_idle + cfg->workers_cnt +
 			    cfg->populate_threads + 10);
 		}
-		cc_buf = dcalloc(req_len, 1);
+		cc_buf = dmalloc(req_len);
 		/*
 		 * This is getting hard to parse.
 		 */
@@ -2394,36 +2367,34 @@ main(int argc, char *argv[])
 		if ((ret = config_opt_str(cfg, "conn_config", cc_buf)) != 0)
 			goto err;
 	}
-	if (cfg->verbose > 1 || cfg->index || cfg->helium_mount != NULL ||
+	if (cfg->verbose > 1 || cfg->index ||
 	    user_tconfig != NULL || cfg->compress_table != NULL) {
-		req_len = strlen(cfg->table_config) + strlen(HELIUM_CONFIG) +
-		    strlen(debug_tconfig) + 3;
+		req_len = strlen(cfg->table_config) + strlen(debug_tconfig) + 3;
 		if (user_tconfig != NULL)
 			req_len += strlen(user_tconfig);
 		if (cfg->compress_table != NULL)
 			req_len += strlen(cfg->compress_table);
 		if (cfg->index)
 			req_len += strlen(INDEX_COL_NAMES);
-		tc_buf = dcalloc(req_len, 1);
+		tc_buf = dmalloc(req_len);
 		/*
 		 * This is getting hard to parse.
 		 */
-		snprintf(tc_buf, req_len, "%s%s%s%s%s%s%s%s",
+		snprintf(tc_buf, req_len, "%s%s%s%s%s%s%s",
 		    cfg->table_config,
 		    cfg->index ? INDEX_COL_NAMES : "",
 		    cfg->compress_table ? cfg->compress_table : "",
 		    cfg->verbose > 1 ? ",": "",
 		    cfg->verbose > 1 ? debug_tconfig : "",
 		    user_tconfig ? ",": "",
-		    user_tconfig ? user_tconfig : "",
-		    cfg->helium_mount == NULL ? "" : HELIUM_CONFIG);
+		    user_tconfig ? user_tconfig : "");
 		if ((ret = config_opt_str(cfg, "table_config", tc_buf)) != 0)
 			goto err;
 	}
 	if (cfg->log_partial && cfg->table_count > 1) {
 		req_len = strlen(cfg->table_config) +
 		    strlen(LOG_PARTIAL_CONFIG) + 1;
-		cfg->partial_config = dcalloc(req_len, 1);
+		cfg->partial_config = dmalloc(req_len);
 		snprintf(cfg->partial_config, req_len, "%s%s",
 		    cfg->table_config, LOG_PARTIAL_CONFIG);
 	}
@@ -2436,7 +2407,7 @@ main(int argc, char *argv[])
 		    strlen(READONLY_CONFIG) + 1;
 	else
 		req_len = strlen(cfg->conn_config) + 1;
-	cfg->reopen_config = dcalloc(req_len, 1);
+	cfg->reopen_config = dmalloc(req_len);
 	if (cfg->readonly)
 		snprintf(cfg->reopen_config, req_len, "%s%s",
 		    cfg->conn_config, READONLY_CONFIG);

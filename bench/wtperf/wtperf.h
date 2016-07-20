@@ -122,7 +122,6 @@ struct __config {			/* Configuration structure */
 	char *reopen_config;		/* Config string for conn reopen */
 	char *base_uri;			/* Object URI */
 	char **uris;			/* URIs if multiple tables */
-	const char *helium_mount;	/* Optional Helium mount point */
 
 	WT_CONNECTION *conn;		/* Database connection */
 
