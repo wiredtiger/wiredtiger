@@ -3293,9 +3293,10 @@ supd_check_complete:
 			    multi->cksum == bnd->cksum) {
 				multi->addr.reuse = 1;
 				bnd->addr = multi->addr;
+				bnd->disk_image = multi->disk_image;
 
 				WT_STAT_FAST_DATA_INCR(session, rec_page_match);
-				goto done;
+				goto copy_image;
 			}
 		}
 	}
@@ -3330,11 +3331,10 @@ copy_image:
 	 * Optionally copy the disk image (raw compression has already made a
 	 * copy).
 	 */
-	if (F_ISSET(r, WT_EVICT_DISK_IMAGE) && !bnd->already_compressed)
+	if (F_ISSET(r, WT_EVICT_DISK_IMAGE) && !bnd->disk_image)
 		WT_ERR(__wt_strndup(
 		    session, buf->data, buf->size, &bnd->disk_image));
 
-done:
 err:	__wt_scr_free(session, &key);
 	return (ret);
 }
