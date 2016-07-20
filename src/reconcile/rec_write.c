@@ -2315,7 +2315,7 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 	/* Hitting a page boundary resets the dictionary, in all cases. */
 	__rec_dictionary_reset(r);
 
-	inuse = WT_PTRDIFF32(r->first_free, dsk);
+	inuse = WT_PTRDIFF(r->first_free, dsk);
 	switch (r->bnd_state) {
 	case SPLIT_BOUNDARY:
 		/*
@@ -3014,7 +3014,7 @@ __rec_split_finish(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	if (r->raw_compression && r->entries != 0) {
 		while (r->entries != 0) {
 			data_size =
-			    WT_PTRDIFF32(r->first_free, r->disk_image.mem);
+			    WT_PTRDIFF(r->first_free, r->disk_image.mem);
 			if (data_size <= btree->allocsize)
 				break;
 			WT_RET(__rec_split_raw_worker(session, r, 0, true));
