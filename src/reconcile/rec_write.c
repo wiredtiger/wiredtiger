@@ -3153,6 +3153,8 @@ __rec_split_write(WT_SESSION_IMPL *session,
 			F_SET(dsk, WT_PAGE_EMPTY_V_NONE);
 	}
 
+	bnd->entries = r->entries;
+
 	/* Initialize the address (set the page type for the parent). */
 	switch (dsk->type) {
 	case WT_PAGE_COL_FIX:
@@ -3168,7 +3170,6 @@ __rec_split_write(WT_SESSION_IMPL *session,
 		break;
 	WT_ILLEGAL_VALUE(session);
 	}
-
 	bnd->size = (uint32_t)buf->size;
 	bnd->cksum = 0;
 
@@ -3298,8 +3299,6 @@ supd_check_complete:
 			}
 		}
 	}
-
-	bnd->entries = r->entries;
 
 #ifdef HAVE_VERBOSE
 	/* Output a verbose message if we create a page without many entries */
