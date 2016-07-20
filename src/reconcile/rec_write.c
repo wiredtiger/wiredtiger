@@ -667,7 +667,7 @@ __rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
 		WT_ASSERT(session, mod->mod_multi[i].supd == NULL);
 
 		WT_ERR(__wt_multi_to_ref(session,
-		    next, &mod->mod_multi[i], &pindex->index[i], NULL));
+		    next, &mod->mod_multi[i], &pindex->index[i], NULL, false));
 		pindex->index[i]->home = next;
 	}
 
@@ -3293,7 +3293,9 @@ supd_check_complete:
 			    multi->cksum == bnd->cksum) {
 				multi->addr.reuse = 1;
 				bnd->addr = multi->addr;
+
 				bnd->disk_image = multi->disk_image;
+				multi->disk_image = NULL;
 
 				WT_STAT_FAST_DATA_INCR(session, rec_page_match);
 				goto copy_image;

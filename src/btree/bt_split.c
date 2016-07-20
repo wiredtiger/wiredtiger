@@ -1647,19 +1647,17 @@ __split_multi_inmem_fail(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_REF *ref)
  */
 int
 __wt_multi_to_ref(WT_SESSION_IMPL *session,
-    WT_PAGE *page, WT_MULTI *multi, WT_REF **refp, size_t *incrp)
+    WT_PAGE *page, WT_MULTI *multi, WT_REF **refp, size_t *incrp, bool closing)
 {
 	WT_ADDR *addr;
 	WT_IKEY *ikey;
 	WT_REF *ref;
-	size_t incr;
-
-	incr = 0;
 
 	/* Allocate an underlying WT_REF. */
 	WT_RET(__wt_calloc_one(session, refp));
 	ref = *refp;
-	incr += sizeof(WT_REF);
+	if (incrp)
+		*incrp += sizeof(WT_REF);
 
 	/*
 	 * Set the WT_REF key before (optionally) building the page, underlying
@@ -1671,12 +1669,25 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 		ikey = multi->key.ikey;
 		WT_RET(__wt_row_ikey(
 		    session, 0, WT_IKEY_DATA(ikey), ikey->size, ref));
-		incr += sizeof(WT_IKEY) + ikey->size;
+		if (incrp)
+			*incrp += sizeof(WT_IKEY) + ikey->size;
 		break;
 	default:
 		ref->ref_recno = multi->key.recno;
 		break;
 	}
+
+	/* There should be an address or a disk image (or both). */
+	WT_ASSERT(session,
+	    multi->addr.addr != NULL || multi->disk_image != NULL);
+
+	/* If we're closing the file, there better be an address. */
+	WT_ASSERT(session, multi->addr.addr != NULL || !closing);
+
+	/* Verify any disk image we have. */
+	WT_ASSERT(session, multi->disk_image == NULL ||
+	    __wt_verify_dsk_image(session,
+	    "[page instantiate]", multi->disk_image, 0, false) == 0);
 
 	/*
 	 * If there's an address, the page was written, set it.
@@ -1696,25 +1707,22 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 	}
 
 	/*
-	 * If there's no address, or if we have a disk image and there's enough
-	 * room in the cache, re-instantiate the page. (If there's no address,
-	 * there must be a disk image, the page wasn't written.)
+	 * If the page wasn't written, there's no address and there must be a
+	 * disk image, instantiate the page.
+	 *
+	 * Or, if we have a disk image, we're not closing the file, and there's
+	 * enough room in the cache, re-instantiate the page.
+	 *
+	 * Discard any page image we don't use.
 	 */
-	WT_ASSERT(session,
-	    multi->addr.addr != NULL || multi->disk_image != NULL);
-	WT_ASSERT(session, multi->disk_image == NULL ||
-	    __wt_verify_dsk_image(session,
-	    "[page instantiate]", multi->disk_image, 0, false) == 0);
-	if (multi->disk_image != NULL &&
+	if (multi->disk_image != NULL && !closing &&
 	    (multi->addr.addr == NULL ||
 	    !__wt_eviction_needed(session, NULL))) {
 		WT_RET(__split_multi_inmem(session, page, multi, ref));
 		ref->state = WT_REF_MEM;
 	}
+	__wt_free(session, multi->disk_image);
 
-	/* Optionally return changes in the memory footprint. */
-	if (incrp != NULL)
-		*incrp += incr;
 	return (0);
 }
 
@@ -2118,8 +2126,8 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 	 */
 	WT_RET(__wt_calloc_def(session, new_entries, &ref_new));
 	for (i = 0; i < new_entries; ++i)
-		WT_ERR(__wt_multi_to_ref(session,
-		    page, &mod->mod_multi[i], &ref_new[i], &parent_incr));
+		WT_ERR(__wt_multi_to_ref(session, page,
+		    &mod->mod_multi[i], &ref_new[i], &parent_incr, closing));
 
 	/*
 	 * Split into the parent; if we're closing the file, we hold it
