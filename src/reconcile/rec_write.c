@@ -5631,13 +5631,13 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		bnd = &r->bnd[0];
 
 		/*
-		 * If saving/restoring changes for this page and there's only
-		 * one block, there's nothing to write. This is an in-memory
-		 * configuration or a special case of forced eviction: set up
+		 * If in-memory, or saving/restoring changes for this page and
+		 * there's only one block, there's nothing to write. Set up
 		 * a single block as if to split, then use that disk image to
 		 * rewrite the page in memory.
 		 */
-		if (F_ISSET(r, WT_EVICT_UPDATE_RESTORE) && bnd->supd != NULL)
+		if (F_ISSET(r, WT_EVICT_IN_MEMORY) ||
+		    (F_ISSET(r, WT_EVICT_UPDATE_RESTORE) && bnd->supd != NULL))
 			goto split;
 
 		/*
