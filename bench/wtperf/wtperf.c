@@ -73,7 +73,6 @@ static const char * const debug_cconfig = "";
 static const char * const debug_tconfig = "";
 
 static void	*checkpoint_worker(void *);
-static int	 create_tables(CONFIG *);
 static int	drop_all_tables(CONFIG *);
 static int	 execute_populate(CONFIG *);
 static int	 execute_workload(CONFIG *);
@@ -1894,9 +1893,6 @@ create_tables(CONFIG *cfg)
 	int ret;
 	char buf[512];
 
-	if (cfg->create == 0)
-		return (0);
-
 	if ((ret = cfg->conn->open_session(
 	    cfg->conn, NULL, cfg->sess_config, &session)) != 0) {
 		lprintf(cfg, ret, 0,
@@ -1988,13 +1984,6 @@ start_all_runs(CONFIG *cfg)
 		if (strcmp(cfg->monitor_dir, cfg->home) == 0)
 			next_cfg->monitor_dir = new_home;
 
-		/* Create clean home directories. */
-		snprintf(cmd_buf, cmd_len, "rm -rf %s && mkdir %s",
-		    next_cfg->home, next_cfg->home);
-		if ((ret = system(cmd_buf)) != 0) {
-			fprintf(stderr, "%s: failed\n", cmd_buf);
-			goto err;
-		}
 		if ((ret = pthread_create(
 		    &threads[i], NULL, thread_run_wtperf, next_cfg)) != 0) {
 			lprintf(cfg, ret, 0, "Error creating thread");
@@ -2040,14 +2029,25 @@ static int
 start_run(CONFIG *cfg)
 {
 	pthread_t monitor_thread;
+	size_t len;
 	uint64_t total_ops;
 	uint32_t run_time;
 	int monitor_created, ret, t_ret;
-	char helium_buf[256];
+	char *buf;
 
 	monitor_created = ret = 0;
 					/* [-Wconditional-uninitialized] */
 	memset(&monitor_thread, 0, sizeof(monitor_thread));
+
+	/* If creating, remove and re-create the home directory. */
+	if (cfg->create != 0) {
+		len = strlen(cfg->home) * 2 + 100;
+		buf = dmalloc(len);
+		(void)snprintf(
+		    buf, len, "rm -rf %s && mkdir %s", cfg->home, cfg->home);
+		testutil_checkfmt(system(buf), "system: %s", buf);
+		free(buf);
+	}
 
 	if ((ret = setup_log_file(cfg)) != 0)
 		goto err;
@@ -2060,19 +2060,23 @@ start_run(CONFIG *cfg)
 
 	/* Configure optional Helium volume. */
 	if (cfg->helium_mount != NULL) {
-		snprintf(helium_buf, sizeof(helium_buf),
+		len = strlen(HELIUM_NAME) + strlen(cfg->helium_mount) + 100;
+		buf = dmalloc(len);
+		snprintf(buf, len,
 		    "entry=wiredtiger_extension_init,config=["
 		    "%s=[helium_devices=\"he://./%s\","
 		    "helium_o_volume_truncate=1]]",
 		    HELIUM_NAME, cfg->helium_mount);
 		if ((ret = cfg->conn->load_extension(
-		    cfg->conn, HELIUM_PATH, helium_buf)) != 0)
-			lprintf(cfg,
-			    ret, 0, "Error loading Helium: %s", helium_buf);
+		    cfg->conn, HELIUM_PATH, buf)) != 0)
+			lprintf(cfg, ret, 0, "Error loading Helium: %s", buf);
+		free(buf);
 	}
 
 	create_uris(cfg);
-	if ((ret = create_tables(cfg)) != 0)
+
+	/* If creating, create the tables. */
+	if (cfg->create != 0 && (ret = create_tables(cfg)) != 0)
 		goto err;
 
 	/* Start the monitor thread. */
@@ -2208,14 +2212,14 @@ int
 main(int argc, char *argv[])
 {
 	CONFIG *cfg, _cfg;
-	size_t len, req_len, sreq_len;
-	bool create_home, monitor_set;
+	size_t req_len, sreq_len;
+	bool monitor_set;
 	int ch, ret;
-	const char *opts = "C:H:h:m:O:o:RT:";
+	const char *opts = "C:H:h:m:O:o:T:";
 	const char *config_opts;
-	char *cc_buf, *cmd, *sess_cfg, *tc_buf, *user_cconfig, *user_tconfig;
+	char *cc_buf, *sess_cfg, *tc_buf, *user_cconfig, *user_tconfig;
 
-	create_home = monitor_set = false;
+	monitor_set = false;
 	ret = 0;
 	config_opts = NULL;
 	cc_buf = sess_cfg = tc_buf = user_cconfig = user_tconfig = NULL;
@@ -2255,9 +2259,6 @@ main(int argc, char *argv[])
 		case 'O':
 			config_opts = __wt_optarg;
 			break;
-		case 'R':
-			create_home = true;
-			break;
 		case 'T':
 			if (user_tconfig == NULL)
 				user_tconfig = dstrdup(__wt_optarg);
@@ -2280,18 +2281,6 @@ main(int argc, char *argv[])
 	 */
 	if (!monitor_set)
 		cfg->monitor_dir = cfg->home;
-
-	/*
-	 * Optionally remove and re-create the home directory.
-	 */
-	if (create_home) {
-		len = strlen(cfg->home) * 2 + 100;
-		cmd = dmalloc(len);
-		(void)snprintf(
-		    cmd, len, "rm -rf %s && mkdir %s", cfg->home, cfg->home);
-		testutil_checkfmt(system(cmd), "system: %s", cmd);
-		free(cmd);
-	}
 
 	/* Parse configuration settings from configuration file. */
 	if (config_opts != NULL && config_opt_file(cfg, config_opts) != 0)
