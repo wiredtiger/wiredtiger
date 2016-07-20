@@ -3246,7 +3246,7 @@ supd_check_complete:
 	 * image, we can't actually write it. Instead, we will re-instantiate
 	 * the page using the disk image and any list of updates we skipped.
 	 */
-	if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+	if (F_ISSET(r, WT_EVICT_IN_MEMORY))
 		goto copy_image;
 	if (F_ISSET(r, WT_EVICT_UPDATE_RESTORE) && bnd->supd != NULL) {
 		r->cache_write_restore = true;

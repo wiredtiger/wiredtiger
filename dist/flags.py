@@ -40,6 +40,7 @@ flags = {
         'CHECKPOINTING',
         'EVICTING',
         'EVICT_DISK_IMAGE',
+        'EVICT_IN_MEMORY',
         'EVICT_INMEM_SPLIT',
         'EVICT_LOOKASIDE',
         'EVICT_UPDATE_RESTORE',

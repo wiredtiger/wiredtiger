@@ -156,7 +156,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 	/* Update the reference and discard the page. */
 	if (__wt_ref_is_root(ref))
 		__wt_ref_out(session, ref);
-	else if ((clean_page && !F_ISSET(conn, WT_CONN_IN_MEMORY)) || tree_dead)
+	else if ((clean_page && !LF_ISSET(WT_EVICT_IN_MEMORY)) || tree_dead)
 		/*
 		 * Pages that belong to dead trees never write back to disk
 		 * and can't support page splits.
@@ -503,8 +503,10 @@ __evict_review(
 	if (closing)
 		LF_SET(WT_VISIBILITY_ERR);
 	else if (!WT_PAGE_IS_INTERNAL(page)) {
-		if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) ||
-		    page->read_gen == WT_READGEN_OLDEST ||
+		if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+			LF_SET(WT_EVICT_DISK_IMAGE |
+			    WT_EVICT_IN_MEMORY | WT_EVICT_UPDATE_RESTORE);
+		else if (page->read_gen == WT_READGEN_OLDEST ||
 		    page->memory_footprint > S2BT(session)->splitmempage)
 			LF_SET(WT_EVICT_DISK_IMAGE | WT_EVICT_UPDATE_RESTORE);
 		else if (F_ISSET(cache, WT_CACHE_STUCK))
