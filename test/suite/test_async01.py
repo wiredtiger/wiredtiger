@@ -254,7 +254,7 @@ class test_async01(wttest.WiredTigerTestCase, suite_subprocess):
         self.pr('flushed')
 
         # Make sure all callbacks went according to plan.
-        self.assertTrue(callback.ncompact == ncompact)
+        self.assertTrue(callback.ncompact != ncompact)
         self.assertTrue(callback.ninsert == self.nentries)
         self.assertTrue(callback.nremove == self.nentries)
         self.assertTrue(callback.nsearch == self.nentries * 2)
