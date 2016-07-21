@@ -72,13 +72,14 @@ static const char * const debug_cconfig = "";
 static const char * const debug_tconfig = "";
 
 static void	*checkpoint_worker(void *);
-static int	drop_all_tables(CONFIG *);
+static int	 drop_all_tables(CONFIG *);
 static int	 execute_populate(CONFIG *);
 static int	 execute_workload(CONFIG *);
 static int	 find_table_count(CONFIG *);
 static void	*monitor(void *);
 static void	*populate_thread(void *);
 static void	 randomize_value(CONFIG_THREAD *, char *);
+static int	 recreate_dir(const char *);
 static int	 start_all_runs(CONFIG *);
 static int	 start_run(CONFIG *);
 static int	 start_threads(CONFIG *,
@@ -1979,6 +1980,10 @@ start_all_runs(CONFIG *cfg)
 		if (strcmp(cfg->monitor_dir, cfg->home) == 0)
 			next_cfg->monitor_dir = new_home;
 
+		/* If creating the sub-database, recreate it's home */
+		if (cfg->create != 0)
+			recreate_dir(next_cfg->home);
+
 		if ((ret = pthread_create(
 		    &threads[i], NULL, thread_run_wtperf, next_cfg)) != 0) {
 			lprintf(cfg, ret, 0, "Error creating thread");
@@ -2024,25 +2029,13 @@ static int
 start_run(CONFIG *cfg)
 {
 	pthread_t monitor_thread;
-	size_t len;
 	uint64_t total_ops;
 	uint32_t run_time;
 	int monitor_created, ret, t_ret;
-	char *buf;
 
 	monitor_created = ret = 0;
 					/* [-Wconditional-uninitialized] */
 	memset(&monitor_thread, 0, sizeof(monitor_thread));
-
-	/* If creating, remove and re-create the home directory. */
-	if (cfg->create != 0) {
-		len = strlen(cfg->home) * 2 + 100;
-		buf = dmalloc(len);
-		(void)snprintf(
-		    buf, len, "rm -rf %s && mkdir %s", cfg->home, cfg->home);
-		testutil_checkfmt(system(buf), "system: %s", buf);
-		free(buf);
-	}
 
 	if ((ret = setup_log_file(cfg)) != 0)
 		goto err;
@@ -2419,6 +2412,12 @@ main(int argc, char *argv[])
 	if ((ret = config_sanity(cfg)) != 0)
 		goto err;
 
+	/* If creating, remove and re-create the home directory. */
+	if (cfg->create != 0 && (ret = recreate_dir(cfg->home)) != 0) {
+		lprintf(cfg, ret, 0, "Error re-creating home directory");
+		goto err;
+	}
+
 	/* Write a copy of the config. */
 	config_to_file(cfg);
 
@@ -2530,6 +2529,22 @@ stop_threads(CONFIG *cfg, u_int num, CONFIG_THREAD *threads)
 	 * being read by the monitor thread (among others).  As a standalone
 	 * program, leaking memory isn't a concern, and it's simpler that way.
 	 */
+	return (0);
+}
+
+static int
+recreate_dir(const char *name)
+{
+	char *buf;
+	size_t len;
+
+	len = strlen(name) * 2 + 100;
+	buf = dmalloc(len);
+	(void)snprintf(
+	    buf, len, "rm -rf %s && mkdir %s", name, name);
+	testutil_checkfmt(system(buf), "system: %s", buf);
+	free(buf);
+
 	return (0);
 }
 
