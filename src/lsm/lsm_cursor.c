@@ -901,7 +901,7 @@ __clsm_next_random(WT_CURSOR *cursor)
 	WT_DECL_RET;
 	WT_LSM_CHUNK *chunk;
 	WT_SESSION_IMPL *session;
-	uint64_t checked_docs, i, rand_chunk, rand_doc, total_docs;
+	uint64_t checked_docs, i, rand_doc, total_docs;
 	const char *cfg[3];
 
 	clsm = (WT_CURSOR_LSM *)cursor;
@@ -914,27 +914,23 @@ __clsm_next_random(WT_CURSOR *cursor)
 	cfg[1] = "next_random=true";
 	cfg[2] = NULL;
 
-retry:	total_docs = 0;
 	/* We need to know roughly how many docs are in the tree */
-	for (i = clsm->lsm_tree->nchunks; i > 0; i--) {
-		total_docs += clsm->lsm_tree->chunk[i-1]->count;
+retry:	for (total_docs = i = 0; i < clsm->lsm_tree->nchunks; i++) {
+		total_docs += clsm->lsm_tree->chunk[i]->count;
 	}
 
 	/*
 	 * We pick one of the docs at random from the tree to pick a random
 	 * chunk, weighted by the size of the chunks.
 	 */
-	rand_doc = __wt_random(&session->rnd);
-	rand_doc = rand_doc % total_docs;
-	checked_docs = rand_chunk = 0;
-	for (i = clsm->lsm_tree->nchunks; i > 0; i--) {
-		checked_docs += clsm->lsm_tree->chunk[i-1]->count;
+	rand_doc = __wt_random(&session->rnd) % total_docs;
+	for (checked_docs = i = 0; i < clsm->lsm_tree->nchunks; i++) {
+		checked_docs += clsm->lsm_tree->chunk[i]->count;
 		if (rand_doc < checked_docs) {
-			rand_chunk = i-1;
+			chunk = clsm->lsm_tree->chunk[i];
 			break;
 		}
 	}
-	chunk = clsm->lsm_tree->chunk[rand_chunk];
 
 	/* Open a cursor on the chunk and pick a random key from within */
 	WT_ERR(__wt_open_cursor(session, chunk->uri, NULL, cfg, &c));
