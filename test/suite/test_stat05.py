@@ -28,7 +28,7 @@
 
 import itertools, wiredtiger, wttest
 from suite_subprocess import suite_subprocess
-from wtscenario import multiply_scenarios, number_scenarios
+from wtscenario import make_scenarios
 from wiredtiger import stat
 from helper import complex_populate, complex_populate_lsm, simple_populate
 from helper import complex_value_populate, key_populate, value_populate
@@ -54,7 +54,7 @@ class test_stat_cursor_config(wttest.WiredTigerTestCase):
             conn_config = 'statistics=(fast),eviction_dirty_target=99,eviction_dirty_trigger=99')),
     ]
 
-    scenarios = number_scenarios(uri)
+    scenarios = make_scenarios(uri)
 
     def openAndWalkStatCursor(self):
         c = self.session.open_cursor(
