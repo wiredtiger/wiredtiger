@@ -510,7 +510,7 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri,
 	WT_CONFIG_ITEM cval;
 	WT_DECL_RET;
 	uint32_t flags;
-	bool bitmap, bulk;
+	bool bitmap, bulk, checkpoint_wait;
 
 	bitmap = bulk = false;
 	flags = 0;
@@ -538,6 +538,12 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri,
 		else if (!WT_STRING_MATCH("unordered", cval.str, cval.len))
 			WT_RET_MSG(session, EINVAL,
 			    "Value for 'bulk' must be a boolean or 'bitmap'");
+
+		if (bulk) {
+			WT_RET(__wt_config_gets(session,
+			    cfg, "checkpoint_wait", &cval));
+			checkpoint_wait = cval.val != 0;
+		}
 	}
 
 	/* Bulk handles require exclusive access. */
@@ -551,11 +557,16 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri,
 		 * the checkpoint lock.  This prevents a bulk cursor open
 		 * failing with EBUSY due to a database-wide checkpoint.
 		 */
-		if (LF_ISSET(WT_DHANDLE_EXCLUSIVE))
-			WT_WITH_CHECKPOINT_LOCK(session, ret,
-			    ret = __wt_session_get_btree_ckpt(
-			    session, uri, cfg, flags));
-		else
+		if (LF_ISSET(WT_DHANDLE_EXCLUSIVE)) {
+			if (checkpoint_wait)
+				WT_WITH_CHECKPOINT_LOCK(session, ret,
+				    ret = __wt_session_get_btree_ckpt(
+					session, uri, cfg, flags));
+			else
+				WT_WITH_CHECKPOINT_LOCK_NOWAIT(session, ret,
+				    ret = __wt_session_get_btree_ckpt(
+					session, uri, cfg, flags));
+		} else
 			ret = __wt_session_get_btree_ckpt(
 			    session, uri, cfg, flags);
 		WT_RET(ret);
