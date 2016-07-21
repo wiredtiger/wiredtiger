@@ -1708,17 +1708,12 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 	}
 
 	/*
-	 * If the page wasn't written, there's no address and there must be a
-	 * disk image, instantiate the page.
-	 *
-	 * Or, if we have a disk image, we're not closing the file, and there's
-	 * enough room in the cache, re-instantiate the page.
+	 * If we have a disk image and we're not closing the file,
+	 * re-instantiate the page.
 	 *
 	 * Discard any page image we don't use.
 	 */
-	if (multi->disk_image != NULL && !closing &&
-	    (multi->addr.addr == NULL ||
-	    !__wt_eviction_needed(session, NULL))) {
+	if (multi->disk_image != NULL && !closing) {
 		WT_RET(__split_multi_inmem(session, page, multi, ref));
 		ref->state = WT_REF_MEM;
 	}
