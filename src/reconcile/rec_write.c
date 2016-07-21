@@ -2782,10 +2782,10 @@ no_slots:
 		dsk_dst->u.entries = r->raw_entries[result_slots - 1];
 
 		/*
-		 * Optionally copy the disk image. Update the initial fields
-		 * to reflect the actual disk image that was compressed.
+		 * Optionally keep the disk image in cache. Update the initial
+		 * fields to reflect the actual disk image that was compressed.
 		 */
-		if (F_ISSET(r, WT_EVICT_DISK_IMAGE)) {
+		if (F_ISSET(r, WT_EVICT_SCRUB)) {
 			WT_RET(__wt_strndup(session, dsk,
 			    dsk_dst->mem_size, &last->disk_image));
 			disk_image = last->disk_image;
@@ -3330,10 +3330,10 @@ supd_check_complete:
 
 copy_image:
 	/*
-	 * Optionally copy the disk image (raw compression has already made a
-	 * copy).
+	 * Optionally keep the disk image in cache (raw compression has already
+	 * made a copy).
 	 */
-	if (F_ISSET(r, WT_EVICT_DISK_IMAGE) && !bnd->disk_image)
+	if (F_ISSET(r, WT_EVICT_SCRUB) && !bnd->disk_image)
 		WT_ERR(__wt_strndup(
 		    session, buf->data, buf->size, &bnd->disk_image));
 

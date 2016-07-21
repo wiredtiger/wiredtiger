@@ -1562,8 +1562,9 @@ __split_multi_inmem(
 
 	/*
 	 * Put the re-instantiated page in the same LRU queue location as the
-	 * original page (unless it was a forced eviction, in which case it's
-	 * left unset).
+	 * original page, unless this was a forced eviction, in which case we
+	 * leave the new page with the read generation unset.  Eviction will
+	 * set the read generation next time it visits this page.
 	 */
 	if (orig->read_gen != WT_READGEN_OLDEST)
 		page->read_gen = orig->read_gen;
