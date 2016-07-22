@@ -2791,9 +2791,8 @@ no_slots:
 		dsk_dst->u.entries = r->raw_entries[result_slots - 1];
 
 		/*
-		 * Optionally keep a copy of the original data, update initial
-		 * page-header fields of that copy to reflect the actual data
-		 * being written.
+		 * Optionally keep the disk image in cache. Update the initial
+		 * page-header fields to reflect the actual data being written.
 		 */
 		if (F_ISSET(r, WT_EVICT_SCRUB)) {
 			WT_RET(__wt_strndup(session, dsk,
