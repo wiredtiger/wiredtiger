@@ -513,6 +513,7 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri,
 	bool bitmap, bulk, checkpoint_wait;
 
 	bitmap = bulk = false;
+	checkpoint_wait = true;
 	flags = 0;
 
 	/*
