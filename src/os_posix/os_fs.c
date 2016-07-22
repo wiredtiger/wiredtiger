@@ -374,6 +374,7 @@ static int
 __posix_file_read(WT_FILE_HANDLE *file_handle,
     WT_SESSION *wt_session, wt_off_t offset, size_t len, void *buf)
 {
+	WT_DECL_RET;
 	WT_FILE_HANDLE_POSIX *pfh;
 	WT_SESSION_IMPL *session;
 	size_t chunk;
@@ -382,6 +383,33 @@ __posix_file_read(WT_FILE_HANDLE *file_handle,
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
+
+#if defined(HAVE_POSIX_FADVISE)
+	/*
+	 * While there may be an initial period of sequential reads, in general
+	 * we expect to see random reads. Read-ahead slows down most workloads,
+	 * disable it on the first non-sequential read. We don't disable it at
+	 * open because a bulk-loaded file will often be read sequentially, and
+	 * it makes a real difference during startup.
+	 *
+	 * This comparison can race, and we don't care if we see corruption in
+	 * the results: if multiple threads are reading from the file, we're no
+	 * longer doing sequential I/O anyway.
+	 */
+	if (pfh->fadv_random_check) {
+		if (offset < pfh->fadv_last_read) {
+			pfh->fadv_random_check = false;
+
+			WT_SYSCALL(posix_fadvise(
+			    pfh->fd, 0, 0, POSIX_FADV_RANDOM), ret);
+			if (ret != 0)
+				WT_RET_MSG(session, ret,
+				    "%s: handle-open: posix_fadvise",
+				    file_handle->name);
+		}
+		pfh->fadv_last_read = offset;
+	}
+#endif
 
 	/* Assert direct I/O is aligned and a multiple of the alignment. */
 	WT_ASSERT(session,
@@ -672,20 +700,15 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 
 	WT_ERR(__posix_open_file_cloexec(session, pfh->fd, name));
 
-#if defined(HAVE_POSIX_FADVISE)
 	/*
-	 * Disable read-ahead on trees: it slows down random read workloads.
-	 * Ignore fadvise when doing direct I/O, the kernel cache isn't
+	 * Ignore read-ahead when doing direct I/O, the kernel cache isn't
 	 * interesting.
+	 *
+	 * Ignore read-ahead for anything other than data files.
 	 */
-	if (!pfh->direct_io && file_type == WT_FS_OPEN_FILE_TYPE_DATA) {
-		WT_SYSCALL(
-		    posix_fadvise(pfh->fd, 0, 0, POSIX_FADV_RANDOM), ret);
-		if (ret != 0)
-			WT_ERR_MSG(session, ret,
-			    "%s: handle-open: posix_fadvise", name);
-	}
-#endif
+	pfh->fadv_last_read = 0;
+	pfh->fadv_random_check =
+	    !pfh->direct_io && file_type == WT_FS_OPEN_FILE_TYPE_DATA;
 
 directory_open:
 	/* Initialize public information. */

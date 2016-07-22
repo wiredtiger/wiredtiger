@@ -122,6 +122,9 @@ struct __wt_file_handle_posix {
 	 */
 	int	 fd;				/* POSIX file handle */
 
+	bool	 fadv_random_check;		/* POSIX_FADV_RANDOM */
+	wt_off_t fadv_last_read;		/* Read offset tracking */
+
 	bool	 direct_io;			/* O_DIRECT configured */
 };
 #endif
