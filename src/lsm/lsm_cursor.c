@@ -914,6 +914,9 @@ __clsm_next_random(WT_CURSOR *cursor)
 	cfg[1] = "next_random=true";
 	cfg[2] = NULL;
 
+	/* Initialize to the 0th chunk */
+	chunk = clsm->lsm_tree->chunk[0];
+
 	/* We need to know roughly how many docs are in the tree */
 retry:	for (total_docs = i = 0; i < clsm->lsm_tree->nchunks; i++) {
 		total_docs += clsm->lsm_tree->chunk[i]->count;
