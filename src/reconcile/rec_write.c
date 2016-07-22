@@ -385,7 +385,7 @@ __wt_reconcile(WT_SESSION_IMPL *session,
 	/*
 	 * Evicting in-memory uses the update/restore mechanisms.
 	 * The update/restore mechanisms use disk images.
-	 */ 
+	 */
 	if (LF_ISSET(WT_EVICT_IN_MEMORY))
 		LF_SET(WT_EVICT_UPDATE_RESTORE);
 	if (LF_ISSET(WT_EVICT_UPDATE_RESTORE))
