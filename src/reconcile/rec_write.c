@@ -3250,7 +3250,7 @@ supd_check_complete:
 	}
 
 	/*
-	 * If we saved the disk image in case updated needed to be restored,
+	 * If we saved the disk image in case updates needed to be restored,
 	 * but then found no updates on this page, free the disk image.
 	 */
 	if (F_ISSET(r, WT_EVICT_UPDATE_RESTORE) &&
