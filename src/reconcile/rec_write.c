@@ -2784,8 +2784,16 @@ no_slots:
 		/*
 		 * Optionally keep the disk image in cache. Update the initial
 		 * fields to reflect the actual disk image that was compressed.
+		 *
+		 * If updates are saved and need to be restored, we have to
+		 * keep a copy of the disk image.  Unfortunately, we don't know
+		 * at this point whether there are updates to restore for the
+		 * key range covered by the disk image that was just created.
+		 * If there are any updates at all saved, we make a copy of the
+		 * disk image here. If not needed, it will be freed later.
 		 */
-		if (F_ISSET(r, WT_EVICT_SCRUB)) {
+		if (F_ISSET(r, WT_EVICT_SCRUB) ||
+		    (F_ISSET(r, WT_EVICT_UPDATE_RESTORE) && r->supd_next > 0)) {
 			WT_RET(__wt_strndup(session, dsk,
 			    dsk_dst->mem_size, &last->disk_image));
 			disk_image = last->disk_image;
@@ -3242,6 +3250,18 @@ supd_check_complete:
 	}
 
 	/*
+	 * If we saved the disk image in case updated needed to be restored,
+	 * but then found no updates on this page, free the disk image.
+	 */
+	if (F_ISSET(r, WT_EVICT_UPDATE_RESTORE) &&
+	    !F_ISSET(r, WT_EVICT_SCRUB)) {
+		if (bnd->supd == NULL)
+			__wt_free(session, bnd->disk_image);
+		else
+			WT_ASSERT(session, bnd->disk_image != NULL);
+	}
+
+	/*
 	 * If configured for an in-memory database, or using the save/restore
 	 * eviction path and we had to skip updates in order to build this disk
 	 * image, we can't actually write it. Instead, we will re-instantiate
@@ -3330,7 +3350,8 @@ copy_image:
 	 * Optionally keep the disk image in cache (raw compression has already
 	 * made a copy).
 	 */
-	if (F_ISSET(r, WT_EVICT_SCRUB)) {
+	if (F_ISSET(r, WT_EVICT_SCRUB) ||
+	    (F_ISSET(r, WT_EVICT_UPDATE_RESTORE) && bnd->supd != NULL)) {
 		WT_ASSERT(session,
 		    (bnd->already_compressed && bnd->disk_image != NULL) ||
 		    (!bnd->already_compressed && bnd->disk_image == NULL));

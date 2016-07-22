@@ -255,8 +255,8 @@ __wt_block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	memset(blk, 0, sizeof(*blk));
 
 	/*
-	 * Swap the page-header as needed; this doesn't belong here, but it's
-	 * the best place to catch all callers.
+	 * Ensure the page header is in little endian order; this doesn't
+	 * belong here, but it's the best place to catch all callers.
 	 */
 	__wt_page_header_byteswap(buf->mem);
 
@@ -374,6 +374,9 @@ __wt_block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 			block->os_cache_dirty_max = 0;
 		}
 	}
+
+	/* Swap the page header back to native order. */
+	__wt_page_header_byteswap(buf->mem);
 
 	/* Optionally discard blocks from the buffer cache. */
 	WT_RET(__wt_block_discard(session, block, align_size));
