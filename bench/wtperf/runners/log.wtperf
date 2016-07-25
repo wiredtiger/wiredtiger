@@ -12,11 +12,10 @@
 # Jenkins runs for perf testing:
 # - Config as-is
 # - Config + "-o "value_sz=1000" to test larger values and log records
-# - Config + "-C "log=(file_max=1M)" to test small log files and switching
-# - Config + "-C "log=(zero_fill=true,file_max=1M)" to test zero-filling
-# - Config + "-C "checkpoint=(wait=0)" to test no checkpoints
-# - Config + "-C "log=(prealloc=false,file_max=1M)" to test no pre-allocation
-# - Config + "-C "log=(zero_fill=true,file_max=1M)" to test zero-filling
+# - Config + "-C "log=(enabled,file_max=1M)": small log files and switching
+# - Config + "-C "log=(enabled,zero_fill=true,file_max=1M)": zero-filling
+# - Config + "-C "checkpoint=(wait=0)": no checkpoints
+# - Config + "-C "log=(enabled,prealloc=false,file_max=1M)": no pre-allocation
 #
 conn_config="cache_size=5G,log=(enabled=true),checkpoint=(log_size=500M),eviction=(threads_max=4)"
 table_config="type=file"
