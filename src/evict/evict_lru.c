@@ -529,9 +529,6 @@ __evict_update_work(WT_SESSION_IMPL *session)
 	if (!F_ISSET(conn, WT_CONN_EVICTION_RUN))
 		return (false);
 
-	if (cache->evict_queues[WT_EVICT_URGENT_QUEUE].evict_current != NULL)
-		goto done;
-
 	/*
 	 * Setup the number of refs to consider in each handle, depending
 	 * on how many handles are open. We want to consider less candidates
@@ -541,42 +538,40 @@ __evict_update_work(WT_SESSION_IMPL *session)
 	cache->evict_max_refs_per_file =
 	    WT_MAX(100, WT_MILLION / (conn->open_file_count + 1));
 
+	if (cache->evict_queues[WT_EVICT_URGENT_QUEUE].evict_current != NULL)
+		FLD_SET(cache->state, WT_EVICT_STATE_URGENT);
+
 	/*
-	 * Page eviction overrides the dirty target and other types of eviction,
-	 * that is, we don't care where we are with respect to the dirty target
-	 * if page eviction is configured.
+	 * If we need space in the cache, try to find clean pages to evict.
 	 *
 	 * Avoid division by zero if the cache size has not yet been set in a
 	 * shared cache.
 	 */
 	bytes_max = conn->cache_size + 1;
 	bytes_inuse = __wt_cache_bytes_inuse(cache);
-	if (bytes_inuse > (cache->eviction_target * bytes_max) / 100) {
-		FLD_SET(cache->state, WT_EVICT_STATE_ALL);
-		goto done;
-	}
+	if (bytes_inuse > (cache->eviction_target * bytes_max) / 100)
+		FLD_SET(cache->state, WT_EVICT_STATE_CLEAN);
+
+	dirty_inuse = __wt_cache_dirty_inuse(cache);
+	if (dirty_inuse > (cache->eviction_dirty_target * bytes_max) / 100)
+		FLD_SET(cache->state, WT_EVICT_STATE_DIRTY);
 
 	/*
 	 * If the cache has been stuck and is now under control, clear the
 	 * stuck flag.
 	 */
-	if (bytes_inuse < bytes_max)
+	if (bytes_inuse < bytes_max &&
+	    dirty_inuse < (cache->eviction_dirty_trigger * bytes_max) / 100)
 		F_CLR(cache, WT_CACHE_STUCK);
 
-	dirty_inuse = __wt_cache_dirty_inuse(cache);
-	if (dirty_inuse > (cache->eviction_dirty_target * bytes_max) / 100) {
-		FLD_SET(cache->state, WT_EVICT_STATE_DIRTY);
-		goto done;
-	}
-
-	return (false);
-
-done:	if (F_ISSET(cache, WT_CACHE_STUCK)) {
+	if (F_ISSET(cache, WT_CACHE_STUCK)) {
+		WT_ASSERT(session, cache->state != 0);
 		WT_STAT_FAST_CONN_SET(session,
 		    cache_eviction_aggressive_set, 1);
 		FLD_SET(cache->state, WT_EVICT_STATE_AGGRESSIVE);
 	}
-	return (true);
+
+	return (cache->state != 0);
 }
 
 /*
@@ -641,8 +636,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 		 * Start a worker if we have capacity and we haven't reached
 		 * the eviction targets.
 		 */
-		if (FLD_ISSET(cache->state,
-		    WT_EVICT_STATE_ALL | WT_EVICT_STATE_DIRTY) &&
+		if (FLD_ISSET(cache->state, WT_EVICT_STATE_ALL) &&
 		    conn->evict_workers < conn->evict_workers_max) {
 			WT_RET(__wt_verbose(session, WT_VERB_EVICTSERVER,
 			    "Starting evict worker: %"PRIu32"\n",
@@ -1381,14 +1375,11 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 		/*
 		 * It's possible (but unlikely) to visit a page without a read
 		 * generation, if we race with the read instantiating the page.
-		 * Ignore those pages, but set the page's read generation here
-		 * to ensure a bug doesn't somehow leave a page without a read
-		 * generation.
+		 * Set the page's read generation here to ensure a bug doesn't
+		 * somehow leave a page without a read generation.
 		 */
-		if (page->read_gen == WT_READGEN_NOTSET) {
+		if (page->read_gen == WT_READGEN_NOTSET)
 			__wt_cache_read_gen_new(session, page);
-			continue;
-		}
 
 		/* Pages we no longer need (clean or dirty), are found money. */
 		if (page->read_gen == WT_READGEN_OLDEST) {
@@ -1396,6 +1387,7 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 			    session, cache_eviction_pages_queued_oldest);
 			goto fast;
 		}
+
 		if (__wt_page_is_empty(page) ||
 		    F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
 		    FLD_ISSET(cache->state, WT_EVICT_STATE_AGGRESSIVE))
@@ -1403,7 +1395,11 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 
 		/* Skip clean pages if appropriate. */
 		if (!modified && (F_ISSET(conn, WT_CONN_IN_MEMORY) ||
-		    FLD_ISSET(cache->state, WT_EVICT_STATE_DIRTY)))
+		    !FLD_ISSET(cache->state, WT_EVICT_STATE_CLEAN)))
+			continue;
+
+		/* Skip dirty pages if appropriate. */
+		if (modified && !FLD_ISSET(cache->state, WT_EVICT_STATE_DIRTY))
 			continue;
 
 		/* Limit internal pages to 50% of the total. */
@@ -1608,8 +1604,10 @@ __evict_get_ref(
 		 */
 		if (is_server && queue != urgent_queue &&
 		    S2C(session)->evict_workers > 1 &&
-		    !__evict_check_entry_size(session, evict))
-			continue;
+		    !__evict_check_entry_size(session, evict)) {
+			--evict;
+			break;
+		}
 
 		/*
 		 * Lock the page while holding the eviction mutex to prevent
@@ -1850,6 +1848,8 @@ __wt_page_evict_soon(WT_SESSION_IMPL *session, WT_REF *ref)
 
 done:	__wt_spin_unlock(session, &cache->evict_queue_lock);
 	if (queued) {
+		WT_STAT_FAST_CONN_INCR(
+		    session, cache_eviction_pages_queued_urgent);
 		if (S2C(session)->evict_workers > 1)
 			WT_RET(__wt_cond_signal(
 			    session, cache->evict_waiter_cond));
