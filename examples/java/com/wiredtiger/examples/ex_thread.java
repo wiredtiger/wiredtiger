@@ -35,6 +35,36 @@ import com.wiredtiger.db.*;
 import java.io.*;
 import java.util.*;
 
+/*! [thread insert] */
+class InsertThread extends Thread {
+    private Connection conn;
+    private int threadId;
+
+    public InsertThread(Connection conn, int threadId) {
+        this.conn = conn;
+        this.threadId = threadId;
+    }
+
+    public void run()
+    {
+        try {
+            int ret;
+            for (int i = 0; i < 500; i++) {
+                Session session = conn.open_session(null);
+                Cursor cursor = session.open_cursor("table:access", null, "overwrite");
+                cursor.putKeyString("key"+threadId + "-" + i);
+                cursor.putValueString("value1");
+                ret = cursor.insert();
+                cursor.close();
+                ret = session.close(null);
+	    }
+        } catch (WiredTigerException wte) {
+            System.err.println("Exception " + wte);
+        }
+    }
+}
+/*! [thread insert] */
+
 /*! [thread scan] */
 class ScanThread extends Thread {
     private Connection conn;
@@ -79,7 +109,7 @@ public class ex_thread {
     public static void main(String[] argv)
     {
         try {
-            Thread[] threads = new Thread[NUM_THREADS];
+            List<Thread> threads = new ArrayList<Thread>();
             int i, ret;
             Connection conn;
 
@@ -123,13 +153,17 @@ public class ex_thread {
             ret = session.close(null);
 
             for (i = 0; i < NUM_THREADS; i++) {
-                threads[i] = new ScanThread(conn);
-                threads[i].start();
+                Thread insertThread = new InsertThread(conn, i);
+                Thread scanThread = new InsertThread(conn, i);
+                insertThread.start();
+                scanThread.start();
+                threads.add(insertThread);
+                threads.add(scanThread);
             }
 
-            for (i = 0; i < NUM_THREADS; i++)
+            for (Thread thread : threads)
                 try {
-                    threads[i].join();
+                    thread.join();
                     ret = -1;
                 }
                 catch (InterruptedException ie) {
