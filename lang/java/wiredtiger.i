@@ -236,12 +236,10 @@ WT_CLASS(type, class, name)
 	jcb = (JAVA_CALLBACK *)(priv);
 }
 
-/*
-%typemap(freearg, numinputs=0) class ## _CLOSED *name {
+%typemap(check, numinputs=0) class ## _CLOSED *name {
 	closeHandler(jenv, savesess2, jcb2);
 	priv = NULL;
 }
-*/
 
 %enddef
 
