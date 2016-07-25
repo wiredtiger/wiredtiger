@@ -35,7 +35,7 @@ import com.wiredtiger.db.*;
 import java.io.*;
 import java.util.*;
 
-/*! [thread scan] */
+/*! [thread insert] */
 class InsertThread extends Thread {
     private Connection conn;
     private int threadId;
@@ -63,6 +63,40 @@ class InsertThread extends Thread {
         }
     }
 }
+/*! [thread insert] */
+
+/*! [thread scan] */
+class ScanThread extends Thread {
+    private Connection conn;
+
+    public ScanThread(Connection conn) {
+        this.conn = conn;
+    }
+
+    public void run()
+    {
+        try {
+            int ret;
+
+            Session session = conn.open_session(null);
+            Cursor cursor = session.open_cursor("table:access", null, null);
+
+            /* Show all records. */
+            while ((ret = cursor.next()) == 0) {
+                String key = cursor.getKeyString();
+                String value = cursor.getValueString();
+                System.out.println("Got record: " + key + " : " + value);
+            }
+            if (ret != wiredtiger.WT_NOTFOUND)
+                System.err.println("Cursor.next: " +
+                                   wiredtiger.wiredtiger_strerror(ret));
+            cursor.close();
+            session.close(null);
+        } catch (WiredTigerException wte) {
+            System.err.println("Exception " + wte);
+        }
+    }
+}
 /*! [thread scan] */
 
 public class ex_thread {
@@ -75,7 +109,7 @@ public class ex_thread {
     public static void main(String[] argv)
     {
         try {
-            Thread[] threads = new Thread[NUM_THREADS];
+            List<Thread> threads = new ArrayList<Thread>();
             int i, ret;
             Connection conn;
 
@@ -119,13 +153,17 @@ public class ex_thread {
             ret = session.close(null);
 
             for (i = 0; i < NUM_THREADS; i++) {
-                threads[i] = new InsertThread(conn, i);
-                threads[i].start();
+                Thread insertThread = new InsertThread(conn, i);
+                Thread scanThread = new InsertThread(conn, i);
+                insertThread.start();
+                scanThread.start();
+                threads.add(insertThread);
+                threads.add(scanThread);
             }
 
-            for (i = 0; i < NUM_THREADS; i++)
+            for (Thread thread : threads)
                 try {
-                    threads[i].join();
+                    thread.join();
                     ret = -1;
                 }
                 catch (InterruptedException ie) {

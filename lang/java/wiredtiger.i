@@ -78,6 +78,7 @@
  */
 typedef struct {
 	JavaVM *javavm;		/* Used in async threads to craft a jnienv */
+	JNIEnv *jnienv;		/* jni env that created the Session/Cursor */
 	WT_SESSION_IMPL *session; /* session used for alloc/free */
 	jobject jobj;		/* the java Session/Cursor/AsyncOp object */
 	jobject jcallback;	/* callback object for async ops */
@@ -342,6 +343,15 @@ javaClose(JNIEnv *env, WT_SESSION *session, JAVA_CALLBACK *jcb, jfieldID *pfid)
 	jfieldID fid;
 	WT_CONNECTION_IMPL *conn;
 
+	/* If we were not called via an implicit close call,
+	 * we won't have a JNIEnv yet.  Get one from the connection,
+	 * since the thread that started the session may have
+	 * terminated.
+	 */
+	if (env == NULL) {
+		conn = (WT_CONNECTION_IMPL *)session->connection;
+		env = ((JAVA_CALLBACK *)conn->lang_private)->jnienv;
+	}
 	if (pfid == NULL || *pfid == NULL) {
 		cls = (*env)->GetObjectClass(env, jcb->jobj);
 		fid = (*env)->GetFieldID(env, cls, "swigCPtr", "J");
@@ -567,11 +577,11 @@ WT_ASYNC_CALLBACK javaApiAsyncHandler = {javaAsyncHandler};
 	}
 
 	%javamethodmodifiers java_init "protected";
-	int java_init(JNIEnv *jnienv, jobject jasyncop) {
+	int java_init(jobject jasyncop) {
 		JAVA_CALLBACK *jcb =
 		    (JAVA_CALLBACK *)$self->c.lang_private;
-		jcb->jobj = JCALL1(NewGlobalRef, jnienv, jasyncop);
-		JCALL1(DeleteLocalRef, jnienv, jasyncop);
+		jcb->jobj = JCALL1(NewGlobalRef, jcb->jnienv, jasyncop);
+		JCALL1(DeleteLocalRef, jcb->jnienv, jasyncop);
 		return (0);
 	}
 }
@@ -1180,10 +1190,10 @@ WT_ASYNC_CALLBACK javaApiAsyncHandler = {javaAsyncHandler};
 	}
 
 	%javamethodmodifiers java_init "protected";
-	int java_init(JNIEnv *jnienv, jobject jcursor) {
+	int java_init(jobject jcursor) {
 		JAVA_CALLBACK *jcb = (JAVA_CALLBACK *)$self->lang_private;
-		jcb->jobj = JCALL1(NewGlobalRef, jnienv, jcursor);
-		JCALL1(DeleteLocalRef, jnienv, jcursor);
+		jcb->jobj = JCALL1(NewGlobalRef, jcb->jnienv, jcursor);
+		JCALL1(DeleteLocalRef, jcb->jnienv, jcursor);
 		return (0);
 	}
 }
@@ -1881,11 +1891,11 @@ REQUIRE_WRAP(WT_ASYNC_OP::get_id, __wt_async_op::get_id,getId)
 
 %extend ctypename {
 	%javamethodmodifiers java_init "protected";
-	int java_init(JNIEnv *jnienv, jobject jsess) {
+	int java_init(jobject jsess) {
 		implclass *session = (implclass *)$self;
 		JAVA_CALLBACK *jcb = (JAVA_CALLBACK *)session->lang_private;
-		jcb->jobj = JCALL1(NewGlobalRef, jnienv, jsess);
-		JCALL1(DeleteLocalRef, jnienv, jsess);
+		jcb->jobj = JCALL1(NewGlobalRef, jcb->jnienv, jsess);
+		JCALL1(DeleteLocalRef, jcb->jnienv, jsess);
 		return (0);
 	}
 }
@@ -1914,6 +1924,7 @@ WT_CONNECTION *wiredtiger_open_wrap(JNIEnv *jenv, const char *home, const char *
 	if ((ret = __wt_calloc_def(connimpl->default_session, 1, &jcb)) != 0)
 		goto err;
 
+	jcb->jnienv = jenv;
 	connimpl->lang_private = jcb;
 
 err:	if (ret != 0)
@@ -1938,6 +1949,7 @@ err:	if (ret != 0)
 		if ((ret = __wt_calloc_def(connimpl->default_session, 1, &jcb)) != 0)
 			goto err;
 
+		jcb->jnienv = jenv;
 		jcb->session = connimpl->default_session;
 		(*jenv)->GetJavaVM(jenv, &jcb->javavm);
 		jcb->jcallback = JCALL1(NewGlobalRef, jenv, callbackObject);
@@ -1966,6 +1978,7 @@ err:		if (ret != 0)
 		if ((ret = __wt_calloc_def(sessionimpl, 1, &jcb)) != 0)
 			goto err;
 
+		jcb->jnienv = jenv;
 		sessionimpl->lang_private = jcb;
 
 err:		if (ret != 0)
@@ -1990,6 +2003,7 @@ err:		if (ret != 0)
 			    1, &jcb)) != 0)
 			goto err;
 
+		jcb->jnienv = jenv;
 		jcb->session = (WT_SESSION_IMPL *)cursor->session;
 		cursor->lang_private = jcb;
 
