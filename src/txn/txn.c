@@ -595,14 +595,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_RET(__wt_session_copy_values(session));
 
 	__wt_txn_release(session);
-
-	/*
-	 * All transaction flags have just been cleared.  Mark if we did an
-	 * update, so we can throttle updates when the cache hits the maximum
-	 * dirty limit.
-	 */
-	if (did_update) 
-		F_SET(txn, WT_TXN_DID_UPDATE);
 	return (0);
 }
 
