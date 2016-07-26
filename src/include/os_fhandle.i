@@ -132,7 +132,6 @@ __wt_ftruncate(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset)
 	WT_FILE_HANDLE *handle;
 
 	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_READONLY));
-	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
 
 	WT_RET(__wt_verbose(session, WT_VERB_HANDLEOPS,
 	    "%s: handle-truncate: %" PRIuMAX " at %" PRIuMAX,
