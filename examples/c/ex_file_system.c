@@ -352,8 +352,8 @@ demo_fs_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
 	 */
 	file_handle->close = demo_file_close;
 	file_handle->fh_advise = NULL;
-	file_handle->fh_allocate = NULL;
-	file_handle->fh_allocate_nolock = NULL;
+	file_handle->fh_extend = NULL;
+	file_handle->fh_extend_nolock = NULL;
 	file_handle->fh_lock = demo_file_lock;
 	file_handle->fh_map = NULL;
 	file_handle->fh_map_discard = NULL;
@@ -364,6 +364,7 @@ demo_fs_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
 	file_handle->fh_sync = demo_file_sync;
 	file_handle->fh_sync_nowait = NULL;
 	file_handle->fh_truncate = demo_file_truncate;
+	file_handle->fh_truncate_nolock = NULL;
 	file_handle->fh_write = demo_file_write;
 
 	TAILQ_INSERT_HEAD(&demo_fs->fileq, demo_fh, q);
