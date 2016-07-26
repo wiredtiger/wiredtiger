@@ -311,6 +311,7 @@ __wt_txn_idle_cache_check(WT_SESSION_IMPL *session)
 	    !F_ISSET(txn, WT_TXN_HAS_ID) && txn_state->snap_min == WT_TXN_NONE)
 		WT_RET(__wt_cache_eviction_check(session, false, NULL));
 
+        F_CLR(txn, WT_TXN_DID_UPDATE);
 	return (0);
 }
 

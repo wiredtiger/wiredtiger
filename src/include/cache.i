@@ -185,7 +185,7 @@ __wt_session_can_wait(WT_SESSION_IMPL *session)
 /*
  * __wt_eviction_needed --
  *	Return if an application thread should do eviction, and the cache full
- * percentage as a side-effect.
+ *      percentage as a side-effect.
  */
 static inline bool
 __wt_eviction_needed(WT_SESSION_IMPL *session, u_int *pct_fullp)
@@ -223,8 +223,15 @@ __wt_eviction_needed(WT_SESSION_IMPL *session, u_int *pct_fullp)
 	if (pct_full > cache->eviction_trigger)
 		return (true);
 
-	/* Return if there are too many dirty bytes in cache. */
-	if (__wt_cache_dirty_inuse(cache) >
+	/*
+         * Check if there are too many dirty bytes in cache.
+         *
+         * We try to avoid penalizing read-only operations by only checking the
+         * dirty limit once a transaction ID has been allocated, or if the last
+         * transaction did an update.
+         */
+	if (F_ISSET(&session->txn, WT_TXN_HAS_ID | WT_TXN_DID_UPDATE) &&
+	    __wt_cache_dirty_inuse(cache) >
 	    (cache->eviction_dirty_trigger * bytes_max) / 100)
 		return (true);
 	return (false);

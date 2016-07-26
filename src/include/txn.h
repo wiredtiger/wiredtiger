@@ -190,13 +190,14 @@ struct __wt_txn {
 	WT_ITEM		*ckpt_snapshot;
 	bool		full_ckpt;
 
-#define	WT_TXN_AUTOCOMMIT	0x01
-#define	WT_TXN_ERROR		0x02
-#define	WT_TXN_HAS_ID		0x04
-#define	WT_TXN_HAS_SNAPSHOT	0x08
-#define	WT_TXN_NAMED_SNAPSHOT	0x10
-#define	WT_TXN_READONLY		0x20
-#define	WT_TXN_RUNNING		0x40
-#define	WT_TXN_SYNC_SET		0x80
+#define	WT_TXN_AUTOCOMMIT	0x001
+#define	WT_TXN_DID_UPDATE	0x002
+#define	WT_TXN_ERROR		0x004
+#define	WT_TXN_HAS_ID		0x008
+#define	WT_TXN_HAS_SNAPSHOT	0x010
+#define	WT_TXN_NAMED_SNAPSHOT	0x020
+#define	WT_TXN_READONLY		0x040
+#define	WT_TXN_RUNNING		0x080
+#define	WT_TXN_SYNC_SET		0x100
 	uint32_t flags;
 };
