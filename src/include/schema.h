@@ -121,23 +121,6 @@ struct __wt_table {
 	    &S2C(session)->checkpoint_lock, WT_SESSION_LOCKED_CHECKPOINT, op)
 
 /*
- * WT_WITH_CHECKPOINT_LOCK_NOWAIT --
- *	Return error if unable to acquire the checkpoint lock,
- *	perform an operation if lock acquired, drop the lock.
- */
-#define	WT_WITH_CHECKPOINT_LOCK_NOWAIT(session, ret, op) do {		\
-	ret = 0;							\
-	if ((ret = __wt_spin_trylock(session,				\
-	    &S2C(session)->checkpoint_lock)) == 0) {			\
-		F_SET(session, WT_SESSION_LOCKED_CHECKPOINT);		\
-		op;							\
-		F_CLR(session, WT_SESSION_LOCKED_CHECKPOINT);		\
-		__wt_spin_unlock(session,				\
-		    &S2C(session)->checkpoint_lock);			\
-	}								\
-} while (0)
-
-/*
  * WT_WITH_HANDLE_LIST_LOCK --
  *	Acquire the data handle list lock, perform an operation, drop the lock.
  *

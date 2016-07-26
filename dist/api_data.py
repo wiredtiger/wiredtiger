@@ -820,8 +820,9 @@ methods = {
 
 'WT_SESSION.drop' : Method([
     Config('checkpoint_wait', 'true', r'''
-        wait for the checkpoint lock, if \c checkpoint_wait=false, fail if
-        this lock is not available immediately''',
+        wait for the checkpoint lock, if \c checkpoint_wait=false, perform
+        the drop operation without taking a lock, failing in case a checkpoint
+        is under progress''',
         type='boolean', undoc=True),
     Config('force', 'false', r'''
         return success if the object does not exist''',
@@ -903,9 +904,9 @@ methods = {
         checkpoint taken for the object).  The cursor does not
         support data modification'''),
     Config('checkpoint_wait', 'true', r'''
-        wait for the checkpoint lock, if \c checkpoint_wait=false, fail if
-        this lock is not available immediately. This option is available
-        only for the bulk cursors''',
+        wait for the checkpoint lock, if \c checkpoint_wait=false, open cursor
+        without taking a lock, failing in case a checkpoint is under progress.
+        This option is available only for the bulk cursors''',
         type='boolean', undoc=True),
     Config('dump', '', r'''
         configure the cursor for dump format inputs and outputs: "hex"

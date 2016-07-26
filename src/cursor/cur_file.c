@@ -554,20 +554,15 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri,
 	/* Get the handle and lock it while the cursor is using it. */
 	if (WT_PREFIX_MATCH(uri, "file:")) {
 		/*
-		 * If we are opening exclusive, get the handle while holding
-		 * the checkpoint lock.  This prevents a bulk cursor open
-		 * failing with EBUSY due to a database-wide checkpoint.
+		 * If we are opening exclusive and don't want a bulk cursor
+		 * open to fail with EBUSY due to a database-wide checkpoint,
+		 * get the handle while holding the checkpoint lock.
 		 */
-		if (LF_ISSET(WT_DHANDLE_EXCLUSIVE)) {
-			if (checkpoint_wait)
-				WT_WITH_CHECKPOINT_LOCK(session, ret,
-				    ret = __wt_session_get_btree_ckpt(
-					session, uri, cfg, flags));
-			else
-				WT_WITH_CHECKPOINT_LOCK_NOWAIT(session, ret,
-				    ret = __wt_session_get_btree_ckpt(
-					session, uri, cfg, flags));
-		} else
+		if (LF_ISSET(WT_DHANDLE_EXCLUSIVE) && checkpoint_wait)
+			WT_WITH_CHECKPOINT_LOCK(session, ret,
+			    ret = __wt_session_get_btree_ckpt(
+			    session, uri, cfg, flags));
+		else
 			ret = __wt_session_get_btree_ckpt(
 			    session, uri, cfg, flags);
 		WT_RET(ret);
