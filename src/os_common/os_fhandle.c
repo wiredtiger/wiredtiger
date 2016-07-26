@@ -38,7 +38,9 @@ __fhandle_method_finalize(
 		WT_HANDLE_METHOD_REQ(fh_sync);
 	/* not required: fh_sync_nowait */
 	if (!readonly) {
-		WT_HANDLE_METHOD_REQ(fh_truncate);
+		if (handle->fh_truncate == NULL &&
+		    handle->fh_truncate_nolock == NULL)
+			WT_HANDLE_METHOD_REQ(fh_truncate);
 		WT_HANDLE_METHOD_REQ(fh_write);
 	}
 

@@ -13,7 +13,7 @@ Function pointers should not be cleared once a handle is created.
 (WiredTiger might check for a non-NULL method and then call it, and
 clearing the function pointer could result in a core dump.)
 
-Function pointers are not generally expected to be set after a handle
+Function pointers are not expected to be cleared or set after a handle
 is created. Exceptions to this are the WT_FILE_HANDLE::fh_extend and
 WT_FILE_HANDLE::fh_truncate methods, because a file system
 implementation may not know the level of support the underlying system
@@ -21,11 +21,12 @@ provides until after file allocation or extension is attempted. For this
 reason, these methods appear in both locking and non-locking versions.
 Custom file systems needing to discover system support before
 configuring non-locking methods should initialize only the locking
-version of the method, then set the non-locking version of the method
-and clear the locking method, after discovery is complete. (Clearing the
-locking method value is safe because calls are serialized until a
-non-locking method is set.) Note it is not possible to downgrade from a
-non-locking version of these methods to a locking version.
+version of the method, then either set the non-locking version of the
+method and clear the locking method (or clear both methods), after
+discovery is complete. Clearing the method value is safe because calls
+are serialized until a non-locking method is set. Note it is not
+possible to downgrade from a non-locking version of these methods to a
+locking version.
 
 WT_FILE_SYSTEM and WT_FILE_HANDLE methods are expected to return POSIX
 1003.1 or ANSI C standard error codes on failure.  Custom file systems
