@@ -138,15 +138,21 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 	current_id = snap_min = txn_global->current;
 	prev_oldest_id = txn_global->oldest_id;
 
+	/*
+	 * Include the checkpoint transaction, if one is running: we should
+	 * ignore any uncommitted changes the checkpoint has written to the
+	 * metadata.  We don't have to keep the checkpoint's changes pinned so
+	 * don't including it in the published snap_min.
+	 */
+	if ((id = txn_global->checkpoint_txnid) != WT_TXN_NONE)
+		txn->snapshot[n++] = id;
+
 	/* For pure read-only workloads, avoid scanning. */
 	if (prev_oldest_id == current_id) {
 		txn_state->snap_min = current_id;
-		__txn_sort_snapshot(session, 0, current_id);
-
 		/* Check that the oldest ID has not moved in the meantime. */
 		WT_ASSERT(session, prev_oldest_id == txn_global->oldest_id);
-		WT_RET(__wt_readunlock(session, txn_global->scan_rwlock));
-		return (0);
+		goto done;
 	}
 
 	/* Walk the array of concurrent transactions. */
@@ -188,8 +194,7 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 	WT_ASSERT(session, prev_oldest_id == txn_global->oldest_id);
 	txn_state->snap_min = snap_min;
 
-	WT_RET(__wt_readunlock(session, txn_global->scan_rwlock));
-
+done:	WT_RET(__wt_readunlock(session, txn_global->scan_rwlock));
 	__txn_sort_snapshot(session, n, current_id);
 	return (0);
 }
