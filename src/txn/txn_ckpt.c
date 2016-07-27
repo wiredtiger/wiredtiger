@@ -386,8 +386,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * Do a pass over the configuration arguments and figure out what kind
 	 * kind of checkpoint this is.
 	 */
-	WT_RET(
-	    __checkpoint_apply_all(session, cfg, NULL, &full));
+	WT_RET(__checkpoint_apply_all(session, cfg, NULL, &full));
 
 	/* Configure logging only if doing a full checkpoint. */
 	logging = FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED);
@@ -413,7 +412,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	/* Step down the dirty target to the eviction trigger */
 	cache->eviction_dirty_target = 1;
 	for (;;) {
-		current_dirty =
+		current_dirty = (u_int)
 		    (100 * __wt_cache_dirty_inuse(cache)) / conn->cache_size;
 		if (current_dirty <= orig_target)
 			break;
@@ -1080,22 +1079,12 @@ __checkpoint_mark_deletes(
 	WT_BTREE *btree;
 	WT_CKPT *ckpt, *ckptbase;
 	WT_CONFIG_ITEM cval;
-	WT_LSN ckptlsn;
 	const char *name;
 	int deleted;
 	bool force;
 
 	btree = S2BT(session);
 	ckptbase = btree->ckpt;
-
-	/*
-	 * Set the checkpoint LSN to the maximum LSN so that if logging is
-	 * disabled, recovery will never roll old changes forward over the
-	 * non-logged changes in this checkpoint.  If logging is enabled, a
-	 * real checkpoint LSN will be assigned for this checkpoint and
-	 * overwrite this.
-	 */
-	WT_MAX_LSN(&ckptlsn);
 
 	/*
 	 * Check for clean objects not requiring a checkpoint.
