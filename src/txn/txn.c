@@ -150,12 +150,9 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 	/* For pure read-only workloads, avoid scanning. */
 	if (prev_oldest_id == current_id) {
 		txn_state->snap_min = current_id;
-		__txn_sort_snapshot(session, n, current_id);
-
 		/* Check that the oldest ID has not moved in the meantime. */
 		WT_ASSERT(session, prev_oldest_id == txn_global->oldest_id);
-		WT_RET(__wt_readunlock(session, txn_global->scan_rwlock));
-		return (0);
+		goto done;
 	}
 
 	/* Walk the array of concurrent transactions. */
@@ -188,8 +185,7 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 	WT_ASSERT(session, prev_oldest_id == txn_global->oldest_id);
 	txn_state->snap_min = snap_min;
 
-	WT_RET(__wt_readunlock(session, txn_global->scan_rwlock));
-
+done:	WT_RET(__wt_readunlock(session, txn_global->scan_rwlock));
 	__txn_sort_snapshot(session, n, current_id);
 	return (0);
 }
