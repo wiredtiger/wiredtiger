@@ -552,7 +552,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
 	if (bytes_inuse > (cache->eviction_target * bytes_max) / 100)
 		FLD_SET(cache->state, WT_EVICT_STATE_CLEAN);
 
-	dirty_inuse = __wt_cache_dirty_inuse(cache);
+	dirty_inuse = __wt_cache_dirty_leaf_inuse(cache);
 	if (dirty_inuse > (cache->eviction_dirty_target * bytes_max) / 100)
 		FLD_SET(cache->state, WT_EVICT_STATE_DIRTY);
 
@@ -652,7 +652,8 @@ __evict_pass(WT_SESSION_IMPL *session)
 		WT_RET(__wt_verbose(session, WT_VERB_EVICTSERVER,
 		    "Eviction pass with: Max: %" PRIu64
 		    " In use: %" PRIu64 " Dirty: %" PRIu64,
-		    conn->cache_size, cache->bytes_inmem, cache->bytes_dirty));
+		    conn->cache_size, cache->bytes_inmem,
+		    cache->bytes_dirty_intl + cache->bytes_dirty_leaf));
 
 		WT_RET(__evict_lru_walk(session));
 		WT_RET_NOTFOUND_OK(__evict_lru_pages(session, true));

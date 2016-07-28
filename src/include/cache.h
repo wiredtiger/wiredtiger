@@ -73,8 +73,10 @@ struct __wt_cache {
 	 * be exact, they can't be garbage, we track what comes in and what goes
 	 * out and calculate the difference as needed.
 	 */
-	uint64_t bytes_dirty;		/* Bytes/pages currently dirty */
-	uint64_t pages_dirty;
+	uint64_t bytes_dirty_intl;	/* Bytes/pages currently dirty */
+	uint64_t pages_dirty_intl;
+	uint64_t bytes_dirty_leaf;
+	uint64_t pages_dirty_leaf;
 	uint64_t bytes_evict;		/* Bytes/pages discarded by eviction */
 	uint64_t pages_evict;
 	uint64_t pages_evicted;		/* Pages evicted during a pass */

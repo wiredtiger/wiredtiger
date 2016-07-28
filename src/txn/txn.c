@@ -178,15 +178,6 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 	}
 
 	/*
-	 * Include the checkpoint transaction, if one is running: we should
-	 * ignore any uncommitted changes the checkpoint has written to the
-	 * metadata.  We don't have to keep the checkpoint's changes pinned
-	 * so don't including it in the published snap_min.
-	 */
-	if ((id = txn_global->checkpoint_txnid) != WT_TXN_NONE)
-		txn->snapshot[n++] = id;
-
-	/*
 	 * If we got a new snapshot, update the published snap_min for this
 	 * session.
 	 */

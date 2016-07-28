@@ -104,7 +104,24 @@ __wt_cache_dirty_inuse(WT_CACHE *cache)
 {
 	uint64_t dirty_inuse;
 
-	dirty_inuse = cache->bytes_dirty;
+	dirty_inuse = cache->bytes_dirty_intl + cache->bytes_dirty_leaf;
+	if (cache->overhead_pct != 0)
+		dirty_inuse +=
+		    (dirty_inuse * (uint64_t)cache->overhead_pct) / 100;
+
+	return (dirty_inuse);
+}
+
+/*
+ * __wt_cache_dirty_leaf_inuse --
+ *	Return the number of dirty bytes in use by leaf pages.
+ */
+static inline uint64_t
+__wt_cache_dirty_leaf_inuse(WT_CACHE *cache)
+{
+	uint64_t dirty_inuse;
+
+	dirty_inuse = cache->bytes_dirty_leaf;
 	if (cache->overhead_pct != 0)
 		dirty_inuse +=
 		    (dirty_inuse * (uint64_t)cache->overhead_pct) / 100;
