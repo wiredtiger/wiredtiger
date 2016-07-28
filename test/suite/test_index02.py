@@ -25,35 +25,44 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-#
-# test_bug003.py
-#       Regression tests.
 
 import wiredtiger, wttest
-from wtscenario import make_scenarios
 
-# Regression tests.
-class test_bug003(wttest.WiredTigerTestCase):
-    types = [
-        ('file', dict(uri='file:data')),
-        ('table', dict(uri='table:data')),
-    ]
-    ckpt = [
-        ('no', dict(name=0)),
-        ('yes', dict(name=1)),
-    ]
+# test_index02.py
+#    test search_near in indices
+class test_index02(wttest.WiredTigerTestCase):
+    '''Test search_near in indices'''
 
-    scenarios = make_scenarios(types, ckpt)
+    basename = 'test_index02'
+    tablename = 'table:' + basename
+    indexname = 'index:' + basename + ":inverse"
 
-    # Confirm bulk-load isn't stopped by checkpoints.
-    def test_bug003(self):
-        self.session.create(self.uri, "key_format=S,value_format=S")
-        if self.name == 1:
-            self.session.checkpoint("name=ckpt")
-        else:
-            self.session.checkpoint()
-        cursor = self.session.open_cursor(self.uri, None, "bulk")
+    def test_search_near(self):
+        '''Create a table, look for a nonexistent key'''
+        self.session.create(self.tablename, 'key_format=r,value_format=Q,columns=(k,v)')
+        self.session.create(self.indexname, 'columns=(v)')
+        cur = self.session.open_cursor(self.tablename, None, "append")
+        cur.set_value(1)
+        cur.insert()
+        cur.set_value(5)
+        cur.insert()
+        cur.set_value(5)
+        cur.insert()
+        cur.set_value(5)
+        cur.insert()
+        cur.set_value(10)
+        cur.insert()
 
+        # search near should find a match
+        cur2 = self.session.open_cursor(self.indexname, None, None)
+        cur2.set_key(5)
+        self.assertEqual(cur2.search_near(), 0)
+
+        # Retry after reopening
+        self.reopen_conn()
+        cur3 = self.session.open_cursor(self.indexname, None, None)
+        cur3.set_key(5)
+        self.assertEqual(cur3.search_near(), 0)
 
 if __name__ == '__main__':
     wttest.run()

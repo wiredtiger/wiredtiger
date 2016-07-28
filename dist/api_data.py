@@ -247,8 +247,8 @@ file_config = format_meta + [
     Config('memory_page_max', '5MB', r'''
         the maximum size a page can grow to in memory before being
         reconciled to disk.  The specified size will be adjusted to a lower
-        bound of <code>50 * leaf_page_max</code>, and an upper bound of
-        <code>cache_size / 2</code>.  This limit is soft - it is possible
+        bound of <code>leaf_page_max</code>, and an upper bound of
+        <code>cache_size / 10</code>.  This limit is soft - it is possible
         for pages to be temporarily larger than this value.  This setting
         is ignored for LSM trees, see \c chunk_size''',
         min='512B', max='10TB'),
@@ -373,8 +373,6 @@ connection_runtime_config = [
         periodically checkpoint the database. Enabling the checkpoint server
         uses a session from the configured session_max''',
         type='category', subconfig=[
-        Config('name', '"WiredTigerCheckpoint"', r'''
-            the checkpoint name'''),
         Config('log_size', '0', r'''
             wait for this amount of log record bytes to be written to
                 the log between each checkpoint.  A database can configure
@@ -822,8 +820,9 @@ methods = {
 
 'WT_SESSION.drop' : Method([
     Config('checkpoint_wait', 'true', r'''
-        wait for the checkpoint lock, if \c checkpoint_wait=false, fail if
-        this lock is not available immediately''',
+        wait for the checkpoint lock, if \c checkpoint_wait=false, perform
+        the drop operation without taking a lock, returning EBUSY if the
+        operation conflicts with a running checkpoint''',
         type='boolean', undoc=True),
     Config('force', 'false', r'''
         return success if the object does not exist''',
@@ -904,6 +903,11 @@ methods = {
         "WiredTigerCheckpoint" opens the most recent internal
         checkpoint taken for the object).  The cursor does not
         support data modification'''),
+    Config('checkpoint_wait', 'true', r'''
+        wait for the checkpoint lock, if \c checkpoint_wait=false, open the
+        cursor without taking a lock, returning EBUSY if the operation
+        conflicts with a running checkpoint''',
+        type='boolean', undoc=True),
     Config('dump', '', r'''
         configure the cursor for dump format inputs and outputs: "hex"
         selects a simple hexadecimal format, "json" selects a JSON format
