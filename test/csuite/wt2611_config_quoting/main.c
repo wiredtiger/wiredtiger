@@ -97,7 +97,7 @@ main(int argc, char *argv[])
 	    NULL, quoted, strlen(quoted), &parser));
 	found = false;
 	while ((ret = parser->next(parser, &k, &v)) == 0) {
-		printf("%.*s:", (int)k.len, k.str);
+		printf("%.*s:%.*s\n", (int)k.len, k.str, (int)v.len, v.str);
 		if (v.type == WT_CONFIG_ITEM_STRING && k.len == 6 &&
 		    strncmp(k.str, "quoted", 6) == 0) {
 			testutil_assert(
@@ -110,6 +110,7 @@ main(int argc, char *argv[])
 	testutil_check(parser->close(parser));
 
 	testutil_cleanup(opts);
+	printf("\n");
 
 	return (0);
 }
