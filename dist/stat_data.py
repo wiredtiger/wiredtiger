@@ -81,10 +81,10 @@ class SessionStat(Stat):
     prefix = 'session'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, SessionStat.prefix, desc, flags)
-class ThreadState(Stat):
+class ThreadStat(Stat):
     prefix = 'thread-state'
     def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, ThreadState.prefix, desc, flags)
+        Stat.__init__(self, name, ThreadStat.prefix, desc, flags)
 class TxnStat(Stat):
     prefix = 'transaction'
     def __init__(self, name, desc, flags=''):
@@ -105,7 +105,7 @@ groups['evict'] = [
     BlockStat.prefix,
     CacheStat.prefix,
     ConnStat.prefix,
-    ThreadState.prefix
+    ThreadStat.prefix
 ]
 groups['lsm'] = [LSMStat.prefix, TxnStat.prefix]
 groups['memory'] = [CacheStat.prefix, ConnStat.prefix, RecStat.prefix]
@@ -113,7 +113,7 @@ groups['system'] = [
     ConnStat.prefix,
     DhandleStat.prefix,
     SessionStat.prefix,
-    ThreadState.prefix
+    ThreadStat.prefix
 ]
 
 ##########################################
@@ -159,6 +159,7 @@ connection_stats = [
     BlockStat('block_byte_map_read', 'mapped bytes read', 'size'),
     BlockStat('block_byte_read', 'bytes read', 'size'),
     BlockStat('block_byte_write', 'bytes written', 'size'),
+    BlockStat('block_byte_write_checkpoint', 'bytes written for checkpoint', 'size'),
     BlockStat('block_map_read', 'mapped blocks read'),
     BlockStat('block_preload', 'blocks pre-loaded'),
     BlockStat('block_read', 'blocks read'),
@@ -168,15 +169,18 @@ connection_stats = [
     # Cache and eviction statistics
     ##########################################
     CacheStat('cache_bytes_dirty', 'tracked dirty bytes in the cache', 'no_clear,no_scale,size'),
+    CacheStat('cache_bytes_image', 'bytes belonging to page images in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_internal', 'tracked bytes belonging to internal pages in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_inuse', 'bytes currently in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_leaf', 'tracked bytes belonging to leaf pages in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_max', 'maximum bytes configured', 'no_clear,no_scale,size'),
+    CacheStat('cache_bytes_other', 'bytes not belonging to page images in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_overflow', 'tracked bytes belonging to overflow pages in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_read', 'bytes read into cache', 'size'),
     CacheStat('cache_bytes_write', 'bytes written from cache', 'size'),
     CacheStat('cache_eviction_aggressive_set', 'eviction currently operating in aggressive mode', 'no_clear,no_scale'),
     CacheStat('cache_eviction_app', 'pages evicted by application threads'),
+    CacheStat('cache_eviction_app_dirty', 'modified pages evicted by application threads'),
     CacheStat('cache_eviction_checkpoint', 'checkpoint blocked page eviction'),
     CacheStat('cache_eviction_clean', 'unmodified pages evicted'),
     CacheStat('cache_eviction_deepen', 'page split during eviction deepened the tree'),
@@ -191,6 +195,9 @@ connection_stats = [
     CacheStat('cache_eviction_hazard', 'hazard pointer blocked page eviction'),
     CacheStat('cache_eviction_internal', 'internal pages evicted'),
     CacheStat('cache_eviction_maximum_page_size', 'maximum page size at eviction', 'no_clear,no_scale,size'),
+    CacheStat('cache_eviction_pages_queued', 'pages queued for eviction'),
+    CacheStat('cache_eviction_pages_queued_oldest', 'pages queued for urgent eviction'),
+    CacheStat('cache_eviction_pages_seen', 'pages seen by eviction walk'),
     CacheStat('cache_eviction_queue_empty', 'eviction server candidate queue empty when topping up'),
     CacheStat('cache_eviction_queue_not_empty', 'eviction server candidate queue not empty when topping up'),
     CacheStat('cache_eviction_server_evicting', 'eviction server evicting pages'),
@@ -201,6 +208,8 @@ connection_stats = [
     CacheStat('cache_eviction_split_internal', 'internal pages split during eviction'),
     CacheStat('cache_eviction_split_leaf', 'leaf pages split during eviction'),
     CacheStat('cache_eviction_walk', 'pages walked for eviction'),
+    CacheStat('cache_eviction_walks_active', 'files with active eviction walks', 'no_clear,no_scale,size'),
+    CacheStat('cache_eviction_walks_started', 'files with new eviction walks started'),
     CacheStat('cache_eviction_worker_evicting', 'eviction worker thread evicting pages'),
     CacheStat('cache_hazard_checks', 'hazard pointer check calls'),
     CacheStat('cache_hazard_max', 'hazard pointer maximum array length', 'max_aggregate,no_scale'),
@@ -343,11 +352,11 @@ connection_stats = [
     CursorStat('cursor_update', 'cursor update calls'),
 
     ##########################################
-    # Thread State statistics
+    # Thread Count statistics
     ##########################################
-    ThreadState('fsync_active', 'active filesystem fsync calls','no_clear,no_scale'),
-    ThreadState('read_active', 'active filesystem read calls','no_clear,no_scale'),
-    ThreadState('write_active', 'active filesystem write calls','no_clear,no_scale'),
+    ThreadStat('thread_fsync_active', 'active filesystem fsync calls','no_clear,no_scale'),
+    ThreadStat('thread_read_active', 'active filesystem read calls','no_clear,no_scale'),
+    ThreadStat('thread_write_active', 'active filesystem write calls','no_clear,no_scale'),
 
     ##########################################
     # Yield statistics
@@ -445,6 +454,7 @@ dsrc_stats = [
     ##########################################
     # Cache and eviction statistics
     ##########################################
+    CacheStat('cache_bytes_inuse', 'bytes currently in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_read', 'bytes read into cache', 'size'),
     CacheStat('cache_bytes_write', 'bytes written from cache', 'size'),
     CacheStat('cache_eviction_checkpoint', 'checkpoint blocked page eviction'),

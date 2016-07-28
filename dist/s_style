@@ -33,7 +33,7 @@ else
 		exit 1;
 	fi
 
-	egrep -w 'a a|an an|and and|are are|be be|by by|for for|from from|if if|in in|is is|it it|of of|the the|this this|to to|was was|were were|when when|with with|a an|an a|a the|the a' $f > $t
+	egrep -w 'a a|an an|and and|are are|be be|by by|for for|from from|if if|in in[^-]|is is|it it|of of|the the|this this|to to|was was|were were|when when|with with|a an|an a|a the|the a' $f > $t
 	test -s $t && {
 		echo "paired typo"
 		echo "============================"
@@ -60,11 +60,13 @@ else
 		echo "$f: use TAILQ for all lists"
 	fi
 
-	if ! expr "$f" : 'src/os_common/.*' > /dev/null &&
+	if ! expr "$f" : 'src/include/extern.h' > /dev/null &&
+	   ! expr "$f" : 'src/include/extern_posix.h' > /dev/null &&
+	   ! expr "$f" : 'src/include/extern_win.h' > /dev/null &&
+	   ! expr "$f" : 'src/include/os.h' > /dev/null &&
+	   ! expr "$f" : 'src/os_common/.*' > /dev/null &&
 	   ! expr "$f" : 'src/os_posix/.*' > /dev/null &&
 	   ! expr "$f" : 'src/os_win/.*' > /dev/null &&
-	   ! expr "$f" : 'src/include/extern.h' > /dev/null &&
-	   ! expr "$f" : 'src/include/os.h' > /dev/null &&
 	    grep '__wt_errno' $f > $t; then
 		echo "$f: upper-level code should not call __wt_errno"
 		cat $t

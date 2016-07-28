@@ -751,6 +751,7 @@ __conn_get_extension_api(WT_CONNECTION *wt_conn)
 	conn->extension_api.err_printf = __wt_ext_err_printf;
 	conn->extension_api.msg_printf = __wt_ext_msg_printf;
 	conn->extension_api.strerror = __wt_ext_strerror;
+	conn->extension_api.map_windows_error = __wt_ext_map_windows_error;
 	conn->extension_api.scr_alloc = __wt_ext_scr_alloc;
 	conn->extension_api.scr_free = __wt_ext_scr_free;
 	conn->extension_api.collator_config = ext_collator_config;
@@ -1216,7 +1217,8 @@ __conn_config_file(WT_SESSION_IMPL *session,
 		return (0);
 
 	/* Open the configuration file. */
-	WT_RET(__wt_open(session, filename, WT_OPEN_FILE_TYPE_REGULAR, 0, &fh));
+	WT_RET(__wt_open(
+	    session, filename, WT_FS_OPEN_FILE_TYPE_REGULAR, 0, &fh));
 	WT_ERR(__wt_filesize(session, fh, &size));
 	if (size == 0)
 		goto err;
@@ -1509,8 +1511,8 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 	exist = false;
 	if (!is_create)
 		WT_ERR(__wt_fs_exist(session, WT_WIREDTIGER, &exist));
-	ret = __wt_open(session, WT_SINGLETHREAD, WT_OPEN_FILE_TYPE_REGULAR,
-	    is_create || exist ? WT_OPEN_CREATE : 0, &conn->lock_fh);
+	ret = __wt_open(session, WT_SINGLETHREAD, WT_FS_OPEN_FILE_TYPE_REGULAR,
+	    is_create || exist ? WT_FS_OPEN_CREATE : 0, &conn->lock_fh);
 
 	/*
 	 * If this is a read-only connection and we cannot grab the lock
@@ -1518,17 +1520,14 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 	 * if the file does not exist.  If so, then ignore the error.
 	 * XXX Ignoring the error does allow multiple read-only
 	 * connections to exist at the same time on a read-only directory.
+	 *
+	 * If we got an expected permission or non-existence error then skip
+	 * the byte lock.
 	 */
-	if (F_ISSET(conn, WT_CONN_READONLY)) {
-		/*
-		 * If we got an expected permission or non-existence error
-		 * then skip the byte lock.
-		 */
-		ret = __wt_map_error_rdonly(ret);
-		if (ret == WT_NOTFOUND || ret == WT_PERM_DENIED) {
-			bytelock = false;
-			ret = 0;
-		}
+	if (F_ISSET(conn, WT_CONN_READONLY) &&
+	    (ret == EACCES || ret == ENOENT)) {
+		bytelock = false;
+		ret = 0;
 	}
 	WT_ERR(ret);
 	if (bytelock) {
@@ -1556,7 +1555,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 		 */
 #define	WT_SINGLETHREAD_STRING	"WiredTiger lock file\n"
 		WT_ERR(__wt_filesize(session, conn->lock_fh, &size));
-		if (size != strlen(WT_SINGLETHREAD_STRING))
+		if ((size_t)size != strlen(WT_SINGLETHREAD_STRING))
 			WT_ERR(__wt_write(session, conn->lock_fh, (wt_off_t)0,
 			    strlen(WT_SINGLETHREAD_STRING),
 			    WT_SINGLETHREAD_STRING));
@@ -1565,22 +1564,20 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/* We own the lock file, optionally create the WiredTiger file. */
 	ret = __wt_open(session, WT_WIREDTIGER,
-	    WT_OPEN_FILE_TYPE_REGULAR, is_create ? WT_OPEN_CREATE : 0, &fh);
+	    WT_FS_OPEN_FILE_TYPE_REGULAR, is_create ? WT_FS_OPEN_CREATE : 0,
+	    &fh);
 
 	/*
-	 * If we're read-only, check for success as well as handled errors.
-	 * Even if we're able to open the WiredTiger file successfully, we
-	 * do not try to lock it.  The lock file test above is the only
-	 * one we do for read-only.
+	 * If we're read-only, check for handled errors. Even if able to open
+	 * the WiredTiger file successfully, we do not try to lock it.  The
+	 * lock file test above is the only one we do for read-only.
 	 */
 	if (F_ISSET(conn, WT_CONN_READONLY)) {
-		ret = __wt_map_error_rdonly(ret);
-		if (ret == 0 || ret == WT_NOTFOUND || ret == WT_PERM_DENIED)
+		if (ret == EACCES || ret == ENOENT)
 			ret = 0;
 		WT_ERR(ret);
 	} else {
 		WT_ERR(ret);
-
 		/*
 		 * Lock the WiredTiger file (for backward compatibility reasons
 		 * as described above).  Immediately release the lock, it's
@@ -1789,7 +1786,7 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
 	 * runs.  This doesn't matter for correctness, it's just cleaning up
 	 * random files.
 	 */
-	WT_RET(__wt_remove_if_exists(session, WT_BASECONFIG_SET));
+	WT_RET(__wt_remove_if_exists(session, WT_BASECONFIG_SET, false));
 
 	/*
 	 * The base configuration file is only written if creating the database,
@@ -1814,7 +1811,7 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
 		return (0);
 
 	WT_RET(__wt_fopen(session, WT_BASECONFIG_SET,
-	    WT_OPEN_CREATE | WT_OPEN_EXCLUSIVE, WT_STREAM_WRITE, &fs));
+	    WT_FS_OPEN_CREATE | WT_FS_OPEN_EXCLUSIVE, WT_STREAM_WRITE, &fs));
 
 	WT_ERR(__wt_fprintf(session, fs, "%s\n\n",
 	    "# Do not modify this file.\n"
@@ -1875,7 +1872,8 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
 	if (0) {
 		/* Close open file handle, remove any temporary file. */
 err:		WT_TRET(__wt_fclose(session, &fs));
-		WT_TRET(__wt_remove_if_exists(session, WT_BASECONFIG_SET));
+		WT_TRET(
+		    __wt_remove_if_exists(session, WT_BASECONFIG_SET, false));
 	}
 
 	__wt_free(session, base_config);

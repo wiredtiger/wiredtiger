@@ -8,12 +8,12 @@ functions:
     command: git.get_project
     params:
       directory: wiredtiger
-  "fetch artifacts" : &fetch_artifacts
+  "fetch binaries" : &fetch_binaries
     - command: s3.get
       params:
         aws_key: ${aws_key}
         aws_secret: ${aws_secret}
-        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${build_id}.tgz
+        remote_file: wiredtiger/${build_variant}/${revision}/binaries/${build_id}.tgz
         bucket: build_external
         extract_to: wiredtiger
 
@@ -23,6 +23,22 @@ pre:
       script: |
         rm -rf "wiredtiger"
 post:
+  - command: archive.targz_pack
+    params:
+      target: "wiredtiger.tgz"
+      source_dir: "wiredtiger"
+      include:
+        - "./**"
+  - command: s3.put
+    params:
+      aws_secret: ${aws_secret}
+      aws_key: ${aws_key}
+      local_file: wiredtiger.tgz
+      bucket: build_external
+      permissions: public-read
+      content_type: application/tar
+      display_name: Artifacts
+      remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${build_id}.tgz
   - command: shell.exec
     params:
       script: |
@@ -44,10 +60,10 @@ tasks:
             set -o errexit
             set -o verbose
             if [ "Windows_NT" = "$OS" ]; then
-              scons.bat --enable-python=c:\\swigwin-3.0.2\\swig.exe --enable-diagnostic ${smp_command|}
+              scons.bat --enable-python=c:\\swigwin-3.0.2\\swig.exe --enable-diagnostic --enable-verbose ${smp_command|}
             else
               ./build_posix/reconf
-              ${configure_env_vars|} ./configure --enable-diagnostic --enable-python --enable-zlib --enable-strict
+              ${configure_env_vars|} ./configure --enable-diagnostic --enable-python --enable-zlib --enable-strict --enable-verbose
               ${make_command|make} ${smp_command|} 2>&1
               ${make_command|make} check 2>&1
             fi
@@ -65,14 +81,14 @@ tasks:
           bucket: build_external
           permissions: public-read
           content_type: application/tar
-          display_name: Artifacts
-          remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${build_id}.tgz
+          display_name: Binaries
+          remote_file: wiredtiger/${build_variant}/${revision}/binaries/${build_id}.tgz
 
   - name: unit-test
     depends_on:
     - name: compile
     commands:
-      - func: "fetch artifacts"
+      - func: "fetch binaries"
       - command: shell.exec
         params:
           working_dir: "wiredtiger"
@@ -85,7 +101,7 @@ tasks:
     depends_on:
     - name: compile
     commands:
-      - func: "fetch artifacts"
+      - func: "fetch binaries"
       - command: shell.exec
         params:
           working_dir: "wiredtiger"
@@ -95,24 +111,22 @@ tasks:
 
             scons.bat ${smp_command|} "CFLAGS=/Gv /wd4090 /wd4996 /we4047 /we4024 /TC /we4100" wiredtiger.dll libwiredtiger.lib
 
-  - name: fops-windows
+  - name: fops
     depends_on:
     - name: compile
     commands:
-      - func: "fetch source"
-      - command: git.apply_patch
-        params:
-          directory: wiredtiger
+      - func: "fetch binaries"
       - command: shell.exec
         params:
           working_dir: "wiredtiger"
           script: |
             set -o errexit
             set -o verbose
-
-            scons.bat --enable-python=c:\\swigwin-3.0.2\\swig.exe ${smp_command|}
-
-            cmd.exe /c t_fops.exe
+            if [ "Windows_NT" = "$OS" ]; then
+              cmd.exe /c t_fops.exe
+            else
+              ./test/fops/t
+            fi
 
 buildvariants:
 - name: ubuntu1404
@@ -127,6 +141,7 @@ buildvariants:
   tasks:
     - name: compile
     - name: unit-test
+    - name: fops
 
 - name: solaris
   display_name: Solaris
@@ -140,6 +155,7 @@ buildvariants:
   tasks:
     - name: compile
     - name: unit-test
+    - name: fops
 
 - name: windows-64
   display_name: Windows 64-bit
@@ -149,7 +165,7 @@ buildvariants:
     - name: compile
     - name: compile-windows-alt
     - name: unit-test
-    - name: fops-windows
+    - name: fops
 
 - name: osx-1010
   display_name: OS X 10.10
@@ -163,3 +179,4 @@ buildvariants:
   tasks:
     - name: compile
     - name: unit-test
+    - name: fops
