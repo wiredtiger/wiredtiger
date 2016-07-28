@@ -534,7 +534,7 @@ __evict_review(
 		 * If we aren't trying to free space in the cache, scrub the
 		 * page and keep it around.
 		 */
-		if (!F_ISSET(cache, WT_CACHE_STUCK) &&
+		if (!LF_ISSET(WT_EVICT_LOOKASIDE) &&
 		    !FLD_ISSET(cache->state, WT_EVICT_STATE_CLEAN))
 			LF_SET(WT_EVICT_SCRUB);
 	}
