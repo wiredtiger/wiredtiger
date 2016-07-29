@@ -64,6 +64,10 @@ __wt_session_copy_values(WT_SESSION_IMPL *session)
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 
+	/* We have to do this with a transaction ID pinned. */
+	WT_ASSERT(session,
+	   WT_SESSION_TXN_STATE(session)->snap_min != WT_TXN_NONE);
+
 	TAILQ_FOREACH(cursor, &session->cursors, q)
 		if (F_ISSET(cursor, WT_CURSTD_VALUE_INT)) {
 			F_CLR(cursor, WT_CURSTD_VALUE_INT);
