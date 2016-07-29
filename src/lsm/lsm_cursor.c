@@ -889,6 +889,37 @@ err:	__clsm_leave(clsm);
 }
 
 /*
+ * __clsm_random_chunk --
+ *	Pick a chunk at random, weighted by the size of all chunks. Weighting
+ * proportional to documents avoids biasing towards small chunks.
+ */
+static int
+__clsm_random_chunk(WT_SESSION_IMPL *session,
+    WT_CURSOR_LSM *clsm, WT_LSM_CHUNK **random_chunk)
+{
+	WT_DECL_RET;
+	uint64_t checked_docs, i, rand_doc, total_docs;
+
+	rand_doc = __wt_random(&session->rnd);
+	WT_RET(__wt_lsm_tree_readlock(session, clsm->lsm_tree));
+	for (total_docs = i = 0; i < clsm->nchunks; i++) {
+		total_docs += clsm->lsm_tree->chunk[i]->count;
+	}
+
+	rand_doc %= total_docs;
+
+	for (checked_docs = i = 0; i < clsm->nchunks; i++) {
+		checked_docs += clsm->lsm_tree->chunk[i]->count;
+		if (rand_doc <= checked_docs) {
+			*random_chunk = clsm->lsm_tree->chunk[i];
+			break;
+		}
+	}
+	WT_RET(__wt_lsm_tree_readunlock(session, clsm->lsm_tree));
+	return (ret);
+}
+
+/*
  * __clsm_next_random --
  *	WT_CURSOR->next method for the LSM cursor type when configured with
  * next_random.
@@ -899,58 +930,42 @@ __clsm_next_random(WT_CURSOR *cursor)
 	WT_CURSOR_LSM *clsm;
 	WT_CURSOR *c;
 	WT_DECL_RET;
-	WT_LSM_CHUNK *chunk;
+	WT_LSM_CHUNK *random_chunk;
 	WT_SESSION_IMPL *session;
-	uint64_t checked_docs, i, rand_doc, total_docs;
 	const char *cfg[3];
 
 	clsm = (WT_CURSOR_LSM *)cursor;
+	random_chunk = NULL;
 
 	CURSOR_API_CALL(cursor, session, next, NULL);
 	WT_CURSOR_NOVALUE(cursor);
 	WT_ERR(__clsm_enter(clsm, false, false));
-
-	cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_drop);
+	cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
 	cfg[1] = "next_random=true";
 	cfg[2] = NULL;
 
-	/* Initialize to the 0th chunk */
-	chunk = clsm->lsm_tree->chunk[0];
+	do {
+		WT_ERR(__clsm_random_chunk(session, clsm, &random_chunk));
+		/*
+		 * Open a cursor on the chunk and pick a random key from within.
+		 */
+		WT_ERR(__wt_open_cursor(
+		    session, random_chunk->uri, NULL, cfg, &c));
+		WT_ERR(c->next(c));
+		WT_ERR(c->get_key(c, &cursor->key));
+		WT_ERR(c->close(c));
 
-	/* We need to know roughly how many docs are in the tree */
-retry:	for (total_docs = i = 0; i < clsm->lsm_tree->nchunks; i++) {
-		total_docs += clsm->lsm_tree->chunk[i]->count;
-	}
-
-	/*
-	 * We pick one of the docs at random from the tree to pick a random
-	 * chunk, weighted by the size of the chunks.
-	 */
-	rand_doc = __wt_random(&session->rnd) % total_docs;
-	for (checked_docs = i = 0; i < clsm->lsm_tree->nchunks; i++) {
-		checked_docs += clsm->lsm_tree->chunk[i]->count;
-		if (rand_doc < checked_docs) {
-			chunk = clsm->lsm_tree->chunk[i];
-			break;
-		}
-	}
-
-	/* Open a cursor on the chunk and pick a random key from within */
-	WT_ERR(__wt_open_cursor(session, chunk->uri, NULL, cfg, &c));
-	WT_ERR(c->next(c));
-	WT_ERR(c->get_key(c, &cursor->key));
-	WT_ERR(c->close(c));
-
-	/*
-	 * Search back through the tree from the top to resolve any updates or
-	 * tombstones. If we find a tombstone, then pick a new random doc and
-	 * try again. We retry forever as eventually we should see a current
-	 * doc or the tombstones will get merged out.
-	 */
-	ret = __clsm_lookup(clsm, &cursor->value);
-	if (ret == WT_NOTFOUND)
-		goto retry;
-	WT_ERR(ret);
+		/*
+		 * Search back through the tree from the top to resolve any
+		 * updates or tombstones. If we find a tombstone, then pick a
+		 * new random doc and try again. We retry forever as eventually
+		 * we should see a current doc or the tombstones will get
+		 * merged out.
+		 */
+		ret = __clsm_lookup(clsm, &cursor->value);
+		if (ret != WT_NOTFOUND)
+			WT_ERR(ret);
+	} while (ret == WT_NOTFOUND);
 	/* We have found a valid doc. Set that we are now positioned */
 
 err:	F_CLR(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);	
@@ -1654,7 +1669,6 @@ __wt_clsm_open(WT_SESSION_IMPL *session,
 	if (cval.val != 0) {
 		__wt_cursor_set_notsup(cursor);
 		cursor->next = __clsm_next_random;
-		cursor->reset = __clsm_reset;
 	}
 
 	WT_ERR(__wt_cursor_init(cursor, cursor->uri, owner, cfg, cursorp));
