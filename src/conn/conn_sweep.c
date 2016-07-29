@@ -281,12 +281,12 @@ __sweep_server(void *arg)
 		 * Sweep the lookaside table. If the lookaside table hasn't yet
 		 * been written, there's no work to do. If we try and sweep when
 		 * the cache is full or we aren't making progress in eviction,
-		 * sweeping can wind up constantly brining in and evicting pages
-		 * from the LAS, which will stop the WT_CACHE_STUCK flag from
-		 * being set.
+		 * sweeping can wind up constantly bringing in and evicting
+		 * pages from the LAS, which will stop the WT_CACHE_STUCK flag
+		 * from being set.
 		 */
 		if (__wt_las_is_written(session) &&
-		    last_las_sweep_id > __wt_txn_oldest_id(session)) {
+		    last_las_sweep_id < __wt_txn_oldest_id(session)) {
 			WT_ERR(__wt_las_sweep(session));
 			last_las_sweep_id = __wt_txn_oldest_id(session);
 		}
