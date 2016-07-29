@@ -1981,7 +1981,7 @@ __rec_split_init(WT_SESSION_IMPL *session,
 	 * approaching the memory page maximum, but at least have data worth
 	 * one page.
 	 *
-	 * There are cases when we grow the page size to accomodate large
+	 * There are cases when we grow the page size to accommodate large
 	 * records, in those cases we split the pages once they have crossed
 	 * the maximum size for a page with raw compression.
 	 */
