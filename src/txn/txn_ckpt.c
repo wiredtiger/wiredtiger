@@ -410,7 +410,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	stepdown_usecs = 1000;
 
 	/* Step down the dirty target to the eviction trigger */
-	cache->eviction_dirty_target = 1;
 	for (;;) {
 		current_dirty = (u_int)(100 *
 		    __wt_cache_dirty_leaf_inuse(cache)) / conn->cache_size;

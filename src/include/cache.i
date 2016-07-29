@@ -247,7 +247,7 @@ __wt_eviction_needed(WT_SESSION_IMPL *session, u_int *pct_fullp)
 	 * dirty limit once a transaction ID has been allocated, or if the last
 	 * transaction did an update.
 	 */
-	if (__wt_cache_dirty_inuse(cache) >
+	if (__wt_cache_dirty_leaf_inuse(cache) >
 	    (cache->eviction_dirty_trigger * bytes_max) / 100)
 		return (true);
 

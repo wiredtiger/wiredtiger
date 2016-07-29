@@ -256,7 +256,6 @@ __wt_cache_dirty_incr(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 * with updates.
 	 */
 	size = page->memory_footprint;
-
 	(void)__wt_atomic_add64(WT_PAGE_IS_INTERNAL(page) ?
 	    &cache->bytes_dirty_intl : &cache->bytes_dirty_leaf, size);
 	(void)__wt_atomic_addsize(&page->modify->bytes_dirty, size);
