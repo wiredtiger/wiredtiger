@@ -284,6 +284,7 @@ __wt_las_cursor_close(
 int
 __wt_las_sweep(WT_SESSION_IMPL *session)
 {
+	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	WT_CURSOR *cursor;
 	WT_DECL_ITEM(las_addr);
@@ -296,10 +297,15 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	int notused;
 
 	conn = S2C(session);
+	cache = conn->cache;
 	cursor = NULL;
 	key = &conn->las_sweep_key;
 	remove_cnt = 0;
 	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
+
+	/* Don't sweep the LAS cache if we know that we cannot make progress. */
+	if (F_ISSET(cache, WT_CACHE_STUCK))
+		return (0);
 
 	WT_ERR(__wt_scr_alloc(session, 0, &las_addr));
 	WT_ERR(__wt_scr_alloc(session, 0, &las_key));
