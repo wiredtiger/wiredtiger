@@ -1980,6 +1980,10 @@ __rec_split_init(WT_SESSION_IMPL *session,
 	 * Ideally accumulate data several times the page size without
 	 * approaching the memory page maximum, but at least have data worth
 	 * one page.
+	 *
+	 * There are cases when we grow the page size to accomodate large
+	 * records, in those cases we split the pages once they have crossed
+	 * the maximum size for a page with raw compression.
 	 */
 	r->page_size = r->page_size_orig = max;
 	if (r->raw_compression)
@@ -2614,10 +2618,7 @@ __rec_split_raw_worker(WT_SESSION_IMPL *session,
 
 		/*
 		 * Don't create an image so large that any future update will
-		 * cause a split in memory. Use the predetermined maximum
-		 * page size for raw compression so we split very compressible
-		 * pages that have reached the maximum size in memory into two
-		 * equal blocks.
+		 * cause a split in memory.
 		 */
 		if (max_image_slot == 0 && len > (size_t)r->max_raw_page_size)
 			max_image_slot = slots;
