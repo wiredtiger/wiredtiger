@@ -13,11 +13,11 @@ static int __checkpoint_lock_tree(
 static int __checkpoint_tree_helper(WT_SESSION_IMPL *, const char *[]);
 
 /*
- * __wt_checkpoint_name_ok --
+ * __checkpoint_name_ok --
  *	Complain if the checkpoint name isn't acceptable.
  */
-int
-__wt_checkpoint_name_ok(WT_SESSION_IMPL *session, const char *name, size_t len)
+static int
+__checkpoint_name_ok(WT_SESSION_IMPL *session, const char *name, size_t len)
 {
 	/* Check for characters we don't want to see in a metadata file. */
 	WT_RET(__wt_name_check(session, name, len));
@@ -107,7 +107,7 @@ __checkpoint_apply_all(WT_SESSION_IMPL *session, const char *cfg[],
 	WT_RET(__wt_config_gets(session, cfg, "name", &cval));
 	named = cval.len != 0;
 	if (named)
-		WT_RET(__wt_checkpoint_name_ok(session, cval.str, cval.len));
+		WT_RET(__checkpoint_name_ok(session, cval.str, cval.len));
 
 	/* Step through the targets and optionally operate on each one. */
 	WT_ERR(__wt_config_gets(session, cfg, "target", &cval));
@@ -478,21 +478,22 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_ERR(__wt_txn_id_check(session));
 
 	/*
-	 * Save the checkpoint session ID.  We never do checkpoints in the
-	 * default session (with id zero).
+	 * Save the checkpoint session ID.
+	 *
+	 * We never do checkpoints in the default session (with id zero).
 	 */
 	WT_ASSERT(session, session->id != 0 && txn_global->checkpoint_id == 0);
 	txn_global->checkpoint_id = session->id;
 
-	txn_global->checkpoint_pinned =
-	    WT_MIN(txn_state->id, txn_state->snap_min);
-
 	/*
-	 * We're about to clear the checkpoint transaction from the global
-	 * state table so the oldest ID can move forward.  Make sure everything
-	 * we've done above is scheduled.
+	 * Remove the checkpoint transaction from the global table.
+	 *
+	 * This allows ordinary visibility checks to move forward because
+	 * checkpoints often take a long time and only write to the metadata.
 	 */
-	WT_FULL_BARRIER();
+	WT_ERR(__wt_writelock(session, txn_global->scan_rwlock));
+	txn_global->checkpoint_txnid = txn->id;
+	txn_global->checkpoint_pinned = WT_MIN(txn->id, txn->snap_min);
 
 	/*
 	 * Sanity check that the oldest ID hasn't moved on before we have
@@ -510,6 +511,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * details).
 	 */
 	txn_state->id = txn_state->snap_min = WT_TXN_NONE;
+	WT_ERR(__wt_writeunlock(session, txn_global->scan_rwlock));
 
 	/* Tell logging that we have started a database checkpoint. */
 	if (full && logging)
@@ -839,7 +841,7 @@ __checkpoint_lock_tree(WT_SESSION_IMPL *session,
 	if (cval.len == 0)
 		name = WT_CHECKPOINT;
 	else {
-		WT_ERR(__wt_checkpoint_name_ok(session, cval.str, cval.len));
+		WT_ERR(__checkpoint_name_ok(session, cval.str, cval.len));
 		WT_ERR(__wt_strndup(session, cval.str, cval.len, &name_alloc));
 		name = name_alloc;
 	}
@@ -854,10 +856,10 @@ __checkpoint_lock_tree(WT_SESSION_IMPL *session,
 			    __wt_config_next(&dropconf, &k, &v)) == 0) {
 				/* Disallow unsafe checkpoint names. */
 				if (v.len == 0)
-					WT_ERR(__wt_checkpoint_name_ok(
+					WT_ERR(__checkpoint_name_ok(
 					    session, k.str, k.len));
 				else
-					WT_ERR(__wt_checkpoint_name_ok(
+					WT_ERR(__checkpoint_name_ok(
 					    session, v.str, v.len));
 
 				if (v.len == 0)
