@@ -31,43 +31,6 @@
 } while (0)
 
 /*
- * __wt_schema_create_final --
- *	Create a single configuration line from a set of configuration strings,
- * including all of the defaults declared for a session.create, and stripping
- * any configuration strings that don't belong in a session.create. Here for
- * the wt dump command utility, which reads a set of configuration strings and
- * needs to add in the defaults and then collapse them into single string for
- * a subsequent load.
- */
-int
-__wt_schema_create_final(
-    WT_SESSION_IMPL *session, char *cfg_arg[], char **value_ret)
-{
-	WT_DECL_RET;
-	u_int i;
-	const char **cfg;
-
-	/*
-	 * Count the entries in the original,
-	 * Allocate a copy with the defaults as the first entry,
-	 * Collapse the whole thing into a single configuration string (which
-	 * also strips any entries that don't appear in the first entry).
-	 */
-	for (i = 0; cfg_arg[i] != NULL; ++i)
-		;
-	WT_RET(__wt_calloc_def(session, i + 2, &cfg));
-	cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_create);
-	for (i = 0; cfg_arg[i] != NULL; ++i)
-		cfg[i + 1] = cfg_arg[i];
-	cfg[i + 1] = NULL;
-
-	ret = __wt_config_collapse(session, cfg, value_ret);
-
-	__wt_free(session, cfg);
-	return (ret);
-}
-
-/*
  * __curmetadata_follow_source --
  *	The value of the "source" configuration variable is a URI;
  * return the value of this URI in the metadata.
