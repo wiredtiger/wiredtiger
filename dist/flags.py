@@ -37,11 +37,12 @@ flags = {
         'READ_WONT_NEED',
     ],
     'rec_write' : [
+        'CHECKPOINTING',
         'EVICTING',
-        'EVICT_CLEAN',
         'EVICT_IN_MEMORY',
         'EVICT_INMEM_SPLIT',
         'EVICT_LOOKASIDE',
+        'EVICT_SCRUB',
         'EVICT_UPDATE_RESTORE',
         'VISIBILITY_ERR',
     ],

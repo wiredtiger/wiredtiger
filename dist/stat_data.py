@@ -81,10 +81,10 @@ class SessionStat(Stat):
     prefix = 'session'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, SessionStat.prefix, desc, flags)
-class ThreadState(Stat):
+class ThreadStat(Stat):
     prefix = 'thread-state'
     def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, ThreadState.prefix, desc, flags)
+        Stat.__init__(self, name, ThreadStat.prefix, desc, flags)
 class TxnStat(Stat):
     prefix = 'transaction'
     def __init__(self, name, desc, flags=''):
@@ -105,7 +105,7 @@ groups['evict'] = [
     BlockStat.prefix,
     CacheStat.prefix,
     ConnStat.prefix,
-    ThreadState.prefix
+    ThreadStat.prefix
 ]
 groups['lsm'] = [LSMStat.prefix, TxnStat.prefix]
 groups['memory'] = [CacheStat.prefix, ConnStat.prefix, RecStat.prefix]
@@ -113,7 +113,7 @@ groups['system'] = [
     ConnStat.prefix,
     DhandleStat.prefix,
     SessionStat.prefix,
-    ThreadState.prefix
+    ThreadStat.prefix
 ]
 
 ##########################################
@@ -159,6 +159,7 @@ connection_stats = [
     BlockStat('block_byte_map_read', 'mapped bytes read', 'size'),
     BlockStat('block_byte_read', 'bytes read', 'size'),
     BlockStat('block_byte_write', 'bytes written', 'size'),
+    BlockStat('block_byte_write_checkpoint', 'bytes written for checkpoint', 'size'),
     BlockStat('block_map_read', 'mapped blocks read'),
     BlockStat('block_preload', 'blocks pre-loaded'),
     BlockStat('block_read', 'blocks read'),
@@ -174,7 +175,6 @@ connection_stats = [
     CacheStat('cache_bytes_leaf', 'tracked bytes belonging to leaf pages in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_max', 'maximum bytes configured', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_other', 'bytes not belonging to page images in the cache', 'no_clear,no_scale,size'),
-    CacheStat('cache_bytes_overflow', 'tracked bytes belonging to overflow pages in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_read', 'bytes read into cache', 'size'),
     CacheStat('cache_bytes_write', 'bytes written from cache', 'size'),
     CacheStat('cache_eviction_aggressive_set', 'eviction currently operating in aggressive mode', 'no_clear,no_scale'),
@@ -217,12 +217,14 @@ connection_stats = [
     CacheStat('cache_inmem_splittable', 'in-memory page passed criteria to be split'),
     CacheStat('cache_lookaside_insert', 'lookaside table insert calls'),
     CacheStat('cache_lookaside_remove', 'lookaside table remove calls'),
+    CacheStat('cache_overflow_value', 'overflow values cached in memory', 'no_scale'),
     CacheStat('cache_overhead', 'percentage overhead', 'no_clear,no_scale'),
     CacheStat('cache_pages_dirty', 'tracked dirty pages in the cache', 'no_clear,no_scale'),
     CacheStat('cache_pages_inuse', 'pages currently held in the cache', 'no_clear,no_scale'),
     CacheStat('cache_pages_requested', 'pages requested from the cache'),
     CacheStat('cache_read', 'pages read into cache'),
     CacheStat('cache_read_lookaside', 'pages read into cache requiring lookaside entries'),
+    CacheStat('cache_read_overflow', 'overflow pages read into cache'),
     CacheStat('cache_write', 'pages written from cache'),
     CacheStat('cache_write_lookaside', 'page written requiring lookaside records'),
     CacheStat('cache_write_restore', 'pages written requiring in-memory restoration'),
@@ -351,11 +353,11 @@ connection_stats = [
     CursorStat('cursor_update', 'cursor update calls'),
 
     ##########################################
-    # Thread State statistics
+    # Thread Count statistics
     ##########################################
-    ThreadState('fsync_active', 'active filesystem fsync calls','no_clear,no_scale'),
-    ThreadState('read_active', 'active filesystem read calls','no_clear,no_scale'),
-    ThreadState('write_active', 'active filesystem write calls','no_clear,no_scale'),
+    ThreadStat('thread_fsync_active', 'active filesystem fsync calls','no_clear,no_scale'),
+    ThreadStat('thread_read_active', 'active filesystem read calls','no_clear,no_scale'),
+    ThreadStat('thread_write_active', 'active filesystem write calls','no_clear,no_scale'),
 
     ##########################################
     # Yield statistics

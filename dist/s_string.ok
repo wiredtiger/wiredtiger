@@ -118,6 +118,7 @@ FLv
 FNV
 FORALL
 FOREACH
+FS
 FULLFSYNC
 FindClose
 FindFirstFile
@@ -205,6 +206,7 @@ MERCHANTABILITY
 METADATA
 MONGODB
 MSVC
+MULTI
 MULTIBLOCK
 MUTEX
 Manos
@@ -327,6 +329,7 @@ UID
 UIDs
 UINT
 ULINE
+UNC
 URI
 URIs
 UTF
@@ -529,6 +532,7 @@ cust
 customp
 cv
 cxa
+dT
 data's
 database's
 datalen
@@ -558,6 +562,7 @@ dequeued
 der
 dereference
 desc
+designator
 dest
 destSize
 dev
@@ -1066,6 +1071,7 @@ tV
 tablename
 tcbench
 td
+tempdir
 testutil
 th
 tid
@@ -1092,6 +1098,7 @@ txn
 txnc
 txnid
 txnmin
+txt
 typedef
 uB
 uS

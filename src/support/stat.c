@@ -546,6 +546,7 @@ static const char * const __stats_connection_desc[] = {
 	"block-manager: blocks written",
 	"block-manager: bytes read",
 	"block-manager: bytes written",
+	"block-manager: bytes written for checkpoint",
 	"block-manager: mapped blocks read",
 	"block-manager: mapped bytes read",
 	"cache: bytes belonging to page images in the cache",
@@ -584,6 +585,8 @@ static const char * const __stats_connection_desc[] = {
 	"cache: maximum page size at eviction",
 	"cache: modified pages evicted",
 	"cache: modified pages evicted by application threads",
+	"cache: overflow pages read into cache",
+	"cache: overflow values cached in memory",
 	"cache: page split during eviction deepened the tree",
 	"cache: page written requiring lookaside records",
 	"cache: pages currently held in the cache",
@@ -603,7 +606,6 @@ static const char * const __stats_connection_desc[] = {
 	"cache: percentage overhead",
 	"cache: tracked bytes belonging to internal pages in the cache",
 	"cache: tracked bytes belonging to leaf pages in the cache",
-	"cache: tracked bytes belonging to overflow pages in the cache",
 	"cache: tracked dirty bytes in the cache",
 	"cache: tracked dirty pages in the cache",
 	"cache: unmodified pages evicted",
@@ -770,6 +772,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->block_write = 0;
 	stats->block_byte_read = 0;
 	stats->block_byte_write = 0;
+	stats->block_byte_write_checkpoint = 0;
 	stats->block_map_read = 0;
 	stats->block_byte_map_read = 0;
 		/* not clearing cache_bytes_image */
@@ -808,6 +811,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing cache_eviction_maximum_page_size */
 	stats->cache_eviction_dirty = 0;
 	stats->cache_eviction_app_dirty = 0;
+	stats->cache_read_overflow = 0;
+	stats->cache_overflow_value = 0;
 	stats->cache_eviction_deepen = 0;
 	stats->cache_write_lookaside = 0;
 		/* not clearing cache_pages_inuse */
@@ -827,7 +832,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing cache_overhead */
 		/* not clearing cache_bytes_internal */
 		/* not clearing cache_bytes_leaf */
-		/* not clearing cache_bytes_overflow */
 		/* not clearing cache_bytes_dirty */
 		/* not clearing cache_pages_dirty */
 	stats->cache_eviction_clean = 0;
@@ -907,9 +911,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing rec_split_stashed_objects */
 		/* not clearing session_cursor_open */
 		/* not clearing session_open */
-		/* not clearing fsync_active */
-		/* not clearing read_active */
-		/* not clearing write_active */
+		/* not clearing thread_fsync_active */
+		/* not clearing thread_read_active */
+		/* not clearing thread_write_active */
 	stats->page_busy_blocked = 0;
 	stats->page_forcible_evict_blocked = 0;
 	stats->page_locked_blocked = 0;
@@ -986,6 +990,8 @@ __wt_stat_connection_aggregate(
 	to->block_write += WT_STAT_READ(from, block_write);
 	to->block_byte_read += WT_STAT_READ(from, block_byte_read);
 	to->block_byte_write += WT_STAT_READ(from, block_byte_write);
+	to->block_byte_write_checkpoint +=
+	    WT_STAT_READ(from, block_byte_write_checkpoint);
 	to->block_map_read += WT_STAT_READ(from, block_map_read);
 	to->block_byte_map_read += WT_STAT_READ(from, block_byte_map_read);
 	to->cache_bytes_image += WT_STAT_READ(from, cache_bytes_image);
@@ -1049,6 +1055,8 @@ __wt_stat_connection_aggregate(
 	to->cache_eviction_dirty += WT_STAT_READ(from, cache_eviction_dirty);
 	to->cache_eviction_app_dirty +=
 	    WT_STAT_READ(from, cache_eviction_app_dirty);
+	to->cache_read_overflow += WT_STAT_READ(from, cache_read_overflow);
+	to->cache_overflow_value += WT_STAT_READ(from, cache_overflow_value);
 	to->cache_eviction_deepen +=
 	    WT_STAT_READ(from, cache_eviction_deepen);
 	to->cache_write_lookaside +=
@@ -1075,7 +1083,6 @@ __wt_stat_connection_aggregate(
 	to->cache_overhead += WT_STAT_READ(from, cache_overhead);
 	to->cache_bytes_internal += WT_STAT_READ(from, cache_bytes_internal);
 	to->cache_bytes_leaf += WT_STAT_READ(from, cache_bytes_leaf);
-	to->cache_bytes_overflow += WT_STAT_READ(from, cache_bytes_overflow);
 	to->cache_bytes_dirty += WT_STAT_READ(from, cache_bytes_dirty);
 	to->cache_pages_dirty += WT_STAT_READ(from, cache_pages_dirty);
 	to->cache_eviction_clean += WT_STAT_READ(from, cache_eviction_clean);
@@ -1161,9 +1168,9 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, rec_split_stashed_objects);
 	to->session_cursor_open += WT_STAT_READ(from, session_cursor_open);
 	to->session_open += WT_STAT_READ(from, session_open);
-	to->fsync_active += WT_STAT_READ(from, fsync_active);
-	to->read_active += WT_STAT_READ(from, read_active);
-	to->write_active += WT_STAT_READ(from, write_active);
+	to->thread_fsync_active += WT_STAT_READ(from, thread_fsync_active);
+	to->thread_read_active += WT_STAT_READ(from, thread_read_active);
+	to->thread_write_active += WT_STAT_READ(from, thread_write_active);
 	to->page_busy_blocked += WT_STAT_READ(from, page_busy_blocked);
 	to->page_forcible_evict_blocked +=
 	    WT_STAT_READ(from, page_forcible_evict_blocked);

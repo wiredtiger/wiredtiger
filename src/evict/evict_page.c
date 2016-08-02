@@ -135,12 +135,6 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 	if (LF_ISSET(WT_EVICT_INMEM_SPLIT))
 		return (0);
 
-	/*
-	 * Update the page's modification reference, reconciliation might have
-	 * changed it.
-	 */
-	mod = page->modify;
-
 	/* Count evictions of internal pages during normal operation. */
 	if (!closing && WT_PAGE_IS_INTERNAL(page)) {
 		WT_STAT_FAST_CONN_INCR(session, cache_eviction_internal);
@@ -156,12 +150,13 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		conn->cache->evict_max_page_size = page->memory_footprint;
 
 	/* Figure out whether reconciliation was done on the page */
+	mod = page->modify;
 	clean_page = mod == NULL || mod->rec_result == 0;
 
 	/* Update the reference and discard the page. */
 	if (__wt_ref_is_root(ref))
 		__wt_ref_out(session, ref);
-	else if (tree_dead || (clean_page && !LF_ISSET(WT_EVICT_IN_MEMORY)))
+	else if ((clean_page && !LF_ISSET(WT_EVICT_IN_MEMORY)) || tree_dead)
 		/*
 		 * Pages that belong to dead trees never write back to disk
 		 * and can't support page splits.
@@ -278,6 +273,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 	WT_ADDR *addr;
 	WT_DECL_RET;
 	WT_PAGE_MODIFY *mod;
+	WT_MULTI multi;
 
 	mod = ref->page->modify;
 
@@ -320,9 +316,11 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		 * write. Take advantage of the fact we have exclusive access
 		 * to the page and rewrite it in memory.
 		 */
-		if (mod->mod_multi_entries == 1)
-			WT_RET(__wt_split_rewrite(session, ref));
-		else
+		if (mod->mod_multi_entries == 1) {
+			WT_ASSERT(session, closing == false);
+			WT_RET(__wt_split_rewrite(
+			    session, ref, &mod->mod_multi[0]));
+		} else
 			WT_RET(__wt_split_multi(session, ref, closing));
 		break;
 	case WT_PM_REC_REPLACE: 			/* 1-for-1 page swap */
@@ -336,10 +334,26 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		*addr = mod->mod_replace;
 		mod->mod_replace.addr = NULL;
 		mod->mod_replace.size = 0;
-
-		__wt_ref_out(session, ref);
 		ref->addr = addr;
-		WT_PUBLISH(ref->state, WT_REF_DISK);
+
+		/*
+		 * Eviction wants to keep this page if we have a disk image,
+		 * re-instantiate the page in memory, else discard the page.
+		 */
+		if (mod->mod_disk_image == NULL) {
+			__wt_ref_out(session, ref);
+			WT_PUBLISH(ref->state, WT_REF_DISK);
+		} else {
+			/*
+			 * The split code works with WT_MULTI structures, build
+			 * one for the disk image.
+			 */
+			memset(&multi, 0, sizeof(multi));
+			multi.disk_image = mod->mod_disk_image;
+
+			WT_RET(__wt_split_rewrite(session, ref, &multi));
+		}
+
 		break;
 	WT_ILLEGAL_VALUE(session);
 	}
@@ -385,8 +399,6 @@ __evict_review(
 	bool modified;
 
 	flags = WT_EVICTING;
-	if (closing)
-		LF_SET(WT_VISIBILITY_ERR);
 	*flagsp = flags;
 
 	/*
@@ -467,6 +479,10 @@ __evict_review(
 		 */
 		if (LF_ISSET(WT_EVICT_INMEM_SPLIT))
 			return (__wt_split_insert(session, ref));
+
+		/* We are done if reconciliation is disabled. */
+		if (F_ISSET(S2BT(session), WT_BTREE_NO_RECONCILE))
+			return (EBUSY);
 	}
 
 	/* If the page is clean, we're done and we can evict. */
@@ -479,10 +495,15 @@ __evict_review(
 	 * If we have an exclusive lock (we're discarding the tree), assert
 	 * there are no updates we cannot read.
 	 *
-	 * Otherwise, if the page we're evicting is a leaf page marked for
-	 * forced eviction, set the update-restore flag, so reconciliation will
-	 * write blocks it can write and create a list of skipped updates for
-	 * blocks it cannot write.  This is how forced eviction of active, huge
+	 * Don't set any other flags for internal pages: they don't have update
+	 * lists to be saved and restored, nor can we re-create them in memory.
+	 *
+	 * For leaf pages:
+	 *
+	 * If an in-memory configuration or the page is being forcibly evicted,
+	 * set the update-restore flag, so reconciliation will write blocks it
+	 * can write and create a list of skipped updates for blocks it cannot
+	 * write, along with disk images.  This is how eviction of active, huge
 	 * pages works: we take a big page and reconcile it into blocks, some of
 	 * which we write and discard, the rest of which we re-create as smaller
 	 * in-memory pages, (restoring the updates that stopped us from writing
@@ -493,18 +514,28 @@ __evict_review(
 	 * allowing the eviction of pages we'd otherwise have to retain in cache
 	 * to support older readers.
 	 *
-	 * Don't set the update-restore or lookaside table flags for internal
-	 * pages, they don't have update lists that can be saved and restored.
+	 * Finally, if we don't need to do eviction at the moment, create disk
+	 * images of split pages in order to re-instantiate them.
 	 */
 	cache = S2C(session)->cache;
-	if (!closing && !WT_PAGE_IS_INTERNAL(page)) {
+	if (closing)
+		LF_SET(WT_VISIBILITY_ERR);
+	else if (!WT_PAGE_IS_INTERNAL(page)) {
 		if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
-			LF_SET(WT_EVICT_IN_MEMORY | WT_EVICT_UPDATE_RESTORE);
+			LF_SET(WT_EVICT_IN_MEMORY |
+			    WT_EVICT_SCRUB | WT_EVICT_UPDATE_RESTORE);
 		else if (page->read_gen == WT_READGEN_OLDEST ||
 		    page->memory_footprint > S2BT(session)->splitmempage)
-			LF_SET(WT_EVICT_UPDATE_RESTORE);
+			LF_SET(WT_EVICT_UPDATE_RESTORE | WT_EVICT_SCRUB);
 		else if (F_ISSET(cache, WT_CACHE_STUCK))
 			LF_SET(WT_EVICT_LOOKASIDE);
+		/*
+		 * If we aren't trying to free space in the cache, just
+		 * scrub the page and keep it around.
+		 */
+		if (!LF_ISSET(WT_EVICT_LOOKASIDE) &&
+		    cache->state != WT_EVICT_STATE_ALL)
+			LF_SET(WT_EVICT_SCRUB);
 	}
 	*flagsp = flags;
 
@@ -512,13 +543,13 @@ __evict_review(
 
 	/*
 	 * Success: assert the page is clean or reconciliation was configured
-	 * for an update/restore split.  If the page is clean, assert that
-	 * reconciliation was configured for a lookaside table, or it's not a
-	 * durable object (currently the lookaside table), or all page updates
-	 * were globally visible.
+	 * for update/restore. If the page is clean, assert that reconciliation
+	 * was configured for a lookaside table, or it's not a durable object
+	 * (currently the lookaside table), or all page updates were globally
+	 * visible.
 	 */
 	WT_ASSERT(session,
-	    LF_ISSET(WT_EVICT_UPDATE_RESTORE) || !__wt_page_is_modified(page));
+	    !__wt_page_is_modified(page) || LF_ISSET(WT_EVICT_UPDATE_RESTORE));
 	WT_ASSERT(session,
 	    __wt_page_is_modified(page) ||
 	    LF_ISSET(WT_EVICT_LOOKASIDE) ||
