@@ -579,7 +579,8 @@ __evict_update_work(WT_SESSION_IMPL *session)
 		FLD_SET(cache->state, WT_EVICT_STATE_AGGRESSIVE);
 	}
 
-	return (cache->state != 0);
+	return (FLD_ISSET(cache->state,
+	    WT_EVICT_STATE_ALL | WT_EVICT_STATE_URGENT));
 }
 
 /*
