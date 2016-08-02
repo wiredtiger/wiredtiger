@@ -336,10 +336,10 @@ connection_stats = [
     ##########################################
     SessionStat('session_cursor_open', 'open cursor count', 'no_clear,no_scale'),
     SessionStat('session_open', 'open session count', 'no_clear,no_scale'),
-    SessionStat('session_table_create_fail', 'table create failed attempts', 'no_clear,no_scale'),
-    SessionStat('session_table_create_success', 'table create successful attempts', 'no_clear,no_scale'),
     SessionStat('session_table_compact_fail', 'table compact failed attempts', 'no_clear,no_scale'),
     SessionStat('session_table_compact_success', 'table compact successful attempts', 'no_clear,no_scale'),
+    SessionStat('session_table_create_fail', 'table create failed attempts', 'no_clear,no_scale'),
+    SessionStat('session_table_create_success', 'table create successful attempts', 'no_clear,no_scale'),
     SessionStat('session_table_drop_fail', 'table drop failed attempts', 'no_clear,no_scale'),
     SessionStat('session_table_drop_success', 'table drop successful attempts', 'no_clear,no_scale'),
     SessionStat('session_table_rebalance_fail', 'table rebalance failed attempts', 'no_clear,no_scale'),
