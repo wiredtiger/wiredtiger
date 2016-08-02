@@ -516,7 +516,11 @@ __session_create(WT_SESSION *wt_session, const char *uri, const char *config)
 
 	ret = __wt_session_create(session, uri, config);
 
-err:	API_END_RET_NOTFOUND_MAP(session, ret);
+err:	if (ret != 0)
+		WT_STAT_FAST_CONN_INCR(session, session_table_create_fail);
+	else
+		WT_STAT_FAST_CONN_INCR(session, session_table_create_success);
+	API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
 /*
@@ -530,6 +534,8 @@ __session_create_readonly(
 	WT_UNUSED(uri);
 	WT_UNUSED(config);
 
+	WT_STAT_FAST_CONN_INCR((WT_SESSION_IMPL *)wt_session,
+	    session_table_create_fail);
 	return (__wt_session_notsup(wt_session));
 }
 
@@ -637,7 +643,12 @@ __session_rebalance(WT_SESSION *wt_session, const char *uri, const char *config)
 		ret = __wt_schema_worker(session, uri, __wt_bt_rebalance,
 		NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_REBALANCE)));
 
-err:	API_END_RET_NOTFOUND_MAP(session, ret);
+err:	if (ret != 0)
+		WT_STAT_FAST_CONN_INCR(session, session_table_rebalance_fail);
+	else
+		WT_STAT_FAST_CONN_INCR(session,
+		    session_table_rebalance_success);
+	API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
 /*
@@ -651,6 +662,8 @@ __session_rebalance_readonly(
 	WT_UNUSED(uri);
 	WT_UNUSED(config);
 
+	WT_STAT_FAST_CONN_INCR((WT_SESSION_IMPL *)wt_session,
+	    session_table_rebalance_fail);
 	return (__wt_session_notsup(wt_session));
 }
 
@@ -677,7 +690,11 @@ __session_rename(WT_SESSION *wt_session,
 		WT_WITH_TABLE_LOCK(session, ret,
 		    ret = __wt_schema_rename(session, uri, newuri, cfg))));
 
-err:	API_END_RET_NOTFOUND_MAP(session, ret);
+err:	if (ret != 0)
+		WT_STAT_FAST_CONN_INCR(session, session_table_rename_fail);
+	else
+		WT_STAT_FAST_CONN_INCR(session, session_table_rename_success);
+	API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
 /*
@@ -692,6 +709,8 @@ __session_rename_readonly(WT_SESSION *wt_session,
 	WT_UNUSED(newuri);
 	WT_UNUSED(config);
 
+	WT_STAT_FAST_CONN_INCR((WT_SESSION_IMPL *)wt_session,
+	    session_table_rename_fail);
 	return (__wt_session_notsup(wt_session));
 }
 
@@ -777,7 +796,12 @@ __session_drop(WT_SESSION *wt_session, const char *uri, const char *config)
 
 	ret = __wt_session_drop(session, uri, cfg);
 
-err:	/* Note: drop operations cannot be unrolled (yet?). */
+err:	if (ret != 0)
+		WT_STAT_FAST_CONN_INCR(session, session_table_drop_fail);
+	else
+		WT_STAT_FAST_CONN_INCR(session, session_table_drop_success);
+
+	/* Note: drop operations cannot be unrolled (yet?). */
 	API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
@@ -792,6 +816,8 @@ __session_drop_readonly(
 	WT_UNUSED(uri);
 	WT_UNUSED(config);
 
+	WT_STAT_FAST_CONN_INCR((WT_SESSION_IMPL *)wt_session,
+	    session_table_drop_fail);
 	return (__wt_session_notsup(wt_session));
 }
 
@@ -950,7 +976,11 @@ __session_salvage(WT_SESSION *wt_session, const char *uri, const char *config)
 		ret = __wt_schema_worker(session, uri, __wt_salvage,
 		NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_SALVAGE)));
 
-err:	API_END_RET_NOTFOUND_MAP(session, ret);
+err:	if (ret != 0)
+		WT_STAT_FAST_CONN_INCR(session, session_table_salvage_fail);
+	else
+		WT_STAT_FAST_CONN_INCR(session, session_table_salvage_success);
+	API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
 /*
@@ -964,6 +994,8 @@ __session_salvage_readonly(
 	WT_UNUSED(uri);
 	WT_UNUSED(config);
 
+	WT_STAT_FAST_CONN_INCR((WT_SESSION_IMPL *)wt_session,
+	    session_table_salvage_fail);
 	return (__wt_session_notsup(wt_session));
 }
 
@@ -1142,6 +1174,10 @@ __session_truncate(WT_SESSION *wt_session,
 
 err:	TXN_API_END_RETRY(session, ret, 0);
 
+	if (ret != 0)
+		WT_STAT_FAST_CONN_INCR(session, session_table_truncate_fail);
+	else
+		WT_STAT_FAST_CONN_INCR(session, session_table_truncate_success);
 	/*
 	 * Only map WT_NOTFOUND to ENOENT if a URI was specified.
 	 */
@@ -1161,6 +1197,8 @@ __session_truncate_readonly(WT_SESSION *wt_session,
 	WT_UNUSED(stop);
 	WT_UNUSED(config);
 
+	WT_STAT_FAST_CONN_INCR((WT_SESSION_IMPL *)wt_session,
+	    session_table_truncate_fail);
 	return (__wt_session_notsup(wt_session));
 }
 
@@ -1223,7 +1261,11 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
 		ret = __wt_schema_worker(session, uri, __wt_verify,
 		NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY)));
 
-err:	API_END_RET_NOTFOUND_MAP(session, ret);
+err:	if (ret != 0)
+		WT_STAT_FAST_CONN_INCR(session, session_table_verify_fail);
+	else
+		WT_STAT_FAST_CONN_INCR(session, session_table_verify_success);
+	API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
 /*
