@@ -153,7 +153,8 @@ struct __wt_cache {
 						try harder */
 #define	WT_EVICT_STATE_CLEAN		0x02 /* Evict clean pages */
 #define	WT_EVICT_STATE_DIRTY		0x04 /* Evict dirty pages */
-#define	WT_EVICT_STATE_URGENT		0x08 /* Pages are in the urgent queue */
+#define	WT_EVICT_STATE_SCRUB		0x08 /* Scrub dirty pages pages */
+#define	WT_EVICT_STATE_URGENT		0x10 /* Pages are in the urgent queue */
 #define	WT_EVICT_STATE_ALL	(WT_EVICT_STATE_CLEAN | WT_EVICT_STATE_DIRTY)
 	uint32_t state;
 	/*

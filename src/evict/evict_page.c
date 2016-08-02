@@ -535,7 +535,7 @@ __evict_review(
 		 * page and keep it around.
 		 */
 		if (!LF_ISSET(WT_EVICT_LOOKASIDE) &&
-		    !FLD_ISSET(cache->state, WT_EVICT_STATE_ALL))
+		    FLD_ISSET(cache->state, WT_EVICT_STATE_SCRUB))
 			LF_SET(WT_EVICT_SCRUB);
 	}
 	*flagsp = flags;

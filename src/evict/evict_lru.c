@@ -552,6 +552,14 @@ __evict_update_work(WT_SESSION_IMPL *session)
 	if (bytes_inuse > (cache->eviction_target * bytes_max) / 100)
 		FLD_SET(cache->state, WT_EVICT_STATE_CLEAN);
 
+	/*
+	 * Scrub dirty pages and keep them in cache if we are less than half
+	 * way between the cache target and trigger.
+	 */
+	if (bytes_inuse < ((cache->eviction_target + cache->eviction_trigger) *
+	    bytes_max) / 200)
+		FLD_SET(cache->state, WT_EVICT_STATE_SCRUB);
+
 	dirty_inuse = __wt_cache_dirty_leaf_inuse(cache);
 	if (dirty_inuse > (cache->eviction_dirty_target * bytes_max) / 100)
 		FLD_SET(cache->state, WT_EVICT_STATE_DIRTY);
