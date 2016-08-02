@@ -212,8 +212,8 @@ class WiredTigerTestCase(unittest.TestCase):
         # help distinguish tests.
         scen = ''
         if hasattr(self, 'scenario_number') and hasattr(self, 'scenario_name'):
-            scen = '(scenario ' + str(self.scenario_number) + \
-                   ': ' + self.scenario_name + ')'
+            scen = ' -s ' + str(self.scenario_number) + \
+                   ' (' + self.scenario_name + ')'
         return self.simpleName() + scen
 
     def simpleName(self):
@@ -293,6 +293,8 @@ class WiredTigerTestCase(unittest.TestCase):
             raise Exception(self.testdir + ": cannot remove directory")
         os.makedirs(self.testdir)
         os.chdir(self.testdir)
+        with open('testname.txt', 'w+') as namefile:
+            namefile.write(str(self) + '\n')
         self.fdSetUp()
         # tearDown needs a conn field, set it here in case the open fails.
         self.conn = None
@@ -551,4 +553,4 @@ def runsuite(suite, parallel):
 
 def run(name='__main__'):
     result = runsuite(unittest.TestLoader().loadTestsFromName(name), False)
-    sys.exit(not result.wasSuccessful())
+    sys.exit(0 if result.wasSuccessful() else 1)

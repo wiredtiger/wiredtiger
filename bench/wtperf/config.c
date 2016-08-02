@@ -123,7 +123,7 @@ config_free(CONFIG *cfg)
 		if (config_opts[i].type == STRING_TYPE ||
 		    config_opts[i].type == CONFIG_STRING_TYPE) {
 			pstr = (char **)
-			    ((unsigned char *)cfg + config_opts[i].offset);
+			    ((u_char *)cfg + config_opts[i].offset);
 			free(*pstr);
 			*pstr = NULL;
 		}
@@ -383,7 +383,7 @@ config_opt(CONFIG *cfg, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v)
 			fprintf(stderr, "\t%s\n", config_opts[i].name);
 		return (EINVAL);
 	}
-	valueloc = ((unsigned char *)cfg + popt->offset);
+	valueloc = ((u_char *)cfg + popt->offset);
 	switch (popt->type) {
 	case BOOL_TYPE:
 		if (v->type != WT_CONFIG_ITEM_BOOL) {
@@ -507,7 +507,8 @@ config_opt_file(CONFIG *cfg, const char *filename)
 		linenum++;
 
 		/* Skip leading space. */
-		for (ltrim = line; *ltrim && isspace(*ltrim); ltrim++)
+		for (ltrim = line; *ltrim && isspace((u_char)*ltrim);
+		     ltrim++)
 			;
 
 		/*
@@ -526,7 +527,7 @@ config_opt_file(CONFIG *cfg, const char *filename)
 		}
 
 		/* Skip trailing space. */
-		while (rtrim > ltrim && isspace(rtrim[-1]))
+		while (rtrim > ltrim && isspace((u_char)rtrim[-1]))
 			rtrim--;
 
 		/*
@@ -546,7 +547,7 @@ config_opt_file(CONFIG *cfg, const char *filename)
 			rtrim = comment;
 
 		/* Skip trailing space again. */
-		while (rtrim > ltrim && isspace(rtrim[-1]))
+		while (rtrim > ltrim && isspace((u_char)rtrim[-1]))
 			rtrim--;
 
 		/*

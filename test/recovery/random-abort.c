@@ -35,8 +35,11 @@ static char home[512];			/* Program working dir */
 static const char *progname;		/* Program name */
 static const char * const uri = "table:main";
 
-#define	NTHREADS	5
-#define	RECORDS_FILE	"records-%u"
+#define	MAX_TH	12
+#define	MIN_TH	5
+#define	MAX_TIME	40
+#define	MIN_TIME	10
+#define	RECORDS_FILE	"records-%" PRIu32
 
 #define	ENV_CONFIG						\
     "create,log=(file_max=10M,archive=false,enabled),"		\
@@ -88,9 +91,10 @@ thread_run(void *arg)
 	if ((fp = fopen(buf, "w")) == NULL)
 		testutil_die(errno, "fopen");
 	/*
-	 * Set to no buffering.
+	 * Set to line buffering.  But that is advisory only.  We've seen
+	 * cases where the result files end up with partial lines.
 	 */
-	__wt_stream_set_no_buffer(fp);
+	__wt_stream_set_line_buffer(fp);
 	if ((ret = td->conn->open_session(td->conn, NULL, NULL, &session)) != 0)
 		testutil_die(ret, "WT_CONNECTION:open_session");
 	if ((ret =
@@ -114,7 +118,7 @@ thread_run(void *arg)
 		if (fprintf(fp, "%" PRIu64 "\n", i) == -1)
 			testutil_die(errno, "fprintf");
 	}
-	return (NULL);
+	/* NOTREACHED */
 }
 
 /*
@@ -147,6 +151,7 @@ fill_db(uint32_t nth)
 	if ((ret = session->close(session, NULL)) != 0)
 		testutil_die(ret, "WT_SESSION:close");
 
+	printf("Create %" PRIu32 " writer threads\n", nth);
 	for (i = 0; i < nth; ++i) {
 		td[i].conn = conn;
 		td[i].start = (UINT64_MAX / nth) * i;
@@ -162,7 +167,7 @@ fill_db(uint32_t nth)
 	 * it is killed.
 	 */
 	for (i = 0; i < nth; ++i)
-		pthread_join(thr[i], NULL);
+		testutil_assert(pthread_join(thr[i], NULL) == 0);
 	/*
 	 * NOTREACHED
 	 */
@@ -184,10 +189,11 @@ main(int argc, char *argv[])
 	WT_CURSOR *cursor;
 	WT_SESSION *session;
 	WT_RAND_STATE rnd;
-	uint64_t key;
+	uint64_t key, last_key;
 	uint32_t absent, count, i, nth, timeout;
 	int ch, status, ret;
 	pid_t pid;
+	bool rand_th, rand_time, verify_only;
 	const char *working_dir;
 	char fname[64], kname[64];
 
@@ -196,19 +202,27 @@ main(int argc, char *argv[])
 	else
 		++progname;
 
-	working_dir = "WT_TEST.random-abort-many";
-	timeout = 10;
-	nth = NTHREADS;
-	while ((ch = __wt_getopt(progname, argc, argv, "h:T:t:")) != EOF)
+	nth = MIN_TH;
+	rand_th = rand_time = true;
+	timeout = MIN_TIME;
+	verify_only = false;
+	working_dir = "WT_TEST.random-abort";
+
+	while ((ch = __wt_getopt(progname, argc, argv, "h:T:t:v")) != EOF)
 		switch (ch) {
 		case 'h':
 			working_dir = __wt_optarg;
 			break;
 		case 'T':
+			rand_th = false;
 			nth = (uint32_t)atoi(__wt_optarg);
 			break;
 		case 't':
+			rand_time = false;
 			timeout = (uint32_t)atoi(__wt_optarg);
+			break;
+		case 'v':
+			verify_only = true;
 			break;
 		default:
 			usage();
@@ -219,37 +233,62 @@ main(int argc, char *argv[])
 		usage();
 
 	testutil_work_dir_from_path(home, 512, working_dir);
-	testutil_make_work_dir(home);
-
 	/*
-	 * Fork a child to insert as many items.  We will then randomly
-	 * kill the child, run recovery and make sure all items we wrote
-	 * exist after recovery runs.
+	 * If the user wants to verify they need to tell us how many threads
+	 * there were so we can find the old record files.
 	 */
-	if ((pid = fork()) < 0)
-		testutil_die(errno, "fork");
-
-	if (pid == 0) { /* child */
-		fill_db(nth);
-		return (EXIT_SUCCESS);
+	if (verify_only && rand_th) {
+		fprintf(stderr,
+		    "Verify option requires specifying number of threads\n");
+		exit (EXIT_FAILURE);
 	}
+	if (!verify_only) {
+		testutil_make_work_dir(home);
 
-	/* parent */
-	__wt_random_init(&rnd);
-	/* Sleep for the configured amount of time before killing the child. */
-	printf("Parent: sleep %" PRIu32 " seconds, then kill child\n", timeout);
-	sleep(timeout);
+		testutil_assert(__wt_random_init_seed(NULL, &rnd) == 0);
+		if (rand_time) {
+			timeout = __wt_random(&rnd) % MAX_TIME;
+			if (timeout < MIN_TIME)
+				timeout = MIN_TIME;
+		}
+		if (rand_th) {
+			nth = __wt_random(&rnd) % MAX_TH;
+			if (nth < MIN_TH)
+				nth = MIN_TH;
+		}
+		printf("Parent: Create %" PRIu32
+		    " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
+		/*
+		 * Fork a child to insert as many items.  We will then randomly
+		 * kill the child, run recovery and make sure all items we wrote
+		 * exist after recovery runs.
+		 */
+		if ((pid = fork()) < 0)
+			testutil_die(errno, "fork");
 
-	/*
-	 * !!! It should be plenty long enough to make sure more than one
-	 * log file exists.  If wanted, that check would be added here.
-	 */
-	printf("Kill child\n");
-	if (kill(pid, SIGKILL) != 0)
-		testutil_die(errno, "kill");
-	if (waitpid(pid, &status, 0) == -1)
-		testutil_die(errno, "waitpid");
+		if (pid == 0) { /* child */
+			fill_db(nth);
+			return (EXIT_SUCCESS);
+		}
 
+		/* parent */
+		/*
+		 * Sleep for the configured amount of time before killing
+		 * the child.
+		 */
+		sleep(timeout);
+
+		/*
+		 * !!! It should be plenty long enough to make sure more than
+		 * one log file exists.  If wanted, that check would be added
+		 * here.
+		 */
+		printf("Kill child\n");
+		if (kill(pid, SIGKILL) != 0)
+			testutil_die(errno, "kill");
+		if (waitpid(pid, &status, 0) == -1)
+			testutil_die(errno, "waitpid");
+	}
 	/*
 	 * !!! If we wanted to take a copy of the directory before recovery,
 	 * this is the place to do it.
@@ -268,26 +307,41 @@ main(int argc, char *argv[])
 	absent = count = 0;
 	for (i = 0; i < nth; ++i) {
 		snprintf(fname, sizeof(fname), RECORDS_FILE, i);
-		if ((fp = fopen(fname, "r")) == NULL)
+		if ((fp = fopen(fname, "r")) == NULL) {
+			fprintf(stderr,
+			    "Failed to open %s. i %" PRIu32 "\n", fname, i);
 			testutil_die(errno, "fopen");
+		}
 
 		/*
 		 * For every key in the saved file, verify that the key exists
 		 * in the table after recovery.  Since we did write-no-sync, we
 		 * expect every key to have been recovered.
 		 */
-		for (count = 0;; ++count) {
+		for (last_key = UINT64_MAX;; ++count, last_key = key) {
 			ret = fscanf(fp, "%" SCNu64 "\n", &key);
 			if (ret != EOF && ret != 1)
 				testutil_die(errno, "fscanf");
 			if (ret == EOF)
 				break;
+			/*
+			 * If we're unlucky, the last line may be a partially
+			 * written key at the end that can result in a false
+			 * negative error for a missing record.  Detect it.
+			 */
+			if (last_key != UINT64_MAX && key != last_key + 1) {
+				printf("%s: Ignore partial record %" PRIu64
+				    " last valid key %" PRIu64 "\n",
+				    fname, key, last_key);
+				break;
+			}
 			snprintf(kname, sizeof(kname), "%" PRIu64, key);
 			cursor->set_key(cursor, kname);
 			if ((ret = cursor->search(cursor)) != 0) {
 				if (ret != WT_NOTFOUND)
 					testutil_die(ret, "search");
-				printf("no record with key %" PRIu64 "\n", key);
+				printf("%s: no record with key %" PRIu64 "\n",
+				    fname, key);
 				++absent;
 			}
 		}

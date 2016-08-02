@@ -639,9 +639,10 @@ __wt_row_random_leaf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	int level;
 
 	page = cbt->ref->page;
-
 	start = stop = NULL;		/* [-Wconditional-uninitialized] */
 	entries = 0;			/* [-Wconditional-uninitialized] */
+
+	__cursor_pos_clear(cbt);
 
 	/* If the page has disk-based entries, select from them. */
 	if (page->pg_row_entries != 0) {
@@ -774,7 +775,7 @@ __wt_row_random_leaf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	 * traversing the skip list each time accumulates to real time.
 	 */
 	if (samples > 5000)
-		__wt_page_evict_soon(page);
+		WT_RET(__wt_page_evict_soon(session, cbt->ref));
 
 	return (0);
 }
@@ -794,8 +795,6 @@ __wt_row_random_descent(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 
 	btree = S2BT(session);
 	current = NULL;
-
-	__cursor_pos_clear(cbt);
 
 	if (0) {
 restart:	/*

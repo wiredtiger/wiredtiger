@@ -37,10 +37,13 @@ flags = {
         'READ_WONT_NEED',
     ],
     'rec_write' : [
-        'EVICT_IN_MEMORY',
-        'EVICT_LOOKASIDE',
-        'EVICT_UPDATE_RESTORE',
+        'CHECKPOINTING',
         'EVICTING',
+        'EVICT_IN_MEMORY',
+        'EVICT_INMEM_SPLIT',
+        'EVICT_LOOKASIDE',
+        'EVICT_SCRUB',
+        'EVICT_UPDATE_RESTORE',
         'VISIBILITY_ERR',
     ],
     'txn_log_checkpoint' : [
@@ -49,6 +52,10 @@ flags = {
         'TXN_LOG_CKPT_START',
         'TXN_LOG_CKPT_STOP',
         'TXN_LOG_CKPT_SYNC',
+    ],
+    'txn_update_oldest' : [
+        'TXN_OLDEST_STRICT',
+        'TXN_OLDEST_WAIT',
     ],
     'verbose' : [
         'VERB_API',
@@ -94,6 +101,7 @@ flags = {
         'CONN_LSM_MERGE',
         'CONN_PANIC',
         'CONN_READONLY',
+        'CONN_RECOVERING',
         'CONN_SERVER_ASYNC',
         'CONN_SERVER_CHECKPOINT',
         'CONN_SERVER_LSM',

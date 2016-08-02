@@ -66,6 +66,17 @@ __wt_session_copy_values(WT_SESSION_IMPL *session)
 
 	TAILQ_FOREACH(cursor, &session->cursors, q)
 		if (F_ISSET(cursor, WT_CURSTD_VALUE_INT)) {
+#ifdef HAVE_DIAGNOSTIC
+			/*
+			 * We have to do this with a transaction ID pinned
+			 * unless the cursor is reading from a checkpoint.
+			 */
+			WT_TXN_STATE *txn_state = WT_SESSION_TXN_STATE(session);
+			WT_ASSERT(session, txn_state->snap_min != WT_TXN_NONE ||
+			   (WT_PREFIX_MATCH(cursor->uri, "file:") &&
+			   F_ISSET((WT_CURSOR_BTREE *)cursor, WT_CBT_NO_TXN)));
+#endif
+
 			F_CLR(cursor, WT_CURSTD_VALUE_INT);
 			WT_RET(__wt_buf_set(session, &cursor->value,
 			    cursor->value.data, cursor->value.size));
@@ -733,8 +744,8 @@ __wt_session_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 		F_SET(session, WT_SESSION_LOCK_NO_WAIT);
 
 	/*
-	 * The checkpoint lock only is needed to avoid a spurious EBUSY error
-	 * return.
+	 * Take the checkpoint lock if there is a need to prevent the drop
+	 * operation from failing with EBUSY due to an ongoing checkpoint.
 	 */
 	if (checkpoint_wait)
 		WT_WITH_CHECKPOINT_LOCK(session, ret,

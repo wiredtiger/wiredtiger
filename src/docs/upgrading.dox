@@ -1,5 +1,34 @@
 /*! @page upgrading Upgrading WiredTiger applications
 
+@section version_281 Upgrading to Version 2.8.1
+<dl>
+<dt>Checkpoint server created checkpoint names</dt>
+<dd>
+The ::wiredtiger_open checkpoint configuration no longer supports the
+\c name configuration, and checkpoint server created checkpoints will
+always be named the default WiredTiger checkpoint name,
+"WiredTigerCheckpoint". Applications depending on the ability to set the
+checkpoint name for the checkpoint server will require modification.
+</dd>
+
+<dt>Statistics logging path</dt>
+<dd>
+The ::wiredtiger_open statistics logging path configuration has been
+simplified to be only a path to a directory, and the file name component
+of the path may no longer be specified. Applications depending on the
+ability to set statistics log file names will require modification.
+</dd>
+
+<dt>Deprecated statistics field</dt>
+<dd>
+The connection statistic \c WT_STAT_CONN_CACHE_BYTES_OVERFLOW has been
+removed.  Overflow information is now available in the
+\c WT_STAT_CONN_CACHE_BYTES_OVERFLOW and \c WT_STAT_CONN_CACHE_OVERFLOW_VALUE.
+Applications specifically looking for that statistic will require
+modification.
+</dd>
+
+</dl><hr>
 @section version_280 Upgrading to Version 2.8.0
 <dl>
 <dt>LSM metadata</dt>
@@ -55,7 +84,6 @@ The WiredTiger public API used to define a structure that could encapsulate
 log sequence numbers. That structure is no longer exposed publicly.
 </dd>
 
-<dt>
 </dl><hr>
 @section version_270 Upgrading to Version 2.7.0
 
