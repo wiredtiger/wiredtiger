@@ -285,8 +285,8 @@ __sweep_server(void *arg)
 		 * pages from the LAS, which will stop the WT_CACHE_STUCK flag
 		 * from being set.
 		 */
-		if (__wt_las_is_written(session) &&
-		    last_las_sweep_id < __wt_txn_oldest_id(session)) {
+		if (__wt_las_is_written(session) && WT_TXNID_LT(
+		    last_las_sweep_id, __wt_txn_oldest_id(session))) {
 			WT_ERR(__wt_las_sweep(session));
 			last_las_sweep_id = __wt_txn_oldest_id(session);
 		}
