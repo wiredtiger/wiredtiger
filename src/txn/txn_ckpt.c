@@ -293,14 +293,16 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	struct timespec start, last, stop;
 	u_int current_dirty;
-	uint64_t current_usecs, stepdown_usecs;
+	uint64_t bytes_written_start, bytes_written_total;
+	uint64_t current_us, expected_us, stepdown_us, total_ms;
 
 	conn = S2C(session);
 	cache = conn->cache;
 
 	WT_RET(__wt_epoch(session, &start));
 	last = start;
-	stepdown_usecs = 1000;
+	bytes_written_start = cache->bytes_written;
+	stepdown_us = 1000;
 
 	/* Step down the dirty target to the eviction trigger */
 	for (;;) {
@@ -309,43 +311,57 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 		if (current_dirty <= cache->eviction_dirty_target)
 			break;
 
+		__wt_sleep(0, stepdown_us / 4);
+		WT_RET(__wt_epoch(session, &stop));
+		current_us = WT_TIMEDIFF_US(stop, last);
+
 		if (current_dirty <= cache->eviction_dirty_trigger) {
 			/* How long did the last step down take? */
-			WT_RET(__wt_epoch(session, &stop));
-			stepdown_usecs =
-			    WT_MAX(1000, WT_TIMEDIFF_US(stop, last));
+			stepdown_us = WT_MAX(1000, current_us);
 
 			/*
 			 * Smooth out step down: try to limit the impact on
 			 * performance to 10% by waiting once we reach the last
 			 * level.
 			 */
-			__wt_sleep(0, 10 * stepdown_usecs);
+			__wt_sleep(0, 10 * stepdown_us);
 			cache->eviction_dirty_trigger = current_dirty - 1;
 			WT_STAT_FAST_CONN_SET(session,
 			    txn_checkpoint_scrub_target, current_dirty - 1);
 			WT_RET(__wt_epoch(session, &last));
-		} else {
-			WT_RET(__wt_epoch(session, &stop));
-			current_usecs = WT_TIMEDIFF_US(stop, last);
-			/*
-			 * Don't wait indefinitely: there might be dirty
-			 * internal pages taking up more than the eviction
-			 * dirty target that can't be evicted.  If we can't
-			 * meet the target, just give up and start the
-			 * checkpoint for real.
-			 */
-			if (current_usecs > 10 * WT_MAX(stepdown_usecs, 100000))
-				break;
+			continue;
 		}
 
-		__wt_sleep(0, stepdown_usecs / 4);
+		/*
+		 * We haven't reached the current target.
+		 *
+		 * Don't wait indefinitely: there might be dirty pages that
+		 * can't be evicted.  If we can't meet the target, give up
+		 * and start the checkpoint for real.
+		 *
+		 * The calculation here assumes that the system is writing from
+		 * cache as fast as it can, and determines the write throughput
+		 * based on the change in the bytes written from cache since
+		 * the start of the call.  We use that to estimate how long it
+		 * will take to step the dirty target down by 1%.  If we have
+		 * been waiting longer than double that time, *and* more than 1
+		 * second, give up.
+		 */
+		total_ms = WT_TIMEDIFF_MS(stop, start);
+
+		/* Add one to avoid dividing by zero. */
+		bytes_written_total =
+		    cache->bytes_written - bytes_written_start + 1;
+		expected_us = (uint64_t)(WT_THOUSAND * (
+		    (double)(conn->cache_size / 100) /
+		    (double)(bytes_written_total / total_ms)));
+		if (current_us > WT_MAX(WT_MILLION, 2 * expected_us))
+			break;
 	}
 
 	WT_RET(__wt_epoch(session, &stop));
-	stepdown_usecs = WT_TIMEDIFF_US(stop, last);
-	WT_STAT_FAST_CONN_SET(session, txn_checkpoint_scrub_time,
-	    stepdown_usecs / WT_THOUSAND);
+	total_ms = WT_TIMEDIFF_MS(stop, last);
+	WT_STAT_FAST_CONN_SET(session, txn_checkpoint_scrub_time, total_ms);
 
 	return (0);
 }

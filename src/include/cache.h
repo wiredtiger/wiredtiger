@@ -85,6 +85,7 @@ struct __wt_cache {
 	uint64_t pages_inmem;
 	uint64_t bytes_internal;	/* Bytes of internal pages */
 	uint64_t bytes_read;		/* Bytes read into memory */
+	uint64_t bytes_written;
 
 	uint64_t app_waits;		/* User threads waited for cache */
 	uint64_t app_evicts;		/* Pages evicted by user threads */
