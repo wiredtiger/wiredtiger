@@ -365,10 +365,10 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 		 * will take to step the dirty target down by 1%.  If we have
 		 * been waiting longer than double that time, *and* more than 1
 		 * second, give up.
+		 *
+		 * Add one to denominators to avoid dividing by zero.
 		 */
-		total_ms = WT_TIMEDIFF_MS(stop, start);
-
-		/* Add one to avoid dividing by zero. */
+		total_ms = WT_TIMEDIFF_MS(stop, start) + 1;
 		bytes_written_total =
 		    cache->bytes_written - bytes_written_start + 1;
 		expected_us = (uint64_t)(WT_THOUSAND * (
