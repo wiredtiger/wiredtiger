@@ -283,6 +283,94 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
+ * __checkpoint_reduce_dirty_cache --
+ *	Release clean trees from the list cached for checkpoints.
+ */
+static int
+__checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
+{
+	WT_CACHE *cache;
+	WT_CONNECTION_IMPL *conn;
+	struct timespec start, stop;
+	u_int current_dirty;
+	uint64_t current_usecs, stepdown_usecs;
+
+	conn = S2C(session);
+	cache = conn->cache;
+
+	WT_RET(__wt_epoch(session, &start));
+	stepdown_usecs = 1000;
+
+	/* Step down the dirty target to the eviction trigger */
+	for (;;) {
+		current_dirty = (u_int)(100 *
+		    __wt_cache_dirty_leaf_inuse(cache)) / conn->cache_size;
+		if (current_dirty <= cache->eviction_dirty_target)
+			break;
+
+		if (current_dirty <= cache->eviction_dirty_trigger) {
+			/* How long did the last step down take? */
+			WT_RET(__wt_epoch(session, &stop));
+			stepdown_usecs =
+			    WT_MAX(1000, WT_TIMEDIFF_US(stop, start));
+
+			/*
+			 * Smooth out step down: try to limit the impact on
+			 * performance to 10% by waiting once we reach the last
+			 * level.
+			 */
+			__wt_sleep(0, 10 * stepdown_usecs);
+			cache->eviction_dirty_trigger = current_dirty - 1;
+			WT_RET(__wt_epoch(session, &start));
+		} else {
+			WT_RET(__wt_epoch(session, &stop));
+			current_usecs = WT_TIMEDIFF_US(stop, start);
+			/*
+			 * Don't wait indefinitely: there might be dirty
+			 * internal pages taking up more than the eviction
+			 * dirty target that can't be evicted.  If we can't
+			 * meet the target, just give up and start the
+			 * checkpoint for real.
+			 */
+			if (current_usecs > 10 * WT_MAX(stepdown_usecs, 100000))
+				break;
+		}
+
+		__wt_sleep(0, stepdown_usecs / 4);
+	}
+
+	return (0);
+}
+
+/*
+ * __checkpoint_release_clean_trees --
+ *	Release clean trees from the list cached for checkpoints.
+ */
+static int
+__checkpoint_release_clean_trees(WT_SESSION_IMPL *session)
+{
+	WT_BTREE *btree;
+	WT_DATA_HANDLE *dhandle;
+	WT_DECL_RET;
+	u_int i;
+
+	for (i = 0; i < session->ckpt_handle_next; i++) {
+		dhandle = session->ckpt_handle[i];
+		btree = dhandle->handle;
+		if (!F_ISSET(btree, WT_BTREE_SKIP_CKPT))
+			continue;
+		__wt_meta_ckptlist_free(session, btree->ckpt);
+		btree->ckpt = NULL;
+		session->ckpt_handle[i] = NULL;
+		WT_WITH_DHANDLE(session, dhandle,
+		    ret = __wt_session_release_btree(session));
+		WT_RET(ret);
+	}
+
+	return (0);
+}
+
+/*
  * __checkpoint_stats --
  *	Update checkpoint timer stats.
  */
@@ -353,25 +441,22 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	struct timespec fsync_start, fsync_stop;
 	struct timespec start, stop, verb_timer;
-	WT_BTREE *btree;
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
-	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_ISOLATION saved_isolation;
 	WT_TXN_STATE *txn_state;
 	void *saved_meta_next;
-	u_int current_dirty, i, orig_trigger, orig_target;
-	uint64_t current_usecs, fsync_duration_usecs, stepdown_usecs;
+	u_int i, orig_trigger;
+	uint64_t fsync_duration_usecs;
 	bool full, idle, logging, tracking;
 	const char *txn_cfg[] = { WT_CONFIG_BASE(session,
 	    WT_SESSION_begin_transaction), "isolation=snapshot", NULL };
 
 	conn = S2C(session);
 	cache = conn->cache;
-	orig_target = cache->eviction_dirty_target;
 	orig_trigger = cache->eviction_dirty_trigger;
 	txn = &session->txn;
 	txn_global = &conn->txn_global;
@@ -406,46 +491,11 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	/* Flush data-sources before we start the checkpoint. */
 	WT_ERR(__checkpoint_data_source(session, cfg));
 
-	WT_ERR(__wt_epoch(session, &start));
-	stepdown_usecs = 1000;
-
-	/* Step down the dirty target to the eviction trigger */
-	for (;;) {
-		current_dirty = (u_int)(100 *
-		    __wt_cache_dirty_leaf_inuse(cache)) / conn->cache_size;
-		if (current_dirty <= orig_target)
-			break;
-
-		if (current_dirty <= cache->eviction_dirty_trigger) {
-			/* How long did the last step down take? */
-			WT_ERR(__wt_epoch(session, &stop));
-			stepdown_usecs =
-			    WT_MAX(1000, WT_TIMEDIFF_US(stop, start));
-
-			/*
-			 * Smooth out step down: try to limit the impact on
-			 * performance to 10% by waiting once we reach the last
-			 * level.
-			 */
-			__wt_sleep(0, 10 * stepdown_usecs);
-			cache->eviction_dirty_trigger = current_dirty - 1;
-			WT_ERR(__wt_epoch(session, &start));
-		} else {
-			WT_ERR(__wt_epoch(session, &stop));
-			current_usecs = WT_TIMEDIFF_US(stop, start);
-			/*
-			 * Don't wait indefinitely: there might be dirty
-			 * internal pages taking up more than the eviction
-			 * dirty target that can't be evicted.  If we can't
-			 * meet the target, just give up and start the
-			 * checkpoint for real.
-			 */
-			if (current_usecs > 10 * WT_MAX(stepdown_usecs, 100000))
-				break;
-		}
-
-		__wt_sleep(0, stepdown_usecs / 4);
-	}
+	/*
+	 * Try to reduce the amount of dirty data in cache so there is less
+	 * work do during the critical section of the checkpoint.
+	 */
+	WT_ERR(__checkpoint_reduce_dirty_cache(session));
 
 	/* Tell logging that we are about to start a database checkpoint. */
 	if (full && logging)
@@ -556,27 +606,17 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * Unblock updates -- we can figure out that any updates to clean pages
 	 * after this point are too new to be written in the checkpoint.
 	 */
-	cache->eviction_dirty_target = orig_target;
 	cache->eviction_dirty_trigger = orig_trigger;
 
-	WT_ERR(__checkpoint_apply(session, cfg, __checkpoint_mark_deletes));
-
 	/*
+	 * Mark old checkpoints that are being deleted and figure out which
+	 * trees we can skip in this checkpoint.
+	 *
 	 * Release clean trees.  Any updates made after this point will not
 	 * visible to the checkpoint transaction.
 	 */
-	for (i = 0; i < session->ckpt_handle_next; i++) {
-		dhandle = session->ckpt_handle[i];
-		btree = dhandle->handle;
-		if (!F_ISSET(btree, WT_BTREE_SKIP_CKPT))
-			continue;
-		__wt_meta_ckptlist_free(session, btree->ckpt);
-		btree->ckpt = NULL;
-		session->ckpt_handle[i] = NULL;
-		WT_WITH_DHANDLE(session, dhandle,
-		    ret = __wt_session_release_btree(session));
-		WT_ERR(ret);
-	}
+	WT_ERR(__checkpoint_apply(session, cfg, __checkpoint_mark_deletes));
+	WT_ERR(__checkpoint_release_clean_trees(session));
 
 	/* Tell logging that we have started a database checkpoint. */
 	if (full && logging)
@@ -684,7 +724,6 @@ err:	/*
 	if (tracking)
 		WT_TRET(__wt_meta_track_off(session, false, ret != 0));
 
-	cache->eviction_dirty_target = orig_target;
 	cache->eviction_dirty_trigger = orig_trigger;
 
 	if (F_ISSET(txn, WT_TXN_RUNNING)) {
