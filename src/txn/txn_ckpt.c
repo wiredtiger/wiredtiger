@@ -283,6 +283,25 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
+ * __checkpoint_update_generation --
+ *	Update the checkpoint generation of the current tree.
+ *
+ *	This indicates that the tree will not be visited again by the current
+ *	checkpoint.
+ */
+static void
+__checkpoint_update_generation(WT_SESSION_IMPL *session)
+{
+	WT_BTREE *btree;
+
+	btree = S2BT(session);
+	WT_PUBLISH(btree->checkpoint_gen,
+	    S2C(session)->txn_global.checkpoint_gen);
+	WT_STAT_FAST_DATA_SET(session,
+	    btree_checkpoint_generation, btree->checkpoint_gen);
+}
+
+/*
  * __checkpoint_reduce_dirty_cache --
  *	Release clean trees from the list cached for checkpoints.
  */
@@ -385,6 +404,8 @@ __checkpoint_release_clean_trees(WT_SESSION_IMPL *session)
 			continue;
 		__wt_meta_ckptlist_free(session, btree->ckpt);
 		btree->ckpt = NULL;
+		WT_WITH_DHANDLE(session, dhandle,
+		    __checkpoint_update_generation(session));
 		session->ckpt_handle[i] = NULL;
 		WT_WITH_DHANDLE(session, dhandle,
 		    ret = __wt_session_release_btree(session));
@@ -714,6 +735,10 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 			ret = __wt_checkpoint(session, cfg)));
 		session->meta_track_next = saved_meta_next;
 		WT_ERR(ret);
+
+		WT_WITH_DHANDLE(session,
+		    WT_SESSION_META_DHANDLE(session),
+		    __checkpoint_update_generation(session));
 
 		WT_WITH_DHANDLE(session,
 		    WT_SESSION_META_DHANDLE(session),
@@ -1369,17 +1394,6 @@ err:	/*
 	__wt_meta_ckptlist_free(session, ckptbase);
 	btree->ckpt = NULL;
 
-	/*
-	 * Whatever happened, we aren't visiting this tree again in this
-	 * checkpoint.  Don't keep updates pinned any longer.
-	 */
-	if (is_checkpoint) {
-		WT_PUBLISH(btree->checkpoint_gen,
-		    S2C(session)->txn_global.checkpoint_gen);
-		WT_STAT_FAST_DATA_SET(session,
-		    btree_checkpoint_generation, btree->checkpoint_gen);
-	}
-
 	return (ret);
 }
 
@@ -1409,24 +1423,17 @@ static int
 __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_BTREE *btree;
-	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 
 	btree = S2BT(session);
-	conn = S2C(session);
 
 	ret = __checkpoint_tree(session, true, cfg);
 
 	/*
-	 * Update the checkpoint generation for this handle so visible
-	 * updates newer than the checkpoint can be evicted.
-	 *
-	 * This has to be published before eviction is enabled again,
-	 * so that eviction knows that the checkpoint has completed.
+	 * Whatever happened, we aren't visiting this tree again in this
+	 * checkpoint.  Don't keep updates pinned any longer.
 	 */
-	WT_PUBLISH(btree->checkpoint_gen, conn->txn_global.checkpoint_gen);
-	WT_STAT_FAST_DATA_SET(session,
-	    btree_checkpoint_generation, btree->checkpoint_gen);
+	__checkpoint_update_generation(session);
 
 	/*
 	 * In case this tree was being skipped by the eviction server
