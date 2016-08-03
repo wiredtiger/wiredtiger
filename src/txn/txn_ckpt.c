@@ -752,10 +752,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 
 		WT_WITH_DHANDLE(session,
 		    WT_SESSION_META_DHANDLE(session),
-		    __checkpoint_update_generation(session));
-
-		WT_WITH_DHANDLE(session,
-		    WT_SESSION_META_DHANDLE(session),
 		    ret = __wt_checkpoint_sync(session, NULL));
 		WT_ERR(ret);
 
