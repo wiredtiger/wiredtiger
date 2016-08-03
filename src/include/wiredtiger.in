@@ -2857,7 +2857,9 @@ int wiredtiger_config_validate(WT_SESSION *session,
  * @param session the session handle to be used for error reporting (if NULL,
  *	error messages will be written to stderr).
  * @param config the configuration string being parsed. The string must
- *	remain valid for the lifetime of the parser handle.
+ *	remain valid for the lifetime of the parser handle.  Backslash
+ *	acts as an escape as in C strings; \c \\n is converted to line feed,
+ *	\c \\\\ is converted to \c \\, etc.
  * @param len the number of valid bytes in \c config
  * @param[out] config_parserp A pointer to the newly opened handle
  * @errors
