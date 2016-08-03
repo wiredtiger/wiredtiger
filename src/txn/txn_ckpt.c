@@ -312,7 +312,7 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	struct timespec start, last, stop;
 	u_int current_dirty;
-	uint64_t bytes_written_start, bytes_written_total;
+	uint64_t bytes_written_last, bytes_written_start, bytes_written_total;
 	uint64_t current_us, stepdown_us, total_ms;
 	bool progress;
 
@@ -321,6 +321,7 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 
 	WT_RET(__wt_epoch(session, &start));
 	last = start;
+	bytes_written_last = 0;
 	bytes_written_start = cache->bytes_written;
 	stepdown_us = 10000;
 	progress = false;
@@ -335,30 +336,34 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 		__wt_sleep(0, stepdown_us / 4);
 		WT_RET(__wt_epoch(session, &stop));
 		current_us = WT_TIMEDIFF_US(stop, last);
+		total_ms = WT_TIMEDIFF_MS(stop, start);
+		bytes_written_total =
+		    cache->bytes_written - bytes_written_start;
 
-		if (!progress ||
-		    current_dirty <= cache->eviction_dirty_trigger) {
-			/*
-			 * Estimate how long the next step down of 1% of dirty
-			 * data should take.
-			 *
-			 * The calculation here assumes that the system is
-			 * writing from cache as fast as it can, and determines
-			 * the write throughput based on the change in the
-			 * bytes written from cache since the start of the
-			 * call.  We use that to estimate how long it will take
-			 * to step the dirty target down by 1%.
-			 *
-			 * Take care to avoid dividing by zero.
-			 */
-			bytes_written_total =
-			    cache->bytes_written - bytes_written_start;
-			total_ms = WT_TIMEDIFF_MS(stop, start);
-			if (total_ms > 0 && bytes_written_total > total_ms)
-				stepdown_us = (uint64_t)(WT_THOUSAND * (
-				    (double)(conn->cache_size / 100) /
-				    (double)(bytes_written_total / total_ms)));
+		/*
+		 * Estimate how long the next step down of 1% of dirty data
+		 * should take.
+		 *
+		 * The calculation here assumes that the system is writing from
+		 * cache as fast as it can, and determines the write throughput
+		 * based on the change in the bytes written from cache since
+		 * the start of the call.  We use that to estimate how long it
+		 * will take to step the dirty target down by 1%.
+		 *
+		 * Take care to avoid dividing by zero.
+		 */
+		if (bytes_written_total - bytes_written_last > WT_MEGABYTE &&
+		    bytes_written_total > total_ms && total_ms > 0 &&
+		    (!progress ||
+		    current_dirty <= cache->eviction_dirty_trigger)) {
+			stepdown_us = (uint64_t)(WT_THOUSAND * (
+			    (double)(conn->cache_size / 100) /
+			    (double)(bytes_written_total / total_ms)));
+			if (!progress)
+				stepdown_us = WT_MIN(stepdown_us, 200000);
 		}
+
+		bytes_written_last = bytes_written_total;
 
 		if (current_dirty <= cache->eviction_dirty_trigger) {
 			progress = true;
