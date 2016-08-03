@@ -321,7 +321,7 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 	WT_RET(__wt_epoch(session, &start));
 	last = start;
 	bytes_written_start = cache->bytes_written;
-	stepdown_us = 1000;
+	expected_us = stepdown_us = 1000;
 
 	/* Step down the dirty target to the eviction trigger */
 	for (;;) {
@@ -368,12 +368,13 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 		 *
 		 * Add one to denominators to avoid dividing by zero.
 		 */
-		total_ms = WT_TIMEDIFF_MS(stop, start) + 1;
 		bytes_written_total =
-		    cache->bytes_written - bytes_written_start + 1;
-		expected_us = (uint64_t)(WT_THOUSAND * (
-		    (double)(conn->cache_size / 100) /
-		    (double)(bytes_written_total / total_ms)));
+		    cache->bytes_written - bytes_written_start;
+		total_ms = WT_TIMEDIFF_MS(stop, start);
+		if (bytes_written_total > 0 && total_ms > 0)
+			expected_us = (uint64_t)(WT_THOUSAND * (
+			    (double)(conn->cache_size / 100) /
+			    (double)(bytes_written_total / total_ms)));
 		if (current_us > WT_MAX(WT_MILLION, 2 * expected_us))
 			break;
 	}
