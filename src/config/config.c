@@ -512,14 +512,12 @@ static int
 __config_process_value(WT_CONFIG *conf, WT_CONFIG_ITEM *value,
     char **punescaped)
 {
-	char ch, *dst, *endptr, *unescaped;
-	const char *s;
+	char *endptr;
 
 	/* Empty values are okay: we can't do anything interesting with them. */
 	if (value->len == 0)
 		return (0);
 
-	unescaped = NULL;
 	if (value->type == WT_CONFIG_ITEM_ID) {
 		if (WT_STRING_MATCH("false", value->str, value->len)) {
 			value->type = WT_CONFIG_ITEM_BOOL;
@@ -580,48 +578,9 @@ __config_process_value(WT_CONFIG *conf, WT_CONFIG_ITEM *value,
 	} else if (punescaped != NULL &&
 	    value->type == WT_CONFIG_ITEM_STRING &&
 	    __config_strnchr(value->str, '\\', value->len) != NULL) {
-		__wt_realloc(conf->session, NULL, value->len, punescaped);
-		dst = unescaped = *punescaped;
-		s = value->str;
-		while (s < value->str + value->len) {
-			if ((ch = *s++) == '\\') {
-				ch = *s++;
-				switch (ch) {
-				case 'b':
-					*dst++ = '\b';
-					break;
-				case 'f':
-					*dst++ = '\f';
-					break;
-				case 'n':
-					*dst++ = '\n';
-					break;
-				case 'r':
-					*dst++ = '\r';
-					break;
-				case 't':
-					*dst++ = '\t';
-					break;
-				case '\\':
-				case '/':
-				case '\"':	/* Backslash for spell check. */
-					*dst++ = ch;
-					break;
-				default:
-					/*
-					 * Note: Unicode escapes (\u) are
-					 * not implemented.
-					 */
-					WT_RET_MSG(conf->session, EINVAL,
-					    "invalid escape in string: %.*s",
-					    (int)value->len, value->str);
-				}
-			} else
-				*dst++ = ch;
-		}
-		*dst = '\0';
-		value->str = unescaped;
-		value->len = strlen(unescaped);
+		WT_RET(__wt_config_unescape(conf->session, value, punescaped));
+		value->str = *punescaped;
+		value->len = strlen(*punescaped);
 	}
 
 	return (0);
@@ -882,4 +841,59 @@ __wt_config_subgets_unescape(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cfg,
 
 	return (__wt_config_subgetraw(session, cfg, &key_item, value,
 	    punescaped));
+}
+
+/*
+ * __wt_config_unescape --
+ *	Remove backslash escapes within a string, returning the
+ *	result in reallocated memory.
+ */
+int
+__wt_config_unescape(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *value,
+    void *retp)
+{
+	char ch, *dst;
+	const char *s;
+
+	WT_RET(__wt_realloc(session, NULL, value->len + 1, retp));
+	s = value->str;
+	dst = *(char **)retp;
+	while (s < value->str + value->len) {
+		if ((ch = *s++) == '\\') {
+			ch = *s++;
+			switch (ch) {
+			case 'b':
+				*dst++ = '\b';
+				break;
+			case 'f':
+				*dst++ = '\f';
+				break;
+			case 'n':
+				*dst++ = '\n';
+				break;
+			case 'r':
+				*dst++ = '\r';
+				break;
+			case 't':
+				*dst++ = '\t';
+				break;
+			case '\\':
+			case '/':
+			case '\"':	/* Backslash for spell check. */
+				*dst++ = ch;
+				break;
+			default:
+				/*
+				 * Note: Unicode escapes (\u) are
+				 * not implemented.
+				 */
+				WT_RET_MSG(session, EINVAL,
+				    "invalid escape in string: %.*s",
+				    (int)value->len, value->str);
+			}
+		} else
+			*dst++ = ch;
+	}
+	*dst = '\0';
+	return (0);
 }
