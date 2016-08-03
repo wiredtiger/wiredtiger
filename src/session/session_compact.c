@@ -348,10 +348,16 @@ int
 __wt_session_compact_readonly(
     WT_SESSION *wt_session, const char *uri, const char *config)
 {
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
 	WT_UNUSED(uri);
 	WT_UNUSED(config);
 
-	WT_STAT_FAST_CONN_INCR((WT_SESSION_IMPL *)wt_session,
-	    session_table_compact_fail);
-	return (__wt_session_notsup(wt_session));
+	session = (WT_SESSION_IMPL *)wt_session;
+	SESSION_API_CALL_NOCONF(session, compact);
+
+	WT_STAT_FAST_CONN_INCR(session, session_table_compact_fail);
+	ret = __wt_session_notsup(wt_session);
+err:	API_END_RET(session, ret);
 }
