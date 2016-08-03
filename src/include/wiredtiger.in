@@ -4522,37 +4522,37 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_SESSION_CURSOR_OPEN		1165
 /*! session: open session count */
 #define	WT_STAT_CONN_SESSION_OPEN			1166
-/*! session: table compact failed attempts */
+/*! session: table compact failed calls */
 #define	WT_STAT_CONN_SESSION_TABLE_COMPACT_FAIL		1167
-/*! session: table compact successful attempts */
+/*! session: table compact successful calls */
 #define	WT_STAT_CONN_SESSION_TABLE_COMPACT_SUCCESS	1168
-/*! session: table create failed attempts */
+/*! session: table create failed calls */
 #define	WT_STAT_CONN_SESSION_TABLE_CREATE_FAIL		1169
-/*! session: table create successful attempts */
+/*! session: table create successful calls */
 #define	WT_STAT_CONN_SESSION_TABLE_CREATE_SUCCESS	1170
-/*! session: table drop failed attempts */
+/*! session: table drop failed calls */
 #define	WT_STAT_CONN_SESSION_TABLE_DROP_FAIL		1171
-/*! session: table drop successful attempts */
+/*! session: table drop successful calls */
 #define	WT_STAT_CONN_SESSION_TABLE_DROP_SUCCESS		1172
-/*! session: table rebalance failed attempts */
+/*! session: table rebalance failed calls */
 #define	WT_STAT_CONN_SESSION_TABLE_REBALANCE_FAIL	1173
-/*! session: table rebalance successful attempts */
+/*! session: table rebalance successful calls */
 #define	WT_STAT_CONN_SESSION_TABLE_REBALANCE_SUCCESS	1174
-/*! session: table rename failed attempts */
+/*! session: table rename failed calls */
 #define	WT_STAT_CONN_SESSION_TABLE_RENAME_FAIL		1175
-/*! session: table rename successful attempts */
+/*! session: table rename successful calls */
 #define	WT_STAT_CONN_SESSION_TABLE_RENAME_SUCCESS	1176
-/*! session: table salvage failed attempts */
+/*! session: table salvage failed calls */
 #define	WT_STAT_CONN_SESSION_TABLE_SALVAGE_FAIL		1177
-/*! session: table salvage successful attempts */
+/*! session: table salvage successful calls */
 #define	WT_STAT_CONN_SESSION_TABLE_SALVAGE_SUCCESS	1178
-/*! session: table truncate failed attempts */
+/*! session: table truncate failed calls */
 #define	WT_STAT_CONN_SESSION_TABLE_TRUNCATE_FAIL	1179
-/*! session: table truncate successful attempts */
+/*! session: table truncate successful calls */
 #define	WT_STAT_CONN_SESSION_TABLE_TRUNCATE_SUCCESS	1180
-/*! session: table verify failed attempts */
+/*! session: table verify failed calls */
 #define	WT_STAT_CONN_SESSION_TABLE_VERIFY_FAIL		1181
-/*! session: table verify successful attempts */
+/*! session: table verify successful calls */
 #define	WT_STAT_CONN_SESSION_TABLE_VERIFY_SUCCESS	1182
 /*! thread-state: active filesystem fsync calls */
 #define	WT_STAT_CONN_THREAD_FSYNC_ACTIVE		1183
