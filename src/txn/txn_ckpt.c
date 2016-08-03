@@ -325,8 +325,8 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 
 	/* Step down the dirty target to the eviction trigger */
 	for (;;) {
-		current_dirty = (u_int)(100 *
-		    __wt_cache_dirty_leaf_inuse(cache)) / conn->cache_size;
+		current_dirty = (u_int)((100 *
+		    __wt_cache_dirty_leaf_inuse(cache)) / conn->cache_size);
 		if (current_dirty <= cache->eviction_dirty_target)
 			break;
 
@@ -379,7 +379,7 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 	}
 
 	WT_RET(__wt_epoch(session, &stop));
-	total_ms = WT_TIMEDIFF_MS(stop, last);
+	total_ms = WT_TIMEDIFF_MS(stop, start);
 	WT_STAT_FAST_CONN_SET(session, txn_checkpoint_scrub_time, total_ms);
 
 	return (0);
