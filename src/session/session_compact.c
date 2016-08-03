@@ -358,6 +358,6 @@ __wt_session_compact_readonly(
 	SESSION_API_CALL_NOCONF(session, compact);
 
 	WT_STAT_FAST_CONN_INCR(session, session_table_compact_fail);
-	ret = __wt_session_notsup(wt_session);
+	ret = __wt_session_notsup(session);
 err:	API_END_RET(session, ret);
 }
