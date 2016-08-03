@@ -291,7 +291,7 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 {
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
-	struct timespec start, stop;
+	struct timespec start, last, stop;
 	u_int current_dirty;
 	uint64_t current_usecs, stepdown_usecs;
 
@@ -299,6 +299,7 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 	cache = conn->cache;
 
 	WT_RET(__wt_epoch(session, &start));
+	last = start;
 	stepdown_usecs = 1000;
 
 	/* Step down the dirty target to the eviction trigger */
@@ -312,7 +313,7 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 			/* How long did the last step down take? */
 			WT_RET(__wt_epoch(session, &stop));
 			stepdown_usecs =
-			    WT_MAX(1000, WT_TIMEDIFF_US(stop, start));
+			    WT_MAX(1000, WT_TIMEDIFF_US(stop, last));
 
 			/*
 			 * Smooth out step down: try to limit the impact on
@@ -321,10 +322,12 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 			 */
 			__wt_sleep(0, 10 * stepdown_usecs);
 			cache->eviction_dirty_trigger = current_dirty - 1;
-			WT_RET(__wt_epoch(session, &start));
+			WT_STAT_FAST_CONN_SET(session,
+			    txn_checkpoint_scrub_target, current_dirty - 1);
+			WT_RET(__wt_epoch(session, &last));
 		} else {
 			WT_RET(__wt_epoch(session, &stop));
-			current_usecs = WT_TIMEDIFF_US(stop, start);
+			current_usecs = WT_TIMEDIFF_US(stop, last);
 			/*
 			 * Don't wait indefinitely: there might be dirty
 			 * internal pages taking up more than the eviction
@@ -338,6 +341,11 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 
 		__wt_sleep(0, stepdown_usecs / 4);
 	}
+
+	WT_RET(__wt_epoch(session, &stop));
+	stepdown_usecs = WT_TIMEDIFF_US(stop, last);
+	WT_STAT_FAST_CONN_SET(session, txn_checkpoint_scrub_time,
+	    stepdown_usecs / WT_THOUSAND);
 
 	return (0);
 }
@@ -607,6 +615,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * after this point are too new to be written in the checkpoint.
 	 */
 	cache->eviction_dirty_trigger = orig_trigger;
+	WT_STAT_FAST_CONN_SET(
+	    session, txn_checkpoint_scrub_target, orig_trigger);
 
 	/*
 	 * Mark old checkpoints that are being deleted and figure out which
@@ -725,6 +735,8 @@ err:	/*
 		WT_TRET(__wt_meta_track_off(session, false, ret != 0));
 
 	cache->eviction_dirty_trigger = orig_trigger;
+	WT_STAT_FAST_CONN_SET(
+	    session, txn_checkpoint_scrub_target, orig_trigger);
 
 	if (F_ISSET(txn, WT_TXN_RUNNING)) {
 		/*

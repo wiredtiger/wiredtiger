@@ -4556,31 +4556,35 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_MIN		1182
 /*! transaction: transaction checkpoint most recent time (msecs) */
 #define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_RECENT		1183
+/*! transaction: transaction checkpoint scrub dirty target */
+#define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TARGET	1184
+/*! transaction: transaction checkpoint scrub time (msecs) */
+#define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TIME		1185
 /*! transaction: transaction checkpoint total time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_TOTAL		1184
+#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_TOTAL		1186
 /*! transaction: transaction checkpoints */
-#define	WT_STAT_CONN_TXN_CHECKPOINT			1185
+#define	WT_STAT_CONN_TXN_CHECKPOINT			1187
 /*! transaction: transaction failures due to cache overflow */
-#define	WT_STAT_CONN_TXN_FAIL_CACHE			1186
+#define	WT_STAT_CONN_TXN_FAIL_CACHE			1188
 /*! transaction: transaction fsync calls for checkpoint after allocating
  * the transaction ID */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_FSYNC_POST		1187
+#define	WT_STAT_CONN_TXN_CHECKPOINT_FSYNC_POST		1189
 /*! transaction: transaction fsync duration for checkpoint after
  * allocating the transaction ID (usecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_FSYNC_POST_DURATION	1188
+#define	WT_STAT_CONN_TXN_CHECKPOINT_FSYNC_POST_DURATION	1190
 /*! transaction: transaction range of IDs currently pinned */
-#define	WT_STAT_CONN_TXN_PINNED_RANGE			1189
+#define	WT_STAT_CONN_TXN_PINNED_RANGE			1191
 /*! transaction: transaction range of IDs currently pinned by a checkpoint */
-#define	WT_STAT_CONN_TXN_PINNED_CHECKPOINT_RANGE	1190
+#define	WT_STAT_CONN_TXN_PINNED_CHECKPOINT_RANGE	1192
 /*! transaction: transaction range of IDs currently pinned by named
  * snapshots */
-#define	WT_STAT_CONN_TXN_PINNED_SNAPSHOT_RANGE		1191
+#define	WT_STAT_CONN_TXN_PINNED_SNAPSHOT_RANGE		1193
 /*! transaction: transaction sync calls */
-#define	WT_STAT_CONN_TXN_SYNC				1192
+#define	WT_STAT_CONN_TXN_SYNC				1194
 /*! transaction: transactions committed */
-#define	WT_STAT_CONN_TXN_COMMIT				1193
+#define	WT_STAT_CONN_TXN_COMMIT				1195
 /*! transaction: transactions rolled back */
-#define	WT_STAT_CONN_TXN_ROLLBACK			1194
+#define	WT_STAT_CONN_TXN_ROLLBACK			1196
 
 /*!
  * @}
