@@ -313,7 +313,8 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 	struct timespec start, last, stop;
 	u_int current_dirty;
 	uint64_t bytes_written_start, bytes_written_total;
-	uint64_t current_us, expected_us, stepdown_us, total_ms;
+	uint64_t current_us, stepdown_us, total_ms;
+	bool progress;
 
 	conn = S2C(session);
 	cache = conn->cache;
@@ -321,7 +322,8 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 	WT_RET(__wt_epoch(session, &start));
 	last = start;
 	bytes_written_start = cache->bytes_written;
-	expected_us = stepdown_us = 1000;
+	stepdown_us = 10000;
+	progress = false;
 
 	/* Step down the dirty target to the eviction trigger */
 	for (;;) {
@@ -334,9 +336,32 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 		WT_RET(__wt_epoch(session, &stop));
 		current_us = WT_TIMEDIFF_US(stop, last);
 
+		if (!progress ||
+		    current_dirty <= cache->eviction_dirty_trigger) {
+			/*
+			 * Estimate how long the next step down of 1% of dirty
+			 * data should take.
+			 *
+			 * The calculation here assumes that the system is
+			 * writing from cache as fast as it can, and determines
+			 * the write throughput based on the change in the
+			 * bytes written from cache since the start of the
+			 * call.  We use that to estimate how long it will take
+			 * to step the dirty target down by 1%.
+			 *
+			 * Take care to avoid dividing by zero.
+			 */
+			bytes_written_total =
+			    cache->bytes_written - bytes_written_start;
+			total_ms = WT_TIMEDIFF_MS(stop, start);
+			if (total_ms > 0 && bytes_written_total > total_ms)
+				stepdown_us = (uint64_t)(WT_THOUSAND * (
+				    (double)(conn->cache_size / 100) /
+				    (double)(bytes_written_total / total_ms)));
+		}
+
 		if (current_dirty <= cache->eviction_dirty_trigger) {
-			/* How long did the last step down take? */
-			stepdown_us = WT_MAX(1000, current_us);
+			progress = true;
 
 			/*
 			 * Smooth out step down: try to limit the impact on
@@ -357,25 +382,8 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 		 * Don't wait indefinitely: there might be dirty pages that
 		 * can't be evicted.  If we can't meet the target, give up
 		 * and start the checkpoint for real.
-		 *
-		 * The calculation here assumes that the system is writing from
-		 * cache as fast as it can, and determines the write throughput
-		 * based on the change in the bytes written from cache since
-		 * the start of the call.  We use that to estimate how long it
-		 * will take to step the dirty target down by 1%.  If we have
-		 * been waiting longer than double that time, *and* more than 1
-		 * second, give up.
-		 *
-		 * Add one to denominators to avoid dividing by zero.
 		 */
-		bytes_written_total =
-		    cache->bytes_written - bytes_written_start;
-		total_ms = WT_TIMEDIFF_MS(stop, start);
-		if (bytes_written_total > 0 && total_ms > 0)
-			expected_us = (uint64_t)(WT_THOUSAND * (
-			    (double)(conn->cache_size / 100) /
-			    (double)(bytes_written_total / total_ms)));
-		if (current_us > WT_MAX(WT_MILLION, 2 * expected_us))
+		if (current_us > 10 * stepdown_us)
 			break;
 	}
 
