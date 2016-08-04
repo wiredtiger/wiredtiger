@@ -41,7 +41,8 @@ class test_reconfig03(wttest.WiredTigerTestCase):
         self.conn_config = self.init_config
         return wttest.WiredTigerTestCase.setUpConnectionOpen(self, dir)
 
-    # Logging: reconfigure the things we can reconfigure.
+    # Reconfigure similar to MongoDB tests.  Sleep so that checkpoint
+    # can run after we've made modifications.
     def test_reconfig03_mdb(self):
         entries = 10000
         simple_populate(self, self.uri, 'key_format=S', entries)
