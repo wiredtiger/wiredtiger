@@ -34,12 +34,8 @@ from helper import simple_populate
 #    Test the connection reconfiguration operations used in the MongoDB
 #    test reconfigwt.js.
 class test_reconfig03(wttest.WiredTigerTestCase):
-    init_config = 'log=(archive=false,enabled,file_max=100K,prealloc=false,zero_fill=false),checkpoint=(wait=1),cache_size=1G'
+    conn_config = 'log=(archive=false,enabled,file_max=100K,prealloc=false,zero_fill=false),checkpoint=(wait=1),cache_size=1G'
     uri = "table:reconfig03"
-
-    def setUpConnectionOpen(self, dir):
-        self.conn_config = self.init_config
-        return wttest.WiredTigerTestCase.setUpConnectionOpen(self, dir)
 
     # Reconfigure similar to MongoDB tests.  Sleep so that checkpoint
     # can run after we've made modifications.
@@ -48,13 +44,13 @@ class test_reconfig03(wttest.WiredTigerTestCase):
         simple_populate(self, self.uri, 'key_format=S', entries)
         time.sleep(1)
         self.conn.reconfigure("eviction_target=81")
-        simple_populate(self, self.uri, 'key_format=S', entries)
+        simple_populate(self, self.uri, 'key_format=S', entries * 2)
         time.sleep(1)
         self.conn.reconfigure("cache_size=81M")
-        simple_populate(self, self.uri, 'key_format=S', entries)
+        simple_populate(self, self.uri, 'key_format=S', entries * 3)
         time.sleep(1)
         self.conn.reconfigure("eviction_dirty_target=82")
-        simple_populate(self, self.uri, 'key_format=S', entries)
+        simple_populate(self, self.uri, 'key_format=S', entries * 4)
         time.sleep(1)
         self.conn.reconfigure("shared_cache=(chunk=11MB, name=bar, reserve=12MB, size=1G)")
 
