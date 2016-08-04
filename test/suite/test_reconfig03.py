@@ -46,16 +46,16 @@ class test_reconfig03(wttest.WiredTigerTestCase):
     def test_reconfig03_mdb(self):
         entries = 10000
         simple_populate(self, self.uri, 'key_format=S', entries)
-        time.sleep(1);
+        time.sleep(1)
         self.conn.reconfigure("eviction_target=81")
         simple_populate(self, self.uri, 'key_format=S', entries)
-        time.sleep(1);
+        time.sleep(1)
         self.conn.reconfigure("cache_size=81M")
         simple_populate(self, self.uri, 'key_format=S', entries)
-        time.sleep(1);
+        time.sleep(1)
         self.conn.reconfigure("eviction_dirty_target=82")
         simple_populate(self, self.uri, 'key_format=S', entries)
-        time.sleep(1);
+        time.sleep(1)
         self.conn.reconfigure("shared_cache=(chunk=11MB, name=bar, reserve=12MB, size=1G)")
 
 if __name__ == '__main__':
