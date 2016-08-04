@@ -61,16 +61,12 @@ main(int argc, char *argv[])
 		const char *desc;
 		const char *config;
 	} *cp, configs[] = {
-#if 0
 		{ "file:wt",	NULL, NULL },
 		{ "table:wt",	NULL, NULL },
-#endif
 /* Configure for a modest cache size. */
 #define	LSM_CONFIG	"lsm=(chunk_size=1m,merge_max=2),leaf_page_max=4k"
 		{ "lsm:wt",	NULL, LSM_CONFIG },
-#if 0
 		{ "table:wt",	" [lsm]", "type=lsm," LSM_CONFIG },
-#endif
 		{ NULL,		NULL, NULL }
 	};
 	u_int nthreads;
