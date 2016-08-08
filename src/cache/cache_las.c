@@ -303,7 +303,10 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	remove_cnt = 0;
 	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
 
-	/* Don't sweep the LAS cache if we know that we cannot make progress. */
+	/*
+	 * Don't sweep the LAS table if the cache is stuck full. The sweep
+	 * uses the cache and can exacerbate the problem.
+	 */
 	if (F_ISSET(cache, WT_CACHE_STUCK))
 		return (0);
 
