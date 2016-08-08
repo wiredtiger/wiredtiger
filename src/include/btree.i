@@ -283,11 +283,11 @@ __wt_cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
 static inline void
 __wt_cache_dirty_incr(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
-        WT_BTREE *btree;
+	WT_BTREE *btree;
 	WT_CACHE *cache;
 	size_t size;
 
-        btree = S2BT(session);
+	btree = S2BT(session);
 	cache = S2C(session)->cache;
 
 	/*
@@ -295,14 +295,14 @@ __wt_cache_dirty_incr(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 * with updates.
 	 */
 	size = page->memory_footprint;
-        if (WT_PAGE_IS_INTERNAL(page)) {
-                (void)__wt_atomic_add64(&cache->bytes_dirty_intl, size);
-                (void)__wt_atomic_add64(&cache->pages_dirty_intl, 1);
-        } else {
-                (void)__wt_atomic_add64(&btree->bytes_dirty_leaf, size);
-                (void)__wt_atomic_add64(&cache->bytes_dirty_leaf, size);
-                (void)__wt_atomic_add64(&cache->pages_dirty_leaf, 1);
-        }
+	if (WT_PAGE_IS_INTERNAL(page)) {
+		(void)__wt_atomic_add64(&cache->bytes_dirty_intl, size);
+		(void)__wt_atomic_add64(&cache->pages_dirty_intl, 1);
+	} else {
+		(void)__wt_atomic_add64(&btree->bytes_dirty_leaf, size);
+		(void)__wt_atomic_add64(&cache->bytes_dirty_leaf, size);
+		(void)__wt_atomic_add64(&cache->pages_dirty_leaf, 1);
+	}
 	(void)__wt_atomic_addsize(&page->modify->bytes_dirty, size);
 }
 
