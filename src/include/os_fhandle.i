@@ -142,9 +142,6 @@ __wt_ftruncate(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset)
 	 * have to do is find a function to call.
 	 */
 	handle = fh->handle;
-	if (handle->fh_truncate_nolock != NULL)
-		return (handle->fh_truncate_nolock(
-		    handle, (WT_SESSION *)session, offset));
 	if (handle->fh_truncate != NULL)
 		return (handle->fh_truncate(
 		    handle, (WT_SESSION *)session, offset));

@@ -364,7 +364,6 @@ demo_fs_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
 	file_handle->fh_sync = demo_file_sync;
 	file_handle->fh_sync_nowait = NULL;
 	file_handle->fh_truncate = demo_file_truncate;
-	file_handle->fh_truncate_nolock = NULL;
 	file_handle->fh_write = demo_file_write;
 
 	TAILQ_INSERT_HEAD(&demo_fs->fileq, demo_fh, q);
