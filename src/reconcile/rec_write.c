@@ -115,6 +115,7 @@ typedef struct {
 	 */
 	uint32_t page_size;		/* Set page size */
 	uint32_t page_size_orig;	/* Saved set page size */
+	uint32_t max_raw_page_size;	/* Max page size with raw compression */
 
 	/*
 	 * Second, the split size: if we're doing the page layout, split to a
@@ -1150,8 +1151,20 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 */
 	if (!skipped &&
 	    (F_ISSET(btree, WT_BTREE_LOOKASIDE) ||
-	    __wt_txn_visible_all(session, max_txn)))
+	    __wt_txn_visible_all(session, max_txn))) {
+#ifdef HAVE_DIAGNOSTIC
+		/*
+		 * The checkpoint transaction is special.  Make sure we never
+		 * write (metadata) updates from a checkpoint in a concurrent
+		 * session.
+		 */
+		txnid = *updp == NULL ? WT_TXN_NONE : (*updp)->txnid;
+		WT_ASSERT(session, txnid == WT_TXN_NONE ||
+		    txnid != S2C(session)->txn_global.checkpoint_txnid ||
+		    WT_SESSION_IS_CHECKPOINT(session));
+#endif
 		return (0);
+	}
 
 	/*
 	 * In some cases, there had better not be skipped updates or updates not
@@ -1969,10 +1982,15 @@ __rec_split_init(WT_SESSION_IMPL *session,
 	 * Ideally accumulate data several times the page size without
 	 * approaching the memory page maximum, but at least have data worth
 	 * one page.
+	 *
+	 * There are cases when we grow the page size to accommodate large
+	 * records, in those cases we split the pages once they have crossed
+	 * the maximum size for a page with raw compression.
 	 */
 	r->page_size = r->page_size_orig = max;
 	if (r->raw_compression)
-		r->page_size = (uint32_t)WT_MIN(r->page_size * 10,
+		r->max_raw_page_size = r->page_size =
+		    (uint32_t)WT_MIN(r->page_size * 10,
 		    WT_MAX(r->page_size, btree->maxmempage / 2));
 
 	/*
@@ -2602,11 +2620,9 @@ __rec_split_raw_worker(WT_SESSION_IMPL *session,
 
 		/*
 		 * Don't create an image so large that any future update will
-		 * cause a split in memory.  Use half of the maximum size so
-		 * we split very compressible pages that have reached the
-		 * maximum size in memory into two equal blocks.
+		 * cause a split in memory.
 		 */
-		if (len > (size_t)btree->maxmempage / 2)
+		if (max_image_slot == 0 && len > (size_t)r->max_raw_page_size)
 			max_image_slot = slots;
 	}
 
@@ -2668,7 +2684,7 @@ __rec_split_raw_worker(WT_SESSION_IMPL *session,
 	    r->page_size_orig, btree->split_pct,
 	    WT_BLOCK_COMPRESS_SKIP + extra_skip,
 	    (uint8_t *)dsk + WT_BLOCK_COMPRESS_SKIP, r->raw_offsets,
-	    no_more_rows || max_image_slot == 0 ? slots : max_image_slot,
+	    max_image_slot == 0 ? slots : max_image_slot,
 	    (uint8_t *)dst->mem + WT_BLOCK_COMPRESS_SKIP,
 	    result_len,
 	    no_more_rows || max_image_slot != 0,
@@ -5811,12 +5827,19 @@ __rec_split_row(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		WT_RET(__wt_row_ikey_alloc(session, 0,
 		    bnd->key.data, bnd->key.size, &multi->key.ikey));
 
-		/* Copy any disk image. */
-		multi->supd = bnd->supd;
-		multi->supd_entries = bnd->supd_next;
-		bnd->supd = NULL;
+		/*
+		 * Copy any disk image.  Don't take saved updates without a
+		 * disk image (which happens if they have been saved to the
+		 * lookaside table): they should be discarded along with the
+		 * original page.
+		 */
 		multi->disk_image = bnd->disk_image;
 		bnd->disk_image = NULL;
+		if (multi->disk_image != NULL) {
+			multi->supd = bnd->supd;
+			multi->supd_entries = bnd->supd_next;
+			bnd->supd = NULL;
+		}
 
 		/* Copy any address. */
 		multi->addr = bnd->addr;
@@ -5851,12 +5874,19 @@ __rec_split_col(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 	    bnd = r->bnd, i = 0; i < r->bnd_next; ++multi, ++bnd, ++i) {
 		multi->key.recno = bnd->recno;
 
-		/* Copy any disk image. */
-		multi->supd = bnd->supd;
-		multi->supd_entries = bnd->supd_next;
-		bnd->supd = NULL;
+		/*
+		 * Copy any disk image.  Don't take saved updates without a
+		 * disk image (which happens if they have been saved to the
+		 * lookaside table): they should be discarded along with the
+		 * original page.
+		 */
 		multi->disk_image = bnd->disk_image;
 		bnd->disk_image = NULL;
+		if (multi->disk_image != NULL) {
+			multi->supd = bnd->supd;
+			multi->supd_entries = bnd->supd_next;
+			bnd->supd = NULL;
+		}
 
 		/* Copy any address. */
 		multi->addr = bnd->addr;
