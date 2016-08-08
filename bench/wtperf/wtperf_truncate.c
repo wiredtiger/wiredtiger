@@ -128,6 +128,7 @@ run_truncate(CONFIG *cfg, CONFIG_THREAD *thread,
 
 	TRUNCATE_CONFIG *trunc_cfg;
 	TRUNCATE_QUEUE_ENTRY *truncate_item;
+	char *next_key;
 	int ret, t_ret;
 	uint64_t used_stone_gap;
 
@@ -185,7 +186,21 @@ run_truncate(CONFIG *cfg, CONFIG_THREAD *thread,
 	trunc_cfg->num_stones--;
 	TAILQ_REMOVE(&cfg->stone_head, truncate_item, q);
 
-	if (!cfg->truncate_single_ops) {
+	/*
+	 * Truncate the content via a single truncate call or a cursor walk
+	 * depending on the configuration.
+	 */
+	if (cfg->truncate_single_ops) {
+		while ((ret = cursor->next(cursor)) == 0) {
+			cursor->get_key(cursor, &next_key);
+			if (strcmp(next_key, truncate_item->key) == 0)
+				break;
+			if ((ret = cursor->remove(cursor)) != 0) {
+				lprintf(cfg, ret, 0, "Truncate remove: failed");
+				goto err;
+			}
+		}
+	} else {
 		cursor->set_key(cursor,truncate_item->key);
 		if ((ret = cursor->search(cursor)) != 0) {
 			lprintf(cfg, ret, 0, "Truncate search: failed");
@@ -196,17 +211,6 @@ run_truncate(CONFIG *cfg, CONFIG_THREAD *thread,
 		    session, NULL, NULL, cursor, NULL)) != 0) {
 			lprintf(cfg, ret, 0, "Truncate: failed");
 			goto err;
-		}
-	} else {
-		while ((ret = cursor->next(cursor)) == 0) {
-			char *next_key;
-			cursor->get_key(cursor, &next_key);
-			if (strcmp(next_key, truncate_item->key) == 0)
-				break;
-			if ((ret = cursor->remove(cursor)) != 0) {
-				lprintf(cfg, ret, 0, "Truncate remove: failed");
-				goto err;
-			}
 		}
 	}
 
