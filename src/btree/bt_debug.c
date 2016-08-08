@@ -122,8 +122,7 @@ __dmsg_event(WT_DBG *ds, const char *fmt, ...)
 		 * pretty unlikely and this is debugging output, I'm not
 		 * going to worry about it.
 		 */
-		WT_RET(__wt_buf_grow(
-		    session, msg, msg->memsize + len + 128));
+		WT_RET(__wt_buf_grow(session, msg, msg->memsize + len + 128));
 	}
 	if (((uint8_t *)msg->mem)[msg->size - 1] == '\n') {
 		((uint8_t *)msg->mem)[msg->size - 1] = '\0';
