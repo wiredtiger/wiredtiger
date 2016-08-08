@@ -324,7 +324,7 @@ __wt_err(WT_SESSION_IMPL *session, int error, const char *fmt, ...)
 	 * an error value to return.
 	 */
 	va_start(ap, fmt);
-	(void)__wt_eventv(session, false, error, NULL, 0, fmt, ap);
+	WT_IGNORE_RET(__wt_eventv(session, false, error, NULL, 0, fmt, ap));
 	va_end(ap);
 }
 
@@ -344,7 +344,7 @@ __wt_errx(WT_SESSION_IMPL *session, const char *fmt, ...)
 	 * an error value to return.
 	 */
 	va_start(ap, fmt);
-	(void)__wt_eventv(session, false, 0, NULL, 0, fmt, ap);
+	WT_IGNORE_RET(__wt_eventv(session, false, 0, NULL, 0, fmt, ap));
 	va_end(ap);
 }
 
@@ -486,8 +486,8 @@ __wt_assert(WT_SESSION_IMPL *session,
 	va_list ap;
 
 	va_start(ap, fmt);
-	(void)__wt_eventv(
-	    session, false, error, file_name, line_number, fmt, ap);
+	WT_IGNORE_RET(__wt_eventv(
+	    session, false, error, file_name, line_number, fmt, ap));
 	va_end(ap);
 
 #ifdef HAVE_DIAGNOSTIC
