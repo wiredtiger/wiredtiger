@@ -79,7 +79,10 @@ list_get_allocsize(WT_SESSION *session, const char *key, size_t *allocsize)
 		return (util_err(
 		    session, ret, "WT_EXTENSION_API.config_parser_open"));
 	if ((ret = parser->get(parser, "allocation_size", &szvalue)) != 0) {
-		if (ret != WT_NOTFOUND)
+		if (ret == WT_NOTFOUND) {
+			*allocsize = 0;
+			ret = 0;
+		} else
 			ret = util_err(session, ret, "WT_CONFIG_PARSER.get");
 		if ((tret = parser->close(parser)) != 0)
 			(void)util_err(session, tret, "WT_CONFIG_PARSER.close");
@@ -188,12 +191,8 @@ list_print_checkpoint(WT_SESSION *session, const char *key)
 		return (ret == WT_NOTFOUND ? 0 : ret);
 
 	/* We need the allocation size for decoding the checkpoint addr */
-	if ((ret = list_get_allocsize(session, key, &allocsize)) != 0) {
-		if (ret == WT_NOTFOUND)
-			allocsize = 0;
-		else
-			return (ret);
-	}
+	if ((ret = list_get_allocsize(session, key, &allocsize)) != 0)
+		return (ret);
 
 	/* Find the longest name, so we can pretty-print. */
 	len = 0;
