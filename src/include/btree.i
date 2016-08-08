@@ -98,6 +98,13 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
 	/* Track internal size in cache. */
 	if (WT_PAGE_IS_INTERNAL(page))
 		(void)__wt_atomic_add64(&cache->bytes_internal, size);
+
+	/*
+	 * Ensure the page hasn't grown unreasonably greater than the
+	 * configured maximum.
+	 */
+	WT_ASSERT(session,
+	    page->memory_footprint < 2 * S2BT(session)->maxmempage);
 }
 
 /*
