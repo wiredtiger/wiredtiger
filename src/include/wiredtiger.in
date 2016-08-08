@@ -35,8 +35,14 @@ extern "C" {
 
 #if defined(DOXYGEN) || defined(SWIG)
 #define	__F(func) func
+#define	__F_UNUSED_RESULT
 #else
 #define	__F(func) (*func)
+#if defined(lint)
+#define	__F_UNUSED_RESULT
+#else
+#define	__F_UNUSED_RESULT		@GCC_DIAGNOSTIC_UNUSED_RESULT@
+#endif
 #endif
 
 #ifdef SWIG
@@ -201,7 +207,7 @@ struct __wt_cursor {
 	 * WT_CURSOR::key_format.
 	 * @errors
 	 */
-	int __F(get_key)(WT_CURSOR *cursor, ...);
+	int __F(get_key)(WT_CURSOR *cursor, ...) __F_UNUSED_RESULT;
 
 	/*!
 	 * Get the value for the current record.
@@ -215,7 +221,7 @@ struct __wt_cursor {
 	 * WT_CURSOR::value_format.
 	 * @errors
 	 */
-	int __F(get_value)(WT_CURSOR *cursor, ...);
+	int __F(get_value)(WT_CURSOR *cursor, ...) __F_UNUSED_RESULT;
 
 	/*!
 	 * Set the key for the next operation.
@@ -270,7 +276,8 @@ struct __wt_cursor {
 	 * <code>other</code>.
 	 * @errors
 	 */
-	int __F(compare)(WT_CURSOR *cursor, WT_CURSOR *other, int *comparep);
+	int __F(compare)(WT_CURSOR *cursor,
+	    WT_CURSOR *other, int *comparep) __F_UNUSED_RESULT;
 
 	/*!
 	 * Return the ordering relationship between two cursors, testing only
@@ -285,7 +292,8 @@ struct __wt_cursor {
 	 * refer to the same key, otherwise 0.
 	 * @errors
 	 */
-	int __F(equals)(WT_CURSOR *cursor, WT_CURSOR *other, int *equalp);
+	int __F(equals)(WT_CURSOR *cursor,
+	    WT_CURSOR *other, int *equalp) __F_UNUSED_RESULT;
 
 	/*!
 	 * Return the next record.
@@ -295,7 +303,7 @@ struct __wt_cursor {
 	 * @param cursor the cursor handle
 	 * @errors
 	 */
-	int __F(next)(WT_CURSOR *cursor);
+	int __F(next)(WT_CURSOR *cursor) __F_UNUSED_RESULT;
 
 	/*!
 	 * Return the previous record.
@@ -305,7 +313,7 @@ struct __wt_cursor {
 	 * @param cursor the cursor handle
 	 * @errors
 	 */
-	int __F(prev)(WT_CURSOR *cursor);
+	int __F(prev)(WT_CURSOR *cursor) __F_UNUSED_RESULT;
 
 	/*!
 	 * Reset the cursor. Any resources held by the cursor are released,
@@ -321,7 +329,7 @@ struct __wt_cursor {
 	 * @param cursor the cursor handle
 	 * @errors
 	 */
-	int __F(reset)(WT_CURSOR *cursor);
+	int __F(reset)(WT_CURSOR *cursor) __F_UNUSED_RESULT;
 
 	/*!
 	 * Return the record matching the key. The key must first be set.
@@ -336,7 +344,7 @@ struct __wt_cursor {
 	 * @param cursor the cursor handle
 	 * @errors
 	 */
-	int __F(search)(WT_CURSOR *cursor);
+	int __F(search)(WT_CURSOR *cursor) __F_UNUSED_RESULT;
 
 	/*!
 	 * Return the record matching the key if it exists, or an adjacent
@@ -372,7 +380,7 @@ struct __wt_cursor {
 	 * returned
 	 * @errors
 	 */
-	int __F(search_near)(WT_CURSOR *cursor, int *exactp);
+	int __F(search_near)(WT_CURSOR *cursor, int *exactp) __F_UNUSED_RESULT;
 	/*! @} */
 
 	/*!
@@ -433,7 +441,7 @@ struct __wt_cursor {
 	 * requires more than the configured cache size to complete,
 	 * ::WT_CACHE_FULL is returned.
 	 */
-	int __F(insert)(WT_CURSOR *cursor);
+	int __F(insert)(WT_CURSOR *cursor) __F_UNUSED_RESULT;
 
 	/*!
 	 * Update an existing record and optionally insert a record.
@@ -466,7 +474,7 @@ struct __wt_cursor {
 	 * requires more than the configured cache size to complete,
 	 * ::WT_CACHE_FULL is returned.
 	 */
-	int __F(update)(WT_CURSOR *cursor);
+	int __F(update)(WT_CURSOR *cursor) __F_UNUSED_RESULT;
 
 	/*!
 	 * Remove a record.
@@ -495,7 +503,7 @@ struct __wt_cursor {
 	 * In particular, if \c overwrite is not configured and no record with
 	 * the specified key exists, ::WT_NOTFOUND is returned.
 	 */
-	int __F(remove)(WT_CURSOR *cursor);
+	int __F(remove)(WT_CURSOR *cursor) __F_UNUSED_RESULT;
 	/*! @} */
 
 	/*!
@@ -510,7 +518,7 @@ struct __wt_cursor {
 	 * @param cursor the cursor handle
 	 * @errors
 	 */
-	int __F(close)(WT_HANDLE_CLOSED(WT_CURSOR) *cursor);
+	int __F(close)(WT_HANDLE_CLOSED(WT_CURSOR) *cursor) __F_UNUSED_RESULT;
 
 	/*!
 	 * Reconfigure the cursor.
@@ -533,7 +541,8 @@ struct __wt_cursor {
 	 * @configend
 	 * @errors
 	 */
-	int __F(reconfigure)(WT_CURSOR *cursor, const char *config);
+	int __F(reconfigure)(
+	    WT_CURSOR *cursor, const char *config) __F_UNUSED_RESULT;
 
 	/*
 	 * Protected fields, only to be used by cursor implementations.
@@ -657,7 +666,7 @@ struct __wt_async_op {
 	 * @param op the operation handle
 	 * @returns as described for WT_CURSOR::get_key
 	 */
-	int __F(get_key)(WT_ASYNC_OP *op, ...);
+	int __F(get_key)(WT_ASYNC_OP *op, ...) __F_UNUSED_RESULT;
 
 	/*!
 	 * Invoke the underlying WT_CURSOR::get_value method; see that method
@@ -666,7 +675,7 @@ struct __wt_async_op {
 	 * @param op the operation handle
 	 * @returns as described for WT_CURSOR::get_value
 	 */
-	int __F(get_value)(WT_ASYNC_OP *op, ...);
+	int __F(get_value)(WT_ASYNC_OP *op, ...) __F_UNUSED_RESULT;
 
 	/*!
 	 * Invoke the underlying WT_CURSOR::set_key method; see that method
@@ -696,7 +705,7 @@ struct __wt_async_op {
 	 * @param op the operation handle
 	 * @returns via the callback as described for WT_CURSOR::search
 	 */
-	int __F(search)(WT_ASYNC_OP *op);
+	int __F(search)(WT_ASYNC_OP *op) __F_UNUSED_RESULT;
 	/*! @} */
 
 	/*!
@@ -710,7 +719,7 @@ struct __wt_async_op {
 	 * @param op the operation handle
 	 * @returns via the callback as described for WT_CURSOR::insert
 	 */
-	int __F(insert)(WT_ASYNC_OP *op);
+	int __F(insert)(WT_ASYNC_OP *op) __F_UNUSED_RESULT;
 
 	/*!
 	 * Invoke the underlying WT_CURSOR::update method; see that method
@@ -719,7 +728,7 @@ struct __wt_async_op {
 	 * @param op the operation handle
 	 * @returns via the callback as described for WT_CURSOR::update
 	 */
-	int __F(update)(WT_ASYNC_OP *op);
+	int __F(update)(WT_ASYNC_OP *op) __F_UNUSED_RESULT;
 
 	/*!
 	 * Invoke the underlying WT_CURSOR::remove method; see that method
@@ -728,7 +737,7 @@ struct __wt_async_op {
 	 * @param op the operation handle
 	 * @returns via the callback as described for WT_CURSOR::remove
 	 */
-	int __F(remove)(WT_ASYNC_OP *op);
+	int __F(remove)(WT_ASYNC_OP *op) __F_UNUSED_RESULT;
 	/*! @} */
 
 	/*!
@@ -742,7 +751,7 @@ struct __wt_async_op {
 	 * @param op the operation handle
 	 * @returns via the callback as described for WT_SESSION::compact
 	 */
-	int __F(compact)(WT_ASYNC_OP *op);
+	int __F(compact)(WT_ASYNC_OP *op) __F_UNUSED_RESULT;
 	/*! @} */
 
 	/*!
@@ -763,7 +772,7 @@ struct __wt_async_op {
 	 * @param op the operation handle
 	 * @returns the ::WT_ASYNC_OPTYPE of the operation
 	 */
-	WT_ASYNC_OPTYPE __F(get_type)(WT_ASYNC_OP *op);
+	WT_ASYNC_OPTYPE __F(get_type)(WT_ASYNC_OP *op) __F_UNUSED_RESULT;
 
 	/*
 	 * Protected fields, only to be used by internal implementation.
@@ -813,7 +822,7 @@ struct __wt_session {
 	 * @errors
 	 */
 	int __F(close)(WT_HANDLE_CLOSED(WT_SESSION) *session,
-	    const char *config);
+	    const char *config) __F_UNUSED_RESULT;
 
 	/*!
 	 * Reconfigure a session handle.
@@ -834,7 +843,8 @@ struct __wt_session {
 	 * @configend
 	 * @errors
 	 */
-	int __F(reconfigure)(WT_SESSION *session, const char *config);
+	int __F(reconfigure)(
+	    WT_SESSION *session, const char *config) __F_UNUSED_RESULT;
 
 	/*!
 	 * Return information about an error as a string.
@@ -846,7 +856,8 @@ struct __wt_session {
 	 * standard API
 	 * @returns a string representation of the error
 	 */
-	const char *__F(strerror)(WT_SESSION *session, int error);
+	const char *__F(strerror)(
+	    WT_SESSION *session, int error) __F_UNUSED_RESULT;
 
 	/*!
 	 * @name Cursor handles
@@ -972,7 +983,7 @@ struct __wt_session {
 	 */
 	int __F(open_cursor)(WT_SESSION *session,
 	    const char *uri, WT_HANDLE_NULLABLE(WT_CURSOR) *to_dup,
-	    const char *config, WT_CURSOR **cursorp);
+	    const char *config, WT_CURSOR **cursorp) __F_UNUSED_RESULT;
 	/*! @} */
 
 	/*!
@@ -1204,7 +1215,7 @@ struct __wt_session {
 	 * @errors
 	 */
 	int __F(create)(WT_SESSION *session,
-	    const char *name, const char *config);
+	    const char *name, const char *config) __F_UNUSED_RESULT;
 
 	/*!
 	 * Compact a live row- or column-store btree or LSM tree.
@@ -1223,7 +1234,7 @@ struct __wt_session {
 	 * @errors
 	 */
 	int __F(compact)(WT_SESSION *session,
-	    const char *name, const char *config);
+	    const char *name, const char *config) __F_UNUSED_RESULT;
 
 	/*!
 	 * Drop (delete) an object.
@@ -1241,7 +1252,7 @@ struct __wt_session {
 	 * @ebusy_errors
 	 */
 	int __F(drop)(WT_SESSION *session,
-	    const char *name, const char *config);
+	    const char *name, const char *config) __F_UNUSED_RESULT;
 
 	/*!
 	 * Join a join cursor with a reference cursor.
@@ -1306,7 +1317,7 @@ struct __wt_session {
 	 * @errors
 	 */
 	int __F(join)(WT_SESSION *session, WT_CURSOR *join_cursor,
-	    WT_CURSOR *ref_cursor, const char *config);
+	    WT_CURSOR *ref_cursor, const char *config) __F_UNUSED_RESULT;
 
 	/*!
 	 * Flush the log.
@@ -1324,7 +1335,8 @@ struct __wt_session {
 	 * @configend
 	 * @errors
 	 */
-	int __F(log_flush)(WT_SESSION *session, const char *config);
+	int __F(log_flush)(
+	    WT_SESSION *session, const char *config) __F_UNUSED_RESULT;
 
 	/*!
 	 * Insert a ::WT_LOGREC_MESSAGE type record in the database log files
@@ -1335,7 +1347,8 @@ struct __wt_session {
 	 * @param fmt a printf format specifier
 	 * @errors
 	 */
-	int __F(log_printf)(WT_SESSION *session, const char *fmt, ...);
+	int __F(log_printf)(
+	    WT_SESSION *session, const char *fmt, ...) __F_UNUSED_RESULT;
 
 	/*!
 	 * Rebalance a table, see @ref rebalance.
@@ -1347,8 +1360,8 @@ struct __wt_session {
 	 * @configempty{WT_SESSION.rebalance, see dist/api_data.py}
 	 * @ebusy_errors
 	 */
-	int __F(rebalance)(
-	    WT_SESSION *session, const char *uri, const char *config);
+	int __F(rebalance)(WT_SESSION *session,
+	    const char *uri, const char *config) __F_UNUSED_RESULT;
 
 	/*!
 	 * Rename an object.
@@ -1361,8 +1374,8 @@ struct __wt_session {
 	 * @configempty{WT_SESSION.rename, see dist/api_data.py}
 	 * @ebusy_errors
 	 */
-	int __F(rename)(WT_SESSION *session,
-	    const char *uri, const char *newuri, const char *config);
+	int __F(rename)(WT_SESSION *session, const char *uri,
+	    const char *newuri, const char *config) __F_UNUSED_RESULT;
 
 	/*!
 	 * Reset the session handle.
@@ -1379,7 +1392,7 @@ struct __wt_session {
 	 * @param session the session handle
 	 * @ebusy_errors
 	 */
-	int __F(reset)(WT_SESSION *session);
+	int __F(reset)(WT_SESSION *session) __F_UNUSED_RESULT;
 
 	/*!
 	 * Salvage a file or table
@@ -1407,7 +1420,7 @@ struct __wt_session {
 	 * @ebusy_errors
 	 */
 	int __F(salvage)(WT_SESSION *session,
-	    const char *name, const char *config);
+	    const char *name, const char *config) __F_UNUSED_RESULT;
 
 	/*!
 	 * Truncate a file, table or cursor range.
@@ -1437,7 +1450,7 @@ struct __wt_session {
 	    const char *name,
 	    WT_HANDLE_NULLABLE(WT_CURSOR) *start,
 	    WT_HANDLE_NULLABLE(WT_CURSOR) *stop,
-	    const char *config);
+	    const char *config) __F_UNUSED_RESULT;
 
 	/*!
 	 * Upgrade a file or table.
@@ -1452,7 +1465,7 @@ struct __wt_session {
 	 * @ebusy_errors
 	 */
 	int __F(upgrade)(WT_SESSION *session,
-	    const char *name, const char *config);
+	    const char *name, const char *config) __F_UNUSED_RESULT;
 
 	/*!
 	 * Verify a file or table.
@@ -1490,7 +1503,7 @@ struct __wt_session {
 	 * @ebusy_errors
 	 */
 	int __F(verify)(WT_SESSION *session,
-	    const char *name, const char *config);
+	    const char *name, const char *config) __F_UNUSED_RESULT;
 	/*! @} */
 
 	/*!
@@ -1531,7 +1544,8 @@ struct __wt_session {
 	 * @configend
 	 * @errors
 	 */
-	int __F(begin_transaction)(WT_SESSION *session, const char *config);
+	int __F(begin_transaction)(
+	    WT_SESSION *session, const char *config) __F_UNUSED_RESULT;
 
 	/*!
 	 * Commit the current transaction.
@@ -1557,7 +1571,8 @@ struct __wt_session {
 	 * @configend
 	 * @errors
 	 */
-	int __F(commit_transaction)(WT_SESSION *session, const char *config);
+	int __F(commit_transaction)(
+	    WT_SESSION *session, const char *config) __F_UNUSED_RESULT;
 
 	/*!
 	 * Roll back the current transaction.
@@ -1572,7 +1587,8 @@ struct __wt_session {
 	 * @configempty{WT_SESSION.rollback_transaction, see dist/api_data.py}
 	 * @errors
 	 */
-	int __F(rollback_transaction)(WT_SESSION *session, const char *config);
+	int __F(rollback_transaction)(
+	    WT_SESSION *session, const char *config) __F_UNUSED_RESULT;
 
 	/*!
 	 * Write a transactionally consistent snapshot of a database or set of
@@ -1602,7 +1618,8 @@ struct __wt_session {
 	 * @configend
 	 * @errors
 	 */
-	int __F(checkpoint)(WT_SESSION *session, const char *config);
+	int __F(checkpoint)(
+	    WT_SESSION *session, const char *config) __F_UNUSED_RESULT;
 
 	/*!
 	 * Manage named snapshot transactions. Use this API to create and drop
@@ -1632,7 +1649,8 @@ struct __wt_session {
 	 * @configend
 	 * @errors
 	 */
-	int __F(snapshot)(WT_SESSION *session, const char *config);
+	int __F(snapshot)(
+	    WT_SESSION *session, const char *config) __F_UNUSED_RESULT;
 
 	/*!
 	 * Return the transaction ID range pinned by the session handle.
@@ -1648,7 +1666,8 @@ struct __wt_session {
 	 * there is no active transaction.
 	 * @errors
 	 */
-	int __F(transaction_pinned_range)(WT_SESSION* session, uint64_t *range);
+	int __F(transaction_pinned_range)(
+	    WT_SESSION* session, uint64_t *range) __F_UNUSED_RESULT;
 
 	/*!
 	 * Wait for a transaction to become synchronized.  This method is
@@ -1666,7 +1685,8 @@ struct __wt_session {
 	 * @configend
 	 * @errors
 	 */
-	int __F(transaction_sync)(WT_SESSION *session, const char *config);
+	int __F(transaction_sync)(
+	    WT_SESSION *session, const char *config) __F_UNUSED_RESULT;
 	/*! @} */
 };
 
@@ -1696,7 +1716,7 @@ struct __wt_connection {
 	 * @param connection the connection handle
 	 * @errors
 	 */
-	int __F(async_flush)(WT_CONNECTION *connection);
+	int __F(async_flush)(WT_CONNECTION *connection) __F_UNUSED_RESULT;
 
 	/*!
 	 * Return an async operation handle
@@ -1730,7 +1750,7 @@ struct __wt_connection {
 	 */
 	int __F(async_new_op)(WT_CONNECTION *connection,
 	    const char *uri, const char *config, WT_ASYNC_CALLBACK *callback,
-	    WT_ASYNC_OP **asyncopp);
+	    WT_ASYNC_OP **asyncopp) __F_UNUSED_RESULT;
 	/*! @} */
 
 	/*!
@@ -1748,7 +1768,7 @@ struct __wt_connection {
 	 * @errors
 	 */
 	int __F(close)(WT_HANDLE_CLOSED(WT_CONNECTION) *connection,
-	    const char *config);
+	    const char *config) __F_UNUSED_RESULT;
 
 	/*!
 	 * Reconfigure a connection handle.
@@ -1929,7 +1949,8 @@ struct __wt_connection {
 	 * @configend
 	 * @errors
 	 */
-	int __F(reconfigure)(WT_CONNECTION *connection, const char *config);
+	int __F(reconfigure)(
+	    WT_CONNECTION *connection, const char *config) __F_UNUSED_RESULT;
 
 	/*!
 	 * The home directory of the connection.
@@ -1939,7 +1960,7 @@ struct __wt_connection {
 	 * @param connection the connection handle
 	 * @returns a pointer to a string naming the home directory
 	 */
-	const char *__F(get_home)(WT_CONNECTION *connection);
+	const char *__F(get_home)(WT_CONNECTION *connection) __F_UNUSED_RESULT;
 
 	/*!
 	 * Add configuration options for a method.  See
@@ -1959,7 +1980,8 @@ struct __wt_connection {
 	 */
 	int __F(configure_method)(WT_CONNECTION *connection,
 	    const char *method, const char *uri,
-	    const char *config, const char *type, const char *check);
+	    const char *config, const char *type, const char *check)
+	    __F_UNUSED_RESULT;
 
 	/*!
 	 * Return if opening this handle created the database.
@@ -1971,7 +1993,7 @@ struct __wt_connection {
 	 * ::wiredtiger_open, true (non-zero) if it was created by opening this
 	 * handle.
 	 */
-	int __F(is_new)(WT_CONNECTION *connection);
+	int __F(is_new)(WT_CONNECTION *connection) __F_UNUSED_RESULT;
 
 	/*!
 	 * @name Session handles
@@ -1997,7 +2019,7 @@ struct __wt_connection {
 	 */
 	int __F(open_session)(WT_CONNECTION *connection,
 	    WT_EVENT_HANDLER *errhandler, const char *config,
-	    WT_SESSION **sessionp);
+	    WT_SESSION **sessionp) __F_UNUSED_RESULT;
 	/*! @} */
 
 	/*!
@@ -2033,7 +2055,7 @@ struct __wt_connection {
 	 * @errors
 	 */
 	int __F(load_extension)(WT_CONNECTION *connection,
-	    const char *path, const char *config);
+	    const char *path, const char *config) __F_UNUSED_RESULT;
 
 	/*!
 	 * Add a custom data source.  See @ref custom_data_sources for more
@@ -2052,7 +2074,7 @@ struct __wt_connection {
 	 * @errors
 	 */
 	int __F(add_data_source)(WT_CONNECTION *connection, const char *prefix,
-	    WT_DATA_SOURCE *data_source, const char *config);
+	    WT_DATA_SOURCE *data_source, const char *config) __F_UNUSED_RESULT;
 
 	/*!
 	 * Add a custom collation function.
@@ -2069,8 +2091,8 @@ struct __wt_connection {
 	 * @configempty{WT_CONNECTION.add_collator, see dist/api_data.py}
 	 * @errors
 	 */
-	int __F(add_collator)(WT_CONNECTION *connection,
-	    const char *name, WT_COLLATOR *collator, const char *config);
+	int __F(add_collator)(WT_CONNECTION *connection, const char *name,
+	    WT_COLLATOR *collator, const char *config) __F_UNUSED_RESULT;
 
 	/*!
 	 * Add a compression function.
@@ -2089,8 +2111,8 @@ struct __wt_connection {
 	 * @configempty{WT_CONNECTION.add_compressor, see dist/api_data.py}
 	 * @errors
 	 */
-	int __F(add_compressor)(WT_CONNECTION *connection,
-	    const char *name, WT_COMPRESSOR *compressor, const char *config);
+	int __F(add_compressor)(WT_CONNECTION *connection, const char *name,
+	    WT_COMPRESSOR *compressor, const char *config) __F_UNUSED_RESULT;
 
 	/*!
 	 * Add an encryption function.
@@ -2109,8 +2131,8 @@ struct __wt_connection {
 	 * @configempty{WT_CONNECTION.add_encryptor, see dist/api_data.py}
 	 * @errors
 	 */
-	int __F(add_encryptor)(WT_CONNECTION *connection,
-	    const char *name, WT_ENCRYPTOR *encryptor, const char *config);
+	int __F(add_encryptor)(WT_CONNECTION *connection, const char *name,
+	    WT_ENCRYPTOR *encryptor, const char *config) __F_UNUSED_RESULT;
 
 	/*!
 	 * Add a custom extractor for index keys or column groups.
@@ -2128,7 +2150,7 @@ struct __wt_connection {
 	 * @errors
 	 */
 	int __F(add_extractor)(WT_CONNECTION *connection, const char *name,
-	    WT_EXTRACTOR *extractor, const char *config);
+	    WT_EXTRACTOR *extractor, const char *config) __F_UNUSED_RESULT;
 
 	/*!
 	 * Configure a custom file system.
@@ -2144,8 +2166,8 @@ struct __wt_connection {
 	 * @configempty{WT_CONNECTION.set_file_system, see dist/api_data.py}
 	 * @errors
 	 */
-	int __F(set_file_system)(
-	    WT_CONNECTION *connection, WT_FILE_SYSTEM *fs, const char *config);
+	int __F(set_file_system)(WT_CONNECTION *connection,
+	    WT_FILE_SYSTEM *fs, const char *config) __F_UNUSED_RESULT;
 
 	/*!
 	 * Return a reference to the WiredTiger extension functions.
@@ -2155,7 +2177,8 @@ struct __wt_connection {
 	 * @param wt_conn the WT_CONNECTION handle
 	 * @returns a reference to a WT_EXTENSION_API structure.
 	 */
-	WT_EXTENSION_API *__F(get_extension_api)(WT_CONNECTION *wt_conn);
+	WT_EXTENSION_API *__F(get_extension_api)(
+	    WT_CONNECTION *wt_conn) __F_UNUSED_RESULT;
 	/*! @} */
 };
 
@@ -2906,7 +2929,7 @@ struct __wt_config_parser {
 	 * @errors
 	 *
 	 */
-	int __F(close)(WT_CONFIG_PARSER *config_parser);
+	int __F(close)(WT_CONFIG_PARSER *config_parser) __F_UNUSED_RESULT;
 
 	/*!
 	 * Return the next key/value pair.
@@ -2925,7 +2948,7 @@ struct __wt_config_parser {
 	 *
 	 */
 	int __F(next)(WT_CONFIG_PARSER *config_parser,
-	    WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value);
+	    WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value) __F_UNUSED_RESULT;
 
 	/*!
 	 * Return the value of an item in the configuration string.
@@ -2937,7 +2960,7 @@ struct __wt_config_parser {
 	 *
 	 */
 	int __F(get)(WT_CONFIG_PARSER *config_parser,
-	    const char *key, WT_CONFIG_ITEM *value);
+	    const char *key, WT_CONFIG_ITEM *value) __F_UNUSED_RESULT;
 };
 
 #endif /* !defined(SWIG) */

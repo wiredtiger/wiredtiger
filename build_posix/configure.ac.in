@@ -188,12 +188,19 @@ AM_COND_IF([LEVELDB], [
   ])
 ])
 
-
 # Warn that diagnostic builds should not be used in production
 if test "$wt_cv_enable_diagnostic" = "yes"; then
 	AC_MSG_WARN(
 	    [DIAGNOSTIC BUILDS ARE NOT RECOMMENDED FOR PRODUCTION DEPLOYMENT.])
 fi
+
+# If building with gcc or clang and in diagnostic mode, complain if function
+# return values are ignored.
+gcc_diagnostic_unused_result=""
+if test "$wt_cv_enable_diagnostic" = "yes" -a "$GCC" = "yes"; then
+	gcc_diagnostic_unused_result='__attribute__((warn_unused_result))'
+fi
+AC_SUBST(GCC_DIAGNOSTIC_UNUSED_RESULT, [$gcc_diagnostic_unused_result])
 
 # If we are building in a tree without documentation, check if doxygen is
 # available.
