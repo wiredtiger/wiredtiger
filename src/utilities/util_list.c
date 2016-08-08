@@ -67,6 +67,7 @@ list_get_allocsize(WT_SESSION *session, const char *key, size_t *allocsize)
 	WT_CONFIG_PARSER *parser;
 	WT_DECL_RET;
 	WT_EXTENSION_API *wt_api;
+	int tret;
 	char *config;
 
 	wt_api = session->connection->get_extension_api(session->connection);
@@ -86,7 +87,9 @@ list_get_allocsize(WT_SESSION *session, const char *key, size_t *allocsize)
 		if (ret != WT_NOTFOUND)
 			fprintf(stderr, "%s: config_parser.get: %s\n",
 			    progname, session->strerror(session, ret));
-		(void)parser->close(parser);
+		if ((tret = parser->close(parser)) != 0)
+			fprintf(stderr, "%s: config_parser.close: %s\n",
+			    progname, session->strerror(session, tret));
 		return (ret);
 	}
 	if ((ret = parser->close(parser)) != 0) {
