@@ -15,6 +15,8 @@
 int
 __wt_block_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t len)
 {
+	WT_DECL_RET;
+
 	/*
 	 * Backups are done by copying files outside of WiredTiger, potentially
 	 * by system utilities. We cannot truncate the file during the backup
@@ -29,11 +31,15 @@ __wt_block_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t len)
 		return (EBUSY);
 
 	/*
-	 * Additionally, the truncate might fail if there's a file mapping (if
-	 * there's an open checkpoint on the file), in which case the underlying
-	 * function returns EBUSY.
+	 * The truncate may fail temporarily or permanently (for example, there
+	 * may be a file mapping if there's an open checkpoint on the file on a
+	 * POSIX system, in which case the underlying function returns EBUSY).
+	 * It's OK, we don't have to be able to truncate files, return EBUSY in
+	 * those failure cases, that's what our callers can handle.
 	 */
-	WT_RET(__wt_ftruncate(session, block->fh, len));
+	if ((ret = __wt_ftruncate(session, block->fh, len)) == ENOTSUP)
+		ret = EBUSY;
+	WT_RET(ret);
 
 	block->size = block->extend_size = len;
 
