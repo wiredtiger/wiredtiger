@@ -1310,7 +1310,7 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	if (FLD_ISSET(cache->state, WT_EVICT_STATE_CLEAN)) {
 		btree_inuse = __wt_btree_bytes_inuse(session);
 		cache_inuse = __wt_cache_bytes_inuse(cache);
-		bytes_per_slot = cache_inuse / total_slots;
+		bytes_per_slot = 1 + cache_inuse / total_slots;
 		target_pages_clean = (uint32_t)(
 		    (btree_inuse + bytes_per_slot / 2) / bytes_per_slot);
 	} else
@@ -1319,7 +1319,7 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	if (FLD_ISSET(cache->state, WT_EVICT_STATE_DIRTY)) {
 		btree_inuse = __wt_btree_dirty_leaf_inuse(session);
 		cache_inuse = __wt_cache_dirty_leaf_inuse(cache);
-		bytes_per_slot = cache_inuse / total_slots;
+		bytes_per_slot = 1 + cache_inuse / total_slots;
 		target_pages_dirty = (uint32_t)(
 		    (btree_inuse + bytes_per_slot / 2) / bytes_per_slot);
 	} else
@@ -1331,9 +1331,10 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 		/*
 		 * Randomly walk trees with a tiny fraction of the cache in
 		 * case there are so many trees that none of them use enough of
-		 * the cache to be allocated slots.  Walk trees 1% of the time.
+		 * the cache to be allocated slots.  Walk small trees 1% of the
+		 * time.
 		 */
-		if (__wt_random(&session->rnd) / (double)UINT32_MAX > 0.01)
+		if (__wt_random(&session->rnd) > UINT32_MAX / 100)
 			return (0);
 		target_pages = 10;
 	}
