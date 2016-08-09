@@ -82,7 +82,8 @@ The \c eviction_dirty_target (default 5%) and \c eviction_dirty_trigger
 (default 20%) operate in a similar way to the overall targets, but only
 apply to dirty data in cache.  In particular, application threads will be
 throttled if the percentage of dirty data reaches the
-\c eviction_dirty_trigger.
+\c eviction_dirty_trigger. Any page that has been modified since it was
+read from disk is considered dirty.
 
 The dirty eviction  settings control how much work checkpoints have to do
 in the worst case, and also limit how much memory fragmentation is likely
