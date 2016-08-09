@@ -5,7 +5,7 @@ extern int __wt_posix_directory_list_free(WT_FILE_SYSTEM *file_system, WT_SESSIO
 extern int __wt_dlopen(WT_SESSION_IMPL *session, const char *path, WT_DLH **dlhp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_dlsym(WT_SESSION_IMPL *session, WT_DLH *dlh, const char *name, bool fail, void *sym_ret) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_dlclose(WT_SESSION_IMPL *session, WT_DLH *dlh) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_posix_file_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset, wt_off_t len) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_posix_file_extend( WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_os_posix(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_getenv(WT_SESSION_IMPL *session, const char *variable, const char **envp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_posix_map(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void *mapped_regionp, size_t *lenp, void *mapped_cookiep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
