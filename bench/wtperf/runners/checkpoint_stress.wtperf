@@ -1,4 +1,4 @@
-# A stress configuration, to create long running checkpoints while doing a lot
+# A stress configuration to create long running checkpoints while doing a lot
 # of updates.
 conn_config="cache_size=10GB,log=(enabled=false)"
 table_config="leaf_page_max=32k,internal_page_max=16k,allocation_size=4k,split_pct=90,type=file"
