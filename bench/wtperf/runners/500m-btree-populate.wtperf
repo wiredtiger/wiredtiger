@@ -21,3 +21,4 @@ populate_threads=20
 report_interval=10
 random_value=true
 sample_interval=10
+sample_rate=1

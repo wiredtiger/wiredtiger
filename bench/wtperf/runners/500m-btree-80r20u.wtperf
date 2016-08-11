@@ -16,4 +16,5 @@ max_latency=2000
 report_interval=10
 run_time=7200
 sample_interval=10
+sample_rate=1
 threads=((count=20,reads=4,updates=1))
