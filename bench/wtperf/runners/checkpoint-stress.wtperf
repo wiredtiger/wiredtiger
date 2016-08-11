@@ -11,6 +11,7 @@ populate_threads=1
 checkpoint_interval=60
 checkpoint_threads=1
 report_interval=5
+# Run for a longer duration to ensure checkpoints are completing.
 run_time=600
 # MongoDB always has multiple tables, and checkpoints behave differently when
 # there is more than a single table.
