@@ -349,13 +349,14 @@ __win_file_set_end(
 
 	if (win_fh->filehandle_secondary == INVALID_HANDLE_VALUE)
 		WT_RET_MSG(session, EINVAL,
-		    "%s: handle-truncate: read-only", file_handle->name);
+		    "%s: handle-set-end: no secondary handle",
+		    file_handle->name);
 
 	if (SetFilePointerEx(win_fh->filehandle_secondary,
 	    largeint, NULL, FILE_BEGIN) == FALSE) {
 		windows_error = __wt_getlasterror();
 		__wt_errx(session,
-		    "%s: handle-truncate: SetFilePointerEx: %s",
+		    "%s: handle-set-end: SetFilePointerEx: %s",
 		    file_handle->name,
 		    __wt_formatmessage(session, windows_error));
 		return (__wt_map_windows_error(windows_error));
@@ -366,7 +367,7 @@ __win_file_set_end(
 			return (EBUSY);
 		windows_error = __wt_getlasterror();
 		__wt_errx(session,
-		    "%s: handle-truncate: SetEndOfFile: %s",
+		    "%s: handle-set-end: SetEndOfFile: %s",
 		    file_handle->name,
 		    __wt_formatmessage(session, windows_error));
 		return (__wt_map_windows_error(windows_error));
