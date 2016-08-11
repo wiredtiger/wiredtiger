@@ -1,15 +1,18 @@
-# wtperf options file: simulate riak and its test1 configuration
-# The configuration for the connection and table are from riak and the
-# specification of the data (count, size, threads) is from basho_bench.
-# This task is the populate phase for its family of tests.
+# wtperf options file: simulate MongoDB.
+# The configuration for the connection and table are from mongoDB.
+# We use multiple tables to simulate collections and indexes.
+# This test assumes that its correlating populate already completed and exists.
 #
-#conn_config="cache_size=21G,checkpoint_sync=false,mmap=false,session_max=1024,statistics=(fast,clear),statistics_log=(wait=60)"
-conn_config="cache_size=21G,checkpoint_sync=false,mmap=false,session_max=1024,log=(enabled),statistics=(fast),statistics_log=(wait=30)"
-checkpoint_interval=60
+# Set cache to half of memory.  Enable logging and checkpoints.  Collect
+# wiredtiger stats for ftdc.
+#
+# This generates about 550 Gb of uncompressed data.
+conn_config="cache_size=16G,checkpoint=(wait=60,log_size=20G),session_max=1024,log=(enabled),statistics=(fast),statistics_log=(wait=30,json)"
 compact=true
 compression="snappy"
 sess_config="isolation=snapshot"
 table_config="internal_page_max=128K,type=file,leaf_page_max=16K"
+table_count=2
 icount=500000000
 key_sz=40
 value_sz=1000
