@@ -7,7 +7,7 @@
 # wiredtiger stats for ftdc.
 #
 # This generates about 550 Gb of uncompressed data.
-conn_config="cache_size=16G,checkpoint=(wait=60,log_size=20G),session_max=1024,log=(enabled),statistics=(fast),statistics_log=(wait=30,json)"
+conn_config="cache_size=16G,checkpoint=(wait=60,log_size=2GB),session_max=1024,log=(enabled),statistics=(fast),statistics_log=(wait=30,json)"
 compact=true
 compression="snappy"
 sess_config="isolation=snapshot"
