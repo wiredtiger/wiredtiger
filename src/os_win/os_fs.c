@@ -561,9 +561,11 @@ directory_open:
 	file_handle->fh_read = __win_file_read;
 	file_handle->fh_size = __win_file_size;
 	file_handle->fh_sync = __win_file_sync;
-	/* Extend and truncate shared the same implementation */
+
+	/* Extend and truncate share the same implementation. */
 	file_handle->fh_extend = __win_file_set_end;
 	file_handle->fh_truncate = __win_file_set_end;
+
 	file_handle->fh_write = __win_file_write;
 
 	*file_handlep = file_handle;
