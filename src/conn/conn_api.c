@@ -2094,8 +2094,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	/* Configure error messages so we get them right early. */
 	WT_ERR(__wt_config_gets(session, cfg, "error_prefix", &cval));
 	if (cval.len != 0)
-		WT_ERR(__wt_strndup(
-		    session, cval.str, cval.len, &conn->error_prefix));
+		WT_ERR(__wt_config_unescape(
+		    session, &cval, &conn->error_prefix));
 
 	/* Get the database home. */
 	WT_ERR(__conn_home(session, home, cfg));
@@ -2189,8 +2189,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	WT_ERR(__wt_config_gets(session, cfg, "error_prefix", &cval));
 	if (cval.len != 0) {
 		__wt_free(session, conn->error_prefix);
-		WT_ERR(__wt_strndup(
-		    session, cval.str, cval.len, &conn->error_prefix));
+		WT_ERR(__wt_config_unescape(
+		    session, &cval, &conn->error_prefix));
 	}
 	WT_ERR(__wt_verbose_config(session, cfg));
 
