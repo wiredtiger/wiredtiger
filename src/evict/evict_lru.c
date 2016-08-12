@@ -154,13 +154,13 @@ __wt_evict_server_wake(WT_SESSION_IMPL *session)
 
 		bytes_inuse = __wt_cache_bytes_inuse(cache);
 		bytes_max = conn->cache_size;
-		WT_IGNORE_RET(__wt_verbose(session, WT_VERB_EVICTSERVER,
+		__wt_verbose(session, WT_VERB_EVICTSERVER,
 		    "waking, bytes inuse %s max (%" PRIu64
 		    "MB %s %" PRIu64 "MB)",
 		    bytes_inuse <= bytes_max ? "<=" : ">",
 		    bytes_inuse / WT_MEGABYTE,
 		    bytes_inuse <= bytes_max ? "<=" : ">",
-		    bytes_max / WT_MEGABYTE));
+		    bytes_max / WT_MEGABYTE);
 	}
 #endif
 
@@ -205,13 +205,11 @@ __evict_thread_run(void *arg)
 			F_CLR(session, WT_SESSION_LOCKED_PASS);
 			__wt_spin_unlock(session, &cache->evict_pass_lock);
 			WT_ERR(ret);
-			WT_ERR(__wt_verbose(
-			    session, WT_VERB_EVICTSERVER, "sleeping"));
+			__wt_verbose(session, WT_VERB_EVICTSERVER, "sleeping");
 			/* Don't rely on signals: check periodically. */
 			__wt_cond_auto_wait(
 			    session, cache->evict_cond, did_work);
-			WT_ERR(__wt_verbose(
-			    session, WT_VERB_EVICTSERVER, "waking"));
+			__wt_verbose(session, WT_VERB_EVICTSERVER, "waking");
 		} else
 			WT_ERR(__evict_helper(session));
 	}
@@ -225,8 +223,8 @@ __evict_thread_run(void *arg)
 		    ret = __evict_clear_all_walks(session));
 		WT_ERR(ret);
 	}
-	WT_ERR(__wt_verbose(
-	    session, WT_VERB_EVICTSERVER, "cache eviction thread exiting"));
+	__wt_verbose(
+	    session, WT_VERB_EVICTSERVER, "cache eviction thread exiting");
 
 	/*
 	 * The only two cases when eviction workers are expected to stop are
@@ -453,16 +451,15 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
 	 * safely know how many helpers are running until the main thread is
 	 * done.
 	 */
-	WT_TRET(__wt_verbose(
-	    session, WT_VERB_EVICTSERVER, "waiting for main thread"));
+	__wt_verbose(session, WT_VERB_EVICTSERVER, "waiting for main thread");
 	if (conn->evict_tid_set) {
 		__wt_evict_server_wake(session);
 		WT_TRET(__wt_thread_join(session, conn->evict_tid));
 		conn->evict_tid_set = false;
 	}
 
-	WT_TRET(__wt_verbose(
-	    session, WT_VERB_EVICTSERVER, "waiting for helper threads"));
+	__wt_verbose(
+	    session, WT_VERB_EVICTSERVER, "waiting for helper threads");
 	for (i = 0; i < conn->evict_workers; i++) {
 		__wt_cond_signal(session, cache->evict_waiter_cond);
 		WT_TRET(__wt_thread_join(session, workers[i].tid));
@@ -647,9 +644,9 @@ __evict_pass(WT_SESSION_IMPL *session)
 		 */
 		if (FLD_ISSET(cache->state, WT_EVICT_STATE_ALL) &&
 		    conn->evict_workers < conn->evict_workers_max) {
-			WT_RET(__wt_verbose(session, WT_VERB_EVICTSERVER,
+			__wt_verbose(session, WT_VERB_EVICTSERVER,
 			    "Starting evict worker: %"PRIu32"\n",
-			    conn->evict_workers));
+			    conn->evict_workers);
 			if (conn->evict_workers >= conn->evict_workers_alloc)
 				WT_RET(__evict_workers_resize(session));
 			worker = &conn->evict_workctx[conn->evict_workers++];
@@ -658,11 +655,11 @@ __evict_pass(WT_SESSION_IMPL *session)
 			    &worker->tid, __evict_thread_run, worker->session));
 		}
 
-		WT_RET(__wt_verbose(session, WT_VERB_EVICTSERVER,
+		__wt_verbose(session, WT_VERB_EVICTSERVER,
 		    "Eviction pass with: Max: %" PRIu64
 		    " In use: %" PRIu64 " Dirty: %" PRIu64,
 		    conn->cache_size, cache->bytes_inmem,
-		    cache->bytes_dirty_intl + cache->bytes_dirty_leaf));
+		    cache->bytes_dirty_intl + cache->bytes_dirty_leaf);
 
 		WT_RET(__evict_lru_walk(session));
 		WT_RET_NOTFOUND_OK(__evict_lru_pages(session, true));
@@ -696,9 +693,8 @@ __evict_pass(WT_SESSION_IMPL *session)
 				F_SET(cache, WT_CACHE_STUCK);
 				WT_STAT_FAST_CONN_INCR(
 				    session, cache_eviction_slow);
-				WT_RET(__wt_verbose(
-				    session, WT_VERB_EVICTSERVER,
-				    "unable to reach eviction goal"));
+				__wt_verbose(session, WT_VERB_EVICTSERVER,
+				    "unable to reach eviction goal");
 				break;
 			}
 		} else {
@@ -1449,8 +1445,8 @@ fast:		/* If the page can't be evicted, give up. */
 		if (WT_PAGE_IS_INTERNAL(page))
 		    ++internal_pages;
 
-		WT_RET(__wt_verbose(session, WT_VERB_EVICTSERVER,
-		    "select: %p, size %" PRIu64, page, page->memory_footprint));
+		__wt_verbose(session, WT_VERB_EVICTSERVER,
+		    "select: %p, size %" PRIu64, page, page->memory_footprint);
 	}
 	WT_RET_NOTFOUND_OK(ret);
 

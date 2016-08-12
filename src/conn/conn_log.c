@@ -222,8 +222,8 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
 	else
 		min_lognum = WT_MIN(
 		    log->ckpt_lsn.l.file, log->sync_lsn.l.file);
-	WT_RET(__wt_verbose(session, WT_VERB_LOG,
-	    "log_archive: archive to log number %" PRIu32, min_lognum));
+	__wt_verbose(session, WT_VERB_LOG,
+	    "log_archive: archive to log number %" PRIu32, min_lognum);
 
 	/*
 	 * Main archive code.  Get the list of all log files and
@@ -295,9 +295,9 @@ __log_prealloc_once(WT_SESSION_IMPL *session)
 	 */
 	if (log->prep_missed > 0) {
 		conn->log_prealloc += log->prep_missed;
-		WT_ERR(__wt_verbose(session, WT_VERB_LOG,
+		__wt_verbose(session, WT_VERB_LOG,
 		    "Missed %" PRIu32 ". Now pre-allocating up to %" PRIu32,
-		    log->prep_missed, conn->log_prealloc));
+		    log->prep_missed, conn->log_prealloc);
 	}
 	WT_STAT_FAST_CONN_SET(session, log_prealloc_max, conn->log_prealloc);
 	/*
@@ -351,8 +351,8 @@ __wt_log_truncate_files(
 	if (cursor != NULL)
 		backup_file = WT_CURSOR_BACKUP_ID(cursor);
 	WT_ASSERT(session, backup_file <= log->alloc_lsn.l.file);
-	WT_RET(__wt_verbose(session, WT_VERB_LOG,
-	    "log_truncate_files: Archive once up to %" PRIu32, backup_file));
+	__wt_verbose(session, WT_VERB_LOG,
+	    "log_truncate_files: Archive once up to %" PRIu32, backup_file);
 
 	__wt_writelock(session, log->log_archive_lock);
 	ret = __log_archive_once(session, backup_file);
@@ -820,10 +820,9 @@ __log_server(void *arg)
 					    session, log->log_archive_lock);
 					WT_ERR(ret);
 				} else
-					WT_ERR(
-					    __wt_verbose(session, WT_VERB_LOG,
+					__wt_verbose(session, WT_VERB_LOG,
 					    "log_archive: Blocked due to open "
-					    "log cursor holding archive lock"));
+					    "log cursor holding archive lock");
 			}
 		}
 
@@ -1042,7 +1041,7 @@ __wt_logmgr_destroy(WT_SESSION_IMPL *session)
 
 	WT_TRET(__wt_cond_destroy(session, &conn->log->log_sync_cond));
 	WT_TRET(__wt_cond_destroy(session, &conn->log->log_write_cond));
-	WT_TRET(__wt_rwlock_destroy(session, &conn->log->log_archive_lock));
+	__wt_rwlock_destroy(session, &conn->log->log_archive_lock);
 	__wt_spin_destroy(session, &conn->log->log_lock);
 	__wt_spin_destroy(session, &conn->log->log_slot_lock);
 	__wt_spin_destroy(session, &conn->log->log_sync_lock);

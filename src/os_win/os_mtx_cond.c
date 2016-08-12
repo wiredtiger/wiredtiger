@@ -62,8 +62,7 @@ __wt_cond_wait_signal(
 	 * This function MUST handle a NULL session handle.
 	 */
 	if (session != NULL) {
-		WT_IGNORE_RET(__wt_verbose(
-		    session, WT_VERB_MUTEX, "wait %s", cond->name));
+		__wt_verbose(session, WT_VERB_MUTEX, "wait %s", cond->name));
 		WT_STAT_FAST_CONN_INCR(session, cond_wait);
 	}
 
@@ -137,8 +136,7 @@ __wt_cond_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond)
 	 * This function MUST handle a NULL session handle.
 	 */
 	if (session != NULL)
-		WT_IGNORE_RET(__wt_verbose(
-		    session, WT_VERB_MUTEX, "signal %s", cond->name));
+		__wt_verbose(session, WT_VERB_MUTEX, "signal %s", cond->name));
 
 	/* Fast path if already signalled. */
 	if (cond->waiters == -1)

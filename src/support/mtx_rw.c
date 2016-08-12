@@ -124,7 +124,7 @@ __wt_rwlock_alloc(
 {
 	WT_RWLOCK *rwlock;
 
-	WT_RET(__wt_verbose(session, WT_VERB_MUTEX, "rwlock: alloc %s", name));
+	__wt_verbose(session, WT_VERB_MUTEX, "rwlock: alloc %s", name);
 
 	WT_RET(__wt_calloc_one(session, &rwlock));
 
@@ -346,20 +346,18 @@ __wt_writeunlock(WT_SESSION_IMPL *session, WT_RWLOCK *rwlock)
  * __wt_rwlock_destroy --
  *	Destroy a read/write lock.
  */
-int
+void
 __wt_rwlock_destroy(WT_SESSION_IMPL *session, WT_RWLOCK **rwlockp)
 {
-	WT_DECL_RET;
 	WT_RWLOCK *rwlock;
 
 	rwlock = *rwlockp;		/* Clear our caller's reference. */
 	if (rwlock == NULL)
-		return (0);
+		return;
 	*rwlockp = NULL;
 
-	ret = __wt_verbose(
+	__wt_verbose(
 	    session, WT_VERB_MUTEX, "rwlock: destroy %s", rwlock->name);
 
 	__wt_free(session, rwlock);
-	return (ret);
 }

@@ -431,7 +431,7 @@ __lsm_manager_run_server(WT_SESSION_IMPL *session)
 				    session, WT_LSM_WORK_FLUSH, 0, lsm_tree));
 				WT_ERR(__wt_lsm_manager_push_entry(
 				    session, WT_LSM_WORK_BLOOM, 0, lsm_tree));
-				WT_ERR(__wt_verbose(session,
+				__wt_verbose(session,
 				    WT_VERB_LSM_MANAGER,
 				    "MGR %s: queue %" PRIu32 " mod %d "
 				    "nchunks %" PRIu32
@@ -442,7 +442,7 @@ __lsm_manager_run_server(WT_SESSION_IMPL *session)
 				    lsm_tree->modified, lsm_tree->nchunks,
 				    lsm_tree->flags,
 				    lsm_tree->merge_aggressiveness,
-				    pushms, fillms));
+				    pushms, fillms);
 				WT_ERR(__wt_lsm_manager_push_entry(
 				    session, WT_LSM_WORK_MERGE, 0, lsm_tree));
 			}

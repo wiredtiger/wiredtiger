@@ -667,7 +667,7 @@ extern void __wt_readunlock(WT_SESSION_IMPL *session, WT_RWLOCK *rwlock);
 extern int __wt_try_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *rwlock) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *rwlock);
 extern void __wt_writeunlock(WT_SESSION_IMPL *session, WT_RWLOCK *rwlock);
-extern int __wt_rwlock_destroy(WT_SESSION_IMPL *session, WT_RWLOCK **rwlockp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern void __wt_rwlock_destroy(WT_SESSION_IMPL *session, WT_RWLOCK **rwlockp);
 extern uint32_t __wt_nlpo2_round(uint32_t v);
 extern uint32_t __wt_nlpo2(uint32_t v);
 extern uint32_t __wt_log2_int(uint32_t n);
@@ -719,7 +719,7 @@ extern int __wt_txn_init(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((w
 extern void __wt_txn_stats_update(WT_SESSION_IMPL *session);
 extern void __wt_txn_destroy(WT_SESSION_IMPL *session);
 extern int __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_txn_global_destroy(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern void __wt_txn_global_destroy(WT_SESSION_IMPL *session);
 extern int __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

@@ -493,10 +493,10 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session,
 	 * Get time diff in microseconds.
 	 */
 	msec = WT_TIMEDIFF_MS(stop, *start);
-	WT_RET(__wt_verbose(session,
+	__wt_verbose(session,
 	    WT_VERB_CHECKPOINT, "time: %" PRIu64 " us, gen: %" PRIu64
 	    ": Full database checkpoint %s",
-	    msec, S2C(session)->txn_global.checkpoint_gen, msg));
+	    msec, S2C(session)->txn_global.checkpoint_gen, msg);
 
 	/* Update the timestamp so we are reporting intervals. */
 	memcpy(start, &stop, sizeof(*start));

@@ -124,10 +124,10 @@ __wt_log_force_sync(WT_SESSION_IMPL *session, WT_LSN *min_lsn)
 	 * into the directory.
 	 */
 	if (log->sync_dir_lsn.l.file < min_lsn->l.file) {
-		WT_ERR(__wt_verbose(session, WT_VERB_LOG,
+		__wt_verbose(session, WT_VERB_LOG,
 		    "log_force_sync: sync directory %s to LSN %" PRIu32
 		    "/%" PRIu32,
-		    log->log_dir_fh->name, min_lsn->l.file, min_lsn->l.offset));
+		    log->log_dir_fh->name, min_lsn->l.file, min_lsn->l.offset);
 		WT_ERR(__wt_epoch(session, &fsync_start));
 		WT_ERR(__wt_fsync(session, log->log_dir_fh, true));
 		WT_ERR(__wt_epoch(session, &fsync_stop));
@@ -149,9 +149,9 @@ __wt_log_force_sync(WT_SESSION_IMPL *session, WT_LSN *min_lsn)
 		 */
 		WT_ERR(__log_openfile(session,
 		    &log_fh, WT_LOG_FILENAME, min_lsn->l.file, 0));
-		WT_ERR(__wt_verbose(session, WT_VERB_LOG,
+		__wt_verbose(session, WT_VERB_LOG,
 		    "log_force_sync: sync %s to LSN %" PRIu32 "/%" PRIu32,
-		    log_fh->name, min_lsn->l.file, min_lsn->l.offset));
+		    log_fh->name, min_lsn->l.file, min_lsn->l.offset);
 		WT_ERR(__wt_epoch(session, &fsync_start));
 		WT_ERR(__wt_fsync(session, log_fh, true));
 		WT_ERR(__wt_epoch(session, &fsync_stop));
@@ -699,8 +699,8 @@ __log_openfile(WT_SESSION_IMPL *session,
 		allocsize = log->allocsize;
 	WT_RET(__wt_scr_alloc(session, 0, &buf));
 	WT_ERR(__log_filename(session, id, file_prefix, buf));
-	WT_ERR(__wt_verbose(session, WT_VERB_LOG,
-	    "opening log %s", (const char *)buf->data));
+	__wt_verbose(session, WT_VERB_LOG,
+	    "opening log %s", (const char *)buf->data);
 	wtopen_flags = 0;
 	if (LF_ISSET(WT_LOG_OPEN_CREATE_OK))
 		FLD_SET(wtopen_flags, WT_FS_OPEN_CREATE);
@@ -771,9 +771,9 @@ __log_alloc_prealloc(WT_SESSION_IMPL *session, uint32_t to_num)
 	WT_ERR(__wt_scr_alloc(session, 0, &to_path));
 	WT_ERR(__log_filename(session, from_num, WT_LOG_PREPNAME, from_path));
 	WT_ERR(__log_filename(session, to_num, WT_LOG_FILENAME, to_path));
-	WT_ERR(__wt_verbose(session, WT_VERB_LOG,
+	__wt_verbose(session, WT_VERB_LOG,
 	    "log_alloc_prealloc: rename log %s to %s",
-	    (char *)from_path->data, (char *)to_path->data));
+	    (const char *)from_path->data, (const char *)to_path->data);
 	WT_STAT_FAST_CONN_INCR(session, log_prealloc_used);
 	/*
 	 * All file setup, writing the header and pre-allocation was done
@@ -1071,9 +1071,9 @@ __wt_log_allocfile(
 	WT_ERR(__log_prealloc(session, log_fh));
 	WT_ERR(__wt_fsync(session, log_fh, true));
 	WT_ERR(__wt_close(session, &log_fh));
-	WT_ERR(__wt_verbose(session, WT_VERB_LOG,
+	__wt_verbose(session, WT_VERB_LOG,
 	    "log_prealloc: rename %s to %s",
-	    (char *)from_path->data, (char *)to_path->data));
+	    (const char *)from_path->data, (const char *)to_path->data);
 	/*
 	 * Rename it into place and make it available.
 	 */
@@ -1098,8 +1098,8 @@ __wt_log_remove(WT_SESSION_IMPL *session,
 
 	WT_RET(__wt_scr_alloc(session, 0, &path));
 	WT_ERR(__log_filename(session, lognum, file_prefix, path));
-	WT_ERR(__wt_verbose(session, WT_VERB_LOG,
-	    "log_remove: remove log %s", (char *)path->data));
+	__wt_verbose(session, WT_VERB_LOG,
+	    "log_remove: remove log %s", (const char *)path->data);
 	WT_ERR(__wt_fs_remove(session, path->data, false));
 err:	__wt_scr_free(session, &path);
 	return (ret);
@@ -1133,8 +1133,8 @@ __wt_log_open(WT_SESSION_IMPL *session)
 	 * Open up a file handle to the log directory if we haven't.
 	 */
 	if (log->log_dir_fh == NULL) {
-		WT_RET(__wt_verbose(session, WT_VERB_LOG,
-		    "log_open: open fh to directory %s", conn->log_path));
+		__wt_verbose(session, WT_VERB_LOG,
+		    "log_open: open fh to directory %s", conn->log_path);
 		WT_RET(__wt_open(session, conn->log_path,
 		    WT_FS_OPEN_FILE_TYPE_DIRECTORY, 0, &log->log_dir_fh));
 	}
@@ -1177,9 +1177,9 @@ __wt_log_open(WT_SESSION_IMPL *session)
 		firstlog = WT_MIN(firstlog, lognum);
 	}
 	log->fileid = lastlog;
-	WT_ERR(__wt_verbose(session, WT_VERB_LOG,
+	__wt_verbose(session, WT_VERB_LOG,
 	    "log_open: first log %" PRIu32 " last log %" PRIu32,
-	    firstlog, lastlog));
+	    firstlog, lastlog);
 	if (firstlog == UINT32_MAX) {
 		WT_ASSERT(session, logcount == 0);
 		WT_INIT_LSN(&log->first_lsn);
@@ -1222,23 +1222,23 @@ __wt_log_close(WT_SESSION_IMPL *session)
 	log = conn->log;
 
 	if (log->log_close_fh != NULL && log->log_close_fh != log->log_fh) {
-		WT_RET(__wt_verbose(session, WT_VERB_LOG,
-		    "closing old log %s", log->log_close_fh->name));
+		__wt_verbose(session, WT_VERB_LOG,
+		    "closing old log %s", log->log_close_fh->name);
 		if (!F_ISSET(conn, WT_CONN_READONLY))
 			WT_RET(__wt_fsync(session, log->log_close_fh, true));
 		WT_RET(__wt_close(session, &log->log_close_fh));
 	}
 	if (log->log_fh != NULL) {
-		WT_RET(__wt_verbose(session, WT_VERB_LOG,
-		    "closing log %s", log->log_fh->name));
+		__wt_verbose(session, WT_VERB_LOG,
+		    "closing log %s", log->log_fh->name);
 		if (!F_ISSET(conn, WT_CONN_READONLY))
 			WT_RET(__wt_fsync(session, log->log_fh, true));
 		WT_RET(__wt_close(session, &log->log_fh));
 		log->log_fh = NULL;
 	}
 	if (log->log_dir_fh != NULL) {
-		WT_RET(__wt_verbose(session, WT_VERB_LOG,
-		    "closing log directory %s", log->log_dir_fh->name));
+		__wt_verbose(session, WT_VERB_LOG,
+		    "closing log directory %s", log->log_dir_fh->name);
 		if (!F_ISSET(conn, WT_CONN_READONLY))
 			WT_RET(__wt_fsync(session, log->log_dir_fh, true));
 		WT_RET(__wt_close(session, &log->log_dir_fh));
@@ -1443,11 +1443,11 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
 		if (F_ISSET(slot, WT_SLOT_SYNC_DIR) &&
 		    (log->sync_dir_lsn.l.file < sync_lsn.l.file)) {
 			WT_ASSERT(session, log->log_dir_fh != NULL);
-			WT_ERR(__wt_verbose(session, WT_VERB_LOG,
+			__wt_verbose(session, WT_VERB_LOG,
 			    "log_release: sync directory %s to LSN %" PRIu32
 			    "/%" PRIu32,
 			    log->log_dir_fh->name,
-			    sync_lsn.l.file, sync_lsn.l.offset));
+			    sync_lsn.l.file, sync_lsn.l.offset);
 			WT_ERR(__wt_epoch(session, &fsync_start));
 			WT_ERR(__wt_fsync(session, log->log_dir_fh, true));
 			WT_ERR(__wt_epoch(session, &fsync_stop));
@@ -1464,11 +1464,11 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
 		 */
 		if (F_ISSET(slot, WT_SLOT_SYNC) &&
 		    __wt_log_cmp(&log->sync_lsn, &slot->slot_end_lsn) < 0) {
-			WT_ERR(__wt_verbose(session, WT_VERB_LOG,
+			__wt_verbose(session, WT_VERB_LOG,
 			    "log_release: sync log %s to LSN %" PRIu32
 			    "/%" PRIu32,
 			    log->log_fh->name,
-			    sync_lsn.l.file, sync_lsn.l.offset));
+			    sync_lsn.l.file, sync_lsn.l.offset);
 			WT_STAT_FAST_CONN_INCR(session, log_sync);
 			WT_ERR(__wt_epoch(session, &fsync_start));
 			WT_ERR(__wt_fsync(session, log->log_fh, true));
@@ -1538,9 +1538,9 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 		return (0);
 
 	if (LF_ISSET(WT_LOGSCAN_RECOVER))
-		WT_RET(__wt_verbose(session, WT_VERB_LOG,
+		__wt_verbose(session, WT_VERB_LOG,
 		    "__wt_log_scan truncating to %" PRIu32 "/%" PRIu32,
-		    log->trunc_lsn.l.file, log->trunc_lsn.l.offset));
+		    log->trunc_lsn.l.file, log->trunc_lsn.l.offset);
 
 	if (log != NULL) {
 		allocsize = log->allocsize;
@@ -2177,8 +2177,8 @@ __wt_log_vprintf(WT_SESSION_IMPL *session, const char *fmt, va_list ap)
 
 	(void)vsnprintf((char *)logrec->data + logrec->size, len, fmt, ap);
 
-	WT_ERR(__wt_verbose(session, WT_VERB_LOG,
-	    "log_printf: %s", (char *)logrec->data + logrec->size));
+	__wt_verbose(session, WT_VERB_LOG,
+	    "log_printf: %s", (char *)logrec->data + logrec->size);
 
 	logrec->size += len;
 	WT_ERR(__wt_log_write(session, logrec, NULL, 0));
@@ -2224,9 +2224,9 @@ __wt_log_flush(WT_SESSION_IMPL *session, uint32_t flags)
 	while (__wt_log_cmp(&last_lsn, &lsn) > 0)
 		WT_RET(__wt_log_flush_lsn(session, &lsn, false));
 
-	WT_RET(__wt_verbose(session, WT_VERB_LOG,
+	__wt_verbose(session, WT_VERB_LOG,
 	    "log_flush: flags %#" PRIx32 " LSN %" PRIu32 "/%" PRIu32,
-	    flags, lsn.l.file, lsn.l.offset));
+	    flags, lsn.l.file, lsn.l.offset);
 	/*
 	 * If the user wants write-no-sync, there is nothing more to do.
 	 * If the user wants background sync, set the LSN and we're done.

@@ -357,13 +357,13 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 		 * but only when some progress is being made. */
 		if (WT_VERBOSE_ISSET(session, WT_VERB_TRANSACTION) &&
 		    current_id - oldest_id > 10000 && oldest_session != NULL) {
-			WT_TRET(__wt_verbose(session, WT_VERB_TRANSACTION,
+			__wt_verbose(session, WT_VERB_TRANSACTION,
 			    "old snapshot %" PRIu64
 			    " pinned in session %" PRIu32 " [%s]"
 			    " with snap_min %" PRIu64 "\n",
 			    oldest_id, oldest_session->id,
 			    oldest_session->lastop,
-			    oldest_session->txn.snap_min));
+			    oldest_session->txn.snap_min);
 		}
 #endif
 	}
@@ -782,23 +782,20 @@ __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[])
  * __wt_txn_global_destroy --
  *	Destroy the global transaction state.
  */
-int
+void
 __wt_txn_global_destroy(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
-	WT_DECL_RET;
 	WT_TXN_GLOBAL *txn_global;
 
 	conn = S2C(session);
 	txn_global = &conn->txn_global;
 
 	if (txn_global == NULL)
-		return (0);
+		return;
 
 	__wt_spin_destroy(session, &txn_global->id_lock);
-	WT_TRET(__wt_rwlock_destroy(session, &txn_global->scan_rwlock));
-	WT_TRET(__wt_rwlock_destroy(session, &txn_global->nsnap_rwlock));
+	__wt_rwlock_destroy(session, &txn_global->scan_rwlock);
+	__wt_rwlock_destroy(session, &txn_global->nsnap_rwlock);
 	__wt_free(session, txn_global->states);
-
-	return (ret);
 }

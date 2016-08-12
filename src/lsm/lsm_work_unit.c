@@ -121,10 +121,10 @@ __wt_lsm_get_chunk_to_flush(WT_SESSION_IMPL *session,
 		chunk = (evict_chunk != NULL) ? evict_chunk : flush_chunk;
 
 	if (chunk != NULL) {
-		WT_ERR(__wt_verbose(session, WT_VERB_LSM,
+		__wt_verbose(session, WT_VERB_LSM,
 		    "Flush%s: return chunk %" PRIu32 " of %" PRIu32 ": %s",
 		    force ? " w/ force" : "",
-		    i, lsm_tree->nchunks, chunk->uri));
+		    i, lsm_tree->nchunks, chunk->uri);
 
 		(void)__wt_atomic_add32(&chunk->refcnt, 1);
 	}
@@ -286,9 +286,9 @@ __wt_lsm_checkpoint_chunk(WT_SESSION_IMPL *session,
 			WT_RET_MSG(session, ret, "discard handle");
 	}
 	if (F_ISSET(chunk, WT_LSM_CHUNK_ONDISK)) {
-		WT_RET(__wt_verbose(session, WT_VERB_LSM,
+		__wt_verbose(session, WT_VERB_LSM,
 		    "LSM worker %s already on disk",
-		    chunk->uri));
+		    chunk->uri);
 		return (0);
 	}
 
@@ -297,9 +297,9 @@ __wt_lsm_checkpoint_chunk(WT_SESSION_IMPL *session,
 	    session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 	if (chunk->switch_txn == WT_TXN_NONE ||
 	    !__wt_txn_visible_all(session, chunk->switch_txn)) {
-		WT_RET(__wt_verbose(session, WT_VERB_LSM,
+		__wt_verbose(session, WT_VERB_LSM,
 		    "LSM worker %s: running transaction, return",
-		    chunk->uri));
+		    chunk->uri);
 		return (0);
 	}
 
@@ -307,8 +307,8 @@ __wt_lsm_checkpoint_chunk(WT_SESSION_IMPL *session,
 		return (0);
 	flush_set = true;
 
-	WT_ERR(__wt_verbose(session, WT_VERB_LSM, "LSM worker flushing %s",
-	    chunk->uri));
+	__wt_verbose(session, WT_VERB_LSM, "LSM worker flushing %s",
+	    chunk->uri);
 
 	/*
 	 * Flush the file before checkpointing: this is the expensive part in
@@ -333,8 +333,8 @@ __wt_lsm_checkpoint_chunk(WT_SESSION_IMPL *session,
 	}
 	WT_ERR(ret);
 
-	WT_ERR(__wt_verbose(session, WT_VERB_LSM, "LSM worker checkpointing %s",
-	    chunk->uri));
+	__wt_verbose(session, WT_VERB_LSM, "LSM worker checkpointing %s",
+	    chunk->uri);
 
 	/*
 	 * Turn on metadata tracking to ensure the checkpoint gets the
@@ -389,8 +389,8 @@ __wt_lsm_checkpoint_chunk(WT_SESSION_IMPL *session,
 	/* Make sure we aren't pinning a transaction ID. */
 	__wt_txn_release_snapshot(session);
 
-	WT_ERR(__wt_verbose(session, WT_VERB_LSM, "LSM worker checkpointed %s",
-	    chunk->uri));
+	__wt_verbose(session, WT_VERB_LSM, "LSM worker checkpointed %s",
+	    chunk->uri);
 
 	/* Schedule a bloom filter create for our newly flushed chunk. */
 	if (!FLD_ISSET(lsm_tree->bloom, WT_LSM_BLOOM_OFF))
@@ -461,10 +461,10 @@ __lsm_bloom_create(WT_SESSION_IMPL *session,
 	WT_CLEAR(key);
 	WT_ERR_NOTFOUND_OK(__wt_bloom_get(bloom, &key));
 
-	WT_ERR(__wt_verbose(session, WT_VERB_LSM,
+	__wt_verbose(session, WT_VERB_LSM,
 	    "LSM worker created bloom filter %s. "
 	    "Expected %" PRIu64 " items, got %" PRIu64,
-	    chunk->bloom_uri, chunk->count, insert_count));
+	    chunk->bloom_uri, chunk->count, insert_count);
 
 	/* Ensure the bloom filter is in the metadata. */
 	__wt_lsm_tree_writelock(session, lsm_tree);
@@ -531,11 +531,11 @@ __lsm_drop_file(WT_SESSION_IMPL *session, const char *uri)
 
 	if (ret == 0)
 		ret = __wt_fs_remove(session, uri + strlen("file:"), false);
-	WT_RET(__wt_verbose(session, WT_VERB_LSM, "Dropped %s", uri));
+	__wt_verbose(session, WT_VERB_LSM, "Dropped %s", uri);
 
 	if (ret == EBUSY || ret == ENOENT)
-		WT_RET(__wt_verbose(session, WT_VERB_LSM,
-		    "LSM worker drop of %s failed with %d", uri, ret));
+		__wt_verbose(session, WT_VERB_LSM,
+		    "LSM worker drop of %s failed with %d", uri, ret);
 
 	return (ret);
 }
