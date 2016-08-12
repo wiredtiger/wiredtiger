@@ -3,8 +3,9 @@
 # We use multiple tables to simulate collections and indexes.
 # This test assumes that its correlating populate already completed and exists.
 #
-# Set cache to half of memory.  Enable logging and checkpoints.  Collect
-# wiredtiger stats for ftdc.
+# Set cache to half of memory.  This value is computed from the AWS instance
+# where Jenkins perf runs which has 32G.  Enable logging and checkpoints. 
+# Collect wiredtiger stats for ftdc.
 #
 # This generates about 80 Gb of uncompressed data.  But it should compress
 # well and be small on disk.
