@@ -135,7 +135,7 @@ static const char *list[] = {
 	",statistics_log=(json=0)",
 	",statistics_log=(json=1)",
 	",statistics_log=(on_close=0)",
-	",statistics=(\"fast\"),statistics_log=(on_close=1)",
+	",statistics_log=(on_close=1)",
 	",statistics_log=(sources=(\"file:\"))",
 	",statistics_log=(sources=())",
 	",statistics_log=(timestamp=\"%b:%S\")",
@@ -267,6 +267,13 @@ main(int argc, char *argv[])
 			return (EXIT_FAILURE);
 		}
 	}
+
+	/*
+	 * Turn on-close statistics off, if on-close is on and statistics were
+	 * randomly turned off during the run, close would fail.
+	 */
+	testutil_check(opts->conn->reconfigure(
+	    opts->conn, "statistics_log=(on_close=0)"));
 
 	testutil_cleanup(opts);
 	return (EXIT_SUCCESS);
