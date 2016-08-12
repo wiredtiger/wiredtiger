@@ -595,6 +595,7 @@ static const char * const __stats_connection_desc[] = {
 	"cache: pages evicted by application threads",
 	"cache: pages queued for eviction",
 	"cache: pages queued for urgent eviction",
+	"cache: pages queued for urgent eviction during walk",
 	"cache: pages read into cache",
 	"cache: pages read into cache requiring lookaside entries",
 	"cache: pages requested from the cache",
@@ -685,6 +686,22 @@ static const char * const __stats_connection_desc[] = {
 	"reconciliation: split objects currently awaiting free",
 	"session: open cursor count",
 	"session: open session count",
+	"session: table compact failed calls",
+	"session: table compact successful calls",
+	"session: table create failed calls",
+	"session: table create successful calls",
+	"session: table drop failed calls",
+	"session: table drop successful calls",
+	"session: table rebalance failed calls",
+	"session: table rebalance successful calls",
+	"session: table rename failed calls",
+	"session: table rename successful calls",
+	"session: table salvage failed calls",
+	"session: table salvage successful calls",
+	"session: table truncate failed calls",
+	"session: table truncate successful calls",
+	"session: table verify failed calls",
+	"session: table verify successful calls",
 	"thread-state: active filesystem fsync calls",
 	"thread-state: active filesystem read calls",
 	"thread-state: active filesystem write calls",
@@ -701,13 +718,13 @@ static const char * const __stats_connection_desc[] = {
 	"transaction: transaction checkpoint max time (msecs)",
 	"transaction: transaction checkpoint min time (msecs)",
 	"transaction: transaction checkpoint most recent time (msecs)",
+	"transaction: transaction checkpoint scrub dirty target",
+	"transaction: transaction checkpoint scrub time (msecs)",
 	"transaction: transaction checkpoint total time (msecs)",
 	"transaction: transaction checkpoints",
 	"transaction: transaction failures due to cache overflow",
 	"transaction: transaction fsync calls for checkpoint after allocating the transaction ID",
-	"transaction: transaction fsync calls for checkpoint before allocating the transaction ID",
 	"transaction: transaction fsync duration for checkpoint after allocating the transaction ID (usecs)",
-	"transaction: transaction fsync duration for checkpoint before allocating the transaction ID (usecs)",
 	"transaction: transaction range of IDs currently pinned",
 	"transaction: transaction range of IDs currently pinned by a checkpoint",
 	"transaction: transaction range of IDs currently pinned by named snapshots",
@@ -820,6 +837,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cache_eviction_force_delete = 0;
 	stats->cache_eviction_app = 0;
 	stats->cache_eviction_pages_queued = 0;
+	stats->cache_eviction_pages_queued_urgent = 0;
 	stats->cache_eviction_pages_queued_oldest = 0;
 	stats->cache_read = 0;
 	stats->cache_read_lookaside = 0;
@@ -911,6 +929,22 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing rec_split_stashed_objects */
 		/* not clearing session_cursor_open */
 		/* not clearing session_open */
+		/* not clearing session_table_compact_fail */
+		/* not clearing session_table_compact_success */
+		/* not clearing session_table_create_fail */
+		/* not clearing session_table_create_success */
+		/* not clearing session_table_drop_fail */
+		/* not clearing session_table_drop_success */
+		/* not clearing session_table_rebalance_fail */
+		/* not clearing session_table_rebalance_success */
+		/* not clearing session_table_rename_fail */
+		/* not clearing session_table_rename_success */
+		/* not clearing session_table_salvage_fail */
+		/* not clearing session_table_salvage_success */
+		/* not clearing session_table_truncate_fail */
+		/* not clearing session_table_truncate_success */
+		/* not clearing session_table_verify_fail */
+		/* not clearing session_table_verify_success */
 		/* not clearing thread_fsync_active */
 		/* not clearing thread_read_active */
 		/* not clearing thread_write_active */
@@ -927,13 +961,13 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing txn_checkpoint_time_max */
 		/* not clearing txn_checkpoint_time_min */
 		/* not clearing txn_checkpoint_time_recent */
+		/* not clearing txn_checkpoint_scrub_target */
+		/* not clearing txn_checkpoint_scrub_time */
 		/* not clearing txn_checkpoint_time_total */
 	stats->txn_checkpoint = 0;
 	stats->txn_fail_cache = 0;
 	stats->txn_checkpoint_fsync_post = 0;
-	stats->txn_checkpoint_fsync_pre = 0;
-	stats->txn_checkpoint_fsync_post_duration = 0;
-	stats->txn_checkpoint_fsync_pre_duration = 0;
+		/* not clearing txn_checkpoint_fsync_post_duration */
 		/* not clearing txn_pinned_range */
 		/* not clearing txn_pinned_checkpoint_range */
 		/* not clearing txn_pinned_snapshot_range */
@@ -1068,6 +1102,8 @@ __wt_stat_connection_aggregate(
 	to->cache_eviction_app += WT_STAT_READ(from, cache_eviction_app);
 	to->cache_eviction_pages_queued +=
 	    WT_STAT_READ(from, cache_eviction_pages_queued);
+	to->cache_eviction_pages_queued_urgent +=
+	    WT_STAT_READ(from, cache_eviction_pages_queued_urgent);
 	to->cache_eviction_pages_queued_oldest +=
 	    WT_STAT_READ(from, cache_eviction_pages_queued_oldest);
 	to->cache_read += WT_STAT_READ(from, cache_read);
@@ -1168,6 +1204,38 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, rec_split_stashed_objects);
 	to->session_cursor_open += WT_STAT_READ(from, session_cursor_open);
 	to->session_open += WT_STAT_READ(from, session_open);
+	to->session_table_compact_fail +=
+	    WT_STAT_READ(from, session_table_compact_fail);
+	to->session_table_compact_success +=
+	    WT_STAT_READ(from, session_table_compact_success);
+	to->session_table_create_fail +=
+	    WT_STAT_READ(from, session_table_create_fail);
+	to->session_table_create_success +=
+	    WT_STAT_READ(from, session_table_create_success);
+	to->session_table_drop_fail +=
+	    WT_STAT_READ(from, session_table_drop_fail);
+	to->session_table_drop_success +=
+	    WT_STAT_READ(from, session_table_drop_success);
+	to->session_table_rebalance_fail +=
+	    WT_STAT_READ(from, session_table_rebalance_fail);
+	to->session_table_rebalance_success +=
+	    WT_STAT_READ(from, session_table_rebalance_success);
+	to->session_table_rename_fail +=
+	    WT_STAT_READ(from, session_table_rename_fail);
+	to->session_table_rename_success +=
+	    WT_STAT_READ(from, session_table_rename_success);
+	to->session_table_salvage_fail +=
+	    WT_STAT_READ(from, session_table_salvage_fail);
+	to->session_table_salvage_success +=
+	    WT_STAT_READ(from, session_table_salvage_success);
+	to->session_table_truncate_fail +=
+	    WT_STAT_READ(from, session_table_truncate_fail);
+	to->session_table_truncate_success +=
+	    WT_STAT_READ(from, session_table_truncate_success);
+	to->session_table_verify_fail +=
+	    WT_STAT_READ(from, session_table_verify_fail);
+	to->session_table_verify_success +=
+	    WT_STAT_READ(from, session_table_verify_success);
 	to->thread_fsync_active += WT_STAT_READ(from, thread_fsync_active);
 	to->thread_read_active += WT_STAT_READ(from, thread_read_active);
 	to->thread_write_active += WT_STAT_READ(from, thread_write_active);
@@ -1192,18 +1260,18 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, txn_checkpoint_time_min);
 	to->txn_checkpoint_time_recent +=
 	    WT_STAT_READ(from, txn_checkpoint_time_recent);
+	to->txn_checkpoint_scrub_target +=
+	    WT_STAT_READ(from, txn_checkpoint_scrub_target);
+	to->txn_checkpoint_scrub_time +=
+	    WT_STAT_READ(from, txn_checkpoint_scrub_time);
 	to->txn_checkpoint_time_total +=
 	    WT_STAT_READ(from, txn_checkpoint_time_total);
 	to->txn_checkpoint += WT_STAT_READ(from, txn_checkpoint);
 	to->txn_fail_cache += WT_STAT_READ(from, txn_fail_cache);
 	to->txn_checkpoint_fsync_post +=
 	    WT_STAT_READ(from, txn_checkpoint_fsync_post);
-	to->txn_checkpoint_fsync_pre +=
-	    WT_STAT_READ(from, txn_checkpoint_fsync_pre);
 	to->txn_checkpoint_fsync_post_duration +=
 	    WT_STAT_READ(from, txn_checkpoint_fsync_post_duration);
-	to->txn_checkpoint_fsync_pre_duration +=
-	    WT_STAT_READ(from, txn_checkpoint_fsync_pre_duration);
 	to->txn_pinned_range += WT_STAT_READ(from, txn_pinned_range);
 	to->txn_pinned_checkpoint_range +=
 	    WT_STAT_READ(from, txn_pinned_checkpoint_range);
