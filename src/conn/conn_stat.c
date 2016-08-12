@@ -56,8 +56,7 @@ __wt_conn_stat_init(WT_SESSION_IMPL *session)
  *	Parse and setup the statistics server options.
  */
 static int
-__statlog_config(
-    WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool reconfig)
+__statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 {
 	WT_CONFIG objectconf;
 	WT_CONFIG_ITEM cval, k, v;
@@ -118,12 +117,8 @@ __statlog_config(
 		sources = NULL;
 	}
 
-	if (!reconfig) {
-		WT_ERR(__wt_config_gets(
-		    session, cfg, "statistics_log.path", &cval));
-		WT_ERR(__wt_nfilename(
-		    session, cval.str, cval.len, &conn->stat_path));
-	}
+	WT_ERR(__wt_config_gets(session, cfg, "statistics_log.path", &cval));
+	WT_ERR(__wt_nfilename(session, cval.str, cval.len, &conn->stat_path));
 
 	WT_ERR(__wt_config_gets(
 	    session, cfg, "statistics_log.timestamp", &cval));
@@ -476,7 +471,7 @@ __statlog_start(WT_CONNECTION_IMPL *conn)
  *	Start the statistics server thread.
  */
 int
-__wt_statlog_create(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
+__wt_statlog_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_CONNECTION_IMPL *conn;
 	bool start;
@@ -492,7 +487,7 @@ __wt_statlog_create(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 	if (conn->stat_session != NULL)
 		WT_RET(__wt_statlog_destroy(session, false));
 
-	WT_RET(__statlog_config(session, cfg, &start, reconfig));
+	WT_RET(__statlog_config(session, cfg, &start));
 	if (start)
 		WT_RET(__statlog_start(conn));
 
