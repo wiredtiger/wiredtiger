@@ -629,6 +629,7 @@ fcntl
 fd
 fdatasync
 fdopen
+fextend
 ffc
 fflush
 ffs
@@ -938,6 +939,7 @@ prepend
 prepended
 prepending
 presize
+presync
 primary's
 printf
 printlog

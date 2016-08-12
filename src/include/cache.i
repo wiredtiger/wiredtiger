@@ -78,21 +78,26 @@ __wt_cache_pages_inuse(WT_CACHE *cache)
 }
 
 /*
+ * __wt_cache_bytes_plus_overhead --
+ *	Apply the cache overhead to a size in bytes.
+ */
+static inline uint64_t
+__wt_cache_bytes_plus_overhead(WT_CACHE *cache, uint64_t sz)
+{
+	if (cache->overhead_pct != 0)
+		sz += (sz * (uint64_t)cache->overhead_pct) / 100;
+
+	return (sz);
+}
+
+/*
  * __wt_cache_bytes_inuse --
  *	Return the number of bytes in use.
  */
 static inline uint64_t
 __wt_cache_bytes_inuse(WT_CACHE *cache)
 {
-	uint64_t bytes_inuse;
-
-	/* Adjust the cache size to take allocation overhead into account. */
-	bytes_inuse = cache->bytes_inmem;
-	if (cache->overhead_pct != 0)
-		bytes_inuse +=
-		    (bytes_inuse * (uint64_t)cache->overhead_pct) / 100;
-
-	return (bytes_inuse);
+	return (__wt_cache_bytes_plus_overhead(cache, cache->bytes_inmem));
 }
 
 /*
@@ -102,14 +107,18 @@ __wt_cache_bytes_inuse(WT_CACHE *cache)
 static inline uint64_t
 __wt_cache_dirty_inuse(WT_CACHE *cache)
 {
-	uint64_t dirty_inuse;
+	return (__wt_cache_bytes_plus_overhead(cache,
+	    cache->bytes_dirty_intl + cache->bytes_dirty_leaf));
+}
 
-	dirty_inuse = cache->bytes_dirty;
-	if (cache->overhead_pct != 0)
-		dirty_inuse +=
-		    (dirty_inuse * (uint64_t)cache->overhead_pct) / 100;
-
-	return (dirty_inuse);
+/*
+ * __wt_cache_dirty_leaf_inuse --
+ *	Return the number of dirty bytes in use by leaf pages.
+ */
+static inline uint64_t
+__wt_cache_dirty_leaf_inuse(WT_CACHE *cache)
+{
+	return (__wt_cache_bytes_plus_overhead(cache, cache->bytes_dirty_leaf));
 }
 
 /*
@@ -119,14 +128,7 @@ __wt_cache_dirty_inuse(WT_CACHE *cache)
 static inline uint64_t
 __wt_cache_bytes_image(WT_CACHE *cache)
 {
-	uint64_t bytes_image;
-
-	bytes_image = cache->bytes_image;
-	if (cache->overhead_pct != 0)
-		bytes_image +=
-		    (bytes_image * (uint64_t)cache->overhead_pct) / 100;
-
-	return (bytes_image);
+	return (__wt_cache_bytes_plus_overhead(cache, cache->bytes_image));
 }
 
 /*
@@ -136,7 +138,7 @@ __wt_cache_bytes_image(WT_CACHE *cache)
 static inline uint64_t
 __wt_cache_bytes_other(WT_CACHE *cache)
 {
-	uint64_t bytes_image, bytes_inmem, bytes_other;
+	uint64_t bytes_image, bytes_inmem;
 
 	bytes_image = cache->bytes_image;
 	bytes_inmem = cache->bytes_inmem;
@@ -145,15 +147,8 @@ __wt_cache_bytes_other(WT_CACHE *cache)
 	 * The reads above could race with changes to the values, so protect
 	 * against underflow.
 	 */
-	if (bytes_image > bytes_inmem)
-		return (0);
-
-	bytes_other = bytes_inmem - bytes_image;
-	if (cache->overhead_pct != 0)
-		bytes_other +=
-		    (bytes_other * (uint64_t)cache->overhead_pct) / 100;
-
-	return (bytes_other);
+	return ((bytes_image > bytes_inmem) ? 0 :
+	    __wt_cache_bytes_plus_overhead(cache, bytes_inmem - bytes_image));
 }
 
 /*
@@ -185,7 +180,7 @@ __wt_session_can_wait(WT_SESSION_IMPL *session)
 /*
  * __wt_eviction_needed --
  *	Return if an application thread should do eviction, and the cache full
- * percentage as a side-effect.
+ *      percentage as a side-effect.
  */
 static inline bool
 __wt_eviction_needed(WT_SESSION_IMPL *session, u_int *pct_fullp)
@@ -223,10 +218,17 @@ __wt_eviction_needed(WT_SESSION_IMPL *session, u_int *pct_fullp)
 	if (pct_full > cache->eviction_trigger)
 		return (true);
 
-	/* Return if there are too many dirty bytes in cache. */
-	if (__wt_cache_dirty_inuse(cache) >
+	/*
+	 * Check if there are too many dirty bytes in cache.
+	 *
+	 * We try to avoid penalizing read-only operations by only checking the
+	 * dirty limit once a transaction ID has been allocated, or if the last
+	 * transaction did an update.
+	 */
+	if (__wt_cache_dirty_leaf_inuse(cache) >
 	    (cache->eviction_dirty_trigger * bytes_max) / 100)
 		return (true);
+
 	return (false);
 }
 

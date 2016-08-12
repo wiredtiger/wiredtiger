@@ -117,7 +117,7 @@ __wt_bt_read(WT_SESSION_IMPL *session,
 		 */
 		if (ret != 0 ||
 		    result_len != dsk->mem_size - WT_BLOCK_COMPRESS_SKIP) {
-			fail_msg = "block decryption failed";
+			fail_msg = "block decompression failed";
 			goto corrupt;
 		}
 	} else
@@ -365,6 +365,7 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 
 	WT_STAT_FAST_CONN_INCR(session, cache_write);
 	WT_STAT_FAST_DATA_INCR(session, cache_write);
+	S2C(session)->cache->bytes_written += dsk->mem_size;
 	WT_STAT_FAST_CONN_INCRV(session, cache_bytes_write, dsk->mem_size);
 	WT_STAT_FAST_DATA_INCRV(session, cache_bytes_write, dsk->mem_size);
 

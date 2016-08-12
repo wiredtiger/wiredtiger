@@ -201,7 +201,7 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	WT_CONNECTION_STATS **stats;
-	uint64_t inuse, leaf, used;
+	uint64_t inuse, leaf;
 
 	conn = S2C(session);
 	cache = conn->cache;
@@ -212,8 +212,8 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
 	 * There are races updating the different cache tracking values so
 	 * be paranoid calculating the leaf byte usage.
 	 */
-	used = cache->bytes_overflow + cache->bytes_internal;
-	leaf = inuse > used ? inuse - used : 0;
+	leaf = inuse > cache->bytes_internal ?
+	    inuse - cache->bytes_internal : 0;
 
 	WT_STAT_SET(session, stats, cache_bytes_max, conn->cache_size);
 	WT_STAT_SET(session, stats, cache_bytes_inuse, inuse);
@@ -230,12 +230,11 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
 	WT_STAT_SET(session, stats, cache_bytes_leaf, leaf);
 	WT_STAT_SET(
 	    session, stats, cache_bytes_other, __wt_cache_bytes_other(cache));
-	WT_STAT_SET(
-	    session, stats, cache_bytes_overflow, cache->bytes_overflow);
 
 	WT_STAT_SET(session, stats,
 	    cache_eviction_maximum_page_size, cache->evict_max_page_size);
-	WT_STAT_SET(session, stats, cache_pages_dirty, cache->pages_dirty);
+	WT_STAT_SET(session, stats, cache_pages_dirty,
+	    cache->pages_dirty_intl + cache->pages_dirty_leaf);
 
 	/*
 	 * The number of files with active walks ~= number of hazard pointers
@@ -275,11 +274,13 @@ __wt_cache_destroy(WT_SESSION_IMPL *session)
 		__wt_errx(session,
 		    "cache server: exiting with %" PRIu64 " bytes in memory",
 		    cache->bytes_inmem);
-	if (cache->bytes_dirty != 0 || cache->pages_dirty != 0)
+	if (cache->bytes_dirty_intl + cache->bytes_dirty_leaf != 0 ||
+	    cache->pages_dirty_intl + cache->pages_dirty_leaf != 0)
 		__wt_errx(session,
 		    "cache server: exiting with %" PRIu64
 		    " bytes dirty and %" PRIu64 " pages dirty",
-		    cache->bytes_dirty, cache->pages_dirty);
+		    cache->bytes_dirty_intl + cache->bytes_dirty_leaf,
+		    cache->pages_dirty_intl + cache->pages_dirty_leaf);
 
 	WT_TRET(__wt_cond_auto_destroy(session, &cache->evict_cond));
 	WT_TRET(__wt_cond_destroy(session, &cache->evict_waiter_cond));
