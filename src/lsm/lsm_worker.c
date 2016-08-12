@@ -154,8 +154,7 @@ __lsm_worker(void *arg)
 
 		/* Don't busy wait if there was any work to do. */
 		if (!progress) {
-			WT_ERR(
-			    __wt_cond_wait(session, cookie->work_cond, 10000));
+			__wt_cond_wait(session, cookie->work_cond, 10000);
 			continue;
 		}
 	}

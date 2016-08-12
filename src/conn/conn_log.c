@@ -173,7 +173,7 @@ __logmgr_config(
 
 	WT_RET(__logmgr_sync_cfg(session, cfg));
 	if (conn->log_cond != NULL)
-		WT_RET(__wt_cond_auto_signal(session, conn->log_cond));
+		__wt_cond_auto_signal(session, conn->log_cond);
 	return (0);
 }
 
@@ -438,8 +438,7 @@ __log_file_server(void *arg)
 				WT_ASSERT(session, __wt_log_cmp(
 				    &close_end_lsn, &log->sync_lsn) >= 0);
 				log->sync_lsn = close_end_lsn;
-				WT_ERR(__wt_cond_signal(
-				    session, log->log_sync_cond));
+				__wt_cond_signal(session, log->log_sync_cond);
 				locked = false;
 				__wt_spin_unlock(session, &log->log_sync_lock);
 			}
@@ -487,14 +486,14 @@ __log_file_server(void *arg)
 					    min_lsn.l.file ==
 					    log->sync_lsn.l.file);
 					log->sync_lsn = min_lsn;
-					WT_ERR(__wt_cond_signal(
-					    session, log->log_sync_cond));
+					__wt_cond_signal(
+					    session, log->log_sync_cond);
 				}
 				locked = false;
 				__wt_spin_unlock(session, &log->log_sync_lock);
 			} else {
-				WT_ERR(__wt_cond_auto_signal(
-				    session, conn->log_wrlsn_cond));
+				__wt_cond_auto_signal(
+				    session, conn->log_wrlsn_cond);
 				/*
 				 * We do not want to wait potentially a second
 				 * to process this.  Yield to give the wrlsn
@@ -506,8 +505,7 @@ __log_file_server(void *arg)
 			}
 		}
 		/* Wait until the next event. */
-		WT_ERR(__wt_cond_wait(
-		    session, conn->log_file_cond, WT_MILLION / 10));
+		__wt_cond_wait(session, conn->log_file_cond, WT_MILLION / 10);
 	}
 
 	if (0) {
@@ -541,11 +539,10 @@ typedef struct {
  *	are contiguous.  The purpose of this function is to advance the
  *	write_lsn in LSN order after the buffer is written to the log file.
  */
-int
+void
 __wt_log_wrlsn(WT_SESSION_IMPL *session, int *yield)
 {
 	WT_CONNECTION_IMPL *conn;
-	WT_DECL_RET;
 	WT_LOG *log;
 	WT_LOG_WRLSN_ENTRY written[WT_SLOT_POOL];
 	WT_LOGSLOT *coalescing, *slot;
@@ -664,21 +661,19 @@ restart:
 					    (uint32_t)slot->slot_last_offset;
 				log->write_start_lsn = slot->slot_start_lsn;
 				log->write_lsn = slot->slot_end_lsn;
-				WT_ERR(__wt_cond_signal(
-				    session, log->log_write_cond));
+				__wt_cond_signal(session, log->log_write_cond);
 				WT_STAT_FAST_CONN_INCR(session, log_write_lsn);
 				/*
 				 * Signal the close thread if needed.
 				 */
 				if (F_ISSET(slot, WT_SLOT_CLOSEFH))
-					WT_ERR(__wt_cond_signal(
-					    session, conn->log_file_cond));
+					__wt_cond_signal(
+					    session, conn->log_file_cond);
 			}
 			__wt_log_slot_free(session, slot);
 		}
 	}
-err:	__wt_spin_unlock(session, &log->log_writelsn_lock);
-	return (ret);
+	__wt_spin_unlock(session, &log->log_writelsn_lock);
 }
 
 /*
@@ -711,7 +706,7 @@ __log_wrlsn_server(void *arg)
 		 */
 		if (__wt_log_cmp(&prev, &log->alloc_lsn) != 0 ||
 		    __wt_log_cmp(&log->write_lsn, &log->alloc_lsn) != 0)
-			WT_ERR(__wt_log_wrlsn(session, &yield));
+			__wt_log_wrlsn(session, &yield);
 		else
 			WT_STAT_FAST_CONN_INCR(session, log_write_lsn_skip);
 		prev = log->alloc_lsn;
@@ -727,15 +722,15 @@ __log_wrlsn_server(void *arg)
 			 * Send in false because if we did any work we would
 			 * not be on this path.
 			 */
-			WT_ERR(__wt_cond_auto_wait(
-			    session, conn->log_wrlsn_cond, did_work));
+			__wt_cond_auto_wait(
+			    session, conn->log_wrlsn_cond, did_work);
 	}
 	/*
 	 * On close we need to do this one more time because there could
 	 * be straggling log writes that need to be written.
 	 */
 	WT_ERR(__wt_log_force_write(session, 1, NULL));
-	WT_ERR(__wt_log_wrlsn(session, NULL));
+	__wt_log_wrlsn(session, NULL);
 	if (0) {
 err:		__wt_err(session, ret, "log wrlsn server error");
 	}
@@ -835,8 +830,8 @@ __log_server(void *arg)
 		/* Wait until the next event. */
 
 		WT_ERR(__wt_epoch(session, &start));
-		WT_ERR(__wt_cond_auto_wait_signal(session, conn->log_cond,
-		    did_work, &signalled));
+		__wt_cond_auto_wait_signal(session,
+		    conn->log_cond, did_work, &signalled);
 		WT_ERR(__wt_epoch(session, &now));
 		timediff = WT_TIMEDIFF_MS(now, start);
 	}
@@ -963,7 +958,7 @@ __wt_logmgr_open(WT_SESSION_IMPL *session)
 	if (conn->log_session != NULL) {
 		WT_ASSERT(session, conn->log_cond != NULL);
 		WT_ASSERT(session, conn->log_tid_set == true);
-		WT_RET(__wt_cond_auto_signal(session, conn->log_cond));
+		__wt_cond_auto_signal(session, conn->log_cond);
 	} else {
 		/* The log server gets its own session. */
 		WT_RET(__wt_open_internal_session(conn,
@@ -1005,12 +1000,12 @@ __wt_logmgr_destroy(WT_SESSION_IMPL *session)
 		return (0);
 	}
 	if (conn->log_tid_set) {
-		WT_TRET(__wt_cond_auto_signal(session, conn->log_cond));
+		__wt_cond_auto_signal(session, conn->log_cond);
 		WT_TRET(__wt_thread_join(session, conn->log_tid));
 		conn->log_tid_set = false;
 	}
 	if (conn->log_file_tid_set) {
-		WT_TRET(__wt_cond_signal(session, conn->log_file_cond));
+		__wt_cond_signal(session, conn->log_file_cond);
 		WT_TRET(__wt_thread_join(session, conn->log_file_tid));
 		conn->log_file_tid_set = false;
 	}
@@ -1020,7 +1015,7 @@ __wt_logmgr_destroy(WT_SESSION_IMPL *session)
 		conn->log_file_session = NULL;
 	}
 	if (conn->log_wrlsn_tid_set) {
-		WT_TRET(__wt_cond_auto_signal(session, conn->log_wrlsn_cond));
+		__wt_cond_auto_signal(session, conn->log_wrlsn_cond);
 		WT_TRET(__wt_thread_join(session, conn->log_wrlsn_tid));
 		conn->log_wrlsn_tid_set = false;
 	}

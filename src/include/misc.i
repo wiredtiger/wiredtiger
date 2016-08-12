@@ -10,12 +10,12 @@
  * __wt_cond_wait --
  *	Wait on a mutex, optionally timing out.
  */
-static inline int
+static inline void
 __wt_cond_wait(WT_SESSION_IMPL *session, WT_CONDVAR *cond, uint64_t usecs)
 {
 	bool notused;
 
-	return (__wt_cond_wait_signal(session, cond, usecs, &notused));
+	__wt_cond_wait_signal(session, cond, usecs, &notused);
 }
 
 /*

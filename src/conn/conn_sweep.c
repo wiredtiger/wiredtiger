@@ -271,8 +271,8 @@ __sweep_server(void *arg)
 	while (F_ISSET(conn, WT_CONN_SERVER_RUN) &&
 	    F_ISSET(conn, WT_CONN_SERVER_SWEEP)) {
 		/* Wait until the next event. */
-		WT_ERR(__wt_cond_wait(session,
-		    conn->sweep_cond, conn->sweep_interval * WT_MILLION));
+		__wt_cond_wait(session,
+		    conn->sweep_cond, conn->sweep_interval * WT_MILLION);
 		WT_ERR(__wt_seconds(session, &now));
 
 		WT_STAT_FAST_CONN_INCR(session, dh_sweeps);
@@ -416,7 +416,7 @@ __wt_sweep_destroy(WT_SESSION_IMPL *session)
 
 	F_CLR(conn, WT_CONN_SERVER_SWEEP);
 	if (conn->sweep_tid_set) {
-		WT_TRET(__wt_cond_signal(session, conn->sweep_cond));
+		__wt_cond_signal(session, conn->sweep_cond);
 		WT_TRET(__wt_thread_join(session, conn->sweep_tid));
 		conn->sweep_tid_set = 0;
 	}

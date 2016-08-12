@@ -715,7 +715,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/* Mark all trees as open for business (particularly eviction). */
 	WT_ERR(__checkpoint_apply(session, cfg, __checkpoint_presync));
-	WT_ERR(__wt_evict_server_wake(session));
+	__wt_evict_server_wake(session);
 
 	WT_ERR(__checkpoint_verbose_track(session,
 	    "committing transaction", &verb_timer));
@@ -1479,7 +1479,7 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
 	 * progress.  Without this, application threads will be stalled
 	 * until the eviction server next wakes.
 	 */
-	WT_TRET(__wt_evict_server_wake(session));
+	__wt_evict_server_wake(session);
 
 	return (ret);
 }
