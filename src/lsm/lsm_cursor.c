@@ -951,7 +951,14 @@ __clsm_next_random(WT_CURSOR *cursor)
 		 */
 		WT_ERR(__wt_open_cursor(
 		    session, random_chunk->uri, NULL, cfg, &c));
-		WT_ERR(c->next(c));
+		ret = c->next(c);
+		/*
+		 * Sometimes we may run on an empty chunk or for some reason be
+		 * unable to get a random doc. Thanks okay and we retry.
+		 */
+		if (ret == WT_NOTFOUND)
+			continue;
+		WT_ERR(ret);
 		WT_ERR(c->get_key(c, &cursor->key));
 		WT_ERR(c->close(c));
 
