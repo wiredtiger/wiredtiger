@@ -881,11 +881,11 @@ __wt_ovfl_track_wrapup(WT_SESSION_IMPL *session, WT_PAGE *page)
 		WT_RET(__ovfl_reuse_wrapup(session, page));
 
 	if (track->ovfl_txnc[0] != NULL) {
-		WT_RET(__wt_writelock(session, S2BT(session)->ovfl_lock));
+		__wt_writelock(session, S2BT(session)->ovfl_lock);
 		ret = __ovfl_txnc_wrapup(session, page);
-		WT_TRET(__wt_writeunlock(session, S2BT(session)->ovfl_lock));
+		__wt_writeunlock(session, S2BT(session)->ovfl_lock);
 	}
-	return (0);
+	return (ret);
 }
 
 /*
@@ -909,9 +909,9 @@ __wt_ovfl_track_wrapup_err(WT_SESSION_IMPL *session, WT_PAGE *page)
 		WT_RET(__ovfl_reuse_wrapup_err(session, page));
 
 	if (track->ovfl_txnc[0] != NULL) {
-		WT_RET(__wt_writelock(session, S2BT(session)->ovfl_lock));
+		__wt_writelock(session, S2BT(session)->ovfl_lock);
 		ret = __ovfl_txnc_wrapup(session, page);
-		WT_TRET(__wt_writeunlock(session, S2BT(session)->ovfl_lock));
+		__wt_writeunlock(session, S2BT(session)->ovfl_lock);
 	}
-	return (0);
+	return (ret);
 }

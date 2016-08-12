@@ -28,9 +28,11 @@ __lsm_copy_chunks(WT_SESSION_IMPL *session,
 	/* Always return zero chunks on error. */
 	cookie->nchunks = 0;
 
-	WT_RET(__wt_lsm_tree_readlock(session, lsm_tree));
-	if (!lsm_tree->active)
-		return (__wt_lsm_tree_readunlock(session, lsm_tree));
+	__wt_lsm_tree_readlock(session, lsm_tree);
+	if (!lsm_tree->active) {
+		__wt_lsm_tree_readunlock(session, lsm_tree);
+		return (0);
+	}
 
 	/* Take a copy of the current state of the LSM tree. */
 	nchunks = old_chunks ? lsm_tree->nold_chunks : lsm_tree->nchunks;
@@ -55,7 +57,7 @@ __lsm_copy_chunks(WT_SESSION_IMPL *session,
 	for (i = 0; i < nchunks; i++)
 		(void)__wt_atomic_add32(&cookie->chunk_array[i]->refcnt, 1);
 
-err:	WT_TRET(__wt_lsm_tree_readunlock(session, lsm_tree));
+err:	__wt_lsm_tree_readunlock(session, lsm_tree);
 
 	if (ret == 0)
 		cookie->nchunks = nchunks;
@@ -78,9 +80,11 @@ __wt_lsm_get_chunk_to_flush(WT_SESSION_IMPL *session,
 	chunk = evict_chunk = flush_chunk = NULL;
 
 	WT_ASSERT(session, lsm_tree->queue_ref > 0);
-	WT_RET(__wt_lsm_tree_readlock(session, lsm_tree));
-	if (!lsm_tree->active || lsm_tree->nchunks == 0)
-		return (__wt_lsm_tree_readunlock(session, lsm_tree));
+	__wt_lsm_tree_readlock(session, lsm_tree);
+	if (!lsm_tree->active || lsm_tree->nchunks == 0) {
+		__wt_lsm_tree_readunlock(session, lsm_tree);
+		return (0);
+	}
 
 	/* Search for a chunk to evict and/or a chunk to flush. */
 	for (i = 0; i < lsm_tree->nchunks; i++) {
@@ -125,7 +129,7 @@ __wt_lsm_get_chunk_to_flush(WT_SESSION_IMPL *session,
 		(void)__wt_atomic_add32(&chunk->refcnt, 1);
 	}
 
-err:	WT_RET(__wt_lsm_tree_readunlock(session, lsm_tree));
+err:	__wt_lsm_tree_readunlock(session, lsm_tree);
 
 	*chunkp = chunk;
 	return (ret);
@@ -358,14 +362,14 @@ __wt_lsm_checkpoint_chunk(WT_SESSION_IMPL *session,
 	++lsm_tree->chunks_flushed;
 
 	/* Lock the tree, mark the chunk as on disk and update the metadata. */
-	WT_ERR(__wt_lsm_tree_writelock(session, lsm_tree));
+	__wt_lsm_tree_writelock(session, lsm_tree);
 	F_SET(chunk, WT_LSM_CHUNK_ONDISK);
 	ret = __wt_lsm_meta_write(session, lsm_tree);
 	++lsm_tree->dsk_gen;
 
 	/* Update the throttle time. */
 	__wt_lsm_tree_throttle(session, lsm_tree, true);
-	WT_TRET(__wt_lsm_tree_writeunlock(session, lsm_tree));
+	__wt_lsm_tree_writeunlock(session, lsm_tree);
 	if (ret != 0)
 		WT_ERR_MSG(session, ret, "LSM metadata write");
 
@@ -463,11 +467,11 @@ __lsm_bloom_create(WT_SESSION_IMPL *session,
 	    chunk->bloom_uri, chunk->count, insert_count));
 
 	/* Ensure the bloom filter is in the metadata. */
-	WT_ERR(__wt_lsm_tree_writelock(session, lsm_tree));
+	__wt_lsm_tree_writelock(session, lsm_tree);
 	F_SET(chunk, WT_LSM_CHUNK_BLOOM);
 	ret = __wt_lsm_meta_write(session, lsm_tree);
 	++lsm_tree->dsk_gen;
-	WT_TRET(__wt_lsm_tree_writeunlock(session, lsm_tree));
+	__wt_lsm_tree_writeunlock(session, lsm_tree);
 
 	if (ret != 0)
 		WT_ERR_MSG(session, ret, "LSM bloom worker metadata write");
@@ -623,7 +627,7 @@ __wt_lsm_free_chunks(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 		}
 
 		/* Lock the tree to clear out the old chunk information. */
-		WT_ERR(__wt_lsm_tree_writelock(session, lsm_tree));
+		__wt_lsm_tree_writelock(session, lsm_tree);
 
 		/*
 		 * The chunk we are looking at should be the first one in the
@@ -643,7 +647,7 @@ __wt_lsm_free_chunks(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 			lsm_tree->old_chunks[lsm_tree->nold_chunks] = NULL;
 		}
 
-		WT_ERR(__wt_lsm_tree_writeunlock(session, lsm_tree));
+		__wt_lsm_tree_writeunlock(session, lsm_tree);
 
 		/*
 		 * Clear the chunk in the cookie so we don't attempt to
@@ -654,9 +658,9 @@ __wt_lsm_free_chunks(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 
 err:	/* Flush the metadata unless the system is in panic */
 	if (flush_metadata && ret != WT_PANIC) {
-		WT_TRET(__wt_lsm_tree_writelock(session, lsm_tree));
+		__wt_lsm_tree_writelock(session, lsm_tree);
 		WT_TRET(__wt_lsm_meta_write(session, lsm_tree));
-		WT_TRET(__wt_lsm_tree_writeunlock(session, lsm_tree));
+		__wt_lsm_tree_writeunlock(session, lsm_tree);
 	}
 	__lsm_unpin_chunks(session, &cookie);
 	__wt_free(session, cookie.chunk_array);

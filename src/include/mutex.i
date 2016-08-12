@@ -284,7 +284,7 @@ __wt_fair_trylock(WT_SESSION_IMPL *session, WT_FAIR_LOCK *lock)
  * __wt_fair_lock --
  *	Get a lock.
  */
-static inline int
+static inline void
 __wt_fair_lock(WT_SESSION_IMPL *session, WT_FAIR_LOCK *lock)
 {
 	uint16_t ticket;
@@ -316,15 +316,13 @@ __wt_fair_lock(WT_SESSION_IMPL *session, WT_FAIR_LOCK *lock)
 	 * lock see consistent data.
 	 */
 	WT_READ_BARRIER();
-
-	return (0);
 }
 
 /*
  * __wt_fair_unlock --
  *	Release a shared lock.
  */
-static inline int
+static inline void
 __wt_fair_unlock(WT_SESSION_IMPL *session, WT_FAIR_LOCK *lock)
 {
 	WT_UNUSED(session);
@@ -339,8 +337,6 @@ __wt_fair_unlock(WT_SESSION_IMPL *session, WT_FAIR_LOCK *lock)
 	 * We have exclusive access - the update does not need to be atomic.
 	 */
 	++lock->fair_lock_owner;
-
-	return (0);
 }
 
 #ifdef HAVE_DIAGNOSTIC

@@ -185,7 +185,7 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 	WT_ASSERT(session, prev_oldest_id == txn_global->oldest_id);
 	txn_state->snap_min = snap_min;
 
-done:	WT_RET(__wt_readunlock(session, txn_global->scan_rwlock));
+done:	__wt_readunlock(session, txn_global->scan_rwlock);
 	__txn_sort_snapshot(session, n, current_id);
 	return (0);
 }
@@ -292,12 +292,12 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 
 	/* First do a read-only scan. */
 	if (wait)
-		WT_RET(__wt_readlock(session, txn_global->scan_rwlock));
+		__wt_readlock(session, txn_global->scan_rwlock);
 	else if ((ret =
 	    __wt_try_readlock(session, txn_global->scan_rwlock)) != 0)
 		return (ret == EBUSY ? 0 : ret);
 	__txn_oldest_scan(session, &oldest_id, &last_running, &oldest_session);
-	WT_RET(__wt_readunlock(session, txn_global->scan_rwlock));
+	__wt_readunlock(session, txn_global->scan_rwlock);
 
 	/*
 	 * If the state hasn't changed (or hasn't moved far enough for
@@ -311,7 +311,7 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 
 	/* It looks like an update is necessary, wait for exclusive access. */
 	if (wait)
-		WT_RET(__wt_writelock(session, txn_global->scan_rwlock));
+		__wt_writelock(session, txn_global->scan_rwlock);
 	else if ((ret =
 	    __wt_try_writelock(session, txn_global->scan_rwlock)) != 0)
 		return (ret == EBUSY ? 0 : ret);
@@ -368,7 +368,7 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 #endif
 	}
 
-done:	WT_TRET(__wt_writeunlock(session, txn_global->scan_rwlock));
+done:	__wt_writeunlock(session, txn_global->scan_rwlock);
 	return (ret);
 }
 

@@ -97,7 +97,7 @@ __sweep_expire_one(WT_SESSION_IMPL *session)
 	 */
 	ret = __wt_conn_btree_sync_and_close(session, false, true);
 
-err:	WT_TRET(__wt_writeunlock(session, dhandle->rwlock));
+err:	__wt_writeunlock(session, dhandle->rwlock);
 
 	return (ret);
 }
@@ -207,7 +207,7 @@ __sweep_remove_one(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
 	 * don't retry the discard until it times out again.
 	 */
 	if (ret != 0) {
-err:		WT_TRET(__wt_writeunlock(session, dhandle->rwlock));
+err:		__wt_writeunlock(session, dhandle->rwlock);
 	}
 
 	return (ret);

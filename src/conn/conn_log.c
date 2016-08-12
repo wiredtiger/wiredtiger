@@ -236,7 +236,7 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
 	 * We can only archive files if a hot backup is not in progress or
 	 * if we are the backup.
 	 */
-	WT_ERR(__wt_readlock(session, conn->hot_backup_lock));
+	__wt_readlock(session, conn->hot_backup_lock);
 	locked = true;
 	if (!conn->hot_backup || backup_file != 0) {
 		for (i = 0; i < logcount; i++) {
@@ -247,7 +247,7 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
 				    session, WT_LOG_FILENAME, lognum));
 		}
 	}
-	WT_ERR(__wt_readunlock(session, conn->hot_backup_lock));
+	__wt_readunlock(session, conn->hot_backup_lock);
 	locked = false;
 
 	/*
@@ -259,7 +259,7 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
 	if (0)
 err:		__wt_err(session, ret, "log archive server error");
 	if (locked)
-		WT_TRET(__wt_readunlock(session, conn->hot_backup_lock));
+		__wt_readunlock(session, conn->hot_backup_lock);
 	WT_TRET(__wt_fs_directory_list_free(session, &logfiles, logcount));
 	return (ret);
 }
@@ -335,7 +335,6 @@ __wt_log_truncate_files(
 	WT_DECL_RET;
 	WT_LOG *log;
 	uint32_t backup_file;
-	bool locked;
 
 	WT_UNUSED(cfg);
 	conn = S2C(session);
@@ -355,14 +354,9 @@ __wt_log_truncate_files(
 	WT_RET(__wt_verbose(session, WT_VERB_LOG,
 	    "log_truncate_files: Archive once up to %" PRIu32, backup_file));
 
-	WT_RET(__wt_writelock(session, log->log_archive_lock));
-	locked = true;
-	WT_ERR(__log_archive_once(session, backup_file));
-	WT_ERR(__wt_writeunlock(session, log->log_archive_lock));
-	locked = false;
-err:
-	if (locked)
-		WT_RET(__wt_writeunlock(session, log->log_archive_lock));
+	__wt_writelock(session, log->log_archive_lock);
+	ret = __log_archive_once(session, backup_file);
+	__wt_writeunlock(session, log->log_archive_lock);
 	return (ret);
 }
 
@@ -761,12 +755,12 @@ __log_server(void *arg)
 	WT_LOG *log;
 	WT_SESSION_IMPL *session;
 	uint64_t timediff;
-	bool did_work, locked, signalled;
+	bool did_work, signalled;
 
 	session = arg;
 	conn = S2C(session);
 	log = conn->log;
-	locked = signalled = false;
+	signalled = false;
 
 	/*
 	 * Set this to the number of milliseconds we want to run archive and
@@ -813,14 +807,11 @@ __log_server(void *arg)
 				 * agreed not to rename or remove any files in
 				 * the database directory.
 				 */
-				WT_ERR(__wt_readlock(
-				    session, conn->hot_backup_lock));
-				locked = true;
+				__wt_readlock(session, conn->hot_backup_lock);
 				if (!conn->hot_backup)
-					WT_ERR(__log_prealloc_once(session));
-				WT_ERR(__wt_readunlock(
-				    session, conn->hot_backup_lock));
-				locked = false;
+					ret = __log_prealloc_once(session);
+				__wt_readunlock(session, conn->hot_backup_lock);
+				WT_ERR(ret);
 			}
 
 			/*
@@ -830,8 +821,8 @@ __log_server(void *arg)
 				if (__wt_try_writelock(
 				    session, log->log_archive_lock) == 0) {
 					ret = __log_archive_once(session, 0);
-					WT_TRET(__wt_writeunlock(
-					    session, log->log_archive_lock));
+					__wt_writeunlock(
+					    session, log->log_archive_lock);
 					WT_ERR(ret);
 				} else
 					WT_ERR(
@@ -852,9 +843,6 @@ __log_server(void *arg)
 
 	if (0) {
 err:		__wt_err(session, ret, "log server error");
-		if (locked)
-			WT_TRET(__wt_readunlock(
-			    session, conn->hot_backup_lock));
 	}
 	return (WT_THREAD_RET_VALUE);
 }

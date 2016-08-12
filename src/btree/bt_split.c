@@ -1289,10 +1289,10 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock,
 		if (trylock)
 			WT_RET(__wt_fair_trylock(session, &parent->page_lock));
 		else
-			WT_RET(__wt_fair_lock(session, &parent->page_lock));
+			__wt_fair_lock(session, &parent->page_lock);
 		if (parent == ref->home)
 			break;
-		WT_RET(__wt_fair_unlock(session, &parent->page_lock));
+		__wt_fair_unlock(session, &parent->page_lock);
 	}
 
 	/*
@@ -1315,7 +1315,7 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock,
 	*parentp = parent;
 	return (0);
 
-err:	WT_TRET(__wt_fair_unlock(session, &parent->page_lock));
+err:	__wt_fair_unlock(session, &parent->page_lock);
 	return (ret);
 }
 
@@ -1331,7 +1331,7 @@ __split_internal_unlock(WT_SESSION_IMPL *session, WT_PAGE *parent, bool hazard)
 	if (hazard)
 		ret = __wt_hazard_clear(session, parent);
 
-	WT_TRET(__wt_fair_unlock(session, &parent->page_lock));
+	__wt_fair_unlock(session, &parent->page_lock);
 	return (ret);
 }
 
