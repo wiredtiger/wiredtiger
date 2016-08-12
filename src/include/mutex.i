@@ -184,13 +184,18 @@ __wt_spin_unlock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 static inline int
 __wt_spin_init(WT_SESSION_IMPL *session, WT_SPINLOCK *t, const char *name)
 {
-	WT_UNUSED(session);
+	DWORD windows_error;
+
+	if (InitializeCriticalSectionAndSpinCount(&t->lock, 4000) == 0) {
+		windows_error = __wt_getlasterror();
+		__wt_errx(session,
+		    "%s: InitializeCriticalSectionAndSpinCount: %s",
+		    name, __wt_formatmessage(session, windows_error));
+		return (__wt_map_windows_error(windows_error));
+	}
 
 	t->name = name;
 	t->initialized = 1;
-
-	InitializeCriticalSectionAndSpinCount(&t->lock, 4000);
-
 	return (0);
 }
 
