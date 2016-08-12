@@ -216,14 +216,8 @@ main(int argc, char *argv[])
 	testutil_check(session->create(
 	    session, opts->uri, "type=lsm,key_format=S,value_format=S"));
 
-	/*
-	 * Initialize the global RNG. Start with the standard seeds, and then
-	 * use seconds since the Epoch modulo a prime to run the RNG for some
-	 * number of steps, so we don't start with the same values every time.
-	 */
-	__wt_random_init(&rnd);
-	for (i = (u_int)time(NULL) % 10007; i > 0; --i)
-		(void)__wt_random(&rnd);
+	/* Initialize the RNG. */
+	(void)__wt_random_init_seed(NULL, &rnd);
 
 	/* Allocate memory for the config. */
 	len = WT_ELEMENTS(list) * 64;
