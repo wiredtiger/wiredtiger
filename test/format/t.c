@@ -115,7 +115,7 @@ main(int argc, char *argv[])
 	argv += __wt_optind;
 
 	/* Initialize the global RNG. */
-	(void)__wt_random_init_seed(NULL, &g.rnd);
+	testutil_check(__wt_random_init_seed(NULL, &g.rnd));
 
 	/* Set up paths. */
 	path_setup(home);
