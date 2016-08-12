@@ -154,9 +154,10 @@ __wt_spin_trylock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 static inline void
 __wt_spin_lock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 {
-	WT_UNUSED(session);
+	WT_DECL_RET;
 
-	(void)pthread_mutex_lock(&t->lock);
+	if ((ret = pthread_mutex_lock(&t->lock)) != 0)
+		WT_PANIC_MSG(session, ret, "pthread_mutex_lock: %s", t->name);
 }
 #endif
 
@@ -167,15 +168,13 @@ __wt_spin_lock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 static inline void
 __wt_spin_unlock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 {
-	WT_UNUSED(session);
+	WT_DECL_RET;
 
-	(void)pthread_mutex_unlock(&t->lock);
+	if ((ret = pthread_mutex_unlock(&t->lock)) != 0)
+		WT_PANIC_MSG(session, ret, "pthread_mutex_unlock: %s", t->name);
 }
 
 #elif SPINLOCK_TYPE == SPINLOCK_MSVC
-
-#define	WT_SPINLOCK_REGISTER		-1
-#define	WT_SPINLOCK_REGISTER_FAILED	-2
 
 /*
  * __wt_spin_init --
