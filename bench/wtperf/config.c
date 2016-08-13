@@ -95,7 +95,7 @@ config_unescape(char *orig)
 
 /*
  * config_init --
- *	CONFIG structure initializaiton, based on a source configuration.
+ *	CONFIG structure initialization, based on a source configuration.
  */
 int
 config_init(CONFIG *dest, const CONFIG *src)
