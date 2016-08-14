@@ -51,7 +51,7 @@ typedef struct {
 	uint32_t seedz;
 } RAND;
 
-void rand_init(RAND *r)
+static void rand_init(RAND *r)
 {
 	r->seedw = 521288629;
 	r->seedz = 362436069;
@@ -61,7 +61,7 @@ void rand_init(RAND *r)
  * Returns a random 32 bit integer.
  * We use Marsaglia's Multiply-with-carry method.
  */
-uint32_t rand_next(RAND *r)
+static uint32_t rand_next(RAND *r)
 {
 	uint32_t w;
 	uint32_t z;
@@ -196,9 +196,9 @@ void *populate(TEST_OPTS *opts)
 	WT_CURSOR *maincur;
 	WT_SESSION *session;
 	int balance, i, flag, key, post;
-	RAND rand;
+	RAND r;
 
-	rand_init(&rand);
+	rand_init(&r);
 
 	testutil_check(opts->conn->open_session(
 	    opts->conn, NULL, NULL, &session));
@@ -208,13 +208,13 @@ void *populate(TEST_OPTS *opts)
 
 	for (i = 0; i < N_INSERT; i++) {
 		testutil_check(session->begin_transaction(session, NULL));
-		key = (rand_next(&rand) % (N_RECORDS));
+		key = (rand_next(&r) % (N_RECORDS));
 		maincur->set_key(maincur, key);
-		if (rand_next(&rand) % 11 == 0)
+		if (rand_next(&r) % 11 == 0)
 			post = 54321;
 		else
 			post = i % 100000;
-		if (rand_next(&rand) % 4 == 0) {
+		if (rand_next(&r) % 4 == 0) {
 			balance = -100;
 			flag = 1;
 		} else {
