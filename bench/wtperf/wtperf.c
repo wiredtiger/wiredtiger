@@ -30,8 +30,8 @@
 
 /* Default values. */
 static const CONFIG default_cfg = {
-	"WT_TEST",			/* home */
-	"WT_TEST",			/* monitor dir */
+	NULL,				/* home */
+	NULL,				/* monitor dir */
 	NULL,				/* partial logging */
 	NULL,				/* reopen config */
 	NULL,				/* base_uri */
@@ -2198,6 +2198,8 @@ main(int argc, char *argv[])
 	memset(cfg, 0, sizeof(*cfg));
 	if (config_init(cfg, &default_cfg))
 		goto err;
+	cfg->home = dstrdup("WT_TEST");
+	cfg->monitor_dir = dstrdup("WT_TEST");
 
 	/* Do a basic validation of options, and home is needed before open. */
 	while ((ch = __wt_getopt("wtperf", argc, argv, opts)) != EOF)
