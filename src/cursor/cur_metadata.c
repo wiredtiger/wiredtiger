@@ -109,7 +109,7 @@ __schema_create_collapse(WT_SESSION_IMPL *session, WT_CURSOR_METADATA *mdc,
 err:	for (; cfg < lastcfg; cfg++)
 		__wt_free(session, *cfg);
 	if (c != NULL)
-		c->reset(c);
+		WT_TRET(c->reset(c));
 	__wt_scr_free(session, &buf);
 	return (ret);
 }
