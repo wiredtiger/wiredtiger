@@ -145,6 +145,7 @@ static const char *list[] = {
 	",statistics_log=(wait=37)",
 	",statistics_log=(wait=0)",
 
+#ifdef HAVE_VERBOSE
 	",verbose=(\"api\")",
 	",verbose=(\"block\")",
 	",verbose=(\"checkpoint\")",
@@ -172,6 +173,7 @@ static const char *list[] = {
 	",verbose=(\"version\")",
 	",verbose=(\"write\")",
 	",verbose=()"
+#endif
 };
 
 static int
@@ -275,6 +277,7 @@ main(int argc, char *argv[])
 	testutil_check(opts->conn->reconfigure(
 	    opts->conn, "statistics_log=(on_close=0)"));
 
+	free(config);
 	testutil_cleanup(opts);
 	return (EXIT_SUCCESS);
 }
