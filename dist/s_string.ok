@@ -206,6 +206,7 @@ MERCHANTABILITY
 METADATA
 MONGODB
 MSVC
+MULTI
 MULTIBLOCK
 MUTEX
 Manos
@@ -628,6 +629,7 @@ fcntl
 fd
 fdatasync
 fdopen
+fextend
 ffc
 fflush
 ffs
@@ -706,6 +708,7 @@ ibackup
 icount
 idx
 ifdef's
+iiii
 iiu
 ikey
 im
@@ -937,6 +940,7 @@ prepend
 prepended
 prepending
 presize
+presync
 primary's
 printf
 printlog

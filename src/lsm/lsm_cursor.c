@@ -205,6 +205,12 @@ __clsm_enter(WT_CURSOR_LSM *clsm, bool reset, bool update)
 			WT_RET(__wt_txn_id_check(session));
 
 			WT_RET(__clsm_enter_update(clsm));
+			/*
+			 * Switching the tree will update the generation before
+			 * updating the switch transaction.  We test the
+			 * transaction in clsm_enter_update.  Now test the
+			 * disk generation to avoid races.
+			 */
 			if (clsm->dsk_gen != clsm->lsm_tree->dsk_gen)
 				goto open;
 
@@ -219,13 +225,20 @@ __clsm_enter(WT_CURSOR_LSM *clsm, bool reset, bool update)
 			 * transaction ID in each chunk: any transaction ID
 			 * that overlaps with our snapshot is a potential
 			 * conflict.
+			 *
+			 * Note that the global snap_min is correct here: it
+			 * tracks concurrent transactions excluding special
+			 * transactions such as checkpoint (which we can't
+			 * conflict with because checkpoint only writes the
+			 * metadata, which is not an LSM tree).
 			 */
 			clsm->nupdates = 1;
 			if (txn->isolation == WT_ISO_SNAPSHOT &&
 			    F_ISSET(clsm, WT_CLSM_OPEN_SNAPSHOT)) {
 				WT_ASSERT(session,
 				    F_ISSET(txn, WT_TXN_HAS_SNAPSHOT));
-				snap_min = txn->snap_min;
+				snap_min =
+				    WT_SESSION_TXN_STATE(session)->snap_min;
 				for (switch_txnp =
 				    &clsm->switch_txn[clsm->nchunks - 2];
 				    clsm->nupdates < clsm->nchunks;

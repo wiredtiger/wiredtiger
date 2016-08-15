@@ -115,6 +115,7 @@ typedef struct {
 	 */
 	uint32_t page_size;		/* Set page size */
 	uint32_t page_size_orig;	/* Saved set page size */
+	uint32_t max_raw_page_size;	/* Max page size with raw compression */
 
 	/*
 	 * Second, the split size: if we're doing the page layout, split to a
@@ -1150,8 +1151,20 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 */
 	if (!skipped &&
 	    (F_ISSET(btree, WT_BTREE_LOOKASIDE) ||
-	    __wt_txn_visible_all(session, max_txn)))
+	    __wt_txn_visible_all(session, max_txn))) {
+#ifdef HAVE_DIAGNOSTIC
+		/*
+		 * The checkpoint transaction is special.  Make sure we never
+		 * write (metadata) updates from a checkpoint in a concurrent
+		 * session.
+		 */
+		txnid = *updp == NULL ? WT_TXN_NONE : (*updp)->txnid;
+		WT_ASSERT(session, txnid == WT_TXN_NONE ||
+		    txnid != S2C(session)->txn_global.checkpoint_txnid ||
+		    WT_SESSION_IS_CHECKPOINT(session));
+#endif
 		return (0);
+	}
 
 	/*
 	 * In some cases, there had better not be skipped updates or updates not
@@ -1969,10 +1982,15 @@ __rec_split_init(WT_SESSION_IMPL *session,
 	 * Ideally accumulate data several times the page size without
 	 * approaching the memory page maximum, but at least have data worth
 	 * one page.
+	 *
+	 * There are cases when we grow the page size to accommodate large
+	 * records, in those cases we split the pages once they have crossed
+	 * the maximum size for a page with raw compression.
 	 */
 	r->page_size = r->page_size_orig = max;
 	if (r->raw_compression)
-		r->page_size = (uint32_t)WT_MIN(r->page_size * 10,
+		r->max_raw_page_size = r->page_size =
+		    (uint32_t)WT_MIN(r->page_size * 10,
 		    WT_MAX(r->page_size, btree->maxmempage / 2));
 
 	/*
@@ -2602,11 +2620,9 @@ __rec_split_raw_worker(WT_SESSION_IMPL *session,
 
 		/*
 		 * Don't create an image so large that any future update will
-		 * cause a split in memory.  Use half of the maximum size so
-		 * we split very compressible pages that have reached the
-		 * maximum size in memory into two equal blocks.
+		 * cause a split in memory.
 		 */
-		if (len > (size_t)btree->maxmempage / 2)
+		if (max_image_slot == 0 && len > (size_t)r->max_raw_page_size)
 			max_image_slot = slots;
 	}
 
@@ -2668,7 +2684,7 @@ __rec_split_raw_worker(WT_SESSION_IMPL *session,
 	    r->page_size_orig, btree->split_pct,
 	    WT_BLOCK_COMPRESS_SKIP + extra_skip,
 	    (uint8_t *)dsk + WT_BLOCK_COMPRESS_SKIP, r->raw_offsets,
-	    no_more_rows || max_image_slot == 0 ? slots : max_image_slot,
+	    max_image_slot == 0 ? slots : max_image_slot,
 	    (uint8_t *)dst->mem + WT_BLOCK_COMPRESS_SKIP,
 	    result_len,
 	    no_more_rows || max_image_slot != 0,
@@ -2783,9 +2799,16 @@ no_slots:
 
 		/*
 		 * Optionally keep the disk image in cache. Update the initial
-		 * fields to reflect the actual disk image that was compressed.
+		 * page-header fields to reflect the actual data being written.
+		 *
+		 * If updates are saved and need to be restored, we have to keep
+		 * a copy of the disk image. Unfortunately, we don't yet know if
+		 * there are updates to restore for the key range covered by the
+		 * disk image just created. If there are any saved updates, take
+		 * a copy of the disk image, it's freed later if not needed.
 		 */
-		if (F_ISSET(r, WT_EVICT_SCRUB)) {
+		if (F_ISSET(r, WT_EVICT_SCRUB) ||
+		    (F_ISSET(r, WT_EVICT_UPDATE_RESTORE) && r->supd_next > 0)) {
 			WT_RET(__wt_strndup(session, dsk,
 			    dsk_dst->mem_size, &last->disk_image));
 			disk_image = last->disk_image;
@@ -3137,6 +3160,7 @@ __rec_split_write(WT_SESSION_IMPL *session,
 	uint32_t bnd_slot, i, j;
 	int cmp;
 	uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
+	bool need_image;
 
 	btree = S2BT(session);
 	dsk = buf->mem;
@@ -3327,17 +3351,24 @@ supd_check_complete:
 
 copy_image:
 	/*
-	 * Optionally keep the disk image in cache (raw compression has already
-	 * made a copy).
+	 * If re-instantiating this page in memory (either because eviction
+	 * wants to, or because we skipped updates to build the disk image),
+	 * save a copy of the disk image.
+	 *
+	 * Raw compression might have already saved a copy of the disk image
+	 * before we could know if we skipped updates to create it, and now
+	 * we know if we're going to need it.
+	 *
+	 * Copy the disk image if we need a copy and don't already have one,
+	 * discard any already saved copy we don't need.
 	 */
-	if (F_ISSET(r, WT_EVICT_SCRUB)) {
-		WT_ASSERT(session,
-		    (bnd->already_compressed && bnd->disk_image != NULL) ||
-		    (!bnd->already_compressed && bnd->disk_image == NULL));
-		if (bnd->disk_image == NULL)
-			WT_ERR(__wt_strndup(
-			    session, buf->data, buf->size, &bnd->disk_image));
-	}
+	need_image = F_ISSET(r, WT_EVICT_SCRUB) ||
+	    (F_ISSET(r, WT_EVICT_UPDATE_RESTORE) && bnd->supd != NULL);
+	if (need_image && bnd->disk_image == NULL)
+		WT_ERR(__wt_strndup(
+		    session, buf->data, buf->size, &bnd->disk_image));
+	if (!need_image)
+		__wt_free(session, bnd->disk_image);
 
 err:	__wt_scr_free(session, &key);
 	return (ret);
@@ -5584,9 +5615,10 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			WT_RET(__wt_btree_block_free(session,
 			    mod->mod_replace.addr, mod->mod_replace.size));
 
-		/* Discard the replacement page's address. */
+		/* Discard the replacement page's address and disk image. */
 		__wt_free(session, mod->mod_replace.addr);
 		mod->mod_replace.size = 0;
+		__wt_free(session, mod->mod_disk_image);
 		break;
 	WT_ILLEGAL_VALUE(session);
 	}
@@ -5637,16 +5669,19 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		 * If in-memory, or saving/restoring changes for this page and
 		 * there's only one block, there's nothing to write. Set up
 		 * a single block as if to split, then use that disk image to
-		 * rewrite the page in memory.
+		 * rewrite the page in memory. This is separate from simple
+		 * replacements where eviction has decided to retain the page
+		 * in memory because the latter can't handle update lists and
+		 * splits can.
 		 */
 		if (F_ISSET(r, WT_EVICT_IN_MEMORY) ||
 		    (F_ISSET(r, WT_EVICT_UPDATE_RESTORE) && bnd->supd != NULL))
 			goto split;
 
 		/*
-		 * If this is a root page, then we don't have an address and we
-		 * have to create a sync point.  The address was cleared when
-		 * we were about to write the buffer so we know what to do here.
+		 * A root page, we don't have an address and we have to create
+		 * a sync point. The address was cleared when we were about to
+		 * write the buffer so we know what to do here.
 		 */
 		if (bnd->addr.addr == NULL)
 			WT_RET(__wt_bt_write(session, &r->disk_image,
@@ -5655,6 +5690,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		else {
 			mod->mod_replace = bnd->addr;
 			bnd->addr.addr = NULL;
+
+			mod->mod_disk_image = bnd->disk_image;
+			bnd->disk_image = NULL;
 		}
 
 		mod->rec_result = WT_PM_REC_REPLACE;
@@ -5789,12 +5827,19 @@ __rec_split_row(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		WT_RET(__wt_row_ikey_alloc(session, 0,
 		    bnd->key.data, bnd->key.size, &multi->key.ikey));
 
-		/* Copy any disk image. */
-		multi->supd = bnd->supd;
-		multi->supd_entries = bnd->supd_next;
-		bnd->supd = NULL;
+		/*
+		 * Copy any disk image.  Don't take saved updates without a
+		 * disk image (which happens if they have been saved to the
+		 * lookaside table): they should be discarded along with the
+		 * original page.
+		 */
 		multi->disk_image = bnd->disk_image;
 		bnd->disk_image = NULL;
+		if (multi->disk_image != NULL) {
+			multi->supd = bnd->supd;
+			multi->supd_entries = bnd->supd_next;
+			bnd->supd = NULL;
+		}
 
 		/* Copy any address. */
 		multi->addr = bnd->addr;
@@ -5829,12 +5874,19 @@ __rec_split_col(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 	    bnd = r->bnd, i = 0; i < r->bnd_next; ++multi, ++bnd, ++i) {
 		multi->key.recno = bnd->recno;
 
-		/* Copy any disk image. */
-		multi->supd = bnd->supd;
-		multi->supd_entries = bnd->supd_next;
-		bnd->supd = NULL;
+		/*
+		 * Copy any disk image.  Don't take saved updates without a
+		 * disk image (which happens if they have been saved to the
+		 * lookaside table): they should be discarded along with the
+		 * original page.
+		 */
 		multi->disk_image = bnd->disk_image;
 		bnd->disk_image = NULL;
+		if (multi->disk_image != NULL) {
+			multi->supd = bnd->supd;
+			multi->supd_entries = bnd->supd_next;
+			bnd->supd = NULL;
+		}
 
 		/* Copy any address. */
 		multi->addr = bnd->addr;

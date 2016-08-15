@@ -273,6 +273,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 	WT_ADDR *addr;
 	WT_DECL_RET;
 	WT_PAGE_MODIFY *mod;
+	WT_MULTI multi;
 
 	mod = ref->page->modify;
 
@@ -317,7 +318,8 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		 */
 		if (mod->mod_multi_entries == 1) {
 			WT_ASSERT(session, closing == false);
-			WT_RET(__wt_split_rewrite(session, ref));
+			WT_RET(__wt_split_rewrite(
+			    session, ref, &mod->mod_multi[0]));
 		} else
 			WT_RET(__wt_split_multi(session, ref, closing));
 		break;
@@ -332,10 +334,26 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		*addr = mod->mod_replace;
 		mod->mod_replace.addr = NULL;
 		mod->mod_replace.size = 0;
-
-		__wt_ref_out(session, ref);
 		ref->addr = addr;
-		WT_PUBLISH(ref->state, WT_REF_DISK);
+
+		/*
+		 * Eviction wants to keep this page if we have a disk image,
+		 * re-instantiate the page in memory, else discard the page.
+		 */
+		if (mod->mod_disk_image == NULL) {
+			__wt_ref_out(session, ref);
+			WT_PUBLISH(ref->state, WT_REF_DISK);
+		} else {
+			/*
+			 * The split code works with WT_MULTI structures, build
+			 * one for the disk image.
+			 */
+			memset(&multi, 0, sizeof(multi));
+			multi.disk_image = mod->mod_disk_image;
+
+			WT_RET(__wt_split_rewrite(session, ref, &multi));
+		}
+
 		break;
 	WT_ILLEGAL_VALUE(session);
 	}
@@ -505,17 +523,19 @@ __evict_review(
 	else if (!WT_PAGE_IS_INTERNAL(page)) {
 		if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
 			LF_SET(WT_EVICT_IN_MEMORY |
-			    WT_EVICT_UPDATE_RESTORE | WT_EVICT_SCRUB);
-		else if (page->read_gen == WT_READGEN_OLDEST ||
-		    page->memory_footprint > S2BT(session)->splitmempage)
-			LF_SET(WT_EVICT_UPDATE_RESTORE);
+			    WT_EVICT_SCRUB | WT_EVICT_UPDATE_RESTORE);
 		else if (F_ISSET(cache, WT_CACHE_STUCK))
 			LF_SET(WT_EVICT_LOOKASIDE);
+		else if (!__wt_txn_visible_all(
+		    session, page->modify->update_txn))
+			LF_SET(WT_EVICT_UPDATE_RESTORE);
+
 		/*
-		 * If we aren't trying to free space in the cache, just
-		 * scrub the page and keep it around.
+		 * If we aren't trying to free space in the cache, scrub the
+		 * page and keep it around.
 		 */
-		if (cache->state != WT_EVICT_STATE_ALL)
+		if (!LF_ISSET(WT_EVICT_LOOKASIDE) &&
+		    FLD_ISSET(cache->state, WT_EVICT_STATE_SCRUB))
 			LF_SET(WT_EVICT_SCRUB);
 	}
 	*flagsp = flags;
@@ -524,13 +544,13 @@ __evict_review(
 
 	/*
 	 * Success: assert the page is clean or reconciliation was configured
-	 * for an update/restore split.  If the page is clean, assert that
-	 * reconciliation was configured for a lookaside table, or it's not a
-	 * durable object (currently the lookaside table), or all page updates
-	 * were globally visible.
+	 * for update/restore. If the page is clean, assert that reconciliation
+	 * was configured for a lookaside table, or it's not a durable object
+	 * (currently the lookaside table), or all page updates were globally
+	 * visible.
 	 */
 	WT_ASSERT(session,
-	    LF_ISSET(WT_EVICT_UPDATE_RESTORE) || !__wt_page_is_modified(page));
+	    !__wt_page_is_modified(page) || LF_ISSET(WT_EVICT_UPDATE_RESTORE));
 	WT_ASSERT(session,
 	    __wt_page_is_modified(page) ||
 	    LF_ISSET(WT_EVICT_LOOKASIDE) ||
