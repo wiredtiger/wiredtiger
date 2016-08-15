@@ -122,6 +122,10 @@ config_init(CONFIG *dest, const CONFIG *src)
 		for (i = 0; i < src->table_count; i++)
 			dest->uris[i] = dstrdup(src->uris[i]);
 	}
+
+	if (src->async_config != NULL)
+		dest->async_config = dstrdup(src->async_config);
+
 	dest->ckptthreads = NULL;
 	dest->popthreads = NULL;
 	dest->workers = NULL;
