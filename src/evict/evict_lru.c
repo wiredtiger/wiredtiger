@@ -306,10 +306,11 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 		/* After being stuck for 5 minutes, give up. */
 		WT_RET(__wt_epoch(session, &now));
 		if (WT_TIMEDIFF_SEC(now, cache->stuck_ts) > 300) {
-			__wt_err(session, ETIMEDOUT,
+			ret = ETIMEDOUT;
+			__wt_err(session, ret,
 			    "Cache stuck for too long, giving up");
-			(void)__wt_cache_dump(session, NULL);
-			WT_RET(ETIMEDOUT);
+			WT_TRET(__wt_cache_dump(session, NULL));
+			return (ret);
 		}
 #endif
 	}
@@ -1282,16 +1283,16 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	WT_REF *ref;
 	uint64_t btree_inuse, bytes_per_slot, cache_inuse;
 	uint64_t pages_seen, refs_walked;
-	uint32_t remaining_slots, target_pages, total_slots, walk_flags;
+	uint32_t remaining_slots, total_slots, walk_flags;
+	uint32_t target_pages_clean, target_pages_dirty, target_pages;
 	int internal_pages, restarts;
-	bool enough, modified;
+	bool modified;
 
 	conn = S2C(session);
 	btree = S2BT(session);
 	cache = conn->cache;
 	queue = &cache->evict_queues[queue_index];
 	internal_pages = restarts = 0;
-	enough = false;
 
 	/*
 	 * Figure out how many slots to fill from this tree.
@@ -1299,8 +1300,6 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	 */
 	start = queue->evict_queue + *slotp;
 	remaining_slots = max_entries - *slotp;
-	btree_inuse = __wt_btree_bytes_inuse(session);
-	cache_inuse = __wt_cache_bytes_inuse(cache);
 	total_slots = max_entries - queue->evict_entries;
 
 	/*
@@ -1309,24 +1308,34 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	 * slots so we assign all of the slots to a tree filling 99+% of the
 	 * cache (and only have to walk it once).
 	 */
-	bytes_per_slot = cache_inuse / total_slots;
-	target_pages = (uint32_t)(
-	    (btree_inuse + bytes_per_slot / 2) / bytes_per_slot);
+	if (FLD_ISSET(cache->state, WT_EVICT_STATE_CLEAN)) {
+		btree_inuse = __wt_btree_bytes_inuse(session);
+		cache_inuse = __wt_cache_bytes_inuse(cache);
+		bytes_per_slot = 1 + cache_inuse / total_slots;
+		target_pages_clean = (uint32_t)(
+		    (btree_inuse + bytes_per_slot / 2) / bytes_per_slot);
+	} else
+		target_pages_clean = 0;
+
+	if (FLD_ISSET(cache->state, WT_EVICT_STATE_DIRTY)) {
+		btree_inuse = __wt_btree_dirty_leaf_inuse(session);
+		cache_inuse = __wt_cache_dirty_leaf_inuse(cache);
+		bytes_per_slot = 1 + cache_inuse / total_slots;
+		target_pages_dirty = (uint32_t)(
+		    (btree_inuse + bytes_per_slot / 2) / bytes_per_slot);
+	} else
+		target_pages_dirty = 0;
+
+	target_pages = WT_MAX(target_pages_clean, target_pages_dirty);
+
 	if (target_pages == 0) {
 		/*
 		 * Randomly walk trees with a tiny fraction of the cache in
 		 * case there are so many trees that none of them use enough of
-		 * the cache to be allocated slots.
-		 *
-		 * Map a random number into the range [0..1], and if the result
-		 * is greater than the fraction of the cache used by this tree,
-		 * give up.  In other words, there is a small chance we will
-		 * visit trees that use a small fraction of the cache.  Arrange
-		 * this calculation to avoid overflow (e.g., don't multiply
-		 * anything by UINT32_MAX).
+		 * the cache to be allocated slots.  Walk small trees 1% of the
+		 * time.
 		 */
-		if (__wt_random(&session->rnd) / (double)UINT32_MAX >
-		    btree_inuse / (double)cache_inuse)
+		if (__wt_random(&session->rnd) > UINT32_MAX / 100)
 			return (0);
 		target_pages = 10;
 	}
@@ -1354,12 +1363,11 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	 * case we are appending and only the last page in the file is live.
 	 */
 	for (evict = start, pages_seen = refs_walked = 0;
-	    evict < end && !enough && (ret == 0 || ret == WT_NOTFOUND);
+	    evict < end && (ret == 0 || ret == WT_NOTFOUND);
 	    ret = __wt_tree_walk_count(
 	    session, &btree->evict_ref, &refs_walked, walk_flags)) {
-		enough = refs_walked > cache->evict_max_refs_per_file;
 		if ((ref = btree->evict_ref) == NULL) {
-			if (++restarts == 2 || enough)
+			if (++restarts == 2)
 				break;
 			WT_STAT_FAST_CONN_INCR(
 			    session, cache_eviction_walks_started);
@@ -1417,35 +1425,22 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 		    internal_pages >= (int)(evict - start) / 2)
 			continue;
 
+		/*
+		 * If the oldest transaction hasn't changed since the last time
+		 * this page was written, it's unlikely we can make progress.
+		 * Similarly, if the most recent update on the page is not yet
+		 * globally visible, eviction will fail.  These heuristics
+		 * attempt to avoid repeated attempts to evict the same page.
+		 */
+		mod = page->modify;
+		if (modified &&
+		    (mod->last_oldest_id == __wt_txn_oldest_id(session) ||
+		    !__wt_txn_visible_all(session, mod->update_txn)))
+			continue;
+
 fast:		/* If the page can't be evicted, give up. */
 		if (!__wt_page_can_evict(session, ref, NULL))
 			continue;
-
-		/*
-		 * Note: take care with ordering: if we detected that
-		 * the page is modified above, we expect mod != NULL.
-		 */
-		mod = page->modify;
-
-		/*
-		 * Additional tests if eviction is likely to succeed.
-		 *
-		 * If eviction is stuck or we are helping with forced eviction,
-		 * try anyway: maybe a transaction that was running last time
-		 * we wrote the page has since rolled back, or we can help the
-		 * checkpoint complete sooner. Additionally, being stuck will
-		 * configure lookaside table writes in reconciliation, allowing
-		 * us to evict pages we can't usually evict.
-		 */
-		if (!FLD_ISSET(cache->state, WT_EVICT_STATE_AGGRESSIVE)) {
-			/*
-			 * If the page is clean but has modifications that
-			 * appear too new to evict, skip it.
-			 */
-			if (!modified && mod != NULL &&
-			    !__wt_txn_visible_all(session, mod->rec_max_txn))
-				continue;
-		}
 
 		WT_ASSERT(session, evict->ref == NULL);
 		if (!__evict_push_candidate(session, queue, evict, ref))
@@ -2013,9 +2008,8 @@ __wt_cache_dump(WT_SESSION_IMPL *session, const char *ofile)
 	 * Apply the overhead percentage so our total bytes are comparable with
 	 * the tracked value.
 	 */
-	if (conn->cache->overhead_pct != 0)
-		total_bytes +=
-		    (total_bytes * (uint64_t)conn->cache->overhead_pct) / 100;
+	total_bytes = __wt_cache_bytes_plus_overhead(conn->cache, total_bytes);
+
 	(void)fprintf(fp,
 	    "cache dump: "
 	    "total found = %" PRIu64 "MB vs tracked inuse %" PRIu64 "MB\n"
