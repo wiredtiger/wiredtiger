@@ -46,36 +46,6 @@ void (*custom_die)(void) = NULL;
 
 void *populate(TEST_OPTS *opts);
 
-typedef struct {
-	uint32_t seedw;
-	uint32_t seedz;
-} RAND;
-
-static void rand_init(RAND *r)
-{
-	r->seedw = 521288629;
-	r->seedz = 362436069;
-}
-
-/*
- * Returns a random 32 bit integer.
- * We use Marsaglia's Multiply-with-carry method.
- */
-static uint32_t rand_next(RAND *r)
-{
-	uint32_t w;
-	uint32_t z;
-
-	w = r->seedw;
-	z = r->seedz;
-	if (w == 0 || z == 0)
-		rand_init(r);
-
-	r->seedz = 36969 * (z & 65535) + (z >> 16);
-	r->seedw = 18000 * (w & 65535) + (w >> 16);
-	return ((z << 16) + (w & 65535));
-}
-
 int
 main(int argc, char *argv[])
 {
@@ -196,9 +166,9 @@ void *populate(TEST_OPTS *opts)
 	WT_CURSOR *maincur;
 	WT_SESSION *session;
 	int balance, i, flag, key, post;
-	RAND r;
+	WT_RAND_STATE rnd;
 
-	rand_init(&r);
+	testutil_check(__wt_random_init_seed(NULL, &rnd));
 
 	testutil_check(opts->conn->open_session(
 	    opts->conn, NULL, NULL, &session));
@@ -208,13 +178,13 @@ void *populate(TEST_OPTS *opts)
 
 	for (i = 0; i < N_INSERT; i++) {
 		testutil_check(session->begin_transaction(session, NULL));
-		key = (rand_next(&r) % (N_RECORDS));
+		key = (__wt_random(&rnd) % (N_RECORDS));
 		maincur->set_key(maincur, key);
-		if (rand_next(&r) % 11 == 0)
+		if (__wt_random(&rnd) % 11 == 0)
 			post = 54321;
 		else
 			post = i % 100000;
-		if (rand_next(&r) % 4 == 0) {
+		if (__wt_random(&rnd) % 4 == 0) {
 			balance = -100;
 			flag = 1;
 		} else {
