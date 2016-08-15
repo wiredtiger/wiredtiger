@@ -166,8 +166,15 @@ __wt_write(WT_SESSION_IMPL *session,
 	    "%s: handle-write: %" WT_SIZET_FMT " at %" PRIuMAX,
 	    fh->handle->name, len, (uintmax_t)offset);
 
-	WT_STAT_FAST_CONN_INCR_ATOMIC(session, thread_write_active);
+	/*
+	 * Do a final panic check before I/O, so we stop writing as quickly as
+	 * possible if there's an unanticipated error. We aren't handling the
+	 * error correctly by definition, and writing won't make things better.
+	 */
+	WT_RET(WT_SESSION_CHECK_PANIC(session));
+
 	WT_STAT_FAST_CONN_INCR(session, write_io);
+	WT_STAT_FAST_CONN_INCR_ATOMIC(session, thread_write_active);
 
 	ret = fh->handle->fh_write(
 	    fh->handle, (WT_SESSION *)session, offset, len, buf);
