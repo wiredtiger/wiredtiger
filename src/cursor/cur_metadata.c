@@ -57,9 +57,6 @@ err:	__wt_scr_free(session, &buf);
 	return (ret);
 }
 
-#define	TABLE_PFX_LEN		(strlen("table:"))
-#define	COLGROUP_PFX_LEN	(strlen("colgroup:"))
-
 /*
  * __schema_create_collapse --
  *	Discard any configuration information from a schema entry that is
@@ -76,19 +73,19 @@ __schema_create_collapse(WT_SESSION_IMPL *session, WT_CURSOR_METADATA *mdc,
 	WT_CURSOR *c;
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
-	char **cfg, **finalcfg, *v, *_cfg[5] = {NULL, NULL, NULL, value, NULL};
+	char *_cfg[5] = {NULL, NULL, NULL, value, NULL};
+	char **cfg, **firstcfg, **lastcfg, *v;
 
-	cfg = &_cfg[3];		/* position on value */
+	lastcfg = cfg = &_cfg[3];		/* position on value */
 	c = NULL;
-	if (key != NULL && WT_PREFIX_MATCH(key, "table:")) {
+	if (key != NULL && WT_PREFIX_SKIP(key, "table:")) {
 		c = mdc->create_cursor;
 		WT_ERR(__wt_scr_alloc(session, 0, &buf));
 		/*
 		 * When a table is created without column groups,
 		 * we create one without a name.
 		 */
-		WT_ERR(__wt_buf_fmt(session, buf, "colgroup:%.*s",
-		    (int)(strlen(key) - TABLE_PFX_LEN), key + TABLE_PFX_LEN));
+		WT_ERR(__wt_buf_fmt(session, buf, "colgroup:%s", key));
 		c->set_key(c, buf->data);
 		if ((ret = c->search(c)) == 0) {
 			WT_ERR(c->get_value(c, &v));
@@ -96,21 +93,21 @@ __schema_create_collapse(WT_SESSION_IMPL *session, WT_CURSOR_METADATA *mdc,
 			WT_ERR(__schema_source_config(session, c, v, --cfg));
 		} else
 			WT_ERR_NOTFOUND_OK(ret);
-	} else if (key != NULL && WT_PREFIX_MATCH(key, "colgroup:")) {
-		if (strchr(key + COLGROUP_PFX_LEN, ':') != NULL) {
+	} else if (key != NULL && WT_PREFIX_SKIP(key, "colgroup:")) {
+		if (strchr(key, ':') != NULL) {
 			c = mdc->create_cursor;
 			WT_ERR(__wt_strdup(session, value, --cfg));
-			WT_ERR(__schema_source_config(session,
-			    c, value, --cfg));
+			WT_ERR(
+			    __schema_source_config(session, c, value, --cfg));
 		}
 	}
-	finalcfg = cfg;
-	*--finalcfg = (char *)WT_CONFIG_BASE(session, WT_SESSION_create);
-	WT_ERR(__wt_config_collapse(session, (const char **)finalcfg,
-	    value_ret));
+	firstcfg = cfg;
+	*--firstcfg = (char *)WT_CONFIG_BASE(session, WT_SESSION_create);
+	WT_ERR(__wt_config_collapse(
+	    session, (const char **)firstcfg, value_ret));
 
-err:	while (cfg < &_cfg[sizeof(_cfg)/sizeof(_cfg[0])] - 2)
-		__wt_free(session, *cfg++);
+err:	for (; cfg < lastcfg; cfg++)
+		__wt_free(session, *cfg);
 	if (c != NULL)
 		c->reset(c);
 	__wt_scr_free(session, &buf);
