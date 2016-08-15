@@ -31,33 +31,29 @@
 } while (0)
 
 /*
- * __curmetadata_follow_source --
- *	The value of the "source" configuration variable is a URI;
- * return the value of this URI in the metadata.
+ * __schema_source_config --
+ *	Extract the "source" configuration key, lookup its metadata.
  */
 static int
-__curmetadata_follow_source(WT_SESSION_IMPL *session, WT_CURSOR *srch,
+__schema_source_config(WT_SESSION_IMPL *session, WT_CURSOR *srch,
     char *config, char **result)
 {
 	WT_CONFIG_ITEM cval;
+	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
-	size_t len;
 	char *v;
-	void *p;
 
-	p = NULL;
 	WT_ERR(__wt_config_getones(session, config, "source", &cval));
-	len = cval.len + 10;
-	WT_ERR(__wt_malloc(session, len, &p));
-	(void)snprintf(p, len, "%.*s", (int)cval.len, cval.str);
-	srch->set_key(srch, p);
+	WT_ERR(__wt_scr_alloc(session, cval.len + 10, &buf));
+	WT_ERR(__wt_buf_fmt(session, buf, "%.*s", (int)cval.len, cval.str));
+	srch->set_key(srch, buf->data);
 	if ((ret = srch->search(srch)) == WT_NOTFOUND)
 		WT_ERR(EINVAL);
 	WT_ERR(ret);
 	WT_ERR(srch->get_value(srch, &v));
 	WT_ERR(__wt_strdup(session, v, result));
 
-err:	__wt_free(session, p);
+err:	__wt_scr_free(session, &buf);
 	return (ret);
 }
 
@@ -65,49 +61,46 @@ err:	__wt_free(session, p);
 #define	COLGROUP_PFX_LEN	(strlen("colgroup:"))
 
 /*
- * __schema_create_strip --
+ * __schema_create_collapse --
  *	Discard any configuration information from a schema entry that is
- * not applicable to an session.create call. Here for the metadata:create
- * URI.  For a table URI that contains no named column groups, fold in the
- * configuration from the implicit column group and its source. For a named
- * column group URI, fold in its source.
+ *	not applicable to an session.create call.
+ *
+ *	For a table URI that contains no named column groups, fold in the
+ *	configuration from the implicit column group and its source. For a
+ *	named column group URI, fold in its source.
  */
 static int
-__schema_create_strip(WT_SESSION_IMPL *session, WT_CURSOR_METADATA *mdc,
+__schema_create_collapse(WT_SESSION_IMPL *session, WT_CURSOR_METADATA *mdc,
     const char *key, char *value, char **value_ret)
 {
 	WT_CURSOR *c;
+	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
-	size_t len;
 	char **cfg, **finalcfg, *v, *_cfg[5] = {NULL, NULL, NULL, value, NULL};
-	void *p;
 
 	cfg = &_cfg[3];		/* position on value */
-	p = NULL;
 	c = NULL;
 	if (key != NULL && WT_PREFIX_MATCH(key, "table:")) {
 		c = mdc->create_cursor;
-		len = strlen(key) - TABLE_PFX_LEN + COLGROUP_PFX_LEN + 1;
-		WT_ERR(__wt_malloc(session, len, &p));
+		WT_ERR(__wt_scr_alloc(session, 0, &buf));
 		/*
 		 * When a table is created without column groups,
 		 * we create one without a name.
 		 */
-		(void)snprintf(p, len, "colgroup:%.*s",
-		    (int)(strlen(key) - TABLE_PFX_LEN), key + TABLE_PFX_LEN);
-		c->set_key(c, p);
+		WT_ERR(__wt_buf_fmt(session, buf, "colgroup:%.*s",
+		    (int)(strlen(key) - TABLE_PFX_LEN), key + TABLE_PFX_LEN));
+		c->set_key(c, buf->data);
 		if ((ret = c->search(c)) == 0) {
 			WT_ERR(c->get_value(c, &v));
 			WT_ERR(__wt_strdup(session, v, --cfg));
-			WT_ERR(__curmetadata_follow_source(session, c, v,
-			    --cfg));
+			WT_ERR(__schema_source_config(session, c, v, --cfg));
 		} else
 			WT_ERR_NOTFOUND_OK(ret);
 	} else if (key != NULL && WT_PREFIX_MATCH(key, "colgroup:")) {
 		if (strchr(key + COLGROUP_PFX_LEN, ':') != NULL) {
 			c = mdc->create_cursor;
 			WT_ERR(__wt_strdup(session, value, --cfg));
-			WT_ERR(__curmetadata_follow_source(session,
+			WT_ERR(__schema_source_config(session,
 			    c, value, --cfg));
 		}
 	}
@@ -120,7 +113,7 @@ err:	while (cfg < &_cfg[sizeof(_cfg)/sizeof(_cfg[0])] - 2)
 		__wt_free(session, *cfg++);
 	if (c != NULL)
 		c->reset(c);
-	__wt_free(session, p);
+	__wt_scr_free(session, &buf);
 	return (ret);
 }
 
@@ -144,8 +137,8 @@ __curmetadata_setkv(WT_CURSOR_METADATA *mdc, WT_CURSOR *fc)
 	c->key.data = fc->key.data;
 	c->key.size = fc->key.size;
 	if (F_ISSET(mdc, WT_MDC_CREATEONLY)) {
-		WT_ERR(__schema_create_strip(session, mdc, (char *)fc->key.data,
-		    (char *)fc->value.data, &value));
+		WT_ERR(__schema_create_collapse(session, mdc,
+		    (char *)fc->key.data, (char *)fc->value.data, &value));
 		WT_ERR(__wt_buf_set(
 		    session, &c->value, value, strlen(value) + 1));
 	} else {
@@ -186,7 +179,7 @@ __curmetadata_metadata_search(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 	WT_RET(__wt_metadata_search(session, WT_METAFILE_URI, &value));
 
 	if (F_ISSET(mdc, WT_MDC_CREATEONLY)) {
-		ret = __schema_create_strip(session, mdc, NULL, value,
+		ret = __schema_create_collapse(session, mdc, NULL, value,
 		    &stripped);
 		__wt_free(session, value);
 		WT_RET(ret);

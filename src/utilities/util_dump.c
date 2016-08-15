@@ -18,7 +18,7 @@ static int dump_prefix(WT_SESSION *, bool, bool);
 static int dump_record(WT_CURSOR *, bool, bool);
 static int dump_suffix(WT_SESSION *, bool);
 static int dump_table_config(WT_SESSION *, WT_CURSOR *, const char *, bool);
-static int dump_table_associated_config(
+static int dump_table_parts_config(
     WT_SESSION *, WT_CURSOR *, const char *, const char *, bool);
 static int dup_json_string(const char *, char **);
 static int print_config(WT_SESSION *, const char *, const char *, bool, bool);
@@ -254,20 +254,20 @@ dump_table_config(
 
 	WT_RET(print_config(session, uri, v, json, true));
 
-	WT_RET(dump_table_associated_config(
+	WT_RET(dump_table_parts_config(
 	    session, cursor, name, "colgroup:", json));
-	WT_RET(dump_table_associated_config(
+	WT_RET(dump_table_parts_config(
 	    session, cursor, name, "index:", json));
 
 	return (0);
 }
 
 /*
- * dump_table_associated_config --
- *	Dump the column groups or indices associated with a table.
+ * dump_table_parts_config --
+ *	Dump the column groups or indices parts with a table.
  */
 static int
-dump_table_associated_config(WT_SESSION *session, WT_CURSOR *cursor,
+dump_table_parts_config(WT_SESSION *session, WT_CURSOR *cursor,
     const char *name, const char *entry, bool json)
 {
 	WT_DECL_RET;
