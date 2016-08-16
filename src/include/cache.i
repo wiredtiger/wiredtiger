@@ -74,7 +74,7 @@ __wt_cache_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
 static inline void
 __wt_page_evict_soon(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-        WT_UNUSED(session);
+	WT_UNUSED(session);
 
 	ref->page->read_gen = WT_READGEN_OLDEST;
 }

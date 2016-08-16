@@ -17,7 +17,8 @@ static int  __evict_page(WT_SESSION_IMPL *, bool);
 static int  __evict_pass(WT_SESSION_IMPL *);
 static int  __evict_server(WT_SESSION_IMPL *, bool *);
 static int  __evict_walk(WT_SESSION_IMPL *, uint32_t);
-static int  __evict_walk_file(WT_SESSION_IMPL *, uint32_t, u_int, u_int *, bool *);
+static int  __evict_walk_file(
+    WT_SESSION_IMPL *, uint32_t, u_int, u_int *, bool *);
 
 /*
  * __evict_read_gen --
@@ -1197,9 +1198,9 @@ retry:	while (slot < max_entries && ret == 0) {
 		    !__wt_spin_trylock(session, &cache->evict_walk_lock)) {
 			if (!F_ISSET(btree, WT_BTREE_NO_EVICTION)) {
 				cache->evict_file_next = dhandle;
-				WT_WITH_DHANDLE(session, dhandle,
-				    ret = __evict_walk_file(session,
-				    queue_index, max_entries, &slot, &progress));
+				WT_WITH_DHANDLE(session, dhandle, ret =
+				    __evict_walk_file(session, queue_index,
+				    max_entries, &slot, &progress));
 				WT_ASSERT(session, session->split_gen == 0);
 			}
 			__wt_spin_unlock(session, &cache->evict_walk_lock);
