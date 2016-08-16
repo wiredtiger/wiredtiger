@@ -361,3 +361,21 @@ __wt_rwlock_destroy(WT_SESSION_IMPL *session, WT_RWLOCK **rwlockp)
 
 	__wt_free(session, rwlock);
 }
+
+#ifdef HAVE_DIAGNOSTIC
+/*
+ * __wt_rwlock_islocked --
+ *	Return if a read/write lock is currently locked for reading or writing.
+ */
+bool
+__wt_rwlock_islocked(WT_SESSION_IMPL *session, WT_RWLOCK *rwlock)
+{
+	wt_rwlock_t *l;
+
+	WT_UNUSED(session);
+
+	l = &rwlock->rwlock;
+
+	return (l->s.writers != l->s.users || l->s.readers != l->s.users);
+}
+#endif
