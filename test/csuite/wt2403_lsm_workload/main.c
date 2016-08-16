@@ -65,7 +65,8 @@ static int
 query_docs(WT_CURSOR *cursor, bool mod)
 {
 	WT_ITEM key, value;
-	int count, i, stash;
+	uint64_t stash;
+	int count, i;
 	stash = INT_MAX;
 	count = 0;
 
