@@ -94,11 +94,11 @@ config_unescape(char *orig)
 }
 
 /*
- * config_init --
+ * config_copy --
  *	CONFIG structure initialization, based on a source configuration.
  */
 int
-config_init(CONFIG *dest, const CONFIG *src)
+config_copy(CONFIG *dest, const CONFIG *src)
 {
 	CONFIG_QUEUE_ENTRY *conf_line, *tmp_line;
 	size_t i;

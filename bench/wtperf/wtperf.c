@@ -29,6 +29,8 @@
 #include "wtperf.h"
 
 /* Default values. */
+#define	DEFAULT_HOME		"WT_TEST"
+#define	DEFAULT_MONITOR_DIR	"WT_TEST"
 static const CONFIG default_cfg = {
 	NULL,				/* home */
 	NULL,				/* monitor dir */
@@ -1964,7 +1966,7 @@ start_all_runs(CONFIG *cfg)
 	for (i = 0; i < cfg->database_count; i++) {
 		next_cfg = dcalloc(1, sizeof(CONFIG));
 		configs[i] = next_cfg;
-		if ((ret = config_init(next_cfg, cfg)) != 0)
+		if ((ret = config_copy(next_cfg, cfg)) != 0)
 			goto err;
 
 		/* Setup a unique home directory for each database. */
@@ -2196,10 +2198,10 @@ main(int argc, char *argv[])
 	/* Setup the default configuration values. */
 	cfg = &_cfg;
 	memset(cfg, 0, sizeof(*cfg));
-	if (config_init(cfg, &default_cfg))
+	if (config_copy(cfg, &default_cfg))
 		goto err;
-	cfg->home = dstrdup("WT_TEST");
-	cfg->monitor_dir = dstrdup("WT_TEST");
+	cfg->home = dstrdup(DEFAULT_HOME);
+	cfg->monitor_dir = dstrdup(DEFAULT_MONITOR_DIR);
 
 	/* Do a basic validation of options, and home is needed before open. */
 	while ((ch = __wt_getopt("wtperf", argc, argv, opts)) != EOF)
