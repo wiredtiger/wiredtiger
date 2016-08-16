@@ -65,12 +65,12 @@ static int
 query_docs(WT_CURSOR *cursor, bool mod)
 {
 	WT_ITEM key, value;
-	int count, i, stash, ret;
+	int count, i, stash;
 	stash = INT_MAX;
 	count = 0;
 
 	for (i = 0; i < NUM_QUERIES; i++) {
-		ret = cursor->next(cursor);
+		testutil_check(cursor->next(cursor));
 		cursor->get_key(cursor, &key);
 		cursor->get_value(cursor, &value);
 		/* Check to see if we get the same value back multiple times */
@@ -111,7 +111,7 @@ main(void)
 	WT_SESSION *session, *session2;
 	WT_CURSOR *rcursor, *wcursor;
 	WT_ITEM key, value;
-	uint64_t i, stash, count;
+	uint64_t i;
 	int ret;
 	pthread_t thread;
 
