@@ -6,7 +6,7 @@
 #define VMX_ALIGN_MASK	(VMX_ALIGN-1)
 
 #ifdef REFLECT
-static unsigned int crc32_align(unsigned int crc, unsigned char *p,
+static unsigned int crc32_align(unsigned int crc, const unsigned char *p,
 			       unsigned long len)
 {
 	while (len--)
@@ -14,7 +14,7 @@ static unsigned int crc32_align(unsigned int crc, unsigned char *p,
 	return crc;
 }
 #else
-static unsigned int crc32_align(unsigned int crc, unsigned char *p,
+static unsigned int crc32_align(unsigned int crc, const unsigned char *p,
 				unsigned long len)
 {
 	while (len--)
@@ -23,13 +23,13 @@ static unsigned int crc32_align(unsigned int crc, unsigned char *p,
 }
 #endif
 
-unsigned int __crc32_vpmsum(unsigned int crc, unsigned char *p,
+unsigned int __crc32_vpmsum(unsigned int crc, const unsigned char *p,
 			    unsigned long len);
 
 /* -Werror=missing-prototypes */
-unsigned int crc32_vpmsum(unsigned int crc, unsigned char *p,
+unsigned int crc32_vpmsum(unsigned int crc, const unsigned char *p,
 			  unsigned long len);
-unsigned int crc32_vpmsum(unsigned int crc, unsigned char *p,
+unsigned int crc32_vpmsum(unsigned int crc, const unsigned char *p,
 			  unsigned long len)
 {
 	unsigned int prealign;
