@@ -67,3 +67,25 @@ out:
 	return crc;
 }
 #endif
+
+#include "wt_internal.h"
+
+/*
+ * __wt_cksum --
+ *	WiredTiger: return a checksum for a chunk of memory.
+ */
+uint32_t
+__wt_cksum(const void *chunk, size_t len)
+{
+	return crc32_vpmsum(0, chunk, len);
+}
+
+/*
+ * __wt_cksum_init --
+ *	WiredTiger: detect CRC hardware and set the checksum function.
+ */
+void
+__wt_cksum_init(void)
+{
+	/* None needed. */
+}
