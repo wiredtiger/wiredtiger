@@ -74,6 +74,8 @@ __wt_cache_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
 static inline void
 __wt_page_evict_soon(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+        WT_UNUSED(session);
+
 	ref->page->read_gen = WT_READGEN_OLDEST;
 }
 
@@ -226,9 +228,9 @@ __wt_eviction_needed(WT_SESSION_IMPL *session, u_int *pct_fullp)
 	    (u_int)((100 * __wt_cache_dirty_leaf_inuse(cache)) / bytes_max);
 
 	if (pct_fullp != NULL)
-		*pct_fullp = 100 - WT_MIN(
+		*pct_fullp = (u_int)WT_MAX(0, 100 - WT_MIN(
 		    (int)cache->eviction_trigger - (int)pct_full,
-		    (int)cache->eviction_dirty_trigger - (int)pct_dirty);
+		    (int)cache->eviction_dirty_trigger - (int)pct_dirty));
 
 	return (pct_full >= cache->eviction_trigger ||
 	    pct_dirty >= cache->eviction_dirty_trigger);
