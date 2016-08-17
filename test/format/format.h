@@ -30,11 +30,11 @@
 
 #ifdef BDB
 /*
- * Berkeley DB has a option that we need to provide a value for, if it is unset
- * or we will run into an undefined error during a strict compile.
+ * Berkeley DB has an #ifdef we need to provide a value for, we'll see an
+ * undefined error if it's unset during a strict compile.
  */
-#ifndef DB_DBM_HSEARCH
-#define	DB_DBM_HSEARCH 0
+#ifndef	DB_DBM_HSEARCH
+#define	DB_DBM_HSEARCH	0
 #endif
 #include <assert.h>
 #include <db.h>
