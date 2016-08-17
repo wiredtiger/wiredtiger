@@ -29,6 +29,9 @@
 #include "test_util.h"
 
 #ifdef BDB
+#ifndef DB_DBM_HSEARCH
+#define	DB_DBM_HSEARCH 0
+#endif
 #include <assert.h>
 #include <db.h>
 #endif

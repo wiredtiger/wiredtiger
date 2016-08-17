@@ -33,6 +33,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef DB_DBM_HSEARCH
+#define	DB_DBM_HSEARCH 0
+#endif
 #include <db.h>
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
