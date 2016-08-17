@@ -76,12 +76,6 @@
 
 #define	FORMAT_OPERATION_REPS	3		/* 3 thread operations sets */
 
-#ifndef _WIN32
-#define	SIZET_FMT	"%zu"			/* size_t format string */
-#else
-#define	SIZET_FMT	"%Iu"			/* size_t format string */
-#endif
-
 typedef struct {
 	char *progname;				/* Program name */
 
