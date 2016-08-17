@@ -29,6 +29,10 @@
 #include "test_util.h"
 
 #ifdef BDB
+/*
+ * Berkeley DB has a option that we need to provide a value for, if it is unset
+ * or we will run into an undefined error during a strict compile.
+ */
 #ifndef DB_DBM_HSEARCH
 #define	DB_DBM_HSEARCH 0
 #endif
