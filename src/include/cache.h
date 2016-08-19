@@ -153,15 +153,17 @@ struct __wt_cache {
 #define	WT_EVICT_STATE_AGGRESSIVE	0x01 /* Eviction isn't making progress:
 						try harder */
 #define	WT_EVICT_STATE_CLEAN		0x02 /* Evict clean pages */
-#define	WT_EVICT_STATE_DIRTY		0x04 /* Evict dirty pages */
-#define	WT_EVICT_STATE_SCRUB		0x08 /* Scrub dirty pages pages */
-#define	WT_EVICT_STATE_URGENT		0x10 /* Pages are in the urgent queue */
+#define	WT_EVICT_STATE_CLEAN_HARD	0x04 /* Clean % blocking app threads */
+#define	WT_EVICT_STATE_DIRTY		0x08 /* Evict dirty pages */
+#define	WT_EVICT_STATE_DIRTY_HARD	0x10 /* Dirty % blocking app threads */
+#define	WT_EVICT_STATE_SCRUB		0x20 /* Scrub dirty pages pages */
+#define	WT_EVICT_STATE_URGENT		0x40 /* Pages are in the urgent queue */
 #define	WT_EVICT_STATE_ALL	(WT_EVICT_STATE_CLEAN | WT_EVICT_STATE_DIRTY)
 	uint32_t state;
 	/*
 	 * Pass interrupt counter.
 	 */
-	uint32_t pass_intr;		/* Interrupt eviction pass. */
+	volatile uint32_t pass_intr;	/* Interrupt eviction pass. */
 
 	/*
 	 * Flags.
