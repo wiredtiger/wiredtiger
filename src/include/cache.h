@@ -26,8 +26,8 @@ struct __wt_evict_entry {
 	uint64_t  score;		/* Relative eviction priority */
 };
 
-#define	WT_EVICT_URGENT_QUEUE	0	/* Urgent queue index */
-#define	WT_EVICT_QUEUE_MAX	3	/* Urgent plus two ordinary queues */
+#define	WT_EVICT_QUEUE_MAX	3	/* Two ordinary queues plus urgent */
+#define	WT_EVICT_URGENT_QUEUE	2	/* Urgent queue index */
 
 /*
  * WT_EVICT_QUEUE --

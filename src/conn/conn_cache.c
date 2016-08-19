@@ -177,8 +177,7 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
 	}
 
 	/* Ensure there is always a non-NULL current queue. */
-	cache->evict_current_queue =
-	    &cache->evict_queues[WT_EVICT_URGENT_QUEUE + 1];
+	cache->evict_current_queue = &cache->evict_queues[0];
 
 	/*
 	 * We get/set some values in the cache statistics (rather than have
