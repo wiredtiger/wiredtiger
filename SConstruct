@@ -249,6 +249,7 @@ condition_map = {
     'POWERPC_HOST' : False,
     'WINDOWS_HOST' : env['PLATFORM'] == 'win32',
     'X86_HOST' : True,
+    'ZSERIES_HOST' : False,
 }
 
 def filtered_filelist(f):

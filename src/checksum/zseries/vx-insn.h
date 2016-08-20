@@ -12,7 +12,7 @@
 #define __ASM_S390_VX_INSN_H
 
 /* Boilerplate for function entry points */
-#define ENTRY(name) \
+#define WT_CRC32_ENTRY(name) \
 .globl name;        \
 .align 4, 0x90;     \
 name:
@@ -409,7 +409,6 @@ name:
 .macro	VUPLLF	vr1, vr2
 	VUPLL	\vr1, \vr2, 2
 .endm
-
 
 /* Vector integer instructions */
 

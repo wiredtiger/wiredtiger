@@ -16,33 +16,10 @@
 #define VX_ALIGN_MASK		(VX_ALIGNMENT - 1)
 
 /* Prototypes for functions in assembly files */
-unsigned int crc32_be_vgfm_16(unsigned int crc, const unsigned char *buf, size_t size);
-unsigned int crc32_le_vgfm_16(unsigned int crc, const unsigned char *buf, size_t size);
-unsigned int crc32c_be_vgfm_16(unsigned int crc, const unsigned char *buf, size_t size);
-unsigned int crc32c_le_vgfm_16(unsigned int crc, const unsigned char *buf, size_t size);
+unsigned int __wt_crc32c_le_vgfm_16(unsigned int crc, const unsigned char *buf, size_t size);
 
 /* Pure C implementations of CRC, one byte at a time */
-unsigned int crc32_be(unsigned int crc, const unsigned char *buf, size_t len) {
-	while (len--)
-		crc = crc32table_be[0][((crc >> 24) ^ *buf++) & 0xFF] ^ (crc << 8);
-	return crc;
-}
-
-unsigned int crc32c_be(unsigned int crc, const unsigned char *buf, size_t len) {
-	while (len--)
-		crc = crc32ctable_be[0][((crc >> 24) ^ *buf++) & 0xFF] ^ (crc << 8);
-	return crc;
-}
-
-unsigned int crc32_le(unsigned int crc, const unsigned char *buf, size_t len) {
-	crc = htole32(crc);
-	while (len--)
-		crc = crc32table_le[0][((crc >> 24) ^ *buf++) & 0xFF] ^ (crc << 8);
-	crc = le32toh(crc);
-	return crc;
-}
-
-unsigned int crc32c_le(unsigned int crc, const unsigned char *buf, size_t len){
+unsigned int __wt_crc32c_le(unsigned int crc, const unsigned char *buf, size_t len){
 	crc = htole32(crc);
 	while (len--)
 		crc = crc32ctable_le[0][((crc >> 24) ^ *buf++) & 0xFF] ^ (crc << 8);
@@ -90,7 +67,26 @@ unsigned int crc32c_le(unsigned int crc, const unsigned char *buf, size_t len){
 	}
 
 /* Main CRC-32 functions */
-DEFINE_CRC32_VX(crc32_be_vx, crc32_be_vgfm_16, crc32_be)
-DEFINE_CRC32_VX(crc32_le_vx, crc32_le_vgfm_16, crc32_le)
-DEFINE_CRC32_VX(crc32c_be_vx, crc32c_be_vgfm_16, crc32c_be)
-DEFINE_CRC32_VX(crc32c_le_vx, crc32c_le_vgfm_16, crc32c_le)
+DEFINE_CRC32_VX(__wt_crc32c_le_vx, __wt_crc32c_le_vgfm_16, __wt_crc32c_le)
+
+#include "wt_internal.h"
+
+/*
+ * __wt_cksum --
+ *      WiredTiger: return a checksum for a chunk of memory.
+ */
+unsigned int
+__wt_cksum(const void *chunk, size_t len)
+{
+	return (~__wt_crc32c_le_vx(0xffffffff, chunk, len));
+}
+
+/*
+ * __wt_cksum_init --
+ *      WiredTiger: detect CRC hardware and set the checksum function.
+ */
+void
+__wt_cksum_init(void)
+{
+	/* None needed. */
+}

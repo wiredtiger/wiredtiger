@@ -96,11 +96,7 @@
  *	V10..V14: CRC-32 constants.
  */
 
-ENTRY(crc32_le_vgfm_16)
-	larl	%r5,.Lconstants_CRC_32_LE
-	j	crc32_le_vgfm_generic
-
-ENTRY(crc32c_le_vgfm_16)
+WT_CRC32_ENTRY(__wt_crc32c_le_vgfm_16)
 	larl	%r5,.Lconstants_CRC_32C_LE
 	j	crc32_le_vgfm_generic
 
