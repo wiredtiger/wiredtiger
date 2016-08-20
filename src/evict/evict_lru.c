@@ -910,25 +910,25 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 {
 	WT_CACHE *cache;
 	WT_DECL_RET;
-	WT_EVICT_QUEUE *queue;
+	WT_EVICT_QUEUE *queue, *other_queue;
 	uint64_t read_gen_oldest;
 	uint32_t candidates, entries, queue_index;
 
 	cache = S2C(session)->cache;
 
 	/* Fill the next queue (that isn't the urgent queue). */
-	for (queue_index = 0;
-	    queue_index < WT_EVICT_URGENT_QUEUE;
-	    queue_index++) {
-		queue = &cache->evict_queues[queue_index];
-		if (queue->evict_current != queue->evict_queue ||
-		    queue->evict_candidates == 0)
-			break;
-	}
-
-	/* If all queues are full, don't bother walking again. */
-	if (queue_index == WT_EVICT_URGENT_QUEUE)
+	queue = cache->evict_current_queue;
+	other_queue = cache->evict_queues + (1 - (queue - cache->evict_queues));
+	if (queue->evict_current == queue->evict_queue &&
+	    queue->evict_candidates != 0 &&
+	    other_queue->evict_current == other_queue->evict_queue &&
+	    other_queue->evict_candidates != 0)
 		return (0);
+
+	if (other_queue->evict_current != other_queue->evict_queue ||
+	    other_queue->evict_candidates == 0)
+		queue = other_queue;
+	queue_index = queue - cache->evict_queues;
 
 	/* Get some more pages to consider for eviction. */
 	if ((ret = __evict_walk(cache->walk_session, queue_index)) != 0)
@@ -1547,6 +1547,7 @@ __evict_get_ref(
     WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_REF **refp)
 {
 	WT_CACHE *cache;
+	WT_DECL_RET;
 	WT_EVICT_ENTRY *evict;
 	WT_EVICT_QUEUE *queue, *other_queue, *urgent_queue;
 	uint32_t candidates;
@@ -1577,12 +1578,23 @@ __evict_get_ref(
 	 * to avoid pathological cases where there is only one eviction
 	 * candidate in the cache.
 	 */
-	if (is_server && queue->evict_current != queue->evict_queue &&
-	    (other_queue->evict_current != other_queue->evict_queue ||
-	    other_queue->evict_candidates == 0))
-		return (WT_NOTFOUND);
+	if (is_server) {
+		do {
+			queue = cache->evict_current_queue;
+			other_queue = cache->evict_queues +
+			    (1 - (queue - cache->evict_queues));
 
-	__wt_spin_lock(session, &cache->evict_queue_lock);
+			if (queue->evict_current != queue->evict_queue &&
+			    (other_queue->evict_current !=
+			    other_queue->evict_queue ||
+			    other_queue->evict_candidates == 0))
+				return (WT_NOTFOUND);
+		} while ((ret = __wt_spin_trylock(
+		    session, &cache->evict_queue_lock)) == EBUSY);
+
+		WT_RET(ret);
+	} else
+		__wt_spin_lock(session, &cache->evict_queue_lock);
 
 	/*
 	 * Check if the current queue needs to change.
