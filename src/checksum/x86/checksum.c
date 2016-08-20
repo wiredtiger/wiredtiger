@@ -1262,7 +1262,7 @@ __wt_cksum_hw(const void *chunk, size_t len)
 
 /*
  * __wt_cksum --
- *	WiredTiger: detect CRC hardware and set the checksum function.
+ *	WiredTiger: return a checksum for a chunk of memory.
  */
 uint32_t
 __wt_cksum(const void *chunk, size_t len)
