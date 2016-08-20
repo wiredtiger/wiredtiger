@@ -2094,4 +2094,3 @@ static const unsigned int __attribute__((aligned(128))) crc32ctable_be[8][256] =
 	0xcfb6288c, 0xe9dfa8a0, 0x836528d4, 0xa50ca8f8
 	}
 };
-
