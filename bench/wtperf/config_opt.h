@@ -37,3 +37,9 @@ typedef struct {
 	CONFIG_OPT_TYPE type;
 	size_t offset;
 } CONFIG_OPT;
+
+typedef struct {					/* Option structure */
+#define	OPT_DECLARE_STRUCT
+#include "wtperf_opt.i"
+#undef	OPT_DECLARE_STRUCT
+} CONFIG_OPTS;
