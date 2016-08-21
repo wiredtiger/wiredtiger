@@ -2573,7 +2573,7 @@ main(int argc, char *argv[])
 	req_len = strlen(cfg->home) + strlen("/CONFIG.wtperf") + 1;
 	path = dmalloc(req_len);
 	snprintf(path, req_len, "%s/CONFIG.wtperf", cfg->home);
-	config_opt_log(cfg, path);
+	config_opt_log(opts, path);
 	free(path);
 
 	/* Display the configuration. */

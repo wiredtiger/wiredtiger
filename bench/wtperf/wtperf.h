@@ -248,7 +248,7 @@ void	 cleanup_truncate_config(CONFIG *);
 int	 config_opt_file(CONFIG *, const char *);
 void	 config_opt_cleanup(CONFIG_OPTS *);
 void	 config_opt_init(CONFIG_OPTS **);
-void	 config_opt_log(CONFIG *, const char *);
+void	 config_opt_log(CONFIG_OPTS *, const char *);
 int	 config_opt_name_value(CONFIG *, const char *, const char *);
 void	 config_opt_print(CONFIG *);
 int	 config_opt_str(CONFIG *, const char *);

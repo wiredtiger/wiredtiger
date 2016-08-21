@@ -782,13 +782,10 @@ config_consolidate(CONFIG_OPTS *opts)
  *	Write the final config used in this execution to a file.
  */
 void
-config_opt_log(CONFIG *cfg, const char *path)
+config_opt_log(CONFIG_OPTS *opts, const char *path)
 {
-	CONFIG_OPTS *opts;
 	CONFIG_QUEUE_ENTRY *config_line;
 	FILE *fp;
-
-	opts = cfg->opts;
 
 	testutil_checkfmt(((fp = fopen(path, "w")) == NULL), "%s", path);
 
