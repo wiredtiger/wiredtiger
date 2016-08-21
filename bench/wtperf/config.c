@@ -38,6 +38,8 @@ static CONFIG_OPTS config_opts_default = {	/* Option defaults */
 #define	OPT_DEFINE_DEFAULT
 #include "wtperf_opt.i"
 #undef OPT_DEFINE_DEFAULT
+
+	{ NULL, NULL }				/* config_head */
 };
 
 /*
@@ -64,6 +66,8 @@ config_opt_init(CONFIG_OPTS **retp)
 	opts = dmalloc(sizeof(CONFIG_OPTS));
 	*opts = config_opts_default;
 
+	TAILQ_INIT(&opts->config_head);
+
 	/*
 	 * Option strings come-and-go as we configure them, so allocate copies
 	 * of the default strings now so that we can always free the string as
@@ -78,6 +82,34 @@ config_opt_init(CONFIG_OPTS **retp)
 		}
 
 	*retp = opts;
+}
+
+/*
+ * config_opt_cleanup --
+ *	Clean up the global configuration options.
+ */
+void
+config_opt_cleanup(CONFIG_OPTS *opts)
+{
+	CONFIG_OPT *desc;
+	CONFIG_QUEUE_ENTRY *config_line;
+	size_t i;
+	char **strp;
+	void *valueloc;
+
+	for (i = 0, desc = config_opts_desc;
+	    i < WT_ELEMENTS(config_opts_desc); i++, ++desc)
+		if (desc->type == CONFIG_STRING_TYPE) {
+			valueloc = ((uint8_t *)opts + desc->offset);
+			strp = (char **)valueloc;
+			free(*strp);
+		}
+
+	while ((config_line = TAILQ_FIRST(&opts->config_head)) != NULL) {
+		TAILQ_REMOVE(&opts->config_head, config_line, q);
+		free(config_line->string);
+		free(config_line);
+	}
 }
 
 /*
@@ -570,11 +602,14 @@ config_opt_file(CONFIG *cfg, const char *filename)
 int
 config_opt_str(CONFIG *cfg, const char *optstr)
 {
+	CONFIG_OPTS *opts;
 	CONFIG_QUEUE_ENTRY *config_line;
 	WT_CONFIG_ITEM k, v;
 	WT_CONFIG_PARSER *scan;
 	size_t len;
 	int ret, t_ret;
+
+	opts = cfg->opts;
 
 	len = strlen(optstr);
 	if ((ret = wiredtiger_config_parser_open(
@@ -591,7 +626,7 @@ config_opt_str(CONFIG *cfg, const char *optstr)
 	 */
 	config_line = dcalloc(sizeof(CONFIG_QUEUE_ENTRY), 1);
 	config_line->string = dstrdup(optstr);
-	TAILQ_INSERT_TAIL(&cfg->config_head, config_line, c);
+	TAILQ_INSERT_TAIL(&opts->config_head, config_line, q);
 
 	while (ret == 0) {
 		if ((ret = scan->next(scan, &k, &v)) != 0) {
@@ -707,7 +742,7 @@ config_sanity(CONFIG *cfg)
  *	once in the configuration output file.
  */
 static void
-config_consolidate(CONFIG *cfg)
+config_consolidate(CONFIG_OPTS *opts)
 {
 	CONFIG_QUEUE_ENTRY *conf_line, *test_line, *tmp;
 	char *string_key;
@@ -717,10 +752,10 @@ config_consolidate(CONFIG *cfg)
 	 * a later queue entry has the same key. If there's a match, the current
 	 * queue entry is removed and we continue.
 	 */
-	conf_line = TAILQ_FIRST(&cfg->config_head);
+	conf_line = TAILQ_FIRST(&opts->config_head);
 	while (conf_line != NULL) {
 		string_key = strchr(conf_line->string, '=');
-		tmp = test_line = TAILQ_NEXT(conf_line, c);
+		tmp = test_line = TAILQ_NEXT(conf_line, q);
 		while (test_line != NULL) {
 			/*
 			 * The + 1 here forces the '=' sign to be matched
@@ -731,12 +766,12 @@ config_consolidate(CONFIG *cfg)
 			if (strncmp(conf_line->string, test_line->string,
 			    (size_t)((string_key - conf_line->string) + 1))
 			    == 0) {
-				TAILQ_REMOVE(&cfg->config_head, conf_line, c);
+				TAILQ_REMOVE(&opts->config_head, conf_line, q);
 				free(conf_line->string);
 				free(conf_line);
 				break;
 			}
-			test_line = TAILQ_NEXT(test_line, c);
+			test_line = TAILQ_NEXT(test_line, q);
 		}
 		conf_line = tmp;
 	}
@@ -749,17 +784,20 @@ config_consolidate(CONFIG *cfg)
 void
 config_opt_log(CONFIG *cfg, const char *path)
 {
+	CONFIG_OPTS *opts;
 	CONFIG_QUEUE_ENTRY *config_line;
 	FILE *fp;
 
+	opts = cfg->opts;
+
 	testutil_checkfmt(((fp = fopen(path, "w")) == NULL), "%s", path);
 
-	config_consolidate(cfg);
+	config_consolidate(opts);
 
 	fprintf(fp,"# Warning: This config includes "
 	    "unwritten, implicit configuration defaults.\n"
 	    "# Changes to those values may cause differences in behavior.\n");
-	TAILQ_FOREACH(config_line, &cfg->config_head, c)
+	TAILQ_FOREACH(config_line, &opts->config_head, q)
 		fprintf(fp, "%s\n", config_line->string);
 	testutil_check(fclose(fp));
 }

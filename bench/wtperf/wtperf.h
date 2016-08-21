@@ -95,12 +95,6 @@ struct __truncate_queue_entry {
 	TAILQ_ENTRY(__truncate_queue_entry) q;
 };
 
-struct __config_queue_entry {
-	char *string;
-	TAILQ_ENTRY(__config_queue_entry) c;
-};
-typedef struct __config_queue_entry CONFIG_QUEUE_ENTRY;
-
 /* Steering for the throttle configuration */
 typedef struct {
 	struct timespec last_increment;	/* Time that we last added more ops */
@@ -166,9 +160,6 @@ struct __config {			/* Configuration structure */
 
 	/* Queue head for use with the Truncate Logic */
 	TAILQ_HEAD(__truncate_qh, __truncate_queue_entry) stone_head;
-
-	/* Queue head to save a copy of the config to be output */
-	TAILQ_HEAD(__config_qh, __config_queue_entry) config_head;
 
 	CONFIG_OPTS *opts;		/* Global configuration */
 };
@@ -255,6 +246,7 @@ struct __config_thread {		/* Per-thread structure */
 
 void	 cleanup_truncate_config(CONFIG *);
 int	 config_opt_file(CONFIG *, const char *);
+void	 config_opt_cleanup(CONFIG_OPTS *);
 void	 config_opt_init(CONFIG_OPTS **);
 void	 config_opt_log(CONFIG *, const char *);
 int	 config_opt_name_value(CONFIG *, const char *, const char *);

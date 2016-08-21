@@ -1955,7 +1955,6 @@ config_copy(const CONFIG *src, CONFIG **retp)
 {
 	CONFIG *dest;
 	CONFIG_OPTS *opts;
-	CONFIG_QUEUE_ENTRY *conf_line, *tmp_line;
 	size_t i;
 
 	opts = src->opts;
@@ -1991,14 +1990,6 @@ config_copy(const CONFIG *src, CONFIG **retp)
 	}
 
 	TAILQ_INIT(&dest->stone_head);
-	TAILQ_INIT(&dest->config_head);
-
-	/* Clone the config string information into the new cfg object */
-	TAILQ_FOREACH(conf_line, &src->config_head, c) {
-		tmp_line = dcalloc(sizeof(CONFIG_QUEUE_ENTRY), 1);
-		tmp_line->string = dstrdup(conf_line->string);
-		TAILQ_INSERT_TAIL(&dest->config_head, tmp_line, c);
-	}
 
 	dest->opts = src->opts;
 
@@ -2014,7 +2005,6 @@ static void
 config_free(CONFIG *cfg)
 {
 	CONFIG_OPTS *opts;
-	CONFIG_QUEUE_ENTRY *config_line;
 	size_t i;
 
 	opts = cfg->opts;
@@ -2039,13 +2029,6 @@ config_free(CONFIG *cfg)
 	free(cfg->workload);
 
 	cleanup_truncate_config(cfg);
-
-	while (!TAILQ_EMPTY(&cfg->config_head)) {
-		config_line = TAILQ_FIRST(&cfg->config_head);
-		TAILQ_REMOVE(&cfg->config_head, config_line, c);
-		free(config_line->string);
-		free(config_line);
-	}
 }
 
 /*
@@ -2366,7 +2349,6 @@ main(int argc, char *argv[])
 	cfg->home = dstrdup(DEFAULT_HOME);
 	cfg->monitor_dir = dstrdup(DEFAULT_MONITOR_DIR);
 	TAILQ_INIT(&cfg->stone_head);
-	TAILQ_INIT(&cfg->config_head);
 	config_opt_init(&cfg->opts);
 
 	opts = cfg->opts;
@@ -2606,6 +2588,8 @@ einval:		ret = EINVAL;
 	}
 
 err:	config_free(cfg);
+	config_opt_cleanup(opts);
+
 	free(cc_buf);
 	free(sess_cfg);
 	free(tc_buf);

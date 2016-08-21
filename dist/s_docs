@@ -31,7 +31,7 @@ wtperf_config()
 {
 	# The Linux ed command writes line numbers to stderr, redirect both
 	# stdout and stderr to keep things quiet.
-	cc -o $b ../bench/wtperf/doxy.c || {
+	cc -o $b -I../src/include ../bench/wtperf/doxy.c || {
 		echo "$0: unable to compile doxy.c"
 		exit 1
 	}
@@ -39,7 +39,7 @@ wtperf_config()
 	 echo 'i'
 	 echo ''
 	 echo '.'
-	 echo ".r !$b"
+	 echo ".r !./$b"
 	 echo 'a'
 	 echo ''
 	 echo '.'
