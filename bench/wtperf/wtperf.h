@@ -126,7 +126,8 @@ struct __config {			/* Configuration structure */
 
 	FILE *logf;			/* Logging handle */
 
-	char *async_config;		/* Config string for async */
+	char	*async_config;		/* Config string for async */
+	bool	 use_asyncops;		/* Use async operations */
 
 	const char *compress_ext;	/* Compression extension for conn */
 	const char *compress_table;	/* Compression arg to table create */
@@ -140,9 +141,7 @@ struct __config {			/* Configuration structure */
 	WORKLOAD	*workload;	/* Workloads */
 	u_int		 workload_cnt;
 
-	uint32_t	 use_asyncops;	/* Use async operations */
 	/* State tracking variables. */
-
 	uint64_t ckpt_ops;		/* checkpoint operations */
 	uint64_t insert_ops;		/* insert operations */
 	uint64_t read_ops;		/* read operations */
@@ -151,10 +150,10 @@ struct __config {			/* Configuration structure */
 
 	uint64_t insert_key;		/* insert key */
 
-	volatile int ckpt;		/* checkpoint in progress */
-	volatile int error;		/* thread error */
-	volatile int stop;		/* notify threads to stop */
-	volatile int in_warmup;		/* Running warmup phase */
+	volatile bool ckpt;		/* checkpoint in progress */
+	volatile bool error;		/* thread error */
+	volatile bool stop;		/* notify threads to stop */
+	volatile bool in_warmup;	/* running warmup phase */
 
 	volatile bool idle_cycle_run;	/* Signal for idle cycle thread */
 

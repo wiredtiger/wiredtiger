@@ -250,7 +250,7 @@ err:
 	/* Panic if error */
 	lprintf(cfg, ret, 0, "Error in op %" PRIu64,
 	    op->get_id(op));
-	cfg->error = cfg->stop = 1;
+	cfg->error = cfg->stop = true;
 	return (1);
 }
 
@@ -425,7 +425,7 @@ op_err:			lprintf(cfg, ret, 0,
 
 	/* Notify our caller we failed and shut the system down. */
 	if (0) {
-err:		cfg->error = cfg->stop = 1;
+err:		cfg->error = cfg->stop = true;
 	}
 	return (NULL);
 }
@@ -805,7 +805,7 @@ op_err:			if (ret == WT_ROLLBACK && ops_per_txn != 0) {
 
 	/* Notify our caller we failed and shut the system down. */
 	if (0) {
-err:		cfg->error = cfg->stop = 1;
+err:		cfg->error = cfg->stop = true;
 	}
 	free(cursors);
 
@@ -1085,7 +1085,7 @@ populate_thread(void *arg)
 
 	/* Notify our caller we failed and shut the system down. */
 	if (0) {
-err:		cfg->error = cfg->stop = 1;
+err:		cfg->error = cfg->stop = true;
 	}
 	free(cursors);
 
@@ -1188,7 +1188,7 @@ populate_async(void *arg)
 
 	/* Notify our caller we failed and shut the system down. */
 	if (0) {
-err:		cfg->error = cfg->stop = 1;
+err:		cfg->error = cfg->stop = true;
 	}
 	return (NULL);
 }
@@ -1350,7 +1350,7 @@ monitor(void *arg)
 
 	/* Notify our caller we failed and shut the system down. */
 	if (0) {
-err:		cfg->error = cfg->stop = 1;
+err:		cfg->error = cfg->stop = true;
 	}
 
 	if (fp != NULL)
@@ -1400,12 +1400,12 @@ checkpoint_worker(void *arg)
 			lprintf(cfg, ret, 0, "Get time failed in checkpoint.");
 			goto err;
 		}
-		cfg->ckpt = 1;
+		cfg->ckpt = true;
 		if ((ret = session->checkpoint(session, NULL)) != 0) {
 			lprintf(cfg, ret, 0, "Checkpoint failed.");
 			goto err;
 		}
-		cfg->ckpt = 0;
+		cfg->ckpt = false;
 		++thread->ckpt.ops;
 
 		if ((ret = __wt_epoch(NULL, &e)) != 0) {
@@ -1423,7 +1423,7 @@ checkpoint_worker(void *arg)
 
 	/* Notify our caller we failed and shut the system down. */
 	if (0) {
-err:		cfg->error = cfg->stop = 1;
+err:		cfg->error = cfg->stop = true;
 	}
 
 	return (NULL);
@@ -1459,7 +1459,7 @@ execute_populate(CONFIG *cfg)
 
 	cfg->popthreads =
 	    dcalloc(opts->populate_threads, sizeof(CONFIG_THREAD));
-	if (cfg->use_asyncops > 0) {
+	if (cfg->use_asyncops) {
 		lprintf(cfg, 0, 1, "Starting %" PRIu32 " async thread(s)",
 		    opts->async_threads);
 		pfunc = populate_async;
@@ -1474,7 +1474,7 @@ execute_populate(CONFIG *cfg)
 		return (ret);
 	}
 	for (elapsed = 0, interval = 0, last_ops = 0;
-	    cfg->insert_key < opts->icount && cfg->error == 0;) {
+	    cfg->insert_key < opts->icount && !cfg->error;) {
 		/*
 		 * Sleep for 100th of a second, report_interval is in second
 		 * granularity, each 100th increment of elapsed is a single
@@ -1515,7 +1515,7 @@ execute_populate(CONFIG *cfg)
 		return (ret);
 
 	/* Report if any worker threads didn't finish. */
-	if (cfg->error != 0) {
+	if (cfg->error) {
 		lprintf(cfg, WT_ERROR, 0,
 		    "Populate thread(s) exited without finishing.");
 		return (WT_ERROR);
@@ -1625,7 +1625,7 @@ close_reopen(CONFIG *cfg)
 	 * threads looking for work that will never arrive don't affect
 	 * performance.
 	 */
-	if (opts->compact && cfg->use_asyncops == 0) {
+	if (opts->compact && !cfg->use_asyncops) {
 		if ((ret = cfg->conn->reconfigure(
 		    cfg->conn, "async=(enabled=false)")) != 0) {
 			lprintf(cfg, ret, 0, "Reconfigure async off failed");
@@ -1668,12 +1668,12 @@ execute_workload(CONFIG *cfg)
 		return (ret);
 
 	if (opts->warmup != 0)
-		cfg->in_warmup = 1;
+		cfg->in_warmup = true;
 
 	/* Allocate memory for the worker threads. */
 	cfg->workers = dcalloc((size_t)cfg->workers_cnt, sizeof(CONFIG_THREAD));
 
-	if (cfg->use_asyncops > 0) {
+	if (cfg->use_asyncops) {
 		lprintf(cfg, 0, 1, "Starting %" PRIu32 " async thread(s)",
 		    opts->async_threads);
 		pfunc = worker_async;
@@ -1718,11 +1718,11 @@ execute_workload(CONFIG *cfg)
 		lprintf(cfg, 0, 1,
 		    "Waiting for warmup duration of %" PRIu32, opts->warmup);
 		sleep(opts->warmup);
-		cfg->in_warmup = 0;
+		cfg->in_warmup = false;
 	}
 
-	for (interval = opts->report_interval, run_time = opts->run_time,
-	    run_ops = opts->run_ops; cfg->error == 0;) {
+	for (interval = opts->report_interval,
+	    run_time = opts->run_time, run_ops = opts->run_ops; !cfg->error;) {
 		/*
 		 * Sleep for one second at a time.
 		 * If we are tracking run time, check to see if we're done, and
@@ -1772,7 +1772,7 @@ execute_workload(CONFIG *cfg)
 	}
 
 	/* Notify the worker threads they are done. */
-err:	cfg->stop = 1;
+err:	cfg->stop = true;
 
 	/* Stop cycling idle tables. */
 	if ((ret = stop_idle_table_cycle(cfg, idle_table_cycle_thread)) != 0)
@@ -1788,7 +1788,7 @@ err:	cfg->stop = 1;
 
 	free(sessions);
 	/* Report if any worker threads didn't finish. */
-	if (cfg->error != 0) {
+	if (cfg->error) {
 		lprintf(cfg, WT_ERROR, 0,
 		    "Worker thread(s) exited without finishing.");
 		if (ret == 0)
@@ -2283,7 +2283,7 @@ err:		if (ret == 0)
 	}
 
 	/* Notify the worker threads they are done. */
-	cfg->stop = 1;
+	cfg->stop = true;
 
 	if ((t_ret = stop_threads(cfg, 1, cfg->ckptthreads)) != 0)
 		if (ret == 0)
@@ -2458,7 +2458,7 @@ main(int argc, char *argv[])
 			lprintf(cfg, 1, 0, "Cannot run truncate and async\n");
 			goto err;
 		}
-		cfg->use_asyncops = 1;
+		cfg->use_asyncops = true;
 	}
 	if (opts->compact && opts->async_threads == 0)
 		opts->async_threads = 2;

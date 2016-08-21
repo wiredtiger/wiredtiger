@@ -41,7 +41,7 @@ check_timing(CONFIG *cfg,
 	if ((ret = __wt_epoch(NULL, stop)) != 0) {
 		lprintf(cfg, ret, 0,
 		    "Get time failed in cycle_idle_tables.");
-		cfg->error = ret;
+		cfg->error = true;
 		return (ret);
 	}
 
@@ -53,7 +53,7 @@ check_timing(CONFIG *cfg,
 		    " seconds which is longer than configured acceptable"
 		    " maximum of %" PRIu32 ".",
 		    name, last_interval, opts->idle_table_cycle);
-		cfg->error = ETIMEDOUT;
+		cfg->error = true;
 		return (ETIMEDOUT);
 	}
 	return (0);
@@ -94,7 +94,7 @@ cycle_idle_tables(void *arg)
 		if ((ret = __wt_epoch(NULL, &start)) != 0) {
 			lprintf(cfg, ret, 0,
 			     "Get time failed in cycle_idle_tables.");
-			cfg->error = ret;
+			cfg->error = true;
 			return (NULL);
 		}
 
@@ -105,7 +105,7 @@ cycle_idle_tables(void *arg)
 				continue;
 			lprintf(cfg, ret, 0,
 			     "Table create failed in cycle_idle_tables.");
-			cfg->error = ret;
+			cfg->error = true;
 			return (NULL);
 		}
 		if (check_timing(cfg, "create", start, &stop) != 0)
@@ -117,13 +117,13 @@ cycle_idle_tables(void *arg)
 		    session, uri, NULL, NULL, &cursor)) != 0) {
 			lprintf(cfg, ret, 0,
 			     "Cursor open failed in cycle_idle_tables.");
-			cfg->error = ret;
+			cfg->error = true;
 			return (NULL);
 		}
 		if ((ret = cursor->close(cursor)) != 0) {
 			lprintf(cfg, ret, 0,
 			     "Cursor close failed in cycle_idle_tables.");
-			cfg->error = ret;
+			cfg->error = true;
 			return (NULL);
 		}
 		if (check_timing(cfg, "cursor", start, &stop) != 0)
@@ -141,7 +141,7 @@ cycle_idle_tables(void *arg)
 		if (ret != 0 && ret != EBUSY) {
 			lprintf(cfg, ret, 0,
 			     "Table drop failed in cycle_idle_tables.");
-			cfg->error = ret;
+			cfg->error = true;
 			return (NULL);
 		}
 		if (check_timing(cfg, "drop", start, &stop) != 0)
