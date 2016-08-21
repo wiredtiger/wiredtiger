@@ -1860,29 +1860,27 @@ out:	return (ret);
 }
 
 /*
- * Populate the uri array if more than one table is being used.
+ * Populate the uri array.
  */
 static void
 create_uris(CONFIG *cfg)
 {
 	CONFIG_OPTS *opts;
-	size_t base_uri_len;
+	size_t len;
 	uint32_t i;
-	char *uri;
 
 	opts = cfg->opts;
 
-	base_uri_len = strlen(cfg->base_uri);
 	cfg->uris = dcalloc(opts->table_count, sizeof(char *));
+	len = strlen("table:") + strlen(opts->table_name) + 20;
 	for (i = 0; i < opts->table_count; i++) {
-		uri = cfg->uris[i] = dcalloc(base_uri_len + 6, 1);
-		/*
-		 * If there is only one table, just use base name.
-		 */
+		/* If there is only one table, just use the base name. */
+		cfg->uris[i] = dmalloc(len);
 		if (opts->table_count == 1)
-			memcpy(uri, cfg->base_uri, base_uri_len);
+			sprintf(cfg->uris[i], "table:%s", opts->table_name);
 		else
-			sprintf(uri, "%s%05d", cfg->base_uri, i);
+			sprintf(
+			    cfg->uris[i], "table:%s%05d", opts->table_name, i);
 	}
 }
 
@@ -1972,8 +1970,6 @@ config_copy(const CONFIG *src, CONFIG **retp)
 		dest->partial_config = dstrdup(src->partial_config);
 	if (src->reopen_config != NULL)
 		dest->reopen_config = dstrdup(src->reopen_config);
-	if (src->base_uri != NULL)
-		dest->base_uri = dstrdup(src->base_uri);
 
 	if (src->uris != NULL) {
 		dest->uris = dcalloc(opts->table_count, sizeof(char *));
@@ -2027,7 +2023,6 @@ config_free(CONFIG *cfg)
 	free(cfg->monitor_dir);
 	free(cfg->partial_config);
 	free(cfg->reopen_config);
-	free(cfg->base_uri);
 
 	if (cfg->uris != NULL) {
 		for (i = 0; i < opts->table_count; i++)
@@ -2494,11 +2489,6 @@ main(int argc, char *argv[])
 		lprintf(cfg, 1, 0, "Cannot truncate more than 1 table\n");
 		goto err;
 	}
-
-	/* Build the URI from the table name. */
-	req_len = strlen("table:") + strlen(opts->table_name) + 2;
-	cfg->base_uri = dmalloc(req_len);
-	snprintf(cfg->base_uri, req_len, "table:%s", opts->table_name);
 
 	/* Make stdout line buffered, so verbose output appears quickly. */
 	__wt_stream_set_line_buffer(stdout);

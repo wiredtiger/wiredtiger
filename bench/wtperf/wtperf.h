@@ -120,8 +120,7 @@ struct __config {			/* Configuration structure */
 	char *monitor_dir;		/* Monitor output dir */
 	char *partial_config;		/* Config string for partial logging */
 	char *reopen_config;		/* Config string for conn reopen */
-	char *base_uri;			/* Object URI */
-	char **uris;			/* URIs if multiple tables */
+	char **uris;			/* URIs */
 
 	WT_CONNECTION *conn;		/* Database connection */
 
