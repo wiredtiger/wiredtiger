@@ -116,8 +116,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 	page = ref->page;
 	tree_dead = F_ISSET(session->dhandle, WT_DHANDLE_DEAD);
 
-	WT_RET(__wt_verbose(session, WT_VERB_EVICT,
-	    "page %p (%s)", page, __wt_page_type_string(page->type)));
+	__wt_verbose(session, WT_VERB_EVICT,
+	    "page %p (%s)", page, __wt_page_type_string(page->type));
 
 	/*
 	 * Get exclusive access to the page and review it for conditions that
@@ -178,7 +178,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 err:		if (!closing) {
 #if 0
 			if (ref->page->read_gen == WT_READGEN_OLDEST)
-				WT_TRET(__wt_page_evict_urgent(session, ref));
+				(void)__wt_page_evict_urgent(session, ref);
 #endif
 			__evict_exclusive_clear(session, ref);
 		}

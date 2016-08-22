@@ -127,7 +127,7 @@ __curfile_leave(WT_CURSOR_BTREE *cbt)
 	 *
 	 * Clear the reference regardless, so we don't try the release twice.
 	 */
-	WT_TRET(__wt_page_release(session, cbt->ref, 0));
+	ret = __wt_page_release(session, cbt->ref, 0);
 	cbt->ref = NULL;
 
 	return (ret);

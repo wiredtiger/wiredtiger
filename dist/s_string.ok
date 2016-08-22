@@ -159,6 +159,7 @@ INMEM
 INTL
 ISA
 ITEMs
+InitializeCriticalSectionAndSpinCount
 Inline
 Intra
 Ippokratis
@@ -707,6 +708,7 @@ iSh
 ibackup
 icount
 idx
+ifdef
 ifdef's
 iiii
 iiu
