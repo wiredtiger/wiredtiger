@@ -44,7 +44,7 @@ void (*custom_die)(void) = NULL;
 #define	N_RECORDS	100000
 #define	N_INSERT	1000000
 
-void *populate(TEST_OPTS *opts);
+void populate(TEST_OPTS *opts);
 
 int
 main(int argc, char *argv[])
@@ -161,7 +161,7 @@ main(int argc, char *argv[])
 	return (0);
 }
 
-void *populate(TEST_OPTS *opts)
+void populate(TEST_OPTS *opts)
 {
 	WT_CURSOR *maincur;
 	WT_SESSION *session;
@@ -178,7 +178,6 @@ void *populate(TEST_OPTS *opts)
 	    &maincur));
 
 	for (i = 0; i < N_INSERT; i++) {
-		testutil_check(session->begin_transaction(session, NULL));
 		key = (__wt_random(&rnd) % (N_RECORDS));
 		maincur->set_key(maincur, key);
 		if (__wt_random(&rnd) % 11 == 0)
@@ -194,9 +193,7 @@ void *populate(TEST_OPTS *opts)
 		}
 		maincur->set_value(maincur, post, balance, flag, key);
 		testutil_check(maincur->insert(maincur));
-		testutil_check(session->commit_transaction(session, NULL));
 	}
 	maincur->close(maincur);
 	session->close(session, NULL);
-	return (NULL);
 }

@@ -124,14 +124,15 @@ struct __wt_cache {
 	 */
 	WT_SPINLOCK evict_pass_lock;	/* Eviction pass lock */
 	WT_SESSION_IMPL *walk_session;	/* Eviction pass session */
+	WT_DATA_HANDLE
+		*evict_file_next;	/* LRU next file to search */
 	WT_SPINLOCK evict_queue_lock;	/* Eviction current queue lock */
 	WT_EVICT_QUEUE evict_queues[WT_EVICT_QUEUE_MAX];
 	WT_EVICT_QUEUE *evict_current_queue;/* LRU current queue in use */
 	uint32_t evict_queue_fill;	/* LRU eviction queue index to fill */
 	uint32_t evict_slots;		/* LRU list eviction slots */
-	WT_DATA_HANDLE
-		*evict_file_next;	/* LRU next file to search */
-	uint32_t evict_max_refs_per_file;/* LRU pages per file per pass */
+	uint32_t evict_empty_score;	/* LRU score of how often queues are
+					   empty on refill. */
 
 	/*
 	 * Cache pool information.
