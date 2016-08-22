@@ -600,7 +600,6 @@ __evict_pass(WT_SESSION_IMPL *session)
 	WT_EVICT_WORKER *worker;
 	uint64_t pages_evicted;
 	u_int loop;
-	bool signalled;
 
 	conn = S2C(session);
 	cache = conn->cache;
@@ -678,14 +677,10 @@ __evict_pass(WT_SESSION_IMPL *session)
 		 * enough, this score will go to zero, in which case the
 		 * eviction server might as well help out with eviction.
 		 */
-		if (cache->evict_empty_score > 10 &&
-		    __evict_queue_empty(
-		    &cache->evict_queues[WT_EVICT_URGENT_QUEUE])) {
-			loop = 0;
-			continue;
-		}
-
-		WT_RET_NOTFOUND_OK(__evict_lru_pages(session, true));
+		if (cache->evict_empty_score < 10 ||
+		    !__evict_queue_empty(
+		    &cache->evict_queues[WT_EVICT_URGENT_QUEUE]))
+			WT_RET_NOTFOUND_OK(__evict_lru_pages(session, true));
 
 		/*
 		 * If we're making progress, keep going; if we're not making
@@ -705,10 +700,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 			 */
 			WT_STAT_FAST_CONN_INCR(session,
 			    cache_eviction_server_slept);
-			__wt_cond_wait_signal(session,
-			    cache->evict_cond, WT_THOUSAND, &signalled);
-			if (signalled)
-				loop = 0;
+			__wt_cond_wait(session, cache->evict_cond, WT_THOUSAND);
 
 			if (loop == 100) {
 				/*
@@ -940,6 +932,9 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 
 	cache = S2C(session)->cache;
 
+	/* Age out the score of how much the queue has been empty recently. */
+	cache->evict_empty_score = (99 * cache->evict_empty_score) / 100;
+
 	/* Fill the next queue (that isn't the urgent queue). */
 	queue = &cache->evict_queues[cache->evict_queue_fill];
 	other_queue = cache->evict_queues + (1 - (queue - cache->evict_queues));
@@ -950,10 +945,8 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 	queue_index = queue - cache->evict_queues;
 
 	/* If both queues are full, we're done. */
-	if (__evict_queue_full(queue)) {
-		cache->evict_empty_score = 0;
+	if (__evict_queue_full(queue))
 		return (0);
-	}
 
 	cache->evict_queue_fill = 1 - cache->evict_queue_fill;
 
@@ -1055,10 +1048,9 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 	 * long time) and 100 (if the queue has been empty the last 10 times we
 	 * filled up.
 	 */
-	cache->evict_empty_score = 99 * cache->evict_empty_score / 100 +
-	    (queue->evict_current == NULL ? 10 : 0);
-	if (cache->evict_empty_score > 100)
-		cache->evict_empty_score = 100;
+	if (queue->evict_current == NULL)
+		cache->evict_empty_score =
+		    WT_MIN(100, cache->evict_empty_score + 10);
 
 	queue->evict_current = queue->evict_queue;
 	__wt_spin_unlock(session, &queue->evict_lock);
