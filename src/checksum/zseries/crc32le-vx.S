@@ -272,4 +272,9 @@ crc32_le_vgfm_generic:
 	lmg     %r14,%r15,240(%r15)
 	br	%r14
 
-.previous
+/*
+ * Make sure the stack isn't executable with GCC (regardless of platform).
+ */
+#ifndef __clang__
+.section	.note.GNU-stack,"",@progbits
+#endif
