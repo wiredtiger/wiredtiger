@@ -128,9 +128,13 @@ struct __wt_cache {
 		*evict_file_next;	/* LRU next file to search */
 	WT_SPINLOCK evict_queue_lock;	/* Eviction current queue lock */
 	WT_EVICT_QUEUE evict_queues[WT_EVICT_QUEUE_MAX];
-	WT_EVICT_QUEUE *evict_current_queue;/* LRU current queue in use */
-	uint32_t evict_queue_fill;	/* LRU eviction queue index to fill */
+	WT_EVICT_QUEUE *evict_current_queue; /* LRU current queue in use */
+	WT_EVICT_QUEUE *evict_fill_queue;    /* LRU next queue to fill */
+	WT_EVICT_QUEUE *evict_other_queue;   /* LRU queue not in use */
+	WT_EVICT_QUEUE *evict_urgent_queue;  /* LRU urgent queue */
 	uint32_t evict_slots;		/* LRU list eviction slots */
+#define	WT_EVICT_EMPTY_SCORE_BUMP	10
+#define	WT_EVICT_EMPTY_SCORE_CUTOFF	10
 	uint32_t evict_empty_score;	/* LRU score of how often queues are
 					   empty on refill. */
 
