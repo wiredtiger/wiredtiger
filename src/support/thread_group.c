@@ -132,6 +132,7 @@ __util_thread_group_resize(
 	uint32_t i, session_flags;
 
 	conn = S2C(session);
+	session_flags = 0;
 
 	WT_ASSERT(session,
 	    group->current_workers <= group->alloc &&
