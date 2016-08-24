@@ -677,12 +677,10 @@ __evict_pass(WT_SESSION_IMPL *session)
 		 * enough, this score will go to zero, in which case the
 		 * eviction server might as well help out with eviction.
 		 */
-		if (cache->evict_empty_score > WT_EVICT_EMPTY_SCORE_CUTOFF &&
-		    (conn->evict_workers > 1 ||
-		    __evict_queue_empty(cache->evict_urgent_queue)))
-			continue;
-
-		WT_RET_NOTFOUND_OK(__evict_lru_pages(session, true));
+		if (cache->evict_empty_score < WT_EVICT_EMPTY_SCORE_CUTOFF ||
+		    (conn->evict_workers <= 1 &&
+		    !__evict_queue_empty(cache->evict_urgent_queue)))
+			WT_RET_NOTFOUND_OK(__evict_lru_pages(session, true));
 
 		/*
 		 * If we're making progress, keep going; if we're not making
