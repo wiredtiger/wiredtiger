@@ -469,6 +469,7 @@ __posix_file_sync_nowait(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 }
 #endif
 
+#ifdef HAVE_FTRUNCATE
 /*
  * __posix_file_truncate --
  *	POSIX ftruncate.
@@ -490,6 +491,7 @@ __posix_file_truncate(
 	WT_RET_MSG(session, ret,
 	    "%s: handle-truncate: ftruncate", file_handle->name);
 }
+#endif
 
 /*
  * __posix_file_write --
@@ -722,7 +724,9 @@ directory_open:
 #ifdef HAVE_SYNC_FILE_RANGE
 	file_handle->fh_sync_nowait = __posix_file_sync_nowait;
 #endif
+#ifdef HAVE_FTRUNCATE
 	file_handle->fh_truncate = __posix_file_truncate;
+#endif
 	file_handle->fh_write = __posix_file_write;
 
 	*file_handlep = file_handle;
