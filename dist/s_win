@@ -19,7 +19,7 @@ win_config()
 
 	test -s $t && {
 		echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-		echo "Windows #defines missing from $f"
+		echo "Windows configuration #defines do not match $f"
 		echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 		cat $t
 		exit 1
