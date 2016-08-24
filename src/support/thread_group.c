@@ -245,6 +245,9 @@ __wt_util_thread_group_create(
 	WT_DECL_RET;
 	bool cond_alloced;
 
+	/* Check that the structure is initialized as expected */
+	WT_ASSERT(session, group->alloc == 0);
+
 	cond_alloced = false;
 
 	__wt_verbose(session, WT_VERB_UTIL_THREAD,
@@ -287,6 +290,13 @@ __wt_util_thread_group_destroy(
 
 	WT_TRET(__wt_cond_destroy(session, &group->wait_cond));
 	__wt_rwlock_destroy(session, &group->lock);
+
+	/*
+	 * Clear out any settings from the group, some structures are reused
+	 * for different thread groups - in particular the eviction thread
+	 * group for recovery and then normal runtime.
+	 */
+	memset(group, 0, sizeof(*group));
 
 	return (ret);
 }

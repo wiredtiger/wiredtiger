@@ -330,6 +330,7 @@ __wt_evict_create(WT_SESSION_IMPL *session)
 
 	conn = S2C(session);
 
+	WT_ASSERT(session, conn->evict_workers_min > 0);
 	/* Set first, the thread might run before we finish up. */
 	F_SET(conn, WT_CONN_EVICTION_RUN);
 
