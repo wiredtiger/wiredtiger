@@ -170,8 +170,6 @@ struct __wt_evict_entry;
     typedef struct __wt_evict_entry WT_EVICT_ENTRY;
 struct __wt_evict_queue;
     typedef struct __wt_evict_queue WT_EVICT_QUEUE;
-struct __wt_evict_worker;
-    typedef struct __wt_evict_worker WT_EVICT_WORKER;
 struct __wt_ext;
     typedef struct __wt_ext WT_EXT;
 struct __wt_extlist;
@@ -294,6 +292,10 @@ struct __wt_txn_state;
     typedef struct __wt_txn_state WT_TXN_STATE;
 struct __wt_update;
     typedef struct __wt_update WT_UPDATE;
+struct __wt_worker_thread;
+    typedef struct __wt_worker_thread WT_WORKER_THREAD;
+struct __wt_worker_thread_group;
+    typedef struct __wt_worker_thread_group WT_WORKER_THREAD_GROUP;
 union __wt_lsn;
     typedef union __wt_lsn WT_LSN;
 union __wt_rand_state;
@@ -348,6 +350,7 @@ union __wt_rand_state;
 #include "meta.h"
 #include "os.h"
 #include "schema.h"
+#include "thread_group.h"
 #include "txn.h"
 
 #include "session.h"			/* required by connection.h */

@@ -1728,6 +1728,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 		{ "split",		WT_VERB_SPLIT },
 		{ "temporary",		WT_VERB_TEMPORARY },
 		{ "transaction",	WT_VERB_TRANSACTION },
+		{ "util_thread",	WT_VERB_UTIL_THREAD },
 		{ "verify",		WT_VERB_VERIFY },
 		{ "version",		WT_VERB_VERSION },
 		{ "write",		WT_VERB_WRITE },

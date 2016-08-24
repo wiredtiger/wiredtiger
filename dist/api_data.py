@@ -520,6 +520,7 @@ connection_runtime_config = [
             'split',
             'temporary',
             'transaction',
+            'util_thread',
             'verify',
             'version',
             'write']),
