@@ -19,7 +19,7 @@ win_config()
 
 	test -s $t && {
 		echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-		echo "Windows configuration #defines do not match $f"
+		echo "$f: configuration #defines do not match POSIX"
 		echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 		cat $t
 		exit 1
