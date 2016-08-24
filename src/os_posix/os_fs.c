@@ -538,7 +538,7 @@ __posix_file_write(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
 static inline int
 __posix_open_file_cloexec(WT_SESSION_IMPL *session, int fd, const char *name)
 {
-#if defined(HAVE_FCNTL) && defined(FD_CLOEXEC) && !defined(O_CLOEXEC)
+#if defined(FD_CLOEXEC) && !defined(O_CLOEXEC)
 	int f;
 
 	/*

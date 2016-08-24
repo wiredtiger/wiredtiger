@@ -121,7 +121,7 @@ AC_CHECK_LIB(dl, dlopen)
 AC_CHECK_LIB(rt, sched_yield)
 
 AC_CHECK_FUNCS([\
-	clock_gettime fallocate fcntl fread_unlocked ftruncate gettimeofday\
+	clock_gettime fallocate fread_unlocked ftruncate gettimeofday\
 	posix_fadvise posix_fallocate posix_madvise\
 	strtouq sync_file_range])
 
