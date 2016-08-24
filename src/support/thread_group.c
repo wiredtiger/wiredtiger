@@ -288,24 +288,3 @@ __wt_util_thread_group_start_one(
 
 	return (ret);
 }
-
-/*
- * __wt_util_thread_group_stop_one --
- *	Stop a running worker if possible
- */
-int
-__wt_util_thread_group_stop_one(
-    WT_SESSION_IMPL *session, WT_WORKER_THREAD_GROUP *group)
-{
-	WT_DECL_RET;
-
-	if (group->current_workers <= group->min)
-		return (0);
-
-	__wt_writelock(session, group->lock);
-	WT_TRET(__util_thread_group_shrink(
-	    session, group, group->current_workers - 1, false));
-	__wt_writeunlock(session, group->lock);
-
-	return (ret);
-}
