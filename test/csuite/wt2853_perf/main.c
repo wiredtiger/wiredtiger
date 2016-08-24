@@ -49,7 +49,7 @@ void *thread_get(void *);
 
 #define	BLOOM		false
 #define	N_RECORDS	10000
-#define	N_INSERT	10000000
+#define	N_INSERT	1000000
 #define	N_INSERT_THREAD	1
 #define	N_GET_THREAD	1
 #define	S64 "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789::"
@@ -59,7 +59,6 @@ typedef struct {
 	char posturi[256];
 	char baluri[256];
 	char flaguri[256];
-	char joinuri[256];
 	bool bloom;
 } SHARED_OPTS;
 
@@ -70,26 +69,28 @@ typedef struct {
 	int nthread;
 	int done;
 	int njoins;
+	int nfail;
 } THREAD_ARGS;
 
 int
 main(int argc, char *argv[])
 {
-	TEST_OPTS *opts, _opts;
 	SHARED_OPTS *sharedopts, _sharedopts;
+	TEST_OPTS *opts, _opts;
+	THREAD_ARGS get_args[N_GET_THREAD], insert_args[N_INSERT_THREAD];
 	WT_CURSOR *maincur;
 	WT_SESSION *session;
-	int i;
+	pthread_t get_tid[N_GET_THREAD], insert_tid[N_INSERT_THREAD];
+	int i, nfail;
 	const char *tablename;
-	pthread_t insert_tid[N_INSERT_THREAD], get_tid[N_GET_THREAD];
-	THREAD_ARGS insert_args[N_INSERT_THREAD], join_args[N_GET_THREAD];
 
 	opts = &_opts;
 	sharedopts = &_sharedopts;
 	memset(opts, 0, sizeof(*opts));
 	memset(sharedopts, 0, sizeof(*sharedopts));
 	memset(insert_args, 0, sizeof(insert_args));
-	memset(join_args, 0, sizeof(join_args));
+	memset(get_args, 0, sizeof(get_args));
+	nfail = 0;
 
 	sharedopts->bloom = BLOOM;
 	testutil_check(testutil_parse_opts(argc, argv, opts));
@@ -118,8 +119,6 @@ main(int argc, char *argv[])
 	    "index:%s:bal", tablename);
 	snprintf(sharedopts->flaguri, sizeof(sharedopts->flaguri),
 	    "index:%s:flag", tablename);
-	snprintf(sharedopts->joinuri, sizeof(sharedopts->joinuri),
-	    "join:%s", opts->uri);
 
 	testutil_check(session->create(session, sharedopts->posturi,
 	    "columns=(post)"));
@@ -150,12 +149,12 @@ main(int argc, char *argv[])
 	}
 
 	for (i = 0; i < N_GET_THREAD; ++i) {
-		join_args[i].threadnum = i;
-		join_args[i].nthread = N_GET_THREAD;
-		join_args[i].testopts = opts;
-		join_args[i].sharedopts = sharedopts;
+		get_args[i].threadnum = i;
+		get_args[i].nthread = N_GET_THREAD;
+		get_args[i].testopts = opts;
+		get_args[i].sharedopts = sharedopts;
 		testutil_check(pthread_create(&get_tid[i], NULL,
-		    thread_get, (void *)&join_args[i]));
+		    thread_get, (void *)&get_args[i]));
 	}
 
 	/*
@@ -166,16 +165,19 @@ main(int argc, char *argv[])
 		testutil_check(pthread_join(insert_tid[i], NULL));
 
 	for (i = 0; i < N_GET_THREAD; ++i)
-		join_args[i].done = 1;
+		get_args[i].done = 1;
 
 	for (i = 0; i < N_GET_THREAD; ++i)
 		testutil_check(pthread_join(get_tid[i], NULL));
 
 	fprintf(stderr, "\n");
-	for (i = 0; i < N_GET_THREAD; ++i)
-		fprintf(stderr, "  thread %d did %d joins\n", i,
-		    join_args[i].njoins);
+	for (i = 0; i < N_GET_THREAD; ++i) {
+		fprintf(stderr, "  thread %d did %d joins (%d fails)\n", i,
+		    get_args[i].njoins, get_args[i].nfail);
+		nfail += get_args[i].nfail;
+	}
 
+	testutil_assert(nfail == 0);
 	testutil_cleanup(opts);
 
 	return (0);
@@ -188,9 +190,9 @@ void *thread_insert(void *arg)
 	WT_CURSOR *maincur;
 	WT_RAND_STATE rnd;
 	WT_SESSION *session;
-	const char *extra = S1024;
-	int bal, i, flag, key, post;
 	time_t prevtime, curtime; /* 1 second resolution is okay */
+	int bal, i, flag, key, post;
+	const char *extra = S1024;
 
 	threadargs = (THREAD_ARGS *)arg;
 	opts = threadargs->testopts;
@@ -232,10 +234,12 @@ void *thread_insert(void *arg)
 			else
 				fprintf(stderr, ".");
 			time(&curtime);
-			if (curtime - prevtime > 5)
+			if (curtime - prevtime > 5) {
 				fprintf(stderr, "\n"
 				    "GAP: %ld secs after %d inserts\n",
 				    curtime - prevtime, i);
+				threadargs->nfail++;
+			}
 			prevtime = curtime;
 		}
 	}
@@ -251,9 +255,9 @@ void *thread_get(void *arg)
 	THREAD_ARGS *threadargs;
 	WT_CURSOR *maincur, *postcur;
 	WT_SESSION *session;
+	time_t prevtime, curtime; /* 1 second resolution is okay */
 	int bal, flag, key, key2, post, bal2, flag2, post2;
 	char *extra;
-	time_t prevtime, curtime; /* 1 second resolution is okay */
 
 	threadargs = (THREAD_ARGS *)arg;
 	opts = threadargs->testopts;
@@ -304,10 +308,12 @@ void *thread_get(void *arg)
 		session->rollback_transaction(session, NULL);
 
 		time(&curtime);
-		if (curtime - prevtime > 5)
+		if (curtime - prevtime > 5) {
 			fprintf(stderr, "\n"
 			    "GAP: %ld secs after %d gets\n",
 			    curtime - prevtime, threadargs->njoins);
+			threadargs->nfail++;
+		}
 		prevtime = curtime;
 	}
 	testutil_check(postcur->close(postcur));
