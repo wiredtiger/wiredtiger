@@ -99,7 +99,7 @@ write_and_read_new(WT_SESSION *session)
 		 * We should never see a record from log file 2.  We wrote
 		 * a record there, but then the record in log file 1 was
 		 * truncated to be a partial record, ending the log there.
-		 * So everything after that, includinge everything in log
+		 * So everything after that, including everything in log
 		 * file 2, is invalid until we get to log file 3 which is where
 		 * the post-recovery records will be written.
 		 */
@@ -120,7 +120,7 @@ write_and_read_new(WT_SESSION *session)
 		}
 	}
 	if ((ret = logc->close(logc)) != 0)
-		testutil_die(ret, "logc close");
+		testutil_die(ret, "log cursor close");
 	if (!saw_msg)
 		testutil_die(EINVAL, "Did not traverse log printf record");
 }
@@ -231,8 +231,8 @@ fill_db(void)
 					 * If this is the first time through
 					 * that the key is larger than the
 					 * minimum key and we're already in
-					 * log file 2 then we mis-calculated
-					 * and the test should fail.
+					 * log file 2 then we did not calculate
+					 * correctly and the test should fail.
 					 */
 					if (first)
 						testutil_die(EINVAL,
@@ -246,7 +246,7 @@ fill_db(void)
 			}
 			first = false;
 			if ((ret = logc->close(logc)) != 0)
-				testutil_die(ret, "logc close");
+				testutil_die(ret, "log cursor close");
 		}
 	}
 	if (fclose(fp) != 0)
