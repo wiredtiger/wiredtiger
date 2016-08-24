@@ -359,6 +359,10 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
 
 	conn = S2C(session);
 
+	/* We are done if the eviction server didn't start successfully */
+	if (!conn->evict_server_running)
+		return (0);
+
 	/* Wait for any eviction worker changes to stabilize */
 	__wt_writelock(session, conn->evict_workers.lock);
 

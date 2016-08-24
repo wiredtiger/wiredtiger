@@ -87,6 +87,10 @@ __util_thread_group_shrink(WT_SESSION_IMPL *session,
 		 * adjust it before finding the last worker in the group.
 		 */
 		worker = group->workers[--group->current_workers];
+		/* Be paranoid in case we are cleaning up after an error */
+		if (worker == NULL)
+			continue;
+
 		__wt_verbose(session, WT_VERB_UTIL_THREAD,
 		    "Stopping utility worker: %p:%"PRIu32"\n",
 		    group, worker->id);
@@ -95,18 +99,21 @@ __util_thread_group_shrink(WT_SESSION_IMPL *session,
 		__wt_cond_signal(session, group->wait_cond);
 		WT_TRET(__wt_thread_join(session, worker->tid));
 		worker->tid = 0;
+
 		/*
 		 * Worker thread sessions are only freed when shrinking the
 		 * pool or shutting down the connection.
 		 */
 		if (free_worker) {
-			wt_session = (WT_SESSION *)worker->session;
-			WT_TRET(wt_session->close(wt_session, NULL));
-			worker->session = NULL;
+			if (worker->session != NULL) {
+				wt_session = (WT_SESSION *)worker->session;
+				WT_TRET(wt_session->close(wt_session, NULL));
+				worker->session = NULL;
+			}
 			__wt_free(session, worker);
 		}
 	}
-	return (0);
+	return (ret);
 }
 
 /*
@@ -178,8 +185,22 @@ __util_thread_group_resize(
 	if (group->current_workers < new_min)
 		WT_ERR(__util_thread_group_grow(session, group, new_min));
 
-err:	group->max = new_max;
+err:	/*
+	 * Update the thread group information even on failure to improve our
+	 * chances of cleaning up properly.
+	*/
+	group->max = new_max;
 	group->min = new_min;
+
+	/*
+	 * An error resizing a worker array is fatal, it should only happen
+	 * in an out of memory situation.
+	 */
+	if (ret != 0) {
+		WT_TRET(__wt_util_thread_group_destroy(session, group));
+		WT_PANIC_RET(session, ret,
+		    "Error while resizing worker thread group");
+	}
 	return (ret);
 }
 
@@ -221,19 +242,27 @@ __wt_util_thread_group_create(
     int (*run_func)(WT_SESSION_IMPL *session, WT_WORKER_THREAD *context))
 {
 	WT_DECL_RET;
+	bool cond_alloced;
+
+	cond_alloced = false;
 
 	__wt_verbose(session, WT_VERB_UTIL_THREAD,
 	    "Creating thread group: %p\n", group);
 
 	WT_RET(__wt_rwlock_alloc(session, &group->lock, "Thread group"));
-	WT_RET(__wt_cond_alloc(
+	WT_ERR(__wt_cond_alloc(
 	    session, "Thread group cond", false, &group->wait_cond));
+	cond_alloced = true;
 
 	__wt_writelock(session, group->lock);
 	group->run_func = run_func;
 
 	WT_TRET(__util_thread_group_resize(session, group, min, max, flags));
 	__wt_writeunlock(session, group->lock);
+
+	/* Cleanup on error - to avoid leaking resources */
+err:	if (ret != 0 && cond_alloced)
+		WT_TRET(__wt_cond_destroy(session, &group->wait_cond));
 	return (ret);
 }
 
