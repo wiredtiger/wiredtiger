@@ -403,7 +403,9 @@ __evict_helper(WT_SESSION_IMPL *session)
 
 	if ((ret = __evict_lru_pages(session, false)) == WT_NOTFOUND)
 		__wt_cond_wait(session, conn->evict_threads.wait_cond, 10000);
-	return (ret);
+	else
+		WT_RET(ret);
+	return (0);
 }
 
 /*
