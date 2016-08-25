@@ -911,24 +911,26 @@ __clsm_random_chunk(WT_SESSION_IMPL *session,
     WT_CURSOR_LSM *clsm, WT_LSM_CHUNK **random_chunk)
 {
 	WT_DECL_RET;
+	WT_LSM_TREE *lsm_tree;
 	uint64_t checked_docs, i, rand_doc, total_docs;
 
+	lsm_tree = clsm->lsm_tree;
 	rand_doc = __wt_random(&session->rnd);
-	WT_RET(__wt_lsm_tree_readlock(session, clsm->lsm_tree));
+	WT_RET(__wt_lsm_tree_readlock(session, lsm_tree));
 	for (total_docs = i = 0; i < clsm->nchunks; i++) {
-		total_docs += clsm->lsm_tree->chunk[i]->count;
+		total_docs += lsm_tree->chunk[i]->count;
 	}
 
 	rand_doc %= total_docs;
 
 	for (checked_docs = i = 0; i < clsm->nchunks; i++) {
-		checked_docs += clsm->lsm_tree->chunk[i]->count;
+		checked_docs += lsm_tree->chunk[i]->count;
 		if (rand_doc <= checked_docs) {
-			*random_chunk = clsm->lsm_tree->chunk[i];
+			*random_chunk = lsm_tree->chunk[i];
 			break;
 		}
 	}
-	WT_RET(__wt_lsm_tree_readunlock(session, clsm->lsm_tree));
+	WT_TRET(__wt_lsm_tree_readunlock(session, lsm_tree));
 	return (ret);
 }
 
