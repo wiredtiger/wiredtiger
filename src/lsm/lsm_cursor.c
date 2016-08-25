@@ -916,7 +916,7 @@ __clsm_random_chunk(WT_SESSION_IMPL *session,
 
 	lsm_tree = clsm->lsm_tree;
 	rand_doc = __wt_random(&session->rnd);
-	WT_RET(__wt_lsm_tree_readlock(session, lsm_tree));
+	__wt_lsm_tree_readlock(session, lsm_tree);
 	for (total_docs = i = 0; i < clsm->nchunks; i++) {
 		total_docs += lsm_tree->chunk[i]->count;
 	}
@@ -930,7 +930,7 @@ __clsm_random_chunk(WT_SESSION_IMPL *session,
 			break;
 		}
 	}
-	WT_TRET(__wt_lsm_tree_readunlock(session, lsm_tree));
+	__wt_lsm_tree_readunlock(session, lsm_tree);
 	return (ret);
 }
 
