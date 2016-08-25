@@ -114,7 +114,7 @@ __wt_cache_config(WT_SESSION_IMPL *session, bool reconfigure, const char *cfg[])
 	 * will be initialized as part of creating the cache.
 	 */
 	if (reconfigure)
-		WT_RET(__wt_util_thread_group_resize(
+		WT_RET(__wt_thread_group_resize(
 		    session, &conn->evict_threads,
 		    conn->evict_threads_min, conn->evict_threads_max,
 		    WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL));

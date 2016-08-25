@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __wt_util_thread_run --
+ * __wt_thread_run --
  *	General wrapper for any thread.
  */
 WT_THREAD_RET
-__wt_util_thread_run(void *arg)
+__wt_thread_run(void *arg)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -42,11 +42,11 @@ __wt_util_thread_run(void *arg)
 }
 
 /*
- * __util_thread_group_grow --
+ * __thread_group_grow --
  *	Increase the number of running threads in the group.
  */
 static int
-__util_thread_group_grow(
+__thread_group_grow(
     WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t new_count)
 {
 	WT_THREAD *thread;
@@ -62,17 +62,17 @@ __util_thread_group_grow(
 		F_SET(thread, WT_THREAD_RUN);
 		WT_ASSERT(session, thread->session != NULL);
 		WT_RET(__wt_thread_create(thread->session,
-		    &thread->tid, __wt_util_thread_run, thread));
+		    &thread->tid, __wt_thread_run, thread));
 	}
 	return (0);
 }
 
 /*
- * __util_thread_group_shrink --
+ * __thread_group_shrink --
  *	Decrease the number of running threads in the group.
  */
 static int
-__util_thread_group_shrink(WT_SESSION_IMPL *session,
+__thread_group_shrink(WT_SESSION_IMPL *session,
     WT_THREAD_GROUP *group, uint32_t new_count, bool free_thread)
 {
 	WT_DECL_RET;
@@ -118,11 +118,11 @@ __util_thread_group_shrink(WT_SESSION_IMPL *session,
 }
 
 /*
- * __util_thread_group_resize --
+ * __thread_group_resize --
  *	Resize an array of utility threads already holding the lock.
  */
 static int
-__util_thread_group_resize(
+__thread_group_resize(
     WT_SESSION_IMPL *session, WT_THREAD_GROUP *group,
     uint32_t new_min, uint32_t new_max, uint32_t flags)
 {
@@ -143,7 +143,7 @@ __util_thread_group_resize(
 		return (0);
 
 	if (group->current_threads > new_max)
-		WT_RET(__util_thread_group_shrink(
+		WT_RET(__thread_group_shrink(
 		    session, group, new_max, true));
 
 	/*
@@ -183,7 +183,7 @@ __util_thread_group_resize(
 	}
 
 	if (group->current_threads < new_min)
-		WT_ERR(__util_thread_group_grow(session, group, new_min));
+		WT_ERR(__thread_group_grow(session, group, new_min));
 
 err:	/*
 	 * Update the thread group information even on failure to improve our
@@ -197,7 +197,7 @@ err:	/*
 	 * in an out of memory situation.
 	 */
 	if (ret != 0) {
-		WT_TRET(__wt_util_thread_group_destroy(session, group));
+		WT_TRET(__wt_thread_group_destroy(session, group));
 		WT_PANIC_RET(session, ret,
 		    "Error while resizing thread group");
 	}
@@ -205,11 +205,11 @@ err:	/*
 }
 
 /*
- * __wt_util_thread_group_resize --
+ * __wt_thread_group_resize --
  *	Resize an array of utility threads taking the lock.
  */
 int
-__wt_util_thread_group_resize(
+__wt_thread_group_resize(
     WT_SESSION_IMPL *session, WT_THREAD_GROUP *group,
     uint32_t new_min, uint32_t new_max, uint32_t flags)
 {
@@ -224,19 +224,19 @@ __wt_util_thread_group_resize(
 	    !__wt_rwlock_islocked(session, group->lock));
 
 	__wt_writelock(session, group->lock);
-	WT_TRET(__util_thread_group_resize(
+	WT_TRET(__thread_group_resize(
 	    session, group, new_min, new_max, flags));
 	__wt_writeunlock(session, group->lock);
 	return (ret);
 }
 
 /*
- * __wt_util_thread_group_create --
+ * __wt_thread_group_create --
  *	Create a new thread group, assumes incoming group structure is
  *	zero initialized.
  */
 int
-__wt_util_thread_group_create(
+__wt_thread_group_create(
     WT_SESSION_IMPL *session, WT_THREAD_GROUP *group,
     uint32_t min, uint32_t max, uint32_t flags,
     int (*run_func)(WT_SESSION_IMPL *session, WT_THREAD *context))
@@ -260,7 +260,7 @@ __wt_util_thread_group_create(
 	__wt_writelock(session, group->lock);
 	group->run_func = run_func;
 
-	WT_TRET(__util_thread_group_resize(session, group, min, max, flags));
+	WT_TRET(__thread_group_resize(session, group, min, max, flags));
 	__wt_writeunlock(session, group->lock);
 
 	/* Cleanup on error - to avoid leaking resources */
@@ -270,11 +270,11 @@ err:	if (ret != 0 && cond_alloced)
 }
 
 /*
- * __wt_util_thread_group_destroy --
+ * __wt_thread_group_destroy --
  *	Shut down a thread group.
  */
 int
-__wt_util_thread_group_destroy(
+__wt_thread_group_destroy(
     WT_SESSION_IMPL *session, WT_THREAD_GROUP *group)
 {
 	WT_DECL_RET;
@@ -283,7 +283,7 @@ __wt_util_thread_group_destroy(
 	    "Destroying thread group: %p\n", group);
 
 	/* Shut down all threads. */
-	WT_TRET(__util_thread_group_shrink(session, group, 0, true));
+	WT_TRET(__thread_group_shrink(session, group, 0, true));
 
 	__wt_free(session, group->threads);
 
@@ -301,11 +301,11 @@ __wt_util_thread_group_destroy(
 }
 
 /*
- * __wt_util_thread_group_start_one --
- *	Start a new thread if possible
+ * __wt_thread_group_start_one --
+ *	Start a new thread if possible.
  */
 int
-__wt_util_thread_group_start_one(
+__wt_thread_group_start_one(
     WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, bool wait)
 {
 	WT_DECL_RET;
@@ -320,7 +320,7 @@ __wt_util_thread_group_start_one(
 
 	/* Recheck the bounds now that we hold the lock */
 	if (group->current_threads < group->max)
-		WT_TRET(__util_thread_group_grow(
+		WT_TRET(__thread_group_grow(
 		    session, group, group->current_threads + 1));
 	__wt_writeunlock(session, group->lock);
 

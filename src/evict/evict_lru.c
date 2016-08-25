@@ -339,7 +339,7 @@ __wt_evict_create(WT_SESSION_IMPL *session)
 	F_SET(conn, WT_CONN_EVICTION_RUN);
 
 	/* Create the eviction thread group */
-	WT_RET(__wt_util_thread_group_create(session,
+	WT_RET(__wt_thread_group_create(session,
 	    &conn->evict_threads, conn->evict_threads_min,
 	    conn->evict_threads_max, WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL,
 	    __wt_evict_thread_run));
@@ -378,7 +378,7 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
 	__wt_verbose(
 	    session, WT_VERB_EVICTSERVER, "waiting for helper threads");
 
-	WT_RET(__wt_util_thread_group_destroy(session, &conn->evict_threads));
+	WT_RET(__wt_thread_group_destroy(session, &conn->evict_threads));
 
 	return (ret);
 }
@@ -539,7 +539,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 		 * reached the eviction targets.
 		 */
 		if (FLD_ISSET(cache->state, WT_EVICT_STATE_ALL))
-			WT_RET(__wt_util_thread_group_start_one(
+			WT_RET(__wt_thread_group_start_one(
 			    session, &conn->evict_threads, false));
 
 		__wt_verbose(session, WT_VERB_EVICTSERVER,
