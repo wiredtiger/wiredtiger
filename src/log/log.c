@@ -990,7 +990,8 @@ __log_truncate(WT_SESSION_IMPL *session,
 	 */
 	WT_ERR(__log_openfile(session, &log_fh, file_prefix, lsn->l.file, 0));
 	if (!F_ISSET(log, WT_LOG_TRUNCATE_NOTSUP)) {
-		if ((ret = __wt_ftruncate(session, log_fh, lsn->l.offset)) != 0) {
+		if ((ret = __wt_ftruncate(
+		    session, log_fh, lsn->l.offset)) != 0) {
 			if (ret == ENOTSUP) {
 				F_SET(log, WT_LOG_TRUNCATE_NOTSUP);
 				ret = 0;
