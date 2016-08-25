@@ -10,31 +10,32 @@
 
 /*
  * __wt_util_thread_run --
- *	General wrapper for any eviction thread.
+ *	General wrapper for any thread.
  */
 WT_THREAD_RET
 __wt_util_thread_run(void *arg)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	WT_WORKER_THREAD *worker;
+	WT_THREAD *thread;
 
-	worker = (WT_WORKER_THREAD*)arg;
-	session = worker->session;
+	thread = (WT_THREAD*)arg;
+	session = thread->session;
 
-	ret = worker->run_func(session, worker);
+	ret = thread->run_func(session, thread);
 
-	if (ret != 0 && F_ISSET(worker, WT_WORKER_PANIC_FAIL))
+	if (ret != 0 && F_ISSET(thread, WT_THREAD_PANIC_FAIL))
 		WT_PANIC_MSG(session, ret,
-		    "Unrecoverable utility worker thread error");
+		    "Unrecoverable utility thread error");
 
 	/*
-	 * The only two cases when eviction workers are expected to stop are
-	 * when recovery is finished or when the connection is closing. Check
-	 * otherwise fewer eviction worker threads may be running than
-	 * expected.
+	 * The three cases when threads are expected to stop are:
+	 * * When recovery is done
+	 * * When the connection is closing
+	 * * When a shutdown has been requested via clearing the run flag.
+	 * Check otherwise fewer threads may be running than expected.
 	 */
-	WT_ASSERT(session, !F_ISSET(worker, WT_WORKER_THREAD_RUN) ||
+	WT_ASSERT(session, !F_ISSET(thread, WT_THREAD_RUN) ||
 	    F_ISSET(S2C(session), WT_CONN_CLOSING | WT_CONN_RECOVERING));
 
 	return (WT_THREAD_RET_VALUE);
@@ -46,22 +47,22 @@ __wt_util_thread_run(void *arg)
  */
 static int
 __util_thread_group_grow(
-    WT_SESSION_IMPL *session, WT_WORKER_THREAD_GROUP *group, uint32_t new_count)
+    WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t new_count)
 {
-	WT_WORKER_THREAD *worker;
+	WT_THREAD *thread;
 
 	WT_ASSERT(session,
 	    __wt_rwlock_islocked(session, group->lock));
 
-	while (group->current_workers < new_count) {
-		worker = group->workers[group->current_workers++];
-		__wt_verbose(session, WT_VERB_UTIL_THREAD,
-		    "Starting utility worker: %p:%"PRIu32"\n",
-		    group, worker->id);
-		F_SET(worker, WT_WORKER_THREAD_RUN);
-		WT_ASSERT(session, worker->session != NULL);
-		WT_RET(__wt_thread_create(worker->session,
-		    &worker->tid, __wt_util_thread_run, worker));
+	while (group->current_threads < new_count) {
+		thread = group->threads[group->current_threads++];
+		__wt_verbose(session, WT_VERB_THREAD_GROUP,
+		    "Starting utility thread: %p:%"PRIu32"\n",
+		    group, thread->id);
+		F_SET(thread, WT_THREAD_RUN);
+		WT_ASSERT(session, thread->session != NULL);
+		WT_RET(__wt_thread_create(thread->session,
+		    &thread->tid, __wt_util_thread_run, thread));
 	}
 	return (0);
 }
@@ -72,45 +73,45 @@ __util_thread_group_grow(
  */
 static int
 __util_thread_group_shrink(WT_SESSION_IMPL *session,
-    WT_WORKER_THREAD_GROUP *group, uint32_t new_count, bool free_worker)
+    WT_THREAD_GROUP *group, uint32_t new_count, bool free_thread)
 {
 	WT_DECL_RET;
 	WT_SESSION *wt_session;
-	WT_WORKER_THREAD *worker;
+	WT_THREAD *thread;
 
 	WT_ASSERT(session,
 	    __wt_rwlock_islocked(session, group->lock));
 
-	while (group->current_workers > new_count) {
+	while (group->current_threads > new_count) {
 		/*
-		 * The current workers is a counter not an array index, so
-		 * adjust it before finding the last worker in the group.
+		 * The current threads is a counter not an array index, so
+		 * adjust it before finding the last thread in the group.
 		 */
-		worker = group->workers[--group->current_workers];
+		thread = group->threads[--group->current_threads];
 		/* Be paranoid in case we are cleaning up after an error */
-		if (worker == NULL)
+		if (thread == NULL)
 			continue;
 
-		__wt_verbose(session, WT_VERB_UTIL_THREAD,
-		    "Stopping utility worker: %p:%"PRIu32"\n",
-		    group, worker->id);
-		F_CLR(worker, WT_WORKER_THREAD_RUN);
+		__wt_verbose(session, WT_VERB_THREAD_GROUP,
+		    "Stopping utility thread: %p:%"PRIu32"\n",
+		    group, thread->id);
+		F_CLR(thread, WT_THREAD_RUN);
 		/* Wake threads to ensure they notice the state change */
 		__wt_cond_signal(session, group->wait_cond);
-		WT_TRET(__wt_thread_join(session, worker->tid));
-		worker->tid = 0;
+		WT_TRET(__wt_thread_join(session, thread->tid));
+		thread->tid = 0;
 
 		/*
 		 * Worker thread sessions are only freed when shrinking the
 		 * pool or shutting down the connection.
 		 */
-		if (free_worker) {
-			if (worker->session != NULL) {
-				wt_session = (WT_SESSION *)worker->session;
+		if (free_thread) {
+			if (thread->session != NULL) {
+				wt_session = (WT_SESSION *)thread->session;
 				WT_TRET(wt_session->close(wt_session, NULL));
-				worker->session = NULL;
+				thread->session = NULL;
 			}
-			__wt_free(session, worker);
+			__wt_free(session, thread);
 		}
 	}
 	return (ret);
@@ -118,16 +119,16 @@ __util_thread_group_shrink(WT_SESSION_IMPL *session,
 
 /*
  * __util_thread_group_resize --
- *	Resize an array of utility workers already holding the lock.
+ *	Resize an array of utility threads already holding the lock.
  */
 static int
 __util_thread_group_resize(
-    WT_SESSION_IMPL *session, WT_WORKER_THREAD_GROUP *group,
+    WT_SESSION_IMPL *session, WT_THREAD_GROUP *group,
     uint32_t new_min, uint32_t new_max, uint32_t flags)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-	WT_WORKER_THREAD *worker;
+	WT_THREAD *thread;
 	size_t alloc;
 	uint32_t i, session_flags;
 
@@ -135,24 +136,24 @@ __util_thread_group_resize(
 	session_flags = 0;
 
 	WT_ASSERT(session,
-	    group->current_workers <= group->alloc &&
+	    group->current_threads <= group->alloc &&
 	    __wt_rwlock_islocked(session, group->lock));
 
 	if (new_min == group->min && new_max == group->max)
 		return (0);
 
-	if (group->current_workers > new_max)
+	if (group->current_threads > new_max)
 		WT_RET(__util_thread_group_shrink(
 		    session, group, new_max, true));
 
 	/*
-	 * Only reallocate the worker array if it is the largest ever, since
+	 * Only reallocate the thread array if it is the largest ever, since
 	 * our realloc doesn't support shrinking the allocated size.
 	 */
 	if (group->alloc < new_max) {
-		alloc = group->alloc * sizeof(*group->workers);
+		alloc = group->alloc * sizeof(*group->threads);
 		WT_RET(__wt_realloc(session, &alloc,
-		    new_max * sizeof(*group->workers), &group->workers));
+		    new_max * sizeof(*group->threads), &group->threads));
 		group->alloc = new_max;
 	}
 
@@ -161,29 +162,27 @@ __util_thread_group_resize(
 	 * the previous allocated size.
 	 */
 	for (i = group->max; i < new_max; i++) {
-		WT_ERR(__wt_calloc_one(session, &worker));
+		WT_ERR(__wt_calloc_one(session, &thread));
 		/*
-		 * Utility worker threads have their own session.
-		 *
-		 * Utility worker threads get their own lookaside table cursor
-		 * if the lookaside table is open.  Note that utility threads
-		 * are started during recovery, before the lookaside table is
+		 * Threads get their own session and lookaside table cursor
+		 * if the lookaside table is open. Note that threads are
+		 * started during recovery, before the lookaside table is
 		 * created.
 		 */
-		if (LF_ISSET(WT_WORKER_CAN_WAIT))
+		if (LF_ISSET(WT_THREAD_CAN_WAIT))
 			session_flags = WT_SESSION_CAN_WAIT;
 		if (F_ISSET(conn, WT_CONN_LAS_OPEN))
 			FLD_SET(session_flags, WT_SESSION_LOOKASIDE_CURSOR);
-		WT_ERR(__wt_open_internal_session(conn, "utility-worker",
-		    false, session_flags, &worker->session));
-		if (LF_ISSET(WT_WORKER_PANIC_FAIL))
-			F_SET(worker, WT_WORKER_PANIC_FAIL);
-		worker->id = i;
-		worker->run_func = group->run_func;
-		group->workers[i] = worker;
+		WT_ERR(__wt_open_internal_session(conn, "utility-thread",
+		    false, session_flags, &thread->session));
+		if (LF_ISSET(WT_THREAD_PANIC_FAIL))
+			F_SET(thread, WT_THREAD_PANIC_FAIL);
+		thread->id = i;
+		thread->run_func = group->run_func;
+		group->threads[i] = thread;
 	}
 
-	if (group->current_workers < new_min)
+	if (group->current_threads < new_min)
 		WT_ERR(__util_thread_group_grow(session, group, new_min));
 
 err:	/*
@@ -194,29 +193,29 @@ err:	/*
 	group->min = new_min;
 
 	/*
-	 * An error resizing a worker array is fatal, it should only happen
+	 * An error resizing a thread array is fatal, it should only happen
 	 * in an out of memory situation.
 	 */
 	if (ret != 0) {
 		WT_TRET(__wt_util_thread_group_destroy(session, group));
 		WT_PANIC_RET(session, ret,
-		    "Error while resizing worker thread group");
+		    "Error while resizing thread group");
 	}
 	return (ret);
 }
 
 /*
  * __wt_util_thread_group_resize --
- *	Resize an array of utility workers taking the lock.
+ *	Resize an array of utility threads taking the lock.
  */
 int
 __wt_util_thread_group_resize(
-    WT_SESSION_IMPL *session, WT_WORKER_THREAD_GROUP *group,
+    WT_SESSION_IMPL *session, WT_THREAD_GROUP *group,
     uint32_t new_min, uint32_t new_max, uint32_t flags)
 {
 	WT_DECL_RET;
 
-	__wt_verbose(session, WT_VERB_UTIL_THREAD,
+	__wt_verbose(session, WT_VERB_THREAD_GROUP,
 	    "Resize thread group: %p, from min: %" PRIu32 " -> %" PRIu32
 	    " from max: %" PRIu32 " -> %" PRIu32 "\n",
 	    group, group->min, new_min, group->max, new_max);
@@ -238,9 +237,9 @@ __wt_util_thread_group_resize(
  */
 int
 __wt_util_thread_group_create(
-    WT_SESSION_IMPL *session, WT_WORKER_THREAD_GROUP *group,
+    WT_SESSION_IMPL *session, WT_THREAD_GROUP *group,
     uint32_t min, uint32_t max, uint32_t flags,
-    int (*run_func)(WT_SESSION_IMPL *session, WT_WORKER_THREAD *context))
+    int (*run_func)(WT_SESSION_IMPL *session, WT_THREAD *context))
 {
 	WT_DECL_RET;
 	bool cond_alloced;
@@ -250,7 +249,7 @@ __wt_util_thread_group_create(
 
 	cond_alloced = false;
 
-	__wt_verbose(session, WT_VERB_UTIL_THREAD,
+	__wt_verbose(session, WT_VERB_THREAD_GROUP,
 	    "Creating thread group: %p\n", group);
 
 	WT_RET(__wt_rwlock_alloc(session, &group->lock, "Thread group"));
@@ -276,17 +275,17 @@ err:	if (ret != 0 && cond_alloced)
  */
 int
 __wt_util_thread_group_destroy(
-    WT_SESSION_IMPL *session, WT_WORKER_THREAD_GROUP *group)
+    WT_SESSION_IMPL *session, WT_THREAD_GROUP *group)
 {
 	WT_DECL_RET;
 
-	__wt_verbose(session, WT_VERB_UTIL_THREAD,
+	__wt_verbose(session, WT_VERB_THREAD_GROUP,
 	    "Destroying thread group: %p\n", group);
 
-	/* Shut down all worker threads. */
+	/* Shut down all threads. */
 	WT_TRET(__util_thread_group_shrink(session, group, 0, true));
 
-	__wt_free(session, group->workers);
+	__wt_free(session, group->threads);
 
 	WT_TRET(__wt_cond_destroy(session, &group->wait_cond));
 	__wt_rwlock_destroy(session, &group->lock);
@@ -303,27 +302,26 @@ __wt_util_thread_group_destroy(
 
 /*
  * __wt_util_thread_group_start_one --
- *	Start a new worker if possible
+ *	Start a new thread if possible
  */
 int
 __wt_util_thread_group_start_one(
-    WT_SESSION_IMPL *session, WT_WORKER_THREAD_GROUP *group, bool wait)
+    WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, bool wait)
 {
 	WT_DECL_RET;
 
-	if (group->current_workers >= group->max)
+	if (group->current_threads >= group->max)
 		return (0);
 
-	if (!wait) {
-		if (__wt_try_writelock(session, group->lock) != 0)
-			return (0);
-	} else
+	if (wait)
 		__wt_writelock(session, group->lock);
+	else if (__wt_try_writelock(session, group->lock) != 0)
+		return (0);
 
 	/* Recheck the bounds now that we hold the lock */
-	if (group->current_workers < group->max)
+	if (group->current_threads < group->max)
 		WT_TRET(__util_thread_group_grow(
-		    session, group, group->current_workers + 1));
+		    session, group, group->current_threads + 1));
 	__wt_writeunlock(session, group->lock);
 
 	return (ret);

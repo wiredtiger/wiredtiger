@@ -7,32 +7,32 @@
  */
 
 /*
- * WT_WORKER_THREAD --
- *	Encapsulation of a utility worker thread.
+ * WT_THREAD --
+ *	Encapsulation of a thread that belongs to a thread group.
  */
-struct __wt_worker_thread {
+struct __wt_thread {
 	WT_SESSION_IMPL *session;
 	u_int id;
 	wt_thread_t tid;
-#define	WT_WORKER_THREAD_RUN		0x01
+#define	WT_THREAD_RUN		0x01
 	uint32_t flags;
 
-	/* The runner function used by all workers. */
-	int (*run_func)(WT_SESSION_IMPL *session, WT_WORKER_THREAD *context);
+	/* The runner function used by all threads. */
+	int (*run_func)(WT_SESSION_IMPL *session, WT_THREAD *context);
 };
 
-#define	WT_WORKER_CAN_WAIT		0x01
-#define	WT_WORKER_PANIC_FAIL		0x02
+#define	WT_THREAD_CAN_WAIT		0x01
+#define	WT_THREAD_PANIC_FAIL		0x02
 
 /*
- * WT_WORKER_THREAD_GROUP --
- *	Encapsulation of a group of utility worker threads.
+ * WT_THREAD_GROUP --
+ *	Encapsulation of a group of utility threads.
  */
-struct __wt_worker_thread_group {
+struct __wt_thread_group {
 	uint32_t	 alloc;    /* Size of allocated group */
 	uint32_t	 max;      /* Max threads in group */
 	uint32_t	 min;      /* Min threads in group */
-	uint32_t	 current_workers;	/* Number of active workers */
+	uint32_t	 current_threads;/* Number of active threads */
 
 	WT_RWLOCK	*lock;     /* Protects group changes */
 
@@ -44,13 +44,13 @@ struct __wt_worker_thread_group {
 	WT_CONDVAR      *wait_cond;
 
 	/*
-	 * The worker threads need to be held in an array of arrays, not an
-	 * array of structures because the array is reallocated as it grows,
-	 * which causes threads to loose track of their context is realloc
-	 * moves the memory.
+	 * The threads need to be held in an array of arrays, not an array of
+	 * structures because the array is reallocated as it grows, which
+	 * causes threads to loose track of their context is realloc moves the
+	 * memory.
 	 */
-	WT_WORKER_THREAD **workers;
+	WT_THREAD **threads;
 
-	/* The runner function used by all workers. */
-	int (*run_func)(WT_SESSION_IMPL *session, WT_WORKER_THREAD *context);
+	/* The runner function used by all threads. */
+	int (*run_func)(WT_SESSION_IMPL *session, WT_THREAD *context);
 };
