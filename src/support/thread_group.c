@@ -154,7 +154,7 @@ __thread_group_resize(
 
 	if (group->current_threads > new_max)
 		WT_RET(__thread_group_shrink(
-		    session, group, new_max, true));
+		    session, group, new_max, WT_THREAD_FREE));
 
 	/*
 	 * Only reallocate the thread array if it is the largest ever, since
