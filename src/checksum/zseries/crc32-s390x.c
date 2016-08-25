@@ -12,7 +12,7 @@
 #include "slicing-consts.h"
 
 #define VX_MIN_LEN		64
-#define VX_ALIGNMENT		16L
+#define VX_ALIGNMENT		16UL
 #define VX_ALIGN_MASK		(VX_ALIGNMENT - 1)
 
 /* Prototypes for functions in assembly files */
@@ -78,7 +78,7 @@ DEFINE_CRC32_VX(__wt_crc32c_le_vx, __wt_crc32c_le_vgfm_16, __wt_crc32c_le)
 unsigned int
 __wt_cksum(const void *chunk, size_t len)
 {
-	return (~__wt_crc32c_le_vx(0xffffffffU, chunk, len));
+	return (~__wt_crc32c_le_vx(0xffffffff, chunk, len));
 }
 
 /*
