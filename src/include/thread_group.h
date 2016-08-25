@@ -29,12 +29,14 @@ struct __wt_thread {
  *	Encapsulation of a group of utility threads.
  */
 struct __wt_thread_group {
-	uint32_t	 alloc;    /* Size of allocated group */
-	uint32_t	 max;      /* Max threads in group */
-	uint32_t	 min;      /* Min threads in group */
+	uint32_t	 alloc;		/* Size of allocated group */
+	uint32_t	 max;		/* Max threads in group */
+	uint32_t	 min;		/* Min threads in group */
 	uint32_t	 current_threads;/* Number of active threads */
 
-	WT_RWLOCK	*lock;     /* Protects group changes */
+	const char	*name;		/* Name */
+
+	WT_RWLOCK	*lock;		/* Protects group changes */
 
 	/*
 	 * Condition signalled when wanting to wake up threads that are

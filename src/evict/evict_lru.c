@@ -339,12 +339,15 @@ __wt_evict_create(WT_SESSION_IMPL *session)
 	F_SET(conn, WT_CONN_EVICTION_RUN);
 
 	/* Create the eviction thread group */
-	WT_RET(__wt_thread_group_create(session,
-	    &conn->evict_threads, conn->evict_threads_min,
+	WT_RET(__wt_thread_group_create(session, &conn->evict_threads,
+	    "eviction-server", conn->evict_threads_min,
 	    conn->evict_threads_max, WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL,
 	    __wt_evict_thread_run));
 
-	/* Allow queues to be populated now the eviction threads are running. */
+	/* 
+	 * Allow queues to be populated now that the eviction threads
+	 * are running.
+	 */
 	conn->evict_server_running = true;
 
 	return (0);
@@ -358,15 +361,14 @@ int
 __wt_evict_destroy(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
-	WT_DECL_RET;
 
 	conn = S2C(session);
 
-	/* We are done if the eviction server didn't start successfully */
+	/* We are done if the eviction server didn't start successfully. */
 	if (!conn->evict_server_running)
 		return (0);
 
-	/* Wait for any eviction thread group changes to stabilize */
+	/* Wait for any eviction thread group changes to stabilize. */
 	__wt_writelock(session, conn->evict_threads.lock);
 
 	/*
@@ -378,9 +380,13 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
 	__wt_verbose(
 	    session, WT_VERB_EVICTSERVER, "waiting for helper threads");
 
+	/*
+	 * We call the destroy function still holding the write lock.
+	 * It assumes it is called locked.
+	 */
 	WT_RET(__wt_thread_group_destroy(session, &conn->evict_threads));
 
-	return (ret);
+	return (0);
 }
 
 /*
@@ -397,9 +403,7 @@ __evict_helper(WT_SESSION_IMPL *session)
 
 	if ((ret = __evict_lru_pages(session, false)) == WT_NOTFOUND)
 		__wt_cond_wait(session, conn->evict_threads.wait_cond, 10000);
-	else
-		WT_RET(ret);
-	return (0);
+	return (ret);
 }
 
 /*
