@@ -76,7 +76,6 @@ var.Add('CFLAGS', 'C Compiler Flags', [
     #"/we4047", # Indirection differences in types
     #"/we4024", # Differences in parameter types
     #"/we4100", # Unreferenced local parameter
-    "/we4133", # incompatible types
     "/TC", # Compile as C code
     #"/Od", # Disable optimization
     "/Ob1", # inline expansion
