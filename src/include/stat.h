@@ -164,6 +164,9 @@ __wt_stats_clear(void *stats_arg, int slot)
 /*
  * Update statistics if "fast" statistics are configured.
  */
+#define	WT_STAT_FAST_WRITE(session, stats, fld, v)			\
+	if (FLD_ISSET(S2C(session)->stat_flags, WT_CONN_STAT_FAST))	\
+		(stats)->fld = (int64_t)(v)
 #define	WT_STAT_FAST_DECRV(session, stats, fld, value) do {		\
 	if (FLD_ISSET(S2C(session)->stat_flags, WT_CONN_STAT_FAST))	\
 		WT_STAT_DECRV(session, stats, fld, value);		\

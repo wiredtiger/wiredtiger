@@ -227,13 +227,13 @@ struct __wt_lsm_tree {
 	 * We maintain a set of statistics outside of the normal statistics
 	 * area, copying them into place when a statistics cursor is created.
 	 */
-#define	WT_LSM_TREE_STAT_INCR(session, fld) do {			\
+#define	WT_LSM_TREE_STAT_INCR(session, stat_fld) do {			\
 	if (FLD_ISSET(S2C(session)->stat_flags, WT_CONN_STAT_FAST))	\
-		++(fld);						\
+		++(clsm->lsm_tree->stat_fld);				\
 } while (0)
-#define	WT_LSM_TREE_STAT_INCRV(session, fld, v) do {			\
+#define	WT_LSM_TREE_STAT_INCRV(session, stat_fld, v) do {		\
 	if (FLD_ISSET(S2C(session)->stat_flags, WT_CONN_STAT_FAST))	\
-		(fld) += (int64_t)(v);					\
+		(lsm_tree->stat_fld) += (int64_t)(v);			\
 } while (0)
 	int64_t bloom_false_positive;
 	int64_t bloom_hit;
