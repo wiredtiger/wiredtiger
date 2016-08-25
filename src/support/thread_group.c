@@ -76,39 +76,46 @@ __thread_group_grow(
  */
 static int
 __thread_group_shrink(WT_SESSION_IMPL *session,
-    WT_THREAD_GROUP *group, uint32_t new_count, bool free_thread)
+    WT_THREAD_GROUP *group, uint32_t new_count, uint32_t flags)
 {
 	WT_DECL_RET;
 	WT_SESSION *wt_session;
 	WT_THREAD *thread;
+	uint32_t max;
 
 	WT_ASSERT(session,
 	    __wt_rwlock_islocked(session, group->lock));
 
-	while (group->current_threads > new_count) {
+	if (LF_ISSET(WT_THREAD_FORCE))
+		max = group->alloc;
+	else
+		max = group->current_threads;
+	while (max > new_count) {
 		/*
-		 * The current threads field is a counter not an array index,
+		 * The max value is a counter not an array index,
 		 * so adjust it before finding the last thread in the group.
 		 */
-		thread = group->threads[--group->current_threads];
+		thread = group->threads[--max];
 		/* Be paranoid in case we are cleaning up after an error */
 		if (thread == NULL)
 			continue;
 
-		__wt_verbose(session, WT_VERB_THREAD_GROUP,
-		    "Stopping utility thread: %p:%"PRIu32"\n",
-		    group, thread->id);
-		F_CLR(thread, WT_THREAD_RUN);
 		/* Wake threads to ensure they notice the state change */
-		__wt_cond_signal(session, group->wait_cond);
-		WT_TRET(__wt_thread_join(session, thread->tid));
-		thread->tid = 0;
+		if (thread->tid != 0) {
+			__wt_verbose(session, WT_VERB_THREAD_GROUP,
+			    "Stopping utility thread: %p:%"PRIu32"\n",
+			    group, thread->id);
+			F_CLR(thread, WT_THREAD_RUN);
+			__wt_cond_signal(session, group->wait_cond);
+			WT_TRET(__wt_thread_join(session, thread->tid));
+			thread->tid = 0;
+		}
 
 		/*
 		 * Worker thread sessions are only freed when shrinking the
 		 * pool or shutting down the connection.
 		 */
-		if (free_thread) {
+		if (LF_ISSET(WT_THREAD_FREE)) {
 			if (thread->session != NULL) {
 				wt_session = (WT_SESSION *)thread->session;
 				WT_TRET(wt_session->close(wt_session, NULL));
@@ -293,7 +300,8 @@ __wt_thread_group_destroy(
 	    __wt_rwlock_islocked(session, group->lock));
 
 	/* Shut down all threads. */
-	WT_TRET(__thread_group_shrink(session, group, 0, true));
+	WT_TRET(__thread_group_shrink(session,
+	    group, 0, WT_THREAD_FORCE | WT_THREAD_FREE));
 
 	__wt_free(session, group->threads);
 
