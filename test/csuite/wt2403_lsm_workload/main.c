@@ -83,10 +83,10 @@ query_docs(WT_CURSOR *cursor, bool mod)
 	}
 	/*
 	 * Its possible that we may randomly return the same doc a few times,
-	 * more than say 2% is not a co-incidence. This likely means random is
+	 * more than say 10% is not a co-incidence. This likely means random is
 	 * broken or we aren't ignoring "new" deletes that we shouldn't see yet.
 	 */
-	if (count > NUM_QUERIES/50) {
+	if (count > NUM_QUERIES/10) {
 		printf("Error: same document was returned %d"
 		    " times, likely we are seeing the one remaining value\n",
 		    count);
