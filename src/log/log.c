@@ -988,16 +988,24 @@ __log_truncate(WT_SESSION_IMPL *session,
 	 * before doing work, and if there's a not-supported error, turn off
 	 * future truncates.
 	 */
-	if (F_ISSET(log, WT_LOG_TRUNCATE_NOTSUP))
-		return (0);
 	WT_ERR(__log_openfile(session, &log_fh, file_prefix, lsn->l.file, 0));
-	if ((ret = __wt_ftruncate(session, log_fh, lsn->l.offset)) != 0) {
-		if (ret == ENOTSUP) {
-			F_SET(log, WT_LOG_TRUNCATE_NOTSUP);
-			ret = 0;
+	if (!F_ISSET(log, WT_LOG_TRUNCATE_NOTSUP)) {
+		if ((ret = __wt_ftruncate(session, log_fh, lsn->l.offset)) != 0) {
+			if (ret == ENOTSUP) {
+				F_SET(log, WT_LOG_TRUNCATE_NOTSUP);
+				ret = 0;
+				goto slow_trunc;
+			}
+			goto err;
 		}
-		goto err;
-	}
+	} else
+		/*
+		 * If the underlying file system doesn't support truncate then
+		 * we need to zero out the rest of the file, doing an effective
+		 * truncate.
+		 */
+slow_trunc:	WT_ERR(__log_zero(session,
+		    log_fh, lsn->l.offset, conn->log_file_max));
 	WT_ERR(__wt_fsync(session, log_fh, true));
 	WT_ERR(__wt_close(session, &log_fh));
 
@@ -1017,9 +1025,14 @@ __log_truncate(WT_SESSION_IMPL *session,
 			/*
 			 * If there are intervening files pre-allocated,
 			 * truncate them to the end of the log file header.
+			 * If we don't have truncate, do it manually.
 			 */
-			WT_ERR(__wt_ftruncate(session,
-			    log_fh, WT_LOG_FIRST_RECORD));
+			if (!F_ISSET(log, WT_LOG_TRUNCATE_NOTSUP))
+				WT_ERR(__wt_ftruncate(session,
+				    log_fh, WT_LOG_FIRST_RECORD));
+			else
+				WT_ERR(__log_zero(session, log_fh,
+				    WT_LOG_FIRST_RECORD, conn->log_file_max));
 			WT_ERR(__wt_fsync(session, log_fh, true));
 			WT_ERR(__wt_close(session, &log_fh));
 		}
