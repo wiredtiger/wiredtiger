@@ -175,13 +175,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 	}
 
 	if (0) {
-err:		if (!closing) {
-#if 0
-			if (ref->page->read_gen == WT_READGEN_OLDEST)
-				(void)__wt_page_evict_urgent(session, ref);
-#endif
+err:		if (!closing)
 			__evict_exclusive_clear(session, ref);
-		}
 
 		WT_STAT_FAST_CONN_INCR(session, cache_eviction_fail);
 		WT_STAT_FAST_DATA_INCR(session, cache_eviction_fail);

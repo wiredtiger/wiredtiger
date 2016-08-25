@@ -2001,17 +2001,6 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
 	 */
 	WT_WRITE_BARRIER();
 
-#if 0
-	/*
-	 * KLUDGE: The remaining large page should be evicted in the background
-	 * before it reaches the size where it would stall application threads.
-	 * The problems here are (1) the page isn't yet linked into the tree,
-	 * and (2) cleanup on error: we can't leave the ref queued after it is
-	 * freed.
-	 */
-	(void)__wt_page_evict_urgent(session, split_ref[0]);
-#endif
-
 	/*
 	 * Split into the parent.
 	 */
