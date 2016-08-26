@@ -4685,20 +4685,20 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_BLOCK_MINOR			2021
 /*! btree: btree checkpoint generation */
 #define	WT_STAT_DSRC_BTREE_CHECKPOINT_GENERATION	2022
-/*! btree: column-store fixed-size leaf pages,
- * only reported if statistics=all is set */
+/*! btree: column-store fixed-size leaf pages, only reported if
+ * statistics=all is set */
 #define	WT_STAT_DSRC_BTREE_COLUMN_FIX			2023
-/*! btree: column-store internal pages,
- * only reported if statistics=all is set */
+/*! btree: column-store internal pages, only reported if statistics=all is
+ * set */
 #define	WT_STAT_DSRC_BTREE_COLUMN_INTERNAL		2024
-/*! btree: column-store variable-size RLE encoded values,
- * only reported if statistics=all is set */
+/*! btree: column-store variable-size RLE encoded values, only reported if
+ * statistics=all is set */
 #define	WT_STAT_DSRC_BTREE_COLUMN_RLE			2025
-/*! btree: column-store variable-size deleted values,
- * only reported if statistics=all is set */
+/*! btree: column-store variable-size deleted values, only reported if
+ * statistics=all is set */
 #define	WT_STAT_DSRC_BTREE_COLUMN_DELETED		2026
-/*! btree: column-store variable-size leaf pages,
- * only reported if statistics=all is set */
+/*! btree: column-store variable-size leaf pages, only reported if
+ * statistics=all is set */
 #define	WT_STAT_DSRC_BTREE_COLUMN_VARIABLE		2027
 /*! btree: fixed-record size */
 #define	WT_STAT_DSRC_BTREE_FIXED_LEN			2028
@@ -4714,19 +4714,17 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_BTREE_MAXLEAFVALUE			2033
 /*! btree: maximum tree depth */
 #define	WT_STAT_DSRC_BTREE_MAXIMUM_DEPTH		2034
-/*! btree: number of key/value pairs,
- * only reported if statistics=all is set */
+/*! btree: number of key/value pairs, only reported if statistics=all is
+ * set */
 #define	WT_STAT_DSRC_BTREE_ENTRIES			2035
-/*! btree: overflow pages,
- * only reported if statistics=all is set */
+/*! btree: overflow pages, only reported if statistics=all is set */
 #define	WT_STAT_DSRC_BTREE_OVERFLOW			2036
 /*! btree: pages rewritten by compaction */
 #define	WT_STAT_DSRC_BTREE_COMPACT_REWRITE		2037
-/*! btree: row-store internal pages,
- * only reported if statistics=all is set */
+/*! btree: row-store internal pages, only reported if statistics=all is
+ * set */
 #define	WT_STAT_DSRC_BTREE_ROW_INTERNAL			2038
-/*! btree: row-store leaf pages,
- * only reported if statistics=all is set */
+/*! btree: row-store leaf pages, only reported if statistics=all is set */
 #define	WT_STAT_DSRC_BTREE_ROW_LEAF			2039
 /*! cache: bytes currently in the cache */
 #define	WT_STAT_DSRC_CACHE_BYTES_INUSE			2040
