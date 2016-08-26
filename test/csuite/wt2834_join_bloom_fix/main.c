@@ -110,8 +110,6 @@ main(int argc, char *argv[])
 	testutil_check(opts->conn->open_session(
 	    opts->conn, NULL, NULL, &session));
 
-	testutil_check(session->begin_transaction(session,
-	    "isolation=snapshot"));
 	testutil_check(session->open_cursor(session,
 	    posturi, NULL, NULL, &postcur));
 	testutil_check(session->open_cursor(session,
@@ -178,6 +176,7 @@ void populate(TEST_OPTS *opts)
 	    &maincur));
 
 	for (i = 0; i < N_INSERT; i++) {
+		testutil_check(session->begin_transaction(session, NULL));
 		key = (__wt_random(&rnd) % (N_RECORDS));
 		maincur->set_key(maincur, key);
 		if (__wt_random(&rnd) % 11 == 0)
@@ -193,6 +192,7 @@ void populate(TEST_OPTS *opts)
 		}
 		maincur->set_value(maincur, post, balance, flag, key);
 		testutil_check(maincur->insert(maincur));
+		testutil_check(session->commit_transaction(session, NULL));
 	}
 	maincur->close(maincur);
 	session->close(session, NULL);
