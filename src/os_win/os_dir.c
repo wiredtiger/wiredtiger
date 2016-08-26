@@ -79,15 +79,11 @@ __wt_win_directory_list(WT_FILE_SYSTEM *file_system,
 		WT_ERR(__wt_realloc_def(
 		    session, &dirallocsz, count + 1, &entries));
 
-		WT_ERR(__wt_to_utf8_string(session, finddata.cFileName,
-			&file_utf8));
-
-		WT_ERR(__wt_strdup(
-		    session, file_utf8->data, &entries[count]));
-
-		__wt_scr_free(session, &file_utf8);
-
+		WT_ERR(__wt_to_utf8_string(
+		    session, finddata.cFileName, &file_utf8));
+		WT_ERR(__wt_strdup(session, file_utf8->data, &entries[count]));
 		++count;
+		__wt_scr_free(session, &file_utf8);
 	} while (FindNextFileW(findhandle, &finddata) != 0);
 
 	*dirlistp = entries;

@@ -13,8 +13,8 @@
  *  Convert UTF-8 encoded string to UTF-16.
  */
 int
-__wt_to_utf16_string(WT_SESSION_IMPL *session, const char* utf8,
-		     WT_ITEM **outbuf)
+__wt_to_utf16_string(
+    WT_SESSION_IMPL *session, const char* utf8, WT_ITEM **outbuf)
 {
 	DWORD windows_error;
 	int bufferSize;
@@ -31,14 +31,12 @@ __wt_to_utf16_string(WT_SESSION_IMPL *session, const char* utf8,
 	}
 
 	WT_RET(__wt_scr_alloc(session, bufferSize * sizeof(wchar_t), outbuf));
+	bufferSize = MultiByteToWideChar(
+	    CP_UTF8, 0, utf8, -1, (*outbuf)->mem, bufferSize);
 
-	bufferSize = MultiByteToWideChar(CP_UTF8, 0, utf8, -1, (*outbuf)->data,
-					 bufferSize);
 	if (bufferSize == 0) {
 		windows_error = __wt_getlasterror();
-
 		__wt_scr_free(session, outbuf);
-
 		__wt_errx(session,
 			  "MultiByteToWideChar: %s",
 			  __wt_formatmessage(session, windows_error));
@@ -46,7 +44,6 @@ __wt_to_utf16_string(WT_SESSION_IMPL *session, const char* utf8,
 	}
 
 	(*outbuf)->size = bufferSize;
-
 	return (0);
 }
 
@@ -55,15 +52,15 @@ __wt_to_utf16_string(WT_SESSION_IMPL *session, const char* utf8,
  *  Convert UTF-16 encoded string to UTF-8.
  */
 int
-__wt_to_utf8_string(WT_SESSION_IMPL *session, const wchar_t* wide,
-		    WT_ITEM **outbuf)
+__wt_to_utf8_string(
+    WT_SESSION_IMPL *session, const wchar_t* wide, WT_ITEM **outbuf)
 {
 	DWORD windows_error;
 	int bufferSize;
 	WT_DECL_RET;
 
-	bufferSize = WideCharToMultiByte(CP_UTF8, 0, wide, -1, NULL, 0, NULL,
-					 NULL);
+	bufferSize = WideCharToMultiByte(
+	    CP_UTF8, 0, wide, -1, NULL, 0, NULL, NULL);
 	windows_error = __wt_getlasterror();
 
 	if (bufferSize == 0 && windows_error != ERROR_INSUFFICIENT_BUFFER) {
@@ -75,13 +72,11 @@ __wt_to_utf8_string(WT_SESSION_IMPL *session, const wchar_t* wide,
 
 	WT_RET(__wt_scr_alloc(session, bufferSize, outbuf));
 
-	bufferSize = WideCharToMultiByte(CP_UTF8, 0, wide, -1, (*outbuf)->data,
-					 bufferSize, NULL, NULL);
+	bufferSize = WideCharToMultiByte(
+	    CP_UTF8, 0, wide, -1, (*outbuf)->mem, bufferSize, NULL, NULL);
 	if (bufferSize == 0) {
 		windows_error = __wt_getlasterror();
-
 		__wt_scr_free(session, outbuf);
-
 		__wt_errx(session,
 			  "WideCharToMultiByte: %s",
 			  __wt_formatmessage(session, windows_error));
@@ -89,6 +84,5 @@ __wt_to_utf8_string(WT_SESSION_IMPL *session, const wchar_t* wide,
 	}
 
 	(*outbuf)->size = bufferSize;
-
 	return (0);
 }

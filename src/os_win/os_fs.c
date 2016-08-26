@@ -29,11 +29,8 @@ __win_fs_exist(WT_FILE_SYSTEM *file_system,
 
 	if (GetFileAttributesW(name_wide->data) != INVALID_FILE_ATTRIBUTES)
 		*existp = true;
-	else
-		*existp = false;
 
 	__wt_scr_free(session, &name_wide);
-
 	return (0);
 }
 
@@ -60,14 +57,12 @@ __win_fs_remove(WT_FILE_SYSTEM *file_system,
 	if (DeleteFileW(name_wide->data) == FALSE) {
 		windows_error = __wt_getlasterror();
 		__wt_errx(session,
-		    "%s: file-remove: Delightful: %s",
+		    "%s: file-remove: DeleteFileW: %s",
 		    name, __wt_formatmessage(session, windows_error));
 		WT_ERR(__wt_map_windows_error(windows_error));
 	}
 
-err:
-	__wt_scr_free(session, &name_wide);
-
+err:	__wt_scr_free(session, &name_wide);
 	return (ret);
 }
 
@@ -87,7 +82,6 @@ __win_fs_rename(WT_FILE_SYSTEM *file_system,
 
 	WT_UNUSED(file_system);
 	WT_UNUSED(flags);
-
 	session = (WT_SESSION_IMPL *)wt_session;
 
 	WT_ERR(__wt_to_utf16_string(session, from, &from_wide));
@@ -114,10 +108,8 @@ __win_fs_rename(WT_FILE_SYSTEM *file_system,
 		WT_ERR(__wt_map_windows_error(windows_error));
 	}
 
-err:
-	__wt_scr_free(session, &from_wide);
+err:	__wt_scr_free(session, &from_wide);
 	__wt_scr_free(session, &to_wide);
-
 	return (ret);
 }
 
@@ -136,13 +128,12 @@ __wt_win_fs_size(WT_FILE_SYSTEM *file_system,
 	WT_SESSION_IMPL *session;
 
 	WT_UNUSED(file_system);
-
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	WT_ERR(__wt_to_utf16_string(session, name, &name_wide));
+	WT_RET(__wt_to_utf16_string(session, name, &name_wide));
 
-	if (GetFileAttributesExW(name_wide->data, GetFileExInfoStandard,
-				 &data) == 0) {
+	if (GetFileAttributesExW(
+	    name_wide->data, GetFileExInfoStandard, &data) == 0) {
 		windows_error = __wt_getlasterror();
 		__wt_errx(session,
 		    "%s: file-size: GetFileAttributesEx: %s",
@@ -150,12 +141,9 @@ __wt_win_fs_size(WT_FILE_SYSTEM *file_system,
 		WT_ERR(__wt_map_windows_error(windows_error));
 	}
 
-	*sizep =
-	    ((int64_t)data.nFileSizeHigh << 32) | data.nFileSizeLow;
+	*sizep = ((int64_t)data.nFileSizeHigh << 32) | data.nFileSizeLow;
 
-err:
-	__wt_scr_free(session, &name_wide);
-
+err:	__wt_scr_free(session, &name_wide);
 	return (ret);
 }
 
@@ -475,21 +463,18 @@ __win_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	int desired_access, f;
 
 	WT_UNUSED(file_system);
-
-	*file_handlep = NULL;
-
 	session = (WT_SESSION_IMPL *)wt_session;
 	conn = S2C(session);
+	*file_handlep = NULL;
 
 	WT_RET(__wt_calloc_one(session, &win_fh));
-
-	WT_ERR(__wt_to_utf16_string(session, name, &name_wide));
-
 	win_fh->direct_io = false;
 
 	/* Set up error handling. */
 	win_fh->filehandle =
 	    win_fh->filehandle_secondary = INVALID_HANDLE_VALUE;
+
+	WT_ERR(__wt_to_utf16_string(session, name, &name_wide));
 
 	/*
 	 * Opening a file handle on a directory is only to support filesystems
@@ -609,13 +594,10 @@ directory_open:
 	*file_handlep = file_handle;
 
 	__wt_scr_free(session, &name_wide);
-
 	return (0);
 
-err:
-	__wt_scr_free(session, &name_wide);
+err:	__wt_scr_free(session, &name_wide);
 	WT_TRET(__win_file_close((WT_FILE_HANDLE *)win_fh, wt_session));
-
 	return (ret);
 }
 
