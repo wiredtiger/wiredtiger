@@ -147,6 +147,7 @@ src/os_win/os_sleep.c			WINDOWS_HOST
 src/os_win/os_snprintf.c		WINDOWS_HOST
 src/os_win/os_thread.c			WINDOWS_HOST
 src/os_win/os_time.c			WINDOWS_HOST
+src/os_win/os_utf8.c			WINDOWS_HOST
 src/os_win/os_vsnprintf.c		WINDOWS_HOST
 src/os_win/os_winerr.c			WINDOWS_HOST
 src/os_win/os_yield.c			WINDOWS_HOST
@@ -184,6 +185,7 @@ src/support/pow.c
 src/support/rand.c
 src/support/scratch.c
 src/support/stat.c
+src/support/thread_group.c
 src/txn/txn.c
 src/txn/txn_ckpt.c
 src/txn/txn_ext.c
