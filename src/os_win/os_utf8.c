@@ -24,9 +24,8 @@ __wt_to_utf16_string(
 	windows_error = __wt_getlasterror();
 
 	if (bufferSize == 0 && windows_error != ERROR_INSUFFICIENT_BUFFER) {
-		__wt_errx(session,
-			  "MultiByteToWideChar: %s",
-			  __wt_formatmessage(session, windows_error));
+		__wt_errx(session, "MultiByteToWideChar: %s",
+		    __wt_formatmessage(session, windows_error));
 		return (__wt_map_windows_error(windows_error));
 	}
 
@@ -37,9 +36,8 @@ __wt_to_utf16_string(
 	if (bufferSize == 0) {
 		windows_error = __wt_getlasterror();
 		__wt_scr_free(session, outbuf);
-		__wt_errx(session,
-			  "MultiByteToWideChar: %s",
-			  __wt_formatmessage(session, windows_error));
+		__wt_errx(session, "MultiByteToWideChar: %s",
+		    __wt_formatmessage(session, windows_error));
 		return (__wt_map_windows_error(windows_error));
 	}
 
@@ -64,9 +62,8 @@ __wt_to_utf8_string(
 	windows_error = __wt_getlasterror();
 
 	if (bufferSize == 0 && windows_error != ERROR_INSUFFICIENT_BUFFER) {
-		__wt_errx(session,
-			  "WideCharToMultiByte: %s",
-			  __wt_formatmessage(session, windows_error));
+		__wt_errx(session, "WideCharToMultiByte: %s",
+		    __wt_formatmessage(session, windows_error));
 		return (__wt_map_windows_error(windows_error));
 	}
 
@@ -77,9 +74,8 @@ __wt_to_utf8_string(
 	if (bufferSize == 0) {
 		windows_error = __wt_getlasterror();
 		__wt_scr_free(session, outbuf);
-		__wt_errx(session,
-			  "WideCharToMultiByte: %s",
-			  __wt_formatmessage(session, windows_error));
+		__wt_errx(session, "WideCharToMultiByte: %s",
+		    __wt_formatmessage(session, windows_error));
 		return (__wt_map_windows_error(windows_error));
 	}
 
