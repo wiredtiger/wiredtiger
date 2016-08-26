@@ -969,7 +969,7 @@ __clsm_next_random(WT_CURSOR *cursor)
 		ret = c->next(c);
 		/*
 		 * Sometimes we may run on an empty chunk or for some reason be
-		 * unable to get a random doc. Thanks okay and we retry.
+		 * unable to get a random doc. That's okay and we retry.
 		 */
 		if (ret == WT_NOTFOUND) {
 			WT_ERR(c->close(c));

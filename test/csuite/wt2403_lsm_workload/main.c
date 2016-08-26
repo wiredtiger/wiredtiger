@@ -206,7 +206,7 @@ main(void)
 	testutil_check(wcursor->close(wcursor));
 	printf("%d documents deleted\n", NUM_DOCS-1);
 
-	/* Random reads, which should see not see the deletes */
+	/* Random reads, which should not see the deletes */
 	query_docs(rcursor, true);
 	testutil_check(rcursor->close(rcursor));
 
