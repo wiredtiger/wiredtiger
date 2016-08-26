@@ -81,22 +81,23 @@ __thread_group_shrink(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	WT_SESSION *wt_session;
 	WT_THREAD *thread;
-	uint32_t max;
+	uint32_t current_slot;
 
 	WT_ASSERT(session,
 	    __wt_rwlock_islocked(session, group->lock));
 
-	if (LF_ISSET(WT_THREAD_FORCE))
-		max = group->alloc;
+	if (LF_ISSET(WT_THREAD_CLOSE_ALL))
+		current_slot = group->alloc;
 	else
-		max = group->current_threads;
-	while (max > new_count) {
+		current_slot = group->current_threads;
+
+	while (current_slot > new_count) {
 		/*
-		 * The max value is a counter not an array index,
+		 * The offset value is a counter not an array index,
 		 * so adjust it before finding the last thread in the group.
 		 */
-		thread = group->threads[--max];
-		/* Be paranoid in case we are cleaning up after an error */
+		thread = group->threads[--current_slot];
+
 		if (thread == NULL)
 			continue;
 
@@ -122,8 +123,11 @@ __thread_group_shrink(WT_SESSION_IMPL *session,
 				thread->session = NULL;
 			}
 			__wt_free(session, thread);
+			group->threads[current_slot] = NULL;
 		}
 	}
+	/* Update the thread group state to match our changes */
+	group->current_threads = current_slot;
 	return (ret);
 }
 
@@ -301,7 +305,7 @@ __wt_thread_group_destroy(
 
 	/* Shut down all threads. */
 	WT_TRET(__thread_group_shrink(session,
-	    group, 0, WT_THREAD_FORCE | WT_THREAD_FREE));
+	    group, 0, WT_THREAD_CLOSE_ALL | WT_THREAD_FREE));
 
 	__wt_free(session, group->threads);
 
