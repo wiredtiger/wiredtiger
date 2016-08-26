@@ -964,7 +964,8 @@ __clsm_next_random(WT_CURSOR *cursor)
 	WT_ERR(__clsm_enter(clsm, false, false));
 
 	do {
-		WT_ERR(__clsm_random_chunk(session, clsm, &c));
+		WT_WITH_SCHEMA_LOCK(session, ret,
+		    WT_ERR(__clsm_random_chunk(session, clsm, &c)));
 		ret = c->next(c);
 		/*
 		 * Sometimes we may run on an empty chunk or for some reason be
