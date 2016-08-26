@@ -904,16 +904,24 @@ err:	__clsm_leave(clsm);
 /*
  * __clsm_random_chunk --
  *	Pick a chunk at random, weighted by the size of all chunks. Weighting
- * proportional to documents avoids biasing towards small chunks.
+ * proportional to documents avoids biasing towards small chunks. Then open a
+ * random cursor on the chunk we have picked.
  */
 static int
 __clsm_random_chunk(WT_SESSION_IMPL *session,
-    WT_CURSOR_LSM *clsm, WT_LSM_CHUNK **random_chunk)
+    WT_CURSOR_LSM *clsm, WT_CURSOR **cursor)
 {
 	WT_DECL_RET;
+	WT_LSM_CHUNK *random_chunk;
 	WT_LSM_TREE *lsm_tree;
 	uint64_t checked_docs, i, rand_doc, total_docs;
+	const char *cfg[3];
 
+	cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
+	cfg[1] = "next_random=true";
+	cfg[2] = NULL;
+
+	random_chunk = NULL;
 	lsm_tree = clsm->lsm_tree;
 	rand_doc = __wt_random(&session->rnd);
 	__wt_lsm_tree_readlock(session, lsm_tree);
@@ -926,10 +934,11 @@ __clsm_random_chunk(WT_SESSION_IMPL *session,
 	for (checked_docs = i = 0; i < clsm->nchunks; i++) {
 		checked_docs += lsm_tree->chunk[i]->count;
 		if (rand_doc <= checked_docs) {
-			*random_chunk = lsm_tree->chunk[i];
+			random_chunk = lsm_tree->chunk[i];
 			break;
 		}
 	}
+	ret = __wt_open_cursor(session, random_chunk->uri, NULL, cfg, cursor);
 	__wt_lsm_tree_readunlock(session, lsm_tree);
 	return (ret);
 }
@@ -945,34 +954,27 @@ __clsm_next_random(WT_CURSOR *cursor)
 	WT_CURSOR_LSM *clsm;
 	WT_CURSOR *c;
 	WT_DECL_RET;
-	WT_LSM_CHUNK *random_chunk;
 	WT_SESSION_IMPL *session;
-	const char *cfg[3];
 
+	c = NULL;
 	clsm = (WT_CURSOR_LSM *)cursor;
-	random_chunk = NULL;
 
 	CURSOR_API_CALL(cursor, session, next, NULL);
 	WT_CURSOR_NOVALUE(cursor);
 	WT_ERR(__clsm_enter(clsm, false, false));
-	cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
-	cfg[1] = "next_random=true";
-	cfg[2] = NULL;
 
 	do {
-		WT_ERR(__clsm_random_chunk(session, clsm, &random_chunk));
-		/*
-		 * Open a cursor on the chunk and pick a random key from within.
-		 */
-		WT_ERR(__wt_open_cursor(
-		    session, random_chunk->uri, NULL, cfg, &c));
+		WT_ERR(__clsm_random_chunk(session, clsm, &c));
 		ret = c->next(c);
 		/*
 		 * Sometimes we may run on an empty chunk or for some reason be
 		 * unable to get a random doc. Thanks okay and we retry.
 		 */
-		if (ret == WT_NOTFOUND)
+		if (ret == WT_NOTFOUND) {
+			WT_ERR(c->close(c));
+			ret = WT_NOTFOUND;
 			continue;
+		}
 
 		WT_ERR(ret);
 		WT_ERR(c->get_key(c, &cursor->key));
@@ -991,11 +993,11 @@ __clsm_next_random(WT_CURSOR *cursor)
 	} while (ret == WT_NOTFOUND);
 	/* We have found a valid doc. Set that we are now positioned */
 
-err:	F_CLR(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);	
+	if (0) {
+err:		F_CLR(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+	}
 	__clsm_leave(clsm);
 	API_END(session, ret);
-	if (ret == 0)
-		F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 	return (ret);
 }
 
