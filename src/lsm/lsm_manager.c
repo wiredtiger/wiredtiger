@@ -549,14 +549,14 @@ __wt_lsm_manager_clear_tree(
  * have session, entry and type available to use.  If the queue is empty
  * we may return from the macro.
  */
-#define	LSM_POP_ENTRY(qh, qlock, qlen) do {				\
+#define	LSM_POP_ENTRY(qh, qlock, stat_qlen) do {			\
 	if (TAILQ_EMPTY(qh))						\
 		return (0);						\
 	__wt_spin_lock(session, qlock);					\
 	TAILQ_FOREACH(entry, (qh), q) {					\
 		if (FLD_ISSET(type, entry->type)) {			\
 			TAILQ_REMOVE(qh, entry, q);			\
-			WT_STAT_FAST_CONN_DECR(session, qlen);		\
+			WT_STAT_FAST_CONN_DECR(session, stat_qlen);	\
 			break;						\
 		}							\
 	}								\
@@ -602,10 +602,10 @@ __wt_lsm_manager_pop_entry(
  * called from __wt_lsm_manager_push_entry and we have session and entry
  * available for use.
  */
-#define	LSM_PUSH_ENTRY(qh, qlock, qlen) do {				\
+#define	LSM_PUSH_ENTRY(qh, qlock, stat_qlen) do {			\
 	__wt_spin_lock(session, qlock);					\
 	TAILQ_INSERT_TAIL((qh), entry, q);				\
-	WT_STAT_FAST_CONN_INCR(session, qlen);				\
+	WT_STAT_FAST_CONN_INCR(session, stat_qlen);			\
 	__wt_spin_unlock(session, qlock);				\
 } while (0)
 

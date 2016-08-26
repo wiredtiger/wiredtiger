@@ -130,25 +130,26 @@ __curstat_lsm_init(
 	WT_STAT_WRITE(stats, lsm_chunk_count, lsm_tree->nchunks);
 
 	/* Include, and optionally clear, LSM-level specific information. */
-	WT_STAT_WRITE(stats, bloom_miss, lsm_tree->bloom_miss);
+	WT_STAT_FAST_WRITE(session, stats, bloom_miss, lsm_tree->bloom_miss);
 	if (F_ISSET(cst, WT_CONN_STAT_CLEAR))
 		lsm_tree->bloom_miss = 0;
-	WT_STAT_WRITE(stats, bloom_hit, lsm_tree->bloom_hit);
+	WT_STAT_FAST_WRITE(session, stats, bloom_hit, lsm_tree->bloom_hit);
 	if (F_ISSET(cst, WT_CONN_STAT_CLEAR))
 		lsm_tree->bloom_hit = 0;
-	WT_STAT_WRITE(
+	WT_STAT_FAST_WRITE(session,
 	    stats, bloom_false_positive, lsm_tree->bloom_false_positive);
 	if (F_ISSET(cst, WT_CONN_STAT_CLEAR))
 		lsm_tree->bloom_false_positive = 0;
-	WT_STAT_WRITE(
+	WT_STAT_FAST_WRITE(session,
 	    stats, lsm_lookup_no_bloom, lsm_tree->lsm_lookup_no_bloom);
 	if (F_ISSET(cst, WT_CONN_STAT_CLEAR))
 		lsm_tree->lsm_lookup_no_bloom = 0;
-	WT_STAT_WRITE(
+	WT_STAT_FAST_WRITE(session,
 	    stats, lsm_checkpoint_throttle, lsm_tree->lsm_checkpoint_throttle);
 	if (F_ISSET(cst, WT_CONN_STAT_CLEAR))
 		lsm_tree->lsm_checkpoint_throttle = 0;
-	WT_STAT_WRITE(stats, lsm_merge_throttle, lsm_tree->lsm_merge_throttle);
+	WT_STAT_FAST_WRITE(session,
+	    stats, lsm_merge_throttle, lsm_tree->lsm_merge_throttle);
 	if (F_ISSET(cst, WT_CONN_STAT_CLEAR))
 		lsm_tree->lsm_merge_throttle = 0;
 

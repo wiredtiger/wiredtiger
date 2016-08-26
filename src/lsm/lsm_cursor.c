@@ -1081,12 +1081,10 @@ __clsm_lookup(WT_CURSOR_LSM *clsm, WT_ITEM *value)
 
 			ret = __wt_bloom_hash_get(bloom, &bhash);
 			if (ret == WT_NOTFOUND) {
-				WT_LSM_TREE_STAT_INCR(
-				    session, clsm->lsm_tree->bloom_miss);
+				WT_LSM_TREE_STAT_INCR(session, bloom_miss);
 				continue;
 			} else if (ret == 0)
-				WT_LSM_TREE_STAT_INCR(
-				    session, clsm->lsm_tree->bloom_hit);
+				WT_LSM_TREE_STAT_INCR(session, bloom_hit);
 			WT_ERR(ret);
 		}
 		c->set_key(c, &cursor->key);
@@ -1101,11 +1099,9 @@ __clsm_lookup(WT_CURSOR_LSM *clsm, WT_ITEM *value)
 		F_CLR(c, WT_CURSTD_KEY_SET);
 		/* Update stats: the active chunk can't have a bloom filter. */
 		if (bloom != NULL)
-			WT_LSM_TREE_STAT_INCR(session,
-			    clsm->lsm_tree->bloom_false_positive);
+			WT_LSM_TREE_STAT_INCR(session, bloom_false_positive);
 		else if (clsm->primary_chunk == NULL || i != clsm->nchunks)
-			WT_LSM_TREE_STAT_INCR(session,
-			    clsm->lsm_tree->lsm_lookup_no_bloom);
+			WT_LSM_TREE_STAT_INCR(session, lsm_lookup_no_bloom);
 	}
 	WT_ERR(WT_NOTFOUND);
 
@@ -1348,11 +1344,11 @@ __clsm_put(WT_SESSION_IMPL *session, WT_CURSOR_LSM *clsm,
 	    lsm_tree->merge_throttle + lsm_tree->ckpt_throttle > 0) {
 		clsm->update_count = 0;
 		WT_LSM_TREE_STAT_INCRV(session,
-		    lsm_tree->lsm_checkpoint_throttle, lsm_tree->ckpt_throttle);
+		    lsm_checkpoint_throttle, lsm_tree->ckpt_throttle);
 		WT_STAT_FAST_CONN_INCRV(session,
 		    lsm_checkpoint_throttle, lsm_tree->ckpt_throttle);
 		WT_LSM_TREE_STAT_INCRV(session,
-		    lsm_tree->lsm_merge_throttle, lsm_tree->merge_throttle);
+		    lsm_merge_throttle, lsm_tree->merge_throttle);
 		WT_STAT_FAST_CONN_INCRV(session,
 		    lsm_merge_throttle, lsm_tree->merge_throttle);
 		__wt_sleep(0,
