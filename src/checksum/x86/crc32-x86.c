@@ -25,18 +25,6 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
-/*
- * Slicing-by-8 algorithm by Michael E. Kounavis and Frank L. Berry, described
- * in "Novel Table Lookup-Based Algorithms for High-Performance CRC Generation",
- * IEEE Transactions on Computers, Volume 57 Issue 11, November 2008.
- *
- * See also Peter Kanowski's posting:
- *	http://www.strchr.com/crc32_popcnt
- *
- * The big endian version calculates the same result at each step, except the
- * value of the crc is byte reversed from what it would be at that step for
- * little endian.
- */
 
 #include "wt_internal.h"
 
