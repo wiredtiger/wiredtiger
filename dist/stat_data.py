@@ -9,6 +9,7 @@
 #
 # Data-source statistics are normally aggregated across the set of underlying
 # objects. Additional optional configuration flags are available:
+#       all_only        Only gets reported when statistics=all set
 #       max_aggregate   Take the maximum value when aggregating statistics
 #       no_clear        Value not cleared when statistics cleared
 #       no_scale        Don't scale value per second in the logging tool script
@@ -201,12 +202,12 @@ connection_stats = [
     CacheStat('cache_eviction_queue_empty', 'eviction server candidate queue empty when topping up'),
     CacheStat('cache_eviction_queue_not_empty', 'eviction server candidate queue not empty when topping up'),
     CacheStat('cache_eviction_server_evicting', 'eviction server evicting pages'),
-    CacheStat('cache_eviction_server_not_evicting', 'eviction server populating queue, but not evicting pages'),
     CacheStat('cache_eviction_server_slept', 'eviction server slept, because we did not make progress with eviction'),
     CacheStat('cache_eviction_server_toobig', 'eviction server skipped very large page'),
     CacheStat('cache_eviction_slow', 'eviction server unable to reach eviction goal'),
     CacheStat('cache_eviction_split_internal', 'internal pages split during eviction'),
     CacheStat('cache_eviction_split_leaf', 'leaf pages split during eviction'),
+    CacheStat('cache_eviction_state', 'eviction state', 'no_clear,no_scale'),
     CacheStat('cache_eviction_walk', 'pages walked for eviction'),
     CacheStat('cache_eviction_walks_active', 'files with active eviction walks', 'no_clear,no_scale,size'),
     CacheStat('cache_eviction_walks_started', 'files with new eviction walks started'),
@@ -276,8 +277,8 @@ connection_stats = [
     LogStat('log_slot_unbuffered', 'consolidated slot unbuffered writes'),
     LogStat('log_sync', 'log sync operations'),
     LogStat('log_sync_dir', 'log sync_dir operations'),
-    LogStat('log_sync_dir_duration', 'log sync_dir time duration (usecs)'),
-    LogStat('log_sync_duration', 'log sync time duration (usecs)'),
+    LogStat('log_sync_dir_duration', 'log sync_dir time duration (usecs)', 'no_clear,no_scale'),
+    LogStat('log_sync_duration', 'log sync time duration (usecs)', 'no_clear,no_scale'),
     LogStat('log_write_lsn', 'log server thread advances write LSN'),
     LogStat('log_write_lsn_skip', 'log server thread write LSN walk skipped'),
     LogStat('log_writes', 'log write operations'),
@@ -421,13 +422,13 @@ dsrc_stats = [
     # Btree statistics
     ##########################################
     BtreeStat('btree_checkpoint_generation', 'btree checkpoint generation', 'no_clear,no_scale'),
-    BtreeStat('btree_column_deleted', 'column-store variable-size deleted values', 'no_scale'),
-    BtreeStat('btree_column_fix', 'column-store fixed-size leaf pages', 'no_scale'),
-    BtreeStat('btree_column_internal', 'column-store internal pages', 'no_scale'),
-    BtreeStat('btree_column_rle', 'column-store variable-size RLE encoded values', 'no_scale'),
-    BtreeStat('btree_column_variable', 'column-store variable-size leaf pages', 'no_scale'),
+    BtreeStat('btree_column_deleted', 'column-store variable-size deleted values', 'no_scale,all_only'),
+    BtreeStat('btree_column_fix', 'column-store fixed-size leaf pages', 'no_scale,all_only'),
+    BtreeStat('btree_column_internal', 'column-store internal pages', 'no_scale,all_only'),
+    BtreeStat('btree_column_rle', 'column-store variable-size RLE encoded values', 'no_scale,all_only'),
+    BtreeStat('btree_column_variable', 'column-store variable-size leaf pages', 'no_scale,all_only'),
     BtreeStat('btree_compact_rewrite', 'pages rewritten by compaction'),
-    BtreeStat('btree_entries', 'number of key/value pairs', 'no_scale'),
+    BtreeStat('btree_entries', 'number of key/value pairs', 'no_scale,all_only'),
     BtreeStat('btree_fixed_len', 'fixed-record size', 'max_aggregate,no_scale,size'),
     BtreeStat('btree_maximum_depth', 'maximum tree depth', 'max_aggregate,no_scale'),
     BtreeStat('btree_maxintlkey', 'maximum internal page key size', 'max_aggregate,no_scale,size'),
@@ -435,9 +436,9 @@ dsrc_stats = [
     BtreeStat('btree_maxleafkey', 'maximum leaf page key size', 'max_aggregate,no_scale,size'),
     BtreeStat('btree_maxleafpage', 'maximum leaf page size', 'max_aggregate,no_scale,size'),
     BtreeStat('btree_maxleafvalue', 'maximum leaf page value size', 'max_aggregate,no_scale,size'),
-    BtreeStat('btree_overflow', 'overflow pages', 'no_scale'),
-    BtreeStat('btree_row_internal', 'row-store internal pages', 'no_scale'),
-    BtreeStat('btree_row_leaf', 'row-store leaf pages', 'no_scale'),
+    BtreeStat('btree_overflow', 'overflow pages', 'no_scale,all_only'),
+    BtreeStat('btree_row_internal', 'row-store internal pages', 'no_scale,all_only'),
+    BtreeStat('btree_row_leaf', 'row-store leaf pages', 'no_scale,all_only'),
 
     ##########################################
     # LSM statistics

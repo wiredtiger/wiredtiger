@@ -1232,7 +1232,7 @@ __wt_page_can_evict(
 	 * previous version might be referenced by an internal page already
 	 * been written in the checkpoint, leaving the checkpoint inconsistent.
 	 */
-	if (btree->checkpointing != WT_CKPT_OFF && modified) {
+	if (modified && btree->checkpointing != WT_CKPT_OFF) {
 		WT_STAT_FAST_CONN_INCR(session, cache_eviction_checkpoint);
 		WT_STAT_FAST_DATA_INCR(session, cache_eviction_checkpoint);
 		return (false);
@@ -1260,11 +1260,10 @@ __wt_page_can_evict(
 		return (false);
 
 	/*
-	 * If the page is clean but has modifications that
-	 * appear too new to evict, skip it.
+	 * If the page is clean but has modifications that appear too new to
+	 * evict, skip it.
 	 */
-	if (!modified && mod != NULL &&
-	    !__wt_txn_visible_all(session, mod->rec_max_txn))
+	if (!modified && !__wt_txn_visible_all(session, mod->rec_max_txn))
 		return (false);
 
 	return (true);
