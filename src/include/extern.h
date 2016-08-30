@@ -345,7 +345,7 @@ extern int __wt_evict_destroy(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBU
 extern int __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session);
 extern int __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern void __wt_page_evict_soon(WT_SESSION_IMPL *session, WT_REF *ref);
+extern bool __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref);
 extern void __wt_evict_priority_set(WT_SESSION_IMPL *session, uint64_t v);
 extern void __wt_evict_priority_clear(WT_SESSION_IMPL *session);
 extern int __wt_cache_dump(WT_SESSION_IMPL *session, const char *ofile) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -713,7 +713,7 @@ extern void __wt_stat_join_aggregate( WT_JOIN_STATS **from, WT_JOIN_STATS *to);
 extern WT_THREAD_RET __wt_thread_run(void *arg);
 extern int __wt_thread_group_resize( WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t new_min, uint32_t new_max, uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_thread_group_create( WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, const char *name, uint32_t min, uint32_t max, uint32_t flags, int (*run_func)(WT_SESSION_IMPL *session, WT_THREAD *context)) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_thread_group_destroy( WT_SESSION_IMPL *session, WT_THREAD_GROUP *group) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_thread_group_destroy(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_thread_group_start_one( WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, bool wait) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_txn_release_snapshot(WT_SESSION_IMPL *session);
 extern int __wt_txn_get_snapshot(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

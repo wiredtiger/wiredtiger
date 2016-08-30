@@ -72,11 +72,12 @@ __thread_group_grow(
 
 /*
  * __thread_group_shrink --
- *	Decrease the number of running threads in the group.
+ *	Decrease the number of running threads in the group, and free any
+ *	memory associated with slots larger than the new count.
  */
 static int
 __thread_group_shrink(WT_SESSION_IMPL *session,
-    WT_THREAD_GROUP *group, uint32_t new_count, uint32_t flags)
+    WT_THREAD_GROUP *group, uint32_t new_count)
 {
 	WT_DECL_RET;
 	WT_SESSION *wt_session;
@@ -86,12 +87,7 @@ __thread_group_shrink(WT_SESSION_IMPL *session,
 	WT_ASSERT(session,
 	    __wt_rwlock_islocked(session, group->lock));
 
-	if (LF_ISSET(WT_THREAD_CLOSE_ALL))
-		current_slot = group->alloc;
-	else
-		current_slot = group->current_threads;
-
-	while (current_slot > new_count) {
+	for (current_slot = group->alloc; current_slot > new_count; ) {
 		/*
 		 * The offset value is a counter not an array index,
 		 * so adjust it before finding the last thread in the group.
@@ -112,20 +108,15 @@ __thread_group_shrink(WT_SESSION_IMPL *session,
 			thread->tid = 0;
 		}
 
-		/*
-		 * Worker thread sessions are only freed when shrinking the
-		 * pool or shutting down the connection.
-		 */
-		if (LF_ISSET(WT_THREAD_FREE)) {
-			if (thread->session != NULL) {
-				wt_session = (WT_SESSION *)thread->session;
-				WT_TRET(wt_session->close(wt_session, NULL));
-				thread->session = NULL;
-			}
-			__wt_free(session, thread);
-			group->threads[current_slot] = NULL;
+		if (thread->session != NULL) {
+			wt_session = (WT_SESSION *)thread->session;
+			WT_TRET(wt_session->close(wt_session, NULL));
+			thread->session = NULL;
 		}
+		__wt_free(session, thread);
+		group->threads[current_slot] = NULL;
 	}
+
 	/* Update the thread group state to match our changes */
 	group->current_threads = current_slot;
 	return (ret);
@@ -156,9 +147,11 @@ __thread_group_resize(
 	if (new_min == group->min && new_max == group->max)
 		return (0);
 
-	if (group->current_threads > new_max)
-		WT_RET(__thread_group_shrink(
-		    session, group, new_max, WT_THREAD_FREE));
+	/*
+	 * Coll shrink to reduce the number of thread structures and running
+	 * threads if required by the change in group size.
+	 */
+	WT_RET(__thread_group_shrink(session, group, new_max));
 
 	/*
 	 * Only reallocate the thread array if it is the largest ever, since
@@ -193,6 +186,7 @@ __thread_group_resize(
 			F_SET(thread, WT_THREAD_PANIC_FAIL);
 		thread->id = i;
 		thread->run_func = group->run_func;
+		WT_ASSERT(session, group->threads[i] == NULL);
 		group->threads[i] = thread;
 	}
 
@@ -212,8 +206,7 @@ err:	/*
 	 */
 	if (ret != 0) {
 		WT_TRET(__wt_thread_group_destroy(session, group));
-		WT_PANIC_RET(session, ret,
-		    "Error while resizing thread group");
+		WT_PANIC_RET(session, ret, "Error while resizing thread group");
 	}
 	return (ret);
 }
@@ -234,12 +227,8 @@ __wt_thread_group_resize(
 	    " from max: %" PRIu32 " -> %" PRIu32 "\n",
 	    group, group->min, new_min, group->max, new_max);
 
-	WT_ASSERT(session,
-	    !__wt_rwlock_islocked(session, group->lock));
-
 	__wt_writelock(session, group->lock);
-	WT_TRET(__thread_group_resize(
-	    session, group, new_min, new_max, flags));
+	WT_TRET(__thread_group_resize(session, group, new_min, new_max, flags));
 	__wt_writeunlock(session, group->lock);
 	return (ret);
 }
@@ -292,20 +281,17 @@ err:	if (ret != 0) {
  *	Shut down a thread group.  Our caller must hold the lock.
  */
 int
-__wt_thread_group_destroy(
-    WT_SESSION_IMPL *session, WT_THREAD_GROUP *group)
+__wt_thread_group_destroy(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group)
 {
 	WT_DECL_RET;
 
 	__wt_verbose(session, WT_VERB_THREAD_GROUP,
 	    "Destroying thread group: %p\n", group);
 
-	WT_ASSERT(session,
-	    __wt_rwlock_islocked(session, group->lock));
+	WT_ASSERT(session, __wt_rwlock_islocked(session, group->lock));
 
-	/* Shut down all threads. */
-	WT_TRET(__thread_group_shrink(session,
-	    group, 0, WT_THREAD_CLOSE_ALL | WT_THREAD_FREE));
+	/* Shut down all threads and free associated resources. */
+	WT_TRET(__thread_group_shrink(session, group, 0));
 
 	__wt_free(session, group->threads);
 
