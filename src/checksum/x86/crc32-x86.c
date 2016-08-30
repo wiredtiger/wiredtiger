@@ -128,6 +128,7 @@ __wt_cksum_hw(const void *chunk, size_t len)
 	return (~crc);
 }
 #endif
+#endif /* HAVE_CRC32_HARDWARE */
 
 /*
  * __wt_cksum_init --
@@ -136,6 +137,7 @@ __wt_cksum_hw(const void *chunk, size_t len)
 void
 __wt_cksum_init(void)
 {
+#if defined(HAVE_CRC32_HARDWARE)
 #if (defined(__amd64) || defined(__x86_64))
 	unsigned int eax, ebx, ecx, edx;
 
@@ -163,17 +165,8 @@ __wt_cksum_init(void)
 #else
 	__wt_process.cksum = __wt_cksum_sw;
 #endif
-}
 
 #else /* !HAVE_CRC32_HARDWARE */
-
-/*
- * __wt_cksum_init --
- *	WiredTiger: detect CRC hardware and set the checksum function.
- */
-void
-__wt_cksum_init(void)
-{
 	__wt_process.cksum = __wt_cksum_sw;
-}
 #endif /* HAVE_CRC32_HARDWARE */
+}
