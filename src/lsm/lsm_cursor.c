@@ -977,8 +977,8 @@ __clsm_next_random(WT_CURSOR *cursor)
 			continue;
 		}
 
-		WT_ERR(ret);
-		WT_ERR(c->get_key(c, &cursor->key));
+		if (ret == 0)
+			ret = c->get_key(c, &cursor->key);
 		WT_ERR(c->close(c));
 
 		/*
