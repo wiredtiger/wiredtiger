@@ -139,6 +139,17 @@ testutil_cleanup(TEST_OPTS *opts)
 }
 
 /*
+ * testutil_check_long --
+ *	Check if WT_DISABLE_LONG_TESTS is set and exit if so
+ */
+void
+testutil_check_long()
+{
+	if (getenv("WT_DISABLE_LONG_TESTS") != NULL)
+		exit(0);
+}
+
+/*
  * dcalloc --
  *	Call calloc, dying on failure.
  */
