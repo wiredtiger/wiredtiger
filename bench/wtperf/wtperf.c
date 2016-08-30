@@ -2353,8 +2353,8 @@ main(int argc, char *argv[])
 		    cfg->async_config ? cfg->async_config : "",
 		    cfg->compress_ext ? cfg->compress_ext : "",
 		    cfg->verbose > 1 && strlen(debug_cconfig) ? ",": "",
-		    cfg->verbose > 1 && strlen(debug_cconfig) ?
-			debug_cconfig : "",
+		    cfg->verbose > 1 &&
+			strlen(debug_cconfig) ? debug_cconfig : "",
 		    sess_cfg ? sess_cfg : "",
 		    user_cconfig ? ",": "",
 		    user_cconfig ? user_cconfig : "");
@@ -2380,8 +2380,8 @@ main(int argc, char *argv[])
 		    cfg->index ? INDEX_COL_NAMES : "",
 		    cfg->compress_table ? cfg->compress_table : "",
 		    cfg->verbose > 1 && strlen(debug_tconfig) ? ",": "",
-		    cfg->verbose > 1 && strlen(debug_tconfig) ?
-			debug_tconfig : "",
+		    cfg->verbose > 1 &&
+			strlen(debug_tconfig) ? debug_tconfig : "",
 		    user_tconfig ? ",": "",
 		    user_tconfig ? user_tconfig : "");
 		if (strlen(tc_buf))
