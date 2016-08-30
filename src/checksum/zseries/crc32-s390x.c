@@ -90,7 +90,7 @@ __wt_cksum_init(void)
 {
 #if defined(HAVE_CRC32_HARDWARE)
 	__wt_process.cksum = __wt_cksum_hw;
-else
+#else
 	__wt_process.cksum = __wt_cksum_sw;
 #endif
 }
