@@ -640,7 +640,7 @@ __log_file_header(
 	logrec->len = log->allocsize;
 	logrec->checksum = 0;
 	__wt_log_record_byteswap(logrec);
-	logrec->checksum = __wt_cksum(logrec, log->allocsize);
+	logrec->checksum = __wt_process.cksum(logrec, log->allocsize);
 #ifdef WORDS_BIGENDIAN
 	logrec->checksum = __wt_bswap32(logrec->checksum);
 #endif
@@ -1749,7 +1749,7 @@ advance:
 		logrec = (WT_LOG_RECORD *)buf->mem;
 		cksum_tmp = logrec->checksum;
 		logrec->checksum = 0;
-		cksum_calculate = __wt_cksum(logrec, reclen);
+		cksum_calculate = __wt_process.cksum(logrec, reclen);
 		logrec->checksum = cksum_tmp;
 		__wt_log_record_byteswap(logrec);
 		if (logrec->checksum != cksum_calculate) {
@@ -2066,7 +2066,7 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 	logrec->len = (uint32_t)record->size;
 	logrec->checksum = 0;
 	__wt_log_record_byteswap(logrec);
-	logrec->checksum = __wt_cksum(logrec, record->size);
+	logrec->checksum = __wt_process.cksum(logrec, record->size);
 #ifdef WORDS_BIGENDIAN
 	logrec->checksum = __wt_bswap32(logrec->checksum);
 #endif

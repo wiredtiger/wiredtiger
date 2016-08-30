@@ -202,7 +202,8 @@ extern int __wt_las_cursor_open(WT_SESSION_IMPL *session, WT_CURSOR **cursorp) W
 extern int __wt_las_cursor( WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t *session_flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_las_cursor_close( 	WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t session_flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_las_sweep(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern uint32_t __wt_cksum(const void *chunk, size_t len);
+extern uint32_t __wt_cksum_sw(const void *chunk, size_t len);
+extern void __wt_cksum_init(void);
 extern void __wt_cksum_init(void);
 extern int __wt_config_initn( WT_SESSION_IMPL *session, WT_CONFIG *conf, const char *str, size_t len) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_config_init(WT_SESSION_IMPL *session, WT_CONFIG *conf, const char *str) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

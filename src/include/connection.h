@@ -25,6 +25,9 @@ struct __wt_process {
 					/* Locked: connection queue */
 	TAILQ_HEAD(__wt_connection_impl_qh, __wt_connection_impl) connqh;
 	WT_CACHE_POOL *cache_pool;
+
+					/* Checksum function */
+	uint32_t (*cksum)(const void *, size_t);
 };
 extern WT_PROCESS __wt_process;
 
