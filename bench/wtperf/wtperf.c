@@ -2478,7 +2478,7 @@ main(int argc, char *argv[])
 	if (opts->verbose > 1 || user_cconfig != NULL ||
 	    opts->session_count_idle > 0 || cfg->compress_ext != NULL ||
 	    cfg->async_config != NULL) {
-		req_len = strlen(opts->conn_config) + strlen(debug_cconfig) + 3;
+		req_len = strlen(debug_cconfig) + 3;
 		if (user_cconfig != NULL)
 			req_len += strlen(user_cconfig);
 		if (cfg->async_config != NULL)
@@ -2498,23 +2498,22 @@ main(int argc, char *argv[])
 		/*
 		 * This is getting hard to parse.
 		 */
-		snprintf(cc_buf, req_len, "%s%s%s%s%s%s%s%s",
-		    opts->conn_config,
+		snprintf(cc_buf, req_len, "%s%s%s%s%s%s%s",
 		    cfg->async_config ? cfg->async_config : "",
 		    cfg->compress_ext ? cfg->compress_ext : "",
-		    opts->verbose > 1 ? ",": "",
-		    opts->verbose > 1 ? debug_cconfig : "",
+		    opts->verbose > 1 && strlen(debug_cconfig) ? ",": "",
+		    opts->verbose > 1 &&
+			strlen(debug_cconfig) ? debug_cconfig : "",
 		    sess_cfg ? sess_cfg : "",
 		    user_cconfig ? ",": "",
 		    user_cconfig ? user_cconfig : "");
-		if ((ret =
+		if (strlen(cc_buf) && (ret =
 		    config_opt_name_value(cfg, "conn_config", cc_buf)) != 0)
 			goto err;
 	}
 	if (opts->verbose > 1 || opts->index ||
 	    user_tconfig != NULL || cfg->compress_table != NULL) {
-		req_len =
-		    strlen(opts->table_config) + strlen(debug_tconfig) + 3;
+		req_len = strlen(debug_tconfig) + 3;
 		if (user_tconfig != NULL)
 			req_len += strlen(user_tconfig);
 		if (cfg->compress_table != NULL)
@@ -2525,15 +2524,15 @@ main(int argc, char *argv[])
 		/*
 		 * This is getting hard to parse.
 		 */
-		snprintf(tc_buf, req_len, "%s%s%s%s%s%s%s",
-		    opts->table_config,
+		snprintf(tc_buf, req_len, "%s%s%s%s%s%s",
 		    opts->index ? INDEX_COL_NAMES : "",
 		    cfg->compress_table ? cfg->compress_table : "",
-		    opts->verbose > 1 ? ",": "",
-		    opts->verbose > 1 ? debug_tconfig : "",
+		    opts->verbose > 1 && strlen(debug_tconfig) ? ",": "",
+		    opts->verbose > 1 &&
+			strlen(debug_tconfig) ? debug_tconfig : "",
 		    user_tconfig ? ",": "",
 		    user_tconfig ? user_tconfig : "");
-		if ((ret =
+		if (strlen(tc_buf) && (ret =
 		    config_opt_name_value(cfg, "table_config", tc_buf)) != 0)
 			goto err;
 	}
