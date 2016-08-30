@@ -49,8 +49,8 @@ rand_str(uint64_t i, char *str)
 static int
 check_str(uint64_t i, char *str, bool mod)
 {
-	char str2[] = "0000000000000000";
 	int ret;
+	char str2[] = "0000000000000000";
 	rand_str(i, str2);
 	if (mod)
 		str2[0] = 'A';
@@ -106,14 +106,14 @@ static void
 }
 
 int
-main(void)
+main(int argc, char *argv[])
 {
+	TEST_OPTS *opts, _opts;
 	WT_CONNECTION *conn;
 	WT_SESSION *session, *session2;
 	WT_CURSOR *rcursor, *wcursor;
 	WT_ITEM key, value;
 	uint64_t i;
-	int ret;
 	pthread_t thread;
 
 	char str[] = "0000000000000000";
@@ -122,17 +122,10 @@ main(void)
 	 * Create a clean test directory for this run of the test program if the
 	 * environment variable isn't already set (as is done by make check).
 	 */
-	if (getenv("WIREDTIGER_HOME") == NULL) {
-		home = "WT_HOME";
-		ret = system("rm -rf WT_HOME && mkdir WT_HOME");
-	} else
-		home = NULL;
-
-	if ((ret = wiredtiger_open(home, NULL, "create", &conn)) != 0) {
-		fprintf(stderr, "Error connecting to %s: %s\n",
-		    home == NULL ? "." : home, wiredtiger_strerror(ret));
-		return (EXIT_FAILURE);
-	}
+	opts = &_opts;
+	testutil_check(testutil_parse_opts(argc, argv, opts));
+	testutil_make_work_dir(opts->home);
+	testutil_check(wiredtiger_open(home, NULL, "create", &conn));
 
 	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 	testutil_check(conn->open_session(conn, NULL, NULL, &session2));
