@@ -93,7 +93,7 @@ main(int argc, char *argv[])
 	nfail = 0;
 
 	sharedopts->bloom = BLOOM;
-	testutil_check_long();
+	testutil_skip_long();
 	testutil_check(testutil_parse_opts(argc, argv, opts));
 	testutil_make_work_dir(opts->home);
 

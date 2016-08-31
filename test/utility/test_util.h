@@ -124,4 +124,4 @@ void  testutil_work_dir_from_path(char *, size_t, const char *);
 void *thread_append(void *);
 void *thread_insert_append(void *);
 void *thread_prev(void *);
-void testutil_check_long(void);
+void testutil_skip_long(void);
