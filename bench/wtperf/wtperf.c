@@ -56,7 +56,7 @@ static void	*worker(void *);
 static uint64_t	 wtperf_rand(CONFIG_THREAD *);
 static uint64_t	 wtperf_value_range(CONFIG *);
 
-#define	INDEX_COL_NAMES	",columns=(key,val)"
+#define	INDEX_COL_NAMES	"columns=(key,val)"
 
 /* Retrieve an ID for the next insert operation. */
 static inline uint64_t
@@ -2481,7 +2481,7 @@ main(int argc, char *argv[])
 	if (opts->verbose > 1 || user_cconfig != NULL ||
 	    opts->session_count_idle > 0 || cfg->compress_ext != NULL ||
 	    cfg->async_config != NULL) {
-		req_len = strlen(debug_cconfig) + 3;
+		req_len = strlen(debug_cconfig) + 20;
 		if (user_cconfig != NULL)
 			req_len += strlen(user_cconfig);
 		if (cfg->async_config != NULL)
@@ -2498,25 +2498,19 @@ main(int argc, char *argv[])
 			    cfg->workers_cnt + opts->populate_threads + 10);
 		}
 		cc_buf = dmalloc(req_len);
-		/*
-		 * This is getting hard to parse.
-		 */
-		snprintf(cc_buf, req_len, "%s%s%s%s%s%s%s",
+		snprintf(cc_buf, req_len, "%s,%s,%s,%s,%s",
 		    cfg->async_config ? cfg->async_config : "",
 		    cfg->compress_ext ? cfg->compress_ext : "",
-		    opts->verbose > 1 && strlen(debug_cconfig) ? ",": "",
-		    opts->verbose > 1 &&
-			strlen(debug_cconfig) ? debug_cconfig : "",
-		    sess_cfg ? sess_cfg : "",
-		    user_cconfig ? ",": "",
-		    user_cconfig ? user_cconfig : "");
+		    opts->verbose > 1 ? debug_cconfig : "",
+		    sess_cfg != NULL ? sess_cfg : "",
+		    user_cconfig != NULL ? user_cconfig : "");
 		if (strlen(cc_buf) && (ret =
 		    config_opt_name_value(cfg, "conn_config", cc_buf)) != 0)
 			goto err;
 	}
 	if (opts->verbose > 1 || opts->index ||
 	    user_tconfig != NULL || cfg->compress_table != NULL) {
-		req_len = strlen(debug_tconfig) + 3;
+		req_len = strlen(debug_tconfig) + 20;
 		if (user_tconfig != NULL)
 			req_len += strlen(user_tconfig);
 		if (cfg->compress_table != NULL)
@@ -2524,16 +2518,10 @@ main(int argc, char *argv[])
 		if (opts->index)
 			req_len += strlen(INDEX_COL_NAMES);
 		tc_buf = dmalloc(req_len);
-		/*
-		 * This is getting hard to parse.
-		 */
-		snprintf(tc_buf, req_len, "%s%s%s%s%s%s",
+		snprintf(tc_buf, req_len, "%s,%s,%s,%s",
 		    opts->index ? INDEX_COL_NAMES : "",
-		    cfg->compress_table ? cfg->compress_table : "",
-		    opts->verbose > 1 && strlen(debug_tconfig) ? ",": "",
-		    opts->verbose > 1 &&
-			strlen(debug_tconfig) ? debug_tconfig : "",
-		    user_tconfig ? ",": "",
+		    cfg->compress_table != NULL ? cfg->compress_table : "",
+		    opts->verbose > 1 ? debug_tconfig : "",
 		    user_tconfig ? user_tconfig : "");
 		if (strlen(tc_buf) && (ret =
 		    config_opt_name_value(cfg, "table_config", tc_buf)) != 0)
