@@ -37,7 +37,7 @@ from helper import complex_value_populate, key_populate, value_populate
 #    Statistics cursor using size only
 class test_stat_cursor_config(wttest.WiredTigerTestCase):
     pfx = 'test_stat_cursor_size'
-    conn_config = 'statistics=(fast)'
+    conn_config = 'statistics=(fast),cache_size=10MB'
 
     uri = [
         ('file',  dict(uri='file:' + pfx, pop=simple_populate, cfg='')),
