@@ -75,7 +75,8 @@ config_opt_init(CONFIG_OPTS **retp)
 	 */
 	for (i = 0, desc = config_opts_desc;
 	    i < WT_ELEMENTS(config_opts_desc); i++, ++desc)
-		if (desc->type == CONFIG_STRING_TYPE) {
+		if (desc->type == CONFIG_STRING_TYPE ||
+		    desc->type == STRING_TYPE) {
 			valueloc = ((uint8_t *)opts + desc->offset);
 			strp = (char **)valueloc;
 			*strp = dstrdup(*strp);
@@ -99,7 +100,8 @@ config_opt_cleanup(CONFIG_OPTS *opts)
 
 	for (i = 0, desc = config_opts_desc;
 	    i < WT_ELEMENTS(config_opts_desc); i++, ++desc)
-		if (desc->type == CONFIG_STRING_TYPE) {
+		if (desc->type == CONFIG_STRING_TYPE ||
+		    desc->type == STRING_TYPE) {
 			valueloc = ((uint8_t *)opts + desc->offset);
 			strp = (char **)valueloc;
 			free(*strp);
