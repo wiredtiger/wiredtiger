@@ -26,11 +26,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <sys/types.h>
-#include <string.h>
-#include <stdio.h>
+#include "wt_internal.h"
 
-#include "queue.h"
 #include "config_opt.h"
 
 static const CONFIG_OPT config_opts[] = {
@@ -69,11 +66,10 @@ pretty_print(const char *p, const char *indent)
 static void
 config_doxygen(void)
 {
-	size_t i, nopt;
+	size_t i;
 	const char *defaultval, *typestr;
 
-	nopt = sizeof(config_opts)/sizeof(config_opts[0]);
-	for (i = 0; i < nopt; i++) {
+	for (i = 0; i < WT_ELEMENTS(config_opts); i++) {
 		defaultval = config_opts[i].defaultval;
 		typestr = "string";
 		switch (config_opts[i].type) {
