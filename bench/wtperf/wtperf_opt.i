@@ -191,8 +191,8 @@ DEF_OPT_AS_STRING(threads, "", "workload configuration: each 'count' "
     "'updates', 'truncate', 'truncate_pct' and 'truncate_count'. There are "
     "also behavior modifiers, supported modifiers are 'ops_per_txn'")
 DEF_OPT_AS_CONFIG_STRING(transaction_config, "",
-    "transaction configuration string, relevant when populate_opts_per_txn "
-    "is nonzero")
+    "WT_SESSION.begin_transaction configuration string, applied during the "
+    "populate phase when populate_ops_per_txn is nonzero")
 DEF_OPT_AS_STRING(table_name, "test", "table name")
 DEF_OPT_AS_BOOL(truncate_single_ops, 0,
     "Implement truncate via cursor remove instead of session API")
