@@ -1960,10 +1960,11 @@ config_copy(const CONFIG *src, CONFIG **retp)
 
 	dest = dcalloc(1, sizeof(CONFIG));
 
-	if (src->home != NULL)
-		dest->home = dstrdup(src->home);
-	if (src->monitor_dir != NULL)
-		dest->monitor_dir = dstrdup(src->monitor_dir);
+	/*
+	 * Don't copy the home and monitor directories, they are filled in by
+	 * our caller, explicitly.
+	 */
+
 	if (src->partial_config != NULL)
 		dest->partial_config = dstrdup(src->partial_config);
 	if (src->reopen_config != NULL)
@@ -2108,6 +2109,8 @@ start_all_runs(CONFIG *cfg)
 		/* If the monitor dir is default, update it too. */
 		if (strcmp(cfg->monitor_dir, cfg->home) == 0)
 			next_cfg->monitor_dir = dstrdup(next_cfg->home);
+		else
+			next_cfg->monitor_dir = dstrdup(cfg->monitor_dir);
 
 		/* If creating the sub-database, recreate its home */
 		if (opts->create != 0)
