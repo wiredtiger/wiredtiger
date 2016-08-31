@@ -603,7 +603,7 @@ copy(u_int gen, u_int recno)
 		dsk->write_gen = gen;
 		blk = WT_BLOCK_HEADER_REF(buf);
 		blk->cksum = 0;
-		blk->cksum = __wt_process.cksum(dsk, PSIZE);
+		blk->cksum = __wt_cksum(dsk, PSIZE);
 		CHECK(fwrite(buf, 1, PSIZE, ofp) == PSIZE);
 	}
 

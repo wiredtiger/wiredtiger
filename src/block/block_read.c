@@ -191,7 +191,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	__wt_block_header_byteswap_copy(blk, &swap);
 	if (swap.cksum == cksum) {
 		blk->cksum = 0;
-		page_cksum = __wt_process.cksum(buf->mem,
+		page_cksum = __wt_cksum(buf->mem,
 		    F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ?
 		    size : WT_BLOCK_COMPRESS_SKIP);
 		if (page_cksum == cksum) {

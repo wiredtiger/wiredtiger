@@ -27,6 +27,7 @@ struct __wt_process {
 	WT_CACHE_POOL *cache_pool;
 
 					/* Checksum function */
+#define	__wt_cksum(chunk, len)	__wt_process.cksum(chunk, len)
 	uint32_t (*cksum)(const void *, size_t);
 };
 extern WT_PROCESS __wt_process;
