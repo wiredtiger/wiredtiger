@@ -851,16 +851,13 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 	if ((ret = __evict_walk(cache->walk_session, queue)) != 0)
 		return (ret == EBUSY ? 0 : ret);
 
-	/*
-	 * If the queue we are filling is empty, pages are being requested
-	 * faster than they are being queued.
-	 */
-	if (__evict_queue_empty(queue)) {
-		cache->evict_empty_score = WT_MIN(WT_EVICT_EMPTY_SCORE_MAX,
-		    cache->evict_empty_score + WT_EVICT_EMPTY_SCORE_BUMP);
-		WT_STAT_FAST_CONN_INCR(session, cache_eviction_queue_empty);
-	} else
-		WT_STAT_FAST_CONN_INCR(session, cache_eviction_queue_not_empty);
+	/* Make sure the other queue is current before locking. */
+	if (cache->evict_current_queue != other_queue) {
+		__wt_spin_lock(session, &cache->evict_queue_lock);
+		cache->evict_other_queue = queue;
+		cache->evict_current_queue = other_queue;
+		__wt_spin_unlock(session, &cache->evict_queue_lock);
+	}
 
 	/* Sort the list into LRU order and restart. */
 	__wt_spin_lock(session, &queue->evict_lock);
@@ -953,6 +950,17 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 			cache->read_gen_oldest = read_gen_oldest;
 		}
 	}
+
+	/*
+	 * If the queue we are filling is empty, pages are being requested
+	 * faster than they are being queued.
+	 */
+	if (__evict_queue_empty(queue)) {
+		cache->evict_empty_score = WT_MIN(WT_EVICT_EMPTY_SCORE_MAX,
+		    cache->evict_empty_score + WT_EVICT_EMPTY_SCORE_BUMP);
+		WT_STAT_FAST_CONN_INCR(session, cache_eviction_queue_empty);
+	} else
+		WT_STAT_FAST_CONN_INCR(session, cache_eviction_queue_not_empty);
 
 	queue->evict_current = queue->evict_queue;
 	__wt_spin_unlock(session, &queue->evict_lock);
