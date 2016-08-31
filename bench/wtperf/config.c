@@ -110,6 +110,8 @@ config_opt_cleanup(CONFIG_OPTS *opts)
 		free(config_line->string);
 		free(config_line);
 	}
+
+	free(opts);
 }
 
 /*
