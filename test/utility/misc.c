@@ -143,7 +143,7 @@ testutil_cleanup(TEST_OPTS *opts)
  *	Check if WT_DISABLE_LONG_TESTS is set and exit if so
  */
 void
-testutil_check_long()
+testutil_check_long(void)
 {
 	if (getenv("WT_DISABLE_LONG_TESTS") != NULL)
 		exit(0);
