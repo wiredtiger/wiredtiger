@@ -962,7 +962,6 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 	} else
 		WT_STAT_FAST_CONN_INCR(session, cache_eviction_queue_not_empty);
 
-
 	queue->evict_current = queue->evict_queue;
 	__wt_spin_unlock(session, &queue->evict_lock);
 
