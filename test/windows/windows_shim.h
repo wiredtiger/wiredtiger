@@ -109,6 +109,7 @@ int   pthread_rwlock_init(pthread_rwlock_t *,
     const pthread_rwlockattr_t *);
 int   pthread_rwlock_rdlock(pthread_rwlock_t *);
 int   pthread_rwlock_unlock(pthread_rwlock_t *);
+int   pthread_rwlock_trywrlock(pthread_rwlock_t *);
 int   pthread_rwlock_wrlock(pthread_rwlock_t *);
 
 int   pthread_create(pthread_t *, const pthread_attr_t *,
