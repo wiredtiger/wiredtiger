@@ -57,13 +57,13 @@
 
 #ifdef OPT_DEFINE_DOXYGEN
 #define	DEF_OPT_AS_BOOL(name, initval, desc)				\
-	{ #name, desc, #initval, BOOL_TYPE, 0 },
+	OPTION #name, desc, #initval, boolean
 #define	DEF_OPT_AS_CONFIG_STRING(name, initval, desc)			\
-	{ #name, desc, initval, CONFIG_STRING_TYPE, 0 },
+	OPTION #name, desc, initval, string
 #define	DEF_OPT_AS_STRING(name, initval, desc)				\
-	{ #name, desc, initval, STRING_TYPE, 0 },
+	OPTION #name, desc, initval, string
 #define	DEF_OPT_AS_UINT32(name, initval, desc)				\
-	{ #name, desc, #initval, UINT32_TYPE, 0 },
+	OPTION #name, desc, #initval, unsigned int
 #endif
 
 /*

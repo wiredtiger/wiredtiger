@@ -1,8 +1,7 @@
 #! /bin/sh
 
 t=__wt.$$
-b=__wtdoxy.$$
-trap 'rm -f $b $t; exit 0' 0 1 2 3 13 15
+trap 'rm -f $t; exit 0' 0 1 2 3 13 15
 
 # Skip this when building release packages: docs are built separately
 test -n "$WT_RELEASE_BUILD" && exit 0
@@ -31,15 +30,14 @@ wtperf_config()
 {
 	# The Linux ed command writes line numbers to stderr, redirect both
 	# stdout and stderr to keep things quiet.
-	${CC:-cc} -o $b -I.. -I../src/include ../bench/wtperf/doxy.c || {
-		echo "$0: unable to compile doxy.c"
-		exit 1
-	}
+	cat ../bench/wtperf/wtperf_opt.i |
+	    cpp -DOPT_DEFINE_DOXYGEN |
+	    python wtperf_config.py > $t
 	(echo '/START_AUTO_GENERATED_WTPERF_CONFIGURATION/+3,/STOP_AUTO_GENERATED_WTPERF_CONFIGURATION/-1d'
 	 echo 'i'
 	 echo ''
 	 echo '.'
-	 echo ".r !./$b"
+	 echo ".r $t"
 	 echo 'a'
 	 echo ''
 	 echo '.'
