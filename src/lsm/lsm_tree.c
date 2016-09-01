@@ -384,6 +384,11 @@ __lsm_tree_find(WT_SESSION_IMPL *session,
 				 */
 				(void)__wt_atomic_add32(&lsm_tree->refcnt, 1);
 				__lsm_tree_close(session, lsm_tree, false);
+				if (lsm_tree->refcnt != 1) {
+					__wt_lsm_tree_release(
+					    session, lsm_tree);
+					return (EBUSY);
+				}
 			} else {
 				(void)__wt_atomic_add32(&lsm_tree->refcnt, 1);
 
