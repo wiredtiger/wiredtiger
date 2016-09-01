@@ -97,7 +97,7 @@ __lsm_tree_close(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, bool final)
 	 * the tree queue state.
 	 */
 	lsm_tree->active = false;
-	WT_READ_BARRIER();
+	WT_FULL_BARRIER();
 
 	/*
 	 * Wait for all LSM operations to drain. If WiredTiger is shutting
