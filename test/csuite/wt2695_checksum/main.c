@@ -103,6 +103,15 @@ main(void)
 	check(sw, (uint32_t)0x22620404, len, "known string #2: software");
 
 	/*
+	 * Offset the string by 1 to ensure the hardware code handles unaligned
+	 * reads.
+	 */
+	hw = __wt_cksum(data + 1, len - 1);
+	check(hw, (uint32_t)0xae11f7f5, len, "known string #2: hardware");
+	sw = __wt_cksum_sw(data + 1, len - 1);
+	check(sw, (uint32_t)0xae11f7f5, len, "known string #2: software");
+
+	/*
 	 * Checksums of power-of-two data chunks.
 	 */
 	for (i = 0, len = 512; i < 1000; ++i) {
