@@ -28,19 +28,18 @@
 
 #include "wt_internal.h"
 
+#if defined(HAVE_CRC32_HARDWARE)
 #include <asm/hwcap.h>
 #include <sys/auxv.h>
 
-#if defined(HAVE_CRC32_HARDWARE)
-
-#define	CRC32CX(crc,value) asm("crc32cx %w[c], %w[c], %x[v]" : \
-	[c]"+r"(*&crc) : [v]"r"(+value))
-#define	CRC32CW(crc,value) asm("crc32cw %w[c], %w[c], %w[v]" : \
-	[c]"+r"(*&crc) : [v]"r"(+value))
-#define	CRC32CH(crc,value) asm("crc32ch %w[c], %w[c], %w[v]" : \
-	[c]"+r"(*&crc) : [v]"r"(+value))
-#define	CRC32CB(crc,value) asm("crc32cb %w[c], %w[c], %w[v]" : \
-	[c]"+r"(*&crc) : [v]"r"(+value))
+#define	CRC32CX(crc,value)						\
+	asm("crc32cx %w[c], %w[c], %x[v]" : [c]"+r"(*&crc) : [v]"r"(+value))
+#define	CRC32CW(crc,value)						\
+	asm("crc32cw %w[c], %w[c], %w[v]" : [c]"+r"(*&crc) : [v]"r"(+value))
+#define	CRC32CH(crc,value)						\
+	asm("crc32ch %w[c], %w[c], %w[v]" : [c]"+r"(*&crc) : [v]"r"(+value))
+#define	CRC32CB(crc,value)						\
+	asm("crc32cb %w[c], %w[c], %w[v]" : [c]"+r"(*&crc) : [v]"r"(+value))
 
 /*
  * __wt_cksum_hw --
@@ -60,7 +59,7 @@ __wt_cksum_hw(const void *chunk, size_t len)
 	/* Checksum one byte at a time to the first 4B boundary. */
 	for (p = chunk;
 	    ((uintptr_t)p & (sizeof(uint32_t) - 1)) != 0 &&
-		 len > 0; ++p, --len) {
+	    len > 0; ++p, --len) {
 		CRC32CB(crc, *p);
 	}
 
@@ -89,7 +88,7 @@ void
 __wt_cksum_init(void)
 {
 #if defined(HAVE_CRC32_HARDWARE)
-       unsigned long caps = getauxval(AT_HWCAP);
+	unsigned long caps = getauxval(AT_HWCAP);
 
 	if (caps & HWCAP_CRC32)
 		__wt_process.cksum = __wt_cksum_hw;

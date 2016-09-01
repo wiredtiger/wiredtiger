@@ -48,7 +48,7 @@ __wt_cksum_hw(const void *chunk, size_t len)
 	/* Checksum one byte at a time to the first 4B boundary. */
 	for (p = chunk;
 	    ((uintptr_t)p & (sizeof(uint32_t) - 1)) != 0 &&
-		 len > 0; ++p, --len) {
+	    len > 0; ++p, --len) {
 		__asm__ __volatile__(
 				     ".byte 0xF2, 0x0F, 0x38, 0xF0, 0xF1"
 				     : "=S" (crc)
