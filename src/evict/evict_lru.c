@@ -610,9 +610,9 @@ __evict_pass(WT_SESSION_IMPL *session)
 			 * Mark the cache as stuck if we need space and aren't
 			 * evicting any pages.
 			 */
-			if (FLD_ISSET(
-			    cache->state, WT_EVICT_STATE_CLEAN_HARD) ||
-			    FLD_ISSET(cache->state, WT_EVICT_STATE_DIRTY_HARD))
+			if (FLD_ISSET(cache->state,
+			    WT_EVICT_STATE_CLEAN_HARD |
+			    WT_EVICT_STATE_DIRTY_HARD))
 				F_SET(cache, WT_CACHE_STUCK);
 
 			WT_STAT_FAST_CONN_INCR(session, cache_eviction_slow);
