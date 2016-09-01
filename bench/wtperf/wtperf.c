@@ -2097,26 +2097,28 @@ start_all_runs(CONFIG *cfg)
 	/* Allocate an array to hold our thread IDs. */
 	threads = dcalloc(opts->database_count, sizeof(pthread_t));
 
-	len = strlen(cfg->home);
 	for (i = 0; i < opts->database_count; i++) {
 		if ((ret = config_copy(cfg, &next_cfg)) != 0)
 			goto err;
 		configs[i] = next_cfg;
 
-		/* Setup a unique home directory for each database. */
-		next_cfg->home = dmalloc(len + 5);
-		snprintf(next_cfg->home,
-		    len + 5, "%s/D%02d", cfg->home, (int)i);
-
-		/* If the monitor dir is default, update it too. */
-		if (strcmp(cfg->monitor_dir, cfg->home) == 0)
-			next_cfg->monitor_dir = dstrdup(next_cfg->home);
-		else
-			next_cfg->monitor_dir = dstrdup(cfg->monitor_dir);
-
-		/* If creating the sub-database, recreate its home */
+		/*
+		 * Set up unique home/monitor directories for each database.
+		 * Re-create the directories if creating the databases.
+		 */
+		len = strlen(cfg->home) + 5;
+		next_cfg->home = dmalloc(len);
+		snprintf(next_cfg->home, len, "%s/D%02d", cfg->home, (int)i);
 		if (opts->create != 0)
 			recreate_dir(next_cfg->home);
+
+		len = strlen(cfg->monitor_dir) + 5;
+		next_cfg->monitor_dir = dmalloc(len);
+		snprintf(next_cfg->monitor_dir,
+		    len, "%s/D%02d", cfg->monitor_dir, (int)i);
+		if (opts->create != 0 &&
+		    strcmp(next_cfg->home, next_cfg->monitor_dir) != 0)
+			recreate_dir(next_cfg->monitor_dir);
 
 		if ((ret = pthread_create(
 		    &threads[i], NULL, thread_run_wtperf, next_cfg)) != 0) {
