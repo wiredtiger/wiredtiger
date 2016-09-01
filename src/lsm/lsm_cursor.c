@@ -18,6 +18,7 @@
 static int __clsm_lookup(WT_CURSOR_LSM *, WT_ITEM *);
 static int __clsm_open_cursors(WT_CURSOR_LSM *, bool, u_int, uint32_t);
 static int __clsm_reset_cursors(WT_CURSOR_LSM *, WT_CURSOR *);
+static int __clsm_search_near(WT_CURSOR *cursor, int *exactp);
 
 /*
  * __wt_clsm_request_switch --
@@ -904,43 +905,40 @@ err:	__clsm_leave(clsm);
 /*
  * __clsm_random_chunk --
  *	Pick a chunk at random, weighted by the size of all chunks. Weighting
- * proportional to documents avoids biasing towards small chunks. Then open a
- * random cursor on the chunk we have picked.
+ * proportional to documents avoids biasing towards small chunks. Then return
+ * the cursor on the chunk we have picked.
  */
 static int
 __clsm_random_chunk(WT_SESSION_IMPL *session,
     WT_CURSOR_LSM *clsm, WT_CURSOR **cursor)
 {
-	WT_DECL_RET;
-	WT_LSM_CHUNK *random_chunk;
 	WT_LSM_TREE *lsm_tree;
 	uint64_t checked_docs, i, rand_doc, total_docs;
-	const char *cfg[3];
 
-	cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
-	cfg[1] = "next_random=true";
-	cfg[2] = NULL;
-
-	random_chunk = NULL;
 	lsm_tree = clsm->lsm_tree;
 	rand_doc = __wt_random(&session->rnd);
-	__wt_lsm_tree_readlock(session, lsm_tree);
+	/*
+	 * If the tree is empty we cannot do a random lookup, so return a
+	 * WT_NOTFOUND.
+	 */
+	if (clsm->nchunks == 0)
+		return (WT_NOTFOUND);
 	for (total_docs = i = 0; i < clsm->nchunks; i++) {
 		total_docs += lsm_tree->chunk[i]->count;
 	}
+	if (total_docs == 0)
+		return (WT_NOTFOUND);
 
 	rand_doc %= total_docs;
 
 	for (checked_docs = i = 0; i < clsm->nchunks; i++) {
 		checked_docs += lsm_tree->chunk[i]->count;
 		if (rand_doc <= checked_docs) {
-			random_chunk = lsm_tree->chunk[i];
+			*cursor = clsm->cursors[i];
 			break;
 		}
 	}
-	ret = __wt_open_cursor(session, random_chunk->uri, NULL, cfg, cursor);
-	__wt_lsm_tree_readunlock(session, lsm_tree);
-	return (ret);
+	return (0);
 }
 
 /*
@@ -955,6 +953,7 @@ __clsm_next_random(WT_CURSOR *cursor)
 	WT_CURSOR *c;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	int exact;
 
 	c = NULL;
 	clsm = (WT_CURSOR_LSM *)cursor;
@@ -966,34 +965,25 @@ __clsm_next_random(WT_CURSOR *cursor)
 	do {
 		WT_WITH_SCHEMA_LOCK(session, ret,
 		    WT_ERR(__clsm_random_chunk(session, clsm, &c)));
-		ret = c->next(c);
+		ret = __wt_curfile_next_random(c);
 		/*
 		 * Sometimes we may run on an empty chunk or for some reason be
 		 * unable to get a random doc. That's okay and we retry.
 		 */
-		if (ret == WT_NOTFOUND) {
-			WT_ERR(c->close(c));
-			ret = WT_NOTFOUND;
-			continue;
+		if (ret == 0) {
+			F_SET(cursor, WT_CURSTD_KEY_INT);
+			WT_ERR(c->get_key(c, &cursor->key));
+			/*
+			 * Search near the current key to resolve any tombstones
+			 * and position to a valid document. If we see a
+			 * WT_NOTFOUND here that is valid, as the tree has no
+			 * documents visible to us.
+			 */
+			WT_ERR(__clsm_search_near(cursor, &exact));
 		}
-
-		if (ret == 0)
-			ret = c->get_key(c, &cursor->key);
-		WT_ERR(c->close(c));
-
-		/*
-		 * Search back through the tree from the top to resolve any
-		 * updates or tombstones. If we find a tombstone, then pick a
-		 * new random doc and try again. We retry forever as eventually
-		 * we should see a current doc or the tombstones will get
-		 * merged out.
-		 */
-		ret = __clsm_lookup(clsm, &cursor->value);
-		if (ret != WT_NOTFOUND)
-			WT_ERR(ret);
 	} while (ret == WT_NOTFOUND);
-	/* We have found a valid doc. Set that we are now positioned */
 
+	/* We have found a valid doc. Set that we are now positioned */
 	if (0) {
 err:		F_CLR(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 	}
@@ -1361,7 +1351,12 @@ __clsm_search_near(WT_CURSOR *cursor, int *exactp)
 			 */
 			F_CLR(cursor, WT_CURSTD_KEY_SET);
 			F_SET(cursor, WT_CURSTD_KEY_INT);
-			if ((ret = cursor->next(cursor)) == 0) {
+			/*
+			 * We call __clsm_next here as we want to advance
+			 * forward. If we are a random LSM cursor calling next
+			 * on the cursor will not advance as we intend.
+			 */
+			if ((ret = __clsm_next(cursor)) == 0) {
 				cmp = 1;
 				deleted = false;
 			}
@@ -1370,7 +1365,11 @@ __clsm_search_near(WT_CURSOR *cursor, int *exactp)
 	}
 	if (deleted) {
 		clsm->current = NULL;
-		WT_ERR(cursor->prev(cursor));
+		/*
+		 * We call prev directly here as cursor->prev may be "invalid"
+		 * if this is a random cursor.
+		 */
+		WT_ERR(__clsm_prev(cursor));
 		cmp = -1;
 	}
 	*exactp = cmp;

@@ -29,7 +29,6 @@
 #include "test_util.h"
 
 static const char name[] = "lsm:test";
-static const char *home;
 void (*custom_die)(void) = NULL;
 #define	NUM_DOCS 100000
 #define	NUM_QUERIES (NUM_DOCS/100)
@@ -125,7 +124,7 @@ main(int argc, char *argv[])
 	opts = &_opts;
 	testutil_check(testutil_parse_opts(argc, argv, opts));
 	testutil_make_work_dir(opts->home);
-	testutil_check(wiredtiger_open(home, NULL, "create", &conn));
+	testutil_check(wiredtiger_open(opts->home, NULL, "create", &conn));
 
 	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 	testutil_check(conn->open_session(conn, NULL, NULL, &session2));
@@ -244,6 +243,22 @@ main(int argc, char *argv[])
 	query_docs(rcursor, true);
 	testutil_check(rcursor->close(rcursor));
 	pthread_join(thread, NULL);
+
+	/* Delete everything. Check for infinite loops */
+	testutil_check(session->open_cursor(
+	    session, name, NULL, "overwrite", &wcursor));
+	for (i = 0; i < NUM_DOCS; i++) {
+		wcursor->set_key(wcursor, i);
+		testutil_check(wcursor->remove(wcursor));
+	}
+	testutil_check(wcursor->close(wcursor));
+
+	testutil_check(session2->open_cursor(
+	    session2, name, NULL, "next_random=true", &rcursor));
+	for (i = 0; i < 3; i++) {
+		testutil_assert(rcursor->next(rcursor) == WT_NOTFOUND);
+	}
+	printf("Successfully got WT_NOTFOUND\n");
 
 	testutil_check(conn->close(conn, NULL));
 
