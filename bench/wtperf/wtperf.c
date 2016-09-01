@@ -1981,12 +1981,14 @@ config_copy(const CONFIG *src, CONFIG **retp)
 
 	dest->ckptthreads = NULL;
 	dest->popthreads = NULL;
-	dest->workers = NULL;
 
-	if (src->workload != NULL) {
-		dest->workload = dcalloc(WORKLOAD_MAX, sizeof(WORKLOAD));
+	dest->workers = NULL;
+	dest->workers_cnt = src->workers_cnt;
+	if (src->workload_cnt != 0) {
+		dest->workload_cnt = src->workload_cnt;
+		dest->workload = dcalloc(src->workload_cnt, sizeof(WORKLOAD));
 		memcpy(dest->workload,
-		    src->workload, WORKLOAD_MAX * sizeof(WORKLOAD));
+		    src->workload, src->workload_cnt * sizeof(WORKLOAD));
 	}
 
 	TAILQ_INIT(&dest->stone_head);
