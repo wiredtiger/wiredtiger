@@ -142,7 +142,8 @@ test_join(TEST_OPTS *opts, SHARED_OPTS *sharedopts, bool bloom, bool remove)
 	sharedopts->bloom = bloom;
 	sharedopts->remove = remove;
 
-	fprintf(stderr, "Running with bloom=%d, remove=%d\n", bloom, remove);
+	fprintf(stderr, "Running with bloom=%d, remove=%d\n",
+	    (int)bloom, (int)remove);
 
 	testutil_check(
 	    opts->conn->open_session(opts->conn, NULL, NULL, &session));
@@ -222,7 +223,7 @@ test_join(TEST_OPTS *opts, SHARED_OPTS *sharedopts, bool bloom, bool remove)
 	testutil_check(session->drop(session, opts->uri, NULL));
 	testutil_check(session->close(session, NULL));
 
-	return(0);
+	return (0);
 }
 
 static void *thread_insert(void *arg)
