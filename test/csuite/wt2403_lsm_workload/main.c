@@ -36,7 +36,7 @@ void (*custom_die)(void) = NULL;
 static void
 rand_str(uint64_t i, char *str)
 {
-	int x, y;
+	uint64_t x, y;
 	y = strlen(str);
 	for (x = y; x > y - 8; x--)
 	{
