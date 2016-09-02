@@ -28,7 +28,7 @@ __lsm_meta_read_v0(
 	if (F_ISSET(S2C(session), WT_CONN_LSM_MERGE))
 		F_SET(lsm_tree, WT_LSM_TREE_MERGES);
 
-	WT_ERR(__wt_config_init(session, &cparser, lsmconf));
+	__wt_config_init(session, &cparser, lsmconf);
 	while ((ret = __wt_config_next(&cparser, &ck, &cv)) == 0) {
 		if (WT_STRING_MATCH("key_format", ck.str, ck.len)) {
 			__wt_free(session, lsm_tree->key_format);
@@ -92,7 +92,7 @@ __lsm_meta_read_v0(
 		else if (WT_STRING_MATCH("last", ck.str, ck.len))
 			lsm_tree->last = (u_int)cv.val;
 		else if (WT_STRING_MATCH("chunks", ck.str, ck.len)) {
-			WT_ERR(__wt_config_subinit(session, &lparser, &cv));
+			__wt_config_subinit(session, &lparser, &cv);
 			for (nchunks = 0; (ret =
 			    __wt_config_next(&lparser, &lk, &lv)) == 0; ) {
 				if (WT_STRING_MATCH("id", lk.str, lk.len)) {
@@ -132,7 +132,7 @@ __lsm_meta_read_v0(
 			WT_ERR_NOTFOUND_OK(ret);
 			lsm_tree->nchunks = nchunks;
 		} else if (WT_STRING_MATCH("old_chunks", ck.str, ck.len)) {
-			WT_ERR(__wt_config_subinit(session, &lparser, &cv));
+			__wt_config_subinit(session, &lparser, &cv);
 			for (nchunks = 0; (ret =
 			    __wt_config_next(&lparser, &lk, &lv)) == 0; ) {
 				if (WT_STRING_MATCH("bloom", lk.str, lk.len)) {
@@ -264,7 +264,7 @@ __lsm_meta_read_v1(
 	WT_ERR(__wt_config_getones(session, lsmconf, "last", &cv));
 	lsm_tree->last = (u_int)cv.val;
 	WT_ERR(__wt_config_getones(session, lsmconf, "chunks", &cv));
-	WT_ERR(__wt_config_subinit(session, &lparser, &cv));
+	__wt_config_subinit(session, &lparser, &cv);
 	for (nchunks = 0; (ret =
 	    __wt_config_next(&lparser, &lk, &lv)) == 0; ) {
 		if (WT_STRING_MATCH("id", lk.str, lk.len)) {
@@ -299,7 +299,7 @@ __lsm_meta_read_v1(
 	lsm_tree->nchunks = nchunks;
 
 	WT_ERR(__wt_config_getones(session, lsmconf, "old_chunks", &cv));
-	WT_ERR(__wt_config_subinit(session, &lparser, &cv));
+	__wt_config_subinit(session, &lparser, &cv);
 	for (nchunks = 0; (ret =
 	    __wt_config_next(&lparser, &lk, &lv)) == 0; ) {
 		if (WT_STRING_MATCH("bloom", lk.str, lk.len)) {
