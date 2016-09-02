@@ -45,6 +45,7 @@ __wt_calloc(WT_SESSION_IMPL *session, size_t number, size_t size, void *retp)
 	 */
 	WT_ASSERT(session, number != 0 && size != 0);
 
+	/* Update statistics only if a connection has been established. */
 	if (session != NULL && F_ISSET(S2C(session), WT_CONN_SERVER_RUN))
 		WT_STAT_CONN_INCR(session, memory_allocation);
 
@@ -78,6 +79,7 @@ __wt_malloc(WT_SESSION_IMPL *session, size_t bytes_to_allocate, void *retp)
 	 */
 	WT_ASSERT(session, bytes_to_allocate != 0);
 
+	/* Update statistics only if a connection has been established. */
 	if (session != NULL && F_ISSET(S2C(session), WT_CONN_SERVER_RUN))
 		WT_STAT_CONN_INCR(session, memory_allocation);
 
@@ -119,6 +121,7 @@ __realloc_func(WT_SESSION_IMPL *session,
 	WT_ASSERT(session, bytes_to_allocate != 0);
 	WT_ASSERT(session, bytes_allocated < bytes_to_allocate);
 
+	/* Update statistics only if a connection has been established. */
 	if (session != NULL && F_ISSET(S2C(session), WT_CONN_SERVER_RUN)) {
 		if (p == NULL)
 			WT_STAT_CONN_INCR(session, memory_allocation);
@@ -216,6 +219,9 @@ __wt_realloc_aligned(WT_SESSION_IMPL *session,
 		bytes_to_allocate =
 		    WT_ALIGN(bytes_to_allocate, S2C(session)->buffer_alignment);
 
+		/*
+		 * Update statistics only if a connection has been established.
+		 */
 		if (F_ISSET(S2C(session), WT_CONN_SERVER_RUN))
 			WT_STAT_CONN_INCR(session, memory_allocation);
 
@@ -301,6 +307,7 @@ __wt_free_int(WT_SESSION_IMPL *session, const void *p_arg)
 	/*
 	 * !!!
 	 * This function MUST handle a NULL WT_SESSION_IMPL handle.
+	 * Update statistics only if a connection has been established.
 	 */
 	if (session != NULL && F_ISSET(S2C(session), WT_CONN_SERVER_RUN))
 		WT_STAT_CONN_INCR(session, memory_free);
