@@ -86,6 +86,10 @@ main(int argc, char *argv[])
 
 	opts = &_opts;
 	sharedopts = &_sharedopts;
+
+	/* Check if the WT_DISABLE_LONG_TESTS is set and if so, exit */
+	if (testutil_check_stop_long())
+		return (0);
 	memset(opts, 0, sizeof(*opts));
 	memset(sharedopts, 0, sizeof(*sharedopts));
 	memset(insert_args, 0, sizeof(insert_args));
@@ -93,7 +97,6 @@ main(int argc, char *argv[])
 	nfail = 0;
 
 	sharedopts->bloom = BLOOM;
-	testutil_skip_long();
 	testutil_check(testutil_parse_opts(argc, argv, opts));
 	testutil_make_work_dir(opts->home);
 
