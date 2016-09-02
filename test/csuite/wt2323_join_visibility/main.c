@@ -128,7 +128,8 @@ main(int argc, char *argv[])
 }
 
 static int
-test_join(TEST_OPTS *opts, SHARED_OPTS *sharedopts, bool bloom, bool remove)
+test_join(TEST_OPTS *opts, SHARED_OPTS *sharedopts, bool bloom,
+    bool sometimes_remove)
 {
 	THREAD_ARGS insert_args[N_INSERT_THREAD], join_args[N_JOIN_THREAD];
 	WT_CURSOR *maincur;
@@ -140,10 +141,10 @@ test_join(TEST_OPTS *opts, SHARED_OPTS *sharedopts, bool bloom, bool remove)
 	memset(join_args, 0, sizeof(join_args));
 
 	sharedopts->bloom = bloom;
-	sharedopts->remove = remove;
+	sharedopts->remove = sometimes_remove;
 
 	fprintf(stderr, "Running with bloom=%d, remove=%d\n",
-	    (int)bloom, (int)remove);
+	    (int)bloom, (int)sometimes_remove);
 
 	testutil_check(
 	    opts->conn->open_session(opts->conn, NULL, NULL, &session));
