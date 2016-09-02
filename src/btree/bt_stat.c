@@ -49,8 +49,6 @@ __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
 		return (0);
 
 	/*
-	 * Reset all-only stats. This comment is used to help parse this list.
-	 * All stats here should match with all-only list in stat_data.py.
 	 * Clear the statistics we're about to count.
 	 */
 	WT_STAT_SET(session, stats, btree_column_deleted, 0);
@@ -62,7 +60,6 @@ __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
 	WT_STAT_SET(session, stats, btree_overflow, 0);
 	WT_STAT_SET(session, stats, btree_row_internal, 0);
 	WT_STAT_SET(session, stats, btree_row_leaf, 0);
-	// Marks end of all-only stats list
 
 	next_walk = NULL;
 	while ((ret = __wt_tree_walk(
