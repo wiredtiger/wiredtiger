@@ -139,26 +139,31 @@ __wt_stats_clear(void *stats_arg, int slot)
  */
 #define	WT_STAT_READ(stats, fld)					\
 	__wt_stats_aggregate(stats, WT_STATS_FIELD_TO_SLOT(stats, fld))
-#define	WT_STAT_WRITE(session, stats, fld, v)				\
+#define	WT_STAT_WRITE(session, stats, fld, v) do {			\
 	if (!FLD_ISSET(S2C(session)->stat_flags, WT_CONN_STAT_NONE))	\
-		(stats)->fld = (int64_t)(v)
+		(stats)->fld = (int64_t)(v);				\
+} while (0)
 
-#define	WT_STAT_DECRV(session, stats, fld, value)			\
+#define	WT_STAT_DECRV(session, stats, fld, value) do {			\
 	if (!FLD_ISSET(S2C(session)->stat_flags, WT_CONN_STAT_NONE))	\
-		(stats)[WT_STATS_SLOT_ID(session)]->fld -= (int64_t)(value)
-#define	WT_STAT_DECRV_ATOMIC(session, stats, fld, value)		\
+		(stats)[WT_STATS_SLOT_ID(session)]->fld -= (int64_t)(value); \
+} while (0)
+#define	WT_STAT_DECRV_ATOMIC(session, stats, fld, value) do {		\
 	if (!FLD_ISSET(S2C(session)->stat_flags, WT_CONN_STAT_NONE))	\
-		__wt_atomic_subi64(					\
-		    &(stats)[WT_STATS_SLOT_ID(session)]->fld, (int64_t)(value))
+		__wt_atomic_subi64(&(stats)[WT_STATS_SLOT_ID(session)]->fld, \
+		    (int64_t)(value));					\
+} while (0)
 #define	WT_STAT_DECR(session, stats, fld)				\
 	WT_STAT_DECRV(session, stats, fld, 1)
-#define	WT_STAT_INCRV(session, stats, fld, value)			\
+#define	WT_STAT_INCRV(session, stats, fld, value) do {			\
 	if (!FLD_ISSET(S2C(session)->stat_flags, WT_CONN_STAT_NONE))	\
-		(stats)[WT_STATS_SLOT_ID(session)]->fld += (int64_t)(value)
-#define	WT_STAT_INCRV_ATOMIC(session, stats, fld, value)		\
+		(stats)[WT_STATS_SLOT_ID(session)]->fld += (int64_t)(value); \
+} while (0)
+#define	WT_STAT_INCRV_ATOMIC(session, stats, fld, value) do {		\
 	if (!FLD_ISSET(S2C(session)->stat_flags, WT_CONN_STAT_NONE))	\
-		__wt_atomic_addi64(					\
-		    &(stats)[WT_STATS_SLOT_ID(session)]->fld, (int64_t)(value))
+		__wt_atomic_addi64(&(stats)[WT_STATS_SLOT_ID(session)]->fld, \
+		    (int64_t)(value));					\
+} while (0)
 #define	WT_STAT_INCR(session, stats, fld)				\
 	WT_STAT_INCRV(session, stats, fld, 1)
 #define	WT_STAT_SET(session, stats, fld, value) do {			\

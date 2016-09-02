@@ -869,9 +869,9 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 			    WT_MIN(WT_EVICT_EMPTY_SCORE_MAX,
 			    cache->evict_empty_score +
 			    WT_EVICT_EMPTY_SCORE_BUMP);
-		WT_STAT_FAST_CONN_INCR(session, cache_eviction_queue_empty);
+		WT_STAT_CONN_INCR(session, cache_eviction_queue_empty);
 	} else
-		WT_STAT_FAST_CONN_INCR(session, cache_eviction_queue_not_empty);
+		WT_STAT_CONN_INCR(session, cache_eviction_queue_not_empty);
 
 	/* Sort the list into LRU order and restart. */
 	__wt_spin_lock(session, &queue->evict_lock);
