@@ -213,7 +213,7 @@ test_join(TEST_OPTS *opts, SHARED_OPTS *sharedopts, bool bloom, bool remove)
 	for (i = 0; i < N_INSERT_THREAD; ++i)
 		fprintf(stderr,
 		    "  insert thread %d did "
-		    "%d inserts, %d removes, %d notfounds, %d rollbacks\n",
+		    "%d inserts, %d removes, %d notfound, %d rollbacks\n",
 		    i, insert_args[i].inserts, insert_args[i].removes,
 		    insert_args[i].notfounds, insert_args[i].rollbacks);
 
