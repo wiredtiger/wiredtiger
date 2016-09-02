@@ -28,7 +28,7 @@ __wt_bm_preload(
 
 	block = bm->block;
 
-	WT_STAT_FAST_CONN_INCR(session, block_preload);
+	WT_STAT_CONN_INCR(session, block_preload);
 
 	/* Crack the cookie. */
 	WT_RET(__wt_block_buffer_to_addr(block, addr, &offset, &size, &cksum));
@@ -84,8 +84,8 @@ __wt_bm_read(WT_BM *bm, WT_SESSION_IMPL *session,
 		ret = handle->fh_map_preload(handle, (WT_SESSION *)session,
 		    buf->data, buf->size,bm->mapped_cookie);
 
-		WT_STAT_FAST_CONN_INCR(session, block_map_read);
-		WT_STAT_FAST_CONN_INCRV(session, block_byte_map_read, size);
+		WT_STAT_CONN_INCR(session, block_map_read);
+		WT_STAT_CONN_INCRV(session, block_byte_map_read, size);
 		return (ret);
 	}
 
@@ -160,8 +160,8 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	    "off %" PRIuMAX ", size %" PRIu32 ", cksum %" PRIu32,
 	    (uintmax_t)offset, size, cksum);
 
-	WT_STAT_FAST_CONN_INCR(session, block_read);
-	WT_STAT_FAST_CONN_INCRV(session, block_byte_read, size);
+	WT_STAT_CONN_INCR(session, block_read);
+	WT_STAT_CONN_INCRV(session, block_byte_read, size);
 
 	/*
 	 * Grow the buffer as necessary and read the block.  Buffers should be

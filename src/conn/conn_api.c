@@ -1677,13 +1677,20 @@ __conn_statistics_config(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_RET_NOTFOUND_OK(ret);
 
 	if ((ret = __wt_config_subgets(
-	    session, &cval, "clear", &sval)) == 0 && sval.val != 0)
+	    session, &cval, "clear", &sval)) == 0 && sval.val != 0) {
+		if (!LF_ISSET(WT_CONN_STAT_FAST | WT_CONN_STAT_ALL))
+			WT_RET_MSG(session, EINVAL,
+			    "the value \"clear\" can be specified only if "
+			    "either \"all\" or \"fast\" is specified");
 		LF_SET(WT_CONN_STAT_CLEAR);
+	}
 	WT_RET_NOTFOUND_OK(ret);
 
 	if (set > 1)
 		WT_RET_MSG(session, EINVAL,
 		    "only one statistics configuration value may be specified");
+
+	WT_ASSERT(session, LF_ISSET(WT_CONN_STAT_NONE | WT_CONN_STAT_FAST));
 
 	/* Configuring statistics clears any existing values. */
 	conn->stat_flags = flags;

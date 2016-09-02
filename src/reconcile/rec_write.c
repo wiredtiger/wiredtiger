@@ -430,19 +430,19 @@ __wt_reconcile(WT_SESSION_IMPL *session,
 	__wt_writeunlock(session, &page->page_lock);
 
 	/* Update statistics. */
-	WT_STAT_FAST_CONN_INCR(session, rec_pages);
-	WT_STAT_FAST_DATA_INCR(session, rec_pages);
+	WT_STAT_CONN_INCR(session, rec_pages);
+	WT_STAT_DATA_INCR(session, rec_pages);
 	if (LF_ISSET(WT_EVICTING)) {
-		WT_STAT_FAST_CONN_INCR(session, rec_pages_eviction);
-		WT_STAT_FAST_DATA_INCR(session, rec_pages_eviction);
+		WT_STAT_CONN_INCR(session, rec_pages_eviction);
+		WT_STAT_DATA_INCR(session, rec_pages_eviction);
 	}
 	if (r->cache_write_lookaside) {
-		WT_STAT_FAST_CONN_INCR(session, cache_write_lookaside);
-		WT_STAT_FAST_DATA_INCR(session, cache_write_lookaside);
+		WT_STAT_CONN_INCR(session, cache_write_lookaside);
+		WT_STAT_DATA_INCR(session, cache_write_lookaside);
 	}
 	if (r->cache_write_restore) {
-		WT_STAT_FAST_CONN_INCR(session, cache_write_restore);
-		WT_STAT_FAST_DATA_INCR(session, cache_write_restore);
+		WT_STAT_CONN_INCR(session, cache_write_restore);
+		WT_STAT_DATA_INCR(session, cache_write_restore);
 	}
 
 	/*
@@ -2268,7 +2268,7 @@ __rec_split_row_promote(
 	for (cnt = 1; len > 0; ++cnt, --len, ++pa, ++pb)
 		if (*pa != *pb) {
 			if (size != cnt) {
-				WT_STAT_FAST_DATA_INCRV(session,
+				WT_STAT_DATA_INCRV(session,
 				    rec_suffix_compression, size - cnt);
 				size = cnt;
 			}
@@ -2721,7 +2721,7 @@ __rec_split_raw_worker(WT_SESSION_IMPL *session,
 		 * we were successful and have a block to write.
 		 */
 		if (result_slots == 0) {
-			WT_STAT_FAST_DATA_INCR(session, compress_raw_fail);
+			WT_STAT_DATA_INCR(session, compress_raw_fail);
 
 			/*
 			 * If there are no more rows, we can write the original
@@ -2750,7 +2750,7 @@ __rec_split_raw_worker(WT_SESSION_IMPL *session,
 			 */
 			last->already_compressed = false;
 		} else {
-			WT_STAT_FAST_DATA_INCR(session, compress_raw_ok);
+			WT_STAT_DATA_INCR(session, compress_raw_ok);
 
 			/*
 			 * If there are more rows and the compression function
@@ -2868,7 +2868,7 @@ no_slots:
 		 * Compression failed and there are no more rows to accumulate,
 		 * write the original buffer instead.
 		 */
-		WT_STAT_FAST_DATA_INCR(session, compress_raw_fail);
+		WT_STAT_DATA_INCR(session, compress_raw_fail);
 
 		dsk->recno = last->recno;
 		dsk->mem_size = WT_PTRDIFF32(r->first_free, dsk);
@@ -2887,7 +2887,7 @@ no_slots:
 		 * compression function wants to try again; increase the size of
 		 * the "page" and try again after we accumulate some more rows.
 		 */
-		WT_STAT_FAST_DATA_INCR(session, compress_raw_fail_temporary);
+		WT_STAT_DATA_INCR(session, compress_raw_fail_temporary);
 		goto split_grow;
 	}
 
@@ -3318,7 +3318,7 @@ supd_check_complete:
 				multi->addr.reuse = 1;
 				bnd->addr = multi->addr;
 
-				WT_STAT_FAST_DATA_INCR(session, rec_page_match);
+				WT_STAT_DATA_INCR(session, rec_page_match);
 				goto copy_image;
 			}
 		}
@@ -5638,8 +5638,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 	switch (r->bnd_next) {
 	case 0:						/* Page delete */
 		__wt_verbose(session, WT_VERB_RECONCILE, "page %p empty", page);
-		WT_STAT_FAST_CONN_INCR(session, rec_page_delete);
-		WT_STAT_FAST_DATA_INCR(session, rec_page_delete);
+		WT_STAT_CONN_INCR(session, rec_page_delete);
+		WT_STAT_DATA_INCR(session, rec_page_delete);
 
 		/* If this is the root page, we need to create a sync point. */
 		ref = r->ref;
@@ -5704,13 +5704,13 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		switch (page->type) {
 		case WT_PAGE_COL_INT:
 		case WT_PAGE_ROW_INT:
-			WT_STAT_FAST_DATA_INCR(
+			WT_STAT_DATA_INCR(
 			    session, rec_multiblock_internal);
 			break;
 		case WT_PAGE_COL_FIX:
 		case WT_PAGE_COL_VAR:
 		case WT_PAGE_ROW_LEAF:
-			WT_STAT_FAST_DATA_INCR(session, rec_multiblock_leaf);
+			WT_STAT_DATA_INCR(session, rec_multiblock_leaf);
 			break;
 		WT_ILLEGAL_VALUE(session);
 		}
@@ -5722,7 +5722,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		/* Track the largest set of page-splits. */
 		if (r->bnd_next > r->bnd_next_max) {
 			r->bnd_next_max = r->bnd_next;
-			WT_STAT_FAST_DATA_SET(
+			WT_STAT_DATA_SET(
 			    session, rec_multiblock_max, r->bnd_next_max);
 		}
 
@@ -5923,7 +5923,7 @@ __rec_cell_build_int_key(WT_SESSION_IMPL *session,
 
 	/* Create an overflow object if the data won't fit. */
 	if (size > btree->maxintlkey) {
-		WT_STAT_FAST_DATA_INCR(session, rec_overflow_key_internal);
+		WT_STAT_DATA_INCR(session, rec_overflow_key_internal);
 
 		*is_ovflp = true;
 		return (__rec_cell_build_ovfl(
@@ -6002,7 +6002,7 @@ __rec_cell_build_leaf_key(WT_SESSION_IMPL *session,
 			if (pfx < btree->prefix_compression_min)
 				pfx = 0;
 			else
-				WT_STAT_FAST_DATA_INCRV(
+				WT_STAT_DATA_INCRV(
 				    session, rec_prefix_compression, pfx);
 		}
 
@@ -6023,7 +6023,7 @@ __rec_cell_build_leaf_key(WT_SESSION_IMPL *session,
 		 * object that was prefix compressed.
 		 */
 		if (pfx == 0) {
-			WT_STAT_FAST_DATA_INCR(session, rec_overflow_key_leaf);
+			WT_STAT_DATA_INCR(session, rec_overflow_key_leaf);
 
 			*is_ovflp = true;
 			return (__rec_cell_build_ovfl(
@@ -6107,7 +6107,7 @@ __rec_cell_build_val(WT_SESSION_IMPL *session,
 
 		/* Create an overflow object if the data won't fit. */
 		if (val->buf.size > btree->maxleafvalue) {
-			WT_STAT_FAST_DATA_INCR(session, rec_overflow_value);
+			WT_STAT_DATA_INCR(session, rec_overflow_value);
 
 			return (__rec_cell_build_ovfl(
 			    session, r, val, WT_CELL_VALUE_OVFL, rle));
@@ -6350,7 +6350,7 @@ __rec_dictionary_lookup(
 		WT_RET(__wt_cell_pack_data_match(
 		    dp->cell, &val->cell, val->buf.data, &match));
 		if (match) {
-			WT_STAT_FAST_DATA_INCR(session, rec_dictionary);
+			WT_STAT_DATA_INCR(session, rec_dictionary);
 			*dpp = dp;
 			return (0);
 		}

@@ -306,7 +306,7 @@ __checkpoint_update_generation(WT_SESSION_IMPL *session)
 
 	WT_PUBLISH(btree->checkpoint_gen,
 	    S2C(session)->txn_global.checkpoint_gen);
-	WT_STAT_FAST_DATA_SET(session,
+	WT_STAT_DATA_SET(session,
 	    btree_checkpoint_generation, btree->checkpoint_gen);
 }
 
@@ -392,7 +392,7 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 			 */
 			__wt_sleep(0, 10 * stepdown_us);
 			cache->eviction_dirty_trigger = current_dirty - 1;
-			WT_STAT_FAST_CONN_SET(session,
+			WT_STAT_CONN_SET(session,
 			    txn_checkpoint_scrub_target, current_dirty - 1);
 			WT_RET(__wt_epoch(session, &last));
 			continue;
@@ -411,7 +411,7 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 
 	WT_RET(__wt_epoch(session, &stop));
 	total_ms = WT_TIMEDIFF_MS(stop, start);
-	WT_STAT_FAST_CONN_SET(session, txn_checkpoint_scrub_time, total_ms);
+	WT_STAT_CONN_SET(session, txn_checkpoint_scrub_time, total_ms);
 
 	return (0);
 }
@@ -600,7 +600,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * ignore the checkpoint's transaction.
 	 */
 	(void)__wt_atomic_addv64(&txn_global->checkpoint_gen, 1);
-	WT_STAT_FAST_CONN_SET(session,
+	WT_STAT_CONN_SET(session,
 	    txn_checkpoint_generation, txn_global->checkpoint_gen);
 
 	/* Keep track of handles acquired for locking. */
@@ -686,7 +686,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * after this point are too new to be written in the checkpoint.
 	 */
 	cache->eviction_dirty_trigger = orig_trigger;
-	WT_STAT_FAST_CONN_SET(
+	WT_STAT_CONN_SET(
 	    session, txn_checkpoint_scrub_target, orig_trigger);
 
 	/*
@@ -731,8 +731,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_ERR(__checkpoint_apply(session, cfg, __wt_checkpoint_sync));
 	WT_ERR(__wt_epoch(session, &fsync_stop));
 	fsync_duration_usecs = WT_TIMEDIFF_US(fsync_stop, fsync_start);
-	WT_STAT_FAST_CONN_INCR(session, txn_checkpoint_fsync_post);
-	WT_STAT_FAST_CONN_SET(session,
+	WT_STAT_CONN_INCR(session, txn_checkpoint_fsync_post);
+	WT_STAT_CONN_SET(session,
 	    txn_checkpoint_fsync_post_duration, fsync_duration_usecs);
 
 	WT_ERR(__checkpoint_verbose_track(session,
@@ -811,7 +811,7 @@ err:	/*
 		WT_TRET(__wt_meta_track_off(session, false, ret != 0));
 
 	cache->eviction_dirty_trigger = orig_trigger;
-	WT_STAT_FAST_CONN_SET(
+	WT_STAT_CONN_SET(
 	    session, txn_checkpoint_scrub_target, orig_trigger);
 
 	if (F_ISSET(txn, WT_TXN_RUNNING)) {
@@ -886,12 +886,12 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * calls checkpoint directly, it can be tough to avoid. Serialize here
 	 * to ensure we don't get into trouble.
 	 */
-	WT_STAT_FAST_CONN_SET(session, txn_checkpoint_running, 1);
+	WT_STAT_CONN_SET(session, txn_checkpoint_running, 1);
 
 	WT_WITH_CHECKPOINT_LOCK(session, ret,
 	    ret = __txn_checkpoint(session, cfg));
 
-	WT_STAT_FAST_CONN_SET(session, txn_checkpoint_running, 0);
+	WT_STAT_CONN_SET(session, txn_checkpoint_running, 0);
 
 	F_CLR(session, WT_SESSION_CAN_WAIT | WT_SESSION_NO_EVICTION);
 
