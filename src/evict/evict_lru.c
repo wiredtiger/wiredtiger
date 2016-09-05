@@ -493,21 +493,14 @@ __evict_pass(WT_SESSION_IMPL *session)
 
 	/* Track whether pages are being evicted and progress is made. */
 	pages_evicted = cache->pages_evict;
+	prev_oldest_id = __wt_txn_oldest_id(session);
+	WT_CLEAR(prev);
 
 	/* Evict pages from the cache. */
-	for (loop = 0;; loop++) {
-		/*
-		 * If there is a request to clear eviction walks, do that now,
-		 * before checking if the cache is full.
-		 */
-		if (cache->pass_intr != 0)
-			break;
-
+	for (loop = 0; cache->pass_intr == 0; loop++) {
 		WT_RET(__wt_epoch(session, &now));
-		if (loop == 0) {
+		if (loop == 0)
 			prev = now;
-			prev_oldest_id = __wt_txn_oldest_id(session);
-		}
 
 		/*
 		 * Increment the shared read generation. Do this occasionally
@@ -584,6 +577,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 				    cache_eviction_aggressive_set,
 				    cache->evict_aggressive_score);
 				prev = now;
+				prev_oldest_id = oldest_id;
 			}
 
 			/*
