@@ -139,14 +139,15 @@ testutil_cleanup(TEST_OPTS *opts)
 }
 
 /*
- * testutil_check_stop_long --
- *	Check if WT_DISABLE_LONG_TESTS is set and exit if so
+ * testutil_disable_long_tests --
+ *	Check if TESTUTIL_DISABLE_LONG_TESTS is set and exit if so
  */
 bool
-testutil_check_stop_long(void)
+testutil_disable_long_tests(void)
 {
 	const char *res;
-	if (__wt_getenv(NULL, "WT_DISABLE_LONG_TESTS", &res) == WT_NOTFOUND)
+	if (__wt_getenv(NULL,
+	    "TESTUTIL_DISABLE_LONG_TESTS", &res) == WT_NOTFOUND)
 		return (false);
 	else
 		return (true);
