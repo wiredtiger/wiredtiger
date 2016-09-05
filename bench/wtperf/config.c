@@ -174,6 +174,7 @@ config_free(CONFIG *cfg)
 	free(cfg->monitor_dir);
 	free(cfg->partial_config);
 	free(cfg->reopen_config);
+	free(cfg->log_table_uri);
 	free(cfg->base_uri);
 
 	if (cfg->uris != NULL) {
