@@ -756,8 +756,7 @@ __wt_btcur_update(WT_CURSOR_BTREE *cbt)
 
 	WT_STAT_CONN_INCR(session, cursor_update);
 	WT_STAT_DATA_INCR(session, cursor_update);
-	WT_STAT_DATA_INCRV(
-	    session, cursor_update_bytes, cursor->value.size);
+	WT_STAT_DATA_INCRV(session, cursor_update_bytes, cursor->value.size);
 
 	if (btree->type == BTREE_ROW)
 		WT_RET(__cursor_size_chk(session, &cursor->key));

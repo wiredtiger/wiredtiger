@@ -356,8 +356,7 @@ __curds_update(WT_CURSOR *cursor)
 
 	WT_STAT_CONN_INCR(session, cursor_update);     
 	WT_STAT_DATA_INCR(session, cursor_update);
-	WT_STAT_DATA_INCRV(
-	    session, cursor_update_bytes, cursor->value.size);
+	WT_STAT_DATA_INCRV(session, cursor_update_bytes, cursor->value.size);
 
 	WT_ERR(__curds_txn_enter(session));
 
