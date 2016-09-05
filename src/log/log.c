@@ -968,11 +968,17 @@ __log_truncate_file(WT_SESSION_IMPL *session, WT_FH *log_fh, wt_off_t offset)
 	conn = S2C(session);
 	log = conn->log;
 
-	if (!F_ISSET(log, WT_LOG_TRUNCATE_NOTSUP)) {
-		if ((ret = __wt_ftruncate(session, log_fh, offset)) != ENOTSUP)
-			return (ret);
-
-		F_SET(log, WT_LOG_TRUNCATE_NOTSUP);
+	if (!F_ISSET(log, WT_LOG_TRUNCATE_NOTSUP) && !conn->hot_backup) {
+		__wt_readlock(session, conn->hot_backup_lock);
+		if (conn->hot_backup)
+			__wt_readunlock(session, conn->hot_backup_lock);
+		else {
+			ret = __wt_ftruncate(session, log_fh, offset);
+			__wt_readunlock(session, conn->hot_backup_lock);
+			if (ret != ENOTSUP)
+				return (ret);
+			F_SET(log, WT_LOG_TRUNCATE_NOTSUP);
+		}
 	}
 
 	return (__log_zero(session, log_fh, offset, conn->log_file_max));
