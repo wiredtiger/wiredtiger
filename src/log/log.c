@@ -834,35 +834,29 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
 	 * Make sure everything we set above is visible.
 	 */
 	WT_FULL_BARRIER();
+
 	/*
-	 * If we're pre-allocating log files, look for one.  If there aren't any
-	 * or we're not pre-allocating, or a backup cursor is open, then
-	 * create one.
+	 * If we're pre-allocating log files, look for one. If there aren't any
+	 * or we're not pre-allocating, create one.
 	 */
-	if (conn->log_prealloc > 0 && !conn->hot_backup) {
-		ret = __log_alloc_prealloc(session, log->fileid);
+	if (conn->log_prealloc > 0) {
 		/*
 		 * If ret is 0 it means we found a pre-allocated file.
 		 * If ret is non-zero but not WT_NOTFOUND, we return the error.
 		 * If ret is WT_NOTFOUND, we leave create_log set and create
 		 * the new log file.
 		 */
-		if (ret == 0)
+		if ((ret = __log_alloc_prealloc(session, log->fileid)) == 0)
 			create_log = false;
-		/*
-		 * If we get any error other than WT_NOTFOUND, return it.
-		 */
-		WT_RET_NOTFOUND_OK(ret);
-
-		if (create_log) {
+		else {
+			WT_RET_NOTFOUND_OK(ret);
 			WT_STAT_FAST_CONN_INCR(session, log_prealloc_missed);
 			if (conn->log_cond != NULL)
 				__wt_cond_auto_signal(session, conn->log_cond);
 		}
 	}
-	/*
-	 * If we need to create the log file, do so now.
-	 */
+
+	/* If we need to create the log file, do so now. */
 	if (create_log) {
 		log->prep_missed++;
 		WT_RET(__wt_log_allocfile(
