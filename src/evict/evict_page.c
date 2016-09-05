@@ -524,7 +524,7 @@ __evict_review(
 		if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
 			LF_SET(WT_EVICT_IN_MEMORY |
 			    WT_EVICT_SCRUB | WT_EVICT_UPDATE_RESTORE);
-		else if (F_ISSET(cache, WT_CACHE_STUCK))
+		else if (__wt_cache_stuck(session))
 			LF_SET(WT_EVICT_LOOKASIDE);
 		else if (!__wt_txn_visible_all(
 		    session, page->modify->update_txn) ||
