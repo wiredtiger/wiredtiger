@@ -7,6 +7,17 @@
  */
 
 /*
+ * __wt_cache_aggressive --
+ *      Indicate if the cache is operating in aggressive mode.
+ */
+static inline bool
+__wt_cache_aggressive(WT_SESSION_IMPL *session)
+{
+	return (S2C(session)->cache->evict_aggressive_score >=
+	    WT_EVICT_SCORE_CUTOFF);
+}
+
+/*
  * __wt_cache_read_gen --
  *      Get the current read generation number.
  */
@@ -65,6 +76,21 @@ __wt_cache_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
 	cache = S2C(session)->cache;
 	page->read_gen =
 	    (__wt_cache_read_gen(session) + cache->read_gen_oldest) / 2;
+}
+
+/*
+ * __wt_cache_stuck --
+ *      Indicate if the cache is stuck (i.e., not making progress).
+ */
+static inline bool
+__wt_cache_stuck(WT_SESSION_IMPL *session)
+{
+	WT_CACHE *cache;
+
+	cache = S2C(session)->cache;
+	return (cache->evict_aggressive_score == WT_EVICT_SCORE_MAX &&
+	    F_ISSET(cache,
+		WT_CACHE_EVICT_CLEAN_HARD | WT_CACHE_EVICT_DIRTY_HARD));
 }
 
 /*
