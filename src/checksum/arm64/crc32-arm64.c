@@ -42,12 +42,12 @@
 	asm("crc32cb %w[c], %w[c], %w[v]" : [c]"+r"(*&crc) : [v]"r"(+value))
 
 /*
- * __wt_cksum_hw --
+ * __wt_checksum_hw --
  *	Return a checksum for a chunk of memory, computed in hardware
  *	using 8 byte steps.
  */
 static uint32_t
-__wt_cksum_hw(const void *chunk, size_t len)
+__wt_checksum_hw(const void *chunk, size_t len)
 {
 	uint32_t crc;
 	size_t nqwords;
@@ -81,21 +81,21 @@ __wt_cksum_hw(const void *chunk, size_t len)
 #endif /* HAVE_CRC32_HARDWARE */
 
 /*
- * __wt_cksum_init --
+ * __wt_checksum_init --
  *	WiredTiger: detect CRC hardware and set the checksum function.
  */
 void
-__wt_cksum_init(void)
+__wt_checksum_init(void)
 {
 #if defined(HAVE_CRC32_HARDWARE)
 	unsigned long caps = getauxval(AT_HWCAP);
 
 	if (caps & HWCAP_CRC32)
-		__wt_process.cksum = __wt_cksum_hw;
+		__wt_process.checksum = __wt_checksum_hw;
 	else
-		__wt_process.cksum = __wt_cksum_sw;
+		__wt_process.checksum = __wt_checksum_sw;
 
 #else /* !HAVE_CRC32_HARDWARE */
-	__wt_process.cksum = __wt_cksum_sw;
+	__wt_process.checksum = __wt_checksum_sw;
 #endif /* HAVE_CRC32_HARDWARE */
 }

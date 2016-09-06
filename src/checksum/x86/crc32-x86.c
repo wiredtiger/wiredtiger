@@ -31,12 +31,12 @@
 #if defined(HAVE_CRC32_HARDWARE)
 #if (defined(__amd64) || defined(__x86_64))
 /*
- * __wt_cksum_hw --
+ * __wt_checksum_hw --
  *	Return a checksum for a chunk of memory, computed in hardware
  *	using 8 byte steps.
  */
 static uint32_t
-__wt_cksum_hw(const void *chunk, size_t len)
+__wt_checksum_hw(const void *chunk, size_t len)
 {
 	uint32_t crc;
 	size_t nqwords;
@@ -79,12 +79,12 @@ __wt_cksum_hw(const void *chunk, size_t len)
 
 #if defined(_M_AMD64)
 /*
- * __wt_cksum_hw --
+ * __wt_checksum_hw --
  *	Return a checksum for a chunk of memory, computed in hardware
  *	using 8 byte steps.
  */
 static uint32_t
-__wt_cksum_hw(const void *chunk, size_t len)
+__wt_checksum_hw(const void *chunk, size_t len)
 {
 	uint32_t crc;
 	size_t nqwords;
@@ -119,11 +119,11 @@ __wt_cksum_hw(const void *chunk, size_t len)
 #endif /* HAVE_CRC32_HARDWARE */
 
 /*
- * __wt_cksum_init --
+ * __wt_checksum_init --
  *	WiredTiger: detect CRC hardware and set the checksum function.
  */
 void
-__wt_cksum_init(void)
+__wt_checksum_init(void)
 {
 #if defined(HAVE_CRC32_HARDWARE)
 #if (defined(__amd64) || defined(__x86_64))
@@ -136,9 +136,9 @@ __wt_cksum_init(void)
 
 #define	CPUID_ECX_HAS_SSE42	(1 << 20)
 	if (ecx & CPUID_ECX_HAS_SSE42)
-		__wt_process.cksum = __wt_cksum_hw;
+		__wt_process.checksum = __wt_checksum_hw;
 	else
-		__wt_process.cksum = __wt_cksum_sw;
+		__wt_process.checksum = __wt_checksum_sw;
 
 #elif defined(_M_AMD64)
 	int cpuInfo[4];
@@ -147,14 +147,14 @@ __wt_cksum_init(void)
 
 #define	CPUID_ECX_HAS_SSE42	(1 << 20)
 	if (cpuInfo[2] & CPUID_ECX_HAS_SSE42)
-		__wt_process.cksum = __wt_cksum_hw;
+		__wt_process.checksum = __wt_checksum_hw;
 	else
-		__wt_process.cksum = __wt_cksum_sw;
+		__wt_process.checksum = __wt_checksum_sw;
 #else
-	__wt_process.cksum = __wt_cksum_sw;
+	__wt_process.checksum = __wt_checksum_sw;
 #endif
 
 #else /* !HAVE_CRC32_HARDWARE */
-	__wt_process.cksum = __wt_cksum_sw;
+	__wt_process.checksum = __wt_checksum_sw;
 #endif /* HAVE_CRC32_HARDWARE */
 }

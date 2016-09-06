@@ -1096,11 +1096,11 @@ static const uint32_t g_crc_slicing[8][256] = {
 };
 
 /*
- * __wt_cksum_sw --
+ * __wt_checksum_sw --
  *	Return a checksum for a chunk of memory, computed in software.
  */
 uint32_t
-__wt_cksum_sw(const void *chunk, size_t len)
+__wt_checksum_sw(const void *chunk, size_t len)
 {
 	uint32_t crc, next;
 	size_t nqwords;
