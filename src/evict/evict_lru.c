@@ -484,12 +484,14 @@ __evict_pass(WT_SESSION_IMPL *session)
 {
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
+	WT_TXN_GLOBAL *txn_global;
 	struct timespec now, prev;
 	uint64_t oldest_id, pages_evicted, prev_oldest_id;
 	u_int loop;
 
 	conn = S2C(session);
 	cache = conn->cache;
+	txn_global = &conn->txn_global;
 
 	/* Track whether pages are being evicted and progress is made. */
 	pages_evicted = cache->pages_evict;
@@ -540,7 +542,8 @@ __evict_pass(WT_SESSION_IMPL *session)
 		    conn->cache_size, cache->bytes_inmem,
 		    cache->bytes_dirty_intl + cache->bytes_dirty_leaf);
 
-		WT_RET(__evict_lru_walk(session));
+		if (F_ISSET(cache, WT_CACHE_EVICT_ALL))
+			WT_RET(__evict_lru_walk(session));
 
 		/*
 		 * If the queue has been empty recently, keep queuing more
@@ -566,11 +569,14 @@ __evict_pass(WT_SESSION_IMPL *session)
 		 * sleep, it's not something we can fix.
 		 */
 		if (pages_evicted == cache->pages_evict) {
-			if (WT_TIMEDIFF_MS(now, prev) >= 10) {
+			if (WT_TIMEDIFF_MS(now, prev) >= 10 &&
+			    F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD |
+			    WT_CACHE_EVICT_DIRTY_HARD)) {
 				if (cache->evict_aggressive_score < 100)
 					++cache->evict_aggressive_score;
-				oldest_id = __wt_txn_oldest_id(session);
+				oldest_id = txn_global->oldest_id;
 				if (prev_oldest_id == oldest_id &&
+				    txn_global->current != oldest_id &&
 				    cache->evict_aggressive_score < 100)
 					++cache->evict_aggressive_score;
 				WT_STAT_FAST_CONN_SET(session,
@@ -584,7 +590,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 			 * Keep trying for long enough that we should be able
 			 * to evict a page if the server isn't interfering.
 			 */
-			if (cache->evict_aggressive_score < 100) {
+			if (loop < 100 || cache->evict_aggressive_score < 100) {
 				/*
 				 * Back off if we aren't making progress: walks
 				 * hold the handle list lock, blocking other
@@ -855,8 +861,15 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 	case EBUSY:
 		return (0);
 	case WT_NOTFOUND:
-		cache->evict_aggressive_score = WT_MIN(WT_EVICT_SCORE_MAX,
-		    cache->evict_aggressive_score + WT_EVICT_SCORE_BUMP);
+		/*
+		 * If we found no pages at all during the walk, something is
+		 * wrong.  Be more aggressive next time.
+		 */
+		if (F_ISSET(cache,
+		    WT_CACHE_EVICT_CLEAN_HARD | WT_CACHE_EVICT_DIRTY_HARD))
+			cache->evict_aggressive_score = WT_MIN(
+			    cache->evict_aggressive_score + WT_EVICT_SCORE_BUMP,
+			    WT_EVICT_SCORE_MAX);
 		WT_STAT_FAST_CONN_SET(session,
 		    cache_eviction_aggressive_set,
 		    cache->evict_aggressive_score);
@@ -871,10 +884,9 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 	 */
 	if (__evict_queue_empty(queue)) {
 		if (__wt_eviction_needed(session, NULL))
-			cache->evict_empty_score =
-			    WT_MIN(WT_EVICT_SCORE_MAX,
-			    cache->evict_empty_score +
-			    WT_EVICT_SCORE_BUMP);
+			cache->evict_empty_score = WT_MIN(
+			    cache->evict_empty_score + WT_EVICT_SCORE_BUMP,
+			    WT_EVICT_SCORE_MAX);
 		WT_STAT_FAST_CONN_INCR(session, cache_eviction_queue_empty);
 	} else
 		WT_STAT_FAST_CONN_INCR(session, cache_eviction_queue_not_empty);
@@ -1014,7 +1026,7 @@ retry:	while (slot < max_entries) {
 		 * the walk point in a tree, give up.
 		 */
 		if (cache->pass_intr != 0)
-			break;
+			WT_ERR(EBUSY);
 
 		/*
 		 * Lock the dhandle list to find the next handle and bump its
@@ -1030,7 +1042,7 @@ retry:	while (slot < max_entries) {
 				else
 					__wt_sleep(0, WT_THOUSAND);
 			}
-			WT_RET(ret);
+			WT_ERR(ret);
 			dhandle_locked = true;
 		}
 
@@ -1126,7 +1138,7 @@ retry:	while (slot < max_entries) {
 				WT_ASSERT(session, session->split_gen == 0);
 			}
 			__wt_spin_unlock(session, &cache->evict_walk_lock);
-			WT_RET(ret);
+			WT_ERR(ret);
 		}
 
 		/*
@@ -1156,8 +1168,7 @@ retry:	while (slot < max_entries) {
 	 * Try two passes through all the files, give up when we have some
 	 * candidates and we aren't finding more.
 	 */
-	if (cache->pass_intr == 0 &&
-	    slot < max_entries && (retries < 2 ||
+	if (slot < max_entries && (retries < 2 ||
 	    (retries < 10 &&
 	    (slot == queue->evict_entries || slot > start_slot)))) {
 		start_slot = slot;
@@ -1165,10 +1176,15 @@ retry:	while (slot < max_entries) {
 		goto retry;
 	}
 
-	if (queue->evict_entries == slot)
+	/*
+	 * If we didn't find any entries on a walk when we weren't interrupted,
+	 * let our caller know.
+	 */
+	if (queue->evict_entries == slot && cache->pass_intr == 0)
 		return (WT_NOTFOUND);
-	queue->evict_entries = slot;
-	return (0);
+
+err:	queue->evict_entries = slot;
+	return (ret);
 }
 
 /*
