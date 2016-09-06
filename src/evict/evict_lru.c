@@ -844,7 +844,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 	/* If this queue is full, try the other one. */
 	if (__evict_queue_full(queue) && !__evict_queue_full(other_queue))
 		queue = other_queue;
-	other_queue = cache->evict_fill_queue =
+	cache->evict_fill_queue =
 	    &cache->evict_queues[1 - (queue - cache->evict_queues)];
 
 	/*
@@ -1399,7 +1399,7 @@ fast:		/* If the page can't be evicted, give up. */
 
 		__wt_verbose(session, WT_VERB_EVICTSERVER,
 		    "select: %p, size %" WT_SIZET_FMT,
-		    page, page->memory_footprint);
+		    (void *)page, page->memory_footprint);
 	}
 	WT_RET_NOTFOUND_OK(ret);
 
