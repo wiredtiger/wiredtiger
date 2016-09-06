@@ -226,7 +226,7 @@ __wt_eviction_needed(WT_SESSION_IMPL *session, bool busy, u_int *pct_fullp)
 	WT_CONNECTION_IMPL *conn;
 	WT_CACHE *cache;
 	uint64_t bytes_inuse, bytes_max;
-	u_int pct_dirty, pct_full;
+	double dirty_trigger, pct_dirty, pct_full;
 
 	conn = S2C(session);
 	cache = conn->cache;
@@ -249,9 +249,9 @@ __wt_eviction_needed(WT_SESSION_IMPL *session, bool busy, u_int *pct_fullp)
 	 * Calculate the cache full percentage; anything over the trigger means
 	 * we involve the application thread.
 	 */
-	pct_full = (u_int)((100 * bytes_inuse) / bytes_max);
+	pct_full = ((100.0 * bytes_inuse) / bytes_max);
 	pct_dirty =
-	    (u_int)((100 * __wt_cache_dirty_leaf_inuse(cache)) / bytes_max);
+	    ((100.0 * __wt_cache_dirty_leaf_inuse(cache)) / bytes_max);
 
 	if (pct_fullp != NULL)
 		*pct_fullp = (u_int)WT_MAX(0, 100 - WT_MIN(
@@ -266,8 +266,10 @@ __wt_eviction_needed(WT_SESSION_IMPL *session, bool busy, u_int *pct_fullp)
 	 * The next transaction in this session will not be able to start until
 	 * the cache is under the limit.
 	 */
+	if ((dirty_trigger = cache->eviction_scrub_target) == 0.0)
+		dirty_trigger = (double)cache->eviction_dirty_trigger;
 	return (pct_full >= cache->eviction_trigger ||
-	    (!busy && pct_dirty >= cache->eviction_dirty_trigger));
+	    (!busy && pct_dirty >= dirty_trigger));
 }
 
 /*

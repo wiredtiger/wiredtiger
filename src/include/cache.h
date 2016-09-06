@@ -103,6 +103,10 @@ struct __wt_cache {
 	u_int eviction_dirty_target;    /* Percent to allow dirty */
 	u_int eviction_dirty_trigger;	/* Percent to trigger dirty eviction */
 
+	double eviction_scrub_target;	/* Percent of cache to trigger
+					   dirty eviction during checkpoint
+					   scrubs */
+
 	u_int overhead_pct;	        /* Cache percent adjustment */
 
 	/*
