@@ -1657,7 +1657,7 @@ __conn_statistics_config(WT_SESSION_IMPL *session, const char *cfg[])
 	set = 0;
 	if ((ret = __wt_config_subgets(
 	    session, &cval, "none", &sval)) == 0 && sval.val != 0) {
-		LF_SET(WT_CONN_STAT_NONE);
+		flags = 0;
 		++set;
 	}
 	WT_RET_NOTFOUND_OK(ret);
@@ -1689,8 +1689,6 @@ __conn_statistics_config(WT_SESSION_IMPL *session, const char *cfg[])
 	if (set > 1)
 		WT_RET_MSG(session, EINVAL,
 		    "only one statistics configuration value may be specified");
-
-	WT_ASSERT(session, LF_ISSET(WT_CONN_STAT_NONE | WT_CONN_STAT_FAST));
 
 	/* Configuring statistics clears any existing values. */
 	conn->stat_flags = flags;
