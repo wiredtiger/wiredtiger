@@ -686,8 +686,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * after this point are too new to be written in the checkpoint.
 	 */
 	cache->eviction_dirty_trigger = orig_trigger;
-	WT_STAT_CONN_SET(
-	    session, txn_checkpoint_scrub_target, orig_trigger);
+	WT_STAT_CONN_SET(session, txn_checkpoint_scrub_target, orig_trigger);
 
 	/*
 	 * Mark old checkpoints that are being deleted and figure out which
@@ -811,8 +810,7 @@ err:	/*
 		WT_TRET(__wt_meta_track_off(session, false, ret != 0));
 
 	cache->eviction_dirty_trigger = orig_trigger;
-	WT_STAT_CONN_SET(
-	    session, txn_checkpoint_scrub_target, orig_trigger);
+	WT_STAT_CONN_SET(session, txn_checkpoint_scrub_target, orig_trigger);
 
 	if (F_ISSET(txn, WT_TXN_RUNNING)) {
 		/*

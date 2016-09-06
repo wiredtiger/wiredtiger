@@ -5705,8 +5705,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		switch (page->type) {
 		case WT_PAGE_COL_INT:
 		case WT_PAGE_ROW_INT:
-			WT_STAT_DATA_INCR(
-			    session, rec_multiblock_internal);
+			WT_STAT_DATA_INCR(session, rec_multiblock_internal);
 			break;
 		case WT_PAGE_COL_FIX:
 		case WT_PAGE_COL_VAR:

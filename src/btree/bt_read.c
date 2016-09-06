@@ -553,8 +553,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			WT_RET(__wt_hazard_set(session, ref, &busy));
 #endif
 			if (busy) {
-				WT_STAT_CONN_INCR(
-				    session, page_busy_blocked);
+				WT_STAT_CONN_INCR(session, page_busy_blocked);
 				break;
 			}
 

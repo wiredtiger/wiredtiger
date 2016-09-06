@@ -1670,17 +1670,14 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 	 * worker thread.
 	 */
 	if (is_server) {
-		WT_STAT_CONN_INCR(
-		    session, cache_eviction_server_evicting);
+		WT_STAT_CONN_INCR(session, cache_eviction_server_evicting);
 		cache->server_evicts++;
 	} else if (F_ISSET(session, WT_SESSION_INTERNAL)) {
-		WT_STAT_CONN_INCR(
-		    session, cache_eviction_worker_evicting);
+		WT_STAT_CONN_INCR(session, cache_eviction_worker_evicting);
 		cache->worker_evicts++;
 	} else {
 		if (__wt_page_is_modified(ref->page))
-			WT_STAT_CONN_INCR(
-			    session, cache_eviction_app_dirty);
+			WT_STAT_CONN_INCR(session, cache_eviction_app_dirty);
 		WT_STAT_CONN_INCR(session, cache_eviction_app);
 		cache->app_evicts++;
 	}
@@ -1854,8 +1851,7 @@ __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
 
 done:	__wt_spin_unlock(session, &cache->evict_queue_lock);
 	if (queued) {
-		WT_STAT_CONN_INCR(
-		    session, cache_eviction_pages_queued_urgent);
+		WT_STAT_CONN_INCR(session, cache_eviction_pages_queued_urgent);
 		if (WT_EVICT_HAS_WORKERS(session))
 			__wt_cond_signal(session,
 			    S2C(session)->evict_threads.wait_cond);

@@ -620,8 +620,7 @@ restart:
 				coalescing->slot_last_offset =
 				    slot->slot_last_offset;
 				coalescing->slot_end_lsn = slot->slot_end_lsn;
-				WT_STAT_CONN_INCR(
-				    session, log_slot_coalesced);
+				WT_STAT_CONN_INCR(session, log_slot_coalesced);
 				/*
 				 * Copy the flag for later closing.
 				 */
