@@ -883,7 +883,8 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 	 * faster than they are being queued.
 	 */
 	if (__evict_queue_empty(queue)) {
-		if (__wt_eviction_needed(session, NULL))
+		if (F_ISSET(cache,
+		    WT_CACHE_EVICT_CLEAN_HARD | WT_CACHE_EVICT_DIRTY_HARD))
 			cache->evict_empty_score = WT_MIN(
 			    cache->evict_empty_score + WT_EVICT_SCORE_BUMP,
 			    WT_EVICT_SCORE_MAX);
@@ -1158,11 +1159,6 @@ retry:	while (slot < max_entries) {
 		incr = false;
 	}
 
-	if (dhandle_locked) {
-		__wt_spin_unlock(session, &conn->dhandle_lock);
-		dhandle_locked = false;
-	}
-
 	/*
 	 * Walk the list of files a few times if we don't find enough pages.
 	 * Try two passes through all the files, give up when we have some
@@ -1176,6 +1172,11 @@ retry:	while (slot < max_entries) {
 		goto retry;
 	}
 
+err:	if (dhandle_locked) {
+		__wt_spin_unlock(session, &conn->dhandle_lock);
+		dhandle_locked = false;
+	}
+
 	/*
 	 * If we didn't find any entries on a walk when we weren't interrupted,
 	 * let our caller know.
@@ -1183,7 +1184,7 @@ retry:	while (slot < max_entries) {
 	if (queue->evict_entries == slot && cache->pass_intr == 0)
 		return (WT_NOTFOUND);
 
-err:	queue->evict_entries = slot;
+	queue->evict_entries = slot;
 	return (ret);
 }
 
@@ -1737,10 +1738,11 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_STATE *txn_state;
 	uint64_t init_evict_count, max_pages_evicted;
-	bool txn_busy;
 
 	conn = S2C(session);
 	cache = conn->cache;
+	txn_global = &conn->txn_global;
+	txn_state = WT_SESSION_TXN_STATE(session);
 
 	/*
 	 * It is not safe to proceed if the eviction server threads aren't
@@ -1749,25 +1751,8 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 	if (!conn->evict_server_running)
 		return (0);
 
-	/*
-	 * If the current transaction is keeping the oldest ID pinned, it is in
-	 * the middle of an operation.	This may prevent the oldest ID from
-	 * moving forward, leading to deadlock, so only evict what we can.
-	 * Otherwise, we are at a transaction boundary and we can work harder
-	 * to make sure there is free space in the cache.
-	 */
-	txn_global = &conn->txn_global;
-	txn_state = WT_SESSION_TXN_STATE(session);
-	txn_busy = txn_state->id != WT_TXN_NONE ||
-	    session->nhazard > 0 ||
-	    (txn_state->snap_min != WT_TXN_NONE &&
-	    txn_global->current != txn_global->oldest_id);
-
-	if (txn_busy && pct_full < 100)
+	if (busy && pct_full < 100)
 		return (0);
-
-	if (busy)
-		txn_busy = true;
 
 	/* Wake the eviction server if we need to do work. */
 	__wt_evict_server_wake(session);
@@ -1781,7 +1766,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 	init_evict_count = cache->pages_evict;
 
 	for (;;) {
-		max_pages_evicted = txn_busy ? 5 : 20;
+		max_pages_evicted = busy ? 5 : 20;
 
 		/*
 		 * A pathological case: if we're the oldest transaction in the
@@ -1796,7 +1781,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 		}
 
 		/* See if eviction is still needed. */
-		if (!__wt_eviction_needed(session, &pct_full) ||
+		if (!__wt_eviction_needed(session, busy, &pct_full) ||
 		    (pct_full < 100 &&
 		    cache->pages_evict > init_evict_count + max_pages_evicted))
 			return (0);
@@ -1804,7 +1789,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 		/* Evict a page. */
 		switch (ret = __evict_page(session, false)) {
 		case 0:
-			if (txn_busy)
+			if (busy)
 				return (0);
 			/* FALLTHROUGH */
 		case EBUSY:
@@ -1820,9 +1805,9 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 		}
 
 		/* Check if we have become busy. */
-		if (!txn_busy && txn_state->snap_min != WT_TXN_NONE &&
+		if (!busy && txn_state->snap_min != WT_TXN_NONE &&
 		    txn_global->current != txn_global->oldest_id)
-			txn_busy = true;
+			busy = true;
 	}
 	/* NOTREACHED */
 }

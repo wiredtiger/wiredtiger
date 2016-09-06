@@ -221,7 +221,7 @@ __wt_session_can_wait(WT_SESSION_IMPL *session)
  *      percentage as a side-effect.
  */
 static inline bool
-__wt_eviction_needed(WT_SESSION_IMPL *session, u_int *pct_fullp)
+__wt_eviction_needed(WT_SESSION_IMPL *session, bool busy, u_int *pct_fullp)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_CACHE *cache;
@@ -258,8 +258,16 @@ __wt_eviction_needed(WT_SESSION_IMPL *session, u_int *pct_fullp)
 		    (int)cache->eviction_trigger - (int)pct_full,
 		    (int)cache->eviction_dirty_trigger - (int)pct_dirty));
 
+	/*
+	 * Only check the dirty trigger when the session is not busy.
+	 *
+	 * In other words, once we are pinning resources, try to finish the
+	 * operation as quickly as possible without exceeding the cache size.
+	 * The next transaction in this session will not be able to start until
+	 * the cache is under the limit.
+	 */
 	return (pct_full >= cache->eviction_trigger ||
-	    pct_dirty >= cache->eviction_dirty_trigger);
+	    (!busy && pct_dirty >= cache->eviction_dirty_trigger));
 }
 
 /*
@@ -286,10 +294,26 @@ static inline int
 __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool *didworkp)
 {
 	WT_BTREE *btree;
+	WT_TXN_GLOBAL *txn_global;
+	WT_TXN_STATE *txn_state;
 	u_int pct_full;
 
 	if (didworkp != NULL)
 		*didworkp = false;
+
+	/*
+	 * If the current transaction is keeping the oldest ID pinned, it is in
+	 * the middle of an operation.	This may prevent the oldest ID from
+	 * moving forward, leading to deadlock, so only evict what we can.
+	 * Otherwise, we are at a transaction boundary and we can work harder
+	 * to make sure there is free space in the cache.
+	 */
+	txn_global = &S2C(session)->txn_global;
+	txn_state = WT_SESSION_TXN_STATE(session);
+	busy = busy || txn_state->id != WT_TXN_NONE ||
+	    session->nhazard > 0 ||
+	    (txn_state->snap_min != WT_TXN_NONE &&
+	    txn_global->current != txn_global->oldest_id);
 
 	/*
 	 * LSM sets the no-cache-check flag when holding the LSM tree lock, in
@@ -313,7 +337,7 @@ __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool *didworkp)
 		return (0);
 
 	/* Check if eviction is needed. */
-	if (!__wt_eviction_needed(session, &pct_full))
+	if (!__wt_eviction_needed(session, busy, &pct_full))
 		return (0);
 
 	/*
