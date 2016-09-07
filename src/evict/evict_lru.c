@@ -1740,7 +1740,6 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 	WT_DECL_RET;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_STATE *txn_state;
-	double init_scrub_target;
 	uint64_t init_evict_count, max_pages_evicted;
 
 	conn = S2C(session);
@@ -1768,7 +1767,6 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 	 * that's not the case, we can do more.
 	 */
 	init_evict_count = cache->pages_evict;
-	init_scrub_target = cache->eviction_scrub_target;
 
 	for (;;) {
 		/* Check if we have become busy. */
@@ -1800,11 +1798,10 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 		 * Don't make application threads participate in scrubbing for
 		 * checkpoints.  Just throttle updates instead.
 		 */
-		if (WT_EVICT_HAS_WORKERS(session) && init_scrub_target > 0.0 &&
+		if (WT_EVICT_HAS_WORKERS(session) &&
+		    cache->eviction_scrub_target > 0.0 &&
 		    F_ISSET(cache, WT_CACHE_EVICT_DIRTY_HARD)) {
 			__wt_yield();
-			if (cache->eviction_scrub_target < init_scrub_target)
-				return (0);
 			continue;
 		}
 
