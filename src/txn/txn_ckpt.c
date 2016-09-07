@@ -378,6 +378,7 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 			 */
 			if (current_us > 10 * stepdown_us)
 				break;
+			continue;
 		}
 
 		/*
@@ -396,6 +397,7 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 		    work_us > 0) {
 			stepdown_us = (uint64_t)((delta * cache_size / 100) /
 			    ((double)bytes_written_total / work_us));
+			stepdown_us = WT_MAX(1, stepdown_us);
 			if (!progress)
 				stepdown_us = WT_MIN(stepdown_us, 200000);
 			progress = true;
@@ -410,7 +412,7 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 		 * performance to 10% by waiting once we reach the last
 		 * level.
 		 */
-		__wt_sleep(0, 10 * current_us);
+		__wt_sleep(0, 10 * stepdown_us);
 		cache->eviction_scrub_target = current_dirty - delta;
 		WT_STAT_FAST_CONN_SET(session, txn_checkpoint_scrub_target,
 		    cache->eviction_scrub_target);
