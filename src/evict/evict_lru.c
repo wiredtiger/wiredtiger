@@ -1405,7 +1405,7 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 		 */
 		mod = page->modify;
 		if (modified &&
-		    (mod->last_oldest_id == __wt_txn_oldest_id(session) ||
+		    (mod->last_eviction_id == __wt_txn_oldest_id(session) ||
 		    !__wt_txn_visible_all(session, mod->update_txn)))
 			continue;
 
