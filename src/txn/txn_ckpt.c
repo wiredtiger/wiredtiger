@@ -364,14 +364,14 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 		    cache->bytes_written - bytes_written_start;
 
 		/*
-		 * Estimate how long the next step down of 1% of dirty data
-		 * should take.
+		 * Estimate how long the next step down of dirty data should
+		 * take.
 		 *
 		 * The calculation here assumes that the system is writing from
 		 * cache as fast as it can, and determines the write throughput
 		 * based on the change in the bytes written from cache since
 		 * the start of the call.  We use that to estimate how long it
-		 * will take to step the dirty target down by 1%.
+		 * will take to step the dirty target down by delta.
 		 *
 		 * Take care to avoid dividing by zero.
 		 */
@@ -379,9 +379,9 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 		    bytes_written_total > total_ms && total_ms > 0 &&
 		    (!progress ||
 		    current_dirty <= cache->eviction_scrub_target)) {
-			stepdown_us = (uint64_t)(WT_THOUSAND * (
-			    (double)(cache_size / 100) /
-			    (double)(bytes_written_total / total_ms)));
+			stepdown_us = (uint64_t)(WT_THOUSAND *
+			    (delta * cache_size / 100) /
+			    (double)(bytes_written_total / total_ms));
 			if (!progress)
 				stepdown_us = WT_MIN(stepdown_us, 200000);
 		}
