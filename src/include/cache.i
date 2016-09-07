@@ -225,8 +225,9 @@ __wt_eviction_needed(WT_SESSION_IMPL *session, bool busy, u_int *pct_fullp)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_CACHE *cache;
-	uint64_t bytes_inuse, bytes_max;
-	double dirty_trigger, pct_dirty, pct_full;
+	double dirty_trigger;
+	uint64_t bytes_inuse, bytes_max, dirty_inuse;
+	u_int pct_dirty, pct_full;
 
 	conn = S2C(session);
 	cache = conn->cache;
@@ -242,21 +243,22 @@ __wt_eviction_needed(WT_SESSION_IMPL *session, bool busy, u_int *pct_fullp)
 	 * Avoid division by zero if the cache size has not yet been set in a
 	 * shared cache.
 	 */
-	bytes_inuse = __wt_cache_bytes_inuse(cache);
 	bytes_max = conn->cache_size + 1;
+	bytes_inuse = __wt_cache_bytes_inuse(cache);
+	dirty_inuse = __wt_cache_dirty_leaf_inuse(cache);
 
 	/*
 	 * Calculate the cache full percentage; anything over the trigger means
 	 * we involve the application thread.
 	 */
-	pct_full = ((100.0 * bytes_inuse) / bytes_max);
-	pct_dirty =
-	    ((100.0 * __wt_cache_dirty_leaf_inuse(cache)) / bytes_max);
+	if (pct_fullp != NULL) {
+		pct_full = (u_int)((100 * bytes_inuse) / bytes_max);
+		pct_dirty = (u_int)((100 * dirty_inuse) / bytes_max);
 
-	if (pct_fullp != NULL)
 		*pct_fullp = (u_int)WT_MAX(0, 100 - WT_MIN(
 		    (int)cache->eviction_trigger - (int)pct_full,
 		    (int)cache->eviction_dirty_trigger - (int)pct_dirty));
+	}
 
 	/*
 	 * Only check the dirty trigger when the session is not busy.
@@ -268,8 +270,9 @@ __wt_eviction_needed(WT_SESSION_IMPL *session, bool busy, u_int *pct_fullp)
 	 */
 	if ((dirty_trigger = cache->eviction_scrub_target) < 1.0)
 		dirty_trigger = (double)cache->eviction_dirty_trigger;
-	return (pct_full >= cache->eviction_trigger ||
-	    (!busy && pct_dirty >= dirty_trigger));
+	return (bytes_inuse > (cache->eviction_trigger * bytes_max) / 100 ||
+	    (!busy &&
+	    dirty_inuse > (uint64_t)(dirty_trigger * bytes_max) / 100));
 }
 
 /*
