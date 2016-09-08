@@ -498,7 +498,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 
 	/* Track whether pages are being evicted and progress is made. */
 	pages_evicted = cache->pages_evict;
-	prev_oldest_id = __wt_txn_oldest_id(session);
+	prev_oldest_id = txn_global->oldest_id;
 	WT_CLEAR(prev);
 
 	/* Evict pages from the cache. */
@@ -1250,6 +1250,7 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	WT_PAGE *page;
 	WT_PAGE_MODIFY *mod;
 	WT_REF *ref;
+	WT_TXN_GLOBAL *txn_global;
 	uint64_t btree_inuse, bytes_per_slot, cache_inuse;
 	uint64_t pages_seen, refs_walked;
 	uint32_t remaining_slots, total_slots, walk_flags;
@@ -1261,6 +1262,7 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	btree = S2BT(session);
 	cache = conn->cache;
 	internal_pages = restarts = 0;
+	txn_global = &conn->txn_global;
 
 	/*
 	 * Figure out how many slots to fill from this tree.
@@ -1404,7 +1406,7 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 		 * attempt to avoid repeated attempts to evict the same page.
 		 */
 		mod = page->modify;
-		if (modified &&
+		if (modified && txn_global->current != txn_global->oldest_id &&
 		    (mod->last_eviction_id == __wt_txn_oldest_id(session) ||
 		    !__wt_txn_visible_all(session, mod->update_txn)))
 			continue;
@@ -1798,9 +1800,9 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 		 * Don't make application threads participate in scrubbing for
 		 * checkpoints.  Just throttle updates instead.
 		 */
-		if (WT_EVICT_HAS_WORKERS(session) &&
+		if (busy && WT_EVICT_HAS_WORKERS(session) &&
 		    cache->eviction_scrub_target > 0.0 &&
-		    F_ISSET(cache, WT_CACHE_EVICT_DIRTY_HARD)) {
+		    !F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD)) {
 			__wt_yield();
 			continue;
 		}

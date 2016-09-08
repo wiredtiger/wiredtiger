@@ -322,7 +322,7 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 	struct timespec start, last, stop;
 	double current_dirty, delta;
 	uint64_t bytes_written_last, bytes_written_start, bytes_written_total;
-	uint64_t cache_size, current_us, stepdown_us, total_ms, work_us;
+	uint64_t cache_size, current_us, max_write, stepdown_us, total_ms, work_us;
 	bool progress;
 
 	conn = S2C(session);
@@ -348,11 +348,13 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 	delta = WT_MIN(1.0, (100 * 10.0 * WT_MEGABYTE) / cache_size);
 
 	/*
-	 * Start with the scrub target equal to the current percentage of dirty
-	 * data in cache.
+	 * Start with the scrub target equal to the expected maximum percentage
+	 * of dirty data in cache.
 	 */
-	cache->eviction_scrub_target =
-	    (100.0 * __wt_cache_dirty_leaf_inuse(cache)) / cache_size;
+	cache->eviction_scrub_target = cache->eviction_dirty_trigger;
+
+	/* Stop if we write as much dirty data as is currently in cache. */
+	max_write = __wt_cache_dirty_leaf_inuse(cache);
 
 	/* Step down the dirty target to the eviction trigger */
 	for (;;) {
@@ -376,7 +378,8 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 			 * that can't be evicted.  If we can't meet the target,
 			 * give up and start the checkpoint for real.
 			 */
-			if (current_us > 10 * stepdown_us)
+			if (current_us > WT_MAX(WT_MILLION, 10 * stepdown_us) ||
+			    bytes_written_total > max_write)
 				break;
 			continue;
 		}
