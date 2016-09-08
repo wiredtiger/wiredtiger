@@ -792,108 +792,167 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
 }
 
 /*
+ * The following variable controls how often (in seconds) we will do work in
+ * this function.
+ */
+#define EVICT_TUNE_PERIOD 3
+/*
+ * The following variable controls how much improvement in eviction rate we must
+ * see from the creation of another eviction worker to justify the creation of
+ * another one or to justify keeping around the previously created thread.
+ */
+#define EVICT_TUNE_THRESHOLD 3 /* Percent eviction rate */
+/*
+ * The following variable controls how often (in seconds) we will try to create
+ * another eviction thread despite the previous effect we observed from creating
+ * an extra thread. This is needed to account for any noise in measurements.
+ */
+#define EVICT_CREATE_RETRY 7
+
+/*
+ * __evict_tune_workers --
+ *      Decide if we want to increase or decrease the number of active eviction
+ *      workers. This function needs to be called relatively frequently and
+ *      must be performed by a thread with the smallest id in the eviction
+ *      thread group.
+ */
+static int
+__evict_tune_workers(WT_SESSION_IMPL *session)
+{
+	WT_CACHE *cache;
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+	int pct_diff;
+	int64_t pgs_evicted_cur, pgs_evicted_persec_cur = 0;
+	long delta_millis, delta_pages;
+	static bool thread_created_prev = false, try_create_thread = true;
+	static int64_t pgs_evicted_prev = 0, pgs_evicted_persec_prev = 0;
+	static struct timespec tsp_cur, tsp_prev = {0},
+		tsp_thread_created = {0};
+
+	conn = S2C(session);
+	cache = conn->cache;
+
+	WT_ASSERT(session, conn->evict_threads.threads[0]->session == session);
+
+	ret = __wt_epoch(session, &tsp_cur);
+	WT_RET(ret);
+
+	/*
+	 * Every EVICT_TUNE_PERIOD seconds record the number of
+	 * pages evicted per second observed in the previous period.
+	 */
+	if ((tsp_cur.tv_sec - tsp_prev.tv_sec) < EVICT_TUNE_PERIOD)
+		return 0;
+
+	pgs_evicted_cur = cache->pages_evict;
+
+	printf("Time: %lu sec.\n", tsp_cur.tv_sec);
+	/*
+	 * If we have recorded the number of pages evicted at the end of
+	 * the previous measurement interval, we can compute the eviction
+	 * rate in evicted pages per second achieved during the current
+	 * measurement interval.
+	 * Otherwise, we just record the number of evicted pages and return.
+	 */
+	if (pgs_evicted_prev == 0)
+		goto update_metrics;
+
+	delta_millis = (tsp_cur.tv_sec - tsp_prev.tv_sec) * WT_THOUSAND +
+		(tsp_cur.tv_nsec - tsp_prev.tv_nsec) / WT_THOUSAND
+		/ WT_THOUSAND;
+	delta_pages = pgs_evicted_cur - pgs_evicted_prev;
+	pgs_evicted_persec_cur = (delta_pages * WT_THOUSAND) / delta_millis;
+
+	printf("ms: %lu, pps: %llu\n", delta_millis, pgs_evicted_persec_cur);
+
+	/*
+	 * If we have not recorded the pages evicted per second rate in the
+	 * previous interval, we need to wait for another measurement interval
+	 * until we can record that rate, because we cannot make any tuning
+	 * decisions without it.
+	 */
+	if (pgs_evicted_persec_prev == 0)
+		goto update_metrics;
+
+	pct_diff = (pgs_evicted_persec_cur - pgs_evicted_persec_prev)
+		* 100 / pgs_evicted_persec_prev;
+
+	printf("\tPct diff: %d%%\n", pct_diff);
+
+	if (thread_created_prev) {
+		if (pct_diff > EVICT_TUNE_THRESHOLD) {
+			printf("\tSignicant improvement observed\n");
+			try_create_thread = true;
+		}
+		else {
+			int cur_threads = conn->evict_threads.current_threads;
+			try_create_thread = false;
+			printf("\tDegradation or no difference observed\n");
+
+			/* Remove the thread if we did not benefit from it */
+			WT_RET(__wt_thread_group_stop_one(
+				       session, &conn->evict_threads, false));
+			if (conn->evict_threads.current_threads < cur_threads)
+				printf("\tRemoved thread\n");
+			try_create_thread = false;
+		}
+		thread_created_prev = false;
+	} else if (tsp_cur.tv_sec - tsp_thread_created.tv_sec >
+		   EVICT_CREATE_RETRY) {
+		/*
+		 * If it has been long enough since we created another
+		 * thread, signal to try and create one again, so that
+		 * we account for any noise in measurements.
+		 */
+		try_create_thread = true;
+	}
+
+	/*
+	 * Create a new eviction thread, if we have capacity. If
+	 * we created a thread during the previous interval and
+	 * the number of evicted pages decreased, remove the thread.
+	 */
+	if (try_create_thread) {
+		int cur_threads = conn->evict_threads.current_threads;
+		printf("\tAttempting thread creation\n");
+		if (FLD_ISSET(cache->state,
+			      WT_EVICT_STATE_ALL))
+			WT_RET(__wt_thread_group_start_one(
+				       session, &conn->evict_threads, false));
+		if (conn->evict_threads.current_threads
+		    > cur_threads) {
+			thread_created_prev = true;
+			tsp_thread_created = tsp_cur;
+			printf("\tCreated thread. Using %d active threads.\n",
+			       conn->evict_threads.current_threads);
+		}
+	}
+
+update_metrics:
+	tsp_prev = tsp_cur;
+	pgs_evicted_prev = pgs_evicted_cur;
+	pgs_evicted_persec_prev = pgs_evicted_persec_cur;
+	return 0;
+}
+/*
  * __evict_lru_pages --
  *	Get pages from the LRU queue to evict.
  */
 static int
 __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
 {
-	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-	WT_THREAD *thread;
-	static bool thread_created_prev = false;
-	int64_t pgs_evicted_persec_cur = 0;
-	static int64_t pgs_evicted_prev = 0, pgs_evicted_persec_prev = 0;
-	static struct timespec tsp_curr, tsp_prev = {0};
 
 	conn = S2C(session);
-	cache = conn->cache;
 
-#define EVICT_TUNE_PERIOD 2 /* Seconds */
-#define EVICT_TUNE_THRESHOLD 10 /* Percent eviction rate */
 	/*
-	 * Decide if we want to increase or decrease the
-	 * number of active workers. This work needs to be performed in a
-	 * function that is called relatively frequently by the eviction
-	 * thread with smallest thread id.
+	 * Tune the number of active eviction worker if we are the thread
+	 * with the smallest id in the eviction thread group.
 	 */
-	if (conn->evict_threads.threads[0]->session == session) {
-		ret = __wt_epoch(session, &tsp_curr);
-		WT_RET(ret);
-		/*
-		 * Every EVICT_TUNE_PERIOD seconds record the number of
-		 * pages evicted per second observed in the previous period.
-		 * Create a new eviction thread, if we have capacity. If
-		 * we created a thread during the previous interval and
-		 * the number of evicted pages decreased, remove the thread.
-		 */
-		if ((tsp_curr.tv_sec - tsp_prev.tv_sec) > EVICT_TUNE_PERIOD) {
-			/*
-			 * Start a new thread if we have capacity,
-			 * haven't reached eviction targets and
-			 * have not recently observed lower eviction
-			 * rates with higher thread numbers.
-			 */
-			if (!thread_created_prev &&
-			    pgs_evicted_persec_prev != 0) {
-				int cur_threads =
-					conn->evict_threads.current_threads;
-				printf("Attempting thread creation\n");
-				if (FLD_ISSET(cache->state,
-					      WT_EVICT_STATE_ALL))
-					WT_RET(__wt_thread_group_start_one(
-						       session,
-						       &conn->evict_threads,
-						       false));
-				if (conn->evict_threads.current_threads
-				    > cur_threads) {
-					thread_created_prev = true;
-					printf("Created thread\n");
-				}
-			}
-			else if (pgs_evicted_prev > 0) {
-				printf("Evaluating\n");
-				long delta_millis = (tsp_curr.tv_sec
-						     - tsp_prev.tv_sec)
-					* WT_THOUSAND +
-					(tsp_curr.tv_nsec -
-					 tsp_prev.tv_nsec) /
-					WT_THOUSAND / WT_THOUSAND;
-				long delta_pages =
-					cache->pages_evict -
-					pgs_evicted_prev;
-				pgs_evicted_persec_cur =
-					(delta_pages * WT_THOUSAND)
-					/ delta_millis;
-				printf("ms: %lu, pps: %llu\n",
-				       delta_millis,
-				       pgs_evicted_persec_cur);
-				if (pgs_evicted_persec_prev > 0) {
-					int pct_diff =
-						(pgs_evicted_persec_cur
-						 - pgs_evicted_persec_prev)
-						* 100 / pgs_evicted_persec_prev;
-					printf("Pct diff: %d%%\n", pct_diff);
-
-					if(thread_created_prev) {
-						if (pct_diff > EVICT_TUNE_THRESHOLD)
-							printf("Signicant improvement "
-							       "observed\n");
-						else if (pct_diff < -EVICT_TUNE_THRESHOLD)
-							printf("Signicant degradation "
-							       "observed\n");
-						else
-							printf("No difference\n");
-						thread_created_prev = false;
-					}
-				}
-				pgs_evicted_persec_prev = pgs_evicted_persec_cur;
-			}
-			tsp_prev = tsp_curr;
-			pgs_evicted_prev = cache->pages_evict;
-		}
-	}
+	if (conn->evict_threads.threads[0]->session == session)
+		__evict_tune_workers(session);
 
 	/*
 	 * Reconcile and discard some pages: EBUSY is returned if a page fails
