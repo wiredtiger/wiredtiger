@@ -570,9 +570,16 @@ __evict_pass(WT_SESSION_IMPL *session)
 		 * If we're making progress, keep going; if we're not making
 		 * any progress at all, mark the cache "stuck" and go back to
 		 * sleep, it's not something we can fix.
+		 *
+		 * We check for progress every 20ms, the idea being that the
+		 * aggressive score will reach 10 after 200ms if we aren't
+		 * making progress and eviction will start considering more
+		 * pages.  If there is still no progress after 2s, we will
+		 * treat the cache as stuck and start rolling back
+		 * transactions and writing updates to the lookaside table.
 		 */
 		if (pages_evicted == cache->pages_evict) {
-			if (WT_TIMEDIFF_MS(now, prev) >= 10 &&
+			if (WT_TIMEDIFF_MS(now, prev) >= 20 &&
 			    F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD |
 			    WT_CACHE_EVICT_DIRTY_HARD)) {
 				if (cache->evict_aggressive_score < 100)
