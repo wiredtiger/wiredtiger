@@ -322,7 +322,8 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 	struct timespec start, last, stop;
 	double current_dirty, delta;
 	uint64_t bytes_written_last, bytes_written_start, bytes_written_total;
-	uint64_t cache_size, current_us, max_write, stepdown_us, total_ms, work_us;
+	uint64_t cache_size, max_write;
+	uint64_t current_us, stepdown_us, total_ms, work_us;
 	bool progress;
 
 	conn = S2C(session);
