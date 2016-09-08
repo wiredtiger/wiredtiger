@@ -39,7 +39,7 @@ __curstat_lsm_init(
 	WT_ERR(__wt_scr_alloc(session, 0, &uribuf));
 
 	/* Propagate all, fast and/or clear to the cursors we open. */
-	if (cst != 0) {
+	if (cst->flags != 0) {
 		(void)snprintf(config, sizeof(config),
 		    "statistics=(%s%s%s%s)",
 		    F_ISSET(cst, WT_CONN_STAT_ALL) ? "all," : "",
