@@ -149,6 +149,23 @@ testutil_cleanup(TEST_OPTS *opts)
 }
 
 /*
+ * testutil_disable_long_tests --
+ *	Return if TESTUTIL_DISABLE_LONG_TESTS is set.
+ */
+bool
+testutil_disable_long_tests(void)
+{
+	const char *res;
+
+	if (__wt_getenv(NULL,
+	    "TESTUTIL_DISABLE_LONG_TESTS", &res) == WT_NOTFOUND)
+		return (false);
+
+	free((void *)res);
+	return (true);
+}
+
+/*
  * dcalloc --
  *	Call calloc, dying on failure.
  */
