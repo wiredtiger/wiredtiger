@@ -371,7 +371,7 @@ __wt_evict_create(WT_SESSION_IMPL *session)
 	    conn->evict_threads_max, WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL,
 	    __wt_evict_thread_run));
 
-	/* 
+	/*
 	 * Allow queues to be populated now that the eviction threads
 	 * are running.
 	 */
@@ -548,6 +548,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 			FLD_SET(cache->state, WT_EVICT_STATE_AGGRESSIVE);
 		}
 
+#if 0
 		/*
 		 * Try to start a new thread if we have capacity and haven't
 		 * reached the eviction targets.
@@ -555,7 +556,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 		if (FLD_ISSET(cache->state, WT_EVICT_STATE_ALL))
 			WT_RET(__wt_thread_group_start_one(
 			    session, &conn->evict_threads, false));
-
+#endif
 		__wt_verbose(session, WT_VERB_EVICTSERVER,
 		    "Eviction pass with: Max: %" PRIu64
 		    " In use: %" PRIu64 " Dirty: %" PRIu64,
@@ -797,10 +798,102 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
 static int
 __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
 {
+	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
+	WT_THREAD *thread;
+	static bool thread_created_prev = false;
+	int64_t pgs_evicted_persec_cur = 0;
+	static int64_t pgs_evicted_prev = 0, pgs_evicted_persec_prev = 0;
+	static struct timespec tsp_curr, tsp_prev = {0};
 
 	conn = S2C(session);
+	cache = conn->cache;
+
+#define EVICT_TUNE_PERIOD 2 /* Seconds */
+#define EVICT_TUNE_THRESHOLD 10 /* Percent eviction rate */
+	/*
+	 * Decide if we want to increase or decrease the
+	 * number of active workers. This work needs to be performed in a
+	 * function that is called relatively frequently by the eviction
+	 * thread with smallest thread id.
+	 */
+	if (conn->evict_threads.threads[0]->session == session) {
+		ret = __wt_epoch(session, &tsp_curr);
+		WT_RET(ret);
+		/*
+		 * Every EVICT_TUNE_PERIOD seconds record the number of
+		 * pages evicted per second observed in the previous period.
+		 * Create a new eviction thread, if we have capacity. If
+		 * we created a thread during the previous interval and
+		 * the number of evicted pages decreased, remove the thread.
+		 */
+		if ((tsp_curr.tv_sec - tsp_prev.tv_sec) > EVICT_TUNE_PERIOD) {
+			/*
+			 * Start a new thread if we have capacity,
+			 * haven't reached eviction targets and
+			 * have not recently observed lower eviction
+			 * rates with higher thread numbers.
+			 */
+			if (!thread_created_prev &&
+			    pgs_evicted_persec_prev != 0) {
+				int cur_threads =
+					conn->evict_threads.current_threads;
+				printf("Attempting thread creation\n");
+				if (FLD_ISSET(cache->state,
+					      WT_EVICT_STATE_ALL))
+					WT_RET(__wt_thread_group_start_one(
+						       session,
+						       &conn->evict_threads,
+						       false));
+				if (conn->evict_threads.current_threads
+				    > cur_threads) {
+					thread_created_prev = true;
+					printf("Created thread\n");
+				}
+			}
+			else if (pgs_evicted_prev > 0) {
+				printf("Evaluating\n");
+				long delta_millis = (tsp_curr.tv_sec
+						     - tsp_prev.tv_sec)
+					* WT_THOUSAND +
+					(tsp_curr.tv_nsec -
+					 tsp_prev.tv_nsec) /
+					WT_THOUSAND / WT_THOUSAND;
+				long delta_pages =
+					cache->pages_evict -
+					pgs_evicted_prev;
+				pgs_evicted_persec_cur =
+					(delta_pages * WT_THOUSAND)
+					/ delta_millis;
+				printf("ms: %lu, pps: %llu\n",
+				       delta_millis,
+				       pgs_evicted_persec_cur);
+				if (pgs_evicted_persec_prev > 0) {
+					int pct_diff =
+						(pgs_evicted_persec_cur
+						 - pgs_evicted_persec_prev)
+						* 100 / pgs_evicted_persec_prev;
+					printf("Pct diff: %d%%\n", pct_diff);
+
+					if(thread_created_prev) {
+						if (pct_diff > EVICT_TUNE_THRESHOLD)
+							printf("Signicant improvement "
+							       "observed\n");
+						else if (pct_diff < -EVICT_TUNE_THRESHOLD)
+							printf("Signicant degradation "
+							       "observed\n");
+						else
+							printf("No difference\n");
+						thread_created_prev = false;
+					}
+				}
+				pgs_evicted_persec_prev = pgs_evicted_persec_cur;
+			}
+			tsp_prev = tsp_curr;
+			pgs_evicted_prev = cache->pages_evict;
+		}
+	}
 
 	/*
 	 * Reconcile and discard some pages: EBUSY is returned if a page fails
