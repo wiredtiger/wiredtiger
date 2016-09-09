@@ -600,7 +600,9 @@ __evict_pass(WT_SESSION_IMPL *session)
 			 * Keep trying for long enough that we should be able
 			 * to evict a page if the server isn't interfering.
 			 */
-			if (loop < 100 || cache->evict_aggressive_score < 100) {
+			if ((loop < 100 ||
+			    cache->evict_aggressive_score < 100) &&
+			    cache->evict_empty_score > WT_EVICT_SCORE_CUTOFF) {
 				/*
 				 * Back off if we aren't making progress: walks
 				 * hold the handle list lock, blocking other
