@@ -87,6 +87,12 @@ if test "$GCC" = "yes"; then
 	if test "`uname -s`" = "SunOS"; then
 		AM_CFLAGS="$AM_CFLAGS -pthreads"
 	fi
+
+	# ARMv8-A is the 64-bit ARM architecture, turn on the optional CRC
+	# instructions.
+	if test "$wt_cv_arm64" = "yes"; then
+		AM_CFLAGS="$AM_CFLAGS -march=armv8-a+crc"
+	fi
 else
 	# The Solaris native compiler gets the additional -mt flag.
 	if test "`uname -s`" = "SunOS"; then
