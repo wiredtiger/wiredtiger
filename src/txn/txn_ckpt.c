@@ -377,7 +377,8 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 		bytes_written_total =
 		    cache->bytes_written - bytes_written_start;
 
-		if (current_dirty > cache->eviction_scrub_limit) {
+		if (current_dirty >
+		    cache->eviction_scrub_limit + WT_EVICT_SCRUB_FUZZ) {
 			/*
 			 * We haven't reached the current target.
 			 *
@@ -388,6 +389,7 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 			if (current_us > WT_MAX(WT_MILLION, 10 * stepdown_us) ||
 			    bytes_written_total > max_write)
 				break;
+
 			continue;
 		}
 
@@ -419,11 +421,12 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 
 		/*
 		 * Smooth out step down: try to limit the impact on
-		 * performance to 10% by waiting once we reach the last
+		 * performance to 25% by waiting once we reach the last
 		 * level.
 		 */
-		__wt_sleep(0, 10 * stepdown_us);
-		cache->eviction_scrub_limit = current_dirty - delta;
+		__wt_sleep(0, 3 * stepdown_us);
+		cache->eviction_scrub_limit =
+		    WT_MIN(current_dirty, cache->eviction_scrub_limit) - delta;
 		WT_STAT_FAST_CONN_SET(session, txn_checkpoint_scrub_target,
 		    cache->eviction_scrub_limit);
 		WT_RET(__wt_epoch(session, &last));
