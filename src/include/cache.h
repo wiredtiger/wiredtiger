@@ -105,6 +105,7 @@ struct __wt_cache {
 
 	u_int eviction_checkpoint_target;/* Percent to reduce dirty
 					   to during checkpoint scrubs */
+#define	WT_EVICT_SCRUB_FUZZ 0.01
 	double eviction_scrub_limit;	/* Percent of cache to trigger
 					   dirty eviction during checkpoint
 					   scrubs */

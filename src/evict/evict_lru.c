@@ -843,8 +843,11 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 	cache = S2C(session)->cache;
 
 	/* Age out the score of how much the queue has been empty recently. */
-	if (cache->evict_empty_score > 0)
+	if (cache->evict_empty_score > 0) {
 		--cache->evict_empty_score;
+		WT_STAT_FAST_CONN_SET(session, cache_eviction_empty_score,
+		    cache->evict_empty_score);
+	}
 
 	/* Fill the next queue (that isn't the urgent queue). */
 	queue = cache->evict_fill_queue;
@@ -894,10 +897,14 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 	 */
 	if (__evict_queue_empty(queue)) {
 		if (F_ISSET(cache,
-		    WT_CACHE_EVICT_CLEAN_HARD | WT_CACHE_EVICT_DIRTY_HARD))
+		    WT_CACHE_EVICT_CLEAN_HARD | WT_CACHE_EVICT_DIRTY_HARD)) {
 			cache->evict_empty_score = WT_MIN(
 			    cache->evict_empty_score + WT_EVICT_SCORE_BUMP,
 			    WT_EVICT_SCORE_MAX);
+			WT_STAT_FAST_CONN_SET(session,
+			    cache_eviction_empty_score,
+			    cache->evict_empty_score);
+		}
 		WT_STAT_FAST_CONN_INCR(session, cache_eviction_queue_empty);
 	} else
 		WT_STAT_FAST_CONN_INCR(session, cache_eviction_queue_not_empty);
