@@ -208,6 +208,7 @@ connection_stats = [
     CacheStat('cache_eviction_split_leaf', 'leaf pages split during eviction'),
     CacheStat('cache_eviction_state', 'eviction state', 'no_clear,no_scale'),
     CacheStat('cache_eviction_walk', 'pages walked for eviction'),
+    CacheStat('cache_eviction_walks_abandoned', 'eviction walks abandoned'),
     CacheStat('cache_eviction_walks_active', 'files with active eviction walks', 'no_clear,no_scale,size'),
     CacheStat('cache_eviction_walks_started', 'files with new eviction walks started'),
     CacheStat('cache_eviction_worker_evicting', 'eviction worker thread evicting pages'),
