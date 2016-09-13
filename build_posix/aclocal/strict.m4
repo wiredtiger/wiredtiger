@@ -40,6 +40,14 @@ AC_DEFUN([AM_GCC_WARNINGS], [
 	w="$w -Wno-error=inline"
 	w="$w -Wno-error=unsafe-loop-optimizations"
 
+	case "$1" in
+	[*6.[0-9].[0-9]*])				# gcc6.X
+		w="$w -Wduplicated-cond"
+		w="$w -Wmisleading-indentation";;
+	*)
+		echo "FAIL";;
+	esac
+
 	wt_cv_strict_warnings="$w"
 ])
 
