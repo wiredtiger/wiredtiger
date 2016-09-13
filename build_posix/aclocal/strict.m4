@@ -41,7 +41,7 @@ AC_DEFUN([AM_GCC_WARNINGS], [
 	w="$w -Wno-error=unsafe-loop-optimizations"
 
 	case "$1" in
-	["*6.[0-9].[0-9]*"])				# gcc6.X
+	[*6.[0-9].[0-9]*])				# gcc6.X
 		w="$w -Wduplicated-cond"
 		w="$w -Wmisleading-indentation";;
 	esac
@@ -67,7 +67,7 @@ AC_DEFUN([AM_CLANG_WARNINGS], [
 	w="$w -Wno-cast-qual"
 
 	case "$1" in
-	"*Apple clang version 4.1*")
+	*Apple*clang*version*4.1*)
 		# Apple clang has its own numbering system, and older OS X
 		# releases need some special love. Turn off some flags for
 		# Apple's clang 4.1:
