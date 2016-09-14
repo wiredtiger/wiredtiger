@@ -559,6 +559,7 @@ static const char * const __stats_connection_desc[] = {
 	"cache: eviction calls to get a page found queue empty",
 	"cache: eviction calls to get a page found queue empty after locking",
 	"cache: eviction currently operating in aggressive mode",
+	"cache: eviction empty score",
 	"cache: eviction server candidate queue empty when topping up",
 	"cache: eviction server candidate queue not empty when topping up",
 	"cache: eviction server evicting pages",
@@ -802,6 +803,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cache_eviction_get_ref_empty = 0;
 	stats->cache_eviction_get_ref_empty2 = 0;
 		/* not clearing cache_eviction_aggressive_set */
+		/* not clearing cache_eviction_empty_score */
 	stats->cache_eviction_queue_empty = 0;
 	stats->cache_eviction_queue_not_empty = 0;
 	stats->cache_eviction_server_evicting = 0;
@@ -1043,6 +1045,8 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, cache_eviction_get_ref_empty2);
 	to->cache_eviction_aggressive_set +=
 	    WT_STAT_READ(from, cache_eviction_aggressive_set);
+	to->cache_eviction_empty_score +=
+	    WT_STAT_READ(from, cache_eviction_empty_score);
 	to->cache_eviction_queue_empty +=
 	    WT_STAT_READ(from, cache_eviction_queue_empty);
 	to->cache_eviction_queue_not_empty +=
