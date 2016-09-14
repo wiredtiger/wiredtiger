@@ -831,12 +831,12 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	int pct_diff;
-	uint64_t pgs_evicted_cur, pgs_evicted_persec_cur = 0;
-	long delta_millis, delta_pages;
+	uint64_t delta_millis, delta_pages, pgs_evicted_cur,
+		pgs_evicted_persec_cur = 0;
 	static bool thread_created_prev = false, try_create_thread = true;
 	static uint64_t pgs_evicted_prev = 0, pgs_evicted_persec_prev = 0;
-	static struct timespec tsp_cur, tsp_prev = {0},
-		tsp_thread_created = {0};
+	static struct timespec tsp_cur = {0, 0}, tsp_prev = {0, 0};
+	static struct timespec tsp_thread_created = {0, 0};
 
 	conn = S2C(session);
 	cache = conn->cache;
