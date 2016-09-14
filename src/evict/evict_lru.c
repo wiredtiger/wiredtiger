@@ -664,7 +664,7 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool count_stat)
 		return (0);
 
 	if (count_stat)
-		WT_STAT_FAST_CONN_INCR(session, cache_eviction_walks_abandoned);
+		WT_STAT_CONN_INCR(session, cache_eviction_walks_abandoned);
 
 	/*
 	 * Clear evict_ref first, in case releasing it forces eviction (we
@@ -853,7 +853,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 	/* Age out the score of how much the queue has been empty recently. */
 	if (cache->evict_empty_score > 0) {
 		--cache->evict_empty_score;
-		WT_STAT_FAST_CONN_SET(session, cache_eviction_empty_score,
+		WT_STAT_CONN_SET(session, cache_eviction_empty_score,
 		    cache->evict_empty_score);
 	}
 
