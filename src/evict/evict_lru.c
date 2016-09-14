@@ -830,27 +830,24 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-	int pct_diff;
-	int64_t pgs_evicted_cur, pgs_evicted_persec_cur = 0;
-	long delta_millis, delta_pages;
-	static bool thread_created_prev = false, try_create_thread = true;
-	static int64_t pgs_evicted_prev = 0, pgs_evicted_persec_prev = 0;
-	static struct timespec tsp_cur, tsp_prev = {0},
-		tsp_thread_created = {0};
+	struct timespec current_time;
+	uint64_t cur_threads, delta_millis, delta_pages, pct_diff;
+	uint64_t pgs_evicted_cur, pgs_evicted_persec_cur;
+	bool try_create_thread;
 
 	conn = S2C(session);
 	cache = conn->cache;
+	try_create_thread = false;
 
 	WT_ASSERT(session, conn->evict_threads.threads[0]->session == session);
 
-	ret = __wt_epoch(session, &tsp_cur);
-	WT_RET(ret);
+	WT_ERR(__wt_epoch(session, &current_time));
 
 	/*
 	 * Every EVICT_TUNE_PERIOD seconds record the number of
 	 * pages evicted per second observed in the previous period.
 	 */
-	if ((tsp_cur.tv_sec - tsp_prev.tv_sec) < EVICT_TUNE_PERIOD)
+	if (WT_TIMEDIFF_SEC(current_time, conn->evict_tune_last_time) < EVICT_TUNE_PERIOD)
 		return (0);
 
 	pgs_evicted_cur = cache->pages_evict;
@@ -862,13 +859,11 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	 * measurement interval.
 	 * Otherwise, we just record the number of evicted pages and return.
 	 */
-	if (pgs_evicted_prev == 0)
-		goto update_metrics;
+	if (conn->evict_tune_pgs_last == 0)
+		goto err;
 
-	delta_millis = (tsp_cur.tv_sec - tsp_prev.tv_sec) * WT_THOUSAND +
-		(tsp_cur.tv_nsec - tsp_prev.tv_nsec) / WT_THOUSAND
-		/ WT_THOUSAND;
-	delta_pages = pgs_evicted_cur - pgs_evicted_prev;
+	delta_millis = WT_TIMEDIFF_MS(current_time, conn->evict_tune_last_time);
+	delta_pages = pgs_evicted_cur - conn->evict_tune_pgs_last;
 	pgs_evicted_persec_cur = (delta_pages * WT_THOUSAND) / delta_millis;
 
 	/*
@@ -877,38 +872,31 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	 * until we can record that rate, because we cannot make any tuning
 	 * decisions without it.
 	 */
-	if (pgs_evicted_persec_prev == 0)
-		goto update_metrics;
+	if (conn->evict_tune_pg_sec_last == 0)
+		goto err;
 
-	pct_diff = (pgs_evicted_persec_cur - pgs_evicted_persec_prev)
-		* 100 / pgs_evicted_persec_prev;
+	pct_diff = (pgs_evicted_persec_cur - conn->evict_tune_pg_sec_last)
+		* 100 / conn->evict_tune_pg_sec_last;
 
-	if (thread_created_prev) {
-		if (pct_diff > EVICT_TUNE_THRESHOLD) {
+	if (conn->evict_tune_created_last)
+		if (pct_diff > EVICT_TUNE_THRESHOLD)
 			/*
 			 * We observed significant performance improvement when
 			 * we previously created a thread. Let's create another.
 			 */
 			try_create_thread = true;
-		}
-		else {
-			try_create_thread = false;
-
+		else
 			/* Remove the thread if we did not benefit from it */
-			WT_RET(__wt_thread_group_stop_one(
+			WT_ERR(__wt_thread_group_stop_one(
 				       session, &conn->evict_threads, false));
-			try_create_thread = false;
-		}
-		thread_created_prev = false;
-	} else if (tsp_cur.tv_sec - tsp_thread_created.tv_sec >
-		   EVICT_CREATE_RETRY) {
+	else if (WT_TIMEDIFF_SEC(
+	    current_time, conn->evict_time_last_create) > EVICT_CREATE_RETRY)
 		/*
 		 * If it has been long enough since we created another
 		 * thread, signal to try and create one again, so that
 		 * we account for any noise in measurements.
 		 */
 		try_create_thread = true;
-	}
 
 	/*
 	 * Create a new eviction thread, if we have capacity. If
@@ -916,7 +904,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	 * the number of evicted pages decreased, remove the thread.
 	 */
 	if (try_create_thread) {
-		int cur_threads = conn->evict_threads.current_threads;
+		cur_threads = conn->evict_threads.current_threads;
 
 		/*
 		 * Attempt to create a new thread if we have capacity and
@@ -929,16 +917,17 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 		if (conn->evict_threads.current_threads
 		    > cur_threads) {
 			/* We created a new thread. Make a note of it. */
-			thread_created_prev = true;
-			tsp_thread_created = tsp_cur;
+			conn->evict_tune_created_last = true;
+			conn->evict_time_last_create = current_time;
 		}
-	}
+	} else
+		conn->evict_tune_created_last = false;
 
-update_metrics:
-	tsp_prev = tsp_cur;
-	pgs_evicted_prev = pgs_evicted_cur;
-	pgs_evicted_persec_prev = pgs_evicted_persec_cur;
-	return (0);
+err:
+	conn->evict_tune_last_time = current_time;
+	conn->evict_tune_pgs_last = pgs_evicted_cur;
+	conn->evict_tune_pg_sec_last = pgs_evicted_persec_cur;
+	return (ret);
 }
 /*
  * __evict_lru_pages --
