@@ -59,6 +59,7 @@ main(void)
 	testutil_check(__wt_random_init_seed(NULL, &rnd));
 
 	/* Initialize the WiredTiger library checksum functions. */
+	testutil_check(__wt_library_init());
 	__wt_checksum_init();
 
 	/*
