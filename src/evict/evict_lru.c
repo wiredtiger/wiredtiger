@@ -548,15 +548,6 @@ __evict_pass(WT_SESSION_IMPL *session)
 			FLD_SET(cache->state, WT_EVICT_STATE_AGGRESSIVE);
 		}
 
-#if 0
-		/*
-		 * Try to start a new thread if we have capacity and haven't
-		 * reached the eviction targets.
-		 */
-		if (FLD_ISSET(cache->state, WT_EVICT_STATE_ALL))
-			WT_RET(__wt_thread_group_start_one(
-			    session, &conn->evict_threads, false));
-#endif
 		__wt_verbose(session, WT_VERB_EVICTSERVER,
 		    "Eviction pass with: Max: %" PRIu64
 		    " In use: %" PRIu64 " Dirty: %" PRIu64,
@@ -847,7 +838,6 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 
 	pgs_evicted_cur = cache->pages_evict;
 
-	printf("Time: %lu sec.\n", tsp_cur.tv_sec);
 	/*
 	 * If we have recorded the number of pages evicted at the end of
 	 * the previous measurement interval, we can compute the eviction
@@ -864,8 +854,6 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	delta_pages = pgs_evicted_cur - pgs_evicted_prev;
 	pgs_evicted_persec_cur = (delta_pages * WT_THOUSAND) / delta_millis;
 
-	printf("ms: %lu, pps: %llu\n", delta_millis, pgs_evicted_persec_cur);
-
 	/*
 	 * If we have not recorded the pages evicted per second rate in the
 	 * previous interval, we need to wait for another measurement interval
@@ -878,23 +866,21 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	pct_diff = (pgs_evicted_persec_cur - pgs_evicted_persec_prev)
 		* 100 / pgs_evicted_persec_prev;
 
-	printf("\tPct diff: %d%%\n", pct_diff);
-
 	if (thread_created_prev) {
 		if (pct_diff > EVICT_TUNE_THRESHOLD) {
-			printf("\tSignicant improvement observed\n");
+			/*
+			 * We observed significant performance improvement when
+			 * we previously created a thread. Let's create another.
+			 */
 			try_create_thread = true;
 		}
 		else {
 			int cur_threads = conn->evict_threads.current_threads;
 			try_create_thread = false;
-			printf("\tDegradation or no difference observed\n");
 
 			/* Remove the thread if we did not benefit from it */
 			WT_RET(__wt_thread_group_stop_one(
 				       session, &conn->evict_threads, false));
-			if (conn->evict_threads.current_threads < cur_threads)
-				printf("\tRemoved thread\n");
 			try_create_thread = false;
 		}
 		thread_created_prev = false;
@@ -915,17 +901,21 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	 */
 	if (try_create_thread) {
 		int cur_threads = conn->evict_threads.current_threads;
-		printf("\tAttempting thread creation\n");
+
+		/*
+		 * Attempt to create a new thread if we have capacity and
+		 * if the eviciton goals are not met.
+		 */
 		if (FLD_ISSET(cache->state,
 			      WT_EVICT_STATE_ALL))
 			WT_RET(__wt_thread_group_start_one(
 				       session, &conn->evict_threads, false));
+
 		if (conn->evict_threads.current_threads
 		    > cur_threads) {
+			/* We created a new thread. Make a note of it. */
 			thread_created_prev = true;
 			tsp_thread_created = tsp_cur;
-			printf("\tCreated thread. Using %d active threads.\n",
-			       conn->evict_threads.current_threads);
 		}
 	}
 
