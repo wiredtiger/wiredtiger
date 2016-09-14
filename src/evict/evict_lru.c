@@ -803,19 +803,19 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
  * The following variable controls how often (in seconds) we will do work in
  * this function.
  */
-#define	EVICT_TUNE_PERIOD 3
+#define	EVICT_TUNE_PERIOD 2
 /*
  * The following variable controls how much improvement in eviction rate we must
  * see from the creation of another eviction worker to justify the creation of
  * another one or to justify keeping around the previously created thread.
  */
-#define	EVICT_TUNE_THRESHOLD 3 /* Percent eviction rate */
+#define	EVICT_TUNE_THRESHOLD 5 /* Percent eviction rate */
 /*
  * The following variable controls how often (in seconds) we will try to create
  * another eviction thread despite the previous effect we observed from creating
  * an extra thread. This is needed to account for any noise in measurements.
  */
-#define	EVICT_CREATE_RETRY 7
+#define	EVICT_CREATE_RETRY 10
 
 /*
  * __evict_tune_workers --
@@ -831,7 +831,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	int pct_diff;
-	int64_t pgs_evicted_cur, pgs_evicted_persec_cur = 0;
+	uint64_t pgs_evicted_cur, pgs_evicted_persec_cur = 0;
 	long delta_millis, delta_pages;
 	static bool thread_created_prev = false, try_create_thread = true;
 	static uint64_t pgs_evicted_prev = 0, pgs_evicted_persec_prev = 0;
@@ -880,8 +880,9 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	if (pgs_evicted_persec_prev == 0)
 		goto update_metrics;
 
-	pct_diff = (pgs_evicted_persec_cur - pgs_evicted_persec_prev)
-		* 100 / pgs_evicted_persec_prev;
+	pct_diff = ((int64_t)pgs_evicted_persec_cur
+		    - (int64_t)pgs_evicted_persec_prev) * 100
+		/ (int64_t)pgs_evicted_persec_prev;
 
 	if (thread_created_prev) {
 		if (pct_diff > EVICT_TUNE_THRESHOLD) {
