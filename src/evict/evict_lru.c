@@ -892,7 +892,6 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 			try_create_thread = true;
 		}
 		else {
-			int cur_threads = conn->evict_threads.current_threads;
 			try_create_thread = false;
 
 			/* Remove the thread if we did not benefit from it */
@@ -923,8 +922,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 		 * Attempt to create a new thread if we have capacity and
 		 * if the eviction goals are not met.
 		 */
-		if (FLD_ISSET(cache->state,
-			      WT_EVICT_STATE_ALL))
+		if (F_ISSET(cache, WT_CACHE_EVICT_ALL))
 			WT_RET(__wt_thread_group_start_one(
 				       session, &conn->evict_threads, false));
 
