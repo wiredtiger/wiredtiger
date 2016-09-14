@@ -904,7 +904,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 
 		/*
 		 * Attempt to create a new thread if we have capacity and
-		 * if the eviciton goals are not met.
+		 * if the eviction goals are not met.
 		 */
 		if (FLD_ISSET(cache->state,
 			      WT_EVICT_STATE_ALL))
