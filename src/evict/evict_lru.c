@@ -834,7 +834,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	int64_t pgs_evicted_cur, pgs_evicted_persec_cur = 0;
 	long delta_millis, delta_pages;
 	static bool thread_created_prev = false, try_create_thread = true;
-	static int64_t pgs_evicted_prev = 0, pgs_evicted_persec_prev = 0;
+	static uint64_t pgs_evicted_prev = 0, pgs_evicted_persec_prev = 0;
 	static struct timespec tsp_cur, tsp_prev = {0},
 		tsp_thread_created = {0};
 
@@ -892,8 +892,6 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 			try_create_thread = true;
 		}
 		else {
-			try_create_thread = false;
-
 			/* Remove the thread if we did not benefit from it */
 			WT_RET(__wt_thread_group_stop_one(
 				       session, &conn->evict_threads, false));
@@ -916,7 +914,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	 * the number of evicted pages decreased, remove the thread.
 	 */
 	if (try_create_thread) {
-		int cur_threads = conn->evict_threads.current_threads;
+		uint32_t cur_threads = conn->evict_threads.current_threads;
 
 		/*
 		 * Attempt to create a new thread if we have capacity and
