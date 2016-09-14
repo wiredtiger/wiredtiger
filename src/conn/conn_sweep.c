@@ -48,7 +48,7 @@ __sweep_mark(WT_SESSION_IMPL *session, time_t now)
 			continue;
 
 		dhandle->timeofdeath = now;
-		WT_STAT_FAST_CONN_INCR(session, dh_sweep_tod);
+		WT_STAT_CONN_INCR(session, dh_sweep_tod);
 	}
 }
 
@@ -167,10 +167,10 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
 
 		/* We closed the btree handle. */
 		if (ret == 0) {
-			WT_STAT_FAST_CONN_INCR(session, dh_sweep_close);
+			WT_STAT_CONN_INCR(session, dh_sweep_close);
 			++*dead_handlesp;
 		} else
-			WT_STAT_FAST_CONN_INCR(session, dh_sweep_ref);
+			WT_STAT_CONN_INCR(session, dh_sweep_ref);
 
 		WT_RET_BUSY_OK(ret);
 	}
@@ -236,9 +236,9 @@ __sweep_remove_handles(WT_SESSION_IMPL *session)
 		WT_WITH_HANDLE_LIST_LOCK(session,
 		    ret = __sweep_remove_one(session, dhandle));
 		if (ret == 0)
-			WT_STAT_FAST_CONN_INCR(session, dh_sweep_remove);
+			WT_STAT_CONN_INCR(session, dh_sweep_remove);
 		else
-			WT_STAT_FAST_CONN_INCR(session, dh_sweep_ref);
+			WT_STAT_CONN_INCR(session, dh_sweep_ref);
 		WT_RET_BUSY_OK(ret);
 	}
 
@@ -273,7 +273,7 @@ __sweep_server(void *arg)
 		    conn->sweep_cond, conn->sweep_interval * WT_MILLION);
 		WT_ERR(__wt_seconds(session, &now));
 
-		WT_STAT_FAST_CONN_INCR(session, dh_sweeps);
+		WT_STAT_CONN_INCR(session, dh_sweeps);
 
 		/*
 		 * Sweep the lookaside table. If the lookaside table hasn't yet
@@ -284,10 +284,10 @@ __sweep_server(void *arg)
 		 * If we try to sweep when the cache is full or we aren't
 		 * making progress in eviction, sweeping can wind up constantly
 		 * bringing in and evicting pages from the lookaside table,
-		 * which will stop the WT_CACHE_STUCK flag from being set.
+		 * which will stop the cache from moving into the stuck state.
 		 */
 		if (__wt_las_is_written(session) &&
-		    !F_ISSET(conn->cache, WT_CACHE_STUCK)) {
+		    !__wt_cache_stuck(session)) {
 			oldest_id = __wt_txn_oldest_id(session);
 			if (WT_TXNID_LT(last_las_sweep_id, oldest_id)) {
 				WT_ERR(__wt_las_sweep(session));
