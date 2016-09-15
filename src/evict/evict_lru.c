@@ -376,7 +376,7 @@ __wt_evict_create(WT_SESSION_IMPL *session)
 	    conn->evict_threads_max, WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL,
 	    __wt_evict_thread_run));
 
-	/* 
+	/*
 	 * Allow queues to be populated now that the eviction threads
 	 * are running.
 	 */
@@ -535,14 +535,6 @@ __evict_pass(WT_SESSION_IMPL *session)
 
 		if (!__evict_update_work(session))
 			break;
-
-		/*
-		 * Try to start a new thread if we have capacity and haven't
-		 * reached the eviction targets.
-		 */
-		if (F_ISSET(cache, WT_CACHE_EVICT_ALL))
-			WT_RET(__wt_thread_group_start_one(
-			    session, &conn->evict_threads, false));
 
 		__wt_verbose(session, WT_VERB_EVICTSERVER,
 		    "Eviction pass with: Max: %" PRIu64
@@ -808,6 +800,137 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
 }
 
 /*
+ * The following variable controls how often (in seconds) we will do work in
+ * this function.
+ */
+#define	EVICT_TUNE_PERIOD 3
+/*
+ * The following variable controls how much improvement in eviction rate we must
+ * see from the creation of another eviction worker to justify the creation of
+ * another one or to justify keeping around the previously created thread.
+ */
+#define	EVICT_TUNE_THRESHOLD 3 /* Percent eviction rate */
+/*
+ * The following variable controls how often (in seconds) we will try to create
+ * another eviction thread despite the previous effect we observed from creating
+ * an extra thread. This is needed to account for any noise in measurements.
+ */
+#define	EVICT_CREATE_RETRY 7
+
+/*
+ * __evict_tune_workers --
+ *      Decide if we want to increase or decrease the number of active eviction
+ *      workers. This function needs to be called relatively frequently and
+ *      must be performed by a thread with the smallest id in the eviction
+ *      thread group.
+ */
+static int
+__evict_tune_workers(WT_SESSION_IMPL *session)
+{
+	WT_CACHE *cache;
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+	struct timespec current_time;
+	uint64_t cur_threads, delta_millis, delta_pages, pct_diff;
+	uint64_t pgs_evicted_cur, pgs_evicted_persec_cur;
+	bool try_create_thread;
+
+	conn = S2C(session);
+	cache = conn->cache;
+	pgs_evicted_persec_cur = 0;
+	try_create_thread = false;
+
+	WT_ASSERT(session, conn->evict_threads.threads[0]->session == session);
+
+	WT_RET(__wt_epoch(session, &current_time));
+
+	/*
+	 * Every EVICT_TUNE_PERIOD seconds record the number of
+	 * pages evicted per second observed in the previous period.
+	 */
+	if (WT_TIMEDIFF_SEC(
+	    current_time, conn->evict_tune_last_time) < EVICT_TUNE_PERIOD)
+		return (0);
+
+	pgs_evicted_cur = cache->pages_evict;
+
+	/*
+	 * If we have recorded the number of pages evicted at the end of
+	 * the previous measurement interval, we can compute the eviction
+	 * rate in evicted pages per second achieved during the current
+	 * measurement interval.
+	 * Otherwise, we just record the number of evicted pages and return.
+	 */
+	if (conn->evict_tune_pgs_last == 0)
+		goto err;
+
+	delta_millis = WT_TIMEDIFF_MS(current_time, conn->evict_tune_last_time);
+	delta_pages = pgs_evicted_cur - conn->evict_tune_pgs_last;
+	pgs_evicted_persec_cur = (delta_pages * WT_THOUSAND) / delta_millis;
+
+	/*
+	 * If we have not recorded the pages evicted per second rate in the
+	 * previous interval, we need to wait for another measurement interval
+	 * until we can record that rate, because we cannot make any tuning
+	 * decisions without it.
+	 */
+	if (conn->evict_tune_pg_sec_last == 0)
+		goto err;
+
+	pct_diff = (pgs_evicted_persec_cur - conn->evict_tune_pg_sec_last)
+	    * 100 / conn->evict_tune_pg_sec_last;
+
+	if (conn->evict_tune_created_last)
+		if (pct_diff > EVICT_TUNE_THRESHOLD)
+			/*
+			 * We observed significant performance improvement when
+			 * we previously created a thread. Let's create another.
+			 */
+			try_create_thread = true;
+		else
+			/* Remove the thread if we did not benefit from it */
+			WT_ERR(__wt_thread_group_stop_one(
+			    session, &conn->evict_threads, false));
+	else if (WT_TIMEDIFF_SEC(
+	    current_time, conn->evict_time_last_create) > EVICT_CREATE_RETRY)
+		/*
+		 * If it has been long enough since we created another
+		 * thread, signal to try and create one again, so that
+		 * we account for any noise in measurements.
+		 */
+		try_create_thread = true;
+
+	/*
+	 * Create a new eviction thread, if we have capacity. If
+	 * we created a thread during the previous interval and
+	 * the number of evicted pages decreased, remove the thread.
+	 */
+	conn->evict_tune_created_last = false;
+	if (try_create_thread) {
+		cur_threads = conn->evict_threads.current_threads;
+
+		/*
+		 * Attempt to create a new thread if we have capacity and
+		 * if the eviction goals are not met.
+		 */
+		if (F_ISSET(cache, WT_CACHE_EVICT_ALL))
+			WT_ERR(__wt_thread_group_start_one(
+			    session, &conn->evict_threads, false));
+
+		if (conn->evict_threads.current_threads > cur_threads) {
+			/* We created a new thread. Make a note of it. */
+			conn->evict_tune_created_last = true;
+			conn->evict_time_last_create = current_time;
+		}
+	}
+
+err:
+	conn->evict_tune_last_time = current_time;
+	conn->evict_tune_pgs_last = pgs_evicted_cur;
+	conn->evict_tune_pg_sec_last = pgs_evicted_persec_cur;
+	return (ret);
+}
+/*
  * __evict_lru_pages --
  *	Get pages from the LRU queue to evict.
  */
@@ -818,6 +941,13 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
 	WT_DECL_RET;
 
 	conn = S2C(session);
+
+	/*
+	 * Tune the number of active eviction worker if we are the thread
+	 * with the smallest id in the eviction thread group.
+	 */
+	if (conn->evict_threads.threads[0]->session == session)
+		__evict_tune_workers(session);
 
 	/*
 	 * Reconcile and discard some pages: EBUSY is returned if a page fails
