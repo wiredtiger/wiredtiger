@@ -831,13 +831,13 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	struct timespec current_time;
-	uint64_t cur_threads, delta_millis, delta_pages, pct_diff;
+	int pct_diff;
+	uint64_t cur_threads, delta_millis, delta_pages;
 	uint64_t pgs_evicted_cur, pgs_evicted_persec_cur;
 	bool try_create_thread;
 
 	conn = S2C(session);
 	cache = conn->cache;
-	pgs_evicted_persec_cur = 0;
 	try_create_thread = false;
 
 	WT_ASSERT(session, conn->evict_threads.threads[0]->session == session);
@@ -878,8 +878,8 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	if (conn->evict_tune_pg_sec_last == 0)
 		goto err;
 
-	pct_diff = (pgs_evicted_persec_cur - conn->evict_tune_pg_sec_last)
-	    * 100 / conn->evict_tune_pg_sec_last;
+	pct_diff = (int)(pgs_evicted_persec_cur - conn->evict_tune_pg_sec_last)
+		* 100 / (int) conn->evict_tune_pg_sec_last;
 
 	if (conn->evict_tune_created_last)
 		if (pct_diff > EVICT_TUNE_THRESHOLD)
@@ -888,10 +888,11 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 			 * we previously created a thread. Let's create another.
 			 */
 			try_create_thread = true;
-		else
+		else {
 			/* Remove the thread if we did not benefit from it */
 			WT_ERR(__wt_thread_group_stop_one(
 			    session, &conn->evict_threads, false));
+		}
 	else if (WT_TIMEDIFF_SEC(
 	    current_time, conn->evict_time_last_create) > EVICT_CREATE_RETRY)
 		/*
