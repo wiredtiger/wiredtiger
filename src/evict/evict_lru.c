@@ -837,17 +837,19 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 
 	conn = S2C(session);
 	cache = conn->cache;
+	pgs_evicted_persec_cur = 0;
 	try_create_thread = false;
 
 	WT_ASSERT(session, conn->evict_threads.threads[0]->session == session);
 
-	WT_ERR(__wt_epoch(session, &current_time));
+	WT_RET(__wt_epoch(session, &current_time));
 
 	/*
 	 * Every EVICT_TUNE_PERIOD seconds record the number of
 	 * pages evicted per second observed in the previous period.
 	 */
-	if (WT_TIMEDIFF_SEC(current_time, conn->evict_tune_last_time) < EVICT_TUNE_PERIOD)
+	if (WT_TIMEDIFF_SEC(
+	    current_time, conn->evict_tune_last_time) < EVICT_TUNE_PERIOD)
 		return (0);
 
 	pgs_evicted_cur = cache->pages_evict;
@@ -876,7 +878,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 		goto err;
 
 	pct_diff = (pgs_evicted_persec_cur - conn->evict_tune_pg_sec_last)
-		* 100 / conn->evict_tune_pg_sec_last;
+	    * 100 / conn->evict_tune_pg_sec_last;
 
 	if (conn->evict_tune_created_last)
 		if (pct_diff > EVICT_TUNE_THRESHOLD)
@@ -888,7 +890,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 		else
 			/* Remove the thread if we did not benefit from it */
 			WT_ERR(__wt_thread_group_stop_one(
-				       session, &conn->evict_threads, false));
+			    session, &conn->evict_threads, false));
 	else if (WT_TIMEDIFF_SEC(
 	    current_time, conn->evict_time_last_create) > EVICT_CREATE_RETRY)
 		/*
@@ -903,6 +905,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	 * we created a thread during the previous interval and
 	 * the number of evicted pages decreased, remove the thread.
 	 */
+	conn->evict_tune_created_last = false;
 	if (try_create_thread) {
 		cur_threads = conn->evict_threads.current_threads;
 
@@ -911,17 +914,15 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 		 * if the eviction goals are not met.
 		 */
 		if (F_ISSET(cache, WT_CACHE_EVICT_ALL))
-			WT_RET(__wt_thread_group_start_one(
-				       session, &conn->evict_threads, false));
+			WT_ERR(__wt_thread_group_start_one(
+			    session, &conn->evict_threads, false));
 
-		if (conn->evict_threads.current_threads
-		    > cur_threads) {
+		if (conn->evict_threads.current_threads > cur_threads) {
 			/* We created a new thread. Make a note of it. */
 			conn->evict_tune_created_last = true;
 			conn->evict_time_last_create = current_time;
 		}
-	} else
-		conn->evict_tune_created_last = false;
+	}
 
 err:
 	conn->evict_tune_last_time = current_time;
