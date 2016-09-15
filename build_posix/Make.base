@@ -78,6 +78,19 @@ if HAVE_BUILTIN_EXTENSION_ZLIB
 libwiredtiger_la_LIBADD += ext/compressors/zlib/libwiredtiger_zlib.la
 endif
 
+# Rule to build object files from asm files.
+#
+# XXX
+# Libtool creates the .lo file in the directory where make is run. Move the file
+# into place explicitly; I'm sure this is wrong, but have no idea how to fix it.
+# Additionally, in a parallel make, the .libs file may not yet be created, check
+# as necessary, but ignore errors.
+.asm.lo:
+	-d=`dirname $@`; test $d/.libs || mkdir $d/.libs
+	$(LIBTOOL) --tag=CC --mode=compile sh $(srcdir)/dist/yasm.sh $< $@
+	rm -f $@
+	mv `basename $@` $@
+
 libwiredtiger_static_la_LIBADD=$(libwiredtiger_la_LIBADD)
 libwiredtiger_static_la_SOURCES=$(libwiredtiger_la_SOURCES)
 
