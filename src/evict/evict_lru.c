@@ -881,6 +881,9 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	pct_diff = (int)(pgs_evicted_persec_cur - conn->evict_tune_pg_sec_last)
 		* 100 / (int) conn->evict_tune_pg_sec_last;
 
+	__wt_verbose(session, WT_VERB_EVICTSERVER,
+		     "pages evicted per second: %llu", pgs_evicted_persec_cur);
+
 	if (conn->evict_tune_created_last)
 		if (pct_diff > EVICT_TUNE_THRESHOLD)
 			/*
@@ -892,6 +895,12 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 			/* Remove the thread if we did not benefit from it */
 			WT_ERR(__wt_thread_group_stop_one(
 			    session, &conn->evict_threads, false));
+			WT_STAT_CONN_INCR(session,
+					  cache_eviction_worker_removed);
+			WT_STAT_CONN_SET(session, cache_eviction_active_workers,
+					 conn->evict_threads.current_threads);
+			__wt_verbose(session, WT_VERB_EVICTSERVER,
+				     "removed thread");
 		}
 	else if (WT_TIMEDIFF_SEC(
 	    current_time, conn->evict_time_last_create) > EVICT_CREATE_RETRY)
@@ -923,6 +932,12 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 			/* We created a new thread. Make a note of it. */
 			conn->evict_tune_created_last = true;
 			conn->evict_time_last_create = current_time;
+			WT_STAT_CONN_INCR(session,
+					  cache_eviction_worker_created);
+			WT_STAT_CONN_SET(session, cache_eviction_active_workers,
+					 conn->evict_threads.current_threads);
+			__wt_verbose(session, WT_VERB_EVICTSERVER,
+				     "added thread");
 		}
 	}
 

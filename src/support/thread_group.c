@@ -346,7 +346,7 @@ __wt_thread_group_stop_one(
 {
 	WT_DECL_RET;
 
-	if (group->current_threads >= group->max)
+	if (group->current_threads <= group->min)
 		return (0);
 
 	if (wait)
