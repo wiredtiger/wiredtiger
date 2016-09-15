@@ -881,9 +881,6 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	pct_diff = (int)(pgs_evicted_persec_cur - conn->evict_tune_pg_sec_last)
 		* 100 / (int) conn->evict_tune_pg_sec_last;
 
-	__wt_verbose(session, WT_VERB_EVICTSERVER,
-		     "pages evicted per second: %llu", pgs_evicted_persec_cur);
-
 	if (conn->evict_tune_created_last)
 		if (pct_diff > EVICT_TUNE_THRESHOLD)
 			/*
