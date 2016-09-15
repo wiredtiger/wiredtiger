@@ -803,19 +803,19 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
  * The following variable controls how often (in seconds) we will do work in
  * this function.
  */
-#define	EVICT_TUNE_PERIOD 3
+#define	EVICT_TUNE_PERIOD 2
 /*
  * The following variable controls how much improvement in eviction rate we must
  * see from the creation of another eviction worker to justify the creation of
  * another one or to justify keeping around the previously created thread.
  */
-#define	EVICT_TUNE_THRESHOLD 3 /* Percent eviction rate */
+#define	EVICT_TUNE_THRESHOLD 5 /* Percent eviction rate */
 /*
  * The following variable controls how often (in seconds) we will try to create
  * another eviction thread despite the previous effect we observed from creating
  * an extra thread. This is needed to account for any noise in measurements.
  */
-#define	EVICT_CREATE_RETRY 7
+#define	EVICT_CREATE_RETRY 10
 
 /*
  * __evict_tune_workers --
@@ -841,6 +841,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	try_create_thread = false;
 
 	WT_ASSERT(session, conn->evict_threads.threads[0]->session == session);
+	pgs_evicted_persec_cur = 0;
 
 	WT_RET(__wt_epoch(session, &current_time));
 
