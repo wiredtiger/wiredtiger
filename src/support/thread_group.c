@@ -77,7 +77,7 @@ __thread_group_grow(
  */
 static int
 __thread_group_shrink(WT_SESSION_IMPL *session,
-    WT_THREAD_GROUP *group, uint32_t new_count, bool free)
+    WT_THREAD_GROUP *group, uint32_t new_count, bool free_thread)
 {
 	WT_DECL_RET;
 	WT_SESSION *wt_session;
@@ -107,7 +107,7 @@ __thread_group_shrink(WT_SESSION_IMPL *session,
 			WT_TRET(__wt_thread_join(session, thread->tid));
 			thread->tid = 0;
 		}
-		if (free) {
+		if (free_thread) {
 			if (thread->session != NULL) {
 				wt_session = (WT_SESSION *)thread->session;
 				WT_TRET(wt_session->close(wt_session, NULL));
