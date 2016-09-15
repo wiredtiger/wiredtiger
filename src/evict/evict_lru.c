@@ -830,18 +830,18 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-	int pct_diff;
+	int64_t pct_diff;
 	uint64_t delta_millis, delta_pages, pgs_evicted_cur,
-		pgs_evicted_persec_cur = 0;
-	static bool thread_created_prev = false, try_create_thread = true;
-	static uint64_t pgs_evicted_prev = 0, pgs_evicted_persec_prev = 0;
-	static struct timespec tsp_cur = {0, 0}, tsp_prev = {0, 0};
-	static struct timespec tsp_thread_created = {0, 0};
+		pgs_evicted_persec_cur;
+	static bool thread_created_prev, try_create_thread;
+	static uint64_t pgs_evicted_prev, pgs_evicted_persec_prev;
+	static struct timespec tsp_cur, tsp_prev, tsp_thread_created;
 
 	conn = S2C(session);
 	cache = conn->cache;
 
 	WT_ASSERT(session, conn->evict_threads.threads[0]->session == session);
+	pgs_evicted_persec_cur = 0;
 
 	ret = __wt_epoch(session, &tsp_cur);
 	WT_RET(ret);
@@ -865,8 +865,9 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	if (pgs_evicted_prev == 0)
 		goto update_metrics;
 
-	delta_millis = (tsp_cur.tv_sec - tsp_prev.tv_sec) * WT_THOUSAND +
-		(tsp_cur.tv_nsec - tsp_prev.tv_nsec) / WT_THOUSAND
+	delta_millis = (uint64_t) (tsp_cur.tv_sec - tsp_prev.tv_sec)
+		* WT_THOUSAND +
+		(uint64_t) (tsp_cur.tv_nsec - tsp_prev.tv_nsec) / WT_THOUSAND
 		/ WT_THOUSAND;
 	delta_pages = pgs_evicted_cur - pgs_evicted_prev;
 	pgs_evicted_persec_cur = (delta_pages * WT_THOUSAND) / delta_millis;
