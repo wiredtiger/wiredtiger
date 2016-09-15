@@ -77,7 +77,7 @@ __thread_group_grow(
  */
 static int
 __thread_group_shrink(WT_SESSION_IMPL *session,
-		      WT_THREAD_GROUP *group, uint32_t new_count, bool free)
+    WT_THREAD_GROUP *group, uint32_t new_count, bool free)
 {
 	WT_DECL_RET;
 	WT_SESSION *wt_session;
@@ -152,7 +152,7 @@ __thread_group_resize(
 	 * Call shrink to reduce the number of thread structures and running
 	 * threads if required by the change in group size.
 	 */
-	WT_RET(__thread_group_shrink(session, group, new_max, 1));
+	WT_RET(__thread_group_shrink(session, group, new_max, true));
 
 	/*
 	 * Only reallocate the thread array if it is the largest ever, since
@@ -292,7 +292,7 @@ __wt_thread_group_destroy(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group)
 	WT_ASSERT(session, __wt_rwlock_islocked(session, group->lock));
 
 	/* Shut down all threads and free associated resources. */
-	WT_TRET(__thread_group_shrink(session, group, 0, 1));
+	WT_TRET(__thread_group_shrink(session, group, 0, true));
 
 	__wt_free(session, group->threads);
 
@@ -357,7 +357,7 @@ __wt_thread_group_stop_one(
 	/* Recheck the bounds now that we hold the lock */
 	if (group->current_threads > group->min)
 		WT_TRET(__thread_group_shrink(
-				session, group, group->current_threads - 1, 0));
+		    session, group, group->current_threads - 1, false));
 	__wt_writeunlock(session, group->lock);
 
 	return (ret);
