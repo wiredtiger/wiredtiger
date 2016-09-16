@@ -24,7 +24,7 @@ find bench dist examples ext src test \
     -name 's_*' -o \
     -name 'Makefile.am' |
     sed -e '/Makefile.in/d' \
-	-e '/checksum\/power8/d' \
+        -e '/checksum\/power8/d' \
         -e '/3rdparty/d' \
         -e '/docs\/tools/d' \
 | while read f ; do
