@@ -468,6 +468,14 @@ __evict_update_work(WT_SESSION_IMPL *session)
 		F_SET(cache, WT_CACHE_EVICT_DIRTY_HARD);
 
 	/*
+	 * If application threads are blocked by the total volume of data in
+	 * cache, try dirty pages as well.
+	 */
+	if (__wt_cache_aggressive(session) &&
+	    F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD))
+		F_SET(cache, WT_CACHE_EVICT_DIRTY);
+
+	/*
 	 * Scrub dirty pages and keep them in cache if we are less than half
 	 * way to the clean or dirty trigger.
 	 */
