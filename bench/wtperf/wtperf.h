@@ -114,6 +114,7 @@ struct __config {			/* Configuration structure */
 	char *monitor_dir;		/* Monitor output dir */
 	char *partial_config;		/* Config string for partial logging */
 	char *reopen_config;		/* Config string for conn reopen */
+	char *log_table_uri;            /* URI for log table */
 	char **uris;			/* URIs */
 
 	WT_CONNECTION *conn;		/* Database connection */
@@ -143,6 +144,7 @@ struct __config {			/* Configuration structure */
 	uint64_t update_ops;		/* update operations */
 
 	uint64_t insert_key;		/* insert key */
+	uint64_t log_like_table_key;	/* used to allocate IDs for log table */
 
 	volatile bool ckpt;		/* checkpoint in progress */
 	volatile bool error;		/* thread error */

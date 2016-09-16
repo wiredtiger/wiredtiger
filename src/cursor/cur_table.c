@@ -646,7 +646,7 @@ __wt_table_range_truncate(WT_CURSOR_TABLE *start, WT_CURSOR_TABLE *stop)
 	/* Open any indices. */
 	WT_RET(__curtable_open_indices(ctable));
 	WT_RET(__wt_scr_alloc(session, 128, &key));
-	WT_STAT_FAST_DATA_INCR(session, cursor_truncate);
+	WT_STAT_DATA_INCR(session, cursor_truncate);
 
 	/*
 	 * Step through the cursor range, removing the index entries.
@@ -938,8 +938,8 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 	    cursor, cursor->internal_uri, owner, cfg, cursorp));
 
 	if (F_ISSET(cursor, WT_CURSTD_DUMP_JSON))
-		WT_ERR(__wt_json_column_init(cursor, table->key_format,
-		    NULL, &table->colconf));
+		__wt_json_column_init(
+		    cursor, table->key_format, NULL, &table->colconf);
 
 	/*
 	 * Open the colgroup cursors immediately: we're going to need them for
