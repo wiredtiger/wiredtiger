@@ -751,7 +751,7 @@ config_consolidate(CONFIG_OPTS *opts)
 	CONFIG_QUEUE_ENTRY *conf_line, *test_line, *tmp;
 	char *string_key;
 
-	/* 
+	/*
 	 * This loop iterates over the config queue and for each entry checks if
 	 * a later queue entry has the same key. If there's a match, the current
 	 * queue entry is removed and we continue.
