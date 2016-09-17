@@ -54,9 +54,10 @@ class test_compact(wttest.WiredTigerTestCase, suite_subprocess):
         ('utility', dict(utility=1,reopen=0)),
     ]
     scenarios = make_scenarios(types, compact)
-    # We want a large cache so that eviction doesn't happen
-    # (which could skew our compaction results).
-    conn_config = 'cache_size=250MB,statistics=(all)'
+
+    # We want a large cache so that eviction doesn't happen (which could skew
+    # our compaction results).
+    conn_config = 'cache_size=1GB,statistics=(all)'
 
     # Test compaction.
     def test_compact(self):
