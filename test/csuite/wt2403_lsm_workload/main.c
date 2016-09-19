@@ -95,7 +95,7 @@ query_docs(WT_CURSOR *cursor, bool mod)
 	return (0);
 }
 
-static void 
+static void
 *compact_thread(void *args)
 {
 	WT_SESSION *session;

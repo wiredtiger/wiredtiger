@@ -951,10 +951,8 @@ static int
 __clsm_random_chunk(WT_SESSION_IMPL *session,
     WT_CURSOR_LSM *clsm, WT_CURSOR **cursor)
 {
-	WT_LSM_TREE *lsm_tree;
 	uint64_t checked_docs, i, rand_doc, total_docs;
 
-	lsm_tree = clsm->lsm_tree;
 	rand_doc = __wt_random(&session->rnd);
 	/*
 	 * If the tree is empty we cannot do a random lookup, so return a
