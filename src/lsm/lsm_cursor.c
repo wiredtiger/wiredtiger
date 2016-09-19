@@ -166,8 +166,7 @@ __clsm_enter(WT_CURSOR_LSM *clsm, bool reset, bool update)
 	WT_LSM_TREE *lsm_tree;
 	WT_SESSION_IMPL *session;
 	WT_TXN *txn;
-	uint64_t *switch_txnp;
-	uint64_t snap_min;
+	uint64_t i, snap_min, switch_txn;
 
 	lsm_tree = clsm->lsm_tree;
 	session = (WT_SESSION_IMPL *)clsm->iface.session;
@@ -240,15 +239,15 @@ __clsm_enter(WT_CURSOR_LSM *clsm, bool reset, bool update)
 				    F_ISSET(txn, WT_TXN_HAS_SNAPSHOT));
 				snap_min =
 				    WT_SESSION_TXN_STATE(session)->snap_min;
-				for (switch_txnp =
-				    &clsm->units[clsm->nchunks - 2]->switch_txn;
+				for (i = clsm->nchunks - 2;
 				    clsm->nupdates < clsm->nchunks;
-				    clsm->nupdates++, switch_txnp--) {
-					if (WT_TXNID_LT(*switch_txnp, snap_min))
+				    clsm->nupdates++, i--) {
+					switch_txn = clsm->units[i]->switch_txn;
+					if (WT_TXNID_LT(switch_txn, snap_min))
 						break;
 					WT_ASSERT(session,
 					    !__wt_txn_visible_all(
-					    session, *switch_txnp));
+					    session, switch_txn));
 				}
 			}
 		}
