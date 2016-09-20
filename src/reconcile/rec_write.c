@@ -159,7 +159,7 @@ typedef struct {
 
 		WT_ADDR addr;		/* Split's written location */
 		uint32_t size;		/* Split's size */
-		uint32_t cksum;		/* Split's checksum */
+		uint32_t checksum;	/* Split's checksum */
 
 		void    *disk_image;	/* Split's disk image */
 
@@ -374,14 +374,19 @@ __wt_reconcile(WT_SESSION_IMPL *session,
 	 */
 	__wt_writelock(session, &page->page_lock);
 
+	oldest_id = __wt_txn_oldest_id(session);
+	if (LF_ISSET(WT_EVICTING))
+		mod->last_eviction_id = oldest_id;
+
+#ifdef HAVE_DIAGNOSTIC
 	/*
 	 * Check that transaction time always moves forward for a given page.
 	 * If this check fails, reconciliation can free something that a future
 	 * reconciliation will need.
 	 */
-	oldest_id = __wt_txn_oldest_id(session);
 	WT_ASSERT(session, WT_TXNID_LE(mod->last_oldest_id, oldest_id));
 	mod->last_oldest_id = oldest_id;
+#endif
 
 	/* Initialize the reconciliation structure for each new run. */
 	if ((ret = __rec_write_init(
@@ -430,19 +435,19 @@ __wt_reconcile(WT_SESSION_IMPL *session,
 	__wt_writeunlock(session, &page->page_lock);
 
 	/* Update statistics. */
-	WT_STAT_FAST_CONN_INCR(session, rec_pages);
-	WT_STAT_FAST_DATA_INCR(session, rec_pages);
+	WT_STAT_CONN_INCR(session, rec_pages);
+	WT_STAT_DATA_INCR(session, rec_pages);
 	if (LF_ISSET(WT_EVICTING)) {
-		WT_STAT_FAST_CONN_INCR(session, rec_pages_eviction);
-		WT_STAT_FAST_DATA_INCR(session, rec_pages_eviction);
+		WT_STAT_CONN_INCR(session, rec_pages_eviction);
+		WT_STAT_DATA_INCR(session, rec_pages_eviction);
 	}
 	if (r->cache_write_lookaside) {
-		WT_STAT_FAST_CONN_INCR(session, cache_write_lookaside);
-		WT_STAT_FAST_DATA_INCR(session, cache_write_lookaside);
+		WT_STAT_CONN_INCR(session, cache_write_lookaside);
+		WT_STAT_DATA_INCR(session, cache_write_lookaside);
 	}
 	if (r->cache_write_restore) {
-		WT_STAT_FAST_CONN_INCR(session, cache_write_restore);
-		WT_STAT_FAST_DATA_INCR(session, cache_write_restore);
+		WT_STAT_CONN_INCR(session, cache_write_restore);
+		WT_STAT_DATA_INCR(session, cache_write_restore);
 	}
 
 	/*
@@ -1872,7 +1877,7 @@ __rec_split_bnd_init(WT_SESSION_IMPL *session, WT_BOUNDARY *bnd)
 	__wt_free(session, bnd->addr.addr);
 	WT_CLEAR(bnd->addr);
 	bnd->size = 0;
-	bnd->cksum = 0;
+	bnd->checksum = 0;
 
 	__wt_free(session, bnd->disk_image);
 
@@ -2268,7 +2273,7 @@ __rec_split_row_promote(
 	for (cnt = 1; len > 0; ++cnt, --len, ++pa, ++pb)
 		if (*pa != *pb) {
 			if (size != cnt) {
-				WT_STAT_FAST_DATA_INCRV(session,
+				WT_STAT_DATA_INCRV(session,
 				    rec_suffix_compression, size - cnt);
 				size = cnt;
 			}
@@ -2721,7 +2726,7 @@ __rec_split_raw_worker(WT_SESSION_IMPL *session,
 		 * we were successful and have a block to write.
 		 */
 		if (result_slots == 0) {
-			WT_STAT_FAST_DATA_INCR(session, compress_raw_fail);
+			WT_STAT_DATA_INCR(session, compress_raw_fail);
 
 			/*
 			 * If there are no more rows, we can write the original
@@ -2750,7 +2755,7 @@ __rec_split_raw_worker(WT_SESSION_IMPL *session,
 			 */
 			last->already_compressed = false;
 		} else {
-			WT_STAT_FAST_DATA_INCR(session, compress_raw_ok);
+			WT_STAT_DATA_INCR(session, compress_raw_ok);
 
 			/*
 			 * If there are more rows and the compression function
@@ -2868,7 +2873,7 @@ no_slots:
 		 * Compression failed and there are no more rows to accumulate,
 		 * write the original buffer instead.
 		 */
-		WT_STAT_FAST_DATA_INCR(session, compress_raw_fail);
+		WT_STAT_DATA_INCR(session, compress_raw_fail);
 
 		dsk->recno = last->recno;
 		dsk->mem_size = WT_PTRDIFF32(r->first_free, dsk);
@@ -2887,7 +2892,7 @@ no_slots:
 		 * compression function wants to try again; increase the size of
 		 * the "page" and try again after we accumulate some more rows.
 		 */
-		WT_STAT_FAST_DATA_INCR(session, compress_raw_fail_temporary);
+		WT_STAT_DATA_INCR(session, compress_raw_fail_temporary);
 		goto split_grow;
 	}
 
@@ -3195,7 +3200,7 @@ __rec_split_write(WT_SESSION_IMPL *session,
 	WT_ILLEGAL_VALUE(session);
 	}
 	bnd->size = (uint32_t)buf->size;
-	bnd->cksum = 0;
+	bnd->checksum = 0;
 
 	/*
 	 * Check if we've saved updates that belong to this block, and move
@@ -3301,7 +3306,7 @@ supd_check_complete:
 		 */
 		dsk->write_gen = 0;
 		memset(WT_BLOCK_HEADER_REF(dsk), 0, btree->block_header);
-		bnd->cksum = __wt_cksum(buf->data, buf->size);
+		bnd->checksum = __wt_checksum(buf->data, buf->size);
 
 		/*
 		 * One last check: don't reuse blocks if compacting, the reason
@@ -3314,11 +3319,11 @@ supd_check_complete:
 		    mod->mod_multi_entries > bnd_slot) {
 			multi = &mod->mod_multi[bnd_slot];
 			if (multi->size == bnd->size &&
-			    multi->cksum == bnd->cksum) {
+			    multi->checksum == bnd->checksum) {
 				multi->addr.reuse = 1;
 				bnd->addr = multi->addr;
 
-				WT_STAT_FAST_DATA_INCR(session, rec_page_match);
+				WT_STAT_DATA_INCR(session, rec_page_match);
 				goto copy_image;
 			}
 		}
@@ -3329,7 +3334,7 @@ supd_check_complete:
 	if (WT_VERBOSE_ISSET(session, WT_VERB_SPLIT) && r->entries < 6)
 		__wt_verbose(session, WT_VERB_SPLIT,
 		    "Reconciliation creating a page with %" PRIu32
-		    " entries, memory footprint %" PRIu64
+		    " entries, memory footprint %" WT_SIZET_FMT
 		    ", page count %" PRIu32 ", %s, split state: %d\n",
 		    r->entries, r->page->memory_footprint, r->bnd_next,
 		    F_ISSET(r, WT_EVICTING) ? "evict" : "checkpoint",
@@ -3406,7 +3411,7 @@ __rec_update_las(WT_SESSION_IMPL *session,
 	 */
 	__wt_las_set_written(session);
 
-	WT_ERR(__wt_las_cursor(session, &cursor, &session_flags));
+	__wt_las_cursor(session, &cursor, &session_flags);
 
 	/* Ensure enough room for a column-store key without checking. */
 	WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
@@ -5637,9 +5642,10 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
 	switch (r->bnd_next) {
 	case 0:						/* Page delete */
-		__wt_verbose(session, WT_VERB_RECONCILE, "page %p empty", page);
-		WT_STAT_FAST_CONN_INCR(session, rec_page_delete);
-		WT_STAT_FAST_DATA_INCR(session, rec_page_delete);
+		__wt_verbose(
+		    session, WT_VERB_RECONCILE, "page %p empty", (void *)page);
+		WT_STAT_CONN_INCR(session, rec_page_delete);
+		WT_STAT_DATA_INCR(session, rec_page_delete);
 
 		/* If this is the root page, we need to create a sync point. */
 		ref = r->ref;
@@ -5699,18 +5705,17 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 	default:					/* Page split */
 		__wt_verbose(session, WT_VERB_RECONCILE,
 		    "page %p reconciled into %" PRIu32 " pages",
-		    page, r->bnd_next);
+		    (void *)page, r->bnd_next);
 
 		switch (page->type) {
 		case WT_PAGE_COL_INT:
 		case WT_PAGE_ROW_INT:
-			WT_STAT_FAST_DATA_INCR(
-			    session, rec_multiblock_internal);
+			WT_STAT_DATA_INCR(session, rec_multiblock_internal);
 			break;
 		case WT_PAGE_COL_FIX:
 		case WT_PAGE_COL_VAR:
 		case WT_PAGE_ROW_LEAF:
-			WT_STAT_FAST_DATA_INCR(session, rec_multiblock_leaf);
+			WT_STAT_DATA_INCR(session, rec_multiblock_leaf);
 			break;
 		WT_ILLEGAL_VALUE(session);
 		}
@@ -5722,7 +5727,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		/* Track the largest set of page-splits. */
 		if (r->bnd_next > r->bnd_next_max) {
 			r->bnd_next_max = r->bnd_next;
-			WT_STAT_FAST_DATA_SET(
+			WT_STAT_DATA_SET(
 			    session, rec_multiblock_max, r->bnd_next_max);
 		}
 
@@ -5844,7 +5849,7 @@ __rec_split_row(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		multi->addr = bnd->addr;
 		multi->addr.reuse = 0;
 		multi->size = bnd->size;
-		multi->cksum = bnd->cksum;
+		multi->checksum = bnd->checksum;
 		bnd->addr.addr = NULL;
 	}
 	mod->mod_multi_entries = r->bnd_next;
@@ -5891,7 +5896,7 @@ __rec_split_col(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		multi->addr = bnd->addr;
 		multi->addr.reuse = 0;
 		multi->size = bnd->size;
-		multi->cksum = bnd->cksum;
+		multi->checksum = bnd->checksum;
 		bnd->addr.addr = NULL;
 	}
 	mod->mod_multi_entries = r->bnd_next;
@@ -5923,7 +5928,7 @@ __rec_cell_build_int_key(WT_SESSION_IMPL *session,
 
 	/* Create an overflow object if the data won't fit. */
 	if (size > btree->maxintlkey) {
-		WT_STAT_FAST_DATA_INCR(session, rec_overflow_key_internal);
+		WT_STAT_DATA_INCR(session, rec_overflow_key_internal);
 
 		*is_ovflp = true;
 		return (__rec_cell_build_ovfl(
@@ -6002,7 +6007,7 @@ __rec_cell_build_leaf_key(WT_SESSION_IMPL *session,
 			if (pfx < btree->prefix_compression_min)
 				pfx = 0;
 			else
-				WT_STAT_FAST_DATA_INCRV(
+				WT_STAT_DATA_INCRV(
 				    session, rec_prefix_compression, pfx);
 		}
 
@@ -6023,7 +6028,7 @@ __rec_cell_build_leaf_key(WT_SESSION_IMPL *session,
 		 * object that was prefix compressed.
 		 */
 		if (pfx == 0) {
-			WT_STAT_FAST_DATA_INCR(session, rec_overflow_key_leaf);
+			WT_STAT_DATA_INCR(session, rec_overflow_key_leaf);
 
 			*is_ovflp = true;
 			return (__rec_cell_build_ovfl(
@@ -6107,7 +6112,7 @@ __rec_cell_build_val(WT_SESSION_IMPL *session,
 
 		/* Create an overflow object if the data won't fit. */
 		if (val->buf.size > btree->maxleafvalue) {
-			WT_STAT_FAST_DATA_INCR(session, rec_overflow_value);
+			WT_STAT_DATA_INCR(session, rec_overflow_value);
 
 			return (__rec_cell_build_ovfl(
 			    session, r, val, WT_CELL_VALUE_OVFL, rle));
@@ -6350,7 +6355,7 @@ __rec_dictionary_lookup(
 		WT_RET(__wt_cell_pack_data_match(
 		    dp->cell, &val->cell, val->buf.data, &match));
 		if (match) {
-			WT_STAT_FAST_DATA_INCR(session, rec_dictionary);
+			WT_STAT_DATA_INCR(session, rec_dictionary);
 			*dpp = dp;
 			return (0);
 		}

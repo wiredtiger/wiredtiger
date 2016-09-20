@@ -54,9 +54,11 @@ class test_compact(wttest.WiredTigerTestCase, suite_subprocess):
         ('utility', dict(utility=1,reopen=0)),
     ]
     scenarios = make_scenarios(types, compact)
-    # We want a large cache so that eviction doesn't happen
-    # (which could skew our compaction results).
-    conn_config = 'cache_size=250MB,statistics=(all)'
+
+    # Configure the connection so that eviction doesn't happen (which could
+    # skew our compaction results).
+    conn_config = 'cache_size=1GB,eviction_checkpoint_target=80,' +\
+        'eviction_dirty_target=80,eviction_dirty_trigger=95,statistics=(all)'
 
     # Test compaction.
     def test_compact(self):
@@ -99,7 +101,6 @@ class test_compact(wttest.WiredTigerTestCase, suite_subprocess):
         stat_cursor = self.session.open_cursor('statistics:' + uri, None, None)
         self.assertLess(stat_cursor[stat.dsrc.btree_row_leaf][2], self.maxpages)
         stat_cursor.close()
-
 
 if __name__ == '__main__':
     wttest.run()

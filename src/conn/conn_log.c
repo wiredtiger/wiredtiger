@@ -137,7 +137,7 @@ __logmgr_config(
 	if (!reconfig) {
 		WT_RET(__wt_config_gets(session, cfg, "log.file_max", &cval));
 		conn->log_file_max = (wt_off_t)cval.val;
-		WT_STAT_FAST_CONN_SET(session,
+		WT_STAT_CONN_SET(session,
 		    log_max_filesize, conn->log_file_max);
 	}
 
@@ -299,14 +299,14 @@ __log_prealloc_once(WT_SESSION_IMPL *session)
 		    "Missed %" PRIu32 ". Now pre-allocating up to %" PRIu32,
 		    log->prep_missed, conn->log_prealloc);
 	}
-	WT_STAT_FAST_CONN_SET(session, log_prealloc_max, conn->log_prealloc);
+	WT_STAT_CONN_SET(session, log_prealloc_max, conn->log_prealloc);
 	/*
 	 * Allocate up to the maximum number that we just computed and detected.
 	 */
 	for (i = reccount; i < (u_int)conn->log_prealloc; i++) {
 		WT_ERR(__wt_log_allocfile(
 		    session, ++log->prep_fileid, WT_LOG_PREPNAME));
-		WT_STAT_FAST_CONN_INCR(session, log_prealloc_files);
+		WT_STAT_CONN_INCR(session, log_prealloc_files);
 	}
 	/*
 	 * Reset the missed count now.  If we missed during pre-allocating
@@ -421,15 +421,27 @@ __log_file_server(void *arg)
 				 * later syncs.
 				 */
 				WT_ERR(__wt_fsync(session, close_fh, true));
+
 				/*
 				 * We want to have the file size reflect actual
 				 * data with minimal pre-allocated zeroed space.
-				 * The underlying file system may not support
-				 * truncate, which is OK, it's just more work
+				 * We can't truncate the file during hot backup,
+				 * or the underlying file system may not support
+				 * truncate: both are OK, it's just more work
 				 * during cursor traversal.
 				 */
-				WT_ERR_ERROR_OK(__wt_ftruncate(session,
-				    close_fh, close_end_lsn.l.offset), ENOTSUP);
+				if (!conn->hot_backup) {
+					__wt_readlock(
+					    session, conn->hot_backup_lock);
+					if (!conn->hot_backup)
+						WT_ERR_ERROR_OK(
+						    __wt_ftruncate(session,
+						    close_fh,
+						    close_end_lsn.l.offset),
+						    ENOTSUP);
+					__wt_readunlock(
+					    session, conn->hot_backup_lock);
+				}
 				WT_SET_LSN(&close_end_lsn,
 				    close_end_lsn.l.file + 1, 0);
 				__wt_spin_lock(session, &log->log_sync_lock);
@@ -620,8 +632,7 @@ restart:
 				coalescing->slot_last_offset =
 				    slot->slot_last_offset;
 				coalescing->slot_end_lsn = slot->slot_end_lsn;
-				WT_STAT_FAST_CONN_INCR(
-				    session, log_slot_coalesced);
+				WT_STAT_CONN_INCR(session, log_slot_coalesced);
 				/*
 				 * Copy the flag for later closing.
 				 */
@@ -662,7 +673,7 @@ restart:
 				log->write_start_lsn = slot->slot_start_lsn;
 				log->write_lsn = slot->slot_end_lsn;
 				__wt_cond_signal(session, log->log_write_cond);
-				WT_STAT_FAST_CONN_INCR(session, log_write_lsn);
+				WT_STAT_CONN_INCR(session, log_write_lsn);
 				/*
 				 * Signal the close thread if needed.
 				 */
@@ -708,7 +719,7 @@ __log_wrlsn_server(void *arg)
 		    __wt_log_cmp(&log->write_lsn, &log->alloc_lsn) != 0)
 			__wt_log_wrlsn(session, &yield);
 		else
-			WT_STAT_FAST_CONN_INCR(session, log_write_lsn_skip);
+			WT_STAT_CONN_INCR(session, log_write_lsn_skip);
 		prev = log->alloc_lsn;
 		did_work = yield == 0;
 
@@ -914,7 +925,7 @@ __wt_logmgr_open(WT_SESSION_IMPL *session)
 
 	conn = S2C(session);
 
-	/* If no log thread services are configured, we're done. */ 
+	/* If no log thread services are configured, we're done. */
 	if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
 		return (0);
 
