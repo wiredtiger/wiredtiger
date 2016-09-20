@@ -165,6 +165,7 @@ INSN
 INTL
 ISA
 ITEMs
+ITER
 InitializeCriticalSectionAndSpinCount
 Inline
 Intra
@@ -784,6 +785,7 @@ isupper
 isxdigit
 iter
 iteratively
+iters
 jnr
 jrx
 json
