@@ -108,7 +108,6 @@ int
 main(int argc, char *argv[])
 {
 	TEST_OPTS *opts, _opts;
-	WT_CONNECTION *conn;
 	WT_SESSION *session, *session2;
 	WT_CURSOR *rcursor, *wcursor;
 	WT_ITEM key, value;
@@ -122,13 +121,16 @@ main(int argc, char *argv[])
 	 * environment variable isn't already set (as is done by make check).
 	 */
 	opts = &_opts;
+	memset(opts, 0, sizeof(*opts));
 	testutil_check(testutil_parse_opts(argc, argv, opts));
 	testutil_make_work_dir(opts->home);
-	testutil_check(
-	    wiredtiger_open(opts->home, NULL, "create,cache_size=200M", &conn));
+	testutil_check(wiredtiger_open(opts->home,
+	    NULL, "create,cache_size=200M", &opts->conn));
 
-	testutil_check(conn->open_session(conn, NULL, NULL, &session));
-	testutil_check(conn->open_session(conn, NULL, NULL, &session2));
+	testutil_check(
+	    opts->conn->open_session(opts->conn, NULL, NULL, &session));
+	testutil_check(
+	    opts->conn->open_session(opts->conn, NULL, NULL, &session2));
 
 	testutil_check(session->create(session, name,
 	    "key_format=Q,value_format=S"));
