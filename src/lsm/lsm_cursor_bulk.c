@@ -30,8 +30,6 @@ __clsm_close_bulk(WT_CURSOR *cursor)
 	/* Close the bulk cursor to ensure the chunk is written to disk. */
 	bulk_cursor = clsm->iters[0]->cursor;
 	WT_RET(bulk_cursor->close(bulk_cursor));
-	__wt_free(session, clsm->iters[0]);
-	__wt_free(session, clsm->iters);
 	clsm->nchunks = 0;
 
 	/* Set ondisk, and flush the metadata */
@@ -127,7 +125,7 @@ __wt_clsm_open_bulk(WT_CURSOR_LSM *clsm, const char *cfg[])
 	 */
 	WT_RET(__wt_realloc_def(session, &clsm->iters_alloc, 1, &clsm->iters));
 	WT_RET(__wt_calloc_one(session, &clsm->iters[0]));
-	clsm->nchunks = 1;
+	clsm->iters_count = clsm->nchunks = 1;
 
 	/*
 	 * Open a bulk cursor on the first chunk in the tree - take a read
