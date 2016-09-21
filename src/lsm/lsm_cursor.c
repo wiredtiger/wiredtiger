@@ -410,7 +410,7 @@ __clsm_alloc_iter(WT_SESSION_IMPL *session, WT_CURSOR_LSM *clsm, u_int nchunks)
 	WT_DECL_RET;
 	WT_LSM_CURSOR_ITER *unit;
 
-	/* Capture how many iters we currently have allocated */
+	/* Don't allocate more iterators if we don't need them. */
 	if (clsm->iters_count >= nchunks) {
 		return (ret);
 	}
