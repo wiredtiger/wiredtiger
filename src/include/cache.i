@@ -193,7 +193,7 @@ __wt_cache_bytes_other(WT_CACHE *cache)
  * __wt_session_can_wait --
  *	Return if a session available for a potentially slow operation.
  */
-static inline int
+static inline bool
 __wt_session_can_wait(WT_SESSION_IMPL *session)
 {
 	/*
@@ -202,17 +202,15 @@ __wt_session_can_wait(WT_SESSION_IMPL *session)
 	 * the system cache.
 	 */
 	if (!F_ISSET(session, WT_SESSION_CAN_WAIT))
-		return (0);
+		return (false);
 
 	/*
 	 * LSM sets the no-eviction flag when holding the LSM tree lock, in that
 	 * case, or when holding the schema lock, we don't want to highjack the
 	 * thread for eviction.
 	 */
-	if (F_ISSET(session, WT_SESSION_NO_EVICTION | WT_SESSION_LOCKED_SCHEMA))
-		return (0);
-
-	return (1);
+	return (!F_ISSET(
+            session, WT_SESSION_NO_EVICTION | WT_SESSION_LOCKED_SCHEMA));
 }
 
 /*
