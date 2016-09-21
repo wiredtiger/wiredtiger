@@ -955,7 +955,6 @@ __clsm_random_chunk(WT_SESSION_IMPL *session,
 {
 	uint64_t checked_docs, i, rand_doc, total_docs;
 
-	rand_doc = __wt_random(&session->rnd);
 	/*
 	 * If the tree is empty we cannot do a random lookup, so return a
 	 * WT_NOTFOUND.
@@ -968,7 +967,7 @@ __clsm_random_chunk(WT_SESSION_IMPL *session,
 	if (total_docs == 0)
 		return (WT_NOTFOUND);
 
-	rand_doc %= total_docs;
+	rand_doc = __wt_random(&session->rnd) % total_docs;
 
 	for (checked_docs = i = 0; i < clsm->nchunks; i++) {
 		checked_docs += clsm->iters[i]->count;
