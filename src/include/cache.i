@@ -206,10 +206,10 @@ __wt_session_can_wait(WT_SESSION_IMPL *session)
 
 	/*
 	 * LSM sets the no-eviction flag when holding the LSM tree lock, in that
-	 * case, or when holding the schema lock, we don't want to highjack the
-	 * thread for eviction.
+	 * case, or when holding a high-level lock, we don't want to highjack
+	 * the thread for eviction.
 	 */
-	if (F_ISSET(session, WT_SESSION_NO_EVICTION))
+	if (F_ISSET(session, WT_SESSION_NO_EVICTION | WT_HIGH_LEVEL_LOCK_MASK))
 		return (0);
 
 	return (1);
@@ -325,7 +325,7 @@ __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool *didworkp)
 	 * the macros that acquire high-level locks. In those cases, we don't
 	 * want to highjack the thread for eviction.
 	 */
-	if (F_ISSET(session, WT_SESSION_NO_EVICTION))
+	if (F_ISSET(session, WT_SESSION_NO_EVICTION | WT_HIGH_LEVEL_LOCK_MASK))
 		return (0);
 
 	/* In memory configurations don't block when the cache is full. */

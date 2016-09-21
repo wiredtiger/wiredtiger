@@ -83,13 +83,6 @@ struct __wt_table {
  *	Wait for a lock, perform an operation, drop the lock.
  */
 #define	WT_WITH_LOCK_WAIT(session, lock, flag, op) do {			\
-	bool __no_eviction_set;						\
-	if (F_ISSET(session, WT_SESSION_NO_EVICTION))			\
-		__no_eviction_set = true;				\
-	else {								\
-		__no_eviction_set = false;				\
-		F_SET(session, WT_SESSION_NO_EVICTION);			\
-	}								\
 	if (F_ISSET(session, (flag))) {					\
 		op;							\
 	}  else {							\
@@ -99,8 +92,6 @@ struct __wt_table {
 		F_CLR(session, (flag));					\
 		__wt_spin_unlock(session, (lock));			\
 	}								\
-	if (!__no_eviction_set)						\
-		F_CLR(session, WT_SESSION_NO_EVICTION);			\
 } while (0)
 
 /*
@@ -108,14 +99,7 @@ struct __wt_table {
  *	Acquire a lock, perform an operation, drop the lock.
  */
 #define	WT_WITH_LOCK(session, ret, lock, flag, op) do {			\
-	bool __no_eviction_set;						\
 	ret = 0;							\
-	if (F_ISSET(session, WT_SESSION_NO_EVICTION))			\
-		__no_eviction_set = true;				\
-	else {								\
-		__no_eviction_set = false;				\
-		F_SET(session, WT_SESSION_NO_EVICTION);			\
-	}								\
 	if (!F_ISSET(session, (flag)) &&				\
 	    F_ISSET(session, WT_SESSION_LOCK_NO_WAIT)) {		\
 		if ((ret = __wt_spin_trylock(session, (lock))) == 0) {	\
@@ -126,8 +110,6 @@ struct __wt_table {
 		}							\
 	} else								\
 		WT_WITH_LOCK_WAIT(session, lock, flag, op);		\
-	if (!__no_eviction_set)						\
-		F_CLR(session, WT_SESSION_NO_EVICTION);			\
 } while (0)
 
 /*
@@ -234,3 +216,16 @@ struct __wt_table {
 		F_SET(session, WT_SESSION_LOCKED_HANDLE_LIST);		\
 	}								\
 } while (0)
+
+/*
+ * WT_HIGH_LEVEL_LOCK_MASK --
+ *	List the high-level locks that imply a session shouldn't be tapped to
+ * wait for long I/O operations or eviction.
+ */
+#define	WT_HIGH_LEVEL_LOCK_MASK						\
+	(WT_SESSION_LOCKED_CHECKPOINT |					\
+	WT_SESSION_LOCKED_HANDLE_LIST |					\
+	WT_SESSION_LOCKED_METADATA |					\
+	WT_SESSION_LOCKED_SCHEMA |					\
+	WT_SESSION_LOCKED_TABLE |					\
+	WT_SESSION_LOCKED_TURTLE)
