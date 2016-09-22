@@ -210,7 +210,7 @@ __wt_session_can_wait(WT_SESSION_IMPL *session)
 	 * thread for eviction.
 	 */
 	return (!F_ISSET(
-            session, WT_SESSION_NO_EVICTION | WT_SESSION_LOCKED_SCHEMA));
+	    session, WT_SESSION_NO_EVICTION | WT_SESSION_LOCKED_SCHEMA));
 }
 
 /*
