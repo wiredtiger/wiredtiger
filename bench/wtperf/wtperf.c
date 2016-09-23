@@ -538,14 +538,12 @@ worker(void *arg)
 			goto err;
 		}
 	}
-	if (opts->log_like_table) {
-		if ((ret = session->open_cursor(session,
-		    cfg->log_table_uri, NULL, NULL, &log_table_cursor)) != 0) {
-			lprintf(cfg, ret, 0,
-			    "worker: WT_SESSION.open_cursor: %s",
-			    cfg->log_table_uri);
-			goto err;
-		}
+	if (opts->log_like_table &&
+	    (ret = session->open_cursor(
+	    session, cfg->log_table_uri, NULL, NULL, &log_table_cursor)) != 0) {
+		lprintf(cfg, ret, 0,
+		    "worker: WT_SESSION.open_cursor: %s", cfg->log_table_uri);
+		goto err;
 	}
 
 	/* Setup the timer for throttling. */
@@ -1913,9 +1911,11 @@ create_uris(CONFIG *cfg)
 	}
 
 	/* Create the log-like-table URI. */
-	cfg->log_table_uri = dcalloc(strlen("table:") +
-	    strlen(opts->table_name) + strlen("_log_table") + 1, 1);
-	sprintf(cfg->log_table_uri, "table:%s_log_table", opts->table_name);
+	len = strlen("table:") +
+	    strlen(opts->table_name) + strlen("_log_table") + 1;
+	cfg->log_table_uri = dmalloc(len);
+	snprintf(
+	    cfg->log_table_uri, len, "table:%s_log_table", opts->table_name);
 }
 
 static int
@@ -2055,6 +2055,7 @@ config_free(CONFIG *cfg)
 	free(cfg->monitor_dir);
 	free(cfg->partial_config);
 	free(cfg->reopen_config);
+	free(cfg->log_table_uri);
 
 	if (cfg->uris != NULL) {
 		for (i = 0; i < opts->table_count; i++)
