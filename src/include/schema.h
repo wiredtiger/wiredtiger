@@ -216,3 +216,16 @@ struct __wt_table {
 		F_SET(session, WT_SESSION_LOCKED_HANDLE_LIST);		\
 	}								\
 } while (0)
+
+/*
+ * WT_HIGH_LEVEL_LOCK_MASK --
+ *	List the high-level locks that imply a session shouldn't be tapped to
+ * wait for long I/O operations or eviction.
+ */
+#define	WT_HIGH_LEVEL_LOCK_MASK						\
+	(WT_SESSION_LOCKED_CHECKPOINT |					\
+	WT_SESSION_LOCKED_HANDLE_LIST |					\
+	WT_SESSION_LOCKED_METADATA |					\
+	WT_SESSION_LOCKED_SCHEMA |					\
+	WT_SESSION_LOCKED_TABLE |					\
+	WT_SESSION_LOCKED_TURTLE)
