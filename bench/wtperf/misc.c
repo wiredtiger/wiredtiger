@@ -33,6 +33,7 @@ int
 setup_log_file(CONFIG *cfg)
 {
 	CONFIG_OPTS *opts;
+	size_t len;
 	int ret;
 	char *fname;
 
@@ -42,12 +43,11 @@ setup_log_file(CONFIG *cfg)
 	if (opts->verbose < 1)
 		return (0);
 
-	fname = dcalloc(strlen(cfg->monitor_dir) +
-	    strlen(opts->table_name) + strlen(".stat") + 2, 1);
-
-	sprintf(fname, "%s/%s.stat", cfg->monitor_dir, opts->table_name);
-	cfg->logf = fopen(fname, "w");
-	if (cfg->logf == NULL) {
+	len = strlen(cfg->monitor_dir) +
+	    strlen(opts->table_name) + strlen(".stat") + 2;
+	fname = dmalloc(len);
+	snprintf(fname, len, "%s/%s.stat", cfg->monitor_dir, opts->table_name);
+	if ((cfg->logf = fopen(fname, "w")) == NULL) {
 		ret = errno;
 		fprintf(stderr, "%s: %s\n", fname, strerror(ret));
 	}

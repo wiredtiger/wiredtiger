@@ -657,12 +657,13 @@ config_opt_str(CONFIG *cfg, const char *optstr)
 int
 config_opt_name_value(CONFIG *cfg, const char *name, const char *value)
 {
+	size_t len;
 	int ret;
 	char *optstr;
-
 							/* name="value" */
-	optstr = dmalloc(strlen(name) + strlen(value) + 4);
-	sprintf(optstr, "%s=\"%s\"", name, value);
+	len = strlen(name) + strlen(value) + 4;
+	optstr = dmalloc(len);
+	snprintf(optstr, len, "%s=\"%s\"", name, value);
 	ret = config_opt_str(cfg, optstr);
 	free(optstr);
 	return (ret);

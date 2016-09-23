@@ -1904,10 +1904,11 @@ create_uris(CONFIG *cfg)
 		/* If there is only one table, just use the base name. */
 		cfg->uris[i] = dmalloc(len);
 		if (opts->table_count == 1)
-			sprintf(cfg->uris[i], "table:%s", opts->table_name);
+			snprintf(cfg->uris[i],
+			    len, "table:%s", opts->table_name);
 		else
-			sprintf(
-			    cfg->uris[i], "table:%s%05d", opts->table_name, i);
+			snprintf(cfg->uris[i],
+			    len, "table:%s%05d", opts->table_name, i);
 	}
 
 	/* Create the log-like-table URI. */
@@ -1989,7 +1990,7 @@ create_tables(CONFIG *cfg)
  * config_copy --
  *	Create a new CONFIG structure as a duplicate of a previous one.
  */
-static int
+static void
 config_copy(const CONFIG *src, CONFIG **retp)
 {
 	CONFIG *dest;
@@ -2036,7 +2037,6 @@ config_copy(const CONFIG *src, CONFIG **retp)
 	dest->opts = src->opts;
 
 	*retp = dest;
-	return (0);
 }
 
 /*
@@ -2139,8 +2139,7 @@ start_all_runs(CONFIG *cfg)
 	threads = dcalloc(opts->database_count, sizeof(pthread_t));
 
 	for (i = 0; i < opts->database_count; i++) {
-		if ((ret = config_copy(cfg, &next_cfg)) != 0)
-			goto err;
+		config_copy(cfg, &next_cfg);
 		configs[i] = next_cfg;
 
 		/*
