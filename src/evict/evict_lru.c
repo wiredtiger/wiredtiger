@@ -156,8 +156,7 @@ __wt_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref)
 static inline bool
 __evict_queue_empty(WT_EVICT_QUEUE *queue)
 {
-	return (queue->evict_current == NULL ||
-	    queue->evict_candidates == 0);
+	return (queue->evict_current == NULL || queue->evict_candidates == 0);
 }
 
 /*
@@ -1685,8 +1684,8 @@ __evict_get_ref(
 	}
 
 	/* Move to the next item. */
-	if (evict != NULL && evict + 1 <
-	    queue->evict_queue + queue->evict_candidates)
+	if (evict != NULL &&
+	    evict + 1 < queue->evict_queue + queue->evict_candidates)
 		queue->evict_current = evict + 1;
 	else /* Clear the current pointer if there are no more candidates. */
 		queue->evict_current = NULL;
