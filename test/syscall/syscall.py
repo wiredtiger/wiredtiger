@@ -261,7 +261,7 @@ class Runner:
         if not self.headopts.trace_syscalls:
             msg("'" + self.runfile.filename + "': needs TRACE(...)")
             return [ False, False ]
-        runargs = self.headopts.run_args.strip();
+        runargs = self.headopts.run_args.strip()
         if len(runargs) > 0:
             if len(runargs) < 2 or runargs[0] != '"' or runargs[-1] != '"':
                 msg("'" + self.runfile.filename +
@@ -274,7 +274,7 @@ class Runner:
             self.headopts.required_system != systemtype:
             msg("skipping '" + self.runfile.filename + "': for '" +
                 self.headopts.required_system + "', this system is '"
-                + systemtype + "'");
+                + systemtype + "'")
             return [ False, True ]
         return [ True, False ]
 
@@ -373,7 +373,7 @@ class Runner:
             return self.compare("EQ", result, eargs[2], errline)
         else:
             self.fail(errline, 'call ' + callname +
-                      ': not known, use ASSERT_EQ()');
+                      ': not known, use ASSERT_EQ()')
 
     def compare(self, compareop, left, right, errline):
         l = self.expr_eval(left)
@@ -654,7 +654,7 @@ class SyscallCommand:
             if len(args.tests) > 0:
                 tests = []
                 for arg in args.tests:
-                    abspath = os.path.abspath(arg);
+                    abspath = os.path.abspath(arg)
                     tests.append([os.path.dirname(abspath), [],
                                   [os.path.basename(abspath)]])
             else:
