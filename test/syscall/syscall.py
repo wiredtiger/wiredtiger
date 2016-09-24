@@ -84,7 +84,7 @@ class VariableContext(object):
         if key not in dir(self) or key.startswith('__'):
             raise KeyError(key)
         return getattr(self, key)
-    
+
     def __setitem__(self, key, value):
         #self.__dict__[key] = value
         setattr(self, key, value)
@@ -347,7 +347,7 @@ class Runner:
         if s[-1] == ')':
             s = s[:-1]
         return argpat.split(s)[1::2]
-        
+
     def args_match(self, args1, args2):
         #print('args_match: ' + str(s1) + ', ' + str(s2))
         pos = 0
@@ -408,7 +408,7 @@ class Runner:
                 else:
                     print('  (... match) ' + errline.prefix() + errline)
         return result
-        
+
     def match(self, runline, errline, verbose, skiplines):
         m = re.match(outputpat, runline)
         if m:
@@ -428,7 +428,7 @@ class Runner:
             if m.groups()[1] != em.groups()[0]:
                 return self.match_report(runline, errline, verbose, skiplines,
                                          False, 'syscall to match assignment')
-            
+
             rargs = self.split_args(m.groups()[2])
             eargs = self.split_args(em.groups()[1])
             result = self.args_match(rargs, eargs)
@@ -568,7 +568,7 @@ class Runner:
             msg("'" + self.testexe + "': returned " + str(subret))
             return False
         return True
-     
+
 
 class SyscallCommand:
     def __init__(self, disttop):
@@ -643,7 +643,7 @@ class SyscallCommand:
             print('  see results in ' + exedir)
         print('')
         return result
-        
+
     def execute(self):
         args = self.args
         result = True

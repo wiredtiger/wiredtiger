@@ -12,7 +12,7 @@ fail(int ret) {
 	exit(ret);
 }
 
-#define SEPARATOR "--------------"
+#define	SEPARATOR "--------------"
 
 int
 main(int argc, char *argv[])
@@ -65,4 +65,3 @@ main(int argc, char *argv[])
 
 	return (0);
 }
-
