@@ -1532,7 +1532,7 @@ __evict_get_ref(
 	WT_CACHE *cache;
 	WT_DECL_RET;
 	WT_EVICT_ENTRY *evict;
-	WT_EVICT_QUEUE *other_queue, *queue, *urgent_queue;
+	WT_EVICT_QUEUE *queue, *urgent_queue;
 	uint32_t candidates;
 	bool is_app, urgent_ok;
 
