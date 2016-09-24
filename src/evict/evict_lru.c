@@ -456,13 +456,13 @@ __evict_update_work(WT_SESSION_IMPL *session)
 	if (bytes_inuse > (cache->eviction_target * bytes_max) / 100)
 		F_SET(cache, WT_CACHE_EVICT_CLEAN);
 	if (__wt_eviction_clean_needed(session, NULL))
-		F_SET(cache, WT_CACHE_EVICT_CLEAN_HARD);
+		F_SET(cache, WT_CACHE_EVICT_CLEAN | WT_CACHE_EVICT_CLEAN_HARD);
 
 	dirty_inuse = __wt_cache_dirty_leaf_inuse(cache);
 	if (dirty_inuse > (cache->eviction_dirty_target * bytes_max) / 100)
 		F_SET(cache, WT_CACHE_EVICT_DIRTY);
 	if (__wt_eviction_dirty_needed(session, NULL))
-		F_SET(cache, WT_CACHE_EVICT_DIRTY_HARD);
+		F_SET(cache, WT_CACHE_EVICT_DIRTY | WT_CACHE_EVICT_DIRTY_HARD);
 
 	/*
 	 * If application threads are blocked by the total volume of data in
