@@ -1579,31 +1579,37 @@ __evict_get_ref(
 	} else
 		__wt_spin_lock(session, &cache->evict_queue_lock);
 
-	/*
-	 * Check if the current queue needs to change.
-	 * The current queue could have changed while we waited for the lock.
-	 */
-	queue = cache->evict_current_queue;
-	other_queue = cache->evict_other_queue;
-	if (__evict_queue_empty(queue) && !__evict_queue_empty(other_queue)) {
-		cache->evict_current_queue = other_queue;
-		cache->evict_other_queue = queue;
+	/* Check the urgent queue first. */
+	if (urgent_ok && !__evict_queue_empty(urgent_queue)) {
+		queue = urgent_queue;
+		candidates = queue->evict_candidates;
+	} else {
+		/*
+		 * Check if the current queue needs to change.
+		 * The current queue could have changed while we waited for
+		 * the lock.
+		 *
+		 * The server will only evict half of the pages before looking
+		 * for more. The remainder are left to eviction workers (if any
+		 * configured), or application threads if necessary.
+		 */
+		queue = cache->evict_current_queue;
+		candidates = queue->evict_candidates;
+		if (is_server && candidates > 1)
+			candidates /= 2;
+
+		if (__evict_queue_empty(queue) || (uint32_t)
+		    (queue->evict_current - queue->evict_queue) >= candidates) {
+			cache->evict_current_queue = cache->evict_other_queue;
+			cache->evict_other_queue = queue;
+
+			candidates = queue->evict_candidates;
+			if (is_server && candidates > 1)
+				candidates /= 2;
+		}
 	}
 
-	/* Check the urgent queue first. */
-	queue = urgent_ok && !__evict_queue_empty(urgent_queue) ?
-	    urgent_queue : cache->evict_current_queue;
-
 	__wt_spin_unlock(session, &cache->evict_queue_lock);
-
-	/*
-	 * Only evict half of the pages before looking for more. The remainder
-	 * are left to eviction workers (if configured), or application threads
-	 * if necessary.
-	 */
-	candidates = queue->evict_candidates;
-	if (is_server && queue != urgent_queue && candidates > 1)
-		candidates /= 2;
 
 	/*
 	 * We got the queue lock, which should be fast, and chose a queue.
