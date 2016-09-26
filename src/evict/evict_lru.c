@@ -1577,12 +1577,17 @@ __evict_get_ref(
 	 * Such cases are extremely rare in real applications.
 	 */
 	if (is_server &&
-	    (!urgent_ok || urgent_queue->evict_current == NULL) &&
 	    (cache->evict_empty_score > WT_EVICT_SCORE_CUTOFF ||
-	    !__evict_queue_full(cache->evict_fill_queue))) {
-		if ((ret = __wt_spin_trylock(
-		    session, &cache->evict_queue_lock)) != 0)
-			return (WT_NOTFOUND);
+	    cache->evict_fill_queue->evict_current == NULL)) {
+		do {
+			if ((!urgent_ok ||
+			    urgent_queue->evict_current == NULL) &&
+			    !__evict_queue_full(cache->evict_fill_queue))
+				return (WT_NOTFOUND);
+		} while ((ret = __wt_spin_trylock(
+		    session, &cache->evict_queue_lock)) == EBUSY);
+
+		WT_RET(ret);
 	} else
 		__wt_spin_lock(session, &cache->evict_queue_lock);
 
