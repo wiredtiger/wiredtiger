@@ -31,7 +31,6 @@
 #
 # For each .run file, run the corresponding program and collect strace
 # output, comparing it to the contents of the .run file.
-
 # TODO: on all systems, run trace to fd 1, may allow output interleave
 # TODO: retest on Linux (with rename), and adjust output
 # TODO: support 0x... or 0... to match any number
@@ -569,7 +568,6 @@ class Runner:
             return False
         return True
 
-
 class SyscallCommand:
     def __init__(self, disttop):
         self.disttop = disttop
@@ -599,7 +597,8 @@ class SyscallCommand:
         self.dorun = True
         if args.errfilename or args.outfilename:
             if len(args.tests) != 1:
-                msg("one test is required when --errfile or --outfile is specified")
+                msg("one test is required when --errfile or --outfile" +
+                    " is specified")
                 return False
             if not args.outfilename:
                 args.outfilename = os.devnull
