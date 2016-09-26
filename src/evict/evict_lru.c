@@ -169,7 +169,7 @@ __evict_queue_empty(WT_EVICT_QUEUE *queue, bool is_server)
 	if (is_server && candidates > 1)
 		candidates /= 2;
 	used = (uint32_t)(queue->evict_current - queue->evict_queue);
-	return (candidates >= used);
+	return (used >= candidates);
 }
 
 /*
