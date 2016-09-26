@@ -1663,6 +1663,11 @@ __conn_statistics_config(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_RET_NOTFOUND_OK(ret);
 
 	if ((ret = __wt_config_subgets(
+	    session, &cval, "cache_walk", &sval)) == 0 && sval.val != 0)
+		LF_SET(WT_CONN_STAT_CACHE_WALK);
+	WT_RET_NOTFOUND_OK(ret);
+
+	if ((ret = __wt_config_subgets(
 	    session, &cval, "fast", &sval)) == 0 && sval.val != 0) {
 		LF_SET(WT_CONN_STAT_FAST);
 		++set;
@@ -1671,7 +1676,8 @@ __conn_statistics_config(WT_SESSION_IMPL *session, const char *cfg[])
 
 	if ((ret = __wt_config_subgets(
 	    session, &cval, "all", &sval)) == 0 && sval.val != 0) {
-		LF_SET(WT_CONN_STAT_ALL | WT_CONN_STAT_FAST);
+		LF_SET(WT_CONN_STAT_ALL |
+		    WT_CONN_STAT_CACHE_WALK | WT_CONN_STAT_FAST);
 		++set;
 	}
 	WT_RET_NOTFOUND_OK(ret);
@@ -1688,7 +1694,8 @@ __conn_statistics_config(WT_SESSION_IMPL *session, const char *cfg[])
 
 	if (set > 1)
 		WT_RET_MSG(session, EINVAL,
-		    "only one statistics configuration value may be specified");
+		    "Only one of all, fast, none configuration values should"
+		    "be specified");
 
 	/* Configuring statistics clears any existing values. */
 	conn->stat_flags = flags;

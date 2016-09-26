@@ -9,7 +9,8 @@
 #
 # Data-source statistics are normally aggregated across the set of underlying
 # objects. Additional optional configuration flags are available:
-#       all_only        Only gets reported when statistics=all set
+#       all_only        Only gets reported when statistics=all is set
+#       cache_walk      Only reported when statistics=cache_walk is set
 #       max_aggregate   Take the maximum value when aggregating statistics
 #       no_clear        Value not cleared when statistics cleared
 #       no_scale        Don't scale value per second in the logging tool script
@@ -46,6 +47,10 @@ class CacheStat(Stat):
     prefix = 'cache'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, CacheStat.prefix, desc, flags)
+class CacheWalkStat(Stat):
+    prefix = 'cache_walk'
+    def __init__(self, name, desc, flags='cache_walk'):
+        Stat.__init__(self, name, CacheWalkStat.prefix, desc, flags)
 class CompressStat(Stat):
     prefix = 'compression'
     def __init__(self, name, desc, flags=''):
@@ -105,11 +110,16 @@ groups['cursor'] = [CursorStat.prefix, SessionStat.prefix]
 groups['evict'] = [
     BlockStat.prefix,
     CacheStat.prefix,
+    CacheWalkStat.prefix,
     ConnStat.prefix,
     ThreadStat.prefix
 ]
 groups['lsm'] = [LSMStat.prefix, TxnStat.prefix]
-groups['memory'] = [CacheStat.prefix, ConnStat.prefix, RecStat.prefix]
+groups['memory'] = [
+    CacheStat.prefix,
+    CacheWalkStat.prefix,
+    ConnStat.prefix,
+    RecStat.prefix]
 groups['system'] = [
     ConnStat.prefix,
     DhandleStat.prefix,
@@ -496,6 +506,28 @@ dsrc_stats = [
     CacheStat('cache_write', 'pages written from cache'),
     CacheStat('cache_write_lookaside', 'page written requiring lookaside records'),
     CacheStat('cache_write_restore', 'pages written requiring in-memory restoration'),
+
+    ##########################################
+    # Cache content statistics
+    ##########################################
+    CacheWalkStat('cache_state_avg_written_size', 'Average on-disk page image  size seen', 'no_clear,no_scale'),
+    CacheWalkStat('cache_state_gen_avg_gap', 'Average difference between current eviction generation when the page was last considered', 'no_clear,no_scale'),
+    CacheWalkStat('cache_state_gen_current', 'Current eviction generation', 'no_clear,no_scale'),
+    CacheWalkStat('cache_state_gen_max_gap', 'Maximum difference between current eviction generation when the page was last considered', 'no_clear,no_scale'),
+    CacheWalkStat('cache_state_max_pagesize', 'Maximum page size seen', 'no_clear,no_scale'),
+    CacheWalkStat('cache_state_min_written_size', 'Minimum on-disk page image size seen', 'no_clear,no_scale'),
+    CacheWalkStat('cache_state_count_memory', 'Number of pages that have never been written from cache', 'no_clear,no_scale'),
+    CacheWalkStat('cache_state_count_queued', 'Number of pages currently queued for eviction', 'no_clear,no_scale'),
+    CacheWalkStat('cache_state_count_unqueueable', 'Number of pages that could not be queued for eviction', 'no_clear,no_scale'),
+    CacheWalkStat('cache_state_count_smaller_alloc_size', 'Number of on-disk page image sizes smaller than a single allocation unit', 'no_clear,no_scale'),
+    CacheWalkStat('cache_state_pages', 'Total number of pages currently in cache', 'no_clear,no_scale'),
+    CacheWalkStat('cache_state_pages_clean', 'Number of clean pages currently in cache', 'no_clear,no_scale'),
+    CacheWalkStat('cache_state_pages_dirty', 'Number of dirty pages currently in cache', 'no_clear,no_scale'),
+    CacheWalkStat('cache_state_pages_internal', 'Number of internal pages currently in cache', 'no_clear,no_scale'),
+    CacheWalkStat('cache_state_pages_leaf', 'Number of leaf pages currently in cache', 'no_clear,no_scale'),
+    CacheWalkStat('cache_state_refs_skipped', 'Number of refs skipped during cache traversal', 'no_clear,no_scale'),
+    CacheWalkStat('cache_state_root_count_entries', 'Number of entries in the root page', 'no_clear,no_scale'),
+    CacheWalkStat('cache_state_root_size', 'Size of the root page', 'no_clear,no_scale'),
 
     ##########################################
     # Compression statistics

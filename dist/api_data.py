@@ -496,7 +496,7 @@ connection_runtime_config = [
         is used to gather statistics, as well as each time statistics
         are logged using the \c statistics_log configuration.  See
         @ref statistics for more information''',
-        type='list', choices=['all', 'fast', 'none', 'clear']),
+        type='list', choices=['all', 'cache_walk', 'fast', 'none', 'clear']),
     Config('verbose', '', r'''
         enable messages for various events. Only available if WiredTiger
         is configured with --enable-verbose. Options are given as a

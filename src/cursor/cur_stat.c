@@ -606,15 +606,21 @@ __wt_curstat_open(WT_SESSION_IMPL *session,
 		    session, &cval, "all", &sval)) == 0 && sval.val != 0) {
 			if (!FLD_ISSET(conn->stat_flags, WT_CONN_STAT_ALL))
 				goto config_err;
-			F_SET(cst, WT_CONN_STAT_ALL | WT_CONN_STAT_FAST);
+			F_SET(cst, WT_CONN_STAT_ALL |
+			    WT_CONN_STAT_CACHE_WALK | WT_CONN_STAT_FAST);
 		}
+		WT_ERR_NOTFOUND_OK(ret);
+		/* TODO: What if cache_walk is the only configured setting? */
+		if ((ret = __wt_config_subgets(session,
+		    &cval, "cache_walk", &sval)) == 0 && sval.val != 0)
+			F_SET(cst, WT_CONN_STAT_CACHE_WALK);
 		WT_ERR_NOTFOUND_OK(ret);
 		if ((ret = __wt_config_subgets(
 		    session, &cval, "fast", &sval)) == 0 && sval.val != 0) {
 			if (F_ISSET(cst, WT_CONN_STAT_ALL))
 				WT_ERR_MSG(session, EINVAL,
-				    "only one statistics configuration value "
-				    "may be specified");
+				    "Only one of all, fast, none "
+				    "configuration values should be specified");
 			F_SET(cst, WT_CONN_STAT_FAST);
 		}
 		WT_ERR_NOTFOUND_OK(ret);
@@ -622,8 +628,8 @@ __wt_curstat_open(WT_SESSION_IMPL *session,
 		    session, &cval, "size", &sval)) == 0 && sval.val != 0) {
 			if (F_ISSET(cst, WT_CONN_STAT_FAST | WT_CONN_STAT_ALL))
 				WT_ERR_MSG(session, EINVAL,
-				    "only one statistics configuration value "
-				    "may be specified");
+				    "Only one of all, fast, none "
+				    "configuration values should be specified");
 			F_SET(cst, WT_CONN_STAT_SIZE);
 		}
 		WT_ERR_NOTFOUND_OK(ret);
@@ -641,6 +647,9 @@ __wt_curstat_open(WT_SESSION_IMPL *session,
 		if (cst->flags == 0) {
 			if (FLD_ISSET(conn->stat_flags, WT_CONN_STAT_ALL))
 				F_SET(cst, WT_CONN_STAT_ALL);
+			if (FLD_ISSET(
+			    conn->stat_flags, WT_CONN_STAT_CACHE_WALK))
+				F_SET(cst, WT_CONN_STAT_CACHE_WALK);
 			if (FLD_ISSET(conn->stat_flags, WT_CONN_STAT_FAST))
 				F_SET(cst, WT_CONN_STAT_FAST);
 		}

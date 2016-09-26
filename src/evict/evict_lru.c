@@ -519,6 +519,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 		 * does need to do some work.
 		 */
 		__wt_cache_read_gen_incr(session);
+		++cache->evict_pass_gen;
 
 		/*
 		 * Update the oldest ID: we use it to decide whether pages are
@@ -1367,6 +1368,7 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 			continue;
 		}
 
+		page->evict_pass_gen = cache->evict_pass_gen;
 		++pages_seen;
 
 		/* Ignore root pages entirely. */
