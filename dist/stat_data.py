@@ -518,7 +518,7 @@ dsrc_stats = [
     CacheWalkStat('cache_state_min_written_size', 'Minimum on-disk page image size seen', 'no_clear,no_scale'),
     CacheWalkStat('cache_state_count_memory', 'Number of pages that have never been written from cache', 'no_clear,no_scale'),
     CacheWalkStat('cache_state_count_queued', 'Number of pages currently queued for eviction', 'no_clear,no_scale'),
-    CacheWalkStat('cache_state_count_unqueueable', 'Number of pages that could not be queued for eviction', 'no_clear,no_scale'),
+    CacheWalkStat('cache_state_count_not_queueable', 'Number of pages that could not be queued for eviction', 'no_clear,no_scale'),
     CacheWalkStat('cache_state_count_smaller_alloc_size', 'Number of on-disk page image sizes smaller than a single allocation unit', 'no_clear,no_scale'),
     CacheWalkStat('cache_state_pages', 'Total number of pages currently in cache', 'no_clear,no_scale'),
     CacheWalkStat('cache_state_pages_clean', 'Number of clean pages currently in cache', 'no_clear,no_scale'),

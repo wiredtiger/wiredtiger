@@ -528,7 +528,7 @@ struct __wt_dsrc_stats {
 	int64_t cache_state_pages_leaf;
 	int64_t cache_state_count_smaller_alloc_size;
 	int64_t cache_state_count_queued;
-	int64_t cache_state_count_unqueueable;
+	int64_t cache_state_count_not_queueable;
 	int64_t cache_state_count_memory;
 	int64_t cache_state_refs_skipped;
 	int64_t cache_state_root_size;

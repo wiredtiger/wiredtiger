@@ -227,7 +227,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
 		/* not clearing cache_state_pages_leaf */
 		/* not clearing cache_state_count_smaller_alloc_size */
 		/* not clearing cache_state_count_queued */
-		/* not clearing cache_state_count_unqueueable */
+		/* not clearing cache_state_count_not_queueable */
 		/* not clearing cache_state_count_memory */
 		/* not clearing cache_state_refs_skipped */
 		/* not clearing cache_state_root_size */
@@ -378,8 +378,8 @@ __wt_stat_dsrc_aggregate_single(
 	to->cache_state_count_smaller_alloc_size +=
 	    from->cache_state_count_smaller_alloc_size;
 	to->cache_state_count_queued += from->cache_state_count_queued;
-	to->cache_state_count_unqueueable +=
-	    from->cache_state_count_unqueueable;
+	to->cache_state_count_not_queueable +=
+	    from->cache_state_count_not_queueable;
 	to->cache_state_count_memory += from->cache_state_count_memory;
 	to->cache_state_refs_skipped += from->cache_state_refs_skipped;
 	to->cache_state_root_size += from->cache_state_root_size;
@@ -552,8 +552,8 @@ __wt_stat_dsrc_aggregate(
 	    WT_STAT_READ(from, cache_state_count_smaller_alloc_size);
 	to->cache_state_count_queued +=
 	    WT_STAT_READ(from, cache_state_count_queued);
-	to->cache_state_count_unqueueable +=
-	    WT_STAT_READ(from, cache_state_count_unqueueable);
+	to->cache_state_count_not_queueable +=
+	    WT_STAT_READ(from, cache_state_count_not_queueable);
 	to->cache_state_count_memory +=
 	    WT_STAT_READ(from, cache_state_count_memory);
 	to->cache_state_refs_skipped +=

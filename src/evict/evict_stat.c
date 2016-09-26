@@ -23,7 +23,7 @@ __evict_stat_walk(WT_SESSION_IMPL *session)
 	uint64_t written_size_cnt, written_size_sum;
 	uint64_t gen_gap_cnt, gen_gap_max, gen_gap_sum;
 	uint64_t max_pagesize, min_written_size;
-	uint64_t num_memory, num_queued, num_unqueueable, num_smaller_allocsz;
+	uint64_t num_memory, num_queued, num_not_queueable, num_smaller_allocsz;
 	uint64_t pages_clean, pages_dirty, pages_internal, pages_leaf;
 	uint64_t seen_count, walk_count;
 
@@ -32,7 +32,7 @@ __evict_stat_walk(WT_SESSION_IMPL *session)
 	bytes_inmem = written_size_cnt = written_size_sum = 0;
 	gen_gap_cnt = gen_gap_max = gen_gap_sum = 0;
 	max_pagesize = 0;
-	num_memory = num_queued = num_unqueueable = num_smaller_allocsz = 0;
+	num_memory = num_queued = num_not_queueable = num_smaller_allocsz = 0;
 	pages_clean = pages_dirty = pages_internal = pages_leaf = 0;
 	seen_count = walk_count = 0;
 	min_written_size = UINT64_MAX;
@@ -53,7 +53,7 @@ __evict_stat_walk(WT_SESSION_IMPL *session)
 
 		if (!__wt_ref_is_root(next_walk) &&
 		    !__wt_page_can_evict(session, next_walk, NULL))
-			++num_unqueueable;
+			++num_not_queueable;
 
 		if (F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU))
 			++num_queued;
@@ -103,7 +103,8 @@ __evict_stat_walk(WT_SESSION_IMPL *session)
 	    cache_state_min_written_size, min_written_size);
 	WT_STAT_DATA_SET(session, cache_state_count_memory, num_memory);
 	WT_STAT_DATA_SET(session, cache_state_count_queued, num_queued);
-	WT_STAT_DATA_SET(session, cache_state_count_unqueueable, num_unqueueable);
+	WT_STAT_DATA_SET(session,
+	    cache_state_count_not_queueable, num_not_queueable);
 	WT_STAT_DATA_SET(session,
 	    cache_state_count_smaller_alloc_size, num_smaller_allocsz);
 	WT_STAT_DATA_SET(session, cache_state_pages, walk_count);

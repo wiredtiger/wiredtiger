@@ -4843,7 +4843,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! cache_walk: Number of pages currently queued for eviction */
 #define	WT_STAT_DSRC_CACHE_STATE_COUNT_QUEUED		2074
 /*! cache_walk: Number of pages that could not be queued for eviction */
-#define	WT_STAT_DSRC_CACHE_STATE_COUNT_UNQUEUEABLE	2075
+#define	WT_STAT_DSRC_CACHE_STATE_COUNT_NOT_QUEUEABLE	2075
 /*! cache_walk: Number of pages that have never been written from cache */
 #define	WT_STAT_DSRC_CACHE_STATE_COUNT_MEMORY		2076
 /*! cache_walk: Number of refs skipped during cache traversal */
