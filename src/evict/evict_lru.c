@@ -157,7 +157,7 @@ __wt_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref)
  *	queue as empty.
  */
 static inline bool
-__evict_queue_empty(WT_EVICT_QUEUE *queue, bool is_server)
+__evict_queue_empty(WT_EVICT_QUEUE *queue, bool server_check)
 {
 	uint32_t candidates, used;
 
@@ -166,7 +166,7 @@ __evict_queue_empty(WT_EVICT_QUEUE *queue, bool is_server)
 
 	/* The eviction server only considers half of the candidates. */
 	candidates = queue->evict_candidates;
-	if (is_server && candidates > 1)
+	if (server_check && candidates > 1)
 		candidates /= 2;
 	used = (uint32_t)(queue->evict_current - queue->evict_queue);
 	return (used >= candidates);
@@ -600,7 +600,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 		 */
 		if (cache->evict_empty_score < WT_EVICT_SCORE_CUTOFF ||
 		    (!WT_EVICT_HAS_WORKERS(session) &&
-		    cache->evict_urgent_queue->evict_current != NULL))
+		    !__evict_queue_empty(cache->evict_urgent_queue, false)))
 			WT_RET(__evict_lru_pages(session, true));
 
 		if (cache->pass_intr != 0)
@@ -936,7 +936,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 	 * If the queue we are filling is empty, pages are being requested
 	 * faster than they are being queued.
 	 */
-	if (queue->evict_current == NULL) {
+	if (__evict_queue_empty(queue, false)) {
 		if (F_ISSET(cache,
 		    WT_CACHE_EVICT_CLEAN_HARD | WT_CACHE_EVICT_DIRTY_HARD)) {
 			cache->evict_empty_score = WT_MIN(
@@ -1563,7 +1563,7 @@ __evict_get_ref(
 	/* Avoid the LRU lock if no pages are available. */
 	if (__evict_queue_empty(cache->evict_current_queue, is_server) &&
 	    __evict_queue_empty(cache->evict_other_queue, is_server) &&
-	    (!urgent_ok || urgent_queue->evict_current == NULL)) {
+	    (!urgent_ok || __evict_queue_empty(urgent_queue, false))) {
 		WT_STAT_CONN_INCR(session, cache_eviction_get_ref_empty);
 		return (WT_NOTFOUND);
 	}
@@ -1578,10 +1578,10 @@ __evict_get_ref(
 	 */
 	if (is_server &&
 	    (cache->evict_empty_score > WT_EVICT_SCORE_CUTOFF ||
-	    cache->evict_fill_queue->evict_current == NULL)) {
+	    __evict_queue_empty(cache->evict_fill_queue, false))) {
 		do {
 			if ((!urgent_ok ||
-			    urgent_queue->evict_current == NULL) &&
+			    __evict_queue_empty(urgent_queue, false)) &&
 			    !__evict_queue_full(cache->evict_fill_queue))
 				return (WT_NOTFOUND);
 		} while ((ret = __wt_spin_trylock(
@@ -1592,7 +1592,7 @@ __evict_get_ref(
 		__wt_spin_lock(session, &cache->evict_queue_lock);
 
 	/* Check the urgent queue first. */
-	if (urgent_ok && urgent_queue->evict_current != NULL)
+	if (urgent_ok && !__evict_queue_empty(urgent_queue, false))
 		queue = urgent_queue;
 	else {
 		/*
@@ -1890,7 +1890,7 @@ __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
 		goto done;
 
 	__wt_spin_lock(session, &urgent_queue->evict_lock);
-	if (urgent_queue->evict_current == NULL) {
+	if (__evict_queue_empty(urgent_queue, false)) {
 		urgent_queue->evict_current = urgent_queue->evict_queue;
 		urgent_queue->evict_candidates = 0;
 	}
