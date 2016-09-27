@@ -140,7 +140,7 @@ public class ConcurrentCloseTest {
 
             for (i = 0; i < NUM_THREADS; i++) {
                 Thread insertThread = new InsertThread(conn, i);
-                Thread scanThread = new InsertThread(conn, i);
+                Thread scanThread = new ScanThread(conn);
                 insertThread.start();
                 scanThread.start();
                 threads.add(insertThread);
