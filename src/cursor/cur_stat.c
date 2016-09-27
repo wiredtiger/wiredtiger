@@ -623,7 +623,7 @@ __wt_curstat_open(WT_SESSION_IMPL *session,
 		if ((ret = __wt_config_subgets(session,
 		    &cval, "cache_walk", &sval)) == 0 && sval.val != 0) {
 			if (!F_ISSET(cst, WT_CONN_STAT_ALL | WT_CONN_STAT_FAST))
-				WT_RET_MSG(session, EINVAL,
+				WT_ERR_MSG(session, EINVAL,
 				    "the value \"cache_walk\" is not "
 				    "compatible with \"none\" statistics "
 				    "configuration");
