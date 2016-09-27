@@ -7,7 +7,7 @@ echo "checkpoint: 3 mixed tables"
 $TEST_WRAPPER ./t -T 3 -t m
 
 # If we are disabling long tests then we want only one checkpoint run
-if [ -z ${TESTUTIL_DISABLE_LONG_TESTS+x} ]; then
+if [ -z ${TESTUTIL_DISABLE_LONG_TESTS+"false"} ]; then
 
 	echo "checkpoint: 6 column-store tables"
 	$TEST_WRAPPER ./t -T 6 -t c
