@@ -610,11 +610,6 @@ __wt_curstat_open(WT_SESSION_IMPL *session,
 			    WT_CONN_STAT_CACHE_WALK | WT_CONN_STAT_FAST);
 		}
 		WT_ERR_NOTFOUND_OK(ret);
-		/* TODO: What if cache_walk is the only configured setting? */
-		if ((ret = __wt_config_subgets(session,
-		    &cval, "cache_walk", &sval)) == 0 && sval.val != 0)
-			F_SET(cst, WT_CONN_STAT_CACHE_WALK);
-		WT_ERR_NOTFOUND_OK(ret);
 		if ((ret = __wt_config_subgets(
 		    session, &cval, "fast", &sval)) == 0 && sval.val != 0) {
 			if (F_ISSET(cst, WT_CONN_STAT_ALL))
@@ -624,6 +619,18 @@ __wt_curstat_open(WT_SESSION_IMPL *session,
 			F_SET(cst, WT_CONN_STAT_FAST);
 		}
 		WT_ERR_NOTFOUND_OK(ret);
+
+		if ((ret = __wt_config_subgets(session,
+		    &cval, "cache_walk", &sval)) == 0 && sval.val != 0) {
+			if (!F_ISSET(cst, WT_CONN_STAT_ALL | WT_CONN_STAT_FAST))
+				WT_RET_MSG(session, EINVAL,
+				    "the value \"cache_walk\" is not "
+				    "compatible with \"none\" statistics "
+				    "configuration");
+			F_SET(cst, WT_CONN_STAT_CACHE_WALK);
+		}
+		WT_ERR_NOTFOUND_OK(ret);
+
 		if ((ret = __wt_config_subgets(
 		    session, &cval, "size", &sval)) == 0 && sval.val != 0) {
 			if (F_ISSET(cst, WT_CONN_STAT_FAST | WT_CONN_STAT_ALL))
@@ -679,9 +686,9 @@ __wt_curstat_open(WT_SESSION_IMPL *session,
 
 	/*
 	 * Do the initial statistics snapshot: there won't be cursor operations
-	 * to trigger initialization when aggregating statistics for upper-level
-	 * objects like tables, we need to a valid set of statistics when before
-	 * the open returns.
+	 * to trigger initialization with aggregating statistics for upper-level
+	 * objects like tables so we need a valid set of statistics before the
+	 * open returns.
 	 */
 	WT_ERR(__wt_curstat_init(session, uri, other, cst->cfg, cst));
 	cst->notinitialized = false;

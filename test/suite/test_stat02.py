@@ -169,7 +169,7 @@ class test_stat_cursor_conn_error(wttest.WiredTigerTestCase):
         args = ['none', 'all', 'fast']
         for i in list(itertools.permutations(args, 2)):
             config = 'create,statistics=(' + i[0] + ',' + i[1] + ')'
-            msg = '/only one statistics configuration value/'
+            msg = '/Only one of/'
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda: self.wiredtiger_open('.', config), msg)
 
@@ -193,7 +193,7 @@ class test_stat_cursor_dsrc_error(wttest.WiredTigerTestCase):
         args = ['all', 'fast']
         for i in list(itertools.permutations(args, 2)):
             config = 'statistics=(' + i[0] + ',' + i[1] + ')'
-            msg = '/only one statistics configuration value/'
+            msg = '/Only one of/'
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda: self.session.open_cursor(
                 'statistics:' + self.uri, None, config), msg)

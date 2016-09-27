@@ -1663,11 +1663,6 @@ __conn_statistics_config(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_RET_NOTFOUND_OK(ret);
 
 	if ((ret = __wt_config_subgets(
-	    session, &cval, "cache_walk", &sval)) == 0 && sval.val != 0)
-		LF_SET(WT_CONN_STAT_CACHE_WALK);
-	WT_RET_NOTFOUND_OK(ret);
-
-	if ((ret = __wt_config_subgets(
 	    session, &cval, "fast", &sval)) == 0 && sval.val != 0) {
 		LF_SET(WT_CONN_STAT_FAST);
 		++set;
@@ -1683,6 +1678,16 @@ __conn_statistics_config(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_RET_NOTFOUND_OK(ret);
 
 	if ((ret = __wt_config_subgets(
+	    session, &cval, "cache_walk", &sval)) == 0 && sval.val != 0) {
+		if (flags == 0)
+			WT_RET_MSG(session, EINVAL,
+			    "the value \"cache_walk\" is not compatible with "
+			    "\"none\" statistics configuration");
+		LF_SET(WT_CONN_STAT_CACHE_WALK);
+	}
+	WT_RET_NOTFOUND_OK(ret);
+
+	if ((ret = __wt_config_subgets(
 	    session, &cval, "clear", &sval)) == 0 && sval.val != 0) {
 		if (!LF_ISSET(WT_CONN_STAT_FAST | WT_CONN_STAT_ALL))
 			WT_RET_MSG(session, EINVAL,
@@ -1694,7 +1699,7 @@ __conn_statistics_config(WT_SESSION_IMPL *session, const char *cfg[])
 
 	if (set > 1)
 		WT_RET_MSG(session, EINVAL,
-		    "Only one of all, fast, none configuration values should"
+		    "Only one of all, fast, none configuration values should "
 		    "be specified");
 
 	/* Configuring statistics clears any existing values. */
