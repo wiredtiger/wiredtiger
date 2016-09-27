@@ -281,10 +281,7 @@ __attribute__((format (printf, 4, 5)))
 static inline void
 generate_key(CONFIG_OPTS *opts, char *key_buf, uint64_t keyno)
 {
-	/*
-	 * Don't change to snprintf, sprintf is faster in some tests.
-	 */
-	sprintf(key_buf, "%0*" PRIu64, opts->key_sz - 1, keyno);
+	u64_to_string_zf(keyno, key_buf, opts->key_sz);
 }
 
 static inline void
