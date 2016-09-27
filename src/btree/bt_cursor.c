@@ -235,7 +235,7 @@ __cursor_col_search(
 {
 	WT_DECL_RET;
 
-	WT_WITH_PAGE_INDEX(session, 
+	WT_WITH_PAGE_INDEX(session,
 	    ret = __wt_col_search(session, cbt->iface.recno, leaf, cbt));
 	return (ret);
 }
@@ -250,7 +250,7 @@ __cursor_row_search(
 {
 	WT_DECL_RET;
 
-	WT_WITH_PAGE_INDEX(session, 
+	WT_WITH_PAGE_INDEX(session,
 	    ret = __wt_row_search(session, &cbt->iface.key, leaf, cbt, insert));
 	return (ret);
 }
@@ -1217,7 +1217,7 @@ err:	if (FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED))
 
 /*
  * __wt_btcur_init --
- *	Initialize an cursor used for internal purposes.
+ *	Initialize a cursor used for internal purposes.
  */
 void
 __wt_btcur_init(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
