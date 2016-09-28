@@ -212,7 +212,7 @@ class test_stat_cursor_dsrc_cache_walk(wttest.WiredTigerTestCase):
             lambda: self.session.open_cursor(
             'statistics:' + self.uri, None, None), msg)
 
-        msg = '/is not compatible with/'
+        msg = '/can be specified only/'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.conn.reconfigure('statistics=(cache_walk)'), msg)
 

@@ -1681,8 +1681,8 @@ __conn_statistics_config(WT_SESSION_IMPL *session, const char *cfg[])
 	    session, &cval, "cache_walk", &sval)) == 0 && sval.val != 0) {
 		if (flags == 0)
 			WT_RET_MSG(session, EINVAL,
-			    "the value \"cache_walk\" is not compatible with "
-			    "\"none\" statistics configuration");
+			    "the value \"cache_walk\" can be specified only if "
+			    "either \"all\" or \"fast\" is specified");
 		LF_SET(WT_CONN_STAT_CACHE_WALK);
 	}
 	WT_RET_NOTFOUND_OK(ret);

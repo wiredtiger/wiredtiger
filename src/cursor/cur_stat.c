@@ -624,9 +624,9 @@ __wt_curstat_open(WT_SESSION_IMPL *session,
 		    &cval, "cache_walk", &sval)) == 0 && sval.val != 0) {
 			if (!F_ISSET(cst, WT_CONN_STAT_ALL | WT_CONN_STAT_FAST))
 				WT_ERR_MSG(session, EINVAL,
-				    "the value \"cache_walk\" is not "
-				    "compatible with \"none\" statistics "
-				    "configuration");
+				    "the value \"cache_walk\" can be specified "
+				    "only if either \"all\" or \"fast\" is "
+				    "specified");
 			F_SET(cst, WT_CONN_STAT_CACHE_WALK);
 		}
 		WT_ERR_NOTFOUND_OK(ret);
