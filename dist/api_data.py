@@ -970,7 +970,7 @@ methods = {
         gathering them, where appropriate (for example, a cache size statistic
         is not cleared, while the count of cursor insert operations will be
         cleared).  See @ref statistics for more information''',
-        type='list', choices=['all', 'fast', 'clear', 'size']),
+        type='list', choices=['all', 'cache_walk', 'fast', 'clear', 'size']),
     Config('target', '', r'''
         if non-empty, backup the list of objects; valid only for a
         backup data source''',

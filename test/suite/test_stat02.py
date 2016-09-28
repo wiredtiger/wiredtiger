@@ -198,6 +198,56 @@ class test_stat_cursor_dsrc_error(wttest.WiredTigerTestCase):
                 lambda: self.session.open_cursor(
                 'statistics:' + self.uri, None, config), msg)
 
+# Test data-source cache walk statistics
+class test_stat_cursor_dsrc_cache_walk(wttest.WiredTigerTestCase):
+    uri = 'file:test_stat_cursor_dsrc_cache_walk'
+
+    conn_config = 'statistics=(none)'
+
+    def test_stat_cursor_dsrc_cache_walk(self):
+        simple_populate(self, self.uri, 'key_format=S', 100)
+        # Ensure that it's an error to get cache_walk stats if none is set
+        msg = '/doesn\'t match the database statistics/'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.open_cursor(
+            'statistics:' + self.uri, None, None), msg)
+
+        msg = '/is not compatible with/'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.conn.reconfigure('statistics=(cache_walk)'), msg)
+
+        # Test configurations that are valid but should not collect
+        # cache walk information. Do these first since the cache walk
+        # statistics are mostly marked as not cleared - so once they are
+        # populated the values will always be returned
+        self.conn.reconfigure('statistics=(cache_walk,fast)')
+        c = self.session.open_cursor(
+            'statistics:' + self.uri, None, 'statistics=(fast)')
+        self.assertEqual(c[stat.dsrc.cache_state_root_size][2], 0)
+        c.close()
+
+        self.conn.reconfigure('statistics=(all)')
+        c = self.session.open_cursor(
+            'statistics:' + self.uri, None, 'statistics=(fast)')
+        self.assertEqual(c[stat.dsrc.cache_state_root_size][2], 0)
+        c.close()
+
+        self.conn.reconfigure('statistics=(cache_walk,fast)')
+        c = self.session.open_cursor('statistics:' + self.uri, None, None)
+        self.assertGreater(c[stat.dsrc.cache_state_root_size][2], 0)
+        c.close()
+
+        self.conn.reconfigure('statistics=(all)')
+        c = self.session.open_cursor(
+            'statistics:' + self.uri, None, 'statistics=(all)')
+        self.assertGreater(c[stat.dsrc.cache_state_root_size][2], 0)
+        c.close()
+
+        self.conn.reconfigure('statistics=(all)')
+        c = self.session.open_cursor(
+            'statistics:' + self.uri, None, 'statistics=(cache_walk,fast)')
+        self.assertGreater(c[stat.dsrc.cache_state_root_size][2], 0)
+        c.close()
 
 if __name__ == '__main__':
     wttest.run()

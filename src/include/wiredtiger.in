@@ -962,8 +962,8 @@ struct __wt_session {
 	 * where appropriate (for example\, a cache size statistic is not
 	 * cleared\, while the count of cursor insert operations will be
 	 * cleared). See @ref statistics for more information., a list\, with
-	 * values chosen from the following options: \c "all"\, \c "fast"\, \c
-	 * "clear"\, \c "size"; default empty.}
+	 * values chosen from the following options: \c "all"\, \c
+	 * "cache_walk"\, \c "fast"\, \c "clear"\, \c "size"; default empty.}
 	 * @config{target, if non-empty\, backup the list of objects; valid only
 	 * for a backup data source., a list of strings; default empty.}
 	 * @configend
