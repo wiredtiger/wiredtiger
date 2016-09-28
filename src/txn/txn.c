@@ -303,7 +303,6 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 	    __wt_try_readlock(session, txn_global->scan_rwlock)) != 0)
 		return (ret == EBUSY ? 0 : ret);
 	__txn_oldest_scan(session, &oldest_id, &last_running, &oldest_session);
-	WT_ASSERT(session, !WT_TXNID_LT(oldest_id, txn_global->oldest_id));
 	__wt_readunlock(session, txn_global->scan_rwlock);
 
 	/*
@@ -338,7 +337,6 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 	 * not yet published its snap_min.
 	 */
 	__txn_oldest_scan(session, &oldest_id, &last_running, &oldest_session);
-	WT_ASSERT(session, !WT_TXNID_LT(oldest_id, txn_global->oldest_id));
 
 #ifdef HAVE_DIAGNOSTIC
 	{
