@@ -530,6 +530,9 @@ __wt_page_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 		WT_FULL_BARRIER();
 	}
 
+	if (S2C(session)->modified == 0)
+		S2C(session)->modified = 1;
+
 	__wt_page_only_modify_set(session, page);
 }
 

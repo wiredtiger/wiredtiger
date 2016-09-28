@@ -87,22 +87,26 @@ __ckpt_server(void *arg)
 		 */
 		__wt_cond_wait(session, conn->ckpt_cond, conn->ckpt_usecs);
 
-		/* Checkpoint the database. */
-		WT_ERR(wt_session->checkpoint(wt_session, NULL));
+		/* Checkpoint the database if the connection is marked dirty. */
+		if (conn->modified == 1) {
+			WT_ERR(wt_session->checkpoint(wt_session, NULL));
 
-		/* Reset. */
-		if (conn->ckpt_logsize) {
-			__wt_log_written_reset(session);
-			conn->ckpt_signalled = false;
+			/* Reset. */
+			if (conn->ckpt_logsize) {
+				__wt_log_written_reset(session);
+				conn->ckpt_signalled = false;
 
-			/*
-			 * In case we crossed the log limit during the
-			 * checkpoint and the condition variable was already
-			 * signalled, do a tiny wait to clear it so we don't do
-			 * another checkpoint immediately.
-			 */
-			__wt_cond_wait(session, conn->ckpt_cond, 1);
-		}
+				/*
+				 * In case we crossed the log limit during the
+				 * checkpoint and the condition variable was
+				 * already signalled, do a tiny wait to clear
+				 * it so we don't do another checkpoint
+				 * immediately.
+				 */
+				__wt_cond_wait(session, conn->ckpt_cond, 1);
+			}
+		} else
+			WT_STAT_CONN_INCR(session, txn_checkpoint_skipped);
 	}
 
 	if (0) {

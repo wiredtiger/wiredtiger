@@ -172,6 +172,12 @@ struct __wt_connection_impl {
 	WT_SPINLOCK turtle_lock;	/* Turtle file spinlock */
 
 	/*
+	 * Is there a data/schema change that needs to be the part of a
+	 * checkpoint.
+	 */
+	bool modified;
+
+	/*
 	 * We distribute the btree page locks across a set of spin locks. Don't
 	 * use too many: they are only held for very short operations, each one
 	 * is 64 bytes, so 256 will fill the L1 cache on most CPUs.

@@ -666,6 +666,14 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_ERR(__wt_txn_id_check(session));
 
 	/*
+	 * Mark the connection as clean. If some data gets modified after
+	 * generating checkpoint transaction id, connection will be reset to
+	 * dirty when reconciliation marks the btree dirty on encountering the
+	 * dirty page.
+	 */
+	conn->modified = 0;
+
+	/*
 	 * Save the checkpoint session ID.
 	 *
 	 * We never do checkpoints in the default session (with id zero).
@@ -825,6 +833,9 @@ err:	/*
 	 * overwritten the checkpoint, so what ends up on disk is not
 	 * consistent.
 	 */
+	if (ret != 0 && conn->modified == 0)
+		conn->modified = 1;
+
 	session->isolation = txn->isolation = WT_ISO_READ_UNCOMMITTED;
 	if (tracking)
 		WT_TRET(__wt_meta_track_off(session, false, ret != 0));
@@ -1354,7 +1365,7 @@ __checkpoint_tree(
 	 * checkpoint is created, and then things get bad.
 	 */
 	WT_ERR(__wt_page_modify_init(session, btree->root.page));
-	__wt_page_modify_set(session, btree->root.page);
+	__wt_page_only_modify_set(session, btree->root.page);
 
 	/*
 	 * Clear the tree's modified flag; any changes before we clear the flag
@@ -1440,8 +1451,10 @@ err:	/*
 	 * If the checkpoint didn't complete successfully, make sure the
 	 * tree is marked dirty.
 	 */
-	if (ret != 0 && !btree->modified && was_modified)
+	if (ret != 0 && !btree->modified && was_modified) {
 		btree->modified = 1;
+		S2C(session)->modified = 1;
+	}
 
 	__wt_meta_ckptlist_free(session, ckptbase);
 	btree->ckpt = NULL;
