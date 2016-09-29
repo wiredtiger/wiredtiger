@@ -723,7 +723,7 @@ static const char * const __stats_connection_desc[] = {
 	"transaction: transaction checkpoint scrub time (msecs)",
 	"transaction: transaction checkpoint total time (msecs)",
 	"transaction: transaction checkpoints",
-	"transaction: transaction checkpoints skipped because connection was clean",
+	"transaction: transaction checkpoints skipped because database was clean",
 	"transaction: transaction failures due to cache overflow",
 	"transaction: transaction fsync calls for checkpoint after allocating the transaction ID",
 	"transaction: transaction fsync duration for checkpoint after allocating the transaction ID (usecs)",

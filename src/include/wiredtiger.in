@@ -4626,7 +4626,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! transaction: transaction checkpoints */
 #define	WT_STAT_CONN_TXN_CHECKPOINT			1204
 /*!
- * transaction: transaction checkpoints skipped because connection was
+ * transaction: transaction checkpoints skipped because database was
  * clean
  */
 #define	WT_STAT_CONN_TXN_CHECKPOINT_SKIPPED		1205

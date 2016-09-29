@@ -172,12 +172,6 @@ struct __wt_connection_impl {
 	WT_SPINLOCK turtle_lock;	/* Turtle file spinlock */
 
 	/*
-	 * Is there a data/schema change that needs to be the part of a
-	 * checkpoint.
-	 */
-	bool modified;
-
-	/*
 	 * We distribute the btree page locks across a set of spin locks. Don't
 	 * use too many: they are only held for very short operations, each one
 	 * is 64 bytes, so 256 will fill the L1 cache on most CPUs.
@@ -357,6 +351,12 @@ struct __wt_connection_impl {
 	uint32_t	 txn_logsync;	/* Log sync configuration */
 
 	WT_SESSION_IMPL *meta_ckpt_session;/* Metadata checkpoint session */
+
+	/*
+	 * Is there a data/schema change that needs to be the part of a
+	 * checkpoint.
+	 */
+	bool modified;
 
 	WT_SESSION_IMPL *sweep_session;	   /* Handle sweep session */
 	wt_thread_t	 sweep_tid;	   /* Handle sweep thread */
