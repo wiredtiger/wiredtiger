@@ -63,7 +63,7 @@ tasks:
               scons.bat --enable-python=c:\\swigwin-3.0.2\\swig.exe --enable-diagnostic --enable-verbose ${smp_command|}
             else
               ./build_posix/reconf
-              ${configure_env_vars|} ./configure --enable-diagnostic --enable-python --enable-zlib --enable-strict --enable-verbose
+              ${configure_env_vars|} ./configure --enable-diagnostic --enable-python --enable-zlib --enable-verbose
               ${make_command|make} ${smp_command|} 2>&1
               ${make_command|make} VERBOSE=1 check 2>&1
             fi
