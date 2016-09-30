@@ -78,7 +78,7 @@ key_gen_setup(WT_ITEM *key)
 }
 
 static void
-key_gen_common(WT_ITEM *key, uint64_t keyno, int suffix)
+key_gen_common(WT_ITEM *key, uint64_t keyno, const char * const suffix)
 {
 	int len;
 	char *p;
@@ -86,11 +86,18 @@ key_gen_common(WT_ITEM *key, uint64_t keyno, int suffix)
 	p = key->mem;
 
 	/*
-	 * The key always starts with a 10-digit string (the specified cnt)
-	 * followed by two digits, a random number between 1 and 15 if it's
-	 * an insert, otherwise 00.
+	 * The key always starts with a 10-digit string (the specified row
+	 * number), followed by a suffix if it's an insert.
 	 */
-	len = sprintf(p, "%010" PRIu64 ".%02d", keyno, suffix);
+	u64_to_string_zf(keyno, key->mem, 11);
+	if (suffix == NULL)
+		len = 10;
+	else {
+		p[10] = '.';
+		p[11] = suffix[0];
+		p[12] = suffix[1];
+		len = 13;
+	}
 
 	/*
 	 * In a column-store, the key is only used for Berkeley DB inserts,
@@ -118,13 +125,19 @@ key_gen_common(WT_ITEM *key, uint64_t keyno, int suffix)
 void
 key_gen(WT_ITEM *key, uint64_t keyno)
 {
-	key_gen_common(key, keyno, 0);
+	key_gen_common(key, keyno, NULL);
 }
 
 void
 key_gen_insert(WT_RAND_STATE *rnd, WT_ITEM *key, uint64_t keyno)
 {
-	key_gen_common(key, keyno, (int)mmrand(rnd, 1, 15));
+	static const char * const suffix[15] = {
+	    "01", "02", "03", "04", "05",
+	    "06", "07", "08", "09", "10", 
+	    "11", "12", "13", "14", "15"
+	};
+
+	key_gen_common(key, keyno, suffix[mmrand(rnd, 1, 15) - 1]);
 }
 
 static uint32_t val_dup_data_len;	/* Length of duplicate data items */
