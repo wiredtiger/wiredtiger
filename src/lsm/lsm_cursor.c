@@ -242,7 +242,8 @@ __clsm_enter(WT_CURSOR_LSM *clsm, bool reset, bool update)
 				for (i = clsm->nchunks - 2;
 				    clsm->nupdates < clsm->nchunks;
 				    clsm->nupdates++, i--) {
-					switch_txn = clsm->chunks[i]->switch_txn;
+					switch_txn =
+					    clsm->chunks[i]->switch_txn;
 					if (WT_TXNID_LT(switch_txn, snap_min))
 						break;
 					WT_ASSERT(session,
@@ -405,7 +406,8 @@ __clsm_close_cursors(WT_CURSOR_LSM *clsm, u_int start, u_int end)
  *	Allocates an array of unit objects for each chunk.
  */
 static int
-__clsm_resize_chunks(WT_SESSION_IMPL *session, WT_CURSOR_LSM *clsm, u_int nchunks)
+__clsm_resize_chunks(
+    WT_SESSION_IMPL *session, WT_CURSOR_LSM *clsm, u_int nchunks)
 {
 	WT_DECL_RET;
 	WT_LSM_CURSOR_CHUNK *chunk;
@@ -997,7 +999,7 @@ __clsm_next_random(WT_CURSOR *cursor)
 	WT_CURSOR_NOVALUE(cursor);
 	WT_ERR(__clsm_enter(clsm, false, false));
 
-	for(;;) {
+	for (;;) {
 		WT_ERR(__clsm_random_chunk(session, clsm, &c));
 		/*
 		 * __wt_curfile_next_random can potentially return a WT_NOTFOUND

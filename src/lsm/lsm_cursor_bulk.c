@@ -123,7 +123,8 @@ __wt_clsm_open_bulk(WT_CURSOR_LSM *clsm, const char *cfg[])
 	 * for a bloom filter - it makes cleanup simpler. Cleaned up by
 	 * cursor close on error.
 	 */
-	WT_RET(__wt_realloc_def(session, &clsm->chunks_alloc, 1, &clsm->chunks));
+	WT_RET(
+	    __wt_realloc_def(session, &clsm->chunks_alloc, 1, &clsm->chunks));
 	WT_RET(__wt_calloc_one(session, &clsm->chunks[0]));
 	clsm->chunks_count = clsm->nchunks = 1;
 
