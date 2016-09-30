@@ -1002,13 +1002,11 @@ __clsm_next_random(WT_CURSOR *cursor)
 	for (;;) {
 		WT_ERR(__clsm_random_chunk(session, clsm, &c));
 		/*
-		 * __wt_curfile_next_random can potentially return a WT_NOTFOUND
-		 * if the chunk we picked is empty. We want to retry in that
-		 * case.
+		 * This call to next_random on the chunk can potentially end in
+		 * WT_NOTFOUND if the chunk we picked is empty. We want to retry
+		 * in that case.
 		 */
 		ret = __wt_curfile_next_random(c);
-		if (ret == WT_NOTFOUND)
-			continue;
 		if (ret == 0) {
 			F_SET(cursor, WT_CURSTD_KEY_INT);
 			WT_ERR(c->get_key(c, &cursor->key));
@@ -1020,8 +1018,12 @@ __clsm_next_random(WT_CURSOR *cursor)
 			 */
 			WT_ERR(__clsm_search_near(cursor, &exact));
 		}
-		break;
+		if (ret == WT_NOTFOUND)
+			continue;
+		else
+			break;
 	}
+	WT_ERR(ret);
 
 	/* We have found a valid doc. Set that we are now positioned */
 	if (0) {
