@@ -205,12 +205,8 @@ __wt_txn_named_snapshot_begin(WT_SESSION_IMPL *session, const char *cfg[])
 
 err:	if (started_txn) {
 		WT_TRET(__wt_txn_rollback(session, NULL));
-#ifdef HAVE_DIAGNOSTIC
-		__wt_readlock(session, txn_global->scan_rwlock);
 		WT_DIAGNOSTIC_YIELD;
-		__wt_readunlock(session, txn_global->scan_rwlock);
 		WT_ASSERT(session, !__wt_txn_visible_all(session, pinned_id));
-#endif
 	} else if (ret == 0)
 		F_SET(txn, WT_TXN_NAMED_SNAPSHOT);
 

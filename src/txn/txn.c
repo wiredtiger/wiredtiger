@@ -250,14 +250,8 @@ __txn_oldest_scan(WT_SESSION_IMPL *session,
 
 	/* The oldest ID can't move past any named snapshots. */
 	if ((id = txn_global->nsnap_oldest_id) != WT_TXN_NONE &&
-	    WT_TXNID_LT(id, oldest_id)) {
-#ifdef HAVE_DIAGNOSTIC
-		WT_DIAGNOSTIC_YIELD;
-		if ((id = txn_global->nsnap_oldest_id) != WT_TXN_NONE &&
-		    WT_TXNID_LT(id, oldest_id))
-#endif
-			oldest_id = id;
-	}
+	    WT_TXNID_LT(id, oldest_id))
+		oldest_id = id;
 
 	*oldest_idp = oldest_id;
 	*oldest_sessionp = oldest_session;
