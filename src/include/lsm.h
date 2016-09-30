@@ -31,10 +31,10 @@ struct __wt_lsm_worker_args {
 };
 
 /*
- * WT_LSM_CURSOR_ITER --
+ * WT_LSM_CURSOR_CHUNK --
  *	Iterator struct containing all the LSM cursor access points for a chunk.
  */
-struct __wt_lsm_cursor_iter {
+struct __wt_lsm_cursor_chunk {
 	WT_BLOOM *bloom;		/* Bloom filter handle for each chunk.*/
 	WT_CURSOR *cursor;		/* Cursor handle for each chunk. */
 	uint64_t count;			/* Number of items in chunk */
@@ -57,9 +57,9 @@ struct __wt_cursor_lsm {
 	WT_CURSOR *current;		/* The current cursor for iteration */
 	WT_LSM_CHUNK *primary_chunk;	/* The current primary chunk */
 
-	WT_LSM_CURSOR_ITER **iters;	/* Array of LSM cursor units */
-	size_t iters_alloc;		/* Current size iterators array */
-	size_t iters_count;		/* Current number of iterators */
+	WT_LSM_CURSOR_CHUNK **chunks;	/* Array of LSM cursor units */
+	size_t chunks_alloc;		/* Current size iterators array */
+	size_t chunks_count;		/* Current number of iterators */
 
 	u_int update_count;		/* Updates performed. */
 

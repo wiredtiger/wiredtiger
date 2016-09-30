@@ -119,7 +119,7 @@ err:	API_END_RET(session, ret);
 /*
  * __wt_curfile_next_random --
  *	WT_CURSOR->next method for the btree cursor type when configured with
- * next_random.
+ * next_random. This is exported because it is called directly within LSM.
  */
 int
 __wt_curfile_next_random(WT_CURSOR *cursor)
