@@ -87,7 +87,17 @@ __ckpt_server(void *arg)
 		 */
 		__wt_cond_wait(session, conn->ckpt_cond, conn->ckpt_usecs);
 
-		/* Checkpoint the database if the connection is marked dirty. */
+		/*
+		 * Checkpoint the database if the connection is marked dirty.
+		 * A connection is marked dirty whenever a btree gets marked
+		 * dirty, which refelcts upon a change in the database that
+		 * needs to be checkpointed. Said that, there can be short
+		 * instances when a btree gets marked dirty and the connection
+		 * is yet to be. We might skip a checkpoint in that short
+		 * instance, which is okay because by the next time we get to
+		 * checkpoint, the connection would have been marked dirty and
+		 * hence the checkpoint will not be skipped this time.
+		 */
 		if (conn->modified == 1) {
 			WT_ERR(wt_session->checkpoint(wt_session, NULL));
 
