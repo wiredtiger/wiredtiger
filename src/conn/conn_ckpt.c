@@ -90,7 +90,7 @@ __ckpt_server(void *arg)
 		/*
 		 * Checkpoint the database if the connection is marked dirty.
 		 * A connection is marked dirty whenever a btree gets marked
-		 * dirty, which refelcts upon a change in the database that
+		 * dirty, which reflects upon a change in the database that
 		 * needs to be checkpointed. Said that, there can be short
 		 * instances when a btree gets marked dirty and the connection
 		 * is yet to be. We might skip a checkpoint in that short
