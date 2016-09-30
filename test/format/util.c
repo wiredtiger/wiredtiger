@@ -234,7 +234,7 @@ val_gen(WT_RAND_STATE *rnd, WT_ITEM *value, uint64_t keyno)
 		p[10] = '/';
 		value->size = val_dup_data_len;
 	} else {
-		(void)sprintf(p, "%010" PRIu64, keyno);
+		u64_to_string_zf(keyno, p, 11);
 		p[10] = '/';
 		value->size =
 		    value_len(rnd, keyno, g.c_value_min, g.c_value_max);
