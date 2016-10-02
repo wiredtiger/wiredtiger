@@ -143,7 +143,6 @@ zstd_compress(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	size_t zstd_ret;
 
 	(void)compressor;				/* Unused parameters */
-	(void)session;
 
 	zcompressor = (ZSTD_COMPRESSOR *)compressor;
 	wt_api = zcompressor->wt_api;
@@ -443,9 +442,22 @@ zstd_add_compressor(WT_CONNECTION *connection, int raw, const char *name)
 	 * faster compression/decompression speeds. LZ4 and snappy are faster
 	 * than zstd, but have lower compression ratios. Applications wanting
 	 * faster compression/decompression with worse compression would have
-	 * selected LZ4 or snappy, so configure zstd at maximum compression.
+	 * selected LZ4 or snappy, so we would reasonably configure zstd at its
+	 * maximum compression.
+	 *
+	 * However, Zstd's maximum levels of compression require huge amounts
+	 * of memory, At ZSTD_maxCLevel(), single ZSTD_CStream objects require
+	 * 650MB tables. From Yann Collet at Facebook:
+	 *	If you know your data to compress is going to remain "small"
+	 * (<8 MB), I would suggest to settle for a maximum level 19. Level
+	 * 19 is the last "reasonable" compression level. Levels 20+ are
+	 * labelled "ultra", they are more for enthusiasts looking for highest
+	 * possible compression ratio. Moreover, for smaller data, differences
+	 * between level 19 and 22 are fairly small. Differences become sensible
+	 * only on larger files. On the upside, with level 19, you will likely
+	 * notice a large difference in memory allocated.
 	 */
-	zstd_compressor->compression_level = ZSTD_maxCLevel();
+	zstd_compressor->compression_level = 19;
 
 	/*
 	 * Experimentally derived, reserve this many bytes for zlib to finish

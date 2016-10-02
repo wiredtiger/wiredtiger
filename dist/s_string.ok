@@ -60,6 +60,7 @@ COVERITY
 CPUs
 CRC
 CSV
+CStream
 CURSORs
 CURSTD
 CallsCustDate
@@ -69,6 +70,7 @@ Checksum
 Checksums
 CityHash
 CloseHandle
+Collet
 Comparator
 Config
 Coverity
@@ -125,6 +127,7 @@ FORALL
 FOREACH
 FS
 FULLFSYNC
+Facebook
 FindClose
 FindFirstFile
 Fixup
@@ -397,6 +400,7 @@ WriteFile
 Wuninitialized
 Wunused
 XP
+Yann
 ZSTD
 Zstd
 Zstd's
