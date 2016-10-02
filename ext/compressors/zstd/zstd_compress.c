@@ -344,7 +344,7 @@ zstd_compress_raw(WT_COMPRESSOR *compressor, WT_SESSION *session,
 		goto fail;
 	}
 
-	/* Fail if we there's not enough space to empty the internal buffer. */
+	/* Fail if there's not enough space to empty the internal buffer. */
 	if (zstd_ret != 0)
 		goto fail;
 
@@ -449,7 +449,7 @@ zstd_add_compressor(WT_CONNECTION *connection, int raw, const char *name)
 
 	/*
 	 * Experimentally derived, reserve this many bytes for zlib to finish
-	 * up a buffer.  If this isn't sufficient, we don't fail but we will be
+	 * up a buffer. If this isn't sufficient, we don't fail but we will be
 	 * inefficient.
 	 */
 	zstd_compressor->finish_reserve = 256;
