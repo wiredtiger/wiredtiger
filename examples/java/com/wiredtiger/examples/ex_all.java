@@ -549,6 +549,12 @@ session_ops(Session session)
         "block_compressor=zlib,key_format=S,value_format=S");
     /*! [Create a zlib compressed table] */
     ret = session.drop("table:mytable", null);
+
+    /*! [Create a zstd compressed table] */
+    ret = session.create("table:mytable",
+        "block_compressor=zstd,key_format=S,value_format=S");
+    /*! [Create a zstd compressed table] */
+    ret = session.drop("table:mytable", null);
     } // if (false)
 
     /*! [Configure checksums to uncompressed] */
@@ -940,6 +946,13 @@ allExample()
         "create," +
         "extensions=[/usr/local/lib/libwiredtiger_zlib.so]");
     /*! [Configure zlib extension] */
+    conn.close(null);
+
+    /*! [Configure zstd extension] */
+    conn = wiredtiger.open(home,
+        "create," +
+        "extensions=[/usr/local/lib/libwiredtiger_zstd.so]");
+    /*! [Configure zstd extension] */
     conn.close(null);
 
     /*

@@ -397,6 +397,9 @@ WriteFile
 Wuninitialized
 Wunused
 XP
+ZSTD
+Zstd
+Zstd's
 abcdef
 abcdefghijklmnopqrstuvwxyz
 addl
@@ -513,6 +516,7 @@ collatorp
 comparator
 comparep
 compat
+compressStream
 concat
 cond
 conf
@@ -532,6 +536,7 @@ cp
 cpuid
 crc
 create's
+createCStream
 crypto
 cryptobad
 csv
@@ -624,6 +629,7 @@ emp
 encodings
 encryptor
 encryptors
+endStream
 endian
 english
 enqueue
@@ -751,6 +757,7 @@ infeasible
 inflateInit
 infmt
 init
+initCStream
 initializers
 initn
 initsize
@@ -1227,4 +1234,5 @@ zalloc
 zf
 zfree
 zlib
+zstd
 zu

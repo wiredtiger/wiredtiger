@@ -58,7 +58,8 @@ typedef struct {
 } CONFIG;
 
 #define	COMPRESSION_LIST						\
-	"(none | lz4 | lz4-noraw | snappy | zlib | zlib-noraw)"
+	"(none | lz4 | lz4-noraw | "					\
+	"snappy | zlib | zlib-noraw | zstd | zstd-noraw)"
 
 static CONFIG c[] = {
 	{ "abort",
