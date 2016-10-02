@@ -277,8 +277,9 @@ lz4_compress_raw(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	(void)final;
 
 	sourceSize = (int)offsets[slots];		/* Type conversion */
-	targetDestSize =
-	    (int)((dst_len < page_max ? dst_len : page_max) - extra);
+	targetDestSize = (int)
+	    (((dst_len - sizeof(LZ4_PREFIX)) < page_max ?
+	    (dst_len - sizeof(LZ4_PREFIX)) : page_max) - extra);
 
 	/* Compress, starting after the prefix bytes. */
 	lz4_len = LZ4_compress_destSize((const char *)src,
