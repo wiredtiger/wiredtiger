@@ -293,6 +293,44 @@ zstd_compress_raw(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	size_t zstd_ret;
 	int ret;
 
+	/*
+	 * !!!
+	 * Zstd has streaming APIs similar to Zlib's which means that we can
+	 * implement raw compression support for WiredTiger, but we don't ever
+	 * run it in production for a couple of reasons.
+	 *
+	 * First, the ZSTD_endStream call to finish the compression can require
+	 * hundreds of bytes to be reserved in the buffer in order for us to be
+	 * relatively sure ZSTD_endStream will succeed (unlike Zlib, where we
+	 * reserve 24 bytes).
+	 *
+	 * Second, the ZSTD_createCStream/ZSTD_initCStream calls to initialize
+	 * a compression run are expensive and relatively slow; the Zstd stream
+	 * functions have no idea of how much data they'll compress, and they
+	 * configure for a worse case, a long stream. (As an example, we have
+	 * seen ZSTD_initCStream at high compression levels allocate/initialize
+	 * 650MB of memory.)
+	 *
+	 * We could make this better.
+	 *
+	 * We could speed initialization up by caching per-session ZSTD_CStream
+	 * cookies. Note that requires real work: there's no per-session
+	 * compression structure where we can easily add a cached cookie, plus
+	 * we'd also need a clean-up function so WiredTiger application threads
+	 * temporarily tasked with eviction aren't left tying down big memory.
+	 *
+	 * Also, there are experimental (non-standard) Zstd APIs allowing the
+	 * application to configure the streaming APIs with a more realistic
+	 * idea of how much data will be compressed, so they won't tie down as
+	 * many resources. I've never tried those APIs, so I don't know if they
+	 * would be effective or not.
+	 *
+	 * Finally, the simpler zstd_compress significantly outperforms this
+	 * function (even when the ZSTD_CStream handles are cached), so for
+	 * now, the code is here and it works, but it's unlikely to be used
+	 * in production.
+	 */
+
 	(void)split_pct;				/* Unused variables */
 	(void)final;
 
