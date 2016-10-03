@@ -86,18 +86,15 @@ key_gen_common(WT_ITEM *key, uint64_t keyno, const char * const suffix)
 	p = key->mem;
 
 	/*
-	 * The key always starts with a 10-digit string (the specified row
-	 * number), followed by a suffix if it's an insert.
+	 * The key always starts with a 10-digit string (the specified row)
+	 * followed by two digits, a random number between 1 and 15 if it's
+	 * an insert, otherwise 00.
 	 */
 	u64_to_string_zf(keyno, key->mem, 11);
-	if (suffix == NULL)
-		len = 10;
-	else {
-		p[10] = '.';
-		p[11] = suffix[0];
-		p[12] = suffix[1];
-		len = 13;
-	}
+	p[10] = '.';
+	p[11] = suffix[0];
+	p[12] = suffix[1];
+	len = 13;
 
 	/*
 	 * In a column-store, the key is only used for Berkeley DB inserts,
@@ -125,7 +122,7 @@ key_gen_common(WT_ITEM *key, uint64_t keyno, const char * const suffix)
 void
 key_gen(WT_ITEM *key, uint64_t keyno)
 {
-	key_gen_common(key, keyno, NULL);
+	key_gen_common(key, keyno, "00");
 }
 
 void
