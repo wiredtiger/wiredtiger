@@ -1241,5 +1241,7 @@ zalloc
 zf
 zfree
 zlib
+zlib's
 zstd
+zstd's
 zu

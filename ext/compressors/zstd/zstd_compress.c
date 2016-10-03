@@ -478,24 +478,28 @@ zstd_add_compressor(WT_CONNECTION *connection, int raw, const char *name)
 	/*
 	 * Zstd's sweet-spot is better compression than zlib at significantly
 	 * faster compression/decompression speeds. LZ4 and snappy are faster
-	 * than zstd, but have lower compression ratios. Applications wanting
-	 * faster compression/decompression with worse compression would have
-	 * selected LZ4 or snappy, so we would reasonably configure zstd at its
-	 * maximum compression.
+	 * than zstd, but have worse compression ratios. Applications wanting
+	 * faster compression/decompression with worse compression will select
+	 * LZ4 or snappy, so we configure zstd for better compression.
 	 *
-	 * However, Zstd's maximum levels of compression require huge amounts
-	 * of memory, At ZSTD_maxCLevel(), single ZSTD_CStream objects require
-	 * 650MB tables. From Yann Collet at Facebook:
-	 *	If you know your data to compress is going to remain "small"
-	 * (<8 MB), I would suggest to settle for a maximum level 19. Level
-	 * 19 is the last "reasonable" compression level. Levels 20+ are
-	 * labelled "ultra", they are more for enthusiasts looking for highest
-	 * possible compression ratio. Moreover, for smaller data, differences
-	 * between level 19 and 22 are fairly small. Differences become sensible
-	 * only on larger files. On the upside, with level 19, you will likely
-	 * notice a large difference in memory allocated.
+	 * From the zstd github site, default measurements of the compression
+	 * engines we support, listing compression ratios with compression and
+	 * decompression speeds:
+	 *
+	 *	Name	Ratio	C.speed	D.speed
+	 *			MB/s	MB/s
+	 *	zstd	2.877	330	940
+	 *	zlib	2.730	95	360
+	 *	LZ4	2.101	620	3100
+	 *	snappy	2.091	480	1600
+	 *
+	 * Set the zstd compression level to 3: according to the zstd web site,
+	 * that reduces zstd's compression speed to around 200 MB/s, increasing
+	 * the compression ratio to 3.100 (close to zlib's best compression
+	 * ratio). In other words, position zstd as a zlib replacement, having
+	 * similar compression at much higher compression/decompression speeds.
 	 */
-	zstd_compressor->compression_level = 19;
+	zstd_compressor->compression_level = 3;
 
 	/*
 	 * Experimentally derived, reserve this many bytes for zlib to finish
