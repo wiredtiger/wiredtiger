@@ -381,6 +381,7 @@ connection_stats = [
     ##########################################
     # Yield statistics
     ##########################################
+    YieldStat('application_eviction', 'application thread evicting (usecs)'),
     YieldStat('page_busy_blocked', 'page acquire busy blocked'),
     YieldStat('page_forcible_evict_blocked', 'page acquire eviction blocked'),
     YieldStat('page_locked_blocked', 'page acquire locked blocked'),
