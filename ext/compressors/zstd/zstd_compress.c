@@ -205,20 +205,11 @@ int zstd_extension_init(WT_CONNECTION *, WT_CONFIG_ARG *);
 int
 zstd_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 {
+	WT_CONFIG_ITEM k, v;
+	WT_CONFIG_PARSER *config_parser;
+	WT_EXTENSION_API *wtext;
 	ZSTD_COMPRESSOR *zstd_compressor;
-
-	(void)config;    				/* Unused parameters */
-
-	if ((zstd_compressor = calloc(1, sizeof(ZSTD_COMPRESSOR))) == NULL)
-		return (errno);
-
-	zstd_compressor->compressor.compress = zstd_compress;
-	zstd_compressor->compressor.compress_raw = NULL;
-	zstd_compressor->compressor.decompress = zstd_decompress;
-	zstd_compressor->compressor.pre_size = zstd_pre_size;
-	zstd_compressor->compressor.terminate = zstd_terminate;
-
-	zstd_compressor->wt_api = connection->get_extension_api(connection);
+	int compression_level, ret;
 
 	/*
 	 * Zstd's sweet-spot is better compression than zlib at significantly
@@ -244,7 +235,57 @@ zstd_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 	 * ratio). In other words, position zstd as a zlib replacement, having
 	 * similar compression at much higher compression/decompression speeds.
 	 */
-	zstd_compressor->compression_level = 3;
+	compression_level = 3;
+
+	/*
+	 * Zstd compression engine allows applications to specify a compression
+	 * level; review the configuration.
+	 */
+	wtext = connection->get_extension_api(connection);
+	if ((ret = wtext->config_get(wtext, NULL, config, "config", &v)) != 0) {
+		(void)wtext->err_printf(wtext, NULL,
+		    "WT_EXTENSION_API.config_get: zstd configure: %s",
+		    wtext->strerror(wtext, NULL, ret));
+		return (ret);
+	}
+	if ((ret = wtext->config_parser_open(
+	    wtext, NULL, v.str, v.len, &config_parser)) != 0) {
+		(void)wtext->err_printf(wtext, NULL,
+		    "WT_EXTENSION_API.config_parser_open: zstd configure: %s",
+		    wtext->strerror(wtext, NULL, ret));
+		return (ret);
+	}
+	while ((ret = config_parser->next(config_parser, &k, &v)) == 0)
+		if (strlen("compression_level") == k.len &&
+		    strncmp("compression_level", k.str, k.len) == 0) {
+			compression_level = (int)v.val;
+			continue;
+		}
+	if (ret != WT_NOTFOUND) {
+		(void)wtext->err_printf(wtext, NULL,
+		    "WT_CONFIG_PARSER.next: zstd configure: %s",
+		    wtext->strerror(wtext, NULL, ret));
+		return (ret);
+	}
+	if ((ret = config_parser->close(config_parser)) != 0) {
+		(void)wtext->err_printf(wtext, NULL,
+		    "WT_CONFIG_PARSER.close: zstd configure: %s",
+		    wtext->strerror(wtext, NULL, ret));
+		return (ret);
+	}
+
+	if ((zstd_compressor = calloc(1, sizeof(ZSTD_COMPRESSOR))) == NULL)
+		return (errno);
+
+	zstd_compressor->compressor.compress = zstd_compress;
+	zstd_compressor->compressor.compress_raw = NULL;
+	zstd_compressor->compressor.decompress = zstd_decompress;
+	zstd_compressor->compressor.pre_size = zstd_pre_size;
+	zstd_compressor->compressor.terminate = zstd_terminate;
+
+	zstd_compressor->wt_api = connection->get_extension_api(connection);
+
+	zstd_compressor->compression_level = compression_level;
 
 	/* Load the compressor */
 	return (connection->add_compressor(

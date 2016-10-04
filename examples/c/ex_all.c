@@ -1123,6 +1123,15 @@ main(void)
 	if (ret == 0)
 		(void)conn->close(conn, NULL);
 
+	/*! [Configure zstd extension with compression level] */
+	ret = wiredtiger_open(home, NULL,
+	    "create,"
+	    "extensions=[/usr/local/lib/"
+	    "libwiredtiger_zstd.so=[config=compression_level=9]]", &conn);
+	/*! [Configure zstd extension with compression level] */
+	if (ret == 0)
+		(void)conn->close(conn, NULL);
+
 	/*
 	 * This example code gets run, and direct I/O might not be available,
 	 * causing the open to fail.  The documentation requires code snippets,
