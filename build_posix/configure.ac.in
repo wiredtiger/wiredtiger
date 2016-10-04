@@ -31,10 +31,11 @@ LT_PREREQ(2.2.6)
 LT_INIT([pic-only])
 AC_SUBST([LIBTOOL_DEPS])
 
-# If enable-strict is configured, turn on as much error checking as we can for
+# By default we wan to, turn on as much error checking as we can for
 # this compiler. Intended for developers, and only works for gcc/clang, but it
-# fills a need.
-if test "$wt_cv_enable_strict" = "yes"; then
+# fills a need. If this level of strictness isn't wanted then we should issue
+# --disable-strict 
+if test "$wt_cv_disable_strict" = "no"; then
 	wt_cv_cc_version="`$CC --version | sed -eq`"
 	case "$wt_cv_cc_version" in
 	*clang*)
@@ -42,8 +43,9 @@ if test "$wt_cv_enable_strict" = "yes"; then
 	*cc*|*CC*)					# cc, CC, gcc, GCC
 		AM_GCC_WARNINGS($wt_cv_cc_version);;
 	*)
-		AC_MSG_ERROR(
-		    [--enable-strict does not support "$wt_cv_cc_version".]);;
+		AC_MSG_ERROR([\
+		    unable to compile strictly. Please set --disable-strict as\
+		    compiler does not support "$wt_cv_cc_version".]);;
 	esac
 
 	AM_CFLAGS="$AM_CFLAGS $wt_cv_strict_warnings"
