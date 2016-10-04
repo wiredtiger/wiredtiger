@@ -1772,6 +1772,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 	WT_DECL_RET;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_STATE *txn_state;
+	bool evicted_enough;
 	uint64_t init_evict_count, max_pages_evicted;
 
 	conn = S2C(session);
@@ -1821,11 +1822,22 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 			busy = true;
 		max_pages_evicted = busy ? 5 : 20;
 
+		evicted_enough =
+		    cache->pages_evict > init_evict_count + max_pages_evicted;
+
 		/* See if eviction is still needed. */
 		if (!__wt_eviction_needed(session, busy, &pct_full) ||
-		    (pct_full < 100 &&
-		    cache->pages_evict > init_evict_count + max_pages_evicted))
+		    (pct_full < 100 && evicted_enough))
 			return (0);
+
+		/*
+		 * Don't try especially hard to get the cache usage down when
+		 * configured for in-memory, tell applications the threshold
+		 * has been reached.
+		 */
+		if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
+		    pct_full >= 100 && evicted_enough)
+			return (WT_CACHE_FULL);
 
 		/*
 		 * Don't make application threads participate in scrubbing for
