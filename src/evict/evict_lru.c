@@ -1715,15 +1715,19 @@ __evict_get_ref(
 static int
 __evict_page(WT_SESSION_IMPL *session, bool is_server)
 {
+	struct timespec enter, leave;
 	WT_BTREE *btree;
 	WT_CACHE *cache;
 	WT_DECL_RET;
 	WT_REF *ref;
+	bool app_timer;
 
 	WT_RET(__evict_get_ref(session, is_server, &btree, &ref));
 	WT_ASSERT(session, ref->state == WT_REF_LOCKED);
 
+	app_timer = false;
 	cache = S2C(session)->cache;
+
 	/*
 	 * An internal session flags either the server itself or an eviction
 	 * worker thread.
@@ -1739,6 +1743,10 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 			WT_STAT_CONN_INCR(session, cache_eviction_app_dirty);
 		WT_STAT_CONN_INCR(session, cache_eviction_app);
 		cache->app_evicts++;
+		if (WT_STAT_ENABLED(session)) {
+			app_timer = true;
+			WT_RET(__wt_epoch(session, &enter));
+		}
 	}
 
 	/*
@@ -1756,6 +1764,9 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 
 	(void)__wt_atomic_subv32(&btree->evict_busy, 1);
 
+	if (ret == 0 && app_timer && __wt_epoch(session, &leave) == 0)
+		WT_STAT_CONN_INCRV(session,
+		    application_evict_time, WT_TIMEDIFF_US(leave, enter));
 	return (ret);
 }
 
@@ -1794,7 +1805,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 	__wt_evict_server_wake(session);
 
 	/* Track how long application threads spend doing eviction. */
-	if (!F_ISSET(session, WT_SESSION_INTERNAL))
+	if (WT_STAT_ENABLED(session) && !F_ISSET(session, WT_SESSION_INTERNAL))
 		WT_RET(__wt_epoch(session, &enter));
 
 	for (init_evict_count = cache->pages_evict;; ret = 0) {
@@ -1860,10 +1871,11 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 		}
 	}
 
-err:	if (!F_ISSET(session, WT_SESSION_INTERNAL) &&
+err:	if (WT_STAT_ENABLED(session) &&
+	    !F_ISSET(session, WT_SESSION_INTERNAL) &&
 	    __wt_epoch(session, &leave) == 0)
 		WT_STAT_CONN_INCRV(session,
-		    application_eviction, WT_TIMEDIFF_US(leave, enter));
+		    application_cache_time, WT_TIMEDIFF_US(leave, enter));
 
 	return (ret);
 	/* NOTREACHED */
