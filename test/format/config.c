@@ -292,11 +292,8 @@ config_compression(const char *conf_name)
 		break;
 #endif
 #ifdef HAVE_BUILTIN_EXTENSION_ZSTD
-	case 15: case 16:			/* 10% zstd */
+	case 15: case 16 case 17:		/* 15% zstd */
 		cstr = "zstd";
-		break;
-	case 17:				/* 5% zstd-no-raw */
-		cstr = "zstd-noraw";
 		break;
 #endif
 	case 18: case 19: case 20:		/* 15% no compression */
@@ -758,8 +755,6 @@ config_map_compression(const char *s, u_int *vp)
 		*vp = COMPRESS_ZLIB_NO_RAW;
 	else if (strcmp(s, "zstd") == 0)
 		*vp = COMPRESS_ZSTD;
-	else if (strcmp(s, "zstd-noraw") == 0)
-		*vp = COMPRESS_ZSTD_NO_RAW;
 	else
 		testutil_die(EINVAL,
 		    "illegal compression configuration: %s", s);

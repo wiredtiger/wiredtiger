@@ -32,17 +32,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <wiredtiger_config.h>
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
-
-/*
- * We need to include the configuration file to detect whether this extension
- * is being built into the WiredTiger library.
- */
-#include "wiredtiger_config.h"
-#ifdef _MSC_VER
-#define	inline __inline
-#endif
 
 /* Local compressor structure. */
 typedef struct {

@@ -64,11 +64,11 @@ snappy_bswap64(uint64_t v)
 #endif
 
 /*
- * wt_snappy_error --
+ * snappy_error --
  *	Output an error message, and return a standard error code.
  */
 static int
-wt_snappy_error(WT_COMPRESSOR *compressor,
+snappy_error(WT_COMPRESSOR *compressor,
     WT_SESSION *session, const char *call, snappy_status snret)
 {
 	WT_EXTENSION_API *wt_api;
@@ -94,11 +94,11 @@ wt_snappy_error(WT_COMPRESSOR *compressor,
 }
 
 /*
- * wt_snappy_compress --
+ * snappy_compression --
  *	WiredTiger snappy compression.
  */
 static int
-wt_snappy_compress(WT_COMPRESSOR *compressor, WT_SESSION *session,
+snappy_compression(WT_COMPRESSOR *compressor, WT_SESSION *session,
     uint8_t *src, size_t src_len,
     uint8_t *dst, size_t dst_len,
     size_t *result_lenp, int *compression_failed)
@@ -108,9 +108,9 @@ wt_snappy_compress(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	char *snapbuf;
 
 	/*
-	 * dst_len was computed in wt_snappy_pre_size, so we know it's big
-	 * enough.  Skip past the space we'll use to store the final count
-	 * of compressed bytes.
+	 * dst_len was computed in snappy_pre_size, so we know it's big enough.
+	 * Skip past the space we'll use to store the final count of compressed
+	 * bytes.
 	 */
 	snaplen = dst_len - sizeof(size_t);
 	snapbuf = (char *)dst + sizeof(size_t);
@@ -118,81 +118,68 @@ wt_snappy_compress(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	/* snaplen is an input and an output arg. */
 	snret = snappy_compress((char *)src, src_len, snapbuf, &snaplen);
 
-	if (snret == SNAPPY_OK) {
-		if (snaplen + sizeof(size_t) < src_len) {
-			*result_lenp = snaplen + sizeof(size_t);
-			*compression_failed = 0;
+	if (snret == SNAPPY_OK && snaplen + sizeof(size_t) < src_len) {
+		*result_lenp = snaplen + sizeof(size_t);
+		*compression_failed = 0;
 
-			/*
-			 * On decompression, snappy requires an exact compressed
-			 * byte count (the current value of snaplen). WiredTiger
-			 * does not preserve that value, so save snaplen at the
-			 * beginning of the destination buffer.
-			 *
-			 * Store the value in little-endian format.
-			 */
+		/*
+		 * On decompression, snappy requires an exact compressed byte
+		 * count (the current value of snaplen). WiredTiger does not
+		 * preserve that value, so save snaplen at the beginning of
+		 * the destination buffer.
+		 *
+		 * Store the value in little-endian format.
+		 */
 #ifdef WORDS_BIGENDIAN
-			snaplen = snappy_bswap64(snaplen);
+		snaplen = snappy_bswap64(snaplen);
 #endif
-			*(size_t *)dst = snaplen;
-		} else
-			/* The compressor failed to produce a smaller result. */
-			*compression_failed = 1;
+		*(size_t *)dst = snaplen;
 		return (0);
 	}
-	return (wt_snappy_error(compressor, session, "snappy_compress", snret));
+
+	*compression_failed = 1;
+	return (snret == SNAPPY_OK ?
+	    snappy_error(compressor, session, "snappy_compress", snret) : 0);
 }
 
 /*
- * wt_snappy_decompress --
+ * snappy_decompression --
  *	WiredTiger snappy decompression.
  */
 static int
-wt_snappy_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session,
+snappy_decompression(WT_COMPRESSOR *compressor, WT_SESSION *session,
     uint8_t *src, size_t src_len,
     uint8_t *dst, size_t dst_len,
     size_t *result_lenp)
 {
-	WT_EXTENSION_API *wt_api;
 	snappy_status snret;
-	size_t snaplen;
-
-	wt_api = ((SNAPPY_COMPRESSOR *)compressor)->wt_api;
 
 	/*
 	 * Retrieve the saved length, handling little- to big-endian conversion
 	 * as necessary.
 	 */
-	snaplen = *(size_t *)src;
+	src_len = *(size_t *)src;
 #ifdef WORDS_BIGENDIAN
-	snaplen = snappy_bswap64(snaplen);
+	src_len = snappy_bswap64(src_len);
 #endif
-	if (snaplen + sizeof(size_t) > src_len) {
-		(void)wt_api->err_printf(wt_api,
-		    session,
-		    "wt_snappy_decompress: stored size exceeds buffer size");
-		return (WT_ERROR);
-	}
 
 	/* dst_len is an input and an output arg. */
 	snret = snappy_uncompress(
-	    (char *)src + sizeof(size_t), snaplen, (char *)dst, &dst_len);
+	    (char *)src + sizeof(size_t), src_len, (char *)dst, &dst_len);
 
 	if (snret == SNAPPY_OK) {
 		*result_lenp = dst_len;
 		return (0);
 	}
-
-	return (
-	    wt_snappy_error(compressor, session, "snappy_decompress", snret));
+	return (snappy_error(compressor, session, "snappy_decompress", snret));
 }
 
 /*
- * wt_snappy_pre_size --
+ * snappy_pre_size --
  *	WiredTiger snappy destination buffer sizing.
  */
 static int
-wt_snappy_pre_size(WT_COMPRESSOR *compressor, WT_SESSION *session,
+snappy_pre_size(WT_COMPRESSOR *compressor, WT_SESSION *session,
     uint8_t *src, size_t src_len,
     size_t *result_lenp)
 {
@@ -203,7 +190,7 @@ wt_snappy_pre_size(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	/*
 	 * Snappy requires the dest buffer be somewhat larger than the source.
 	 * Fortunately, this is fast to compute, and will give us a dest buffer
-	 * in wt_snappy_compress that we can compress to directly.  We add space
+	 * in snappy_compress that we can compress to directly.  We add space
 	 * in the dest buffer to store the accurate compressed size.
 	 */
 	*result_lenp = snappy_max_compressed_length(src_len) + sizeof(size_t);
@@ -211,11 +198,11 @@ wt_snappy_pre_size(WT_COMPRESSOR *compressor, WT_SESSION *session,
 }
 
 /*
- * wt_snappy_terminate --
+ * snappy_terminate --
  *	WiredTiger snappy compression termination.
  */
 static int
-wt_snappy_terminate(WT_COMPRESSOR *compressor, WT_SESSION *session)
+snappy_terminate(WT_COMPRESSOR *compressor, WT_SESSION *session)
 {
 	(void)session;				/* Unused parameters */
 
@@ -227,9 +214,9 @@ int snappy_extension_init(WT_CONNECTION *, WT_CONFIG_ARG *);
 
 /*
  * snappy_extension_init --
- *	WiredTiger snappy compression extension - called directly when
- *	Snappy support is built in, or via wiredtiger_extension_init when
- *	snappy support is included via extension loading.
+ *	WiredTiger snappy compression extension - called directly when snappy
+ * support is built in, or via wiredtiger_extension_init when snappy support
+ * is included via extension loading.
  */
 int
 snappy_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
@@ -241,11 +228,11 @@ snappy_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 	if ((snappy_compressor = calloc(1, sizeof(SNAPPY_COMPRESSOR))) == NULL)
 		return (errno);
 
-	snappy_compressor->compressor.compress = wt_snappy_compress;
+	snappy_compressor->compressor.compress = snappy_compression;
 	snappy_compressor->compressor.compress_raw = NULL;
-	snappy_compressor->compressor.decompress = wt_snappy_decompress;
-	snappy_compressor->compressor.pre_size = wt_snappy_pre_size;
-	snappy_compressor->compressor.terminate = wt_snappy_terminate;
+	snappy_compressor->compressor.decompress = snappy_decompression;
+	snappy_compressor->compressor.pre_size = snappy_pre_size;
+	snappy_compressor->compressor.terminate = snappy_terminate;
 
 	snappy_compressor->wt_api = connection->get_extension_api(connection);
 

@@ -222,7 +222,6 @@ typedef struct {
 #define	COMPRESS_ZLIB			6
 #define	COMPRESS_ZLIB_NO_RAW		7
 #define	COMPRESS_ZSTD			8
-#define	COMPRESS_ZSTD_NO_RAW		9
 	u_int c_compression_flag;		/* Compression flag value */
 	u_int c_logging_compression_flag;	/* Log compression flag value */
 

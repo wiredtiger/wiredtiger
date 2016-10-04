@@ -52,8 +52,6 @@ compressor(uint32_t compress_flag)
 		return ("zlib-noraw");
 	case COMPRESS_ZSTD:
 		return ("zstd");
-	case COMPRESS_ZSTD_NO_RAW:
-		return ("zstd-noraw");
 	default:
 		break;
 	}
