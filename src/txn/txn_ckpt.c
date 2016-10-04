@@ -1453,7 +1453,8 @@ err:	/*
 	 */
 	if (ret != 0 && !btree->modified && was_modified) {
 		btree->modified = 1;
-		S2C(session)->modified = 1;
+		if (S2C(session)->modified == 0)
+			S2C(session)->modified = 1;
 	}
 
 	__wt_meta_ckptlist_free(session, ckptbase);
