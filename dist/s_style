@@ -2,7 +2,7 @@
 
 # General style correction and cleanup.
 t=__wt.$$
-trap 'rm -f $t; exit 0' 0 1 2 3 13 15
+trap 'rm -f $t' 0 1 2 3 13 15
 
 # Parallelize if possible.
 xp=""
@@ -108,7 +108,7 @@ else
 	   ! expr "$f" : 'test/.*' > /dev/null &&
 	   ! expr "$f" : '.*/utilities/.*' > /dev/null; then
 		if ! expr "$f" : '.*/os_alloc.c' > /dev/null &&
-		     egrep '[[:space:]]free[(]|[[:space:]]strdup[(]|[[:space:]]strndup[(]|[[:space:]]malloc[(]|[[:space:]]calloc[(]|[[:space:]]realloc[(]' $f > $t; then
+		     egrep '[[:space:]]free[(]|[[:space:]]strdup[(]|[[:space:]]strndup[(]|[[:space:]]malloc[(]|[[:space:]]calloc[(]|[[:space:]]realloc[(]|[[:space:]]sprintf[(]' $f > $t; then
 			test -s $t && {
 				echo "$f: call to illegal function"
 				cat $t
@@ -183,3 +183,5 @@ else
 
 	cmp $t $f > /dev/null 2>&1 || (echo "modifying $f" && cp $t $f)
 fi
+
+exit 0

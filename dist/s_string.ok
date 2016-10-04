@@ -18,6 +18,7 @@ ASYNC
 Addr
 Ailamaki
 Alakuijala
+Alexandrescu's
 Alloc
 Async
 Athanassoulis
@@ -373,6 +374,7 @@ WILLNEED
 WIREDTIGER
 WRLSN
 WRNOLOCK
+WTPERF
 WaitForSingleObject
 WakeAllConditionVariable
 Wconditional
@@ -1224,6 +1226,7 @@ xxxx
 xxxxx
 xxxxxx
 zalloc
+zf
 zfree
 zlib
 zu

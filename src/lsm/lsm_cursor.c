@@ -166,7 +166,7 @@ __clsm_enter(WT_CURSOR_LSM *clsm, bool reset, bool update)
 	WT_LSM_TREE *lsm_tree;
 	WT_SESSION_IMPL *session;
 	WT_TXN *txn;
-	uint64_t i, snap_min, switch_txn;
+	uint64_t i, pinned_id , switch_txn;
 
 	lsm_tree = clsm->lsm_tree;
 	session = (WT_SESSION_IMPL *)clsm->iface.session;
@@ -226,8 +226,8 @@ __clsm_enter(WT_CURSOR_LSM *clsm, bool reset, bool update)
 			 * that overlaps with our snapshot is a potential
 			 * conflict.
 			 *
-			 * Note that the global snap_min is correct here: it
-			 * tracks concurrent transactions excluding special
+			 * Note that the pinned ID is correct here: it tracks
+			 * concurrent transactions excluding special
 			 * transactions such as checkpoint (which we can't
 			 * conflict with because checkpoint only writes the
 			 * metadata, which is not an LSM tree).
@@ -237,14 +237,14 @@ __clsm_enter(WT_CURSOR_LSM *clsm, bool reset, bool update)
 			    F_ISSET(clsm, WT_CLSM_OPEN_SNAPSHOT)) {
 				WT_ASSERT(session,
 				    F_ISSET(txn, WT_TXN_HAS_SNAPSHOT));
-				snap_min =
-				    WT_SESSION_TXN_STATE(session)->snap_min;
+				pinned_id =
+				    WT_SESSION_TXN_STATE(session)->pinned_id;
 				for (i = clsm->nchunks - 2;
 				    clsm->nupdates < clsm->nchunks;
 				    clsm->nupdates++, i--) {
 					switch_txn =
 					    clsm->chunks[i]->switch_txn;
-					if (WT_TXNID_LT(switch_txn, snap_min))
+					if (WT_TXNID_LT(switch_txn, pinned_id))
 						break;
 					WT_ASSERT(session,
 					    !__wt_txn_visible_all(
@@ -1007,6 +1007,9 @@ __clsm_next_random(WT_CURSOR *cursor)
 		 * in that case.
 		 */
 		ret = __wt_curfile_next_random(c);
+		if (ret == WT_NOTFOUND)
+			continue;
+
 		if (ret == 0) {
 			F_SET(cursor, WT_CURSTD_KEY_INT);
 			WT_ERR(c->get_key(c, &cursor->key));
@@ -1017,13 +1020,9 @@ __clsm_next_random(WT_CURSOR *cursor)
 			 * documents visible to us.
 			 */
 			WT_ERR(__clsm_search_near(cursor, &exact));
-		}
-		if (ret == WT_NOTFOUND)
-			continue;
-		else
+		} else
 			break;
 	}
-	WT_ERR(ret);
 
 	/* We have found a valid doc. Set that we are now positioned */
 	if (0) {
