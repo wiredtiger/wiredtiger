@@ -30,9 +30,12 @@ wtperf_config()
 {
 	# The Linux ed command writes line numbers to stderr, redirect both
 	# stdout and stderr to keep things quiet.
+	#
+	# The OS X cpp program injects line number output in the middle of lines
+	# and doesn't stringify #XXX entries; use the -E option to the compiler
+	# instead.
 	cat ../bench/wtperf/wtperf_opt.i |
-	    cpp -DOPT_DEFINE_DOXYGEN |
-	    python wtperf_config.py > $t
+	${CC:-cc} -E -DOPT_DEFINE_DOXYGEN - | python wtperf_config.py > $t
 	(echo '/START_AUTO_GENERATED_WTPERF_CONFIGURATION/+3,/STOP_AUTO_GENERATED_WTPERF_CONFIGURATION/-1d'
 	 echo 'i'
 	 echo ''
