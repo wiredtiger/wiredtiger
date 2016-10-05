@@ -226,27 +226,31 @@ zlib_compress_raw(WT_COMPRESSOR *compressor, WT_SESSION *session,
 {
 	ZLIB_COMPRESSOR *zlib_compressor;
 	ZLIB_OPAQUE opaque;
-	z_stream *best_zs, last_zs, zs;
+	z_stream *best_zs, *last_zs, _last_zs, *zs, _zs;
 	uint32_t curr_slot, last_slot;
-	int ret;
+	int ret, tret;
 
 	(void)split_pct;				/* Unused parameters */
 	(void)final;
 
 	zlib_compressor = (ZLIB_COMPRESSOR *)compressor;
+	best_zs = last_zs = NULL;
+	last_slot = 0;
+	ret = 0;
 
-	memset(&zs, 0, sizeof(zs));
-	zs.zalloc = zalloc;
-	zs.zfree = zfree;
+	zs = &_zs;
+	memset(zs, 0, sizeof(*zs));
+	zs->zalloc = zalloc;
+	zs->zfree = zfree;
 	opaque.compressor = compressor;
 	opaque.session = session;
-	zs.opaque = &opaque;
+	zs->opaque = &opaque;
 
-	if ((ret = deflateInit(&zs, zlib_compressor->zlib_level)) != Z_OK)
+	if ((ret = deflateInit(zs, zlib_compressor->zlib_level)) != Z_OK)
 		return (zlib_error(compressor, session, "deflateInit", ret));
 
-	zs.next_in = src;
-	zs.next_out = dst;
+	zs->next_in = src;
+	zs->next_out = dst;
 
 	/*
 	 * Experimentally derived, reserve this many bytes for zlib to finish
@@ -261,82 +265,107 @@ zlib_compress_raw(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	 * space required by zlib to finish up the buffer and the extra bytes
 	 * required by our caller.
 	 */
-	zs.avail_out = (uint32_t)(page_max < dst_len ? page_max : dst_len);
-	zs.avail_out -= (uint32_t)(sizeof(WT_ZLIB_RESERVED) + extra);
+	zs->avail_out = (uint32_t)(page_max < dst_len ? page_max : dst_len);
+	zs->avail_out -= (uint32_t)(sizeof(WT_ZLIB_RESERVED) + extra);
 
 	/* Save the stream state in case the chosen data doesn't fit. */
-	if ((ret = deflateCopy(&last_zs, &zs)) != Z_OK)
-		return (zlib_error(compressor, session, "deflateCopy", ret));
+	last_zs = &_last_zs;
+	if ((ret = deflateCopy(last_zs, zs)) != Z_OK) {
+		last_zs = NULL;
+		ret = zlib_error(compressor, session, "deflateCopy", ret);
+		goto err;
+	}
 
 	/*
 	 * Strategy: take the available output size and compress that much
 	 * input.  Continue until there is no input small enough or the
 	 * compression fails to fit.
 	 */
-	for (best_zs = NULL, last_slot = 0;;) {
+	for (;;) {
 		/* Find the next slot we will try to compress up to. */
 		if ((curr_slot = zlib_find_slot(
-		    zs.total_in + zs.avail_out, offsets, slots)) > last_slot) {
-			zs.avail_in = offsets[curr_slot] - offsets[last_slot];
-			while (zs.avail_in > 0 && zs.avail_out > 0)
-				if ((ret = deflate(&zs, Z_SYNC_FLUSH)) != Z_OK)
-					return (zlib_error(compressor,
-					    session, "deflate", ret));
+		    zs->total_in + zs->avail_out, offsets, slots)) >
+		    last_slot) {
+			zs->avail_in = offsets[curr_slot] - offsets[last_slot];
+			while (zs->avail_in > 0 && zs->avail_out > 0)
+				if ((ret = deflate(zs, Z_SYNC_FLUSH)) != Z_OK) {
+					ret = zlib_error(compressor,
+					    session, "deflate", ret);
+					goto err;
+				}
 		}
 
 		/*
 		 * We didn't do a deflate, or it didn't work: use the last saved
 		 * position.
 		 */
-		if (curr_slot <= last_slot || zs.avail_in > 0) {
-			if ((ret = deflateEnd(&zs)) != Z_OK &&
-			    ret != Z_DATA_ERROR)
-				return (zlib_error(
-				    compressor, session, "deflateEnd", ret));
+		if (curr_slot <= last_slot || zs->avail_in > 0) {
+			ret = deflateEnd(zs);
+			zs = NULL;
+			if (ret != Z_OK && ret != Z_DATA_ERROR) {
+				ret = zlib_error(
+				    compressor, session, "deflateEnd", ret);
+				goto err;
+			}
 
-			best_zs = &last_zs;
+			best_zs = last_zs;
 			break;
 		}
 
 		/* The last deflation succeeded, discard the saved one. */
-		if ((ret = deflateEnd(&last_zs)) != Z_OK && ret != Z_DATA_ERROR)
-			return (zlib_error(
-			    compressor, session, "deflateEnd", ret));
+		ret = deflateEnd(last_zs);
+		last_zs = NULL;
+		if (ret != Z_OK && ret != Z_DATA_ERROR) {
+			ret = zlib_error(
+			    compressor, session, "deflateEnd", ret);
+			goto err;
+		}
 
 		/*
 		 * If there's more compression to do, save a snapshot and keep
 		 * going, otherwise, use the current compression.
 		 */
 		last_slot = curr_slot;
-		if (zs.avail_out > 0) {
-			if ((ret = deflateCopy(&last_zs, &zs)) != Z_OK)
-				return (zlib_error(
-				    compressor, session, "deflateCopy", ret));
+		if (zs->avail_out > 0) {
+			last_zs = &_last_zs;
+			if ((ret = deflateCopy(last_zs, zs)) != Z_OK) {
+				last_zs = NULL;
+				ret = zlib_error(
+				    compressor, session, "deflateCopy", ret);
+				goto err;
+			}
 			continue;
 		}
 
-		best_zs = &zs;
+		best_zs = zs;
 		break;
 	}
 
-	best_zs->avail_out += WT_ZLIB_RESERVED;
-	ret = deflate(best_zs, Z_FINISH);
+	if (ret == 0 && last_slot > 0) {
+		/* Add the reserved bytes and try to finish the compression. */
+		best_zs->avail_out += WT_ZLIB_RESERVED;
+		ret = deflate(best_zs, Z_FINISH);
 
-	/*
-	 * If the end marker didn't fit, report that we got no work done,
-	 * WiredTiger will compress the (possibly large) page image using
-	 * ordinary compression instead.
-	 */
-	if (ret == Z_OK || ret == Z_BUF_ERROR)
-		last_slot = 0;
-	else if (ret != Z_STREAM_END)
-		return (
-		    zlib_error(compressor, session, "deflate end block", ret));
+		/*
+		 * If the end marker didn't fit, report that we got no work
+		 * done, WiredTiger will compress the (possibly large) page
+		 * image using ordinary compression instead.
+		 */
+		if (ret == Z_OK || ret == Z_BUF_ERROR)
+			last_slot = 0;
+		else if (ret != Z_STREAM_END)
+			ret = zlib_error(
+			    compressor, session, "deflate end block", ret);
+	}
 
-	if ((ret = deflateEnd(best_zs)) != Z_OK && ret != Z_DATA_ERROR)
-		return (zlib_error(compressor, session, "deflateEnd", ret));
+err:	if (zs != NULL &&
+	    (tret = deflateEnd(zs)) != Z_OK && tret != Z_DATA_ERROR)
+		ret = zlib_error(compressor, session, "deflateEnd", tret);
+	if (last_zs != NULL &&
+	    (tret = deflateEnd(last_zs)) != Z_OK && tret != Z_DATA_ERROR)
+		ret = zlib_error(compressor, session, "deflateEnd", tret);
 
-	if (last_slot > 0) {
+	if (ret == 0 && last_slot > 0) {
 		*result_slotsp = last_slot;
 		*result_lenp = (size_t)best_zs->total_out;
 	} else {
@@ -347,7 +376,7 @@ zlib_compress_raw(WT_COMPRESSOR *compressor, WT_SESSION *session,
 
 #if 0
 	/* Decompress the result and confirm it matches the original source. */
-	if (last_slot > 0) {
+	if (ret == 0 && last_slot > 0) {
 		void *decomp;
 		size_t result_len;
 
@@ -368,11 +397,13 @@ zlib_compress_raw(WT_COMPRESSOR *compressor, WT_SESSION *session,
 #endif
 
 #if 0
-	fprintf(stderr,
-	    "zlib_compress_raw (%s): page_max %" PRIuMAX ", slots %" PRIu32
-	    ", take %" PRIu32 ": %" PRIu32 " -> %" PRIuMAX "\n",
-	    final ? "final" : "not final", (uintmax_t)page_max,
-	    slots, last_slot, offsets[last_slot], (uintmax_t)*result_lenp);
+	if (ret == 0 && last_slot > 0)
+		fprintf(stderr,
+		    "zlib_compress_raw (%s): page_max %" PRIuMAX ", slots %"
+		    PRIu32 ", take %" PRIu32 ": %" PRIu32 " -> %" PRIuMAX "\n",
+		    final ? "final" : "not final", (uintmax_t)page_max,
+		    slots, last_slot, offsets[last_slot],
+		    (uintmax_t)*result_lenp);
 #endif
 	return (0);
 }
