@@ -230,9 +230,7 @@ zlib_compress_raw(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	uint32_t curr_slot, last_slot;
 	int ret;
 
-	curr_slot = last_slot = 0;
-	(void)split_pct;
-	(void)dst_len;
+	(void)split_pct;				/* Unused parameters */
 	(void)final;
 
 	zlib_compressor = (ZLIB_COMPRESSOR *)compressor;
@@ -249,13 +247,22 @@ zlib_compress_raw(WT_COMPRESSOR *compressor, WT_SESSION *session,
 
 	zs.next_in = src;
 	zs.next_out = dst;
+
 	/*
 	 * Experimentally derived, reserve this many bytes for zlib to finish
 	 * up a buffer.  If this isn't sufficient, we don't fail but we will be
 	 * inefficient.
 	 */
 #define	WT_ZLIB_RESERVED	24
-	zs.avail_out = (uint32_t)(page_max - (extra + WT_ZLIB_RESERVED));
+	/*
+	 * Set the target size. The target size is complicated: we don't want
+	 * to exceed the smaller of the maximum page size or the destination
+	 * buffer length, and in both cases we have to take into account the
+	 * space required by zlib to finish up the buffer and the extra bytes
+	 * required by our caller.
+	 */
+	zs.avail_out = (uint32_t)(page_max < dst_len ? page_max : dst_len);
+	zs.avail_out -= (uint32_t)(sizeof(WT_ZLIB_RESERVED) + extra);
 
 	/* Save the stream state in case the chosen data doesn't fit. */
 	if ((ret = deflateCopy(&last_zs, &zs)) != Z_OK)
@@ -266,7 +273,7 @@ zlib_compress_raw(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	 * input.  Continue until there is no input small enough or the
 	 * compression fails to fit.
 	 */
-	for (best_zs = NULL;;) {
+	for (best_zs = NULL, last_slot = 0;;) {
 		/* Find the next slot we will try to compress up to. */
 		if ((curr_slot = zlib_find_slot(
 		    zs.total_in + zs.avail_out, offsets, slots)) > last_slot) {

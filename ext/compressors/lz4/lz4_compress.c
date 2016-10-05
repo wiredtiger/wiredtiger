@@ -267,19 +267,24 @@ lz4_compress_raw(WT_COMPRESSOR *compressor, WT_SESSION *session,
     size_t *result_lenp, uint32_t *result_slotsp)
 {
 	LZ4_PREFIX prefix;
-	int lz4_len;
 	uint32_t slot;
-	int sourceSize, targetDestSize;
+	int lz4_len, sourceSize, targetDestSize;
 
 	(void)compressor;				/* Unused parameters */
 	(void)session;
 	(void)split_pct;
 	(void)final;
 
-	sourceSize = (int)offsets[slots];		/* Type conversion */
-	targetDestSize = (int)
-	    (((dst_len - sizeof(LZ4_PREFIX)) < page_max ?
-	    (dst_len - sizeof(LZ4_PREFIX)) : page_max) - extra);
+	/*
+	 * Set the source and target sizes. The target size is complicated: we
+	 * don't want to exceed the smaller of the maximum page size or the
+	 * destination buffer length, and in both cases we have to take into
+	 * account the space for our overhead and the extra bytes required by
+	 * our caller.
+	 */
+	sourceSize = (int)offsets[slots];
+	targetDestSize = (int)(page_max < dst_len ? page_max : dst_len);
+	targetDestSize -= (int)(sizeof(LZ4_PREFIX) + extra);
 
 	/* Compress, starting after the prefix bytes. */
 	lz4_len = LZ4_compress_destSize((const char *)src,
