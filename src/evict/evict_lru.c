@@ -914,7 +914,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 		goto err;
 
 	pct_diff = (int)(pgs_evicted_persec_cur - conn->evict_tune_pg_sec_last)
-		* 100 / (int) conn->evict_tune_pg_sec_last;
+	    * 100 / (int) conn->evict_tune_pg_sec_last;
 
 	if (conn->evict_tune_created_last)
 		if (pct_diff > EVICT_TUNE_THRESHOLD)
@@ -928,11 +928,11 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 			WT_ERR(__wt_thread_group_stop_one(
 			    session, &conn->evict_threads, false));
 			WT_STAT_CONN_INCR(session,
-					  cache_eviction_worker_removed);
+			    cache_eviction_worker_removed);
 			WT_STAT_CONN_SET(session, cache_eviction_active_workers,
-					 conn->evict_threads.current_threads);
+			    conn->evict_threads.current_threads);
 			__wt_verbose(session, WT_VERB_EVICTSERVER,
-				     "removed thread");
+			    "removed thread");
 		}
 	else if (WT_TIMEDIFF_SEC(
 	    current_time, conn->evict_time_last_create) > EVICT_CREATE_RETRY)
@@ -965,11 +965,11 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 			conn->evict_tune_created_last = true;
 			conn->evict_time_last_create = current_time;
 			WT_STAT_CONN_INCR(session,
-					  cache_eviction_worker_created);
+			    cache_eviction_worker_created);
 			WT_STAT_CONN_SET(session, cache_eviction_active_workers,
-					 conn->evict_threads.current_threads);
+			    conn->evict_threads.current_threads);
 			__wt_verbose(session, WT_VERB_EVICTSERVER,
-				     "added thread");
+			    "added thread");
 		}
 	}
 
@@ -979,6 +979,7 @@ err:
 	conn->evict_tune_pg_sec_last = pgs_evicted_persec_cur;
 	return (ret);
 }
+
 /*
  * __evict_lru_pages --
  *	Get pages from the LRU queue to evict.
