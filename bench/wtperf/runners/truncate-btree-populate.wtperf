@@ -2,6 +2,7 @@
 conn_config="cache_size=2GB,checkpoint=(wait=60)"
 table_config="type=file"
 # Start with a small set of inserts in the populate phase.
+close_conn=true
 icount=50000
 report_interval=5
 populate_threads=1

@@ -94,6 +94,7 @@ DEF_OPT_AS_UINT32(checkpoint_stress_rate, 0,
 DEF_OPT_AS_UINT32(checkpoint_threads, 0, "number of checkpoint threads")
 DEF_OPT_AS_CONFIG_STRING(conn_config, "create",
     "connection configuration string")
+DEF_OPT_AS_BOOL(close_conn, 0, "properly close connection at end of test")
 DEF_OPT_AS_BOOL(compact, 0, "post-populate compact for LSM merging activity")
 DEF_OPT_AS_STRING(compression, "none",
     "compression extension.  Allowed configuration values are: "
