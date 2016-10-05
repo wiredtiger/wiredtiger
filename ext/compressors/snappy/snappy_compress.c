@@ -139,7 +139,7 @@ snappy_compression(WT_COMPRESSOR *compressor, WT_SESSION *session,
 
 	*compression_failed = 1;
 	return (snret == SNAPPY_OK ?
-	    snappy_error(compressor, session, "snappy_compress", snret) : 0);
+	    0 : snappy_error(compressor, session, "snappy_compress", snret));
 }
 
 /*
