@@ -367,8 +367,11 @@ retry:		/* If we reached our maximum reserve, quit. */
 	if (ret == Z_OK || ret == Z_BUF_ERROR) {
 		last_slot = 0;
 		increase_reserve = true;
-	} else if (ret != Z_STREAM_END)
+	} else if (ret != Z_STREAM_END) {
 		ret = zlib_error(compressor, session, "deflate end block", ret);
+		goto err;
+	}
+	ret = 0;
 
 err:	if (zs != NULL &&
 	    (tret = deflateEnd(zs)) != Z_OK && tret != Z_DATA_ERROR)
@@ -406,8 +409,6 @@ err:	if (zs != NULL &&
 				    "deflate compare with original source",
 				    Z_DATA_ERROR);
 		zfree(&opaque, decomp);
-		if (ret != 0)
-			return (ret);
 	}
 #endif
 
@@ -420,7 +421,8 @@ err:	if (zs != NULL &&
 		    slots, last_slot, offsets[last_slot],
 		    (uintmax_t)*result_lenp);
 #endif
-	return (0);
+
+	return (ret);
 }
 
 /*
