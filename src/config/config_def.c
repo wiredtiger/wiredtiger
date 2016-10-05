@@ -139,7 +139,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
 	    confchk_wiredtiger_open_shared_cache_subconfigs, 5 },
 	{ "statistics", "list",
 	    NULL, "choices=[\"all\",\"cache_walk\",\"fast\",\"none\","
-	    "\"clear\"]",
+	    "\"clear\",\"tree_walk\"]",
 	    NULL, 0 },
 	{ "statistics_log", "category",
 	    NULL, NULL,
@@ -333,7 +333,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_open_cursor[] = {
 	{ "skip_sort_check", "boolean", NULL, NULL, NULL, 0 },
 	{ "statistics", "list",
 	    NULL, "choices=[\"all\",\"cache_walk\",\"fast\",\"clear\","
-	    "\"size\"]",
+	    "\"size\",\"tree_walk\"]",
 	    NULL, 0 },
 	{ "target", "list", NULL, NULL, NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
@@ -700,7 +700,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
 	    confchk_wiredtiger_open_shared_cache_subconfigs, 5 },
 	{ "statistics", "list",
 	    NULL, "choices=[\"all\",\"cache_walk\",\"fast\",\"none\","
-	    "\"clear\"]",
+	    "\"clear\",\"tree_walk\"]",
 	    NULL, 0 },
 	{ "statistics_log", "category",
 	    NULL, NULL,
@@ -785,7 +785,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
 	    confchk_wiredtiger_open_shared_cache_subconfigs, 5 },
 	{ "statistics", "list",
 	    NULL, "choices=[\"all\",\"cache_walk\",\"fast\",\"none\","
-	    "\"clear\"]",
+	    "\"clear\",\"tree_walk\"]",
 	    NULL, 0 },
 	{ "statistics_log", "category",
 	    NULL, NULL,
@@ -867,7 +867,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
 	    confchk_wiredtiger_open_shared_cache_subconfigs, 5 },
 	{ "statistics", "list",
 	    NULL, "choices=[\"all\",\"cache_walk\",\"fast\",\"none\","
-	    "\"clear\"]",
+	    "\"clear\",\"tree_walk\"]",
 	    NULL, 0 },
 	{ "statistics_log", "category",
 	    NULL, NULL,
@@ -947,7 +947,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
 	    confchk_wiredtiger_open_shared_cache_subconfigs, 5 },
 	{ "statistics", "list",
 	    NULL, "choices=[\"all\",\"cache_walk\",\"fast\",\"none\","
-	    "\"clear\"]",
+	    "\"clear\",\"tree_walk\"]",
 	    NULL, 0 },
 	{ "statistics_log", "category",
 	    NULL, NULL,

@@ -285,14 +285,7 @@ struct __wt_connection_impl {
 	uint64_t  ckpt_time_recent;	/* Checkpoint time recent/total */
 	uint64_t  ckpt_time_total;
 
-#define	WT_CONN_STAT_ALL	0x01	/* All statistics configured */
-#define	WT_CONN_STAT_CACHE_WALK	0x02	/* Cache walk statistics configured */
-#define	WT_CONN_STAT_CLEAR	0x04	/* Clear statistics after gathering */
-#define	WT_CONN_STAT_FAST	0x08	/* Fast statistics configured */
-#define	WT_CONN_STAT_JSON	0x10	/* Output in JSON format */
-#define	WT_CONN_STAT_ON_CLOSE	0x20	/* Output statistics on close */
-#define	WT_CONN_STAT_SIZE	0x40	/* Size statistics configured */
-	uint32_t stat_flags;
+	uint32_t stat_flags;		/* Options declared in flags.py */
 
 					/* Connection statistics */
 	WT_CONNECTION_STATS *stats[WT_COUNTER_SLOTS];

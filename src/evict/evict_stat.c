@@ -101,12 +101,12 @@ __evict_stat_walk(WT_SESSION_IMPL *session)
 	WT_STAT_DATA_SET(session, cache_state_max_pagesize, max_pagesize);
 	WT_STAT_DATA_SET(session,
 	    cache_state_min_written_size, min_written_size);
-	WT_STAT_DATA_SET(session, cache_state_count_memory, num_memory);
-	WT_STAT_DATA_SET(session, cache_state_count_queued, num_queued);
+	WT_STAT_DATA_SET(session, cache_state_memory, num_memory);
+	WT_STAT_DATA_SET(session, cache_state_queued, num_queued);
 	WT_STAT_DATA_SET(session,
-	    cache_state_count_not_queueable, num_not_queueable);
+	    cache_state_not_queueable, num_not_queueable);
 	WT_STAT_DATA_SET(session,
-	    cache_state_count_smaller_alloc_size, num_smaller_allocsz);
+	    cache_state_smaller_alloc_size, num_smaller_allocsz);
 	WT_STAT_DATA_SET(session, cache_state_pages, walk_count);
 	WT_STAT_DATA_SET(session, cache_state_pages_clean, pages_clean);
 	WT_STAT_DATA_SET(session, cache_state_pages_dirty, pages_dirty);
@@ -140,7 +140,7 @@ __wt_curstat_cache_walk(WT_SESSION_IMPL *session)
 	/* Root page statistics */
 	root_idx = WT_INTL_INDEX_GET_SAFE(btree->root.page);
 	WT_STAT_DATA_SET(session,
-	    cache_state_root_count_entries, root_idx->entries);
+	    cache_state_root_entries, root_idx->entries);
 	WT_STAT_DATA_SET(session,
 	    cache_state_root_size, btree->root.page->memory_footprint);
 
