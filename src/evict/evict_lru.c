@@ -1545,7 +1545,8 @@ __evict_get_ref(
 	cache = S2C(session)->cache;
 	is_app = !F_ISSET(session, WT_SESSION_INTERNAL);
 	server_only = is_server && !WT_EVICT_HAS_WORKERS(session);
-	urgent_ok = (!is_app && !is_server) || server_only ||
+	urgent_ok = (!is_app && !is_server) ||
+	    !WT_EVICT_HAS_WORKERS(session) ||
 	    __wt_cache_aggressive(session);
 	urgent_queue = cache->evict_urgent_queue;
 	*btreep = NULL;
