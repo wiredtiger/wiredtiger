@@ -252,7 +252,7 @@ retry:		/* If we reached our maximum reserve, quit. */
 		zlib_reserved = WT_ZLIB_RESERVED_MAX;
 	}
 
-	best_zs = last_zs = zs = NULL;
+	best_zs = last_zs = NULL;
 	last_slot = 0;
 	increase_reserve = false;
 	ret = 0;
@@ -281,14 +281,6 @@ retry:		/* If we reached our maximum reserve, quit. */
 	zs->avail_out = (uint32_t)(page_max < dst_len ? page_max : dst_len);
 	zs->avail_out -= (uint32_t)(zlib_reserved + extra);
 
-	/* Save the stream state in case the chosen data doesn't fit. */
-	last_zs = &_last_zs;
-	if ((ret = deflateCopy(last_zs, zs)) != Z_OK) {
-		last_zs = NULL;
-		ret = zlib_error(compressor, session, "deflateCopy", ret);
-		goto err;
-	}
-
 	/*
 	 * Strategy: take the available output size and compress that much
 	 * input.  Continue until there is no input small enough or the
@@ -310,28 +302,11 @@ retry:		/* If we reached our maximum reserve, quit. */
 
 		/*
 		 * We didn't do a deflate, or it didn't work: use the last saved
-		 * position.
+		 * position (if any).
 		 */
 		if (curr_slot <= last_slot || zs->avail_in > 0) {
-			ret = deflateEnd(zs);
-			zs = NULL;
-			if (ret != Z_OK && ret != Z_DATA_ERROR) {
-				ret = zlib_error(
-				    compressor, session, "deflateEnd", ret);
-				goto err;
-			}
-
 			best_zs = last_zs;
 			break;
-		}
-
-		/* The last deflation succeeded, discard the saved one. */
-		ret = deflateEnd(last_zs);
-		last_zs = NULL;
-		if (ret != Z_OK && ret != Z_DATA_ERROR) {
-			ret = zlib_error(
-			    compressor, session, "deflateEnd", ret);
-			goto err;
 		}
 
 		/*
@@ -340,6 +315,16 @@ retry:		/* If we reached our maximum reserve, quit. */
 		 */
 		last_slot = curr_slot;
 		if (zs->avail_out > 0) {
+			/* Discard any previously saved snapshot. */
+			if (last_zs != NULL) {
+				ret = deflateEnd(last_zs);
+				last_zs = NULL;
+				if (ret != Z_OK && ret != Z_DATA_ERROR) {
+					ret = zlib_error(compressor,
+					    session, "deflateEnd", ret);
+					goto err;
+				}
+			}
 			last_zs = &_last_zs;
 			if ((ret = deflateCopy(last_zs, zs)) != Z_OK) {
 				last_zs = NULL;
@@ -354,24 +339,27 @@ retry:		/* If we reached our maximum reserve, quit. */
 		break;
 	}
 
-	/* Add the reserved bytes and try to finish the compression. */
-	best_zs->avail_out += zlib_reserved;
-	ret = deflate(best_zs, Z_FINISH);
+	if (last_slot > 0 && best_zs != NULL) {
+		/* Add the reserved bytes and try to finish the compression. */
+		best_zs->avail_out += zlib_reserved;
+		ret = deflate(best_zs, Z_FINISH);
 
-	/*
-	 * If the end marker didn't fit with the default value, try again with
-	 * a maximum value; if that doesn't work, report we got no work done,
-	 * WiredTiger will compress the (possibly large) page image using
-	 * ordinary compression instead.
-	 */
-	if (ret == Z_OK || ret == Z_BUF_ERROR) {
-		last_slot = 0;
-		increase_reserve = true;
-	} else if (ret != Z_STREAM_END) {
-		ret = zlib_error(compressor, session, "deflate end block", ret);
-		goto err;
+		/*
+		 * If the end marker didn't fit with the default value, try
+		 * again with a maximum value; if that doesn't work, report we
+		 * got no work done, WiredTiger will compress the (possibly
+		 * large) page image using ordinary compression instead.
+		 */
+		if (ret == Z_OK || ret == Z_BUF_ERROR) {
+			last_slot = 0;
+			increase_reserve = true;
+		} else if (ret != Z_STREAM_END) {
+			ret = zlib_error(
+			    compressor, session, "deflate end block", ret);
+			goto err;
+		}
+		ret = 0;
 	}
-	ret = 0;
 
 err:	if (zs != NULL &&
 	    (tret = deflateEnd(zs)) != Z_OK && tret != Z_DATA_ERROR)
