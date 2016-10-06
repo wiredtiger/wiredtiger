@@ -889,12 +889,11 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 	/* Fill the next queue (that isn't the urgent queue). */
 	queue = cache->evict_fill_queue;
 	other_queue = cache->evict_queues + (1 - (queue - cache->evict_queues));
+	cache->evict_fill_queue = other_queue;
 
 	/* If this queue is full, try the other one. */
 	if (__evict_queue_full(queue) && !__evict_queue_full(other_queue))
 		queue = other_queue;
-	cache->evict_fill_queue =
-	    &cache->evict_queues[1 - (queue - cache->evict_queues)];
 
 	/*
 	 * If both queues are full and haven't been empty on recent refills,
@@ -1072,6 +1071,16 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
 	 */
 	start_slot = slot = queue->evict_entries;
 	max_entries = WT_MIN(slot + WT_EVICT_WALK_INCR, cache->evict_slots);
+
+	/*
+	 * Another pathological case: if there are only a tiny number of
+	 * candidate pages in cache, don't put all of them on one queue.
+	 */
+	if (F_ISSET(cache, WT_CACHE_EVICT_CLEAN))
+		max_entries =
+		    WT_MIN(max_entries, __wt_cache_pages_inuse(cache) / 2);
+	else
+		max_entries = WT_MIN(max_entries, cache->pages_dirty_leaf / 2);
 
 retry:	while (slot < max_entries) {
 		/*
