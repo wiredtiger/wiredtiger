@@ -358,7 +358,7 @@ lz4_terminate(WT_COMPRESSOR *compressor, WT_SESSION *session)
  *	Add a LZ4 compressor.
  */
 static int
-lz_add_compressor(WT_CONNECTION *connection, int raw, const char *name)
+lz_add_compressor(WT_CONNECTION *connection, bool raw, const char *name)
 {
 	LZ4_COMPRESSOR *lz4_compressor;
 
@@ -397,9 +397,9 @@ lz4_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 
 	(void)config;    				/* Unused parameters */
 
-	if ((ret = lz_add_compressor(connection, 1, "lz4")) != 0)
+	if ((ret = lz_add_compressor(connection, true, "lz4")) != 0)
 		return (ret);
-	if ((ret = lz_add_compressor(connection, 0, "lz4-noraw")) != 0)
+	if ((ret = lz_add_compressor(connection, false, "lz4-noraw")) != 0)
 		return (ret);
 	return (0);
 }
