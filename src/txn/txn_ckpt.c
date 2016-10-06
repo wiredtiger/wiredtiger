@@ -671,7 +671,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * dirty when reconciliation marks the btree dirty on encountering the
 	 * dirty page.
 	 */
-	conn->modified = 0;
+	conn->modified = false;
 
 	/*
 	 * Save the checkpoint session ID.
@@ -833,8 +833,8 @@ err:	/*
 	 * overwritten the checkpoint, so what ends up on disk is not
 	 * consistent.
 	 */
-	if (ret != 0 && conn->modified == 0)
-		conn->modified = 1;
+	if (ret != 0 && !conn->modified)
+		conn->modified = true;
 
 	session->isolation = txn->isolation = WT_ISO_READ_UNCOMMITTED;
 	if (tracking)
@@ -1363,6 +1363,10 @@ __checkpoint_tree(
 	 * out of sync with the set of dirty pages (modify is set, but there
 	 * are no dirty pages), we perform a checkpoint without any writes, no
 	 * checkpoint is created, and then things get bad.
+	 * While marking the root page as dirty, we do not want to dirty the
+	 * btree because we are marking the btree as clean just after this call.
+	 * Also, marking the btree dirty at this stage will unnecessarily mark
+	 * the connection as dirty causing checkpoint-skip code to fail.
 	 */
 	WT_ERR(__wt_page_modify_init(session, btree->root.page));
 	__wt_page_only_modify_set(session, btree->root.page);
@@ -1377,7 +1381,7 @@ __checkpoint_tree(
 	 * it sets the modified flag itself.  Use a full barrier so we get the
 	 * store done quickly, this isn't a performance path.
 	 */
-	btree->modified = 0;
+	btree->modified = false;
 	WT_FULL_BARRIER();
 
 	/* Tell logging that a file checkpoint is starting. */
@@ -1452,9 +1456,9 @@ err:	/*
 	 * tree is marked dirty.
 	 */
 	if (ret != 0 && !btree->modified && was_modified) {
-		btree->modified = 1;
-		if (S2C(session)->modified == 0)
-			S2C(session)->modified = 1;
+		btree->modified = true;
+		if (!S2C(session)->modified)
+			S2C(session)->modified = true;
 	}
 
 	__wt_meta_ckptlist_free(session, ckptbase);

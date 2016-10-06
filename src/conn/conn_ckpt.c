@@ -98,7 +98,7 @@ __ckpt_server(void *arg)
 		 * checkpoint, the connection would have been marked dirty and
 		 * hence the checkpoint will not be skipped this time.
 		 */
-		if (conn->modified == 1) {
+		if (conn->modified) {
 			WT_ERR(wt_session->checkpoint(wt_session, NULL));
 
 			/* Reset. */
