@@ -85,6 +85,13 @@ an extension.  For example, with the WiredTiger library installed in
 
 @snippet ex_all.c Configure zlib extension
 
+The default compression level for the zlib compression is
+\c Z_DEFAULT_COMPRESSION (see the zlib documentation for further
+information); compression can be configured to other levels using the
+additional configuration argument \c compression_level.
+
+@snippet ex_all.c Configure zlib extension with compression level
+
 Finally, when creating the WiredTiger object, set \c block_compressor
 to \c zlib:
 

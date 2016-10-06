@@ -1115,6 +1115,15 @@ main(void)
 	if (ret == 0)
 		(void)conn->close(conn, NULL);
 
+	/*! [Configure zlib extension with compression level] */
+	ret = wiredtiger_open(home, NULL,
+	    "create,"
+	    "extensions=[/usr/local/lib/"
+	    "libwiredtiger_zlib.so=[config=[compression_level=3]]]", &conn);
+	/*! [Configure zlib extension with compression level] */
+	if (ret == 0)
+		(void)conn->close(conn, NULL);
+
 	/*! [Configure zstd extension] */
 	ret = wiredtiger_open(home, NULL,
 	    "create,"
@@ -1127,7 +1136,7 @@ main(void)
 	ret = wiredtiger_open(home, NULL,
 	    "create,"
 	    "extensions=[/usr/local/lib/"
-	    "libwiredtiger_zstd.so=[config=compression_level=9]]", &conn);
+	    "libwiredtiger_zstd.so=[config=[compression_level=9]]]", &conn);
 	/*! [Configure zstd extension with compression level] */
 	if (ret == 0)
 		(void)conn->close(conn, NULL);

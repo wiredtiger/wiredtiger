@@ -948,6 +948,14 @@ allExample()
     /*! [Configure zlib extension] */
     conn.close(null);
 
+    /*! [Configure zlib extension with compression level] */
+    conn = wiredtiger.open(home,
+        "create," +
+        "extensions=[/usr/local/lib/" +
+	"libwiredtiger_zlib.so=[config=[compression_level=3]]]");
+    /*! [Configure zlib extension with compression level] */
+    conn.close(null);
+
     /*! [Configure zstd extension] */
     conn = wiredtiger.open(home,
         "create," +
@@ -959,7 +967,7 @@ allExample()
     conn = wiredtiger.open(home,
         "create," +
         "extensions=[/usr/local/lib/" +
-	"libwiredtiger_zstd.so=[config=compression_level=9]]");
+	"libwiredtiger_zstd.so=[config=[compression_level=9]]]");
     /*! [Configure zstd extension with compression level] */
     conn.close(null);
 

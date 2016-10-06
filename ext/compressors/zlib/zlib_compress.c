@@ -443,7 +443,8 @@ zlib_terminate(WT_COMPRESSOR *compressor, WT_SESSION *session)
  *	Add a zlib compressor.
  */
 static int
-zlib_add_compressor(WT_CONNECTION *connection, int raw, const char *name)
+zlib_add_compressor(
+    WT_CONNECTION *connection, bool raw, const char *name, int zlib_level)
 {
 	ZLIB_COMPRESSOR *zlib_compressor;
 
@@ -462,11 +463,7 @@ zlib_add_compressor(WT_CONNECTION *connection, int raw, const char *name)
 	zlib_compressor->compressor.terminate = zlib_terminate;
 
 	zlib_compressor->wt_api = connection->get_extension_api(connection);
-
-	/*
-	 * Between 0-9: level: see zlib manual.
-	 */
-	zlib_compressor->zlib_level = Z_DEFAULT_COMPRESSION;
+	zlib_compressor->zlib_level = zlib_level;
 
 	/* Load the compressor. */
 	return (connection->add_compressor(
@@ -484,13 +481,65 @@ int zlib_extension_init(WT_CONNECTION *, WT_CONFIG_ARG *);
 int
 zlib_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 {
-	int ret;
+	WT_CONFIG_ITEM k, v;
+	WT_CONFIG_PARSER *config_parser;
+	WT_EXTENSION_API *wtext;
+	int ret, zlib_level;
 
-	(void)config;				/* Unused parameters */
+	zlib_level = Z_DEFAULT_COMPRESSION;		/* Default */
 
-	if ((ret = zlib_add_compressor(connection, 1, "zlib")) != 0)
+	/*
+	 * Zlib compression engine allows applications to specify a compression
+	 * level; review the configuration.
+	 */
+	wtext = connection->get_extension_api(connection);
+	if ((ret = wtext->config_get(wtext, NULL, config, "config", &v)) != 0) {
+		(void)wtext->err_printf(wtext, NULL,
+		    "WT_EXTENSION_API.config_get: zstd configure: %s",
+		    wtext->strerror(wtext, NULL, ret));
 		return (ret);
-	if ((ret = zlib_add_compressor(connection, 0, "zlib-noraw")) != 0)
+	}
+	if ((ret = wtext->config_parser_open(
+	    wtext, NULL, v.str, v.len, &config_parser)) != 0) {
+		(void)wtext->err_printf(wtext, NULL,
+		    "WT_EXTENSION_API.config_parser_open: zstd configure: %s",
+		    wtext->strerror(wtext, NULL, ret));
+		return (ret);
+	}
+	while ((ret = config_parser->next(config_parser, &k, &v)) == 0)
+		if (strlen("compression_level") == k.len &&
+		    strncmp("compression_level", k.str, k.len) == 0) {
+			/*
+			 * Between 0-9: level: see zlib manual.
+			 */
+			zlib_level = (int)v.val;
+			if (zlib_level < 0 || zlib_level > 9) {
+				(void)wtext->err_printf(wtext, NULL,
+				    "WT_CONFIG_PARSER.next: zstd configure: "
+				    "unsupported compression level %d",
+				    zlib_level);
+				return (EINVAL);
+			}
+			continue;
+		}
+	if (ret != WT_NOTFOUND) {
+		(void)wtext->err_printf(wtext, NULL,
+		    "WT_CONFIG_PARSER.next: zstd configure: %s",
+		    wtext->strerror(wtext, NULL, ret));
+		return (ret);
+	}
+	if ((ret = config_parser->close(config_parser)) != 0) {
+		(void)wtext->err_printf(wtext, NULL,
+		    "WT_CONFIG_PARSER.close: zstd configure: %s",
+		    wtext->strerror(wtext, NULL, ret));
+		return (ret);
+	}
+
+	if ((ret = zlib_add_compressor(
+	    connection, true, "zlib", zlib_level)) != 0)
+		return (ret);
+	if ((ret = zlib_add_compressor(
+	    connection, false, "zlib-noraw", zlib_level)) != 0)
 		return (ret);
 	return (0);
 }
