@@ -246,10 +246,10 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_create[] = {
 	{ "format", "string", NULL, "choices=[\"btree\"]", NULL, 0 },
 	{ "huffman_key", "string", NULL, NULL, NULL, 0 },
 	{ "huffman_value", "string", NULL, NULL, NULL, 0 },
-	{ "immutable", "boolean", NULL, NULL, NULL, 0 },
-	{ "in_memory_ignore_cache_size", "boolean",
+	{ "ignore_in_memory_cache_size", "boolean",
 	    NULL, NULL,
 	    NULL, 0 },
+	{ "immutable", "boolean", NULL, NULL, NULL, 0 },
 	{ "internal_item_max", "int", NULL, "min=0", NULL, 0 },
 	{ "internal_key_max", "int", NULL, "min=0", NULL, 0 },
 	{ "internal_key_truncate", "boolean", NULL, NULL, NULL, 0 },
@@ -416,7 +416,7 @@ static const WT_CONFIG_CHECK confchk_file_config[] = {
 	{ "format", "string", NULL, "choices=[\"btree\"]", NULL, 0 },
 	{ "huffman_key", "string", NULL, NULL, NULL, 0 },
 	{ "huffman_value", "string", NULL, NULL, NULL, 0 },
-	{ "in_memory_ignore_cache_size", "boolean",
+	{ "ignore_in_memory_cache_size", "boolean",
 	    NULL, NULL,
 	    NULL, 0 },
 	{ "internal_item_max", "int", NULL, "min=0", NULL, 0 },
@@ -477,7 +477,7 @@ static const WT_CONFIG_CHECK confchk_file_meta[] = {
 	{ "huffman_key", "string", NULL, NULL, NULL, 0 },
 	{ "huffman_value", "string", NULL, NULL, NULL, 0 },
 	{ "id", "string", NULL, NULL, NULL, 0 },
-	{ "in_memory_ignore_cache_size", "boolean",
+	{ "ignore_in_memory_cache_size", "boolean",
 	    NULL, NULL,
 	    NULL, 0 },
 	{ "internal_item_max", "int", NULL, "min=0", NULL, 0 },
@@ -553,7 +553,7 @@ static const WT_CONFIG_CHECK confchk_lsm_meta[] = {
 	{ "format", "string", NULL, "choices=[\"btree\"]", NULL, 0 },
 	{ "huffman_key", "string", NULL, NULL, NULL, 0 },
 	{ "huffman_value", "string", NULL, NULL, NULL, 0 },
-	{ "in_memory_ignore_cache_size", "boolean",
+	{ "ignore_in_memory_cache_size", "boolean",
 	    NULL, NULL,
 	    NULL, 0 },
 	{ "internal_item_max", "int", NULL, "min=0", NULL, 0 },
@@ -1065,7 +1065,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "block_compressor=,cache_resident=false,checksum=uncompressed,"
 	  "colgroups=,collator=,columns=,dictionary=0,encryption=(keyid=,"
 	  "name=),exclusive=false,extractor=,format=btree,huffman_key=,"
-	  "huffman_value=,immutable=false,in_memory_ignore_cache_size=false"
+	  "huffman_value=,ignore_in_memory_cache_size=false,immutable=false"
 	  ",internal_item_max=0,internal_key_max=0,"
 	  "internal_key_truncate=true,internal_page_max=4KB,key_format=u,"
 	  "key_gap=10,leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,"
@@ -1161,7 +1161,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "block_compressor=,cache_resident=false,checksum=uncompressed,"
 	  "collator=,columns=,dictionary=0,encryption=(keyid=,name=),"
 	  "format=btree,huffman_key=,huffman_value=,"
-	  "in_memory_ignore_cache_size=false,internal_item_max=0,"
+	  "ignore_in_memory_cache_size=false,internal_item_max=0,"
 	  "internal_key_max=0,internal_key_truncate=true,"
 	  "internal_page_max=4KB,key_format=u,key_gap=10,leaf_item_max=0,"
 	  "leaf_key_max=0,leaf_page_max=32KB,leaf_value_max=0,"
@@ -1176,7 +1176,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "block_compressor=,cache_resident=false,checkpoint=,"
 	  "checkpoint_lsn=,checksum=uncompressed,collator=,columns=,"
 	  "dictionary=0,encryption=(keyid=,name=),format=btree,huffman_key="
-	  ",huffman_value=,id=,in_memory_ignore_cache_size=false,"
+	  ",huffman_value=,id=,ignore_in_memory_cache_size=false,"
 	  "internal_item_max=0,internal_key_max=0,"
 	  "internal_key_truncate=true,internal_page_max=4KB,key_format=u,"
 	  "key_gap=10,leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,"
@@ -1197,7 +1197,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "block_compressor=,cache_resident=false,checksum=uncompressed,"
 	  "chunks=,collator=,columns=,dictionary=0,encryption=(keyid=,"
 	  "name=),format=btree,huffman_key=,huffman_value=,"
-	  "in_memory_ignore_cache_size=false,internal_item_max=0,"
+	  "ignore_in_memory_cache_size=false,internal_item_max=0,"
 	  "internal_key_max=0,internal_key_truncate=true,"
 	  "internal_page_max=4KB,key_format=u,key_gap=10,last=,"
 	  "leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,"

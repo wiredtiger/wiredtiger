@@ -1069,14 +1069,14 @@ struct __wt_session {
 	 * Permitted values are \c "none"\, \c "english"\, \c "utf8<file>" or \c
 	 * "utf16<file>". See @ref huffman for more information., a string;
 	 * default \c none.}
-	 * @config{immutable, configure the index to be immutable - that is an
-	 * index is not changed by any update to a record in the table., a
-	 * boolean flag; default \c false.}
-	 * @config{in_memory_ignore_cache_size, allow update and insert
+	 * @config{ignore_in_memory_cache_size, allow update and insert
 	 * operations to proceed even if the cache is already at capacity.  Only
 	 * valid in conjunction with in-memory databases.  Should be used with
 	 * caution - this configuration allows WiredTiger to consume memory over
 	 * the configured cache limit., a boolean flag; default \c false.}
+	 * @config{immutable, configure the index to be immutable - that is an
+	 * index is not changed by any update to a record in the table., a
+	 * boolean flag; default \c false.}
 	 * @config{internal_key_max, the largest key stored in an internal
 	 * node\, in bytes.  If set\, keys larger than the specified size are
 	 * stored as overflow items (which may require additional I/O to

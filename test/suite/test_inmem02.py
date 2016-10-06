@@ -34,7 +34,7 @@ from wtscenario import make_scenarios
 
 # test_inmem02.py
 #    Test in-memory with ignore-cache-size setting.
-class test_inmem01(wttest.WiredTigerTestCase):
+class test_inmem02(wttest.WiredTigerTestCase):
     uri = 'table:inmem02'
     conn_config = \
         'cache_size=3MB,file_manager=(close_idle_time=0),in_memory=true'
@@ -46,7 +46,7 @@ class test_inmem01(wttest.WiredTigerTestCase):
         # Create a new table that is allowed to exceed the cache size, do this
         # before filling the cache so that the create succeeds
         self.session.create(
-            self.uri + '_over', 'in_memory_ignore_cache_size=true')
+            self.uri + '_over', 'ignore_in_memory_cache_size=true')
 
         # Populate a table with enough data to fill the cache.
         msg = '/WT_CACHE_FULL.*/'

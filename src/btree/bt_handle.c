@@ -272,11 +272,11 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 		F_CLR(btree, WT_BTREE_IN_MEMORY | WT_BTREE_NO_EVICTION);
 
 	WT_RET(__wt_config_gets(session,
-	    cfg, "in_memory_ignore_cache_size", &cval));
+	    cfg, "ignore_in_memory_cache_size", &cval));
 	if (cval.val) {
 		if (!F_ISSET(conn, WT_CONN_IN_MEMORY))
 			WT_RET_MSG(session, EINVAL,
-			    "in_memory_ignore_cache_size setting is only valid "
+			    "ignore_in_memory_cache_size setting is only valid "
 			    "with databases configured to run in-memory");
 		F_SET(btree, WT_BTREE_IGNORE_CACHE);
 	} else
