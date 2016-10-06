@@ -464,7 +464,7 @@ zlib_add_compressor(WT_CONNECTION *connection, int raw, const char *name)
 	zlib_compressor->wt_api = connection->get_extension_api(connection);
 
 	/*
-	 * Between 0-10: level: see zlib manual.
+	 * Between 0-9: level: see zlib manual.
 	 */
 	zlib_compressor->zlib_level = Z_DEFAULT_COMPRESSION;
 
