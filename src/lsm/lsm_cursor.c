@@ -1010,18 +1010,17 @@ __clsm_next_random(WT_CURSOR *cursor)
 		if (ret == WT_NOTFOUND)
 			continue;
 
-		if (ret == 0) {
-			F_SET(cursor, WT_CURSTD_KEY_INT);
-			WT_ERR(c->get_key(c, &cursor->key));
-			/*
-			 * Search near the current key to resolve any tombstones
-			 * and position to a valid document. If we see a
-			 * WT_NOTFOUND here that is valid, as the tree has no
-			 * documents visible to us.
-			 */
-			WT_ERR(__clsm_search_near(cursor, &exact));
-		} else
-			break;
+		WT_ERR(ret);
+		F_SET(cursor, WT_CURSTD_KEY_INT);
+		WT_ERR(c->get_key(c, &cursor->key));
+		/*
+		 * Search near the current key to resolve any tombstones
+		 * and position to a valid document. If we see a
+		 * WT_NOTFOUND here that is valid, as the tree has no
+		 * documents visible to us.
+		 */
+		WT_ERR(__clsm_search_near(cursor, &exact));
+		break;
 	}
 
 	/* We have found a valid doc. Set that we are now positioned */
