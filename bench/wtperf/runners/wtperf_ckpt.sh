@@ -72,9 +72,6 @@ DB_HOME="$ROOT_DIR/WT_TEST"
 OUT_DIR="$ROOT_DIR/results"
 SHARED_OPTS="${OPTFILE} ${PERF_BASE} -o read_threads=1,update_threads=1,report_interval=1,uri=\"table:test\" -o verbose=1 -h ${DB_HOME}"
 CREATE_OPTS="$SHARED_OPTS -o run_time=0"
-if [ $REUSE -eq 1 ]; then
-	CREATE_OPTS="$CREATE_OPTS -o close_conn=true"
-fi
 RUN_OPTS="$SHARED_OPTS -o run_time=$RUNTIME"
 if [ $WORKLOAD -eq 0 ]; then
 	RUN_OPTS="$RUN_OPTS -o create=false"

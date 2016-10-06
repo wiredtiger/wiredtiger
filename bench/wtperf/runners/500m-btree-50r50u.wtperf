@@ -10,6 +10,7 @@ create=false
 compression="snappy"
 sess_config="isolation=snapshot"
 table_count=2
+close_conn=false
 key_sz=40
 value_sz=120
 max_latency=2000

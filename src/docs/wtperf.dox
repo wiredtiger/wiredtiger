@@ -155,7 +155,7 @@ checkpoint every rate operations during the populate phase in the  populate thre
 number of checkpoint threads
 @par conn_config (string, default="create")
 connection configuration string
-@par close_conn (boolean, default=false)
+@par close_conn (boolean, default=true)
 properly close connection at end of test
 @par compact (boolean, default=false)
 post-populate compact for LSM merging activity
