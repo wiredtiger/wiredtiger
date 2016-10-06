@@ -458,23 +458,22 @@ zlib_add_compressor(
 	    connection, name, (WT_COMPRESSOR *)zlib_compressor, NULL));
 }
 
-int zlib_extension_init(WT_CONNECTION *, WT_CONFIG_ARG *);
-
 /*
- * zlib_extension_init --
- *	WiredTiger zlib compression extension - called directly when zlib
- * support is built in, or via wiredtiger_extension_init when zlib support
- * is included via extension loading.
+ * zlib_init_config --
+ *	Handle zlib configuration.
  */
-int
-zlib_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
+static int
+zlib_init_config(
+    WT_CONNECTION *connection, WT_CONFIG_ARG *config, int *zlib_levelp)
 {
 	WT_CONFIG_ITEM k, v;
 	WT_CONFIG_PARSER *config_parser;
 	WT_EXTENSION_API *wtext;
 	int ret, zlib_level;
 
-	zlib_level = Z_DEFAULT_COMPRESSION;		/* Default */
+	/* If configured as a built-in, there's no configuration argument. */
+	if (config == NULL)
+		return (0);
 
 	/*
 	 * Zlib compression engine allows applications to specify a compression
@@ -483,14 +482,14 @@ zlib_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 	wtext = connection->get_extension_api(connection);
 	if ((ret = wtext->config_get(wtext, NULL, config, "config", &v)) != 0) {
 		(void)wtext->err_printf(wtext, NULL,
-		    "WT_EXTENSION_API.config_get: zstd configure: %s",
+		    "WT_EXTENSION_API.config_get: zlib configure: %s",
 		    wtext->strerror(wtext, NULL, ret));
 		return (ret);
 	}
 	if ((ret = wtext->config_parser_open(
 	    wtext, NULL, v.str, v.len, &config_parser)) != 0) {
 		(void)wtext->err_printf(wtext, NULL,
-		    "WT_EXTENSION_API.config_parser_open: zstd configure: %s",
+		    "WT_EXTENSION_API.config_parser_open: zlib configure: %s",
 		    wtext->strerror(wtext, NULL, ret));
 		return (ret);
 	}
@@ -503,25 +502,45 @@ zlib_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 			zlib_level = (int)v.val;
 			if (zlib_level < 0 || zlib_level > 9) {
 				(void)wtext->err_printf(wtext, NULL,
-				    "WT_CONFIG_PARSER.next: zstd configure: "
+				    "WT_CONFIG_PARSER.next: zlib configure: "
 				    "unsupported compression level %d",
 				    zlib_level);
 				return (EINVAL);
 			}
+			*zlib_levelp = zlib_level;
 			continue;
 		}
 	if (ret != WT_NOTFOUND) {
 		(void)wtext->err_printf(wtext, NULL,
-		    "WT_CONFIG_PARSER.next: zstd configure: %s",
+		    "WT_CONFIG_PARSER.next: zlib configure: %s",
 		    wtext->strerror(wtext, NULL, ret));
 		return (ret);
 	}
 	if ((ret = config_parser->close(config_parser)) != 0) {
 		(void)wtext->err_printf(wtext, NULL,
-		    "WT_CONFIG_PARSER.close: zstd configure: %s",
+		    "WT_CONFIG_PARSER.close: zlib configure: %s",
 		    wtext->strerror(wtext, NULL, ret));
 		return (ret);
 	}
+	return (0);
+}
+
+int zlib_extension_init(WT_CONNECTION *, WT_CONFIG_ARG *);
+
+/*
+ * zlib_extension_init --
+ *	WiredTiger zlib compression extension - called directly when zlib
+ * support is built in, or via wiredtiger_extension_init when zlib support
+ * is included via extension loading.
+ */
+int
+zlib_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
+{
+	int ret, zlib_level;
+
+	zlib_level = Z_DEFAULT_COMPRESSION;		/* Default */
+	if ((ret = zlib_init_config(connection, config, &zlib_level)) != 0)
+		return (ret);
 
 	if ((ret = zlib_add_compressor(
 	    connection, true, "zlib", zlib_level)) != 0)

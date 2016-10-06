@@ -194,6 +194,62 @@ zstd_terminate(WT_COMPRESSOR *compressor, WT_SESSION *session)
 	return (0);
 }
 
+/*
+ * zstd_init_config --
+ *	Handle zstd configuration.
+ */
+static int
+zstd_init_config(
+    WT_CONNECTION *connection, WT_CONFIG_ARG *config, int *compression_levelp)
+{
+	WT_CONFIG_ITEM k, v;
+	WT_CONFIG_PARSER *config_parser;
+	WT_EXTENSION_API *wtext;
+	int ret;
+
+	/* If configured as a built-in, there's no configuration argument. */
+	if (config == NULL)
+		return (0);
+
+	/*
+	 * Zstd compression engine allows applications to specify a compression
+	 * level; review the configuration.
+	 */
+	wtext = connection->get_extension_api(connection);
+	if ((ret = wtext->config_get(wtext, NULL, config, "config", &v)) != 0) {
+		(void)wtext->err_printf(wtext, NULL,
+		    "WT_EXTENSION_API.config_get: zstd configure: %s",
+		    wtext->strerror(wtext, NULL, ret));
+		return (ret);
+	}
+	if ((ret = wtext->config_parser_open(
+	    wtext, NULL, v.str, v.len, &config_parser)) != 0) {
+		(void)wtext->err_printf(wtext, NULL,
+		    "WT_EXTENSION_API.config_parser_open: zstd configure: %s",
+		    wtext->strerror(wtext, NULL, ret));
+		return (ret);
+	}
+	while ((ret = config_parser->next(config_parser, &k, &v)) == 0)
+		if (strlen("compression_level") == k.len &&
+		    strncmp("compression_level", k.str, k.len) == 0) {
+			*compression_levelp = (int)v.val;
+			continue;
+		}
+	if (ret != WT_NOTFOUND) {
+		(void)wtext->err_printf(wtext, NULL,
+		    "WT_CONFIG_PARSER.next: zstd configure: %s",
+		    wtext->strerror(wtext, NULL, ret));
+		return (ret);
+	}
+	if ((ret = config_parser->close(config_parser)) != 0) {
+		(void)wtext->err_printf(wtext, NULL,
+		    "WT_CONFIG_PARSER.close: zstd configure: %s",
+		    wtext->strerror(wtext, NULL, ret));
+		return (ret);
+	}
+	return (0);
+}
+
 int zstd_extension_init(WT_CONNECTION *, WT_CONFIG_ARG *);
 
 /*
@@ -205,9 +261,6 @@ int zstd_extension_init(WT_CONNECTION *, WT_CONFIG_ARG *);
 int
 zstd_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 {
-	WT_CONFIG_ITEM k, v;
-	WT_CONFIG_PARSER *config_parser;
-	WT_EXTENSION_API *wtext;
 	ZSTD_COMPRESSOR *zstd_compressor;
 	int compression_level, ret;
 
@@ -236,43 +289,9 @@ zstd_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 	 * similar compression at much higher compression/decompression speeds.
 	 */
 	compression_level = 3;
-
-	/*
-	 * Zstd compression engine allows applications to specify a compression
-	 * level; review the configuration.
-	 */
-	wtext = connection->get_extension_api(connection);
-	if ((ret = wtext->config_get(wtext, NULL, config, "config", &v)) != 0) {
-		(void)wtext->err_printf(wtext, NULL,
-		    "WT_EXTENSION_API.config_get: zstd configure: %s",
-		    wtext->strerror(wtext, NULL, ret));
+	if ((ret =
+	    zstd_init_config(connection, config, &compression_level)) != 0)
 		return (ret);
-	}
-	if ((ret = wtext->config_parser_open(
-	    wtext, NULL, v.str, v.len, &config_parser)) != 0) {
-		(void)wtext->err_printf(wtext, NULL,
-		    "WT_EXTENSION_API.config_parser_open: zstd configure: %s",
-		    wtext->strerror(wtext, NULL, ret));
-		return (ret);
-	}
-	while ((ret = config_parser->next(config_parser, &k, &v)) == 0)
-		if (strlen("compression_level") == k.len &&
-		    strncmp("compression_level", k.str, k.len) == 0) {
-			compression_level = (int)v.val;
-			continue;
-		}
-	if (ret != WT_NOTFOUND) {
-		(void)wtext->err_printf(wtext, NULL,
-		    "WT_CONFIG_PARSER.next: zstd configure: %s",
-		    wtext->strerror(wtext, NULL, ret));
-		return (ret);
-	}
-	if ((ret = config_parser->close(config_parser)) != 0) {
-		(void)wtext->err_printf(wtext, NULL,
-		    "WT_CONFIG_PARSER.close: zstd configure: %s",
-		    wtext->strerror(wtext, NULL, ret));
-		return (ret);
-	}
 
 	if ((zstd_compressor = calloc(1, sizeof(ZSTD_COMPRESSOR))) == NULL)
 		return (errno);
