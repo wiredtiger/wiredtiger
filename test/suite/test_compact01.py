@@ -39,7 +39,7 @@ class test_compact(wttest.WiredTigerTestCase, suite_subprocess):
 
     # Use a small page size because we want to create lots of pages.
     config = 'allocation_size=512,' +\
-        'leaf_page_max=512,value_format=S,key_format=S'
+        'leaf_page_max=512,key_format=S'
     nentries = 50000
 
     # The table is a complex object, give it roughly 5 pages per underlying

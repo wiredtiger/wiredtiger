@@ -150,8 +150,7 @@ class test_util13(wttest.WiredTigerTestCase, suite_subprocess):
         # The number of btree_entries reported is influenced by the
         # number of column groups and indices.  Each insert will have
         # a multiplied effect.
-        self.pop(self, self.uri,
-            'key_format=S,value_format=S,' + self.table_config, self.nentries)
+        self.pop(self, self.uri, self.table_config, self.nentries)
 
         ver = wiredtiger.wiredtiger_version()
         verstring = str(ver[1]) + '.' + str(ver[2]) + '.' + str(ver[3])

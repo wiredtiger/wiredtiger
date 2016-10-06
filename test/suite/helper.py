@@ -30,6 +30,8 @@
 import glob, os, shutil, string, subprocess
 import wiredtiger
 
+from wtdataset import SimpleDataSet, SimpleIndexDataSet, ComplexDataSet
+
 # python has a filecmp.cmp function, but different versions of python approach
 # file comparison differently.  To make sure we get byte for byte comparison,
 # we define it here.
@@ -122,6 +124,43 @@ def copy_wiredtiger_home(olddir, newdir, aligned=True):
                 a = subprocess.Popen(cmd_list)
                 a.wait()
 
+# These conversion routines are temporary; they assist in creating
+# a compatibility layer between the various {simple,complex}_populate_*
+# functions and the *DataSet classes. When all callers have moved
+# to the *DataSet classes, the *_populate_* functions and thse
+# conversion routines will be removed.
+kf_prefix = 'key_format='
+vf_prefix = 'value_format='
+def config_to_kf(config):
+    for s in config.split(','):
+        if s.startswith(kf_prefix):
+            return s[len(kf_prefix):]
+    return 'S'   # the default
+
+def config_to_vf(config):
+    for s in config.split(','):
+        if s.startswith(vf_prefix):
+            return s[len(vf_prefix):]
+    return 'S'   # the default
+
+def cursor_to_kf(cursor):
+    return cursor.key_format
+
+def cursor_to_vf(cursor):
+    return cursor.value_format
+
+def uri_to_kf(testcase, uri):
+    cursor = testcase.session.open_cursor(uri, None, None)
+    kf = cursor_to_kf(cursor)
+    cursor.close()
+    return kf
+
+def uri_to_vf(testcase, uri):
+    cursor = testcase.session.open_cursor(uri, None, None)
+    vf = cursor_to_vf(cursor)
+    cursor.close()
+    return vf
+
 # create a simple_populate or complex_populate key
 def key_populate(cursor, i):
     key_format = cursor.key_format
@@ -156,71 +195,36 @@ def value_populate(cursor, i):
 #               to string value formats)
 #    rows:      entries to insert
 def simple_populate(self, uri, config, rows):
-    self.pr('simple_populate: ' + uri + ' with ' + str(rows) + ' rows')
-    self.session.create(uri, 'value_format=S,' + config)
-    cursor = self.session.open_cursor(uri, None)
-    for i in range(1, rows + 1):
-        cursor[key_populate(cursor, i)] = value_populate(cursor, i)
-    cursor.close()
+    ds = SimpleDataSet(self, uri, rows, config=config,
+                       key_format=config_to_kf(config),
+                       value_format=config_to_vf(config))
+    ds.populate()
 
 def simple_populate_check_cursor(self, cursor, rows):
-    i = 0
-    for key,val in cursor:
-        i += 1
-        self.assertEqual(key, key_populate(cursor, i))
-        if cursor.value_format == '8t' and val == 0:    # deleted
-            continue
-        self.assertEqual(val, value_populate(cursor, i))
-    self.assertEqual(i, rows)
+    ds = SimpleDataSet(self, cursor.uri, rows,
+                       key_format=cursor_to_kf(cursor),
+                       value_format=cursor_to_vf(cursor))
+    ds.check_cursor(cursor)
 
 def simple_populate_check(self, uri, rows):
-    self.pr('simple_populate_check: ' + uri)
-    cursor = self.session.open_cursor(uri, None)
-    simple_populate_check_cursor(self, cursor, rows)
-    cursor.close()
+    ds = SimpleDataSet(self, uri, rows,
+                       key_format=uri_to_kf(self, uri),
+                       value_format=uri_to_vf(self, uri))
+    ds.check()
 
-# population of a simple object, with a single index
-#    uri:       object
-#    config:    prefix of the session.create configuration string (defaults
-#               to string value formats)
-#    rows:      entries to insert
 def simple_index_populate(self, uri, config, rows):
-    self.pr('simple_index_populate: ' + uri + ' with ' + str(rows) + ' rows')
-    self.session.create(uri, 'value_format=S,columns=(key0,value0),' + config)
-    indxname = 'index:' + uri.split(":")[1]
-    self.session.create(indxname + ':index1', 'columns=(value0,key0)')
-    cursor = self.session.open_cursor(uri, None)
-    for i in range(1, rows + 1):
-        cursor[key_populate(cursor, i)] = value_populate(cursor, i)
-    cursor.close()
+    ds = SimpleIndexDataSet(self, uri, rows, config=config,
+                            key_format=config_to_kf(config))
+    ds.populate()
 
 def simple_index_populate_check_cursor(self, cursor, rows):
-    i = 0
-    for key,val in cursor:
-        i += 1
-        self.assertEqual(key, key_populate(cursor, i))
-        if cursor.value_format == '8t' and val == 0:    # deleted
-            continue
-        self.assertEqual(val, value_populate(cursor, i))
-    self.assertEqual(i, rows)
+    ds = SimpleIndexDataSet(self, cursor.uri, rows,
+                            key_format=cursor_to_kf(cursor))
+    ds.check_cursor(cursor)
 
 def simple_index_populate_check(self, uri, rows):
-    self.pr('simple_index_populate_check: ' + uri)
-
-    # Check values in the main table.
-    cursor = self.session.open_cursor(uri, None)
-    simple_index_populate_check_cursor(self, cursor, rows)
-
-    # Check values in the index.
-    indxname = 'index:' + uri.split(":")[1]
-    idxcursor = self.session.open_cursor(indxname + ':index1')
-    for i in range(1, rows + 1):
-        k = key_populate(cursor, i)
-        v = value_populate(cursor, i)
-        ik = (v,k)  # The index key is columns=(v,k).
-        self.assertEqual(v, idxcursor[ik])
-    idxcursor.close()
-    cursor.close()
+    ds = SimpleIndexDataSet(self, uri, rows, key_format=uri_to_kf(self, uri))
+    ds.check()
 
 # Return the value stored in a complex object.
 def complex_value_populate(cursor, i):
@@ -250,38 +254,10 @@ def complex_populate_lsm(self, uri, config, rows):
 def complex_populate_cgconfig_lsm(self, uri, config, rows):
         complex_populate_type(self, uri, config, config, rows, 'type=lsm')
 def complex_populate_type(self, uri, config, cgconfig, rows, type):
-    self.session.create(uri,
-        config + ',value_format=SiSS,' +
-        'columns=(record,column2,column3,column4,column5),' +
-        'colgroups=(cgroup1,cgroup2,cgroup3,cgroup4,cgroup5,cgroup6)')
-
-    cgname = 'colgroup:' + uri.split(":")[1]
-    cgcfg = ',' + cgconfig + ',' + type
-    self.session.create(cgname + ':cgroup1', 'columns=(column2)' + ',' + cgcfg)
-    self.session.create(cgname + ':cgroup2', 'columns=(column3)' + ',' + cgcfg)
-    self.session.create(cgname + ':cgroup3', 'columns=(column4)' + ',' + cgcfg)
-    self.session.create(
-        cgname + ':cgroup4', 'columns=(column2,column3)' + ',' + cgcfg)
-    self.session.create(
-        cgname + ':cgroup5', 'columns=(column3,column4)' + ',' + cgcfg)
-    self.session.create(
-        cgname + ':cgroup6', 'columns=(column2,column4,column5)' + ',' + cgcfg)
-    indxname = 'index:' + uri.split(":")[1]
-    self.session.create(indxname + ':indx1', 'columns=(column2)' + ',' + cgcfg)
-    self.session.create(indxname + ':indx2', 'columns=(column3)' + ',' + cgcfg)
-    self.session.create(indxname + ':indx3', 'columns=(column4)' + ',' + cgcfg)
-    self.session.create(
-        indxname + ':indx4', 'columns=(column2,column4)' + ',' + cgcfg)
-    cursor = self.session.open_cursor(uri, None)
-    for i in range(1, rows + 1):
-        cursor[key_populate(cursor, i)] = \
-                tuple(complex_value_populate(cursor, i))
-    cursor.close()
-    # add some indices after populating
-    self.session.create(
-        indxname + ':indx5', 'columns=(column3,column5)' + ',' + cgcfg)
-    self.session.create(
-        indxname + ':indx6', 'columns=(column3,column5,column4)' + ',' + cgcfg)
+    ds = ComplexDataSet(self, uri, rows, config=config,
+                        key_format=config_to_kf(config),
+                        cgconfig=cgconfig + ',' + type)
+    ds.populate()
 
 def complex_populate_colgroup_name(self, uri, i):
     return 'colgroup:' + uri.split(":")[1] + ':cgroup' + str(i + 1)
@@ -290,19 +266,9 @@ def complex_populate_index_name(self, uri, i):
     return 'index:' + uri.split(":")[1] + ':indx' + str(i + 1)
 
 def complex_populate_check_cursor(self, cursor, rows):
-    i = 0
-    for key, s1, i2, s3, s4 in cursor:
-        i += 1
-        self.assertEqual(key, key_populate(cursor, i))
-        v = complex_value_populate(cursor, i)
-        self.assertEqual(s1, v[0])
-        self.assertEqual(i2, v[1])
-        self.assertEqual(s3, v[2])
-        self.assertEqual(s4, v[3])
-    self.assertEqual(i, rows)
+    ds = ComplexDataSet(self, cursor.uri, rows, key_format=cursor_to_kf(cursor))
+    ds.check_cursor(cursor)
 
 def complex_populate_check(self, uri, rows):
-    self.pr('complex_populate_check: ' + uri)
-    cursor = self.session.open_cursor(uri, None)
-    complex_populate_check_cursor(self, cursor, rows)
-    cursor.close()
+    ds = ComplexDataSet(self, uri, rows, key_format=uri_to_kf(self, uri))
+    ds.check()

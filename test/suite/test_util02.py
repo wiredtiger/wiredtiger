@@ -169,7 +169,7 @@ class test_load_commandline(wttest.WiredTigerTestCase, suite_subprocess):
 
     def load_commandline(self, args, fail):
         errfile= "errfile"
-        complex_populate(self, self.uri, "key_format=S,value_format=S", 20)
+        complex_populate(self, self.uri, "key_format=S", 20)
         self.runWt(["dump", self.uri], outfilename="dump.out")
         loadargs = ["load", "-f", "dump.out"] + args
         self.runWt(loadargs, errfilename=errfile, failure=fail)
