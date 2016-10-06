@@ -66,7 +66,7 @@ static const char * const __stats_dsrc_desc[] = {
 	"cache: pages written requiring in-memory restoration",
 	"cache: unmodified pages evicted",
 	"cache_walk: Average difference between current eviction generation when the page was last considered",
-	"cache_walk: Average on-disk page image  size seen",
+	"cache_walk: Average on-disk page image size seen",
 	"cache_walk: Clean pages currently in cache",
 	"cache_walk: Current eviction generation",
 	"cache_walk: Dirty pages currently in cache",

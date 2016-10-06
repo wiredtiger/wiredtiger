@@ -4821,7 +4821,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 #define	WT_STAT_DSRC_CACHE_STATE_GEN_AVG_GAP		2062
 /*!
- * cache_walk: Average on-disk page image  size seen, only reported if
+ * cache_walk: Average on-disk page image size seen, only reported if
  * cache_walk or all statistics are enabled
  */
 #define	WT_STAT_DSRC_CACHE_STATE_AVG_WRITTEN_SIZE	2063

@@ -207,41 +207,56 @@ class test_stat_cursor_dsrc_cache_walk(wttest.WiredTigerTestCase):
             lambda: self.session.open_cursor(
             'statistics:' + self.uri, None, None), msg)
 
-        msg = '/can be specified only/'
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.conn.reconfigure('statistics=(cache_walk)'), msg)
-
         # Test configurations that are valid but should not collect
         # cache walk information. Do these first since the cache walk
         # statistics are mostly marked as not cleared - so once they are
         # populated the values will always be returned
-        self.conn.reconfigure('statistics=(cache_walk,fast)')
+        self.conn.reconfigure('statistics=(cache_walk,fast,clear)')
         c = self.session.open_cursor(
             'statistics:' + self.uri, None, 'statistics=(fast)')
         self.assertEqual(c[stat.dsrc.cache_state_root_size][2], 0)
         c.close()
 
-        self.conn.reconfigure('statistics=(all)')
+        self.conn.reconfigure('statistics=(all,clear)')
         c = self.session.open_cursor(
             'statistics:' + self.uri, None, 'statistics=(fast)')
         self.assertEqual(c[stat.dsrc.cache_state_root_size][2], 0)
         c.close()
 
-        self.conn.reconfigure('statistics=(cache_walk,fast)')
+        self.conn.reconfigure('statistics=(cache_walk,fast,clear)')
         c = self.session.open_cursor('statistics:' + self.uri, None, None)
         self.assertGreater(c[stat.dsrc.cache_state_root_size][2], 0)
+        # Verify that cache_walk didn't imply tree_walk
+        self.assertEqual(c[stat.dsrc.btree_entries][2], 0)
         c.close()
 
-        self.conn.reconfigure('statistics=(all)')
+        self.conn.reconfigure('statistics=(cache_walk,tree_walk,fast,clear)')
+        c = self.session.open_cursor('statistics:' + self.uri, None, None)
+        self.assertGreater(c[stat.dsrc.cache_state_root_size][2], 0)
+        # Verify that cache_walk didn't exclude tree_walk
+        self.assertGreater(c[stat.dsrc.btree_entries][2], 0)
+        c.close()
+
+        self.conn.reconfigure('statistics=(all,clear)')
         c = self.session.open_cursor(
             'statistics:' + self.uri, None, 'statistics=(all)')
         self.assertGreater(c[stat.dsrc.cache_state_root_size][2], 0)
+        self.assertGreater(c[stat.dsrc.btree_entries][2], 0)
         c.close()
 
-        self.conn.reconfigure('statistics=(all)')
+        # Verify that cache and tree walk can operate independantly
+        self.conn.reconfigure('statistics=(all,clear)')
         c = self.session.open_cursor(
             'statistics:' + self.uri, None, 'statistics=(cache_walk,fast)')
         self.assertGreater(c[stat.dsrc.cache_state_root_size][2], 0)
+        self.assertEqual(c[stat.dsrc.btree_entries][2], 0)
+        c.close()
+
+        self.conn.reconfigure('statistics=(all,clear)')
+        c = self.session.open_cursor(
+            'statistics:' + self.uri, None, 'statistics=(tree_walk,fast)')
+        # Don't check the cache walk stats for empty - they won't be cleared
+        self.assertGreater(c[stat.dsrc.btree_entries][2], 0)
         c.close()
 
 if __name__ == '__main__':

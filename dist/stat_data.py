@@ -511,7 +511,7 @@ dsrc_stats = [
     ##########################################
     # Cache content statistics
     ##########################################
-    CacheWalkStat('cache_state_avg_written_size', 'Average on-disk page image  size seen', 'no_clear,no_scale'),
+    CacheWalkStat('cache_state_avg_written_size', 'Average on-disk page image size seen', 'no_clear,no_scale'),
     CacheWalkStat('cache_state_gen_avg_gap', 'Average difference between current eviction generation when the page was last considered', 'no_clear,no_scale'),
     CacheWalkStat('cache_state_gen_current', 'Current eviction generation', 'no_clear,no_scale'),
     CacheWalkStat('cache_state_gen_max_gap', 'Maximum difference between current eviction generation when the page was last considered', 'no_clear,no_scale'),
