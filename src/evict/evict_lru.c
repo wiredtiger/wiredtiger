@@ -845,12 +845,6 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
  * another one or to justify keeping around the previously created thread.
  */
 #define	EVICT_TUNE_THRESHOLD 5 /* Percent eviction rate */
-/*
- * The following variable controls how often (in seconds) we will try to create
- * another eviction thread despite the previous effect we observed from creating
- * an extra thread. This is needed to account for any noise in measurements.
- */
-#define	EVICT_CREATE_RETRY 10
 
 /*
  * __evict_tune_workers --
@@ -866,14 +860,14 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	struct timespec current_time;
-	int pct_diff;
-	uint64_t cur_threads, delta_millis, delta_pages;
+	int i, pct_diff;
+	uint64_t cur_threads, delta_millis, delta_pages, target_threads;
 	uint64_t pgs_evicted_cur, pgs_evicted_persec_cur;
-	bool try_create_thread;
+	bool try_create_threads, try_remove_threads;
 
 	conn = S2C(session);
 	cache = conn->cache;
-	try_create_thread = false;
+	try_create_threads = try_remove_threads = false;
 
 	WT_ASSERT(session, conn->evict_threads.threads[0]->session == session);
 	pgs_evicted_persec_cur = 0;
@@ -916,60 +910,78 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	pct_diff = (int)(pgs_evicted_persec_cur - conn->evict_tune_pg_sec_last)
 	    * 100 / (int) conn->evict_tune_pg_sec_last;
 
-	if (conn->evict_tune_created_last)
-		if (pct_diff > EVICT_TUNE_THRESHOLD)
-			/*
-			 * We observed significant performance improvement when
-			 * we previously created a thread. Let's create another.
-			 */
-			try_create_thread = true;
-		else {
-			/* Remove the thread if we did not benefit from it */
-			WT_ERR(__wt_thread_group_stop_one(
-			    session, &conn->evict_threads, false));
-			WT_STAT_CONN_INCR(session,
-			    cache_eviction_worker_removed);
-			WT_STAT_CONN_SET(session, cache_eviction_active_workers,
-			    conn->evict_threads.current_threads);
-			__wt_verbose(session, WT_VERB_EVICTSERVER,
-			    "removed thread");
-		}
-	else if (WT_TIMEDIFF_SEC(
-	    current_time, conn->evict_time_last_create) > EVICT_CREATE_RETRY)
-		/*
-		 * If it has been long enough since we created another
-		 * thread, signal to try and create one again, so that
-		 * we account for any noise in measurements.
-		 */
-		try_create_thread = true;
-
 	/*
-	 * Create a new eviction thread, if we have capacity. If
-	 * we created a thread during the previous interval and
-	 * the number of evicted pages decreased, remove the thread.
+	 * If we previously added threads and saw no improvement, we will remove
+	 * half of the threads currently working.
+	 * If we added threads and saw improvement, we will keep adding.
+	 * If we previously removed threads and so saw no degradation, we will
+	 * keep removing.
+	 * If we previously removed threads and saw degradation, we will add.
 	 */
-	conn->evict_tune_created_last = false;
-	if (try_create_thread) {
-		cur_threads = conn->evict_threads.current_threads;
+	if (conn->evict_tune_last_action == EVICT_ADDED)
+		if (pct_diff > EVICT_TUNE_THRESHOLD)
+			try_create_threads = true;
+		else
+			try_remove_threads = true;
+	else if (conn->evict_tune_last_action == EVICT_REMOVED)
+		if (pct_diff < -EVICT_TUNE_THRESHOLD)
+			try_create_threads = true;
+		else
+			try_remove_threads = true;
+	else /* We never created or removed threads. Add some */
+		try_create_threads = true;
 
-		/*
-		 * Attempt to create a new thread if we have capacity and
-		 * if the eviction goals are not met.
-		 */
-		if (F_ISSET(cache, WT_CACHE_EVICT_ALL))
-			WT_ERR(__wt_thread_group_start_one(
-			    session, &conn->evict_threads, false));
+	WT_ASSERT(session, try_create_threads ^ try_remove_threads);
 
-		if (conn->evict_threads.current_threads > cur_threads) {
-			/* We created a new thread. Make a note of it. */
-			conn->evict_tune_created_last = true;
-			conn->evict_time_last_create = current_time;
+	if (try_create_threads) {
+                cur_threads = conn->evict_threads.current_threads;
+                target_threads =  (conn->evict_threads.max - cur_threads) / 2;
+                if (target_threads == 0)
+                        target_threads = 1;
+
+                for (i = 0; i < target_threads; i++) {
+                        /*
+                         * Attempt to create a new thread if we have capacity
+                         * and if the eviction goals are not met.
+                         */
+                        if (F_ISSET(cache, WT_CACHE_EVICT_ALL))
+                                WT_ERR(__wt_thread_group_start_one(
+                                               session, &conn->evict_threads,
+                                               false));
+
+                        if (conn->evict_threads.current_threads == cur_threads)
+				break;
+
+			/* We created a new thread. Keep track of it. */
+			cur_threads++;
+			conn->evict_tune_last_action = EVICT_ADDED;
 			WT_STAT_CONN_INCR(session,
-			    cache_eviction_worker_created);
-			WT_STAT_CONN_SET(session, cache_eviction_active_workers,
-			    conn->evict_threads.current_threads);
+					  cache_eviction_worker_created);
+			WT_STAT_CONN_SET(session,
+					 cache_eviction_active_workers,
+					 conn->evict_threads.current_threads);
 			__wt_verbose(session, WT_VERB_EVICTSERVER,
-			    "added thread");
+				     "added thread");
+                }
+	}
+	else if (try_remove_threads) {
+		cur_threads = conn->evict_threads.current_threads;
+                target_threads =  (cur_threads - conn->evict_threads.min) / 2;
+
+		for (i = 0; i < target_threads; i++) {
+                        WT_ERR(__wt_thread_group_stop_one(
+				       session, &conn->evict_threads, false));
+
+                        if (conn->evict_threads.current_threads == cur_threads)
+				break;
+
+                        conn->evict_tune_last_action = EVICT_REMOVED;
+                        WT_STAT_CONN_INCR(session,
+                            cache_eviction_worker_removed);
+                        WT_STAT_CONN_SET(session, cache_eviction_active_workers,
+                            conn->evict_threads.current_threads);
+                        __wt_verbose(session, WT_VERB_EVICTSERVER,
+				     "removed thread");
 		}
 	}
 

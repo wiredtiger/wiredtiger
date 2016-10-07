@@ -307,17 +307,17 @@ struct __wt_connection_impl {
 	WT_KEYED_ENCRYPTOR *kencryptor;	/* Encryptor for metadata and log */
 
 	bool		 evict_server_running;/* Eviction server operating */
-
 	WT_THREAD_GROUP  evict_threads;
 	uint32_t	 evict_threads_max;/* Max eviction threads */
 	uint32_t	 evict_threads_min;/* Min eviction threads */
 
+#define EVICT_ADDED 1
+#define EVICT_REMOVED -1
+	int              evict_tune_last_action;/* 1 if added, -1 if removed */
 	struct timespec  evict_tune_last_time;/* Last evict thread check */
-	struct timespec	 evict_time_last_create;/* Last evict thread create */
 	uint64_t	 evict_tune_pgs_last;/* Number of pages evicted */
 	uint64_t	 evict_tune_pg_sec_last;/* Rate of pages evicted/sec */
-	/* Last evict tuning attempt created a new thread */
-	bool		 evict_tune_created_last;
+
 
 #define	WT_STATLOG_FILENAME	"WiredTigerStat.%d.%H"
 	WT_SESSION_IMPL *stat_session;	/* Statistics log session */
