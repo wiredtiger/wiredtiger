@@ -860,8 +860,8 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	struct timespec current_time;
-	int i, pct_diff;
-	uint64_t cur_threads, delta_millis, delta_pages, target_threads;
+	int pct_diff;
+	uint64_t cur_threads, delta_millis, delta_pages, i, target_threads;
 	uint64_t pgs_evicted_cur, pgs_evicted_persec_cur;
 	bool try_create_threads, try_remove_threads;
 
