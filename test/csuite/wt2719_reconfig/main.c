@@ -34,7 +34,7 @@
  * Test case description: Fuzz testing for WiredTiger reconfiguration.
  */
 
-static const char *list[] = {
+static const char * const list[] = {
 	",async=(enabled=0)",
 	",async=(enabled=1)",
 	",async=(ops_max=2048)",
