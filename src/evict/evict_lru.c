@@ -934,22 +934,22 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	WT_ASSERT(session, try_create_threads ^ try_remove_threads);
 
 	if (try_create_threads) {
-                cur_threads = conn->evict_threads.current_threads;
-                target_threads =  (conn->evict_threads.max - cur_threads) / 2;
-                if (target_threads == 0)
-                        target_threads = 1;
+		cur_threads = conn->evict_threads.current_threads;
+		target_threads = (conn->evict_threads.max - cur_threads) / 2;
+		if (target_threads == 0)
+			target_threads = 1;
 
-                for (i = 0; i < target_threads; i++) {
-                        /*
-                         * Attempt to create a new thread if we have capacity
-                         * and if the eviction goals are not met.
-                         */
-                        if (F_ISSET(cache, WT_CACHE_EVICT_ALL))
-                                WT_ERR(__wt_thread_group_start_one(
-                                               session, &conn->evict_threads,
-                                               false));
+		for (i = 0; i < target_threads; i++) {
+			/*
+			 * Attempt to create a new thread if we have capacity
+			 * and if the eviction goals are not met.
+			 */
+			if (F_ISSET(cache, WT_CACHE_EVICT_ALL))
+				WT_ERR(__wt_thread_group_start_one(
+					       session, &conn->evict_threads,
+					       false));
 
-                        if (conn->evict_threads.current_threads == cur_threads)
+			if (conn->evict_threads.current_threads == cur_threads)
 				break;
 
 			/* We created a new thread. Keep track of it. */
@@ -962,25 +962,25 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 					 conn->evict_threads.current_threads);
 			__wt_verbose(session, WT_VERB_EVICTSERVER,
 				     "added thread");
-                }
+		}
 	}
 	else if (try_remove_threads) {
 		cur_threads = conn->evict_threads.current_threads;
-                target_threads =  (cur_threads - conn->evict_threads.min) / 2;
+		target_threads = (cur_threads - conn->evict_threads.min) / 2;
 
 		for (i = 0; i < target_threads; i++) {
-                        WT_ERR(__wt_thread_group_stop_one(
+			WT_ERR(__wt_thread_group_stop_one(
 				       session, &conn->evict_threads, false));
 
-                        if (conn->evict_threads.current_threads == cur_threads)
+			if (conn->evict_threads.current_threads == cur_threads)
 				break;
 
-                        conn->evict_tune_last_action = EVICT_REMOVED;
-                        WT_STAT_CONN_INCR(session,
-                            cache_eviction_worker_removed);
-                        WT_STAT_CONN_SET(session, cache_eviction_active_workers,
-                            conn->evict_threads.current_threads);
-                        __wt_verbose(session, WT_VERB_EVICTSERVER,
+			conn->evict_tune_last_action = EVICT_REMOVED;
+			WT_STAT_CONN_INCR(session,
+			    cache_eviction_worker_removed);
+			WT_STAT_CONN_SET(session, cache_eviction_active_workers,
+			    conn->evict_threads.current_threads);
+			__wt_verbose(session, WT_VERB_EVICTSERVER,
 				     "removed thread");
 		}
 	}

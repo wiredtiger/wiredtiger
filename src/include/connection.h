@@ -311,13 +311,12 @@ struct __wt_connection_impl {
 	uint32_t	 evict_threads_max;/* Max eviction threads */
 	uint32_t	 evict_threads_min;/* Min eviction threads */
 
-#define EVICT_ADDED 1
-#define EVICT_REMOVED -1
+#define	EVICT_ADDED 1
+#define	EVICT_REMOVED -1
 	int              evict_tune_last_action;/* 1 if added, -1 if removed */
 	struct timespec  evict_tune_last_time;/* Last evict thread check */
 	uint64_t	 evict_tune_pgs_last;/* Number of pages evicted */
 	uint64_t	 evict_tune_pg_sec_last;/* Rate of pages evicted/sec */
-
 
 #define	WT_STATLOG_FILENAME	"WiredTigerStat.%d.%H"
 	WT_SESSION_IMPL *stat_session;	/* Statistics log session */
