@@ -39,8 +39,6 @@
  *
  * Failure mode: We get results back from our join.
  */
-void (*custom_die)(void) = NULL;
-
 #define	N_RECORDS	100000
 #define	N_INSERT	1000000
 

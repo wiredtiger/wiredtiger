@@ -34,8 +34,6 @@
  * Test case description: Fuzz testing for WiredTiger reconfiguration.
  */
 
-void (*custom_die)(void) = NULL;
-
 static const char *list[] = {
 	",async=(enabled=0)",
 	",async=(enabled=1)",

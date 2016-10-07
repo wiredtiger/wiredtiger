@@ -27,6 +27,8 @@
  */
 #include "test_util.h"
 
+void (*custom_die)(void) = NULL;
+
 /*
  * die --
  *	Report an error and quit.

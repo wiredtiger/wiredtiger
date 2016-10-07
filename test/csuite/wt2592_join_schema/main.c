@@ -66,8 +66,6 @@ static POP_RECORD pop_data[] = {
 	{ "", 0, 0 }
 };
 
-void (*custom_die)(void) = NULL;
-
 int
 main(int argc, char *argv[])
 {
