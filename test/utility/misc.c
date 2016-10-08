@@ -144,8 +144,6 @@ testutil_cleanup(TEST_OPTS *opts)
 	if (!opts->preserve)
 		testutil_clean_work_dir(opts->home);
 
-	free(opts->conn_config);
-	free(opts->table_config);
 	free(opts->uri);
 	free(opts->home);
 }
