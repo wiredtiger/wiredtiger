@@ -20,6 +20,20 @@ search=`sed \
     -e d ../src/include/stat.h |
     sort`
 
+# There are some fields that are used, but we can't detect it.
+cat << UNUSED_STAT_FIELDS
+lock_checkpoint_wait
+lock_checkpoint_count
+lock_handle_list_wait
+lock_handle_list_count
+lock_metadata_wait
+lock_metadata_count
+lock_schema_wait
+lock_schema_count
+lock_table_wait
+lock_table_count
+UNUSED_STAT_FIELDS
+
 echo "$search"
 fgrep -who "$search" $l) | sort | uniq -u > $t
 

@@ -356,6 +356,16 @@ struct __wt_connection_stats {
 	int64_t dh_sweeps;
 	int64_t dh_session_handles;
 	int64_t dh_session_sweeps;
+	int64_t lock_checkpoint_count;
+	int64_t lock_handle_list_count;
+	int64_t lock_metadata_count;
+	int64_t lock_schema_count;
+	int64_t lock_table_count;
+	int64_t lock_checkpoint_wait;
+	int64_t lock_handle_list_wait;
+	int64_t lock_metadata_wait;
+	int64_t lock_schema_wait;
+	int64_t lock_table_wait;
 	int64_t log_slot_switch_busy;
 	int64_t log_slot_closes;
 	int64_t log_slot_races;

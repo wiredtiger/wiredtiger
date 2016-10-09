@@ -66,6 +66,10 @@ class JoinStat(Stat):
     prefix = ''  # prefix is inserted dynamically
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, JoinStat.prefix, desc, flags)
+class LockStat(Stat):
+    prefix = 'lock'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, LockStat.prefix, desc, flags)
 class LogStat(Stat):
     prefix = 'log'
     def __init__(self, name, desc, flags=''):
@@ -258,6 +262,20 @@ connection_stats = [
     DhandleStat('dh_sweep_remove', 'connection sweep dhandles removed from hash list'),
     DhandleStat('dh_sweep_tod', 'connection sweep time-of-death sets'),
     DhandleStat('dh_sweeps', 'connection sweeps'),
+
+    ##########################################
+    # Locking statistics
+    ##########################################
+    LockStat('lock_checkpoint_count', 'checkpoint lock acquisitions'),
+    LockStat('lock_checkpoint_wait', 'thread time waiting for the checkpoint lock (usecs)'),
+    LockStat('lock_handle_list_count', 'handle-list lock acquisitions'),
+    LockStat('lock_handle_list_wait', 'thread time waiting for the handle-list lock (usecs)'),
+    LockStat('lock_metadata_count', 'metadata lock acquisitions'),
+    LockStat('lock_metadata_wait', 'thread time waiting for the metadata lock (usecs)'),
+    LockStat('lock_schema_count', 'schema lock acquisitions'),
+    LockStat('lock_schema_wait', 'thread time waiting for the schema lock (usecs)'),
+    LockStat('lock_table_count', 'table lock acquisitions'),
+    LockStat('lock_table_wait', 'thread time waiting for the table lock (usecs)'),
 
     ##########################################
     # Logging statistics

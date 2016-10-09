@@ -642,6 +642,16 @@ static const char * const __stats_connection_desc[] = {
 	"data-handle: connection sweeps",
 	"data-handle: session dhandles swept",
 	"data-handle: session sweep attempts",
+	"lock: checkpoint lock acquisitions",
+	"lock: handle-list lock acquisitions",
+	"lock: metadata lock acquisitions",
+	"lock: schema lock acquisitions",
+	"lock: table lock acquisitions",
+	"lock: thread time waiting for the checkpoint lock (usecs)",
+	"lock: thread time waiting for the handle-list lock (usecs)",
+	"lock: thread time waiting for the metadata lock (usecs)",
+	"lock: thread time waiting for the schema lock (usecs)",
+	"lock: thread time waiting for the table lock (usecs)",
 	"log: busy returns attempting to switch slots",
 	"log: consolidated slot closures",
 	"log: consolidated slot join races",
@@ -889,6 +899,16 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->dh_sweeps = 0;
 	stats->dh_session_handles = 0;
 	stats->dh_session_sweeps = 0;
+	stats->lock_checkpoint_count = 0;
+	stats->lock_handle_list_count = 0;
+	stats->lock_metadata_count = 0;
+	stats->lock_schema_count = 0;
+	stats->lock_table_count = 0;
+	stats->lock_checkpoint_wait = 0;
+	stats->lock_handle_list_wait = 0;
+	stats->lock_metadata_wait = 0;
+	stats->lock_schema_wait = 0;
+	stats->lock_table_wait = 0;
 	stats->log_slot_switch_busy = 0;
 	stats->log_slot_closes = 0;
 	stats->log_slot_races = 0;
@@ -1162,6 +1182,19 @@ __wt_stat_connection_aggregate(
 	to->dh_sweeps += WT_STAT_READ(from, dh_sweeps);
 	to->dh_session_handles += WT_STAT_READ(from, dh_session_handles);
 	to->dh_session_sweeps += WT_STAT_READ(from, dh_session_sweeps);
+	to->lock_checkpoint_count +=
+	    WT_STAT_READ(from, lock_checkpoint_count);
+	to->lock_handle_list_count +=
+	    WT_STAT_READ(from, lock_handle_list_count);
+	to->lock_metadata_count += WT_STAT_READ(from, lock_metadata_count);
+	to->lock_schema_count += WT_STAT_READ(from, lock_schema_count);
+	to->lock_table_count += WT_STAT_READ(from, lock_table_count);
+	to->lock_checkpoint_wait += WT_STAT_READ(from, lock_checkpoint_wait);
+	to->lock_handle_list_wait +=
+	    WT_STAT_READ(from, lock_handle_list_wait);
+	to->lock_metadata_wait += WT_STAT_READ(from, lock_metadata_wait);
+	to->lock_schema_wait += WT_STAT_READ(from, lock_schema_wait);
+	to->lock_table_wait += WT_STAT_READ(from, lock_table_wait);
 	to->log_slot_switch_busy += WT_STAT_READ(from, log_slot_switch_busy);
 	to->log_slot_closes += WT_STAT_READ(from, log_slot_closes);
 	to->log_slot_races += WT_STAT_READ(from, log_slot_races);

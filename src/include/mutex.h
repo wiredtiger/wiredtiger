@@ -74,6 +74,9 @@ struct __wt_rwlock {
 
 struct WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) __wt_spinlock {
 	volatile int lock;
+
+	int16_t slot_count;		/* acquisitions */
+	int16_t slot_usecs;		/* waiting */
 };
 
 #elif SPINLOCK_TYPE == SPINLOCK_PTHREAD_MUTEX ||\
@@ -83,7 +86,10 @@ struct WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) __wt_spinlock {
 struct WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) __wt_spinlock {
 	wt_mutex_t lock;
 
-	const char *name;		/* Statistics: mutex name */
+	const char *name;		/* Mutex name */
+
+	int16_t slot_count;		/* acquisitions */
+	int16_t slot_usecs;		/* waiting */
 
 	int8_t initialized;		/* Lock initialized, for cleanup */
 };
