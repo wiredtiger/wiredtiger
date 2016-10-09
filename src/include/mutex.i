@@ -292,7 +292,7 @@ __wt_spin_lock_track(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 		stats = (int64_t **)S2C(session)->stats;
 		stats[WT_STATS_SLOT_ID(session)][t->slot_count]++;
 		stats[WT_STATS_SLOT_ID(session)]
-		    [t->slot_usecs] += WT_TIMEDIFF_US(leave, enter);
+		    [t->slot_usecs] += (int64_t)WT_TIMEDIFF_US(leave, enter);
 	} else
 		__wt_spin_lock(session, t);
 }
