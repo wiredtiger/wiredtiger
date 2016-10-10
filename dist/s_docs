@@ -200,6 +200,10 @@ while :
 	-t)	# Include the TODO list
 		filter="$filter| sed '/GENERATE_TODOLIST/s,=.*,=YES,'"
 		shift;;
+	-v)	# Override the version
+		shift
+		filter="$filter| sed '/PROJECT_NUMBER/s,=.*,=\"$1\",'"
+		shift;;
 	*)
 		break;;
 	esac
