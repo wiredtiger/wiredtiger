@@ -112,9 +112,7 @@ __wt_spin_init(WT_SESSION_IMPL *session, WT_SPINLOCK *t, const char *name)
 #endif
 
 	t->name = name;
-
 	t->stat_count = t->stat_app_usecs = t->stat_int_usecs = -1;
-
 	t->initialized = 1;
 
 	WT_UNUSED(session);
@@ -265,15 +263,15 @@ __wt_spin_unlock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
  *	Spinlock initialization, with tracking.
  *
  * Implemented as a macro so we can pass in a statistics field and convert
- * it into a slot number.
+ * it into a statistics structure array offset.
  */
 #define	WT_SPIN_INIT_TRACKED(session, t, name) do {			\
 	WT_RET(__wt_spin_init(session, t, #name));			\
-	(t)->stat_count = (int16_t)WT_STATS_FIELD_TO_SLOT(		\
+	(t)->stat_count = (int16_t)WT_STATS_FIELD_TO_OFFSET(		\
 	    S2C(session)->stats, lock_##name##_count);			\
-	(t)->stat_app_usecs = (int16_t)WT_STATS_FIELD_TO_SLOT(		\
+	(t)->stat_app_usecs = (int16_t)WT_STATS_FIELD_TO_OFFSET(	\
 	    S2C(session)->stats, lock_##name##_wait_application);	\
-	(t)->stat_int_usecs = (int16_t)WT_STATS_FIELD_TO_SLOT(		\
+	(t)->stat_int_usecs = (int16_t)WT_STATS_FIELD_TO_OFFSET(	\
 	    S2C(session)->stats, lock_##name##_wait_internal);		\
 } while (0)
 

@@ -79,9 +79,9 @@
  * those structures regardless of the specific statistic structure we're working
  * with, by translating statistics structure field names to structure offsets.
  *
- * Translate a statistic's value name to an offset.
+ * Translate a statistic's value name to an offset in the array.
  */
-#define	WT_STATS_FIELD_TO_SLOT(stats, fld)				\
+#define	WT_STATS_FIELD_TO_OFFSET(stats, fld)				\
 	(int)(&(stats)[0]->fld - (int64_t *)(stats)[0])
 
 /*
@@ -140,7 +140,7 @@ __wt_stats_clear(void *stats_arg, int slot)
 #define	WT_STAT_ENABLED(session) (S2C(session)->stat_flags != 0)
 
 #define	WT_STAT_READ(stats, fld)					\
-	__wt_stats_aggregate(stats, WT_STATS_FIELD_TO_SLOT(stats, fld))
+	__wt_stats_aggregate(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld))
 #define	WT_STAT_WRITE(session, stats, fld, v) do {			\
 	if (WT_STAT_ENABLED(session))					\
 		(stats)->fld = (int64_t)(v);				\
@@ -187,7 +187,7 @@ __wt_stats_clear(void *stats_arg, int slot)
 #define	WT_STAT_SET(session, stats, fld, value) do {			\
 	if (WT_STAT_ENABLED(session)) {					\
 		__wt_stats_clear(stats,					\
-		    WT_STATS_FIELD_TO_SLOT(stats, fld));		\
+		    WT_STATS_FIELD_TO_OFFSET(stats, fld));		\
 		(stats)[0]->fld = (int64_t)(value);			\
 	}								\
 } while (0)
