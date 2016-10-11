@@ -1967,7 +1967,7 @@ wiredtiger_dummy_session_init(
 	__wt_event_handler_set(session, event_handler);
 
 	/* Statistics */
-	session->cstats = &conn->stat_array[0];
+	session->stat_bucket = 0;
 
 	/*
 	 * Set the default session's strerror method. If one of the extensions

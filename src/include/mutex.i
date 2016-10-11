@@ -292,12 +292,12 @@ __wt_spin_lock_track(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 		__wt_spin_lock(session, t);
 		__wt_epoch(session, &leave);
 		stats = (int64_t **)S2C(session)->stats;
-		stats[WT_STATS_SLOT_ID(session)][t->stat_count]++;
+		stats[session->stat_bucket][t->stat_count]++;
 		if (F_ISSET(session, WT_SESSION_INTERNAL))
-			stats[WT_STATS_SLOT_ID(session)][t->stat_int_usecs] +=
+			stats[session->stat_bucket][t->stat_int_usecs] +=
 			    (int64_t)WT_TIMEDIFF_US(leave, enter);
 		else
-			stats[WT_STATS_SLOT_ID(session)][t->stat_app_usecs] +=
+			stats[session->stat_bucket][t->stat_app_usecs] +=
 			    (int64_t)WT_TIMEDIFF_US(leave, enter);
 	} else
 		__wt_spin_lock(session, t);

@@ -1810,8 +1810,8 @@ __open_session(WT_CONNECTION_IMPL *conn,
 	 */
 	session_ret->hazard_size = 0;
 
-	/* Reference this session's connection statistics. */
-	session_ret->cstats = conn->stats[WT_STATS_SLOT_ID(session)];
+	/* Cache the offset of this session's statistics bucket. */
+	session_ret->stat_bucket = WT_STATS_SLOT_ID(session);
 
 	/*
 	 * Configuration: currently, the configuration for open_session is the
