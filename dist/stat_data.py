@@ -267,15 +267,20 @@ connection_stats = [
     # Locking statistics
     ##########################################
     LockStat('lock_checkpoint_count', 'checkpoint lock acquisitions'),
-    LockStat('lock_checkpoint_wait', 'thread time waiting for the checkpoint lock (usecs)'),
+    LockStat('lock_checkpoint_wait_application', 'checkpoint lock application thread wait time (usecs)'),
+    LockStat('lock_checkpoint_wait_internal', 'checkpoint lock internal thread wait time (usecs)'),
     LockStat('lock_handle_list_count', 'handle-list lock acquisitions'),
-    LockStat('lock_handle_list_wait', 'thread time waiting for the handle-list lock (usecs)'),
+    LockStat('lock_handle_list_wait_application', 'handle-list lock application thread wait time (usecs)'),
+    LockStat('lock_handle_list_wait_internal', 'handle-list lock internal thread wait time (usecs)'),
     LockStat('lock_metadata_count', 'metadata lock acquisitions'),
-    LockStat('lock_metadata_wait', 'thread time waiting for the metadata lock (usecs)'),
+    LockStat('lock_metadata_wait_application', 'metadata lock application thread wait time (usecs)'),
+    LockStat('lock_metadata_wait_internal', 'metadata lock internal thread wait time (usecs)'),
     LockStat('lock_schema_count', 'schema lock acquisitions'),
-    LockStat('lock_schema_wait', 'thread time waiting for the schema lock (usecs)'),
+    LockStat('lock_schema_wait_application', 'schema lock application thread wait time (usecs)'),
+    LockStat('lock_schema_wait_internal', 'schema lock internal thread wait time (usecs)'),
     LockStat('lock_table_count', 'table lock acquisitions'),
-    LockStat('lock_table_wait', 'thread time waiting for the table lock (usecs)'),
+    LockStat('lock_table_wait_application', 'table lock application thread time waiting for the table lock (usecs)'),
+    LockStat('lock_table_wait_internal', 'table lock internal thread time waiting for the table lock (usecs)'),
 
     ##########################################
     # Logging statistics

@@ -32,7 +32,7 @@ __wt_spin_init(WT_SESSION_IMPL *session, WT_SPINLOCK *t, const char *name)
 	WT_UNUSED(name);
 
 	t->lock = 0;
-	t->slot_count = t->slot_usecs = -1;
+	t->stat_count = t->stat_app_usecs = t->stat_int_usecs = -1;
 	return (0);
 }
 
@@ -113,7 +113,7 @@ __wt_spin_init(WT_SESSION_IMPL *session, WT_SPINLOCK *t, const char *name)
 
 	t->name = name;
 
-	t->slot_count = t->slot_usecs = -1;
+	t->stat_count = t->stat_app_usecs = t->stat_int_usecs = -1;
 
 	t->initialized = 1;
 
@@ -269,10 +269,12 @@ __wt_spin_unlock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
  */
 #define	WT_SPIN_INIT_TRACKED(session, t, name) do {			\
 	WT_RET(__wt_spin_init(session, t, #name));			\
-	(t)->slot_count = (int16_t)WT_STATS_FIELD_TO_SLOT(		\
+	(t)->stat_count = (int16_t)WT_STATS_FIELD_TO_SLOT(		\
 	    S2C(session)->stats, lock_##name##_count);			\
-	(t)->slot_usecs = (int16_t)WT_STATS_FIELD_TO_SLOT(		\
-	    S2C(session)->stats, lock_##name##_wait);			\
+	(t)->stat_app_usecs = (int16_t)WT_STATS_FIELD_TO_SLOT(		\
+	    S2C(session)->stats, lock_##name##_wait_application);	\
+	(t)->stat_int_usecs = (int16_t)WT_STATS_FIELD_TO_SLOT(		\
+	    S2C(session)->stats, lock_##name##_wait_internal);		\
 } while (0)
 
 /*
@@ -285,14 +287,18 @@ __wt_spin_lock_track(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 	struct timespec enter, leave;
 	int64_t **stats;
 
-	if (t->slot_count != -1 && WT_STAT_ENABLED(session)) {
+	if (t->stat_count != -1 && WT_STAT_ENABLED(session)) {
 		__wt_epoch(session, &enter);
 		__wt_spin_lock(session, t);
 		__wt_epoch(session, &leave);
 		stats = (int64_t **)S2C(session)->stats;
-		stats[WT_STATS_SLOT_ID(session)][t->slot_count]++;
-		stats[WT_STATS_SLOT_ID(session)]
-		    [t->slot_usecs] += (int64_t)WT_TIMEDIFF_US(leave, enter);
+		stats[WT_STATS_SLOT_ID(session)][t->stat_count]++;
+		if (F_ISSET(session, WT_SESSION_INTERNAL))
+			stats[WT_STATS_SLOT_ID(session)][t->stat_int_usecs] +=
+			    (int64_t)WT_TIMEDIFF_US(leave, enter);
+		else
+			stats[WT_STATS_SLOT_ID(session)][t->stat_app_usecs] +=
+			    (int64_t)WT_TIMEDIFF_US(leave, enter);
 	} else
 		__wt_spin_lock(session, t);
 }
