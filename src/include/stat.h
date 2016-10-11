@@ -146,25 +146,41 @@ __wt_stats_clear(void *stats_arg, int slot)
 		(stats)->fld = (int64_t)(v);				\
 } while (0)
 
-#define	WT_STAT_DECRV(session, stats, fld, value) do {			\
+#define	WT_STAT_DECRV_BASE(session, stat, fld, value) do {		\
 	if (WT_STAT_ENABLED(session))					\
-		(stats)[WT_STATS_SLOT_ID(session)]->fld -= (int64_t)(value); \
+		(stat)->fld -= (int64_t)(value);			\
+} while (0)
+#define	WT_STAT_DECRV_ATOMIC_BASE(session, stat, fld, value) do {	\
+	if (WT_STAT_ENABLED(session))					\
+		__wt_atomic_subi64(&(stat)->fld, (int64_t)(value));	\
+} while (0)
+#define	WT_STAT_INCRV_BASE(session, stat, fld, value) do {		\
+	if (WT_STAT_ENABLED(session))					\
+		(stat)->fld += (int64_t)(value);			\
+} while (0)
+#define	WT_STAT_INCRV_ATOMIC_BASE(session, stat, fld, value) do {	\
+	if (WT_STAT_ENABLED(session))					\
+		__wt_atomic_addi64(&(stat)->fld, (int64_t)(value));	\
+} while (0)
+
+#define	WT_STAT_DECRV(session, stats, fld, value) do {			\
+	WT_STAT_DECRV_BASE(						\
+	    session, (stats)[WT_STATS_SLOT_ID(session)], fld, value);	\
 } while (0)
 #define	WT_STAT_DECRV_ATOMIC(session, stats, fld, value) do {		\
-	if (WT_STAT_ENABLED(session))					\
-		__wt_atomic_subi64(&(stats)[WT_STATS_SLOT_ID(session)]->fld, \
-		    (int64_t)(value));					\
+	WT_STAT_DECRV_ATOMIC_BASE(					\
+	    session, (stats)[WT_STATS_SLOT_ID(session)], fld, value);	\
 } while (0)
 #define	WT_STAT_DECR(session, stats, fld)				\
 	WT_STAT_DECRV(session, stats, fld, 1)
+
 #define	WT_STAT_INCRV(session, stats, fld, value) do {			\
-	if (WT_STAT_ENABLED(session))					\
-		(stats)[WT_STATS_SLOT_ID(session)]->fld += (int64_t)(value); \
+	WT_STAT_INCRV_BASE(						\
+	    session, (stats)[WT_STATS_SLOT_ID(session)], fld, value);	\
 } while (0)
 #define	WT_STAT_INCRV_ATOMIC(session, stats, fld, value) do {		\
-	if (WT_STAT_ENABLED(session))					\
-		__wt_atomic_addi64(&(stats)[WT_STATS_SLOT_ID(session)]->fld, \
-		    (int64_t)(value));					\
+	WT_STAT_INCRV_ATOMIC_BASE(					\
+	    session, (stats)[WT_STATS_SLOT_ID(session)], fld, value);	\
 } while (0)
 #define	WT_STAT_INCR(session, stats, fld)				\
 	WT_STAT_INCRV(session, stats, fld, 1)
@@ -179,18 +195,20 @@ __wt_stats_clear(void *stats_arg, int slot)
 /*
  * Update connection handle statistics if statistics gathering is enabled.
  */
-#define	WT_STAT_CONN_DECR(session, fld)					\
-	WT_STAT_DECR(session, S2C(session)->stats, fld)
-#define	WT_STAT_CONN_DECR_ATOMIC(session, fld)				\
-	WT_STAT_DECRV_ATOMIC(session, S2C(session)->stats, fld, 1)
 #define	WT_STAT_CONN_DECRV(session, fld, value)				\
-	WT_STAT_DECRV(session, S2C(session)->stats, fld, value)
-#define	WT_STAT_CONN_INCR(session, fld)					\
-	WT_STAT_INCR(session, S2C(session)->stats, fld)
-#define	WT_STAT_CONN_INCR_ATOMIC(session, fld)				\
-	WT_STAT_INCRV_ATOMIC(session, S2C(session)->stats, fld, 1)
+	WT_STAT_DECRV_BASE(session, (session)->cstats, fld, value)
+#define	WT_STAT_CONN_DECR_ATOMIC(session, fld)				\
+	WT_STAT_DECRV_ATOMIC_BASE(session, (session)->cstats, fld, 1)
+#define	WT_STAT_CONN_DECR(session, fld)					\
+	WT_STAT_CONN_DECRV(session, fld, 1)
+
 #define	WT_STAT_CONN_INCRV(session, fld, value)				\
-	WT_STAT_INCRV(session, S2C(session)->stats, fld, value)
+	WT_STAT_INCRV_BASE(session, (session)->cstats, fld, value)
+#define	WT_STAT_CONN_INCR_ATOMIC(session, fld)				\
+	WT_STAT_INCRV_ATOMIC_BASE(session, (session)->cstats, fld, 1)
+#define	WT_STAT_CONN_INCR(session, fld)					\
+	WT_STAT_CONN_INCRV(session, fld, 1)
+
 #define	WT_STAT_CONN_SET(session, fld, value)				\
 	WT_STAT_SET(session, S2C(session)->stats, fld, value)
 

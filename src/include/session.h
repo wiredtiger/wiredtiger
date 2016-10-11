@@ -147,6 +147,8 @@ struct WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) __wt_session_impl {
 	void	*reconcile;		/* Reconciliation support */
 	int	(*reconcile_cleanup)(WT_SESSION_IMPL *);
 
+	WT_CONNECTION_STATS *cstats;	/* Connection stats slot */
+
 	uint32_t flags;
 
 	/*
