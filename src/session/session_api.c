@@ -1495,14 +1495,14 @@ __session_transaction_sync(WT_SESSION *wt_session, const char *config)
 	if (timeout_ms == 0)
 		WT_ERR(ETIMEDOUT);
 
-	WT_ERR(__wt_epoch(session, &start));
+	__wt_epoch(session, &start);
 	/*
 	 * Keep checking the LSNs until we find it is stable or we reach
 	 * our timeout.
 	 */
 	while (__wt_log_cmp(&session->bg_sync_lsn, &log->sync_lsn) > 0) {
 		__wt_cond_signal(session, conn->log_file_cond);
-		WT_ERR(__wt_epoch(session, &now));
+		__wt_epoch(session, &now);
 		waited_ms = WT_TIMEDIFF_MS(now, start);
 		if (forever || waited_ms < timeout_ms)
 			/*
@@ -1757,10 +1757,12 @@ __open_session(WT_CONNECTION_IMPL *conn,
 	if (i >= conn->session_cnt)	/* Defend against off-by-one errors. */
 		conn->session_cnt = i + 1;
 
-	session_ret->id = i;
 	session_ret->iface =
 	    F_ISSET(conn, WT_CONN_READONLY) ? stds_readonly : stds;
 	session_ret->iface.connection = &conn->iface;
+
+	session_ret->name = NULL;
+	session_ret->id = i;
 
 	WT_ERR(__wt_cond_alloc(session, "session", false, &session_ret->cond));
 
@@ -1777,10 +1779,10 @@ __open_session(WT_CONNECTION_IMPL *conn,
 	 * Allocate the table hash array as well.
 	 */
 	if (session_ret->dhhash == NULL)
-		WT_ERR(__wt_calloc(session_ret, WT_HASH_ARRAY_SIZE,
+		WT_ERR(__wt_calloc(session, WT_HASH_ARRAY_SIZE,
 		    sizeof(struct __dhandles_hash), &session_ret->dhhash));
 	if (session_ret->tablehash == NULL)
-		WT_ERR(__wt_calloc(session_ret, WT_HASH_ARRAY_SIZE,
+		WT_ERR(__wt_calloc(session, WT_HASH_ARRAY_SIZE,
 		    sizeof(struct __tables_hash), &session_ret->tablehash));
 	for (i = 0; i < WT_HASH_ARRAY_SIZE; i++) {
 		TAILQ_INIT(&session_ret->dhhash[i]);
@@ -1789,7 +1791,7 @@ __open_session(WT_CONNECTION_IMPL *conn,
 
 	/* Initialize transaction support: default to read-committed. */
 	session_ret->isolation = WT_ISO_READ_COMMITTED;
-	WT_ERR(__wt_txn_init(session_ret));
+	WT_ERR(__wt_txn_init(session, session_ret));
 
 	/*
 	 * The session's hazard pointer memory isn't discarded during normal
@@ -1815,8 +1817,6 @@ __open_session(WT_CONNECTION_IMPL *conn,
 	if (config != NULL)
 		WT_ERR(
 		    __session_reconfigure((WT_SESSION *)session_ret, config));
-
-	session_ret->name = NULL;
 
 	/*
 	 * Publish: make the entry visible to server threads.  There must be a
