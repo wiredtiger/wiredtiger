@@ -952,7 +952,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	conn->evict_tune_last_action = EVICT_NOCHANGE;
 	if (cur_action == EVICT_ADD) {
 		cur_threads = conn->evict_threads.current_threads;
-		target_threads = (conn->evict_threads.max - cur_threads) / 4;
+		target_threads = (conn->evict_threads.max - cur_threads) / 2;
 		if (target_threads == 0)
 			target_threads = 1;
 
