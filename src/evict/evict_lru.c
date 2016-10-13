@@ -944,7 +944,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 		WT_STAT_CONN_INCR(session, cache_eviction_queue_not_empty);
 
 	/* Sort the list into LRU order and restart. */
-	__wt_spin_lock(session, &queue->evict_lock);
+	__wt_spin_lock_track(session, &queue->evict_lock);
 
 	/*
 	 * We have locked the queue: in the (unusual) case where we are filling
@@ -1626,7 +1626,7 @@ __evict_get_ref(
 			return (WT_NOTFOUND);
 		}
 		if (!is_server)
-			__wt_spin_lock(session, &queue->evict_lock);
+			__wt_spin_lock_track(session, &queue->evict_lock);
 		else if (__wt_spin_trylock(session, &queue->evict_lock) != 0)
 			continue;
 		break;
@@ -1914,7 +1914,7 @@ __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
 	    F_ISSET(S2BT(session), WT_BTREE_NO_EVICTION))
 		goto done;
 
-	__wt_spin_lock(session, &urgent_queue->evict_lock);
+	__wt_spin_lock_track(session, &urgent_queue->evict_lock);
 	if (__evict_queue_empty(urgent_queue, false)) {
 		urgent_queue->evict_current = urgent_queue->evict_queue;
 		urgent_queue->evict_candidates = 0;

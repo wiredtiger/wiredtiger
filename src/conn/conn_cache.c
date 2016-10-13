@@ -201,8 +201,8 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
 	for (i = 0; i < WT_EVICT_QUEUE_MAX; ++i) {
 		WT_RET(__wt_calloc_def(session,
 		    cache->evict_slots, &cache->evict_queues[i].evict_queue));
-		WT_RET(__wt_spin_init(session,
-		    &cache->evict_queues[i].evict_lock, "cache eviction"));
+		WT_SPIN_INIT_TRACKED(session,
+		    &cache->evict_queues[i].evict_lock, evict_queues);
 	}
 
 	/* Ensure there are always non-NULL queues. */

@@ -384,6 +384,9 @@ struct __wt_connection_stats {
 	int64_t lock_evict_walk_count;
 	int64_t lock_evict_walk_wait_application;
 	int64_t lock_evict_walk_wait_internal;
+	int64_t lock_evict_queues_count;
+	int64_t lock_evict_queues_wait_application;
+	int64_t lock_evict_queues_wait_internal;
 	int64_t lock_checkpoint_count;
 	int64_t lock_checkpoint_wait_application;
 	int64_t lock_checkpoint_wait_internal;
