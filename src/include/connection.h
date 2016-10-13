@@ -311,9 +311,11 @@ struct __wt_connection_impl {
 	uint32_t	 evict_threads_max;/* Max eviction threads */
 	uint32_t	 evict_threads_min;/* Min eviction threads */
 
-#define	EVICT_ADDED 1
-#define	EVICT_REMOVED -1
-	int              evict_tune_last_action;/* 1 if added, -1 if removed */
+#define	EVICT_ADD 1
+#define	EVICT_NOCHANGE 0
+#define	EVICT_REMOVE -1
+	int              evict_tune_last_action; /* Last tuning action */
+	struct timespec  evict_tune_last_action_time;/* Time of last action */
 	struct timespec  evict_tune_last_time;/* Last evict thread check */
 	uint64_t	 evict_tune_pgs_last;/* Number of pages evicted */
 	uint64_t	 evict_tune_pg_sec_last;/* Rate of pages evicted/sec */
@@ -343,11 +345,11 @@ struct __wt_connection_impl {
 	bool		 log_tid_set;	/* Log server thread set */
 	WT_CONDVAR	*log_file_cond;	/* Log file thread wait mutex */
 	WT_SESSION_IMPL *log_file_session;/* Log file thread session */
-	wt_thread_t	 log_file_tid;	/* Log file thread thread */
+	wt_thread_t	 log_file_tid;	/* Log file thread */
 	bool		 log_file_tid_set;/* Log file thread set */
 	WT_CONDVAR	*log_wrlsn_cond;/* Log write lsn thread wait mutex */
 	WT_SESSION_IMPL *log_wrlsn_session;/* Log write lsn thread session */
-	wt_thread_t	 log_wrlsn_tid;	/* Log write lsn thread thread */
+	wt_thread_t	 log_wrlsn_tid;	/* Log write lsn thread */
 	bool		 log_wrlsn_tid_set;/* Log write lsn thread set */
 	WT_LOG		*log;		/* Logging structure */
 	WT_COMPRESSOR	*log_compressor;/* Logging compressor */

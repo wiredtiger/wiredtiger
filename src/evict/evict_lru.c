@@ -841,6 +841,13 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
 #define	EVICT_TUNE_THRESHOLD 5 /* Percent eviction rate */
 
 /*
+ * If we have not added or removed evict workers for that many seconds, we will
+ * try a random tuning action to avoid getting stuck in a local minima and to
+ * adjust to workload changes.
+ */
+#define	EVICT_TUNE_RANDOM_RETUNE 10
+
+/*
  * __evict_tune_workers --
  *      Decide if we want to increase or decrease the number of active eviction
  *      workers. This function needs to be called relatively frequently and
@@ -854,14 +861,13 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	struct timespec current_time;
-	int pct_diff;
+	int pct_diff, cur_action;
 	uint64_t cur_threads, delta_millis, delta_pages, i, target_threads;
 	uint64_t pgs_evicted_cur, pgs_evicted_persec_cur;
-	bool try_create_threads, try_remove_threads;
 
 	conn = S2C(session);
 	cache = conn->cache;
-	try_create_threads = try_remove_threads = false;
+	cur_action = EVICT_NOCHANGE;
 
 	WT_ASSERT(session, conn->evict_threads.threads[0]->session == session);
 	pgs_evicted_persec_cur = 0;
@@ -905,31 +911,48 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	    * 100 / (int) conn->evict_tune_pg_sec_last;
 
 	/*
-	 * If we previously added threads and saw no improvement, we will remove
-	 * half of the threads currently working.
-	 * If we added threads and saw improvement, we will keep adding.
-	 * If we previously removed threads and so saw no degradation, we will
-	 * keep removing.
-	 * If we previously removed threads and saw degradation, we will add.
+	 * If we have not taken any thread tuning actions before, we will
+	 * try to add threads.
 	 */
-	if (conn->evict_tune_last_action == EVICT_ADDED)
+	if (conn->evict_tune_last_action_time.tv_sec == 0)
+		cur_action = EVICT_ADD;
+	else {
+		/*
+		 * If the previous action (addition or removal of threads)
+		 * improved performance, continue applying the same action.
+		 * If the previous action hurt performance, reverse the action:
+		 * if we added threads and saw performance degradation
+		 * we will remove threads this time around and vice versa.
+		 * If we saw no change, do nothing.
+		 */
+
 		if (pct_diff > EVICT_TUNE_THRESHOLD)
-			try_create_threads = true;
+			cur_action = conn->evict_tune_last_action;
+		else if (pct_diff < -EVICT_TUNE_THRESHOLD)
+			cur_action = -conn->evict_tune_last_action;
 		else
-			try_remove_threads = true;
-	else if (conn->evict_tune_last_action == EVICT_REMOVED)
-		if (pct_diff < -EVICT_TUNE_THRESHOLD)
-			try_create_threads = true;
-		else
-			try_remove_threads = true;
-	else /* We never created or removed threads. Add some */
-		try_create_threads = true;
+			cur_action = EVICT_NOCHANGE;
+	}
 
-	WT_ASSERT(session, try_create_threads ^ try_remove_threads);
+	/*
+	 * If have not tried adding or removing threads in a while, arbitrarily
+	 * choose between the addition and removal.
+	 */
+	if (cur_action == EVICT_NOCHANGE &&
+	    WT_TIMEDIFF_SEC(current_time, conn->evict_tune_last_action_time)
+	    > EVICT_TUNE_RANDOM_RETUNE)
+		(current_time.tv_nsec % 2 == 1) ? (cur_action = EVICT_ADD):
+			(cur_action = EVICT_REMOVE);
 
-	if (try_create_threads) {
+	/*
+	 * Set the last action to no change in case we don't succeed
+	 * in adding or removing threads. If we do, the action will be
+	 * updated below.
+	 */
+	conn->evict_tune_last_action = EVICT_NOCHANGE;
+	if (cur_action == EVICT_ADD) {
 		cur_threads = conn->evict_threads.current_threads;
-		target_threads = (conn->evict_threads.max - cur_threads) / 2;
+		target_threads = (conn->evict_threads.max - cur_threads) / 4;
 		if (target_threads == 0)
 			target_threads = 1;
 
@@ -943,22 +966,22 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 					       session, &conn->evict_threads,
 					       false));
 
-			if (conn->evict_threads.current_threads == cur_threads)
+			if (conn->evict_threads.current_threads > cur_threads) {
+				/* We created a new thread. Keep track of it. */
+				cur_threads++;
+				conn->evict_tune_last_action = EVICT_ADD;
+				conn->evict_tune_last_action_time =
+					current_time;
+				WT_STAT_CONN_INCR(session,
+						 cache_eviction_worker_created);
+				__wt_verbose(session, WT_VERB_EVICTSERVER,
+					     "added worker thread");
+			}
+			else /* Could not add a thread; Stop trying. */
 				break;
-
-			/* We created a new thread. Keep track of it. */
-			cur_threads++;
-			conn->evict_tune_last_action = EVICT_ADDED;
-			WT_STAT_CONN_INCR(session,
-					  cache_eviction_worker_created);
-			WT_STAT_CONN_SET(session,
-					 cache_eviction_active_workers,
-					 conn->evict_threads.current_threads);
-			__wt_verbose(session, WT_VERB_EVICTSERVER,
-				     "added thread");
 		}
 	}
-	else if (try_remove_threads) {
+	else if (cur_action == EVICT_REMOVE) {
 		cur_threads = conn->evict_threads.current_threads;
 		target_threads = (cur_threads - conn->evict_threads.min) / 2;
 
@@ -966,18 +989,23 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 			WT_ERR(__wt_thread_group_stop_one(
 				       session, &conn->evict_threads, false));
 
-			if (conn->evict_threads.current_threads == cur_threads)
+			if (conn->evict_threads.current_threads < cur_threads) {
+				cur_threads--;
+				conn->evict_tune_last_action = EVICT_REMOVE;
+				conn->evict_tune_last_action_time =
+					current_time;
+				WT_STAT_CONN_INCR(session,
+						 cache_eviction_worker_removed);
+				__wt_verbose(session, WT_VERB_EVICTSERVER,
+					     "removed thread");
+			}
+			else /* Could not add a thread; Stop trying. */
 				break;
-
-			conn->evict_tune_last_action = EVICT_REMOVED;
-			WT_STAT_CONN_INCR(session,
-			    cache_eviction_worker_removed);
-			WT_STAT_CONN_SET(session, cache_eviction_active_workers,
-			    conn->evict_threads.current_threads);
-			__wt_verbose(session, WT_VERB_EVICTSERVER,
-				     "removed thread");
 		}
 	}
+
+	WT_STAT_CONN_SET(session, cache_eviction_active_workers,
+			 conn->evict_threads.current_threads);
 
 err:
 	conn->evict_tune_last_time = current_time;
