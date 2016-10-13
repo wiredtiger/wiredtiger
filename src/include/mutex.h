@@ -81,9 +81,9 @@ struct WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) __wt_spinlock {
 	 * that tracks statistics for different locks, we store the offset
 	 * of the statistics fields to be updated during lock acquisition.
 	 */
-	int16_t stat_count;		/* acquisitions */
-	int16_t stat_app_usecs;		/* waiting application threads */
-	int16_t stat_int_usecs;		/* waiting server threads */
+	int16_t stat_count_off;		/* acquisitions offset */
+	int16_t stat_app_usecs_off;	/* waiting application threads offset */
+	int16_t stat_int_usecs_off;	/* waiting server threads offset */
 };
 
 #elif SPINLOCK_TYPE == SPINLOCK_PTHREAD_MUTEX ||\
@@ -101,9 +101,9 @@ struct WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) __wt_spinlock {
 	 * that tracks statistics for different locks, we store the offset
 	 * of the statistics fields to be updated during lock acquisition.
 	 */
-	int16_t stat_count;		/* acquisitions */
-	int16_t stat_app_usecs;		/* waiting application threads */
-	int16_t stat_int_usecs;		/* waiting server threads */
+	int16_t stat_count_off;		/* acquisitions offset */
+	int16_t stat_app_usecs_off;	/* waiting application threads offset */
+	int16_t stat_int_usecs_off;	/* waiting server threads offset */
 
 	int8_t initialized;		/* Lock initialized, for cleanup */
 };

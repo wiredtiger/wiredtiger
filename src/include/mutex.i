@@ -32,7 +32,7 @@ __wt_spin_init(WT_SESSION_IMPL *session, WT_SPINLOCK *t, const char *name)
 	WT_UNUSED(name);
 
 	t->lock = 0;
-	t->stat_count = t->stat_app_usecs = t->stat_int_usecs = -1;
+	t->stat_count_off = t->stat_app_usecs_off = t->stat_int_usecs_off = -1;
 	return (0);
 }
 
@@ -112,7 +112,7 @@ __wt_spin_init(WT_SESSION_IMPL *session, WT_SPINLOCK *t, const char *name)
 #endif
 
 	t->name = name;
-	t->stat_count = t->stat_app_usecs = t->stat_int_usecs = -1;
+	t->stat_count_off = t->stat_app_usecs_off = t->stat_int_usecs_off = -1;
 	t->initialized = 1;
 
 	WT_UNUSED(session);
@@ -267,11 +267,11 @@ __wt_spin_unlock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
  */
 #define	WT_SPIN_INIT_TRACKED(session, t, name) do {			\
 	WT_RET(__wt_spin_init(session, t, #name));			\
-	(t)->stat_count = (int16_t)WT_STATS_FIELD_TO_OFFSET(		\
+	(t)->stat_count_off = (int16_t)WT_STATS_FIELD_TO_OFFSET(	\
 	    S2C(session)->stats, lock_##name##_count);			\
-	(t)->stat_app_usecs = (int16_t)WT_STATS_FIELD_TO_OFFSET(	\
+	(t)->stat_app_usecs_off = (int16_t)WT_STATS_FIELD_TO_OFFSET(	\
 	    S2C(session)->stats, lock_##name##_wait_application);	\
-	(t)->stat_int_usecs = (int16_t)WT_STATS_FIELD_TO_OFFSET(	\
+	(t)->stat_int_usecs_off = (int16_t)WT_STATS_FIELD_TO_OFFSET(	\
 	    S2C(session)->stats, lock_##name##_wait_internal);		\
 } while (0)
 
@@ -285,17 +285,17 @@ __wt_spin_lock_track(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 	struct timespec enter, leave;
 	int64_t **stats;
 
-	if (t->stat_count != -1 && WT_STAT_ENABLED(session)) {
+	if (t->stat_count_off != -1 && WT_STAT_ENABLED(session)) {
 		__wt_epoch(session, &enter);
 		__wt_spin_lock(session, t);
 		__wt_epoch(session, &leave);
 		stats = (int64_t **)S2C(session)->stats;
-		stats[session->stat_bucket][t->stat_count]++;
+		stats[session->stat_bucket][t->stat_count_off]++;
 		if (F_ISSET(session, WT_SESSION_INTERNAL))
-			stats[session->stat_bucket][t->stat_int_usecs] +=
+			stats[session->stat_bucket][t->stat_int_usecs_off] +=
 			    (int64_t)WT_TIMEDIFF_US(leave, enter);
 		else
-			stats[session->stat_bucket][t->stat_app_usecs] +=
+			stats[session->stat_bucket][t->stat_app_usecs_off] +=
 			    (int64_t)WT_TIMEDIFF_US(leave, enter);
 	} else
 		__wt_spin_lock(session, t);
