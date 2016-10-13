@@ -128,7 +128,7 @@ __wt_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref)
 		return;
 
 	cache = S2C(session)->cache;
-	__wt_spin_lock(session, &cache->evict_queue_lock);
+	__wt_spin_lock_track(session, &cache->evict_queue_lock);
 
 	found = false;
 	for (q = 0; q < WT_EVICT_QUEUE_MAX && !found; q++) {
@@ -749,7 +749,7 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
 	 * The no-eviction flag can be set permanently, in which case we never
 	 * increment the no-eviction count.
 	 */
-	__wt_spin_lock(session, &cache->evict_walk_lock);
+	__wt_spin_lock_track(session, &cache->evict_walk_lock);
 	if (F_ISSET(btree, WT_BTREE_NO_EVICTION)) {
 		if (btree->evict_disabled != 0)
 			++btree->evict_disabled;
@@ -775,7 +775,7 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
 	 * The eviction candidate list might reference pages from the file,
 	 * clear it. Hold the evict lock to remove queued pages from a file.
 	 */
-	__wt_spin_lock(session, &cache->evict_queue_lock);
+	__wt_spin_lock_track(session, &cache->evict_queue_lock);
 
 	for (q = 0; q < WT_EVICT_QUEUE_MAX; q++) {
 		__wt_spin_lock(session, &cache->evict_queues[q].evict_lock);
@@ -830,7 +830,7 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
 	 * The no-eviction flag can be set permanently, in which case we never
 	 * increment the no-eviction count.
 	 */
-	__wt_spin_lock(session, &cache->evict_walk_lock);
+	__wt_spin_lock_track(session, &cache->evict_walk_lock);
 	if (btree->evict_disabled > 0 && --btree->evict_disabled == 0)
 		F_CLR(btree, WT_BTREE_NO_EVICTION);
 	__wt_spin_unlock(session, &cache->evict_walk_lock);
@@ -1589,7 +1589,7 @@ __evict_get_ref(
 	    __evict_queue_empty(cache->evict_fill_queue, false)))
 		return (WT_NOTFOUND);
 
-	__wt_spin_lock(session, &cache->evict_queue_lock);
+	__wt_spin_lock_track(session, &cache->evict_queue_lock);
 
 	/* Check the urgent queue first. */
 	if (urgent_ok && !__evict_queue_empty(urgent_queue, false))
@@ -1909,7 +1909,7 @@ __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
 	urgent_queue = &cache->evict_queues[WT_EVICT_URGENT_QUEUE];
 	queued = false;
 
-	__wt_spin_lock(session, &cache->evict_queue_lock);
+	__wt_spin_lock_track(session, &cache->evict_queue_lock);
 	if (F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU) ||
 	    F_ISSET(S2BT(session), WT_BTREE_NO_EVICTION))
 		goto done;
