@@ -378,6 +378,12 @@ struct __wt_connection_stats {
 	int64_t dh_sweeps;
 	int64_t dh_session_handles;
 	int64_t dh_session_sweeps;
+	int64_t lock_evict_queue_count;
+	int64_t lock_evict_queue_wait_application;
+	int64_t lock_evict_queue_wait_internal;
+	int64_t lock_evict_walk_count;
+	int64_t lock_evict_walk_wait_application;
+	int64_t lock_evict_walk_wait_internal;
 	int64_t lock_checkpoint_count;
 	int64_t lock_checkpoint_wait_application;
 	int64_t lock_checkpoint_wait_internal;
