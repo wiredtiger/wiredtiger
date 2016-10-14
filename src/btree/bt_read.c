@@ -327,6 +327,12 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 	if (__wt_hazard_count(session, page) > 1)
 		return (false);
 
+	/* If we can do an in-memory split, do it. */
+	if (__wt_leaf_page_can_split(session, page))
+		return (true);
+	if (page->memory_footprint < btree->maxmempage)
+		return (false);
+
 	/* Bump the oldest ID, we're about to do some visibility checks. */
 	WT_IGNORE_RET(__wt_txn_update_oldest(
 	    session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
@@ -339,12 +345,6 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 	 */
 	if (page->modify->update_restored &&
 	    page->modify->last_eviction_id == __wt_txn_oldest_id(session))
-		return (false);
-
-	/* If we can do an in-memory split, do it. */
-	if (__wt_leaf_page_can_split(session, page))
-		return (true);
-	if (page->memory_footprint < btree->maxmempage)
 		return (false);
 
 	/* Trigger eviction on the next page release. */
