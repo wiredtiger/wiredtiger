@@ -645,9 +645,6 @@ static const char * const __stats_connection_desc[] = {
 	"lock: cache eviction queue lock acquisitions",
 	"lock: cache eviction queue lock application thread wait time (usecs)",
 	"lock: cache eviction queue lock internal thread wait time (usecs)",
-	"lock: cache eviction walk lock acquisitions",
-	"lock: cache eviction walk lock application thread wait time (usecs)",
-	"lock: cache eviction walk lock internal thread wait time (usecs)",
 	"lock: cache individual queue lock acquisitions",
 	"lock: cache individual queue lock application thread wait time (usecs)",
 	"lock: cache individual queue lock internal thread wait time (usecs)",
@@ -916,9 +913,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->lock_evict_queue_count = 0;
 	stats->lock_evict_queue_wait_application = 0;
 	stats->lock_evict_queue_wait_internal = 0;
-	stats->lock_evict_walk_count = 0;
-	stats->lock_evict_walk_wait_application = 0;
-	stats->lock_evict_walk_wait_internal = 0;
 	stats->lock_evict_queues_count = 0;
 	stats->lock_evict_queues_wait_application = 0;
 	stats->lock_evict_queues_wait_internal = 0;
@@ -1216,12 +1210,6 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, lock_evict_queue_wait_application);
 	to->lock_evict_queue_wait_internal +=
 	    WT_STAT_READ(from, lock_evict_queue_wait_internal);
-	to->lock_evict_walk_count +=
-	    WT_STAT_READ(from, lock_evict_walk_count);
-	to->lock_evict_walk_wait_application +=
-	    WT_STAT_READ(from, lock_evict_walk_wait_application);
-	to->lock_evict_walk_wait_internal +=
-	    WT_STAT_READ(from, lock_evict_walk_wait_internal);
 	to->lock_evict_queues_count +=
 	    WT_STAT_READ(from, lock_evict_queues_count);
 	to->lock_evict_queues_wait_application +=

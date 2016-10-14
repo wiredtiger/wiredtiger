@@ -749,7 +749,7 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
 	 * The no-eviction flag can be set permanently, in which case we never
 	 * increment the no-eviction count.
 	 */
-	__wt_spin_lock_track(session, &cache->evict_walk_lock);
+	__wt_spin_lock(session, &cache->evict_walk_lock);
 	if (F_ISSET(btree, WT_BTREE_NO_EVICTION)) {
 		if (btree->evict_disabled != 0)
 			++btree->evict_disabled;
@@ -830,7 +830,7 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
 	 * The no-eviction flag can be set permanently, in which case we never
 	 * increment the no-eviction count.
 	 */
-	__wt_spin_lock_track(session, &cache->evict_walk_lock);
+	__wt_spin_lock(session, &cache->evict_walk_lock);
 	if (btree->evict_disabled > 0 && --btree->evict_disabled == 0)
 		F_CLR(btree, WT_BTREE_NO_EVICTION);
 	__wt_spin_unlock(session, &cache->evict_walk_lock);
