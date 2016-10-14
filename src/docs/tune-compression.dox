@@ -19,6 +19,22 @@ An example of turning on row-store or column-store dictionary compression:
 
 @snippet ex_all.c Configure dictionary compression on
 
+@section raw_compression Raw Compression
+WiredTiger also provides the option to use raw compression. In the traditional
+compression model where a fixed number of rows are put into the compression
+system, then turned into a compressed block of data. The number of rows is
+chosen to by the amount of data needed to fill the uncompressed block. Thus
+when compressed the block will be smaller than the normal block size and the
+sizes of all blocks will often vary.
+
+WiredTiger's raw compression takes advantage of compressors that provide a
+streaming compression API. Using the streaming API WiredTiger will try to fit
+as many documents as possible into one block. This means that blocks created
+with raw compression should be of similar size. Using a streaming compression
+method should also make for less overhead in compression, as the setup and
+initial work for compressing is done fewer times compared to the number of
+documents stored.
+
 See @ref file_formats_compression for more information on available
 compression techniques.
 
