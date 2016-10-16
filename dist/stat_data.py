@@ -231,6 +231,8 @@ connection_stats = [
     CacheStat('cache_write', 'pages written from cache'),
     CacheStat('cache_write_lookaside', 'page written requiring lookaside records'),
     CacheStat('cache_write_restore', 'pages written requiring in-memory restoration'),
+    CacheStat('cache_read_app_count', 'number of reads by application threads'),
+    CacheStat('cache_read_app_time', 'time spent by application threads doing reads (usecs)'),
 
     ##########################################
     # Dhandle statistics
