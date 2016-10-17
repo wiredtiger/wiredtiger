@@ -50,11 +50,15 @@ class BaseDataSet(object):
     def fill(self):
         c = self.testcase.session.open_cursor(self.uri, None)
         for i in range(1, self.rows + 1):
-            c[self.key_populate(i)] = self.value_populate(i)
+            c[self.key(i)] = self.value(i)
         c.close()
 
     def postfill(self):
         pass
+
+    @classmethod
+    def is_lsm(cls):
+        return False
 
     def populate(self):
         self.testcase.pr('populate: ' + self.uri + ' with '
@@ -63,16 +67,39 @@ class BaseDataSet(object):
         self.fill()
         self.postfill()
 
-    # create a simple_populate or complex_populate key
-    def key_populate(self, i):
-        key_format = self.key_format
+    # Create a key for a Simple or Complex data set.
+    @staticmethod
+    def key_by_format(i, key_format):
         if key_format == 'i' or key_format == 'r' or key_format == 'u':
             return i
         elif key_format == 'S':
             return str('%015d' % i)
         else:
             raise AssertionError(
-                'key_populate: object has unexpected format: ' + key_format)
+                'key: object has unexpected format: ' + key_format)
+
+    # Create a value for a Simple data set.
+    @staticmethod
+    def value_by_format(i, value_format):
+        if value_format == 'i' or value_format == 'r' or value_format == 'u':
+            return i
+        elif value_format == 'S':
+            return str(i) + ': abcdefghijklmnopqrstuvwxyz'
+        elif value_format == '8t':
+            value = (
+                0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8, 0xaa, 0xab,
+                0xac, 0xad, 0xae, 0xaf, 0xb1, 0xb2, 0xb3, 0xb4, 0xb5, 0xb6,
+                0xb7, 0xb8, 0xba, 0xbb, 0xbc, 0xbd, 0xbe, 0xbf)
+            return value[i % len(value)]
+        else:
+            raise AssertionError(
+                'value: object has unexpected format: '
+                + value_format)
+
+    # Create a key for this data set.  Simple and Complex data sets have
+    # the same key space.
+    def key(self, i):
+        return BaseDataSet.key_by_format(i, self.key_format)
 
     def check(self):
         self.testcase.pr('check: ' + self.uri)
@@ -90,32 +117,32 @@ class SimpleDataSet(BaseDataSet):
     def __init__(self, testcase, uri, rows, **kwargs):
         super(SimpleDataSet, self).__init__(testcase, uri, rows, **kwargs)
 
-    def value_populate(self, i):
-        value_format = self.value_format
-        if value_format == 'i' or value_format == 'r' or value_format == 'u':
-            return i
-        elif value_format == 'S':
-            return str(i) + ': abcdefghijklmnopqrstuvwxyz'
-        elif value_format == '8t':
-            value = (
-                0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8, 0xaa, 0xab,
-                0xac, 0xad, 0xae, 0xaf, 0xb1, 0xb2, 0xb3, 0xb4, 0xb5, 0xb6,
-                0xb7, 0xb8, 0xba, 0xbb, 0xbc, 0xbd, 0xbe, 0xbf)
-            return value[i % len(value)]
-        else:
-            raise AssertionError(
-                'value_populate: object has unexpected format: '
-                + value_format)
+    def value(self, i):
+        return BaseDataSet.value_by_format(i, self.value_format)
 
     def check_cursor(self, cursor):
         i = 0
         for key, val in cursor:
             i += 1
-            self.testcase.assertEqual(key, self.key_populate(i))
+            self.testcase.assertEqual(key, self.key(i))
             if cursor.value_format == '8t' and val == 0:    # deleted
                 continue
-            self.testcase.assertEqual(val, self.value_populate(i))
+            self.testcase.assertEqual(val, self.value(i))
         self.testcase.assertEqual(i, self.rows)
+
+class SimpleLSMDataSet(SimpleDataSet):
+    """
+    SimpleLSMDataSet is identical to SimpleDataSet, but using LSM files
+    via the type=lsm configuration.
+    """
+    def __init__(self, testcase, uri, rows, **kwargs):
+        kwargs['config'] = kwargs.get('config', '') + ',type=lsm'
+        super(SimpleLSMDataSet, self).__init__(
+            testcase, uri, rows, **kwargs)
+
+    @classmethod
+    def is_lsm(cls):
+        return True
 
 class SimpleIndexDataSet(SimpleDataSet):
     """
@@ -124,13 +151,15 @@ class SimpleIndexDataSet(SimpleDataSet):
     """
     def __init__(self, testcase, uri, rows, **kwargs):
         self.indexname = 'index:' + uri.split(":")[1] + ':index1'
-        kwargs['config'] = kwargs.get('config', '') + ',columns=(key0,value0)'
+        self.origconfig = kwargs.get('config', '')
+        kwargs['config'] = self.origconfig + ',columns=(key0,value0)'
         super(SimpleIndexDataSet, self).__init__(
             testcase, uri, rows, **kwargs)
 
     def create(self):
         super(SimpleIndexDataSet, self).create()
-        self.testcase.session.create(self.indexname, 'columns=(value0,key0)')
+        self.testcase.session.create(self.indexname, 'columns=(value0,key0),' +
+            self.origconfig)
 
     def check(self):
         BaseDataSet.check(self)
@@ -138,18 +167,31 @@ class SimpleIndexDataSet(SimpleDataSet):
         # Check values in the index.
         idxcursor = self.testcase.session.open_cursor(self.indexname)
         for i in range(1, self.rows + 1):
-            k = self.key_populate(i)
-            v = self.value_populate(i)
+            k = self.key(i)
+            v = self.value(i)
             ik = (v, k)  # The index key is columns=(v,k).
             self.testcase.assertEqual(v, idxcursor[ik])
         idxcursor.close()
+
+class SimpleIndexLSMDataSet(SimpleIndexDataSet):
+    """
+    SimpleIndexLSMDataSet is identical to SimpleIndexDataSet, but
+    using LSM files.
+    """
+    def __init__(self, testcase, uri, rows, **kwargs):
+        kwargs['config'] = kwargs.get('config', '') + ',type=lsm'
+        super(SimpleIndexLSMDataSet, self).__init__(
+            testcase, uri, rows, **kwargs)
+
+    @classmethod
+    def is_lsm(cls):
+        return True
 
 class ComplexDataSet(BaseDataSet):
     """
     ComplexDataSet populates a table with a mixed set of indices
     and column groups.  Some indices are created before the
-    table is populated, some after.  LSM column groups can be
-    created with constructor argument cgconfig='type=lsm'
+    table is populated, some after.
     """
     def __init__(self, testcase, uri, rows, **kwargs):
         self.indexlist = [
@@ -178,6 +220,7 @@ class ComplexDataSet(BaseDataSet):
         config = 'key_format=' + self.key_format + \
                  ',value_format=' + self.value_format + ',' + self.config
         session = self.testcase.session
+        ##self.testcase.tty('URI=' + self.uri + 'CONFIG=' + config)
         session.create(self.uri, config)
         tablepart = self.uri.split(":")[1] + ':'
         for cg in self.cglist:
@@ -185,7 +228,7 @@ class ComplexDataSet(BaseDataSet):
                            ',columns=(' + cg[1] + '),' + self.cgconfig)
         for index in self.indexlist[0:4]:
             session.create('index:' + tablepart + index[0],
-                           ',columns=(' + index[1] + ')')
+                           ',columns=(' + index[1] + '),' + self.config)
 
     def postfill(self):
         # add some indices after filling the table
@@ -195,32 +238,65 @@ class ComplexDataSet(BaseDataSet):
             session.create('index:' + tablepart + index[0],
                            ',columns=(' + index[1] + ')')
 
+    def colgroup_count(self):
+        return len(self.cglist)
+
     def colgroup_name(self, i):
         return 'colgroup:' + self.uri.split(":")[1] + ':' + self.cglist[i][0]
 
-    def colgroup_count(self, i):
-        return len(self.cglist)
-
-    def index_count(self, i):
+    def index_count(self):
         return len(self.indexlist)
 
-    def complex_populate_index_name(self, uri, i):
+    def index_name(self, i):
         return 'index:' + self.uri.split(":")[1] + ':' + self.indexlist[i][0]
 
-    def value_populate(self, i):
-        return tuple([str(i) + ': abcdefghijklmnopqrstuvwxyz'[0:i%26],
-                      i,
-                      str(i) + ': abcdefghijklmnopqrstuvwxyz'[0:i%23],
-                      str(i) + ': abcdefghijklmnopqrstuvwxyz'[0:i%18]])
+    # A value suitable for checking the value returned by a cursor, as
+    # cursor.get_value() returns a list.
+    def comparable_value(self, i):
+        return [str(i) + ': abcdefghijklmnopqrstuvwxyz'[0:i%26],
+                i,
+                str(i) + ': abcdefghijklmnopqrstuvwxyz'[0:i%23],
+                str(i) + ': abcdefghijklmnopqrstuvwxyz'[0:i%18]]
+
+    # A value suitable for assigning to a cursor, as
+    # cursor.set_value() expects a tuple when there it is used with
+    # a single argument and the value is composite.
+    def value(self, i):
+        return tuple(self.comparable_value(i))
 
     def check_cursor(self, cursor):
         i = 0
         for key, s1, i2, s3, s4 in cursor:
             i += 1
-            self.testcase.assertEqual(key, self.key_populate(i))
-            v = self.value_populate(i)
+            self.testcase.assertEqual(key, self.key(i))
+            v = self.value(i)
             self.testcase.assertEqual(s1, v[0])
             self.testcase.assertEqual(i2, v[1])
             self.testcase.assertEqual(s3, v[2])
             self.testcase.assertEqual(s4, v[3])
         self.testcase.assertEqual(i, self.rows)
+
+class ComplexLSMDataSet(ComplexDataSet):
+    """
+    ComplexLSMDataSet is identical to ComplexDataSet, but using LSM files.
+    """
+    def __init__(self, testcase, uri, rows, **kwargs):
+        kwargs['cgconfig'] = kwargs.get('cgconfig', '') + ',type=lsm'
+        super(ComplexLSMDataSet, self).__init__(
+            testcase, uri, rows, **kwargs)
+
+    @classmethod
+    def is_lsm(cls):
+        return True
+
+# create a key based on a cursor as a shortcut to creating a SimpleDataSet
+def simple_key(cursor, i):
+    return BaseDataSet.key_by_format(i, cursor.key_format)
+
+# create a value based on a cursor as a shortcut to creating a SimpleDataSet
+def simple_value(cursor, i):
+    return BaseDataSet.value_by_format(i, cursor.value_format)
+
+# create a key based on a cursor as a shortcut to creating a ComplexDataSet
+def complex_key(cursor, i):
+    return BaseDataSet.key_by_format(i, cursor.key_format)
