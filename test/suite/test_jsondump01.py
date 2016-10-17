@@ -28,7 +28,8 @@
 
 import os, json
 import wiredtiger, wttest
-from wtdataset import SimpleDataSet, SimpleIndexDataSet, ComplexDataSet
+from wtdataset import SimpleDataSet, SimpleLSMDataSet, SimpleIndexDataSet, \
+    ComplexDataSet, ComplexLSMDataSet
 from helper import compare_files
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
@@ -77,33 +78,29 @@ class test_jsondump01(wttest.WiredTigerTestCase, suite_subprocess):
         ('string', dict(keyfmt='S'))
     ]
     types = [
-        ('file', dict(uri='file:', config='', lsm=False,
-          dataset=SimpleDataSet)),
-        ('lsm', dict(uri='lsm:', config='', lsm=True,
-          dataset=SimpleDataSet)),
-        ('table-simple', dict(uri='table:', config='', lsm=False,
-          dataset=SimpleDataSet)),
-        ('table-index', dict(uri='table:', config='', lsm=False,
-          dataset=SimpleIndexDataSet)),
-        ('table-simple-lsm', dict(uri='table:', config='type=lsm', lsm=True,
-          dataset=SimpleDataSet)),
-        ('table-complex', dict(uri='table:', config='', lsm=False,
-          dataset=ComplexDataSet)),
-        ('table-complex-lsm', dict(uri='table:', config='type=lsm', lsm=True,
-          dataset=ComplexDataSet))
+        ('file', dict(uri='file:', dataset=SimpleDataSet)),
+        ('lsm', dict(uri='lsm:', dataset=SimpleDataSet)),
+        ('table-simple', dict(uri='table:', dataset=SimpleDataSet)),
+        ('table-index', dict(uri='table:', dataset=SimpleIndexDataSet)),
+        ('table-simple-lsm', dict(uri='table:', dataset=SimpleLSMDataSet)),
+        ('table-complex', dict(uri='table:', dataset=ComplexDataSet)),
+        ('table-complex-lsm', dict(uri='table:', dataset=ComplexLSMDataSet))
     ]
     scenarios = make_scenarios(types, keyfmt)
+
+    def skip(self):
+        return (self.dataset.is_lsm() or self.uri == 'lsm:') and \
+            self.keyfmt == 'r'
 
     # Dump using util, re-load using python's JSON, and do a content comparison.
     def test_jsondump_util(self):
         # LSM and column-store isn't a valid combination.
-        if self.lsm and self.keyfmt == 'r':
+        if self.skip():
             return
 
         # Create the object.
         uri = self.uri + self.name
-        ds = self.dataset(self, uri, self.nentries,
-                          config=self.config, key_format=self.keyfmt)
+        ds = self.dataset(self, uri, self.nentries, key_format=self.keyfmt)
         ds.populate()
 
         # Dump the object.
@@ -133,16 +130,13 @@ class test_jsondump01(wttest.WiredTigerTestCase, suite_subprocess):
     # Dump using util, re-load using python's JSON, and do a content comparison.
     def test_jsonload_util(self):
         # LSM and column-store isn't a valid combination.
-        if self.lsm and self.keyfmt == 'r':
+        if self.skip():
             return
 
         # Create the object.
         uri = self.uri + self.name
         uri2 = self.uri + self.name2
-
-        ds = self.dataset(self, uri, self.nentries,
-                          config=self.config,
-                          key_format=self.keyfmt)
+        ds = self.dataset(self, uri, self.nentries, key_format=self.keyfmt)
         ds.populate()
 
         # Dump the object.
@@ -155,8 +149,7 @@ class test_jsondump01(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Check the contents of the data we read.
         # We use the dataset only for checking.
-        ds2 = self.dataset(self, uri2, self.nentries, config=self.config,
-                           key_format=self.keyfmt)
+        ds2 = self.dataset(self, uri2, self.nentries, key_format=self.keyfmt)
         ds2.check()
 
         # Reload into the original uri, and dump into another file.
