@@ -199,7 +199,7 @@ class test_stat_cursor_dsrc_cache_walk(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(none)'
 
     def test_stat_cursor_dsrc_cache_walk(self):
-        simple_populate(self, self.uri, 'key_format=S', 100)
+        SimpleDataSet(self, self.uri, 100).populate()
         # Ensure that it's an error to get cache_walk stats if none is set
         msg = '/doesn\'t match the database statistics/'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
