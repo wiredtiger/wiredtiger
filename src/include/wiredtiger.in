@@ -4280,131 +4280,131 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_BLOCK_MAP_READ			1029
 /*! block-manager: mapped bytes read */
 #define	WT_STAT_CONN_BLOCK_BYTE_MAP_READ		1030
+/*! cache: application threads cache page read count */
+#define	WT_STAT_CONN_CACHE_READ_APP_COUNT		1031
+/*! cache: application threads cache page read time (usecs) */
+#define	WT_STAT_CONN_CACHE_READ_APP_TIME		1032
+/*! cache: application threads cache page write count */
+#define	WT_STAT_CONN_CACHE_WRITE_APP_COUNT		1033
+/*! cache: application threads cache page write time (usecs) */
+#define	WT_STAT_CONN_CACHE_WRITE_APP_TIME		1034
 /*! cache: bytes belonging to page images in the cache */
-#define	WT_STAT_CONN_CACHE_BYTES_IMAGE			1031
+#define	WT_STAT_CONN_CACHE_BYTES_IMAGE			1035
 /*! cache: bytes currently in the cache */
-#define	WT_STAT_CONN_CACHE_BYTES_INUSE			1032
+#define	WT_STAT_CONN_CACHE_BYTES_INUSE			1036
 /*! cache: bytes not belonging to page images in the cache */
-#define	WT_STAT_CONN_CACHE_BYTES_OTHER			1033
+#define	WT_STAT_CONN_CACHE_BYTES_OTHER			1037
 /*! cache: bytes read into cache */
-#define	WT_STAT_CONN_CACHE_BYTES_READ			1034
+#define	WT_STAT_CONN_CACHE_BYTES_READ			1038
 /*! cache: bytes written from cache */
-#define	WT_STAT_CONN_CACHE_BYTES_WRITE			1035
+#define	WT_STAT_CONN_CACHE_BYTES_WRITE			1039
 /*! cache: checkpoint blocked page eviction */
-#define	WT_STAT_CONN_CACHE_EVICTION_CHECKPOINT		1036
+#define	WT_STAT_CONN_CACHE_EVICTION_CHECKPOINT		1040
 /*! cache: eviction calls to get a page */
-#define	WT_STAT_CONN_CACHE_EVICTION_GET_REF		1037
+#define	WT_STAT_CONN_CACHE_EVICTION_GET_REF		1041
 /*! cache: eviction calls to get a page found queue empty */
-#define	WT_STAT_CONN_CACHE_EVICTION_GET_REF_EMPTY	1038
+#define	WT_STAT_CONN_CACHE_EVICTION_GET_REF_EMPTY	1042
 /*! cache: eviction calls to get a page found queue empty after locking */
-#define	WT_STAT_CONN_CACHE_EVICTION_GET_REF_EMPTY2	1039
+#define	WT_STAT_CONN_CACHE_EVICTION_GET_REF_EMPTY2	1043
 /*! cache: eviction currently operating in aggressive mode */
-#define	WT_STAT_CONN_CACHE_EVICTION_AGGRESSIVE_SET	1040
+#define	WT_STAT_CONN_CACHE_EVICTION_AGGRESSIVE_SET	1044
 /*! cache: eviction empty score */
-#define	WT_STAT_CONN_CACHE_EVICTION_EMPTY_SCORE		1041
+#define	WT_STAT_CONN_CACHE_EVICTION_EMPTY_SCORE		1045
 /*! cache: eviction server candidate queue empty when topping up */
-#define	WT_STAT_CONN_CACHE_EVICTION_QUEUE_EMPTY		1042
+#define	WT_STAT_CONN_CACHE_EVICTION_QUEUE_EMPTY		1046
 /*! cache: eviction server candidate queue not empty when topping up */
-#define	WT_STAT_CONN_CACHE_EVICTION_QUEUE_NOT_EMPTY	1043
+#define	WT_STAT_CONN_CACHE_EVICTION_QUEUE_NOT_EMPTY	1047
 /*! cache: eviction server evicting pages */
-#define	WT_STAT_CONN_CACHE_EVICTION_SERVER_EVICTING	1044
+#define	WT_STAT_CONN_CACHE_EVICTION_SERVER_EVICTING	1048
 /*!
  * cache: eviction server slept, because we did not make progress with
  * eviction
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_SERVER_SLEPT	1045
+#define	WT_STAT_CONN_CACHE_EVICTION_SERVER_SLEPT	1049
 /*! cache: eviction server unable to reach eviction goal */
-#define	WT_STAT_CONN_CACHE_EVICTION_SLOW		1046
+#define	WT_STAT_CONN_CACHE_EVICTION_SLOW		1050
 /*! cache: eviction state */
-#define	WT_STAT_CONN_CACHE_EVICTION_STATE		1047
+#define	WT_STAT_CONN_CACHE_EVICTION_STATE		1051
 /*! cache: eviction walks abandoned */
-#define	WT_STAT_CONN_CACHE_EVICTION_WALKS_ABANDONED	1048
+#define	WT_STAT_CONN_CACHE_EVICTION_WALKS_ABANDONED	1052
 /*! cache: eviction worker thread evicting pages */
-#define	WT_STAT_CONN_CACHE_EVICTION_WORKER_EVICTING	1049
+#define	WT_STAT_CONN_CACHE_EVICTION_WORKER_EVICTING	1053
 /*! cache: failed eviction of pages that exceeded the in-memory maximum */
-#define	WT_STAT_CONN_CACHE_EVICTION_FORCE_FAIL		1050
+#define	WT_STAT_CONN_CACHE_EVICTION_FORCE_FAIL		1054
 /*! cache: files with active eviction walks */
-#define	WT_STAT_CONN_CACHE_EVICTION_WALKS_ACTIVE	1051
+#define	WT_STAT_CONN_CACHE_EVICTION_WALKS_ACTIVE	1055
 /*! cache: files with new eviction walks started */
-#define	WT_STAT_CONN_CACHE_EVICTION_WALKS_STARTED	1052
+#define	WT_STAT_CONN_CACHE_EVICTION_WALKS_STARTED	1056
 /*! cache: hazard pointer blocked page eviction */
-#define	WT_STAT_CONN_CACHE_EVICTION_HAZARD		1053
+#define	WT_STAT_CONN_CACHE_EVICTION_HAZARD		1057
 /*! cache: hazard pointer check calls */
-#define	WT_STAT_CONN_CACHE_HAZARD_CHECKS		1054
+#define	WT_STAT_CONN_CACHE_HAZARD_CHECKS		1058
 /*! cache: hazard pointer check entries walked */
-#define	WT_STAT_CONN_CACHE_HAZARD_WALKS			1055
+#define	WT_STAT_CONN_CACHE_HAZARD_WALKS			1059
 /*! cache: hazard pointer maximum array length */
-#define	WT_STAT_CONN_CACHE_HAZARD_MAX			1056
+#define	WT_STAT_CONN_CACHE_HAZARD_MAX			1060
 /*! cache: in-memory page passed criteria to be split */
-#define	WT_STAT_CONN_CACHE_INMEM_SPLITTABLE		1057
+#define	WT_STAT_CONN_CACHE_INMEM_SPLITTABLE		1061
 /*! cache: in-memory page splits */
-#define	WT_STAT_CONN_CACHE_INMEM_SPLIT			1058
+#define	WT_STAT_CONN_CACHE_INMEM_SPLIT			1062
 /*! cache: internal pages evicted */
-#define	WT_STAT_CONN_CACHE_EVICTION_INTERNAL		1059
+#define	WT_STAT_CONN_CACHE_EVICTION_INTERNAL		1063
 /*! cache: internal pages split during eviction */
-#define	WT_STAT_CONN_CACHE_EVICTION_SPLIT_INTERNAL	1060
+#define	WT_STAT_CONN_CACHE_EVICTION_SPLIT_INTERNAL	1064
 /*! cache: leaf pages split during eviction */
-#define	WT_STAT_CONN_CACHE_EVICTION_SPLIT_LEAF		1061
+#define	WT_STAT_CONN_CACHE_EVICTION_SPLIT_LEAF		1065
 /*! cache: lookaside table insert calls */
-#define	WT_STAT_CONN_CACHE_LOOKASIDE_INSERT		1062
+#define	WT_STAT_CONN_CACHE_LOOKASIDE_INSERT		1066
 /*! cache: lookaside table remove calls */
-#define	WT_STAT_CONN_CACHE_LOOKASIDE_REMOVE		1063
+#define	WT_STAT_CONN_CACHE_LOOKASIDE_REMOVE		1067
 /*! cache: maximum bytes configured */
-#define	WT_STAT_CONN_CACHE_BYTES_MAX			1064
+#define	WT_STAT_CONN_CACHE_BYTES_MAX			1068
 /*! cache: maximum page size at eviction */
-#define	WT_STAT_CONN_CACHE_EVICTION_MAXIMUM_PAGE_SIZE	1065
+#define	WT_STAT_CONN_CACHE_EVICTION_MAXIMUM_PAGE_SIZE	1069
 /*! cache: modified pages evicted */
-#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY		1066
+#define	WT_STAT_CONN_CACHE_EVICTION_DIRTY		1070
 /*! cache: modified pages evicted by application threads */
-#define	WT_STAT_CONN_CACHE_EVICTION_APP_DIRTY		1067
-/*! cache: number of reads by application threads */
-#define	WT_STAT_CONN_CACHE_READ_APP_COUNT		1068
-/*! cache: number of writes by application threads */
-#define	WT_STAT_CONN_CACHE_WRITE_APP_COUNT		1069
+#define	WT_STAT_CONN_CACHE_EVICTION_APP_DIRTY		1071
 /*! cache: overflow pages read into cache */
-#define	WT_STAT_CONN_CACHE_READ_OVERFLOW		1070
+#define	WT_STAT_CONN_CACHE_READ_OVERFLOW		1072
 /*! cache: overflow values cached in memory */
-#define	WT_STAT_CONN_CACHE_OVERFLOW_VALUE		1071
+#define	WT_STAT_CONN_CACHE_OVERFLOW_VALUE		1073
 /*! cache: page split during eviction deepened the tree */
-#define	WT_STAT_CONN_CACHE_EVICTION_DEEPEN		1072
+#define	WT_STAT_CONN_CACHE_EVICTION_DEEPEN		1074
 /*! cache: page written requiring lookaside records */
-#define	WT_STAT_CONN_CACHE_WRITE_LOOKASIDE		1073
+#define	WT_STAT_CONN_CACHE_WRITE_LOOKASIDE		1075
 /*! cache: pages currently held in the cache */
-#define	WT_STAT_CONN_CACHE_PAGES_INUSE			1074
+#define	WT_STAT_CONN_CACHE_PAGES_INUSE			1076
 /*! cache: pages evicted because they exceeded the in-memory maximum */
-#define	WT_STAT_CONN_CACHE_EVICTION_FORCE		1075
+#define	WT_STAT_CONN_CACHE_EVICTION_FORCE		1077
 /*! cache: pages evicted because they had chains of deleted items */
-#define	WT_STAT_CONN_CACHE_EVICTION_FORCE_DELETE	1076
+#define	WT_STAT_CONN_CACHE_EVICTION_FORCE_DELETE	1078
 /*! cache: pages evicted by application threads */
-#define	WT_STAT_CONN_CACHE_EVICTION_APP			1077
+#define	WT_STAT_CONN_CACHE_EVICTION_APP			1079
 /*! cache: pages queued for eviction */
-#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_QUEUED	1078
+#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_QUEUED	1080
 /*! cache: pages queued for urgent eviction */
-#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_QUEUED_URGENT	1079
+#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_QUEUED_URGENT	1081
 /*! cache: pages queued for urgent eviction during walk */
-#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_QUEUED_OLDEST	1080
+#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_QUEUED_OLDEST	1082
 /*! cache: pages read into cache */
-#define	WT_STAT_CONN_CACHE_READ				1081
+#define	WT_STAT_CONN_CACHE_READ				1083
 /*! cache: pages read into cache requiring lookaside entries */
-#define	WT_STAT_CONN_CACHE_READ_LOOKASIDE		1082
+#define	WT_STAT_CONN_CACHE_READ_LOOKASIDE		1084
 /*! cache: pages requested from the cache */
-#define	WT_STAT_CONN_CACHE_PAGES_REQUESTED		1083
+#define	WT_STAT_CONN_CACHE_PAGES_REQUESTED		1085
 /*! cache: pages seen by eviction walk */
-#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_SEEN		1084
+#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_SEEN		1086
 /*! cache: pages selected for eviction unable to be evicted */
-#define	WT_STAT_CONN_CACHE_EVICTION_FAIL		1085
+#define	WT_STAT_CONN_CACHE_EVICTION_FAIL		1087
 /*! cache: pages walked for eviction */
-#define	WT_STAT_CONN_CACHE_EVICTION_WALK		1086
+#define	WT_STAT_CONN_CACHE_EVICTION_WALK		1088
 /*! cache: pages written from cache */
-#define	WT_STAT_CONN_CACHE_WRITE			1087
+#define	WT_STAT_CONN_CACHE_WRITE			1089
 /*! cache: pages written requiring in-memory restoration */
-#define	WT_STAT_CONN_CACHE_WRITE_RESTORE		1088
+#define	WT_STAT_CONN_CACHE_WRITE_RESTORE		1090
 /*! cache: percentage overhead */
-#define	WT_STAT_CONN_CACHE_OVERHEAD			1089
-/*! cache: time spent by application threads doing reads (usecs) */
-#define	WT_STAT_CONN_CACHE_READ_APP_TIME		1090
-/*! cache: time spent by application threads doing writes (usecs) */
-#define	WT_STAT_CONN_CACHE_WRITE_APP_TIME		1091
+#define	WT_STAT_CONN_CACHE_OVERHEAD			1091
 /*! cache: tracked bytes belonging to internal pages in the cache */
 #define	WT_STAT_CONN_CACHE_BYTES_INTERNAL		1092
 /*! cache: tracked bytes belonging to leaf pages in the cache */

@@ -639,6 +639,10 @@ static const char * const __stats_connection_desc[] = {
 	"block-manager: bytes written for checkpoint",
 	"block-manager: mapped blocks read",
 	"block-manager: mapped bytes read",
+	"cache: application threads cache page read count",
+	"cache: application threads cache page read time (usecs)",
+	"cache: application threads cache page write count",
+	"cache: application threads cache page write time (usecs)",
 	"cache: bytes belonging to page images in the cache",
 	"cache: bytes currently in the cache",
 	"cache: bytes not belonging to page images in the cache",
@@ -676,8 +680,6 @@ static const char * const __stats_connection_desc[] = {
 	"cache: maximum page size at eviction",
 	"cache: modified pages evicted",
 	"cache: modified pages evicted by application threads",
-	"cache: number of reads by application threads",
-	"cache: number of writes by application threads",
 	"cache: overflow pages read into cache",
 	"cache: overflow values cached in memory",
 	"cache: page split during eviction deepened the tree",
@@ -698,8 +700,6 @@ static const char * const __stats_connection_desc[] = {
 	"cache: pages written from cache",
 	"cache: pages written requiring in-memory restoration",
 	"cache: percentage overhead",
-	"cache: time spent by application threads doing reads (usecs)",
-	"cache: time spent by application threads doing writes (usecs)",
 	"cache: tracked bytes belonging to internal pages in the cache",
 	"cache: tracked bytes belonging to leaf pages in the cache",
 	"cache: tracked dirty bytes in the cache",
@@ -905,6 +905,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->block_byte_write_checkpoint = 0;
 	stats->block_map_read = 0;
 	stats->block_byte_map_read = 0;
+	stats->cache_read_app_count = 0;
+	stats->cache_read_app_time = 0;
+	stats->cache_write_app_count = 0;
+	stats->cache_write_app_time = 0;
 		/* not clearing cache_bytes_image */
 		/* not clearing cache_bytes_inuse */
 		/* not clearing cache_bytes_other */
@@ -942,8 +946,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing cache_eviction_maximum_page_size */
 	stats->cache_eviction_dirty = 0;
 	stats->cache_eviction_app_dirty = 0;
-	stats->cache_read_app_count = 0;
-	stats->cache_write_app_count = 0;
 	stats->cache_read_overflow = 0;
 	stats->cache_overflow_value = 0;
 	stats->cache_eviction_deepen = 0;
@@ -964,8 +966,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cache_write = 0;
 	stats->cache_write_restore = 0;
 		/* not clearing cache_overhead */
-	stats->cache_read_app_time = 0;
-	stats->cache_write_app_time = 0;
 		/* not clearing cache_bytes_internal */
 		/* not clearing cache_bytes_leaf */
 		/* not clearing cache_bytes_dirty */
@@ -1164,6 +1164,11 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, block_byte_write_checkpoint);
 	to->block_map_read += WT_STAT_READ(from, block_map_read);
 	to->block_byte_map_read += WT_STAT_READ(from, block_byte_map_read);
+	to->cache_read_app_count += WT_STAT_READ(from, cache_read_app_count);
+	to->cache_read_app_time += WT_STAT_READ(from, cache_read_app_time);
+	to->cache_write_app_count +=
+	    WT_STAT_READ(from, cache_write_app_count);
+	to->cache_write_app_time += WT_STAT_READ(from, cache_write_app_time);
 	to->cache_bytes_image += WT_STAT_READ(from, cache_bytes_image);
 	to->cache_bytes_inuse += WT_STAT_READ(from, cache_bytes_inuse);
 	to->cache_bytes_other += WT_STAT_READ(from, cache_bytes_other);
@@ -1226,9 +1231,6 @@ __wt_stat_connection_aggregate(
 	to->cache_eviction_dirty += WT_STAT_READ(from, cache_eviction_dirty);
 	to->cache_eviction_app_dirty +=
 	    WT_STAT_READ(from, cache_eviction_app_dirty);
-	to->cache_read_app_count += WT_STAT_READ(from, cache_read_app_count);
-	to->cache_write_app_count +=
-	    WT_STAT_READ(from, cache_write_app_count);
 	to->cache_read_overflow += WT_STAT_READ(from, cache_read_overflow);
 	to->cache_overflow_value += WT_STAT_READ(from, cache_overflow_value);
 	to->cache_eviction_deepen +=
@@ -1257,8 +1259,6 @@ __wt_stat_connection_aggregate(
 	to->cache_write += WT_STAT_READ(from, cache_write);
 	to->cache_write_restore += WT_STAT_READ(from, cache_write_restore);
 	to->cache_overhead += WT_STAT_READ(from, cache_overhead);
-	to->cache_read_app_time += WT_STAT_READ(from, cache_read_app_time);
-	to->cache_write_app_time += WT_STAT_READ(from, cache_write_app_time);
 	to->cache_bytes_internal += WT_STAT_READ(from, cache_bytes_internal);
 	to->cache_bytes_leaf += WT_STAT_READ(from, cache_bytes_leaf);
 	to->cache_bytes_dirty += WT_STAT_READ(from, cache_bytes_dirty);
