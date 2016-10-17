@@ -144,7 +144,6 @@ int
 __wt_cond_destroy(WT_SESSION_IMPL *session, WT_CONDVAR **condp)
 {
 	WT_CONDVAR *cond;
-	WT_DECL_RET;
 
 	cond = *condp;
 	if (cond == NULL)
@@ -154,5 +153,5 @@ __wt_cond_destroy(WT_SESSION_IMPL *session, WT_CONDVAR **condp)
 	DeleteCriticalSection(&cond->mtx);
 	__wt_free(session, *condp);
 
-	return (ret);
+	return (0);
 }
