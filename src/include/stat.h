@@ -323,6 +323,7 @@ struct __wt_connection_stats {
 	int64_t cache_eviction_dirty;
 	int64_t cache_eviction_app_dirty;
 	int64_t cache_read_app_count;
+	int64_t cache_write_app_count;
 	int64_t cache_read_overflow;
 	int64_t cache_overflow_value;
 	int64_t cache_eviction_deepen;
@@ -344,6 +345,7 @@ struct __wt_connection_stats {
 	int64_t cache_write_restore;
 	int64_t cache_overhead;
 	int64_t cache_read_app_time;
+	int64_t cache_write_app_time;
 	int64_t cache_bytes_internal;
 	int64_t cache_bytes_leaf;
 	int64_t cache_bytes_dirty;
