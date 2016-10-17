@@ -107,8 +107,14 @@ __wt_cond_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond)
 	__wt_verbose(session, WT_VERB_MUTEX, "signal %s", cond->name);
 
 	/*
-	 * Fast path if there are no current waiters or we can tell future
-	 * waiters not to wait.
+	 * Our callers are often setting flags to cause a thread to exit. Add
+	 * a barrier to ensure the flags are seen by the threads.
+	 */
+	WT_WRITE_BARRIER();
+
+	/*
+	 * Fast path if we are in (or can enter), a state where the next waiter
+	 * will return immediately as already signaled.
 	 */
 	if (cond->waiters == -1 ||
 	    (cond->waiters == 0 && __wt_atomic_casi32(&cond->waiters, 0, -1)))
