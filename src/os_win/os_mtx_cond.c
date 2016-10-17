@@ -123,22 +123,17 @@ __wt_cond_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond)
 
 	__wt_verbose(session, WT_VERB_MUTEX, "signal %s", cond->name);
 
-	/* Fast path if already signalled. */
-	if (cond->waiters == -1)
+	/*
+	 * Fast path if there are no current waiters or we can tell future
+	 * waiters not to wait.
+	 */
+	if (cond->waiters == -1 ||
+	    (cond->waiters == 0 && __wt_atomic_casi32(&cond->waiters, 0, -1)))
 		return;
 
-	if (cond->waiters > 0 || !__wt_atomic_casi32(&cond->waiters, 0, -1)) {
-		EnterCriticalSection(&cond->mtx);
-		locked = true;
-		WakeAllConditionVariable(&cond->cond);
-	}
-
-	if (locked)
-		LeaveCriticalSection(&cond->mtx);
-	if (ret == 0)
-		return;
-
-	WT_PANIC_MSG(session, ret, "WakeAllConditionVariable: %s", cond->name);
+	EnterCriticalSection(&cond->mtx);
+	WakeAllConditionVariable(&cond->cond);
+	LeaveCriticalSection(&cond->mtx);
 }
 
 /*
