@@ -508,6 +508,7 @@ __statlog_server(void *arg)
 	WT_DECL_RET;
 	WT_ITEM path, tmp;
 	WT_SESSION_IMPL *session;
+	uint64_t incr, period;
 
 	session = arg;
 	conn = S2C(session);
@@ -525,13 +526,25 @@ __statlog_server(void *arg)
 	WT_ERR(__wt_buf_init(session, &path, strlen(conn->stat_path) + 128));
 	WT_ERR(__wt_buf_init(session, &tmp, strlen(conn->stat_path) + 128));
 
-	while (F_ISSET(conn, WT_CONN_SERVER_RUN) &&
-	    F_ISSET(conn, WT_CONN_SERVER_STATISTICS)) {
-		/* Wait until the next event. */
-		__wt_cond_wait(session, conn->stat_cond, conn->stat_usecs);
+	/*
+	 * Periodically wake up and log the statistics. It's reasonable to do
+	 * have long sleeps between events, sleep for 2 seconds at a time so
+	 * we don't make reconfiguration or shutdown wait.
+	 */
+	for (period = conn->stat_usecs;;) {
+		if (!F_ISSET(conn, WT_CONN_SERVER_RUN) ||
+		    !F_ISSET(conn, WT_CONN_SERVER_STATISTICS))
+			break;
 
-		if (WT_STAT_ENABLED(session))
-			WT_ERR(__statlog_log_one(session, &path, &tmp));
+		incr = WT_MIN(period, 2 * WT_MILLION);
+		__wt_cond_wait(session, conn->stat_cond, incr);
+
+		period -= incr;
+		if (period == 0) {
+			if (WT_STAT_ENABLED(session))
+				WT_ERR(__statlog_log_one(session, &path, &tmp));
+			period = conn->stat_usecs;
+		}
 	}
 
 	if (0) {
