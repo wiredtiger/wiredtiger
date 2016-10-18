@@ -1,4 +1,4 @@
-/*! @m_page{{c,java},tune_compression,Compression}
+/*! @page tune_compression Compression
 
 WiredTiger includes a number of optional compression techniques.  Configuring
 compression generally decreases on-disk and in-memory resource requirements
