@@ -1,4 +1,4 @@
-/*! @page tune_compression Compression
+/*! @m_page{{c,java},tune_compression,Compression}
 
 WiredTiger includes a number of optional compression techniques.  Configuring
 compression generally decreases on-disk and in-memory resource requirements
@@ -19,14 +19,12 @@ An example of turning on row-store or column-store dictionary compression:
 
 @snippet ex_all.c Configure dictionary compression on
 
-@section raw_compression Raw Compression
-WiredTiger also provides the option to use raw compression. In the traditional
-compression model where a fixed number of rows are put into the compression
-system, then turned into a compressed block of data. The number of rows is
-chosen to by the amount of data needed to fill the uncompressed block. Thus
-when compressed the block will be smaller than the normal block size and the
-sizes of all blocks will often vary.
+@section compression_formats Block Compression Formats
+WiredTiger provides two methods of compressing your data when using block
+compression; the raw and noraw methods. These methods change how WiredTiger
+works to fit data into the blocks that are stored on disk.
 
+@subsection raw_compression Raw Compression
 WiredTiger's raw compression takes advantage of compressors that provide a
 streaming compression API. Using the streaming API WiredTiger will try to fit
 as many documents as possible into one block. This means that blocks created
@@ -35,7 +33,21 @@ method should also make for less overhead in compression, as the setup and
 initial work for compressing is done fewer times compared to the number of
 documents stored.
 
+Algorithms using Raw compression include zlib, lz4
+
+@subsection noraw_compression No-Raw Compression
+No-Raw compression is the more traditional compression model  where a fixed
+number of rows are put into the compression system, then turned into a
+compressed block of data. The number of rows is chosen to by the amount of
+data needed to fill the uncompressed block. Thus when compressed the block will
+be smaller than the normal block size and the sizes of all blocks will often
+vary depending on how compressible the data being stored is.
+
+Algorithms using No-Raw compression include zlib-noraw, lz4-noraw and snappy
+
 See @ref file_formats_compression for more information on available
 compression techniques.
+
+See @ref compression for information on how to configure and enable compression.
 
  */
