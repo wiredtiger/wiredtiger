@@ -4280,13 +4280,13 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_BLOCK_MAP_READ			1029
 /*! block-manager: mapped bytes read */
 #define	WT_STAT_CONN_BLOCK_BYTE_MAP_READ		1030
-/*! cache: application threads cache page read count */
+/*! cache: application threads page read from disk to cache count */
 #define	WT_STAT_CONN_CACHE_READ_APP_COUNT		1031
-/*! cache: application threads cache page read time (usecs) */
+/*! cache: application threads page read from disk to cache time (usecs) */
 #define	WT_STAT_CONN_CACHE_READ_APP_TIME		1032
-/*! cache: application threads cache page write count */
+/*! cache: application threads page write from cache to disk count */
 #define	WT_STAT_CONN_CACHE_WRITE_APP_COUNT		1033
-/*! cache: application threads cache page write time (usecs) */
+/*! cache: application threads page write from cache to disk time (usecs) */
 #define	WT_STAT_CONN_CACHE_WRITE_APP_TIME		1034
 /*! cache: bytes belonging to page images in the cache */
 #define	WT_STAT_CONN_CACHE_BYTES_IMAGE			1035
