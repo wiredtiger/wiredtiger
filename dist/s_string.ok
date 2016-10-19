@@ -169,6 +169,7 @@ INSN
 INTL
 ISA
 ITEMs
+ITER
 InitializeCriticalSectionAndSpinCount
 Inline
 Intra
@@ -427,6 +428,7 @@ argc
 args
 argv
 asm
+assertfmt
 async
 asyncopp
 asyncops
@@ -799,6 +801,7 @@ isupper
 isxdigit
 iter
 iteratively
+iters
 jnr
 jrx
 json
@@ -1005,12 +1008,14 @@ qdown
 qrrSS
 qsort
 quartile
+queueable
 qup
 rN
 rS
 rb
 rbrace
 rbracket
+rcursor
 rdonly
 rduppo
 readlock
@@ -1217,6 +1222,7 @@ waitpid
 walk's
 warmup
 wb
+wcursor
 wiredTiger
 wiredtiger
 workFactor

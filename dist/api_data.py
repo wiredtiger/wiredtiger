@@ -183,6 +183,12 @@ file_config = format_meta + [
         configure Huffman encoding for values.  Permitted values are
         \c "none", \c "english", \c "utf8<file>" or \c "utf16<file>".
         See @ref huffman for more information'''),
+    Config('ignore_in_memory_cache_size', 'false', r'''
+        allow update and insert operations to proceed even if the cache is
+        already at capacity. Only valid in conjunction with in-memory
+        databases. Should be used with caution - this configuration allows
+        WiredTiger to consume memory over the configured cache limit''',
+        type='boolean'),
     Config('internal_key_truncate', 'true', r'''
         configure internal key truncation, discarding unnecessary
         trailing bytes on internal keys (ignored for custom
@@ -496,7 +502,8 @@ connection_runtime_config = [
         is used to gather statistics, as well as each time statistics
         are logged using the \c statistics_log configuration.  See
         @ref statistics for more information''',
-        type='list', choices=['all', 'fast', 'none', 'clear']),
+        type='list',
+        choices=['all', 'cache_walk', 'fast', 'none', 'clear', 'tree_walk']),
     Config('verbose', '', r'''
         enable messages for various events. Only available if WiredTiger
         is configured with --enable-verbose. Options are given as a
@@ -971,7 +978,8 @@ methods = {
         gathering them, where appropriate (for example, a cache size statistic
         is not cleared, while the count of cursor insert operations will be
         cleared).  See @ref statistics for more information''',
-        type='list', choices=['all', 'fast', 'clear', 'size']),
+        type='list',
+        choices=['all', 'cache_walk', 'fast', 'clear', 'size', 'tree_walk']),
     Config('target', '', r'''
         if non-empty, backup the list of objects; valid only for a
         backup data source''',

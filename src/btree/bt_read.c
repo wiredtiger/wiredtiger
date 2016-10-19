@@ -328,10 +328,13 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 		return (false);
 
 	/*
-	 * If we have already tried and the transaction state has not moved on,
-	 * eviction is highly likely to fail.
+	 * Allow some leeway if the transaction ID isn't moving forward since
+	 * it is unlikely eviction will be able to evict the page. Don't keep
+	 * skipping the page indefinitely or large records can lead to
+	 * extremely large memory footprints.
 	 */
-	if (page->modify->last_eviction_id == __wt_txn_oldest_id(session))
+	if (page->memory_footprint < btree->maxmempage &&
+	    page->modify->last_eviction_id == __wt_txn_oldest_id(session))
 		return (false);
 
 	if (page->memory_footprint < btree->maxmempage)
@@ -354,6 +357,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 static int
 __page_read(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+	struct timespec start, stop;
 	const WT_PAGE_HEADER *dsk;
 	WT_BTREE *btree;
 	WT_DECL_RET;
@@ -401,7 +405,15 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * There's an address, read or map the backing disk page and build an
 	 * in-memory version of the page.
 	 */
+	if (!F_ISSET(session, WT_SESSION_INTERNAL))
+		__wt_epoch(session, &start);
 	WT_ERR(__wt_bt_read(session, &tmp, addr, addr_size));
+	if (!F_ISSET(session, WT_SESSION_INTERNAL)) {
+		__wt_epoch(session, &stop);
+		WT_STAT_CONN_INCR(session, cache_read_app_count);
+		WT_STAT_CONN_INCRV(session, cache_read_app_time,
+		    WT_TIMEDIFF_US(stop, start));
+	}
 	WT_ERR(__wt_page_inmem(session, ref, tmp.data, tmp.memsize,
 	    WT_DATA_IN_ITEM(&tmp) ?
 	    WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED, &page));
