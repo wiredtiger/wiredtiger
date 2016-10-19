@@ -334,8 +334,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 		return (false);
 
 	/* Bump the oldest ID, we're about to do some visibility checks. */
-	WT_IGNORE_RET(__wt_txn_update_oldest(
-	    session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
+	WT_IGNORE_RET(__wt_txn_update_oldest(session, 0));
 
 	/*
 	 * Allow some leeway if the transaction ID isn't moving forward since
