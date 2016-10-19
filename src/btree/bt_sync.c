@@ -183,7 +183,7 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 			if (!WT_PAGE_IS_INTERNAL(page) &&
 			    F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) &&
 			    WT_TXNID_LT(txn->snap_max, mod->first_dirty_txn)) {
-				__wt_page_modify_set(session, page);
+				__wt_tree_modify_set(session);
 				continue;
 			}
 
