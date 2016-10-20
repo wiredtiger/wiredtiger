@@ -74,7 +74,7 @@
 /* #undef HAVE_LIBZ */
 
 /* Define to 1 if you have the `zstd' library (-lzstd). */
-#define HAVE_LIBZSTD 1
+/* #undef HAVE_LIBZSTD */
 
 /* Define to 1 if you have the <memory.h> header file. */
 /* #undef HAVE_MEMORY_H */
