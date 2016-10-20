@@ -58,13 +58,6 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_PAGE *page)
 		    i = 0; i < mod->mod_multi_entries; ++multi, ++i)
 			if (multi->addr.addr == NULL)
 				return (false);
-
-	/*
-	 * Mark the tree dirty if skipping a page, the checkpoint marked it
-	 * clean and we can't skip future checkpoints until this page is
-	 * written.
-	 */
-	__wt_tree_modify_set(session);
 	return (true);
 }
 
@@ -221,9 +214,16 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 			 */
 			page = walk->page;
 
-			/* Write dirty pages, if we can't skip them. */
-			if (__sync_checkpoint_can_skip(session, page))
+			/*
+			 * Write dirty pages, if we can't skip them. If we skip
+			 * a page, mark the tree dirty. The checkpoint marked it
+			 * clean and we can't skip future checkpoints until this
+			 * page is written.
+			 */
+			if (__sync_checkpoint_can_skip(session, page)) {
+				__wt_tree_modify_set(session);
 				continue;
+			}
 
 			if (WT_PAGE_IS_INTERNAL(page)) {
 				internal_bytes += page->memory_footprint;
