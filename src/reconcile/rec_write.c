@@ -1640,7 +1640,7 @@ in_memory:
 		 * This page was potentially skipped, there may not be useful
 		 * addresses in the modify structure. If there's no original
 		 * address, ignore the page, there are no updates on this page
-		 * this checkpoint cares about. (The page may have already been
+		 * this heckpoint cares about. (The page may have already been
 		 * written, that's OK, but this checkpoint doesn't care.) If
 		 * there's an original address, write it, this checkpoint wants
 		 * the original page content.
