@@ -861,7 +861,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	struct timespec current_time;
-	int pct_diff, cur_action;
+	int pct_diff = 0, cur_action;
 	uint64_t cur_threads, delta_millis, delta_pages, i, target_threads;
 	uint64_t pgs_evicted_cur, pgs_evicted_persec_cur;
 
@@ -908,7 +908,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 		goto err;
 
 	pct_diff = (int)(pgs_evicted_persec_cur - conn->evict_tune_pg_sec_last)
-	    * 100 / (int) conn->evict_tune_pg_sec_last;
+			* 100 / (int) conn->evict_tune_pg_sec_last;
 
 	/*
 	 * If we have not taken any thread tuning actions before, we will
@@ -921,7 +921,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 		 * If the previous action (addition or removal of threads)
 		 * improved performance, continue applying the same action.
 		 * If the previous action hurt performance, reverse the action:
-		 * if we added threads and saw performance degradation
+		 * e.g., if we added threads and saw performance degradation
 		 * we will remove threads this time around and vice versa.
 		 * If we saw no change, do nothing.
 		 */
@@ -940,9 +940,18 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	 */
 	if (cur_action == EVICT_NOCHANGE &&
 	    WT_TIMEDIFF_SEC(current_time, conn->evict_tune_last_action_time)
-	    > EVICT_TUNE_RANDOM_RETUNE)
-		(current_time.tv_nsec % 2 == 1) ? (cur_action = EVICT_ADD):
-			(cur_action = EVICT_REMOVE);
+	    > EVICT_TUNE_RANDOM_RETUNE) {
+		if (__wt_random(&session->rnd) % 2 == 0) {
+			cur_action = EVICT_ADD;
+			WT_STAT_CONN_INCR(session,
+					  cache_eviction_random_retune_add);
+		}
+		else {
+			cur_action = EVICT_REMOVE;
+			WT_STAT_CONN_INCR(session,
+					  cache_eviction_random_retune_remove);
+		}
+	}
 
 	/*
 	 * Set the last action to no change in case we don't succeed
@@ -977,8 +986,11 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 				__wt_verbose(session, WT_VERB_EVICTSERVER,
 					     "added worker thread");
 			}
-			else /* Could not add a thread; Stop trying. */
+			else { /* Could not add a thread; Stop trying. */
+				WT_STAT_CONN_INCR(session,
+						  cache_eviction_fail_create);
 				break;
+			}
 		}
 	}
 	else if (cur_action == EVICT_REMOVE) {
@@ -999,8 +1011,11 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 				__wt_verbose(session, WT_VERB_EVICTSERVER,
 					     "removed thread");
 			}
-			else /* Could not add a thread; Stop trying. */
+			else {/* Could not add a thread; Stop trying. */
+				WT_STAT_CONN_INCR(session,
+						  cache_eviction_fail_remove);
 				break;
+			}
 		}
 	}
 
