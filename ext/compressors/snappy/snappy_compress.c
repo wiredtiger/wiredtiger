@@ -31,7 +31,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+/*
+ * We need to include the configuration file to detect whether this extension
+ * is being built into the WiredTiger library; application-loaded compression
+ * functions won't need it.
+ */
 #include <wiredtiger_config.h>
+
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
 
