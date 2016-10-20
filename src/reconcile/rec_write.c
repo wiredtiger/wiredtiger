@@ -1479,7 +1479,6 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 {
 	WT_DECL_RET;
 	WT_PAGE_MODIFY *mod;
-	WT_TXN *txn;
 
 	/* We may acquire a hazard pointer our caller must release. */
 	*hazardp = false;
@@ -1617,58 +1616,15 @@ in_memory:
 	 * modify structure has been instantiated. If the modify structure
 	 * exists and the page has actually been modified, set that state.
 	 * If that's not the case, we would normally use the original cell's
-	 * disk address as our reference, however there are three special cases.
+	 * disk address as our reference, however there are two special cases,
+	 * both flagged by a missing block address.
 	 *
-	 * First, it may be a page that was created in-memory without addresses.
-	 * This happens if checkpoint skips writing a page based on its first
-	 * dirty update's transaction ID; if the page has never been written,
-	 * we'll fail if we try to use its (non-existent) addresses. We check
-	 * this first because the page's modification state exists, but isn't
-	 * useful. There's a path where we attempt to evict a page, the page
-	 * can't be evicted entirely and a disk image is created, but then the
-	 * checkpoint skips over the page, and we get here with a page that has
-	 * a modification structure but has never been entirely written. The
-	 * test is the same as checkpoint uses to skip writing leaf pages.
-	 *
-	 */
-	mod = ref->page->modify;
-	txn = &session->txn;
-	if (mod != NULL &&
-	    F_ISSET(r, WT_CHECKPOINTING) && F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) &&
-	    WT_TXNID_LT(txn->snap_max, mod->first_dirty_txn)) {
-		/*
-		 * This page was potentially skipped, there may not be useful
-		 * addresses in the modify structure. If there's no original
-		 * address, ignore the page, there are no updates on this page
-		 * this heckpoint cares about. (The page may have already been
-		 * written, that's OK, but this checkpoint doesn't care.) If
-		 * there's an original address, write it, this checkpoint wants
-		 * the original page content.
-		 */
-		if (ref->addr == NULL) {
-			*statep = WT_CHILD_IGNORE;
-			WT_CHILD_RELEASE(session, *hazardp, ref);
-		}
-		goto done;
-	}
-
-	/*
-	 * Second, if forced to instantiate a deleted child page and it's never
+	 * First, if forced to instantiate a deleted child page and it's never
 	 * modified, we end up here with a page that has a modify structure, no
 	 * modifications, and no disk address. Ignore those pages, they're not
-	 * modified and there is no reason to write the cell. The test is the
-	 * reverse, that is, if we have a modification structure and it's not
-	 * a never-modified deleted child page, then there better be one or more
-	 * valid addresses in the modification structure, reference them in the
-	 * parent.
-	 */
-	if (mod != NULL && mod->rec_result != 0) {
-		*statep = WT_CHILD_MODIFIED;
-		goto done;
-	}
-
-	/*
-	 * Third, insert splits are permitted during checkpoint. When doing the
+	 * modified and there is no reason to write the cell.
+	 *
+	 * Second, insert splits are permitted during checkpoint. When doing the
 	 * final checkpoint pass, we first walk the internal page's page-index
 	 * and write out any dirty pages we find, then we write out the internal
 	 * page in post-order traversal. If we found the split page in the first
@@ -1676,15 +1632,13 @@ in_memory:
 	 * the first step, it won't have an address and we ignore it, it's not
 	 * part of the checkpoint.
 	 */
-	if (ref->addr == NULL) {
+	mod = ref->page->modify;
+	if (mod != NULL && mod->rec_result != 0)
+		*statep = WT_CHILD_MODIFIED;
+	else if (ref->addr == NULL) {
 		*statep = WT_CHILD_IGNORE;
 		WT_CHILD_RELEASE(session, *hazardp, ref);
 	}
-
-	/*
-	 * The default is use the original disk address. The returned state is
-	 * already set, we're done.
-	 */
 
 done:	WT_DIAGNOSTIC_YIELD;
 	return (ret);
