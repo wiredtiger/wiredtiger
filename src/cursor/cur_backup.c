@@ -299,11 +299,11 @@ err:	/* Close the hot backup file. */
 }
 
 /*
- * __backup_cleanup_handles --
- *	Release and free all btree handles held by the backup.
+ * __backup_cleanup_names --
+ *      Release and free all btree names held by the backup.
  */
 static int
-__backup_cleanup_handles(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
+__backup_cleanup_names(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
 {
 	WT_CURSOR_BACKUP_ENTRY *p;
 	WT_DECL_RET;
@@ -311,13 +311,9 @@ __backup_cleanup_handles(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
 	if (cb->list == NULL)
 		return (0);
 
-	/* Release the handles, free the file names, free the list itself. */
-	for (p = cb->list; p->name != NULL; ++p) {
-		if (p->handle != NULL)
-			WT_WITH_DHANDLE(session, p->handle,
-			    WT_TRET(__wt_session_release_btree(session)));
+	/* Free the file names, free the list itself. */
+	for (p = cb->list; p->name != NULL; ++p)
 		__wt_free(session, p->name);
-	}
 
 	__wt_free(session, cb->list);
 	return (ret);
@@ -335,8 +331,8 @@ __backup_stop(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
 
 	conn = S2C(session);
 
-	/* Release all btree handles held by the backup. */
-	WT_TRET(__backup_cleanup_handles(session, cb));
+	/* Release all btree names held by the backup. */
+	WT_TRET(__backup_cleanup_names(session, cb));
 
 	/* Remove any backup specific file. */
 	WT_TRET(__wt_backup_file_remove(session));
@@ -514,8 +510,6 @@ __backup_list_append(
     WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *uri)
 {
 	WT_CURSOR_BACKUP_ENTRY *p;
-	WT_DATA_HANDLE *old_dhandle;
-	WT_DECL_RET;
 	const char *name;
 
 	/* Leave a NULL at the end to mark the end of the list. */
@@ -523,29 +517,14 @@ __backup_list_append(
 	    cb->list_next + 2, &cb->list));
 	p = &cb->list[cb->list_next];
 	p[0].name = p[1].name = NULL;
-	p[0].handle = p[1].handle = NULL;
 
 	name = uri;
 
 	/*
-	 * If it's a file in the database, get a handle for the underlying
-	 * object (this handle blocks schema level operations, for example
-	 * WT_SESSION.drop or an LSM file discard after level merging).
-	 *
-	 * If the handle is busy (e.g., it is being bulk-loaded), silently skip
-	 * it.  We have a special fake checkpoint in the metadata, and recovery
-	 * will recreate an empty file.
+	 * If it's a file in the database we need to remove the prefix.
 	 */
-	if (WT_PREFIX_MATCH(uri, "file:")) {
+	if (WT_PREFIX_MATCH(uri, "file:"))
 		name += strlen("file:");
-
-		old_dhandle = session->dhandle;
-		ret = __wt_session_get_btree(session, uri, NULL, NULL, 0);
-		p->handle = session->dhandle;
-		session->dhandle = old_dhandle;
-		if (ret != 0)
-			return (ret == EBUSY ? 0 : ret);
-	}
 
 	/*
 	 * !!!

@@ -246,6 +246,8 @@ __wt_schema_rename(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	const char *p, *t;
 
+	WT_SCHEMA_BACKUP_CHECK(session, uri);
+	WT_SCHEMA_BACKUP_CHECK(session, newuri);
 	/* The target type must match the source type. */
 	for (p = uri, t = newuri; *p == *t && *p != ':'; ++p, ++t)
 		;

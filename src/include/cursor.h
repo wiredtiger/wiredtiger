@@ -61,7 +61,6 @@
 
 struct __wt_cursor_backup_entry {
 	char *name;			/* File name */
-	WT_DATA_HANDLE *handle;		/* Handle */
 };
 struct __wt_cursor_backup {
 	WT_CURSOR iface;

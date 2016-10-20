@@ -79,6 +79,27 @@ struct __wt_table {
 #define	WT_COLGROUPS(t)	WT_MAX((t)->ncolgroups, 1)
 
 /*
+ * If a backup cursor is open without schema protection make an effort to
+ * give an error if schema operations will conflict.  This is called after
+ * the schema operations have taken the schema lock so no hot backup
+ * cursor can be created until this is done.
+ */
+#define	WT_SCHEMA_BACKUP_CHECK(session, uri) do {			\
+	__wt_readlock(session, S2C(session)->hot_backup_lock);		\
+	if (S2C(session)->hot_backup) {					\
+		bool in_backup;						\
+		int __ret;						\
+		if ((__ret = __wt_metadata_walk_backup(session,		\
+		    uri, &in_backup)) == 0 && in_backup) {		\
+			__wt_readunlock(session,			\
+			    S2C(session)->hot_backup_lock);		\
+			return (EBUSY);					\
+		}							\
+	} else								\
+		__wt_readunlock(session,				\
+		    S2C(session)->hot_backup_lock);			\
+} while (0)
+/*
  * WT_WITH_LOCK_WAIT --
  *	Wait for a lock, perform an operation, drop the lock.
  */

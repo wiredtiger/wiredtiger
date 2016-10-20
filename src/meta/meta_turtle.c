@@ -54,6 +54,48 @@ __metadata_init(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_metadata_walk_backup --
+ *	Walk the contents of any hot backup file looking for the given URI.
+ */
+int
+__wt_metadata_walk_backup(
+    WT_SESSION_IMPL *session, const char *uri, bool *in_backup)
+{
+	WT_DECL_ITEM(key);
+	WT_DECL_ITEM(value);
+	WT_DECL_RET;
+	WT_FSTREAM *fs;
+	bool exist;
+
+	/* Look for a hot backup file. We expect to have one. */
+	*in_backup = false;
+	WT_RET(__wt_fs_exist(session, WT_METADATA_BACKUP, &exist));
+	WT_ASSERT(session, exist);
+	WT_RET(__wt_fopen(session,
+	    WT_METADATA_BACKUP, 0, WT_STREAM_READ, &fs));
+
+	/* Read line pairs and load them into the metadata file. */
+	WT_ERR(__wt_scr_alloc(session, 512, &key));
+	WT_ERR(__wt_scr_alloc(session, 512, &value));
+	for (;;) {
+		WT_ERR(__wt_getline(session, fs, key));
+		if (key->size == 0)
+			break;
+		WT_ERR(__wt_getline(session, fs, value));
+		if (value->size == 0)
+			WT_ERR(__wt_illegal_value(session, WT_METADATA_BACKUP));
+		if (strcmp(key->data, uri) == 0) {
+			*in_backup = true;
+			break;
+		}
+	}
+err:	WT_TRET(__wt_fclose(session, &fs));
+	__wt_scr_free(session, &key);
+	__wt_scr_free(session, &value);
+	return (ret);
+}
+
+/*
  * __metadata_load_hot_backup --
  *	Load the contents of any hot backup file.
  */
