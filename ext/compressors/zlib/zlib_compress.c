@@ -42,6 +42,10 @@
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
 
+#ifdef _MSC_VER
+#define	inline	__inline
+#endif
+
 /* Local compressor structure. */
 typedef struct {
 	WT_COMPRESSOR compressor;		/* Must come first */
