@@ -615,8 +615,6 @@ live_update:
 	WT_CKPT_FOREACH(ckptbase, ckpt)
 		if (F_ISSET(ckpt, WT_CKPT_ADD)) {
 			/*
-			 * Set the checkpoint size for the live system.
-			 *
 			 * !!!
 			 * Our caller wants the final checkpoint size.  Setting
 			 * the size here violates layering, but the alternative
@@ -624,7 +622,18 @@ live_update:
 			 * cookie into its components, and that's a fair amount
 			 * of work.
 			 */
-			ckpt->ckpt_size = ci->ckpt_size = ckpt_size;
+			ckpt->ckpt_size = ckpt_size;
+
+			/*
+			 * Set the rolling checkpoint size for the live system.
+			 * The current size includes the current checkpoint's
+			 * root page size (root pages are on the checkpoint's
+			 * block allocation list as root pages are allocated
+			 * with the usual block allocation functions). That's
+			 * correct, but we don't want to include it in the size
+			 * for the next checkpoint.
+			 */
+			ci->ckpt_size = ckpt_size - ci->root_size;
 
 			WT_ERR(__ckpt_update(session, block, ckpt, ci, true));
 		}
