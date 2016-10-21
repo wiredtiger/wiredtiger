@@ -298,9 +298,9 @@ retry:		/* If we reached our maximum reserve, quit. */
 	 */
 	for (;;) {
 		/* Find the next slot we will try to compress up to. */
-		if ((curr_slot = zlib_find_slot(
-		    zs->total_in + zs->avail_out, offsets, slots)) >
-		    last_slot) {
+		curr_slot = zlib_find_slot(
+		    zs->total_in + zs->avail_out, offsets, slots);
+		if (curr_slot > last_slot) {
 			zs->avail_in = offsets[curr_slot] - offsets[last_slot];
 			while (zs->avail_in > 0 && zs->avail_out > 0)
 				if ((ret = deflate(zs, Z_SYNC_FLUSH)) != Z_OK) {
