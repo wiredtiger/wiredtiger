@@ -154,10 +154,11 @@ zstd_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session,
     uint8_t *dst, size_t dst_len,
     size_t *result_lenp)
 {
-	uint64_t zstd_len;
+	WT_EXTENSION_API *wt_api;
 	size_t zstd_ret;
+	uint64_t zstd_len;
 
-	(void)src_len;					/* Unused parameters */
+	wt_api = ((ZSTD_COMPRESSOR *)compressor)->wt_api;
 
 	/*
 	 * Retrieve the saved length, handling little- to big-endian conversion
@@ -167,6 +168,13 @@ zstd_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session,
 #ifdef WORDS_BIGENDIAN
 	zstd_len = zstd_bswap64(zstd_len);
 #endif
+	if (zstd_len + ZSTD_PREFIX > src_len) {
+		(void)wt_api->err_printf(wt_api,
+		    session,
+		    "WT_COMPRESSOR.decompress: stored size exceeds source "
+		    "size");
+		return (WT_ERROR);
+	}
 
 	zstd_ret =
 	    ZSTD_decompress(dst, dst_len, src + ZSTD_PREFIX, (size_t)zstd_len);

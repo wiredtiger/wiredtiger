@@ -166,10 +166,11 @@ snappy_decompression(WT_COMPRESSOR *compressor, WT_SESSION *session,
     uint8_t *dst, size_t dst_len,
     size_t *result_lenp)
 {
+	WT_EXTENSION_API *wt_api;
 	snappy_status snret;
 	uint64_t snaplen;
 
-	(void)src_len;				/* Unused parameters */
+	wt_api = ((SNAPPY_COMPRESSOR *)compressor)->wt_api;
 
 	/*
 	 * Retrieve the saved length, handling little- to big-endian conversion
@@ -179,6 +180,13 @@ snappy_decompression(WT_COMPRESSOR *compressor, WT_SESSION *session,
 #ifdef WORDS_BIGENDIAN
 	snaplen = snappy_bswap64(snaplen);
 #endif
+	if (snaplen + SNAPPY_PREFIX > src_len) {
+		(void)wt_api->err_printf(wt_api,
+		    session,
+		    "WT_COMPRESSOR.decompress: stored size exceeds source "
+		    "size");
+		return (WT_ERROR);
+	}
 
 	/* dst_len is an input and an output arg. */
 	snret = snappy_uncompress(

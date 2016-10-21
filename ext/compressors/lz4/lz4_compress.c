@@ -177,8 +177,6 @@ lz4_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	int decoded;
 	uint8_t *dst_tmp;
 
-	(void)src_len;					/* Unused parameters */
-
 	wt_api = ((LZ4_COMPRESSOR *)compressor)->wt_api;
 
 	/*
@@ -189,6 +187,13 @@ lz4_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session,
 #ifdef WORDS_BIGENDIAN
 	lz4_prefix_swap(&prefix);
 #endif
+	if (prefix.compressed_len + sizeof(LZ4_PREFIX) > src_len) {
+		(void)wt_api->err_printf(wt_api,
+		    session,
+		    "WT_COMPRESSOR.decompress: stored size exceeds source "
+		    "size");
+		return (WT_ERROR);
+	}
 
 	/*
 	 * Decompress, starting after the prefix bytes. Use safe decompression:
