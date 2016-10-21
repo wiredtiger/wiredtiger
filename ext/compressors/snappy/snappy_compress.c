@@ -48,6 +48,12 @@ typedef struct {
 	WT_EXTENSION_API *wt_api;		/* Extension API */
 } SNAPPY_COMPRESSOR;
 
+/*
+ * Snappy decompression requires an exact compressed byte count. WiredTiger
+ * doesn't track that value, store it in the destination buffer.
+ */
+#define	SNAPPY_PREFIX	sizeof(uint64_t)
+
 #ifdef WORDS_BIGENDIAN
 /*
  * snappy_bswap64 --
@@ -111,6 +117,7 @@ snappy_compression(WT_COMPRESSOR *compressor, WT_SESSION *session,
 {
 	snappy_status snret;
 	size_t snaplen;
+	uint64_t snaplen_u64;
 	char *snapbuf;
 
 	/*
@@ -118,14 +125,14 @@ snappy_compression(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	 * Skip past the space we'll use to store the final count of compressed
 	 * bytes.
 	 */
-	snaplen = dst_len - sizeof(size_t);
-	snapbuf = (char *)dst + sizeof(size_t);
+	snaplen = dst_len - SNAPPY_PREFIX;
+	snapbuf = (char *)dst + SNAPPY_PREFIX;
 
 	/* snaplen is an input and an output arg. */
 	snret = snappy_compress((char *)src, src_len, snapbuf, &snaplen);
 
-	if (snret == SNAPPY_OK && snaplen + sizeof(size_t) < src_len) {
-		*result_lenp = snaplen + sizeof(size_t);
+	if (snret == SNAPPY_OK && snaplen + SNAPPY_PREFIX < src_len) {
+		*result_lenp = snaplen + SNAPPY_PREFIX;
 		*compression_failed = 0;
 
 		/*
@@ -136,10 +143,11 @@ snappy_compression(WT_COMPRESSOR *compressor, WT_SESSION *session,
 		 *
 		 * Store the value in little-endian format.
 		 */
+		snaplen_u64 = snaplen;
 #ifdef WORDS_BIGENDIAN
-		snaplen = snappy_bswap64(snaplen);
+		snaplen_u64 = snappy_bswap64(snaplen_u64);
 #endif
-		*(size_t *)dst = snaplen;
+		*(uint64_t *)dst = snaplen_u64;
 		return (0);
 	}
 
@@ -159,19 +167,23 @@ snappy_decompression(WT_COMPRESSOR *compressor, WT_SESSION *session,
     size_t *result_lenp)
 {
 	snappy_status snret;
+	uint64_t snaplen;
+
+	(void)src_len;				/* Unused parameters */
 
 	/*
 	 * Retrieve the saved length, handling little- to big-endian conversion
 	 * as necessary.
 	 */
-	src_len = *(size_t *)src;
+	snaplen = *(uint64_t *)src;
 #ifdef WORDS_BIGENDIAN
-	src_len = snappy_bswap64(src_len);
+	snaplen = snappy_bswap64(snaplen);
 #endif
 
 	/* dst_len is an input and an output arg. */
 	snret = snappy_uncompress(
-	    (char *)src + sizeof(size_t), src_len, (char *)dst, &dst_len);
+	    (char *)src + SNAPPY_PREFIX,
+	    (size_t)snaplen, (char *)dst, &dst_len);
 
 	if (snret == SNAPPY_OK) {
 		*result_lenp = dst_len;
@@ -199,7 +211,7 @@ snappy_pre_size(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	 * in snappy_compress that we can compress to directly.  We add space
 	 * in the dest buffer to store the accurate compressed size.
 	 */
-	*result_lenp = snappy_max_compressed_length(src_len) + sizeof(size_t);
+	*result_lenp = snappy_max_compressed_length(src_len) + SNAPPY_PREFIX;
 	return (0);
 }
 

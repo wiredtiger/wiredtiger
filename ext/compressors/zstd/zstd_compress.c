@@ -50,6 +50,12 @@ typedef struct {
 	int	 compression_level;		/* compression level */
 } ZSTD_COMPRESSOR;
 
+/*
+ * Zstd decompression requires an exact compressed byte count. WiredTiger
+ * doesn't track that value, store it in the destination buffer.
+ */
+#define	ZSTD_PREFIX	sizeof(uint64_t)
+
 #ifdef WORDS_BIGENDIAN
 /*
  * zstd_bswap64 --
@@ -100,20 +106,21 @@ zstd_compress(WT_COMPRESSOR *compressor, WT_SESSION *session,
 {
 	ZSTD_COMPRESSOR *zcompressor;
 	size_t zstd_ret;
+	uint64_t zstd_len;
 
 	zcompressor = (ZSTD_COMPRESSOR *)compressor;
 
 	/* Compress, starting past the prefix bytes. */
 	zstd_ret = ZSTD_compress(
-	    dst + sizeof(size_t), dst_len - sizeof(size_t),
+	    dst + ZSTD_PREFIX, dst_len - ZSTD_PREFIX,
 	    src, src_len, zcompressor->compression_level);
 
 	/*
 	 * If compression succeeded and the compressed length is smaller than
 	 * the original size, return success.
 	 */
-	if (!ZSTD_isError(zstd_ret) && zstd_ret + sizeof(size_t) < src_len) {
-		*result_lenp = zstd_ret + sizeof(size_t);
+	if (!ZSTD_isError(zstd_ret) && zstd_ret + ZSTD_PREFIX < src_len) {
+		*result_lenp = zstd_ret + ZSTD_PREFIX;
 		*compression_failed = 0;
 
 		/*
@@ -124,10 +131,11 @@ zstd_compress(WT_COMPRESSOR *compressor, WT_SESSION *session,
 		 *
 		 * Store the value in little-endian format.
 		 */
+		zstd_len = zstd_ret;
 #ifdef WORDS_BIGENDIAN
-		zstd_ret = zstd_bswap64(zstd_ret);
+		zstd_len = zstd_bswap64(zstd_len);
 #endif
-		*(size_t *)dst = zstd_ret;
+		*(uint64_t *)dst = zstd_len;
 		return (0);
 	}
 
@@ -146,18 +154,22 @@ zstd_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session,
     uint8_t *dst, size_t dst_len,
     size_t *result_lenp)
 {
+	uint64_t zstd_len;
 	size_t zstd_ret;
+
+	(void)src_len;					/* Unused parameters */
 
 	/*
 	 * Retrieve the saved length, handling little- to big-endian conversion
 	 * as necessary.
 	 */
-	src_len = *(size_t *)src;
+	zstd_len = *(uint64_t *)src;
 #ifdef WORDS_BIGENDIAN
-	src_len = zstd_bswap64(src_len);
+	zstd_len = zstd_bswap64(zstd_len);
 #endif
 
-	zstd_ret = ZSTD_decompress(dst, dst_len, src + sizeof(size_t), src_len);
+	zstd_ret =
+	    ZSTD_decompress(dst, dst_len, src + ZSTD_PREFIX, (size_t)zstd_len);
 
 	if (!ZSTD_isError(zstd_ret)) {
 		*result_lenp = zstd_ret;
@@ -183,7 +195,7 @@ zstd_pre_size(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	 * the upper-bound of the buffer size needed by the compression. Use
 	 * the library calculation of that overhead (plus our overhead).
 	 */
-	*result_lenp = ZSTD_compressBound(src_len) + sizeof(size_t);
+	*result_lenp = ZSTD_compressBound(src_len) + ZSTD_PREFIX;
 	return (0);
 }
 
