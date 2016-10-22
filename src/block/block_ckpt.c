@@ -633,7 +633,18 @@ live_update:
 			 * correct, but we don't want to include it in the size
 			 * for the next checkpoint.
 			 */
-			ci->ckpt_size = ckpt_size - ci->root_size;
+			ckpt_size -= ci->root_size;
+
+			/*
+			 * Additionally, we had a bug for awhile where the live
+			 * checkpoint size grew without bound. We can't sanity
+			 * check the value, that would require walking the tree
+			 * as part of the checkpoint. Bound any bug at the size
+			 * of the file.
+			 */
+			WT_ASSERT(session, ckpt_size <= (uint64_t)block->size);
+			ci->ckpt_size =
+			    WT_MIN(ckpt_size, (uint64_t)block->size);
 
 			WT_ERR(__ckpt_update(session, block, ckpt, ci, true));
 		}
