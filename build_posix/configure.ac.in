@@ -132,6 +132,11 @@ AM_TYPES
 
 AC_PROG_INSTALL
 
+# yasm on the x86, to build CRC32 support.
+if test "$wt_cv_x86" = "yes"; then
+	AC_CHECK_PROG([YASM], [yasm], [yasm], [false])
+fi
+
 AC_CHECK_HEADERS([x86intrin.h])
 AC_CHECK_LIB(pthread, pthread_create)
 AC_CHECK_LIB(dl, dlopen)

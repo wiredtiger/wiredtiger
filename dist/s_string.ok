@@ -53,6 +53,7 @@ CET
 CFLAGS
 CHECKKEY
 CKPT
+CLMUL
 CMP
 CONCAT
 CONFIG
@@ -511,6 +512,7 @@ ckpt
 ckptfrag
 ckptlist
 cksum
+clmul
 cloexec
 closedir
 clsm

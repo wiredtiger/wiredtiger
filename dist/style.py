@@ -7,6 +7,8 @@ import re, sys
 # Complain if a function comment is missing.
 def missing_comment():
     for f in source_files():
+        if not ".c" in f:
+                continue
         skip_re = re.compile(r'DO NOT EDIT: automatically built')
         func_re = re.compile(
             r'(/\*(?:[^\*]|\*[^/])*\*/)?\n\w[\w \*]+\n(\w+)', re.DOTALL)

@@ -116,6 +116,19 @@ __wt_checksum_hw(const void *chunk, size_t len)
 	return (~crc);
 }
 #endif
+
+u_int __wt_crc_pcl(const u_char *p, int, u_int);
+
+/*
+ * __wt_checksum_hw_clmul --
+ *	Return a checksum for a chunk of memory, computed in hardware
+ *	using the CLMUL instructions.
+ */
+static uint32_t
+__wt_checksum_hw_clmul(const void *chunk, size_t len)
+{
+	return (~__wt_crc_pcl(chunk, (int)len, 0xffffffff));
+}
 #endif /* HAVE_CRC32_HARDWARE */
 
 /*
@@ -134,8 +147,11 @@ __wt_checksum_init(void)
 			      : "=a" (eax), "=b" (ebx), "=c" (ecx), "=d" (edx)
 			      : "a" (1));
 
+#define	CPUID_ECX_HAS_PCLMULQDQ	(1 << 1)
+	if (ecx & CPUID_ECX_HAS_PCLMULQDQ)
+		__wt_process.checksum = __wt_checksum_hw_clmul;
 #define	CPUID_ECX_HAS_SSE42	(1 << 20)
-	if (ecx & CPUID_ECX_HAS_SSE42)
+	else if (ecx & CPUID_ECX_HAS_SSE42)
 		__wt_process.checksum = __wt_checksum_hw;
 	else
 		__wt_process.checksum = __wt_checksum_sw;

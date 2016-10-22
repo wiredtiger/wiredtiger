@@ -78,6 +78,7 @@ l=`sed \
     -e '/^[a-z]/!d' \
     -e '/\/checksum\/arm64/d' \
     -e '/\/checksum\/power8/d' \
+    -e '/\/checksum\/x86\/crc_iscsi_v_pcl.asm/d' \
     -e '/\/checksum\/zseries/d' \
     -e '/os_posix/d' \
     -e '/os_win/d' \
