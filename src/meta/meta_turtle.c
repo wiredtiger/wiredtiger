@@ -71,8 +71,7 @@ __wt_metadata_walk_backup(
 	*in_backup = false;
 	WT_RET(__wt_fs_exist(session, WT_METADATA_BACKUP, &exist));
 	WT_ASSERT(session, exist);
-	WT_RET(__wt_fopen(session,
-	    WT_METADATA_BACKUP, 0, WT_STREAM_READ, &fs));
+	WT_RET(__wt_fopen(session, WT_METADATA_BACKUP, 0, WT_STREAM_READ, &fs));
 
 	/* Read line pairs and load them into the metadata file. */
 	WT_ERR(__wt_scr_alloc(session, 512, &key));

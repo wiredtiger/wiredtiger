@@ -105,7 +105,7 @@ class test_backup06(wttest.WiredTigerTestCase, suite_subprocess):
         # false.  When set to true the open handles protect against schema
         # operations.
         self.populate()
-        cursor = self.session.open_cursor('backup:', None, None);
+        cursor = self.session.open_cursor('backup:', None, None)
         # Check that we can create.
         self.session.create(schema_uri, None)
         for i in self.fobjs:
