@@ -758,7 +758,7 @@ err:	API_END_RET(session, ret);
 
 /*
  * __curtable_complete --
- *	Return failure if the table is fully created.
+ *	Return failure if the table is not yet fully created.
  */
 static int
 __curtable_complete(WT_SESSION_IMPL *session, WT_TABLE *table)
