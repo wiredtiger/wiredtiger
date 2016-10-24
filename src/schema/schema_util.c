@@ -26,34 +26,34 @@ __wt_schema_backup_check(WT_SESSION_IMPL *session, const char *name)
 
 	conn = S2C(session);
 	fs = NULL;
-	if (conn->hot_backup) {
-		__wt_readlock(session, conn->hot_backup_lock);
-		if (conn->hot_backup) {
-			/* Open the hot backup file. */
-			WT_RET(__wt_fopen(session,
-			    WT_METADATA_BACKUP, 0, WT_STREAM_READ, &fs));
-			WT_ERR(__wt_scr_alloc(session, 512, &key));
-			WT_ERR(__wt_scr_alloc(session, 512, &value));
-			for (;;) {
-				WT_ERR(__wt_getline(session, fs, key));
-				if (key->size == 0)
-					break;
-				WT_ERR(__wt_getline(session, fs, value));
-				if (strcmp(key->data, name) == 0) {
-					ret = EBUSY;
-					break;
-				}
-			}
-		}
+	if (!conn->hot_backup)
+		return (0);
+	__wt_readlock(session, conn->hot_backup_lock);
+	if (!conn->hot_backup) {
 		__wt_readunlock(session, conn->hot_backup_lock);
+		return (0);
 	}
-err:	if (fs != NULL) {
-		WT_TRET(__wt_fclose(session, &fs));
-		__wt_scr_free(session, &key);
-		__wt_scr_free(session, &value);
+	/* Open the hot backup file. */
+	WT_RET(__wt_fopen(session, WT_METADATA_BACKUP, 0, WT_STREAM_READ, &fs));
+	WT_ERR(__wt_scr_alloc(session, 512, &key));
+	WT_ERR(__wt_scr_alloc(session, 512, &value));
+	for (;;) {
+		WT_ERR(__wt_getline(session, fs, key));
+		if (key->size == 0)
+			break;
+		WT_ERR(__wt_getline(session, fs, value));
+		if (strcmp(key->data, name) == 0) {
+			ret = EBUSY;
+			break;
+		}
 	}
+err:	__wt_readunlock(session, conn->hot_backup_lock);
+	WT_TRET(__wt_fclose(session, &fs));
+	__wt_scr_free(session, &key);
+	__wt_scr_free(session, &value);
 	return (ret);
 }
+
 /*
  * __wt_schema_get_source --
  *	Find a matching data source or report an error.
