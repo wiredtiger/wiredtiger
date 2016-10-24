@@ -70,8 +70,6 @@ struct __wt_rwlock {
 #define	SPINLOCK_PTHREAD_MUTEX		2
 #define	SPINLOCK_PTHREAD_MUTEX_ADAPTIVE	3
 
-#define	WT_LOCK_TRACK_COUNT_ONLY	1	/* track acquisitions only */
-
 #if SPINLOCK_TYPE == SPINLOCK_GCC
 
 struct WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) __wt_spinlock {

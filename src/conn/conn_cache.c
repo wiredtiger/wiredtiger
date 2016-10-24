@@ -189,8 +189,8 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_RET(__wt_cond_auto_alloc(session, "cache eviction server",
 	    false, 10000, WT_MILLION, &cache->evict_cond));
 	WT_RET(__wt_spin_init(session, &cache->evict_pass_lock, "evict pass"));
-	WT_SPIN_INIT_TRACKED(session, &cache->evict_queue_lock, evict_queue,
-	    WT_LOCK_TRACK_COUNT_ONLY);
+	WT_SPIN_INIT_TRACKED_COUNT(session,
+	    &cache->evict_queue_lock, evict_queue);
 	WT_RET(__wt_spin_init(session, &cache->evict_walk_lock, "evict walk"));
 	if ((ret = __wt_open_internal_session(conn, "evict pass",
 	    false, WT_SESSION_NO_DATA_HANDLES, &cache->walk_session)) != 0)
@@ -202,9 +202,8 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
 	for (i = 0; i < WT_EVICT_QUEUE_MAX; ++i) {
 		WT_RET(__wt_calloc_def(session,
 		    cache->evict_slots, &cache->evict_queues[i].evict_queue));
-		WT_SPIN_INIT_TRACKED(session,
-		    &cache->evict_queues[i].evict_lock, evict_queues,
-		    WT_LOCK_TRACK_COUNT_ONLY);
+		WT_SPIN_INIT_TRACKED_COUNT(session,
+		    &cache->evict_queues[i].evict_lock, evict_queues);
 	}
 
 	/* Ensure there are always non-NULL queues. */

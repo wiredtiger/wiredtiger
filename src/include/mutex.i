@@ -259,22 +259,33 @@ __wt_spin_unlock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 #endif
 
 /*
+ * WT_SPIN_INIT_TRACKED_COUNT --
+ *	Spinlock initialization, with tracking for counts only.
+ *
+ * Implemented as a macro so we can pass in a statistics field and convert
+ * it into a statistics structure array offset.
+ */
+#define	WT_SPIN_INIT_TRACKED_COUNT(session, t, name) do {	        \
+	WT_RET(__wt_spin_init(session, t, #name));			\
+	(t)->stat_count_off = (int16_t)WT_STATS_FIELD_TO_OFFSET(	\
+	    S2C(session)->stats, lock_##name##_count);			\
+} while (0)
+
+/*
  * WT_SPIN_INIT_TRACKED --
  *	Spinlock initialization, with tracking.
  *
  * Implemented as a macro so we can pass in a statistics field and convert
  * it into a statistics structure array offset.
  */
-#define	WT_SPIN_INIT_TRACKED(session, t, name, op) do {		        \
+#define	WT_SPIN_INIT_TRACKED(session, t, name) do {		        \
 	WT_RET(__wt_spin_init(session, t, #name));			\
 	(t)->stat_count_off = (int16_t)WT_STATS_FIELD_TO_OFFSET(	\
 	    S2C(session)->stats, lock_##name##_count);			\
-	if (op != WT_LOCK_TRACK_COUNT_ONLY) {                           \
-		(t)->stat_app_usecs_off = (int16_t)WT_STATS_FIELD_TO_OFFSET(\
-		    S2C(session)->stats, lock_##name##_wait_application);\
-		(t)->stat_int_usecs_off = (int16_t)WT_STATS_FIELD_TO_OFFSET(\
-		    S2C(session)->stats, lock_##name##_wait_internal);	\
-	}                                                               \
+	(t)->stat_app_usecs_off = (int16_t)WT_STATS_FIELD_TO_OFFSET(    \
+	    S2C(session)->stats, lock_##name##_wait_application);       \
+	(t)->stat_int_usecs_off = (int16_t)WT_STATS_FIELD_TO_OFFSET(    \
+	    S2C(session)->stats, lock_##name##_wait_internal);          \
 } while (0)
 
 /*

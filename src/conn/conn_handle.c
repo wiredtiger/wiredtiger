@@ -52,15 +52,15 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
 
 	/* Spinlocks. */
 	WT_RET(__wt_spin_init(session, &conn->api_lock, "api"));
-	WT_SPIN_INIT_TRACKED(session, &conn->checkpoint_lock, checkpoint, 0);
-	WT_SPIN_INIT_TRACKED(session, &conn->dhandle_lock, handle_list, 0);
+	WT_SPIN_INIT_TRACKED(session, &conn->checkpoint_lock, checkpoint);
+	WT_SPIN_INIT_TRACKED(session, &conn->dhandle_lock, handle_list);
 	WT_RET(__wt_spin_init(session, &conn->encryptor_lock, "encryptor"));
 	WT_RET(__wt_spin_init(session, &conn->fh_lock, "file list"));
 	WT_RET(__wt_spin_init(session, &conn->las_lock, "lookaside table"));
-	WT_SPIN_INIT_TRACKED(session, &conn->metadata_lock, metadata, 0);
+	WT_SPIN_INIT_TRACKED(session, &conn->metadata_lock, metadata);
 	WT_RET(__wt_spin_init(session, &conn->reconfig_lock, "reconfigure"));
-	WT_SPIN_INIT_TRACKED(session, &conn->schema_lock, schema, 0);
-	WT_SPIN_INIT_TRACKED(session, &conn->table_lock, table, 0);
+	WT_SPIN_INIT_TRACKED(session, &conn->schema_lock, schema);
+	WT_SPIN_INIT_TRACKED(session, &conn->table_lock, table);
 	WT_RET(__wt_spin_init(session, &conn->turtle_lock, "turtle file"));
 
 	/* Read-write locks */
