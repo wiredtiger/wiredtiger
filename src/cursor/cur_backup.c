@@ -300,7 +300,7 @@ err:	/* Close the hot backup file. */
 
 /*
  * __backup_cleanup_names --
- *      Release and free all btree names held by the backup.
+ *	Release and free all btree names held by the backup.
  */
 static int
 __backup_cleanup_names(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
