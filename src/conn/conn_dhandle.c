@@ -20,6 +20,7 @@ __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
 	__wt_free(session, dhandle->checkpoint);
 	__wt_free(session, dhandle->handle);
 	__wt_spin_destroy(session, &dhandle->close_lock);
+	__wt_stat_dsrc_discard(session, dhandle);
 	__wt_overwrite_and_free(session, dhandle);
 }
 
@@ -54,7 +55,7 @@ __conn_dhandle_alloc(WT_SESSION_IMPL *session,
 	WT_ERR(__wt_spin_init(
 	    session, &dhandle->close_lock, "data handle close"));
 
-	__wt_stat_dsrc_init(dhandle);
+	WT_ERR(__wt_stat_dsrc_init(session, dhandle));
 
 	if (strcmp(uri, WT_METAFILE_URI) == 0)
 		F_SET(dhandle, WT_DHANDLE_IS_METADATA);
