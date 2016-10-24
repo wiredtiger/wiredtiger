@@ -163,7 +163,7 @@ err:	if (table != NULL)
 int
 __wt_schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 {
-	WT_SCHEMA_BACKUP_CHECK(session, uri);
+	WT_RET(__wt_schema_backup_check(session, uri));
 	return (__schema_drop_internal(session, uri, cfg));
 }
 

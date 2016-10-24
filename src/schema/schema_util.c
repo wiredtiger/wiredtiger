@@ -9,6 +9,52 @@
 #include "wt_internal.h"
 
 /*
+ * __wt_schema_backup_check --
+ *	Check if a backup cursor is open and give an error if the schema
+ * operation will conflict.  This is called after the schema operations
+ * have taken the schema lock so no hot backup cursor can be created until
+ * this is done.
+ */
+int
+__wt_schema_backup_check(WT_SESSION_IMPL *session, const char *name)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_ITEM(key);
+	WT_DECL_ITEM(value);
+	WT_DECL_RET;
+	WT_FSTREAM *fs;
+
+	conn = S2C(session);
+	fs = NULL;
+	if (conn->hot_backup) {
+		__wt_readlock(session, conn->hot_backup_lock);
+		if (conn->hot_backup) {
+			/* Open the hot backup file. */
+			WT_RET(__wt_fopen(session,
+			    WT_METADATA_BACKUP, 0, WT_STREAM_READ, &fs));
+			WT_ERR(__wt_scr_alloc(session, 512, &key));
+			WT_ERR(__wt_scr_alloc(session, 512, &value));
+			for (;;) {
+				WT_ERR(__wt_getline(session, fs, key));
+				if (key->size == 0)
+					break;
+				WT_ERR(__wt_getline(session, fs, value));
+				if (strcmp(key->data, name) == 0) {
+					ret = EBUSY;
+					break;
+				}
+			}
+		}
+		__wt_readunlock(session, conn->hot_backup_lock);
+	}
+err:	if (fs != NULL) {
+		WT_TRET(__wt_fclose(session, &fs));
+		__wt_scr_free(session, &key);
+		__wt_scr_free(session, &value);
+	}
+	return (ret);
+}
+/*
  * __wt_schema_get_source --
  *	Find a matching data source or report an error.
  */
