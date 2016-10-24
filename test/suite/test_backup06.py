@@ -26,6 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+from datetime import datetime
 import glob
 import os
 import shutil
@@ -40,7 +41,8 @@ from helper import compare_files,\
 #    Test the backup_schema_protect configuration setting.
 class test_backup06(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'statistics=(fast)'
-    num_tables = 0
+    # This will create several thousand tables.
+    num_table_sets = 120
     pfx='test_backup'
 
     # We try to do some schema operations.  Have some well
@@ -63,17 +65,24 @@ class test_backup06(wttest.WiredTigerTestCase, suite_subprocess):
     ]
 
     # Populate a set of objects.
+    def populate_many(self):
+        for t in range(0, self.num_table_sets):
+            for i in self.fobjs:
+                uri = i[0] + "." + str(t)
+                i[1](self, uri, 'key_format=S', 10)
+            for i in self.tobjs:
+                uri = i[0] + "." + str(t)
+                i[1](self, uri, 'key_format=S', 10)
+
     def populate(self):
         for i in self.fobjs:
             i[1](self, i[0], 'key_format=S', 100)
-            self.num_tables += 1
         for i in self.tobjs:
             i[1](self, i[0], 'key_format=S', 100)
-            self.num_tables += 1
 
     # Test that the open handle count does not change.
     def test_cursor_open_handles(self):
-        self.populate()
+        self.populate_many()
         # Close and reopen the connection so the populate dhandles are
         # not in the list.
         self.reopen_conn()
@@ -83,10 +92,20 @@ class test_backup06(wttest.WiredTigerTestCase, suite_subprocess):
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         dh_before = stat_cursor[stat.conn.dh_conn_handle_count][2]
         stat_cursor.close()
+        t1 = datetime.now()
         cursor = self.session.open_cursor('backup:', None, None)
+        t2 = datetime.now()
+        tdiff = t2 - t1
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         dh_after = stat_cursor[stat.conn.dh_conn_handle_count][2]
         stat_cursor.close()
+        if (tdiff.seconds != 0):
+            print "Time difference to open backup cursor"
+            print tdiff
+        if (dh_before != dh_after):
+            print "Dhandles open before backup open: " + str(dh_before)
+            print "Dhandles open after backup open: " + str(dh_after)
+        self.assertEqual(tdiff.seconds == 0, True)
         self.assertEqual(dh_after == dh_before, True)
         cursor.close()
 
