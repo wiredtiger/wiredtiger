@@ -297,8 +297,7 @@ err:	/* Close the hot backup file. */
 		__wt_writelock(session, conn->hot_backup_lock);
 		conn->hot_backup_list = cb->list;
 		__wt_writeunlock(session, conn->hot_backup_lock);
-	} else
-		WT_TRET(__backup_stop(session, cb));
+	}
 
 	return (ret);
 }
