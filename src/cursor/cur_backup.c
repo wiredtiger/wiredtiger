@@ -316,6 +316,9 @@ __backup_stop(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
 	conn = S2C(session);
 
 	/* Release all btree names held by the backup. */
+	__wt_writelock(session, conn->hot_backup_lock);
+	conn->hot_backup_list = NULL;
+	__wt_writeunlock(session, conn->hot_backup_lock);
 	if (cb->list != NULL)
 		__wt_free(session, cb->list);
 
@@ -325,7 +328,6 @@ __backup_stop(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
 	/* Checkpoint deletion can proceed, as can the next hot backup. */
 	__wt_writelock(session, conn->hot_backup_lock);
 	conn->hot_backup = false;
-	conn->hot_backup_list = NULL;
 	__wt_writeunlock(session, conn->hot_backup_lock);
 
 	return (ret);
