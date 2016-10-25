@@ -31,13 +31,13 @@ __curbackup_next(WT_CURSOR *cursor)
 	cb = (WT_CURSOR_BACKUP *)cursor;
 	CURSOR_API_CALL(cursor, session, next, NULL);
 
-	if (cb->list == NULL || cb->list[cb->next].name == NULL) {
+	if (cb->list == NULL || cb->list[cb->next] == NULL) {
 		F_CLR(cursor, WT_CURSTD_KEY_SET);
 		WT_ERR(WT_NOTFOUND);
 	}
 
-	cb->iface.key.data = cb->list[cb->next].name;
-	cb->iface.key.size = strlen(cb->list[cb->next].name) + 1;
+	cb->iface.key.data = cb->list[cb->next];
+	cb->iface.key.size = strlen(cb->list[cb->next]) + 1;
 	++cb->next;
 
 	F_SET(cursor, WT_CURSTD_KEY_INT);
@@ -293,29 +293,9 @@ err:	/* Close the hot backup file. */
 	if (ret == 0) {
 		WT_ASSERT(session, dest != NULL);
 		WT_TRET(__wt_fs_rename(session, WT_BACKUP_TMP, dest, false));
-	}
+	} else
+		WT_TRET(__backup_stop(session, cb));
 
-	return (ret);
-}
-
-/*
- * __backup_cleanup_names --
- *	Release and free all btree names held by the backup.
- */
-static int
-__backup_cleanup_names(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
-{
-	WT_CURSOR_BACKUP_ENTRY *p;
-	WT_DECL_RET;
-
-	if (cb->list == NULL)
-		return (0);
-
-	/* Free the file names, free the list itself. */
-	for (p = cb->list; p->name != NULL; ++p)
-		__wt_free(session, p->name);
-
-	__wt_free(session, cb->list);
 	return (ret);
 }
 
@@ -332,7 +312,8 @@ __backup_stop(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
 	conn = S2C(session);
 
 	/* Release all btree names held by the backup. */
-	WT_TRET(__backup_cleanup_names(session, cb));
+	if (cb->list != NULL)
+		__wt_free(session, cb->list);
 
 	/* Remove any backup specific file. */
 	WT_TRET(__wt_backup_file_remove(session));
@@ -509,14 +490,14 @@ static int
 __backup_list_append(
     WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *uri)
 {
-	WT_CURSOR_BACKUP_ENTRY *p;
+	char **p;
 	const char *name;
 
 	/* Leave a NULL at the end to mark the end of the list. */
 	WT_RET(__wt_realloc_def(session, &cb->list_allocated,
 	    cb->list_next + 2, &cb->list));
 	p = &cb->list[cb->list_next];
-	p[0].name = p[1].name = NULL;
+	p[0] = p[1] = NULL;
 
 	name = uri;
 
@@ -535,7 +516,7 @@ __backup_list_append(
 	 * that for now, that block manager might not even support physical
 	 * copying of files by applications.
 	 */
-	WT_RET(__wt_strdup(session, name, &p->name));
+	WT_RET(__wt_strdup(session, name, p));
 
 	++cb->list_next;
 	return (0);

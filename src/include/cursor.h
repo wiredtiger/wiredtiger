@@ -59,9 +59,6 @@
 	0				/* uint32_t flags */		\
 }
 
-struct __wt_cursor_backup_entry {
-	char *name;			/* File name */
-};
 struct __wt_cursor_backup {
 	WT_CURSOR iface;
 
@@ -69,7 +66,7 @@ struct __wt_cursor_backup {
 	WT_FSTREAM *bfs;		/* Backup file stream */
 	uint32_t maxid;			/* Maximum log file ID seen */
 
-	WT_CURSOR_BACKUP_ENTRY *list;	/* List of files to be copied. */
+	char **list;			/* List of files to be copied. */
 	size_t list_allocated;
 	size_t list_next;
 

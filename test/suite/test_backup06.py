@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from datetime import datetime
 import glob
 import os
 import shutil
@@ -41,8 +40,8 @@ from helper import compare_files,\
 #    Test the backup_schema_protect configuration setting.
 class test_backup06(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'statistics=(fast)'
-    # This will create several thousand tables.
-    num_table_sets = 120
+    # This will create several hundred tables.
+    num_table_sets = 20
     pfx='test_backup'
 
     # We try to do some schema operations.  Have some well
@@ -92,20 +91,13 @@ class test_backup06(wttest.WiredTigerTestCase, suite_subprocess):
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         dh_before = stat_cursor[stat.conn.dh_conn_handle_count][2]
         stat_cursor.close()
-        t1 = datetime.now()
         cursor = self.session.open_cursor('backup:', None, None)
-        t2 = datetime.now()
-        tdiff = t2 - t1
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         dh_after = stat_cursor[stat.conn.dh_conn_handle_count][2]
         stat_cursor.close()
-        if (tdiff.seconds != 0):
-            print "Time difference to open backup cursor"
-            print tdiff
         if (dh_before != dh_after):
             print "Dhandles open before backup open: " + str(dh_before)
             print "Dhandles open after backup open: " + str(dh_after)
-        self.assertEqual(tdiff.seconds == 0, True)
         self.assertEqual(dh_after == dh_before, True)
         cursor.close()
 
