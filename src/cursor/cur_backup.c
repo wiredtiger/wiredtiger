@@ -229,6 +229,7 @@ __backup_start(
 	 */
 	__wt_writelock(session, conn->hot_backup_lock);
 	conn->hot_backup = true;
+	conn->hot_backup_list = NULL;
 	__wt_writeunlock(session, conn->hot_backup_lock);
 
 	/* We're the lock holder, we own cleanup. */
@@ -293,6 +294,9 @@ err:	/* Close the hot backup file. */
 	if (ret == 0) {
 		WT_ASSERT(session, dest != NULL);
 		WT_TRET(__wt_fs_rename(session, WT_BACKUP_TMP, dest, false));
+		__wt_writelock(session, conn->hot_backup_lock);
+		conn->hot_backup_list = cb->list;
+		__wt_writeunlock(session, conn->hot_backup_lock);
 	} else
 		WT_TRET(__backup_stop(session, cb));
 
@@ -321,6 +325,7 @@ __backup_stop(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
 	/* Checkpoint deletion can proceed, as can the next hot backup. */
 	__wt_writelock(session, conn->hot_backup_lock);
 	conn->hot_backup = false;
+	conn->hot_backup_list = NULL;
 	__wt_writeunlock(session, conn->hot_backup_lock);
 
 	return (ret);

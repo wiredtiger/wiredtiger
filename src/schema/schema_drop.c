@@ -8,8 +8,6 @@
 
 #include "wt_internal.h"
 
-static int __schema_drop_internal(WT_SESSION_IMPL *,
-    const char *, const char **);
 /*
  * __drop_file --
  *	Drop a file.
@@ -30,6 +28,7 @@ __drop_file(
 	if (!WT_PREFIX_SKIP(filename, "file:"))
 		return (EINVAL);
 
+	WT_RET(__wt_schema_backup_check(session, filename));
 	/* Close all btree handles associated with this file. */
 	WT_WITH_HANDLE_LIST_LOCK(session,
 	    ret = __wt_conn_dhandle_close_all(session, uri, force));
@@ -67,7 +66,7 @@ __drop_colgroup(
 	if ((ret = __wt_schema_get_colgroup(
 	    session, uri, force, &table, &colgroup)) == 0) {
 		table->cg_complete = false;
-		WT_TRET(__schema_drop_internal(session, colgroup->source, cfg));
+		WT_TRET(__wt_schema_drop(session, colgroup->source, cfg));
 	}
 
 	WT_TRET(__wt_metadata_remove(session, uri));
@@ -90,7 +89,7 @@ __drop_index(
 	if ((ret = __wt_schema_get_index(
 	    session, uri, force, &table, &idx)) == 0) {
 		table->idx_complete = false;
-		WT_TRET(__schema_drop_internal(session, idx->source, cfg));
+		WT_TRET(__wt_schema_drop(session, idx->source, cfg));
 	}
 
 	WT_TRET(__wt_metadata_remove(session, uri));
@@ -127,7 +126,7 @@ __drop_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 		 * the metadata for the table becoming inconsistent if we can't
 		 * get exclusive access.
 		 */
-		WT_ERR(__schema_drop_internal(session, colgroup->source, cfg));
+		WT_ERR(__wt_schema_drop(session, colgroup->source, cfg));
 		WT_ERR(__wt_metadata_remove(session, colgroup->name));
 	}
 
@@ -141,7 +140,7 @@ __drop_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 		 * the metadata for the table becoming inconsistent if we can't
 		 * get exclusive access.
 		 */
-		WT_ERR(__schema_drop_internal(session, idx->source, cfg));
+		WT_ERR(__wt_schema_drop(session, idx->source, cfg));
 		WT_ERR(__wt_metadata_remove(session, idx->name));
 	}
 
@@ -162,18 +161,6 @@ err:	if (table != NULL)
  */
 int
 __wt_schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
-{
-	WT_RET(__wt_schema_backup_check(session, uri));
-	return (__schema_drop_internal(session, uri, cfg));
-}
-
-/*
- * __schema_drop_internal --
- *	Process a WT_SESSION::drop operation for all supported types.
- */
-static int
-__schema_drop_internal(WT_SESSION_IMPL *session,
-    const char *uri, const char *cfg[])
 {
 	WT_CONFIG_ITEM cval;
 	WT_DATA_SOURCE *dsrc;

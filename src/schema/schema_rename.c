@@ -29,6 +29,8 @@ __rename_file(
 	    !WT_PREFIX_SKIP(newfile, "file:"))
 		return (EINVAL);
 
+	WT_RET(__wt_schema_backup_check(session, filename));
+	WT_RET(__wt_schema_backup_check(session, newfile));
 	/* Close any btree handles in the file. */
 	WT_WITH_HANDLE_LIST_LOCK(session,
 	    ret = __wt_conn_dhandle_close_all(session, uri, false));
@@ -246,8 +248,6 @@ __wt_schema_rename(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	const char *p, *t;
 
-	WT_RET(__wt_schema_backup_check(session, uri));
-	WT_RET(__wt_schema_backup_check(session, newuri));
 	/* The target type must match the source type. */
 	for (p = uri, t = newuri; *p == *t && *p != ':'; ++p, ++t)
 		;
