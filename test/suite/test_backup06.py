@@ -37,7 +37,7 @@ from helper import compare_files,\
     complex_populate, complex_populate_lsm, simple_populate
 
 # test_backup06.py
-#    Test the backup_schema_protect configuration setting.
+#    Test that opening a backup cursor does not open file handles.
 class test_backup06(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'statistics=(fast)'
     # This will create several hundred tables.
