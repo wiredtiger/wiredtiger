@@ -55,8 +55,6 @@ __conn_dhandle_alloc(WT_SESSION_IMPL *session,
 	WT_ERR(__wt_spin_init(
 	    session, &dhandle->close_lock, "data handle close"));
 
-	WT_ERR(__wt_stat_dsrc_init(session, dhandle));
-
 	if (strcmp(uri, WT_METAFILE_URI) == 0)
 		F_SET(dhandle, WT_DHANDLE_IS_METADATA);
 
@@ -311,16 +309,15 @@ __wt_conn_btree_open(
 	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_CLOSING));
 
 	/*
-	 * If the handle is already open, it has to be closed so it can
-	 * be reopened with a new configuration.
+	 * If the handle is already open, it has to be closed so it can be
+	 * reopened with a new configuration.
 	 *
-	 * This call can return EBUSY if there's an update in the
-	 * object that's not yet globally visible.  That's not a
-	 * problem because it can only happen when we're switching from
-	 * a normal handle to a "special" one, so we're returning EBUSY
-	 * to an attempt to verify or do other special operations.  The
-	 * reverse won't happen because when the handle from a verify
-	 * or other special operation is closed, there won't be updates
+	 * This call can return EBUSY if there's an update in the object that's
+	 * not yet globally visible. That's not a problem because it can only
+	 * happen when we're switching from a normal handle to a "special" one,
+	 * so we're returning EBUSY to an attempt to verify or do other special
+	 * operations. The reverse won't happen because when the handle from a
+	 * verify or other special operation is closed, there won't be updates
 	 * in the tree that can block the close.
 	 */
 	if (F_ISSET(dhandle, WT_DHANDLE_OPEN))
@@ -332,6 +329,16 @@ __wt_conn_btree_open(
 
 	/* Set any special flags on the handle. */
 	F_SET(btree, LF_MASK(WT_BTREE_SPECIAL_FLAGS));
+
+	/*
+	 * Allocate data-source statistics memory. We don't allocate that memory
+	 * when allocating the data-handle because not all data handles need
+	 * statistics (for example, handles used for checkpoint locking). If we
+	 * are reopening the handle, then it may already have statsitics memory,
+	 * check to avoid the leak.
+	 */
+	if (!F_ISSET(dhandle, WT_DHANDLE_OPEN))
+		WT_ERR(__wt_stat_dsrc_init(session, dhandle));
 
 	WT_ERR(__wt_btree_open(session, cfg));
 
