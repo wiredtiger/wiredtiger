@@ -33,8 +33,7 @@ import string
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 from wiredtiger import stat
-from helper import compare_files,\
-    complex_populate, complex_populate_lsm, simple_populate
+from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
 
 # test_backup06.py
 #    Test that opening a backup cursor does not open file handles.
@@ -51,16 +50,16 @@ class test_backup06(wttest.WiredTigerTestCase, suite_subprocess):
     trename_uri = 'table:new_test'
 
     fobjs = [
-        ( 'file:' + pfx + '.1', simple_populate),
-        ( 'file:' + pfx + '.2', simple_populate),
+        ( 'file:' + pfx + '.1', SimpleDataSet),
+        ( 'file:' + pfx + '.2', SimpleDataSet),
     ]
     tobjs = [
-        ('table:' + pfx + '.3', simple_populate),
-        ('table:' + pfx + '.4', simple_populate),
-        ('table:' + pfx + '.5', complex_populate),
-        ('table:' + pfx + '.6', complex_populate),
-        ('table:' + pfx + '.7', complex_populate_lsm),
-        ('table:' + pfx + '.8', complex_populate_lsm),
+        ('table:' + pfx + '.3', SimpleDataSet),
+        ('table:' + pfx + '.4', SimpleDataSet),
+        ('table:' + pfx + '.5', ComplexDataSet),
+        ('table:' + pfx + '.6', ComplexDataSet),
+        ('table:' + pfx + '.7', ComplexLSMDataSet),
+        ('table:' + pfx + '.8', ComplexLSMDataSet),
     ]
 
     # Populate a set of objects.
@@ -68,16 +67,16 @@ class test_backup06(wttest.WiredTigerTestCase, suite_subprocess):
         for t in range(0, self.num_table_sets):
             for i in self.fobjs:
                 uri = i[0] + "." + str(t)
-                i[1](self, uri, 'key_format=S', 10)
+                i[1](self, uri, 10).populate()
             for i in self.tobjs:
                 uri = i[0] + "." + str(t)
-                i[1](self, uri, 'key_format=S', 10)
+                i[1](self, uri, 10).populate()
 
     def populate(self):
         for i in self.fobjs:
-            i[1](self, i[0], 'key_format=S', 100)
+            i[1](self, i[0], 100).populate()
         for i in self.tobjs:
-            i[1](self, i[0], 'key_format=S', 100)
+            i[1](self, i[0], 100).populate()
 
     # Test that the open handle count does not change.
     def test_cursor_open_handles(self):
