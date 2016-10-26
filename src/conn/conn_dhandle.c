@@ -334,7 +334,7 @@ __wt_conn_btree_open(
 	 * Allocate data-source statistics memory. We don't allocate that memory
 	 * when allocating the data-handle because not all data handles need
 	 * statistics (for example, handles used for checkpoint locking). If we
-	 * are reopening the handle, then it may already have statsitics memory,
+	 * are reopening the handle, then it may already have statistics memory,
 	 * check to avoid the leak.
 	 */
 	if (!F_ISSET(dhandle, WT_DHANDLE_OPEN))
