@@ -15,6 +15,7 @@ static int  __evict_lru_walk(WT_SESSION_IMPL *);
 static int  __evict_page(WT_SESSION_IMPL *, bool);
 static int  __evict_pass(WT_SESSION_IMPL *);
 static int  __evict_server(WT_SESSION_IMPL *, bool *);
+static int  __evict_tune_workers(WT_SESSION_IMPL *session);
 static int  __evict_walk(WT_SESSION_IMPL *, WT_EVICT_QUEUE *);
 static int  __evict_walk_file(
     WT_SESSION_IMPL *, WT_EVICT_QUEUE *, u_int, u_int *);
@@ -565,6 +566,13 @@ __evict_pass(WT_SESSION_IMPL *session)
 		if (!__evict_update_work(session))
 			break;
 
+		/*
+		 * Tune the number of active eviction worker if we are the
+		 * thread with the smallest id in the eviction thread group.
+		 */
+		if (conn->evict_threads.threads[0]->session == session)
+			__evict_tune_workers(session);
+
 		__wt_verbose(session, WT_VERB_EVICTSERVER,
 		    "Eviction pass with: Max: %" PRIu64
 		    " In use: %" PRIu64 " Dirty: %" PRIu64,
@@ -1040,13 +1048,6 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
 	WT_DECL_RET;
 
 	conn = S2C(session);
-
-	/*
-	 * Tune the number of active eviction worker if we are the thread
-	 * with the smallest id in the eviction thread group.
-	 */
-	if (conn->evict_threads.threads[0]->session == session)
-		__evict_tune_workers(session);
 
 	/*
 	 * Reconcile and discard some pages: EBUSY is returned if a page fails
