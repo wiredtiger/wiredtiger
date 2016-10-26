@@ -326,7 +326,6 @@ __backup_stop(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
 		for (i = 0; cb->list[i] != NULL; ++i)
 			__wt_free(session, cb->list[i]);
 		__wt_free(session, cb->list);
-		cb->list = NULL;
 	}
 
 	/* Remove any backup specific file. */
