@@ -226,6 +226,9 @@ __backup_start(
 	 * holds the lock until it's finished the checkpoint, otherwise we
 	 * could start a hot backup that would race with an already-started
 	 * checkpoint.
+	 *
+	 * We are holding the checkpoint and schema locks so schema operations
+	 * will not see the backup file list until it is complete and valid.
 	 */
 	__wt_writelock(session, conn->hot_backup_lock);
 	conn->hot_backup = true;
