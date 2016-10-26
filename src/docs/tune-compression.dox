@@ -42,12 +42,12 @@ method should also make for less overhead in compression, as the setup and
 initial work for compressing is done fewer times compared to the amount of
 data stored.  Algorithms using raw compression include zlib, lz4.
 
-@subsection to_raw_or_noraw Chosing between Raw and Noraw Compression
+@subsection to_raw_or_noraw Choosing between Raw and Noraw Compression
 When looking at which compression method to use the biggest consideration is
 that raw compression will normally provide slightly higher compression levels.
 
 An additional consideration is that raw compression may provide a slight
-advantage in workloads where data is accessed sequentially. The higher 
+advantage in workloads where data is accessed sequentially. The higher
 compression ratio and sizing to blocks could theoretically provide a small
 performance increase.
 
