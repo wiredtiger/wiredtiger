@@ -562,8 +562,7 @@ __wt_conn_dhandle_discard_single(
 
 	dhandle = session->dhandle;
 
-	if (F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
-	    (final && F_ISSET(dhandle, WT_DHANDLE_DEAD))) {
+	if (F_ISSET(dhandle, WT_DHANDLE_OPEN)) {
 		tret = __wt_conn_btree_sync_and_close(session, final, force);
 		if (final && tret != 0) {
 			__wt_err(session, tret,
