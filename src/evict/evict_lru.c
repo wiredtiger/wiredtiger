@@ -549,6 +549,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 		 * does need to do some work.
 		 */
 		__wt_cache_read_gen_incr(session);
+		++cache->evict_pass_gen;
 
 		/*
 		 * Update the oldest ID: we use it to decide whether pages are
@@ -1484,8 +1485,8 @@ __evict_push_candidate(WT_SESSION_IMPL *session,
  *	Get a few page eviction candidates from a single underlying file.
  */
 static int
-__evict_walk_file(WT_SESSION_IMPL *session,
-    WT_EVICT_QUEUE *queue, u_int max_entries, u_int *slotp)
+__evict_walk_file(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
+    u_int max_entries, u_int *slotp)
 {
 	WT_BTREE *btree;
 	WT_CACHE *cache;
@@ -1612,6 +1613,7 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 
 		page = ref->page;
 		modified = __wt_page_is_modified(page);
+		page->evict_pass_gen = cache->evict_pass_gen;
 
 		/*
 		 * Use the EVICT_LRU flag to avoid putting pages onto the list
@@ -1758,7 +1760,7 @@ __evict_get_ref(
 	server_only = is_server && !WT_EVICT_HAS_WORKERS(session);
 	urgent_ok = (!is_app && !is_server) ||
 	    !WT_EVICT_HAS_WORKERS(session) ||
-	    __wt_cache_aggressive(session);
+	    (is_app && __wt_cache_aggressive(session));
 	urgent_queue = cache->evict_urgent_queue;
 	*btreep = NULL;
 	*refp = NULL;
