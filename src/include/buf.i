@@ -77,6 +77,8 @@ __wt_buf_set(
 
         if (size != 0) {
 #ifdef HAVE_DIAGNOSTIC
+                const char free_mem_pattern[] = {WT_DEBUG_BYTE, WT_DEBUG_BYTE};
+
                 /* Add asserts to catch memory use violations */
                 if (buf->mem == NULL) {
                         __wt_errx(session,
@@ -103,6 +105,20 @@ __wt_buf_set(
                             size, buf->data, buf->size, buf->flags, buf->mem,
                             buf->memsize);
                         WT_ASSERT(session, size <= buf->memsize);
+                }
+
+                /*
+                 * Check if data has not already been freed:
+                 * Consider it freed if it matches the free-mem pattern.
+                 */
+                if (0 == memcmp(data,
+                    free_mem_pattern, sizeof(free_mem_pattern))) {
+                        __wt_errx(session,
+                            "data matches free-mem pattern. buf contents: "
+                            "data 0x%p size %lu flags 0x%x mem 0x%p memsize %lu",
+                            buf->data, buf->size, buf->flags, buf->mem,
+                            buf->memsize);
+                        WT_ASSERT(session, !"data matches free pattern");
                 }
 #endif
 
