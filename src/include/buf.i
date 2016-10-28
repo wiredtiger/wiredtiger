@@ -75,11 +75,42 @@ __wt_buf_set(
 	/* Ensure the buffer is large enough. */
 	WT_RET(__wt_buf_initsize(session, buf, size));
 
-	/* Copy the data, allowing for overlapping strings. */
-	if (size != 0)
-		memmove(buf->mem, data, size);
+        if (size != 0) {
+#ifdef HAVE_DIAGNOSTIC
+                /* Add asserts to catch memory use violations */
+                if (buf->mem == NULL) {
+                        __wt_errx(session,
+                            "buf->mem is NULL, buf contents:data 0x%p size %lu "
+                            "flags 0x%x mem 0x%p memsize %lu",
+                            buf->data, buf->size, buf->flags, buf->mem,
+                            buf->memsize);
+                        WT_ASSERT(session, buf->mem != NULL);
+                }
 
-	return (0);
+                if (data == NULL) {
+                        __wt_errx(session,
+                            "data is NULL, buf contents:data 0x%p size %lu "
+                            "flags 0x%x mem 0x%p memsize %lu",
+                            buf->data, buf->size, buf->flags, buf->mem,
+                            buf->memsize);
+                        WT_ASSERT(session, data != NULL);
+                }
+
+                if (size > buf->memsize) {
+                        __wt_errx(session,
+                            "size is unreasonable at %"PRIu64". buf contents: "
+                            "data 0x%p size %lu flags 0x%x mem 0x%p memsize %lu",
+                            size, buf->data, buf->size, buf->flags, buf->mem,
+                            buf->memsize);
+                        WT_ASSERT(session, size <= buf->memsize);
+                }
+#endif
+
+                /* Copy the data, allowing for overlapping strings. */
+                memmove(buf->mem, data, size);
+        }
+
+        return (0);
 }
 
 /*
