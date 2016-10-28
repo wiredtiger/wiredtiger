@@ -75,58 +75,58 @@ __wt_buf_set(
 	/* Ensure the buffer is large enough. */
 	WT_RET(__wt_buf_initsize(session, buf, size));
 
-        if (size != 0) {
+	if (size != 0) {
 #ifdef HAVE_DIAGNOSTIC
-                const char free_mem_pattern[] = {WT_DEBUG_BYTE, WT_DEBUG_BYTE};
+		const char free_mem_pattern[] = {WT_DEBUG_BYTE, WT_DEBUG_BYTE};
 
-                /* Add asserts to catch memory use violations */
-                if (buf->mem == NULL) {
-                        __wt_errx(session,
-                            "buf->mem is NULL, buf contents:data 0x%p size %lu "
-                            "flags 0x%x mem 0x%p memsize %lu",
-                            buf->data, buf->size, buf->flags, buf->mem,
-                            buf->memsize);
-                        WT_ASSERT(session, buf->mem != NULL);
-                }
+		/* Add asserts to catch memory use violations */
+		if (buf->mem == NULL) {
+			__wt_errx(session,
+			    "buf->mem is NULL, buf contents:data 0x%p size %lu "
+			    "flags 0x%x mem 0x%p memsize %lu",
+			    buf->data, buf->size, buf->flags, buf->mem,
+			    buf->memsize);
+			WT_ASSERT(session, buf->mem != NULL);
+		}
 
-                if (data == NULL) {
-                        __wt_errx(session,
-                            "data is NULL, buf contents:data 0x%p size %lu "
-                            "flags 0x%x mem 0x%p memsize %lu",
-                            buf->data, buf->size, buf->flags, buf->mem,
-                            buf->memsize);
-                        WT_ASSERT(session, data != NULL);
-                }
+		if (data == NULL) {
+			__wt_errx(session,
+			    "data is NULL, buf contents:data 0x%p size %lu "
+			    "flags 0x%x mem 0x%p memsize %lu",
+			    buf->data, buf->size, buf->flags, buf->mem,
+			    buf->memsize);
+			WT_ASSERT(session, data != NULL);
+		}
 
-                if (size > buf->memsize) {
-                        __wt_errx(session,
-                            "size is unreasonable at %"PRIu64". buf contents: "
-                            "data 0x%p size %lu flags 0x%x mem 0x%p memsize %lu",
-                            size, buf->data, buf->size, buf->flags, buf->mem,
-                            buf->memsize);
-                        WT_ASSERT(session, size <= buf->memsize);
-                }
+		if (size > buf->memsize) {
+			__wt_errx(session,
+			    "size is unreasonable at %"PRIu64". buf contents: "
+			    "data 0x%p size %lu flags 0x%x mem 0x%p memsize "
+			    "%lu", size, buf->data, buf->size, buf->flags,
+			    buf->mem, buf->memsize);
+			WT_ASSERT(session, size <= buf->memsize);
+		}
 
-                /*
-                 * Check if data has not already been freed:
-                 * Consider it freed if it matches the free-mem pattern.
-                 */
-                if (0 == memcmp(data,
-                    free_mem_pattern, sizeof(free_mem_pattern))) {
-                        __wt_errx(session,
-                            "data matches free-mem pattern. buf contents: "
-                            "data 0x%p size %lu flags 0x%x mem 0x%p memsize %lu",
-                            buf->data, buf->size, buf->flags, buf->mem,
-                            buf->memsize);
-                        WT_ASSERT(session, !"data matches free pattern");
-                }
+		/*
+		 * Check if data has not already been freed:
+		 * Consider it freed if it matches the free-mem pattern.
+		 */
+		if (0 == memcmp(data,
+		    free_mem_pattern, sizeof(free_mem_pattern))) {
+			__wt_errx(session,
+			    "data matches free-mem pattern. buf contents: "
+			    "data 0x%p size %lu flags 0x%x mem 0x%p memsize "
+			    "%lu", buf->data, buf->size, buf->flags, buf->mem,
+			    buf->memsize);
+			WT_ASSERT(session, !"data matches free pattern");
+		}
 #endif
 
-                /* Copy the data, allowing for overlapping strings. */
-                memmove(buf->mem, data, size);
-        }
+		/* Copy the data, allowing for overlapping strings. */
+		memmove(buf->mem, data, size);
+	}
 
-        return (0);
+	return (0);
 }
 
 /*
