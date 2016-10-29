@@ -185,7 +185,8 @@ snappy_decompression(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	snaplen = snappy_bswap64(snaplen);
 #endif
 	if (snaplen + SNAPPY_PREFIX > src_len) {
-		(void)wt_api->err_printf(wt_api, session,
+		(void)wt_api->err_printf(wt_api,
+		    session,
 		    "WT_COMPRESSOR.decompress: stored size exceeds source "
 		    "size");
 		return (WT_ERROR);

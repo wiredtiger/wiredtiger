@@ -68,7 +68,7 @@
 typedef struct {
 	WT_ENCRYPTOR encryptor;		/* Must come first */
 
-	WT_EXTENSION_API *wt_api;	/* Extension API */
+	WT_EXTENSION_API *wtext;	/* Extension API */
 
 	int rot_N;			/* rotN value */
 	char *keyid;			/* Saved keyid */
@@ -92,12 +92,11 @@ static int
 rotn_error(
     ROTN_ENCRYPTOR *encryptor, WT_SESSION *session, int err, const char *msg)
 {
-	WT_EXTENSION_API *wt_api;
+	WT_EXTENSION_API *wtext;
 
-	wt_api = encryptor->wt_api;
-	(void)wt_api->err_printf(wt_api, session,
-	    "rotn encryption: %s: %s",
-	    msg, wt_api->strerror(wt_api, NULL, err));
+	wtext = encryptor->wtext;
+	(void)wtext->err_printf(wtext, session,
+	    "rotn encryption: %s: %s", msg, wtext->strerror(wtext, NULL, err));
 	return (err);
 }
 
@@ -310,7 +309,7 @@ rotn_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session,
 	const ROTN_ENCRYPTOR *orig;
 	ROTN_ENCRYPTOR *rotn_encryptor;
 	WT_CONFIG_ITEM keyid, secret;
-	WT_EXTENSION_API *wt_api;
+	WT_EXTENSION_API *wtext;
 	size_t i, len;
 	int ret, keyid_val;
 	u_char base;
@@ -319,7 +318,7 @@ rotn_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session,
 	keyid_val = 0;
 
 	orig = (const ROTN_ENCRYPTOR *)encryptor;
-	wt_api = orig->wt_api;
+	wtext = orig->wtext;
 
 	if ((rotn_encryptor = calloc(1, sizeof(ROTN_ENCRYPTOR))) == NULL)
 		return (errno);
@@ -329,7 +328,7 @@ rotn_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session,
 	/*
 	 * Stash the keyid from the configuration string.
 	 */
-	if ((ret = wt_api->config_get(wt_api, session, encrypt_config,
+	if ((ret = wtext->config_get(wtext, session, encrypt_config,
 	    "keyid", &keyid)) == 0 && keyid.len != 0) {
 		/*
 		 * In this demonstration, we expect keyid to be a number.
@@ -352,7 +351,7 @@ rotn_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session,
 	 * We stash the secret key from the configuration string
 	 * and build some shift bytes to make encryption/decryption easy.
 	 */
-	if ((ret = wt_api->config_get(wt_api, session, encrypt_config,
+	if ((ret = wtext->config_get(wtext, session, encrypt_config,
 	    "secretkey", &secret)) == 0 && secret.len != 0) {
 		len = secret.len;
 		if ((rotn_encryptor->secretkey = malloc(len + 1)) == NULL ||
@@ -431,19 +430,19 @@ rotn_configure(ROTN_ENCRYPTOR *rotn_encryptor, WT_CONFIG_ARG *config)
 {
 	WT_CONFIG_ITEM k, v;
 	WT_CONFIG_PARSER *config_parser;
-	WT_EXTENSION_API *wt_api;	/* Extension API */
+	WT_EXTENSION_API *wtext;	/* Extension API */
 	int ret, t_ret;
 
-	wt_api = rotn_encryptor->wt_api;
+	wtext = rotn_encryptor->wtext;
 
 	/* Get the configuration string. */
-	if ((ret = wt_api->config_get(wt_api, NULL, config, "config", &v)) != 0)
+	if ((ret = wtext->config_get(wtext, NULL, config, "config", &v)) != 0)
 		return (rotn_error(rotn_encryptor, NULL, ret,
 		    "WT_EXTENSION_API.config_get"));
 
 	/* Step through the list of configuration options. */
-	if ((ret = wt_api->config_parser_open(
-	    wt_api, NULL, v.str, v.len, &config_parser)) != 0)
+	if ((ret = wtext->config_parser_open(
+	    wtext, NULL, v.str, v.len, &config_parser)) != 0)
 		return (rotn_error(rotn_encryptor, NULL, ret,
 		    "WT_EXTENSION_API.config_parser_open"));
 
@@ -496,7 +495,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 	rotn_encryptor->encryptor.sizing = rotn_sizing;
 	rotn_encryptor->encryptor.customize = rotn_customize;
 	rotn_encryptor->encryptor.terminate = rotn_terminate;
-	rotn_encryptor->wt_api = connection->get_extension_api(connection);
+	rotn_encryptor->wtext = connection->get_extension_api(connection);
 
 	if ((ret = rotn_configure(rotn_encryptor, config)) != 0) {
 		free(rotn_encryptor);

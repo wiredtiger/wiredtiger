@@ -173,7 +173,8 @@ zstd_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	zstd_len = zstd_bswap64(zstd_len);
 #endif
 	if (zstd_len + ZSTD_PREFIX > src_len) {
-		(void)wt_api->err_printf(wt_api, session,
+		(void)wt_api->err_printf(wt_api,
+		    session,
 		    "WT_COMPRESSOR.decompress: stored size exceeds source "
 		    "size");
 		return (WT_ERROR);
@@ -233,7 +234,7 @@ zstd_init_config(
 {
 	WT_CONFIG_ITEM k, v;
 	WT_CONFIG_PARSER *config_parser;
-	WT_EXTENSION_API *wt_api;
+	WT_EXTENSION_API *wtext;
 	int ret;
 
 	/* If configured as a built-in, there's no configuration argument. */
@@ -244,19 +245,18 @@ zstd_init_config(
 	 * Zstd compression engine allows applications to specify a compression
 	 * level; review the configuration.
 	 */
-	wt_api = connection->get_extension_api(connection);
-	if ((ret =
-	    wt_api->config_get(wt_api, NULL, config, "config", &v)) != 0) {
-		(void)wt_api->err_printf(wt_api, NULL,
+	wtext = connection->get_extension_api(connection);
+	if ((ret = wtext->config_get(wtext, NULL, config, "config", &v)) != 0) {
+		(void)wtext->err_printf(wtext, NULL,
 		    "WT_EXTENSION_API.config_get: zstd configure: %s",
-		    wt_api->strerror(wt_api, NULL, ret));
+		    wtext->strerror(wtext, NULL, ret));
 		return (ret);
 	}
-	if ((ret = wt_api->config_parser_open(
-	    wt_api, NULL, v.str, v.len, &config_parser)) != 0) {
-		(void)wt_api->err_printf(wt_api, NULL,
+	if ((ret = wtext->config_parser_open(
+	    wtext, NULL, v.str, v.len, &config_parser)) != 0) {
+		(void)wtext->err_printf(wtext, NULL,
 		    "WT_EXTENSION_API.config_parser_open: zstd configure: %s",
-		    wt_api->strerror(wt_api, NULL, ret));
+		    wtext->strerror(wtext, NULL, ret));
 		return (ret);
 	}
 	while ((ret = config_parser->next(config_parser, &k, &v)) == 0)
@@ -266,15 +266,15 @@ zstd_init_config(
 			continue;
 		}
 	if (ret != WT_NOTFOUND) {
-		(void)wt_api->err_printf(wt_api, NULL,
+		(void)wtext->err_printf(wtext, NULL,
 		    "WT_CONFIG_PARSER.next: zstd configure: %s",
-		    wt_api->strerror(wt_api, NULL, ret));
+		    wtext->strerror(wtext, NULL, ret));
 		return (ret);
 	}
 	if ((ret = config_parser->close(config_parser)) != 0) {
-		(void)wt_api->err_printf(wt_api, NULL,
+		(void)wtext->err_printf(wtext, NULL,
 		    "WT_CONFIG_PARSER.close: zstd configure: %s",
-		    wt_api->strerror(wt_api, NULL, ret));
+		    wtext->strerror(wtext, NULL, ret));
 		return (ret);
 	}
 	return (0);
