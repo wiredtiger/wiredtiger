@@ -37,21 +37,20 @@ __cursor_size_chk(WT_SESSION_IMPL *session, WT_ITEM *kv)
 	if (kv->size <= WT_GIGABYTE)
 		return (0);
 
-	/*
-	 * There are two checks: what we are willing to store in the tree, and
-	 * what the block manager can actually write.
-	 */
+	/* Check what we are willing to store in the tree. */
 	if (kv->size > WT_BTREE_MAX_OBJECT_SIZE)
-		ret = EINVAL;
-	else {
-		size = kv->size;
-		ret = bm->write_size(bm, session, &size);
-	}
-	if (ret != 0)
-		WT_RET_MSG(session, ret,
+		WT_RET_MSG(session, EINVAL,
 		    "item size of %" WT_SIZET_FMT " exceeds the maximum "
-		    "supported size",
+		    "supported WiredTiger size of %d",
+		    kv->size, WT_BTREE_MAX_OBJECT_SIZE);
+
+	/* Check what the block manager can actually write. */
+	size = kv->size;
+	if ((ret = bm->write_size(bm, session, &size)) != 0)
+		WT_RET_MSG(session, ret,
+		    "item size of %" WT_SIZET_FMT " refused by block manager",
 		    kv->size);
+
 	return (0);
 }
 
