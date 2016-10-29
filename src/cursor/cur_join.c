@@ -38,8 +38,8 @@ __wt_curjoin_joined(WT_CURSOR *cursor)
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)cursor->session;
-	__wt_errx(session, "cursor is being used in a join");
-	return (ENOTSUP);
+
+	WT_RET_MSG(session, ENOTSUP, "cursor is being used in a join");
 }
 
 /*
