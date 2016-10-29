@@ -571,7 +571,7 @@ __create_table(WT_SESSION_IMPL *session,
 
 	tablename = name;
 	if (!WT_PREFIX_SKIP(tablename, "table:"))
-		return (EINVAL);
+		return (__wt_unexpected_object_type(session, name, "table:"));
 
 	if ((ret = __wt_schema_get_table(session,
 	    tablename, strlen(tablename), false, &table)) == 0) {
