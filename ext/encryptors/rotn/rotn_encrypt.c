@@ -335,7 +335,8 @@ rotn_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session,
 		 * In this demonstration, we expect keyid to be a number.
 		 */
 		if ((keyid_val = atoi(keyid.str)) < 0) {
-			ret = EINVAL;
+			ret = rotn_error(rotn_encryptor,
+			    NULL, EINVAL, "rotn_customize: invalid keyid");
 			goto err;
 		}
 		if ((rotn_encryptor->keyid = malloc(keyid.len + 1)) == NULL) {
@@ -366,7 +367,8 @@ rotn_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session,
 			else if ('A' <= secret.str[i] && secret.str[i] <= 'Z')
 				base = 'A';
 			else {
-				ret = EINVAL;
+				ret = rotn_error(rotn_encryptor, NULL,
+				    EINVAL, "rotn_customize: invalid key");
 				goto err;
 			}
 			base -= (u_char)keyid_val;
