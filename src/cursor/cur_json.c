@@ -492,11 +492,9 @@ __wt_json_token(WT_SESSION *wt_session, const char *src, int *toktype,
 
 					uc = (const u_char *)src;
 					if (__wt_hex2byte(&uc[1], &ignored) ||
-					    __wt_hex2byte(&uc[3], &ignored)) {
-						__wt_errx(session,
+					    __wt_hex2byte(&uc[3], &ignored))
+						WT_RET_MSG(session, EINVAL,
 				    "invalid Unicode within JSON string");
-						return (-1);
-					}
 					src += 4;
 				}
 				backslash = false;
@@ -878,16 +876,11 @@ __wt_json_strncpy(WT_SESSION *wt_session, char **pdst, size_t dstlen,
 		if ((ch = *src++) == '\\')
 			switch (ch = *src++) {
 			case 'u':
-				if (__wt_hex2byte((const u_char *)src, &hi))
+				if (__wt_hex2byte((const u_char *)src, &hi) ||
+				    __wt_hex2byte((const u_char *)src + 2, &lo))
 					WT_RET_MSG(session, EINVAL,
-					    "invalid hex byte %c%c",
-					    src[0], src[1]);
-				src += 2;
-				if (__wt_hex2byte((const u_char *)src, &lo))
-					WT_RET_MSG(session, EINVAL,
-					    "invalid hex byte %c%c",
-					    src[0], src[1]);
-				src += 2;
+				    "invalid Unicode within JSON string");
+				src += 4;
 				if (hi != 0)
 					WT_RET_MSG(session, EINVAL,
 					    "Unicode \"%6.6s\" byte out of "
