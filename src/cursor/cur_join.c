@@ -1304,11 +1304,19 @@ __wt_curjoin_open(WT_SESSION_IMPL *session,
 
 	WT_STATIC_ASSERT(offsetof(WT_CURSOR_JOIN, iface) == 0);
 
+	if (owner != NULL)
+		WT_RET_MSG(session, EINVAL,
+		    "unable to initialize a join cursor with existing owner");
+
 	if (!WT_PREFIX_SKIP(uri, "join:"))
-		return (EINVAL);
+		WT_RET_MSG(session, EINVAL,
+		    "uri prefix %s doesn't match expected \"join:\"",
+		    uri);
 	tablename = uri;
 	if (!WT_PREFIX_SKIP(tablename, "table:"))
-		return (EINVAL);
+		WT_RET_MSG(session, EINVAL,
+		    "uri prefix %s doesn't match expected \"table:\"",
+		    uri);
 
 	columns = strchr(tablename, '(');
 	if (columns == NULL)
@@ -1335,9 +1343,6 @@ __wt_curjoin_open(WT_SESSION_IMPL *session,
 		    session, tmp->data, tmp->size, &cursor->value_format));
 		WT_ERR(__wt_strdup(session, columns, &cjoin->projection));
 	}
-
-	if (owner != NULL)
-		WT_ERR(EINVAL);
 
 	WT_ERR(__wt_cursor_init(cursor, uri, owner, cfg, cursorp));
 
