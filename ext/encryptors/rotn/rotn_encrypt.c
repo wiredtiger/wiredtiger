@@ -89,8 +89,8 @@ typedef struct {
  *	Display an error from this module in a standard way.
  */
 static int
-rotn_error(ROTN_ENCRYPTOR *encryptor, WT_SESSION *session, int err,
-    const char *msg)
+rotn_error(
+    ROTN_ENCRYPTOR *encryptor, WT_SESSION *session, int err, const char *msg)
 {
 	WT_EXTENSION_API *wtext;
 
@@ -189,7 +189,8 @@ rotn_encrypt(WT_ENCRYPTOR *encryptor, WT_SESSION *session,
 	(void)session;		/* Unused */
 
 	if (dst_len < src_len + CHKSUM_LEN + IV_LEN)
-		return (ENOMEM);
+		return (rotn_error(rotn_encryptor, session,
+		    ENOMEM, "encrypt buffer not big enough"));
 
 	/*
 	 * !!! Most implementations would verify any needed
