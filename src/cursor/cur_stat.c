@@ -383,7 +383,8 @@ __curstat_file_init(WT_SESSION_IMPL *session,
 	if (F_ISSET(cst, WT_STAT_TYPE_SIZE)) {
 		filename = uri;
 		if (!WT_PREFIX_SKIP(filename, "file:"))
-			return (EINVAL);
+			WT_RET_MSG(session, EINVAL,
+			    "uri prefix %s doesn't match expected \"file:\"");
 		__wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
 		WT_RET(__wt_block_manager_named_size(session, filename, &size));
 		cst->u.dsrc_stats.block_size = size;
