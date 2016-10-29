@@ -1309,14 +1309,10 @@ __wt_curjoin_open(WT_SESSION_IMPL *session,
 		    "unable to initialize a join cursor with existing owner");
 
 	if (!WT_PREFIX_SKIP(uri, "join:"))
-		WT_RET_MSG(session, EINVAL,
-		    "uri prefix %s doesn't match expected \"join:\"",
-		    uri);
+		return (__wt_unexpected_object_type(session, uri, "join:"));
 	tablename = uri;
 	if (!WT_PREFIX_SKIP(tablename, "table:"))
-		WT_RET_MSG(session, EINVAL,
-		    "uri prefix %s doesn't match expected \"table:\"",
-		    uri);
+		return (__wt_unexpected_object_type(session, uri, "table:"));
 
 	columns = strchr(tablename, '(');
 	if (columns == NULL)
