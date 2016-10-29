@@ -65,15 +65,15 @@ csv_extract(WT_EXTRACTOR *extractor, WT_SESSION *session,
 	const CSV_EXTRACTOR *csv_extractor;
 	int i, ret, val;
 	size_t len;
-	WT_EXTENSION_API *wtapi;
+	WT_EXTENSION_API *wt_api;
 
 	(void)key;				/* Unused parameters */
 
 	csv_extractor = (const CSV_EXTRACTOR *)extractor;
-	wtapi = csv_extractor->wt_api;
+	wt_api = csv_extractor->wt_api;
 
 	/* Unpack the value. */
-	if ((ret = wtapi->struct_unpack(wtapi,
+	if ((ret = wt_api->struct_unpack(wt_api,
 	    session, value->data, value->size, "S", &valstr)) != 0)
 		return (ret);
 
@@ -125,7 +125,7 @@ csv_customize(WT_EXTRACTOR *extractor, WT_SESSION *session,
 	CSV_EXTRACTOR *csv_extractor;
 	WT_CONFIG_ITEM field, format;
 	WT_CONFIG_PARSER *parser;
-	WT_EXTENSION_API *wtapi;
+	WT_EXTENSION_API *wt_api;
 	int ret;
 	long field_num;
 
@@ -133,8 +133,8 @@ csv_customize(WT_EXTRACTOR *extractor, WT_SESSION *session,
 	(void)uri;				/* Unused parameters */
 
 	orig = (const CSV_EXTRACTOR *)extractor;
-	wtapi = orig->wt_api;
-	if ((ret = wtapi->config_parser_open(wtapi, session, appcfg->str,
+	wt_api = orig->wt_api;
+	if ((ret = wt_api->config_parser_open(wt_api, session, appcfg->str,
 	    appcfg->len, &parser)) != 0)
 		return (ret);
 	if ((ret = parser->get(parser, "field", &field)) != 0 ||
