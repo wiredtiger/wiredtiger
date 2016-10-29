@@ -892,7 +892,8 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 
 	tablename = uri;
 	if (!WT_PREFIX_SKIP(tablename, "table:"))
-		return (EINVAL);
+		WT_RET_MSG(session, EINVAL,
+		    "uri prefix %s doesn't match expected \"table:\"", uri);
 	columns = strchr(tablename, '(');
 	if (columns == NULL)
 		size = strlen(tablename);
