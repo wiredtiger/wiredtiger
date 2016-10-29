@@ -1678,7 +1678,8 @@ __wt_clsm_open(WT_SESSION_IMPL *session,
 	lsm_tree = NULL;
 
 	if (!WT_PREFIX_MATCH(uri, "lsm:"))
-		return (EINVAL);
+		WT_RET_MSG(session, EINVAL,
+		    "uri prefix %s doesn't match expected \"lsm:\"", uri);
 
 	if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
 		WT_RET_MSG(session, EINVAL,
