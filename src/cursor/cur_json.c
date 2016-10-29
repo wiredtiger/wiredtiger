@@ -853,9 +853,8 @@ __wt_json_strlen(const char *src, size_t srclen)
 
 /*
  * __wt_json_strncpy --
- *	Copy bytes of string in JSON format to a destination,
- *	up to dstlen bytes.  If dstlen is greater than the needed size,
- *	the result if zero padded.
+ *	Copy bytes of string in JSON format to a destination, up to dstlen
+ * bytes. If dstlen is greater than the needed size, the result if zero padded.
  */
 int
 __wt_json_strncpy(WT_SESSION *wt_session, char **pdst, size_t dstlen,
@@ -910,7 +909,8 @@ __wt_json_strncpy(WT_SESSION *wt_session, char **pdst, size_t dstlen,
 			*dst++ = ch;
 	}
 	if (src != srcend)
-		return (ENOMEM);
+		WT_RET_MSG(session,
+		    ENOMEM, "JSON string copy destination buffer too small");
 	*pdst = dst;
 	while (dst < dstend)
 		*dst++ = '\0';
