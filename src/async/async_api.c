@@ -144,8 +144,7 @@ retry:
 	 */
 	if (op == NULL || op->state != WT_ASYNCOP_FREE) {
 		WT_STAT_CONN_INCR(session, async_full);
-		WT_RET_MSG(session, EBUSY,
-		    "no available async operations handles");
+		return (EBUSY);
 	}
 	/*
 	 * Set the state of this op handle as READY for the user to use.
