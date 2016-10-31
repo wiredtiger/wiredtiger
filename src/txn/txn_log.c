@@ -265,8 +265,8 @@ int
 __wt_txn_checkpoint_logread(WT_SESSION_IMPL *session,
     const uint8_t **pp, const uint8_t *end, WT_LSN *ckpt_lsn)
 {
-	WT_ITEM ckpt_snapshot_unused;
 	WT_DECL_RET;
+	WT_ITEM ckpt_snapshot_unused;
 	uint32_t ckpt_file, ckpt_offset;
 	u_int ckpt_nsnapshot_unused;
 	const char *fmt = WT_UNCHECKED_STRING(IIIU);
