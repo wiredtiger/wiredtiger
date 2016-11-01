@@ -262,6 +262,12 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 		    WT_STRING_MATCH("read-uncommitted", cval.str, cval.len) ?
 		    WT_ISO_READ_UNCOMMITTED : WT_ISO_READ_COMMITTED;
 
+	WT_ERR(__wt_config_gets_def(session, cfg, "exempt", 0, &cval));
+	if (cval.val) {
+		F_CLR(session, WT_SESSION_CAN_WAIT);
+		F_SET(session, WT_SESSION_NO_EVICTION);
+	}
+
 err:	API_END_RET_NOTFOUND_MAP(session, ret);
 }
 

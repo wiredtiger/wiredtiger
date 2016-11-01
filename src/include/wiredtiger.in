@@ -827,6 +827,12 @@ struct __wt_session {
 	 *
 	 * @param session the session handle
 	 * @configstart{WT_SESSION.reconfigure, see dist/api_data.py}
+	 * @config{exempt, application threads are sometimes preempted to
+	 * perform WiredTiger tasks (for example\, if the dedicated eviction
+	 * threads are unable to keep up with cache eviction\, applications
+	 * threads may be used to assist in eviction; if true\, threads using
+	 * this session will not be chosen for those purposes., a boolean flag;
+	 * default \c false.}
 	 * @config{isolation, the default isolation level for operations in this
 	 * session., a string\, chosen from the following options: \c
 	 * "read-uncommitted"\, \c "read-committed"\, \c "snapshot"; default \c
@@ -2005,6 +2011,12 @@ struct __wt_connection {
 	 * connection's error handler is used. See @ref error_handling_event
 	 * for more information.
 	 * @configstart{WT_CONNECTION.open_session, see dist/api_data.py}
+	 * @config{exempt, application threads are sometimes preempted to
+	 * perform WiredTiger tasks (for example\, if the dedicated eviction
+	 * threads are unable to keep up with cache eviction\, applications
+	 * threads may be used to assist in eviction; if true\, threads using
+	 * this session will not be chosen for those purposes., a boolean flag;
+	 * default \c false.}
 	 * @config{isolation, the default isolation level for operations in this
 	 * session., a string\, chosen from the following options: \c
 	 * "read-uncommitted"\, \c "read-committed"\, \c "snapshot"; default \c
