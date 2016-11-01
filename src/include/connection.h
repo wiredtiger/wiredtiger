@@ -290,10 +290,10 @@ struct __wt_connection_impl {
 
 					/* Connection statistics */
 	WT_CONNECTION_STATS *stats[WT_COUNTER_SLOTS];
-	WT_CONNECTION_STATS  stat_array[WT_COUNTER_SLOTS];
+	WT_CONNECTION_STATS *stat_array;
 
 	WT_ASYNC	*async;		/* Async structure */
-	int		 async_cfg;	/* Global async configuration */
+	bool		 async_cfg;	/* Global async configuration */
 	uint32_t	 async_size;	/* Async op array size */
 	uint32_t	 async_workers;	/* Number of async workers */
 
