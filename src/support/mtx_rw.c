@@ -199,10 +199,10 @@ __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *rwlock)
 		 * Don't sleep long when waiting on a read lock, hopefully we're
 		 * waiting on another read thread to increment the reader count.
 		 */
-		if (l->s.readers != l->s.writers && ++pause_cnt < WT_THOUSAND)
+		if (l->s.readers != l->s.writers && ++pause_cnt < 10 * WT_THOUSAND)
 			WT_PAUSE();
 		else
-			__wt_sleep(0, 10);
+			__wt_yield();
 	}
 
 	/*
