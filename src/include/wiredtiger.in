@@ -830,9 +830,9 @@ struct __wt_session {
 	 * @config{exempt, application threads are sometimes preempted to
 	 * perform WiredTiger tasks (for example\, if the dedicated eviction
 	 * threads are unable to keep up with cache eviction\, applications
-	 * threads may be used to assist in eviction; if true\, threads using
-	 * this session will not be chosen for those purposes., a boolean flag;
-	 * default \c false.}
+	 * threads may be used to assist in eviction). If true\, the thread
+	 * using this session will not be preempted., a boolean flag; default \c
+	 * false.}
 	 * @config{isolation, the default isolation level for operations in this
 	 * session., a string\, chosen from the following options: \c
 	 * "read-uncommitted"\, \c "read-committed"\, \c "snapshot"; default \c
@@ -2014,9 +2014,9 @@ struct __wt_connection {
 	 * @config{exempt, application threads are sometimes preempted to
 	 * perform WiredTiger tasks (for example\, if the dedicated eviction
 	 * threads are unable to keep up with cache eviction\, applications
-	 * threads may be used to assist in eviction; if true\, threads using
-	 * this session will not be chosen for those purposes., a boolean flag;
-	 * default \c false.}
+	 * threads may be used to assist in eviction). If true\, the thread
+	 * using this session will not be preempted., a boolean flag; default \c
+	 * false.}
 	 * @config{isolation, the default isolation level for operations in this
 	 * session., a string\, chosen from the following options: \c
 	 * "read-uncommitted"\, \c "read-committed"\, \c "snapshot"; default \c
