@@ -910,23 +910,6 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 	WT_RET_NOTFOUND_OK(ret);
 
 	/*
-	 * If we found no pages at all during the walk, something is wrong.
-	 * Be more aggressive next time.
-	 *
-	 * Continue on to sort the queue, in case there are pages left from a
-	 * previous walk.
-	 */
-	if (ret == WT_NOTFOUND) {
-		if (F_ISSET(cache,
-		    WT_CACHE_EVICT_CLEAN_HARD | WT_CACHE_EVICT_DIRTY_HARD))
-			cache->evict_aggressive_score = WT_MIN(
-			    cache->evict_aggressive_score + WT_EVICT_SCORE_BUMP,
-			    WT_EVICT_SCORE_MAX);
-		WT_STAT_CONN_SET(session, cache_eviction_aggressive_set,
-		    cache->evict_aggressive_score);
-	}
-
-	/*
 	 * If the queue we are filling is empty, pages are being requested
 	 * faster than they are being queued.
 	 */
