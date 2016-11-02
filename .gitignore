@@ -6,10 +6,18 @@
 .libs/
 
 # Build files
+*.dll
+*.exe
+*.exp
 *.la
+*.lib
 *.lo
 *.o
+*.obj
+*.pdb
 *.pyc
+.sconf_temp
+.sconsign.dblite
 .dirstamp
 /Makefile.am
 /aclocal.m4
@@ -56,7 +64,10 @@ WT_TEST/
 # Python
 /lang/python/_wiredtiger.so
 /lang/python/wiredtiger/__init__.py
+/lang/python/wiredtiger/_wiredtiger.pyd
+/lang/python/wiredtiger.py
 /lang/python/wiredtiger_wrap.c
+_wiredtiger.pyd
 
 # Binaries
 **/bench/wtperf/wtperf
