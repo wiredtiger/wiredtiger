@@ -95,6 +95,7 @@ WiredTigerStat
 WiredTigerTestCase
 Yann
 Za
+Zstd
 aR
 abstime
 ack'ed
@@ -345,6 +346,7 @@ nolock
 nolocking
 nommap
 nop
+noraw
 nosql
 nosync
 notgranted
@@ -507,3 +509,4 @@ xa
 yieldcpu
 zlib
 zseries
+zstd
