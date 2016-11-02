@@ -857,6 +857,14 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
 #define	EVICT_TUNE_RANDOM_RETUNE 10
 
 /*
+ * This is the maximum number of workers that we will try to add at once as we
+ * are trying to find the right number for the workload.
+ */
+#define EVICT_TUNE_BATCH 5
+
+#define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
+
+/*
  * __evict_tune_workers --
  *      Decide if we want to increase or decrease the number of active eviction
  *      workers. This function needs to be called relatively frequently and
@@ -970,7 +978,8 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	conn->evict_tune_last_action = EVICT_NOCHANGE;
 	if (cur_action == EVICT_ADD) {
 		cur_threads = conn->evict_threads.current_threads;
-		target_threads = (conn->evict_threads.max - cur_threads) / 2;
+		target_threads = MIN((conn->evict_threads.max - cur_threads)/2,
+				     EVICT_TUNE_BATCH);
 		if (target_threads == 0)
 			target_threads = 1;
 
@@ -1004,7 +1013,8 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	}
 	else if (cur_action == EVICT_REMOVE) {
 		cur_threads = conn->evict_threads.current_threads;
-		target_threads = (cur_threads - conn->evict_threads.min) / 2;
+		target_threads = MIN((cur_threads - conn->evict_threads.min)/2,
+				     EVICT_TUNE_BATCH);
 
 		for (i = 0; i < target_threads; i++) {
 			WT_ERR(__wt_thread_group_stop_one(
