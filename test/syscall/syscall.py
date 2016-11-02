@@ -31,20 +31,63 @@
 #
 # For each .run file, run the corresponding program and collect strace
 # output, comparing it to the contents of the .run file.
-# TODO: on all systems, run trace to fd 1, may allow output interleave
-# TODO: retest on Linux (with rename), and adjust output
-# TODO: support 0x... or 0... to match any number
-# TODO: support macros/ifdef via cpp??
-# TODO: currently not doing anything with errno
-# TODO: if we have multiple .run files in a test directory, how about
-#       separate execution directories?
-# TODO: OSX_DEFINES could be created dynamically.  We could flesh out
-#       LINUX_DEFINES and using strace -x, so that the matching is more robust.
-
+#
+# run files are first preprocessed, which means the use of #ifdefs, #defines
+# and #includes are allowed, as well as /**/ and // comments.
+# Expressions are evaluated using the Python parser, so that:
+# hex and octal numbers are accepted, constant values can be or-ed.
+#
 from __future__ import print_function
 import argparse, fnmatch, os, platform, re, shutil, subprocess, sys
 
-ident = r'([a-zA-Z][a-zA-Z0-9_]*)'
+# A class that represents a context in which predefined constants can be
+# set, and new variables can be assigned.
+class VariableContext(object):
+    def __getitem__(self, key):
+        if key not in dir(self) or key.startswith('__'):
+            raise KeyError(key)
+        return getattr(self, key)
+
+    def __setitem__(self, key, value):
+        setattr(self, key, value)
+
+# Constants used in SystemDefines, but defining them there is problematic.
+INTEGER = 'integer_undefined'
+STRING = 'string_undefined'
+
+################################################################
+# Changable parameters
+# We expect these values to evolve as tests are added or modified.
+
+# Generally, system calls must be wrapped in an ASSERT_XX() "macro".
+# Exceptions are calls in this list that return 0 on success, or
+# those that are hardcoded in Runner.call_compare()
+calls_returning_zero = [ 'close', 'ftruncate', 'fdatasync', 'rename' ]
+
+# Encapsulate all the defines we can use in our scripts.
+# When this program is run, we'll find out their actual values on
+# the host system.
+class SystemDefines(VariableContext):
+    O_RDONLY = INTEGER   # This assigned value will be
+    O_WRONLY = INTEGER   # replaced by the actual value
+    O_RDWR = INTEGER     # discovered on the system.
+    O_ACCMODE = INTEGER
+    O_NONBLOCK = INTEGER
+    O_APPEND = INTEGER
+    O_SHLOCK = INTEGER
+    O_EXLOCK = INTEGER
+    O_ASYNC = INTEGER
+    O_NOFOLLOW = INTEGER
+    O_CREAT = INTEGER
+    O_TRUNC = INTEGER
+    O_EXCL = INTEGER
+    O_CLOEXEC = INTEGER
+
+
+################################################################
+
+# Patterns that are used to match the .run file and/or the output.
+ident = r'([a-zA-Z_][a-zA-Z0-9_]*)'
 outputpat = re.compile(r'OUTPUT\("([^"]*)"\)')
 argpat = re.compile(r'''((?:[^,"']|"[^"]*"|'[^']*')+)''')
 
@@ -58,7 +101,10 @@ assertpat = re.compile(r'ASSERT_([ENLG][QET])\s*\(\s*' + ident + r'\s*(\(.*\))\s
 callpat = re.compile(ident + r'(\(.*\));')
 
 # e.g. open("blah", 0x0, 0x0)   = 6 0
-dtruss_pat = re.compile(ident + r'(\(.*\))\s*=\s*(-*[0-9]+)\s+([-A-Za-z#0-9]*)')
+# We capture the errno (e.g. "0" or "Err#60"), but don't do anything with it.
+# We don't currently test anything that is errno dependent.
+dtruss_pat = re.compile(ident + r'(\(.*\))\s*=\s*(-*[0-9xA-F]+)\s+([-A-Za-z#0-9]*)')
+# At the top of the dtruss output is a fixed string.
 dtruss_init_pat = re.compile(r'\s*SYSCALL\(args\)\s*=\s*return\s*')
 
 strace_pat = re.compile(ident + r'(\(.*\))\s*=\s(-*[0-9]+)()')
@@ -71,56 +117,7 @@ headpatterns = [ [ tracepat, 'trace_syscalls', 0],
                  [ systempat, 'required_system', 0],
                  [ runpat, 'run_args', 0] ]
 
-# Generally, system calls must be wrapped in an ASSERT_XX() "macro".
-# Exceptions are calls in this list that return 0 on success, or
-# those that are hardcoded in Runner.call_compare()
-calls_returning_zero = [ 'close', 'ftruncate', 'fdatasync', 'rename' ]
-
-# A class that represents a context in which predefined constants can be
-# set, and new variables can be assigned.
-class VariableContext(object):
-    def __getitem__(self, key):
-        if key not in dir(self) or key.startswith('__'):
-            raise KeyError(key)
-        return getattr(self, key)
-
-    def __setitem__(self, key, value):
-        #self.__dict__[key] = value
-        setattr(self, key, value)
-
-# Encapsulate all the defines we can use in our scripts, and allow us
-# to create new variables in our script via assignment.
-#
-class OSX_DEFINES(VariableContext):
-    # OS/X's dtruss shows flag arguments as raw numbers.
-    # When the .run file specifies symbolic names, they will
-    # be translated using the defines here, and they will match the
-    # numbers in the dtruss output.
-
-    # From /usr/include/sys/fcntl.h:
-    O_RDONLY = 0x0000
-    O_WRONLY = 0x0001
-    O_RDWR = 0x0002
-    O_ACCMODE = 0x0003
-    O_NONBLOCK = 0x0004
-    O_APPEND = 0x0008
-    O_SHLOCK = 0x0010
-    O_EXLOCK = 0x0020
-    O_ASYNC = 0x0040
-    O_NOFOLLOW = 0x0100
-    O_CREAT = 0x0200
-    O_TRUNC = 0x0400
-    O_EXCL = 0x0800
-    O_CLOEXEC = 0x1000000
-
-class LINUX_DEFINES(VariableContext):
-    # Linux's strace converts flags to symbolic names.
-    # When the .run file specifies symbolic names, they match lexically.
-    # The downside of this is that flags in the .run file must have the
-    # precise ordering used by strace.
-    pass
-
-# For hardcoded breakpoints during debugging
+# To create breakpoints while debugging this script
 def bp():
     import pdb
     pdb.set_trace()
@@ -128,6 +125,11 @@ def bp():
 def msg(s):
     print("syscall.py: " + s, file=sys.stderr)
 
+def die(s):
+    msg(s)
+    sys.exit(1)
+
+# If wttop appears as a prefix of pathname, strip it off.
 def simplify_path(wttop, pathname):
     wttop = os.path.join(wttop, "")
     if pathname.startswith(wttop):
@@ -145,17 +147,20 @@ class FileLine(str):
     def prefix(self):
         return self.filename + ':' + str(self.linenum) + ': '
 
-class FileReader(object):
+# Manage reading from a file, tracking line numbers.
+class Reader(object):
     # 'raw' means we don't ignore any lines
-    def __init__(self, wttop, filename, raw = True):
+    # 'is_cpp' means input lines beginning with '#' indicate file/linenumber
+    def __init__(self, wttop, filename, f, raw = True, is_cpp = False):
         self.wttop = wttop
+        self.orig_filename = filename
         self.filename = filename
-        self.f = open(filename)
+        self.f = f
         self.linenum = 1
         self.raw = raw
+        self.is_cpp = is_cpp
         if not self.f:
-            msg(self.filename + ': cannot open')
-            sys.exit(1)
+            die(self.filename + ': cannot open')
 
     def __enter__(self):
         if not self.f:
@@ -178,6 +183,15 @@ class FileReader(object):
         if not line:
             return None
         line = line.strip()
+        if self.is_cpp and line.startswith('#'):
+            parts = line.split()
+            if len(parts) < 3 or not parts[1].isdigit():
+                msg('bad cpp input: ' + line)
+            line = ''
+            self.linenum = int(parts[1]) - 1
+            self.filename = parts[2].strip('"')
+            if self.filename == '<stdin>':
+                self.filename = self.orig_filename
         if '//' in line:
             if line.startswith('//'):
                 line = ''
@@ -206,19 +220,35 @@ class FileReader(object):
     def close(self):
         self.f.close()
 
+# Read from a regular file.
+class FileReader(Reader):
+    def __init__(self, wttop, filename, raw = True):
+        return super(FileReader, self).__init__(wttop, filename,
+                                                open(filename), raw, False)
+
+# Read from the C preprocessor run on a file.
+class PreprocessedReader(Reader):
+    def __init__(self, wttop, filename, raw = True):
+        sourcedir = os.path.dirname(filename)
+        cmd = ['cc', '-E', '-I' + sourcedir, '-']
+        proc = subprocess.Popen(cmd, stdin=open(filename),
+            stdout=subprocess.PIPE)
+        super(PreprocessedReader, self).__init__(wttop, filename,
+                                                 proc.stdout, raw, True)
+
+# Track options discovered in the 'head' section of the .run file.
 class HeadOpts:
     def __init__(self):
         self.run_args = None
         self.required_system = None
         self.trace_syscalls = None
 
+# Manage a run of the target program characterized by a .run file,
+# comparing output from the run and reporting differences.
 class Runner:
     def __init__(self, wttopdir, runfilename, exedir, testexe,
-                 strace, args):
-        if args.systype == 'Linux':
-            self.descriptors = LINUX_DEFINES()
-        elif args.systype == 'Darwin':
-            self.descriptors = OSX_DEFINES()
+                 strace, args, descriptors):
+        self.descriptors = descriptors
         self.wttopdir = wttopdir
         self.runfilename = runfilename
         self.testexe = testexe
@@ -227,6 +257,7 @@ class Runner:
         self.args = args
         self.headopts = HeadOpts()
         self.dircreated = False
+        self.strip_syscalls = None
         outfilename = args.outfilename
         errfilename = args.errfilename
         if outfilename == None:
@@ -238,10 +269,10 @@ class Runner:
         else:
             self.errfilename = errfilename
 
-        self.runfile = FileReader(self.wttopdir, runfilename, False)
+        self.runfile = PreprocessedReader(self.wttopdir, runfilename, False)
 
     def init(self, systemtype):
-        # Read up until 'RUN()'
+        # Read up until 'RUN()', setting attributes of self.headopts
         runline = '?'
         m = None
         while runline:
@@ -255,7 +286,7 @@ class Runner:
             if not m:
                 self.fail(runline, "unknown header option: " + runline)
                 return [ False, False ]
-            if self.headopts.run_args != None:
+            if self.headopts.run_args != None:   # found RUN()?
                 break
         if not self.headopts.trace_syscalls:
             msg("'" + self.runfile.filename + "': needs TRACE(...)")
@@ -421,10 +452,16 @@ class Runner:
         if not em:
             self.fail(errline, 'Unknown strace/dtruss output: ' + errline)
             return False
+        gotcall = em.groups()[0]
+        # filtering syscalls here if needed.  If it's not a match,
+        # mark the errline so it is retried.
+        if self.strip_syscalls != None and gotcall not in self.strip_syscalls:
+            errline.skip = True
+            return False
 
         m = re.match(assignpat, runline)
         if m:
-            if m.groups()[1] != em.groups()[0]:
+            if m.groups()[1] != gotcall:
                 return self.match_report(runline, errline, verbose, skiplines,
                                          False, 'syscall to match assignment')
 
@@ -443,7 +480,7 @@ class Runner:
         #  3   :  comparitor "0"
         m = re.match(assertpat, runline)
         if m:
-            if m.groups()[1] != em.groups()[0]:
+            if m.groups()[1] != gotcall:
                 return self.match_report(runline, errline, verbose, skiplines,
                                          False, 'syscall to match ASSERT')
 
@@ -462,7 +499,7 @@ class Runner:
         # depending on the particular system call.
         m = re.match(callpat, runline)
         if m:
-            if m.groups()[0] != em.groups()[0]:
+            if m.groups()[0] != gotcall:
                 return self.match_report(runline, errline, verbose, skiplines,
                                          False, 'syscall')
 
@@ -503,7 +540,7 @@ class Runner:
                     continue
                 while errline and not self.match(runline, errline,
                                                  self.args.verbose, skiplines):
-                    if skiplines:
+                    if skiplines or hasattr(errline, 'skip'):
                         errline = errfile.readline()
                     else:
                         self.fail(runline, "expecting " + runline)
@@ -521,6 +558,15 @@ class Runner:
             return True
 
     def order_runfile(self, f):
+        # In OS X, dtruss is implemented using dtrace's apparently buffered
+        # printf writes to stdout, but that is all redirected to stderr.
+        # Because of that, the test program's writes to stderr do not
+        # interleave with dtruss output as it does with Linux's strace
+        # (which writes directly to stderr).  On OS X, we get the program's
+        # output first, we compensate for this by moving all the
+        # OUTPUT statements in the runfile to match first. This simple
+        # approach will break if there is more data generated by OUTPUT
+        # statements than a stdio buffer's size.
         matchout = (self.args.systype == 'Darwin')
         out = []
         nonout = []
@@ -552,7 +598,9 @@ class Runner:
         if self.args.systype == 'Linux':
             callargs.extend(['-e', 'trace=' + trace_syscalls ])
         elif self.args.systype == 'Darwin':
-            callargs.extend(['-t', trace_syscalls ])
+            # dtrace has no option to limit the syscalls to be traced,
+            # so we'll filter the output.
+            self.strip_syscalls = self.headopts.trace_syscalls.split(',')
         callargs.append(self.testexe)
         callargs.extend(self.runargs)
 
@@ -568,13 +616,15 @@ class Runner:
             return False
         return True
 
+# Run the syscall program.
 class SyscallCommand:
-    def __init__(self, disttop):
+    def __init__(self, disttop, builddir):
         self.disttop = disttop
+        self.builddir = builddir
 
     def parse_args(self, argv):
         srcdir = os.path.join(self.disttop, 'test', 'syscall')
-        self.exetopdir = os.path.join(wt_builddir, 'test', 'syscall')
+        self.exetopdir = os.path.join(self.builddir, 'test', 'syscall')
 
         ap = argparse.ArgumentParser('Syscall test runner')
         ap.add_argument('--systype',
@@ -610,7 +660,7 @@ class SyscallCommand:
         if args.systype == 'Linux':
             strace = [ 'strace' ]
         elif args.systype == 'Darwin':
-            strace = [ 'sudo', os.path.join(srcdir, 'dtruss-osx.sh') ]
+            strace = [ 'sudo', 'dtruss' ]
         else:
             msg("systype '" + args.systype + "' unsupported")
             return False
@@ -621,7 +671,7 @@ class SyscallCommand:
     def runone(self, runfilename, exedir, testexe, args):
         result = True
         runner = Runner(self.disttop, runfilename, exedir, testexe,
-                        self.strace, args)
+                        self.strace, args, self.defines)
         okay, skip = runner.init(args.systype)
         if not okay:
             if not skip:
@@ -643,9 +693,55 @@ class SyscallCommand:
         print('')
         return result
 
+    # Create a C program to get values for all defines we need.
+    # The output of the program is Python code that we'll execute
+    # directly to set the values.
+    def build_system_defines(self):
+        self.defines = SystemDefines()
+        program = \
+            '#include <stdio.h>\n' + \
+            '#include <fcntl.h>\n' + \
+            'int main() {\n'
+        for attr in dir(self.defines):
+            try:
+                value = self.defines[attr]
+                if value == INTEGER:
+                    program += '#ifndef ' + attr + '\n' + \
+                               '#define ' + attr + ' 0\n' + \
+                               '#endif\n'
+                    # output is Python that sets attributes of 'o'.
+                    program += '  printf("o.' + attr + '=%d\\n", ' + \
+                               attr + ');\n'
+            except:
+                pass
+        program += \
+            '  return(0);\n' + \
+            '}\n'
+        probe_c = os.path.join(self.exetopdir, "syscall_probe.c")
+        probe_exe = os.path.join(self.exetopdir, "syscall_probe")
+        with open(probe_c, "w") as f:
+            f.write(program)
+        subret = subprocess.call(['cc', '-o', probe_exe, probe_c])
+        if subret != 0:
+            msg("probe compilation returned " + str(subret))
+            return False
+        proc = subprocess.Popen([probe_exe], stdout=subprocess.PIPE)
+        out, err = proc.communicate()
+        subret = proc.returncode
+        if subret != 0 or err:
+            msg("probe run returned " + str(subret) + ", error=" + str(err))
+            return False
+        o = self.defines     # The 'o' object will be modified.
+        exec(out)            # Run the produced Python.
+        if not self.args.preserve:
+            os.remove(probe_c)
+        return True
+
     def execute(self):
         args = self.args
         result = True
+        if not self.build_system_defines():
+            die('cannot build system defines')
         if not self.dorun:
             for testname in args.tests:
                 result = self.runone(testname, None, None, args) and result
@@ -660,6 +756,7 @@ class SyscallCommand:
                 tests = os.walk(syscalldir)
             os.chdir(self.exetopdir)
             for path, subdirs, files in tests:
+                testnum = -1 if len(files) <= 1 else 0
                 for name in files:
                     if fnmatch.fnmatch(name, '*.run'):
                         testname = os.path.basename(os.path.normpath(path))
@@ -668,11 +765,16 @@ class SyscallCommand:
                                                'test_' + testname)
                         exedir = os.path.join(self.exetopdir,
                                               'WT_TEST.' + testname)
+                        # If there are multiple tests in this directory,
+                        # give each one its own execution dir.
+                        if testnum >= 0:
+                            exedir += '.' + str(testnum)
+                            testnum += 1
                         result = self.runone(runfilename, exedir,
                                              testexe, args) and result
         return result
 
-# Set paths
+# Set paths, determining the top of the build.
 syscalldir = sys.path[0]
 wt_disttop = os.path.dirname(os.path.dirname(syscalldir))
 
@@ -690,12 +792,11 @@ elif os.path.isfile(os.path.join(wt_disttop, 'build_posix', 'wt')):
 elif os.path.isfile(os.path.join(wt_disttop, 'wt.exe')):
     wt_builddir = wt_disttop
 else:
-    print('Unable to find useable WiredTiger build')
-    sys.exit(1)
+    die('unable to find useable WiredTiger build')
 
-cmd = SyscallCommand(wt_disttop)
+cmd = SyscallCommand(wt_disttop, wt_builddir)
 if not cmd.parse_args(sys.argv):
-    sys.exit(1)
+    die('bad usage')
 if not cmd.execute():
     sys.exit(1)
 sys.exit(0)
