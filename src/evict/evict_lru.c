@@ -1279,7 +1279,7 @@ __evict_walk_file(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
 	WT_PAGE_MODIFY *mod;
 	WT_REF *ref;
 	WT_TXN_GLOBAL *txn_global;
-	uint64_t btree_inuse, bytes_per_slot, cache_inuse;
+	uint64_t btree_inuse, bytes_per_slot, cache_inuse, give_up_value;
 	uint64_t pages_seen, pages_queued, refs_walked;
 	uint32_t remaining_slots, total_slots, walk_flags;
 	uint32_t target_pages_clean, target_pages_dirty, target_pages;
@@ -1292,6 +1292,7 @@ __evict_walk_file(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
 	txn_global = &conn->txn_global;
 	internal_pages = restarts = 0;
 	give_up = urgent_queued = false;
+	give_up_value = 100;
 
 	/*
 	 * Figure out how many slots to fill from this tree.
@@ -1322,6 +1323,11 @@ __evict_walk_file(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
 		bytes_per_slot = 1 + cache_inuse / total_slots;
 		target_pages_dirty = (uint32_t)(
 		    (btree_inuse + bytes_per_slot / 2) / bytes_per_slot);
+		/*
+		 * When we are looking for dirty pages, we don't want to give up
+		 * searching the tree as readily.
+ 		 */
+		give_up_value = max_entries * 10;
 	} else
 		target_pages_dirty = 0;
 
@@ -1373,7 +1379,7 @@ __evict_walk_file(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
 		 * no good eviction candidates can be found.  Abandon the walk
 		 * if we get into that situation.
 		 */
-		give_up = !__wt_cache_aggressive(session) && pages_seen > 100 &&
+		give_up = !__wt_cache_aggressive(session) && pages_seen > give_up_value &&
 		    (pages_queued == 0 || (pages_seen / pages_queued) >
 		    (10 * total_slots / target_pages));
 		if (give_up)
@@ -1487,6 +1493,9 @@ fast:		/* If the page can't be evicted, give up. */
 	 */
 	if (give_up)
 		btree->evict_walk_reverse = !btree->evict_walk_reverse;
+	if (give_up && F_ISSET(cache, WT_CACHE_EVICT_DIRTY))
+		WT_STAT_CONN_INCR(
+		    session, cache_eviction_walks_abandoned_dirty);
 	if (give_up && !urgent_queued)
 		btree->evict_walk_period = WT_MIN(
 		    WT_MAX(1, 2 * btree->evict_walk_period), 100);
