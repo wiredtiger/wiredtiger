@@ -1279,7 +1279,7 @@ __evict_walk_file(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
 	WT_PAGE_MODIFY *mod;
 	WT_REF *ref;
 	WT_TXN_GLOBAL *txn_global;
-	uint64_t btree_inuse, bytes_per_slot, cache_inuse, give_up_value;
+	uint64_t btree_inuse, bytes_per_slot, cache_inuse, min_pages;
 	uint64_t pages_seen, pages_queued, refs_walked;
 	uint32_t remaining_slots, total_slots, walk_flags;
 	uint32_t target_pages_clean, target_pages_dirty, target_pages;
@@ -1292,7 +1292,6 @@ __evict_walk_file(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
 	txn_global = &conn->txn_global;
 	internal_pages = restarts = 0;
 	give_up = urgent_queued = false;
-	give_up_value = 100;
 
 	/*
 	 * Figure out how many slots to fill from this tree.
@@ -1323,11 +1322,6 @@ __evict_walk_file(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
 		bytes_per_slot = 1 + cache_inuse / total_slots;
 		target_pages_dirty = (uint32_t)(
 		    (btree_inuse + bytes_per_slot / 2) / bytes_per_slot);
-		/*
-		 * When we are looking for dirty pages, we don't want to give up
-		 * searching the tree as readily.
-		 */
-		give_up_value = max_entries * 10;
 	} else
 		target_pages_dirty = 0;
 
@@ -1358,6 +1352,16 @@ __evict_walk_file(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
 		FLD_SET(walk_flags, WT_READ_PREV);
 
 	/*
+	 * Examine at least a reasonable number of pages before deciding
+	 * whether to give up.  When we are only looking for dirty pages,
+	 * search the tree for longer.
+	 */
+	min_pages = 10 * target_pages;
+	if (F_ISSET(cache, WT_CACHE_EVICT_DIRTY) &&
+	    !F_ISSET(cache, WT_CACHE_EVICT_CLEAN))
+		min_pages *= 10;
+
+	/*
 	 * Get some more eviction candidate pages.
 	 *
 	 * !!! Take care terminating this loop.
@@ -1380,9 +1384,9 @@ __evict_walk_file(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
 		 * if we get into that situation.
 		 */
 		give_up = !__wt_cache_aggressive(session) &&
-		    pages_seen > give_up_value &&
+		    pages_seen > min_pages &&
 		    (pages_queued == 0 || (pages_seen / pages_queued) >
-		    (10 * total_slots / target_pages));
+		    (min_pages / target_pages));
 		if (give_up)
 			break;
 
