@@ -1326,7 +1326,7 @@ __evict_walk_file(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
 		/*
 		 * When we are looking for dirty pages, we don't want to give up
 		 * searching the tree as readily.
- 		 */
+		 */
 		give_up_value = max_entries * 10;
 	} else
 		target_pages_dirty = 0;
@@ -1379,7 +1379,8 @@ __evict_walk_file(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
 		 * no good eviction candidates can be found.  Abandon the walk
 		 * if we get into that situation.
 		 */
-		give_up = !__wt_cache_aggressive(session) && pages_seen > give_up_value &&
+		give_up = !__wt_cache_aggressive(session) &&
+		    pages_seen > give_up_value &&
 		    (pages_queued == 0 || (pages_seen / pages_queued) >
 		    (10 * total_slots / target_pages));
 		if (give_up)
