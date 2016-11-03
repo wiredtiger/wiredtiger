@@ -549,7 +549,6 @@ __evict_pass(WT_SESSION_IMPL *session)
 		 * does need to do some work.
 		 */
 		__wt_cache_read_gen_incr(session);
-		++cache->evict_pass_gen;
 
 		/*
 		 * Update the oldest ID: we use it to decide whether pages are
@@ -857,14 +856,6 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
 #define	EVICT_TUNE_RANDOM_RETUNE 10
 
 /*
- * This is the maximum number of workers that we will try to add at once as we
- * are trying to find the right number for the workload.
- */
-#define EVICT_TUNE_BATCH 5
-
-#define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
-
-/*
  * __evict_tune_workers --
  *      Decide if we want to increase or decrease the number of active eviction
  *      workers. This function needs to be called relatively frequently and
@@ -978,8 +969,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	conn->evict_tune_last_action = EVICT_NOCHANGE;
 	if (cur_action == EVICT_ADD) {
 		cur_threads = conn->evict_threads.current_threads;
-		target_threads = MIN((conn->evict_threads.max - cur_threads)/2,
-				     EVICT_TUNE_BATCH);
+		target_threads = (conn->evict_threads.max - cur_threads) / 2;
 		if (target_threads == 0)
 			target_threads = 1;
 
@@ -1013,8 +1003,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	}
 	else if (cur_action == EVICT_REMOVE) {
 		cur_threads = conn->evict_threads.current_threads;
-		target_threads = MIN((cur_threads - conn->evict_threads.min)/2,
-				     EVICT_TUNE_BATCH);
+		target_threads = (cur_threads - conn->evict_threads.min) / 2;
 
 		for (i = 0; i < target_threads; i++) {
 			WT_ERR(__wt_thread_group_stop_one(
@@ -1495,8 +1484,8 @@ __evict_push_candidate(WT_SESSION_IMPL *session,
  *	Get a few page eviction candidates from a single underlying file.
  */
 static int
-__evict_walk_file(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
-    u_int max_entries, u_int *slotp)
+__evict_walk_file(WT_SESSION_IMPL *session,
+    WT_EVICT_QUEUE *queue, u_int max_entries, u_int *slotp)
 {
 	WT_BTREE *btree;
 	WT_CACHE *cache;
@@ -1623,7 +1612,6 @@ __evict_walk_file(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
 
 		page = ref->page;
 		modified = __wt_page_is_modified(page);
-		page->evict_pass_gen = cache->evict_pass_gen;
 
 		/*
 		 * Use the EVICT_LRU flag to avoid putting pages onto the list
@@ -1770,7 +1758,7 @@ __evict_get_ref(
 	server_only = is_server && !WT_EVICT_HAS_WORKERS(session);
 	urgent_ok = (!is_app && !is_server) ||
 	    !WT_EVICT_HAS_WORKERS(session) ||
-	    (is_app && __wt_cache_aggressive(session));
+	    __wt_cache_aggressive(session);
 	urgent_queue = cache->evict_urgent_queue;
 	*btreep = NULL;
 	*refp = NULL;
