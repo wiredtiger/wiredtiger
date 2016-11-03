@@ -1494,9 +1494,6 @@ fast:		/* If the page can't be evicted, give up. */
 	 */
 	if (give_up)
 		btree->evict_walk_reverse = !btree->evict_walk_reverse;
-	if (give_up && F_ISSET(cache, WT_CACHE_EVICT_DIRTY))
-		WT_STAT_CONN_INCR(
-		    session, cache_eviction_walks_abandoned_dirty);
 	if (give_up && !urgent_queued)
 		btree->evict_walk_period = WT_MIN(
 		    WT_MAX(1, 2 * btree->evict_walk_period), 100);
