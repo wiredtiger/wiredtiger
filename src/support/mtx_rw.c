@@ -185,7 +185,7 @@ __wt_readlock_spin(WT_SESSION_IMPL *session, WT_RWLOCK *rwlock)
 	 * read-heavy workloads it can make a significant difference.
 	 */
 	while (__wt_try_readlock(session, rwlock) != 0) {
-		if (l->s.excl)
+		if (l->s.writers_active > 0)
 			__wt_yield();
 		else
 			WT_PAUSE();
@@ -287,7 +287,7 @@ __wt_try_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *rwlock)
 
 	/* The replacement lock value is a result of allocating a new ticket. */
 	++new.s.next;
-	new.s.excl = 1;
+	++new.s.writers_active;
 	return (__wt_atomic_cas64(&l->u, old.u, new.u) ? 0 : EBUSY);
 }
 
@@ -312,6 +312,7 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *rwlock)
 	 * lock.
 	 */
 	ticket = __wt_atomic_fetch_add16(&l->s.next, 1);
+	(void)__wt_atomic_add16(&l->s.writers_active, 1);
 	for (pause_cnt = 0; ticket != l->s.writers;) {
 		/*
 		 * We failed to get the lock; pause before retrying and if we've
@@ -324,8 +325,6 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *rwlock)
 		else
 			__wt_sleep(0, 10);
 	}
-
-	l->s.excl = 1;
 
 	/*
 	 * Applications depend on a barrier here so that operations holding the
@@ -346,7 +345,7 @@ __wt_writeunlock(WT_SESSION_IMPL *session, WT_RWLOCK *rwlock)
 	WT_UNUSED(session);
 
 	l = &rwlock->rwlock;
-	l->s.excl = 0;
+	(void)__wt_atomic_sub16(&l->s.writers_active, 1);
 
 	/*
 	 * Ensure that all updates made while the lock was held are visible to
