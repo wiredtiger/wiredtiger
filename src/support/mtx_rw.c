@@ -182,13 +182,23 @@ __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *rwlock)
 	WT_DIAGNOSTIC_YIELD;
 
 	l = &rwlock->rwlock;
+	pause_cnt = 0;
 
-	/* Be optimistic when lock is available to readers. */
+	/*
+	 * Try to get the lock in a single operation if it is available to
+	 * readers.  This avoids the situation where multiple readers arrive
+	 * concurrently and have to line up in order to enter the lock.  For
+	 * read-heavy workloads it can make a significant difference.
+	 */
 	old = *l;
 	while (old.s.readers == old.s.next) {
 		if (__wt_try_readlock(session, rwlock) == 0)
 			return;
+		if (++pause_cnt >= WT_THOUSAND)
+			break;
 		WT_PAUSE();
+		/* Make sure we see the latest update to the lock. */
+		WT_READ_BARRIER();
 		old = *l;
 	}
 
@@ -198,7 +208,7 @@ __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *rwlock)
 	 * lock.
 	 */
 	ticket = __wt_atomic_fetch_add16(&l->s.next, 1);
-	for (pause_cnt = 0; ticket != l->s.readers;) {
+	while (ticket != l->s.readers) {
 		/*
 		 * We failed to get the lock; pause before retrying and if we've
 		 * paused enough, yield so we don't burn CPU to no purpose. This
