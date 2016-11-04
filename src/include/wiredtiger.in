@@ -4316,9 +4316,9 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_EVICTION_AGGRESSIVE_SET	1046
 /*! cache: eviction empty score */
 #define	WT_STAT_CONN_CACHE_EVICTION_EMPTY_SCORE		1047
-/*! cache: eviction random retune will add workers */
+/*! cache: eviction random re-tune will add workers */
 #define	WT_STAT_CONN_CACHE_EVICTION_RANDOM_RETUNE_ADD	1048
-/*! cache: eviction random retune will remove workers */
+/*! cache: eviction random re-tune will remove workers */
 #define	WT_STAT_CONN_CACHE_EVICTION_RANDOM_RETUNE_REMOVE	1049
 /*! cache: eviction server candidate queue empty when topping up */
 #define	WT_STAT_CONN_CACHE_EVICTION_QUEUE_EMPTY		1050

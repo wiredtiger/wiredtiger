@@ -850,7 +850,7 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
 
 /*
  * If we have not added or removed evict workers for that many seconds, we will
- * try a random tuning action to avoid getting stuck in a local minima and to
+ * try a random tuning action to avoid getting stuck in a local minimum and to
  * adjust to workload changes.
  */
 #define	EVICT_TUNE_RANDOM_RETUNE 10
