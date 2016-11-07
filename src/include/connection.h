@@ -306,9 +306,13 @@ struct __wt_connection_impl {
 	uint32_t	 evict_threads_max;/* Max eviction threads */
 	uint32_t	 evict_threads_min;/* Min eviction threads */
 
-#define	EVICT_ADD 1
-#define	EVICT_NOCHANGE 0
-#define	EVICT_REMOVE -1
+/*
+ * NOTE: EVICT_ADD and EVICT_REMOVE must be the same positive and negative
+ * values.  If that changes, their use in the eviction code must change.
+ */
+#define	EVICT_ADD	1		/* Add an eviction thread */
+#define	EVICT_NOCHANGE	0		/* No change in eviction threads */
+#define	EVICT_REMOVE	-1		/* Remove an eviction thread */
 	int              evict_tune_last_action; /* Last tuning action */
 	struct timespec  evict_tune_last_action_time;/* Time of last action */
 	struct timespec  evict_tune_last_time;/* Last evict thread check */
