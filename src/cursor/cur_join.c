@@ -1310,11 +1310,10 @@ __wt_curjoin_open(WT_SESSION_IMPL *session,
 		WT_RET_MSG(session, EINVAL,
 		    "unable to initialize a join cursor with existing owner");
 
-	if (!WT_PREFIX_SKIP(uri, "join:"))
-		return (__wt_unexpected_object_type(session, uri, "join:"));
 	tablename = uri;
-	if (!WT_PREFIX_SKIP(tablename, "table:"))
-		return (__wt_unexpected_object_type(session, uri, "table:"));
+	if (!WT_PREFIX_SKIP(tablename, "join:table:"))
+		return (
+		    __wt_unexpected_object_type(session, uri, "join:table:"));
 
 	columns = strchr(tablename, '(');
 	if (columns == NULL)
