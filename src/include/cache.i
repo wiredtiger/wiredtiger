@@ -194,6 +194,8 @@ __wt_cache_full_check(WT_SESSION_IMPL *session)
 	    F_ISSET(btree, WT_BTREE_NO_EVICTION))
 		return (0);
 
+	if (F_ISSET(S2C(session), WT_CONN_CLOSING))
+		return (0);
 	/*
 	 * Only wake the eviction server the first time through here (if the
 	 * cache is too full).
