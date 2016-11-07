@@ -1326,7 +1326,6 @@ __wt_curjoin_open(WT_SESSION_IMPL *session,
 	cursor = &cjoin->iface;
 	*cursor = iface;
 	cursor->session = &session->iface;
-	cursor->internal_uri = table->name;
 	cursor->key_format = table->key_format;
 	cursor->value_format = table->value_format;
 	cjoin->table = table;
