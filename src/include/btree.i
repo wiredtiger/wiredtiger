@@ -1562,11 +1562,10 @@ __wt_btree_lsm_flip_primary(WT_SESSION_IMPL *session, bool on)
 	cache = S2C(session)->cache;
 	root = btree->root.page;
 
-       if (on)
+       if (on) {
 	       F_SET(btree, WT_BTREE_LSM_PRIMARY);
-       else {
-	       F_CLR(btree, WT_BTREE_LSM_PRIMARY);
-
+	       F_SET(btree, WT_BTREE_NO_EVICTION);
+       } else {
 		pindex = WT_INTL_INDEX_GET_SAFE(root);
 		first = pindex->index[0];
 
@@ -1581,6 +1580,9 @@ __wt_btree_lsm_flip_primary(WT_SESSION_IMPL *session, bool on)
 		size = child->modify->bytes_dirty;
 		(void)__wt_atomic_add64(&btree->bytes_dirty_leaf, size);
 		(void)__wt_atomic_add64(&cache->bytes_dirty_leaf, size);
+
+		F_CLR(btree, WT_BTREE_LSM_PRIMARY);
+		F_CLR(btree, WT_BTREE_NO_EVICTION);
 	}
 }
 
