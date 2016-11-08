@@ -1545,11 +1545,11 @@ __wt_btree_lsm_over_size(WT_SESSION_IMPL *session, uint64_t maxsize)
 }
 
 /*
- * __wt_btree_lsm_update_dirty --
+ * __wt_btree_lsm_flip_primary --
  *      Update the btree and cache dirty leave page values.
  */
 static inline void
-__wt_btree_lsm_update_dirty(WT_SESSION_IMPL *session)
+__wt_btree_lsm_flip_primary(WT_SESSION_IMPL *session, bool on)
 {
 	WT_BTREE *btree;
 	WT_CACHE *cache;
@@ -1562,20 +1562,26 @@ __wt_btree_lsm_update_dirty(WT_SESSION_IMPL *session)
 	cache = S2C(session)->cache;
 	root = btree->root.page;
 
-	pindex = WT_INTL_INDEX_GET_SAFE(root);
-	first = pindex->index[0];
+       if (on)
+	       F_SET(btree, WT_BTREE_LSM_PRIMARY);
+       else {
+	       F_CLR(btree, WT_BTREE_LSM_PRIMARY);
+
+		pindex = WT_INTL_INDEX_GET_SAFE(root);
+		first = pindex->index[0];
 
 	/*
 	 * We're reaching down into the page without a hazard pointer, but
 	 * that's OK because we know that no-eviction is set and so the page
 	 * cannot disappear.
 	 */
-	child = first->page;
-	if (!__wt_page_is_modified(child))
-		return;
-	size = child->modify->bytes_dirty;
-	(void)__wt_atomic_add64(&btree->bytes_dirty_leaf, size);
-	(void)__wt_atomic_add64(&cache->bytes_dirty_leaf, size);
+		child = first->page;
+		if (!__wt_page_is_modified(child))
+			return;
+		size = child->modify->bytes_dirty;
+		(void)__wt_atomic_add64(&btree->bytes_dirty_leaf, size);
+		(void)__wt_atomic_add64(&cache->bytes_dirty_leaf, size);
+	}
 }
 
 /*
