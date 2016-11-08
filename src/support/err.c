@@ -518,6 +518,7 @@ __wt_panic(WT_SESSION_IMPL *session)
 int
 __wt_illegal_value(WT_SESSION_IMPL *session, const char *name)
     WT_GCC_FUNC_ATTRIBUTE((cold))
+    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	__wt_errx(session, "%s%s%s",
 	    name == NULL ? "" : name, name == NULL ? "" : ": ",
