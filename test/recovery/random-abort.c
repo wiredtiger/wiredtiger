@@ -232,7 +232,6 @@ main(int argc, char *argv[])
 	inmem = false;
 	envconf = ENV_CONFIG_TXNSYNC;
 	nth = MIN_TH;
-	fs = NULL;
 	rand_th = rand_time = true;
 	timeout = MIN_TIME;
 	verify_only = false;
