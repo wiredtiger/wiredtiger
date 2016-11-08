@@ -1085,6 +1085,15 @@ main(void)
 	 * The connection has been closed.
 	 */
 
+	/*! [Configure zlib extension with compression level] */
+	ret = wiredtiger_open(home, NULL,
+	    "create,"
+	    "extensions=[/usr/local/lib/"
+	    "libwiredtiger_zlib.so=[config=[compression_level=3]]]", &conn);
+	/*! [Configure zlib extension with compression level] */
+	if (ret == 0)
+		(void)conn->close(conn, NULL);
+
 #ifdef MIGHT_NOT_RUN
 	/*
 	 * This example code gets run, and the compression libraries might not
@@ -1112,15 +1121,6 @@ main(void)
 	    "create,"
 	    "extensions=[/usr/local/lib/libwiredtiger_zlib.so]", &conn);
 	/*! [Configure zlib extension] */
-	if (ret == 0)
-		(void)conn->close(conn, NULL);
-
-	/*! [Configure zlib extension with compression level] */
-	ret = wiredtiger_open(home, NULL,
-	    "create,"
-	    "extensions=[/usr/local/lib/"
-	    "libwiredtiger_zlib.so=[config=[compression_level=3]]]", &conn);
-	/*! [Configure zlib extension with compression level] */
 	if (ret == 0)
 		(void)conn->close(conn, NULL);
 
