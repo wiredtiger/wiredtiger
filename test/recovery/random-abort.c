@@ -221,7 +221,7 @@ main(int argc, char *argv[])
 	int ch, status, ret;
 	pid_t pid;
 	bool fatal, rand_th, rand_time, verify_only;
-	const char *envconf, *working_dir, *fs;
+	const char *envconf, *working_dir;
 	char fname[64], kname[64];
 
 	if ((progname = strrchr(argv[0], DIR_DELIM)) == NULL)
@@ -241,7 +241,7 @@ main(int argc, char *argv[])
 	while ((ch = __wt_getopt(progname, argc, argv, "h:mT:t:v")) != EOF)
 		switch (ch) {
 		case 'h':
-			fs = __wt_optarg;
+			working_dir = __wt_optarg;
 			break;
 		case 'm':
 			inmem = true;
