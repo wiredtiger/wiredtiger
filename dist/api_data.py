@@ -637,10 +637,10 @@ wiredtiger_open_statistics_log_configuration = [
 
 session_config = [
     Config('ignore_cache_size', 'false', r'''
-    when set, operations performed by this session ignore the cache size and
-    are not blocked when the cache is full.  Note that use of this option for
-    operations that create cache pressure can starve ordinary sessions that
-    obey the cache size.''',
+        when set, operations performed by this session ignore the cache size
+        and are not blocked when the cache is full.  Note that use of this
+        option for operations that create cache pressure can starve ordinary
+        sessions that obey the cache size.''',
         type='boolean'),
     Config('isolation', 'read-committed', r'''
         the default isolation level for operations in this session''',
