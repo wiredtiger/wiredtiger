@@ -827,6 +827,11 @@ struct __wt_session {
 	 *
 	 * @param session the session handle
 	 * @configstart{WT_SESSION.reconfigure, see dist/api_data.py}
+	 * @config{ignore_cache_size, when set\, operations performed by this
+	 * session ignore the cache size and are not blocked when the cache is
+	 * full.  Note that use of this option for operations that create cache
+	 * pressure can starve ordinary sessions that obey the cache size., a
+	 * boolean flag; default \c false.}
 	 * @config{isolation, the default isolation level for operations in this
 	 * session., a string\, chosen from the following options: \c
 	 * "read-uncommitted"\, \c "read-committed"\, \c "snapshot"; default \c
@@ -2005,6 +2010,11 @@ struct __wt_connection {
 	 * connection's error handler is used. See @ref error_handling_event
 	 * for more information.
 	 * @configstart{WT_CONNECTION.open_session, see dist/api_data.py}
+	 * @config{ignore_cache_size, when set\, operations performed by this
+	 * session ignore the cache size and are not blocked when the cache is
+	 * full.  Note that use of this option for operations that create cache
+	 * pressure can starve ordinary sessions that obey the cache size., a
+	 * boolean flag; default \c false.}
 	 * @config{isolation, the default isolation level for operations in this
 	 * session., a string\, chosen from the following options: \c
 	 * "read-uncommitted"\, \c "read-committed"\, \c "snapshot"; default \c
@@ -4200,13 +4210,48 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 
 /*! @} */
 
-/*******************************************
- * Statistic reference.
- *******************************************/
 /*!
  * @addtogroup wt
  * @{
  */
+
+/*!
+ * @name Log record and operation types
+ * @anchor log_types
+ * @{
+ */
+/*
+ * NOTE:  The values of these record types and operations must
+ * never change because they're written into the log.  Append
+ * any new records or operations to the appropriate set.
+ */
+/*! checkpoint */
+#define	WT_LOGREC_CHECKPOINT	0
+/*! transaction commit */
+#define	WT_LOGREC_COMMIT	1
+/*! file sync */
+#define	WT_LOGREC_FILE_SYNC	2
+/*! message */
+#define	WT_LOGREC_MESSAGE	3
+/*! invalid operation */
+#define	WT_LOGOP_INVALID	0
+/*! column put */
+#define	WT_LOGOP_COL_PUT	1
+/*! column remove */
+#define	WT_LOGOP_COL_REMOVE	2
+/*! column truncate */
+#define	WT_LOGOP_COL_TRUNCATE	3
+/*! row put */
+#define	WT_LOGOP_ROW_PUT	4
+/*! row remove */
+#define	WT_LOGOP_ROW_REMOVE	5
+/*! row truncate */
+#define	WT_LOGOP_ROW_TRUNCATE	6
+/*! @} */
+
+/*******************************************
+ * Statistic reference.
+ *******************************************/
 /*
  * DO NOT EDIT: automatically built by dist/api_stat.py.
  * Statistics section: BEGIN
@@ -5070,42 +5115,6 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * Statistics section: END
  * DO NOT EDIT: automatically built by dist/api_stat.py.
  */
-/*!
- * @name Log record and operation types
- * @anchor log_types
- * @{
- */
-/*
- * DO NOT EDIT: automatically built by dist/log.py.
- * Log record declarations: BEGIN
- */
-/*! invalid operation */
-#define	WT_LOGOP_INVALID	0
-/*! checkpoint */
-#define	WT_LOGREC_CHECKPOINT	0
-/*! transaction commit */
-#define	WT_LOGREC_COMMIT	1
-/*! file sync */
-#define	WT_LOGREC_FILE_SYNC	2
-/*! message */
-#define	WT_LOGREC_MESSAGE	3
-/*! column put */
-#define	WT_LOGOP_COL_PUT	1
-/*! column remove */
-#define	WT_LOGOP_COL_REMOVE	2
-/*! column truncate */
-#define	WT_LOGOP_COL_TRUNCATE	3
-/*! row put */
-#define	WT_LOGOP_ROW_PUT	4
-/*! row remove */
-#define	WT_LOGOP_ROW_REMOVE	5
-/*! row truncate */
-#define	WT_LOGOP_ROW_TRUNCATE	6
-/*
- * Log record declarations: END
- * DO NOT EDIT: automatically built by dist/log.py.
- */
-/*! @} */
 /*! @} */
 
 #undef __F
