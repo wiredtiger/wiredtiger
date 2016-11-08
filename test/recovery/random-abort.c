@@ -221,7 +221,7 @@ main(int argc, char *argv[])
 	int ch, status, ret;
 	pid_t pid;
 	bool fatal, rand_th, rand_time, verify_only;
-	const char *envconf, *working_dir;
+	const char *working_dir;
 	char fname[64], kname[64];
 
 	if ((progname = strrchr(argv[0], DIR_DELIM)) == NULL)
@@ -230,7 +230,6 @@ main(int argc, char *argv[])
 		++progname;
 
 	inmem = false;
-	envconf = ENV_CONFIG_TXNSYNC;
 	nth = MIN_TH;
 	rand_th = rand_time = true;
 	timeout = MIN_TIME;
@@ -244,7 +243,6 @@ main(int argc, char *argv[])
 			break;
 		case 'm':
 			inmem = true;
-			envconf = ENV_CONFIG_DEF;
 			break;
 		case 'T':
 			rand_th = false;
