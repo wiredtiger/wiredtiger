@@ -603,6 +603,23 @@ __wt_btree_evictable(WT_SESSION_IMPL *session, bool on)
 }
 
 /*
+ * __wt_btree_lsm_primary --
+ *      Change setting a tree as the LSM primary chunk.
+ */
+void
+__wt_btree_lsm_primary(WT_SESSION_IMPL *session, bool on)
+{
+	WT_BTREE *btree;
+
+	btree = S2BT(session);
+
+	if (on)
+		F_SET(btree, WT_BTREE_LSM_PRIMARY);
+	else
+		F_CLR(btree, WT_BTREE_LSM_PRIMARY);
+}
+
+/*
  * __btree_preload --
  *	Pre-load internal pages.
  */

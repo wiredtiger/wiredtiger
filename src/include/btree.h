@@ -167,6 +167,7 @@ struct __wt_btree {
 #define	WT_BTREE_SKIP_CKPT	0x040000 /* Handle skipped checkpoint */
 #define	WT_BTREE_UPGRADE	0x080000 /* Handle is for upgrade */
 #define	WT_BTREE_VERIFY		0x100000 /* Handle is for verify */
+#define	WT_BTREE_LSM_PRIMARY	0x200000 /* Handle is current LSM primary */
 	uint32_t flags;
 };
 

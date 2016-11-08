@@ -383,6 +383,9 @@ __wt_lsm_checkpoint_chunk(WT_SESSION_IMPL *session,
 	 * forced eviction.
 	 */
 	WT_ERR(__wt_session_get_btree(session, chunk->uri, NULL, NULL, 0));
+	__wt_btree_lsm_primary(session, false);
+	__wt_btree_lsm_update_dirty(session);
+
 	__wt_btree_evictable(session, true);
 	WT_ERR(__wt_session_release_btree(session));
 
