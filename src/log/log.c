@@ -62,18 +62,8 @@ __log_fs_write(WT_SESSION_IMPL *session,
 	 * writes to the previous log file to complete otherwise there could
 	 * be a hole at the end of the previous log file that we cannot detect.
 	 */
-	if (slot->slot_release_lsn.l.file < slot->slot_start_lsn.l.file) {
-		if (__wt_log_cmp(&log->write_lsn, &slot->slot_release_lsn) != 0)
-			__wt_errx(session, "log_fs_write: write LSN %" PRIu32
-			    "/%" PRIu32 " release LSN %" PRIu32
-			    "/%" PRIu32 " start LSN %" PRIu32 "/%" PRIu32,
-			    log->write_lsn.l.file, log->write_lsn.l.offset,
-			    slot->slot_release_lsn.l.file,
-			    slot->slot_release_lsn.l.offset,
-			    slot->slot_start_lsn.l.file,
-			    slot->slot_start_lsn.l.offset);
+	if (slot->slot_release_lsn.l.file < slot->slot_start_lsn.l.file)
 		__log_wait_for_earlier_slot(session, slot);
-	}
 
 	return (__wt_write(session, slot->slot_fh, offset, len, buf));
 }
