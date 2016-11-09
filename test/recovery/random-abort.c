@@ -335,7 +335,7 @@ main(int argc, char *argv[])
 	    session->open_cursor(session, uri, NULL, NULL, &cursor)) != 0)
 		testutil_die(ret, "WT_SESSION.open_cursor: %s", uri);
 
-	absent = count = middle = 0;
+	absent = count = 0;
 	fatal = false;
 	for (i = 0; i < nth; ++i) {
 		middle = 0;
