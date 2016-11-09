@@ -77,7 +77,7 @@ thread_run(void *arg)
 	uint64_t i;
 	int ret;
 	size_t lsize;
-	char buf[MAX_VAL], lgbuf[8], kname[64];
+	char buf[MAX_VAL], kname[64], lgbuf[8];
 	char large[128*1024];
 
 	__wt_random_init(&rnd);
