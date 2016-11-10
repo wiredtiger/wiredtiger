@@ -809,9 +809,11 @@ __conn_builtin_init(WT_CONNECTION_IMPL *conn, const char *name,
 
 	session = conn->default_session;
 
-	WT_RET(__wt_config_gets(session, cfg, "builtin_extension_config", &all_configs));
+	WT_RET(__wt_config_gets(
+	    session, cfg, "builtin_extension_config", &all_configs));
 	WT_CLEAR(cval);
-	WT_RET_NOTFOUND_OK(__wt_config_subgets(session, &all_configs, name, &cval));
+	WT_RET_NOTFOUND_OK(__wt_config_subgets(
+	    session, &all_configs, name, &cval));
 	WT_RET(__wt_strndup(session, cval.str, cval.len, &config));
 	ext_cfg[0] = config;
 
