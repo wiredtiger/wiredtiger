@@ -51,10 +51,6 @@ class VariableContext(object):
     def __setitem__(self, key, value):
         setattr(self, key, value)
 
-# Constants used in SystemDefines, but defining them there is problematic.
-INTEGER = 'integer_undefined'
-STRING = 'string_undefined'
-
 ################################################################
 # Changable parameters
 # We expect these values to evolve as tests are added or modified.
@@ -67,21 +63,11 @@ calls_returning_zero = [ 'close', 'ftruncate', 'fdatasync', 'rename' ]
 # Encapsulate all the defines we can use in our scripts.
 # When this program is run, we'll find out their actual values on
 # the host system.
-class SystemDefines(VariableContext):
-    O_RDONLY = INTEGER   # This assigned value will be
-    O_WRONLY = INTEGER   # replaced by the actual value
-    O_RDWR = INTEGER     # discovered on the system.
-    O_ACCMODE = INTEGER
-    O_NONBLOCK = INTEGER
-    O_APPEND = INTEGER
-    O_SHLOCK = INTEGER
-    O_EXLOCK = INTEGER
-    O_ASYNC = INTEGER
-    O_NOFOLLOW = INTEGER
-    O_CREAT = INTEGER
-    O_TRUNC = INTEGER
-    O_EXCL = INTEGER
-    O_CLOEXEC = INTEGER
+defines_used = [
+    'HAVE_FTRUNCATE', 'O_ACCMODE', 'O_APPEND', 'O_ASYNC',
+    'O_CLOEXEC', 'O_CREAT', 'O_EXCL', 'O_EXLOCK', 'O_NOFOLLOW',
+    'O_NONBLOCK', 'O_RDONLY', 'O_RDWR', 'O_SHLOCK', 'O_TRUNC',
+    'O_WRONLY' ]
 
 
 ################################################################
@@ -90,6 +76,7 @@ class SystemDefines(VariableContext):
 ident = r'([a-zA-Z_][a-zA-Z0-9_]*)'
 outputpat = re.compile(r'OUTPUT\("([^"]*)"\)')
 argpat = re.compile(r'''((?:[^,"']|"[^"]*"|'[^']*')+)''')
+discardpat = re.compile(r';')
 
 # e.g. fd = open("blah", 0, 0);
 assignpat = re.compile(ident + r'\s*=\s*' + ident + r'(\([^;]*\));')
@@ -146,6 +133,15 @@ class FileLine(str):
 
     def prefix(self):
         return self.filename + ':' + str(self.linenum) + ': '
+
+    def range_prefix(self, otherline):
+        if self == otherline:
+            othernum = ''
+        elif otherline == None:
+            othernum = '-EOF'
+        else:
+            othernum = '-' + str(otherline.linenum)
+        return self.filename + ':' + str(self.linenum) + othernum + ': '
 
 # Manage reading from a file, tracking line numbers.
 class Reader(object):
@@ -228,9 +224,13 @@ class FileReader(Reader):
 
 # Read from the C preprocessor run on a file.
 class PreprocessedReader(Reader):
-    def __init__(self, wttop, filename, raw = True):
+    def __init__(self, wttop, filename, predefines, raw = True):
         sourcedir = os.path.dirname(filename)
-        cmd = ['cc', '-E', '-I' + sourcedir, '-']
+        cmd = ['cc', '-E', '-I' + sourcedir]
+        for name in dir(predefines):
+            if not name.startswith('__'):
+                cmd.append('-D' + name + '=' + str(predefines[name]))
+        cmd.append('-')
         proc = subprocess.Popen(cmd, stdin=open(filename),
             stdout=subprocess.PIPE)
         super(PreprocessedReader, self).__init__(wttop, filename,
@@ -247,8 +247,9 @@ class HeadOpts:
 # comparing output from the run and reporting differences.
 class Runner:
     def __init__(self, wttopdir, runfilename, exedir, testexe,
-                 strace, args, descriptors):
-        self.descriptors = descriptors
+                 strace, args, variables, defines):
+        self.variables = variables
+        self.defines = defines
         self.wttopdir = wttopdir
         self.runfilename = runfilename
         self.testexe = testexe
@@ -269,7 +270,8 @@ class Runner:
         else:
             self.errfilename = errfilename
 
-        self.runfile = PreprocessedReader(self.wttopdir, runfilename, False)
+        self.runfile = PreprocessedReader(self.wttopdir, runfilename,
+                                          self.defines, False)
 
     def init(self, systemtype):
         # Read up until 'RUN()', setting attributes of self.headopts
@@ -323,6 +325,14 @@ class Runner:
             prefix = 'syscall.py: '
         print(prefix + s, file=sys.stderr)
 
+    def failrange(self, line, lineto, s):
+        # make it work if line is None or is a plain string.
+        try:
+            prefix = simplify_path(self.wttopdir, line.range_prefix(lineto))
+        except:
+            prefix = 'syscall.py: '
+        print(prefix + s, file=sys.stderr)
+
     def str_match(self, s1, s2):
         fuzzyRight = False
         if len(s1) < 2 or len(s2) < 2:
@@ -347,7 +357,7 @@ class Runner:
             return s1 == s2
 
     def expr_eval(self, s):
-        return eval(s, {}, self.descriptors)
+        return eval(s, {}, self.variables)
 
     def arg_match(self, a1, a2):
         a1 = a1.strip()
@@ -469,7 +479,7 @@ class Runner:
             eargs = self.split_args(em.groups()[1])
             result = self.args_match(rargs, eargs)
             if result:
-                self.descriptors[m.groups()[0]] = em.groups()[2]
+                self.variables[m.groups()[0]] = em.groups()[2]
             return self.match_report(runline, errline, verbose, skiplines,
                                      result, 'syscall to match assignment')
 
@@ -538,15 +548,18 @@ class Runner:
                         print('Fuzzy matching:')
                         print('  ' + runline.prefix() + runline)
                     continue
+                first_errline = errline
                 while errline and not self.match(runline, errline,
                                                  self.args.verbose, skiplines):
                     if skiplines or hasattr(errline, 'skip'):
                         errline = errfile.readline()
                     else:
                         self.fail(runline, "expecting " + runline)
+                        self.failrange(first_errline, errline, "does not match")
                         return False
                 if not errline:
                     self.fail(runline, "failed to match line: " + runline)
+                    self.failrange(first_errline, errline, "does not match")
                     return False
                 errline = errfile.readline()
                 if re.match(dtruss_init_pat, errline):
@@ -574,7 +587,7 @@ class Runner:
         while s:
             if matchout and re.match(outputpat, s):
                 out.append(s)
-            else:
+            elif not re.match(discardpat, s):
                 nonout.append(s)
             s = f.readline()
         out.extend(nonout)
@@ -625,6 +638,8 @@ class SyscallCommand:
     def parse_args(self, argv):
         srcdir = os.path.join(self.disttop, 'test', 'syscall')
         self.exetopdir = os.path.join(self.builddir, 'test', 'syscall')
+        self.incdir1 = os.path.join(self.disttop, 'src', 'include')
+        self.incdir2 = self.builddir
 
         ap = argparse.ArgumentParser('Syscall test runner')
         ap.add_argument('--systype',
@@ -671,7 +686,7 @@ class SyscallCommand:
     def runone(self, runfilename, exedir, testexe, args):
         result = True
         runner = Runner(self.disttop, runfilename, exedir, testexe,
-                        self.strace, args, self.defines)
+                        self.strace, args, self.variables, self.defines)
         okay, skip = runner.init(args.systype)
         if not okay:
             if not skip:
@@ -697,23 +712,19 @@ class SyscallCommand:
     # The output of the program is Python code that we'll execute
     # directly to set the values.
     def build_system_defines(self):
-        self.defines = SystemDefines()
+        self.variables = VariableContext()
+        self.defines = VariableContext()
         program = \
             '#include <stdio.h>\n' + \
             '#include <fcntl.h>\n' + \
+            '#include <wt_internal.h>\n' + \
             'int main() {\n'
-        for attr in dir(self.defines):
-            try:
-                value = self.defines[attr]
-                if value == INTEGER:
-                    program += '#ifndef ' + attr + '\n' + \
-                               '#define ' + attr + ' 0\n' + \
-                               '#endif\n'
-                    # output is Python that sets attributes of 'o'.
-                    program += '  printf("o.' + attr + '=%d\\n", ' + \
-                               attr + ');\n'
-            except:
-                pass
+        for define in defines_used:
+            program += '#ifdef ' + define + '\n'
+            # output is Python that sets attributes of 'o'.
+            program += '  printf("o.' + define + '=%d\\n", ' + \
+                       define + ');\n'
+            program += '#endif\n'
         program += \
             '  return(0);\n' + \
             '}\n'
@@ -721,7 +732,10 @@ class SyscallCommand:
         probe_exe = os.path.join(self.exetopdir, "syscall_probe")
         with open(probe_c, "w") as f:
             f.write(program)
-        subret = subprocess.call(['cc', '-o', probe_exe, probe_c])
+        subret = subprocess.call(['cc', '-o', probe_exe,
+                                  '-I' + self.incdir1,
+                                  '-I' + self.incdir2,
+                                  probe_c])
         if subret != 0:
             msg("probe compilation returned " + str(subret))
             return False
@@ -735,6 +749,7 @@ class SyscallCommand:
         exec(out)            # Run the produced Python.
         if not self.args.preserve:
             os.remove(probe_c)
+            os.remove(probe_exe)
         return True
 
     def execute(self):
