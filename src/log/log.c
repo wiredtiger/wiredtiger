@@ -20,6 +20,10 @@ static int __log_write_internal(
 #define	WT_LOG_OPEN_CREATE_OK	0x01
 #define	WT_LOG_OPEN_VERIFY	0x02
 
+/*
+ * __log_wait_for_earlier_slot --
+ *	Wait for write_lsn to catch up to this slot.
+ */
 static void
 __log_wait_for_earlier_slot(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 {
