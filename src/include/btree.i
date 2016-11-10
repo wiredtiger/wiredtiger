@@ -1545,11 +1545,11 @@ __wt_btree_lsm_over_size(WT_SESSION_IMPL *session, uint64_t maxsize)
 }
 
 /*
- * __wt_btree_lsm_flip_primary --
- *      Update the btree and cache dirty leave page values.
+ * __wt_btree_lsm_switch_primary --
+ *      Switch a btree handle to/from the current primary chunk of an LSM tree.
  */
 static inline void
-__wt_btree_lsm_flip_primary(WT_SESSION_IMPL *session, bool on)
+__wt_btree_lsm_switch_primary(WT_SESSION_IMPL *session, bool on)
 {
 	WT_BTREE *btree;
 	WT_CACHE *cache;
