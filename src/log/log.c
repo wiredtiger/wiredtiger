@@ -21,39 +21,6 @@ static int __log_write_internal(
 #define	WT_LOG_OPEN_VERIFY	0x02
 
 /*
- * __log_wait_for_earlier_slot --
- *	Wait for write LSN to advance.
- */
-static void
-__log_wait_for_earlier_slot(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
-{
-	WT_CONNECTION_IMPL *conn;
-	WT_LOG *log;
-	int yield_count;
-
-	conn = S2C(session);
-	log = conn->log;
-	yield_count = 0;
-
-	while (__wt_log_cmp(&log->write_lsn, &slot->slot_release_lsn) != 0) {
-		/*
-		 * If we're on a locked path and the write LSN is not advancing,
-		 * unlock in case an earlier thread is trying to switch its
-		 * slot and complete its operation.
-		 */
-		if (F_ISSET(session, WT_SESSION_LOCKED_SLOT))
-			__wt_spin_unlock(session, &log->log_slot_lock);
-		__wt_cond_auto_signal(session, conn->log_wrlsn_cond);
-		if (++yield_count < WT_THOUSAND)
-			__wt_yield();
-		else
-			__wt_cond_wait(session, log->log_write_cond, 200);
-		if (F_ISSET(session, WT_SESSION_LOCKED_SLOT))
-			__wt_spin_lock(session, &log->log_slot_lock);
-	}
-}
-
-/*
  * __log_fs_write --
  *	Wrapper when writing to a log file.  If we're writing to a new log
  *	file for the first time wait for writes to the previous log file.
@@ -68,7 +35,7 @@ __log_fs_write(WT_SESSION_IMPL *session,
 	 * be a hole at the end of the previous log file that we cannot detect.
 	 */
 	if (slot->slot_release_lsn.l.file < slot->slot_start_lsn.l.file)
-		__log_wait_for_earlier_slot(session, slot);
+		WT_RET(__wt_log_force_sync(session, &slot->slot_release_lsn));
 
 	return (__wt_write(session, slot->slot_fh, offset, len, buf));
 }
@@ -1405,11 +1372,13 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
 	WT_LSN sync_lsn;
 	int64_t release_buffered, release_bytes;
 	uint64_t fsync_duration_usecs;
+	int yield_count;
 	bool locked;
 
 	conn = S2C(session);
 	log = conn->log;
 	locked = false;
+	yield_count = 0;
 	if (freep != NULL)
 		*freep = 1;
 	release_buffered = WT_LOG_SLOT_RELEASED_BUFFERED(slot->slot_state);
@@ -1461,7 +1430,22 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
 	 * be holes in the log file.
 	 */
 	WT_STAT_CONN_INCR(session, log_release_write_lsn);
-	__log_wait_for_earlier_slot(session, slot);
+	while (__wt_log_cmp(&log->write_lsn, &slot->slot_release_lsn) != 0) {
+		/*
+		 * If we're on a locked path and the write LSN is not advancing,
+		 * unlock in case an earlier thread is trying to switch its
+		 * slot and complete its operation.
+		 */
+		if (F_ISSET(session, WT_SESSION_LOCKED_SLOT))
+			__wt_spin_unlock(session, &log->log_slot_lock);
+		__wt_cond_auto_signal(session, conn->log_wrlsn_cond);
+		if (++yield_count < WT_THOUSAND)
+			__wt_yield();
+		else
+			__wt_cond_wait(session, log->log_write_cond, 200);
+		if (F_ISSET(session, WT_SESSION_LOCKED_SLOT))
+			__wt_spin_lock(session, &log->log_slot_lock);
+	}
 
 	log->write_start_lsn = slot->slot_start_lsn;
 	log->write_lsn = slot->slot_end_lsn;
