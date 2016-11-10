@@ -128,7 +128,7 @@ __wt_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref)
 		return;
 
 	cache = S2C(session)->cache;
-	__wt_spin_lock(session, &cache->evict_queue_lock);
+	__wt_spin_lock_track(session, &cache->evict_queue_lock);
 
 	found = false;
 	for (q = 0; q < WT_EVICT_QUEUE_MAX && !found; q++) {
@@ -776,7 +776,7 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
 	 * The eviction candidate list might reference pages from the file,
 	 * clear it. Hold the evict lock to remove queued pages from a file.
 	 */
-	__wt_spin_lock(session, &cache->evict_queue_lock);
+	__wt_spin_lock_track(session, &cache->evict_queue_lock);
 
 	for (q = 0; q < WT_EVICT_QUEUE_MAX; q++) {
 		__wt_spin_lock(session, &cache->evict_queues[q].evict_lock);
@@ -928,7 +928,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 		WT_STAT_CONN_INCR(session, cache_eviction_queue_not_empty);
 
 	/* Sort the list into LRU order and restart. */
-	__wt_spin_lock(session, &queue->evict_lock);
+	__wt_spin_lock_track(session, &queue->evict_lock);
 
 	/*
 	 * We have locked the queue: in the (unusual) case where we are filling
@@ -1585,7 +1585,7 @@ __evict_get_ref(
 	    __evict_queue_empty(cache->evict_fill_queue, false)))
 		return (WT_NOTFOUND);
 
-	__wt_spin_lock(session, &cache->evict_queue_lock);
+	__wt_spin_lock_track(session, &cache->evict_queue_lock);
 
 	/* Check the urgent queue first. */
 	if (urgent_ok && !__evict_queue_empty(urgent_queue, false))
@@ -1622,7 +1622,7 @@ __evict_get_ref(
 			return (WT_NOTFOUND);
 		}
 		if (!is_server)
-			__wt_spin_lock(session, &queue->evict_lock);
+			__wt_spin_lock_track(session, &queue->evict_lock);
 		else if (__wt_spin_trylock(session, &queue->evict_lock) != 0)
 			continue;
 		break;
@@ -1905,12 +1905,12 @@ __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
 	urgent_queue = &cache->evict_queues[WT_EVICT_URGENT_QUEUE];
 	queued = false;
 
-	__wt_spin_lock(session, &cache->evict_queue_lock);
+	__wt_spin_lock_track(session, &cache->evict_queue_lock);
 	if (F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU) ||
 	    F_ISSET(S2BT(session), WT_BTREE_NO_EVICTION))
 		goto done;
 
-	__wt_spin_lock(session, &urgent_queue->evict_lock);
+	__wt_spin_lock_track(session, &urgent_queue->evict_lock);
 	if (__evict_queue_empty(urgent_queue, false)) {
 		urgent_queue->evict_current = urgent_queue->evict_queue;
 		urgent_queue->evict_candidates = 0;

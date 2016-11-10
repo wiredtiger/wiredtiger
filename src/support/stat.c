@@ -748,6 +748,8 @@ static const char * const __stats_connection_desc[] = {
 	"data-handle: connection sweeps",
 	"data-handle: session dhandles swept",
 	"data-handle: session sweep attempts",
+	"lock: cache eviction queue lock acquisitions",
+	"lock: cache individual queue lock acquisitions",
 	"lock: checkpoint lock acquisitions",
 	"lock: checkpoint lock application thread wait time (usecs)",
 	"lock: checkpoint lock internal thread wait time (usecs)",
@@ -1026,6 +1028,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->dh_sweeps = 0;
 	stats->dh_session_handles = 0;
 	stats->dh_session_sweeps = 0;
+	stats->lock_evict_queue_count = 0;
+	stats->lock_evict_queues_count = 0;
 	stats->lock_checkpoint_count = 0;
 	stats->lock_checkpoint_wait_application = 0;
 	stats->lock_checkpoint_wait_internal = 0;
@@ -1319,6 +1323,10 @@ __wt_stat_connection_aggregate(
 	to->dh_sweeps += WT_STAT_READ(from, dh_sweeps);
 	to->dh_session_handles += WT_STAT_READ(from, dh_session_handles);
 	to->dh_session_sweeps += WT_STAT_READ(from, dh_session_sweeps);
+	to->lock_evict_queue_count +=
+	    WT_STAT_READ(from, lock_evict_queue_count);
+	to->lock_evict_queues_count +=
+	    WT_STAT_READ(from, lock_evict_queues_count);
 	to->lock_checkpoint_count +=
 	    WT_STAT_READ(from, lock_checkpoint_count);
 	to->lock_checkpoint_wait_application +=

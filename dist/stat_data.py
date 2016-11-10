@@ -284,6 +284,8 @@ connection_stats = [
     LockStat('lock_checkpoint_count', 'checkpoint lock acquisitions'),
     LockStat('lock_checkpoint_wait_application', 'checkpoint lock application thread wait time (usecs)'),
     LockStat('lock_checkpoint_wait_internal', 'checkpoint lock internal thread wait time (usecs)'),
+    LockStat('lock_evict_queue_count', 'cache eviction queue lock acquisitions'),
+    LockStat('lock_evict_queues_count', 'cache individual queue lock acquisitions'),
     LockStat('lock_handle_list_count', 'handle-list lock acquisitions'),
     LockStat('lock_handle_list_wait_application', 'handle-list lock application thread wait time (usecs)'),
     LockStat('lock_handle_list_wait_internal', 'handle-list lock internal thread wait time (usecs)'),
