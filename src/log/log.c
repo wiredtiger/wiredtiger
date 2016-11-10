@@ -71,7 +71,6 @@ __log_fs_write(WT_SESSION_IMPL *session,
 		__log_wait_for_earlier_slot(session, slot);
 		WT_RET(__wt_log_force_sync(session, &slot->slot_release_lsn));
 	}
-
 	return (__wt_write(session, slot->slot_fh, offset, len, buf));
 }
 
