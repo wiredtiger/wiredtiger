@@ -65,10 +65,9 @@ calls_returning_zero = [ 'close', 'ftruncate', 'fdatasync', 'rename' ]
 # the host system.
 defines_used = [
     'HAVE_FTRUNCATE', 'O_ACCMODE', 'O_APPEND', 'O_ASYNC',
-    'O_CLOEXEC', 'O_CREAT', 'O_EXCL', 'O_EXLOCK', 'O_NOFOLLOW',
-    'O_NONBLOCK', 'O_RDONLY', 'O_RDWR', 'O_SHLOCK', 'O_TRUNC',
-    'O_WRONLY' ]
-
+    'O_CLOEXEC', 'O_CREAT', 'O_EXCL', 'O_EXLOCK', 'O_NOATIME',
+    'O_NOFOLLOW', 'O_NONBLOCK', 'O_RDONLY', 'O_RDWR', 'O_SHLOCK',
+    'O_TRUNC', 'O_WRONLY' ]
 
 ################################################################
 
@@ -712,7 +711,14 @@ class SyscallCommand:
     # The output of the program is Python code that we'll execute
     # directly to set the values.
     def build_system_defines(self):
+        # variables is a symbol table that is used to
+        # evaluate expressions both in the .run file and
+        # in the output file. This is needed for strace,
+        # which shows system call flags in symbolic form.
         self.variables = VariableContext()
+        # defines is a symbol table that is used to
+        # create preprocessor defines, effectively evaluating
+        # all flag defines in the .run file.
         self.defines = VariableContext()
         program = \
             '#include <stdio.h>\n' + \
@@ -732,10 +738,13 @@ class SyscallCommand:
         probe_exe = os.path.join(self.exetopdir, "syscall_probe")
         with open(probe_c, "w") as f:
             f.write(program)
-        subret = subprocess.call(['cc', '-o', probe_exe,
-                                  '-I' + self.incdir1,
-                                  '-I' + self.incdir2,
-                                  probe_c])
+        ccargs = ['cc', '-o', probe_exe]
+        ccargs.append('-I' + self.incdir1)
+        ccargs.append('-I' + self.incdir2)
+        if self.args.systype == 'Linux':
+            ccargs.append('-D_GNU_SOURCE')
+        ccargs.append(probe_c)
+        subret = subprocess.call(ccargs)
         if subret != 0:
             msg("probe compilation returned " + str(subret))
             return False
@@ -747,6 +756,8 @@ class SyscallCommand:
             return False
         o = self.defines     # The 'o' object will be modified.
         exec(out)            # Run the produced Python.
+        o = self.variables   # Set these in variables too, so strace
+        exec(out)            #  symbolic output is evaluated.
         if not self.args.preserve:
             os.remove(probe_c)
             os.remove(probe_exe)
