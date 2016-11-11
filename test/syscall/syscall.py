@@ -38,7 +38,8 @@
 # hex and octal numbers are accepted, constant values can be or-ed.
 #
 from __future__ import print_function
-import argparse, fnmatch, os, platform, re, shutil, subprocess, sys
+import argparse, distutils.spawn, fnmatch, os, platform, re, shutil, \
+    subprocess, sys
 
 # A class that represents a context in which predefined constants can be
 # set, and new variables can be assigned.
@@ -597,7 +598,7 @@ class Runner:
             self.fail(None, "Execution directory not set")
             return False
         if not os.path.isfile(self.testexe):
-            msg("'" + testexe + "': no such file")
+            msg("'" + self.testexe + "': no such file")
             return False
 
         shutil.rmtree(self.exedir, ignore_errors=True)
@@ -625,6 +626,12 @@ class Runner:
         errfile.close()
         if subret != 0:
             msg("'" + self.testexe + "': returned " + str(subret))
+            print("output:")
+            with open(self.outfilename, 'r') as f:
+                shutil.copyfileobj(f, sys.stdout)
+            print("\nerror:")
+            with open(self.errfilename, 'r') as f:
+                shutil.copyfileobj(f, sys.stdout)
             return False
         return True
 
@@ -671,12 +678,18 @@ class SyscallCommand:
             self.dorun = False
 
         # for now, we permit Linux and Darwin
+        straceexe = None
         if args.systype == 'Linux':
             strace = [ 'strace' ]
+            straceexe = 'strace'
         elif args.systype == 'Darwin':
             strace = [ 'sudo', 'dtruss' ]
+            straceexe = 'dtruss'
         else:
             msg("systype '" + args.systype + "' unsupported")
+            return False
+        if not distutils.spawn.find_executable(straceexe):
+            msg("strace: does not exist")
             return False
         self.args = args
         self.strace = strace
