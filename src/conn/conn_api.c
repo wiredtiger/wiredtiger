@@ -817,7 +817,7 @@ __conn_builtin_init(WT_CONNECTION_IMPL *conn, const char *name,
 	WT_RET(__wt_strndup(session, cval.str, cval.len, &config));
 	ext_cfg[0] = config;
 
-	ret = extension_init(&conn->iface, NULL);
+	ret = extension_init(&conn->iface, (WT_CONFIG_ARG *)ext_cfg);
 	__wt_free(session, config);
 
 	return (ret);
@@ -843,8 +843,6 @@ extern int zstd_extension_init(WT_CONNECTION *, WT_CONFIG_ARG *);
 static int
 __conn_builtin_extensions(WT_CONNECTION_IMPL *conn, const char *cfg[])
 {
-	WT_UNUSED(conn);
-
 #ifdef HAVE_BUILTIN_EXTENSION_LZ4
 	WT_RET(__conn_builtin_init(conn, "lz4", lz4_extension_init, cfg));
 #endif
@@ -857,6 +855,11 @@ __conn_builtin_extensions(WT_CONNECTION_IMPL *conn, const char *cfg[])
 #ifdef HAVE_BUILTIN_EXTENSION_ZSTD
 	WT_RET(__conn_builtin_init(conn, "zstd", zstd_extension_init, cfg));
 #endif
+
+	/* Avoid warnings if no builtin extensions are configured. */
+	WT_UNUSED(conn);
+	WT_UNUSED(cfg);
+
 	return (0);
 }
 
