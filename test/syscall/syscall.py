@@ -625,7 +625,7 @@ class Runner:
         outfile.close()
         errfile.close()
         if subret != 0:
-            msg("'" + self.testexe + "': returned " + str(subret))
+            msg("'" + self.testexe + "': returned " + str(subret) " expected 0")
             print("output:")
             with open(self.outfilename, 'r') as f:
                 shutil.copyfileobj(f, sys.stdout)
