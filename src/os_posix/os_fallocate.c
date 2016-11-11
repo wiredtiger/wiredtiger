@@ -21,11 +21,11 @@ static int
 __posix_std_fallocate(
     WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,  wt_off_t offset)
 {
+	WT_UNUSED(wt_session);
+
 #if defined(HAVE_FALLOCATE)
 	WT_DECL_RET;
 	WT_FILE_HANDLE_POSIX *pfh;
-
-	WT_UNUSED(wt_session);
 
 	pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
@@ -33,7 +33,6 @@ __posix_std_fallocate(
 	return (ret);
 #else
 	WT_UNUSED(file_handle);
-	WT_UNUSED(wt_session);
 	WT_UNUSED(offset);
 	return (ENOTSUP);
 #endif
@@ -47,11 +46,11 @@ static int
 __posix_sys_fallocate(
     WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset)
 {
+	WT_UNUSED(wt_session);
+
 #if defined(__linux__) && defined(SYS_fallocate)
 	WT_DECL_RET;
 	WT_FILE_HANDLE_POSIX *pfh;
-
-	WT_UNUSED(wt_session);
 
 	pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
@@ -66,7 +65,6 @@ __posix_sys_fallocate(
 	return (ret);
 #else
 	WT_UNUSED(file_handle);
-	WT_UNUSED(wt_session);
 	WT_UNUSED(offset);
 	return (ENOTSUP);
 #endif
@@ -80,11 +78,11 @@ static int
 __posix_posix_fallocate(
     WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,  wt_off_t offset)
 {
+	WT_UNUSED(wt_session);
+
 #if defined(HAVE_POSIX_FALLOCATE)
 	WT_DECL_RET;
 	WT_FILE_HANDLE_POSIX *pfh;
-
-	WT_UNUSED(wt_session);
 
 	pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
@@ -92,7 +90,6 @@ __posix_posix_fallocate(
 	return (ret);
 #else
 	WT_UNUSED(file_handle);
-	WT_UNUSED(wt_session);
 	WT_UNUSED(offset);
 	return (ENOTSUP);
 #endif
