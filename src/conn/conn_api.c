@@ -859,6 +859,7 @@ __conn_builtin_extensions(WT_CONNECTION_IMPL *conn, const char *cfg[])
 	/* Avoid warnings if no builtin extensions are configured. */
 	WT_UNUSED(conn);
 	WT_UNUSED(cfg);
+	WT_UNUSED(__conn_builtin_init);
 
 	return (0);
 }
