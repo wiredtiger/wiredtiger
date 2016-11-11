@@ -42,7 +42,7 @@ __wt_hazard_set(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
 	 * with eviction and splits, we re-check it after a barrier to make
 	 * sure we have a valid pointer.
 	 */
-	if ((page = ref->page) == NULL) {
+	if (ref->state != WT_REF_MEM || (page = ref->page) == NULL) {
 		*busyp = true;
 		return (0);
 	}
@@ -112,10 +112,12 @@ __wt_hazard_set(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
 		 * found this page using the tree's key space, whatever page we
 		 * find here is the page for us to use.)
 		 */
-		if (ref->page == page && ref->state == WT_REF_MEM) {
-			WT_ASSERT(session, hp->page != NULL);
-			++session->nhazard;
-			return (0);
+		if (ref->state == WT_REF_MEM) {
+			WT_READ_BARRIER();
+			if (ref->page == page) {
+				++session->nhazard;
+				return (0);
+			}
 		}
 
 		/*
