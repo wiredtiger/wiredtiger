@@ -181,7 +181,7 @@ __wt_btree_close(WT_SESSION_IMPL *session)
 
 	btree->bulk_load_ok = false;
 
-	F_CLR(btree, WT_BTREE_SPECIAL_FLAGS | WT_BTREE_LSM_PRIMARY);
+	F_CLR(btree, WT_BTREE_SPECIAL_FLAGS);
 
 	return (ret);
 }
