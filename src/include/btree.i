@@ -1566,6 +1566,9 @@ __wt_btree_lsm_switch_primary(WT_SESSION_IMPL *session, bool on)
 		F_SET(btree, WT_BTREE_LSM_PRIMARY | WT_BTREE_NO_EVICTION);
 	if (!on && F_ISSET(btree, WT_BTREE_LSM_PRIMARY)) {
 		pindex = WT_INTL_INDEX_GET_SAFE(root);
+		if (!F_ISSET(btree, WT_BTREE_NO_EVICTION) ||
+                    pindex->entries != 1)
+                        return;
 		first = pindex->index[0];
 
 		/*
@@ -1573,9 +1576,10 @@ __wt_btree_lsm_switch_primary(WT_SESSION_IMPL *session, bool on)
 		 * but that's OK because we know that no-eviction is set so the
 		 * page can't disappear.
 		 */
-		WT_ASSERT(session, F_ISSET(btree, WT_BTREE_NO_EVICTION));
 		child = first->page;
-		if (child == NULL || !__wt_page_is_modified(child))
+		if (first->state != WT_REF_MEM ||
+                    child->type != WT_PAGE_ROW_LEAF ||
+                    !__wt_page_is_modified(child))
 			return;
 
 		/*
