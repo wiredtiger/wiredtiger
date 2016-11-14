@@ -115,8 +115,7 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
 	 * The metadata is tracked specially because of optimizations for
 	 * checkpoints.
 	 */
-	if (session->dhandle != NULL &&
-	    WT_IS_METADATA(session, session->dhandle))
+	if (session->dhandle != NULL && WT_IS_METADATA(session->dhandle))
 		return (txn_global->metadata_pinned);
 
 	/*
