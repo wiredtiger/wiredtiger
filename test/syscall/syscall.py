@@ -768,6 +768,8 @@ class SyscallCommand:
         if subret != 0 or err:
             msg("probe run returned " + str(subret) + ", error=" + str(err))
             return False
+        if self.args.verbose:
+            print('probe output:\n' + out)
         o = self.defines     # The 'o' object will be modified.
         exec(out)            # Run the produced Python.
         o = self.variables   # Set these in variables too, so strace
