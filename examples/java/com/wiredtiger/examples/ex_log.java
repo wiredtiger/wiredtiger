@@ -340,7 +340,6 @@ public class ex_log {
          */
         for (record_count = 0, i = 0; i < MAX_KEYS; i++, record_count++) {
             String k = "key" + i;
-
             String v = "value" + i;
             cursor.putKeyString(k);
             cursor.putValueString(v);
