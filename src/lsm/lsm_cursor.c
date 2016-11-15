@@ -101,7 +101,7 @@ __clsm_enter_update(WT_CURSOR_LSM *clsm)
 	WT_LSM_CHUNK *primary_chunk;
 	WT_LSM_TREE *lsm_tree;
 	WT_SESSION_IMPL *session;
-	bool have_primary, ovfl;
+	bool hard_limit, have_primary, ovfl;
 
 	lsm_tree = clsm->lsm_tree;
 	session = (WT_SESSION_IMPL *)clsm->iface.session;
@@ -129,11 +129,12 @@ __clsm_enter_update(WT_CURSOR_LSM *clsm)
 	 * chunk grows twice as large as the configured size, block until it
 	 * can be switched.
 	 */
+	hard_limit = lsm_tree->need_switch;
+
 	if (have_primary) {
 		WT_ENTER_PAGE_INDEX(session);
 		WT_WITH_BTREE(session, ((WT_CURSOR_BTREE *)primary)->btree,
-		    ovfl = __wt_btree_lsm_over_size(
-		    session, lsm_tree->need_switch ?
+		    ovfl = __wt_btree_lsm_over_size(session, hard_limit ?
 		    2 * lsm_tree->chunk_size : lsm_tree->chunk_size));
 		WT_LEAVE_PAGE_INDEX(session);
 
@@ -146,7 +147,7 @@ __clsm_enter_update(WT_CURSOR_LSM *clsm)
 	WT_RET(__wt_clsm_request_switch(clsm));
 
 	/* If we only overflowed the soft limit, we're done. */
-	if (have_primary && !lsm_tree->need_switch)
+	if (have_primary && !hard_limit)
 		return (0);
 
 	WT_RET(__wt_clsm_await_switch(clsm));
