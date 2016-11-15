@@ -34,7 +34,7 @@ __wt_clsm_request_switch(WT_CURSOR_LSM *clsm)
 	lsm_tree = clsm->lsm_tree;
 	session = (WT_SESSION_IMPL *)clsm->iface.session;
 
-	if (!F_ISSET(lsm_tree, WT_LSM_TREE_NEED_SWITCH)) {
+	if (lsm_tree->need_switch == false) {
 		/*
 		 * Check that we are up-to-date: don't set the switch if the
 		 * tree has changed since we last opened cursors: that can lead
@@ -44,8 +44,8 @@ __wt_clsm_request_switch(WT_CURSOR_LSM *clsm)
 		__wt_lsm_tree_readlock(session, lsm_tree);
 		if (lsm_tree->nchunks == 0 ||
 		    (clsm->dsk_gen == lsm_tree->dsk_gen &&
-		    !F_ISSET(lsm_tree, WT_LSM_TREE_NEED_SWITCH))) {
-			F_SET(lsm_tree, WT_LSM_TREE_NEED_SWITCH);
+		    lsm_tree->need_switch == false)) {
+			lsm_tree->need_switch = true;
 			ret = __wt_lsm_manager_push_entry(
 			    session, WT_LSM_WORK_SWITCH, 0, lsm_tree);
 		}
@@ -101,7 +101,7 @@ __clsm_enter_update(WT_CURSOR_LSM *clsm)
 	WT_LSM_CHUNK *primary_chunk;
 	WT_LSM_TREE *lsm_tree;
 	WT_SESSION_IMPL *session;
-	bool hard_limit, have_primary, ovfl;
+	bool have_primary, ovfl;
 
 	lsm_tree = clsm->lsm_tree;
 	session = (WT_SESSION_IMPL *)clsm->iface.session;
@@ -129,12 +129,11 @@ __clsm_enter_update(WT_CURSOR_LSM *clsm)
 	 * chunk grows twice as large as the configured size, block until it
 	 * can be switched.
 	 */
-	hard_limit = F_ISSET(lsm_tree, WT_LSM_TREE_NEED_SWITCH);
-
 	if (have_primary) {
 		WT_ENTER_PAGE_INDEX(session);
 		WT_WITH_BTREE(session, ((WT_CURSOR_BTREE *)primary)->btree,
-		    ovfl = __wt_btree_lsm_over_size(session, hard_limit ?
+		    ovfl = __wt_btree_lsm_over_size(
+		    session, lsm_tree->need_switch ?
 		    2 * lsm_tree->chunk_size : lsm_tree->chunk_size));
 		WT_LEAVE_PAGE_INDEX(session);
 
@@ -147,7 +146,7 @@ __clsm_enter_update(WT_CURSOR_LSM *clsm)
 	WT_RET(__wt_clsm_request_switch(clsm));
 
 	/* If we only overflowed the soft limit, we're done. */
-	if (have_primary && !hard_limit)
+	if (have_primary && !lsm_tree->need_switch)
 		return (0);
 
 	WT_RET(__wt_clsm_await_switch(clsm));
