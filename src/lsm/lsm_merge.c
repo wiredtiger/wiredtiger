@@ -89,7 +89,7 @@ __lsm_merge_aggressive_update(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 	 * the timer is running - since clearing and checking a special
 	 * timer value isn't simple.
 	 */
-	if (lsm_tree->aggressive_timer_enabled == false) {
+	if (!lsm_tree->aggressive_timer_enabled) {
 		lsm_tree->aggressive_timer_enabled = true;
 		__wt_epoch(session, &lsm_tree->merge_aggressive_ts);
 	}

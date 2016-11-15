@@ -736,7 +736,7 @@ __wt_lsm_tree_switch(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 	if (!first_switch &&
 	    (last_chunk = lsm_tree->chunk[nchunks - 1]) != NULL &&
 	    !F_ISSET(last_chunk, WT_LSM_CHUNK_ONDISK) &&
-	    lsm_tree->need_switch == false)
+	    !lsm_tree->need_switch)
 		goto err;
 
 	/* Update the throttle time. */

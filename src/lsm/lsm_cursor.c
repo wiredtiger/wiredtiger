@@ -34,7 +34,7 @@ __wt_clsm_request_switch(WT_CURSOR_LSM *clsm)
 	lsm_tree = clsm->lsm_tree;
 	session = (WT_SESSION_IMPL *)clsm->iface.session;
 
-	if (lsm_tree->need_switch == false) {
+	if (!lsm_tree->need_switch) {
 		/*
 		 * Check that we are up-to-date: don't set the switch if the
 		 * tree has changed since we last opened cursors: that can lead
@@ -44,7 +44,7 @@ __wt_clsm_request_switch(WT_CURSOR_LSM *clsm)
 		__wt_lsm_tree_readlock(session, lsm_tree);
 		if (lsm_tree->nchunks == 0 ||
 		    (clsm->dsk_gen == lsm_tree->dsk_gen &&
-		    lsm_tree->need_switch == false)) {
+		    !lsm_tree->need_switch)) {
 			lsm_tree->need_switch = true;
 			ret = __wt_lsm_manager_push_entry(
 			    session, WT_LSM_WORK_SWITCH, 0, lsm_tree);
