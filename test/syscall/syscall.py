@@ -123,6 +123,13 @@ def simplify_path(wttop, pathname):
         pathname = pathname[len(wttop):]
     return pathname
 
+def printfile(pathname, abbrev):
+    print("================================================================")
+    print(abbrev + " (" + pathname + "):")
+    with open(pathname, 'r') as f:
+        shutil.copyfileobj(f, sys.stdout)
+    print("================================================================")
+
 # A line from a file: a modified string with the file name and line number
 # associated with it.
 class FileLine(str):
@@ -626,12 +633,8 @@ class Runner:
         errfile.close()
         if subret != 0:
             msg("'" + self.testexe + "': exit value " + str(subret))
-            print("output:")
-            with open(self.outfilename, 'r') as f:
-                shutil.copyfileobj(f, sys.stdout)
-            print("\nerror:")
-            with open(self.errfilename, 'r') as f:
-                shutil.copyfileobj(f, sys.stdout)
+            printfile(self.outfilename, "output")
+            printfile(self.errfilename, "error")
             return False
         return True
 
@@ -713,6 +716,9 @@ class SyscallCommand:
                 print('  ' + simplify_path(self.disttop, runfilename))
                 print('  ' + simplify_path(self.disttop, runner.errfilename))
                 result = runner.match_lines()
+                if not result and args.verbose:
+                    printfile(runfilename, "runfile")
+                    printfile(runner.errfilename, "trace output")
         runner.close(not result)
         if not result:
             print('************************ FAILED ************************')
