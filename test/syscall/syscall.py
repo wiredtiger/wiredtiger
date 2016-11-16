@@ -620,13 +620,12 @@ class Runner:
         outfile = open(self.outfilename, 'w')
         errfile = open(self.errfilename, 'w')
         if self.args.verbose:
-            print('RUN: ' + str(callargs))
+            print('RUNNING: ' + str(callargs))
         subret = subprocess.call(callargs, stdout=outfile, stderr=errfile)
         outfile.close()
         errfile.close()
         if subret != 0:
-            msg("'" + self.testexe + "': returned " + str(subret) +
-                ", expected 0")
+            msg("'" + self.testexe + "': exit value " + str(subret))
             print("output:")
             with open(self.outfilename, 'r') as f:
                 shutil.copyfileobj(f, sys.stdout)
