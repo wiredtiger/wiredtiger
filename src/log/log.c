@@ -1892,7 +1892,8 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 		WT_ERR(__log_release(session, myslot.slot, &free_slot));
 		if (free_slot)
 			WT_ERR(__wt_log_slot_free(session, myslot.slot));
-	} else if (LF_ISSET(WT_LOG_FSYNC)) {
+	}
+	if (LF_ISSET(WT_LOG_FSYNC)) {
 		/* Wait for our writes to reach disk */
 		while (LOG_CMP(&log->sync_lsn, &lsn) <= 0 &&
 		    myslot.slot->slot_error == 0)
