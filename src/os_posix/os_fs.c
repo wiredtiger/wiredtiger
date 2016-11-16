@@ -575,8 +575,7 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	WT_FILE_HANDLE_POSIX *pfh;
 	WT_SESSION_IMPL *session;
 	mode_t mode;
-	uint32_t advise_flag;
-	int f;
+	int advise_flag, f;
 
 	WT_UNUSED(file_system);
 
