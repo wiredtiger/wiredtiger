@@ -472,6 +472,7 @@ centric
 cfg
 cfkos
 change's
+chdir
 checkfrag
 checkpointed
 checkpointer
@@ -648,6 +649,7 @@ fread
 free'd
 freelist
 fs
+fscanf
 fsm
 fstat
 fsync
@@ -781,6 +783,7 @@ lsnappy
 lu
 lz
 lzo
+mT
 madvise
 majorp
 malloc
@@ -1117,6 +1120,7 @@ uid
 uint
 uintmax
 unbare
+unbuffered
 uncompressing
 uncompresssed
 undef
@@ -1170,6 +1174,7 @@ vsnprintf
 vtype
 vunpack
 vupdate
+waitpid
 walk's
 wb
 wiredtiger
