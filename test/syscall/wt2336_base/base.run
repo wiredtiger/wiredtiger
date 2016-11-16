@@ -125,9 +125,6 @@ close(fd);
 pwrite(wt, ""..., 0x1000, 0x1000);
 pwrite(wt, ""..., 0x1000, 0x2000);
 pwrite(wt, ""..., 0x1000, 0x3000);
-#ifdef __linux__
-fdatasync(wt);
-#endif /* __linux__ */
 fd = OPEN_EXISTING("./WiredTiger.turtle", O_RDWR|O_CLOEXEC);
 
 close(fd);
@@ -142,7 +139,6 @@ rename("./WiredTiger.turtle.set", "./WiredTiger.turtle");
 dir = open("./", O_RDONLY); 
 fdatasync(dir);
 close(dir);
-fdatasync(wt);
 #endif /* __linux__ */
 
 OUTPUT("--------------open_session");
