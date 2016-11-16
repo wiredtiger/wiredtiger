@@ -153,7 +153,7 @@ thread_run(void *arg)
 		if (fprintf(fp, "%" PRIu64 "\n", i) == -1)
 			die(errno, "fprintf");
 	}
-	/* NOTREACHED */
+	return (NULL);
 }
 
 /*

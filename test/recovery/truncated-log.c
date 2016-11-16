@@ -70,7 +70,6 @@ die(int e, const char *m)
  * log file and truncate does not exist, this tests that we can still read
  * past that record.
  */
-static void write_and_read_new(WT_SESSION *);
 static void
 write_and_read_new(WT_SESSION *session)
 {
