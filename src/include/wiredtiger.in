@@ -1771,6 +1771,18 @@ struct __wt_connection {
 	 *
 	 * @param connection the connection handle
 	 * @configstart{WT_CONNECTION.reconfigure, see dist/api_data.py}
+	 * @config{access_pattern = (, Give a hint about expected data file
+	 * access patterns.  uses a session from the configured session_max., a
+	 * set of related configuration options defined below.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;data, It is recommended that
+	 * workloads that consist primarily of updates and/or point queries
+	 * specify \c random.  Workloads that do many cursor scans through large
+	 * ranges of data specify \c sequential and other workloads specify \c
+	 * default.  The option leads to an advisory call to an appropriate
+	 * operating system API where available., a string\, chosen from the
+	 * following options: \c "default"\, \c "random"\, \c "sequential";
+	 * default \c default.}
+	 * @config{ ),,}
 	 * @config{async = (, asynchronous operations configuration options., a
 	 * set of related configuration options defined below.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable asynchronous
@@ -2198,6 +2210,17 @@ struct __wt_connection {
  * handler is installed that writes error messages to stderr. See
  * @ref error_handling_event for more information.
  * @configstart{wiredtiger_open, see dist/api_data.py}
+ * @config{access_pattern = (, Give a hint about expected data file access
+ * patterns.  uses a session from the configured session_max., a set of related
+ * configuration options defined below.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;data,
+ * It is recommended that workloads that consist primarily of updates and/or
+ * point queries specify \c random.  Workloads that do many cursor scans through
+ * large ranges of data specify \c sequential and other workloads specify \c
+ * default.  The option leads to an advisory call to an appropriate operating
+ * system API where available., a string\, chosen from the following options: \c
+ * "default"\, \c "random"\, \c "sequential"; default \c default.}
+ * @config{ ),,}
  * @config{async = (, asynchronous operations configuration options., a set of
  * related configuration options defined below.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable asynchronous operation., a

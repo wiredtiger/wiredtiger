@@ -575,6 +575,7 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	WT_FILE_HANDLE_POSIX *pfh;
 	WT_SESSION_IMPL *session;
 	mode_t mode;
+	uint32_t advise_flag;
 	int f;
 
 	WT_UNUSED(file_system);
@@ -681,12 +682,19 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	 * interesting.
 	 */
 	if (!pfh->direct_io && file_type == WT_FS_OPEN_FILE_TYPE_DATA) {
+		advise_flag = POSIX_FADV_NORMAL;
+		if (FLD_ISSET(conn->access_pattern, WT_ACCESS_RANDOM))
+			advise_flag = POSIX_FADV_RANDOM;
+		if (FLD_ISSET(conn->access_pattern, WT_ACCESS_SEQUENTIAL))
+			advise_flag = POSIX_FADV_SEQUENTIAL;
 		WT_SYSCALL(
-		    posix_fadvise(pfh->fd, 0, 0, POSIX_FADV_RANDOM), ret);
+		    posix_fadvise(pfh->fd, 0, 0, advise_flag), ret);
 		if (ret != 0)
 			WT_ERR_MSG(session, ret,
 			    "%s: handle-open: posix_fadvise", name);
 	}
+#else
+	WT_UNUSED(advise_flag);
 #endif
 
 directory_open:
