@@ -26,5 +26,6 @@ test/fops
 test/format HAVE_BERKELEY_DB
 test/huge
 test/packing
+test/recovery
 test/salvage
 test/thread
