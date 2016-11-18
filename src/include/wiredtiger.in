@@ -2372,6 +2372,9 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;recover, run recovery
  * or error if recovery needs to run after an unclean shutdown., a string\,
  * chosen from the following options: \c "error"\, \c "on"; default \c on.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;trickle, start a background flush of the log
+ * file every time this many milliseconds passes.  A value of zero disables the
+ * flush., an integer between 0 and 100000; default \c 100.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;zero_fill, manually write zeroes into log
  * files., a boolean flag; default \c false.}
  * @config{ ),,}

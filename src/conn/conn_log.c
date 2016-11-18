@@ -165,6 +165,7 @@ __logmgr_config(
 
 	WT_RET(__wt_config_gets(session, cfg, "log.trickle", &cval));
 	conn->log_trickle = (uint32_t)cval.val;
+	__wt_errx(session, "LOG_CONFIG: trickle set to %u", conn->log_trickle);
 
 	WT_RET(__wt_config_gets(session, cfg, "log.zero_fill", &cval));
 	if (cval.val != 0) {
@@ -803,8 +804,12 @@ __log_server(void *arg)
 		/*
 		 * Start a background sync of the log file if configured.
 		 */
-		if (conn->log_trickle && timediff > conn->log_trickle)
+		if (conn->log_trickle && timediff > conn->log_trickle) {
+			__wt_errx(session,
+			    "LOG_SERVER: start background flush %llu trickle %u",
+			    timediff, conn->log_trickle);
 			WT_ERR(__wt_log_flush(session, WT_LOG_BACKGROUND));
+		}
 
 		/*
 		 * We don't want to archive or pre-allocate files as often as

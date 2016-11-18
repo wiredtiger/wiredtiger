@@ -583,11 +583,11 @@ wiredtiger_open_log_configuration = [
         Config('recover', 'on', r'''
             run recovery or error if recovery needs to run after an
             unclean shutdown''',
-            choices=['error','on'])
+            choices=['error','on']),
         Config('trickle', '100', r'''
             start a background flush of the log file every time this
             many milliseconds passes.  A value of zero disables the flush''',
-            min='0', max='100000'),
+            min='0', max='100000')
     ]),
 ]
 
