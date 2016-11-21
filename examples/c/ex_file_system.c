@@ -31,10 +31,15 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <pthread.h>
 #include <queue.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifndef _WIN32
+#include <pthread.h>
+#else
+#include "windows_shim.h"
+#endif
 
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
