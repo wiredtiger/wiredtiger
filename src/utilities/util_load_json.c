@@ -547,7 +547,6 @@ json_skip(WT_SESSION *session, JSON_INPUT_STATE *ins, const char **matches)
 	const char *hit;
 	const char **match;
 
-	WT_ASSERT((WT_SESSION_IMPL *)session, ins->kvraw == NULL);
 	hit = NULL;
 	while (!ins->ateof) {
 		for (match = matches; *match != NULL; match++)

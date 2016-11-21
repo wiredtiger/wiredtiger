@@ -471,7 +471,6 @@ __wt_assert(WT_SESSION_IMPL *session,
 #ifdef HAVE_DIAGNOSTIC
     WT_GCC_FUNC_ATTRIBUTE((noreturn))
 #endif
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	va_list ap;
 
