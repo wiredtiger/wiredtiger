@@ -49,27 +49,27 @@
  * errors for simplicity.
  */
 static void
-allocate_file_system_lock(pthread_mutex_t *lockp)
+allocate_file_system_lock(pthread_rwlock_t *lockp)
 {
-	assert(pthread_mutex_init(lockp, NULL) == 0);
+	assert(pthread_rwlock_init(lockp, NULL) == 0);
 }
 
 static void
-destroy_file_system_lock(pthread_mutex_t *lockp)
+destroy_file_system_lock(pthread_rwlock_t *lockp)
 {
-	assert(pthread_mutex_destroy(lockp) == 0);
+	assert(pthread_rwlock_destroy(lockp) == 0);
 }
 
 static void
-lock_file_system(pthread_mutex_t *lockp)
+lock_file_system(pthread_rwlock_t *lockp)
 {
-	assert(pthread_mutex_lock(lockp) == 0);
+	assert(pthread_rwlock_wrlock(lockp) == 0);
 }
 
 static void
-unlock_file_system(pthread_mutex_t *lockp)
+unlock_file_system(pthread_rwlock_t *lockp)
 {
-	assert(pthread_mutex_unlock(lockp) == 0);
+	assert(pthread_rwlock_unlock(lockp) == 0);
 }
 
 /*
@@ -85,7 +85,7 @@ typedef struct {
 	 * might require finer granularity, for example, a single lock for the
 	 * file system handle list and per-handle locks serializing I/O.
 	 */
-	pthread_mutex_t lock;			/* Lock */
+	pthread_rwlock_t lock;			/* Lock */
 
 	int opened_file_count;
 	int opened_unique_file_count;
