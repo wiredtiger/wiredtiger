@@ -31,6 +31,7 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <queue.h>
 #include <stdlib.h>
 #include <string.h>
