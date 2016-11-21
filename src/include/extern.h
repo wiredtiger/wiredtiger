@@ -635,7 +635,7 @@ __wt_assert(WT_SESSION_IMPL *session,
 #ifdef HAVE_DIAGNOSTIC
  WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn))
 #endif
- WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
+ WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern int __wt_panic(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default"))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_illegal_value(WT_SESSION_IMPL *session, const char *name) WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default"))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_object_unsupported(WT_SESSION_IMPL *session, const char *uri) WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
