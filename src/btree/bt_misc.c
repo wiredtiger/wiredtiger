@@ -14,7 +14,6 @@
  */
 const char *
 __wt_page_type_string(u_int type)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	switch (type) {
 	case WT_PAGE_INVALID:

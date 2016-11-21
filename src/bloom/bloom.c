@@ -95,7 +95,6 @@ int
 __wt_bloom_create(
     WT_SESSION_IMPL *session, const char *uri, const char *config,
     uint64_t count, uint32_t factor, uint32_t k, WT_BLOOM **bloomp)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	WT_BLOOM *bloom;
 	WT_DECL_RET;
@@ -149,7 +148,6 @@ int
 __wt_bloom_open(WT_SESSION_IMPL *session,
     const char *uri, uint32_t factor, uint32_t k,
     WT_CURSOR *owner, WT_BLOOM **bloomp)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	WT_BLOOM *bloom;
 	WT_CURSOR *c;
@@ -180,7 +178,6 @@ err:	WT_TRET(__wt_bloom_close(bloom));
  */
 void
 __wt_bloom_insert(WT_BLOOM *bloom, WT_ITEM *key)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	uint64_t h1, h2;
 	uint32_t i;
@@ -198,7 +195,6 @@ __wt_bloom_insert(WT_BLOOM *bloom, WT_ITEM *key)
  */
 int
 __wt_bloom_finalize(WT_BLOOM *bloom)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	WT_CURSOR *c;
 	WT_DECL_RET;
@@ -308,7 +304,6 @@ err:	/* Don't return WT_NOTFOUND from a failed search. */
  */
 int
 __wt_bloom_get(WT_BLOOM *bloom, WT_ITEM *key)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	WT_BLOOM_HASH bhash;
 
@@ -368,7 +363,6 @@ __wt_bloom_intersection(WT_BLOOM *bloom, WT_BLOOM *other)
  */
 int
 __wt_bloom_close(WT_BLOOM *bloom)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -391,7 +385,6 @@ __wt_bloom_close(WT_BLOOM *bloom)
  */
 int
 __wt_bloom_drop(WT_BLOOM *bloom, const char *config)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	WT_DECL_RET;
 	WT_SESSION *wt_session;

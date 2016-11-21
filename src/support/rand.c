@@ -51,7 +51,6 @@
  */
 void
 __wt_random_init(WT_RAND_STATE volatile * rnd_state)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	WT_RAND_STATE rnd;
 
@@ -70,7 +69,6 @@ __wt_random_init(WT_RAND_STATE volatile * rnd_state)
 void
 __wt_random_init_seed(
     WT_SESSION_IMPL *session, WT_RAND_STATE volatile * rnd_state)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	struct timespec ts;
 	WT_RAND_STATE rnd;
@@ -88,7 +86,6 @@ __wt_random_init_seed(
  */
 uint32_t
 __wt_random(WT_RAND_STATE volatile * rnd_state)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	WT_RAND_STATE rnd;
 	uint32_t w, z;

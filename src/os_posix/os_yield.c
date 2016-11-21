@@ -14,7 +14,6 @@
  */
 void
 __wt_yield(void)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	sched_yield();
 }

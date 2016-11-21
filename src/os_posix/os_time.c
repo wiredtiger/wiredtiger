@@ -14,7 +14,6 @@
  */
 void
 __wt_epoch(WT_SESSION_IMPL *session, struct timespec *tsp)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	WT_DECL_RET;
 
