@@ -26,24 +26,14 @@ __wt_block_manager_drop(
  *	Create a file.
  */
 int
-__wt_block_manager_create(WT_SESSION_IMPL *session,
-    const char *filename, WT_CONFIG_ITEM *advise, uint32_t allocsize)
+__wt_block_manager_create(
+    WT_SESSION_IMPL *session, const char *filename, uint32_t allocsize)
 {
 	WT_DECL_RET;
 	WT_DECL_ITEM(tmp);
 	WT_FH *fh;
-	uint32_t fs_advise;
 	int suffix;
 	bool exists;
-
-	fs_advise = 0;
-	if (advise != NULL) {
-		if (WT_STRING_MATCH("random", advise->str, advise->len))
-			fs_advise = WT_FS_OPEN_ACCESS_RAND;
-		else if (WT_STRING_MATCH(
-		    "sequential", advise->str, advise->len))
-			fs_advise = WT_FS_OPEN_ACCESS_SEQ;
-	}
 
 	/*
 	 * Create the underlying file and open a handle.
@@ -55,7 +45,7 @@ __wt_block_manager_create(WT_SESSION_IMPL *session,
 	 */
 	for (;;) {
 		if ((ret = __wt_open(session, filename,
-		    WT_FS_OPEN_FILE_TYPE_DATA, fs_advise | WT_FS_OPEN_CREATE |
+		    WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_CREATE |
 		    WT_FS_OPEN_DURABLE | WT_FS_OPEN_EXCLUSIVE, &fh)) == 0)
 			break;
 		WT_ERR_TEST(ret != EEXIST, ret);
@@ -211,6 +201,12 @@ __wt_block_open(WT_SESSION_IMPL *session,
 	 * "direct_io=checkpoint" configures direct I/O for readonly data files.
 	 */
 	flags = 0;
+	WT_ERR(__wt_config_gets(session, cfg, "access_pattern", &cval));
+	if (WT_STRING_MATCH("random", cval.str, cval.len))
+		LF_SET(WT_FS_OPEN_ACCESS_RAND);
+	else if (WT_STRING_MATCH("sequential", cval.str, cval.len))
+		LF_SET(WT_FS_OPEN_ACCESS_SEQ);
+
 	if (readonly && FLD_ISSET(conn->direct_io, WT_DIRECT_IO_CHECKPOINT))
 		LF_SET(WT_FS_OPEN_DIRECTIO);
 	if (!readonly && FLD_ISSET(conn->direct_io, WT_DIRECT_IO_DATA))

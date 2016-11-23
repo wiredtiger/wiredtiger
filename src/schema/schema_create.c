@@ -56,7 +56,6 @@ static int
 __create_file(WT_SESSION_IMPL *session,
     const char *uri, bool exclusive, const char *config)
 {
-	WT_CONFIG_ITEM advise;
 	WT_DECL_ITEM(val);
 	WT_DECL_RET;
 	const char *filename, **p, *filecfg[] =
@@ -85,12 +84,8 @@ __create_file(WT_SESSION_IMPL *session,
 	WT_ERR(__wt_direct_io_size_check(
 	    session, filecfg, "allocation_size", &allocsize));
 
-	WT_RET(__wt_config_gets(session,
-	    filecfg, "access_pattern", &advise));
-
 	/* Create the file. */
-	WT_ERR(__wt_block_manager_create(session,
-	    filename, &advise, allocsize));
+	WT_ERR(__wt_block_manager_create(session, filename, allocsize));
 	if (WT_META_TRACKING(session))
 		WT_ERR(__wt_meta_track_fileop(session, NULL, uri));
 
