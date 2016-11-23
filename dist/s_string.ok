@@ -269,6 +269,7 @@ PRIu
 PRNG
 PTHREAD
 PTR
+PackInputStream
 Pandis
 Phong
 PlatformSDK
@@ -610,6 +611,7 @@ difftime
 dir
 dirlist
 disjunction
+disjunctions
 dlclose
 dlh
 dll
@@ -969,6 +971,7 @@ pclose
 pcpu
 perf
 pfx
+pluggable
 popen
 poptable
 popthreads

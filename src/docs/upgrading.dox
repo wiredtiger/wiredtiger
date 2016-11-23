@@ -1,7 +1,15 @@
 /*! @page upgrading Upgrading WiredTiger applications
 
-@section version_281 Upgrading to Version 2.8.1
+@section version_290 Upgrading to Version 2.9.0
 <dl>
+<dt>Changes to cursor behaviour at cursor end</dt>
+<dd>
+If the cursor does not have record number keys or was not configured with
+"append=true", the cursor ends with no key set and a subsequent call to the
+WT_CURSOR::get_key method will fail. The cursor ends with no value set and a
+subsequent call to the WT_CURSOR::get_value method will fail.
+</dd>
+
 <dt>Cache management defaults</dt>
 <dd>
 The default values for the \c eviction_dirty_target and \c
