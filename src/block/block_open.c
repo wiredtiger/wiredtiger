@@ -26,14 +26,24 @@ __wt_block_manager_drop(
  *	Create a file.
  */
 int
-__wt_block_manager_create(
-    WT_SESSION_IMPL *session, const char *filename, uint32_t allocsize)
+__wt_block_manager_create(WT_SESSION_IMPL *session,
+    const char *filename, WT_CONFIG_ITEM *advise, uint32_t allocsize)
 {
 	WT_DECL_RET;
 	WT_DECL_ITEM(tmp);
 	WT_FH *fh;
+	uint32_t fs_advise;
 	int suffix;
 	bool exists;
+
+	fs_advise = 0;
+	if (advise != NULL) {
+		if (WT_STRING_MATCH("random", advise->str, advise->len))
+			fs_advise = WT_FS_OPEN_ACCESS_RAND;
+		else if (WT_STRING_MATCH(
+		    "sequential", advise->str, advise->len))
+			fs_advise = WT_FS_OPEN_ACCESS_SEQ;
+	}
 
 	/*
 	 * Create the underlying file and open a handle.
@@ -45,7 +55,7 @@ __wt_block_manager_create(
 	 */
 	for (;;) {
 		if ((ret = __wt_open(session, filename,
-		    WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_CREATE |
+		    WT_FS_OPEN_FILE_TYPE_DATA, fs_advise | WT_FS_OPEN_CREATE |
 		    WT_FS_OPEN_DURABLE | WT_FS_OPEN_EXCLUSIVE, &fh)) == 0)
 			break;
 		WT_ERR_TEST(ret != EEXIST, ret);

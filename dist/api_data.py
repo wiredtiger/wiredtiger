@@ -120,6 +120,14 @@ lsm_config = [
 
 # Per-file configuration
 file_config = format_meta + [
+    Config('access_pattern', 'default', r'''
+        It is recommended that workloads that consist primarily of
+        updates and/or point queries specify \c random.  Workloads that
+        do many cursor scans through large ranges of data specify
+        \c sequential and other workloads specify \c default.  The
+        option leads to an advisory call to an appropriate operating
+        system API where available''',
+        choices=['default', 'random', 'sequential']),
     Config('block_allocation', 'best', r'''
         configure block allocation. Permitted values are \c "first" or
         \c "best"; the \c "first" configuration uses a first-available
@@ -345,19 +353,6 @@ table_meta = format_meta + table_only_config
 
 # Connection runtime config, shared by conn.reconfigure and wiredtiger_open
 connection_runtime_config = [
-    Config('access_pattern', 'default', r'''
-        Give a hint about expected data file access patterns.
-        uses a session from the configured session_max''',
-        type='category', subconfig=[
-        Config('data', 'default', r'''
-            It is recommended that workloads that consist primarily of
-            updates and/or point queries specify \c random.  Workloads that
-            do many cursor scans through large ranges of data specify
-            \c sequential and other workloads specify \c default.  The
-            option leads to an advisory call to an appropriate operating
-            system API where available''',
-            choices=['default', 'random', 'sequential']),
-        ]),
     Config('async', '', r'''
         asynchronous operations configuration options''',
         type='category', subconfig=[

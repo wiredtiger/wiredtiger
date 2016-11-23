@@ -682,9 +682,9 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	 */
 	if (!pfh->direct_io && file_type == WT_FS_OPEN_FILE_TYPE_DATA) {
 		advise_flag = POSIX_FADV_NORMAL;
-		if (FLD_ISSET(conn->access_pattern, WT_ACCESS_RANDOM))
+		if (LF_ISSET(WT_FS_OPEN_ACCESS_RAND))
 			advise_flag = POSIX_FADV_RANDOM;
-		if (FLD_ISSET(conn->access_pattern, WT_ACCESS_SEQUENTIAL))
+		if (LF_ISSET(WT_FS_OPEN_ACCESS_SEQ))
 			advise_flag = POSIX_FADV_SEQUENTIAL;
 		WT_SYSCALL(
 		    posix_fadvise(pfh->fd, 0, 0, advise_flag), ret);
