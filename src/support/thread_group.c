@@ -357,7 +357,7 @@ __wt_thread_group_stop_one(
 	/* Recheck the bounds now that we hold the lock */
 	if (group->current_threads > group->min)
 		WT_TRET(__thread_group_shrink(
-		    session, group, group->current_threads - 1, true));
+		    session, group, group->current_threads - 1, false));
 	__wt_writeunlock(session, group->lock);
 
 	return (ret);

@@ -926,10 +926,9 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 		if (conn->evict_tune_num_points >=
 		    enough_data_points) {
 			/* We have enough data points */
-			printf("Reached stable state after %d data points."
-			       "Will set num workers to %d\n",
-			       conn->evict_tune_num_points,
-			       conn->evict_tune_workers_best);
+			WT_STAT_CONN_SET(session,
+					 cache_eviction_stable_state_workers,
+					 conn->evict_tune_workers_best);
 
 			conn->evict_tune_stable = true;
 
@@ -951,8 +950,6 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 						       false));
 			WT_STAT_CONN_SET(session, cache_eviction_active_workers,
 					 conn->evict_threads.current_threads);
-			printf("Current threads is %d\n",
-			       conn->evict_threads.current_threads);
 			return 0;
 		}
 	}
@@ -1014,9 +1011,6 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 		else
 			cur_action = EVICT_NOCHANGE;
 	}
-	printf("Tuning. pgs_evicted_last: %ld, pgs_evict_cur: %ld, "
-	       "pct_diff: %d, action: %d\n", conn->evict_tune_pg_sec_last,
-	       pgs_evicted_persec_cur, pct_diff, cur_action);
 
 	/*
 	 * If we have not tried adding or removing threads in a while,
@@ -1035,7 +1029,6 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 			WT_STAT_CONN_INCR(session,
 			    cache_eviction_random_retune_add);
 		}
-		printf("Random retune action: %d\n", cur_action);
 	}
 
 	/*
@@ -1101,7 +1094,6 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 		}
 	}
 
-	printf("Current threads: %d\n", conn->evict_threads.current_threads);
 	WT_STAT_CONN_SET(session, cache_eviction_active_workers,
 	    conn->evict_threads.current_threads);
 

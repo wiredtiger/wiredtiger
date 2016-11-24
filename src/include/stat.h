@@ -356,6 +356,7 @@ struct __wt_connection_stats {
 	int64_t cache_write;
 	int64_t cache_write_restore;
 	int64_t cache_overhead;
+	int64_t cache_eviction_stable_state_workers;
 	int64_t cache_bytes_internal;
 	int64_t cache_bytes_leaf;
 	int64_t cache_bytes_dirty;

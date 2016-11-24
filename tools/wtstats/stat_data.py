@@ -130,6 +130,7 @@ no_clear_list = [
     'cache: number of active eviction workers',
     'cache: pages currently held in the cache',
     'cache: percentage overhead',
+    'cache: stable number of eviction workers',
     'cache: tracked bytes belonging to internal pages in the cache',
     'cache: tracked bytes belonging to leaf pages in the cache',
     'cache: tracked dirty bytes in the cache',
