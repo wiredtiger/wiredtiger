@@ -127,6 +127,7 @@ no_clear_list = [
     'cache: files with active eviction walks',
     'cache: maximum bytes configured',
     'cache: maximum page size at eviction',
+    'cache: number of active eviction workers',
     'cache: pages currently held in the cache',
     'cache: percentage overhead',
     'cache: tracked bytes belonging to internal pages in the cache',

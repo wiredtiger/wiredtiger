@@ -234,7 +234,7 @@ connection_stats = [
     CacheStat('cache_eviction_random_retune_remove', 'eviction random re-tune will remove workers'),
     CacheStat('cache_eviction_fail_create', 'could not create eviction worker'),
     CacheStat('cache_eviction_fail_remove', 'could not remove eviction worker'),
-    CacheStat('cache_eviction_active_workers', 'number of active eviction workers'),
+    CacheStat('cache_eviction_active_workers', 'number of active eviction workers', 'no_clear'),
     CacheStat('cache_hazard_checks', 'hazard pointer check calls'),
     CacheStat('cache_hazard_max', 'hazard pointer maximum array length', 'max_aggregate,no_scale'),
     CacheStat('cache_hazard_walks', 'hazard pointer check entries walked'),

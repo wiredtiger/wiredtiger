@@ -316,8 +316,13 @@ struct __wt_connection_impl {
 	int              evict_tune_last_action; /* Last tuning action */
 	struct timespec  evict_tune_last_action_time;/* Time of last action */
 	struct timespec  evict_tune_last_time;/* Last evict thread check */
+	unsigned         evict_tune_num_points; /* Number of values tried */
 	uint64_t	 evict_tune_pgs_last;/* Number of pages evicted */
 	uint64_t	 evict_tune_pg_sec_last;/* Rate of pages evicted/sec */
+	uint64_t	 evict_tune_pg_sec_max;/* Max throughput encountered */
+	char             evict_tune_retune_last; /* Track last re-tune action */
+	bool             evict_tune_stable; /* Whether we should keep tuning */
+	unsigned	 evict_tune_workers_best;/* Best performing value */
 
 #define	WT_STATLOG_FILENAME	"WiredTigerStat.%d.%H"
 	WT_SESSION_IMPL *stat_session;	/* Statistics log session */
