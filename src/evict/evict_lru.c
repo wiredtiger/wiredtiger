@@ -836,7 +836,7 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
  * The following variable controls how often (in seconds) we will do work in
  * this function.
  */
-#define	EVICT_TUNE_PERIOD 2
+#define	EVICT_TUNE_PERIOD 1
 /*
  * The following variable controls how much improvement in eviction rate we must
  * see from the creation of another eviction worker to justify the creation of
@@ -849,7 +849,7 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
  * try a random tuning action to avoid getting stuck in a local minimum and to
  * adjust to workload changes.
  */
-#define	EVICT_TUNE_RANDOM_RETUNE 2
+#define	EVICT_TUNE_RANDOM_RETUNE 1
 
 /*
  * __evict_tune_workers --
@@ -894,7 +894,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	pgs_evicted_persec_cur = 0;
 
 	if (conn->evict_tune_stable)
-		return 0;
+		return (0);
 
 	__wt_epoch(session, &current_time);
 
@@ -932,26 +932,29 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 					 conn->evict_tune_workers_best);
 
 			conn->evict_tune_stable = true;
-
+			printf("Reached stable state with %d workers\n",
+			       (int)conn->evict_tune_workers_best);
 			thread_surplus =
 				(int)conn->evict_threads.current_threads -
 				(int)conn->evict_tune_workers_best;
 
 			if (thread_surplus > 0) /* Must remove */
-				for (i = 0; i < (uint32_t)thread_surplus; i++)
+				for (i = 0; i < (uint32_t)thread_surplus; i++) {
 					WT_ERR(__wt_thread_group_stop_one(
 						       session,
 						       &conn->evict_threads,
 						       false));
+				}
 			else if (thread_surplus < 0) /* Must add */
-				for (i = 0; i < (uint32_t)-thread_surplus; i++)
+				for (i = 0; i < (uint32_t)-thread_surplus; i++) {
 					WT_ERR(__wt_thread_group_start_one(
 						       session,
 						       &conn->evict_threads,
 						       false));
+				}
 			WT_STAT_CONN_SET(session, cache_eviction_active_workers,
 					 conn->evict_threads.current_threads);
-			return 0;
+			return (0);
 		}
 	}
 

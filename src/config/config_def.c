@@ -48,8 +48,8 @@ static const WT_CONFIG_CHECK
 
 static const WT_CONFIG_CHECK
     confchk_wiredtiger_open_eviction_subconfigs[] = {
-	{ "threads_max", "int", NULL, "min=1,max=100", NULL, 0 },
-	{ "threads_min", "int", NULL, "min=1,max=20", NULL, 0 },
+	{ "threads_max", "int", NULL, "min=1,max=30", NULL, 0 },
+	{ "threads_min", "int", NULL, "min=1,max=30", NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
 
