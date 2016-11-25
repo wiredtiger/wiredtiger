@@ -164,16 +164,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		WT_ERR(__evict_page_clean_update(
 		    session, ref, tree_dead || closing));
 	else {
-		/*
-		 * The page is not being completely evicted: instead it is
-		 * being split or replaced.  In that case, don't increment the
-		 * count of pages evicted, which we use to decide whether
-		 * eviction is making progress.  Repeatedly rewriting the same
-		 * page isn't progress.
-		 */
-		F_SET(session, WT_SESSION_IN_SPLIT);
 		ret = __evict_page_dirty_update(session, ref, closing);
-		F_CLR(session, WT_SESSION_IN_SPLIT);
 		WT_ERR(ret);
 	}
 
@@ -326,13 +317,21 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		 * that case, we end up here with a single block that we can't
 		 * write. Take advantage of the fact we have exclusive access
 		 * to the page and rewrite it in memory.
+		 *
+		 * The page is not being completely evicted: instead it is
+		 * being split.  Don't increment the count of pages evicted,
+		 * which we use to decide whether eviction is making progress.
+		 * Repeatedly splitting a page isn't progress.
 		 */
+		F_SET(session, WT_SESSION_IN_SPLIT);
 		if (mod->mod_multi_entries == 1) {
 			WT_ASSERT(session, closing == false);
-			WT_RET(__wt_split_rewrite(
-			    session, ref, &mod->mod_multi[0]));
+			ret = __wt_split_rewrite(
+			    session, ref, &mod->mod_multi[0]);
 		} else
-			WT_RET(__wt_split_multi(session, ref, closing));
+			ret = __wt_split_multi(session, ref, closing);
+		F_CLR(session, WT_SESSION_IN_SPLIT);
+		WT_RET(ret);
 		break;
 	case WT_PM_REC_REPLACE: 			/* 1-for-1 page swap */
 		/*
@@ -362,7 +361,17 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 			memset(&multi, 0, sizeof(multi));
 			multi.disk_image = mod->mod_disk_image;
 
-			WT_RET(__wt_split_rewrite(session, ref, &multi));
+			/*
+			 * The page is not being completely evicted: instead it
+			 * is being replaced.  Don't increment the count of
+			 * pages evicted, which we use to decide whether
+			 * eviction is making progress.  Repeatedly rewriting
+			 * the same page isn't progress.
+			 */
+			F_SET(session, WT_SESSION_IN_SPLIT);
+			ret = __wt_split_rewrite(session, ref, &multi);
+			F_CLR(session, WT_SESSION_IN_SPLIT);
+			WT_RET(ret);
 		}
 
 		break;
