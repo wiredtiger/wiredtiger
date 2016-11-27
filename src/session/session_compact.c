@@ -270,6 +270,17 @@ __wt_session_compact(
 	if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
 		goto err;
 
+	/*
+	 * Non-LSM object compaction requires checkpoints, which are impossible
+	 * in transactional contexts. Disallow in all contexts (there's no
+	 * reason for LSM to allow this, possible or not), and check now so the
+	 * error message isn't confusing.
+	 */
+	txn = &session->txn;
+	if (F_ISSET(txn, WT_TXN_RUNNING))
+		WT_ERR_MSG(session, EINVAL,
+		    "compaction not permitted in a transaction");
+
 	/* Disallow objects in the WiredTiger name space. */
 	WT_ERR(__wt_str_name_check(session, uri));
 
@@ -304,23 +315,12 @@ __wt_session_compact(
 	if (session->compact->lsm_count != 0)
 		WT_ERR(__wt_schema_worker(
 		    session, uri, NULL, __wt_lsm_compact, cfg, 0));
-	if (session->compact->file_count != 0) {
-		/*
-		 * File compaction requires checkpoints, which will fail in a
-		 * transactional context.  Check now so the error message isn't
-		 * confusing.
-		 */
-		txn = &session->txn;
-		if (F_ISSET(txn, WT_TXN_RUNNING))
-			WT_ERR_MSG(session, EINVAL,
-			    " File compaction not permitted in a transaction");
-
+	if (session->compact->file_count != 0)
 		for (i = 0; i < session->op_handle_next; ++i) {
 			WT_WITH_DHANDLE(session, session->op_handle[i],
 			    ret = __compact_file(session));
 			WT_ERR(ret);
 		}
-	}
 
 err:	session->compact = NULL;
 
