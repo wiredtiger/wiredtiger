@@ -885,6 +885,7 @@ int
 __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_DECL_RET;
+	uint32_t mask;
 
 	/*
 	 * Reset open cursors.  Do this explicitly, even though it will happen
@@ -901,7 +902,10 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * operations, but checkpoint does enough I/O it may be called upon to
 	 * perform slow operations for the block manager.
 	 */
-	F_SET(session, WT_SESSION_CAN_WAIT | WT_SESSION_NO_EVICTION);
+#define	WT_TXN_SESSION_FLAGS						\
+	(WT_SESSION_CAN_WAIT | WT_SESSION_NO_EVICTION)
+	mask = F_MASK(session, WT_TXN_SESSION_FLAGS);
+	F_SET(session, WT_TXN_SESSION_FLAGS);
 
 	/*
 	 * Only one checkpoint can be active at a time, and checkpoints must run
@@ -917,7 +921,8 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 
 	WT_STAT_CONN_SET(session, txn_checkpoint_running, 0);
 
-	F_CLR(session, WT_SESSION_CAN_WAIT | WT_SESSION_NO_EVICTION);
+	F_CLR(session, WT_TXN_SESSION_FLAGS);
+	F_SET(session, mask);
 
 	return (ret);
 }
