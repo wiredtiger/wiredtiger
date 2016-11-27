@@ -256,7 +256,7 @@ int
 __wt_session_compact(
     WT_SESSION *wt_session, const char *uri, const char *config)
 {
-	WT_COMPACT compact;
+	WT_COMPACT_STATE compact;
 	WT_CONFIG_ITEM cval;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -281,7 +281,7 @@ __wt_session_compact(
 		WT_ERR(__wt_bad_object_type(session, uri));
 
 	/* Setup the structure in the session handle */
-	memset(&compact, 0, sizeof(WT_COMPACT));
+	memset(&compact, 0, sizeof(WT_COMPACT_STATE));
 	session->compact = &compact;
 
 	WT_ERR(__wt_config_gets(session, cfg, "timeout", &cval));
