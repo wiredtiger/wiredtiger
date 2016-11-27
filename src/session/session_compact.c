@@ -199,7 +199,7 @@ __session_compact_check_timeout(WT_SESSION_IMPL *session, struct timespec begin)
 static int
 __compact_file(WT_SESSION_IMPL *session, const char *cfg[])
 {
-	struct timespec start_time;
+	struct timespec begin;
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_ITEM(t);
 	WT_DECL_RET;
@@ -218,7 +218,7 @@ __compact_file(WT_SESSION_IMPL *session, const char *cfg[])
 	    session, t, "target=(\"%s\"),force=1", dhandle->name));
 	checkpoint_cfg[1] = t->data;
 
-	__wt_epoch(session, &start_time);
+	__wt_epoch(session, &begin);
 
 	/*
 	 * We compact 10% of the file on each pass (but the overall size of the
@@ -239,7 +239,7 @@ __compact_file(WT_SESSION_IMPL *session, const char *cfg[])
 
 		WT_ERR(__wt_txn_checkpoint(session, checkpoint_cfg));
 		WT_ERR(__wt_txn_checkpoint(session, checkpoint_cfg));
-		WT_ERR(__session_compact_check_timeout(session, start_time));
+		WT_ERR(__session_compact_check_timeout(session, begin));
 	}
 
 err:	session->compact_state = WT_COMPACT_NONE;
