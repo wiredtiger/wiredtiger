@@ -555,9 +555,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	saved_isolation = session->isolation;
 	full = idle = logging = tracking = false;
 
-	/* Ensure the metadata table is open before taking any locks. */
-	WT_RET(__wt_metadata_cursor(session, NULL));
-
 	/*
 	 * Do a pass over the configuration arguments and figure out what kind
 	 * of checkpoint this is.
@@ -894,6 +891,9 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * some implementation of WT_CURSOR::reset might need the schema lock.
 	 */
 	WT_RET(__wt_session_reset_cursors(session, false));
+
+	/* Ensure the metadata table is open before taking any locks. */
+	WT_RET(__wt_metadata_cursor(session, NULL));
 
 	/*
 	 * Don't highjack the session checkpoint thread for eviction.
