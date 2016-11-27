@@ -97,29 +97,6 @@
  */
 
 /*
- * __compact_uri_analyze --
- *	Extract information relevant to deciding what work compact needs to
- *	do from a URI that is part of a table schema.
- *	Called via the schema_worker function.
- */
-static int
-__compact_uri_analyze(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
-{
-	/*
-	 * Add references to schema URI objects to the list of objects to be
-	 * compacted.  Skip over LSM trees or we will get false positives on
-	 * the "file:" URIs for the chunks.
-	 */
-	if (WT_PREFIX_MATCH(uri, "lsm:")) {
-		session->compact->lsm_count++;
-		*skipp = true;
-	} else if (WT_PREFIX_MATCH(uri, "file:"))
-		session->compact->file_count++;
-
-	return (0);
-}
-
-/*
  * __compact_start --
  *	Start object compaction.
  */
@@ -143,6 +120,29 @@ __compact_end(WT_SESSION_IMPL *session)
 
 	bm = S2BT(session)->bm;
 	return (bm->compact_end(bm, session));
+}
+
+/*
+ * __compact_uri_analyze --
+ *	Extract information relevant to deciding what work compact needs to
+ *	do from a URI that is part of a table schema.
+ *	Called via the schema_worker function.
+ */
+static int
+__compact_uri_analyze(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
+{
+	/*
+	 * Add references to schema URI objects to the list of objects to be
+	 * compacted.  Skip over LSM trees or we will get false positives on
+	 * the "file:" URIs for the chunks.
+	 */
+	if (WT_PREFIX_MATCH(uri, "lsm:")) {
+		session->compact->lsm_count++;
+		*skipp = true;
+	} else if (WT_PREFIX_MATCH(uri, "file:"))
+		session->compact->file_count++;
+
+	return (0);
 }
 
 /*
@@ -197,7 +197,7 @@ __session_compact_check_timeout(WT_SESSION_IMPL *session, struct timespec begin)
  *	Function to alternate between checkpoints and compaction calls.
  */
 static int
-__compact_file(WT_SESSION_IMPL *session, const char *cfg[])
+__compact_file(WT_SESSION_IMPL *session)
 {
 	struct timespec begin;
 	WT_DATA_HANDLE *dhandle;
@@ -231,8 +231,7 @@ __compact_file(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_ERR(__wt_txn_checkpoint(session, checkpoint_cfg));
 
 		session->compact_state = WT_COMPACT_RUNNING;
-		WT_WITH_DHANDLE(session, dhandle,
-		    ret = __wt_compact(session, cfg));
+		WT_WITH_DHANDLE(session, dhandle, ret = __wt_compact(session));
 		WT_ERR(ret);
 		if (session->compact_state != WT_COMPACT_SUCCESS)
 			break;
@@ -258,6 +257,7 @@ __wt_session_compact(
 {
 	WT_COMPACT_STATE compact;
 	WT_CONFIG_ITEM cval;
+	WT_DATA_SOURCE *dsrc;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	WT_TXN *txn;
@@ -277,8 +277,16 @@ __wt_session_compact(
 	    !WT_PREFIX_MATCH(uri, "file:") &&
 	    !WT_PREFIX_MATCH(uri, "index:") &&
 	    !WT_PREFIX_MATCH(uri, "lsm:") &&
-	    !WT_PREFIX_MATCH(uri, "table:"))
-		WT_ERR(__wt_bad_object_type(session, uri));
+	    !WT_PREFIX_MATCH(uri, "table:")) {
+		if ((dsrc = __wt_schema_get_source(session, uri)) != NULL)
+			ret = dsrc->compact == NULL ?
+			    __wt_object_unsupported(session, uri) :
+			    dsrc->compact(
+			    dsrc, wt_session, uri, (WT_CONFIG_ARG *)cfg);
+		else
+			ret = __wt_bad_object_type(session, uri);
+		goto err;
+	}
 
 	/* Setup the structure in the session handle */
 	memset(&compact, 0, sizeof(WT_COMPACT_STATE));
@@ -309,7 +317,7 @@ __wt_session_compact(
 
 		for (i = 0; i < session->op_handle_next; ++i) {
 			WT_WITH_DHANDLE(session, session->op_handle[i],
-			    ret = __compact_file(session, cfg));
+			    ret = __compact_file(session));
 			WT_ERR(ret);
 		}
 	}

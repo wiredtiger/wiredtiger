@@ -90,15 +90,13 @@ __compact_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
  *	Compact a file.
  */
 int
-__wt_compact(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_compact(WT_SESSION_IMPL *session)
 {
 	WT_BM *bm;
 	WT_BTREE *btree;
 	WT_DECL_RET;
 	WT_REF *ref;
 	bool skip;
-
-	WT_UNUSED(cfg);
 
 	btree = S2BT(session);
 	bm = btree->bm;
