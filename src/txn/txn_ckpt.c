@@ -875,11 +875,36 @@ err:	/*
 }
 
 /*
+ * __txn_checkpoint_wrapper --
+ *	Checkpoint wrapper.
+ */
+static int
+__txn_checkpoint_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
+{
+	WT_DECL_RET;
+	WT_TXN_GLOBAL *txn_global;
+
+	txn_global = &S2C(session)->txn_global;
+
+	WT_STAT_CONN_SET(session, txn_checkpoint_running, 1);
+	txn_global->checkpoint_running = true;
+	WT_FULL_BARRIER();
+
+	ret = __txn_checkpoint(session, cfg);
+
+	WT_STAT_CONN_SET(session, txn_checkpoint_running, 0);
+	txn_global->checkpoint_running = false;
+	WT_FULL_BARRIER();
+
+	return (ret);
+}
+
+/*
  * __wt_txn_checkpoint --
  *	Checkpoint a database or a list of objects in the database.
  */
 int
-__wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
 {
 	WT_DECL_RET;
 	uint32_t mask;
@@ -901,11 +926,16 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * Application threads are not generally available for potentially slow
 	 * operations, but checkpoint does enough I/O it may be called upon to
 	 * perform slow operations for the block manager.
+	 *
+	 * Application checkpoints wait until the checkpoint lock is available,
+	 * compaction checkpoints don't.
 	 */
-#define	WT_TXN_SESSION_FLAGS						\
-	(WT_SESSION_CAN_WAIT | WT_SESSION_NO_EVICTION)
-	mask = F_MASK(session, WT_TXN_SESSION_FLAGS);
-	F_SET(session, WT_TXN_SESSION_FLAGS);
+#define	WT_TXN_SESSION_MASK						\
+	(WT_SESSION_CAN_WAIT | WT_SESSION_LOCK_NO_WAIT | WT_SESSION_NO_EVICTION)
+	mask = F_MASK(session, WT_TXN_SESSION_MASK);
+	F_SET(session, WT_SESSION_CAN_WAIT | WT_SESSION_NO_EVICTION);
+	if (!waiting)
+		F_SET(session, WT_SESSION_LOCK_NO_WAIT);
 
 	/*
 	 * Only one checkpoint can be active at a time, and checkpoints must run
@@ -914,14 +944,10 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * calls checkpoint directly, it can be tough to avoid. Serialize here
 	 * to ensure we don't get into trouble.
 	 */
-	WT_STAT_CONN_SET(session, txn_checkpoint_running, 1);
-
 	WT_WITH_CHECKPOINT_LOCK(session, ret,
-	    ret = __txn_checkpoint(session, cfg));
+	    ret = __txn_checkpoint_wrapper(session, cfg));
 
-	WT_STAT_CONN_SET(session, txn_checkpoint_running, 0);
-
-	F_CLR(session, WT_TXN_SESSION_FLAGS);
+	F_CLR(session, WT_TXN_SESSION_MASK);
 	F_SET(session, mask);
 
 	return (ret);

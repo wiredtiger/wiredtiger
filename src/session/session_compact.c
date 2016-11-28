@@ -53,11 +53,14 @@
  * blocks, it can't easily know this is the case, and so we'll waste a lot of
  * effort trying to compact files that can't be compacted.
  *
- * Now, to the actual process.  First, we checkpoint the high-level object
- * (which is potentially composed of multiple files): there are potentially
- * many dirty blocks in the cache, and we want to write them out and then
- * discard previous checkpoints so we have as many blocks as possible on the
- * file's "available for reuse" list when we start compaction.
+ * Finally, compaction checkpoints are database-wide, otherwise we can corrupt
+ * file relationships, for example, an index checkpointed by compaction could
+ * be out of sync with the primary after a crash.
+ *
+ * Now, to the actual process.  First, we checkpoint the database: there are
+ * potentially many dirty blocks in the cache, and we want to write them out
+ * and then discard previous checkpoints so we have as many blocks as possible
+ * on the file's "available for reuse" list when we start compaction.
  *
  * Then, we compact the high-level object.
  *
@@ -157,10 +160,6 @@ __compact_handle_append(WT_SESSION_IMPL *session, const char *cfg[])
 
 	WT_UNUSED(cfg);
 
-	/* Make sure there is space for the next entry. */
-	WT_RET(__wt_realloc_def(session, &session->op_handle_allocated,
-	    session->op_handle_next + 1, &session->op_handle));
-
 	WT_RET(__wt_session_get_btree(
 	    session, session->dhandle->name, NULL, NULL, 0));
 
@@ -170,16 +169,20 @@ __compact_handle_append(WT_SESSION_IMPL *session, const char *cfg[])
 		return (ret);
 	}
 
+	/* Make sure there is space for the next entry. */
+	WT_RET(__wt_realloc_def(session, &session->op_handle_allocated,
+	    session->op_handle_next + 1, &session->op_handle));
+
 	session->op_handle[session->op_handle_next++] = session->dhandle;
 	return (0);
 }
 
 /*
- * __session_compact_check_timeout --
+ * __wt_session_compact_check_timeout --
  *	Check if the timeout has been exceeded.
  */
-static int
-__session_compact_check_timeout(WT_SESSION_IMPL *session, struct timespec begin)
+int
+__wt_session_compact_check_timeout(WT_SESSION_IMPL *session)
 {
 	struct timespec end;
 
@@ -187,63 +190,116 @@ __session_compact_check_timeout(WT_SESSION_IMPL *session, struct timespec begin)
 		return (0);
 
 	__wt_epoch(session, &end);
-	if (session->compact->max_time < WT_TIMEDIFF_SEC(end, begin))
-		return (ETIMEDOUT);
+	return (session->compact->max_time >
+	    WT_TIMEDIFF_SEC(end, session->compact->begin) ? 0 : ETIMEDOUT);
+}
+
+/*
+ * __compact_checkpoint --
+ *     Perform a checkpoint for compaction.
+ */
+static int
+__compact_checkpoint(WT_SESSION_IMPL *session)
+{
+	WT_TXN_GLOBAL *txn_global;
+	WT_DECL_RET;
+	uint64_t txn_gen;
+
+	/*
+	 * Force compaction checkpoints: we don't want to skip it because the
+	 * work we need to have done is done in the underlying block manager.
+	 */
+	const char *checkpoint_cfg[] = {
+	   WT_CONFIG_BASE(session, WT_SESSION_checkpoint), "force=1", NULL };
+
+	/* Checkpoints take a lot of time, check if we've run out. */
+	WT_RET(__wt_session_compact_check_timeout(session));
+
+	if ((ret = __wt_txn_checkpoint(session, checkpoint_cfg, false)) == 0)
+		return (0);
+	WT_RET_BUSY_OK(ret);
+
+	/*
+	 * If there's a checkpoint running, wait for it to complete, checking if
+	 * we're out of time. If there's no checkpoint running or the checkpoint
+	 * generation number changes, the checkpoint blocking us has completed.
+	 */
+	txn_global = &S2C(session)->txn_global;
+	for (txn_gen = txn_global->checkpoint_gen;;) {
+		WT_READ_BARRIER();
+		if (!txn_global->checkpoint_running ||
+		    txn_gen != txn_global->checkpoint_gen)
+			break;
+
+		WT_RET(__wt_session_compact_check_timeout(session));
+		__wt_sleep(2, 0);
+	}
+
 	return (0);
 }
 
 /*
- * __compact_file --
+ * __compact_worker --
  *	Function to alternate between checkpoints and compaction calls.
  */
 static int
-__compact_file(WT_SESSION_IMPL *session)
+__compact_worker(WT_SESSION_IMPL *session)
 {
-	struct timespec begin;
-	WT_DATA_HANDLE *dhandle;
-	WT_DECL_ITEM(t);
 	WT_DECL_RET;
-	int i;
-	const char *checkpoint_cfg[] = {
-	    WT_CONFIG_BASE(session, WT_SESSION_checkpoint), NULL, NULL };
-
-	dhandle = session->dhandle;
+	u_int i, loop;
+	bool didwork;
 
 	/*
-	 * Force the checkpoint: we don't want to skip it because the work we
-	 * need to have done is done in the underlying block manager.
+	 * Reset the handles' compaction skip flag (we don't bother setting
+	 * or resetting it when we finish compaction, it's simpler to do it
+	 * once, here).
 	 */
-	WT_ERR(__wt_scr_alloc(session, 128, &t));
-	WT_ERR(__wt_buf_fmt(
-	    session, t, "target=(\"%s\"),force=1", dhandle->name));
-	checkpoint_cfg[1] = t->data;
-
-	__wt_epoch(session, &begin);
+	for (i = 0; i < session->op_handle_next; ++i)
+		session->op_handle[i]->compact_skip = false;
 
 	/*
-	 * We compact 10% of the file on each pass (but the overall size of the
+	 * Perform an initial checkpoint (see this file's leading comment for
+	 * details).
+	 */
+	WT_ERR(__compact_checkpoint(session));
+
+	/*
+	 * We compact 10% of a file on each pass (but the overall size of the
 	 * file is decreasing each time, so we're not compacting 10% of the
 	 * original file each time). Try 100 times (which is clearly more than
-	 * we need); quit if we make no progress and check for a timeout each
-	 * time through the loop.
+	 * we need); quit if we make no progress.
 	 */
-	for (i = 0; i < 100; ++i) {
-		WT_ERR(__wt_txn_checkpoint(session, checkpoint_cfg));
+	for (loop = 0; loop < 100; ++loop) {
+		/* Step through the list of files being compacted. */
+		for (didwork = false, i = 0; i < session->op_handle_next; ++i) {
+			/* Skip objects where there's no more work. */
+			if (session->op_handle[i]->compact_skip)
+				continue;
 
-		session->compact_state = WT_COMPACT_RUNNING;
-		WT_WITH_DHANDLE(session, dhandle, ret = __wt_compact(session));
-		WT_ERR(ret);
-		if (session->compact_state != WT_COMPACT_SUCCESS)
+			session->compact_state = WT_COMPACT_RUNNING;
+			WT_WITH_DHANDLE(session,
+			    session->op_handle[i], ret = __wt_compact(session));
+			WT_ERR(ret);
+
+			/* If we did no work, skip this file in the future. */
+			if (session->compact_state == WT_COMPACT_SUCCESS)
+				didwork = true;
+			else
+				session->op_handle[i]->compact_skip = true;
+		}
+		if (!didwork)
 			break;
 
-		WT_ERR(__wt_txn_checkpoint(session, checkpoint_cfg));
-		WT_ERR(__wt_txn_checkpoint(session, checkpoint_cfg));
-		WT_ERR(__session_compact_check_timeout(session, begin));
+		/*
+		 * Perform two checkpoints (see this file's leading comment for
+		 * details).
+		 */
+		WT_ERR(__compact_checkpoint(session));
+		WT_ERR(__compact_checkpoint(session));
 	}
 
 err:	session->compact_state = WT_COMPACT_NONE;
 
-	__wt_scr_free(session, &t);
 	return (ret);
 }
 
@@ -299,12 +355,14 @@ __wt_session_compact(
 		goto err;
 	}
 
-	/* Setup the structure in the session handle */
+	/* Setup the session handle's compaction state structure. */
 	memset(&compact, 0, sizeof(WT_COMPACT_STATE));
 	session->compact = &compact;
 
+	/* Compaction can be time-limited. */
 	WT_ERR(__wt_config_gets(session, cfg, "timeout", &cval));
 	session->compact->max_time = (uint64_t)cval.val;
+	__wt_epoch(session, &session->compact->begin);
 
 	/* Find the types of data sources being compacted. */
 	WT_WITH_SCHEMA_LOCK(session, ret,
@@ -316,11 +374,7 @@ __wt_session_compact(
 		WT_ERR(__wt_schema_worker(
 		    session, uri, NULL, __wt_lsm_compact, cfg, 0));
 	if (session->compact->file_count != 0)
-		for (i = 0; i < session->op_handle_next; ++i) {
-			WT_WITH_DHANDLE(session, session->op_handle[i],
-			    ret = __compact_file(session));
-			WT_ERR(ret);
-		}
+		WT_ERR(__compact_worker(session));
 
 err:	session->compact = NULL;
 

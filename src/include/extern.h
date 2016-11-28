@@ -601,6 +601,7 @@ extern int __wt_session_range_truncate(WT_SESSION_IMPL *session, const char *uri
 extern const char *__wt_session_strerror(WT_SESSION *wt_session, int error);
 extern int __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const char *config, bool open_metadata, WT_SESSION_IMPL **sessionp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_open_internal_session(WT_CONNECTION_IMPL *conn, const char *name, bool open_metadata, uint32_t session_flags, WT_SESSION_IMPL **sessionp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_session_compact_check_timeout(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_compact( WT_SESSION *wt_session, const char *uri, const char *config) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_compact_readonly( WT_SESSION *wt_session, const char *uri, const char *config) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_lock_dhandle( WT_SESSION_IMPL *session, uint32_t flags, bool *is_deadp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -737,7 +738,7 @@ extern void __wt_txn_destroy(WT_SESSION_IMPL *session);
 extern int __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_txn_global_destroy(WT_SESSION_IMPL *session);
 extern int __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool waiting) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_sync(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

@@ -1606,7 +1606,7 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
 		WT_ERR_MSG(session, EINVAL,
 		    "Checkpoint not permitted in a transaction");
 
-	ret = __wt_txn_checkpoint(session, cfg);
+	ret = __wt_txn_checkpoint(session, cfg, true);
 
 	/*
 	 * Release common session resources (for example, checkpoint may acquire
