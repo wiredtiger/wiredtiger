@@ -560,6 +560,14 @@ __rec_write_status(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		return (EBUSY);
 
 	/*
+	 * If there is only one block and no update was used, no progress has
+	 * been made and there is no point swapping the new page into place.
+	 */
+	if (r->bnd_next == 1 && F_ISSET(r, WT_EVICT_UPDATE_RESTORE) &&
+	    r->bnd[0].supd != NULL && !r->update_used)
+		return (EBUSY);
+
+	/*
 	 * Set the page's status based on whether or not we cleaned the page.
 	 */
 	if (r->leave_dirty) {
@@ -5693,17 +5701,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		 * splits can.
 		 */
 		if (F_ISSET(r, WT_EVICT_IN_MEMORY) ||
-		    (F_ISSET(r, WT_EVICT_UPDATE_RESTORE) &&
-		    bnd->supd != NULL)) {
-			/*
-			 * If there is only one block and no update was used,
-			 * no progress has been made and there is no point
-			 * swapping in the new page.
-			 */
-			if (!r->update_used)
-				return (EBUSY);
+		    (F_ISSET(r, WT_EVICT_UPDATE_RESTORE) && bnd->supd != NULL))
 			goto split;
-		}
 
 		/*
 		 * A root page, we don't have an address and we have to create
