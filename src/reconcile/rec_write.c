@@ -50,6 +50,11 @@ typedef struct {
 	bool leave_dirty;
 
 	/*
+	 * Track if an update was copied onto a page during reconciliation.
+	 */
+	bool update_used;
+
+	/*
 	 * Raw compression (don't get me started, as if normal reconciliation
 	 * wasn't bad enough).  If an application wants absolute control over
 	 * what gets written to disk, we give it a list of byte strings and it
@@ -844,6 +849,9 @@ __rec_write_init(WT_SESSION_IMPL *session,
 	/* Track if the page can be marked clean. */
 	r->leave_dirty = false;
 
+	/* Track if any updates were used. */
+	r->update_used = false;
+
 	/* Raw compression. */
 	r->raw_compression =
 	    __rec_raw_compression_config(session, page, salvage);
@@ -1172,6 +1180,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		    txnid != S2C(session)->txn_global.checkpoint_txnid ||
 		    WT_SESSION_IS_CHECKPOINT(session));
 #endif
+		r->update_used = true;
 		return (0);
 	}
 
@@ -5684,8 +5693,17 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		 * splits can.
 		 */
 		if (F_ISSET(r, WT_EVICT_IN_MEMORY) ||
-		    (F_ISSET(r, WT_EVICT_UPDATE_RESTORE) && bnd->supd != NULL))
+		    (F_ISSET(r, WT_EVICT_UPDATE_RESTORE) &&
+		    bnd->supd != NULL)) {
+			/*
+			 * If there is only one block and no update was used,
+			 * no progress has been made and there is no point
+			 * swapping in the new page.
+			 */
+			if (!r->update_used)
+				return (EBUSY);
 			goto split;
+		}
 
 		/*
 		 * A root page, we don't have an address and we have to create
