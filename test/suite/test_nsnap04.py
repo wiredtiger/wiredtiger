@@ -80,5 +80,29 @@ class test_nsnap04(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.snapshot("name=0")
         self.check_named_snapshot(0, 2 * self.nrows_per_itr)
 
+    def test_include_updates(self):
+        # Populate a table
+        end = start = 0
+        SimpleDataSet(self, self.uri, 0, key_format='i').populate()
+
+        snapshots = []
+        c = self.session.open_cursor(self.uri)
+        for i in xrange(self.nrows_per_itr):
+            c[i] = "some value"
+
+        self.session.begin_transaction("isolation=snapshot")
+        count = 0
+        for row in c:
+            count += 1
+        self.session.snapshot("name=0,include_updates=true")
+
+        self.check_named_snapshot(0, self.nrows_per_itr)
+
+        # Insert some more content using the active session.
+        for i in xrange(self.nrows_per_itr):
+            c[self.nrows_per_itr + i] = "some value"
+
+        self.check_named_snapshot(0, 2 * self.nrows_per_itr)
+
 if __name__ == '__main__':
     wttest.run()
