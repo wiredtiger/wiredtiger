@@ -220,9 +220,8 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
 
 		/* Create the turtle file. */
 		WT_RET(__metadata_config(session, &metaconf));
-		WT_WITH_TURTLE_LOCK(session, ret,
-		    ret = __wt_turtle_update(
-		    session, WT_METAFILE_URI, metaconf));
+		WT_WITH_TURTLE_LOCK(session, ret =
+		    __wt_turtle_update(session, WT_METAFILE_URI, metaconf));
 		WT_ERR(ret);
 	}
 
