@@ -1086,7 +1086,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_WT_SESSION_compact, 1
 	},
 	{ "WT_SESSION.create",
-	  "access_pattern_hint=,allocation_size=4KB,app_metadata=,"
+	  "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
 	  "block_allocation=best,block_compressor=,cache_resident=false,"
 	  "checksum=uncompressed,colgroups=,collator=,columns=,dictionary=0"
 	  ",encryption=(keyid=,name=),exclusive=false,extractor=,"
@@ -1184,7 +1184,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_colgroup_meta, 5
 	},
 	{ "file.config",
-	  "access_pattern_hint=,allocation_size=4KB,app_metadata=,"
+	  "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
 	  "block_allocation=best,block_compressor=,cache_resident=false,"
 	  "checksum=uncompressed,collator=,columns=,dictionary=0,"
 	  "encryption=(keyid=,name=),format=btree,huffman_key=,"
@@ -1199,7 +1199,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_file_config, 35
 	},
 	{ "file.meta",
-	  "access_pattern_hint=,allocation_size=4KB,app_metadata=,"
+	  "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
 	  "block_allocation=best,block_compressor=,cache_resident=false,"
 	  "checkpoint=,checkpoint_lsn=,checksum=uncompressed,collator=,"
 	  "columns=,dictionary=0,encryption=(keyid=,name=),format=btree,"
@@ -1220,7 +1220,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_index_meta, 10
 	},
 	{ "lsm.meta",
-	  "access_pattern_hint=,allocation_size=4KB,app_metadata=,"
+	  "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
 	  "block_allocation=best,block_compressor=,cache_resident=false,"
 	  "checksum=uncompressed,chunks=,collator=,columns=,dictionary=0,"
 	  "encryption=(keyid=,name=),format=btree,huffman_key=,"
