@@ -187,7 +187,7 @@ struct __wt_cache {
 
 #define	WT_WITH_PASS_LOCK(session, ret, op) do {			\
 	WT_ASSERT(session, !F_ISSET(session, WT_SESSION_LOCKED_PASS));	\
-	WT_WITH_LOCK(session, ret,					\
+	WT_WITH_LOCK(session, ret, false,				\
 	    &cache->evict_pass_lock, WT_SESSION_LOCKED_PASS, op);	\
 } while (0)
 

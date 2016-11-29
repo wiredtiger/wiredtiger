@@ -44,7 +44,7 @@
  */
 #define	WT_WITH_TURTLE_LOCK(session, ret, op) do {			\
 	WT_ASSERT(session, !F_ISSET(session, WT_SESSION_LOCKED_TURTLE));\
-	WT_WITH_LOCK(session, ret,					\
+	WT_WITH_LOCK(session, ret, false,				\
 	    &S2C(session)->turtle_lock, WT_SESSION_LOCKED_TURTLE, op);	\
 } while (0)
 

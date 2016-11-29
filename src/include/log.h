@@ -182,7 +182,7 @@ struct WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) __wt_logslot {
 
 #define	WT_WITH_SLOT_LOCK(session, log, ret, op) do {			\
 	WT_ASSERT(session, !F_ISSET(session, WT_SESSION_LOCKED_SLOT));	\
-	WT_WITH_LOCK(session, ret,					\
+	WT_WITH_LOCK(session, ret, false,				\
 	    &log->log_slot_lock, WT_SESSION_LOCKED_SLOT, op);		\
 } while (0)
 

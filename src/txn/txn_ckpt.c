@@ -931,11 +931,9 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
 	 * compaction checkpoints don't.
 	 */
 #define	WT_TXN_SESSION_MASK						\
-	(WT_SESSION_CAN_WAIT | WT_SESSION_LOCK_NO_WAIT | WT_SESSION_NO_EVICTION)
+	(WT_SESSION_CAN_WAIT | WT_SESSION_NO_EVICTION)
 	mask = F_MASK(session, WT_TXN_SESSION_MASK);
 	F_SET(session, WT_SESSION_CAN_WAIT | WT_SESSION_NO_EVICTION);
-	if (!waiting)
-		F_SET(session, WT_SESSION_LOCK_NO_WAIT);
 
 	/*
 	 * Only one checkpoint can be active at a time, and checkpoints must run
@@ -944,8 +942,12 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
 	 * calls checkpoint directly, it can be tough to avoid. Serialize here
 	 * to ensure we don't get into trouble.
 	 */
-	WT_WITH_CHECKPOINT_LOCK(session, ret,
-	    ret = __txn_checkpoint_wrapper(session, cfg));
+	if (waiting)
+		WT_WITH_CHECKPOINT_LOCK(session, ret,
+		    ret = __txn_checkpoint_wrapper(session, cfg));
+	else
+		WT_WITH_CHECKPOINT_LOCK_NOWAIT(session, ret,
+		    ret = __txn_checkpoint_wrapper(session, cfg));
 
 	F_CLR(session, WT_TXN_SESSION_MASK);
 	F_SET(session, mask);
