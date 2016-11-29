@@ -43,16 +43,14 @@ typedef struct {
 	/* Track the page's maximum transaction ID. */
 	uint64_t max_txn;
 
+	/* Track if all updates were skipped. */
+	bool all_skipped;
+
 	/*
 	 * When we can't mark the page clean (for example, checkpoint found some
 	 * uncommitted updates), there's a leave-dirty flag.
 	 */
 	bool leave_dirty;
-
-	/*
-	 * Track if an update was copied onto a page during reconciliation.
-	 */
-	bool update_used;
 
 	/*
 	 * Raw compression (don't get me started, as if normal reconciliation
@@ -332,9 +330,10 @@ static int  __rec_split_write(WT_SESSION_IMPL *,
 		WT_RECONCILE *, WT_BOUNDARY *, WT_ITEM *, bool);
 static int  __rec_update_las(
 		WT_SESSION_IMPL *, WT_RECONCILE *, uint32_t, WT_BOUNDARY *);
+static int  __rec_write_check_complete(WT_SESSION_IMPL *, WT_RECONCILE *);
 static int  __rec_write_init(WT_SESSION_IMPL *,
 		WT_REF *, uint32_t, WT_SALVAGE_COOKIE *, void *);
-static int  __rec_write_status(WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
+static void __rec_write_page_status(WT_SESSION_IMPL *, WT_RECONCILE *);
 static int  __rec_write_wrapup(WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
 static int  __rec_write_wrapup_err(
 		WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
@@ -426,13 +425,13 @@ __wt_reconcile(WT_SESSION_IMPL *session,
 	WT_ILLEGAL_VALUE_SET(session);
 	}
 
-	/* Get the final status for the reconciliation. */
+	/* Checks for a successful reconciliation. */
 	if (ret == 0)
-		ret = __rec_write_status(session, r, page);
+		ret = __rec_write_check_complete(session, r);
 
 	/* Wrap up the page reconciliation. */
-	if (ret == 0)
-		ret = __rec_write_wrapup(session, r, page);
+	if (ret == 0 && (ret = __rec_write_wrapup(session, r, page)) == 0)
+		__rec_write_page_status(session, r);
 	else
 		WT_TRET(__rec_write_wrapup_err(session, r, page));
 
@@ -540,18 +539,12 @@ __rec_las_checkpoint_test(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 }
 
 /*
- * __rec_write_status --
- *	Return the final status for reconciliation.
+ * __rec_write_check_complete --
+ *	Check that reconciliation should complete
  */
 static int
-__rec_write_status(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
+__rec_write_check_complete(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
-	WT_BTREE *btree;
-	WT_PAGE_MODIFY *mod;
-
-	btree = S2BT(session);
-	mod = page->modify;
-
 	/*
 	 * If we have used the lookaside table, check for a lookaside table and
 	 * checkpoint collision.
@@ -560,12 +553,31 @@ __rec_write_status(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		return (EBUSY);
 
 	/*
-	 * If there is only one block and no update was used, no progress has
-	 * been made and there is no point swapping the new page into place.
+	 * If we are doing eviction and restoring updates, there is only one
+	 * block and all update were skipped, no progress has been made and
+	 * there is no point swapping the new page into place.
 	 */
-	if (r->bnd_next == 1 && F_ISSET(r, WT_EVICT_UPDATE_RESTORE) &&
-	    r->bnd[0].supd != NULL && !r->update_used)
+	if (F_ISSET(r, WT_EVICT_UPDATE_RESTORE) && r->all_skipped &&
+	    r->bnd_next == 1 && r->bnd[0].supd != NULL)
 		return (EBUSY);
+
+	return (0);
+}
+
+/*
+ * __rec_write_page_status --
+ *	Set the page status after reconciliation.
+ */
+static void
+__rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+{
+	WT_BTREE *btree;
+	WT_PAGE *page;
+	WT_PAGE_MODIFY *mod;
+
+	btree = S2BT(session);
+	page = r->page;
+	mod = page->modify;
 
 	/*
 	 * Set the page's status based on whether or not we cleaned the page.
@@ -625,8 +637,6 @@ __rec_write_status(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		else
 			WT_ASSERT(session, !F_ISSET(r, WT_EVICTING));
 	}
-
-	return (0);
 }
 
 /*
@@ -854,11 +864,11 @@ __rec_write_init(WT_SESSION_IMPL *session,
 	/* Track the page's maximum transaction ID. */
 	r->max_txn = WT_TXN_NONE;
 
+	/* Track if all updates were skipped. */
+	r->all_skipped = true;
+
 	/* Track if the page can be marked clean. */
 	r->leave_dirty = false;
-
-	/* Track if any updates were used. */
-	r->update_used = false;
 
 	/* Raw compression. */
 	r->raw_compression =
@@ -1188,7 +1198,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		    txnid != S2C(session)->txn_global.checkpoint_txnid ||
 		    WT_SESSION_IS_CHECKPOINT(session));
 #endif
-		r->update_used = true;
+		r->all_skipped = false;
 		return (0);
 	}
 
@@ -3616,7 +3626,7 @@ __wt_bulk_wrapup(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 
 	WT_RET(__rec_split_finish(session, r));
 	WT_RET(__rec_write_wrapup(session, r, r->page));
-	WT_RET(__rec_write_status(session, r, r->page));
+	__rec_write_page_status(session, r);
 
 	/* Mark the page's parent and the tree dirty. */
 	parent = r->ref->home;
@@ -4467,8 +4477,8 @@ record_loop:	/*
 				 *
 				 * Write a placeholder.
 				 */
-				 WT_ASSERT(session,
-				     F_ISSET(r, WT_EVICT_UPDATE_RESTORE));
+				WT_ASSERT(session,
+				    F_ISSET(r, WT_EVICT_UPDATE_RESTORE));
 
 				data = "@";
 				size = 1;
