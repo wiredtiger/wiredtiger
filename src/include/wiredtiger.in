@@ -995,13 +995,13 @@ struct __wt_session {
 	 * \c "table:stock". For a description of URI formats
 	 * see @ref data_sources.
 	 * @configstart{WT_SESSION.create, see dist/api_data.py}
-	 * @config{access_pattern, It is recommended that workloads that consist
-	 * primarily of updates and/or point queries specify \c random.
+	 * @config{access_pattern_hint, It is recommended that workloads that
+	 * consist primarily of updates and/or point queries specify \c random.
 	 * Workloads that do many cursor scans through large ranges of data
-	 * specify \c sequential and other workloads specify \c default.  The
+	 * specify \c sequential and other workloads specify \c none.  The
 	 * option leads to an advisory call to an appropriate operating system
 	 * API where available., a string\, chosen from the following options:
-	 * \c "default"\, \c "random"\, \c "sequential"; default \c default.}
+	 * \c "none"\, \c "random"\, \c "sequential"; default \c none.}
 	 * @config{allocation_size, the file unit allocation size\, in bytes\,
 	 * must a power-of-two; smaller values decrease the file space required
 	 * by overflow items\, and the default value of 4KB is a good choice

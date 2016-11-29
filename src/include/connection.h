@@ -404,11 +404,6 @@ struct __wt_connection_impl {
 #define	WT_DIRECT_IO_LOG	0x04	/* Log files */
 	uint32_t direct_io;		/* O_DIRECT, FILE_FLAG_NO_BUFFERING */
 
-#define	WT_ACCESS_DEFAULT	0x01	/* Default/normal */
-#define	WT_ACCESS_RANDOM	0x02	/* Random */
-#define	WT_ACCESS_SEQUENTIAL	0x04	/* Sequential */
-	uint32_t access_pattern;	/* default, random, sequential */
-
 	uint32_t write_through;		/* FILE_FLAG_WRITE_THROUGH */
 
 	bool	 mmap;			/* mmap configuration */
