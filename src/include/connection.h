@@ -306,24 +306,14 @@ struct __wt_connection_impl {
 	uint32_t	 evict_threads_max;/* Max eviction threads */
 	uint32_t	 evict_threads_min;/* Min eviction threads */
 
-/*
- * NOTE: EVICT_ADD and EVICT_REMOVE must be the same positive and negative
- * values.  If that changes, their use in the eviction code must change.
- */
-#define	EVICT_ADD	1		/* Add an eviction thread */
-#define	EVICT_NOCHANGE	0		/* No change in eviction threads */
-#define	EVICT_REMOVE	-1		/* Remove an eviction thread */
+#define	EVICT_GROUP_INCR 4    /* Evict group size increased in batches */
 	unsigned         evict_tune_check_point; /* When to check performance */
-	int              evict_tune_last_action; /* Last tuning action */
 	struct timespec  evict_tune_last_action_time;/* Time of last action */
 	struct timespec  evict_tune_last_time;/* Last evict thread check */
 	unsigned         evict_tune_num_points; /* Number of values tried */
 	uint64_t	 evict_tune_pgs_last;/* Number of pages evicted */
-	uint64_t	 evict_tune_pg_sec_last;/* Rate of pages evicted/sec */
 	uint64_t	 evict_tune_pg_sec_max;/* Max throughput encountered */
-	char             evict_tune_retune_last; /* Track last re-tune action */
 	bool             evict_tune_stable; /* Whether we should keep tuning */
-	bool             resized;
 	unsigned	 evict_tune_workers_best;/* Best performing value */
 
 #define	WT_STATLOG_FILENAME	"WiredTigerStat.%d.%H"

@@ -220,8 +220,6 @@ connection_stats = [
     CacheStat('cache_eviction_pages_seen', 'pages seen by eviction walk'),
     CacheStat('cache_eviction_queue_empty', 'eviction server candidate queue empty when topping up'),
     CacheStat('cache_eviction_queue_not_empty', 'eviction server candidate queue not empty when topping up'),
-    CacheStat('cache_eviction_random_retune_add', 'eviction random re-tune will add workers'),
-    CacheStat('cache_eviction_random_retune_remove', 'eviction random re-tune will remove workers'),
     CacheStat('cache_eviction_server_evicting', 'eviction server evicting pages'),
     CacheStat('cache_eviction_server_slept', 'eviction server slept, because we did not make progress with eviction'),
     CacheStat('cache_eviction_slow', 'eviction server unable to reach eviction goal'),
