@@ -386,7 +386,8 @@ __wt_evict_create(WT_SESSION_IMPL *session)
 	/* Create the eviction thread group */
 	WT_RET(__wt_thread_group_create(session, &conn->evict_threads,
 	    "eviction-server", conn->evict_threads_min,
-	    conn->evict_threads_max, WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL,
+	     WT_MIN(conn->evict_threads_max, 4),
+	     WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL,
 	    __wt_evict_thread_run));
 
 	/*
@@ -838,11 +839,16 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
  */
 #define	EVICT_TUNE_PERIOD 2
 /*
- * The following variable controls how much improvement in eviction rate we must
- * see from the creation of another eviction worker to justify the creation of
- * another one or to justify keeping around the previously created thread.
+ * The following variable controls how many workers we will add at every
+ * tuning iteration.
  */
-#define	EVICT_TUNE_THRESHOLD 3 /* Percent eviction rate */
+#define EVICT_TUNE_BATCH 1
+/*
+ * The following variable tells us how many extra data points we need to
+ * accumulate before deciding if we should keep adding workers or settle on a
+ * previously observed value.
+ */
+#define	EVICT_CHECKPOINT_INCR 3
 
 /*
  * __evict_tune_workers --
@@ -873,17 +879,12 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-	int cur_action, pct_diff, thrd_surplus;
-	uint32_t enough_data_points;
+	int thrd_surplus;
 	uint64_t cur_threads, delta_millis, delta_pages, i, target_threads;
 	uint64_t pgs_evicted_cur, pgs_evicted_persec_cur;
 
 	conn = S2C(session);
 	cache = conn->cache;
-	cur_action = EVICT_NOCHANGE;
-	enough_data_points = (conn->evict_threads_max / 3) > 5 ?
-		(conn->evict_threads_max / 3) : 5;
-	pct_diff = 0;
 
 	WT_ASSERT(session, conn->evict_threads.threads[0]->session == session);
 	pgs_evicted_persec_cur = 0;
@@ -904,48 +905,6 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	pgs_evicted_cur = cache->pages_evict;
 
 	/*
-	 * Let's check to see if we reached the stable state.
-	 * If we previously added or removed workers, increment the
-	 * 'data points' counter. This counter is a rough indicator of how many
-	 * different values for the number of eviction workers we tried.
-	 * Once we have tried enough, depending on the size of our exploration
-	 * field, we will set the number of workers to equal the previously seen
-	 * value of worker that produced the maximum throughput (in pages
-	 * evicted per second), and we will stop tuning.
-	 */
-	if (conn->evict_tune_last_action != EVICT_NOCHANGE)
-		if (++conn->evict_tune_num_points >=
-		    enough_data_points) {
-			/* We have enough data points */
-			WT_STAT_CONN_SET(session,
-					 cache_eviction_stable_state_workers,
-					 conn->evict_tune_workers_best);
-
-			conn->evict_tune_stable = true;
-			thrd_surplus =
-				(int)conn->evict_threads.current_threads -
-				(int)conn->evict_tune_workers_best;
-
-			if (thrd_surplus > 0) /* Must remove */
-				for (i = 0; i < (uint32_t)thrd_surplus; i++) {
-					WT_ERR(__wt_thread_group_stop_one(
-						       session,
-						       &conn->evict_threads,
-						       false));
-				}
-			else if (thrd_surplus < 0) /* Must add */
-				for (i = 0; i < (uint32_t)-thrd_surplus; i++) {
-					WT_ERR(__wt_thread_group_start_one(
-						       session,
-						       &conn->evict_threads,
-						       false));
-				}
-			WT_STAT_CONN_SET(session, cache_eviction_active_workers,
-					 conn->evict_threads.current_threads);
-			return (0);
-		}
-
-	/*
 	 * If we have recorded the number of pages evicted at the end of
 	 * the previous measurement interval, we can compute the eviction
 	 * rate in evicted pages per second achieved during the current
@@ -958,6 +917,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	delta_millis = WT_TIMEDIFF_MS(current_time, conn->evict_tune_last_time);
 	delta_pages = pgs_evicted_cur - conn->evict_tune_pgs_last;
 	pgs_evicted_persec_cur = (delta_pages * WT_THOUSAND) / delta_millis;
+	conn->evict_tune_num_points++;
 
 	/* Keep track of the maximum eviction throughput seen and the number
 	 * of workers corresponding to that throughput.
@@ -968,126 +928,124 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 			conn->evict_threads.current_threads;
 	}
 
+	printf("------------------------------------\n");
+	printf("Last period: %lu pps evicted with %d workers \n",
+	       pgs_evicted_persec_cur,
+	       conn->evict_threads.current_threads);
+	printf("%d data points\n", conn->evict_tune_num_points);
 	/*
-	 * If we have not recorded the pages evicted per second rate in the
-	 * previous interval, we need to wait for another measurement interval
-	 * until we can record that rate, because we cannot make any tuning
-	 * decisions without it.
+	 * Compare the current number of data points with the check
+	 * point variable. If they are equal, we will check whether
+	 * we are still ramping up on the performance curve, in which
+	 * case we will continue increasing the number of workers, or
+	 * we are past the inflection point on the curve, in which case
+	 * we will go back to the best observed number of workers and
+	 * settle into a stable state.
 	 */
-	if (conn->evict_tune_pg_sec_last == 0)
-		goto err;
-
-	pct_diff = (int)(pgs_evicted_persec_cur - conn->evict_tune_pg_sec_last)
-		* 100 / (int) conn->evict_tune_pg_sec_last;
-
-	/*
-	 * If we have not taken any thread tuning actions before, we will
-	 * try to add threads.
-	 */
-	if (conn->evict_tune_last_action_time.tv_sec == 0)
-		cur_action = EVICT_ADD;
-	else {
-		/*
-		 * If the previous action (addition or removal of threads)
-		 * improved performance, continue applying the same action.
-		 * If the previous action hurt performance, reverse the action:
-		 * e.g., if we added threads and saw performance degradation
-		 * we will remove threads this time around and vice versa.
-		 * If we saw no change, do nothing.
-		 */
-		if (pct_diff >= EVICT_TUNE_THRESHOLD)
-			cur_action = conn->evict_tune_last_action;
-		else if (pct_diff <= -EVICT_TUNE_THRESHOLD)
-			cur_action = -conn->evict_tune_last_action;
-		else
-			cur_action = EVICT_NOCHANGE;
-	}
-
-	/*
-	 * If we have not tried adding or removing threads in the recent period,
-	 * choose between the addition and removal, alternating them on
-	 * successive tries.
-	 */
-	if (cur_action == EVICT_NOCHANGE &&
-	    WT_TIMEDIFF_SEC(current_time, conn->evict_tune_last_action_time) >=
-	    EVICT_TUNE_PERIOD) {
-		if ((conn->evict_tune_retune_last++)%2 == 0) {
-			cur_action = EVICT_REMOVE;
-			WT_STAT_CONN_INCR(session,
-					  cache_eviction_random_retune_remove);
-		}
-		else {
-			cur_action = EVICT_ADD;
-			WT_STAT_CONN_INCR(session,
-			    cache_eviction_random_retune_add);
-		}
-	}
-
-	/*
-	 * Set the last action to no change in case we don't succeed
-	 * in adding or removing threads. If we do, the action will be
-	 * updated below.
-	 */
-	conn->evict_tune_last_action = EVICT_NOCHANGE;
-	if (cur_action == EVICT_ADD) {
-		cur_threads = conn->evict_threads.current_threads;
-		target_threads = (conn->evict_threads.max - cur_threads) / 2;
-		if (target_threads == 0)
-			target_threads = 1;
-
-		for (i = 0; i < target_threads; i++) {
+	if (conn->evict_tune_num_points >= conn->evict_tune_check_point) {
+		if((conn->evict_tune_workers_best ==
+		    conn->evict_threads.current_threads) &&
+		   (conn->evict_threads.current_threads <
+		    conn->evict_threads_max)) {
 			/*
-			 * Attempt to create a new thread if we have capacity
-			 * and if the eviction goals are not met.
+			 * Keep adding workers. We will check again
+			 * at the next check point.
 			 */
-			if (F_ISSET(cache, WT_CACHE_EVICT_ALL))
-				WT_ERR(__wt_thread_group_start_one(
-				    session, &conn->evict_threads, false));
-			if (conn->evict_threads.current_threads > cur_threads) {
-				/* We created a new thread. Keep track of it. */
-				cur_threads++;
-				conn->evict_tune_last_action = EVICT_ADD;
-				conn->evict_tune_last_action_time =
-				    current_time;
-				WT_STAT_CONN_INCR(session,
-				    cache_eviction_worker_created);
-				__wt_verbose(session, WT_VERB_EVICTSERVER,
-				    "added worker thread");
-			} else {
-				/* Could not add a thread; Stop trying. */
-				WT_STAT_CONN_INCR(session,
-				    cache_eviction_fail_create);
-				break;
-			}
-		}
-	} else if (cur_action == EVICT_REMOVE) {
-		cur_threads = conn->evict_threads.current_threads;
-		target_threads = (cur_threads - conn->evict_threads.min) / 2;
+			conn->evict_tune_check_point +=
+				WT_MIN(EVICT_CHECKPOINT_INCR,
+				       (conn->evict_threads_max
+					- conn->evict_threads.current_threads)/
+				       EVICT_TUNE_BATCH);
 
-		for (i = 0; i < target_threads; i++) {
-			WT_ERR(__wt_thread_group_stop_one(
-			    session, &conn->evict_threads, false));
-			if (conn->evict_threads.current_threads < cur_threads) {
-				cur_threads--;
-				conn->evict_tune_last_action = EVICT_REMOVE;
-				conn->evict_tune_last_action_time =
-				    current_time;
-				WT_STAT_CONN_INCR(session,
-				    cache_eviction_worker_removed);
-				__wt_verbose(session, WT_VERB_EVICTSERVER,
-				    "removed thread");
+			printf("We are now at %d workers. New check "
+			       "point set to %d\n",
+			       conn->evict_threads.current_threads,
+			       conn->evict_tune_check_point);
+		} else {
+			/*
+			 * We are past inflection point. Choose the
+			 * best number of eviction workers observed
+			 * at settle into stable state.
+			 */
+			printf("Will settle at %d workers\n",
+			       conn->evict_tune_workers_best);
+
+			WT_STAT_CONN_SET(session,
+					 cache_eviction_stable_state_workers,
+					 conn->evict_tune_workers_best);
+
+			conn->evict_tune_stable = true;
+			thrd_surplus =
+				(int)conn->evict_threads.current_threads -
+				(int)conn->evict_tune_workers_best;
+
+			for (i = 0; i < (uint32_t)thrd_surplus; i++) {
+				WT_ERR(__wt_thread_group_stop_one(
+					       session,
+					       &conn->evict_threads,
+					       false));
 			}
-			else {
-				/* Could not add a thread; Stop trying. */
-				WT_STAT_CONN_INCR(session,
-				    cache_eviction_fail_remove);
-				break;
-			}
+			WT_STAT_CONN_SET(session, cache_eviction_active_workers,
+					 conn->evict_threads.current_threads);
+			printf("Stable workers is %d\n",
+			       conn->evict_threads.current_threads);
+			return (0);
 		}
 	}
 
+	/*
+	 * If we have not add any worker threads in the past, we need to set the
+	 * check point to equal to the number of data points that we must
+	 * accumulate before deciding if we should keep adding workers or settle
+	 * on a previously tried value of workers.
+	 */
+	if (conn->evict_tune_last_action_time.tv_sec == 0) {
+		conn->evict_tune_check_point = WT_MIN(EVICT_CHECKPOINT_INCR,
+			 (conn->evict_threads_max
+			  - conn->evict_threads.current_threads)/
+			  EVICT_TUNE_BATCH);
+	}
+
+	if (F_ISSET(cache, WT_CACHE_EVICT_ALL)) {
+		cur_threads = conn->evict_threads.current_threads;
+		target_threads = WT_MIN(cur_threads
+					+ EVICT_TUNE_BATCH,
+					conn->evict_threads_max);
+		printf("Target threads is %ld\n", target_threads);
+
+		/*
+		 * Resize the group to allow the additional batch of threads.
+		 * XXX. Explain why we are doing this.
+		 */
+		if (conn->evict_threads.max < target_threads) {
+			unsigned new_max = WT_MIN(conn->evict_threads.max + 4,
+						  conn->evict_threads_max);
+			printf("Old max was %d\n", conn->evict_threads.max);
+			WT_RET(__wt_thread_group_resize(
+				       session, &conn->evict_threads,
+				       conn->evict_threads_min, new_max,
+				       WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL));
+			printf("New max is %d\n", conn->evict_threads.max);
+		}
+
+		/* Now actually start the new threads. */
+		for (i = 0; i < (target_threads - cur_threads); i++) {
+			WT_ERR(__wt_thread_group_start_one(
+				       session,
+				       &conn->evict_threads,
+				       false));
+			WT_STAT_CONN_INCR(session,
+					  cache_eviction_worker_created);
+			__wt_verbose(session, WT_VERB_EVICTSERVER,
+				     "added worker thread");
+		}
+		conn->evict_tune_last_action_time =
+			current_time;
+	}
+
+	printf("New worker number is %d\n", conn->evict_threads.current_threads);
 	WT_STAT_CONN_SET(session, cache_eviction_active_workers,
-	    conn->evict_threads.current_threads);
+			 conn->evict_threads.current_threads);
 
 err:
 	conn->evict_tune_last_time = current_time;
