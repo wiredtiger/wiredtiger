@@ -193,14 +193,12 @@ def checkstr(c):
         return cfunc + ', NULL'
 
 def get_default(c):
-    cdef = c.flags
     t = gettype(c)
-    choices = cdef.get('choices', [])
     if c.default == 'false':
         return 'false'
     elif c.default == 'true':
         return 'true'
-    elif t == 'string' and c.default == 'none' and choices == []:
+    elif t == 'string' and c.default == 'none' and not c.flags.get('choices', []):
         return ''
     elif t == 'category':
         return '(%s)' % (','.join('%s=%s' % (subc.name, get_default(subc))

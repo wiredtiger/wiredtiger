@@ -528,7 +528,7 @@ __win_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 
 	/* If the user indicated a sequential workload, set that. */
 	if (file_type == WT_FS_OPEN_FILE_TYPE_DATA &&
-	    LF_ISSET(WT_FS_OPEN_ACCESS_RAND))
+	    LF_ISSET(WT_FS_OPEN_ACCESS_SEQ))
 		f |= FILE_FLAG_SEQUENTIAL_SCAN;
 
 	win_fh->filehandle = CreateFileW(name_wide->data, desired_access,

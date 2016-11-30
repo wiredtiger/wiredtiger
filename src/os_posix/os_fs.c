@@ -681,8 +681,8 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	 * interesting.
 	 */
 	if (!pfh->direct_io && file_type == WT_FS_OPEN_FILE_TYPE_DATA &&
-	    LF_ISSET(WT_FS_OPEN_ACCESS_RAND |
-	    LF_ISSET(WT_FS_OPEN_ACCESS_SEQ))) {
+	    LF_ISSET(WT_FS_OPEN_ACCESS_RAND | WT_FS_OPEN_ACCESS_SEQ)) {
+		advise_flag = 0;
 		if (LF_ISSET(WT_FS_OPEN_ACCESS_RAND))
 			advise_flag = POSIX_FADV_RANDOM;
 		if (LF_ISSET(WT_FS_OPEN_ACCESS_SEQ))
