@@ -20,6 +20,11 @@ examples/c
 lang/java JAVA
 examples/java JAVA
 lang/python PYTHON
+
+# Test/Benchmark support library.
+test/utility
+
+# Test programs.
 test/bloom
 test/checkpoint
 test/fops
@@ -29,3 +34,4 @@ test/packing
 test/recovery
 test/salvage
 test/thread
+
