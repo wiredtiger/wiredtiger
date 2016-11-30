@@ -791,19 +791,26 @@ err:	API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
 /*
- * __wt_session_drop --
- *	Internal version of WT_SESSION::drop.
+ * __session_drop --
+ *	WT_SESSION->drop method.
  */
-int
-__wt_session_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
+static int
+__session_drop(WT_SESSION *wt_session, const char *uri, const char *config)
 {
-	WT_DECL_RET;
 	WT_CONFIG_ITEM cval;
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
 	bool checkpoint_wait, lock_wait;
 
-	WT_RET(__wt_config_gets_def(session, cfg, "checkpoint_wait", 1, &cval));
+	session = (WT_SESSION_IMPL *)wt_session;
+	SESSION_API_CALL(session, drop, config, cfg);
+
+	/* Disallow objects in the WiredTiger name space. */
+	WT_ERR(__wt_str_name_check(session, uri));
+
+	WT_ERR(__wt_config_gets_def(session, cfg, "checkpoint_wait", 1, &cval));
 	checkpoint_wait = cval.val != 0;
-	WT_RET(__wt_config_gets_def(session, cfg, "lock_wait", 1, &cval));
+	WT_ERR(__wt_config_gets_def(session, cfg, "lock_wait", 1, &cval));
 	lock_wait = cval.val != 0;
 
 	/*
@@ -831,27 +838,6 @@ __wt_session_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 			    WT_WITH_TABLE_LOCK_NOWAIT(session, ret,
 				ret = __wt_schema_drop(session, uri, cfg)));
 	}
-
-	return (ret);
-}
-
-/*
- * __session_drop --
- *	WT_SESSION->drop method.
- */
-static int
-__session_drop(WT_SESSION *wt_session, const char *uri, const char *config)
-{
-	WT_DECL_RET;
-	WT_SESSION_IMPL *session;
-
-	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, drop, config, cfg);
-
-	/* Disallow objects in the WiredTiger name space. */
-	WT_ERR(__wt_str_name_check(session, uri));
-
-	ret = __wt_session_drop(session, uri, cfg);
 
 err:	if (ret != 0)
 		WT_STAT_CONN_INCR(session, session_table_drop_fail);

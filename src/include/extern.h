@@ -596,7 +596,6 @@ extern int __wt_session_copy_values(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_A
 extern int __wt_session_release_resources(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, const char *cfg[], WT_CURSOR **cursorp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_create( WT_SESSION_IMPL *session, const char *uri, const char *config) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_session_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_range_truncate(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *start, WT_CURSOR *stop) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern const char *__wt_session_strerror(WT_SESSION *wt_session, int error);
 extern int __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const char *config, bool open_metadata, WT_SESSION_IMPL **sessionp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
