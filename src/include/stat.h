@@ -298,8 +298,6 @@ struct __wt_connection_stats {
 	int64_t cache_bytes_read;
 	int64_t cache_bytes_write;
 	int64_t cache_eviction_checkpoint;
-	int64_t cache_eviction_fail_create;
-	int64_t cache_eviction_fail_remove;
 	int64_t cache_eviction_get_ref;
 	int64_t cache_eviction_get_ref_empty;
 	int64_t cache_eviction_get_ref_empty2;

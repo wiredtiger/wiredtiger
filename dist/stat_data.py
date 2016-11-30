@@ -203,8 +203,6 @@ connection_stats = [
     CacheStat('cache_eviction_dirty', 'modified pages evicted'),
     CacheStat('cache_eviction_empty_score', 'eviction empty score', 'no_clear,no_scale'),
     CacheStat('cache_eviction_fail', 'pages selected for eviction unable to be evicted'),
-    CacheStat('cache_eviction_fail_create', 'could not create eviction worker'),
-    CacheStat('cache_eviction_fail_remove', 'could not remove eviction worker'),
     CacheStat('cache_eviction_force', 'pages evicted because they exceeded the in-memory maximum'),
     CacheStat('cache_eviction_force_delete', 'pages evicted because they had chains of deleted items'),
     CacheStat('cache_eviction_force_fail', 'failed eviction of pages that exceeded the in-memory maximum'),

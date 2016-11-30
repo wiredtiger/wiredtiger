@@ -661,8 +661,6 @@ static const char * const __stats_connection_desc[] = {
 	"cache: bytes read into cache",
 	"cache: bytes written from cache",
 	"cache: checkpoint blocked page eviction",
-	"cache: could not create eviction worker",
-	"cache: could not remove eviction worker",
 	"cache: eviction calls to get a page",
 	"cache: eviction calls to get a page found queue empty",
 	"cache: eviction calls to get a page found queue empty after locking",
@@ -945,8 +943,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cache_bytes_read = 0;
 	stats->cache_bytes_write = 0;
 	stats->cache_eviction_checkpoint = 0;
-	stats->cache_eviction_fail_create = 0;
-	stats->cache_eviction_fail_remove = 0;
 	stats->cache_eviction_get_ref = 0;
 	stats->cache_eviction_get_ref_empty = 0;
 	stats->cache_eviction_get_ref_empty2 = 0;
@@ -1212,10 +1208,6 @@ __wt_stat_connection_aggregate(
 	to->cache_bytes_write += WT_STAT_READ(from, cache_bytes_write);
 	to->cache_eviction_checkpoint +=
 	    WT_STAT_READ(from, cache_eviction_checkpoint);
-	to->cache_eviction_fail_create +=
-	    WT_STAT_READ(from, cache_eviction_fail_create);
-	to->cache_eviction_fail_remove +=
-	    WT_STAT_READ(from, cache_eviction_fail_remove);
 	to->cache_eviction_get_ref +=
 	    WT_STAT_READ(from, cache_eviction_get_ref);
 	to->cache_eviction_get_ref_empty +=
