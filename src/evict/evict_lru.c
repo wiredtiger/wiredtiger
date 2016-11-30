@@ -958,23 +958,22 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 			 * best number of eviction workers observed
 			 * at settle into stable state.
 			 */
-			WT_STAT_CONN_SET(session,
-					 cache_eviction_stable_state_workers,
-					 conn->evict_tune_workers_best);
-
-			conn->evict_tune_stable = true;
 			thrd_surplus =
 				conn->evict_threads.current_threads -
 				conn->evict_tune_workers_best;
 
 			for (i = 0; i < thrd_surplus; i++) {
-				WT_ERR(__wt_thread_group_stop_one(
+				WT_RET(__wt_thread_group_stop_one(
 					       session,
 					       &conn->evict_threads,
 					       true));
 				WT_STAT_CONN_INCR(session,
 					  cache_eviction_worker_removed);
 			}
+			WT_STAT_CONN_SET(session,
+					 cache_eviction_stable_state_workers,
+					 conn->evict_tune_workers_best);
+			conn->evict_tune_stable = true;
 			WT_STAT_CONN_SET(session, cache_eviction_active_workers,
 					 conn->evict_threads.current_threads);
 			return (0);
@@ -1019,7 +1018,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 
 		/* Now actually start the new threads. */
 		for (i = 0; i < (target_threads - cur_threads); i++) {
-			WT_ERR(__wt_thread_group_start_one(
+			WT_RET(__wt_thread_group_start_one(
 				       session,
 				       &conn->evict_threads,
 				       false));

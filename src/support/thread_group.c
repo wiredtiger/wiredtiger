@@ -48,13 +48,7 @@ static int
 __thread_group_grow(
     WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t new_count)
 {
-	WT_CONNECTION_IMPL *conn;
-	WT_DECL_RET;
 	WT_THREAD *thread;
-	uint32_t session_flags;
-
-	conn = S2C(session);
-	session_flags = 0;
 
 	WT_ASSERT(session,
 	    __wt_rwlock_islocked(session, group->lock));
@@ -65,14 +59,6 @@ __thread_group_grow(
 	 */
 	while (group->current_threads < new_count) {
 		thread = group->threads[group->current_threads++];
-		if (thread == NULL) {
-			WT_ERR(__wt_calloc_one(session, &thread));
-			WT_ERR(__wt_open_internal_session(conn, group->name,
-			    false, session_flags, &thread->session));
-			thread->id = group->current_threads-1;
-			thread->run_func = group->run_func;
-			group->threads[group->current_threads-1] = thread;
-		}
 		__wt_verbose(session, WT_VERB_THREAD_GROUP,
 		    "Starting utility thread: %p:%" PRIu32,
 		    (void *)group, thread->id);
@@ -82,12 +68,6 @@ __thread_group_grow(
 		    &thread->tid, __wt_thread_run, thread));
 	}
 	return (0);
-err:
-	if (ret != 0) {
-		WT_TRET(__wt_thread_group_destroy(session, group));
-		WT_PANIC_RET(session, ret, "Error while resizing thread group");
-	}
-	return (ret);
 }
 
 /*
