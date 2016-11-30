@@ -47,7 +47,7 @@ __metadata_init(WT_SESSION_IMPL *session)
 	 * We're single-threaded, but acquire the schema lock regardless: the
 	 * lower level code checks that it is appropriately synchronized.
 	 */
-	WT_WITH_SCHEMA_LOCK(session, ret,
+	WT_WITH_SCHEMA_LOCK(session,
 	    ret = __wt_schema_create(session, WT_METAFILE_URI, NULL));
 
 	return (ret);

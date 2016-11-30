@@ -638,8 +638,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * then release any clean handles.
 	 */
 	WT_ASSERT(session, session->ckpt_handle_next == 0);
-	WT_WITH_SCHEMA_LOCK(session, ret,
-	    WT_WITH_TABLE_LOCK(session, ret,
+	WT_WITH_SCHEMA_LOCK(session,
+	    WT_WITH_TABLE_LOCK(session,
 		WT_WITH_HANDLE_LIST_LOCK(session,
 		    ret = __checkpoint_apply_all(
 		    session, cfg, __wt_checkpoint_get_handles, NULL))));
@@ -781,7 +781,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 		/* Disable metadata tracking during the metadata checkpoint. */
 		saved_meta_next = session->meta_track_next;
 		session->meta_track_next = NULL;
-		WT_WITH_METADATA_LOCK(session, ret,
+		WT_WITH_METADATA_LOCK(session,
 		    WT_WITH_DHANDLE(session,
 			WT_SESSION_META_DHANDLE(session),
 			ret = __wt_checkpoint(session, cfg)));
@@ -943,7 +943,7 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
 	 * to ensure we don't get into trouble.
 	 */
 	if (waiting)
-		WT_WITH_CHECKPOINT_LOCK(session, ret,
+		WT_WITH_CHECKPOINT_LOCK(session,
 		    ret = __txn_checkpoint_wrapper(session, cfg));
 	else
 		WT_WITH_CHECKPOINT_LOCK_NOWAIT(session, ret,

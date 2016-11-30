@@ -365,7 +365,7 @@ __wt_session_compact(
 	__wt_epoch(session, &session->compact->begin);
 
 	/* Find the types of data sources being compacted. */
-	WT_WITH_SCHEMA_LOCK(session, ret,
+	WT_WITH_SCHEMA_LOCK(session,
 	    ret = __wt_schema_worker(session, uri,
 	    __compact_handle_append, __compact_uri_analyze, cfg, 0));
 	WT_ERR(ret);
