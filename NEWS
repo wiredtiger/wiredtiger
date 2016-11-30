@@ -10,9 +10,9 @@ New features and API changes; refer to the API documentation for full details:
 Significant changes and bug fixes:
 
 * WT-2026		Maximum pages size at eviction too large
-* WT-2343		Add test to make sure we cannot rename/drop when a backup cursor is open.
+* WT-2343		Ensure we cannot rename/drop when a backup cursor is open
 * WT-2520		WT_SESSION::verify should not alter tables
-* WT-2576		variable-length column-store out-of-order return
+* WT-2576		Ensure variable-length column-store cannot out-of-order return
 * WT-2664		Change eviction so any eviction thread can find candidates
 * WT-2702		Under high thread load, WiredTiger exceeds cache size
 * WT-2731		Raw compression can create pages that are larger than expected
@@ -21,70 +21,65 @@ Significant changes and bug fixes:
 
 Issues fixed in MongoDB:
 
-* SERVER-23588	Stop using _open_osfhandle on Windows.
-* SERVER-23504	Coverity analysis defect 98177: Resource leak
+* SERVER-23588	Stop using _open_osfhandle on Windows
+* SERVER-23504	Resolve a resource leak
 
 Other noteworthy changes since the previous release:
 
-* WT-2103		Add incremental backup testing to format
-* WT-2553		In-memory documentation and stress testing
+* WT-2103		Add incremental backup testing to test/format
 * WT-2330		In-memory configurations should not create on-disk collection files
-* WT-2343		Add test to make sure we cannot rename/drop when a backup cursor is open.
-* WT-2360		Fix a build warning.
-* WT-2450		Salvage releases pages, then explicitly evicts them. Which can race with the eviction server.
-* WT-2453		Add multiple eviction queues.
-* WT-2504		Remove READONLY conditional for base config.
-* WT-2505		Review clang analyzer warnings
+* WT-2450		Salvage releases pages, then explicitly evicts them. Which can race with the eviction server
+* WT-2453		Add multiple eviction queues
+* WT-2504		Remove READONLY conditional for base config
+* WT-2505		Resolve clang analyzer warnings
 * WT-2508		Test programs should remove test directories on the "clean" target
 * WT-2512		Change how wtperf throttle values per thread are calculated
-* WT-2513		Fix conversion warning.
-* WT-2517		wtperf uses setvbuf in a way that isn't supported on Windows
+* WT-2513		Fix type conversion warning
+* WT-2517		Resolve incorrect uses of setvbuf on Windows
 * WT-2518		LSM checkpoint handle acquisition optimization
-* WT-2520		WT_SESSION::verify should not alter tables
-* WT-2522		Incorrect format code in message
+* WT-2522		Resolve incorrect format code in message
 * WT-2525		In-memory configurations: miscellaneous cleanups
-* WT-2526		Mixing and matching readonly and read/write handles
+* WT-2526		Prevent mixing and matching readonly file-handles and read/write data-handles
 * WT-2528		Style error in WiredTiger build
 * WT-2529		Be less aggressive asserting in readonly connections
-* WT-2330		In-memory configurations should not create on-disk collection files
 * WT-2531		In-memory tables are wasting space in truncation
-* WT-2532		WT_STREAM_APPEND and WT_STREAM_LINE_BUFFER flag overlap.
-* WT-2533		Don't let in-memory tables return a zero size.
-* WT-2534		Use atomic add when allocating transaction IDs.
+* WT-2532		WT_STREAM_APPEND and WT_STREAM_LINE_BUFFER flag overlap
+* WT-2533		Don't let in-memory tables return a zero size
+* WT-2534		Use atomic add when allocating transaction IDs
 * WT-2535		Extend test/format to test for transactions reading their writes
-* WT-2537		Check for an old and new uninitialized LSN for recovery.
-* WT-2539		Make streams a separate handle type from files.
+* WT-2537		Check for an old and new uninitialized LSN for recovery
+* WT-2539		Make streams a separate handle type from files
 * WT-2540		Separate stream and file handle methods
-* WT-2542		Fixed-length column store reconciliation overwrites original values
+* WT-2542		Resolve fixed-length column store reconciliation overwriting original values
 * WT-2544		Fix eviction stats when clear is used
-* WT-2546		Evict server decides whether or not to evict
-* WT-2547		Add eviction configurations for 1 thread.
-* WT-2548		Cap the amount of data handed to raw compression.
+* WT-2546		Evict server needs to be smarter when it decides whether or not to evict pages
+* WT-2547		Add eviction testing configurations for 1 thread
+* WT-2548		Cap the amount of data handed to raw compression
 * WT-2550		Support raw mode cursors in java
-* WT-2553		Fix implicit size_t conversion in test/format.
-* WT-2556		Typo in the Java example code
-* WT-2557		Need to truncate logs before closing backup cursor.
-* WT-2558		WT_PAGE structure reorganization
-* WT-2559		Open a local log file handle for sync.
-* WT-2560		Use a rwlock to protect transaction state, don't spin.
-* WT-2562		Add sleep loop to adapt for slow machines like PPC.
-* WT-2565		Limit the amount of data passed to raw compression
-* WT-2566		Lock/unlock operations should imply memory barriers.
-* WT-2567		Check if logging is enabled for truncate.
-* WT-2568		Add a backward compatible constructor for PackInputStream.
+* WT-2553               In-memory documentation and stress testing
+* WT-2556		Fix a typo in the Java example code
+* WT-2557		Need to truncate logs before closing backup cursor
+* WT-2558		Reorganization of WT_PAGE structure
+* WT-2559		Resolve a potential segfault in Windows logging code
+* WT-2560		Use a rwlock to protect transaction state, don't spin on this lock
+* WT-2562		Add sleep loop to adapt for slow machines like PPC
+* WT-2565		Further limit the amount of data passed to raw compression
+* WT-2566		Lock/unlock operations should imply memory barriers
+* WT-2567		Check if logging is enabled for truncate rather than assuming it is
+* WT-2568		Add a backward compatible constructor for PackInputStream
 * WT-2569		__win_handle_read needs to call GetLastError()
-* WT-2570		Minor lint cleanups
+* WT-2570		Minor lint and cleanups to code
 * WT-2571		Join code clean up
-* WT-2572		Don't select an in-memory format run if incompatible options configured
-* WT-2573		Free of stack-allocated WT_REF
-* WT-2574		Format doesn't free all allocated configure memory
-* WT-2576		Variable-length column-store out-of-order return
-* WT-2577		Core dump discarding non-existent addresses
-* WT-2579		Allow diagnostic only code to use file streams directly.
+* WT-2572		In test/format don't select an in-memory format run if incompatible options configured
+* WT-2573		Resolve a potential case where a double free can occur
+* WT-2574		Ensure test/format free's all allocated configure memory
+* WT-2576		Ensure variable-length column-store cannot out-of-order return
+* WT-2577		Resolve a potential double-free following an in-memory split
+* WT-2579		Allow diagnostic only code to use file streams directly
 * WT-2580		Fix potential SWIG naming conflict in Java
-* WT-2581		Assert multi->disk_image == NULL
-* WT-2582		Cache eviction server error: WT_RESTART
-* WT-2584		Don't use periods at the end of error messages
+* WT-2581		Resolve a case where we fail to track saved updates during a page split 
+* WT-2582		Fix a case where eviction can return WT_RESTART when runnin in-memory
+* WT-2584		Change to not use periods at the end of error messages
 
 WiredTiger release 2.8.0, 2015-03-24
 ------------------------------------
