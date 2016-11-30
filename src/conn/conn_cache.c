@@ -144,7 +144,8 @@ __wt_cache_config(WT_SESSION_IMPL *session, bool reconfigure, const char *cfg[])
 		WT_RET(__wt_thread_group_resize(
 		    session, &conn->evict_threads,
 		    conn->evict_threads_min,
-		    WT_MIN(conn->evict_threads_max, EVICT_GROUP_INCR),
+		    WT_MAX(conn->evict_threads_min,
+			   WT_MIN(conn->evict_threads_max, EVICT_GROUP_INCR)),
 		    WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL));
 
 	return (0);

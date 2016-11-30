@@ -148,6 +148,9 @@ __thread_group_resize(
 	if (new_min == group->min && new_max == group->max)
 		return (0);
 
+	if (new_min > new_max)
+		return (EINVAL);
+
 	/*
 	 * Call shrink to reduce the number of thread structures and running
 	 * threads if required by the change in group size.

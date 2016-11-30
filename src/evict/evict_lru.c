@@ -393,7 +393,8 @@ __wt_evict_create(WT_SESSION_IMPL *session)
 	 */
 	WT_RET(__wt_thread_group_create(session, &conn->evict_threads,
 	    "eviction-server", conn->evict_threads_min,
-	     WT_MIN(conn->evict_threads_max, EVICT_GROUP_INCR),
+	     WT_MAX(conn->evict_threads_min,
+	     WT_MIN(conn->evict_threads_max, EVICT_GROUP_INCR)),
 	     WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL,
 	    __wt_evict_thread_run));
 
