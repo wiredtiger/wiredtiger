@@ -624,14 +624,14 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
 	 * it may not have been set.
 	 */
 	WT_RET(__wt_config_gets(session, cfg, "memory_page_max", &cval));
-        btree->maxmempage = (uint64_t)cval.val;
+	btree->maxmempage = (uint64_t)cval.val;
 	cache_size = S2C(session)->cache_size;
-        if (cache_size > 0)
-                btree->maxmempage = WT_MIN(btree->maxmempage,
-                    cache_size / 10);
+	if (cache_size > 0)
+		btree->maxmempage = WT_MIN(btree->maxmempage,
+		    cache_size / 10);
 
-        /* Enforce a lower bound of a single disk leaf page */
-        btree->maxmempage = WT_MAX(btree->maxmempage, btree->maxleafpage);
+	/* Enforce a lower bound of a single disk leaf page */
+	btree->maxmempage = WT_MAX(btree->maxmempage, btree->maxleafpage);
 
 	/*
 	 * Get the split percentage (reconciliation splits pages into smaller
