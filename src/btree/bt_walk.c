@@ -436,8 +436,8 @@ restart:	/*
 			/*
 			 * Move to the next slot, and set the reference hint if
 			 * it's wrong (used when we continue the walk). We don't
-			 * update those hints when splitting, so it's common for
-			 * them to be incorrect in some workloads.
+			 * always update the hints when splitting, it's expected
+			 * for them to be incorrect in some workloads.
 			 */
 			ref = pindex->index[slot];
 			if (ref->pindex_hint != slot)
