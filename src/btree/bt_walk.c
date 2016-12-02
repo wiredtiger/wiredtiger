@@ -41,7 +41,9 @@ __ref_index_slot(WT_SESSION_IMPL *session,
 		 * subsequent retrievals), is slower.
 		 */
 		WT_ORDERED_READ(slot, ref->pindex_hint);
-		if (slot < entries && pindex->index[slot] == ref)
+		if (slot >= entries)
+			slot = entries - 1;
+		if (pindex->index[slot] == ref)
 			goto found;
 		for (
 		    start = &pindex->index[0],
