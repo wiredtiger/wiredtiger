@@ -38,14 +38,18 @@ class test_nsnap04(wttest.WiredTigerTestCase, suite_subprocess):
     uri = 'table:' + tablename
     nrows_per_itr = 10
 
-    def check_named_snapshot(self, snapshot, expected):
+    def check_named_snapshot(self, snapshot, expected, skip_snapshot=False):
         new_session = self.conn.open_session()
         c = new_session.open_cursor(self.uri)
-        new_session.begin_transaction("snapshot=" + str(snapshot))
+        if skip_snapshot:
+            new_session.begin_transaction()
+        else:
+            new_session.begin_transaction("snapshot=" + str(snapshot))
         count = 0
         for row in c:
             count += 1
         new_session.commit_transaction()
+        new_session.close()
         # print "Checking snapshot %d, expect %d, found %d" % (snapshot, expected, count)
         self.assertEqual(count, expected)
 
@@ -103,6 +107,11 @@ class test_nsnap04(wttest.WiredTigerTestCase, suite_subprocess):
             c[self.nrows_per_itr + i] = "some value"
 
         self.check_named_snapshot(0, 2 * self.nrows_per_itr)
+        # Ensure transactions not tracking the snapshot don't see the updates
+        self.check_named_snapshot(0, self.nrows_per_itr, skip_snapshot=True)
+        self.session.commit_transaction()
+        # Ensure content is visible to non-snapshot transactions after commit
+        self.check_named_snapshot(0, 2 * self.nrows_per_itr, skip_snapshot=True)
 
 if __name__ == '__main__':
     wttest.run()
