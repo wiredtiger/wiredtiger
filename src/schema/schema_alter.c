@@ -111,7 +111,7 @@ __alter_index(
 	WT_INDEX *idx;
 	WT_DECL_RET;
 
-	/* If we can get the index, performan any potential alterations. */
+	/* If we can get the index, perform any potential alterations. */
 	if ((ret = __wt_schema_get_index(
 	    session, uri, false, NULL, &idx)) == 0)
 		WT_TRET(__wt_schema_alter(session, idx->source, cfg));
