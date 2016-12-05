@@ -17,7 +17,8 @@ __ref_index_slot(WT_SESSION_IMPL *session,
     WT_REF *ref, WT_PAGE_INDEX **pindexp, uint32_t *slotp)
 {
 	WT_PAGE_INDEX *pindex;
-	uint32_t hint, entries, i, j, maxslots;
+	WT_REF **start, **stop, **p, **t;
+	uint32_t entries, slot;
 
 	for (;;) {
 		/*
@@ -39,16 +40,24 @@ __ref_index_slot(WT_SESSION_IMPL *session,
 		 * just means the first retrieval (which sets the hint for
 		 * subsequent retrievals), is slower.
 		 */
-		WT_ORDERED_READ(hint, ref->pindex_hint);
-		if ((i = hint) < entries && pindex->index[i] == ref)
+		WT_ORDERED_READ(slot, ref->pindex_hint);
+		if (slot >= entries)
+			slot = entries - 1;
+		if (pindex->index[slot] == ref)
 			goto found;
-		maxslots = hint > entries / 2 ? hint : entries - hint;
-		for (j = 1; j <= maxslots; j++) {
-			if ((i = hint + j) < entries && pindex->index[i] == ref)
+		for (
+		    start = &pindex->index[0],
+		    stop = &pindex->index[entries - 1],
+		    p = t = &pindex->index[slot];
+		    p > start || t < stop;) {
+			if (p > start && *--p == ref) {
+				slot = (uint32_t)(p - start);
 				goto found;
-			if (j <= hint &&
-			    (i = hint - j) < entries && pindex->index[i] == ref)
+			}
+			if (t < stop && *++t == ref) {
+				slot = (uint32_t)(t - start);
 				goto found;
+			}
 		}
 
 		/*
@@ -60,9 +69,9 @@ __ref_index_slot(WT_SESSION_IMPL *session,
 		__wt_yield();
 	}
 
-found:	WT_ASSERT(session, pindex->index[i] == ref);
+found:	WT_ASSERT(session, pindex->index[slot] == ref);
 	*pindexp = pindex;
-	*slotp = i;
+	*slotp = slot;
 }
 
 /*
@@ -429,8 +438,8 @@ restart:	/*
 			/*
 			 * Move to the next slot, and set the reference hint if
 			 * it's wrong (used when we continue the walk). We don't
-			 * update those hints when splitting, so it's common for
-			 * them to be incorrect in some workloads.
+			 * always update the hints when splitting, it's expected
+			 * for them to be incorrect in some workloads.
 			 */
 			ref = pindex->index[slot];
 			if (ref->pindex_hint != slot)
