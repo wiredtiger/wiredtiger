@@ -843,6 +843,54 @@ __wt_lsm_tree_retire_chunks(WT_SESSION_IMPL *session,
 }
 
 /*
+ * __wt_lsm_tree_alter --
+ *	Alter an LSM tree.
+ */
+int
+__wt_lsm_tree_alter(
+    WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
+{
+	WT_DECL_RET;
+	WT_LSM_CHUNK *chunk;
+	WT_LSM_TREE *lsm_tree;
+	int tret;
+	u_int i;
+	bool locked;
+
+	locked = false;
+
+	/* Get the LSM tree. */
+	WT_WITH_HANDLE_LIST_LOCK(session,
+	    ret = __wt_lsm_tree_get(session, uri, true, &lsm_tree));
+	WT_RET(ret);
+
+	/* Prevent any new opens. */
+	__wt_lsm_tree_writelock(session, lsm_tree);
+	locked = true;
+
+	/* Alter the chunks. */
+	for (i = 0; i < lsm_tree->nchunks; i++) {
+		chunk = lsm_tree->chunk[i];
+		WT_ERR(__wt_schema_alter(session, chunk->uri, cfg));
+		if (F_ISSET(chunk, WT_LSM_CHUNK_BLOOM))
+			WT_ERR(
+			    __wt_schema_alter(session, chunk->bloom_uri, cfg));
+	}
+	WT_ERR(__wt_lsm_meta_alter(session, lsm_tree, cfg));
+	locked = false;
+	__wt_lsm_tree_writeunlock(session, lsm_tree);
+	WT_ERR(__wt_metadata_remove(session, uri));
+
+err:	if (locked)
+		__wt_lsm_tree_writeunlock(session, lsm_tree);
+
+	WT_WITH_HANDLE_LIST_LOCK(session,
+	    tret = __lsm_tree_discard(session, lsm_tree, false));
+	WT_TRET(tret);
+	return (ret);
+}
+
+/*
  * __wt_lsm_tree_drop --
  *	Drop an LSM tree.
  */
