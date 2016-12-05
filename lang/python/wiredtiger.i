@@ -366,7 +366,7 @@ retry:
 		SWIG_ERROR_IF_NOT_SET(result);
 	else if (result == EBUSY) {
 		SWIG_PYTHON_THREAD_BEGIN_ALLOW;
-#if defined(_MSC_VER)
+#ifdef SWIGWIN
 		(void)Sleep(10);			/* ms */
 #else
 		(void)usleep(10000);			/* us */
