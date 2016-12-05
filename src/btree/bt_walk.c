@@ -45,8 +45,7 @@ __ref_index_slot(WT_SESSION_IMPL *session,
 			slot = entries - 1;
 		if (pindex->index[slot] == ref)
 			goto found;
-		for (
-		    start = &pindex->index[0],
+		for (start = &pindex->index[0],
 		    stop = &pindex->index[entries - 1],
 		    p = t = &pindex->index[slot];
 		    p > start || t < stop;) {
