@@ -57,7 +57,7 @@ __alter_file(
 		if (ret == 0 && oldval.val != newval.val)
 			change = true;
 		WT_ERR_NOTFOUND_OK(ret);
-		
+
 	}
 
 	/*
