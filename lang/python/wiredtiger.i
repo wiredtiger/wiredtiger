@@ -366,11 +366,11 @@ retry:
 		SWIG_ERROR_IF_NOT_SET(result);
 	else if (result == EBUSY) {
 		SWIG_PYTHON_THREAD_BEGIN_ALLOW;
-#ifdef SWIGWIN
+%#if defined(_MSC_VER)
 		(void)Sleep(10);			/* ms */
-#else
+%#else
 		(void)usleep(10000);			/* us */
-#endif
+%#endif
 		SWIG_PYTHON_THREAD_END_ALLOW;
 		goto retry;
 	}
