@@ -48,8 +48,8 @@ static const WT_CONFIG_CHECK
 
 static const WT_CONFIG_CHECK
     confchk_wiredtiger_open_eviction_subconfigs[] = {
-	{ "threads_max", "int", NULL, "min=1,max=30", NULL, 0 },
-	{ "threads_min", "int", NULL, "min=1,max=30", NULL, 0 },
+	{ "threads_max", "int", NULL, "min=1,max=8", NULL, 0 },
+	{ "threads_min", "int", NULL, "min=1,max=1", NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
 
@@ -1023,7 +1023,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	{ "WT_CONNECTION.reconfigure",
 	  "async=(enabled=false,ops_max=1024,threads=2),cache_overhead=8,"
 	  "cache_size=100MB,checkpoint=(log_size=0,wait=0),error_prefix=,"
-	  "eviction=(threads_max=30,threads_min=1),"
+	  "eviction=(threads_max=8,threads_min=1),"
 	  "eviction_checkpoint_target=5,eviction_dirty_target=5,"
 	  "eviction_dirty_trigger=20,eviction_target=80,eviction_trigger=95"
 	  ",file_manager=(close_handle_minimum=250,close_idle_time=30,"
@@ -1229,7 +1229,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  ",cache_overhead=8,cache_size=100MB,checkpoint=(log_size=0,"
 	  "wait=0),checkpoint_sync=true,config_base=true,create=false,"
 	  "direct_io=,encryption=(keyid=,name=,secretkey=),error_prefix=,"
-	  "eviction=(threads_max=30,threads_min=1),"
+	  "eviction=(threads_max=8,threads_min=1),"
 	  "eviction_checkpoint_target=5,eviction_dirty_target=5,"
 	  "eviction_dirty_trigger=20,eviction_target=80,eviction_trigger=95"
 	  ",exclusive=false,extensions=,file_extend=,"
@@ -1252,7 +1252,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  ",cache_overhead=8,cache_size=100MB,checkpoint=(log_size=0,"
 	  "wait=0),checkpoint_sync=true,config_base=true,create=false,"
 	  "direct_io=,encryption=(keyid=,name=,secretkey=),error_prefix=,"
-	  "eviction=(threads_max=30,threads_min=1),"
+	  "eviction=(threads_max=8,threads_min=1),"
 	  "eviction_checkpoint_target=5,eviction_dirty_target=5,"
 	  "eviction_dirty_trigger=20,eviction_target=80,eviction_trigger=95"
 	  ",exclusive=false,extensions=,file_extend=,"
@@ -1274,7 +1274,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "async=(enabled=false,ops_max=1024,threads=2),buffer_alignment=-1"
 	  ",cache_overhead=8,cache_size=100MB,checkpoint=(log_size=0,"
 	  "wait=0),checkpoint_sync=true,direct_io=,encryption=(keyid=,name="
-	  ",secretkey=),error_prefix=,eviction=(threads_max=30,"
+	  ",secretkey=),error_prefix=,eviction=(threads_max=8,"
 	  "threads_min=1),eviction_checkpoint_target=5,"
 	  "eviction_dirty_target=5,eviction_dirty_trigger=20,"
 	  "eviction_target=80,eviction_trigger=95,extensions=,file_extend=,"
@@ -1295,7 +1295,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "async=(enabled=false,ops_max=1024,threads=2),buffer_alignment=-1"
 	  ",cache_overhead=8,cache_size=100MB,checkpoint=(log_size=0,"
 	  "wait=0),checkpoint_sync=true,direct_io=,encryption=(keyid=,name="
-	  ",secretkey=),error_prefix=,eviction=(threads_max=30,"
+	  ",secretkey=),error_prefix=,eviction=(threads_max=8,"
 	  "threads_min=1),eviction_checkpoint_target=5,"
 	  "eviction_dirty_target=5,eviction_dirty_trigger=20,"
 	  "eviction_target=80,eviction_trigger=95,extensions=,file_extend=,"

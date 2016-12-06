@@ -1811,11 +1811,11 @@ struct __wt_connection {
 	 * threads WiredTiger will start to help evict pages from cache.  The
 	 * number of threads started will vary depending on the current eviction
 	 * load.  Each eviction worker thread uses a session from the configured
-	 * session_max., an integer between 1 and 30; default \c 30.}
+	 * session_max., an integer between 1 and 8; default \c 8.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_min, minimum number of
 	 * threads WiredTiger will start to help evict pages from cache.  The
 	 * number of threads currently running will vary depending on the
-	 * current eviction load., an integer between 1 and 30; default \c 1.}
+	 * current eviction load., an integer between 1 and 1; default \c 1.}
 	 * @config{ ),,}
 	 * @config{eviction_checkpoint_target, perform eviction at the beginning
 	 * of checkpoints to bring the dirty content in cache to this level\,
@@ -2277,12 +2277,13 @@ struct __wt_connection {
  * WiredTiger will start to help evict pages from cache.  The number of threads
  * started will vary depending on the current eviction load.  Each eviction
  * worker thread uses a session from the configured session_max., an integer
- * between 1 and 30; default \c 30.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_min, minimum number of threads
- * WiredTiger will start to help evict pages from cache.  The number of threads
- * currently running will vary depending on the current eviction load., an
- * integer between 1 and 30; default \c 1.}
- * @config{ ),,}
+ * between 1 and 8; default \c 8.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_min,
+ * minimum number of threads WiredTiger will start to help evict pages from
+ * cache.  The number of threads currently running will vary depending on the
+ * current eviction load., an integer between 1 and 1; default \c 1.}
+ * @config{
+ * ),,}
  * @config{eviction_checkpoint_target, perform eviction at the beginning of
  * checkpoints to bring the dirty content in cache to this level\, expressed as
  * a percentage of the total cache size.  Ignored if set to zero or \c in_memory
