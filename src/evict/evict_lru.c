@@ -1431,6 +1431,25 @@ __evict_walk_file(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
 		if (page->read_gen == WT_READGEN_NOTSET)
 			__wt_cache_read_gen_new(session, page);
 
+		/* Pages that are empty or from dead trees are also good. */
+		if (__wt_page_is_empty(page) ||
+		    F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
+			goto fast;
+
+		/*
+		 * If the oldest transaction hasn't changed since the last time
+		 * this page was written, it's unlikely we can make progress.
+		 * Similarly, if the most recent update on the page is not yet
+		 * globally visible, eviction will fail.  These heuristics
+		 * attempt to avoid repeated attempts to evict the same page.
+		 */
+		mod = page->modify;
+		if (!__wt_cache_aggressive(session) &&
+		    modified && txn_global->current != txn_global->oldest_id &&
+		    (mod->last_eviction_id == __wt_txn_oldest_id(session) ||
+		    !__wt_txn_visible_all(session, mod->update_txn)))
+			continue;
+
 		/* Pages we no longer need (clean or dirty), are found money. */
 		if (page->read_gen == WT_READGEN_OLDEST ||
 		    page->memory_footprint >= btree->splitmempage) {
@@ -1440,11 +1459,6 @@ __evict_walk_file(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
 				urgent_queued = true;
 			continue;
 		}
-
-		/* Pages that are empty or from dead trees are also good. */
-		if (__wt_page_is_empty(page) ||
-		    F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
-			goto fast;
 
 		/* Skip clean pages if appropriate. */
 		if (!modified && !F_ISSET(cache, WT_CACHE_EVICT_CLEAN))
@@ -1457,23 +1471,6 @@ __evict_walk_file(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
 		/* Limit internal pages to 50% of the total. */
 		if (WT_PAGE_IS_INTERNAL(page) &&
 		    internal_pages > (int)(evict - start) / 2)
-			continue;
-
-		/* If eviction gets aggressive, anything else is fair game. */
-		if (__wt_cache_aggressive(session))
-			goto fast;
-
-		/*
-		 * If the oldest transaction hasn't changed since the last time
-		 * this page was written, it's unlikely we can make progress.
-		 * Similarly, if the most recent update on the page is not yet
-		 * globally visible, eviction will fail.  These heuristics
-		 * attempt to avoid repeated attempts to evict the same page.
-		 */
-		mod = page->modify;
-		if (modified && txn_global->current != txn_global->oldest_id &&
-		    (mod->last_eviction_id == __wt_txn_oldest_id(session) ||
-		    !__wt_txn_visible_all(session, mod->update_txn)))
 			continue;
 
 fast:		/* If the page can't be evicted, give up. */
