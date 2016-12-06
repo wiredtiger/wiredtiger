@@ -40,7 +40,7 @@ __ref_index_slot(WT_SESSION_IMPL *session,
 		 * just means the first retrieval (which sets the hint for
 		 * subsequent retrievals), is slower.
 		 */
-		WT_ORDERED_READ(slot, ref->pindex_hint);
+		slot = ref->pindex_hint;
 		if (slot >= entries)
 			slot = entries - 1;
 		if (pindex->index[slot] == ref)
