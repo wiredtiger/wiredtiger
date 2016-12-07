@@ -363,8 +363,6 @@ Other noteworthy changes since the previous release:
 * WT-3023	Don't treat splits as eviction making progress
 * WT-3024	Fix a hang on close caused by leaving a transaction ID pinned
 * WT-3025	Fix error path in log_force_sync
-* WT-3028	Count eviction of dirty pages as progress
-* WT-3028	Don't check for blocked eviction with in-memory workloads
 
 WiredTiger release 2.8.0, 2015-03-24
 ------------------------------------
