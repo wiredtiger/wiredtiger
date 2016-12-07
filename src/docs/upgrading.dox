@@ -2,7 +2,7 @@
 
 @section version_290 Upgrading to Version 2.9.0
 <dl>
-<dt>Changes to cursor behaviour after WT_CURSOR::insert</dt>
+<dt>Changes to cursor behavior after WT_CURSOR::insert</dt>
 <dd>
 After a successful call to WT_CURSOR::insert, unless a cursor has record
 number keys and was configured with "append=true", the cursor's key is
