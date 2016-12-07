@@ -32,9 +32,16 @@ from wtscenario import make_scenarios
 # test_alter01.py
 #    Smoke-test the session alter operations.
 class test_alter01(wttest.WiredTigerTestCase):
-    uri = "file:alter01"
+    name = "alter01"
     entries = 100
     # Settings for access_pattern_hint
+    types = [
+        ('file', dict(uri='file:', use_cg=False, use_index=False)),
+        ('lsm', dict(uri='lsm:', use_cg=False, use_index=False)),
+        ('table-cg', dict(uri='table:', use_cg=True, use_index=False)),
+        ('table-index', dict(uri='table:', use_cg=False, use_index=True)),
+        ('table-simple', dict(uri='table:', use_cg=False, use_index=False)),
+    ]
     hints = [
         ('default', dict(acreate='')),
         ('none', dict(acreate='none')),
@@ -48,44 +55,88 @@ class test_alter01(wttest.WiredTigerTestCase):
         ('false', dict(ccreate='false')),
         ('true', dict(ccreate='true')),
     ]
+    reopen = [
+        ('no-reopen', dict(reopen=False)),
+        ('reopen', dict(reopen=True)),
+    ]
     cache_alter=('', 'false', 'true')
-    scenarios = make_scenarios(hints, resid)
+    scenarios = make_scenarios(types, hints, resid, reopen)
 
-    def verify_metadata(self, metastr):
+    def verify_metadata(self, uri, metastr):
         if metastr == '':
             return
         cursor = self.session.open_cursor('metadata:', None, None)
-        value = cursor[self.uri]
+        #
+        # Walk through all the metadata looking for the entries that are
+        # the file URIs for components of the table.
+        #
+        found = False
+        while True:
+            ret = cursor.next()
+            if ret != 0:
+                break
+            key = cursor.get_key()
+            check_meta = ((key.find("lsm:") != -1 or key.find("file:") != -1) \
+                and key.find(self.name) != -1)
+            if check_meta:
+                found = True
+                value = cursor[key]
+                self.assertTrue(value.find(metastr) != -1)
         cursor.close()
-        self.assertTrue(value.find(metastr) != -1)
+        self.assertTrue(found == True)
 
     # Alter: Change the access pattern hint after creation
     def test_alter01_access(self):
-        create_params = 'key_format=i,value_format=i'
+        uri = self.uri + self.name
+        create_params = 'key_format=i,value_format=i,'
+        complex_params = ''
+        #
+        # If we're not explicitly setting the parameter, then don't
+        # modify create_params to test using the default.
+        #
         if self.acreate != '':
             access_param = 'access_pattern_hint=%s' % self.acreate
-            create_params += ',%s' % access_param
+            create_params += '%s,' % access_param
+            complex_params += '%s,' % access_param
         else:
             # NOTE: This is hard-coding the default value.  If the default
             # changes then this will fail and need to be fixed.
             access_param = 'access_pattern_hint=none'
         if self.ccreate != '':
             cache_param = 'cache_resident=%s' % self.ccreate
-            create_params += ',%s' % cache_param
+            create_params += '%s,' % cache_param
+            complex_params += '%s,' % cache_param
         else:
             # NOTE: This is hard-coding the default value.  If the default
             # changes then this will fail and need to be fixed.
             cache_param = 'cache_resident=false'
-            cache_str = 'cache_resident=none'
-        self.session.create(self.uri, create_params)
+
+        cgparam = ''
+        if self.use_cg or self.use_index:
+            cgparam = 'columns=(k,v),'
+        if self.use_cg:
+            cgparam += 'colgroups=(g0),'
+
+        self.session.create(uri, create_params + cgparam)
+        # Add in column group or index settings.
+        if self.use_cg:
+            cgparam = 'columns=(v),'
+            self.session.create(
+                'colgroup:' + self.name + ':g0', complex_params + cgparam)
+        if self.use_index:
+            self.session.create(
+                'index:' + self.name + ':i0', complex_params + cgparam)
+
         # Put some data in table.
-        c = self.session.open_cursor(self.uri, None)
+        c = self.session.open_cursor(uri, None)
         for k in range(self.entries):
             c[k+1] = 1
         c.close()
+
         # Verify the string in the metadata
-        self.verify_metadata(access_param)
-        self.verify_metadata(cache_param)
+        self.verify_metadata(uri, access_param)
+        self.verify_metadata(uri, cache_param)
+
         # Run through all combinations of the alter commands
         # for all allowed settings.  This tests having only one or
         # the other set as well as having both set.  It will also
@@ -95,16 +146,18 @@ class test_alter01(wttest.WiredTigerTestCase):
             access_str = ''
             if a != '':
                 access_str = 'access_pattern_hint=%s' % a
-                alter_param = access_str
             for c in self.cache_alter:
+                alter_param = '%s' % access_str
                 cache_str = ''
                 if c != '':
                     cache_str = 'cache_resident=%s' % c
                     alter_param += ',%s' % cache_str
                 if alter_param != '':
-                    self.session.alter(self.uri, alter_param)
-                    self.verify_metadata(access_str)
-                    self.verify_metadata(cache_str)
+                    self.session.alter(uri, alter_param)
+                    if self.reopen:
+                        self.reopen_conn()
+                    self.verify_metadata(uri, access_str)
+                    self.verify_metadata(uri, cache_str)
 
 if __name__ == '__main__':
     wttest.run()

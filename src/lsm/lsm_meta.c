@@ -450,42 +450,18 @@ __wt_lsm_meta_read(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 }
 
 /*
- * __wt_lsm_meta_alter --
- *	Alter the metadata for an LSM tree.
- */
-int
-__wt_lsm_meta_alter(WT_SESSION_IMPL *session,
-    WT_LSM_TREE *lsm_tree, const char *newcfg[])
-{
-	WT_DECL_RET;
-	const char *cfg[] = { NULL, NULL, NULL };
-	char *new_metadata;
-
-	new_metadata = NULL;
-
-	/* Update the existing configuration with the new values. */
-	cfg[0] = lsm_tree->config;
-	cfg[1] = newcfg[0];
-	WT_ERR(__wt_config_collapse(session, cfg, &new_metadata));
-	ret = __wt_metadata_update(session, lsm_tree->name, new_metadata);
-	WT_ERR(ret);
-
-err:	__wt_free(session, new_metadata);
-	return (ret);
-}
-
-/*
  * __wt_lsm_meta_write --
  *	Write the metadata for an LSM tree.
  */
 int
-__wt_lsm_meta_write(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
+__wt_lsm_meta_write(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree,
+    const char *newconfig)
 {
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
 	WT_LSM_CHUNK *chunk;
 	u_int i;
-	const char *new_cfg[] = { NULL, NULL, NULL };
+	const char *new_cfg[] = { NULL, NULL, NULL, NULL };
 	char *new_metadata;
 	bool first;
 
@@ -531,6 +507,7 @@ __wt_lsm_meta_write(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 	/* Update the existing configuration with the new values. */
 	new_cfg[0] = lsm_tree->config;
 	new_cfg[1] = buf->data;
+	new_cfg[2] = newconfig;
 	WT_ERR(__wt_config_collapse(session, new_cfg, &new_metadata));
 	ret = __wt_metadata_update(session, lsm_tree->name, new_metadata);
 	WT_ERR(ret);

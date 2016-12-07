@@ -758,7 +758,7 @@ __wt_lsm_tree_switch(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 	lsm_tree->chunk[lsm_tree->nchunks++] = chunk;
 	WT_ERR(__wt_lsm_tree_setup_chunk(session, lsm_tree, chunk));
 
-	WT_ERR(__wt_lsm_meta_write(session, lsm_tree));
+	WT_ERR(__wt_lsm_meta_write(session, lsm_tree, NULL));
 	lsm_tree->need_switch = false;
 	++lsm_tree->dsk_gen;
 
@@ -876,14 +876,17 @@ __wt_lsm_tree_alter(
 			WT_ERR(
 			    __wt_schema_alter(session, chunk->bloom_uri, cfg));
 	}
-	WT_ERR(__wt_lsm_meta_alter(session, lsm_tree, cfg));
+	WT_ERR(__wt_lsm_meta_write(session, lsm_tree, cfg[0]));
 	locked = false;
 	__wt_lsm_tree_writeunlock(session, lsm_tree);
-	WT_ERR(__wt_metadata_remove(session, uri));
 
 err:	if (locked)
 		__wt_lsm_tree_writeunlock(session, lsm_tree);
 
+	/*
+	 * Discard the LSM tree.  The first operation on the newly
+	 * configured table will create a new one.
+	 */
 	WT_WITH_HANDLE_LIST_LOCK(session,
 	    tret = __lsm_tree_discard(session, lsm_tree, false));
 	WT_TRET(tret);
@@ -1003,7 +1006,7 @@ __wt_lsm_tree_rename(WT_SESSION_IMPL *session,
 		}
 	}
 
-	WT_ERR(__wt_lsm_meta_write(session, lsm_tree));
+	WT_ERR(__wt_lsm_meta_write(session, lsm_tree, NULL));
 	locked = false;
 	__wt_lsm_tree_writeunlock(session, lsm_tree);
 	WT_ERR(__wt_metadata_remove(session, olduri));
@@ -1058,7 +1061,7 @@ __wt_lsm_tree_truncate(
 	WT_ERR(__wt_lsm_merge_update_tree(
 	    session, lsm_tree, 0, lsm_tree->nchunks, chunk));
 
-	WT_ERR(__wt_lsm_meta_write(session, lsm_tree));
+	WT_ERR(__wt_lsm_meta_write(session, lsm_tree, NULL));
 
 	locked = false;
 	__wt_lsm_tree_writeunlock(session, lsm_tree);
