@@ -2,12 +2,13 @@
 
 @section version_290 Upgrading to Version 2.9.0
 <dl>
-<dt>Changes to cursor behaviour at cursor end</dt>
+<dt>Changes to cursor behaviour after WT_CURSOR::insert</dt>
 <dd>
-If the cursor does not have record number keys or was not configured with
-"append=true", the cursor ends with no key set and a subsequent call to the
-WT_CURSOR::get_key method will fail. The cursor ends with no value set and a
-subsequent call to the WT_CURSOR::get_value method will fail.
+After a successful call to WT_CURSOR::insert, unless a cursor has record
+number keys and was configured with "append=true", the cursor's key is
+cleared and a subsequent call to the WT_CURSOR::get_key method will fail.
+In all cursors, the value is cleared and a subsequent call to
+WT_CURSOR::get_value will fail.
 </dd>
 
 <dt>Cache management defaults</dt>
