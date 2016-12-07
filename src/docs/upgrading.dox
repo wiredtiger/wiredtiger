@@ -42,13 +42,13 @@ of the path may no longer be specified. Applications depending on the
 ability to set statistics log file names will require modification.
 </dd>
 
-<dt>Deprecated statistics field</dt>
+<dt>Removed and renamed statistics fields</dt>
 <dd>
-The connection statistic \c WT_STAT_CONN_CACHE_BYTES_OVERFLOW has been
-removed.  Overflow information is now available in the
-\c WT_STAT_CONN_CACHE_BYTES_OVERFLOW and \c WT_STAT_CONN_CACHE_OVERFLOW_VALUE.
-Applications specifically looking for that statistic will require
-modification.
+WT_STAT_JOIN_ACTUAL_COUNT is renamed to WT_STAT_JOIN_ITERATED
+
+WT_STAT_CONN_CACHE_BYTES_OVERFLOW removed since overflow pages are not cached
+
+WT_STAT_CONN_CACHE_EVICTION_SERVER_NOT_EVICTING removed since all eviction threads can now be the server
 </dd>
 
 </dl><hr>

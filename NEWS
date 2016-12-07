@@ -3,37 +3,40 @@ WiredTiger release 2.9.0, 2016-09-06
 
 New features and API changes; refer to the API documentation for full details:
 
-* WT-2360	Add nesting and disjunctions to cursor joins
-* WT-2552	Public API for pluggable filesystems
-* WT-2757	Column tables behave differently when column names are provided
-* WT-2880       Add Zstandard compression support
+* WT-2360	Add nesting and disjunction functionality to cursor joins
+* WT-2552	Add a public API to allow custom filesystem implementations
+* WT-2738	Remove the ability to change the default checkpoint name. See the upgrading documentation for details.
+* WT-2711	Change the statistics log configuration options. Restrict where statistics log files can be created to remove security vulnerability. See upgrading documentation for details.
+* WT-2764	Enhance the checkpoint implementation, which led to a change in default eviction settings. See the upgrading documentation for details.
+* WT-2880	Add Zstandard compression support
+* See the upgrading documentation for information about renamed and removed statistics.
 
 Significant changes and bug fixes:
 
-* WT-2026	Resolve an issue where maximum pages size at eviction could be too large
+* WT-2026	Fix a bug where in-memory pages were allowed to grow too large
 * WT-2343	Ensure we cannot rename/drop when a backup cursor is open
 * WT-2520	Ensure WT_SESSION::verify does not alter tables
 * WT-2576	Ensure variable-length column-store cannot out-of-order return
 * WT-2664	Change eviction so any eviction thread can find candidates
 * WT-2702	Resolve an issue where under high thread load, WiredTiger exceeds cache size
 * WT-2731	Resolve an issue where raw compression can create pages that are larger than expected
-* WT-2737       Allow reconciliation to scrub dirty pages rather than evicting them
-* WT-2764	Optimize checkpoints to reduce throughput disruption
-* WT-2816	Improve WiredTiger eviction performance
+* WT-2737	Allow reconciliation to scrub dirty pages rather than evicting them
+* WT-2757	Fix a bug in column stores where it was not possible to retrieve the new record number after an append
+* WT-2816	Improve eviction performance
 
 Issues fixed in MongoDB:
 
 * SERVER-23504	Resolve a resource leak
 * SERVER-23588	Stop using _open_osfhandle on Windows
-* SERVER-23659	Improve log error message at startup 
-* SERVER-23661	Fix an issue where $sample takes disproportionately long time on newly created collection 
+* SERVER-23659	Improve log error message at startup
+* SERVER-23661	Fix an issue where $sample takes disproportionately long time on newly created collection
 * SERVER-24306	Fix stall in log_flush switching to new files
 * SERVER-24580	Add more eviction stats to track efficiency
-* SERVER-24580	Enhance eviction when application threads are contributing 
+* SERVER-24580	Enhance eviction when application threads are contributing
 * SERVER-24971	Don't cache buffers after application eviction
-* SERVER-25843	Remove a redundant test 
-* SERVER-25845	Resolve an explicit null dereferenced 
-* SERVER-25846	Resolve a dereference after null with a check 
+* SERVER-25843	Remove a redundant test
+* SERVER-25845	Resolve an explicit null dereferenced
+* SERVER-25846	Resolve a dereference after null with a check
 * SERVER-26753	Don't spin on a read-lock in a tight loop
 
 Other noteworthy changes since the previous release:
@@ -89,7 +92,7 @@ Other noteworthy changes since the previous release:
 * WT-2577	Resolve a potential double-free following an in-memory split
 * WT-2579	Change so diagnostic only code can use file streams directly
 * WT-2580	Fix potential SWIG naming conflict in Java
-* WT-2581	Resolve a case where we fail to track saved updates during a page split 
+* WT-2581	Resolve a case where we fail to track saved updates during a page split
 * WT-2582	Fix a case where eviction can return WT_RESTART when running in-memory
 * WT-2584	Change to not use periods at the end of error messages
 * WT-2586	Fix examples/ex_config
@@ -165,7 +168,6 @@ Other noteworthy changes since the previous release:
 * WT-2708	Fix a split child-update race with reconciliation/eviction
 * WT-2709	Resolve a connection reconfigure segfault in __wt_conn_cache_pool_destroy
 * WT-2710	WT_FILE_HANDLE_INMEM no longer needs an off field
-* WT-2711	Remove posix expanded strftime values and use older C89 values
 * WT-2713	Document WT_PANIC so pluggable filesystems can panic
 * WT-2715	Resolve random abort test failure with partial write
 * WT-2719	Allow make check without verbose configured
@@ -179,7 +181,6 @@ Other noteworthy changes since the previous release:
 * WT-2731	Finer adjustment for page size with raw compression
 * WT-2732	Coverity analysis defect 99665, Remove redundant test
 * WT-2734	Improve documentation of eviction configuration settings
-* WT-2738	Remove the ability to change the default checkpoint name
 * WT-2739	pluggable file systems documentation cleanups
 * WT-2743	Fixup new I/O thread count statistics
 * WT-2744	Detect and ignore partial line
@@ -190,7 +191,7 @@ Other noteworthy changes since the previous release:
 * WT-2756	Upgrade the autoconf archive package to check for swig 3.0
 * WT-2757	Column tables behave differently when column names are provided
 * WT-2759	Releasing the hot-backup lock doesn't require the schema lock
-* WT-2760	Fix a bug in backup related to directory sync. Change the filesystem API to make durable the default 
+* WT-2760	Fix a bug in backup related to directory sync. Change the filesystem API to make durable the default
 * WT-2762	Handle 'Y' as an options from wtperf monitor file
 * WT-2763	Change test ID's in test_intpack to fix OS X test errors
 * WT-2764	Fix a bug calculating the dirty percentage of cache
