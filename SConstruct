@@ -214,6 +214,7 @@ if (VERSION_MAJOR == None or
 wiredtiger_includes = """
         #include <sys/types.h>
         #include <stdarg.h>
+        #include <stdbool.h>
         #include <stdint.h>
         #include <stdio.h>
     """
@@ -239,12 +240,29 @@ wtheader = env.Substfile(
 #
 # WiredTiger library
 #
-filelistfile = r'build_win\filelist.win'
-filelist = open(filelistfile)
-wtsources = [line.strip()
-             for line in filelist
-             if not line.startswith("#") and len(line) > 1]
-filelist.close()
+# Map WiredTiger build conditions: any conditions that appear in WiredTiger's
+# dist/filelist must appear here, and if the value is true, those files will be
+# included.
+#
+condition_map = {
+    'ARM64_HOST' : False,
+    'POSIX_HOST' : env['PLATFORM'] == 'posix',
+    'POWERPC_HOST' : False,
+    'WINDOWS_HOST' : env['PLATFORM'] == 'win32',
+    'X86_HOST' : True,
+    'ZSERIES_HOST' : False,
+}
+
+def filtered_filelist(f):
+    for line in f:
+        file_cond = line.split()
+        if line.startswith("#") or len(file_cond) == 0:
+            continue
+        if len(file_cond) == 1 or condition_map[file_cond[1]]:
+            yield file_cond[0]
+
+filelistfile = r'dist/filelist'
+wtsources = list(filtered_filelist(open(filelistfile)))
 
 if useZlib:
     wtsources.append("ext/compressors/zlib/zlib_compress.c")
@@ -345,12 +363,12 @@ examples = [
     "ex_all",
     "ex_async",
     "ex_call_center",
-    "ex_config",
     "ex_config_parse",
     "ex_cursor",
     "ex_data_source",
     "ex_encrypt",
     "ex_extending",
+    "ex_file_system",
     "ex_hello",
     "ex_log",
     "ex_pack",
@@ -392,10 +410,16 @@ env.Append(BUILDERS={'SmokeTest' : Builder(action = builder_smoke_test)})
 
 #Build the tests and setup the "scons test" target
 
+testutil = env.Library('testutil',
+            [
+                'test/utility/misc.c',
+                'test/utility/parse_opts.c'
+            ])
+
 #Don't test bloom on Windows, its broken
 t = env.Program("t_bloom",
     "test/bloom/test_bloom.c",
-    LIBS=[wtlib] + wtlibs)
+    LIBS=[wtlib, testutil] + wtlibs)
 #env.Alias("check", env.SmokeTest(t))
 Default(t)
 
@@ -418,30 +442,24 @@ t = env.Program("t_fops",
     ["test/fops/file.c",
     "test/fops/fops.c",
     "test/fops/t.c"],
-    LIBS=[wtlib, shim] + wtlibs)
+    LIBS=[wtlib, shim, testutil] + wtlibs)
 env.Append(CPPPATH=["test/utility"])
-env.Alias("check", env.SmokeTest(t))
 Default(t)
 
-if useBdb:
-    benv = env.Clone()
-
-    benv.Append(CPPDEFINES=['BERKELEY_DB_PATH=\\"' + useBdb.replace("\\", "\\\\") + '\\"'])
-
-    t = benv.Program("t_format",
-        ["test/format/backup.c",
-        "test/format/bdb.c",
-        "test/format/bulk.c",
-        "test/format/compact.c",
-        "test/format/config.c",
-        "test/format/ops.c",
-        "test/format/salvage.c",
-        "test/format/t.c",
-        "test/format/util.c",
-        "test/format/wts.c"],
-         LIBS=[wtlib, shim, "libdb61"] + wtlibs)
-    env.Alias("test", env.SmokeTest(t))
-    Default(t)
+t = env.Program("t_format",
+    ["test/format/backup.c",
+    "test/format/bulk.c",
+    "test/format/compact.c",
+    "test/format/config.c",
+    "test/format/lrt.c",
+    "test/format/ops.c",
+    "test/format/rebalance.c",
+    "test/format/salvage.c",
+    "test/format/t.c",
+    "test/format/util.c",
+    "test/format/wts.c"],
+     LIBS=[wtlib, shim, testutil] + wtlibs)
+Default(t)
 
 #env.Program("t_thread",
     #["test/thread/file.c",
@@ -463,12 +481,12 @@ t = env.Program("wtperf", [
     "bench/wtperf/wtperf_throttle.c",
     "bench/wtperf/wtperf_truncate.c",
     ],
-    LIBS=[wtlib, shim]  + wtlibs)
+    LIBS=[wtlib, shim, testutil] + wtlibs)
 Default(t)
 
 #Build the Examples
 for ex in examples:
-    if(ex in ['ex_all', 'ex_async', 'ex_thread', 'ex_encrypt']):
+    if(ex in ['ex_all', 'ex_async', 'ex_encrypt', 'ex_file_system' , 'ex_thread']):
         exp = env.Program(ex, "examples/c/" + ex + ".c", LIBS=[wtlib, shim] + wtlibs)
         Default(exp)
         env.Alias("check", env.SmokeTest(exp))

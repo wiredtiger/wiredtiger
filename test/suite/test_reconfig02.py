@@ -28,7 +28,6 @@
 
 import fnmatch, os, time
 import wiredtiger, wttest
-from helper import simple_populate
 
 # test_reconfig02.py
 #    Smoke-test the connection reconfiguration operations.
@@ -41,24 +40,29 @@ class test_reconfig02(wttest.WiredTigerTestCase):
         self.conn_config = self.init_config
         return wttest.WiredTigerTestCase.setUpConnectionOpen(self, dir)
 
-    # Call reconfigure for zero filling a file.  There is nothing
-    # we can actually look for to confirm it did anything.
-    # Also changing the log file size is a no-op, but should not fail.
+    # Logging: reconfigure the things we can reconfigure.
     def test_reconfig02_simple(self):
-        self.conn.reconfigure("log=(zero_fill=true)")
-        self.conn.reconfigure("log=(file_max=1MB)")
+        self.conn.reconfigure("log=(archive=false)")
+        self.conn.reconfigure("log=(prealloc=false)")
+        self.conn.reconfigure("log=(zero_fill=false)")
 
-    # Test that we get an error if we try to turn logging off.
+        self.conn.reconfigure("log=(archive=true)")
+        self.conn.reconfigure("log=(prealloc=true)")
+        self.conn.reconfigure("log=(zero_fill=true)")
+
+    # Logging: reconfigure the things we can't reconfigure.
     def test_reconfig02_disable(self):
-        msg = 'Invalid argument'
-        gotException = False
-        try:
-            self.conn.reconfigure("log=(enabled=false)")
-        except wiredtiger.WiredTigerError as e:
-            gotException = True
-            self.pr('got exception: ' + str(e))
-            self.assertTrue(str(e).find(msg) >= 0)
-        self.assertTrue(gotException)
+        msg = '/unknown configuration key/'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.conn.reconfigure("log=(enabled=true)"), msg)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.conn.reconfigure("log=(compressor=foo)"), msg)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.conn.reconfigure("log=(file_max=1MB)"), msg)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.conn.reconfigure("log=(path=foo)"), msg)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.conn.reconfigure("log=(recovery=true)"), msg)
 
     # Logging starts on, but prealloc is off.  Verify it is off.
     # Reconfigure it on and run again, making sure that log files
@@ -74,9 +78,15 @@ class test_reconfig02(wttest.WiredTigerTestCase):
 
         # Now turn on pre-allocation.  Sleep to give the worker thread
         # a chance to run and verify pre-allocated log files exist.
+        #
+        # Potentially loop a few times in case it is a very slow system.
         self.conn.reconfigure("log=(prealloc=true)")
-        time.sleep(2)
-        prep_logs = fnmatch.filter(os.listdir('.'), "*Prep*")
+        for x in xrange(0, 20):
+            time.sleep(1)
+            prep_logs = fnmatch.filter(os.listdir('.'), "*Prep*")
+            if len(prep_logs) != 0:
+                break
+
         self.assertNotEqual(0, len(prep_logs))
 
     # Logging starts on, but archive is off.  Verify it is off.

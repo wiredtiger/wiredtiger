@@ -89,41 +89,13 @@ def printf_line(f, optype, i, ishex):
         ifbegin = 'if (LF_ISSET(WT_TXN_PRINTLOG_HEX)) {' + nl_indent
         if postcomma == '':
             precomma = ',\\n'
-    body = '%s%s(__wt_fprintf(out,' % (
+    body = '%s%s(__wt_fprintf(session, WT_STDOUT(session),' % (
         printf_setup(f, ishex, nl_indent),
         'WT_ERR' if has_escape(optype.fields) else 'WT_RET') + \
         '%s    "%s        \\"%s\\": \\"%s\\"%s",%s));' % (
         nl_indent, precomma, name, printf_fmt(f), postcomma,
         printf_arg(f))
     return ifbegin + body + ifend
-
-#####################################################################
-# Update log.h with #defines for types
-#####################################################################
-log_defines = (
-    ''.join('/*! %s */\n#define\t%s\t%d\n' % (r.desc, r.macro_name(), i)
-        for i, r in enumerate(log_data.rectypes)) +
-    ''.join('/*! %s */\n#define\t%s\t%d\n' % (r.desc, r.macro_name(), i)
-        for i, r in enumerate(log_data.optypes,start=1))
-)
-
-tfile = open(tmp_file, 'w')
-skip = 0
-for line in open('../src/include/wiredtiger.in', 'r'):
-    if skip:
-        if 'Log record declarations: END' in line:
-            tfile.write('/*\n' + line)
-            skip = 0
-    else:
-        tfile.write(line)
-    if 'Log record declarations: BEGIN' in line:
-        skip = 1
-        tfile.write(' */\n')
-        tfile.write('/*! invalid operation */\n')
-        tfile.write('#define\tWT_LOGOP_INVALID\t0\n')
-        tfile.write(log_defines)
-tfile.close()
-compare_srcfile(tmp_file, '../src/include/wiredtiger.in')
 
 #####################################################################
 # Create log_auto.c with handlers for each record / operation type.
@@ -178,7 +150,7 @@ __wt_logop_read(WT_SESSION_IMPL *session,
 }
 
 static size_t
-__logrec_json_unpack_str(char *dest, size_t destlen, const char *src,
+__logrec_json_unpack_str(char *dest, size_t destlen, const u_char *src,
     size_t srclen)
 {
 \tsize_t total;
@@ -270,11 +242,13 @@ __wt_logop_%(name)s_unpack(
     WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
     %(arg_decls)s)
 {
+\tWT_DECL_RET;
 \tconst char *fmt = WT_UNCHECKED_STRING(%(fmt)s);
 \tuint32_t optype, size;
 
-\tWT_RET(__wt_struct_unpack(session, *pp, WT_PTRDIFF(end, *pp), fmt,
-\t    &optype, &size%(arg_names)s));
+\tif ((ret = __wt_struct_unpack(session, *pp, WT_PTRDIFF(end, *pp), fmt,
+\t    &optype, &size%(arg_names)s)) != 0)
+\t\tWT_RET_MSG(session, ret, "logop_%(name)s: unpack failure");
 \tWT_ASSERT(session, optype == %(macro)s);
 
 \t*pp += size;
@@ -292,16 +266,16 @@ __wt_logop_%(name)s_unpack(
     last_field = optype.fields[-1]
     tfile.write('''
 int
-__wt_logop_%(name)s_print(
-    WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
-    FILE *out, uint32_t flags)
+__wt_logop_%(name)s_print(WT_SESSION_IMPL *session,
+    const uint8_t **pp, const uint8_t *end, uint32_t flags)
 {
 %(arg_ret)s\t%(arg_decls)s
 
 \t%(arg_unused)s%(arg_init)sWT_RET(__wt_logop_%(name)s_unpack(
 \t    session, pp, end%(arg_addrs)s));
 
-\tWT_RET(__wt_fprintf(out, " \\"optype\\": \\"%(name)s\\",\\n"));
+\tWT_RET(__wt_fprintf(session, WT_STDOUT(session),
+\t    " \\"optype\\": \\"%(name)s\\",\\n"));
 \t%(print_args)s
 %(arg_fini)s
 }
@@ -324,9 +298,8 @@ __wt_logop_%(name)s_print(
 # Emit the printlog entry point
 tfile.write('''
 int
-__wt_txn_op_printlog(
-    WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
-    FILE *out, uint32_t flags)
+__wt_txn_op_printlog(WT_SESSION_IMPL *session,
+    const uint8_t **pp, const uint8_t *end, uint32_t flags)
 {
 \tuint32_t optype, opsize;
 
@@ -342,8 +315,7 @@ for optype in log_data.optypes:
 
     tfile.write('''
 \tcase %(macro)s:
-\t\tWT_RET(%(print_func)s(session, pp, end, out,
-\t\t    flags));
+\t\tWT_RET(%(print_func)s(session, pp, end, flags));
 \t\tbreak;
 ''' % {
     'macro' : optype.macro_name(),

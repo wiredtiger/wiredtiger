@@ -59,22 +59,16 @@ ops_start(SHARED_CONFIG *cfg)
 	total_nops = 0;
 
 	/* Create per-thread structures. */
-	if ((run_info = calloc(
-	    (size_t)(cfg->reverse_scanners + cfg->append_inserters),
-	    sizeof(*run_info))) == NULL)
-		testutil_die(errno, "calloc");
-
-	if ((tids = calloc(
-	    (size_t)(cfg->reverse_scanners + cfg->append_inserters),
-	    sizeof(*tids))) == NULL)
-		testutil_die(errno, "calloc");
+	run_info = dcalloc((size_t)
+	    (cfg->reverse_scanners + cfg->append_inserters), sizeof(*run_info));
+	tids = dcalloc((size_t)
+	    (cfg->reverse_scanners + cfg->append_inserters), sizeof(*tids));
 
 	/* Create the files and load the initial records. */
 	for (i = 0; i < cfg->append_inserters; ++i) {
 		run_info[i].cfg = cfg;
 		if (i == 0 || cfg->multiple_files) {
-			if ((run_info[i].name = malloc(64)) == NULL)
-				testutil_die(errno, "malloc");
+			run_info[i].name = dmalloc(64);
 			snprintf(run_info[i].name, 64, FNAME, (int)i);
 
 			/* Vary by orders of magnitude */
@@ -96,8 +90,7 @@ ops_start(SHARED_CONFIG *cfg)
 		offset = i + cfg->append_inserters;
 		run_info[offset].cfg = cfg;
 		if (cfg->multiple_files) {
-			if ((run_info[offset].name = malloc(64)) == NULL)
-				testutil_die(errno, "malloc");
+			run_info[offset].name = dmalloc(64);
 			/* Have reverse scans read from tables with writes. */
 			name_index = i % cfg->append_inserters;
 			snprintf(
@@ -137,7 +130,8 @@ ops_start(SHARED_CONFIG *cfg)
 	seconds = (stop.tv_sec - start.tv_sec) +
 	    (stop.tv_usec - start.tv_usec) * 1e-6;
 	fprintf(stderr, "timer: %.2lf seconds (%d ops/second)\n",
-	    seconds, (int)(((cfg->reverse_scanners + cfg->append_inserters) *
+	    seconds, (int)
+	    (((double)(cfg->reverse_scanners + cfg->append_inserters) *
 	    total_nops) / seconds));
 
 	/* Verify the files. */

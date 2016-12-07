@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-static int __block_dump_avail(WT_SESSION_IMPL *, WT_BLOCK *, bool);
+static void __block_dump_avail(WT_SESSION_IMPL *, WT_BLOCK *, bool);
 
 /*
  * __wt_block_compact_start --
@@ -32,21 +32,20 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
 int
 __wt_block_compact_end(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
-	WT_DECL_RET;
-
 	WT_UNUSED(session);
 
 	/* Restore the original allocation plan. */
 	__wt_block_configure_first_fit(block, false);
 
+#ifdef HAVE_VERBOSE
 	/* Dump the results of the compaction pass. */
 	if (WT_VERBOSE_ISSET(session, WT_VERB_COMPACT)) {
 		__wt_spin_lock(session, &block->live_lock);
-		ret = __block_dump_avail(session, block, false);
+		__block_dump_avail(session, block, false);
 		__wt_spin_unlock(session, &block->live_lock);
 	}
-
-	return (ret);
+#endif
+	return (0);
 }
 
 /*
@@ -59,12 +58,9 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
 	WT_DECL_RET;
 	WT_EXT *ext;
 	WT_EXTLIST *el;
-	WT_FH *fh;
 	wt_off_t avail_eighty, avail_ninety, eighty, ninety;
 
 	*skipp = true;				/* Return a default skip. */
-
-	fh = block->fh;
 
 	/*
 	 * We do compaction by copying blocks from the end of the file to the
@@ -72,7 +68,7 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
 	 * worth doing.  Ignore small files, and files where we are unlikely
 	 * to recover 10% of the file.
 	 */
-	if (fh->size <= WT_MEGABYTE)
+	if (block->size <= WT_MEGABYTE)
 		return (0);
 
 	/*
@@ -89,12 +85,12 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
 
 	/* Dump the current state of the file. */
 	if (WT_VERBOSE_ISSET(session, WT_VERB_COMPACT))
-		WT_ERR(__block_dump_avail(session, block, true));
+		__block_dump_avail(session, block, true);
 
 	/* Sum the available bytes in the initial 80% and 90% of the file. */
 	avail_eighty = avail_ninety = 0;
-	ninety = fh->size - fh->size / 10;
-	eighty = fh->size - ((fh->size / 10) * 2);
+	ninety = block->size - block->size / 10;
+	eighty = block->size - ((block->size / 10) * 2);
 
 	el = &block->live.avail;
 	WT_EXT_FOREACH(ext, el->off)
@@ -117,33 +113,34 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
 	 * less useful.
 	 */
 	if (avail_eighty > WT_MEGABYTE &&
-	    avail_eighty >= ((fh->size / 10) * 2)) {
+	    avail_eighty >= ((block->size / 10) * 2)) {
 		*skipp = false;
 		block->compact_pct_tenths = 2;
 	} else if (avail_ninety > WT_MEGABYTE &&
-	    avail_ninety >= fh->size / 10) {
+	    avail_ninety >= block->size / 10) {
 		*skipp = false;
 		block->compact_pct_tenths = 1;
 	}
 
-	WT_ERR(__wt_verbose(session, WT_VERB_COMPACT,
+	__wt_verbose(session, WT_VERB_COMPACT,
 	    "%s: %" PRIuMAX "MB (%" PRIuMAX ") available space in the first "
 	    "80%% of the file",
 	    block->name,
-	    (uintmax_t)avail_eighty / WT_MEGABYTE, (uintmax_t)avail_eighty));
-	WT_ERR(__wt_verbose(session, WT_VERB_COMPACT,
+	    (uintmax_t)avail_eighty / WT_MEGABYTE, (uintmax_t)avail_eighty);
+	__wt_verbose(session, WT_VERB_COMPACT,
 	    "%s: %" PRIuMAX "MB (%" PRIuMAX ") available space in the first "
 	    "90%% of the file",
 	    block->name,
-	    (uintmax_t)avail_ninety / WT_MEGABYTE, (uintmax_t)avail_ninety));
-	WT_ERR(__wt_verbose(session, WT_VERB_COMPACT,
+	    (uintmax_t)avail_ninety / WT_MEGABYTE, (uintmax_t)avail_ninety);
+	__wt_verbose(session, WT_VERB_COMPACT,
 	    "%s: require 10%% or %" PRIuMAX "MB (%" PRIuMAX ") in the first "
 	    "90%% of the file to perform compaction, compaction %s",
 	    block->name,
-	    (uintmax_t)(fh->size / 10) / WT_MEGABYTE, (uintmax_t)fh->size / 10,
-	    *skipp ? "skipped" : "proceeding"));
+	    (uintmax_t)(block->size / 10) / WT_MEGABYTE,
+	    (uintmax_t)block->size / 10,
+	    *skipp ? "skipped" : "proceeding");
 
-err:	__wt_spin_unlock(session, &block->live_lock);
+	__wt_spin_unlock(session, &block->live_lock);
 
 	return (ret);
 }
@@ -159,17 +156,15 @@ __wt_block_compact_page_skip(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	WT_EXT *ext;
 	WT_EXTLIST *el;
-	WT_FH *fh;
 	wt_off_t limit, offset;
-	uint32_t size, cksum;
+	uint32_t size, checksum;
 
 	WT_UNUSED(addr_size);
 	*skipp = true;				/* Return a default skip. */
 
-	fh = block->fh;
-
 	/* Crack the cookie. */
-	WT_RET(__wt_block_buffer_to_addr(block, addr, &offset, &size, &cksum));
+	WT_RET(
+	    __wt_block_buffer_to_addr(block, addr, &offset, &size, &checksum));
 
 	/*
 	 * If this block is in the chosen percentage of the file and there's a
@@ -179,7 +174,7 @@ __wt_block_compact_page_skip(WT_SESSION_IMPL *session,
 	 * there's an obvious race if the file is sufficiently busy.
 	 */
 	__wt_spin_lock(session, &block->live_lock);
-	limit = fh->size - ((fh->size / 10) * block->compact_pct_tenths);
+	limit = block->size - ((block->size / 10) * block->compact_pct_tenths);
 	if (offset > limit) {
 		el = &block->live.avail;
 		WT_EXT_FOREACH(ext, el->off) {
@@ -193,6 +188,7 @@ __wt_block_compact_page_skip(WT_SESSION_IMPL *session,
 	}
 	__wt_spin_unlock(session, &block->live_lock);
 
+#ifdef HAVE_VERBOSE
 	if (WT_VERBOSE_ISSET(session, WT_VERB_COMPACT)) {
 		++block->compact_pages_reviewed;
 		if (*skipp)
@@ -200,6 +196,7 @@ __wt_block_compact_page_skip(WT_SESSION_IMPL *session,
 		else
 			++block->compact_pages_written;
 	}
+#endif
 
 	return (ret);
 }
@@ -208,7 +205,7 @@ __wt_block_compact_page_skip(WT_SESSION_IMPL *session,
  * __block_dump_avail --
  *	Dump out the avail list so we can see what compaction will look like.
  */
-static int
+static void
 __block_dump_avail(WT_SESSION_IMPL *session, WT_BLOCK *block, bool start)
 {
 	WT_EXTLIST *el;
@@ -217,31 +214,30 @@ __block_dump_avail(WT_SESSION_IMPL *session, WT_BLOCK *block, bool start)
 	u_int i;
 
 	el = &block->live.avail;
-	size = block->fh->size;
+	size = block->size;
 
-	WT_RET(__wt_verbose(session, WT_VERB_COMPACT,
+	__wt_verbose(session, WT_VERB_COMPACT,
 	    "============ %s",
-	    start ? "testing for compaction" : "ending compaction pass"));
+	    start ? "testing for compaction" : "ending compaction pass");
 
 	if (!start) {
-		WT_RET(__wt_verbose(session, WT_VERB_COMPACT,
-		    "pages reviewed: %" PRIuMAX,
-		    block->compact_pages_reviewed));
-		WT_RET(__wt_verbose(session, WT_VERB_COMPACT,
-		    "pages skipped: %" PRIuMAX, block->compact_pages_skipped));
-		WT_RET(__wt_verbose(session, WT_VERB_COMPACT,
-		    "pages written: %" PRIuMAX, block->compact_pages_written));
+		__wt_verbose(session, WT_VERB_COMPACT,
+		    "pages reviewed: %" PRIu64, block->compact_pages_reviewed);
+		__wt_verbose(session, WT_VERB_COMPACT,
+		    "pages skipped: %" PRIu64, block->compact_pages_skipped);
+		__wt_verbose(session, WT_VERB_COMPACT,
+		    "pages written: %" PRIu64, block->compact_pages_written);
 	}
 
-	WT_RET(__wt_verbose(session, WT_VERB_COMPACT,
+	__wt_verbose(session, WT_VERB_COMPACT,
 	    "file size %" PRIuMAX "MB (%" PRIuMAX ") with %" PRIuMAX
 	    "%% space available %" PRIuMAX "MB (%" PRIuMAX ")",
 	    (uintmax_t)size / WT_MEGABYTE, (uintmax_t)size,
 	    ((uintmax_t)el->bytes * 100) / (uintmax_t)size,
-	    (uintmax_t)el->bytes / WT_MEGABYTE, (uintmax_t)el->bytes));
+	    (uintmax_t)el->bytes / WT_MEGABYTE, (uintmax_t)el->bytes);
 
 	if (el->entries == 0)
-		return (0);
+		return;
 
 	/*
 	 * Bucket the available memory into file deciles/percentiles.  Large
@@ -263,21 +259,19 @@ __block_dump_avail(WT_SESSION_IMPL *session, WT_BLOCK *block, bool start)
 	 */
 	for (i = 0; i < WT_ELEMENTS(percentile); ++i) {
 		v = percentile[i] * 512;
-		WT_RET(__wt_verbose(session, WT_VERB_COMPACT,
+		__wt_verbose(session, WT_VERB_COMPACT,
 		    "%2u%%: %12" PRIuMAX "MB, (%" PRIuMAX "B, %"
 		    PRIuMAX "%%)",
 		    i, (uintmax_t)v / WT_MEGABYTE, (uintmax_t)v,
-		    (uintmax_t)((v * 100) / (wt_off_t)el->bytes)));
+		    (uintmax_t)((v * 100) / (wt_off_t)el->bytes));
 	}
 #endif
 	for (i = 0; i < WT_ELEMENTS(decile); ++i) {
 		v = decile[i] * 512;
-		WT_RET(__wt_verbose(session, WT_VERB_COMPACT,
+		__wt_verbose(session, WT_VERB_COMPACT,
 		    "%2u%%: %12" PRIuMAX "MB, (%" PRIuMAX "B, %"
 		    PRIuMAX "%%)",
 		    i * 10, (uintmax_t)v / WT_MEGABYTE, (uintmax_t)v,
-		    (uintmax_t)((v * 100) / (wt_off_t)el->bytes)));
+		    (uintmax_t)((v * 100) / (wt_off_t)el->bytes));
 	}
-
-	return (0);
 }

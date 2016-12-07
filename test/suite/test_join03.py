@@ -28,7 +28,6 @@
 
 import os
 import wiredtiger, wttest, run
-from wtscenario import check_scenarios, multiply_scenarios, number_scenarios
 
 # test_join03.py
 #    Join operations
@@ -152,7 +151,6 @@ class test_join03(wttest.WiredTigerTestCase):
         for extraargs in [ '', ',strategy=bloom,count=1000' ]:
             for csvformat in [ 'SS', 'ii', 'Si', 'iS' ]:
                 self.join(csvformat, '', extraargs)
-
 
 if __name__ == '__main__':
     wttest.run()

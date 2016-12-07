@@ -32,7 +32,7 @@
 
 import shutil, os
 from suite_subprocess import suite_subprocess
-from wtscenario import multiply_scenarios, number_scenarios
+from wtscenario import make_scenarios
 import wttest
 
 class test_txn04(wttest.WiredTigerTestCase, suite_subprocess):
@@ -62,7 +62,7 @@ class test_txn04(wttest.WiredTigerTestCase, suite_subprocess):
     ]
     txn1s = [('t1c', dict(txn1='commit')), ('t1r', dict(txn1='rollback'))]
 
-    scenarios = number_scenarios(multiply_scenarios('.', types, op1s, txn1s))
+    scenarios = make_scenarios(types, op1s, txn1s)
     # Overrides WiredTigerTestCase
     def setUpConnectionOpen(self, dir):
         self.home = dir
@@ -193,7 +193,7 @@ class test_txn04(wttest.WiredTigerTestCase, suite_subprocess):
         self.hot_backup(self.uri, committed)
 
     def test_ops(self):
-        with self.expectedStdoutPattern('Recreating metadata'):
+        with self.expectedStdoutPattern('recreating metadata'):
             self.ops()
 
 if __name__ == '__main__':

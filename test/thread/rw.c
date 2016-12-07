@@ -59,16 +59,13 @@ rw_start(u_int readers, u_int writers)
 	total_nops = 0;
 
 	/* Create per-thread structures. */
-	if ((run_info = calloc(
-	    (size_t)(readers + writers), sizeof(*run_info))) == NULL ||
-	    (tids = calloc((size_t)(readers + writers), sizeof(*tids))) == NULL)
-		testutil_die(errno, "calloc");
+	run_info = dcalloc((size_t)(readers + writers), sizeof(*run_info));
+	tids = dcalloc((size_t)(readers + writers), sizeof(*tids));
 
 	/* Create the files and load the initial records. */
 	for (i = 0; i < writers; ++i) {
 		if (i == 0 || multiple_files) {
-			if ((run_info[i].name = malloc(64)) == NULL)
-				testutil_die(errno, "malloc");
+			run_info[i].name = dmalloc(64);
 			snprintf(run_info[i].name, 64, FNAME, i);
 
 			/* Vary by orders of magnitude */
@@ -88,8 +85,7 @@ rw_start(u_int readers, u_int writers)
 	for (i = 0; i < readers; ++i) {
 		offset = i + writers;
 		if (multiple_files) {
-			if ((run_info[offset].name = malloc(64)) == NULL)
-				testutil_die(errno, "malloc");
+			run_info[offset].name = dmalloc(64);
 			/* Have readers read from tables with writes. */
 			name_index = i % writers;
 			snprintf(
@@ -179,8 +175,8 @@ reader_op(WT_SESSION *session, WT_CURSOR *cursor, INFO *s)
 	if ((ret = cursor->search(cursor)) != 0 && ret != WT_NOTFOUND)
 		testutil_die(ret, "cursor.search");
 	if (log_print)
-		(void)session->log_printf(session,
-		    "Reader Thread %p key %017u", pthread_self(), keyno);
+		testutil_check(session->log_printf(session,
+		    "Reader Thread %p key %017u", pthread_self(), keyno));
 }
 
 /*
@@ -280,8 +276,8 @@ writer_op(WT_SESSION *session, WT_CURSOR *cursor, INFO *s)
 			testutil_die(ret, "cursor.update");
 	}
 	if (log_print)
-		(void)session->log_printf(session,
-		    "Writer Thread %p key %017u", pthread_self(), keyno);
+		testutil_check(session->log_printf(session,
+		    "Writer Thread %p key %017u", pthread_self(), keyno));
 }
 
 /*

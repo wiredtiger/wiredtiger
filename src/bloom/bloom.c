@@ -65,7 +65,9 @@ __bloom_setup(
     WT_BLOOM *bloom, uint64_t n, uint64_t m, uint32_t factor, uint32_t k)
 {
 	if (k < 2)
-		return (EINVAL);
+		WT_RET_MSG(bloom->session, EINVAL,
+		    "bloom filter hash values to be set/tested must be "
+		    "greater than 2");
 
 	bloom->k = k;
 	bloom->factor = factor;
@@ -105,7 +107,7 @@ __wt_bloom_create(
 	*bloomp = bloom;
 	return (0);
 
-err:	(void)__wt_bloom_close(bloom);
+err:	WT_TRET(__wt_bloom_close(bloom));
 	return (ret);
 }
 
@@ -166,7 +168,7 @@ __wt_bloom_open(WT_SESSION_IMPL *session,
 	*bloomp = bloom;
 	return (0);
 
-err:	(void)__wt_bloom_close(bloom);
+err:	WT_TRET(__wt_bloom_close(bloom));
 	return (ret);
 }
 
@@ -174,7 +176,7 @@ err:	(void)__wt_bloom_close(bloom);
  * __wt_bloom_insert --
  *	Adds the given key to the Bloom filter.
  */
-int
+void
 __wt_bloom_insert(WT_BLOOM *bloom, WT_ITEM *key)
 {
 	uint64_t h1, h2;
@@ -182,10 +184,8 @@ __wt_bloom_insert(WT_BLOOM *bloom, WT_ITEM *key)
 
 	h1 = __wt_hash_fnv64(key->data, key->size);
 	h2 = __wt_hash_city64(key->data, key->size);
-	for (i = 0; i < bloom->k; i++, h1 += h2) {
+	for (i = 0; i < bloom->k; i++, h1 += h2)
 		__bit_set(bloom->bitstring, h1 % bloom->m);
-	}
-	return (0);
 }
 
 /*
@@ -238,15 +238,13 @@ err:	WT_TRET(c->close(c));
  * __wt_bloom_hash --
  *	Calculate the hash values for a given key.
  */
-int
+void
 __wt_bloom_hash(WT_BLOOM *bloom, WT_ITEM *key, WT_BLOOM_HASH *bhash)
 {
 	WT_UNUSED(bloom);
 
 	bhash->h1 = __wt_hash_fnv64(key->data, key->size);
 	bhash->h2 = __wt_hash_city64(key->data, key->size);
-
-	return (0);
 }
 
 /*
@@ -295,7 +293,7 @@ __wt_bloom_hash_get(WT_BLOOM *bloom, WT_BLOOM_HASH *bhash)
 err:	/* Don't return WT_NOTFOUND from a failed search. */
 	if (ret == WT_NOTFOUND)
 		ret = WT_ERROR;
-	__wt_err(bloom->session, ret, "Failed lookup in bloom filter.");
+	__wt_err(bloom->session, ret, "Failed lookup in bloom filter");
 	return (ret);
 }
 
@@ -309,7 +307,7 @@ __wt_bloom_get(WT_BLOOM *bloom, WT_ITEM *key)
 {
 	WT_BLOOM_HASH bhash;
 
-	WT_RET(__wt_bloom_hash(bloom, key, &bhash));
+	__wt_bloom_hash(bloom, key, &bhash);
 	return (__wt_bloom_hash_get(bloom, &bhash));
 }
 
@@ -346,7 +344,12 @@ __wt_bloom_intersection(WT_BLOOM *bloom, WT_BLOOM *other)
 
 	if (bloom->k != other->k || bloom->factor != other->factor ||
 	    bloom->m != other->m || bloom->n != other->n)
-		return (EINVAL);
+		WT_RET_MSG(bloom->session, EINVAL,
+		    "bloom filter intersection configuration mismatch: ("
+		    "%" PRIu32 "/%" PRIu32 ", %" PRIu32 "/%" PRIu32 ", "
+		    "%" PRIu64 "/%" PRIu64 ", %" PRIu64 "/%" PRIu64 ")",
+		    bloom->k, other->k, bloom->factor, other->factor,
+		    bloom->m, other->m, bloom->n, other->n);
 
 	nbytes = __bitstr_size(bloom->m);
 	for (i = 0; i < nbytes; i++)

@@ -69,6 +69,7 @@ __curstat_size_only(WT_SESSION_IMPL *session,
 	WT_ITEM namebuf;
 	wt_off_t filesize;
 	char *tableconf;
+	bool exist;
 
 	WT_CLEAR(namebuf);
 	*was_fast = false;
@@ -82,7 +83,7 @@ __curstat_size_only(WT_SESSION_IMPL *session,
 	 * we determine that neither of those conditions can be satisfied.
 	 */
 	WT_ERR(__wt_config_getones(session, tableconf, "columns", &colconf));
-	WT_ERR(__wt_config_subinit(session, &cparser, &colconf));
+	__wt_config_subinit(session, &cparser, &colconf);
 	if ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0)
 		goto err;
 
@@ -96,10 +97,11 @@ __curstat_size_only(WT_SESSION_IMPL *session,
 	 * are concurrent schema level operations (for example drop). That is
 	 * fine - failing here results in falling back to the slow path of
 	 * opening the handle.
-	 * !!! Deliberately discard the return code from a failed call - the
-	 * error is flagged by not setting fast to true.
 	 */
-	if (__wt_filesize_name(session, namebuf.data, true, &filesize) == 0) {
+	WT_ERR(__wt_fs_exist(session, namebuf.data, &exist));
+	if (exist) {
+		WT_ERR(__wt_fs_size(session, namebuf.data, &filesize));
+
 		/* Setup and populate the statistics structure */
 		__wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
 		cst->u.dsrc_stats.block_size = filesize;
@@ -135,7 +137,7 @@ __wt_curstat_table_init(WT_SESSION_IMPL *session,
 	 * If only gathering table size statistics, try a fast path that
 	 * avoids the schema and table list locks.
 	 */
-	if (F_ISSET(cst, WT_CONN_STAT_SIZE)) {
+	if (F_ISSET(cst, WT_STAT_TYPE_SIZE)) {
 		WT_RET(__curstat_size_only(session, uri, &was_fast, cst));
 		if (was_fast)
 			return (0);

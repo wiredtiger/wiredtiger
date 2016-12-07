@@ -381,16 +381,6 @@ restart:	/*
 			__ref_ascend(session, &ref, &pindex, &slot);
 
 			/*
-			 * If we got all the way through an internal page and
-			 * all of the child pages were deleted, mark it for
-			 * eviction.
-			 */
-			if (empty_internal && pindex->entries > 1) {
-				__wt_page_evict_soon(ref->page);
-				empty_internal = false;
-			}
-
-			/*
 			 * If at the root and returning internal pages, return
 			 * the root page, otherwise we're done. Regardless, no
 			 * hazard pointer is required, release the one we hold.
@@ -401,6 +391,16 @@ restart:	/*
 				if (!LF_ISSET(WT_READ_SKIP_INTL))
 					*refp = ref;
 				goto done;
+			}
+
+			/*
+			 * If we got all the way through an internal page and
+			 * all of the child pages were deleted, mark it for
+			 * eviction.
+			 */
+			if (empty_internal && pindex->entries > 1) {
+				__wt_page_evict_soon(session, ref);
+				empty_internal = false;
 			}
 
 			/*
@@ -472,27 +472,14 @@ restart:	/*
 				empty_internal = false;
 			} else if (LF_ISSET(WT_READ_COMPACT)) {
 				/*
-				 * Skip deleted pages, rewriting them doesn't
-				 * seem useful.
+				 * Compaction has relatively complex tests to
+				 * decide if a page can be skipped, call out
+				 * to a helper function.
 				 */
-				if (ref->state == WT_REF_DELETED)
+				WT_ERR(__wt_compact_page_skip(
+				    session, ref, &skip));
+				if (skip)
 					break;
-
-				/*
-				 * If the page is in-memory, we want to look at
-				 * it (it may have been modified and written,
-				 * and the current location is the interesting
-				 * one in terms of compaction, not the original
-				 * location).  If the page isn't in-memory, test
-				 * if the page will help with compaction, don't
-				 * read it if we don't have to.
-				 */
-				if (ref->state == WT_REF_DISK) {
-					WT_ERR(__wt_compact_page_skip(
-					    session, ref, &skip));
-					if (skip)
-						break;
-				}
 			} else {
 				/*
 				 * Try to skip deleted pages visible to us.

@@ -12,19 +12,16 @@
  * __conn_dhandle_destroy --
  *	Destroy a data handle.
  */
-static int
+static void
 __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
 {
-	WT_DECL_RET;
-
-	ret = __wt_rwlock_destroy(session, &dhandle->rwlock);
+	__wt_rwlock_destroy(session, &dhandle->rwlock);
 	__wt_free(session, dhandle->name);
 	__wt_free(session, dhandle->checkpoint);
 	__wt_free(session, dhandle->handle);
 	__wt_spin_destroy(session, &dhandle->close_lock);
+	__wt_stat_dsrc_discard(session, dhandle);
 	__wt_overwrite_and_free(session, dhandle);
-
-	return (ret);
 }
 
 /*
@@ -39,6 +36,9 @@ __conn_dhandle_alloc(WT_SESSION_IMPL *session,
 	WT_BTREE *btree;
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
+	uint64_t bucket;
+
+	*dhandlep = NULL;
 
 	WT_RET(__wt_calloc_one(session, &dhandle));
 
@@ -55,12 +55,30 @@ __conn_dhandle_alloc(WT_SESSION_IMPL *session,
 	WT_ERR(__wt_spin_init(
 	    session, &dhandle->close_lock, "data handle close"));
 
-	__wt_stat_dsrc_init(dhandle);
+	if (strcmp(uri, WT_METAFILE_URI) == 0)
+		F_SET(dhandle, WT_DHANDLE_IS_METADATA);
+
+	/*
+	 * We are holding the data handle list lock, which protects most
+	 * threads from seeing the new handle until that lock is released.
+	 *
+	 * However, the sweep server scans the list of handles without holding
+	 * that lock, so we need a write barrier here to ensure the sweep
+	 * server doesn't see a partially filled in structure.
+	 */
+	WT_WRITE_BARRIER();
+
+	/*
+	 * Prepend the handle to the connection list, assuming we're likely to
+	 * need new files again soon, until they are cached by all sessions.
+	 */
+	bucket = dhandle->name_hash % WT_HASH_ARRAY_SIZE;
+	WT_CONN_DHANDLE_INSERT(S2C(session), dhandle, bucket);
 
 	*dhandlep = dhandle;
 	return (0);
 
-err:	WT_TRET(__conn_dhandle_destroy(session, dhandle));
+err:	__conn_dhandle_destroy(session, dhandle);
 	return (ret);
 }
 
@@ -106,14 +124,6 @@ __wt_conn_dhandle_find(
 
 	WT_RET(__conn_dhandle_alloc(session, uri, checkpoint, &dhandle));
 
-	/*
-	 * Prepend the handle to the connection list, assuming we're likely to
-	 * need new files again soon, until they are cached by all sessions.
-	 * Find the right hash bucket to insert into as well.
-	 */
-	bucket = dhandle->name_hash % WT_HASH_ARRAY_SIZE;
-	WT_CONN_DHANDLE_INSERT(conn, dhandle, bucket);
-
 	session->dhandle = dhandle;
 	return (0);
 }
@@ -158,7 +168,8 @@ __wt_conn_btree_sync_and_close(WT_SESSION_IMPL *session, bool final, bool force)
 	/*
 	 * We may not be holding the schema lock, and threads may be walking
 	 * the list of open handles (for example, checkpoint).  Acquire the
-	 * handle's close lock.
+	 * handle's close lock. We don't have the sweep server acquire the
+	 * handle's rwlock so we have to prevent races through the close code.
 	 */
 	__wt_spin_lock(session, &dhandle->close_lock);
 
@@ -298,16 +309,15 @@ __wt_conn_btree_open(
 	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_CLOSING));
 
 	/*
-	 * If the handle is already open, it has to be closed so it can
-	 * be reopened with a new configuration.
+	 * If the handle is already open, it has to be closed so it can be
+	 * reopened with a new configuration.
 	 *
-	 * This call can return EBUSY if there's an update in the
-	 * object that's not yet globally visible.  That's not a
-	 * problem because it can only happen when we're switching from
-	 * a normal handle to a "special" one, so we're returning EBUSY
-	 * to an attempt to verify or do other special operations.  The
-	 * reverse won't happen because when the handle from a verify
-	 * or other special operation is closed, there won't be updates
+	 * This call can return EBUSY if there's an update in the object that's
+	 * not yet globally visible. That's not a problem because it can only
+	 * happen when we're switching from a normal handle to a "special" one,
+	 * so we're returning EBUSY to an attempt to verify or do other special
+	 * operations. The reverse won't happen because when the handle from a
+	 * verify or other special operation is closed, there won't be updates
 	 * in the tree that can block the close.
 	 */
 	if (F_ISSET(dhandle, WT_DHANDLE_OPEN))
@@ -319,6 +329,16 @@ __wt_conn_btree_open(
 
 	/* Set any special flags on the handle. */
 	F_SET(btree, LF_MASK(WT_BTREE_SPECIAL_FLAGS));
+
+	/*
+	 * Allocate data-source statistics memory. We don't allocate that memory
+	 * when allocating the data-handle because not all data handles need
+	 * statistics (for example, handles used for checkpoint locking). If we
+	 * are reopening the handle, then it may already have statistics memory,
+	 * check to avoid the leak.
+	 */
+	if (dhandle->stat_array == NULL)
+		WT_ERR(__wt_stat_dsrc_init(session, dhandle));
 
 	WT_ERR(__wt_btree_open(session, cfg));
 
@@ -427,7 +447,7 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
 			    F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
 			    dhandle->checkpoint != NULL ||
 			    !WT_PREFIX_MATCH(dhandle->name, "file:") ||
-			    WT_IS_METADATA(session, dhandle))
+			    WT_IS_METADATA(dhandle))
 				continue;
 			WT_RET(__conn_btree_apply_internal(
 			    session, dhandle, file_func, name_func, cfg));
@@ -476,9 +496,9 @@ __wt_conn_dhandle_close_all(
 		 * open at this point.  Close the handle, if necessary.
 		 */
 		if (F_ISSET(dhandle, WT_DHANDLE_OPEN)) {
-			if ((ret = __wt_meta_track_sub_on(session)) == 0)
-				ret = __wt_conn_btree_sync_and_close(
-				    session, false, force);
+			__wt_meta_track_sub_on(session);
+			ret = __wt_conn_btree_sync_and_close(
+			    session, false, force);
 
 			/*
 			 * If the close succeeded, drop any locks it acquired.
@@ -538,11 +558,11 @@ __wt_conn_dhandle_discard_single(
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
 	int tret;
+	bool set_pass_intr;
 
 	dhandle = session->dhandle;
 
-	if (F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
-	    (final && F_ISSET(dhandle, WT_DHANDLE_DEAD))) {
+	if (F_ISSET(dhandle, WT_DHANDLE_OPEN)) {
 		tret = __wt_conn_btree_sync_and_close(session, final, force);
 		if (final && tret != 0) {
 			__wt_err(session, tret,
@@ -556,12 +576,17 @@ __wt_conn_dhandle_discard_single(
 	 * Kludge: interrupt the eviction server in case it is holding the
 	 * handle list lock.
 	 */
-	if (!F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST))
-		F_SET(S2C(session)->cache, WT_CACHE_CLEAR_WALKS);
+	set_pass_intr = false;
+	if (!F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST)) {
+		set_pass_intr = true;
+		(void)__wt_atomic_addv32(&S2C(session)->cache->pass_intr, 1);
+	}
 
 	/* Try to remove the handle, protected by the data handle lock. */
 	WT_WITH_HANDLE_LIST_LOCK(session,
 	    tret = __conn_dhandle_remove(session, final));
+	if (set_pass_intr)
+		(void)__wt_atomic_subv32(&S2C(session)->cache->pass_intr, 1);
 	WT_TRET(tret);
 
 	/*
@@ -569,7 +594,7 @@ __wt_conn_dhandle_discard_single(
 	 */
 	if (ret == 0 || final) {
 		__conn_btree_config_clear(session);
-		WT_TRET(__conn_dhandle_destroy(session, dhandle));
+		__conn_dhandle_destroy(session, dhandle);
 		session->dhandle = NULL;
 	}
 
@@ -602,7 +627,7 @@ __wt_conn_dhandle_discard(WT_SESSION_IMPL *session)
 	 */
 restart:
 	TAILQ_FOREACH(dhandle, &conn->dhqh, q) {
-		if (WT_IS_METADATA(session, dhandle))
+		if (WT_IS_METADATA(dhandle))
 			continue;
 
 		WT_WITH_DHANDLE(session, dhandle,

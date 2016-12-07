@@ -43,17 +43,15 @@ lrt(void *arg)
 	uint64_t keyno, saved_keyno;
 	u_int period;
 	int pinned, ret;
-	uint8_t bitfield, *keybuf;
+	uint8_t bitfield;
 	void *buf;
 
 	(void)(arg);			/* Unused parameter */
 
 	saved_keyno = 0;		/* [-Werror=maybe-uninitialized] */
 
-	key_gen_setup(&keybuf);
-	memset(&key, 0, sizeof(key));
-	key.data = keybuf;
-	memset(&value, 0, sizeof(value));
+	key_gen_setup(&key);
+	val_gen_setup(NULL, &value);
 
 	buf = NULL;
 	buf_len = buf_size = 0;
@@ -67,8 +65,8 @@ lrt(void *arg)
 	for (pinned = 0;;) {
 		if (pinned) {
 			/* Re-read the record at the end of the table. */
-			while ((ret = read_row(cursor,
-			    &key, saved_keyno, 1)) == WT_ROLLBACK)
+			while ((ret = read_row(
+			    cursor, &key, &value, saved_keyno)) == WT_ROLLBACK)
 				;
 			if (ret != 0)
 				testutil_die(ret,
@@ -98,6 +96,22 @@ lrt(void *arg)
 			pinned = 0;
 		} else {
 			/*
+			 * Test named snapshots: create a snapshot, wait to
+			 * give the transaction state time to move forward,
+			 * then start a transaction with the named snapshot,
+			 * drop it, then commit the transaction. This exercises
+			 * most of the named snapshot logic under load.
+			 */
+			testutil_check(session->snapshot(session, "name=test"));
+			sleep(1);
+			testutil_check(session->begin_transaction(
+			    session, "snapshot=test"));
+			testutil_check(session->snapshot(
+			    session, "drop=(all)"));
+			testutil_check(session->commit_transaction(
+			    session, NULL));
+
+			/*
 			 * Begin transaction: without an explicit transaction,
 			 * the snapshot is only kept around while a cursor is
 			 * positioned. As soon as the cursor loses its position
@@ -112,7 +126,7 @@ lrt(void *arg)
 				    (u_int)(g.key_cnt - g.key_cnt / 10),
 				    (u_int)g.key_cnt);
 				while ((ret = read_row(cursor,
-				    &key, saved_keyno, 1)) == WT_ROLLBACK)
+				    &key, &value, saved_keyno)) == WT_ROLLBACK)
 					;
 			} while (ret == WT_NOTFOUND);
 			if (ret != 0)
@@ -129,9 +143,8 @@ lrt(void *arg)
 			if (ret != 0)
 				testutil_die(ret,
 				    "cursor.get_value: %" PRIu64, saved_keyno);
-			if (buf_len < value.size &&
-			    (buf = realloc(buf, buf_len = value.size)) == NULL)
-				testutil_die(errno, "malloc");
+			if (buf_len < value.size)
+				buf = drealloc(buf, buf_len = value.size);
 			memcpy(buf, value.data, buf_size = value.size);
 
 			/*
@@ -142,7 +155,7 @@ lrt(void *arg)
 			do {
 				keyno = mmrand(NULL, 1, (u_int)g.key_cnt / 5);
 				while ((ret = read_row(cursor,
-				    &key, keyno, 1)) == WT_ROLLBACK)
+				    &key, &value, keyno)) == WT_ROLLBACK)
 					;
 			} while (ret == WT_NOTFOUND);
 			if (ret != 0)
@@ -165,7 +178,8 @@ lrt(void *arg)
 
 	testutil_check(session->close(session, NULL));
 
-	free(keybuf);
+	free(key.mem);
+	free(value.mem);
 	free(buf);
 
 	return (NULL);

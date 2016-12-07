@@ -36,8 +36,8 @@ static void
 salvage(void)
 {
 	WT_CONNECTION *conn;
+	WT_DECL_RET;
 	WT_SESSION *session;
-	int ret;
 
 	conn = g.wts_conn;
 	track("salvage", 0ULL, NULL);
@@ -107,7 +107,7 @@ found:	if (fstat(fd, &sb) == -1)
 	if ((fp = fopen(buf, "w")) == NULL)
 		testutil_die(errno, "salvage-corrupt: open: %s", buf);
 	(void)fprintf(fp,
-	    "salvage-corrupt: offset %" PRIuMAX ", length " SIZET_FMT "\n",
+	    "salvage-corrupt: offset %" PRIuMAX ", length %" WT_SIZET_FMT "\n",
 	    (uintmax_t)offset, len);
 	fclose_and_clear(&fp);
 
@@ -141,7 +141,7 @@ found:	if (fstat(fd, &sb) == -1)
 void
 wts_salvage(void)
 {
-	int ret;
+	WT_DECL_RET;
 
 	/* Some data-sources don't support salvage. */
 	if (DATASOURCE("helium") || DATASOURCE("kvsbdb"))
@@ -158,7 +158,7 @@ wts_salvage(void)
 		testutil_die(ret, "salvage copy step failed");
 
 	/* Salvage, then verify. */
-	wts_open(g.home, 1, &g.wts_conn);
+	wts_open(g.home, true, &g.wts_conn);
 	salvage();
 	wts_verify("post-salvage verify");
 	wts_close();
@@ -174,7 +174,7 @@ wts_salvage(void)
 
 	/* Corrupt the file randomly, salvage, then verify. */
 	if (corrupt()) {
-		wts_open(g.home, 1, &g.wts_conn);
+		wts_open(g.home, true, &g.wts_conn);
 		salvage();
 		wts_verify("post-corrupt-salvage verify");
 		wts_close();

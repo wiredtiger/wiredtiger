@@ -24,11 +24,14 @@ __rename_file(
 	newvalue = oldvalue = NULL;
 
 	filename = uri;
+	if (!WT_PREFIX_SKIP(filename, "file:"))
+		return (__wt_unexpected_object_type(session, uri, "file:"));
 	newfile = newuri;
-	if (!WT_PREFIX_SKIP(filename, "file:") ||
-	    !WT_PREFIX_SKIP(newfile, "file:"))
-		return (EINVAL);
+	if (!WT_PREFIX_SKIP(newfile, "file:"))
+		return (__wt_unexpected_object_type(session, newuri, "file:"));
 
+	WT_RET(__wt_schema_backup_check(session, filename));
+	WT_RET(__wt_schema_backup_check(session, newfile));
 	/* Close any btree handles in the file. */
 	WT_WITH_HANDLE_LIST_LOCK(session,
 	    ret = __wt_conn_dhandle_close_all(session, uri, false));
@@ -55,7 +58,7 @@ __rename_file(
 	default:
 		WT_ERR(ret);
 	}
-	WT_ERR(__wt_exist(session, newfile, &exist));
+	WT_ERR(__wt_fs_exist(session, newfile, &exist));
 	if (exist)
 		WT_ERR_MSG(session, EEXIST, "%s", newfile);
 
@@ -64,7 +67,7 @@ __rename_file(
 	WT_ERR(__wt_metadata_insert(session, newuri, oldvalue));
 
 	/* Rename the underlying file. */
-	WT_ERR(__wt_rename(session, filename, newfile));
+	WT_ERR(__wt_fs_rename(session, filename, newfile, false));
 	if (WT_META_TRACKING(session))
 		WT_ERR(__wt_meta_track_fileop(session, uri, newuri));
 

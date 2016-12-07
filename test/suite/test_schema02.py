@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wtscenario import check_scenarios
+from wtscenario import make_scenarios
 
 # test_schema02.py
 #    Columns, column groups, indexes
@@ -37,7 +37,7 @@ class test_schema02(wttest.WiredTigerTestCase):
     """
     nentries = 1000
 
-    scenarios = check_scenarios([
+    scenarios = make_scenarios([
         ('normal', { 'idx_config' : '' }),
         ('lsm', { 'idx_config' : ',type=lsm' }),
     ])
@@ -278,7 +278,6 @@ class test_schema02(wttest.WiredTigerTestCase):
         self.session.create("colgroup:main:c2", "columns=(S3,i4)")
         self.populate()
         self.check_entries()
-
 
 if __name__ == '__main__':
     wttest.run()

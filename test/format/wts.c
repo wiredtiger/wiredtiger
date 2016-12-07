@@ -50,6 +50,8 @@ compressor(uint32_t compress_flag)
 		return ("zlib");
 	case COMPRESS_ZLIB_NO_RAW:
 		return ("zlib-noraw");
+	case COMPRESS_ZSTD:
+		return ("zstd");
 	default:
 		break;
 	}
@@ -87,10 +89,10 @@ handle_message(WT_EVENT_HANDLER *handler,
 
 	/* Write and flush the message so we're up-to-date on error. */
 	if (g.logfp == NULL) {
-		out = printf("%p:%s\n", session, message);
+		out = printf("%p:%s\n", (void *)session, message);
 		(void)fflush(stdout);
 	} else {
-		out = fprintf(g.logfp, "%p:%s\n", session, message);
+		out = fprintf(g.logfp, "%p:%s\n", (void *)session, message);
 		(void)fflush(g.logfp);
 	}
 	return (out < 0 ? EIO : 0);
@@ -126,10 +128,10 @@ static WT_EVENT_HANDLER event_handler = {
  *	Open a connection to a WiredTiger database.
  */
 void
-wts_open(const char *home, int set_api, WT_CONNECTION **connp)
+wts_open(const char *home, bool set_api, WT_CONNECTION **connp)
 {
 	WT_CONNECTION *conn;
-	int ret;
+	WT_DECL_RET;
 	char *config, *end, *p, helium_config[1024];
 
 	*connp = NULL;
@@ -138,10 +140,11 @@ wts_open(const char *home, int set_api, WT_CONNECTION **connp)
 	end = config + sizeof(g.wiredtiger_open_config);
 
 	p += snprintf(p, REMAIN(p, end),
-	    "create,checkpoint_sync=false,cache_size=%" PRIu32 "MB",
-	    g.c_cache);
-
-	p += snprintf(p, REMAIN(p, end), ",error_prefix=\"%s\"", g.progname);
+	    "create=true,"
+	    "cache_size=%" PRIu32 "MB,"
+	    "checkpoint_sync=false,"
+	    "error_prefix=\"%s\"",
+	    g.c_cache, g.progname);
 
 	/* In-memory configuration. */
 	if (g.c_in_memory != 0)
@@ -152,6 +155,10 @@ wts_open(const char *home, int set_api, WT_CONNECTION **connp)
 		p += snprintf(p, REMAIN(p, end),
 		    ",lsm_manager=(worker_thread_max=%" PRIu32 "),",
 		    g.c_lsm_worker_threads);
+
+	if (DATASOURCE("lsm") || g.c_cache < 20) {
+		p += snprintf(p, REMAIN(p, end), ",eviction_dirty_trigger=95");
+	}
 
 	/* Eviction worker configuration. */
 	if (g.c_evict_max != 0)
@@ -204,13 +211,14 @@ wts_open(const char *home, int set_api, WT_CONNECTION **connp)
 	/* Extensions. */
 	p += snprintf(p, REMAIN(p, end),
 	    ",extensions=["
-	    "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\"],",
+	    "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\"],",
 	    g.c_reverse ? REVERSE_PATH : "",
 	    access(LZ4_PATH, R_OK) == 0 ? LZ4_PATH : "",
 	    access(LZO_PATH, R_OK) == 0 ? LZO_PATH : "",
 	    access(ROTN_PATH, R_OK) == 0 ? ROTN_PATH : "",
 	    access(SNAPPY_PATH, R_OK) == 0 ? SNAPPY_PATH : "",
 	    access(ZLIB_PATH, R_OK) == 0 ? ZLIB_PATH : "",
+	    access(ZSTD_PATH, R_OK) == 0 ? ZSTD_PATH : "",
 	    DATASOURCE("kvsbdb") ? KVS_BDB_PATH : "");
 
 	/*
@@ -273,8 +281,13 @@ wts_open(const char *home, int set_api, WT_CONNECTION **connp)
 void
 wts_reopen(void)
 {
+	WT_CONNECTION *conn;
+
 	testutil_checkfmt(wiredtiger_open(g.home, &event_handler,
-	    g.wiredtiger_open_config, &g.wts_conn), "%s", g.home);
+	    g.wiredtiger_open_config, &conn), "%s", g.home);
+
+	g.wt_api = conn->get_extension_api(conn);
+	g.wts_conn = conn;
 }
 
 /*
@@ -282,7 +295,7 @@ wts_reopen(void)
  *	Create the underlying store.
  */
 void
-wts_create(void)
+wts_init(void)
 {
 	WT_CONNECTION *conn;
 	WT_SESSION *session;
@@ -296,15 +309,16 @@ wts_create(void)
 
 	/*
 	 * Ensure that we can service at least one operation per-thread
-	 * concurrently without filling the cache with pinned pages. We
-	 * choose a multiplier of three because the max configurations control
-	 * on disk size and in memory pages are often significantly larger
-	 * than their disk counterparts.
+	 * concurrently without filling the cache with pinned pages. We choose
+	 * a multiplier of three because the max configurations control on disk
+	 * size and in memory pages are often significantly larger than their
+	 * disk counterparts.  We also apply the default eviction_dirty_trigger
+	 * of 20% so that workloads don't get stuck with dirty pages in cache.
 	 */
 	maxintlpage = 1U << g.c_intl_page_max;
 	maxleafpage = 1U << g.c_leaf_page_max;
 	while (3 * g.c_threads * (maxintlpage + maxleafpage) >
-	    g.c_cache << 20) {
+	    (g.c_cache << 20) / 5) {
 		if (maxleafpage <= 512 && maxintlpage <= 512)
 			break;
 		if (maxintlpage > 512)
@@ -497,8 +511,8 @@ void
 wts_verify(const char *tag)
 {
 	WT_CONNECTION *conn;
+	WT_DECL_RET;
 	WT_SESSION *session;
-	int ret;
 
 	if (g.c_verify == 0)
 		return;
@@ -531,12 +545,13 @@ wts_stats(void)
 {
 	WT_CONNECTION *conn;
 	WT_CURSOR *cursor;
+	WT_DECL_RET;
 	WT_SESSION *session;
 	FILE *fp;
+	size_t len;
 	char *stat_name;
 	const char *pval, *desc;
 	uint64_t v;
-	int ret;
 
 	/* Ignore statistics if they're not configured. */
 	if (g.c_statistics == 0)
@@ -570,8 +585,9 @@ wts_stats(void)
 
 	/* Data source statistics. */
 	fprintf(fp, "\n\n====== Data source statistics:\n");
-	stat_name = dmalloc(strlen("statistics:") + strlen(g.uri) + 1);
-	sprintf(stat_name, "statistics:%s", g.uri);
+	len = strlen("statistics:") + strlen(g.uri) + 1;
+	stat_name = dmalloc(len);
+	snprintf(stat_name, len, "statistics:%s", g.uri);
 	testutil_check(session->open_cursor(
 	    session, stat_name, NULL, NULL, &cursor));
 	free(stat_name);

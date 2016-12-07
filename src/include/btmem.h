@@ -218,6 +218,14 @@ struct __wt_page_modify {
 	/* The first unwritten transaction ID (approximate). */
 	uint64_t first_dirty_txn;
 
+	/* The transaction state last time eviction was attempted. */
+	uint64_t last_eviction_id;
+
+#ifdef HAVE_DIAGNOSTIC
+	/* Check that transaction time moves forward. */
+	uint64_t last_oldest_id;
+#endif
+
 	/* Avoid checking for obsolete updates during checkpoints. */
 	uint64_t obsolete_check_txn;
 
@@ -226,9 +234,6 @@ struct __wt_page_modify {
 
 	/* The largest update transaction ID (approximate). */
 	uint64_t update_txn;
-
-	/* Check that transaction time moves forward. */
-	uint64_t last_oldest_id;
 
 	/* Dirty bytes added to the cache. */
 	size_t bytes_dirty;
@@ -250,8 +255,19 @@ struct __wt_page_modify {
 	 * a replace address and multiple replacement blocks.
 	 */
 	union {
-	WT_ADDR	 replace;		/* Single, written replacement block */
-#define	mod_replace	u1.replace
+	struct {			/* Single, written replacement block */
+		WT_ADDR	 replace;
+
+		/*
+		 * A disk image that may or may not have been written, used to
+		 * re-instantiate the page in memory.
+		 */
+		void	*disk_image;
+	} r;
+#undef	mod_replace
+#define	mod_replace	u1.r.replace
+#undef	mod_disk_image
+#define	mod_disk_image	u1.r.disk_image
 
 	struct {			/* Multiple replacement blocks */
 	struct __wt_multi {
@@ -265,14 +281,19 @@ struct __wt_page_modify {
 		} key;
 
 		/*
-		 * Eviction, but the block wasn't written: either an in-memory
-		 * configuration or unresolved updates prevented the write.
-		 * There may be a list of unresolved updates, there's always an
-		 * associated disk image.
+		 * A disk image that may or may not have been written, used to
+		 * re-instantiate the page in memory.
+		 */
+		void	*disk_image;
+
+		/*
+		 * List of unresolved updates. Updates are either a WT_INSERT
+		 * or a row-store leaf page entry; when creating lookaside
+		 * records, there is an additional value, the committed item's
+		 * transaction ID.
 		 *
-		 * Saved updates are either a WT_INSERT, or a row-store leaf
-		 * page entry; in the case of creating lookaside records, there
-		 * is an additional value, the committed item's transaction ID.
+		 * If there are unresolved updates, the block wasn't written and
+		 * there will always be a disk image.
 		 */
 		struct __wt_save_upd {
 			WT_INSERT *ins;
@@ -280,10 +301,9 @@ struct __wt_page_modify {
 			uint64_t   onpage_txn;
 		} *supd;
 		uint32_t supd_entries;
-		void	*disk_image;
 
 		/*
-		 * Block was written: address, size and checksum.
+		 * Disk image was written: address, size and checksum.
 		 * On subsequent reconciliations of this page, we avoid writing
 		 * the block if it's unchanged by comparing size and checksum;
 		 * the reuse flag is set when the block is unchanged and we're
@@ -291,11 +311,13 @@ struct __wt_page_modify {
 		 */
 		WT_ADDR	 addr;
 		uint32_t size;
-		uint32_t cksum;
+		uint32_t checksum;
 	} *multi;
 	uint32_t multi_entries;		/* Multiple blocks element count */
 	} m;
+#undef	mod_multi
 #define	mod_multi		u1.m.multi
+#undef	mod_multi_entries
 #define	mod_multi_entries	u1.m.multi_entries
 	} u1;
 
@@ -318,6 +340,7 @@ struct __wt_page_modify {
 		 */
 		WT_PAGE *root_split;	/* Linked list of root split pages */
 	} intl;
+#undef	mod_root_split
 #define	mod_root_split		u2.intl.root_split
 	struct {
 		/*
@@ -344,10 +367,24 @@ struct __wt_page_modify {
 		 * write any implicitly created deleted records for the page.
 		 */
 		uint64_t split_recno;
-	} leaf;
-#define	mod_append		u2.leaf.append
-#define	mod_update		u2.leaf.update
-#define	mod_split_recno		u2.leaf.split_recno
+	} column_leaf;
+#undef	mod_col_append
+#define	mod_col_append		u2.column_leaf.append
+#undef	mod_col_update
+#define	mod_col_update		u2.column_leaf.update
+#undef	mod_col_split_recno
+#define	mod_col_split_recno	u2.column_leaf.split_recno
+	struct {
+		/* Inserted items for row-store. */
+		WT_INSERT_HEAD	**insert;
+
+		/* Updated items for row-stores. */
+		WT_UPDATE	**update;
+	} row_leaf;
+#undef	mod_row_insert
+#define	mod_row_insert		u2.row_leaf.insert
+#undef	mod_row_update
+#define	mod_row_update		u2.row_leaf.update
 	} u2;
 
 	/*
@@ -393,6 +430,8 @@ struct __wt_page_modify {
 #define	WT_PM_REC_MULTIBLOCK	2	/* Reconciliation: multiple blocks */
 #define	WT_PM_REC_REPLACE	3	/* Reconciliation: single block */
 	uint8_t rec_result;		/* Reconciliation state */
+
+	uint8_t update_restored;	/* Page created by restoring updates */
 };
 
 /*
@@ -433,7 +472,6 @@ struct __wt_page {
 		 * doesn't read it multiple times).
 		 */
 		struct {
-			uint64_t recno;		/* Starting recno */
 			WT_REF	*parent_ref;	/* Parent reference */
 
 			struct __wt_page_index {
@@ -442,8 +480,7 @@ struct __wt_page {
 				WT_REF	**index;
 			} * volatile __index;	/* Collated children */
 		} intl;
-#undef	pg_intl_recno
-#define	pg_intl_recno			u.intl.recno
+#undef	pg_intl_parent_ref
 #define	pg_intl_parent_ref		u.intl.parent_ref
 
 	/*
@@ -482,40 +519,19 @@ struct __wt_page {
 
 		/* Row-store leaf page. */
 		struct {
-			/*
-			 * The column-store leaf page modification structures
-			 * live in the WT_PAGE_MODIFY structure to keep the
-			 * WT_PAGE structure as small as possible for read-only
-			 * pages.  For consistency, we could move the row-store
-			 * modification structures into WT_PAGE_MODIFY too, but
-			 * that doesn't shrink WT_PAGE any further and it would
-			 * require really ugly naming inside of WT_PAGE_MODIFY
-			 * to avoid growing that structure.
-			 */
-			WT_INSERT_HEAD	**ins;	/* Inserts */
-			WT_UPDATE	**upd;	/* Updates */
-
 			WT_ROW *d;		/* Key/value pairs */
 			uint32_t entries;	/* Entries */
 		} row;
 #undef	pg_row_d
 #define	pg_row_d	u.row.d
-#undef	pg_row_ins
-#define	pg_row_ins	u.row.ins
-#undef	pg_row_upd
-#define	pg_row_upd	u.row.upd
 #undef	pg_row_entries
 #define	pg_row_entries	u.row.entries
 
 		/* Fixed-length column-store leaf page. */
 		struct {
-			uint64_t recno;		/* Starting recno */
-
 			uint8_t	*bitf;		/* Values */
 			uint32_t entries;	/* Entries */
 		} col_fix;
-#undef	pg_fix_recno
-#define	pg_fix_recno	u.col_fix.recno
 #undef	pg_fix_bitf
 #define	pg_fix_bitf	u.col_fix.bitf
 #undef	pg_fix_entries
@@ -523,8 +539,6 @@ struct __wt_page {
 
 		/* Variable-length column-store leaf page. */
 		struct {
-			uint64_t recno;		/* Starting recno */
-
 			WT_COL *d;		/* Values */
 
 			/*
@@ -537,8 +551,6 @@ struct __wt_page {
 
 			uint32_t    entries;	/* Entries */
 		} col_var;
-#undef	pg_var_recno
-#define	pg_var_recno	u.col_var.recno
 #undef	pg_var_d
 #define	pg_var_d	u.col_var.d
 #undef	pg_var_repeats
@@ -579,9 +591,10 @@ struct __wt_page {
 
 	/*
 	 * Used to protect and co-ordinate splits for internal pages and
-	 * reconciliation for all pages.
+	 * reconciliation for all pages. Only used to co-ordinate among the
+	 * uncommon cases that require exclusive access to a page.
 	 */
-	WT_FAIR_LOCK page_lock;
+	WT_RWLOCK page_lock;
 
 	/*
 	 * The page's read generation acts as an LRU value for each page in the
@@ -608,6 +621,8 @@ struct __wt_page {
 #define	WT_READGEN_START_VALUE	100
 #define	WT_READGEN_STEP		100
 	uint64_t read_gen;
+	/* The evict pass generation for the page */
+	uint64_t evict_pass_gen;
 
 	size_t memory_footprint;	/* Memory attached to the page */
 
@@ -732,6 +747,10 @@ struct __wt_ref {
 		uint64_t recno;		/* Column-store: starting recno */
 		void	*ikey;		/* Row-store: key */
 	} key;
+#undef	ref_recno
+#define	ref_recno	key.recno
+#undef	ref_ikey
+#define	ref_ikey	key.ikey
 
 	WT_PAGE_DELETED	*page_del;	/* Deleted on-disk page information */
 };
@@ -1007,12 +1026,15 @@ struct __wt_insert_head {
  * of pointers and the specific structure exist, else NULL.
  */
 #define	WT_ROW_INSERT_SLOT(page, slot)					\
-	((page)->pg_row_ins == NULL ? NULL : (page)->pg_row_ins[slot])
+	((page)->modify == NULL ||					\
+	    (page)->modify->mod_row_insert == NULL ?			\
+	    NULL : (page)->modify->mod_row_insert[slot])
 #define	WT_ROW_INSERT(page, ip)						\
 	WT_ROW_INSERT_SLOT(page, WT_ROW_SLOT(page, ip))
 #define	WT_ROW_UPDATE(page, ip)						\
-	((page)->pg_row_upd == NULL ?					\
-	    NULL : (page)->pg_row_upd[WT_ROW_SLOT(page, ip)])
+	((page)->modify == NULL ||					\
+	    (page)->modify->mod_row_update == NULL ?			\
+	    NULL : (page)->modify->mod_row_update[WT_ROW_SLOT(page, ip)])
 /*
  * WT_ROW_INSERT_SMALLEST references an additional slot past the end of the
  * the "one per WT_ROW slot" insert array.  That's because the insert array
@@ -1020,8 +1042,9 @@ struct __wt_insert_head {
  * original page.
  */
 #define	WT_ROW_INSERT_SMALLEST(page)					\
-	((page)->pg_row_ins == NULL ?					\
-	    NULL : (page)->pg_row_ins[(page)->pg_row_entries])
+	((page)->modify == NULL ||					\
+	    (page)->modify->mod_row_insert == NULL ?			\
+	    NULL : (page)->modify->mod_row_insert[(page)->pg_row_entries])
 
 /*
  * The column-store leaf page update lists are arrays of pointers to structures,
@@ -1029,8 +1052,9 @@ struct __wt_insert_head {
  * of pointers and the specific structure exist, else NULL.
  */
 #define	WT_COL_UPDATE_SLOT(page, slot)					\
-	((page)->modify == NULL || (page)->modify->mod_update == NULL ?	\
-	    NULL : (page)->modify->mod_update[slot])
+	((page)->modify == NULL ||					\
+	    (page)->modify->mod_col_update == NULL ?			\
+	    NULL : (page)->modify->mod_col_update[slot])
 #define	WT_COL_UPDATE(page, ip)						\
 	WT_COL_UPDATE_SLOT(page, WT_COL_SLOT(page, ip))
 
@@ -1046,8 +1070,9 @@ struct __wt_insert_head {
  * appends.
  */
 #define	WT_COL_APPEND(page)						\
-	((page)->modify != NULL && (page)->modify->mod_append != NULL ?	\
-	    (page)->modify->mod_append[0] : NULL)
+	((page)->modify == NULL ||					\
+	    (page)->modify->mod_col_append == NULL ?			\
+	    NULL : (page)->modify->mod_col_append[0])
 
 /* WT_FIX_FOREACH walks fixed-length bit-fields on a disk page. */
 #define	WT_FIX_FOREACH(btree, dsk, v, i)				\

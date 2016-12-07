@@ -30,7 +30,7 @@
 #       Regression tests.
 
 import wiredtiger, wttest
-from wtscenario import multiply_scenarios, number_scenarios
+from wtscenario import make_scenarios
 
 # Regression tests.
 class test_bug003(wttest.WiredTigerTestCase):
@@ -43,7 +43,7 @@ class test_bug003(wttest.WiredTigerTestCase):
         ('yes', dict(name=1)),
     ]
 
-    scenarios = number_scenarios(multiply_scenarios('.', types, ckpt))
+    scenarios = make_scenarios(types, ckpt)
 
     # Confirm bulk-load isn't stopped by checkpoints.
     def test_bug003(self):
@@ -53,7 +53,6 @@ class test_bug003(wttest.WiredTigerTestCase):
         else:
             self.session.checkpoint()
         cursor = self.session.open_cursor(self.uri, None, "bulk")
-
 
 if __name__ == '__main__':
     wttest.run()

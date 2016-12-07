@@ -29,8 +29,8 @@
 import string, os
 import wiredtiger, wttest
 from suite_subprocess import suite_subprocess
-from wtscenario import check_scenarios
-from helper import complex_populate
+from wtdataset import ComplexDataSet
+from wtscenario import make_scenarios
 
 # test_util02.py
 #    Utilities: wt load
@@ -44,7 +44,7 @@ class test_util02(wttest.WiredTigerTestCase, suite_subprocess):
     nentries = 1000
     stringclass = ''.__class__
 
-    scenarios = check_scenarios([
+    scenarios = make_scenarios([
         ('SS', dict(key_format='S',value_format='S')),
         ('rS', dict(key_format='r',value_format='S')),
         ('ri', dict(key_format='r',value_format='i')),
@@ -162,7 +162,6 @@ class test_util02(wttest.WiredTigerTestCase, suite_subprocess):
     def test_load_process_hex(self):
         self.load_process(True)
 
-
 # test_load_commandline --
 #       Test the command-line processing.
 class test_load_commandline(wttest.WiredTigerTestCase, suite_subprocess):
@@ -170,10 +169,10 @@ class test_load_commandline(wttest.WiredTigerTestCase, suite_subprocess):
 
     def load_commandline(self, args, fail):
         errfile= "errfile"
-        complex_populate(self, self.uri, "key_format=S,value_format=S", 20)
+        ComplexDataSet(self, self.uri, 20).populate()
         self.runWt(["dump", self.uri], outfilename="dump.out")
         loadargs = ["load", "-f", "dump.out"] + args
-        self.runWt(loadargs, errfilename=errfile)
+        self.runWt(loadargs, errfilename=errfile, failure=fail)
         if fail:
                 self.check_non_empty_file(errfile)
         else:
@@ -181,23 +180,24 @@ class test_load_commandline(wttest.WiredTigerTestCase, suite_subprocess):
 
     # Empty arguments should suceed.
     def test_load_commandline_1(self):
-        self.load_commandline([], 0)
+        self.load_commandline([], False)
 
     # Arguments are in pairs.
     def test_load_commandline_2(self):
-        self.load_commandline(["table"], 1)
-        self.load_commandline([self.uri, "block_allocation=first", self.uri], 1)
+        self.load_commandline(["table"], True)
+        self.load_commandline(
+            [self.uri, "block_allocation=first", self.uri], True)
 
     # You can use short-hand URIs for a single object, but cannot match multiple
     # objects.
     def test_load_commandline_3(self):
-        self.load_commandline(["table", "block_allocation=first"], 0)
-        self.load_commandline(["colgroup", "block_allocation=first"], 1)
+        self.load_commandline(["table", "block_allocation=first"], False)
+        self.load_commandline(["colgroup", "block_allocation=first"], True)
 
     # You can't reference non-existent objects.
     def test_load_commandline_4(self):
-        self.load_commandline([self.uri, "block_allocation=first"], 0)
-        self.load_commandline(["table:bar", "block_allocation=first"], 1)
+        self.load_commandline([self.uri, "block_allocation=first"], False)
+        self.load_commandline(["table:bar", "block_allocation=first"], True)
 
     # You can specify multipleconfiguration arguments for the same object.
     def test_load_commandline_5(self):
@@ -205,20 +205,19 @@ class test_load_commandline(wttest.WiredTigerTestCase, suite_subprocess):
             self.uri, "block_allocation=first",
             self.uri, "block_allocation=best",
             self.uri, "block_allocation=first",
-            self.uri, "block_allocation=best"], 0)
+            self.uri, "block_allocation=best"], False)
 
     # You can't modify a format.
     def test_load_commandline_6(self):
-        self.load_commandline(["table", "key_format=d"], 1)
-        self.load_commandline(["table", "value_format=d"], 1)
+        self.load_commandline(["table", "key_format=d"], True)
+        self.load_commandline(["table", "value_format=d"], True)
 
     # You can set the source or version, but it gets stripped; confirm the
     # attempt succeeds, so we know they configuration values are stripped.
     def test_load_commandline_7(self):
-        self.load_commandline(["table", "filename=bar"], 0)
-        self.load_commandline(["table", "source=bar"], 0)
-        self.load_commandline(["table", "version=(100,200)"], 0)
-
+        self.load_commandline(["table", "filename=bar"], False)
+        self.load_commandline(["table", "source=bar"], False)
+        self.load_commandline(["table", "version=(100,200)"], False)
 
 if __name__ == '__main__':
     wttest.run()

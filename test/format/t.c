@@ -32,19 +32,20 @@ GLOBAL g;
 
 static void format_die(void);
 static void startup(void);
-static void usage(void);
+static void usage(void)
+    WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 extern int __wt_optind;
 extern char *__wt_optarg;
-
-void (*custom_die)(void) = format_die;		/* Local death handler. */
 
 int
 main(int argc, char *argv[])
 {
 	time_t start;
-	int ch, i, onerun, reps;
+	int ch, onerun, reps;
 	const char *config, *home;
+
+	custom_die = format_die;		/* Local death handler. */
 
 	config = NULL;
 
@@ -113,14 +114,8 @@ main(int argc, char *argv[])
 	argc -= __wt_optind;
 	argv += __wt_optind;
 
-	/*
-	 * Initialize the global RNG. Start with the standard seeds, and then
-	 * use seconds since the Epoch modulo a prime to run the RNG for some
-	 * number of steps, so we don't start with the same values every time.
-	 */
-	__wt_random_init(&g.rnd);
-	for (i = (int)time(NULL) % 10007; i > 0; --i)
-		(void)__wt_random(&g.rnd);
+	/* Initialize the global RNG. */
+	__wt_random_init_seed(NULL, &g.rnd);
 
 	/* Set up paths. */
 	path_setup(home);
@@ -181,6 +176,7 @@ main(int argc, char *argv[])
 	 */
 	testutil_check(pthread_rwlock_init(&g.append_lock, NULL));
 	testutil_check(pthread_rwlock_init(&g.backup_lock, NULL));
+	testutil_check(pthread_rwlock_init(&g.checkpoint_lock, NULL));
 	testutil_check(pthread_rwlock_init(&g.death_lock, NULL));
 
 	printf("%s: process %" PRIdMAX "\n", g.progname, (intmax_t)getpid());
@@ -198,8 +194,8 @@ main(int argc, char *argv[])
 		if (SINGLETHREADED)
 			bdb_open();		/* Initial file config */
 #endif
-		wts_open(g.home, 1, &g.wts_conn);
-		wts_create();
+		wts_open(g.home, true, &g.wts_conn);
+		wts_init();
 
 		wts_load();			/* Load initial records */
 		wts_verify("post-bulk verify");	/* Verify */
@@ -275,6 +271,8 @@ main(int argc, char *argv[])
 
 	testutil_check(pthread_rwlock_destroy(&g.append_lock));
 	testutil_check(pthread_rwlock_destroy(&g.backup_lock));
+	testutil_check(pthread_rwlock_destroy(&g.checkpoint_lock));
+	testutil_check(pthread_rwlock_destroy(&g.death_lock));
 
 	config_clear();
 
@@ -288,7 +286,7 @@ main(int argc, char *argv[])
 static void
 startup(void)
 {
-	int ret;
+	WT_DECL_RET;
 
 	/* Flush/close any logging information. */
 	fclose_and_clear(&g.logfp);

@@ -15,13 +15,15 @@ static int __verify_filefrag_add(
 	WT_SESSION_IMPL *, WT_BLOCK *, const char *, wt_off_t, wt_off_t, bool);
 static int __verify_filefrag_chk(WT_SESSION_IMPL *, WT_BLOCK *);
 static int __verify_last_avail(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *);
-static int __verify_last_truncate(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *);
+static int __verify_set_file_size(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *);
 
 /* The bit list ignores the first block: convert to/from a frag/offset. */
 #define	WT_wt_off_TO_FRAG(block, off)					\
 	((off) / (block)->allocsize - 1)
+#ifdef HAVE_VERBOSE
 #define	WT_FRAG_TO_OFF(block, frag)					\
 	(((wt_off_t)(frag + 1)) * (block)->allocsize)
+#endif
 
 /*
  * __wt_block_verify_start --
@@ -34,6 +36,14 @@ __wt_block_verify_start(WT_SESSION_IMPL *session,
 	WT_CKPT *ckpt;
 	WT_CONFIG_ITEM cval;
 	wt_off_t size;
+
+	/* Configuration: strict behavior on any error. */
+	WT_RET(__wt_config_gets(session, cfg, "strict", &cval));
+	block->verify_strict = cval.val != 0;
+
+	/* Configuration: dump the file's layout. */
+	WT_RET(__wt_config_gets(session, cfg, "dump_layout", &cval));
+	block->verify_layout = cval.val != 0;
 
 	/*
 	 * Find the last checkpoint in the list: if there are none, or the only
@@ -49,15 +59,15 @@ __wt_block_verify_start(WT_SESSION_IMPL *session,
 			return (0);
 	}
 
-	/* Truncate the file to the size of the last checkpoint. */
-	WT_RET(__verify_last_truncate(session, block, ckpt));
+	/* Set the size of the file to the size of the last checkpoint. */
+	WT_RET(__verify_set_file_size(session, block, ckpt));
 
 	/*
 	 * We're done if the file has no data pages (this happens if we verify
 	 * a file immediately after creation or the checkpoint doesn't reflect
 	 * any of the data pages).
 	 */
-	size = block->fh->size;
+	size = block->size;
 	if (size <= block->allocsize)
 		return (0);
 
@@ -105,9 +115,6 @@ __wt_block_verify_start(WT_SESSION_IMPL *session,
 	 */
 	WT_RET(__verify_last_avail(session, block, ckpt));
 
-	/* Configuration: strict behavior on any error. */
-	WT_RET(__wt_config_gets(session, cfg, "strict", &cval));
-	block->verify_strict = cval.val != 0;
 	return (0);
 }
 
@@ -144,21 +151,40 @@ err:	__wt_block_ckpt_destroy(session, ci);
 }
 
 /*
- * __verify_last_truncate --
- *	Truncate the file to the last checkpoint's size.
+ * __verify_set_file_size --
+ *	Set the file size to the last checkpoint's size.
  */
 static int
-__verify_last_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt)
+__verify_set_file_size(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt)
 {
 	WT_BLOCK_CKPT *ci, _ci;
 	WT_DECL_RET;
+	WT_DECL_ITEM(tmp);
 
 	ci = &_ci;
 	WT_RET(__wt_block_ckpt_init(session, ci, ckpt->name));
 	WT_ERR(__wt_block_buffer_to_ckpt(session, block, ckpt->raw.data, ci));
-	WT_ERR(__wt_block_truncate(session, block->fh, ci->file_size));
+
+	if (block->verify_layout) {
+		WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+		WT_ERR(__wt_msg(session, "%s: physical size %s", block->name,
+		    __wt_buf_set_size(
+		    session, (uint64_t)block->size, true, tmp)));
+		WT_ERR(
+		    __wt_msg(session, "%s: correcting to %s checkpoint size %s",
+		    block->name, ckpt->name, __wt_buf_set_size(
+		    session, (uint64_t)ci->file_size, true, tmp)));
+	}
+
+	/*
+	 * Verify is read-only. Set the block's file size information as if we
+	 * truncated the file during checkpoint load, so references to blocks
+	 * after last checkpoint's file size fail.
+	 */
+	block->size = block->extend_size = ci->file_size;
 
 err:	__wt_block_ckpt_destroy(session, ci);
+	__wt_scr_free(session, &tmp);
 	return (ret);
 }
 
@@ -247,9 +273,9 @@ __wt_verify_ckpt_load(
 	}
 
 	/*
-	 * We don't need to list of blocks on a checkpoint's avail list, but we
-	 * read it to ensure it wasn't corrupted.  We could confirm correctness
-	 * of intermediate avail lists (that is, if they're logically the result
+	 * We don't need the blocks on a checkpoint's avail list, but we read it
+	 * to ensure it wasn't corrupted.  We could confirm correctness of the
+	 * intermediate avail lists (that is, if they're logically the result
 	 * of the allocations and discards to this point). We don't because the
 	 * only avail list ever used is the one for the last checkpoint, which
 	 * is separately verified by checking it against all of the blocks found
@@ -318,14 +344,15 @@ __wt_block_verify_addr(WT_SESSION_IMPL *session,
     WT_BLOCK *block, const uint8_t *addr, size_t addr_size)
 {
 	wt_off_t offset;
-	uint32_t cksum, size;
+	uint32_t checksum, size;
 
 	WT_UNUSED(addr_size);
 
 	/* Crack the cookie. */
-	WT_RET(__wt_block_buffer_to_addr(block, addr, &offset, &size, &cksum));
+	WT_RET(
+	    __wt_block_buffer_to_addr(block, addr, &offset, &size, &checksum));
 
-	/* Add to the per-file list. */ 
+	/* Add to the per-file list. */
 	WT_RET(
 	    __verify_filefrag_add(session, block, NULL, offset, size, false));
 
@@ -360,15 +387,15 @@ __verify_filefrag_add(WT_SESSION_IMPL *session, WT_BLOCK *block,
 {
 	uint64_t f, frag, frags, i;
 
-	WT_RET(__wt_verbose(session, WT_VERB_VERIFY,
+	__wt_verbose(session, WT_VERB_VERIFY,
 	    "add file block%s%s%s at %" PRIuMAX "-%" PRIuMAX " (%" PRIuMAX ")",
 	    type == NULL ? "" : " (",
 	    type == NULL ? "" : type,
 	    type == NULL ? "" : ")",
-	    (uintmax_t)offset, (uintmax_t)(offset + size), (uintmax_t)size));
+	    (uintmax_t)offset, (uintmax_t)(offset + size), (uintmax_t)size);
 
 	/* Check each chunk against the total file size. */
-	if (offset + size > block->fh->size)
+	if (offset + size > block->size)
 		WT_RET_MSG(session, WT_ERROR,
 		    "fragment %" PRIuMAX "-%" PRIuMAX " references "
 		    "non-existent file blocks",
@@ -437,6 +464,7 @@ __verify_filefrag_chk(WT_SESSION_IMPL *session, WT_BLOCK *block)
 			__bit_set(block->fragfile, last);
 		}
 
+#ifdef HAVE_VERBOSE
 		if (!WT_VERBOSE_ISSET(session, WT_VERB_VERIFY))
 			continue;
 
@@ -444,6 +472,7 @@ __verify_filefrag_chk(WT_SESSION_IMPL *session, WT_BLOCK *block)
 		    "file range %" PRIuMAX "-%" PRIuMAX " never verified",
 		    (uintmax_t)WT_FRAG_TO_OFF(block, first),
 		    (uintmax_t)WT_FRAG_TO_OFF(block, last));
+#endif
 	}
 	if (count == 0)
 		return (0);
@@ -463,9 +492,9 @@ __verify_ckptfrag_add(
 {
 	uint64_t f, frag, frags, i;
 
-	WT_RET(__wt_verbose(session, WT_VERB_VERIFY,
+	__wt_verbose(session, WT_VERB_VERIFY,
 	    "add checkpoint block at %" PRIuMAX "-%" PRIuMAX " (%" PRIuMAX ")",
-	    (uintmax_t)offset, (uintmax_t)(offset + size), (uintmax_t)size));
+	    (uintmax_t)offset, (uintmax_t)(offset + size), (uintmax_t)size);
 
 	/*
 	 * Check each chunk against the checkpoint's size, a checkpoint should
@@ -528,6 +557,7 @@ __verify_ckptfrag_chk(WT_SESSION_IMPL *session, WT_BLOCK *block)
 			__bit_clear(block->fragckpt, last);
 		}
 
+#ifdef HAVE_VERBOSE
 		if (!WT_VERBOSE_ISSET(session, WT_VERB_VERIFY))
 			continue;
 
@@ -535,6 +565,7 @@ __verify_ckptfrag_chk(WT_SESSION_IMPL *session, WT_BLOCK *block)
 		    "checkpoint range %" PRIuMAX "-%" PRIuMAX " never verified",
 		    (uintmax_t)WT_FRAG_TO_OFF(block, first),
 		    (uintmax_t)WT_FRAG_TO_OFF(block, last));
+#endif
 	}
 
 	if (count == 0)

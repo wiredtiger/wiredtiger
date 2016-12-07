@@ -28,7 +28,6 @@
 
 import os
 import wiredtiger, wttest, run
-from wtscenario import check_scenarios, multiply_scenarios, number_scenarios
 
 # test_join04.py
 #    Join operations
@@ -163,7 +162,6 @@ class test_join04(wttest.WiredTigerTestCase):
             jcursor.close()
             for c in cursors:
                 c.close()
-
 
 if __name__ == '__main__':
     wttest.run()

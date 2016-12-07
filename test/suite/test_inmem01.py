@@ -28,99 +28,82 @@
 
 import wiredtiger, wttest
 from time import sleep
-from helper import simple_populate, simple_populate_check
-from helper import key_populate, value_populate
-from wtscenario import check_scenarios
+from wtdataset import SimpleDataSet
+from wtscenario import make_scenarios
 
 # test_inmem01.py
 #    Test in-memory configuration.
 class test_inmem01(wttest.WiredTigerTestCase):
-    name = 'inmem01'
-    """
-    In memory configuration still creates files on disk, but has limits
-    in terms of how much data can be written.
-    Test various scenarios including:
-     - Add a small amount of data, ensure it is present.
-     - Add more data than would fit into the configured cache.
-     - Fill the cache with data, remove some data, ensure more data can be
-       inserted (after a reasonable amount of time for space to be reclaimed)
-     - Run queries after adding, removing and re-inserting data.
-     - Try out keeping a cursor open while adding new data.
-    """
-    scenarios = check_scenarios([
-        ('col', dict(tablekind='col')),
-        # Fixed length is very slow, disable it for now
-        #('fix', dict(tablekind='fix')),
-        ('row', dict(tablekind='row'))
+    uri = 'table:inmem01'
+    conn_config = \
+        'cache_size=5MB,file_manager=(close_idle_time=0),in_memory=true'
+    table_config = ',memory_page_max=32k,leaf_page_max=4k'
+
+    scenarios = make_scenarios([
+        ('col', dict(keyfmt='r', valuefmt='S')),
+        ('fix', dict(keyfmt='r', valuefmt='8t')),
+        ('row', dict(keyfmt='S', valuefmt='S')),
     ])
 
-    # create an in-memory database
-    conn_config = 'cache_size=5MB,' + \
-                  'file_manager=(close_idle_time=0),in_memory=true'
-
-    def get_table_config(self):
-        kf = 'key_format='
-        vf = 'value_format='
-        if self.tablekind == 'row':
-            kf = kf + 'S'
-        else:
-            kf = kf + 'r'  # record format
-        if self.tablekind == 'fix':
-            vf = vf + '8t'
-        else:
-            vf = vf + 'S'
-        return 'memory_page_max=32k,leaf_page_max=4k,' + kf + ',' + vf
-
+    # Smoke-test in-memory configurations, add a small amount of data and
+    # ensure it's visible.
     def test_insert(self):
-        table_config = self.get_table_config()
-        simple_populate(self,
-            "table:" + self.name, table_config, 1000)
-        # Ensure the data is visible.
-        simple_populate_check(self, 'table:' + self.name, 1000)
+        ds = SimpleDataSet(self, self.uri, 1000, key_format=self.keyfmt,
+            value_format=self.valuefmt, config=self.table_config)
+        ds.populate()
+        ds.check()
 
+    # Add more data than fits into the configured cache and verify it fails.
     def test_insert_over_capacity(self):
-        table_config = self.get_table_config()
         msg = '/WT_CACHE_FULL.*/'
+        ds = SimpleDataSet(self, self.uri, 10000000, key_format=self.keyfmt,
+            value_format=self.valuefmt, config=self.table_config)
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
-            lambda:simple_populate(self,
-                "table:" + self.name, table_config, 10000000), msg)
+            lambda:ds.populate(), msg)
 
-        # Figure out the last key we inserted.
-        cursor = self.session.open_cursor('table:' + self.name, None)
+        # Figure out the last key we successfully inserted, and check all
+        # previous inserts are still there.
+        cursor = self.session.open_cursor(self.uri, None)
         cursor.prev()
         last_key = int(cursor.get_key())
-        simple_populate_check(self, 'table:' + self.name, last_key)
+        ds = SimpleDataSet(self, self.uri, last_key, key_format=self.keyfmt,
+            value_format=self.valuefmt, config=self.table_config)
+        ds.check()
 
+    # Fill the cache with data, remove some data, ensure more data can be
+    # inserted (after a reasonable amount of time for space to be reclaimed).
     def test_insert_over_delete(self):
-        table_config = self.get_table_config()
         msg = '/WT_CACHE_FULL.*/'
+        ds = SimpleDataSet(self, self.uri, 10000000, key_format=self.keyfmt,
+            value_format=self.valuefmt, config=self.table_config)
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
-            lambda:simple_populate(self,
-                "table:" + self.name, table_config, 10000000), msg)
+            lambda:ds.populate(), msg)
 
         # Now that the database contains as much data as will fit into
         # the configured cache, verify removes succeed.
-        cursor = self.session.open_cursor('table:' + self.name, None)
+        cursor = self.session.open_cursor(self.uri, None)
         for i in range(1, 100):
-            cursor.set_key(key_populate(cursor, i))
+            cursor.set_key(ds.key(i))
             cursor.remove()
 
+    # Run queries after adding, removing and re-inserting data.
+    # Try out keeping a cursor open while adding new data.
     def test_insert_over_delete_replace(self):
-        table_config = self.get_table_config()
         msg = '/WT_CACHE_FULL.*/'
+        ds = SimpleDataSet(self, self.uri, 10000000, key_format=self.keyfmt,
+            value_format=self.valuefmt, config=self.table_config)
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
-            lambda:simple_populate(self,
-                "table:" + self.name, table_config, 10000000), msg)
+            lambda:ds.populate(), msg)
 
-        cursor = self.session.open_cursor('table:' + self.name, None)
+        cursor = self.session.open_cursor(self.uri, None)
         cursor.prev()
         last_key = int(cursor.get_key())
 
         # Now that the database contains as much data as will fit into
         # the configured cache, verify removes succeed.
-        cursor = self.session.open_cursor('table:' + self.name, None)
+        cursor = self.session.open_cursor(self.uri, None)
         for i in range(1, last_key / 4, 1):
-            cursor.set_key(key_populate(cursor, i))
+            cursor.set_key(ds.key(i))
             cursor.remove()
 
         cursor.reset()
@@ -128,7 +111,7 @@ class test_inmem01(wttest.WiredTigerTestCase):
         inserted = False
         for i in range(1, 1000):
             try:
-                cursor[key_populate(cursor, 1)] = value_populate(cursor, 1)
+                cursor[ds.key(1)] = ds.value(1)
             except wiredtiger.WiredTigerError:
                 cursor.reset()
                 sleep(1)

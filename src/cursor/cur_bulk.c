@@ -49,7 +49,7 @@ __curbulk_insert_fix(WT_CURSOR *cursor)
 	 * until the bulk cursor is closed.
 	 */
 	CURSOR_API_CALL(cursor, session, insert, btree);
-	WT_STAT_FAST_DATA_INCR(session, cursor_insert_bulk);
+	WT_STAT_DATA_INCR(session, cursor_insert_bulk);
 
 	/*
 	 * If the "append" flag was configured, the application doesn't have to
@@ -99,7 +99,7 @@ __curbulk_insert_fix_bitmap(WT_CURSOR *cursor)
 	 * until the bulk cursor is closed.
 	 */
 	CURSOR_API_CALL(cursor, session, insert, btree);
-	WT_STAT_FAST_DATA_INCR(session, cursor_insert_bulk);
+	WT_STAT_DATA_INCR(session, cursor_insert_bulk);
 
 	WT_CURSOR_CHECKVALUE(cursor);
 
@@ -131,7 +131,7 @@ __curbulk_insert_var(WT_CURSOR *cursor)
 	 * until the bulk cursor is closed.
 	 */
 	CURSOR_API_CALL(cursor, session, insert, btree);
-	WT_STAT_FAST_DATA_INCR(session, cursor_insert_bulk);
+	WT_STAT_DATA_INCR(session, cursor_insert_bulk);
 
 	/*
 	 * If the "append" flag was configured, the application doesn't have to
@@ -239,7 +239,7 @@ __curbulk_insert_row(WT_CURSOR *cursor)
 	 * until the bulk cursor is closed.
 	 */
 	CURSOR_API_CALL(cursor, session, insert, btree);
-	WT_STAT_FAST_DATA_INCR(session, cursor_insert_bulk);
+	WT_STAT_DATA_INCR(session, cursor_insert_bulk);
 
 	WT_CURSOR_CHECKKEY(cursor);
 	WT_CURSOR_CHECKVALUE(cursor);
@@ -286,7 +286,7 @@ __curbulk_insert_row_skip_check(WT_CURSOR *cursor)
 	 * until the bulk cursor is closed.
 	 */
 	CURSOR_API_CALL(cursor, session, insert, btree);
-	WT_STAT_FAST_DATA_INCR(session, cursor_insert_bulk);
+	WT_STAT_DATA_INCR(session, cursor_insert_bulk);
 
 	WT_CURSOR_CHECKKEY(cursor);
 	WT_CURSOR_CHECKVALUE(cursor);
@@ -328,7 +328,6 @@ __wt_curbulk_init(WT_SESSION_IMPL *session,
 		c->insert = skip_sort_check ?
 		    __curbulk_insert_row_skip_check : __curbulk_insert_row;
 		break;
-	WT_ILLEGAL_VALUE(session);
 	}
 
 	cbulk->first_insert = true;

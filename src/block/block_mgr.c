@@ -61,11 +61,11 @@ __bm_block_header(WT_BM *bm)
  *	Write a buffer into a block, creating a checkpoint.
  */
 static int
-__bm_checkpoint(WT_BM *bm,
-    WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckptbase, bool data_cksum)
+__bm_checkpoint(WT_BM *bm, WT_SESSION_IMPL *session,
+    WT_ITEM *buf, WT_CKPT *ckptbase, bool data_checksum)
 {
 	return (__wt_block_checkpoint(
-	    session, bm->block, buf, ckptbase, data_cksum));
+	    session, bm->block, buf, ckptbase, data_checksum));
 }
 
 /*
@@ -73,12 +73,12 @@ __bm_checkpoint(WT_BM *bm,
  *	Write a buffer into a block, creating a checkpoint; readonly version.
  */
 static int
-__bm_checkpoint_readonly(WT_BM *bm,
-    WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckptbase, bool data_cksum)
+__bm_checkpoint_readonly(WT_BM *bm, WT_SESSION_IMPL *session,
+    WT_ITEM *buf, WT_CKPT *ckptbase, bool data_checksum)
 {
 	WT_UNUSED(buf);
 	WT_UNUSED(ckptbase);
-	WT_UNUSED(data_cksum);
+	WT_UNUSED(data_checksum);
 
 	return (__bm_readonly(bm, session));
 }
@@ -103,7 +103,7 @@ __bm_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session,
 		 * of being read into cache buffers.
 		 */
 		WT_RET(__wt_block_map(session,
-		    bm->block, &bm->map, &bm->maplen, &bm->mappingcookie));
+		    bm->block, &bm->map, &bm->maplen, &bm->mapped_cookie));
 
 		/*
 		 * If this handle is for a checkpoint, that is, read-only, there
@@ -149,7 +149,7 @@ __bm_checkpoint_unload(WT_BM *bm, WT_SESSION_IMPL *session)
 	/* Unmap any mapped segment. */
 	if (bm->map != NULL)
 		WT_TRET(__wt_block_unmap(session,
-		    bm->block, bm->map, bm->maplen, &bm->mappingcookie));
+		    bm->block, bm->map, bm->maplen, &bm->mapped_cookie));
 
 	/* Unload the checkpoint. */
 	WT_TRET(__wt_block_checkpoint_unload(session, bm->block, !bm->is_live));
@@ -302,6 +302,20 @@ __bm_is_mapped(WT_BM *bm, WT_SESSION_IMPL *session)
 }
 
 /*
+ * __bm_map_discard --
+ *	Discard a mapped segment.
+ */
+static int
+__bm_map_discard(WT_BM *bm, WT_SESSION_IMPL *session, void *map, size_t len)
+{
+	WT_FILE_HANDLE *handle;
+
+	handle = bm->block->fh->handle;
+	return (handle->fh_map_discard(
+	    handle, (WT_SESSION *)session, map, len, bm->mapped_cookie));
+}
+
+/*
  * __bm_salvage_end --
  *	End a block manager salvage.
  */
@@ -411,11 +425,9 @@ __bm_stat(WT_BM *bm, WT_SESSION_IMPL *session, WT_DSRC_STATS *stats)
  *	Flush a file to disk.
  */
 static int
-__bm_sync(WT_BM *bm, WT_SESSION_IMPL *session, bool async)
+__bm_sync(WT_BM *bm, WT_SESSION_IMPL *session, bool block)
 {
-	return (async ?
-	    __wt_fsync_async(session, bm->block->fh) :
-	    __wt_fsync(session, bm->block->fh));
+	return (__wt_fsync(session, bm->block->fh, block));
 }
 
 /*
@@ -467,11 +479,11 @@ __bm_verify_start(WT_BM *bm,
  *	Write a buffer into a block, returning the block's address cookie.
  */
 static int
-__bm_write(WT_BM *bm, WT_SESSION_IMPL *session,
-    WT_ITEM *buf, uint8_t *addr, size_t *addr_sizep, bool data_cksum)
+__bm_write(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf,
+    uint8_t *addr, size_t *addr_sizep, bool data_checksum, bool checkpoint_io)
 {
-	return (__wt_block_write(
-	    session, bm->block, buf, addr, addr_sizep, data_cksum));
+	return (__wt_block_write(session,
+	    bm->block, buf, addr, addr_sizep, data_checksum, checkpoint_io));
 }
 
 /*
@@ -480,13 +492,14 @@ __bm_write(WT_BM *bm, WT_SESSION_IMPL *session,
  * readonly version.
  */
 static int
-__bm_write_readonly(WT_BM *bm, WT_SESSION_IMPL *session,
-    WT_ITEM *buf, uint8_t *addr, size_t *addr_sizep, bool data_cksum)
+__bm_write_readonly(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf,
+    uint8_t *addr, size_t *addr_sizep, bool data_checksum, bool checkpoint_io)
 {
 	WT_UNUSED(buf);
 	WT_UNUSED(addr);
 	WT_UNUSED(addr_sizep);
-	WT_UNUSED(data_cksum);
+	WT_UNUSED(data_checksum);
+	WT_UNUSED(checkpoint_io);
 
 	return (__bm_readonly(bm, session));
 }
@@ -534,6 +547,7 @@ __bm_method_set(WT_BM *bm, bool readonly)
 	bm->compact_start = __bm_compact_start;
 	bm->free = __bm_free;
 	bm->is_mapped = __bm_is_mapped;
+	bm->map_discard = __bm_map_discard;
 	bm->preload = __wt_bm_preload;
 	bm->read = __wt_bm_read;
 	bm->salvage_end = __bm_salvage_end;
@@ -592,4 +606,29 @@ __wt_block_manager_open(WT_SESSION_IMPL *session,
 
 err:	WT_TRET(bm->close(bm, session));
 	return (ret);
+}
+
+/*
+ * __wt_block_panic --
+ * 	Report an error, then panic the handle and the system.
+ */
+int
+__wt_block_panic(WT_SESSION_IMPL *session, int error, const char *fmt, ...)
+    WT_GCC_FUNC_ATTRIBUTE((cold))
+    WT_GCC_FUNC_ATTRIBUTE((format (printf, 3, 4)))
+{
+	va_list ap;
+
+	/*
+	 * Ignore error returns from underlying event handlers, we already have
+	 * an error value to return.
+	 */
+	va_start(ap, fmt);
+	WT_IGNORE_RET(__wt_eventv(session, false, error, NULL, 0, fmt, ap));
+	va_end(ap);
+
+	/* Switch the handle into read-only mode. */
+	__bm_method_set(S2BT(session)->bm, true);
+
+	return (__wt_panic(session));
 }

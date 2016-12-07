@@ -27,13 +27,13 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wtscenario import check_scenarios
+from wtscenario import make_scenarios
 
 # test_txn01.py
 #    Transactions: basic functionality
 class test_txn01(wttest.WiredTigerTestCase):
     nentries = 1000
-    scenarios = check_scenarios([
+    scenarios = make_scenarios([
         ('col-f', dict(uri='file:text_txn01',key_format='r',value_format='S')),
         ('col-t', dict(uri='table:text_txn01',key_format='r',value_format='S')),
         ('fix-f', dict(uri='file:text_txn01',key_format='r',value_format='8t')),
@@ -131,7 +131,6 @@ class test_txn01(wttest.WiredTigerTestCase):
         self.session.commit_transaction()
         self.check(cursor, self.nentries, self.nentries)
 
-
 # Test that read-committed is the default isolation level.
 class test_read_committed_default(wttest.WiredTigerTestCase):
     uri = 'table:test_txn'
@@ -161,7 +160,6 @@ class test_read_committed_default(wttest.WiredTigerTestCase):
         self.assertEqual(self.cursor_count(cursor), 1)
         s.commit_transaction()
         s.close()
-
 
 if __name__ == '__main__':
     wttest.run()

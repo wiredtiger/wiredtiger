@@ -52,7 +52,8 @@ struct __wt_extlist {
 	uint32_t entries;			/* Entry count */
 
 	wt_off_t offset;			/* Written extent offset */
-	uint32_t cksum, size;			/* Written extent cksum, size */
+	uint32_t checksum;			/* Written extent checksum */
+	uint32_t size;				/* Written extent size */
 
 	bool	 track_size;			/* Maintain per-size skiplist */
 
@@ -128,7 +129,7 @@ struct __wt_block_ckpt {
 	uint8_t	 version;			/* Version */
 
 	wt_off_t root_offset;			/* The root */
-	uint32_t root_cksum, root_size;
+	uint32_t root_checksum, root_size;
 
 	WT_EXTLIST alloc;			/* Extents allocated */
 	WT_EXTLIST avail;			/* Extents available */
@@ -174,6 +175,7 @@ struct __wt_bm {
 	int (*compact_start)(WT_BM *, WT_SESSION_IMPL *);
 	int (*free)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
 	bool (*is_mapped)(WT_BM *, WT_SESSION_IMPL *);
+	int (*map_discard)(WT_BM *, WT_SESSION_IMPL *, void *, size_t);
 	int (*preload)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
 	int (*read)
 	    (WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, const uint8_t *, size_t);
@@ -191,14 +193,14 @@ struct __wt_bm {
 	int (*verify_start)
 	    (WT_BM *, WT_SESSION_IMPL *, WT_CKPT *, const char *[]);
 	int (*write) (WT_BM *,
-	    WT_SESSION_IMPL *, WT_ITEM *, uint8_t *, size_t *, bool);
+	    WT_SESSION_IMPL *, WT_ITEM *, uint8_t *, size_t *, bool, bool);
 	int (*write_size)(WT_BM *, WT_SESSION_IMPL *, size_t *);
 
 	WT_BLOCK *block;			/* Underlying file */
 
-	void  *map;				/* Mapped region */
-	size_t maplen;
-	void *mappingcookie;
+	void	*map;				/* Mapped region */
+	size_t	 maplen;
+	void	*mapped_cookie;
 
 	/*
 	 * There's only a single block manager handle that can be written, all
@@ -217,9 +219,13 @@ struct __wt_block {
 
 	/* A list of block manager handles, sharing a file descriptor. */
 	uint32_t ref;			/* References */
-	WT_FH	*fh;			/* Backing file handle */
 	TAILQ_ENTRY(__wt_block) q;	/* Linked list of handles */
 	TAILQ_ENTRY(__wt_block) hashq;	/* Hashed list of handles */
+
+	WT_FH	*fh;			/* Backing file handle */
+	wt_off_t size;			/* File size */
+	wt_off_t extend_size;		/* File extended size */
+	wt_off_t extend_len;		/* File extend chunk size */
 
 	/* Configuration information, set when the file is opened. */
 	uint32_t allocfirst;		/* Allocation is first-fit */
@@ -256,6 +262,7 @@ struct __wt_block {
 
 				/* Verification support */
 	bool	   verify;		/* If performing verification */
+	bool	   verify_layout;	/* Print out file layout information */
 	bool	   verify_strict;	/* Fail hard on any error */
 	wt_off_t   verify_size;		/* Checkpoint's file size */
 	WT_EXTLIST verify_alloc;	/* Verification allocation list */
@@ -276,7 +283,7 @@ struct __wt_block_desc {
 #define	WT_BLOCK_MINOR_VERSION	0
 	uint16_t minorv;		/* 06-07: Minor version */
 
-	uint32_t cksum;			/* 08-11: Description block checksum */
+	uint32_t checksum;		/* 08-11: Description block checksum */
 
 	uint32_t unused;		/* 12-15: Padding */
 };
@@ -299,7 +306,7 @@ __wt_block_desc_byteswap(WT_BLOCK_DESC *desc)
 	desc->magic = __wt_bswap32(desc->magic);
 	desc->majorv = __wt_bswap16(desc->majorv);
 	desc->minorv = __wt_bswap16(desc->minorv);
-	desc->cksum = __wt_bswap32(desc->cksum);
+	desc->checksum = __wt_bswap32(desc->checksum);
 #else
 	WT_UNUSED(desc);
 #endif
@@ -329,7 +336,7 @@ struct __wt_block_header {
 	 * stored in the disk header.  This is for salvage, so salvage knows it
 	 * has found a page that may be useful.
 	 */
-	uint32_t cksum;			/* 04-07: checksum */
+	uint32_t checksum;		/* 04-07: checksum */
 
 #define	WT_BLOCK_DATA_CKSUM	0x01	/* Block data is part of the checksum */
 	uint8_t flags;			/* 08: flags */
@@ -358,7 +365,7 @@ __wt_block_header_byteswap_copy(WT_BLOCK_HEADER *from, WT_BLOCK_HEADER *to)
 	*to = *from;
 #ifdef WORDS_BIGENDIAN
 	to->disk_size = __wt_bswap32(from->disk_size);
-	to->cksum = __wt_bswap32(from->cksum);
+	to->checksum = __wt_bswap32(from->checksum);
 #endif
 }
 
@@ -399,3 +406,15 @@ __wt_block_header_byteswap(WT_BLOCK_HEADER *blk)
  */
 #define	WT_BLOCK_COMPRESS_SKIP	64
 #define	WT_BLOCK_ENCRYPT_SKIP	WT_BLOCK_HEADER_BYTE_SIZE
+
+/*
+ * __wt_block_header --
+ *	Return the size of the block-specific header.
+ */
+static inline u_int
+__wt_block_header(WT_BLOCK *block)
+{
+	WT_UNUSED(block);
+
+	return ((u_int)WT_BLOCK_HEADER_SIZE);
+}

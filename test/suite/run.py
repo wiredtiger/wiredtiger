@@ -51,7 +51,7 @@ elif os.path.isfile(os.path.join(wt_disttop, 'wt.exe')):
     wt_builddir = wt_disttop
 else:
     print 'Unable to find useable WiredTiger build'
-    sys.exit(False)
+    sys.exit(1)
 
 # Cannot import wiredtiger and supporting utils until we set up paths
 # We want our local tree in front of any installed versions of WiredTiger.
@@ -82,11 +82,14 @@ Options:\n\
   -D dir  | --dir dir            use dir rather than WT_TEST.\n\
                                  dir is removed/recreated as a first step.\n\
   -d      | --debug              run with \'pdb\', the python debugger\n\
+  -n      | --dry-run            perform a dry-run, listing all scenarios to\n\
+                                 be run without executing any.\n\
   -g      | --gdb                all subprocesses (like calls to wt) use gdb\n\
   -h      | --help               show this message\n\
   -j N    | --parallel N         run all tests in parallel using N processes\n\
   -l      | --long               run the entire test suite\n\
   -p      | --preserve           preserve output files in WT_TEST/<testname>\n\
+  -s N    | --scenario N         use scenario N (N can be number or symbolic)\n\
   -t      | --timestamp          name WT_TEST according to timestamp\n\
   -v N    | --verbose N          set verboseness to N (0<=N<=3, default=1)\n\
 \n\
@@ -95,15 +98,27 @@ Tests:\n\
   may be a subsuite name (e.g. \'base\' runs test_base*.py)\n\
 \n\
   When -C or -c are present, there may not be any tests named.\n\
+  When -s is present, there must be a test named.\n\
 '
 
 # capture the category (AKA 'subsuite') part of a test name,
 # e.g. test_util03 -> util
 reCatname = re.compile(r"test_([^0-9]+)[0-9]*")
 
-def addScenarioTests(tests, loader, testname):
+def restrictScenario(testcases, restrict):
+    if restrict == '':
+        return testcases
+    elif restrict.isdigit():
+        s = int(restrict)
+        return [t for t in testcases
+            if hasattr(t, 'scenario_number') and t.scenario_number == s]
+    else:
+        return [t for t in testcases
+            if hasattr(t, 'scenario_name') and t.scenario_name == restrict]
+
+def addScenarioTests(tests, loader, testname, scenario):
     loaded = loader.loadTestsFromName(testname)
-    tests.addTests(generate_scenarios(loaded))
+    tests.addTests(restrictScenario(generate_scenarios(loaded), scenario))
 
 def configRecord(cmap, tup):
     """
@@ -195,20 +210,20 @@ def configApply(suites, configfilename, configwrite):
             json.dump(configmap, f, sort_keys=True, indent=4)
     return newsuite
 
-def testsFromArg(tests, loader, arg):
+def testsFromArg(tests, loader, arg, scenario):
     # If a group of test is mentioned, do all tests in that group
     # e.g. 'run.py base'
     groupedfiles = glob.glob(suitedir + os.sep + 'test_' + arg + '*.py')
     if len(groupedfiles) > 0:
         for file in groupedfiles:
-            testsFromArg(tests, loader, os.path.basename(file))
+            testsFromArg(tests, loader, os.path.basename(file), scenario)
         return
 
     # Explicit test class names
     if not arg[0].isdigit():
         if arg.endswith('.py'):
             arg = arg[:-3]
-        addScenarioTests(tests, loader, arg)
+        addScenarioTests(tests, loader, arg, scenario)
         return
 
     # Deal with ranges
@@ -217,17 +232,18 @@ def testsFromArg(tests, loader, arg):
     else:
         start, end = int(arg), int(arg)
     for t in xrange(start, end+1):
-        addScenarioTests(tests, loader, 'test%03d' % t)
+        addScenarioTests(tests, loader, 'test%03d' % t, scenario)
 
 if __name__ == '__main__':
     tests = unittest.TestSuite()
 
     # Turn numbers and ranges into test module names
-    preserve = timestamp = debug = gdbSub = longtest = False
+    preserve = timestamp = debug = dryRun = gdbSub = longtest = False
     parallel = 0
     configfile = None
     configwrite = False
     dirarg = None
+    scenario = ''
     verbose = 1
     args = sys.argv[1:]
     testargs = []
@@ -241,29 +257,38 @@ if __name__ == '__main__':
             if option == '-dir' or option == 'D':
                 if dirarg != None or len(args) == 0:
                     usage()
-                    sys.exit(False)
+                    sys.exit(2)
                 dirarg = args.pop(0)
                 continue
             if option == '-debug' or option == 'd':
                 debug = True
+                continue
+            if option == '-dry-run' or option == 'n':
+                dryRun = True
                 continue
             if option == '-gdb' or option == 'g':
                 gdbSub = True
                 continue
             if option == '-help' or option == 'h':
                 usage()
-                sys.exit(True)
+                sys.exit(0)
             if option == '-long' or option == 'l':
                 longtest = True
                 continue
             if option == '-parallel' or option == 'j':
                 if parallel != 0 or len(args) == 0:
                     usage()
-                    sys.exit(False)
+                    sys.exit(2)
                 parallel = int(args.pop(0))
                 continue
             if option == '-preserve' or option == 'p':
                 preserve = True
+                continue
+            if option == '-scenario' or option == 's':
+                if scenario != '' or len(args) == 0:
+                    usage()
+                    sys.exit(2)
+                scenario = args.pop(0)
                 continue
             if option == '-timestamp' or option == 't':
                 timestamp = True
@@ -271,7 +296,7 @@ if __name__ == '__main__':
             if option == '-verbose' or option == 'v':
                 if len(args) == 0:
                     usage()
-                    sys.exit(False)
+                    sys.exit(2)
                 verbose = int(args.pop(0))
                 if verbose > 3:
                         verbose = 3
@@ -281,19 +306,19 @@ if __name__ == '__main__':
             if option == '-config' or option == 'c':
                 if configfile != None or len(args) == 0:
                     usage()
-                    sys.exit(False)
+                    sys.exit(2)
                 configfile = args.pop(0)
                 continue
             if option == '-configcreate' or option == 'C':
                 if configfile != None or len(args) == 0:
                     usage()
-                    sys.exit(False)
+                    sys.exit(2)
                 configfile = args.pop(0)
                 configwrite = True
                 continue
             print 'unknown arg: ' + arg
             usage()
-            sys.exit(False)
+            sys.exit(2)
         testargs.append(arg)
 
     # All global variables should be set before any test classes are loaded.
@@ -303,19 +328,33 @@ if __name__ == '__main__':
 
     # Without any tests listed as arguments, do discovery
     if len(testargs) == 0:
+        if scenario != '':
+            sys.stderr.write(
+                'run.py: specifying a scenario requires a test name\n')
+            usage()
+            sys.exit(2)
         from discover import defaultTestLoader as loader
         suites = loader.discover(suitedir)
         suites = sorted(suites, key=lambda c: str(list(c)[0]))
         if configfile != None:
             suites = configApply(suites, configfile, configwrite)
-        tests.addTests(generate_scenarios(suites))
+        tests.addTests(restrictScenario(generate_scenarios(suites), ''))
     else:
         for arg in testargs:
-            testsFromArg(tests, loader, arg)
+            testsFromArg(tests, loader, arg, scenario)
 
     if debug:
         import pdb
         pdb.set_trace()
+    if dryRun:
+        # We have to de-dupe here as some scenarios overlap in the same suite
+        dryOutput = set()
+        for test in tests:
+            dryOutput.add(test.shortDesc())
+        for line in dryOutput:
+            print line
+    else:
+        result = wttest.runsuite(tests, parallel)
+        sys.exit(0 if result.wasSuccessful() else 1)
 
-    result = wttest.runsuite(tests, parallel)
-    sys.exit(not result.wasSuccessful())
+    sys.exit(0)

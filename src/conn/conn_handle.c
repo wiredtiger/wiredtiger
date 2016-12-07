@@ -41,26 +41,31 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
 	TAILQ_INIT(&conn->lsm_manager.appqh);
 	TAILQ_INIT(&conn->lsm_manager.managerqh);
 
+	/* Random numbers. */
+	__wt_random_init(&session->rnd);
+
 	/* Configuration. */
 	WT_RET(__wt_conn_config_init(session));
 
 	/* Statistics. */
-	__wt_stat_connection_init(conn);
+	WT_RET(__wt_stat_connection_init(session, conn));
 
-	/* Locks. */
+	/* Spinlocks. */
 	WT_RET(__wt_spin_init(session, &conn->api_lock, "api"));
-	WT_RET(__wt_spin_init(session, &conn->checkpoint_lock, "checkpoint"));
-	WT_RET(__wt_spin_init(session, &conn->dhandle_lock, "data handle"));
+	WT_SPIN_INIT_TRACKED(session, &conn->checkpoint_lock, checkpoint);
+	WT_SPIN_INIT_TRACKED(session, &conn->dhandle_lock, handle_list);
 	WT_RET(__wt_spin_init(session, &conn->encryptor_lock, "encryptor"));
 	WT_RET(__wt_spin_init(session, &conn->fh_lock, "file list"));
-	WT_RET(__wt_rwlock_alloc(session,
-	    &conn->hot_backup_lock, "hot backup"));
 	WT_RET(__wt_spin_init(session, &conn->las_lock, "lookaside table"));
-	WT_RET(__wt_spin_init(session, &conn->metadata_lock, "metadata"));
+	WT_SPIN_INIT_TRACKED(session, &conn->metadata_lock, metadata);
 	WT_RET(__wt_spin_init(session, &conn->reconfig_lock, "reconfigure"));
-	WT_RET(__wt_spin_init(session, &conn->schema_lock, "schema"));
-	WT_RET(__wt_spin_init(session, &conn->table_lock, "table creation"));
+	WT_SPIN_INIT_TRACKED(session, &conn->schema_lock, schema);
+	WT_SPIN_INIT_TRACKED(session, &conn->table_lock, table);
 	WT_RET(__wt_spin_init(session, &conn->turtle_lock, "turtle file"));
+
+	/* Read-write locks */
+	WT_RET(__wt_rwlock_alloc(
+	    session, &conn->hot_backup_lock, "hot backup"));
 
 	WT_RET(__wt_calloc_def(session, WT_PAGE_LOCKS, &conn->page_lock));
 	WT_CACHE_LINE_ALIGNMENT_VERIFY(session, conn->page_lock);
@@ -119,14 +124,6 @@ __wt_connection_destroy(WT_CONNECTION_IMPL *conn)
 
 	session = conn->default_session;
 
-	/*
-	 * Close remaining open files (before discarding the mutex, the
-	 * underlying file-close code uses the mutex to guard lists of
-	 * open files.
-	 */
-	if (conn->lock_fh)
-		WT_TRET(__wt_close(session, &conn->lock_fh));
-
 	/* Remove from the list of connections. */
 	__wt_spin_lock(session, &__wt_process.spinlock);
 	TAILQ_REMOVE(&__wt_process.connqh, conn, q);
@@ -143,7 +140,7 @@ __wt_connection_destroy(WT_CONNECTION_IMPL *conn)
 	__wt_spin_destroy(session, &conn->dhandle_lock);
 	__wt_spin_destroy(session, &conn->encryptor_lock);
 	__wt_spin_destroy(session, &conn->fh_lock);
-	WT_TRET(__wt_rwlock_destroy(session, &conn->hot_backup_lock));
+	__wt_rwlock_destroy(session, &conn->hot_backup_lock);
 	__wt_spin_destroy(session, &conn->las_lock);
 	__wt_spin_destroy(session, &conn->metadata_lock);
 	__wt_spin_destroy(session, &conn->reconfig_lock);
@@ -154,11 +151,17 @@ __wt_connection_destroy(WT_CONNECTION_IMPL *conn)
 		__wt_spin_destroy(session, &conn->page_lock[i]);
 	__wt_free(session, conn->page_lock);
 
+	/* Destroy the file-system configuration. */
+	if (conn->file_system != NULL && conn->file_system->terminate != NULL)
+		WT_TRET(conn->file_system->terminate(
+		    conn->file_system, (WT_SESSION *)session));
+
 	/* Free allocated memory. */
 	__wt_free(session, conn->cfg);
 	__wt_free(session, conn->home);
 	__wt_free(session, conn->error_prefix);
 	__wt_free(session, conn->sessions);
+	__wt_stat_connection_discard(session, conn);
 
 	__wt_free(NULL, conn);
 	return (ret);

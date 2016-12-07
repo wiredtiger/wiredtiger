@@ -28,7 +28,7 @@
 
 import os
 from suite_subprocess import suite_subprocess
-from wtscenario import multiply_scenarios, number_scenarios
+from wtscenario import make_scenarios
 import wiredtiger, wttest
 
 # test_huffman01.py
@@ -52,7 +52,7 @@ class test_huffman01(wttest.WiredTigerTestCase, suite_subprocess):
         ('utf8', dict(huffval=',huffman_value=utf8t8file',vfile='t8file')),
         ('utf16', dict(huffval=',huffman_value=utf16t16file',vfile='t16file')),
     ]
-    scenarios = number_scenarios(multiply_scenarios('.', huffkey, huffval))
+    scenarios = make_scenarios(huffkey, huffval)
 
     def test_huffman(self):
         dir = self.conn.get_home()
@@ -71,7 +71,6 @@ class test_huffman01(wttest.WiredTigerTestCase, suite_subprocess):
             f.close()
         config=self.huffkey + self.huffval
         self.session.create(self.table_name, config)
-
 
 # Test Huffman encoding ranges.
 class test_huffman_range(wttest.WiredTigerTestCase):
@@ -122,7 +121,6 @@ class test_huffman_range(wttest.WiredTigerTestCase):
         msg = '/duplicate symbol/'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.create(self.table_name, config), msg)
-
 
 if __name__ == '__main__':
     wttest.run()

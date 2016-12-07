@@ -134,7 +134,6 @@ class CapturedFd(object):
                           gotstr + '"')
         self.expectpos = os.path.getsize(self.filename)
 
-
 class TestSuiteConnection(object):
     def __init__(self, conn, connlist):
         connlist.append(conn)
@@ -152,7 +151,6 @@ class TestSuiteConnection(object):
             return getattr(self, attr)
         else:
             return getattr(self._conn, attr)
-
 
 class WiredTigerTestCase(unittest.TestCase):
     _globalSetup = False
@@ -212,9 +210,15 @@ class WiredTigerTestCase(unittest.TestCase):
         # help distinguish tests.
         scen = ''
         if hasattr(self, 'scenario_number') and hasattr(self, 'scenario_name'):
-            scen = '(scenario ' + str(self.scenario_number) + \
-                   ': ' + self.scenario_name + ')'
+            scen = ' -s ' + str(self.scenario_number) + \
+                   ' (' + self.scenario_name + ')'
         return self.simpleName() + scen
+
+    def shortDesc(self):
+        ret_str = ''
+        if hasattr(self, 'scenario_number'):
+            ret_str = ' -s ' + str(self.scenario_number)
+        return self.simpleName() + ret_str
 
     def simpleName(self):
         return "%s.%s.%s" %  (self.__module__,
@@ -259,20 +263,20 @@ class WiredTigerTestCase(unittest.TestCase):
             self.conn.close()
             self.conn = None
 
-    def open_conn(self):
+    def open_conn(self, directory="."):
         """
         Open the connection if already closed.
         """
         if self.conn == None:
-            self.conn = self.setUpConnectionOpen(".")
+            self.conn = self.setUpConnectionOpen(directory)
             self.session = self.setUpSessionOpen(self.conn)
 
-    def reopen_conn(self):
+    def reopen_conn(self, directory="."):
         """
         Reopen the connection.
         """
         self.close_conn()
-        self.open_conn()
+        self.open_conn(directory)
 
     def setUp(self):
         if not hasattr(self.__class__, 'wt_ntests'):
@@ -293,6 +297,8 @@ class WiredTigerTestCase(unittest.TestCase):
             raise Exception(self.testdir + ": cannot remove directory")
         os.makedirs(self.testdir)
         os.chdir(self.testdir)
+        with open('testname.txt', 'w+') as namefile:
+            namefile.write(str(self) + '\n')
         self.fdSetUp()
         # tearDown needs a conn field, set it here in case the open fails.
         self.conn = None
@@ -516,7 +522,6 @@ class WiredTigerTestCase(unittest.TestCase):
     def className(self):
         return self.__class__.__name__
 
-
 def longtest(description):
     """
     Used as a function decorator, for example, @wttest.longtest("description").
@@ -551,4 +556,4 @@ def runsuite(suite, parallel):
 
 def run(name='__main__'):
     result = runsuite(unittest.TestLoader().loadTestsFromName(name), False)
-    sys.exit(not result.wasSuccessful())
+    sys.exit(0 if result.wasSuccessful() else 1)

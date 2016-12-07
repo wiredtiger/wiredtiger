@@ -54,7 +54,7 @@ __wt_schema_open_colgroups(WT_SESSION_IMPL *session, WT_TABLE *table)
 
 	WT_RET(__wt_scr_alloc(session, 0, &buf));
 
-	WT_ERR(__wt_config_subinit(session, &cparser, &table->cgconf));
+	__wt_config_subinit(session, &cparser, &table->cgconf);
 
 	/* Open each column group. */
 	for (i = 0; i < WT_COLGROUPS(table); i++) {
@@ -175,7 +175,7 @@ __open_index(WT_SESSION_IMPL *session, WT_TABLE *table, WT_INDEX *idx)
 	    session, idx->config, "columns", &idx->colconf));
 
 	/* Start with the declared index columns. */
-	WT_ERR(__wt_config_subinit(session, &colconf, &idx->colconf));
+	__wt_config_subinit(session, &colconf, &idx->colconf);
 	for (npublic_cols = 0;
 	    (ret = __wt_config_next(&colconf, &ckey, &cval)) == 0;
 	    ++npublic_cols)
@@ -202,7 +202,7 @@ __open_index(WT_SESSION_IMPL *session, WT_TABLE *table, WT_INDEX *idx)
 	 * Now add any primary key columns from the table that are not
 	 * already part of the index key.
 	 */
-	WT_ERR(__wt_config_subinit(session, &colconf, &table->colconf));
+	__wt_config_subinit(session, &colconf, &table->colconf);
 	for (i = 0; i < table->nkey_columns &&
 	    (ret = __wt_config_next(&colconf, &ckey, &cval)) == 0;
 	    i++) {
@@ -427,6 +427,8 @@ __schema_open_table(WT_SESSION_IMPL *session,
 	const char *tconfig;
 	char *tablename;
 
+	*tablep = NULL;
+
 	cursor = NULL;
 	table = NULL;
 	tablename = NULL;
@@ -463,7 +465,7 @@ __schema_open_table(WT_SESSION_IMPL *session,
 	 * Count the number of columns: tables are "simple" if the columns
 	 * are not named.
 	 */
-	WT_ERR(__wt_config_subinit(session, &cparser, &table->colconf));
+	__wt_config_subinit(session, &cparser, &table->colconf);
 	table->is_simple = true;
 	while ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0)
 		table->is_simple = false;
@@ -480,7 +482,7 @@ __schema_open_table(WT_SESSION_IMPL *session,
 	    "colgroups", &table->cgconf));
 
 	/* Count the number of column groups. */
-	WT_ERR(__wt_config_subinit(session, &cparser, &table->cgconf));
+	__wt_config_subinit(session, &cparser, &table->cgconf);
 	table->ncolgroups = 0;
 	while ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0)
 		++table->ncolgroups;
@@ -527,6 +529,8 @@ __wt_schema_get_colgroup(WT_SESSION_IMPL *session,
 	const char *tablename, *tend;
 	u_int i;
 
+	if (tablep != NULL)
+		*tablep = NULL;
 	*colgroupp = NULL;
 
 	tablename = uri;
@@ -571,6 +575,8 @@ __wt_schema_get_index(WT_SESSION_IMPL *session,
 	const char *tablename, *tend;
 	u_int i;
 
+	if (tablep != NULL)
+		*tablep = NULL;
 	*indexp = NULL;
 
 	tablename = uri;

@@ -38,14 +38,14 @@
 
 #ifdef OPT_DEFINE_DESC
 #define	DEF_OPT_AS_BOOL(name, initval, desc)				\
-	{ #name, desc, #initval, BOOL_TYPE, offsetof(CONFIG, name) },
+	{ #name, desc, #initval, BOOL_TYPE, offsetof(CONFIG_OPTS, name) },
 #define	DEF_OPT_AS_CONFIG_STRING(name, initval, desc)			\
 	{ #name, desc, initval, CONFIG_STRING_TYPE,                    \
-	offsetof(CONFIG, name) },
+	offsetof(CONFIG_OPTS, name) },
 #define	DEF_OPT_AS_STRING(name, initval, desc)				\
-	{ #name, desc, initval, STRING_TYPE, offsetof(CONFIG, name) },
+	{ #name, desc, initval, STRING_TYPE, offsetof(CONFIG_OPTS, name) },
 #define	DEF_OPT_AS_UINT32(name, initval, desc)				\
-	{ #name, desc, #initval, UINT32_TYPE, offsetof(CONFIG, name) },
+	{ #name, desc, #initval, UINT32_TYPE, offsetof(CONFIG_OPTS, name) },
 #endif
 
 #ifdef OPT_DEFINE_DEFAULT
@@ -57,13 +57,13 @@
 
 #ifdef OPT_DEFINE_DOXYGEN
 #define	DEF_OPT_AS_BOOL(name, initval, desc)				\
-	{ #name, desc, #initval, BOOL_TYPE, 0 },
+	OPTION #name, desc, #initval, boolean
 #define	DEF_OPT_AS_CONFIG_STRING(name, initval, desc)			\
-	{ #name, desc, initval, CONFIG_STRING_TYPE, 0 },
+	OPTION #name, desc, initval, string
 #define	DEF_OPT_AS_STRING(name, initval, desc)				\
-	{ #name, desc, initval, STRING_TYPE, 0 },
+	OPTION #name, desc, initval, string
 #define	DEF_OPT_AS_UINT32(name, initval, desc)				\
-	{ #name, desc, #initval, UINT32_TYPE, 0 },
+	OPTION #name, desc, #initval, unsigned int
 #endif
 
 /*
@@ -94,17 +94,20 @@ DEF_OPT_AS_UINT32(checkpoint_stress_rate, 0,
 DEF_OPT_AS_UINT32(checkpoint_threads, 0, "number of checkpoint threads")
 DEF_OPT_AS_CONFIG_STRING(conn_config, "create",
     "connection configuration string")
+DEF_OPT_AS_BOOL(close_conn, 1, "properly close connection at end of test. "
+    "Setting to false does not sync data to disk and can result in lost "
+    "data after test exits.")
 DEF_OPT_AS_BOOL(compact, 0, "post-populate compact for LSM merging activity")
 DEF_OPT_AS_STRING(compression, "none",
     "compression extension.  Allowed configuration values are: "
-    "'none', 'lz4', 'snappy', 'zlib'")
+    "'none', 'lz4', 'snappy', 'zlib', 'zstd'")
 DEF_OPT_AS_BOOL(create, 1,
     "do population phase; false to use existing database")
 DEF_OPT_AS_UINT32(database_count, 1,
     "number of WiredTiger databases to use. Each database will execute the"
     " workload using a separate home directory and complete set of worker"
     " threads")
-DEF_OPT_AS_UINT32(drop_tables, 0,
+DEF_OPT_AS_BOOL(drop_tables, 0,
     "Whether to drop all tables at the end of the run, and report time taken"
     " to do the drop.")
 DEF_OPT_AS_UINT32(icount, 5000,
@@ -120,6 +123,8 @@ DEF_OPT_AS_BOOL(insert_rmw, 0,
     "execute a read prior to each insert in workload phase")
 DEF_OPT_AS_UINT32(key_sz, 20, "key size")
 DEF_OPT_AS_BOOL(log_partial, 0, "perform partial logging on first table only.")
+DEF_OPT_AS_BOOL(log_like_table, 0,
+    "Append all modification operations to another shared table.")
 DEF_OPT_AS_UINT32(min_throughput, 0,
     "notify if any throughput measured is less than this amount. "
     "Aborts or prints warning based on min_throughput_fatal setting. "
@@ -144,6 +149,7 @@ DEF_OPT_AS_UINT32(random_range, 0,
     "if non zero choose a value from within this range as the key for "
     "insert operations")
 DEF_OPT_AS_BOOL(random_value, 0, "generate random content for the value")
+DEF_OPT_AS_BOOL(range_partition, 0, "partition data by range (vs hash)")
 DEF_OPT_AS_UINT32(read_range, 0, "scan a range of keys after each search")
 DEF_OPT_AS_BOOL(readonly, 0,
     "reopen the connection between populate and workload phases in readonly "
@@ -163,6 +169,8 @@ DEF_OPT_AS_UINT32(sample_rate, 50,
     "how often the latency of operations is measured. One for every operation,"
     "two for every second operation, three for every third operation etc.")
 DEF_OPT_AS_CONFIG_STRING(sess_config, "", "session configuration string")
+DEF_OPT_AS_UINT32(session_count_idle, 0,
+    "number of idle sessions to create. Default 0.")
 DEF_OPT_AS_CONFIG_STRING(table_config,
     "key_format=S,value_format=S,type=lsm,exclusive=true,"
     "allocation_size=4kb,internal_page_max=64kb,leaf_page_max=4kb,"
@@ -188,9 +196,11 @@ DEF_OPT_AS_STRING(threads, "", "workload configuration: each 'count' "
     "'updates', 'truncate', 'truncate_pct' and 'truncate_count'. There are "
     "also behavior modifiers, supported modifiers are 'ops_per_txn'")
 DEF_OPT_AS_CONFIG_STRING(transaction_config, "",
-    "transaction configuration string, relevant when populate_opts_per_txn "
-    "is nonzero")
+    "WT_SESSION.begin_transaction configuration string, applied during the "
+    "populate phase when populate_ops_per_txn is nonzero")
 DEF_OPT_AS_STRING(table_name, "test", "table name")
+DEF_OPT_AS_BOOL(truncate_single_ops, 0,
+    "Implement truncate via cursor remove instead of session API")
 DEF_OPT_AS_UINT32(value_sz_max, 1000,
     "maximum value size when delta updates are present. Default disabled")
 DEF_OPT_AS_UINT32(value_sz_min, 1,

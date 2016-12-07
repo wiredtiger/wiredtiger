@@ -76,7 +76,6 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	WT_CONNECTION *wt_conn;
 	WT_DECL_RET;
 	WT_DLH *dlh;
-	WT_FH *fh;
 	WT_SESSION_IMPL *s, *session;
 	WT_TXN_GLOBAL *txn_global;
 	u_int i;
@@ -94,8 +93,10 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	 * transaction ID will catch up with the current ID.
 	 */
 	for (;;) {
-		__wt_txn_update_oldest(session, true);
-		if (txn_global->oldest_id == txn_global->current)
+		WT_TRET(__wt_txn_update_oldest(session,
+		    WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
+		if (txn_global->oldest_id == txn_global->current &&
+		    txn_global->metadata_pinned == txn_global->current)
 			break;
 		__wt_yield();
 	}
@@ -150,20 +151,6 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	WT_TRET(__wt_conn_remove_encryptor(session));
 	WT_TRET(__wt_conn_remove_extractor(session));
 
-	/*
-	 * Complain if files weren't closed, ignoring the lock file, we'll
-	 * close it in a minute.
-	 */
-	TAILQ_FOREACH(fh, &conn->fhqh, q) {
-		if (fh == conn->lock_fh)
-			continue;
-
-		__wt_errx(session,
-		    "Connection has open file handles: %s", fh->name);
-		WT_TRET(__wt_close(session, &fh));
-		fh = TAILQ_FIRST(&conn->fhqh);
-	}
-
 	/* Disconnect from shared cache - must be before cache destroy. */
 	WT_TRET(__wt_conn_cache_pool_destroy(session));
 
@@ -171,7 +158,7 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	WT_TRET(__wt_cache_destroy(session));
 
 	/* Discard transaction state. */
-	WT_TRET(__wt_txn_global_destroy(session));
+	__wt_txn_global_destroy(session);
 
 	/* Close extensions, first calling any unload entry point. */
 	while ((dlh = TAILQ_FIRST(&conn->dlhqh)) != NULL) {
@@ -181,6 +168,13 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 			WT_TRET(dlh->terminate(wt_conn));
 		WT_TRET(__wt_dlclose(session, dlh));
 	}
+
+	/* Close the lock file, opening up the database to other connections. */
+	if (conn->lock_fh != NULL)
+		WT_TRET(__wt_close(session, &conn->lock_fh));
+
+	/* Close any file handles left open. */
+	WT_TRET(__wt_close_connection_close(session));
 
 	/*
 	 * Close the internal (default) session, and switch back to the dummy
@@ -193,27 +187,18 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	}
 
 	/*
-	 * The session's split stash isn't discarded during normal session close
-	 * because it may persist past the life of the session.  Discard it now.
+	 * The session split stash, hazard information and handle arrays aren't
+	 * discarded during normal session close, they persist past the life of
+	 * the session. Discard them now.
 	 */
-	if ((s = conn->sessions) != NULL)
-		for (i = 0; i < conn->session_size; ++s, ++i)
-			__wt_split_stash_discard_all(session, s);
-
-	/*
-	 * The session's hazard pointer memory isn't discarded during normal
-	 * session close because access to it isn't serialized.  Discard it
-	 * now.
-	 */
-	if ((s = conn->sessions) != NULL)
-		for (i = 0; i < conn->session_size; ++s, ++i) {
-			/*
-			 * If hash arrays were allocated, free them now.
-			 */
-			__wt_free(session, s->dhhash);
-			__wt_free(session, s->tablehash);
-			__wt_free(session, s->hazard);
-		}
+	if (!F_ISSET(conn, WT_CONN_LEAK_MEMORY))
+		if ((s = conn->sessions) != NULL)
+			for (i = 0; i < conn->session_size; ++s, ++i) {
+				__wt_free(session, s->dhhash);
+				__wt_free(session, s->tablehash);
+				__wt_split_stash_discard_all(session, s);
+				__wt_free(session, s->hazard);
+			}
 
 	/* Destroy the handle. */
 	WT_TRET(__wt_connection_destroy(conn));

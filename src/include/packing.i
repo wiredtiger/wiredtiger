@@ -81,7 +81,7 @@ __pack_init(WT_SESSION_IMPL *session, WT_PACK *pack, const char *fmt)
  * __pack_name_init --
  *      Initialize the name of a pack iterator.
  */
-static inline int
+static inline void
 __pack_name_init(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *names,
     bool iskey, WT_PACK_NAME *pn)
 {
@@ -89,11 +89,9 @@ __pack_name_init(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *names,
 	pn->iskey = iskey;
 
 	if (names->str != NULL)
-		WT_RET(__wt_config_subinit(session, &pn->config, names));
+		__wt_config_subinit(session, &pn->config, names);
 	else
 		pn->genname = 1;
-
-	return (0);
 }
 
 /*
@@ -138,7 +136,7 @@ __pack_next(WT_PACK *pack, WT_PACK_VALUE *pv)
 next:	if (pack->cur == pack->end)
 		return (WT_NOTFOUND);
 
-	if (isdigit(*pack->cur)) {
+	if (__wt_isdigit((u_char)*pack->cur)) {
 		pv->havesize = 1;
 		pv->size = WT_STORE_SIZE(strtoul(pack->cur, &endsize, 10));
 		pack->cur = endsize;
@@ -260,6 +258,8 @@ __pack_size(WT_SESSION_IMPL *session, WT_PACK_VALUE *pv)
 		return (pv->size);
 	case 'j':
 	case 'J':
+	case 'K':
+		/* These formats are only used internally. */
 		if (pv->type == 'j' || pv->havesize)
 			s = pv->size;
 		else {
@@ -269,7 +269,7 @@ __pack_size(WT_SESSION_IMPL *session, WT_PACK_VALUE *pv)
 			len = __wt_json_strlen(pv->u.item.data,
 			    pv->u.item.size);
 			WT_ASSERT(session, len >= 0);
-			s = (size_t)len + 1;
+			s = (size_t)len + (pv->type == 'K' ? 0 : 1);
 		}
 		return (s);
 	case 's':
@@ -357,18 +357,22 @@ __pack_write(
 		break;
 	case 'j':
 	case 'J':
+	case 'K':
+		/* These formats are only used internally. */
 		s = pv->u.item.size;
 		if ((pv->type == 'j' || pv->havesize) && pv->size < s) {
 			s = pv->size;
 			pad = 0;
 		} else if (pv->havesize)
 			pad = pv->size - s;
+		else if (pv->type == 'K')
+			pad = 0;
 		else
 			pad = 1;
 		if (s > 0) {
 			oldp = *pp;
-			WT_RET(__wt_json_strncpy((char **)pp, maxlen,
-			    pv->u.item.data, s));
+			WT_RET(__wt_json_strncpy((WT_SESSION *)session,
+			    (char **)pp, maxlen, pv->u.item.data, s));
 			maxlen -= (size_t)(*pp - oldp);
 		}
 		if (pad > 0) {
@@ -534,7 +538,7 @@ __unpack_read(WT_SESSION_IMPL *session,
 		break;
 	case 'R':
 		WT_SIZE_CHECK_UNPACK(sizeof(uint64_t), maxlen);
-		pv->u.u = *(uint64_t *)*pp;
+		pv->u.u = *(const uint64_t *)*pp;
 		*pp += sizeof(uint64_t);
 		break;
 	default:

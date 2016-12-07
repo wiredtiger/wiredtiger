@@ -26,7 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "test_util.i"
+#include "test_util.h"
 
 static struct {
 	char *progname;				/* Program name */
@@ -50,12 +50,11 @@ void cleanup(void);
 void populate_entries(void);
 void run(void);
 void setup(void);
-void usage(void);
+void usage(void)
+    WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 extern char *__wt_optarg;
 extern int __wt_optind;
-
-void (*custom_die)(void) = NULL;
 
 int
 main(int argc, char *argv[])
@@ -159,8 +158,7 @@ run(void)
 	item.size = g.c_key_max;
 	for (i = 0; i < g.c_ops; i++) {
 		item.data = g.entries[i];
-		if ((ret = __wt_bloom_insert(bloomp, &item)) != 0)
-			testutil_die(ret, "__wt_bloom_insert: %" PRIu32, i);
+		__wt_bloom_insert(bloomp, &item);
 	}
 
 	testutil_check(__wt_bloom_finalize(bloomp));
@@ -189,9 +187,7 @@ run(void)
 	 * ensure the value doesn't overlap with existing values.
 	 */
 	item.size = g.c_key_max + 10;
-	item.data = calloc(item.size, 1);
-	if (item.data == NULL)
-		testutil_die(ENOMEM, "value buffer malloc");
+	item.data = dcalloc(item.size, 1);
 	memset((void *)item.data, 'a', item.size);
 	for (i = 0, fp = 0; i < g.c_ops; i++) {
 		((uint8_t *)item.data)[i % item.size] =
@@ -232,14 +228,10 @@ populate_entries(void)
 
 	srand(g.c_srand);
 
-	entries = calloc(g.c_ops, sizeof(uint8_t *));
-	if (entries == NULL)
-		testutil_die(ENOMEM, "key buffer malloc");
+	entries = dcalloc(g.c_ops, sizeof(uint8_t *));
 
 	for (i = 0; i < g.c_ops; i++) {
-		entries[i] = calloc(g.c_key_max, sizeof(uint8_t));
-		if (entries[i] == NULL)
-			testutil_die(ENOMEM, "key buffer malloc 2");
+		entries[i] = dcalloc(g.c_key_max, sizeof(uint8_t));
 		for (j = 0; j < g.c_key_max; j++)
 			entries[i][j] = 'a' + ((uint8_t)rand() % 26);
 	}

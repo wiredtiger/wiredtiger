@@ -28,17 +28,18 @@
 
 import os, json
 import wiredtiger, wttest
-from helper import \
-    complex_populate, complex_populate_check_cursor,\
-    simple_populate, simple_populate_check_cursor
+from wtdataset import SimpleDataSet, SimpleLSMDataSet, SimpleIndexDataSet, \
+    ComplexDataSet, ComplexLSMDataSet
+from helper import compare_files
 from suite_subprocess import suite_subprocess
-from wtscenario import multiply_scenarios, number_scenarios
+from wtscenario import make_scenarios
 
 # A 'fake' cursor based on a set of rows.
 # It emulates a WT cursor well enough for the *_check_cursor methods.
 # They just need an iterable object.
 class FakeCursor:
-    def __init__(self, keyfmt, valuefmt, rows):
+    def __init__(self, uri, keyfmt, valuefmt, rows):
+        self.uri = uri
         self.key_format = keyfmt
         self.value_format = valuefmt
         self.rows = rows
@@ -77,27 +78,30 @@ class test_jsondump01(wttest.WiredTigerTestCase, suite_subprocess):
         ('string', dict(keyfmt='S'))
     ]
     types = [
-        ('file', dict(type='file:',
-          name='file',
-          populate=simple_populate,
-          populate_check=simple_populate_check_cursor)),
-        ('table-simple', dict(type='table:',
-          name='table-simple',
-          populate=simple_populate,
-          populate_check=simple_populate_check_cursor)),
-        ('table-complex', dict(type='table:',
-          name='table-complex',
-          populate=complex_populate,
-          populate_check=complex_populate_check_cursor))
+        ('file', dict(uri='file:', dataset=SimpleDataSet)),
+        ('lsm', dict(uri='lsm:', dataset=SimpleDataSet)),
+        ('table-simple', dict(uri='table:', dataset=SimpleDataSet)),
+        ('table-index', dict(uri='table:', dataset=SimpleIndexDataSet)),
+        ('table-simple-lsm', dict(uri='table:', dataset=SimpleLSMDataSet)),
+        ('table-complex', dict(uri='table:', dataset=ComplexDataSet)),
+        ('table-complex-lsm', dict(uri='table:', dataset=ComplexLSMDataSet))
     ]
-    scenarios = number_scenarios(
-        multiply_scenarios('.', types, keyfmt))
+    scenarios = make_scenarios(types, keyfmt)
+
+    def skip(self):
+        return (self.dataset.is_lsm() or self.uri == 'lsm:') and \
+            self.keyfmt == 'r'
 
     # Dump using util, re-load using python's JSON, and do a content comparison.
     def test_jsondump_util(self):
+        # LSM and column-store isn't a valid combination.
+        if self.skip():
+            return
+
         # Create the object.
-        uri = self.type + self.name
-        self.populate(self, uri, 'key_format=' + self.keyfmt, self.nentries)
+        uri = self.uri + self.name
+        ds = self.dataset(self, uri, self.nentries, key_format=self.keyfmt)
+        ds.populate()
 
         # Dump the object.
         self.runWt(['dump', '-j', uri], outfilename='jsondump.out')
@@ -119,16 +123,21 @@ class test_jsondump01(wttest.WiredTigerTestCase, suite_subprocess):
         # check the contents of the data we read.
         # we only use a wt cursor to get the key_format/value_format.
         cursor = self.session.open_cursor(uri, None)
-        fake = FakeCursor(cursor.key_format, cursor.value_format, data)
+        fake = FakeCursor(uri, cursor.key_format, cursor.value_format, data)
         cursor.close()
-        self.populate_check(self, fake, self.nentries)
+        ds.check_cursor(fake)
 
     # Dump using util, re-load using python's JSON, and do a content comparison.
     def test_jsonload_util(self):
+        # LSM and column-store isn't a valid combination.
+        if self.skip():
+            return
+
         # Create the object.
-        uri = self.type + self.name
-        uri2 = self.type + self.name2
-        self.populate(self, uri, 'key_format=' + self.keyfmt, self.nentries)
+        uri = self.uri + self.name
+        uri2 = self.uri + self.name2
+        ds = self.dataset(self, uri, self.nentries, key_format=self.keyfmt)
+        ds.populate()
 
         # Dump the object.
         self.runWt(['dump', '-j', uri], outfilename='jsondump.out')
@@ -138,9 +147,20 @@ class test_jsondump01(wttest.WiredTigerTestCase, suite_subprocess):
             loadcmd.append('-a')
         self.runWt(loadcmd)
 
-        # check the contents of the data we read.
-        cursor = self.session.open_cursor(uri2, None)
-        self.populate_check(self, cursor, self.nentries)
+        # Check the contents of the data we read.
+        # We use the dataset only for checking.
+        ds2 = self.dataset(self, uri2, self.nentries, key_format=self.keyfmt)
+        ds2.check()
+
+        # Reload into the original uri, and dump into another file.
+        self.session.drop(uri, None)
+        self.session.drop(uri2, None)
+        self.runWt(['load', '-jf', 'jsondump.out'])
+        self.runWt(['dump', '-j', uri], outfilename='jsondump2.out')
+
+        # Compare the two outputs, and check the content again.
+        compare_files(self, 'jsondump.out', 'jsondump2.out')
+        ds.check()
 
 if __name__ == '__main__':
     wttest.run()

@@ -30,10 +30,11 @@
 #       Bulk-load testing.
 
 import shutil, os
-from helper import confirm_empty, key_populate, value_populate
-from suite_subprocess import suite_subprocess
-from wtscenario import multiply_scenarios, number_scenarios
 import wiredtiger, wttest
+from helper import confirm_empty
+from suite_subprocess import suite_subprocess
+from wtdataset import SimpleDataSet, simple_key, simple_value
+from wtscenario import make_scenarios
 
 # test_bulkload_checkpoint
 #       Test bulk-load with checkpoints.
@@ -47,7 +48,7 @@ class test_bulkload_checkpoint(wttest.WiredTigerTestCase, suite_subprocess):
         ('unnamed', dict(ckpt_type='unnamed')),
     ]
 
-    scenarios = number_scenarios(multiply_scenarios('.', types, ckpt_type))
+    scenarios = make_scenarios(types, ckpt_type)
 
     # Bulk-load handles are skipped by checkpoints.
     # Named and unnamed checkpoint versions.
@@ -56,7 +57,7 @@ class test_bulkload_checkpoint(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.create(self.uri, 'key_format=S,value_format=S')
         cursor = self.session.open_cursor(self.uri, None, 'bulk')
         for i in range(1, 10):
-            cursor[key_populate(cursor, i)] = value_populate(cursor, i)
+            cursor[simple_key(cursor, i)] = simple_value(cursor, i)
 
         # Checkpoint a few times (to test the drop code).
         for i in range(1, 5):
@@ -90,8 +91,7 @@ class test_bulkload_backup(wttest.WiredTigerTestCase, suite_subprocess):
         ('different', dict(session_type='different')),
         ('same', dict(session_type='same')),
     ]
-    scenarios = number_scenarios(
-        multiply_scenarios('.', types, ckpt_type, session_type))
+    scenarios = make_scenarios(types, ckpt_type, session_type)
 
     # Backup a set of chosen tables/files using the wt backup command.
     # The only files are bulk-load files, so they shouldn't be copied.
@@ -111,7 +111,7 @@ class test_bulkload_backup(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.create(self.uri, 'key_format=S,value_format=S')
         cursor = self.session.open_cursor(self.uri, None, 'bulk')
         for i in range(1, 10):
-            cursor[key_populate(cursor, i)] = value_populate(cursor, i)
+            cursor[simple_key(cursor, i)] = simple_value(cursor, i)
 
         # Test without a checkpoint, with an unnamed checkpoint, with a named
         # checkpoint.
@@ -126,7 +126,6 @@ class test_bulkload_backup(wttest.WiredTigerTestCase, suite_subprocess):
             self.check_backup(self.session)
         else:
             self.check_backup(self.conn.open_session())
-
 
 if __name__ == '__main__':
     wttest.run()

@@ -108,7 +108,7 @@ util_str2recno(WT_SESSION *session, const char *p, uint64_t *recnop)
 	 * forth -- none of them are OK with us.  Check the string starts with
 	 * digit, that turns off the special processing.
 	 */
-	if (!isdigit(p[0]))
+	if (!__wt_isdigit((u_char)p[0]))
 		goto format;
 
 	errno = 0;
@@ -141,11 +141,14 @@ util_flush(WT_SESSION *session, const char *uri)
 		return (util_err(session, errno, NULL));
 
 	(void)snprintf(buf, len, "target=(\"%s\")", uri);
-	if ((ret = session->checkpoint(session, buf)) != 0) {
-		ret = util_err(session, ret, "%s: session.checkpoint", uri);
-		(void)session->drop(session, uri, NULL);
-	}
-
+	ret = session->checkpoint(session, buf);
 	free(buf);
-	return (ret);
+
+	if (ret == 0)
+		return (0);
+
+	(void)util_err(session, ret, "%s: session.checkpoint", uri);
+	if ((ret = session->drop(session, uri, NULL)) != 0)
+		(void)util_err(session, ret, "%s: session.drop", uri);
+	return (1);
 }

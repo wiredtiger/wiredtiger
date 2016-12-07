@@ -26,40 +26,18 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <sys/stat.h>
-#ifndef _WIN32
-#include <sys/time.h>
-#endif
-#include <sys/types.h>
-
-#include <assert.h>
-#include <ctype.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <inttypes.h>
-#include <limits.h>
-#ifndef _WIN32
-#include <pthread.h>
-#endif
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#ifndef _WIN32
-#include <unistd.h>
-#endif
-#include <time.h>
-
-#include "test_util.i"
+#include "test_util.h"
 
 #ifdef BDB
-#include <db.h>
+/*
+ * Berkeley DB has an #ifdef we need to provide a value for, we'll see an
+ * undefined error if it's unset during a strict compile.
+ */
+#ifndef	DB_DBM_HSEARCH
+#define	DB_DBM_HSEARCH	0
 #endif
-
-#if defined(__GNUC__)
-#define	WT_GCC_ATTRIBUTE(x)	__attribute__(x)
-#else
-#define	WT_GCC_ATTRIBUTE(x)
+#include <assert.h>
+#include <db.h>
 #endif
 
 #define	EXTPATH	"../../ext/"			/* Extensions path */
@@ -70,6 +48,8 @@
 	EXTPATH "compressors/snappy/.libs/libwiredtiger_snappy.so"
 #define	ZLIB_PATH							\
 	EXTPATH "compressors/zlib/.libs/libwiredtiger_zlib.so"
+#define	ZSTD_PATH							\
+	EXTPATH "compressors/zstd/.libs/libwiredtiger_zstd.so"
 
 #define	REVERSE_PATH							\
 	EXTPATH "collators/reverse/.libs/libwiredtiger_reverse_collator.so"
@@ -98,18 +78,11 @@
 
 #define	FORMAT_OPERATION_REPS	3		/* 3 thread operations sets */
 
-#ifndef _WIN32
-#define	SIZET_FMT	"%zu"			/* size_t format string */
-#else
-#define	SIZET_FMT	"%Iu"			/* size_t format string */
-#endif
-
 typedef struct {
 	char *progname;				/* Program name */
 
 	char *home;				/* Home directory */
 	char *home_backup;			/* Hot-backup directory */
-	char *home_backup2;			/* Saved Hot-backup directory */
 	char *home_backup_init;			/* Initialize backup command */
 	char *home_bdb;				/* BDB directory */
 	char *home_config;			/* Run CONFIG file path */
@@ -145,7 +118,8 @@ typedef struct {
 	int replay;				/* Replaying a run. */
 	int workers_finished;			/* Operations completed */
 
-	pthread_rwlock_t backup_lock;		/* Hot backup running */
+	pthread_rwlock_t backup_lock;		/* Backup running */
+	pthread_rwlock_t checkpoint_lock;	/* Checkpoint running */
 
 	WT_RAND_STATE rnd;			/* Global RNG state */
 
@@ -224,12 +198,13 @@ typedef struct {
 	uint32_t c_statistics_server;
 	uint32_t c_threads;
 	uint32_t c_timer;
+	uint32_t c_txn_freq;
 	uint32_t c_value_max;
 	uint32_t c_value_min;
 	uint32_t c_verify;
 	uint32_t c_write_pct;
 
-#define	FIX				1	
+#define	FIX				1
 #define	ROW				2
 #define	VAR				3
 	u_int type;				/* File type's flag value */
@@ -246,6 +221,7 @@ typedef struct {
 #define	COMPRESS_SNAPPY			5
 #define	COMPRESS_ZLIB			6
 #define	COMPRESS_ZLIB_NO_RAW		7
+#define	COMPRESS_ZSTD			8
 	u_int c_compression_flag;		/* Compression flag value */
 	u_int c_logging_compression_flag;	/* Log compression flag value */
 
@@ -266,7 +242,7 @@ typedef struct {
 } GLOBAL;
 extern GLOBAL g;
 
-typedef struct {
+typedef struct WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) {
 	WT_RAND_STATE rnd;			/* thread RNG state */
 
 	uint64_t search;			/* operations */
@@ -288,7 +264,7 @@ typedef struct {
 #define	TINFO_COMPLETE	2			/* Finished */
 #define	TINFO_JOINED	3			/* Resolved */
 	volatile int state;			/* state */
-} TINFO WT_GCC_ATTRIBUTE((aligned(WT_CACHE_LINE_ALIGNMENT)));
+} TINFO;
 
 #ifdef HAVE_BERKELEY_DB
 void	 bdb_close(void);
@@ -297,7 +273,7 @@ void	 bdb_np(int, void *, size_t *, void *, size_t *, int *);
 void	 bdb_open(void);
 void	 bdb_read(uint64_t, void *, size_t *, int *);
 void	 bdb_remove(uint64_t, int *);
-void	 bdb_update(const void *, size_t, const void *, size_t, int *);
+void	 bdb_update(const void *, size_t, const void *, size_t);
 #endif
 
 void	*backup(void *);
@@ -308,25 +284,23 @@ void	 config_file(const char *);
 void	 config_print(int);
 void	 config_setup(void);
 void	 config_single(const char *, int);
-void	*dmalloc(size_t);
-char	*dstrdup(const char *);
 void	 fclose_and_clear(FILE **);
-void	 key_gen(uint8_t *, size_t *, uint64_t);
-void	 key_gen_insert(WT_RAND_STATE *, uint8_t *, size_t *, uint64_t);
-void	 key_gen_setup(uint8_t **);
+void	 key_gen(WT_ITEM *, uint64_t);
+void	 key_gen_insert(WT_RAND_STATE *, WT_ITEM *, uint64_t);
+void	 key_gen_setup(WT_ITEM *);
 void	 key_len_setup(void);
 void	*lrt(void *);
 void	 path_setup(const char *);
-int	 read_row(WT_CURSOR *, WT_ITEM *, uint64_t, int);
+int	 read_row(WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t);
 uint32_t rng(WT_RAND_STATE *);
 void	 track(const char *, uint64_t, TINFO *);
-void	 val_gen(WT_RAND_STATE *, uint8_t *, size_t *, uint64_t);
-void	 val_gen_setup(WT_RAND_STATE *, uint8_t **);
+void	 val_gen(WT_RAND_STATE *, WT_ITEM *, uint64_t);
+void	 val_gen_setup(WT_RAND_STATE *, WT_ITEM *);
 void	 wts_close(void);
-void	 wts_create(void);
 void	 wts_dump(const char *, int);
+void	 wts_init(void);
 void	 wts_load(void);
-void	 wts_open(const char *, int, WT_CONNECTION **);
+void	 wts_open(const char *, bool, WT_CONNECTION **);
 void	 wts_ops(int);
 void	 wts_read_scan(void);
 void	 wts_rebalance(void);

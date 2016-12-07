@@ -90,21 +90,30 @@ retry:
 	 * We own the slot now.  No one else can join.
 	 * Set the end LSN.
 	 */
-	WT_STAT_FAST_CONN_INCR(session, log_slot_closes);
+	WT_STAT_CONN_INCR(session, log_slot_closes);
 	if (WT_LOG_SLOT_DONE(new_state))
 		*releasep = 1;
 	slot->slot_end_lsn = slot->slot_start_lsn;
+	/*
+	 * A thread setting the unbuffered flag sets the unbuffered size after
+	 * setting the flag.  There could be a delay between a thread setting
+	 * the flag, a thread closing the slot, and the original thread setting
+	 * that value.  If the state is unbuffered, wait for the unbuffered
+	 * size to be set.
+	 */
+	while (WT_LOG_SLOT_UNBUFFERED_ISSET(old_state) &&
+	    slot->slot_unbuffered == 0)
+		__wt_yield();
+
 	end_offset =
 	    WT_LOG_SLOT_JOINED_BUFFERED(old_state) + slot->slot_unbuffered;
-	slot->slot_end_lsn.l.offset += end_offset;
-	WT_STAT_FAST_CONN_INCRV(session,
-	    log_slot_consolidated, end_offset);
+	slot->slot_end_lsn.l.offset += (uint32_t)end_offset;
+	WT_STAT_CONN_INCRV(session, log_slot_consolidated, end_offset);
 	/*
 	 * XXX Would like to change so one piece of code advances the LSN.
 	 */
 	log->alloc_lsn = slot->slot_end_lsn;
-	WT_ASSERT(session,
-	    log->alloc_lsn.l.file >= log->write_lsn.l.file);
+	WT_ASSERT(session, log->alloc_lsn.l.file >= log->write_lsn.l.file);
 	return (0);
 }
 
@@ -191,7 +200,7 @@ __wt_log_slot_switch(
 		WT_WITH_SLOT_LOCK(session, log, ret,
 		    ret = __log_slot_switch_internal(session, myslot, forced));
 		if (ret == EBUSY) {
-			WT_STAT_FAST_CONN_INCR(session, log_slot_switch_busy);
+			WT_STAT_CONN_INCR(session, log_slot_switch_busy);
 			__wt_yield();
 		}
 	} while (F_ISSET(myslot, WT_MYSLOT_CLOSE) || (retry && ret == EBUSY));
@@ -244,7 +253,7 @@ __wt_log_slot_new(WT_SESSION_IMPL *session)
 				 * We have a new, initialized slot to use.
 				 * Set it as the active slot.
 				 */
-				WT_STAT_FAST_CONN_INCR(session,
+				WT_STAT_CONN_INCR(session,
 				    log_slot_transitions);
 				log->active_slot = slot;
 				return (0);
@@ -253,7 +262,7 @@ __wt_log_slot_new(WT_SESSION_IMPL *session)
 		/*
 		 * If we didn't find any free slots signal the worker thread.
 		 */
-		(void)__wt_cond_auto_signal(session, conn->log_wrlsn_cond);
+		__wt_cond_auto_signal(session, conn->log_wrlsn_cond);
 		__wt_yield();
 	}
 	/* NOTREACHED */
@@ -294,7 +303,7 @@ __wt_log_slot_init(WT_SESSION_IMPL *session)
 		    &log->slot_pool[i].slot_buf, log->slot_buf_size));
 		F_SET(&log->slot_pool[i], WT_SLOT_INIT_FLAGS);
 	}
-	WT_STAT_FAST_CONN_SET(session,
+	WT_STAT_CONN_SET(session,
 	    log_buffer_size, log->slot_buf_size * WT_SLOT_POOL);
 	/*
 	 * Set up the available slot from the pool the first time.
@@ -419,7 +428,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 		 * The slot is no longer open or we lost the race to
 		 * update it.  Yield and try again.
 		 */
-		WT_STAT_FAST_CONN_INCR(session, log_slot_races);
+		WT_STAT_CONN_INCR(session, log_slot_races);
 		__wt_yield();
 	}
 	/*
@@ -427,7 +436,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 	 * the caller.
 	 */
 	if (mysize != 0)
-		WT_STAT_FAST_CONN_INCR(session, log_slot_joins);
+		WT_STAT_CONN_INCR(session, log_slot_joins);
 	if (LF_ISSET(WT_LOG_DSYNC | WT_LOG_FSYNC))
 		F_SET(slot, WT_SLOT_SYNC_DIR);
 	if (LF_ISSET(WT_LOG_FLUSH))
@@ -436,7 +445,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 		F_SET(slot, WT_SLOT_SYNC);
 	if (F_ISSET(myslot, WT_MYSLOT_UNBUFFERED)) {
 		WT_ASSERT(session, slot->slot_unbuffered == 0);
-		WT_STAT_FAST_CONN_INCR(session, log_slot_unbuffered);
+		WT_STAT_CONN_INCR(session, log_slot_unbuffered);
 		slot->slot_unbuffered = (int64_t)mysize;
 	}
 	myslot->slot = slot;

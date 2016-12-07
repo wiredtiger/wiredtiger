@@ -50,7 +50,7 @@ __wt_cursor_get_value_notsup(WT_CURSOR *cursor, ...)
 void
 __wt_cursor_set_key_notsup(WT_CURSOR *cursor, ...)
 {
-	(void)__wt_cursor_notsup(cursor);
+	WT_IGNORE_RET(__wt_cursor_notsup(cursor));
 }
 
 /*
@@ -60,7 +60,7 @@ __wt_cursor_set_key_notsup(WT_CURSOR *cursor, ...)
 void
 __wt_cursor_set_value_notsup(WT_CURSOR *cursor, ...)
 {
-	(void)__wt_cursor_notsup(cursor);
+	WT_IGNORE_RET(__wt_cursor_notsup(cursor));
 }
 
 /*
@@ -435,7 +435,7 @@ __wt_cursor_get_valuev(WT_CURSOR *cursor, va_list ap)
 	} else if (WT_STREQ(fmt, "S"))
 		*va_arg(ap, const char **) = cursor->value.data;
 	else if (WT_STREQ(fmt, "t") ||
-	    (isdigit(fmt[0]) && WT_STREQ(fmt + 1, "t")))
+	    (__wt_isdigit((u_char)fmt[0]) && WT_STREQ(fmt + 1, "t")))
 		*va_arg(ap, uint8_t *) = *(uint8_t *)cursor->value.data;
 	else
 		ret = __wt_struct_unpackv(session,
@@ -496,7 +496,7 @@ __wt_cursor_set_valuev(WT_CURSOR *cursor, va_list ap)
 		sz = strlen(str) + 1;
 		buf->data = str;
 	} else if (WT_STREQ(fmt, "t") ||
-	    (isdigit(fmt[0]) && WT_STREQ(fmt + 1, "t"))) {
+	    (__wt_isdigit((u_char)fmt[0]) && WT_STREQ(fmt + 1, "t"))) {
 		sz = 1;
 		WT_ERR(__wt_buf_initsize(session, buf, sz));
 		*(uint8_t *)buf->mem = (uint8_t)va_arg(ap, int);
@@ -539,7 +539,6 @@ err:		cursor->saved_err = ret;
 int
 __wt_cursor_close(WT_CURSOR *cursor)
 {
-	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)cursor->session;
@@ -548,7 +547,7 @@ __wt_cursor_close(WT_CURSOR *cursor)
 		TAILQ_REMOVE(&session->cursors, cursor, q);
 
 		(void)__wt_atomic_sub32(&S2C(session)->open_cursor_count, 1);
-		WT_STAT_FAST_DATA_DECR(session, session_cursor_open);
+		WT_STAT_DATA_DECR(session, session_cursor_open);
 	}
 
 	__wt_buf_free(session, &cursor->key);
@@ -557,7 +556,7 @@ __wt_cursor_close(WT_CURSOR *cursor)
 	__wt_free(session, cursor->internal_uri);
 	__wt_free(session, cursor->uri);
 	__wt_overwrite_and_free(session, cursor);
-	return (ret);
+	return (0);
 }
 
 /*
@@ -571,7 +570,6 @@ __wt_cursor_equals(WT_CURSOR *cursor, WT_CURSOR *other, int *equalp)
 	WT_SESSION_IMPL *session;
 	int cmp;
 
-	session = (WT_SESSION_IMPL *)cursor->session;
 	CURSOR_API_CALL(cursor, session, equals, NULL);
 
 	WT_ERR(cursor->compare(cursor, other, &cmp));
@@ -765,7 +763,7 @@ __wt_cursor_init(WT_CURSOR *cursor,
 
 	F_SET(cursor, WT_CURSTD_OPEN);
 	(void)__wt_atomic_add32(&S2C(session)->open_cursor_count, 1);
-	WT_STAT_FAST_DATA_INCR(session, session_cursor_open);
+	WT_STAT_DATA_INCR(session, session_cursor_open);
 
 	*cursorp = (cdump != NULL) ? cdump : cursor;
 	return (0);

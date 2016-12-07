@@ -26,6 +26,7 @@ __wt_hazard_set(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
 	WT_BTREE *btree;
 	WT_CONNECTION_IMPL *conn;
 	WT_HAZARD *hp;
+	WT_PAGE *page;
 	int restarts = 0;
 
 	btree = S2BT(session);
@@ -35,6 +36,16 @@ __wt_hazard_set(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
 	/* If a file can never be evicted, hazard pointers aren't required. */
 	if (F_ISSET(btree, WT_BTREE_IN_MEMORY))
 		return (0);
+
+	/*
+	 * If there isn't a valid page pointer, we're done.  This read can race
+	 * with eviction and splits, we re-check it after a barrier to make
+	 * sure we have a valid pointer.
+	 */
+	if (ref->state != WT_REF_MEM || (page = ref->page) == NULL) {
+		*busyp = true;
+		return (0);
+	}
 
 	/*
 	 * Do the dance:
@@ -82,7 +93,7 @@ __wt_hazard_set(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
 		if (hp->page != NULL)
 			continue;
 
-		hp->page = ref->page;
+		hp->page = page;
 #ifdef HAVE_DIAGNOSTIC
 		hp->file = file;
 		hp->line = line;
@@ -101,9 +112,12 @@ __wt_hazard_set(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
 		 * found this page using the tree's key space, whatever page we
 		 * find here is the page for us to use.)
 		 */
-		if (ref->page == hp->page && ref->state == WT_REF_MEM) {
-			++session->nhazard;
-			return (0);
+		if (ref->state == WT_REF_MEM) {
+			WT_READ_BARRIER();
+			if (ref->page == page) {
+				++session->nhazard;
+				return (0);
+			}
 		}
 
 		/*
@@ -121,12 +135,11 @@ __wt_hazard_set(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
 		return (0);
 	}
 
-	__wt_errx(session, "session %p: hazard pointer table full", session);
 #ifdef HAVE_DIAGNOSTIC
 	__hazard_dump(session);
 #endif
-
-	return (ENOMEM);
+	WT_RET_MSG(session, ENOMEM,
+	    "session %p: hazard pointer table full", (void *)session);
 }
 
 /*
@@ -165,9 +178,10 @@ __wt_hazard_clear(WT_SESSION_IMPL *session, WT_PAGE *page)
 
 			/*
 			 * If this was the last hazard pointer in the session,
-			 * we may need to update our transactional context.
+			 * reset the size so that checks can skip this session.
 			 */
-			--session->nhazard;
+			if (--session->nhazard == 0)
+				WT_PUBLISH(session->hazard_size, 0);
 			return (0);
 		}
 
@@ -176,7 +190,8 @@ __wt_hazard_clear(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 * because using a page we didn't have pinned down implies corruption.
 	 */
 	WT_PANIC_RET(session, EINVAL,
-	    "session %p: clear hazard pointer: %p: not found", session, page);
+	    "session %p: clear hazard pointer: %p: not found",
+	    (void *)session, (void *)page);
 }
 
 /*
@@ -204,7 +219,8 @@ __wt_hazard_close(WT_SESSION_IMPL *session)
 		return;
 
 	__wt_errx(session,
-	    "session %p: close hazard pointer table: table not empty", session);
+	    "session %p: close hazard pointer table: table not empty",
+	    (void *)session);
 
 #ifdef HAVE_DIAGNOSTIC
 	__hazard_dump(session);
@@ -232,7 +248,26 @@ __wt_hazard_close(WT_SESSION_IMPL *session)
 		__wt_errx(session,
 		    "session %p: close hazard pointer table: count didn't "
 		    "match entries",
-		    session);
+		    (void *)session);
+}
+
+/*
+ * __wt_hazard_count --
+ *	Count how many hazard pointers this session has on the given page.
+ */
+u_int
+__wt_hazard_count(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+	WT_HAZARD *hp;
+	u_int count;
+
+	for (count = 0, hp = session->hazard + session->hazard_size - 1;
+	    hp >= session->hazard;
+	    --hp)
+		if (hp->page == page)
+			++count;
+
+	return (count);
 }
 
 #ifdef HAVE_DIAGNOSTIC
@@ -250,6 +285,7 @@ __hazard_dump(WT_SESSION_IMPL *session)
 		if (hp->page != NULL)
 			__wt_errx(session,
 			    "session %p: hazard pointer %p: %s, line %d",
-			    session, hp->page, hp->file, hp->line);
+			    (void *)session,
+			    (void *)hp->page, hp->file, hp->line);
 }
 #endif

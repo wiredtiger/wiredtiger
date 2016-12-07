@@ -611,6 +611,13 @@ session_ops(WT_SESSION *session)
 	    "block_compressor=zlib,key_format=S,value_format=S");
 	/*! [Create a zlib compressed table] */
 	ret = session->drop(session, "table:mytable", NULL);
+
+	/*! [Create a zstd compressed table] */
+	ret = session->create(session,
+	    "table:mytable",
+	    "block_compressor=zstd,key_format=S,value_format=S");
+	/*! [Create a zstd compressed table] */
+	ret = session->drop(session, "table:mytable", NULL);
 #endif
 
 	/*! [Configure checksums to uncompressed] */
@@ -1037,6 +1044,13 @@ backup(WT_SESSION *session)
 	ret = cursor->close(cursor);
 	/*! [backup]*/
 
+	/*! [incremental backup]*/
+	/* Open the backup data source for incremental backup. */
+	ret = session->open_cursor(
+	    session, "backup:", NULL, "target=(\"log:\")", &cursor);
+	/*! [incremental backup]*/
+	ret = cursor->close(cursor);
+
 	/*! [backup of a checkpoint]*/
 	ret = session->checkpoint(session, "drop=(from=June01),name=June01");
 	/*! [backup of a checkpoint]*/
@@ -1101,6 +1115,32 @@ main(void)
 	if (ret == 0)
 		(void)conn->close(conn, NULL);
 
+	/*! [Configure zlib extension with compression level] */
+	ret = wiredtiger_open(home, NULL,
+	    "create,"
+	    "extensions=[/usr/local/lib/"
+	    "libwiredtiger_zlib.so=[config=[compression_level=3]]]", &conn);
+	/*! [Configure zlib extension with compression level] */
+	if (ret == 0)
+		(void)conn->close(conn, NULL);
+
+	/*! [Configure zstd extension] */
+	ret = wiredtiger_open(home, NULL,
+	    "create,"
+	    "extensions=[/usr/local/lib/libwiredtiger_zstd.so]", &conn);
+	/*! [Configure zstd extension] */
+	if (ret == 0)
+		(void)conn->close(conn, NULL);
+
+	/*! [Configure zstd extension with compression level] */
+	ret = wiredtiger_open(home, NULL,
+	    "create,"
+	    "extensions=[/usr/local/lib/"
+	    "libwiredtiger_zstd.so=[config=[compression_level=9]]]", &conn);
+	/*! [Configure zstd extension with compression level] */
+	if (ret == 0)
+		(void)conn->close(conn, NULL);
+
 	/*
 	 * This example code gets run, and direct I/O might not be available,
 	 * causing the open to fail.  The documentation requires code snippets,
@@ -1119,7 +1159,7 @@ main(void)
 	    home, NULL, "create,file_extend=(data=16MB)", &conn);
 	/*! [Configure file_extend] */
 	if (ret == 0)
-		(void)conn->close(conn, NULL);
+		ret = conn->close(conn, NULL);
 
 	/*! [Eviction configuration] */
 	/*
@@ -1130,7 +1170,7 @@ main(void)
 	    "create,eviction_trigger=90,eviction_dirty_target=75", &conn);
 	/*! [Eviction configuration] */
 	if (ret == 0)
-		(void)conn->close(conn, NULL);
+		ret = conn->close(conn, NULL);
 
 	/*! [Eviction worker configuration] */
 	/* Configure up to four eviction threads */
@@ -1138,51 +1178,44 @@ main(void)
 	    "create,eviction_trigger=90,eviction=(threads_max=4)", &conn);
 	/*! [Eviction worker configuration] */
 	if (ret == 0)
-		(void)conn->close(conn, NULL);
+		ret = conn->close(conn, NULL);
 
 	/*! [Statistics configuration] */
 	ret = wiredtiger_open(home, NULL, "create,statistics=(all)", &conn);
 	/*! [Statistics configuration] */
 	if (ret == 0)
-		(void)conn->close(conn, NULL);
+		ret = conn->close(conn, NULL);
 
 	/*! [Statistics logging] */
 	ret = wiredtiger_open(
 	    home, NULL, "create,statistics_log=(wait=30)", &conn);
 	/*! [Statistics logging] */
 	if (ret == 0)
-		(void)conn->close(conn, NULL);
-
-	/*! [Statistics logging with a table] */
-	ret = wiredtiger_open(home, NULL,
-	    "create, statistics_log=("
-	    "sources=(\"lsm:table1\",\"lsm:table2\"), wait=5)",
-	    &conn);
-	/*! [Statistics logging with a table] */
-	if (ret == 0)
-		(void)conn->close(conn, NULL);
-
-	/*! [Statistics logging with all tables] */
-	ret = wiredtiger_open(home, NULL,
-	    "create, statistics_log=(sources=(\"lsm:\"), wait=5)",
-	    &conn);
-	/*! [Statistics logging with all tables] */
-	if (ret == 0)
-		(void)conn->close(conn, NULL);
+		ret = conn->close(conn, NULL);
 
 #ifdef MIGHT_NOT_RUN
 	/*
-	 * This example code gets run, and a non-existent log file path might
-	 * cause the open to fail.  The documentation requires code snippets,
-	 * use #ifdef's to avoid running it.
+	 * Don't run this code, statistics logging doesn't yet support tables.
 	 */
-	/*! [Statistics logging with path] */
+	/*! [Statistics logging with a table] */
 	ret = wiredtiger_open(home, NULL,
-	    "create,"
-	    "statistics_log=(wait=120,path=/log/log.%m.%d.%y)", &conn);
-	/*! [Statistics logging with path] */
+	    "create, statistics_log=("
+	    "sources=(\"table:table1\",\"table:table2\"), wait=5)",
+	    &conn);
+	/*! [Statistics logging with a table] */
 	if (ret == 0)
-		(void)conn->close(conn, NULL);
+		ret = conn->close(conn, NULL);
+
+	/*
+	 * Don't run this code, statistics logging doesn't yet support indexes.
+	 */
+	/*! [Statistics logging with a source type] */
+	ret = wiredtiger_open(home, NULL,
+	    "create, statistics_log=(sources=(\"index:\"), wait=5)",
+	    &conn);
+	/*! [Statistics logging with a source type] */
+	if (ret == 0)
+		ret = conn->close(conn, NULL);
 
 	/*
 	 * Don't run this code, because memory checkers get very upset when we
@@ -1207,5 +1240,5 @@ main(void)
 	/*! [Get the WiredTiger library version #2] */
 	}
 
-	return (ret);
+	return (ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
 }

@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wtscenario import check_scenarios
+from wtscenario import make_scenarios
 
 # test_metadata_cursor01.py
 #    Metadata cursor operations
@@ -39,7 +39,7 @@ class test_metadata_cursor01(wttest.WiredTigerTestCase):
     """
     table_name1 = 'test_metadata_cursor01'
 
-    scenarios = check_scenarios([
+    scenarios = make_scenarios([
         ('plain', {'metauri' : 'metadata:'}),
         ('create', {'metauri' : 'metadata:create'}),
     ])
@@ -82,7 +82,6 @@ class test_metadata_cursor01(wttest.WiredTigerTestCase):
         self.pr('creating session: ' + create_args)
         self.session_create(tablearg, create_args)
         self.pr('creating cursor')
-
 
     # Forward iteration.
     def test_forward_iter(self):

@@ -29,7 +29,7 @@
 import sys, threading, wiredtiger, wttest
 from suite_subprocess import suite_subprocess
 from wiredtiger import WiredTigerError
-from wtscenario import check_scenarios
+from wtscenario import make_scenarios
 
 # TODO - tmp code
 def tty_pr(s):
@@ -107,7 +107,6 @@ class Callback(wiredtiger.AsyncCallback):
 
         return 0
 
-
 # test_async01.py
 #    Async operations
 # Basic smoke-test of file and table async ops: tests get/set key, insert
@@ -122,7 +121,7 @@ class test_async01(wttest.WiredTigerTestCase, suite_subprocess):
     async_threads = 3
     current = {}
 
-    scenarios = check_scenarios([
+    scenarios = make_scenarios([
         ('file-col', dict(tablekind='col',uri='file')),
         ('file-fix', dict(tablekind='fix',uri='file')),
         ('file-row', dict(tablekind='row',uri='file')),
@@ -260,7 +259,6 @@ class test_async01(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertTrue(callback.nsearch == self.nentries * 2)
         self.assertTrue(callback.nupdate == self.nentries)
         self.assertTrue(callback.nerror == 0)
-
 
 if __name__ == '__main__':
     wttest.run()

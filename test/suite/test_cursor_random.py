@@ -27,22 +27,21 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from helper import complex_populate, simple_populate
-from helper import key_populate, value_populate
-from wtscenario import check_scenarios, multiply_scenarios, number_scenarios
+from wtdataset import SimpleDataSet, ComplexDataSet, simple_key, simple_value
+from wtscenario import make_scenarios
 
 # test_cursor_random.py
 #    Cursor next_random operations
 class test_cursor_random(wttest.WiredTigerTestCase):
     types = [
-        ('file', dict(type='file:random')),
-        ('table', dict(type='table:random'))
+        ('file', dict(type='file:random', dataset=SimpleDataSet)),
+        ('table', dict(type='table:random', dataset=ComplexDataSet))
     ]
     config = [
         ('sample', dict(config='next_random=true,next_random_sample_size=35')),
         ('not-sample', dict(config='next_random=true'))
     ]
-    scenarios =number_scenarios(multiply_scenarios('.', types, config))
+    scenarios = make_scenarios(types, config)
 
     # Check that opening a random cursor on a row-store returns not-supported
     # for methods other than next, reconfigure and reset, and next returns
@@ -89,12 +88,9 @@ class test_cursor_random(wttest.WiredTigerTestCase):
     # where the values are in an insert list.
     def test_cursor_random_multiple_insert_records(self):
         uri = self.type
-        if uri.startswith('file:'):
-            simple_populate(self, uri,
-                'allocation_size=512,leaf_page_max=512,key_format=S', 100)
-        else:
-            complex_populate(self, uri,
-                'allocation_size=512,leaf_page_max=512,key_format=S', 100)
+        ds = self.dataset(self, uri, 100,
+            config='allocation_size=512,leaf_page_max=512')
+        ds.populate()
 
         # In a insert list, next_random always selects the middle key/value
         # pair, all we can do is confirm cursor.next works.
@@ -105,12 +101,9 @@ class test_cursor_random(wttest.WiredTigerTestCase):
     # where the values are in a disk format page.
     def cursor_random_multiple_page_records(self, reopen):
         uri = self.type
-        if uri.startswith('file:'):
-            simple_populate(self, uri,
-                'allocation_size=512,leaf_page_max=512,key_format=S', 10000)
-        else:
-            complex_populate(self, uri,
-                'allocation_size=512,leaf_page_max=512,key_format=S', 10000)
+        ds = self.dataset(self, uri, 10000,
+            config='allocation_size=512,leaf_page_max=512')
+        ds.populate()
 
         # Optionally close the connection so everything is forced to disk,
         # insert lists are an entirely different path in the code.
@@ -136,7 +129,7 @@ class test_cursor_random(wttest.WiredTigerTestCase):
 
 # Check that opening a random cursor on column-store returns not-supported.
 class test_cursor_random_column(wttest.WiredTigerTestCase):
-    scenarios = check_scenarios([
+    scenarios = make_scenarios([
         ('file', dict(uri='file:random')),
         ('table', dict(uri='table:random'))
     ])
@@ -146,7 +139,6 @@ class test_cursor_random_column(wttest.WiredTigerTestCase):
         msg = '/next_random .* not supported/'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
             self.session.open_cursor(self.uri, None, "next_random=true"), msg)
-
 
 # Check next_random works in the presence a set of updates, some or all of
 # which are invisible to the cursor.
@@ -159,7 +151,7 @@ class test_cursor_random_invisible(wttest.WiredTigerTestCase):
         ('sample', dict(config='next_random=true,next_random_sample_size=35')),
         ('not-sample', dict(config='next_random=true'))
     ]
-    scenarios =number_scenarios(multiply_scenarios('.', types, config))
+    scenarios = make_scenarios(types, config)
 
     def test_cursor_random_invisible_all(self):
         uri = self.type
@@ -169,7 +161,7 @@ class test_cursor_random_invisible(wttest.WiredTigerTestCase):
         # Start a transaction.
         self.session.begin_transaction()
         for i in range(1, 100):
-            cursor[key_populate(cursor, i)] = value_populate(cursor, i)
+            cursor[simple_key(cursor, i)] = simple_value(cursor, i)
 
         # Open another session, the updates won't yet be visible, we shouldn't
         # find anything at all.
@@ -183,19 +175,19 @@ class test_cursor_random_invisible(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri, None)
 
         # Insert a single leading record.
-        cursor[key_populate(cursor, 1)] = value_populate(cursor, 1)
+        cursor[simple_key(cursor, 1)] = simple_value(cursor, 1)
 
         # Start a transaction.
         self.session.begin_transaction()
         for i in range(2, 100):
-            cursor[key_populate(cursor, i)] = value_populate(cursor, i)
+            cursor[simple_key(cursor, i)] = simple_value(cursor, i)
 
         # Open another session, the updates won't yet be visible, we should
         # return the only possible record.
         s = self.conn.open_session()
         cursor = s.open_cursor(uri, None, self.config)
         self.assertEquals(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), key_populate(cursor, 1))
+        self.assertEqual(cursor.get_key(), simple_key(cursor, 1))
 
     def test_cursor_random_invisible_before(self):
         uri = self.type
@@ -203,20 +195,19 @@ class test_cursor_random_invisible(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri, None)
 
         # Insert a single leading record.
-        cursor[key_populate(cursor, 99)] = value_populate(cursor, 99)
+        cursor[simple_key(cursor, 99)] = simple_value(cursor, 99)
 
         # Start a transaction.
         self.session.begin_transaction()
         for i in range(2, 100):
-            cursor[key_populate(cursor, i)] = value_populate(cursor, i)
+            cursor[simple_key(cursor, i)] = simple_value(cursor, i)
 
         # Open another session, the updates won't yet be visible, we should
         # return the only possible record.
         s = self.conn.open_session()
         cursor = s.open_cursor(uri, None, self.config)
         self.assertEquals(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), key_populate(cursor, 99))
-
+        self.assertEqual(cursor.get_key(), simple_key(cursor, 99))
 
 if __name__ == '__main__':
     wttest.run()

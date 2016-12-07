@@ -28,8 +28,8 @@
 
 import helper, wiredtiger, wttest
 from wiredtiger import stat
-from helper import key_populate, simple_populate
-from wtscenario import multiply_scenarios, number_scenarios
+from wtdataset import SimpleDataSet, simple_key
+from wtscenario import make_scenarios
 
 # test_stat01.py
 #    Statistics operations
@@ -49,7 +49,7 @@ class test_stat01(wttest.WiredTigerTestCase):
         ('recno', dict(keyfmt='r')),
         ('string', dict(keyfmt='S')),
     ]
-    scenarios = number_scenarios(multiply_scenarios('.', types, keyfmt))
+    scenarios = make_scenarios(types, keyfmt)
 
     conn_config = 'statistics=(all)'
 
@@ -89,8 +89,8 @@ class test_stat01(wttest.WiredTigerTestCase):
     # Test simple connection statistics.
     def test_basic_conn_stats(self):
         # Build an object and force some writes.
-        config = self.config + ',key_format=' + self.keyfmt
-        simple_populate(self, self.uri, config, 1000)
+        SimpleDataSet(self, self.uri, 1000,
+                      config=self.config, key_format=self.keyfmt).populate()
         self.session.checkpoint(None)
 
         # See that we can get a specific stat value by its key and verify its
@@ -113,7 +113,7 @@ class test_stat01(wttest.WiredTigerTestCase):
         value = ""
         for i in range(1, self.nentries):
             value = value + 1000 * "a"
-            cursor[key_populate(cursor, i)] = value
+            cursor[simple_key(cursor, i)] = value
         cursor.close()
 
         # Force the object to disk, otherwise we can't check the overflow count.
@@ -140,9 +140,10 @@ class test_stat01(wttest.WiredTigerTestCase):
 
     # Test simple per-checkpoint statistics.
     def test_checkpoint_stats(self):
+        ds = SimpleDataSet(self, self.uri, self.nentries,
+            config=self.config, key_format=self.keyfmt)
         for name in ('first', 'second', 'third'):
-            config = self.config + ',key_format=' + self.keyfmt
-            helper.simple_populate(self, self.uri, config, self.nentries)
+            ds.populate()
             self.session.checkpoint('name=' + name)
             cursor = self.session.open_cursor(
                 'statistics:' + self.uri, None, 'checkpoint=' + name)

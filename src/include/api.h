@@ -17,7 +17,7 @@
 #define	API_CALL_NOCONF(s, h, n, cur, dh) do {				\
 	API_SESSION_INIT(s, h, n, cur, dh);				\
 	WT_ERR(WT_SESSION_CHECK_PANIC(s));				\
-	WT_ERR(__wt_verbose((s), WT_VERB_API, "CALL: " #h ":" #n))
+	__wt_verbose((s), WT_VERB_API, "CALL: " #h ":" #n)
 
 #define	API_CALL(s, h, n, cur, dh, config, cfg) do {			\
 	const char *cfg[] =						\
@@ -27,7 +27,7 @@
 	if ((config) != NULL)						\
 		WT_ERR(__wt_config_check((s),				\
 		    WT_CONFIG_REF(session, h##_##n), (config), 0));	\
-	WT_ERR(__wt_verbose((s), WT_VERB_API, "CALL: " #h ":" #n))
+	__wt_verbose((s), WT_VERB_API, "CALL: " #h ":" #n)
 
 #define	API_END(s, ret)							\
 	if ((s) != NULL) {						\
@@ -66,6 +66,8 @@
 		else if (ret == 0 && !F_ISSET(&(s)->txn, WT_TXN_ERROR))	\
 			ret = __wt_txn_commit((s), NULL);		\
 		else {							\
+			if (retry)					\
+				WT_TRET(__wt_session_copy_values(s));	\
 			WT_TRET(__wt_txn_rollback((s), NULL));		\
 			if ((ret == 0 || ret == WT_ROLLBACK) &&		\
 			    (retry)) {					\
@@ -118,7 +120,7 @@
 
 #define	JOINABLE_CURSOR_CALL_CHECK(cur)					\
 	if (F_ISSET(cur, WT_CURSTD_JOINED))				\
-		WT_ERR(__wt_curindex_joined(cur))
+		WT_ERR(__wt_curjoin_joined(cur))
 
 #define	JOINABLE_CURSOR_API_CALL(cur, s, n, bt)				\
 	CURSOR_API_CALL(cur, s, n, bt);					\
@@ -137,7 +139,9 @@
 	(s) = (WT_SESSION_IMPL *)(cur)->session;			\
 	TXN_API_CALL_NOCONF(s, WT_CURSOR, n, cur,			\
 	    ((bt) == NULL) ? NULL : ((WT_BTREE *)(bt))->dhandle);	\
-	if (F_ISSET(S2C(s), WT_CONN_IN_MEMORY) && __wt_cache_full(s))	\
+	if (F_ISSET(S2C(s), WT_CONN_IN_MEMORY) &&			\
+	    !F_ISSET((WT_BTREE *)(bt), WT_BTREE_IGNORE_CACHE) &&	\
+	    __wt_cache_full(s))						\
 		WT_ERR(WT_CACHE_FULL);
 
 #define	JOINABLE_CURSOR_UPDATE_API_CALL(cur, s, n, bt)			\

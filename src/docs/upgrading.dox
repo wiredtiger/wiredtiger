@@ -1,5 +1,58 @@
 /*! @page upgrading Upgrading WiredTiger applications
 
+@section version_290 Upgrading to Version 2.9.0
+<dl>
+<dt>Changes to cursor behavior after WT_CURSOR::insert</dt>
+<dd>
+After a successful call to WT_CURSOR::insert, unless a cursor has record
+number keys and was configured with "append=true", the cursor's key is
+cleared and a subsequent call to the WT_CURSOR::get_key method will fail.
+In all cursors, the value is cleared and a subsequent call to
+WT_CURSOR::get_value will fail.
+</dd>
+
+<dt>Cache management defaults</dt>
+<dd>
+The default values for the \c eviction_dirty_target and \c
+eviction_dirty_trigger settings to ::wiredtiger_open have changed to 5 and 20,
+respectively.  This means that by default, WiredTiger will start writing dirty
+pages from cache when it becomes 5% dirty and will throttle activity to keep
+the volume of dirty data in cache under 20%.  For write-heavy workloads, the
+new defaults may result in lower throughput and more threads writing to data
+files concurrently.
+
+There is also a new \c eviction_checkpoint_target setting that determines
+how much work is done at the beginning of a checkpoint to make the critical
+section of checkpoints complete more quickly.
+</dd>
+
+<dt>Checkpoint server created checkpoint names</dt>
+<dd>
+The ::wiredtiger_open checkpoint configuration no longer supports the
+\c name configuration, and checkpoint server created checkpoints will
+always be named the default WiredTiger checkpoint name,
+"WiredTigerCheckpoint". Applications depending on the ability to set the
+checkpoint name for the checkpoint server will require modification.
+</dd>
+
+<dt>Statistics logging path</dt>
+<dd>
+The ::wiredtiger_open statistics logging path configuration has been
+simplified to be only a path to a directory, and the file name component
+of the path may no longer be specified. Applications depending on the
+ability to set statistics log file names will require modification.
+</dd>
+
+<dt>Removed and renamed statistics fields</dt>
+<dd>
+WT_STAT_JOIN_ACTUAL_COUNT is renamed to WT_STAT_JOIN_ITERATED
+
+WT_STAT_CONN_CACHE_BYTES_OVERFLOW removed since overflow pages are not cached
+
+WT_STAT_CONN_CACHE_EVICTION_SERVER_NOT_EVICTING removed since all eviction threads can now be the server
+</dd>
+
+</dl><hr>
 @section version_280 Upgrading to Version 2.8.0
 <dl>
 <dt>LSM metadata</dt>
@@ -55,7 +108,6 @@ The WiredTiger public API used to define a structure that could encapsulate
 log sequence numbers. That structure is no longer exposed publicly.
 </dd>
 
-<dt>
 </dl><hr>
 @section version_270 Upgrading to Version 2.7.0
 
@@ -523,7 +575,7 @@ statistics will be logged to the file; if the database is configured
 with "all" or "fast", the corresponding statistics will be logged to the
 file.
 
-In previous releases, the WT_SESSION::cursor method took 
+In previous releases, the WT_SESSION::cursor method took
 \c statistics_clear and a \c statistics_fast configurations.  The
 \c statistics_clear configuration defaulted to false; when set to true,
 statistics counters were reset after they were gathered by the cursor.

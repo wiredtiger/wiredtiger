@@ -32,7 +32,7 @@
 
 import os, run, random
 import wiredtiger, wttest
-from wtscenario import multiply_scenarios, number_scenarios
+from wtscenario import make_scenarios
 
 # Test basic encryption
 class test_encrypt01(wttest.WiredTigerTestCase):
@@ -57,11 +57,11 @@ class test_encrypt01(wttest.WiredTigerTestCase):
         ('lz4', dict(log_compress='lz4', block_compress='lz4')),
         ('snappy', dict(log_compress='snappy', block_compress='snappy')),
         ('zlib', dict(log_compress='zlib', block_compress='zlib')),
+        ('zstd', dict(log_compress='zstd', block_compress='zstd')),
         ('none-snappy', dict(log_compress=None, block_compress='snappy')),
         ('snappy-lz4', dict(log_compress='snappy', block_compress='lz4')),
     ]
-    scenarios = number_scenarios(multiply_scenarios('.', types,
-                                                    encrypt, compress))
+    scenarios = make_scenarios(types, encrypt, compress)
 
     nrecords = 5000
     bigvalue = "abcdefghij" * 1001    # len(bigvalue) = 10010
@@ -138,7 +138,6 @@ class test_encrypt01(wttest.WiredTigerTestCase):
             self.assertEqual(cursor.search(), 0)
             self.assertEquals(cursor.get_value(), val)
         cursor.close()
-
 
 if __name__ == '__main__':
     wttest.run()

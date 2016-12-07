@@ -15,9 +15,10 @@ static int __desc_read(WT_SESSION_IMPL *, WT_BLOCK *);
  *	Drop a file.
  */
 int
-__wt_block_manager_drop(WT_SESSION_IMPL *session, const char *filename)
+__wt_block_manager_drop(
+    WT_SESSION_IMPL *session, const char *filename, bool durable)
 {
-	 return (__wt_remove_if_exists(session, filename));
+	return (__wt_remove_if_exists(session, filename, durable));
 }
 
 /*
@@ -33,7 +34,6 @@ __wt_block_manager_create(
 	WT_FH *fh;
 	int suffix;
 	bool exists;
-	char *path;
 
 	/*
 	 * Create the underlying file and open a handle.
@@ -44,8 +44,9 @@ __wt_block_manager_create(
 	 * in our space. Move any existing files out of the way and complain.
 	 */
 	for (;;) {
-		if ((ret = __wt_open(session,
-		    filename, true, true, WT_FILE_TYPE_DATA, &fh)) == 0)
+		if ((ret = __wt_open(session, filename,
+		    WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_CREATE |
+		    WT_FS_OPEN_DURABLE | WT_FS_OPEN_EXCLUSIVE, &fh)) == 0)
 			break;
 		WT_ERR_TEST(ret != EEXIST, ret);
 
@@ -54,42 +55,33 @@ __wt_block_manager_create(
 		for (suffix = 1;; ++suffix) {
 			WT_ERR(__wt_buf_fmt(
 			    session, tmp, "%s.%d", filename, suffix));
-			WT_ERR(__wt_exist(session, tmp->data, &exists));
+			WT_ERR(__wt_fs_exist(session, tmp->data, &exists));
 			if (!exists) {
-				WT_ERR(
-				    __wt_rename(session, filename, tmp->data));
+				WT_ERR(__wt_fs_rename(
+				    session, filename, tmp->data, false));
 				WT_ERR(__wt_msg(session,
 				    "unexpected file %s found, renamed to %s",
-				    filename, (char *)tmp->data));
+				    filename, (const char *)tmp->data));
 				break;
 			}
 		}
 	}
 
 	/* Write out the file's meta-data. */
-	ret = __wt_desc_init(session, fh, allocsize);
+	ret = __wt_desc_write(session, fh, allocsize);
 
 	/*
 	 * Ensure the truncated file has made it to disk, then the upper-level
 	 * is never surprised.
 	 */
-	WT_TRET(__wt_fsync(session, fh));
+	WT_TRET(__wt_fsync(session, fh, true));
 
 	/* Close the file handle. */
 	WT_TRET(__wt_close(session, &fh));
 
-	/*
-	 * Some filesystems require that we sync the directory to be confident
-	 * that the file will appear.
-	 */
-	if (ret == 0 && (ret = __wt_filename(session, filename, &path)) == 0) {
-		ret = __wt_directory_sync(session, path);
-		__wt_free(session, path);
-	}
-
 	/* Undo any create on error. */
 	if (ret != 0)
-		WT_TRET(__wt_remove(session, filename));
+		WT_TRET(__wt_fs_remove(session, filename, false));
 
 err:	__wt_scr_free(session, &tmp);
 
@@ -156,8 +148,9 @@ __wt_block_open(WT_SESSION_IMPL *session,
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	uint64_t bucket, hash;
+	uint32_t flags;
 
-	WT_RET(__wt_verbose(session, WT_VERB_BLOCK, "open: %s", filename));
+	__wt_verbose(session, WT_VERB_BLOCK, "open: %s", filename);
 
 	conn = S2C(session);
 	*blockp = block = NULL;
@@ -194,41 +187,29 @@ __wt_block_open(WT_SESSION_IMPL *session,
 	/* Configuration: optional OS buffer cache maximum size. */
 	WT_ERR(__wt_config_gets(session, cfg, "os_cache_max", &cval));
 	block->os_cache_max = (size_t)cval.val;
-#ifdef HAVE_POSIX_FADVISE
-	if (conn->direct_io && block->os_cache_max)
-		WT_ERR_MSG(session, EINVAL,
-		    "os_cache_max not supported in combination with direct_io");
-#else
-	if (block->os_cache_max)
-		WT_ERR_MSG(session, EINVAL,
-		    "os_cache_max not supported if posix_fadvise not "
-		    "available");
-#endif
 
 	/* Configuration: optional immediate write scheduling flag. */
 	WT_ERR(__wt_config_gets(session, cfg, "os_cache_dirty_max", &cval));
 	block->os_cache_dirty_max = (size_t)cval.val;
-#ifdef HAVE_SYNC_FILE_RANGE
-	if (conn->direct_io && block->os_cache_dirty_max)
-		WT_ERR_MSG(session, EINVAL,
-		    "os_cache_dirty_max not supported in combination with "
-		    "direct_io");
-#else
-	if (block->os_cache_dirty_max) {
-		/*
-		 * Ignore any setting if it is not supported.
-		 */
-		block->os_cache_dirty_max = 0;
-		WT_ERR(__wt_verbose(session, WT_VERB_BLOCK,
-		    "os_cache_dirty_max ignored when sync_file_range not "
-		    "available"));
-	}
-#endif
 
-	/* Open the underlying file handle. */
-	WT_ERR(__wt_open(session, filename, false, false,
-	    readonly ? WT_FILE_TYPE_CHECKPOINT : WT_FILE_TYPE_DATA,
-	    &block->fh));
+	/* Set the file extension information. */
+	block->extend_len = conn->data_extend_len;
+
+	/*
+	 * Open the underlying file handle.
+	 *
+	 * "direct_io=checkpoint" configures direct I/O for readonly data files.
+	 */
+	flags = 0;
+	if (readonly && FLD_ISSET(conn->direct_io, WT_DIRECT_IO_CHECKPOINT))
+		LF_SET(WT_FS_OPEN_DIRECTIO);
+	if (!readonly && FLD_ISSET(conn->direct_io, WT_DIRECT_IO_DATA))
+		LF_SET(WT_FS_OPEN_DIRECTIO);
+	WT_ERR(__wt_open(
+	    session, filename, WT_FS_OPEN_FILE_TYPE_DATA, flags, &block->fh));
+
+	/* Set the file's size. */
+	WT_ERR(__wt_filesize(session, block->fh, &block->size));
 
 	/* Initialize the live checkpoint's lock. */
 	WT_ERR(__wt_spin_init(session, &block->live_lock, "block manager"));
@@ -267,14 +248,14 @@ __wt_block_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
 	conn = S2C(session);
 
-	WT_TRET(__wt_verbose(session, WT_VERB_BLOCK,
-	    "close: %s", block->name == NULL ? "" : block->name ));
+	__wt_verbose(session, WT_VERB_BLOCK,
+	    "close: %s", block->name == NULL ? "" : block->name );
 
 	__wt_spin_lock(session, &conn->block_lock);
 
 			/* Reference count is initialized to 1. */
 	if (block->ref == 0 || --block->ref == 0)
-		WT_TRET(__block_destroy(session, block));
+		ret = __block_destroy(session, block);
 
 	__wt_spin_unlock(session, &conn->block_lock);
 
@@ -282,15 +263,19 @@ __wt_block_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
 }
 
 /*
- * __wt_desc_init --
+ * __wt_desc_write --
  *	Write a file's initial descriptor structure.
  */
 int
-__wt_desc_init(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize)
+__wt_desc_write(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize)
 {
 	WT_BLOCK_DESC *desc;
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
+
+	/* If in-memory, we don't read or write the descriptor structure. */
+	if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+		return (0);
 
 	/* Use a scratch buffer to get correct alignment for direct I/O. */
 	WT_RET(__wt_scr_alloc(session, allocsize, &buf));
@@ -305,11 +290,11 @@ __wt_desc_init(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize)
 	desc->magic = WT_BLOCK_MAGIC;
 	desc->majorv = WT_BLOCK_MAJOR_VERSION;
 	desc->minorv = WT_BLOCK_MINOR_VERSION;
-	desc->cksum = 0;
+	desc->checksum = 0;
 	__wt_block_desc_byteswap(desc);
-	desc->cksum = __wt_cksum(desc, allocsize);
+	desc->checksum = __wt_checksum(desc, allocsize);
 #ifdef WORDS_BIGENDIAN
-	desc->cksum = __wt_bswap32(desc->cksum);
+	desc->checksum = __wt_bswap32(desc->checksum);
 #endif
 	ret = __wt_write(session, fh, (wt_off_t)0, (size_t)allocsize, desc);
 
@@ -327,7 +312,11 @@ __desc_read(WT_SESSION_IMPL *session, WT_BLOCK *block)
 	WT_BLOCK_DESC *desc;
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
-	uint32_t cksum_calculate, cksum_tmp;
+	uint32_t checksum_calculate, checksum_tmp;
+
+	/* If in-memory, we don't read or write the descriptor structure. */
+	if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+		return (0);
 
 	/* Use a scratch buffer to get correct alignment for direct I/O. */
 	WT_RET(__wt_scr_alloc(session, block->allocsize, &buf));
@@ -344,10 +333,10 @@ __desc_read(WT_SESSION_IMPL *session, WT_BLOCK *block)
 	 * a calculated checksum that should match the checksum in the header.
 	 */
 	desc = buf->mem;
-	cksum_tmp = desc->cksum;
-	desc->cksum = 0;
-	cksum_calculate = __wt_cksum(desc, block->allocsize);
-	desc->cksum = cksum_tmp;
+	checksum_tmp = desc->checksum;
+	desc->checksum = 0;
+	checksum_calculate = __wt_checksum(desc, block->allocsize);
+	desc->checksum = checksum_tmp;
 	__wt_block_desc_byteswap(desc);
 
 	/*
@@ -359,7 +348,8 @@ __desc_read(WT_SESSION_IMPL *session, WT_BLOCK *block)
 	 * may have entered the wrong file name, and is now frantically pounding
 	 * their interrupt key.
 	 */
-	if (desc->magic != WT_BLOCK_MAGIC || desc->cksum != cksum_calculate)
+	if (desc->magic != WT_BLOCK_MAGIC ||
+	    desc->checksum != checksum_calculate)
 		WT_ERR_MSG(session, WT_ERROR,
 		    "%s does not appear to be a WiredTiger file", block->name);
 
@@ -373,13 +363,13 @@ __desc_read(WT_SESSION_IMPL *session, WT_BLOCK *block)
 		    WT_BLOCK_MAJOR_VERSION, WT_BLOCK_MINOR_VERSION,
 		    desc->majorv, desc->minorv);
 
-	WT_ERR(__wt_verbose(session, WT_VERB_BLOCK,
+	__wt_verbose(session, WT_VERB_BLOCK,
 	    "%s: magic %" PRIu32
 	    ", major/minor: %" PRIu32 "/%" PRIu32
 	    ", checksum %#" PRIx32,
 	    block->name, desc->magic,
 	    desc->majorv, desc->minorv,
-	    desc->cksum));
+	    desc->checksum);
 
 err:	__wt_scr_free(session, &buf);
 	return (ret);
@@ -392,21 +382,19 @@ err:	__wt_scr_free(session, &buf);
 void
 __wt_block_stat(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_DSRC_STATS *stats)
 {
-	WT_UNUSED(session);
-
 	/*
 	 * Reading from the live system's structure normally requires locking,
 	 * but it's an 8B statistics read, there's no need.
 	 */
-	WT_STAT_WRITE(stats, allocation_size, block->allocsize);
-	WT_STAT_WRITE(
+	WT_STAT_WRITE(session, stats, allocation_size, block->allocsize);
+	WT_STAT_WRITE(session,
 	    stats, block_checkpoint_size, (int64_t)block->live.ckpt_size);
-	WT_STAT_WRITE(stats, block_magic, WT_BLOCK_MAGIC);
-	WT_STAT_WRITE(stats, block_major, WT_BLOCK_MAJOR_VERSION);
-	WT_STAT_WRITE(stats, block_minor, WT_BLOCK_MINOR_VERSION);
-	WT_STAT_WRITE(
+	WT_STAT_WRITE(session, stats, block_magic, WT_BLOCK_MAGIC);
+	WT_STAT_WRITE(session, stats, block_major, WT_BLOCK_MAJOR_VERSION);
+	WT_STAT_WRITE(session, stats, block_minor, WT_BLOCK_MINOR_VERSION);
+	WT_STAT_WRITE(session,
 	    stats, block_reuse_bytes, (int64_t)block->live.avail.bytes);
-	WT_STAT_WRITE(stats, block_size, block->fh->size);
+	WT_STAT_WRITE(session, stats, block_size, block->size);
 }
 
 /*
@@ -418,7 +406,7 @@ __wt_block_manager_size(WT_BM *bm, WT_SESSION_IMPL *session, wt_off_t *sizep)
 {
 	WT_UNUSED(session);
 
-	*sizep = bm->block->fh == NULL ? 0 : bm->block->fh->size;
+	*sizep = bm->block->size;
 	return (0);
 }
 
@@ -430,5 +418,5 @@ int
 __wt_block_manager_named_size(
     WT_SESSION_IMPL *session, const char *name, wt_off_t *sizep)
 {
-	return (__wt_filesize_name(session, name, false, sizep));
+	return (__wt_fs_size(session, name, sizep));
 }

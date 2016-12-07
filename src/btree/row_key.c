@@ -282,8 +282,7 @@ switch_and_jump:	/* Switching to a forward roll. */
 			 * the tracking cache.
 			 */
 			if (slot_offset == 0) {
-				WT_ERR(
-				    __wt_readlock(session, btree->ovfl_lock));
+				__wt_readlock(session, btree->ovfl_lock);
 				copy = WT_ROW_KEY_COPY(rip);
 				if (!__wt_row_leaf_key_info(page, copy,
 				    NULL, &cell, &keyb->data, &keyb->size)) {
@@ -291,8 +290,7 @@ switch_and_jump:	/* Switching to a forward roll. */
 					ret = __wt_dsk_cell_data_ref(session,
 					    WT_PAGE_ROW_LEAF, unpack, keyb);
 				}
-				WT_TRET(
-				    __wt_readunlock(session, btree->ovfl_lock));
+				__wt_readunlock(session, btree->ovfl_lock);
 				WT_ERR(ret);
 				break;
 			}
@@ -517,7 +515,7 @@ __wt_row_ikey(WT_SESSION_IMPL *session,
 	{
 	uintptr_t oldv;
 
-	oldv = (uintptr_t)ref->key.ikey;
+	oldv = (uintptr_t)ref->ref_ikey;
 	WT_DIAGNOSTIC_YIELD;
 
 	/*
@@ -527,10 +525,10 @@ __wt_row_ikey(WT_SESSION_IMPL *session,
 	WT_ASSERT(session, oldv == 0 || (oldv & WT_IK_FLAG) != 0);
 	WT_ASSERT(session, ref->state != WT_REF_SPLIT);
 	WT_ASSERT(session,
-	    __wt_atomic_cas_ptr(&ref->key.ikey, (WT_IKEY *)oldv, ikey));
+	    __wt_atomic_cas_ptr(&ref->ref_ikey, (WT_IKEY *)oldv, ikey));
 	}
 #else
-	ref->key.ikey = ikey;
+	ref->ref_ikey = ikey;
 #endif
 	return (0);
 }

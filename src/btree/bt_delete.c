@@ -131,8 +131,8 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 	WT_ERR(__wt_txn_modify_ref(session, ref));
 
 	*skipp = true;
-	WT_STAT_FAST_CONN_INCR(session, rec_page_delete_fast);
-	WT_STAT_FAST_DATA_INCR(session, rec_page_delete_fast);
+	WT_STAT_CONN_INCR(session, rec_page_delete_fast);
+	WT_STAT_DATA_INCR(session, rec_page_delete_fast);
 	WT_PUBLISH(ref->state, WT_REF_DELETED);
 	return (0);
 
@@ -288,10 +288,9 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * read-only or if the application never modifies the tree, we're not
 	 * able to do so.)
 	 */
-	if (btree->modified) {
-		WT_RET(__wt_page_modify_init(session, page));
+	WT_RET(__wt_page_modify_init(session, page));
+	if (btree->modified)
 		__wt_page_modify_set(session, page);
-	}
 
 	/*
 	 * An operation is accessing a "deleted" page, and we're building an
@@ -326,7 +325,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 
 	/* Allocate the per-page update array. */
 	WT_ERR(__wt_calloc_def(session, page->pg_row_entries, &upd_array));
-	page->pg_row_upd = upd_array;
+	page->modify->mod_row_update = upd_array;
 
 	/*
 	 * Fill in the per-reference update array with references to update

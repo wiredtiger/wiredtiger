@@ -115,6 +115,7 @@ typedef struct {
 	 */
 	uint32_t page_size;		/* Set page size */
 	uint32_t page_size_orig;	/* Saved set page size */
+	uint32_t max_raw_page_size;	/* Max page size with raw compression */
 
 	/*
 	 * Second, the split size: if we're doing the page layout, split to a
@@ -158,8 +159,15 @@ typedef struct {
 
 		WT_ADDR addr;		/* Split's written location */
 		uint32_t size;		/* Split's size */
-		uint32_t cksum;		/* Split's checksum */
+		uint32_t checksum;	/* Split's checksum */
+
 		void    *disk_image;	/* Split's disk image */
+
+		/*
+		 * Raw compression, the disk image being written is already
+		 * compressed.
+		 */
+		bool	 already_compressed;
 
 		/*
 		 * Saved update list, supporting the WT_EVICT_UPDATE_RESTORE and
@@ -175,13 +183,6 @@ typedef struct {
 		 * column-store key.
 		 */
 		WT_ITEM key;		/* Promoted row-store key */
-
-		/*
-		 * During wrapup, after reconciling the root page, we write a
-		 * final block as part of a checkpoint.  If raw compression
-		 * was configured, that block may have already been compressed.
-		 */
-		bool already_compressed;
 	} *bnd;				/* Saved boundaries */
 	uint32_t bnd_next;		/* Next boundary slot */
 	uint32_t bnd_next_max;		/* Maximum boundary slots used */
@@ -299,13 +300,13 @@ static int  __rec_cell_build_ovfl(WT_SESSION_IMPL *,
 		WT_RECONCILE *, WT_KV *, uint8_t, uint64_t);
 static int  __rec_cell_build_val(WT_SESSION_IMPL *,
 		WT_RECONCILE *, const void *, size_t, uint64_t);
-static int  __rec_col_fix(WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
+static int  __rec_col_fix(WT_SESSION_IMPL *, WT_RECONCILE *, WT_REF *);
 static int  __rec_col_fix_slvg(WT_SESSION_IMPL *,
-		WT_RECONCILE *, WT_PAGE *, WT_SALVAGE_COOKIE *);
-static int  __rec_col_int(WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
+		WT_RECONCILE *, WT_REF *, WT_SALVAGE_COOKIE *);
+static int  __rec_col_int(WT_SESSION_IMPL *, WT_RECONCILE *, WT_REF *);
 static int  __rec_col_merge(WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
 static int  __rec_col_var(WT_SESSION_IMPL *,
-		WT_RECONCILE *, WT_PAGE *, WT_SALVAGE_COOKIE *);
+		WT_RECONCILE *, WT_REF *, WT_SALVAGE_COOKIE *);
 static int  __rec_col_var_helper(WT_SESSION_IMPL *, WT_RECONCILE *,
 		WT_SALVAGE_COOKIE *, WT_ITEM *, bool, uint8_t, uint64_t);
 static int  __rec_destroy_session(WT_SESSION_IMPL *);
@@ -356,8 +357,8 @@ __wt_reconcile(WT_SESSION_IMPL *session,
 	page = ref->page;
 	mod = page->modify;
 
-	WT_RET(__wt_verbose(session,
-	    WT_VERB_RECONCILE, "%s", __wt_page_type_string(page->type)));
+	__wt_verbose(session,
+	    WT_VERB_RECONCILE, "%s", __wt_page_type_string(page->type));
 
 	/* We shouldn't get called with a clean page, that's an error. */
 	WT_ASSERT(session, __wt_page_is_modified(page));
@@ -371,36 +372,44 @@ __wt_reconcile(WT_SESSION_IMPL *session,
 	 *    In-memory splits: reconciliation of an internal page cannot handle
 	 * a child page splitting during the reconciliation.
 	 */
-	WT_RET(__wt_fair_lock(session, &page->page_lock));
+	__wt_writelock(session, &page->page_lock);
 
+	oldest_id = __wt_txn_oldest_id(session);
+	if (LF_ISSET(WT_EVICTING))
+		mod->last_eviction_id = oldest_id;
+
+#ifdef HAVE_DIAGNOSTIC
 	/*
 	 * Check that transaction time always moves forward for a given page.
 	 * If this check fails, reconciliation can free something that a future
 	 * reconciliation will need.
 	 */
-	oldest_id = __wt_txn_oldest_id(session);
 	WT_ASSERT(session, WT_TXNID_LE(mod->last_oldest_id, oldest_id));
 	mod->last_oldest_id = oldest_id;
+#endif
 
 	/* Initialize the reconciliation structure for each new run. */
-	WT_RET(__rec_write_init(
-	    session, ref, flags, salvage, &session->reconcile));
+	if ((ret = __rec_write_init(
+	    session, ref, flags, salvage, &session->reconcile)) != 0) {
+		__wt_writeunlock(session, &page->page_lock);
+		return (ret);
+	}
 	r = session->reconcile;
 
 	/* Reconcile the page. */
 	switch (page->type) {
 	case WT_PAGE_COL_FIX:
 		if (salvage != NULL)
-			ret = __rec_col_fix_slvg(session, r, page, salvage);
+			ret = __rec_col_fix_slvg(session, r, ref, salvage);
 		else
-			ret = __rec_col_fix(session, r, page);
+			ret = __rec_col_fix(session, r, ref);
 		break;
 	case WT_PAGE_COL_INT:
 		WT_WITH_PAGE_INDEX(session,
-		    ret = __rec_col_int(session, r, page));
+		    ret = __rec_col_int(session, r, ref));
 		break;
 	case WT_PAGE_COL_VAR:
-		ret = __rec_col_var(session, r, page, salvage);
+		ret = __rec_col_var(session, r, ref, salvage);
 		break;
 	case WT_PAGE_ROW_INT:
 		WT_WITH_PAGE_INDEX(session,
@@ -423,36 +432,50 @@ __wt_reconcile(WT_SESSION_IMPL *session,
 		WT_TRET(__rec_write_wrapup_err(session, r, page));
 
 	/* Release the reconciliation lock. */
-	WT_TRET(__wt_fair_unlock(session, &page->page_lock));
+	__wt_writeunlock(session, &page->page_lock);
 
 	/* Update statistics. */
-	WT_STAT_FAST_CONN_INCR(session, rec_pages);
-	WT_STAT_FAST_DATA_INCR(session, rec_pages);
+	WT_STAT_CONN_INCR(session, rec_pages);
+	WT_STAT_DATA_INCR(session, rec_pages);
 	if (LF_ISSET(WT_EVICTING)) {
-		WT_STAT_FAST_CONN_INCR(session, rec_pages_eviction);
-		WT_STAT_FAST_DATA_INCR(session, rec_pages_eviction);
+		WT_STAT_CONN_INCR(session, rec_pages_eviction);
+		WT_STAT_DATA_INCR(session, rec_pages_eviction);
 	}
 	if (r->cache_write_lookaside) {
-		WT_STAT_FAST_CONN_INCR(session, cache_write_lookaside);
-		WT_STAT_FAST_DATA_INCR(session, cache_write_lookaside);
+		WT_STAT_CONN_INCR(session, cache_write_lookaside);
+		WT_STAT_DATA_INCR(session, cache_write_lookaside);
 	}
 	if (r->cache_write_restore) {
-		WT_STAT_FAST_CONN_INCR(session, cache_write_restore);
-		WT_STAT_FAST_DATA_INCR(session, cache_write_restore);
+		WT_STAT_CONN_INCR(session, cache_write_restore);
+		WT_STAT_DATA_INCR(session, cache_write_restore);
 	}
 
 	/*
-	 * Clean up reconciliation resources: some workloads have millions of
-	 * boundary structures, and if associated with an application session
-	 * pulled into doing forced eviction, they won't be discarded for the
-	 * life of the session (or until session.reset is called). Discard all
-	 * of the reconciliation resources if an application thread, not doing
-	 * a checkpoint.
+	 * When threads perform eviction, don't cache block manager or
+	 * reconciliation structures (even across calls), we can have a
+	 * significant number of threads doing eviction at the same time with
+	 * large items. We ignore checkpoints, once the checkpoint completes,
+	 * all unnecessary session resources will be discarded.
+	 *
+	 * Even in application threads doing checkpoints, clean up
+	 * reconciliation resources. Some workloads have millions of boundary
+	 * structures in a reconciliation and we don't want to tie that memory
+	 * down, even across calls.
 	 */
-	__rec_bnd_cleanup(session, r,
-	    F_ISSET(session, WT_SESSION_INTERNAL) ||
-	    WT_SESSION_IS_CHECKPOINT(session) ? false : true);
+	if (WT_SESSION_IS_CHECKPOINT(session))
+		__rec_bnd_cleanup(session, r, false);
+	else {
+		/*
+		 * Clean up the underlying block manager memory too: it's not
+		 * reconciliation, but threads discarding reconciliation
+		 * structures want to clean up the block manager's structures
+		 * as well, and there's no obvious place to do that.
+		 */
+		if (session->block_manager_cleanup != NULL)
+			WT_TRET(session->block_manager_cleanup(session));
 
+		WT_TRET(__rec_destroy_session(session));
+	}
 	WT_RET(ret);
 
 	/*
@@ -524,8 +547,11 @@ __rec_write_status(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 	btree = S2BT(session);
 	mod = page->modify;
 
-	/* Check for a lookaside table and checkpoint collision. */
-	if (__rec_las_checkpoint_test(session, r))
+	/*
+	 * If we have used the lookaside table, check for a lookaside table and
+	 * checkpoint collision.
+	 */
+	if (r->cache_write_lookaside && __rec_las_checkpoint_test(session, r))
 		return (EBUSY);
 
 	/*
@@ -540,10 +566,12 @@ __rec_write_status(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		 * barrier after the change for clarity (the requirement is the
 		 * flag be set before a subsequent checkpoint reads it, and
 		 * as the current checkpoint is waiting on this reconciliation
-		 * to complete, there's no risk of that happening)
+		 * to complete, there's no risk of that happening).
 		 */
-		btree->modified = 1;
+		btree->modified = true;
 		WT_FULL_BARRIER();
+		if (!S2C(session)->modified)
+			S2C(session)->modified = true;
 
 		/*
 		 * Eviction should only be here if following the save/restore
@@ -621,8 +649,8 @@ __rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
 	WT_ILLEGAL_VALUE(session);
 	}
 
-	WT_RET(__wt_verbose(session, WT_VERB_SPLIT,
-	    "root page split -> %" PRIu32 " pages", mod->mod_multi_entries));
+	__wt_verbose(session, WT_VERB_SPLIT,
+	    "root page split -> %" PRIu32 " pages", mod->mod_multi_entries);
 
 	/*
 	 * Create a new root page, initialize the array of child references,
@@ -630,12 +658,12 @@ __rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
 	 */
 	switch (page->type) {
 	case WT_PAGE_COL_INT:
-		WT_RET(__wt_page_alloc(session, WT_PAGE_COL_INT,
-		    1, mod->mod_multi_entries, false, &next));
+		WT_RET(__wt_page_alloc(session,
+		    WT_PAGE_COL_INT, mod->mod_multi_entries, false, &next));
 		break;
 	case WT_PAGE_ROW_INT:
-		WT_RET(__wt_page_alloc(session, WT_PAGE_ROW_INT,
-		    WT_RECNO_OOB, mod->mod_multi_entries, false, &next));
+		WT_RET(__wt_page_alloc(session,
+		    WT_PAGE_ROW_INT, mod->mod_multi_entries, false, &next));
 		break;
 	WT_ILLEGAL_VALUE(session);
 	}
@@ -649,7 +677,7 @@ __rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
 		WT_ASSERT(session, mod->mod_multi[i].supd == NULL);
 
 		WT_ERR(__wt_multi_to_ref(session,
-		    next, &mod->mod_multi[i], &pindex->index[i], NULL));
+		    next, &mod->mod_multi[i], &pindex->index[i], NULL, false));
 		pindex->index[i]->home = next;
 	}
 
@@ -1038,6 +1066,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	bool append_origv, skipped;
 
 	*updp = NULL;
+	append = NULL;			/* -Wconditional-uninitialized */
 
 	btree = S2BT(session);
 	page = r->page;
@@ -1131,8 +1160,20 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 */
 	if (!skipped &&
 	    (F_ISSET(btree, WT_BTREE_LOOKASIDE) ||
-	    __wt_txn_visible_all(session, max_txn)))
+	    __wt_txn_visible_all(session, max_txn))) {
+#ifdef HAVE_DIAGNOSTIC
+		/*
+		 * The checkpoint transaction is special.  Make sure we never
+		 * write (metadata) updates from a checkpoint in a concurrent
+		 * session.
+		 */
+		txnid = *updp == NULL ? WT_TXN_NONE : (*updp)->txnid;
+		WT_ASSERT(session, txnid == WT_TXN_NONE ||
+		    txnid != S2C(session)->txn_global.checkpoint_txnid ||
+		    WT_SESSION_IS_CHECKPOINT(session));
+#endif
 		return (0);
+	}
 
 	/*
 	 * In some cases, there had better not be skipped updates or updates not
@@ -1840,19 +1881,20 @@ __rec_split_bnd_init(WT_SESSION_IMPL *session, WT_BOUNDARY *bnd)
 	__wt_free(session, bnd->addr.addr);
 	WT_CLEAR(bnd->addr);
 	bnd->size = 0;
-	bnd->cksum = 0;
+	bnd->checksum = 0;
+
 	__wt_free(session, bnd->disk_image);
 
 	__wt_free(session, bnd->supd);
 	bnd->supd_next = 0;
 	bnd->supd_allocated = 0;
 
+	bnd->already_compressed = false;
+
 	/*
 	 * Don't touch the key, we re-use that memory in each new
 	 * reconciliation.
 	 */
-
-	bnd->already_compressed = false;
 }
 
 /*
@@ -1946,10 +1988,19 @@ __rec_split_init(WT_SESSION_IMPL *session,
 	 * additional data because we don't know how well it will compress, and
 	 * we don't want to increment our way up to the amount of data needed by
 	 * the application to successfully compress to the target page size.
+	 * Ideally accumulate data several times the page size without
+	 * approaching the memory page maximum, but at least have data worth
+	 * one page.
+	 *
+	 * There are cases when we grow the page size to accommodate large
+	 * records, in those cases we split the pages once they have crossed
+	 * the maximum size for a page with raw compression.
 	 */
 	r->page_size = r->page_size_orig = max;
 	if (r->raw_compression)
-		r->page_size *= 10;
+		r->max_raw_page_size = r->page_size =
+		    (uint32_t)WT_MIN(r->page_size * 10,
+		    WT_MAX(r->page_size, btree->maxmempage / 2));
 
 	/*
 	 * Ensure the disk image buffer is large enough for the max object, as
@@ -2226,7 +2277,7 @@ __rec_split_row_promote(
 	for (cnt = 1; len > 0; ++cnt, --len, ++pa, ++pb)
 		if (*pa != *pb) {
 			if (size != cnt) {
-				WT_STAT_FAST_DATA_INCRV(session,
+				WT_STAT_DATA_INCRV(session,
 				    rec_suffix_compression, size - cnt);
 				size = cnt;
 			}
@@ -2291,7 +2342,7 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 	/* Hitting a page boundary resets the dictionary, in all cases. */
 	__rec_dictionary_reset(r);
 
-	inuse = WT_PTRDIFF32(r->first_free, dsk);
+	inuse = WT_PTRDIFF(r->first_free, dsk);
 	switch (r->bnd_state) {
 	case SPLIT_BOUNDARY:
 		/*
@@ -2409,8 +2460,8 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 		/* Finalize the header information and write the page. */
 		dsk->recno = last->recno;
 		dsk->u.entries = r->entries;
-		dsk->mem_size =
-		    r->disk_image.size = WT_PTRDIFF32(r->first_free, dsk);
+		dsk->mem_size = WT_PTRDIFF32(r->first_free, dsk);
+		r->disk_image.size = dsk->mem_size;
 		WT_RET(
 		    __rec_split_write(session, r, last, &r->disk_image, false));
 
@@ -2425,7 +2476,7 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 		    r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
 		break;
 	case SPLIT_TRACKING_RAW:
-	WT_ILLEGAL_VALUE(session);
+		return (__wt_illegal_value(session, NULL));
 	}
 
 	/*
@@ -2461,11 +2512,11 @@ __rec_split_raw_worker(WT_SESSION_IMPL *session,
 	WT_COMPRESSOR *compressor;
 	WT_DECL_RET;
 	WT_ITEM *dst, *write_ref;
-	WT_PAGE_HEADER *dsk, *dsk_dst;
+	WT_PAGE_HEADER *dsk, *dsk_dst, *disk_image;
 	WT_SESSION *wt_session;
 	size_t corrected_page_size, extra_skip, len, result_len;
 	uint64_t recno;
-	uint32_t entry, i, result_slots, slots;
+	uint32_t entry, i, max_image_slot, result_slots, slots;
 	bool last_block;
 	uint8_t *dsk_start;
 
@@ -2525,7 +2576,7 @@ __rec_split_raw_worker(WT_SESSION_IMPL *session,
 	if (dsk->type == WT_PAGE_COL_VAR)
 		recno = last->recno;
 
-	entry = slots = 0;
+	entry = max_image_slot = slots = 0;
 	WT_CELL_FOREACH(btree, dsk, cell, unpack, i) {
 		++entry;
 
@@ -2575,6 +2626,13 @@ __rec_split_raw_worker(WT_SESSION_IMPL *session,
 		    dsk->type == WT_PAGE_COL_VAR)
 			r->raw_recnos[slots] = recno;
 		r->raw_entries[slots] = entry;
+
+		/*
+		 * Don't create an image so large that any future update will
+		 * cause a split in memory.
+		 */
+		if (max_image_slot == 0 && len > (size_t)r->max_raw_page_size)
+			max_image_slot = slots;
 	}
 
 	/*
@@ -2634,21 +2692,32 @@ __rec_split_raw_worker(WT_SESSION_IMPL *session,
 	ret = compressor->compress_raw(compressor, wt_session,
 	    r->page_size_orig, btree->split_pct,
 	    WT_BLOCK_COMPRESS_SKIP + extra_skip,
-	    (uint8_t *)dsk + WT_BLOCK_COMPRESS_SKIP,
-	    r->raw_offsets, slots,
+	    (uint8_t *)dsk + WT_BLOCK_COMPRESS_SKIP, r->raw_offsets,
+	    max_image_slot == 0 ? slots : max_image_slot,
 	    (uint8_t *)dst->mem + WT_BLOCK_COMPRESS_SKIP,
-	    result_len, no_more_rows, &result_len, &result_slots);
+	    result_len,
+	    no_more_rows || max_image_slot != 0,
+	    &result_len, &result_slots);
 	switch (ret) {
 	case EAGAIN:
 		/*
-		 * The compression function wants more rows; accumulate and
-		 * retry.
+		 * The compression function wants more rows, accumulate and
+		 * retry if possible.
 		 *
-		 * Reset the resulting slots count, just in case the compression
-		 * function modified it before giving up.
+		 * First, reset the resulting slots count, just in case the
+		 * compression function modified it before giving up.
 		 */
 		result_slots = 0;
-		break;
+
+		/*
+		 * If the image is too large and there are more rows to gather,
+		 * act as if the compression engine gave up on this chunk of
+		 * data. That doesn't make sense (we flagged the engine that we
+		 * wouldn't give it any more rows, but it's a possible return).
+		 */
+		if (no_more_rows || max_image_slot == 0)
+			break;
+		/* FALLTHROUGH */
 	case 0:
 		/*
 		 * If the compression function returned zero result slots, it's
@@ -2661,7 +2730,7 @@ __rec_split_raw_worker(WT_SESSION_IMPL *session,
 		 * we were successful and have a block to write.
 		 */
 		if (result_slots == 0) {
-			WT_STAT_FAST_DATA_INCR(session, compress_raw_fail);
+			WT_STAT_DATA_INCR(session, compress_raw_fail);
 
 			/*
 			 * If there are no more rows, we can write the original
@@ -2690,7 +2759,7 @@ __rec_split_raw_worker(WT_SESSION_IMPL *session,
 			 */
 			last->already_compressed = false;
 		} else {
-			WT_STAT_FAST_DATA_INCR(session, compress_raw_ok);
+			WT_STAT_DATA_INCR(session, compress_raw_ok);
 
 			/*
 			 * If there are more rows and the compression function
@@ -2727,7 +2796,8 @@ no_slots:
 
 	if (result_slots != 0) {
 		/*
-		 * We have a block, finalize the header information.
+		 * We have a block, finalize the compressed disk image's header
+		 * information.
 		 */
 		dst->size = result_len + WT_BLOCK_COMPRESS_SKIP;
 		dsk_dst = dst->mem;
@@ -2735,6 +2805,26 @@ no_slots:
 		dsk_dst->mem_size =
 		    r->raw_offsets[result_slots] + WT_BLOCK_COMPRESS_SKIP;
 		dsk_dst->u.entries = r->raw_entries[result_slots - 1];
+
+		/*
+		 * Optionally keep the disk image in cache. Update the initial
+		 * page-header fields to reflect the actual data being written.
+		 *
+		 * If updates are saved and need to be restored, we have to keep
+		 * a copy of the disk image. Unfortunately, we don't yet know if
+		 * there are updates to restore for the key range covered by the
+		 * disk image just created. If there are any saved updates, take
+		 * a copy of the disk image, it's freed later if not needed.
+		 */
+		if (F_ISSET(r, WT_EVICT_SCRUB) ||
+		    (F_ISSET(r, WT_EVICT_UPDATE_RESTORE) && r->supd_next > 0)) {
+			WT_RET(__wt_strndup(session, dsk,
+			    dsk_dst->mem_size, &last->disk_image));
+			disk_image = last->disk_image;
+			disk_image->recno = last->recno;
+			disk_image->mem_size = dsk_dst->mem_size;
+			disk_image->u.entries = dsk_dst->u.entries;
+		}
 
 		/*
 		 * There is likely a remnant in the working buffer that didn't
@@ -2787,12 +2877,12 @@ no_slots:
 		 * Compression failed and there are no more rows to accumulate,
 		 * write the original buffer instead.
 		 */
-		WT_STAT_FAST_DATA_INCR(session, compress_raw_fail);
+		WT_STAT_DATA_INCR(session, compress_raw_fail);
 
 		dsk->recno = last->recno;
-		dsk->mem_size =
-		    r->disk_image.size = WT_PTRDIFF32(r->first_free, dsk);
+		dsk->mem_size = WT_PTRDIFF32(r->first_free, dsk);
 		dsk->u.entries = r->entries;
+		r->disk_image.size = dsk->mem_size;
 
 		r->entries = 0;
 		r->first_free = WT_PAGE_HEADER_BYTE(btree, dsk);
@@ -2806,7 +2896,7 @@ no_slots:
 		 * compression function wants to try again; increase the size of
 		 * the "page" and try again after we accumulate some more rows.
 		 */
-		WT_STAT_FAST_DATA_INCR(session, compress_raw_fail_temporary);
+		WT_STAT_DATA_INCR(session, compress_raw_fail_temporary);
 		goto split_grow;
 	}
 
@@ -2847,48 +2937,6 @@ split_grow:	/*
 		return (__rec_split_grow(session, r, r->page_size + next_len));
 	}
 	return (0);
-}
-
-/*
- * __rec_raw_decompress --
- *	Decompress a raw-compressed image.
- */
-static int
-__rec_raw_decompress(
-    WT_SESSION_IMPL *session, const void *image, size_t size, void *retp)
-{
-	WT_BTREE *btree;
-	WT_DECL_ITEM(tmp);
-	WT_DECL_RET;
-	WT_PAGE_HEADER const *dsk;
-	size_t result_len;
-
-	btree = S2BT(session);
-	dsk = image;
-
-	/*
-	 * We skipped an update and we can't write a block, but unfortunately,
-	 * the block has already been compressed. Decompress the block so we
-	 * can subsequently re-instantiate it in memory.
-	 */
-	WT_RET(__wt_scr_alloc(session, dsk->mem_size, &tmp));
-	memcpy(tmp->mem, image, WT_BLOCK_COMPRESS_SKIP);
-	WT_ERR(btree->compressor->decompress(btree->compressor,
-	    &session->iface,
-	    (uint8_t *)image + WT_BLOCK_COMPRESS_SKIP,
-	    size - WT_BLOCK_COMPRESS_SKIP,
-	    (uint8_t *)tmp->mem + WT_BLOCK_COMPRESS_SKIP,
-	    dsk->mem_size - WT_BLOCK_COMPRESS_SKIP,
-	    &result_len));
-	if (result_len != dsk->mem_size - WT_BLOCK_COMPRESS_SKIP)
-		WT_ERR(__wt_illegal_value(session, btree->dhandle->name));
-
-	WT_ERR(__wt_strndup(session, tmp->data, dsk->mem_size, retp));
-	WT_ASSERT(session, __wt_verify_dsk_image(session,
-	    "[raw evict split]", tmp->data, dsk->mem_size, false) == 0);
-
-err:	__wt_scr_free(session, &tmp);
-	return (ret);
 }
 
 /*
@@ -2936,7 +2984,6 @@ __rec_split_finish_std(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		 * wrote anything, or there's a remaindered block of data.
 		 */
 		break;
-	WT_ILLEGAL_VALUE(session);
 	}
 
 	/*
@@ -2972,7 +3019,8 @@ __rec_split_finish_std(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	dsk = r->disk_image.mem;
 	dsk->recno = bnd->recno;
 	dsk->u.entries = r->entries;
-	dsk->mem_size = r->disk_image.size = WT_PTRDIFF32(r->first_free, dsk);
+	dsk->mem_size = WT_PTRDIFF32(r->first_free, dsk);
+	r->disk_image.size = dsk->mem_size;
 
 	/* If this is a checkpoint, we're done, otherwise write the page. */
 	return (__rec_is_checkpoint(session, r, bnd) ?
@@ -2998,7 +3046,7 @@ __rec_split_finish(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	if (r->raw_compression && r->entries != 0) {
 		while (r->entries != 0) {
 			data_size =
-			    WT_PTRDIFF32(r->first_free, r->disk_image.mem);
+			    WT_PTRDIFF(r->first_free, r->disk_image.mem);
 			if (data_size <= btree->allocsize)
 				break;
 			WT_RET(__rec_split_raw_worker(session, r, 0, true));
@@ -3121,13 +3169,12 @@ __rec_split_write(WT_SESSION_IMPL *session,
 	uint32_t bnd_slot, i, j;
 	int cmp;
 	uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
+	bool need_image;
 
 	btree = S2BT(session);
 	dsk = buf->mem;
 	page = r->page;
 	mod = page->modify;
-
-	WT_RET(__wt_scr_alloc(session, 0, &key));
 
 	/* Set the zero-length value flag in the page header. */
 	if (dsk->type == WT_PAGE_ROW_LEAF) {
@@ -3138,6 +3185,8 @@ __rec_split_write(WT_SESSION_IMPL *session,
 		if (r->entries != 0 && !r->any_empty_value)
 			F_SET(dsk, WT_PAGE_EMPTY_V_NONE);
 	}
+
+	bnd->entries = r->entries;
 
 	/* Initialize the address (set the page type for the parent). */
 	switch (dsk->type) {
@@ -3152,11 +3201,10 @@ __rec_split_write(WT_SESSION_IMPL *session,
 	case WT_PAGE_ROW_INT:
 		bnd->addr.type = WT_ADDR_INT;
 		break;
-	WT_ILLEGAL_VALUE_ERR(session);
+	WT_ILLEGAL_VALUE(session);
 	}
-
 	bnd->size = (uint32_t)buf->size;
-	bnd->cksum = 0;
+	bnd->checksum = 0;
 
 	/*
 	 * Check if we've saved updates that belong to this block, and move
@@ -3166,6 +3214,8 @@ __rec_split_write(WT_SESSION_IMPL *session,
 	 * This code requires a key be filled in for the next block (or the
 	 * last block flag be set, if there's no next block).
 	 */
+	if (page->type == WT_PAGE_ROW_LEAF)
+		WT_RET(__wt_scr_alloc(session, 0, &key));
 	for (i = 0, supd = r->supd; i < r->supd_next; ++i, ++supd) {
 		/* The last block gets all remaining saved updates. */
 		if (last_block) {
@@ -3230,33 +3280,11 @@ supd_check_complete:
 	 * image, we can't actually write it. Instead, we will re-instantiate
 	 * the page using the disk image and any list of updates we skipped.
 	 */
-	if (F_ISSET(r, WT_EVICT_IN_MEMORY) ||
-	    (F_ISSET(r, WT_EVICT_UPDATE_RESTORE) && bnd->supd != NULL)) {
-
-		/* Statistics tracking that we used update/restore. */
-		if (F_ISSET(r, WT_EVICT_UPDATE_RESTORE) && bnd->supd != NULL)
-			r->cache_write_restore = true;
-
-		/*
-		 * If the buffer is compressed (raw compression was configured),
-		 * we have to decompress it so we can instantiate it later. It's
-		 * a slow and convoluted path, but it's also a rare one and it's
-		 * not worth making it faster. Else, the disk image is ready,
-		 * copy it into place for later. It's possible the disk image
-		 * has no items; we have to flag that for verification, it's a
-		 * special case since read/writing empty pages isn't generally
-		 * allowed.
-		 */
-		if (bnd->already_compressed)
-			WT_ERR(__rec_raw_decompress(
-			    session, buf->data, buf->size, &bnd->disk_image));
-		else {
-			WT_ERR(__wt_strndup(
-			    session, buf->data, buf->size, &bnd->disk_image));
-			WT_ASSERT(session, __wt_verify_dsk_image(session,
-			    "[evict split]", buf->data, buf->size, true) == 0);
-		}
-		goto done;
+	if (F_ISSET(r, WT_EVICT_IN_MEMORY))
+		goto copy_image;
+	if (F_ISSET(r, WT_EVICT_UPDATE_RESTORE) && bnd->supd != NULL) {
+		r->cache_write_restore = true;
+		goto copy_image;
 	}
 
 	/*
@@ -3282,7 +3310,7 @@ supd_check_complete:
 		 */
 		dsk->write_gen = 0;
 		memset(WT_BLOCK_HEADER_REF(dsk), 0, btree->block_header);
-		bnd->cksum = __wt_cksum(buf->data, buf->size);
+		bnd->checksum = __wt_checksum(buf->data, buf->size);
 
 		/*
 		 * One last check: don't reuse blocks if compacting, the reason
@@ -3295,29 +3323,30 @@ supd_check_complete:
 		    mod->mod_multi_entries > bnd_slot) {
 			multi = &mod->mod_multi[bnd_slot];
 			if (multi->size == bnd->size &&
-			    multi->cksum == bnd->cksum) {
+			    multi->checksum == bnd->checksum) {
 				multi->addr.reuse = 1;
 				bnd->addr = multi->addr;
 
-				WT_STAT_FAST_DATA_INCR(session, rec_page_match);
-				goto done;
+				WT_STAT_DATA_INCR(session, rec_page_match);
+				goto copy_image;
 			}
 		}
 	}
 
-	bnd->entries = r->entries;
+#ifdef HAVE_VERBOSE
 	/* Output a verbose message if we create a page without many entries */
 	if (WT_VERBOSE_ISSET(session, WT_VERB_SPLIT) && r->entries < 6)
-		WT_ERR(__wt_verbose(session, WT_VERB_SPLIT,
+		__wt_verbose(session, WT_VERB_SPLIT,
 		    "Reconciliation creating a page with %" PRIu32
-		    " entries, memory footprint %" PRIu64
-		    ", page count %" PRIu32 ", %s, split state: %d\n",
+		    " entries, memory footprint %" WT_SIZET_FMT
+		    ", page count %" PRIu32 ", %s, split state: %d",
 		    r->entries, r->page->memory_footprint, r->bnd_next,
 		    F_ISSET(r, WT_EVICTING) ? "evict" : "checkpoint",
-		    r->bnd_state));
+		    r->bnd_state);
+#endif
 
-	WT_ERR(__wt_bt_write(session,
-	    buf, addr, &addr_size, false, bnd->already_compressed));
+	WT_ERR(__wt_bt_write(session, buf, addr, &addr_size,
+	    false, F_ISSET(r, WT_CHECKPOINTING), bnd->already_compressed));
 	WT_ERR(__wt_strndup(session, addr, addr_size, &bnd->addr.addr));
 	bnd->addr.size = (uint8_t)addr_size;
 
@@ -3327,9 +3356,29 @@ supd_check_complete:
 	 * the database's lookaside store.
 	 */
 	if (F_ISSET(r, WT_EVICT_LOOKASIDE) && bnd->supd != NULL)
-		ret = __rec_update_las(session, r, btree->id, bnd);
+		WT_ERR(__rec_update_las(session, r, btree->id, bnd));
 
-done:
+copy_image:
+	/*
+	 * If re-instantiating this page in memory (either because eviction
+	 * wants to, or because we skipped updates to build the disk image),
+	 * save a copy of the disk image.
+	 *
+	 * Raw compression might have already saved a copy of the disk image
+	 * before we could know if we skipped updates to create it, and now
+	 * we know if we're going to need it.
+	 *
+	 * Copy the disk image if we need a copy and don't already have one,
+	 * discard any already saved copy we don't need.
+	 */
+	need_image = F_ISSET(r, WT_EVICT_SCRUB) ||
+	    (F_ISSET(r, WT_EVICT_UPDATE_RESTORE) && bnd->supd != NULL);
+	if (need_image && bnd->disk_image == NULL)
+		WT_ERR(__wt_strndup(
+		    session, buf->data, buf->size, &bnd->disk_image));
+	if (!need_image)
+		__wt_free(session, bnd->disk_image);
+
 err:	__wt_scr_free(session, &key);
 	return (ret);
 }
@@ -3366,7 +3415,7 @@ __rec_update_las(WT_SESSION_IMPL *session,
 	 */
 	__wt_las_set_written(session);
 
-	WT_ERR(__wt_las_cursor(session, &cursor, &session_flags));
+	__wt_las_cursor(session, &cursor, &session_flags);
 
 	/* Ensure enough room for a column-store key without checking. */
 	WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
@@ -3430,7 +3479,7 @@ __rec_update_las(WT_SESSION_IMPL *session,
 		case WT_PAGE_ROW_LEAF:
 			if (list->ins == NULL) {
 				slot = WT_ROW_SLOT(page, list->rip);
-				upd = page->pg_row_upd[slot];
+				upd = page->modify->mod_row_update[slot];
 			} else
 				upd = list->ins->upd;
 			break;
@@ -3503,6 +3552,7 @@ __wt_bulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 	r = cbulk->reconcile;
 	r->is_bulk_load = true;
 
+	recno = WT_RECNO_OOB;		/* -Werror=maybe-uninitialized */
 	switch (btree->type) {
 	case BTREE_COL_FIX:
 	case BTREE_COL_VAR:
@@ -3511,7 +3561,6 @@ __wt_bulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 	case BTREE_ROW:
 		recno = WT_RECNO_OOB;
 		break;
-	WT_ILLEGAL_VALUE(session);
 	}
 
 	return (__rec_split_init(
@@ -3529,8 +3578,9 @@ __wt_bulk_wrapup(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 	WT_PAGE *parent;
 	WT_RECONCILE *r;
 
-	r = cbulk->reconcile;
 	btree = S2BT(session);
+	if ((r = cbulk->reconcile) == NULL)
+		return (0);
 
 	switch (btree->type) {
 	case BTREE_COL_FIX:
@@ -3545,7 +3595,6 @@ __wt_bulk_wrapup(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 		break;
 	case BTREE_ROW:
 		break;
-	WT_ILLEGAL_VALUE(session);
 	}
 
 	WT_RET(__rec_split_finish(session, r));
@@ -3786,7 +3835,7 @@ __rec_vtype(WT_ADDR *addr)
  *	Reconcile a column-store internal page.
  */
 static int
-__rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
+__rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 {
 	WT_ADDR *addr;
 	WT_BTREE *btree;
@@ -3794,11 +3843,12 @@ __rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 	WT_CHILD_STATE state;
 	WT_DECL_RET;
 	WT_KV *val;
-	WT_PAGE *child;
+	WT_PAGE *child, *page;
 	WT_REF *ref;
 	bool hazard;
 
 	btree = S2BT(session);
+	page = pageref->page;
 	child = NULL;
 	hazard = false;
 
@@ -3806,12 +3856,12 @@ __rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 	vpack = &_vpack;
 
 	WT_RET(__rec_split_init(
-	    session, r, page, page->pg_intl_recno, btree->maxintlpage));
+	    session, r, page, pageref->ref_recno, btree->maxintlpage));
 
 	/* For each entry in the in-memory page... */
 	WT_INTL_FOREACH_BEGIN(session, page, ref) {
 		/* Update the starting record number in case we split. */
-		r->recno = ref->key.recno;
+		r->recno = ref->ref_recno;
 
 		/*
 		 * Modified child.
@@ -3885,7 +3935,7 @@ __rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		} else
 			__rec_cell_build_addr(session, r,
 			    addr->addr, addr->size,
-			    __rec_vtype(addr), ref->key.recno);
+			    __rec_vtype(addr), ref->ref_recno);
 		WT_CHILD_RELEASE_ERR(session, hazard, ref);
 
 		/* Boundary: split or write the page. */
@@ -3950,30 +4000,33 @@ __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
  *	Reconcile a fixed-width, column-store leaf page.
  */
 static int
-__rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
+__rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 {
 	WT_BTREE *btree;
 	WT_INSERT *ins;
+	WT_PAGE *page;
 	WT_UPDATE *upd;
 	uint64_t recno;
 	uint32_t entry, nrecs;
 
 	btree = S2BT(session);
+	page = pageref->page;
 
 	WT_RET(__rec_split_init(
-	    session, r, page, page->pg_fix_recno, btree->maxleafpage));
+	    session, r, page, pageref->ref_recno, btree->maxleafpage));
+
+	/* Copy the original, disk-image bytes into place. */
+	memcpy(r->first_free, page->pg_fix_bitf,
+	    __bitstr_size((size_t)page->pg_fix_entries * btree->bitcnt));
 
 	/* Update any changes to the original on-page data items. */
 	WT_SKIP_FOREACH(ins, WT_COL_UPDATE_SINGLE(page)) {
 		WT_RET(__rec_txn_read(session, r, ins, NULL, NULL, &upd));
 		if (upd != NULL)
-			__bit_setv_recno(page, WT_INSERT_RECNO(ins),
-			    btree->bitcnt, ((uint8_t *)WT_UPDATE_DATA(upd))[0]);
+			__bit_setv(r->first_free,
+			    WT_INSERT_RECNO(ins) - pageref->ref_recno,
+			    btree->bitcnt, *(uint8_t *)WT_UPDATE_DATA(upd));
 	}
-
-	/* Copy the updated, disk-image bytes into place. */
-	memcpy(r->first_free, page->pg_fix_bitf,
-	    __bitstr_size((size_t)page->pg_fix_entries * btree->bitcnt));
 
 	/* Calculate the number of entries per page remainder. */
 	entry = page->pg_fix_entries;
@@ -4001,7 +4054,7 @@ __rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			 * the last key on this page, we have to decrement it.
 			 */
 			if ((recno =
-			    page->modify->mod_split_recno) == WT_RECNO_OOB)
+			    page->modify->mod_col_split_recno) == WT_RECNO_OOB)
 				break;
 			recno -= 1;
 
@@ -4031,7 +4084,7 @@ __rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			if (nrecs > 0) {
 				__bit_setv(r->first_free, entry, btree->bitcnt,
 				    upd == NULL ? 0 :
-				    ((uint8_t *)WT_UPDATE_DATA(upd))[0]);
+				    *(uint8_t *)WT_UPDATE_DATA(upd));
 				--nrecs;
 				++entry;
 				++r->recno;
@@ -4075,13 +4128,15 @@ __rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
  */
 static int
 __rec_col_fix_slvg(WT_SESSION_IMPL *session,
-    WT_RECONCILE *r, WT_PAGE *page, WT_SALVAGE_COOKIE *salvage)
+    WT_RECONCILE *r, WT_REF *pageref, WT_SALVAGE_COOKIE *salvage)
 {
 	WT_BTREE *btree;
+	WT_PAGE *page;
 	uint64_t page_start, page_take;
 	uint32_t entry, nrecs;
 
 	btree = S2BT(session);
+	page = pageref->page;
 
 	/*
 	 * !!!
@@ -4096,7 +4151,7 @@ __rec_col_fix_slvg(WT_SESSION_IMPL *session,
 	 * don't want to have to retrofit the code later.
 	 */
 	WT_RET(__rec_split_init(
-	    session, r, page, page->pg_fix_recno, btree->maxleafpage));
+	    session, r, page, pageref->ref_recno, btree->maxleafpage));
 
 	/* We may not be taking all of the entries on the original page. */
 	page_take = salvage->take == 0 ? page->pg_fix_entries : salvage->take;
@@ -4219,7 +4274,7 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r,
  */
 static int
 __rec_col_var(WT_SESSION_IMPL *session,
-    WT_RECONCILE *r, WT_PAGE *page, WT_SALVAGE_COOKIE *salvage)
+    WT_RECONCILE *r, WT_REF *pageref, WT_SALVAGE_COOKIE *salvage)
 {
 	enum { OVFL_IGNORE, OVFL_UNUSED, OVFL_USED } ovfl_state;
 	WT_BTREE *btree;
@@ -4230,6 +4285,7 @@ __rec_col_var(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	WT_INSERT *ins;
 	WT_ITEM *last;
+	WT_PAGE *page;
 	WT_UPDATE *upd;
 	uint64_t n, nrepeat, repeat_count, rle, skip, src_recno;
 	uint32_t i, size;
@@ -4237,16 +4293,17 @@ __rec_col_var(WT_SESSION_IMPL *session,
 	const void *data;
 
 	btree = S2BT(session);
+	page = pageref->page;
 	last = r->last;
 	vpack = &_vpack;
+
+	WT_RET(__rec_split_init(
+	    session, r, page, pageref->ref_recno, btree->maxleafpage));
 
 	WT_RET(__wt_scr_alloc(session, 0, &orig));
 	data = NULL;
 	size = 0;
 	upd = NULL;
-
-	WT_RET(__rec_split_init(
-	    session, r, page, page->pg_var_recno, btree->maxleafpage));
 
 	/*
 	 * The salvage code may be calling us to reconcile a page where there
@@ -4560,7 +4617,8 @@ compare:		/*
 			 * first key on the split page, that is, one larger than
 			 * the last key on this page, we have to decrement it.
 			 */
-			if ((n = page->modify->mod_split_recno) == WT_RECNO_OOB)
+			if ((n = page->
+			    modify->mod_col_split_recno) == WT_RECNO_OOB)
 				break;
 			WT_ASSERT(session, n >= src_recno);
 			n -= 1;
@@ -4989,8 +5047,8 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 	 * Temporary buffers in which to instantiate any uninstantiated keys
 	 * or value items we need.
 	 */
-	WT_RET(__wt_scr_alloc(session, 0, &tmpkey));
-	WT_RET(__wt_scr_alloc(session, 0, &tmpval));
+	WT_ERR(__wt_scr_alloc(session, 0, &tmpkey));
+	WT_ERR(__wt_scr_alloc(session, 0, &tmpval));
 
 	/* For each entry in the page... */
 	WT_ROW_FOREACH(page, rip, i) {
@@ -5150,7 +5208,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 					 * can't remove them from the in-memory
 					 * tree; if an overflow key was deleted
 					 * without being instantiated (for
-					 * example, cursor-based truncation, do
+					 * example, cursor-based truncation), do
 					 * it now.
 					 */
 					if (ikey == NULL)
@@ -5429,18 +5487,24 @@ __rec_split_discard(WT_SESSION_IMPL *session, WT_PAGE *page)
 			__wt_free(session, multi->key.ikey);
 			break;
 		}
-		if (multi->disk_image == NULL) {
-			if (multi->addr.reuse)
-				multi->addr.addr = NULL;
-			else {
-				WT_RET(__wt_btree_block_free(session,
-				    multi->addr.addr, multi->addr.size));
-				__wt_free(session, multi->addr.addr);
-			}
-		} else {
-			__wt_free(session, multi->supd);
-			__wt_free(session, multi->disk_image);
+
+		/*
+		 * If the page was re-written free the backing disk blocks used
+		 * in the previous write (unless the blocks were reused in this
+		 * write). The page may instead have been a disk image with
+		 * associated saved updates: ownership of the disk image is
+		 * transferred when rewriting the page in-memory and there may
+		 * not have been saved updates. We've gotten this wrong a few
+		 * times, so use the existence of an address to confirm backing
+		 * blocks we care about, and free any disk image/saved updates.
+		 */
+		if (multi->addr.addr != NULL && !multi->addr.reuse) {
+			WT_RET(__wt_btree_block_free(
+			    session, multi->addr.addr, multi->addr.size));
+			__wt_free(session, multi->addr.addr);
 		}
+		__wt_free(session, multi->supd);
+		__wt_free(session, multi->disk_image);
 	}
 	__wt_free(session, mod->mod_multi);
 	mod->mod_multi_entries = 0;
@@ -5480,22 +5544,22 @@ __rec_split_dump_keys(WT_SESSION_IMPL *session, WT_PAGE *page, WT_RECONCILE *r)
 
 	if (page->type == WT_PAGE_ROW_INT || page->type == WT_PAGE_ROW_LEAF)
 		WT_RET(__wt_scr_alloc(session, 0, &tkey));
-	WT_ERR(__wt_verbose(
-	    session, WT_VERB_SPLIT, "split: %" PRIu32 " pages", r->bnd_next));
+	__wt_verbose(
+	    session, WT_VERB_SPLIT, "split: %" PRIu32 " pages", r->bnd_next);
 	for (bnd = r->bnd, i = 0; i < r->bnd_next; ++bnd, ++i)
 		switch (page->type) {
 		case WT_PAGE_ROW_INT:
 		case WT_PAGE_ROW_LEAF:
-			WT_ERR(__wt_verbose(session, WT_VERB_SPLIT,
+			__wt_verbose(session, WT_VERB_SPLIT,
 			    "starting key %s",
 			    __wt_buf_set_printable(
-			    session, bnd->key.data, bnd->key.size, tkey)));
+			    session, bnd->key.data, bnd->key.size, tkey));
 			break;
 		case WT_PAGE_COL_FIX:
 		case WT_PAGE_COL_INT:
 		case WT_PAGE_COL_VAR:
-			WT_ERR(__wt_verbose(session, WT_VERB_SPLIT,
-			    "starting recno %" PRIu64, bnd->recno));
+			__wt_verbose(session, WT_VERB_SPLIT,
+			    "starting recno %" PRIu64, bnd->recno);
 			break;
 		WT_ILLEGAL_VALUE_ERR(session);
 		}
@@ -5560,9 +5624,10 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			WT_RET(__wt_btree_block_free(session,
 			    mod->mod_replace.addr, mod->mod_replace.size));
 
-		/* Discard the replacement page's address. */
+		/* Discard the replacement page's address and disk image. */
 		__wt_free(session, mod->mod_replace.addr);
 		mod->mod_replace.size = 0;
+		__wt_free(session, mod->mod_disk_image);
 		break;
 	WT_ILLEGAL_VALUE(session);
 	}
@@ -5581,10 +5646,10 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
 	switch (r->bnd_next) {
 	case 0:						/* Page delete */
-		WT_RET(__wt_verbose(
-		    session, WT_VERB_RECONCILE, "page %p empty", page));
-		WT_STAT_FAST_CONN_INCR(session, rec_page_delete);
-		WT_STAT_FAST_DATA_INCR(session, rec_page_delete);
+		__wt_verbose(
+		    session, WT_VERB_RECONCILE, "page %p empty", (void *)page);
+		WT_STAT_CONN_INCR(session, rec_page_delete);
+		WT_STAT_DATA_INCR(session, rec_page_delete);
 
 		/* If this is the root page, we need to create a sync point. */
 		ref = r->ref;
@@ -5610,45 +5675,51 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		bnd = &r->bnd[0];
 
 		/*
-		 * If saving/restoring changes for this page and there's only
-		 * one block, there's nothing to write. This is an in-memory
-		 * configuration or a special case of forced eviction: set up
+		 * If in-memory, or saving/restoring changes for this page and
+		 * there's only one block, there's nothing to write. Set up
 		 * a single block as if to split, then use that disk image to
-		 * rewrite the page in memory.
+		 * rewrite the page in memory. This is separate from simple
+		 * replacements where eviction has decided to retain the page
+		 * in memory because the latter can't handle update lists and
+		 * splits can.
 		 */
-		if (bnd->disk_image != NULL)
+		if (F_ISSET(r, WT_EVICT_IN_MEMORY) ||
+		    (F_ISSET(r, WT_EVICT_UPDATE_RESTORE) && bnd->supd != NULL))
 			goto split;
 
 		/*
-		 * If this is a root page, then we don't have an address and we
-		 * have to create a sync point.  The address was cleared when
-		 * we were about to write the buffer so we know what to do here.
+		 * A root page, we don't have an address and we have to create
+		 * a sync point. The address was cleared when we were about to
+		 * write the buffer so we know what to do here.
 		 */
 		if (bnd->addr.addr == NULL)
 			WT_RET(__wt_bt_write(session, &r->disk_image,
-			    NULL, NULL, true, bnd->already_compressed));
+			    NULL, NULL, true, F_ISSET(r, WT_CHECKPOINTING),
+			    bnd->already_compressed));
 		else {
 			mod->mod_replace = bnd->addr;
 			bnd->addr.addr = NULL;
+
+			mod->mod_disk_image = bnd->disk_image;
+			bnd->disk_image = NULL;
 		}
 
 		mod->rec_result = WT_PM_REC_REPLACE;
 		break;
 	default:					/* Page split */
-		WT_RET(__wt_verbose(session, WT_VERB_RECONCILE,
+		__wt_verbose(session, WT_VERB_RECONCILE,
 		    "page %p reconciled into %" PRIu32 " pages",
-		    page, r->bnd_next));
+		    (void *)page, r->bnd_next);
 
 		switch (page->type) {
 		case WT_PAGE_COL_INT:
 		case WT_PAGE_ROW_INT:
-			WT_STAT_FAST_DATA_INCR(
-			    session, rec_multiblock_internal);
+			WT_STAT_DATA_INCR(session, rec_multiblock_internal);
 			break;
 		case WT_PAGE_COL_FIX:
 		case WT_PAGE_COL_VAR:
 		case WT_PAGE_ROW_LEAF:
-			WT_STAT_FAST_DATA_INCR(session, rec_multiblock_leaf);
+			WT_STAT_DATA_INCR(session, rec_multiblock_leaf);
 			break;
 		WT_ILLEGAL_VALUE(session);
 		}
@@ -5660,7 +5731,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		/* Track the largest set of page-splits. */
 		if (r->bnd_next > r->bnd_next_max) {
 			r->bnd_next_max = r->bnd_next;
-			WT_STAT_FAST_DATA_SET(
+			WT_STAT_DATA_SET(
 			    session, rec_multiblock_max, r->bnd_next_max);
 		}
 
@@ -5764,19 +5835,26 @@ __rec_split_row(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		WT_RET(__wt_row_ikey_alloc(session, 0,
 		    bnd->key.data, bnd->key.size, &multi->key.ikey));
 
-		if (bnd->disk_image == NULL) {
-			multi->addr = bnd->addr;
-			multi->addr.reuse = 0;
-			multi->size = bnd->size;
-			multi->cksum = bnd->cksum;
-			bnd->addr.addr = NULL;
-		} else {
+		/*
+		 * Copy any disk image.  Don't take saved updates without a
+		 * disk image (which happens if they have been saved to the
+		 * lookaside table): they should be discarded along with the
+		 * original page.
+		 */
+		multi->disk_image = bnd->disk_image;
+		bnd->disk_image = NULL;
+		if (multi->disk_image != NULL) {
 			multi->supd = bnd->supd;
 			multi->supd_entries = bnd->supd_next;
 			bnd->supd = NULL;
-			multi->disk_image = bnd->disk_image;
-			bnd->disk_image = NULL;
 		}
+
+		/* Copy any address. */
+		multi->addr = bnd->addr;
+		multi->addr.reuse = 0;
+		multi->size = bnd->size;
+		multi->checksum = bnd->checksum;
+		bnd->addr.addr = NULL;
 	}
 	mod->mod_multi_entries = r->bnd_next;
 
@@ -5804,19 +5882,26 @@ __rec_split_col(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 	    bnd = r->bnd, i = 0; i < r->bnd_next; ++multi, ++bnd, ++i) {
 		multi->key.recno = bnd->recno;
 
-		if (bnd->disk_image == NULL) {
-			multi->addr = bnd->addr;
-			multi->addr.reuse = 0;
-			multi->size = bnd->size;
-			multi->cksum = bnd->cksum;
-			bnd->addr.addr = NULL;
-		} else {
+		/*
+		 * Copy any disk image.  Don't take saved updates without a
+		 * disk image (which happens if they have been saved to the
+		 * lookaside table): they should be discarded along with the
+		 * original page.
+		 */
+		multi->disk_image = bnd->disk_image;
+		bnd->disk_image = NULL;
+		if (multi->disk_image != NULL) {
 			multi->supd = bnd->supd;
 			multi->supd_entries = bnd->supd_next;
 			bnd->supd = NULL;
-			multi->disk_image = bnd->disk_image;
-			bnd->disk_image = NULL;
 		}
+
+		/* Copy any address. */
+		multi->addr = bnd->addr;
+		multi->addr.reuse = 0;
+		multi->size = bnd->size;
+		multi->checksum = bnd->checksum;
+		bnd->addr.addr = NULL;
 	}
 	mod->mod_multi_entries = r->bnd_next;
 
@@ -5847,7 +5932,7 @@ __rec_cell_build_int_key(WT_SESSION_IMPL *session,
 
 	/* Create an overflow object if the data won't fit. */
 	if (size > btree->maxintlkey) {
-		WT_STAT_FAST_DATA_INCR(session, rec_overflow_key_internal);
+		WT_STAT_DATA_INCR(session, rec_overflow_key_internal);
 
 		*is_ovflp = true;
 		return (__rec_cell_build_ovfl(
@@ -5926,7 +6011,7 @@ __rec_cell_build_leaf_key(WT_SESSION_IMPL *session,
 			if (pfx < btree->prefix_compression_min)
 				pfx = 0;
 			else
-				WT_STAT_FAST_DATA_INCRV(
+				WT_STAT_DATA_INCRV(
 				    session, rec_prefix_compression, pfx);
 		}
 
@@ -5947,7 +6032,7 @@ __rec_cell_build_leaf_key(WT_SESSION_IMPL *session,
 		 * object that was prefix compressed.
 		 */
 		if (pfx == 0) {
-			WT_STAT_FAST_DATA_INCR(session, rec_overflow_key_leaf);
+			WT_STAT_DATA_INCR(session, rec_overflow_key_leaf);
 
 			*is_ovflp = true;
 			return (__rec_cell_build_ovfl(
@@ -6031,7 +6116,7 @@ __rec_cell_build_val(WT_SESSION_IMPL *session,
 
 		/* Create an overflow object if the data won't fit. */
 		if (val->buf.size > btree->maxleafvalue) {
-			WT_STAT_FAST_DATA_INCR(session, rec_overflow_value);
+			WT_STAT_DATA_INCR(session, rec_overflow_value);
 
 			return (__rec_cell_build_ovfl(
 			    session, r, val, WT_CELL_VALUE_OVFL, rle));
@@ -6086,12 +6171,14 @@ __rec_cell_build_ovfl(WT_SESSION_IMPL *session,
 		dsk->u.datalen = (uint32_t)kv->buf.size;
 		memcpy(WT_PAGE_HEADER_BYTE(btree, dsk),
 		    kv->buf.data, kv->buf.size);
-		dsk->mem_size = tmp->size =
+		dsk->mem_size =
 		    WT_PAGE_HEADER_BYTE_SIZE(btree) + (uint32_t)kv->buf.size;
+		tmp->size = dsk->mem_size;
 
 		/* Write the buffer. */
 		addr = buf;
-		WT_ERR(__wt_bt_write(session, tmp, addr, &size, false, false));
+		WT_ERR(__wt_bt_write(session, tmp,
+		    addr, &size, false, F_ISSET(r, WT_CHECKPOINTING), false));
 
 		/*
 		 * Track the overflow record (unless it's a bulk load, which
@@ -6272,7 +6359,7 @@ __rec_dictionary_lookup(
 		WT_RET(__wt_cell_pack_data_match(
 		    dp->cell, &val->cell, val->buf.data, &match));
 		if (match) {
-			WT_STAT_FAST_DATA_INCR(session, rec_dictionary);
+			WT_STAT_DATA_INCR(session, rec_dictionary);
 			*dpp = dp;
 			return (0);
 		}
