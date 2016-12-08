@@ -16,13 +16,10 @@ static int
 __alter_file(
     WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
 {
-	WT_CONFIG_ITEM oldval, newval;
 	WT_DECL_RET;
-	bool change;
-	const char *cfg[3], *filename;
+	const char *cfg[4], *filename;
 	char *config, *newconfig;
 
-	change = false;
 	filename = uri;
 	newconfig = NULL;
 	if (!WT_PREFIX_SKIP(filename, "file:"))
@@ -31,48 +28,24 @@ __alter_file(
 	/* Remove the metadata entry (ignore missing items). */
 	WT_RET(__wt_metadata_search(session, uri, &config));
 
-	cfg[0] = config;
-	cfg[1] = NULL;
-
 	WT_ASSERT(session, newcfg[0] != NULL);
-	WT_ERR(__wt_config_gets(session, cfg,
-	    "access_pattern_hint", &oldval));
 	/*
-	 * We're only using what is given to us by the user so it may not be
-	 * a complete set of allowed options for alter.  So WT_NOTFOUND is
-	 * an allowed error.  We don't use WT_ERR_NOTFOUND_OK because we
-	 * don't want to lose the WT_NOTFOUND value.
+	 * Start with the base configuration because collapse is like
+	 * a projection and if we are reading older metadata, it may not
+	 * have all the components.
 	 */
-	ret = __wt_config_gets(session, newcfg,
-	    "access_pattern_hint", &newval);
-
-	if (ret == 0 && !WT_STRING_MATCH(newval.str, oldval.str, oldval.len))
-		change = true;
-	else {
-		WT_ERR_NOTFOUND_OK(ret);
-		WT_ERR(__wt_config_gets(session, cfg,
-		    "cache_resident", &oldval));
-		ret = __wt_config_gets(session, newcfg,
-		    "cache_resident", &newval);
-		if (ret == 0 && oldval.val != newval.val)
-			change = true;
-		WT_ERR_NOTFOUND_OK(ret);
-
-	}
-
+	cfg[0] = WT_CONFIG_BASE(session, file_meta);
+	cfg[1] = config;
+	cfg[2] = newcfg[0];
+	cfg[3] = NULL;
+	WT_ERR(__wt_config_collapse(session, cfg, &newconfig));
 	/*
 	 * Only rewrite if there are changes.
 	 */
-	if (change) {
-		/*
-		 * Add in the new config and collapse.
-		 */
-		WT_ASSERT(session, newcfg[0] != NULL);
-		cfg[1] = newcfg[0];
-		cfg[2] = NULL;
-		WT_ERR(__wt_config_collapse(session, cfg, &newconfig));
+	if (strcmp(config, newconfig) != 0)
 		WT_ERR(__wt_metadata_update(session, uri, newconfig));
-	}
+	else
+		WT_STAT_CONN_INCR(session, schema_alter_skip);
 
 err:	__wt_free(session, config);
 	__wt_free(session, newconfig);
