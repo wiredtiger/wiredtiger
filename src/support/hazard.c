@@ -77,15 +77,15 @@ __wt_hazard_set(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
 		 * 3. Allocate another increment of slots, up to the maximum.
 		 *    The slot we are on should now be available.
 		 */
-		if (hp >= session->hazard + session->hazard_size) {
-			if (session->nhazard < session->hazard_size &&
+		if (hp >= session->hazard + session->hazard_inuse) {
+			if (session->nhazard < session->hazard_inuse &&
 			    restarts++ == 0)
 				hp = session->hazard;
-			else if (session->hazard_size >= conn->hazard_max)
+			else if (session->hazard_inuse >= conn->hazard_max)
 				break;
 			else
-				WT_PUBLISH(session->hazard_size, WT_MIN(
-				    session->hazard_size + WT_HAZARD_INCR,
+				WT_PUBLISH(session->hazard_inuse, WT_MIN(
+				    session->hazard_inuse + WT_HAZARD_INCR,
 				    conn->hazard_max));
 		}
 
@@ -157,7 +157,7 @@ __wt_hazard_clear(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * Clear the caller's hazard pointer.
 	 * The common pattern is LIFO, so do a reverse search.
 	 */
-	for (hp = session->hazard + session->hazard_size - 1;
+	for (hp = session->hazard + session->hazard_inuse - 1;
 	    hp >= session->hazard;
 	    --hp)
 		if (hp->ref == ref) {
@@ -176,7 +176,7 @@ __wt_hazard_clear(WT_SESSION_IMPL *session, WT_REF *ref)
 			 * reset the size so that checks can skip this session.
 			 */
 			if (--session->nhazard == 0)
-				WT_PUBLISH(session->hazard_size, 0);
+				WT_PUBLISH(session->hazard_inuse, 0);
 			return (0);
 		}
 
@@ -205,7 +205,7 @@ __wt_hazard_close(WT_SESSION_IMPL *session)
 	 * diagnostic.
 	 */
 	for (found = false, hp = session->hazard;
-	    hp < session->hazard + session->hazard_size; ++hp)
+	    hp < session->hazard + session->hazard_inuse; ++hp)
 		if (hp->ref != NULL) {
 			found = true;
 			break;
@@ -233,7 +233,7 @@ __wt_hazard_close(WT_SESSION_IMPL *session)
 	 * can't think of a reason it would be).
 	 */
 	for (hp = session->hazard;
-	    hp < session->hazard + session->hazard_size; ++hp)
+	    hp < session->hazard + session->hazard_inuse; ++hp)
 		if (hp->ref != NULL) {
 			hp->ref = NULL;
 			--session->nhazard;
@@ -256,7 +256,7 @@ __wt_hazard_count(WT_SESSION_IMPL *session, WT_REF *ref)
 	WT_HAZARD *hp;
 	u_int count;
 
-	for (count = 0, hp = session->hazard + session->hazard_size - 1;
+	for (count = 0, hp = session->hazard + session->hazard_inuse - 1;
 	    hp >= session->hazard;
 	    --hp)
 		if (hp->ref == ref)
@@ -276,7 +276,7 @@ __hazard_dump(WT_SESSION_IMPL *session)
 	WT_HAZARD *hp;
 
 	for (hp = session->hazard;
-	    hp < session->hazard + session->hazard_size; ++hp)
+	    hp < session->hazard + session->hazard_inuse; ++hp)
 		if (hp->ref != NULL)
 			__wt_errx(session,
 			    "session %p: hazard pointer %p: %s, line %d",

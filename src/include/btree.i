@@ -1446,7 +1446,7 @@ __wt_page_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref)
 	WT_CONNECTION_IMPL *conn;
 	WT_HAZARD *hp;
 	WT_SESSION_IMPL *s;
-	uint32_t i, j, hazard_size, max, session_cnt;
+	uint32_t i, j, hazard_inuse, max, session_cnt;
 
 	conn = S2C(session);
 
@@ -1464,13 +1464,13 @@ __wt_page_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref)
 	    i < session_cnt; ++s, ++i) {
 		if (!s->active)
 			continue;
-		WT_ORDERED_READ(hazard_size, s->hazard_size);
-		if (s->hazard_size > max) {
-			max = s->hazard_size;
+		WT_ORDERED_READ(hazard_inuse, s->hazard_inuse);
+		if (s->hazard_inuse > max) {
+			max = s->hazard_inuse;
 			WT_STAT_CONN_SET(session,
 			    cache_hazard_max, max);
 		}
-		for (hp = s->hazard; hp < s->hazard + hazard_size; ++hp) {
+		for (hp = s->hazard; hp < s->hazard + hazard_inuse; ++hp) {
 			++j;
 			if (hp->ref == ref) {
 				WT_STAT_CONN_INCRV(session,

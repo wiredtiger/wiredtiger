@@ -130,7 +130,7 @@ __session_clear(WT_SESSION_IMPL *session)
 	 * For these reasons, be careful when clearing the session structure.
 	 */
 	memset(session, 0, WT_SESSION_CLEAR_SIZE(session));
-	session->hazard_size = 0;
+	session->hazard_inuse = 0;
 	session->nhazard = 0;
 	WT_INIT_LSN(&session->bg_sync_lsn);
 }
@@ -1823,14 +1823,6 @@ __open_session(WT_CONNECTION_IMPL *conn,
 	if (WT_SESSION_FIRST_USE(session_ret))
 		WT_ERR(__wt_calloc_def(
 		    session, conn->hazard_max, &session_ret->hazard));
-
-	/*
-	 * Set an initial size for the hazard array. It will be grown as
-	 * required up to hazard_max. The hazard_size is reset on close, since
-	 * __wt_hazard_close ensures the array is cleared - so it is safe to
-	 * reset the starting size on each open.
-	 */
-	session_ret->hazard_size = 0;
 
 	/* Cache the offset of this session's statistics bucket. */
 	session_ret->stat_bucket = WT_STATS_SLOT_ID(session);
