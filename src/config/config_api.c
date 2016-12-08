@@ -168,14 +168,15 @@ __wt_conn_foc_add(WT_SESSION_IMPL *session, const void *p)
 
 	conn = S2C(session);
 
-	__wt_spin_lock(session, &conn->api_lock);
-
-	/* All callers of this function currently ignore errors. */
+	/*
+	 * Callers of this function are expected to be holding the connection's
+	 * api_lock.
+	 *
+	 * All callers of this function currently ignore errors.
+	 */
 	if (__wt_realloc_def(
 	    session, &conn->foc_size, conn->foc_cnt + 1, &conn->foc) == 0)
 		conn->foc[conn->foc_cnt++] = (void *)p;
-
-	__wt_spin_unlock(session, &conn->api_lock);
 }
 
 /*

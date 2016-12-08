@@ -39,7 +39,10 @@ hazard_grow(WT_SESSION_IMPL *session)
 	 */
 	ohazard = session->hazard;
 	WT_PUBLISH(session->hazard, nhazard);
+
+	__wt_spin_lock(session, &S2C(session)->api_lock);
 	__wt_conn_foc_add(session, ohazard);
+	__wt_spin_unlock(session, &S2C(session)->api_lock);
 
 	/*
 	 * Increase the size of the session's pointer array after swapping it
