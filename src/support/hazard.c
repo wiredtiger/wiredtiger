@@ -35,11 +35,11 @@ hazard_grow(WT_SESSION_IMPL *session)
 	 * Swap the new hazard pointer array into place after initialization
 	 * is complete (initialization must complete before eviction can see
 	 * the new hazard pointer array), then schedule the original to be
-	 * freed. We deliberately ignore errors, just leak the memory.
+	 * freed.
 	 */
 	ohazard = session->hazard;
 	WT_PUBLISH(session->hazard, nhazard);
-	(void)__wt_conn_foc_add(session, ohazard);
+	__wt_conn_foc_add(session, ohazard);
 
 	/*
 	 * Increase the size of the session's pointer array after swapping it

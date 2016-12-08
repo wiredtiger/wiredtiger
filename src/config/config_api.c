@@ -161,23 +161,21 @@ wiredtiger_config_validate(WT_SESSION *wt_session,
  * __wt_conn_foc_add --
  *	Add a new entry into the connection's free-on-close list.
  */
-int
+void
 __wt_conn_foc_add(WT_SESSION_IMPL *session, const void *p)
 {
 	WT_CONNECTION_IMPL *conn;
-	WT_DECL_RET;
 
 	conn = S2C(session);
 
 	__wt_spin_lock(session, &conn->api_lock);
 
-	WT_ERR(__wt_realloc_def(
-	    session, &conn->foc_size, conn->foc_cnt + 1, &conn->foc));
+	/* All callers of this function currently ignore errors. */
+	if (__wt_realloc_def(
+	    session, &conn->foc_size, conn->foc_cnt + 1, &conn->foc) == 0)
+		conn->foc[conn->foc_cnt++] = (void *)p;
 
-	conn->foc[conn->foc_cnt++] = (void *)p;
-
-err:	__wt_spin_unlock(session, &conn->api_lock);
-	return (ret);
+	__wt_spin_unlock(session, &conn->api_lock);
 }
 
 /*
@@ -330,12 +328,12 @@ __wt_configure_method(WT_SESSION_IMPL *session,
 	 * order to avoid freeing chunks of memory twice.  Again, this isn't a
 	 * commonly used API and it shouldn't ever happen, just leak it.
 	 */
-	(void)__wt_conn_foc_add(session, entry->base);
-	(void)__wt_conn_foc_add(session, entry);
-	(void)__wt_conn_foc_add(session, checks);
-	(void)__wt_conn_foc_add(session, newcheck->type);
-	(void)__wt_conn_foc_add(session, newcheck->checks);
-	(void)__wt_conn_foc_add(session, newcheck_name);
+	__wt_conn_foc_add(session, entry->base);
+	__wt_conn_foc_add(session, entry);
+	__wt_conn_foc_add(session, checks);
+	__wt_conn_foc_add(session, newcheck->type);
+	__wt_conn_foc_add(session, newcheck->checks);
+	__wt_conn_foc_add(session, newcheck_name);
 
 	/*
 	 * Instead of using locks to protect configuration information, assume
