@@ -159,7 +159,7 @@ __session_alter(WT_SESSION *wt_session, const char *uri, const char *config)
 	 */
 	cfg[0] = cfg[1];
 	cfg[1] = NULL;
-	WT_WITH_CHECKPOINT_LOCK(session, 
+	WT_WITH_CHECKPOINT_LOCK(session,
 	    WT_WITH_SCHEMA_LOCK(session,
 		WT_WITH_TABLE_LOCK(session,
 		    ret = __wt_schema_alter(session, uri, cfg))));
