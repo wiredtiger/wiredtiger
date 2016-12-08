@@ -416,7 +416,7 @@ class Runner:
     def call_compare(self, callname, result, eargs, errline):
         if callname in calls_returning_zero:
             return self.compare("EQ", result, "0", errline)
-        elif callname == 'pwrite':
+        elif callname == 'pwrite' or callname == 'pwrite64':
             return self.compare("EQ", result, eargs[2], errline)
         else:
             self.fail(errline, 'call ' + callname +
@@ -628,7 +628,12 @@ class Runner:
         errfile = open(self.errfilename, 'w')
         if self.args.verbose:
             print('RUNNING: ' + str(callargs))
-        subret = subprocess.call(callargs, stdout=outfile, stderr=errfile)
+        # We have to overload the WIREDTIGER_CONFIG to ensure we perform
+        # fdatasync operations on checkpoints
+        my_env = os.environ.copy()
+        my_env["WIREDTIGER_CONFIG"] = "checkpoint_sync=true"
+        subret = subprocess.call(
+            callargs, stdout=outfile, stderr=errfile, env=my_env)
         outfile.close()
         errfile.close()
         if subret != 0:
