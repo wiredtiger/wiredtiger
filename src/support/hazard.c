@@ -282,6 +282,80 @@ __wt_hazard_close(WT_SESSION_IMPL *session)
 }
 
 /*
+ * hazard_get_reference --
+ *	Return a consistent reference to a hazard pointer array.
+ */
+static inline void
+hazard_get_reference(
+    WT_SESSION_IMPL *session, WT_HAZARD **hazardp, uint32_t *hazard_inusep)
+{
+	/*
+	 * Hazard pointer arrays can be swapped out from under us if they grow.
+	 * First, read the current in-use value. The read must precede the read
+	 * of the hazard pointer itself (so the in-use value is pessimistic
+	 * should the hazard array grow), and additionally ensure we only read
+	 * the in-use value once. Then, read the hazard pointer, also ensuring
+	 * we only read it once.
+	 *
+	 * Use a barrier instead of marking the fields volatile because we don't
+	 * want to slow down the rest of the hazard pointer functions that don't
+	 * need special treatment.
+	 */
+	WT_ORDERED_READ(*hazard_inusep, session->hazard_inuse);
+	WT_ORDERED_READ(*hazardp, session->hazard);
+}
+
+/*
+ * __wt_hazard_check --
+ *	Return if there's a hazard pointer to the page in the system.
+ */
+WT_HAZARD *
+__wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_HAZARD *hp;
+	WT_SESSION_IMPL *s;
+	uint32_t i, j, hazard_inuse, max, session_cnt, walk_cnt;
+
+	conn = S2C(session);
+
+	WT_STAT_CONN_INCR(session, cache_hazard_checks);
+
+	/*
+	 * No lock is required because the session array is fixed size, but it
+	 * may contain inactive entries.  We must review any active session
+	 * that might contain a hazard pointer, so insert a read barrier after
+	 * reading the active session count.  That way, no matter what sessions
+	 * come or go, we'll check the slots for all of the sessions that could
+	 * have been active when we started our check.
+	 */
+	WT_ORDERED_READ(session_cnt, conn->session_cnt);
+	for (s = conn->sessions,
+	    i = j = max = walk_cnt = 0; i < session_cnt; ++s, ++i) {
+		if (!s->active)
+			continue;
+
+		hazard_get_reference(s, &hp, &hazard_inuse);
+
+		if (hazard_inuse > max) {
+			max = hazard_inuse;
+			WT_STAT_CONN_SET(session, cache_hazard_max, max);
+		}
+
+		for (j = 0; j < hazard_inuse; ++hp, ++j) {
+			++walk_cnt;
+			if (hp->ref == ref) {
+				WT_STAT_CONN_INCRV(session,
+				    cache_hazard_walks, walk_cnt);
+				return (hp);
+			}
+		}
+	}
+	WT_STAT_CONN_INCRV(session, cache_hazard_walks, walk_cnt);
+	return (NULL);
+}
+
+/*
  * __wt_hazard_count --
  *	Count how many hazard pointers this session has on the given page.
  */
@@ -289,11 +363,12 @@ u_int
 __wt_hazard_count(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	WT_HAZARD *hp;
+	uint32_t i, hazard_inuse;
 	u_int count;
 
-	for (count = 0, hp = session->hazard + session->hazard_inuse - 1;
-	    hp >= session->hazard;
-	    --hp)
+	hazard_get_reference(session, &hp, &hazard_inuse);
+
+	for (count = 0, i = 0; i < hazard_inuse; ++hp, ++i)
 		if (hp->ref == ref)
 			++count;
 
