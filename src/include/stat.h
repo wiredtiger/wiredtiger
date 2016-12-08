@@ -447,6 +447,7 @@ struct __wt_connection_stats {
 	int64_t session_open;
 	int64_t session_table_alter_fail;
 	int64_t session_table_alter_success;
+	int64_t session_table_alter_skip;
 	int64_t session_table_compact_fail;
 	int64_t session_table_compact_success;
 	int64_t session_table_create_fail;
