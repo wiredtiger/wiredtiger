@@ -106,6 +106,12 @@ __wt_hazard_set(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
 		 */
 		if (ref->state == WT_REF_MEM) {
 			++session->nhazard;
+
+			/*
+			 * Callers require a barrier here so operations holding
+			 * the hazard pointer see consistent data.
+			 */
+			WT_READ_BARRIER();
 			return (0);
 		}
 
