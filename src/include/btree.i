@@ -1453,22 +1453,20 @@ __wt_page_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref)
 	/*
 	 * No lock is required because the session array is fixed size, but it
 	 * may contain inactive entries.  We must review any active session
-	 * that might contain a hazard pointer, so insert a barrier before
+	 * that might contain a hazard pointer, so insert a read barrier after
 	 * reading the active session count.  That way, no matter what sessions
 	 * come or go, we'll check the slots for all of the sessions that could
 	 * have been active when we started our check.
 	 */
 	WT_STAT_CONN_INCR(session, cache_hazard_checks);
 	WT_ORDERED_READ(session_cnt, conn->session_cnt);
-	for (s = conn->sessions, i = 0, j = 0, max = 0;
-	    i < session_cnt; ++s, ++i) {
+	for (s = conn->sessions, i = j = max = 0; i < session_cnt; ++s, ++i) {
 		if (!s->active)
 			continue;
 		WT_ORDERED_READ(hazard_inuse, s->hazard_inuse);
-		if (s->hazard_inuse > max) {
-			max = s->hazard_inuse;
-			WT_STAT_CONN_SET(session,
-			    cache_hazard_max, max);
+		if (hazard_inuse > max) {
+			max = hazard_inuse;
+			WT_STAT_CONN_SET(session, cache_hazard_max, max);
 		}
 		for (hp = s->hazard; hp < s->hazard + hazard_inuse; ++hp) {
 			++j;
