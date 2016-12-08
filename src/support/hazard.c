@@ -13,6 +13,41 @@ static void __hazard_dump(WT_SESSION_IMPL *);
 #endif
 
 /*
+ * hazard_grow --
+ *	Grow a hazard pointer array.
+ */
+static int
+hazard_grow(WT_SESSION_IMPL *session)
+{
+	WT_HAZARD *nhazard;
+	size_t size;
+
+	/*
+	 * Allocate a new, larger hazard pointer array and copy the contents of
+	 * the original into place.
+	 */
+	size = session->hazard_size;
+	WT_RET(__wt_calloc_def(session, size * 2, &nhazard));
+	memcpy(nhazard, session->hazard, size * sizeof(WT_HAZARD));
+
+	/*
+	 * Swap the new hazard pointer array into place after initialization
+	 * is complete (initialization must complete before eviction can see
+	 * the new hazard pointer array).
+	 */
+	WT_PUBLISH(session->hazard, nhazard);
+
+	/*
+	 * Increase the size of the session's pointer array after swapping it
+	 * into place (the session's reference must be updated before eviction
+	 * can see the new size).
+	 */
+	WT_PUBLISH(session->hazard_size, (uint32_t)(size * 2));
+
+	return (0);
+}
+
+/*
  * __wt_hazard_set --
  *	Set a hazard pointer.
  */
@@ -24,13 +59,13 @@ __wt_hazard_set(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
     )
 {
 	WT_BTREE *btree;
-	WT_CONNECTION_IMPL *conn;
 	WT_HAZARD *hp;
-	int restarts = 0;
+	int restarts;
+
+	*busyp = false;
 
 	btree = S2BT(session);
-	conn = S2C(session);
-	*busyp = false;
+	restarts = 0;
 
 	/* If a file can never be evicted, hazard pointers aren't required. */
 	if (F_ISSET(btree, WT_BTREE_IN_MEMORY))
@@ -67,26 +102,28 @@ __wt_hazard_set(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
 	 */
 	for (hp = session->hazard + session->nhazard;; ++hp) {
 		/*
-		 * If we get to the end of the array, either:
-		 * 1. If we know there are free slots somewhere, and this is
-		 *    the first time through, continue the search from the
-		 *    start.  Don't actually continue the loop because that
-		 *    will skip the first slot.
-		 * 2. If we have searched all the way through and we have
-		 *    allocated the maximum number of slots, give up.
-		 * 3. Allocate another increment of slots, up to the maximum.
-		 *    The slot we are on should now be available.
+		 * We start in the middle of the array, past the count of active
+		 * hazard pointers to avoid skipping over lots of in-use slots.
+		 * If we get to the end of the array:
+		 * 1. If there are free slots in the array and this is the first
+		 *    time through the array, continue the search from the
+		 *    start so we keep the list compact. Don't actually continue
+		 *    the loop because that will skip the first slot.
+		 * 2. If there is a slot not currently in-use, increment the
+		 *    in-use value to make the slot visible. The slot we are on
+		 *    should now be available.
+		 * 3. Grow the array.
 		 */
 		if (hp >= session->hazard + session->hazard_inuse) {
 			if (session->nhazard < session->hazard_inuse &&
 			    restarts++ == 0)
 				hp = session->hazard;
-			else if (session->hazard_inuse >= conn->hazard_max)
-				break;
-			else
-				WT_PUBLISH(session->hazard_inuse, WT_MIN(
-				    session->hazard_inuse + WT_HAZARD_INCR,
-				    conn->hazard_max));
+			else if (session->hazard_inuse < session->hazard_size)
+				++session->hazard_inuse;
+			else {
+				WT_RET(hazard_grow(session));
+				hp = &session->hazard[session->hazard_inuse++];
+			}
 		}
 
 		if (hp->ref != NULL)
@@ -129,12 +166,6 @@ __wt_hazard_set(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
 		*busyp = true;
 		return (0);
 	}
-
-#ifdef HAVE_DIAGNOSTIC
-	__hazard_dump(session);
-#endif
-	WT_RET_MSG(session, ENOMEM,
-	    "session %p: hazard pointer table full", (void *)session);
 }
 
 /*

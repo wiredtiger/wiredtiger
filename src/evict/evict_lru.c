@@ -1148,11 +1148,6 @@ retry:	while (slot < max_entries) {
 		    !__wt_cache_aggressive(session))
 			continue;
 
-		/* Skip files if we have used all available hazard pointers. */
-		if (btree->evict_ref == NULL && session->nhazard >=
-		    conn->hazard_max - WT_MIN(conn->hazard_max / 2, 10))
-			continue;
-
 		/*
 		 * If we are filling the queue, skip files that haven't been
 		 * useful in the past.

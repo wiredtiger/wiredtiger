@@ -1822,9 +1822,13 @@ __open_session(WT_CONNECTION_IMPL *conn,
 	 * session close because access to it isn't serialized.  Allocate the
 	 * first time we open this session.
 	 */
-	if (WT_SESSION_FIRST_USE(session_ret))
-		WT_ERR(__wt_calloc_def(
-		    session, conn->hazard_max, &session_ret->hazard));
+	if (WT_SESSION_FIRST_USE(session_ret)) {
+		WT_ERR(__wt_calloc_def(session,
+		    WT_SESSION_INITIAL_HAZARD_SLOTS, &session_ret->hazard));
+		session_ret->hazard_size = WT_SESSION_INITIAL_HAZARD_SLOTS;
+		session_ret->hazard_inuse = 0;
+		session_ret->nhazard = 0;
+	}
 
 	/* Cache the offset of this session's statistics bucket. */
 	session_ret->stat_bucket = WT_STATS_SLOT_ID(session);
