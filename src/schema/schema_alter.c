@@ -128,47 +128,43 @@ __alter_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 {
 	WT_COLGROUP *colgroup;
 	WT_DECL_RET;
-	WT_INDEX *idx;
 	WT_TABLE *table;
-	const char *name;
+	const char *tblcfg[2], *name;
 	u_int i;
+	int ncolgroups;
 
 	name = uri;
 	(void)WT_PREFIX_SKIP(name, "table:");
 
-	table = NULL;
-	WT_ERR(__wt_schema_get_table(
+	WT_RET(__wt_schema_get_table(
 	    session, name, strlen(name), true, &table));
 
-	/* Alter the column groups. */
-	for (i = 0; i < WT_COLGROUPS(table); i++) {
-		if ((colgroup = table->cgroups[i]) == NULL)
-			continue;
-		/*
-		 * Alter the column group before updating the metadata to avoid
-		 * the metadata for the table becoming inconsistent if we can't
-		 * get exclusive access.
-		 */
-		WT_ERR(__wt_schema_alter(session, colgroup->source, cfg));
-	}
+	/*
+	 * Get the original configuration for the table to see if it is
+	 * using the default column group.
+	 */
+	tblcfg[0] = table->config;
+	tblcfg[1] = NULL;
+	WT_ERR(__wt_table_colgroups_config(session, tblcfg, &ncolgroups));
 
-	/* Alter the indices. */
-	WT_ERR(__wt_schema_open_indices(session, table));
-	for (i = 0; i < table->nindices; i++) {
-		if ((idx = table->indices[i]) == NULL)
-			continue;
-		/*
-		 * Alter the indices before updating the metadata to avoid
-		 * the metadata for the table becoming inconsistent if we can't
-		 * get exclusive access.
-		 */
-		WT_ERR(__wt_schema_alter(session, idx->source, cfg));
-	}
-
-	table = NULL;
-
-err:	if (table != NULL)
-		__wt_schema_release_table(session, table);
+	/*
+	 * Alter the column groups only if we are using the default
+	 * column group.  Otherwise the user should alter each
+	 * index or column group explicitly.
+	 */
+	if (ncolgroups == 0)
+		for (i = 0; i < WT_COLGROUPS(table); i++) {
+			if ((colgroup = table->cgroups[i]) == NULL)
+				continue;
+			/*
+			 * Alter the column group before updating the metadata
+			 * to avoid the metadata for the table becoming
+			 * inconsistent if we can't get exclusive access.
+			 */
+			WT_ERR(__wt_schema_alter(
+			    session, colgroup->source, cfg));
+		}
+err:	__wt_schema_release_table(session, table);
 	return (ret);
 }
 

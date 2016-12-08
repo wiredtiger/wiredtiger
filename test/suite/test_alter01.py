@@ -62,7 +62,7 @@ class test_alter01(wttest.WiredTigerTestCase):
     cache_alter=('', 'false', 'true')
     scenarios = make_scenarios(types, hints, resid, reopen)
 
-    def verify_metadata(self, uri, metastr):
+    def verify_metadata(self, metastr):
         if metastr == '':
             return
         cursor = self.session.open_cursor('metadata:', None, None)
@@ -79,8 +79,8 @@ class test_alter01(wttest.WiredTigerTestCase):
             check_meta = ((key.find("lsm:") != -1 or key.find("file:") != -1) \
                 and key.find(self.name) != -1)
             if check_meta:
-                found = True
                 value = cursor[key]
+                found = True
                 self.assertTrue(value.find(metastr) != -1)
         cursor.close()
         self.assertTrue(found == True)
@@ -121,11 +121,11 @@ class test_alter01(wttest.WiredTigerTestCase):
         # Add in column group or index settings.
         if self.use_cg:
             cgparam = 'columns=(v),'
-            self.session.create(
-                'colgroup:' + self.name + ':g0', complex_params + cgparam)
+            suburi = 'colgroup:' + self.name + ':g0'
+            self.session.create(suburi, complex_params + cgparam)
         if self.use_index:
-            self.session.create(
-                'index:' + self.name + ':i0', complex_params + cgparam)
+            suburi = 'index:' + self.name + ':i0'
+            self.session.create(suburi, complex_params + cgparam)
 
         # Put some data in table.
         c = self.session.open_cursor(uri, None)
@@ -134,8 +134,8 @@ class test_alter01(wttest.WiredTigerTestCase):
         c.close()
 
         # Verify the string in the metadata
-        self.verify_metadata(uri, access_param)
-        self.verify_metadata(uri, cache_param)
+        self.verify_metadata(access_param)
+        self.verify_metadata(cache_param)
 
         # Run through all combinations of the alter commands
         # for all allowed settings.  This tests having only one or
@@ -156,8 +156,15 @@ class test_alter01(wttest.WiredTigerTestCase):
                     self.session.alter(uri, alter_param)
                     if self.reopen:
                         self.reopen_conn()
-                    self.verify_metadata(uri, access_str)
-                    self.verify_metadata(uri, cache_str)
+                    special = self.use_cg or self.use_index
+                    if not special:
+                        self.verify_metadata(access_str)
+                        self.verify_metadata(cache_str)
+                    else:
+                        self.session.alter(suburi, alter_param)
+                        self.verify_metadata(access_str)
+                        self.verify_metadata(cache_str)
+
 
 if __name__ == '__main__':
     wttest.run()
