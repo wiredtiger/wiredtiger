@@ -53,7 +53,7 @@ wts_ops(int lastrun)
 	TINFO *tinfo, total;
 	WT_CONNECTION *conn;
 	WT_SESSION *session;
-	pthread_t backup_tid, compact_tid, lrt_tid;
+	pthread_t alter_tid, backup_tid, compact_tid, lrt_tid;
 	int64_t fourths, thread_ops;
 	uint32_t i;
 	int running;
@@ -61,6 +61,7 @@ wts_ops(int lastrun)
 	conn = g.wts_conn;
 
 	session = NULL;			/* -Wconditional-uninitialized */
+	memset(&alter_tid, 0, sizeof(alter_tid));
 	memset(&backup_tid, 0, sizeof(backup_tid));
 	memset(&compact_tid, 0, sizeof(compact_tid));
 	memset(&lrt_tid, 0, sizeof(lrt_tid));
@@ -115,6 +116,8 @@ wts_ops(int lastrun)
 	 * If a multi-threaded run, start optional backup, compaction and
 	 * long-running reader threads.
 	 */
+	if (g.c_alter)
+		testutil_check(pthread_create(&alter_tid, NULL, alter, NULL));
 	if (g.c_backups)
 		testutil_check(pthread_create(&backup_tid, NULL, backup, NULL));
 	if (g.c_compact)
@@ -177,6 +180,8 @@ wts_ops(int lastrun)
 
 	/* Wait for the backup, compaction, long-running reader threads. */
 	g.workers_finished = 1;
+	if (g.c_alter)
+		(void)pthread_join(alter_tid, NULL);
 	if (g.c_backups)
 		(void)pthread_join(backup_tid, NULL);
 	if (g.c_compact)
