@@ -475,7 +475,7 @@ class Runner:
         if not em:
             self.fail(errline, 'Unknown strace/dtruss output: ' + errline)
             return False
-        gotcall = em.groups()[0]
+        gotcall = re.sub(pwrite_in, pwrite_out, em.groups()[0])
         # filtering syscalls here if needed.  If it's not a match,
         # mark the errline so it is retried.
         if self.strip_syscalls != None and gotcall not in self.strip_syscalls:
