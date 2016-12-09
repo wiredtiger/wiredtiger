@@ -485,6 +485,7 @@ alter(void *arg)
 		period = mmrand(NULL, 1, 10);
 
 		snprintf(buf, 32, "cache_resident=%s", cr ? "true" : "false");
+		cr = !cr;
 		if ((ret = session->alter(session, g.uri, buf)) != 0)
 			break;
 		while (period > 0 && !g.workers_finished) {
