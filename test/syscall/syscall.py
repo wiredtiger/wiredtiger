@@ -638,8 +638,8 @@ class Runner:
             print('RUNNING: ' + str(callargs))
         # We have to overload the WIREDTIGER_CONFIG to ensure we perform
         # fdatasync operations on checkpoints
-        my_env = os.environ.copy()
-        my_env["WIREDTIGER_CONFIG"] = "checkpoint_sync=true"
+        my_env = { k : v for k, v in os.environ.iteritems()
+            if k != 'WIREDTIGER_CONFIG' }
         subret = subprocess.call(
             callargs, stdout=outfile, stderr=errfile, env=my_env)
         outfile.close()
