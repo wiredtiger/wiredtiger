@@ -40,7 +40,7 @@ by default and commands that only read data will not run recovery.
 @section util_alter wt alter
 Alter a table.
 
-@subsection util_load_synopsis Synopsis
+@subsection util_alter_synopsis Synopsis
 <code>wt [-RVv] [-C config] [-E secretkey ] [-h directory] alter uri configuration ...</code>
 
 The \c uri and \c configuration pairs may be specified to the
