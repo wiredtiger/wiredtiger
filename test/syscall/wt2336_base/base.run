@@ -125,7 +125,9 @@ close(fd);
 pwrite64(wt, ""..., 0x1000, 0x1000);
 pwrite64(wt, ""..., 0x1000, 0x2000);
 pwrite64(wt, ""..., 0x1000, 0x3000);
+#ifdef __linux__
 fdatasync(wt);
+#endif /* __linux__ */
 fd = OPEN_EXISTING("./WiredTiger.turtle", O_RDWR|O_CLOEXEC);
 
 close(fd);
