@@ -406,7 +406,7 @@ connection_runtime_config = [
                 minimum number of threads WiredTiger will start to help evict
                 pages from cache. The number of threads currently running will
                 vary depending on the current eviction load''',
-                min=1, max=1),
+                min=1, max=8),
             ]),
     Config('eviction_checkpoint_target', '5', r'''
         perform eviction at the beginning of checkpoints to bring the dirty
