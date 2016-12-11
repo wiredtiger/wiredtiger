@@ -30,11 +30,13 @@
 
 static int   col_insert(WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t *);
 static int   col_remove(WT_CURSOR *, WT_ITEM *, uint64_t);
+static int   col_reserve(WT_CURSOR *, uint64_t);
 static int   col_update(WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t);
 static int   nextprev(WT_CURSOR *, int);
 static void *ops(void *);
 static int   row_insert(WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t);
 static int   row_remove(WT_CURSOR *, WT_ITEM *, uint64_t);
+static int   row_reserve(WT_CURSOR *, WT_ITEM *, uint64_t);
 static int   row_update(WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t);
 static void  table_append_init(void);
 
@@ -622,6 +624,15 @@ skip_checkpoint:	/* Pick the next checkpoint operation. */
 					goto deadlock;
 			}
 		} else if (op < g.c_delete_pct + g.c_insert_pct) {
+			/*
+			 * We can only append so many new records, if we've
+			 * reached that limit, update a record instead of
+			 * doing an insert.
+			 */
+			if ((g.type == FIX || g.type == VAR) &&
+			    g.append_cnt >= g.append_max)
+				goto skip_insert;
+
 			++tinfo->insert;
 			switch (g.type) {
 			case ROW:
@@ -631,14 +642,6 @@ skip_checkpoint:	/* Pick the next checkpoint operation. */
 				break;
 			case FIX:
 			case VAR:
-				/*
-				 * We can only append so many new records, if
-				 * we've reached that limit, update a record
-				 * instead of doing an insert.
-				 */
-				if (g.append_cnt >= g.append_max)
-					goto skip_insert;
-
 				/* Insert, then reset the insert cursor. */
 				val_gen(&tinfo->rnd, value, g.rows + 1);
 				ret = col_insert(
@@ -658,16 +661,42 @@ skip_checkpoint:	/* Pick the next checkpoint operation. */
 					goto deadlock;
 		} else if (
 		    op < g.c_delete_pct + g.c_insert_pct + g.c_write_pct) {
-			++tinfo->update;
+skip_insert:		++tinfo->update;
+
+			/* Generate the update key. */
+			if (g.type == ROW)
+				key_gen(key, keyno);
+
+			/* Optionally reserve a slot. */
+			if (intxn && mmrand(&tinfo->rnd, 0, 20) == 1) {
+				switch (g.type) {
+				case ROW:
+					ret = row_reserve(cursor, key, keyno);
+					break;
+				case FIX:
+				case VAR:
+					ret = col_reserve(cursor, keyno);
+					break;
+				}
+				if (ret == 0)
+					__wt_yield();
+				else {
+					positioned = false;
+					if (ret == WT_ROLLBACK && intxn)
+						goto deadlock;
+					break;
+				}
+			}
+
+			/* Update the row. */
 			switch (g.type) {
 			case ROW:
-				key_gen(key, keyno);
 				val_gen(&tinfo->rnd, value, keyno);
 				ret = row_update(cursor, key, value, keyno);
 				break;
 			case FIX:
 			case VAR:
-skip_insert:			val_gen(&tinfo->rnd, value, keyno);
+				val_gen(&tinfo->rnd, value, keyno);
 				ret = col_update(cursor, key, value, keyno);
 				break;
 			}
@@ -716,8 +745,8 @@ skip_insert:			val_gen(&tinfo->rnd, value, keyno);
 		testutil_check(cursor->reset(cursor));
 
 		/*
-		 * If we're in a transaction, commit 40% of the time and
-		 * rollback 10% of the time.
+		 * Continue if not in a transaction, else add more operations
+		 * to the transaction half the time.
 		 */
 		if (!intxn || (rnd = mmrand(&tinfo->rnd, 1, 10)) > 5)
 			continue;
@@ -730,6 +759,10 @@ skip_insert:			val_gen(&tinfo->rnd, value, keyno);
 		    cursor, snap_list, snap, key, value)) == WT_ROLLBACK)
 			goto deadlock;
 
+		/*
+		 * If we're in a transaction, commit 40% of the time and
+		 * rollback 10% of the time.
+		 */
 		switch (rnd) {
 		case 1: case 2: case 3: case 4:			/* 40% */
 			testutil_check(
@@ -1030,6 +1063,31 @@ nextprev(WT_CURSOR *cursor, int next)
 }
 
 /*
+ * row_reserve --
+ *	Reserve a row in a row-store file.
+ */
+static int
+row_reserve(WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno)
+{
+	WT_DECL_RET;
+
+	cursor->set_key(cursor, key);
+	switch (ret = cursor->reserve(cursor)) {
+	case 0:
+		break;
+	case WT_CACHE_FULL:
+	case WT_ROLLBACK:
+		return (WT_ROLLBACK);
+	case WT_NOTFOUND:
+		return (WT_NOTFOUND);
+	default:
+		testutil_die(ret,
+		    "row_reserve: reserve row %" PRIu64 " by key", keyno);
+	}
+	return (0);
+}
+
+/*
  * row_update --
  *	Update a row in a row-store file.
  */
@@ -1067,6 +1125,30 @@ row_update(WT_CURSOR *cursor, WT_ITEM *key, WT_ITEM *value, uint64_t keyno)
 
 	bdb_update(key->data, key->size, value->data, value->size);
 #endif
+	return (0);
+}
+
+/*
+ * col_reserve --
+ *	Reserve a row in a column-store file.
+ */
+static int
+col_reserve(WT_CURSOR *cursor, uint64_t keyno)
+{
+	WT_DECL_RET;
+
+	cursor->set_key(cursor, keyno);
+	switch (ret = cursor->reserve(cursor)) {
+	case 0:
+		break;
+	case WT_CACHE_FULL:
+	case WT_ROLLBACK:
+		return (WT_ROLLBACK);
+	case WT_NOTFOUND:
+		return (WT_NOTFOUND);
+	default:
+		testutil_die(ret, "col_reserve: %" PRIu64, keyno);
+	}
 	return (0);
 }
 

@@ -349,6 +349,28 @@ err:	CURSOR_UPDATE_API_END(session, ret);
 }
 
 /*
+ * __curfile_reserve --
+ *	WT_CURSOR->reserve method for the btree cursor type.
+ */
+static int
+__curfile_reserve(WT_CURSOR *cursor)
+{
+	WT_CURSOR_BTREE *cbt;
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	cbt = (WT_CURSOR_BTREE *)cursor;
+	CURSOR_UPDATE_API_CALL(cursor, session, reserve, cbt->btree);
+
+	WT_CURSOR_NEEDKEY(cursor);
+
+	WT_BTREE_CURSOR_SAVE_AND_RESTORE(cursor, __wt_btcur_reserve(cbt), ret);
+
+err:	CURSOR_UPDATE_API_END(session, ret);
+	return (ret);
+}
+
+/*
  * __curfile_close --
  *	WT_CURSOR->close method for the btree cursor type.
  */
@@ -411,6 +433,7 @@ __curfile_create(WT_SESSION_IMPL *session,
 	    __curfile_insert,			/* insert */
 	    __curfile_update,			/* update */
 	    __curfile_remove,			/* remove */
+	    __curfile_reserve,			/* reserve */
 	    __wt_cursor_reconfigure,		/* reconfigure */
 	    __curfile_close);			/* close */
 	WT_BTREE *btree;

@@ -460,6 +460,7 @@ __wt_curds_open(
 	    __curds_insert,			/* insert */
 	    __curds_update,			/* update */
 	    __curds_remove,			/* remove */
+	    __wt_cursor_notsup,			/* reserve */
 	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
 	    __curds_close);			/* close */
 	WT_CONFIG_ITEM cval, metadata;

@@ -62,7 +62,6 @@ __wt_txn_unmodify(WT_SESSION_IMPL *session)
 static inline int
 __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-	WT_DECL_RET;
 	WT_TXN_OP *op;
 	WT_TXN *txn;
 
@@ -70,14 +69,14 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 
 	if (F_ISSET(txn, WT_TXN_READONLY))
 		WT_RET_MSG(session, WT_ROLLBACK,
-		    "Attempt to update in a read only transaction");
+		    "Attempt to update in a read-only transaction");
 
 	WT_RET(__txn_next_op(session, &op));
 	op->type = F_ISSET(session, WT_SESSION_LOGGING_INMEM) ?
 	    WT_TXN_OP_INMEM : WT_TXN_OP_BASIC;
 	op->u.upd = upd;
 	upd->txnid = session->txn.id;
-	return (ret);
+	return (0);
 }
 
 /*
@@ -233,8 +232,11 @@ __wt_txn_visible(WT_SESSION_IMPL *session, uint64_t id)
 static inline WT_UPDATE *
 __wt_txn_read(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-	while (upd != NULL && !__wt_txn_visible(session, upd->txnid))
-		upd = upd->next;
+	/* Skip reserved place-holders, they're never visible. */
+	for (; upd != NULL; upd = upd->next)
+		if (!WT_UPDATE_RESERVED_ISSET(upd) &&
+		    __wt_txn_visible(session, upd->txnid))
+			break;
 
 	return (upd);
 }

@@ -24,6 +24,7 @@
 	insert,								\
 	update,								\
 	remove,								\
+	reserve,							\
 	reconfigure,							\
 	close)								\
 	static const WT_CURSOR n = {					\
@@ -45,6 +46,7 @@
 	insert,								\
 	update,								\
 	remove,								\
+	reserve,							\
 	close,								\
 	reconfigure,							\
 	{ NULL, NULL },			/* TAILQ_ENTRY q */		\

@@ -93,6 +93,7 @@ __wt_apply_single_idx(WT_SESSION_IMPL *session, WT_INDEX *idx,
 	    __curextract_insert,		/* insert */
 	    __wt_cursor_notsup,			/* update */
 	    __wt_cursor_notsup,			/* remove */
+	    __wt_cursor_notsup,			/* reserve */
 	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
 	    __wt_cursor_notsup);		/* close */
 	WT_CURSOR_EXTRACTOR extract_cursor;
@@ -110,8 +111,7 @@ __wt_apply_single_idx(WT_SESSION_IMPL *session, WT_INDEX *idx,
 		WT_RET(__wt_cursor_get_raw_key(&ctable->iface, &key));
 		WT_RET(__wt_cursor_get_raw_value(&ctable->iface, &value));
 		ret = idx->extractor->extract(idx->extractor,
-		    &session->iface, &key, &value,
-		    &extract_cursor.iface);
+		    &session->iface, &key, &value, &extract_cursor.iface);
 
 		__wt_buf_free(session, &extract_cursor.iface.key);
 		WT_RET(ret);
@@ -623,6 +623,29 @@ err:	CURSOR_UPDATE_API_END(session, ret);
 }
 
 /*
+ * __curtable_reserve --
+ *	WT_CURSOR->reserve method for the table cursor type.
+ */
+static int
+__curtable_reserve(WT_CURSOR *cursor)
+{
+	WT_CURSOR_TABLE *ctable;
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	ctable = (WT_CURSOR_TABLE *)cursor;
+	JOINABLE_CURSOR_UPDATE_API_CALL(cursor, session, update, NULL);
+	WT_ERR(__curtable_open_indices(ctable));
+
+	/* Reserve in the primary, ignore the indices. */
+	APPLY_CG(ctable, reserve);
+	WT_ERR(ret);
+
+err:	CURSOR_UPDATE_API_END(session, ret);
+	return (ret);
+}
+
+/*
  * __wt_table_range_truncate --
  *	Truncate of a cursor range, table implementation.
  */
@@ -871,6 +894,7 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 	    __curtable_insert,			/* insert */
 	    __curtable_update,			/* update */
 	    __curtable_remove,			/* remove */
+	    __curtable_reserve,			/* reserve */
 	    __wt_cursor_reconfigure,		/* reconfigure */
 	    __curtable_close);			/* close */
 	WT_CONFIG_ITEM cval;
