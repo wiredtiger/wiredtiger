@@ -471,21 +471,27 @@ alter(void *arg)
 	WT_DECL_RET;
 	WT_SESSION *session;
 	u_int period;
-	bool cr;
+	bool access;
 	char buf[32];
 
 	(void)(arg);
 	conn = g.wts_conn;
 
-	cr = true;
+	/*
+	 * Only alter the access pattern hint.  If we alter the
+	 * cache resident setting we may end up with a setting that
+	 * fills cache and doesn't allow it to be evicted.
+	 */
+	access = false;
 	/* Open a session */
 	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
 	while (!g.workers_finished) {
 		period = mmrand(NULL, 1, 10);
 
-		snprintf(buf, 32, "cache_resident=%s", cr ? "true" : "false");
-		cr = !cr;
+		snprintf(buf, 32, "access_pattern_hint=%s",
+		    access ? "random" : "none");
+		access = !access;
 		if ((ret = session->alter(session, g.uri, buf)) != 0)
 			break;
 		while (period > 0 && !g.workers_finished) {
