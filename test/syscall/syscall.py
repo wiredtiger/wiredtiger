@@ -636,12 +636,7 @@ class Runner:
         errfile = open(self.errfilename, 'w')
         if self.args.verbose:
             print('RUNNING: ' + str(callargs))
-        # We have to overload the WIREDTIGER_CONFIG to ensure we perform
-        # fdatasync operations on checkpoints
-        my_env = { k : v for k, v in os.environ.iteritems()
-            if k != 'WIREDTIGER_CONFIG' }
-        subret = subprocess.call(
-            callargs, stdout=outfile, stderr=errfile, env=my_env)
+        subret = subprocess.call(callargs, stdout=outfile, stderr=errfile)
         outfile.close()
         errfile.close()
         if subret != 0:
