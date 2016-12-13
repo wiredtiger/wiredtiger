@@ -186,13 +186,9 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 		if (__wt_txn_visible_all(session, las_txnid))
 			continue;
 
-		/*
-		 * Allocate the WT_UPDATE structure.
-		 * The LAS table should never see reserved records.
-		 */
+		/* Allocate the WT_UPDATE structure. */
 		WT_ERR(cursor->get_value(
 		    cursor, &upd_txnid, &upd_size, las_value));
-		WT_ASSERT(session, upd_size != WT_UPDATE_RESERVED_VALUE);
 		WT_ERR(__wt_update_alloc(session, las_value,
 		    &upd, &incr, upd_size == WT_UPDATE_DELETED_VALUE, false));
 		total_incr += incr;

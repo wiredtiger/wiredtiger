@@ -1131,20 +1131,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	for (skipped = false,
 	    max_txn = WT_TXN_NONE, min_txn = UINT64_MAX,
 	    upd = upd_list; upd != NULL; upd = upd->next) {
-		/*
-		 * Ignore aborted transactions or reserved slots, implying that
-		 * reserved slots don't prevent page eviction (and loss of the
-		 * reservation). It's not unreasonable for an application to
-		 * reserve a slot, which updates the generation number, but then
-		 * do sufficient work the page with a reserved slot times out of
-		 * the cache, which argues for reserved slots blocking eviction.
-		 * On the other hand, we don't limit how many reserved slots an
-		 * application can have, making it possible for an application
-		 * to prevent reasonable cache management. For now, a reserved
-		 * slot doesn't block eviction.
-		 */
-		if (WT_UPDATE_RESERVED_ISSET(upd) ||
-		    (txnid = upd->txnid) == WT_TXN_ABORTED)
+		if ((txnid = upd->txnid) == WT_TXN_ABORTED)
 			continue;
 
 		/* Track the largest/smallest transaction IDs on the list. */
@@ -1185,6 +1172,9 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			}
 		}
 	}
+
+	/* Reconciliation should never see a reserved update. */
+	WT_ASSERT(session, *updp == NULL || !WT_UPDATE_RESERVED_ISSET(*updp));
 
 	/*
 	 * If all of the updates were aborted, quit. This test is not strictly
@@ -3556,13 +3546,6 @@ __rec_update_las(WT_SESSION_IMPL *session,
 		 * the lookaside table.
 		 */
 		do {
-			/*
-			 * The lookaside table ignores reserved entries, there's
-			 * no point to re-instantiating them on a fresh page.
-			 */
-			if (WT_UPDATE_RESERVED_ISSET(upd))
-				continue;
-
 			cursor->set_key(cursor, btree_id,
 			    &las_addr, ++las_counter, list->onpage_txn, key);
 
