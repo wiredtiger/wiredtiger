@@ -31,6 +31,14 @@ LT_PREREQ(2.2.6)
 LT_INIT([pic-only])
 AC_SUBST([LIBTOOL_DEPS])
 
+AX_CHECK_COMPILE_FLAG([-std=c11], [
+  CFLAGS+=" -std=c11"
+], [
+  echo "C compiler cannot compile C11 code"
+  exit -1
+])
+
+
 # If enable-strict is configured, turn on as much error checking as we can for
 # this compiler. Intended for developers, and only works for gcc/clang, but it
 # fills a need.
