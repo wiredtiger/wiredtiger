@@ -559,7 +559,8 @@ session_ops(WT_SESSION *session)
 	    "table:mytable", "key_format=r,value_format=S");
 
 	/*! [Alter a table] */
-	ret = session->alter(session, "table:mytable", "cache_resident=true");
+	ret = session->alter(session,
+	    "table:mytable", "access_pattern_hint=random");
 	/*! [Alter a table] */
 
 	/*! [Create a column-store table] */
