@@ -25,7 +25,7 @@ __alter_file(
 	if (!WT_PREFIX_SKIP(filename, "file:"))
 		return (__wt_unexpected_object_type(session, uri, "file:"));
 
-	/* Remove the metadata entry (ignore missing items). */
+	/* Find the URI */
 	WT_RET(__wt_metadata_search(session, uri, &config));
 
 	WT_ASSERT(session, newcfg[0] != NULL);

@@ -851,7 +851,6 @@ __wt_lsm_tree_alter(
 	WT_DECL_RET;
 	WT_LSM_CHUNK *chunk;
 	WT_LSM_TREE *lsm_tree;
-	int tret;
 	u_int i;
 	bool locked;
 
@@ -859,7 +858,7 @@ __wt_lsm_tree_alter(
 
 	/* Get the LSM tree. */
 	WT_WITH_HANDLE_LIST_LOCK(session,
-	    ret = __wt_lsm_tree_get(session, uri, true, &lsm_tree));
+	    ret = __wt_lsm_tree_get(session, uri, false, &lsm_tree));
 	WT_RET(ret);
 
 	/* Prevent any new opens. */
@@ -875,19 +874,10 @@ __wt_lsm_tree_alter(
 			    __wt_schema_alter(session, chunk->bloom_uri, cfg));
 	}
 	WT_ERR(__wt_lsm_meta_write(session, lsm_tree, cfg[0]));
-	locked = false;
-	__wt_lsm_tree_writeunlock(session, lsm_tree);
 
 err:	if (locked)
 		__wt_lsm_tree_writeunlock(session, lsm_tree);
-
-	/*
-	 * Discard the LSM tree.  The first operation on the newly
-	 * configured table will create a new one.
-	 */
-	WT_WITH_HANDLE_LIST_LOCK(session,
-	    tret = __lsm_tree_discard(session, lsm_tree, false));
-	WT_TRET(tret);
+	__wt_lsm_tree_release(session, lsm_tree);
 	return (ret);
 }
 

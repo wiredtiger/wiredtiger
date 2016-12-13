@@ -460,7 +460,7 @@ ops(void *arg)
 			 * 10% of the time, perform some read-only operations
 			 * from a checkpoint.
 			 *
-			 * Skip that if we single-threaded and doing checks
+			 * Skip that if we are single-threaded and doing checks
 			 * against a Berkeley DB database, because that won't
 			 * work because the Berkeley DB database records won't
 			 * match the checkpoint.  Also skip if we are using
