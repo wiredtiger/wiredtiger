@@ -122,6 +122,18 @@
 #endif
 
 /*
+ * Pad a structure so an array of structures get separate cache lines.
+ *
+ * Note that we avoid compiler structure alignment because that requires
+ * allocating aligned blocks of memory, and alignment pollutes any other type
+ * that contains an aligned field.  It is possible that a hot field positioned
+ * before this one will be on the same cache line, but not if it is also
+ * padded.
+ */
+#define	WT_CACHE_LINE_PAD_START	union { struct {
+#define	WT_CACHE_LINE_PAD_END	}; char __padding[WT_CACHE_LINE_ALIGNMENT]; };
+
+/*
  * Flag set, clear and test.
  *
  * They come in 3 flavors: F_XXX (handles a field named "flags" in the structure

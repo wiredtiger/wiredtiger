@@ -72,7 +72,8 @@ struct __wt_rwlock {
 
 #if SPINLOCK_TYPE == SPINLOCK_GCC
 
-struct WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) __wt_spinlock {
+struct __wt_spinlock {
+	WT_CACHE_LINE_PAD_START
 	volatile int lock;
 
 	/*
@@ -84,13 +85,15 @@ struct WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) __wt_spinlock {
 	int16_t stat_count_off;		/* acquisitions offset */
 	int16_t stat_app_usecs_off;	/* waiting application threads offset */
 	int16_t stat_int_usecs_off;	/* waiting server threads offset */
+	WT_CACHE_LINE_PAD_END
 };
 
 #elif SPINLOCK_TYPE == SPINLOCK_PTHREAD_MUTEX ||\
 	SPINLOCK_TYPE == SPINLOCK_PTHREAD_MUTEX_ADAPTIVE ||\
 	SPINLOCK_TYPE == SPINLOCK_MSVC
 
-struct WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) __wt_spinlock {
+struct __wt_spinlock {
+	WT_CACHE_LINE_PAD_START
 	wt_mutex_t lock;
 
 	const char *name;		/* Mutex name */
@@ -106,6 +109,7 @@ struct WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT) __wt_spinlock {
 	int16_t stat_int_usecs_off;	/* waiting server threads offset */
 
 	int8_t initialized;		/* Lock initialized, for cleanup */
+	WT_CACHE_LINE_PAD_END
 };
 
 #else
