@@ -27,6 +27,7 @@
 
 #include "leveldb_wt.h"
 #include <errno.h>
+#include <stdlib.h>
 #include <sstream>
 #include <sys/param.h>
 #include <sys/stat.h>
