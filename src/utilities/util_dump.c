@@ -279,7 +279,7 @@ dump_projection(WT_SESSION *session, const char *config, WT_CURSOR *cursor,
 		    newconfig, len, fmt, __VA_ARGS__)) < 0)		\
 			return (util_err(session, EIO, NULL));		\
 		newconfig += n;						\
-		len -= n;						\
+		len -= (size_t)n;					\
 	} while (0)
 
 	wt_api = session->connection->get_extension_api(session->connection);
