@@ -169,7 +169,8 @@ __wt_schema_alter(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 	else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL)
 		ret = dsrc->alter == NULL ?
 		    __wt_object_unsupported(session, uri) :
-		    dsrc->alter(dsrc, &session->iface, uri, (WT_CONFIG_ARG *)cfg);
+		    dsrc->alter(dsrc,
+		    &session->iface, uri, (WT_CONFIG_ARG *)cfg);
 	else
 		ret = __wt_bad_object_type(session, uri);
 
