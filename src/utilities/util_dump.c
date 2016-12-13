@@ -274,8 +274,10 @@ dump_projection(WT_SESSION *session, const char *config, WT_CURSOR *cursor,
 	*newconfigp = newconfig;
 
 #define	DUMP_ADD_CONFIG(fmt, ...) do {					\
-		size_t n;						\
-		n = snprintf(newconfig, len, fmt, __VA_ARGS__);		\
+		int n;							\
+		if ((n = snprintf(					\
+		    newconfig, len, fmt, __VA_ARGS__)) < 0)		\
+			return (util_err(session, EIO, NULL));		\
 		newconfig += n;						\
 		len -= n;						\
 	} while (0)
