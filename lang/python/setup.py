@@ -35,7 +35,8 @@ from distutils.core import setup, Extension
 if not 'ARCHFLAGS' in os.environ:
     os.environ['ARCHFLAGS'] = ''
 
-# Suppress warnings building SWIG generated code
+# Suppress warnings building SWIG generated code.  SWIG boiler plate
+# functions have sign conversion warnings, so those warnings must be disabled.
 extra_cflags = [ '-w', '-I../../src/include', '-Wno-sign-conversion']
 
 dir = os.path.dirname(__file__)
