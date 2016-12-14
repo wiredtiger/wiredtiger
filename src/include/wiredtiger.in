@@ -808,7 +808,7 @@ struct __wt_session {
 	 * @snippet ex_all.c Alter a table
 	 *
 	 * @param session the session handle
-	 * @param name the URI of the object to drop, such as \c "table:stock"
+	 * @param name the URI of the object to alter, such as \c "table:stock"
 	 * @configstart{WT_SESSION.alter, see dist/api_data.py}
 	 * @config{access_pattern_hint, It is recommended that workloads that
 	 * consist primarily of updates and/or point queries specify \c random.
