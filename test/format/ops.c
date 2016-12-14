@@ -103,8 +103,8 @@ wts_ops(int lastrun)
 	}
 
 	/*
-	 * Create thread structure; start the worker threads.
-	 * Allocate the TINFO structures separately to minimize false sharing.
+	 * Create the per-thread structures and start the worker threads.
+	 * Allocate the thread structures separately to minimize false sharing.
 	 */
 	tinfo_list = dcalloc((size_t)g.c_threads, sizeof(TINFO *));
 	for (i = 0; i < g.c_threads; ++i) {
