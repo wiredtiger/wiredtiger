@@ -177,7 +177,6 @@ struct __wt_logslot {
 #define	WT_SLOT_SYNC		0x04		/* Needs sync on release */
 #define	WT_SLOT_SYNC_DIR	0x08		/* Directory sync on release */
 	uint32_t flags;			/* Flags */
-
 	WT_CACHE_LINE_PAD_END
 };
 
