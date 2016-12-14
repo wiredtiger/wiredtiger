@@ -46,6 +46,7 @@
 #include <pthread.h>
 #include "wiredtiger.h"
 
+#define EXTENSION_PATH "../../ext/compressors/"
 #define WT_URI          "table:data"
 #define WT_CONN_CONFIG                                                  \
         "log=(enabled),checkpoint=(wait=180),checkpoint_sync=false,"    \
