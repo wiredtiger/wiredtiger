@@ -69,5 +69,5 @@
  * anonymous union here which is supported under C11, earlier versions of
  * the GNU standard, and MSVC versions as early as 2003.
  */
-#define WT_CACHE_LINE_PAD_BEGIN union { struct {
-#define WT_CACHE_LINE_PAD_END   }; char __padding[WT_CACHE_LINE_ALIGNMENT]; };
+#define	WT_CACHE_LINE_PAD_BEGIN union { struct {
+#define	WT_CACHE_LINE_PAD_END   }; char __padding[WT_CACHE_LINE_ALIGNMENT]; };
