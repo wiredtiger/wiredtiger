@@ -37,8 +37,8 @@ class test_index02(wttest.WiredTigerTestCase):
     tablename = 'table:' + basename
     indexname = 'index:' + basename + ":inverse"
 
-    def test_search_near(self):
-        '''Create a table, look for a nonexistent key'''
+    def test_search_near_exists(self):
+        '''Create a table, look for an existing key'''
         self.session.create(self.tablename, 'key_format=r,value_format=Q,columns=(k,v)')
         self.session.create(self.indexname, 'columns=(v)')
         cur = self.session.open_cursor(self.tablename, None, "append")
@@ -52,17 +52,39 @@ class test_index02(wttest.WiredTigerTestCase):
         cur.insert()
         cur.set_value(10)
         cur.insert()
-
-        # search near should find a match
-        cur2 = self.session.open_cursor(self.indexname, None, None)
-        cur2.set_key(5)
-        self.assertEqual(cur2.search_near(), 0)
+        cur.close()
 
         # Retry after reopening
-        self.reopen_conn()
-        cur3 = self.session.open_cursor(self.indexname, None, None)
-        cur3.set_key(5)
-        self.assertEqual(cur3.search_near(), 0)
+        for runs in xrange(2):
+            # search near should find a match
+            cur = self.session.open_cursor(self.indexname, None, None)
+            cur.set_key(5)
+            self.assertEqual(cur.search_near(), 0)
+
+            # Retry after reopening
+            self.reopen_conn()
+
+    def test_search_near_between(self):
+        '''Create a table, look for a non-existing key'''
+        self.session.create(self.tablename, 'key_format=i,value_format=i,columns=(k,v)')
+        self.session.create(self.indexname, 'columns=(v)')
+        cur = self.session.open_cursor(self.tablename)
+        for k in xrange(3):
+            cur[k] = 5 * k + 10
+        cur.close()
+
+        search_keys = [ 1, 11, 15, 19, 21 ]
+
+        # search near should find a match
+        for runs in xrange(2):
+            cur = self.session.open_cursor(self.indexname, None, None)
+            for k in search_keys:
+                cur.set_key(k)
+                exact = cur.search_near()
+                found_key = cur.get_key()
+                self.pr("search_near for " + str(k) + " found " + str(found_key) + " with exact " + str(exact))
+                self.assertEqual(exact, cmp(found_key, k), "for key " + str(k))
+            self.reopen_conn()
 
 if __name__ == '__main__':
     wttest.run()
