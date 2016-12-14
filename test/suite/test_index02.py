@@ -27,11 +27,17 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
+from wtscenario import make_scenarios
 
 # test_index02.py
 #    test search_near in indices
 class test_index02(wttest.WiredTigerTestCase):
     '''Test search_near in indices'''
+
+    scenarios = make_scenarios([
+        ('index', dict(indexconfig='columns=(v)', ncol=1)),
+        ('index-with-key', dict(indexconfig='columns=(v,k)', ncol=2)),
+    ])
 
     basename = 'test_index02'
     tablename = 'table:' + basename
@@ -40,7 +46,7 @@ class test_index02(wttest.WiredTigerTestCase):
     def test_search_near_exists(self):
         '''Create a table, look for an existing key'''
         self.session.create(self.tablename, 'key_format=r,value_format=Q,columns=(k,v)')
-        self.session.create(self.indexname, 'columns=(v)')
+        self.session.create(self.indexname, self.indexconfig)
         cur = self.session.open_cursor(self.tablename, None, "append")
         cur.set_value(1)
         cur.insert()
@@ -58,7 +64,10 @@ class test_index02(wttest.WiredTigerTestCase):
         for runs in xrange(2):
             # search near should find a match
             cur = self.session.open_cursor(self.indexname, None, None)
-            cur.set_key(5)
+            if self.ncol == 1:
+                cur.set_key(5)
+            else:
+                cur.set_key(5, 3)
             self.assertEqual(cur.search_near(), 0)
 
             # Retry after reopening
@@ -67,7 +76,7 @@ class test_index02(wttest.WiredTigerTestCase):
     def test_search_near_between(self):
         '''Create a table, look for a non-existing key'''
         self.session.create(self.tablename, 'key_format=i,value_format=i,columns=(k,v)')
-        self.session.create(self.indexname, 'columns=(v)')
+        self.session.create(self.indexname, self.indexconfig)
         cur = self.session.open_cursor(self.tablename)
         for k in xrange(3):
             cur[k] = 5 * k + 10
@@ -79,12 +88,30 @@ class test_index02(wttest.WiredTigerTestCase):
         for runs in xrange(2):
             cur = self.session.open_cursor(self.indexname, None, None)
             for k in search_keys:
-                cur.set_key(k)
+                if self.ncol == 1:
+                    cur.set_key(k)
+                else:
+                    cur.set_key(k, 1)    # [15,1] will completely match
                 exact = cur.search_near()
-                found_key = cur.get_key()
+                if self.ncol == 1:
+                    found_key = cur.get_key()
+                else:
+                    [ found_key, index ] = cur.get_key()
                 self.pr("search_near for " + str(k) + " found " + str(found_key) + " with exact " + str(exact))
                 self.assertEqual(exact, cmp(found_key, k), "for key " + str(k))
             self.reopen_conn()
+
+    def test_search_near_empty(self):
+        '''Create an empty table, look for a key'''
+        self.session.create(self.tablename, 'key_format=i,value_format=i,columns=(k,v)')
+        self.session.create(self.indexname, self.indexconfig)
+
+        cur = self.session.open_cursor(self.indexname, None, None)
+        if self.ncol == 1:
+            cur.set_key(3)
+        else:
+            cur.set_key(3, 1)
+        self.assertEqual(cur.search_near(), wiredtiger.WT_NOTFOUND)
 
 if __name__ == '__main__':
     wttest.run()
