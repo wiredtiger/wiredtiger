@@ -73,7 +73,7 @@ struct __wt_rwlock {
 #if SPINLOCK_TYPE == SPINLOCK_GCC
 
 struct __wt_spinlock {
-	WT_CACHE_LINE_PAD_START
+	WT_CACHE_LINE_PAD_BEGIN
 	volatile int lock;
 
 	/*
@@ -93,7 +93,7 @@ struct __wt_spinlock {
 	SPINLOCK_TYPE == SPINLOCK_MSVC
 
 struct __wt_spinlock {
-	WT_CACHE_LINE_PAD_START
+	WT_CACHE_LINE_PAD_BEGIN
 	wt_mutex_t lock;
 
 	const char *name;		/* Mutex name */

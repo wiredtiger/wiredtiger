@@ -68,7 +68,7 @@ struct __wt_named_snapshot {
 };
 
 struct __wt_txn_state {
-	WT_CACHE_LINE_PAD_START
+	WT_CACHE_LINE_PAD_BEGIN
 	volatile uint64_t id;
 	volatile uint64_t pinned_id;
 	volatile uint64_t metadata_pinned;

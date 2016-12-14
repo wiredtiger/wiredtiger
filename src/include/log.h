@@ -160,7 +160,7 @@ union __wt_lsn {
     WT_LOG_SLOT_JOINED(state) < WT_LOG_SLOT_BUF_MAX)
 
 struct __wt_logslot {
-	WT_CACHE_LINE_PAD_START
+	WT_CACHE_LINE_PAD_BEGIN
 	volatile int64_t slot_state;	/* Slot state */
 	int64_t	 slot_unbuffered;	/* Unbuffered data in this slot */
 	int32_t	 slot_error;		/* Error value */
