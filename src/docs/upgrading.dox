@@ -1,5 +1,13 @@
 /*! @page upgrading Upgrading WiredTiger applications
+@section version_291 Upgrading to Version 2.9.1
+<dl>
+<dt>WiredTiger now requires Python 2.7 at minimum</dt>
+<dd>
+The minimum version of Python supported by WiredTiger is now 2.7 up from the
+previous version of 2.6. This is due to extra unit tests added in this release.
+</dd>
 
+</dl><hr>
 @section version_290 Upgrading to Version 2.9.0
 <dl>
 <dt>Changes to cursor behavior after WT_CURSOR::insert</dt>
