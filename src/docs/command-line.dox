@@ -54,8 +54,8 @@ For example, the following two sets of configuration pairs are
 equivalent in the case of altering a single table named \c xxx.
 
 @code
-table cache_resident=true
-table:xxx cache_resident=true
+table access_pattern_hint=sequential
+table:xxx access_pattern_hint=sequential
 @endcode
 
 It's an error, however, to specify a matching prefix that matches more
@@ -65,8 +65,8 @@ Multiple \c configuration arguments may be specified. For example, the
 following two sets of configuration pairs are equivalent:
 
 @code
-table:xxx access_pattern_hint=sequential,cache_resident=true
-table:xxx access_pattern_hint=sequential table:xxx cache_resident=true
+table:xxx access_pattern_hint=random,cache_resident=false
+table:xxx access_pattern_hint=random table:xxx cache_resident=false
 @endcode
 
 <hr>

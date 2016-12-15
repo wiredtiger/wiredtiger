@@ -104,7 +104,6 @@ __alter_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 	WT_TABLE *table;
 	const char *tblcfg[2], *name;
 	u_int i;
-	int ncolgroups;
 
 	name = uri;
 	(void)WT_PREFIX_SKIP(name, "table:");
@@ -118,14 +117,13 @@ __alter_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 	 */
 	tblcfg[0] = table->config;
 	tblcfg[1] = NULL;
-	WT_ERR(__wt_table_colgroups_config(session, tblcfg, &ncolgroups));
 
 	/*
 	 * Alter the column groups only if we are using the default
 	 * column group.  Otherwise the user should alter each
 	 * index or column group explicitly.
 	 */
-	if (ncolgroups == 0)
+	if (table->ncolgroups == 0)
 		for (i = 0; i < WT_COLGROUPS(table); i++) {
 			if ((colgroup = table->cgroups[i]) == NULL)
 				continue;

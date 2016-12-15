@@ -545,32 +545,6 @@ err:	__wt_free(session, idxconf);
 }
 
 /*
- * __wt_table_colgroups_config --
- *	Parse the table configuration for the colgroups setting and
- *	return the number of column groups.  Used to determine if a
- *	table is using the default column group or not.
- */
-int
-__wt_table_colgroups_config(WT_SESSION_IMPL *session,
-    const char *cfg[], int *ncolgrp)
-{
-	WT_CONFIG conf;
-	WT_CONFIG_ITEM cgkey, cgval, cval;
-	WT_DECL_RET;
-	int ncolgroups;
-
-	WT_RET(__wt_config_gets(session, cfg, "colgroups", &cval));
-	__wt_config_subinit(session, &conf, &cval);
-	for (ncolgroups = 0;
-	    (ret = __wt_config_next(&conf, &cgkey, &cgval)) == 0;
-	    ncolgroups++)
-		;
-	WT_RET_NOTFOUND_OK(ret);
-	*ncolgrp = ncolgroups;
-	return (0);
-}
-
-/*
  * __create_table --
  *	Create a table.
  */
@@ -578,6 +552,8 @@ static int
 __create_table(WT_SESSION_IMPL *session,
     const char *name, bool exclusive, const char *config)
 {
+	WT_CONFIG conf;
+	WT_CONFIG_ITEM cgkey, cgval, cval;
 	WT_DECL_RET;
 	WT_TABLE *table;
 	const char *cfg[4] =
@@ -605,7 +581,13 @@ __create_table(WT_SESSION_IMPL *session,
 	}
 	WT_ERR_NOTFOUND_OK(ret);
 
-	WT_ERR(__wt_table_colgroups_config(session, cfg, &ncolgroups));
+	WT_ERR(__wt_config_gets(session, cfg, "colgroups", &cval));
+	__wt_config_subinit(session, &conf, &cval);
+	for (ncolgroups = 0;
+	    (ret = __wt_config_next(&conf, &cgkey, &cgval)) == 0;
+	    ncolgroups++)
+		;
+	WT_ERR_NOTFOUND_OK(ret);
 
 	WT_ERR(__wt_config_collapse(session, cfg, &tableconf));
 
