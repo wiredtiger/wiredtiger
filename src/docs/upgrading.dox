@@ -7,7 +7,13 @@ The minimum version of Python supported by WiredTiger is now 2.7 up from the
 previous version of 2.6. This is due to extra unit tests added in this release.
 </dd>
 
+<dt>Changes to hazard pointer configuration</dt>
+<dd>
+The \c hazard_max parameter to ::wiredtiger_open is now ignored.  Memory is
+allocated for hazard pointers as required by each session.
+</dd>
 </dl><hr>
+
 @section version_290 Upgrading to Version 2.9.0
 <dl>
 <dt>Changes to cursor behavior after WT_CURSOR::insert</dt>
