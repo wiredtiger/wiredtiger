@@ -248,12 +248,12 @@ leveldb::DB::Open(const Options &options, const std::string &name, leveldb::DB *
     s_conn << "exclusive,";
 #ifndef HAVE_BUILTIN_EXTENSION_SNAPPY
   if (options.compression == kSnappyCompression)
-    s_conn << "extensions=[" EXTENSION_PATH "snappy/.libs/libwiredtiger_snappy.so],";
+    s_conn << "extensions=[libwiredtiger_snappy.so],";
 #endif
 #ifdef HAVE_ROCKSDB
 #ifndef HAVE_BUILTIN_ZLIB
   if (options.compression == kZlibCompression)
-    s_conn << "extensions=[" EXTENSION_PATH "zlib/.libs/libwiredtiger_zlib.so],";
+    s_conn << "extensions=[libwiredtiger_zlib.so],";
 #endif
 #endif
   size_t cache_size = 2 * options.write_buffer_size;
