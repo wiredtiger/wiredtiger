@@ -102,7 +102,7 @@ __alter_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 	WT_COLGROUP *colgroup;
 	WT_DECL_RET;
 	WT_TABLE *table;
-	const char *tblcfg[2], *name;
+	const char *name;
 	u_int i;
 
 	name = uri;
@@ -110,13 +110,6 @@ __alter_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 
 	WT_RET(__wt_schema_get_table(
 	    session, name, strlen(name), true, &table));
-
-	/*
-	 * Get the original configuration for the table to see if it is
-	 * using the default column group.
-	 */
-	tblcfg[0] = table->config;
-	tblcfg[1] = NULL;
 
 	/*
 	 * Alter the column groups only if we are using the default
