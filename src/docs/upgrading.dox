@@ -4,7 +4,8 @@
 <dt>WiredTiger now requires Python 2.7 at minimum</dt>
 <dd>
 The minimum version of Python supported by WiredTiger is now 2.7 up from the
-previous version of 2.6. This is due to extra unit tests added in this release.
+previous version of 2.6. This is due to extra unit tests added in this release
+that depend on 2.7. This is not due to a change in the Python API.
 </dd>
 
 <dt>Changes to hazard pointer configuration</dt>
