@@ -538,6 +538,16 @@ __txn_printlog(WT_SESSION_IMPL *session,
 		WT_RET(__wt_fprintf(session, WT_STDOUT(session),
 		    "    \"message\" : \"%s\"\n", msg));
 		break;
+
+	case WT_LOGREC_PREVLSN:
+		WT_RET(__wt_struct_unpack(session, p, WT_PTRDIFF(end, p),
+		    WT_UNCHECKED_STRING(II), &lsnfile, &lsnoffset));
+		WT_RET(__wt_fprintf(session, WT_STDOUT(session),
+		    "    \"type\" : \"prevlsn\",\n"));
+		WT_RET(__wt_fprintf(session, WT_STDOUT(session),
+		    "    \"prev_lsn\" : [%" PRIu32 ",%" PRIu32 "]\n",
+		    lsnfile, lsnoffset));
+		break;
 	}
 
 	WT_RET(__wt_fprintf(session, WT_STDOUT(session), "  }"));

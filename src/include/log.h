@@ -197,7 +197,8 @@ struct __wt_myslot {
 	uint32_t flags;			/* Flags */
 };
 
-#define	WT_LOG_FIRST_RECORD	log->allocsize
+#define	WT_LOG_END_HEADER	log->allocsize
+#define	WT_LOG_FIRST_RECORD	WT_LOG_END_HEADER + log->allocsize
 
 struct __wt_log {
 	uint32_t	allocsize;	/* Allocation alignment size */
@@ -303,10 +304,12 @@ struct __wt_log_desc {
 	uint32_t	log_magic;	/* 00-03: Magic number */
 #define	WT_LOG_MAJOR_VERSION	1
 	uint16_t	majorv;		/* 04-05: Major version */
-#define	WT_LOG_MINOR_VERSION	0
+#define	WT_LOG_MINOR_VERSION	1
 	uint16_t	minorv;		/* 06-07: Minor version */
 	uint64_t	log_size;	/* 08-15: Log file size */
 };
+#define	WT_LOG_MAJOR_PREVLSN	1
+#define	WT_LOG_MINOR_PREVLSN	1
 
 /*
  * __wt_log_desc_byteswap --
