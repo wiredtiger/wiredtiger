@@ -309,10 +309,10 @@ dump_projection(WT_SESSION *session, const char *config, WT_CURSOR *cursor,
 	 * projection.
 	 */
 	while ((ret = parser->next(parser, &key, &value)) == 0) {
-		WT_RET(dump_add_config(session, &newconfig, &len, 
+		WT_RET(dump_add_config(session, &newconfig, &len,
 		    "%.*s=", (int)key.len, key.str));
 		if (STRING_MATCH_CONFIG("value_format", key))
-			WT_RET(dump_add_config(session, &newconfig, &len, 
+			WT_RET(dump_add_config(session, &newconfig, &len,
 			    "%s", cursor->value_format));
 		else if (STRING_MATCH_CONFIG("columns", key)) {
 			/* copy names of keys */
@@ -324,7 +324,7 @@ dump_projection(WT_SESSION *session, const char *config, WT_CURSOR *cursor,
 				p++;
 				vallen--;
 			}
-			WT_RET(dump_add_config(session, &newconfig, &len, 
+			WT_RET(dump_add_config(session, &newconfig, &len,
 			    "%.*s", (int)(p - value.str), value.str));
 
 			/* copy names of projected values */
@@ -335,14 +335,14 @@ dump_projection(WT_SESSION *session, const char *config, WT_CURSOR *cursor,
 			if (*p != ')')
 				WT_RET(dump_add_config(session, &newconfig,
 				    &len, "%s", ","));
-			WT_RET(dump_add_config(session, &newconfig, &len, 
+			WT_RET(dump_add_config(session, &newconfig, &len,
 			    "%.*s),", (int)(strlen(p) - 1), p));
 		} else if (value.type == WT_CONFIG_ITEM_STRING &&
 		    value.len != 0)
-			WT_RET(dump_add_config(session, &newconfig, &len, 
+			WT_RET(dump_add_config(session, &newconfig, &len,
 			    "\"%.*s\",", (int)value.len, value.str));
 		else
-			WT_RET(dump_add_config(session, &newconfig, &len, 
+			WT_RET(dump_add_config(session, &newconfig, &len,
 			    "%.*s,", (int)value.len, value.str));
 	}
 	if (ret != WT_NOTFOUND)
