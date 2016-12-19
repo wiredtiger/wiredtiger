@@ -251,6 +251,28 @@ dump_json_table_end(WT_SESSION *session)
 }
 
 /*
+ * dump_add_config
+ *	Add a formatted config string to an output buffer.
+ */
+static int
+dump_add_config(WT_SESSION *session, char **bufp, size_t *leftp,
+    const char *fmt, ...)
+	WT_GCC_FUNC_ATTRIBUTE((format (printf, 4, 5)))
+{
+	int n;
+	va_list ap;
+
+	va_start(ap, fmt);
+	n = vsnprintf(*bufp, *leftp, fmt, ap);
+	va_end(ap);
+	if (n < 0)
+		return (util_err(session, EINVAL, NULL));
+	*bufp += n;
+	*leftp -= n;
+	return (0);
+}
+
+/*
  * dump_projection --
  *	Create a new config containing projection information.
  */
@@ -272,16 +294,6 @@ dump_projection(WT_SESSION *session, const char *config, WT_CURSOR *cursor,
 	if ((newconfig = malloc(len)) == NULL)
 		return util_err(session, errno, NULL);
 	*newconfigp = newconfig;
-
-#define	DUMP_ADD_CONFIG(fmt, ...) do {					\
-		int n;							\
-		if ((n = snprintf(					\
-		    newconfig, len, fmt, __VA_ARGS__)) < 0)		\
-			return (util_err(session, EIO, NULL));		\
-		newconfig += n;						\
-		len -= (size_t)n;					\
-	} while (0)
-
 	wt_api = session->connection->get_extension_api(session->connection);
 	if ((ret = wt_api->config_parser_open(wt_api, session, config,
 	    strlen(config), &parser)) != 0)
@@ -297,9 +309,11 @@ dump_projection(WT_SESSION *session, const char *config, WT_CURSOR *cursor,
 	 * projection.
 	 */
 	while ((ret = parser->next(parser, &key, &value)) == 0) {
-		DUMP_ADD_CONFIG("%.*s=", (int)key.len, key.str);
+		WT_RET(dump_add_config(session, &newconfig, &len, 
+		    "%.*s=", (int)key.len, key.str));
 		if (STRING_MATCH_CONFIG("value_format", key))
-			DUMP_ADD_CONFIG("%s", cursor->value_format);
+			WT_RET(dump_add_config(session, &newconfig, &len, 
+			    "%s", cursor->value_format));
 		else if (STRING_MATCH_CONFIG("columns", key)) {
 			/* copy names of keys */
 			p = value.str;
@@ -310,8 +324,8 @@ dump_projection(WT_SESSION *session, const char *config, WT_CURSOR *cursor,
 				p++;
 				vallen--;
 			}
-			DUMP_ADD_CONFIG("%.*s", (int)(p - value.str),
-			    value.str);
+			WT_RET(dump_add_config(session, &newconfig, &len, 
+			    "%.*s", (int)(p - value.str), value.str));
 
 			/* copy names of projected values */
 			p = strchr(cursor->uri, '(');
@@ -319,13 +333,17 @@ dump_projection(WT_SESSION *session, const char *config, WT_CURSOR *cursor,
 			assert(p[strlen(p) - 1] == ')');
 			p++;
 			if (*p != ')')
-				DUMP_ADD_CONFIG("%s", ",");
-			DUMP_ADD_CONFIG("%.*s),", (int)(strlen(p) - 1), p);
+				WT_RET(dump_add_config(session, &newconfig,
+				    &len, "%s", ","));
+			WT_RET(dump_add_config(session, &newconfig, &len, 
+			    "%.*s),", (int)(strlen(p) - 1), p));
 		} else if (value.type == WT_CONFIG_ITEM_STRING &&
 		    value.len != 0)
-			DUMP_ADD_CONFIG("\"%.*s\",", (int)value.len, value.str);
+			WT_RET(dump_add_config(session, &newconfig, &len, 
+			    "\"%.*s\",", (int)value.len, value.str));
 		else
-			DUMP_ADD_CONFIG("%.*s,", (int)value.len, value.str);
+			WT_RET(dump_add_config(session, &newconfig, &len, 
+			    "%.*s,", (int)value.len, value.str));
 	}
 	if (ret != WT_NOTFOUND)
 		return (util_err(session, ret, "WT_CONFIG_PARSER.next"));
