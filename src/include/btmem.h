@@ -435,6 +435,19 @@ struct __wt_page_modify {
 };
 
 /*
+ * WT_COL_RLE --
+ * Variable-length column-store pages have an array of page entries with RLE
+ * counts greater than 1 when reading the page, so it's not necessary to walk
+ * the page counting records to find a specific entry. We can do a binary search
+ * in this array, then an offset calculation to find the cell.
+ */
+WT_PACKED_STRUCT_BEGIN(__wt_col_rle)
+	uint64_t recno;			/* Record number of first repeat. */
+	uint64_t rle;			/* Repeat count. */
+	uint32_t indx;			/* Slot of entry in col_var. */
+WT_PACKED_STRUCT_END
+
+/*
  * WT_PAGE --
  * The WT_PAGE structure describes the in-memory page information.
  */
@@ -529,7 +542,7 @@ struct __wt_page {
 			WT_COL *col_var;	/* Values */
 
 			/*
-			 * Variable-length column-store files creates an array
+			 * Variable-length column-store pages have an array
 			 * of page entries with RLE counts greater than 1 when
 			 * reading the page, so it's not necessary to walk the
 			 * page counting records to find a specific entry. We
@@ -539,18 +552,12 @@ struct __wt_page {
 			 * It's a separate structure to keep the page structure
 			 * as small as possible.
 			 */
-			WT_PACKED_STRUCT_BEGIN(__wt_col_rle)
-				uint64_t recno;	/* Number of first repeat */
-				uint64_t rle;	/* Repeat count */
-				uint32_t indx;	/* Slot of entry in col_var */
-			WT_PACKED_STRUCT_END
-
 			struct __wt_col_var_repeat {
 				uint32_t   nrepeats;	/* repeat slots */
 				WT_COL_RLE repeats[0];	/* lookup RLE array */
 			} *repeats;
 #define	WT_COL_VAR_REPEAT_SET(page)					\
-	(page)->u.col_var.repeats != NULL
+	((page)->u.col_var.repeats != NULL)
 		} col_var;
 #undef	pg_var
 #define	pg_var		u.col_var.col_var
