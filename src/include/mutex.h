@@ -53,11 +53,9 @@ typedef union {				/* Read/write lock */
  * WiredTiger uses read/write locks for shared/exclusive access to resources.
  */
 struct __wt_rwlock {
-	WT_CACHE_LINE_PAD_BEGIN
 	const char *name;		/* Lock name for debugging */
 
 	wt_rwlock_t rwlock;		/* Read/write lock */
-	WT_CACHE_LINE_PAD_END
 };
 
 /*
