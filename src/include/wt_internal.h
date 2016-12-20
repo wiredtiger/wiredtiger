@@ -106,6 +106,8 @@ struct __wt_col;
     typedef struct __wt_col WT_COL;
 struct __wt_col_rle;
     typedef struct __wt_col_rle WT_COL_RLE;
+struct __wt_col_var_repeat;
+    typedef struct __wt_col_var_repeat WT_COL_VAR_REPEAT;
 struct __wt_colgroup;
     typedef struct __wt_colgroup WT_COLGROUP;
 struct __wt_compact_state;
