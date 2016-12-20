@@ -1170,7 +1170,7 @@ __log_truncate(WT_SESSION_IMPL *session,
 			 * truncate them to the end of the log file header.
 			 */
 			WT_ERR(__log_truncate_file(
-			    session, log_fh, WT_LOG_END_HEADER));
+			    session, log_fh, WT_LOG_FIRST_RECORD));
 			WT_ERR(__wt_fsync(session, log_fh, true));
 			WT_ERR(__wt_close(session, &log_fh));
 		}
@@ -1788,7 +1788,8 @@ advance:
 			 * previous LSN from the first record.  This detects
 			 * a "hole" at the end of the previous log file.
 			 */
-			if (log != NULL && !WT_IS_INIT_LSN(&prev_lsn) &&
+			if (LF_ISSET(WT_LOGSCAN_RECOVER) &&
+			    log != NULL && !WT_IS_INIT_LSN(&prev_lsn) &&
 			    prev_lsn.l.offset != prev_eof.l.offset)
 				break;
 			WT_ERR(__wt_filesize(session, log_fh, &log_size));
