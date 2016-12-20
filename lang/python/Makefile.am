@@ -13,8 +13,11 @@ _wiredtiger.so: $(top_builddir)/libwiredtiger.la $(PYSRC)/wiredtiger_wrap.c
 	(cd $(PYSRC) && \
 	    $(PYTHON) setup.py build_ext -f -b $(abs_builddir) $(PYDIRS))
 
+# Set the umask to group-writable when creating the install files so it's more
+# likely they can easily be removed afterward, regardless of the umask set for
+# the root user during installation.
 install-exec-local:
-	(cd $(PYSRC) && \
+	(umask 2 && cd $(PYSRC) && \
 	    $(PYTHON) setup.py build_py -d $(abs_builddir)/build && \
 	    $(PYTHON) setup.py build_ext -f -b $(abs_builddir)/build $(PYDIRS) && \
 	    $(PYTHON) setup.py install_lib -b $(abs_builddir)/build --skip-build $(PYTHON_INSTALL_ARG))
