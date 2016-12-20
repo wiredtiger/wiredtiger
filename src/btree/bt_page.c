@@ -367,8 +367,7 @@ __inmem_col_var(
 		if (rle > 1) {
 			if (repeats == NULL) {
 				__inmem_col_var_repeats(session, page, &n);
-				size =
-				    sizeof(WT_COL_VAR_REPEAT) +
+				size = sizeof(WT_COL_VAR_REPEAT) +
 				    (n + 1) * sizeof(WT_COL_RLE);
 				WT_RET(__wt_calloc(session, 1, size, &p));
 				*sizep += size;
