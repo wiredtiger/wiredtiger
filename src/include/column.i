@@ -221,7 +221,7 @@ __col_var_last_recno(WT_REF *ref)
 	 * This function ignores those records, our callers must handle that
 	 * explicitly, if they care.
 	 */
-	if (page->pg_var_nrepeats == 0)
+	if (!WT_COL_VAR_REPEAT_SET(page))
 		return (page->entries == 0 ? 0 :
 		    ref->ref_recno + (page->entries - 1));
 
@@ -272,7 +272,9 @@ __col_var_search(WT_REF *ref, uint64_t recno, uint64_t *start_recnop)
 	 * slot for this record number, because we know any intervening records
 	 * have repeat counts of 1.
 	 */
-	for (base = 0, limit = page->pg_var_nrepeats; limit != 0; limit >>= 1) {
+	for (base = 0,
+	    limit = WT_COL_VAR_REPEAT_SET(page) ? page->pg_var_nrepeats : 0;
+	    limit != 0; limit >>= 1) {
 		indx = base + (limit >> 1);
 
 		repeat = page->pg_var_repeats + indx;

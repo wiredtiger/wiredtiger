@@ -549,6 +549,8 @@ struct __wt_page {
 				uint32_t   nrepeats;	/* repeat slots */
 				WT_COL_RLE repeats[0];	/* lookup RLE array */
 			} *repeats;
+#define	WT_COL_VAR_REPEAT_SET(page)					\
+	(page)->u.col_var.repeats != NULL
 		} col_var;
 #undef	pg_var
 #define	pg_var		u.col_var.col_var
