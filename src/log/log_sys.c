@@ -75,11 +75,9 @@ __wt_log_recover_prevlsn(WT_SESSION_IMPL *session,
     const uint8_t **pp, const uint8_t *end, WT_LSN *lsnp)
 {
 	WT_DECL_RET;
-	WT_LOG *log;
 	uint32_t prev_file, prev_offset;
 	const char *fmt = WT_UNCHECKED_STRING(II);
 
-	log = S2C(session)->log;
 	if ((ret = __wt_struct_unpack(session, *pp, WT_PTRDIFF(end, *pp), fmt,
 	    &prev_file, &prev_offset)) != 0)
 		WT_RET_MSG(session, ret,
