@@ -119,7 +119,6 @@ __wt_cursor_reconfigure_notsup(WT_CURSOR *cursor, const char *config)
  */
 void
 __wt_cursor_set_notsup(WT_CURSOR *cursor)
-    WT_GCC_FUNC_ATTRIBUTE((cold))
 {
 	/*
 	 * Set cursor methods other than close, reconfigure and reset, to fail.
