@@ -171,12 +171,12 @@ __wt_lsm_work_switch(
 	*ran = false;
 	*entryp = NULL;
 
-	if (F_ISSET(entry->lsm_tree, WT_LSM_TREE_NEED_SWITCH)) {
-		WT_WITH_SCHEMA_LOCK(session, ret,
+	if (entry->lsm_tree->need_switch) {
+		WT_WITH_SCHEMA_LOCK(session,
 		    ret = __wt_lsm_tree_switch(session, entry->lsm_tree));
 		/* Failing to complete the switch is fine */
 		if (ret == EBUSY) {
-			if (F_ISSET(entry->lsm_tree, WT_LSM_TREE_NEED_SWITCH))
+			if (entry->lsm_tree->need_switch)
 				WT_ERR(__wt_lsm_manager_push_entry(session,
 				    WT_LSM_WORK_SWITCH, 0, entry->lsm_tree));
 			ret = 0;
@@ -346,8 +346,8 @@ __wt_lsm_checkpoint_chunk(WT_SESSION_IMPL *session,
 	 * time, and our checkpoint operation should be very quick.
 	 */
 	WT_ERR(__wt_meta_track_on(session));
-	WT_WITH_CHECKPOINT_LOCK(session, ret,
-	    WT_WITH_SCHEMA_LOCK(session, ret,
+	WT_WITH_CHECKPOINT_LOCK(session,
+	    WT_WITH_SCHEMA_LOCK(session,
 		ret = __wt_schema_worker(
 		session, chunk->uri, __wt_checkpoint, NULL, NULL, 0)));
 	WT_TRET(__wt_meta_track_off(session, false, ret != 0));
@@ -364,7 +364,7 @@ __wt_lsm_checkpoint_chunk(WT_SESSION_IMPL *session,
 	/* Lock the tree, mark the chunk as on disk and update the metadata. */
 	__wt_lsm_tree_writelock(session, lsm_tree);
 	F_SET(chunk, WT_LSM_CHUNK_ONDISK);
-	ret = __wt_lsm_meta_write(session, lsm_tree);
+	ret = __wt_lsm_meta_write(session, lsm_tree, NULL);
 	++lsm_tree->dsk_gen;
 
 	/* Update the throttle time. */
@@ -383,7 +383,7 @@ __wt_lsm_checkpoint_chunk(WT_SESSION_IMPL *session,
 	 * forced eviction.
 	 */
 	WT_ERR(__wt_session_get_btree(session, chunk->uri, NULL, NULL, 0));
-	__wt_btree_evictable(session, true);
+	__wt_btree_lsm_switch_primary(session, false);
 	WT_ERR(__wt_session_release_btree(session));
 
 	/* Make sure we aren't pinning a transaction ID. */
@@ -469,7 +469,7 @@ __lsm_bloom_create(WT_SESSION_IMPL *session,
 	/* Ensure the bloom filter is in the metadata. */
 	__wt_lsm_tree_writelock(session, lsm_tree);
 	F_SET(chunk, WT_LSM_CHUNK_BLOOM);
-	ret = __wt_lsm_meta_write(session, lsm_tree);
+	ret = __wt_lsm_meta_write(session, lsm_tree, NULL);
 	++lsm_tree->dsk_gen;
 	__wt_lsm_tree_writeunlock(session, lsm_tree);
 
@@ -526,7 +526,7 @@ __lsm_drop_file(WT_SESSION_IMPL *session, const char *uri)
 	 * results in the hot backup lock being taken when it updates the
 	 * metadata (which would be too late to prevent our drop).
 	 */
-	WT_WITH_SCHEMA_LOCK(session, ret,
+	WT_WITH_SCHEMA_LOCK(session,
 	    ret = __wt_schema_drop(session, uri, drop_cfg));
 
 	if (ret == 0)
@@ -659,7 +659,7 @@ __wt_lsm_free_chunks(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 err:	/* Flush the metadata unless the system is in panic */
 	if (flush_metadata && ret != WT_PANIC) {
 		__wt_lsm_tree_writelock(session, lsm_tree);
-		WT_TRET(__wt_lsm_meta_write(session, lsm_tree));
+		WT_TRET(__wt_lsm_meta_write(session, lsm_tree, NULL));
 		__wt_lsm_tree_writeunlock(session, lsm_tree);
 	}
 	__lsm_unpin_chunks(session, &cookie);

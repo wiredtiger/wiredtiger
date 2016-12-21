@@ -3329,6 +3329,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 	 * compile-time should the structure change underneath us.
 	 */
 	static const WT_DATA_SOURCE wtds = {
+		NULL,				/* No session.alter */
 		helium_session_create,		/* session.create */
 		NULL,				/* No session.compaction */
 		helium_session_drop,		/* session.drop */
@@ -3380,15 +3381,9 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 		goto err;
 	ds->lockinit = 1;
 
-	/* Get the configuration string. */
-	if ((ret = wt_api->config_get(wt_api, NULL, config, "config", &v)) != 0)
-		EMSG_ERR(wt_api, NULL, ret,
-		    "WT_EXTENSION_API.config_get: config: %s",
-		    wt_api->strerror(wt_api, NULL, ret));
-
 	/* Step through the list of Helium sources, opening each one. */
-	if ((ret = wt_api->config_parser_open(
-	    wt_api, NULL, v.str, v.len, &config_parser)) != 0)
+	if ((ret = wt_api->config_parser_open_arg(
+	    wt_api, NULL, config, &config_parser)) != 0)
 		EMSG_ERR(wt_api, NULL, ret,
 		    "WT_EXTENSION_API.config_parser_open: config: %s",
 		    wt_api->strerror(wt_api, NULL, ret));

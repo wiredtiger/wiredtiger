@@ -44,7 +44,7 @@
  * Record numbers are stored in 64-bit unsigned integers, meaning the largest
  * record number is "really, really big".
  */
-#define	WT_BTREE_MAX_OBJECT_SIZE	(UINT32_MAX - 1024)
+#define	WT_BTREE_MAX_OBJECT_SIZE	((uint32_t)(UINT32_MAX - 1024))
 
 /*
  * A location in a file is a variable-length cookie, but it has a maximum size
@@ -131,6 +131,7 @@ struct __wt_btree {
 	uint64_t write_gen;		/* Write generation */
 
 	uint64_t    bytes_inmem;	/* Cache bytes in memory. */
+	uint64_t    bytes_dirty_intl;	/* Bytes in dirty internal pages. */
 	uint64_t    bytes_dirty_leaf;	/* Bytes in dirty leaf pages. */
 
 	WT_REF	   *evict_ref;		/* Eviction thread's location */
@@ -158,15 +159,16 @@ struct __wt_btree {
 #define	WT_BTREE_IGNORE_CACHE	0x000200 /* Cache-resident object */
 #define	WT_BTREE_IN_MEMORY	0x000400 /* Cache-resident object */
 #define	WT_BTREE_LOOKASIDE	0x000800 /* Look-aside table */
-#define	WT_BTREE_NO_CHECKPOINT	0x001000 /* Disable checkpoints */
-#define	WT_BTREE_NO_EVICTION	0x002000 /* Disable eviction */
-#define	WT_BTREE_NO_LOGGING	0x004000 /* Disable logging */
-#define	WT_BTREE_NO_RECONCILE	0x008000 /* Allow splits, even with no evict */
-#define	WT_BTREE_REBALANCE	0x010000 /* Handle is for rebalance */
-#define	WT_BTREE_SALVAGE	0x020000 /* Handle is for salvage */
-#define	WT_BTREE_SKIP_CKPT	0x040000 /* Handle skipped checkpoint */
-#define	WT_BTREE_UPGRADE	0x080000 /* Handle is for upgrade */
-#define	WT_BTREE_VERIFY		0x100000 /* Handle is for verify */
+#define	WT_BTREE_LSM_PRIMARY	0x001000 /* Handle is current LSM primary */
+#define	WT_BTREE_NO_CHECKPOINT	0x002000 /* Disable checkpoints */
+#define	WT_BTREE_NO_EVICTION	0x004000 /* Disable eviction */
+#define	WT_BTREE_NO_LOGGING	0x008000 /* Disable logging */
+#define	WT_BTREE_NO_RECONCILE	0x010000 /* Allow splits, even with no evict */
+#define	WT_BTREE_REBALANCE	0x020000 /* Handle is for rebalance */
+#define	WT_BTREE_SALVAGE	0x040000 /* Handle is for salvage */
+#define	WT_BTREE_SKIP_CKPT	0x080000 /* Handle skipped checkpoint */
+#define	WT_BTREE_UPGRADE	0x100000 /* Handle is for upgrade */
+#define	WT_BTREE_VERIFY		0x200000 /* Handle is for verify */
 	uint32_t flags;
 };
 

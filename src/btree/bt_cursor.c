@@ -41,7 +41,7 @@ __cursor_size_chk(WT_SESSION_IMPL *session, WT_ITEM *kv)
 	if (kv->size > WT_BTREE_MAX_OBJECT_SIZE)
 		WT_RET_MSG(session, EINVAL,
 		    "item size of %" WT_SIZET_FMT " exceeds the maximum "
-		    "supported WiredTiger size of %d",
+		    "supported WiredTiger size of %" PRIu32,
 		    kv->size, WT_BTREE_MAX_OBJECT_SIZE);
 
 	/* Check what the block manager can actually write. */
@@ -325,7 +325,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 	valid = false;
 	if (F_ISSET(cbt, WT_CBT_ACTIVE) &&
 	    cbt->ref->page->read_gen != WT_READGEN_OLDEST) {
-		WT_ERR(__wt_txn_cursor_op(session));
+		__wt_txn_cursor_op(session);
 
 		WT_ERR(btree->type == BTREE_ROW ?
 		    __cursor_row_search(session, cbt, cbt->ref, false) :
@@ -405,7 +405,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 	if (btree->type == BTREE_ROW &&
 	    F_ISSET(cbt, WT_CBT_ACTIVE) &&
 	    cbt->ref->page->read_gen != WT_READGEN_OLDEST) {
-		WT_ERR(__wt_txn_cursor_op(session));
+		__wt_txn_cursor_op(session);
 
 		WT_ERR(__cursor_row_search(session, cbt, cbt->ref, true));
 

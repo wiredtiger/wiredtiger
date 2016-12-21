@@ -34,7 +34,7 @@ __wt_clsm_request_switch(WT_CURSOR_LSM *clsm)
 	lsm_tree = clsm->lsm_tree;
 	session = (WT_SESSION_IMPL *)clsm->iface.session;
 
-	if (!F_ISSET(lsm_tree, WT_LSM_TREE_NEED_SWITCH)) {
+	if (!lsm_tree->need_switch) {
 		/*
 		 * Check that we are up-to-date: don't set the switch if the
 		 * tree has changed since we last opened cursors: that can lead
@@ -44,8 +44,8 @@ __wt_clsm_request_switch(WT_CURSOR_LSM *clsm)
 		__wt_lsm_tree_readlock(session, lsm_tree);
 		if (lsm_tree->nchunks == 0 ||
 		    (clsm->dsk_gen == lsm_tree->dsk_gen &&
-		    !F_ISSET(lsm_tree, WT_LSM_TREE_NEED_SWITCH))) {
-			F_SET(lsm_tree, WT_LSM_TREE_NEED_SWITCH);
+		    !lsm_tree->need_switch)) {
+			lsm_tree->need_switch = true;
 			ret = __wt_lsm_manager_push_entry(
 			    session, WT_LSM_WORK_SWITCH, 0, lsm_tree);
 		}
@@ -129,7 +129,7 @@ __clsm_enter_update(WT_CURSOR_LSM *clsm)
 	 * chunk grows twice as large as the configured size, block until it
 	 * can be switched.
 	 */
-	hard_limit = F_ISSET(lsm_tree, WT_LSM_TREE_NEED_SWITCH);
+	hard_limit = lsm_tree->need_switch;
 
 	if (have_primary) {
 		WT_ENTER_PAGE_INDEX(session);
@@ -215,7 +215,7 @@ __clsm_enter(WT_CURSOR_LSM *clsm, bool reset, bool update)
 				goto open;
 
 			if (txn->isolation == WT_ISO_SNAPSHOT)
-				WT_RET(__wt_txn_cursor_op(session));
+				__wt_txn_cursor_op(session);
 
 			/*
 			 * Figure out how many updates are required for
@@ -267,7 +267,7 @@ __clsm_enter(WT_CURSOR_LSM *clsm, bool reset, bool update)
 		    (!update && F_ISSET(clsm, WT_CLSM_OPEN_READ))))
 			break;
 
-open:		WT_WITH_SCHEMA_LOCK(session, ret,
+open:		WT_WITH_SCHEMA_LOCK(session,
 		    ret = __clsm_open_cursors(clsm, update, 0, 0));
 		WT_RET(ret);
 	}
@@ -409,13 +409,11 @@ static int
 __clsm_resize_chunks(
     WT_SESSION_IMPL *session, WT_CURSOR_LSM *clsm, u_int nchunks)
 {
-	WT_DECL_RET;
 	WT_LSM_CURSOR_CHUNK *chunk;
 
 	/* Don't allocate more iterators if we don't need them. */
-	if (clsm->chunks_count >= nchunks) {
-		return (ret);
-	}
+	if (clsm->chunks_count >= nchunks)
+		return (0);
 
 	WT_RET(__wt_realloc_def(session, &clsm->chunks_alloc, nchunks,
 	    &clsm->chunks));
@@ -423,7 +421,7 @@ __clsm_resize_chunks(
 		WT_RET(__wt_calloc_one(session, &chunk));
 		clsm->chunks[clsm->chunks_count] = chunk;
 	}
-	return (ret);
+	return (0);
 }
 
 /*
@@ -434,9 +432,10 @@ static void
 __clsm_free_chunks(WT_SESSION_IMPL *session, WT_CURSOR_LSM *clsm)
 {
 	size_t i;
-	for (i = 0; i < clsm->chunks_count; i++) {
+
+	for (i = 0; i < clsm->chunks_count; i++)
 		__wt_free(session, clsm->chunks[i]);
-	}
+
 	__wt_free(session, clsm->chunks);
 }
 
@@ -700,7 +699,7 @@ retry:	if (F_ISSET(clsm, WT_CLSM_MERGE)) {
 		if (btree->bulk_load_ok) {
 			btree->bulk_load_ok = false;
 			WT_WITH_BTREE(session, btree,
-			    __wt_btree_evictable(session, false));
+			    __wt_btree_lsm_switch_primary(session, true));
 		}
 	}
 
@@ -763,7 +762,7 @@ __wt_clsm_init_merge(
 		F_SET(clsm, WT_CLSM_MINOR_MERGE);
 	clsm->nchunks = nchunks;
 
-	WT_WITH_SCHEMA_LOCK(session, ret,
+	WT_WITH_SCHEMA_LOCK(session,
 	    ret = __clsm_open_cursors(clsm, false, start_chunk, start_id));
 	return (ret);
 }

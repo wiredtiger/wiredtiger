@@ -30,7 +30,6 @@ __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
 	/* WT_SESSION_IMPL array. */
 	WT_RET(__wt_calloc(session,
 	    conn->session_size, sizeof(WT_SESSION_IMPL), &conn->sessions));
-	WT_CACHE_LINE_ALIGNMENT_VERIFY(session, conn->sessions);
 
 	/*
 	 * Open the default session.  We open this before starting service
@@ -95,7 +94,8 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	for (;;) {
 		WT_TRET(__wt_txn_update_oldest(session,
 		    WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
-		if (txn_global->oldest_id == txn_global->current)
+		if (txn_global->oldest_id == txn_global->current &&
+		    txn_global->metadata_pinned == txn_global->current)
 			break;
 		__wt_yield();
 	}

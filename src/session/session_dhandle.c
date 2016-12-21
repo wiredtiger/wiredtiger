@@ -68,7 +68,7 @@ __session_find_dhandle(WT_SESSION_IMPL *session,
 retry:	TAILQ_FOREACH(dhandle_cache, &session->dhhash[bucket], hashq) {
 		dhandle = dhandle_cache->dhandle;
 		if (WT_DHANDLE_INACTIVE(dhandle) &&
-		    !WT_IS_METADATA(session, dhandle)) {
+		    !WT_IS_METADATA(dhandle)) {
 			__session_discard_dhandle(session, dhandle_cache);
 			/* We deleted our entry, retry from the start. */
 			goto retry;
@@ -401,7 +401,7 @@ __session_dhandle_sweep(WT_SESSION_IMPL *session)
 		    difftime(now, dhandle->timeofdeath) >
 		    conn->sweep_idle_time))) {
 			WT_STAT_CONN_INCR(session, dh_session_handles);
-			WT_ASSERT(session, !WT_IS_METADATA(session, dhandle));
+			WT_ASSERT(session, !WT_IS_METADATA(dhandle));
 			__session_discard_dhandle(session, dhandle_cache);
 		}
 		dhandle_cache = dhandle_cache_next;
@@ -511,7 +511,7 @@ __wt_session_get_btree(WT_SESSION_IMPL *session,
 			F_CLR(dhandle, WT_DHANDLE_EXCLUSIVE);
 			__wt_writeunlock(session, dhandle->rwlock);
 
-			WT_WITH_SCHEMA_LOCK(session, ret,
+			WT_WITH_SCHEMA_LOCK(session,
 			    WT_WITH_HANDLE_LIST_LOCK(session,
 				ret = __wt_session_get_btree(
 				session, uri, checkpoint, cfg, flags)));
