@@ -677,9 +677,11 @@ static const char * const __stats_connection_desc[] = {
 	"cache: eviction server unable to reach eviction goal",
 	"cache: eviction state",
 	"cache: eviction walks abandoned",
+	"cache: eviction worker thread active",
 	"cache: eviction worker thread created",
 	"cache: eviction worker thread evicting pages",
 	"cache: eviction worker thread removed",
+	"cache: eviction worker thread stable number",
 	"cache: failed eviction of pages that exceeded the in-memory maximum",
 	"cache: files with active eviction walks",
 	"cache: files with new eviction walks started",
@@ -698,7 +700,6 @@ static const char * const __stats_connection_desc[] = {
 	"cache: maximum page size at eviction",
 	"cache: modified pages evicted",
 	"cache: modified pages evicted by application threads",
-	"cache: number of active eviction workers",
 	"cache: overflow pages read into cache",
 	"cache: overflow values cached in memory",
 	"cache: page split during eviction deepened the tree",
@@ -719,7 +720,6 @@ static const char * const __stats_connection_desc[] = {
 	"cache: pages written from cache",
 	"cache: pages written requiring in-memory restoration",
 	"cache: percentage overhead",
-	"cache: stable number of eviction workers",
 	"cache: tracked bytes belonging to internal pages in the cache",
 	"cache: tracked bytes belonging to leaf pages in the cache",
 	"cache: tracked dirty bytes in the cache",
@@ -962,9 +962,11 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cache_eviction_slow = 0;
 		/* not clearing cache_eviction_state */
 	stats->cache_eviction_walks_abandoned = 0;
+		/* not clearing cache_eviction_active_workers */
 	stats->cache_eviction_worker_created = 0;
 	stats->cache_eviction_worker_evicting = 0;
 	stats->cache_eviction_worker_removed = 0;
+		/* not clearing cache_eviction_stable_state_workers */
 	stats->cache_eviction_force_fail = 0;
 		/* not clearing cache_eviction_walks_active */
 	stats->cache_eviction_walks_started = 0;
@@ -983,7 +985,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing cache_eviction_maximum_page_size */
 	stats->cache_eviction_dirty = 0;
 	stats->cache_eviction_app_dirty = 0;
-		/* not clearing cache_eviction_active_workers */
 	stats->cache_read_overflow = 0;
 	stats->cache_overflow_value = 0;
 	stats->cache_eviction_deepen = 0;
@@ -1004,7 +1005,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cache_write = 0;
 	stats->cache_write_restore = 0;
 		/* not clearing cache_overhead */
-		/* not clearing cache_eviction_stable_state_workers */
 		/* not clearing cache_bytes_internal */
 		/* not clearing cache_bytes_leaf */
 		/* not clearing cache_bytes_dirty */
@@ -1240,12 +1240,16 @@ __wt_stat_connection_aggregate(
 	to->cache_eviction_state += WT_STAT_READ(from, cache_eviction_state);
 	to->cache_eviction_walks_abandoned +=
 	    WT_STAT_READ(from, cache_eviction_walks_abandoned);
+	to->cache_eviction_active_workers +=
+	    WT_STAT_READ(from, cache_eviction_active_workers);
 	to->cache_eviction_worker_created +=
 	    WT_STAT_READ(from, cache_eviction_worker_created);
 	to->cache_eviction_worker_evicting +=
 	    WT_STAT_READ(from, cache_eviction_worker_evicting);
 	to->cache_eviction_worker_removed +=
 	    WT_STAT_READ(from, cache_eviction_worker_removed);
+	to->cache_eviction_stable_state_workers +=
+	    WT_STAT_READ(from, cache_eviction_stable_state_workers);
 	to->cache_eviction_force_fail +=
 	    WT_STAT_READ(from, cache_eviction_force_fail);
 	to->cache_eviction_walks_active +=
@@ -1277,8 +1281,6 @@ __wt_stat_connection_aggregate(
 	to->cache_eviction_dirty += WT_STAT_READ(from, cache_eviction_dirty);
 	to->cache_eviction_app_dirty +=
 	    WT_STAT_READ(from, cache_eviction_app_dirty);
-	to->cache_eviction_active_workers +=
-	    WT_STAT_READ(from, cache_eviction_active_workers);
 	to->cache_read_overflow += WT_STAT_READ(from, cache_read_overflow);
 	to->cache_overflow_value += WT_STAT_READ(from, cache_overflow_value);
 	to->cache_eviction_deepen +=
@@ -1307,8 +1309,6 @@ __wt_stat_connection_aggregate(
 	to->cache_write += WT_STAT_READ(from, cache_write);
 	to->cache_write_restore += WT_STAT_READ(from, cache_write_restore);
 	to->cache_overhead += WT_STAT_READ(from, cache_overhead);
-	to->cache_eviction_stable_state_workers +=
-	    WT_STAT_READ(from, cache_eviction_stable_state_workers);
 	to->cache_bytes_internal += WT_STAT_READ(from, cache_bytes_internal);
 	to->cache_bytes_leaf += WT_STAT_READ(from, cache_bytes_leaf);
 	to->cache_bytes_dirty += WT_STAT_READ(from, cache_bytes_dirty);

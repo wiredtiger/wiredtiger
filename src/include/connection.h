@@ -296,19 +296,20 @@ struct __wt_connection_impl {
 	WT_KEYED_ENCRYPTOR *kencryptor;	/* Encryptor for metadata and log */
 
 	bool		 evict_server_running;/* Eviction server operating */
+
 	WT_THREAD_GROUP  evict_threads;
 	uint32_t	 evict_threads_max;/* Max eviction threads */
 	uint32_t	 evict_threads_min;/* Min eviction threads */
 
 #define	EVICT_GROUP_INCR 4    /* Evict group size increased in batches */
-	unsigned         evict_tune_check_point; /* When to check performance */
+	uint32_t         evict_tune_datapts_needed;/* Data needed to tune */
 	struct timespec  evict_tune_last_action_time;/* Time of last action */
-	struct timespec  evict_tune_last_time;/* Last evict thread check */
-	unsigned         evict_tune_num_points; /* Number of values tried */
-	uint64_t	 evict_tune_pgs_last;/* Number of pages evicted */
-	uint64_t	 evict_tune_pg_sec_max;/* Max throughput encountered */
-	bool             evict_tune_stable; /* Whether we should keep tuning */
-	unsigned	 evict_tune_workers_best;/* Best performing value */
+	struct timespec  evict_tune_last_time;	/* Time of last check */
+	uint32_t         evict_tune_num_points;	/* Number of values tried */
+	uint64_t	 evict_tune_pgs_last;	/* Number of pages evicted */
+	uint64_t	 evict_tune_pg_sec_max;	/* Max throughput encountered */
+	bool             evict_tune_stable;	/* Are we stable? */
+	uint32_t	 evict_tune_workers_best;/* Best performing value */
 
 #define	WT_STATLOG_FILENAME	"WiredTigerStat.%d.%H"
 	WT_SESSION_IMPL *stat_session;	/* Statistics log session */
