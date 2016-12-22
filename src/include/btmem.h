@@ -528,9 +528,9 @@ struct __wt_page {
 } while (0)
 
 		/* Row-store leaf page. */
-		WT_ROW *pg_row;			/* Key/value pairs */
+		WT_ROW *row;			/* Key/value pairs */
 #undef	pg_row
-#define	pg_row		u.pg_row
+#define	pg_row		u.row
 
 		/* Fixed-length column-store leaf page. */
 		uint8_t *fix_bitf;		/* Values */
