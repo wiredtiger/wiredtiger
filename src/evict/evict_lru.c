@@ -2024,9 +2024,15 @@ __dump_txn_state(WT_SESSION_IMPL *session, FILE *fp)
 	if (fprintf(fp, "Dumping transaction state of active sessions\n") < 0)
 		return (EIO);
 
-	/* Walk each session transaction state and dump information. */
+	/*
+	 * Walk each session transaction state and dump information. Accessing
+	 * the content of session handles is not thread safe, so some
+	 * information may change while traversing if other threads are active
+	 * at the same time, which is OK since this is diagnostic code.
+	 */
 	for (i = 0, s = txn_global->states; i < session_cnt; i++, s++) {
-		if ((id = s->id) == WT_TXN_NONE)
+		/* Skip sessions with no active transaction */
+		if ((id = s->id) == WT_TXN_NONE && s->pinned_id == WT_TXN_NONE)
 			continue;
 
 		txn = &conn->sessions[i].txn;
@@ -2046,24 +2052,24 @@ __dump_txn_state(WT_SESSION_IMPL *session, FILE *fp)
 		}
 
 		if (fprintf(fp,
-		    "ID: %" PRIu64 "\n"
-		    "\t" "session name: %s"
+		    "ID: %6" PRIu64
+		    ", mod count: %u"
 		    ", pinned ID: %" PRIu64
-		    ", metadata pinned ID: %" PRIu64
 		    ", snap min: %" PRIu64
-		    ", snap max: %" PRIu64 "\n"
-		    "\t" "modification count: %u"
-		    ", flags: %" PRIu32
+		    ", snap max: %" PRIu64
+		    ", metadata pinned ID: %" PRIu64
+		    ", flags: 0x%08" PRIx32
+		    ", name: %s"
 		    ", isolation: %s" "\n",
 		    id,
-		    conn->sessions[i].name == NULL ?
-		    "EMPTY" : conn->sessions[i].name,
+		    txn->mod_count,
 		    s->pinned_id,
-		    s->metadata_pinned,
 		    txn->snap_min,
 		    txn->snap_max,
-		    txn->mod_count,
+		    s->metadata_pinned,
 		    txn->flags,
+		    conn->sessions[i].name == NULL ?
+		    "EMPTY" : conn->sessions[i].name,
 		    iso_tag) < 0)
 			return (EIO);
 	}
