@@ -9,14 +9,14 @@ New features and API changes; refer to the API documentation for full details:
 
 Significant changes and bug fixes:
 
-* WT-2670       Add access_pattern_hint configuration option for WT_SESSION::create API that can be used to advise the file system of expected access semantics.
-* WT-2960       Reduce likelihood of using the lookaside file, especially when inserting multi-megabyte values
-* WT-3056       Allow projected table and join cursors to use primary keys
+* WT-2670	Add access_pattern_hint configuration option for WT_SESSION::create API that can be used to advise the file system of expected access semantics.
+* WT-2960	Reduce likelihood of using the lookaside file, especially when inserting multi-megabyte values
+* WT-3056	Allow projected table and join cursors to use primary keys
 * WT-3070	Fix a bug in search_near on indexes
 
 Other noteworthy changes since the previous release:
 
-* WT-2336       Add a test validating schema operations via file system call monitoring
+* WT-2336	Add a test validating schema operations via file system call monitoring
 * WT-2402	Pad structures to avoid cache line sharing
 * WT-2771	Add a statistic to track per-btree dirty cache usage
 * WT-2833	Add projections to wt dump utility
@@ -29,7 +29,7 @@ Other noteworthy changes since the previous release:
 * WT-3037	Clean up some log slot comments
 * WT-3048	WiredTiger maximum size warning uses the wrong format
 * WT-3051	Remove external __wt_hex symbol
-* WT-3052       Improve search if index hint is wrong
+* WT-3052	Improve search if index hint is wrong
 * WT-3053	Make Python use internal memory allocation again
 * WT-3054	Make a PackOutputStream constructor that is compatible with the previous interface.
 * WT-3055	When an AsyncOp is created, cache the whether the cursor is "raw"
