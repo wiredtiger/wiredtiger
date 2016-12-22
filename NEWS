@@ -5,11 +5,11 @@ New features and API changes; refer to the API documentation for full details:
 
 * SERVER-26545	Remove fixed-size limitation on WiredTiger hazard pointers. See the upgrading documentation for details
 * WT-283	Add a new WT_SESSION::alter method that can be used to reconfigure table metadata
+* WT-2670	Change the default file system access pattern advice for data files from random to no advice. Add access_pattern_hint configuration option for WT_SESSION::create API that can be used to advise the file system of expected access semantics. See the upgrading documentation for details.
 * WT-3034	Add support for including updates when reading from named snapshots
 
 Significant changes and bug fixes:
 
-* WT-2670	Add access_pattern_hint configuration option for WT_SESSION::create API that can be used to advise the file system of expected access semantics.
 * WT-2960	Reduce likelihood of using the lookaside file, especially when inserting multi-megabyte values
 * WT-3056	Allow projected table and join cursors to use primary keys
 * WT-3070	Fix a bug in search_near on indexes
