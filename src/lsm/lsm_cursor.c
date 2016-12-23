@@ -1438,6 +1438,7 @@ __clsm_put(WT_SESSION_IMPL *session, WT_CURSOR_LSM *clsm,
 	WT_CURSOR *c, *primary;
 	WT_LSM_TREE *lsm_tree;
 	u_int i, slot;
+	int (*func)(WT_CURSOR *);
 
 	lsm_tree = clsm->lsm_tree;
 
@@ -1458,12 +1459,6 @@ __clsm_put(WT_SESSION_IMPL *session, WT_CURSOR_LSM *clsm,
 	if (position)
 		clsm->current = primary;
 
-	/* Reserve: only update the primary chunk, ignore the record count. */
-	if (reserve) {
-		primary->set_key(primary, key);
-		return (primary->reserve(primary));
-	}
-
 	for (i = 0, slot = clsm->nchunks - 1; i < clsm->nupdates; i++, slot--) {
 		/* Check if we need to keep updating old chunks. */
 		if (i > 0 &&
@@ -1474,8 +1469,12 @@ __clsm_put(WT_SESSION_IMPL *session, WT_CURSOR_LSM *clsm,
 
 		c = clsm->chunks[slot]->cursor;
 		c->set_key(c, key);
-		c->set_value(c, value);
-		WT_RET((position && i == 0) ? c->update(c) : c->insert(c));
+		func = c->insert;
+		if (i == 0 && position)
+			func = reserve ? c->reserve : c->update;
+		if (func != c->reserve)
+			c->set_value(c, value);
+		WT_RET(func(c));
 	}
 
 	/*
