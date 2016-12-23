@@ -1974,13 +1974,11 @@ __wt_evict_priority_clear(WT_SESSION_IMPL *session)
 }
 
 #ifdef HAVE_DIAGNOSTIC
-static int  __dump_txn_state(WT_SESSION_IMPL *, FILE *fp);
-static int  __dump_cache(WT_SESSION_IMPL *, FILE *fp);
 /*
  * __dump_txn_state --
  *	Output debugging information about the global transaction state.
  */
-int
+static int
 __dump_txn_state(WT_SESSION_IMPL *session, FILE *fp)
 {
 	WT_CONNECTION_IMPL *conn;
@@ -2079,7 +2077,7 @@ __dump_txn_state(WT_SESSION_IMPL *session, FILE *fp)
  * __dump_cache --
  *	Output debugging information about the size of the files in cache.
  */
-int
+static int
 __dump_cache(WT_SESSION_IMPL *session, FILE *fp)
 {
 	WT_CONNECTION_IMPL *conn;
