@@ -1439,7 +1439,7 @@ __evict_walk_file(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
 		if (page->read_gen == WT_READGEN_NOTSET)
 			__wt_cache_read_gen_new(session, page);
 
-		/* Pages we no longer need (clean or dirty), are found money. */
+		/* Pages being forcibly evicted go on the urgent queue. */
 		if (page->read_gen == WT_READGEN_OLDEST ||
 		    page->memory_footprint >= btree->splitmempage) {
 			WT_STAT_CONN_INCR(
@@ -1449,7 +1449,7 @@ __evict_walk_file(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
 			continue;
 		}
 
-		/* Pages that are empty or from dead trees are also good. */
+		/* Pages that are empty or from dead trees are fast-tracked. */
 		if (__wt_page_is_empty(page) ||
 		    F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
 			goto fast;
