@@ -364,6 +364,8 @@ __curfile_reserve(WT_CURSOR *cursor)
 
 	WT_CURSOR_NEEDKEY(cursor);
 
+	WT_ERR(__wt_txn_context_check(session, true, "WT_CURSOR.reserve"));
+
 	WT_BTREE_CURSOR_SAVE_AND_RESTORE(cursor, __wt_btcur_reserve(cbt), ret);
 
 err:	CURSOR_UPDATE_API_END(session, ret);

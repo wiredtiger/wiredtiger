@@ -512,8 +512,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	did_update = txn->mod_count != 0;
 	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) || !did_update);
 
-	if (!F_ISSET(txn, WT_TXN_RUNNING))
-		WT_RET_MSG(session, EINVAL, "No transaction is active");
+	WT_RET(__wt_txn_context_check(
+	    session, true, "WT_SESSION.commit_transaction"));
 
 	/*
 	 * The default sync setting is inherited from the connection, but can
@@ -635,8 +635,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_UNUSED(cfg);
 
 	txn = &session->txn;
-	if (!F_ISSET(txn, WT_TXN_RUNNING))
-		WT_RET_MSG(session, EINVAL, "No transaction is active");
+	WT_RET(__wt_txn_context_check(
+	    session, true, "WT_SESSION.rollback_transaction"));
 
 	/* Rollback notification. */
 	if (txn->notify != NULL)

@@ -451,8 +451,7 @@ __wt_txn_read_last(WT_SESSION_IMPL *session)
 	 * snapshot here: it will be restored by WT_WITH_TXN_ISOLATION.
 	 */
 	if ((!F_ISSET(txn, WT_TXN_RUNNING) ||
-	    txn->isolation != WT_ISO_SNAPSHOT) &&
-	    txn->forced_iso == 0)
+	    txn->isolation != WT_ISO_SNAPSHOT) && txn->forced_iso == 0)
 		__wt_txn_release_snapshot(session);
 }
 

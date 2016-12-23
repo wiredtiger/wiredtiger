@@ -135,5 +135,35 @@ class test_reserve(wttest.WiredTigerTestCase):
             self.assertEquals(c.update(), 0)
             s.commit_transaction()
 
+    def test_reserve_without_key(self):
+        if self.skip():
+            return
+
+        uri = self.uri + ':test_reserve_without_txn'
+
+        ds = self.ds(self, uri, 10, key_format=self.keyfmt)
+        ds.populate()
+        s = self.conn.open_session()
+        c = s.open_cursor(uri, None)
+        s.begin_transaction('isolation=snapshot')
+        msg = "/requires key be set/"
+        self.assertRaisesWithMessage(
+            wiredtiger.WiredTigerError, lambda:c.reserve(), msg)
+
+    def test_reserve_without_txn(self):
+        if self.skip():
+            return
+
+        uri = self.uri + ':test_reserve_without_txn'
+
+        ds = self.ds(self, uri, 10, key_format=self.keyfmt)
+        ds.populate()
+        s = self.conn.open_session()
+        c = s.open_cursor(uri, None)
+        c.set_key(ds.key(5))
+        msg = "/only permitted in a running transaction/"
+        self.assertRaisesWithMessage(
+            wiredtiger.WiredTigerError, lambda:c.reserve(), msg)
+
 if __name__ == '__main__':
     wttest.run()

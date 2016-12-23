@@ -1627,7 +1627,11 @@ __clsm_reserve(WT_CURSOR *cursor)
 	clsm = (WT_CURSOR_LSM *)cursor;
 
 	CURSOR_UPDATE_API_CALL(cursor, session, reserve, NULL);
+
 	WT_CURSOR_NEEDKEY(cursor);
+
+	WT_ERR(__wt_txn_context_check(session, true, "WT_CURSOR.reserve"));
+
 	WT_ERR(__clsm_enter(clsm, false, true));
 
 	if ((ret = __clsm_lookup(clsm, &value)) == 0)

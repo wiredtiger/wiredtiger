@@ -635,6 +635,9 @@ __curtable_reserve(WT_CURSOR *cursor)
 
 	ctable = (WT_CURSOR_TABLE *)cursor;
 	JOINABLE_CURSOR_UPDATE_API_CALL(cursor, session, update, NULL);
+
+	WT_ERR(__wt_txn_context_check(session, true, "WT_CURSOR.reserve"));
+
 	WT_ERR(__curtable_open_indices(ctable));
 
 	/* Reserve in column groups, ignore indices. */
