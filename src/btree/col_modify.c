@@ -20,7 +20,7 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
     uint64_t recno, const WT_ITEM *value, WT_UPDATE *upd_arg,
     bool is_remove, bool is_reserve)
 {
-	static const WT_ITEM col_fix_remove = { "", 1, 0, NULL, 0 };
+	static const WT_ITEM col_fix_remove = { "", 1, NULL, 0, 0 };
 	WT_BTREE *btree;
 	WT_DECL_RET;
 	WT_INSERT *ins;
