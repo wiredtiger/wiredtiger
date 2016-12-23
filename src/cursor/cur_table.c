@@ -637,7 +637,7 @@ __curtable_reserve(WT_CURSOR *cursor)
 	JOINABLE_CURSOR_UPDATE_API_CALL(cursor, session, update, NULL);
 	WT_ERR(__curtable_open_indices(ctable));
 
-	/* Reserve in the primary, ignore the indices. */
+	/* Reserve in column groups, ignore indices. */
 	APPLY_CG(ctable, reserve);
 	WT_ERR(ret);
 
