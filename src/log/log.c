@@ -36,7 +36,6 @@ __log_checksum_match(WT_SESSION_IMPL *session, WT_ITEM *buf, uint32_t reclen)
 	logrec->checksum = 0;
 	checksum_calculate = __wt_checksum(logrec, reclen);
 	logrec->checksum = checksum_tmp;
-	__wt_log_record_byteswap(logrec);
 	if (logrec->checksum != checksum_calculate)
 		return (false);
 	else
@@ -833,6 +832,7 @@ __log_openfile(WT_SESSION_IMPL *session, WT_FH **fhp,
 		if (!__log_checksum_match(session, buf, allocsize))
 			WT_ERR_MSG(session, WT_ERROR,
 			    "System log record checksum mismatch");
+		__wt_log_record_byteswap(logrec);
 		p = WT_LOG_SKIP_HEADER(buf->data);
 		end = (const uint8_t *)buf->data + buf->size;
 		WT_ERR(__wt_logrec_read(session, &p, end, &rectype));
@@ -1882,6 +1882,7 @@ advance:
 				ret = WT_NOTFOUND;
 			break;
 		}
+		__wt_log_record_byteswap(logrec);
 
 		/*
 		 * We have a valid log record.  If it is not the log file
