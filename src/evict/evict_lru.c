@@ -874,7 +874,6 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	struct timespec current_time;
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
-	WT_DECL_RET;
 	uint64_t cur_threads, delta_msec, delta_pages, i, target_threads;
 	uint64_t pgs_evicted_cur, pgs_evicted_persec_cur;
 	uint32_t new_max, thread_surplus;
@@ -908,7 +907,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	 * Otherwise, we just record the number of evicted pages and return.
 	 */
 	if (conn->evict_tune_pgs_last == 0)
-		goto err;
+		goto out;
 
 	delta_msec = WT_TIMEDIFF_MS(current_time, conn->evict_tune_last_time);
 	delta_pages = pgs_evicted_cur - conn->evict_tune_pgs_last;
@@ -949,9 +948,9 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 			    EVICT_TUNE_BATCH);
 		} else {
 			/*
-			 * We are past inflection point. Choose the
-			 * best number of eviction workers observed
-			 * at settle into stable state.
+			 * We are past the inflection point. Choose the
+			 * best number of eviction workers observed and
+			 * settle into a stable state.
 			 */
 			thread_surplus =
 			    conn->evict_threads.current_threads -
@@ -975,15 +974,14 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 
 	/*
 	 * If we have not added any worker threads in the past, we set the
-	 * number needed to equal to the number of data points that we must
+	 * number needed equal to the number of data points that we must
 	 * accumulate before deciding if we should keep adding workers or settle
 	 * on a previously tried value of workers.
 	 */
-	if (conn->evict_tune_last_action_time.tv_sec == 0) {
+	if (conn->evict_tune_last_action_time.tv_sec == 0)
 		conn->evict_tune_datapts_needed = WT_MIN(EVICT_TUNE_DATAPT_MIN,
 		    (conn->evict_threads_max -
 		    conn->evict_threads.current_threads) / EVICT_TUNE_BATCH);
-	}
 
 	if (F_ISSET(cache, WT_CACHE_EVICT_ALL)) {
 		cur_threads = conn->evict_threads.current_threads;
@@ -1021,9 +1019,9 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	WT_STAT_CONN_SET(session, cache_eviction_active_workers,
 	    conn->evict_threads.current_threads);
 
-err:	conn->evict_tune_last_time = current_time;
+out:	conn->evict_tune_last_time = current_time;
 	conn->evict_tune_pgs_last = pgs_evicted_cur;
-	return (ret);
+	return (0);
 }
 
 /*
