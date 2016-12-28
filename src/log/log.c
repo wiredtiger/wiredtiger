@@ -76,29 +76,6 @@ __log_wait_for_earlier_slot(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 }
 
 /*
- * __log_fs_write --
- *	Wrapper when writing to a log file.  If we're writing to a new log
- *	file for the first time wait for writes to the previous log file.
- */
-static int
-__log_fs_write(WT_SESSION_IMPL *session,
-    WT_LOGSLOT *slot, wt_off_t offset, size_t len, const void *buf)
-{
-	/*
-	 * If we're writing into a new log file, we have to wait for all
-	 * writes to the previous log file to complete otherwise there could
-	 * be a hole at the end of the previous log file that we cannot detect.
-	 */
-#if 0
-	if (slot->slot_release_lsn.l.file < slot->slot_start_lsn.l.file) {
-		__log_wait_for_earlier_slot(session, slot);
-		WT_RET(__wt_log_force_sync(session, &slot->slot_release_lsn));
-	}
-#endif
-	return (__wt_write(session, slot->slot_fh, offset, len, buf));
-}
-
-/*
  * __wt_log_ckpt --
  *	Record the given LSN as the checkpoint LSN and signal the archive
  *	thread as needed.
@@ -654,7 +631,7 @@ __wt_log_fill(WT_SESSION_IMPL *session,
 		/*
 		 * If this is a force or unbuffered write, write it now.
 		 */
-		WT_ERR(__log_fs_write(session, myslot->slot,
+		WT_ERR(__wt_write(session, myslot->slot->slot_fh,
 		    myslot->offset + myslot->slot->slot_start_offset,
 		    record->size, record->mem));
 
@@ -990,9 +967,8 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
 	    &log_fh, WT_LOG_FILENAME, log->fileid,
 	    WT_LOG_OPEN_VERIFY, NULL));
 	/*
-	 * Write the LSN of the last record in the previous log file as the
-	 * first record in this log file.  The is actually the LSN at the
-	 * end of the previous log file.
+	 * Write the LSN at the end of the last record in the previous log file
+	 * as the first record in this log file.
 	 */
 	if (log->fileid == 1)
 		WT_INIT_LSN(&logrec_lsn);
@@ -1497,8 +1473,9 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
 
 	/* Write the buffered records */
 	if (release_buffered != 0)
-		WT_ERR(__log_fs_write(session, slot, slot->slot_start_offset,
-		    (size_t)release_buffered, slot->slot_buf.mem));
+		WT_ERR(__wt_write(session, slot->slot_fh,
+		    slot->slot_start_offset, (size_t)release_buffered,
+		    slot->slot_buf.mem));
 
 	/*
 	 * If we have to wait for a synchronous operation, we do not pass
@@ -1645,7 +1622,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 	WT_ITEM *cbbuf;
 	WT_LOG *log;
 	WT_LOG_RECORD *logrec;
-	WT_LSN end_lsn, next_lsn, prev_lsn, prev_eof, rd_lsn, start_lsn;
+	WT_LSN end_lsn, next_lsn, prev_eof, prev_lsn, rd_lsn, start_lsn;
 	wt_off_t log_size;
 	uint32_t allocsize, firstlog, lastlog, lognum, rdup_len, reclen;
 	u_int i, logcount;
@@ -1789,7 +1766,7 @@ advance:
 			 * a "hole" at the end of the previous log file.
 			 */
 			if (LF_ISSET(WT_LOGSCAN_RECOVER) &&
-			    log != NULL && !WT_IS_INIT_LSN(&prev_lsn) &&
+			    !WT_IS_INIT_LSN(&prev_lsn) &&
 			    prev_lsn.l.offset != prev_eof.l.offset)
 				break;
 			WT_ERR(__wt_filesize(session, log_fh, &log_size));
@@ -1928,7 +1905,7 @@ advance:
 	    __wt_log_cmp(&rd_lsn, &log->trunc_lsn) < 0) {
 		__wt_verbose(session, WT_VERB_LOG,
 		    "__wt_log_scan truncating to %" PRIu32 "/%" PRIu32,
-		    log->trunc_lsn.l.file, log->trunc_lsn.l.offset);
+		    rd_lsn.l.file, rd_lsn.l.offset);
 		WT_ERR(__log_truncate(session,
 		    &rd_lsn, WT_LOG_FILENAME, 0));
 	}

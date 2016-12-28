@@ -131,7 +131,7 @@ class test_backup_target(wttest.WiredTigerTestCase, suite_subprocess):
                 self.pr('Copy from: ' + newfile + ' (' + str(sz) + ') to ' + dir)
                 shutil.copy(newfile, dir)
             self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-            # self.session.truncate('log:', cursor, None, None)
+            self.session.truncate('log:', cursor, None, None)
             cursor.close()
 
     # Run background inserts while running checkpoints and incremental backups
