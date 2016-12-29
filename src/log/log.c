@@ -1738,7 +1738,7 @@ advance:
 				    start_lsn.l.file) * pct;
 				if (last_progress != (uint64_t)progress) {
 					last_progress = (uint64_t)progress;
-					WT_ERR(__wt_progress(session, NULL, 
+					WT_ERR(__wt_progress(session, NULL,
 					    last_progress));
 				}
 			}
