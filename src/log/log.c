@@ -1581,6 +1581,8 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 	WT_LOG_RECORD *logrec;
 	WT_LSN end_lsn, next_lsn, rd_lsn, start_lsn;
 	wt_off_t log_size;
+	double pct, progress;
+	uint64_t last_progress;
 	uint32_t allocsize, firstlog, lastlog, lognum, rdup_len, reclen;
 	uint32_t checksum_calculate, checksum_tmp;
 	u_int i, logcount;
@@ -1674,6 +1676,15 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 	    &log_fh, WT_LOG_FILENAME, start_lsn.l.file, WT_LOG_OPEN_VERIFY));
 	WT_ERR(__wt_filesize(session, log_fh, &log_size));
 	rd_lsn = start_lsn;
+	pct = 0.0;
+	last_progress = 0;
+	if (LF_ISSET(WT_LOGSCAN_RECOVER)) {
+		WT_ASSERT(session, start_lsn.l.file < end_lsn.l.file);
+		pct = (double)100 / (double)(end_lsn.l.file - start_lsn.l.file);
+		progress = (double)(rd_lsn.l.file - start_lsn.l.file) * pct;
+		last_progress = (uint64_t)progress;
+		WT_ERR(__wt_progress(session, NULL, last_progress));
+	}
 
 	WT_ERR(__wt_scr_alloc(session, WT_LOG_ALIGN, &buf));
 	WT_ERR(__wt_scr_alloc(session, 0, &decryptitem));
@@ -1722,6 +1733,15 @@ advance:
 			WT_ERR(__log_openfile(session,
 			    &log_fh, WT_LOG_FILENAME,
 			    rd_lsn.l.file, WT_LOG_OPEN_VERIFY));
+			if (LF_ISSET(WT_LOGSCAN_RECOVER)) {
+				progress = (double)(rd_lsn.l.file -
+				    start_lsn.l.file) * pct;
+				if (last_progress != (uint64_t)progress) {
+					last_progress = (uint64_t)progress;
+					WT_ERR(__wt_progress(session, NULL, 
+					    last_progress));
+				}
+			}
 			WT_ERR(__wt_filesize(session, log_fh, &log_size));
 			eol = false;
 			continue;
