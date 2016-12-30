@@ -1674,6 +1674,11 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 	    &log_fh, WT_LOG_FILENAME, start_lsn.l.file, WT_LOG_OPEN_VERIFY));
 	WT_ERR(__wt_filesize(session, log_fh, &log_size));
 	rd_lsn = start_lsn;
+	if (LF_ISSET(WT_LOGSCAN_RECOVER)) {
+		WT_ASSERT(session, start_lsn.l.file < end_lsn.l.file);
+		WT_ERR(__wt_msg(session, "Recovering log %" PRIu32 
+		    " up to %" PRIu32, start_lsn.l.file, end_lsn.l.file));
+	}
 
 	WT_ERR(__wt_scr_alloc(session, WT_LOG_ALIGN, &buf));
 	WT_ERR(__wt_scr_alloc(session, 0, &decryptitem));
@@ -1722,6 +1727,10 @@ advance:
 			WT_ERR(__log_openfile(session,
 			    &log_fh, WT_LOG_FILENAME,
 			    rd_lsn.l.file, WT_LOG_OPEN_VERIFY));
+			if (LF_ISSET(WT_LOGSCAN_RECOVER))
+				WT_ERR(__wt_msg(session,
+				    "Recovering log %" PRIu32 " up to %" PRIu32,
+				    rd_lsn.l.file, end_lsn.l.file));
 			WT_ERR(__wt_filesize(session, log_fh, &log_size));
 			eol = false;
 			continue;
