@@ -1676,7 +1676,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 	rd_lsn = start_lsn;
 	if (LF_ISSET(WT_LOGSCAN_RECOVER)) {
 		WT_ASSERT(session, start_lsn.l.file < end_lsn.l.file);
-		WT_ERR(__wt_msg(session, "Recovering log %" PRIu32 
+		WT_ERR(__wt_msg(session, "Recovering log %" PRIu32
 		    " up to %" PRIu32, start_lsn.l.file, end_lsn.l.file));
 	}
 
