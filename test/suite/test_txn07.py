@@ -82,7 +82,7 @@ class test_txn07(wttest.WiredTigerTestCase, suite_subprocess):
         self.backup_dir = os.path.join(self.home, "WT_BACKUP")
         conn_params = \
                 'log=(archive=false,enabled,file_max=%s,' % self.logmax + \
-                'compressor=%s)' % self.compress + \
+                'compressor=%s,recover_progress=false)' % self.compress + \
                 self.extensionArg(self.compress) + \
                 ',create,error_prefix="%s: ",' % self.shortid() + \
                 "statistics=(fast)," + \
@@ -138,7 +138,8 @@ class test_txn07(wttest.WiredTigerTestCase, suite_subprocess):
         # Opening a clone of the database home directory should run
         # recovery and see the committed results.
         self.backup(self.backup_dir)
-        backup_conn_params = 'log=(enabled,file_max=%s,' % self.logmax + \
+        backup_conn_params = \
+            'log=(enabled,file_max=%s,recover_progress=false,' % self.logmax + \
                 'compressor=%s)' % self.compress + \
                 self.extensionArg(self.compress)
         backup_conn = self.wiredtiger_open(self.backup_dir, backup_conn_params)

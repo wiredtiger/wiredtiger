@@ -110,7 +110,7 @@ class test_txn02(wttest.WiredTigerTestCase, suite_subprocess):
         self.backup_dir = os.path.join(self.home, "WT_BACKUP")
         conn_params = \
                 'log=(archive=false,enabled,file_max=%s),' % self.logmax + \
-                'log=(zero_fill=%s),' % zerofill + \
+                'log=(recover_progress=false,zero_fill=%s),' % zerofill + \
                 'create,error_prefix="%s: ",' % self.shortid() + \
                 'transaction_sync="%s",' % self.txn_sync
         # print "Creating conn at '%s' with config '%s'" % (dir, conn_params)
@@ -148,7 +148,8 @@ class test_txn02(wttest.WiredTigerTestCase, suite_subprocess):
         # Opening a clone of the database home directory should run
         # recovery and see the committed results.
         self.backup(self.backup_dir)
-        backup_conn_params = 'log=(enabled,file_max=%s)' % self.logmax
+        backup_conn_params = \
+            'log=(enabled,file_max=%s,recover_progress=false)' % self.logmax
         backup_conn = self.wiredtiger_open(self.backup_dir, backup_conn_params)
         try:
             self.check(backup_conn.open_session(), None, committed)

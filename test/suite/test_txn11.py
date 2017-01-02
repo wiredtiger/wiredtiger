@@ -45,7 +45,7 @@ class test_txn11(wttest.WiredTigerTestCase, suite_subprocess):
 
     # Turn on logging for this test.
     def conn_config(self, dir):
-        return 'log=(archive=%s,' % self.archive + \
+        return 'log=(archive=%s,recover_progress=false,' % self.archive + \
             'enabled,file_max=%s,prealloc=false),' % self.logmax + \
             'transaction_sync=(enabled=false),'
 

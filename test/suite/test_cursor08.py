@@ -56,7 +56,7 @@ class test_cursor08(wttest.WiredTigerTestCase, suite_subprocess):
     # Load the compression extension, and enable it for logging.
     def conn_config(self, dir):
         return 'log=(archive=false,enabled,file_max=%s,' % self.logmax + \
-            'compressor=%s),' % self.compress + \
+            'recover_progress=false,compressor=%s),' % self.compress + \
             'transaction_sync="(method=dsync,enabled)",' + \
             self.extensionArg(self.compress)
 

@@ -328,7 +328,8 @@ struct __wt_connection_impl {
 #define	WT_CONN_LOG_EXISTED		0x04	/* Log files found */
 #define	WT_CONN_LOG_RECOVER_DONE	0x08	/* Recovery completed */
 #define	WT_CONN_LOG_RECOVER_ERR		0x10	/* Error if recovery required */
-#define	WT_CONN_LOG_ZERO_FILL		0x20	/* Manually zero files */
+#define	WT_CONN_LOG_RECOVER_PROGRESS	0x20	/* Recovery progress msgs */
+#define	WT_CONN_LOG_ZERO_FILL		0x40	/* Manually zero files */
 	uint32_t	 log_flags;	/* Global logging configuration */
 	WT_CONDVAR	*log_cond;	/* Log server wait mutex */
 	WT_SESSION_IMPL *log_session;	/* Log server session */

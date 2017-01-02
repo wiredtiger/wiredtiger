@@ -74,6 +74,7 @@ class test_txn04(wttest.WiredTigerTestCase, suite_subprocess):
         # Set archive false on the home directory.
         conn_params = \
                 'log=(archive=false,enabled,file_max=%s),' % self.logmax + \
+                'log=(recover_progress=false),' + \
                 'create,error_prefix="%s: ",' % self.shortid() + \
                 'transaction_sync="%s",' % self.txn_sync
         # print "Creating conn at '%s' with config '%s'" % (dir, conn_params)
@@ -121,7 +122,8 @@ class test_txn04(wttest.WiredTigerTestCase, suite_subprocess):
 
         cmd += self.backup_dir
         self.runWt(cmd.split())
-        backup_conn_params = 'log=(enabled,file_max=%s)' % self.logmax
+        backup_conn_params = \
+            'log=(enabled,file_max=%s,recover_progress=false)' % self.logmax
         backup_conn = self.wiredtiger_open(self.backup_dir, backup_conn_params)
         try:
             self.check(backup_conn.open_session(), None, committed)
