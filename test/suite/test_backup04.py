@@ -61,8 +61,8 @@ class test_backup_target(wttest.WiredTigerTestCase, suite_subprocess):
 
     # Create a large cache, otherwise this test runs quite slowly.
     def conn_config(self, dir):
-        return 'cache_size=1G,log=(archive=false,enabled,file_max=%s)' % \
-            self.logmax
+        return 'cache_size=1G,log=(archive=false,enabled,' + \
+            'recover_progress=false,file_max=%s)' % self.logmax
 
     def populate(self, uri, dsize, rows):
         self.pr('populate: ' + uri + ' with ' + str(rows) + ' rows')

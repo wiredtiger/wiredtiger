@@ -40,7 +40,8 @@ class test_txn14(wttest.WiredTigerTestCase, suite_subprocess):
     create_params = 'key_format=i,value_format=i'
     entries = 10000
     extra_entries = 5
-    conn_config = 'log=(archive=false,enabled,file_max=100K)'
+    conn_config = \
+        'log=(archive=false,enabled,file_max=100K,recover_progress=false)'
 
     sync_list = [
         ('write', dict(sync='off')),

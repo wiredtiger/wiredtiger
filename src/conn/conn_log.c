@@ -161,6 +161,10 @@ __logmgr_config(
 		    session, cfg, "log.recover", 0, &cval));
 		if (WT_STRING_MATCH("error", cval.str, cval.len))
 			FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_ERR);
+		WT_RET(__wt_config_gets_def(
+		    session, cfg, "log.recover_progress", 0, &cval));
+		if (cval.val != 0)
+			FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_PROGRESS);
 	}
 
 	WT_RET(__wt_config_gets(session, cfg, "log.zero_fill", &cval));

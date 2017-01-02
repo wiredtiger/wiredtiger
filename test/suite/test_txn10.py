@@ -38,8 +38,8 @@ class test_txn10(wttest.WiredTigerTestCase, suite_subprocess):
     t1 = 'table:test_txn10_1'
     t2 = 'table:test_txn10_2'
     create_params = 'key_format=i,value_format=i'
-    conn_config = 'log=(archive=false,enabled,file_max=100K),' + \
-                'transaction_sync=(method=dsync,enabled)'
+    conn_config = 'log=(archive=false,enabled,file_max=100K,' + \
+        'recover_progress=false),transaction_sync=(method=dsync,enabled)'
 
     def simulate_crash_restart(self, olddir, newdir):
         ''' Simulate a crash from olddir and restart in newdir. '''

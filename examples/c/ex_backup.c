@@ -51,7 +51,8 @@ static const char * const incr_out = "./backup_incr";
 static const char * const uri = "table:logtest";
 
 #define	CONN_CONFIG \
-    "create,cache_size=100MB,log=(archive=false,enabled=true,file_max=100K)"
+    "create,cache_size=100MB," \
+    "log=(archive=false,enabled=true,file_max=100K,recover_progress=false)"
 #define	MAX_ITERATIONS	5
 #define	MAX_KEYS	10000
 
