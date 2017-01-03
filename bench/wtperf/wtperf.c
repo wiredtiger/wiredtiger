@@ -2505,9 +2505,10 @@ main(int argc, char *argv[])
 	if ((opts->verbose > 1 && strlen(debug_cconfig)) ||
 	     user_cconfig != NULL || opts->session_count_idle > 0 ||
 	     wtperf->compress_ext != NULL || wtperf->async_config != NULL) {
-		bool append_comma = false;
-		int pos;
+		bool append_comma;
+		uint32_t pos;
 
+		append_comma = false;
 		pos = 0;
 		req_len = 20;
 		req_len += (debug_cconfig ? strlen(debug_cconfig) : 0);
@@ -2558,9 +2559,10 @@ main(int argc, char *argv[])
 	}
 	if ((opts->verbose > 1 && strlen(debug_tconfig)) || opts->index ||
 	    user_tconfig != NULL || wtperf->compress_table != NULL) {
-		bool append_comma = false;
-		int pos;
+		bool append_comma;
+		uint32_t pos;
 
+		append_comma = false;
 		pos = 0;
 		req_len = 20;
 		req_len += (debug_tconfig ? strlen(debug_tconfig) : 0);
