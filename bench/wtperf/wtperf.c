@@ -2529,26 +2529,31 @@ main(int argc, char *argv[])
 		cc_buf = dmalloc(req_len);
 
 		if (opts->verbose > 1 && strlen(debug_cconfig)) {
-			pos = snprintf(cc_buf, req_len, "%s", debug_cconfig);
+			pos = (uint32_t)snprintf(
+			    cc_buf, req_len, "%s", debug_cconfig);
 			append_comma = true;
 		}
 		if (user_cconfig && strlen(user_cconfig)) {
-			pos += snprintf(cc_buf + pos, req_len - pos, "%s%s",
+			pos += (uint32_t)snprintf(
+			    cc_buf + pos, req_len - pos, "%s%s",
 			    append_comma ? "," : "", user_cconfig);
 			append_comma = true;
 		}
 		if (wtperf->async_config && strlen(wtperf->async_config)) {
-			pos += snprintf(cc_buf + pos, req_len - pos, "%s%s",
+			pos += (uint32_t)snprintf(
+			    cc_buf + pos, req_len - pos, "%s%s",
 			    append_comma ? "," : "", wtperf->async_config);
 			append_comma = true;
 		}
 		if (wtperf->compress_ext && strlen(wtperf->compress_ext)) {
-			pos += snprintf(cc_buf + pos, req_len - pos, "%s%s",
+			pos += (uint32_t)snprintf(
+			    cc_buf + pos, req_len - pos, "%s%s",
 			    append_comma ? "," : "", wtperf->compress_ext);
 			append_comma = true;
 		}
 		if (sess_cfg && strlen(sess_cfg)) {
-			pos += snprintf(cc_buf + pos, req_len - pos, "%s%s",
+			pos += (uint32_t)snprintf(
+			    cc_buf + pos, req_len - pos, "%s%s",
 			    append_comma ? "," : "", sess_cfg);
 			append_comma = true;
 		}
@@ -2573,21 +2578,25 @@ main(int argc, char *argv[])
 		tc_buf = dmalloc(req_len);
 
 		if (opts->verbose > 1 && strlen(debug_tconfig)) {
-			pos = snprintf(tc_buf, req_len, "%s", debug_tconfig);
+			pos = (uint32_t)snprintf(
+			    tc_buf, req_len, "%s", debug_tconfig);
 			append_comma = true;
 		}
 		if (user_tconfig && strlen(user_tconfig)) {
-			pos += snprintf(tc_buf + pos, req_len - pos, "%s%s",
+			pos += (uint32_t)snprintf(
+			    tc_buf + pos, req_len - pos, "%s%s",
 			    append_comma ? "," : "", user_tconfig);
 			append_comma = true;
 		}
 		if (wtperf->compress_table && strlen(wtperf->compress_table)) {
-			pos += snprintf(tc_buf + pos, req_len - pos, "%s%s",
+			pos += (uint32_t)snprintf(
+			    tc_buf + pos, req_len - pos, "%s%s",
 			    append_comma ? "," : "", wtperf->compress_table);
 			append_comma = true;
 		}
 		if (opts->index) {
-			pos += snprintf(tc_buf + pos, req_len - pos, "%s%s",
+			pos += (uint32_t)snprintf(
+			    tc_buf + pos, req_len - pos, "%s%s",
 			    append_comma ? "," : "", INDEX_COL_NAMES);
 			append_comma = true;
 		}
