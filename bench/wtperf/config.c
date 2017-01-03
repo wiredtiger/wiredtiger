@@ -754,8 +754,9 @@ config_consolidate(CONFIG_OPTS *opts)
 
 	/*
 	 * This loop iterates over the config queue and for each entry checks if
-	 * a later queue entry has the same key. If there's a match, the current
-	 * queue entry is removed and we continue.
+	 * a later queue entry has the same key. If there's a match, the later
+	 * queue entry is replaced with a concatenated entry of the two queue
+	 * entries, the current queue entry is removed and we continue.
 	 */
 	conf_line = TAILQ_FIRST(&opts->config_head);
 	while (conf_line != NULL) {
@@ -771,6 +772,24 @@ config_consolidate(CONFIG_OPTS *opts)
 			if (strncmp(conf_line->string, test_line->string,
 			    (size_t)((string_key - conf_line->string) + 1))
 			    == 0) {
+				char *concat_str, *val_pointer;
+
+				/*
+				 * To concatenate the two config strings,
+				 * copy the first string to a new one, replace
+				 * the ending '"' with a ',' and then
+				 * concatenate the second string's value after
+				 * its starting '"'.
+				 */
+				val_pointer =
+				    strchr(test_line->string, '=') + 2;
+				concat_str = dmalloc(strlen(conf_line->string) +
+				    strlen(val_pointer) + 1);
+				strcpy(concat_str, conf_line->string);
+				concat_str[strlen(concat_str) - 1] = ',';
+				strcat(concat_str, val_pointer);
+				free(test_line->string);
+				test_line->string = concat_str;
 				TAILQ_REMOVE(&opts->config_head, conf_line, q);
 				free(conf_line->string);
 				free(conf_line);
