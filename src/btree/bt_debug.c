@@ -679,8 +679,9 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
 	}
 
 	WT_RET(ds->f(ds, ": %s\n", __wt_page_type_string(page->type)));
-	WT_RET(ds->f(ds,
-	    "\t" "disk %p, entries %" PRIu32, (void *)page->dsk, entries));
+	WT_RET(ds->f(ds, "\t" "disk %p, mem_size %" PRIu32,
+	    (void *)page->dsk, page->dsk->mem_size));
+	WT_RET(ds->f(ds, ", entries %" PRIu32, entries));
 	WT_RET(ds->f(ds,
 	    ", %s", __wt_page_is_modified(page) ? "dirty" : "clean"));
 	WT_RET(ds->f(ds, ", %s", __wt_rwlock_islocked(
