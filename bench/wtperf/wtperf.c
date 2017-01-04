@@ -2511,12 +2511,12 @@ main(int argc, char *argv[])
 		append_comma = false;
 		pos = 0;
 		req_len = 20;
-		req_len += (debug_cconfig ? strlen(debug_cconfig) : 0);
-		req_len += (user_cconfig ? strlen(user_cconfig) : 0);
-		req_len +=
-		    (wtperf->async_config ? strlen(wtperf->async_config) : 0);
-		req_len +=
-		    (wtperf->compress_ext ? strlen(wtperf->compress_ext) : 0);
+		req_len += (debug_cconfig != NULL ? strlen(debug_cconfig) : 0);
+		req_len += (user_cconfig != NULL ? strlen(user_cconfig) : 0);
+		req_len += (wtperf->async_config != NULL ?
+		    strlen(wtperf->async_config) : 0);
+		req_len += (wtperf->compress_ext != NULL ?
+		    strlen(wtperf->compress_ext) : 0);
 		if (opts->session_count_idle > 0) {
 			sreq_len = strlen("session_max=") + 6;
 			req_len += sreq_len;
@@ -2533,25 +2533,27 @@ main(int argc, char *argv[])
 			    cc_buf, req_len, "%s", debug_cconfig);
 			append_comma = true;
 		}
-		if (user_cconfig && strlen(user_cconfig)) {
+		if (user_cconfig != NULL && strlen(user_cconfig)) {
 			pos += (uint32_t)snprintf(
 			    cc_buf + pos, req_len - pos, "%s%s",
 			    append_comma ? "," : "", user_cconfig);
 			append_comma = true;
 		}
-		if (wtperf->async_config && strlen(wtperf->async_config)) {
+		if (wtperf->async_config != NULL &&
+		    strlen(wtperf->async_config)) {
 			pos += (uint32_t)snprintf(
 			    cc_buf + pos, req_len - pos, "%s%s",
 			    append_comma ? "," : "", wtperf->async_config);
 			append_comma = true;
 		}
-		if (wtperf->compress_ext && strlen(wtperf->compress_ext)) {
+		if (wtperf->compress_ext != NULL &&
+		    strlen(wtperf->compress_ext)) {
 			pos += (uint32_t)snprintf(
 			    cc_buf + pos, req_len - pos, "%s%s",
 			    append_comma ? "," : "", wtperf->compress_ext);
 			append_comma = true;
 		}
-		if (sess_cfg && strlen(sess_cfg)) {
+		if (sess_cfg != NULL && strlen(sess_cfg)) {
 			pos += (uint32_t)snprintf(
 			    cc_buf + pos, req_len - pos, "%s%s",
 			    append_comma ? "," : "", sess_cfg);
@@ -2570,9 +2572,9 @@ main(int argc, char *argv[])
 		append_comma = false;
 		pos = 0;
 		req_len = 20;
-		req_len += (debug_tconfig ? strlen(debug_tconfig) : 0);
-		req_len += (user_tconfig ? strlen(user_tconfig) : 0);
-		req_len += (wtperf->compress_table ?
+		req_len += (debug_tconfig != NULL ? strlen(debug_tconfig) : 0);
+		req_len += (user_tconfig != NULL ? strlen(user_tconfig) : 0);
+		req_len += (wtperf->compress_table != NULL ?
 		    strlen(wtperf->compress_table) : 0);
 		req_len += (opts->index ? strlen(INDEX_COL_NAMES) : 0);
 		tc_buf = dmalloc(req_len);
@@ -2582,13 +2584,14 @@ main(int argc, char *argv[])
 			    tc_buf, req_len, "%s", debug_tconfig);
 			append_comma = true;
 		}
-		if (user_tconfig && strlen(user_tconfig)) {
+		if (user_tconfig != NULL && strlen(user_tconfig)) {
 			pos += (uint32_t)snprintf(
 			    tc_buf + pos, req_len - pos, "%s%s",
 			    append_comma ? "," : "", user_tconfig);
 			append_comma = true;
 		}
-		if (wtperf->compress_table && strlen(wtperf->compress_table)) {
+		if (wtperf->compress_table != NULL &&
+		    strlen(wtperf->compress_table)) {
 			pos += (uint32_t)snprintf(
 			    tc_buf + pos, req_len - pos, "%s%s",
 			    append_comma ? "," : "", wtperf->compress_table);
