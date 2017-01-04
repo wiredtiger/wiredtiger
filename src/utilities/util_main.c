@@ -276,7 +276,7 @@ usage(void)
 	    "\t" "rename\t  rename an object\n"
 	    "\t" "salvage\t  salvage a file\n"
 	    "\t" "stat\t  display statistics for an object\n"
-	    "\t" "truncate\t  truncate an object, removing all content\n"
+	    "\t" "truncate  truncate an object, removing all content\n"
 	    "\t" "upgrade\t  upgrade an object\n"
 	    "\t" "verify\t  verify an object\n"
 	    "\t" "write\t  write values to an object\n");
