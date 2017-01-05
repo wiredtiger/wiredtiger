@@ -1176,8 +1176,18 @@ methods = {
 'WT_CONNECTION.reconfigure' : Method(
     connection_reconfigure_log_configuration +\
     connection_reconfigure_statistics_log_configuration +\
-    connection_runtime_config
-),
+    connection_runtime_config + [
+    Config('diagnostic', '', r'''
+        cause WiredTiger to run a diagnostic command. The output is placed
+        in the directory specified by the \c diagnostic_path configuration.
+        Intended for debugging''',
+        type='list', choices=['cache_dump']),
+    Config('diagnostic_path', '"."', r'''
+        the name of a directory into which diagnostic information is written.
+        The directory must already exist. If the value is not an absolute
+        path, the path is relative to the database home (see @ref absolute_path
+        for more information)'''),
+]),
 'WT_CONNECTION.set_file_system' : Method([]),
 
 'WT_CONNECTION.load_extension' : Method([

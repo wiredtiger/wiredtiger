@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import time
+import fnmatch, os, time
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet
 
@@ -112,11 +112,32 @@ class test_reconfig01(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.conn.reconfigure("log=(path=foo)"), msg)
 
+    # File manager.
     def test_file_manager(self):
         self.conn.reconfigure("file_manager=(close_scan_interval=3)")
         self.conn.reconfigure("file_manager=(close_idle_time=4)")
         self.conn.reconfigure(
             "file_manager=(close_idle_time=4,close_scan_interval=100)")
+
+    # Diagnostic commands.
+    def test_session_reconfigure_diagnostic(self):
+        uri = "table:diagnostic"
+        ds = SimpleDataSet(self, uri, 1000)
+        ds.populate()
+
+        # Test a cache dump.
+        self.conn.reconfigure('diagnostic=(cache_dump)')
+        self.assertEqual(1,
+            len(fnmatch.filter(os.listdir('.'), "*WiredTigerDiag*")))
+
+        # Test an absolute path to a cache dump.
+        if os.name == 'posix':
+            dir = os.path.abspath('diagnosticdir')
+            os.mkdir(dir)
+            self.conn.reconfigure(
+                'diagnostic_path=' + dir + ',diagnostic=(cache_dump)')
+            self.assertEqual(1,
+                len(fnmatch.filter(os.listdir(dir), "*WiredTigerDiag*")))
 
 if __name__ == '__main__':
     wttest.run()

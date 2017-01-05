@@ -110,6 +110,10 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
 	{ "checkpoint", "category",
 	    NULL, NULL,
 	    confchk_wiredtiger_open_checkpoint_subconfigs, 2 },
+	{ "diagnostic", "list",
+	    NULL, "choices=[\"cache_dump\"]",
+	    NULL, 0 },
+	{ "diagnostic_path", "string", NULL, NULL, NULL, 0 },
 	{ "error_prefix", "string", NULL, NULL, NULL, 0 },
 	{ "eviction", "category",
 	    NULL, NULL,
@@ -1054,18 +1058,19 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	},
 	{ "WT_CONNECTION.reconfigure",
 	  "async=(enabled=false,ops_max=1024,threads=2),cache_overhead=8,"
-	  "cache_size=100MB,checkpoint=(log_size=0,wait=0),error_prefix=,"
-	  "eviction=(threads_max=8,threads_min=1),"
-	  "eviction_checkpoint_target=5,eviction_dirty_target=5,"
-	  "eviction_dirty_trigger=20,eviction_target=80,eviction_trigger=95"
-	  ",file_manager=(close_handle_minimum=250,close_idle_time=30,"
+	  "cache_size=100MB,checkpoint=(log_size=0,wait=0),diagnostic=,"
+	  "diagnostic_path=\".\",error_prefix=,eviction=(threads_max=8,"
+	  "threads_min=1),eviction_checkpoint_target=5,"
+	  "eviction_dirty_target=5,eviction_dirty_trigger=20,"
+	  "eviction_target=80,eviction_trigger=95,"
+	  "file_manager=(close_handle_minimum=250,close_idle_time=30,"
 	  "close_scan_interval=10),log=(archive=true,prealloc=true,"
 	  "zero_fill=false),lsm_manager=(merge=true,worker_thread_max=4),"
 	  "lsm_merge=true,shared_cache=(chunk=10MB,name=,quota=0,reserve=0,"
 	  "size=500MB),statistics=none,statistics_log=(json=false,"
 	  "on_close=false,sources=,timestamp=\"%b %d %H:%M:%S\",wait=0),"
 	  "verbose=",
-	  confchk_WT_CONNECTION_reconfigure, 19
+	  confchk_WT_CONNECTION_reconfigure, 21
 	},
 	{ "WT_CONNECTION.set_file_system",
 	  "",

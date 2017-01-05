@@ -1847,6 +1847,16 @@ struct __wt_connection {
 	 * checkpoint; setting this value above 0 configures periodic
 	 * checkpoints., an integer between 0 and 100000; default \c 0.}
 	 * @config{ ),,}
+	 * @config{diagnostic, cause WiredTiger to run a diagnostic command.
+	 * The output is placed in the directory specified by the \c
+	 * diagnostic_path configuration.  Intended for debugging., a list\,
+	 * with values chosen from the following options: \c "cache_dump";
+	 * default empty.}
+	 * @config{diagnostic_path, the name of a directory into which
+	 * diagnostic information is written.  The directory must already exist.
+	 * If the value is not an absolute path\, the path is relative to the
+	 * database home (see @ref absolute_path for more information)., a
+	 * string; default \c ".".}
 	 * @config{error_prefix, prefix string for error messages., a string;
 	 * default empty.}
 	 * @config{eviction = (, eviction configuration options., a set of
