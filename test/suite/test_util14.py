@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2016 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -30,9 +30,9 @@ import os
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 
-# test_util04.py
+# test_util14.py
 #    Utilities: wt truncate
-class test_util04(wttest.WiredTigerTestCase, suite_subprocess):
+class test_util14(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_util14.a'
     nentries = 1000
 
