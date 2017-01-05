@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2016 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -32,7 +32,7 @@ import wiredtiger, wttest
 
 # test_util16.py
 #    Utilities: wt rename
-class test_util03(wttest.WiredTigerTestCase, suite_subprocess):
+class test_util16(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_util16.a'
     tablename2 = 'test_util16.b'
     nentries = 1000
