@@ -42,8 +42,12 @@ class test_util04(wttest.WiredTigerTestCase, suite_subprocess):
         """
         params = 'key_format=S,value_format=S'
         self.session.create('table:' + self.tablename, params)
-
         self.assertTrue(os.path.exists(self.tablename + ".wt"))
+        cursor = self.session.open_cursor('table:' + self.tablename, None, None)
+        for i in range(0, self.nentries):
+            cursor[str(i)] = str(i)
+        cursor.close()
+
         self.runWt(["truncate", "table:" + self.tablename])
 
         """
