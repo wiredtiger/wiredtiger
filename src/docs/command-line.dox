@@ -371,7 +371,7 @@ Include only "fast" statistics in the output (equivalent to passing
 
 <hr>
 @section util_truncate wt truncate
-Trundate a table, removing all documents.
+Truncate a table, removing all documents.
 
 The \c truncate command truncates the specified \c uri.  It is equivalent to a
 call to WT_SESSION::truncate with no start or stop specified.
