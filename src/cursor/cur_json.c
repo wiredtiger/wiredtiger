@@ -186,7 +186,7 @@ __json_struct_size(WT_SESSION_IMPL *session, const void *buffer,
 	result = 0;
 	needcr = false;
 
-	WT_RET(__pack_name_init(session, names, iskey, &packname));
+	__pack_name_init(session, names, iskey, &packname);
 	WT_RET(__pack_init(session, &pack, fmt));
 	while ((ret = __pack_next(&pack, &pv)) == 0) {
 		if (needcr)
@@ -231,7 +231,7 @@ __json_struct_unpackv(WT_SESSION_IMPL *session,
 	/* Unpacking a cursor marked as json implies a single arg. */
 	*va_arg(ap, const char **) = (char *)jbuf;
 
-	WT_RET(__pack_name_init(session, names, iskey, &packname));
+	__pack_name_init(session, names, iskey, &packname);
 	WT_RET(__pack_init(session, &pack, fmt));
 	while ((ret = __pack_next(&pack, &pv)) == 0) {
 		if (needcr) {
@@ -270,7 +270,6 @@ __wt_json_alloc_unpack(WT_SESSION_IMPL *session, const void *buffer,
     bool iskey, va_list ap)
 {
 	WT_CONFIG_ITEM *names;
-	WT_DECL_RET;
 	size_t needed;
 	char **json_bufp;
 
@@ -288,7 +287,7 @@ __wt_json_alloc_unpack(WT_SESSION_IMPL *session, const void *buffer,
 	WT_RET(__json_struct_unpackv(session, buffer, size, fmt,
 	    names, (u_char *)*json_bufp, needed + 1, iskey, ap));
 
-	return (ret);
+	return (0);
 }
 
 /*
@@ -315,6 +314,7 @@ __wt_json_close(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
  */
 size_t
 __wt_json_unpack_char(u_char ch, u_char *buf, size_t bufsz, bool force_unicode)
+    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	u_char abbrev;
 
@@ -357,23 +357,23 @@ __wt_json_unpack_char(u_char ch, u_char *buf, size_t bufsz, bool force_unicode)
 		*buf++ = 'u';
 		*buf++ = '0';
 		*buf++ = '0';
-		*buf++ = __wt_hex[(ch & 0xf0) >> 4];
-		*buf++ = __wt_hex[ch & 0x0f];
+		*buf++ = __wt_hex((ch & 0xf0) >> 4);
+		*buf++ = __wt_hex(ch & 0x0f);
 	}
 	return (6);
 }
 
 /*
  * __wt_json_column_init --
- *	set json_key_names, json_value_names to comma separated lists
+ *	Set json_key_names, json_value_names to comma separated lists
  *	of column names.
  */
-int
-__wt_json_column_init(WT_CURSOR *cursor, const char *keyformat,
+void
+__wt_json_column_init(WT_CURSOR *cursor, const char *uri, const char *keyformat,
     const WT_CONFIG_ITEM *idxconf, const WT_CONFIG_ITEM *colconf)
 {
 	WT_CURSOR_JSON *json;
-	const char *p, *end, *beginkey;
+	const char *beginkey, *end, *lparen, *p;
 	uint32_t keycnt, nkeys;
 
 	json = (WT_CURSOR_JSON *)cursor->json_private;
@@ -400,15 +400,22 @@ __wt_json_column_init(WT_CURSOR *cursor, const char *keyformat,
 			keycnt++;
 		p++;
 	}
-	json->value_names.str = p;
-	json->value_names.len = WT_PTRDIFF(end, p);
+	if ((lparen = strchr(uri, '(')) != NULL) {
+		/* This cursor is a projection. */
+		json->value_names.str = lparen;
+		json->value_names.len = strlen(lparen) - 1;
+		WT_ASSERT((WT_SESSION_IMPL *)cursor->session,
+		    json->value_names.str[json->value_names.len] == ')');
+	} else {
+		json->value_names.str = p;
+		json->value_names.len = WT_PTRDIFF(end, p);
+	}
 	if (idxconf == NULL) {
 		if (p > beginkey)
 			p--;
 		json->key_names.str = beginkey;
 		json->key_names.len = WT_PTRDIFF(p, beginkey);
 	}
-	return (0);
 }
 
 #define	MATCH_KEYWORD(session, in, result, keyword, matchval) 	do {	\
@@ -421,7 +428,8 @@ __wt_json_column_init(WT_CURSOR *cursor, const char *keyformat,
 		const char *_bad = in;					\
 		while (__wt_isalnum((u_char)*in))			\
 			in++;						\
-		__wt_errx(session, "unknown keyword \"%.*s\" in JSON",	\
+		WT_RET_MSG(session, EINVAL,				\
+		    "unknown keyword \"%.*s\" in JSON",			\
 		    (int)(in - _bad), _bad);				\
 	}								\
 } while (0)
@@ -452,6 +460,7 @@ __wt_json_column_init(WT_CURSOR *cursor, const char *keyformat,
 int
 __wt_json_token(WT_SESSION *wt_session, const char *src, int *toktype,
     const char **tokstart, size_t *toklen)
+    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	WT_SESSION_IMPL *session;
 	int result;
@@ -493,20 +502,18 @@ __wt_json_token(WT_SESSION *wt_session, const char *src, int *toktype,
 
 					uc = (const u_char *)src;
 					if (__wt_hex2byte(&uc[1], &ignored) ||
-					    __wt_hex2byte(&uc[3], &ignored)) {
-						__wt_errx(session,
+					    __wt_hex2byte(&uc[3], &ignored))
+						WT_RET_MSG(session, EINVAL,
 				    "invalid Unicode within JSON string");
-						return (-1);
-					}
 					src += 4;
 				}
 				backslash = false;
 			}
 			src++;
 		}
-		if (result != 's')
-			__wt_errx(session, "unterminated string in JSON");
-		break;
+		if (result == 's')
+			break;
+		WT_RET_MSG(session, EINVAL, "unterminated string in JSON");
 	case '-':
 	case '0':
 	case '1':
@@ -564,13 +571,15 @@ __wt_json_token(WT_SESSION *wt_session, const char *src, int *toktype,
 		if (isalph)
 			while (*src != '\0' && __wt_isalnum((u_char)*src))
 				src++;
-		__wt_errx(session, "unknown token \"%.*s\" in JSON",
-		    (int)(src - bad), bad);
-		break;
+		WT_RET_MSG(session, EINVAL,
+		    "unknown token \"%.*s\" in JSON", (int)(src - bad), bad);
+		/* NOTREACHED */
 	}
+	WT_ASSERT(session, result != -1);
+
 	*toklen = (size_t)(src - *tokstart);
 	*toktype = result;
-	return (result < 0 ? EINVAL : 0);
+	return (0);
 }
 
 /*
@@ -580,6 +589,7 @@ __wt_json_token(WT_SESSION *wt_session, const char *src, int *toktype,
  */
 const char *
 __wt_json_tokname(int toktype)
+    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	switch (toktype) {
 	case 0:		return ("<EOF>");
@@ -607,24 +617,20 @@ __wt_json_tokname(int toktype)
 static int
 json_string_arg(WT_SESSION_IMPL *session, const char **jstr, WT_ITEM *item)
 {
-	WT_DECL_RET;
 	int tok;
 	const char *tokstart;
 
-	WT_RET(__wt_json_token((WT_SESSION *)session, *jstr, &tok, &tokstart,
-		&item->size));
+	WT_RET(__wt_json_token(
+	    (WT_SESSION *)session, *jstr, &tok, &tokstart, &item->size));
 	if (tok == 's') {
 		*jstr = tokstart + item->size;
 		/* The tokenizer includes the '"' chars */
 		item->data = tokstart + 1;
 		item->size -= 2;
-		ret = 0;
-	} else {
-		__wt_errx(session, "expected JSON <string>, got %s",
-		    __wt_json_tokname(tok));
-		ret = EINVAL;
-	}
-	return (ret);
+	} else
+		WT_RET_MSG(session, EINVAL,
+		    "expected JSON <string>, got %s", __wt_json_tokname(tok));
+	return (0);
 }
 
 /*
@@ -649,11 +655,9 @@ json_int_arg(WT_SESSION_IMPL *session, const char **jstr, int64_t *ip)
 			WT_RET_MSG(session, EINVAL,
 			    "JSON <int> extraneous input");
 		*jstr = tokstart + toksize;
-	} else {
-		__wt_errx(session, "expected JSON <int>, got %s",
-		    __wt_json_tokname(tok));
-		return (EINVAL);
-	}
+	} else
+		WT_RET_MSG(session, EINVAL,
+		    "expected JSON <int>, got %s", __wt_json_tokname(tok));
 	return (0);
 }
 
@@ -679,22 +683,20 @@ json_uint_arg(WT_SESSION_IMPL *session, const char **jstr, uint64_t *up)
 			WT_RET_MSG(session, EINVAL,
 			    "JSON <int> extraneous input");
 		*jstr = tokstart + toksize;
-	} else {
-		__wt_errx(session, "expected unsigned JSON <int>, got %s",
+	} else
+		WT_RET_MSG(session, EINVAL,
+		    "expected unsigned JSON <int>, got %s",
 		    __wt_json_tokname(tok));
-		return (EINVAL);
-	}
 	return (0);
 }
 
 #define	JSON_EXPECT_TOKEN_GET(session, jstr, tokval, start, sz) do {	\
     int __tok;								\
     WT_RET(__wt_json_token((WT_SESSION *)session, jstr, &__tok, &start, &sz));\
-    if (__tok != tokval) {						\
-	    __wt_errx(session, "expected JSON %s, got %s",		\
+    if (__tok != tokval)						\
+	    WT_RET_MSG(session, EINVAL,					\
+		"expected JSON %s, got %s",				\
 		__wt_json_tokname(tokval), __wt_json_tokname(__tok));	\
-	    return (EINVAL);						\
-    }									\
     jstr = start + sz;							\
 } while (0)
 
@@ -774,7 +776,7 @@ __json_pack_size(
 	bool multi;
 	const char *tokstart;
 
-	WT_RET(__pack_name_init(session, names, iskey, &packname));
+	__pack_name_init(session, names, iskey, &packname);
 	multi = false;
 	WT_RET(__pack_init(session, &pack, fmt));
 	for (total = 0; __pack_next(&pack, &pv) == 0;) {
@@ -783,11 +785,10 @@ __json_pack_size(
 		JSON_EXPECT_TOKEN_GET(session, jstr, 's', tokstart, toksize);
 		WT_RET(__pack_name_next(&packname, &name));
 		if (toksize - 2 != name.len ||
-		    strncmp(tokstart + 1, name.str, toksize - 2) != 0) {
-			__wt_errx(session, "JSON expected %s name: \"%.*s\"",
+		    strncmp(tokstart + 1, name.str, toksize - 2) != 0)
+			WT_RET_MSG(session, EINVAL,
+			    "JSON expected %s name: \"%.*s\"",
 			    iskey ? "key" : "value", (int)name.len, name.str);
-			return (EINVAL);
-		}
 		JSON_EXPECT_TOKEN(session, jstr, ':');
 		WT_PACK_JSON_GET(session, pv, jstr);
 		total += __pack_size(session, &pv);
@@ -826,6 +827,7 @@ __wt_json_to_item(WT_SESSION_IMPL *session, const char *jstr,
  */
 ssize_t
 __wt_json_strlen(const char *src, size_t srclen)
+    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	const char *srcend;
 	size_t dstlen;
@@ -862,13 +864,13 @@ __wt_json_strlen(const char *src, size_t srclen)
 
 /*
  * __wt_json_strncpy --
- *	Copy bytes of string in JSON format to a destination,
- *	up to dstlen bytes.  If dstlen is greater than the needed size,
- *	the result if zero padded.
+ *	Copy bytes of string in JSON format to a destination, up to dstlen
+ * bytes. If dstlen is greater than the needed size, the result if zero padded.
  */
 int
-__wt_json_strncpy(WT_SESSION *wt_session, char **pdst, size_t dstlen,
-    const char *src, size_t srclen)
+__wt_json_strncpy(WT_SESSION *wt_session,
+    char **pdst, size_t dstlen, const char *src, size_t srclen)
+    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	WT_SESSION_IMPL *session;
 	char ch, *dst;
@@ -885,18 +887,16 @@ __wt_json_strncpy(WT_SESSION *wt_session, char **pdst, size_t dstlen,
 		if ((ch = *src++) == '\\')
 			switch (ch = *src++) {
 			case 'u':
-				if (__wt_hex2byte((const u_char *)src, &hi))
-					return (EINVAL);
-				src += 2;
-				if (__wt_hex2byte((const u_char *)src, &lo))
-					return (EINVAL);
-				src += 2;
-				if (hi != 0) {
-					__wt_errx(NULL, "Unicode \"%6.6s\""
-					    " byte out of range in JSON",
+				if (__wt_hex2byte((const u_char *)src, &hi) ||
+				    __wt_hex2byte((const u_char *)src + 2, &lo))
+					WT_RET_MSG(session, EINVAL,
+				    "invalid Unicode within JSON string");
+				src += 4;
+				if (hi != 0)
+					WT_RET_MSG(session, EINVAL,
+					    "Unicode \"%6.6s\" byte out of "
+					    "range in JSON",
 					    src - 6);
-					return (EINVAL);
-				}
 				*dst++ = (char)lo;
 				break;
 			case 'f':
@@ -921,7 +921,8 @@ __wt_json_strncpy(WT_SESSION *wt_session, char **pdst, size_t dstlen,
 			*dst++ = ch;
 	}
 	if (src != srcend)
-		return (ENOMEM);
+		WT_RET_MSG(session,
+		    ENOMEM, "JSON string copy destination buffer too small");
 	*pdst = dst;
 	while (dst < dstend)
 		*dst++ = '\0';

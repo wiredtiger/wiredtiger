@@ -134,7 +134,6 @@ class CapturedFd(object):
                           gotstr + '"')
         self.expectpos = os.path.getsize(self.filename)
 
-
 class TestSuiteConnection(object):
     def __init__(self, conn, connlist):
         connlist.append(conn)
@@ -152,7 +151,6 @@ class TestSuiteConnection(object):
             return getattr(self, attr)
         else:
             return getattr(self._conn, attr)
-
 
 class WiredTigerTestCase(unittest.TestCase):
     _globalSetup = False
@@ -215,6 +213,12 @@ class WiredTigerTestCase(unittest.TestCase):
             scen = ' -s ' + str(self.scenario_number) + \
                    ' (' + self.scenario_name + ')'
         return self.simpleName() + scen
+
+    def shortDesc(self):
+        ret_str = ''
+        if hasattr(self, 'scenario_number'):
+            ret_str = ' -s ' + str(self.scenario_number)
+        return self.simpleName() + ret_str
 
     def simpleName(self):
         return "%s.%s.%s" %  (self.__module__,
@@ -283,6 +287,7 @@ class WiredTigerTestCase(unittest.TestCase):
             self.testsubdir = self.className() + '.' + str(self.__class__.wt_ntests)
         self.testdir = os.path.join(WiredTigerTestCase._parentTestdir, self.testsubdir)
         self.__class__.wt_ntests += 1
+        self.starttime = time.time()
         if WiredTigerTestCase._verbose > 2:
             self.prhead('started in ' + self.testdir, True)
         # tearDown needs connections list, set it here in case the open fails.
@@ -351,6 +356,9 @@ class WiredTigerTestCase(unittest.TestCase):
         else:
             self.pr('preserving directory ' + self.testdir)
 
+        elapsed = time.time() - self.starttime
+        if elapsed > 0.001 and WiredTigerTestCase._verbose >= 2:
+            print "%s: %.2f seconds" % (str(self), elapsed)
         if not passed and not skipped:
             print "ERROR in " + str(self)
             self.pr('FAIL')
@@ -517,7 +525,6 @@ class WiredTigerTestCase(unittest.TestCase):
 
     def className(self):
         return self.__class__.__name__
-
 
 def longtest(description):
     """

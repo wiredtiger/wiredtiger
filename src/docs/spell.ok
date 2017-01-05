@@ -50,6 +50,7 @@ LDFLAGS
 LIBS
 LLVM
 LOGREC
+LRU
 LRVv
 LSB
 LSM
@@ -95,6 +96,7 @@ WiredTigerStat
 WiredTigerTestCase
 Yann
 Za
+Zstd
 aR
 abstime
 ack'ed
@@ -166,6 +168,7 @@ dNLen
 dNOff
 dT
 dataN
+database's
 dataitem
 dataset
 datasets
@@ -345,6 +348,7 @@ nolock
 nolocking
 nommap
 nop
+noraw
 nosql
 nosync
 notgranted
@@ -506,3 +510,5 @@ wtstats
 xa
 yieldcpu
 zlib
+zseries
+zstd

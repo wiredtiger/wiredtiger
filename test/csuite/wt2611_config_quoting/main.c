@@ -33,8 +33,6 @@
  * Failure mode:
  */
 
-void (*custom_die)(void) = NULL;
-
 int
 main(int argc, char *argv[])
 {

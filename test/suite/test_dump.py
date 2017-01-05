@@ -28,19 +28,18 @@
 
 import os, shutil
 import wiredtiger, wttest
-from helper import \
-    complex_populate, complex_populate_check, \
-    simple_populate, simple_populate_check, \
-    simple_index_populate, simple_index_populate_check
+
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
+from wtdataset import SimpleDataSet, SimpleIndexDataSet, SimpleLSMDataSet, \
+    ComplexDataSet, ComplexLSMDataSet, ProjectionDataSet, ProjectionIndexDataSet
 
 # test_dump.py
 #    Utilities: wt dump
 # Test the dump utility (I'm not testing the dump cursors, that's what the
 # utility uses underneath).
 class test_dump(wttest.WiredTigerTestCase, suite_subprocess):
-    dir='dump.dir'            # Backup directory name
+    dir = 'dump.dir'            # Backup directory name
 
     name = 'test_dump'
     name2 = 'test_dumpb'
@@ -56,29 +55,23 @@ class test_dump(wttest.WiredTigerTestCase, suite_subprocess):
         ('string', dict(keyfmt='S'))
     ]
     types = [
-        ('file', dict(uri='file:', config='', lsm=False,
-          populate=simple_populate,
-          populate_check=simple_populate_check)),
-        ('lsm', dict(uri='lsm:', config='', lsm=True,
-          populate=simple_populate,
-          populate_check=simple_populate_check)),
-        ('table-simple', dict(uri='table:', config='', lsm=False,
-          populate=simple_populate,
-          populate_check=simple_populate_check)),
-        ('table-index', dict(uri='table:', config='', lsm=False,
-          populate=simple_index_populate,
-          populate_check=simple_index_populate_check)),
-        ('table-simple-lsm', dict(uri='table:', config='type=lsm', lsm=True,
-          populate=simple_populate,
-          populate_check=simple_populate_check)),
-        ('table-complex', dict(uri='table:', config='', lsm=False,
-          populate=complex_populate,
-          populate_check=complex_populate_check)),
-        ('table-complex-lsm', dict(uri='table:', config='type=lsm', lsm=True,
-          populate=complex_populate,
-          populate_check=complex_populate_check))
+        ('file', dict(uri='file:', dataset=SimpleDataSet)),
+        ('lsm', dict(uri='lsm:', dataset=SimpleDataSet)),
+        ('table-simple', dict(uri='table:', dataset=SimpleDataSet)),
+        ('table-index', dict(uri='table:', dataset=SimpleIndexDataSet)),
+        ('table-simple-lsm', dict(uri='table:', dataset=SimpleLSMDataSet)),
+        ('table-complex', dict(uri='table:', dataset=ComplexDataSet)),
+        ('table-complex-lsm', dict(uri='table:', dataset=ComplexLSMDataSet)),
+        ('table-simple-proj', dict(uri='table:',
+            dataset=ProjectionDataSet, projection=True)),
+        ('table-index-proj', dict(uri='table:',
+            dataset=ProjectionIndexDataSet, projection=True)),
     ]
     scenarios = make_scenarios(types, keyfmt, dumpfmt)
+
+    def skip(self):
+        return (self.dataset.is_lsm() or self.uri == 'lsm:') and \
+            self.keyfmt == 'r'
 
     # Extract the values lines from the dump output.
     def value_lines(self, fname):
@@ -108,14 +101,14 @@ class test_dump(wttest.WiredTigerTestCase, suite_subprocess):
     # Dump, re-load and do a content comparison.
     def test_dump(self):
         # LSM and column-store isn't a valid combination.
-        if self.lsm and self.keyfmt == 'r':
+        if self.skip():
                 return
 
         # Create the object.
         uri = self.uri + self.name
         uri2 = self.uri + self.name2
-        self.populate(self, uri,
-            self.config + ',key_format=' + self.keyfmt, self.nentries)
+        pop = self.dataset(self, uri, self.nentries, key_format=self.keyfmt)
+        pop.populate()
 
         # Dump the object.
         os.mkdir(self.dir)
@@ -136,14 +129,14 @@ class test_dump(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Check the object's contents
         self.reopen_conn(self.dir)
-        self.populate_check(self, uri, self.nentries)
+        pop.check()
 
         # Re-load the object again in the original directory.
         self.reopen_conn('.')
         self.runWt(['-h', self.dir, 'load', '-f', 'dump.out'])
 
         # Check the contents, they shouldn't have changed.
-        self.populate_check(self, uri, self.nentries)
+        pop.check()
 
         # Re-load the object again, but confirm -n (no overwrite) fails.
         self.runWt(['-h', self.dir, 'load', '-n', '-f', 'dump.out'],
@@ -151,7 +144,7 @@ class test_dump(wttest.WiredTigerTestCase, suite_subprocess):
         self.check_non_empty_file('errfile.out')
 
         # If there are indices, dump one of them and check the output.
-        if self.populate == complex_populate:
+        if self.dataset == ComplexDataSet:
             indexuri = 'index:' + self.name + ':indx1'
             hexopt = ['-x'] if self.hex == 1 else []
             self.runWt(['-h', self.dir, 'dump'] + hexopt + [indexuri],
@@ -166,7 +159,56 @@ class test_dump(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Check the contents in the new table.
         self.reopen_conn(self.dir)
-        self.populate_check(self, uri2, self.nentries)
+        pop = self.dataset(self, uri2, self.nentries, key_format=self.keyfmt)
+        pop.check()
+
+# test_dump_projection
+#    Utilities: wt dump
+# Test the dump utility with projections
+class test_dump_projection(wttest.WiredTigerTestCase, suite_subprocess):
+    dir = 'dump.dir'            # Backup directory name
+
+    name = 'test_dump'
+    nentries = 2500
+    uri = 'table:'
+
+    # Dump, re-load and do a content comparison.
+    def test_dump(self):
+
+        # Create the object.
+        uri = self.uri + self.name
+        pop = ProjectionDataSet(self, uri, self.nentries, key_format='S')
+        pop.populate()
+
+        # Check some cases with invalid projections.
+        self.runWt(['dump', '-x', uri + '('], \
+            outfilename='bad1.out', errfilename='err1.out', failure=True)
+        self.check_non_empty_file('err1.out')
+        self.runWt(['dump', '-x', uri + '(xx)'], \
+            outfilename='bad2.out', errfilename='err2.out', failure=True)
+        self.check_non_empty_file('err2.out')
+        self.runWt(['dump', '-x', uri + pop.projection[:-1]], \
+            outfilename='bad3.out', errfilename='err3.out', failure=True)
+        self.check_non_empty_file('err3.out')
+
+        # Dump the object with a valid projection.
+        self.runWt(['dump', '-x', uri + pop.projection], outfilename='dump.out')
+
+        # Re-load the object in a new home.
+        os.mkdir(self.dir)
+        self.runWt(['-h', self.dir, 'load', '-f', 'dump.out'])
+
+        # Check the database contents.
+        self.runWt(['list'], outfilename='list.out')
+        self.runWt(['-h', self.dir, 'list'], outfilename='list.out.new')
+        s1 = set(open('list.out').read().split())
+        s2 = set(open('list.out.new').read().split())
+        self.assertEqual(not s1.symmetric_difference(s2), True)
+
+        # Check the object's contents.
+        self.reopen_conn(self.dir)
+        pop_reload = ProjectionDataSet(self, uri, self.nentries, key_format='S')
+        pop_reload.check()
 
 if __name__ == '__main__':
     wttest.run()

@@ -37,7 +37,7 @@ typedef struct {
 	/* Value is a boolean, yes if roll of 1-to-100 is <= CONFIG->min. */
 #define	C_BOOL		0x001
 
-	/* Not a simple randomization, handle outside the main loop. */ 
+	/* Not a simple randomization, handle outside the main loop. */
 #define	C_IGNORE	0x002
 
 	/* Value was set from command-line or file, ignore for all runs. */
@@ -58,20 +58,24 @@ typedef struct {
 } CONFIG;
 
 #define	COMPRESSION_LIST						\
-	"(none | lz4 | lz4-noraw | snappy | zlib | zlib-noraw)"
+	"(none | lz4 | lz4-noraw | snappy | zlib | zlib-noraw | zstd)"
 
 static CONFIG c[] = {
 	{ "abort",
 	  "if timed run should drop core",			/* 0% */
 	  C_BOOL, 0, 0, 0, &g.c_abort, NULL },
 
+	{ "alter",
+	  "if altering the table is enabled",			/* 10% */
+	  C_BOOL, 10, 0, 0, &g.c_alter, NULL },
+
 	{ "auto_throttle",
 	  "if LSM inserts are throttled",			/* 90% */
 	  C_BOOL, 90, 0, 0, &g.c_auto_throttle, NULL },
 
 	{ "backups",
-	  "if backups are enabled",				/* 5% */
-	  C_BOOL, 5, 0, 0, &g.c_backups, NULL },
+	  "if backups are enabled",				/* 20% */
+	  C_BOOL, 20, 0, 0, &g.c_backups, NULL },
 
 	{ "bitcnt",
 	  "number of bits for fixed-length column-store files",
@@ -127,7 +131,7 @@ static CONFIG c[] = {
 
 	{ "delete_pct",
 	  "percent operations that are deletes",
-	  0x0, 0, 45, 90, &g.c_delete_pct, NULL },
+	  C_IGNORE, 0, 0, 100, &g.c_delete_pct, NULL },
 
 	{ "dictionary",
 	  "if values are dictionary compressed",		/* 20% */
@@ -167,7 +171,7 @@ static CONFIG c[] = {
 
 	{ "insert_pct",
 	  "percent operations that are inserts",
-	  0x0, 0, 45, 90, &g.c_insert_pct, NULL },
+	  C_IGNORE, 0, 0, 100, &g.c_insert_pct, NULL },
 
 	{ "internal_key_truncation",
 	  "if internal keys are truncated",			/* 95% */
@@ -203,8 +207,8 @@ static CONFIG c[] = {
 	  C_BOOL, 0, 0, 0, &g.c_leak_memory, NULL },
 
 	{ "logging",
-	  "if logging configured",				/* 30% */
-	  C_BOOL, 30, 0, 0, &g.c_logging, NULL },
+	  "if logging configured",				/* 50% */
+	  C_BOOL, 50, 0, 0, &g.c_logging, NULL },
 
 	{ "logging_archive",
 	  "if log file archival configured",			/* 50% */
@@ -250,6 +254,14 @@ static CONFIG c[] = {
 	  "quiet run (same as -q)",
 	  C_IGNORE|C_BOOL, 0, 0, 0, &g.c_quiet, NULL },
 
+	{ "read_pct",
+	  "percent operations that are reads",
+	  C_IGNORE, 0, 0, 100, &g.c_read_pct, NULL },
+
+	{ "rebalance",
+	  "rebalance testing",					/* 100% */
+	  C_BOOL, 100, 1, 0, &g.c_rebalance, NULL },
+
 	{ "repeat_data_pct",
 	  "percent duplicate values in row- or var-length column-stores",
 	  0x0, 0, 90, 90, &g.c_repeat_data_pct, NULL },
@@ -265,10 +277,6 @@ static CONFIG c[] = {
 	{ "runs",
 	  "the number of runs",
 	  C_IGNORE, 0, UINT_MAX, UINT_MAX, &g.c_runs, NULL },
-
-	{ "rebalance",
-	  "rebalance testing",					/* 100% */
-	  C_BOOL, 100, 1, 0, &g.c_rebalance, NULL },
 
 	{ "salvage",
 	  "salvage testing",					/* 100% */
@@ -316,7 +324,7 @@ static CONFIG c[] = {
 
 	{ "write_pct",
 	  "percent operations that are writes",
-	  0x0, 0, 90, 90, &g.c_write_pct, NULL },
+	  C_IGNORE, 0, 0, 100, &g.c_write_pct, NULL },
 
 	{ NULL, NULL, 0x0, 0, 0, 0, NULL, NULL }
 };

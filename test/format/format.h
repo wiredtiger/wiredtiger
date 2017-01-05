@@ -29,6 +29,13 @@
 #include "test_util.h"
 
 #ifdef BDB
+/*
+ * Berkeley DB has an #ifdef we need to provide a value for, we'll see an
+ * undefined error if it's unset during a strict compile.
+ */
+#ifndef	DB_DBM_HSEARCH
+#define	DB_DBM_HSEARCH	0
+#endif
 #include <assert.h>
 #include <db.h>
 #endif
@@ -41,6 +48,8 @@
 	EXTPATH "compressors/snappy/.libs/libwiredtiger_snappy.so"
 #define	ZLIB_PATH							\
 	EXTPATH "compressors/zlib/.libs/libwiredtiger_zlib.so"
+#define	ZSTD_PATH							\
+	EXTPATH "compressors/zstd/.libs/libwiredtiger_zstd.so"
 
 #define	REVERSE_PATH							\
 	EXTPATH "collators/reverse/.libs/libwiredtiger_reverse_collator.so"
@@ -68,12 +77,6 @@
 #define	SINGLETHREADED	(g.c_threads == 1)
 
 #define	FORMAT_OPERATION_REPS	3		/* 3 thread operations sets */
-
-#ifndef _WIN32
-#define	SIZET_FMT	"%zu"			/* size_t format string */
-#else
-#define	SIZET_FMT	"%Iu"			/* size_t format string */
-#endif
 
 typedef struct {
 	char *progname;				/* Program name */
@@ -137,6 +140,7 @@ typedef struct {
 	char *config_open;			/* Command-line configuration */
 
 	uint32_t c_abort;			/* Config values */
+	uint32_t c_alter;
 	uint32_t c_auto_throttle;
 	uint32_t c_backups;
 	uint32_t c_bitcnt;
@@ -188,6 +192,7 @@ typedef struct {
 	uint32_t c_reverse;
 	uint32_t c_rows;
 	uint32_t c_runs;
+	uint32_t c_read_pct;
 	uint32_t c_rebalance;
 	uint32_t c_salvage;
 	uint32_t c_split_pct;
@@ -201,7 +206,7 @@ typedef struct {
 	uint32_t c_verify;
 	uint32_t c_write_pct;
 
-#define	FIX				1	
+#define	FIX				1
 #define	ROW				2
 #define	VAR				3
 	u_int type;				/* File type's flag value */
@@ -218,6 +223,7 @@ typedef struct {
 #define	COMPRESS_SNAPPY			5
 #define	COMPRESS_ZLIB			6
 #define	COMPRESS_ZLIB_NO_RAW		7
+#define	COMPRESS_ZSTD			8
 	u_int c_compression_flag;		/* Compression flag value */
 	u_int c_logging_compression_flag;	/* Log compression flag value */
 
@@ -260,7 +266,7 @@ typedef struct {
 #define	TINFO_COMPLETE	2			/* Finished */
 #define	TINFO_JOINED	3			/* Resolved */
 	volatile int state;			/* state */
-} TINFO WT_COMPILER_TYPE_ALIGN(WT_CACHE_LINE_ALIGNMENT);
+} TINFO;
 
 #ifdef HAVE_BERKELEY_DB
 void	 bdb_close(void);
@@ -272,6 +278,7 @@ void	 bdb_remove(uint64_t, int *);
 void	 bdb_update(const void *, size_t, const void *, size_t);
 #endif
 
+void	*alter(void *);
 void	*backup(void *);
 void	*compact(void *);
 void	 config_clear(void);

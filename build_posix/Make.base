@@ -17,6 +17,7 @@ endif
 
 bin_PROGRAMS = wt
 wt_SOURCES =\
+	src/utilities/util_alter.c \
 	src/utilities/util_backup.c \
 	src/utilities/util_cpyright.c \
 	src/utilities/util_compact.c \
@@ -76,6 +77,9 @@ libwiredtiger_la_LIBADD += ext/compressors/snappy/libwiredtiger_snappy.la
 endif
 if HAVE_BUILTIN_EXTENSION_ZLIB
 libwiredtiger_la_LIBADD += ext/compressors/zlib/libwiredtiger_zlib.la
+endif
+if HAVE_BUILTIN_EXTENSION_ZSTD
+libwiredtiger_la_LIBADD += ext/compressors/zstd/libwiredtiger_zstd.la
 endif
 
 libwiredtiger_static_la_LIBADD=$(libwiredtiger_la_LIBADD)

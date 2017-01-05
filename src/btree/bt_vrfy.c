@@ -89,7 +89,7 @@ __verify_config_offsets(
 	*quitp = false;
 
 	WT_RET(__wt_config_gets(session, cfg, "dump_offsets", &cval));
-	WT_RET(__wt_config_subinit(session, &list, &cval));
+	__wt_config_subinit(session, &list, &cval);
 	while ((ret = __wt_config_next(&list, &k, &v)) == 0) {
 		/*
 		 * Quit after dumping the requested blocks.  (That's hopefully
@@ -195,8 +195,8 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/* Loop through the file's checkpoints, verifying each one. */
 	WT_CKPT_FOREACH(ckptbase, ckpt) {
-		WT_ERR(__wt_verbose(session, WT_VERB_VERIFY,
-		    "%s: checkpoint %s", btree->dhandle->name, ckpt->name));
+		__wt_verbose(session, WT_VERB_VERIFY,
+		    "%s: checkpoint %s", btree->dhandle->name, ckpt->name);
 
 		/* Fake checkpoints require no work. */
 		if (F_ISSET(ckpt, WT_CKPT_FAKE))
@@ -312,9 +312,9 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_VSTUFF *vs)
 	unpack = &_unpack;
 	WT_CLEAR(*unpack);	/* -Wuninitialized */
 
-	WT_RET(__wt_verbose(session, WT_VERB_VERIFY, "%s %s",
+	__wt_verbose(session, WT_VERB_VERIFY, "%s %s",
 	    __wt_page_addr_string(session, ref, vs->tmp1),
-	    __wt_page_type_string(page->type)));
+	    __wt_page_type_string(page->type));
 
 	/* Optionally dump the address. */
 	if (vs->dump_address)
@@ -386,7 +386,7 @@ recno_chk:	if (recno != vs->record_total + 1)
 	}
 	switch (page->type) {
 	case WT_PAGE_COL_FIX:
-		vs->record_total += page->pg_fix_entries;
+		vs->record_total += page->entries;
 		break;
 	case WT_PAGE_COL_VAR:
 		recno = 0;
@@ -614,7 +614,7 @@ __verify_row_leaf_key_order(
 	 * If a tree is empty (just created), it won't have keys; if there
 	 * are no keys, we're done.
 	 */
-	if (page->pg_row_entries == 0)
+	if (page->entries == 0)
 		return (0);
 
 	/*
@@ -624,7 +624,7 @@ __verify_row_leaf_key_order(
 	 */
 	if (vs->max_addr->size != 0) {
 		WT_RET(__wt_row_leaf_key_copy(
-		    session, page, page->pg_row_d, vs->tmp1));
+		    session, page, page->pg_row, vs->tmp1));
 
 		/*
 		 * Compare the key against the largest key we've seen so far.
@@ -653,7 +653,7 @@ __verify_row_leaf_key_order(
 
 	/* Update the largest key we've seen to the last key on this page. */
 	WT_RET(__wt_row_leaf_key_copy(session, page,
-	    page->pg_row_d + (page->pg_row_entries - 1), vs->max_key));
+	    page->pg_row + (page->entries - 1), vs->max_key));
 	(void)__wt_page_addr_string(session, ref, vs->max_addr);
 
 	return (0);

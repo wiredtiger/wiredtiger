@@ -210,7 +210,7 @@ leaf_only:
 	page = current->page;
 	cbt->ref = current;
 
-	/* 
+	/*
 	 * Don't bother searching if the caller is appending a new record where
 	 * we'll allocate the record number; we're not going to find a match by
 	 * definition, and we figure out the record number and position when we
@@ -240,8 +240,8 @@ leaf_only:
 			cbt->compare = 1;
 			return (0);
 		}
-		if (recno >= current->ref_recno + page->pg_fix_entries) {
-			cbt->recno = current->ref_recno + page->pg_fix_entries;
+		if (recno >= current->ref_recno + page->entries) {
+			cbt->recno = current->ref_recno + page->entries;
 			goto past_end;
 		} else {
 			cbt->recno = recno;
@@ -257,8 +257,7 @@ leaf_only:
 		}
 		if ((cip = __col_var_search(current, recno, NULL)) == NULL) {
 			cbt->recno = __col_var_last_recno(current);
-			cbt->slot = page->pg_var_entries == 0 ?
-			    0 : page->pg_var_entries - 1;
+			cbt->slot = page->entries == 0 ? 0 : page->entries - 1;
 			goto past_end;
 		} else {
 			cbt->recno = recno;

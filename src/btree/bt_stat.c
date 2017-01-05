@@ -8,6 +8,7 @@
 
 #include "wt_internal.h"
 
+static int  __stat_tree_walk(WT_SESSION_IMPL *);
 static int  __stat_page(WT_SESSION_IMPL *, WT_PAGE *, WT_DSRC_STATS **);
 static void __stat_page_col_var(WT_SESSION_IMPL *, WT_PAGE *, WT_DSRC_STATS **);
 static void __stat_page_row_int(WT_SESSION_IMPL *, WT_PAGE *, WT_DSRC_STATS **);
@@ -23,9 +24,7 @@ __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
 {
 	WT_BM *bm;
 	WT_BTREE *btree;
-	WT_DECL_RET;
 	WT_DSRC_STATS **stats;
-	WT_REF *next_walk;
 
 	btree = S2BT(session);
 	bm = btree->bm;
@@ -41,12 +40,34 @@ __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
 	WT_STAT_SET(session, stats, btree_maxleafpage, btree->maxleafpage);
 	WT_STAT_SET(session, stats, btree_maxleafvalue, btree->maxleafvalue);
 
+	WT_STAT_SET(session, stats, cache_bytes_dirty,
+	    __wt_btree_dirty_inuse(session));
 	WT_STAT_SET(session, stats, cache_bytes_inuse,
 	    __wt_btree_bytes_inuse(session));
 
-	/* Everything else is really, really expensive. */
-	if (!F_ISSET(cst, WT_CONN_STAT_ALL))
-		return (0);
+	if (F_ISSET(cst, WT_STAT_TYPE_CACHE_WALK))
+		__wt_curstat_cache_walk(session);
+
+	if (F_ISSET(cst, WT_STAT_TYPE_TREE_WALK))
+		WT_RET(__stat_tree_walk(session));
+
+	return (0);
+}
+
+/*
+ * __stat_tree_walk --
+ *	Gather btree statistics that require traversing the tree.
+ */
+static int
+__stat_tree_walk(WT_SESSION_IMPL *session)
+{
+	WT_BTREE *btree;
+	WT_DECL_RET;
+	WT_DSRC_STATS **stats;
+	WT_REF *next_walk;
+
+	btree = S2BT(session);
+	stats = btree->dhandle->stats;
 
 	/*
 	 * Clear the statistics we're about to count.
@@ -85,8 +106,7 @@ __stat_page(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **stats)
 	switch (page->type) {
 	case WT_PAGE_COL_FIX:
 		WT_STAT_INCR(session, stats, btree_column_fix);
-		WT_STAT_INCRV(
-		    session, stats, btree_entries, page->pg_fix_entries);
+		WT_STAT_INCRV(session, stats, btree_entries, page->entries);
 		break;
 	case WT_PAGE_COL_INT:
 		WT_STAT_INCR(session, stats, btree_column_internal);

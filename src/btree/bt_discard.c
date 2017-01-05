@@ -27,8 +27,34 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
 	/*
 	 * A version of the page-out function that allows us to make additional
 	 * diagnostic checks.
+	 *
+	 * The WT_REF cannot be the eviction thread's location.
 	 */
 	WT_ASSERT(session, S2BT(session)->evict_ref != ref);
+
+#ifdef HAVE_DIAGNOSTIC
+	{
+	WT_HAZARD *hp;
+	int i;
+	/*
+	 * Make sure no other thread has a hazard pointer on the page we are
+	 * about to discard.  This is complicated by the fact that readers
+	 * publish their hazard pointer before re-checking the page state, so
+	 * our check can race with readers without indicating a real problem.
+	 * Wait for up to a second for hazard pointers to be cleared.
+	 */
+	for (hp = NULL, i = 0; i < 100; i++) {
+		if ((hp = __wt_hazard_check(session, ref)) == NULL)
+			break;
+		__wt_sleep(0, 10000);
+	}
+	if (hp != NULL)
+		__wt_errx(session,
+		    "discarded page has hazard pointer: (%p: %s, line %d)",
+		    (void *)hp->ref, hp->file, hp->line);
+	WT_ASSERT(session, hp == NULL);
+	}
+#endif
 
 	__wt_page_out(session, &ref->page);
 }
@@ -61,31 +87,7 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
 	 */
 	WT_ASSERT(session, !__wt_page_is_modified(page));
 	WT_ASSERT(session, !F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU));
-	WT_ASSERT(session, !__wt_fair_islocked(session, &page->page_lock));
-
-#ifdef HAVE_DIAGNOSTIC
-	{
-	WT_HAZARD *hp;
-	int i;
-	/*
-	 * Make sure no other thread has a hazard pointer on the page we are
-	 * about to discard.  This is complicated by the fact that readers
-	 * publish their hazard pointer before re-checking the page state, so
-	 * our check can race with readers without indicating a real problem.
-	 * Wait for up to a second for hazard pointers to be cleared.
-	 */
-	for (hp = NULL, i = 0; i < 100; i++) {
-		if ((hp = __wt_page_hazard_check(session, page)) == NULL)
-			break;
-		__wt_sleep(0, 10000);
-	}
-	if (hp != NULL)
-		__wt_errx(session,
-		    "discarded page has hazard pointer: (%p: %s, line %d)",
-		    (void *)hp->page, hp->file, hp->line);
-	WT_ASSERT(session, hp == NULL);
-	}
-#endif
+	WT_ASSERT(session, !__wt_rwlock_islocked(session, &page->page_lock));
 
 	/*
 	 * If a root page split, there may be one or more pages linked from the
@@ -204,8 +206,7 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
 		if (mod->mod_col_update != NULL)
 			__free_skip_array(session, mod->mod_col_update,
 			    page->type ==
-			    WT_PAGE_COL_FIX ? 1 : page->pg_var_entries,
-			    update_ignore);
+			    WT_PAGE_COL_FIX ? 1 : page->entries, update_ignore);
 		break;
 	case WT_PAGE_ROW_LEAF:
 		/*
@@ -217,12 +218,12 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
 		 */
 		if (mod->mod_row_insert != NULL)
 			__free_skip_array(session, mod->mod_row_insert,
-			    page->pg_row_entries + 1, update_ignore);
+			    page->entries + 1, update_ignore);
 
 		/* Free the update array. */
 		if (mod->mod_row_update != NULL)
 			__free_update(session, mod->mod_row_update,
-			    page->pg_row_entries, update_ignore);
+			    page->entries, update_ignore);
 		break;
 	}
 
@@ -330,7 +331,7 @@ static void
 __free_page_col_var(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
 	/* Free the RLE lookup array. */
-	__wt_free(session, page->pg_var_repeats);
+	__wt_free(session, page->u.col_var.repeats);
 }
 
 /*

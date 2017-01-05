@@ -25,6 +25,10 @@ struct __wt_process {
 					/* Locked: connection queue */
 	TAILQ_HEAD(__wt_connection_impl_qh, __wt_connection_impl) connqh;
 	WT_CACHE_POOL *cache_pool;
+
+					/* Checksum function */
+#define	__wt_checksum(chunk, len)	__wt_process.checksum(chunk, len)
+	uint32_t (*checksum)(const void *, size_t);
 };
 extern WT_PROCESS __wt_process;
 
@@ -251,12 +255,6 @@ struct __wt_connection_impl {
 
 	size_t     session_scratch_max;	/* Max scratch memory per session */
 
-	/*
-	 * WiredTiger allocates space for a fixed number of hazard pointers
-	 * in each thread of control.
-	 */
-	uint32_t   hazard_max;		/* Hazard array size */
-
 	WT_CACHE  *cache;		/* Page cache */
 	volatile uint64_t cache_size;	/* Cache size (either statically
 					   configured or the current size
@@ -264,8 +262,9 @@ struct __wt_connection_impl {
 
 	WT_TXN_GLOBAL txn_global;	/* Global transaction state */
 
-	WT_RWLOCK *hot_backup_lock;	/* Hot backup serialization */
-	bool hot_backup;
+	WT_RWLOCK hot_backup_lock;	/* Hot backup serialization */
+	bool hot_backup;		/* Hot backup in progress */
+	char **hot_backup_list;		/* Hot backup file list */
 
 	WT_SESSION_IMPL *ckpt_session;	/* Checkpoint thread session */
 	wt_thread_t	 ckpt_tid;	/* Checkpoint thread */
@@ -273,7 +272,7 @@ struct __wt_connection_impl {
 	WT_CONDVAR	*ckpt_cond;	/* Checkpoint wait mutex */
 #define	WT_CKPT_LOGSIZE(conn)	((conn)->ckpt_logsize != 0)
 	wt_off_t	 ckpt_logsize;	/* Checkpoint log size period */
-	uint32_t	 ckpt_signalled;/* Checkpoint signalled */
+	bool		 ckpt_signalled;/* Checkpoint signalled */
 
 	uint64_t  ckpt_usecs;		/* Checkpoint timer */
 	uint64_t  ckpt_time_max;	/* Checkpoint time min/max */
@@ -281,21 +280,14 @@ struct __wt_connection_impl {
 	uint64_t  ckpt_time_recent;	/* Checkpoint time recent/total */
 	uint64_t  ckpt_time_total;
 
-#define	WT_CONN_STAT_ALL	0x01	/* "all" statistics configured */
-#define	WT_CONN_STAT_CLEAR	0x02	/* clear after gathering */
-#define	WT_CONN_STAT_FAST	0x04	/* "fast" statistics configured */
-#define	WT_CONN_STAT_JSON	0x08	/* output JSON format */
-#define	WT_CONN_STAT_NONE	0x10	/* don't gather statistics */
-#define	WT_CONN_STAT_ON_CLOSE	0x20	/* output statistics on close */
-#define	WT_CONN_STAT_SIZE	0x40	/* "size" statistics configured */
-	uint32_t stat_flags;
+	uint32_t stat_flags;		/* Options declared in flags.py */
 
 					/* Connection statistics */
 	WT_CONNECTION_STATS *stats[WT_COUNTER_SLOTS];
-	WT_CONNECTION_STATS  stat_array[WT_COUNTER_SLOTS];
+	WT_CONNECTION_STATS *stat_array;
 
 	WT_ASYNC	*async;		/* Async structure */
-	int		 async_cfg;	/* Global async configuration */
+	bool		 async_cfg;	/* Global async configuration */
 	uint32_t	 async_size;	/* Async op array size */
 	uint32_t	 async_workers;	/* Number of async workers */
 
@@ -303,15 +295,21 @@ struct __wt_connection_impl {
 
 	WT_KEYED_ENCRYPTOR *kencryptor;	/* Encryptor for metadata and log */
 
-	WT_SESSION_IMPL *evict_session; /* Eviction server sessions */
-	wt_thread_t	 evict_tid;	/* Eviction server thread ID */
-	bool		 evict_tid_set;	/* Eviction server thread ID set */
+	bool		 evict_server_running;/* Eviction server operating */
 
-	uint32_t	 evict_workers_alloc;/* Allocated eviction workers */
-	uint32_t	 evict_workers_max;/* Max eviction workers */
-	uint32_t	 evict_workers_min;/* Min eviction workers */
-	uint32_t	 evict_workers;	/* Number of eviction workers */
-	WT_EVICT_WORKER	*evict_workctx;	/* Eviction worker context */
+	WT_THREAD_GROUP  evict_threads;
+	uint32_t	 evict_threads_max;/* Max eviction threads */
+	uint32_t	 evict_threads_min;/* Min eviction threads */
+
+#define	EVICT_GROUP_INCR 4    /* Evict group size increased in batches */
+	uint32_t         evict_tune_datapts_needed;/* Data needed to tune */
+	struct timespec  evict_tune_last_action_time;/* Time of last action */
+	struct timespec  evict_tune_last_time;	/* Time of last check */
+	uint32_t         evict_tune_num_points;	/* Number of values tried */
+	uint64_t	 evict_tune_pgs_last;	/* Number of pages evicted */
+	uint64_t	 evict_tune_pg_sec_max;	/* Max throughput encountered */
+	bool             evict_tune_stable;	/* Are we stable? */
+	uint32_t	 evict_tune_workers_best;/* Best performing value */
 
 #define	WT_STATLOG_FILENAME	"WiredTigerStat.%d.%H"
 	WT_SESSION_IMPL *stat_session;	/* Statistics log session */
@@ -338,11 +336,11 @@ struct __wt_connection_impl {
 	bool		 log_tid_set;	/* Log server thread set */
 	WT_CONDVAR	*log_file_cond;	/* Log file thread wait mutex */
 	WT_SESSION_IMPL *log_file_session;/* Log file thread session */
-	wt_thread_t	 log_file_tid;	/* Log file thread thread */
+	wt_thread_t	 log_file_tid;	/* Log file thread */
 	bool		 log_file_tid_set;/* Log file thread set */
 	WT_CONDVAR	*log_wrlsn_cond;/* Log write lsn thread wait mutex */
 	WT_SESSION_IMPL *log_wrlsn_session;/* Log write lsn thread session */
-	wt_thread_t	 log_wrlsn_tid;	/* Log write lsn thread thread */
+	wt_thread_t	 log_wrlsn_tid;	/* Log write lsn thread */
 	bool		 log_wrlsn_tid_set;/* Log write lsn thread set */
 	WT_LOG		*log;		/* Logging structure */
 	WT_COMPRESSOR	*log_compressor;/* Logging compressor */
@@ -352,6 +350,12 @@ struct __wt_connection_impl {
 	uint32_t	 txn_logsync;	/* Log sync configuration */
 
 	WT_SESSION_IMPL *meta_ckpt_session;/* Metadata checkpoint session */
+
+	/*
+	 * Is there a data/schema change that needs to be the part of a
+	 * checkpoint.
+	 */
+	bool modified;
 
 	WT_SESSION_IMPL *sweep_session;	   /* Handle sweep session */
 	wt_thread_t	 sweep_tid;	   /* Handle sweep thread */

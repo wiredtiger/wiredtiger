@@ -234,6 +234,24 @@ class test_jsondump02(wttest.WiredTigerTestCase, suite_subprocess):
                 ('"ikey" : 4,\n"Skey" : "key4"',
                  '"S1" : "val16",\n"i2" : 16,\n"S3" : "val64",\n"i4" : 64'))
         self.check_json(self.table_uri4, table4_json)
+        # This projection has 3 value fields reversed with a key at the end.
+        table4_json_projection = (
+                ('"ikey" : 1,\n"Skey" : "key1"',
+                 '"i4" : 1,\n"S3" : "val1",\n"i2" : 1,\n"ikey" : 1'),
+                ('"ikey" : 2,\n"Skey" : "key2"',
+                 '"i4" : 8,\n"S3" : "val8",\n"i2" : 4,\n"ikey" : 2'),
+                ('"ikey" : 3,\n"Skey" : "key3"',
+                 '"i4" : 27,\n"S3" : "val27",\n"i2" : 9,\n"ikey" : 3'),
+                ('"ikey" : 4,\n"Skey" : "key4"',
+                 '"i4" : 64,\n"S3" : "val64",\n"i2" : 16,\n"ikey" : 4'))
+        # bad projection URI
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                 lambda: self.check_json(self.table_uri4 + '(i4,S3,i2,ikey',
+                        table4_json_projection),
+            '/Unbalanced brackets/')
+        # This projection should work.
+        self.check_json(self.table_uri4 + '(i4,S3,i2,ikey)',
+                        table4_json_projection)
         # The dump config currently is not supported for the index type.
         self.check_json(uri4index1, (
                 ('"Skey" : "key1"',
@@ -397,7 +415,6 @@ class test_jsondump02(wttest.WiredTigerTestCase, suite_subprocess):
         self.runWt(['load', '-jf', 'jsondump6.out'])
         self.session.drop(self.table_uri5)
         self.session.drop(self.table_uri6)
-
 
 if __name__ == '__main__':
     wttest.run()

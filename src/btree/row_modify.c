@@ -85,9 +85,8 @@ __wt_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 	if (cbt->compare == 0) {
 		if (cbt->ins == NULL) {
 			/* Allocate an update array as necessary. */
-			WT_PAGE_ALLOC_AND_SWAP(session,
-			    page, mod->mod_row_update,
-			    upd_entry, page->pg_row_entries);
+			WT_PAGE_ALLOC_AND_SWAP(session, page,
+			    mod->mod_row_update, upd_entry, page->entries);
 
 			/* Set the WT_UPDATE array reference. */
 			upd_entry = &mod->mod_row_update[cbt->slot];
@@ -147,10 +146,10 @@ __wt_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 		 * slot.  That's hard, so we set a flag.
 		 */
 		WT_PAGE_ALLOC_AND_SWAP(session, page,
-		    mod->mod_row_insert, ins_headp, page->pg_row_entries + 1);
+		    mod->mod_row_insert, ins_headp, page->entries + 1);
 
 		ins_slot = F_ISSET(cbt, WT_CBT_SEARCH_SMALLEST) ?
-		    page->pg_row_entries: cbt->slot;
+		    page->entries: cbt->slot;
 		ins_headp = &mod->mod_row_insert[ins_slot];
 
 		/* Allocate the WT_INSERT_HEAD structure as necessary. */
@@ -267,23 +266,27 @@ int
 __wt_update_alloc(
     WT_SESSION_IMPL *session, WT_ITEM *value, WT_UPDATE **updp, size_t *sizep)
 {
+	WT_UPDATE *upd;
 	size_t size;
+
+	*updp = NULL;
 
 	/*
 	 * Allocate the WT_UPDATE structure and room for the value, then copy
 	 * the value into place.
 	 */
 	size = value == NULL ? 0 : value->size;
-	WT_RET(__wt_calloc(session, 1, sizeof(WT_UPDATE) + size, updp));
+	WT_RET(__wt_calloc(session, 1, sizeof(WT_UPDATE) + size, &upd));
 	if (value == NULL)
-		WT_UPDATE_DELETED_SET(*updp);
+		WT_UPDATE_DELETED_SET(upd);
 	else {
-		(*updp)->size = WT_STORE_SIZE(size);
+		upd->size = WT_STORE_SIZE(size);
 		if (size != 0)
-			memcpy(WT_UPDATE_DATA(*updp), value->data, size);
+			memcpy(WT_UPDATE_DATA(upd), value->data, size);
 	}
 
-	*sizep = WT_UPDATE_MEMSIZE(*updp);
+	*updp = upd;
+	*sizep = WT_UPDATE_MEMSIZE(upd);
 	return (0);
 }
 

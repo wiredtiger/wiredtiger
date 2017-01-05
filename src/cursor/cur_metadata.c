@@ -35,8 +35,8 @@
  *	Extract the "source" configuration key, lookup its metadata.
  */
 static int
-__schema_source_config(WT_SESSION_IMPL *session, WT_CURSOR *srch,
-    char *config, char **result)
+__schema_source_config(WT_SESSION_IMPL *session,
+    WT_CURSOR *srch, const char *config, const char **result)
 {
 	WT_CONFIG_ITEM cval;
 	WT_DECL_ITEM(buf);
@@ -48,7 +48,10 @@ __schema_source_config(WT_SESSION_IMPL *session, WT_CURSOR *srch,
 	WT_ERR(__wt_buf_fmt(session, buf, "%.*s", (int)cval.len, cval.str));
 	srch->set_key(srch, buf->data);
 	if ((ret = srch->search(srch)) == WT_NOTFOUND)
-		WT_ERR(EINVAL);
+		WT_ERR_MSG(session, EINVAL,
+		    "metadata information for source configuration \"%s\" "
+		    "not found",
+		    (char *)buf->data);
 	WT_ERR(ret);
 	WT_ERR(srch->get_value(srch, &v));
 	WT_ERR(__wt_strdup(session, v, result));
@@ -68,13 +71,13 @@ err:	__wt_scr_free(session, &buf);
  */
 static int
 __schema_create_collapse(WT_SESSION_IMPL *session, WT_CURSOR_METADATA *mdc,
-    const char *key, char *value, char **value_ret)
+    const char *key, const char *value, char **value_ret)
 {
 	WT_CURSOR *c;
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
-	char *_cfg[5] = {NULL, NULL, NULL, value, NULL};
-	char **cfg, **firstcfg, **lastcfg, *v;
+	const char *_cfg[5] = {NULL, NULL, NULL, value, NULL};
+	const char **cfg, **firstcfg, **lastcfg, *v;
 
 	lastcfg = cfg = &_cfg[3];		/* position on value */
 	c = NULL;
@@ -102,14 +105,13 @@ __schema_create_collapse(WT_SESSION_IMPL *session, WT_CURSOR_METADATA *mdc,
 		}
 	}
 	firstcfg = cfg;
-	*--firstcfg = (char *)WT_CONFIG_BASE(session, WT_SESSION_create);
-	WT_ERR(__wt_config_collapse(
-	    session, (const char **)firstcfg, value_ret));
+	*--firstcfg = WT_CONFIG_BASE(session, WT_SESSION_create);
+	WT_ERR(__wt_config_collapse(session, firstcfg, value_ret));
 
 err:	for (; cfg < lastcfg; cfg++)
 		__wt_free(session, *cfg);
 	if (c != NULL)
-		c->reset(c);
+		WT_TRET(c->reset(c));
 	__wt_scr_free(session, &buf);
 	return (ret);
 }
@@ -134,8 +136,8 @@ __curmetadata_setkv(WT_CURSOR_METADATA *mdc, WT_CURSOR *fc)
 	c->key.data = fc->key.data;
 	c->key.size = fc->key.size;
 	if (F_ISSET(mdc, WT_MDC_CREATEONLY)) {
-		WT_ERR(__schema_create_collapse(session, mdc,
-		    (char *)fc->key.data, (char *)fc->value.data, &value));
+		WT_ERR(__schema_create_collapse(
+		    session, mdc, fc->key.data, fc->value.data, &value));
 		WT_ERR(__wt_buf_set(
 		    session, &c->value, value, strlen(value) + 1));
 	} else {
@@ -156,8 +158,9 @@ err:	__wt_free(session, value);
  * but also check for the internal version of the URI.
  */
 #define	WT_KEY_IS_METADATA(key)						\
+	((key)->size > 0 &&						\
 	(WT_STRING_MATCH(WT_METADATA_URI, (key)->data, (key)->size - 1) ||\
-	 WT_STRING_MATCH(WT_METAFILE_URI, (key)->data, (key)->size - 1))
+	 WT_STRING_MATCH(WT_METAFILE_URI, (key)->data, (key)->size - 1)))
 
 /*
  * __curmetadata_metadata_search --
