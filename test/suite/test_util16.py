@@ -30,43 +30,42 @@ import os
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 
-# test_util15.py
-#    Utilities: wt alter
+# test_util16.py
+#    Utilities: wt rename
 class test_util03(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = 'test_util15.a'
+    tablename = 'test_util16.a'
+    tablename2 = 'test_util16.b'
+    nentries = 1000
 
-    def test_alter_process(self):
+    def test_rename_process(self):
         """
         Test alter in a 'wt' process
         """
         params = 'key_format=S,value_format=S'
         self.session.create('table:' + self.tablename, params)
         self.assertTrue(os.path.exists(self.tablename + ".wt"))
-
-        """
-        Alter access pattern and confirm
-        """
-        acc_pat_seq="access_pattern_hint=sequential"
-        self.runWt(["alter", "table:" + self.tablename, acc_pat_seq])
-        cursor = self.session.open_cursor("metadata:create", None, None)
-        cursor.set_key("table:" + self.tablename)
-        self.assertEqual(cursor.search(),0)
-        string = cursor.get_value()
+        cursor = self.session.open_cursor('table:' + self.tablename, None, None)
+        for i in range(0, self.nentries):
+            cursor[str(i)] = str(i)
         cursor.close()
-        self.assertTrue(acc_pat_seq in string)
 
-        """
-        Alter access pattern again and confirm
-        """
-        acc_pat_rand="access_pattern_hint=random"
-        self.runWt(["alter", "table:" + self.tablename, acc_pat_rand])
-        cursor = self.session.open_cursor("metadata:create", None, None)
-        cursor.set_key("table:" + self.tablename)
-        self.assertEqual(cursor.search(),0)
-        string = cursor.get_value();
+        self.runWt(["rename", "table:" + self.tablename, "table:" + self.tablename2])
+        self.assertTrue(os.path.exists(self.tablename2 + ".wt"))
+        cursor = self.session.open_cursor('table:' + self.tablename2, None, None)
+        count = 0
+        while cursor.next() == 0:
+            count +=1
         cursor.close()
-        self.assertTrue(acc_pat_rand in string)
+        self.assertEquals(self.nentries, count)
 
+        self.runWt(["rename", "table:" + self.tablename2, "table:" + self.tablename])
+        self.assertTrue(os.path.exists(self.tablename + ".wt"))
+        cursor = self.session.open_cursor('table:' + self.tablename, None, None)
+	count = 0
+        while cursor.next() == 0:
+            count +=1
+        cursor.close()
+        self.assertEquals(self.nentries, count)
 
 if __name__ == '__main__':
     wttest.run()
