@@ -1123,10 +1123,12 @@ __conn_diagnostic(WT_SESSION_IMPL *session, const char *config)
 	WT_RET(ret);
 
 	/* Call each listed diagnostic command. */
-	for (dp = diagnostics; dp->name != NULL; ++dp)
+	for (dp = diagnostics; dp->name != NULL; ++dp) {
 		if ((ret = __wt_config_subgets(
 		    session, &cval, dp->name, &sval)) == 0)
 			WT_ERR(dp->func(session));
+		WT_ERR_NOTFOUND_OK(ret);
+	}
 
 err:	if (dp->name != NULL)
 		__wt_err(session, ret,
