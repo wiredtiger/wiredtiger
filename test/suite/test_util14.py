@@ -61,5 +61,32 @@ class test_util14(wttest.WiredTigerTestCase, suite_subprocess):
         self.check_empty_file(outfile)
         self.check_file_contains(errfile, 'NoMatch: not found\n')
 
+        """
+        Tests for error cases
+        1. Missing URI
+        2. Invalid URI
+        3. Valid but incorrect URI
+        4. Double URI
+        """
+        self.runWt(["truncate"],
+            outfilename=outfile, errfilename=errfile, failure=True)
+        self.check_empty_file(outfile)
+        self.check_file_contains(errfile, 'usage:')
+
+	self.runWt(["truncate", "foobar"],
+            outfilename=outfile, errfilename=errfile, failure=True)
+        self.check_empty_file(outfile)
+        self.check_file_contains(errfile, 'No such file or directory')
+
+        self.runWt(["truncate", 'table:xx' + self.tablename],
+            outfilename=outfile, errfilename=errfile, failure=True)
+        self.check_empty_file(outfile)
+        self.check_file_contains(errfile, 'No such file or directory')
+
+        self.runWt(["truncate", 'table:' + self.tablename, 'table:' + self.tablename],
+            outfilename=outfile, errfilename=errfile, failure=True)
+        self.check_empty_file(outfile)
+        self.check_file_contains(errfile, 'usage:')
+
 if __name__ == '__main__':
     wttest.run()
