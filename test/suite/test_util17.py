@@ -41,12 +41,15 @@ class test_util17(wttest.WiredTigerTestCase, suite_subprocess):
         """
         params = 'key_format=S,value_format=S'
         outfile = "wt-stat.out"
+        expected_string = "cursor: cursor create calls=12"
         self.session.create('table:' + self.tablename, params)
         self.assertTrue(os.path.exists(self.tablename + ".wt"))
         self.runWt(["stat"], outfilename=outfile)
-        self.check_non_empty_file(outfile)
+        self.check_file_contains(outfile, expected_string)
+
+        expected_string = "cache_walk: Entries in the root page=1"
         self.runWt(["stat", "table:" + self.tablename ], outfilename=outfile)
-        self.check_non_empty_file(outfile)
+        self.check_file_contains(outfile, expected_string)
 
 if __name__ == '__main__':
     wttest.run()
