@@ -120,14 +120,17 @@ class test_reconfig01(wttest.WiredTigerTestCase):
             "file_manager=(close_idle_time=4,close_scan_interval=100)")
 
     '''
+    Turned off for the moment, until I figure out how to make output into
+    stdout not fail the test.
+
     # Diagnostic commands.
     def test_session_reconfigure_diagnostic(self):
         uri = "table:diagnostic"
         ds = SimpleDataSet(self, uri, 1000)
         ds.populate()
 
-        # Cache dump.
-        self.conn.reconfigure('diagnostic=(cache_dump)')
+        self.conn.reconfigure('diagnostic=(dump_cache)')
+        self.conn.reconfigure('diagnostic=(dump_txn)')
     '''
 
 if __name__ == '__main__':
