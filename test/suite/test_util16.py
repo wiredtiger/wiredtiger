@@ -61,7 +61,7 @@ class test_util16(wttest.WiredTigerTestCase, suite_subprocess):
         self.runWt(["rename", "table:" + self.tablename2, "table:" + self.tablename])
         self.assertTrue(os.path.exists(self.tablename + ".wt"))
         cursor = self.session.open_cursor('table:' + self.tablename, None, None)
-	count = 0
+        count = 0
         while cursor.next() == 0:
             count +=1
         cursor.close()

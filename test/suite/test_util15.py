@@ -63,10 +63,9 @@ class test_util15(wttest.WiredTigerTestCase, suite_subprocess):
         cursor = self.session.open_cursor("metadata:create", None, None)
         cursor.set_key("table:" + self.tablename)
         self.assertEqual(cursor.search(),0)
-        string = cursor.get_value();
+        string = cursor.get_value()
         cursor.close()
         self.assertTrue(acc_pat_rand in string)
-
 
 if __name__ == '__main__':
     wttest.run()
