@@ -1182,11 +1182,6 @@ methods = {
         in the directory specified by the \c diagnostic_path configuration.
         Intended for debugging''',
         type='list', choices=['cache_dump']),
-    Config('diagnostic_path', '"."', r'''
-        the name of a directory into which diagnostic information is written.
-        The directory must already exist. If the value is not an absolute
-        path, the path is relative to the database home (see @ref absolute_path
-        for more information)'''),
 ]),
 'WT_CONNECTION.set_file_system' : Method([]),
 

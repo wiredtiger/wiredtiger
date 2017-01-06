@@ -1094,68 +1094,10 @@ err:	/*
 	API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
-/*
- * __conn_diagnostic_fp --
- *	Open a file handle for a diagnostic command.
- */
-static int
-__conn_diagnostic_fp(
-    WT_SESSION_IMPL *session, const char *command, WT_FSTREAM **fsp)
-{
-	struct timespec ts;
-	struct tm *tm, _tm;
-	WT_CONFIG_ITEM cval;
-	WT_DECL_ITEM(tmp);
-	WT_DECL_RET;
-	char *path;
-	bool diag_path;
-
-	*fsp = NULL;
-
-	path = NULL;
-
-	/*
-	 * Find out if there's a directory in which we store the diagnostic
-	 * output.
-	 */
-	diag_path = true;
-	if ((ret = __wt_config_getones(session,
-	    S2C(session)->cfg, "diagnostic_path", &cval)) == WT_NOTFOUND)
-		diag_path = false;
-	WT_RET_NOTFOUND_OK(ret);
-
-	/* Build a full pathname to the diagnostic output file. */
-	WT_RET(__wt_scr_alloc(session, 0, &tmp));
-	WT_ERR(__wt_buf_fmt(session, tmp,
-	    "%.*s%sWiredTigerDiag.%s.%%d.%%H",
-	    diag_path ? (int)cval.len : 0,
-	    diag_path ? cval.str : "",
-	    diag_path ? "/" : "", command));
-	WT_ERR(__wt_filename(session, tmp->data, &path));
-
-	/*
-	 * Add in a timestamp at hour granularity (repeated calls to the same
-	 * diagnostic command will use the same file, for an hour).
-	 */
-	__wt_epoch(session, &ts);
-	tm = localtime_r(&ts.tv_sec, &_tm);
-	if (strftime(tmp->mem, tmp->memsize, path, tm) == 0)
-		WT_ERR_MSG(session, ENOMEM, "strftime path conversion");
-
-	/* Open the file. */
-	WT_ERR(__wt_fopen(session, tmp->mem,
-	    WT_FS_OPEN_CREATE | WT_FS_OPEN_FIXED, WT_STREAM_APPEND, fsp));
-
-err:	__wt_free(session, path);
-	__wt_scr_free(session, &tmp);
-
-	return (ret);
-}
-
 /* Simple structure for diagnostic commands. */
 typedef struct {
 	const char *name;				/* command name */
-	int (*func)(WT_SESSION_IMPL *, WT_FSTREAM *);	/* command */
+	int (*func)(WT_SESSION_IMPL *);			/* command */
 } WT_DIAGNOSTIC_CMD;
 
 /*
@@ -1172,9 +1114,6 @@ __conn_diagnostic(WT_SESSION_IMPL *session, const char *config)
 	WT_CONFIG_ITEM cval, sval;
 	WT_DECL_RET;
 	const WT_DIAGNOSTIC_CMD *dp;
-	WT_FSTREAM *fs;
-
-	fs = NULL;
 
 	/* Check for diagnostic commands. */
 	if ((ret = __wt_config_getones(
@@ -1183,21 +1122,10 @@ __conn_diagnostic(WT_SESSION_IMPL *session, const char *config)
 	WT_RET(ret);
 
 	/* Call each listed diagnostic command. */
-	for (dp = diagnostics; dp->name != NULL; ++dp) {
+	for (dp = diagnostics; dp->name != NULL; ++dp)
 		if ((ret = __wt_config_subgets(
-		    session, &cval, dp->name, &sval)) != 0)
-			continue;
-
-		/*
-		 * Open a file stream and call the underlying function. Minor
-		 * trickiness in error handling, ensure we won't have to close
-		 * the stream after an error.
-		 */
-		WT_ERR(__conn_diagnostic_fp(session, dp->name, &fs));
-		ret = dp->func(session, fs);
-		WT_TRET(__wt_fclose(session, &fs));
-		WT_ERR(ret);
-	}
+		    session, &cval, dp->name, &sval)) == 0)
+			WT_ERR(dp->func(session));
 
 err:	if (dp->name != NULL)
 		__wt_err(session, ret,

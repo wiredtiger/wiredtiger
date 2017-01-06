@@ -366,7 +366,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 			ret = ETIMEDOUT;
 			__wt_err(session, ret,
 			    "Cache stuck for too long, giving up");
-			WT_TRET(__wt_cache_dump(session, WT_STDERR(session)));
+			WT_TRET(__wt_cache_dump(session));
 			return (ret);
 		}
 #endif
@@ -2158,7 +2158,7 @@ __wt_evict_priority_clear(WT_SESSION_IMPL *session)
  *	Output debugging information about the global transaction state.
  */
 static int
-__dump_txn_state(WT_SESSION_IMPL *session, WT_FSTREAM *fs)
+__dump_txn_state(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_TXN_GLOBAL *txn_global;
@@ -2172,36 +2172,27 @@ __dump_txn_state(WT_SESSION_IMPL *session, WT_FSTREAM *fs)
 	txn_global = &conn->txn_global;
 	WT_ORDERED_READ(session_cnt, conn->session_cnt);
 
-	/* Note: odd string concatenation avoids spelling errors. */
-	if (__wt_fprintf(session, fs,
-	    "==========\n" "transaction state dump\n") < 0)
-		return (EIO);
+	WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
+	WT_RET(__wt_msg(session, "transaction state dump"));
 
-	if (__wt_fprintf(session, fs,
-	    "current ID: %" PRIu64 "\n"
-	    "last running ID: %" PRIu64 "\n"
-	    "oldest ID: %" PRIu64 "\n"
-	    "oldest named snapshot ID: %" PRIu64 "\n",
-	    txn_global->current, txn_global->last_running,
-	    txn_global->oldest_id, txn_global->nsnap_oldest_id) < 0)
-		return (EIO);
+	WT_RET(__wt_msg(session, "current ID: %" PRIu64, txn_global->current));
+	WT_RET(__wt_msg(session,
+	    "last running ID: %" PRIu64, txn_global->last_running));
+	WT_RET(__wt_msg(session, "oldest ID: %" PRIu64, txn_global->oldest_id));
+	WT_RET(__wt_msg(session,
+	    "oldest named snapshot ID: %" PRIu64, txn_global->nsnap_oldest_id));
 
-	if (__wt_fprintf(session, fs,
-	    "checkpoint running? %s\n"
-	    "checkpoint generation: %" PRIu64 "\n"
-	    "checkpoint pinned ID: %" PRIu64 "\n"
-	    "checkpoint txn ID: %" PRIu64 "\n"
-	    "session count: %" PRIu32 "\n",
-	    txn_global->checkpoint_running ? "yes" : "no",
-	    txn_global->checkpoint_gen,
-	    txn_global->checkpoint_pinned,
-	    txn_global->checkpoint_txnid,
-	    session_cnt) < 0)
-		return (EIO);
+	WT_RET(__wt_msg(session, "checkpoint running? %s",
+	    txn_global->checkpoint_running ? "yes" : "no"));
+	WT_RET(__wt_msg(session,
+	    "checkpoint generation: %" PRIu64, txn_global->checkpoint_gen));
+	WT_RET(__wt_msg(session,
+	    "checkpoint pinned ID: %" PRIu64, txn_global->checkpoint_pinned));
+	WT_RET(__wt_msg(session,
+	    "checkpoint txn ID: %" PRIu64, txn_global->checkpoint_txnid));
+	WT_RET(__wt_msg(session, "session count: %" PRIu32, session_cnt));
 
-	if (__wt_fprintf(session, fs,
-	    "Dumping transaction state of active sessions\n") < 0)
-		return (EIO);
+	WT_RET(__wt_msg(session, "Transaction state of active sessions:"));
 
 	/*
 	 * Walk each session transaction state and dump information. Accessing
@@ -2228,7 +2219,7 @@ __dump_txn_state(WT_SESSION_IMPL *session, WT_FSTREAM *fs)
 			break;
 		}
 
-		if (__wt_fprintf(session, fs,
+		WT_RET(__wt_msg(session,
 		    "ID: %6" PRIu64
 		    ", mod count: %u"
 		    ", pinned ID: %" PRIu64
@@ -2237,7 +2228,7 @@ __dump_txn_state(WT_SESSION_IMPL *session, WT_FSTREAM *fs)
 		    ", metadata pinned ID: %" PRIu64
 		    ", flags: 0x%08" PRIx32
 		    ", name: %s"
-		    ", isolation: %s" "\n",
+		    ", isolation: %s",
 		    id,
 		    txn->mod_count,
 		    s->pinned_id,
@@ -2247,19 +2238,19 @@ __dump_txn_state(WT_SESSION_IMPL *session, WT_FSTREAM *fs)
 		    txn->flags,
 		    conn->sessions[i].name == NULL ?
 		    "EMPTY" : conn->sessions[i].name,
-		    iso_tag) < 0)
-			return (EIO);
+		    iso_tag));
 	}
+	WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
 
 	return (0);
 }
 
 /*
  * __dump_cache --
- *	Output debugging information about the size of the files in cache.
+ *	Output diagnostic information about the size of the files in cache.
  */
 static int
-__dump_cache(WT_SESSION_IMPL *session, WT_FSTREAM *fs)
+__dump_cache(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle, *saved_dhandle;
@@ -2275,9 +2266,8 @@ __dump_cache(WT_SESSION_IMPL *session, WT_FSTREAM *fs)
 	conn = S2C(session);
 	total_bytes = total_dirty_bytes = 0;
 
-	/* Note: odd string concatenation avoids spelling errors. */
-	if (__wt_fprintf(session, fs, "==========\n" "cache dump\n") < 0)
-		return (EIO);
+	WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
+	WT_RET(__wt_msg(session, "cache dump"));
 
 	saved_dhandle = session->dhandle;
 	TAILQ_FOREACH(dhandle, &conn->dhqh, q) {
@@ -2322,24 +2312,20 @@ __dump_cache(WT_SESSION_IMPL *session, WT_FSTREAM *fs)
 		}
 		session->dhandle = NULL;
 
-		if (dhandle->checkpoint == NULL) {
-			if (__wt_fprintf(session, fs,
-			    "%s(<live>): \n", dhandle->name) < 0)
-				return (EIO);
-		} else {
-			if (__wt_fprintf(session, fs, "%s(checkpoint=%s): \n",
-			    dhandle->name, dhandle->checkpoint) < 0)
-				return (EIO);
-		}
-		if (intl_pages != 0) {
-			if (__wt_fprintf(session, fs,
-			    "\t" "internal: "
+		if (dhandle->checkpoint == NULL)
+			WT_RET(__wt_msg(session, "%s(<live>):", dhandle->name));
+		else
+			WT_RET(__wt_msg(session, "%s(checkpoint=%s):",
+			    dhandle->name, dhandle->checkpoint));
+		if (intl_pages != 0)
+			WT_RET(__wt_msg(session,
+			    "internal: "
 			    "%" PRIu64 " pages, "
 			    "%" PRIu64 "MB, "
 			    "%" PRIu64 "/%" PRIu64 " clean/dirty pages, "
 			    "%" PRIu64 "/%" PRIu64 " clean/dirty MB, "
 			    "%" PRIu64 "MB max page, "
-			    "%" PRIu64 "MB max dirty page\n",
+			    "%" PRIu64 "MB max dirty page",
 			    intl_pages,
 			    intl_bytes >> 20,
 			    intl_pages - intl_dirty_pages,
@@ -2347,18 +2333,16 @@ __dump_cache(WT_SESSION_IMPL *session, WT_FSTREAM *fs)
 			    (intl_bytes - intl_dirty_bytes) >> 20,
 			    intl_dirty_bytes >> 20,
 			    intl_bytes_max >> 20,
-			    intl_dirty_bytes_max >> 20) < 0)
-				return (EIO);
-		}
-		if (leaf_pages != 0) {
-			if (__wt_fprintf(session, fs,
-			    "\t" "leaf: "
+			    intl_dirty_bytes_max >> 20));
+		if (leaf_pages != 0)
+			WT_RET(__wt_msg(session,
+			    "leaf: "
 			    "%" PRIu64 " pages, "
 			    "%" PRIu64 "MB, "
 			    "%" PRIu64 "/%" PRIu64 " clean/dirty pages, "
 			    "%" PRIu64 "/%" PRIu64 " clean/dirty MB, "
 			    "%" PRIu64 "MB max page, "
-			    "%" PRIu64 "MB max dirty page\n",
+			    "%" PRIu64 "MB max dirty page",
 			    leaf_pages,
 			    leaf_bytes >> 20,
 			    leaf_pages - leaf_dirty_pages,
@@ -2366,9 +2350,7 @@ __dump_cache(WT_SESSION_IMPL *session, WT_FSTREAM *fs)
 			    (leaf_bytes - leaf_dirty_bytes) >> 20,
 			    leaf_dirty_bytes >> 20,
 			    leaf_bytes_max >> 20,
-			    leaf_dirty_bytes_max >> 20) < 0)
-				return (EIO);
-		}
+			    leaf_dirty_bytes_max >> 20));
 
 		total_bytes += intl_bytes + leaf_bytes;
 		total_dirty_bytes += intl_dirty_bytes + leaf_dirty_bytes;
@@ -2381,15 +2363,13 @@ __dump_cache(WT_SESSION_IMPL *session, WT_FSTREAM *fs)
 	 */
 	total_bytes = __wt_cache_bytes_plus_overhead(conn->cache, total_bytes);
 
-	if (__wt_fprintf(session, fs,
+	WT_RET(__wt_msg(session,
 	    "cache dump: "
-	    "total found: %" PRIu64 "MB vs tracked inuse %" PRIu64 "MB\n"
-	    "total dirty bytes: %" PRIu64 "MB\n",
-	    total_bytes >> 20, __wt_cache_bytes_inuse(conn->cache) >> 20,
-	    total_dirty_bytes >> 20) < 0)
-		return (EIO);
-	if (__wt_fprintf(session, fs, "==========\n") < 0)
-		return (EIO);
+	    "total found: %" PRIu64 "MB vs tracked inuse %" PRIu64 "MB",
+	    total_bytes >> 20, __wt_cache_bytes_inuse(conn->cache) >> 20));
+	WT_RET(__wt_msg(session,
+	    "total dirty bytes: %" PRIu64 "MB", total_dirty_bytes >> 20));
+	WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
 
 	return (0);
 }
@@ -2399,10 +2379,10 @@ __dump_cache(WT_SESSION_IMPL *session, WT_FSTREAM *fs)
  *	Dump debugging information about the cache to the diagnostic file.
  */
 int
-__wt_cache_dump(WT_SESSION_IMPL *session, WT_FSTREAM *fs)
+__wt_cache_dump(WT_SESSION_IMPL *session)
 {
-	WT_RET(__dump_txn_state(session, fs));
-	WT_RET(__dump_cache(session, fs));
+	WT_RET(__dump_txn_state(session));
+	WT_RET(__dump_cache(session));
 
 	return (0);
 }

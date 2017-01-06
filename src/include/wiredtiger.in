@@ -1852,11 +1852,6 @@ struct __wt_connection {
 	 * diagnostic_path configuration.  Intended for debugging., a list\,
 	 * with values chosen from the following options: \c "cache_dump";
 	 * default empty.}
-	 * @config{diagnostic_path, the name of a directory into which
-	 * diagnostic information is written.  The directory must already exist.
-	 * If the value is not an absolute path\, the path is relative to the
-	 * database home (see @ref absolute_path for more information)., a
-	 * string; default \c ".".}
 	 * @config{error_prefix, prefix string for error messages., a string;
 	 * default empty.}
 	 * @config{eviction = (, eviction configuration options., a set of
