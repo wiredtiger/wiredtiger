@@ -1850,8 +1850,8 @@ struct __wt_connection {
 	 * @config{diagnostic, cause WiredTiger to run a diagnostic command.
 	 * The output is placed in the directory specified by the \c
 	 * diagnostic_path configuration.  Intended for debugging., a list\,
-	 * with values chosen from the following options: \c "cache_dump";
-	 * default empty.}
+	 * with values chosen from the following options: \c "dump_cache"\, \c
+	 * "dump_txn"; default empty.}
 	 * @config{error_prefix, prefix string for error messages., a string;
 	 * default empty.}
 	 * @config{eviction = (, eviction configuration options., a set of

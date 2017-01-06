@@ -366,7 +366,8 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 			ret = ETIMEDOUT;
 			__wt_err(session, ret,
 			    "Cache stuck for too long, giving up");
-			WT_TRET(__wt_cache_dump(session));
+			WT_TRET(__wt_diagnostic_dump_txn(session));
+			WT_TRET(__wt_diagnostic_dump_cache(session));
 			return (ret);
 		}
 #endif
@@ -2154,103 +2155,11 @@ __wt_evict_priority_clear(WT_SESSION_IMPL *session)
 }
 
 /*
- * __dump_txn_state --
- *	Output debugging information about the global transaction state.
- */
-static int
-__dump_txn_state(WT_SESSION_IMPL *session)
-{
-	WT_CONNECTION_IMPL *conn;
-	WT_TXN_GLOBAL *txn_global;
-	WT_TXN *txn;
-	WT_TXN_STATE *s;
-	const char *iso_tag;
-	uint64_t id;
-	uint32_t i, session_cnt;
-
-	conn = S2C(session);
-	txn_global = &conn->txn_global;
-	WT_ORDERED_READ(session_cnt, conn->session_cnt);
-
-	WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
-	WT_RET(__wt_msg(session, "transaction state dump"));
-
-	WT_RET(__wt_msg(session, "current ID: %" PRIu64, txn_global->current));
-	WT_RET(__wt_msg(session,
-	    "last running ID: %" PRIu64, txn_global->last_running));
-	WT_RET(__wt_msg(session, "oldest ID: %" PRIu64, txn_global->oldest_id));
-	WT_RET(__wt_msg(session,
-	    "oldest named snapshot ID: %" PRIu64, txn_global->nsnap_oldest_id));
-
-	WT_RET(__wt_msg(session, "checkpoint running? %s",
-	    txn_global->checkpoint_running ? "yes" : "no"));
-	WT_RET(__wt_msg(session,
-	    "checkpoint generation: %" PRIu64, txn_global->checkpoint_gen));
-	WT_RET(__wt_msg(session,
-	    "checkpoint pinned ID: %" PRIu64, txn_global->checkpoint_pinned));
-	WT_RET(__wt_msg(session,
-	    "checkpoint txn ID: %" PRIu64, txn_global->checkpoint_txnid));
-	WT_RET(__wt_msg(session, "session count: %" PRIu32, session_cnt));
-
-	WT_RET(__wt_msg(session, "Transaction state of active sessions:"));
-
-	/*
-	 * Walk each session transaction state and dump information. Accessing
-	 * the content of session handles is not thread safe, so some
-	 * information may change while traversing if other threads are active
-	 * at the same time, which is OK since this is diagnostic code.
-	 */
-	for (i = 0, s = txn_global->states; i < session_cnt; i++, s++) {
-		/* Skip sessions with no active transaction */
-		if ((id = s->id) == WT_TXN_NONE && s->pinned_id == WT_TXN_NONE)
-			continue;
-
-		txn = &conn->sessions[i].txn;
-		iso_tag = "INVALID";
-		switch (txn->isolation) {
-		case WT_ISO_READ_COMMITTED:
-			iso_tag = "WT_ISO_READ_COMMITTED";
-			break;
-		case WT_ISO_READ_UNCOMMITTED:
-			iso_tag = "WT_ISO_READ_UNCOMMITTED";
-			break;
-		case WT_ISO_SNAPSHOT:
-			iso_tag = "WT_ISO_SNAPSHOT";
-			break;
-		}
-
-		WT_RET(__wt_msg(session,
-		    "ID: %6" PRIu64
-		    ", mod count: %u"
-		    ", pinned ID: %" PRIu64
-		    ", snap min: %" PRIu64
-		    ", snap max: %" PRIu64
-		    ", metadata pinned ID: %" PRIu64
-		    ", flags: 0x%08" PRIx32
-		    ", name: %s"
-		    ", isolation: %s",
-		    id,
-		    txn->mod_count,
-		    s->pinned_id,
-		    txn->snap_min,
-		    txn->snap_max,
-		    s->metadata_pinned,
-		    txn->flags,
-		    conn->sessions[i].name == NULL ?
-		    "EMPTY" : conn->sessions[i].name,
-		    iso_tag));
-	}
-	WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
-
-	return (0);
-}
-
-/*
- * __dump_cache --
+ * __wt_diagnostic_dump_cache --
  *	Output diagnostic information about the size of the files in cache.
  */
-static int
-__dump_cache(WT_SESSION_IMPL *session)
+int
+__wt_diagnostic_dump_cache(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle, *saved_dhandle;
@@ -2370,19 +2279,6 @@ __dump_cache(WT_SESSION_IMPL *session)
 	WT_RET(__wt_msg(session,
 	    "total dirty bytes: %" PRIu64 "MB", total_dirty_bytes >> 20));
 	WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
-
-	return (0);
-}
-
-/*
- * __wt_cache_dump --
- *	Dump debugging information about the cache to the diagnostic file.
- */
-int
-__wt_cache_dump(WT_SESSION_IMPL *session)
-{
-	WT_RET(__dump_txn_state(session));
-	WT_RET(__dump_cache(session));
 
 	return (0);
 }

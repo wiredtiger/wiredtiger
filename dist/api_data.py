@@ -1181,7 +1181,7 @@ methods = {
         cause WiredTiger to run a diagnostic command. The output is placed
         in the directory specified by the \c diagnostic_path configuration.
         Intended for debugging''',
-        type='list', choices=['cache_dump']),
+        type='list', choices=['dump_cache', 'dump_txn']),
 ]),
 'WT_CONNECTION.set_file_system' : Method([]),
 

@@ -111,7 +111,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
 	    NULL, NULL,
 	    confchk_wiredtiger_open_checkpoint_subconfigs, 2 },
 	{ "diagnostic", "list",
-	    NULL, "choices=[\"cache_dump\"]",
+	    NULL, "choices=[\"dump_cache\",\"dump_txn\"]",
 	    NULL, 0 },
 	{ "error_prefix", "string", NULL, NULL, NULL, 0 },
 	{ "eviction", "category",

@@ -1108,7 +1108,8 @@ static int
 __conn_diagnostic(WT_SESSION_IMPL *session, const char *config)
 {
 	static const WT_DIAGNOSTIC_CMD diagnostics[] = {
-		 { "cache_dump", __wt_cache_dump },
+		 { "dump_cache", __wt_diagnostic_dump_cache },
+		 {   "dump_txn", __wt_diagnostic_dump_txn },
 		 { NULL, NULL }
 	};
 	WT_CONFIG_ITEM cval, sval;
