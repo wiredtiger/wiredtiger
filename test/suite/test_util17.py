@@ -37,7 +37,9 @@ class test_util17(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_stat_process(self):
         """
-        Test alter in a 'wt' process
+        Test stat in a 'wt' process
+        This test is just here to confirm that stat produces a correct looking
+        output, it isn't here to do statistics validation.
         """
         params = 'key_format=S,value_format=S'
         outfile = "wt-stat.out"
