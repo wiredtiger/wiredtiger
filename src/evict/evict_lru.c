@@ -24,6 +24,42 @@ static int  __evict_walk_file(
 	(S2C(s)->evict_threads.current_threads > 1)
 
 /*
+ * __evict_lock_dhandle --
+ *	Try to get the dhandle lock, with yield and sleep back-off.
+ *	Acquire 
+ */
+static int
+__evict_lock_dhandle(WT_SESSION_IMPL *session)
+{
+	struct timespec enter, leave;
+	WT_CACHE *cache;
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+	WT_SPINLOCK *dh_lock;
+	int64_t **stats;
+	u_int spins;
+
+	conn = S2C(session);
+	cache = conn->cache;
+	stats = (int64_t **)conn->stats;
+	dh_lock = &conn->dhandle_lock;
+	__wt_epoch(session, &enter);
+	for (spins = 0; (ret = __wt_spin_trylock_track(
+	    session, dh_lock)) == EBUSY &&
+	    cache->pass_intr == 0; spins++) {
+		if (spins < WT_THOUSAND)
+			__wt_yield();
+		else
+			__wt_sleep(0, WT_THOUSAND);
+	}
+	__wt_epoch(session, &leave);
+	if (dh_lock->stat_count_off != -1 && WT_STAT_ENABLED(session))
+		stats[session->stat_bucket][dh_lock->stat_int_usecs_off] +=
+		    (int64_t)WT_TIMEDIFF_US(leave, enter);
+	return (ret);
+}
+
+/*
  * __evict_entry_priority --
  *	Get the adjusted read generation for an eviction entry.
  */
@@ -307,7 +343,6 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 	struct timespec now;
 #endif
 	uint64_t orig_pages_evicted;
-	u_int spins;
 
 	conn = S2C(session);
 	cache = conn->cache;
@@ -326,21 +361,14 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 	 * otherwise we can block applications evicting large pages.
 	 */
 	if (!__wt_cache_stuck(session)) {
-		for (spins = 0; (ret = __wt_spin_trylock_track(
-		    session, &conn->dhandle_lock)) == EBUSY &&
-		    cache->pass_intr == 0; spins++) {
-			if (spins < WT_THOUSAND)
-				__wt_yield();
-			else
-				__wt_sleep(0, WT_THOUSAND);
-		}
+
 		/*
 		 * If we gave up acquiring the lock, that indicates a
 		 * session is waiting for us to clear walks.  Do that
 		 * as part of a normal pass (without the handle list
 		 * lock) to avoid deadlock.
 		 */
-		if (ret == EBUSY)
+		if ((ret = __evict_lock_dhandle(session)) == EBUSY)
 			return (0);
 		WT_RET(ret);
 		ret = __evict_clear_all_walks(session);
@@ -1226,7 +1254,7 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
-	u_int max_entries, retries, slot, spins, start_slot, total_candidates;
+	u_int max_entries, retries, slot, start_slot, total_candidates;
 	bool dhandle_locked, incr;
 
 	conn = S2C(session);
@@ -1264,16 +1292,7 @@ retry:	while (slot < max_entries) {
 		 * reference count to keep it alive while we sweep.
 		 */
 		if (!dhandle_locked) {
-			for (spins = 0; (ret = __wt_spin_trylock_track(
-			    session, &conn->dhandle_lock)) == EBUSY &&
-			    cache->pass_intr == 0;
-			    spins++) {
-				if (spins < WT_THOUSAND)
-					__wt_yield();
-				else
-					__wt_sleep(0, WT_THOUSAND);
-			}
-			WT_ERR(ret);
+			WT_ERR(__evict_lock_dhandle(session));
 			dhandle_locked = true;
 		}
 
