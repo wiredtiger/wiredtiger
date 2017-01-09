@@ -375,7 +375,7 @@ __wt_txn_checkpoint_log(
 		 * checkpoint.  A clean close may not update any metadata LSN
 		 * and we do not want to archive in that case.
 		 */
-		if (!S2C(session)->hot_backup && 
+		if (!S2C(session)->hot_backup &&
 		    !F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
 		    txn->full_ckpt)
 			__wt_log_ckpt(session, ckpt_lsn);
