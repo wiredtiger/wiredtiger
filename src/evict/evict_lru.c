@@ -43,20 +43,32 @@ __evict_lock_dhandle(WT_SESSION_IMPL *session)
 	cache = conn->cache;
 	stats = (int64_t **)conn->stats;
 	dh_lock = &conn->dhandle_lock;
-	__wt_epoch(session, &enter);
-	for (spins = 0; (ret = __wt_spin_trylock_track(
-	    session, dh_lock)) == EBUSY &&
+
+	/*
+	 * Maintain lock acquisition timing statistics as if this were a
+	 * regular lock acquisition.
+	 */
+	if (WT_STAT_ENABLED(session))
+		__wt_epoch(session, &enter);
+	/*
+	 * Use a custom lock acquisition backoff loop so the eviction server
+	 * notices any interrupt quickly.
+	 */
+	for (spins = 0;
+	    (ret = __wt_spin_trylock_track(session, dh_lock)) == EBUSY &&
 	    cache->pass_intr == 0; spins++) {
 		if (spins < WT_THOUSAND)
 			__wt_yield();
 		else
 			__wt_sleep(0, WT_THOUSAND);
 	}
-	__wt_epoch(session, &leave);
-	if (dh_lock->stat_count_off != -1 && WT_STAT_ENABLED(session))
+	WT_RET(ret);
+	if (WT_STAT_ENABLED(session))
+		__wt_epoch(session, &leave);
+	if (WT_STAT_ENABLED(session) && dh_lock->stat_count_off != -1)
 		stats[session->stat_bucket][dh_lock->stat_int_usecs_off] +=
 		    (int64_t)WT_TIMEDIFF_US(leave, enter);
-	return (ret);
+	return (0);
 }
 
 /*
