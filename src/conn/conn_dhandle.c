@@ -91,13 +91,16 @@ __wt_conn_dhandle_find(
     WT_SESSION_IMPL *session, const char *uri, const char *checkpoint)
 {
 	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
 	WT_DATA_HANDLE *dhandle;
 	uint64_t bucket;
 
 	conn = S2C(session);
 
 	/* We must be holding the handle list lock at a higher level. */
-	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST));
+	WT_ASSERT(session,
+	    F_ISSET(session, WT_SESSION_LOCKED_READ_HANDLE_LIST |
+	    WT_SESSION_LOCKED_WRITE_HANDLE_LIST));
 
 	bucket = __wt_hash_city64(uri, strlen(uri)) % WT_HASH_ARRAY_SIZE;
 	if (checkpoint == NULL) {
@@ -122,7 +125,9 @@ __wt_conn_dhandle_find(
 			}
 		}
 
-	WT_RET(__conn_dhandle_alloc(session, uri, checkpoint, &dhandle));
+	WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
+	    ret = __conn_dhandle_alloc(session, uri, checkpoint, &dhandle));
+	WT_RET(ret);
 
 	session->dhandle = dhandle;
 	return (0);
@@ -423,7 +428,8 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
 
 	conn = S2C(session);
 
-	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST));
+	WT_ASSERT(session,
+	    F_ISSET(session, WT_SESSION_LOCKED_READ_HANDLE_LIST));
 
 	/*
 	 * If we're given a URI, then we walk only the hash list for that
@@ -473,7 +479,8 @@ __wt_conn_dhandle_close_all(
 
 	conn = S2C(session);
 
-	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST));
+	WT_ASSERT(session,
+	    F_ISSET(session, WT_SESSION_LOCKED_WRITE_HANDLE_LIST));
 	WT_ASSERT(session, session->dhandle == NULL);
 
 	bucket = __wt_hash_city64(uri, strlen(uri)) % WT_HASH_ARRAY_SIZE;
@@ -534,7 +541,8 @@ __conn_dhandle_remove(WT_SESSION_IMPL *session, bool final)
 	dhandle = session->dhandle;
 	bucket = dhandle->name_hash % WT_HASH_ARRAY_SIZE;
 
-	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST));
+	WT_ASSERT(session,
+	    F_ISSET(session, WT_SESSION_LOCKED_WRITE_HANDLE_LIST));
 	WT_ASSERT(session, dhandle != conn->cache->evict_file_next);
 
 	/* Check if the handle was reacquired by a session while we waited. */
@@ -577,13 +585,14 @@ __wt_conn_dhandle_discard_single(
 	 * handle list lock.
 	 */
 	set_pass_intr = false;
-	if (!F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST)) {
+	if (!F_ISSET(session, WT_SESSION_LOCKED_READ_HANDLE_LIST |
+	    WT_SESSION_LOCKED_WRITE_HANDLE_LIST)) {
 		set_pass_intr = true;
 		(void)__wt_atomic_addv32(&S2C(session)->cache->pass_intr, 1);
 	}
 
 	/* Try to remove the handle, protected by the data handle lock. */
-	WT_WITH_HANDLE_LIST_LOCK(session,
+	WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
 	    tret = __conn_dhandle_remove(session, final));
 	if (set_pass_intr)
 		(void)__wt_atomic_subv32(&S2C(session)->cache->pass_intr, 1);

@@ -326,7 +326,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 	 * otherwise we can block applications evicting large pages.
 	 */
 	if (!__wt_cache_stuck(session)) {
-		for (spins = 0; (ret = __wt_spin_trylock_track(
+		for (spins = 0; (ret = __wt_try_readlock(
 		    session, &conn->dhandle_lock)) == EBUSY &&
 		    cache->pass_intr == 0; spins++) {
 			if (spins < WT_THOUSAND)
@@ -344,7 +344,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 			return (0);
 		WT_RET(ret);
 		ret = __evict_clear_all_walks(session);
-		__wt_spin_unlock(session, &conn->dhandle_lock);
+		__wt_readunlock(session, &conn->dhandle_lock);
 		WT_RET(ret);
 
 		cache->pages_evicted = 0;
@@ -1264,7 +1264,7 @@ retry:	while (slot < max_entries) {
 		 * reference count to keep it alive while we sweep.
 		 */
 		if (!dhandle_locked) {
-			for (spins = 0; (ret = __wt_spin_trylock_track(
+			for (spins = 0; (ret = __wt_try_readlock(
 			    session, &conn->dhandle_lock)) == EBUSY &&
 			    cache->pass_intr == 0;
 			    spins++) {
@@ -1352,7 +1352,7 @@ retry:	while (slot < max_entries) {
 
 		(void)__wt_atomic_addi32(&dhandle->session_inuse, 1);
 		incr = true;
-		__wt_spin_unlock(session, &conn->dhandle_lock);
+		__wt_readunlock(session, &conn->dhandle_lock);
 		dhandle_locked = false;
 
 		/*
@@ -1399,7 +1399,7 @@ retry:	while (slot < max_entries) {
 	}
 
 err:	if (dhandle_locked) {
-		__wt_spin_unlock(session, &conn->dhandle_lock);
+		__wt_readunlock(session, &conn->dhandle_lock);
 		dhandle_locked = false;
 	}
 

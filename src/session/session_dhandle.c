@@ -450,7 +450,7 @@ __session_get_dhandle(
 	 * We didn't find a match in the session cache, search the shared
 	 * handle list and cache the handle we find.
 	 */
-	WT_WITH_HANDLE_LIST_LOCK(session,
+	WT_WITH_HANDLE_LIST_READ_LOCK(session,
 	    ret = __session_find_shared_dhandle(session, uri, checkpoint));
 	WT_RET(ret);
 
@@ -506,14 +506,19 @@ __wt_session_get_btree(WT_SESSION_IMPL *session,
 		 * and handle list locks are used to enforce this.
 		 */
 		if (!F_ISSET(session, WT_SESSION_LOCKED_SCHEMA) ||
-		    !F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST)) {
+		    !F_ISSET(session, WT_SESSION_LOCKED_READ_HANDLE_LIST |
+		    WT_SESSION_LOCKED_WRITE_HANDLE_LIST)) {
 			dhandle->excl_session = NULL;
 			dhandle->excl_ref = 0;
 			F_CLR(dhandle, WT_DHANDLE_EXCLUSIVE);
 			__wt_writeunlock(session, &dhandle->rwlock);
 
+			/*
+			 * The handle list read lock will be automatically
+			 * upgraded if necessary.
+			 */
 			WT_WITH_SCHEMA_LOCK(session,
-			    WT_WITH_HANDLE_LIST_LOCK(session,
+			    WT_WITH_HANDLE_LIST_READ_LOCK(session,
 				ret = __wt_session_get_btree(
 				session, uri, checkpoint, cfg, flags)));
 

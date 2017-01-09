@@ -122,16 +122,61 @@ struct __wt_table {
 	    &S2C(session)->checkpoint_lock, WT_SESSION_LOCKED_CHECKPOINT, op)
 
 /*
- * WT_WITH_HANDLE_LIST_LOCK --
- *	Acquire the data handle list lock, perform an operation, drop the lock.
+ * WT_WITH_HANDLE_LIST_READ_LOCK --
+ *	Acquire the data handle list lock in shared mode, perform an operation,
+ *	drop the lock. The handle list lock is a read-write lock so the
+ *	implementation is different to the other lock macros.
  *
  *	Note: always waits because some operations need the handle list lock to
  *	discard handles, and we only expect it to be held across short
  *	operations.
  */
-#define	WT_WITH_HANDLE_LIST_LOCK(session, op)				\
-	WT_WITH_LOCK_WAIT(session, 					\
-	    &S2C(session)->dhandle_lock, WT_SESSION_LOCKED_HANDLE_LIST, op)
+#define	WT_WITH_HANDLE_LIST_READ_LOCK(session, op) do {			\
+	if (F_ISSET(session, WT_SESSION_LOCKED_READ_HANDLE_LIST |	\
+	    WT_SESSION_LOCKED_WRITE_HANDLE_LIST)) {			\
+		op;							\
+	}  else {							\
+		__wt_readlock(session, &S2C(session)->dhandle_lock);	\
+		F_SET(session, WT_SESSION_LOCKED_READ_HANDLE_LIST);	\
+		op;							\
+		F_CLR(session, WT_SESSION_LOCKED_READ_HANDLE_LIST);	\
+		__wt_readunlock(session, &S2C(session)->dhandle_lock);	\
+	}								\
+} while (0)
+
+/*
+ * WT_WITH_HANDLE_LIST_WRITE_LOCK --
+ *	Acquire the data handle list lock in shared mode, perform an operation,
+ *	drop the lock. The handle list lock is a read-write lock so the
+ *	implementation is different to the other lock macros.
+ *	Automatically upgrade from a read lock if held.
+ */
+#define	WT_WITH_HANDLE_LIST_WRITE_LOCK(session, op) do {		\
+	if (F_ISSET(session, WT_SESSION_LOCKED_WRITE_HANDLE_LIST)) {	\
+		op;							\
+	}  else {							\
+		/*							\
+		 * TODO: Is auto-upgrade safe? Releasing the lock could	\
+		 * let in other waiters and lead to a hang.		\
+		 */							\
+		bool was_read_locked = false;				\
+		if (F_ISSET(session, WT_SESSION_LOCKED_READ_HANDLE_LIST)) {\
+			was_read_locked = true;				\
+			F_CLR(session, WT_SESSION_LOCKED_READ_HANDLE_LIST);\
+			__wt_readunlock(session,			\
+			    &S2C(session)->dhandle_lock);		\
+		}							\
+		__wt_writelock(session, &S2C(session)->dhandle_lock);	\
+		F_SET(session, WT_SESSION_LOCKED_WRITE_HANDLE_LIST);	\
+		op;							\
+		F_CLR(session, WT_SESSION_LOCKED_WRITE_HANDLE_LIST);	\
+		__wt_writeunlock(session, &S2C(session)->dhandle_lock);\
+		if (was_read_locked) {					\
+			F_SET(session, WT_SESSION_LOCKED_READ_HANDLE_LIST);\
+			__wt_readlock(session, &S2C(session)->dhandle_lock);\
+		}							\
+	}								\
+} while (0)
 
 /*
  * WT_WITH_METADATA_LOCK --
@@ -150,7 +195,8 @@ struct __wt_table {
 #define	WT_WITH_SCHEMA_LOCK(session, op) do {				\
 	WT_ASSERT(session,						\
 	    F_ISSET(session, WT_SESSION_LOCKED_SCHEMA) ||		\
-	    !F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST |		\
+	    !F_ISSET(session, WT_SESSION_LOCKED_READ_HANDLE_LIST |	\
+	    WT_SESSION_LOCKED_WRITE_HANDLE_LIST |			\
 	    WT_SESSION_NO_SCHEMA_LOCK | WT_SESSION_LOCKED_TABLE));	\
 	WT_WITH_LOCK_WAIT(session,					\
 	    &S2C(session)->schema_lock, WT_SESSION_LOCKED_SCHEMA, op);	\
@@ -158,7 +204,8 @@ struct __wt_table {
 #define	WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret, op) do {		\
 	WT_ASSERT(session,						\
 	    F_ISSET(session, WT_SESSION_LOCKED_SCHEMA) ||		\
-	    !F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST |		\
+	    !F_ISSET(session, WT_SESSION_LOCKED_READ_HANDLE_LIST |	\
+	    WT_SESSION_LOCKED_WRITE_HANDLE_LIST |			\
 	    WT_SESSION_NO_SCHEMA_LOCK | WT_SESSION_LOCKED_TABLE));	\
 	WT_WITH_LOCK_NOWAIT(session, ret,				\
 	    &S2C(session)->schema_lock, WT_SESSION_LOCKED_SCHEMA, op);	\
@@ -171,14 +218,16 @@ struct __wt_table {
 #define	WT_WITH_TABLE_LOCK(session, op) do {				\
 	WT_ASSERT(session,						\
 	    F_ISSET(session, WT_SESSION_LOCKED_TABLE) ||		\
-	    !F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST));		\
+	    !F_ISSET(session, WT_SESSION_LOCKED_READ_HANDLE_LIST |	\
+	    WT_SESSION_LOCKED_WRITE_HANDLE_LIST));			\
 	WT_WITH_LOCK_WAIT(session,					\
 	    &S2C(session)->table_lock, WT_SESSION_LOCKED_TABLE, op);	\
 } while (0)
 #define	WT_WITH_TABLE_LOCK_NOWAIT(session, ret, op) do {		\
 	WT_ASSERT(session,						\
 	    F_ISSET(session, WT_SESSION_LOCKED_TABLE) ||		\
-	    !F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST));		\
+	    !F_ISSET(session, WT_SESSION_LOCKED_READ_HANDLE_LIST |	\
+	    WT_SESSION_LOCKED_WRITE_HANDLE_LIST));			\
 	WT_WITH_LOCK_NOWAIT(session, ret,				\
 	    &S2C(session)->table_lock, WT_SESSION_LOCKED_TABLE, op);	\
 } while (0)
@@ -192,15 +241,21 @@ struct __wt_table {
 	WT_CONNECTION_IMPL *__conn = S2C(session);			\
 	bool __checkpoint_locked =					\
 	    F_ISSET(session, WT_SESSION_LOCKED_CHECKPOINT);		\
-	bool __handle_locked =						\
-	    F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST);		\
+	bool __handle_read_locked =					\
+	    F_ISSET(session, WT_SESSION_LOCKED_READ_HANDLE_LIST);	\
+	bool __handle_write_locked =					\
+	    F_ISSET(session, WT_SESSION_LOCKED_WRITE_HANDLE_LIST);	\
 	bool __table_locked =						\
 	    F_ISSET(session, WT_SESSION_LOCKED_TABLE);			\
 	bool __schema_locked =						\
 	    F_ISSET(session, WT_SESSION_LOCKED_SCHEMA);			\
-	if (__handle_locked) {						\
-		F_CLR(session, WT_SESSION_LOCKED_HANDLE_LIST);		\
-		__wt_spin_unlock(session, &__conn->dhandle_lock);	\
+	if (__handle_read_locked) {					\
+		F_CLR(session, WT_SESSION_LOCKED_READ_HANDLE_LIST);	\
+		__wt_readunlock(session, &__conn->dhandle_lock);	\
+	}								\
+	if (__handle_write_locked) {					\
+		F_CLR(session, WT_SESSION_LOCKED_WRITE_HANDLE_LIST);	\
+		__wt_writeunlock(session, &__conn->dhandle_lock);	\
 	}								\
 	if (__table_locked) {						\
 		F_CLR(session, WT_SESSION_LOCKED_TABLE);		\
@@ -227,8 +282,12 @@ struct __wt_table {
 		__wt_spin_lock(session, &__conn->table_lock);		\
 		F_SET(session, WT_SESSION_LOCKED_TABLE);		\
 	}								\
-	if (__handle_locked) {						\
-		__wt_spin_lock(session, &__conn->dhandle_lock);		\
-		F_SET(session, WT_SESSION_LOCKED_HANDLE_LIST);		\
+	if (__handle_read_locked) {					\
+		__wt_readlock(session, &__conn->dhandle_lock);		\
+		F_SET(session, WT_SESSION_LOCKED_READ_HANDLE_LIST);	\
+	}								\
+	if (__handle_write_locked) {					\
+		__wt_writelock(session, &__conn->dhandle_lock);	\
+		F_SET(session, WT_SESSION_LOCKED_WRITE_HANDLE_LIST);	\
 	}								\
 } while (0)
