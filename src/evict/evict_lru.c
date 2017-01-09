@@ -25,7 +25,7 @@ static int  __evict_walk_file(
 
 /*
  * __evict_lock_dhandle --
- *	Try to get the dhandle lock, with yield and sleep back-off.
+ *	Try to get the dhandle lock, with yield and sleep back off.
  *	Keep timing statistics overall.
  */
 static int
@@ -38,17 +38,19 @@ __evict_lock_dhandle(WT_SESSION_IMPL *session)
 	WT_SPINLOCK *dh_lock;
 	int64_t **stats;
 	u_int spins;
+	bool dh_stats;
 
 	conn = S2C(session);
 	cache = conn->cache;
-	stats = (int64_t **)conn->stats;
 	dh_lock = &conn->dhandle_lock;
+	stats = (int64_t **)conn->stats;
+	dh_stats = WT_STAT_ENABLED(session) && dh_lock->stat_count_off != -1;
 
 	/*
 	 * Maintain lock acquisition timing statistics as if this were a
 	 * regular lock acquisition.
 	 */
-	if (WT_STAT_ENABLED(session))
+	if (dh_stats)
 		__wt_epoch(session, &enter);
 	/*
 	 * Use a custom lock acquisition back off loop so the eviction server
@@ -62,12 +64,15 @@ __evict_lock_dhandle(WT_SESSION_IMPL *session)
 		else
 			__wt_sleep(0, WT_THOUSAND);
 	}
+	/*
+	 * Only record statistics on success.
+	 */
 	WT_RET(ret);
-	if (WT_STAT_ENABLED(session))
+	if (dh_stats) {
 		__wt_epoch(session, &leave);
-	if (WT_STAT_ENABLED(session) && dh_lock->stat_count_off != -1)
 		stats[session->stat_bucket][dh_lock->stat_int_usecs_off] +=
 		    (int64_t)WT_TIMEDIFF_US(leave, enter);
+	}
 	return (0);
 }
 
