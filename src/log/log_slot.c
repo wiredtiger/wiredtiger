@@ -87,6 +87,7 @@ static int
 __log_slot_close(
     WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *releasep, bool forced)
 {
+	struct timespec begin, now;
 	WT_CONNECTION_IMPL *conn;
 	WT_LOG *log;
 	int64_t end_offset, new_state, old_state;
@@ -143,15 +144,24 @@ retry:
 	 * size to be set.
 	 */
 	count = 0;
+	__wt_epoch(session, &begin);
+	if (WT_LOG_SLOT_UNBUFFERED_ISSET(old_state))
 	while (WT_LOG_SLOT_UNBUFFERED_ISSET(old_state) &&
 	    slot->slot_unbuffered == 0) {
 		++count;
 		__wt_yield();
 		if (count > WT_MILLION) {
-			__wt_errx(session,
-			    "SLOT_CLOSE: Waited too long for unbuffered");
-			__log_slot_dump(session);
-			abort();
+			__wt_epoch(session, &now);
+			if (WT_TIMEDIFF_SEC(now, begin) > 1) {
+				__wt_errx(session, "SLOT_CLOSE: Slot %" PRIu32
+				    " Timeout unbuffered, state 0x%" PRIx64
+				    " unbuffered %" PRIu64,
+				    (uint32_t)(slot - &log->slot_pool[0]),
+				    slot->slot_state, slot->slot_unbuffered);
+				__log_slot_dump(session);
+				abort();
+			}
+			count = 0;
 		}
 	}
 
@@ -265,6 +275,7 @@ __wt_log_slot_switch(
 int
 __wt_log_slot_new(WT_SESSION_IMPL *session)
 {
+	struct timespec begin, now;
 	WT_CONNECTION_IMPL *conn;
 	WT_LOG *log;
 	WT_LOGSLOT *slot;
@@ -287,6 +298,7 @@ __wt_log_slot_new(WT_SESSION_IMPL *session)
 	 * Keep trying until we can find a free slot.
 	 */
 	count = 0;
+	__wt_epoch(session, &begin);
 	for (;;) {
 		/*
 		 * For now just restart at 0.  We could use log->pool_index
@@ -318,8 +330,14 @@ __wt_log_slot_new(WT_SESSION_IMPL *session)
 		++count;
 		__wt_yield();
 		if (count > WT_MILLION) {
-			__wt_errx(session,
-			    "SLOT_NEW: Waited too long for free slot");
+			__wt_epoch(session, &now);
+			if (WT_TIMEDIFF_SEC(now, begin) > 1) {
+				__wt_errx(session,
+				    "SLOT_NEW: Timeout free slot");
+				__log_slot_dump(session);
+				abort();
+			}
+			count = 0;
 			__log_slot_dump(session);
 			abort();
 		}
