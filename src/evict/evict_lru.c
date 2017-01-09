@@ -26,7 +26,7 @@ static int  __evict_walk_file(
 /*
  * __evict_lock_dhandle --
  *	Try to get the dhandle lock, with yield and sleep back-off.
- *	Acquire 
+ *	Keep timing statistics overall.
  */
 static int
 __evict_lock_dhandle(WT_SESSION_IMPL *session)
