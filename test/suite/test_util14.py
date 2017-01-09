@@ -73,7 +73,7 @@ class test_util14(wttest.WiredTigerTestCase, suite_subprocess):
         self.check_empty_file(outfile)
         self.check_file_contains(errfile, 'usage:')
 
-	self.runWt(["truncate", "foobar"],
+        self.runWt(["truncate", "foobar"],
             outfilename=outfile, errfilename=errfile, failure=True)
         self.check_empty_file(outfile)
         self.check_file_contains(errfile, 'No such file or directory')
