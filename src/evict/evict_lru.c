@@ -51,7 +51,7 @@ __evict_lock_dhandle(WT_SESSION_IMPL *session)
 	if (WT_STAT_ENABLED(session))
 		__wt_epoch(session, &enter);
 	/*
-	 * Use a custom lock acquisition backoff loop so the eviction server
+	 * Use a custom lock acquisition back off loop so the eviction server
 	 * notices any interrupt quickly.
 	 */
 	for (spins = 0;
