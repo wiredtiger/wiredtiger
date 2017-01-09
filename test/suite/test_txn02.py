@@ -178,7 +178,7 @@ class test_txn02(wttest.WiredTigerTestCase, suite_subprocess):
             try:
                 session = backup_conn.open_session()
             finally:
-                session.checkpoint("force");
+                session.checkpoint("force")
                 self.check(backup_conn.open_session(), None, committed)
                 # Sleep long enough so that the archive thread is guaranteed
                 # to run before we close the connection.
