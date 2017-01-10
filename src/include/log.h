@@ -163,6 +163,7 @@ struct __wt_logslot {
 	WT_CACHE_LINE_PAD_BEGIN
 	volatile int64_t slot_state;	/* Slot state */
 	int64_t	 slot_unbuffered;	/* Unbuffered data in this slot */
+	pthread_t slot_unbuf_id;	/* Unbuffered thread id */
 	int32_t	 slot_error;		/* Error value */
 	wt_off_t slot_start_offset;	/* Starting file offset */
 	wt_off_t slot_last_offset;	/* Last record offset */

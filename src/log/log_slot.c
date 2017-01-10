@@ -43,6 +43,8 @@ __log_slot_dump(WT_SESSION_IMPL *session)
 		    (uint32_t)slot->slot_last_offset);
 		__wt_errx(session, "\tUnbuffered: %" PRId64 " error: %" PRId32,
 		    slot->slot_unbuffered, slot->slot_error);
+		__wt_errx(session, "\tUnbuffered ID: %p",
+		    slot->slot_unbuf_id);
 	}
 	__wt_errx(session, "Earliest slot: %d", earliest);
 
@@ -76,6 +78,7 @@ __wt_log_slot_activate(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 	slot->slot_fh = log->log_fh;
 	slot->slot_error = 0;
 	slot->slot_unbuffered = 0;
+	slot->slot_unbuf_id = (pthread_t)0;
 }
 
 /*
@@ -145,23 +148,24 @@ retry:
 	 */
 	count = 0;
 	__wt_epoch(session, &begin);
-	if (WT_LOG_SLOT_UNBUFFERED_ISSET(old_state))
-	while (WT_LOG_SLOT_UNBUFFERED_ISSET(old_state) &&
-	    slot->slot_unbuffered == 0) {
-		++count;
-		__wt_yield();
-		if (count > WT_MILLION) {
-			__wt_epoch(session, &now);
-			if (WT_TIMEDIFF_SEC(now, begin) > 1) {
-				__wt_errx(session, "SLOT_CLOSE: Slot %" PRIu32
-				    " Timeout unbuffered, state 0x%" PRIx64
-				    " unbuffered %" PRIu64,
-				    (uint32_t)(slot - &log->slot_pool[0]),
-				    slot->slot_state, slot->slot_unbuffered);
-				__log_slot_dump(session);
-				abort();
+	if (WT_LOG_SLOT_UNBUFFERED_ISSET(old_state)) {
+		while (WT_LOG_SLOT_UNBUFFERED_ISSET(old_state) &&
+		    slot->slot_unbuffered == 0) {
+			++count;
+			__wt_yield();
+			if (count > WT_MILLION) {
+				__wt_epoch(session, &now);
+				if (WT_TIMEDIFF_SEC(now, begin) > 1) {
+					__wt_errx(session, "SLOT_CLOSE: Slot %" PRIu32
+					    " Timeout unbuffered, state 0x%" PRIx64
+					    " unbuffered %" PRIu64,
+					    (uint32_t)(slot - &log->slot_pool[0]),
+					    slot->slot_state, slot->slot_unbuffered);
+					__log_slot_dump(session);
+					abort();
+				}
+				count = 0;
 			}
-			count = 0;
 		}
 	}
 
@@ -448,7 +452,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 	WT_LOG *log;
 	WT_LOGSLOT *slot;
 	int64_t flag_state, new_state, old_state, released;
-	int32_t join_offset, new_join;
+	int32_t join_offset, my_join, new_join;
 #ifdef	HAVE_DIAGNOSTIC
 	bool unbuf_force;
 #endif
@@ -464,7 +468,15 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 	 */
 #ifdef	HAVE_DIAGNOSTIC
 	unbuf_force = (++log->write_calls % WT_THOUSAND) == 0;
+	if ((unbuf_force && mysize != 0) ||
+	    mysize > WT_LOG_SLOT_BUF_MAX) {
+#else
+	if (mysize > WT_LOG_SLOT_BUF_MAX) {
 #endif
+		my_join = WT_LOG_SLOT_UNBUFFERED;
+		F_SET(myslot, WT_MYSLOT_UNBUFFERED);
+	} else
+		my_join = (int32_t)mysize;
 	for (;;) {
 		WT_BARRIER();
 		slot = log->active_slot;
@@ -476,16 +488,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 		flag_state = WT_LOG_SLOT_FLAGS(old_state);
 		released = WT_LOG_SLOT_RELEASED(old_state);
 		join_offset = WT_LOG_SLOT_JOINED(old_state);
-#ifdef	HAVE_DIAGNOSTIC
-		if (unbuf_force || mysize > WT_LOG_SLOT_BUF_MAX) {
-#else
-		if (mysize > WT_LOG_SLOT_BUF_MAX) {
-#endif
-			new_join = join_offset + WT_LOG_SLOT_UNBUFFERED;
-			F_SET(myslot, WT_MYSLOT_UNBUFFERED);
-			myslot->slot = slot;
-		} else
-			new_join = join_offset + (int32_t)mysize;
+		new_join = join_offset + my_join;
 		new_state = (int64_t)WT_LOG_SLOT_JOIN_REL(
 		    (int64_t)new_join, (int64_t)released, (int64_t)flag_state);
 
@@ -495,8 +498,11 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 		 */
 		if (WT_LOG_SLOT_OPEN(old_state) &&
 		    __wt_atomic_casiv64(
-		    &slot->slot_state, old_state, new_state))
+		    &slot->slot_state, old_state, new_state)) {
+			if (F_ISSET(myslot, WT_MYSLOT_UNBUFFERED))
+				slot->slot_unbuf_id = pthread_self();
 			break;
+		}
 		/*
 		 * The slot is no longer open or we lost the race to
 		 * update it.  Yield and try again.
@@ -518,8 +524,10 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 		F_SET(slot, WT_SLOT_SYNC);
 	if (F_ISSET(myslot, WT_MYSLOT_UNBUFFERED)) {
 		WT_ASSERT(session, slot->slot_unbuffered == 0);
+		WT_ASSERT(session, slot->slot_unbuf_id == pthread_self());
 		WT_STAT_CONN_INCR(session, log_slot_unbuffered);
 		slot->slot_unbuffered = (int64_t)mysize;
+	} else {
 	}
 	myslot->slot = slot;
 	myslot->offset = join_offset;
