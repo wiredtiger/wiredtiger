@@ -106,7 +106,7 @@ write_and_read_new(WT_SESSION *session)
 		 * the previous log file's LSN.  Although it is written by the
 		 * system, we do walk it when using a cursor.
 		 */
-		if (log_file == 2 && rectype != WT_LOGREC_PREVLSN)
+		if (log_file == 2 && rectype != WT_LOGREC_SYSTEM)
 			testutil_die(EINVAL, "Found LSN in Log 2");
 #if 0
 		printf("LSN [%" PRIu32 "][%" PRIu32 "].%" PRIu32

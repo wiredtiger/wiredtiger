@@ -407,8 +407,8 @@ extern int __wt_log_slot_destroy(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTR
 extern void __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize, uint32_t flags, WT_MYSLOT *myslot) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern int64_t __wt_log_slot_release(WT_SESSION_IMPL *session, WT_MYSLOT *myslot, int64_t size) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern void __wt_log_slot_free(WT_SESSION_IMPL *session, WT_LOGSLOT *slot) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
-extern int __wt_log_system_prevlsn( WT_SESSION_IMPL *session, WT_FH *log_fh, WT_LSN *lsn) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
-extern int __wt_log_recover_prevlsn(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_LSN *lsnp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
+extern int __wt_log_system_record( WT_SESSION_IMPL *session, WT_FH *log_fh, WT_LSN *lsn) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
+extern int __wt_log_recover_system(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_LSN *lsnp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern int __wt_clsm_request_switch(WT_CURSOR_LSM *clsm) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern int __wt_clsm_await_switch(WT_CURSOR_LSM *clsm) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern int __wt_clsm_init_merge( WT_CURSOR *cursor, u_int start_chunk, uint32_t start_id, u_int nchunks) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));

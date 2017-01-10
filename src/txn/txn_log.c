@@ -539,11 +539,11 @@ __txn_printlog(WT_SESSION_IMPL *session,
 		    "    \"message\" : \"%s\"\n", msg));
 		break;
 
-	case WT_LOGREC_PREVLSN:
+	case WT_LOGREC_SYSTEM:
 		WT_RET(__wt_struct_unpack(session, p, WT_PTRDIFF(end, p),
 		    WT_UNCHECKED_STRING(II), &lsnfile, &lsnoffset));
 		WT_RET(__wt_fprintf(session, WT_STDOUT(session),
-		    "    \"type\" : \"prevlsn\",\n"));
+		    "    \"type\" : \"system\",\n"));
 		WT_RET(__wt_fprintf(session, WT_STDOUT(session),
 		    "    \"prev_lsn\" : [%" PRIu32 ",%" PRIu32 "]\n",
 		    lsnfile, lsnoffset));

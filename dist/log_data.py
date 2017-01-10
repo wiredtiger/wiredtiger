@@ -42,7 +42,7 @@ rectypes = [
     LogRecordType('message', 'message', [('string', 'message')]),
 
     # System record
-    LogRecordType('prevlsn', 'prevlsn', [('WT_LSN','prev_lsn')]),
+    LogRecordType('system', 'system', [('WT_LSN','prev_lsn'), ('item', 'unused')]),
 ]
 
 class LogOperationType:

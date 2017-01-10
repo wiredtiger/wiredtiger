@@ -308,8 +308,8 @@ struct __wt_log_desc {
 	uint16_t	minorv;		/* 06-07: Minor version */
 	uint64_t	log_size;	/* 08-15: Log file size */
 };
-#define	WT_LOG_MAJOR_PREVLSN	1
-#define	WT_LOG_MINOR_PREVLSN	1
+#define	WT_LOG_MAJOR_SYSTEM	1
+#define	WT_LOG_MINOR_SYSTEM	1
 
 /*
  * __wt_log_desc_byteswap --
