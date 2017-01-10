@@ -457,6 +457,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 	log = conn->log;
 
 	WT_ASSERT(session, !F_ISSET(session, WT_SESSION_LOCKED_SLOT));
+	WT_ASSERT(session, mysize != 0);
 
 	/*
 	 * There should almost always be a slot open.
