@@ -82,12 +82,12 @@ __wt_log_recover_system(WT_SESSION_IMPL *session,
     const uint8_t **pp, const uint8_t *end, WT_LSN *lsnp)
 {
 	WT_DECL_RET;
-	WT_ITEM system_unused;
+	WT_ITEM unused;
 	uint32_t prev_file, prev_offset;
 	const char *fmt = WT_UNCHECKED_STRING(IIU);
 
 	if ((ret = __wt_struct_unpack(session, *pp, WT_PTRDIFF(end, *pp), fmt,
-	    &prev_file, &prev_offset, &system_unused)) != 0)
+	    &prev_file, &prev_offset, &unused)) != 0)
 		WT_RET_MSG(session, ret,
 		    "log_recover_prevlsn: unpack failure");
 	if (lsnp != NULL)
