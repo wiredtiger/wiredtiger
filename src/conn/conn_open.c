@@ -190,9 +190,6 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 				__wt_free(session, s->hazard);
 			}
 
-	/* Destroy the handle. */
-	WT_TRET(__wt_connection_destroy(conn));
-
 	/* Close extensions, first calling any unload entry point. */
 	while ((dlh = TAILQ_FIRST(&conn->dlhqh)) != NULL) {
 		TAILQ_REMOVE(&conn->dlhqh, dlh, q);
@@ -201,6 +198,9 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 			WT_TRET(dlh->terminate(wt_conn));
 		WT_TRET(__wt_dlclose(session, dlh));
 	}
+
+	/* Destroy the handle. */
+	WT_TRET(__wt_connection_destroy(conn));
 
 	return (ret);
 }
