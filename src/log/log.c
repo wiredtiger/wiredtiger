@@ -795,9 +795,9 @@ __log_openfile(WT_SESSION_IMPL *session, WT_FH **fhp,
 		 * LSN record, then read that in and set up the LSN.
 		 * We already have a buffer that is the correct size.  Reuse it.
 		 */
-		if (desc->majorv < WT_LOG_MAJOR_PREVLSN ||
-		    (desc->majorv == WT_LOG_MAJOR_PREVLSN &&
-		    desc->minorv < WT_LOG_MINOR_PREVLSN))
+		if (desc->majorv < WT_LOG_MAJOR_SYSTEM ||
+		    (desc->majorv == WT_LOG_MAJOR_SYSTEM &&
+		    desc->minorv < WT_LOG_MINOR_SYSTEM))
 			goto err;
 
 		if (lsnp == NULL)
@@ -813,10 +813,10 @@ __log_openfile(WT_SESSION_IMPL *session, WT_FH **fhp,
 		p = WT_LOG_SKIP_HEADER(buf->data);
 		end = (const uint8_t *)buf->data + buf->size;
 		WT_ERR(__wt_logrec_read(session, &p, end, &rectype));
-		if (rectype != WT_LOGREC_PREVLSN)
+		if (rectype != WT_LOGREC_SYSTEM)
 			WT_ERR_MSG(session, WT_ERROR,
 			    "System log record missing");
-		WT_ERR(__wt_log_recover_prevlsn(session, &p, end, lsnp));
+		WT_ERR(__wt_log_recover_system(session, &p, end, lsnp));
 	}
 err:	__wt_scr_free(session, &buf);
 	return (ret);
@@ -979,7 +979,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
 	 * the end of the header.
 	 */
 	WT_SET_LSN(&log->alloc_lsn, log->fileid, WT_LOG_END_HEADER);
-	WT_RET(__wt_log_system_prevlsn(session,
+	WT_RET(__wt_log_system_record(session,
 	    log_fh, &logrec_lsn));
 	WT_SET_LSN(&log->alloc_lsn, log->fileid, WT_LOG_FIRST_RECORD);
 	end_lsn = log->alloc_lsn;

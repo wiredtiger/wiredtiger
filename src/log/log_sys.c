@@ -9,32 +9,39 @@
 #include "wt_internal.h"
 
 /*
- * __wt_log_system_prevlsn --
+ * __wt_log_system_record --
  *	Write a system log record for the previous LSN.
  */
 int
-__wt_log_system_prevlsn(
+__wt_log_system_record(
     WT_SESSION_IMPL *session, WT_FH *log_fh, WT_LSN *lsn)
 {
 	WT_DECL_ITEM(logrec_buf);
 	WT_DECL_RET;
+	WT_ITEM *dummy, empty;
 	WT_LOG *log;
 	WT_LOG_RECORD *logrec;
 	WT_LOGSLOT tmp;
 	WT_MYSLOT myslot;
-	const char *fmt = WT_UNCHECKED_STRING(III);
-	uint32_t rectype = WT_LOGREC_PREVLSN;
+	const char *fmt = WT_UNCHECKED_STRING(IIIU);
+	uint32_t rectype = WT_LOGREC_SYSTEM;
 	size_t recsize;
 
 	log = S2C(session)->log;
 	WT_RET(__wt_logrec_alloc(session, log->allocsize, &logrec_buf));
 	memset((uint8_t *)logrec_buf->mem, 0, log->allocsize);
+	WT_CLEAR(empty);
+	dummy = &empty;
+	/*
+	 * There is currently an unused portion of the system record for
+	 * future use.  Send in a NULL entry.
+	 */
 	WT_ERR(__wt_struct_size(session, &recsize, fmt, rectype,
-	    lsn->l.file, lsn->l.offset));
+	    lsn->l.file, lsn->l.offset, dummy));
 	WT_ASSERT(session, recsize <= log->allocsize);
 	WT_ERR(__wt_struct_pack(session,
 	    (uint8_t *)logrec_buf->data + logrec_buf->size, recsize, fmt,
-	    rectype, lsn->l.file, lsn->l.offset));
+	    rectype, lsn->l.file, lsn->l.offset, dummy));
 	logrec = (WT_LOG_RECORD *)logrec_buf->mem;
 	/*
 	 * We know system records are this size.  And we have to adjust
@@ -67,19 +74,20 @@ err:	__wt_logrec_free(session, &logrec_buf);
 }
 
 /*
- * __wt_log_recover_prevlsn --
+ * __wt_log_recover_system --
  *	Process a system log record for the previous LSN in recovery.
  */
 int
-__wt_log_recover_prevlsn(WT_SESSION_IMPL *session,
+__wt_log_recover_system(WT_SESSION_IMPL *session,
     const uint8_t **pp, const uint8_t *end, WT_LSN *lsnp)
 {
 	WT_DECL_RET;
+	WT_ITEM unused;
 	uint32_t prev_file, prev_offset;
-	const char *fmt = WT_UNCHECKED_STRING(II);
+	const char *fmt = WT_UNCHECKED_STRING(IIU);
 
 	if ((ret = __wt_struct_unpack(session, *pp, WT_PTRDIFF(end, *pp), fmt,
-	    &prev_file, &prev_offset)) != 0)
+	    &prev_file, &prev_offset, &unused)) != 0)
 		WT_RET_MSG(session, ret,
 		    "log_recover_prevlsn: unpack failure");
 	if (lsnp != NULL)
