@@ -43,7 +43,7 @@ class test_util17(wttest.WiredTigerTestCase, suite_subprocess):
         """
         params = 'key_format=S,value_format=S'
         outfile = "wt-stat.out"
-        expected_string = "cursor: cursor create calls=12"
+        expected_string = "cursor: cursor create calls="
         self.session.create('table:' + self.tablename, params)
         self.assertTrue(os.path.exists(self.tablename + ".wt"))
         self.runWt(["stat"], outfilename=outfile)
