@@ -190,6 +190,11 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 				__wt_free(session, s->hazard);
 			}
 
+	/* Destroy the file-system configuration. */
+	if (conn->file_system != NULL && conn->file_system->terminate != NULL)
+		WT_TRET(conn->file_system->terminate(
+		    conn->file_system, (WT_SESSION *)session));
+
 	/* Close extensions, first calling any unload entry point. */
 	while ((dlh = TAILQ_FIRST(&conn->dlhqh)) != NULL) {
 		TAILQ_REMOVE(&conn->dlhqh, dlh, q);
@@ -200,7 +205,7 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	}
 
 	/* Destroy the handle. */
-	WT_TRET(__wt_connection_destroy(conn));
+	__wt_connection_destroy(conn);
 
 	return (ret);
 }
