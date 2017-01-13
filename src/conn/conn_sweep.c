@@ -237,7 +237,7 @@ __sweep_remove_handles(WT_SESSION_IMPL *session)
 		 * The read lock we take here will be upgraded to a write lock
 		 * if it is likely the remove will succeed.
 		 */
-		WT_WITH_HANDLE_LIST_READ_LOCK(session,
+		WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
 		    ret = __sweep_remove_one(session, dhandle));
 		if (ret == 0)
 			WT_STAT_CONN_INCR(session, dh_sweep_remove);

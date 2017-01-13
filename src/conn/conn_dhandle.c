@@ -25,20 +25,18 @@ __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
 }
 
 /*
- * __conn_dhandle_alloc --
+ * __wt_conn_dhandle_alloc --
  *	Allocate a new data handle and return it linked into the connection's
  *	list.
  */
-static int
-__conn_dhandle_alloc(WT_SESSION_IMPL *session,
-    const char *uri, const char *checkpoint, WT_DATA_HANDLE **dhandlep)
+int
+__wt_conn_dhandle_alloc(
+    WT_SESSION_IMPL *session, const char *uri, const char *checkpoint)
 {
 	WT_BTREE *btree;
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
 	uint64_t bucket;
-
-	*dhandlep = NULL;
 
 	WT_RET(__wt_calloc_one(session, &dhandle));
 
@@ -75,7 +73,7 @@ __conn_dhandle_alloc(WT_SESSION_IMPL *session,
 	bucket = dhandle->name_hash % WT_HASH_ARRAY_SIZE;
 	WT_CONN_DHANDLE_INSERT(S2C(session), dhandle, bucket);
 
-	*dhandlep = dhandle;
+	session->dhandle = dhandle;
 	return (0);
 
 err:	__conn_dhandle_destroy(session, dhandle);
@@ -91,7 +89,6 @@ __wt_conn_dhandle_find(
     WT_SESSION_IMPL *session, const char *uri, const char *checkpoint)
 {
 	WT_CONNECTION_IMPL *conn;
-	WT_DECL_RET;
 	WT_DATA_HANDLE *dhandle;
 	uint64_t bucket;
 
@@ -125,12 +122,7 @@ __wt_conn_dhandle_find(
 			}
 		}
 
-	WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
-	    ret = __conn_dhandle_alloc(session, uri, checkpoint, &dhandle));
-	WT_RET(ret);
-
-	session->dhandle = dhandle;
-	return (0);
+	return (WT_NOTFOUND);
 }
 
 /*
@@ -424,12 +416,10 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
+	WT_DECL_RET;
 	uint64_t bucket;
 
 	conn = S2C(session);
-
-	WT_ASSERT(session,
-	    F_ISSET(session, WT_SESSION_LOCKED_READ_HANDLE_LIST));
 
 	/*
 	 * If we're given a URI, then we walk only the hash list for that
@@ -438,29 +428,42 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
 	if (uri != NULL) {
 		bucket =
 		    __wt_hash_city64(uri, strlen(uri)) % WT_HASH_ARRAY_SIZE;
-		TAILQ_FOREACH(dhandle, &conn->dhhash[bucket], hashq) {
+
+		for (dhandle = NULL;;) {
+			WT_WITH_HANDLE_LIST_READ_LOCK(session,
+			    WT_DHANDLE_NEXT(session, dhandle,
+			    &conn->dhhash[bucket], hashq));
+			if (dhandle == NULL)
+				return (0);
+
 			if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
 			    F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
 			    dhandle->checkpoint != NULL ||
 			    strcmp(uri, dhandle->name) != 0)
 				continue;
-			WT_RET(__conn_btree_apply_internal(
-			    session, dhandle, file_func, name_func, cfg));
+			WT_ERR(__conn_btree_apply_internal(session,
+			    dhandle, file_func, name_func, cfg));
 		}
 	} else {
-		TAILQ_FOREACH(dhandle, &conn->dhqh, q) {
+		for (dhandle = NULL;;) {
+			WT_WITH_HANDLE_LIST_READ_LOCK(session,
+			    WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q));
+			if (dhandle == NULL)
+				return (0);
+
 			if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
 			    F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
 			    dhandle->checkpoint != NULL ||
 			    !WT_PREFIX_MATCH(dhandle->name, "file:") ||
 			    WT_IS_METADATA(dhandle))
 				continue;
-			WT_RET(__conn_btree_apply_internal(
-			    session, dhandle, file_func, name_func, cfg));
+			WT_ERR(__conn_btree_apply_internal(session,
+			    dhandle, file_func, name_func, cfg));
 		}
 	}
 
-	return (0);
+err:	WT_DHANDLE_RELEASE(dhandle);
+	return (ret);
 }
 
 /*

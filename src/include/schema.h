@@ -155,26 +155,13 @@ struct __wt_table {
 	if (F_ISSET(session, WT_SESSION_LOCKED_WRITE_HANDLE_LIST)) {	\
 		op;							\
 	}  else {							\
-		/*							\
-		 * TODO: Is auto-upgrade safe? Releasing the lock could	\
-		 * let in other waiters and lead to a hang.		\
-		 */							\
-		bool was_read_locked = false;				\
-		if (F_ISSET(session, WT_SESSION_LOCKED_READ_HANDLE_LIST)) {\
-			was_read_locked = true;				\
-			F_CLR(session, WT_SESSION_LOCKED_READ_HANDLE_LIST);\
-			__wt_readunlock(session,			\
-			    &S2C(session)->dhandle_lock);		\
-		}							\
+		WT_ASSERT(session,					\
+		    !F_ISSET(session, WT_SESSION_LOCKED_READ_HANDLE_LIST));\
 		__wt_writelock(session, &S2C(session)->dhandle_lock);	\
 		F_SET(session, WT_SESSION_LOCKED_WRITE_HANDLE_LIST);	\
 		op;							\
 		F_CLR(session, WT_SESSION_LOCKED_WRITE_HANDLE_LIST);	\
-		__wt_writeunlock(session, &S2C(session)->dhandle_lock);\
-		if (was_read_locked) {					\
-			F_SET(session, WT_SESSION_LOCKED_READ_HANDLE_LIST);\
-			__wt_readlock(session, &S2C(session)->dhandle_lock);\
-		}							\
+		__wt_writeunlock(session, &S2C(session)->dhandle_lock);	\
 	}								\
 } while (0)
 
