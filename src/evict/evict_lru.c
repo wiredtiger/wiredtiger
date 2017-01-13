@@ -24,6 +24,69 @@ static int  __evict_walk_file(
 	(S2C(s)->evict_threads.current_threads > 1)
 
 /*
+ * __evict_lock_handle_list --
+ *	Try to get the handle list lock, with yield and sleep back off.
+ *	Keep timing statistics overall.
+ */
+static int
+__evict_lock_handle_list(WT_SESSION_IMPL *session)
+{
+	struct timespec enter, leave;
+	WT_CACHE *cache;
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+	WT_RWLOCK *dh_lock;
+	u_int spins;
+	bool dh_stats;
+
+	conn = S2C(session);
+	cache = conn->cache;
+	dh_lock = &conn->dhandle_lock;
+	/*
+	 * We want to know if a lot of time is spent waiting for this readlock
+	 * but don't (yet) have stats for read/write locks.
+	 */
+#if 0 /* XXX */
+	int64_t **stats = (int64_t **)conn->stats;
+	dh_stats = WT_STAT_ENABLED(session) && dh_lock->stat_count_off != -1;
+#else
+	dh_stats = false;
+#endif
+
+	/*
+	 * Maintain lock acquisition timing statistics as if this were a
+	 * regular lock acquisition.
+	 */
+	if (dh_stats)
+		__wt_epoch(session, &enter);
+
+	/*
+	 * Use a custom lock acquisition back off loop so the eviction server
+	 * notices any interrupt quickly.
+	 */
+	for (spins = 0;
+	    (ret = __wt_try_readlock(session, dh_lock)) == EBUSY &&
+	    cache->pass_intr == 0; spins++) {
+		if (spins < WT_THOUSAND)
+			__wt_yield();
+		else
+			__wt_sleep(0, WT_THOUSAND);
+	}
+	/*
+	 * Only record statistics on success.
+	 */
+	WT_RET(ret);
+	if (dh_stats) {
+		__wt_epoch(session, &leave);
+#if 0
+		stats[session->stat_bucket][dh_lock->stat_int_usecs_off] +=
+		    (int64_t)WT_TIMEDIFF_US(leave, enter);
+#endif
+	}
+	return (0);
+}
+
+/*
  * __evict_entry_priority --
  *	Get the adjusted read generation for an eviction entry.
  */
@@ -307,7 +370,6 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 	struct timespec now;
 #endif
 	uint64_t orig_pages_evicted;
-	u_int spins;
 
 	conn = S2C(session);
 	cache = conn->cache;
@@ -326,21 +388,13 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 	 * otherwise we can block applications evicting large pages.
 	 */
 	if (!__wt_cache_stuck(session)) {
-		for (spins = 0; (ret = __wt_try_readlock(
-		    session, &conn->dhandle_lock)) == EBUSY &&
-		    cache->pass_intr == 0; spins++) {
-			if (spins < WT_THOUSAND)
-				__wt_yield();
-			else
-				__wt_sleep(0, WT_THOUSAND);
-		}
 		/*
-		 * If we gave up acquiring the lock, that indicates a
-		 * session is waiting for us to clear walks.  Do that
-		 * as part of a normal pass (without the handle list
+		 * Try to get the handle list lock: if we give up, that
+		 * indicates a session is waiting for us to clear walks.  Do
+		 * that as part of a normal pass (without the handle list
 		 * lock) to avoid deadlock.
 		 */
-		if (ret == EBUSY)
+		if ((ret = __evict_lock_handle_list(session)) == EBUSY)
 			return (0);
 		WT_RET(ret);
 		ret = __evict_clear_all_walks(session);
@@ -392,18 +446,11 @@ __wt_evict_create(WT_SESSION_IMPL *session)
 
 	/*
 	 * Create the eviction thread group.
-	 * We don't set the group size to the maximum allowed sessions,
-	 * because this may have adverse memory effects. Instead,
-	 * we set the group's maximum to a small value. The code
-	 * that tunes the number of workers will increase the
-	 * maximum if necessary.
+	 * Set the group size to the maximum allowed sessions.
 	 */
 	WT_RET(__wt_thread_group_create(session, &conn->evict_threads,
-	    "eviction-server", conn->evict_threads_min,
-	     WT_MAX(conn->evict_threads_min,
-	     WT_MIN(conn->evict_threads_max, EVICT_GROUP_INCR)),
-	     WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL,
-	    __wt_evict_thread_run));
+	    "eviction-server", conn->evict_threads_min, conn->evict_threads_max,
+	     WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL, __wt_evict_thread_run));
 
 	/*
 	 * Allow queues to be populated now that the eviction threads
@@ -876,7 +923,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	uint64_t cur_threads, delta_msec, delta_pages, i, target_threads;
 	uint64_t pgs_evicted_cur, pgs_evicted_persec_cur;
-	uint32_t new_max, thread_surplus;
+	uint32_t thread_surplus;
 
 	conn = S2C(session);
 	cache = conn->cache;
@@ -988,23 +1035,8 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 		target_threads = WT_MIN(cur_threads + EVICT_TUNE_BATCH,
 		    conn->evict_threads_max);
 		/*
-		 * Resize the group to allow for an additional batch of threads.
-		 * We resize the group in increments of a few sessions.
-		 * Allocating the group to accommodate the maximum number of
-		 * workers has adverse effects on performance due to memory
-		 * effects, so we gradually ramp up the allocation.
+		 * Start the new threads.
 		 */
-		if (conn->evict_threads.max < target_threads) {
-			new_max = WT_MIN(conn->evict_threads.max +
-			    EVICT_GROUP_INCR, conn->evict_threads_max);
-
-			WT_RET(__wt_thread_group_resize(
-			    session, &conn->evict_threads,
-			    conn->evict_threads_min, new_max,
-			    WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL));
-		}
-
-		/* Now actually start the new threads. */
 		for (i = 0; i < (target_threads - cur_threads); ++i) {
 			WT_RET(__wt_thread_group_start_one(session,
 			    &conn->evict_threads, false));
@@ -1226,7 +1258,7 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
-	u_int max_entries, retries, slot, spins, start_slot, total_candidates;
+	u_int max_entries, retries, slot, start_slot, total_candidates;
 	bool dhandle_locked, incr;
 
 	conn = S2C(session);
@@ -1264,16 +1296,7 @@ retry:	while (slot < max_entries) {
 		 * reference count to keep it alive while we sweep.
 		 */
 		if (!dhandle_locked) {
-			for (spins = 0; (ret = __wt_try_readlock(
-			    session, &conn->dhandle_lock)) == EBUSY &&
-			    cache->pass_intr == 0;
-			    spins++) {
-				if (spins < WT_THOUSAND)
-					__wt_yield();
-				else
-					__wt_sleep(0, WT_THOUSAND);
-			}
-			WT_ERR(ret);
+			WT_ERR(__evict_lock_handle_list(session));
 			dhandle_locked = true;
 		}
 
