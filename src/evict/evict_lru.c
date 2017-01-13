@@ -285,13 +285,11 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 	conn = S2C(session);
 	cache = conn->cache;
 
-#ifdef HAVE_DIAGNOSTIC
 	/*
 	 * Ensure the cache stuck timer is initialized when starting eviction.
 	 */
 	if (thread->id == 0)
 		__wt_epoch(session, &cache->stuck_ts);
-#endif
 
 	while (F_ISSET(conn, WT_CONN_EVICTION_RUN) &&
 	    F_ISSET(thread, WT_THREAD_RUN)) {
@@ -353,12 +351,10 @@ err:		WT_PANIC_MSG(session, ret, "cache eviction thread error");
 static int
 __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 {
+	struct timespec now;
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-#ifdef HAVE_DIAGNOSTIC
-	struct timespec now;
-#endif
 	uint64_t orig_pages_evicted;
 
 	conn = S2C(session);
@@ -395,11 +391,13 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 		cache->pages_evicted = 0;
 	} else if (cache->pages_evicted != cache->pages_evict) {
 		cache->pages_evicted = cache->pages_evict;
-#ifdef HAVE_DIAGNOSTIC
 		__wt_epoch(session, &cache->stuck_ts);
 	} else if (!F_ISSET(conn, WT_CONN_IN_MEMORY)) {
 		/*
-		 * After being stuck for 5 minutes, give up.
+		 * If we're stuck for 5 minutes, log the cache and transaction
+		 * state.
+		 *
+		 * If we're stuck for 5 minutes in diagnostic mode, give up.
 		 *
 		 * We don't do this check for in-memory workloads because
 		 * application threads are not blocked by the cache being full.
@@ -408,14 +406,18 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 		 */
 		__wt_epoch(session, &now);
 		if (WT_TIMEDIFF_SEC(now, cache->stuck_ts) > 300) {
+#ifdef HAVE_DIAGNOSTIC
 			ret = ETIMEDOUT;
 			__wt_err(session, ret,
 			    "Cache stuck for too long, giving up");
+#endif
 			WT_TRET(__wt_verbose_dump_txn(session));
 			WT_TRET(__wt_verbose_dump_cache(session));
+
+			/* Reset the timer. */
+			__wt_epoch(session, &cache->stuck_ts);
 			return (ret);
 		}
-#endif
 	}
 	*did_work = cache->pages_evicted != orig_pages_evicted;
 	return (0);
