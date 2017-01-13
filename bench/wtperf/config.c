@@ -623,7 +623,7 @@ config_opt_str(WTPERF *wtperf, const char *optstr)
 	}
 
 	while (ret == 0) {
-		int pos;
+		size_t pos;
 
 		if ((ret = scan->next(scan, &k, &v)) != 0) {
 			/* Any parse error has already been reported. */
