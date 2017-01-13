@@ -523,6 +523,8 @@ connection_runtime_config = [
             'block',
             'checkpoint',
             'compact',
+            'dump_cache',
+            'dump_txn',
             'evict',
             'evictserver',
             'fileops',
@@ -1176,13 +1178,8 @@ methods = {
 'WT_CONNECTION.reconfigure' : Method(
     connection_reconfigure_log_configuration +\
     connection_reconfigure_statistics_log_configuration +\
-    connection_runtime_config + [
-    Config('diagnostic', '', r'''
-        cause WiredTiger to run a diagnostic command. The output is placed
-        in the directory specified by the \c diagnostic_path configuration.
-        Intended for debugging''',
-        type='list', choices=['dump_cache', 'dump_txn']),
-]),
+    connection_runtime_config
+),
 'WT_CONNECTION.set_file_system' : Method([]),
 
 'WT_CONNECTION.load_extension' : Method([

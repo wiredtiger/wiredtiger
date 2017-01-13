@@ -805,11 +805,11 @@ __wt_txn_global_destroy(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_diagnostic_dump_txn --
+ * __wt_verbose_dump_txn --
  *	Output diagnostic information about the global transaction state.
  */
 int
-__wt_diagnostic_dump_txn(WT_SESSION_IMPL *session)
+__wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_TXN_GLOBAL *txn_global;

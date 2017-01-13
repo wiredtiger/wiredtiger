@@ -411,8 +411,8 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 			ret = ETIMEDOUT;
 			__wt_err(session, ret,
 			    "Cache stuck for too long, giving up");
-			WT_TRET(__wt_diagnostic_dump_txn(session));
-			WT_TRET(__wt_diagnostic_dump_cache(session));
+			WT_TRET(__wt_verbose_dump_txn(session));
+			WT_TRET(__wt_verbose_dump_cache(session));
 			return (ret);
 		}
 #endif
@@ -2169,11 +2169,11 @@ __wt_evict_priority_clear(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_diagnostic_dump_cache --
+ * __wt_verbose_dump_cache --
  *	Output diagnostic information about the size of the files in cache.
  */
 int
-__wt_diagnostic_dump_cache(WT_SESSION_IMPL *session)
+__wt_verbose_dump_cache(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle, *saved_dhandle;

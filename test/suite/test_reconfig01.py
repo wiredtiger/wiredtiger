@@ -119,16 +119,18 @@ class test_reconfig01(wttest.WiredTigerTestCase):
         self.conn.reconfigure(
             "file_manager=(close_idle_time=4,close_scan_interval=100)")
 
-    # Diagnostic commands.
-    def test_session_reconfigure_diagnostic(self):
-        uri = "table:diagnostic"
+    # Verbose dump commands.
+    def test_session_reconfigure_verbose_cmd(self):
+        uri = "table:verbose"
         ds = SimpleDataSet(self, uri, 1000)
         ds.populate()
 
         with self.expectedStdoutPattern('cache dump'):
-            self.conn.reconfigure('diagnostic=(dump_cache)')
+            self.conn.reconfigure('verbose=(dump_cache)')
         with self.expectedStdoutPattern('transaction state dump'):
-            self.conn.reconfigure('diagnostic=(dump_txn)')
+            self.conn.reconfigure('verbose=(dump_txn)')
+        with self.expectedStdoutPattern('transaction state dump'):
+            self.conn.reconfigure('verbose=(dump_cache,dump_txn)')
 
 if __name__ == '__main__':
     wttest.run()
