@@ -163,6 +163,7 @@ fail_file_handle_remove(WT_SESSION *session, FAIL_FILE_HANDLE *fail_fh)
 {
 	FAIL_FILE_SYSTEM *fail_fs;
 
+	(void)session;						/* Unused */
 	fail_fs = fail_fh->fail_fs;
 
 	TAILQ_REMOVE(&fail_fs->fileq, fail_fh, q);
@@ -281,7 +282,8 @@ fail_file_truncate(
 {
 	FAIL_FILE_HANDLE *fail_fh;
 
-	(void)session;
+	(void)session;						/* Unused */
+
 	fail_fh = (FAIL_FILE_HANDLE *)file_handle;
 	return (ftruncate(fail_fh->fd, offset));
 }
@@ -436,8 +438,8 @@ static int
 fail_fs_directory_list_free(WT_FILE_SYSTEM *file_system,
     WT_SESSION *session, char **dirlist, uint32_t count)
 {
-	(void)file_system;
-	(void)session;
+	(void)file_system;					/* Unused */
+	(void)session;						/* Unused */
 
 	if (dirlist != NULL) {
 		while (count > 0)
@@ -473,18 +475,17 @@ fail_fs_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
 {
 	FAIL_FILE_HANDLE *fail_fh;
 	FAIL_FILE_SYSTEM *fail_fs;
-	WT_EXTENSION_API *wtext;
 	WT_FILE_HANDLE *file_handle;
 	int open_flags;
 	int ret;
 
 	(void)file_type;					/* Unused */
+	(void)session;						/* Unused */
 
 	*file_handlep = NULL;
 	ret = 0;
 	fail_fs = (FAIL_FILE_SYSTEM *)file_system;
 	fail_fh = NULL;
-	wtext = fail_fs->wtext;
 
 	fail_fs_lock(&fail_fs->lock);
 
@@ -589,8 +590,10 @@ fail_fs_size(WT_FILE_SYSTEM *file_system,
 	struct stat statbuf;
 	int ret;
 
-	ret = 0;
+	(void)file_system;					/* Unused */
+	(void)session;						/* Unused */
 
+	ret = 0;
 	if ((ret = stat(name, &statbuf)) != 0)
 		return (ret);
 	*sizep = statbuf.st_size;
