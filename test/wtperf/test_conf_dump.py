@@ -18,11 +18,12 @@
 # fails if the value for the option is not replaced/appended in the correct
 # order of precedence as stated above.
 
-import re, sys, subprocess
+import os, re, subprocess, sys
 
 OP_FILE = "WT_TEST/CONFIG.wtperf"
-WTPERF_BIN = "../../build_posix/bench/wtperf/wtperf"
 TMP_CONF = "__tmp.wtperf"
+WTPERF_BIN = "./wtperf"
+WTPERF_DIR = "../../build_posix/bench/wtperf/"
 
 CONF_NOT_PROVIDED = -2
 
@@ -269,6 +270,7 @@ def run_test(conf_file, option_C = "", option_T = "", option_o = ""):
 
 # ----------------- Execute Test --------------
 # If a wtperf conf file is provided use it, else generate a temp conf file
+os.chdir(WTPERF_DIR)
 if len(sys.argv) == 2:
     conf_file = sys.argv[1]
 else:
