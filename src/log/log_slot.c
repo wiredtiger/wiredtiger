@@ -62,6 +62,12 @@ __wt_log_slot_activate(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 	log = conn->log;
 
 	slot->slot_state = 0;
+#ifdef	HAVE_DIAGNOSTIC
+	/*
+	 * Yield here to encourage races during slot switches.
+	 */
+	__wt_yield();
+#endif
 	/*
 	 * !!! slot_release_lsn must be set outside this function because
 	 * this function may be called after a log file switch and the
@@ -279,7 +285,7 @@ __wt_log_slot_new(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_LOG *log;
 	WT_LOGSLOT *slot;
-	int32_t i;
+	int32_t i, pool_i;
 	int count;
 
 	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SLOT));
@@ -301,11 +307,13 @@ __wt_log_slot_new(WT_SESSION_IMPL *session)
 	__wt_epoch(session, &begin);
 	for (;;) {
 		/*
-		 * For now just restart at 0.  We could use log->pool_index
-		 * if that is inefficient.
+		 * Rotate among the slots to lessen collisions.
 		 */
-		for (i = 0; i < WT_SLOT_POOL; i++) {
-			slot = &log->slot_pool[i];
+		for (i = 0, pool_i = log->pool_index; i < WT_SLOT_POOL;
+		    i++, pool_i++) {
+			if (pool_i >= WT_SLOT_POOL)
+				pool_i = 0;
+			slot = &log->slot_pool[pool_i];
 			if (slot->slot_state == WT_LOG_SLOT_FREE) {
 				/*
 				 * Acquire our starting position in the
@@ -320,6 +328,7 @@ __wt_log_slot_new(WT_SESSION_IMPL *session)
 				WT_STAT_CONN_INCR(session,
 				    log_slot_transitions);
 				log->active_slot = slot;
+				log->pool_index = pool_i;
 				return (0);
 			}
 		}
@@ -394,6 +403,7 @@ __wt_log_slot_init(WT_SESSION_IMPL *session)
 	slot->slot_release_lsn = log->alloc_lsn;
 	__wt_log_slot_activate(session, slot);
 	log->active_slot = slot;
+	log->pool_index = 0;
 
 	if (0) {
 err:		while (--i >= 0)
@@ -449,8 +459,9 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 	WT_LOGSLOT *slot;
 	int64_t flag_state, new_state, old_state, released;
 	int32_t join_offset, new_join;
+	bool unbuffered;
 #ifdef	HAVE_DIAGNOSTIC
-	bool unbuf_force;
+	bool yld;
 #endif
 
 	conn = S2C(session);
@@ -462,41 +473,52 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 	/*
 	 * There should almost always be a slot open.
 	 */
+	unbuffered = false;
 #ifdef	HAVE_DIAGNOSTIC
-	unbuf_force = (++log->write_calls % WT_THOUSAND) == 0;
+	yld = (log->write_calls % 7) == 0;
+	if ((++log->write_calls % WT_THOUSAND) == 0 ||
+	    mysize > WT_LOG_SLOT_BUF_MAX) {
+#else
+	if (mysize > WT_LOG_SLOT_BUF_MAX) {
 #endif
+		unbuffered = true;
+		F_SET(myslot, WT_MYSLOT_UNBUFFERED);
+	}
 	for (;;) {
 		WT_BARRIER();
 		slot = log->active_slot;
 		old_state = slot->slot_state;
-		/*
-		 * Try to join our size into the existing size and
-		 * atomically write it back into the state.
-		 */
-		flag_state = WT_LOG_SLOT_FLAGS(old_state);
-		released = WT_LOG_SLOT_RELEASED(old_state);
-		join_offset = WT_LOG_SLOT_JOINED(old_state);
-#ifdef	HAVE_DIAGNOSTIC
-		if (unbuf_force || mysize > WT_LOG_SLOT_BUF_MAX) {
-#else
-		if (mysize > WT_LOG_SLOT_BUF_MAX) {
-#endif
-			new_join = join_offset + WT_LOG_SLOT_UNBUFFERED;
-			F_SET(myslot, WT_MYSLOT_UNBUFFERED);
-			myslot->slot = slot;
-		} else
-			new_join = join_offset + (int32_t)mysize;
-		new_state = (int64_t)WT_LOG_SLOT_JOIN_REL(
-		    (int64_t)new_join, (int64_t)released, (int64_t)flag_state);
+		if (WT_LOG_SLOT_OPEN(old_state)) {
+			/*
+			 * Try to join our size into the existing size and
+			 * atomically write it back into the state.
+			 */
+			flag_state = WT_LOG_SLOT_FLAGS(old_state);
+			released = WT_LOG_SLOT_RELEASED(old_state);
+			join_offset = WT_LOG_SLOT_JOINED(old_state);
+			if (unbuffered)
+				new_join = join_offset + WT_LOG_SLOT_UNBUFFERED;
+			else
+				new_join = join_offset + (int32_t)mysize;
+			new_state = (int64_t)WT_LOG_SLOT_JOIN_REL(
+			    (int64_t)new_join, (int64_t)released,
+			    (int64_t)flag_state);
 
-		/*
-		 * Check if the slot is open for joining and we are able to
-		 * swap in our size into the state.
-		 */
-		if (WT_LOG_SLOT_OPEN(old_state) &&
-		    __wt_atomic_casiv64(
-		    &slot->slot_state, old_state, new_state))
-			break;
+#ifdef	HAVE_DIAGNOSTIC
+			/*
+			 * Yield to encourage lot slot switch races.
+			 */
+			if (yld)
+				__wt_yield();
+#endif
+			/*
+			 * Attempt to swap our size into the state.
+			 */
+			if (slot == log->active_slot &&
+			    __wt_atomic_casiv64(
+			    &slot->slot_state, old_state, new_state))
+				break;
+		}
 		/*
 		 * The slot is no longer open or we lost the race to
 		 * update it.  Yield and try again.
@@ -508,8 +530,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 	 * We joined this slot.  Fill in our information to return to
 	 * the caller.
 	 */
-	if (mysize != 0)
-		WT_STAT_CONN_INCR(session, log_slot_joins);
+	WT_STAT_CONN_INCR(session, log_slot_joins);
 	if (LF_ISSET(WT_LOG_DSYNC | WT_LOG_FSYNC))
 		F_SET(slot, WT_SLOT_SYNC_DIR);
 	if (LF_ISSET(WT_LOG_FLUSH))
