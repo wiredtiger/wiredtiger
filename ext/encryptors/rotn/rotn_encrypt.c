@@ -64,6 +64,9 @@
  * In this case, we transform all bytes in the input.
  */
 
+/* Add u_char type for windows compatibility */
+typedef unsigned char   u_char;
+
 /* Local encryptor structure. */
 typedef struct {
 	WT_ENCRYPTOR encryptor;		/* Must come first */

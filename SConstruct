@@ -273,6 +273,8 @@ if useSnappy:
 if useLz4:
     wtsources.append("ext/compressors/lz4/lz4_compress.c")
 
+wtsources.append("ext/encryptors/rotn/rotn_encrypt.c")
+
 wt_objs = [env.Object(a) for a in wtsources]
 
 # Static Library - libwiredtiger.lib
