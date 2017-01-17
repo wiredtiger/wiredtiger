@@ -52,7 +52,6 @@ class test_encrypt02(wttest.WiredTigerTestCase, suite_subprocess):
         extlist.skip_if_missing = True
         extlist.extension('encryptors', 'rotn')
 
-
     nrecords = 5000
     bigvalue = "abcdefghij" * 1001    # len(bigvalue) = 10010
 
