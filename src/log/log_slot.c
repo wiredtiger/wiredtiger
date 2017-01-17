@@ -8,6 +8,7 @@
 
 #include "wt_internal.h"
 
+#ifdef	HAVE_DIAGNOSTIC
 /*
  * __log_slot_dump --
  *	Dump the entire slot state.
@@ -29,24 +30,26 @@ __log_slot_dump(WT_SESSION_IMPL *session)
 		    &log->slot_pool[earliest].slot_release_lsn) < 0)
 			earliest = i;
 		__wt_errx(session, "Slot %d:", i);
-		__wt_errx(session, "\tState: %" PRIx64 " Flags: %" PRIx32,
+		__wt_errx(session, "    State: %" PRIx64 " Flags: %" PRIx32,
 		    slot->slot_state, slot->flags);
-		__wt_errx(session, "\tStart LSN: %" PRIu32 "/%" PRIu32,
+		__wt_errx(session, "    Start LSN: %" PRIu32 "/%" PRIu32,
 		    slot->slot_start_lsn.l.file, slot->slot_start_lsn.l.offset);
-		__wt_errx(session, "\tEnd  LSN: %" PRIu32 "/%" PRIu32,
+		__wt_errx(session, "    End  LSN: %" PRIu32 "/%" PRIu32,
 		    slot->slot_end_lsn.l.file, slot->slot_end_lsn.l.offset);
-		__wt_errx(session, "\tRelease LSN: %" PRIu32 "/%" PRIu32,
+		__wt_errx(session, "    Release LSN: %" PRIu32 "/%" PRIu32,
 		    slot->slot_release_lsn.l.file,
 		    slot->slot_release_lsn.l.offset);
-		__wt_errx(session, "\tOffset: start: %" PRIu32 " last:%" PRIu32,
-		    (uint32_t)slot->slot_start_offset,
+		__wt_errx(session, "    Offset: start: %" PRIu32
+		    " last:%" PRIu32, (uint32_t)slot->slot_start_offset,
 		    (uint32_t)slot->slot_last_offset);
-		__wt_errx(session, "\tUnbuffered: %" PRId64 " error: %" PRId32,
-		    slot->slot_unbuffered, slot->slot_error);
+		__wt_errx(session, "    Unbuffered: %" PRId64
+		    " error: %" PRId32, slot->slot_unbuffered,
+		    slot->slot_error);
 	}
 	__wt_errx(session, "Earliest slot: %d", earliest);
 
 }
+#endif
 
 /*
  * __wt_log_slot_activate --
@@ -82,6 +85,11 @@ __wt_log_slot_activate(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 	__wt_yield();
 #endif
 	WT_BARRIER();
+	/*
+	 * Set the slot state last.  Other threads may have a stale pointer
+	 * to this slot everything else needs to be there before the state
+	 * is cleared.  Use a barrier to make sure it is last.
+	 */
 	slot->slot_state = 0;
 }
 
@@ -94,11 +102,13 @@ static int
 __log_slot_close(
     WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *releasep, bool forced)
 {
-	struct timespec begin, now;
 	WT_CONNECTION_IMPL *conn;
 	WT_LOG *log;
 	int64_t end_offset, new_state, old_state;
+#ifdef	HAVE_DIAGNOSTIC
+	struct timespec begin, now;
 	int count;
+#endif
 
 	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SLOT));
 	WT_ASSERT(session, releasep != NULL);
@@ -150,12 +160,15 @@ retry:
 	 * that value.  If the state is unbuffered, wait for the unbuffered
 	 * size to be set.
 	 */
+#ifdef	HAVE_DIAGNOSTIC
 	count = 0;
 	__wt_epoch(session, &begin);
+#endif
 	if (WT_LOG_SLOT_UNBUFFERED_ISSET(old_state)) {
 		while (slot->slot_unbuffered == 0) {
-			++count;
 			__wt_yield();
+#ifdef	HAVE_DIAGNOSTIC
+			++count;
 			if (count > WT_MILLION) {
 				__wt_epoch(session, &now);
 				if (WT_TIMEDIFF_SEC(now, begin) > 10) {
@@ -170,6 +183,7 @@ retry:
 				}
 				count = 0;
 			}
+#endif
 		}
 	}
 
@@ -283,12 +297,14 @@ __wt_log_slot_switch(
 int
 __wt_log_slot_new(WT_SESSION_IMPL *session)
 {
-	struct timespec begin, now;
 	WT_CONNECTION_IMPL *conn;
 	WT_LOG *log;
 	WT_LOGSLOT *slot;
 	int32_t i, pool_i;
+#ifdef	HAVE_DIAGNOSTIC
+	struct timespec begin, now;
 	int count;
+#endif
 
 	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SLOT));
 	conn = S2C(session);
@@ -302,11 +318,13 @@ __wt_log_slot_new(WT_SESSION_IMPL *session)
 	    WT_LOG_SLOT_OPEN(slot->slot_state))
 		return (0);
 
+#ifdef	HAVE_DIAGNOSTIC
+	count = 0;
+	__wt_epoch(session, &begin);
+#endif
 	/*
 	 * Keep trying until we can find a free slot.
 	 */
-	count = 0;
-	__wt_epoch(session, &begin);
 	for (;;) {
 		/*
 		 * Rotate among the slots to lessen collisions.
@@ -338,8 +356,9 @@ __wt_log_slot_new(WT_SESSION_IMPL *session)
 		 * If we didn't find any free slots signal the worker thread.
 		 */
 		__wt_cond_auto_signal(session, conn->log_wrlsn_cond);
-		++count;
 		__wt_yield();
+#ifdef	HAVE_DIAGNOSTIC
+		++count;
 		if (count > WT_MILLION) {
 			__wt_epoch(session, &now);
 			if (WT_TIMEDIFF_SEC(now, begin) > 10) {
@@ -352,6 +371,7 @@ __wt_log_slot_new(WT_SESSION_IMPL *session)
 			__log_slot_dump(session);
 			abort();
 		}
+#endif
 	}
 	/* NOTREACHED */
 }
@@ -507,7 +527,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 
 #ifdef	HAVE_DIAGNOSTIC
 			/*
-			 * Yield to encourage lot slot switch races.
+			 * Yield to encourage slot switch races.
 			 */
 			if (yld)
 				__wt_yield();
