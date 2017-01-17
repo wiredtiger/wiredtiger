@@ -61,13 +61,6 @@ __wt_log_slot_activate(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 	conn = S2C(session);
 	log = conn->log;
 
-	slot->slot_state = 0;
-#ifdef	HAVE_DIAGNOSTIC
-	/*
-	 * Yield here to encourage races during slot switches.
-	 */
-	__wt_yield();
-#endif
 	/*
 	 * !!! slot_release_lsn must be set outside this function because
 	 * this function may be called after a log file switch and the
@@ -76,12 +69,20 @@ __wt_log_slot_activate(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 	 * set for closing the file handle on a log file switch.  The flags
 	 * are reset when the slot is freed.  See log_slot_free.
 	 */
+	slot->slot_unbuffered = 0;
 	slot->slot_start_lsn = slot->slot_end_lsn = log->alloc_lsn;
 	slot->slot_start_offset = log->alloc_lsn.l.offset;
 	slot->slot_last_offset = log->alloc_lsn.l.offset;
 	slot->slot_fh = log->log_fh;
 	slot->slot_error = 0;
-	slot->slot_unbuffered = 0;
+#ifdef	HAVE_DIAGNOSTIC
+	/*
+	 * Yield here to encourage races during slot switches.
+	 */
+	__wt_yield();
+#endif
+	WT_BARRIER();
+	slot->slot_state = 0;
 }
 
 /*
@@ -151,23 +152,24 @@ retry:
 	 */
 	count = 0;
 	__wt_epoch(session, &begin);
-	if (WT_LOG_SLOT_UNBUFFERED_ISSET(old_state))
-	while (WT_LOG_SLOT_UNBUFFERED_ISSET(old_state) &&
-	    slot->slot_unbuffered == 0) {
-		++count;
-		__wt_yield();
-		if (count > WT_MILLION) {
-			__wt_epoch(session, &now);
-			if (WT_TIMEDIFF_SEC(now, begin) > 10) {
-				__wt_errx(session, "SLOT_CLOSE: Slot %" PRIu32
-				    " Timeout unbuffered, state 0x%" PRIx64
-				    " unbuffered %" PRIu64,
-				    (uint32_t)(slot - &log->slot_pool[0]),
-				    slot->slot_state, slot->slot_unbuffered);
-				__log_slot_dump(session);
-				abort();
+	if (WT_LOG_SLOT_UNBUFFERED_ISSET(old_state)) {
+		while (slot->slot_unbuffered == 0) {
+			++count;
+			__wt_yield();
+			if (count > WT_MILLION) {
+				__wt_epoch(session, &now);
+				if (WT_TIMEDIFF_SEC(now, begin) > 10) {
+					__wt_errx(session, "SLOT_CLOSE: Slot %"
+					PRIu32 " Timeout unbuffered, state 0x%"
+					PRIx64 " unbuffered %" PRIu64,
+					(uint32_t)(slot - &log->slot_pool[0]),
+					slot->slot_state,
+					slot->slot_unbuffered);
+					__log_slot_dump(session);
+					abort();
+				}
+				count = 0;
 			}
-			count = 0;
 		}
 	}
 
@@ -486,8 +488,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 	}
 	for (;;) {
 		WT_BARRIER();
-		slot = log->active_slot;
-		old_state = slot->slot_state;
+		old_state = log->active_slot->slot_state;
 		if (WT_LOG_SLOT_OPEN(old_state)) {
 			/*
 			 * Try to join our size into the existing size and
@@ -514,9 +515,9 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 			/*
 			 * Attempt to swap our size into the state.
 			 */
-			if (slot == log->active_slot &&
-			    __wt_atomic_casiv64(
-			    &slot->slot_state, old_state, new_state))
+			if (__wt_atomic_casiv64(
+			    &(slot = log->active_slot)->slot_state,
+			    old_state, new_state))
 				break;
 		}
 		/*
