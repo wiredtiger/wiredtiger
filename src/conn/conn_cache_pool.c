@@ -733,7 +733,7 @@ __wt_cache_pool_server(void *arg)
 	    F_ISSET(cache, WT_CACHE_POOL_RUN)) {
 		if (cp->currently_used <= cp->size) {
 			/*
-			 * No quit function needed, we're only pausing for 1
+			 * No run function needed, we're only pausing for 1
 			 * second.
 			 */
 			__wt_cond_wait(

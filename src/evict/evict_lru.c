@@ -315,7 +315,7 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 			/*
 			 * Don't rely on signals: check periodically.
 			 *
-			 * No quit function needed, the condition variable is
+			 * No run function needed, the condition variable is
 			 * configured to never pause for more than a second.
 			 */
 			__wt_cond_auto_wait(
@@ -704,7 +704,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 				WT_STAT_CONN_INCR(session,
 				    cache_eviction_server_slept);
 				/*
-				 * No quit function needed, we're only pausing
+				 * No run function needed, we're only pausing
 				 * for 1/1000th of a second.
 				 */
 				__wt_cond_wait(
@@ -1081,7 +1081,7 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
 	if (ret == WT_NOTFOUND && !is_server &&
 	    F_ISSET(S2C(session), WT_CONN_EVICTION_RUN)) {
 		/*
-		 * No quit function needed, we're only pausing for 1/100th of a
+		 * No run function needed, we're only pausing for 1/100th of a
 		 * second.
 		 */
 		__wt_cond_wait(
@@ -2088,7 +2088,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 			/*
 			 * Allow the queue to re-populate before retrying.
 			 *
-			 * No quit function needed, we're only pausing for
+			 * No run function needed, we're only pausing for
 			 * 1/100th of a second.
 			 */
 			__wt_cond_wait(session,

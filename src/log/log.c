@@ -48,7 +48,7 @@ __log_wait_for_earlier_slot(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 			__wt_yield();
 		else {
 			/*
-			 * No quit function needed, we're only pausing for
+			 * No run function needed, we're only pausing for
 			 * 200 usecs.
 			 */
 			__wt_cond_wait(session, log->log_write_cond, 200, NULL);
@@ -177,7 +177,7 @@ __wt_log_force_sync(WT_SESSION_IMPL *session, WT_LSN *min_lsn)
 		__wt_cond_signal(session, S2C(session)->log_file_cond);
 
 		/*
-		 * No quit function needed, we're only pausing for
+		 * No run function needed, we're only pausing for
 		 * 1/100th second.
 		 */
 		__wt_cond_wait(session, log->log_sync_cond, 10000, NULL);
@@ -1501,7 +1501,7 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
 		if (log->sync_lsn.l.file < slot->slot_end_lsn.l.file ||
 		    __wt_spin_trylock(session, &log->log_sync_lock) != 0) {
 			/*
-			 * No quit function needed, we're only pausing for
+			 * No run function needed, we're only pausing for
 			 * 1/100th second.
 			 */
 			__wt_cond_wait(
@@ -2188,7 +2188,7 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 		while (__wt_log_cmp(&log->write_lsn, &lsn) <= 0 &&
 		    myslot.slot->slot_error == 0) {
 			/*
-			 * No quit function needed, we're only pausing for
+			 * No run function needed, we're only pausing for
 			 * 1/100th second.
 			 */
 			__wt_cond_wait(
@@ -2199,7 +2199,7 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 		while (__wt_log_cmp(&log->sync_lsn, &lsn) <= 0 &&
 		    myslot.slot->slot_error == 0) {
 			/*
-			 * No quit function needed, we're only pausing for
+			 * No run function needed, we're only pausing for
 			 * 1/100th second.
 			 */
 			__wt_cond_wait(

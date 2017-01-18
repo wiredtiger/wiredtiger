@@ -135,7 +135,7 @@ __ckpt_server(void *arg)
 				 * it so we don't do another checkpoint
 				 * immediately.
 				 *
-				 * No quit function needed, we're only pausing
+				 * No run function needed, we're only pausing
 				 * for 1 usec.
 				 */
 				__wt_cond_wait(
