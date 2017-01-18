@@ -108,16 +108,15 @@ __wt_cond_auto_wait_signal(
  *	out period expires, let the caller know.
  */
 void
-__wt_cond_auto_wait(
-    WT_SESSION_IMPL *session, WT_CONDVAR *cond, bool progress)
+__wt_cond_auto_wait(WT_SESSION_IMPL *session, WT_CONDVAR *cond, bool progress)
 {
-	bool signalled;
+	bool notused;
 
 	/*
 	 * Call the signal version so the wait period is reset if the
 	 * condition is woken explicitly.
 	 */
-	__wt_cond_auto_wait_signal(session, cond, progress, &signalled);
+	__wt_cond_auto_wait_signal(session, cond, progress, &notused);
 }
 
 /*
