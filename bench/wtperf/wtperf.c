@@ -259,12 +259,7 @@ static WT_ASYNC_CALLBACK cb = { cb_asyncop };
 static inline void
 track_operation(TRACK *trk, uint64_t usecs)
 {
-
-
-
-
 	uint64_t v;
-
 					/* average microseconds per call */
 	v = (uint64_t)usecs;
 
