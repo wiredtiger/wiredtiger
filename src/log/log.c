@@ -46,8 +46,13 @@ __log_wait_for_earlier_slot(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 		__wt_cond_signal(session, conn->log_wrlsn_cond);
 		if (++yield_count < WT_THOUSAND)
 			__wt_yield();
-		else
-			__wt_cond_wait(session, log->log_write_cond, 200);
+		else {
+			/*
+			 * No quit function needed, we're only pausing for
+			 * 200 usecs.
+			 */
+			__wt_cond_wait(session, log->log_write_cond, 200, NULL);
+		}
 		if (F_ISSET(session, WT_SESSION_LOCKED_SLOT))
 			__wt_spin_lock(session, &log->log_slot_lock);
 	}
@@ -170,7 +175,12 @@ __wt_log_force_sync(WT_SESSION_IMPL *session, WT_LSN *min_lsn)
 	 */
 	while (log->sync_lsn.l.file < min_lsn->l.file) {
 		__wt_cond_signal(session, S2C(session)->log_file_cond);
-		__wt_cond_wait(session, log->log_sync_cond, 10000);
+
+		/*
+		 * No quit function needed, we're only pausing for
+		 * 1/100th second.
+		 */
+		__wt_cond_wait(session, log->log_sync_cond, 10000, NULL);
 	}
 	__wt_spin_lock(session, &log->log_sync_lock);
 	WT_ASSERT(session, log->log_dir_fh != NULL);
@@ -1490,7 +1500,12 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
 		 */
 		if (log->sync_lsn.l.file < slot->slot_end_lsn.l.file ||
 		    __wt_spin_trylock(session, &log->log_sync_lock) != 0) {
-			__wt_cond_wait(session, log->log_sync_cond, 10000);
+			/*
+			 * No quit function needed, we're only pausing for
+			 * 1/100th second.
+			 */
+			__wt_cond_wait(
+			    session, log->log_sync_cond, 10000, NULL);
 			continue;
 		}
 		locked = true;
@@ -2171,13 +2186,25 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 	if (LF_ISSET(WT_LOG_FLUSH)) {
 		/* Wait for our writes to reach the OS */
 		while (__wt_log_cmp(&log->write_lsn, &lsn) <= 0 &&
-		    myslot.slot->slot_error == 0)
-			__wt_cond_wait(session, log->log_write_cond, 10000);
+		    myslot.slot->slot_error == 0) {
+			/*
+			 * No quit function needed, we're only pausing for
+			 * 1/100th second.
+			 */
+			__wt_cond_wait(
+			    session, log->log_write_cond, 10000, NULL);
+		}
 	} else if (LF_ISSET(WT_LOG_FSYNC)) {
 		/* Wait for our writes to reach disk */
 		while (__wt_log_cmp(&log->sync_lsn, &lsn) <= 0 &&
-		    myslot.slot->slot_error == 0)
-			__wt_cond_wait(session, log->log_sync_cond, 10000);
+		    myslot.slot->slot_error == 0) {
+			/*
+			 * No quit function needed, we're only pausing for
+			 * 1/100th second.
+			 */
+			__wt_cond_wait(
+			    session, log->log_sync_cond, 10000, NULL);
+		}
 	}
 
 	/*

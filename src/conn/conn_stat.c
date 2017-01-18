@@ -498,6 +498,22 @@ err:	__wt_scr_free(session, &tmp);
 }
 
 /*
+ * __statlog_server_run_chk --
+ *	Check to decide if the statistics log server should continue running.
+ */
+static bool
+__statlog_server_run_chk(WT_SESSION_IMPL *session)
+{
+	WT_CONNECTION_IMPL *conn;
+
+	conn = S2C(session);
+
+	return (!F_ISSET(conn, WT_CONN_CLOSING) &&
+	    F_ISSET(conn, WT_CONN_SERVER_RUN) &&
+	    F_ISSET(conn, WT_CONN_SERVER_STATISTICS));
+}
+
+/*
  * __statlog_server --
  *	The statistics server thread.
  */
@@ -525,10 +541,17 @@ __statlog_server(void *arg)
 	WT_ERR(__wt_buf_init(session, &path, strlen(conn->stat_path) + 128));
 	WT_ERR(__wt_buf_init(session, &tmp, strlen(conn->stat_path) + 128));
 
-	while (F_ISSET(conn, WT_CONN_SERVER_RUN) &&
-	    F_ISSET(conn, WT_CONN_SERVER_STATISTICS)) {
+	for (;;) {
+		if (!__statlog_server_run_chk(session))
+			break;
+
 		/* Wait until the next event. */
-		__wt_cond_wait(session, conn->stat_cond, conn->stat_usecs);
+		__wt_cond_wait(session, conn->stat_cond,
+		    conn->stat_usecs, __statlog_server_run_chk);
+
+		/* Check if we're quitting or being reconfigured. */
+		if (!__statlog_server_run_chk(session))
+			break;
 
 		if (WT_STAT_ENABLED(session))
 			WT_ERR(__statlog_log_one(session, &path, &tmp));

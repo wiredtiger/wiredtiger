@@ -59,8 +59,8 @@ __wt_cond_auto_alloc(WT_SESSION_IMPL *session,
  *	out period expires, let the caller know.
  */
 void
-__wt_cond_auto_wait_signal(
-    WT_SESSION_IMPL *session, WT_CONDVAR *cond, bool progress, bool *signalled)
+__wt_cond_auto_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond,
+    bool progress, bool (*run_func)(WT_SESSION_IMPL *), bool *signalled)
 {
 	uint64_t delta;
 
@@ -79,7 +79,8 @@ __wt_cond_auto_wait_signal(
 		    cond->max_wait, cond->prev_wait + delta);
 	}
 
-	__wt_cond_wait_signal(session, cond, cond->prev_wait, signalled);
+	__wt_cond_wait_signal(
+	    session, cond, cond->prev_wait, run_func, signalled);
 
 	if (progress || *signalled)
 		WT_STAT_CONN_INCR(session, cond_auto_wait_reset);
@@ -93,13 +94,10 @@ __wt_cond_auto_wait_signal(
  *	out period expires, let the caller know.
  */
 void
-__wt_cond_auto_wait(WT_SESSION_IMPL *session, WT_CONDVAR *cond, bool progress)
+__wt_cond_auto_wait(WT_SESSION_IMPL *session,
+    WT_CONDVAR *cond, bool progress, bool (*run_func)(WT_SESSION_IMPL *))
 {
 	bool notused;
 
-	/*
-	 * Call the signal version so the wait period is reset if the
-	 * condition is woken explicitly.
-	 */
-	__wt_cond_auto_wait_signal(session, cond, progress, &notused);
+	__wt_cond_auto_wait_signal(session, cond, progress, run_func, &notused);
 }

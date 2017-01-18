@@ -37,8 +37,8 @@ __wt_cond_alloc(WT_SESSION_IMPL *session, const char *name, WT_CONDVAR **condp)
  * out period expires, let the caller know.
  */
 void
-__wt_cond_wait_signal(
-    WT_SESSION_IMPL *session, WT_CONDVAR *cond, uint64_t usecs, bool *signalled)
+__wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond,
+    uint64_t usecs, bool (*run_func)(WT_SESSION_IMPL *), bool *signalled)
 {
 	BOOL sleepret;
 	DWORD milliseconds, windows_error;
@@ -57,6 +57,19 @@ __wt_cond_wait_signal(
 
 	EnterCriticalSection(&cond->mtx);
 	locked = true;
+
+	/*
+	 * It's possible to race with threads waking us up. That's not a problem
+	 * if there are multiple wakeups because the next wakeup will get us, or
+	 * if we're only pausing for a short period. It's a problem if there's
+	 * only a single wakeup, our waker is likely waiting for us to exit.
+	 * After acquiring the mutex (so we're guaranteed to be awakened by any
+	 * future wakeup call), optionally check if we're OK to keep running.
+	 * This won't ensure our caller won't just loop and call us again, but
+	 * at least it's not our fault.
+	 */
+	if (run_func != NULL && !run_func(session))
+		goto skipping;
 
 	if (usecs > 0) {
 		milliseconds64 = usecs / 1000;
@@ -94,6 +107,7 @@ __wt_cond_wait_signal(
 		}
 	}
 
+skipping:
 	(void)__wt_atomic_subi32(&cond->waiters, 1);
 
 	if (locked)

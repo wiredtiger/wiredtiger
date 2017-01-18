@@ -731,9 +731,14 @@ __wt_cache_pool_server(void *arg)
 
 	while (F_ISSET(cp, WT_CACHE_POOL_ACTIVE) &&
 	    F_ISSET(cache, WT_CACHE_POOL_RUN)) {
-		if (cp->currently_used <= cp->size)
+		if (cp->currently_used <= cp->size) {
+			/*
+			 * No quit function needed, we're only pausing for 1
+			 * second.
+			 */
 			__wt_cond_wait(
-			    session, cp->cache_pool_cond, WT_MILLION);
+			    session, cp->cache_pool_cond, WT_MILLION, NULL);
+		}
 
 		/*
 		 * Re-check pool run flag - since we want to avoid getting the

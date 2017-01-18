@@ -311,9 +311,15 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 			__wt_spin_unlock(session, &cache->evict_pass_lock);
 			WT_ERR(ret);
 			__wt_verbose(session, WT_VERB_EVICTSERVER, "sleeping");
-			/* Don't rely on signals: check periodically. */
+
+			/*
+			 * Don't rely on signals: check periodically.
+			 *
+			 * No quit function needed, the condition variable is
+			 * configured to never pause for more than a second.
+			 */
 			__wt_cond_auto_wait(
-			    session, cache->evict_cond, did_work);
+			    session, cache->evict_cond, did_work, NULL);
 			__wt_verbose(session, WT_VERB_EVICTSERVER, "waking");
 		} else
 			WT_ERR(__evict_lru_pages(session, false));
@@ -697,8 +703,12 @@ __evict_pass(WT_SESSION_IMPL *session)
 				 */
 				WT_STAT_CONN_INCR(session,
 				    cache_eviction_server_slept);
+				/*
+				 * No quit function needed, we're only pausing
+				 * for 1/1000th of a second.
+				 */
 				__wt_cond_wait(
-				    session, cache->evict_cond, WT_THOUSAND);
+				    session, cache->evict_cond, 1000, NULL);
 				continue;
 			}
 
@@ -1069,8 +1079,14 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
 
 	/* If a worker thread found the queue empty, pause. */
 	if (ret == WT_NOTFOUND && !is_server &&
-	    F_ISSET(S2C(session), WT_CONN_EVICTION_RUN))
-		__wt_cond_wait(session, conn->evict_threads.wait_cond, 10000);
+	    F_ISSET(S2C(session), WT_CONN_EVICTION_RUN)) {
+		/*
+		 * No quit function needed, we're only pausing for 1/100th of a
+		 * second.
+		 */
+		__wt_cond_wait(
+		    session, conn->evict_threads.wait_cond, 10000, NULL);
+	}
 
 	return (ret == WT_NOTFOUND ? 0 : ret);
 }
@@ -2069,9 +2085,14 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 		case EBUSY:
 			break;
 		case WT_NOTFOUND:
-			/* Allow the queue to re-populate before retrying. */
-			__wt_cond_wait(
-			    session, conn->evict_threads.wait_cond, 10000);
+			/*
+			 * Allow the queue to re-populate before retrying.
+			 *
+			 * No quit function needed, we're only pausing for
+			 * 1/100th of a second.
+			 */
+			__wt_cond_wait(session,
+			    conn->evict_threads.wait_cond, 10000, NULL);
 			cache->app_waits++;
 			break;
 		default:

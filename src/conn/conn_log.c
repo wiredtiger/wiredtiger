@@ -516,8 +516,14 @@ __log_file_server(void *arg)
 				continue;
 			}
 		}
-		/* Wait until the next event. */
-		__wt_cond_wait(session, conn->log_file_cond, WT_MILLION / 10);
+
+		/*
+		 * Wait until the next event.
+		 *
+		 * No quit function needed, we're only pausing for 1/10th of a
+		 * second.
+		 */
+		__wt_cond_wait(session, conn->log_file_cond, 100000, NULL);
 	}
 
 	if (0) {
@@ -728,13 +734,14 @@ __log_wrlsn_server(void *arg)
 		 */
 		if (yield++ < WT_THOUSAND)
 			__wt_yield();
-		else
+		else {
 			/*
-			 * Send in false because if we did any work we would
-			 * not be on this path.
+			 * No quit function needed, the condition variable is
+			 * configured to never pause for more than a second.
 			 */
 			__wt_cond_auto_wait(
-			    session, conn->log_wrlsn_cond, did_work);
+			    session, conn->log_wrlsn_cond, did_work, NULL);
+		}
 	}
 	/*
 	 * On close we need to do this one more time because there could
@@ -838,11 +845,15 @@ __log_server(void *arg)
 			}
 		}
 
-		/* Wait until the next event. */
-
+		/*
+		 * Wait until the next event.
+		 *
+		 * No quit function needed, the condition variable is configured
+		 * to never pause for more than a second.
+		 */
 		__wt_epoch(session, &start);
-		__wt_cond_auto_wait_signal(session,
-		    conn->log_cond, did_work, &signalled);
+		__wt_cond_auto_wait_signal(
+		    session, conn->log_cond, did_work, NULL, &signalled);
 		__wt_epoch(session, &now);
 		timediff = WT_TIMEDIFF_MS(now, start);
 	}

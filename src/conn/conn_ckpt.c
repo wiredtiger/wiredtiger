@@ -63,6 +63,22 @@ __ckpt_server_config(WT_SESSION_IMPL *session, const char **cfg, bool *startp)
 }
 
 /*
+ * __ckpt_server_run_chk --
+ *	Check to decide if the checkpoint server should continue running.
+ */
+static bool
+__ckpt_server_run_chk(WT_SESSION_IMPL *session)
+{
+	WT_CONNECTION_IMPL *conn;
+
+	conn = S2C(session);
+
+	return (!F_ISSET(conn, WT_CONN_CLOSING) &&
+	    F_ISSET(conn, WT_CONN_SERVER_RUN) &&
+	    F_ISSET(conn, WT_CONN_SERVER_CHECKPOINT));
+}
+
+/*
  * __ckpt_server --
  *	The checkpoint server thread.
  */
@@ -78,14 +94,20 @@ __ckpt_server(void *arg)
 	conn = S2C(session);
 	wt_session = (WT_SESSION *)session;
 
-	while (F_ISSET(conn, WT_CONN_SERVER_RUN) &&
-	    F_ISSET(conn, WT_CONN_SERVER_CHECKPOINT)) {
+	for (;;) {
+		if (!__ckpt_server_run_chk(session))
+			break;
 		/*
 		 * Wait...
 		 * NOTE: If the user only configured logsize, then usecs
 		 * will be 0 and this wait won't return until signalled.
 		 */
-		__wt_cond_wait(session, conn->ckpt_cond, conn->ckpt_usecs);
+		__wt_cond_wait(session,
+		    conn->ckpt_cond, conn->ckpt_usecs, __ckpt_server_run_chk);
+
+		/* Check if we're quitting or being reconfigured. */
+		if (!__ckpt_server_run_chk(session))
+			break;
 
 		/*
 		 * Checkpoint the database if the connection is marked dirty.
@@ -112,8 +134,12 @@ __ckpt_server(void *arg)
 				 * already signalled, do a tiny wait to clear
 				 * it so we don't do another checkpoint
 				 * immediately.
+				 *
+				 * No quit function needed, we're only pausing
+				 * for 1 usec.
 				 */
-				__wt_cond_wait(session, conn->ckpt_cond, 1);
+				__wt_cond_wait(
+				    session, conn->ckpt_cond, 1, NULL);
 			}
 		} else
 			WT_STAT_CONN_INCR(session, txn_checkpoint_skipped);
