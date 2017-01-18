@@ -70,8 +70,6 @@ __wt_cond_auto_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond)
  * __wt_cond_auto_wait_signal --
  *	Wait on a mutex, optionally timing out.  If we get it before the time
  *	out period expires, let the caller know.
- *	TODO: Can this version of the API be removed, now that we have the
- *	auto adjusting condition variables?
  */
 void
 __wt_cond_auto_wait_signal(
