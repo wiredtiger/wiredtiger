@@ -267,7 +267,7 @@ __wt_evict_server_wake(WT_SESSION_IMPL *session)
 	}
 #endif
 
-	__wt_cond_auto_signal(session, cache->evict_cond);
+	__wt_cond_signal(session, cache->evict_cond);
 }
 
 /*
