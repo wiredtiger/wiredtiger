@@ -38,13 +38,12 @@
  *	Allocate and initialize an automatically adjusting condition variable.
  */
 int
-__wt_cond_auto_alloc(
-    WT_SESSION_IMPL *session, const char *name,
-    bool is_signalled, uint64_t min, uint64_t max, WT_CONDVAR **condp)
+__wt_cond_auto_alloc(WT_SESSION_IMPL *session,
+    const char *name, uint64_t min, uint64_t max, WT_CONDVAR **condp)
 {
 	WT_CONDVAR *cond;
 
-	WT_RET(__wt_cond_alloc(session, name, is_signalled, condp));
+	WT_RET(__wt_cond_alloc(session, name, condp));
 	cond = *condp;
 
 	cond->min_wait = min;

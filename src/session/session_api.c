@@ -1825,7 +1825,7 @@ __open_session(WT_CONNECTION_IMPL *conn,
 	session_ret->name = NULL;
 	session_ret->id = i;
 
-	WT_ERR(__wt_cond_alloc(session, "session", false, &session_ret->cond));
+	WT_ERR(__wt_cond_alloc(session, "session", &session_ret->cond));
 
 	if (WT_SESSION_FIRST_USE(session_ret))
 		__wt_random_init(&session_ret->rnd);

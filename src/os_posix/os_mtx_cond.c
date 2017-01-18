@@ -13,8 +13,7 @@
  *	Allocate and initialize a condition variable.
  */
 int
-__wt_cond_alloc(WT_SESSION_IMPL *session,
-    const char *name, bool is_signalled, WT_CONDVAR **condp)
+__wt_cond_alloc(WT_SESSION_IMPL *session, const char *name, WT_CONDVAR **condp)
 {
 	WT_CONDVAR *cond;
 	WT_DECL_RET;
@@ -27,7 +26,7 @@ __wt_cond_alloc(WT_SESSION_IMPL *session,
 	WT_ERR(pthread_cond_init(&cond->cond, NULL));
 
 	cond->name = name;
-	cond->waiters = is_signalled ? -1 : 0;
+	cond->waiters = 0;
 
 	*condp = cond;
 	return (0);

@@ -563,7 +563,7 @@ __statlog_start(WT_CONNECTION_IMPL *conn)
 	session = conn->stat_session;
 
 	WT_RET(__wt_cond_alloc(
-	    session, "statistics log server", false, &conn->stat_cond));
+	    session, "statistics log server", &conn->stat_cond));
 
 	/*
 	 * Start the thread.
