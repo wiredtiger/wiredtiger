@@ -32,7 +32,7 @@
  */
 #define	WT_CACHE_POOL_APP_EVICT_MULTIPLIER	3
 #define	WT_CACHE_POOL_APP_WAIT_MULTIPLIER	6
-#define	WT_CACHE_POOL_READ_MULTIPLIER	1
+#define	WT_CACHE_POOL_READ_MULTIPLIER		1
 
 static void __cache_pool_adjust(
     WT_SESSION_IMPL *, uint64_t, uint64_t, bool, bool *);
