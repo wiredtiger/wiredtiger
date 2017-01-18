@@ -1046,9 +1046,9 @@ __wt_logmgr_destroy(WT_SESSION_IMPL *session)
 	}
 
 	/* Destroy the condition variables now that all threads are stopped */
-	WT_TRET(__wt_cond_auto_destroy(session, &conn->log_cond));
+	WT_TRET(__wt_cond_destroy(session, &conn->log_cond));
 	WT_TRET(__wt_cond_destroy(session, &conn->log_file_cond));
-	WT_TRET(__wt_cond_auto_destroy(session, &conn->log_wrlsn_cond));
+	WT_TRET(__wt_cond_destroy(session, &conn->log_wrlsn_cond));
 
 	WT_TRET(__wt_cond_destroy(session, &conn->log->log_sync_cond));
 	WT_TRET(__wt_cond_destroy(session, &conn->log->log_write_cond));
