@@ -67,7 +67,11 @@ __wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond,
 	 * future wakeup call), optionally check if we're OK to keep running.
 	 * This won't ensure our caller won't just loop and call us again, but
 	 * at least it's not our fault.
+	 *
+	 * Assert we're not waiting longer than a few seconds if not checking
+	 * the run status.
 	 */
+	WT_ASSERT(session, run_func != NULL || usecs < 5 * WT_MILLION);
 	if (run_func != NULL && !run_func(session))
 		goto skipping;
 
