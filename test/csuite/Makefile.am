@@ -40,6 +40,9 @@ noinst_PROGRAMS += test_wt2853_perf
 test_wt2999_join_extractor_SOURCES = wt2999_join_extractor/main.c
 noinst_PROGRAMS += test_wt2999_join_extractor
 
+test_wt3135_search_near_collator_SOURCES = wt3135_search_near_collator/main.c
+noinst_PROGRAMS += test_wt3135_search_near_collator
+
 # Run this during a "make check" smoke test.
 TESTS = $(noinst_PROGRAMS)
 LOG_COMPILER = $(TEST_WRAPPER)
