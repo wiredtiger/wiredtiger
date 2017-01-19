@@ -938,6 +938,8 @@ __wt_logmgr_open(WT_SESSION_IMPL *session)
 	if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
 		return (0);
 
+	F_SET(conn, WT_CONN_LOG_SERVER_RUN);
+
 	/*
 	 * Start the log close thread.  It is not configurable.
 	 * If logging is enabled, this thread runs.
@@ -1007,6 +1009,8 @@ __wt_logmgr_destroy(WT_SESSION_IMPL *session)
 	WT_SESSION *wt_session;
 
 	conn = S2C(session);
+
+	F_CLR(conn, WT_CONN_LOG_SERVER_RUN);
 
 	if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED)) {
 		/*
