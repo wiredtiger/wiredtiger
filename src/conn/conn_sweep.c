@@ -286,8 +286,6 @@ __sweep_server(void *arg)
 		if (!__sweep_server_run_chk(session))
 			break;
 
-		__wt_seconds(session, &now);
-
 		/* Wait until the next event. */
 		__wt_cond_wait(session, conn->sweep_cond,
 		    conn->sweep_interval * WT_MILLION, __sweep_server_run_chk);
@@ -295,6 +293,8 @@ __sweep_server(void *arg)
 		/* Check if we're quitting or being reconfigured. */
 		if (!__sweep_server_run_chk(session))
 			break;
+
+		__wt_seconds(session, &now);
 
 		WT_STAT_CONN_INCR(session, dh_sweeps);
 
