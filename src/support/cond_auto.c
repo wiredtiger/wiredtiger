@@ -45,9 +45,8 @@ __wt_cond_auto_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond,
 	uint64_t delta;
 
 	/*
-	 * Ensure we haven't mixed-and-matched calls between interfaces that do
-	 * automatic adjustment of the condition variable wait period and those
-	 * that don't.
+	 * Catch cases where this function is called with a condition variable
+	 * that was initialized non-auto.
 	 */
 	WT_ASSERT(session, cond->min_wait != 0);
 
@@ -60,7 +59,7 @@ __wt_cond_auto_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond,
 		    cond->max_wait, cond->prev_wait + delta);
 	}
 
-	__wt_cond_wait_signal_wrapped(
+	__wt_cond_wait_signal(
 	    session, cond, cond->prev_wait, run_func, signalled);
 
 	if (progress || *signalled)

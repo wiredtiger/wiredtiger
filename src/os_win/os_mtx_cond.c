@@ -32,12 +32,12 @@ __wt_cond_alloc(WT_SESSION_IMPL *session, const char *name, WT_CONDVAR **condp)
 }
 
 /*
- * __wt_cond_wait_signal_wrapped --
+ * __wt_cond_wait_signal --
  *	Wait on a mutex, optionally timing out.  If we get it before the time
  * out period expires, let the caller know.
  */
 void
-__wt_cond_wait_signal_wrapped(WT_SESSION_IMPL *session, WT_CONDVAR *cond,
+__wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond,
     uint64_t usecs, bool (*run_func)(WT_SESSION_IMPL *), bool *signalled)
 {
 	BOOL sleepret;
