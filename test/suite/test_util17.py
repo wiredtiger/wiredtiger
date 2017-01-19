@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2016 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -26,28 +26,32 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import os
+from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 
-# test_schema07.py
-#    Test that long-running tests don't fill the cache with metadata
-class test_schema07(wttest.WiredTigerTestCase):
-    tablename = 'table:test_schema07'
+# test_util17.py
+#    Utilities: wt stat
+class test_util17(wttest.WiredTigerTestCase, suite_subprocess):
+    tablename = 'test_util17.a'
 
-    conn_config = 'cache_size=10MB'
+    def test_stat_process(self):
+        """
+        Test stat in a 'wt' process
+        This test is just here to confirm that stat produces a correct looking
+        output, it isn't here to do statistics validation.
+        """
+        params = 'key_format=S,value_format=S'
+        outfile = "wt-stat.out"
+        expected_string = "cursor: cursor create calls="
+        self.session.create('table:' + self.tablename, params)
+        self.assertTrue(os.path.exists(self.tablename + ".wt"))
+        self.runWt(["stat"], outfilename=outfile)
+        self.check_file_contains(outfile, expected_string)
 
-    @wttest.longtest("Creating many tables shouldn't fill the cache")
-    def test_many_tables(self):
-        s = self.session
-        # We have a 10MB cache, metadata is (well) over 512B per table,
-        # if we can create 20K tables, something must be cleaning up.
-        for i in xrange(20000):
-            uri = '%s-%06d' % (self.tablename, i)
-            s.create(uri)
-            c = s.open_cursor(uri)
-            # This will block if the metadata fills the cache
-            c["key"] = "value"
-            c.close()
-            self.session.drop(uri)
+        expected_string = "cache_walk: Entries in the root page=1"
+        self.runWt(["stat", "table:" + self.tablename ], outfilename=outfile)
+        self.check_file_contains(outfile, expected_string)
 
 if __name__ == '__main__':
     wttest.run()
