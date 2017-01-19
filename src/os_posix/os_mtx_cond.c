@@ -97,11 +97,10 @@ __wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond,
 	    ret == ETIME ||
 #endif
 	    ret == ETIMEDOUT) {
-		*signalled = false;
+skipping:	*signalled = false;
 		ret = 0;
 	}
 
-skipping:
 err:	(void)__wt_atomic_subi32(&cond->waiters, 1);
 
 	if (locked)

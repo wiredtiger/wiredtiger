@@ -106,12 +106,11 @@ __wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond,
 	if (sleepret == 0) {
 		windows_error = __wt_getlasterror();
 		if (windows_error == ERROR_TIMEOUT) {
-			*signalled = false;
+skipping:		*signalled = false;
 			sleepret = 1;
 		}
 	}
 
-skipping:
 	(void)__wt_atomic_subi32(&cond->waiters, 1);
 
 	if (locked)
