@@ -525,6 +525,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 			    (int64_t)new_join, (int64_t)released,
 			    (int64_t)flag_state);
 
+			slot = log->active_slot;
 #ifdef	HAVE_DIAGNOSTIC
 			/*
 			 * Yield to encourage slot switch races.
@@ -536,8 +537,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 			 * Attempt to swap our size into the state.
 			 */
 			if (__wt_atomic_casiv64(
-			    &(slot = log->active_slot)->slot_state,
-			    old_state, new_state))
+			    &slot->slot_state, old_state, new_state))
 				break;
 		}
 		/*
