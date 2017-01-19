@@ -46,7 +46,7 @@ __wt_cond_auto_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond,
 
 	/*
 	 * Catch cases where this function is called with a condition variable
-	 * that was initialized non-auto.
+	 * that wasn't initialized to do automatic adjustments.
 	 */
 	WT_ASSERT(session, cond->min_wait != 0);
 
