@@ -7,6 +7,26 @@
  */
 
 /*
+ * __wt_cond_wait_signal --
+ *	Wait on a mutex, optionally timing out.  If we get it before the time
+ * out period expires, let the caller know.
+ */
+static inline void
+__wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond,
+    uint64_t usecs, bool (*run_func)(WT_SESSION_IMPL *), bool *signalled)
+{
+	/*
+	 * Ensure we haven't mixed-and-matched calls between interfaces that do
+	 * automatic adjustment of the condition variable wait period and those
+	 * that don't.
+	 */
+	WT_ASSERT(session, cond->min_wait == 0);
+
+	__wt_cond_wait_signal_wrapped(
+	    session, cond, usecs, run_func, signalled);
+}
+
+/*
  * __wt_cond_wait --
  *	Wait on a mutex, optionally timing out.
  */
