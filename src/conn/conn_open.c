@@ -100,16 +100,12 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 		__wt_yield();
 	}
 
-	/* Clear any pending async ops. */
-	WT_TRET(__wt_async_flush(session));
-
 	/*
-	 * From here on we aren't interested in "normal" thread cleanup and/or
-	 * other processing, we're done and threads should now exit regardless
-	 * of their state.
+	 * Clear any pending async operations and shut down the async worker
+	 * threads and system before closing LSM.
 	 */
-	F_CLR(conn, WT_CONN_SERVER_RUN);
-	F_SET(conn, WT_CONN_CLOSING);
+	WT_TRET(__wt_async_flush(session));
+	WT_TRET(__wt_async_destroy(session));
 
 	/*
 	 * Shut down server threads other than the eviction server, which is
@@ -117,12 +113,15 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	 * btree handles, so take care in ordering shutdown to make sure they
 	 * exit before files are closed.
 	 */
-	WT_TRET(__wt_async_destroy(session));
+	F_CLR(conn, WT_CONN_SERVER_RUN);
 	WT_TRET(__wt_lsm_manager_destroy(session));
-	WT_TRET(__wt_sweep_destroy(session));
 
+	F_SET(conn, WT_CONN_CLOSING);
 	WT_TRET(__wt_checkpoint_server_destroy(session));
 	WT_TRET(__wt_statlog_destroy(session, true));
+	WT_TRET(__wt_sweep_destroy(session));
+
+	/* The eviction server is shut down last. */
 	WT_TRET(__wt_evict_destroy(session));
 
 	/* Shut down the lookaside table, after all eviction is complete. */
@@ -131,7 +130,7 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	/* Close open data handles. */
 	WT_TRET(__wt_conn_dhandle_discard(session));
 
-	/* Shut down metadata tracking, required before creating tables. */
+	/* Shut down metadata tracking. */
 	WT_TRET(__wt_meta_track_destroy(session));
 
 	/*
