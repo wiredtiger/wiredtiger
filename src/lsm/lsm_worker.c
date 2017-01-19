@@ -154,10 +154,6 @@ __lsm_worker(void *arg)
 
 		/* Don't busy wait if there was any work to do. */
 		if (!progress) {
-			/*
-			 * No run function needed, we're only pausing for
-			 * 1/100th second.
-			 */
 			__wt_cond_wait(session, cookie->work_cond, 10000, NULL);
 			continue;
 		}

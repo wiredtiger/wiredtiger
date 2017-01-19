@@ -517,12 +517,7 @@ __log_file_server(void *arg)
 			}
 		}
 
-		/*
-		 * Wait until the next event.
-		 *
-		 * No run function needed, we're only pausing for 1/10th of a
-		 * second.
-		 */
+		/* Wait until the next event. */
 		__wt_cond_wait(session, conn->log_file_cond, 100000, NULL);
 	}
 
@@ -734,14 +729,9 @@ __log_wrlsn_server(void *arg)
 		 */
 		if (yield++ < WT_THOUSAND)
 			__wt_yield();
-		else {
-			/*
-			 * No run function needed, the condition variable is
-			 * configured to never pause for more than a second.
-			 */
+		else
 			__wt_cond_auto_wait(
 			    session, conn->log_wrlsn_cond, did_work, NULL);
-		}
 	}
 	/*
 	 * On close we need to do this one more time because there could
@@ -845,12 +835,7 @@ __log_server(void *arg)
 			}
 		}
 
-		/*
-		 * Wait until the next event.
-		 *
-		 * No run function needed, the condition variable is configured
-		 * to never pause for more than a second.
-		 */
+		/* Wait until the next event. */
 		__wt_epoch(session, &start);
 		__wt_cond_auto_wait_signal(
 		    session, conn->log_cond, did_work, NULL, &signalled);

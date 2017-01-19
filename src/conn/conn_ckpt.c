@@ -134,9 +134,6 @@ __ckpt_server(void *arg)
 				 * already signalled, do a tiny wait to clear
 				 * it so we don't do another checkpoint
 				 * immediately.
-				 *
-				 * No run function needed, we're only pausing
-				 * for 1 usec.
 				 */
 				__wt_cond_wait(
 				    session, conn->ckpt_cond, 1, NULL);
