@@ -368,8 +368,6 @@ __wt_log_slot_new(WT_SESSION_IMPL *session)
 				abort();
 			}
 			count = 0;
-			__log_slot_dump(session);
-			abort();
 		}
 #endif
 	}
