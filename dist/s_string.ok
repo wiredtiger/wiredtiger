@@ -1119,12 +1119,14 @@ stdin
 stdout
 stepp
 str
+strchr
 strcmp
 strdup
 strerror
 strftime
 strget
 strlen
+strnchr
 strncpy
 strndup
 strtok

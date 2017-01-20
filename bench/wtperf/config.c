@@ -117,53 +117,6 @@ config_opt_cleanup(CONFIG_OPTS *opts)
 }
 
 /*
- * config_unescape --
- *	Modify a string in place, replacing any backslash escape sequences.
- *	The modified string is always shorter.
- */
-static int
-config_unescape(char *orig)
-{
-	char ch, *dst, *s;
-
-	for (dst = s = orig; *s != '\0';) {
-		if ((ch = *s++) == '\\') {
-			ch = *s++;
-			switch (ch) {
-			case 'b':
-				*dst++ = '\b';
-				break;
-			case 'f':
-				*dst++ = '\f';
-				break;
-			case 'n':
-				*dst++ = '\n';
-				break;
-			case 'r':
-				*dst++ = '\r';
-				break;
-			case 't':
-				*dst++ = '\t';
-				break;
-			case '\\':
-			case '/':
-			case '\"':	/* Backslash needed for spell check. */
-				*dst++ = ch;
-				break;
-			default:
-				/* Note: Unicode (\u) not implemented. */
-				fprintf(stderr,
-				    "invalid escape in string: %s\n", orig);
-				return (EINVAL);
-			}
-		} else
-			*dst++ = ch;
-	}
-	*dst = '\0';
-	return (0);
-}
-
-/*
  * config_threads --
  *	Parse the thread configuration.
  */
@@ -345,8 +298,7 @@ config_opt(WTPERF *wtperf, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v)
 {
 	CONFIG_OPTS *opts;
 	CONFIG_OPT *desc;
-	char *begin, *newstr, **strp;
-	int ret;
+	char *newstr, **strp;
 	size_t i, newlen;
 	void *valueloc;
 
@@ -423,7 +375,7 @@ config_opt(WTPERF *wtperf, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v)
 		strp = (char **)valueloc;
 		newlen = v->len + 1;
 		if (*strp == NULL)
-			begin = newstr = dstrdup(v->str);
+			newstr = dstrdup(v->str);
 		else {
 			newlen += strlen(*strp) + 1;
 			newstr = dcalloc(newlen, sizeof(char));
@@ -431,11 +383,6 @@ config_opt(WTPERF *wtperf, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v)
 			    "%s,%*s", *strp, (int)v->len, v->str);
 			/* Free the old value now we've copied it. */
 			free(*strp);
-			begin = &newstr[(newlen - 1) - v->len];
-		}
-		if ((ret = config_unescape(begin)) != 0) {
-			free(newstr);
-			return (ret);
 		}
 		*strp = newstr;
 		break;

@@ -43,6 +43,7 @@ struct __wt_config_parser_impl {
 	WT_SESSION_IMPL *session;
 	WT_CONFIG config;
 	WT_CONFIG_ITEM config_item;
+	char *unescaped;
 };
 
 /*

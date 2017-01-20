@@ -476,6 +476,21 @@ __config_next(WT_CONFIG *conf, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value)
 }
 
 /*
+ * __config_strnchr --
+ *	Implementation of strchr for a limited length.
+ */
+static const char *
+__config_strnchr(const char *s, char match, size_t len)
+{
+	const char *end;
+
+	for (end = s + len; s < end; s++)
+		if (*s == match)
+			return (s);
+	return (NULL);
+}
+
+/*
  * Arithmetic shift of a negative number is undefined by ISO/IEC 9899, and the
  * WiredTiger API supports negative numbers.  Check it's not a negative number,
  * and then cast the shift out of paranoia.
@@ -488,10 +503,12 @@ __config_next(WT_CONFIG *conf, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value)
 
 /*
  * __config_process_value --
- *	Deal with special config values like true / false.
+ *	Remove string escapes, and deal with special config values like
+ *	true / false.
  */
 static int
-__config_process_value(WT_CONFIG *conf, WT_CONFIG_ITEM *value)
+__config_process_value(WT_CONFIG *conf, WT_CONFIG_ITEM *value,
+    char **punescaped)
 {
 	char *endptr;
 
@@ -556,6 +573,12 @@ __config_process_value(WT_CONFIG *conf, WT_CONFIG_ITEM *value)
 		 */
 		if (value->type == WT_CONFIG_ITEM_NUM && errno == ERANGE)
 			goto range;
+	} else if (punescaped != NULL &&
+	    value->type == WT_CONFIG_ITEM_STRING &&
+	    __config_strnchr(value->str, '\\', value->len) != NULL) {
+		WT_RET(__wt_config_unescape(conf->session, value, punescaped));
+		value->str = *punescaped;
+		value->len = strlen(*punescaped);
 	}
 
 	return (0);
@@ -571,7 +594,19 @@ int
 __wt_config_next(WT_CONFIG *conf, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value)
 {
 	WT_RET(__config_next(conf, key, value));
-	return (__config_process_value(conf, value));
+	return (__config_process_value(conf, value, NULL));
+}
+
+/*
+ * __wt_config_next_unescape --
+ *	Get the next config item in the string and process/unescape the value.
+ */
+int
+__wt_config_next_unescape(WT_CONFIG *conf, WT_CONFIG_ITEM *key,
+     WT_CONFIG_ITEM *value, char **punescaped)
+{
+	WT_RET(__config_next(conf, key, value));
+	return (__config_process_value(conf, value, punescaped));
 }
 
 /*
@@ -580,7 +615,8 @@ __wt_config_next(WT_CONFIG *conf, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value)
  */
 static int
 __config_getraw(
-    WT_CONFIG *cparser, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value, bool top)
+    WT_CONFIG *cparser, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value,
+    char **punescaped, bool top)
 {
 	WT_CONFIG sparser;
 	WT_CONFIG_ITEM k, v, subk;
@@ -602,7 +638,7 @@ __config_getraw(
 			__wt_config_initn(
 			    cparser->session, &sparser, v.str, v.len);
 			if ((ret = __config_getraw(
-			    &sparser, &subk, value, false)) == 0)
+			    &sparser, &subk, value, punescaped, false)) == 0)
 				found = true;
 			WT_RET_NOTFOUND_OK(ret);
 		}
@@ -611,7 +647,7 @@ __config_getraw(
 
 	if (!found)
 		return (WT_NOTFOUND);
-	return (top ? __config_process_value(cparser, value) : 0);
+	return (top ? __config_process_value(cparser, value, punescaped) : 0);
 }
 
 /*
@@ -640,7 +676,8 @@ __wt_config_get(WT_SESSION_IMPL *session,
 		--cfg;
 
 		__wt_config_init(session, &cparser, *cfg);
-		if ((ret = __config_getraw(&cparser, key, value, true)) == 0)
+		if ((ret = __config_getraw(&cparser, key, value, NULL,
+		    true)) == 0)
 			return (0);
 		WT_RET_NOTFOUND_OK(ret);
 	} while (cfg != cfg_arg);
@@ -689,7 +726,7 @@ __wt_config_getone(WT_SESSION_IMPL *session,
 	WT_CONFIG cparser;
 
 	__wt_config_init(session, &cparser, config);
-	return (__config_getraw(&cparser, key, value, true));
+	return (__config_getraw(&cparser, key, value, NULL, true));
 }
 
 /*
@@ -705,7 +742,7 @@ __wt_config_getones(WT_SESSION_IMPL *session,
 	    { key, strlen(key), 0, WT_CONFIG_ITEM_STRING };
 
 	__wt_config_init(session, &cparser, config);
-	return (__config_getraw(&cparser, &key_item, value, true));
+	return (__config_getraw(&cparser, &key_item, value, NULL, true));
 }
 
 /*
@@ -764,13 +801,13 @@ __wt_config_gets_def(WT_SESSION_IMPL *session,
  *	This is useful for dealing with nested structs in config strings.
  */
 int
-__wt_config_subgetraw(WT_SESSION_IMPL *session,
-    WT_CONFIG_ITEM *cfg, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value)
+__wt_config_subgetraw(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cfg,
+    WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value, char **punescaped)
 {
 	WT_CONFIG cparser;
 
 	__wt_config_initn(session, &cparser, cfg->str, cfg->len);
-	return (__config_getraw(&cparser, key, value, true));
+	return (__config_getraw(&cparser, key, value, punescaped, true));
 }
 
 /*
@@ -785,5 +822,76 @@ __wt_config_subgets(WT_SESSION_IMPL *session,
 	WT_CONFIG_ITEM key_item =
 	    { key, strlen(key), 0, WT_CONFIG_ITEM_STRING };
 
-	return (__wt_config_subgetraw(session, cfg, &key_item, value));
+	return (__wt_config_subgetraw(session, cfg, &key_item, value, NULL));
+}
+
+/*
+ * __wt_config_subgets_unescape --
+ *	Get the value for a given key from a config string in a WT_CONFIG_ITEM.
+ *	This is useful for dealing with nested structs in config strings.
+ */
+int
+__wt_config_subgets_unescape(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cfg,
+    const char *key, WT_CONFIG_ITEM *value, char **punescaped)
+{
+	WT_CONFIG_ITEM key_item =
+	    { key, strlen(key), 0, WT_CONFIG_ITEM_STRING };
+
+	return (__wt_config_subgetraw(session, cfg, &key_item, value,
+	    punescaped));
+}
+
+/*
+ * __wt_config_unescape --
+ *	Remove backslash escapes within a string, returning the
+ *	result in reallocated memory.
+ */
+int
+__wt_config_unescape(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *value,
+    void *retp)
+{
+	char ch, *dst;
+	const char *s;
+
+	WT_RET(__wt_realloc(session, NULL, value->len + 1, retp));
+	s = value->str;
+	dst = *(char **)retp;
+	while (s < value->str + value->len) {
+		if ((ch = *s++) == '\\') {
+			ch = *s++;
+			switch (ch) {
+			case 'b':
+				*dst++ = '\b';
+				break;
+			case 'f':
+				*dst++ = '\f';
+				break;
+			case 'n':
+				*dst++ = '\n';
+				break;
+			case 'r':
+				*dst++ = '\r';
+				break;
+			case 't':
+				*dst++ = '\t';
+				break;
+			case '\\':
+			case '/':
+			case '\"':	/* Backslash for spell check. */
+				*dst++ = ch;
+				break;
+			default:
+				/*
+				 * Note: Unicode escapes (\u) are
+				 * not implemented.
+				 */
+				WT_RET_MSG(session, EINVAL,
+				    "invalid escape in string: %.*s",
+				    (int)value->len, value->str);
+			}
+		} else
+			*dst++ = ch;
+	}
+	*dst = '\0';
+	return (0);
 }

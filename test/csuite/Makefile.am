@@ -28,6 +28,9 @@ noinst_PROGRAMS += test_wt2695_checksum
 test_wt2592_join_schema_SOURCES = wt2592_join_schema/main.c
 noinst_PROGRAMS += test_wt2592_join_schema
 
+test_wt2611_config_quoting_SOURCES = wt2611_config_quoting/main.c
+noinst_PROGRAMS += test_wt2611_config_quoting
+
 test_wt2719_reconfig_SOURCES = wt2719_reconfig/main.c
 noinst_PROGRAMS += test_wt2719_reconfig
 

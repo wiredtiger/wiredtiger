@@ -19,6 +19,10 @@ __config_parser_close(WT_CONFIG_PARSER *wt_config_parser)
 
 	config_parser = (WT_CONFIG_PARSER_IMPL *)wt_config_parser;
 
+	if (config_parser == NULL)
+		return (EINVAL);
+
+	__wt_free(config_parser->session, config_parser->unescaped);
 	__wt_free(config_parser->session, config_parser);
 	return (0);
 }
@@ -35,8 +39,12 @@ __config_parser_get(WT_CONFIG_PARSER *wt_config_parser,
 
 	config_parser = (WT_CONFIG_PARSER_IMPL *)wt_config_parser;
 
-	return (__wt_config_subgets(config_parser->session,
-	    &config_parser->config_item, key, cval));
+	if (config_parser == NULL)
+		return (EINVAL);
+
+	return (__wt_config_subgets_unescape(config_parser->session,
+	    &config_parser->config_item, key, cval,
+	    &config_parser->unescaped));
 }
 
 /*
@@ -51,7 +59,11 @@ __config_parser_next(WT_CONFIG_PARSER *wt_config_parser,
 
 	config_parser = (WT_CONFIG_PARSER_IMPL *)wt_config_parser;
 
-	return (__wt_config_next(&config_parser->config, key, cval));
+	if (config_parser == NULL)
+		return (EINVAL);
+
+	return (__wt_config_next_unescape(&config_parser->config, key, cval,
+	    &config_parser->unescaped));
 }
 
 /*
