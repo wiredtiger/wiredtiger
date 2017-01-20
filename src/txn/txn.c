@@ -821,7 +821,6 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 
 	conn = S2C(session);
 	txn_global = &conn->txn_global;
-	WT_ORDERED_READ(session_cnt, conn->session_cnt);
 
 	WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
 	WT_RET(__wt_msg(session, "transaction state dump"));
@@ -841,6 +840,8 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 	    "checkpoint pinned ID: %" PRIu64, txn_global->checkpoint_pinned));
 	WT_RET(__wt_msg(session,
 	    "checkpoint txn ID: %" PRIu64, txn_global->checkpoint_txnid));
+
+	WT_ORDERED_READ(session_cnt, conn->session_cnt);
 	WT_RET(__wt_msg(session, "session count: %" PRIu32, session_cnt));
 
 	WT_RET(__wt_msg(session, "Transaction state of active sessions:"));
