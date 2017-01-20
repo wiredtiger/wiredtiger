@@ -47,7 +47,7 @@ bool item_str_equal(WT_ITEM *item, const char *str)
 static
 int compare_int(int a, int b)
 {
-    return (a < b ? -1 : (a > b ? 1 : 0));
+	return (a < b ? -1 : (a > b ? 1 : 0));
 }
 
 static
@@ -74,24 +74,26 @@ static
 int index_compare_S(WT_COLLATOR *collator, WT_SESSION *session,
     const WT_ITEM *key1, const WT_ITEM *key2, int *cmp)
 {
-    WT_PACK_STREAM *s1, *s2;
-    const char *skey1, *skey2;
+	WT_PACK_STREAM *s1, *s2;
+	const char *skey1, *skey2;
 
-    testutil_check(wiredtiger_unpack_start(session, "Si", key1->data,
-	key1->size, &s1));
-    testutil_check(wiredtiger_unpack_start(session, "Si", key2->data,
-	key2->size, &s2));
+	(void)collator;
 
-    testutil_check(wiredtiger_unpack_str(s1, &skey1));
-    testutil_check(wiredtiger_unpack_str(s2, &skey2));
+	testutil_check(wiredtiger_unpack_start(session, "Si", key1->data,
+	    key1->size, &s1));
+	testutil_check(wiredtiger_unpack_start(session, "Si", key2->data,
+	    key2->size, &s2));
 
-    if ((*cmp = strcmp(skey1, skey2)) == 0)
-	    testutil_check(index_compare_primary(s1, s2, cmp));
+	testutil_check(wiredtiger_unpack_str(s1, &skey1));
+	testutil_check(wiredtiger_unpack_str(s2, &skey2));
 
-    testutil_check(wiredtiger_pack_close(s1, NULL));
-    testutil_check(wiredtiger_pack_close(s2, NULL));
+	if ((*cmp = strcmp(skey1, skey2)) == 0)
+		testutil_check(index_compare_primary(s1, s2, cmp));
 
-    return (0);
+	testutil_check(wiredtiger_pack_close(s1, NULL));
+	testutil_check(wiredtiger_pack_close(s2, NULL));
+
+	return (0);
 }
 
 static
@@ -100,6 +102,8 @@ int index_compare_u(WT_COLLATOR *collator, WT_SESSION *session,
 {
 	WT_ITEM skey1, skey2;
 	WT_PACK_STREAM *s1, *s2;
+
+	(void)collator;
 
 	testutil_check(wiredtiger_unpack_start(session, "ui", key1->data,
 	    key1->size, &s1));
@@ -175,8 +179,7 @@ main(int argc, char *argv[])
 	testutil_check(session->open_cursor(session,
 	    "table:main", NULL, NULL, &cursor));
 
-	for (i = 0; i < (int32_t)(sizeof(values) / sizeof(values[0])); i++)
-	{
+	for (i = 0; i < (int32_t)(sizeof(values) / sizeof(values[0])); i++) {
 		cursor->set_key(cursor, i);
 		cursor->set_value(cursor, values[i]);
 		testutil_check(cursor->insert(cursor));
@@ -221,8 +224,7 @@ main(int argc, char *argv[])
 	    "table:main2", NULL, NULL, &cursor));
 
 	memset(&item, 0, sizeof(item));
-	for (i = 0; i < (int32_t)(sizeof(values) / sizeof(values[0])); i++)
-	{
+	for (i = 0; i < (int32_t)(sizeof(values) / sizeof(values[0])); i++) {
 		item.size = strlen(values[i]) + 1;
 		item.data = values[i];
 
