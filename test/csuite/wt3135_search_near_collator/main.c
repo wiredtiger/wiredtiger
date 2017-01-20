@@ -190,7 +190,7 @@ main(int argc, char *argv[])
 	testutil_check(cursor->search_near(cursor, &exact));
 	testutil_check(cursor->get_key(cursor, &found_key));
 	testutil_assert((strcmp(found_key, "12345") == 0 && exact > 0) ||
-	    strcmp(found_key, "123") == 0 && exact < 0);
+	    (strcmp(found_key, "123") == 0 && exact < 0));
 	testutil_check(cursor->close(cursor));
 
 	/* Check search_near in custom_collator index */
@@ -200,7 +200,7 @@ main(int argc, char *argv[])
 	testutil_check(cursor->search_near(cursor, &exact));
 	testutil_check(cursor->get_key(cursor, &found_key));
 	testutil_assert((strcmp(found_key, "12345") == 0 && exact > 0) ||
-	    strcmp(found_key, "123") == 0 && exact < 0);
+	    (strcmp(found_key, "123") == 0 && exact < 0));
 	testutil_check(cursor->close(cursor));
 
 	/*
@@ -220,7 +220,7 @@ main(int argc, char *argv[])
 	testutil_check(session->open_cursor(session,
 	    "table:main2", NULL, NULL, &cursor));
 
-	memset(&item, sizeof(item), 0);
+	memset(&item, 0, sizeof(item));
 	for (i = 0; i < (int32_t)(sizeof(values) / sizeof(values[0])); i++)
 	{
 		item.size = strlen(values[i]) + 1;
@@ -240,7 +240,7 @@ main(int argc, char *argv[])
 	testutil_check(cursor->search_near(cursor, &exact));
 	testutil_check(cursor->get_key(cursor, &item));
 	testutil_assert((item_str_equal(&item, "12345") && exact > 0) ||
-	    item_str_equal(&item, "123") && exact < 0);
+	    (item_str_equal(&item, "123") && exact < 0));
 	testutil_check(cursor->close(cursor));
 
 	testutil_check(session->close(session, NULL));
