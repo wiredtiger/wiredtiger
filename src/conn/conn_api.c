@@ -1874,8 +1874,8 @@ __conn_verbose_cmd(WT_SESSION_IMPL *session, const char *config)
 		int (*func)(WT_SESSION_IMPL *);		/* command */
 	} verbose_cmd[] = {
 		 { "dump_cache", __wt_verbose_dump_cache },
-		 {   "dump_txn", __wt_verbose_dump_txn },
-		 { NULL, NULL }
+		 { "dump_txn",	 __wt_verbose_dump_txn },
+		 { NULL,	 NULL }
 	};
 	const struct verbose_cmd_struct *dp;
 	WT_CONFIG_ITEM cval, sval;
