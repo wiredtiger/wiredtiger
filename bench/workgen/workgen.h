@@ -74,7 +74,7 @@ struct Thread {
 
     void describe(std::ostream &os) const {
         os << "Thread: [" << std::endl;
-        for (auto i = _ops.begin(); i != _ops.end(); i++) {
+        for (std::vector<Operation>::const_iterator i = _ops.begin(); i != _ops.end(); i++) {
             os << "  "; i->describe(os); os << std::endl;
         }
         os << "]";
@@ -90,7 +90,7 @@ struct Workload {
 
     void describe(std::ostream &os) const {
         os << "Workload: [" << std::endl;
-        for (auto i = _threads.begin(); i != _threads.end(); i++) {
+        for (std::vector<Thread>::const_iterator i = _threads.begin(); i != _threads.end(); i++) {
             os << "  "; i->describe(os); os << std::endl;
         }
         os << "]";
