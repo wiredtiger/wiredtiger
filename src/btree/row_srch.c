@@ -831,7 +831,7 @@ restart:	/*
 		}
 		if (i == entries)
 			for (i = 0; i < entries; ++i) {
-				descent = pindex->index[entries];
+				descent = pindex->index[i];
 				if (descent->state != WT_REF_DELETED)
 					break;
 			}
