@@ -1324,7 +1324,6 @@ retry:	while (slot < max_entries) {
 				(void)__wt_atomic_subi32(
 				    &dhandle->session_inuse, 1);
 				incr = false;
-				cache->evict_file_next = NULL;
 			}
 			dhandle = TAILQ_NEXT(dhandle, q);
 		}
@@ -1397,9 +1396,8 @@ retry:	while (slot < max_entries) {
 		 * waiting on this thread to acknowledge that action.
 		 */
 		if (!F_ISSET(btree, WT_BTREE_NO_EVICTION) &&
-		    !__wt_spin_trylock(session, &cache->evict_walk_lock)) {
+		    __wt_spin_trylock(session, &cache->evict_walk_lock) == 0) {
 			if (!F_ISSET(btree, WT_BTREE_NO_EVICTION)) {
-				cache->evict_file_next = dhandle;
 				WT_WITH_DHANDLE(session, dhandle, ret =
 				    __evict_walk_file(session, queue,
 				    max_entries, &slot));
@@ -1408,6 +1406,8 @@ retry:	while (slot < max_entries) {
 			__wt_spin_unlock(session, &cache->evict_walk_lock);
 			WT_ERR(ret);
 		}
+
+		cache->evict_file_next = dhandle;
 	}
 
 	if (incr) {
