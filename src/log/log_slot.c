@@ -78,19 +78,13 @@ __wt_log_slot_activate(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 	slot->slot_last_offset = log->alloc_lsn.l.offset;
 	slot->slot_fh = log->log_fh;
 	slot->slot_error = 0;
-#ifdef	HAVE_DIAGNOSTIC
-	/*
-	 * Yield here to encourage races during slot switches.
-	 */
-	__wt_yield();
-#endif
-	WT_BARRIER();
+	WT_DIAGNOSTIC_YIELD;
 	/*
 	 * Set the slot state last.  Other threads may have a stale pointer
-	 * to this slot everything else needs to be there before the state
-	 * is cleared.  Use a barrier to make sure it is last.
+	 * to this slot and could try to alter the state and other fields once
+	 * they see the state cleared.
 	 */
-	slot->slot_state = 0;
+	WT_PUBLISH(slot->slot_state, 0);
 }
 
 /*
@@ -179,7 +173,7 @@ retry:
 					slot->slot_state,
 					slot->slot_unbuffered);
 					__log_slot_dump(session);
-					abort();
+					__wt_abort(session);
 				}
 				count = 0;
 			}
@@ -365,7 +359,7 @@ __wt_log_slot_new(WT_SESSION_IMPL *session)
 				__wt_errx(session,
 				    "SLOT_NEW: Timeout free slot");
 				__log_slot_dump(session);
-				abort();
+				__wt_abort(session);
 			}
 			count = 0;
 		}
@@ -479,10 +473,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 	WT_LOGSLOT *slot;
 	int64_t flag_state, new_state, old_state, released;
 	int32_t join_offset, new_join;
-	bool unbuffered;
-#ifdef	HAVE_DIAGNOSTIC
-	bool yld;
-#endif
+	bool unbuffered, yld;
 
 	conn = S2C(session);
 	log = conn->log;
@@ -495,10 +486,11 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 	 */
 	unbuffered = false;
 #ifdef	HAVE_DIAGNOSTIC
-	yld = (log->write_calls % 7) == 0;
-	if ((++log->write_calls % WT_THOUSAND) == 0 ||
+	yld = (++log->write_calls % 7) == 0;
+	if ((log->write_calls % WT_THOUSAND) == 0 ||
 	    mysize > WT_LOG_SLOT_BUF_MAX) {
 #else
+	yld = false;
 	if (mysize > WT_LOG_SLOT_BUF_MAX) {
 #endif
 		unbuffered = true;
@@ -524,13 +516,8 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 			    (int64_t)flag_state);
 
 			slot = log->active_slot;
-#ifdef	HAVE_DIAGNOSTIC
-			/*
-			 * Yield to encourage slot switch races.
-			 */
 			if (yld)
-				__wt_yield();
-#endif
+				WT_DIAGNOSTIC_YIELD;
 			/*
 			 * Attempt to swap our size into the state.
 			 */
@@ -559,6 +546,11 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 	if (F_ISSET(myslot, WT_MYSLOT_UNBUFFERED)) {
 		WT_ASSERT(session, slot->slot_unbuffered == 0);
 		WT_STAT_CONN_INCR(session, log_slot_unbuffered);
+		/*
+		 * There may be another thread in a tight loop watching the
+		 * content of the unbuffered field.  Use a write barrier to
+		 * make sure it is seen after we set it.
+		 */
 		slot->slot_unbuffered = (int64_t)mysize;
 		WT_WRITE_BARRIER();
 	}
