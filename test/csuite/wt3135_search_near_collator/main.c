@@ -49,21 +49,21 @@ static TEST_SET test_sets[] = {
 };
 #define	TEST_SET_COUNT	(sizeof(test_sets) / sizeof(test_sets[0]))
 
-static
-bool item_str_equal(WT_ITEM *item, const char *str)
+static bool
+item_str_equal(WT_ITEM *item, const char *str)
 {
 	return (item->size == strlen(str) + 1 && strncmp((char *)item->data,
 	    str, item->size) == 0);
 }
 
-static
-int compare_int(int a, int b)
+static int
+compare_int(int a, int b)
 {
 	return (a < b ? -1 : (a > b ? 1 : 0));
 }
 
-static
-int index_compare_primary(WT_PACK_STREAM *s1, WT_PACK_STREAM *s2, int *cmp)
+static int
+index_compare_primary(WT_PACK_STREAM *s1, WT_PACK_STREAM *s2, int *cmp)
 {
 	int64_t pkey1, pkey2;
 	int rc1, rc2;
@@ -82,8 +82,8 @@ int index_compare_primary(WT_PACK_STREAM *s1, WT_PACK_STREAM *s2, int *cmp)
 	return (0);
 }
 
-static
-int index_compare_S(WT_COLLATOR *collator, WT_SESSION *session,
+static int
+index_compare_S(WT_COLLATOR *collator, WT_SESSION *session,
     const WT_ITEM *key1, const WT_ITEM *key2, int *cmp)
 {
 	WT_PACK_STREAM *s1, *s2;
@@ -108,8 +108,8 @@ int index_compare_S(WT_COLLATOR *collator, WT_SESSION *session,
 	return (0);
 }
 
-static
-int index_compare_u(WT_COLLATOR *collator, WT_SESSION *session,
+static int
+index_compare_u(WT_COLLATOR *collator, WT_SESSION *session,
     const WT_ITEM *key1, const WT_ITEM *key2, int *cmp)
 {
 	WT_ITEM skey1, skey2;
@@ -134,8 +134,8 @@ int index_compare_u(WT_COLLATOR *collator, WT_SESSION *session,
 	return (0);
 }
 
-static
-int index_extractor_u(WT_EXTRACTOR *extractor, WT_SESSION *session,
+static int
+index_extractor_u(WT_EXTRACTOR *extractor, WT_SESSION *session,
     const WT_ITEM *key, const WT_ITEM *value, WT_CURSOR *result_cursor)
 {
 	(void)extractor;
@@ -154,7 +154,7 @@ static WT_EXTRACTOR extractor_u = { index_extractor_u, NULL, NULL };
  * Check search() and search_near() using the test string indicated
  * by test_index.
  */
-void
+static void
 search_using_str(WT_CURSOR *cursor, TEST_SET test_set, int test_index)
 {
 	int exact, ret;
@@ -195,7 +195,7 @@ search_using_str(WT_CURSOR *cursor, TEST_SET test_set, int test_index)
  * Check search() and search_near() using the test string indicated
  * by test_index against a table containing a variable sized item.
  */
-void
+static void
 search_using_item(WT_CURSOR *cursor, TEST_SET test_set, int test_index)
 {
 	WT_ITEM item;
@@ -241,7 +241,8 @@ search_using_item(WT_CURSOR *cursor, TEST_SET test_set, int test_index)
 /*
  * For each set of data, perform tests.
  */
-void test_one_set(TEST_OPTS *opts, WT_SESSION *session, TEST_SET set)
+static void
+test_one_set(TEST_OPTS *opts, WT_SESSION *session, TEST_SET set)
 {
 	WT_CURSOR *cursor;
 	WT_ITEM item;
