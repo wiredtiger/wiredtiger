@@ -39,7 +39,7 @@
  * because the truncation appeared in the middle of a key.
  */
 
-#define TEST_ENTRY_COUNT	5
+#define	TEST_ENTRY_COUNT	5
 typedef const char *TEST_SET[TEST_ENTRY_COUNT];
 static TEST_SET test_sets[] = {
 	{ "0", "01", "012", "0123", "01234" },
@@ -47,7 +47,7 @@ static TEST_SET test_sets[] = {
 	{ "5", "54", "543", "5432", "54321" },
 	{ "54321", "5433", "544", "55", "6" }
 };
-#define TEST_SET_COUNT	(sizeof(test_sets) / sizeof(test_sets[0]))
+#define	TEST_SET_COUNT	(sizeof(test_sets) / sizeof(test_sets[0]))
 
 static
 bool item_str_equal(WT_ITEM *item, const char *str)
