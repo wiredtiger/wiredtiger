@@ -242,7 +242,7 @@ search_using_item(WT_CURSOR *cursor, TEST_SET test_set, int test_index)
  * For each set of data, perform tests.
  */
 static void
-test_one_set(TEST_OPTS *opts, WT_SESSION *session, TEST_SET set)
+test_one_set(WT_SESSION *session, TEST_SET set)
 {
 	WT_CURSOR *cursor;
 	WT_ITEM item;
@@ -351,7 +351,7 @@ main(int argc, char *argv[])
 
 	for (i = 0; i < (int32_t)TEST_SET_COUNT; i++) {
 		printf("test set %d\n", i);
-		test_one_set(opts, session, test_sets[i]);
+		test_one_set(session, test_sets[i]);
 	}
 
 	testutil_check(session->close(session, NULL));
