@@ -516,8 +516,12 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 			    (int64_t)flag_state);
 
 			slot = log->active_slot;
-			if (yld)
+			/*
+			 * Braces used due to potential empty body warning.
+			 */
+			if (yld) {
 				WT_DIAGNOSTIC_YIELD;
+			}
 			/*
 			 * Attempt to swap our size into the state.
 			 */
