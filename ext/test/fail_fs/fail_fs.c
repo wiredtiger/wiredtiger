@@ -404,7 +404,7 @@ fail_fs_directory_list(WT_FILE_SYSTEM *file_system,
 		 */
 		if (count >= allocated) {
 			entries = realloc(
-			    entries, (allocated + 10) * sizeof(char *));
+			    entries, (allocated + 10) * sizeof(*entries));
 			if (entries == NULL) {
 				ret = ENOMEM;
 				goto err;
