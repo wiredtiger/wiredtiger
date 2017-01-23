@@ -224,10 +224,11 @@ fail_file_read(WT_FILE_HANDLE *file_handle,
 		chunk = (len < FAIL_FS_GIGABYTE) ? len : FAIL_FS_GIGABYTE;
 		if ((nr = pread(fail_fh->fd, addr, chunk, offset)) <= 0) {
 			(void)wtext->err_printf(wtext, session,
-			    "%s: handle-read: failed to read %" PRIu64
-			    " bytes at offset %" PRIu64 ": %s",
-			    fail_fh->iface.name, (uint64_t)len,
-			    (uint64_t)offset, wtext->strerror(wtext, NULL, nr));
+			    "%s: handle-read: failed to read %" PRIuMAX
+			    " bytes at offset %" PRIuMAX ": %s",
+			    fail_fh->iface.name,
+			    (uintmax_t)len, (uintmax_t)offset,
+			    wtext->strerror(wtext, NULL, errno));
 			ret = (nr == 0 ? WT_ERROR : errno);
 			break;
 		}
@@ -327,10 +328,11 @@ fail_file_write(WT_FILE_HANDLE *file_handle, WT_SESSION *session,
 		chunk = (len < FAIL_FS_GIGABYTE) ? len : FAIL_FS_GIGABYTE;
 		if ((nr = pwrite(fail_fh->fd, addr, chunk, offset)) <= 0) {
 			(void)wtext->err_printf(wtext, session,
-			    "%s: handle-write: failed to write %" PRIu64
-			    " bytes at offset %" PRIu64 ": %s",
-			    fail_fh->iface.name, (uint64_t)len,
-			    (uint64_t)offset, wtext->strerror(wtext, NULL, nr));
+			    "%s: handle-write: failed to write %" PRIuMAX
+			    " bytes at offset %" PRIuMAX ": %s",
+			    fail_fh->iface.name,
+			    (uintmax_t)len, (uintmax_t)offset,
+			    wtext->strerror(wtext, NULL, errno));
 			ret = (nr == 0 ? WT_ERROR : errno);
 			break;
 		}
