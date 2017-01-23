@@ -168,9 +168,12 @@ next:	if (pack->cur == pack->end)
 			    (int)(pack->end - pack->orig), pack->orig);
 		return (0);
 	case 'u':
-	case 'U':
 		/* Special case for items with a size prefix. */
 		pv->type = (!pv->havesize && *pack->cur != '\0') ? 'U' : 'u';
+		return (0);
+	case 'U':
+		/* Special case for items with a size prefix. */
+		pv->type = !pv->havesize ? 'U' : 'u';
 		return (0);
 	case 'b':
 	case 'h':

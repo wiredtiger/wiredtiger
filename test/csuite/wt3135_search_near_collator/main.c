@@ -29,13 +29,25 @@
 
 /*
  * JIRA ticket reference: WT-3135
- * Test case description: There are two tests, one uses a custom collator,
- * the second uses a custom collator and extractor. In each case there
- * are index keys having variable length and search_near is used with
- * keys both longer and shorter than the keys in the index.
- * Failure mode: The custom compare routine is given a truncated
- * key to compare, and the unpack functions return errors because of that.
+ * Test case description: Each set of data is ordered and contains
+ * five elements (0-4).  We insert elements 1 and 3, and then do
+ * search_near and search for each element.  For each set of data, we perform
+ * these tests first using a custom collator, and second using a custom collator
+ * and extractor. In each case there are index keys having variable length.
+ * Failure mode: In the reported test case, the custom compare routine is
+ * given a truncated key to compare, and the unpack functions return errors
+ * because the truncation appeared in the middle of a key.
  */
+
+#define TEST_ENTRY_COUNT	5
+typedef const char *TEST_SET[TEST_ENTRY_COUNT];
+static TEST_SET test_sets[] = {
+	{ "0", "01", "012", "0123", "01234" },
+	{ "A", "B", "C", "D", "E" },
+	{ "5", "54", "543", "5432", "54321" },
+	{ "54321", "5433", "544", "55", "6" }
+};
+#define TEST_SET_COUNT	(sizeof(test_sets) / sizeof(test_sets[0]))
 
 static
 bool item_str_equal(WT_ITEM *item, const char *str)
@@ -138,18 +150,185 @@ static WT_COLLATOR collator_S = { index_compare_S, NULL, NULL };
 static WT_COLLATOR collator_u = { index_compare_u, NULL, NULL };
 static WT_EXTRACTOR extractor_u = { index_extractor_u, NULL, NULL };
 
+/*
+ * Check search() and search_near() using the test string indicated
+ * by test_index.
+ */
+void
+search_using_str(WT_CURSOR *cursor, TEST_SET test_set, int test_index)
+{
+	int exact, ret;
+	const char *result;
+	const char *str_01, *str_0123, *test_str;
+
+	testutil_assert(test_index >= 0 && test_index <= 4);
+	str_01 = test_set[1];
+	str_0123 = test_set[3];
+	test_str = test_set[test_index];
+
+	cursor->set_key(cursor, test_str);
+	testutil_check(cursor->search_near(cursor, &exact));
+	testutil_check(cursor->get_key(cursor, &result));
+
+	if (test_index == 0)
+		testutil_assert(strcmp(result, str_01) == 0 && exact > 0);
+	else if (test_index == 1)
+		testutil_assert(strcmp(result, str_01) == 0 && exact == 0);
+	else if (test_index == 2)
+		testutil_assert((strcmp(result, str_0123) == 0 && exact > 0) ||
+		    (strcmp(result, str_01) == 0 && exact < 0));
+	else if (test_index == 3)
+		testutil_assert(strcmp(result, str_0123) == 0 && exact == 0);
+	else if (test_index == 4)
+		testutil_assert(strcmp(result, str_0123) == 0 && exact < 0);
+
+	cursor->set_key(cursor, test_str);
+	ret = cursor->search(cursor);
+
+	if (test_index == 0 || test_index == 2 || test_index == 4)
+		testutil_assert(ret == WT_NOTFOUND);
+	else if (test_index == 1 || test_index == 3)
+		testutil_assert(ret == 0);
+}
+
+/*
+ * Check search() and search_near() using the test string indicated
+ * by test_index against a table containing a variable sized item.
+ */
+void
+search_using_item(WT_CURSOR *cursor, TEST_SET test_set, int test_index)
+{
+	WT_ITEM item;
+	size_t testlen;
+	int exact, ret;
+	const char *str_01, *str_0123, *test_str;
+
+	testutil_assert(test_index >= 0 && test_index <= 4);
+	str_01 = test_set[1];
+	str_0123 = test_set[3];
+	test_str = test_set[test_index];
+
+	testlen = strlen(test_str) + 1;
+	item.data = test_str;
+	item.size = testlen;
+	cursor->set_key(cursor, &item);
+	testutil_check(cursor->search_near(cursor, &exact));
+	testutil_check(cursor->get_key(cursor, &item));
+
+	if (test_index == 0)
+		testutil_assert(item_str_equal(&item, str_01) && exact > 0);
+	else if (test_index == 1)
+		testutil_assert(item_str_equal(&item, str_01) && exact == 0);
+	else if (test_index == 2)
+		testutil_assert((item_str_equal(&item, str_0123) && exact > 0)
+		    || (item_str_equal(&item, str_01) && exact < 0));
+	else if (test_index == 3)
+		testutil_assert(item_str_equal(&item, str_0123) && exact == 0);
+	else if (test_index == 4)
+		testutil_assert(item_str_equal(&item, str_0123) && exact < 0);
+
+	item.data = test_str;
+	item.size = testlen;
+	cursor->set_key(cursor, &item);
+	ret = cursor->search(cursor);
+
+	if (test_index == 0 || test_index == 2 || test_index == 4)
+		testutil_assert(ret == WT_NOTFOUND);
+	else if (test_index == 1 || test_index == 3)
+		testutil_assert(ret == 0);
+}
+
+/*
+ * For each set of data, perform tests.
+ */
+void test_one_set(TEST_OPTS *opts, WT_SESSION *session, TEST_SET set)
+{
+	WT_CURSOR *cursor;
+	WT_ITEM item;
+	int32_t i;
+
+	/*
+	 * Part 1: Using a custom collator, insert some elements
+	 * and verify results from search_near.
+	 */
+
+	testutil_check(session->create(session,
+	    "table:main", "key_format=i,value_format=S,columns=(k,v)"));
+	testutil_check(session->create(session,
+	    "index:main:def_collator", "columns=(v)"));
+	testutil_check(session->create(session,
+	    "index:main:custom_collator",
+	    "columns=(v),collator=collator_S"));
+
+	/* Insert only elements #1 and #3. */
+	testutil_check(session->open_cursor(session,
+	    "table:main", NULL, NULL, &cursor));
+	cursor->set_key(cursor, 0);
+	cursor->set_value(cursor, set[1]);
+	testutil_check(cursor->insert(cursor));
+	cursor->set_key(cursor, 1);
+	cursor->set_value(cursor, set[3]);
+	testutil_check(cursor->insert(cursor));
+	testutil_check(cursor->close(cursor));
+
+	/* Check all elements in def_collator index. */
+	testutil_check(session->open_cursor(session,
+	    "index:main:def_collator", NULL, NULL, &cursor));
+	for (i = 0; i < (int32_t)TEST_ENTRY_COUNT; i++)
+		search_using_str(cursor, set, i);
+	testutil_check(cursor->close(cursor));
+
+	/* Check all elements in custom_collator index */
+	testutil_check(session->open_cursor(session,
+	    "index:main:custom_collator", NULL, NULL, &cursor));
+	for (i = 0; i < (int32_t)TEST_ENTRY_COUNT; i++)
+		search_using_str(cursor, set, i);
+	testutil_check(cursor->close(cursor));
+
+	/*
+	 * Part 2: perform the same checks using a custom collator and
+	 * extractor.
+	 */
+	testutil_check(session->create(session,
+	    "table:main2", "key_format=i,value_format=u,columns=(k,v)"));
+
+	testutil_check(session->create(session, "index:main2:idx_w_coll",
+	    "key_format=u,collator=collator_u,extractor=extractor_u"));
+
+	testutil_check(session->open_cursor(session,
+	    "table:main2", NULL, NULL, &cursor));
+
+	memset(&item, 0, sizeof(item));
+	item.size = strlen(set[1]) + 1;
+	item.data = set[1];
+	cursor->set_key(cursor, 1);
+	cursor->set_value(cursor, &item);
+	testutil_check(cursor->insert(cursor));
+
+	item.size = strlen(set[3]) + 1;
+	item.data = set[3];
+	cursor->set_key(cursor, 3);
+	cursor->set_value(cursor, &item);
+	testutil_check(cursor->insert(cursor));
+
+	testutil_check(cursor->close(cursor));
+
+	testutil_check(session->open_cursor(session,
+	    "index:main2:idx_w_coll", NULL, NULL, &cursor));
+	for (i = 0; i < (int32_t)TEST_ENTRY_COUNT; i++)
+		search_using_item(cursor, set, i);
+	testutil_check(cursor->close(cursor));
+
+	testutil_check(session->drop(session, "table:main", NULL));
+	testutil_check(session->drop(session, "table:main2", NULL));
+}
+
 int
 main(int argc, char *argv[])
 {
 	TEST_OPTS *opts, _opts;
-	WT_CURSOR *cursor;
-	WT_ITEM item;
 	WT_SESSION *session;
 	int32_t i;
-	int exact;
-	const char *found_key;
-	const char *search_key = "1234";
-	const char *values[] = { "123", "12345" };
 
 	opts = &_opts;
 	memset(opts, 0, sizeof(*opts));
@@ -161,89 +340,18 @@ main(int argc, char *argv[])
 	testutil_check(
 	    opts->conn->open_session(opts->conn, NULL, NULL, &session));
 
-	/*
-	 * Part 1: Using a custom collator, insert some elements
-	 * and verify results from search_near.
-	 */
+	/* Add any collators and extractors used by tests */
 	testutil_check(opts->conn->add_collator(opts->conn, "collator_S",
 	    &collator_S, NULL));
-
-	testutil_check(session->create(session,
-	    "table:main", "key_format=i,value_format=S,columns=(k,v)"));
-	testutil_check(session->create(session,
-	    "index:main:def_collator", "columns=(v)"));
-	testutil_check(session->create(session,
-	    "index:main:custom_collator",
-	    "columns=(v),collator=collator_S"));
-
-	testutil_check(session->open_cursor(session,
-	    "table:main", NULL, NULL, &cursor));
-
-	for (i = 0; i < (int32_t)(sizeof(values) / sizeof(values[0])); i++) {
-		cursor->set_key(cursor, i);
-		cursor->set_value(cursor, values[i]);
-		testutil_check(cursor->insert(cursor));
-	}
-	testutil_check(cursor->close(cursor));
-
-	/* Check search_near in def_collator index. */
-	testutil_check(session->open_cursor(session,
-	    "index:main:def_collator", NULL, NULL, &cursor));
-	cursor->set_key(cursor, search_key);
-	testutil_check(cursor->search_near(cursor, &exact));
-	testutil_check(cursor->get_key(cursor, &found_key));
-	testutil_assert((strcmp(found_key, "12345") == 0 && exact > 0) ||
-	    (strcmp(found_key, "123") == 0 && exact < 0));
-	testutil_check(cursor->close(cursor));
-
-	/* Check search_near in custom_collator index */
-	testutil_check(session->open_cursor(session,
-	    "index:main:custom_collator", NULL, NULL, &cursor));
-	cursor->set_key(cursor, search_key);
-	testutil_check(cursor->search_near(cursor, &exact));
-	testutil_check(cursor->get_key(cursor, &found_key));
-	testutil_assert((strcmp(found_key, "12345") == 0 && exact > 0) ||
-	    (strcmp(found_key, "123") == 0 && exact < 0));
-	testutil_check(cursor->close(cursor));
-
-	/*
-	 * Part 2: perform the same checks using a custom collator and
-	 * extractor.
-	 */
 	testutil_check(opts->conn->add_collator(opts->conn, "collator_u",
 	    &collator_u, NULL));
 	testutil_check(opts->conn->add_extractor(opts->conn, "extractor_u",
 	    &extractor_u, NULL));
-	testutil_check(session->create(session,
-	    "table:main2", "key_format=i,value_format=u,columns=(k,v)"));
 
-	testutil_check(session->create(session, "index:main2:idx_w_coll",
-	    "key_format=u,collator=collator_u,extractor=extractor_u"));
-
-	testutil_check(session->open_cursor(session,
-	    "table:main2", NULL, NULL, &cursor));
-
-	memset(&item, 0, sizeof(item));
-	for (i = 0; i < (int32_t)(sizeof(values) / sizeof(values[0])); i++) {
-		item.size = strlen(values[i]) + 1;
-		item.data = values[i];
-
-		cursor->set_key(cursor, i);
-		cursor->set_value(cursor, &item);
-		testutil_check(cursor->insert(cursor));
+	for (i = 0; i < (int32_t)TEST_SET_COUNT; i++) {
+		printf("test set %d\n", i);
+		test_one_set(opts, session, test_sets[i]);
 	}
-	testutil_check(cursor->close(cursor));
-
-	testutil_check(session->open_cursor(session,
-	    "index:main2:idx_w_coll", NULL, NULL, &cursor));
-	item.data = search_key;
-	item.size = sizeof(search_key);
-	cursor->set_key(cursor, &item);
-	testutil_check(cursor->search_near(cursor, &exact));
-	testutil_check(cursor->get_key(cursor, &item));
-	testutil_assert((item_str_equal(&item, "12345") && exact > 0) ||
-	    (item_str_equal(&item, "123") && exact < 0));
-	testutil_check(cursor->close(cursor));
 
 	testutil_check(session->close(session, NULL));
 	testutil_cleanup(opts);

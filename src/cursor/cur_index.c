@@ -240,7 +240,17 @@ __curindex_search(WT_CURSOR *cursor)
 	found_key = child->key;
 	if (found_key.size < cursor->key.size)
 		WT_ERR(WT_NOTFOUND);
-	found_key.size = cursor->key.size;
+
+	/*
+	 * Custom collators will use unpack functions to
+	 * get the visible key fields. We need to provide
+	 * those fields in their entirety.
+	 */
+	if (cindex->index->collator != NULL)
+		WT_ERR(__wt_struct_repack(session, cindex->child->key_format,
+		    cindex->iface.key_format, &child->key, &found_key));
+	else
+		found_key.size = cursor->key.size;
 
 	WT_ERR(__wt_compare(
 	    session, cindex->index->collator, &cursor->key, &found_key, &cmp));
@@ -315,8 +325,8 @@ __curindex_search_near(WT_CURSOR *cursor, int *exact)
 		 */
 		if (cindex->index->collator != NULL)
 			WT_ERR(__wt_struct_repack(session,
-			    cindex->child->key_format,
-			    cindex->iface.key_format, &child->key, &found_key));
+			    cindex->child->key_format, cindex->iface.key_format,
+			    &child->key, &found_key));
 		else
 			found_key.size = cursor->key.size;
 	}
