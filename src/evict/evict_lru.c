@@ -295,28 +295,45 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
 	while (F_ISSET(conn, WT_CONN_EVICTION_RUN) &&
 	    F_ISSET(thread, WT_THREAD_RUN)) {
-		if (conn->evict_server_running &&
-		    __wt_spin_trylock(session, &cache->evict_pass_lock) == 0) {
-			/*
-			 * Cannot use WT_WITH_PASS_LOCK because this is a try
-			 * lock.  Fix when that is supported.  We set the flag
-			 * on both sessions because we may call clear_walk when
-			 * we are walking with the walk session, locked.
-			 */
-			F_SET(session, WT_SESSION_LOCKED_PASS);
-			F_SET(cache->walk_session, WT_SESSION_LOCKED_PASS);
-			ret = __evict_server(session, &did_work);
-			F_CLR(cache->walk_session, WT_SESSION_LOCKED_PASS);
-			F_CLR(session, WT_SESSION_LOCKED_PASS);
-			__wt_spin_unlock(session, &cache->evict_pass_lock);
-			WT_ERR(ret);
-			__wt_verbose(session, WT_VERB_EVICTSERVER, "sleeping");
-			/* Don't rely on signals: check periodically. */
-			__wt_cond_auto_wait(
-			    session, cache->evict_cond, did_work);
-			__wt_verbose(session, WT_VERB_EVICTSERVER, "waking");
-		} else
-			WT_ERR(__evict_lru_pages(session, false));
+		if (F_ISSET(thread, WT_THREAD_ACTIVE)) {
+			if (conn->evict_server_running &&
+			    __wt_spin_trylock(
+			    session, &cache->evict_pass_lock) == 0) {
+				/*
+				 * Cannot use WT_WITH_PASS_LOCK because this is
+				 * a try lock.  Fix when that is supported.  We
+				 * set the flag on both sessions because we may
+				 * call clear_walk when we are walking with the
+				 * walk session, locked.
+				 */
+				F_SET(session, WT_SESSION_LOCKED_PASS);
+				F_SET(cache->walk_session,
+				    WT_SESSION_LOCKED_PASS);
+				ret = __evict_server(session, &did_work);
+				F_CLR(cache->walk_session,
+				    WT_SESSION_LOCKED_PASS);
+				F_CLR(session, WT_SESSION_LOCKED_PASS);
+				__wt_spin_unlock(session,
+				    &cache->evict_pass_lock);
+				WT_ERR(ret);
+				__wt_verbose(session, WT_VERB_EVICTSERVER,
+				    "sleeping");
+				/* Don't rely on signals: check periodically. */
+				__wt_cond_auto_wait(
+				    session, cache->evict_cond, did_work);
+				__wt_verbose(session, WT_VERB_EVICTSERVER,
+				    "waking");
+			} else
+				WT_ERR(__evict_lru_pages(session, false));
+		} else {
+			__wt_verbose(session, WT_VERB_THREAD_GROUP,
+			    "evict thread pause");
+			/* Needs check function once WT-3097 merges. */
+			__wt_cond_wait(session, thread->pause_cond,
+			    WT_EVICT_THREAD_PAUSE * WT_MILLION);
+			__wt_verbose(session, WT_VERB_THREAD_GROUP,
+			    "evict thread paused woke up");
+		}
 	}
 
 	/*
@@ -1001,10 +1018,12 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 				 * were unable to acquire the thread group lock.
 				 * Break out of trying.
 				 */
-				WT_ERR(__wt_thread_group_stop_one(
-				    session, &conn->evict_threads, false));
+				__wt_verbose(session, WT_VERB_THREAD_GROUP,
+				    "TUNE: Stopping one");
+				__wt_thread_group_stop_one(
+				    session, &conn->evict_threads);
 				WT_STAT_CONN_INCR(session,
-				  cache_eviction_worker_removed);
+				    cache_eviction_worker_removed);
 			}
 			WT_STAT_CONN_SET(session,
 			    cache_eviction_stable_state_workers,
@@ -1040,8 +1059,10 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 			 * unable to acquire the thread group lock.  Break out
 			 * of trying.
 			 */
-			WT_ERR(__wt_thread_group_start_one(session,
-			    &conn->evict_threads, false));
+			__wt_verbose(session, WT_VERB_THREAD_GROUP,
+			    "TUNE: Starting one");
+			__wt_thread_group_start_one(session,
+			    &conn->evict_threads, false);
 			WT_STAT_CONN_INCR(session,
 			    cache_eviction_worker_created);
 			__wt_verbose(session, WT_VERB_EVICTSERVER,
