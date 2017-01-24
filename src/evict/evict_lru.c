@@ -1553,29 +1553,31 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 
 	target_pages = WT_MAX(target_pages_clean, target_pages_dirty);
 
-	if (target_pages == 0) {
-		/*
-		 * Randomly walk trees with a tiny fraction of the cache in
-		 * case there are so many trees that none of them use enough of
-		 * the cache to be allocated slots.  Walk small trees 1% of the
-		 * time.
-		 */
-		if (__wt_random(&session->rnd) > UINT32_MAX / 100)
-			return (0);
-		target_pages = 10;
-	}
+	/*
+	 * Randomly walk trees with a small fraction of the cache in case there
+	 * are so many trees that none of them use enough of the cache to be
+	 * allocated slots.  Make the chance of walking a tree equal to the
+	 * chance that a random byte in cache belongs to the tree.
+	 */
+	if (target_pages == 0 &&
+	    __wt_random64(&session->rnd) % cache_inuse > btree_inuse)
+		return (0);
 
+	/*
+	 * There is some cost associated with walking a tree.  If we're going
+	 * to visit this tree, always look for at least ten pages.
+	 */
+	if (target_pages < 10)
+		target_pages = 10;
+
+	/*
+	 * If the tree is dead or we're near the end of the queue, fill the
+	 * remaining slots.
+	 */
 	if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
 	    target_pages > remaining_slots)
 		target_pages = remaining_slots;
 	end = start + target_pages;
-
-	walk_flags =
-	    WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN | WT_READ_NO_WAIT;
-
-	/* Randomize the walk direction. */
-	if (btree->evict_walk_reverse)
-		FLD_SET(walk_flags, WT_READ_PREV);
 
 	/*
 	 * Examine at least a reasonable number of pages before deciding
@@ -1586,6 +1588,13 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	if (F_ISSET(cache, WT_CACHE_EVICT_DIRTY) &&
 	    !F_ISSET(cache, WT_CACHE_EVICT_CLEAN))
 		min_pages *= 10;
+
+	walk_flags =
+	    WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN | WT_READ_NO_WAIT;
+
+	/* Randomize the walk direction. */
+	if (btree->evict_walk_reverse)
+		FLD_SET(walk_flags, WT_READ_PREV);
 
 	/*
 	 * Get some more eviction candidate pages.
