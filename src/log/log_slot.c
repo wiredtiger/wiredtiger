@@ -498,7 +498,8 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 	}
 	for (;;) {
 		WT_BARRIER();
-		old_state = log->active_slot->slot_state;
+		slot = log->active_slot;
+		old_state = slot->slot_state;
 		if (WT_LOG_SLOT_OPEN(old_state)) {
 			/*
 			 * Try to join our size into the existing size and
@@ -515,7 +516,6 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 			    (int64_t)new_join, (int64_t)released,
 			    (int64_t)flag_state);
 
-			slot = log->active_slot;
 			/*
 			 * Braces used due to potential empty body warning.
 			 */
@@ -550,13 +550,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 	if (F_ISSET(myslot, WT_MYSLOT_UNBUFFERED)) {
 		WT_ASSERT(session, slot->slot_unbuffered == 0);
 		WT_STAT_CONN_INCR(session, log_slot_unbuffered);
-		/*
-		 * There may be another thread in a tight loop watching the
-		 * content of the unbuffered field.  Use a write barrier to
-		 * make sure it is seen after we set it.
-		 */
 		slot->slot_unbuffered = (int64_t)mysize;
-		WT_WRITE_BARRIER();
 	}
 	myslot->slot = slot;
 	myslot->offset = join_offset;
