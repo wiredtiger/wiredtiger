@@ -1526,6 +1526,8 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	start = queue->evict_queue + *slotp;
 	remaining_slots = max_entries - *slotp;
 	total_slots = max_entries - queue->evict_entries;
+	btree_inuse = cache_inuse = 0;
+	target_pages_clean = target_pages_dirty = 0;
 
 	/*
 	 * The target number of pages for this tree is proportional to the
@@ -1539,8 +1541,7 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 		bytes_per_slot = 1 + cache_inuse / total_slots;
 		target_pages_clean = (uint32_t)(
 		    (btree_inuse + bytes_per_slot / 2) / bytes_per_slot);
-	} else
-		target_pages_clean = 0;
+	}
 
 	if (F_ISSET(cache, WT_CACHE_EVICT_DIRTY)) {
 		btree_inuse = __wt_btree_dirty_leaf_inuse(session);
@@ -1548,8 +1549,7 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 		bytes_per_slot = 1 + cache_inuse / total_slots;
 		target_pages_dirty = (uint32_t)(
 		    (btree_inuse + bytes_per_slot / 2) / bytes_per_slot);
-	} else
-		target_pages_dirty = 0;
+	}
 
 	target_pages = WT_MAX(target_pages_clean, target_pages_dirty);
 
@@ -1559,8 +1559,8 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	 * allocated slots.  Make the chance of walking a tree equal to the
 	 * chance that a random byte in cache belongs to the tree.
 	 */
-	if (target_pages == 0 &&
-	    __wt_random64(&session->rnd) % cache_inuse > btree_inuse)
+	if (target_pages == 0 && (cache_inuse == 0 ||
+	    __wt_random64(&session->rnd) % cache_inuse > btree_inuse))
 		return (0);
 
 	/*
