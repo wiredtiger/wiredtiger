@@ -176,7 +176,7 @@ __thread_group_resize(
 		    (void *)group, thread->id);
 		F_SET(thread, WT_THREAD_RUN);
 		WT_ASSERT(session, thread->session != NULL);
-		WT_RET(__wt_thread_create(thread->session,
+		WT_ERR(__wt_thread_create(thread->session,
 		    &thread->tid, __wt_thread_run, thread));
 	}
 
