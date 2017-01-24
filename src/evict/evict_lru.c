@@ -698,8 +698,8 @@ __evict_pass(WT_SESSION_IMPL *session)
 				 */
 				WT_STAT_CONN_INCR(session,
 				    cache_eviction_server_slept);
-				__wt_cond_wait(
-				    session, cache->evict_cond, 1000, NULL);
+				__wt_cond_wait(session,
+				    cache->evict_cond, WT_THOUSAND, NULL);
 				continue;
 			}
 

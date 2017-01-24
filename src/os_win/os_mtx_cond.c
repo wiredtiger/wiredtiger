@@ -76,7 +76,7 @@ __wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond,
 		goto skipping;
 
 	if (usecs > 0) {
-		milliseconds64 = usecs / 1000;
+		milliseconds64 = usecs / WT_THOUSAND;
 
 		/*
 		 * Check for 32-bit unsigned integer overflow
