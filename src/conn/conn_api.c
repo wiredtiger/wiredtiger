@@ -1779,12 +1779,6 @@ __conn_statistics_config(WT_SESSION_IMPL *session, const char *cfg[])
 	return (0);
 }
 
-/* Simple structure for name and flag configuration searches. */
-typedef struct {
-	const char *name;
-	uint32_t flag;
-} WT_NAME_FLAG;
-
 /*
  * __wt_verbose_config --
  *	Set verbose configuration.
@@ -1792,42 +1786,46 @@ typedef struct {
 int
 __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
-	static const WT_NAME_FLAG verbtypes[] = {
-		{ "api",		WT_VERB_API },
-		{ "block",		WT_VERB_BLOCK },
-		{ "checkpoint",		WT_VERB_CHECKPOINT },
-		{ "compact",		WT_VERB_COMPACT },
-		{ "evict",		WT_VERB_EVICT },
-		{ "evict_stuck",	WT_VERB_EVICT_STUCK },
-		{ "evictserver",	WT_VERB_EVICTSERVER },
-		{ "fileops",		WT_VERB_FILEOPS },
-		{ "handleops",		WT_VERB_HANDLEOPS },
-		{ "log",		WT_VERB_LOG },
-		{ "lsm",		WT_VERB_LSM },
-		{ "lsm_manager",	WT_VERB_LSM_MANAGER },
-		{ "metadata",		WT_VERB_METADATA },
-		{ "mutex",		WT_VERB_MUTEX },
-		{ "overflow",		WT_VERB_OVERFLOW },
-		{ "read",		WT_VERB_READ },
-		{ "rebalance",		WT_VERB_REBALANCE },
-		{ "reconcile",		WT_VERB_RECONCILE },
-		{ "recovery",		WT_VERB_RECOVERY },
-		{ "recovery_progress",	WT_VERB_RECOVERY_PROGRESS },
-		{ "salvage",		WT_VERB_SALVAGE },
-		{ "shared_cache",	WT_VERB_SHARED_CACHE },
-		{ "split",		WT_VERB_SPLIT },
-		{ "temporary",		WT_VERB_TEMPORARY },
-		{ "thread_group",	WT_VERB_THREAD_GROUP },
-		{ "transaction",	WT_VERB_TRANSACTION },
-		{ "verify",		WT_VERB_VERIFY },
-		{ "version",		WT_VERB_VERSION },
-		{ "write",		WT_VERB_WRITE },
-		{ NULL, 0 }
+	static const struct __wt_name_flag {
+		const char *name;
+		bool always_on;
+		uint32_t flag;
+	} verbtypes[] = {
+		{ "api",		false, WT_VERB_API },
+		{ "block",		false, WT_VERB_BLOCK },
+		{ "checkpoint",		false, WT_VERB_CHECKPOINT },
+		{ "compact",		false, WT_VERB_COMPACT },
+		{ "evict",		false, WT_VERB_EVICT },
+		{ "evict_stuck",	 true, WT_VERB_EVICT_STUCK },
+		{ "evictserver",	false, WT_VERB_EVICTSERVER },
+		{ "fileops",		false, WT_VERB_FILEOPS },
+		{ "handleops",		false, WT_VERB_HANDLEOPS },
+		{ "log",		false, WT_VERB_LOG },
+		{ "lsm",		false, WT_VERB_LSM },
+		{ "lsm_manager",	false, WT_VERB_LSM_MANAGER },
+		{ "metadata",		false, WT_VERB_METADATA },
+		{ "mutex",		false, WT_VERB_MUTEX },
+		{ "overflow",		false, WT_VERB_OVERFLOW },
+		{ "read",		false, WT_VERB_READ },
+		{ "rebalance",		false, WT_VERB_REBALANCE },
+		{ "reconcile",		false, WT_VERB_RECONCILE },
+		{ "recovery",		false, WT_VERB_RECOVERY },
+		{ "recovery_progress",	false, WT_VERB_RECOVERY_PROGRESS },
+		{ "salvage",		false, WT_VERB_SALVAGE },
+		{ "shared_cache",	false, WT_VERB_SHARED_CACHE },
+		{ "split",		false, WT_VERB_SPLIT },
+		{ "temporary",		false, WT_VERB_TEMPORARY },
+		{ "thread_group",	false, WT_VERB_THREAD_GROUP },
+		{ "transaction",	false, WT_VERB_TRANSACTION },
+		{ "verify",		false, WT_VERB_VERIFY },
+		{ "version",		false, WT_VERB_VERSION },
+		{ "write",		false, WT_VERB_WRITE },
+		{ NULL,			false, 0 }
 	};
+	const struct __wt_name_flag *ft;
 	WT_CONFIG_ITEM cval, sval;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-	const WT_NAME_FLAG *ft;
 	uint32_t flags;
 
 	conn = S2C(session);
@@ -1838,15 +1836,15 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 	for (ft = verbtypes; ft->name != NULL; ft++) {
 		if ((ret = __wt_config_subgets(
 		    session, &cval, ft->name, &sval)) == 0 && sval.val != 0) {
-#ifdef HAVE_VERBOSE
-			LF_SET(ft->flag);
-#else
-			WT_RET_MSG(session, EINVAL,
-			    "Verbose option specified when WiredTiger built "
-			    "without verbose support. Add --enable-verbose to "
-			    "configure command and rebuild to include support "
-			    "for verbose messages");
+#if !defined(HAVE_VERBOSE)
+			if (!ft->always_on)
+				WT_RET_MSG(session, EINVAL,
+				    "Verbose option \"%s\" not available in "
+				    "this WiredTiger build; add enable-verbose "
+				    "to the build configuration to add it",
+				    ft->name);
 #endif
+			LF_SET(ft->flag);
 		}
 		WT_RET_NOTFOUND_OK(ret);
 	}
@@ -2096,13 +2094,16 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 		__conn_set_file_system,
 		__conn_get_extension_api
 	};
-	static const WT_NAME_FLAG file_types[] = {
+	static const struct __wt_name_flag {
+		const char *name;
+		uint32_t flag;
+	} file_types[] = {
 		{ "checkpoint",	WT_DIRECT_IO_CHECKPOINT },
 		{ "data",	WT_DIRECT_IO_DATA },
 		{ "log",	WT_DIRECT_IO_LOG },
 		{ NULL, 0 }
 	};
-
+	const struct __wt_name_flag *ft;
 	WT_CONFIG_ITEM cval, keyid, secretkey, sval;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_ITEM(encbuf);
@@ -2110,7 +2111,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	WT_DECL_ITEM(i2);
 	WT_DECL_ITEM(i3);
 	WT_DECL_RET;
-	const WT_NAME_FLAG *ft;
 	WT_SESSION_IMPL *session;
 	bool config_base_set;
 	const char *enc_cfg[] = { NULL, NULL }, *merge_cfg;
