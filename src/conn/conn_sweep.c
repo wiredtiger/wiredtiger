@@ -283,9 +283,6 @@ __sweep_server(void *arg)
 	 * Sweep for dead and excess handles.
 	 */
 	for (;;) {
-		if (!__sweep_server_run_chk(session))
-			break;
-
 		/* Wait until the next event. */
 		__wt_cond_wait(session, conn->sweep_cond,
 		    conn->sweep_interval * WT_MILLION, __sweep_server_run_chk);

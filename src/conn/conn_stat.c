@@ -542,9 +542,6 @@ __statlog_server(void *arg)
 	WT_ERR(__wt_buf_init(session, &tmp, strlen(conn->stat_path) + 128));
 
 	for (;;) {
-		if (!__statlog_server_run_chk(session))
-			break;
-
 		/* Wait until the next event. */
 		__wt_cond_wait(session, conn->stat_cond,
 		    conn->stat_usecs, __statlog_server_run_chk);

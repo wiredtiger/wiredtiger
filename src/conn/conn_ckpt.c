@@ -95,8 +95,6 @@ __ckpt_server(void *arg)
 	wt_session = (WT_SESSION *)session;
 
 	for (;;) {
-		if (!__ckpt_server_run_chk(session))
-			break;
 		/*
 		 * Wait...
 		 * NOTE: If the user only configured logsize, then usecs
