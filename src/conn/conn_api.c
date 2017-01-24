@@ -9,7 +9,6 @@
 #include "wt_internal.h"
 
 static int __conn_statistics_config(WT_SESSION_IMPL *, const char *[]);
-static int __conn_verbose_cmd(WT_SESSION_IMPL *, const char *);
 
 /*
  * ext_collate --
@@ -1150,13 +1149,6 @@ __conn_reconfigure(WT_CONNECTION *wt_conn, const char *config)
 	__wt_free(session, conn->cfg);
 	conn->cfg = p;
 
-	/*
-	 * Fourth, run any diagnostic commands that were included. Do that last,
-	 * reconfiguration might include other configuration changes to support
-	 * a command.
-	 */
-	WT_ERR(__conn_verbose_cmd(session, config));
-
 err:	if (locked)
 		__wt_spin_unlock(session, &conn->reconfig_lock);
 
@@ -1806,6 +1798,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 		{ "checkpoint",		WT_VERB_CHECKPOINT },
 		{ "compact",		WT_VERB_COMPACT },
 		{ "evict",		WT_VERB_EVICT },
+		{ "evict_stuck",	WT_VERB_EVICT_STUCK },
 		{ "evictserver",	WT_VERB_EVICTSERVER },
 		{ "fileops",		WT_VERB_FILEOPS },
 		{ "handleops",		WT_VERB_HANDLEOPS },
@@ -1860,45 +1853,6 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 
 	conn->verbose = flags;
 	return (0);
-}
-
-/*
- * __conn_verbose_cmd --
- *	Run the verbose commands.
- */
-static int
-__conn_verbose_cmd(WT_SESSION_IMPL *session, const char *config)
-{
-	static const struct verbose_cmd_struct {
-		const char *name;			/* command name */
-		int (*func)(WT_SESSION_IMPL *);		/* command */
-	} verbose_cmd[] = {
-		 { "dump_cache", __wt_verbose_dump_cache },
-		 { "dump_txn",	 __wt_verbose_dump_txn },
-		 { NULL,	 NULL }
-	};
-	const struct verbose_cmd_struct *dp;
-	WT_CONFIG_ITEM cval, sval;
-	WT_DECL_RET;
-
-	/* Check for verbose commands. */
-	if ((ret = __wt_config_getones(
-	    session, config, "verbose", &cval)) == WT_NOTFOUND)
-		return (0);
-	WT_RET(ret);
-
-	/* Call each listed verbose command. */
-	for (dp = verbose_cmd; dp->name != NULL; ++dp) {
-		if ((ret = __wt_config_subgets(
-		    session, &cval, dp->name, &sval)) == 0)
-			WT_ERR(dp->func(session));
-		WT_ERR_NOTFOUND_OK(ret);
-	}
-
-err:	if (dp->name != NULL)
-		__wt_err(session, ret,
-		    "WT_CONNECTION.reconfigure: %s", dp->name);
-	return (ret);
 }
 
 /*

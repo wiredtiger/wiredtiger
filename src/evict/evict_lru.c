@@ -285,11 +285,13 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 	conn = S2C(session);
 	cache = conn->cache;
 
+#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
 	/*
 	 * Ensure the cache stuck timer is initialized when starting eviction.
 	 */
 	if (thread->id == 0)
 		__wt_epoch(session, &cache->stuck_ts);
+#endif
 
 	while (F_ISSET(conn, WT_CONN_EVICTION_RUN) &&
 	    F_ISSET(thread, WT_THREAD_RUN)) {
@@ -351,7 +353,9 @@ err:		WT_PANIC_MSG(session, ret, "cache eviction thread error");
 static int
 __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 {
+#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
 	struct timespec now;
+#endif
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
@@ -391,11 +395,13 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 		cache->pages_evicted = 0;
 	} else if (cache->pages_evicted != cache->pages_evict) {
 		cache->pages_evicted = cache->pages_evict;
+#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
 		__wt_epoch(session, &cache->stuck_ts);
 	} else if (!F_ISSET(conn, WT_CONN_IN_MEMORY)) {
 		/*
-		 * If we're stuck for 5 minutes, log the cache and transaction
-		 * state.
+		 * If we're stuck for 5 minutes in diagnostic mode, or the
+		 * verbose evict_stuck flag is configured, log the cache
+		 * and transaction state.
 		 *
 		 * If we're stuck for 5 minutes in diagnostic mode, give up.
 		 *
@@ -406,19 +412,25 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 		 */
 		__wt_epoch(session, &now);
 		if (WT_TIMEDIFF_SEC(now, cache->stuck_ts) > 300) {
-#ifdef HAVE_DIAGNOSTIC
-			ret = ETIMEDOUT;
-			__wt_err(session, ret,
+#if defined(HAVE_DIAGNOSTIC)
+			__wt_err(session, ETIMEDOUT,
 			    "Cache stuck for too long, giving up");
-#endif
+			ret = ETIMEDOUT;
 			WT_TRET(__wt_verbose_dump_txn(session));
 			WT_TRET(__wt_verbose_dump_cache(session));
-
-			/* Reset the timer. */
-			__wt_epoch(session, &cache->stuck_ts);
 			return (ret);
+#elif defined(HAVE_VERBOSE)
+			if (WT_VERBOSE_ISSET(session, WT_VERB_EVICT_STUCK)) {
+				WT_RET(__wt_verbose_dump_txn(session));
+				WT_RET(__wt_verbose_dump_cache(session));
+
+				/* Reset the timer. */
+				__wt_epoch(session, &cache->stuck_ts);
+			}
+#endif
 		}
 	}
+#endif
 	*did_work = cache->pages_evicted != orig_pages_evicted;
 	return (0);
 }
@@ -2187,6 +2199,7 @@ __wt_evict_priority_clear(WT_SESSION_IMPL *session)
 	S2BT(session)->evict_priority = 0;
 }
 
+#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
 /*
  * __verbose_dump_cache_single --
  *	Output diagnostic information about a single file in the cache.
@@ -2337,3 +2350,4 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
 
 	return (0);
 }
+#endif
