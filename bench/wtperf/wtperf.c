@@ -305,6 +305,8 @@ op_name(uint8_t *op)
 		return ("insert_rmw");
 	case WORKER_READ:
 		return ("read");
+	case WORKER_SCAN:
+		return ("scan");
 	case WORKER_TRUNCATE:
 		return ("truncate");
 	case WORKER_UPDATE:
@@ -352,6 +354,10 @@ worker_async(void *arg)
 			else
 				next_val = opts->icount + get_next_incr(wtperf);
 			break;
+		case WORKER_SCAN:
+			lprintf(wtperf, ENOTSUP, 0,
+			    "Scan operations not supported in async mode");
+			goto err;
 		case WORKER_READ:
 		case WORKER_UPDATE:
 			next_val = wtperf_rand(thread);
@@ -475,12 +481,101 @@ do_range_reads(WTPERF *wtperf, WT_CURSOR *cursor)
 	return (0);
 }
 
+static int
+run_scan_op(WTPERF *wtperf,
+    WTPERF_THREAD *thread, WT_CURSOR *cursor, WT_SESSION *session)
+{
+	int ret;
+	WT_CURSOR *rnd_cursor;
+	char *next_key, *start_key;
+	int64_t range;
+
+	if ((ret = session->open_cursor(session, thread->workload->table_name,
+	    NULL, "next_random=true", &rnd_cursor)) != 0) {
+		lprintf(wtperf, ret, 0,
+		    "worker: WT_SESSION.open_cursor: %s random",
+		    thread->workload->table_name);
+		return (ret);
+	}
+	/* Find a key to start a scan from */
+	if ((ret = rnd_cursor->next(rnd_cursor))) {
+		lprintf(wtperf, ret, 0, "worker: rand next failed");
+		return (ret);
+	}
+	if ((ret = rnd_cursor->get_key(rnd_cursor, &start_key)) != 0) {
+		lprintf(wtperf, ret, 0, "worker: rand next key retrieval");
+		return (ret);
+	}
+	if ((ret = rnd_cursor->close(rnd_cursor)) != 0) {
+		lprintf(wtperf, ret, 0, "worker: rand cursor close");
+		return (ret);
+	}
+
+	cursor->set_key(cursor, &start_key);
+	for (range = 0; range < thread->workload->scan_count; range++) {
+		if ((ret = cursor->next(cursor)) != 0) {
+			if (ret == WT_NOTFOUND)
+				break;
+			lprintf(wtperf, ret, 0, "worker: scan cursor next");
+			return (ret);
+		}
+		if ((ret = cursor->get_key(cursor, &next_key)) != 0) {
+			lprintf(wtperf, ret, 0, "worker: next key retrieval");
+			return (ret);
+		}
+	}
+
+	return (0);
+}
+
+/* Pull everything into cache at the start */
+static int
+traverse_all_content(WTPERF *wtperf)
+{
+	CONFIG_OPTS *opts;
+	WT_CONNECTION *conn;
+	WT_CURSOR *cursor;
+	WT_SESSION *session;
+	char *key;
+	int ret;
+	size_t i;
+
+	opts = wtperf->opts;
+	conn = wtperf->conn;
+
+	if ((ret = conn->open_session(
+	    conn, NULL, opts->sess_config, &session)) != 0) {
+		lprintf(wtperf, ret, 0, "worker: WT_CONNECTION.open_session");
+		goto err;
+	}
+	for (i = 0; i < opts->table_count; i++) {
+		if ((ret = session->open_cursor(session,
+		    wtperf->uris[i], NULL, NULL, &cursor)) != 0) {
+			lprintf(wtperf, ret, 0,
+			    "worker: WT_SESSION.open_cursor: %s",
+			    wtperf->uris[i]);
+			goto err;
+		}
+		while (cursor->next(cursor) == 0)
+			if ((ret = cursor->get_key(cursor, &key)) != 0)
+				goto err;
+		if ((ret = cursor->close(cursor)) != 0)
+			goto err;
+	}
+	if ((ret = session->close(session, NULL)) != 0)
+		goto err;
+	if (ret != 0)
+err:		lprintf(wtperf, ret, 0, "Pre-workload traverse error");
+	return (ret);
+}
+
 static void *
 worker(void *arg)
 {
 	struct timespec start, stop;
 	CONFIG_OPTS *opts;
 	TRACK *trk;
+	WORKLOAD *workload;
 	WTPERF *wtperf;
 	WTPERF_THREAD *thread;
 	WT_CONNECTION *conn;
@@ -495,13 +590,14 @@ worker(void *arg)
 	char buf[512];
 
 	thread = (WTPERF_THREAD *)arg;
+	workload = thread->workload;
 	wtperf = thread->wtperf;
 	opts = wtperf->opts;
 	conn = wtperf->conn;
 	cursors = NULL;
 	log_table_cursor = NULL;	/* -Wconditional-initialized */
 	ops = 0;
-	ops_per_txn = thread->workload->ops_per_txn;
+	ops_per_txn = workload->ops_per_txn;
 	session = NULL;
 	trk = NULL;
 
@@ -510,7 +606,6 @@ worker(void *arg)
 		lprintf(wtperf, ret, 0, "worker: WT_CONNECTION.open_session");
 		goto err;
 	}
-	cursors = dcalloc(opts->table_count, sizeof(WT_CURSOR *));
 	for (i = 0; i < opts->table_count_idle; i++) {
 		snprintf(buf, 512, "%s_idle%05d", wtperf->uris[0], (int)i);
 		if ((ret = session->open_cursor(
@@ -525,13 +620,28 @@ worker(void *arg)
 			goto err;
 		}
 	}
-	for (i = 0; i < opts->table_count; i++) {
+	/*
+	 * If a custom table name is provided operate only on that table,
+	 * used only by the scan operation for now.
+	 */
+	if (workload->table_name != NULL) {
 		if ((ret = session->open_cursor(session,
-		    wtperf->uris[i], NULL, NULL, &cursors[i])) != 0) {
+		    workload->table_name, NULL, NULL, &cursor)) != 0) {
 			lprintf(wtperf, ret, 0,
 			    "worker: WT_SESSION.open_cursor: %s",
-			    wtperf->uris[i]);
+			    workload->table_name);
 			goto err;
+		}
+	} else {
+		cursors = dcalloc(opts->table_count, sizeof(WT_CURSOR *));
+		for (i = 0; i < opts->table_count; i++) {
+			if ((ret = session->open_cursor(session,
+			    wtperf->uris[i], NULL, NULL, &cursors[i])) != 0) {
+				lprintf(wtperf, ret, 0,
+				    "worker: WT_SESSION.open_cursor: %s",
+				    wtperf->uris[i]);
+				goto err;
+			}
 		}
 	}
 	if (opts->log_like_table && (ret = session->open_cursor(session,
@@ -543,19 +653,19 @@ worker(void *arg)
 	}
 
 	/* Setup the timer for throttling. */
-	if (thread->workload->throttle != 0)
+	if (workload->throttle != 0)
 		setup_throttle(thread);
 
 	/* Setup for truncate */
-	if (thread->workload->truncate != 0)
+	if (workload->truncate != 0)
 		if ((ret = setup_truncate(wtperf, thread, session)) != 0)
 			goto err;
 
 	key_buf = thread->key_buf;
 	value_buf = thread->value_buf;
 
-	op = thread->workload->ops;
-	op_end = op + sizeof(thread->workload->ops);
+	op = workload->ops;
+	op_end = op + sizeof(workload->ops);
 
 	if ((ops_per_txn != 0 || opts->log_like_table) &&
 		(ret = session->begin_transaction(session, NULL)) != 0) {
@@ -593,6 +703,8 @@ worker(void *arg)
 			if (wtperf_value_range(wtperf) < next_val)
 				continue;
 			break;
+		case WORKER_SCAN:
+			/* FALLTHROUGH */
 		case WORKER_TRUNCATE:
 			/* Required but not used. */
 			next_val = wtperf_rand(thread);
@@ -603,10 +715,12 @@ worker(void *arg)
 
 		generate_key(opts, key_buf, next_val);
 
-		/*
-		 * Spread the data out around the multiple databases.
-		 */
-		cursor = cursors[map_key_to_table(wtperf->opts, next_val)];
+		if (workload->table_name == NULL)
+			/*
+			 * Spread the data out around the multiple databases.
+			 */
+			cursor = cursors[
+			    map_key_to_table(wtperf->opts, next_val)];
 
 		/*
 		 * Skip the first time we do an operation, when trk->ops
@@ -663,6 +777,14 @@ worker(void *arg)
 			if ((ret = cursor->insert(cursor)) == 0)
 				break;
 			goto op_err;
+		case WORKER_SCAN:
+			trk = &thread->scan;
+			if (workload->pause != 0)
+				(void)sleep(workload->pause);
+			if ((ret = run_scan_op(
+			    wtperf, thread, cursor, session)) == 0)
+				break;
+			goto op_err;
 		case WORKER_TRUNCATE:
 			if ((ret = run_truncate(wtperf,
 			    thread, cursor, session, &truncated)) == 0) {
@@ -689,7 +811,7 @@ worker(void *arg)
 				 */
 				strncpy(value_buf,
 				    value, opts->value_sz_max - 1);
-				if (thread->workload->update_delta != 0)
+				if (workload->update_delta != 0)
 					update_value_delta(thread);
 				if (value_buf[0] == 'a')
 					value_buf[0] = 'b';
@@ -750,7 +872,8 @@ op_err:			if (ret == WT_ROLLBACK && ops_per_txn != 0) {
 
 		/* Update the log-like table. */
 		if (opts->log_like_table &&
-		    (*op != WORKER_READ && *op != WORKER_TRUNCATE)) {
+		    (*op != WORKER_READ &&
+		     *op != WORKER_SCAN && *op != WORKER_TRUNCATE)) {
 			log_id =
 			    __wt_atomic_add64(&wtperf->log_like_table_key, 1);
 			log_table_cursor->set_key(log_table_cursor, log_id);
@@ -806,7 +929,7 @@ op_err:			if (ret == WT_ROLLBACK && ops_per_txn != 0) {
 
 		/* Schedule the next operation */
 		if (++op == op_end)
-			op = thread->workload->ops;
+			op = workload->ops;
 
 		/*
 		 * Decrement throttle ops and check if we should sleep
@@ -884,17 +1007,12 @@ run_mix_schedule(WTPERF *wtperf, WORKLOAD *workp)
 
 	opts = wtperf->opts;
 
-	/* Confirm reads, inserts, truncates and updates cannot all be zero. */
-	if (workp->insert == 0 && workp->read == 0 &&
-	    workp->truncate == 0 && workp->update == 0) {
-		lprintf(wtperf, EINVAL, 0, "no operations scheduled");
-		return (EINVAL);
+	/* Handle thread workloads that can't be mixed first. */
+	if (workp->scan_count != 0) {
+		memset(workp->ops, WORKER_SCAN, sizeof(workp->ops));
+		return (0);
 	}
 
-	/*
-	 * Handle truncate first - it's a special case that can't be used in
-	 * a mixed workload.
-	 */
 	if (workp->truncate != 0) {
 		if (workp->insert != 0 ||
 		    workp->read != 0 || workp->update != 0) {
@@ -904,6 +1022,12 @@ run_mix_schedule(WTPERF *wtperf, WORKLOAD *workp)
 		}
 		memset(workp->ops, WORKER_TRUNCATE, sizeof(workp->ops));
 		return (0);
+	}
+
+	/* Confirm reads, inserts and updates cannot all be zero. */
+	if (workp->insert == 0 && workp->read == 0 && workp->update == 0) {
+		lprintf(wtperf, EINVAL, 0, "no operations scheduled");
+		return (EINVAL);
 	}
 
 	/*
@@ -2039,6 +2163,10 @@ wtperf_free(WTPERF *wtperf)
 	free(wtperf->ckptthreads);
 	free(wtperf->popthreads);
 
+	/* Ensure any custom URIs are freed */
+	for (i = 0; i < wtperf->workers_cnt; i++)
+		free(wtperf->workers[i].workload->table_name);
+
 	free(wtperf->workers);
 	free(wtperf->workload);
 
@@ -2244,6 +2372,8 @@ start_run(WTPERF *wtperf)
 			    opts->checkpoint_threads, checkpoint_worker) != 0)
 				goto err;
 		}
+		if ((ret = traverse_all_content(wtperf)) != 0)
+			goto err;
 		/* Execute the workload. */
 		if ((ret = execute_workload(wtperf)) != 0)
 			goto err;

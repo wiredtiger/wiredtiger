@@ -71,11 +71,17 @@ typedef struct {
 	uint64_t truncate_count;	/* Truncate Count */
 	int64_t update_delta;		/* Value size change on update */
 
+	/* The following options are specific to scan threads at the moment */
+	int64_t scan_count;		/* If non-zero this is a scan thread */
+	char *table_name;		/* Table to focus ops on */
+	int64_t pause;			/* Time between scans */
+
 #define	WORKER_INSERT		1	/* Insert */
 #define	WORKER_INSERT_RMW	2	/* Insert with read-modify-write */
 #define	WORKER_READ		3	/* Read */
-#define	WORKER_TRUNCATE		4	/* Truncate */
-#define	WORKER_UPDATE		5	/* Update */
+#define	WORKER_SCAN		4	/* Scan */
+#define	WORKER_TRUNCATE		5	/* Truncate */
+#define	WORKER_UPDATE		6	/* Update */
 	uint8_t ops[100];		/* Operation schedule */
 } WORKLOAD;
 
@@ -241,6 +247,7 @@ struct __wtperf_thread {		/* Per-thread structure */
 	TRACK ckpt;			/* Checkpoint operations */
 	TRACK insert;			/* Insert operations */
 	TRACK read;			/* Read operations */
+	TRACK scan;			/* Scan operations */
 	TRACK update;			/* Update operations */
 	TRACK truncate;			/* Truncate operations */
 	TRACK truncate_sleep;		/* Truncate sleep operations */

@@ -233,10 +233,31 @@ config_threads(WTPERF *wtperf, const char *config, size_t len)
 					goto err;
 				continue;
 			}
+			if (STRING_MATCH("pause", k.str, k.len)) {
+				if ((workp->pause = v.val) < 0)
+					goto err;
+				continue;
+			}
 			if (STRING_MATCH("read", k.str, k.len) ||
 			    STRING_MATCH("reads", k.str, k.len)) {
 				if ((workp->read = v.val) < 0)
 					goto err;
+				continue;
+			}
+			if (STRING_MATCH("scan", k.str, k.len) ||
+			    STRING_MATCH("scans", k.str, k.len)) {
+				if ((workp->scan_count = v.val) < 0)
+					goto err;
+				continue;
+			}
+			if (STRING_MATCH("table_name", k.str, k.len)) {
+				if (workp->table_name != NULL)
+					goto err;
+				/* Convert the table name into a URI */
+				workp->table_name = dcalloc(
+				    v.len + 7, sizeof(char));
+				snprintf(workp->table_name, v.len + 7,
+				    "table:%.*s", (int)v.len, v.str);
 				continue;
 			}
 			if (STRING_MATCH("throttle", k.str, k.len)) {
@@ -297,22 +318,29 @@ config_threads(WTPERF *wtperf, const char *config, size_t len)
 		scan = NULL;
 		if (ret != 0)
 			goto err;
-		if (workp->insert == 0 && workp->read == 0 &&
+
+		/* Threads can do scans OR a mixture of other operations */
+		if (workp->scan_count != 0) {
+		    if (workp->insert != 0 || workp->read != 0 ||
+		     workp->update != 0 || workp->truncate != 0)
+			    goto err;
+		} else if (workp->truncate != 0) {
+			/* Ensure sub-configuration is reasonable */
+			if (workp->truncate_pct == 0 &&
+			    workp->truncate_count == 0)
+				goto err;
+			if (workp->truncate_pct < 1 || workp->truncate_pct > 99)
+				goto err;
+			/* Truncate should have its own exclusive thread. */
+			if (workp->threads > 1)
+				goto err;
+			if (workp->insert > 0 ||
+			    workp->read > 0 || workp->update > 0)
+				goto err;
+		} else if (workp->insert == 0 && workp->read == 0 &&
 		    workp->update == 0 && workp->truncate == 0)
 			goto err;
-		/* Why run with truncate if we don't want any truncation. */
-		if (workp->truncate != 0 &&
-		    workp->truncate_pct == 0 && workp->truncate_count == 0)
-			goto err;
-		if (workp->truncate != 0 &&
-		    (workp->truncate_pct < 1 || workp->truncate_pct > 99))
-			goto err;
-		/* Truncate should have its own exclusive thread. */
-		if (workp->truncate != 0 && workp->threads > 1)
-			goto err;
-		if (workp->truncate != 0 &&
-		    (workp->insert > 0 || workp->read > 0 || workp->update > 0))
-			goto err;
+
 		wtperf->workers_cnt += (u_int)workp->threads;
 	}
 
