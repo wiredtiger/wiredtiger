@@ -2317,8 +2317,11 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
 	WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
 	WT_RET(__wt_msg(session, "cache dump"));
 
-	__wt_spin_lock(session, &conn->dhandle_lock);
-	TAILQ_FOREACH(dhandle, &conn->dhqh, q) {
+	for (dhandle = NULL;;) {
+		WT_WITH_HANDLE_LIST_READ_LOCK(session,
+		    WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q));
+		if (dhandle == NULL)
+			break;
 		if (!WT_PREFIX_MATCH(dhandle->name, "file:") ||
 		    !F_ISSET(dhandle, WT_DHANDLE_OPEN))
 			continue;
@@ -2329,7 +2332,6 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
 		if (ret != 0)
 			break;
 	}
-	__wt_spin_unlock(session, &conn->dhandle_lock);
 	WT_RET(ret);
 
 	/*
