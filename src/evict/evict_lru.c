@@ -1040,8 +1040,6 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 				 * were unable to acquire the thread group lock.
 				 * Break out of trying.
 				 */
-				__wt_verbose(session, WT_VERB_THREAD_GROUP,
-				    "TUNE: Stopping one");
 				__wt_thread_group_stop_one(
 				    session, &conn->evict_threads);
 				WT_STAT_CONN_INCR(session,
@@ -1081,8 +1079,6 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 			 * unable to acquire the thread group lock.  Break out
 			 * of trying.
 			 */
-			__wt_verbose(session, WT_VERB_THREAD_GROUP,
-			    "TUNE: Starting one");
 			__wt_thread_group_start_one(session,
 			    &conn->evict_threads, false);
 			WT_STAT_CONN_INCR(session,

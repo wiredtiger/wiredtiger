@@ -344,9 +344,6 @@ __wt_thread_group_stop_one(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group)
 	__wt_writelock(session, &group->lock);
 	/* Recheck the bounds now that we hold the lock */
 	if (group->current_threads > group->min) {
-		__wt_verbose(session, WT_VERB_THREAD_GROUP,
-		    "Pausing one: current_threads %u",
-		    group->current_threads);
 		thread = group->threads[--group->current_threads];
 		__wt_verbose(session, WT_VERB_THREAD_GROUP,
 		    "Pausing utility thread: %p:%" PRIu32,
