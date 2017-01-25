@@ -69,13 +69,7 @@ __ckpt_server_config(WT_SESSION_IMPL *session, const char **cfg, bool *startp)
 static bool
 __ckpt_server_run_chk(WT_SESSION_IMPL *session)
 {
-	WT_CONNECTION_IMPL *conn;
-
-	conn = S2C(session);
-
-	return (!F_ISSET(conn, WT_CONN_CLOSING) &&
-	    F_ISSET(conn, WT_CONN_SERVER_RUN) &&
-	    F_ISSET(conn, WT_CONN_SERVER_CHECKPOINT));
+	return (F_ISSET(S2C(session), WT_CONN_SERVER_CHECKPOINT));
 }
 
 /*

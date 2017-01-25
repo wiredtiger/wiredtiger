@@ -485,8 +485,7 @@ __statlog_on_close(WT_SESSION_IMPL *session)
 	if (!FLD_ISSET(conn->stat_flags, WT_STAT_ON_CLOSE))
 		return (0);
 
-	if (F_ISSET(conn, WT_CONN_SERVER_RUN) &&
-	    F_ISSET(conn, WT_CONN_SERVER_STATISTICS))
+	if (F_ISSET(conn, WT_CONN_SERVER_STATISTICS))
 		WT_RET_MSG(session, EINVAL,
 		    "Attempt to log statistics while a server is running");
 
@@ -504,13 +503,7 @@ err:	__wt_scr_free(session, &tmp);
 static bool
 __statlog_server_run_chk(WT_SESSION_IMPL *session)
 {
-	WT_CONNECTION_IMPL *conn;
-
-	conn = S2C(session);
-
-	return (!F_ISSET(conn, WT_CONN_CLOSING) &&
-	    F_ISSET(conn, WT_CONN_SERVER_RUN) &&
-	    F_ISSET(conn, WT_CONN_SERVER_STATISTICS));
+	return (F_ISSET(S2C(session), WT_CONN_SERVER_STATISTICS));
 }
 
 /*

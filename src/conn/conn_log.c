@@ -341,7 +341,7 @@ __wt_log_truncate_files(
 	conn = S2C(session);
 	if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
 		return (0);
-	if (F_ISSET(conn, WT_CONN_SERVER_RUN) &&
+	if (F_ISSET(conn, WT_CONN_LOG_SERVER_RUN) &&
 	    FLD_ISSET(conn->log_flags, WT_CONN_LOG_ARCHIVE))
 		WT_RET_MSG(session, EINVAL,
 		    "Attempt to archive manually while a server is running");
