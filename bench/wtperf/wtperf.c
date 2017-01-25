@@ -434,14 +434,12 @@ err:		wtperf->error = wtperf->stop = true;
 static int
 do_range_reads(WTPERF *wtperf, WT_CURSOR *cursor, int64_t read_range)
 {
-	CONFIG_OPTS *opts;
 	uint64_t next_val, prev_val;
 	int64_t range;
 	char *range_key_buf;
 	char buf[512];
 	int ret;
 
-	opts = wtperf->opts;
 	ret = 0;
 
 	if (read_range == 0)
