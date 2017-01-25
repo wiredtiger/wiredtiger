@@ -215,6 +215,7 @@ config_threads(WTPERF *wtperf, const char *config, size_t len)
 			return (EINVAL);
 		}
 		workp = &wtperf->workload[wtperf->workload_cnt++];
+		workp->table_index = INT32_MAX;
 
 		while ((ret = scan->next(scan, &k, &v)) == 0) {
 			if (STRING_MATCH("count", k.str, k.len)) {
@@ -244,20 +245,15 @@ config_threads(WTPERF *wtperf, const char *config, size_t len)
 					goto err;
 				continue;
 			}
-			if (STRING_MATCH("scan", k.str, k.len) ||
-			    STRING_MATCH("scans", k.str, k.len)) {
-				if ((workp->scan_count = v.val) < 0)
+			if (STRING_MATCH("read_range", k.str, k.len)) {
+				if ((workp->read_range = v.val) < 0)
 					goto err;
 				continue;
 			}
-			if (STRING_MATCH("table_name", k.str, k.len)) {
-				if (workp->table_name != NULL)
+			if (STRING_MATCH("table", k.str, k.len)) {
+				if (v.val <= 0)
 					goto err;
-				/* Convert the table name into a URI */
-				workp->table_name = dcalloc(
-				    v.len + 7, sizeof(char));
-				snprintf(workp->table_name, v.len + 7,
-				    "table:%.*s", (int)v.len, v.str);
+				workp->table_index = (int32_t)v.val - 1;
 				continue;
 			}
 			if (STRING_MATCH("throttle", k.str, k.len)) {
@@ -318,29 +314,22 @@ config_threads(WTPERF *wtperf, const char *config, size_t len)
 		scan = NULL;
 		if (ret != 0)
 			goto err;
-
-		/* Threads can do scans OR a mixture of other operations */
-		if (workp->scan_count != 0) {
-		    if (workp->insert != 0 || workp->read != 0 ||
-		     workp->update != 0 || workp->truncate != 0)
-			    goto err;
-		} else if (workp->truncate != 0) {
-			/* Ensure sub-configuration is reasonable */
-			if (workp->truncate_pct == 0 &&
-			    workp->truncate_count == 0)
-				goto err;
-			if (workp->truncate_pct < 1 || workp->truncate_pct > 99)
-				goto err;
-			/* Truncate should have its own exclusive thread. */
-			if (workp->threads > 1)
-				goto err;
-			if (workp->insert > 0 ||
-			    workp->read > 0 || workp->update > 0)
-				goto err;
-		} else if (workp->insert == 0 && workp->read == 0 &&
+		if (workp->insert == 0 && workp->read == 0 &&
 		    workp->update == 0 && workp->truncate == 0)
 			goto err;
-
+		/* Why run with truncate if we don't want any truncation. */
+		if (workp->truncate != 0 &&
+		    workp->truncate_pct == 0 && workp->truncate_count == 0)
+			goto err;
+		if (workp->truncate != 0 &&
+		    (workp->truncate_pct < 1 || workp->truncate_pct > 99))
+			goto err;
+		/* Truncate should have its own exclusive thread. */
+		if (workp->truncate != 0 && workp->threads > 1)
+			goto err;
+		if (workp->truncate != 0 &&
+		    (workp->insert > 0 || workp->read > 0 || workp->update > 0))
+			goto err;
 		wtperf->workers_cnt += (u_int)workp->threads;
 	}
 
@@ -788,16 +777,26 @@ config_sanity(WTPERF *wtperf)
 			opts->value_sz_min = opts->value_sz;
 	}
 
-	if (opts->readonly && wtperf->workload != NULL)
+	if (wtperf->workload != NULL)
 		for (i = 0, workp = wtperf->workload;
-		    i < wtperf->workload_cnt; ++i, ++workp)
-			if (workp->insert != 0 || workp->update != 0 ||
-			    workp->truncate != 0) {
+		    i < wtperf->workload_cnt; ++i, ++workp) {
+			if (opts->readonly &&
+			    (workp->insert != 0 || workp->update != 0 ||
+			    workp->truncate != 0)) {
 				fprintf(stderr,
 				    "Invalid workload: insert, update or "
 				    "truncate specified with readonly\n");
 				return (EINVAL);
 			}
+			if (workp->table_index != INT32_MAX &&
+			    workp->table_index >= (int32_t)opts->table_count) {
+				fprintf(stderr,
+				    "Workload table index %" PRId32
+				    " is larger than table count %" PRId32,
+				    workp->table_index, opts->table_count);
+				return (EINVAL);
+			}
+		}
 	return (0);
 }
 
