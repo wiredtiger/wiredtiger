@@ -337,15 +337,10 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 				    WT_VERB_EVICTSERVER, "waking");
 			} else
 				WT_ERR(__evict_lru_pages(session, false));
-		} else {
-			__wt_verbose(session, WT_VERB_THREAD_GROUP,
-			    "evict thread pause");
+		} else
 			__wt_cond_wait(session, thread->pause_cond,
 			    WT_EVICT_THREAD_PAUSE * WT_MILLION,
 			    __evict_thread_run_chk);
-			__wt_verbose(session, WT_VERB_THREAD_GROUP,
-			    "evict thread paused woke up");
-		}
 	}
 
 	/*

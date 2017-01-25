@@ -113,6 +113,11 @@ __thread_group_resize(
 	conn = S2C(session);
 	session_flags = 0;
 
+	__wt_verbose(session, WT_VERB_THREAD_GROUP,
+	    "Resize thread group: %p, from min: %" PRIu32 " -> %" PRIu32
+	    " from max: %" PRIu32 " -> %" PRIu32,
+	    (void *)group, group->min, new_min, group->max, new_max);
+
 	WT_ASSERT(session,
 	    group->current_threads <= group->alloc &&
 	    __wt_rwlock_islocked(session, &group->lock));
@@ -211,11 +216,6 @@ __wt_thread_group_resize(
     uint32_t new_min, uint32_t new_max, uint32_t flags)
 {
 	WT_DECL_RET;
-
-	__wt_verbose(session, WT_VERB_THREAD_GROUP,
-	    "Resize thread group: %p, from min: %" PRIu32 " -> %" PRIu32
-	    " from max: %" PRIu32 " -> %" PRIu32,
-	    (void *)group, group->min, new_min, group->max, new_max);
 
 	__wt_writelock(session, &group->lock);
 	WT_TRET(__thread_group_resize(session, group, new_min, new_max, flags));
@@ -316,11 +316,12 @@ __wt_thread_group_start_one(
 
 	/* Recheck the bounds now that we hold the lock */
 	if (group->current_threads < group->max) {
-		thread = group->threads[++group->current_threads];
-		WT_ASSERT(session, !F_ISSET(thread, WT_THREAD_ACTIVE));
+		thread = group->threads[group->current_threads++];
+		WT_ASSERT(session, thread != NULL);
 		__wt_verbose(session, WT_VERB_THREAD_GROUP,
 		    "Activating utility thread: %p:%" PRIu32,
 		    (void *)group, thread->id);
+		WT_ASSERT(session, !F_ISSET(thread, WT_THREAD_ACTIVE));
 		F_SET(thread, WT_THREAD_ACTIVE);
 		__wt_cond_signal(session, thread->pause_cond);
 	}
@@ -343,11 +344,14 @@ __wt_thread_group_stop_one(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group)
 	__wt_writelock(session, &group->lock);
 	/* Recheck the bounds now that we hold the lock */
 	if (group->current_threads > group->min) {
-		thread = group->threads[group->current_threads--];
-		WT_ASSERT(session, F_ISSET(thread, WT_THREAD_ACTIVE));
+		__wt_verbose(session, WT_VERB_THREAD_GROUP,
+		    "Pausing one: current_threads %u",
+		    group->current_threads);
+		thread = group->threads[--group->current_threads];
 		__wt_verbose(session, WT_VERB_THREAD_GROUP,
 		    "Pausing utility thread: %p:%" PRIu32,
 		    (void *)group, thread->id);
+		WT_ASSERT(session, F_ISSET(thread, WT_THREAD_ACTIVE));
 		F_CLR(thread, WT_THREAD_ACTIVE);
 		__wt_cond_signal(session, thread->pause_cond);
 	}
