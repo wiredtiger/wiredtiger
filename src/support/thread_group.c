@@ -163,7 +163,7 @@ __thread_group_resize(
 		thread->id = i;
 		thread->run_func = group->run_func;
 		WT_ERR(__wt_cond_alloc(
-		    session, "Thread cond", false, &thread->pause_cond));
+		    session, "Thread cond", &thread->pause_cond));
 		WT_ASSERT(session, group->threads[i] == NULL);
 		group->threads[i] = thread;
 
@@ -247,7 +247,7 @@ __wt_thread_group_create(
 
 	__wt_rwlock_init(session, &group->lock);
 	WT_ERR(__wt_cond_alloc(
-	    session, "Thread group cond", false, &group->wait_cond));
+	    session, "thread group cond", &group->wait_cond));
 	cond_alloced = true;
 
 	__wt_writelock(session, &group->lock);
