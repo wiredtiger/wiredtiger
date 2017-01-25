@@ -95,9 +95,7 @@ __wt_conn_dhandle_find(
 	conn = S2C(session);
 
 	/* We must be holding the handle list lock at a higher level. */
-	WT_ASSERT(session,
-	    F_ISSET(session, WT_SESSION_LOCKED_READ_HANDLE_LIST |
-	    WT_SESSION_LOCKED_WRITE_HANDLE_LIST));
+	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST));
 
 	bucket = __wt_hash_city64(uri, strlen(uri)) % WT_HASH_ARRAY_SIZE;
 	if (checkpoint == NULL) {
@@ -588,8 +586,7 @@ __wt_conn_dhandle_discard_single(
 	 * handle list lock.
 	 */
 	set_pass_intr = false;
-	if (!F_ISSET(session, WT_SESSION_LOCKED_READ_HANDLE_LIST |
-	    WT_SESSION_LOCKED_WRITE_HANDLE_LIST)) {
+	if (!F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST)) {
 		set_pass_intr = true;
 		(void)__wt_atomic_addv32(&S2C(session)->cache->pass_intr, 1);
 	}

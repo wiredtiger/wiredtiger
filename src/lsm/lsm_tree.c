@@ -359,9 +359,7 @@ __lsm_tree_find(WT_SESSION_IMPL *session,
 {
 	WT_LSM_TREE *lsm_tree;
 
-	WT_ASSERT(session,
-	    F_ISSET(session, WT_SESSION_LOCKED_READ_HANDLE_LIST |
-		WT_SESSION_LOCKED_WRITE_HANDLE_LIST));
+	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST));
 
 	/* See if the tree is already open. */
 	TAILQ_FOREACH(lsm_tree, &S2C(session)->lsmqh, q)
@@ -521,6 +519,11 @@ __wt_lsm_tree_get(WT_SESSION_IMPL *session,
 {
 	WT_DECL_RET;
 
+	/*
+	 * Dropping and re-acquiring the lock is safe here, since the tree open
+	 * call checks to see if another thread beat it to opening the tree
+	 * before proceeding.
+	 */
 	WT_WITH_HANDLE_LIST_READ_LOCK(session,
 	    ret = __lsm_tree_find(session, uri, exclusive, treep));
 	if (ret == WT_NOTFOUND)

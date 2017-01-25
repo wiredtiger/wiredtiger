@@ -233,10 +233,6 @@ __sweep_remove_handles(WT_SESSION_IMPL *session)
 		if (!WT_DHANDLE_CAN_DISCARD(dhandle))
 			continue;
 
-		/*
-		 * The read lock we take here will be upgraded to a write lock
-		 * if it is likely the remove will succeed.
-		 */
 		WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
 		    ret = __sweep_remove_one(session, dhandle));
 		if (ret == 0)

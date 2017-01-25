@@ -63,7 +63,6 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
 	WT_RET(__wt_spin_init(session, &conn->turtle_lock, "turtle file"));
 
 	/* Read-write locks */
-	/* TODO: Add stats tracking back in */
 	__wt_rwlock_init(session, &conn->dhandle_lock);
 	__wt_rwlock_init(session, &conn->hot_backup_lock);
 

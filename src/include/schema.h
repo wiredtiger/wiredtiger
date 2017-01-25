@@ -78,6 +78,11 @@ struct __wt_table {
  */
 #define	WT_COLGROUPS(t)	WT_MAX((t)->ncolgroups, 1)
 
+/* Make it simple to check a generic locked state on the handle list lock */
+#define	WT_SESSION_LOCKED_HANDLE_LIST 					\
+	(WT_SESSION_LOCKED_READ_HANDLE_LIST |				\
+	 WT_SESSION_LOCKED_WRITE_HANDLE_LIST)
+
 /*
  * WT_WITH_LOCK_WAIT --
  *	Wait for a lock, perform an operation, drop the lock.
@@ -132,8 +137,7 @@ struct __wt_table {
  *	operations.
  */
 #define	WT_WITH_HANDLE_LIST_READ_LOCK(session, op) do {			\
-	if (F_ISSET(session, WT_SESSION_LOCKED_READ_HANDLE_LIST |	\
-	    WT_SESSION_LOCKED_WRITE_HANDLE_LIST)) {			\
+	if (F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST)) {		\
 		op;							\
 	}  else {							\
 		__wt_readlock(session, &S2C(session)->dhandle_lock);	\
@@ -182,8 +186,7 @@ struct __wt_table {
 #define	WT_WITH_SCHEMA_LOCK(session, op) do {				\
 	WT_ASSERT(session,						\
 	    F_ISSET(session, WT_SESSION_LOCKED_SCHEMA) ||		\
-	    !F_ISSET(session, WT_SESSION_LOCKED_READ_HANDLE_LIST |	\
-	    WT_SESSION_LOCKED_WRITE_HANDLE_LIST |			\
+	    !F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST |		\
 	    WT_SESSION_NO_SCHEMA_LOCK | WT_SESSION_LOCKED_TABLE));	\
 	WT_WITH_LOCK_WAIT(session,					\
 	    &S2C(session)->schema_lock, WT_SESSION_LOCKED_SCHEMA, op);	\
@@ -191,8 +194,7 @@ struct __wt_table {
 #define	WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret, op) do {		\
 	WT_ASSERT(session,						\
 	    F_ISSET(session, WT_SESSION_LOCKED_SCHEMA) ||		\
-	    !F_ISSET(session, WT_SESSION_LOCKED_READ_HANDLE_LIST |	\
-	    WT_SESSION_LOCKED_WRITE_HANDLE_LIST |			\
+	    !F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST |		\
 	    WT_SESSION_NO_SCHEMA_LOCK | WT_SESSION_LOCKED_TABLE));	\
 	WT_WITH_LOCK_NOWAIT(session, ret,				\
 	    &S2C(session)->schema_lock, WT_SESSION_LOCKED_SCHEMA, op);	\
@@ -205,16 +207,14 @@ struct __wt_table {
 #define	WT_WITH_TABLE_LOCK(session, op) do {				\
 	WT_ASSERT(session,						\
 	    F_ISSET(session, WT_SESSION_LOCKED_TABLE) ||		\
-	    !F_ISSET(session, WT_SESSION_LOCKED_READ_HANDLE_LIST |	\
-	    WT_SESSION_LOCKED_WRITE_HANDLE_LIST));			\
+	    !F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST));		\
 	WT_WITH_LOCK_WAIT(session,					\
 	    &S2C(session)->table_lock, WT_SESSION_LOCKED_TABLE, op);	\
 } while (0)
 #define	WT_WITH_TABLE_LOCK_NOWAIT(session, ret, op) do {		\
 	WT_ASSERT(session,						\
 	    F_ISSET(session, WT_SESSION_LOCKED_TABLE) ||		\
-	    !F_ISSET(session, WT_SESSION_LOCKED_READ_HANDLE_LIST |	\
-	    WT_SESSION_LOCKED_WRITE_HANDLE_LIST));			\
+	    !F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST));		\
 	WT_WITH_LOCK_NOWAIT(session, ret,				\
 	    &S2C(session)->table_lock, WT_SESSION_LOCKED_TABLE, op);	\
 } while (0)

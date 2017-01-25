@@ -44,6 +44,7 @@
     (void)__wt_atomic_sub32(&dhandle->session_ref, 1)
 
 #define	WT_DHANDLE_NEXT(session, dhandle, head, field) do {		\
+	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST));\
 	if (dhandle == NULL)						\
 		dhandle = TAILQ_FIRST(head);				\
 	else {								\
