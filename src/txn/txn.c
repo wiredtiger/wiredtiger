@@ -804,6 +804,7 @@ __wt_txn_global_destroy(WT_SESSION_IMPL *session)
 	__wt_free(session, txn_global->states);
 }
 
+#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
 /*
  * __wt_verbose_dump_txn --
  *	Output diagnostic information about the global transaction state.
@@ -896,3 +897,4 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 
 	return (0);
 }
+#endif
