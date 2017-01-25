@@ -619,7 +619,7 @@ worker(void *arg)
 
 	while (!wtperf->stop) {
 		if (workload->pause != 0)
-			(void)sleep((uint)workload->pause);
+			(void)sleep((unsigned int)workload->pause);
 		/*
 		 * Generate the next key and setup operation specific
 		 * statistics tracking objects.
@@ -902,7 +902,7 @@ run_mix_schedule_op(WORKLOAD *workp, int op, int64_t op_cnt)
 	uint8_t *p, *end;
 
 	/* Jump around the array to roughly spread out the operations. */
-	jump = 100 / op_cnt;
+	jump = (int)(100 / op_cnt);
 
 	/*
 	 * Find a read operation and replace it with another operation.  This
