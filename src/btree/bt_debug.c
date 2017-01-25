@@ -443,17 +443,25 @@ static char *
 __debug_tree_shape_info(WT_PAGE *page)
 {
 	uint64_t v;
-	static char buf[32];
+	static char buf[64];
+	const char *unit;
 
 	v = page->memory_footprint;
-	if (v >= WT_GIGABYTE)
-		snprintf(buf, sizeof(buf),
-		    "(%p %" PRIu64 "G)", (void *)page, v / WT_GIGABYTE);
-	else if (v >= WT_MEGABYTE)
-		snprintf(buf, sizeof(buf),
-		    "(%p %" PRIu64 "M)", (void *)page, v / WT_MEGABYTE);
-	else
-		snprintf(buf, sizeof(buf), "(%p %" PRIu64 ")", (void *)page, v);
+	if (page->memory_footprint > WT_GIGABYTE) {
+		v = page->memory_footprint / WT_GIGABYTE;
+		unit = "G";
+	} else if (page->memory_footprint > WT_MEGABYTE) {
+		v = page->memory_footprint / WT_MEGABYTE;
+		unit = "M";
+	} else {
+		v = page->memory_footprint;
+		unit = "B";
+	}
+
+	snprintf(buf, sizeof(buf), "(%p, %" PRIu64 "%s, evict gen %" PRIu64
+	    ", create gen %" PRIu64 ")",
+	    (void *)page, v, unit,
+	    page->evict_pass_gen, page->cache_create_gen);
 	return (buf);
 }
 

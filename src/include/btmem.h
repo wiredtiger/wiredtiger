@@ -634,6 +634,7 @@ struct __wt_page {
 	uint64_t read_gen;
 
 	uint64_t evict_pass_gen;	/* Eviction pass generation */
+	uint64_t cache_create_gen;	/* Page create timestamp */
 
 	size_t memory_footprint;	/* Memory attached to the page */
 

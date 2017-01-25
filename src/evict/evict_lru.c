@@ -758,8 +758,10 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool count_stat)
 	if ((ref = btree->evict_ref) == NULL)
 		return (0);
 
-	if (count_stat)
+	if (count_stat) {
 		WT_STAT_CONN_INCR(session, cache_eviction_walks_abandoned);
+		WT_STAT_DATA_INCR(session, cache_eviction_walks_abandoned);
+	}
 
 	/*
 	 * Clear evict_ref first, in case releasing it forces eviction (we
@@ -1585,6 +1587,33 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
 	    target_pages > remaining_slots)
 		target_pages = remaining_slots;
+
+	if (target_pages < 2) {
+		WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt2);
+		WT_STAT_DATA_INCR(session, cache_eviction_target_page_lt2);
+	} else if (target_pages < 4) {
+		WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt4);
+		WT_STAT_DATA_INCR(session, cache_eviction_target_page_lt4);
+	} else if (target_pages < 6) {
+		WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt6);
+		WT_STAT_DATA_INCR(session, cache_eviction_target_page_lt6);
+	} else if (target_pages < 8) {
+		WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt8);
+		WT_STAT_DATA_INCR(session, cache_eviction_target_page_lt8);
+	} else if (target_pages < 16) {
+		WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt16);
+		WT_STAT_DATA_INCR(session, cache_eviction_target_page_lt16);
+	} else if (target_pages < 32) {
+		WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt32);
+		WT_STAT_DATA_INCR(session, cache_eviction_target_page_lt32);
+	} else if (target_pages < 64) {
+		WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt64);
+		WT_STAT_DATA_INCR(session, cache_eviction_target_page_lt64);
+	} else {
+		WT_STAT_CONN_INCR(session, cache_eviction_target_page_ge64);
+		WT_STAT_DATA_INCR(session, cache_eviction_target_page_ge64);
+	}
+
 	end = start + target_pages;
 
 	walk_flags =
@@ -1603,6 +1632,14 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	if (F_ISSET(cache, WT_CACHE_EVICT_DIRTY) &&
 	    !F_ISSET(cache, WT_CACHE_EVICT_CLEAN))
 		min_pages *= 10;
+
+	if (btree->evict_ref == NULL) {
+		WT_STAT_CONN_INCR(session, cache_eviction_walk_from_root);
+		WT_STAT_DATA_INCR(session, cache_eviction_walk_from_root);
+	} else {
+		WT_STAT_CONN_INCR(session, cache_eviction_walk_saved_pos);
+		WT_STAT_DATA_INCR(session, cache_eviction_walk_saved_pos);
+	}
 
 	/*
 	 * Get some more eviction candidate pages.
@@ -1630,10 +1667,19 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 		    pages_seen > min_pages &&
 		    (pages_queued == 0 || (pages_seen / pages_queued) >
 		    (min_pages / target_pages));
-		if (give_up)
+		if (give_up) {
+			WT_STAT_CONN_INCR(
+			    session, cache_eviction_walks_gave_up);
+			WT_STAT_DATA_INCR(
+			    session, cache_eviction_walks_gave_up);
 			break;
+		}
 
 		if ((ref = btree->evict_ref) == NULL) {
+			WT_STAT_CONN_INCR(
+			    session, cache_eviction_walks_ended);
+			WT_STAT_DATA_INCR(
+			    session, cache_eviction_walks_ended);
 			if (++restarts == 2)
 				break;
 			WT_STAT_CONN_INCR(
@@ -1765,9 +1811,9 @@ fast:		/* If the page can't be evicted, give up. */
 		/* Give up the walk occasionally. */
 		if (__wt_ref_is_root(ref) || evict == start || give_up ||
 		    ref->page->read_gen == WT_READGEN_OLDEST ||
-		    ref->page->memory_footprint >= btree->splitmempage)
-			WT_RET(__evict_clear_walk(session, restarts == 0));
-		else if (ref->page->read_gen == WT_READGEN_OLDEST)
+		    ref->page->memory_footprint >= btree->splitmempage) {
+			WT_RET(__evict_clear_walk(session, true));
+		} else if (ref->page->read_gen == WT_READGEN_OLDEST)
 			WT_RET_NOTFOUND_OK(__wt_tree_walk_count(
 			    session, &btree->evict_ref,
 			    &refs_walked, walk_flags));
@@ -1775,6 +1821,9 @@ fast:		/* If the page can't be evicted, give up. */
 
 	WT_STAT_CONN_INCRV(session, cache_eviction_walk, refs_walked);
 	WT_STAT_CONN_INCRV(session, cache_eviction_pages_seen, pages_seen);
+	WT_STAT_DATA_INCRV(session, cache_eviction_pages_seen, pages_seen);
+	WT_STAT_CONN_INCRV(session, cache_eviction_walk_passes, 1);
+	WT_STAT_DATA_INCRV(session, cache_eviction_walk_passes, 1);
 
 	return (0);
 }
