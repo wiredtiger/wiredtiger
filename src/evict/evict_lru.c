@@ -429,8 +429,8 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 			}
 #endif
 		}
-	}
 #endif
+	}
 	*did_work = cache->pages_evicted != orig_pages_evicted;
 	return (0);
 }
