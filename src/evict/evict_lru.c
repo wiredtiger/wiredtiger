@@ -42,21 +42,13 @@ __evict_lock_handle_list(WT_SESSION_IMPL *session)
 	conn = S2C(session);
 	cache = conn->cache;
 	dh_lock = &conn->dhandle_lock;
-	/*
-	 * We want to know if a lot of time is spent waiting for this readlock
-	 * but don't (yet) have stats for read/write locks.
-	 */
-#if 0 /* XXX */
-	int64_t **stats = (int64_t **)conn->stats;
-	dh_stats = WT_STAT_ENABLED(session) && dh_lock->stat_count_off != -1;
-#else
-	dh_stats = false;
-#endif
 
 	/*
-	 * Maintain lock acquisition timing statistics as if this were a
-	 * regular lock acquisition.
+	 * Setup tracking of handle lock acquisition wait time if statistics
+	 * are enabled.
 	 */
+	dh_stats = WT_STAT_ENABLED(session);
+
 	if (dh_stats)
 		__wt_epoch(session, &enter);
 
@@ -78,10 +70,9 @@ __evict_lock_handle_list(WT_SESSION_IMPL *session)
 	WT_RET(ret);
 	if (dh_stats) {
 		__wt_epoch(session, &leave);
-#if 0
-		stats[session->stat_bucket][dh_lock->stat_int_usecs_off] +=
-		    (int64_t)WT_TIMEDIFF_US(leave, enter);
-#endif
+		WT_STAT_CONN_INCRV(
+		    session, lock_handle_list_wait_eviction,
+		    (int64_t)WT_TIMEDIFF_US(leave, enter));
 	}
 	return (0);
 }
