@@ -36,7 +36,7 @@ __async_set_key(WT_ASYNC_OP *asyncop, ...)
 	c = &asyncop->c;
 	va_start(ap, asyncop);
 	__wt_cursor_set_keyv(c, c->flags, ap);
-	if (!WT_DATA_IN_ITEM(&c->key) && !WT_CURSOR_RECNO(c))
+	if (!WT_DATA_IN_ITEM(&c->key) && !__cursor_recno(c))
 		c->saved_err = __wt_buf_set(
 		    O2S((WT_ASYNC_OP_IMPL *)asyncop),
 		    &c->key, c->key.data, c->key.size);

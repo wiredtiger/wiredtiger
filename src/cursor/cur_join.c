@@ -388,7 +388,7 @@ __curjoin_endpoint_init_key(WT_SESSION_IMPL *session,
 			    &cindex->child->key, &endpoint->key));
 		} else {
 			k = &((WT_CURSOR_TABLE *)cursor)->cg_cursors[0]->key;
-			if (WT_CURSOR_RECNO(cursor)) {
+			if (__cursor_recno(cursor)) {
 				r = *(uint64_t *)k->data;
 				WT_RET(__curjoin_pack_recno(session, r,
 				    endpoint->recno_buf,
@@ -1244,7 +1244,7 @@ __curjoin_split_key(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
 		WT_ASSERT(session, cindex->child->key.size > idxkey->size);
 		tocur->key.data = (uint8_t *)idxkey->data + idxkey->size;
 		tocur->key.size = cindex->child->key.size - idxkey->size;
-		if (WT_CURSOR_RECNO(tocur)) {
+		if (__cursor_recno(tocur)) {
 			p = (const uint8_t *)tocur->key.data;
 			WT_RET(__wt_vunpack_uint(&p, tocur->key.size,
 			    &tocur->recno));
@@ -1253,7 +1253,7 @@ __curjoin_split_key(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
 	} else {
 		firstcg_cur = ((WT_CURSOR_TABLE *)fromcur)->cg_cursors[0];
 		keyp = &firstcg_cur->key;
-		if (WT_CURSOR_RECNO(tocur)) {
+		if (__cursor_recno(tocur)) {
 			WT_ASSERT(session, keyp->size == sizeof(uint64_t));
 			tocur->recno = *(uint64_t *)keyp->data;
 			WT_RET(__curjoin_pack_recno(session, tocur->recno,

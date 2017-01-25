@@ -66,8 +66,8 @@ __curindex_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
 		WT_ERR_MSG(session, EINVAL,
 		    "Cursors must reference the same object");
 
-	WT_CURSOR_CHECKKEY(a);
-	WT_CURSOR_CHECKKEY(b);
+	WT_ERR(__cursor_checkkey(a));
+	WT_ERR(__cursor_checkkey(b));
 
 	ret = __wt_compare(
 	    session, cindex->index->collator, &a->key, &b->key, cmpp);
@@ -491,7 +491,7 @@ __wt_curindex_open(WT_SESSION_IMPL *session,
 	 * using only the primary's recno as the index key.  Disallow that for
 	 * now.
 	 */
-	if (WT_CURSOR_RECNO(cursor))
+	if (__cursor_recno(cursor))
 		WT_ERR_MSG(session, WT_ERROR,
 		    "Column store indexes based on a record number primary "
 		    "key are not supported");

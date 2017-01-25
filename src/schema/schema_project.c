@@ -48,7 +48,7 @@ __wt_schema_project_in(WT_SESSION_IMPL *session,
 		switch (*proj) {
 		case WT_PROJ_KEY:
 			c = cp[arg];
-			if (WT_CURSOR_RECNO(c)) {
+			if (__cursor_recno(c)) {
 				c->key.data = &c->recno;
 				c->key.size = sizeof(c->recno);
 				WT_RET(__pack_init(session, &pack, "R"));
@@ -170,7 +170,7 @@ __wt_schema_project_out(WT_SESSION_IMPL *session,
 		switch (*proj) {
 		case WT_PROJ_KEY:
 			c = cp[arg];
-			if (WT_CURSOR_RECNO(c)) {
+			if (__cursor_recno(c)) {
 				c->key.data = &c->recno;
 				c->key.size = sizeof(c->recno);
 				WT_RET(__pack_init(session, &pack, "R"));
@@ -261,7 +261,7 @@ __wt_schema_project_slice(WT_SESSION_IMPL *session, WT_CURSOR **cp,
 		case WT_PROJ_KEY:
 			skip = false;
 			c = cp[arg];
-			if (WT_CURSOR_RECNO(c)) {
+			if (__cursor_recno(c)) {
 				c->key.data = &c->recno;
 				c->key.size = sizeof(c->recno);
 				WT_RET(__pack_init(session, &pack, "R"));
@@ -420,7 +420,7 @@ __wt_schema_project_merge(WT_SESSION_IMPL *session,
 		switch (*proj) {
 		case WT_PROJ_KEY:
 			c = cp[arg];
-			if (WT_CURSOR_RECNO(c)) {
+			if (__cursor_recno(c)) {
 				c->key.data = &c->recno;
 				c->key.size = sizeof(c->recno);
 				WT_RET(__pack_init(session, &pack, "R"));

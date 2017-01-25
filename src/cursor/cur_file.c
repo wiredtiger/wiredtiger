@@ -54,8 +54,8 @@ __curfile_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
 		WT_ERR_MSG(session, EINVAL,
 		    "Cursors must reference the same object");
 
-	WT_CURSOR_CHECKKEY(a);
-	WT_CURSOR_CHECKKEY(b);
+	WT_ERR(__cursor_checkkey(a));
+	WT_ERR(__cursor_checkkey(b));
 
 	ret = __wt_btcur_compare(
 	    (WT_CURSOR_BTREE *)a, (WT_CURSOR_BTREE *)b, cmpp);
@@ -86,8 +86,8 @@ __curfile_equals(WT_CURSOR *a, WT_CURSOR *b, int *equalp)
 		WT_ERR_MSG(session, EINVAL,
 		    "Cursors must reference the same object");
 
-	WT_CURSOR_CHECKKEY(a);
-	WT_CURSOR_CHECKKEY(b);
+	WT_ERR(__cursor_checkkey(a));
+	WT_ERR(__cursor_checkkey(b));
 
 	ret = __wt_btcur_equals(
 	    (WT_CURSOR_BTREE *)a, (WT_CURSOR_BTREE *)b, equalp);
@@ -194,8 +194,8 @@ __curfile_search(WT_CURSOR *cursor)
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_API_CALL(cursor, session, search, cbt->btree);
 
-	WT_CURSOR_NEEDKEY(cursor);
-	WT_CURSOR_NOVALUE(cursor);
+	WT_ERR(__cursor_needkey(cursor));
+	__cursor_novalue(cursor);
 
 	WT_BTREE_CURSOR_SAVE_AND_RESTORE(cursor, __wt_btcur_search(cbt), ret);
 
@@ -216,8 +216,8 @@ __curfile_search_near(WT_CURSOR *cursor, int *exact)
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_API_CALL(cursor, session, search_near, cbt->btree);
 
-	WT_CURSOR_NEEDKEY(cursor);
-	WT_CURSOR_NOVALUE(cursor);
+	WT_ERR(__cursor_needkey(cursor));
+	__cursor_novalue(cursor);
 
 	WT_BTREE_CURSOR_SAVE_AND_RESTORE(
 	    cursor, __wt_btcur_search_near(cbt, exact), ret);
@@ -239,8 +239,8 @@ __curfile_insert(WT_CURSOR *cursor)
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_UPDATE_API_CALL(cursor, session, insert, cbt->btree);
 	if (!F_ISSET(cursor, WT_CURSTD_APPEND))
-		WT_CURSOR_NEEDKEY(cursor);
-	WT_CURSOR_NEEDVALUE(cursor);
+		WT_ERR(__cursor_needkey(cursor));
+	WT_ERR(__cursor_needvalue(cursor));
 
 	WT_BTREE_CURSOR_SAVE_AND_RESTORE(cursor, __wt_btcur_insert(cbt), ret);
 
@@ -278,8 +278,8 @@ __curfile_update(WT_CURSOR *cursor)
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_UPDATE_API_CALL(cursor, session, update, cbt->btree);
 
-	WT_CURSOR_NEEDKEY(cursor);
-	WT_CURSOR_NEEDVALUE(cursor);
+	WT_ERR(__cursor_needkey(cursor));
+	WT_ERR(__cursor_needvalue(cursor));
 
 	WT_BTREE_CURSOR_SAVE_AND_RESTORE(cursor, __wt_btcur_update(cbt), ret);
 
@@ -301,8 +301,8 @@ __wt_curfile_update_check(WT_CURSOR *cursor)
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_UPDATE_API_CALL(cursor, session, update, cbt->btree);
 
-	WT_CURSOR_NEEDKEY(cursor);
-	WT_CURSOR_NOVALUE(cursor);
+	WT_ERR(__cursor_needkey(cursor));
+	__cursor_novalue(cursor);
 
 	WT_BTREE_CURSOR_SAVE_AND_RESTORE(
 	    cursor, __wt_btcur_update_check(cbt), ret);
@@ -325,8 +325,8 @@ __curfile_remove(WT_CURSOR *cursor)
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_REMOVE_API_CALL(cursor, session, cbt->btree);
 
-	WT_CURSOR_NEEDKEY(cursor);
-	WT_CURSOR_NOVALUE(cursor);
+	WT_ERR(__cursor_needkey(cursor));
+	__cursor_novalue(cursor);
 
 	WT_BTREE_CURSOR_SAVE_AND_RESTORE(cursor, __wt_btcur_remove(cbt), ret);
 
@@ -362,7 +362,7 @@ __curfile_reserve(WT_CURSOR *cursor)
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_UPDATE_API_CALL(cursor, session, reserve, cbt->btree);
 
-	WT_CURSOR_NEEDKEY(cursor);
+	WT_ERR(__cursor_needkey(cursor));
 
 	WT_ERR(__wt_txn_context_check(session, true, "WT_CURSOR.reserve"));
 
@@ -492,7 +492,7 @@ __curfile_create(WT_SESSION_IMPL *session,
 	 */
 	WT_ERR(__wt_config_gets_def(session, cfg, "next_random", 0, &cval));
 	if (cval.val != 0) {
-		if (WT_CURSOR_RECNO(cursor))
+		if (__cursor_recno(cursor))
 			WT_ERR_MSG(session, ENOTSUP,
 			    "next_random configuration not supported for "
 			    "column-store objects");

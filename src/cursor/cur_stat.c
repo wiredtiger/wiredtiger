@@ -54,7 +54,7 @@ __curstat_get_key(WT_CURSOR *cursor, ...)
 	va_start(ap, cursor);
 	CURSOR_API_CALL(cursor, session, get_key, NULL);
 
-	WT_CURSOR_NEEDKEY(cursor);
+	WT_ERR(__cursor_needkey(cursor));
 
 	if (F_ISSET(cursor, WT_CURSTD_RAW)) {
 		WT_ERR(__wt_struct_size(
@@ -93,7 +93,7 @@ __curstat_get_value(WT_CURSOR *cursor, ...)
 	va_start(ap, cursor);
 	CURSOR_API_CALL(cursor, session, get_value, NULL);
 
-	WT_CURSOR_NEEDVALUE(cursor);
+	WT_ERR(__cursor_needvalue(cursor));
 
 	WT_ERR(cst->stats_desc(cst, WT_STAT_KEY_OFFSET(cst), &desc));
 	if (F_ISSET(cursor, WT_CURSTD_RAW)) {
@@ -288,7 +288,7 @@ __curstat_search(WT_CURSOR *cursor)
 	cst = (WT_CURSOR_STAT *)cursor;
 	CURSOR_API_CALL(cursor, session, search, NULL);
 
-	WT_CURSOR_NEEDKEY(cursor);
+	WT_ERR(__cursor_needkey(cursor));
 	F_CLR(cursor, WT_CURSTD_VALUE_SET | WT_CURSTD_VALUE_SET);
 
 	/* Initialize on demand. */

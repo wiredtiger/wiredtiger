@@ -13,7 +13,7 @@
  * backing metadata table cursor.
  */
 #define	WT_MD_CURSOR_NEEDKEY(cursor) do {				\
-	WT_CURSOR_NEEDKEY(cursor);					\
+	WT_ERR(__cursor_needkey(cursor));				\
 	WT_ERR(__wt_buf_set(session,					\
 	    &((WT_CURSOR_METADATA *)(cursor))->file_cursor->key,	\
 	    cursor->key.data, cursor->key.size));			\
@@ -22,7 +22,7 @@
 } while (0)
 
 #define	WT_MD_CURSOR_NEEDVALUE(cursor) do {				\
-	WT_CURSOR_NEEDVALUE(cursor);					\
+	WT_ERR(__cursor_needvalue(cursor));				\
 	WT_ERR(__wt_buf_set(session,					\
 	    &((WT_CURSOR_METADATA *)(cursor))->file_cursor->value,	\
 	    cursor->value.data, cursor->value.size));			\
