@@ -79,7 +79,7 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
 	WT_RET(__wt_spin_init(
 	    session, &conn->lsm_manager.switch_lock, "LSM switch queue lock"));
 	WT_RET(__wt_cond_alloc(
-	    session, "LSM worker cond", false, &conn->lsm_manager.work_cond));
+	    session, "LSM worker cond", &conn->lsm_manager.work_cond));
 
 	/*
 	 * Generation numbers.
@@ -109,16 +109,15 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
  * __wt_connection_destroy --
  *	Destroy the connection's underlying WT_CONNECTION_IMPL structure.
  */
-int
+void
 __wt_connection_destroy(WT_CONNECTION_IMPL *conn)
 {
-	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	u_int i;
 
 	/* Check there's something to destroy. */
 	if (conn == NULL)
-		return (0);
+		return;
 
 	session = conn->default_session;
 
@@ -149,11 +148,6 @@ __wt_connection_destroy(WT_CONNECTION_IMPL *conn)
 		__wt_spin_destroy(session, &conn->page_lock[i]);
 	__wt_free(session, conn->page_lock);
 
-	/* Destroy the file-system configuration. */
-	if (conn->file_system != NULL && conn->file_system->terminate != NULL)
-		WT_TRET(conn->file_system->terminate(
-		    conn->file_system, (WT_SESSION *)session));
-
 	/* Free allocated memory. */
 	__wt_free(session, conn->cfg);
 	__wt_free(session, conn->home);
@@ -162,5 +156,4 @@ __wt_connection_destroy(WT_CONNECTION_IMPL *conn)
 	__wt_stat_connection_discard(session, conn);
 
 	__wt_free(NULL, conn);
-	return (ret);
 }

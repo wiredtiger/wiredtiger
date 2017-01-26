@@ -1982,12 +1982,13 @@ struct __wt_connection {
 	 * as a list\, such as <code>"verbose=[evictserver\,read]"</code>., a
 	 * list\, with values chosen from the following options: \c "api"\, \c
 	 * "block"\, \c "checkpoint"\, \c "compact"\, \c "evict"\, \c
-	 * "evictserver"\, \c "fileops"\, \c "handleops"\, \c "log"\, \c "lsm"\,
-	 * \c "lsm_manager"\, \c "metadata"\, \c "mutex"\, \c "overflow"\, \c
-	 * "read"\, \c "rebalance"\, \c "reconcile"\, \c "recovery"\, \c
-	 * "recovery_progress"\, \c "salvage"\, \c "shared_cache"\, \c "split"\,
-	 * \c "temporary"\, \c "thread_group"\, \c "transaction"\, \c "verify"\,
-	 * \c "version"\, \c "write"; default empty.}
+	 * "evict_stuck"\, \c "evictserver"\, \c "fileops"\, \c "handleops"\, \c
+	 * "log"\, \c "lsm"\, \c "lsm_manager"\, \c "metadata"\, \c "mutex"\, \c
+	 * "overflow"\, \c "read"\, \c "rebalance"\, \c "reconcile"\, \c
+	 * "recovery"\, \c "recovery_progress"\, \c "salvage"\, \c
+	 * "shared_cache"\, \c "split"\, \c "temporary"\, \c "thread_group"\, \c
+	 * "transaction"\, \c "verify"\, \c "version"\, \c "write"; default
+	 * empty.}
 	 * @configend
 	 * @errors
 	 */
@@ -2361,7 +2362,7 @@ struct __wt_connection {
  * @config{exclusive, fail if the database already exists\, generally used with
  * the \c create option., a boolean flag; default \c false.}
  * @config{extensions, list of shared library extensions to load (using dlopen).
- * Any values specified to an library extension are passed to
+ * Any values specified to a library extension are passed to
  * WT_CONNECTION::load_extension as the \c config parameter (for example\,
  * <code>extensions=(/path/ext.so={entry=my_entry})</code>)., a list of strings;
  * default empty.}
@@ -2513,12 +2514,13 @@ struct __wt_connection {
  * WiredTiger is configured with --enable-verbose.  Options are given as a
  * list\, such as <code>"verbose=[evictserver\,read]"</code>., a list\, with
  * values chosen from the following options: \c "api"\, \c "block"\, \c
- * "checkpoint"\, \c "compact"\, \c "evict"\, \c "evictserver"\, \c "fileops"\,
- * \c "handleops"\, \c "log"\, \c "lsm"\, \c "lsm_manager"\, \c "metadata"\, \c
- * "mutex"\, \c "overflow"\, \c "read"\, \c "rebalance"\, \c "reconcile"\, \c
- * "recovery"\, \c "recovery_progress"\, \c "salvage"\, \c "shared_cache"\, \c
- * "split"\, \c "temporary"\, \c "thread_group"\, \c "transaction"\, \c
- * "verify"\, \c "version"\, \c "write"; default empty.}
+ * "checkpoint"\, \c "compact"\, \c "evict"\, \c "evict_stuck"\, \c
+ * "evictserver"\, \c "fileops"\, \c "handleops"\, \c "log"\, \c "lsm"\, \c
+ * "lsm_manager"\, \c "metadata"\, \c "mutex"\, \c "overflow"\, \c "read"\, \c
+ * "rebalance"\, \c "reconcile"\, \c "recovery"\, \c "recovery_progress"\, \c
+ * "salvage"\, \c "shared_cache"\, \c "split"\, \c "temporary"\, \c
+ * "thread_group"\, \c "transaction"\, \c "verify"\, \c "version"\, \c "write";
+ * default empty.}
  * @config{write_through, Use \c FILE_FLAG_WRITE_THROUGH on Windows to write to
  * files.  Ignored on non-Windows systems.  Options are given as a list\, such
  * as <code>"write_through=[data]"</code>. Configuring \c write_through requires
