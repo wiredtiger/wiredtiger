@@ -28,6 +28,8 @@
 #include "test_util.h"
 
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 /*
  * JIRA ticket reference: WT-2909
@@ -84,7 +86,7 @@ static int check_results(TEST_OPTS *, uint64_t *);
 static void check_values(WT_CURSOR *, int, int, int, char *);
 static int create_big_string(char **);
 static void cursor_count_items(WT_CURSOR *, uint64_t *);
-static void disable_failures();
+static void disable_failures(void);
 static void enable_failures(uint64_t, uint64_t);
 static void generate_key(uint32_t, int *);
 static void generate_value(uint32_t, uint32_t, char *, int *, int *, int *,
@@ -249,7 +251,7 @@ cursor_count_items(WT_CURSOR *cursor, uint64_t *countp)
  *	Disable failures in the fail file system.
  */
 static void
-disable_failures()
+disable_failures(void)
 {
 	setenv("WT_FAIL_FS_ENABLE", "0", 1);
 }
