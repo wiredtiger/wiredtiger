@@ -119,7 +119,7 @@ check_results(TEST_OPTS *opts, uint64_t *foundp)
 	testutil_check(create_big_string(&bigref));
 	nrecords = opts->nrecords;
 	testutil_check(wiredtiger_open(SUBTEST_DIRECTORY, NULL,
-	    "create", &opts->conn));
+	    "create,log=(enabled)", &opts->conn));
 	testutil_check(
 	    opts->conn->open_session(opts->conn, NULL, NULL, &session));
 
@@ -140,8 +140,9 @@ check_results(TEST_OPTS *opts, uint64_t *foundp)
 		testutil_check(maincur2->get_key(maincur2, &key_got));
 		testutil_check(maincur2->get_value(maincur2, &rndint));
 
-		generate_key(count, &key);
-		generate_value(rndint, count, bigref, &v0, &v1, &v2, &big);
+		generate_key((uint32_t)count, &key);
+		generate_value(rndint, (uint32_t)count,
+		    bigref, &v0, &v1, &v2, &big);
 		testutil_assert(key == key_got);
 
 		/* Check the key/values in main table. */
@@ -389,7 +390,8 @@ subtest_main(int argc, char *argv[])
 	sprintf(filename, "%s/%s", opts->home, STDOUT_FILE);
 	freopen(filename, "a", stdout);
 	snprintf(config, sizeof(config),
-	    "create,cache_size=250M,log=(enabled),extensions=("
+	    "create,cache_size=250M,log=(enabled),"
+	    "transaction_sync=(enabled,method=none),extensions=("
 	    WT_FAIL_FS_LIB
 	    "=(early_load,config={environment=true,verbose=true})]");
 
@@ -512,7 +514,7 @@ subtest_populate(TEST_OPTS *opts)
 	 * cascading failures (or crashes). Exit right away, the
 	 * point is to see if the crashed data is recoverable.
 	 */
-	if (failed && failmode)
+	if (failed)
 		exit(0);
 
 	free(bigref);
