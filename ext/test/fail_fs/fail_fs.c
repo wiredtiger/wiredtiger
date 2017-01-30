@@ -228,6 +228,7 @@ fail_file_read(WT_FILE_HANDLE *file_handle,
 	fail_fh = (FAIL_FILE_HANDLE *)file_handle;
 	fail_fs = fail_fh->fail_fs;
 	wtext = fail_fs->wtext;
+	read_ops = 0;
 	ret = 0;
 
 	fail_fs_lock(&fail_fs->lock);
@@ -345,6 +346,7 @@ fail_file_write(WT_FILE_HANDLE *file_handle, WT_SESSION *session,
 	fail_fh = (FAIL_FILE_HANDLE *)file_handle;
 	fail_fs = fail_fh->fail_fs;
 	wtext = fail_fs->wtext;
+	write_ops = 0;
 	ret = 0;
 
 	fail_fs_lock(&fail_fs->lock);
