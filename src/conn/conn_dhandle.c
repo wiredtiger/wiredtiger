@@ -481,7 +481,7 @@ __wt_conn_dhandle_close_all(
 	conn = S2C(session);
 
 	WT_ASSERT(session,
-	    F_ISSET(session, WT_SESSION_LOCKED_WRITE_HANDLE_LIST));
+	    F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST_WRITE));
 	WT_ASSERT(session, session->dhandle == NULL);
 
 	bucket = __wt_hash_city64(uri, strlen(uri)) % WT_HASH_ARRAY_SIZE;
@@ -543,7 +543,7 @@ __conn_dhandle_remove(WT_SESSION_IMPL *session, bool final)
 	bucket = dhandle->name_hash % WT_HASH_ARRAY_SIZE;
 
 	WT_ASSERT(session,
-	    F_ISSET(session, WT_SESSION_LOCKED_WRITE_HANDLE_LIST));
+	    F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST_WRITE));
 	WT_ASSERT(session, dhandle != conn->cache->evict_file_next);
 
 	/* Check if the handle was reacquired by a session while we waited. */

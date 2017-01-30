@@ -38,7 +38,7 @@ __lsm_tree_discard(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, bool final)
 	/* We may be destroying an lsm_tree before it was added. */
 	if (F_ISSET(lsm_tree, WT_LSM_TREE_OPEN)) {
 		WT_ASSERT(session, final ||
-		    F_ISSET(session, WT_SESSION_LOCKED_WRITE_HANDLE_LIST));
+		    F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST_WRITE));
 		TAILQ_REMOVE(&S2C(session)->lsmqh, lsm_tree, q);
 	}
 
@@ -455,7 +455,7 @@ __lsm_tree_open(WT_SESSION_IMPL *session,
 	lsm_tree = NULL;
 
 	WT_ASSERT(session,
-	    F_ISSET(session, WT_SESSION_LOCKED_WRITE_HANDLE_LIST));
+	    F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST_WRITE));
 
 	/* Start the LSM manager thread if it isn't running. */
 	if (__wt_atomic_cas32(&conn->lsm_manager.lsm_workers, 0, 1))

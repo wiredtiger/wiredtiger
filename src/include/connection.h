@@ -124,7 +124,7 @@ struct __wt_named_extractor {
  */
 #define	WT_CONN_DHANDLE_INSERT(conn, dhandle, bucket) do {		\
 	WT_ASSERT(session,						\
-	    F_ISSET(session, WT_SESSION_LOCKED_WRITE_HANDLE_LIST));	\
+	    F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST_WRITE));	\
 	TAILQ_INSERT_HEAD(&(conn)->dhqh, dhandle, q);			\
 	TAILQ_INSERT_HEAD(&(conn)->dhhash[bucket], dhandle, hashq);	\
 	++conn->dhandle_count;						\
@@ -132,7 +132,7 @@ struct __wt_named_extractor {
 
 #define	WT_CONN_DHANDLE_REMOVE(conn, dhandle, bucket) do {		\
 	WT_ASSERT(session,						\
-	    F_ISSET(session, WT_SESSION_LOCKED_WRITE_HANDLE_LIST));	\
+	    F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST_WRITE));	\
 	TAILQ_REMOVE(&(conn)->dhqh, dhandle, q);			\
 	TAILQ_REMOVE(&(conn)->dhhash[bucket], dhandle, hashq);		\
 	--conn->dhandle_count;						\
