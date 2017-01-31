@@ -788,6 +788,13 @@ config_sanity(WTPERF *wtperf)
 				    "truncate specified with readonly\n");
 				return (EINVAL);
 			}
+			if (workp->insert != 0 &&
+			    workp->table_index != INT32_MAX) {
+				fprintf(stderr,
+				    "Invalid workload: Cannot insert into "
+				    "specific table only\n");
+				return (EINVAL);
+			}
 			if (workp->table_index != INT32_MAX &&
 			    workp->table_index >= (int32_t)opts->table_count) {
 				fprintf(stderr,
