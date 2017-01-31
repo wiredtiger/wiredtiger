@@ -228,6 +228,7 @@ typedef struct {
 
 struct __wtperf_thread {		/* Per-thread structure */
 	WTPERF *wtperf;			/* Enclosing configuration */
+	WT_CURSOR *rand_cursor;		/* Random key cursor */
 
 	WT_RAND_STATE rnd;		/* Random number generation state */
 

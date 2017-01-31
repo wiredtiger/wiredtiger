@@ -574,6 +574,14 @@ worker(void *arg)
 			    wtperf->uris[workload->table_index]);
 			goto err;
 		}
+		if ((ret = session->open_cursor(session,
+		    wtperf->uris[workload->table_index],
+		    NULL, "next_random=true", &thread->rand_cursor)) != 0) {
+			lprintf(wtperf, ret, 0,
+			    "worker: WT_SESSION.open_cursor: random %s",
+			    wtperf->uris[workload->table_index]);
+			goto err;
+		}
 	} else {
 		cursors = dcalloc(opts->table_count, sizeof(WT_CURSOR *));
 		for (i = 0; i < opts->table_count; i++) {
@@ -2881,12 +2889,33 @@ static uint64_t
 wtperf_rand(WTPERF_THREAD *thread)
 {
 	CONFIG_OPTS *opts;
+	WT_CURSOR *rnd_cursor;
 	WTPERF *wtperf;
 	double S1, S2, U;
 	uint64_t rval;
+	int ret;
+	char *key_buf;
 
 	wtperf = thread->wtperf;
 	opts = wtperf->opts;
+
+	/*
+	 * If we have a random cursor set up then use it.
+	 */
+	if ((rnd_cursor = thread->rand_cursor) != NULL) {
+		if ((ret = rnd_cursor->next(rnd_cursor))) {
+			lprintf(wtperf, ret, 0, "worker: rand next failed");
+			/* 0 is outside the expected range. */
+			return (0);
+		}
+		if ((ret = rnd_cursor->get_key(rnd_cursor, &key_buf)) != 0) {
+			lprintf(wtperf, ret, 0,
+			    "worker: rand next key retrieval");
+			return (0);
+		}
+		extract_key(key_buf, &rval);
+		return (rval);
+	}
 
 	/*
 	 * Use WiredTiger's random number routine: it's lock-free and fairly
