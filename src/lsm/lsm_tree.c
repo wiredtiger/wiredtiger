@@ -402,6 +402,9 @@ __lsm_tree_find(WT_SESSION_IMPL *session,
 			}
 
 			*treep = lsm_tree;
+
+			WT_ASSERT(session, lsm_tree->excl_session ==
+			     (exclusive ? session : NULL));
 			return (0);
 		}
 
@@ -524,14 +527,16 @@ __wt_lsm_tree_get(WT_SESSION_IMPL *session,
 	 * call checks to see if another thread beat it to opening the tree
 	 * before proceeding.
 	 */
-	WT_WITH_HANDLE_LIST_READ_LOCK(session,
-	    ret = __lsm_tree_find(session, uri, exclusive, treep));
+	if (exclusive)
+		WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
+		    ret = __lsm_tree_find(session, uri, exclusive, treep));
+	else
+		WT_WITH_HANDLE_LIST_READ_LOCK(session,
+		    ret = __lsm_tree_find(session, uri, exclusive, treep));
 	if (ret == WT_NOTFOUND)
 		WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
 		    ret = __lsm_tree_open(session, uri, exclusive, treep));
 
-	WT_ASSERT(session, ret != 0 ||
-	     (*treep)->excl_session == (exclusive ? session : NULL));
 	return (ret);
 }
 
