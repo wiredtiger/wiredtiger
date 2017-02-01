@@ -2913,6 +2913,14 @@ wtperf_rand(WTPERF_THREAD *thread)
 			    "worker: rand next key retrieval");
 			return (0);
 		}
+		/*
+		 * Resetting the cursor is not fatal.  We still return the
+		 * value we retrieved above.  We do it so that we don't
+		 * leave a cursor positioned.
+		 */
+		if ((ret = rnd_cursor->reset(rnd_cursor)) != 0)
+			lprintf(wtperf, ret, 0,
+			    "worker: rand cursor reset failed");
 		extract_key(key_buf, &rval);
 		return (rval);
 	}
