@@ -223,7 +223,7 @@ err:
 	if (ret != 0)
 		(void)__checkpoint_apply(session, cfg, __checkpoint_err_reset);
 
-	return (0);
+	return (ret);
 }
 
 /*
