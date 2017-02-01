@@ -514,7 +514,7 @@ subtest_populate(TEST_OPTS *opts)
 	 * cascading failures (or crashes). Exit right away, the
 	 * point is to see if the crashed data is recoverable.
 	 */
-	if (failed)
+	if (failed && failmode)
 		exit(0);
 
 	free(bigref);

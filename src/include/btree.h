@@ -120,6 +120,7 @@ struct __wt_btree {
 
 	WT_REF root;			/* Root page reference */
 	bool modified;			/* If the tree ever modified */
+	bool was_modified;		/* Tree modified this pass */
 	bool bulk_load_ok;		/* Bulk-load is a possibility */
 
 	WT_BM	*bm;			/* Block manager reference */
