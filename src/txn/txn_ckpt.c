@@ -181,7 +181,7 @@ __checkpoint_apply(WT_SESSION_IMPL *session, const char *cfg[],
 	int (*op)(WT_SESSION_IMPL *, const char *[]))
 {
 	WT_DECL_RET;
-	u_int i, j;
+	u_int i;
 
 	/* If we have already locked the handles, apply the operation. */
 	for (i = 0; i < session->ckpt_handle_next; ++i) {
@@ -197,13 +197,15 @@ err:
 	 * If we have an error somewhere in processing the handles, then
 	 * we need to mark earlier trees dirty.
 	 */
-	if (ret != 0)
-		for (j = 0; j < i; ++j) {
-			if (session->ckpt_handle[j] == NULL)
+	if (ret != 0) {
+		for (i = 0; i < session->ckpt_handle_next; ++i) {
+			if (session->ckpt_handle[i] == NULL)
 				continue;
-			WT_WITH_DHANDLE(session, session->ckpt_handle[j],
+			WT_WITH_DHANDLE(session, session->ckpt_handle[i],
 			    S2BT(session)->modified = true);
 		}
+		S2C(session)->modified = true;
+	}
 	return (ret);
 }
 
