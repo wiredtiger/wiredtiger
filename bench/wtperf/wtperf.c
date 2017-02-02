@@ -473,9 +473,11 @@ do_range_reads(WTPERF *wtperf, WT_CURSOR *cursor, int64_t read_range)
 	return (0);
 }
 
-/* Pull everything into cache at the start */
+/* pre_load_data --
+ *	Pull everything into cache before starting the workload phase.
+ */
 static int
-traverse_all_content(WTPERF *wtperf)
+pre_load_data(WTPERF *wtperf)
 {
 	CONFIG_OPTS *opts;
 	WT_CONNECTION *conn;
@@ -2304,7 +2306,7 @@ start_run(WTPERF *wtperf)
 			    opts->checkpoint_threads, checkpoint_worker) != 0)
 				goto err;
 		}
-		if ((ret = traverse_all_content(wtperf)) != 0)
+		if (opts->pre_load_data && (ret = pre_load_data(wtperf)) != 0)
 			goto err;
 		/* Execute the workload. */
 		if ((ret = execute_workload(wtperf)) != 0)

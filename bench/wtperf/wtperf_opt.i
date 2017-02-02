@@ -145,6 +145,8 @@ DEF_OPT_AS_UINT32(populate_ops_per_txn, 0,
     "phase, zero for auto-commit")
 DEF_OPT_AS_UINT32(populate_threads, 1,
     "number of populate threads, 1 for bulk load")
+DEF_OPT_AS_BOOL(pre_load_data, 0,
+    "Scan all data prior to starting the workload phase to warm the cache")
 DEF_OPT_AS_UINT32(random_range, 0,
     "if non zero choose a value from within this range as the key for "
     "insert operations")

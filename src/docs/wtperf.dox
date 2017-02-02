@@ -195,6 +195,8 @@ use pareto distribution for random numbers. Zero  to disable, otherwise a percen
 number of operations to group into each transaction in the populate  phase, zero for auto-commit
 @par populate_threads (unsigned int, default=1)
 number of populate threads, 1 for bulk load
+@par pre_load_data (boolean, default=false)
+Scan all data prior to starting the workload phase to warm the cache
 @par random_range (unsigned int, default=0)
 if non zero choose a value from within this range as the key for  insert operations
 @par random_value (boolean, default=false)
