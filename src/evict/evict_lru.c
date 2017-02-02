@@ -1530,13 +1530,24 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	target_pages_clean = target_pages_dirty = 0;
 
 	/*
+	 * The number of times we should fill the queue by the end of
+	 * considering all trees.
+	 */
+#define	QUEUE_FILLS_PER_PASS	10
+
+	/*
+	 * The minimum number of pages we should consider per tree.
+	 */
+#define	MIN_PAGES_PER_TREE	10
+
+	/*
 	 * The target number of pages for this tree is proportional to the
 	 * space it is taking up in cache.  Round to the nearest number of
 	 * slots so we assign all of the slots to a tree filling 99+% of the
 	 * cache (and only have to walk it once).
 	 */
 	if (F_ISSET(cache, WT_CACHE_EVICT_CLEAN)) {
-		btree_inuse = __wt_btree_bytes_inuse(session);
+		btree_inuse = __wt_btree_bytes_evictable(session);
 		cache_inuse = __wt_cache_bytes_inuse(cache);
 		bytes_per_slot = 1 + cache_inuse / total_slots;
 		target_pages_clean = (uint32_t)(
@@ -1551,24 +1562,46 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 		    (btree_inuse + bytes_per_slot / 2) / bytes_per_slot);
 	}
 
-	target_pages = WT_MAX(target_pages_clean, target_pages_dirty);
+	/*
+	 * Weight the number of target pages by the number of times we want to
+	 * fill the cache per pass through all the trees.  Note that we don't
+	 * build this into the calculation above because we don't want to favor
+	 * small trees, so round to a whole number of slots (zero for small
+	 * trees) before multiplying.
+	 */
+	target_pages = WT_MAX(target_pages_clean, target_pages_dirty) *
+	    QUEUE_FILLS_PER_PASS;
 
 	/*
 	 * Randomly walk trees with a small fraction of the cache in case there
 	 * are so many trees that none of them use enough of the cache to be
-	 * allocated slots.  Make the chance of walking a tree equal to the
-	 * chance that a random byte in cache belongs to the tree.
+	 * allocated slots.
+	 *
+	 * The chance of walking a tree is equal to the chance that a random
+	 * byte in cache belongs to the tree, weighted by how many times we
+	 * want to fill queues during a pass through all the trees in cache.
 	 */
-	if (target_pages == 0 && (cache_inuse == 0 ||
-	    __wt_random64(&session->rnd) % cache_inuse > btree_inuse))
-		return (0);
+	if (target_pages == 0) {
+		if (F_ISSET(cache, WT_CACHE_EVICT_CLEAN)) {
+			btree_inuse = __wt_btree_bytes_evictable(session);
+			cache_inuse = __wt_cache_bytes_inuse(cache);
+		} else {
+			btree_inuse = __wt_btree_dirty_leaf_inuse(session);
+			cache_inuse = __wt_cache_dirty_leaf_inuse(cache);
+		}
+		if (btree_inuse == 0 || cache_inuse == 0)
+			return (0);
+		if (__wt_random64(&session->rnd) % cache_inuse >
+		    btree_inuse * QUEUE_FILLS_PER_PASS)
+			return (0);
+	}
 
 	/*
 	 * There is some cost associated with walking a tree.  If we're going
-	 * to visit this tree, always look for at least ten pages.
+	 * to visit this tree, always look for a minimum number of pages.
 	 */
-	if (target_pages < 10)
-		target_pages = 10;
+	if (target_pages < MIN_PAGES_PER_TREE)
+		target_pages = MIN_PAGES_PER_TREE;
 
 	/*
 	 * If the tree is dead or we're near the end of the queue, fill the
@@ -1728,12 +1761,17 @@ fast:		/* If the page can't be evicted, give up. */
 	    session, cache_eviction_pages_queued, (u_int)(evict - start));
 
 	/*
-	 * If we didn't find any candidates in the file, reverse the direction
-	 * of the walk and skip it next time.
+	 * If gave up the walk, reverse the direction of the walk and skip it
+	 * next time.
 	 */
 	if (give_up)
 		btree->evict_walk_reverse = !btree->evict_walk_reverse;
-	if (pages_queued == 0 && !urgent_queued)
+
+	/*
+	 * If we couldn't find the number of pages we were looking for, skip
+	 * the tree next time.
+	 */
+	if (pages_queued < target_pages / 2 && !urgent_queued)
 		btree->evict_walk_period = WT_MIN(
 		    WT_MAX(1, 2 * btree->evict_walk_period), 100);
 	else if (pages_queued == target_pages)
