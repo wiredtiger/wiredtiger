@@ -173,24 +173,6 @@ err:	__wt_scr_free(session, &tmp);
 }
 
 /*
- * __checkpoint_err_reset --
- *	Reset the modified flag of a btree.  This tree may have been
- *	flushed earlier in the list of all handles and a later tree
- *	got an error.  But metadata is still outstanding.  So reset
- *	on error if needed.
- */
-static void
-__checkpoint_err_reset(WT_SESSION_IMPL *session)
-{
-	WT_BTREE *btree;
-
-	btree = S2BT(session);
-	if (btree->was_modified)
-		btree->modified = true;
-	btree->was_modified = false;
-}
-
-/*
  * __checkpoint_apply --
  *	Apply an operation to all handles locked for a checkpoint.
  */
@@ -221,7 +203,7 @@ err:
 			if (session->ckpt_handle[j] == NULL)
 				continue;
 			WT_WITH_DHANDLE(session, session->ckpt_handle[j],
-			    __checkpoint_err_reset(session));
+			    S2BT(session)->modified = true);
 		}
 	return (ret);
 }
@@ -299,7 +281,6 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	btree = S2BT(session);
 	btree->evict_walk_saved = btree->evict_walk_period;
-	btree->was_modified = false;
 
 	WT_SAVE_DHANDLE(session,
 	    ret = __checkpoint_lock_tree(session, true, true, cfg));
@@ -857,7 +838,7 @@ err:	/*
 	 * overwritten the checkpoint, so what ends up on disk is not
 	 * consistent.
 	 */
-	if (ret != 0 && !conn->modified)
+	if (ret != 0)
 		conn->modified = true;
 
 	session->isolation = txn->isolation = WT_ISO_READ_UNCOMMITTED;
@@ -1383,7 +1364,6 @@ __checkpoint_tree(
 	conn = S2C(session);
 	dhandle = session->dhandle;
 	fake_ckpt = false;
-	btree->was_modified = btree->modified;
 
 	/*
 	 * Set the checkpoint LSN to the maximum LSN so that if logging is
@@ -1514,10 +1494,9 @@ err:	/*
 	 * If the checkpoint didn't complete successfully, make sure the
 	 * tree is marked dirty.
 	 */
-	if (ret != 0 && btree->was_modified) {
+	if (ret != 0) {
 		btree->modified = true;
-		if (!S2C(session)->modified)
-			S2C(session)->modified = true;
+		S2C(session)->modified = true;
 	}
 
 	__wt_meta_ckptlist_free(session, ckptbase);
