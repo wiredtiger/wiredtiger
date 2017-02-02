@@ -400,7 +400,7 @@ run_check_subtest_range(TEST_OPTS *opts, const char *debugger, bool close_test)
 		for (i = 0; i < TESTS_PER_OP_VALUE; i++) {
 			run_check_subtest(opts, debugger, nops,
 			    close_test, &nresults);
-			if (nresults > 1)
+			if (nresults > cutoff)
 				got_failure = true;
 			else
 				got_success = true;
