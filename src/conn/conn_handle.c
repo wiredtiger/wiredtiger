@@ -53,7 +53,6 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
 	/* Spinlocks. */
 	WT_RET(__wt_spin_init(session, &conn->api_lock, "api"));
 	WT_SPIN_INIT_TRACKED(session, &conn->checkpoint_lock, checkpoint);
-	WT_SPIN_INIT_TRACKED(session, &conn->dhandle_lock, handle_list);
 	WT_RET(__wt_spin_init(session, &conn->encryptor_lock, "encryptor"));
 	WT_RET(__wt_spin_init(session, &conn->fh_lock, "file list"));
 	WT_RET(__wt_spin_init(session, &conn->las_lock, "lookaside table"));
@@ -64,6 +63,7 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
 	WT_RET(__wt_spin_init(session, &conn->turtle_lock, "turtle file"));
 
 	/* Read-write locks */
+	__wt_rwlock_init(session, &conn->dhandle_lock);
 	__wt_rwlock_init(session, &conn->hot_backup_lock);
 
 	WT_RET(__wt_calloc_def(session, WT_PAGE_LOCKS, &conn->page_lock));
@@ -79,7 +79,7 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
 	WT_RET(__wt_spin_init(
 	    session, &conn->lsm_manager.switch_lock, "LSM switch queue lock"));
 	WT_RET(__wt_cond_alloc(
-	    session, "LSM worker cond", false, &conn->lsm_manager.work_cond));
+	    session, "LSM worker cond", &conn->lsm_manager.work_cond));
 
 	/*
 	 * Generation numbers.
@@ -134,7 +134,7 @@ __wt_connection_destroy(WT_CONNECTION_IMPL *conn)
 	__wt_spin_destroy(session, &conn->api_lock);
 	__wt_spin_destroy(session, &conn->block_lock);
 	__wt_spin_destroy(session, &conn->checkpoint_lock);
-	__wt_spin_destroy(session, &conn->dhandle_lock);
+	__wt_rwlock_destroy(session, &conn->dhandle_lock);
 	__wt_spin_destroy(session, &conn->encryptor_lock);
 	__wt_spin_destroy(session, &conn->fh_lock);
 	__wt_rwlock_destroy(session, &conn->hot_backup_lock);
