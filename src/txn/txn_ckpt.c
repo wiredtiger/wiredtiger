@@ -179,19 +179,15 @@ err:	__wt_scr_free(session, &tmp);
  *	got an error.  But metadata is still outstanding.  So reset
  *	on error if needed.
  */
-static int
-__checkpoint_err_reset(WT_SESSION_IMPL *session, const char *cfg[])
+static void
+__checkpoint_err_reset(WT_SESSION_IMPL *session)
 {
 	WT_BTREE *btree;
 
-	WT_UNUSED(cfg);
 	btree = S2BT(session);
-
 	if (btree->was_modified)
 		btree->modified = true;
 	btree->was_modified = false;
-
-	return (0);
 }
 
 /*
@@ -203,7 +199,7 @@ __checkpoint_apply(WT_SESSION_IMPL *session, const char *cfg[],
 	int (*op)(WT_SESSION_IMPL *, const char *[]))
 {
 	WT_DECL_RET;
-	u_int i;
+	u_int i, j;
 
 	/* If we have already locked the handles, apply the operation. */
 	for (i = 0; i < session->ckpt_handle_next; ++i) {
@@ -217,12 +213,16 @@ __checkpoint_apply(WT_SESSION_IMPL *session, const char *cfg[],
 err:
 	/*
 	 * If we have an error somewhere in processing the handles, then
-	 * we need to mark earlier trees dirty.  Recursively call the apply
-	 * function to reset on error.
+	 * we need to mark earlier trees dirty.  Walk the list of handles
+	 * again and call the function to reset on error.
 	 */
 	if (ret != 0)
-		(void)__checkpoint_apply(session, cfg, __checkpoint_err_reset);
-
+		for (j = 0; j < i; ++j) {
+			if (session->ckpt_handle[j] == NULL)
+				continue;
+			WT_WITH_DHANDLE(session, session->ckpt_handle[j],
+			    __checkpoint_err_reset(session));
+		}
 	return (ret);
 }
 
