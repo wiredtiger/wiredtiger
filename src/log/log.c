@@ -21,6 +21,27 @@ static int __log_write_internal(
 #define	WT_LOG_OPEN_VERIFY	0x02
 
 /*
+ * __log_panic --
+ *	Report an error, then panic the system.
+ */
+static int
+__log_panic(WT_SESSION_IMPL *session, int error, const char *fmt, ...)
+    WT_GCC_FUNC_ATTRIBUTE((cold))
+    WT_GCC_FUNC_ATTRIBUTE((format (printf, 3, 4)))
+{
+	va_list ap;
+
+	/*
+	 * Ignore error returns from underlying event handlers, we already have
+	 * an error value to return.
+	 */
+	va_start(ap, fmt);
+	WT_IGNORE_RET(__wt_eventv(session, false, error, NULL, 0, fmt, ap));
+	va_end(ap);
+	return (__wt_panic(session));
+}
+
+/*
  * __log_wait_for_earlier_slot --
  *	Wait for write_lsn to catch up to this slot.
  */
@@ -62,6 +83,8 @@ static int
 __log_fs_write(WT_SESSION_IMPL *session,
     WT_LOGSLOT *slot, wt_off_t offset, size_t len, const void *buf)
 {
+	WT_DECL_RET;
+
 	/*
 	 * If we're writing into a new log file, we have to wait for all
 	 * writes to the previous log file to complete otherwise there could
@@ -71,7 +94,10 @@ __log_fs_write(WT_SESSION_IMPL *session,
 		__log_wait_for_earlier_slot(session, slot);
 		WT_RET(__wt_log_force_sync(session, &slot->slot_release_lsn));
 	}
-	return (__wt_write(session, slot->slot_fh, offset, len, buf));
+	if ((ret = __wt_write(session, slot->slot_fh, offset, len, buf)) != 0)
+		ret = __log_panic(session, ret,
+		    "%s: fatal log failure", slot->slot_fh->name);
+	return (ret);
 }
 
 /*
