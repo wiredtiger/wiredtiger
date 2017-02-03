@@ -3090,7 +3090,6 @@ __rec_split_finish_std(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		 */
 		bnd_prev = bnd_cur - 1;
 		bnd_prev->entries += bnd_cur->entries;
-		bnd_cur = bnd_prev;
 		r->bnd_next--;
 		grow_bnd = false;
 	}
@@ -3104,6 +3103,7 @@ __rec_split_finish_std(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	 */
 	if (grow_bnd)
 		WT_RET(__rec_split_bnd_grow(session, r));
+	bnd_cur = &r->bnd[r->bnd_next];
 	r->bnd_next++;
 
 	/*
