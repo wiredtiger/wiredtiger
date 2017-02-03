@@ -80,7 +80,6 @@
 #define	STDOUT_FILE			"stdout.txt"
 #define	MAX_OP_RANGE			1000
 #define	TESTS_PER_OP_VALUE		3
-#define	SUBTEST_DIRECTORY		"WT_TEST.subtest"
 
 static int check_results(TEST_OPTS *, uint64_t *);
 static void check_values(WT_CURSOR *, int, int, int, char *);
@@ -91,11 +90,12 @@ static void enable_failures(uint64_t, uint64_t);
 static void generate_key(uint32_t, int *);
 static void generate_value(uint32_t, uint32_t, char *, int *, int *, int *,
     char **);
-static void run_check_subtest(TEST_OPTS *, const char *, uint64_t, uint64_t,
+static void run_check_subtest(TEST_OPTS *, const char *, uint64_t, bool,
     uint64_t *);
+static void run_check_subtest_range(TEST_OPTS *, const char *, bool);
 static int run_process(TEST_OPTS *, const char *, char *[], int *);
-static int subtest_main(int, char *[]);
-static void subtest_populate(TEST_OPTS *);
+static int subtest_main(int, char *[], bool);
+static void subtest_populate(TEST_OPTS *, bool);
 int main(int, char *[]);
 
 extern int   __wt_optind;
@@ -118,8 +118,8 @@ check_results(TEST_OPTS *opts, uint64_t *foundp)
 
 	testutil_check(create_big_string(&bigref));
 	nrecords = opts->nrecords;
-	testutil_check(wiredtiger_open(SUBTEST_DIRECTORY, NULL,
-	    "create", &opts->conn));
+	testutil_check(wiredtiger_open(opts->home, NULL,
+	    "create,log=(enabled)", &opts->conn));
 	testutil_check(
 	    opts->conn->open_session(opts->conn, NULL, NULL, &session));
 
@@ -140,8 +140,9 @@ check_results(TEST_OPTS *opts, uint64_t *foundp)
 		testutil_check(maincur2->get_key(maincur2, &key_got));
 		testutil_check(maincur2->get_value(maincur2, &rndint));
 
-		generate_key(count, &key);
-		generate_value(rndint, count, bigref, &v0, &v1, &v2, &big);
+		generate_key((uint32_t)count, &key);
+		generate_value(rndint, (uint32_t)count,
+		    bigref, &v0, &v1, &v2, &big);
 		testutil_assert(key == key_got);
 
 		/* Check the key/values in main table. */
@@ -302,7 +303,7 @@ generate_value(uint32_t rndint, uint32_t i, char *bigref,
  */
 static void
 run_check_subtest(TEST_OPTS *opts, const char *debugger, uint64_t nops,
-    uint64_t nrecords, uint64_t *nresultsp)
+    bool close_test, uint64_t *nresultsp)
 {
 	int narg;
 	int estatus;
@@ -317,20 +318,25 @@ run_check_subtest(TEST_OPTS *opts, const char *debugger, uint64_t nops,
 
 	subtest_args[narg++] = (char *)opts->progname;
 	/* "subtest" must appear before arguments */
-	subtest_args[narg++] = (char *)"subtest";
+	if (close_test)
+		subtest_args[narg++] = (char *)"subtest_close";
+	else
+		subtest_args[narg++] = (char *)"subtest";
+	subtest_args[narg++] = (char *)"-h";
+	subtest_args[narg++] = opts->home;
 	subtest_args[narg++] = (char *)"-v";	/* subtest is always verbose */
 	subtest_args[narg++] = (char *)"-p";
 	subtest_args[narg++] = (char *)"-o";
 	snprintf(sarg, sizeof(sarg), "%" PRIu64, nops);
 	subtest_args[narg++] = sarg;		/* number of operations */
 	subtest_args[narg++] = (char *)"-n";
-	snprintf(rarg, sizeof(rarg), "%" PRIu64, nrecords);
+	snprintf(rarg, sizeof(rarg), "%" PRIu64, opts->nrecords);
 	subtest_args[narg++] = rarg;		/* number of records */
 	subtest_args[narg++] = NULL;
 	if (opts->verbose)
 		printf("running a separate process with %" PRIu64
 		    " operations until fail...\n", nops);
-	testutil_clean_work_dir(SUBTEST_DIRECTORY);
+	testutil_clean_work_dir(opts->home);
 	testutil_check(run_process(
 	    opts, debugger != NULL ? debugger : opts->progname,
 	    subtest_args, &estatus));
@@ -338,6 +344,73 @@ run_check_subtest(TEST_OPTS *opts, const char *debugger, uint64_t nops,
 		printf("process exited %d\n", estatus);
 
 	testutil_check(check_results(opts, nresultsp));
+}
+
+/*
+ * run_check_subtest_range --
+ *
+ * Run successive tests via binary search that determines the approximate
+ * crossover point between when data is recoverable or not. Once that is
+ * determined, run the subtest in a range near that crossover point.
+ *
+ * The theory is that running at the crossover point will tend to trigger
+ * "interesting" failures at the borderline when the checkpoint is about to,
+ * or has, succeeded.  If any of those failures creates a WT home directory
+ * that cannot be recovered, the top level test will fail.
+ */
+static void
+run_check_subtest_range(TEST_OPTS *opts, const char *debugger, bool close_test)
+{
+	uint64_t cutoff, high, low, mid, nops, nresults;
+	int i;
+	bool got_failure, got_success;
+
+	if (opts->verbose)
+		printf("Determining best range of operations until failure, "
+		    "with close_test %s.\n",
+		    (close_test ? "enabled" : "disabled"));
+
+	run_check_subtest(opts, debugger, 1, close_test, &cutoff);
+	low = 0;
+	high = MAX_OP_RANGE;
+	mid = (low + high) / 2;
+	while (mid != low) {
+		run_check_subtest(opts, debugger, mid, close_test,
+		    &nresults);
+		if (nresults > cutoff)
+			high = mid;
+		else
+			low = mid;
+		mid = (low + high) / 2;
+	}
+	/*
+	 * mid is the number of ops that is the crossover point.
+	 * Run some tests near that point to try to trigger weird
+	 * failures.  If mid is too low or too high, it indicates
+	 * there is a fundamental problem with the test.
+	 */
+	testutil_assert(mid > 1 && mid < MAX_OP_RANGE - 1);
+	if (opts->verbose)
+		printf("Retesting around %" PRIu64 " operations.\n",
+		    mid);
+
+	got_failure = false;
+	got_success = false;
+	for (nops = mid - 10; nops < mid + 10; nops++) {
+		for (i = 0; i < TESTS_PER_OP_VALUE; i++) {
+			run_check_subtest(opts, debugger, nops,
+			    close_test, &nresults);
+			if (nresults > cutoff)
+				got_failure = true;
+			else
+				got_success = true;
+		}
+	}
+	/*
+	 * Check that it really ran with a crossover point.
+	 */
+	testutil_assert(got_failure);
+	testutil_assert(got_success);
 }
 
 /*
@@ -369,7 +442,7 @@ run_process(TEST_OPTS *opts, const char *prog, char *argv[], int *status)
  *	The main program for the subtest
  */
 static int
-subtest_main(int argc, char *argv[])
+subtest_main(int argc, char *argv[], bool close_test)
 {
 	TEST_OPTS *opts, _opts;
 	WT_SESSION *session;
@@ -389,7 +462,8 @@ subtest_main(int argc, char *argv[])
 	sprintf(filename, "%s/%s", opts->home, STDOUT_FILE);
 	freopen(filename, "a", stdout);
 	snprintf(config, sizeof(config),
-	    "create,cache_size=250M,log=(enabled),extensions=("
+	    "create,cache_size=250M,log=(enabled),"
+	    "transaction_sync=(enabled,method=none),extensions=("
 	    WT_FAIL_FS_LIB
 	    "=(early_load,config={environment=true,verbose=true})]");
 
@@ -413,7 +487,7 @@ subtest_main(int argc, char *argv[])
 
 	testutil_check(session->close(session, NULL));
 
-	subtest_populate(opts);
+	subtest_populate(opts, close_test);
 
 	testutil_cleanup(opts);
 
@@ -444,7 +518,7 @@ subtest_main(int argc, char *argv[])
  *	Populate the tables.
  */
 static void
-subtest_populate(TEST_OPTS *opts)
+subtest_populate(TEST_OPTS *opts, bool close_test)
 {
 	WT_CURSOR *maincur, *maincur2;
 	WT_RAND_STATE rnd;
@@ -509,11 +583,17 @@ subtest_populate(TEST_OPTS *opts)
 
 	/*
 	 * Closing handles after an extreme fail is likely to cause
-	 * cascading failures (or crashes). Exit right away, the
-	 * point is to see if the crashed data is recoverable.
+	 * cascading failures (or crashes), so recommended practice is
+	 * to immediately exit. We're interested in testing both with
+	 * and without the recommended practice.
 	 */
-	if (failed && failmode)
-		exit(0);
+	if (failed) {
+		if (!close_test) {
+			fprintf(stderr, "exit early.\n");
+			exit(0);
+		} else
+			fprintf(stderr, "closing after failure.\n");
+	}
 
 	free(bigref);
 	CHECK(maincur->close(maincur));
@@ -531,10 +611,8 @@ int
 main(int argc, char *argv[])
 {
 	TEST_OPTS *opts, _opts;
-	uint64_t high, low, nops, nresults, mid;
-	int i;
+	uint64_t nresults;
 	const char *debugger;
-	bool got_failure, got_success;
 
 	opts = &_opts;
 	memset(opts, 0, sizeof(*opts));
@@ -548,7 +626,9 @@ main(int argc, char *argv[])
 
 	while (argc > 0) {
 		if (strcmp(argv[0], "subtest") == 0)
-			return (subtest_main(argc, argv));
+			return (subtest_main(argc, argv, false));
+		else if (strcmp(argv[0], "subtest_close") == 0)
+			return (subtest_main(argc, argv, true));
 		else if (strcmp(argv[0], "gdb") == 0)
 			debugger = "/usr/bin/gdb";
 		else
@@ -563,64 +643,13 @@ main(int argc, char *argv[])
 		    "  (change with -n N)\n", opts->nrecords);
 	}
 	if (opts->nops == 0) {
-		/*
-		 * When the number of operations until fail is not specified,
-		 * run successive tests via binary search that determines the
-		 * approximate crossover point between failure and
-		 * success. Running the test near that point will tend to
-		 * trigger "interesting" failures at the borderline when the
-		 * checkpoint is about to, or has, succeeded.  If any of those
-		 * failures creates a WT home directory that cannot be
-		 * recovered, the top level test will fail.
-		 */
-		low = 0;
-		high = MAX_OP_RANGE;
-		mid = (low + high) / 2;
-		if (opts->verbose)
-			printf("Determining best range of operations until "
-			    "failure.\n");
-		while (mid != low) {
-			run_check_subtest(opts, debugger, mid, opts->nrecords,
-			    &nresults);
-			if (nresults > 1)
-				high = mid;
-			else
-				low = mid;
-			mid = (low + high) / 2;
-		}
-		/*
-		 * mid is the number of ops that is the crossover point.
-		 * Run some tests near that point to try to trigger weird
-		 * failures.  If mid is too low or too high, it indicates
-		 * there is a fundamental problem with the test.
-		 */
-		testutil_assert(mid > 1 && mid < MAX_OP_RANGE - 1);
-		if (opts->verbose)
-			printf("Retesting around %" PRIu64 " operations.\n",
-			    mid);
-
-		got_failure = false;
-		got_success = false;
-		for (nops = mid - 10; nops < mid + 10; nops++) {
-			for (i = 0; i < TESTS_PER_OP_VALUE; i++) {
-				run_check_subtest(opts, debugger, nops,
-				    opts->nrecords, &nresults);
-				if (nresults > 1)
-					got_failure = true;
-				else
-					got_success = true;
-			}
-		}
-		/*
-		 * Check that it really ran with a crossover point.
-		 */
-		testutil_assert(got_failure);
-		testutil_assert(got_success);
+		run_check_subtest_range(opts, debugger, false);
+		run_check_subtest_range(opts, debugger, true);
 	} else
 		run_check_subtest(opts, debugger, opts->nops,
 		    opts->nrecords, &nresults);
 
-	testutil_clean_work_dir(SUBTEST_DIRECTORY);
+	testutil_clean_work_dir(opts->home);
 	testutil_cleanup(opts);
 
 	return (0);
