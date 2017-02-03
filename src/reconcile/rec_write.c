@@ -327,15 +327,14 @@ static int  __rec_dictionary_init(WT_SESSION_IMPL *, WT_RECONCILE *, u_int);
 static int  __rec_dictionary_lookup(
 		WT_SESSION_IMPL *, WT_RECONCILE *, WT_KV *, WT_DICTIONARY **);
 static void __rec_dictionary_reset(WT_RECONCILE *);
-static inline int
-__rec_split_crossing_bnd(
+static inline int __rec_split_crossing_bnd(
     WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len);
 
-#define CROSSING_ALT_BND(r, next_len)			\
+#define	CROSSING_ALT_BND(r, next_len)			\
 	(r->bnd[r->bnd_next].alt_offset == 0 && next_len > r->alt_space_avail)
-#define CROSSING_SPLIT_BND(r, next_len)			\
+#define	CROSSING_SPLIT_BND(r, next_len)			\
 	(next_len > r->space_avail)
-#define NEED_KEY_PROMOTE(r, next_len)			\
+#define	NEED_KEY_PROMOTE(r, next_len)			\
 	(CROSSING_ALT_BND(r, next_len) || CROSSING_SPLIT_BND(r, next_len))
 
 /*
@@ -1945,7 +1944,6 @@ __rec_split_bnd_init(WT_SESSION_IMPL *session, WT_BOUNDARY *bnd)
 	bnd->alt_offset = 0;
 	bnd->alt_entries = 0;
 
-
 	/*
 	 * Don't touch the key, we re-use that memory in each new
 	 * reconciliation.
@@ -2034,7 +2032,7 @@ __wt_split_page_size(WT_SESSION_IMPL *session, uint32_t maxpagesize)
  *	memory to be written. If the last split page turns out to be too small,
  *	we go back into the penultimate chunk and split at this alternate
  *	boundary. This moves some data from the penultimate chunk to the last
- *	chunk, hence increasing the size of the last page without decreasin the
+ *	chunk, hence increasing the size of the last page without decreasing the
  *	penultimate page size beyond the alternate split size.
  */
 static uint32_t
@@ -2043,13 +2041,12 @@ __wt_alt_split_page_size(WT_SESSION_IMPL *session, uint32_t maxpagesize)
 	WT_BTREE *btree;
 
 	btree = S2BT(session);
-#define ALT_SPLIT_PCT 45
+#define	ALT_SPLIT_PCT 45
 	WT_ASSERT(session, btree->split_pct > ALT_SPLIT_PCT);
 
 	return (__wt_split_page_size_from_pct(
 	    ALT_SPLIT_PCT, maxpagesize, btree->allocsize));
 }
-
 
 /*
  * __rec_split_init --
@@ -2463,7 +2460,7 @@ __rec_split_write_prev_shift_cur(
 	 * To Fix: The temporary buffer size computation needs to be fixed.
 	 * Also, there are possibilities of optimization around the temp buffer
 	 */
-	
+
 	/*
 	 * Create a temporary buffer to prepare the previous chunk's disk image
 	 * Size should be larger of page size or split size. Also have to
@@ -2483,12 +2480,12 @@ __rec_split_write_prev_shift_cur(
 	/* Shift the current chunk to the start of the buffer */
 	dsk_start = WT_PAGE_HEADER_BYTE(btree, dsk);
 	(void)memmove(dsk_start, (uint8_t *)dsk + bnd_cur->offset, len);
-	
+
 	/* Fix boundary offset */
 	bnd_cur->offset = WT_PAGE_HEADER_BYTE_SIZE(btree);
 	/* Fix where free points */
 	r->first_free = dsk_start + len;
-	return 0;
+	return (0);
 }
 
 /*
@@ -2570,7 +2567,7 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 	r->entries = 0;
 	/*
 	 * Set the space available to another split-size chunk.
-	 * Reset the alternate boundar's space available
+	 * Reset the alternate boundary's space available
 	 */
 	r->space_avail =
 	    r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
@@ -3082,7 +3079,7 @@ __rec_split_finish_std(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		 * We hold two boundaries worth of data in the buffer,
 		 * and this data doesn't fit in a single page.
 		 * If the last chunk is too small, readjust the boundary to
-		 * a precomputed alternate.
+		 * a pre-computed alternate.
 		 * Write out the penultimate chunk to the disk as a page
 		 */
 		__rec_split_write_prev_shift_cur(session, r, true);
@@ -3657,7 +3654,10 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 
 		}
 
-		/* Hitting a page boundary resets the dictionary, in all cases. */
+		/*
+		 * Hitting a page boundary resets the dictionary,
+		 * in all cases.
+		 */
 		__rec_dictionary_reset(r);
 
 		WT_RET(__rec_split_crossing_bnd(
@@ -4926,7 +4926,7 @@ __rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		/* Boundary: split or write the page. */
 		if (r->raw_compression) {
 			if (key->len + val->len > r->space_avail)
-				WT_RET(__rec_split_raw(
+				WT_ERR(__rec_split_raw(
 				    session, r, key->len + val->len));
 		} else if (NEED_KEY_PROMOTE(r, key->len + val->len)) {
 			/*
@@ -4941,7 +4941,10 @@ __rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 				key_onpage_ovfl = false;
 			}
 
-			/* Hitting a page boundary resets the dictionary, in all cases. */
+			/*
+			 * Hitting a page boundary resets the dictionary,
+			 * in all cases.
+			 */
 			__rec_dictionary_reset(r);
 
 			WT_ERR(__rec_split_crossing_bnd(
@@ -5012,7 +5015,7 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 }
 
 /*
- * __rec_split_crossing_bnd
+ * __rec_split_crossing_bnd --
  * 	Save the details for the alternate split boundary or
  * 	call for a split.
  */
@@ -5048,14 +5051,14 @@ __rec_split_crossing_bnd(
 			 * the opportunity to setup the alternate boundary
 			 * before writing out the next record.
 			 */
-			return 0;
+			return (0);
 		}
 		bnd->alt_entries = r->entries;
 		if (dsk->type == WT_PAGE_ROW_INT ||
 		    dsk->type == WT_PAGE_ROW_LEAF)
 			WT_RET(__rec_split_row_promote(
 			    session, r, &bnd->alt_key, dsk->type));
-		return 0;
+		return (0);
 	}
 
 	/* We are crossing a split boundary */
@@ -5385,29 +5388,32 @@ build:
 				    session, r, key->len + val->len));
 		} else if (NEED_KEY_PROMOTE(r, key->len + val->len)) {
 			/*
-			 * If we copied address blocks from the page rather than building
-			 * the actual key, we have to build the key now because we are about
-			 * to promote it.
+			 * If we copied address blocks from the page rather than
+			 * building the actual key, we have to build the key now
+			 * because we are about to promote it.
 			 */
 			if (key_onpage_ovfl) {
-				WT_RET(__wt_dsk_cell_data_ref(session,
+				WT_ERR(__wt_dsk_cell_data_ref(session,
 				    WT_PAGE_ROW_LEAF, kpack, r->cur));
 				key_onpage_ovfl = false;
 			}
 
 			/*
-			 * Turn off prefix compression until a full key written to the
-			 * new page, and (unless already working with an overflow key),
-			 * rebuild the key without compression.
+			 * Turn off prefix compression until a full key written
+			 * to the new page, and (unless already working with an
+			 * overflow key), rebuild the key without compression.
 			 */
 			if (r->key_pfx_compress_conf) {
 				r->key_pfx_compress = false;
 				if (!ovfl_key)
-					WT_RET(__rec_cell_build_leaf_key(
+					WT_ERR(__rec_cell_build_leaf_key(
 					    session, r, NULL, 0, &ovfl_key));
 			}
 
-			/* Hitting a page boundary resets the dictionary, in all cases. */
+			/*
+			 * Hitting a page boundary resets the dictionary,
+			 * in all cases.
+			 */
 			__rec_dictionary_reset(r);
 
 			WT_ERR(__rec_split_crossing_bnd(
@@ -5440,7 +5446,6 @@ err:	__wt_scr_free(session, &tmpkey);
 	__wt_scr_free(session, &tmpval);
 	return (ret);
 }
-
 
 /*
  * __rec_row_leaf_insert --
