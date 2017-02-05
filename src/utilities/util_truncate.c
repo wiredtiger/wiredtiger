@@ -17,6 +17,7 @@ util_truncate(WT_SESSION *session, int argc, char *argv[])
 	int ch;
 	char *uri;
 
+	uri = NULL;
 	while ((ch = __wt_getopt(progname, argc, argv, "")) != EOF)
 		switch (ch) {
 		case '?':
@@ -34,7 +35,7 @@ util_truncate(WT_SESSION *session, int argc, char *argv[])
 		return (1);
 
 	if ((ret = session->truncate(session, uri, NULL, NULL, NULL)) != 0)
-		return (util_err(session, ret, "%s: session.truncate", uri));
+		(void)util_err(session, ret, "session.truncate: %s", uri);
 
 	free(uri);
 	return (ret);

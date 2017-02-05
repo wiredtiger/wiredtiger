@@ -33,22 +33,18 @@ util_upgrade(WT_SESSION *session, int argc, char *argv[])
 	if ((uri = util_uri(session, *argv, "table")) == NULL)
 		return (1);
 
-	if ((ret = session->upgrade(session, uri, NULL)) != 0) {
-		fprintf(stderr, "%s: upgrade(%s): %s\n",
-		    progname, uri, session->strerror(session, ret));
-		goto err;
-	}
-
-	/* Verbose configures a progress counter, move to the next line. */
-	if (verbose)
-		printf("\n");
-
-	if (0) {
-err:		ret = 1;
+	if ((ret = session->upgrade(session, uri, NULL)) != 0)
+		(void)util_err(session, ret, "session.upgrade: %s", uri);
+	else {
+		/*
+		 * Verbose configures a progress counter, move to the next
+		 * line.
+		 */
+		if (verbose)
+			printf("\n");
 	}
 
 	free(uri);
-
 	return (ret);
 }
 

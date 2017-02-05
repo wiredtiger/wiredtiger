@@ -82,8 +82,8 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
 	    (ret = cursor->next(cursor)) == 0 &&
 	    (ret = cursor->get_value(cursor, &desc, &pval, NULL)) == 0)
 		if (printf("%s=%s\n", desc, pval) < 0) {
-			ret = errno;
-			break;
+			(void)util_err(session, errno, "printf");
+			goto err;
 		}
 	if (ret == WT_NOTFOUND)
 		ret = 0;

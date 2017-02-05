@@ -52,7 +52,6 @@ util_list(WT_SESSION *session, int argc, char *argv[])
 	ret = list_print(session, uri, cflag, vflag);
 
 	free(uri);
-
 	return (ret);
 }
 

@@ -38,22 +38,18 @@ util_salvage(WT_SESSION *session, int argc, char *argv[])
 	if ((uri = util_uri(session, *argv, "file")) == NULL)
 		return (1);
 
-	if ((ret = session->salvage(session, uri, force)) != 0) {
-		fprintf(stderr, "%s: salvage(%s): %s\n",
-		    progname, uri, session->strerror(session, ret));
-		goto err;
-	}
-
-	/* Verbose configures a progress counter, move to the next line. */
-	if (verbose)
-		printf("\n");
-
-	if (0) {
-err:		ret = 1;
+	if ((ret = session->salvage(session, uri, force)) != 0)
+		(void)util_err(session, ret, "session.salvage: %s", uri);
+	else {
+		/*
+		 * Verbose configures a progress counter, move to the next
+		 * line.
+		 */
+		if (verbose)
+			printf("\n");
 	}
 
 	free(uri);
-
 	return (ret);
 }
 

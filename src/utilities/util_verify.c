@@ -69,7 +69,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
 		    strlen("dump_offsets[],") +
 		    (dump_offsets == NULL ? 0 : strlen(dump_offsets)) + 20;
 		if ((config = malloc(size)) == NULL) {
-			(void)util_err(session, errno, NULL);
+			ret = util_err(session, errno, NULL);
 			goto err;
 		}
 		snprintf(config, size,
@@ -82,23 +82,19 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
 		    dump_offsets != NULL ? "]," : "",
 		    dump_pages ? "dump_pages," : "");
 	}
-	if ((ret = session->verify(session, uri, config)) != 0) {
-		fprintf(stderr, "%s: verify(%s): %s\n",
-		    progname, uri, session->strerror(session, ret));
-		goto err;
+	if ((ret = session->verify(session, uri, config)) != 0)
+		(void)util_err(session, ret, "session.verify: %s", uri);
+	else {
+		/*
+		 * Verbose configures a progress counter, move to the next
+		 * line.
+		 */
+		if (verbose)
+			printf("\n");
 	}
 
-	/* Verbose configures a progress counter, move to the next line. */
-	if (verbose)
-		printf("\n");
-
-	if (0) {
-err:		ret = 1;
-	}
-
-	free(config);
+err:	free(config);
 	free(uri);
-
 	return (ret);
 }
 
