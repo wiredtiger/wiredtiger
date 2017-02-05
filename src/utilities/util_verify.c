@@ -17,10 +17,10 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
 	size_t size;
 	int ch;
 	bool dump_address, dump_blocks, dump_layout, dump_pages;
-	char *config, *dump_offsets, *name;
+	char *config, *dump_offsets, *uri;
 
 	dump_address = dump_blocks = dump_layout = dump_pages = false;
-	config = dump_offsets = name = NULL;
+	config = dump_offsets = uri = NULL;
 	while ((ch = __wt_getopt(progname, argc, argv, "d:")) != EOF)
 		switch (ch) {
 		case 'd':
@@ -55,7 +55,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
 	/* The remaining argument is the table name. */
 	if (argc != 1)
 		return (usage());
-	if ((name = util_name(session, *argv, "table")) == NULL)
+	if ((uri = util_uri(session, *argv, "table")) == NULL)
 		return (1);
 
 	/* Build the configuration string as necessary. */
@@ -82,9 +82,9 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
 		    dump_offsets != NULL ? "]," : "",
 		    dump_pages ? "dump_pages," : "");
 	}
-	if ((ret = session->verify(session, name, config)) != 0) {
+	if ((ret = session->verify(session, uri, config)) != 0) {
 		fprintf(stderr, "%s: verify(%s): %s\n",
-		    progname, name, session->strerror(session, ret));
+		    progname, uri, session->strerror(session, ret));
 		goto err;
 	}
 
@@ -97,7 +97,7 @@ err:		ret = 1;
 	}
 
 	free(config);
-	free(name);
+	free(uri);
 
 	return (ret);
 }

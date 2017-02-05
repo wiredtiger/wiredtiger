@@ -47,7 +47,7 @@ util_write(WT_SESSION *session, int argc, char *argv[])
 	} else
 		if (argc < 3 || ((argc - 1) % 2 != 0))
 			return (usage());
-	if ((uri = util_name(session, *argv, "table")) == NULL)
+	if ((uri = util_uri(session, *argv, "table")) == NULL)
 		return (1);
 
 	/* Open the object. */

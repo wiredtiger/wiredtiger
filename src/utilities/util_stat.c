@@ -55,7 +55,7 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
 		objname = (char *)"";
 		break;
 	case 1:
-		if ((objname = util_name(session, *argv, "table")) == NULL)
+		if ((objname = util_uri(session, *argv, "table")) == NULL)
 			return (1);
 		objname_free = true;
 		break;

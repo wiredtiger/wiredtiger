@@ -30,7 +30,7 @@ util_rename(WT_SESSION *session, int argc, char *argv[])
 	/* The remaining arguments are the object uri and new name. */
 	if (argc != 2)
 		return (usage());
-	if ((uri = util_name(session, *argv, "table")) == NULL)
+	if ((uri = util_uri(session, *argv, "table")) == NULL)
 		return (1);
 	newuri = argv[1];
 
