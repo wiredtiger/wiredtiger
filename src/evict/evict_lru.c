@@ -782,6 +782,7 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool count_stat)
 	 * assert we never try to evict the current eviction walk point).
 	 */
 	btree->evict_ref = NULL;
+	WT_FULL_BARRIER();
 	WT_WITH_DHANDLE(cache->walk_session, session->dhandle,
 	    (ret = __wt_page_release(cache->walk_session,
 	    ref, WT_READ_NO_EVICT)));
