@@ -1781,7 +1781,7 @@ fast:		/* If the page can't be evicted, give up. */
 		++pages_queued;
 
 		if (WT_PAGE_IS_INTERNAL(page))
-		    ++internal_pages;
+			++internal_pages;
 
 		__wt_verbose(session, WT_VERB_EVICTSERVER,
 		    "select: %p, size %" WT_SIZET_FMT,
