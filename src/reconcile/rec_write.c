@@ -2018,7 +2018,7 @@ __wt_split_page_size(WT_SESSION_IMPL *session, uint32_t maxpagesize)
 	WT_BTREE *btree;
 
 	btree = S2BT(session);
-	WT_ASSERT(session, btree->split_pct > 50);
+	WT_ASSERT(session, btree->split_pct >= 50);
 
 	return (__wt_split_page_size_from_pct(
 	    btree->split_pct, maxpagesize, btree->allocsize));
