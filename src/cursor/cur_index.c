@@ -246,7 +246,7 @@ __curindex_search(WT_CURSOR *cursor)
 	 * all the visible fields so it unpacks correctly.
 	 */
 	if (cindex->index->collator != NULL)
-		WT_ERR(__wt_struct_repack(session, cindex->child->key_format,
+		WT_ERR(__wt_struct_repack(session, child->key_format,
 		    cindex->iface.key_format, &child->key, &found_key));
 	else
 		found_key.size = cursor->key.size;
