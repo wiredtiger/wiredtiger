@@ -540,7 +540,7 @@ __log_size_fit(WT_SESSION_IMPL *session, WT_LSN *lsn, uint64_t recsize)
 
 	conn = S2C(session);
 	log = conn->log;
-	return (lsn->l.offset == WT_LOG_FIRST_RECORD ||
+	return (lsn->l.offset == log->first_record ||
 	    lsn->l.offset + (wt_off_t)recsize < conn->log_file_max);
 }
 
@@ -680,8 +680,8 @@ __log_file_header(
 	logrec = (WT_LOG_RECORD *)buf->mem;
 	desc = (WT_LOG_DESC *)logrec->record;
 	desc->log_magic = WT_LOG_MAGIC;
-	desc->majorv = WT_LOG_MAJOR_VERSION;
-	desc->minorv = WT_LOG_MINOR_VERSION;
+	desc->majorv = log->log_major;
+	desc->minorv = log->log_minor;
 	desc->log_size = (uint64_t)conn->log_file_max;
 	__wt_log_desc_byteswap(desc);
 
@@ -781,6 +781,9 @@ __log_openfile(WT_SESSION_IMPL *session, WT_FH **fhp,
 			WT_PANIC_RET(session, WT_ERROR,
 			   "log file %s corrupted: Bad magic number %" PRIu32,
 			   (*fhp)->name, desc->log_magic);
+		/*
+		 * We cannot read future log file formats.
+		 */
 		if (desc->majorv > WT_LOG_MAJOR_VERSION ||
 		    (desc->majorv == WT_LOG_MAJOR_VERSION &&
 		    desc->minorv > WT_LOG_MINOR_VERSION))
@@ -794,6 +797,7 @@ __log_openfile(WT_SESSION_IMPL *session, WT_FH **fhp,
 		 * If we're reading a log version that contains the previous
 		 * LSN record, then read that in and set up the LSN.
 		 * We already have a buffer that is the correct size.  Reuse it.
+		 * Skip this in old log file formats.
 		 */
 		if (desc->majorv < WT_LOG_MAJOR_SYSTEM ||
 		    (desc->majorv == WT_LOG_MAJOR_SYSTEM &&
@@ -979,9 +983,15 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
 	 * the end of the header.
 	 */
 	WT_SET_LSN(&log->alloc_lsn, log->fileid, WT_LOG_END_HEADER);
-	WT_RET(__wt_log_system_record(session,
-	    log_fh, &logrec_lsn));
-	WT_SET_LSN(&log->alloc_lsn, log->fileid, WT_LOG_FIRST_RECORD);
+	/*
+	 * If we're running the version where we write a system record
+	 * do so now and update the alloc_lsn.
+	 */
+	if (log->log_minor == WT_LOG_MINOR_VERSION) {
+		WT_RET(__wt_log_system_record(session,
+		    log_fh, &logrec_lsn));
+		WT_SET_LSN(&log->alloc_lsn, log->fileid, log->first_record);
+	}
 	end_lsn = log->alloc_lsn;
 	WT_PUBLISH(log->log_fh, log_fh);
 
@@ -1042,7 +1052,7 @@ __wt_log_acquire(WT_SESSION_IMPL *session, uint64_t recsize, WT_LOGSLOT *slot)
 	 * Pre-allocate on the first real write into the log file, if it
 	 * was just created (i.e. not pre-allocated).
 	 */
-	if (log->alloc_lsn.l.offset == WT_LOG_FIRST_RECORD && created_log)
+	if (log->alloc_lsn.l.offset == log->first_record && created_log)
 		WT_RET(__log_prealloc(session, log->log_fh));
 	/*
 	 * Initialize the slot for activation.
@@ -1146,7 +1156,7 @@ __log_truncate(WT_SESSION_IMPL *session,
 			 * truncate them to the end of the log file header.
 			 */
 			WT_ERR(__log_truncate_file(
-			    session, log_fh, WT_LOG_FIRST_RECORD));
+			    session, log_fh, log->first_record));
 			WT_ERR(__wt_fsync(session, log_fh, true));
 			WT_ERR(__wt_close(session, &log_fh));
 		}
@@ -2336,7 +2346,7 @@ __wt_log_flush(WT_SESSION_IMPL *session, uint32_t flags)
 	 * is single-threaded we could wait here forever because the write LSN
 	 * doesn't switch into the new file until it contains a record.
 	 */
-	if (last_lsn.l.offset == WT_LOG_FIRST_RECORD)
+	if (last_lsn.l.offset == log->first_record)
 		last_lsn = log->log_close_lsn;
 
 	/*

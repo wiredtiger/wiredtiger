@@ -899,6 +899,23 @@ __wt_logmgr_create(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_INIT_LSN(&log->write_lsn);
 	WT_INIT_LSN(&log->write_start_lsn);
 	log->fileid = 0;
+	/*
+	 * Set the log file format versions based on compatibility versions
+	 * set in the connection.  We must set this before we call log_open
+	 * to open or create a log file.
+	 */
+	if (conn->compat_major < WT_LOG_V11_MAJOR ||
+	    (conn->compat_major == WT_LOG_V11_MAJOR &&
+	     conn->compat_minor < WT_LOG_V11_MINOR)) {
+		log->log_major = 1;
+		log->log_minor = 0;
+		log->first_record = WT_LOG_END_HEADER;
+	} else {
+		log->log_major = 1;
+		log->log_minor = 1;
+		log->first_record = WT_LOG_END_HEADER + log->allocsize;
+	}
+
 	WT_RET(__wt_cond_alloc(session, "log sync", &log->log_sync_cond));
 	WT_RET(__wt_cond_alloc(session, "log write", &log->log_write_cond));
 	WT_RET(__wt_log_open(session));

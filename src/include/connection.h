@@ -195,6 +195,9 @@ struct __wt_connection_impl {
 	const char *error_prefix;	/* Database error prefix */
 	int is_new;			/* Connection created database */
 
+	uint16_t compat_major;		/* Compatibility major version */
+	uint16_t compat_minor;		/* Compatibility minor version */
+
 	WT_EXTENSION_API extension_api;	/* Extension API */
 
 					/* Configuration */

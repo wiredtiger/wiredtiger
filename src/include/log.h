@@ -198,10 +198,10 @@ struct __wt_myslot {
 };
 
 #define	WT_LOG_END_HEADER	log->allocsize
-#define	WT_LOG_FIRST_RECORD	WT_LOG_END_HEADER + log->allocsize
 
 struct __wt_log {
 	uint32_t	allocsize;	/* Allocation alignment size */
+	uint32_t	first_record;	/* Offset of first record in file */
 	wt_off_t	log_written;	/* Amount of log written this period */
 	/*
 	 * Log file information
@@ -214,6 +214,9 @@ struct __wt_log {
 	WT_FH           *log_dir_fh;	/* Log directory file handle */
 	WT_FH           *log_close_fh;	/* Logging file handle to close */
 	WT_LSN		 log_close_lsn;	/* LSN needed to close */
+
+	uint16_t	 log_major;	/* Major version of log file */
+	uint16_t	 log_minor;	/* Minor version of log file */
 
 	/*
 	 * System LSNs
@@ -311,6 +314,11 @@ struct __wt_log_desc {
 };
 #define	WT_LOG_MAJOR_SYSTEM	1
 #define	WT_LOG_MINOR_SYSTEM	1
+/*
+ * Wiredtiger release version where log format version changed.
+ */
+#define	WT_LOG_V11_MAJOR	2
+#define	WT_LOG_V11_MINOR	9
 
 /*
  * __wt_log_desc_byteswap --
