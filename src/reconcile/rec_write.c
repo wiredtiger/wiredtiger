@@ -2391,18 +2391,20 @@ __rec_split_grow(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t add_len)
 {
 	WT_BM *bm;
 	WT_BTREE *btree;
-	size_t corrected_page_size, len;
+	size_t corrected_page_size, inuse, len;
 
 	btree = S2BT(session);
 	bm = btree->bm;
 
 	len = WT_PTRDIFF(r->first_free, r->disk_image.mem);
-	corrected_page_size = len + add_len;
+	inuse = len - r->bnd[r->bnd_next].offset +
+	    WT_PAGE_HEADER_BYTE_SIZE(btree);
+	corrected_page_size = inuse + add_len;
 	WT_RET(bm->write_size(bm, session, &corrected_page_size));
-	WT_RET(__wt_buf_grow(session, &r->disk_image, corrected_page_size));
+	WT_RET(__wt_buf_grow(session, &r->disk_image, 2*corrected_page_size));
 	r->first_free = (uint8_t *)r->disk_image.mem + len;
-	WT_ASSERT(session, corrected_page_size >= len);
-	r->space_avail = corrected_page_size - len;
+	WT_ASSERT(session, corrected_page_size >= inuse);
+	r->space_avail = corrected_page_size - inuse;
 	WT_ASSERT(session, r->space_avail >= add_len);
 	return (0);
 }
@@ -2519,28 +2521,15 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 	inuse = WT_PTRDIFF(r->first_free, dsk)
 	    - last->offset + WT_PAGE_HEADER_BYTE_SIZE(btree);
 
-	/*
-	 * Overflow values can be larger than the maximum page size but still be
-	 * "on-page". If the next key/value pair is larger than space available
-	 * after a split has happened (in other words, larger than the maximum
-	 * page size), create a page sized to hold that one key/value pair. This
-	 * generally splits the page into key/value pairs before a large object,
-	 * the object, and key/value pairs after the object. It's possible other
-	 * key/value pairs will also be aggregated onto the bigger page before
-	 * or after, if the page happens to hold them, but it won't necessarily
-	 * happen that way.
-	 */
 
 	/*
-	 * To fix:
-	 * This probably would work fine, but need to put thought into
-	 * buffer size computations for overflow values, now that we keep 2
-	 * chunks in the buffer at a time.
+	 * We can get here if the first key/value pair won't fit.
+	 * Additionally, grow the buffer to contain the current item if
+	 * we haven't already consumed a reasonable portion of a split
+	 * chunk.
 	 */
-	if (inuse < r->split_size / 2) {
-		WT_RET(__rec_split_grow(session, r, next_len));
-		return (0);
-	}
+	if (inuse < r->split_size / 2)
+		goto done;
 
 	/* Set the number of entries for the just finished chunk. */
 	last->entries = r->entries;
@@ -2573,6 +2562,27 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 	    r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
 	r->alt_space_avail =
 	    r->alt_split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
+
+done:  	/*
+	 * Overflow values can be larger than the maximum page size but still be
+	 * "on-page". If the next key/value pair is larger than space available
+	 * after a split has happened (in other words, larger than the maximum
+	 * page size), create a page sized to hold that one key/value pair. This
+	 * generally splits the page into key/value pairs before a large object,
+	 * the object, and key/value pairs after the object. It's possible other
+	 * key/value pairs will also be aggregated onto the bigger page before
+	 * or after, if the page happens to hold them, but it won't necessarily
+	 * happen that way.
+	 */
+
+	/*
+	 * To fix:
+	 * This probably would work fine, but need to put thought into
+	 * buffer size computations for overflow values, now that we keep 2
+	 * chunks in the buffer at a time.
+	 */
+	if (r->space_avail < next_len)
+		WT_RET(__rec_split_grow(session, r, next_len));
 
 	return (0);
 }
@@ -5481,29 +5491,34 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 		    WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins), &ovfl_key));
 
 		/* Boundary: split or write the page. */
-		if (key->len + val->len > r->space_avail) {
-			if (r->raw_compression)
+		if (r->raw_compression) {
+			if (key->len + val->len > r->space_avail)
 				WT_RET(__rec_split_raw(
 				    session, r, key->len + val->len));
-			else {
-				/*
-				 * Turn off prefix compression until a full key
-				 * written to the new page, and (unless already
-				 * working with an overflow key), rebuild the
-				 * key without compression.
-				 */
-				if (r->key_pfx_compress_conf) {
-					r->key_pfx_compress = false;
-					if (!ovfl_key)
-						WT_RET(
-						    __rec_cell_build_leaf_key(
-						    session,
-						    r, NULL, 0, &ovfl_key));
-				}
-
-				WT_RET(__rec_split(
-				    session, r, key->len + val->len));
+		} else if (NEED_KEY_PROMOTE(r, key->len + val->len)) {
+			/*
+			 * Turn off prefix compression until a full key
+			 * written to the new page, and (unless already
+			 * working with an overflow key), rebuild the
+			 * key without compression.
+			 */
+			if (r->key_pfx_compress_conf) {
+				r->key_pfx_compress = false;
+				if (!ovfl_key)
+					WT_RET(
+					    __rec_cell_build_leaf_key(
+					    session,
+					    r, NULL, 0, &ovfl_key));
 			}
+
+			/*
+			 * Hitting a page boundary resets the dictionary,
+			 * in all cases.
+			 */
+			__rec_dictionary_reset(r);
+
+			WT_RET(__rec_split_crossing_bnd(
+			    session, r, key->len + val->len));
 		}
 
 		/* Copy the key/value pair onto the page. */
