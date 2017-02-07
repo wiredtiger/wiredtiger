@@ -254,6 +254,7 @@ extern WT_THREAD_RET __wt_cache_pool_server(void *arg) WT_GCC_FUNC_DECL_ATTRIBUT
 extern int __wt_checkpoint_server_create(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern int __wt_checkpoint_server_destroy(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern void __wt_checkpoint_signal(WT_SESSION_IMPL *session, wt_off_t logsize) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
+extern int __wt_conn_dhandle_alloc( WT_SESSION_IMPL *session, const char *uri, const char *checkpoint) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern int __wt_conn_dhandle_find( WT_SESSION_IMPL *session, const char *uri, const char *checkpoint) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern int __wt_conn_btree_sync_and_close(WT_SESSION_IMPL *session, bool final, bool force) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern int __wt_conn_btree_open( WT_SESSION_IMPL *session, const char *cfg[], uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
@@ -690,6 +691,7 @@ extern uint32_t __wt_rduppo2(uint32_t n, uint32_t po2) WT_GCC_FUNC_DECL_ATTRIBUT
 extern void __wt_random_init(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_random_init_seed( WT_SESSION_IMPL *session, WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern uint32_t __wt_random(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
+extern uint64_t __wt_random64(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern int __wt_buf_grow_worker(WT_SESSION_IMPL *session, WT_ITEM *buf, size_t size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern int __wt_buf_fmt(WT_SESSION_IMPL *session, WT_ITEM *buf, const char *fmt, ...) WT_GCC_FUNC_DECL_ATTRIBUTE((format (printf, 3, 4))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern int __wt_buf_catfmt(WT_SESSION_IMPL *session, WT_ITEM *buf, const char *fmt, ...) WT_GCC_FUNC_DECL_ATTRIBUTE((format (printf, 3, 4))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
