@@ -282,7 +282,8 @@ __wt_evict_thread_chk(WT_SESSION_IMPL *session)
 
 /*
  * __wt_evict_thread_run --
- *	Starting point for an eviction thread.
+ *	Entry function for an eviction thread.  This is called repeatedly
+ *	from the thread group code so it does not need to loop itself.
  */
 int
 __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
@@ -295,14 +296,10 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 	conn = S2C(session);
 	cache = conn->cache;
 
-#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
 	/*
-	 * Ensure the cache stuck timer is initialized when starting eviction.
+	 * The thread group code calls us repeatedly.  So each call is one pass
+	 * through eviction.
 	 */
-	if (thread->id == 0)
-		__wt_epoch(session, &cache->stuck_ts);
-#endif
-
 	if (conn->evict_server_running &&
 	    __wt_spin_trylock(session, &cache->evict_pass_lock) == 0) {
 		/*
@@ -500,6 +497,13 @@ __wt_evict_create(WT_SESSION_IMPL *session)
 	    "eviction-server", conn->evict_threads_min, conn->evict_threads_max,
 	     WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL, __wt_evict_thread_chk,
 	     __wt_evict_thread_run, __wt_evict_thread_stop));
+
+#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
+	/*
+	 * Ensure the cache stuck timer is initialized when starting eviction.
+	 */
+	__wt_epoch(session, &conn->cache->stuck_ts);
+#endif
 
 	/*
 	 * Allow queues to be populated now that the eviction threads

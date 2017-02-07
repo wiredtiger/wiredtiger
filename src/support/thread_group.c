@@ -24,7 +24,7 @@ __thread_run(void *arg)
 
 	for (;;) {
 		if (!F_ISSET(thread, WT_THREAD_RUN))
-			return (WT_THREAD_RET_VALUE);
+			break;
 		if (!F_ISSET(thread, WT_THREAD_ACTIVE))
 			__wt_cond_wait(session, thread->pause_cond,
 			    WT_THREAD_PAUSE * WT_MILLION, thread->chk_func);
