@@ -365,16 +365,14 @@ __wt_evict_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
 	 * in case any trees are still open, clear all walks now so that they
 	 * can be closed.
 	 */
-	WT_WITH_PASS_LOCK(session,
-	    ret = __evict_clear_all_walks(session));
+	WT_WITH_PASS_LOCK(session, ret = __evict_clear_all_walks(session));
 	WT_ERR(ret);
 	/*
 	 * The only two cases when the eviction server is expected to
 	 * stop are when recovery is finished or when the connection is
 	 * closing.
 	 */
-	WT_ASSERT(session,
-	    F_ISSET(conn, WT_CONN_CLOSING | WT_CONN_RECOVERING));
+	WT_ASSERT(session, F_ISSET(conn, WT_CONN_CLOSING | WT_CONN_RECOVERING));
 
 	__wt_verbose(
 	    session, WT_VERB_EVICTSERVER, "cache eviction thread exiting");
