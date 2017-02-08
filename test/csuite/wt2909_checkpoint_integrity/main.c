@@ -54,7 +54,7 @@
  * nothing of interest is written and no data is present. To find the sweet
  * spot where interesting failures occur, the test does a binary search to find
  * the approximate N that divides the "small" and "large" cases. This is not
- * strictly deterministic, a given N may give different runs on different
+ * strictly deterministic, a given N may give different results on different
  * runs. But approximate optimal N can be determined, allowing a series of
  * additional tests clustered around this N.
  *
@@ -76,10 +76,12 @@
  */
 #define	BIG_SIZE			(1024 * 10)
 #define	BIG_CONTENTS			"<Big String Contents>"
+#define	MAX_ARGS			20
+#define	MAX_OP_RANGE			1000
 #define	STDERR_FILE			"stderr.txt"
 #define	STDOUT_FILE			"stdout.txt"
-#define	MAX_OP_RANGE			1000
 #define	TESTS_PER_OP_VALUE		3
+#define	VERBOSE_PRINT			10000
 
 static int check_results(TEST_OPTS *, uint64_t *);
 static void check_values(WT_CURSOR *, int, int, int, char *);
@@ -162,11 +164,11 @@ check_results(TEST_OPTS *opts, uint64_t *foundp)
 		check_values(v2cur, v0, v1, v2, big);
 
 		count++;
-		if (count % 10000 == 0 && opts->verbose)
+		if (count % VERBOSE_PRINT == 0 && opts->verbose)
 			printf("checked %" PRIu64 "/%" PRIu64 "\n", count,
 			    nrecords);
 	}
-	if (count % 10000 != 0 && opts->verbose)
+	if (count % VERBOSE_PRINT != 0 && opts->verbose)
 		printf("checked %" PRIu64 "/%" PRIu64 "\n", count, nrecords);
 
 	/*
@@ -308,7 +310,7 @@ run_check_subtest(TEST_OPTS *opts, const char *debugger, uint64_t nops,
 	int narg;
 	int estatus;
 	char rarg[20], sarg[20];
-	char *subtest_args[20];
+	char *subtest_args[MAX_ARGS];
 
 	narg = 0;
 	if (debugger != NULL) {
@@ -333,6 +335,7 @@ run_check_subtest(TEST_OPTS *opts, const char *debugger, uint64_t nops,
 	snprintf(rarg, sizeof(rarg), "%" PRIu64, opts->nrecords);
 	subtest_args[narg++] = rarg;		/* number of records */
 	subtest_args[narg++] = NULL;
+	testutil_assert(narg <= MAX_ARGS);
 	if (opts->verbose)
 		printf("running a separate process with %" PRIu64
 		    " operations until fail...\n", nops);
@@ -343,6 +346,9 @@ run_check_subtest(TEST_OPTS *opts, const char *debugger, uint64_t nops,
 	if (opts->verbose)
 		printf("process exited %d\n", estatus);
 
+	/*
+	 * Verify results in parent process.
+	 */
 	testutil_check(check_results(opts, nresultsp));
 }
 
@@ -565,10 +571,8 @@ subtest_populate(TEST_OPTS *opts, bool close_test)
 			 */
 			CHECK(session->checkpoint(session, NULL));
 
-		if ((i + 1) % 10000 == 0) {
-			if (opts->verbose)
-				printf("  %d/%" PRIu64 "\n", (i + 1), nrecords);
-		}
+		if ((i + 1) % VERBOSE_PRINT == 0 && opts->verbose)
+			printf("  %d/%" PRIu64 "\n", (i + 1), nrecords);
 		/* Attempt to isolate the failures to checkpointing. */
 		if (i == (nrecords/100)) {
 			enable_failures(opts->nops, 1000000);

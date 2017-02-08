@@ -41,9 +41,11 @@
 #include "queue.h"
 
 #define	FAIL_FS_GIGABYTE		 (1024 * 1024 * 1024)
+
 #define	FAIL_FS_ENV_ENABLE		"WT_FAIL_FS_ENABLE"
 #define	FAIL_FS_ENV_WRITE_ALLOW		"WT_FAIL_FS_WRITE_ALLOW"
 #define	FAIL_FS_ENV_READ_ALLOW		"WT_FAIL_FS_READ_ALLOW"
+
 /*
  * A "fail file system", that is, a file system extension that fails when we
  * want it to.  This is only used in test frameworks, this fact allows us to
@@ -218,11 +220,10 @@ fail_file_read(WT_FILE_HANDLE *file_handle,
 	FAIL_FILE_HANDLE *fail_fh;
 	FAIL_FILE_SYSTEM *fail_fs;
 	WT_EXTENSION_API *wtext;
-	int64_t read_ops;
+	int64_t envint, read_ops;
 	int ret;
 	size_t chunk;
 	ssize_t nr;
-	int64_t envint;
 	uint8_t *addr;
 
 	fail_fh = (FAIL_FILE_HANDLE *)file_handle;
@@ -336,11 +337,10 @@ fail_file_write(WT_FILE_HANDLE *file_handle, WT_SESSION *session,
 	FAIL_FILE_HANDLE *fail_fh;
 	FAIL_FILE_SYSTEM *fail_fs;
 	WT_EXTENSION_API *wtext;
-	int64_t write_ops;
+	int64_t envint, write_ops;
 	int ret;
 	size_t chunk;
 	ssize_t nr;
-	int64_t envint;
 	const uint8_t *addr;
 
 	fail_fh = (FAIL_FILE_HANDLE *)file_handle;
@@ -676,9 +676,9 @@ fail_fs_simulate_fail(FAIL_FILE_HANDLE *fail_fh, WT_SESSION *session,
 {
 	FAIL_FILE_SYSTEM *fail_fs;
 	WT_EXTENSION_API *wtext;
+	int btret, i;
 	void *bt[100];
 	char **btstr;
-	int btret, i;
 
 	fail_fs = fail_fh->fail_fs;
 	if (fail_fs->verbose) {
