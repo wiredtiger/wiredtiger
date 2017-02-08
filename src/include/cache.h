@@ -18,8 +18,6 @@
 
 #define	WT_EVICT_MAX_TREES	1000	/* Maximum walk points */
 
-#define	WT_EVICT_THREAD_PAUSE	10	/* Thread pause timeout in seconds */
-
 /*
  * WT_EVICT_ENTRY --
  *	Encapsulation of an eviction candidate.

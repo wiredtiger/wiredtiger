@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __wt_thread_run --
+ * __thread_run --
  *	General wrapper for any thread.
  */
-WT_THREAD_RET
-__wt_thread_run(void *arg)
+static WT_THREAD_RET
+__thread_run(void *arg)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -22,11 +22,21 @@ __wt_thread_run(void *arg)
 	thread = (WT_THREAD*)arg;
 	session = thread->session;
 
+	for (;;) {
+		if (!F_ISSET(thread, WT_THREAD_RUN))
+			break;
+		if (!F_ISSET(thread, WT_THREAD_ACTIVE))
+			__wt_cond_wait(session, thread->pause_cond,
+			    WT_THREAD_PAUSE * WT_MILLION, thread->chk_func);
+		WT_ERR(thread->run_func(session, thread));
+	}
+
+err:
 	/*
-	 * The subsystem run function is responsible for looking at whether
-	 * a thread is active or paused.
+	 * If a thread is stopping it may have subsystem cleanup to do.
 	 */
-	ret = thread->run_func(session, thread);
+	if (thread->stop_func != NULL)
+		ret = thread->stop_func(session, thread);
 
 	if (ret != 0 && F_ISSET(thread, WT_THREAD_PANIC_FAIL))
 		WT_PANIC_MSG(session, ret,
@@ -166,7 +176,9 @@ __thread_group_resize(
 		if (LF_ISSET(WT_THREAD_PANIC_FAIL))
 			F_SET(thread, WT_THREAD_PANIC_FAIL);
 		thread->id = i;
+		thread->chk_func = group->chk_func;
 		thread->run_func = group->run_func;
+		thread->stop_func = group->stop_func;
 		WT_ERR(__wt_cond_alloc(
 		    session, "Thread cond", &thread->pause_cond));
 		WT_ASSERT(session, group->threads[i] == NULL);
@@ -182,7 +194,7 @@ __thread_group_resize(
 		F_SET(thread, WT_THREAD_RUN);
 		WT_ASSERT(session, thread->session != NULL);
 		WT_ERR(__wt_thread_create(thread->session,
-		    &thread->tid, __wt_thread_run, thread));
+		    &thread->tid, __thread_run, thread));
 	}
 
 err:	/*
@@ -232,7 +244,9 @@ int
 __wt_thread_group_create(
     WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, const char *name,
     uint32_t min, uint32_t max, uint32_t flags,
-    int (*run_func)(WT_SESSION_IMPL *session, WT_THREAD *context))
+    bool (*chk_func)(WT_SESSION_IMPL *session),
+    int (*run_func)(WT_SESSION_IMPL *session, WT_THREAD *context),
+    int (*stop_func)(WT_SESSION_IMPL *session, WT_THREAD *context))
 {
 	WT_DECL_RET;
 	bool cond_alloced;
@@ -251,7 +265,9 @@ __wt_thread_group_create(
 	cond_alloced = true;
 
 	__wt_writelock(session, &group->lock);
+	group->chk_func = chk_func;
 	group->run_func = run_func;
+	group->stop_func = stop_func;
 	group->name = name;
 
 	WT_TRET(__thread_group_resize(session, group, min, max, flags));
