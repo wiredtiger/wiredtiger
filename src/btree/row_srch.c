@@ -785,18 +785,23 @@ __wt_row_random_leaf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
  *	Find a random leaf page in a tree.
  */
 int
-__wt_random_descent(WT_SESSION_IMPL *session, WT_REF **refp, bool mem_only)
+__wt_random_descent(WT_SESSION_IMPL *session, WT_REF **refp, bool eviction)
 {
 	WT_BTREE *btree;
 	WT_DECL_RET;
 	WT_PAGE *page;
 	WT_PAGE_INDEX *pindex;
 	WT_REF *current, *descent;
-	uint32_t i, entries, retry;
+	uint32_t flags, i, entries, retry;
 
 	btree = S2BT(session);
 	current = NULL;
 	retry = 100;
+
+	/* Eviction should not be tapped to do eviction. */
+	flags = WT_READ_RESTART_OK;
+	if (eviction)
+		LF_SET(WT_READ_NO_EVICT);
 
 	if (0) {
 restart:	/*
@@ -822,19 +827,22 @@ restart:	/*
 		 * guesses, take the first non-empty page in the tree. If the
 		 * search page contains nothing other than empty pages, restart
 		 * from the root some number of times before giving up.
+		 *
+		 * Eviction is only interested in in-memory pages, other callers
+		 * are presumed to accept any page.
 		 */
 		descent = NULL;
 		for (i = 0; i < entries; ++i) {
 			descent =
 			    pindex->index[__wt_random(&session->rnd) % entries];
-			if ((mem_only && descent->state == WT_REF_MEM) ||
-			    (!mem_only && descent->state != WT_REF_DELETED))
+			if ((eviction && descent->state == WT_REF_MEM) ||
+			    (!eviction && descent->state != WT_REF_DELETED))
 				break;
 		}
 		if (i == entries)
 			for (i = 0; i < entries; ++i) {
 				descent = pindex->index[i];
-				if ((mem_only &&
+				if ((eviction &&
 				    descent->state == WT_REF_MEM) ||
 				    descent->state != WT_REF_DELETED)
 					break;
@@ -852,8 +860,8 @@ restart:	/*
 		 * On other error, simply return, the swap call ensures we're
 		 * holding nothing on failure.
 		 */
-		if ((ret = __wt_page_swap(
-		    session, current, descent, WT_READ_RESTART_OK)) == 0) {
+		if ((ret =
+		    __wt_page_swap(session, current, descent, flags)) == 0) {
 			current = descent;
 			continue;
 		}
