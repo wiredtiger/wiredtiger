@@ -478,7 +478,6 @@ __split_ref_step2(
     WT_SESSION_IMPL *session, WT_PAGE_INDEX *pindex, bool skip_first)
 {
 	WT_DECL_RET;
-	WT_PAGE *child;
 	WT_REF *ref;
 	uint32_t i;
 
@@ -508,11 +507,9 @@ __split_ref_step2(
 			continue;
 		WT_ERR(ret);
 
-		child = ref->page;
-
 #ifdef HAVE_DIAGNOSTIC
 		WT_WITH_PAGE_INDEX(session,
-		    __split_verify_intl_key_order(session, child));
+		    __split_verify_intl_key_order(session, ref->page));
 #endif
 
 		WT_ERR(__wt_hazard_clear(session, ref));

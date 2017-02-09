@@ -776,11 +776,11 @@ __evict_clear_walk(WT_SESSION_IMPL *session)
 	WT_STAT_CONN_INCR(session, cache_eviction_walks_abandoned);
 
 	/*
-	 * Clear evict_ref first, in case releasing it forces eviction (we
-	 * assert we never try to evict the current eviction walk point).
+	 * Clear evict_ref before releasing it in case that forces eviction (we
+	 * assert that we never try to evict the current eviction walk point).
 	 */
-	btree->evict_ref = NULL;
-	WT_FULL_BARRIER();
+	WT_PUBLISH(btree->evict_ref, NULL);
+
 	WT_WITH_DHANDLE(cache->walk_session, session->dhandle,
 	    (ret = __wt_page_release(cache->walk_session,
 	    ref, WT_READ_NO_EVICT)));
@@ -1668,8 +1668,7 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	 * complete before the page is released.
 	 */
 	ref = btree->evict_ref;
-	btree->evict_ref = NULL;
-	WT_FULL_BARRIER();
+	WT_PUBLISH(btree->evict_ref, NULL);
 
 	/*
 	 * !!! Take care terminating this loop.
