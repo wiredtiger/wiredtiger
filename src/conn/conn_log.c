@@ -910,6 +910,7 @@ __wt_logmgr_create(WT_SESSION_IMPL *session, const char *cfg[])
 		log->log_major = 1;
 		log->log_minor = 0;
 		log->first_record = WT_LOG_END_HEADER;
+		FLD_SET(conn->log_flags, WT_CONN_LOG_DOWNGRADED);
 	} else {
 		log->log_major = 1;
 		log->log_minor = 1;

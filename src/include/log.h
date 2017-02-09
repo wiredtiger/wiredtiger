@@ -315,7 +315,7 @@ struct __wt_log_desc {
 #define	WT_LOG_MAJOR_SYSTEM	1
 #define	WT_LOG_MINOR_SYSTEM	1
 /*
- * Wiredtiger release version where log format version changed.
+ * WiredTiger release version where log format version changed.
  */
 #define	WT_LOG_V11_MAJOR	2
 #define	WT_LOG_V11_MINOR	9
