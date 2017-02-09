@@ -895,7 +895,7 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
 		 */
 		WT_ERR(__cursor_func_init(cbt, true));
 		WT_WITH_PAGE_INDEX(session,
-		    ret = __wt_row_random_descent(session, &cbt->ref, false));
+		    ret = __wt_random_descent(session, &cbt->ref, false));
 		WT_ERR(ret);
 	} else {
 		/*

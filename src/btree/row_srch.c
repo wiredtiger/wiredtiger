@@ -781,11 +781,11 @@ __wt_row_random_leaf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 }
 
 /*
- * __wt_row_random_descent --
- *	Find a random leaf page in a row-store tree.
+ * __wt_random_descent --
+ *	Find a random leaf page in a tree.
  */
 int
-__wt_row_random_descent(WT_SESSION_IMPL *session, WT_REF **refp, bool mem_only)
+__wt_random_descent(WT_SESSION_IMPL *session, WT_REF **refp, bool mem_only)
 {
 	WT_BTREE *btree;
 	WT_DECL_RET;
@@ -810,7 +810,7 @@ restart:	/*
 	current = &btree->root;
 	for (;;) {
 		page = current->page;
-		if (page->type != WT_PAGE_ROW_INT)
+		if (!WT_PAGE_IS_INTERNAL(page))
 			break;
 
 		WT_INTL_INDEX_GET(session, page, pindex);

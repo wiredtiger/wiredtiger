@@ -1665,14 +1665,12 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	 * Choose a random point in the tree if looking for candidates in a
 	 * tree with no starting point set. This is mostly aimed at ensuring
 	 * eviction fairly visits all pages in trees with a lot of in-cache
-	 * content. Isolate this optimization to row store tables since
-	 * they are the only table type that supports random positioning -
-	 * live with the horrible layering violation for now.
+	 * content.
 	 */
-	if (btree->evict_ref == NULL && btree->type == BTREE_ROW) {
+	if (btree->evict_ref == NULL) {
 		/* Ensure internal pages indexes remain valid for our walk */
 		WT_WITH_PAGE_INDEX(session, ret =
-		    __wt_row_random_descent(session, &btree->evict_ref, true));
+		    __wt_random_descent(session, &btree->evict_ref, true));
 		WT_RET_NOTFOUND_OK(ret);
 	}
 
