@@ -785,7 +785,7 @@ __wt_row_random_leaf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
  *	Find a random leaf page in a row-store tree.
  */
 int
-__wt_row_random_descent(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
+__wt_row_random_descent(WT_SESSION_IMPL *session, WT_REF **refp, bool mem_only)
 {
 	WT_BTREE *btree;
 	WT_DECL_RET;
@@ -827,13 +827,16 @@ restart:	/*
 		for (i = 0; i < entries; ++i) {
 			descent =
 			    pindex->index[__wt_random(&session->rnd) % entries];
-			if (descent->state != WT_REF_DELETED)
+			if ((mem_only && descent->state == WT_REF_MEM) ||
+			    (!mem_only && descent->state != WT_REF_DELETED))
 				break;
 		}
 		if (i == entries)
 			for (i = 0; i < entries; ++i) {
 				descent = pindex->index[i];
-				if (descent->state != WT_REF_DELETED)
+				if ((mem_only &&
+				    descent->state == WT_REF_MEM) ||
+				    descent->state != WT_REF_DELETED)
 					break;
 			}
 		if (i == entries || descent == NULL) {
@@ -859,6 +862,6 @@ restart:	/*
 		return (ret);
 	}
 
-	cbt->ref = current;
+	*refp = current;
 	return (0);
 }
