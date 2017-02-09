@@ -756,7 +756,7 @@ __evict_pass(WT_SESSION_IMPL *session)
  *	Clear a single walk point.
  */
 static int
-__evict_clear_walk(WT_SESSION_IMPL *session, bool count_stat)
+__evict_clear_walk(WT_SESSION_IMPL *session)
 {
 	WT_BTREE *btree;
 	WT_CACHE *cache;
@@ -773,8 +773,7 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool count_stat)
 	if ((ref = btree->evict_ref) == NULL)
 		return (0);
 
-	if (count_stat)
-		WT_STAT_CONN_INCR(session, cache_eviction_walks_abandoned);
+	WT_STAT_CONN_INCR(session, cache_eviction_walks_abandoned);
 
 	/*
 	 * Clear evict_ref first, in case releasing it forces eviction (we
@@ -804,7 +803,7 @@ __evict_clear_all_walks(WT_SESSION_IMPL *session)
 	TAILQ_FOREACH(dhandle, &conn->dhqh, q)
 		if (WT_PREFIX_MATCH(dhandle->name, "file:"))
 			WT_WITH_DHANDLE(session, dhandle,
-			    WT_TRET(__evict_clear_walk(session, true)));
+			    WT_TRET(__evict_clear_walk(session)));
 	return (ret);
 }
 
@@ -849,7 +848,7 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
 
 	/* Clear any existing LRU eviction walk for the file. */
 	WT_WITH_PASS_LOCK(session,
-	    ret = __evict_clear_walk(session, true));
+	    ret = __evict_clear_walk(session));
 	(void)__wt_atomic_subv32(&cache->pass_intr, 1);
 	WT_ERR(ret);
 
@@ -1838,14 +1837,16 @@ fast:		/* If the page can't be evicted, give up. */
 		if (__wt_ref_is_root(ref) || evict == start || give_up ||
 		    ref->page->read_gen == WT_READGEN_OLDEST ||
 		    ref->page->memory_footprint >= btree->splitmempage) {
-			btree->evict_ref = ref;
-			WT_RET(__evict_clear_walk(session, restarts == 0));
-		} else if (ref->page->read_gen == WT_READGEN_OLDEST) {
+			if (restarts == 0)
+				WT_STAT_CONN_INCR(
+				    session, cache_eviction_walks_abandoned);
+			WT_RET(__wt_page_release(cache->walk_session,
+			    ref, WT_READ_NO_EVICT));
+			ref = NULL;
+		} else if (ref->page->read_gen == WT_READGEN_OLDEST)
 			WT_RET_NOTFOUND_OK(__wt_tree_walk_count(
 			    session, &ref, &refs_walked, walk_flags));
-			btree->evict_ref = ref;
-		} else
-			btree->evict_ref = ref;
+		btree->evict_ref = ref;
 	}
 
 	WT_STAT_CONN_INCRV(session, cache_eviction_walk, refs_walked);
