@@ -24,8 +24,12 @@ struct __wt_thread {
 #define	WT_THREAD_RUN		0x04	/* thread is running */
 	uint32_t flags;
 
+	/* The check function used by all threads. */
+	bool (*chk_func)(WT_SESSION_IMPL *session);
 	/* The runner function used by all threads. */
 	int (*run_func)(WT_SESSION_IMPL *session, WT_THREAD *context);
+	/* The stop function used by all threads. */
+	int (*stop_func)(WT_SESSION_IMPL *session, WT_THREAD *context);
 };
 
 /*
@@ -57,6 +61,10 @@ struct __wt_thread_group {
 	 */
 	WT_THREAD **threads;
 
+	/* The check function used by all threads. */
+	bool (*chk_func)(WT_SESSION_IMPL *session);
 	/* The runner function used by all threads. */
 	int (*run_func)(WT_SESSION_IMPL *session, WT_THREAD *context);
+	/* The stop function used by all threads. May be NULL */
+	int (*stop_func)(WT_SESSION_IMPL *session, WT_THREAD *context);
 };
