@@ -828,28 +828,33 @@ restart:	/*
 		 * search page contains nothing other than empty pages, restart
 		 * from the root some number of times before giving up.
 		 *
-		 * Eviction is only interested in in-memory pages, other callers
-		 * are presumed to accept any page.
+		 * Eviction is only looking for a place in the cache and so only
+		 * wants in-memory pages (but a deleted page is fine); currently
+		 * our other caller is looking for a key/value pair on a random
+		 * leave page, and so will accept any page that contains a valid
+		 * key/value pair, so on-disk is fine, but deleted is not.
 		 */
 		descent = NULL;
 		for (i = 0; i < entries; ++i) {
 			descent =
 			    pindex->index[__wt_random(&session->rnd) % entries];
-			if ((eviction && descent->state == WT_REF_MEM) ||
-			    (!eviction && descent->state != WT_REF_DELETED))
+			if (descent->state == WT_REF_MEM ||
+			    (!eviction && descent->state == WT_REF_DISK))
 				break;
 		}
 		if (i == entries)
 			for (i = 0; i < entries; ++i) {
 				descent = pindex->index[i];
-				if ((eviction &&
-				    descent->state == WT_REF_MEM) ||
-				    descent->state != WT_REF_DELETED)
+				if (descent->state == WT_REF_MEM ||
+				    (!eviction &&
+				    descent->state == WT_REF_DISK))
 					break;
 			}
 		if (i == entries || descent == NULL) {
 			if (--retry > 0)
 				goto restart;
+
+			WT_RET(__wt_page_release(session, current, flags));
 			return (WT_NOTFOUND);
 		}
 
