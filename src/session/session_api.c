@@ -234,6 +234,9 @@ __session_close(WT_SESSION *wt_session, const char *config)
 	/* Release common session resources. */
 	WT_TRET(__wt_session_release_resources(session));
 
+	/* Destroy the thread's mutex. */
+	WT_TRET(__wt_cond_destroy(session, &session->cond));
+
 	/* The API lock protects opening and closing of sessions. */
 	__wt_spin_lock(session, &conn->api_lock);
 
@@ -1833,6 +1836,8 @@ __open_session(WT_CONNECTION_IMPL *conn,
 
 	session_ret->name = NULL;
 	session_ret->id = i;
+
+	WT_ERR(__wt_cond_alloc(session, "session", &session_ret->cond));
 
 	if (WT_SESSION_FIRST_USE(session_ret))
 		__wt_random_init(&session_ret->rnd);
