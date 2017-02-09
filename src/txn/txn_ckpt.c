@@ -525,11 +525,11 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session,
 }
 
 /*
- * __txn_fail_reset --
+ * __checkpoint_fail_reset --
  *	Reset fields when a failure occurs.
  */
 static void
-__txn_fail_reset(WT_SESSION_IMPL *session)
+__checkpoint_fail_reset(WT_SESSION_IMPL *session)
 {
 	S2BT(session)->modified = true;
 	S2BT(session)->ckpt = NULL;
@@ -880,7 +880,7 @@ err:	/*
 		 */
 		if (failed)
 			WT_WITH_DHANDLE(session, session->ckpt_handle[i],
-			    __txn_fail_reset(session));
+			    __checkpoint_fail_reset(session));
 		WT_WITH_DHANDLE(session, session->ckpt_handle[i],
 		    WT_TRET(__wt_session_release_btree(session)));
 	}
