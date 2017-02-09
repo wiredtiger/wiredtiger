@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#define	WT_THREAD_PAUSE		10	/* Thread pause timeout in seconds */
+
 /*
  * WT_THREAD --
  *	Encapsulation of a thread that belongs to a thread group.
@@ -19,10 +21,17 @@ struct __wt_thread {
 	 * WT_THREAD and thread-group function flags, merged because
 	 * WT_THREAD_PANIC_FAIL appears in both groups.
 	 */
-#define	WT_THREAD_CAN_WAIT	0x01	/* WT_SESSION_CAN_WAIT */
-#define	WT_THREAD_PANIC_FAIL	0x02	/* panic if the thread fails */
-#define	WT_THREAD_RUN		0x04	/* thread is running */
+#define	WT_THREAD_ACTIVE	0x01	/* thread is active or paused */
+#define	WT_THREAD_CAN_WAIT	0x02	/* WT_SESSION_CAN_WAIT */
+#define	WT_THREAD_PANIC_FAIL	0x04	/* panic if the thread fails */
+#define	WT_THREAD_RUN		0x08	/* thread is running */
 	uint32_t flags;
+
+	/*
+	 * Condition signalled when a thread becomes active.  Paused
+	 * threads wait on this condition.
+	 */
+	WT_CONDVAR      *pause_cond;
 
 	/* The check function used by all threads. */
 	bool (*chk_func)(WT_SESSION_IMPL *session);

@@ -1061,8 +1061,8 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 				 * were unable to acquire the thread group lock.
 				 * Break out of trying.
 				 */
-				WT_ERR(__wt_thread_group_stop_one(
-				    session, &conn->evict_threads));
+				__wt_thread_group_stop_one(
+				    session, &conn->evict_threads);
 				WT_STAT_CONN_INCR(session,
 				    cache_eviction_worker_removed);
 			}
@@ -1100,8 +1100,8 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 			 * unable to acquire the thread group lock.  Break out
 			 * of trying.
 			 */
-			WT_ERR(__wt_thread_group_start_one(session,
-			    &conn->evict_threads, false));
+			__wt_thread_group_start_one(session,
+			    &conn->evict_threads, false);
 			WT_STAT_CONN_INCR(session,
 			    cache_eviction_worker_created);
 			__wt_verbose(session, WT_VERB_EVICTSERVER,
