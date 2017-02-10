@@ -2473,7 +2473,7 @@ __rec_split_write_prev_shift_cur(
 	memcpy(dsk_tmp, dsk, bnd_cur->offset);
 	dsk_tmp->recno = bnd_prev->recno;
 	dsk_tmp->u.entries = bnd_prev->entries;
-	dsk_tmp->mem_size = bnd_cur->offset;
+	dsk_tmp->mem_size = (uint32_t)bnd_cur->offset;
 	tmp_buf->size = dsk_tmp->mem_size;
 	ret = __rec_split_write(session, r, bnd_prev, tmp_buf, false);
 	__wt_scr_free(session, &tmp_buf);
