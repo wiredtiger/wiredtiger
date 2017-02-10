@@ -1657,10 +1657,6 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	walk_flags =
 	    WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN | WT_READ_NO_WAIT;
 
-	/* Randomize the walk direction. */
-	if (btree->evict_walk_reverse)
-		FLD_SET(walk_flags, WT_READ_PREV);
-
 	/*
 	 * Choose a random point in the tree if looking for candidates in a
 	 * tree with no starting point set. This is mostly aimed at ensuring
@@ -1804,13 +1800,6 @@ fast:		/* If the page can't be evicted, give up. */
 	*slotp += (u_int)(evict - start);
 	WT_STAT_CONN_INCRV(
 	    session, cache_eviction_pages_queued, (u_int)(evict - start));
-
-	/*
-	 * If gave up the walk, reverse the direction of the walk and skip it
-	 * next time.
-	 */
-	if (give_up)
-		btree->evict_walk_reverse = !btree->evict_walk_reverse;
 
 	/*
 	 * If we couldn't find the number of pages we were looking for, skip
