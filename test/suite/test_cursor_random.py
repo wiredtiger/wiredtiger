@@ -71,6 +71,15 @@ class test_cursor_random(wttest.WiredTigerTestCase):
         self.assertEquals(cursor.reset(), 0)
         cursor.close()
 
+    # Check that next_random fails with an empty tree, repeatedly.
+    def test_cursor_random_empty(self):
+        uri = self.type
+        self.session.create(uri, 'key_format=S,value_format=S')
+        cursor = self.session.open_cursor(uri, None, self.config)
+        for i in range(1,5):
+            self.assertTrue(cursor.next(), wiredtiger.WT_NOTFOUND)
+        cursor.close
+
     # Check that next_random works with a single value, repeatedly.
     def test_cursor_random_single_record(self):
         uri = self.type
