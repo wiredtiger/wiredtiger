@@ -256,30 +256,29 @@ __split_verify_intl_key_order(WT_SESSION_IMPL *session, WT_PAGE *page)
  */
 static int
 __split_verify_intl(WT_SESSION_IMPL *session,
-    WT_PAGE *page1, WT_PAGE *page2, WT_PAGE_INDEX *pindex, bool skip_first)
+    WT_PAGE *page1, WT_PAGE *page2, WT_PAGE *pindex_page, bool skip_first)
 {
 	WT_DECL_RET;
 	WT_REF *ref;
-	uint32_t i;
 
 	/* The split is complete and live, verify all of the pages involved. */
 	if (page1 != NULL)
-		WT_WITH_PAGE_INDEX(session,
-		    __split_verify_intl_key_order(session, page1));
+		__split_verify_intl_key_order(session, page1);
 	if (page2 != NULL)
-		WT_WITH_PAGE_INDEX(session,
-		    __split_verify_intl_key_order(session, page2));
+		__split_verify_intl_key_order(session, page2);
 
 	/* Skip the first slot on non-root internal pages, it's not set. */
-	for (i = skip_first ? 1 : 0; i < pindex->entries; ++i) {
-		ref = pindex->index[i];
+	WT_INTL_FOREACH_BEGIN(session, pindex_page, ref) {
+		if (skip_first) {
+			skip_first = false;
+			continue;
+		}
 		WT_ERR(__wt_page_in(session, ref, WT_READ_NO_EVICT));
 
-		WT_WITH_PAGE_INDEX(session,
-		    __split_verify_intl_key_order(session, ref->page));
+		__split_verify_intl_key_order(session, ref->page);
 
 		WT_ERR(__wt_page_release(session, ref, WT_READ_NO_EVICT));
-	}
+	} WT_INTL_FOREACH_END;
 
 	return (0);
 
@@ -656,7 +655,9 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
 	complete = WT_ERR_IGNORE;
 
 #ifdef HAVE_DIAGNOSTIC
-	WT_ERR(__split_verify_intl(session, root, NULL, alloc_index, false));
+	WT_WITH_PAGE_INDEX(session,
+	    ret = __split_verify_intl(session, root, NULL, root, false));
+	WT_ERR(ret);
 #endif
 
 	/*
@@ -1166,7 +1167,9 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 	complete = WT_ERR_IGNORE;
 
 #ifdef HAVE_DIAGNOSTIC
-	WT_ERR(__split_verify_intl(session, parent, page, alloc_index, true));
+	WT_WITH_PAGE_INDEX(session,
+	    ret = __split_verify_intl(session, parent, page, page, true));
+	WT_ERR(ret);
 #endif
 
 	/*
