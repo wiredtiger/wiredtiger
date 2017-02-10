@@ -2521,7 +2521,6 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 	inuse = WT_PTRDIFF(r->first_free, dsk)
 	    - last->offset + WT_PAGE_HEADER_BYTE_SIZE(btree);
 
-
 	/*
 	 * We can get here if the first key/value pair won't fit.
 	 * Additionally, grow the buffer to contain the current item if
