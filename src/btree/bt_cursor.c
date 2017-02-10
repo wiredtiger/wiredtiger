@@ -846,7 +846,7 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
 	WT_SESSION_IMPL *session;
 	WT_UPDATE *upd;
 	wt_off_t size;
-	uint64_t skip;
+	uint64_t n, skip;
 
 	session = (WT_SESSION_IMPL *)cbt->iface.session;
 	btree = cbt->btree;
@@ -896,24 +896,53 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
 		WT_ERR(__cursor_func_init(cbt, true));
 		WT_WITH_PAGE_INDEX(
 		    session, ret = __wt_row_random_descent(session, cbt));
+
+		/*
+		 * Random descent may return not-found: the tree might be empty
+		 * or have so many deleted items we didn't find any valid pages.
+		 * We can't return WT_NOTFOUND to the application unless a tree
+		 * is really empty, fallback to skipping through tree pages.
+		 */
+		if (ret == WT_NOTFOUND)
+			goto fallback_walk;
 		WT_ERR(ret);
 	} else {
+fallback_walk:
 		/*
-		 * Read through the tree, skipping leaf pages. Be cautious about
-		 * the skip count: if the last leaf page skipped was also the
-		 * last leaf page in the tree, it may be set to zero on return
-		 * with the end-of-walk condition.
+		 * Read through the tree, skipping leaf pages.
 		 *
 		 * Pages read for data sampling aren't "useful"; don't update
 		 * the read generation of pages already in memory, and if a page
 		 * is read, set its generation to a low value so it is evicted
 		 * quickly.
+		 *
+		 * Be paranoid about loop termination: first, if the last leaf
+		 * page skipped was also the last leaf page in the tree, skip
+		 * may be set to zero on return along with the NULL WT_REF
+		 * end-of-walk condition. Second, if a tree has no valid pages
+		 * at all (the condition after initial creation), we might make
+		 * no progress at all, or finally, if a tree has only deleted
+		 * pages, we'll make progress, but never get a useful WT_REF.
+		 * And, of course, the tree can switch from one of these states
+		 * to another without warning. Guarantee we eventually quit;
+		 * we can't return WT_NOTFOUND to the application unless a tree
+		 * is really empty, fallback to a random entry from the first
+		 * page in the tree that has anything at all.
 		 */
 		for (skip =
-		    cbt->next_random_leaf_skip; cbt->ref == NULL || skip > 0;)
+		    cbt->next_random_leaf_skip; cbt->ref == NULL || skip > 0;) {
+			n = skip;
 			WT_ERR(__wt_tree_walk_skip(session, &cbt->ref, &skip,
 			    WT_READ_NO_GEN |
 			    WT_READ_SKIP_INTL | WT_READ_WONT_NEED));
+			if (n == skip) {
+				if (skip == 0)
+					break;
+				--skip;
+			}
+		}
+		if (cbt->ref == NULL)
+			WT_ERR(__wt_btcur_next(cbt, false));
 	}
 
 	/*
