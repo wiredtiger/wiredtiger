@@ -650,19 +650,14 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
 	 */
 	WT_ASSERT(session, WT_INTL_INDEX_GET_SAFE(root) == pindex);
 	WT_INTL_INDEX_SET(root, alloc_index);
-
-	/* The split is live. */
-	WT_WRITE_BARRIER();
-
-#ifdef HAVE_DIAGNOSTIC
-	WT_ERR(__split_verify_intl(session, root, NULL, alloc_index, false));
-#endif
+	alloc_index = NULL;
 
 	/* The split is complete and correct, ignore benign errors. */
 	complete = WT_ERR_IGNORE;
 
-	/* We've installed the allocated page-index, ensure error handling. */
-	alloc_index = NULL;
+#ifdef HAVE_DIAGNOSTIC
+	WT_ERR(__split_verify_intl(session, root, NULL, alloc_index, false));
+#endif
 
 	/*
 	 * We can't free the previous root's index, there may be threads using
@@ -837,11 +832,6 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	WT_INTL_INDEX_SET(parent, alloc_index);
 	alloc_index = NULL;
 
-#ifdef HAVE_DIAGNOSTIC
-	WT_WITH_PAGE_INDEX(session,
-	    __split_verify_intl_key_order(session, parent));
-#endif
-
 	/*
 	 * If discarding the page's original WT_REF field, reset it to split.
 	 * Threads cursoring through the tree were blocked because that WT_REF
@@ -860,17 +850,21 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 			__wt_free(session, ref->page_del);
 		}
 
-		WT_PUBLISH(ref->state, WT_REF_SPLIT);
+		/*
+		 * Push out the change: not required for correctness, but stops
+		 * threads spinning on incorrect page references.
+		 */
+		ref->state = WT_REF_SPLIT;
+		WT_FULL_BARRIER();
 	}
-
-	/*
-	 * Push out the changes: not required for correctness, but don't let
-	 * threads spin on incorrect page references longer than necessary.
-	 */
-	WT_FULL_BARRIER();
 
 	/* The split is complete and correct, ignore benign errors. */
 	complete = WT_ERR_IGNORE;
+
+#ifdef HAVE_DIAGNOSTIC
+	WT_WITH_PAGE_INDEX(session,
+	    __split_verify_intl_key_order(session, parent));
+#endif
 
 	/*
 	 * !!!
@@ -1161,25 +1155,19 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 	WT_ERR(__split_parent(session, page_ref, alloc_index->index,
 	    alloc_index->entries, parent_incr, false, false));
 
-	/* Confirm the page's index hasn't moved, then update it. */
+	/*
+	 * Confirm the page's index hasn't moved, then update it, which makes
+	 * the split visible to threads descending the tree.
+	 */
 	WT_ASSERT(session, WT_INTL_INDEX_GET_SAFE(page) == pindex);
 	WT_INTL_INDEX_SET(page, replace_index);
-
-	/* The split is live. */
-	WT_WRITE_BARRIER();
-
-#ifdef HAVE_DIAGNOSTIC
-	WT_ERR(__split_verify_intl(session, parent, page, alloc_index, true));
-#endif
 
 	/* The split is complete and correct, ignore benign errors. */
 	complete = WT_ERR_IGNORE;
 
-	/*
-	 * Push out the changes: not required for correctness, but no reason
-	 * to wait.
-	 */
-	WT_FULL_BARRIER();
+#ifdef HAVE_DIAGNOSTIC
+	WT_ERR(__split_verify_intl(session, parent, page, alloc_index, true));
+#endif
 
 	/*
 	 * We don't care about the page-index we allocated, all we needed was
