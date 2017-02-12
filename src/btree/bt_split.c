@@ -852,10 +852,15 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 		}
 
 		/*
+		 * Set the discarded WT_REF state to split, ensuring we don't
+		 * race with any discard of the WT_REF deleted fields.
+		 */
+		WT_PUBLISH(ref->state, WT_REF_SPLIT);
+
+		/*
 		 * Push out the change: not required for correctness, but stops
 		 * threads spinning on incorrect page references.
 		 */
-		ref->state = WT_REF_SPLIT;
 		WT_FULL_BARRIER();
 	}
 
