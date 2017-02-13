@@ -830,7 +830,6 @@ err:	if (ret == WT_RESTART) {
 	return (ret);
 }
 
-
 /*
  * __wt_btcur_compare --
  *	Return a comparison between two cursors.
