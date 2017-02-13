@@ -330,12 +330,12 @@ static void __rec_dictionary_reset(WT_RECONCILE *);
 static inline int __rec_split_crossing_bnd(
     WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len);
 
-#define	CROSSING_ALT_BND(r, next_len)			\
-	(r->bnd[r->bnd_next].alt_offset == 0 && next_len > r->alt_space_avail)
-#define	CROSSING_SPLIT_BND(r, next_len)			\
-	(next_len > r->space_avail)
-#define	NEED_KEY_PROMOTE(r, next_len)			\
-	(CROSSING_ALT_BND(r, next_len) || CROSSING_SPLIT_BND(r, next_len))
+#define	WT_CROSSING_ALT_BND(r, next_len)			\
+	((r)->bnd[(r)->bnd_next].alt_offset == 0		\
+	 && (next_len) > (r)->alt_space_avail)
+#define	WT_CROSSING_SPLIT_BND(r, next_len) ((next_len) > (r)->space_avail)
+#define	WT_NEED_KEY_PROMOTE(r, next_len)			\
+	(WT_CROSSING_ALT_BND(r, next_len) || WT_CROSSING_SPLIT_BND(r, next_len))
 
 /*
  * __wt_reconcile --
@@ -2018,10 +2018,11 @@ __wt_split_page_size(WT_SESSION_IMPL *session, uint32_t maxpagesize)
 	WT_BTREE *btree;
 
 	btree = S2BT(session);
-	WT_ASSERT(session, btree->split_pct >= 50);
+#define	SPLIT_PCT 80
+	// WT_ASSERT(session, btree->split_pct >= 50);
 
 	return (__wt_split_page_size_from_pct(
-	    btree->split_pct, maxpagesize, btree->allocsize));
+	    SPLIT_PCT, maxpagesize, btree->allocsize));
 }
 
 /*
@@ -2042,7 +2043,7 @@ __wt_alt_split_page_size(WT_SESSION_IMPL *session, uint32_t maxpagesize)
 
 	btree = S2BT(session);
 #define	ALT_SPLIT_PCT 45
-	WT_ASSERT(session, btree->split_pct > ALT_SPLIT_PCT);
+	// WT_ASSERT(session, btree->split_pct > ALT_SPLIT_PCT);
 
 	return (__wt_split_page_size_from_pct(
 	    ALT_SPLIT_PCT, maxpagesize, btree->allocsize));
@@ -3649,7 +3650,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 			WT_RET(__rec_split_raw(
 			    session, r, key->len + val->len));
 	}
-	else if (NEED_KEY_PROMOTE(r, key->len + val->len)) {
+	else if (WT_NEED_KEY_PROMOTE(r, key->len + val->len)) {
 		/*
 		 * Turn off prefix compression until a full key written
 		 * to the new page, and (unless already working with an
@@ -4937,7 +4938,7 @@ __rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			if (key->len + val->len > r->space_avail)
 				WT_ERR(__rec_split_raw(
 				    session, r, key->len + val->len));
-		} else if (NEED_KEY_PROMOTE(r, key->len + val->len)) {
+		} else if (WT_NEED_KEY_PROMOTE(r, key->len + val->len)) {
 			/*
 			 * In one path above, we copied address blocks
 			 * from the page rather than building the actual
@@ -5036,14 +5037,14 @@ __rec_split_crossing_bnd(
 	WT_BOUNDARY *bnd;
 	WT_PAGE_HEADER *dsk;
 
-	WT_ASSERT(session, NEED_KEY_PROMOTE(r, next_len));
+	WT_ASSERT(session, WT_NEED_KEY_PROMOTE(r, next_len));
 	/*
 	 * If crossing the alternate boundary, store alternate boundary details.
 	 * If we are crossing the split boundary at the same time, possible when
 	 * the next record is large enough, just split at this point.
 	 */
-	if (CROSSING_ALT_BND(r, next_len) &&
-	    !CROSSING_SPLIT_BND(r, next_len)) {
+	if (WT_CROSSING_ALT_BND(r, next_len) &&
+	    !WT_CROSSING_SPLIT_BND(r, next_len)) {
 		btree = S2BT(session);
 		bnd = &r->bnd[r->bnd_next];
 		dsk = r->disk_image.mem;
@@ -5395,7 +5396,7 @@ build:
 			if (key->len + val->len > r->space_avail)
 				WT_ERR(__rec_split_raw(
 				    session, r, key->len + val->len));
-		} else if (NEED_KEY_PROMOTE(r, key->len + val->len)) {
+		} else if (WT_NEED_KEY_PROMOTE(r, key->len + val->len)) {
 			/*
 			 * If we copied address blocks from the page rather than
 			 * building the actual key, we have to build the key now
@@ -5494,7 +5495,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 			if (key->len + val->len > r->space_avail)
 				WT_RET(__rec_split_raw(
 				    session, r, key->len + val->len));
-		} else if (NEED_KEY_PROMOTE(r, key->len + val->len)) {
+		} else if (WT_NEED_KEY_PROMOTE(r, key->len + val->len)) {
 			/*
 			 * Turn off prefix compression until a full key
 			 * written to the new page, and (unless already
