@@ -57,7 +57,7 @@ item_str_equal(WT_ITEM *item, const char *str)
 }
 
 static int
-compare_int(int a, int b)
+compare_int(int64_t a, int64_t b)
 {
 	return (a < b ? -1 : (a > b ? 1 : 0));
 }
