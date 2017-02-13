@@ -1654,9 +1654,6 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	    !F_ISSET(cache, WT_CACHE_EVICT_CLEAN))
 		min_pages *= 10;
 
-	walk_flags =
-	    WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN | WT_READ_NO_WAIT;
-
 	/*
 	 * Choose a random point in the tree if looking for candidates in a
 	 * tree with no starting point set. This is mostly aimed at ensuring
@@ -1668,7 +1665,20 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 		WT_WITH_PAGE_INDEX(session, ret =
 		    __wt_random_descent(session, &btree->evict_ref, true));
 		WT_RET_NOTFOUND_OK(ret);
+
+		/*
+		 * Reverse the direction of the walk each time we start at a
+		 * random point so both ends of the tree are equally likely to
+		 * be visited.
+		 */
+		btree->evict_walk_reverse = !btree->evict_walk_reverse;
 	}
+
+	walk_flags =
+	    WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN | WT_READ_NO_WAIT;
+
+	if (btree->evict_walk_reverse)
+		FLD_SET(walk_flags, WT_READ_PREV);
 
 	/*
 	 * Get some more eviction candidate pages, starting at the last saved
