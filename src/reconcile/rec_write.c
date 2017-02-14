@@ -1713,8 +1713,12 @@ __rec_incr(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint32_t v, size_t size)
 	 * If offset for the alternate boundary is not set,
 	 * reduce the space available to the alternate boundary
 	 */
-	if (r->bnd[r->bnd_next].alt_offset == 0)
-		r->alt_space_avail -= size;
+	if (r->bnd[r->bnd_next].alt_offset == 0) {
+		if (r->alt_space_avail >= size)
+			r->alt_space_avail -= size;
+		else
+			r->alt_space_avail = 0;
+	}
 }
 
 /*
@@ -2469,7 +2473,8 @@ __rec_split_write_prev_shift_cur(
 	 * Size should be larger of page size or split size. Also have to
 	 * take into account if an overflow value needs larger buffer
 	 */
-	WT_RET(__wt_scr_alloc(session, r->page_size, &tmp_buf));
+	WT_RET(__wt_scr_alloc(session,
+	    WT_ALIGN(bnd_cur->offset, btree->allocsize), &tmp_buf));
 	dsk_tmp = tmp_buf->mem;
 	memcpy(dsk_tmp, dsk, bnd_cur->offset);
 	dsk_tmp->recno = bnd_prev->recno;
@@ -2508,7 +2513,6 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 	dsk = r->disk_image.mem;
 
 	WT_ASSERT(session, r->space_avail < next_len);
-
 	/*
 	 * We should never split during salvage, and we're about to drop core
 	 * because there's no parent page.
