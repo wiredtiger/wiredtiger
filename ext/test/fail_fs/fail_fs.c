@@ -685,7 +685,7 @@ fail_fs_simulate_fail(FAIL_FILE_HANDLE *fail_fh, WT_SESSION *session,
 		(void)wtext->msg_printf(wtext, session,
 		    "fail_fs: %s: simulated failure after %" PRId64
 		    " %s operations\n", fail_fh->iface.name, nops, opkind);
-		btret = backtrace(bt, sizeof(bt)/sizeof(bt[0]));
+		btret = (size_t)backtrace(bt, sizeof(bt)/sizeof(bt[0]));
 		if ((btstr = backtrace_symbols(bt, btret)) != NULL) {
 			for (i = 0; i < btret; i++)
 				(void)wtext->msg_printf(wtext, session, "  %s",
