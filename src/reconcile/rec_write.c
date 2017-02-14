@@ -5053,7 +5053,7 @@ __rec_split_crossing_bnd(
 			WT_PTRDIFF(r->first_free, dsk)
 			- bnd->offset
 			+ WT_PAGE_HEADER_BYTE_SIZE(btree);
-		if (bnd->alt_offset == 0) {
+		if (bnd->alt_offset == WT_PAGE_HEADER_BYTE_SIZE(btree)) {
 			/*
 			 * This is possible if the first record doesn't fit in
 			 * the alternate boundary size, we write this record
@@ -5061,6 +5061,7 @@ __rec_split_crossing_bnd(
 			 * the opportunity to setup the alternate boundary
 			 * before writing out the next record.
 			 */
+			bnd->alt_offset = 0;
 			return (0);
 		}
 		bnd->alt_entries = r->entries;
