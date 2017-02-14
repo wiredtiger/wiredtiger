@@ -427,10 +427,11 @@ static int
 run_process(TEST_OPTS *opts, const char *prog, char *argv[], int *status)
 {
 	int pid;
+	char **arg;
 
 	if (opts->verbose) {
 		printf("running: ");
-		for (char **arg = argv; *arg != NULL; arg++)
+		for (arg = argv; *arg != NULL; arg++)
 			printf("%s ", *arg);
 		printf("\n");
 	}

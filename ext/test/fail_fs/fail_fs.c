@@ -95,8 +95,7 @@ static void fail_file_handle_remove(WT_SESSION *, FAIL_FILE_HANDLE *);
 static int fail_file_lock(WT_FILE_HANDLE *, WT_SESSION *, bool);
 static int fail_file_read(
     WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t, void *);
-static int fail_file_size(
-    WT_FILE_HANDLE *, WT_SESSION *, wt_off_t *);
+static int fail_file_size(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t *);
 static int fail_file_sync(WT_FILE_HANDLE *, WT_SESSION *);
 static int fail_file_truncate(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t);
 static int fail_file_write(
@@ -676,7 +675,7 @@ fail_fs_simulate_fail(FAIL_FILE_HANDLE *fail_fh, WT_SESSION *session,
 {
 	FAIL_FILE_SYSTEM *fail_fs;
 	WT_EXTENSION_API *wtext;
-	int btret, i;
+	size_t i, btret;
 	void *bt[100];
 	char **btstr;
 
