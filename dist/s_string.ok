@@ -770,6 +770,7 @@ idx
 ifdef
 ifdef's
 iiSii
+iiiS
 iiii
 iiu
 ikey
@@ -1139,6 +1140,7 @@ subgetraw
 subgets
 subinit
 sublicense
+subtest
 subtree
 sunique
 superset
@@ -1183,6 +1185,7 @@ txt
 typedef
 uB
 uS
+ui
 uint
 uintmax
 unbare
