@@ -3083,25 +3083,33 @@ __rec_split_finish_std(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	bnd_cur->entries = r->entries;
 
 	grow_bnd = true;
-	if (WT_PTRDIFF(r->first_free, dsk) > r->page_size &&
-	    r->bnd_next != 0) {
-		/*
-		 * We hold two boundaries worth of data in the buffer,
-		 * and this data doesn't fit in a single page.
-		 * If the last chunk is too small, readjust the boundary to
-		 * a pre-computed alternate.
-		 * Write out the penultimate chunk to the disk as a page
-		 */
-		__rec_split_write_prev_shift_cur(session, r, true);
-	} else if (r->bnd_next != 0) {
-		/*
-		 * We have two boundaries, but the data in the buffer can fit a
-		 * single page. Merge the boundaries to create a single chunk.
-		 */
-		bnd_prev = bnd_cur - 1;
-		bnd_prev->entries += bnd_cur->entries;
-		r->bnd_next--;
-		grow_bnd = false;
+
+	/*
+	 * We can reach here even with raw_compression when the last split
+	 * chunk is too small to be sent for raw compression.
+	 */
+	if (!r->raw_compression) {
+		if (WT_PTRDIFF(r->first_free, dsk) > r->page_size &&
+		    r->bnd_next != 0) {
+			/*
+			 * We hold two boundaries worth of data in the buffer,
+			 * and this data doesn't fit in a single page.
+			 * If the last chunk is too small, readjust the
+			 * boundary to a pre-computed alternate.
+			 * Write out the penultimate chunk to the disk as a page
+			 */
+			__rec_split_write_prev_shift_cur(session, r, true);
+		} else if (r->bnd_next != 0) {
+			/*
+			 * We have two boundaries, but the data in the buffer
+			 * can fit a single page. Merge the boundaries to
+			 * create a single chunk.
+			 */
+			bnd_prev = bnd_cur - 1;
+			bnd_prev->entries += bnd_cur->entries;
+			r->bnd_next--;
+			grow_bnd = false;
+		}
 	}
 
 	/*
