@@ -401,6 +401,16 @@ connection_runtime_config = [
             above 0 configures periodic checkpoints''',
             min='0', max='100000'),
         ]),
+    Config('compatibility', '', r'''
+        set compatibility version of database''',
+        type='category', subconfig=[
+        Config('major', '0', r'''
+            major WT version number of desired compatibility release''',
+            type='int'),
+        Config('minor', '0', r'''
+            minor WT version number of desired compatibility release''',
+            type='int'),
+        ]),
     Config('error_prefix', '', r'''
         prefix string for error messages'''),
     Config('eviction', '', r'''
