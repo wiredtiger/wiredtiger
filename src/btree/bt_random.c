@@ -165,11 +165,11 @@ __wt_row_random_leaf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 }
 
 /*
- * __random_leaf --
- *	Find a random leaf page in a tree.
+ * __wt_random_descent --
+ *	Find a random page in a tree for either sampling or eviction.
  */
-static int
-__random_leaf(WT_SESSION_IMPL *session, WT_REF **refp)
+int
+__wt_random_descent(WT_SESSION_IMPL *session, WT_REF **refp, bool eviction)
 {
 	WT_BTREE *btree;
 	WT_DECL_RET;
@@ -182,7 +182,12 @@ __random_leaf(WT_SESSION_IMPL *session, WT_REF **refp)
 	current = NULL;
 	retry = 100;
 
-	flags = WT_READ_RESTART_OK;
+	/* Eviction should not be tapped to do eviction. */
+	if (eviction)
+		flags = WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN |
+		    WT_READ_NO_WAIT | WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK;
+	else
+		flags = WT_READ_RESTART_OK;
 
 	if (0) {
 restart:	/*
@@ -202,6 +207,13 @@ restart:	/*
 		WT_INTL_INDEX_GET(session, page, pindex);
 		entries = pindex->entries;
 
+		/* Eviction just wants any random child. */
+		if (eviction) {
+			descent = pindex->index[
+			    __wt_random(&session->rnd) % entries];
+			goto descend;
+		}
+
 		/*
 		 * There may be empty pages in the tree, and they're useless to
 		 * us. If we don't find a non-empty page in "entries" random
@@ -209,8 +221,8 @@ restart:	/*
 		 * search page contains nothing other than empty pages, restart
 		 * from the root some number of times before giving up.
 		 *
-		 * Our caller is looking for a key/value pair on a random leave
-		 * page, and so will accept any page that contains a valid
+		 * Random sampling is looking for a key/value pair on a random
+		 * leaf page, and so will accept any page that contains a valid
 		 * key/value pair, so on-disk is fine, but deleted is not.
 		 */
 		descent = NULL;
@@ -243,71 +255,16 @@ restart:	/*
 		 * On other error, simply return, the swap call ensures we're
 		 * holding nothing on failure.
 		 */
-		if ((ret =
+descend:	if ((ret =
 		    __wt_page_swap(session, current, descent, flags)) == 0) {
 			current = descent;
 			continue;
 		}
+		if (eviction && (ret == WT_NOTFOUND || ret == WT_RESTART))
+			break;
 		if (ret == WT_RESTART)
 			goto restart;
 		return (ret);
-	}
-
-	*refp = current;
-	return (0);
-}
-
-/*
- * __wt_random_page_inmem --
- *	Find a random page in a tree in memory.
- */
-int
-__wt_random_page_inmem(WT_SESSION_IMPL *session, WT_REF **refp)
-{
-	WT_BTREE *btree;
-	WT_DECL_RET;
-	WT_PAGE *page;
-	WT_PAGE_INDEX *pindex;
-	WT_REF *current, *descent;
-	uint32_t flags, entries;
-
-	btree = S2BT(session);
-	current = NULL;
-
-	/* Eviction should not be tapped to do eviction. */
-	flags = WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN |
-	    WT_READ_NO_WAIT | WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK;
-
-	/*
-	 * Search the internal pages of the tree.
-	 *
-	 * Eviction is only looking for a place in the cache and so only wants
-	 * in-memory pages.
-	 */
-	current = &btree->root;
-	for (;;) {
-		page = current->page;
-		if (!WT_PAGE_IS_INTERNAL(page))
-			break;
-
-		/* Choose a random child. */
-		WT_INTL_INDEX_GET(session, page, pindex);
-		entries = pindex->entries;
-		descent = pindex->index[__wt_random(&session->rnd) % entries];
-
-		/*
-		 * Try to swap to the chosen child page, if it isn't available,
-		 * we still have a valid current page, just use it.
-		 */
-		if ((ret =
-		    __wt_page_swap(session, current, descent, flags)) != 0) {
-			if (ret == WT_NOTFOUND || ret == WT_RESTART)
-				break;
-
-			return (ret);
-		}
-
-		current = descent;
 	}
 
 	/*
@@ -315,7 +272,7 @@ __wt_random_page_inmem(WT_SESSION_IMPL *session, WT_REF **refp)
 	 * immediately.  In that case we aren't holding a hazard pointer so
 	 * there is nothing to release.
 	 */
-	if (!__wt_ref_is_root(current))
+	if (!eviction || !__wt_ref_is_root(current))
 		*refp = current;
 	return (0);
 }
@@ -370,7 +327,7 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
 	if (cbt->ref == NULL || cbt->next_random_sample_size == 0) {
 		WT_ERR(__cursor_func_init(cbt, true));
 		WT_WITH_PAGE_INDEX(session,
-		    ret = __random_leaf(session, &cbt->ref));
+		    ret = __wt_random_descent(session, &cbt->ref, false));
 		if (ret == 0)
 			goto random_page_entry;
 
