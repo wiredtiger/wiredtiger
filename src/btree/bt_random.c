@@ -253,13 +253,7 @@ restart:	/*
 		return (ret);
 	}
 
-	/*
-	 * There is no point starting with the root page: the walk will exit
-	 * immediately.  In that case we aren't holding a hazard pointer so
-	 * there is nothing to release.
-	 */
-	if (!__wt_ref_is_root(current))
-		*refp = current;
+	*refp = current;
 	return (0);
 }
 
@@ -284,10 +278,11 @@ __wt_random_page_inmem(WT_SESSION_IMPL *session, WT_REF **refp)
 	flags = WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN |
 	    WT_READ_NO_WAIT | WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK;
 
-	/* Search the internal pages of the tree.
+	/*
+	 * Search the internal pages of the tree.
 	 *
 	 * Eviction is only looking for a place in the cache and so only wants
-	 * in-memory pages;
+	 * in-memory pages.
 	 */
 	current = &btree->root;
 	for (;;) {
@@ -315,7 +310,13 @@ __wt_random_page_inmem(WT_SESSION_IMPL *session, WT_REF **refp)
 		current = descent;
 	}
 
-	*refp = current;
+	/*
+	 * There is no point starting with the root page: the walk will exit
+	 * immediately.  In that case we aren't holding a hazard pointer so
+	 * there is nothing to release.
+	 */
+	if (!__wt_ref_is_root(current))
+		*refp = current;
 	return (0);
 }
 
