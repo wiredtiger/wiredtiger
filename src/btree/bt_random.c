@@ -165,11 +165,11 @@ __wt_row_random_leaf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 }
 
 /*
- * __wt_random_descent --
+ * __random_leaf --
  *	Find a random leaf page in a tree.
  */
-int
-__wt_random_descent(WT_SESSION_IMPL *session, WT_REF **refp, bool eviction)
+static int
+__random_leaf(WT_SESSION_IMPL *session, WT_REF **refp)
 {
 	WT_BTREE *btree;
 	WT_DECL_RET;
@@ -182,10 +182,7 @@ __wt_random_descent(WT_SESSION_IMPL *session, WT_REF **refp, bool eviction)
 	current = NULL;
 	retry = 100;
 
-	/* Eviction should not be tapped to do eviction. */
 	flags = WT_READ_RESTART_OK;
-	if (eviction)
-		LF_SET(WT_READ_NO_EVICT);
 
 	if (0) {
 restart:	/*
@@ -212,10 +209,8 @@ restart:	/*
 		 * search page contains nothing other than empty pages, restart
 		 * from the root some number of times before giving up.
 		 *
-		 * Eviction is only looking for a place in the cache and so only
-		 * wants in-memory pages (but a deleted page is fine); currently
-		 * our other caller is looking for a key/value pair on a random
-		 * leave page, and so will accept any page that contains a valid
+		 * Our caller is looking for a key/value pair on a random leave
+		 * page, and so will accept any page that contains a valid
 		 * key/value pair, so on-disk is fine, but deleted is not.
 		 */
 		descent = NULL;
@@ -223,15 +218,14 @@ restart:	/*
 			descent =
 			    pindex->index[__wt_random(&session->rnd) % entries];
 			if (descent->state == WT_REF_MEM ||
-			    (!eviction && descent->state == WT_REF_DISK))
+			    descent->state == WT_REF_DISK)
 				break;
 		}
 		if (i == entries)
 			for (i = 0; i < entries; ++i) {
 				descent = pindex->index[i];
 				if (descent->state == WT_REF_MEM ||
-				    (!eviction &&
-				    descent->state == WT_REF_DISK))
+				    descent->state == WT_REF_DISK)
 					break;
 			}
 		if (i == entries || descent == NULL) {
@@ -257,6 +251,68 @@ restart:	/*
 		if (ret == WT_RESTART)
 			goto restart;
 		return (ret);
+	}
+
+	/*
+	 * There is no point starting with the root page: the walk will exit
+	 * immediately.  In that case we aren't holding a hazard pointer so
+	 * there is nothing to release.
+	 */
+	if (!__wt_ref_is_root(current))
+		*refp = current;
+	return (0);
+}
+
+/*
+ * __wt_random_page_inmem --
+ *	Find a random page in a tree in memory.
+ */
+int
+__wt_random_page_inmem(WT_SESSION_IMPL *session, WT_REF **refp)
+{
+	WT_BTREE *btree;
+	WT_DECL_RET;
+	WT_PAGE *page;
+	WT_PAGE_INDEX *pindex;
+	WT_REF *current, *descent;
+	uint32_t flags, entries;
+
+	btree = S2BT(session);
+	current = NULL;
+
+	/* Eviction should not be tapped to do eviction. */
+	flags = WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN |
+	    WT_READ_NO_WAIT | WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK;
+
+	/* Search the internal pages of the tree.
+	 *
+	 * Eviction is only looking for a place in the cache and so only wants
+	 * in-memory pages;
+	 */
+	current = &btree->root;
+	for (;;) {
+		page = current->page;
+		if (!WT_PAGE_IS_INTERNAL(page))
+			break;
+
+		/* Choose a random child. */
+		WT_INTL_INDEX_GET(session, page, pindex);
+		entries = pindex->entries;
+		descent = pindex->index[__wt_random(&session->rnd) % entries];
+
+		/*
+		 * Try to swap to the chosen child page, if it isn't available,
+		 * we still have a valid current page, just use it.
+		 */
+		if ((ret =
+		    __wt_page_swap(session, current, descent, flags)) != 0) {
+			if (ret == WT_NOTFOUND || ret == WT_RESTART)
+				break;
+
+			return (ret);
+		}
+
+		current = descent;
 	}
 
 	*refp = current;
@@ -313,7 +369,7 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
 	if (cbt->ref == NULL || cbt->next_random_sample_size == 0) {
 		WT_ERR(__cursor_func_init(cbt, true));
 		WT_WITH_PAGE_INDEX(session,
-		    ret = __wt_random_descent(session, &cbt->ref, false));
+		    ret = __random_leaf(session, &cbt->ref));
 		if (ret == 0)
 			goto random_page_entry;
 

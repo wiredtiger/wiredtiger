@@ -151,7 +151,7 @@ extern int __wt_ovfl_discard(WT_SESSION_IMPL *session, WT_CELL *cell) WT_GCC_FUN
 extern int __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, bool alloc_refs, WT_PAGE **pagep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern int __wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, size_t memsize, uint32_t flags, WT_PAGE **pagep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern int __wt_row_random_leaf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
-extern int __wt_random_descent(WT_SESSION_IMPL *session, WT_REF **refp, bool eviction) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
+extern int __wt_random_page_inmem(WT_SESSION_IMPL *session, WT_REF **refp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern int __wt_btcur_next_random(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern int __wt_las_remove_block(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id, const uint8_t *addr, size_t addr_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern int

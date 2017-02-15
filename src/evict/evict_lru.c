@@ -1663,7 +1663,7 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	if (btree->evict_ref == NULL) {
 		/* Ensure internal pages indexes remain valid for our walk */
 		WT_WITH_PAGE_INDEX(session, ret =
-		    __wt_random_descent(session, &btree->evict_ref, true));
+		    __wt_random_page_inmem(session, &btree->evict_ref));
 		WT_RET_NOTFOUND_OK(ret);
 
 		/*
