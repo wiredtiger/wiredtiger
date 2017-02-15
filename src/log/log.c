@@ -62,6 +62,8 @@ static int
 __log_fs_write(WT_SESSION_IMPL *session,
     WT_LOGSLOT *slot, wt_off_t offset, size_t len, const void *buf)
 {
+	WT_DECL_RET;
+
 	/*
 	 * If we're writing into a new log file, we have to wait for all
 	 * writes to the previous log file to complete otherwise there could
@@ -71,7 +73,10 @@ __log_fs_write(WT_SESSION_IMPL *session,
 		__log_wait_for_earlier_slot(session, slot);
 		WT_RET(__wt_log_force_sync(session, &slot->slot_release_lsn));
 	}
-	return (__wt_write(session, slot->slot_fh, offset, len, buf));
+	if ((ret = __wt_write(session, slot->slot_fh, offset, len, buf)) != 0)
+		WT_PANIC_MSG(session, ret,
+		    "%s: fatal log failure", slot->slot_fh->name);
+	return (ret);
 }
 
 /*
@@ -2202,12 +2207,12 @@ err:
 
 	/*
 	 * If one of the sync flags is set, assert the proper LSN has moved to
-	 * match.
+	 * match on success.
 	 */
-	WT_ASSERT(session, !LF_ISSET(WT_LOG_FLUSH) ||
+	WT_ASSERT(session, ret != 0 || !LF_ISSET(WT_LOG_FLUSH) ||
 	    __wt_log_cmp(&log->write_lsn, &lsn) >= 0);
-	WT_ASSERT(session,
-	    !LF_ISSET(WT_LOG_FSYNC) || __wt_log_cmp(&log->sync_lsn, &lsn) >= 0);
+	WT_ASSERT(session, ret != 0 || !LF_ISSET(WT_LOG_FSYNC) ||
+	    __wt_log_cmp(&log->sync_lsn, &lsn) >= 0);
 	return (ret);
 }
 
