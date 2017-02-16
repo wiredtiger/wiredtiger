@@ -2519,6 +2519,11 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 	dsk = r->disk_image.mem;
 
 	/*
+	 * Fixed length col store can call with next_len 0
+	 */
+	WT_ASSERT(session, next_len == 0 || r->space_avail < next_len);
+
+	/*
 	 * We should never split during salvage, and we're about to drop core
 	 * because there's no parent page.
 	 */
