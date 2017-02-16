@@ -1026,6 +1026,7 @@ __rec_bnd_cleanup(WT_SESSION_IMPL *session, WT_RECONCILE *r, bool destroy)
 			__wt_free(session, bnd->disk_image);
 			__wt_free(session, bnd->supd);
 			__wt_buf_free(session, &bnd->key);
+			__wt_buf_free(session, &bnd->alt_key);
 		}
 		__wt_free(session, r->bnd);
 		r->bnd_next = 0;
@@ -2457,6 +2458,9 @@ __rec_split_write_prev_shift_cur(
 		bnd_cur->entries += bnd_prev->entries - bnd_prev->alt_entries;
 		bnd_prev->entries = bnd_prev->alt_entries;
 		bnd_cur->recno = bnd_prev->alt_recno;
+
+		// Are we overwriting here, and not losing the memory that was
+		// assigned earlier to bnd_cur->key.. confirm that
 		__wt_buf_set(
 		    session, &bnd_cur->key,
 		    bnd_prev->alt_key.data, bnd_prev->alt_key.size);
