@@ -329,7 +329,9 @@ static int  __rec_dictionary_lookup(
 		WT_SESSION_IMPL *, WT_RECONCILE *, WT_KV *, WT_DICTIONARY **);
 static void __rec_dictionary_reset(WT_RECONCILE *);
 static inline int __rec_split_crossing_bnd(
-    WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len);
+    WT_SESSION_IMPL *, WT_RECONCILE *, size_t);
+static inline int __rec_split_process_alt_bnd(
+    WT_SESSION_IMPL *, WT_RECONCILE *, uint32_t, size_t);
 
 #define	WT_CROSSING_ALT_BND(r, next_len)			\
 	((r)->bnd[(r)->bnd_next].alt_offset == 0			\
@@ -2545,6 +2547,12 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 	if (inuse < r->split_size / 2)
 		goto done;
 
+	/*
+	 * Hitting a page boundary resets the dictionary,
+	 * in all cases.
+	 */
+	__rec_dictionary_reset(r);
+
 	/* Set the number of entries for the just finished chunk. */
 	last->entries = r->entries;
 
@@ -3715,15 +3723,36 @@ static inline int
 __rec_col_fix_bulk_insert_split_check(WT_CURSOR_BULK *cbulk)
 {
 	WT_BTREE *btree;
+	WT_BOUNDARY *bnd;
+	WT_PAGE_HEADER *dsk;
 	WT_RECONCILE *r;
 	WT_SESSION_IMPL *session;
+	uint32_t alt_entries;
+	size_t alt_offset;
 
 	session = (WT_SESSION_IMPL *)cbulk->cbt.iface.session;
 	r = cbulk->reconcile;
 	btree = S2BT(session);
 
-	if (cbulk->entry == cbulk->nrecs) {
+	if (cbulk->entry == cbulk->alt_nrecs ||
+	    cbulk->entry == cbulk->nrecs) {
 		if (cbulk->entry != 0) {
+			if (cbulk->entry == cbulk->alt_nrecs) {
+				// record alt split info
+				bnd = &r->bnd[r->bnd_next];
+				dsk = r->disk_image.mem;
+				alt_entries = r->entries + cbulk->entry;
+				alt_offset =
+				    WT_PTRDIFF(r->first_free + __bitstr_size(
+				    (size_t)cbulk->entry * btree->bitcnt), dsk)
+				    - bnd->offset
+				    + WT_PAGE_HEADER_BYTE_SIZE(btree);
+
+				__rec_split_process_alt_bnd(
+				    session, r, alt_entries, alt_offset);
+				return (0);
+			}
+
 			/*
 			 * If everything didn't fit, update the counters and
 			 * split.
@@ -3737,6 +3766,8 @@ __rec_col_fix_bulk_insert_split_check(WT_CURSOR_BULK *cbulk)
 		}
 		cbulk->entry = 0;
 		cbulk->nrecs = WT_FIX_BYTES_TO_ENTRIES(btree, r->space_avail);
+		cbulk->alt_nrecs =
+		    WT_FIX_BYTES_TO_ENTRIES(btree, r->alt_space_avail);
 	}
 	return (0);
 }
@@ -4039,11 +4070,14 @@ static int
 __rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 {
 	WT_BTREE *btree;
+	WT_BOUNDARY *bnd;
+	WT_PAGE_HEADER *dsk;
 	WT_INSERT *ins;
 	WT_PAGE *page;
 	WT_UPDATE *upd;
 	uint64_t recno;
-	uint32_t entry, nrecs;
+	uint32_t entry, nrecs, alt_nrecs, alt_entries;
+	size_t alt_offset;
 
 	btree = S2BT(session);
 	page = pageref->page;
@@ -4067,6 +4101,8 @@ __rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 	/* Calculate the number of entries per page remainder. */
 	entry = page->entries;
 	nrecs = WT_FIX_BYTES_TO_ENTRIES(btree, r->space_avail) - page->entries;
+	alt_nrecs = WT_FIX_BYTES_TO_ENTRIES(
+	    btree, r->alt_space_avail) - page->entries;
 	r->recno += entry;
 
 	/* Walk any append list. */
@@ -4112,15 +4148,40 @@ __rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 			 */
 			for (;
 			    nrecs > 0 && r->recno < recno;
-			    --nrecs, ++entry, ++r->recno)
+			    --nrecs, ++entry, ++r->recno) {
 				__bit_setv(
 				    r->first_free, entry, btree->bitcnt, 0);
+				if (alt_nrecs != 0) {
+					--alt_nrecs;
+					if (alt_nrecs == 0) {
+						// record alt split info
+						bnd = &r->bnd[r->bnd_next];
+						dsk = r->disk_image.mem;
+						alt_entries =
+						    r->entries + entry;
+						alt_offset =
+						    WT_PTRDIFF(r->first_free +
+						    __bitstr_size(
+						    (size_t)entry
+						    * btree->bitcnt), dsk)
+						    - bnd->offset
+						    + WT_PAGE_HEADER_BYTE_SIZE(
+						    btree);
+
+						__rec_split_process_alt_bnd(
+						    session, r,
+						    alt_entries, alt_offset);
+					}
+				}
+			}
 
 			if (nrecs > 0) {
 				__bit_setv(r->first_free, entry, btree->bitcnt,
 				    upd == NULL ? 0 :
 				    *(uint8_t *)WT_UPDATE_DATA(upd));
 				--nrecs;
+				if (alt_nrecs != 0)
+					--alt_nrecs;
 				++entry;
 				++r->recno;
 				break;
@@ -4134,11 +4195,14 @@ __rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 			 */
 			__rec_incr(session, r, entry,
 			    __bitstr_size((size_t)entry * btree->bitcnt));
+			// reached split boundary
 			WT_RET(__rec_split(session, r, 0));
 
 			/* Calculate the number of entries per page. */
 			entry = 0;
 			nrecs = WT_FIX_BYTES_TO_ENTRIES(btree, r->space_avail);
+			alt_nrecs =
+			    WT_FIX_BYTES_TO_ENTRIES(btree, r->alt_space_avail);
 		}
 
 		/*
@@ -5042,6 +5106,39 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 }
 
 /*
+ * __rec_split_process_alt_bnd --
+ * 	Save the details for the alternate split boundary
+ */
+static inline int
+__rec_split_process_alt_bnd(
+    WT_SESSION_IMPL *session, WT_RECONCILE *r,
+    uint32_t alt_entries, size_t alt_offset)
+{
+	WT_BOUNDARY *bnd;
+	WT_PAGE_HEADER *dsk;
+
+	bnd = &r->bnd[r->bnd_next];
+	dsk = r->disk_image.mem;
+
+	WT_ASSERT(session, bnd->alt_offset == 0);
+
+	/*
+	 * Hitting a page boundary resets the dictionary,
+	 * in all cases.
+	 */
+	__rec_dictionary_reset(r);
+
+	bnd->alt_offset = alt_offset;
+	bnd->alt_entries = alt_entries;
+	bnd->alt_recno = r->recno;
+	if (dsk->type == WT_PAGE_ROW_INT ||
+	    dsk->type == WT_PAGE_ROW_LEAF)
+		WT_RET(__rec_split_row_promote(
+		    session, r, &bnd->alt_key, dsk->type));
+	return (0);
+}
+
+/*
  * __rec_split_crossing_bnd --
  * 	Save the details for the alternate split boundary or
  * 	call for a split.
@@ -5053,14 +5150,9 @@ __rec_split_crossing_bnd(
 	WT_BTREE *btree;
 	WT_BOUNDARY *bnd;
 	WT_PAGE_HEADER *dsk;
+	size_t alt_offset;
 
 	WT_ASSERT(session, WT_CHECK_CROSSING_BND(r, next_len));
-
-	/*
-	 * Hitting a page boundary resets the dictionary,
-	 * in all cases.
-	 */
-	__rec_dictionary_reset(r);
 
 	/*
 	 * If crossing the alternate boundary, store alternate boundary details.
@@ -5072,12 +5164,10 @@ __rec_split_crossing_bnd(
 		btree = S2BT(session);
 		bnd = &r->bnd[r->bnd_next];
 		dsk = r->disk_image.mem;
-
-		bnd->alt_offset =
-			WT_PTRDIFF(r->first_free, dsk)
-			- bnd->offset
-			+ WT_PAGE_HEADER_BYTE_SIZE(btree);
-		if (bnd->alt_offset == WT_PAGE_HEADER_BYTE_SIZE(btree)) {
+		alt_offset =
+		    WT_PTRDIFF(r->first_free, dsk) - bnd->offset
+		    + WT_PAGE_HEADER_BYTE_SIZE(btree);
+		if (alt_offset == WT_PAGE_HEADER_BYTE_SIZE(btree)) {
 			/*
 			 * This is possible if the first record doesn't fit in
 			 * the alternate boundary size, we write this record
@@ -5085,16 +5175,10 @@ __rec_split_crossing_bnd(
 			 * the opportunity to setup the alternate boundary
 			 * before writing out the next record.
 			 */
-			bnd->alt_offset = 0;
 			return (0);
 		}
-		bnd->alt_entries = r->entries;
-		bnd->alt_recno = r->recno;
-		if (dsk->type == WT_PAGE_ROW_INT ||
-		    dsk->type == WT_PAGE_ROW_LEAF)
-			WT_RET(__rec_split_row_promote(
-			    session, r, &bnd->alt_key, dsk->type));
-		return (0);
+		return (__rec_split_process_alt_bnd(
+		    session, r, r->entries, alt_offset));
 	}
 
 	/* We are crossing a split boundary */

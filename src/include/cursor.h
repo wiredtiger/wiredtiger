@@ -246,6 +246,7 @@ struct __wt_cursor_bulk {
 	bool	 bitmap;		/* Bitmap bulk load */
 	uint32_t entry;			/* Entry count */
 	uint32_t nrecs;			/* Max records per chunk */
+	uint32_t alt_nrecs;		/* Alternate split no of records */
 
 	void	*reconcile;		/* Reconciliation support */
 	WT_REF	*ref;			/* The leaf page */
