@@ -190,6 +190,42 @@ __wt_conn_remove_collator(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __conn_compat_config --
+ *	Configure compatibility version.
+ */
+static int
+__conn_compat_config(WT_SESSION_IMPL *session, const char **cfg)
+{
+	WT_CONFIG_ITEM cval;
+	WT_CONNECTION_IMPL *conn;
+
+	conn = S2C(session);
+	WT_RET(__wt_config_gets(session, cfg,
+	    "compatibility.major", &cval));
+	if (cval.val) {
+		if (cval.val <= WIREDTIGER_VERSION_MAJOR)
+			conn->compat_major = (uint16_t)cval.val;
+		else
+			WT_RET_MSG(session, EINVAL, "unknown major version");
+	} else
+		conn->compat_major = WIREDTIGER_VERSION_MAJOR;
+	WT_RET(__wt_config_gets(session, cfg,
+	    "compatibility.minor", &cval));
+	/*
+	 * We don't currently have knowledge of major/minor pairs.  If the
+	 * user gave us zero set it to the current version.  Check for some
+	 * out of bounds settings.
+	 */
+	conn->compat_minor = (uint16_t)cval.val;
+	if (cval.val == 0 && conn->compat_major == WIREDTIGER_VERSION_MAJOR)
+		conn->compat_minor = WIREDTIGER_VERSION_MINOR;
+	if (conn->compat_major == WIREDTIGER_VERSION_MAJOR &&
+	    conn->compat_minor > WIREDTIGER_VERSION_MINOR)
+		WT_RET_MSG(session, EINVAL, "unknown minor version");
+	return (0);
+}
+
+/*
  * __compressor_confchk --
  *	Validate the compressor.
  */
@@ -1134,6 +1170,7 @@ __conn_reconfigure(WT_CONNECTION *wt_conn, const char *config)
 	cfg[1] = config;
 
 	/* Second, reconfigure the system. */
+	WT_ERR(__conn_compat_config(session, cfg));
 	WT_ERR(__conn_statistics_config(session, cfg));
 	WT_ERR(__wt_async_reconfig(session, cfg));
 	WT_ERR(__wt_cache_config(session, true, cfg));
@@ -2205,28 +2242,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	/*
 	 * Set compatibility versions early so that any subsystem sees it.
 	 */
-	WT_ERR(__wt_config_gets(session, cfg,
-	    "compatibility.major", &cval));
-	if (cval.val) {
-		if (cval.val <= WIREDTIGER_VERSION_MAJOR)
-			conn->compat_major = (uint16_t)cval.val;
-		else
-			WT_ERR_MSG(session, EINVAL, "unknown major version");
-	} else
-		conn->compat_major = WIREDTIGER_VERSION_MAJOR;
-	WT_ERR(__wt_config_gets(session, cfg,
-	    "compatibility.minor", &cval));
-	/*
-	 * We don't currently have knowledge of major/minor pairs.  If the
-	 * user gave us zero set it to the current version.  Check for some
-	 * out of bounds settings.
-	 */
-	conn->compat_minor = (uint16_t)cval.val;
-	if (cval.val == 0 && conn->compat_major == WIREDTIGER_VERSION_MAJOR)
-		conn->compat_minor = WIREDTIGER_VERSION_MINOR;
-	if (conn->compat_major == WIREDTIGER_VERSION_MAJOR &&
-	    conn->compat_minor > WIREDTIGER_VERSION_MINOR)
-		WT_ERR_MSG(session, EINVAL, "unknown minor version");
+	WT_ERR(__conn_compat_config(session, cfg));
+
 	/*
 	 * If the application didn't configure its own file system, configure
 	 * one of ours. Check to ensure we have a valid file system.

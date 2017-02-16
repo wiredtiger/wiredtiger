@@ -40,6 +40,91 @@ __logmgr_sync_cfg(WT_SESSION_IMPL *session, const char **cfg)
 }
 
 /*
+ * __logmgr_force_archive --
+ *	Force an archive and wait for it to be up to the given log number.
+ */
+static int
+__logmgr_force_archive(WT_SESSION_IMPL *session, uint32_t lognum)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_LOG *log;
+	bool first;
+
+	conn = S2C(session);
+	log = conn->log;
+	first = true;
+	while (log->first_lsn.l.file < lognum) {
+		/*
+		 * We need to loop waiting for the archival to reach up to
+		 * the log number needed to be assured no previous version
+		 * log files exist.  There could be outstanding writes or a
+		 * cursor open preventing archiving.
+		 */
+		if (!first)
+			__wt_yield();
+		WT_RET(WT_SESSION_CHECK_PANIC(session));
+		WT_RET(__wt_log_truncate_files(session, NULL, true));
+		first = false;
+	}
+	return (0);
+}
+
+/*
+ * __logmgr_version --
+ *	Set up the versions in the log manager.
+ */
+static int
+__logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_LOG *log;
+	uint32_t lognum;
+	uint16_t old_major, old_minor;
+
+	conn = S2C(session);
+	log = conn->log;
+	if (log == NULL)
+		return (0);
+
+	old_major = log->log_major;
+	old_minor = log->log_minor;
+	/*
+	 * Set the log file format versions based on compatibility versions
+	 * set in the connection.  We must set this before we call log_open
+	 * to open or create a log file.
+	 */
+	if (conn->compat_major < WT_LOG_V11_MAJOR ||
+	    (conn->compat_major == WT_LOG_V11_MAJOR &&
+	    conn->compat_minor < WT_LOG_V11_MINOR)) {
+		log->log_major = 1;
+		log->log_minor = 0;
+		log->first_record = WT_LOG_END_HEADER;
+		FLD_SET(conn->log_flags, WT_CONN_LOG_DOWNGRADED);
+	} else {
+		log->log_major = 1;
+		log->log_minor = 1;
+		log->first_record = WT_LOG_END_HEADER + log->allocsize;
+	}
+
+	/*
+	 * If we are reconfiguring and at a new version we need to force
+	 * the log file to advance so that we write out a log file at the
+	 * correct version.  Then we must force a checkpoint and finally
+	 * archive, even if disabled, so that all new version log files are
+	 * gone.
+	 */
+	if (reconfig &&
+	    (log->log_major != old_major ||
+	    (log->log_major == old_major &&
+	    log->log_minor != old_minor))) {
+		WT_RET(__wt_log_force_advance(session, &lognum));
+		WT_RET(session->iface.checkpoint(&session->iface, "force=1"));
+		WT_RET(__logmgr_force_archive(session, lognum));
+	}
+	return (0);
+}
+
+/*
  * __logmgr_config --
  *	Parse and setup the logging server options.
  */
@@ -187,7 +272,8 @@ __wt_logmgr_reconfig(WT_SESSION_IMPL *session, const char **cfg)
 {
 	bool dummy;
 
-	return (__logmgr_config(session, cfg, &dummy, true));
+	WT_RET(__logmgr_config(session, cfg, &dummy, true));
+	return (__logmgr_version(session, true));
 }
 
 /*
@@ -329,19 +415,17 @@ err:		__wt_err(session, ret, "log pre-alloc server error");
  *	currently running.
  */
 int
-__wt_log_truncate_files(
-    WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *cfg[])
+__wt_log_truncate_files(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool force)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_LOG *log;
 	uint32_t backup_file;
 
-	WT_UNUSED(cfg);
 	conn = S2C(session);
 	if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
 		return (0);
-	if (F_ISSET(conn, WT_CONN_LOG_SERVER_RUN) &&
+	if (!force && F_ISSET(conn, WT_CONN_LOG_SERVER_RUN) &&
 	    FLD_ISSET(conn->log_flags, WT_CONN_LOG_ARCHIVE))
 		WT_RET_MSG(session, EINVAL,
 		    "Attempt to archive manually while a server is running");
@@ -349,8 +433,10 @@ __wt_log_truncate_files(
 	log = conn->log;
 
 	backup_file = 0;
-	if (cursor != NULL)
+	if (cursor != NULL) {
+		WT_ASSERT(session, force == false);
 		backup_file = WT_CURSOR_BACKUP_ID(cursor);
+	}
 	WT_ASSERT(session, backup_file <= log->alloc_lsn.l.file);
 	__wt_verbose(session, WT_VERB_LOG,
 	    "log_truncate_files: Archive once up to %" PRIu32, backup_file);
@@ -899,23 +985,7 @@ __wt_logmgr_create(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_INIT_LSN(&log->write_lsn);
 	WT_INIT_LSN(&log->write_start_lsn);
 	log->fileid = 0;
-	/*
-	 * Set the log file format versions based on compatibility versions
-	 * set in the connection.  We must set this before we call log_open
-	 * to open or create a log file.
-	 */
-	if (conn->compat_major < WT_LOG_V11_MAJOR ||
-	    (conn->compat_major == WT_LOG_V11_MAJOR &&
-	     conn->compat_minor < WT_LOG_V11_MINOR)) {
-		log->log_major = 1;
-		log->log_minor = 0;
-		log->first_record = WT_LOG_END_HEADER;
-		FLD_SET(conn->log_flags, WT_CONN_LOG_DOWNGRADED);
-	} else {
-		log->log_major = 1;
-		log->log_minor = 1;
-		log->first_record = WT_LOG_END_HEADER + log->allocsize;
-	}
+	WT_RET(__logmgr_version(session, false));
 
 	WT_RET(__wt_cond_alloc(session, "log sync", &log->log_sync_cond));
 	WT_RET(__wt_cond_alloc(session, "log write", &log->log_write_cond));

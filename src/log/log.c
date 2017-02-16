@@ -41,6 +41,28 @@ __log_checksum_match(WT_SESSION_IMPL *session, WT_ITEM *buf, uint32_t reclen)
 }
 
 /*
+ * __log_get_files --
+ *	Retrieve the list of all log-related files of the given prefix type.
+ */
+static int
+__log_get_files(WT_SESSION_IMPL *session,
+    const char *file_prefix, char ***filesp, u_int *countp)
+{
+	WT_CONNECTION_IMPL *conn;
+	const char *log_path;
+
+	*countp = 0;
+	*filesp = NULL;
+
+	conn = S2C(session);
+	log_path = conn->log_path;
+	if (log_path == NULL)
+		log_path = "";
+	return (__wt_fs_directory_list(
+	    session, log_path, file_prefix, filesp, countp));
+}
+
+/*
  * __log_wait_for_earlier_slot --
  *	Wait for write_lsn to catch up to this slot.
  */
@@ -71,6 +93,47 @@ __log_wait_for_earlier_slot(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 		if (F_ISSET(session, WT_SESSION_LOCKED_SLOT))
 			__wt_spin_lock(session, &log->log_slot_lock);
 	}
+}
+
+/*
+ * __log_prealloc_remove --
+ *	Remove all previously created pre-allocated files.
+ */
+static int
+__log_prealloc_remove(WT_SESSION_IMPL *session)
+{
+	WT_DECL_RET;
+	uint32_t lognum;
+	u_int i, logcount;
+	char **logfiles;
+
+	logfiles = NULL;
+	logcount = 0;
+	/*
+	 * Clean up any old interim pre-allocated files.  We clean
+	 * up these files because settings may have changed upon reboot
+	 * and we want those settings to take effect right away.
+	 */
+	WT_ERR(__log_get_files(session,
+	    WT_LOG_TMPNAME, &logfiles, &logcount));
+	for (i = 0; i < logcount; i++) {
+		WT_ERR(__wt_log_extract_lognum(
+		    session, logfiles[i], &lognum));
+		WT_ERR(__wt_log_remove(
+		    session, WT_LOG_TMPNAME, lognum));
+	}
+	WT_ERR(
+	    __wt_fs_directory_list_free(session, &logfiles, logcount));
+	WT_ERR(__log_get_files(session,
+	    WT_LOG_PREPNAME, &logfiles, &logcount));
+	for (i = 0; i < logcount; i++) {
+		WT_ERR(__wt_log_extract_lognum(
+		    session, logfiles[i], &lognum));
+		WT_ERR(__wt_log_remove(
+		    session, WT_LOG_PREPNAME, lognum));
+	}
+err:	WT_TRET(__wt_fs_directory_list_free(session, &logfiles, logcount));
+	return (ret);
 }
 
 /*
@@ -306,28 +369,6 @@ __wt_log_written_reset(WT_SESSION_IMPL *session)
 	log = conn->log;
 	log->log_written = 0;
 	return;
-}
-
-/*
- * __log_get_files --
- *	Retrieve the list of all log-related files of the given prefix type.
- */
-static int
-__log_get_files(WT_SESSION_IMPL *session,
-    const char *file_prefix, char ***filesp, u_int *countp)
-{
-	WT_CONNECTION_IMPL *conn;
-	const char *log_path;
-
-	*countp = 0;
-	*filesp = NULL;
-
-	conn = S2C(session);
-	log_path = conn->log_path;
-	if (log_path == NULL)
-		log_path = "";
-	return (__wt_fs_directory_list(
-	    session, log_path, file_prefix, filesp, countp));
 }
 
 /*
@@ -1052,6 +1093,54 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
 }
 
 /*
+ * __log_force_newfile --
+ *	While locked, remove all previously created files and create a new
+ *	log file.
+ */
+static int
+__log_force_newfile(WT_SESSION_IMPL *session, uint32_t *lognump)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_LOG *log;
+
+	conn = S2C(session);
+	log = conn->log;
+
+	WT_RET(__log_prealloc_remove(session));
+	WT_RET(__log_newfile(session, true, NULL));
+	if (lognump != NULL)
+		*lognump = log->alloc_lsn.l.file;
+	return (0);
+}
+
+/*
+ * __wt_log_force_advance --
+ *	Force the log file to advance to a new file because
+ *	the version changed.
+ */
+int
+__wt_log_force_advance(WT_SESSION_IMPL *session, uint32_t *lognump)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+	WT_LOG *log;
+
+	conn = S2C(session);
+	log = conn->log;
+
+	/*
+	 * To force an advance of the log file we must remove all
+	 * of the pre-allocated files and then create a new file.
+	 */
+	WT_WITH_SLOT_LOCK(session, log,
+	    ret = __log_force_newfile(session, lognump));
+	WT_ERR(ret);
+	WT_ERR(__wt_log_force_write(session, 1, NULL));
+err:
+	return (ret);
+}
+
+/*
  * __wt_log_acquire --
  *	Called serially when switching slots.  Can be called recursively
  *	from __log_newfile when we change log files.
@@ -1314,33 +1403,8 @@ __wt_log_open(WT_SESSION_IMPL *session)
 		    WT_FS_OPEN_FILE_TYPE_DIRECTORY, 0, &log->log_dir_fh));
 	}
 
-	if (!F_ISSET(conn, WT_CONN_READONLY)) {
-		/*
-		 * Clean up any old interim pre-allocated files.  We clean
-		 * up these files because settings may have changed upon reboot
-		 * and we want those settings to take effect right away.
-		 */
-		WT_ERR(__log_get_files(session,
-		    WT_LOG_TMPNAME, &logfiles, &logcount));
-		for (i = 0; i < logcount; i++) {
-			WT_ERR(__wt_log_extract_lognum(
-			    session, logfiles[i], &lognum));
-			WT_ERR(__wt_log_remove(
-			    session, WT_LOG_TMPNAME, lognum));
-		}
-		WT_ERR(
-		    __wt_fs_directory_list_free(session, &logfiles, logcount));
-		WT_ERR(__log_get_files(session,
-		    WT_LOG_PREPNAME, &logfiles, &logcount));
-		for (i = 0; i < logcount; i++) {
-			WT_ERR(__wt_log_extract_lognum(
-			    session, logfiles[i], &lognum));
-			WT_ERR(__wt_log_remove(
-			    session, WT_LOG_PREPNAME, lognum));
-		}
-		WT_ERR(
-		    __wt_fs_directory_list_free(session, &logfiles, logcount));
-	}
+	if (!F_ISSET(conn, WT_CONN_READONLY))
+		WT_ERR(__log_prealloc_remove(session));
 
 	/*
 	 * Now look at the log files and set our LSNs.
