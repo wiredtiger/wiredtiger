@@ -191,6 +191,7 @@ typedef struct {
 
 		size_t alt_offset;	/* Alternate next chunk start offset */
 		uint32_t alt_entries;	/* Alternate current chunk entries */
+		uint64_t alt_recno;	/* Alternate next chunk start recno */
 		WT_ITEM alt_key;	/* Alternate next chunk start key */
 	} *bnd;				/* Saved boundaries */
 	uint32_t bnd_next;		/* Next boundary slot */
@@ -331,10 +332,10 @@ static inline int __rec_split_crossing_bnd(
     WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len);
 
 #define	WT_CROSSING_ALT_BND(r, next_len)			\
-	((r)->bnd[(r)->bnd_next].alt_offset == 0		\
+	((r)->bnd[(r)->bnd_next].alt_offset == 0			\
 	 && (next_len) > (r)->alt_space_avail)
 #define	WT_CROSSING_SPLIT_BND(r, next_len) ((next_len) > (r)->space_avail)
-#define	WT_NEED_KEY_PROMOTE(r, next_len)			\
+#define	WT_CHECK_CROSSING_BND(r, next_len)			\
 	(WT_CROSSING_ALT_BND(r, next_len) || WT_CROSSING_SPLIT_BND(r, next_len))
 
 /*
@@ -2455,6 +2456,7 @@ __rec_split_write_prev_shift_cur(
 		bnd_cur->offset = bnd_prev->alt_offset;
 		bnd_cur->entries += bnd_prev->entries - bnd_prev->alt_entries;
 		bnd_prev->entries = bnd_prev->alt_entries;
+		bnd_cur->recno = bnd_prev->alt_recno;
 		__wt_buf_set(
 		    session, &bnd_cur->key,
 		    bnd_prev->alt_key.data, bnd_prev->alt_key.size);
@@ -2512,7 +2514,6 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 	btree = S2BT(session);
 	dsk = r->disk_image.mem;
 
-	WT_ASSERT(session, r->space_avail < next_len);
 	/*
 	 * We should never split during salvage, and we're about to drop core
 	 * because there's no parent page.
@@ -3662,7 +3663,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 			WT_RET(__rec_split_raw(
 			    session, r, key->len + val->len));
 	}
-	else if (WT_NEED_KEY_PROMOTE(r, key->len + val->len)) {
+	else if (WT_CHECK_CROSSING_BND(r, key->len + val->len)) {
 		/*
 		 * Turn off prefix compression until a full key written
 		 * to the new page, and (unless already working with an
@@ -3675,12 +3676,6 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 				    session, r, NULL, 0, &ovfl_key));
 
 		}
-
-		/*
-		 * Hitting a page boundary resets the dictionary,
-		 * in all cases.
-		 */
-		__rec_dictionary_reset(r);
 
 		WT_RET(__rec_split_crossing_bnd(
 		    session, r, key->len + val->len));
@@ -3829,10 +3824,11 @@ __wt_bulk_insert_var(
 		    r, cbulk->last.data, cbulk->last.size, cbulk->rle));
 
 	/* Boundary: split or write the page. */
-	if (val->len > r->space_avail)
-		WT_RET(r->raw_compression ?
-		    __rec_split_raw(session, r, val->len) :
-		    __rec_split(session, r, val->len));
+	if (r->raw_compression) {
+		if (val->len > r->space_avail)
+			WT_RET(__rec_split_raw(session, r, val->len));
+	} else if (WT_CHECK_CROSSING_BND(r, val->len))
+		WT_RET(__rec_split_crossing_bnd(session, r, val->len));
 
 	/* Copy the value onto the page. */
 	if (btree->dictionary)
@@ -3968,10 +3964,11 @@ __rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 		WT_CHILD_RELEASE_ERR(session, hazard, ref);
 
 		/* Boundary: split or write the page. */
-		if (val->len > r->space_avail)
-			WT_ERR(r->raw_compression ?
-			    __rec_split_raw(session, r, val->len) :
-			    __rec_split(session, r, val->len));
+		if (r->raw_compression) {
+			if (val->len > r->space_avail)
+				WT_ERR(__rec_split_raw(session, r, val->len));
+		} else if (WT_CHECK_CROSSING_BND(r, val->len))
+			WT_ERR(__rec_split_crossing_bnd(session, r, val->len));
 
 		/* Copy the value onto the page. */
 		__rec_copy_incr(session, r, val);
@@ -4013,10 +4010,11 @@ __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		    addr->addr, addr->size, __rec_vtype(addr), r->recno);
 
 		/* Boundary: split or write the page. */
-		if (val->len > r->space_avail)
-			WT_RET(r->raw_compression ?
-			    __rec_split_raw(session, r, val->len) :
-			    __rec_split(session, r, val->len));
+		if (r->raw_compression) {
+			if (val->len > r->space_avail)
+				WT_RET(__rec_split_raw(session, r, val->len));
+		} else if (WT_CHECK_CROSSING_BND(r, val->len))
+			WT_RET(__rec_split_crossing_bnd(session, r, val->len));
 
 		/* Copy the value onto the page. */
 		__rec_copy_incr(session, r, val);
@@ -4280,10 +4278,11 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		    session, r, value->data, value->size, rle));
 
 	/* Boundary: split or write the page. */
-	if (val->len > r->space_avail)
-		WT_RET(r->raw_compression ?
-		    __rec_split_raw(session, r, val->len) :
-		    __rec_split(session, r, val->len));
+	if (r->raw_compression) {
+		if (val->len > r->space_avail)
+			WT_RET(__rec_split_raw(session, r, val->len));
+	} else if (WT_CHECK_CROSSING_BND(r, val->len))
+		WT_RET(__rec_split_crossing_bnd(session, r, val->len));
 
 	/* Copy the value onto the page. */
 	if (!deleted && !overflow_type && btree->dictionary)
@@ -4950,7 +4949,7 @@ __rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			if (key->len + val->len > r->space_avail)
 				WT_ERR(__rec_split_raw(
 				    session, r, key->len + val->len));
-		} else if (WT_NEED_KEY_PROMOTE(r, key->len + val->len)) {
+		} else if (WT_CHECK_CROSSING_BND(r, key->len + val->len)) {
 			/*
 			 * In one path above, we copied address blocks
 			 * from the page rather than building the actual
@@ -4962,12 +4961,6 @@ __rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 				    WT_IKEY_DATA(ikey), ikey->size));
 				key_onpage_ovfl = false;
 			}
-
-			/*
-			 * Hitting a page boundary resets the dictionary,
-			 * in all cases.
-			 */
-			__rec_dictionary_reset(r);
 
 			WT_ERR(__rec_split_crossing_bnd(
 			    session, r, key->len + val->len));
@@ -5021,10 +5014,13 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		    addr->addr, addr->size, __rec_vtype(addr), WT_RECNO_OOB);
 
 		/* Boundary: split or write the page. */
-		if (key->len + val->len > r->space_avail)
-			WT_RET(r->raw_compression ?
-			    __rec_split_raw(session, r, key->len + val->len) :
-			    __rec_split(session, r, key->len + val->len));
+		if (r->raw_compression) {
+			if (key->len + val->len > r->space_avail)
+				WT_RET(__rec_split_raw(
+				    session, r, key->len + val->len));
+		} else if (WT_CHECK_CROSSING_BND(r, key->len + val->len))
+			WT_RET(__rec_split_crossing_bnd(
+			    session, r, key->len + val->len));
 
 		/* Copy the key and value onto the page. */
 		__rec_copy_incr(session, r, key);
@@ -5049,7 +5045,14 @@ __rec_split_crossing_bnd(
 	WT_BOUNDARY *bnd;
 	WT_PAGE_HEADER *dsk;
 
-	WT_ASSERT(session, WT_NEED_KEY_PROMOTE(r, next_len));
+	WT_ASSERT(session, WT_CHECK_CROSSING_BND(r, next_len));
+
+	/*
+	 * Hitting a page boundary resets the dictionary,
+	 * in all cases.
+	 */
+	__rec_dictionary_reset(r);
+
 	/*
 	 * If crossing the alternate boundary, store alternate boundary details.
 	 * If we are crossing the split boundary at the same time, possible when
@@ -5077,6 +5080,7 @@ __rec_split_crossing_bnd(
 			return (0);
 		}
 		bnd->alt_entries = r->entries;
+		bnd->alt_recno = r->recno;
 		if (dsk->type == WT_PAGE_ROW_INT ||
 		    dsk->type == WT_PAGE_ROW_LEAF)
 			WT_RET(__rec_split_row_promote(
@@ -5409,7 +5413,7 @@ build:
 			if (key->len + val->len > r->space_avail)
 				WT_ERR(__rec_split_raw(
 				    session, r, key->len + val->len));
-		} else if (WT_NEED_KEY_PROMOTE(r, key->len + val->len)) {
+		} else if (WT_CHECK_CROSSING_BND(r, key->len + val->len)) {
 			/*
 			 * If we copied address blocks from the page rather than
 			 * building the actual key, we have to build the key now
@@ -5432,12 +5436,6 @@ build:
 					WT_ERR(__rec_cell_build_leaf_key(
 					    session, r, NULL, 0, &ovfl_key));
 			}
-
-			/*
-			 * Hitting a page boundary resets the dictionary,
-			 * in all cases.
-			 */
-			__rec_dictionary_reset(r);
 
 			WT_ERR(__rec_split_crossing_bnd(
 			    session, r, key->len + val->len));
@@ -5508,7 +5506,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 			if (key->len + val->len > r->space_avail)
 				WT_RET(__rec_split_raw(
 				    session, r, key->len + val->len));
-		} else if (WT_NEED_KEY_PROMOTE(r, key->len + val->len)) {
+		} else if (WT_CHECK_CROSSING_BND(r, key->len + val->len)) {
 			/*
 			 * Turn off prefix compression until a full key
 			 * written to the new page, and (unless already
@@ -5523,12 +5521,6 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 					    session,
 					    r, NULL, 0, &ovfl_key));
 			}
-
-			/*
-			 * Hitting a page boundary resets the dictionary,
-			 * in all cases.
-			 */
-			__rec_dictionary_reset(r);
 
 			WT_RET(__rec_split_crossing_bnd(
 			    session, r, key->len + val->len));
