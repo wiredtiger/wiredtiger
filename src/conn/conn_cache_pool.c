@@ -418,9 +418,9 @@ static void
 __cache_pool_balance(WT_SESSION_IMPL *session, bool forward)
 {
 	WT_CACHE_POOL *cp;
-	bool adjusted;
-	int i;
 	uint64_t bump_threshold, highest;
+	int i;
+	bool adjusted;
 
 	cp = __wt_process.cache_pool;
 	adjusted = false;
@@ -439,10 +439,10 @@ __cache_pool_balance(WT_SESSION_IMPL *session, bool forward)
 
 	/*
 	 * Actively attempt to:
-	 * - Reduce the amount allocated, if we are over the budget
+	 * - Reduce the amount allocated, if we are over the budget.
 	 * - Increase the amount used if there is capacity and any pressure.
 	 * Don't keep trying indefinitely, if we aren't succeeding in reducing
-	 * the cache in use re-assessing the participants states is necessary.
+	 * the cache in use re-assessing the participants' states is necessary.
 	 * We are also holding a lock across this process, which can slow
 	 * participant shutdown if we spend a long time balancing.
 	 */
@@ -619,8 +619,8 @@ __cache_pool_adjust(WT_SESSION_IMPL *session,
 			continue;
 
 		/*
-		 * The bump threshold decreases as we try for longer to balance
-		 * the pool, adjust how aggressively we free space from
+		 * The bump threshold decreases as we try longer to balance
+		 * the pool. Adjust how aggressively we free space from
 		 * participants depending on how long we have been trying.
 		 */
 		decrease_ok = false;
