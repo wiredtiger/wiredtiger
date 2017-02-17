@@ -1492,7 +1492,7 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
 	 * current fsync completes and advance log->sync_lsn.
 	 */
 	while (F_ISSET(slot, WT_SLOT_SYNC | WT_SLOT_SYNC_DIR)) {
-		WT_RET(WT_SESSION_CHECK_PANIC(session));
+		WT_ERR(WT_SESSION_CHECK_PANIC(session));
 		/*
 		 * We have to wait until earlier log files have finished their
 		 * sync operations.  The most recent one will set the LSN to the
