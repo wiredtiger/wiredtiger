@@ -202,10 +202,8 @@ restart:	/*
 	for (;;) {
 		page = current->page;
 		/*
-		 * It is possible for the eviction server to see a NULL page
-		 * here, if it is inspecting a tree while an exclusive
-		 * operation that uses non-standard protection mechanisms is in
-		 * flight.
+		 * The descent can see a NULL page if searching in a tree
+		 * while an exclusive operation is active on the handle.
 		 */
 		if (page == NULL) {
 			WT_ASSERT(session, eviction);
