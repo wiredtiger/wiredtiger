@@ -201,6 +201,17 @@ restart:	/*
 	current = &btree->root;
 	for (;;) {
 		page = current->page;
+		/*
+		 * It is possible for the eviction server to see a NULL page
+		 * here, if it is inspecting a tree while an exclusive
+		 * operation that uses non-standard protection mechanisms is in
+		 * flight.
+		 */
+		if (page == NULL) {
+			WT_ASSERT(session, eviction);
+			break;
+		}
+
 		if (!WT_PAGE_IS_INTERNAL(page))
 			break;
 
