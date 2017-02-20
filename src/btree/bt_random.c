@@ -202,8 +202,9 @@ restart:	/*
 	for (;;) {
 		page = current->page;
 		/*
-		 * The descent can see a NULL page if searching in a tree
-		 * while an exclusive operation is active on the handle.
+		 * When walking a tree for eviction, an exclusive operation may
+		 * be in progress leaving the root page is not valid.  Just give
+		 * up in that case.
 		 */
 		if (page == NULL) {
 			WT_ASSERT(session, eviction);
