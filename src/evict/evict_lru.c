@@ -1720,10 +1720,22 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 			 * Try a different walk start point next time if a
 			 * walk gave up.
 			 */
-			btree->evict_walk_state =
-			    (btree->evict_walk_state + 1) %
-			    WT_EVICT_WALK_MAX_LEGAL_VALUE;
-			break;
+			switch (btree->evict_walk_state) {
+			case WT_EVICT_WALK_NEXT:
+				btree->evict_walk_state = WT_EVICT_WALK_PREV;
+				break;
+			case WT_EVICT_WALK_PREV:
+				btree->evict_walk_state =
+				    WT_EVICT_WALK_RAND_NEXT;
+				break;
+			case WT_EVICT_WALK_RAND_NEXT:
+				btree->evict_walk_state =
+				    WT_EVICT_WALK_RAND_PREV;
+				break;
+			case WT_EVICT_WALK_RAND_PREV:
+				btree->evict_walk_state = WT_EVICT_WALK_NEXT;
+				break;
+			}
 		}
 
 		if (ref == NULL) {
