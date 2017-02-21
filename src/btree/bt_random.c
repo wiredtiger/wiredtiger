@@ -203,17 +203,6 @@ restart:	/*
 	current = &btree->root;
 	for (;;) {
 		page = current->page;
-		/*
-		 * When walking a tree for eviction, an exclusive operation may
-		 * be in progress leaving the root page not valid. Just give up
-		 * in that case.
-		 */
-		if (page == NULL) {
-			WT_ASSERT(session, eviction);
-			WT_ASSERT(session, current == &btree->root);
-			return (WT_NOTFOUND);
-		}
-
 		if (!WT_PAGE_IS_INTERNAL(page))
 			break;
 
