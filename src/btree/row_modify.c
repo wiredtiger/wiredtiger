@@ -310,10 +310,11 @@ __wt_update_obsolete_check(
 	 * Walk the list of updates, looking for obsolete updates at the end.
 	 */
 	for (first = NULL, count = 0; upd != NULL; upd = upd->next, count++)
-		if (__wt_txn_visible_all(session, upd->txnid)) {
+		if (upd->txnid == WT_TXN_ABORTED ||
+		    __wt_txn_visible_all(session, upd->txnid)) {
 			if (first == NULL)
 				first = upd;
-		} else if (upd->txnid != WT_TXN_ABORTED)
+		} else
 			first = NULL;
 
 	/*
