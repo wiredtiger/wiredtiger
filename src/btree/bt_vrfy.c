@@ -258,8 +258,10 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 			WT_ERR(__verify_layout(session, vs));
 	}
 
-err:	if (bm_unload)
+err:	if (bm_unload) {
+		WT_TRET(__wt_cache_op(session, WT_SYNC_DISCARD));
 		WT_TRET(bm->checkpoint_unload(bm, session));
+	}
 
 done:	/* Inform the underlying block manager we're done. */
 	if (bm_start)
