@@ -20,10 +20,12 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 	WT_REF *next_ref, *ref;
 
 	/*
-	 * We need exclusive access to the file -- disable ordinary eviction
-	 * and drain any blocks already queued.
+	 * We need exclusive access to the file, we're about to discard the root
+	 * page. Assert eviction has been locked out.
 	 */
-	WT_RET(__wt_evict_file_exclusive_on(session));
+	WT_ASSERT(session,
+	    !F_ISSET(session->dhandle, WT_DHANDLE_OPEN) ||
+	    F_ISSET(S2BT(session), WT_BTREE_NO_EVICTION));
 
 	/* Make sure the oldest transaction ID is up-to-date. */
 	WT_RET(__wt_txn_update_oldest(
@@ -101,8 +103,6 @@ err:		/* On error, clear any left-over tree walk. */
 			WT_TRET(__wt_page_release(
 			    session, next_ref, WT_READ_NO_EVICT));
 	}
-
-	__wt_evict_file_exclusive_off(session);
 
 	return (ret);
 }
