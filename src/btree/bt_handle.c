@@ -15,6 +15,39 @@ static int __btree_preload(WT_SESSION_IMPL *);
 static int __btree_tree_open_empty(WT_SESSION_IMPL *, bool);
 
 /*
+ * __btree_initialize --
+ *	Initialize the WT_BTREE structure.
+ */
+static void
+__btree_initialize(WT_BTREE *btree, bool closing)
+{
+	uint32_t mask;
+
+	/*
+	 * This function exists as a place to talk about how the WT_BTREE
+	 * structure is initialized (or re-initialized, when the object is
+	 * re-opened). The upper-level handle code currently sets/clears
+	 * information in the WT_BTREE structure, specifically flags, cache
+	 * and eviction information. All of that information must persist
+	 * after the WT_BTREE object is closed, and some of it has already
+	 * been initialized when the object is opened/re-opened.
+	 */
+	if (closing) {
+		/*
+		 * Closing: clear everything except cache/eviction information
+		 * and one LSM flag.
+		 */
+		memset(btree, 0, WT_BTREE_CLEAR_SIZE(btree));
+		F_CLR(btree, ~(WT_BTREE_LSM_PRIMARY | WT_BTREE_NO_EVICTION));
+	} else {
+		/* Opening: clear everything except the special flags. */
+		mask = F_MASK(btree, WT_BTREE_SPECIAL_FLAGS);
+		memset(btree, 0, sizeof(*btree));
+		btree->flags = mask;
+	}
+}
+
+/*
  * __wt_btree_open --
  *	Open a Btree.
  */
@@ -33,7 +66,10 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 	bool creation, forced_salvage, readonly;
 
 	dhandle = session->dhandle;
+
 	btree = S2BT(session);
+	__btree_initialize(btree, false);
+	btree->dhandle = session->dhandle;
 
 	/* Checkpoint files are readonly. */
 	readonly = dhandle->checkpoint != NULL ||
@@ -126,6 +162,20 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 		}
 	}
 
+	/*
+	 * Eviction ignores trees until the handle's open flag is set, configure
+	 * eviction before that happens.
+	 *
+	 * Files that can still be bulk-loaded cannot be evicted.
+	 * Permanently cache-resident files can never be evicted.
+	 * Special operations don't enable eviction. (The underlying commands
+	 * may turn on eviction, but it's their decision.)
+	 */
+	if (btree->bulk_load_ok ||
+	    F_ISSET(btree, WT_BTREE_IN_MEMORY | WT_BTREE_REBALANCE |
+	    WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY))
+		WT_ERR(__wt_evict_file_exclusive_on(session));
+
 	if (0) {
 err:		WT_TRET(__wt_btree_close(session));
 	}
@@ -155,12 +205,14 @@ __wt_btree_close(WT_SESSION_IMPL *session)
 
 		/* Close the underlying block manager reference. */
 		WT_TRET(bm->close(bm, session));
-
-		btree->bm = NULL;
 	}
 
 	/* Close the Huffman tree. */
 	__wt_btree_huffman_close(session);
+
+	if (btree->collator_owned && btree->collator->terminate != NULL)
+		WT_TRET(btree->collator->terminate(
+		    btree->collator, &session->iface));
 
 	/* Destroy locks. */
 	__wt_rwlock_destroy(session, &btree->ovfl_lock);
@@ -170,18 +222,7 @@ __wt_btree_close(WT_SESSION_IMPL *session)
 	__wt_free(session, btree->key_format);
 	__wt_free(session, btree->value_format);
 
-	if (btree->collator_owned) {
-		if (btree->collator->terminate != NULL)
-			WT_TRET(btree->collator->terminate(
-			    btree->collator, &session->iface));
-		btree->collator_owned = 0;
-	}
-	btree->collator = NULL;
-	btree->kencryptor = NULL;
-
-	btree->bulk_load_ok = false;
-
-	F_CLR(btree, WT_BTREE_SPECIAL_FLAGS);
+	__btree_initialize(btree, true);
 
 	return (ret);
 }
@@ -267,9 +308,9 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 
 	WT_RET(__wt_config_gets(session, cfg, "cache_resident", &cval));
 	if (cval.val)
-		F_SET(btree, WT_BTREE_IN_MEMORY | WT_BTREE_NO_EVICTION);
+		F_SET(btree, WT_BTREE_IN_MEMORY);
 	else
-		F_CLR(btree, WT_BTREE_IN_MEMORY | WT_BTREE_NO_EVICTION);
+		F_CLR(btree, WT_BTREE_IN_MEMORY);
 
 	WT_RET(__wt_config_gets(session,
 	    cfg, "ignore_in_memory_cache_size", &cval));
@@ -482,13 +523,10 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
 	/*
 	 * Newly created objects can be used for cursor inserts or for bulk
 	 * loads; set a flag that's cleared when a row is inserted into the
-	 * tree. Objects being bulk-loaded cannot be evicted, we set it
-	 * globally, there's no point in searching empty trees for eviction.
+	 * tree.
 	 */
-	if (creation) {
+	if (creation)
 		btree->bulk_load_ok = true;
-		__wt_btree_evictable(session, false);
-	}
 
 	/*
 	 * A note about empty trees: the initial tree is a single root page.
@@ -578,27 +616,6 @@ __wt_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_PAGE **pagep)
 		break;
 	}
 	return (0);
-}
-
-/*
- * __wt_btree_evictable --
- *      Setup or release a cache-resident tree.
- */
-void
-__wt_btree_evictable(WT_SESSION_IMPL *session, bool on)
-{
-	WT_BTREE *btree;
-
-	btree = S2BT(session);
-
-	/* Permanently cache-resident files can never be evicted. */
-	if (F_ISSET(btree, WT_BTREE_IN_MEMORY))
-		return;
-
-	if (on)
-		F_CLR(btree, WT_BTREE_NO_EVICTION);
-	else
-		F_SET(btree, WT_BTREE_NO_EVICTION);
 }
 
 /*

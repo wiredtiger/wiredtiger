@@ -161,12 +161,12 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_VSTUFF *vs, _vstuff;
 	size_t root_addr_size;
 	uint8_t root_addr[WT_BTREE_MAX_ADDR_COOKIE];
-	bool bm_start, bm_unload, quit;
+	bool bm_start, quit;
 
 	btree = S2BT(session);
 	bm = btree->bm;
 	ckptbase = NULL;
-	bm_start = bm_unload = false;
+	bm_start = false;
 
 	WT_CLEAR(_vstuff);
 	vs = &_vstuff;
@@ -215,23 +215,11 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_ERR(bm->checkpoint_load(bm, session,
 		    ckpt->raw.data, ckpt->raw.size,
 		    root_addr, &root_addr_size, true));
-		bm_unload = true;
 
 		/* Skip trees with no root page. */
 		if (root_addr_size != 0) {
-			/*
-			 * We have an exclusive lock on the handle, but we're
-			 * swapping root pages in-and-out of that handle, and
-			 * there's a race with eviction entering the tree and
-			 * seeing an invalid root page. Eviction must work on
-			 * trees being verified (else we'd have to do our own
-			 * eviction), lock eviction out while doing the setup.
-			 */
-			WT_ERR(__wt_evict_file_exclusive_on(session));
-			ret = __wt_btree_tree_open(
-			    session, root_addr, root_addr_size);
-			__wt_evict_file_exclusive_off(session);
-			WT_ERR(ret);
+			WT_ERR(__wt_btree_tree_open(
+			    session, root_addr, root_addr_size));
 
 			if (WT_VRFY_DUMP(vs))
 				WT_ERR(__wt_msg(session, "Root: %s %s",
@@ -240,29 +228,46 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 				    __wt_page_type_string(
 				    btree->root.page->type)));
 
+			__wt_evict_file_exclusive_off(session);
+
 			/* Verify the tree. */
 			WT_WITH_PAGE_INDEX(session,
 			    ret = __verify_tree(session, &btree->root, vs));
-			WT_ERR(ret);
 
-			/* Discard the checkpoint from the cache. */
-			WT_ERR(__wt_cache_op(session, WT_SYNC_DISCARD));
+			/*
+			 * We have an exclusive lock on the handle, but we're
+			 * swapping root pages in-and-out of that handle, and
+			 * there's a race with eviction entering the tree and
+			 * seeing an invalid root page. Eviction must work on
+			 * trees being verified (else we'd have to do our own
+			 * eviction), lock eviction out whenever we're loading
+			 * a new root page. This loops works because we are
+			 * called with eviction locked out, so we release the
+			 * lock at the top of the loop and re-acquire it here.
+			 */
+			WT_TRET(__wt_evict_file_exclusive_on(session));
+			WT_TRET(__wt_cache_op(session, WT_SYNC_DISCARD));
 		}
 
 		/* Unload the checkpoint. */
-		bm_unload = false;
-		WT_ERR(bm->checkpoint_unload(bm, session));
+		WT_TRET(bm->checkpoint_unload(bm, session));
+
+		/*
+		 * We've finished one checkpoint's verification (verification,
+		 * then cache eviction and checkpoint unload): if any errors
+		 * occurred, quit. Done this way because otherwise we'd need
+		 * at least two more state variables on error, one to know if
+		 * we need to discard the tree from the cache and one to know
+		 * if we need to unload the checkpoint.
+		 */
+		WT_ERR(ret);
 
 		/* Display the tree shape. */
 		if (vs->dump_layout)
 			WT_ERR(__verify_layout(session, vs));
 	}
 
-err:	if (bm_unload) {
-		WT_TRET(__wt_cache_op(session, WT_SYNC_DISCARD));
-		WT_TRET(bm->checkpoint_unload(bm, session));
-	}
-
+err:
 done:	/* Inform the underlying block manager we're done. */
 	if (bm_start)
 		WT_TRET(bm->verify_end(bm, session));
