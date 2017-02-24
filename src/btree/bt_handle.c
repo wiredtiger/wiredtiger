@@ -37,7 +37,7 @@ __btree_initialize(WT_BTREE *btree, bool closing)
 		 * Closing: clear everything except cache/eviction information
 		 * and one LSM flag.
 		 */
-		memset(btree, 0, WT_BTREE_CLEAR_SIZE(btree));
+		memset(btree, 0, WT_BTREE_CLEAR_SIZE);
 		F_CLR(btree, ~(WT_BTREE_LSM_PRIMARY | WT_BTREE_NO_EVICTION));
 	} else {
 		/* Opening: clear everything except the special flags. */

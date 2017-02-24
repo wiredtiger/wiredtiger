@@ -141,13 +141,11 @@ struct __wt_btree {
 	bool bulk_load_ok;		/* Bulk-load is a possibility */
 
 	/*
-	 * The tree's cache and eviction information persist past after the
-	 * handle is closed (clean cache pages may remain after the tree is
-	 * closed). Be careful clearing the WT_BTREE structure.
+	 * The tree's cache and eviction information persist after the handle
+	 * is closed (clean cache pages may remain after the tree is closed).
+	 * Be careful clearing the WT_BTREE structure.
 	 */
-#define	WT_BTREE_CLEAR_SIZE(b)						\
-	(WT_PTRDIFF(&(b)->root, b))
-
+#define	WT_BTREE_CLEAR_SIZE	(offsetof(WT_BTREE, root))
 	WT_REF root;			/* Root page reference */
 
 	uint64_t bytes_inmem;		/* Cache bytes in memory. */
