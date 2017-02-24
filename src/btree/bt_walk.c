@@ -355,15 +355,10 @@ restart:	/*
 		WT_ERR(__wt_page_release(session, couple, flags));
 
 		/*
-		 * If the root page is NULL, treat it as an empty tree. This is
-		 * not meant to avoid races when accessing a WT_REF, any thread
-		 * setting the root page must have exclusive access to the root
-		 * WT_REF (that is, must have locked out eviction). This is only
-		 * to avoid checking in every caller if the tree has been read
-		 * into memory.
+		 * We're not supposed to walk trees without root pages. As this
+		 * has not always been the case, assert to debug that change.
 		 */
-		if (btree->root.page == NULL)
-			goto done;
+		WT_ASSERT(session, btree->root.page != NULL);
 
 		couple = couple_orig = ref = &btree->root;
 		initial_descent = true;
