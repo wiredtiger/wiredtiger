@@ -267,8 +267,8 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 			WT_ERR(__verify_layout(session, vs));
 	}
 
-err:
-done:	/* Inform the underlying block manager we're done. */
+done:
+err:	/* Inform the underlying block manager we're done. */
 	if (bm_start)
 		WT_TRET(bm->verify_end(bm, session));
 
