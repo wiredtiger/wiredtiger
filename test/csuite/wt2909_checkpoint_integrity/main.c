@@ -96,7 +96,7 @@ static void run_check_subtest(TEST_OPTS *, const char *, uint64_t, bool,
     uint64_t *);
 static void run_check_subtest_range(TEST_OPTS *, const char *, bool);
 static int run_process(TEST_OPTS *, const char *, char *[], int *);
-static int subtest_main(int, char *[], bool);
+static void subtest_main(int, char *[], bool);
 static void subtest_populate(TEST_OPTS *, bool);
 
 extern int   __wt_optind;
@@ -445,7 +445,7 @@ run_process(TEST_OPTS *opts, const char *prog, char *argv[], int *status)
  * subtest_main --
  *	The main program for the subtest
  */
-static int
+static void
 subtest_main(int argc, char *argv[], bool close_test)
 {
 	TEST_OPTS *opts, _opts;
@@ -496,8 +496,6 @@ subtest_main(int argc, char *argv[], bool close_test)
 	subtest_populate(opts, close_test);
 
 	testutil_cleanup(opts);
-
-	return (0);
 }
 
 /*
@@ -633,11 +631,13 @@ main(int argc, char *argv[])
 		opts->nrecords = 50000;
 
 	while (argc > 0) {
-		if (strcmp(argv[0], "subtest") == 0)
-			return (subtest_main(argc, argv, false));
-		else if (strcmp(argv[0], "subtest_close") == 0)
-			return (subtest_main(argc, argv, true));
-		else if (strcmp(argv[0], "gdb") == 0)
+		if (strcmp(argv[0], "subtest") == 0) {
+			subtest_main(argc, argv, false);
+			return (0);
+		} else if (strcmp(argv[0], "subtest_close") == 0) {
+			subtest_main(argc, argv, true);
+			return (0);
+		} else if (strcmp(argv[0], "gdb") == 0)
 			debugger = "/usr/bin/gdb";
 		else
 			testutil_assert(false);
