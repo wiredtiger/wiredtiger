@@ -98,7 +98,6 @@ static void run_check_subtest_range(TEST_OPTS *, const char *, bool);
 static int run_process(TEST_OPTS *, const char *, char *[], int *);
 static int subtest_main(int, char *[], bool);
 static void subtest_populate(TEST_OPTS *, bool);
-int main(int, char *[]);
 
 extern int   __wt_optind;
 
@@ -454,8 +453,6 @@ subtest_main(int argc, char *argv[], bool close_test)
 	char config[1024], filename[1024];
 	struct rlimit rlim;
 
-	if (testutil_disable_long_tests())
-		return (0);
 	opts = &_opts;
 	memset(opts, 0, sizeof(*opts));
 	memset(&rlim, 0, sizeof(rlim));
@@ -622,8 +619,9 @@ main(int argc, char *argv[])
 	uint64_t nresults;
 	const char *debugger;
 
-	if (testutil_disable_long_tests())
-		return (0);
+	if (!testutil_enable_long_tests())	/* Ignore unless requested */
+		return (EXIT_SUCCESS);
+
 	opts = &_opts;
 	memset(opts, 0, sizeof(*opts));
 	debugger = NULL;
