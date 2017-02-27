@@ -201,27 +201,22 @@ __conn_compat_config(WT_SESSION_IMPL *session, const char **cfg)
 
 	conn = S2C(session);
 	WT_RET(__wt_config_gets(session, cfg,
-	    "compatibility.major", &cval));
-	if (cval.val) {
-		if (cval.val <= WIREDTIGER_VERSION_MAJOR)
-			conn->compat_major = (uint16_t)cval.val;
-		else
+	    "compatibility.release", &cval));
+	if (cval.len != 0) {
+		if (sscanf(cval.str, "%" SCNu16 ".%" SCNu16,
+		    &conn->compat_major, &conn->compat_minor) != 2)
+			WT_RET_MSG(session,
+			    EINVAL, "illegal compatibility release");
+		if (conn->compat_major > WIREDTIGER_VERSION_MAJOR)
 			WT_RET_MSG(session, EINVAL, "unknown major version");
-	} else
+		if (conn->compat_major == WIREDTIGER_VERSION_MAJOR &&
+		    conn->compat_minor > WIREDTIGER_VERSION_MINOR)
+			WT_RET_MSG(session,
+			    EINVAL, "illegal compatibility version");
+	} else {
 		conn->compat_major = WIREDTIGER_VERSION_MAJOR;
-	WT_RET(__wt_config_gets(session, cfg,
-	    "compatibility.minor", &cval));
-	/*
-	 * We don't currently have knowledge of major/minor pairs.  If the
-	 * user gave us zero set it to the current version.  Check for some
-	 * out of bounds settings.
-	 */
-	conn->compat_minor = (uint16_t)cval.val;
-	if (cval.val == 0 && conn->compat_major == WIREDTIGER_VERSION_MAJOR)
 		conn->compat_minor = WIREDTIGER_VERSION_MINOR;
-	if (conn->compat_major == WIREDTIGER_VERSION_MAJOR &&
-	    conn->compat_minor > WIREDTIGER_VERSION_MINOR)
-		WT_RET_MSG(session, EINVAL, "unknown minor version");
+	}
 	return (0);
 }
 

@@ -404,12 +404,8 @@ connection_runtime_config = [
     Config('compatibility', '', r'''
         set compatibility version of database''',
         type='category', subconfig=[
-        Config('major', '0', r'''
-            major WT version number of desired compatibility release''',
-            type='int'),
-        Config('minor', '0', r'''
-            minor WT version number of desired compatibility release''',
-            type='int'),
+        Config('release', '', r'''
+            compatibility release version string'''),
         ]),
     Config('error_prefix', '', r'''
         prefix string for error messages'''),
