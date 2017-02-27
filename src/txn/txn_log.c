@@ -376,7 +376,9 @@ __wt_txn_checkpoint_log(
 		 * and we do not want to archive in that case.
 		 */
 		if (!S2C(session)->hot_backup &&
-		    !F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
+		    (!F_ISSET(S2C(session), WT_CONN_RECOVERING ||
+		    FLD_ISSET(S2C(session)->log_flags,
+		    WT_CONN_LOG_FORCE_DOWNGRADE))) &&
 		    txn->full_ckpt)
 			__wt_log_ckpt(session, ckpt_lsn);
 
