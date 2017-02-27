@@ -1094,7 +1094,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
 
 /*
  * __log_force_newfile --
- *	While locked, remove all previously created files and create a new
+ *	While locked, remove all previously pre-allocated files and create a new
  *	log file.
  */
 static int
