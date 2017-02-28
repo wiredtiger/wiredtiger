@@ -24,13 +24,14 @@ __btree_initialize(WT_BTREE *btree, bool closing)
 	uint32_t mask;
 
 	/*
-	 * This function exists as a place to talk about how the WT_BTREE
-	 * structure is initialized (or re-initialized, when the object is
-	 * re-opened). The upper-level handle code currently sets/clears
-	 * information in the WT_BTREE structure, specifically flags, cache
-	 * and eviction information. All of that information must persist
-	 * after the WT_BTREE object is closed, and some of it has already
-	 * been initialized when the object is opened/re-opened.
+	 * This function exists as a place to discuss how the WT_BTREE structure
+	 * is initialized (or re-initialized, when the object is re-opened). The
+	 * upper-level handle code sets/clears flags in the WT_BTREE structure,
+	 * plus the eviction/cache code reads/writes cache information. The
+	 * latter happens in-between a forced drop and sweep discarding the
+	 * tree (where the tree is still "open" and has pages being evicted from
+	 * the cache), but it's no longer part of the namespace. For all those
+	 * reasons, parts of the WT_BTREE object must persist after it's closed.
 	 */
 	if (closing) {
 		/*
