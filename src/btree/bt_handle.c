@@ -21,6 +21,7 @@ static int __btree_tree_open_empty(WT_SESSION_IMPL *, bool);
 static void
 __btree_initialize(WT_BTREE *btree, bool closing)
 {
+	WT_DATA_HANDLE *dhandle;
 	uint32_t mask;
 
 	/*
@@ -38,13 +39,21 @@ __btree_initialize(WT_BTREE *btree, bool closing)
 		 * Closing: clear everything except cache/eviction information
 		 * and one LSM flag.
 		 */
+		dhandle = btree->dhandle;
+
 		memset(btree, 0, WT_BTREE_CLEAR_SIZE);
 		F_CLR(btree, ~(WT_BTREE_LSM_PRIMARY | WT_BTREE_NO_EVICTION));
+
+		btree->dhandle = dhandle;
 	} else {
 		/* Opening: clear everything except the special flags. */
+		dhandle = btree->dhandle;
 		mask = F_MASK(btree, WT_BTREE_SPECIAL_FLAGS);
+
 		memset(btree, 0, sizeof(*btree));
+
 		btree->flags = mask;
+		btree->dhandle = dhandle;
 	}
 }
 
