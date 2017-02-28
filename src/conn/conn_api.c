@@ -198,13 +198,21 @@ __conn_compat_config(WT_SESSION_IMPL *session, const char **cfg)
 {
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
+	uint16_t patch;
 
 	conn = S2C(session);
 	WT_RET(__wt_config_gets(session, cfg,
 	    "compatibility.release", &cval));
 	if (cval.len != 0) {
+		/*
+		 * Accept either a major.minor release string or a
+		 * major.minor.patch release string.  We ignore the patch
+		 * value, but allow it in the string.
+		 */
 		if (sscanf(cval.str, "%" SCNu16 ".%" SCNu16,
-		    &conn->compat_major, &conn->compat_minor) != 2)
+		    &conn->compat_major, &conn->compat_minor) != 2 &&
+		    sscanf(cval.str, "%" SCNu16 ".%" SCNu16 ".%" SCNu16,
+		    &conn->compat_major, &conn->compat_minor, &patch) != 3)
 			WT_RET_MSG(session,
 			    EINVAL, "illegal compatibility release");
 		if (conn->compat_major > WIREDTIGER_VERSION_MAJOR)
