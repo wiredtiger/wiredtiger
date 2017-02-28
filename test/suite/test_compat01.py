@@ -46,7 +46,7 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
         '(method=fsync,enabled)',
         '(method=none,enabled)',
     ]
-    
+
     # The API uses only the major and minor numbers but accepts with
     # and without the patch number.  Test both.
     start_compat = [
