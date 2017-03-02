@@ -120,7 +120,9 @@ struct __wt_btree {
 
 	WT_REF root;			/* Root page reference */
 	bool modified;			/* If the tree ever modified */
-	bool bulk_load_ok;		/* Bulk-load is a possibility */
+
+	bool	    bulk_load_ok;	/* Bulk-load is a possibility */
+	WT_SPINLOCK bulk_load_lock;	/* Lock to modify the bulk-load state */
 
 	WT_BM	*bm;			/* Block manager reference */
 	u_int	 block_header;		/* WT_PAGE_HEADER_BYTE_SIZE */

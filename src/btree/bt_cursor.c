@@ -511,8 +511,12 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
 	 * and it's no longer possible to bulk-load into it.
 	 */
 	if (btree->bulk_load_ok) {
-		btree->bulk_load_ok = false;
-		__wt_evict_file_exclusive_off(session);
+		__wt_spin_lock(session, &btree->bulk_load_lock);
+		if (btree->bulk_load_ok) {
+			btree->bulk_load_ok = false;
+			__wt_evict_file_exclusive_off(session);
+		}
+		__wt_spin_unlock(session, &btree->bulk_load_lock);
 	}
 
 retry:	WT_RET(__cursor_func_init(cbt, true));
@@ -765,8 +769,12 @@ __wt_btcur_update(WT_CURSOR_BTREE *cbt)
 	 * and it's no longer possible to bulk-load into it.
 	 */
 	if (btree->bulk_load_ok) {
-		btree->bulk_load_ok = false;
-		__wt_evict_file_exclusive_off(session);
+		__wt_spin_lock(session, &btree->bulk_load_lock);
+		if (btree->bulk_load_ok) {
+			btree->bulk_load_ok = false;
+			__wt_evict_file_exclusive_off(session);
+		}
+		__wt_spin_unlock(session, &btree->bulk_load_lock);
 	}
 
 retry:	WT_RET(__cursor_func_init(cbt, true));
