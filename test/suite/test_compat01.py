@@ -72,8 +72,10 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
     def make_compat_str(self, create):
         compat_str = ''
         if (create == True and self.compat1 != 'none'):
+            #compat_str = 'verbose=(temporary),compatibility=(release="%s"),' % self.compat1
             compat_str = 'compatibility=(release="%s"),' % self.compat1
         elif (create == False and self.compat2 != 'none'):
+            #compat_str = 'verbose=(temporary),compatibility=(release="%s"),' % self.compat2
             compat_str = 'compatibility=(release="%s"),' % self.compat2
         return compat_str
 
@@ -106,26 +108,32 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
                     break
         self.assertEqual(exists, contains)
 
-    def check_log(self):
+    def check_log(self, reconfig):
         orig_logs = fnmatch.filter(os.listdir('.'), "*Log*")
-        #
-        # Close and open the connection to force recovery and log archiving
-        # even if archive is turned off (in some circumstances).
-        # If we are downgrading we must archive newer logs.  Verify
-        # log files have or have not been archived.
-        #
-        self.check_prev_lsn(self.current1, True)
-
-        self.conn.close()
-        log_str = 'log=(enabled,file_max=%s,archive=false),' % self.logmax
         compat_str = self.make_compat_str(False)
-        restart_config = log_str + compat_str
-        self.pr("Restart conn " + restart_config)
-        #
-        # Open a connection to force it to run recovery.
-        #
-        conn = self.wiredtiger_open('.', restart_config)
-        conn.close()
+        if not reconfig:
+            #
+            # Close and open the connection to force recovery and log archiving
+            # even if archive is turned off (in some circumstances).
+            # If we are downgrading we must archive newer logs.  Verify
+            # log files have or have not been archived.
+            #
+            self.check_prev_lsn(self.current1, True)
+
+            self.conn.close()
+            log_str = 'log=(enabled,file_max=%s,archive=false),' % self.logmax
+            restart_config = log_str + compat_str
+            self.pr("Restart conn " + restart_config)
+            #
+            # Open a connection to force it to run recovery.
+            #
+            conn = self.wiredtiger_open('.', restart_config)
+            conn.close()
+            check_close = False
+        else:
+            self.pr("Reconfigure: " + compat_str)
+            self.conn.reconfigure(compat_str)
+            check_close = True
 
         #
         # Archiving is turned off explicitly.
@@ -141,11 +149,12 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
                 self.assertEqual(log_present, o in cur_logs)
 
         # Run printlog and verify the new record does or does not exist.
-        self.check_prev_lsn(self.current2, False)
+        self.check_prev_lsn(self.current2, check_close)
 
-    def test_ops(self):
-        self.backup_dir = os.path.join(self.home, "WT_BACKUP")
-        self.session2 = self.conn.open_session()
+    def run_test(self, reconfig):
+        # If reconfiguring with the empty string there is nothing to do.
+        if reconfig == True and self.compat2 == 'none':
+            return
         self.session.create(self.uri, 'key_format=i,value_format=i')
         c = self.session.open_cursor(self.uri, None)
         #
@@ -156,7 +165,15 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Check the log state after the entire op completes
         # and run recovery with the restart compatibility mode.
-        self.check_log()
+        self.check_log(reconfig)
+
+    # Run the same test but reset the compatibility via
+    # reconfigure or changing it when reopening the connection.
+    def test_reconfig(self):
+        self.run_test(True)
+
+    def test_restart(self):
+        self.run_test(False)
 
 if __name__ == '__main__':
     wttest.run()

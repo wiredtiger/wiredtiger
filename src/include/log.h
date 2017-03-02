@@ -264,8 +264,9 @@ struct __wt_log {
 	uint64_t	 write_calls;		/* Calls to log_write */
 #endif
 
-#define	WT_LOG_OPENED		0x01	/* Log subsystem successfully open */
-#define	WT_LOG_TRUNCATE_NOTSUP	0x02	/* File system truncate not supported */
+#define	WT_LOG_FORCE_NEWFILE	0x01	/* Log subsystem successfully open */
+#define	WT_LOG_OPENED		0x02	/* Log subsystem successfully open */
+#define	WT_LOG_TRUNCATE_NOTSUP	0x04	/* File system truncate not supported */
 	uint32_t	flags;
 };
 

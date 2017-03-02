@@ -77,17 +77,17 @@ static int
 __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
 {
 	WT_CONNECTION_IMPL *conn;
+	WT_SESSION_IMPL *tmp_session;
 	WT_LOG *log;
-	uint32_t lognum;
-	uint16_t old_major, old_minor;
+	bool downgrade, live_chg;
+	uint32_t first_record, lognum;
+	uint16_t new_major, new_minor;
 
 	conn = S2C(session);
 	log = conn->log;
 	if (log == NULL)
 		return (0);
 
-	old_major = log->log_major;
-	old_minor = log->log_minor;
 	/*
 	 * Set the log file format versions based on compatibility versions
 	 * set in the connection.  We must set this before we call log_open
@@ -96,30 +96,55 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
 	if (conn->compat_major < WT_LOG_V11_MAJOR ||
 	    (conn->compat_major == WT_LOG_V11_MAJOR &&
 	    conn->compat_minor < WT_LOG_V11_MINOR)) {
-		log->log_major = 1;
-		log->log_minor = 0;
-		log->first_record = WT_LOG_END_HEADER;
-		FLD_SET(conn->log_flags, WT_CONN_LOG_DOWNGRADED);
+		new_major = 1;
+		new_minor = 0;
+		first_record = WT_LOG_END_HEADER;
+		downgrade = true;
 	} else {
-		log->log_major = 1;
-		log->log_minor = 1;
-		log->first_record = WT_LOG_END_HEADER + log->allocsize;
+		new_major = 1;
+		new_minor = 1;
+		first_record = WT_LOG_END_HEADER + log->allocsize;
+		downgrade = false;
+		FLD_CLR(conn->log_flags, WT_CONN_LOG_DOWNGRADED);
 	}
 
 	/*
 	 * If we are reconfiguring and at a new version we need to force
 	 * the log file to advance so that we write out a log file at the
-	 * correct version.  Then we must force a checkpoint and finally
-	 * archive, even if disabled, so that all new version log files are
-	 * gone.
+	 * correct version.  Then we are downgrading we must force a checkpoint
+	 * and finally archive, even if disabled, so that all new version log
+	 * files are gone.
+	 *
+	 * All of the version changes must be handled with locks on reconfigure
+	 * because other threads may be changing log files, using pre-allocated
+	 * files.
 	 */
+	live_chg = false;
 	if (reconfig &&
-	    (log->log_major != old_major ||
-	    (log->log_major == old_major &&
-	    log->log_minor != old_minor))) {
-		WT_RET(__wt_log_force_advance(session, &lognum));
-		WT_RET(session->iface.checkpoint(&session->iface, "force=1"));
-		WT_RET(__logmgr_force_archive(session, lognum));
+	    (log->log_major != new_major ||
+	    (log->log_major == new_major &&
+	    log->log_minor != new_minor)))
+		live_chg = true;
+
+	/*
+	 * Set the version.  If it is a live change the logging subsystem will
+	 * do other work as well to move to a new log file.
+	 */
+	WT_RET(__wt_log_set_version(session, new_major, new_minor,
+	    first_record, downgrade, live_chg, &lognum));
+	if (live_chg && FLD_ISSET(conn->log_flags, WT_CONN_LOG_DOWNGRADED)) {
+		/*
+		 * If the log was downgraded force a checkpoint to be
+		 * written in the new log file and force the archiving
+		 * of all previous log files.
+		 */
+		WT_RET(__wt_open_internal_session(conn,
+		    "compatibility-reconfig", true, 0, &tmp_session));
+		WT_RET(session->iface.checkpoint(
+		    &tmp_session->iface, "force=1"));
+		WT_RET(__logmgr_force_archive(tmp_session, lognum));
+		WT_RET(tmp_session->iface.close(
+		    &tmp_session->iface, NULL));
 	}
 	return (0);
 }

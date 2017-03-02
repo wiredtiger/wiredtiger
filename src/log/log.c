@@ -19,6 +19,22 @@ static int __log_write_internal(
 #define	WT_LOG_OPEN_CREATE_OK	0x01
 
 /*
+ * __log_printf_internal --
+ *	Internal call to write a log message.
+ */
+static int
+__log_printf_internal(WT_SESSION_IMPL *session, const char *fmt, ...)
+{
+	WT_DECL_RET;
+	va_list ap;
+
+	va_start(ap, fmt);
+	ret = __wt_log_vprintf(session, fmt, ap);
+	va_end(ap);
+	return (ret);
+}
+
+/*
  * __log_checksum_match --
  *	Given a log record, return whether the checksum matches.
  */
@@ -1093,12 +1109,12 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
 }
 
 /*
- * __log_force_newfile --
- *	While locked, remove all previously pre-allocated files and create a new
- *	log file.
+ * __log_set_version --
+ *	Set version related information under lock.
  */
 static int
-__log_force_newfile(WT_SESSION_IMPL *session, uint32_t *lognump)
+__log_set_version(WT_SESSION_IMPL *session,
+    uint16_t major, uint16_t minor, uint32_t first_rec, bool downgrade)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_LOG *log;
@@ -1106,20 +1122,26 @@ __log_force_newfile(WT_SESSION_IMPL *session, uint32_t *lognump)
 	conn = S2C(session);
 	log = conn->log;
 
-	WT_RET(__log_prealloc_remove(session));
-	WT_RET(__log_newfile(session, true, NULL));
-	if (lognump != NULL)
-		*lognump = log->alloc_lsn.l.file;
-	return (0);
+	log->log_major = major;
+	log->log_minor = minor;
+	log->first_record = first_rec;
+	if (downgrade)
+		FLD_SET(conn->log_flags, WT_CONN_LOG_DOWNGRADED);
+	else
+		FLD_CLR(conn->log_flags, WT_CONN_LOG_DOWNGRADED);
+	return (__log_prealloc_remove(session));
 }
 
 /*
- * __wt_log_force_advance --
- *	Force the log file to advance to a new file because
- *	the version changed.
+ * __wt_log_set_version --
+ *	Change the version number in logging.  Will be done with locking.
+ *	We need to force the log file to advance and remove all old
+ *	pre-allocated files.
  */
 int
-__wt_log_force_advance(WT_SESSION_IMPL *session, uint32_t *lognump)
+__wt_log_set_version(WT_SESSION_IMPL *session,
+    uint16_t major, uint16_t minor, uint32_t first_rec, bool downgrade,
+    bool live_chg, uint32_t *lognump)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
@@ -1129,13 +1151,41 @@ __wt_log_force_advance(WT_SESSION_IMPL *session, uint32_t *lognump)
 	log = conn->log;
 
 	/*
-	 * To force an advance of the log file we must remove all
-	 * of the pre-allocated files and then create a new file.
+	 * The steps are:
+	 * - Set up versions and remove files under lock.
+	 * - Set a flag so that the next slot change forces a file change.
+	 * - Force out the slot that is currently active in the current log.
+	 * - Write a log record to force a record into the new log file.
 	 */
 	WT_WITH_SLOT_LOCK(session, log,
-	    ret = __log_force_newfile(session, lognump));
+	    ret = __log_set_version(session,
+	    major, minor, first_rec, downgrade));
+	if (!live_chg)
+		return (ret);
 	WT_ERR(ret);
+	/*
+	 * XXX - Any gap problem between setting version above and this flag
+	 * now? Also may want to clear it in log_newfile when it sees it so that
+	 * additional log records don't also cause new log files repeatedly.
+	 */
+	F_SET(log, WT_LOG_FORCE_NEWFILE);
+	/*
+	 * A new log file will be used when we force out the earlier slot.
+	 */
 	WT_ERR(__wt_log_force_write(session, 1, NULL));
+
+	/*
+	 * We need to write a record to the new version log file so that
+	 * a potential checkpoint finds LSNs in that new log file and
+	 * an archive correctly removes all earlier logs.
+	 * Write an internal printf record.
+	 */
+	WT_ERR(__log_printf_internal(session,
+	    "COMPATIBILITY: Version now %" PRIu16 ".%" PRIu16,
+	    log->log_major, log->log_minor));
+	F_CLR(log, WT_LOG_FORCE_NEWFILE);
+	if (lognump != NULL)
+		*lognump = log->alloc_lsn.l.file;
 err:
 	return (ret);
 }
@@ -1172,7 +1222,8 @@ __wt_log_acquire(WT_SESSION_IMPL *session, uint64_t recsize, WT_LOGSLOT *slot)
 	 * that exceed the maximum file size.  We want to minimize the risk
 	 * of an error due to no space.
 	 */
-	if (!__log_size_fit(session, &log->alloc_lsn, recsize)) {
+	if (F_ISSET(log, WT_LOG_FORCE_NEWFILE) ||
+	    !__log_size_fit(session, &log->alloc_lsn, recsize)) {
 		WT_RET(__log_newfile(session, false, &created_log));
 		if (log->log_close_fh != NULL)
 			F_SET(slot, WT_SLOT_CLOSEFH);
@@ -1335,7 +1386,7 @@ __wt_log_allocfile(
 	WT_ERR(__wt_fsync(session, log_fh, true));
 	WT_ERR(__wt_close(session, &log_fh));
 	__wt_verbose(session, WT_VERB_LOG,
-	    "log_prealloc: rename %s to %s",
+	    "log_allocfile: rename %s to %s",
 	    (const char *)from_path->data, (const char *)to_path->data);
 	/*
 	 * Rename it into place and make it available.
@@ -2109,7 +2160,7 @@ __wt_log_force_write(WT_SESSION_IMPL *session, bool retry, bool *did_work)
 		*did_work = true;
 	myslot.slot = log->active_slot;
 	joined = WT_LOG_SLOT_JOINED(log->active_slot->slot_state);
-	if (joined == 0) {
+	if (joined == 0 && !F_ISSET(log, WT_LOG_FORCE_NEWFILE)) {
 		WT_STAT_CONN_INCR(session, log_force_write_skip);
 		if (did_work != NULL)
 			*did_work = false;
