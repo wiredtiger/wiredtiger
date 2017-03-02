@@ -30,6 +30,14 @@ struct __wt_hazard {
 #endif
 };
 
+struct __wt_track_record {
+	uint64_t timestamp;
+	uint16_t op_id;
+	uint16_t op_type;
+	char reserved[4];
+};
+
+
 /* Get the connection implementation for a session */
 #define	S2C(session)	  ((WT_CONNECTION_IMPL *)(session)->iface.connection)
 
@@ -207,4 +215,25 @@ struct __wt_session_impl {
 	uint32_t   hazard_inuse;	/* Hazard pointer array slots in-use */
 	uint32_t   nhazard;		/* Count of active hazard pointers */
 	WT_HAZARD *hazard;		/* Hazard pointer array */
+
+
+	/*
+	 * Tracking.
+	 */
+#define MAXRECS 16384
+#define BUFSIZE MAXRECS * sizeof(WT_TRACK_RECORD)
+	WT_TRACK_RECORD trackbuffer[BUFSIZE];
+	uint trackbuf_ptr;
+	int trackfd;
 };
+
+#define WT_TRACK(s, optype)						     \
+	WT_TRACK_RECORD *tr = &(s->trackbuffer[s->trackbuf_ptr++]);	\
+	tr->timestamp = __wt_rdtsc();					\
+	tr->op_type = optype;						\
+	tr->op_id = s->name[0];						\
+	if (s->trackbuf_ptr == MAXRECS) {				\
+		s->trackbuf_ptr = 0;					\
+		if (session->trackfd > 0)				\
+			write(s->trackfd, s->trackbuffer, BUFSIZE);     \
+	}

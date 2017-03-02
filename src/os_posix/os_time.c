@@ -46,3 +46,21 @@ __wt_epoch(WT_SESSION_IMPL *session, struct timespec *tsp)
 	NO TIME-OF-DAY IMPLEMENTATION: see src/os_posix/os_time.c
 #endif
 }
+
+
+#ifdef __i386
+extern __inline__ uint64_t __wt_rdtsc(void) {
+	uint64_t x;
+	__asm__ volatile ("rdtsc" : "=A" (x));
+	return x;
+}
+#elif defined __amd64
+extern __inline__ uint64_t __wt_rdtsc(void) {
+	uint64_t a, d;
+	__asm__ volatile ("rdtsc" : "=a" (a), "=d" (d));
+	return (d<<32) | a;
+}
+#else
+        NO RDTSC INSTRUCTION AVAILABLE: see src/os_posix/os_time.c
+#endif
+

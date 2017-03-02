@@ -234,6 +234,9 @@ __session_close(WT_SESSION *wt_session, const char *config)
 	/* Release common session resources. */
 	WT_TRET(__wt_session_release_resources(session));
 
+	close(session->trackfd);
+	printf("Closed tracking file for session %d\n", session->id);
+
 	/* The API lock protects opening and closing of sessions. */
 	__wt_spin_lock(session, &conn->api_lock);
 
@@ -1885,6 +1888,17 @@ __open_session(WT_CONNECTION_IMPL *conn,
 	if (config != NULL)
 		WT_ERR(
 		    __session_reconfigure((WT_SESSION *)session_ret, config));
+
+	/* Init tracking */
+	char fname[64];
+	snprintf(fname, 64, "%s/track.%d", "/mnt/fast/sasha",
+		 session_ret->id);
+	session_ret->trackfd = open(fname, O_CREAT | O_RDWR | O_TRUNC, 
+		S_IRUSR | S_IWUSR);
+	if (session_ret->trackfd > 0)
+		printf("Opened file %s\n", fname);
+	else
+		printf("Could not open %s\n", fname);
 
 	/*
 	 * Publish: make the entry visible to server threads.  There must be a
