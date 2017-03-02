@@ -1401,7 +1401,7 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	if (page->read_gen != WT_READGEN_OLDEST ||
 	    LF_ISSET(WT_READ_NO_EVICT) ||
 	    F_ISSET(session, WT_SESSION_NO_EVICTION) ||
-	    btree->evict_disabled > 0 ||
+	    F_ISSET(btree, WT_BTREE_NO_EVICTION) ||
 	    !__wt_page_can_evict(session, ref, NULL))
 		return (__wt_hazard_clear(session, ref));
 
@@ -1521,7 +1521,7 @@ __wt_btree_lsm_over_size(WT_SESSION_IMPL *session, uint64_t maxsize)
 		return (false);
 
 	/* A tree that can be evicted always requires a switch. */
-	if (btree->evict_disabled == 0)
+	if (!F_ISSET(btree, WT_BTREE_NO_EVICTION))
 		return (true);
 
 	/* Check for a tree with a single leaf page. */
@@ -1569,7 +1569,8 @@ __wt_btree_lsm_switch_primary(WT_SESSION_IMPL *session, bool on)
 	}
 	if (!on && F_ISSET(btree, WT_BTREE_LSM_PRIMARY)) {
 		pindex = WT_INTL_INDEX_GET_SAFE(root);
-		if (btree->evict_disabled == 0 || pindex->entries != 1)
+		if (!F_ISSET(btree, WT_BTREE_NO_EVICTION) ||
+		    pindex->entries != 1)
 			return (0);
 		first = pindex->index[0];
 
