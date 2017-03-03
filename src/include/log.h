@@ -235,6 +235,7 @@ struct __wt_log {
 	 * Synchronization resources
 	 */
 	WT_SPINLOCK      log_lock;      /* Locked: Logging fields */
+	WT_SPINLOCK      log_fs_lock;   /* Locked: tmp, prep and log files */
 	WT_SPINLOCK      log_slot_lock; /* Locked: Consolidation array */
 	WT_SPINLOCK      log_sync_lock; /* Locked: Single-thread fsync */
 	WT_SPINLOCK      log_writelsn_lock; /* Locked: write LSN */
