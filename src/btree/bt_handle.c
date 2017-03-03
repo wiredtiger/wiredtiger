@@ -43,7 +43,6 @@ __btree_clear(WT_SESSION_IMPL *session)
 
 	/* Destroy locks. */
 	__wt_rwlock_destroy(session, &btree->ovfl_lock);
-	__wt_spin_destroy(session, &btree->bulk_load_lock);
 	__wt_spin_destroy(session, &btree->flush_lock);
 
 	/* Free allocated memory. */
@@ -438,8 +437,6 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 
 	/* Initialize locks. */
 	__wt_rwlock_init(session, &btree->ovfl_lock);
-	WT_RET(
-	    __wt_spin_init(session, &btree->bulk_load_lock, "btree bulk load"));
 	WT_RET(__wt_spin_init(session, &btree->flush_lock, "btree flush"));
 
 	btree->checkpointing = WT_CKPT_OFF;		/* Not checkpointing */
@@ -565,7 +562,7 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
 	 * tree.
 	 */
 	if (creation)
-		btree->bulk_load_ok = true;
+		btree->bulk_load_ok = 1;
 
 	/*
 	 * A note about empty trees: the initial tree is a single root page.
