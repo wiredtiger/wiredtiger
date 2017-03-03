@@ -1141,7 +1141,10 @@ __log_set_version(WT_SESSION_IMPL *session,
 		FLD_SET(conn->log_flags, WT_CONN_LOG_DOWNGRADED);
 	else
 		FLD_CLR(conn->log_flags, WT_CONN_LOG_DOWNGRADED);
-	return (__log_prealloc_remove(session));
+	if (!F_ISSET(conn, WT_CONN_READONLY))
+		return (__log_prealloc_remove(session));
+	else
+		return (0);
 }
 
 /*
