@@ -18,6 +18,98 @@ __cursor_set_recno(WT_CURSOR_BTREE *cbt, uint64_t v)
 }
 
 /*
+ * __cursor_recno --
+ *	Return if a recno cursor.
+ */
+static inline bool
+__cursor_recno(WT_CURSOR *cursor)
+{
+	return (WT_STREQ((cursor)->key_format, "r"));
+}
+
+/*
+ * __cursor_checkkey --
+ *	Check if a key is set without making a copy.
+ *
+ */
+static inline int
+__cursor_checkkey(WT_CURSOR *cursor)
+{
+	return (F_ISSET(cursor, WT_CURSTD_KEY_SET) ?
+	    0 : __wt_cursor_kv_not_set(cursor, true));
+}
+
+/*
+ * __cursor_checkvalue --
+ *	Check if a value is set without making a copy.
+ *
+ */
+static inline int
+__cursor_checkvalue(WT_CURSOR *cursor)
+{
+	return (F_ISSET(cursor, WT_CURSTD_VALUE_SET) ?
+	    0 : __wt_cursor_kv_not_set(cursor, false));
+}
+
+/*
+ * __cursor_needkey --
+ *	Check if we have a key set.
+ *
+ * There's an additional semantic implemented here: if we're pointing into the
+ * tree, and about to perform a cursor operation, get a local copy of whatever
+ * we're referencing in the tree, there's an obvious race with the cursor moving
+ * and the key/value reference, and it's better to solve it here than in the
+ * underlying data-source layers.
+ */
+static inline int
+__cursor_needkey(WT_CURSOR *cursor)
+{
+	if (F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
+		if (!WT_DATA_IN_ITEM(&cursor->key))
+			WT_RET(__wt_buf_set((WT_SESSION_IMPL *)cursor->session,
+			    &cursor->key, cursor->key.data, cursor->key.size));
+		F_CLR(cursor, WT_CURSTD_KEY_INT);
+		F_SET(cursor, WT_CURSTD_KEY_EXT);
+	}
+	return (__cursor_checkkey(cursor));
+}
+
+/*
+ * __cursor_needvalue --
+ *	Check if we have a value set.
+ *
+ * There's an additional semantic implemented here: if we're pointing into the
+ * tree, and about to perform a cursor operation, get a local copy of whatever
+ * we're referencing in the tree, there's an obvious race with the cursor moving
+ * and the key/value reference, and it's better to solve it here than in the
+ * underlying data-source layers.
+ */
+static inline int
+__cursor_needvalue(WT_CURSOR *cursor)
+{
+	if (F_ISSET(cursor, WT_CURSTD_VALUE_INT)) {
+		if (!WT_DATA_IN_ITEM(&cursor->value))
+			WT_RET(__wt_buf_set((WT_SESSION_IMPL *)cursor->session,
+			    &cursor->value, cursor->value.data,
+			    cursor->value.size));
+		F_CLR(cursor, WT_CURSTD_VALUE_INT);
+		F_SET(cursor, WT_CURSTD_VALUE_EXT);
+	}
+	return (__cursor_checkvalue(cursor));
+}
+
+/*
+ * __cursor_novalue --
+ *	Release any cached value before an operation that could update the
+ * transaction context and free data a value is pointing to.
+ */
+static inline void
+__cursor_novalue(WT_CURSOR *cursor)
+{
+	F_CLR(cursor, WT_CURSTD_VALUE_INT);
+}
+
+/*
  * __cursor_pos_clear --
  *	Reset the cursor's location.
  */
@@ -147,7 +239,7 @@ __wt_curindex_get_valuev(WT_CURSOR *cursor, va_list ap)
 
 	cindex = (WT_CURSOR_INDEX *)cursor;
 	session = (WT_SESSION_IMPL *)cursor->session;
-	WT_CURSOR_NEEDVALUE(cursor);
+	WT_ERR(__cursor_needvalue(cursor));
 
 	if (F_ISSET(cursor, WT_CURSOR_RAW_OK)) {
 		ret = __wt_schema_project_merge(session,
@@ -180,7 +272,7 @@ __wt_curtable_get_valuev(WT_CURSOR *cursor, va_list ap)
 	ctable = (WT_CURSOR_TABLE *)cursor;
 	session = (WT_SESSION_IMPL *)cursor->session;
 	primary = *ctable->cg_cursors;
-	WT_CURSOR_NEEDVALUE(primary);
+	WT_ERR(__cursor_needvalue(primary));
 
 	if (F_ISSET(cursor, WT_CURSOR_RAW_OK)) {
 		ret = __wt_schema_project_merge(session,

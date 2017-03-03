@@ -32,29 +32,31 @@ __txn_op_log(WT_SESSION_IMPL *session,
 	value.size = upd->size;
 
 	/*
-	 * Log the operation.  It must be one of the following:
-	 * 1) column store remove;
-	 * 2) column store insert/update;
-	 * 3) row store remove; or
-	 * 4) row store insert/update.
+	 * Log the operation. It must be a row- or column-store remove, reserve,
+	 * insert or update. Reserves are ignored because they're never written,
+	 * removes, inserts and updates require log records.
 	 */
 	if (cbt->btree->type == BTREE_ROW) {
 		WT_ERR(__wt_cursor_row_leaf_key(cbt, &key));
 
-		if (WT_UPDATE_DELETED_ISSET(upd))
-			WT_ERR(__wt_logop_row_remove_pack(session, logrec,
-			    op->fileid, &key));
-		else
+		if (WT_UPDATE_DELETED_ISSET(upd) ||
+		    WT_UPDATE_RESERVED_ISSET(upd)) {
+			if (WT_UPDATE_DELETED_ISSET(upd))
+				WT_ERR(__wt_logop_row_remove_pack(
+				    session, logrec, op->fileid, &key));
+		} else
 			WT_ERR(__wt_logop_row_put_pack(session, logrec,
 			    op->fileid, &key, &value));
 	} else {
 		recno = WT_INSERT_RECNO(cbt->ins);
 		WT_ASSERT(session, recno != WT_RECNO_OOB);
 
-		if (WT_UPDATE_DELETED_ISSET(upd))
-			WT_ERR(__wt_logop_col_remove_pack(session, logrec,
-			    op->fileid, recno));
-		else
+		if (WT_UPDATE_DELETED_ISSET(upd) ||
+		    WT_UPDATE_RESERVED_ISSET(upd)) {
+			if (WT_UPDATE_DELETED_ISSET(upd))
+				WT_ERR(__wt_logop_col_remove_pack(
+				    session, logrec, op->fileid, recno));
+		} else
 			WT_ERR(__wt_logop_col_put_pack(session, logrec,
 			    op->fileid, recno, &value));
 	}

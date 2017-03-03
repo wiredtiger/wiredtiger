@@ -290,8 +290,8 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 	 */
 	WT_UNUSED(cfg);
 
-	if (F_ISSET(&session->txn, WT_TXN_RUNNING))
-		WT_ERR_MSG(session, EINVAL, "transaction in progress");
+	WT_ERR(__wt_txn_context_check(
+	    session, false, "WT_SESSION.reconfigure"));
 
 	WT_ERR(__wt_session_reset_cursors(session, false));
 
@@ -813,8 +813,7 @@ __session_reset(WT_SESSION *wt_session)
 
 	SESSION_API_CALL_NOCONF(session, reset);
 
-	if (F_ISSET(&session->txn, WT_TXN_RUNNING))
-		WT_ERR_MSG(session, EINVAL, "transaction in progress");
+	WT_ERR(__wt_txn_context_check(session, false, "WT_SESSION.reset"));
 
 	WT_TRET(__wt_session_reset_cursors(session, true));
 
@@ -1395,8 +1394,8 @@ __session_begin_transaction(WT_SESSION *wt_session, const char *config)
 	SESSION_API_CALL(session, begin_transaction, config, cfg);
 	WT_STAT_CONN_INCR(session, txn_begin);
 
-	if (F_ISSET(&session->txn, WT_TXN_RUNNING))
-		WT_ERR_MSG(session, EINVAL, "Transaction already running");
+	WT_ERR(__wt_txn_context_check(
+	    session, false, "WT_SESSION.begin_transaction"));
 
 	ret = __wt_txn_begin(session, cfg);
 
@@ -1512,7 +1511,6 @@ __session_transaction_sync(WT_SESSION *wt_session, const char *config)
 	WT_DECL_RET;
 	WT_LOG *log;
 	WT_SESSION_IMPL *session;
-	WT_TXN *txn;
 	struct timespec now, start;
 	uint64_t remaining_usec, timeout_ms, waited_ms;
 	bool forever;
@@ -1522,9 +1520,8 @@ __session_transaction_sync(WT_SESSION *wt_session, const char *config)
 	WT_STAT_CONN_INCR(session, txn_sync);
 
 	conn = S2C(session);
-	txn = &session->txn;
-	if (F_ISSET(txn, WT_TXN_RUNNING))
-		WT_ERR_MSG(session, EINVAL, "transaction in progress");
+	WT_ERR(__wt_txn_context_check(
+	    session, false, "WT_SESSION.transaction_sync"));
 
 	/*
 	 * If logging is not enabled there is nothing to do.
@@ -1615,7 +1612,6 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	WT_TXN *txn;
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
@@ -1640,10 +1636,7 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
 	 * from evicting anything newer than this because we track the oldest
 	 * transaction ID in the system that is not visible to all readers.
 	 */
-	txn = &session->txn;
-	if (F_ISSET(txn, WT_TXN_RUNNING))
-		WT_ERR_MSG(session, EINVAL,
-		    "Checkpoint not permitted in a transaction");
+	WT_ERR(__wt_txn_context_check(session, false, "WT_SESSION.checkpoint"));
 
 	ret = __wt_txn_checkpoint(session, cfg, true);
 

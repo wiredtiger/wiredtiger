@@ -279,11 +279,11 @@ __cursor_row_search(
  *	Column-store delete, insert, and update from an application cursor.
  */
 static inline int
-__cursor_col_modify(
-    WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool is_remove)
+__cursor_col_modify(WT_SESSION_IMPL *session,
+    WT_CURSOR_BTREE *cbt, bool is_remove, bool is_reserve)
 {
-	return (__wt_col_modify(session,
-	    cbt, cbt->iface.recno, &cbt->iface.value, NULL, is_remove));
+	return (__wt_col_modify(session, cbt,
+	    cbt->iface.recno, &cbt->iface.value, NULL, is_remove, is_reserve));
 }
 
 /*
@@ -291,11 +291,11 @@ __cursor_col_modify(
  *	Row-store insert, update and delete from an application cursor.
  */
 static inline int
-__cursor_row_modify(
-    WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool is_remove)
+__cursor_row_modify(WT_SESSION_IMPL *session,
+    WT_CURSOR_BTREE *cbt, bool is_remove, bool is_reserve)
 {
-	return (__wt_row_modify(session,
-	    cbt, &cbt->iface.key, &cbt->iface.value, NULL, is_remove));
+	return (__wt_row_modify(session, cbt,
+	    &cbt->iface.key, &cbt->iface.value, NULL, is_remove, is_reserve));
 }
 
 /*
@@ -555,7 +555,7 @@ retry:	WT_RET(__cursor_func_init(cbt, true));
 		    (cbt->compare != 0 && __cursor_fix_implicit(btree, cbt))))
 			WT_ERR(WT_DUPLICATE_KEY);
 
-		WT_ERR(__cursor_col_modify(session, cbt, false));
+		WT_ERR(__cursor_col_modify(session, cbt, false, false));
 		if (F_ISSET(cursor, WT_CURSTD_APPEND))
 			cbt->iface.recno = cbt->recno;
 		break;
@@ -569,7 +569,7 @@ retry:	WT_RET(__cursor_func_init(cbt, true));
 		    cbt->compare == 0 && __wt_cursor_valid(cbt, NULL))
 			WT_ERR(WT_DUPLICATE_KEY);
 
-		ret = __cursor_row_modify(session, cbt, false);
+		ret = __cursor_row_modify(session, cbt, false, false);
 		break;
 	}
 
@@ -716,7 +716,7 @@ retry:	WT_RET(__cursor_func_init(cbt, true));
 			 */
 			cbt->recno = cursor->recno;
 		} else
-			ret = __cursor_col_modify(session, cbt, true);
+			ret = __cursor_col_modify(session, cbt, true, false);
 		break;
 	case BTREE_ROW:
 		/* Remove the record if it exists. */
@@ -728,7 +728,7 @@ retry:	WT_RET(__cursor_func_init(cbt, true));
 		if (cbt->compare != 0 || !__wt_cursor_valid(cbt, NULL))
 			WT_ERR(WT_NOTFOUND);
 
-		ret = __cursor_row_modify(session, cbt, true);
+		ret = __cursor_row_modify(session, cbt, true, false);
 		break;
 	}
 
@@ -751,11 +751,11 @@ err:	if (ret == WT_RESTART) {
 }
 
 /*
- * __wt_btcur_update --
+ * btcur_update --
  *	Update a record in the tree.
  */
-int
-__wt_btcur_update(WT_CURSOR_BTREE *cbt)
+static int
+btcur_update(WT_CURSOR_BTREE *cbt, bool is_reserve)
 {
 	WT_BTREE *btree;
 	WT_CURSOR *cursor;
@@ -772,7 +772,8 @@ __wt_btcur_update(WT_CURSOR_BTREE *cbt)
 
 	if (btree->type == BTREE_ROW)
 		WT_RET(__cursor_size_chk(session, &cursor->key));
-	WT_RET(__cursor_size_chk(session, &cursor->value));
+	if (!is_reserve)
+		WT_RET(__cursor_size_chk(session, &cursor->value));
 
 	/* It's no longer possible to bulk-load into the tree. */
 	__cursor_disable_bulk(session, btree);
@@ -799,7 +800,7 @@ retry:	WT_RET(__cursor_func_init(cbt, true));
 			    !__cursor_fix_implicit(btree, cbt))
 				WT_ERR(WT_NOTFOUND);
 		}
-		ret = __cursor_col_modify(session, cbt, false);
+		ret = __cursor_col_modify(session, cbt, false, is_reserve);
 		break;
 	case BTREE_ROW:
 		WT_ERR(__cursor_row_search(session, cbt, NULL, true));
@@ -812,7 +813,7 @@ retry:	WT_RET(__cursor_func_init(cbt, true));
 			if (cbt->compare != 0 || !__wt_cursor_valid(cbt, NULL))
 				WT_ERR(WT_NOTFOUND);
 		}
-		ret = __cursor_row_modify(session, cbt, false);
+		ret = __cursor_row_modify(session, cbt, false, is_reserve);
 		break;
 	}
 
@@ -830,12 +831,47 @@ err:	if (ret == WT_RESTART) {
 	 * To make this work, we add a field to the btree cursor to pass back a
 	 * pointer to the modify function's allocated update structure.
 	 */
-	if (ret == 0)
+	if (ret == 0 && !is_reserve)
 		WT_TRET(__wt_kv_return(session, cbt, cbt->modify_update));
 
 	if (ret != 0)
 		WT_TRET(__cursor_reset(cbt));
 	return (ret);
+}
+
+/*
+ * __wt_btcur_reserve --
+ *	Reserve a record in the tree.
+ */
+int
+__wt_btcur_reserve(WT_CURSOR_BTREE *cbt)
+{
+	WT_CURSOR *cursor;
+	WT_DECL_RET;
+	bool overwrite;
+
+	cursor = &cbt->iface;
+
+	/*
+	 * The reserve method is update-without-overwrite and a special value,
+	 * this is where we merge the two code paths.
+	 */
+	overwrite = F_ISSET(cursor, WT_CURSTD_OVERWRITE);
+	F_CLR(cursor, WT_CURSTD_OVERWRITE);
+	ret = btcur_update(cbt, true);
+	if (overwrite)
+		F_SET(cursor, WT_CURSTD_OVERWRITE);
+	return (ret);
+}
+
+/*
+ * __wt_btcur_update --
+ *	Update a record in the tree.
+ */
+int
+__wt_btcur_update(WT_CURSOR_BTREE *cbt)
+{
+	return (btcur_update(cbt, false));
 }
 
 /*
@@ -958,7 +994,7 @@ __wt_btcur_equals(WT_CURSOR_BTREE *a_arg, WT_CURSOR_BTREE *b_arg, int *equalp)
 static int
 __cursor_truncate(WT_SESSION_IMPL *session,
     WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop,
-    int (*rmfunc)(WT_SESSION_IMPL *, WT_CURSOR_BTREE *, bool))
+    int (*rmfunc)(WT_SESSION_IMPL *, WT_CURSOR_BTREE *, bool, bool))
 {
 	WT_DECL_RET;
 
@@ -990,7 +1026,7 @@ retry:	WT_RET(__wt_btcur_remove(start));
 		if ((ret = __wt_btcur_next(start, true)) != 0)
 			break;
 		start->compare = 0;	/* Exact match */
-		if ((ret = rmfunc(session, start, 1)) != 0)
+		if ((ret = rmfunc(session, start, true, false)) != 0)
 			break;
 	}
 
@@ -1011,7 +1047,7 @@ retry:	WT_RET(__wt_btcur_remove(start));
 static int
 __cursor_truncate_fix(WT_SESSION_IMPL *session,
     WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop,
-    int (*rmfunc)(WT_SESSION_IMPL *, WT_CURSOR_BTREE *, bool))
+    int (*rmfunc)(WT_SESSION_IMPL *, WT_CURSOR_BTREE *, bool, bool))
 {
 	WT_DECL_RET;
 	const uint8_t *value;
@@ -1045,7 +1081,7 @@ retry:	WT_RET(__wt_btcur_remove(start));
 		start->compare = 0;	/* Exact match */
 		value = (const uint8_t *)start->iface.value.data;
 		if (*value != 0 &&
-		    (ret = rmfunc(session, start, 1)) != 0)
+		    (ret = rmfunc(session, start, true, false)) != 0)
 			break;
 	}
 

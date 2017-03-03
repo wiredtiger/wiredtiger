@@ -71,7 +71,7 @@ __curdump_get_key(WT_CURSOR *cursor, ...)
 	if (F_ISSET(cursor, WT_CURSTD_DUMP_JSON)) {
 		json = (WT_CURSOR_JSON *)cursor->json_private;
 		WT_ASSERT(session, json != NULL);
-		if (WT_CURSOR_RECNO(cursor)) {
+		if (__cursor_recno(cursor)) {
 			WT_ERR(child->get_key(child, &recno));
 			buffer = &recno;
 			size = sizeof(recno);
@@ -88,7 +88,7 @@ __curdump_get_key(WT_CURSOR *cursor, ...)
 		ret = __wt_json_alloc_unpack(
 		    session, buffer, size, fmt, json, true, ap);
 	} else {
-		if (WT_CURSOR_RECNO(cursor) &&
+		if (__cursor_recno(cursor) &&
 		    !F_ISSET(cursor, WT_CURSTD_RAW)) {
 			WT_ERR(child->get_key(child, &recno));
 
@@ -176,7 +176,7 @@ __curdump_set_key(WT_CURSOR *cursor, ...)
 		    (WT_CURSOR_JSON *)cursor->json_private, true,
 		    &cursor->key));
 
-	if (WT_CURSOR_RECNO(cursor) && !F_ISSET(cursor, WT_CURSTD_RAW)) {
+	if (__cursor_recno(cursor) && !F_ISSET(cursor, WT_CURSTD_RAW)) {
 		if (json) {
 			up = (const uint8_t *)cursor->key.data;
 			WT_ERR(__wt_vunpack_uint(&up, cursor->key.size,
@@ -371,6 +371,7 @@ __wt_curdump_create(WT_CURSOR *child, WT_CURSOR *owner, WT_CURSOR **cursorp)
 	    __curdump_insert,			/* insert */
 	    __curdump_update,			/* update */
 	    __curdump_remove,			/* remove */
+	    __wt_cursor_notsup,			/* reserve */
 	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
 	    __curdump_close);			/* close */
 	WT_CURSOR *cursor;

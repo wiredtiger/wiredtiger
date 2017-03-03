@@ -55,6 +55,23 @@ __wt_seconds(WT_SESSION_IMPL *session, time_t *timep)
 }
 
 /*
+ * __wt_txn_context_check --
+ *	Complain if a transaction is/isn't running.
+ */
+static inline int
+__wt_txn_context_check(
+    WT_SESSION_IMPL *session, bool requires_txn, const char *tag)
+{
+	if (requires_txn && !F_ISSET(&session->txn, WT_TXN_RUNNING))
+		WT_RET_MSG(session, EINVAL,
+		    "%s: only permitted in a running transaction", tag);
+	if (!requires_txn && F_ISSET(&session->txn, WT_TXN_RUNNING))
+		WT_RET_MSG(session, EINVAL,
+		    "%s: not permitted in a running transaction", tag);
+	return (0);
+}
+
+/*
  * __wt_verbose --
  * 	Verbose message.
  *

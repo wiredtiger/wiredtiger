@@ -278,7 +278,7 @@ __wt_cursor_get_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
 	if (!F_ISSET(cursor, WT_CURSTD_KEY_EXT | WT_CURSTD_KEY_INT))
 		WT_ERR(__wt_cursor_kv_not_set(cursor, true));
 
-	if (WT_CURSOR_RECNO(cursor)) {
+	if (__cursor_recno(cursor)) {
 		if (LF_ISSET(WT_CURSTD_RAW)) {
 			key = va_arg(ap, WT_ITEM *);
 			key->data = cursor->raw_recno_buf;
@@ -332,7 +332,7 @@ __wt_cursor_set_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
 
 	F_CLR(cursor, WT_CURSTD_KEY_SET);
 
-	if (WT_CURSOR_RECNO(cursor)) {
+	if (__cursor_recno(cursor)) {
 		if (LF_ISSET(WT_CURSTD_RAW)) {
 			item = va_arg(ap, WT_ITEM *);
 			WT_ERR(__wt_struct_unpack(session,
@@ -600,7 +600,7 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
 	 * append
 	 * Only relevant to column stores.
 	 */
-	if (WT_CURSOR_RECNO(cursor)) {
+	if (__cursor_recno(cursor)) {
 		if ((ret = __wt_config_getones(
 		    session, config, "append", &cval)) == 0) {
 			if (cval.val)
@@ -691,7 +691,7 @@ __wt_cursor_init(WT_CURSOR *cursor,
 	 * append
 	 * The append flag is only relevant to column stores.
 	 */
-	if (WT_CURSOR_RECNO(cursor)) {
+	if (__cursor_recno(cursor)) {
 		WT_RET(__wt_config_gets_def(session, cfg, "append", 0, &cval));
 		if (cval.val != 0)
 			F_SET(cursor, WT_CURSTD_APPEND);
