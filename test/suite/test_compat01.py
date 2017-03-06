@@ -51,8 +51,8 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
     # and without the patch number.  Test both.
     start_compat = [
         ('def', dict(compat1='none', current1=True)),
-        ('current', dict(compat1="2.9", current1=True)),
-        ('current_patch', dict(compat1="2.9.2", current1=True)),
+        ('current', dict(compat1="3.0", current1=True)),
+        ('current_patch', dict(compat1="3.0.0", current1=True)),
         ('minor_only', dict(compat1="2.6", current1=False)),
         ('minor_patch', dict(compat1="2.6.1", current1=False)),
         ('old', dict(compat1="1.8", current1=False)),
@@ -60,8 +60,8 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
     ]
     restart_compat = [
         ('def', dict(compat2='none', current2=True)),
-        ('current', dict(compat2="2.9", current2=True)),
-        ('current_patch', dict(compat2="2.9.2", current2=True)),
+        ('current', dict(compat2="3.0", current2=True)),
+        ('current_patch', dict(compat2="3.0.0", current2=True)),
         ('minor_only', dict(compat2="2.6", current2=False)),
         ('minor_patch', dict(compat2="2.6.1", current2=False)),
         ('old', dict(compat2="1.8", current2=False)),

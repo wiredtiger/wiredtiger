@@ -319,8 +319,8 @@ struct __wt_log_desc {
 /*
  * WiredTiger release version where log format version changed.
  */
-#define	WT_LOG_V11_MAJOR	2
-#define	WT_LOG_V11_MINOR	9
+#define	WT_LOG_V11_MAJOR	3
+#define	WT_LOG_V11_MINOR	0
 
 /*
  * __wt_log_desc_byteswap --
