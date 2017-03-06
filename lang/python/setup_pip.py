@@ -212,17 +212,23 @@ def get_library_dirs():
 def source_filter(sources):
     result = []
     movers = dict()
-    pywt_dir = os.path.join('lang', 'python', 'wiredtiger') + os.path.sep
+    py_dir = os.path.join('lang', 'python')
+    pywt_dir = os.path.join(py_dir, 'wiredtiger')
+    pywt_prefix = pywt_dir + os.path.sep
     for f in sources:
         src = f
         dest = f
-        if dest.startswith(pywt_dir):
+        if dest.startswith(pywt_prefix):
             dest = os.path.basename(dest)
             if dest == 'pip_init.py':
                 dest = '__init__.py'
         if dest != src:
             movers[dest] = src
         result.append(dest)
+    # Put the SWIG results in
+    result.append('wiredtiger.py')
+    movers['wiredtiger.py'] = os.path.join(pywt_dir, '__init__.py')
+    result.append(os.path.join(py_dir, 'wiredtiger_wrap.c'))
     return result, movers
 
 ################################################################
@@ -252,14 +258,6 @@ if python3:
 if sys.maxsize < 2**32:
     die('need to be running on a 64 bit system, and have a 64 bit Python')
 
-# A bdist_wheel would fail later anyway, don't go to the trouble of trying
-# to build one.
-if pip_command == 'bdist_wheel':
-    msg('bdist_wheel not implemented by this setup script.')
-    msg('the install may still work, if not use:\n' + \
-        '    pip install --no-binary :all: <<tar.gz filename or URL>>')
-    die('bdist_wheel not implemented.')
-
 python_rel_dir = os.path.join('lang', 'python')
 build_dir = os.path.join(wt_dir, 'build_posix')
 makefile = os.path.join(build_dir, 'Makefile')
@@ -279,14 +277,13 @@ build_path = get_build_path()
 configure_cmds = [
     './makemake --clean-and-make',
     './reconf',
+    # force building a position independent library; it will be linked
+    # into a single shared library with the SWIG interface code.
+    'CFLAGS="${CFLAGS:-} -fPIC -DPIC" ' + \
     '../configure --enable-python --enable-snappy --enable-zlib'
 ]
 make_cmds = [
     'make libwiredtiger.la',
-    'mkdir -p ../lang/python/wiredtiger',
-    '(cd ./lang/python; make)',
-    'mv ../lang/python/wiredtiger/__init__.py ../wiredtiger.py',
-    'mv .libs/* ..'
 ]
 inc_paths = [ os.path.join(build_dir, 'src', 'include'), build_dir, '.' ]
 lib_paths = [ '.' ]   # wiredtiger.so is moved into the top level directory
@@ -318,14 +315,14 @@ if pip_command == 'sdist':
     os.chdir(stage_dir)
     sys.argv.append('--dist-dir=' + os.path.join('..', 'dist'))
 else:
-    sources = [ os.path.join(python_rel_dir, 'wiredtiger.i') ]
+    sources = [ os.path.join(python_rel_dir, 'wiredtiger_wrap.c') ]
 
 wt_ext = Extension('_wiredtiger',
     sources = sources,
     libraries = ['wiredtiger'],
     extra_compile_args = cflags + cppflags,
     extra_link_args = ldflags,
-    swig_opts = swig_opts,
+    extra_objects = [ os.path.join(build_dir, '.libs', 'libwiredtiger.a') ],
     include_dirs = inc_paths,
     library_dirs = lib_paths,
 )
