@@ -286,10 +286,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 		}
 	}
 
-	/*
-	 * Check whether the tree needs to be involved in the checkpoint and
-	 * acquire the necessary locks.
-	 */
+	/* Acquire the necessary locks. */
 	WT_SAVE_DHANDLE(session,
 	    ret = __checkpoint_lock_tree(session, true, true, cfg));
 	WT_RET(ret);
@@ -727,10 +724,11 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_ASSERT(session, session->ckpt_handle_next == 0);
 	WT_WITH_TABLE_READ_LOCK(session,
 	    ret = __checkpoint_apply_all(
-		session, cfg, __wt_checkpoint_get_handles, NULL));
+	    session, cfg, __wt_checkpoint_get_handles, NULL));
 	WT_ERR(ret);
 
 	__wt_spin_unlock(session, &conn->schema_lock);
+	F_CLR(session, WT_SESSION_LOCKED_SCHEMA);
 	locked_schema = false;
 
 	/*
@@ -850,8 +848,10 @@ err:	/*
 	if (failed)
 		conn->modified = true;
 
-	if (locked_schema)
+	if (locked_schema) {
 		__wt_spin_unlock(session, &conn->schema_lock);
+		F_CLR(session, WT_SESSION_LOCKED_SCHEMA);
+	}
 
 	session->isolation = txn->isolation = WT_ISO_READ_UNCOMMITTED;
 	if (tracking)
