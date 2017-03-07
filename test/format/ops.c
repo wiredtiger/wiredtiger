@@ -32,7 +32,7 @@ static int   col_insert(WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t *);
 static int   col_remove(WT_CURSOR *, WT_ITEM *, uint64_t);
 static int   col_update(WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t);
 static int   nextprev(WT_CURSOR *, int);
-static void *ops(void *);
+static void  *ops(void *);
 static int   row_insert(WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t);
 static int   row_remove(WT_CURSOR *, WT_ITEM *, uint64_t);
 static int   row_update(WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t);
@@ -53,7 +53,7 @@ wts_ops(int lastrun)
 	TINFO **tinfo_list, *tinfo, total;
 	WT_CONNECTION *conn;
 	WT_SESSION *session;
-	pthread_t alter_tid, backup_tid, compact_tid, lrt_tid;
+	pthread_t alter_tid, backup_tid, compact_tid, compat_tid, lrt_tid;
 	int64_t fourths, thread_ops;
 	uint32_t i;
 	int running;
@@ -64,6 +64,7 @@ wts_ops(int lastrun)
 	memset(&alter_tid, 0, sizeof(alter_tid));
 	memset(&backup_tid, 0, sizeof(backup_tid));
 	memset(&compact_tid, 0, sizeof(compact_tid));
+	memset(&compat_tid, 0, sizeof(compat_tid));
 	memset(&lrt_tid, 0, sizeof(lrt_tid));
 
 	/*
@@ -126,6 +127,8 @@ wts_ops(int lastrun)
 	if (g.c_compact)
 		testutil_check(
 		    pthread_create(&compact_tid, NULL, compact, NULL));
+	if (g.c_compat_flag != COMPAT_NONE)
+		testutil_check(pthread_create(&compat_tid, NULL, compat, NULL));
 	if (!SINGLETHREADED && g.c_long_running_txn)
 		testutil_check(pthread_create(&lrt_tid, NULL, lrt, NULL));
 
@@ -184,7 +187,7 @@ wts_ops(int lastrun)
 		free(tinfo_list[i]);
 	free(tinfo_list);
 
-	/* Wait for the backup, compaction, long-running reader threads. */
+	/* Wait for the other threads. */
 	g.workers_finished = 1;
 	if (g.c_alter)
 		(void)pthread_join(alter_tid, NULL);
@@ -192,6 +195,8 @@ wts_ops(int lastrun)
 		(void)pthread_join(backup_tid, NULL);
 	if (g.c_compact)
 		(void)pthread_join(compact_tid, NULL);
+	if (g.c_compat_flag != COMPAT_NONE)
+		(void)pthread_join(compat_tid, NULL);
 	if (!SINGLETHREADED && g.c_long_running_txn)
 		(void)pthread_join(lrt_tid, NULL);
 	g.workers_finished = 0;
