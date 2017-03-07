@@ -27,10 +27,11 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
-# This script builds a Python source distribution that can built be
-# installed via pip install. This must be run in a git repository to
-# determine the files to package. In this directory, run
-# "python setup_pip.py sdist" to create a tar.gz file under ./dist
+# This script builds a Python source distribution that can built be installed
+# via pip install. This must be run in a git repository to determine the files
+# to package. Also as a prerequisite, SWIG must be run as the generated files
+# are part of the package. To create the distribution, in this directory, run
+# "python setup_pip.py sdist", this creates a tar.gz file under ./dist .
 from __future__ import print_function
 import os, os.path, re, shutil, site, sys
 from setuptools import setup, Distribution
@@ -126,7 +127,6 @@ def get_build_path():
     build_paths = []
     find_executable('autoreconf', build_paths)
     find_executable('aclocal', build_paths)
-    find_executable('swig', build_paths)
     build_path = os.environ['PATH'] + ':' + ':'.join(build_paths)
     return build_path
 
@@ -168,15 +168,6 @@ def get_sources_curdir():
         die("this command must be run in a git repository")
     return sources
 
-# get_swig_options --
-#   Get options needed to run SWIG.
-def get_swig_options(wt_dir):
-    return [ '-I' + wt_dir + '/build_posix',
-             '-threads',
-             '-Wall',
-             '-nodefaultctor',
-             '-nodefaultdtor' ]    
-
 # get_wiredtiger_versions --
 #   Read the version information from the RELEASE_INFO file.
 def get_wiredtiger_versions(wt_dir):
@@ -184,7 +175,6 @@ def get_wiredtiger_versions(wt_dir):
     for l in open(os.path.join(wt_dir, 'RELEASE_INFO')):
         if re.match(r'WIREDTIGER_VERSION_(?:MAJOR|MINOR|PATCH)=', l):
             exec(l, v)
-
     wt_ver = '%d.%d' % (v['WIREDTIGER_VERSION_MAJOR'],
                         v['WIREDTIGER_VERSION_MINOR'])
     wt_full_ver = wt_ver + '.%d' % (v['WIREDTIGER_VERSION_PATCH'])
@@ -216,8 +206,11 @@ def source_filter(sources):
     pywt_dir = os.path.join(py_dir, 'wiredtiger')
     pywt_prefix = pywt_dir + os.path.sep
     for f in sources:
+        if not re.match(source_regex, f):
+            continue
         src = f
         dest = f
+        # move all lang/python files to the top level.
         if dest.startswith(pywt_prefix):
             dest = os.path.basename(dest)
             if dest == 'pip_init.py':
@@ -225,7 +218,7 @@ def source_filter(sources):
         if dest != src:
             movers[dest] = src
         result.append(dest)
-    # Put the SWIG results in
+    # Add SWIG generated files
     result.append('wiredtiger.py')
     movers['wiredtiger.py'] = os.path.join(pywt_dir, '__init__.py')
     result.append(os.path.join(py_dir, 'wiredtiger_wrap.c'))
@@ -263,6 +256,7 @@ build_dir = os.path.join(wt_dir, 'build_posix')
 makefile = os.path.join(build_dir, 'Makefile')
 built_sentinal = os.path.join(build_dir, 'built.txt')
 conf_make_dir = 'build_posix'
+wt_swig_lib_name = os.path.join(python_rel_dir, '_wiredtiger.so')
 
 ################################################################
 # Put together build options for the WiredTiger extension.
@@ -273,6 +267,10 @@ long_description = 'WiredTiger is a ' + short_description + '.\n\n' + \
 
 wt_ver, wt_full_ver = get_wiredtiger_versions(wt_dir)
 build_path = get_build_path()
+
+# We only need a small set of directories to build a WT library,
+# we also include any files at the top level.
+source_regex = r'^(?:(?:api|build_posix|lang/python|src|dist)/|[^/]*$)'
 
 configure_cmds = [
     './makemake --clean-and-make',
@@ -287,7 +285,6 @@ make_cmds = [
 ]
 inc_paths = [ os.path.join(build_dir, 'src', 'include'), build_dir, '.' ]
 lib_paths = [ '.' ]   # wiredtiger.so is moved into the top level directory
-swig_opts = get_swig_options(wt_dir)
 
 check_needed_dependencies([[ 'snappy', 'snappy' ], [ 'z', 'libz' ]],
                           inc_paths, lib_paths)
@@ -331,15 +328,6 @@ env = { "CFLAGS" : ' '.join(cflags),
         "CPPFLAGS" : ' '.join(cppflags),
         "LDFLAGS" : ' '.join(ldflags),
         "PATH" : build_path }
-
-# build the name of the resulting shared library.
-# platform extension for shared libraries, e.g. '.so', '.dylib'
-shlib_ext = distutils.sysconfig._config_vars['SO']
-if sys.platform == "darwin":
-    shlib_ext = '.dylib'
-wt_lib_name = 'libwiredtiger-' + wt_full_ver + shlib_ext
-wt_lib_rel_name = os.path.join('build_posix', '.libs', wt_lib_name)
-wt_swig_lib_name = '_wiredtiger.so'
 
 class BinaryDistribution(Distribution):
     def is_pure(self):
@@ -390,9 +378,7 @@ setup(
     package_dir = { 'wiredtiger' : '.' },
     cmdclass = { 'install': WTInstall, 'build_ext': WTBuildExt },
     package_data = {
-        'wiredtiger' : [ os.path.join(python_rel_dir, wt_swig_lib_name),
-                         '*.py',
-                         wt_lib_name ]
+        'wiredtiger' : [ wt_swig_lib_name, '*.py' ]
     },
     classifiers=[
         'Intended Audience :: Developers',
