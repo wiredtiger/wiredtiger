@@ -121,8 +121,8 @@ cursor_scope_ops(WT_SESSION *session, const char *uri)
 			 * Insert and remove configured with a search key do
 			 * not position the cursor and have no key or value.
 			 */
-			printf("ex_scope: "
-			    "two WiredTiger error messages expected:\n");
+			printf("%s: two WiredTiger error messages expected:\n",
+			    progname);
 			printf("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n");
 			testutil_assert(cursor->get_key(cursor, &key) != 0);
 			testutil_assert(cursor->get_value(cursor, &value) != 0);
