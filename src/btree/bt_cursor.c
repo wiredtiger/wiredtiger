@@ -14,7 +14,7 @@
  * (the latter test is so we periodically release pages grown too large).
  */
 #define	WT_PAGE_PINNED(cbt)						\
-	(F_ISSET((cbt), WT_CBT_ACTIVE) &&                               \
+	(F_ISSET((cbt), WT_CBT_ACTIVE) &&				\
 	    (cbt)->ref->page->read_gen != WT_READGEN_OLDEST)
 
 /*
@@ -674,6 +674,7 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt)
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	bool positioned;
 
 	btree = cbt->btree;
 	cursor = &cbt->iface;
@@ -682,6 +683,12 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt)
 	WT_STAT_CONN_INCR(session, cursor_remove);
 	WT_STAT_DATA_INCR(session, cursor_remove);
 	WT_STAT_DATA_INCRV(session, cursor_remove_bytes, cursor->key.size);
+
+	/*
+	 * WT_CURSOR.remove has a unique semantic, the cursor stays positioned
+	 * if it starts positioned, otherwise clear the cursor on completion.
+	 */
+	positioned = F_ISSET(cbt, WT_CBT_ACTIVE);
 
 retry:	WT_RET(__cursor_func_init(cbt, true));
 
@@ -730,14 +737,26 @@ err:	if (ret == WT_RESTART) {
 		WT_STAT_DATA_INCR(session, cursor_restart);
 		goto retry;
 	}
+
 	/*
-	 * If the cursor is configured to overwrite and the record is not
-	 * found, that is exactly what we want.
+	 * If the cursor is configured to overwrite and the record is not found,
+	 * that is exactly what we want, return success.
 	 */
 	if (F_ISSET(cursor, WT_CURSTD_OVERWRITE) && ret == WT_NOTFOUND)
 		ret = 0;
 
-	if (ret != 0)
+	/*
+	 * If the cursor was positioned, it stays positioned, point the cursor
+	 * at an internal copy of the key. Otherwise, there's no position or
+	 * key/value.
+	 */
+	if (ret == 0)
+		F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+	if (ret == 0 && positioned) {
+		WT_TRET(__wt_key_return(session, cbt));
+		if (ret == 0)
+			F_SET(cursor, WT_CURSTD_KEY_INT);
+	} else
 		WT_TRET(__cursor_reset(cbt));
 
 	return (ret);

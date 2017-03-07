@@ -525,6 +525,13 @@ __curtable_insert(WT_CURSOR *cursor)
 	}
 
 	/*
+	 * The cursor is no longer positioned. This isn't just cosmetic, without
+	 * a reset, iteration on this cursor won't start at the beginning/end of
+	 * the table.
+	 */
+	APPLY_CG(ctable, reset);
+
+	/*
 	 * Insert is the one cursor operation that doesn't end with the cursor
 	 * pointing to an on-page item (except for column-store appends, where
 	 * we are returning a key). That is, the application's cursor continues
@@ -601,13 +608,19 @@ err:	CURSOR_UPDATE_API_END(session, ret);
 static int
 __curtable_remove(WT_CURSOR *cursor)
 {
+	WT_CURSOR *primary;
 	WT_CURSOR_TABLE *ctable;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	bool positioned;
 
 	ctable = (WT_CURSOR_TABLE *)cursor;
 	JOINABLE_CURSOR_REMOVE_API_CALL(cursor, session, NULL);
 	WT_ERR(__curtable_open_indices(ctable));
+
+	/* Check if the cursor was positioned. */
+	primary = *ctable->cg_cursors;
+	positioned = F_ISSET(primary, WT_CURSTD_KEY_INT);
 
 	/* Find the old record so it can be removed from indices */
 	if (ctable->table->nindices > 0) {
@@ -617,6 +630,19 @@ __curtable_remove(WT_CURSOR *cursor)
 	}
 
 	APPLY_CG(ctable, remove);
+	WT_ERR(ret);
+
+	/*
+	 * If the cursor was positioned, it stays positioned with a key but no
+	 * no value, otherwise, there's no position, key or value. This isn't
+	 * just cosmetic, without a reset, iteration on this cursor won't start
+	 * at the beginning/end of the table.
+	 */
+	F_CLR(primary, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+	if (positioned)
+		F_SET(primary, WT_CURSTD_KEY_INT);
+	else
+		APPLY_CG(ctable, reset);
 
 err:	CURSOR_UPDATE_API_END(session, ret);
 	return (ret);

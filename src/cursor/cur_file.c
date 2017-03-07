@@ -32,6 +32,31 @@
 } while (0)
 
 /*
+ * WT_CURFILE_OP
+ *	Save the cursor's key/value data/size fields, call an underlying btree
+ *	function, and then consistently handle failure.
+ */
+#define	WT_CURFILE_OP(f) do {						\
+	WT_ITEM __key_copy = cursor->key;				\
+	WT_ITEM __value_copy = cursor->value;				\
+	uint64_t __recno = cursor->recno;				\
+	uint32_t __flags = cursor->flags;				\
+	if ((ret = (f)) != 0) {						\
+		F_CLR(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);	\
+		if (FLD_ISSET(__flags, WT_CURSTD_KEY_EXT)) {		\
+			cursor->recno = __recno;			\
+			WT_ITEM_SET(cursor->key, __key_copy);		\
+			F_SET(cursor, WT_CURSTD_KEY_EXT);		\
+		}							\
+		if (FLD_ISSET(__flags, WT_CURSTD_VALUE_EXT)) {		\
+			WT_ITEM_SET(cursor->value, __value_copy);	\
+			F_SET(cursor, WT_CURSTD_VALUE_EXT);		\
+		}							\
+		goto err;						\
+	}								\
+} while (0)
+
+/*
  * __curfile_compare --
  *	WT_CURSOR->compare method for the btree cursor type.
  */
@@ -328,21 +353,19 @@ __curfile_remove(WT_CURSOR *cursor)
 	WT_CURSOR_NEEDKEY(cursor);
 	WT_CURSOR_NOVALUE(cursor);
 
-	WT_BTREE_CURSOR_SAVE_AND_RESTORE(cursor, __wt_btcur_remove(cbt), ret);
+	WT_CURFILE_OP(__wt_btcur_remove(cbt));
 
 	/*
-	 * After a successful remove, copy the key: the value is not available.
+	 * Remove with a search-key is fire-and-forget, no position and no key.
+	 * Remove starting from a position maintains the position and a key.
+	 * We don't know which it was at this layer, so can only assert the key
+	 * is not set at all, or internal.
 	 */
-	if (ret == 0) {
-		if (F_ISSET(cursor, WT_CURSTD_KEY_INT) &&
-		    !WT_DATA_IN_ITEM(&(cursor)->key)) {
-			WT_ERR(__wt_buf_set(session, &cursor->key,
-			    cursor->key.data, cursor->key.size));
-			F_CLR(cursor, WT_CURSTD_KEY_INT);
-			F_SET(cursor, WT_CURSTD_KEY_EXT);
-		}
-		F_CLR(cursor, WT_CURSTD_VALUE_SET);
-	}
+	WT_ASSERT(session,
+	    F_MASK(cursor, WT_CURSTD_KEY_SET) == 0 ||
+	    F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
+	WT_ASSERT(session,
+	    F_MASK(cursor, WT_CURSTD_VALUE_SET) != WT_CURSTD_VALUE_INT);
 
 err:	CURSOR_UPDATE_API_END(session, ret);
 	return (ret);
