@@ -176,11 +176,13 @@ main(int argc, char *argv[])
 	testutil_check(
 	    wiredtiger_open(opts->home, NULL, "create", &opts->conn));
 
-	scope_ops(opts->conn,
-	    "file:scope_file", "key_format=S,value_format=S");
+	scope_ops(opts->conn, "file:scope_file", "key_format=S,value_format=S");
+	scope_ops(opts->conn, "lsm:scope_lsm", "key_format=S,value_format=S");
 	scope_ops(opts->conn,
 	    "table:scope_file", "key_format=S,value_format=S,columns=(k,v)");
 
 	testutil_cleanup(opts);
+
+	printf("%s: run successful\n", progname);
 	return (EXIT_SUCCESS);
 }

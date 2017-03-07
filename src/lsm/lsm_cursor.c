@@ -1565,12 +1565,12 @@ __clsm_update(WT_CURSOR *cursor)
 	WT_CURSOR_NEEDVALUE(cursor);
 	WT_ERR(__clsm_enter(clsm, false, true));
 
-	if (F_ISSET(cursor, WT_CURSTD_OVERWRITE) ||
-	    (ret = __clsm_lookup(clsm, &value)) == 0) {
-		WT_ERR(__clsm_deleted_encode(
-		    session, &cursor->value, &value, &buf));
-		ret = __clsm_put(session, clsm, &cursor->key, &value, true);
-	}
+	if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE))
+		WT_ERR(__clsm_lookup(clsm, &value));
+	WT_ERR(__clsm_deleted_encode(session, &cursor->value, &value, &buf));
+	WT_ERR(__clsm_put(session, clsm, &cursor->key, &value, true));
+	WT_ERR(__cursor_key_local(cursor));
+	WT_ERR(__cursor_value_local(cursor));
 
 err:	__wt_scr_free(session, &buf);
 	__clsm_leave(clsm);
