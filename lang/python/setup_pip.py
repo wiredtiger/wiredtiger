@@ -69,29 +69,19 @@ def build_commands(commands, build_dir, build_env):
 #   Make a quick check of any needed library dependencies, and
 # add to the library path and include path as needed.  If a library
 # is not found, it is not definitive.
-def check_needed_dependencies(deps, inc_paths, lib_paths):
+def check_needed_dependencies(builtins, inc_paths, lib_paths):
     library_dirs = get_library_dirs()
     compiler = distutils.ccompiler.new_compiler()
     distutils.sysconfig.customize_compiler(compiler)
     compiler.set_library_dirs(library_dirs)
     missing = []
-    for dep in deps:
-        lib_file_name = dep[0]
-        verbose_name = dep[1]
-        found = compiler.find_library_file(library_dirs, lib_file_name)
+    for name, libname, instructions in builtins:
+        found = compiler.find_library_file(library_dirs, libname)
         if found is None:
-            msg(lib_file_name + ": missing")
-            if lib_file_name == 'snappy':
-                msg("Note: a suitable version of snappy can be found at " +
-                    "https://github.com/google/snappy/releases/download/" +
-                    "1.1.3/snappy-1.1.3.tar.gz")
-                msg("It can be installed via: yum install snappy snappy-devel")
-                msg("or via: apt-get install libsnappy-dev")
-            elif lib_file_name == 'z':
-                msg("Need to install zlib")
-                msg("It can be installed via: apt-get install zlib1g")
+            msg(libname + ": missing")
+            msg(instructions)
             msg("after installing it, set LD_LIBRARY_PATH or DYLD_LIBRARY_PATH")
-            missing.append(lib_file_name)
+            missing.append(libname)
         else:
             package_top = os.path.dirname(os.path.dirname(found))
             inc_paths.append(os.path.join(package_top, 'include'))
@@ -269,24 +259,45 @@ build_path = get_build_path()
 
 # We only need a small set of directories to build a WT library,
 # we also include any files at the top level.
-source_regex = r'^(?:(?:api|build_posix|lang/python|src|dist)/|[^/]*$)'
+source_regex = r'^(?:(?:api|build_posix|ext|lang/python|src|dist)/|[^/]*$)'
 
+# The builtins that we include in this distribution.
+builtins = [
+    # [ name, libname, instructions ]
+    [ 'snappy', 'snappy',
+      'Note: a suitable version of snappy can be found at\n' + \
+      '    https://github.com/google/snappy/releases/download/' + \
+      '1.1.3/snappy-1.1.3.tar.gz\n' + \
+      'It can be installed via: yum install snappy snappy-devel' + \
+      'or via: apt-get install libsnappy-dev' ],
+    [ 'zlib', 'z',
+      'Need to install zlib\n' + \
+      'It can be installed via: apt-get install zlib1g' ]
+]
+builtin_names = [b[0] for b in builtins]
+builtin_libraries = [b[1] for b in builtins]
+
+# Here's the configure/make operations we perform before the python extension
+# is linked.
 configure_cmds = [
     './makemake --clean-and-make',
     './reconf',
     # force building a position independent library; it will be linked
     # into a single shared library with the SWIG interface code.
     'CFLAGS="${CFLAGS:-} -fPIC -DPIC" ' + \
-    '../configure --enable-python --enable-snappy --enable-zlib'
+    '../configure --enable-python --with-builtins=' + ','.join(builtin_names)
 ]
-make_cmds = [
-    'make libwiredtiger.la',
-]
+
+# build all the builtins, at the moment they are all compressors.
+make_cmds = []
+for name in builtin_names:
+    make_cmds.append('(cd ext/compressors/' + name + '/; make)')
+make_cmds.append('make libwiredtiger.la')
+
 inc_paths = [ os.path.join(build_dir, 'src', 'include'), build_dir, '.' ]
 lib_paths = [ '.' ]   # wiredtiger.so is moved into the top level directory
 
-check_needed_dependencies([[ 'snappy', 'snappy' ], [ 'z', 'libz' ]],
-                          inc_paths, lib_paths)
+check_needed_dependencies(builtins, inc_paths, lib_paths)
 
 cppflags, cflags, ldflags = get_compile_flags(inc_paths, lib_paths)
 
@@ -317,6 +328,7 @@ wt_ext = Extension('_wiredtiger',
     sources = sources,
     extra_compile_args = cflags + cppflags,
     extra_link_args = ldflags,
+    libraries = builtin_libraries,
     extra_objects = [ os.path.join(build_dir, '.libs', 'libwiredtiger.a') ],
     include_dirs = inc_paths,
     library_dirs = lib_paths,
