@@ -9,6 +9,15 @@
 #include "wt_internal.h"
 
 /*
+ * WT_PAGE_PINNED --
+ *     If we have a page pinned and it's not been flagged for forced eviction
+ * (the latter test is so we periodically release pages grown too large).
+ */
+#define	WT_PAGE_PINNED(cbt)						\
+	(F_ISSET((cbt), WT_CBT_ACTIVE) &&                               \
+	    (cbt)->ref->page->read_gen != WT_READGEN_OLDEST)
+
+/*
  * __cursor_size_chk --
  *	Return if an inserted item is too large.
  */
@@ -343,8 +352,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 	 * from the root.
 	 */
 	valid = false;
-	if (F_ISSET(cbt, WT_CBT_ACTIVE) &&
-	    cbt->ref->page->read_gen != WT_READGEN_OLDEST) {
+	if (WT_PAGE_PINNED(cbt)) {
 		__wt_txn_cursor_op(session);
 
 		WT_ERR(btree->type == BTREE_ROW ?
@@ -422,9 +430,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 	 * existing record.
 	 */
 	valid = false;
-	if (btree->type == BTREE_ROW &&
-	    F_ISSET(cbt, WT_CBT_ACTIVE) &&
-	    cbt->ref->page->read_gen != WT_READGEN_OLDEST) {
+	if (btree->type == BTREE_ROW && WT_PAGE_PINNED(cbt)) {
 		__wt_txn_cursor_op(session);
 
 		WT_ERR(__cursor_row_search(session, cbt, cbt->ref, true));
