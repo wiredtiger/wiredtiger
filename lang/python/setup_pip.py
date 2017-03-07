@@ -146,7 +146,6 @@ def get_compile_flags(inc_paths, lib_paths):
         cppflags = ['-I' + path for path in inc_paths]
         cppflags.append('-DHAVE_CONFIG_H')
         ldflags = ['-L' + path for path in lib_paths]
-        ldflags.append('-Wl,-rpath,$ORIGIN')
         if sys.platform == 'darwin':
             cflags.extend([ '-arch', 'x86_64' ])
     return (cppflags, cflags, ldflags)
@@ -316,7 +315,6 @@ else:
 
 wt_ext = Extension('_wiredtiger',
     sources = sources,
-    libraries = ['wiredtiger'],
     extra_compile_args = cflags + cppflags,
     extra_link_args = ldflags,
     extra_objects = [ os.path.join(build_dir, '.libs', 'libwiredtiger.a') ],
