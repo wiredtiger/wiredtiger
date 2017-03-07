@@ -14,6 +14,8 @@ static int __btree_page_sizes(WT_SESSION_IMPL *);
 static int __btree_preload(WT_SESSION_IMPL *);
 static int __btree_tree_open_empty(WT_SESSION_IMPL *, bool);
 
+#define	WT_MIN_SPLIT_PCT	50
+
 /*
  * __btree_clear --
  *	Clear a Btree, either on handle discard or re-open.
@@ -780,9 +782,16 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
 	 * Get the split percentage (reconciliation splits pages into smaller
 	 * than the maximum page size chunks so we don't split every time a
 	 * new entry is added). Determine how large newly split pages will be.
+	 * Set to the minimum, if the read value is less than that.
 	 */
 	WT_RET(__wt_config_gets(session, cfg, "split_pct", &cval));
-	btree->split_pct = (int)cval.val;
+	if (cval.val < WT_MIN_SPLIT_PCT) {
+		btree->split_pct = WT_MIN_SPLIT_PCT;
+		WT_RET(__wt_msg(session,
+		    "Re-setting split_pct for %s to the minimum allowed "
+		    "of %d%%.", session->dhandle->name, WT_MIN_SPLIT_PCT));
+	} else
+		btree->split_pct = (int)cval.val;
 	intl_split_size = __wt_split_page_size(session, btree->maxintlpage);
 	leaf_split_size = __wt_split_page_size(session, btree->maxleafpage);
 
