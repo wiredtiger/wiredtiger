@@ -531,9 +531,18 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
 
 retry:	WT_RET(__cursor_func_init(cbt, true));
 
-	switch (btree->type) {
-	case BTREE_COL_FIX:
-	case BTREE_COL_VAR:
+	if (btree->type == BTREE_ROW) {
+		WT_ERR(__cursor_row_search(session, cbt, NULL, true));
+		/*
+		 * If not overwriting, fail if the key exists, else insert the
+		 * key/value pair.
+		 */
+		if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE) &&
+		    cbt->compare == 0 && __wt_cursor_valid(cbt, NULL))
+			WT_ERR(WT_DUPLICATE_KEY);
+
+		ret = __cursor_row_modify(session, cbt, false);
+	} else {
 		/*
 		 * If WT_CURSTD_APPEND is set, insert a new record (ignoring
 		 * the application's record number). The real record number
@@ -558,19 +567,6 @@ retry:	WT_RET(__cursor_func_init(cbt, true));
 		WT_ERR(__cursor_col_modify(session, cbt, false));
 		if (F_ISSET(cursor, WT_CURSTD_APPEND))
 			cbt->iface.recno = cbt->recno;
-		break;
-	case BTREE_ROW:
-		WT_ERR(__cursor_row_search(session, cbt, NULL, true));
-		/*
-		 * If not overwriting, fail if the key exists, else insert the
-		 * key/value pair.
-		 */
-		if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE) &&
-		    cbt->compare == 0 && __wt_cursor_valid(cbt, NULL))
-			WT_ERR(WT_DUPLICATE_KEY);
-
-		ret = __cursor_row_modify(session, cbt, false);
-		break;
 	}
 
 err:	if (ret == WT_RESTART) {
@@ -640,20 +636,15 @@ __wt_btcur_update_check(WT_CURSOR_BTREE *cbt)
 
 retry:	WT_RET(__cursor_func_init(cbt, true));
 
-	switch (btree->type) {
-	case BTREE_ROW:
+	if (btree->type == BTREE_ROW) {
 		WT_ERR(__cursor_row_search(session, cbt, NULL, true));
 
 		/*
 		 * Just check for conflicts.
 		 */
 		ret = __curfile_update_check(cbt);
-		break;
-	case BTREE_COL_FIX:
-	case BTREE_COL_VAR:
+	} else
 		WT_ERR(__wt_illegal_value(session, NULL));
-		break;
-	}
 
 err:	if (ret == WT_RESTART) {
 		WT_STAT_CONN_INCR(session, cursor_restart);
@@ -688,9 +679,18 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt)
 
 retry:	WT_RET(__cursor_func_init(cbt, true));
 
-	switch (btree->type) {
-	case BTREE_COL_FIX:
-	case BTREE_COL_VAR:
+	if (btree->type == BTREE_ROW) {
+		/* Remove the record if it exists. */
+		WT_ERR(__cursor_row_search(session, cbt, NULL, false));
+
+		/* Check whether an update would conflict. */
+		WT_ERR(__curfile_update_check(cbt));
+
+		if (cbt->compare != 0 || !__wt_cursor_valid(cbt, NULL))
+			WT_ERR(WT_NOTFOUND);
+
+		ret = __cursor_row_modify(session, cbt, true);
+	} else {
 		WT_ERR(__cursor_col_search(session, cbt, NULL));
 
 		/*
@@ -717,19 +717,6 @@ retry:	WT_RET(__cursor_func_init(cbt, true));
 			cbt->recno = cursor->recno;
 		} else
 			ret = __cursor_col_modify(session, cbt, true);
-		break;
-	case BTREE_ROW:
-		/* Remove the record if it exists. */
-		WT_ERR(__cursor_row_search(session, cbt, NULL, false));
-
-		/* Check whether an update would conflict. */
-		WT_ERR(__curfile_update_check(cbt));
-
-		if (cbt->compare != 0 || !__wt_cursor_valid(cbt, NULL))
-			WT_ERR(WT_NOTFOUND);
-
-		ret = __cursor_row_modify(session, cbt, true);
-		break;
 	}
 
 err:	if (ret == WT_RESTART) {
@@ -779,9 +766,19 @@ __wt_btcur_update(WT_CURSOR_BTREE *cbt)
 
 retry:	WT_RET(__cursor_func_init(cbt, true));
 
-	switch (btree->type) {
-	case BTREE_COL_FIX:
-	case BTREE_COL_VAR:
+	if (btree->type == BTREE_ROW) {
+		WT_ERR(__cursor_row_search(session, cbt, NULL, true));
+		/*
+		 * If not overwriting, check for conflicts and fail if the key
+		 * does not exist.
+		 */
+		if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
+			WT_ERR(__curfile_update_check(cbt));
+			if (cbt->compare != 0 || !__wt_cursor_valid(cbt, NULL))
+				WT_ERR(WT_NOTFOUND);
+		}
+		ret = __cursor_row_modify(session, cbt, false);
+	} else {
 		WT_ERR(__cursor_col_search(session, cbt, NULL));
 
 		/*
@@ -800,20 +797,6 @@ retry:	WT_RET(__cursor_func_init(cbt, true));
 				WT_ERR(WT_NOTFOUND);
 		}
 		ret = __cursor_col_modify(session, cbt, false);
-		break;
-	case BTREE_ROW:
-		WT_ERR(__cursor_row_search(session, cbt, NULL, true));
-		/*
-		 * If not overwriting, check for conflicts and fail if the key
-		 * does not exist.
-		 */
-		if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
-			WT_ERR(__curfile_update_check(cbt));
-			if (cbt->compare != 0 || !__wt_cursor_valid(cbt, NULL))
-				WT_ERR(WT_NOTFOUND);
-		}
-		ret = __cursor_row_modify(session, cbt, false);
-		break;
 	}
 
 err:	if (ret == WT_RESTART) {
