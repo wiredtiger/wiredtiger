@@ -122,7 +122,6 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
 		new_minor = 1;
 		first_record = WT_LOG_END_HEADER + log->allocsize;
 		downgrade = false;
-		FLD_CLR(conn->log_flags, WT_CONN_LOG_DOWNGRADED);
 	}
 
 	/*
