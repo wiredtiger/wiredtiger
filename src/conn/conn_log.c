@@ -41,31 +41,47 @@ __logmgr_sync_cfg(WT_SESSION_IMPL *session, const char **cfg)
 
 /*
  * __logmgr_force_archive --
- *	Force an archive and wait for it to be up to the given log number.
+ *	Force a checkpoint out and then force an archive, waiting for
+ *	the first log to be archived up to the given log number.
  */
 static int
 __logmgr_force_archive(WT_SESSION_IMPL *session, uint32_t lognum)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_LOG *log;
+	WT_SESSION_IMPL *tmp_session;
 	bool first;
 
 	conn = S2C(session);
 	log = conn->log;
 	first = true;
+	WT_RET(__wt_open_internal_session(conn,
+	    "compatibility-reconfig", true, 0, &tmp_session));
 	while (log->first_lsn.l.file < lognum) {
 		/*
-		 * We need to loop waiting for the archival to reach up to
-		 * the log number needed to be assured no previous version
+		 * Force a checkpoint to be written in the new log file and
+		 * force the archiving of all previous log files.  We do the
+		 * checkpoint in the loop because the checkpoint LSN in the
+		 * log record could still reflect the previous log file in
+		 * cases such as the write LSN has not yet advanced into the
+		 * new log file due to another group of threads still in
+		 * progress with their writes.
+		 */
+		WT_RET(tmp_session->iface.checkpoint(
+		    &tmp_session->iface, "force=1"));
+		/*
+		 * We need to wait for the archival to reach up to the
+		 * log number needed to be assured no previous version
 		 * log files exist.  There could be outstanding writes or a
 		 * cursor open preventing archiving.
 		 */
 		if (!first)
 			__wt_yield();
-		WT_RET(WT_SESSION_CHECK_PANIC(session));
-		WT_RET(__wt_log_truncate_files(session, NULL, true));
+		WT_RET(WT_SESSION_CHECK_PANIC(tmp_session));
+		WT_RET(__wt_log_truncate_files(tmp_session, NULL, true));
 		first = false;
 	}
+	WT_RET(tmp_session->iface.close(&tmp_session->iface, NULL));
 	return (0);
 }
 
@@ -77,7 +93,6 @@ static int
 __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
 {
 	WT_CONNECTION_IMPL *conn;
-	WT_SESSION_IMPL *tmp_session;
 	WT_LOG *log;
 	bool downgrade, live_chg;
 	uint32_t first_record, lognum;
@@ -134,20 +149,8 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
 	 */
 	WT_RET(__wt_log_set_version(session, new_major, new_minor,
 	    first_record, downgrade, live_chg, &lognum));
-	if (live_chg && FLD_ISSET(conn->log_flags, WT_CONN_LOG_DOWNGRADED)) {
-		/*
-		 * If the log was downgraded force a checkpoint to be
-		 * written in the new log file and force the archiving
-		 * of all previous log files.
-		 */
-		WT_RET(__wt_open_internal_session(conn,
-		    "compatibility-reconfig", true, 0, &tmp_session));
-		WT_RET(session->iface.checkpoint(
-		    &tmp_session->iface, "force=1"));
-		WT_RET(__logmgr_force_archive(tmp_session, lognum));
-		WT_RET(tmp_session->iface.close(
-		    &tmp_session->iface, NULL));
-	}
+	if (live_chg && FLD_ISSET(conn->log_flags, WT_CONN_LOG_DOWNGRADED))
+		WT_RET(__logmgr_force_archive(session, lognum));
 	return (0);
 }
 
