@@ -749,7 +749,7 @@ config_single(const char *s, int perm)
 			config_map_checksum(ep, &g.c_checksum_flag);
 			*cp->vstr = dstrdup(ep);
 		} else if (strncmp(
-		    s, "compatibility", strlen("compatibiltiy")) == 0) {
+		    s, "compatibility", strlen("compatibility")) == 0) {
 			config_map_compatibility(ep, &g.c_compat_flag);
 			*cp->vstr = dstrdup(ep);
 		} else if (strncmp(
