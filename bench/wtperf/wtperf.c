@@ -1653,6 +1653,10 @@ close_reopen(WTPERF *wtperf)
 	CONFIG_OPTS *opts;
 	int ret;
 
+	// in_memory has non-persistent connection                                                                                                                                                                                         
+	if (F_ISSET((WT_CONNECTION_IMPL*)cfg->conn, WT_CONN_IN_MEMORY))
+		return (0); 
+
 	opts = wtperf->opts;
 
 	if (!opts->readonly && !opts->reopen_connection)
