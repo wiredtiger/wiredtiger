@@ -415,7 +415,7 @@ config_in_memory_check(void)
 	if (!config_is_perm("checkpoints"))
 		config_single("checkpoints=off", 0);
 	if (!config_is_perm("compatibility"))
-		config_single("compatibiltiy=none", 0);
+		config_single("compatibility=none", 0);
 	if (!config_is_perm("compression"))
 		config_single("compression=none", 0);
 	if (!config_is_perm("logging"))
@@ -860,7 +860,8 @@ config_map_compatibility(const char *s, u_int *vp)
 	else if (strcmp(s, "v11") == 0)
 		*vp = COMPAT_V10;
 	else
-		testutil_die(EINVAL, "illegal compatibility configuration: %s", s);
+		testutil_die(EINVAL,
+		    "illegal compatibility configuration: %s", s);
 }
 
 /*

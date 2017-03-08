@@ -195,7 +195,8 @@ wts_open(const char *home, bool set_api, WT_CONNECTION **connp)
 		    g.c_logging_prealloc ? 1 : 0,
 		    compressor(g.c_logging_compression_flag));
 		p += snprintf(p, REMAIN(p, end),
-		    ",compatibility=(release=%s)", compatibility(g.c_compat_flag));
+		    ",compatibility=(release=%s)",
+		    compatibility(g.c_compat_flag));
 	}
 
 	if (g.c_encryption)
