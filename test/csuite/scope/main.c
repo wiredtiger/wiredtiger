@@ -30,9 +30,42 @@
 #define	KEY	"key"
 #define	VALUE	"value"
 
+static int ignore_errors;
+
+static int
+handle_error(WT_EVENT_HANDLER *handler,
+    WT_SESSION *session, int error, const char *message)
+{
+	(void)(handler);
+
+	/* Skip the error messages we're expecting to see. */
+	if (ignore_errors > 0 &&
+	    (strstr(message, "requires key be set") != NULL ||
+	    strstr(message, "requires value be set") != NULL)) {
+		--ignore_errors;
+		return (0);
+	}
+
+	(void)fprintf(stderr, "%s: %s\n",
+	    message, session->strerror(session, error));
+	return (0);
+}
+
+static WT_EVENT_HANDLER event_handler = {
+	handle_error,
+	NULL,
+	NULL,
+	NULL
+};
+
 static void
 cursor_scope_ops(WT_SESSION *session, const char *uri)
 {
+	/*
+	 * The ops order is fixed and shouldn't change, that is, insert has to
+	 * happen first so search, update and remove are possible, and remove
+	 * has to be last.
+	 */
 	struct {
 		const char *op;
 		enum { INSERT,
@@ -50,9 +83,11 @@ cursor_scope_ops(WT_SESSION *session, const char *uri)
 		{ NULL, INSERT, NULL }
 	};
 	WT_CURSOR *cursor;
+	uint64_t keyr;
 	const char *key, *value;
 	char keybuf[100], valuebuf[100];
 	int exact;
+	bool recno;
 
 	/* Reserve requires a running transaction. */
 	testutil_check(session->begin_transaction(session, NULL));
@@ -66,10 +101,19 @@ cursor_scope_ops(WT_SESSION *session, const char *uri)
 			testutil_check(cursor->close(cursor));
 		testutil_check(session->open_cursor(
 		    session, uri, NULL, op->config, &cursor));
+		recno = strcmp(cursor->key_format, "r") == 0;
 
-		/* Set up application buffers so we can detect overwrites. */
-		strcpy(keybuf, KEY);
-		cursor->set_key(cursor, keybuf);
+		/*
+		 * Set up application buffers so we can detect overwrites
+		 * or failure to copy application information into library
+		 * memory.
+		 */
+		if (recno)
+			cursor->set_key(cursor, (uint64_t)1);
+		else {
+			strcpy(keybuf, KEY);
+			cursor->set_key(cursor, keybuf);
+		}
 		strcpy(valuebuf, VALUE);
 		cursor->set_value(cursor, valuebuf);
 
@@ -120,13 +164,18 @@ cursor_scope_ops(WT_SESSION *session, const char *uri)
 			/*
 			 * Insert and remove configured with a search key do
 			 * not position the cursor and have no key or value.
+			 *
+			 * There should be two error messages, ignore them.
 			 */
-			printf("%s: two WiredTiger error messages expected:\n",
-			    progname);
-			printf("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n");
-			testutil_assert(cursor->get_key(cursor, &key) != 0);
+			ignore_errors = 2;
+			if (recno)
+				testutil_assert(
+				    cursor->get_key(cursor, &keyr) != 0);
+			else
+				testutil_assert(
+				    cursor->get_key(cursor, &key) != 0);
 			testutil_assert(cursor->get_value(cursor, &value) != 0);
-			printf("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n");
+			testutil_assert(ignore_errors == 0);
 			break;
 		case RESERVE:
 		case SEARCH:
@@ -135,16 +184,21 @@ cursor_scope_ops(WT_SESSION *session, const char *uri)
 			/*
 			 * Reserve, search, search-near and update position the
 			 * cursor and have both a key and value.
-			 */
-			testutil_assert(cursor->get_key(cursor, &key) == 0);
-			testutil_assert(cursor->get_value(cursor, &value) == 0);
-
-			/*
+			 *
 			 * Any key/value should not reference application
 			 * memory.
 			 */
-			testutil_assert(key != keybuf);
-			testutil_assert(strcmp(key, KEY) == 0);
+			if (recno) {
+				testutil_assert(
+				    cursor->get_key(cursor, &keyr) == 0);
+				testutil_assert(keyr == 1);
+			} else {
+				testutil_assert(
+				    cursor->get_key(cursor, &key) == 0);
+				testutil_assert(key != keybuf);
+				testutil_assert(strcmp(key, KEY) == 0);
+			}
+			testutil_assert(cursor->get_value(cursor, &value) == 0);
 			testutil_assert(value != valuebuf);
 			testutil_assert(strcmp(value, VALUE) == 0);
 			break;
@@ -153,7 +207,7 @@ cursor_scope_ops(WT_SESSION *session, const char *uri)
 }
 
 static void
-scope_ops(WT_CONNECTION *conn, const char *uri, const char *config)
+run(WT_CONNECTION *conn, const char *uri, const char *config)
 {
 	WT_SESSION *session;
 
@@ -174,15 +228,16 @@ main(int argc, char *argv[])
 	testutil_make_work_dir(opts->home);
 
 	testutil_check(
-	    wiredtiger_open(opts->home, NULL, "create", &opts->conn));
+	    wiredtiger_open(opts->home, &event_handler, "create", &opts->conn));
 
-	scope_ops(opts->conn, "file:scope_file", "key_format=S,value_format=S");
-	scope_ops(opts->conn, "lsm:scope_lsm", "key_format=S,value_format=S");
-	scope_ops(opts->conn,
-	    "table:scope_file", "key_format=S,value_format=S,columns=(k,v)");
+	run(opts->conn, "file:file.SS", "key_format=S,value_format=S");
+	run(opts->conn, "file:file.rS", "key_format=r,value_format=S");
+	run(opts->conn, "lsm:lsm.SS", "key_format=S,value_format=S");
+	run(opts->conn, "lsm:lsm.rS", "key_format=r,value_format=S");
+	run(opts->conn, "table:table.SS", "key_format=S,value_format=S");
+	run(opts->conn, "table:table.rS", "key_format=r,value_format=S");
 
 	testutil_cleanup(opts);
 
-	printf("%s: run successful\n", progname);
 	return (EXIT_SUCCESS);
 }
