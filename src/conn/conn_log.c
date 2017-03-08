@@ -127,7 +127,7 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
 	/*
 	 * If we are reconfiguring and at a new version we need to force
 	 * the log file to advance so that we write out a log file at the
-	 * correct version.  Then we are downgrading we must force a checkpoint
+	 * correct version.  When we are downgrading we must force a checkpoint
 	 * and finally archive, even if disabled, so that all new version log
 	 * files are gone.
 	 *
