@@ -7,7 +7,7 @@
 The WiredTiger on-disk file format for write-ahead log files has changed
 to include a new internal system log record.
 </dd>
-<dt>Addition of \c compatibility \c setting</dt>
+<dt>Addition of compatibility configuration setting</dt>
 <dd>
 There is now a compatibility setting that allows the user to upgrade or
 downgrade the log files generated so that they can be run with an older
