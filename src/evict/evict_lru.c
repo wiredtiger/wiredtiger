@@ -905,6 +905,10 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
 					   settle on an earlier value. */
 #define	EVICT_TUNE_PERIOD	1	/* Tune period in seconds */
 
+#define EVICT_FORCE_RETUNE     30       /* We will do a fresh retuning every
+					 * that many seconds to adjust to
+					 * significant phase changes.
+					 */
 /*
  * __evict_tune_workers --
  * Find the right number of eviction workers. Gradually ramp up the number of
@@ -928,7 +932,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	WT_DECL_RET;
 	uint64_t cur_threads, delta_msec, delta_pages, i, target_threads;
 	uint64_t pgs_evicted_cur, pgs_evicted_persec_cur;
-	uint32_t thread_surplus;
+	uint32_t thread_surplus, time_diff;
 
 	conn = S2C(session);
 	cache = conn->cache;
@@ -936,19 +940,55 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	WT_ASSERT(session, conn->evict_threads.threads[0]->session == session);
 	pgs_evicted_persec_cur = 0;
 
-	if (conn->evict_tune_stable)
-		return (0);
-
 	__wt_epoch(session, &current_time);
+	time_diff = WT_TIMEDIFF_SEC(current_time, conn->evict_tune_last_time);
 
 	/*
-	 * Every EVICT_TUNE_PERIOD seconds record the number of
-	 * pages evicted per second observed in the previous period.
+	 * If we have reached the stable state and it hasn't been
+	 * EVICT_FORCE_RETUNE seconds since then, return.
+	 * If we have not reached stable state, don't do anything
+	 * unless EVICT_TUNE_PERIOD seconds has passed since the last
+	 * time we did any action in this funciton.
 	 */
-	if (WT_TIMEDIFF_SEC(
-	    current_time, conn->evict_tune_last_time) < EVICT_TUNE_PERIOD)
+	if (conn->evict_tune_stable) {
+		if (time_diff < EVICT_FORCE_RETUNE)
+			return (0);
+		else {
+			/* Stable state was reached a long time ago.
+			   Let's retune. Reset all the state.*/
+			conn->evict_tune_stable = 0;
+			conn->evict_tune_last_action_time.tv_sec = 0;
+			conn->evict_tune_pgs_last = 0;
+			conn->evict_tune_num_points = 0;
+			conn->evict_tune_pg_sec_max = 0;
+			conn->evict_tune_workers_best = 0;
+
+			/* Reduce the number of eviction workers
+			 * to the minimum */
+			thread_surplus = conn->evict_threads.current_threads -
+				conn->evict_threads_min;
+			for (i = 0; i < thread_surplus; i++) {
+				WT_ERR(__wt_thread_group_stop_one(
+					 session, &conn->evict_threads, false));
+				WT_STAT_CONN_INCR(session,
+				  cache_eviction_worker_removed);
+			}
+			WT_STAT_CONN_INCR(session,
+					  cache_eviction_force_retune);
+			printf("Forced retune. Cur threads set to %d\n",
+			       conn->evict_threads.current_threads);
+		}
+	}
+	else if (time_diff < EVICT_TUNE_PERIOD)
 		return (0);
 
+
+	printf("Tuning\n");
+
+	/*
+	 * Measure the number of evicted pages so far. Eviction rate
+	 * correlates to performance, so this is our metric of success.
+	 */
 	pgs_evicted_cur = cache->pages_evict;
 
 	/*
@@ -1025,7 +1065,9 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 			conn->evict_tune_stable = true;
 			WT_STAT_CONN_SET(session, cache_eviction_active_workers,
 			    conn->evict_threads.current_threads);
-			return (0);
+			printf("Reached stable state with %d workers\n",
+			       conn->evict_threads.current_threads);
+			goto err;
 		}
 	}
 
@@ -1065,6 +1107,8 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 
 	WT_STAT_CONN_SET(session, cache_eviction_active_workers,
 	    conn->evict_threads.current_threads);
+	printf("Using %d workers\n", conn->evict_threads.current_threads);
+
 
 err:	conn->evict_tune_last_time = current_time;
 	conn->evict_tune_pgs_last = pgs_evicted_cur;
