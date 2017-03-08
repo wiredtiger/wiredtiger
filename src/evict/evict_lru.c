@@ -905,7 +905,7 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
 					   settle on an earlier value. */
 #define	EVICT_TUNE_PERIOD	1	/* Tune period in seconds */
 
-#define EVICT_FORCE_RETUNE     30       /* We will do a fresh retuning every
+#define	EVICT_FORCE_RETUNE     30       /* We will do a fresh re-tune every
 					 * that many seconds to adjust to
 					 * significant phase changes.
 					 */
@@ -944,18 +944,15 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	time_diff = WT_TIMEDIFF_SEC(current_time, conn->evict_tune_last_time);
 
 	/*
-	 * If we have reached the stable state and it hasn't been
-	 * EVICT_FORCE_RETUNE seconds since then, return.
-	 * If we have not reached stable state, don't do anything
-	 * unless EVICT_TUNE_PERIOD seconds has passed since the last
-	 * time we did any action in this funciton.
+	 * If we have reached the stable state and have not run long enough
+	 * to surpass the forced re-tuning threshold, return.
 	 */
 	if (conn->evict_tune_stable) {
 		if (time_diff < EVICT_FORCE_RETUNE)
 			return (0);
 		else {
 			/* Stable state was reached a long time ago.
-			   Let's retune. Reset all the state.*/
+			   Let's re-tune. Reset all the state.*/
 			conn->evict_tune_stable = 0;
 			conn->evict_tune_last_action_time.tv_sec = 0;
 			conn->evict_tune_pgs_last = 0;
@@ -975,15 +972,15 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 			}
 			WT_STAT_CONN_INCR(session,
 					  cache_eviction_force_retune);
-			printf("Forced retune. Cur threads set to %d\n",
-			       conn->evict_threads.current_threads);
 		}
 	}
+	/*
+	 * If we have not reached stable state, don't do anything
+	 * unless enough time has passed since the last
+	 * time we have taken any action in this function.
+	 */
 	else if (time_diff < EVICT_TUNE_PERIOD)
 		return (0);
-
-
-	printf("Tuning\n");
 
 	/*
 	 * Measure the number of evicted pages so far. Eviction rate
@@ -1065,8 +1062,6 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 			conn->evict_tune_stable = true;
 			WT_STAT_CONN_SET(session, cache_eviction_active_workers,
 			    conn->evict_threads.current_threads);
-			printf("Reached stable state with %d workers\n",
-			       conn->evict_threads.current_threads);
 			goto err;
 		}
 	}
@@ -1107,8 +1102,6 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 
 	WT_STAT_CONN_SET(session, cache_eviction_active_workers,
 	    conn->evict_threads.current_threads);
-	printf("Using %d workers\n", conn->evict_threads.current_threads);
-
 
 err:	conn->evict_tune_last_time = current_time;
 	conn->evict_tune_pgs_last = pgs_evicted_cur;
