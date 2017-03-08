@@ -1561,13 +1561,12 @@ static int
 __checkpoint_presync(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_BTREE *btree;
-	WT_TXN_GLOBAL *txn_global;
 
 	WT_UNUSED(cfg);
-	txn_global = &S2C(session)->txn_global;
 
 	btree = S2BT(session);
-	WT_ASSERT(session, btree->checkpoint_gen == txn_global->checkpoint_gen);
+	WT_ASSERT(session, btree->checkpoint_gen ==
+	    S2C(session)->txn_global.checkpoint_gen);
 	btree->evict_walk_period = btree->evict_walk_saved;
 	return (0);
 }

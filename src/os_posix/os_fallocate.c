@@ -62,7 +62,7 @@ __posix_sys_fallocate(
 	 * This allows it to work everywhere the kernel supports it.
 	 */
 	WT_SYSCALL_RETRY(
-	    (int)syscall(SYS_fallocate, pfh->fd, 0, (wt_off_t)0, offset), ret);
+	    syscall(SYS_fallocate, pfh->fd, 0, (wt_off_t)0, offset), ret);
 	return (ret);
 #else
 	WT_UNUSED(file_handle);
