@@ -971,9 +971,12 @@ __cursor_truncate(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 
 	/*
-	 * First, call the standard cursor remove method to do a full search and
-	 * re-position the cursor because we don't have a saved copy of the
-	 * page's write generation information, which we need to remove records.
+	 * First, call the cursor search method to re-position the cursor: we
+	 * may not have a cursor position (if the higher-level truncate code
+	 * switched the cursors to have an "external" cursor key, and because
+	 * we don't save a copy of the page's write generation information,
+	 * which we need to remove records.
+	 *
 	 * Once that's done, we can delete records without a full search, unless
 	 * we encounter a restart error because the page was modified by some
 	 * other thread of control; in that case, repeat the full search to
@@ -986,20 +989,31 @@ __cursor_truncate(WT_SESSION_IMPL *session,
 	 * instantiated the end cursor, so we know that page is pinned in memory
 	 * and we can proceed without concern.
 	 */
-retry:	WT_RET(__wt_btcur_remove(start));
+retry:	WT_RET(__wt_btcur_search(start));
+
+	/*
+	 * XXX KEITH
+	 * When the btree cursor code sets/clears the cursor flags (rather than
+	 * the cursor layer), the set/clear goes away, only the assert remains.
+	 */
+	F_CLR((WT_CURSOR *)start, WT_CURSTD_KEY_SET);
+	F_SET((WT_CURSOR *)start, WT_CURSTD_KEY_INT);
+	WT_ASSERT(session,
+	    F_MASK((WT_CURSOR *)start, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
 
 	/*
 	 * Reset ret each time through so that we don't loop forever in
 	 * the cursor equals case.
 	 */
 	for (ret = 0;;) {
+		if ((ret = rmfunc(session, start, 1)) != 0)
+			break;
+
 		if (stop != NULL && __cursor_equals(start, stop))
 			break;
 		if ((ret = __wt_btcur_next(start, true)) != 0)
 			break;
-		start->compare = 0;	/* Exact match */
-		if ((ret = rmfunc(session, start, 1)) != 0)
-			break;
+		start->compare = 0;		/* Exact match */
 	}
 
 	if (ret == WT_RESTART) {
@@ -1032,29 +1046,44 @@ __cursor_truncate_fix(WT_SESSION_IMPL *session,
 	 * record 37, records 1-36 magically appear.  Those records can't be
 	 * deleted, which means we have to ignore already "deleted" records.
 	 *
-	 * First, call the standard cursor remove method to do a full search and
-	 * re-position the cursor because we don't have a saved copy of the
-	 * page's write generation information, which we need to remove records.
+	 * First, call the cursor search method to re-position the cursor: we
+	 * may not have a cursor position (if the higher-level truncate code
+	 * switched the cursors to have an "external" cursor key, and because
+	 * we don't save a copy of the page's write generation information,
+	 * which we need to remove records.
+	 *
 	 * Once that's done, we can delete records without a full search, unless
 	 * we encounter a restart error because the page was modified by some
 	 * other thread of control; in that case, repeat the full search to
 	 * refresh the page's modification information.
 	 */
-retry:	WT_RET(__wt_btcur_remove(start));
+retry:	WT_RET(__wt_btcur_search(start));
+
+	/*
+	 * XXX KEITH
+	 * When the btree cursor code sets/clears the cursor flags (rather than
+	 * the cursor layer), the set/clear goes away, only the assert remains.
+	 */
+	F_CLR((WT_CURSOR *)start, WT_CURSTD_KEY_SET);
+	F_SET((WT_CURSOR *)start, WT_CURSTD_KEY_INT);
+	WT_ASSERT(session,
+	    F_MASK((WT_CURSOR *)start, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
+
 	/*
 	 * Reset ret each time through so that we don't loop forever in
 	 * the cursor equals case.
 	 */
 	for (ret = 0;;) {
+		value = (const uint8_t *)start->iface.value.data;
+		if (*value != 0 &&
+		    (ret = rmfunc(session, start, 1)) != 0)
+			break;
+
 		if (stop != NULL && __cursor_equals(start, stop))
 			break;
 		if ((ret = __wt_btcur_next(start, true)) != 0)
 			break;
 		start->compare = 0;	/* Exact match */
-		value = (const uint8_t *)start->iface.value.data;
-		if (*value != 0 &&
-		    (ret = rmfunc(session, start, 1)) != 0)
-			break;
 	}
 
 	if (ret == WT_RESTART) {

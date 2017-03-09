@@ -350,7 +350,7 @@ __curfile_remove(WT_CURSOR *cursor)
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_REMOVE_API_CALL(cursor, session, cbt->btree);
 
-	WT_CURSOR_NEEDKEY(cursor);
+	WT_CURSOR_CHECKKEY(cursor);
 	WT_CURSOR_NOVALUE(cursor);
 
 	WT_CURFILE_OP(__wt_btcur_remove(cbt));
