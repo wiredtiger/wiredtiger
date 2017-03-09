@@ -688,7 +688,7 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt)
 	 * WT_CURSOR.remove has a unique semantic, the cursor stays positioned
 	 * if it starts positioned, otherwise clear the cursor on completion.
 	 */
-	positioned = F_ISSET(cbt, WT_CBT_ACTIVE);
+	positioned = F_ISSET(cursor, WT_CURSTD_KEY_INT);
 
 retry:	WT_RET(__cursor_func_init(cbt, true));
 
