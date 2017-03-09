@@ -1569,8 +1569,21 @@ __clsm_update(WT_CURSOR *cursor)
 		WT_ERR(__clsm_lookup(clsm, &value));
 	WT_ERR(__clsm_deleted_encode(session, &cursor->value, &value, &buf));
 	WT_ERR(__clsm_put(session, clsm, &cursor->key, &value, true));
-	WT_ERR(__cursor_key_local(cursor));
-	WT_ERR(__cursor_value_local(cursor));
+
+	/*
+	 * Set the cursor to reference the internal key/value of the positioned
+	 * cursor.
+	 */
+	F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+	cursor->key.data = clsm->current->key.data;
+	cursor->key.size = clsm->current->key.size;
+	cursor->value.data = clsm->current->value.data;
+	cursor->value.size = clsm->current->value.size;
+	WT_ASSERT(session,
+	    F_MASK(clsm->current, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
+	WT_ASSERT(session,
+	    F_MASK(clsm->current, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
+	F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 
 err:	__wt_scr_free(session, &buf);
 	__clsm_leave(clsm);

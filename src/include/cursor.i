@@ -18,32 +18,6 @@ __cursor_set_recno(WT_CURSOR_BTREE *cbt, uint64_t v)
 }
 
 /*
- * __cursor_key_local --
- *	Copy an external key to local memory.
- */
-static inline int
-__cursor_key_local(WT_CURSOR *cursor)
-{
-	return (!F_ISSET(cursor, WT_CURSTD_KEY_EXT) ||
-	    WT_DATA_IN_ITEM(&cursor->key) ? 0 :
-	    __wt_buf_set((WT_SESSION_IMPL *)cursor->session,
-	    &cursor->key, cursor->key.data, cursor->key.size));
-}
-
-/*
- * __cursor_value_local --
- *	Copy an external value to local memory.
- */
-static inline int
-__cursor_value_local(WT_CURSOR *cursor)
-{
-	return (!F_ISSET(cursor, WT_CURSTD_VALUE_EXT) ||
-	    WT_DATA_IN_ITEM(&cursor->value) ? 0 :
-	    __wt_buf_set((WT_SESSION_IMPL *)cursor->session,
-	    &cursor->value, cursor->value.data, cursor->value.size));
-}
-
-/*
  * __cursor_pos_clear --
  *	Reset the cursor's location.
  */
