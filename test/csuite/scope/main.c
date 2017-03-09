@@ -61,17 +61,17 @@ static WT_EVENT_HANDLER event_handler = {
 static void
 cursor_scope_ops(WT_SESSION *session, const char *uri)
 {
-	/*
-	 * The ops order is fixed and shouldn't change, that is, insert has to
-	 * happen first so search, update and remove are possible, and remove
-	 * has to be last.
-	 */
 	struct {
 		const char *op;
-		enum { INSERT,
-		    SEARCH, SEARCH_NEAR, REMOVE, RESERVE, UPDATE } func;
+		enum { INSERT, SEARCH, SEARCH_NEAR,
+		    REMOVE, REMOVE_POS, RESERVE, UPDATE } func;
 		const char *config;
 	} *op, ops[] = {
+		/*
+		 * The ops order is fixed and shouldn't change, that is, insert
+		 * has to happen first so search, update and remove operations
+		 * are possible, and remove has to be last.
+		 */
 		{ "insert", INSERT, NULL, },
 		{ "search", SEARCH, NULL, },
 		{ "search", SEARCH_NEAR, NULL, },
@@ -80,6 +80,7 @@ cursor_scope_ops(WT_SESSION *session, const char *uri)
 #endif
 		{ "update", UPDATE, NULL, },
 		{ "remove", REMOVE, NULL, },
+		{ "remove", REMOVE_POS, NULL, },
 		{ NULL, INSERT, NULL }
 	};
 	WT_CURSOR *cursor;
@@ -134,6 +135,15 @@ cursor_scope_ops(WT_SESSION *session, const char *uri)
 		case SEARCH_NEAR:
 			testutil_check(cursor->search_near(cursor, &exact));
 			break;
+		case REMOVE_POS:
+			/*
+			 * Remove has two modes, one where the remove is based
+			 * on a cursor position, the other where it's based on
+			 * a set key. The results are different, so test them
+			 * separately.
+			 */
+			testutil_check(cursor->search(cursor));
+			/* FALLTHROUGH */
 		case REMOVE:
 			testutil_check(cursor->remove(cursor));
 			break;
@@ -177,6 +187,27 @@ cursor_scope_ops(WT_SESSION *session, const char *uri)
 			testutil_assert(cursor->get_value(cursor, &value) != 0);
 			testutil_assert(ignore_errors == 0);
 			break;
+		case REMOVE_POS:
+			/*
+			 * Remove configured with a cursor position has a key,
+			 * but no value.
+			 *
+			 * There should be one error message, ignore it.
+			 */
+			if (recno) {
+				testutil_assert(
+				    cursor->get_key(cursor, &keyr) == 0);
+				testutil_assert(keyr == 1);
+			} else {
+				testutil_assert(
+				    cursor->get_key(cursor, &key) == 0);
+				testutil_assert(key != keybuf);
+				testutil_assert(strcmp(key, KEY) == 0);
+			}
+			ignore_errors = 1;
+			testutil_assert(cursor->get_value(cursor, &value) != 0);
+			testutil_assert(ignore_errors == 0);
+			break;
 		case RESERVE:
 		case SEARCH:
 		case SEARCH_NEAR:
@@ -202,6 +233,20 @@ cursor_scope_ops(WT_SESSION *session, const char *uri)
 			testutil_assert(value != valuebuf);
 			testutil_assert(strcmp(value, VALUE) == 0);
 			break;
+		}
+
+		/*
+		 * We have more than one remove operation, add the key back
+		 * in.
+		 */
+		if (op->func == REMOVE || op->func == REMOVE_POS) {
+			if (recno)
+				cursor->set_key(cursor, (uint64_t)1);
+			else {
+				cursor->set_key(cursor, KEY);
+			}
+			cursor->set_value(cursor, VALUE);
+			testutil_check(cursor->insert(cursor));
 		}
 	}
 }
