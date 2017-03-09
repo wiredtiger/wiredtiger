@@ -57,7 +57,7 @@ class test_cursor11(wttest.WiredTigerTestCase):
             (self.ds.is_lsm() or self.uri == 'lsm')
 
     # Do a remove using the cursor after setting a position, and confirm
-    # the key and position remain set and no value remains.
+    # the key and position remain set but no value.
     def test_cursor_remove_with_position(self):
         if self.skip():
             return
@@ -80,29 +80,6 @@ class test_cursor11(wttest.WiredTigerTestCase):
             wiredtiger.WiredTigerError, c.get_value, msg)
         self.assertEquals(c.next(), 0)
         self.assertEquals(c.get_key(), ds.key(27))
-
-    # Do a remove using the cursor after setting a position, and confirm
-    # key and position remains, but no value.
-    def test_cursor_remove_without_position(self):
-        if self.skip():
-            return
-
-        # Build an object.
-        uri = self.uri + ':test_cursor11'
-        ds = self.ds(self, uri, 50, key_format=self.keyfmt)
-        ds.populate()
-        s = self.conn.open_session()
-        c = s.open_cursor(uri, None)
-
-        c.set_key(ds.key(25))
-        self.assertEquals(c.search(), 0)
-        c.remove()
-        self.assertEquals(c.get_key(), ds.key(25))
-        msg = '/requires value be set/'
-        self.assertRaisesWithMessage(
-            wiredtiger.WiredTigerError, c.get_value, msg)
-        self.assertEquals(c.next(), 0)
-        self.assertEquals(c.get_key(), ds.key(26))
 
     # Do a remove using the cursor without setting a position, and confirm
     # no key, value or position remains.
@@ -130,7 +107,7 @@ class test_cursor11(wttest.WiredTigerTestCase):
 
     # Do a remove using the key after also setting a position, and confirm
     # no key, value or position remains.
-    def test_cursor_remove_without_position(self):
+    def test_cursor_remove_with_key_and_position(self):
         if self.skip():
             return
 
