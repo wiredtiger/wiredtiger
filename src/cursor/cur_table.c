@@ -511,9 +511,16 @@ __curtable_insert(WT_CURSOR *cursor)
 	 */
 	F_SET(primary, flag_orig | WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT);
 
-	if (ret == WT_DUPLICATE_KEY && F_ISSET(cursor, WT_CURSTD_OVERWRITE))
+	if (ret == WT_DUPLICATE_KEY && F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
 		WT_ERR(__curtable_update(cursor));
-	else {
+
+		/*
+		 * The cursor is no longer positioned. This isn't just cosmetic,
+		 * without a reset, iteration on this cursor won't start at the
+		 * beginning/end of the table.
+		 */
+		APPLY_CG(ctable, reset);
+	} else {
 		WT_ERR(ret);
 
 		for (i = 1; i < WT_COLGROUPS(ctable->table); i++, cp++) {
@@ -523,13 +530,6 @@ __curtable_insert(WT_CURSOR *cursor)
 
 		WT_ERR(__apply_idx(ctable, offsetof(WT_CURSOR, insert), false));
 	}
-
-	/*
-	 * The cursor is no longer positioned. This isn't just cosmetic, without
-	 * a reset, iteration on this cursor won't start at the beginning/end of
-	 * the table.
-	 */
-	APPLY_CG(ctable, reset);
 
 	/*
 	 * Insert is the one cursor operation that doesn't end with the cursor
