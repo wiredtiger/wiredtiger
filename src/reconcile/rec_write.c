@@ -26,6 +26,11 @@ typedef struct {
 	uint32_t flags;			/* Caller's configuration */
 
 	WT_ITEM	 disk_image;		/* Temporary disk-image buffer */
+	/*
+	 * Temporary buffer used to write out a disk image when managing two
+	 * chunks worth of data in memory
+	 */
+	WT_ITEM *interim_buf;
 
 	/*
 	 * Track start/stop write generation to decide if all changes to the
@@ -194,6 +199,7 @@ typedef struct {
 		uint64_t alt_recno;	/* Alternate next chunk start recno */
 		WT_ITEM alt_key;	/* Alternate next chunk start key */
 	} *bnd;				/* Saved boundaries */
+
 	uint32_t bnd_next;		/* Next boundary slot */
 	uint32_t bnd_next_max;		/* Maximum boundary slots used */
 	size_t	 bnd_entries;		/* Total boundary slots */
@@ -964,6 +970,7 @@ __rec_destroy(WT_SESSION_IMPL *session, void *reconcilep)
 	*(WT_RECONCILE **)reconcilep = NULL;
 
 	__wt_buf_free(session, &r->disk_image);
+	__wt_scr_free(session, &r->interim_buf);
 
 	__wt_free(session, r->raw_entries);
 	__wt_free(session, r->raw_offsets);
@@ -2438,10 +2445,8 @@ __rec_split_write_prev_and_shift_cur(
 {
 	WT_BOUNDARY *bnd_cur, *bnd_prev;
 	WT_BTREE *btree;
-	WT_DECL_ITEM(tmp_buf);
-	WT_DECL_RET;
 	WT_PAGE_HEADER *dsk, *dsk_tmp;
-	size_t len;
+	size_t cur_len, prev_len_aligned;
 	uint8_t *dsk_start;
 
 	WT_ASSERT(session, r->bnd_next != 0);
@@ -2450,14 +2455,14 @@ __rec_split_write_prev_and_shift_cur(
 	bnd_cur = &r->bnd[r->bnd_next];
 	bnd_prev = bnd_cur - 1;
 	dsk = r->disk_image.mem;
-	len = WT_PTRDIFF(r->first_free, dsk) - bnd_cur->offset;
+	cur_len = WT_PTRDIFF(r->first_free, dsk) - bnd_cur->offset;
 
 	/*
 	 * Resize chunks if the current is smaller than the minimum, and there
 	 * is an alternate boundary available in the previous boundary details.
 	 */
 	if (resize_chunks &&
-	    len < r->alt_split_size && bnd_prev->alt_offset != 0) {
+	    cur_len < r->alt_split_size && bnd_prev->alt_offset != 0) {
 		bnd_cur->offset = bnd_prev->alt_offset;
 		bnd_cur->entries += bnd_prev->entries - bnd_prev->alt_entries;
 		bnd_prev->entries = bnd_prev->alt_entries;
@@ -2468,38 +2473,41 @@ __rec_split_write_prev_and_shift_cur(
 		    bnd_prev->alt_key.data, bnd_prev->alt_key.size);
 
 		/* Update current chunk's length */
-		len = WT_PTRDIFF(r->first_free, dsk) - bnd_cur->offset;
+		cur_len = WT_PTRDIFF(r->first_free, dsk) - bnd_cur->offset;
 	}
 
 	/*
-	 * Create a temporary buffer to prepare the previous chunk's disk image.
+	 * Create an interim buffer if not already done to prepare the previous
+	 * chunk's disk image.
 	 *
 	 * To Fix:
-	 * Can optimize around the temporary buffer:
-	 * 	1. Can pre-allocate and keep the buffer around until the
-	 * 	lifetime of the reconciliation structure
-	 * 	2. Can somehow write directly from the disk_image buffer
+	 * Can somehow write directly from the disk_image buffer and not need to
+	 * copy into the interim buffer at all.
 	 */
-	WT_RET(__wt_scr_alloc(
-	    session, WT_ALIGN(bnd_cur->offset, btree->allocsize), &tmp_buf));
-	dsk_tmp = tmp_buf->mem;
+	prev_len_aligned = WT_ALIGN(bnd_cur->offset, btree->allocsize);
+	if (r->interim_buf == NULL)
+		WT_RET(__wt_scr_alloc(
+		    session, prev_len_aligned, &r->interim_buf));
+	else
+		WT_RET(__wt_buf_init(
+		    session, r->interim_buf, prev_len_aligned));
+
+	dsk_tmp = r->interim_buf->mem;
 	memcpy(dsk_tmp, dsk, bnd_cur->offset);
 	dsk_tmp->recno = bnd_prev->recno;
 	dsk_tmp->u.entries = bnd_prev->entries;
 	dsk_tmp->mem_size = (uint32_t)bnd_cur->offset;
-	tmp_buf->size = dsk_tmp->mem_size;
-	ret = __rec_split_write(session, r, bnd_prev, tmp_buf, false);
-	__wt_scr_free(session, &tmp_buf);
-	WT_RET(ret);
+	r->interim_buf->size = dsk_tmp->mem_size;
+	WT_RET(__rec_split_write(session, r, bnd_prev, r->interim_buf, false));
 
 	/* Shift the current chunk to the start of the buffer */
 	dsk_start = WT_PAGE_HEADER_BYTE(btree, dsk);
-	(void)memmove(dsk_start, (uint8_t *)dsk + bnd_cur->offset, len);
+	(void)memmove(dsk_start, (uint8_t *)dsk + bnd_cur->offset, cur_len);
 
 	/* Fix boundary offset */
 	bnd_cur->offset = WT_PAGE_HEADER_BYTE_SIZE(btree);
 	/* Fix where free points */
-	r->first_free = dsk_start + len;
+	r->first_free = dsk_start + cur_len;
 	return (0);
 }
 
