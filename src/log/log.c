@@ -1125,8 +1125,8 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
  *	Set version related information under lock.
  */
 static int
-__log_set_version(WT_SESSION_IMPL *session,
-    uint16_t major, uint16_t minor, uint32_t first_rec, bool downgrade)
+__log_set_version(WT_SESSION_IMPL *session, uint16_t major, uint16_t minor,
+    uint32_t first_rec, bool live_chg, bool downgrade)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_LOG *log;
@@ -1141,6 +1141,8 @@ __log_set_version(WT_SESSION_IMPL *session,
 		FLD_SET(conn->log_flags, WT_CONN_LOG_DOWNGRADED);
 	else
 		FLD_CLR(conn->log_flags, WT_CONN_LOG_DOWNGRADED);
+	if (live_chg)
+		F_SET(log, WT_LOG_FORCE_NEWFILE);
 	if (!F_ISSET(conn, WT_CONN_READONLY))
 		return (__log_prealloc_remove(session));
 	else
@@ -1174,16 +1176,10 @@ __wt_log_set_version(WT_SESSION_IMPL *session,
 	 */
 	WT_WITH_SLOT_LOCK(session, log,
 	    ret = __log_set_version(session,
-	    major, minor, first_rec, downgrade));
+	    major, minor, first_rec, live_chg, downgrade));
 	if (!live_chg)
 		return (ret);
 	WT_ERR(ret);
-	/*
-	 * XXX - Any gap problem between setting version above and this flag
-	 * now? Also may want to clear it in log_newfile when it sees it so that
-	 * additional log records don't also cause new log files repeatedly.
-	 */
-	F_SET(log, WT_LOG_FORCE_NEWFILE);
 	/*
 	 * A new log file will be used when we force out the earlier slot.
 	 */
@@ -1198,7 +1194,6 @@ __wt_log_set_version(WT_SESSION_IMPL *session,
 	WT_ERR(__log_printf_internal(session,
 	    "COMPATIBILITY: Version now %" PRIu16 ".%" PRIu16,
 	    log->log_major, log->log_minor));
-	F_CLR(log, WT_LOG_FORCE_NEWFILE);
 	if (lognump != NULL)
 		*lognump = log->alloc_lsn.l.file;
 err:
@@ -1240,6 +1235,7 @@ __wt_log_acquire(WT_SESSION_IMPL *session, uint64_t recsize, WT_LOGSLOT *slot)
 	if (F_ISSET(log, WT_LOG_FORCE_NEWFILE) ||
 	    !__log_size_fit(session, &log->alloc_lsn, recsize)) {
 		WT_RET(__log_newfile(session, false, &created_log));
+		F_CLR(log, WT_LOG_FORCE_NEWFILE);
 		if (log->log_close_fh != NULL)
 			F_SET(slot, WT_SLOT_CLOSEFH);
 	}
