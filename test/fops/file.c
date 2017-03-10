@@ -190,9 +190,13 @@ obj_checkpoint(void)
 	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
 		testutil_die(ret, "conn.session");
 
-	/* Force the checkpoint so it has to be taken. */
+	/*
+	 * Force the checkpoint so it has to be taken. Forced checkpoints can
+	 * race with other metadata operations and return EBUSY - we'd expect 
+	 * applications using forced checkpoints to retry on EBUSY.
+	 */
 	if ((ret = session->checkpoint(session, "force")) != 0)
-		if (ret != ENOENT)
+		if (ret != EBUSY && ret != ENOENT)
 			testutil_die(ret, "session.checkpoint");
 
 	if ((ret = session->close(session, NULL)) != 0)
