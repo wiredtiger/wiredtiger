@@ -688,23 +688,34 @@ retry:	if (F_ISSET(clsm, WT_CLSM_MERGE)) {
 	if (chunk != NULL &&
 	    !F_ISSET(chunk, WT_LSM_CHUNK_ONDISK) &&
 	    chunk->switch_txn == WT_TXN_NONE) {
-		clsm->primary_chunk = chunk;
+
 		primary = clsm->chunks[clsm->nchunks - 1]->cursor;
+		btree = ((WT_CURSOR_BTREE *)primary)->btree;
 
 		/*
-		 * If the primary is not yet set as the primary, do that now.
-		 * Note that eviction was configured off when the underlying
-		 * object was created, which is what we want, leave it alone.
-		 *
-		 * We don't have to worry about races here: every thread that
-		 * modifies the tree will have to come through here, at worse
-		 * we set the flag repeatedly. We don't use a WT_BTREE handle
-		 * flag, however, we could race doing the read-modify-write of
-		 * the flags field.
+		 * If an exclusive operation came through and interrupted
+		 * the primary chunk we need to force a switch. We can detect
+		 * that case by checking for bulk loadability.
 		 */
-		btree = ((WT_CURSOR_BTREE *)primary)->btree;
-		if (!btree->lsm_primary)
-			btree->lsm_primary = true;
+		if (btree->bulk_load_ok == true) {
+
+			/*
+			 * If the primary is not yet set as the primary, do
+			 * that now.  Note that eviction was configured off
+			 * when the underlying object was created, which is
+			 * what we want, leave it alone.
+			 *
+			 * We don't have to worry about races here: every
+			 * thread that modifies the tree will have to come
+			 * through here, at worse we set the flag repeatedly.
+			 * We don't use a WT_BTREE handle flag, however, we
+			 * could race doing the read-modify-write of the flags
+			 * field.
+			 */
+			clsm->primary_chunk = chunk;
+			if (!btree->lsm_primary)
+				btree->lsm_primary = true;
+		}
 	}
 
 	clsm->dsk_gen = lsm_tree->dsk_gen;
