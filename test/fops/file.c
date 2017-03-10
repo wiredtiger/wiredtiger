@@ -192,7 +192,7 @@ obj_checkpoint(void)
 
 	/*
 	 * Force the checkpoint so it has to be taken. Forced checkpoints can
-	 * race with other metadata operations and return EBUSY - we'd expect 
+	 * race with other metadata operations and return EBUSY - we'd expect
 	 * applications using forced checkpoints to retry on EBUSY.
 	 */
 	if ((ret = session->checkpoint(session, "force")) != 0)
