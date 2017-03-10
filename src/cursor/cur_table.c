@@ -989,10 +989,14 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 
 	if (0) {
 err:		if (*cursorp != NULL) {
-			if (*cursorp != cursor)
+			if (*cursorp != cursor) {
+				/* The URI is owned by the table. */
+				(*cursorp)->internal_uri = NULL;
 				WT_TRET(__wt_cursor_close(*cursorp));
+			}
 			*cursorp = NULL;
 		}
+		cursor->internal_uri = NULL;
 		WT_TRET(__curtable_close(cursor));
 	}
 
