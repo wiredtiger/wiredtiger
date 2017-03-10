@@ -1575,10 +1575,8 @@ __clsm_update(WT_CURSOR *cursor)
 	 * cursor.
 	 */
 	F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-	cursor->key.data = clsm->current->key.data;
-	cursor->key.size = clsm->current->key.size;
-	cursor->value.data = clsm->current->value.data;
-	cursor->value.size = clsm->current->value.size;
+	WT_ITEM_SET(cursor->key, clsm->current->key);
+	WT_ITEM_SET(cursor->value, clsm->current->value);
 	WT_ASSERT(session,
 	    F_MASK(clsm->current, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
 	WT_ASSERT(session,
