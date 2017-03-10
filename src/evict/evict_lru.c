@@ -930,15 +930,16 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-	uint64_t cur_threads, delta_msec, delta_pages, i, target_threads;
+	uint64_t cur_threads, delta_msec, delta_pages, i, target_threads,
+		time_diff;
 	uint64_t pgs_evicted_cur, pgs_evicted_persec_cur;
-	uint32_t thread_surplus, time_diff;
+	uint32_t thread_surplus;
 
 	conn = S2C(session);
 	cache = conn->cache;
 
 	WT_ASSERT(session, conn->evict_threads.threads[0]->session == session);
-	pgs_evicted_persec_cur = 0;
+	pgs_evicted_cur = pgs_evicted_persec_cur = 0;
 
 	__wt_epoch(session, &current_time);
 	time_diff = WT_TIMEDIFF_SEC(current_time, conn->evict_tune_last_time);
