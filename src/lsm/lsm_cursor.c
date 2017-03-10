@@ -688,7 +688,6 @@ retry:	if (F_ISSET(clsm, WT_CLSM_MERGE)) {
 	if (chunk != NULL &&
 	    !F_ISSET(chunk, WT_LSM_CHUNK_ONDISK) &&
 	    chunk->switch_txn == WT_TXN_NONE) {
-
 		primary = clsm->chunks[clsm->nchunks - 1]->cursor;
 		btree = ((WT_CURSOR_BTREE *)primary)->btree;
 
@@ -697,8 +696,7 @@ retry:	if (F_ISSET(clsm, WT_CLSM_MERGE)) {
 		 * the primary chunk we need to force a switch. We can detect
 		 * that case by checking bulk load state.
 		 */
-		if (btree->bulk_load_ok == true) {
-
+		if (btree->bulk_load_ok) {
 			/*
 			 * If the primary is not yet set as the primary, do
 			 * that now.  Note that eviction was configured off
