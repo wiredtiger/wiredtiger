@@ -695,7 +695,7 @@ retry:	if (F_ISSET(clsm, WT_CLSM_MERGE)) {
 		/*
 		 * If an exclusive operation came through and interrupted
 		 * the primary chunk we need to force a switch. We can detect
-		 * that case by checking for bulk loadability.
+		 * that case by checking bulk load state.
 		 */
 		if (btree->bulk_load_ok == true) {
 
