@@ -1935,6 +1935,7 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
 	 * merge the rest to be written.
 	 */
 	WT_ERR(__wt_config_merge(session, cfg + 1,
+	    "compatibility=(major=,minor=),"
 	    "config_base=,"
 	    "create=,"
 	    "encryption=(secretkey=),"
@@ -2201,6 +2202,31 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	 */
 	WT_ERR(__conn_load_extensions(session, cfg, true));
 
+	/*
+	 * Set compatibility versions early so that any subsystem sees it.
+	 */
+	WT_ERR(__wt_config_gets(session, cfg,
+	    "compatibility.major", &cval));
+	if (cval.val) {
+		if (cval.val <= WIREDTIGER_VERSION_MAJOR)
+			conn->compat_major = (uint16_t)cval.val;
+		else
+			WT_ERR_MSG(session, EINVAL, "unknown major version");
+	} else
+		conn->compat_major = WIREDTIGER_VERSION_MAJOR;
+	WT_ERR(__wt_config_gets(session, cfg,
+	    "compatibility.minor", &cval));
+	/*
+	 * We don't currently have knowledge of major/minor pairs.  If the
+	 * user gave us zero set it to the current version.  Check for some
+	 * out of bounds settings.
+	 */
+	conn->compat_minor = (uint16_t)cval.val;
+	if (cval.val == 0 && conn->compat_major == WIREDTIGER_VERSION_MAJOR)
+		conn->compat_minor = WIREDTIGER_VERSION_MINOR;
+	if (conn->compat_major == WIREDTIGER_VERSION_MAJOR &&
+	    conn->compat_minor > WIREDTIGER_VERSION_MINOR)
+		WT_ERR_MSG(session, EINVAL, "unknown minor version");
 	/*
 	 * If the application didn't configure its own file system, configure
 	 * one of ours. Check to ensure we have a valid file system.

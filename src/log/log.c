@@ -9,7 +9,8 @@
 #include "wt_internal.h"
 
 static int __log_openfile(WT_SESSION_IMPL *,
-    WT_FH **, const char *, uint32_t, uint32_t, WT_LSN *);
+    WT_FH **, const char *, uint32_t, uint32_t, WT_LSN *,
+    uint16_t *, uint16_t *);
 static int __log_write_internal(
 	WT_SESSION_IMPL *, WT_ITEM *, WT_LSN *, uint32_t);
 
@@ -207,8 +208,8 @@ __wt_log_force_sync(WT_SESSION_IMPL *session, WT_LSN *min_lsn)
 		 * from under us and either be NULL or point to a different
 		 * file than we want.
 		 */
-		WT_ERR(__log_openfile(session,
-		    &log_fh, WT_LOG_FILENAME, min_lsn->l.file, 0, NULL));
+		WT_ERR(__log_openfile(session, &log_fh, WT_LOG_FILENAME,
+		    min_lsn->l.file, 0, NULL, NULL, NULL));
 		__wt_verbose(session, WT_VERB_LOG,
 		    "log_force_sync: sync %s to LSN %" PRIu32 "/%" PRIu32,
 		    log_fh->name, min_lsn->l.file, min_lsn->l.offset);
@@ -544,7 +545,7 @@ __log_size_fit(WT_SESSION_IMPL *session, WT_LSN *lsn, uint64_t recsize)
 
 	conn = S2C(session);
 	log = conn->log;
-	return (lsn->l.offset == WT_LOG_FIRST_RECORD ||
+	return (lsn->l.offset == log->first_record ||
 	    lsn->l.offset + (wt_off_t)recsize < conn->log_file_max);
 }
 
@@ -684,8 +685,8 @@ __log_file_header(
 	logrec = (WT_LOG_RECORD *)buf->mem;
 	desc = (WT_LOG_DESC *)logrec->record;
 	desc->log_magic = WT_LOG_MAGIC;
-	desc->majorv = WT_LOG_MAJOR_VERSION;
-	desc->minorv = WT_LOG_MINOR_VERSION;
+	desc->majorv = log->log_major;
+	desc->minorv = log->log_minor;
 	desc->log_size = (uint64_t)conn->log_file_max;
 	__wt_log_desc_byteswap(desc);
 
@@ -739,11 +740,13 @@ err:	__wt_scr_free(session, &buf);
  */
 static int
 __log_openfile(WT_SESSION_IMPL *session, WT_FH **fhp,
-    const char *file_prefix, uint32_t id, uint32_t flags, WT_LSN *lsnp)
+    const char *file_prefix, uint32_t id, uint32_t flags, WT_LSN *lsnp,
+    uint16_t *majorp, uint16_t *minorp)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
+	WT_FH *fh;
 	WT_LOG *log;
 	WT_LOG_DESC *desc;
 	WT_LOG_RECORD *logrec;
@@ -767,7 +770,9 @@ __log_openfile(WT_SESSION_IMPL *session, WT_FH **fhp,
 	if (FLD_ISSET(conn->direct_io, WT_DIRECT_IO_LOG))
 		FLD_SET(wtopen_flags, WT_FS_OPEN_DIRECTIO);
 	WT_ERR(__wt_open(
-	    session, buf->data, WT_FS_OPEN_FILE_TYPE_LOG, wtopen_flags, fhp));
+	    session, buf->data, WT_FS_OPEN_FILE_TYPE_LOG, wtopen_flags, &fh));
+	if (fhp != NULL)
+		*fhp = fh;
 
 	/*
 	 * If we are not creating the log file but opening it for reading,
@@ -776,7 +781,7 @@ __log_openfile(WT_SESSION_IMPL *session, WT_FH **fhp,
 	if (LF_ISSET(WT_LOG_OPEN_VERIFY)) {
 		WT_ERR(__wt_buf_grow(session, buf, allocsize));
 		memset(buf->mem, 0, allocsize);
-		WT_ERR(__wt_read(session, *fhp, 0, allocsize, buf->mem));
+		WT_ERR(__wt_read(session, fh, 0, allocsize, buf->mem));
 		logrec = (WT_LOG_RECORD *)buf->mem;
 		__wt_log_record_byteswap(logrec);
 		desc = (WT_LOG_DESC *)logrec->record;
@@ -784,7 +789,10 @@ __log_openfile(WT_SESSION_IMPL *session, WT_FH **fhp,
 		if (desc->log_magic != WT_LOG_MAGIC)
 			WT_PANIC_RET(session, WT_ERROR,
 			   "log file %s corrupted: Bad magic number %" PRIu32,
-			   (*fhp)->name, desc->log_magic);
+			   fh->name, desc->log_magic);
+		/*
+		 * We cannot read future log file formats.
+		 */
 		if (desc->majorv > WT_LOG_MAJOR_VERSION ||
 		    (desc->majorv == WT_LOG_MAJOR_VERSION &&
 		    desc->minorv > WT_LOG_MINOR_VERSION))
@@ -798,7 +806,12 @@ __log_openfile(WT_SESSION_IMPL *session, WT_FH **fhp,
 		 * If we're reading a log version that contains the previous
 		 * LSN record, then read that in and set up the LSN.
 		 * We already have a buffer that is the correct size.  Reuse it.
+		 * Skip this in old log file formats.
 		 */
+		if (majorp != NULL)
+			*majorp = desc->majorv;
+		if (minorp != NULL)
+			*minorp = desc->minorv;
 		if (desc->majorv < WT_LOG_MAJOR_SYSTEM ||
 		    (desc->majorv == WT_LOG_MAJOR_SYSTEM &&
 		    desc->minorv < WT_LOG_MINOR_SYSTEM))
@@ -807,7 +820,7 @@ __log_openfile(WT_SESSION_IMPL *session, WT_FH **fhp,
 		if (lsnp == NULL)
 			goto err;
 		memset(buf->mem, 0, allocsize);
-		WT_ERR(__wt_read(session, *fhp,
+		WT_ERR(__wt_read(session, fh,
 		    allocsize, allocsize, buf->mem));
 		logrec = (WT_LOG_RECORD *)buf->mem;
 		if (!__log_checksum_match(session, buf, allocsize))
@@ -823,6 +836,11 @@ __log_openfile(WT_SESSION_IMPL *session, WT_FH **fhp,
 		WT_ERR(__wt_log_recover_system(session, &p, end, lsnp));
 	}
 err:	__wt_scr_free(session, &buf);
+	/*
+	 * If we're not returning the file handle, close it.
+	 */
+	if (fhp == NULL)
+		WT_TRET(__wt_close(session, &fh));
 	return (ret);
 }
 
@@ -969,7 +987,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
 	 */
 	WT_RET(__log_openfile(session,
 	    &log_fh, WT_LOG_FILENAME, log->fileid,
-	    WT_LOG_OPEN_VERIFY, NULL));
+	    WT_LOG_OPEN_VERIFY, NULL, NULL, NULL));
 	/*
 	 * Write the LSN at the end of the last record in the previous log file
 	 * as the first record in this log file.
@@ -983,9 +1001,15 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
 	 * the end of the header.
 	 */
 	WT_SET_LSN(&log->alloc_lsn, log->fileid, WT_LOG_END_HEADER);
-	WT_RET(__wt_log_system_record(session,
-	    log_fh, &logrec_lsn));
-	WT_SET_LSN(&log->alloc_lsn, log->fileid, WT_LOG_FIRST_RECORD);
+	/*
+	 * If we're running the version where we write a system record
+	 * do so now and update the alloc_lsn.
+	 */
+	if (log->log_minor == WT_LOG_MINOR_VERSION) {
+		WT_RET(__wt_log_system_record(session,
+		    log_fh, &logrec_lsn));
+		WT_SET_LSN(&log->alloc_lsn, log->fileid, log->first_record);
+	}
 	end_lsn = log->alloc_lsn;
 	WT_PUBLISH(log->log_fh, log_fh);
 
@@ -1046,7 +1070,7 @@ __wt_log_acquire(WT_SESSION_IMPL *session, uint64_t recsize, WT_LOGSLOT *slot)
 	 * Pre-allocate on the first real write into the log file, if it
 	 * was just created (i.e. not pre-allocated).
 	 */
-	if (log->alloc_lsn.l.offset == WT_LOG_FIRST_RECORD && created_log)
+	if (log->alloc_lsn.l.offset == log->first_record && created_log)
 		WT_RET(__log_prealloc(session, log->log_fh));
 	/*
 	 * Initialize the slot for activation.
@@ -1126,8 +1150,8 @@ __log_truncate(WT_SESSION_IMPL *session,
 	 * before doing work, and if there's a not-supported error, turn off
 	 * future truncates.
 	 */
-	WT_ERR(__log_openfile(session,
-	    &log_fh, file_prefix, lsn->l.file, 0, NULL));
+	WT_ERR(__log_openfile(session, &log_fh, file_prefix,
+	    lsn->l.file, 0, NULL, NULL, NULL));
 	WT_ERR(__log_truncate_file(session, log_fh, lsn->l.offset));
 	WT_ERR(__wt_fsync(session, log_fh, true));
 	WT_ERR(__wt_close(session, &log_fh));
@@ -1143,14 +1167,14 @@ __log_truncate(WT_SESSION_IMPL *session,
 		WT_ERR(__wt_log_extract_lognum(session, logfiles[i], &lognum));
 		if (lognum > lsn->l.file &&
 		    lognum < log->trunc_lsn.l.file) {
-			WT_ERR(__log_openfile(session,
-			    &log_fh, file_prefix, lognum, 0, NULL));
+			WT_ERR(__log_openfile(session, &log_fh, file_prefix,
+			    lognum, 0, NULL, NULL, NULL));
 			/*
 			 * If there are intervening files pre-allocated,
 			 * truncate them to the end of the log file header.
 			 */
 			WT_ERR(__log_truncate_file(
-			    session, log_fh, WT_LOG_FIRST_RECORD));
+			    session, log_fh, log->first_record));
 			WT_ERR(__wt_fsync(session, log_fh, true));
 			WT_ERR(__wt_close(session, &log_fh));
 		}
@@ -1196,8 +1220,8 @@ __wt_log_allocfile(
 	/*
 	 * Set up the temporary file.
 	 */
-	WT_ERR(__log_openfile(session,
-	    &log_fh, WT_LOG_TMPNAME, tmp_id, WT_LOG_OPEN_CREATE_OK, NULL));
+	WT_ERR(__log_openfile(session, &log_fh, WT_LOG_TMPNAME,
+	    tmp_id, WT_LOG_OPEN_CREATE_OK, NULL, NULL, NULL));
 	WT_ERR(__log_file_header(session, log_fh, NULL, true));
 	WT_ERR(__log_prealloc(session, log_fh));
 	WT_ERR(__wt_fsync(session, log_fh, true));
@@ -1250,6 +1274,7 @@ __wt_log_open(WT_SESSION_IMPL *session)
 	WT_DECL_RET;
 	WT_LOG *log;
 	uint32_t firstlog, lastlog, lognum;
+	uint16_t major, minor;
 	u_int i, logcount;
 	char **logfiles;
 
@@ -1329,6 +1354,35 @@ __wt_log_open(WT_SESSION_IMPL *session)
 
 	/* If we found log files, save the new state. */
 	if (logcount > 0) {
+		/*
+		 * If we're running in a downgraded mode and there are earlier
+		 * logs detect if they're at a higher version.  If so, we need
+		 * to force recovery (to write a full checkpoint) and force
+		 * archiving to remove all higher version logs.  Look at only
+		 * the first log.
+		 *
+		 * XXX Is looking at the first log sufficient?  Could we crash
+		 * in recovery and get into some mixed mode?  Or if someone
+		 * upgraded and crashed they made the last log v1.1 and earlier
+		 * logs are v1.0.  We have the list of files, maybe we walk
+		 * and look at every version in this mode.  It's slow but done
+		 * once and it is a downgrade.
+		 */
+		if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_DOWNGRADED)) {
+			/*
+			 * By sending in a NULL file handle, we do not have to
+			 * close the file.
+			 */
+			WT_ERR(__log_openfile(session, NULL, WT_LOG_FILENAME,
+			    firstlog, WT_LOG_OPEN_VERIFY,
+			    NULL, &major, &minor));
+			__wt_verbose(session, WT_VERB_TEMPORARY,
+			    "log_open: Log %d major %u minor %u",
+			    firstlog, major, minor);
+			if (log->log_major != major || log->log_minor != minor)
+				FLD_SET(conn->log_flags,
+				    WT_CONN_LOG_FORCE_DOWNGRADE);
+		}
 		log->trunc_lsn = log->alloc_lsn;
 		FLD_SET(conn->log_flags, WT_CONN_LOG_EXISTED);
 	}
@@ -1711,7 +1765,8 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 		    __wt_fs_directory_list_free(session, &logfiles, logcount));
 	}
 	WT_ERR(__log_openfile(session, &log_fh,
-	    WT_LOG_FILENAME, start_lsn.l.file, WT_LOG_OPEN_VERIFY, &prev_lsn));
+	    WT_LOG_FILENAME, start_lsn.l.file,
+	    WT_LOG_OPEN_VERIFY, &prev_lsn, NULL, NULL));
 	WT_ERR(__wt_filesize(session, log_fh, &log_size));
 	rd_lsn = start_lsn;
 	if (LF_ISSET(WT_LOGSCAN_RECOVER))
@@ -1765,8 +1820,8 @@ advance:
 			if (rd_lsn.l.file > end_lsn.l.file)
 				break;
 			WT_ERR(__log_openfile(session,
-			    &log_fh, WT_LOG_FILENAME,
-			    rd_lsn.l.file, WT_LOG_OPEN_VERIFY, &prev_lsn));
+			    &log_fh, WT_LOG_FILENAME, rd_lsn.l.file,
+			    WT_LOG_OPEN_VERIFY, &prev_lsn, NULL, NULL));
 			/*
 			 * Opening the log file reads with verify sets up the
 			 * previous LSN from the first record.  This detects
@@ -2349,7 +2404,7 @@ __wt_log_flush(WT_SESSION_IMPL *session, uint32_t flags)
 	 * is single-threaded we could wait here forever because the write LSN
 	 * doesn't switch into the new file until it contains a record.
 	 */
-	if (last_lsn.l.offset == WT_LOG_FIRST_RECORD)
+	if (last_lsn.l.offset == log->first_record)
 		last_lsn = log->log_close_lsn;
 
 	/*
