@@ -61,8 +61,7 @@ __cursor_copy_int_key(WT_CURSOR *cursor)
 	if (F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
 		F_CLR(cursor, WT_CURSTD_KEY_INT);
 		if (!WT_DATA_IN_ITEM(&cursor->key))
-			WT_RET(__wt_buf_set(
-			    (WT_SESSION_IMPL *)cursor->session,
+			WT_RET(__wt_buf_set((WT_SESSION_IMPL *)cursor->session,
 			    &cursor->key, cursor->key.data, cursor->key.size));
 		F_SET(cursor, WT_CURSTD_KEY_EXT);
 	}
