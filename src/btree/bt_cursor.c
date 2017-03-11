@@ -632,11 +632,9 @@ err:	if (ret == WT_RESTART) {
 		WT_STAT_DATA_INCR(session, cursor_restart);
 		goto retry;
 	}
+
 	/* Insert doesn't maintain a position across calls, clear resources. */
-	if (ret == 0)
-		WT_TRET(__curfile_leave(cbt));
-	if (ret != 0)
-		WT_TRET(__cursor_reset(cbt));
+	WT_TRET(__cursor_reset(cbt));
 	return (ret);
 }
 
@@ -709,9 +707,9 @@ err:	if (ret == WT_RESTART) {
 		WT_STAT_DATA_INCR(session, cursor_restart);
 		goto retry;
 	}
-	WT_TRET(__curfile_leave(cbt));
-	if (ret != 0)
-		WT_TRET(__cursor_reset(cbt));
+
+	/* Insert doesn't maintain a position across calls, clear resources. */
+	WT_TRET(__cursor_reset(cbt));
 	return (ret);
 }
 
@@ -1301,7 +1299,7 @@ __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
 	 * Skip the usual cursor tear-down in that case.
 	 */
 	if (!lowlevel)
-		ret = __curfile_leave(cbt);
+		ret = __cursor_reset(cbt);
 
 	__wt_buf_free(session, &cbt->_row_key);
 	__wt_buf_free(session, &cbt->_tmp);
