@@ -18,6 +18,58 @@
 	    (cbt)->ref->page->read_gen != WT_READGEN_OLDEST)
 
 /*
+ * WT_CURFILE_OP_XXX
+ *	If we're going to return an error, we need to restore the cursor to
+ * a valid state, the upper-level cursor code is likely to retry. The macros
+ * here are called to save and restore that state.
+ */
+#define	WT_CURFILE_OP_DECL						\
+	WT_ITEM __key_copy;						\
+	WT_ITEM __value_copy;						\
+	uint64_t __recno;						\
+	uint32_t __flags
+#define	WT_CURFILE_OP_PUSH do {						\
+	WT_ITEM_SET(__key_copy, cursor->key);				\
+	WT_ITEM_SET(__value_copy, cursor->value);			\
+	__recno = cursor->recno;					\
+	__flags = cursor->flags;					\
+} while (0)
+#define	WT_CURFILE_OP_POP do {						\
+	cursor->recno = __recno;					\
+	if (FLD_ISSET(__flags, WT_CURSTD_KEY_EXT))			\
+		WT_ITEM_SET(cursor->key, __key_copy);			\
+	if (FLD_ISSET(__flags, WT_CURSTD_VALUE_EXT))			\
+		WT_ITEM_SET(cursor->value, __value_copy);		\
+	F_CLR(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);		\
+	F_SET(cursor,							\
+	    FLD_MASK(__flags, WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT));\
+} while (0)
+
+/*
+ * __cursor_copy_int_key --
+ *	If we're pointing into the tree, save the key into local memory.
+ */
+static inline int
+__cursor_copy_int_key(WT_CURSOR *cursor)
+{
+	/*
+	 * We're about to discard the cursor's position and the cursor layer
+	 * might retry the operation. We discard pinned pages on error, which
+	 * will invalidate pinned keys. Clear WT_CURSTD_KEY_INT in all cases,
+	 * the underlying page is gone whether we can allocate memory or not.
+	 */
+	if (F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
+		F_CLR(cursor, WT_CURSTD_KEY_INT);
+		if (!WT_DATA_IN_ITEM(&cursor->key))
+			WT_RET(__wt_buf_set(
+			    (WT_SESSION_IMPL *)cursor->session,
+			    &cursor->key, cursor->key.data, cursor->key.size));
+		F_SET(cursor, WT_CURSTD_KEY_EXT);
+	}
+	return (0);
+}
+
+/*
  * __cursor_size_chk --
  *	Return if an inserted item is too large.
  */
@@ -671,6 +723,7 @@ int
 __wt_btcur_remove(WT_CURSOR_BTREE *cbt)
 {
 	WT_BTREE *btree;
+	WT_CURFILE_OP_DECL;
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -679,6 +732,8 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt)
 	btree = cbt->btree;
 	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cursor->session;
+
+	WT_CURFILE_OP_PUSH;
 
 	WT_STAT_CONN_INCR(session, cursor_remove);
 	WT_STAT_DATA_INCR(session, cursor_remove);
@@ -690,10 +745,51 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt)
 	 */
 	positioned = F_ISSET(cursor, WT_CURSTD_KEY_INT);
 
-retry:	WT_RET(__cursor_func_init(cbt, true));
+retry:
+	/*
+	 * If removing with overwrite configured, and positioned to an on-page
+	 * key, the update doesn't require another search. The cursor won't be
+	 * positioned on a page with an external key set, but be sure.
+	 */
+	if (WT_PAGE_PINNED(cbt) &&
+	    F_ISSET_ALL(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_OVERWRITE)) {
+		WT_ERR(__wt_txn_autocommit_check(session));
+
+		/*
+		 * The cursor position may not be exact (the cursor's comparison
+		 * value not equal to zero). Correct to an exact match so we can
+		 * remove whatever we're pointing at.
+		 */
+		cbt->compare = 0;
+		ret = btree->type == BTREE_ROW ?
+		    __cursor_row_modify(session, cbt, true) :
+		    __cursor_col_modify(session, cbt, true);
+
+		/*
+		 * The pinned page goes away if we fail for any reason, make
+		 * sure there's a local copy of any key. (Restart could still
+		 * use the pinned page, but that's an unlikely path.) Re-save
+		 * the cursor state: we may retry but eventually fail.
+		 */
+		if (ret != 0) {
+			WT_TRET(__cursor_copy_int_key(cursor));
+			WT_CURFILE_OP_PUSH;
+			goto err;
+		}
+		goto done;
+	}
+
+	/*
+	 * The pinned page goes away if we do a search, make sure there's a
+	 * local copy of any key. Re-save the cursor state: we may retry but
+	 * eventually fail.
+	 */
+	WT_ERR(__cursor_copy_int_key(cursor));
+	WT_CURFILE_OP_PUSH;
+
+	WT_ERR(__cursor_func_init(cbt, true));
 
 	if (btree->type == BTREE_ROW) {
-		/* Remove the record if it exists. */
 		WT_ERR(__cursor_row_search(session, cbt, NULL, false));
 
 		/* Check whether an update would conflict. */
@@ -745,7 +841,7 @@ err:	if (ret == WT_RESTART) {
 	if (F_ISSET(cursor, WT_CURSTD_OVERWRITE) && ret == WT_NOTFOUND)
 		ret = 0;
 
-	/*
+done:	/*
 	 * If the cursor was positioned, it stays positioned, point the cursor
 	 * at an internal copy of the key. Otherwise, there's no position or
 	 * key/value.
@@ -758,6 +854,8 @@ err:	if (ret == WT_RESTART) {
 			F_SET(cursor, WT_CURSTD_KEY_INT);
 	} else
 		WT_TRET(__cursor_reset(cbt));
+	if (ret != 0)
+		WT_CURFILE_OP_POP;
 
 	return (ret);
 }
