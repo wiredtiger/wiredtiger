@@ -217,7 +217,7 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 		    &result_len));
 		WT_ASSERT(session,
 		    dsk->mem_size == result_len + WT_BLOCK_COMPRESS_SKIP);
-		ctmp->size = (uint32_t)result_len + WT_BLOCK_COMPRESS_SKIP;
+		ctmp->size = result_len + WT_BLOCK_COMPRESS_SKIP;
 		ip = ctmp;
 	} else {
 		WT_ASSERT(session, dsk->mem_size == buf->size);
