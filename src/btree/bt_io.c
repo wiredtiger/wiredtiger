@@ -184,6 +184,7 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 	int compression_failed;		/* Extension API, so not a bool. */
 	uint8_t *dst, *src;
 	bool data_checksum, encrypted;
+	bool timer;
 
 	btree = S2BT(session);
 	bm = btree->bm;
@@ -357,7 +358,8 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 		data_checksum = !compressed;
 		break;
 	}
-	if (!F_ISSET(session, WT_SESSION_INTERNAL))
+	timer = !F_ISSET(session, WT_SESSION_INTERNAL);
+	if (timer)
 		__wt_epoch(session, &start);
 
 	/* Call the block manager to write the block. */
@@ -367,7 +369,7 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 	    bm, session, ip, addr, addr_sizep, data_checksum, checkpoint_io));
 
 	/* Update some statistics now that the write is done */
-	if (!F_ISSET(session, WT_SESSION_INTERNAL)) {
+	if (timer) {
 		__wt_epoch(session, &stop);
 		WT_STAT_CONN_INCR(session, cache_write_app_count);
 		WT_STAT_CONN_INCRV(session, cache_write_app_time,

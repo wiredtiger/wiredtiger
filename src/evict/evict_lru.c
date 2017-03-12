@@ -2116,6 +2116,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_STATE *txn_state;
 	uint64_t init_evict_count, max_pages_evicted;
+	bool timer;
 
 	conn = S2C(session);
 	cache = conn->cache;
@@ -2136,7 +2137,9 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 	__wt_evict_server_wake(session);
 
 	/* Track how long application threads spend doing eviction. */
-	if (WT_STAT_ENABLED(session) && !F_ISSET(session, WT_SESSION_INTERNAL))
+	timer =
+	    WT_STAT_ENABLED(session) && !F_ISSET(session, WT_SESSION_INTERNAL);
+	if (timer)
 		__wt_epoch(session, &enter);
 
 	for (init_evict_count = cache->pages_evict;; ret = 0) {
@@ -2202,8 +2205,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 		}
 	}
 
-err:	if (WT_STAT_ENABLED(session) &&
-	    !F_ISSET(session, WT_SESSION_INTERNAL)) {
+err:	if (timer) {
 		__wt_epoch(session, &leave);
 		WT_STAT_CONN_INCRV(session,
 		    application_cache_time, WT_TIMEDIFF_US(leave, enter));
