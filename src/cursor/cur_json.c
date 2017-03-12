@@ -304,7 +304,6 @@ __wt_json_close(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 		__wt_free(session, json->value_buf);
 		__wt_free(session, json);
 	}
-	return;
 }
 
 /*
