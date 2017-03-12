@@ -691,7 +691,7 @@ json_uint_arg(WT_SESSION_IMPL *session, const char **jstr, uint64_t *up)
 #define	JSON_EXPECT_TOKEN_GET(session, jstr, tokval, start, sz) do {	\
     int __tok;								\
     WT_RET(__wt_json_token(						\
-	(WT_SESSION *)session, jstr, &__tok, &(start), &(sz)));		\
+	(WT_SESSION *)(session), jstr, &__tok, &(start), &(sz)));	\
     if (__tok != (tokval))						\
 	    WT_RET_MSG(session, EINVAL,					\
 		"expected JSON %s, got %s",				\
