@@ -10,8 +10,8 @@
 
 #define	WT_MEM_TRANSFER(from_decr, to_incr, len) do {			\
 	size_t __len = (len);						\
-	from_decr += __len;						\
-	to_incr += __len;						\
+	(from_decr) += __len;						\
+	(to_incr) += __len;						\
 } while (0)
 
 /*
