@@ -634,11 +634,11 @@ __wt_block_off_free(
 	 */
 	if ((ret = __wt_block_off_remove_overlap(
 	    session, block, &block->live.alloc, offset, size)) == 0)
-		ret = __block_merge(session, block,
-		    &block->live.avail, offset, (wt_off_t)size);
+		ret = __block_merge(
+		    session, block, &block->live.avail, offset, size);
 	else if (ret == WT_NOTFOUND)
-		ret = __block_merge(session, block,
-		    &block->live.discard, offset, (wt_off_t)size);
+		ret = __block_merge(
+		    session, block, &block->live.discard, offset, size);
 	return (ret);
 }
 

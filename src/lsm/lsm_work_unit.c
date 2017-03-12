@@ -230,7 +230,7 @@ __wt_lsm_work_bloom(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 		if (__wt_atomic_cas32(&chunk->bloom_busy, 0, 1)) {
 			if (!F_ISSET(chunk, WT_LSM_CHUNK_BLOOM)) {
 				ret = __lsm_bloom_create(
-				    session, lsm_tree, chunk, (u_int)i);
+				    session, lsm_tree, chunk, i);
 				/*
 				 * Record if we were successful so that we can
 				 * later push a merge work unit.
