@@ -321,7 +321,7 @@ util_uri(WT_SESSION *session, const char *s, const char *type)
 	 * the default type for the operation.
 	 */
 	if (strchr(s, ':') != NULL)
-		strcpy(name, s);
+		snprintf(name, len, "%s", s);
 	else
 		snprintf(name, len, "%s:%s", type, s);
 	return (name);
