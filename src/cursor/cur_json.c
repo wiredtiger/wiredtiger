@@ -323,33 +323,32 @@ __wt_json_unpack_char(u_char ch, u_char *buf, size_t bufsz, bool force_unicode)
 			if (bufsz >= 1)
 				*buf = ch;
 			return (1);
-		} else {
-			abbrev = '\0';
-			switch (ch) {
-			case '\\':
-			case '"':
-				abbrev = ch;
-				break;
-			case '\f':
-				abbrev = 'f';
-				break;
-			case '\n':
-				abbrev = 'n';
-				break;
-			case '\r':
-				abbrev = 'r';
-				break;
-			case '\t':
-				abbrev = 't';
-				break;
+		}
+		abbrev = '\0';
+		switch (ch) {
+		case '\\':
+		case '"':
+			abbrev = ch;
+			break;
+		case '\f':
+			abbrev = 'f';
+			break;
+		case '\n':
+			abbrev = 'n';
+			break;
+		case '\r':
+			abbrev = 'r';
+			break;
+		case '\t':
+			abbrev = 't';
+			break;
+		}
+		if (abbrev != '\0') {
+			if (bufsz >= 2) {
+				*buf++ = '\\';
+				*buf = abbrev;
 			}
-			if (abbrev != '\0') {
-				if (bufsz >= 2) {
-					*buf++ = '\\';
-					*buf = abbrev;
-				}
-				return (2);
-			}
+			return (2);
 		}
 	}
 	if (bufsz >= 6) {

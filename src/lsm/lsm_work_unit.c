@@ -611,7 +611,8 @@ __wt_lsm_free_chunks(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 			if (drop_ret == EBUSY) {
 				++skipped;
 				continue;
-			} else if (drop_ret != ENOENT)
+			}
+			if (drop_ret != ENOENT)
 				WT_ERR(drop_ret);
 
 			flush_metadata = true;
@@ -622,7 +623,8 @@ __wt_lsm_free_chunks(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 			if (drop_ret == EBUSY) {
 				++skipped;
 				continue;
-			} else if (drop_ret != ENOENT)
+			}
+			if (drop_ret != ENOENT)
 				WT_ERR(drop_ret);
 			flush_metadata = true;
 		}

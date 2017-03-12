@@ -1214,7 +1214,8 @@ __clsm_lookup(WT_CURSOR_LSM *clsm, WT_ITEM *value)
 				WT_LSM_TREE_STAT_INCR(
 				    session, clsm->lsm_tree->bloom_miss);
 				continue;
-			} else if (ret == 0)
+			}
+			if (ret == 0)
 				WT_LSM_TREE_STAT_INCR(
 				    session, clsm->lsm_tree->bloom_hit);
 			WT_ERR(ret);
@@ -1319,7 +1320,8 @@ __clsm_search_near(WT_CURSOR *cursor, int *exactp)
 		if ((ret = c->search_near(c, &cmp)) == WT_NOTFOUND) {
 			ret = 0;
 			continue;
-		} else if (ret != 0)
+		}
+		if (ret != 0)
 			goto err;
 
 		/* Do we have an exact match? */
@@ -1339,7 +1341,8 @@ __clsm_search_near(WT_CURSOR *cursor, int *exactp)
 			if ((ret = c->next(c)) == WT_NOTFOUND) {
 				ret = 0;
 				continue;
-			} else if (ret != 0)
+			}
+			if (ret != 0)
 				goto err;
 		}
 

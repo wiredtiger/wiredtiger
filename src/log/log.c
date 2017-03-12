@@ -1775,9 +1775,8 @@ advance:
 			if (eol)
 				/* Found a hole. This LSN is the end. */
 				break;
-			else
-				/* Last record in log.  Look for more. */
-				goto advance;
+			/* Last record in log.  Look for more. */
+			goto advance;
 		}
 		rdup_len = __wt_rduppo2(reclen, allocsize);
 		if (reclen > allocsize) {
