@@ -3604,16 +3604,7 @@ __wt_bulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 	r = cbulk->reconcile;
 	r->is_bulk_load = true;
 
-	recno = WT_RECNO_OOB;		/* -Werror=maybe-uninitialized */
-	switch (btree->type) {
-	case BTREE_COL_FIX:
-	case BTREE_COL_VAR:
-		recno = 1;
-		break;
-	case BTREE_ROW:
-		recno = WT_RECNO_OOB;
-		break;
-	}
+	recno = btree->type == BTREE_ROW ? WT_RECNO_OOB : 1;
 
 	return (__rec_split_init(
 	    session, r, cbulk->leaf, recno, btree->maxleafpage));
