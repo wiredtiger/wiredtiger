@@ -44,9 +44,10 @@ __wt_buf_init(WT_SESSION_IMPL *session, WT_ITEM *buf, size_t size)
 {
 	/*
 	 * The buffer grow function does what we need, but anticipates data
-	 * referenced by the buffer. Avoid any data copy by clearing it.
+	 * referenced by the buffer. Avoid any data copy by setting data to
+	 * reference the buffer's allocated memory, and clearing it.
 	 */
-	buf->data = NULL;
+	buf->data = buf->mem;
 	buf->size = 0;
 	return (__wt_buf_grow(session, buf, size));
 }
