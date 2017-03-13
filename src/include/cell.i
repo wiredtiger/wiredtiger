@@ -361,14 +361,12 @@ __wt_cell_pack_leaf_key(WT_CELL *cell, uint8_t prefix, size_t size)
 			cell->__chunk[0] = (uint8_t)
 			    ((byte << WT_CELL_SHORT_SHIFT) | WT_CELL_KEY_SHORT);
 			return (1);
-		} else {
-			byte = (uint8_t)size;		/* Type + length */
-			cell->__chunk[0] = (uint8_t)
-			    ((byte << WT_CELL_SHORT_SHIFT) |
-			    WT_CELL_KEY_SHORT_PFX);
-			cell->__chunk[1] = prefix;	/* Prefix */
-			return (2);
 		}
+		byte = (uint8_t)size;		/* Type + length */
+		cell->__chunk[0] = (uint8_t)
+		    ((byte << WT_CELL_SHORT_SHIFT) | WT_CELL_KEY_SHORT_PFX);
+		cell->__chunk[1] = prefix;	/* Prefix */
+		return (2);
 	}
 
 	if (prefix == 0) {
