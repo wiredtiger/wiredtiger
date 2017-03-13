@@ -267,10 +267,9 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_BTREE *btree;
 	WT_CONFIG_ITEM cval;
-	WT_CURSOR *meta_cursor;
 	WT_DECL_RET;
 	const char *name;
-	bool force, metadata_race;
+	bool force;
 
 	btree = S2BT(session);
 
@@ -291,6 +290,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 	if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT))
 		return (0);
 
+#ifdef HAVE_DIAGNOSTIC
 	/*
 	 * We may have raced between starting the checkpoint transaction and
 	 * some operation completing on the handle that updated the metadata
@@ -298,10 +298,12 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 	 * exclusive access to the handle or hold the schema lock.  We are now
 	 * holding the schema lock and have an open btree handle, so if we
 	 * can't update the metadata, then there has been some state change
-	 * invisible to the checkpoint transaction.  Skip checkpointing such
-	 * files: they must have a recent durable point.
+	 * invisible to the checkpoint transaction.
 	 */
 	if (!WT_IS_METADATA(session->dhandle)) {
+		WT_CURSOR *meta_cursor;
+		bool metadata_race;
+
 		WT_ASSERT(session, !F_ISSET(&session->txn, WT_TXN_ERROR));
 		WT_RET(__wt_metadata_cursor(session, &meta_cursor));
 		meta_cursor->set_key(meta_cursor, session->dhandle->name);
@@ -313,26 +315,9 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 			metadata_race = false;
 		WT_TRET(__wt_metadata_cursor_release(session, &meta_cursor));
 		WT_RET(ret);
-		if (metadata_race) {
-			/*
-			 * The conflict registers as a rollback error: that can
-			 * safely be skipped here.
-			 */
-			F_CLR(&session->txn, WT_TXN_ERROR);
-			if (force) {
-				WT_RET(__wt_msg(session,
-				    "forced or named checkpoint raced with "
-				    "a metadata update"));
-				return (EBUSY);
-			}
-			__wt_verbose(session, WT_VERB_CHECKPOINT,
-			    "skipped checkpoint of %s with metadata conflict",
-			    session->dhandle->name);
-			F_SET(btree, WT_BTREE_SKIP_CKPT);
-			__checkpoint_update_generation(session);
-			return (0);
-		}
+		WT_ASSERT(session, !metadata_race);
 	}
+#endif
 
 	/*
 	 * Decide whether the tree needs to be included in the checkpoint and
@@ -1292,26 +1277,12 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session,
 		}
 
 	/*
-	 * There are special files: those being bulk-loaded, salvaged, upgraded
-	 * or verified during the checkpoint.  We have to do something for those
-	 * objects because a checkpoint is an external name the application can
-	 * reference and the name must exist no matter what's happening during
-	 * the checkpoint.  For bulk-loaded files, we could block until the load
-	 * completes, checkpoint the partial load, or magic up an empty-file
-	 * checkpoint.  The first is too slow, the second is insane, so do the
-	 * third.
-	 *    Salvage, upgrade and verify don't currently require any work, all
-	 * three hold the schema lock, blocking checkpoints. If we ever want to
-	 * fix that (and I bet we eventually will, at least for verify), we can
-	 * copy the last checkpoint the file has.  That works if we guarantee
-	 * salvage, upgrade and verify act on objects with previous checkpoints
-	 * (true if handles are closed/re-opened between object creation and a
-	 * subsequent salvage, upgrade or verify operation).  Presumably,
-	 * salvage and upgrade will discard all previous checkpoints when they
-	 * complete, which is fine with us.  This change will require reference
-	 * counting checkpoints, and once that's done, we should use checkpoint
-	 * copy instead of forcing checkpoints on clean objects to associate
-	 * names with checkpoints.
+	 * There are special tree: those being bulk-loaded, salvaged, upgraded
+	 * or verified during the checkpoint. They should never be part of a
+	 * checkpoint: we will fail to lock them because the operations have
+	 * exclusive access to the handles. Named checkpoints will fail in that
+	 * case, ordinary checkpoints will skip files that cannot be opened
+	 * normally.
 	 */
 	WT_ASSERT(session,
 	    !is_checkpoint || !F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS));
