@@ -569,8 +569,8 @@ __wt_cell_unpack_safe(
 	 */
 #define	WT_CELL_LEN_CHK(t, len) do {					\
 	if (start != NULL &&						\
-	    ((uint8_t *)t < (uint8_t *)start ||				\
-	    (((uint8_t *)t) + (len)) > (uint8_t *)end))			\
+	    ((uint8_t *)(t) < (uint8_t *)start ||			\
+	    (((uint8_t *)(t)) + (len)) > (uint8_t *)end))		\
 		return (WT_ERROR);					\
 } while (0)
 
