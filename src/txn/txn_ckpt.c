@@ -342,6 +342,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 	    session, true, force, true, cfg));
 	WT_RET(ret);
 	if (F_ISSET(btree, WT_BTREE_SKIP_CKPT)) {
+		WT_ASSERT(session, btree->ckpt == NULL);
 		__checkpoint_update_generation(session);
 		return (0);
 	}
@@ -567,8 +568,11 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session,
 static void
 __checkpoint_fail_reset(WT_SESSION_IMPL *session)
 {
-	S2BT(session)->modified = true;
-	S2BT(session)->ckpt = NULL;
+	WT_BTREE *btree;
+
+	btree = S2BT(session);
+	btree->modified = true;
+	__wt_meta_ckptlist_free(session, &btree->ckpt);
 }
 
 /*
@@ -599,6 +603,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	 * calls to checkpoint.
 	 */
 	WT_RET(__wt_txn_begin(session, txn_cfg));
+
+	WT_DIAGNOSTIC_YIELD;
 
 	/* Ensure a transaction ID is allocated prior to sharing it globally */
 	WT_RET(__wt_txn_id_check(session));
@@ -1312,7 +1318,8 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session,
 
 	__wt_readunlock(session, &conn->hot_backup_lock);
 
-	WT_ASSERT(session, btree->ckpt == NULL);
+	WT_ASSERT(session, btree->ckpt == NULL &&
+	    !F_ISSET(btree, WT_BTREE_SKIP_CKPT));
 	btree->ckpt = ckptbase;
 
 	return (0);
@@ -1320,7 +1327,7 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session,
 err:	if (hot_backup_locked)
 		__wt_readunlock(session, &conn->hot_backup_lock);
 
-	__wt_meta_ckptlist_free(session, ckptbase);
+	__wt_meta_ckptlist_free(session, &ckptbase);
 	__wt_free(session, name_alloc);
 
 	return (ret);
@@ -1554,8 +1561,7 @@ err:	/*
 		S2C(session)->modified = true;
 	}
 
-	__wt_meta_ckptlist_free(session, ckptbase);
-	btree->ckpt = NULL;
+	__wt_meta_ckptlist_free(session, &btree->ckpt);
 
 	return (ret);
 }
