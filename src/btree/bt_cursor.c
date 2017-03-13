@@ -9,15 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * WT_PAGE_PINNED --
- *     If we have a page pinned and it's not been flagged for forced eviction
- * (the latter test is so we periodically release pages grown too large).
- */
-#define	WT_PAGE_PINNED(cbt)						\
-	(F_ISSET((cbt), WT_CBT_ACTIVE) &&				\
-	    (cbt)->ref->page->read_gen != WT_READGEN_OLDEST)
-
-/*
  * WT_CURFILE_OP_XXX
  *	If we're going to return an error, we need to restore the cursor to
  * a valid state, the upper-level cursor code is likely to retry. The macros
@@ -44,6 +35,19 @@
 	F_SET(cursor,							\
 	    FLD_MASK(__flags, WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT));\
 } while (0)
+
+/*
+ * __cursor_page_pinned --
+ *	Return if we have a page pinned and it's not been flagged for forced
+ * eviction (the forced eviction test is so we periodically release pages
+ * grown too large).
+ */
+static inline bool
+__cursor_page_pinned(WT_CURSOR_BTREE *cbt)
+{
+	return (F_ISSET(cbt, WT_CBT_ACTIVE) &&
+	    cbt->ref->page->read_gen != WT_READGEN_OLDEST);
+}
 
 /*
  * __cursor_copy_int_key --
@@ -403,7 +407,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 	 * from the root.
 	 */
 	valid = false;
-	if (WT_PAGE_PINNED(cbt)) {
+	if (__cursor_page_pinned(cbt)) {
 		__wt_txn_cursor_op(session);
 
 		WT_ERR(btree->type == BTREE_ROW ?
@@ -481,7 +485,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 	 * existing record.
 	 */
 	valid = false;
-	if (btree->type == BTREE_ROW && WT_PAGE_PINNED(cbt)) {
+	if (btree->type == BTREE_ROW && __cursor_page_pinned(cbt)) {
 		__wt_txn_cursor_op(session);
 
 		WT_ERR(__cursor_row_search(session, cbt, cbt->ref, true));
@@ -748,7 +752,7 @@ retry:
 	 * key, the update doesn't require another search. The cursor won't be
 	 * positioned on a page with an external key set, but be sure.
 	 */
-	if (WT_PAGE_PINNED(cbt) &&
+	if (__cursor_page_pinned(cbt) &&
 	    F_ISSET_ALL(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_OVERWRITE)) {
 		WT_ERR(__wt_txn_autocommit_check(session));
 
