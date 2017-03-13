@@ -128,7 +128,7 @@ __session_clear(WT_SESSION_IMPL *session)
 	 *
 	 * For these reasons, be careful when clearing the session structure.
 	 */
-	memset(session, 0, WT_SESSION_CLEAR_SIZE(session));
+	memset(session, 0, WT_SESSION_CLEAR_SIZE);
 
 	WT_INIT_LSN(&session->bg_sync_lsn);
 
@@ -162,7 +162,7 @@ __session_alter(WT_SESSION *wt_session, const char *uri, const char *config)
 	cfg[1] = NULL;
 	WT_WITH_CHECKPOINT_LOCK(session,
 	    WT_WITH_SCHEMA_LOCK(session,
-		WT_WITH_TABLE_LOCK(session,
+		WT_WITH_TABLE_WRITE_LOCK(session,
 		    ret = __wt_schema_alter(session, uri, cfg))));
 
 err:	if (ret != 0)
@@ -233,9 +233,6 @@ __session_close(WT_SESSION *wt_session, const char *config)
 
 	/* Release common session resources. */
 	WT_TRET(__wt_session_release_resources(session));
-
-	/* Destroy the thread's mutex. */
-	WT_TRET(__wt_cond_destroy(session, &session->cond));
 
 	/* The API lock protects opening and closing of sessions. */
 	__wt_spin_lock(session, &conn->api_lock);
@@ -521,7 +518,7 @@ __wt_session_create(
 	WT_DECL_RET;
 
 	WT_WITH_SCHEMA_LOCK(session,
-	    WT_WITH_TABLE_LOCK(session,
+	    WT_WITH_TABLE_WRITE_LOCK(session,
 		ret = __wt_schema_create(session, uri, config)));
 	return (ret);
 }
@@ -769,7 +766,7 @@ __session_rename(WT_SESSION *wt_session,
 
 	WT_WITH_CHECKPOINT_LOCK(session,
 	    WT_WITH_SCHEMA_LOCK(session,
-		WT_WITH_TABLE_LOCK(session,
+		WT_WITH_TABLE_WRITE_LOCK(session,
 		    ret = __wt_schema_rename(session, uri, newuri, cfg))));
 
 err:	if (ret != 0)
@@ -858,21 +855,22 @@ __session_drop(WT_SESSION *wt_session, const char *uri, const char *config)
 		if (lock_wait)
 			WT_WITH_CHECKPOINT_LOCK(session,
 			    WT_WITH_SCHEMA_LOCK(session,
-				WT_WITH_TABLE_LOCK(session, ret =
+				WT_WITH_TABLE_WRITE_LOCK(session, ret =
 				    __wt_schema_drop(session, uri, cfg))));
 		else
 			WT_WITH_CHECKPOINT_LOCK_NOWAIT(session, ret,
 			    WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret,
-				WT_WITH_TABLE_LOCK_NOWAIT(session, ret, ret =
+				WT_WITH_TABLE_WRITE_LOCK_NOWAIT(session, ret,
+				    ret =
 				    __wt_schema_drop(session, uri, cfg))));
 	} else {
 		if (lock_wait)
 			WT_WITH_SCHEMA_LOCK(session,
-			    WT_WITH_TABLE_LOCK(session,
+			    WT_WITH_TABLE_WRITE_LOCK(session,
 				ret = __wt_schema_drop(session, uri, cfg)));
 		else
 			WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret,
-			    WT_WITH_TABLE_LOCK_NOWAIT(session, ret,
+			    WT_WITH_TABLE_WRITE_LOCK_NOWAIT(session, ret,
 				ret = __wt_schema_drop(session, uri, cfg)));
 	}
 
@@ -1836,8 +1834,6 @@ __open_session(WT_CONNECTION_IMPL *conn,
 
 	session_ret->name = NULL;
 	session_ret->id = i;
-
-	WT_ERR(__wt_cond_alloc(session, "session", &session_ret->cond));
 
 	if (WT_SESSION_FIRST_USE(session_ret))
 		__wt_random_init(&session_ret->rnd);
