@@ -111,7 +111,7 @@ main(int argc, char *argv[])
 		case 'E':			/* secret key */
 			free(secretkey);	/* lint: set more than once */
 			if ((secretkey = strdup(__wt_optarg)) == NULL) {
-				ret = util_err(NULL, errno, NULL);
+				(void)util_err(NULL, errno, NULL);
 				goto err;
 			}
 			memset(__wt_optarg, 0, strlen(__wt_optarg));
@@ -254,7 +254,7 @@ main(int argc, char *argv[])
 	}
 	len += strlen(rec_config);
 	if ((p = malloc(len)) == NULL) {
-		ret = util_err(NULL, errno, NULL);
+		(void)util_err(NULL, errno, NULL);
 		goto err;
 	}
 	(void)snprintf(p, len, "%s,%s,%s%s%s%s",
@@ -265,11 +265,11 @@ main(int argc, char *argv[])
 	/* Open the database and a session. */
 	if ((ret = wiredtiger_open(home,
 	    verbose ? verbose_handler : NULL, config, &conn)) != 0) {
-		ret = util_err(NULL, ret, NULL);
+		(void)util_err(NULL, ret, NULL);
 		goto err;
 	}
 	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0) {
-		ret = util_err(NULL, ret, NULL);
+		(void)util_err(NULL, ret, NULL);
 		goto err;
 	}
 
@@ -277,7 +277,7 @@ main(int argc, char *argv[])
 	ret = func(session, argc, argv);
 
 	if (0) {
-err:		ret = EXIT_FAILURE;
+err:		ret = 1;
 	}
 done:
 
