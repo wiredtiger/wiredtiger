@@ -160,6 +160,7 @@ retry:
 #endif
 	if (WT_LOG_SLOT_UNBUFFERED_ISSET(old_state)) {
 		while (slot->slot_unbuffered == 0) {
+			WT_RET(WT_SESSION_CHECK_PANIC(session));
 			__wt_yield();
 #ifdef	HAVE_DIAGNOSTIC
 			++count;
@@ -219,6 +220,7 @@ __log_slot_switch_internal(
 	if (slot != log->active_slot)
 		return (0);
 
+	WT_RET(WT_SESSION_CHECK_PANIC(session));
 	/*
 	 * We may come through here multiple times if we were able to close
 	 * a slot but could not set up a new one.  If we closed it already,
@@ -464,7 +466,7 @@ __wt_log_slot_destroy(WT_SESSION_IMPL *session)
  * __wt_log_slot_join --
  *	Join a consolidated logging slot.
  */
-void
+int
 __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
     uint32_t flags, WT_MYSLOT *myslot)
 {
@@ -498,6 +500,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 	}
 	for (;;) {
 		WT_BARRIER();
+		WT_RET(WT_SESSION_CHECK_PANIC(session));
 		slot = log->active_slot;
 		old_state = slot->slot_state;
 		if (WT_LOG_SLOT_OPEN(old_state)) {
@@ -555,6 +558,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 	myslot->slot = slot;
 	myslot->offset = join_offset;
 	myslot->end_offset = (wt_off_t)((uint64_t)join_offset + mysize);
+	return (0);
 }
 
 /*
@@ -570,7 +574,6 @@ __wt_log_slot_release(WT_SESSION_IMPL *session, WT_MYSLOT *myslot, int64_t size)
 	wt_off_t cur_offset, my_start;
 	int64_t my_size, rel_size;
 
-	WT_UNUSED(session);
 	slot = myslot->slot;
 	my_start = slot->slot_start_offset + myslot->offset;
 	/*
@@ -579,6 +582,7 @@ __wt_log_slot_release(WT_SESSION_IMPL *session, WT_MYSLOT *myslot, int64_t size)
 	 * was written rather than the beginning record of the slot.
 	 */
 	while ((cur_offset = slot->slot_last_offset) < my_start) {
+		WT_RET(WT_SESSION_CHECK_PANIC(session));
 		/*
 		 * Set our offset if we are larger.
 		 */
