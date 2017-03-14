@@ -934,7 +934,6 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	cache = conn->cache;
 
 	WT_ASSERT(session, conn->evict_threads.threads[0]->session == session);
-	pgs_evicted_persec_cur = 0;
 
 	if (conn->evict_tune_stable)
 		return (0);
@@ -966,7 +965,8 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	pgs_evicted_persec_cur = (delta_pages * WT_THOUSAND) / delta_msec;
 	conn->evict_tune_num_points++;
 
-	/* Keep track of the maximum eviction throughput seen and the number
+	/*
+	 * Keep track of the maximum eviction throughput seen and the number
 	 * of workers corresponding to that throughput.
 	 */
 	if (pgs_evicted_persec_cur > conn->evict_tune_pg_sec_max) {
