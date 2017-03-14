@@ -152,11 +152,11 @@ __wt_conn_btree_sync_and_close(WT_SESSION_IMPL *session, bool final, bool force)
 	WT_RET(__wt_evict_file_exclusive_on(session));
 
 	/*
-	 * If we don't already have the schema lock, make it an error to try
-	 * to acquire it.  The problem is that we are holding an exclusive
-	 * lock on the handle, and if we attempt to acquire the schema lock
-	 * we might deadlock with a thread that has the schema lock and wants
-	 * a handle lock (specifically, checkpoint).
+	 * If we don't already have the schema lock, make it an error to try to
+	 * acquire it.  The problem is that we are holding an exclusive lock on
+	 * the handle, and if we attempt to acquire the schema lock we might
+	 * deadlock with a thread that has the schema lock and wants a handle
+	 * lock.
 	 */
 	no_schema_lock = false;
 	if (!F_ISSET(session, WT_SESSION_LOCKED_SCHEMA)) {
@@ -400,10 +400,7 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
 		return (ret == EBUSY ? 0 : ret);
 
 	WT_SAVE_DHANDLE(session, ret = file_func(session, cfg));
-	if (WT_META_TRACKING(session))
-		WT_TRET(__wt_meta_track_handle_lock(session, false));
-	else
-		WT_TRET(__wt_session_release_btree(session));
+	WT_TRET(__wt_session_release_btree(session));
 	return (ret);
 }
 
@@ -497,7 +494,12 @@ __wt_conn_dhandle_close_all(
 
 		session->dhandle = dhandle;
 
-		/* Lock the handle exclusively. */
+		/*
+		 * Lock the handle exclusively.  If this is part of
+		 * schema-changing operation (indicated by metadata tracking
+		 * being enabled), hold the lock for the duration of the
+		 * operation.
+		 */
 		WT_ERR(__wt_session_get_btree(session,
 		    dhandle->name, dhandle->checkpoint,
 		    NULL, WT_DHANDLE_EXCLUSIVE | WT_DHANDLE_LOCK_ONLY));
