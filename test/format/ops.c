@@ -401,11 +401,11 @@ snap_check(WT_CURSOR *cursor,
 static void *
 ops(void *arg)
 {
-	enum { READ, INSERT, UPDATE, REMOVE } op;
+	enum { INSERT, READ, REMOVE, UPDATE } op;
 	SNAP_OPS *snap, snap_list[64];
 	TINFO *tinfo;
 	WT_CONNECTION *conn;
-	WT_CURSOR *cursor, *cursor_insert;
+	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_ITEM *key, _key, *value, _value;
 	WT_SESSION *session;
@@ -436,9 +436,9 @@ ops(void *arg)
 	val_gen_setup(&tinfo->rnd, value);
 
 	/* Set the first operation where we'll create sessions and cursors. */
-	session_op = 0;
+	cursor = NULL;
 	session = NULL;
-	cursor = cursor_insert = NULL;
+	session_op = 0;
 
 	/* Set the first operation where we'll perform checkpoint operations. */
 	ckpt_op = g.c_checkpoints ? mmrand(&tinfo->rnd, 100, 10000) : 0;
@@ -492,24 +492,11 @@ ops(void *arg)
 				readonly = true;
 			} else {
 				/*
-				 * Open two cursors: one for overwriting and one
-				 * for append (if it's a column-store).
-				 *
-				 * The reason is when testing with existing
-				 * records, we don't track if a record was
-				 * deleted or not, which means we must use
-				 * cursor->insert with overwriting configured.
-				 * But, in column-store files where we're
-				 * testing with new, appended records, we don't
-				 * want to have to specify the record number,
-				 * which requires an append configuration.
+				 * Configure "append", in the case of column
+				 * stores, we append when inserting new rows.
 				 */
 				testutil_check(session->open_cursor(
-				    session, g.uri, NULL, NULL, &cursor));
-				if (g.type == FIX || g.type == VAR)
-					testutil_check(session->open_cursor(
-					    session, g.uri,
-					    NULL, "append", &cursor_insert));
+				    session, g.uri, NULL, "append", &cursor));
 
 				/* Pick the next session/cursor close/open. */
 				session_op += mmrand(&tinfo->rnd, 100, 5000);
@@ -716,14 +703,8 @@ skip_checkpoint:	/* Pick the next checkpoint operation. */
 				if (g.append_cnt >= g.append_max)
 					goto update_instead_of_insert;
 
-				/*
-				 * Insert, then reset the insert cursor so we
-				 * don't hold the page.
-				 */
-				ret = col_insert(tinfo,
-				    cursor_insert, key, value, &keyno);
-				testutil_check(
-				    cursor_insert->reset(cursor_insert));
+				ret = col_insert(
+				    tinfo, cursor, key, value, &keyno);
 				break;
 			}
 
