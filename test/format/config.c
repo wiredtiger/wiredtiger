@@ -30,6 +30,7 @@
 #include "config.h"
 
 static void	   config_checksum(void);
+static void	   config_compatibility(void);
 static void	   config_compression(const char *);
 static void	   config_encryption(void);
 static const char *config_file_type(u_int);
@@ -40,6 +41,7 @@ static int	   config_is_perm(const char *);
 static void	   config_isolation(void);
 static void	   config_lrt(void);
 static void	   config_map_checksum(const char *, u_int *);
+static void	   config_map_compatibility(const char *, u_int *);
 static void	   config_map_compression(const char *, u_int *);
 static void	   config_map_encryption(const char *, u_int *);
 static void	   config_map_file_type(const char *, u_int *);
@@ -155,6 +157,7 @@ config_setup(void)
 		g.c_threads = 1;
 
 	config_checksum();
+	config_compatibility();
 	config_compression("compression");
 	config_compression("logging_compression");
 	config_encryption();
@@ -304,6 +307,36 @@ config_compression(const char *conf_name)
 }
 
 /*
+ * config_compatibility --
+ *	Compatibility configuration.
+ */
+static void
+config_compatibility(void)
+{
+	/*
+	 * Compatibility is only relevant if logging is enabled.
+	 * Skip it no matter what if we're not logging.
+	 */
+	if (g.c_logging == 0) {
+		config_single("compatibility=none", 0);
+		return;
+	}
+	/* Choose a compatibility mode if nothing was specified. */
+	if (!config_is_perm("compatibility"))
+		switch (mmrand(NULL, 1, 10)) {
+		case 1:					/* 10% */
+			config_single("compatibility=v10", 0);
+			break;
+		case 2:					/* 10% */
+			config_single("compatibility=v11", 0);
+			break;
+		default:				/* 80% */
+			config_single("compatibility=none", 0);
+			break;
+		}
+}
+
+/*
  * config_encryption --
  *	Encryption configuration.
  */
@@ -381,6 +414,8 @@ config_in_memory_check(void)
 		config_single("backups=off", 0);
 	if (!config_is_perm("checkpoints"))
 		config_single("checkpoints=off", 0);
+	if (!config_is_perm("compatibility"))
+		config_single("compatibility=none", 0);
 	if (!config_is_perm("compression"))
 		config_single("compression=none", 0);
 	if (!config_is_perm("logging"))
@@ -714,6 +749,10 @@ config_single(const char *s, int perm)
 			config_map_checksum(ep, &g.c_checksum_flag);
 			*cp->vstr = dstrdup(ep);
 		} else if (strncmp(
+		    s, "compatibility", strlen("compatibility")) == 0) {
+			config_map_compatibility(ep, &g.c_compat_flag);
+			*cp->vstr = dstrdup(ep);
+		} else if (strncmp(
 		    s, "compression", strlen("compression")) == 0) {
 			config_map_compression(ep, &g.c_compression_flag);
 			*cp->vstr = dstrdup(ep);
@@ -805,6 +844,24 @@ config_map_checksum(const char *s, u_int *vp)
 		*vp = CHECKSUM_UNCOMPRESSED;
 	else
 		testutil_die(EINVAL, "illegal checksum configuration: %s", s);
+}
+
+/*
+ * config_map_compatibility --
+ *	Map a compatibility configuration to a flag.
+ */
+static void
+config_map_compatibility(const char *s, u_int *vp)
+{
+	if (strcmp(s, "none") == 0)
+		*vp = COMPAT_NONE;
+	else if (strcmp(s, "v10") == 0)
+		*vp = COMPAT_V10;
+	else if (strcmp(s, "v11") == 0)
+		*vp = COMPAT_V10;
+	else
+		testutil_die(EINVAL,
+		    "illegal compatibility configuration: %s", s);
 }
 
 /*

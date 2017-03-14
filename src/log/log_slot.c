@@ -281,6 +281,9 @@ __wt_log_slot_switch(
 			WT_STAT_CONN_INCR(session, log_slot_switch_busy);
 			__wt_yield();
 		}
+		WT_RET(WT_SESSION_CHECK_PANIC(session));
+		if (F_ISSET(S2C(session), WT_CONN_CLOSING))
+			break;
 	} while (F_ISSET(myslot, WT_MYSLOT_CLOSE) || (retry && ret == EBUSY));
 	return (ret);
 }
@@ -325,6 +328,7 @@ __wt_log_slot_new(WT_SESSION_IMPL *session)
 		/*
 		 * Rotate among the slots to lessen collisions.
 		 */
+		WT_RET(WT_SESSION_CHECK_PANIC(session));
 		for (i = 0, pool_i = log->pool_index; i < WT_SLOT_POOL;
 		    i++, pool_i++) {
 			if (pool_i >= WT_SLOT_POOL)

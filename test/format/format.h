@@ -148,6 +148,7 @@ typedef struct {
 	uint32_t c_bloom_oldest;
 	uint32_t c_cache;
 	uint32_t c_compact;
+	char *c_compat;
 	uint32_t c_checkpoints;
 	char *c_checksum;
 	uint32_t c_chunk_size;
@@ -214,6 +215,11 @@ typedef struct {
 #define	CHECKSUM_UNCOMPRESSED		3
 	u_int c_checksum_flag;			/* Checksum flag value */
 
+#define	COMPAT_NONE			1
+#define	COMPAT_V10			2
+#define	COMPAT_V11			3
+	u_int c_compat_flag;			/* Compatibility flag value */
+
 #define	COMPRESS_NONE			1
 #define	COMPRESS_LZ4			2
 #define	COMPRESS_LZ4_NO_RAW		3
@@ -279,6 +285,7 @@ void	 bdb_update(const void *, size_t, const void *, size_t);
 void	*alter(void *);
 void	*backup(void *);
 void	*compact(void *);
+void	*compat(void *);
 void	 config_clear(void);
 void	 config_error(void);
 void	 config_file(const char *);

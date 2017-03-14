@@ -1848,6 +1848,11 @@ struct __wt_connection {
 	 * checkpoint; setting this value above 0 configures periodic
 	 * checkpoints., an integer between 0 and 100000; default \c 0.}
 	 * @config{ ),,}
+	 * @config{compatibility = (, set compatibility version of database., a
+	 * set of related configuration options defined below.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;release, compatibility release
+	 * version string., a string; default empty.}
+	 * @config{ ),,}
 	 * @config{error_prefix, prefix string for error messages., a string;
 	 * default empty.}
 	 * @config{eviction = (, eviction configuration options., a set of
@@ -2286,6 +2291,11 @@ struct __wt_connection {
  * @config{ ),,}
  * @config{checkpoint_sync, flush files to stable storage when closing or
  * writing checkpoints., a boolean flag; default \c true.}
+ * @config{compatibility = (, set compatibility version of database., a set of
+ * related configuration options defined below.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;release, compatibility release version
+ * string., a string; default empty.}
+ * @config{ ),,}
  * @config{config_base, write the base configuration file if creating the
  * database.  If \c false in the config passed directly to ::wiredtiger_open\,
  * will ignore any existing base configuration file in addition to not creating

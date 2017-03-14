@@ -198,10 +198,10 @@ struct __wt_myslot {
 };
 
 #define	WT_LOG_END_HEADER	log->allocsize
-#define	WT_LOG_FIRST_RECORD	WT_LOG_END_HEADER + log->allocsize
 
 struct __wt_log {
 	uint32_t	allocsize;	/* Allocation alignment size */
+	uint32_t	first_record;	/* Offset of first record in file */
 	wt_off_t	log_written;	/* Amount of log written this period */
 	/*
 	 * Log file information
@@ -214,6 +214,9 @@ struct __wt_log {
 	WT_FH           *log_dir_fh;	/* Log directory file handle */
 	WT_FH           *log_close_fh;	/* Logging file handle to close */
 	WT_LSN		 log_close_lsn;	/* LSN needed to close */
+
+	uint16_t	 log_major;	/* Major version of log file */
+	uint16_t	 log_minor;	/* Minor version of log file */
 
 	/*
 	 * System LSNs
@@ -232,6 +235,7 @@ struct __wt_log {
 	 * Synchronization resources
 	 */
 	WT_SPINLOCK      log_lock;      /* Locked: Logging fields */
+	WT_SPINLOCK      log_fs_lock;   /* Locked: tmp, prep and log files */
 	WT_SPINLOCK      log_slot_lock; /* Locked: Consolidation array */
 	WT_SPINLOCK      log_sync_lock; /* Locked: Single-thread fsync */
 	WT_SPINLOCK      log_writelsn_lock; /* Locked: write LSN */
@@ -261,8 +265,9 @@ struct __wt_log {
 	uint64_t	 write_calls;		/* Calls to log_write */
 #endif
 
-#define	WT_LOG_OPENED		0x01	/* Log subsystem successfully open */
-#define	WT_LOG_TRUNCATE_NOTSUP	0x02	/* File system truncate not supported */
+#define	WT_LOG_FORCE_NEWFILE	0x01	/* Force switch to new log file */
+#define	WT_LOG_OPENED		0x02	/* Log subsystem successfully open */
+#define	WT_LOG_TRUNCATE_NOTSUP	0x04	/* File system truncate not supported */
 	uint32_t	flags;
 };
 
@@ -311,6 +316,12 @@ struct __wt_log_desc {
 };
 #define	WT_LOG_MAJOR_SYSTEM	1
 #define	WT_LOG_MINOR_SYSTEM	1
+/*
+ * WiredTiger release version where log format version changed.
+ * We only have to check the major version for now.  It is minor
+ * version 0 once release numbers move on.
+ */
+#define	WT_LOG_V11_MAJOR	3
 
 /*
  * __wt_log_desc_byteswap --
