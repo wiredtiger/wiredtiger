@@ -504,8 +504,8 @@ ops(void *arg)
 				 * want to have to specify the record number,
 				 * which requires an append configuration.
 				 */
-				testutil_check(session->open_cursor(session,
-				    g.uri, NULL, "overwrite", &cursor));
+				testutil_check(session->open_cursor(
+				    session, g.uri, NULL, NULL, &cursor));
 				if (g.type == FIX || g.type == VAR)
 					testutil_check(session->open_cursor(
 					    session, g.uri,
