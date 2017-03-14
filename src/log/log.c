@@ -309,14 +309,11 @@ void
 __wt_log_written_reset(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
-	WT_LOG *log;
 
 	conn = S2C(session);
 
-	if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED)) {
-		log = conn->log;
-		log->log_written = 0;
-	}
+	if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
+		conn->log->log_written = 0;
 }
 
 /*
