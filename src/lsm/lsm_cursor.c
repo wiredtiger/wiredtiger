@@ -843,8 +843,8 @@ __clsm_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
 		WT_ERR_MSG(session, EINVAL,
 		    "comparison method cursors must reference the same object");
 
-	WT_CURSOR_NEEDKEY(a);
-	WT_CURSOR_NEEDKEY(b);
+	WT_CURSOR_CHECKKEY(a);
+	WT_CURSOR_CHECKKEY(b);
 
 	WT_ERR(__wt_compare(
 	    session, alsm->lsm_tree->collator, &a->key, &b->key, cmpp));
@@ -1517,7 +1517,7 @@ __clsm_insert(WT_CURSOR *cursor)
 	clsm = (WT_CURSOR_LSM *)cursor;
 
 	CURSOR_UPDATE_API_CALL(cursor, session, insert, NULL);
-	WT_CURSOR_NEEDKEY(cursor);
+	WT_CURSOR_CHECKKEY(cursor);
 	WT_CURSOR_NEEDVALUE(cursor);
 	WT_ERR(__clsm_enter(clsm, false, true));
 
@@ -1561,7 +1561,7 @@ __clsm_update(WT_CURSOR *cursor)
 	clsm = (WT_CURSOR_LSM *)cursor;
 
 	CURSOR_UPDATE_API_CALL(cursor, session, update, NULL);
-	WT_CURSOR_NEEDKEY(cursor);
+	WT_CURSOR_CHECKKEY(cursor);
 	WT_CURSOR_NEEDVALUE(cursor);
 	WT_ERR(__clsm_enter(clsm, false, true));
 
@@ -1608,7 +1608,7 @@ __clsm_remove(WT_CURSOR *cursor)
 	positioned = F_ISSET(cursor, WT_CURSTD_KEY_INT);
 
 	CURSOR_REMOVE_API_CALL(cursor, session, NULL);
-	WT_CURSOR_NEEDKEY(cursor);
+	WT_CURSOR_CHECKKEY(cursor);
 	WT_CURSOR_NOVALUE(cursor);
 	WT_ERR(__clsm_enter(clsm, false, true));
 
