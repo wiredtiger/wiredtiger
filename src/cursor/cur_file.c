@@ -238,27 +238,22 @@ __curfile_insert(WT_CURSOR *cursor)
 
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_UPDATE_API_CALL(cursor, session, insert, cbt->btree);
-	if (!F_ISSET(cursor, WT_CURSTD_APPEND))
-		WT_CURSOR_NEEDKEY(cursor);
-	WT_CURSOR_NEEDVALUE(cursor);
 
-	WT_BTREE_CURSOR_SAVE_AND_RESTORE(cursor, __wt_btcur_insert(cbt), ret);
+	if (!F_ISSET(cursor, WT_CURSTD_APPEND))
+		WT_CURSOR_CHECKKEY(cursor);
+	WT_CURSOR_CHECKVALUE(cursor);
+
+	WT_ERR(__wt_btcur_insert(cbt));
 
 	/*
-	 * Insert is the one cursor operation that doesn't end with the cursor
-	 * pointing to an on-page item (except for column-store appends, where
-	 * we are returning a key). That is, the application's cursor continues
-	 * to reference the application's memory after a successful cursor call,
-	 * which isn't true anywhere else. We don't want to have to explain that
-	 * scoping corner case, so we reset the application's cursor so it can
-	 * free the referenced memory and continue on without risking subsequent
-	 * core dumps.
+	 * Insert maintains no position, key or value (except for column-store
+	 * appends, where we are returning a key).
 	 */
-	if (ret == 0) {
-		if (!F_ISSET(cursor, WT_CURSTD_APPEND))
-			F_CLR(cursor, WT_CURSTD_KEY_INT);
-		F_CLR(cursor, WT_CURSTD_VALUE_INT);
-	}
+	WT_ASSERT(session,
+	    (F_ISSET(cursor, WT_CURSTD_APPEND) &&
+	    F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT) ||
+	    (!F_ISSET(cursor, WT_CURSTD_APPEND) &&
+	    F_MASK(cursor, WT_CURSTD_KEY_SET) == 0));
 
 err:	CURSOR_UPDATE_API_END(session, ret);
 	return (ret);

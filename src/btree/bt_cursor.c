@@ -570,13 +570,17 @@ int
 __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
 {
 	WT_BTREE *btree;
+	WT_CURFILE_OP_DECL;
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	bool append_key;
 
 	btree = cbt->btree;
 	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cursor->session;
+
+	WT_CURFILE_OP_PUSH;
 
 	WT_STAT_CONN_INCR(session, cursor_insert);
 	WT_STAT_DATA_INCR(session, cursor_insert);
@@ -590,7 +594,58 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
 	/* It's no longer possible to bulk-load into the tree. */
 	__cursor_disable_bulk(session, btree);
 
-retry:	WT_RET(__cursor_func_init(cbt, true));
+	/*
+	 * Insert a new record if WT_CURSTD_APPEND configured, (ignoring any
+	 * application set record number). Although append can't be configured
+	 * for a row-store, this code would break if it were, and that's owned
+	 * by the upper cursor layer, be cautious.
+	 */
+	append_key =
+	    F_ISSET(cursor, WT_CURSTD_APPEND) && btree->type != BTREE_ROW;
+
+	/*
+	 * If inserting with overwrite configured, and positioned to an on-page
+	 * key, the update doesn't require another search. The cursor won't be
+	 * positioned on a page with an external key set, but be sure. Cursors
+	 * configured for append aren't included, regardless of whether or not
+	 * they meet all other criteria.
+	 */
+	if (__cursor_page_pinned(cbt) &&
+	    F_ISSET_ALL(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_OVERWRITE) &&
+	    !append_key) {
+		WT_ERR(__wt_txn_autocommit_check(session));
+		/*
+		 * The cursor position may not be exact (the cursor's comparison
+		 * value not equal to zero). Correct to an exact match so we can
+		 * update whatever we're pointing at.
+		 */
+		cbt->compare = 0;
+		ret = btree->type == BTREE_ROW ?
+		    __cursor_row_modify(session, cbt, false) :
+		    __cursor_col_modify(session, cbt, false);
+		if (ret == 0)
+			goto done;
+
+		/*
+		 * The pinned page goes away if we fail for any reason, make
+		 * sure there's a local copy of any key. (Restart could still
+		 * use the pinned page, but that's an unlikely path.) Re-save
+		 * the cursor state: we may retry but eventually fail.
+		 */
+		WT_TRET(__cursor_copy_int_key(cursor));
+		WT_CURFILE_OP_PUSH;
+		goto err;
+	}
+
+	/*
+	 * The pinned page goes away if we do a search, make sure there's a
+	 * local copy of any key. Re-save the cursor state: we may retry but
+	 * eventually fail.
+	 */
+	WT_ERR(__cursor_copy_int_key(cursor));
+	WT_CURFILE_OP_PUSH;
+
+retry:	WT_ERR(__cursor_func_init(cbt, true));
 
 	if (btree->type == BTREE_ROW) {
 		WT_ERR(__cursor_row_search(session, cbt, NULL, true));
@@ -605,11 +660,11 @@ retry:	WT_RET(__cursor_func_init(cbt, true));
 		ret = __cursor_row_modify(session, cbt, false);
 	} else {
 		/*
-		 * If WT_CURSTD_APPEND is set, insert a new record (ignoring
-		 * the application's record number). The real record number
-		 * is assigned by the serialized append operation.
+		 * Optionally insert a new record (ignoring the application's
+		 * record number). The real record number is allocated by the
+		 * serialized append operation.
 		 */
-		if (F_ISSET(cursor, WT_CURSTD_APPEND))
+		if (append_key)
 			cbt->iface.recno = WT_RECNO_OOB;
 
 		WT_ERR(__cursor_col_search(session, cbt, NULL));
@@ -626,7 +681,8 @@ retry:	WT_RET(__cursor_func_init(cbt, true));
 			WT_ERR(WT_DUPLICATE_KEY);
 
 		WT_ERR(__cursor_col_modify(session, cbt, false));
-		if (F_ISSET(cursor, WT_CURSTD_APPEND))
+
+		if (append_key)
 			cbt->iface.recno = cbt->recno;
 	}
 
@@ -636,8 +692,16 @@ err:	if (ret == WT_RESTART) {
 		goto retry;
 	}
 
-	/* Insert doesn't maintain a position across calls, clear resources. */
+done:	/* Insert doesn't maintain a position across calls, clear resources. */
+	if (ret == 0) {
+		F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+		if (append_key)
+			F_SET(cursor, WT_CURSTD_KEY_INT);
+	}
 	WT_TRET(__cursor_reset(cbt));
+	if (ret != 0)
+		WT_CURFILE_OP_POP;
+
 	return (ret);
 }
 
@@ -746,7 +810,6 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt)
 	 */
 	positioned = F_ISSET(cursor, WT_CURSTD_KEY_INT);
 
-retry:
 	/*
 	 * If removing with overwrite configured, and positioned to an on-page
 	 * key, the update doesn't require another search. The cursor won't be
@@ -765,6 +828,8 @@ retry:
 		ret = btree->type == BTREE_ROW ?
 		    __cursor_row_modify(session, cbt, true) :
 		    __cursor_col_modify(session, cbt, true);
+		if (ret == 0)
+			goto done;
 
 		/*
 		 * The pinned page goes away if we fail for any reason, make
@@ -772,12 +837,9 @@ retry:
 		 * use the pinned page, but that's an unlikely path.) Re-save
 		 * the cursor state: we may retry but eventually fail.
 		 */
-		if (ret != 0) {
-			WT_TRET(__cursor_copy_int_key(cursor));
-			WT_CURFILE_OP_PUSH;
-			goto err;
-		}
-		goto done;
+		WT_TRET(__cursor_copy_int_key(cursor));
+		WT_CURFILE_OP_PUSH;
+		goto err;
 	}
 
 	/*
@@ -788,7 +850,7 @@ retry:
 	WT_ERR(__cursor_copy_int_key(cursor));
 	WT_CURFILE_OP_PUSH;
 
-	WT_ERR(__cursor_func_init(cbt, true));
+retry:	WT_ERR(__cursor_func_init(cbt, true));
 
 	if (btree->type == BTREE_ROW) {
 		WT_ERR(__cursor_row_search(session, cbt, NULL, false));
