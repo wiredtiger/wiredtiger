@@ -183,15 +183,7 @@ __clsm_enter(WT_CURSOR_LSM *clsm, bool reset, bool update)
 	}
 
 	for (;;) {
-		/*
-		 * If the cursor looks up-to-date, check if the cache is full.
-		 * In case this call blocks, the check will be repeated before
-		 * proceeding.
-		 */
-		if (clsm->dsk_gen != lsm_tree->dsk_gen &&
-		    lsm_tree->nchunks != 0)
-			goto open;
-
+		/* Check if the cursor looks up-to-date. */
 		if (clsm->dsk_gen != lsm_tree->dsk_gen &&
 		    lsm_tree->nchunks != 0)
 			goto open;
