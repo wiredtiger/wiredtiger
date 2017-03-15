@@ -260,6 +260,29 @@ err:	CURSOR_UPDATE_API_END(session, ret);
 }
 
 /*
+ * __wt_curfile_insert_check --
+ *	WT_CURSOR->insert_check method for the btree cursor type.
+ */
+int
+__wt_curfile_insert_check(WT_CURSOR *cursor)
+{
+	WT_CURSOR_BTREE *cbt;
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	cbt = (WT_CURSOR_BTREE *)cursor;
+	CURSOR_UPDATE_API_CALL(cursor, session, update, cbt->btree);
+
+	WT_CURSOR_CHECKKEY(cursor);
+	WT_CURSOR_NOVALUE(cursor);
+
+	ret = __wt_btcur_insert_check(cbt);
+
+err:	CURSOR_UPDATE_API_END(session, ret);
+	return (ret);
+}
+
+/*
  * __curfile_update --
  *	WT_CURSOR->update method for the btree cursor type.
  */
@@ -277,30 +300,6 @@ __curfile_update(WT_CURSOR *cursor)
 	WT_CURSOR_NEEDVALUE(cursor);
 
 	WT_BTREE_CURSOR_SAVE_AND_RESTORE(cursor, __wt_btcur_update(cbt), ret);
-
-err:	CURSOR_UPDATE_API_END(session, ret);
-	return (ret);
-}
-
-/*
- * __wt_curfile_update_check --
- *	WT_CURSOR->update_check method for the btree cursor type.
- */
-int
-__wt_curfile_update_check(WT_CURSOR *cursor)
-{
-	WT_CURSOR_BTREE *cbt;
-	WT_DECL_RET;
-	WT_SESSION_IMPL *session;
-
-	cbt = (WT_CURSOR_BTREE *)cursor;
-	CURSOR_UPDATE_API_CALL(cursor, session, update, cbt->btree);
-
-	WT_CURSOR_NEEDKEY(cursor);
-	WT_CURSOR_NOVALUE(cursor);
-
-	WT_BTREE_CURSOR_SAVE_AND_RESTORE(
-	    cursor, __wt_btcur_update_check(cbt), ret);
 
 err:	CURSOR_UPDATE_API_END(session, ret);
 	return (ret);

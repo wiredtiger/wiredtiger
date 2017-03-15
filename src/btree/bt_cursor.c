@@ -737,16 +737,15 @@ __curfile_update_check(WT_CURSOR_BTREE *cbt)
 }
 
 /*
- * __wt_btcur_update_check --
+ * __wt_btcur_insert_check --
  *	Check whether an update would conflict.
  *
- *	This can be used to replace WT_CURSOR::insert or WT_CURSOR::update, so
- *	they only check for conflicts without updating the tree.  It is used to
- *	maintain snapshot isolation for transactions that span multiple chunks
- *	in an LSM tree.
+ * This can replace WT_CURSOR::insert, so it only checks for conflicts without
+ * updating the tree. It is used to maintain snapshot isolation for transactions
+ * that span multiple chunks in an LSM tree.
  */
 int
-__wt_btcur_update_check(WT_CURSOR_BTREE *cbt)
+__wt_btcur_insert_check(WT_CURSOR_BTREE *cbt)
 {
 	WT_BTREE *btree;
 	WT_CURSOR *cursor;
@@ -757,14 +756,20 @@ __wt_btcur_update_check(WT_CURSOR_BTREE *cbt)
 	btree = cbt->btree;
 	session = (WT_SESSION_IMPL *)cursor->session;
 
-retry:	WT_RET(__cursor_func_init(cbt, true));
+	/*
+	 * The pinned page goes away if we do a search, make sure there's a
+	 * local copy of any key. Unlike most of the btree cursor routines,
+	 * we don't have to save/restore the cursor key state, none of the
+	 * work done here changes the key state.
+	 */
+	WT_ERR(__cursor_copy_int_key(cursor));
+
+retry:	WT_ERR(__cursor_func_init(cbt, true));
 
 	if (btree->type == BTREE_ROW) {
 		WT_ERR(__cursor_row_search(session, cbt, NULL, true));
 
-		/*
-		 * Just check for conflicts.
-		 */
+		/* Just check for conflicts. */
 		ret = __curfile_update_check(cbt);
 	} else
 		WT_ERR(__wt_illegal_value(session, NULL));
@@ -776,7 +781,10 @@ err:	if (ret == WT_RESTART) {
 	}
 
 	/* Insert doesn't maintain a position across calls, clear resources. */
+	if (ret == 0)
+		F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 	WT_TRET(__cursor_reset(cbt));
+
 	return (ret);
 }
 

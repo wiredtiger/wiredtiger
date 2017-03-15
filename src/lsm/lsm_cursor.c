@@ -666,7 +666,7 @@ retry:	if (F_ISSET(clsm, WT_CLSM_MERGE)) {
 		 */
 		if (i != nchunks - 1)
 			clsm->chunks[i]->cursor->insert =
-			    __wt_curfile_update_check;
+			    __wt_curfile_insert_check;
 
 		if (!F_ISSET(clsm, WT_CLSM_MERGE) &&
 		    F_ISSET(chunk, WT_LSM_CHUNK_BLOOM))
