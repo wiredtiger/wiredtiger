@@ -852,12 +852,14 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt)
 	positioned = F_ISSET(cursor, WT_CURSTD_KEY_INT);
 
 	/*
-	 * If removing with overwrite configured, and positioned to an on-page
-	 * key, the update doesn't require another search. The cursor won't be
-	 * positioned on a page with an external key set, but be sure.
+	 * If remove positioned to an on-page key, the remove doesn't require
+	 * another search. We don't care about the "overwrite" configuration
+	 * because regardless of the overwrite setting, any existing record is
+	 * removed, and the record must exist with a positioned cursor. The
+	 * cursor won't be positioned on a page with an external key set, but
+	 * be sure.
 	 */
-	if (__cursor_page_pinned(cbt) &&
-	    F_ISSET_ALL(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_OVERWRITE)) {
+	if (__cursor_page_pinned(cbt) && F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
 		WT_ERR(__wt_txn_autocommit_check(session));
 
 		/*
@@ -995,12 +997,14 @@ __wt_btcur_update(WT_CURSOR_BTREE *cbt)
 	__cursor_disable_bulk(session, btree);
 
 	/*
-	 * If update with overwrite configured, and positioned to an on-page
-	 * key, the update doesn't require another search. The cursor won't be
-	 * positioned on a page with an external key set, but be sure.
+	 * If update positioned to an on-page key, the update doesn't require
+	 * another search. We don't care about the "overwrite" configuration
+	 * because regardless of the overwrite setting, any existing record is
+	 * updated, and the record must exist with a positioned cursor. The
+	 * cursor won't be positioned on a page with an external key set, but
+	 * be sure.
 	 */
-	if (__cursor_page_pinned(cbt) &&
-	    F_ISSET_ALL(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_OVERWRITE)) {
+	if (__cursor_page_pinned(cbt) && F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
 		WT_ERR(__wt_txn_autocommit_check(session));
 		/*
 		 * The cursor position may not be exact (the cursor's comparison
