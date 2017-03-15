@@ -1236,14 +1236,6 @@ __cursor_truncate(WT_SESSION_IMPL *session,
 	 * and we can proceed without concern.
 	 */
 retry:	WT_RET(__wt_btcur_search(start));
-
-	/*
-	 * XXX KEITH
-	 * When the btree cursor code sets/clears the cursor flags (rather than
-	 * the cursor layer), the set/clear goes away, only the assert remains.
-	 */
-	F_CLR((WT_CURSOR *)start, WT_CURSTD_KEY_SET);
-	F_SET((WT_CURSOR *)start, WT_CURSTD_KEY_INT);
 	WT_ASSERT(session,
 	    F_MASK((WT_CURSOR *)start, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
 
@@ -1304,14 +1296,6 @@ __cursor_truncate_fix(WT_SESSION_IMPL *session,
 	 * refresh the page's modification information.
 	 */
 retry:	WT_RET(__wt_btcur_search(start));
-
-	/*
-	 * XXX KEITH
-	 * When the btree cursor code sets/clears the cursor flags (rather than
-	 * the cursor layer), the set/clear goes away, only the assert remains.
-	 */
-	F_CLR((WT_CURSOR *)start, WT_CURSTD_KEY_SET);
-	F_SET((WT_CURSOR *)start, WT_CURSTD_KEY_INT);
 	WT_ASSERT(session,
 	    F_MASK((WT_CURSOR *)start, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
 
