@@ -126,6 +126,7 @@ __thread_group_shrink(WT_SESSION_IMPL *session,
 			group->threads[current_slot] = NULL;
 		}
 	}
+	group->current_threads = current_slot;
 	return (ret);
 }
 
