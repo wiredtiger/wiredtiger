@@ -1482,12 +1482,8 @@ row_remove(WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno, bool positioned)
 		(void)g.wt_api->msg_printf(g.wt_api,
 		    cursor->session, "%-10s%" PRIu64, "remove", keyno);
 
-	/* We use the cursor in overwrite mode, check for existence. */
-	if ((ret = cursor->search(cursor)) == 0)
-		ret = cursor->remove(cursor);
-	switch (ret) {
+	switch (ret = cursor->remove(cursor)) {
 	case 0:
-	case WT_NOTFOUND:
 		break;
 	case WT_ROLLBACK:
 		return (WT_ROLLBACK);
@@ -1528,10 +1524,7 @@ col_remove(WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno, bool positioned)
 		(void)g.wt_api->msg_printf(g.wt_api,
 		    cursor->session, "%-10s%" PRIu64, "remove", keyno);
 
-	/* We use the cursor in overwrite mode, check for existence. */
-	if ((ret = cursor->search(cursor)) == 0)
-		ret = cursor->remove(cursor);
-	switch (ret) {
+	switch (ret = cursor->remove(cursor)) {
 	case 0:
 	case WT_NOTFOUND:
 		break;
