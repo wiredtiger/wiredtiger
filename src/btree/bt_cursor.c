@@ -939,6 +939,7 @@ int
 __wt_btcur_update(WT_CURSOR_BTREE *cbt)
 {
 	WT_BTREE *btree;
+	WT_CURFILE_OP_DECL;
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -946,6 +947,8 @@ __wt_btcur_update(WT_CURSOR_BTREE *cbt)
 	btree = cbt->btree;
 	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cursor->session;
+
+	WT_CURFILE_OP_PUSH;
 
 	WT_STAT_CONN_INCR(session, cursor_update);
 	WT_STAT_DATA_INCR(session, cursor_update);
@@ -958,7 +961,46 @@ __wt_btcur_update(WT_CURSOR_BTREE *cbt)
 	/* It's no longer possible to bulk-load into the tree. */
 	__cursor_disable_bulk(session, btree);
 
-retry:	WT_RET(__cursor_func_init(cbt, true));
+	/*
+	 * If update with overwrite configured, and positioned to an on-page
+	 * key, the update doesn't require another search. The cursor won't be
+	 * positioned on a page with an external key set, but be sure.
+	 */
+	if (__cursor_page_pinned(cbt) &&
+	    F_ISSET_ALL(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_OVERWRITE)) {
+		WT_ERR(__wt_txn_autocommit_check(session));
+		/*
+		 * The cursor position may not be exact (the cursor's comparison
+		 * value not equal to zero). Correct to an exact match so we can
+		 * update whatever we're pointing at.
+		 */
+		cbt->compare = 0;
+		ret = btree->type == BTREE_ROW ?
+		    __cursor_row_modify(session, cbt, false) :
+		    __cursor_col_modify(session, cbt, false);
+		if (ret == 0)
+			goto done;
+
+		/*
+		 * The pinned page goes away if we fail for any reason, make
+		 * sure there's a local copy of any key. (Restart could still
+		 * use the pinned page, but that's an unlikely path.) Re-save
+		 * the cursor state: we may retry but eventually fail.
+		 */
+		WT_TRET(__cursor_copy_int_key(cursor));
+		WT_CURFILE_OP_PUSH;
+		goto err;
+	}
+
+	/*
+	 * The pinned page goes away if we do a search, make sure there's a
+	 * local copy of any key. Re-save the cursor state: we may retry but
+	 * eventually fail.
+	 */
+	WT_ERR(__cursor_copy_int_key(cursor));
+	WT_CURFILE_OP_PUSH;
+
+retry:	WT_ERR(__cursor_func_init(cbt, true));
 
 	if (btree->type == BTREE_ROW) {
 		WT_ERR(__cursor_row_search(session, cbt, NULL, true));
@@ -1007,11 +1049,13 @@ err:	if (ret == WT_RESTART) {
 	 * To make this work, we add a field to the btree cursor to pass back a
 	 * pointer to the modify function's allocated update structure.
 	 */
-	if (ret == 0)
+done:	if (ret == 0)
 		WT_TRET(__wt_kv_return(session, cbt, cbt->modify_update));
-
-	if (ret != 0)
+	else {
 		WT_TRET(__cursor_reset(cbt));
+		WT_CURFILE_OP_POP;
+	}
+
 	return (ret);
 }
 

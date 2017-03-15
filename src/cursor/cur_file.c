@@ -296,10 +296,15 @@ __curfile_update(WT_CURSOR *cursor)
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_UPDATE_API_CALL(cursor, session, update, cbt->btree);
 
-	WT_CURSOR_NEEDKEY(cursor);
-	WT_CURSOR_NEEDVALUE(cursor);
+	WT_CURSOR_CHECKKEY(cursor);
+	WT_CURSOR_CHECKVALUE(cursor);
 
-	WT_BTREE_CURSOR_SAVE_AND_RESTORE(cursor, __wt_btcur_update(cbt), ret);
+	WT_ERR(__wt_btcur_update(cbt));
+
+	/* Update maintains a position, key and value. */
+	WT_ASSERT(session,
+	    F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
+	    F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
 err:	CURSOR_UPDATE_API_END(session, ret);
 	return (ret);
