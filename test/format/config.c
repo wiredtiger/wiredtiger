@@ -93,7 +93,7 @@ config_setup(void)
 			config_single("data_source=table", 0);
 			break;
 		case 3:
-			if (g.c_in_memory || g.type == ROW)
+			if (g.c_in_memory || g.type != ROW)
 				config_single("data_source=table", 0);
 			else
 				config_single("data_source=lsm", 0);
