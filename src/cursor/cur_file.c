@@ -9,29 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * WT_BTREE_CURSOR_SAVE_AND_RESTORE
- *	Save the cursor's key/value data/size fields, call an underlying btree
- *	function, and then consistently handle failure and success.
- */
-#define	WT_BTREE_CURSOR_SAVE_AND_RESTORE(cursor, f, ret) do {		\
-	WT_ITEM __key_copy = (cursor)->key;				\
-	uint64_t __recno = (cursor)->recno;				\
-	WT_ITEM __value_copy = (cursor)->value;				\
-	if (((ret) = (f)) == 0) {					\
-		F_CLR(cursor, WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT);	\
-		F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);	\
-	} else {							\
-		if (F_ISSET(cursor, WT_CURSTD_KEY_EXT)) {		\
-			(cursor)->recno = __recno;			\
-			WT_ITEM_SET((cursor)->key, __key_copy);		\
-		}							\
-		if (F_ISSET(cursor, WT_CURSTD_VALUE_EXT))		\
-			WT_ITEM_SET((cursor)->value, __value_copy);	\
-		F_CLR(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);	\
-	}								\
-} while (0)
-
-/*
  * __curfile_compare --
  *	WT_CURSOR->compare method for the btree cursor type.
  */
@@ -206,10 +183,15 @@ __curfile_search(WT_CURSOR *cursor)
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_API_CALL(cursor, session, search, cbt->btree);
 
-	WT_CURSOR_NEEDKEY(cursor);
+	WT_CURSOR_CHECKKEY(cursor);
 	WT_CURSOR_NOVALUE(cursor);
 
-	WT_BTREE_CURSOR_SAVE_AND_RESTORE(cursor, __wt_btcur_search(cbt), ret);
+	WT_ERR(__wt_btcur_search(cbt));
+
+	/* Search maintains a position, key and value. */
+	WT_ASSERT(session,
+	    F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
+	    F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
 err:	API_END_RET(session, ret);
 }
@@ -228,11 +210,15 @@ __curfile_search_near(WT_CURSOR *cursor, int *exact)
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_API_CALL(cursor, session, search_near, cbt->btree);
 
-	WT_CURSOR_NEEDKEY(cursor);
+	WT_CURSOR_CHECKKEY(cursor);
 	WT_CURSOR_NOVALUE(cursor);
 
-	WT_BTREE_CURSOR_SAVE_AND_RESTORE(
-	    cursor, __wt_btcur_search_near(cbt, exact), ret);
+	WT_ERR(__wt_btcur_search_near(cbt, exact));
+
+	/* Search-near maintains a position, key and value. */
+	WT_ASSERT(session,
+	    F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
+	    F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
 err:	API_END_RET(session, ret);
 }

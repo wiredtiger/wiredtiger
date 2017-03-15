@@ -391,6 +391,7 @@ int
 __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 {
 	WT_BTREE *btree;
+	WT_CURFILE_OP_DECL;
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -404,6 +405,15 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 
 	WT_STAT_CONN_INCR(session, cursor_search);
 	WT_STAT_DATA_INCR(session, cursor_search);
+
+	WT_CURFILE_OP_PUSH;
+
+	/*
+	 * The pinned page goes away if we do a search, make sure there's a
+	 * local copy of any key, then re-save the cursor state.
+	 */
+	WT_ERR(__cursor_copy_int_key(cursor));
+	WT_CURFILE_OP_PUSH;
 
 	/*
 	 * If we have a page pinned, search it; if we don't have a page pinned,
@@ -439,6 +449,8 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 		cbt->v = 0;
 		cursor->value.data = &cbt->v;
 		cursor->value.size = 1;
+		F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+		F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 	} else
 		ret = WT_NOTFOUND;
 
@@ -447,8 +459,10 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 		WT_ERR(__wt_cursor_key_order_init(session, cbt));
 #endif
 
-err:	if (ret != 0)
+err:	if (ret != 0) {
 		WT_TRET(__cursor_reset(cbt));
+		WT_CURFILE_OP_POP;
+	}
 	return (ret);
 }
 
@@ -460,6 +474,7 @@ int
 __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 {
 	WT_BTREE *btree;
+	WT_CURFILE_OP_DECL;
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -475,6 +490,15 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 
 	WT_STAT_CONN_INCR(session, cursor_search_near);
 	WT_STAT_DATA_INCR(session, cursor_search_near);
+
+	WT_CURFILE_OP_PUSH;
+
+	/*
+	 * The pinned page goes away if we do a search, make sure there's a
+	 * local copy of any key, then re-save the cursor state.
+	 */
+	WT_ERR(__cursor_copy_int_key(cursor));
+	WT_CURFILE_OP_PUSH;
 
 	/*
 	 * If we have a row-store page pinned, search it; if we don't have a
@@ -540,6 +564,8 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 		cursor->value.data = &cbt->v;
 		cursor->value.size = 1;
 		exact = 0;
+		F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+		F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 	} else if ((ret = __wt_btcur_next(cbt, false)) != WT_NOTFOUND)
 		exact = 1;
 	else {
@@ -554,15 +580,18 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 			exact = -1;
 	}
 
+err:	if (exactp != NULL && (ret == 0 || ret == WT_NOTFOUND))
+		*exactp = exact;
+
 #ifdef HAVE_DIAGNOSTIC
 	if (ret == 0)
-		WT_ERR(__wt_cursor_key_order_init(session, cbt));
+		WT_TRET(__wt_cursor_key_order_init(session, cbt));
 #endif
 
-err:	if (ret != 0)
+	if (ret != 0) {
 		WT_TRET(__cursor_reset(cbt));
-	if (exactp != NULL && (ret == 0 || ret == WT_NOTFOUND))
-		*exactp = exact;
+		WT_CURFILE_OP_POP;
+	}
 	return (ret);
 }
 
@@ -584,12 +613,12 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
 	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cursor->session;
 
-	WT_CURFILE_OP_PUSH;
-
 	WT_STAT_CONN_INCR(session, cursor_insert);
 	WT_STAT_DATA_INCR(session, cursor_insert);
 	WT_STAT_DATA_INCRV(session,
 	    cursor_insert_bytes, cursor->key.size + cursor->value.size);
+
+	WT_CURFILE_OP_PUSH;
 
 	if (btree->type == BTREE_ROW)
 		WT_RET(__cursor_size_chk(session, &cursor->key));
@@ -810,11 +839,11 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt)
 	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cursor->session;
 
-	WT_CURFILE_OP_PUSH;
-
 	WT_STAT_CONN_INCR(session, cursor_remove);
 	WT_STAT_DATA_INCR(session, cursor_remove);
 	WT_STAT_DATA_INCRV(session, cursor_remove_bytes, cursor->key.size);
+
+	WT_CURFILE_OP_PUSH;
 
 	/*
 	 * WT_CURSOR.remove has a unique semantic, the cursor stays positioned
@@ -952,11 +981,11 @@ __wt_btcur_update(WT_CURSOR_BTREE *cbt)
 	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cursor->session;
 
-	WT_CURFILE_OP_PUSH;
-
 	WT_STAT_CONN_INCR(session, cursor_update);
 	WT_STAT_DATA_INCR(session, cursor_update);
 	WT_STAT_DATA_INCRV(session, cursor_update_bytes, cursor->value.size);
+
+	WT_CURFILE_OP_PUSH;
 
 	if (btree->type == BTREE_ROW)
 		WT_RET(__cursor_size_chk(session, &cursor->key));
