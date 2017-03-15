@@ -102,8 +102,6 @@ __thread_group_shrink(
 		group->threads[current_slot] = NULL;
 	}
 
-	/* Update the thread group state to match our changes */
-	group->current_threads = current_slot;
 	return (ret);
 }
 
