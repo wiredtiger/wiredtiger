@@ -519,7 +519,7 @@ __lsm_drop_file(WT_SESSION_IMPL *session, const char *uri)
 	 * This will fail with EBUSY if the file is still in use.
 	 */
 	WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
-	   ret = __lsm_discard_handle(session, uri, WT_CHECKPOINT));
+	    ret = __lsm_discard_handle(session, uri, WT_CHECKPOINT));
 	WT_RET(ret);
 
 	/*

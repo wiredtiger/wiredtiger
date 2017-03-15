@@ -178,7 +178,7 @@ __clsm_enter(WT_CURSOR_LSM *clsm, bool reset, bool update)
 
 	if (reset) {
 		WT_ASSERT(session, !F_ISSET(&clsm->iface,
-		   WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT));
+		    WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT));
 		WT_RET(__clsm_reset_cursors(clsm, NULL));
 	}
 
