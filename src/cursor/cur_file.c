@@ -109,9 +109,12 @@ __curfile_next(WT_CURSOR *cursor)
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_API_CALL(cursor, session, next, cbt->btree);
 
-	F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-	if ((ret = __wt_btcur_next(cbt, false)) == 0)
-		F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+	WT_ERR(__wt_btcur_next(cbt, false));
+
+	/* Next maintains a position, key and value. */
+	WT_ASSERT(session,
+	    F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
+	    F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
 err:	API_END_RET(session, ret);
 }
@@ -131,9 +134,12 @@ __wt_curfile_next_random(WT_CURSOR *cursor)
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_API_CALL(cursor, session, next, cbt->btree);
 
-	F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-	if ((ret = __wt_btcur_next_random(cbt)) == 0)
-		F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+	WT_ERR(__wt_btcur_next_random(cbt));
+
+	/* Next-random maintains a position, key and value. */
+	WT_ASSERT(session,
+	    F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
+	    F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
 err:	API_END_RET(session, ret);
 }
@@ -152,9 +158,12 @@ __curfile_prev(WT_CURSOR *cursor)
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_API_CALL(cursor, session, prev, cbt->btree);
 
-	F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-	if ((ret = __wt_btcur_prev(cbt, false)) == 0)
-		F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+	WT_ERR(__wt_btcur_prev(cbt, false));
+
+	/* Prev maintains a position, key and value. */
+	WT_ASSERT(session,
+	    F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
+	    F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
 err:	API_END_RET(session, ret);
 }
@@ -175,7 +184,10 @@ __curfile_reset(WT_CURSOR *cursor)
 
 	ret = __wt_btcur_reset(cbt);
 
-	F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+	/* Reset maintains no position, key or value. */
+	WT_ASSERT(session,
+	    F_MASK(cursor, WT_CURSTD_KEY_SET) == 0 &&
+	    F_MASK(cursor, WT_CURSTD_VALUE_SET) == 0);
 
 err:	API_END_RET(session, ret);
 }

@@ -369,12 +369,16 @@ __cursor_row_modify(
 int
 __wt_btcur_reset(WT_CURSOR_BTREE *cbt)
 {
+	WT_CURSOR *cursor;
 	WT_SESSION_IMPL *session;
 
+	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cbt->iface.session;
 
 	WT_STAT_CONN_INCR(session, cursor_reset);
 	WT_STAT_DATA_INCR(session, cursor_reset);
+
+	F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
 	return (__cursor_reset(cbt));
 }
