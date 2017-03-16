@@ -1224,12 +1224,15 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
 	if (!__wt_page_is_modified(page))
 		return (false);
 
+	/* We don't split the LSM primary. */
+	if (btree->lsm_primary)
+		return (false);
+
 	/*
 	 * There is no point doing an in-memory split unless there is a lot of
 	 * data in the last skiplist on the page.  Split if there are enough
 	 * items and the skiplist does not fit within a single disk page.
 	 */
-
 	ins_head = page->type == WT_PAGE_ROW_LEAF ?
 	    (page->entries == 0 ?
 	    WT_ROW_INSERT_SMALLEST(page) :
