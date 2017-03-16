@@ -274,7 +274,6 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 	btree = S2BT(session);
 
 	/* Find out if we have to force a checkpoint. */
-	force = false;
 	WT_RET(__wt_config_gets_def(session, cfg, "force", 0, &cval));
 	force = cval.val != 0;
 	if (!force) {
@@ -1421,7 +1420,7 @@ __checkpoint_tree(
 	 * delete a physical checkpoint, and that will end in tears.
 	 */
 	if (is_checkpoint)
-		if (btree->bulk_load_ok) {
+		if (btree->original) {
 			fake_ckpt = true;
 			goto fake;
 		}
