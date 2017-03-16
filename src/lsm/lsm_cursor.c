@@ -1604,12 +1604,10 @@ __clsm_remove(WT_CURSOR *cursor)
 	WT_CURSOR_NOVALUE(cursor);
 	WT_ERR(__clsm_enter(clsm, false, true));
 
-	if (F_ISSET(cursor, WT_CURSTD_OVERWRITE) ||
-	    (ret = __clsm_lookup(clsm, &value)) == 0)
-		ret = __clsm_put(
-		    session, clsm, &cursor->key, &__tombstone, positioned);
-
-err:	__clsm_leave(clsm);
+	if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE))
+		WT_ERR(__clsm_lookup(clsm, &value));
+	WT_ERR(__clsm_put(
+	    session, clsm, &cursor->key, &__tombstone, positioned));
 
 	/*
 	 * If the cursor was positioned, it stays positioned with a key but no
@@ -1623,6 +1621,7 @@ err:	__clsm_leave(clsm);
 	else
 		WT_TRET(cursor->reset(cursor));
 
+err:	__clsm_leave(clsm);
 	CURSOR_UPDATE_API_END(session, ret);
 	return (ret);
 }
