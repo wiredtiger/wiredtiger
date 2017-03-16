@@ -394,13 +394,13 @@ setup(
         'Intended Audience :: Developers',
         'Programming Language :: C',
         'Programming Language :: C++',
-        'Programming Language :: Python'
+        'Programming Language :: Python',
         'Programming Language :: Java',
         'Operating System :: MacOS :: MacOS X',
         'Operating System :: POSIX',
         'Operating System :: POSIX :: BSD',
         'Operating System :: POSIX :: Linux',
-        'Operating System :: Unix :: SunOS/Solaris',
+        'Operating System :: POSIX :: SunOS/Solaris',
     ]
 )
 
