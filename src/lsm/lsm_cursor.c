@@ -704,9 +704,8 @@ retry:	if (F_ISSET(clsm, WT_CLSM_MERGE)) {
 		 *
 		 * If something caused the chunk to be closed and reopened
 		 * since it was created, we can no longer use it as a primary
-		 * chunk and we need to force a switch. We detect that the tree
-		 * was empty when it was opened by checking that a bulk load is
-		 * permitted.
+		 * chunk and we need to force a switch. We detect the tree was
+		 * created when it was opened by checking the "original" flag.
 		 */
 		if (!btree->lsm_primary && btree->original)
 			btree->lsm_primary = true;
