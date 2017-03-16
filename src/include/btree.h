@@ -118,9 +118,9 @@ struct __wt_btree {
 
 	uint64_t last_recno;		/* Column-store last record number */
 
-	WT_REF root;			/* Root page reference */
-	bool modified;			/* If the tree ever modified */
-	uint8_t bulk_load_ok;		/* Bulk-load is a possibility
+	WT_REF	root;			/* Root page reference */
+	bool	modified;		/* If the tree ever modified */
+	uint8_t	original;		/* Newly created: bulk-load possible
 					   (want a bool but needs atomic cas) */
 
 	bool lsm_primary;		/* Handle is/was the LSM primary */

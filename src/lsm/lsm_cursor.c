@@ -708,7 +708,7 @@ retry:	if (F_ISSET(clsm, WT_CLSM_MERGE)) {
 		 * was empty when it was opened by checking that a bulk load is
 		 * permitted.
 		 */
-		if (!btree->lsm_primary && btree->bulk_load_ok)
+		if (!btree->lsm_primary && btree->original)
 			btree->lsm_primary = true;
 		if (btree->lsm_primary)
 			clsm->primary_chunk = chunk;
