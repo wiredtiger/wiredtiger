@@ -86,23 +86,11 @@ __win_fs_rename(WT_FILE_SYSTEM *file_system,
 	WT_ERR(__wt_to_utf16_string(session, from, &from_wide));
 	WT_ERR(__wt_to_utf16_string(session, to, &to_wide));
 
-	/*
-	 * Check if file exists since Windows does not override the file if
-	 * it exists.
-	 */
-	if (GetFileAttributesW(to_wide->data) != INVALID_FILE_ATTRIBUTES)
-		if (DeleteFileW(to_wide->data) == FALSE) {
-			windows_error = __wt_getlasterror();
-			__wt_errx(session,
-			    "%s: file-rename: DeleteFileW: %s",
-			    to, __wt_formatmessage(session, windows_error));
-			WT_ERR(__wt_map_windows_error(windows_error));
-		}
-
-	if (MoveFileW(from_wide->data, to_wide->data) == FALSE) {
+	if (MoveFileExW(from_wide->data,
+	    to_wide->data, MOVEFILE_REPLACE_EXISTING) == FALSE) {
 		windows_error = __wt_getlasterror();
 		__wt_errx(session,
-		    "%s to %s: file-rename: MoveFileW: %s",
+		    "%s to %s: file-rename: MoveFileExW: %s",
 		    from, to, __wt_formatmessage(session, windows_error));
 		WT_ERR(__wt_map_windows_error(windows_error));
 	}

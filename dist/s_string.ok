@@ -240,8 +240,7 @@ Metadata
 Mewhort
 Mitzenmacher
 MongoDB
-MoveFile
-MoveFileW
+MoveFileExW
 Multi
 MultiByteToWideChar
 Multithreaded
