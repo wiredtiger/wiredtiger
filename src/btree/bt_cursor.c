@@ -962,11 +962,9 @@ done:	/*
 	 */
 	if (ret == 0)
 		F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-	if (ret == 0 && positioned) {
+	if (ret == 0 && positioned)
 		WT_TRET(__wt_key_return(session, cbt));
-		if (ret == 0)
-			F_SET(cursor, WT_CURSTD_KEY_INT);
-	} else
+	else
 		WT_TRET(__cursor_reset(cbt));
 	if (ret != 0)
 		WT_CURFILE_OP_POP;
