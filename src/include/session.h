@@ -67,7 +67,6 @@ struct __wt_session_impl {
 	TAILQ_HEAD(__dhandles, __wt_data_handle_cache) dhandles;
 	time_t last_sweep;		/* Last sweep for dead handles */
 
-	WT_CURSOR *cursor;		/* Current cursor */
 					/* Cursors closed with the session */
 	TAILQ_HEAD(__cursors, __wt_cursor) cursors;
 
@@ -88,7 +87,7 @@ struct __wt_session_impl {
 	void	  *meta_track_sub;	/* Child transaction / save point */
 	size_t	   meta_track_alloc;	/* Currently allocated */
 	int	   meta_track_nest;	/* Nesting level of meta transaction */
-#define	WT_META_TRACKING(session)	(session->meta_track_next != NULL)
+#define	WT_META_TRACKING(session)	((session)->meta_track_next != NULL)
 
 	/*
 	 * Each session keeps a cache of table handles. The set of handles
