@@ -66,7 +66,7 @@ load(SHARED_CONFIG *cfg, const char *name)
 	WT_ITEM *value, _value;
 	WT_SESSION *session;
 	size_t len;
-	int64_t keyno;
+	uint64_t keyno;
 	int ret;
 	char keybuf[64], valuebuf[64];
 
@@ -82,10 +82,10 @@ load(SHARED_CONFIG *cfg, const char *name)
 		testutil_die(ret, "cursor.open");
 
 	value = &_value;
-	for (keyno = 1; keyno <= (int64_t)cfg->nkeys; ++keyno) {
+	for (keyno = 1; keyno <= cfg->nkeys; ++keyno) {
 		if (cfg->ftype == ROW) {
 			testutil_check(__wt_snprintf(
-			    keybuf, sizeof(keybuf), "%016u", (u_int)keyno));
+			    keybuf, sizeof(keybuf), "%016" PRIu64, keyno));
 			cursor->set_key(cursor, keybuf);
 		} else
 			cursor->set_key(cursor, (uint32_t)keyno);
@@ -95,7 +95,7 @@ load(SHARED_CONFIG *cfg, const char *name)
 		else {
 			testutil_check(__wt_snprintf_len_set(
 			    valuebuf, sizeof(valuebuf),
-			    &len, "%37u", (u_int)keyno));
+			    &len, "%37" PRIu64, keyno));
 			value->size = (uint32_t)len;
 			cursor->set_value(cursor, value);
 		}

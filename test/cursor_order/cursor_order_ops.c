@@ -69,8 +69,8 @@ ops_start(SHARED_CONFIG *cfg)
 		run_info[i].cfg = cfg;
 		if (i == 0 || cfg->multiple_files) {
 			run_info[i].name = dmalloc(64);
-			testutil_check(__wt_snprintf(
-			    run_info[i].name, 64, FNAME, (int)i));
+			testutil_check(__wt_snprintf(run_info[i].name,
+			    sizeof(run_info[i].name), FNAME, (int)i));
 
 			/* Vary by orders of magnitude */
 			if (cfg->vary_nops)
@@ -94,8 +94,9 @@ ops_start(SHARED_CONFIG *cfg)
 			run_info[offset].name = dmalloc(64);
 			/* Have reverse scans read from tables with writes. */
 			name_index = i % cfg->append_inserters;
-			testutil_check(__wt_snprintf(
-			    run_info[offset].name, 64, FNAME, (int)name_index));
+			testutil_check(__wt_snprintf(run_info[offset].name,
+			    sizeof(run_info[offset].name),
+			    FNAME, (int)name_index));
 
 			/* Vary by orders of magnitude */
 			if (cfg->vary_nops)
