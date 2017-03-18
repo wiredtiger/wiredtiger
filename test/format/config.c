@@ -254,8 +254,8 @@ config_compression(const char *conf_name)
 	 */
 	cstr = "none";
 	if (strcmp(conf_name, "logging_compression") == 0 && g.c_logging == 0) {
-		(void)snprintf(
-		    confbuf, sizeof(confbuf), "%s=%s", conf_name, cstr);
+		testutil_check(__wt_snprintf(
+		    confbuf, sizeof(confbuf), "%s=%s", conf_name, cstr));
 		config_single(confbuf, 0);
 		return;
 	}
@@ -299,7 +299,8 @@ config_compression(const char *conf_name)
 		break;
 	}
 
-	(void)snprintf(confbuf, sizeof(confbuf), "%s=%s", conf_name, cstr);
+	testutil_check(__wt_snprintf(
+	    confbuf, sizeof(confbuf), "%s=%s", conf_name, cstr));
 	config_single(confbuf, 0);
 }
 
