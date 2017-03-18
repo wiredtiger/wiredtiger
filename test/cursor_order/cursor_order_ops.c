@@ -285,7 +285,7 @@ append_insert_op(
 	keyno = __wt_atomic_add64(&cfg->key_range, 1);
 	if (cfg->ftype == ROW) {
 		testutil_check(__wt_snprintf(
-		    keybuf, sizeof(keybuf), "%016u", (u_int)keyno));
+		    keybuf, sizeof(keybuf), "%016" PRIu64, keyno));
 		cursor->set_key(cursor, keybuf);
 	} else
 		cursor->set_key(cursor, (uint32_t)keyno);
@@ -296,8 +296,7 @@ append_insert_op(
 		cursor->set_value(cursor, 0x10);
 	else {
 		testutil_check(__wt_snprintf_len_set(
-		    valuebuf, sizeof(valuebuf),
-		    &len, "XXX %37u", (u_int)keyno));
+		    valuebuf, sizeof(valuebuf), &len, "XXX %37" PRIu64, keyno));
 		value->size = (uint32_t)len;
 		cursor->set_value(cursor, value);
 	}
