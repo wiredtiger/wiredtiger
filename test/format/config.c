@@ -676,7 +676,8 @@ void
 config_single(const char *s, int perm)
 {
 	CONFIG *cp;
-	long v;
+	long vlong;
+	uint32_t v;
 	char *p;
 	const char *ep;
 
@@ -741,21 +742,22 @@ config_single(const char *s, int perm)
 		return;
 	}
 
-	v = -1;
+	vlong = -1;
 	if (F_ISSET(cp, C_BOOL)) {
 		if (strncmp(ep, "off", strlen("off")) == 0)
-			v = 0;
+			vlong = 0;
 		else if (strncmp(ep, "on", strlen("on")) == 0)
-			v = 1;
+			vlong = 1;
 	}
-	if (v == -1) {
-		v = strtol(ep, &p, 10);
+	if (vlong == -1) {
+		vlong = strtol(ep, &p, 10);
 		if (*p != '\0') {
 			fprintf(stderr, "%s: %s: illegal numeric value\n",
 			    progname, s);
 			exit(EXIT_FAILURE);
 		}
 	}
+	v = (uint32_t)vlong;
 	if (F_ISSET(cp, C_BOOL)) {
 		if (v != 0 && v != 1) {
 			fprintf(stderr, "%s: %s: value of boolean not 0 or 1\n",
@@ -768,7 +770,7 @@ config_single(const char *s, int perm)
 		    progname, s, cp->min, cp->maxset);
 		exit(EXIT_FAILURE);
 	}
-	*cp->v = (uint32_t)v;
+	*cp->v = v;
 }
 
 /*
