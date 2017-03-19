@@ -52,9 +52,9 @@ typedef int u_int;
 
 /* snprintf does not exist on <= VS 2013 */
 #if _MSC_VER < 1900
-#define	snprintf _wt_snprintf
+#define	snprintf __wt_snprintf
 
-_Check_return_opt_ int __cdecl _wt_snprintf(
+_Check_return_opt_ int __cdecl __wt_snprintf(
     _Out_writes_(_MaxCount) char * _DstBuf,
     _In_ size_t _MaxCount,
     _In_z_ _Printf_format_string_ const char * _Format, ...);
