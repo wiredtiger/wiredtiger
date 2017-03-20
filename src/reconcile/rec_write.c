@@ -2035,10 +2035,9 @@ __wt_split_page_size(WT_SESSION_IMPL *session, uint32_t maxpagesize)
 	WT_BTREE *btree;
 
 	btree = S2BT(session);
-#define	WT_SPLIT_PCT 90
 
 	return (__rec_split_page_size_from_pct(
-	    WT_SPLIT_PCT, maxpagesize, btree->allocsize));
+	    btree->split_pct, maxpagesize, btree->allocsize));
 }
 
 /*
