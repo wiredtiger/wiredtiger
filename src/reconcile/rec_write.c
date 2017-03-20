@@ -341,7 +341,7 @@ static int  __rec_dictionary_lookup(
 static void __rec_dictionary_reset(WT_RECONCILE *);
 
 #define	WT_CROSSING_ALT_BND(r, next_len)			\
-	((r)->bnd[(r)->bnd_next].alt_offset == 0 &&		\
+	(!(r)->is_bulk_load && (r)->bnd[(r)->bnd_next].alt_offset == 0 && \
 	    (next_len) > (r)->alt_space_avail)
 #define	WT_CROSSING_SPLIT_BND(r, next_len) ((next_len) > (r)->space_avail)
 #define	WT_CHECK_CROSSING_BND(r, next_len)			\
@@ -2557,10 +2557,21 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 	last->entries = r->entries;
 
 	/*
-	 * If there is a previous chunk, write it out, making space in the
-	 * buffer for the next chunk to be written
+	 * In case of bulk load, write out chunks as we get them.
+	 * In other cases, we keep two chunks in memory at a given time. So, if
+	 * there is a previous chunk, write it out, making space in the buffer
+	 * for the next chunk to be written.
 	 */
-	if (r->bnd_next != 0)
+	if (r->is_bulk_load) {
+		dsk->recno = last->recno;
+		dsk->u.entries = last->entries;
+		dsk->mem_size = (uint32_t)inuse;
+		r->disk_image.size = dsk->mem_size;
+		WT_RET(__rec_split_write(
+		    session, r, last, &r->disk_image, false));
+		/* Fix where free points */
+		r->first_free = WT_PAGE_HEADER_BYTE(btree, dsk);
+	} else if (r->bnd_next != 0)
 		WT_RET(__rec_split_write_prev_and_shift_cur(session, r, false));
 
 	/* Prepare the next boundary */
