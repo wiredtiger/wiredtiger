@@ -86,8 +86,17 @@ __win_fs_rename(WT_FILE_SYSTEM *file_system,
 	WT_ERR(__wt_to_utf16_string(session, from, &from_wide));
 	WT_ERR(__wt_to_utf16_string(session, to, &to_wide));
 
-	if (MoveFileExW(from_wide->data,
-	    to_wide->data, MOVEFILE_REPLACE_EXISTING) == FALSE) {
+	/*
+	 * We want an atomic rename, but that's not guaranteed by MoveFileExW
+	 * (or by any MSDN API). Don't set the MOVEFILE_COPY_ALLOWED flag to
+	 * prevent the system from falling back to a copy and delete process.
+	 * Do set the MOVEFILE_WRITE_THROUGH flag so the window is as small
+	 * as possible, just in case. WiredTiger renames are done in a single
+	 * directory and we expect that to be an atomic metadata update on any
+	 * modern filesystem.
+	 */
+	if (MoveFileExW(from_wide->data, to_wide->data,
+	    MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) == FALSE) {
 		windows_error = __wt_getlasterror();
 		__wt_errx(session,
 		    "%s to %s: file-rename: MoveFileExW: %s",
