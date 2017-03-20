@@ -133,6 +133,8 @@ typedef struct {
 	 */
 	uint32_t split_size;		/* Split page size */
 	uint32_t alt_split_size;	/* Alternate split page size */
+	/* Cache difference between split and alt split size */
+	uint32_t split_size_minus_alt_size;
 
 	/*
 	 * The problem with splits is we've done a lot of work by the time we
@@ -216,7 +218,6 @@ typedef struct {
 	uint32_t entries;		/* Current number of entries */
 	uint8_t *first_free;		/* Current first free byte */
 	size_t	 space_avail;		/* Remaining space in this chunk */
-	size_t	 alt_space_avail;	/* Remaining space for the alt. chunk */
 
 	/*
 	 * Saved update list, supporting the WT_EVICT_UPDATE_RESTORE and
@@ -342,7 +343,7 @@ static void __rec_dictionary_reset(WT_RECONCILE *);
 
 #define	WT_CROSSING_ALT_BND(r, next_len)			\
 	(!(r)->is_bulk_load && (r)->bnd[(r)->bnd_next].alt_offset == 0 && \
-	    (next_len) > (r)->alt_space_avail)
+	    (r)->space_avail - (next_len) < (r)->split_size_minus_alt_size)
 #define	WT_CROSSING_SPLIT_BND(r, next_len) ((next_len) > (r)->space_avail)
 #define	WT_CHECK_CROSSING_BND(r, next_len)			\
 	(WT_CROSSING_ALT_BND(r, next_len) || WT_CROSSING_SPLIT_BND(r, next_len))
@@ -1721,17 +1722,6 @@ __rec_incr(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint32_t v, size_t size)
 	r->entries += v;
 	r->space_avail -= size;
 	r->first_free += size;
-
-	/*
-	 * If offset for the alternate boundary is not set, reduce the space
-	 * available to the alternate boundary
-	 */
-	if (r->bnd[r->bnd_next].alt_offset == 0) {
-		if (r->alt_space_avail >= size)
-			r->alt_space_avail -= size;
-		else
-			r->alt_space_avail = 0;
-	}
 }
 
 /*
@@ -2157,8 +2147,6 @@ __rec_split_init(WT_SESSION_IMPL *session,
 		    r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
 		r->alt_split_size =
 		    __wt_alt_split_page_size(session, r->page_size);
-		r->alt_space_avail =
-		    r->alt_split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
 	}
 
 	/*
@@ -2593,8 +2581,6 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 	 */
 	r->space_avail =
 	    r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
-	r->alt_space_avail =
-	    r->alt_split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
 
 done:  	/*
 	 * Overflow values can be larger than the maximum page size but still be
@@ -3113,7 +3099,7 @@ __rec_split_finish_std(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	 * We can reach here even with raw_compression when the last split chunk
 	 * is too small to be sent for raw compression.
 	 */
-	if (!r->raw_compression) {
+	if (!r->is_bulk_load && !r->raw_compression) {
 		if (WT_PTRDIFF(r->first_free, dsk) > r->page_size &&
 		    r->bnd_next != 0) {
 			/*
