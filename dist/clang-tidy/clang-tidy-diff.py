@@ -132,6 +132,11 @@ def main():
       command.append('-extra-arg=%s' % arg)
   for arg in args.extra_arg_before:
       command.append('-extra-arg-before=%s' % arg)
+  ###
+  ### WiredTiger extension, add -header-filter=.* so we see complaints about
+  ### the header files.
+  ###
+  command.append('-header-filter=.*')
   command.extend(clang_tidy_args)
 
   sys.exit(subprocess.call(' '.join(command), shell=True))

@@ -47,4 +47,5 @@ git diff -U0 'HEAD^' | \
     python dist/clang-tidy/clang-tidy-diff.py -p1 "$args" 2>&1 |
     sed -e '/^[0-9][0-9]* warnings generated\.$/d' \
 	-e '/^Suppressed [0-9][0-9]* warnings/d' \
+	-e '/^Skipping .* Compile command not found\./d' \
 	-e '/^Use -header-filter.*to display errors/d'
