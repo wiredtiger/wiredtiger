@@ -1497,7 +1497,7 @@ __transaction_sync_run_chk(WT_SESSION_IMPL *session)
 
 	conn = S2C(session);
 
-	return (FLD_ISSET(conn->flags, WT_CONN_LOG_SERVER_RUN));
+	return (FLD_ISSET(conn->flags, WT_CONN_SERVER_LOG));
 }
 
 /*
