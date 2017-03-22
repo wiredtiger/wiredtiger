@@ -385,14 +385,11 @@ void
 __wt_log_written_reset(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
-	WT_LOG *log;
 
 	conn = S2C(session);
-	if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
-		return;
-	log = conn->log;
-	log->log_written = 0;
-	return;
+
+	if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
+		conn->log->log_written = 0;
 }
 
 /*
@@ -2018,9 +2015,8 @@ advance:
 			if (eol)
 				/* Found a hole. This LSN is the end. */
 				break;
-			else
-				/* Last record in log.  Look for more. */
-				goto advance;
+			/* Last record in log.  Look for more. */
+			goto advance;
 		}
 		rdup_len = __wt_rduppo2(reclen, allocsize);
 		if (reclen > allocsize) {

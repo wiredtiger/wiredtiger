@@ -68,6 +68,7 @@ CURSORs
 CURSTD
 CallsCustDate
 Castagnoli
+CentOS
 Checkpointing
 Checksum
 Checksums
@@ -1149,6 +1150,7 @@ sw
 sx
 sy
 sys
+syscall
 sz
 t's
 tV
