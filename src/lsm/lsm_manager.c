@@ -237,11 +237,11 @@ __wt_lsm_manager_start(WT_SESSION_IMPL *session)
 		manager->lsm_worker_cookies[i].session = worker_session;
 	}
 
+	F_SET(conn, WT_CONN_SERVER_LSM);
+
 	/* Start the LSM manager thread. */
 	WT_ERR(__wt_thread_create(session, &manager->lsm_worker_cookies[0].tid,
 	    __lsm_worker_manager, &manager->lsm_worker_cookies[0]));
-
-	F_SET(conn, WT_CONN_SERVER_LSM);
 
 	if (0) {
 err:		for (i = 0;
@@ -289,13 +289,18 @@ __wt_lsm_manager_destroy(WT_SESSION_IMPL *session)
 	manager = &conn->lsm_manager;
 	removed = 0;
 
+	/*
+	 * Clear the LSM server flag and flush to ensure running threads see
+	 * the state change.
+	 */
+	F_CLR(conn, WT_CONN_SERVER_LSM);
+	WT_FULL_BARRIER();
+
 	WT_ASSERT(session, !F_ISSET(conn, WT_CONN_READONLY) ||
 	    manager->lsm_workers == 0);
 	if (manager->lsm_workers > 0) {
-		/*
-		 * Stop the main LSM manager thread first.
-		 */
-		while (F_ISSET(conn, WT_CONN_SERVER_LSM))
+		/* Wait for the main LSM manager thread to finish. */
+		while (!F_ISSET(manager, WT_LSM_MANAGER_SHUTDOWN))
 			__wt_yield();
 
 		/* Clean up open LSM handles. */
@@ -342,7 +347,7 @@ __wt_lsm_manager_destroy(WT_SESSION_IMPL *session)
 
 /*
  * __lsm_manager_worker_shutdown --
- *	Shutdown the LSM manager and worker threads.
+ *	Shutdown the LSM worker threads.
  */
 static int
 __lsm_manager_worker_shutdown(WT_SESSION_IMPL *session)
@@ -354,11 +359,12 @@ __lsm_manager_worker_shutdown(WT_SESSION_IMPL *session)
 	manager = &S2C(session)->lsm_manager;
 
 	/*
-	 * Wait for the rest of the LSM workers to shutdown. Stop at index
+	 * Wait for the rest of the LSM workers to shutdown. Start at index
 	 * one - since we (the manager) are at index 0.
 	 */
 	for (i = 1; i < manager->lsm_workers; i++) {
 		WT_ASSERT(session, manager->lsm_worker_cookies[i].tid != 0);
+		F_CLR(&manager->lsm_worker_cookies[i], WT_LSM_WORKER_RUN);
 		__wt_cond_signal(session, manager->work_cond);
 		WT_TRET(__wt_thread_join(
 		    session, manager->lsm_worker_cookies[i].tid));
@@ -383,7 +389,7 @@ __lsm_manager_run_server(WT_SESSION_IMPL *session)
 	conn = S2C(session);
 	dhandle_locked = false;
 
-	while (F_ISSET(conn, WT_CONN_SERVER_RUN)) {
+	while (F_ISSET(conn, WT_CONN_SERVER_LSM)) {
 		__wt_sleep(0, 10000);
 		if (TAILQ_EMPTY(&conn->lsmqh))
 			continue;
@@ -469,11 +475,13 @@ static WT_THREAD_RET
 __lsm_worker_manager(void *arg)
 {
 	WT_DECL_RET;
+	WT_LSM_MANAGER *manager;
 	WT_LSM_WORKER_ARGS *cookie;
 	WT_SESSION_IMPL *session;
 
 	cookie = (WT_LSM_WORKER_ARGS *)arg;
 	session = cookie->session;
+	manager = &S2C(session)->lsm_manager;
 
 	WT_ERR(__lsm_general_worker_start(session));
 	WT_ERR(__lsm_manager_run_server(session));
@@ -482,7 +490,11 @@ __lsm_worker_manager(void *arg)
 	if (ret != 0) {
 err:		WT_PANIC_MSG(session, ret, "LSM worker manager thread error");
 	}
-	F_CLR(S2C(session), WT_CONN_SERVER_LSM);
+
+	/* Connection close waits on us to shutdown, let it know we're done. */
+	F_SET(manager, WT_LSM_MANAGER_SHUTDOWN);
+	WT_FULL_BARRIER();
+
 	return (WT_THREAD_RET_VALUE);
 }
 

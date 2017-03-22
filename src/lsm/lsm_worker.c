@@ -84,7 +84,6 @@ err:	__wt_lsm_manager_free_work_unit(session, entry);
 static WT_THREAD_RET
 __lsm_worker(void *arg)
 {
-	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_LSM_WORK_UNIT *entry;
 	WT_LSM_WORKER_ARGS *cookie;
@@ -93,11 +92,13 @@ __lsm_worker(void *arg)
 
 	cookie = (WT_LSM_WORKER_ARGS *)arg;
 	session = cookie->session;
-	conn = S2C(session);
 
 	entry = NULL;
-	while (F_ISSET(conn, WT_CONN_SERVER_RUN) &&
-	    F_ISSET(cookie, WT_LSM_WORKER_RUN)) {
+	for (;;) {
+		WT_BARRIER();			/* Don't cache the run flag. */
+		if (!F_ISSET(cookie, WT_LSM_WORKER_RUN))
+			break;
+
 		progress = false;
 
 		/*

@@ -108,7 +108,6 @@ flags = {
         'CONN_SERVER_ASYNC',
         'CONN_SERVER_CHECKPOINT',
         'CONN_SERVER_LSM',
-        'CONN_SERVER_RUN',
         'CONN_SERVER_STATISTICS',
         'CONN_SERVER_SWEEP',
         'CONN_WAS_BACKUP',

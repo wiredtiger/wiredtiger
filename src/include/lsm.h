@@ -162,6 +162,9 @@ struct __wt_lsm_manager {
 #define	WT_LSM_MAX_WORKERS	20
 #define	WT_LSM_MIN_WORKERS	3
 	WT_LSM_WORKER_ARGS lsm_worker_cookies[WT_LSM_MAX_WORKERS];
+
+#define	WT_LSM_MANAGER_SHUTDOWN	0x01	/* Manager has shut down */
+	uint32_t flags;
 };
 
 /*
