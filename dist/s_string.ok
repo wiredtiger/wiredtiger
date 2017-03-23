@@ -1185,6 +1185,7 @@ txnid
 txnmin
 txt
 typedef
+typemaps
 uB
 uS
 ui
@@ -1265,6 +1266,7 @@ whitespace
 wiredTiger
 wiredtiger
 workFactor
+workgen
 wrapup
 writeable
 writelock

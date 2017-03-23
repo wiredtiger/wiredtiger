@@ -57,14 +57,14 @@ struct Operation {
 	~Operation() {}
 
     void describe(std::ostream &os) const {
-        os << "Operation: " << _optype << ", "; _table.describe(os);
-        os << ", "; _key.describe(os); os << ", "; _value.describe(os);
+	os << "Operation: " << _optype << ", "; _table.describe(os);
+	os << ", "; _key.describe(os); os << ", "; _value.describe(os);
     }
 };
 
 struct Thread {
 	std::vector<Operation> _ops;
-	
+
 	/* XXX throttle info, etc. */
 
 	Thread() {}
@@ -73,11 +73,11 @@ struct Thread {
 	~Thread() {}
 
     void describe(std::ostream &os) const {
-        os << "Thread: [" << std::endl;
-        for (std::vector<Operation>::const_iterator i = _ops.begin(); i != _ops.end(); i++) {
-            os << "  "; i->describe(os); os << std::endl;
-        }
-        os << "]";
+	os << "Thread: [" << std::endl;
+	for (std::vector<Operation>::const_iterator i = _ops.begin(); i != _ops.end(); i++) {
+	    os << "  "; i->describe(os); os << std::endl;
+	}
+	os << "]";
     }
 };
 
@@ -89,11 +89,11 @@ struct Workload {
 	~Workload() {}
 
     void describe(std::ostream &os) const {
-        os << "Workload: [" << std::endl;
-        for (std::vector<Thread>::const_iterator i = _threads.begin(); i != _threads.end(); i++) {
-            os << "  "; i->describe(os); os << std::endl;
-        }
-        os << "]";
+	os << "Workload: [" << std::endl;
+	for (std::vector<Thread>::const_iterator i = _threads.begin(); i != _threads.end(); i++) {
+	    os << "  "; i->describe(os); os << std::endl;
+	}
+	os << "]";
     }
 };
 
