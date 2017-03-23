@@ -80,8 +80,8 @@ util_load(WT_SESSION *session, int argc, char *argv[])
 		if (no_overwrite)
 			flags |= LOAD_JSON_NO_OVERWRITE;
 		return (util_load_json(session, filename, flags));
-	} else
-		return (load_dump(session));
+	}
+	return (load_dump(session));
 }
 
 /*
@@ -126,7 +126,7 @@ load_dump(WT_SESSION *session)
 	    append ? ",append" : "", no_overwrite ? ",overwrite=false" : "");
 	if ((ret = session->open_cursor(
 	    session, uri, NULL, config, &cursor)) != 0) {
-		ret = util_err(session, ret, "%s: session.open", uri);
+		ret = util_err(session, ret, "%s: session.open_cursor", uri);
 		goto err;
 	}
 

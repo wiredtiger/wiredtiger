@@ -72,7 +72,7 @@
  * and the session ID is a small, monotonically increasing number.
  */
 #define	WT_STATS_SLOT_ID(session)					\
-	((session)->id) % WT_COUNTER_SLOTS
+	(((session)->id) % WT_COUNTER_SLOTS)
 
 /*
  * Statistic structures are arrays of int64_t's. We have functions to read/write
@@ -392,9 +392,7 @@ struct __wt_connection_stats {
 	int64_t lock_checkpoint_count;
 	int64_t lock_checkpoint_wait_application;
 	int64_t lock_checkpoint_wait_internal;
-	int64_t lock_handle_list_count;
-	int64_t lock_handle_list_wait_application;
-	int64_t lock_handle_list_wait_internal;
+	int64_t lock_handle_list_wait_eviction;
 	int64_t lock_metadata_count;
 	int64_t lock_metadata_wait_application;
 	int64_t lock_metadata_wait_internal;

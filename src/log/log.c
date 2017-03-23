@@ -24,7 +24,7 @@ static int __log_write_internal(
  * __log_wait_for_earlier_slot --
  *	Wait for write_lsn to catch up to this slot.
  */
-static void
+static int
 __log_wait_for_earlier_slot(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 {
 	WT_CONNECTION_IMPL *conn;
@@ -41,16 +41,18 @@ __log_wait_for_earlier_slot(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 		 * unlock in case an earlier thread is trying to switch its
 		 * slot and complete its operation.
 		 */
+		WT_RET(WT_SESSION_CHECK_PANIC(session));
 		if (F_ISSET(session, WT_SESSION_LOCKED_SLOT))
 			__wt_spin_unlock(session, &log->log_slot_lock);
-		__wt_cond_auto_signal(session, conn->log_wrlsn_cond);
+		__wt_cond_signal(session, conn->log_wrlsn_cond);
 		if (++yield_count < WT_THOUSAND)
 			__wt_yield();
 		else
-			__wt_cond_wait(session, log->log_write_cond, 200);
+			__wt_cond_wait(session, log->log_write_cond, 200, NULL);
 		if (F_ISSET(session, WT_SESSION_LOCKED_SLOT))
 			__wt_spin_lock(session, &log->log_slot_lock);
 	}
+	return (0);
 }
 
 /*
@@ -62,16 +64,21 @@ static int
 __log_fs_write(WT_SESSION_IMPL *session,
     WT_LOGSLOT *slot, wt_off_t offset, size_t len, const void *buf)
 {
+	WT_DECL_RET;
+
 	/*
 	 * If we're writing into a new log file, we have to wait for all
 	 * writes to the previous log file to complete otherwise there could
 	 * be a hole at the end of the previous log file that we cannot detect.
 	 */
 	if (slot->slot_release_lsn.l.file < slot->slot_start_lsn.l.file) {
-		__log_wait_for_earlier_slot(session, slot);
+		WT_RET(__log_wait_for_earlier_slot(session, slot));
 		WT_RET(__wt_log_force_sync(session, &slot->slot_release_lsn));
 	}
-	return (__wt_write(session, slot->slot_fh, offset, len, buf));
+	if ((ret = __wt_write(session, slot->slot_fh, offset, len, buf)) != 0)
+		WT_PANIC_MSG(session, ret,
+		    "%s: fatal log failure", slot->slot_fh->name);
+	return (ret);
 }
 
 /*
@@ -89,7 +96,7 @@ __wt_log_ckpt(WT_SESSION_IMPL *session, WT_LSN *ckp_lsn)
 	log = conn->log;
 	log->ckpt_lsn = *ckp_lsn;
 	if (conn->log_cond != NULL)
-		__wt_cond_auto_signal(session, conn->log_cond);
+		__wt_cond_signal(session, conn->log_cond);
 }
 
 /*
@@ -105,6 +112,7 @@ __wt_log_flush_lsn(WT_SESSION_IMPL *session, WT_LSN *lsn, bool start)
 
 	conn = S2C(session);
 	log = conn->log;
+	WT_RET(WT_SESSION_CHECK_PANIC(session));
 	WT_RET(__wt_log_force_write(session, 1, NULL));
 	__wt_log_wrlsn(session, NULL);
 	if (start)
@@ -169,8 +177,9 @@ __wt_log_force_sync(WT_SESSION_IMPL *session, WT_LSN *min_lsn)
 	 * log file ready to close.
 	 */
 	while (log->sync_lsn.l.file < min_lsn->l.file) {
+		WT_RET(WT_SESSION_CHECK_PANIC(session));
 		__wt_cond_signal(session, S2C(session)->log_file_cond);
-		__wt_cond_wait(session, log->log_sync_cond, 10000);
+		__wt_cond_wait(session, log->log_sync_cond, 10000, NULL);
 	}
 	__wt_spin_lock(session, &log->log_sync_lock);
 	WT_ASSERT(session, log->log_dir_fh != NULL);
@@ -300,14 +309,11 @@ void
 __wt_log_written_reset(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
-	WT_LOG *log;
 
 	conn = S2C(session);
-	if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
-		return;
-	log = conn->log;
-	log->log_written = 0;
-	return;
+
+	if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
+		conn->log->log_written = 0;
 }
 
 /*
@@ -915,7 +921,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
 			else {
 				WT_STAT_CONN_INCR(session, log_prealloc_missed);
 				if (conn->log_cond != NULL)
-					__wt_cond_auto_signal(
+					__wt_cond_signal(
 					    session, conn->log_cond);
 			}
 		}
@@ -1462,7 +1468,7 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
 	 * be holes in the log file.
 	 */
 	WT_STAT_CONN_INCR(session, log_release_write_lsn);
-	__log_wait_for_earlier_slot(session, slot);
+	WT_ERR(__log_wait_for_earlier_slot(session, slot));
 
 	log->write_start_lsn = slot->slot_start_lsn;
 	log->write_lsn = slot->slot_end_lsn;
@@ -1483,6 +1489,7 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
 	 * current fsync completes and advance log->sync_lsn.
 	 */
 	while (F_ISSET(slot, WT_SLOT_SYNC | WT_SLOT_SYNC_DIR)) {
+		WT_ERR(WT_SESSION_CHECK_PANIC(session));
 		/*
 		 * We have to wait until earlier log files have finished their
 		 * sync operations.  The most recent one will set the LSN to the
@@ -1490,7 +1497,8 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
 		 */
 		if (log->sync_lsn.l.file < slot->slot_end_lsn.l.file ||
 		    __wt_spin_trylock(session, &log->log_sync_lock) != 0) {
-			__wt_cond_wait(session, log->log_sync_cond, 10000);
+			__wt_cond_wait(
+			    session, log->log_sync_cond, 10000, NULL);
 			continue;
 		}
 		locked = true;
@@ -1655,10 +1663,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 		WT_RET(__log_get_files(session,
 		    WT_LOG_FILENAME, &logfiles, &logcount));
 		if (logcount == 0)
-			/*
-			 * Return it is not supported if none don't exist.
-			 */
-			return (ENOTSUP);
+			WT_RET_MSG(session, ENOTSUP, "no log files found");
 		for (i = 0; i < logcount; i++) {
 			WT_ERR(__wt_log_extract_lognum(session, logfiles[i],
 			    &lognum));
@@ -1767,9 +1772,8 @@ advance:
 			if (eol)
 				/* Found a hole. This LSN is the end. */
 				break;
-			else
-				/* Last record in log.  Look for more. */
-				goto advance;
+			/* Last record in log.  Look for more. */
+			goto advance;
 		}
 		rdup_len = __wt_rduppo2(reclen, allocsize);
 		if (reclen > allocsize) {
@@ -2129,7 +2133,11 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 
 	WT_STAT_CONN_INCR(session, log_writes);
 
-	__wt_log_slot_join(session, rdup_len, flags, &myslot);
+	/*
+	 * The only time joining a slot should ever return an error is if it
+	 * detects a panic.
+	 */
+	WT_ERR(__wt_log_slot_join(session, rdup_len, flags, &myslot));
 	/*
 	 * If the addition of this record crosses the buffer boundary,
 	 * switch in a new slot.
@@ -2163,7 +2171,7 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 		 * XXX I've seen times when conditions are NULL.
 		 */
 		if (conn->log_cond != NULL) {
-			__wt_cond_auto_signal(session, conn->log_cond);
+			__wt_cond_signal(session, conn->log_cond);
 			__wt_yield();
 		} else
 			WT_ERR(__wt_log_force_write(session, 1, NULL));
@@ -2171,13 +2179,19 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 	if (LF_ISSET(WT_LOG_FLUSH)) {
 		/* Wait for our writes to reach the OS */
 		while (__wt_log_cmp(&log->write_lsn, &lsn) <= 0 &&
-		    myslot.slot->slot_error == 0)
-			__wt_cond_wait(session, log->log_write_cond, 10000);
+		    myslot.slot->slot_error == 0) {
+			WT_ERR(WT_SESSION_CHECK_PANIC(session));
+			__wt_cond_wait(
+			    session, log->log_write_cond, 10000, NULL);
+		}
 	} else if (LF_ISSET(WT_LOG_FSYNC)) {
 		/* Wait for our writes to reach disk */
 		while (__wt_log_cmp(&log->sync_lsn, &lsn) <= 0 &&
-		    myslot.slot->slot_error == 0)
-			__wt_cond_wait(session, log->log_sync_cond, 10000);
+		    myslot.slot->slot_error == 0) {
+			WT_ERR(WT_SESSION_CHECK_PANIC(session));
+			__wt_cond_wait(
+			    session, log->log_sync_cond, 10000, NULL);
+		}
 	}
 
 	/*
@@ -2202,12 +2216,12 @@ err:
 
 	/*
 	 * If one of the sync flags is set, assert the proper LSN has moved to
-	 * match.
+	 * match on success.
 	 */
-	WT_ASSERT(session, !LF_ISSET(WT_LOG_FLUSH) ||
+	WT_ASSERT(session, ret != 0 || !LF_ISSET(WT_LOG_FLUSH) ||
 	    __wt_log_cmp(&log->write_lsn, &lsn) >= 0);
-	WT_ASSERT(session,
-	    !LF_ISSET(WT_LOG_FSYNC) || __wt_log_cmp(&log->sync_lsn, &lsn) >= 0);
+	WT_ASSERT(session, ret != 0 || !LF_ISSET(WT_LOG_FSYNC) ||
+	    __wt_log_cmp(&log->sync_lsn, &lsn) >= 0);
 	return (ret);
 }
 

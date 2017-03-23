@@ -34,7 +34,7 @@ static const					/* Output separator */
 
 static int __debug_cell(WT_DBG *, const WT_PAGE_HEADER *, WT_CELL_UNPACK *);
 static int __debug_cell_data(
-	WT_DBG *, WT_PAGE *, int type, const char *, WT_CELL_UNPACK *);
+	WT_DBG *, WT_PAGE *, int, const char *, WT_CELL_UNPACK *);
 static int __debug_col_skip(WT_DBG *, WT_INSERT_HEAD *, const char *, bool);
 static int __debug_config(WT_SESSION_IMPL *, WT_DBG *, const char *);
 static int __debug_dsk_cell(WT_DBG *, const WT_PAGE_HEADER *);
@@ -652,7 +652,7 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
 	page = ref->page;
 	mod = page->modify;
 
-	WT_RET(ds->f(ds, "%p", (void *)page));
+	WT_RET(ds->f(ds, "%p", (void *)ref));
 
 	switch (page->type) {
 	case WT_PAGE_COL_INT:
@@ -699,8 +699,6 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
 		WT_RET(ds->f(ds, ", evict-lru"));
 	if (F_ISSET_ATOMIC(page, WT_PAGE_OVERFLOW_KEYS))
 		WT_RET(ds->f(ds, ", overflow-keys"));
-	if (F_ISSET_ATOMIC(page, WT_PAGE_SPLIT_BLOCK))
-		WT_RET(ds->f(ds, ", split-block"));
 	if (F_ISSET_ATOMIC(page, WT_PAGE_SPLIT_INSERT))
 		WT_RET(ds->f(ds, ", split-insert"));
 	if (F_ISSET_ATOMIC(page, WT_PAGE_UPDATE_IGNORE))
