@@ -146,7 +146,7 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
         if self.current1 == True and self.current2 == False:
             log_present = False
         for o in orig_logs:
-                self.assertEqual(log_present, o in cur_logs)
+            self.assertEqual(log_present, o in cur_logs)
 
         # Run printlog and verify the new record does or does not exist.
         self.check_prev_lsn(self.current2, check_close)
