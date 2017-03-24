@@ -24,7 +24,7 @@ __wt_vsnprintf_len_incr(
 	 * invalid parameter handler if count is less than or equal to zero.
 	 */
 	if (size == 0) {
-		*retsizep += (size_t)_vscprintf(fmt, ap) + 1;
+		*retsizep += (size_t)_vscprintf(fmt, ap);
 		return (0);
 	}
 
@@ -48,7 +48,7 @@ __wt_vsnprintf_len_incr(
 
 	/* Return the buffer size required. */
 	if (len == -1)
-		*retsizep += (size_t)_vscprintf(fmt, ap) + 1;
+		*retsizep += (size_t)_vscprintf(fmt, ap);
 
 	return (0);
 }
