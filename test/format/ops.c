@@ -718,7 +718,7 @@ skip_checkpoint:	/* Pick the next checkpoint operation. */
 			} else {
 				if (ret == WT_ROLLBACK && intxn)
 					goto deadlock;
-				testutil_assert(ret == 0);
+				testutil_assert(ret == 0 || ret == WT_ROLLBACK);
 			}
 			break;
 		case UPDATE:
@@ -745,7 +745,7 @@ update_instead_of_insert:
 				positioned = false;
 				if (ret == WT_ROLLBACK && intxn)
 					goto deadlock;
-				testutil_assert(ret == 0);
+				testutil_assert(ret == 0 || ret == WT_ROLLBACK);
 			}
 			break;
 		case READ:
