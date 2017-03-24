@@ -9,32 +9,46 @@
 #include "wt_internal.h"
 
 /*
- * WT_CURFILE_OP_XXX
- *	If we're going to return an error, we need to restore the cursor to
- * a valid state, the upper-level cursor code is likely to retry. The macros
- * here are called to save and restore that state.
+ * When returning an error, we need to restore the cursor to a valid state, the
+ * upper-level cursor code is likely to retry. This structure and the associated
+ * functions are used save and restore the cursor state.
  */
-#define	WT_CURFILE_OP_DECL						\
-	WT_ITEM __key_copy;						\
-	WT_ITEM __value_copy;						\
-	uint64_t __recno;						\
-	uint32_t __flags
-#define	WT_CURFILE_OP_PUSH do {						\
-	WT_ITEM_SET(__key_copy, cursor->key);				\
-	WT_ITEM_SET(__value_copy, cursor->value);			\
-	__recno = cursor->recno;					\
-	__flags = cursor->flags;					\
-} while (0)
-#define	WT_CURFILE_OP_POP do {						\
-	cursor->recno = __recno;					\
-	if (FLD_ISSET(__flags, WT_CURSTD_KEY_EXT))			\
-		WT_ITEM_SET(cursor->key, __key_copy);			\
-	if (FLD_ISSET(__flags, WT_CURSTD_VALUE_EXT))			\
-		WT_ITEM_SET(cursor->value, __value_copy);		\
-	F_CLR(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);		\
-	F_SET(cursor,							\
-	    FLD_MASK(__flags, WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT));\
-} while (0)
+typedef struct {
+	WT_ITEM key;
+	WT_ITEM value;
+	uint64_t recno;
+	uint32_t flags;
+} WT_CURFILE_STATE;
+
+/*
+ * __cursor_state_save --
+ *	Save the cursor's external state.
+ */
+static inline void
+__cursor_state_save(WT_CURSOR *cursor, WT_CURFILE_STATE *state)
+{
+	WT_ITEM_SET(state->key, cursor->key);
+	WT_ITEM_SET(state->value, cursor->value);
+	state->recno = cursor->recno;
+	state->flags = cursor->flags;
+}
+
+/*
+ * __cursor_state_restore --
+ *	Restore the cursor's external state.
+ */
+static inline void
+__cursor_state_restore(WT_CURSOR *cursor, WT_CURFILE_STATE *state)
+{
+	if (F_ISSET(state, WT_CURSTD_KEY_EXT))
+		WT_ITEM_SET(cursor->key, state->key);
+	if (F_ISSET(state, WT_CURSTD_VALUE_EXT))
+		WT_ITEM_SET(cursor->value, state->value);
+	cursor->recno = state->recno;
+	F_CLR(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+	F_SET(cursor, F_MASK(state, WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT));
+
+}
 
 /*
  * __cursor_page_pinned --
@@ -399,7 +413,7 @@ int
 __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 {
 	WT_BTREE *btree;
-	WT_CURFILE_OP_DECL;
+	WT_CURFILE_STATE state;
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -414,14 +428,14 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 	WT_STAT_CONN_INCR(session, cursor_search);
 	WT_STAT_DATA_INCR(session, cursor_search);
 
-	WT_CURFILE_OP_PUSH;
+	__cursor_state_save(cursor, &state);
 
 	/*
 	 * The pinned page goes away if we do a search, make sure there's a
 	 * local copy of any key, then re-save the cursor state.
 	 */
 	WT_ERR(__cursor_copy_int_key(cursor));
-	WT_CURFILE_OP_PUSH;
+	__cursor_state_save(cursor, &state);
 
 	/*
 	 * If we have a page pinned, search it; if we don't have a page pinned,
@@ -469,7 +483,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 
 err:	if (ret != 0) {
 		WT_TRET(__cursor_reset(cbt));
-		WT_CURFILE_OP_POP;
+		__cursor_state_restore(cursor, &state);
 	}
 	return (ret);
 }
@@ -482,7 +496,7 @@ int
 __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 {
 	WT_BTREE *btree;
-	WT_CURFILE_OP_DECL;
+	WT_CURFILE_STATE state;
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -499,14 +513,14 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 	WT_STAT_CONN_INCR(session, cursor_search_near);
 	WT_STAT_DATA_INCR(session, cursor_search_near);
 
-	WT_CURFILE_OP_PUSH;
+	__cursor_state_save(cursor, &state);
 
 	/*
 	 * The pinned page goes away if we do a search, make sure there's a
 	 * local copy of any key, then re-save the cursor state.
 	 */
 	WT_ERR(__cursor_copy_int_key(cursor));
-	WT_CURFILE_OP_PUSH;
+	__cursor_state_save(cursor, &state);
 
 	/*
 	 * If we have a row-store page pinned, search it; if we don't have a
@@ -588,7 +602,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 			exact = -1;
 	}
 
-err:	if (exactp != NULL && (ret == 0 || ret == WT_NOTFOUND))
+err:	if (ret == 0 && exactp != NULL)
 		*exactp = exact;
 
 #ifdef HAVE_DIAGNOSTIC
@@ -598,7 +612,7 @@ err:	if (exactp != NULL && (ret == 0 || ret == WT_NOTFOUND))
 
 	if (ret != 0) {
 		WT_TRET(__cursor_reset(cbt));
-		WT_CURFILE_OP_POP;
+		__cursor_state_restore(cursor, &state);
 	}
 	return (ret);
 }
@@ -611,7 +625,7 @@ int
 __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
 {
 	WT_BTREE *btree;
-	WT_CURFILE_OP_DECL;
+	WT_CURFILE_STATE state;
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -626,7 +640,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
 	WT_STAT_DATA_INCRV(session,
 	    cursor_insert_bytes, cursor->key.size + cursor->value.size);
 
-	WT_CURFILE_OP_PUSH;
+	__cursor_state_save(cursor, &state);
 
 	if (btree->type == BTREE_ROW)
 		WT_RET(__cursor_size_chk(session, &cursor->key));
@@ -674,7 +688,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
 		 * the cursor state: we may retry but eventually fail.
 		 */
 		WT_TRET(__cursor_copy_int_key(cursor));
-		WT_CURFILE_OP_PUSH;
+		__cursor_state_save(cursor, &state);
 		goto err;
 	}
 
@@ -684,7 +698,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
 	 * eventually fail.
 	 */
 	WT_ERR(__cursor_copy_int_key(cursor));
-	WT_CURFILE_OP_PUSH;
+	__cursor_state_save(cursor, &state);
 
 retry:	WT_ERR(__cursor_func_init(cbt, true));
 
@@ -741,7 +755,7 @@ done:	/* Insert doesn't maintain a position across calls, clear resources. */
 	}
 	WT_TRET(__cursor_reset(cbt));
 	if (ret != 0)
-		WT_CURFILE_OP_POP;
+		__cursor_state_restore(cursor, &state);
 
 	return (ret);
 }
@@ -837,7 +851,7 @@ int
 __wt_btcur_remove(WT_CURSOR_BTREE *cbt)
 {
 	WT_BTREE *btree;
-	WT_CURFILE_OP_DECL;
+	WT_CURFILE_STATE state;
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -851,7 +865,7 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt)
 	WT_STAT_DATA_INCR(session, cursor_remove);
 	WT_STAT_DATA_INCRV(session, cursor_remove_bytes, cursor->key.size);
 
-	WT_CURFILE_OP_PUSH;
+	__cursor_state_save(cursor, &state);
 
 	/*
 	 * WT_CURSOR.remove has a unique semantic, the cursor stays positioned
@@ -889,7 +903,7 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt)
 		 * the cursor state: we may retry but eventually fail.
 		 */
 		WT_TRET(__cursor_copy_int_key(cursor));
-		WT_CURFILE_OP_PUSH;
+		__cursor_state_save(cursor, &state);
 		goto err;
 	}
 
@@ -899,7 +913,7 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt)
 	 * eventually fail.
 	 */
 	WT_ERR(__cursor_copy_int_key(cursor));
-	WT_CURFILE_OP_PUSH;
+	__cursor_state_save(cursor, &state);
 
 retry:	WT_ERR(__cursor_func_init(cbt, true));
 
@@ -967,7 +981,7 @@ done:	/*
 	else
 		WT_TRET(__cursor_reset(cbt));
 	if (ret != 0)
-		WT_CURFILE_OP_POP;
+		__cursor_state_restore(cursor, &state);
 
 	return (ret);
 }
@@ -980,7 +994,7 @@ int
 __wt_btcur_update(WT_CURSOR_BTREE *cbt)
 {
 	WT_BTREE *btree;
-	WT_CURFILE_OP_DECL;
+	WT_CURFILE_STATE state;
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -993,7 +1007,7 @@ __wt_btcur_update(WT_CURSOR_BTREE *cbt)
 	WT_STAT_DATA_INCR(session, cursor_update);
 	WT_STAT_DATA_INCRV(session, cursor_update_bytes, cursor->value.size);
 
-	WT_CURFILE_OP_PUSH;
+	__cursor_state_save(cursor, &state);
 
 	if (btree->type == BTREE_ROW)
 		WT_RET(__cursor_size_chk(session, &cursor->key));
@@ -1031,7 +1045,7 @@ __wt_btcur_update(WT_CURSOR_BTREE *cbt)
 		 * the cursor state: we may retry but eventually fail.
 		 */
 		WT_TRET(__cursor_copy_int_key(cursor));
-		WT_CURFILE_OP_PUSH;
+		__cursor_state_save(cursor, &state);
 		goto err;
 	}
 
@@ -1041,7 +1055,7 @@ __wt_btcur_update(WT_CURSOR_BTREE *cbt)
 	 * eventually fail.
 	 */
 	WT_ERR(__cursor_copy_int_key(cursor));
-	WT_CURFILE_OP_PUSH;
+	__cursor_state_save(cursor, &state);
 
 retry:	WT_ERR(__cursor_func_init(cbt, true));
 
@@ -1094,9 +1108,10 @@ err:	if (ret == WT_RESTART) {
 	 */
 done:	if (ret == 0)
 		WT_TRET(__wt_kv_return(session, cbt, cbt->modify_update));
-	else {
+
+	if (ret != 0) {
 		WT_TRET(__cursor_reset(cbt));
-		WT_CURFILE_OP_POP;
+		__cursor_state_restore(cursor, &state);
 	}
 
 	return (ret);
