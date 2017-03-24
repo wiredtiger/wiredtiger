@@ -275,7 +275,7 @@ __wt_cursor_get_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
 	const char *fmt;
 
 	CURSOR_API_CALL(cursor, session, get_key, NULL);
-	if (!F_ISSET(cursor, WT_CURSTD_KEY_EXT | WT_CURSTD_KEY_INT))
+	if (!F_ISSET(cursor, WT_CURSTD_KEY_SET))
 		WT_ERR(__wt_cursor_kv_not_set(cursor, true));
 
 	if (WT_CURSOR_RECNO(cursor)) {
