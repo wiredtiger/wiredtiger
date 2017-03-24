@@ -34,6 +34,7 @@ static int __curjoin_split_key(WT_SESSION_IMPL *, WT_CURSOR_JOIN *, WT_ITEM *,
  */
 int
 __wt_curjoin_joined(WT_CURSOR *cursor)
+    WT_GCC_FUNC_ATTRIBUTE((cold))
 {
 	WT_SESSION_IMPL *session;
 
