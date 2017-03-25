@@ -290,8 +290,7 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 	 */
 	WT_UNUSED(cfg);
 
-	WT_ERR(__wt_txn_context_check(
-	    session, false, "WT_SESSION.reconfigure"));
+	WT_ERR(__wt_txn_context_check(session, false));
 
 	WT_ERR(__wt_session_reset_cursors(session, false));
 
@@ -813,7 +812,7 @@ __session_reset(WT_SESSION *wt_session)
 
 	SESSION_API_CALL_NOCONF(session, reset);
 
-	WT_ERR(__wt_txn_context_check(session, false, "WT_SESSION.reset"));
+	WT_ERR(__wt_txn_context_check(session, false));
 
 	WT_TRET(__wt_session_reset_cursors(session, true));
 
@@ -1399,8 +1398,7 @@ __session_begin_transaction(WT_SESSION *wt_session, const char *config)
 	SESSION_API_CALL(session, begin_transaction, config, cfg);
 	WT_STAT_CONN_INCR(session, txn_begin);
 
-	WT_ERR(__wt_txn_context_check(
-	    session, false, "WT_SESSION.begin_transaction"));
+	WT_ERR(__wt_txn_context_check(session, false));
 
 	ret = __wt_txn_begin(session, cfg);
 
@@ -1421,6 +1419,8 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL(session, commit_transaction, config, cfg);
 	WT_STAT_CONN_INCR(session, txn_commit);
+
+	WT_ERR(__wt_txn_context_check(session, true));
 
 	txn = &session->txn;
 	if (F_ISSET(txn, WT_TXN_ERROR) && txn->mod_count != 0)
@@ -1450,6 +1450,8 @@ __session_rollback_transaction(WT_SESSION *wt_session, const char *config)
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL(session, rollback_transaction, config, cfg);
 	WT_STAT_CONN_INCR(session, txn_rollback);
+
+	WT_ERR(__wt_txn_context_check(session, true));
 
 	WT_TRET(__wt_session_reset_cursors(session, false));
 
@@ -1525,8 +1527,7 @@ __session_transaction_sync(WT_SESSION *wt_session, const char *config)
 	WT_STAT_CONN_INCR(session, txn_sync);
 
 	conn = S2C(session);
-	WT_ERR(__wt_txn_context_check(
-	    session, false, "WT_SESSION.transaction_sync"));
+	WT_ERR(__wt_txn_context_check(session, false));
 
 	/*
 	 * If logging is not enabled there is nothing to do.
@@ -1641,7 +1642,7 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
 	 * from evicting anything newer than this because we track the oldest
 	 * transaction ID in the system that is not visible to all readers.
 	 */
-	WT_ERR(__wt_txn_context_check(session, false, "WT_SESSION.checkpoint"));
+	WT_ERR(__wt_txn_context_check(session, false));
 
 	ret = __wt_txn_checkpoint(session, cfg, true);
 

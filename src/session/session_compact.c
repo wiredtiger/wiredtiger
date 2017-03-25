@@ -331,7 +331,7 @@ __wt_session_compact(
 	 * reason for LSM to allow this, possible or not), and check now so the
 	 * error message isn't confusing.
 	 */
-	WT_ERR(__wt_txn_context_check(session, false, "WT_SESSION.compact"));
+	WT_ERR(__wt_txn_context_check(session, false));
 
 	/* Disallow objects in the WiredTiger name space. */
 	WT_ERR(__wt_str_name_check(session, uri));

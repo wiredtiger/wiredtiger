@@ -510,10 +510,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	txn = &session->txn;
 	conn = S2C(session);
 	did_update = txn->mod_count != 0;
-	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) || !did_update);
 
-	WT_RET(__wt_txn_context_check(
-	    session, true, "WT_SESSION.commit_transaction"));
+	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
+	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) || !did_update);
 
 	/*
 	 * The default sync setting is inherited from the connection, but can
@@ -635,8 +634,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_UNUSED(cfg);
 
 	txn = &session->txn;
-	WT_RET(__wt_txn_context_check(
-	    session, true, "WT_SESSION.rollback_transaction"));
+	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 
 	/* Rollback notification. */
 	if (txn->notify != NULL)
