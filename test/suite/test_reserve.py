@@ -135,6 +135,7 @@ class test_reserve(wttest.WiredTigerTestCase):
             self.assertEquals(c.update(), 0)
             s.commit_transaction()
 
+    # Test cursor.reserve will fail if a key has not yet been set.
     def test_reserve_without_key(self):
         if self.skip():
             return
@@ -150,6 +151,7 @@ class test_reserve(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(
             wiredtiger.WiredTigerError, lambda:c.reserve(), msg)
 
+    # Test cursor.reserve will fail if there's no running transaction.
     def test_reserve_without_txn(self):
         if self.skip():
             return
@@ -165,6 +167,7 @@ class test_reserve(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(
             wiredtiger.WiredTigerError, lambda:c.reserve(), msg)
 
+    # Test cursor.reserve returns a value on success.
     def test_reserve_returns_value(self):
         if self.skip():
             return
@@ -179,6 +182,30 @@ class test_reserve(wttest.WiredTigerTestCase):
         c.set_key(ds.key(5))
         self.assertEquals(c.reserve(), 0)
         self.assertEqual(c.get_value(), ds.comparable_value(5))
+
+    # Test cursor.reserve fails on non-standard cursors.
+    def test_reserve_not_supported(self):
+        if self.skip():
+            return
+
+        uri = self.uri + ':test_reserve_not_supported'
+        s = self.conn.open_session()
+        s.create(uri, 'key_format=' + self.keyfmt + ",value_format=S")
+
+        list = [ "bulk", "dump=json" ]
+        for l in list:
+                c = s.open_cursor(uri, None, l)
+                msg = "/Operation not supported/"
+                self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                    lambda:self.assertEquals(c.reserve(), 0), msg)
+                c.close()
+
+        list = [ "backup:", "config:" "log:" "metadata:" "statistics:" ]
+        for l in list:
+                c = s.open_cursor(l, None, None)
+                msg = "/Operation not supported/"
+                self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                    lambda:self.assertEquals(c.reserve(), 0), msg)
 
 if __name__ == '__main__':
     wttest.run()

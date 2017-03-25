@@ -136,6 +136,7 @@ __wt_cursor_set_notsup(WT_CURSOR *cursor)
 	cursor->insert = __wt_cursor_notsup;
 	cursor->update = __wt_cursor_notsup;
 	cursor->remove = __wt_cursor_notsup;
+	cursor->reserve = __wt_cursor_notsup;
 }
 
 /*
@@ -624,30 +625,6 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
 		WT_RET_NOTFOUND_OK(ret);
 
 	return (0);
-}
-
-/*
- * __wt_cursor_reserve --
- *	WT_CURSOR.reserve method.
- */
-int
-__wt_cursor_reserve(WT_CURSOR *cursor)
-{
-	/* If there's no underlying reserve function, it's not supported. */
-	if (cursor->reserve_worker == NULL)
-		return (__wt_cursor_notsup(cursor));
-
-	WT_RET(cursor->reserve_worker(cursor));
-
-	/*
-	 * The application might do a WT_CURSOR.get_value call when we return,
-	 * so we need a value and the underlying functions didn't set one up.
-	 * For various reasons, those functions may not have done a search and
-	 * any previous value in the cursor might race with WT_CURSOR.reserve
-	 * (and in cases like LSM, the reserve never encountered the original
-	 * key). For simplicity, repeat the search here.
-	 */
-	return (cursor->search(cursor));
 }
 
 /*
