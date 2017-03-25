@@ -594,9 +594,26 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		return (ret);
 	}
 
-	/* Free memory associated with updates. */
-	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++)
+	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
+		switch (op->type) {
+		case WT_TXN_OP_BASIC:
+		case WT_TXN_OP_INMEM:
+			/*
+			 * Switch reserved operations to abort to simplify
+			 * obsolete update list truncation.
+			 */
+			if (WT_UPDATE_RESERVED_ISSET(op->u.upd))
+				op->u.upd->txnid = WT_TXN_ABORTED;
+			break;
+		case WT_TXN_OP_REF:
+		case WT_TXN_OP_TRUNCATE_COL:
+		case WT_TXN_OP_TRUNCATE_ROW:
+			break;
+		}
+
+		/* Free memory associated with updates. */
 		__wt_txn_op_free(session, op);
+	}
 	txn->mod_count = 0;
 
 	__wt_txn_release(session);

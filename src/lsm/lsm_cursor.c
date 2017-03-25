@@ -1438,11 +1438,12 @@ err:	__clsm_leave(clsm);
  */
 static inline int
 __clsm_put(WT_SESSION_IMPL *session, WT_CURSOR_LSM *clsm,
-    const WT_ITEM *key, const WT_ITEM *value, bool position)
+    const WT_ITEM *key, const WT_ITEM *value, bool position, bool reserve)
 {
 	WT_CURSOR *c, *primary;
 	WT_LSM_TREE *lsm_tree;
 	u_int i, slot;
+	int (*func)(WT_CURSOR *);
 
 	lsm_tree = clsm->lsm_tree;
 
@@ -1473,8 +1474,12 @@ __clsm_put(WT_SESSION_IMPL *session, WT_CURSOR_LSM *clsm,
 
 		c = clsm->chunks[slot]->cursor;
 		c->set_key(c, key);
-		c->set_value(c, value);
-		WT_RET((position && i == 0) ? c->update(c) : c->insert(c));
+		func = c->insert;
+		if (i == 0 && position)
+			func = reserve ? c->reserve : c->update;
+		if (func != c->reserve)
+			c->set_value(c, value);
+		WT_RET(func(c));
 	}
 
 	/*
@@ -1533,7 +1538,7 @@ __clsm_insert(WT_CURSOR *cursor)
 	}
 
 	WT_ERR(__clsm_deleted_encode(session, &cursor->value, &value, &buf));
-	WT_ERR(__clsm_put(session, clsm, &cursor->key, &value, false));
+	WT_ERR(__clsm_put(session, clsm, &cursor->key, &value, false, false));
 
 	/*
 	 * WT_CURSOR.insert doesn't leave the cursor positioned, and the
@@ -1572,7 +1577,7 @@ __clsm_update(WT_CURSOR *cursor)
 	if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE))
 		WT_ERR(__clsm_lookup(clsm, &value));
 	WT_ERR(__clsm_deleted_encode(session, &cursor->value, &value, &buf));
-	WT_ERR(__clsm_put(session, clsm, &cursor->key, &value, true));
+	WT_ERR(__clsm_put(session, clsm, &cursor->key, &value, true, false));
 
 	/*
 	 * Set the cursor to reference the internal key/value of the positioned
@@ -1619,7 +1624,7 @@ __clsm_remove(WT_CURSOR *cursor)
 	if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE))
 		WT_ERR(__clsm_lookup(clsm, &value));
 	WT_ERR(__clsm_put(
-	    session, clsm, &cursor->key, &__tombstone, positioned));
+	    session, clsm, &cursor->key, &__tombstone, positioned, false));
 
 	/*
 	 * If the cursor was positioned, it stays positioned with a key but no
@@ -1632,6 +1637,34 @@ __clsm_remove(WT_CURSOR *cursor)
 		F_SET(cursor, WT_CURSTD_KEY_INT);
 	else
 		WT_TRET(cursor->reset(cursor));
+
+err:	__clsm_leave(clsm);
+	CURSOR_UPDATE_API_END(session, ret);
+	return (ret);
+}
+
+/*
+ * __clsm_reserve --
+ *     WT_CURSOR->reserve method for the LSM cursor type.
+ */
+static int
+__clsm_reserve(WT_CURSOR *cursor)
+{
+	WT_CURSOR_LSM *clsm;
+	WT_DECL_RET;
+	WT_ITEM value;
+	WT_SESSION_IMPL *session;
+
+	clsm = (WT_CURSOR_LSM *)cursor;
+
+	CURSOR_UPDATE_API_CALL(cursor, session, reserve, NULL);
+	WT_ERR(__cursor_needkey(cursor));
+	__cursor_novalue(cursor);
+	WT_ERR(__wt_txn_context_check(session, true, "WT_CURSOR.reserve"));
+	WT_ERR(__clsm_enter(clsm, false, true));
+
+	if ((ret = __clsm_lookup(clsm, &value)) == 0)
+		ret = __clsm_put(session, clsm, &cursor->key, NULL, true, true);
 
 err:	__clsm_leave(clsm);
 	CURSOR_UPDATE_API_END(session, ret);
@@ -1694,6 +1727,7 @@ __wt_clsm_open(WT_SESSION_IMPL *session,
 	    __clsm_insert,			/* insert */
 	    __clsm_update,			/* update */
 	    __clsm_remove,			/* remove */
+	    __clsm_reserve,			/* reserve */
 	    __wt_cursor_reconfigure,		/* reconfigure */
 	    __wt_clsm_close);			/* close */
 	WT_CURSOR *cursor;

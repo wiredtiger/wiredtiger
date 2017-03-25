@@ -578,6 +578,7 @@ __wt_curstat_open(WT_SESSION_IMPL *session,
 	    __wt_cursor_notsup,			/* insert */
 	    __wt_cursor_notsup,			/* update */
 	    __wt_cursor_notsup,			/* remove */
+	    __wt_cursor_notsup,			/* reserve */
 	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
 	    __curstat_close);			/* close */
 	WT_CONFIG_ITEM cval, sval;

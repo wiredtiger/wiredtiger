@@ -627,6 +627,30 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
 }
 
 /*
+ * __wt_cursor_reserve --
+ *	WT_CURSOR.reserve method.
+ */
+int
+__wt_cursor_reserve(WT_CURSOR *cursor)
+{
+	/* If there's no underlying reserve function, it's not supported. */
+	if (cursor->reserve_worker == NULL)
+		return (__wt_cursor_notsup(cursor));
+
+	WT_RET(cursor->reserve_worker(cursor));
+
+	/*
+	 * The application might do a WT_CURSOR.get_value call when we return,
+	 * so we need a value and the underlying functions didn't set one up.
+	 * For various reasons, those functions may not have done a search and
+	 * any previous value in the cursor might race with WT_CURSOR.reserve
+	 * (and in cases like LSM, the reserve never encountered the original
+	 * key). For simplicity, repeat the search here.
+	 */
+	return (cursor->search(cursor));
+}
+
+/*
  * __wt_cursor_dup_position --
  *	Set a cursor to another cursor's position.
  */
@@ -705,15 +729,17 @@ __wt_cursor_init(WT_CURSOR *cursor,
 	WT_RET(__wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
 	if (cval.len != 0) {
 		cursor->insert = __wt_cursor_notsup;
-		cursor->update = __wt_cursor_notsup;
 		cursor->remove = __wt_cursor_notsup;
+		cursor->reserve = __wt_cursor_notsup;
+		cursor->update = __wt_cursor_notsup;
 	} else {
 		WT_RET(
 		    __wt_config_gets_def(session, cfg, "readonly", 0, &cval));
 		if (cval.val != 0 || F_ISSET(S2C(session), WT_CONN_READONLY)) {
 			cursor->insert = __wt_cursor_notsup;
-			cursor->update = __wt_cursor_notsup;
 			cursor->remove = __wt_cursor_notsup;
+			cursor->reserve = __wt_cursor_notsup;
+			cursor->update = __wt_cursor_notsup;
 		}
 	}
 
