@@ -195,7 +195,7 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 	}
 
 	/* If the update was successful, add it to the in-memory log. */
-	if (logged)
+	if (logged && !is_reserve)
 		WT_ERR(__wt_txn_log_op(session, cbt));
 
 	if (0) {

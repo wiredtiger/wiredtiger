@@ -207,7 +207,7 @@ __wt_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 		    &ins, ins_size, skipdepth));
 	}
 
-	if (logged)
+	if (logged && !is_reserve)
 		WT_ERR(__wt_txn_log_op(session, cbt));
 
 	if (0) {
