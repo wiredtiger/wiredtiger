@@ -1187,7 +1187,7 @@ WT_ASYNC_CALLBACK javaApiAsyncHandler = {javaAsyncHandler};
 	}
 
 	%javamethodmodifiers compare_wrap "protected";
-	int compare_wrap(JNIEnv *jenv, WT_CURSOR *other) {
+	jlong compare_wrap(JNIEnv *jenv, WT_CURSOR *other) {
 		int cmp, ret = $self->compare($self, other, &cmp);
 		if (ret != 0)
 			throwWiredTigerException(jenv, ret);
@@ -1195,7 +1195,7 @@ WT_ASYNC_CALLBACK javaApiAsyncHandler = {javaAsyncHandler};
 	}
 
 	%javamethodmodifiers equals_wrap "protected";
-	int equals_wrap(JNIEnv *jenv, WT_CURSOR *other) {
+	jlong equals_wrap(JNIEnv *jenv, WT_CURSOR *other) {
 		int cmp, ret = $self->equals($self, other, &cmp);
 		if (ret != 0)
 			throwWiredTigerException(jenv, ret);
@@ -1693,7 +1693,7 @@ WT_ASYNC_CALLBACK javaApiAsyncHandler = {javaAsyncHandler};
 	 */
 	public int compare(Cursor other)
 	throws WiredTigerException {
-		return compare_wrap(other);
+		return (int) compare_wrap(other);
 	}
 
 	/**
@@ -1703,7 +1703,7 @@ WT_ASYNC_CALLBACK javaApiAsyncHandler = {javaAsyncHandler};
 	 */
 	public int equals(Cursor other)
 	throws WiredTigerException {
-		return equals_wrap(other);
+		return (int) equals_wrap(other);
 	}
 
 	/**
