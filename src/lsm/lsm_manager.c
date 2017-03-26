@@ -363,7 +363,6 @@ __lsm_manager_worker_shutdown(WT_SESSION_IMPL *session)
 	for (i = 1; i < manager->lsm_workers; i++) {
 		WT_ASSERT(session, manager->lsm_worker_cookies[i].tid != 0);
 		manager->lsm_worker_cookies[i].running = false;
-		__wt_cond_signal(session, manager->work_cond);
 		WT_TRET(__wt_thread_join(
 		    session, manager->lsm_worker_cookies[i].tid));
 	}
