@@ -133,8 +133,6 @@ typedef struct {
 	 */
 	uint32_t split_size;		/* Split page size */
 	uint32_t alt_split_size;	/* Alternate split page size */
-	/* Cache difference between split and alt split size */
-	uint32_t split_size_minus_alt_size;
 
 	/*
 	 * The problem with splits is we've done a lot of work by the time we
@@ -285,6 +283,14 @@ typedef struct {
 	uint32_t tested_ref_state;	/* Debugging information */
 } WT_RECONCILE;
 
+#define	WT_CROSSING_ALT_BND(r, next_len)			\
+	(!(r)->is_bulk_load && (r)->bnd[(r)->bnd_next].alt_offset == 0 && \
+	    ((r)->space_avail - (next_len)) <			\
+	    ((r)->split_size - (r)->alt_split_size))
+#define	WT_CROSSING_SPLIT_BND(r, next_len) ((next_len) > (r)->space_avail)
+#define	WT_CHECK_CROSSING_BND(r, next_len)			\
+	(WT_CROSSING_ALT_BND(r, next_len) || WT_CROSSING_SPLIT_BND(r, next_len))
+
 static void __rec_bnd_cleanup(WT_SESSION_IMPL *, WT_RECONCILE *, bool);
 static void __rec_cell_build_addr(WT_SESSION_IMPL *,
 		WT_RECONCILE *, const void *, size_t, u_int, uint64_t);
@@ -340,13 +346,6 @@ static int  __rec_dictionary_init(WT_SESSION_IMPL *, WT_RECONCILE *, u_int);
 static int  __rec_dictionary_lookup(
 		WT_SESSION_IMPL *, WT_RECONCILE *, WT_KV *, WT_DICTIONARY **);
 static void __rec_dictionary_reset(WT_RECONCILE *);
-
-#define	WT_CROSSING_ALT_BND(r, next_len)			\
-	(!(r)->is_bulk_load && (r)->bnd[(r)->bnd_next].alt_offset == 0 && \
-	    (r)->space_avail - (next_len) < (r)->split_size_minus_alt_size)
-#define	WT_CROSSING_SPLIT_BND(r, next_len) ((next_len) > (r)->space_avail)
-#define	WT_CHECK_CROSSING_BND(r, next_len)			\
-	(WT_CROSSING_ALT_BND(r, next_len) || WT_CROSSING_SPLIT_BND(r, next_len))
 
 /*
  * __wt_reconcile --
