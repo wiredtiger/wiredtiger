@@ -89,7 +89,6 @@ __lsm_general_worker_start(WT_SESSION_IMPL *session)
 			if (manager->lsm_workers % 2 == 0)
 				FLD_SET(worker_args->type, WT_LSM_WORK_MERGE);
 		}
-		worker_args->running = true;
 		WT_RET(__wt_lsm_worker_start(session, worker_args));
 	}
 
@@ -129,15 +128,13 @@ __lsm_stop_workers(WT_SESSION_IMPL *session)
 	    manager->lsm_workers--) {
 		worker_args =
 		    &manager->lsm_worker_cookies[manager->lsm_workers - 1];
-		WT_ASSERT(session, worker_args->tid != 0);
+		WT_ASSERT(session, worker_args->tid_set);
 
-		worker_args->running = false;
-		WT_RET(__wt_thread_join(session, worker_args->tid));
-		worker_args->tid = 0;
+		WT_RET(__wt_lsm_worker_stop(session, worker_args));
 		worker_args->type = 0;
 
 		/*
-		 * We do not clear the sessions because they are allocated
+		 * We do not clear the other fields because they are allocated
 		 * statically when the connection was opened.
 		 */
 	}
@@ -306,7 +303,6 @@ __wt_lsm_manager_destroy(WT_SESSION_IMPL *session)
 
 		WT_TRET(__wt_thread_join(
 		    session, manager->lsm_worker_cookies[0].tid));
-		manager->lsm_worker_cookies[0].tid = 0;
 
 		/* Release memory from any operations left on the queue. */
 		while ((current = TAILQ_FIRST(&manager->switchqh)) != NULL) {
@@ -361,10 +357,9 @@ __lsm_manager_worker_shutdown(WT_SESSION_IMPL *session)
 	 * one - since we (the manager) are at index 0.
 	 */
 	for (i = 1; i < manager->lsm_workers; i++) {
-		WT_ASSERT(session, manager->lsm_worker_cookies[i].tid != 0);
-		manager->lsm_worker_cookies[i].running = false;
-		WT_TRET(__wt_thread_join(
-		    session, manager->lsm_worker_cookies[i].tid));
+		WT_ASSERT(session, manager->lsm_worker_cookies[i].tid_set);
+		WT_TRET(__wt_lsm_worker_stop(
+		    session, &manager->lsm_worker_cookies[i]));
 	}
 	return (ret);
 }
