@@ -26,8 +26,7 @@ struct __wt_lsm_worker_args {
 	wt_thread_t	tid;		/* Thread id */
 	u_int		id;		/* My manager slot id */
 	uint32_t	type;		/* Types of operations handled */
-#define	WT_LSM_WORKER_RUN	0x01
-	uint32_t	flags;		/* Worker flags */
+	volatile bool	running;	/* Worker is running */
 };
 
 /*

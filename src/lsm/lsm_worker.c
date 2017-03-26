@@ -94,11 +94,7 @@ __lsm_worker(void *arg)
 	session = cookie->session;
 
 	entry = NULL;
-	for (;;) {
-		WT_BARRIER();			/* Don't cache the run flag. */
-		if (!F_ISSET(cookie, WT_LSM_WORKER_RUN))
-			break;
-
+	while (cookie->running) {
 		progress = false;
 
 		/*

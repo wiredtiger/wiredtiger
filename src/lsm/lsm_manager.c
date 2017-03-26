@@ -89,7 +89,7 @@ __lsm_general_worker_start(WT_SESSION_IMPL *session)
 			if (manager->lsm_workers % 2 == 0)
 				FLD_SET(worker_args->type, WT_LSM_WORK_MERGE);
 		}
-		F_SET(worker_args, WT_LSM_WORKER_RUN);
+		worker_args->running = true;
 		WT_RET(__wt_lsm_worker_start(session, worker_args));
 	}
 
@@ -129,17 +129,15 @@ __lsm_stop_workers(WT_SESSION_IMPL *session)
 	    manager->lsm_workers--) {
 		worker_args =
 		    &manager->lsm_worker_cookies[manager->lsm_workers - 1];
-		/*
-		 * Clear this worker's flag so it stops.
-		 */
-		F_CLR(worker_args, WT_LSM_WORKER_RUN);
 		WT_ASSERT(session, worker_args->tid != 0);
+
+		worker_args->running = false;
 		WT_RET(__wt_thread_join(session, worker_args->tid));
 		worker_args->tid = 0;
 		worker_args->type = 0;
-		worker_args->flags = 0;
+
 		/*
-		 * We do not clear the session because they are allocated
+		 * We do not clear the sessions because they are allocated
 		 * statically when the connection was opened.
 		 */
 	}
@@ -364,7 +362,7 @@ __lsm_manager_worker_shutdown(WT_SESSION_IMPL *session)
 	 */
 	for (i = 1; i < manager->lsm_workers; i++) {
 		WT_ASSERT(session, manager->lsm_worker_cookies[i].tid != 0);
-		F_CLR(&manager->lsm_worker_cookies[i], WT_LSM_WORKER_RUN);
+		manager->lsm_worker_cookies[i].running = false;
 		__wt_cond_signal(session, manager->work_cond);
 		WT_TRET(__wt_thread_join(
 		    session, manager->lsm_worker_cookies[i].tid));
