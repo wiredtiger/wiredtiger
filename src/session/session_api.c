@@ -1808,11 +1808,11 @@ __open_session(WT_CONNECTION_IMPL *conn,
 	__wt_spin_lock(session, &conn->api_lock);
 
 	/*
-	 * Fail once the application closes the connection. This is intended to
-	 * catch cases where asynchronous server threads open sessions.
+	 * Make sure we don't try to open a new session after the application
+	 * closes the connection.  This is particularly intended to catch
+	 * cases where server threads open sessions.
 	 */
-	if (F_ISSET(conn, WT_CONN_CLOSING))
-		WT_ERR(EBUSY);
+	WT_ASSERT(session, !F_ISSET(conn, WT_CONN_CLOSING));
 
 	/* Find the first inactive session slot. */
 	for (session_ret = conn->sessions,
