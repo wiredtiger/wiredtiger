@@ -96,6 +96,7 @@ flags = {
         'CONN_CACHE_POOL',
         'CONN_CKPT_SYNC',
         'CONN_CLOSING',
+        'CONN_CLOSING_NO_MORE_OPENS',
         'CONN_EVICTION_RUN',
         'CONN_IN_MEMORY',
         'CONN_LAS_OPEN',

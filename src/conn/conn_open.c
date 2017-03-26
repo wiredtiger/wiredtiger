@@ -113,6 +113,13 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	 */
 	WT_TRET(__wt_lsm_manager_destroy(session));
 
+	/*
+	 * Once the async and LSM threads exit, we shouldn't be opening any
+	 * more files.
+	 */
+	F_SET(conn, WT_CONN_CLOSING_NO_MORE_OPENS);
+	WT_FULL_BARRIER();
+
 	WT_TRET(__wt_checkpoint_server_destroy(session));
 	WT_TRET(__wt_statlog_destroy(session, true));
 	WT_TRET(__wt_sweep_destroy(session));
