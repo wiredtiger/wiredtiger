@@ -132,7 +132,7 @@ typedef struct {
 	 * repeatedly split a packed page.
 	 */
 	uint32_t split_size;		/* Split page size */
-	uint32_t alt_split_size;	/* Alternate split page size */
+	uint32_t min_split_size;	/* Minimum split page size */
 
 	/*
 	 * The problem with splits is we've done a lot of work by the time we
@@ -194,12 +194,28 @@ typedef struct {
 		 */
 		WT_ITEM key;		/* Promoted row-store key */
 
-		uint32_t alt_entries;	/* Alternate current chunk entries */
-		size_t alt_offset;	/* Alternate next chunk start offset */
-		uint64_t alt_recno;	/* Alternate next chunk start recno */
-		WT_ITEM alt_key;	/* Alternate next chunk start key */
+		/*
+		 * For each boundary that we create at the split percentage, we
+		 * also maintain details of where a boundary would be, if we
+		 * split at the minimum split percentage.
+		 * While reconciling pages, at any given time, we maintain two
+		 * split chunks in the memory to be written out as pages. As we
+		 * get to the last two chunks, if the last one turns out to be
+		 * smaller than the minimum split size, we go back into the
+		 * penultimate chunk and split at this minimum split size
+		 * boundary. This moves some data from the penultimate chunk to
+		 * the last chunk, hence increasing the size of the last page
+		 * written without decreasing the penultimate page size beyond
+		 * the minimum split size.
+		 */
+		uint32_t min_bnd_entries; /* No of entries at min split pct */
+		/* Next chunk's starting offset at min split pct */
+		size_t min_bnd_offset;
+		/* Next chunk's starting record number at min split pct */
+		uint64_t min_bnd_recno;
+		/* Next chunk's starting key at min split pct */
+		WT_ITEM min_bnd_key;
 	} *bnd;				/* Saved boundaries */
-
 	uint32_t bnd_next;		/* Next boundary slot */
 	uint32_t bnd_next_max;		/* Maximum boundary slots used */
 	size_t	 bnd_entries;		/* Total boundary slots */
@@ -283,15 +299,15 @@ typedef struct {
 	uint32_t tested_ref_state;	/* Debugging information */
 } WT_RECONCILE;
 
-#define	WT_CROSSING_ALT_BND(r, next_len)			\
-	(!(r)->is_bulk_load && (r)->bnd[(r)->bnd_next].alt_offset == 0 && \
+#define	WT_CROSSING_MIN_BND(r, next_len)			\
+	(!(r)->is_bulk_load && (r)->bnd[(r)->bnd_next].min_bnd_offset == 0 && \
 	    ((r)->space_avail - (next_len)) <			\
-	    ((r)->split_size - (r)->alt_split_size))
+	    ((r)->split_size - (r)->min_split_size))
 #define	WT_CROSSING_SPLIT_BND(r, next_len) ((next_len) > (r)->space_avail)
 #define	WT_CHECK_CROSSING_BND(r, next_len)			\
-	(WT_CROSSING_ALT_BND(r, next_len) || WT_CROSSING_SPLIT_BND(r, next_len))
+	(WT_CROSSING_MIN_BND(r, next_len) || WT_CROSSING_SPLIT_BND(r, next_len))
 
-static uint32_t __rec_alt_split_page_size(WT_BTREE *, uint32_t);
+static uint32_t __rec_min_split_page_size(WT_BTREE *, uint32_t);
 static void __rec_bnd_cleanup(WT_SESSION_IMPL *, WT_RECONCILE *, bool);
 static void __rec_cell_build_addr(WT_SESSION_IMPL *,
 		WT_RECONCILE *, const void *, size_t, u_int, uint64_t);
@@ -1037,7 +1053,7 @@ __rec_bnd_cleanup(WT_SESSION_IMPL *session, WT_RECONCILE *r, bool destroy)
 			__wt_free(session, bnd->disk_image);
 			__wt_free(session, bnd->supd);
 			__wt_buf_free(session, &bnd->key);
-			__wt_buf_free(session, &bnd->alt_key);
+			__wt_buf_free(session, &bnd->min_bnd_key);
 		}
 		__wt_free(session, r->bnd);
 		r->bnd_next = 0;
@@ -1948,8 +1964,8 @@ __rec_split_bnd_init(WT_SESSION_IMPL *session, WT_BOUNDARY *bnd)
 
 	bnd->already_compressed = false;
 
-	bnd->alt_offset = 0;
-	bnd->alt_entries = 0;
+	bnd->min_bnd_offset = 0;
+	bnd->min_bnd_entries = 0;
 
 	/*
 	 * Don't touch the key, we re-use that memory in each new
@@ -2027,22 +2043,16 @@ __wt_split_page_size(WT_BTREE *btree, uint32_t maxpagesize)
 }
 
 /*
- * __rec_alt_split_page_size --
- *	Alternate boundary split page size calculation: We track an alternate
- *	boundary we could have split at instead of splitting at the split page
- *	size. At any given time, we maintain two pages (two split chunks) in the
- *	memory to be written. If the last split page turns out to be too small,
- *	we go back into the penultimate chunk and split at this alternate
- *	boundary. This moves some data from the penultimate chunk to the last
- *	chunk, hence increasing the size of the last page without decreasing the
- *	penultimate page size beyond the alternate split size.
+ * __rec_min_split_page_size --
+ *	Minimum split size boundary calculation: To track a boundary at the
+ *	minimum split size that we could have split at instead of splitting at
+ *	the split page size.
  */
 static uint32_t
-__rec_alt_split_page_size(WT_BTREE *btree, uint32_t maxpagesize)
+__rec_min_split_page_size(WT_BTREE *btree, uint32_t maxpagesize)
 {
-#define	WT_ALT_SPLIT_PCT 45
 	return (__rec_split_page_size_from_pct(
-	    WT_ALT_SPLIT_PCT, maxpagesize, btree->allocsize));
+	    WT_BTREE_MIN_SPLIT_PCT, maxpagesize, btree->allocsize));
 }
 
 /*
@@ -2110,13 +2120,16 @@ __rec_split_init(WT_SESSION_IMPL *session,
 	 * creating overflow items and compacted data, for example, as those
 	 * items have already been written to disk).  So, the loop calls the
 	 * helper functions when approaching a split boundary, and we save the
-	 * information at that point. We wait to collect two split boundaries
-	 * before we lay them out as pages on disk. We also maintain an
-	 * alternate boundary in each chunk, which corresponds to a minimum page
-	 * size we would always like to have. It is possible that the last chunk
-	 * is less than this size. In such a case we go back into the previous
-	 * chunk and use the alternate boundary, hence increasing the size of
-	 * the last chunk.
+	 * information at that point. We also save the boundary information at
+	 * the minimum split size. We maintain two chunks (each boundary
+	 * represents a chunk that gets written as a page) in the memory,
+	 * writing out the older one to the disk as a page when we need to make
+	 * space for a new chunk. On reaching the last chunk, if it turns out to
+	 * be smaller than the minimum split size, we go back into the
+	 * penultimate chunk and split at this minimum split size boundary. This
+	 * moves some data from the penultimate chunk to the last chunk, hence
+	 * increasing the size of the last page written without decreasing the
+	 * penultimate page size beyond the minimum split size.
 	 *
 	 * Finally, all this doesn't matter for fixed-size column-store pages,
 	 * raw compression, and salvage.  Fixed-size column store pages can
@@ -2137,8 +2150,8 @@ __rec_split_init(WT_SESSION_IMPL *session,
 		r->split_size = __wt_split_page_size(btree, r->page_size);
 		r->space_avail =
 		    r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
-		r->alt_split_size =
-		    __rec_alt_split_page_size(btree, r->page_size);
+		r->min_split_size =
+		    __rec_min_split_page_size(btree, r->page_size);
 	}
 
 	/*
@@ -2410,12 +2423,12 @@ __rec_split_grow(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t add_len)
 
 /*
  * __rec_split_write_prev_and_shift_cur --
- *	Write the previous split chunk to the disk as a page.
- *	Shift the contents of the current page to the start of the buffer,
- *	making space for a new chunk to be written.
+ *	Write the previous split chunk to the disk as a page. Shift the contents
+ *	of the current chunk to the start of the buffer, making space for a new
+ *	chunk to be written.
  *	If the caller asks for a chunk resizing, the boundary between the two
- *	chunks is readjusted to the alternate boundary details stored in the
- *	previous chunk, letting the current chunk grow at the cost of the
+ *	chunks is readjusted to the minimum split size boundary details stored
+ *	in the previous chunk, letting the current chunk grow at the cost of the
  *	previous chunk.
  */
 static int
@@ -2438,18 +2451,20 @@ __rec_split_write_prev_and_shift_cur(
 
 	/*
 	 * Resize chunks if the current is smaller than the minimum, and there
-	 * is an alternate boundary available in the previous boundary details.
+	 * are details on the minimum split size boundary available in the
+	 * previous boundary details.
 	 */
 	if (resize_chunks &&
-	    cur_len < r->alt_split_size && bnd_prev->alt_offset != 0) {
-		bnd_cur->offset = bnd_prev->alt_offset;
-		bnd_cur->entries += bnd_prev->entries - bnd_prev->alt_entries;
-		bnd_prev->entries = bnd_prev->alt_entries;
-		bnd_cur->recno = bnd_prev->alt_recno;
+	    cur_len < r->min_split_size && bnd_prev->min_bnd_offset != 0) {
+		bnd_cur->offset = bnd_prev->min_bnd_offset;
+		bnd_cur->entries +=
+		    bnd_prev->entries - bnd_prev->min_bnd_entries;
+		bnd_prev->entries = bnd_prev->min_bnd_entries;
+		bnd_cur->recno = bnd_prev->min_bnd_recno;
 
 		__wt_buf_set(
 		    session, &bnd_cur->key,
-		    bnd_prev->alt_key.data, bnd_prev->alt_key.size);
+		    bnd_prev->min_bnd_key.data, bnd_prev->min_bnd_key.size);
 
 		/* Update current chunk's length */
 		cur_len = WT_PTRDIFF(r->first_free, dsk) - bnd_cur->offset;
@@ -2458,10 +2473,6 @@ __rec_split_write_prev_and_shift_cur(
 	/*
 	 * Create an interim buffer if not already done to prepare the previous
 	 * chunk's disk image.
-	 *
-	 * To Fix:
-	 * Can somehow write directly from the disk_image buffer and not need to
-	 * copy into the interim buffer at all.
 	 */
 	prev_len_aligned = WT_ALIGN(bnd_cur->offset, btree->allocsize);
 	if (r->interim_buf == NULL)
@@ -2569,7 +2580,6 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 	r->entries = 0;
 	/*
 	 * Set the space available to another split-size chunk.
-	 * Reset the alternate boundary's space available
 	 */
 	r->space_avail =
 	    r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
@@ -3098,7 +3108,7 @@ __rec_split_finish_std(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 			 * We hold two boundaries worth of data in the buffer,
 			 * and this data doesn't fit in a single page.  If the
 			 * last chunk is too small, readjust the boundary to a
-			 * pre-computed alternate.
+			 * pre-computed minimum.
 			 * Write out the penultimate chunk to the disk as a page
 			 */
 			__rec_split_write_prev_and_shift_cur(session, r, true);
@@ -3707,9 +3717,9 @@ __rec_col_fix_bulk_insert_split_check(WT_CURSOR_BULK *cbulk)
 			 *
 			 * Boundary: split or write the page.
 			 *
-			 * No need to have an alternate split boundary,
-			 * all pages are filled 100% except the last, allowing
-			 * it to grow in future.
+			 * No need to have a minimum split size boundary, all
+			 * pages are filled 100% except the last, allowing it to
+			 * grow in the future.
 			 */
 			__rec_incr(session, r, cbulk->entry,
 			    __bitstr_size(
@@ -4113,9 +4123,9 @@ __rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 			 *
 			 * Boundary: split or write the page.
 			 *
-			 * No need to have an alternate split boundary,
-			 * all pages are filled 100% except the last, allowing
-			 * it to grow in future.
+			 * No need to have a minimum split size boundary, all
+			 * pages are filled 100% except the last, allowing it to
+			 * grow in the future.
 			 */
 			__rec_incr(session, r, entry,
 			    __bitstr_size((size_t)entry * btree->bitcnt));
@@ -5028,8 +5038,8 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
 /*
  * __rec_split_crossing_bnd --
- * 	Save the details for the alternate split boundary or
- * 	call for a split.
+ * 	Save the details for the minimum split size boundary or call for a
+ * 	split.
  */
 static inline int
 __rec_split_crossing_bnd(
@@ -5038,47 +5048,48 @@ __rec_split_crossing_bnd(
 	WT_BOUNDARY *bnd;
 	WT_BTREE *btree;
 	WT_PAGE_HEADER *dsk;
-	size_t alt_offset;
+	size_t min_bnd_offset;
 
 	WT_ASSERT(session, WT_CHECK_CROSSING_BND(r, next_len));
 
 	/*
-	 * If crossing the alternate boundary, store alternate boundary details.
-	 * If we are crossing the split boundary at the same time, possible when
-	 * the next record is large enough, just split at this point.
+	 * If crossing the minimum split size boundary, store the boundary
+	 * details at the current location in the buffer. If we are crossing the
+	 * split boundary at the same time, possible when the next record is
+	 * large enough, just split at this point.
 	 */
-	if (WT_CROSSING_ALT_BND(r, next_len) &&
+	if (WT_CROSSING_MIN_BND(r, next_len) &&
 	    !WT_CROSSING_SPLIT_BND(r, next_len)) {
 		btree = S2BT(session);
 		bnd = &r->bnd[r->bnd_next];
 		dsk = r->disk_image.mem;
-		alt_offset =
+		min_bnd_offset =
 		    WT_PTRDIFF(r->first_free, dsk) - bnd->offset
 		    + WT_PAGE_HEADER_BYTE_SIZE(btree);
-		if (alt_offset == WT_PAGE_HEADER_BYTE_SIZE(btree))
+		if (min_bnd_offset == WT_PAGE_HEADER_BYTE_SIZE(btree))
 			/*
 			 * This is possible if the first record doesn't fit in
-			 * the alternate boundary size, we write this record
-			 * without setting up an alternate boundary. We will get
-			 * the opportunity to setup the alternate boundary
-			 * before writing out the next record.
+			 * the minimum split size, we write this record without
+			 * setting up any boundary here. We will get the
+			 * opportunity to setup a boundary before writing out
+			 * the next record.
 			 */
 			return (0);
 
-		WT_ASSERT(session, bnd->alt_offset == 0);
+		WT_ASSERT(session, bnd->min_bnd_offset == 0);
 
 		/*
 		 * Hitting a page boundary resets the dictionary, in all cases.
 		 */
 		__rec_dictionary_reset(r);
 
-		bnd->alt_offset = alt_offset;
-		bnd->alt_entries = r->entries;
-		bnd->alt_recno = r->recno;
+		bnd->min_bnd_offset = min_bnd_offset;
+		bnd->min_bnd_entries = r->entries;
+		bnd->min_bnd_recno = r->recno;
 		if (dsk->type == WT_PAGE_ROW_INT ||
 		    dsk->type == WT_PAGE_ROW_LEAF)
 			WT_RET(__rec_split_row_promote(
-			    session, r, &bnd->alt_key, dsk->type));
+			    session, r, &bnd->min_bnd_key, dsk->type));
 		return (0);
 	}
 
