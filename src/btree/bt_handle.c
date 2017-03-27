@@ -792,8 +792,8 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
 		    "of %d%%.", session->dhandle->name, WT_MIN_SPLIT_PCT));
 	} else
 		btree->split_pct = (int)cval.val;
-	intl_split_size = __wt_split_page_size(session, btree->maxintlpage);
-	leaf_split_size = __wt_split_page_size(session, btree->maxleafpage);
+	intl_split_size = __wt_split_page_size(btree, btree->maxintlpage);
+	leaf_split_size = __wt_split_page_size(btree, btree->maxleafpage);
 
 	/*
 	 * In-memory split configuration.

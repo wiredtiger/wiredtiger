@@ -291,6 +291,7 @@ typedef struct {
 #define	WT_CHECK_CROSSING_BND(r, next_len)			\
 	(WT_CROSSING_ALT_BND(r, next_len) || WT_CROSSING_SPLIT_BND(r, next_len))
 
+static uint32_t __rec_alt_split_page_size(WT_BTREE *, uint32_t);
 static void __rec_bnd_cleanup(WT_SESSION_IMPL *, WT_RECONCILE *, bool);
 static void __rec_cell_build_addr(WT_SESSION_IMPL *,
 		WT_RECONCILE *, const void *, size_t, u_int, uint64_t);
@@ -2019,18 +2020,14 @@ __rec_split_page_size_from_pct(
  * time a new entry is added, so we split to a smaller-than-maximum page size.
  */
 uint32_t
-__wt_split_page_size(WT_SESSION_IMPL *session, uint32_t maxpagesize)
+__wt_split_page_size(WT_BTREE *btree, uint32_t maxpagesize)
 {
-	WT_BTREE *btree;
-
-	btree = S2BT(session);
-
 	return (__rec_split_page_size_from_pct(
 	    btree->split_pct, maxpagesize, btree->allocsize));
 }
 
 /*
- * __wt_alt_split_page_size --
+ * __rec_alt_split_page_size --
  *	Alternate boundary split page size calculation: We track an alternate
  *	boundary we could have split at instead of splitting at the split page
  *	size. At any given time, we maintain two pages (two split chunks) in the
@@ -2041,13 +2038,9 @@ __wt_split_page_size(WT_SESSION_IMPL *session, uint32_t maxpagesize)
  *	penultimate page size beyond the alternate split size.
  */
 static uint32_t
-__wt_alt_split_page_size(WT_SESSION_IMPL *session, uint32_t maxpagesize)
+__rec_alt_split_page_size(WT_BTREE *btree, uint32_t maxpagesize)
 {
-	WT_BTREE *btree;
-
-	btree = S2BT(session);
 #define	WT_ALT_SPLIT_PCT 45
-
 	return (__rec_split_page_size_from_pct(
 	    WT_ALT_SPLIT_PCT, maxpagesize, btree->allocsize));
 }
@@ -2141,11 +2134,11 @@ __rec_split_init(WT_SESSION_IMPL *session,
 		r->space_avail =
 		    r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
 	} else {
-		r->split_size = __wt_split_page_size(session, r->page_size);
+		r->split_size = __wt_split_page_size(btree, r->page_size);
 		r->space_avail =
 		    r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
 		r->alt_split_size =
-		    __wt_alt_split_page_size(session, r->page_size);
+		    __rec_alt_split_page_size(btree, r->page_size);
 	}
 
 	/*
