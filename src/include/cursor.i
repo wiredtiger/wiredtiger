@@ -210,7 +210,7 @@ __wt_curindex_get_valuev(WT_CURSOR *cursor, va_list ap)
 
 	cindex = (WT_CURSOR_INDEX *)cursor;
 	session = (WT_SESSION_IMPL *)cursor->session;
-	WT_RET(__cursor_needvalue(cursor));
+	WT_RET(__cursor_checkvalue(cursor));
 
 	if (F_ISSET(cursor, WT_CURSOR_RAW_OK)) {
 		WT_RET(__wt_schema_project_merge(session,
@@ -240,7 +240,7 @@ __wt_curtable_get_valuev(WT_CURSOR *cursor, va_list ap)
 	ctable = (WT_CURSOR_TABLE *)cursor;
 	session = (WT_SESSION_IMPL *)cursor->session;
 	primary = *ctable->cg_cursors;
-	WT_RET(__cursor_needvalue(primary));
+	WT_RET(__cursor_checkvalue(primary));
 
 	if (F_ISSET(cursor, WT_CURSOR_RAW_OK)) {
 		WT_RET(__wt_schema_project_merge(session,
