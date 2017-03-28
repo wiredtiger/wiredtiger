@@ -299,15 +299,15 @@ typedef struct {
 	uint32_t tested_ref_state;	/* Debugging information */
 } WT_RECONCILE;
 
-#define	WT_CROSSING_MIN_BND(r, next_len)			\
-	(!(r)->is_bulk_load && (r)->bnd[(r)->bnd_next].min_bnd_offset == 0 && \
-	    ((r)->space_avail - (next_len)) <			\
+#define	WT_CROSSING_MIN_BND(r, next_len)				\
+	(!(r)->is_bulk_load &&						\
+	    (r)->bnd[(r)->bnd_next].min_bnd_offset == 0 &&		\
+	    ((r)->space_avail - (next_len)) <				\
 	    ((r)->split_size - (r)->min_split_size))
 #define	WT_CROSSING_SPLIT_BND(r, next_len) ((next_len) > (r)->space_avail)
-#define	WT_CHECK_CROSSING_BND(r, next_len)			\
+#define	WT_CHECK_CROSSING_BND(r, next_len)				\
 	(WT_CROSSING_MIN_BND(r, next_len) || WT_CROSSING_SPLIT_BND(r, next_len))
 
-static uint32_t __rec_min_split_page_size(WT_BTREE *, uint32_t);
 static void __rec_bnd_cleanup(WT_SESSION_IMPL *, WT_RECONCILE *, bool);
 static void __rec_cell_build_addr(WT_SESSION_IMPL *,
 		WT_RECONCILE *, const void *, size_t, u_int, uint64_t);
@@ -329,6 +329,7 @@ static int  __rec_col_var(WT_SESSION_IMPL *,
 static int  __rec_col_var_helper(WT_SESSION_IMPL *, WT_RECONCILE *,
 		WT_SALVAGE_COOKIE *, WT_ITEM *, bool, uint8_t, uint64_t);
 static int  __rec_destroy_session(WT_SESSION_IMPL *);
+static uint32_t __rec_min_split_page_size(WT_BTREE *, uint32_t);
 static int  __rec_root_write(WT_SESSION_IMPL *, WT_PAGE *, uint32_t);
 static int  __rec_row_int(WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
 static int  __rec_row_leaf(WT_SESSION_IMPL *,
@@ -337,17 +338,12 @@ static int  __rec_row_leaf_insert(
 		WT_SESSION_IMPL *, WT_RECONCILE *, WT_INSERT *);
 static int  __rec_row_merge(WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
 static int  __rec_split_col(WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
-static inline int __rec_split_crossing_bnd(
-		WT_SESSION_IMPL *, WT_RECONCILE *, size_t);
 static int  __rec_split_discard(WT_SESSION_IMPL *, WT_PAGE *);
-static uint32_t __rec_split_page_size_from_pct(int , uint32_t , uint32_t);
 static int  __rec_split_row(WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
 static int  __rec_split_row_promote(
 		WT_SESSION_IMPL *, WT_RECONCILE *, WT_ITEM *, uint8_t);
 static int  __rec_split_write(WT_SESSION_IMPL *,
 		WT_RECONCILE *, WT_BOUNDARY *, WT_ITEM *, bool);
-static int __rec_split_write_prev_and_shift_cur(
-		WT_SESSION_IMPL *, WT_RECONCILE *, bool);
 static int  __rec_update_las(
 		WT_SESSION_IMPL *, WT_RECONCILE *, uint32_t, WT_BOUNDARY *);
 static int  __rec_write_check_complete(WT_SESSION_IMPL *, WT_RECONCILE *);
@@ -1966,6 +1962,7 @@ __rec_split_bnd_init(WT_SESSION_IMPL *session, WT_BOUNDARY *bnd)
 
 	bnd->min_bnd_offset = 0;
 	bnd->min_bnd_entries = 0;
+	bnd->min_bnd_recno = WT_RECNO_OOB;
 
 	/*
 	 * Don't touch the key, we re-use that memory in each new
@@ -2141,8 +2138,7 @@ __rec_split_init(WT_SESSION_IMPL *session,
 	if (r->raw_compression || r->salvage != NULL) {
 		r->split_size = 0;
 		r->space_avail = r->page_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
-	}
-	else if (page->type == WT_PAGE_COL_FIX) {
+	} else if (page->type == WT_PAGE_COL_FIX) {
 		r->split_size = r->page_size;
 		r->space_avail =
 		    r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
@@ -2462,9 +2458,8 @@ __rec_split_write_prev_and_shift_cur(
 		bnd_prev->entries = bnd_prev->min_bnd_entries;
 		bnd_cur->recno = bnd_prev->min_bnd_recno;
 
-		__wt_buf_set(
-		    session, &bnd_cur->key,
-		    bnd_prev->min_bnd_key.data, bnd_prev->min_bnd_key.size);
+		WT_RET(__wt_buf_set(session, &bnd_cur->key,
+		    bnd_prev->min_bnd_key.data, bnd_prev->min_bnd_key.size));
 
 		/* Update current chunk's length */
 		cur_len = WT_PTRDIFF(r->first_free, dsk) - bnd_cur->offset;
@@ -2486,7 +2481,7 @@ __rec_split_write_prev_and_shift_cur(
 	memcpy(dsk_tmp, dsk, bnd_cur->offset);
 	dsk_tmp->recno = bnd_prev->recno;
 	dsk_tmp->u.entries = bnd_prev->entries;
-	dsk_tmp->mem_size = (uint32_t)bnd_cur->offset;
+	dsk_tmp->mem_size = WT_STORE_SIZE(bnd_cur->offset);
 	r->interim_buf->size = dsk_tmp->mem_size;
 	WT_RET(__rec_split_write(session, r, bnd_prev, r->interim_buf, false));
 
@@ -2572,17 +2567,13 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 	next->offset = WT_PTRDIFF(r->first_free, dsk);
 	/* Set the key for the next chunk. */
 	next->recno = r->recno;
-	if (dsk->type == WT_PAGE_ROW_INT ||
-	    dsk->type == WT_PAGE_ROW_LEAF)
+	if (dsk->type == WT_PAGE_ROW_INT || dsk->type == WT_PAGE_ROW_LEAF)
 		WT_RET(__rec_split_row_promote(
 		    session, r, &next->key, dsk->type));
 
 	r->entries = 0;
-	/*
-	 * Set the space available to another split-size chunk.
-	 */
-	r->space_avail =
-	    r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
+	/* Set the space available to another split-size chunk. */
+	r->space_avail = r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
 
 done:  	/*
 	 * Overflow values can be larger than the maximum page size but still be
@@ -2599,6 +2590,66 @@ done:  	/*
 		WT_RET(__rec_split_grow(session, r, next_len));
 
 	return (0);
+}
+
+/*
+ * __rec_split_crossing_bnd --
+ * 	Save the details for the minimum split size boundary or call for a
+ * 	split.
+ */
+static inline int
+__rec_split_crossing_bnd(
+    WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
+{
+	WT_BOUNDARY *bnd;
+	WT_BTREE *btree;
+	WT_PAGE_HEADER *dsk;
+	size_t min_bnd_offset;
+
+	WT_ASSERT(session, WT_CHECK_CROSSING_BND(r, next_len));
+
+	/*
+	 * If crossing the minimum split size boundary, store the boundary
+	 * details at the current location in the buffer. If we are crossing the
+	 * split boundary at the same time, possible when the next record is
+	 * large enough, just split at this point.
+	 */
+	if (WT_CROSSING_MIN_BND(r, next_len) &&
+	    !WT_CROSSING_SPLIT_BND(r, next_len)) {
+		btree = S2BT(session);
+		bnd = &r->bnd[r->bnd_next];
+		dsk = r->disk_image.mem;
+		min_bnd_offset = (WT_PTRDIFF(r->first_free, dsk) -
+		    bnd->offset) + WT_PAGE_HEADER_BYTE_SIZE(btree);
+		if (min_bnd_offset == WT_PAGE_HEADER_BYTE_SIZE(btree))
+			/*
+			 * This is possible if the first record doesn't fit in
+			 * the minimum split size, we write this record without
+			 * setting up any boundary here. We will get the
+			 * opportunity to setup a boundary before writing out
+			 * the next record.
+			 */
+			return (0);
+
+		WT_ASSERT(session, bnd->min_bnd_offset == 0);
+
+		/*
+		 * Hitting a page boundary resets the dictionary, in all cases.
+		 */
+		__rec_dictionary_reset(r);
+
+		bnd->min_bnd_offset = min_bnd_offset;
+		bnd->min_bnd_entries = r->entries;
+		bnd->min_bnd_recno = r->recno;
+		if (dsk->type == WT_PAGE_ROW_INT ||
+		    dsk->type == WT_PAGE_ROW_LEAF)
+			WT_RET(__rec_split_row_promote(
+			    session, r, &bnd->min_bnd_key, dsk->type));
+		return (0);
+	}
+
+	/* We are crossing a split boundary */
+	return (__rec_split(session, r, next_len));
 }
 
 /*
@@ -3111,7 +3162,8 @@ __rec_split_finish_std(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 			 * pre-computed minimum.
 			 * Write out the penultimate chunk to the disk as a page
 			 */
-			__rec_split_write_prev_and_shift_cur(session, r, true);
+			WT_RET(__rec_split_write_prev_and_shift_cur(
+			    session, r, true));
 		} else if (r->bnd_next != 0) {
 			/*
 			 * We have two boundaries, but the data in the buffer
@@ -3827,8 +3879,9 @@ __wt_bulk_insert_var(
 	if (r->raw_compression) {
 		if (val->len > r->space_avail)
 			WT_RET(__rec_split_raw(session, r, val->len));
-	} else if (WT_CHECK_CROSSING_BND(r, val->len))
-		WT_RET(__rec_split_crossing_bnd(session, r, val->len));
+	} else
+		if (WT_CHECK_CROSSING_BND(r, val->len))
+			WT_RET(__rec_split_crossing_bnd(session, r, val->len));
 
 	/* Copy the value onto the page. */
 	if (btree->dictionary)
@@ -3967,8 +4020,10 @@ __rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 		if (r->raw_compression) {
 			if (val->len > r->space_avail)
 				WT_ERR(__rec_split_raw(session, r, val->len));
-		} else if (WT_CHECK_CROSSING_BND(r, val->len))
-			WT_ERR(__rec_split_crossing_bnd(session, r, val->len));
+		} else
+			if (WT_CHECK_CROSSING_BND(r, val->len))
+				WT_ERR(__rec_split_crossing_bnd(
+				    session, r, val->len));
 
 		/* Copy the value onto the page. */
 		__rec_copy_incr(session, r, val);
@@ -4013,8 +4068,10 @@ __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		if (r->raw_compression) {
 			if (val->len > r->space_avail)
 				WT_RET(__rec_split_raw(session, r, val->len));
-		} else if (WT_CHECK_CROSSING_BND(r, val->len))
-			WT_RET(__rec_split_crossing_bnd(session, r, val->len));
+		} else
+			if (WT_CHECK_CROSSING_BND(r, val->len))
+				WT_RET(__rec_split_crossing_bnd(
+				    session, r, val->len));
 
 		/* Copy the value onto the page. */
 		__rec_copy_incr(session, r, val);
@@ -4285,8 +4342,10 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	if (r->raw_compression) {
 		if (val->len > r->space_avail)
 			WT_RET(__rec_split_raw(session, r, val->len));
-	} else if (WT_CHECK_CROSSING_BND(r, val->len))
-		WT_RET(__rec_split_crossing_bnd(session, r, val->len));
+	} else
+		if (WT_CHECK_CROSSING_BND(r, val->len))
+			WT_RET(__rec_split_crossing_bnd(
+			    session, r, val->len));
 
 	/* Copy the value onto the page. */
 	if (!deleted && !overflow_type && btree->dictionary)
@@ -5022,9 +5081,10 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			if (key->len + val->len > r->space_avail)
 				WT_RET(__rec_split_raw(
 				    session, r, key->len + val->len));
-		} else if (WT_CHECK_CROSSING_BND(r, key->len + val->len))
-			WT_RET(__rec_split_crossing_bnd(
-			    session, r, key->len + val->len));
+		} else
+			if (WT_CHECK_CROSSING_BND(r, key->len + val->len))
+				WT_RET(__rec_split_crossing_bnd(
+				    session, r, key->len + val->len));
 
 		/* Copy the key and value onto the page. */
 		__rec_copy_incr(session, r, key);
@@ -5034,67 +5094,6 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		__rec_key_state_update(r, ovfl_key);
 	}
 	return (0);
-}
-
-/*
- * __rec_split_crossing_bnd --
- * 	Save the details for the minimum split size boundary or call for a
- * 	split.
- */
-static inline int
-__rec_split_crossing_bnd(
-    WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
-{
-	WT_BOUNDARY *bnd;
-	WT_BTREE *btree;
-	WT_PAGE_HEADER *dsk;
-	size_t min_bnd_offset;
-
-	WT_ASSERT(session, WT_CHECK_CROSSING_BND(r, next_len));
-
-	/*
-	 * If crossing the minimum split size boundary, store the boundary
-	 * details at the current location in the buffer. If we are crossing the
-	 * split boundary at the same time, possible when the next record is
-	 * large enough, just split at this point.
-	 */
-	if (WT_CROSSING_MIN_BND(r, next_len) &&
-	    !WT_CROSSING_SPLIT_BND(r, next_len)) {
-		btree = S2BT(session);
-		bnd = &r->bnd[r->bnd_next];
-		dsk = r->disk_image.mem;
-		min_bnd_offset =
-		    WT_PTRDIFF(r->first_free, dsk) - bnd->offset
-		    + WT_PAGE_HEADER_BYTE_SIZE(btree);
-		if (min_bnd_offset == WT_PAGE_HEADER_BYTE_SIZE(btree))
-			/*
-			 * This is possible if the first record doesn't fit in
-			 * the minimum split size, we write this record without
-			 * setting up any boundary here. We will get the
-			 * opportunity to setup a boundary before writing out
-			 * the next record.
-			 */
-			return (0);
-
-		WT_ASSERT(session, bnd->min_bnd_offset == 0);
-
-		/*
-		 * Hitting a page boundary resets the dictionary, in all cases.
-		 */
-		__rec_dictionary_reset(r);
-
-		bnd->min_bnd_offset = min_bnd_offset;
-		bnd->min_bnd_entries = r->entries;
-		bnd->min_bnd_recno = r->recno;
-		if (dsk->type == WT_PAGE_ROW_INT ||
-		    dsk->type == WT_PAGE_ROW_LEAF)
-			WT_RET(__rec_split_row_promote(
-			    session, r, &bnd->min_bnd_key, dsk->type));
-		return (0);
-	}
-
-	/* We are crossing a split boundary */
-	return (__rec_split(session, r, next_len));
 }
 
 /*
@@ -5521,10 +5520,8 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 			if (r->key_pfx_compress_conf) {
 				r->key_pfx_compress = false;
 				if (!ovfl_key)
-					WT_RET(
-					    __rec_cell_build_leaf_key(
-					    session,
-					    r, NULL, 0, &ovfl_key));
+					WT_RET(__rec_cell_build_leaf_key(
+					    session, r, NULL, 0, &ovfl_key));
 			}
 
 			WT_RET(__rec_split_crossing_bnd(
