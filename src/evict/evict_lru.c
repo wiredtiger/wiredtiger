@@ -1533,6 +1533,7 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	btree = S2BT(session);
 	cache = conn->cache;
 	txn_global = &conn->txn_global;
+	last_parent = NULL;
 	restarts = 0;
 	give_up = urgent_queued = false;
 
