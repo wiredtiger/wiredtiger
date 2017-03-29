@@ -3476,7 +3476,8 @@ copy_image:
 		 * images, too.
 		 */
 		WT_ASSERT(session, verify_image == false ||
-		    __wt_verify_dsk(session, "[reconcile-image]", buf) == 0);
+		    __wt_verify_dsk_image(
+		    session, "[reconcile-image]", buf->data, 0, true) == 0);
 #endif
 		WT_ERR(__wt_strndup(
 		    session, buf->data, buf->size, &bnd->disk_image));
