@@ -246,15 +246,14 @@ typedef struct {
 
 	/*
 	 * WT_DICTIONARY --
-	 *	We optionally build a dictionary of row-store values for leaf
-	 * pages.  Where two value cells are identical, only write the value
-	 * once, the second and subsequent copies point to the original cell.
-	 * The dictionary is fixed size, but organized in a skip-list to make
-	 * searches faster.
+	 *	We optionally build a dictionary of values for leaf pages. Where
+	 * two value cells are identical, only write the value once, the second
+	 * and subsequent copies point to the original cell. The dictionary is
+	 * fixed size, but organized in a skip-list to make searches faster.
 	 */
 	struct __rec_dictionary {
 		uint64_t hash;				/* Hash value */
-		void	*cell;				/* Matching cell */
+		uint32_t offset;			/* Matching cell */
 
 		u_int depth;				/* Skiplist */
 		WT_DICTIONARY *next[0];
@@ -1790,16 +1789,22 @@ __rec_dict_replace(
 		return (0);
 
 	/*
-	 * If the dictionary cell reference is not set, we're creating a new
-	 * entry in the dictionary, update its location.
+	 * If the dictionary offset isn't set, we're creating a new entry in the
+	 * dictionary, set its location.
 	 *
-	 * If the dictionary cell reference is set, we have a matching value.
-	 * Create a copy cell instead.
+	 * If the dictionary offset is set, we have a matching value. Create a
+	 * copy cell instead.
 	 */
-	if (dp->cell == NULL)
-		dp->cell = r->first_free;
+	if (dp->offset == 0)
+		dp->offset = WT_PTRDIFF32(r->first_free, r->disk_image.mem);
 	else {
-		offset = WT_PTRDIFF(r->first_free, dp->cell);
+		/*
+		 * The offset is the byte offset from this cell to the previous,
+		 * matching cell, NOT the byte offset from the beginning of the
+		 * page.
+		 */
+		offset = (uint64_t)WT_PTRDIFF(r->first_free,
+		    (u_int8_t *)r->disk_image.mem + dp->offset);
 		val->len = val->cell_len =
 		    __wt_cell_pack_copy(&val->cell, rle, offset);
 		val->buf.data = NULL;
@@ -2536,17 +2541,17 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 	if (inuse < r->split_size / 2)
 		goto done;
 
-	/* Hitting a page boundary resets the dictionary, in all cases. */
+	/* All page boundaries reset the dictionary. */
 	__rec_dictionary_reset(r);
 
 	/* Set the number of entries for the just finished chunk. */
 	last->max_bnd_entries = r->entries;
 
 	/*
-	 * In case of bulk load, write out chunks as we get them.
-	 * In other cases, we keep two chunks in memory at a given time. So, if
-	 * there is a previous chunk, write it out, making space in the buffer
-	 * for the next chunk to be written.
+	 * In case of bulk load, write out chunks as we get them. Otherwise we
+	 * keep two chunks in memory at a given time. So, if there is a previous
+	 * chunk, write it out, making space in the buffer for the next chunk to
+	 * be written.
 	 */
 	if (r->is_bulk_load) {
 		dsk->recno = last->max_bnd_recno;
@@ -2633,9 +2638,7 @@ __rec_split_crossing_bnd(
 
 		WT_ASSERT(session, bnd->min_bnd_offset == 0);
 
-		/*
-		 * Hitting a page boundary resets the dictionary, in all cases.
-		 */
+		/* All page boundaries reset the dictionary. */
 		__rec_dictionary_reset(r);
 
 		bnd->min_bnd_offset = min_bnd_offset;
@@ -3441,7 +3444,18 @@ supd_check_complete:
 	if (F_ISSET(r, WT_EVICT_LOOKASIDE) && bnd->supd != NULL)
 		WT_ERR(__rec_update_las(session, r, btree->id, bnd));
 
+	if (0) {
 copy_image:
+#ifdef HAVE_DIAGNOSTIC
+	/*
+	 * The I/O routines verify all disk images we write, but there are paths
+	 * in reconciliation that don't do I/O. Verify those images, too.
+	 */
+	WT_ASSERT(session,
+	    __wt_verify_dsk(session, "[reconcile-image]", buf) == 0);
+#endif
+	}
+
 	/*
 	 * If re-instantiating this page in memory (either because eviction
 	 * wants to, or because we skipped updates to build the disk image),
@@ -6455,7 +6469,8 @@ __rec_dictionary_lookup(
 	for (dp = __rec_dictionary_skip_search(r->dictionary_head, hash);
 	    dp != NULL && dp->hash == hash; dp = dp->next[0]) {
 		WT_RET(__wt_cell_pack_data_match(
-		    dp->cell, &val->cell, val->buf.data, &match));
+		    (WT_CELL *)((uint8_t *)r->disk_image.mem + dp->offset),
+		    &val->cell, val->buf.data, &match));
 		if (match) {
 			WT_STAT_DATA_INCR(session, rec_dictionary);
 			*dpp = dp;
@@ -6481,7 +6496,7 @@ __rec_dictionary_lookup(
 	 * know where on the page it will be written).
 	 */
 	next = r->dictionary[r->dictionary_next++];
-	next->cell = NULL;		/* Not necessary, just cautious. */
+	next->offset = 0;		/* Not necessary, just cautious. */
 	next->hash = hash;
 	__rec_dictionary_skip_insert(r->dictionary_head, next, hash);
 	*dpp = next;
