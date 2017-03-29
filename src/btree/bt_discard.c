@@ -16,6 +16,7 @@ static void __free_skip_array(
 		WT_SESSION_IMPL *, WT_INSERT_HEAD **, uint32_t, bool);
 static void __free_skip_list(WT_SESSION_IMPL *, WT_INSERT *, bool);
 static void __free_update(WT_SESSION_IMPL *, WT_UPDATE **, uint32_t, bool);
+static void __page_out_int(WT_SESSION_IMPL *, WT_PAGE **, bool);
 
 /*
  * __wt_ref_out_int --
@@ -56,7 +57,7 @@ __wt_ref_out_int(WT_SESSION_IMPL *session, WT_REF *ref, bool rewrite)
 	}
 #endif
 
-	__wt_page_out_int(session, &ref->page, rewrite);
+	__page_out_int(session, &ref->page, rewrite);
 }
 
 /*
@@ -70,11 +71,11 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
- * __wt_page_out_int --
+ * __page_out_int --
  *	Discard an in-memory page, freeing all memory associated with it.
  */
-void
-__wt_page_out_int(WT_SESSION_IMPL *session, WT_PAGE **pagep, bool rewrite)
+static void
+__page_out_int(WT_SESSION_IMPL *session, WT_PAGE **pagep, bool rewrite)
 {
 	WT_PAGE *page;
 	WT_PAGE_HEADER *dsk;
@@ -164,7 +165,7 @@ __wt_page_out_int(WT_SESSION_IMPL *session, WT_PAGE **pagep, bool rewrite)
 void
 __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
 {
-	__wt_page_out_int(session, pagep, false);
+	__page_out_int(session, pagep, false);
 }
 
 /*

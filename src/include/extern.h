@@ -128,7 +128,6 @@ extern bool __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool vi
 extern int __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern void __wt_ref_out_int(WT_SESSION_IMPL *session, WT_REF *ref, bool rewrite) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern void __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
-extern void __wt_page_out_int(WT_SESSION_IMPL *session, WT_PAGE **pagep, bool rewrite) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern void __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern void __wt_free_ref( WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pages) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern void __wt_free_ref_index(WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_INDEX *pindex, bool free_pages) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
