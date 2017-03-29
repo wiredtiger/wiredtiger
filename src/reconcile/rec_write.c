@@ -1804,7 +1804,7 @@ __rec_dict_replace(
 		 * page.
 		 */
 		offset = (uint64_t)WT_PTRDIFF(r->first_free,
-		    (u_int8_t *)r->disk_image.mem + dp->offset);
+		    (uint8_t *)r->disk_image.mem + dp->offset);
 		val->len = val->cell_len =
 		    __wt_cell_pack_copy(&val->cell, rle, offset);
 		val->buf.data = NULL;
