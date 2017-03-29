@@ -157,16 +157,6 @@ typedef struct {
 		 */
 		size_t offset;		/* Split's first byte */
 
-		/*
-		 * The recno and entries fields are the starting record number
-		 * of the split chunk (for column-store splits), and the number
-		 * of entries in the split chunk.  These fields are used both
-		 * to write the split chunk, and to create a new internal page
-		 * to reference the split pages.
-		 */
-		uint64_t recno;		/* Split's starting record */
-		uint32_t entries;	/* Split's entries */
-
 		WT_ADDR addr;		/* Split's written location */
 		uint32_t size;		/* Split's size */
 		uint32_t checksum;	/* Split's checksum */
@@ -188,16 +178,6 @@ typedef struct {
 		size_t	     supd_allocated;
 
 		/*
-		 * The key for a row-store page; no column-store key is needed
-		 * because the page's recno, stored in the recno field, is the
-		 * column-store key.
-		 */
-		WT_ITEM key;		/* Promoted row-store key */
-
-		/*
-		 * For each boundary that we create at the split percentage, we
-		 * also maintain details of where a boundary would be, if we
-		 * split at the minimum split percentage.
 		 * While reconciling pages, at any given time, we maintain two
 		 * split chunks in the memory to be written out as pages. As we
 		 * get to the last two chunks, if the last one turns out to be
@@ -206,15 +186,28 @@ typedef struct {
 		 * boundary. This moves some data from the penultimate chunk to
 		 * the last chunk, hence increasing the size of the last page
 		 * written without decreasing the penultimate page size beyond
-		 * the minimum split size.
+		 * the minimum split size. For this reason, we maintain both a
+		 * maximum split percentage boundary and a minimum split
+		 * percentage boundary.
+		 *
+		 * The recno and entries fields are the starting record number
+		 * of the split chunk (for column-store splits), and the number
+		 * of entries in the split chunk.  These fields are used both to
+		 * write the split chunk, and to create a new internal page to
+		 * reference the split pages.
+		 *
+		 * The key for a row-store page; no column-store key is needed
+		 * because the page's recno, stored in the recno field, is the
+		 * column-store key.
 		 */
-		uint32_t min_bnd_entries; /* No of entries at min split pct */
-		/* Next chunk's starting offset at min split pct */
-		size_t min_bnd_offset;
-		/* Next chunk's starting record number at min split pct */
+		uint32_t max_bnd_entries;
+		uint64_t max_bnd_recno;
+		WT_ITEM  max_bnd_key;
+
+		size_t   min_bnd_offset;
+		uint32_t min_bnd_entries;
 		uint64_t min_bnd_recno;
-		/* Next chunk's starting key at min split pct */
-		WT_ITEM min_bnd_key;
+		WT_ITEM  min_bnd_key;
 	} *bnd;				/* Saved boundaries */
 	uint32_t bnd_next;		/* Next boundary slot */
 	uint32_t bnd_next_max;		/* Maximum boundary slots used */
@@ -300,8 +293,7 @@ typedef struct {
 } WT_RECONCILE;
 
 #define	WT_CROSSING_MIN_BND(r, next_len)				\
-	(!(r)->is_bulk_load &&						\
-	    (r)->bnd[(r)->bnd_next].min_bnd_offset == 0 &&		\
+	((r)->bnd[(r)->bnd_next].min_bnd_offset == 0 &&			\
 	    ((r)->space_avail - (next_len)) <				\
 	    ((r)->split_size - (r)->min_split_size))
 #define	WT_CROSSING_SPLIT_BND(r, next_len) ((next_len) > (r)->space_avail)
@@ -1048,7 +1040,7 @@ __rec_bnd_cleanup(WT_SESSION_IMPL *session, WT_RECONCILE *r, bool destroy)
 			__wt_free(session, bnd->addr.addr);
 			__wt_free(session, bnd->disk_image);
 			__wt_free(session, bnd->supd);
-			__wt_buf_free(session, &bnd->key);
+			__wt_buf_free(session, &bnd->max_bnd_key);
 			__wt_buf_free(session, &bnd->min_bnd_key);
 		}
 		__wt_free(session, r->bnd);
@@ -1944,8 +1936,8 @@ static void
 __rec_split_bnd_init(WT_SESSION_IMPL *session, WT_BOUNDARY *bnd)
 {
 	bnd->offset = 0;
-	bnd->recno = WT_RECNO_OOB;
-	bnd->entries = 0;
+	bnd->max_bnd_recno = WT_RECNO_OOB;
+	bnd->max_bnd_entries = 0;
 
 	__wt_free(session, bnd->addr.addr);
 	WT_CLEAR(bnd->addr);
@@ -2188,7 +2180,7 @@ __rec_split_init(WT_SESSION_IMPL *session,
 	r->bnd_next = 0;
 	WT_RET(__rec_split_bnd_grow(session, r));
 	__rec_split_bnd_init(session, &r->bnd[0]);
-	r->bnd[0].recno = recno;
+	r->bnd[0].max_bnd_recno = recno;
 	r->bnd[0].offset = WT_PAGE_HEADER_BYTE_SIZE(btree);
 
 	/* Initialize the entry counter. */
@@ -2431,15 +2423,17 @@ static int
 __rec_split_write_prev_and_shift_cur(
     WT_SESSION_IMPL *session, WT_RECONCILE *r, bool resize_chunks)
 {
+	WT_BM *bm;
 	WT_BOUNDARY *bnd_cur, *bnd_prev;
 	WT_BTREE *btree;
 	WT_PAGE_HEADER *dsk, *dsk_tmp;
-	size_t cur_len, prev_len_aligned;
+	size_t cur_len, len;
 	uint8_t *dsk_start;
 
 	WT_ASSERT(session, r->bnd_next != 0);
 
 	btree = S2BT(session);
+	bm = btree->bm;
 	bnd_cur = &r->bnd[r->bnd_next];
 	bnd_prev = bnd_cur - 1;
 	dsk = r->disk_image.mem;
@@ -2449,16 +2443,23 @@ __rec_split_write_prev_and_shift_cur(
 	 * Resize chunks if the current is smaller than the minimum, and there
 	 * are details on the minimum split size boundary available in the
 	 * previous boundary details.
+	 *
+	 * There is a possibility that we do not have a minimum boundary set, in
+	 * such a case we skip chunk resizing. Such a condition is possible for
+	 * instance when we are building the image in the buffer and the first
+	 * K/V pair is large enough that it surpasses both the minimum split
+	 * size and the split size the application has set. In such a case we
+	 * split the chunk without saving any minimum boundary.
 	 */
 	if (resize_chunks &&
 	    cur_len < r->min_split_size && bnd_prev->min_bnd_offset != 0) {
 		bnd_cur->offset = bnd_prev->min_bnd_offset;
-		bnd_cur->entries +=
-		    bnd_prev->entries - bnd_prev->min_bnd_entries;
-		bnd_prev->entries = bnd_prev->min_bnd_entries;
-		bnd_cur->recno = bnd_prev->min_bnd_recno;
+		bnd_cur->max_bnd_entries +=
+		    bnd_prev->max_bnd_entries - bnd_prev->min_bnd_entries;
+		bnd_prev->max_bnd_entries = bnd_prev->min_bnd_entries;
+		bnd_cur->max_bnd_recno = bnd_prev->min_bnd_recno;
 
-		WT_RET(__wt_buf_set(session, &bnd_cur->key,
+		WT_RET(__wt_buf_set(session, &bnd_cur->max_bnd_key,
 		    bnd_prev->min_bnd_key.data, bnd_prev->min_bnd_key.size));
 
 		/* Update current chunk's length */
@@ -2469,18 +2470,17 @@ __rec_split_write_prev_and_shift_cur(
 	 * Create an interim buffer if not already done to prepare the previous
 	 * chunk's disk image.
 	 */
-	prev_len_aligned = WT_ALIGN(bnd_cur->offset, btree->allocsize);
+	len = bnd_cur->offset;
+	WT_RET(bm->write_size(bm, session, &len));
 	if (r->interim_buf == NULL)
-		WT_RET(__wt_scr_alloc(
-		    session, prev_len_aligned, &r->interim_buf));
+		WT_RET(__wt_scr_alloc(session, len, &r->interim_buf));
 	else
-		WT_RET(__wt_buf_init(
-		    session, r->interim_buf, prev_len_aligned));
+		WT_RET(__wt_buf_init(session, r->interim_buf, len));
 
 	dsk_tmp = r->interim_buf->mem;
 	memcpy(dsk_tmp, dsk, bnd_cur->offset);
-	dsk_tmp->recno = bnd_prev->recno;
-	dsk_tmp->u.entries = bnd_prev->entries;
+	dsk_tmp->recno = bnd_prev->max_bnd_recno;
+	dsk_tmp->u.entries = bnd_prev->max_bnd_entries;
 	dsk_tmp->mem_size = WT_STORE_SIZE(bnd_cur->offset);
 	r->interim_buf->size = dsk_tmp->mem_size;
 	WT_RET(__rec_split_write(session, r, bnd_prev, r->interim_buf, false));
@@ -2540,7 +2540,7 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 	__rec_dictionary_reset(r);
 
 	/* Set the number of entries for the just finished chunk. */
-	last->entries = r->entries;
+	last->max_bnd_entries = r->entries;
 
 	/*
 	 * In case of bulk load, write out chunks as we get them.
@@ -2549,8 +2549,8 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 	 * for the next chunk to be written.
 	 */
 	if (r->is_bulk_load) {
-		dsk->recno = last->recno;
-		dsk->u.entries = last->entries;
+		dsk->recno = last->max_bnd_recno;
+		dsk->u.entries = last->max_bnd_entries;
 		dsk->mem_size = (uint32_t)inuse;
 		r->disk_image.size = dsk->mem_size;
 		WT_RET(__rec_split_write(
@@ -2566,10 +2566,10 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 	next = &r->bnd[r->bnd_next];
 	next->offset = WT_PTRDIFF(r->first_free, dsk);
 	/* Set the key for the next chunk. */
-	next->recno = r->recno;
+	next->max_bnd_recno = r->recno;
 	if (dsk->type == WT_PAGE_ROW_INT || dsk->type == WT_PAGE_ROW_LEAF)
 		WT_RET(__rec_split_row_promote(
-		    session, r, &next->key, dsk->type));
+		    session, r, &next->max_bnd_key, dsk->type));
 
 	r->entries = 0;
 	/* Set the space available to another split-size chunk. */
@@ -2730,7 +2730,7 @@ __rec_split_raw_worker(WT_SESSION_IMPL *session,
 	 */
 	recno = WT_RECNO_OOB;
 	if (dsk->type == WT_PAGE_COL_VAR)
-		recno = last->recno;
+		recno = last->max_bnd_recno;
 
 	entry = max_image_slot = slots = 0;
 	WT_CELL_FOREACH(btree, dsk, cell, unpack, i) {
@@ -2957,7 +2957,7 @@ no_slots:
 		 */
 		dst->size = result_len + WT_BLOCK_COMPRESS_SKIP;
 		dsk_dst = dst->mem;
-		dsk_dst->recno = last->recno;
+		dsk_dst->recno = last->max_bnd_recno;
 		dsk_dst->mem_size =
 		    r->raw_offsets[result_slots] + WT_BLOCK_COMPRESS_SKIP;
 		dsk_dst->u.entries = r->raw_entries[result_slots - 1];
@@ -2977,7 +2977,7 @@ no_slots:
 			WT_RET(__wt_strndup(session, dsk,
 			    dsk_dst->mem_size, &last->disk_image));
 			disk_image = last->disk_image;
-			disk_image->recno = last->recno;
+			disk_image->recno = last->max_bnd_recno;
 			disk_image->mem_size = dsk_dst->mem_size;
 			disk_image->u.entries = dsk_dst->u.entries;
 		}
@@ -3007,14 +3007,14 @@ no_slots:
 		 */
 		switch (dsk->type) {
 		case WT_PAGE_COL_INT:
-			next->recno = r->raw_recnos[result_slots];
+			next->max_bnd_recno = r->raw_recnos[result_slots];
 			break;
 		case WT_PAGE_COL_VAR:
-			next->recno = r->raw_recnos[result_slots - 1];
+			next->max_bnd_recno = r->raw_recnos[result_slots - 1];
 			break;
 		case WT_PAGE_ROW_INT:
 		case WT_PAGE_ROW_LEAF:
-			next->recno = WT_RECNO_OOB;
+			next->max_bnd_recno = WT_RECNO_OOB;
 			if (!last_block) {
 				/*
 				 * Confirm there was uncompressed data remaining
@@ -3023,7 +3023,7 @@ no_slots:
 				 */
 				WT_ASSERT(session, len > 0);
 				WT_RET(__rec_split_row_promote_cell(
-				    session, dsk, &next->key));
+				    session, dsk, &next->max_bnd_key));
 			}
 			break;
 		}
@@ -3035,7 +3035,7 @@ no_slots:
 		 */
 		WT_STAT_DATA_INCR(session, compress_raw_fail);
 
-		dsk->recno = last->recno;
+		dsk->recno = last->max_bnd_recno;
 		dsk->mem_size = WT_PTRDIFF32(r->first_free, dsk);
 		dsk->u.entries = r->entries;
 		r->disk_image.size = dsk->mem_size;
@@ -3145,7 +3145,7 @@ __rec_split_finish_std(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
 	/* Set the number of entries for the just finished chunk. */
 	bnd_cur = &r->bnd[r->bnd_next];
-	bnd_cur->entries = r->entries;
+	bnd_cur->max_bnd_entries = r->entries;
 
 	grow_bnd = true;
 	/*
@@ -3164,17 +3164,19 @@ __rec_split_finish_std(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 			 */
 			WT_RET(__rec_split_write_prev_and_shift_cur(
 			    session, r, true));
-		} else if (r->bnd_next != 0) {
-			/*
-			 * We have two boundaries, but the data in the buffer
-			 * can fit a single page. Merge the boundaries to create
-			 * a single chunk.
-			 */
-			bnd_prev = bnd_cur - 1;
-			bnd_prev->entries += bnd_cur->entries;
-			r->bnd_next--;
-			grow_bnd = false;
-		}
+		} else
+			if (r->bnd_next != 0) {
+				/*
+				 * We have two boundaries, but the data in the
+				 * buffer can fit a single page. Merge the
+				 * boundaries to create a single chunk.
+				 */
+				bnd_prev = bnd_cur - 1;
+				bnd_prev->max_bnd_entries +=
+				    bnd_cur->max_bnd_entries;
+				r->bnd_next--;
+				grow_bnd = false;
+			}
 	}
 
 	/*
@@ -3191,8 +3193,8 @@ __rec_split_finish_std(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	 * Current boundary now has all the remaining data/last page now.
 	 * Let's write it to the disk
 	 */
-	dsk->recno = bnd_cur->recno;
-	dsk->u.entries = bnd_cur->entries;
+	dsk->recno = bnd_cur->max_bnd_recno;
+	dsk->u.entries = bnd_cur->max_bnd_entries;
 	dsk->mem_size = WT_PTRDIFF32(r->first_free, dsk);
 	r->disk_image.size = dsk->mem_size;
 
@@ -3313,7 +3315,8 @@ __rec_split_write(WT_SESSION_IMPL *session,
 		switch (page->type) {
 		case WT_PAGE_COL_FIX:
 		case WT_PAGE_COL_VAR:
-			if (WT_INSERT_RECNO(supd->ins) >= (bnd + 1)->recno)
+			if (WT_INSERT_RECNO(supd->ins) >=
+			    (bnd + 1)->max_bnd_recno)
 				goto supd_check_complete;
 			break;
 		case WT_PAGE_ROW_LEAF:
@@ -3324,8 +3327,8 @@ __rec_split_write(WT_SESSION_IMPL *session,
 				key->data = WT_INSERT_KEY(supd->ins);
 				key->size = WT_INSERT_KEY_SIZE(supd->ins);
 			}
-			WT_ERR(__wt_compare(session,
-			    btree->collator, key, &(bnd + 1)->key, &cmp));
+			WT_ERR(__wt_compare(session, btree->collator,
+			    key, &(bnd + 1)->max_bnd_key, &cmp));
 			if (cmp >= 0)
 				goto supd_check_complete;
 			break;
@@ -3415,12 +3418,13 @@ supd_check_complete:
 
 #ifdef HAVE_VERBOSE
 	/* Output a verbose message if we create a page without many entries */
-	if (WT_VERBOSE_ISSET(session, WT_VERB_SPLIT) && bnd->entries < 6)
+	if (WT_VERBOSE_ISSET(session, WT_VERB_SPLIT) &&
+	    bnd->max_bnd_entries < 6)
 		__wt_verbose(session, WT_VERB_SPLIT,
 		    "Reconciliation creating a page with %" PRIu32
 		    " entries, memory footprint %" WT_SIZET_FMT
-		    ", page count %" PRIu32 ", %s",
-		    bnd->entries, r->page->memory_footprint, r->bnd_next,
+		    ", page count %" PRIu32 ", %s", bnd->max_bnd_entries,
+		    r->page->memory_footprint, r->bnd_next,
 		    F_ISSET(r, WT_EVICTING) ? "evict" : "checkpoint");
 #endif
 
@@ -3711,23 +3715,22 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 		if (key->len + val->len > r->space_avail)
 			WT_RET(__rec_split_raw(
 			    session, r, key->len + val->len));
-	} else if (WT_CHECK_CROSSING_BND(r, key->len + val->len)) {
-		/*
-		 * Turn off prefix compression until a full key written to the
-		 * new page, and (unless already working with an overflow key),
-		 * rebuild the key without compression.
-		 */
-		if (r->key_pfx_compress_conf) {
-			r->key_pfx_compress = false;
-			if (!ovfl_key)
-				WT_RET(__rec_cell_build_leaf_key(
-				    session, r, NULL, 0, &ovfl_key));
-
+	} else
+		if (WT_CROSSING_SPLIT_BND(r, key->len + val->len)) {
+			/*
+			 * Turn off prefix compression until a full key written
+			 * to the new page, and (unless already working with an
+			 * overflow key), rebuild the key without compression.
+			 */
+			if (r->key_pfx_compress_conf) {
+				r->key_pfx_compress = false;
+				if (!ovfl_key)
+					WT_RET(__rec_cell_build_leaf_key(
+					    session, r, NULL, 0, &ovfl_key));
+			}
+			WT_RET(__rec_split_crossing_bnd(
+			    session, r, key->len + val->len));
 		}
-
-		WT_RET(__rec_split_crossing_bnd(
-		    session, r, key->len + val->len));
-	}
 
 	/* Copy the key/value pair onto the page. */
 	__rec_copy_incr(session, r, key);
@@ -3880,7 +3883,7 @@ __wt_bulk_insert_var(
 		if (val->len > r->space_avail)
 			WT_RET(__rec_split_raw(session, r, val->len));
 	} else
-		if (WT_CHECK_CROSSING_BND(r, val->len))
+		if (WT_CROSSING_SPLIT_BND(r, val->len))
 			WT_RET(__rec_split_crossing_bnd(session, r, val->len));
 
 	/* Copy the value onto the page. */
@@ -5012,22 +5015,23 @@ __rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			if (key->len + val->len > r->space_avail)
 				WT_ERR(__rec_split_raw(
 				    session, r, key->len + val->len));
-		} else if (WT_CHECK_CROSSING_BND(r, key->len + val->len)) {
-			/*
-			 * In one path above, we copied address blocks
-			 * from the page rather than building the actual
-			 * key.  In that case, we have to build the key
-			 * now because we are about to promote it.
-			 */
-			if (key_onpage_ovfl) {
-				WT_ERR(__wt_buf_set(session, r->cur,
-				    WT_IKEY_DATA(ikey), ikey->size));
-				key_onpage_ovfl = false;
-			}
+		} else
+			if (WT_CHECK_CROSSING_BND(r, key->len + val->len)) {
+				/*
+				 * In one path above, we copied address blocks
+				 * from the page rather than building the actual
+				 * key.  In that case, we have to build the key
+				 * now because we are about to promote it.
+				 */
+				if (key_onpage_ovfl) {
+					WT_ERR(__wt_buf_set(session, r->cur,
+					    WT_IKEY_DATA(ikey), ikey->size));
+					key_onpage_ovfl = false;
+				}
 
-			WT_ERR(__rec_split_crossing_bnd(
-			    session, r, key->len + val->len));
-		}
+				WT_ERR(__rec_split_crossing_bnd(
+				    session, r, key->len + val->len));
+			}
 
 		/* Copy the key and value onto the page. */
 		__rec_copy_incr(session, r, key);
@@ -5417,33 +5421,38 @@ build:
 			if (key->len + val->len > r->space_avail)
 				WT_ERR(__rec_split_raw(
 				    session, r, key->len + val->len));
-		} else if (WT_CHECK_CROSSING_BND(r, key->len + val->len)) {
-			/*
-			 * If we copied address blocks from the page rather than
-			 * building the actual key, we have to build the key now
-			 * because we are about to promote it.
-			 */
-			if (key_onpage_ovfl) {
-				WT_ERR(__wt_dsk_cell_data_ref(session,
-				    WT_PAGE_ROW_LEAF, kpack, r->cur));
-				key_onpage_ovfl = false;
-			}
+		} else
+			if (WT_CHECK_CROSSING_BND(r, key->len + val->len)) {
+				/*
+				 * If we copied address blocks from the page
+				 * rather than building the actual key, we have
+				 * to build the key now because we are about to
+				 * promote it.
+				 */
+				if (key_onpage_ovfl) {
+					WT_ERR(__wt_dsk_cell_data_ref(session,
+					    WT_PAGE_ROW_LEAF, kpack, r->cur));
+					key_onpage_ovfl = false;
+				}
 
-			/*
-			 * Turn off prefix compression until a full key written
-			 * to the new page, and (unless already working with an
-			 * overflow key), rebuild the key without compression.
-			 */
-			if (r->key_pfx_compress_conf) {
-				r->key_pfx_compress = false;
-				if (!ovfl_key)
-					WT_ERR(__rec_cell_build_leaf_key(
-					    session, r, NULL, 0, &ovfl_key));
-			}
+				/*
+				 * Turn off prefix compression until a full key
+				 * written to the new page, and (unless already
+				 * working with an overflow key), rebuild the
+				 * key without compression.
+				 */
+				if (r->key_pfx_compress_conf) {
+					r->key_pfx_compress = false;
+					if (!ovfl_key)
+						WT_ERR(
+						    __rec_cell_build_leaf_key(
+						    session, r, NULL, 0,
+						    &ovfl_key));
+				}
 
-			WT_ERR(__rec_split_crossing_bnd(
-			    session, r, key->len + val->len));
-		}
+				WT_ERR(__rec_split_crossing_bnd(
+				    session, r, key->len + val->len));
+			}
 
 		/* Copy the key/value pair onto the page. */
 		__rec_copy_incr(session, r, key);
@@ -5510,23 +5519,26 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 			if (key->len + val->len > r->space_avail)
 				WT_RET(__rec_split_raw(
 				    session, r, key->len + val->len));
-		} else if (WT_CHECK_CROSSING_BND(r, key->len + val->len)) {
-			/*
-			 * Turn off prefix compression until a full key
-			 * written to the new page, and (unless already
-			 * working with an overflow key), rebuild the
-			 * key without compression.
-			 */
-			if (r->key_pfx_compress_conf) {
-				r->key_pfx_compress = false;
-				if (!ovfl_key)
-					WT_RET(__rec_cell_build_leaf_key(
-					    session, r, NULL, 0, &ovfl_key));
-			}
+		} else
+			if (WT_CHECK_CROSSING_BND(r, key->len + val->len)) {
+				/*
+				 * Turn off prefix compression until a full key
+				 * written to the new page, and (unless already
+				 * working with an overflow key), rebuild the
+				 * key without compression.
+				 */
+				if (r->key_pfx_compress_conf) {
+					r->key_pfx_compress = false;
+					if (!ovfl_key)
+						WT_RET(
+						    __rec_cell_build_leaf_key(
+						    session, r, NULL, 0,
+						    &ovfl_key));
+				}
 
-			WT_RET(__rec_split_crossing_bnd(
-			    session, r, key->len + val->len));
-		}
+				WT_RET(__rec_split_crossing_bnd(
+				    session, r, key->len + val->len));
+			}
 
 		/* Copy the key/value pair onto the page. */
 		__rec_copy_incr(session, r, key);
@@ -5638,13 +5650,14 @@ __rec_split_dump_keys(WT_SESSION_IMPL *session, WT_PAGE *page, WT_RECONCILE *r)
 			__wt_verbose(session, WT_VERB_SPLIT,
 			    "starting key %s",
 			    __wt_buf_set_printable(
-			    session, bnd->key.data, bnd->key.size, tkey));
+			    session, bnd->max_bnd_key.data,
+			    bnd->max_bnd_key.size, tkey));
 			break;
 		case WT_PAGE_COL_FIX:
 		case WT_PAGE_COL_INT:
 		case WT_PAGE_COL_VAR:
 			__wt_verbose(session, WT_VERB_SPLIT,
-			    "starting recno %" PRIu64, bnd->recno);
+			    "starting recno %" PRIu64, bnd->max_bnd_recno);
 			break;
 		WT_ILLEGAL_VALUE_ERR(session);
 		}
@@ -5906,10 +5919,10 @@ __rec_split_row(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 	/* We never set the first page's key, grab it from the original page. */
 	ref = r->ref;
 	if (__wt_ref_is_root(ref))
-		WT_RET(__wt_buf_set(session, &r->bnd[0].key, "", 1));
+		WT_RET(__wt_buf_set(session, &r->bnd[0].max_bnd_key, "", 1));
 	else {
 		__wt_ref_key(ref->home, ref, &p, &size);
-		WT_RET(__wt_buf_set(session, &r->bnd[0].key, p, size));
+		WT_RET(__wt_buf_set(session, &r->bnd[0].max_bnd_key, p, size));
 	}
 
 	/* Allocate, then initialize the array of replacement blocks. */
@@ -5917,8 +5930,8 @@ __rec_split_row(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
 	for (multi = mod->mod_multi,
 	    bnd = r->bnd, i = 0; i < r->bnd_next; ++multi, ++bnd, ++i) {
-		WT_RET(__wt_row_ikey_alloc(session, 0,
-		    bnd->key.data, bnd->key.size, &multi->key.ikey));
+		WT_RET(__wt_row_ikey_alloc(session, 0, bnd->max_bnd_key.data,
+		    bnd->max_bnd_key.size, &multi->key.ikey));
 
 		/*
 		 * Copy any disk image.  Don't take saved updates without a
@@ -5965,7 +5978,7 @@ __rec_split_col(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
 	for (multi = mod->mod_multi,
 	    bnd = r->bnd, i = 0; i < r->bnd_next; ++multi, ++bnd, ++i) {
-		multi->key.recno = bnd->recno;
+		multi->key.recno = bnd->max_bnd_recno;
 
 		/*
 		 * Copy any disk image.  Don't take saved updates without a
