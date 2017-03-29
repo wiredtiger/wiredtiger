@@ -3257,11 +3257,17 @@ __rec_split_write(WT_SESSION_IMPL *session,
 	int cmp;
 	uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
 	bool need_image;
+#ifdef HAVE_DIAGNOSTIC
+	bool verify_image;
+#endif
 
 	btree = S2BT(session);
 	dsk = buf->mem;
 	page = r->page;
 	mod = page->modify;
+#ifdef HAVE_DIAGNOSTIC
+	verify_image = true;
+#endif
 
 	/* Set the zero-length value flag in the page header. */
 	if (dsk->type == WT_PAGE_ROW_LEAF) {
@@ -3433,6 +3439,9 @@ supd_check_complete:
 
 	WT_ERR(__wt_bt_write(session, buf, addr, &addr_size,
 	    false, F_ISSET(r, WT_CHECKPOINTING), bnd->already_compressed));
+#ifdef HAVE_DIAGNOSTIC
+	verify_image = false;
+#endif
 	WT_ERR(__wt_strndup(session, addr, addr_size, &bnd->addr.addr));
 	bnd->addr.size = (uint8_t)addr_size;
 
@@ -3444,20 +3453,7 @@ supd_check_complete:
 	if (F_ISSET(r, WT_EVICT_LOOKASIDE) && bnd->supd != NULL)
 		WT_ERR(__rec_update_las(session, r, btree->id, bnd));
 
-#ifdef HAVE_DIAGNOSTIC
-	if (0) {
-copy_image:	/*
-		 * The I/O routines verify all disk images we write, but there
-		 * are paths in reconciliation that don't do I/O. Verify those
-		 * images, too.
-		 */
-		WT_ASSERT(session,
-		    __wt_verify_dsk(session, "[reconcile-image]", buf) == 0);
-	}
-#else
 copy_image:
-#endif
-
 	/*
 	 * If re-instantiating this page in memory (either because eviction
 	 * wants to, or because we skipped updates to build the disk image),
@@ -3472,9 +3468,19 @@ copy_image:
 	 */
 	need_image = F_ISSET(r, WT_EVICT_SCRUB) ||
 	    (F_ISSET(r, WT_EVICT_UPDATE_RESTORE) && bnd->supd != NULL);
-	if (need_image && bnd->disk_image == NULL)
+	if (need_image && bnd->disk_image == NULL) {
+#ifdef HAVE_DIAGNOSTIC
+		/*
+		 * The I/O routines verify all disk images we write, but there
+		 * are paths in reconciliation that don't do I/O. Verify those
+		 * images, too.
+		 */
+		WT_ASSERT(session, verify_image == false ||
+		    __wt_verify_dsk(session, "[reconcile-image]", buf) == 0);
+#endif
 		WT_ERR(__wt_strndup(
 		    session, buf->data, buf->size, &bnd->disk_image));
+	}
 	if (!need_image)
 		__wt_free(session, bnd->disk_image);
 
