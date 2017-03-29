@@ -3444,17 +3444,19 @@ supd_check_complete:
 	if (F_ISSET(r, WT_EVICT_LOOKASIDE) && bnd->supd != NULL)
 		WT_ERR(__rec_update_las(session, r, btree->id, bnd));
 
-	if (0) {
-copy_image:
 #ifdef HAVE_DIAGNOSTIC
-	/*
-	 * The I/O routines verify all disk images we write, but there are paths
-	 * in reconciliation that don't do I/O. Verify those images, too.
-	 */
-	WT_ASSERT(session,
-	    __wt_verify_dsk(session, "[reconcile-image]", buf) == 0);
-#endif
+	if (0) {
+copy_image:	/*
+		 * The I/O routines verify all disk images we write, but there
+		 * are paths in reconciliation that don't do I/O. Verify those
+		 * images, too.
+		 */
+		WT_ASSERT(session,
+		    __wt_verify_dsk(session, "[reconcile-image]", buf) == 0);
 	}
+#else
+copy_image:
+#endif
 
 	/*
 	 * If re-instantiating this page in memory (either because eviction
