@@ -1703,11 +1703,10 @@ execute_workload(WTPERF *wtperf)
 	WT_SESSION **sessions;
 	pthread_t idle_table_cycle_thread;
 	uint64_t last_ckpts, last_inserts, last_reads, last_truncates;
-	uint64_t last_updates, update_miss;
+	uint64_t last_updates;
 	uint32_t interval, run_ops, run_time;
 	u_int i;
 	int ret, t_ret;
-	bool chk_up;
 	void *(*pfunc)(void *);
 
 	opts = wtperf->opts;
@@ -1718,8 +1717,6 @@ execute_workload(WTPERF *wtperf)
 
 	last_ckpts = last_inserts = last_reads = last_truncates = 0;
 	last_updates = 0;
-	update_miss = 0;
-	chk_up = false;
 	ret = 0;
 
 	sessions = NULL;
@@ -1766,8 +1763,6 @@ execute_workload(WTPERF *wtperf)
 		    workp->read, workp->update, workp->truncate,
 		    workp->throttle);
 
-		if (workp->update != 0)
-			chk_up = true;
 		/* Figure out the workload's schedule. */
 		if ((ret = run_mix_schedule(wtperf, workp)) != 0)
 			goto err;
@@ -1819,16 +1814,6 @@ execute_workload(WTPERF *wtperf)
 			continue;
 		interval = opts->report_interval;
 		wtperf->totalsec += opts->report_interval;
-
-		if (chk_up && wtperf->update_ops == last_updates) {
-			++update_miss;
-			if (update_miss > 2) {
-				lprintf(wtperf, 0, 1,
-				    "HUNG UPDATES.  ABORT");
-				abort();
-			}
-		} else
-			update_miss = 0;
 
 		lprintf(wtperf, 0, 1,
 		    "%" PRIu64 " reads, %" PRIu64 " inserts, %" PRIu64
