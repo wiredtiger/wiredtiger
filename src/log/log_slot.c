@@ -286,15 +286,14 @@ __log_slot_new(WT_SESSION_IMPL *session)
  */
 static int
 __log_slot_switch_internal(
-    WT_SESSION_IMPL *session, WT_MYSLOT *myslot, bool forced)
+    WT_SESSION_IMPL *session, WT_MYSLOT *myslot, bool forced, bool *releasep)
 {
 	WT_DECL_RET;
 	WT_LOG *log;
 	WT_LOGSLOT *slot;
-	bool free_slot, release;
+	bool free_slot;
 
 	log = S2C(session)->log;
-	release = false;
 	slot = myslot->slot;
 
 	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SLOT));
@@ -313,7 +312,7 @@ __log_slot_switch_internal(
 	 * don't try to do it again but still set up the new slot.
 	 */
 	if (!F_ISSET(myslot, WT_MYSLOT_CLOSE)) {
-		ret = __log_slot_close(session, slot, &release, forced);
+		ret = __log_slot_close(session, slot, releasep, forced);
 		/*
 		 * If close returns WT_NOTFOUND it means that someone else
 		 * is processing the slot change.
@@ -334,7 +333,7 @@ __log_slot_switch_internal(
 	 */
 	WT_RET(__log_slot_new(session));
 	F_CLR(myslot, WT_MYSLOT_CLOSE);
-	if (release) {
+	if (*releasep) {
 		WT_RET(__wt_log_release(session, slot, &free_slot));
 		if (free_slot)
 			__wt_log_slot_free(session, slot);
@@ -352,8 +351,11 @@ __wt_log_slot_switch(
 {
 	WT_DECL_RET;
 	WT_LOG *log;
+	bool release;
 
 	log = S2C(session)->log;
+	release = false;
+
 	/*
 	 * !!! Since the WT_WITH_SLOT_LOCK macro is a do-while loop, the
 	 * compiler does not like it combined directly with the while loop
@@ -367,7 +369,8 @@ __wt_log_slot_switch(
 	 */
 	do {
 		WT_WITH_SLOT_LOCK(session, log,
-		    ret = __log_slot_switch_internal(session, myslot, forced));
+		    ret = __log_slot_switch_internal(
+		    session, myslot, forced, &release));
 		if (ret == EBUSY) {
 			WT_STAT_CONN_INCR(session, log_slot_switch_busy);
 			__wt_yield();
