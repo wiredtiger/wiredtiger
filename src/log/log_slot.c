@@ -286,14 +286,15 @@ __log_slot_new(WT_SESSION_IMPL *session)
  */
 static int
 __log_slot_switch_internal(
-    WT_SESSION_IMPL *session, WT_MYSLOT *myslot, bool forced, bool *releasep)
+    WT_SESSION_IMPL *session, WT_MYSLOT *myslot, bool forced)
 {
 	WT_DECL_RET;
 	WT_LOG *log;
 	WT_LOGSLOT *slot;
-	bool free_slot;
+	bool free_slot, release;
 
 	log = S2C(session)->log;
+	release = false;
 	slot = myslot->slot;
 
 	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SLOT));
@@ -312,7 +313,7 @@ __log_slot_switch_internal(
 	 * don't try to do it again but still set up the new slot.
 	 */
 	if (!F_ISSET(myslot, WT_MYSLOT_CLOSE)) {
-		ret = __log_slot_close(session, slot, releasep, forced);
+		ret = __log_slot_close(session, slot, &release, forced);
 		/*
 		 * If close returns WT_NOTFOUND it means that someone else
 		 * is processing the slot change.
@@ -322,9 +323,13 @@ __log_slot_switch_internal(
 		WT_RET(ret);
 		/*
 		 * Set that we have closed this slot because we may call in here
-		 * multiple times if we retry creating a new slot.
+		 * multiple times if we retry creating a new slot.  Similarly
+		 * set retain whether this slot needs releasing so that we don't
+		 * lose that information if we retry.
 		 */
 		F_SET(myslot, WT_MYSLOT_CLOSE);
+		if (release)
+			F_SET(myslot, WT_MYSLOT_NEEDS_RELEASE);
 	}
 	/*
 	 * Now that the slot is closed, set up a new one so that joining
@@ -333,8 +338,9 @@ __log_slot_switch_internal(
 	 */
 	WT_RET(__log_slot_new(session));
 	F_CLR(myslot, WT_MYSLOT_CLOSE);
-	if (*releasep) {
+	if (F_ISSET(myslot, WT_MYSLOT_NEEDS_RELEASE)) {
 		WT_RET(__wt_log_release(session, slot, &free_slot));
+		F_CLR(myslot, WT_MYSLOT_NEEDS_RELEASE);
 		if (free_slot)
 			__wt_log_slot_free(session, slot);
 	}
@@ -351,10 +357,8 @@ __wt_log_slot_switch(
 {
 	WT_DECL_RET;
 	WT_LOG *log;
-	bool release;
 
 	log = S2C(session)->log;
-	release = false;
 
 	/*
 	 * !!! Since the WT_WITH_SLOT_LOCK macro is a do-while loop, the
@@ -369,8 +373,7 @@ __wt_log_slot_switch(
 	 */
 	do {
 		WT_WITH_SLOT_LOCK(session, log,
-		    ret = __log_slot_switch_internal(
-		    session, myslot, forced, &release));
+		    ret = __log_slot_switch_internal(session, myslot, forced));
 		if (ret == EBUSY) {
 			WT_STAT_CONN_INCR(session, log_slot_switch_busy);
 			__wt_yield();
