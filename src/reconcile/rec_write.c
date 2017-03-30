@@ -225,6 +225,8 @@ typedef struct {
 	uint32_t entries;		/* Current number of entries */
 	uint8_t *first_free;		/* Current first free byte */
 	size_t	 space_avail;		/* Remaining space in this chunk */
+	/* Remaining space in this chunk to put a minimum size boundary */
+	size_t	 min_space_avail;
 
 	/*
 	 * Saved update list, supporting the WT_EVICT_UPDATE_RESTORE and
@@ -293,8 +295,7 @@ typedef struct {
 
 #define	WT_CROSSING_MIN_BND(r, next_len)				\
 	((r)->bnd[(r)->bnd_next].min_bnd_offset == 0 &&			\
-	    ((r)->space_avail - (next_len)) <				\
-	    ((r)->split_size - (r)->min_split_size))
+	    (next_len) > (r)->min_space_avail)
 #define	WT_CROSSING_SPLIT_BND(r, next_len) ((next_len) > (r)->space_avail)
 #define	WT_CHECK_CROSSING_BND(r, next_len)				\
 	(WT_CROSSING_MIN_BND(r, next_len) || WT_CROSSING_SPLIT_BND(r, next_len))
@@ -1725,6 +1726,17 @@ __rec_incr(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint32_t v, size_t size)
 	r->entries += v;
 	r->space_avail -= size;
 	r->first_free += size;
+
+	/*
+	 * If offset for the minimum split size boundary is not set, we have not
+	 * yet reached the minimum boundary, reduce the space available for it.
+	 */
+	if (r->bnd[r->bnd_next].min_bnd_offset == 0) {
+		if (r->min_space_avail >= size)
+			r->min_space_avail -= size;
+		else
+			r->min_space_avail = 0;
+	}
 }
 
 /*
@@ -2145,6 +2157,8 @@ __rec_split_init(WT_SESSION_IMPL *session,
 		    r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
 		r->min_split_size =
 		    __rec_min_split_page_size(btree, r->page_size);
+		r->min_space_avail =
+		    r->min_split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
 	}
 
 	/*
@@ -2577,8 +2591,13 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 		    session, r, &next->max_bnd_key, dsk->type));
 
 	r->entries = 0;
-	/* Set the space available to another split-size chunk. */
+	/*
+	 * Set the space available to another split-size and minimum split-size
+	 * chunk.
+	 */
 	r->space_avail = r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
+	r->min_space_avail =
+	    r->min_split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
 
 done:  	/*
 	 * Overflow values can be larger than the maximum page size but still be
