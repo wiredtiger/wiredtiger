@@ -454,7 +454,7 @@ __wt_log_truncate_files(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool force)
 	conn = S2C(session);
 	if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
 		return (0);
-	if (!force && F_ISSET(conn, WT_CONN_LOG_SERVER_RUN) &&
+	if (!force && F_ISSET(conn, WT_CONN_SERVER_LOG) &&
 	    FLD_ISSET(conn->log_flags, WT_CONN_LOG_ARCHIVE))
 		WT_RET_MSG(session, EINVAL,
 		    "Attempt to archive manually while a server is running");
@@ -497,7 +497,7 @@ __log_file_server(void *arg)
 	conn = S2C(session);
 	log = conn->log;
 	locked = false;
-	while (F_ISSET(conn, WT_CONN_LOG_SERVER_RUN)) {
+	while (F_ISSET(conn, WT_CONN_SERVER_LOG)) {
 		/*
 		 * If there is a log file to close, make sure any outstanding
 		 * write operations have completed, then fsync and close it.
@@ -823,7 +823,7 @@ __log_wrlsn_server(void *arg)
 	log = conn->log;
 	yield = 0;
 	WT_INIT_LSN(&prev);
-	while (F_ISSET(conn, WT_CONN_LOG_SERVER_RUN)) {
+	while (F_ISSET(conn, WT_CONN_SERVER_LOG)) {
 		/*
 		 * Write out any log record buffers if anything was done
 		 * since last time.  Only call the function to walk the
@@ -898,7 +898,7 @@ __log_server(void *arg)
 	 * takes to sync out an earlier file.
 	 */
 	did_work = true;
-	while (F_ISSET(conn, WT_CONN_LOG_SERVER_RUN)) {
+	while (F_ISSET(conn, WT_CONN_SERVER_LOG)) {
 		/*
 		 * Slots depend on future activity.  Force out buffered
 		 * writes in case we are idle.  This cannot be part of the
@@ -1041,7 +1041,7 @@ __wt_logmgr_open(WT_SESSION_IMPL *session)
 	if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
 		return (0);
 
-	F_SET(conn, WT_CONN_LOG_SERVER_RUN);
+	F_SET(conn, WT_CONN_SERVER_LOG);
 
 	/*
 	 * Start the log close thread.  It is not configurable.
@@ -1113,7 +1113,7 @@ __wt_logmgr_destroy(WT_SESSION_IMPL *session)
 
 	conn = S2C(session);
 
-	F_CLR(conn, WT_CONN_LOG_SERVER_RUN);
+	F_CLR(conn, WT_CONN_SERVER_LOG);
 
 	if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED)) {
 		/*
