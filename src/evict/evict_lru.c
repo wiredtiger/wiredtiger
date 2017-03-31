@@ -999,8 +999,8 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 		thread_surplus = conn->evict_threads.current_threads -
 		    conn->evict_threads_min;
 		for (i = 0; i < thread_surplus; i++) {
-			WT_ERR(__wt_thread_group_stop_one(
-			    session, &conn->evict_threads));
+			__wt_thread_group_stop_one(
+			    session, &conn->evict_threads);
 			WT_STAT_CONN_INCR(session,
 			    cache_eviction_worker_removed);
 		}
