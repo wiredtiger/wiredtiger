@@ -230,7 +230,7 @@ __wt_lsm_work_bloom(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 		if (__wt_atomic_cas32(&chunk->bloom_busy, 0, 1)) {
 			if (!F_ISSET(chunk, WT_LSM_CHUNK_BLOOM)) {
 				ret = __lsm_bloom_create(
-				    session, lsm_tree, chunk, (u_int)i);
+				    session, lsm_tree, chunk, i);
 				/*
 				 * Record if we were successful so that we can
 				 * later push a merge work unit.
@@ -256,51 +256,6 @@ err:
 }
 
 /*
- * __lsm_switch_primary_off --
- *      Switch when a btree handle is no longer the current primary chunk of
- * an LSM tree.
- */
-static void
-__lsm_switch_primary_off(WT_SESSION_IMPL *session)
-{
-	WT_BTREE *btree;
-	WT_CACHE *cache;
-	WT_PAGE *child, *root;
-	WT_PAGE_INDEX *pindex;
-	WT_REF *first;
-	size_t size;
-
-	btree = S2BT(session);
-	cache = S2C(session)->cache;
-	root = btree->root.page;
-	pindex = WT_INTL_INDEX_GET_SAFE(root);
-
-	/* Diagnostic: assert we've never split. */
-	WT_ASSERT(session, pindex->entries == 1);
-
-	/*
-	 * We're reaching down into the page without a hazard pointer,
-	 * but that's OK because we know that no-eviction is set so the
-	 * page can't disappear.
-	 *
-	 * While this tree was the primary, its dirty bytes were not
-	 * included in the cache accounting.  Fix that now before we
-	 * open it up for eviction.
-	 */
-	first = pindex->index[0];
-	child = first->page;
-	if (first->state == WT_REF_MEM &&
-	    child->type == WT_PAGE_ROW_LEAF && __wt_page_is_modified(child)) {
-		size = child->modify->bytes_dirty;
-		(void)__wt_atomic_add64(&btree->bytes_dirty_leaf, size);
-		(void)__wt_atomic_add64(&cache->bytes_dirty_leaf, size);
-	}
-
-	/* Configure eviction. */
-	__wt_evict_file_exclusive_off(session);
-}
-
-/*
  * __wt_lsm_checkpoint_chunk --
  *	Flush a single LSM chunk to disk.
  */
@@ -308,7 +263,6 @@ int
 __wt_lsm_checkpoint_chunk(WT_SESSION_IMPL *session,
     WT_LSM_TREE *lsm_tree, WT_LSM_CHUNK *chunk)
 {
-	WT_BTREE *btree;
 	WT_DECL_RET;
 	WT_TXN_ISOLATION saved_isolation;
 	bool flush_set, release_btree;
@@ -396,20 +350,6 @@ __wt_lsm_checkpoint_chunk(WT_SESSION_IMPL *session,
 	WT_TRET(__wt_meta_track_off(session, false, ret != 0));
 	if (ret != 0)
 		WT_ERR_MSG(session, ret, "LSM checkpoint");
-
-	/*
-	 * If the chunk is the lsm primary, clear the no-eviction flag so it can
-	 * be evicted and eventually closed. Only do once, and only do after the
-	 * checkpoint has succeeded: otherwise, accessing the leaf page during
-	 * the checkpoint can trigger forced eviction.
-	 *
-	 * We don't have to worry about races here, we're single-threaded.
-	 */
-	btree = S2BT(session);
-	if (btree->lsm_primary) {
-		__lsm_switch_primary_off(session);
-		btree->lsm_primary = false;
-	}
 
 	release_btree = false;
 	WT_ERR(__wt_session_release_btree(session));
@@ -570,7 +510,7 @@ __lsm_drop_file(WT_SESSION_IMPL *session, const char *uri)
 	 * This will fail with EBUSY if the file is still in use.
 	 */
 	WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
-	   ret = __lsm_discard_handle(session, uri, WT_CHECKPOINT));
+	    ret = __lsm_discard_handle(session, uri, WT_CHECKPOINT));
 	WT_RET(ret);
 
 	/*
@@ -662,7 +602,8 @@ __wt_lsm_free_chunks(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 			if (drop_ret == EBUSY) {
 				++skipped;
 				continue;
-			} else if (drop_ret != ENOENT)
+			}
+			if (drop_ret != ENOENT)
 				WT_ERR(drop_ret);
 
 			flush_metadata = true;
@@ -673,7 +614,8 @@ __wt_lsm_free_chunks(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 			if (drop_ret == EBUSY) {
 				++skipped;
 				continue;
-			} else if (drop_ret != ENOENT)
+			}
+			if (drop_ret != ENOENT)
 				WT_ERR(drop_ret);
 			flush_metadata = true;
 		}

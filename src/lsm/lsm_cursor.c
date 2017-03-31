@@ -10,10 +10,10 @@
 
 #define	WT_FORALL_CURSORS(clsm, c, i)					\
 	for ((i) = (clsm)->nchunks; (i) > 0;)				\
-		if (((c) = (clsm)->chunks[--i]->cursor) != NULL)
+		if (((c) = (clsm)->chunks[--(i)]->cursor) != NULL)
 
 #define	WT_LSM_CURCMP(s, lsm_tree, c1, c2, cmp)				\
-	__wt_compare(s, (lsm_tree)->collator, &(c1)->key, &(c2)->key, &cmp)
+	__wt_compare(s, (lsm_tree)->collator, &(c1)->key, &(c2)->key, &(cmp))
 
 static int __clsm_lookup(WT_CURSOR_LSM *, WT_ITEM *);
 static int __clsm_open_cursors(WT_CURSOR_LSM *, bool, u_int, uint32_t);
@@ -178,20 +178,12 @@ __clsm_enter(WT_CURSOR_LSM *clsm, bool reset, bool update)
 
 	if (reset) {
 		WT_ASSERT(session, !F_ISSET(&clsm->iface,
-		   WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT));
+		    WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT));
 		WT_RET(__clsm_reset_cursors(clsm, NULL));
 	}
 
 	for (;;) {
-		/*
-		 * If the cursor looks up-to-date, check if the cache is full.
-		 * In case this call blocks, the check will be repeated before
-		 * proceeding.
-		 */
-		if (clsm->dsk_gen != lsm_tree->dsk_gen &&
-		    lsm_tree->nchunks != 0)
-			goto open;
-
+		/* Check if the cursor looks up-to-date. */
 		if (clsm->dsk_gen != lsm_tree->dsk_gen &&
 		    lsm_tree->nchunks != 0)
 			goto open;
@@ -666,7 +658,7 @@ retry:	if (F_ISSET(clsm, WT_CLSM_MERGE)) {
 		 */
 		if (i != nchunks - 1)
 			clsm->chunks[i]->cursor->insert =
-			    __wt_curfile_update_check;
+			    __wt_curfile_insert_check;
 
 		if (!F_ISSET(clsm, WT_CLSM_MERGE) &&
 		    F_ISSET(chunk, WT_LSM_CHUNK_BLOOM))
@@ -1223,7 +1215,8 @@ __clsm_lookup(WT_CURSOR_LSM *clsm, WT_ITEM *value)
 				WT_LSM_TREE_STAT_INCR(
 				    session, clsm->lsm_tree->bloom_miss);
 				continue;
-			} else if (ret == 0)
+			}
+			if (ret == 0)
 				WT_LSM_TREE_STAT_INCR(
 				    session, clsm->lsm_tree->bloom_hit);
 			WT_ERR(ret);
@@ -1249,10 +1242,10 @@ __clsm_lookup(WT_CURSOR_LSM *clsm, WT_ITEM *value)
 	WT_ERR(WT_NOTFOUND);
 
 done:
-err:	F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-	if (ret == 0) {
-		clsm->current = c;
+err:	if (ret == 0) {
+		F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 		F_SET(cursor, WT_CURSTD_KEY_INT);
+		clsm->current = c;
 		if (value == &cursor->value)
 			F_SET(cursor, WT_CURSTD_VALUE_INT);
 	} else if (c != NULL)
@@ -1328,7 +1321,8 @@ __clsm_search_near(WT_CURSOR *cursor, int *exactp)
 		if ((ret = c->search_near(c, &cmp)) == WT_NOTFOUND) {
 			ret = 0;
 			continue;
-		} else if (ret != 0)
+		}
+		if (ret != 0)
 			goto err;
 
 		/* Do we have an exact match? */
@@ -1348,7 +1342,8 @@ __clsm_search_near(WT_CURSOR *cursor, int *exactp)
 			if ((ret = c->next(c)) == WT_NOTFOUND) {
 				ret = 0;
 				continue;
-			} else if (ret != 0)
+			}
+			if (ret != 0)
 				goto err;
 		}
 
@@ -1621,12 +1616,10 @@ __clsm_remove(WT_CURSOR *cursor)
 	WT_CURSOR_NOVALUE(cursor);
 	WT_ERR(__clsm_enter(clsm, false, true));
 
-	if (F_ISSET(cursor, WT_CURSTD_OVERWRITE) ||
-	    (ret = __clsm_lookup(clsm, &value)) == 0)
-		ret = __clsm_put(
-		    session, clsm, &cursor->key, &__tombstone, positioned);
-
-err:	__clsm_leave(clsm);
+	if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE))
+		WT_ERR(__clsm_lookup(clsm, &value));
+	WT_ERR(__clsm_put(
+	    session, clsm, &cursor->key, &__tombstone, positioned));
 
 	/*
 	 * If the cursor was positioned, it stays positioned with a key but no
@@ -1640,6 +1633,7 @@ err:	__clsm_leave(clsm);
 	else
 		WT_TRET(cursor->reset(cursor));
 
+err:	__clsm_leave(clsm);
 	CURSOR_UPDATE_API_END(session, ret);
 	return (ret);
 }
