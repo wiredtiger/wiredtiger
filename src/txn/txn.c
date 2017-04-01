@@ -477,10 +477,9 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 	/* Free the scratch buffer allocated for logging. */
 	__wt_logrec_free(session, &txn->logrec);
 
-	/* Discard any memory from the session's split stash that we can. */
+	/* Discard any memory from the session's stash that we can. */
 	WT_ASSERT(session, __wt_session_gen(session, WT_GEN_SPLIT) == 0);
-	if (session->split_stash_cnt > 0)
-		__wt_split_stash_discard(session);
+	__wt_stash_discard(session);
 
 	/*
 	 * Reset the transaction state to not running and release the snapshot.

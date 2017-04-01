@@ -31,120 +31,6 @@ typedef enum {
 } WT_SPLIT_ERROR_PHASE;
 
 /*
- * __wt_split_obsolete --
- *	Check if it is safe to free / evict based on split generation.
- */
-bool
-__wt_split_obsolete(WT_SESSION_IMPL *session, uint64_t split_gen)
-{
-	return (split_gen < __wt_gen_oldest(session, WT_GEN_SPLIT));
-}
-
-/*
- * __split_stash_add --
- *	Add a new entry into the session's split stash list.
- */
-static int
-__split_stash_add(
-    WT_SESSION_IMPL *session, uint64_t split_gen, void *p, size_t len)
-{
-	WT_CONNECTION_IMPL *conn;
-	WT_SPLIT_STASH *stash;
-
-	WT_ASSERT(session, p != NULL);
-
-	conn = S2C(session);
-
-	/* Grow the list as necessary. */
-	WT_RET(__wt_realloc_def(session, &session->split_stash_alloc,
-	    session->split_stash_cnt + 1, &session->split_stash));
-
-	stash = session->split_stash + session->split_stash_cnt++;
-	stash->split_gen = split_gen;
-	stash->p = p;
-	stash->len = len;
-
-	(void)__wt_atomic_add64(&conn->split_stashed_bytes, len);
-	(void)__wt_atomic_add64(&conn->split_stashed_objects, 1);
-
-	/* See if we can free any previous entries. */
-	if (session->split_stash_cnt > 1)
-		__wt_split_stash_discard(session);
-
-	return (0);
-}
-
-/*
- * __wt_split_stash_discard --
- *	Discard any memory from a session's split stash that we can.
- */
-void
-__wt_split_stash_discard(WT_SESSION_IMPL *session)
-{
-	WT_CONNECTION_IMPL *conn;
-	WT_SPLIT_STASH *stash;
-	uint64_t oldest;
-	size_t i;
-
-	conn = S2C(session);
-
-	/* Get the oldest split generation. */
-	oldest = __wt_gen_oldest(session, WT_GEN_SPLIT);
-
-	for (i = 0, stash = session->split_stash;
-	    i < session->split_stash_cnt;
-	    ++i, ++stash) {
-		if (stash->p == NULL)
-			continue;
-		if (stash->split_gen >= oldest)
-			break;
-		/*
-		 * It's a bad thing if another thread is in this memory after
-		 * we free it, make sure nothing good happens to that thread.
-		 */
-		(void)__wt_atomic_sub64(&conn->split_stashed_bytes, stash->len);
-		(void)__wt_atomic_sub64(&conn->split_stashed_objects, 1);
-		__wt_overwrite_and_free_len(session, stash->p, stash->len);
-	}
-
-	/*
-	 * If there are enough free slots at the beginning of the list, shuffle
-	 * everything down.
-	 */
-	if (i > 100 || i == session->split_stash_cnt)
-		if ((session->split_stash_cnt -= i) > 0)
-			memmove(session->split_stash, stash,
-			    session->split_stash_cnt * sizeof(*stash));
-}
-
-/*
- * __wt_split_stash_discard_all --
- *	Discard all memory from a session's split stash.
- */
-void
-__wt_split_stash_discard_all(
-    WT_SESSION_IMPL *session_safe, WT_SESSION_IMPL *session)
-{
-	WT_SPLIT_STASH *stash;
-	size_t i;
-
-	/*
-	 * This function is called during WT_CONNECTION.close to discard any
-	 * memory that remains.  For that reason, we take two WT_SESSION_IMPL
-	 * arguments: session_safe is still linked to the WT_CONNECTION and
-	 * can be safely used for calls to other WiredTiger functions, while
-	 * session is the WT_SESSION_IMPL we're cleaning up.
-	 */
-	for (i = 0, stash = session->split_stash;
-	    i < session->split_stash_cnt;
-	    ++i, ++stash)
-		__wt_free(session_safe, stash->p);
-
-	__wt_free(session_safe, session->split_stash);
-	session->split_stash_cnt = session->split_stash_alloc = 0;
-}
-
-/*
  * __split_safe_free --
  *	Free a buffer if we can be sure no thread is accessing it, or schedule
  *	it to be freed otherwise.
@@ -169,7 +55,7 @@ __split_safe_free(WT_SESSION_IMPL *session,
 		return (0);
 	}
 
-	return (__split_stash_add(session, split_gen, p, s));
+	return (__wt_stash_add(session, WT_GEN_SPLIT, split_gen, p, s));
 }
 
 #ifdef HAVE_DIAGNOSTIC

@@ -22,6 +22,7 @@ hazard_grow(WT_SESSION_IMPL *session)
 	WT_HAZARD *nhazard;
 	size_t size;
 	void *ohazard;
+	uint64_t generation;
 
 	/*
 	 * Allocate a new, larger hazard pointer array and copy the contents of
@@ -40,16 +41,20 @@ hazard_grow(WT_SESSION_IMPL *session)
 	ohazard = session->hazard;
 	WT_PUBLISH(session->hazard, nhazard);
 
-	__wt_spin_lock(session, &S2C(session)->api_lock);
-	__wt_conn_foc_add(session, ohazard);
-	__wt_spin_unlock(session, &S2C(session)->api_lock);
-
 	/*
 	 * Increase the size of the session's pointer array after swapping it
 	 * into place (the session's reference must be updated before eviction
 	 * can see the new size).
 	 */
 	WT_PUBLISH(session->hazard_size, (uint32_t)(size * 2));
+
+	/*
+	 * Threads using the hazard pointer array from now on will use the new
+	 * one. Increment the hazard pointer generation number, and schedule a
+	 * future free of the old memory. Ignore any failure, leak the memory.
+	 */
+	generation = __wt_gen_next(session, WT_GEN_HAZARD);
+	(void)__wt_stash_add(session, WT_GEN_HAZARD, generation, ohazard, 0);
 
 	return (0);
 }

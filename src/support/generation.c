@@ -213,3 +213,141 @@ __wt_session_gen_clear(WT_SESSION_IMPL *session, int which)
 	/* Let threads waiting for the resource to drain proceed quickly. */
 	WT_FULL_BARRIER();
 }
+
+/*
+ * __stash_discard --
+ *	Discard any memory from a session stash that we can.
+ */
+static void
+__stash_discard(WT_SESSION_IMPL *session, int which)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_SESSION_STASH *session_stash;
+	WT_STASH *stash;
+	uint64_t oldest;
+	size_t i;
+
+	conn = S2C(session);
+	session_stash = &session->stash[which];
+
+	/* Get the resource's oldest generation. */
+	oldest = __wt_gen_oldest(session, which);
+
+	for (i = 0,
+	    stash = session_stash->list; i < session_stash->cnt; ++i, ++stash) {
+		if (stash->p == NULL)
+			continue;
+		/*
+		 * The list is expected to be in generation-sorted order, quit
+		 * as soon as we find a object we can't discard.
+		 */
+		if (stash->gen >= oldest)
+			break;
+
+		(void)__wt_atomic_sub64(&conn->stashed_bytes, stash->len);
+		(void)__wt_atomic_sub64(&conn->stashed_objects, 1);
+
+		/*
+		 * It's a bad thing if another thread is in this memory after
+		 * we free it, make sure nothing good happens to that thread.
+		 */
+		__wt_overwrite_and_free_len(session, stash->p, stash->len);
+	}
+
+	/*
+	 * If there are enough free slots at the beginning of the list, shuffle
+	 * everything down.
+	 */
+	if (i > 100 || i == session_stash->cnt)
+		if ((session_stash->cnt -= i) > 0)
+			memmove(session_stash->list, stash,
+			    session_stash->cnt * sizeof(*stash));
+}
+
+/*
+ * __wt_stash_discard --
+ *	Discard any memory from a session stash that we can.
+ */
+void
+__wt_stash_discard(WT_SESSION_IMPL *session)
+{
+	WT_SESSION_STASH *session_stash;
+	int which;
+
+	for (which = 0; which < WT_GENERATIONS; ++which) {
+		session_stash = &session->stash[which];
+		if (session_stash->cnt >= 1)
+			__stash_discard(session, which);
+	}
+}
+
+/*
+ * __wt_stash_add --
+ *	Add a new entry into a session stash list.
+ */
+int
+__wt_stash_add(WT_SESSION_IMPL *session,
+    int which, uint64_t generation, void *p, size_t len)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_SESSION_STASH *session_stash;
+	WT_STASH *stash;
+
+	conn = S2C(session);
+	session_stash = &session->stash[which];
+
+	/* Grow the list as necessary. */
+	WT_RET(__wt_realloc_def(session, &session_stash->alloc,
+	    session_stash->cnt + 1, &session_stash->list));
+
+	/*
+	 * If no caller stashes memory with a lower generation than a previously
+	 * stashed object, the list is in generation-sorted order and discarding
+	 * can be faster. (An error won't cause problems other than we might not
+	 * discard stashed objects as soon as we otherwise would have.)
+	 */
+	stash = session_stash->list + session_stash->cnt++;
+	stash->p = p;
+	stash->len = len;
+	stash->gen = generation;
+
+	(void)__wt_atomic_add64(&conn->stashed_bytes, len);
+	(void)__wt_atomic_add64(&conn->stashed_objects, 1);
+
+	/* See if we can free any previous entries. */
+	if (session_stash->cnt > 1)
+		__stash_discard(session, which);
+
+	return (0);
+}
+
+/*
+ * __wt_stash_discard_all --
+ *	Discard all memory from a session's stash.
+ */
+void
+__wt_stash_discard_all(WT_SESSION_IMPL *session_safe, WT_SESSION_IMPL *session)
+{
+	WT_SESSION_STASH *session_stash;
+	WT_STASH *stash;
+	int which;
+	size_t i;
+
+	/*
+	 * This function is called during WT_CONNECTION.close to discard any
+	 * memory that remains.  For that reason, we take two WT_SESSION_IMPL
+	 * arguments: session_safe is still linked to the WT_CONNECTION and
+	 * can be safely used for calls to other WiredTiger functions, while
+	 * session is the WT_SESSION_IMPL we're cleaning up.
+	 */
+	for (which = 0; which < WT_GENERATIONS; ++which) {
+		session_stash = &session->stash[which];
+
+		for (i = 0, stash = session_stash->list;
+		    i < session_stash->cnt; ++i, ++stash)
+			__wt_free(session_safe, stash->p);
+
+		__wt_free(session_safe, session_stash->list);
+		session_stash->cnt = session_stash->alloc = 0;
+	}
+}
