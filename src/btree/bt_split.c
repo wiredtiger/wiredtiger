@@ -31,36 +31,13 @@ typedef enum {
 } WT_SPLIT_ERROR_PHASE;
 
 /*
- * __split_oldest_gen --
- *	Calculate the oldest active split generation.
- */
-static uint64_t
-__split_oldest_gen(WT_SESSION_IMPL *session)
-{
-	WT_CONNECTION_IMPL *conn;
-	WT_SESSION_IMPL *s;
-	uint64_t gen, oldest;
-	u_int i, session_cnt;
-
-	conn = S2C(session);
-	WT_ORDERED_READ(session_cnt, conn->session_cnt);
-	for (i = 0, s = conn->sessions, oldest = conn->split_gen + 1;
-	    i < session_cnt;
-	    i++, s++)
-		if (((gen = s->split_gen) != 0) && gen < oldest)
-			oldest = gen;
-
-	return (oldest);
-}
-
-/*
  * __wt_split_obsolete --
  *	Check if it is safe to free / evict based on split generation.
  */
 bool
 __wt_split_obsolete(WT_SESSION_IMPL *session, uint64_t split_gen)
 {
-	return (split_gen < __split_oldest_gen(session));
+	return (split_gen < __wt_gen_oldest(session, WT_GEN_SPLIT));
 }
 
 /*
@@ -112,7 +89,7 @@ __wt_split_stash_discard(WT_SESSION_IMPL *session)
 	conn = S2C(session);
 
 	/* Get the oldest split generation. */
-	oldest = __split_oldest_gen(session);
+	oldest = __wt_gen_oldest(session, WT_GEN_SPLIT);
 
 	for (i = 0, stash = session->split_stash;
 	    i < session->split_stash_cnt;
@@ -177,13 +154,14 @@ __split_safe_free(WT_SESSION_IMPL *session,
     uint64_t split_gen, bool exclusive, void *p, size_t s)
 {
 	/* We should only call safe free if we aren't pinning the memory. */
-	WT_ASSERT(session, session->split_gen != split_gen);
+	WT_ASSERT(session,
+	   __wt_session_gen(session, WT_GEN_SPLIT) != split_gen);
 
 	/*
 	 * We have swapped something in a page: if we don't have exclusive
 	 * access, check whether there are other threads in the same tree.
 	 */
-	if (!exclusive && __split_oldest_gen(session) > split_gen)
+	if (!exclusive && __wt_gen_oldest(session, WT_GEN_SPLIT) > split_gen)
 		exclusive = true;
 
 	if (exclusive) {
@@ -645,7 +623,8 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
 	 * generation to block splits in newly created pages, so get one.
 	 */
 	WT_ENTER_PAGE_INDEX(session);
-	__split_ref_prepare(session, alloc_index, session->split_gen, false);
+	__split_ref_prepare(session, alloc_index,
+	    __wt_session_gen(session, WT_GEN_SPLIT), false);
 
 	/*
 	 * Confirm the root page's index hasn't moved, then update it, which
@@ -662,7 +641,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
 	 * after the new index is swapped into place in order to know that no
 	 * readers are looking at the old index.
 	 */
-	split_gen = __wt_atomic_addv64(&S2C(session)->split_gen, 1);
+	split_gen = __wt_gen_next(session, WT_GEN_SPLIT);
 	root->pg_intl_split_gen = split_gen;
 
 #ifdef HAVE_DIAGNOSTIC
@@ -848,7 +827,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	 * the new index is swapped into place in order to know that no readers
 	 * are looking at the old index.
 	 */
-	split_gen = __wt_atomic_addv64(&S2C(session)->split_gen, 1);
+	split_gen = __wt_gen_next(session, WT_GEN_SPLIT);
 	parent->pg_intl_split_gen = split_gen;
 
 	/*
@@ -1173,7 +1152,8 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 	 * generation to block splits in newly created pages, so get one.
 	 */
 	WT_ENTER_PAGE_INDEX(session);
-	__split_ref_prepare(session, alloc_index, session->split_gen, true);
+	__split_ref_prepare(session, alloc_index,
+	    __wt_session_gen(session, WT_GEN_SPLIT), true);
 
 	/* Split into the parent. */
 	if ((ret = __split_parent(session, page_ref, alloc_index->index,
@@ -1194,7 +1174,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 	 * after the new index is swapped into place in order to know that no
 	 * readers are looking at the old index.
 	 */
-	split_gen = __wt_atomic_addv64(&S2C(session)->split_gen, 1);
+	split_gen = __wt_gen_next(session, WT_GEN_SPLIT);
 	page->pg_intl_split_gen = split_gen;
 
 #ifdef HAVE_DIAGNOSTIC
