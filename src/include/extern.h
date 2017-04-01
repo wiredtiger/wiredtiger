@@ -648,6 +648,16 @@ extern int __wt_illegal_value(WT_SESSION_IMPL *session, const char *name) WT_GCC
 extern int __wt_object_unsupported(WT_SESSION_IMPL *session, const char *uri) WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern int __wt_bad_object_type(WT_SESSION_IMPL *session, const char *uri) WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern int __wt_unexpected_object_type( WT_SESSION_IMPL *session, const char *uri, const char *expect) WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
+extern void __wt_gen_init(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
+extern uint64_t __wt_gen(WT_SESSION_IMPL *session, int which) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
+extern uint64_t __wt_gen_next(WT_SESSION_IMPL *session, int which) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
+extern uint64_t __wt_gen_next_drain(WT_SESSION_IMPL *session, int which) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
+extern void __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
+extern uint64_t __wt_gen_oldest(WT_SESSION_IMPL *session, int which) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
+extern uint64_t __wt_session_gen(WT_SESSION_IMPL *session, int which) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
+extern uint64_t __wt_session_gen_publish_next(WT_SESSION_IMPL *session, int which) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
+extern uint64_t __wt_session_gen_publish(WT_SESSION_IMPL *session, int which) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
+extern void __wt_session_gen_clear(WT_SESSION_IMPL *session, int which) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern int __wt_library_init(void) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern void __wt_breakpoint(void) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern void __wt_attach(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));

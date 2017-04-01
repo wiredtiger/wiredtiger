@@ -167,6 +167,12 @@ struct __wt_session_impl {
 					/* Hashed table reference list array */
 	TAILQ_HEAD(__tables_hash, __wt_table) *tablehash;
 
+					/* Generations manager */
+#define	WT_GEN_SCHEMA		0	/* Schema */
+#define	WT_GEN_SPLIT		1	/* Page splits */
+#define	WT_GENERATIONS		2	/* Total generation manager entries */
+	volatile uint64_t generations[WT_GENERATIONS];
+
 	/*
 	 * Split stash memory persists past session close because it's accessed
 	 * by threads of control other than the thread owning the session.
@@ -184,8 +190,6 @@ struct __wt_session_impl {
 	} *split_stash;			/* Split stash array */
 	size_t  split_stash_cnt;	/* Array entries */
 	size_t  split_stash_alloc;	/* Allocated bytes */
-
-	uint64_t split_gen;		/* Reading split generation */
 
 	/*
 	 * Hazard pointers.

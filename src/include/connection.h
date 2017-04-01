@@ -210,7 +210,6 @@ struct __wt_connection_impl {
 
 	WT_FH *lock_fh;			/* Lock file handle */
 
-	volatile uint64_t  split_gen;	/* Generation number for splits */
 	uint64_t split_stashed_bytes;	/* Atomic: split statistics */
 	uint64_t split_stashed_objects;
 
@@ -401,7 +400,8 @@ struct __wt_connection_impl {
 	/* If non-zero, all buffers used for I/O will be aligned to this. */
 	size_t buffer_alignment;
 
-	uint32_t schema_gen;		/* Schema generation number */
+					/* Generations manager */
+	volatile uint64_t generations[WT_GENERATIONS];
 
 	wt_off_t data_extend_len;	/* file_extend data length */
 	wt_off_t log_extend_len;	/* file_extend log length */
