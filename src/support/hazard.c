@@ -54,7 +54,8 @@ hazard_grow(WT_SESSION_IMPL *session)
 	 * future free of the old memory. Ignore any failure, leak the memory.
 	 */
 	generation = __wt_gen_next(session, WT_GEN_HAZARD);
-	(void)__wt_stash_add(session, WT_GEN_HAZARD, generation, ohazard, 0);
+	WT_IGNORE_RET(__wt_stash_add(
+	    session, WT_GEN_HAZARD, generation, ohazard, 0));
 
 	return (0);
 }
