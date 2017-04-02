@@ -57,12 +57,14 @@ __wt_gen_next(WT_SESSION_IMPL *session, int which)
 	return (__wt_atomic_addv64(&S2C(session)->generations[which], 1));
 }
 
+#if 0
 /*
  * __wt_gen_next_drain --
  *	Switch the resource to its next generation, then wait for it to drain.
  */
 uint64_t
-__wt_gen_next_drain(WT_SESSION_IMPL *session, int which)
+	TABBED IN to avoid dist/ functions:
+	__wt_gen_next_drain(WT_SESSION_IMPL *session, int which)
 {
 	uint64_t v;
 
@@ -78,7 +80,8 @@ __wt_gen_next_drain(WT_SESSION_IMPL *session, int which)
  *	Wait for the resource to drain.
  */
 void
-__wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
+	TABBED IN to avoid dist/ functions:
+	__wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_SESSION_IMPL *s;
@@ -121,6 +124,7 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
 		}
 	}
 }
+#endif
 
 /*
  * __wt_gen_oldest --
@@ -169,13 +173,15 @@ __wt_session_gen(WT_SESSION_IMPL *session, int which)
 	return (session->generations[which]);
 }
 
+#if 0
 /*
  * __wt_session_gen_publish_next --
  *	Switch the resource to a new generation, then publish a thread's
  * resource generation.
  */
 uint64_t
-__wt_session_gen_publish_next(WT_SESSION_IMPL *session, int which)
+	TABBED IN to avoid dist/ functions:
+	__wt_session_gen_publish_next(WT_SESSION_IMPL *session, int which)
 {
 	session->generations[which] = __wt_gen_next(session, which);
 
@@ -184,6 +190,7 @@ __wt_session_gen_publish_next(WT_SESSION_IMPL *session, int which)
 
 	return (session->generations[which]);
 }
+#endif
 
 /*
  * __wt_session_gen_publish --
