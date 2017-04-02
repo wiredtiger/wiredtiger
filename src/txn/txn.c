@@ -835,7 +835,8 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 	WT_RET(__wt_msg(session, "checkpoint running? %s",
 	    txn_global->checkpoint_running ? "yes" : "no"));
 	WT_RET(__wt_msg(session,
-	    "checkpoint generation: %" PRIu64, txn_global->checkpoint_gen));
+	    "checkpoint generation: %" PRIu64,
+	    __wt_gen(session, WT_GEN_CHECKPOINT)));
 	WT_RET(__wt_msg(session,
 	    "checkpoint pinned ID: %" PRIu64, txn_global->checkpoint_pinned));
 	WT_RET(__wt_msg(session,

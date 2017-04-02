@@ -168,10 +168,11 @@ struct __wt_session_impl {
 	TAILQ_HEAD(__tables_hash, __wt_table) *tablehash;
 
 					/* Generations manager */
-#define	WT_GEN_HAZARD		0	/* Hazard pointer */
-#define	WT_GEN_SCHEMA		1	/* Schema version */
-#define	WT_GEN_SPLIT		2	/* Page splits */
-#define	WT_GENERATIONS		3	/* Total generation manager entries */
+#define	WT_GEN_CHECKPOINT	0	/* Checkpoint generation */
+#define	WT_GEN_HAZARD		1	/* Hazard pointer */
+#define	WT_GEN_SCHEMA		2	/* Schema version */
+#define	WT_GEN_SPLIT		3	/* Page splits */
+#define	WT_GENERATIONS		4	/* Total generation manager entries */
 	volatile uint64_t generations[WT_GENERATIONS];
 
 	/*
