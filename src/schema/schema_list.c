@@ -66,7 +66,7 @@ restart:
 			 * between checking the generation and opening the
 			 * first column group.
 			 */
-			if (table->schema_generation !=
+			if (table->schema_gen !=
 			    __wt_gen(session, WT_GEN_SCHEMA)) {
 				if (table->refcnt == 0) {
 					WT_RET(__wt_schema_remove_table(

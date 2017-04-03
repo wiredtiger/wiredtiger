@@ -69,7 +69,7 @@ struct __wt_table {
 	u_int ncolgroups, nindices, nkey_columns;
 
 	uint32_t refcnt;		/* Number of open cursors */
-	uint64_t schema_generation;	/* Cached schema generation number */
+	uint64_t schema_gen;		/* Cached schema generation number */
 };
 
 /*
