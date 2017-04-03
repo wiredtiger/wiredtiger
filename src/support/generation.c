@@ -173,46 +173,32 @@ __wt_session_gen(WT_SESSION_IMPL *session, int which)
 	return (session->generations[which]);
 }
 
-#if 0
 /*
- * __wt_session_gen_publish_next --
- *	Switch the resource to a new generation, then publish a thread's
- * resource generation.
- */
-uint64_t
-	TABBED IN to avoid dist/ functions:
-	__wt_session_gen_publish_next(WT_SESSION_IMPL *session, int which)
-{
-	session->generations[which] = __wt_gen_next(session, which);
-
-	/* Ensure threads waiting on a resource to drain see the new value. */
-	WT_FULL_BARRIER();
-
-	return (session->generations[which]);
-}
-#endif
-
-/*
- * __wt_session_gen_publish --
+ * __wt_session_gen_enter --
  *	Publish a thread's resource generation.
  */
-uint64_t
-__wt_session_gen_publish(WT_SESSION_IMPL *session, int which)
+void
+__wt_session_gen_enter(WT_SESSION_IMPL *session, int which)
 {
-	session->generations[which] = __wt_gen(session, which);
-
-	/* Ensure threads waiting on a resource to drain see the new value. */
-	WT_FULL_BARRIER();
-
-	return (session->generations[which]);
+	/*
+	 * Assign the thread's resource generation and publish it, ensuring
+	 * threads waiting on a resource to drain see the new value. Check we
+	 * haven't raced with a generation update after publishing, we rely on
+	 * the published value not being missed when scanning for the oldest
+	 * generation.
+	 */
+	do {
+		session->generations[which] = __wt_gen(session, which);
+		WT_WRITE_BARRIER();
+	} while (session->generations[which] != __wt_gen(session, which));
 }
 
 /*
- * __wt_session_gen_clear --
- *	Clear a thread's resource generation.
+ * __wt_session_gen_leave --
+ *	Leave a thread's resource generation.
  */
 void
-__wt_session_gen_clear(WT_SESSION_IMPL *session, int which)
+__wt_session_gen_leave(WT_SESSION_IMPL *session, int which)
 {
 	/* Ensure writes made by this thread are visible. */
 	WT_PUBLISH(session->generations[which], 0);

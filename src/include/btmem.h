@@ -1098,22 +1098,16 @@ struct __wt_insert_head {
  * already have a split generation, leave it alone.  If our caller is examining
  * an index, we don't want the oldest split generation to move forward and
  * potentially free it.
- *
- * Check that we haven't raced with a split_gen update after publishing: we
- * rely on the published value not being missed when scanning for the oldest
- * active split_gen.
  */
 #define	WT_ENTER_PAGE_INDEX(session) do {				\
 	uint64_t __prev_split_gen =					\
 	    __wt_session_gen(session, WT_GEN_SPLIT);			\
 	if (__prev_split_gen == 0)					\
-		while (__wt_session_gen_publish(session,		\
-		    WT_GEN_SPLIT) != __wt_gen(session, WT_GEN_SPLIT))	\
-			;
+		__wt_session_gen_enter(session, WT_GEN_SPLIT);
 
 #define	WT_LEAVE_PAGE_INDEX(session)					\
 	if (__prev_split_gen == 0)					\
-		__wt_session_gen_clear(session, WT_GEN_SPLIT);		\
+		__wt_session_gen_leave(session, WT_GEN_SPLIT);		\
 	} while (0)
 
 #define	WT_WITH_PAGE_INDEX(session, e)					\

@@ -649,8 +649,8 @@ extern uint64_t __wt_gen(WT_SESSION_IMPL *session, int which) WT_GCC_FUNC_DECL_A
 extern uint64_t __wt_gen_next(WT_SESSION_IMPL *session, int which) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern uint64_t __wt_gen_oldest(WT_SESSION_IMPL *session, int which) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern uint64_t __wt_session_gen(WT_SESSION_IMPL *session, int which) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
-extern uint64_t __wt_session_gen_publish(WT_SESSION_IMPL *session, int which) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
-extern void __wt_session_gen_clear(WT_SESSION_IMPL *session, int which) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
+extern void __wt_session_gen_enter(WT_SESSION_IMPL *session, int which) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
+extern void __wt_session_gen_leave(WT_SESSION_IMPL *session, int which) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern void __wt_stash_discard(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern int __wt_stash_add(WT_SESSION_IMPL *session, int which, uint64_t generation, void *p, size_t len) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
 extern void __wt_stash_discard_all(WT_SESSION_IMPL *session_safe, WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("hidden")));
