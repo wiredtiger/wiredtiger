@@ -1,12 +1,14 @@
 #include <iostream>
 #include <sstream>
-#include <pthread.h>
 #include "wiredtiger.h"
 #include "workgen.h"
 //#include "test_util.h"   // TODO: cannot use yet, it includes wt_internal.h
 extern "C" {
 // Include specific files, as some files included by wt_internal.h
 // have some C-ism's that don't work in C++.
+#include <pthread.h>
+#include <string.h>
+#include <stdlib.h>
 #include "error.h"
 #include "misc.h"
 }
@@ -267,7 +269,7 @@ int Workload::create_all(WT_CONNECTION *conn,
     for (int i = 0; i < (int)_threads.size(); i++) {
         std::stringstream sstm;
         sstm << "thread" << i;
-        _threads[i]._name = sstm;
+        _threads[i]._name = sstm.str();
         contexts[i]._thread = &_threads[i];
         // TODO: recover from partial failure here
         WT_RET(_threads[i].create_all(conn));
