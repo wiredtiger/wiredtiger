@@ -49,6 +49,7 @@ struct TableStats {
     uint64_t truncates;
     TableStats() : inserts(0), reads(0), removes(0), updates(0), truncates(0) {}
     void add(const TableStats&);
+    void subtract(const TableStats&);
     void clear();
     void describe(std::ostream &os) const;
     void report(std::ostream &os) const;
@@ -136,7 +137,8 @@ struct Operation {
     int open_all(WT_SESSION *session);
     int run(WorkgenContext &context);
     void size_buffers(size_t &keysize, size_t &valuesize) const;
-    void stats_all(TableStats &);
+    void get_stats(TableStats &);
+    void clear_stats();
 #endif
 };
 
@@ -163,7 +165,8 @@ struct Thread {
     int create_all(WT_CONNECTION *conn);
     int open_all(WT_CONNECTION *conn);
     int close_all();
-    void stats_all(TableStats &);
+    void get_stats(TableStats &stats);
+    void clear_stats();
     int run(WorkgenContext &context);
 #endif
 };
@@ -190,10 +193,11 @@ struct Workload {
     }
     int run(WT_CONNECTION *conn);
     void report(int, int, TableStats &);
-    void final_report(int, TableStats &);
+    void final_report(int);
 
 private:
-    void add_stats(TableStats &totals, TableStats &stats);
+    void get_stats(TableStats &stats);
+    void clear_stats();
     int create_all(WT_CONNECTION *conn, std::vector<WorkgenContext> &contexts);
     int open_all(WT_CONNECTION *conn, std::vector<WorkgenContext> &contexts);
     int close_all();

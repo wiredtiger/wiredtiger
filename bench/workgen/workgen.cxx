@@ -149,10 +149,16 @@ int Thread::run(WorkgenContext &context) {
     return (ret);
 }
 
-void Thread::stats_all(TableStats &stats) {
+void Thread::get_stats(TableStats &stats) {
     for (std::vector<Operation>::iterator i = _ops.begin();
       i != _ops.end(); i++)
-        i->stats_all(stats);
+        i->get_stats(stats);
+}
+
+void Thread::clear_stats() {
+    for (std::vector<Operation>::iterator i = _ops.begin();
+      i != _ops.end(); i++)
+        i->clear_stats();
 }
 
 Operation::Operation() :
@@ -279,14 +285,20 @@ int Operation::run(WorkgenContext &context) {
     return (0);
 }
 
-void Operation::stats_all(TableStats &stats) {
-    // TODO: there is a race between collecting and clearing stats.
+void Operation::get_stats(TableStats &stats) {
     stats.add(_table.stats);
+    if (_children != NULL)
+        for (std::vector<Operation>::iterator i = _children->begin();
+          i != _children->end(); i++)
+            i->get_stats(stats);
+}
+
+void Operation::clear_stats() {
     _table.stats.clear();
     if (_children != NULL)
         for (std::vector<Operation>::iterator i = _children->begin();
           i != _children->end(); i++)
-            i->stats_all(stats);
+            i->clear_stats();
 }
 
 int Operation::open_all(WT_SESSION *session) {
@@ -305,6 +317,14 @@ void TableStats::add(const TableStats &other) {
     removes += other.removes;
     updates += other.updates;
     truncates += other.truncates;
+}
+
+void TableStats::subtract(const TableStats &other) {
+    inserts -= other.inserts;
+    reads -= other.reads;
+    removes -= other.removes;
+    updates -= other.updates;
+    truncates -= other.truncates;
 }
 
 void TableStats::clear() {
@@ -404,25 +424,31 @@ int Workload::run(WT_CONNECTION *conn) {
     return (ret);
 }
 
-void Workload::add_stats(TableStats &totals, TableStats &stats) {
+void Workload::get_stats(TableStats &stats) {
     for (int i = 0; i < (int)_threads.size(); i++)
-        _threads[i].stats_all(stats);
-    totals.add(stats);
+        _threads[i].get_stats(stats);
+}
+
+void Workload::clear_stats() {
+    for (int i = 0; i < (int)_threads.size(); i++)
+        _threads[i].clear_stats();
 }
 
 void Workload::report(int interval, int totalsecs, TableStats &totals) {
     TableStats stats;
-
-    add_stats(totals, stats);
-    stats.report(std::cout);
+    get_stats(stats);
+    TableStats diff(stats);
+    diff.subtract(totals);
+    totals = stats;
+    diff.report(std::cout);
     std::cout << " in " << interval << " secs ("
               << totalsecs << " total secs)" << std::endl;
 }
 
-void Workload::final_report(int totalsecs, TableStats &totals) {
+void Workload::final_report(int totalsecs) {
     TableStats stats;
 
-    add_stats(stats, totals);
+    get_stats(stats);
     stats.final_report(std::cout, totalsecs);
     std::cout << "Run completed: " << totalsecs << " seconds" << std::endl;
 }
@@ -434,7 +460,7 @@ int Workload::run_all(std::vector<WorkgenContext> &contexts) {
     WT_DECL_RET;
 
     for (int i = 0; i < (int)_threads.size(); i++) {
-        _threads[i].stats_all(stats); // clears the stats
+        _threads[i].clear_stats();
         _threads[i]._stop = false;
         // TODO: on error, clean up already started threads, set _stop flag.
         WT_RET(pthread_create(&thread_handles[i], NULL, thread_runner,
@@ -471,7 +497,7 @@ int Workload::run_all(std::vector<WorkgenContext> &contexts) {
         WT_TRET(contexts[i]._errno);
         _threads[i].close_all();
     }
-    final_report(now - start, stats);
+    final_report(now - start);
 
     if (ret != 0)
         std::cerr << "run_all failed err=" << ret << std::endl;
