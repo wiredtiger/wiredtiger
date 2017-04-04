@@ -27,6 +27,7 @@ find bench dist examples ext src test \
         -e '/checksum\/power8/d' \
         -e '/3rdparty/d' \
         -e '/docs\/tools/d' \
+        -e '/workgen\/workgen/d' \
 | while read f ; do
 	whitespace $f
 done
