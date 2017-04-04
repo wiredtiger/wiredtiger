@@ -3,7 +3,6 @@
 #include <pthread.h>
 #include "wiredtiger.h"
 #include "workgen.h"
-#include "workgen_thread.h"
 //#include "test_util.h"   // TODO: cannot use yet, it includes wt_internal.h
 extern "C" {
 // Include specific files, as some files included by wt_internal.h
