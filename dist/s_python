@@ -10,7 +10,8 @@ cd ..
 egrep '	' `find . -name '*.py'` |
     sed -e 's/:.*//' \
 	-e '/__init__.py/d' \
-	-e '/src\/docs\/tools\/doxypy.py/d' |
+	-e '/src\/docs\/tools\/doxypy.py/d' \
+	-e '/workgen\/workgen.py/d' |
     sort -u |
     sed 's/^/	/' > $t
 test -s $t && {
