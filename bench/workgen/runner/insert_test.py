@@ -57,3 +57,13 @@ s.truncate(tname1, None, None)
 
 print('workload is ' + str(workload))
 print('thread0 is ' + str(thread0))
+
+opx = None
+got_exception = False
+try:
+    opx = Operation(Operation.OP_INSERT, Table('foo'), Key(Key.KEYGEN_APPEND, 10))
+except BaseException as e:
+    print('got expected exception: ' + str(e))
+    got_exception = True
+if not got_exception or opx != None:
+    print('*** ERROR: did not get exception')

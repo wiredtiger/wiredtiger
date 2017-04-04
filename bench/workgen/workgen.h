@@ -20,13 +20,45 @@ struct WorkgenContext {
 	_nrecords(other._nrecords) {}
     ~WorkgenContext() {}
 };
+
+struct WorkgenException {
+    std::string _str;
+    WorkgenException() : _str() {}
+    WorkgenException(int err, const char *msg = NULL) : _str() {
+	if (err != 0)
+	    _str += wiredtiger_strerror(err);
+	if (msg != NULL) {
+	    if (!_str.empty())
+		_str += ": ";
+	    _str += msg;
+	}
+    }
+    WorkgenException(const WorkgenException &other) : _str(other._str) {}
+    ~WorkgenException() {}
+};
+
 #else
 struct WorkGenContext;
 #endif
 
+struct TableStats {
+    uint64_t inserts;
+    uint64_t reads;
+    uint64_t removes;
+    uint64_t updates;
+    uint64_t truncates;
+    TableStats() : inserts(0), reads(0), removes(0), updates(0), truncates(0) {}
+    void add(const TableStats&);
+    void clear();
+    void describe(std::ostream &os) const;
+    void report(std::ostream &os) const;
+    void final_report(std::ostream &os, int totalsecs) const;
+};
+
 /* Tables can be shared among operations within a single Thread */
 struct Table {
     std::string _tablename;
+    TableStats stats;
 #ifndef SWIG
     WT_CURSOR *_cursor;
 #endif
@@ -90,12 +122,11 @@ struct Operation {
     Value _value;
     std::vector<Operation> *_children;
     int _repeatchildren;
+    bool _repeatinf;
 
-    Operation() : _optype(OP_NONE), _table(), _key(), _value(),
-	_children(NULL), _repeatchildren(0) {}
-    Operation(OpType optype, Table table, Key key, Value value) :
-	_optype(optype), _table(table), _key(key), _value(value),
-	_children(NULL), _repeatchildren(0) {}
+    Operation();
+    Operation(OpType optype, Table table, Key key, Value value);
+    Operation(OpType optype, Table table, Key key);
     Operation(const Operation &other);
     ~Operation();
 
@@ -103,14 +134,16 @@ struct Operation {
 
 #ifndef SWIG
     int open_all(WT_SESSION *session);
-    int run(WorkgenContext &context) const;
+    int run(WorkgenContext &context);
     void size_buffers(size_t &keysize, size_t &valuesize) const;
+    void stats_all(TableStats &);
 #endif
 };
 
 struct Thread {
     std::vector<Operation> _ops;
     std::string _name;
+    bool _stop;
 #ifndef SWIG
     WT_SESSION *_session;
     char *_keybuf;
@@ -130,27 +163,37 @@ struct Thread {
     int create_all(WT_CONNECTION *conn);
     int open_all(WT_CONNECTION *conn);
     int close_all();
+    void stats_all(TableStats &);
     int run(WorkgenContext &context);
 #endif
 };
 
 struct Workload {
     std::vector<Thread> _threads;
+    int _run_time;
+    int _report_interval;
 
-    Workload(const std::vector<Thread> &threads) : _threads(threads) {}
-    Workload(const Workload &other) : _threads(other._threads) {}
+    Workload(const std::vector<Thread> &threads) : _threads(threads),
+      _run_time(0), _report_interval(0) {}
+    Workload(const Workload &other) :
+      _threads(other._threads), _run_time(0), _report_interval(0) {}
     ~Workload() {}
 
     void describe(std::ostream &os) const {
-	os << "Workload: [" << std::endl;
+	os << "Workload: run_time " << _run_time;
+	os << ", report_interval " << _report_interval;
+	os << ", [" << std::endl;
 	for (std::vector<Thread>::const_iterator i = _threads.begin(); i != _threads.end(); i++) {
 	    os << "  "; i->describe(os); os << std::endl;
 	}
 	os << "]";
     }
     int run(WT_CONNECTION *conn);
+    void report(int, int, TableStats &);
+    void final_report(int, TableStats &);
 
 private:
+    void add_stats(TableStats &totals, TableStats &stats);
     int create_all(WT_CONNECTION *conn, std::vector<WorkgenContext> &contexts);
     int open_all(WT_CONNECTION *conn, std::vector<WorkgenContext> &contexts);
     int close_all();

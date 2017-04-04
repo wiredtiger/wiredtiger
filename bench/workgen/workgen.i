@@ -49,6 +49,15 @@
 import numbers
 %}
 
+%exception {
+	try {
+		$action
+	}
+	catch (workgen::WorkgenException &wge) {
+		SWIG_Error(SWIG_RuntimeError, wge._str.c_str());
+	}
+}
+
 %module workgen
 /* Parse the header to generate wrappers. */
 %include "workgen.h"
@@ -70,18 +79,24 @@ WorkgenClass(Key)
 WorkgenClass(Operation)
 WorkgenClass(Thread)
 WorkgenClass(Table)
+WorkgenClass(TableStats)
 WorkgenClass(Value)
 WorkgenClass(Workload)
 
 %extend workgen::Operation {
 %pythoncode %{
+	_inf = float('inf')
 	def __mul__(self, other):
-		if not isinstance(other, numbers.Integral):
+		isinf = (other == self._inf)
+		if not isinstance(other, numbers.Integral) and not isinf:
 			raise Exception('Operation.__mul__ requires an ' \
 			    'integral number')
 		op = Operation()
 		op._children = OpList([self])
-		op._repeatchildren = other
+		if isinf:
+			op._repeatinf = True
+		else:
+			op._repeatchildren = other
 		return op
 
 	__rmul__ = __mul__
