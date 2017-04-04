@@ -31,17 +31,72 @@
  *	The SWIG interface file defining the workgen python API.
  */
 
-%module workgen
+%include "typemaps.i"
+%include "std_vector.i"
+%include "std_string.i"
+
+/* We only need to reference WiredTiger types. */
+%import "wiredtiger.h"
+
 %{
-/* Include the header in generated code. */
+#include <ostream>
+#include <sstream>
+#include "wiredtiger.h"
 #include "workgen.h"
 %}
 
-%include "typemaps.i"
-%include "std_vector.i"
+%pythoncode %{
+import numbers
+%}
+
+%module workgen
+/* Parse the header to generate wrappers. */
+%include "workgen.h"
 
 %template(OpList) std::vector<workgen::Operation>;
 %template(ThreadList) std::vector<workgen::Thread>;
 
-/* Parse the header to generate wrappers. */
-%include "workgen.h"
+%define WorkgenClass(classname)
+%extend workgen::classname {
+	const std::string __str__() {
+		std::ostringstream out;
+		$self->describe(out);
+		return out.str();
+	}
+};
+%enddef
+
+WorkgenClass(Key)
+WorkgenClass(Operation)
+WorkgenClass(Thread)
+WorkgenClass(Table)
+WorkgenClass(Value)
+WorkgenClass(Workload)
+
+%extend workgen::Operation {
+%pythoncode %{
+	def __mul__(self, other):
+		if not isinstance(other, numbers.Integral):
+			raise Exception('Operation.__mul__ requires an ' \
+			    'integral number')
+		op = Operation()
+		op._children = OpList([self])
+		op._repeatchildren = other
+		return op
+
+	__rmul__ = __mul__
+
+	def __add__(self, other):
+		if type(self) != type(other):
+			raise Exception('Operation.__sum__ requires an ' \
+			    'Operation')
+		if self._children == None or self._repeatchildren != 1:
+			op = Operation()
+			op._children = OpList([self, other])
+			op._repeatchildren = 1
+			return op
+		else:
+			self._children.append(other)
+			return self
+%}
+};

@@ -5,7 +5,7 @@ all-local: _workgen.so
 # We keep generated Python sources under bench/workgen.
 $(PYSRC)/workgen_wrap.cxx: $(PYSRC)/workgen.h $(PYSRC)/workgen.i
 	(cd $(PYSRC) && \
-	    $(SWIG) -c++ -python -threads -O -Wall -nodefaultctor -nodefaultdtor -I$(abs_top_builddir) workgen.i)
+	    $(SWIG) -c++ -python -threads -O -Wall -I$(abs_top_builddir) -outdir ./workgen workgen.i)
 
 _workgen.so: $(top_builddir)/libwiredtiger.la $(PYSRC)/workgen_wrap.cxx $(PYSRC)/workgen.cxx
 	(cd $(PYSRC) && \

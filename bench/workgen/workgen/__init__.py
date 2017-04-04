@@ -26,34 +26,16 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
+# __init__.py
+#      initialization for workgen module
+#
+import os, sys
 
-import re, os, sys
-from distutils.core import setup, Extension
-
-# OS X hack: turn off the Universal binary support that is built into the
-# Python build machinery, just build for the default CPU architecture.
-if not 'ARCHFLAGS' in os.environ:
-    os.environ['ARCHFLAGS'] = ''
-
-# Suppress warnings building SWIG generated code
-extra_cflags = [ '-Wmissing-field-initializers', '-Wextra', '-Wno-shadow', '-I../../src/include', '-I../../test/utility']
-
-dir = os.path.dirname(__file__)
-
-# Read the version information from the RELEASE_INFO file
-for l in open(os.path.join(dir, '..', '..', 'RELEASE_INFO')):
-    if re.match(r'WIREDTIGER_VERSION_(?:MAJOR|MINOR|PATCH)=', l):
-        exec(l)
-
-wt_ver = '%d.%d' % (WIREDTIGER_VERSION_MAJOR, WIREDTIGER_VERSION_MINOR)
-
-setup(name='workgen', version=wt_ver,
-    ext_modules=[Extension('_workgen',
-                [os.path.join(dir, 'workgen_wrap.cxx'),
-                 os.path.join(dir, 'workgen.cxx')],
-        libraries=['wiredtiger', 'pthread'],
-        extra_compile_args=extra_cflags,
-    )],
-    package_dir={'' : dir},
-    packages=['workgen'],
-)
+# After importing the SWIG-generated file, copy all symbols from from it
+# to this module so they will appear in the workgen namespace.
+me = sys.modules[__name__]
+sys.path.append(os.path.dirname(__file__))  # needed for Python3
+import workgen
+for name in dir(workgen):
+    value = getattr(workgen, name)
+    setattr(me, name, value)
