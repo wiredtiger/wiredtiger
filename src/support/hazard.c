@@ -331,6 +331,13 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref)
 	WT_STAT_CONN_INCR(session, cache_hazard_checks);
 
 	/*
+	 * Hazard pointer arrays might grow and be freed underneath us; enter
+	 * the current hazard resource generation for the duration of the walk
+	 * to ensure that doesn't happen.
+	 */
+	__wt_session_gen_enter(session, WT_GEN_HAZARD);
+
+	/*
 	 * No lock is required because the session array is fixed size, but it
 	 * may contain inactive entries.  We must review any active session
 	 * that might contain a hazard pointer, so insert a read barrier after
@@ -356,12 +363,17 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref)
 			if (hp->ref == ref) {
 				WT_STAT_CONN_INCRV(session,
 				    cache_hazard_walks, walk_cnt);
-				return (hp);
+				goto done;
 			}
 		}
 	}
 	WT_STAT_CONN_INCRV(session, cache_hazard_walks, walk_cnt);
-	return (NULL);
+	hp = NULL;
+
+done:	/* Leave the current resource generation. */
+	__wt_session_gen_leave(session, WT_GEN_HAZARD);
+
+	return (hp);
 }
 
 /*
