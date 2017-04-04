@@ -16,8 +16,8 @@ struct WorkgenContext {
     WorkgenContext() : _errno(0), _thread(NULL), _verbose(false),
 	_nrecords(0) {}
     WorkgenContext(const WorkgenContext &other) : _errno(other._errno),
-        _thread(other._thread), _verbose(other._verbose),
-        _nrecords(other._nrecords) {}
+	_thread(other._thread), _verbose(other._verbose),
+	_nrecords(other._nrecords) {}
     ~WorkgenContext() {}
 };
 #else
