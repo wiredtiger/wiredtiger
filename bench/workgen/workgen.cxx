@@ -297,7 +297,7 @@ int Workload::run(WT_CONNECTION *conn) {
 
 int Workload::run_all(std::vector<WorkgenContext> &contexts) {
     void *status;
-    std::vector<thread_handle> thread_handles(_threads.size());
+    std::vector<pthread_t> thread_handles(_threads.size());
     WT_DECL_RET;
 
     for (int i = 0; i < (int)_threads.size(); i++)
