@@ -307,12 +307,13 @@ __log_slot_switch_internal(
 	if (slot != log->active_slot)
 		return (0);
 	/*
-	 * If the current active slot is unused, we're done.
+	 * If the current active slot is unused and this is a forced switch,
+	 * we're done.  If this is a non-forced switch we always switch
+	 * because the slot could be part of an unbuffered operation.
 	 */
 	joined = WT_LOG_SLOT_JOINED(slot->slot_state);
-	if (joined == 0) {
-		if (forced)
-			WT_STAT_CONN_INCR(session, log_force_write_skip);
+	if (joined == 0 && forced) {
+		WT_STAT_CONN_INCR(session, log_force_write_skip);
 		if (did_work != NULL)
 			*did_work = false;
 		return (0);
