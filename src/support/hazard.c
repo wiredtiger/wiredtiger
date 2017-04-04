@@ -97,6 +97,9 @@ __wt_hazard_set(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
 		WT_RET(hazard_grow(session));
 	}
 
+	/* Enter the current resource generation. */
+	__wt_session_gen_enter(session, WT_GEN_HAZARD);
+
 	/*
 	 * If there are no available hazard pointer slots, make another one
 	 * visible.
@@ -162,21 +165,23 @@ __wt_hazard_set(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
 		 * the hazard pointer see consistent data.
 		 */
 		WT_READ_BARRIER();
-		return (0);
+	} else {
+		/*
+		 * The page isn't available, it's being considered for eviction
+		 * (or being evicted, for all we know).  If the eviction server
+		 * sees our hazard pointer before evicting the page, it will
+		 * return the page to use, no harm done, if it doesn't, it will
+		 * go ahead and complete the eviction.
+		 *
+		 * We don't bother publishing this update: the worst case is we
+		 * prevent some random page from being evicted.
+		 */
+		hp->ref = NULL;
+		*busyp = true;
 	}
 
-	/*
-	 * The page isn't available, it's being considered for eviction
-	 * (or being evicted, for all we know).  If the eviction server
-	 * sees our hazard pointer before evicting the page, it will
-	 * return the page to use, no harm done, if it doesn't, it will
-	 * go ahead and complete the eviction.
-	 *
-	 * We don't bother publishing this update: the worst case is we
-	 * prevent some random page from being evicted.
-	 */
-	hp->ref = NULL;
-	*busyp = true;
+	/* Leave the current resource generation. */
+	__wt_session_gen_leave(session, WT_GEN_HAZARD);
 	return (0);
 }
 
@@ -192,6 +197,9 @@ __wt_hazard_clear(WT_SESSION_IMPL *session, WT_REF *ref)
 	/* If a file can never be evicted, hazard pointers aren't required. */
 	if (F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
 		return (0);
+
+	/* Enter the current resource generation. */
+	__wt_session_gen_enter(session, WT_GEN_HAZARD);
 
 	/*
 	 * Clear the caller's hazard pointer.
@@ -221,6 +229,10 @@ __wt_hazard_clear(WT_SESSION_IMPL *session, WT_REF *ref)
 			 */
 			if (--session->nhazard == 0)
 				WT_PUBLISH(session->hazard_inuse, 0);
+
+			/* Leave the current resource generation. */
+			__wt_session_gen_leave(session, WT_GEN_HAZARD);
+
 			return (0);
 		}
 
@@ -330,6 +342,9 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref)
 
 	WT_STAT_CONN_INCR(session, cache_hazard_checks);
 
+	/* Enter the current resource generation. */
+	__wt_session_gen_enter(session, WT_GEN_HAZARD);
+
 	/*
 	 * No lock is required because the session array is fixed size, but it
 	 * may contain inactive entries.  We must review any active session
@@ -356,12 +371,16 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref)
 			if (hp->ref == ref) {
 				WT_STAT_CONN_INCRV(session,
 				    cache_hazard_walks, walk_cnt);
-				return (hp);
+				goto done;
 			}
 		}
 	}
 	WT_STAT_CONN_INCRV(session, cache_hazard_walks, walk_cnt);
-	return (NULL);
+	hp = NULL;
+
+done:	/* Leave the current resource generation. */
+	__wt_session_gen_leave(session, WT_GEN_HAZARD);
+	return (hp);
 }
 
 /*
@@ -375,11 +394,17 @@ __wt_hazard_count(WT_SESSION_IMPL *session, WT_REF *ref)
 	uint32_t i, hazard_inuse;
 	u_int count;
 
+	/* Enter the current resource generation. */
+	__wt_session_gen_enter(session, WT_GEN_HAZARD);
+
 	hazard_get_reference(session, &hp, &hazard_inuse);
 
 	for (count = 0, i = 0; i < hazard_inuse; ++hp, ++i)
 		if (hp->ref == ref)
 			++count;
+
+	/* Leave the current resource generation. */
+	__wt_session_gen_leave(session, WT_GEN_HAZARD);
 
 	return (count);
 }
@@ -394,6 +419,9 @@ __hazard_dump(WT_SESSION_IMPL *session)
 {
 	WT_HAZARD *hp;
 
+	/* Enter the current resource generation. */
+	__wt_session_gen_enter(session, WT_GEN_HAZARD);
+
 	for (hp = session->hazard;
 	    hp < session->hazard + session->hazard_inuse; ++hp)
 		if (hp->ref != NULL)
@@ -401,5 +429,8 @@ __hazard_dump(WT_SESSION_IMPL *session)
 			    "session %p: hazard pointer %p: %s, line %d",
 			    (void *)session,
 			    (void *)hp->ref, hp->file, hp->line);
+
+	/* Leave the current resource generation. */
+	__wt_session_gen_leave(session, WT_GEN_HAZARD);
 }
 #endif
