@@ -54,7 +54,7 @@ import numbers
 		$action
 	}
 	catch (workgen::WorkgenException &wge) {
-		SWIG_Error(SWIG_RuntimeError, wge._str.c_str());
+		SWIG_exception_fail(SWIG_RuntimeError, wge._str.c_str());
 	}
 }
 
