@@ -496,12 +496,14 @@ int
 __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
     uint32_t flags, WT_MYSLOT *myslot)
 {
+	struct timespec start, stop;
 	WT_CONNECTION_IMPL *conn;
 	WT_LOG *log;
 	WT_LOGSLOT *slot;
+	uint64_t usecs;
 	int64_t flag_state, new_state, old_state, released;
 	int32_t join_offset, new_join;
-	bool unbuffered, yld;
+	bool diag_yield, unbuffered, yielded;
 
 	conn = S2C(session);
 	log = conn->log;
@@ -512,13 +514,13 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 	/*
 	 * There should almost always be a slot open.
 	 */
-	unbuffered = false;
+	unbuffered = yielded = false;
 #ifdef	HAVE_DIAGNOSTIC
-	yld = (++log->write_calls % 7) == 0;
+	diag_yield = (++log->write_calls % 7) == 0;
 	if ((log->write_calls % WT_THOUSAND) == 0 ||
 	    mysize > WT_LOG_SLOT_BUF_MAX) {
 #else
-	yld = false;
+	diag_yield = false;
 	if (mysize > WT_LOG_SLOT_BUF_MAX) {
 #endif
 		unbuffered = true;
@@ -548,7 +550,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 			/*
 			 * Braces used due to potential empty body warning.
 			 */
-			if (yld) {
+			if (diag_yield) {
 				WT_DIAGNOSTIC_YIELD;
 			}
 			/*
@@ -560,6 +562,9 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 			WT_STAT_CONN_INCR(session, log_slot_races);
 		} else
 			WT_STAT_CONN_INCR(session, log_slot_active_closed);
+		if (!yielded)
+			__wt_epoch(session, &start);
+		yielded = true;
 		/*
 		 * The slot is no longer open or we lost the race to
 		 * update it.  Yield and try again.
@@ -570,6 +575,13 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 	 * We joined this slot.  Fill in our information to return to
 	 * the caller.
 	 */
+	if (!yielded)
+		WT_STAT_CONN_INCR(session, log_slot_joins_immediate);
+	else {
+		__wt_epoch(session, &stop);
+		usecs = WT_TIMEDIFF_US(stop, start);
+		WT_STAT_CONN_INCRV(session, log_slot_joins_duration, usecs);
+	}
 	WT_STAT_CONN_INCR(session, log_slot_joins);
 	if (LF_ISSET(WT_LOG_DSYNC | WT_LOG_FSYNC))
 		F_SET(slot, WT_SLOT_SYNC_DIR);
