@@ -130,7 +130,7 @@ usage(void)
 
 /*
  * Child process creates the database and table, and then writes data into
- * the table until it is switches into log file 2.
+ * the table until it switches into log file 2.
  */
 static void fill_db(void)
     WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
