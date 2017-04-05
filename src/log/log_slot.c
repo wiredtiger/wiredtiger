@@ -579,7 +579,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 			__wt_yield();
 		else {
 			__wt_sleep(0, WT_THOUSAND);
-			WT_STAT_CONN_INCR(session, log_slot_immediate);
+			WT_STAT_CONN_INCR(session, log_slot_sleeps);
 			slept = true;
 		}
 	}
