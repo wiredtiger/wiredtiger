@@ -123,7 +123,6 @@ struct Operation {
     Value _value;
     std::vector<Operation> *_children;
     int _repeatchildren;
-    bool _repeatinf;
 
     Operation();
     Operation(OpType optype, Table table, Key key, Value value);
@@ -146,16 +145,18 @@ struct Thread {
     std::vector<Operation> _ops;
     std::string _name;
     bool _stop;
+    int _count;
 #ifndef SWIG
     WT_SESSION *_session;
     char *_keybuf;
     char *_valuebuf;
+    bool _repeat;
 #endif
 
     /* XXX throttle info, etc. */
 
     Thread();
-    Thread(const std::vector<Operation> &ops);
+    Thread(const std::vector<Operation> &ops, int count = 1);
     Thread(const Thread &other);
     ~Thread();
 

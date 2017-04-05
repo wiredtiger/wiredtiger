@@ -13,7 +13,7 @@ execute(conn, pop_workload)
 print('populate finished')
 
 op = Operation(Operation.OP_SEARCH, Table(tname), Key(Key.KEYGEN_UNIFORM, 10))
-thread = Thread(OpList([op * float('inf')]))
+thread = Thread(OpList([op]))
 workload = Workload(ThreadList([thread]))
 workload._run_time = 120
 workload._report_interval = 5

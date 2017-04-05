@@ -85,17 +85,12 @@ WorkgenClass(Workload)
 
 %extend workgen::Operation {
 %pythoncode %{
-    _inf = float('inf')
     def __mul__(self, other):
-        isinf = (other == self._inf)
-        if not isinstance(other, numbers.Integral) and not isinf:
+        if not isinstance(other, numbers.Integral):
             raise Exception('Operation.__mul__ requires an integral number')
         op = Operation()
         op._children = OpList([self])
-        if isinf:
-            op._repeatinf = True
-        else:
-            op._repeatchildren = other
+        op._repeatchildren = other
         return op
 
     __rmul__ = __mul__

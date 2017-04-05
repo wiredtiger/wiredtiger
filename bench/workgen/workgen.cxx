@@ -72,16 +72,19 @@ void Value::size_buffer(size_t &valuesize) const {
         valuesize = _size;
 }
 
-Thread::Thread() : _ops(), _name(), _stop(false), _session(NULL), _keybuf(NULL),
-    _valuebuf(NULL) {
+Thread::Thread() : _ops(), _name(), _stop(false), _count(0), _session(NULL),
+    _keybuf(NULL), _valuebuf(NULL), _repeat(false) {
 }
 
-Thread::Thread(const std::vector<Operation> &ops) : _ops(ops), _name(),
-    _stop(false), _session(NULL), _keybuf(NULL), _valuebuf(NULL) {
+Thread::Thread(const std::vector<Operation> &ops, int count) : _ops(ops),
+    _name(), _stop(false), _count(count), _session(NULL), _keybuf(NULL),
+    _valuebuf(NULL), _repeat(false) {
 }
 
 Thread::Thread(const Thread &other) : _ops(other._ops), _name(other._name),
-    _stop(false), _session(NULL), _keybuf(NULL), _valuebuf(NULL) {
+    _stop(false), _count(other._count), _session(NULL), _keybuf(NULL),
+    _valuebuf(NULL), _repeat(false) {
+    // Note: a partial copy, we only want one thread to own _keybuf, _valuebuf.
 }
 
 Thread::~Thread() {
@@ -137,14 +140,14 @@ int Thread::run(WorkgenContext &context) {
     VERBOSE(context, "thread " << name << " running");
 
     context._nrecords = 0;
-    for (std::vector<Operation>::iterator i = _ops.begin();
-      !_stop && i != _ops.end(); i++) {
-        WT_TRET(i->run(context));
-        if (ret != 0) {
-            std::cerr << "thread " << name << " failed err="
-                      << ret << std::endl;
-        }
-    }
+    for (int cnt = 0; !_stop && (_repeat || cnt < _count); cnt++)
+        for (std::vector<Operation>::iterator i = _ops.begin();
+          !_stop && i != _ops.end(); i++)
+            WT_TRET(i->run(context));
+
+    if (ret != 0)
+        std::cerr << "thread " << name << " failed err="
+                  << ret << std::endl;
     VERBOSE(context, "thread " << name << "finished");
     return (ret);
 }
@@ -163,17 +166,17 @@ void Thread::clear_stats() {
 
 Operation::Operation() :
     _optype(OP_NONE), _table(), _key(), _value(), _children(NULL),
-    _repeatchildren(0), _repeatinf(false) {
+    _repeatchildren(0) {
 }
 
 Operation::Operation(OpType optype, Table table, Key key, Value value) :
     _optype(optype), _table(table), _key(key), _value(value), _children(NULL),
-    _repeatchildren(0), _repeatinf(false) {
+    _repeatchildren(0) {
 }
 
 Operation::Operation(OpType optype, Table table, Key key) :
     _optype(optype), _table(table), _key(key), _value(), _children(NULL),
-    _repeatchildren(0), _repeatinf(false) {
+    _repeatchildren(0) {
     if (_optype == OP_INSERT || _optype == OP_UPDATE) {
         WorkgenException wge(0, "OP_INSERT and OP_UPDATE require a value");
 	throw(wge);
@@ -183,7 +186,7 @@ Operation::Operation(OpType optype, Table table, Key key) :
 Operation::Operation(const Operation &other) :
     _optype(other._optype), _table(other._table), _key(other._key),
     _value(other._value), _children(other._children),
-    _repeatchildren(other._repeatchildren), _repeatinf(other._repeatinf) {
+    _repeatchildren(other._repeatchildren) {
     // Creation and destruction of _children is managed by Python.
 }
 
@@ -200,12 +203,7 @@ void Operation::describe(std::ostream &os) const {
         os << ", "; _value.describe(os);
     }
     if (_children != NULL) {
-        os << ", children[";
-        if (_repeatinf)
-            os << "inf";
-        else
-            os << _repeatchildren;
-        os << "]: {";
+        os << ", children[" << _repeatchildren << "]: {";
         bool first = true;
         for (std::vector<Operation>::const_iterator i = _children->begin();
              i != _children->end(); i++) {
@@ -277,8 +275,7 @@ int Operation::run(WorkgenContext &context) {
         }
     }
     if (_children != NULL)
-        for (int count = 0;
-          !thread->_stop && (_repeatinf || count < _repeatchildren); count++)
+        for (int count = 0; !thread->_stop && count < _repeatchildren; count++)
             for (std::vector<Operation>::iterator i = _children->begin();
               i != _children->end(); i++)
                 WT_RET(i->run(context));
@@ -462,6 +459,7 @@ int Workload::run_all(std::vector<WorkgenContext> &contexts) {
     for (int i = 0; i < (int)_threads.size(); i++) {
         _threads[i].clear_stats();
         _threads[i]._stop = false;
+        _threads[i]._repeat = (_run_time != 0);
         // TODO: on error, clean up already started threads, set _stop flag.
         WT_RET(pthread_create(&thread_handles[i], NULL, thread_runner,
             &contexts[i]));
