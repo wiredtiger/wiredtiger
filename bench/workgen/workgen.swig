@@ -85,33 +85,31 @@ WorkgenClass(Workload)
 
 %extend workgen::Operation {
 %pythoncode %{
-	_inf = float('inf')
-	def __mul__(self, other):
-		isinf = (other == self._inf)
-		if not isinstance(other, numbers.Integral) and not isinf:
-			raise Exception('Operation.__mul__ requires an ' \
-			    'integral number')
-		op = Operation()
-		op._children = OpList([self])
-		if isinf:
-			op._repeatinf = True
-		else:
-			op._repeatchildren = other
-		return op
+    _inf = float('inf')
+    def __mul__(self, other):
+        isinf = (other == self._inf)
+        if not isinstance(other, numbers.Integral) and not isinf:
+            raise Exception('Operation.__mul__ requires an integral number')
+        op = Operation()
+        op._children = OpList([self])
+        if isinf:
+            op._repeatinf = True
+        else:
+            op._repeatchildren = other
+        return op
 
-	__rmul__ = __mul__
+    __rmul__ = __mul__
 
-	def __add__(self, other):
-		if type(self) != type(other):
-			raise Exception('Operation.__sum__ requires an ' \
-			    'Operation')
-		if self._children == None or self._repeatchildren != 1:
-			op = Operation()
-			op._children = OpList([self, other])
-			op._repeatchildren = 1
-			return op
-		else:
-			self._children.append(other)
-			return self
+    def __add__(self, other):
+        if type(self) != type(other):
+            raise Exception('Operation.__sum__ requires an Operation')
+        if self._children == None or self._repeatchildren != 1:
+            op = Operation()
+            op._children = OpList([self, other])
+            op._repeatchildren = 1
+            return op
+        else:
+            self._children.append(other)
+            return self
 %}
 };
