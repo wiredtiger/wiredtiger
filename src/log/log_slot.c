@@ -503,7 +503,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 	uint64_t usecs;
 	int64_t flag_state, new_state, old_state, released;
 	int32_t join_offset, new_join;
-	bool diag_yield, unbuffered, yielded;
+	bool closed, diag_yield, raced, unbuffered, yielded;
 
 	conn = S2C(session);
 	log = conn->log;
@@ -515,6 +515,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 	 * There should almost always be a slot open.
 	 */
 	unbuffered = yielded = false;
+	closed = raced = false;
 #ifdef	HAVE_DIAGNOSTIC
 	diag_yield = (++log->write_calls % 7) == 0;
 	if ((log->write_calls % WT_THOUSAND) == 0 ||
@@ -560,8 +561,11 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 			    &slot->slot_state, old_state, new_state))
 				break;
 			WT_STAT_CONN_INCR(session, log_slot_races);
-		} else
+			raced = true;
+		} else {
 			WT_STAT_CONN_INCR(session, log_slot_active_closed);
+			closed = true;
+		}
 		if (!yielded)
 			__wt_epoch(session, &start);
 		yielded = true;
@@ -582,6 +586,10 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 		__wt_epoch(session, &stop);
 		usecs = WT_TIMEDIFF_US(stop, start);
 		WT_STAT_CONN_INCRV(session, log_slot_joins_duration, usecs);
+		if (closed)
+			WT_STAT_CONN_INCR(session, log_slot_joins_yield_close);
+		if (raced)
+			WT_STAT_CONN_INCR(session, log_slot_joins_yield_race);
 	}
 	if (LF_ISSET(WT_LOG_DSYNC | WT_LOG_FSYNC))
 		F_SET(slot, WT_SLOT_SYNC_DIR);

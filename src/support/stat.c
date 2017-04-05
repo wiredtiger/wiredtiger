@@ -775,6 +775,8 @@ static const char * const __stats_connection_desc[] = {
 	"log: consolidated slot join active slot closed",
 	"log: consolidated slot join calls did not yield",
 	"log: consolidated slot join calls yielded",
+	"log: consolidated slot join calls yielded active slot closed",
+	"log: consolidated slot join calls yielded raced",
 	"log: consolidated slot join races",
 	"log: consolidated slot join transitions",
 	"log: consolidated slot joins yield time (usecs)",
@@ -1063,6 +1065,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->log_slot_active_closed = 0;
 	stats->log_slot_joins_immediate = 0;
 	stats->log_slot_joins_yield = 0;
+	stats->log_slot_joins_yield_close = 0;
+	stats->log_slot_joins_yield_race = 0;
 	stats->log_slot_races = 0;
 	stats->log_slot_transitions = 0;
 		/* not clearing log_slot_joins_duration */
@@ -1383,6 +1387,10 @@ __wt_stat_connection_aggregate(
 	to->log_slot_joins_immediate +=
 	    WT_STAT_READ(from, log_slot_joins_immediate);
 	to->log_slot_joins_yield += WT_STAT_READ(from, log_slot_joins_yield);
+	to->log_slot_joins_yield_close +=
+	    WT_STAT_READ(from, log_slot_joins_yield_close);
+	to->log_slot_joins_yield_race +=
+	    WT_STAT_READ(from, log_slot_joins_yield_race);
 	to->log_slot_races += WT_STAT_READ(from, log_slot_races);
 	to->log_slot_transitions += WT_STAT_READ(from, log_slot_transitions);
 	to->log_slot_joins_duration +=
