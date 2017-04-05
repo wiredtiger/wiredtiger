@@ -4642,14 +4642,14 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_LOG_SLOT_CLOSES			1147
 /*! log: consolidated slot join active slot closed */
 #define	WT_STAT_CONN_LOG_SLOT_ACTIVE_CLOSED		1148
+/*! log: consolidated slot join calls yielded */
+#define	WT_STAT_CONN_LOG_SLOT_JOINS_YIELD		1149
+/*! log: consolidated slot join callss did not yield */
+#define	WT_STAT_CONN_LOG_SLOT_JOINS_IMMEDIATE		1150
 /*! log: consolidated slot join races */
-#define	WT_STAT_CONN_LOG_SLOT_RACES			1149
+#define	WT_STAT_CONN_LOG_SLOT_RACES			1151
 /*! log: consolidated slot join transitions */
-#define	WT_STAT_CONN_LOG_SLOT_TRANSITIONS		1150
-/*! log: consolidated slot joins */
-#define	WT_STAT_CONN_LOG_SLOT_JOINS			1151
-/*! log: consolidated slot joins did not yield */
-#define	WT_STAT_CONN_LOG_SLOT_JOINS_IMMEDIATE		1152
+#define	WT_STAT_CONN_LOG_SLOT_TRANSITIONS		1152
 /*! log: consolidated slot joins yield time (usecs) */
 #define	WT_STAT_CONN_LOG_SLOT_JOINS_DURATION		1153
 /*! log: consolidated slot transitions unable to find free slot */

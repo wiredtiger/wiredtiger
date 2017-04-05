@@ -578,11 +578,11 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 	if (!yielded)
 		WT_STAT_CONN_INCR(session, log_slot_joins_immediate);
 	else {
+		WT_STAT_CONN_INCR(session, log_slot_joins_yield);
 		__wt_epoch(session, &stop);
 		usecs = WT_TIMEDIFF_US(stop, start);
 		WT_STAT_CONN_INCRV(session, log_slot_joins_duration, usecs);
 	}
-	WT_STAT_CONN_INCR(session, log_slot_joins);
 	if (LF_ISSET(WT_LOG_DSYNC | WT_LOG_FSYNC))
 		F_SET(slot, WT_SLOT_SYNC_DIR);
 	if (LF_ISSET(WT_LOG_FLUSH))
