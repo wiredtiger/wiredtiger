@@ -234,6 +234,7 @@ struct __wt_session_impl {
 	tr->op_id = s->name[0];						\
 	if (s->trackbuf_ptr == MAXRECS) {				\
 		s->trackbuf_ptr = 0;					\
-		if (session->trackfd > 0)				\
-			write(s->trackfd, s->trackbuffer, BUFSIZE);     \
 	}
+
+		//if (session->trackfd > 0)				\
+		//pwrite(s->trackfd, s->trackbuffer, BUFSIZE, 0);	\

@@ -1891,7 +1891,7 @@ __open_session(WT_CONNECTION_IMPL *conn,
 
 	/* Init tracking */
 	char fname[64];
-	snprintf(fname, 64, "%s/track.%d", "/mnt/fast/sasha",
+	snprintf(fname, 64, "%s/track.%d", "/dev/shm",
 		 session_ret->id);
 	session_ret->trackfd = open(fname, O_CREAT | O_RDWR | O_TRUNC, 
 		S_IRUSR | S_IWUSR);
