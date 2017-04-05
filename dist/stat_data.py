@@ -329,7 +329,7 @@ connection_stats = [
     LogStat('log_slot_coalesced', 'written slots coalesced'),
     LogStat('log_slot_consolidated', 'logging bytes consolidated', 'size'),
     LogStat('log_slot_joins_duration', 'consolidated slot joins yield time (usecs)', 'no_clear,no_scale'),
-    LogStat('log_slot_joins_immediate', 'consolidated slot join callss did not yield'),
+    LogStat('log_slot_joins_immediate', 'consolidated slot join calls did not yield'),
     LogStat('log_slot_joins_yield', 'consolidated slot join calls yielded'),
     LogStat('log_slot_no_free_slots', 'consolidated slot transitions unable to find free slot'),
     LogStat('log_slot_races', 'consolidated slot join races'),
