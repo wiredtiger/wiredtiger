@@ -181,18 +181,7 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 		 */
 		WT_PUBLISH(btree->checkpointing, WT_CKPT_PREPARE);
 
-		/*
-		 * Sync for checkpoint allows splits to happen while the queue
-		 * is being drained, but not reconciliation. We need to do this,
-		 * since draining the queue can take long enough for hot pages
-		 * to grow significantly larger than the configured maximum
-		 * size.
-		 */
-		F_SET(btree, WT_BTREE_ALLOW_SPLITS);
-		ret = __wt_evict_file_exclusive_on(session);
-		F_CLR(btree, WT_BTREE_ALLOW_SPLITS);
-		WT_ERR(ret);
-		__wt_evict_file_exclusive_off(session);
+		(void)__wt_gen_next_drain(session, WT_GEN_EVICT);
 
 		WT_PUBLISH(btree->checkpointing, WT_CKPT_RUNNING);
 
