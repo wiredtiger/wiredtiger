@@ -58,6 +58,29 @@ import numbers
 	}
 }
 
+/*
+ * Some functions are long running, turn off signal handling that was enabled
+ * by the Python interpreter.  This means that a signal handler coded in Python
+ * won't work when spanning a call to one of these long running functions, but
+ * it's doubtful our test scripts need signals at all.  This could be made to
+ * work, it's just not worth the trouble.
+ */
+%define InterruptableFunction(funcname)
+%exception funcname {
+	try {
+		void (*savesig)(int) = signal(SIGINT, SIG_DFL);
+		$action
+		(void)signal(SIGINT, savesig);
+	}
+	catch (workgen::WorkgenException &wge) {
+		SWIG_exception_fail(SWIG_RuntimeError, wge._str.c_str());
+	}
+}
+%enddef
+
+InterruptableFunction(workgen::execute)
+InterruptableFunction(workgen::Workload::run)
+
 %module workgen
 /* Parse the header to generate wrappers. */
 %include "workgen.h"
