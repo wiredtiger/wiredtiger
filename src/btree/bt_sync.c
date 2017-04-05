@@ -179,11 +179,13 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 		 * Set the checkpointing flag to block such actions and wait for
 		 * any problematic eviction or page splits to complete.
 		 */
-		WT_PUBLISH(btree->checkpointing, WT_CKPT_PREPARE);
+		btree->checkpointing = WT_CKPT_PREPARE;
+		WT_FULL_BARRIER();
 
 		(void)__wt_gen_next_drain(session, WT_GEN_EVICT);
 
-		WT_PUBLISH(btree->checkpointing, WT_CKPT_RUNNING);
+		btree->checkpointing = WT_CKPT_RUNNING;
+		WT_FULL_BARRIER();
 
 		/* Write all dirty in-cache pages. */
 		flags |= WT_READ_NO_EVICT;
