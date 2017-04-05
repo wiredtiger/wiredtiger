@@ -3,9 +3,9 @@ PYDIRS = -t $(abs_builddir) -I $(abs_top_srcdir):$(abs_top_builddir) -L $(abs_to
 all-local: _workgen.so
 
 # We keep generated Python sources under bench/workgen.
-$(PYSRC)/workgen_wrap.cxx: $(PYSRC)/workgen.h $(PYSRC)/workgen.i
+$(PYSRC)/workgen_wrap.cxx: $(PYSRC)/workgen.h $(PYSRC)/workgen.swig
 	(cd $(PYSRC) && \
-	    $(SWIG) -c++ -python -threads -O -Wall -I$(abs_top_builddir) -outdir ./workgen workgen.i)
+	    $(SWIG) -c++ -python -threads -O -Wall -I$(abs_top_builddir) -outdir ./workgen workgen.swig)
 
 _workgen.so: $(top_builddir)/libwiredtiger.la $(PYSRC)/workgen_wrap.cxx $(PYSRC)/workgen.cxx
 	(cd $(PYSRC) && \
