@@ -110,8 +110,7 @@ __checkpoint_update_generation(WT_SESSION_IMPL *session)
 	if (WT_IS_METADATA(session->dhandle))
 		return;
 
-	WT_PUBLISH(btree->checkpoint_gen,
-	    S2C(session)->txn_global.checkpoint_gen);
+	WT_PUBLISH(btree->checkpoint_gen, __wt_gen(session, WT_GEN_CHECKPOINT));
 	WT_STAT_DATA_SET(session,
 	    btree_checkpoint_generation, btree->checkpoint_gen);
 }
@@ -306,7 +305,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_ASSERT(session, !F_ISSET(&session->txn, WT_TXN_ERROR));
 		WT_RET(__wt_metadata_cursor(session, &meta_cursor));
 		meta_cursor->set_key(meta_cursor, session->dhandle->name);
-		ret = __wt_curfile_update_check(meta_cursor);
+		ret = __wt_curfile_insert_check(meta_cursor);
 		if (ret == WT_ROLLBACK) {
 			metadata_race = true;
 			ret = 0;
@@ -533,7 +532,7 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session,
 	__wt_verbose(session,
 	    WT_VERB_CHECKPOINT, "time: %" PRIu64 " us, gen: %" PRIu64
 	    ": Full database checkpoint %s",
-	    msec, S2C(session)->txn_global.checkpoint_gen, msg);
+	    msec, __wt_gen(session, WT_GEN_CHECKPOINT), msg);
 
 	/* Update the timestamp so we are reporting intervals. */
 	memcpy(start, &stop, sizeof(*start));
@@ -667,7 +666,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN_ISOLATION saved_isolation;
 	void *saved_meta_next;
 	u_int i;
-	uint64_t fsync_duration_usecs;
+	uint64_t fsync_duration_usecs, generation;
 	bool failed, full, idle, logging, tracking;
 
 	conn = S2C(session);
@@ -733,9 +732,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * of the transaction table, or a thread evicting in a tree could
 	 * ignore the checkpoint's transaction.
 	 */
-	(void)__wt_atomic_addv64(&txn_global->checkpoint_gen, 1);
-	WT_STAT_CONN_SET(session,
-	    txn_checkpoint_generation, txn_global->checkpoint_gen);
+	generation = __wt_gen_next(session, WT_GEN_CHECKPOINT);
+	WT_STAT_CONN_SET(session, txn_checkpoint_generation, generation);
 
 	/* Keep track of handles acquired for locking. */
 	WT_ERR(__wt_meta_track_on(session));
@@ -1549,8 +1547,8 @@ __checkpoint_presync(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_UNUSED(cfg);
 
 	btree = S2BT(session);
-	WT_ASSERT(session, btree->checkpoint_gen ==
-	    S2C(session)->txn_global.checkpoint_gen);
+	WT_ASSERT(session,
+	    btree->checkpoint_gen == __wt_gen(session, WT_GEN_CHECKPOINT));
 	btree->evict_walk_period = btree->evict_walk_saved;
 	return (0);
 }
@@ -1599,7 +1597,9 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
 int
 __wt_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 {
+	WT_CONFIG_ITEM cval;
 	WT_DECL_RET;
+	bool force;
 
 	/* Should not be called with a checkpoint handle. */
 	WT_ASSERT(session, session->dhandle->checkpoint == NULL);
@@ -1608,8 +1608,10 @@ __wt_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_ASSERT(session, !WT_IS_METADATA(session->dhandle) ||
 	    F_ISSET(session, WT_SESSION_LOCKED_METADATA));
 
+	WT_RET(__wt_config_gets_def(session, cfg, "force", 0, &cval));
+	force = cval.val != 0;
 	WT_SAVE_DHANDLE(session, ret = __checkpoint_lock_dirty_tree(
-	    session, true, false, true, cfg));
+	    session, true, force, true, cfg));
 	WT_RET(ret);
 	if (F_ISSET(S2BT(session), WT_BTREE_SKIP_CKPT))
 		return (0);

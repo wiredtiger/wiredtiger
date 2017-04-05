@@ -99,6 +99,9 @@ __wt_session_release_resources(WT_SESSION_IMPL *session)
 	if (session->reconcile_cleanup != NULL)
 		WT_TRET(session->reconcile_cleanup(session));
 
+	/* Stashed memory. */
+	__wt_stash_discard(session);
+
 	/*
 	 * Discard scratch buffers, error memory; last, just in case a cleanup
 	 * routine uses scratch buffers.
@@ -1206,10 +1209,15 @@ __wt_session_range_truncate(WT_SESSION_IMPL *session,
 
 done:
 err:	/*
-	 * Close any locally-opened start cursor.
+	 * Close any locally-opened start cursor. Reset application cursors,
+	 * they've possibly moved and the application cannot use them.
 	 */
 	if (local_start)
 		WT_TRET(start->close(start));
+	else
+		WT_TRET(start->reset(start));
+	if (stop != NULL)
+		WT_TRET(stop->reset(stop));
 	return (ret);
 }
 
@@ -1497,7 +1505,7 @@ __transaction_sync_run_chk(WT_SESSION_IMPL *session)
 
 	conn = S2C(session);
 
-	return (FLD_ISSET(conn->flags, WT_CONN_LOG_SERVER_RUN));
+	return (FLD_ISSET(conn->flags, WT_CONN_SERVER_LOG));
 }
 
 /*
@@ -1807,7 +1815,7 @@ __open_session(WT_CONNECTION_IMPL *conn,
 	 * closes the connection.  This is particularly intended to catch
 	 * cases where server threads open sessions.
 	 */
-	WT_ASSERT(session, F_ISSET(conn, WT_CONN_SERVER_RUN));
+	WT_ASSERT(session, !F_ISSET(conn, WT_CONN_CLOSING));
 
 	/* Find the first inactive session slot. */
 	for (session_ret = conn->sessions,
