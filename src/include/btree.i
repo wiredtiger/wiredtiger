@@ -1360,8 +1360,8 @@ __wt_page_can_evict(
 	 * that case, no readers can be looking at an old index.
 	 */
 	if (!F_ISSET(session->dhandle, WT_DHANDLE_EXCLUSIVE) &&
-	    WT_PAGE_IS_INTERNAL(page) && !__wt_split_obsolete(
-	    session, page->pg_intl_split_gen))
+	    WT_PAGE_IS_INTERNAL(page) &&
+	    page->pg_intl_split_gen >= __wt_gen_oldest(session, WT_GEN_SPLIT))
 		return (false);
 
 	/*
