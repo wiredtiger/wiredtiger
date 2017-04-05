@@ -158,11 +158,11 @@ wiredtiger_config_validate(WT_SESSION *wt_session,
 }
 
 /*
- * __wt_conn_foc_add --
+ * __conn_foc_add --
  *	Add a new entry into the connection's free-on-close list.
  */
-void
-__wt_conn_foc_add(WT_SESSION_IMPL *session, const void *p)
+static void
+__conn_foc_add(WT_SESSION_IMPL *session, const void *p)
 {
 	WT_CONNECTION_IMPL *conn;
 
@@ -215,7 +215,7 @@ __wt_configure_method(WT_SESSION_IMPL *session,
 	WT_CONFIG_ENTRY *entry;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-	size_t cnt;
+	size_t cnt, len;
 	char *newcheck_name, *p;
 
 	/*
@@ -276,12 +276,10 @@ __wt_configure_method(WT_SESSION_IMPL *session,
 	 */
 	WT_ERR(__wt_calloc_one(session, &entry));
 	entry->method = (*epp)->method;
-	WT_ERR(__wt_calloc_def(session,
-	    strlen((*epp)->base) + strlen(",") + strlen(config) + 1, &p));
-	(void)strcpy(p, (*epp)->base);
-	(void)strcat(p, ",");
-	(void)strcat(p, config);
+	len = strlen((*epp)->base) + strlen(",") + strlen(config) + 1;
+	WT_ERR(__wt_calloc_def(session, len, &p));
 	entry->base = p;
+	WT_ERR(__wt_snprintf(p, len, "%s,%s", (*epp)->base, config));
 
 	/*
 	 * There may be a default value in the config argument passed in (for
@@ -329,12 +327,12 @@ __wt_configure_method(WT_SESSION_IMPL *session,
 	 * order to avoid freeing chunks of memory twice.  Again, this isn't a
 	 * commonly used API and it shouldn't ever happen, just leak it.
 	 */
-	__wt_conn_foc_add(session, entry->base);
-	__wt_conn_foc_add(session, entry);
-	__wt_conn_foc_add(session, checks);
-	__wt_conn_foc_add(session, newcheck->type);
-	__wt_conn_foc_add(session, newcheck->checks);
-	__wt_conn_foc_add(session, newcheck_name);
+	__conn_foc_add(session, entry->base);
+	__conn_foc_add(session, entry);
+	__conn_foc_add(session, checks);
+	__conn_foc_add(session, newcheck->type);
+	__conn_foc_add(session, newcheck->checks);
+	__conn_foc_add(session, newcheck_name);
 
 	/*
 	 * Instead of using locks to protect configuration information, assume

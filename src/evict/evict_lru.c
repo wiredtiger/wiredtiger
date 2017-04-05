@@ -271,8 +271,19 @@ __wt_evict_server_wake(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_evict_thread_chk --
+ *	Check to decide if the eviction thread should continue running.
+ */
+bool
+__wt_evict_thread_chk(WT_SESSION_IMPL *session)
+{
+	return (F_ISSET(S2C(session), WT_CONN_EVICTION_RUN));
+}
+
+/*
  * __wt_evict_thread_run --
- *	Starting point for an eviction thread.
+ *	Entry function for an eviction thread.  This is called repeatedly
+ *	from the thread group code so it does not need to loop itself.
  */
 int
 __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
@@ -285,73 +296,83 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 	conn = S2C(session);
 	cache = conn->cache;
 
-#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
 	/*
-	 * Ensure the cache stuck timer is initialized when starting eviction.
+	 * The thread group code calls us repeatedly.  So each call is one pass
+	 * through eviction.
 	 */
-	if (thread->id == 0)
-		__wt_epoch(session, &cache->stuck_ts);
-#endif
+	if (conn->evict_server_running &&
+	    __wt_spin_trylock(session, &cache->evict_pass_lock) == 0) {
+		/*
+		 * Cannot use WT_WITH_PASS_LOCK because this is a try lock.
+		 * Fix when that is supported.  We set the flag on both sessions
+		 * because we may call clear_walk when we are walking with
+		 * the walk session, locked.
+		 */
+		F_SET(session, WT_SESSION_LOCKED_PASS);
+		F_SET(cache->walk_session, WT_SESSION_LOCKED_PASS);
+		ret = __evict_server(session, &did_work);
+		F_CLR(cache->walk_session, WT_SESSION_LOCKED_PASS);
+		F_CLR(session, WT_SESSION_LOCKED_PASS);
+		was_intr = cache->pass_intr != 0;
+		__wt_spin_unlock(session, &cache->evict_pass_lock);
+		WT_ERR(ret);
 
-	while (F_ISSET(conn, WT_CONN_EVICTION_RUN) &&
-	    F_ISSET(thread, WT_THREAD_RUN)) {
-		if (conn->evict_server_running &&
-		    __wt_spin_trylock(session, &cache->evict_pass_lock) == 0) {
-			/*
-			 * Cannot use WT_WITH_PASS_LOCK because this is a try
-			 * lock.  Fix when that is supported.  We set the flag
-			 * on both sessions because we may call clear_walk when
-			 * we are walking with the walk session, locked.
-			 */
-			F_SET(session, WT_SESSION_LOCKED_PASS);
-			F_SET(cache->walk_session, WT_SESSION_LOCKED_PASS);
-			ret = __evict_server(session, &did_work);
-			F_CLR(cache->walk_session, WT_SESSION_LOCKED_PASS);
-			F_CLR(session, WT_SESSION_LOCKED_PASS);
-			was_intr = cache->pass_intr != 0;
-			__wt_spin_unlock(session, &cache->evict_pass_lock);
-			WT_ERR(ret);
-
-			/*
-			 * If the eviction server was interrupted, wait until
-			 * requests have been processed: the system may
-			 * otherwise be busy so don't go to sleep.
-			 */
-			if (was_intr) {
-				while (cache->pass_intr != 0 &&
-				    F_ISSET(conn, WT_CONN_EVICTION_RUN) &&
-				    F_ISSET(thread, WT_THREAD_RUN))
-					__wt_yield();
-				continue;
-			}
-
+		/*
+		 * If the eviction server was interrupted, wait until requests
+		 * have been processed: the system may otherwise be busy so
+		 * don't go to sleep.
+		 */
+		if (was_intr)
+			while (cache->pass_intr != 0 &&
+			    F_ISSET(conn, WT_CONN_EVICTION_RUN) &&
+			    F_ISSET(thread, WT_THREAD_RUN))
+				__wt_yield();
+		else {
 			__wt_verbose(session, WT_VERB_EVICTSERVER, "sleeping");
 
 			/* Don't rely on signals: check periodically. */
-			__wt_cond_auto_wait(
-			    session, cache->evict_cond, did_work, NULL);
+			__wt_cond_auto_wait(session,
+			    cache->evict_cond, did_work, NULL);
 			__wt_verbose(session, WT_VERB_EVICTSERVER, "waking");
-		} else
-			WT_ERR(__evict_lru_pages(session, false));
-	}
+		}
+	} else
+		WT_ERR(__evict_lru_pages(session, false));
 
+	if (0) {
+err:		WT_PANIC_MSG(session, ret, "cache eviction thread error");
+	}
+	return (ret);
+}
+
+/*
+ * __wt_evict_thread_stop --
+ *	Shutdown function for an eviction thread.
+ */
+int
+__wt_evict_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
+{
+	WT_CACHE *cache;
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+
+	if (thread->id != 0)
+		return (0);
+
+	conn = S2C(session);
+	cache = conn->cache;
 	/*
 	 * The only time the first eviction thread is stopped is on shutdown:
 	 * in case any trees are still open, clear all walks now so that they
 	 * can be closed.
 	 */
-	if (thread->id == 0) {
-		WT_WITH_PASS_LOCK(session,
-		    ret = __evict_clear_all_walks(session));
-		WT_ERR(ret);
-		/*
-		 * The only two cases when the eviction server is expected to
-		 * stop are when recovery is finished or when the connection is
-		 * closing.
-		 */
-		WT_ASSERT(session,
-		    F_ISSET(conn, WT_CONN_CLOSING | WT_CONN_RECOVERING));
-	}
+	WT_WITH_PASS_LOCK(session, ret = __evict_clear_all_walks(session));
+	WT_ERR(ret);
+	/*
+	 * The only two cases when the eviction server is expected to
+	 * stop are when recovery is finished or when the connection is
+	 * closing.
+	 */
+	WT_ASSERT(session, F_ISSET(conn, WT_CONN_CLOSING | WT_CONN_RECOVERING));
 
 	__wt_verbose(
 	    session, WT_VERB_EVICTSERVER, "cache eviction thread exiting");
@@ -472,7 +493,15 @@ __wt_evict_create(WT_SESSION_IMPL *session)
 	 */
 	WT_RET(__wt_thread_group_create(session, &conn->evict_threads,
 	    "eviction-server", conn->evict_threads_min, conn->evict_threads_max,
-	     WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL, __wt_evict_thread_run));
+	     WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL, __wt_evict_thread_chk,
+	     __wt_evict_thread_run, __wt_evict_thread_stop));
+
+#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
+	/*
+	 * Ensure the cache stuck timer is initialized when starting eviction.
+	 */
+	__wt_epoch(session, &conn->cache->stuck_ts);
+#endif
 
 	/*
 	 * Allow queues to be populated now that the eviction threads
@@ -824,31 +853,19 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
 	btree = S2BT(session);
 	cache = S2C(session)->cache;
 
-	/*
-	 * Hold the walk lock to set the no-eviction flag.
-	 *
-	 * The no-eviction flag can be set permanently, in which case we never
-	 * increment the no-eviction count.
-	 */
+	/* Hold the walk lock to turn off eviction. */
 	__wt_spin_lock(session, &cache->evict_walk_lock);
-	if (F_ISSET(btree, WT_BTREE_NO_EVICTION)) {
-		if (btree->evict_disabled != 0)
-			++btree->evict_disabled;
+	if (++btree->evict_disabled > 1) {
 		__wt_spin_unlock(session, &cache->evict_walk_lock);
 		return (0);
 	}
-	++btree->evict_disabled;
 
 	/*
 	 * Ensure no new pages from the file will be queued for eviction after
-	 * this point.
+	 * this point, then clear any existing LRU eviction walk for the file.
 	 */
-	F_SET(btree, WT_BTREE_NO_EVICTION);
 	(void)__wt_atomic_addv32(&cache->pass_intr, 1);
-
-	/* Clear any existing LRU eviction walk for the file. */
-	WT_WITH_PASS_LOCK(session,
-	    ret = __evict_clear_walk(session));
+	WT_WITH_PASS_LOCK(session, ret = __evict_clear_walk(session));
 	(void)__wt_atomic_subv32(&cache->pass_intr, 1);
 	WT_ERR(ret);
 
@@ -879,7 +896,6 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
 
 	if (0) {
 err:		--btree->evict_disabled;
-		F_CLR(btree, WT_BTREE_NO_EVICTION);
 	}
 	__wt_spin_unlock(session, &cache->evict_walk_lock);
 	return (ret);
@@ -904,38 +920,41 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
 	 */
 	WT_DIAGNOSTIC_YIELD;
 
-	WT_ASSERT(session,
-	    btree->evict_ref == NULL && F_ISSET(btree, WT_BTREE_NO_EVICTION));
-
-	/*
-	 * The no-eviction flag can be set permanently, in which case we never
-	 * increment the no-eviction count.
-	 */
+	/* Hold the walk lock to turn on eviction. */
 	__wt_spin_lock(session, &cache->evict_walk_lock);
-	if (btree->evict_disabled > 0 && --btree->evict_disabled == 0)
-		F_CLR(btree, WT_BTREE_NO_EVICTION);
+	WT_ASSERT(session,
+	    btree->evict_ref == NULL && btree->evict_disabled > 0);
+	--btree->evict_disabled;
 	__wt_spin_unlock(session, &cache->evict_walk_lock);
 }
 
 #define	EVICT_TUNE_BATCH	1	/* Max workers to add each period */
-#define	EVICT_TUNE_DATAPT_MIN	3	/* Data points needed before deciding
-					   if we should keep adding workers or
-					   settle on an earlier value. */
+/*
+ * Data points needed before deciding if we should keep adding workers or settle
+ * on an earlier value.
+ */
+#define	EVICT_TUNE_DATAPT_MIN   3
 #define	EVICT_TUNE_PERIOD	1	/* Tune period in seconds */
+
+/*
+ * We will do a fresh re-tune every that many seconds to adjust to
+ * significant phase changes.
+ */
+#define	EVICT_FORCE_RETUNE	30
 
 /*
  * __evict_tune_workers --
  * Find the right number of eviction workers. Gradually ramp up the number of
  * workers increasing the number in batches indicated by the setting above.
- * Store the number of workers that gave us the best throughput so far and
- * the number of data points we have tried.
+ * Store the number of workers that gave us the best throughput so far and the
+ * number of data points we have tried.
  *
- * Every once in a while when we have the minimum number of data points
- * we check whether the eviction throughput achieved with the current number
- * of workers is the best we have seen so far. If so, we will keep increasing
- * the number of workers.  If not, we are past the infliction point on the
- * eviction throughput curve.  In that case, we will set the number of workers
- * to the best observed so far and settle into a stable state.
+ * Every once in a while when we have the minimum number of data points we check
+ * whether the eviction throughput achieved with the current number of workers
+ * is the best we have seen so far. If so, we will keep increasing the number of
+ * workers.  If not, we are past the infliction point on the eviction throughput
+ * curve.  In that case, we will set the number of workers to the best observed
+ * so far and settle into a stable state.
  */
 static int
 __evict_tune_workers(WT_SESSION_IMPL *session)
@@ -945,28 +964,60 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	uint64_t cur_threads, delta_msec, delta_pages, i, target_threads;
-	uint64_t pgs_evicted_cur, pgs_evicted_persec_cur;
+	uint64_t pgs_evicted_cur, pgs_evicted_persec_cur, time_diff;
 	uint32_t thread_surplus;
 
 	conn = S2C(session);
 	cache = conn->cache;
 
 	WT_ASSERT(session, conn->evict_threads.threads[0]->session == session);
-	pgs_evicted_persec_cur = 0;
-
-	if (conn->evict_tune_stable)
-		return (0);
+	pgs_evicted_cur = pgs_evicted_persec_cur = 0;
 
 	__wt_epoch(session, &current_time);
+	time_diff = WT_TIMEDIFF_SEC(current_time, conn->evict_tune_last_time);
 
 	/*
-	 * Every EVICT_TUNE_PERIOD seconds record the number of
-	 * pages evicted per second observed in the previous period.
+	 * If we have reached the stable state and have not run long enough to
+	 * surpass the forced re-tuning threshold, return.
 	 */
-	if (WT_TIMEDIFF_SEC(
-	    current_time, conn->evict_tune_last_time) < EVICT_TUNE_PERIOD)
-		return (0);
+	if (conn->evict_tune_stable) {
+		if (time_diff < EVICT_FORCE_RETUNE)
+			return (0);
 
+		/*
+		 * Stable state was reached a long time ago. Let's re-tune.
+		 * Reset all the state.
+		 */
+		conn->evict_tune_stable = 0;
+		conn->evict_tune_last_action_time.tv_sec = 0;
+		conn->evict_tune_pgs_last = 0;
+		conn->evict_tune_num_points = 0;
+		conn->evict_tune_pg_sec_max = 0;
+		conn->evict_tune_workers_best = 0;
+
+		/* Reduce the number of eviction workers to the minimum */
+		thread_surplus = conn->evict_threads.current_threads -
+		    conn->evict_threads_min;
+		for (i = 0; i < thread_surplus; i++) {
+			__wt_thread_group_stop_one(
+			    session, &conn->evict_threads);
+			WT_STAT_CONN_INCR(session,
+			    cache_eviction_worker_removed);
+		}
+		WT_STAT_CONN_INCR(session, cache_eviction_force_retune);
+	} else
+		if (time_diff < EVICT_TUNE_PERIOD)
+			/*
+			 * If we have not reached stable state, don't do
+			 * anything unless enough time has passed since the last
+			 * time we have taken any action in this function.
+			 */
+			return (0);
+
+	/*
+	 * Measure the number of evicted pages so far. Eviction rate correlates
+	 * to performance, so this is our metric of success.
+	 */
 	pgs_evicted_cur = cache->pages_evict;
 
 	/*
@@ -984,7 +1035,8 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	pgs_evicted_persec_cur = (delta_pages * WT_THOUSAND) / delta_msec;
 	conn->evict_tune_num_points++;
 
-	/* Keep track of the maximum eviction throughput seen and the number
+	/*
+	 * Keep track of the maximum eviction throughput seen and the number
 	 * of workers corresponding to that throughput.
 	 */
 	if (pgs_evicted_persec_cur > conn->evict_tune_pg_sec_max) {
@@ -1005,7 +1057,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	if (conn->evict_tune_num_points >= conn->evict_tune_datapts_needed) {
 		if ((conn->evict_tune_workers_best ==
 		    conn->evict_threads.current_threads) &&
-		   (conn->evict_threads.current_threads <
+		    (conn->evict_threads.current_threads <
 		    conn->evict_threads_max)) {
 			/*
 			 * Keep adding workers. We will check again
@@ -1014,7 +1066,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 			conn->evict_tune_datapts_needed +=
 			    WT_MIN(EVICT_TUNE_DATAPT_MIN,
 			    (conn->evict_threads_max
-			    - conn->evict_threads.current_threads)/
+			    - conn->evict_threads.current_threads) /
 			    EVICT_TUNE_BATCH);
 		} else {
 			/*
@@ -1032,10 +1084,10 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 				 * were unable to acquire the thread group lock.
 				 * Break out of trying.
 				 */
-				WT_ERR(__wt_thread_group_stop_one(
-				    session, &conn->evict_threads, false));
+				__wt_thread_group_stop_one(
+				    session, &conn->evict_threads);
 				WT_STAT_CONN_INCR(session,
-				  cache_eviction_worker_removed);
+				    cache_eviction_worker_removed);
 			}
 			WT_STAT_CONN_SET(session,
 			    cache_eviction_stable_state_workers,
@@ -1043,7 +1095,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 			conn->evict_tune_stable = true;
 			WT_STAT_CONN_SET(session, cache_eviction_active_workers,
 			    conn->evict_threads.current_threads);
-			return (0);
+			goto err;
 		}
 	}
 
@@ -1071,8 +1123,8 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 			 * unable to acquire the thread group lock.  Break out
 			 * of trying.
 			 */
-			WT_ERR(__wt_thread_group_start_one(session,
-			    &conn->evict_threads, false));
+			__wt_thread_group_start_one(session,
+			    &conn->evict_threads, false);
 			WT_STAT_CONN_INCR(session,
 			    cache_eviction_worker_created);
 			__wt_verbose(session, WT_VERB_EVICTSERVER,
@@ -1372,7 +1424,7 @@ retry:	while (slot < max_entries) {
 
 		/* Skip files that don't allow eviction. */
 		btree = dhandle->handle;
-		if (F_ISSET(btree, WT_BTREE_NO_EVICTION))
+		if (btree->evict_disabled > 0)
 			continue;
 
 		/*
@@ -1428,14 +1480,25 @@ retry:	while (slot < max_entries) {
 		 * the tree's current eviction point, and part of the process is
 		 * waiting on this thread to acknowledge that action.
 		 */
-		if (!F_ISSET(btree, WT_BTREE_NO_EVICTION) &&
+		if (btree->evict_disabled == 0 &&
 		    !__wt_spin_trylock(session, &cache->evict_walk_lock)) {
-			if (!F_ISSET(btree, WT_BTREE_NO_EVICTION)) {
+			if (btree->evict_disabled == 0) {
+				/*
+				 * Assert the handle has a root page: eviction
+				 * should have been locked out if the tree is
+				 * being discarded or the root page is changing.
+				 * As this has not always been the case, assert
+				 * to debug that change.
+				 */
+				WT_ASSERT(session, btree->root.page != NULL);
+
 				cache->evict_file_next = dhandle;
-				WT_WITH_DHANDLE(session, dhandle, ret =
-				    __evict_walk_file(session, queue,
-				    max_entries, &slot));
-				WT_ASSERT(session, session->split_gen == 0);
+				WT_WITH_DHANDLE(session, dhandle,
+				    ret = __evict_walk_file(
+				    session, queue, max_entries, &slot));
+
+				WT_ASSERT(session, __wt_session_gen(
+				    session, WT_GEN_SPLIT) == 0);
 			}
 			__wt_spin_unlock(session, &cache->evict_walk_lock);
 			WT_ERR(ret);
@@ -2124,6 +2187,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_STATE *txn_state;
 	uint64_t init_evict_count, max_pages_evicted;
+	bool timer;
 
 	conn = S2C(session);
 	cache = conn->cache;
@@ -2144,7 +2208,9 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 	__wt_evict_server_wake(session);
 
 	/* Track how long application threads spend doing eviction. */
-	if (WT_STAT_ENABLED(session) && !F_ISSET(session, WT_SESSION_INTERNAL))
+	timer =
+	    WT_STAT_ENABLED(session) && !F_ISSET(session, WT_SESSION_INTERNAL);
+	if (timer)
 		__wt_epoch(session, &enter);
 
 	for (init_evict_count = cache->pages_evict;; ret = 0) {
@@ -2210,8 +2276,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 		}
 	}
 
-err:	if (WT_STAT_ENABLED(session) &&
-	    !F_ISSET(session, WT_SESSION_INTERNAL)) {
+err:	if (timer) {
 		__wt_epoch(session, &leave);
 		WT_STAT_CONN_INCRV(session,
 		    application_cache_time, WT_TIMEDIFF_US(leave, enter));
@@ -2239,7 +2304,7 @@ __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
 
 	page = ref->page;
 	if (F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU) ||
-	    F_ISSET(S2BT(session), WT_BTREE_NO_EVICTION))
+	    S2BT(session)->evict_disabled > 0)
 		return (false);
 
 	/* Append to the urgent queue if we can. */
@@ -2249,7 +2314,7 @@ __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
 
 	__wt_spin_lock(session, &cache->evict_queue_lock);
 	if (F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU) ||
-	    F_ISSET(S2BT(session), WT_BTREE_NO_EVICTION))
+	    S2BT(session)->evict_disabled > 0)
 		goto done;
 
 	__wt_spin_lock(session, &urgent_queue->evict_lock);
