@@ -163,6 +163,9 @@ __logmgr_config(
 			FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_ERR);
 	}
 
+	WT_RET(__wt_config_gets(session, cfg, "log.trickle", &cval));
+	conn->log_trickle = (uint32_t)cval.val;
+
 	WT_RET(__wt_config_gets(session, cfg, "log.zero_fill", &cval));
 	if (cval.val != 0) {
 		if (F_ISSET(conn, WT_CONN_READONLY))
@@ -792,6 +795,12 @@ __log_server(void *arg)
 		 * in the case of a synchronous buffer.  We end up with a hang.
 		 */
 		WT_ERR_BUSY_OK(__wt_log_force_write(session, 0, &did_work));
+
+		/*
+		 * Start a background sync of the log file if configured.
+		 */
+		if (conn->log_trickle && timediff > conn->log_trickle)
+			WT_ERR(__wt_log_flush(session, WT_LOG_BACKGROUND));
 
 		/*
 		 * We don't want to archive or pre-allocate files as often as
