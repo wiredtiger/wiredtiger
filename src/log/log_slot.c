@@ -502,8 +502,8 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 	WT_LOGSLOT *slot;
 	uint64_t usecs;
 	int64_t flag_state, new_state, old_state, released;
-	int32_t join_offset, new_join;
-	bool closed, diag_yield, raced, unbuffered, yielded;
+	int32_t join_offset, new_join, wait_cnt;
+	bool closed, diag_yield, raced, slept, unbuffered, yielded;
 
 	conn = S2C(session);
 	log = conn->log;
@@ -515,7 +515,8 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 	 * There should almost always be a slot open.
 	 */
 	unbuffered = yielded = false;
-	closed = raced = false;
+	closed = raced = slept = false;
+	wait_cnt = 0;
 #ifdef	HAVE_DIAGNOSTIC
 	diag_yield = (++log->write_calls % 7) == 0;
 	if ((log->write_calls % WT_THOUSAND) == 0 ||
@@ -565,6 +566,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 		} else {
 			WT_STAT_CONN_INCR(session, log_slot_active_closed);
 			closed = true;
+			++wait_cnt;
 		}
 		if (!yielded)
 			__wt_epoch(session, &start);
@@ -573,23 +575,31 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 		 * The slot is no longer open or we lost the race to
 		 * update it.  Yield and try again.
 		 */
-		__wt_yield();
+		if (wait_cnt < WT_THOUSAND)
+			__wt_yield();
+		else {
+			__wt_sleep(0, WT_THOUSAND);
+			WT_STAT_CONN_INCR(session, log_slot_immediate);
+			slept = true;
+		}
 	}
 	/*
 	 * We joined this slot.  Fill in our information to return to
 	 * the caller.
 	 */
 	if (!yielded)
-		WT_STAT_CONN_INCR(session, log_slot_joins_immediate);
+		WT_STAT_CONN_INCR(session, log_slot_immediate);
 	else {
-		WT_STAT_CONN_INCR(session, log_slot_joins_yield);
+		WT_STAT_CONN_INCR(session, log_slot_yield);
 		__wt_epoch(session, &stop);
 		usecs = WT_TIMEDIFF_US(stop, start);
-		WT_STAT_CONN_INCRV(session, log_slot_joins_duration, usecs);
+		WT_STAT_CONN_INCRV(session, log_slot_duration, usecs);
 		if (closed)
-			WT_STAT_CONN_INCR(session, log_slot_joins_yield_close);
+			WT_STAT_CONN_INCR(session, log_slot_yield_close);
 		if (raced)
-			WT_STAT_CONN_INCR(session, log_slot_joins_yield_race);
+			WT_STAT_CONN_INCR(session, log_slot_yield_race);
+		if (slept)
+			WT_STAT_CONN_INCR(session, log_slot_yield_sleep);
 	}
 	if (LF_ISSET(WT_LOG_DSYNC | WT_LOG_FSYNC))
 		F_SET(slot, WT_SLOT_SYNC_DIR);
