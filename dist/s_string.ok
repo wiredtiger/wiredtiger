@@ -986,6 +986,7 @@ ovfl
 ownp
 pR
 packv
+pageheap
 pagesize
 parens
 pareto
@@ -1156,6 +1157,7 @@ t's
 tV
 tablename
 tcbench
+tcmalloc
 td
 tempdir
 testutil
@@ -1206,6 +1208,7 @@ unistd
 unlink
 unlinked
 unmap
+unmapped
 unmarshall
 unmarshalled
 unmerged

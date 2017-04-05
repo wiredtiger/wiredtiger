@@ -96,6 +96,10 @@ struct __wt_cache {
 	struct timespec stuck_ts;	/* Stuck timestamp */
 #endif
 
+#ifdef HAVE_LIBTCMALLOC
+	size_t tcmalloc_freed;
+#endif
+
 	/*
 	 * Read information.
 	 */

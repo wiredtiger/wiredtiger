@@ -293,6 +293,10 @@ __wt_cache_page_byte_dirty_decr(
 	}
 }
 
+#ifdef HAVE_LIBTCMALLOC
+extern int __wt_cache_tcmalloc_overhead(WT_SESSION_IMPL *);
+#endif
+
 /*
  * __wt_cache_page_inmem_decr --
  *	Decrement a page's memory footprint in the cache.
@@ -306,6 +310,21 @@ __wt_cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
 
 	WT_ASSERT(session, size < WT_EXABYTE);
 
+#ifdef HAVE_LIBTCMALLOC
+	{
+	size_t freed = __wt_atomic_addsize(&cache->tcmalloc_freed, size);
+	if (freed < WT_MEGABYTE)
+		return;
+	if (freed - size < WT_MEGABYTE)
+		__wt_atomic_subsize(&cache->tcmalloc_freed, freed);
+	else if (freed < 2 * WT_MEGABYTE)
+		return;
+	else
+		cache->tcmalloc_freed = 0;
+
+	(void)__wt_cache_tcmalloc_overhead(session);
+	}
+#endif
 	__wt_cache_decr_check_uint64(
 	    session, &S2BT(session)->bytes_inmem, size, "WT_BTREE.bytes_inmem");
 	__wt_cache_decr_check_uint64(
