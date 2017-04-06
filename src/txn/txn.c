@@ -429,11 +429,15 @@ int
 __wt_txn_query_timestamp(
     WT_SESSION_IMPL *session, char *timestamp, const char *cfg[])
 {
-	WT_UNUSED(session);
+	WT_CONFIG_ITEM cval;
+
 	WT_UNUSED(timestamp);
-	WT_UNUSED(cfg);
 
 	/* XXX: todo */
+
+	WT_RET(__wt_config_gets(session, cfg, "get", &cval));
+	if (WT_STRING_MATCH("all_committed", cval.str, cval.len))
+		memset(timestamp, 0, 2 * TIMESTAMP_SIZE + 1);
 
 	return (0);
 }

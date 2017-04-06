@@ -158,7 +158,7 @@ __wt_txn_committed(WT_SESSION_IMPL *session, uint64_t id)
 }
 
 /*
- * __wt_txn_visible_all --
+ * __txn_visible_all_id --
  *	Check if a given transaction ID is "globally visible".	This is, if
  *	all sessions in the system will see the transaction ID including the
  *	ID that belongs to a running checkpoint.
@@ -175,35 +175,36 @@ __txn_visible_all_id(WT_SESSION_IMPL *session, uint64_t id)
 
 /*
  * __wt_txn_visible_all --
- *	Check if a given transaction ID is "globally visible".	This is, if
+ *	Check if a given transaction is "globally visible".	This is, if
  *	all sessions in the system will see the transaction ID including the
  *	ID that belongs to a running checkpoint.
  */
 static inline bool
-__wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, const uint8_t *timestamp)
+__wt_txn_visible_all(
+    WT_SESSION_IMPL *session, uint64_t id, const uint8_t *timestamp)
 {
-        if (!__txn_visible_all_id(session, id))
-                return (false);
+	if (!__txn_visible_all_id(session, id))
+		return (false);
 
 #if TIMESTAMP_SIZE > 0
 	{
 	WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
-        bool result;
+	bool result;
 
 	/* Timestamp check. */
 	if (!txn_global->has_oldest_ts || timestamp == NULL)
 		return (true);
 
-        __wt_readlock(session, &txn_global->oldest_rwlock);
+	__wt_readlock(session, &txn_global->oldest_rwlock);
 	result = memcmp(
-            timestamp, txn_global->oldest_timestamp, TIMESTAMP_SIZE) < 0;
-        __wt_readunlock(session, &txn_global->oldest_rwlock);
+	    timestamp, txn_global->oldest_timestamp, TIMESTAMP_SIZE) < 0;
+	__wt_readunlock(session, &txn_global->oldest_rwlock);
 
-        return (result);
+	return (result);
 	}
 #else
-        WT_UNUSED(timestamp);
-        return (true);
+	WT_UNUSED(timestamp);
+	return (true);
 #endif
 }
 
@@ -214,7 +215,8 @@ __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, const uint8_t *times
 static inline bool
 __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-	return (__wt_txn_visible_all(session, upd->txnid, WT_GET_TIMESTAMP(upd)));
+	return (__wt_txn_visible_all(
+	    session, upd->txnid, WT_GET_TIMESTAMP(upd)));
 }
 
 /*
@@ -275,7 +277,8 @@ __txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
  *	Can the current transaction see the given ID / timestamp?
  */
 static inline bool
-__wt_txn_visible(WT_SESSION_IMPL *session, uint64_t id, const uint8_t *timestamp)
+__wt_txn_visible(
+    WT_SESSION_IMPL *session, uint64_t id, const uint8_t *timestamp)
 {
 	if (!__txn_visible_id(session, id))
 		return (false);
@@ -291,7 +294,7 @@ __wt_txn_visible(WT_SESSION_IMPL *session, uint64_t id, const uint8_t *timestamp
 	return (memcmp(timestamp, txn->read_timestamp, TIMESTAMP_SIZE) <= 0);
 	}
 #else
-        WT_UNUSED(timestamp);
+	WT_UNUSED(timestamp);
 	return (true);
 #endif
 }

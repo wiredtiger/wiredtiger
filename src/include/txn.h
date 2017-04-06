@@ -98,7 +98,7 @@ struct __wt_txn_global {
 	uint8_t commit_timestamp[TIMESTAMP_SIZE];
 	uint8_t read_timestamp[TIMESTAMP_SIZE];
 	uint8_t oldest_timestamp[TIMESTAMP_SIZE];
-        bool has_oldest_ts;
+	bool has_oldest_ts;
 #endif
 
 	/* Protects the leading edge of the active transaction window. */
