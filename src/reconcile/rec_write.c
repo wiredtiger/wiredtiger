@@ -1171,7 +1171,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			 * visible update.
 			 */
 			if (*updp == NULL) {
-				if (__wt_txn_visible(session, txnid))
+				if (__wt_txn_upd_visible(session, upd))
 					*updp = upd;
 				else
 					skipped = true;
@@ -1209,10 +1209,12 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 *
 	 * Skip the visibility check for the lookaside table as a special-case,
 	 * we know there are no older readers of that table.
+	 *
+	 * XXX the lookaside table needs to know about timestamps.
 	 */
 	if (!skipped &&
 	    (F_ISSET(btree, WT_BTREE_LOOKASIDE) ||
-	    __wt_txn_visible_all(session, max_txn))) {
+	    __wt_txn_visible_all(session, max_txn, NULL))) {
 #ifdef HAVE_DIAGNOSTIC
 		/*
 		 * The checkpoint transaction is special.  Make sure we never
@@ -1324,7 +1326,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 */
 		if (vpack != NULL &&
 		    vpack->raw == WT_CELL_VALUE_OVFL_RM &&
-		    !__wt_txn_visible_all(session, min_txn))
+		    !__wt_txn_visible_all(session, min_txn, NULL))
 			append_origv = true;
 	} else {
 		/*
@@ -1334,7 +1336,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 * list and ignore the current on-page value. If no update is
 		 * globally visible, readers require the page's original value.
 		 */
-		if (!__wt_txn_visible_all(session, min_txn))
+		if (!__wt_txn_visible_all(session, min_txn, NULL))
 			append_origv = true;
 	}
 
@@ -1443,8 +1445,9 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 *
 	 * In some cases, there had better not be any updates we can't see.
 	 */
-	if (F_ISSET(r, WT_VISIBILITY_ERR) &&
-	    page_del != NULL && !__wt_txn_visible(session, page_del->txnid))
+	if (F_ISSET(r, WT_VISIBILITY_ERR) && page_del != NULL &&
+	    !__wt_txn_visible(session,
+	    page_del->txnid, WT_GET_TIMESTAMP(page_del)))
 		WT_PANIC_RET(session, EINVAL,
 		    "reconciliation illegally skipped an update");
 
@@ -1473,8 +1476,8 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 * instantiates an entirely new page.)
 	 */
 	if (ref->addr != NULL &&
-	    (page_del == NULL ||
-	    __wt_txn_visible_all(session, page_del->txnid)))
+	    (page_del == NULL || __wt_txn_visible_all(
+	    session, page_del->txnid, WT_GET_TIMESTAMP(page_del))))
 		WT_RET(__wt_ref_block_free(session, ref));
 
 	/*
@@ -1524,7 +1527,8 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 * If the delete is not visible in this checkpoint, write the original
 	 * address normally.  Otherwise, we have to write a proxy record.
 	 */
-	if (__wt_txn_visible(session, page_del->txnid))
+	if (__wt_txn_visible(
+	    session, page_del->txnid, WT_GET_TIMESTAMP(page_del)))
 		*statep = WT_CHILD_PROXY;
 
 	return (0);

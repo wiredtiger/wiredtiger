@@ -17,6 +17,9 @@ extern "C" {
  * WiredTiger public include file, and configuration control.
  *******************************************/
 #include "wiredtiger_config.h"
+#ifndef TIMESTAMP_SIZE
+#define	TIMESTAMP_SIZE 0
+#endif
 #include "wiredtiger_ext.h"
 
 /*******************************************

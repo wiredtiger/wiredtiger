@@ -613,7 +613,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	 * This allows ordinary visibility checks to move forward because
 	 * checkpoints often take a long time and only write to the metadata.
 	 */
-	__wt_writelock(session, &txn_global->scan_rwlock);
+	__wt_writelock(session, &txn_global->oldest_rwlock);
 	txn_global->checkpoint_txnid = txn->id;
 	txn_global->checkpoint_pinned = WT_MIN(txn->id, txn->snap_min);
 
@@ -634,7 +634,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	txn_state->id = txn_state->pinned_id =
 	    txn_state->metadata_pinned = WT_TXN_NONE;
-	__wt_writeunlock(session, &txn_global->scan_rwlock);
+	__wt_writeunlock(session, &txn_global->oldest_rwlock);
 
 	/*
 	 * Get a list of handles we want to flush; for named checkpoints this
@@ -1670,11 +1670,13 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
 	/*
 	 * If closing an unmodified file, check that no update is required
 	 * for active readers.
+	 *
+	 * XXX needs to check timestamp as well.
 	 */
 	if (!btree->modified && !bulk) {
 		WT_RET(__wt_txn_update_oldest(
 		    session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
-		return (__wt_txn_visible_all(session, btree->rec_max_txn) ?
+		return (__wt_txn_visible_all(session, btree->rec_max_txn, NULL) ?
 		    __wt_cache_op(session, WT_SYNC_DISCARD) : EBUSY);
 	}
 

@@ -372,8 +372,10 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		 * Cursor opened overwrite=true: won't return WT_NOTFOUND should
 		 * another thread remove the record before we do, and the cursor
 		 * remains positioned in that case.
+		 *
+		 * XXX lookaside needs to know about timestamps
 		 */
-		if (__wt_txn_visible_all(session, las_txnid)) {
+		if (__wt_txn_visible_all(session, las_txnid, NULL)) {
 			WT_ERR(cursor->remove(cursor));
 			++remove_cnt;
 		}

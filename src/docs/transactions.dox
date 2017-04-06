@@ -148,4 +148,27 @@ WT_SESSION::snapshot with a configuration that includes
 the semantics supported by the drop configuration.
 
 Named snapshots are not durable: they do not survive WT_CONNECTION::close.
+
+@section transaction_timestamps Timestamps
+
+Applications can assign transactions explicit commit timestamps, then read
+as-of a timestamp.  Timestamps are communicated to WiredTiger as hexadecimal
+values with a length configurable at build time (default 8 bytes).
+
+Setting a read timestamp in WT_SESSION::begin_transaction forces a transaction
+to run at snapshot isolation and ignore any commits with a newer timestamp.
+
+Setting an oldest timestamp in WT_SESSION::begin_transaction indicates that
+future read timestamps will be at least as recent as the oldest timestamp, so
+WiredTiger can discard history before the specified point.  It is critical that
+the oldest timestamp update frequently or the cache can become full of updates,
+reducing performance.
+
+Commit timestamps cannot be set earlier than the latest read timestamp that has
+been used.  This is enforced by assertions in diagnostic builds, if
+applications violate this rule, inconsistent data can be read.
+
+The commits to a particular data item must be performed in timestamp order.
+Again, this is only checked in diagnostic builds and if applications violate
+this rule, inconsistent data can be read.
  */

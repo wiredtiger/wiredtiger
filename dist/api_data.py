@@ -1076,6 +1076,9 @@ methods = {
         priority of the transaction for resolving conflicts.
         Transactions with higher values are less likely to abort''',
         min='-100', max='100'),
+    Config('read_timestamp', '', r'''
+        read using the specified timestamp, see
+        @ref transaction_timestamps'''),
     Config('snapshot', '', r'''
         use a named, in-memory snapshot, see
         @ref transaction_named_snapshots'''),
@@ -1086,6 +1089,9 @@ methods = {
 ]),
 
 'WT_SESSION.commit_transaction' : Method([
+    Config('commit_timestamp', '', r'''
+        set the commit timestamp for the current transaction, see
+        @ref transaction_timestamps'''),
     Config('sync', '', r'''
         override whether to sync log records when the transaction commits,
         inherited from ::wiredtiger_open \c transaction_sync.
@@ -1096,6 +1102,13 @@ methods = {
         \c on setting forces log records to be written to the storage device''',
         choices=['background', 'off', 'on']),
 ]),
+
+'WT_SESSION.timestamp_transaction' : Method([
+    Config('commit_timestamp', '', r'''
+        set the commit timestamp for the current transaction, see
+        @ref transaction_timestamps'''),
+]),
+
 'WT_SESSION.rollback_transaction' : Method([]),
 
 'WT_SESSION.checkpoint' : Method([
@@ -1202,6 +1215,20 @@ methods = {
 ]),
 
 'WT_CONNECTION.open_session' : Method(session_config),
+
+'WT_CONNECTION.query_timestamp' : Method([
+    Config('oldest_timestamp', '', r'''
+        future queries will be at least as recent as the specified timestamp,
+        see @ref transaction_timestamps'''),
+]),
+
+'WT_CONNECTION.set_oldest_timestamp' : Method([
+    Config('get', 'all_committed', r'''
+        specify which timestamp to query: \c all_committed returns the largest
+        timestamp such that all earlier timestamps have committed.  See @ref
+        transaction_timestamps''',
+        choices=['all_committed']),
+]),
 
 'WT_SESSION.reconfigure' : Method(session_config),
 

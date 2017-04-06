@@ -539,7 +539,7 @@ retry:	if (F_ISSET(clsm, WT_CLSM_MERGE)) {
 				clsm->chunks[ngood - 1]->switch_txn =
 				    chunk->switch_txn;
 				if (__wt_txn_visible_all(
-				    session, chunk->switch_txn))
+				    session, chunk->switch_txn, NULL))
 					break;
 			}
 		} else {
@@ -1465,8 +1465,8 @@ __clsm_put(WT_SESSION_IMPL *session, WT_CURSOR_LSM *clsm,
 
 	for (i = 0, slot = clsm->nchunks - 1; i < clsm->nupdates; i++, slot--) {
 		/* Check if we need to keep updating old chunks. */
-		if (i > 0 &&
-		    __wt_txn_visible(session, clsm->chunks[slot]->switch_txn)) {
+		if (i > 0 && __wt_txn_visible(
+		    session, clsm->chunks[slot]->switch_txn, NULL)) {
 			clsm->nupdates = i;
 			break;
 		}

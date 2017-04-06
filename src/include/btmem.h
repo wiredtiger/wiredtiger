@@ -719,6 +719,9 @@ struct __wt_page {
  */
 struct __wt_page_deleted {
 	uint64_t txnid;			/* Transaction ID */
+#if TIMESTAMP_SIZE > 0
+	uint8_t timestamp[TIMESTAMP_SIZE];
+#endif
 
 	WT_UPDATE **update_list;	/* List of updates for abort */
 };
@@ -911,6 +914,10 @@ WT_PACKED_STRUCT_BEGIN(__wt_update)
 	uint64_t txnid;			/* update transaction */
 
 	WT_UPDATE *next;		/* forward-linked list */
+
+#if TIMESTAMP_SIZE > 0
+	uint8_t timestamp[TIMESTAMP_SIZE];
+#endif
 
 	/*
 	 * We use the maximum size as an is-deleted flag, which means we can't

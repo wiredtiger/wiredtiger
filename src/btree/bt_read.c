@@ -183,7 +183,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 		 * If the on-page value has become globally visible, this record
 		 * is no longer needed.
 		 */
-		if (__wt_txn_visible_all(session, las_txnid))
+		if (__wt_txn_visible_all(session, las_txnid, NULL))
 			continue;
 
 		/* Allocate the WT_UPDATE structure. */

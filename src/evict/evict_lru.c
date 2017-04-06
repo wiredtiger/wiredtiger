@@ -1865,7 +1865,7 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 		mod = page->modify;
 		if (modified && txn_global->current != txn_global->oldest_id &&
 		    (mod->last_eviction_id == __wt_txn_oldest_id(session) ||
-		    !__wt_txn_visible_all(session, mod->update_txn)))
+		    !__wt_txn_visible_all(session, mod->update_txn, NULL)))
 			continue;
 
 fast:		/* If the page can't be evicted, give up. */

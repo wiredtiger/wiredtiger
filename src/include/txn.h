@@ -28,6 +28,12 @@
 #define	WT_SESSION_IS_CHECKPOINT(s)					\
 	((s)->id != 0 && (s)->id == S2C(s)->txn_global.checkpoint_id)
 
+#if TIMESTAMP_SIZE > 0
+#define	WT_GET_TIMESTAMP(x) ((x)->timestamp)
+#else
+#define	WT_GET_TIMESTAMP(x) (NULL)
+#endif
+
 /*
  * Perform an operation at the specified isolation level.
  *
@@ -69,6 +75,7 @@ struct __wt_named_snapshot {
 
 struct __wt_txn_state {
 	WT_CACHE_LINE_PAD_BEGIN
+	WT_RWLOCK rwlock;
 	volatile uint64_t id;
 	volatile uint64_t pinned_id;
 	volatile uint64_t metadata_pinned;
@@ -76,7 +83,6 @@ struct __wt_txn_state {
 };
 
 struct __wt_txn_global {
-	WT_SPINLOCK id_lock;
 	volatile uint64_t current;	/* Current transaction ID. */
 
 	/* The oldest running transaction ID (may race). */
@@ -88,11 +94,22 @@ struct __wt_txn_global {
 	 */
 	volatile uint64_t oldest_id;
 
-	/*
-	 * Prevents the oldest ID moving forwards while threads are scanning
-	 * the global transaction state.
-	 */
-	WT_RWLOCK scan_rwlock;
+#if TIMESTAMP_SIZE > 0
+	uint8_t commit_timestamp[TIMESTAMP_SIZE];
+	uint8_t read_timestamp[TIMESTAMP_SIZE];
+	uint8_t oldest_timestamp[TIMESTAMP_SIZE];
+        bool has_oldest_ts;
+#endif
+
+	/* Protects the leading edge of the active transaction window. */
+	WT_RWLOCK current_rwlock;
+
+#if 0
+	/* Protects the trailing edge of the active transaction window. */
+	WT_RWLOCK oldest_rwlock;
+#else
+#define	oldest_rwlock current_rwlock
+#endif
 
 	/*
 	 * Track information about the running checkpoint. The transaction
@@ -185,6 +202,11 @@ struct __wt_txn {
 	uint32_t snapshot_count;
 	uint32_t txn_logsync;	/* Log sync configuration */
 
+#if TIMESTAMP_SIZE > 0
+	uint8_t read_timestamp[TIMESTAMP_SIZE];
+	uint8_t commit_timestamp[TIMESTAMP_SIZE];
+#endif
+
 	/* Array of modifications by this transaction. */
 	WT_TXN_OP      *mod;
 	size_t		mod_alloc;
@@ -202,13 +224,15 @@ struct __wt_txn {
 	WT_ITEM		*ckpt_snapshot;
 	bool		full_ckpt;
 
-#define	WT_TXN_AUTOCOMMIT	0x01
-#define	WT_TXN_ERROR		0x02
-#define	WT_TXN_HAS_ID		0x04
-#define	WT_TXN_HAS_SNAPSHOT	0x08
-#define	WT_TXN_NAMED_SNAPSHOT	0x10
-#define	WT_TXN_READONLY		0x20
-#define	WT_TXN_RUNNING		0x40
-#define	WT_TXN_SYNC_SET		0x80
+#define	WT_TXN_AUTOCOMMIT	0x001
+#define	WT_TXN_ERROR		0x002
+#define	WT_TXN_HAS_ID		0x004
+#define	WT_TXN_HAS_SNAPSHOT	0x008
+#define	WT_TXN_HAS_TS_COMMIT	0x010
+#define	WT_TXN_HAS_TS_READ	0x020
+#define	WT_TXN_NAMED_SNAPSHOT	0x040
+#define	WT_TXN_READONLY		0x080
+#define	WT_TXN_RUNNING		0x100
+#define	WT_TXN_SYNC_SET		0x200
 	uint32_t flags;
 };
