@@ -126,13 +126,17 @@ retry:
 	 * processed by another closing thread.  Only return 0 when we
 	 * actually closed the slot.
 	 */
-	if (WT_LOG_SLOT_CLOSED(old_state))
+	if (WT_LOG_SLOT_CLOSED(old_state)) {
+		WT_STAT_CONN_INCR(session, log_slot_close_race);
 		return (WT_NOTFOUND);
+	}
 	/*
 	 * If someone completely processed this slot, we're done.
 	 */
-	if (FLD64_ISSET((uint64_t)slot->slot_state, WT_LOG_SLOT_RESERVED))
+	if (FLD64_ISSET((uint64_t)slot->slot_state, WT_LOG_SLOT_RESERVED)) {
+		WT_STAT_CONN_INCR(session, log_slot_close_race);
 		return (WT_NOTFOUND);
+	}
 	new_state = (old_state | WT_LOG_SLOT_CLOSE);
 	/*
 	 * Close this slot.  If we lose the race retry.
@@ -161,6 +165,7 @@ retry:
 	if (WT_LOG_SLOT_UNBUFFERED_ISSET(old_state)) {
 		while (slot->slot_unbuffered == 0) {
 			WT_RET(WT_SESSION_CHECK_PANIC(session));
+			WT_STAT_CONN_INCR(session, log_slot_close_unbuf);
 			__wt_yield();
 #ifdef	HAVE_DIAGNOSTIC
 			++count;
