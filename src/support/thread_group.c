@@ -23,7 +23,6 @@ __thread_run(void *arg)
 	session = thread->session;
 
 	for (;;) {
-		WT_ERR(WT_SESSION_CHECK_PANIC(session));
 		if (!F_ISSET(thread, WT_THREAD_RUN))
 			break;
 		if (!F_ISSET(thread, WT_THREAD_ACTIVE))
@@ -80,7 +79,6 @@ __thread_group_shrink(
 		if (thread == NULL)
 			continue;
 
-		/* Wake threads to ensure they notice the state change */
 		WT_ASSERT(session, thread->tid != 0);
 		__wt_verbose(session, WT_VERB_THREAD_GROUP,
 		    "Stopping utility thread: %p:%" PRIu32,
