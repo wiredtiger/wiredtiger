@@ -7,7 +7,7 @@ $(PYSRC)/workgen_wrap.cxx: $(PYSRC)/workgen.h $(PYSRC)/workgen.swig
 	(cd $(PYSRC) && \
 	    $(SWIG) -c++ -python -threads -O -Wall -I$(abs_top_builddir) -outdir ./workgen workgen.swig)
 
-_workgen.so: $(top_builddir)/libwiredtiger.la $(PYSRC)/workgen_wrap.cxx $(PYSRC)/workgen.cxx
+_workgen.so: $(top_builddir)/libwiredtiger.la $(PYSRC)/workgen_wrap.cxx $(PYSRC)/workgen.cxx $(PYSRC)/workgen_func.c $(PYSRC)/workgen.h $(PYSRC)/workgen_func.h
 	(cd $(PYSRC) && \
 	    $(PYTHON) setup.py build_ext -f -b $(abs_builddir) $(PYDIRS))
 

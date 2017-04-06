@@ -14,6 +14,7 @@ def show(tname):
     print('<><><><><><><><><><><><>')
     c.close()
 
+context = Context()
 conn = wiredtiger_open("WT_TEST", "create,cache_size=1G")
 s = conn.open_session()
 tname0 = tablename(0)
@@ -23,10 +24,16 @@ s.create(tname1, 'key_format=S,value_format=S')
 
 ops = [Operation(Operation.OP_INSERT, Table(tname0), Key(Key.KEYGEN_APPEND, 10), Value(100))]
 thread0 = Thread(OpList(ops))
-workload = Workload(ThreadList([thread0]))
+workload = Workload(context, ThreadList([thread0]))
 
 execute(conn, workload)
 show(tname0)
+
+# The context has memory of how many keys are in all the tables.
+# Normally, we keep a context throughout a test.
+# But since we're starting an entirely new test here, we'll
+# use a new context and truncate the table.
+context = Context()
 s.truncate(tname0, None, None)
 
 # Show how to 'multiply' operations
@@ -36,10 +43,13 @@ o = op2 * 10
 print 'op is: ' + str(op)
 print 'multiplying op is: ' + str(o)
 thread0 = Thread(OpList([o, op, op]))
-workload = Workload(ThreadList([thread0]))
+workload = Workload(context, ThreadList([thread0]))
 execute(conn, workload)
 show(tname0)
 show(tname1)
+
+# Another new test.
+context = Context()
 s.truncate(tname0, None, None)
 s.truncate(tname1, None, None)
 
@@ -48,12 +58,10 @@ op += Operation(Operation.OP_INSERT, Table(tname0), Key(Key.KEYGEN_APPEND, 10), 
 op *= 2
 op += Operation(Operation.OP_INSERT, Table(tname0), Key(Key.KEYGEN_APPEND, 10), Value(10))
 thread0 = Thread(OpList([op * 10 + op2 * 20]))
-workload = Workload(ThreadList([thread0]))
+workload = Workload(context, ThreadList([thread0]))
 execute(conn, workload)
 show(tname0)
 show(tname1)
-s.truncate(tname0, None, None)
-s.truncate(tname1, None, None)
 
 print('workload is ' + str(workload))
 print('thread0 is ' + str(thread0))

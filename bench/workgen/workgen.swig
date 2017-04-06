@@ -105,6 +105,7 @@ WorkgenClass(Table)
 WorkgenClass(TableStats)
 WorkgenClass(Value)
 WorkgenClass(Workload)
+WorkgenClass(Context)
 
 %extend workgen::Operation {
 %pythoncode %{

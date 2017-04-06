@@ -1,24 +1,23 @@
 #include <ostream>
 #include <string>
 #include <vector>
+#include <map>
 
 namespace workgen {
 
 struct Thread;
+struct Context;
 
 #ifndef SWIG
-struct WorkgenContext {
+struct ThreadEnvironment {
     int _errno;
     Thread *_thread;
-    bool _verbose;
-    int _nrecords;
+    Context *_context;
 
-    WorkgenContext() : _errno(0), _thread(NULL), _verbose(false),
-	_nrecords(0) {}
-    WorkgenContext(const WorkgenContext &other) : _errno(other._errno),
-	_thread(other._thread), _verbose(other._verbose),
-	_nrecords(other._nrecords) {}
-    ~WorkgenContext() {}
+    ThreadEnvironment() : _errno(0), _thread(NULL) {}
+    ThreadEnvironment(const ThreadEnvironment &other) : _errno(other._errno),
+	_thread(other._thread) {}
+    ~ThreadEnvironment() {}
 };
 
 struct WorkgenException {
@@ -36,10 +35,19 @@ struct WorkgenException {
     WorkgenException(const WorkgenException &other) : _str(other._str) {}
     ~WorkgenException() {}
 };
-
-#else
-struct WorkGenContext;
 #endif
+
+struct Context {
+    bool _verbose;
+#ifndef SWIG
+    std::map<std::string, uint64_t> _table_count;
+#endif
+    Context();
+    ~Context();
+    void describe(std::ostream &os) const {
+	os << "Context: verbose " << (_verbose ? "true" : "false");
+    }
+};
 
 struct TableStats {
     uint64_t inserts;
@@ -56,22 +64,29 @@ struct TableStats {
     void final_report(std::ostream &os, int totalsecs) const;
 };
 
-/* Tables can be shared among operations within a single Thread */
+/* Tables can be shared among operations within a single Thread.
+ * TODO: enforce that multiple threads can't share when run() starts
+ * and that multiple threads can't share a table??
+ * Better: need a version of this that works with multiple threads,
+ * for readers just need a cursor per table/thread.  For writers,
+ * doling out different portions of the key space?
+ */
 struct Table {
     std::string _tablename;
     TableStats stats;
 #ifndef SWIG
     WT_CURSOR *_cursor;
+    int _nentries;              // TODO: needed?
 #endif
 
     /* XXX select table from range */
 
-    Table() : _tablename(), _cursor(NULL) {}
-    Table(const char *tablename) : _tablename(tablename), _cursor(NULL) {}
-    Table(const Table &other) : _tablename(other._tablename), _cursor(NULL) {}
-    ~Table() {}
+    Table();
+    Table(const char *tablename);
+    Table(const Table &other);
+    ~Table();
 
-    void describe(std::ostream &os) const { os << "Table: " << _tablename; }
+    void describe(std::ostream &os) const;
 
 #ifndef SWIG
     int open_all(WT_SESSION *session);
@@ -134,7 +149,7 @@ struct Operation {
 
 #ifndef SWIG
     int open_all(WT_SESSION *session);
-    int run(WorkgenContext &context);
+    int run(ThreadEnvironment &env);
     void size_buffers(size_t &keysize, size_t &valuesize) const;
     void get_stats(TableStats &);
     void clear_stats();
@@ -150,6 +165,7 @@ struct Thread {
     WT_SESSION *_session;
     char *_keybuf;
     char *_valuebuf;
+    void **_rand_state;
     bool _repeat;
 #endif
 
@@ -163,28 +179,30 @@ struct Thread {
     void describe(std::ostream &os) const;
 
 #ifndef SWIG
+    void free_all();
     int create_all(WT_CONNECTION *conn);
     int open_all(WT_CONNECTION *conn);
     int close_all();
     void get_stats(TableStats &stats);
     void clear_stats();
-    int run(WorkgenContext &context);
+    int run(ThreadEnvironment &env);
 #endif
 };
 
 struct Workload {
+    Context *_context;
     std::vector<Thread> _threads;
     int _run_time;
     int _report_interval;
 
-    Workload(const std::vector<Thread> &threads) : _threads(threads),
-      _run_time(0), _report_interval(0) {}
-    Workload(const Workload &other) :
-      _threads(other._threads), _run_time(0), _report_interval(0) {}
-    ~Workload() {}
+    Workload(Context *context, const std::vector<Thread> &threads);
+    Workload(const Workload &other);
+    ~Workload();
 
     void describe(std::ostream &os) const {
-	os << "Workload: run_time " << _run_time;
+	os << "Workload: ";
+	_context->describe(os);
+	os << ", run_time " << _run_time;
 	os << ", report_interval " << _report_interval;
 	os << ", [" << std::endl;
 	for (std::vector<Thread>::const_iterator i = _threads.begin(); i != _threads.end(); i++) {
@@ -199,10 +217,11 @@ struct Workload {
 private:
     void get_stats(TableStats &stats);
     void clear_stats();
-    int create_all(WT_CONNECTION *conn, std::vector<WorkgenContext> &contexts);
-    int open_all(WT_CONNECTION *conn, std::vector<WorkgenContext> &contexts);
+    int create_all(WT_CONNECTION *conn, Context *context,
+	std::vector<ThreadEnvironment> &envs);
+    int open_all(WT_CONNECTION *conn, std::vector<ThreadEnvironment> &envs);
     int close_all();
-    int run_all(std::vector<WorkgenContext> &contexts);
+    int run_all(std::vector<ThreadEnvironment> &envs);
 };
 
 int execute(WT_CONNECTION *conn, Workload &workload);

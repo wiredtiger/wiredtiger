@@ -12,6 +12,7 @@ extern "C" {
 #include <unistd.h>
 #include "error.h"
 #include "misc.h"
+#include "workgen_func.h"
 }
 
 #define MINIMUM_KEY_SIZE  12        // The minimum key must contain
@@ -28,9 +29,9 @@ extern "C" {
         }                                                               \
     } while(0)
 
-#define VERBOSE(context, args)                                          \
+#define VERBOSE(env, args)                                              \
     do {                                                                \
-        if (context._verbose)                                           \
+        if (env._context->_verbose)                                     \
             std::cout << args << std::endl;                             \
     } while(0)
 
@@ -41,10 +42,15 @@ int execute(WT_CONNECTION *wt_conn, Workload &workload) {
 }
 
 static void *thread_runner(void *arg) {
-    WorkgenContext *context = (WorkgenContext *)arg;
-    context->_errno = context->_thread->run(*context);
+    ThreadEnvironment *env = (ThreadEnvironment *)arg;
+    env->_errno = env->_thread->run(*env);
     return (NULL);
 }
+
+Context::Context() : _verbose(false), _table_count() {
+}
+
+Context::~Context() {}
 
 void Key::gen(uint64_t n, char *result) const {
     // TODO: use u64_to_string_zf(n, result, _size)
@@ -73,25 +79,37 @@ void Value::size_buffer(size_t &valuesize) const {
 }
 
 Thread::Thread() : _ops(), _name(), _stop(false), _count(0), _session(NULL),
-    _keybuf(NULL), _valuebuf(NULL), _repeat(false) {
+    _keybuf(NULL), _valuebuf(NULL), _rand_state(NULL), _repeat(false) {
 }
 
 Thread::Thread(const std::vector<Operation> &ops, int count) : _ops(ops),
     _name(), _stop(false), _count(count), _session(NULL), _keybuf(NULL),
-    _valuebuf(NULL), _repeat(false) {
+    _valuebuf(NULL), _rand_state(NULL), _repeat(false) {
 }
 
 Thread::Thread(const Thread &other) : _ops(other._ops), _name(other._name),
     _stop(false), _count(other._count), _session(NULL), _keybuf(NULL),
-    _valuebuf(NULL), _repeat(false) {
+    _valuebuf(NULL), _rand_state(NULL), _repeat(false) {
     // Note: a partial copy, we only want one thread to own _keybuf, _valuebuf.
 }
 
 Thread::~Thread() {
-    if (_keybuf != NULL)
+    free_all();
+}
+
+void Thread::free_all() {
+    if (_keybuf != NULL) {
         delete _keybuf;
-    if (_valuebuf != NULL)
+        _keybuf = NULL;
+    }
+    if (_valuebuf != NULL) {
         delete _valuebuf;
+        _valuebuf = NULL;
+    }
+    if (_rand_state != NULL) {
+        delete _rand_state;
+        _rand_state = NULL;
+    }
 }
 
 void Thread::describe(std::ostream &os) const {
@@ -113,7 +131,9 @@ int Thread::open_all(WT_CONNECTION *conn) {
 
 int Thread::create_all(WT_CONNECTION *conn) {
     size_t keysize, valuesize;
+    typedef void *voidptr;
 
+    WT_RET(close_all());
     ASSERT(_session == NULL);
     WT_RET(conn->open_session(conn, NULL, NULL, &_session));
     keysize = MINIMUM_KEY_SIZE;
@@ -125,30 +145,35 @@ int Thread::create_all(WT_CONNECTION *conn) {
     _valuebuf = new char[valuesize];
     _keybuf[keysize - 1] = '\0';
     _valuebuf[valuesize - 1] = '\0';
+    _rand_state = new voidptr[workgen_random_init_size() / sizeof(void *) + 1];
+    // TODO: better way to init random number generator?
+    workgen_random_init(_rand_state);
     return (0);
 }
 
 int Thread::close_all() {
-    if (_session != NULL)
+    if (_session != NULL) {
         WT_RET(_session->close(_session, NULL));
+        _session = NULL;
+    }
+    free_all();
     return (0);
 }
 
-int Thread::run(WorkgenContext &context) {
+int Thread::run(ThreadEnvironment &env) {
     WT_DECL_RET;
-    std::string name = context._thread->_name;
-    VERBOSE(context, "thread " << name << " running");
+    std::string name = env._thread->_name;
+    VERBOSE(env, "thread " << name << " running");
 
-    context._nrecords = 0;
     for (int cnt = 0; !_stop && (_repeat || cnt < _count); cnt++)
         for (std::vector<Operation>::iterator i = _ops.begin();
           !_stop && i != _ops.end(); i++)
-            WT_TRET(i->run(context));
+            WT_TRET(i->run(env));
 
     if (ret != 0)
         std::cerr << "thread " << name << " failed err="
                   << ret << std::endl;
-    VERBOSE(context, "thread " << name << "finished");
+    VERBOSE(env, "thread " << name << "finished");
     return (ret);
 }
 
@@ -228,9 +253,10 @@ void Operation::size_buffers(size_t &keysize, size_t &valuesize) const
             i->size_buffers(keysize, valuesize);
 }
 
-int Operation::run(WorkgenContext &context) {
+int Operation::run(ThreadEnvironment &env) {
     WT_CURSOR *cursor = _table._cursor;
-    Thread *thread = context._thread;
+    Thread *thread = env._thread;
+    uint32_t rand;
     char *buf;
 
     // TODO: what happens if multiple threads choose the same keys
@@ -238,21 +264,23 @@ int Operation::run(WorkgenContext &context) {
     // carved out?
     if (_optype != OP_NONE) {
         uint64_t recno;
-        if (_optype == OP_INSERT)
-            recno = context._nrecords;
-        else
-            // TODO: choose a recno based on distribution
-            recno = context._nrecords / 2;
+        recno = env._context->_table_count[_table._tablename];
+        if (_optype != OP_INSERT) {
+            rand = workgen_random(thread->_rand_state);
+            if (recno == 0)
+                return (WT_NOTFOUND); // TODO
+            recno = rand % recno;
+        }
         buf = thread->_keybuf;
         _key.gen(recno, buf);
         cursor->set_key(cursor, buf);
         switch (_optype) {
         case OP_INSERT:
             buf = thread->_valuebuf;
-            _value.gen(context._nrecords, buf);
+            _value.gen(recno, buf);
             cursor->set_value(cursor, buf);
             WT_RET(cursor->insert(cursor));
-            context._nrecords++;
+            env._context->_table_count[_table._tablename] = recno + 1;
             _table.stats.inserts++;
             break;
         case OP_REMOVE:
@@ -265,7 +293,7 @@ int Operation::run(WorkgenContext &context) {
             break;
         case OP_UPDATE:
             buf = thread->_valuebuf;
-            _value.gen(context._nrecords, buf);
+            _value.gen(recno, buf);
             cursor->set_value(cursor, buf);
             WT_RET(cursor->update(cursor));
             _table.stats.updates++;
@@ -278,7 +306,7 @@ int Operation::run(WorkgenContext &context) {
         for (int count = 0; !thread->_stop && count < _repeatchildren; count++)
             for (std::vector<Operation>::iterator i = _children->begin();
               i != _children->end(); i++)
-                WT_RET(i->run(context));
+                WT_RET(i->run(env));
     return (0);
 }
 
@@ -370,6 +398,17 @@ void TableStats::describe(std::ostream &os) const {
     os << ", removes " << removes;
 }
 
+Table::Table() : _tablename(), stats(), _cursor(NULL), _nentries(0) {}
+Table::Table(const char *tablename) : _tablename(tablename), stats(),
+    _cursor(NULL), _nentries(0) {}
+Table::Table(const Table &other) : _tablename(other._tablename),
+    stats(other.stats), _cursor(NULL), _nentries(0) {}
+Table::~Table() {}
+
+void Table::describe(std::ostream &os) const {
+    os << "Table: " << _tablename;
+}
+
 int Table::open_all(WT_SESSION *session) {
     // Tables may be shared within a thread.
     if (_cursor == NULL) {
@@ -379,22 +418,40 @@ int Table::open_all(WT_SESSION *session) {
     return (0);
 }
 
+Workload::Workload(Context *context, const std::vector<Thread> &threads) :
+    _context(context), _threads(threads),
+    _run_time(0), _report_interval(0) {
+    if (context == NULL) {
+        WorkgenException wge(0, "Workload contructor requires a Context");
+	throw(wge);
+    }
+}
+
+Workload::Workload(const Workload &other) :
+    _context(other._context), _threads(other._threads), _run_time(0),
+    _report_interval(0) {
+}
+
+Workload::~Workload() {
+}
+
 int Workload::open_all(WT_CONNECTION *conn,
-                        std::vector<WorkgenContext> &contexts) {
-    (void)contexts;
+                        std::vector<ThreadEnvironment> &envs) {
+    (void)envs;
     for (int i = 0; i < (int)_threads.size(); i++) {
         WT_RET(_threads[i].open_all(conn));
     }
     return (0);
 }
 
-int Workload::create_all(WT_CONNECTION *conn,
-                        std::vector<WorkgenContext> &contexts) {
+int Workload::create_all(WT_CONNECTION *conn, Context *context,
+                        std::vector<ThreadEnvironment> &envs) {
     for (int i = 0; i < (int)_threads.size(); i++) {
         std::stringstream sstm;
         sstm << "thread" << i;
         _threads[i]._name = sstm.str();
-        contexts[i]._thread = &_threads[i];
+        envs[i]._thread = &_threads[i];
+        envs[i]._context = context;
         // TODO: recover from partial failure here
         WT_RET(_threads[i].create_all(conn));
     }
@@ -410,11 +467,11 @@ int Workload::close_all() {
 
 int Workload::run(WT_CONNECTION *conn) {
     WT_DECL_RET;
-    std::vector<WorkgenContext> contexts(_threads.size());
+    std::vector<ThreadEnvironment> envs(_threads.size());
 
-    WT_ERR(create_all(conn, contexts));
-    WT_ERR(open_all(conn, contexts));
-    WT_ERR(run_all(contexts));
+    WT_ERR(create_all(conn, _context, envs));
+    WT_ERR(open_all(conn, envs));
+    WT_ERR(run_all(envs));
 
   err:
     //TODO: (void)close_all();
@@ -450,7 +507,7 @@ void Workload::final_report(int totalsecs) {
     std::cout << "Run completed: " << totalsecs << " seconds" << std::endl;
 }
 
-int Workload::run_all(std::vector<WorkgenContext> &contexts) {
+int Workload::run_all(std::vector<ThreadEnvironment> &envs) {
     void *status;
     std::vector<pthread_t> thread_handles(_threads.size());
     TableStats stats;
@@ -462,7 +519,7 @@ int Workload::run_all(std::vector<WorkgenContext> &contexts) {
         _threads[i]._repeat = (_run_time != 0);
         // TODO: on error, clean up already started threads, set _stop flag.
         WT_RET(pthread_create(&thread_handles[i], NULL, thread_runner,
-            &contexts[i]));
+            &envs[i]));
     }
 
     time_t start = time(NULL);
@@ -489,10 +546,10 @@ int Workload::run_all(std::vector<WorkgenContext> &contexts) {
 
     for (int i = 0; i < (int)_threads.size(); i++) {
         WT_TRET(pthread_join(thread_handles[i], &status));
-        if (contexts[i]._errno != 0)
-            VERBOSE(contexts[i],
-                    "Thread " << i << " has errno " << contexts[i]._errno);
-        WT_TRET(contexts[i]._errno);
+        if (envs[i]._errno != 0)
+            VERBOSE(envs[i],
+                    "Thread " << i << " has errno " << envs[i]._errno);
+        WT_TRET(envs[i]._errno);
         _threads[i].close_all();
     }
     final_report(now - start);
