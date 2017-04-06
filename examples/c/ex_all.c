@@ -829,6 +829,18 @@ transaction_ops(WT_CONNECTION *conn, WT_SESSION *session)
 	/*! [transaction pinned range] */
 	}
 
+	/*! [transaction timestamp] */
+	/* XXX todo */
+	/*! [transaction timestamp] */
+
+	/*! [query timestamp] */
+	/* XXX todo */
+	/*! [query timestamp] */
+
+	/*! [set oldest timestamp] */
+	/* XXX todo */
+	/*! [set oldest timestamp] */
+
 	return (ret);
 }
 
