@@ -260,8 +260,10 @@ err:	/* On error, clear any left-over tree walk. */
 		__wt_txn_release_snapshot(session);
 
 	/* Clear the checkpoint flag and push the change. */
-	if (btree->checkpointing != WT_CKPT_OFF)
-		WT_PUBLISH(btree->checkpointing, WT_CKPT_OFF);
+	if (btree->checkpointing != WT_CKPT_OFF) {
+		btree->checkpointing = WT_CKPT_OFF;
+		WT_FULL_BARRIER();
+	}
 
 	__wt_spin_unlock(session, &btree->flush_lock);
 
