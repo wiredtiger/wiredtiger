@@ -1163,13 +1163,13 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
 	 * Reconcile and discard some pages: EBUSY is returned if a page fails
 	 * eviction because it's unavailable, continue in that case.
 	 */
-	while (F_ISSET(S2C(session), WT_CONN_EVICTION_RUN) && ret == 0)
+	while (F_ISSET(conn, WT_CONN_EVICTION_RUN) && ret == 0)
 		if ((ret = __evict_page(session, is_server)) == EBUSY)
 			ret = 0;
 
 	/* If a worker thread found the queue empty, pause. */
 	if (ret == WT_NOTFOUND && !is_server &&
-	    F_ISSET(S2C(session), WT_CONN_EVICTION_RUN))
+	    F_ISSET(conn, WT_CONN_EVICTION_RUN))
 		__wt_cond_wait(
 		    session, conn->evict_threads.wait_cond, 10000, NULL);
 
@@ -1354,7 +1354,7 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
 	bool dhandle_locked, incr;
 
 	conn = S2C(session);
-	cache = S2C(session)->cache;
+	cache = conn->cache;
 	btree = NULL;
 	dhandle = NULL;
 	dhandle_locked = incr = false;
