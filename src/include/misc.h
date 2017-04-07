@@ -276,3 +276,24 @@ union __wt_rand_state {
 		uint32_t w, z;
 	} x;
 };
+
+/*
+ * WT_TAILQ_SAFE_REMOVE_BEGIN/WT_TAILQ_SAFE_REMOVE_END --
+ *	Macros to safely walk a TAILQ where we're expecting some underlying
+ * function to remove elements from the list, but we don't want to stop on
+ * error, nor do we want an error to turn into an infinite loop. Used during
+ * during shutdown, when we're shutting down various lists.
+ */
+#define	WT_TAILQ_SAFE_REMOVE_BEGIN(head, elm, field) do {		\
+	void *__prev;							\
+	for (__prev = NULL; ((elm) = TAILQ_FIRST(head)) != NULL;) {	\
+		if (__prev == (elm)) {					\
+			/* Leak the structure. */			\
+			TAILQ_REMOVE(head, (elm), field);		\
+			continue;					\
+		}							\
+		__prev = (elm);
+
+#define	WT_TAILQ_SAFE_REMOVE_END					\
+	}								\
+	} while (0)

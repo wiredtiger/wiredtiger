@@ -680,10 +680,11 @@ restart:
 		WT_TRET(session->meta_cursor->close(session->meta_cursor));
 
 	/* Close the metadata file handle. */
-	while ((dhandle = TAILQ_FIRST(&conn->dhqh)) != NULL)
+	WT_TAILQ_SAFE_REMOVE_BEGIN(&conn->dhqh, dhandle, q) {
 		WT_WITH_DHANDLE(session, dhandle,
 		    WT_TRET(__wt_conn_dhandle_discard_single(
 		    session, true, F_ISSET(conn, WT_CONN_IN_MEMORY))));
+	} WT_TAILQ_SAFE_REMOVE_END;
 
 	return (ret);
 }
