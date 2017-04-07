@@ -240,7 +240,7 @@ __clsm_enter(WT_CURSOR_LSM *clsm, bool reset, bool update)
 						break;
 					WT_ASSERT(session,
 					    !__wt_txn_visible_all(
-					    session, switch_txn));
+					    session, switch_txn, NULL));
 				}
 			}
 		}
