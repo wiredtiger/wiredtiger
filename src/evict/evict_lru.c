@@ -971,7 +971,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	cache = conn->cache;
 
 	WT_ASSERT(session, conn->evict_threads.threads[0]->session == session);
-	pgs_evicted_cur = pgs_evicted_persec_cur = 0;
+	pgs_evicted_cur = 0;
 
 	__wt_epoch(session, &current_time);
 	time_diff = WT_TIMEDIFF_SEC(current_time, conn->evict_tune_last_time);
