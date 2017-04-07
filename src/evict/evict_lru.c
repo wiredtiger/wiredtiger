@@ -119,6 +119,11 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
 		read_gen = page->read_gen;
 
 	read_gen += btree->evict_priority;
+
+#define	WT_EVICT_INTL_SKEW 1000
+	if (WT_PAGE_IS_INTERNAL(page))
+		read_gen += WT_EVICT_INTL_SKEW;
+
 	return (read_gen);
 }
 
@@ -1828,6 +1833,24 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 			continue;
 		}
 
+		/*
+		 * Don't attempt eviction of internal pages with children in
+		 * cache (indicated by seeing an internal page that is the
+		 * parent of the last page we saw).
+		 *
+		 * Also skip internal page unless we get aggressive or the tree
+		 * is idle (indicated by the tree being skipped for walks).
+		 * The goal here is that if trees become completely idle, we
+		 * eventually push them out of cache completely.
+		 */
+		if (WT_PAGE_IS_INTERNAL(page)) {
+			if (page == last_parent)
+				continue;
+			if (btree->evict_walk_period == 0 &&
+			    !__wt_cache_aggressive(session))
+				continue;
+		}
+
 		/* Pages that are empty or from dead trees are fast-tracked. */
 		if (__wt_page_is_empty(page) ||
 		    F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
@@ -1839,10 +1862,6 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 
 		/* Skip dirty pages if appropriate. */
 		if (modified && !F_ISSET(cache, WT_CACHE_EVICT_DIRTY))
-			continue;
-
-		/* Don't attempt eviction of internal pages with children */
-		if (WT_PAGE_IS_INTERNAL(page) && page == last_parent)
 			continue;
 
 		/* If eviction gets aggressive, anything else is fair game. */
