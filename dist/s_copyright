@@ -125,6 +125,9 @@ fi
 	-e 's/^\.\///' |
     xargs $xp -n 1 -I{} sh dist/s_copyright {})
 
+# One-offs.
+(cd .. && sh dist/s_copyright test/syscall/wt2336_base/base.run)
+
 # A few special cases: LICENSE, documentation, wt utility, some of which have
 # more than one copyright notice in the file. For files that have only a single
 # copyright notice, we give it to MongoDB, from 2008 to now.
@@ -145,6 +148,5 @@ special_copyright dist/s_c_test_create 1 "$string4"
 special_copyright src/docs/build-javadoc.sh 1 "$string2"
 special_copyright src/docs/style/footer.html 2 "$string2"
 special_copyright src/utilities/util_cpyright.c 1 "$string3"
-special_copyright test/syscall/wt2336_base/base.run 1 "$string4"
 
 exit 0
