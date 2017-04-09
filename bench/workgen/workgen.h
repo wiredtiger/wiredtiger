@@ -108,10 +108,10 @@ struct Key {
     /* XXX specify more about key distribution */
     Key() : _keytype(KEYGEN_APPEND), _size(0), _max(0) {}
     Key(KeyType keytype, int size) : _keytype(keytype), _size(size), _max(0) {
-        compute_max();
+	compute_max();
     }
     Key(const Key &other) : _keytype(other._keytype), _size(other._size),
-        _max(other._max) {}
+	_max(other._max) {}
     ~Key() {}
 
     void describe(std::ostream &os) const { os << "Key: type " << _keytype << ", size " << _size; }
@@ -132,7 +132,7 @@ struct Value {
     /* XXX specify how value is calculated */
     Value() : _size(0), _max(0) {}
     Value(int size) : _size(size), _max(0) {
-        compute_max();
+	compute_max();
     }
     Value(const Value &other) : _size(other._size), _max(other._max) {}
     ~Value() {}
