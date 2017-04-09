@@ -2,6 +2,11 @@
 #include <string>
 #include <vector>
 #include <map>
+#ifndef SWIG
+extern "C" {
+#include "workgen_func.h"
+}
+#endif
 
 namespace workgen {
 
@@ -13,11 +18,11 @@ struct ThreadEnvironment {
     int _errno;
     Thread *_thread;
     Context *_context;
+    workgen_random_state *_rand_state;
 
-    ThreadEnvironment() : _errno(0), _thread(NULL) {}
-    ThreadEnvironment(const ThreadEnvironment &other) : _errno(other._errno),
-	_thread(other._thread) {}
-    ~ThreadEnvironment() {}
+    int create(WT_SESSION *session);
+    ThreadEnvironment();
+    ~ThreadEnvironment();
 };
 
 struct WorkgenException {
@@ -61,7 +66,7 @@ struct TableStats {
     void clear();
     void describe(std::ostream &os) const;
     void report(std::ostream &os) const;
-    void final_report(std::ostream &os, int totalsecs) const;
+    void final_report(std::ostream &os, timespec &totalsecs) const;
 };
 
 /* Tables can be shared among operations within a single Thread.
@@ -76,7 +81,6 @@ struct Table {
     TableStats stats;
 #ifndef SWIG
     WT_CURSOR *_cursor;
-    int _nentries;              // TODO: needed?
 #endif
 
     /* XXX select table from range */
@@ -97,14 +101,21 @@ struct Key {
     typedef enum { KEYGEN_APPEND, KEYGEN_PARETO, KEYGEN_UNIFORM } KeyType;
     KeyType _keytype;
     int _size;
+#ifndef SWIG
+    uint64_t _max;
+#endif
 
     /* XXX specify more about key distribution */
-    Key() : _keytype(KEYGEN_APPEND), _size(0) {}
-    Key(KeyType keytype, int size) : _keytype(keytype), _size(size) {}
-    Key(const Key &other) : _keytype(other._keytype), _size(other._size) {}
+    Key() : _keytype(KEYGEN_APPEND), _size(0), _max(0) {}
+    Key(KeyType keytype, int size) : _keytype(keytype), _size(size), _max(0) {
+        compute_max();
+    }
+    Key(const Key &other) : _keytype(other._keytype), _size(other._size),
+        _max(other._max) {}
     ~Key() {}
 
     void describe(std::ostream &os) const { os << "Key: type " << _keytype << ", size " << _size; }
+    void compute_max();
 
 #ifndef SWIG
     void gen(uint64_t, char *) const;
@@ -114,14 +125,20 @@ struct Key {
 
 struct Value {
     int _size;
+#ifndef SWIG
+    uint64_t _max;
+#endif
 
     /* XXX specify how value is calculated */
-    Value() {}
-    Value(int size) : _size(size) {}
-    Value(const Value &other) : _size(other._size) {}
+    Value() : _size(0), _max(0) {}
+    Value(int size) : _size(size), _max(0) {
+        compute_max();
+    }
+    Value(const Value &other) : _size(other._size), _max(other._max) {}
     ~Value() {}
 
     void describe(std::ostream &os) const { os << "Value: size " << _size; }
+    void compute_max();
 
 #ifndef SWIG
     void gen(uint64_t, char *) const;
@@ -152,6 +169,7 @@ struct Operation {
     int run(ThreadEnvironment &env);
     void size_buffers(size_t &keysize, size_t &valuesize) const;
     void get_stats(TableStats &);
+    void get_static_counts(TableStats &);
     void clear_stats();
 #endif
 };
@@ -165,7 +183,6 @@ struct Thread {
     WT_SESSION *_session;
     char *_keybuf;
     char *_valuebuf;
-    void **_rand_state;
     bool _repeat;
 #endif
 
@@ -180,10 +197,11 @@ struct Thread {
 
 #ifndef SWIG
     void free_all();
-    int create_all(WT_CONNECTION *conn);
+    int create_all(WT_CONNECTION *conn, ThreadEnvironment &env);
     int open_all(WT_CONNECTION *conn);
     int close_all();
     void get_stats(TableStats &stats);
+    void get_static_counts(TableStats &);
     void clear_stats();
     int run(ThreadEnvironment &env);
 #endif
@@ -212,7 +230,7 @@ struct Workload {
     }
     int run(WT_CONNECTION *conn);
     void report(int, int, TableStats &);
-    void final_report(int);
+    void final_report(timespec &);
 
 private:
     void get_stats(TableStats &stats);

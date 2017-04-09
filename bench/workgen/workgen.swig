@@ -34,6 +34,7 @@
 %include "typemaps.i"
 %include "std_vector.i"
 %include "std_string.i"
+%include "attribute.i"
 
 /* We only need to reference WiredTiger types. */
 %import "wiredtiger.h"
@@ -78,16 +79,6 @@ import numbers
 }
 %enddef
 
-InterruptableFunction(workgen::execute)
-InterruptableFunction(workgen::Workload::run)
-
-%module workgen
-/* Parse the header to generate wrappers. */
-%include "workgen.h"
-
-%template(OpList) std::vector<workgen::Operation>;
-%template(ThreadList) std::vector<workgen::Thread>;
-
 %define WorkgenClass(classname)
 %extend workgen::classname {
 	const std::string __str__() {
@@ -97,6 +88,16 @@ InterruptableFunction(workgen::Workload::run)
 	}
 };
 %enddef
+
+InterruptableFunction(workgen::execute)
+InterruptableFunction(workgen::Workload::run)
+
+%module workgen
+/* Parse the header to generate wrappers. */
+%include "workgen.h"
+
+%template(OpList) std::vector<workgen::Operation>;
+%template(ThreadList) std::vector<workgen::Thread>;
 
 WorkgenClass(Key)
 WorkgenClass(Operation)

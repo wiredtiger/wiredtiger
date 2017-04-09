@@ -75,3 +75,24 @@ except BaseException as e:
     got_exception = True
 if not got_exception or opx != None:
     print('*** ERROR: did not get exception')
+
+def expectException(expr):
+    gotit = False
+    try:
+        expr()
+    except BaseException as e:
+        print('got expected exception: ' + str(e))
+        gotit = True
+    if not gotit:
+        raise Exception("missing expected exception")
+
+def assignit(k, n):
+    k._size = n
+
+expectException(lambda: Key(Key.KEYGEN_APPEND, 1))
+k = Key(Key.KEYGEN_APPEND, 5)
+assignit(k, 30)
+assignit(k, 1)  # we don't catch this exception here, but in execute.
+op = Operation(Operation.OP_SEARCH, Table(tname0), k)
+workload = Workload(context, ThreadList([Thread(OpList([op]))]))
+expectException(lambda: execute(conn, workload))
