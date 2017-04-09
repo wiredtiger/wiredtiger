@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -65,7 +65,8 @@ stats(void)
 
 	/* File statistics. */
 	if (!multiple_files) {
-		(void)snprintf(name, sizeof(name), "statistics:" FNAME, 0);
+		testutil_check(__wt_snprintf(
+		    name, sizeof(name), "statistics:" FNAME, 0));
 		if ((ret = session->open_cursor(
 		    session, name, NULL, NULL, &cursor)) != 0)
 			testutil_die(ret, "session.open_cursor");

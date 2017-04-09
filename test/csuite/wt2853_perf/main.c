@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -114,12 +114,15 @@ main(int argc, char *argv[])
 	tablename = strchr(opts->uri, ':');
 	testutil_assert(tablename != NULL);
 	tablename++;
-	snprintf(sharedopts->posturi, sizeof(sharedopts->posturi),
-	    "index:%s:post", tablename);
-	snprintf(sharedopts->baluri, sizeof(sharedopts->baluri),
-	    "index:%s:bal", tablename);
-	snprintf(sharedopts->flaguri, sizeof(sharedopts->flaguri),
-	    "index:%s:flag", tablename);
+	testutil_check(__wt_snprintf(
+	    sharedopts->posturi, sizeof(sharedopts->posturi),
+	    "index:%s:post", tablename));
+	testutil_check(__wt_snprintf(
+	    sharedopts->baluri, sizeof(sharedopts->baluri),
+	    "index:%s:bal", tablename));
+	testutil_check(__wt_snprintf(
+	    sharedopts->flaguri, sizeof(sharedopts->flaguri),
+	    "index:%s:flag", tablename));
 
 	testutil_check(session->create(session, sharedopts->posturi,
 	    "columns=(post)"));

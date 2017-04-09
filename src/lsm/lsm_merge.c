@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -625,7 +625,7 @@ err:	if (locked)
 		else
 			__wt_verbose(session, WT_VERB_LSM,
 			    "Merge failed with %s",
-			   __wt_strerror(session, ret, NULL, 0));
+			    __wt_strerror(session, ret, NULL, 0));
 	}
 	F_CLR(session, WT_SESSION_NO_CACHE | WT_SESSION_NO_EVICTION);
 	return (ret);

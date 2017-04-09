@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -20,12 +20,6 @@ __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
 	/* Default session. */
 	session = conn->default_session;
 	WT_ASSERT(session, session->iface.connection == &conn->iface);
-
-	/*
-	 * Tell internal server threads to run: this must be set before opening
-	 * any sessions.
-	 */
-	F_SET(conn, WT_CONN_SERVER_RUN);
 
 	/* WT_SESSION_IMPL array. */
 	WT_RET(__wt_calloc(session,
@@ -100,6 +94,10 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 		__wt_yield();
 	}
 
+	/* Shut down the subsystems, ensuring workers see the state change. */
+	F_SET(conn, WT_CONN_CLOSING);
+	WT_FULL_BARRIER();
+
 	/*
 	 * Clear any pending async operations and shut down the async worker
 	 * threads and system before closing LSM.
@@ -113,10 +111,15 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	 * btree handles, so take care in ordering shutdown to make sure they
 	 * exit before files are closed.
 	 */
-	F_CLR(conn, WT_CONN_SERVER_RUN);
 	WT_TRET(__wt_lsm_manager_destroy(session));
 
-	F_SET(conn, WT_CONN_CLOSING);
+	/*
+	 * Once the async and LSM threads exit, we shouldn't be opening any
+	 * more files.
+	 */
+	F_SET(conn, WT_CONN_CLOSING_NO_MORE_OPENS);
+	WT_FULL_BARRIER();
+
 	WT_TRET(__wt_checkpoint_server_destroy(session));
 	WT_TRET(__wt_statlog_destroy(session, true));
 	WT_TRET(__wt_sweep_destroy(session));
@@ -189,7 +192,7 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 			for (i = 0; i < conn->session_size; ++s, ++i) {
 				__wt_free(session, s->dhhash);
 				__wt_free(session, s->tablehash);
-				__wt_split_stash_discard_all(session, s);
+				__wt_stash_discard_all(session, s);
 				__wt_free(session, s->hazard);
 			}
 

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -109,9 +109,14 @@ copy(WT_SESSION *session, const char *directory, const char *name)
 
 	/* Build the target pathname. */
 	len = strlen(directory) + strlen(name) + 2;
-	if ((to = malloc(len)) == NULL)
-		goto memerr;
-	(void)snprintf(to, len, "%s/%s", directory, name);
+	if ((to = malloc(len)) == NULL) {
+		fprintf(stderr, "%s: %s\n", progname, strerror(errno));
+		return (1);
+	}
+	if ((ret = __wt_snprintf(to, len, "%s/%s", directory, name)) != 0) {
+		fprintf(stderr, "%s: %s\n", progname, strerror(ret));
+		goto err;
+	}
 
 	if (verbose && printf("Backing up %s/%s to %s\n", home, name, to) < 0) {
 		fprintf(stderr, "%s: %s\n", progname, strerror(EIO));
@@ -126,11 +131,7 @@ copy(WT_SESSION *session, const char *directory, const char *name)
 		fprintf(stderr, "%s/%s to %s: backup copy: %s\n",
 		    home, name, to, session->strerror(session, ret));
 
-	if (0) {
-memerr:		fprintf(stderr, "%s: %s\n", progname, strerror(errno));
-	}
 err:	free(to);
-
 	return (ret);
 }
 

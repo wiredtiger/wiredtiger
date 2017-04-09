@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -413,7 +413,7 @@ __wt_cache_page_image_incr(WT_SESSION_IMPL *session, uint32_t size)
  *	Evict pages from the cache.
  */
 static inline void
-__wt_cache_page_evict(WT_SESSION_IMPL *session, WT_PAGE *page)
+__wt_cache_page_evict(WT_SESSION_IMPL *session, WT_PAGE *page, bool rewrite)
 {
 	WT_BTREE *btree;
 	WT_CACHE *cache;
@@ -424,7 +424,7 @@ __wt_cache_page_evict(WT_SESSION_IMPL *session, WT_PAGE *page)
 	modify = page->modify;
 
 	/* Update the bytes in-memory to reflect the eviction. */
-	__wt_cache_decr_check_uint64(session, &S2BT(session)->bytes_inmem,
+	__wt_cache_decr_check_uint64(session, &btree->bytes_inmem,
 	    page->memory_footprint, "WT_BTREE.bytes_inmem");
 	__wt_cache_decr_check_uint64(session, &cache->bytes_inmem,
 	    page->memory_footprint, "WT_CACHE.bytes_inmem");
@@ -456,7 +456,15 @@ __wt_cache_page_evict(WT_SESSION_IMPL *session, WT_PAGE *page)
 
 	/* Update pages and bytes evicted. */
 	(void)__wt_atomic_add64(&cache->bytes_evict, page->memory_footprint);
-	(void)__wt_atomic_addv64(&cache->pages_evict, 1);
+
+	/*
+	 * Don't count rewrites as eviction: there's no guarantee we are making
+	 * real progress.
+	 */
+	if (rewrite)
+		(void)__wt_atomic_subv64(&cache->pages_inmem, 1);
+	else
+		(void)__wt_atomic_addv64(&cache->pages_evict, 1);
 }
 
 /*
@@ -1346,9 +1354,14 @@ __wt_page_can_evict(
 	 * the original parent page's index, because evicting an internal page
 	 * discards its WT_REF array, and a thread traversing the original
 	 * parent page index might see a freed WT_REF.
+	 *
+	 * One special case where we know this is safe is if the handle is
+	 * locked exclusive (e.g., when the whole tree is being evicted).  In
+	 * that case, no readers can be looking at an old index.
 	 */
-	if (WT_PAGE_IS_INTERNAL(page) && !__wt_split_obsolete(
-	    session, page->pg_intl_split_gen))
+	if (!F_ISSET(session->dhandle, WT_DHANDLE_EXCLUSIVE) &&
+	    WT_PAGE_IS_INTERNAL(page) &&
+	    page->pg_intl_split_gen >= __wt_gen_oldest(session, WT_GEN_SPLIT))
 		return (false);
 
 	/*

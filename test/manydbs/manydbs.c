@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -168,7 +168,8 @@ main(int argc, char *argv[])
 	testutil_make_work_dir(home);
 	__wt_random_init(&rnd);
 	for (i = 0; i < dbs; ++i) {
-		snprintf(hometmp, HOME_SIZE, "%s/%s.%d", home, HOME_BASE, i);
+		testutil_check(__wt_snprintf(
+		    hometmp, HOME_SIZE, "%s/%s.%d", home, HOME_BASE, i));
 		testutil_make_work_dir(hometmp);
 		/*
 		 * Open each database.  Rotate different configurations

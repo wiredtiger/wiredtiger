@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -132,7 +132,8 @@ main(int argc, char *argv[])
 	testutil_check(opts->conn->open_session(
 	    opts->conn, NULL, NULL, &session));
 
-	sprintf(table_format, "key_format=r,value_format=");
+	testutil_check(__wt_snprintf(
+	    table_format, sizeof(table_format), "key_format=r,value_format="));
 	for (i = 0; i < NR_FIELDS; i++)
 		strcat(table_format, "Q");
 

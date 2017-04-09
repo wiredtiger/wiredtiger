@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -229,7 +229,7 @@ __lsm_meta_read_v1(
 		cv.len -= 2;
 	}
 	WT_ERR(__wt_config_check(session,
-	   WT_CONFIG_REF(session, WT_SESSION_create), cv.str, cv.len));
+	    WT_CONFIG_REF(session, WT_SESSION_create), cv.str, cv.len));
 	WT_ERR(__wt_strndup(session, cv.str, cv.len, &lsm_tree->bloom_config));
 	WT_ERR(__wt_config_getones(
 	    session, lsmconf, "lsm.bloom_hash_count", &cv));

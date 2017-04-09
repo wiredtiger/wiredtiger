@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -121,9 +121,9 @@ setup(void)
 	 * Open configuration -- put command line configuration options at the
 	 * end so they can override "standard" configuration.
 	 */
-	snprintf(config, sizeof(config),
+	testutil_check(__wt_snprintf(config, sizeof(config),
 	    "create,error_prefix=\"%s\",cache_size=%" PRIu32 "MB,%s",
-	    progname, g.c_cache, g.config_open == NULL ? "" : g.config_open);
+	    progname, g.c_cache, g.config_open == NULL ? "" : g.config_open));
 
 	testutil_check(wiredtiger_open(NULL, NULL, config, &conn));
 

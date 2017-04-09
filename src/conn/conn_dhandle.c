@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -314,7 +314,8 @@ __wt_conn_btree_open(
 	    F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) &&
 	    !LF_ISSET(WT_DHANDLE_LOCK_ONLY));
 
-	WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_CLOSING));
+	WT_ASSERT(session,
+	     !F_ISSET(S2C(session), WT_CONN_CLOSING_NO_MORE_OPENS));
 
 	/*
 	 * If the handle is already open, it has to be closed so it can be

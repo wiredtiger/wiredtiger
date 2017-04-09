@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -37,8 +37,8 @@ __bloom_init(WT_SESSION_IMPL *session,
 		len += strlen(config);
 	WT_ERR(__wt_calloc_def(session, len, &bloom->config));
 	/* Add the standard config at the end, so it overrides user settings. */
-	(void)snprintf(bloom->config, len,
-	    "%s,%s", config == NULL ? "" : config, WT_BLOOM_TABLE_CONFIG);
+	WT_ERR(__wt_snprintf(bloom->config, len,
+	    "%s,%s", config == NULL ? "" : config, WT_BLOOM_TABLE_CONFIG));
 
 	bloom->session = session;
 

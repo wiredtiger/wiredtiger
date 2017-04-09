@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -140,7 +140,10 @@ util_flush(WT_SESSION *session, const char *uri)
 	if ((buf = malloc(len)) == NULL)
 		return (util_err(session, errno, NULL));
 
-	(void)snprintf(buf, len, "target=(\"%s\")", uri);
+	if ((ret = __wt_snprintf(buf, len, "target=(\"%s\")", uri)) != 0) {
+		free(buf);
+		return (util_err(session, ret, NULL));
+	}
 	ret = session->checkpoint(session, buf);
 	free(buf);
 
