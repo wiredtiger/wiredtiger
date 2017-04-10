@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -637,7 +637,7 @@ __log_file_server(void *arg)
 	}
 
 	if (0) {
-err:		__wt_err(session, ret, "log close server error");
+err:		WT_PANIC_MSG(session, ret, "log close server error");
 	}
 	if (locked)
 		__wt_spin_unlock(session, &log->log_sync_lock);
@@ -855,7 +855,8 @@ __log_wrlsn_server(void *arg)
 	WT_ERR(__wt_log_force_write(session, 1, NULL));
 	__wt_log_wrlsn(session, NULL);
 	if (0) {
-err:		__wt_err(session, ret, "log wrlsn server error");
+err:		WT_PANIC_MSG(session, ret, "log wrlsn server error");
+
 	}
 	return (WT_THREAD_RET_VALUE);
 }
@@ -959,7 +960,7 @@ __log_server(void *arg)
 	}
 
 	if (0) {
-err:		__wt_err(session, ret, "log server error");
+err:		WT_PANIC_MSG(session, ret, "log server error");
 	}
 	return (WT_THREAD_RET_VALUE);
 }

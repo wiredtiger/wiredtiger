@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -98,6 +98,9 @@ __wt_session_release_resources(WT_SESSION_IMPL *session)
 	/* Reconciliation cleanup */
 	if (session->reconcile_cleanup != NULL)
 		WT_TRET(session->reconcile_cleanup(session));
+
+	/* Stashed memory. */
+	__wt_stash_discard(session);
 
 	/*
 	 * Discard scratch buffers, error memory; last, just in case a cleanup

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -301,8 +301,8 @@ wts_open(const char *home, bool set_api, WT_CONNECTION **connp)
 		if ((ret = conn->load_extension(
 		    conn, HELIUM_PATH, helium_config)) != 0)
 			testutil_die(ret,
-			   "WT_CONNECTION.load_extension: %s:%s",
-			   HELIUM_PATH, helium_config);
+			    "WT_CONNECTION.load_extension: %s:%s",
+			    HELIUM_PATH, helium_config);
 	}
 	*connp = conn;
 }

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -2161,7 +2161,6 @@ __wt_log_force_write(WT_SESSION_IMPL *session, bool retry, bool *did_work)
 {
 	WT_LOG *log;
 	WT_MYSLOT myslot;
-	uint32_t joined;
 
 	log = S2C(session)->log;
 	memset(&myslot, 0, sizeof(myslot));
@@ -2169,14 +2168,7 @@ __wt_log_force_write(WT_SESSION_IMPL *session, bool retry, bool *did_work)
 	if (did_work != NULL)
 		*did_work = true;
 	myslot.slot = log->active_slot;
-	joined = WT_LOG_SLOT_JOINED(log->active_slot->slot_state);
-	if (joined == 0 && !F_ISSET(log, WT_LOG_FORCE_NEWFILE)) {
-		WT_STAT_CONN_INCR(session, log_force_write_skip);
-		if (did_work != NULL)
-			*did_work = false;
-		return (0);
-	}
-	return (__wt_log_slot_switch(session, &myslot, retry, true));
+	return (__wt_log_slot_switch(session, &myslot, retry, true, did_work));
 }
 
 /*
@@ -2388,7 +2380,7 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 	ret = 0;
 	if (myslot.end_offset >= WT_LOG_SLOT_BUF_MAX ||
 	    F_ISSET(&myslot, WT_MYSLOT_UNBUFFERED) || force)
-		ret = __wt_log_slot_switch(session, &myslot, true, false);
+		ret = __wt_log_slot_switch(session, &myslot, true, false, NULL);
 	if (ret == 0)
 		ret = __wt_log_fill(session, &myslot, false, record, &lsn);
 	release_size = __wt_log_slot_release(

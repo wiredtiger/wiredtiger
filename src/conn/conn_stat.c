@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -83,9 +83,9 @@ __wt_conn_stat_init(WT_SESSION_IMPL *session)
 	    stats, session_cursor_open, conn->open_cursor_count);
 	WT_STAT_SET(session, stats, dh_conn_handle_count, conn->dhandle_count);
 	WT_STAT_SET(session,
-	    stats, rec_split_stashed_objects, conn->split_stashed_objects);
+	    stats, rec_split_stashed_objects, conn->stashed_objects);
 	WT_STAT_SET(session,
-	    stats, rec_split_stashed_bytes, conn->split_stashed_bytes);
+	    stats, rec_split_stashed_bytes, conn->stashed_bytes);
 }
 
 /*

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -225,10 +225,10 @@ __compact_checkpoint(WT_SESSION_IMPL *session)
 	 * generation number changes, the checkpoint blocking us has completed.
 	 */
 	txn_global = &S2C(session)->txn_global;
-	for (txn_gen = txn_global->checkpoint_gen;;) {
+	for (txn_gen = __wt_gen(session, WT_GEN_CHECKPOINT);;) {
 		WT_READ_BARRIER();
 		if (!txn_global->checkpoint_running ||
-		    txn_gen != txn_global->checkpoint_gen)
+		    txn_gen != __wt_gen(session, WT_GEN_CHECKPOINT))
 			break;
 
 		WT_RET(__wt_session_compact_check_timeout(session));
