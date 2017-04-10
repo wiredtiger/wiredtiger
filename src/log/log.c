@@ -79,41 +79,6 @@ __log_get_files(WT_SESSION_IMPL *session,
 }
 
 /*
- * __log_wait_for_earlier_slot --
- *	Wait for write_lsn to catch up to this slot.
- */
-static int
-__log_wait_for_earlier_slot(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
-{
-	WT_CONNECTION_IMPL *conn;
-	WT_LOG *log;
-	int yield_count;
-
-	conn = S2C(session);
-	log = conn->log;
-	yield_count = 0;
-
-	while (__wt_log_cmp(&log->write_lsn, &slot->slot_release_lsn) != 0) {
-		/*
-		 * If we're on a locked path and the write LSN is not advancing,
-		 * unlock in case an earlier thread is trying to switch its
-		 * slot and complete its operation.
-		 */
-		WT_RET(WT_SESSION_CHECK_PANIC(session));
-		if (F_ISSET(session, WT_SESSION_LOCKED_SLOT))
-			__wt_spin_unlock(session, &log->log_slot_lock);
-		__wt_cond_signal(session, conn->log_wrlsn_cond);
-		if (++yield_count < WT_THOUSAND)
-			__wt_yield();
-		else
-			__wt_cond_wait(session, log->log_write_cond, 200, NULL);
-		if (F_ISSET(session, WT_SESSION_LOCKED_SLOT))
-			__wt_spin_lock(session, &log->log_slot_lock);
-	}
-	return (0);
-}
-
-/*
  * __log_prealloc_remove --
  *	Remove all previously created pre-allocated files.
  */
@@ -156,6 +121,64 @@ __log_prealloc_remove(WT_SESSION_IMPL *session)
 err:	WT_TRET(__wt_fs_directory_list_free(session, &logfiles, logcount));
 	__wt_spin_unlock(session, &log->log_fs_lock);
 	return (ret);
+}
+
+/*
+ * __log_wait_for_earlier_slot --
+ *	Wait for write_lsn to catch up to this slot.
+ */
+static int
+__log_wait_for_earlier_slot(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_LOG *log;
+	int yield_count;
+
+	conn = S2C(session);
+	log = conn->log;
+	yield_count = 0;
+
+	while (__wt_log_cmp(&log->write_lsn, &slot->slot_release_lsn) != 0) {
+		/*
+		 * If we're on a locked path and the write LSN is not advancing,
+		 * unlock in case an earlier thread is trying to switch its
+		 * slot and complete its operation.
+		 */
+		WT_RET(WT_SESSION_CHECK_PANIC(session));
+		if (F_ISSET(session, WT_SESSION_LOCKED_SLOT))
+			__wt_spin_unlock(session, &log->log_slot_lock);
+		__wt_cond_signal(session, conn->log_wrlsn_cond);
+		if (++yield_count < WT_THOUSAND)
+			__wt_yield();
+		else
+			__wt_cond_wait(session, log->log_write_cond, 200, NULL);
+		if (F_ISSET(session, WT_SESSION_LOCKED_SLOT))
+			__wt_spin_lock(session, &log->log_slot_lock);
+	}
+	return (0);
+}
+
+/*
+ * __log_fs_write --
+ *	Wrapper when writing to a log file.  If we're writing to a new log
+ *	file for the first time wait for writes to the previous log file.
+ */
+static int
+__log_fs_write(WT_SESSION_IMPL *session,
+    WT_LOGSLOT *slot, wt_off_t offset, size_t len, const void *buf)
+{
+	/*
+	 * If we're writing into a new log file and we're running in
+	 * compatibility mode to an older release, we have to wait for all
+	 * writes to the previous log file to complete otherwise there could
+	 * be a hole at the end of the previous log file that we cannot detect.
+	 */
+	if (S2C(session)->log->log_minor != WT_LOG_MINOR_VERSION &&
+	    slot->slot_release_lsn.l.file < slot->slot_start_lsn.l.file) {
+		__log_wait_for_earlier_slot(session, slot);
+		WT_RET(__wt_log_force_sync(session, &slot->slot_release_lsn));
+	}
+	return (__wt_write(session, slot->slot_fh, offset, len, buf));
 }
 
 /*
@@ -678,7 +701,7 @@ __wt_log_fill(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 
 	/*
-	 * Call __wt_write or copy into the buffer.  For now the offset is the
+	 * Call write or copy into the buffer.  For now the offset is the
 	 * real byte offset.  If the offset becomes a unit of WT_LOG_ALIGN this
 	 * is where we would multiply by WT_LOG_ALIGN to get the real file byte
 	 * offset for write().
@@ -690,7 +713,7 @@ __wt_log_fill(WT_SESSION_IMPL *session,
 		/*
 		 * If this is a force or unbuffered write, write it now.
 		 */
-		WT_ERR(__wt_write(session, myslot->slot->slot_fh,
+		WT_ERR(__log_fs_write(session, myslot->slot,
 		    myslot->offset + myslot->slot->slot_start_offset,
 		    record->size, record->mem));
 
@@ -1674,9 +1697,8 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
 
 	/* Write the buffered records */
 	if (release_buffered != 0)
-		WT_ERR(__wt_write(session, slot->slot_fh,
-		    slot->slot_start_offset, (size_t)release_buffered,
-		    slot->slot_buf.mem));
+		WT_ERR(__log_fs_write(session, slot, slot->slot_start_offset,
+		    (size_t)release_buffered, slot->slot_buf.mem));
 
 	/*
 	 * If we have to wait for a synchronous operation, we do not pass
