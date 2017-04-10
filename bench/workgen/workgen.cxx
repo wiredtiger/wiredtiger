@@ -9,6 +9,7 @@ extern "C" {
 // have some C-ism's that don't work in C++.
 #include <pthread.h>
 #include <string.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include "error.h"
@@ -83,11 +84,9 @@ Context::~Context() {}
 
 void Key::gen(uint64_t n, char *result) const {
     if (n > _max) {
-        char msg[100];
-
-        snprintf(msg, sizeof(msg), "Key (%" PRIu64 ") too large for size (%d)",
-          n, _size);
-        WorkgenException wge(0, msg);
+        std::stringstream sstm;
+        sstm << "Key (" << n << ") too large for size (" << _size << ")";
+        WorkgenException wge(0, sstm.str().c_str());
 	throw(wge);
     }
     workgen_u64_to_string_zf(n, result, _size);
@@ -108,11 +107,9 @@ void Key::size_buffer(size_t &keysize) const {
 
 void Value::gen(uint64_t n, char *result) const {
     if (n > _max) {
-        char msg[100];
-
-        snprintf(msg, sizeof(msg), "Value (%" PRIu64
-          ") too large for size (%d)", n, _size);
-        WorkgenException wge(0, msg);
+        std::stringstream sstm;
+        sstm << "Value (" << n << ") too large for size (" << _size << ")";
+        WorkgenException wge(0, sstm.str().c_str());
 	throw(wge);
     }
     workgen_u64_to_string_zf(n, result, _size);
