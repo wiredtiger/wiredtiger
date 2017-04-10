@@ -995,10 +995,9 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 		conn->evict_tune_workers_best = 0;
 
 		/* Reduce the number of eviction workers to the minimum */
-		thread_surplus = (int32_t)conn->evict_threads.current_threads -
+		thread_surplus =
+		    (int32_t)conn->evict_threads.current_threads -
 		    (int32_t)conn->evict_threads_min;
-		if (thread_surplus <= 0)
-			return;
 
 		for (i = 0; i < thread_surplus; i++) {
 			__wt_thread_group_stop_one(
@@ -1077,8 +1076,8 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 			 * settle into a stable state.
 			 */
 			thread_surplus =
-			    conn->evict_threads.current_threads -
-			    conn->evict_tune_workers_best;
+			    (int32_t)conn->evict_threads.current_threads -
+			    (int32_t)conn->evict_tune_workers_best;
 
 			for (i = 0; i < thread_surplus; i++) {
 				__wt_thread_group_stop_one(
