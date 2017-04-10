@@ -1,4 +1,4 @@
-#include <cstdint>
+#define __STDC_LIMIT_MACROS   // needed to get UINT64_MAX in C++
 #include <iomanip>
 #include <iostream>
 #include <sstream>
