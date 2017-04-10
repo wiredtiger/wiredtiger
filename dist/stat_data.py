@@ -336,7 +336,6 @@ connection_stats = [
     LogStat('log_slot_races', 'consolidated slot join races'),
     LogStat('log_slot_sleeps', 'consolidated slot join sleeps'),
     LogStat('log_slot_switch_busy', 'busy returns attempting to switch slots'),
-    LogStat('log_slot_transitions', 'consolidated slot transitions'),
     LogStat('log_slot_unbuffered', 'consolidated slot unbuffered writes'),
     LogStat('log_slot_yield', 'consolidated slot join calls yielded'),
     LogStat('log_slot_yield_close', 'consolidated slot join calls found active slot closed'),

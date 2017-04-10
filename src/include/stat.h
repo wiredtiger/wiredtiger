@@ -416,7 +416,6 @@ struct __wt_connection_stats {
 	int64_t log_slot_races;
 	int64_t log_slot_sleeps;
 	int64_t log_slot_duration;
-	int64_t log_slot_transitions;
 	int64_t log_slot_no_free_slots;
 	int64_t log_slot_unbuffered;
 	int64_t log_bytes_payload;

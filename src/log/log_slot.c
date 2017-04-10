@@ -255,8 +255,6 @@ __log_slot_new(WT_SESSION_IMPL *session)
 				 * We have a new, initialized slot to use.
 				 * Set it as the active slot.
 				 */
-				WT_STAT_CONN_INCR(session,
-				    log_slot_transitions);
 				log->active_slot = slot;
 				log->pool_index = pool_i;
 				return (0);

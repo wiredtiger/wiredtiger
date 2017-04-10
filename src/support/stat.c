@@ -783,7 +783,6 @@ static const char * const __stats_connection_desc[] = {
 	"log: consolidated slot join races",
 	"log: consolidated slot join sleeps",
 	"log: consolidated slot joins yield time (usecs)",
-	"log: consolidated slot transitions",
 	"log: consolidated slot transitions unable to find free slot",
 	"log: consolidated slot unbuffered writes",
 	"log: log bytes of payload data",
@@ -1077,7 +1076,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->log_slot_races = 0;
 	stats->log_slot_sleeps = 0;
 		/* not clearing log_slot_duration */
-	stats->log_slot_transitions = 0;
 	stats->log_slot_no_free_slots = 0;
 	stats->log_slot_unbuffered = 0;
 	stats->log_bytes_payload = 0;
@@ -1402,7 +1400,6 @@ __wt_stat_connection_aggregate(
 	to->log_slot_races += WT_STAT_READ(from, log_slot_races);
 	to->log_slot_sleeps += WT_STAT_READ(from, log_slot_sleeps);
 	to->log_slot_duration += WT_STAT_READ(from, log_slot_duration);
-	to->log_slot_transitions += WT_STAT_READ(from, log_slot_transitions);
 	to->log_slot_no_free_slots +=
 	    WT_STAT_READ(from, log_slot_no_free_slots);
 	to->log_slot_unbuffered += WT_STAT_READ(from, log_slot_unbuffered);
