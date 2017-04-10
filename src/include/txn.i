@@ -441,15 +441,21 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
 	 * for unlocked reads to be well defined, we must use an atomic
 	 * increment here.
 	 */
-	if (publish) {
-		__wt_writelock(session, &txn_state->rwlock);
-		id = __wt_atomic_addv64(&txn_global->current, 1) - 1;
-		txn_state->id = id;
-		__wt_writeunlock(session, &txn_state->rwlock);
-		session->txn.id = id;
-	} else
-		id = __wt_atomic_addv64(&txn_global->current, 1) - 1;
+	__wt_spin_lock(session, &txn_global->id_lock);
+	id = txn_global->current;
 
+	if (publish) {
+		session->txn.id = id;
+		WT_PUBLISH(txn_state->id, id);
+	}
+
+	/*
+	 * Even though we are in a spinlock, readers are not.  We rely on
+	 * atomic reads of the current ID to create snapshots, so for unlocked
+	 * reads to be well defined, we must use an atomic increment here.
+	 */
+	(void)__wt_atomic_addv64(&txn_global->current, 1);
+	__wt_spin_unlock(session, &txn_global->id_lock);
 	return (id);
 }
 

@@ -101,6 +101,8 @@ struct __wt_txn_global {
 	bool has_oldest_ts;
 #endif
 
+	WT_SPINLOCK id_lock;
+
 	/* Protects the leading edge of the active transaction window. */
 	WT_RWLOCK current_rwlock;
 
