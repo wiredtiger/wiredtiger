@@ -142,8 +142,6 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 		txn_state->metadata_pinned = id;
 	}
 
-	__wt_readunlock(session, &txn_global->current_rwlock);
-
 	/* For pure read-only workloads, avoid scanning. */
 	if (prev_oldest_id == current_id) {
 		txn_state->pinned_id = current_id;
@@ -182,7 +180,8 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 	WT_ASSERT(session, prev_oldest_id == txn_global->oldest_id);
 	txn_state->pinned_id = pinned_id;
 
-done:	__txn_sort_snapshot(session, n, current_id);
+done:	__wt_readunlock(session, &txn_global->current_rwlock);
+	__txn_sort_snapshot(session, n, current_id);
 }
 
 /*
