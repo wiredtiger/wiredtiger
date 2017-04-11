@@ -33,6 +33,14 @@ static uint32_t context_count = 0;
 #define OPS_PER_SEC(ops, secs)	(int) ((secs) == 0 ? 0.0 : \
     (ops) / TIMESPEC_DOUBLE(secs))
 
+// Get the value of a STL container, even if it is not present
+#define CONTAINER_VALUE(container, idx, dfault)   \
+    (((container).count(idx) > 0) ? (container)[idx] : (dfault))
+
+#define CROSS_USAGE(a, b)                                               \
+    (((a & USAGE_READ) != 0 && (b & USAGE_WRITE) != 0) ||               \
+     ((a & USAGE_WRITE) != 0 && (b & USAGE_READ) != 0))
+
 #define ASSERT(cond)                                                    \
     do {                                                                \
         if (!(cond)) {                                                  \
@@ -84,8 +92,8 @@ static void set_kv_max(int size, uint64_t *max) {
 }
 
 
-Context::Context() : _verbose(false), _recno_index(), _recno(NULL),
-    _recno_length(0), _recno_next(0), _context_count(0) {
+Context::Context() : _verbose(false), _recno_index(), _table_names(),
+    _recno(NULL), _recno_length(0), _recno_next(0), _context_count(0) {
     uint32_t count;
     if ((count = workgen_atomic_add32(&context_count, 1)) != 1) {
         WorkgenException wge(0, "multiple Contexts not supported");
@@ -160,7 +168,8 @@ void Value::size_buffer(size_t &valuesize) const {
 }
 
 ThreadEnvironment::ThreadEnvironment() :
-    _errno(0), _thread(NULL), _context(NULL), _rand_state(NULL) {
+    _errno(0), _thread(NULL), _context(NULL), _rand_state(NULL),
+    _table_usage(), _cursors(NULL) {
 }
 
 ThreadEnvironment::~ThreadEnvironment() {
@@ -172,6 +181,62 @@ ThreadEnvironment::~ThreadEnvironment() {
 
 int ThreadEnvironment::create(WT_SESSION *session) {
     WT_RET(workgen_random_alloc(session, &_rand_state));
+    return (0);
+}
+
+int ThreadEnvironment::open(WT_SESSION *session) {
+    typedef WT_CURSOR *WT_CURSOR_PTR;
+    if (_cursors != NULL)
+        delete _cursors;
+    _cursors = new WT_CURSOR_PTR[_context->_recno_next + 1];
+    memset(_cursors, 0, sizeof (WT_CURSOR *) * (_context->_recno_next + 1));
+    for (std::map<uint32_t, uint32_t>::iterator i = _table_usage.begin();
+         i != _table_usage.end(); i++) {
+        uint32_t tindex = i->first;
+        const char *uri = _context->_table_names[tindex].c_str();
+        WT_RET(session->open_cursor(session, uri, NULL, NULL,
+          &_cursors[tindex]));
+    }
+    return (0);
+}
+
+int ThreadEnvironment::close() {
+    WT_CURSOR *cursor;
+
+    if (_cursors != NULL) {
+        for (uint32_t i = 0; i < _context->_recno_next; i++)
+            if ((cursor = _cursors[i]) != NULL)
+                cursor->close(cursor);
+        delete _cursors;
+        _cursors = NULL;
+    }
+    return (0);
+}
+
+int ThreadEnvironment::cross_check(std::vector<ThreadEnvironment> &envs) {
+    std::map<uint32_t, uint32_t> usage;
+
+    // Determine which tables have cross usage
+    for (std::vector<ThreadEnvironment>::iterator e = envs.begin(); e != envs.end(); e++) {
+        for (std::map<uint32_t, uint32_t>::iterator i = e->_table_usage.begin();
+          i != e->_table_usage.end(); i++) {
+            uint32_t tindex = i->first;
+            uint32_t thisusage = i->second;
+            uint32_t curusage = CONTAINER_VALUE(usage, tindex, 0);
+            if (CROSS_USAGE(curusage, thisusage))
+                curusage |= USAGE_MIXED;
+            usage[tindex] = curusage;
+        }
+    }
+    for (std::map<uint32_t, uint32_t>::iterator i = usage.begin();
+         i != usage.end(); i++) {
+        if ((i->second & USAGE_MIXED) != 0) {
+            for (std::vector<ThreadEnvironment>::iterator e = envs.begin();
+                 e != envs.end(); e++) {
+                e->_table_usage[i->first] |= USAGE_MIXED;
+            }
+        }
+    }
     return (0);
 }
 
@@ -213,11 +278,11 @@ void Thread::describe(std::ostream &os) const {
     os << "]";
 }
 
-int Thread::open_all(WT_CONNECTION *conn) {
-    (void)conn;
+int Thread::open_all(ThreadEnvironment &env) {
+    env.open(_session);
     for (std::vector<Operation>::iterator i = _ops.begin(); i != _ops.end();
          i++) {
-        WT_RET(i->open_all(_session));
+        WT_RET(i->open_all(_session, env));
     }
     return (0);
 }
@@ -225,10 +290,11 @@ int Thread::open_all(WT_CONNECTION *conn) {
 int Thread::create_all(WT_CONNECTION *conn, ThreadEnvironment &env) {
     size_t keysize, valuesize;
 
-    WT_RET(close_all());
+    WT_RET(close_all(env));
     ASSERT(_session == NULL);
     WT_RET(conn->open_session(conn, NULL, NULL, &_session));
     WT_RET(env.create(_session));
+    env._table_usage.clear();
     keysize = MINIMUM_KEY_SIZE;
     valuesize = MINIMUM_VALUE_SIZE;
     for (std::vector<Operation>::iterator i = _ops.begin(); i != _ops.end();
@@ -241,7 +307,8 @@ int Thread::create_all(WT_CONNECTION *conn, ThreadEnvironment &env) {
     return (0);
 }
 
-int Thread::close_all() {
+int Thread::close_all(ThreadEnvironment &env) {
+    WT_RET(env.close());
     if (_session != NULL) {
         WT_RET(_session->close(_session, NULL));
         _session = NULL;
@@ -365,10 +432,18 @@ void Operation::create_all(ThreadEnvironment &env, size_t &keysize,
                 recno_index = workgen_atomic_add32(
                   &env._context->_recno_next, 1);
                 env._context->_recno_index[_table._tablename] = recno_index;
+                env._context->_table_names[recno_index] = _table._tablename;
             } else
                 recno_index = env._context->_recno_index[_table._tablename];
             _table._recno_index = recno_index;
         }
+        uint32_t usage_flags = CONTAINER_VALUE(env._table_usage,
+          _table._recno_index, 0);
+        if (_optype == OP_SEARCH)
+            usage_flags |= ThreadEnvironment::USAGE_READ;
+        else
+            usage_flags |= ThreadEnvironment::USAGE_WRITE;
+        env._table_usage[_table._recno_index] = usage_flags;
     }
     if (_children != NULL)
         for (std::vector<Operation>::iterator i = _children->begin();
@@ -378,7 +453,8 @@ void Operation::create_all(ThreadEnvironment &env, size_t &keysize,
 
 int Operation::run(ThreadEnvironment &env) {
     Thread *thread = env._thread;
-    WT_CURSOR *cursor = _table._cursor;
+    uint32_t recno_index = _table._recno_index;
+    WT_CURSOR *cursor = env._cursors[recno_index];
     WT_SESSION *session = thread->_session;
     WT_DECL_RET;
     uint32_t rand;
@@ -388,7 +464,7 @@ int Operation::run(ThreadEnvironment &env) {
         session->begin_transaction(session,
           _transaction->_begin_config.c_str());
     if (_optype != OP_NONE) {
-        uint32_t recno_index = env._context->_recno_index[_table._tablename];
+        ASSERT(env._context->_recno_index[_table._tablename] == recno_index);
         uint64_t recno;
         if (_optype == OP_INSERT)
             recno = workgen_atomic_add64(&env._context->_recno[recno_index], 1);
@@ -417,8 +493,25 @@ int Operation::run(ThreadEnvironment &env) {
             _table.stats.removes++;
             break;
         case OP_SEARCH:
-            WT_ERR(cursor->search(cursor));
-            _table.stats.reads++;
+            if ((ret = cursor->search(cursor)) == 0)
+                _table.stats.reads++;
+            else {
+                // If a thread writes the file at the time we read it,
+                // we may not see the record (the Context._recno field
+                // is incremented before the insert happens).  This is
+                // not necessarily a hard error.  With more work, we
+                // could determine more closely if mixed accesses apply
+                // to this file.  With even more work, we could choose
+                // keys that are 'known' to have completed writing.
+                //TODO:
+                //if (ret == WT_NOTFOUND && (env._table_usage[recno_index] &
+                //  ThreadEnvironment::USAGE_MIXED) != 0) {
+                if (ret == WT_NOTFOUND) {
+                    _table.stats.failed_reads++;
+                    ret = 0;
+                } else
+                    WT_ERR(ret);
+            }
             break;
         case OP_UPDATE:
             WT_ERR(cursor->update(cursor));
@@ -434,11 +527,9 @@ int Operation::run(ThreadEnvironment &env) {
               i != _children->end(); i++)
                 WT_ERR(i->run(env));
 err:
-    if (ret != 0)
-        (void)session->rollback_transaction(session, NULL);
-    else if (_transaction != NULL) {
-        if (_transaction->_rollback)
-            ret = session->rollback_transaction(session, NULL);
+    if (_transaction != NULL) {
+        if (ret != 0 || _transaction->_rollback)
+            WT_TRET(session->rollback_transaction(session, NULL));
         else
             ret = session->commit_transaction(session,
               _transaction->_commit_config.c_str());
@@ -488,9 +579,9 @@ void Operation::clear_stats() {
             i->clear_stats();
 }
 
-int Operation::open_all(WT_SESSION *session) {
+int Operation::open_all(WT_SESSION *session, ThreadEnvironment &env) {
+    (void)env;
     if (_optype != OP_NONE) {
-        WT_RET(_table.open_all(session));
         _key.compute_max();
         if (OP_HAS_VALUE(this))
             _value.compute_max();
@@ -498,13 +589,14 @@ int Operation::open_all(WT_SESSION *session) {
     if (_children != NULL)
         for (std::vector<Operation>::iterator i = _children->begin();
           i != _children->end(); i++)
-            WT_RET(i->open_all(session));
+            WT_RET(i->open_all(session, env));
     return (0);
 }
 
 void TableStats::add(const TableStats &other) {
     inserts += other.inserts;
     reads += other.reads;
+    failed_reads += other.failed_reads;
     removes += other.removes;
     updates += other.updates;
     truncates += other.truncates;
@@ -513,6 +605,7 @@ void TableStats::add(const TableStats &other) {
 void TableStats::subtract(const TableStats &other) {
     inserts -= other.inserts;
     reads -= other.reads;
+    failed_reads -= other.failed_reads;
     removes -= other.removes;
     updates -= other.updates;
     truncates -= other.truncates;
@@ -521,14 +614,18 @@ void TableStats::subtract(const TableStats &other) {
 void TableStats::clear() {
     inserts = 0;
     reads = 0;
+    failed_reads = 0;
     removes = 0;
     updates = 0;
     truncates = 0;
 }
 
 void TableStats::report(std::ostream &os) const {
-    os << reads << " reads, ";
-    os << inserts << " inserts, ";
+    os << reads << " reads";
+    if (failed_reads > 0) {
+        os << " (" << failed_reads << " failed)";
+    }
+    os << ", " << inserts << " inserts, ";
     os << updates << " updates, ";
     os << truncates << " truncates, ";
     os << removes << " removes";
@@ -537,6 +634,7 @@ void TableStats::report(std::ostream &os) const {
 void TableStats::final_report(std::ostream &os, timespec &totalsecs) const {
     uint64_t ops = 0;
     ops += reads;
+    ops += failed_reads;
     ops += inserts;
     ops += updates;
     ops += truncates;
@@ -548,6 +646,7 @@ void TableStats::final_report(std::ostream &os, timespec &totalsecs) const {
        << " ops/sec" << std::endl
 
     FINAL_OUTPUT(os, reads, read, ops, totalsecs);
+    FINAL_OUTPUT(os, failed_reads, failed read, ops, totalsecs);
     FINAL_OUTPUT(os, inserts, insert, ops, totalsecs);
     FINAL_OUTPUT(os, updates, update, ops, totalsecs);
     FINAL_OUTPUT(os, truncates, truncate, ops, totalsecs);
@@ -556,31 +655,25 @@ void TableStats::final_report(std::ostream &os, timespec &totalsecs) const {
 
 void TableStats::describe(std::ostream &os) const {
     os << "TableStats: reads " << reads;
+    if (failed_reads > 0) {
+        os << " (" << failed_reads << " failed)";
+    }
     os << ", inserts " << inserts;
     os << ", updates " << updates;
     os << ", truncates " << truncates;
     os << ", removes " << removes;
 }
 
-Table::Table() : _tablename(), stats(), _cursor(NULL), _recno_index(0),
+Table::Table() : _tablename(), stats(), _recno_index(0),
     _context_count(0) {}
 Table::Table(const char *tablename) : _tablename(tablename), stats(),
-     _cursor(NULL), _recno_index(0), _context_count(0) {}
+     _recno_index(0), _context_count(0) {}
 Table::Table(const Table &other) : _tablename(other._tablename),
-    stats(other.stats), _cursor(NULL), _recno_index(0), _context_count(0) {}
+    stats(other.stats), _recno_index(0), _context_count(0) {}
 Table::~Table() {}
 
 void Table::describe(std::ostream &os) const {
     os << "Table: " << _tablename;
-}
-
-int Table::open_all(WT_SESSION *session) {
-    // Tables may be shared within a thread.
-    if (_cursor == NULL) {
-        WT_RET(session->open_cursor(session, _tablename.c_str(), NULL, NULL,
-          &_cursor));
-    }
-    return (0);
 }
 
 Workload::Workload(Context *context, const std::vector<Thread> &threads) :
@@ -600,11 +693,9 @@ Workload::Workload(const Workload &other) :
 Workload::~Workload() {
 }
 
-int Workload::open_all(WT_CONNECTION *conn,
-                        std::vector<ThreadEnvironment> &envs) {
-    (void)envs;
+int Workload::open_all(std::vector<ThreadEnvironment> &envs) {
     for (size_t i = 0; i < _threads.size(); i++) {
-        WT_RET(_threads[i].open_all(conn));
+        WT_RET(_threads[i].open_all(envs[i]));
     }
     return (0);
 }
@@ -624,9 +715,9 @@ int Workload::create_all(WT_CONNECTION *conn, Context *context,
     return (0);
 }
 
-int Workload::close_all() {
+int Workload::close_all(std::vector<ThreadEnvironment> &envs) {
     for (size_t i = 0; i < _threads.size(); i++)
-        _threads[i].close_all();
+        _threads[i].close_all(envs[i]);
 
     return (0);
 }
@@ -636,7 +727,8 @@ int Workload::run(WT_CONNECTION *conn) {
     std::vector<ThreadEnvironment> envs(_threads.size());
 
     WT_ERR(create_all(conn, _context, envs));
-    WT_ERR(open_all(conn, envs));
+    WT_ERR(open_all(envs));
+    WT_ERR(ThreadEnvironment::cross_check(envs));
     WT_ERR(run_all(envs));
 
   err:
@@ -697,7 +789,7 @@ int Workload::run_all(std::vector<ThreadEnvironment> &envs) {
             for (size_t j = 0; j < thread_handles.size(); j++) {
                 _threads[j]._stop = true;
                 (void)pthread_join(thread_handles[j], &status);
-                _threads[j].close_all();
+                _threads[j].close_all(envs[j]);
             }
             return (ret);
         }
@@ -742,7 +834,7 @@ int Workload::run_all(std::vector<ThreadEnvironment> &envs) {
             VERBOSE(envs[i],
                     "Thread " << i << " has errno " << envs[i]._errno);
         WT_TRET(envs[i]._errno);
-        _threads[i].close_all();
+        _threads[i].close_all(envs[i]);
     }
     timespec finalsecs = now - start;
     final_report(finalsecs);
