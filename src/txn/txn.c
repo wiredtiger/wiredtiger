@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -477,10 +477,9 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 	/* Free the scratch buffer allocated for logging. */
 	__wt_logrec_free(session, &txn->logrec);
 
-	/* Discard any memory from the session's split stash that we can. */
-	WT_ASSERT(session, session->split_gen == 0);
-	if (session->split_stash_cnt > 0)
-		__wt_split_stash_discard(session);
+	/* Discard any memory from the session's stash that we can. */
+	WT_ASSERT(session, __wt_session_gen(session, WT_GEN_SPLIT) == 0);
+	__wt_stash_discard(session);
 
 	/*
 	 * Reset the transaction state to not running and release the snapshot.
@@ -851,7 +850,8 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 	WT_RET(__wt_msg(session, "checkpoint running? %s",
 	    txn_global->checkpoint_running ? "yes" : "no"));
 	WT_RET(__wt_msg(session,
-	    "checkpoint generation: %" PRIu64, txn_global->checkpoint_gen));
+	    "checkpoint generation: %" PRIu64,
+	    __wt_gen(session, WT_GEN_CHECKPOINT)));
 	WT_RET(__wt_msg(session,
 	    "checkpoint pinned ID: %" PRIu64, txn_global->checkpoint_pinned));
 	WT_RET(__wt_msg(session,

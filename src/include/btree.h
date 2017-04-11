@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -56,6 +56,12 @@
 
 /* Evict pages if we see this many consecutive deleted records. */
 #define	WT_BTREE_DELETE_THRESHOLD	1000
+
+/*
+ * Minimum size of the chunks (in percentage of the page size) a page gets split
+ * into during reconciliation.
+ */
+#define	WT_BTREE_MIN_SPLIT_PCT		50
 
 /*
  * WT_BTREE --

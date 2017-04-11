@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -284,7 +284,7 @@ static CONFIG c[] = {
 
 	{ "split_pct",
 	  "page split size as a percentage of the maximum page size",
-	  0x0, 40, 85, 85, &g.c_split_pct, NULL },
+	  0x0, 50, 100, 100, &g.c_split_pct, NULL },
 
 	{ "statistics",
 	  "maintain statistics",				/* 20% */

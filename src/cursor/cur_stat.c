@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -478,7 +478,7 @@ __curstat_join_desc(WT_CURSOR_STAT *cst, int slot, const char **resultp)
 	    strlen(static_desc) + 1;
 	WT_RET(__wt_realloc(session, NULL, len, &cst->desc_buf));
 	WT_RET(__wt_snprintf(
-	   cst->desc_buf, len, "join: %s%s", sgrp->desc_prefix, static_desc));
+	    cst->desc_buf, len, "join: %s%s", sgrp->desc_prefix, static_desc));
 	*resultp = cst->desc_buf;
 	return (0);
 }
