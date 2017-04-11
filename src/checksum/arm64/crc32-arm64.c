@@ -28,7 +28,7 @@
 
 #include "wt_internal.h"
 
-#if defined(HAVE_CRC32_HARDWARE)
+#if defined(__linux__) && defined(HAVE_CRC32_HARDWARE)
 #include <asm/hwcap.h>
 #include <sys/auxv.h>
 
@@ -82,7 +82,7 @@ __wt_checksum_hw(const void *chunk, size_t len)
 
 	return (~crc);
 }
-#endif /* HAVE_CRC32_HARDWARE */
+#endif
 
 /*
  * __wt_checksum_init --
@@ -91,7 +91,7 @@ __wt_checksum_hw(const void *chunk, size_t len)
 void
 __wt_checksum_init(void)
 {
-#if defined(HAVE_CRC32_HARDWARE)
+#if defined(__linux__) && defined(HAVE_CRC32_HARDWARE)
 	unsigned long caps = getauxval(AT_HWCAP);
 
 	if (caps & HWCAP_CRC32)
@@ -99,7 +99,7 @@ __wt_checksum_init(void)
 	else
 		__wt_process.checksum = __wt_checksum_sw;
 
-#else /* !HAVE_CRC32_HARDWARE */
+#else
 	__wt_process.checksum = __wt_checksum_sw;
-#endif /* HAVE_CRC32_HARDWARE */
+#endif
 }
