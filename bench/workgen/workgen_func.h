@@ -1,5 +1,9 @@
 struct workgen_random_state;
 
+extern uint32_t
+workgen_atomic_add32(uint32_t *vp, uint32_t v);
+extern uint64_t
+workgen_atomic_add64(uint64_t *vp, uint64_t v);
 extern void
 workgen_epoch(struct timespec *tsp);
 extern uint32_t

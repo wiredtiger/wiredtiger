@@ -17,6 +17,12 @@ extern "C" {
 #include "misc.h"
 }
 
+// The number of contexts.  Normally there is one context created, but it will
+// be possible to use several eventually.  More than one is not yet
+// implemented, but we must at least guard against the caller creating more
+// than one.
+static uint32_t context_count = 0;
+
 #define MINIMUM_KEY_SIZE  12        // The minimum key must contain
 #define MINIMUM_VALUE_SIZE  12
 
@@ -78,10 +84,34 @@ static void set_kv_max(int size, uint64_t *max) {
 }
 
 
-Context::Context() : _verbose(false), _table_count() {
+Context::Context() : _verbose(false), _recno_index(), _recno(NULL),
+    _recno_length(0), _recno_next(0), _context_count(0) {
+    uint32_t count;
+    if ((count = workgen_atomic_add32(&context_count, 1)) != 1) {
+        WorkgenException wge(0, "multiple Contexts not supported");
+	throw(wge);
+    }
+    _context_count = count;
 }
 
-Context::~Context() {}
+Context::~Context() {
+    if (_recno != NULL)
+        delete _recno;
+}
+
+int Context::create_all() {
+    if (_recno_length != _recno_next) {
+        // The array references are 1-based, we'll waste one entry.
+        uint64_t *new_recno = new uint64_t[_recno_next + 1];
+        memcpy(new_recno, _recno, sizeof(uint64_t) * _recno_length);
+        memset(&new_recno[_recno_length], 0,
+          sizeof(uint64_t) * (_recno_next - _recno_length + 1));
+        delete _recno;
+        _recno = new_recno;
+        _recno_length = _recno_next;
+    }
+    return (0);
+}
 
 void Key::gen(uint64_t n, char *result) const {
     if (n > _max) {
@@ -203,7 +233,7 @@ int Thread::create_all(WT_CONNECTION *conn, ThreadEnvironment &env) {
     valuesize = MINIMUM_VALUE_SIZE;
     for (std::vector<Operation>::iterator i = _ops.begin(); i != _ops.end();
          i++)
-        i->size_buffers(keysize, valuesize);
+        i->create_all(env, keysize, valuesize);
     _keybuf = new char[keysize];
     _valuebuf = new char[valuesize];
     _keybuf[keysize - 1] = '\0';
@@ -308,16 +338,37 @@ void Operation::describe(std::ostream &os) const {
     }
 }
 
-void Operation::size_buffers(size_t &keysize, size_t &valuesize) const
-{
+void Operation::create_all(ThreadEnvironment &env, size_t &keysize,
+  size_t &valuesize) {
     if (_optype != OP_NONE) {
         _key.size_buffer(keysize);
         _value.size_buffer(valuesize);
+
+        // Note: to support multiple contexts we'd need a generation
+        // count whenever we execute.
+        if (_table._context_count != 0 &&
+          _table._context_count != env._context->_context_count) {
+            WorkgenException wge(0, "multiple Contexts not supported");
+            throw(wge);
+        }
+        if (_table._recno_index == 0) {
+            uint32_t recno_index;
+
+            // We are single threaded in this function, so do not have
+            // to worry about locking.
+            if (env._context->_recno_index.count(_table._tablename) == 0) {
+                recno_index = workgen_atomic_add32(
+                  &env._context->_recno_next, 1);
+                env._context->_recno_index[_table._tablename] = recno_index;
+            } else
+                recno_index = env._context->_recno_index[_table._tablename];
+            _table._recno_index = recno_index;
+        }
     }
     if (_children != NULL)
-        for (std::vector<Operation>::const_iterator i = _children->begin();
+        for (std::vector<Operation>::iterator i = _children->begin();
             i != _children->end(); i++)
-            i->size_buffers(keysize, valuesize);
+            i->create_all(env, keysize, valuesize);
 }
 
 int Operation::run(ThreadEnvironment &env) {
@@ -326,17 +377,17 @@ int Operation::run(ThreadEnvironment &env) {
     uint32_t rand;
     char *buf;
 
-    // TODO: what happens if multiple threads choose the same keys
-    // for a table.  Should separate thread-specific key spaces be
-    // carved out?
     if (_optype != OP_NONE) {
+        uint32_t recno_index = env._context->_recno_index[_table._tablename];
         uint64_t recno;
-        recno = env._context->_table_count[_table._tablename];
-        if (_optype != OP_INSERT) {
+        if (_optype == OP_INSERT)
+            recno = workgen_atomic_add64(&env._context->_recno[recno_index], 1);
+        else {
+            uint64_t recno_count = env._context->_recno[recno_index];
+            if (recno_count == 0)
+                return (WT_NOTFOUND); // TODO: make sure caller deals with it
             rand = workgen_random(env._rand_state);
-            if (recno == 0)
-                return (WT_NOTFOUND); // TODO
-            recno = rand % recno;
+            recno = rand % recno_count + 1;  // recnos are one-based.
         }
         buf = thread->_keybuf;
         _key.gen(recno, buf);
@@ -349,7 +400,6 @@ int Operation::run(ThreadEnvironment &env) {
         switch (_optype) {
         case OP_INSERT:
             WT_RET(cursor->insert(cursor));
-            env._context->_table_count[_table._tablename] = recno + 1;
             _table.stats.inserts++;
             break;
         case OP_REMOVE:
@@ -492,11 +542,12 @@ void TableStats::describe(std::ostream &os) const {
     os << ", removes " << removes;
 }
 
-Table::Table() : _tablename(), stats(), _cursor(NULL) {}
+Table::Table() : _tablename(), stats(), _cursor(NULL), _recno_index(0),
+    _context_count(0) {}
 Table::Table(const char *tablename) : _tablename(tablename), stats(),
-    _cursor(NULL) {}
+     _cursor(NULL), _recno_index(0), _context_count(0) {}
 Table::Table(const Table &other) : _tablename(other._tablename),
-    stats(other.stats), _cursor(NULL) {}
+    stats(other.stats), _cursor(NULL), _recno_index(0), _context_count(0) {}
 Table::~Table() {}
 
 void Table::describe(std::ostream &os) const {
@@ -549,6 +600,7 @@ int Workload::create_all(WT_CONNECTION *conn, Context *context,
         // TODO: recover from partial failure here
         WT_RET(_threads[i].create_all(conn, envs[i]));
     }
+    WT_RET(context->create_all());
     return (0);
 }
 

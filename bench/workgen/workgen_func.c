@@ -5,8 +5,20 @@
 typedef struct workgen_random_state {} workgen_random_state;
 
 /*
- * These functions call their wiredtiger equivalents.
+ * These functions call their WiredTiger equivalents.
  */
+uint32_t
+workgen_atomic_add32(uint32_t *vp, uint32_t v)
+{
+    return (__wt_atomic_add32(vp, v));
+}
+
+uint64_t
+workgen_atomic_add64(uint64_t *vp, uint64_t v)
+{
+    return (__wt_atomic_add64(vp, v));
+}
+
 void
 workgen_epoch(struct timespec *tsp)
 {
