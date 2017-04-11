@@ -111,10 +111,9 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
 			 * for threads in generations older than the argument
 			 * generation, threads in argument generations are OK.
 			 *
-			 * The thread's generation may be 0 (that is, not set),
-			 * and that's always less than the argument generation.
+			 * The thread's generation may be 0 (that is, not set).
 			 */
-			if (v < generation)
+			if (v == 0 || v >= generation)
 				break;
 
 			/*
