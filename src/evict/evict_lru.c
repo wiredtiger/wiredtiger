@@ -1833,6 +1833,19 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 			continue;
 		}
 
+		/* Pages that are empty or from dead trees are fast-tracked. */
+		if (__wt_page_is_empty(page) ||
+		    F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
+			goto fast;
+
+		/* Skip clean pages if appropriate. */
+		if (!modified && !F_ISSET(cache, WT_CACHE_EVICT_CLEAN))
+			continue;
+
+		/* Skip dirty pages if appropriate. */
+		if (modified && !F_ISSET(cache, WT_CACHE_EVICT_DIRTY))
+			continue;
+
 		/*
 		 * Don't attempt eviction of internal pages with children in
 		 * cache (indicated by seeing an internal page that is the
@@ -1850,19 +1863,6 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 			    !__wt_cache_aggressive(session))
 				continue;
 		}
-
-		/* Pages that are empty or from dead trees are fast-tracked. */
-		if (__wt_page_is_empty(page) ||
-		    F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
-			goto fast;
-
-		/* Skip clean pages if appropriate. */
-		if (!modified && !F_ISSET(cache, WT_CACHE_EVICT_CLEAN))
-			continue;
-
-		/* Skip dirty pages if appropriate. */
-		if (modified && !F_ISSET(cache, WT_CACHE_EVICT_DIRTY))
-			continue;
 
 		/* If eviction gets aggressive, anything else is fair game. */
 		if (__wt_cache_aggressive(session))
