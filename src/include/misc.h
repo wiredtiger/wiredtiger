@@ -294,4 +294,3 @@ union __wt_rand_state {
 			TAILQ_REMOVE(head, (var), field);		\
 			continue;					\
 		} else
-
