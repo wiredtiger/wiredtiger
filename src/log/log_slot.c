@@ -582,7 +582,6 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 			__wt_yield();
 		else {
 			__wt_sleep(0, WT_THOUSAND);
-			WT_STAT_CONN_INCR(session, log_slot_sleeps);
 			slept = true;
 		}
 	}
@@ -596,7 +595,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 		WT_STAT_CONN_INCR(session, log_slot_yield);
 		__wt_epoch(session, &stop);
 		usecs = WT_TIMEDIFF_US(stop, start);
-		WT_STAT_CONN_INCRV(session, log_slot_duration, usecs);
+		WT_STAT_CONN_INCRV(session, log_slot_yield_duration, usecs);
 		if (closed)
 			WT_STAT_CONN_INCR(session, log_slot_yield_close);
 		if (raced)
