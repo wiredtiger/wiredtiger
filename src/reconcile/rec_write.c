@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -1179,6 +1179,9 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		}
 	}
 
+	/* Reconciliation should never see a reserved update. */
+	WT_ASSERT(session, *updp == NULL || !WT_UPDATE_RESERVED_ISSET(*updp));
+
 	/*
 	 * If all of the updates were aborted, quit. This test is not strictly
 	 * necessary because the above loop exits with skipped not set and the
@@ -1351,13 +1354,13 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 */
 		if (vpack == NULL || vpack->type == WT_CELL_DEL)
 			WT_RET(__wt_update_alloc(
-			    session, NULL, &append, &notused));
+			    session, NULL, &append, &notused, true, false));
 		else {
 			WT_RET(__wt_scr_alloc(session, 0, &tmp));
 			if ((ret = __wt_page_cell_data_ref(
 			    session, page, vpack, tmp)) == 0)
-				ret = __wt_update_alloc(
-				    session, tmp, &append, &notused);
+				ret = __wt_update_alloc(session,
+				    tmp, &append, &notused, false, false);
 			__wt_scr_free(session, &tmp);
 			WT_RET(ret);
 		}
@@ -4386,8 +4389,7 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			WT_RET(__rec_split_raw(session, r, val->len));
 	} else
 		if (WT_CHECK_CROSSING_BND(r, val->len))
-			WT_RET(__rec_split_crossing_bnd(
-			    session, r, val->len));
+			WT_RET(__rec_split_crossing_bnd(session, r, val->len));
 
 	/* Copy the value onto the page. */
 	if (!deleted && !overflow_type && btree->dictionary)

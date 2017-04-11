@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -364,8 +364,8 @@ __wt_conn_btree_open(
 	F_SET(dhandle, WT_DHANDLE_OPEN);
 
 	/*
-	 * Checkpoint handles are read only, so eviction calculations
-	 * based on the number of btrees are better to ignore them.
+	 * Checkpoint handles are read-only, so eviction calculations based on
+	 * the number of btrees are better to ignore them.
 	 */
 	if (dhandle->checkpoint == NULL)
 		++S2C(session)->open_btree_count;

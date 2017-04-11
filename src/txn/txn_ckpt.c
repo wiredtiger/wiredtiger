@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -1525,7 +1525,7 @@ err:	/*
 	 */
 	if (ret != 0) {
 		btree->modified = true;
-		S2C(session)->modified = true;
+		conn->modified = true;
 	}
 
 	__wt_meta_ckptlist_free(session, &btree->ckpt);

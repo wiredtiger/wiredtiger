@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -141,7 +141,7 @@ lz4_compress(WT_COMPRESSOR *compressor, WT_SESSION *session,
 
 	/* Compress, starting after the prefix bytes. */
 	lz4_len = LZ4_compress(
-	   (const char *)src, (char *)dst + sizeof(LZ4_PREFIX), (int)src_len);
+	    (const char *)src, (char *)dst + sizeof(LZ4_PREFIX), (int)src_len);
 
 	/*
 	 * If compression succeeded and the compressed length is smaller than
@@ -214,7 +214,7 @@ lz4_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	 */
 	if (dst_len < prefix.uncompressed_len) {
 		if ((dst_tmp = wt_api->scr_alloc(
-		   wt_api, session, (size_t)prefix.uncompressed_len)) == NULL)
+		    wt_api, session, (size_t)prefix.uncompressed_len)) == NULL)
 			return (ENOMEM);
 
 		decoded = LZ4_decompress_safe(

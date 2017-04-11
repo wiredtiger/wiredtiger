@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -176,4 +176,22 @@ __wt_snprintf_len_incr(
 	ret = __wt_vsnprintf_len_incr(buf, size, retsizep, fmt, ap);
 	va_end(ap);
 	return (ret);
+}
+
+/*
+ * __wt_txn_context_check --
+ *	Complain if a transaction is/isn't running.
+ */
+static inline int
+__wt_txn_context_check(WT_SESSION_IMPL *session, bool requires_txn)
+{
+	if (requires_txn && !F_ISSET(&session->txn, WT_TXN_RUNNING))
+		WT_RET_MSG(session, EINVAL,
+		    "%s: only permitted in a running transaction",
+		    session->name);
+	if (!requires_txn && F_ISSET(&session->txn, WT_TXN_RUNNING))
+		WT_RET_MSG(session, EINVAL,
+		    "%s: not permitted in a running transaction",
+		    session->name);
+	return (0);
 }
