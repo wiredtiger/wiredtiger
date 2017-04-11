@@ -634,7 +634,7 @@ int
 __wt_conn_dhandle_discard(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
-	WT_DATA_HANDLE *dhandle;
+	WT_DATA_HANDLE *dhandle, *dhandle_tmp;
 	WT_DECL_RET;
 
 	conn = S2C(session);
@@ -680,11 +680,10 @@ restart:
 		WT_TRET(session->meta_cursor->close(session->meta_cursor));
 
 	/* Close the metadata file handle. */
-	WT_TAILQ_SAFE_REMOVE_BEGIN(&conn->dhqh, dhandle, q) {
+	WT_TAILQ_SAFE_REMOVE(dhandle, &conn->dhqh, q, dhandle_tmp)
 		WT_WITH_DHANDLE(session, dhandle,
 		    WT_TRET(__wt_conn_dhandle_discard_single(
 		    session, true, F_ISSET(conn, WT_CONN_IN_MEMORY))));
-	} WT_TAILQ_SAFE_REMOVE_END;
 
 	return (ret);
 }
