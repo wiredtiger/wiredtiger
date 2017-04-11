@@ -30,10 +30,8 @@ execute(conn, workload)
 show(tname0)
 
 # The context has memory of how many keys are in all the tables.
-# Normally, we keep a context throughout a test.
-# But since we're starting an entirely new test here, we'll
-# use a new context and truncate the table.
-context = Context()
+# truncate goes behind context's back, but it doesn't matter for
+# an insert-only test.
 s.truncate(tname0, None, None)
 
 # Show how to 'multiply' operations
@@ -48,8 +46,6 @@ execute(conn, workload)
 show(tname0)
 show(tname1)
 
-# Another new test.
-context = Context()
 s.truncate(tname0, None, None)
 s.truncate(tname1, None, None)
 
@@ -93,6 +89,6 @@ expectException(lambda: Key(Key.KEYGEN_APPEND, 1))
 k = Key(Key.KEYGEN_APPEND, 5)
 assignit(k, 30)
 assignit(k, 1)  # we don't catch this exception here, but in execute.
-op = Operation(Operation.OP_SEARCH, Table(tname0), k)
+op = Operation(Operation.OP_INSERT, Table(tname0), k, Value(10))
 workload = Workload(context, ThreadList([Thread(OpList([op]))]))
 expectException(lambda: execute(conn, workload))
