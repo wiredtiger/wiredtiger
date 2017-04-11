@@ -287,18 +287,18 @@ void Thread::clear_stats() {
 }
 
 Operation::Operation() :
-    _optype(OP_NONE), _table(), _key(), _value(), _children(NULL),
-    _repeatchildren(0) {
+    _optype(OP_NONE), _table(), _key(), _value(), _transaction(NULL),
+    _children(NULL), _repeatchildren(0) {
 }
 
 Operation::Operation(OpType optype, Table table, Key key, Value value) :
-    _optype(optype), _table(table), _key(key), _value(value), _children(NULL),
-    _repeatchildren(0) {
+    _optype(optype), _table(table), _key(key), _value(value),
+    _transaction(NULL), _children(NULL), _repeatchildren(0) {
 }
 
 Operation::Operation(OpType optype, Table table, Key key) :
-    _optype(optype), _table(table), _key(key), _value(), _children(NULL),
-    _repeatchildren(0) {
+    _optype(optype), _table(table), _key(key), _value(), _transaction(NULL),
+    _children(NULL), _repeatchildren(0) {
     if (OP_HAS_VALUE(this)) {
         WorkgenException wge(0, "OP_INSERT and OP_UPDATE require a value");
 	throw(wge);
@@ -307,14 +307,16 @@ Operation::Operation(OpType optype, Table table, Key key) :
 
 Operation::Operation(const Operation &other) :
     _optype(other._optype), _table(other._table), _key(other._key),
-    _value(other._value), _children(other._children),
-    _repeatchildren(other._repeatchildren) {
-    // Creation and destruction of _children is managed by Python.
+    _value(other._value), _transaction(other._transaction),
+    _children(other._children), _repeatchildren(other._repeatchildren) {
+    // Creation and destruction of _children and _transaction is managed
+    // by Python.
+    // TODO: anything more to do, like add to Python's reference count?
 }
 
 Operation::~Operation()
 {
-    // Creation and destruction of _children is managed by Python.
+    // Creation and destruction of _children, _transaction is managed by Python.
 }
 
 void Operation::describe(std::ostream &os) const {
@@ -323,6 +325,9 @@ void Operation::describe(std::ostream &os) const {
         os << ", ";  _table.describe(os);
         os << ", "; _key.describe(os);
         os << ", "; _value.describe(os);
+    }
+    if (_transaction != NULL) {
+        os << ", ["; _transaction->describe(os); os << "]";
     }
     if (_children != NULL) {
         os << ", children[" << _repeatchildren << "]: {";
@@ -372,11 +377,16 @@ void Operation::create_all(ThreadEnvironment &env, size_t &keysize,
 }
 
 int Operation::run(ThreadEnvironment &env) {
-    WT_CURSOR *cursor = _table._cursor;
     Thread *thread = env._thread;
+    WT_CURSOR *cursor = _table._cursor;
+    WT_SESSION *session = thread->_session;
+    WT_DECL_RET;
     uint32_t rand;
     char *buf;
 
+    if (_transaction != NULL)
+        session->begin_transaction(session,
+          _transaction->_begin_config.c_str());
     if (_optype != OP_NONE) {
         uint32_t recno_index = env._context->_recno_index[_table._tablename];
         uint64_t recno;
@@ -399,19 +409,19 @@ int Operation::run(ThreadEnvironment &env) {
         }
         switch (_optype) {
         case OP_INSERT:
-            WT_RET(cursor->insert(cursor));
+            WT_ERR(cursor->insert(cursor));
             _table.stats.inserts++;
             break;
         case OP_REMOVE:
-            WT_RET(cursor->remove(cursor));
+            WT_ERR(cursor->remove(cursor));
             _table.stats.removes++;
             break;
         case OP_SEARCH:
-            WT_RET(cursor->search(cursor));
+            WT_ERR(cursor->search(cursor));
             _table.stats.reads++;
             break;
         case OP_UPDATE:
-            WT_RET(cursor->update(cursor));
+            WT_ERR(cursor->update(cursor));
             _table.stats.updates++;
             break;
         default:
@@ -422,8 +432,18 @@ int Operation::run(ThreadEnvironment &env) {
         for (int count = 0; !thread->_stop && count < _repeatchildren; count++)
             for (std::vector<Operation>::iterator i = _children->begin();
               i != _children->end(); i++)
-                WT_RET(i->run(env));
-    return (0);
+                WT_ERR(i->run(env));
+err:
+    if (ret != 0)
+        (void)session->rollback_transaction(session, NULL);
+    else if (_transaction != NULL) {
+        if (_transaction->_rollback)
+            ret = session->rollback_transaction(session, NULL);
+        else
+            ret = session->commit_transaction(session,
+              _transaction->_commit_config.c_str());
+    }
+    return (ret);
 }
 
 void Operation::get_stats(TableStats &stats) {

@@ -10,8 +10,9 @@ extern "C" {
 
 namespace workgen {
 
-struct Thread;
 struct Context;
+struct Thread;
+struct Transaction;
 
 #ifndef SWIG
 // There is one of these per Thread object.
@@ -169,6 +170,7 @@ struct Operation {
     Table _table;
     Key _key;
     Value _value;
+    Transaction *_transaction;
     std::vector<Operation> *_children;
     int _repeatchildren;
 
@@ -222,6 +224,24 @@ struct Thread {
     void clear_stats();
     int run(ThreadEnvironment &env);
 #endif
+};
+
+struct Transaction {
+    bool _rollback;
+    std::string _begin_config;
+    std::string _commit_config;
+
+    Transaction(const char *_config = NULL) : _rollback(false),
+       _begin_config(_config == NULL ? "" : _config), _commit_config() {}
+
+    void describe(std::ostream &os) const {
+	os << "Transaction: ";
+	if (_rollback)
+	    os << "(rollback) ";
+	os << "begin_config: " << _begin_config;
+	if (!_commit_config.empty())
+	    os << ", commit_config: " << _commit_config;
+    }
 };
 
 struct Workload {

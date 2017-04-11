@@ -39,3 +39,8 @@ import workgen
 for name in dir(workgen):
     value = getattr(workgen, name)
     setattr(me, name, value)
+
+def txn(op, config=None):
+    t = Transaction(config)
+    op._transaction = t
+    return op
