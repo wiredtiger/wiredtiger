@@ -535,6 +535,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 	 * this is not a read-only connection.
 	 * We can consider skipping it in the future.
 	 */
+	if (needs_rec)
+		FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DIRTY);
 	if (WT_IS_INIT_LSN(&r.ckpt_lsn))
 		WT_ERR(__wt_log_scan(session, NULL,
 		    WT_LOGSCAN_FIRST | WT_LOGSCAN_RECOVER,
@@ -556,7 +558,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 	 */
 	WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
 
-done:	FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE);
+done:	FLD_SET(conn->log_flags,
+	    WT_CONN_LOG_RECOVER_DIRTY | WT_CONN_LOG_RECOVER_DONE);
 err:	WT_TRET(__recovery_free(&r));
 	__wt_free(session, config);
 
