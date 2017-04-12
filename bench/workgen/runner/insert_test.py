@@ -26,7 +26,7 @@ ops = [Operation(Operation.OP_INSERT, Table(tname0), Key(Key.KEYGEN_APPEND, 10),
 thread0 = Thread(OpList(ops))
 workload = Workload(context, ThreadList([thread0]))
 
-execute(conn, workload)
+workload.run(conn)
 show(tname0)
 
 # The context has memory of how many keys are in all the tables.
@@ -42,7 +42,7 @@ print 'op is: ' + str(op)
 print 'multiplying op is: ' + str(o)
 thread0 = Thread(OpList([o, op, op]))
 workload = Workload(context, ThreadList([thread0]))
-execute(conn, workload)
+workload.run(conn)
 show(tname0)
 show(tname1)
 
@@ -55,7 +55,7 @@ op *= 2
 op += Operation(Operation.OP_INSERT, Table(tname0), Key(Key.KEYGEN_APPEND, 10), Value(10))
 thread0 = Thread(OpList([op * 10 + op2 * 20]))
 workload = Workload(context, ThreadList([thread0]))
-execute(conn, workload)
+workload.run(conn)
 show(tname0)
 show(tname1)
 
@@ -88,7 +88,7 @@ def assignit(k, n):
 expectException(lambda: Key(Key.KEYGEN_APPEND, 1))
 k = Key(Key.KEYGEN_APPEND, 5)
 assignit(k, 30)
-assignit(k, 1)  # we don't catch this exception here, but in execute.
+assignit(k, 1)  # we don't catch this exception here, but in Workload.run()
 op = Operation(Operation.OP_INSERT, Table(tname0), k, Value(10))
 workload = Workload(context, ThreadList([Thread(OpList([op]))]))
-expectException(lambda: execute(conn, workload))
+workload.run(conn))

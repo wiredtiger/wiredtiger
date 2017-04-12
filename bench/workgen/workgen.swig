@@ -125,7 +125,7 @@ WorkgenClass(Context)
     def __add__(self, other):
         if type(self) != type(other):
             raise Exception('Operation.__sum__ requires an Operation')
-        if self._children == None or self._repeatchildren != 1:
+        if self._children == None or self._repeatchildren != 1 or self._transaction != None:
             op = Operation()
             op._children = OpList([self, other])
             op._repeatchildren = 1

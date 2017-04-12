@@ -279,5 +279,4 @@ private:
     int run_all(std::vector<ThreadEnvironment> &envs);
 };
 
-int execute(WT_CONNECTION *conn, Workload &workload);
 };

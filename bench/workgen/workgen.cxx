@@ -17,12 +17,6 @@ extern "C" {
 #include "misc.h"
 }
 
-// The number of contexts.  Normally there is one context created, but it will
-// be possible to use several eventually.  More than one is not yet
-// implemented, but we must at least guard against the caller creating more
-// than one.
-static uint32_t context_count = 0;
-
 #define MINIMUM_KEY_SIZE  12        // The minimum key must contain
 #define MINIMUM_VALUE_SIZE  12
 
@@ -61,9 +55,11 @@ static uint32_t context_count = 0;
 
 namespace workgen {
 
-int execute(WT_CONNECTION *wt_conn, Workload &workload) {
-    return (workload.run(wt_conn));
-}
+// The number of contexts.  Normally there is one context created, but it will
+// be possible to use several eventually.  More than one is not yet
+// implemented, but we must at least guard against the caller creating more
+// than one.
+static uint32_t context_count = 0;
 
 static void *thread_runner(void *arg) {
     ThreadEnvironment *env = (ThreadEnvironment *)arg;
@@ -74,7 +70,7 @@ static void *thread_runner(void *arg) {
 // Exponentiate (like the pow function), except that it returns an exact
 // integral 64 bit value, and if it overflows, returns the maximum possible
 // value for the return type.
-uint64_t power64(int base, int exp) {
+static uint64_t power64(int base, int exp) {
     uint64_t last, result;
 
     result = 1;
@@ -90,7 +86,6 @@ uint64_t power64(int base, int exp) {
 static void set_kv_max(int size, uint64_t *max) {
     *max = power64(10, (size - 1) - 1);
 }
-
 
 Context::Context() : _verbose(false), _recno_index(), _table_names(),
     _recno(NULL), _recno_length(0), _recno_next(0), _context_count(0) {

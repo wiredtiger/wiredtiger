@@ -12,7 +12,7 @@ op = Operation(Operation.OP_INSERT, table, Key(Key.KEYGEN_APPEND, 20), Value(100
 thread = Thread(OpList([op * 500000]))
 pop_workload = Workload(context, ThreadList([thread]))
 print('populate:')
-execute(conn, pop_workload)
+pop_workload.run(conn)
 
 opread = Operation(Operation.OP_SEARCH, table, Key(Key.KEYGEN_UNIFORM, 20))
 opwrite = Operation(Operation.OP_INSERT, table, Key(Key.KEYGEN_APPEND, 20), Value(100))
@@ -22,4 +22,4 @@ workload = Workload(context, ThreadList([treader] * 8 + [twriter] * 2))
 workload._run_time = 10
 workload._report_interval = 5
 print('transactional write workload:')
-execute(conn, workload)
+workload.run(conn)
