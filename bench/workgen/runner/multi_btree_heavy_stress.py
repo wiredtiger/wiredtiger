@@ -92,4 +92,3 @@ workload.run(conn)
 ####compression=snappy
 ####sample_interval=5
 ####sample_rate=1
-
