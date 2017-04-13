@@ -136,3 +136,19 @@ WorkgenClass(Context)
             return self
 %}
 };
+
+/*
+ * To forestall errors, make it impossible to add new attributes to options.
+ * This trick relies on the implementation of SWIG providing predictably
+ * named functions in the _workgen namespace to set attributes.
+ */
+%extend workgen::WorkloadOptions {
+%pythoncode %{
+    def __setattr__(self, attr, val):
+        if getattr(self, attr) == None:
+            raise AttributeError("'WorkloadOptions' object has no attribute '" +
+              attr + "'")
+        f = _workgen.__dict__['WorkloadOptions_' + attr + '_set']
+        f(self, val)
+%}
+};

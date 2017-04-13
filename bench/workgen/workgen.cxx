@@ -671,9 +671,6 @@ void Table::describe(std::ostream &os) const {
     os << "Table: " << _uri;
 }
 
-    int run_time;
-    int report_interval;
-
 WorkloadOptions::WorkloadOptions() : run_time(0), report_interval(0) {}
 WorkloadOptions::WorkloadOptions(const WorkloadOptions &other) :
     run_time(other.run_time), report_interval(other.report_interval) {}
