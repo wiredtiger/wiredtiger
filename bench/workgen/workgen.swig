@@ -108,6 +108,7 @@ WorkgenClass(TableStats)
 WorkgenClass(Transaction)
 WorkgenClass(Value)
 WorkgenClass(Workload)
+WorkgenClass(WorkloadOptions)
 WorkgenClass(Context)
 
 %extend workgen::Operation {
@@ -116,8 +117,8 @@ WorkgenClass(Context)
         if not isinstance(other, numbers.Integral):
             raise Exception('Operation.__mul__ requires an integral number')
         op = Operation()
-        op._children = OpList([self])
-        op._repeatchildren = other
+        op._group = OpList([self])
+        op._repeatgroup = other
         return op
 
     __rmul__ = __mul__
@@ -125,13 +126,13 @@ WorkgenClass(Context)
     def __add__(self, other):
         if type(self) != type(other):
             raise Exception('Operation.__sum__ requires an Operation')
-        if self._children == None or self._repeatchildren != 1 or self._transaction != None:
+        if self._group == None or self._repeatgroup != 1 or self._transaction != None:
             op = Operation()
-            op._children = OpList([self, other])
-            op._repeatchildren = 1
+            op._group = OpList([self, other])
+            op._repeatgroup = 1
             return op
         else:
-            self._children.append(other)
+            self._group.append(other)
             return self
 %}
 };

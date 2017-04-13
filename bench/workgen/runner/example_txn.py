@@ -19,7 +19,7 @@ opwrite = Operation(Operation.OP_INSERT, table, Key(Key.KEYGEN_APPEND, 20), Valu
 treader = Thread(OpList([opread]))
 twriter = Thread(OpList([txn(opwrite * 2)]))
 workload = Workload(context, ThreadList([treader] * 8 + [twriter] * 2))
-workload._run_time = 10
-workload._report_interval = 5
+workload.options.run_time = 10
+workload.options.report_interval = 5
 print('transactional write workload:')
 workload.run(conn)

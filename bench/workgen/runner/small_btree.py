@@ -17,7 +17,7 @@ pop_workload.run(conn)
 op = Operation(Operation.OP_SEARCH, table, Key(Key.KEYGEN_UNIFORM, 20))
 t = Thread(OpList([op]))
 workload = Workload(context, ThreadList([t] * 8))
-workload._run_time = 120
-workload._report_interval = 5
+workload.options.run_time = 120
+workload.options.report_interval = 5
 print('read workload:')
 workload.run(conn)

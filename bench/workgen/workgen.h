@@ -97,8 +97,8 @@ struct TableStats {
 };
 
 struct Table {
-    std::string _tablename;
-    TableStats stats;
+    std::string _uri;
+    TableStats _stats;
 #ifndef SWIG
     uint32_t _recno_index;
     uint32_t _context_count;
@@ -164,15 +164,16 @@ struct Value {
 };
 
 struct Operation {
-    typedef enum { OP_NONE, OP_INSERT, OP_REMOVE, OP_SEARCH, OP_UPDATE } OpType;
+    enum OpType {
+        OP_NONE, OP_INSERT, OP_REMOVE, OP_SEARCH, OP_UPDATE };
     OpType _optype;
 
     Table _table;
     Key _key;
     Value _value;
     Transaction *_transaction;
-    std::vector<Operation> *_children;
-    int _repeatchildren;
+    std::vector<Operation> *_group;
+    int _repeatgroup;
 
     Operation();
     Operation(OpType optype, Table table, Key key, Value value);
@@ -244,11 +245,24 @@ struct Transaction {
     }
 };
 
+struct WorkloadOptions {
+    int run_time;
+    int report_interval;
+
+    WorkloadOptions();
+    WorkloadOptions(const WorkloadOptions &other);
+    ~WorkloadOptions();
+
+    void describe(std::ostream &os) const {
+	os << "run_time " << run_time;
+	os << ", report_interval " << report_interval;
+    }
+};
+
 struct Workload {
+    WorkloadOptions options;
     Context *_context;
     std::vector<Thread> _threads;
-    int _run_time;
-    int _report_interval;
 
     Workload(Context *context, const std::vector<Thread> &threads);
     Workload(const Workload &other);
@@ -257,8 +271,8 @@ struct Workload {
     void describe(std::ostream &os) const {
 	os << "Workload: ";
 	_context->describe(os);
-	os << ", run_time " << _run_time;
-	os << ", report_interval " << _report_interval;
+	os << ", ";
+        options.describe(os);
 	os << ", [" << std::endl;
 	for (std::vector<Thread>::const_iterator i = _threads.begin(); i != _threads.end(); i++) {
 	    os << "  "; i->describe(os); os << std::endl;
@@ -266,7 +280,7 @@ struct Workload {
 	os << "]";
     }
     int run(WT_CONNECTION *conn);
-    void report(int, int, TableStats &);
+    void report(time_t, time_t, TableStats &);
     void final_report(timespec &);
 
 private:

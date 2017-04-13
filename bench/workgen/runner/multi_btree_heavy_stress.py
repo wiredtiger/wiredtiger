@@ -81,9 +81,9 @@ read_thread = Thread(OpList([read_ops]))
 ##threads = [ins_thread] * 10 + [upd_thread] * 10 + [read_thread] * 80
 threads = [ins_thread] * 1 + [upd_thread] * 1 + [read_thread] * 8
 workload = Workload(context, ThreadList(threads))
-##workload._run_time = 3600
-workload._run_time = 5
-workload._report_interval=1
+##workload.options.run_time = 3600
+workload.options.run_time = 5
+workload.options.report_interval=1
 print('heavy stress workload:')
 workload.run(conn)
 

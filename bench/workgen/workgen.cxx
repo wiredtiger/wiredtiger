@@ -350,17 +350,17 @@ void Thread::clear_stats() {
 
 Operation::Operation() :
     _optype(OP_NONE), _table(), _key(), _value(), _transaction(NULL),
-    _children(NULL), _repeatchildren(0) {
+    _group(NULL), _repeatgroup(0) {
 }
 
 Operation::Operation(OpType optype, Table table, Key key, Value value) :
     _optype(optype), _table(table), _key(key), _value(value),
-    _transaction(NULL), _children(NULL), _repeatchildren(0) {
+    _transaction(NULL), _group(NULL), _repeatgroup(0) {
 }
 
 Operation::Operation(OpType optype, Table table, Key key) :
     _optype(optype), _table(table), _key(key), _value(), _transaction(NULL),
-    _children(NULL), _repeatchildren(0) {
+    _group(NULL), _repeatgroup(0) {
     if (OP_HAS_VALUE(this)) {
         WorkgenException wge(0, "OP_INSERT and OP_UPDATE require a value");
 	throw(wge);
@@ -370,15 +370,15 @@ Operation::Operation(OpType optype, Table table, Key key) :
 Operation::Operation(const Operation &other) :
     _optype(other._optype), _table(other._table), _key(other._key),
     _value(other._value), _transaction(other._transaction),
-    _children(other._children), _repeatchildren(other._repeatchildren) {
-    // Creation and destruction of _children and _transaction is managed
+    _group(other._group), _repeatgroup(other._repeatgroup) {
+    // Creation and destruction of _group and _transaction is managed
     // by Python.
     // TODO: anything more to do, like add to Python's reference count?
 }
 
 Operation::~Operation()
 {
-    // Creation and destruction of _children, _transaction is managed by Python.
+    // Creation and destruction of _group, _transaction is managed by Python.
 }
 
 void Operation::describe(std::ostream &os) const {
@@ -391,11 +391,11 @@ void Operation::describe(std::ostream &os) const {
     if (_transaction != NULL) {
         os << ", ["; _transaction->describe(os); os << "]";
     }
-    if (_children != NULL) {
-        os << ", children[" << _repeatchildren << "]: {";
+    if (_group != NULL) {
+        os << ", group[" << _repeatgroup << "]: {";
         bool first = true;
-        for (std::vector<Operation>::const_iterator i = _children->begin();
-             i != _children->end(); i++) {
+        for (std::vector<Operation>::const_iterator i = _group->begin();
+             i != _group->end(); i++) {
             if (!first)
                 os << "}, {";
             i->describe(os);
@@ -423,13 +423,13 @@ void Operation::create_all(ThreadEnvironment &env, size_t &keysize,
 
             // We are single threaded in this function, so do not have
             // to worry about locking.
-            if (env._context->_recno_index.count(_table._tablename) == 0) {
+            if (env._context->_recno_index.count(_table._uri) == 0) {
                 recno_index = workgen_atomic_add32(
                   &env._context->_recno_next, 1);
-                env._context->_recno_index[_table._tablename] = recno_index;
-                env._context->_table_names[recno_index] = _table._tablename;
+                env._context->_recno_index[_table._uri] = recno_index;
+                env._context->_table_names[recno_index] = _table._uri;
             } else
-                recno_index = env._context->_recno_index[_table._tablename];
+                recno_index = env._context->_recno_index[_table._uri];
             _table._recno_index = recno_index;
         }
         uint32_t usage_flags = CONTAINER_VALUE(env._table_usage,
@@ -440,9 +440,9 @@ void Operation::create_all(ThreadEnvironment &env, size_t &keysize,
             usage_flags |= ThreadEnvironment::USAGE_WRITE;
         env._table_usage[_table._recno_index] = usage_flags;
     }
-    if (_children != NULL)
-        for (std::vector<Operation>::iterator i = _children->begin();
-            i != _children->end(); i++)
+    if (_group != NULL)
+        for (std::vector<Operation>::iterator i = _group->begin();
+            i != _group->end(); i++)
             i->create_all(env, keysize, valuesize);
 }
 
@@ -459,7 +459,7 @@ int Operation::run(ThreadEnvironment &env) {
         session->begin_transaction(session,
           _transaction->_begin_config.c_str());
     if (_optype != OP_NONE) {
-        ASSERT(env._context->_recno_index[_table._tablename] == recno_index);
+        ASSERT(env._context->_recno_index[_table._uri] == recno_index);
         uint64_t recno;
         if (_optype == OP_INSERT)
             recno = workgen_atomic_add64(&env._context->_recno[recno_index], 1);
@@ -481,15 +481,15 @@ int Operation::run(ThreadEnvironment &env) {
         switch (_optype) {
         case OP_INSERT:
             WT_ERR(cursor->insert(cursor));
-            _table.stats.inserts++;
+            _table._stats.inserts++;
             break;
         case OP_REMOVE:
             WT_ERR(cursor->remove(cursor));
-            _table.stats.removes++;
+            _table._stats.removes++;
             break;
         case OP_SEARCH:
             if ((ret = cursor->search(cursor)) == 0)
-                _table.stats.reads++;
+                _table._stats.reads++;
             else {
                 // If a thread writes the file at the time we read it,
                 // we may not see the record (the Context._recno field
@@ -502,7 +502,7 @@ int Operation::run(ThreadEnvironment &env) {
                 //if (ret == WT_NOTFOUND && (env._table_usage[recno_index] &
                 //  ThreadEnvironment::USAGE_MIXED) != 0) {
                 if (ret == WT_NOTFOUND) {
-                    _table.stats.failed_reads++;
+                    _table._stats.failed_reads++;
                     ret = 0;
                 } else
                     WT_ERR(ret);
@@ -510,16 +510,16 @@ int Operation::run(ThreadEnvironment &env) {
             break;
         case OP_UPDATE:
             WT_ERR(cursor->update(cursor));
-            _table.stats.updates++;
+            _table._stats.updates++;
             break;
         default:
             ASSERT(false);
         }
     }
-    if (_children != NULL)
-        for (int count = 0; !thread->_stop && count < _repeatchildren; count++)
-            for (std::vector<Operation>::iterator i = _children->begin();
-              i != _children->end(); i++)
+    if (_group != NULL)
+        for (int count = 0; !thread->_stop && count < _repeatgroup; count++)
+            for (std::vector<Operation>::iterator i = _group->begin();
+              i != _group->end(); i++)
                 WT_ERR(i->run(env));
 err:
     if (_transaction != NULL) {
@@ -533,10 +533,10 @@ err:
 }
 
 void Operation::get_stats(TableStats &stats) {
-    stats.add(_table.stats);
-    if (_children != NULL)
-        for (std::vector<Operation>::iterator i = _children->begin();
-          i != _children->end(); i++)
+    stats.add(_table._stats);
+    if (_group != NULL)
+        for (std::vector<Operation>::iterator i = _group->begin();
+          i != _group->end(); i++)
             i->get_stats(stats);
 }
 
@@ -560,17 +560,17 @@ void Operation::get_static_counts(TableStats &stats)
     default:
         ASSERT(false);
     }
-    if (_children != NULL)
-        for (std::vector<Operation>::iterator i = _children->begin();
-          i != _children->end(); i++)
+    if (_group != NULL)
+        for (std::vector<Operation>::iterator i = _group->begin();
+          i != _group->end(); i++)
             i->get_static_counts(stats);
 }
 
 void Operation::clear_stats() {
-    _table.stats.clear();
-    if (_children != NULL)
-        for (std::vector<Operation>::iterator i = _children->begin();
-          i != _children->end(); i++)
+    _table._stats.clear();
+    if (_group != NULL)
+        for (std::vector<Operation>::iterator i = _group->begin();
+          i != _group->end(); i++)
             i->clear_stats();
 }
 
@@ -581,9 +581,9 @@ int Operation::open_all(WT_SESSION *session, ThreadEnvironment &env) {
         if (OP_HAS_VALUE(this))
             _value.compute_max();
     }
-    if (_children != NULL)
-        for (std::vector<Operation>::iterator i = _children->begin();
-          i != _children->end(); i++)
+    if (_group != NULL)
+        for (std::vector<Operation>::iterator i = _group->begin();
+          i != _group->end(); i++)
             WT_RET(i->open_all(session, env));
     return (0);
 }
@@ -659,21 +659,28 @@ void TableStats::describe(std::ostream &os) const {
     os << ", removes " << removes;
 }
 
-Table::Table() : _tablename(), stats(), _recno_index(0),
+Table::Table() : _uri(), _stats(), _recno_index(0),
     _context_count(0) {}
-Table::Table(const char *tablename) : _tablename(tablename), stats(),
+Table::Table(const char *uri) : _uri(uri), _stats(),
      _recno_index(0), _context_count(0) {}
-Table::Table(const Table &other) : _tablename(other._tablename),
-    stats(other.stats), _recno_index(0), _context_count(0) {}
+Table::Table(const Table &other) : _uri(other._uri),
+    _stats(other._stats), _recno_index(0), _context_count(0) {}
 Table::~Table() {}
 
 void Table::describe(std::ostream &os) const {
-    os << "Table: " << _tablename;
+    os << "Table: " << _uri;
 }
 
+    int run_time;
+    int report_interval;
+
+WorkloadOptions::WorkloadOptions() : run_time(0), report_interval(0) {}
+WorkloadOptions::WorkloadOptions(const WorkloadOptions &other) :
+    run_time(other.run_time), report_interval(other.report_interval) {}
+WorkloadOptions::~WorkloadOptions() {}
+
 Workload::Workload(Context *context, const std::vector<Thread> &threads) :
-    _context(context), _threads(threads),
-    _run_time(0), _report_interval(0) {
+    options(), _context(context), _threads(threads) {
     if (context == NULL) {
         WorkgenException wge(0, "Workload contructor requires a Context");
 	throw(wge);
@@ -681,8 +688,7 @@ Workload::Workload(Context *context, const std::vector<Thread> &threads) :
 }
 
 Workload::Workload(const Workload &other) :
-    _context(other._context), _threads(other._threads), _run_time(0),
-    _report_interval(0) {
+    options(other.options), _context(other._context), _threads(other._threads) {
 }
 
 Workload::~Workload() {
@@ -741,7 +747,7 @@ void Workload::clear_stats() {
         _threads[i].clear_stats();
 }
 
-void Workload::report(int interval, int totalsecs, TableStats &totals) {
+void Workload::report(time_t interval, time_t totalsecs, TableStats &totals) {
     TableStats stats;
     get_stats(stats);
     TableStats diff(stats);
@@ -776,7 +782,7 @@ int Workload::run_all(std::vector<ThreadEnvironment> &envs) {
         pthread_t thandle;
         _threads[i].clear_stats();
         _threads[i]._stop = false;
-        _threads[i]._repeat = (_run_time != 0);
+        _threads[i]._repeat = (options.run_time != 0);
         if ((ret = pthread_create(&thandle, NULL, thread_runner,
           &envs[i])) != 0) {
             std::cerr << "pthread_create failed err=" << ret << std::endl;
@@ -793,8 +799,8 @@ int Workload::run_all(std::vector<ThreadEnvironment> &envs) {
 
     timespec start;
     workgen_epoch(&start);
-    timespec end = start + _run_time;
-    timespec next_report = start + _report_interval;
+    timespec end = start + options.run_time;
+    timespec next_report = start + options.report_interval;
 
     stats.clear();
     timespec now = start;
@@ -810,16 +816,16 @@ int Workload::run_all(std::vector<ThreadEnvironment> &envs) {
         if (sleep_amt.tv_sec > 0)
             sleep(sleep_amt.tv_sec);
         else
-            usleep((sleep_amt.tv_nsec + 999)/ 1000);
+            usleep((useconds_t)((sleep_amt.tv_nsec + 999)/ 1000));
 
         workgen_epoch(&now);
-        if (now >= next_report && now < end && _report_interval != 0) {
-            report(_report_interval, (now - start).tv_sec, stats);
+        if (now >= next_report && now < end && options.report_interval != 0) {
+            report(options.report_interval, (now - start).tv_sec, stats);
             while (now >= next_report)
-                next_report += _report_interval;
+                next_report += options.report_interval;
         }
     }
-    if (_run_time != 0)
+    if (options.run_time != 0)
         for (size_t i = 0; i < _threads.size(); i++)
             _threads[i]._stop = true;
 
