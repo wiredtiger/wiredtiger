@@ -278,7 +278,7 @@ union __wt_rand_state {
 };
 
 /*
- * WT_TAILQ_SAFE_REMOVE --
+ * WT_TAILQ_SAFE_REMOVE_BEGIN/END --
  *	Macro to safely walk a TAILQ where we're expecting some underlying
  * function to remove elements from the list, but we don't want to stop on
  * error, nor do we want an error to turn into an infinite loop. Used during
@@ -286,11 +286,12 @@ union __wt_rand_state {
  * this macro works even when the next element gets removed along with the
  * current one.
  */
-#define	WT_TAILQ_SAFE_REMOVE(var, head, field, tvar)			\
+#define	WT_TAILQ_SAFE_REMOVE_BEGIN(var, head, field, tvar)		\
 	for ((tvar) = NULL; ((var) = TAILQ_FIRST(head)) != NULL;	\
-	    (tvar) = (var))						\
+	    (tvar) = (var)) {						\
 		if ((tvar) == (var)) {					\
 			/* Leak the structure. */			\
 			TAILQ_REMOVE(head, (var), field);		\
 			continue;					\
-		} else
+		}
+#define	WT_TAILQ_SAFE_REMOVE_END }
