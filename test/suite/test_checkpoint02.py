@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -28,15 +28,14 @@
 
 import Queue
 import threading, time, wiredtiger, wttest
-from helper import key_populate, simple_populate
 from wtthread import checkpoint_thread, op_thread
-from wtscenario import check_scenarios
+from wtscenario import make_scenarios
 
 # test_checkpoint02.py
 #   Run background checkpoints repeatedly while doing inserts and other
 #   operations in another thread
 class test_checkpoint02(wttest.WiredTigerTestCase):
-    scenarios = check_scenarios([
+    scenarios = make_scenarios([
         ('table-100', dict(uri='table:test',fmt='L',dsize=100,nops=50000,nthreads=10)),
         ('table-10', dict(uri='table:test',fmt='L',dsize=10,nops=50000,nthreads=30))
     ])
@@ -83,7 +82,6 @@ class test_checkpoint02(wttest.WiredTigerTestCase):
             i += 1
 
         self.assertEqual(i, self.nops)
-
 
 if __name__ == '__main__':
     wttest.run()

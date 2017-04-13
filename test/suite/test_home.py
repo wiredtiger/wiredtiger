@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -43,7 +43,6 @@ class test_isnew(wttest.WiredTigerTestCase):
         self.conn = self.setUpConnectionOpen(".")
         self.assertEquals(self.conn.is_new(), False)
 
-
 # test_gethome
 #    database get-home method
 class test_gethome(wttest.WiredTigerTestCase):
@@ -60,7 +59,6 @@ class test_gethome(wttest.WiredTigerTestCase):
         self.conn = self.setUpConnectionOpen(name)
         self.assertEquals(self.conn.get_home(), name)
 
-
 # test_base_config
 #       test base configuration file config.
 class test_base_config(wttest.WiredTigerTestCase):
@@ -70,9 +68,9 @@ class test_base_config(wttest.WiredTigerTestCase):
 
         # Open up another database, configure without base configuration.
         os.mkdir("A")
-        conn = wiredtiger.wiredtiger_open("A", "create,config_base=false")
+        conn = self.wiredtiger_open("A", "create,config_base=false")
         self.assertFalse(os.path.exists("A/WiredTiger.basecfg"))
-
+        conn.close()
 
 if __name__ == '__main__':
     wttest.run()

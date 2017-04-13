@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -29,10 +29,11 @@
 import Queue
 import threading, time, wiredtiger, wttest
 import glob, os, shutil
+from helper import compare_files
 from suite_subprocess import suite_subprocess
-from wtscenario import check_scenarios
+from wtdataset import SimpleDataSet, simple_key
+from wtscenario import make_scenarios
 from wtthread import op_thread
-from helper import compare_files, key_populate
 
 # test_backup04.py
 #    Utilities: wt backup
@@ -54,36 +55,32 @@ class test_backup_target(wttest.WiredTigerTestCase, suite_subprocess):
     # and that is not what we want here.
     #
     pfx = 'test_backup'
-    scenarios = check_scenarios([
+    scenarios = make_scenarios([
         ('table', dict(uri='table:test',dsize=100,nops=2000,nthreads=1,time=30)),
     ])
 
     # Create a large cache, otherwise this test runs quite slowly.
-    def setUpConnectionOpen(self, dir):
-        wtopen_args = \
-            'create,cache_size=1G,log=(archive=false,enabled,file_max=%s)' % \
+    def conn_config(self):
+        return 'cache_size=1G,log=(archive=false,enabled,file_max=%s)' % \
             self.logmax
-        conn = wiredtiger.wiredtiger_open(dir, wtopen_args)
-        self.pr(`conn`)
-        return conn
 
     def populate(self, uri, dsize, rows):
         self.pr('populate: ' + uri + ' with ' + str(rows) + ' rows')
         cursor = self.session.open_cursor(uri, None)
         for i in range(1, rows + 1):
-            cursor[key_populate(cursor, i)] = str(i) + ':' + 'a' * dsize
+            cursor[simple_key(cursor, i)] = str(i) + ':' + 'a' * dsize
         cursor.close()
 
     def update(self, uri, dsize, upd, rows):
         self.pr('update: ' + uri + ' with ' + str(rows) + ' rows')
         cursor = self.session.open_cursor(uri, None)
         for i in range(1, rows + 1):
-            cursor[key_populate(cursor, i)] = str(i) + ':' + upd * dsize
+            cursor[simple_key(cursor, i)] = str(i) + ':' + upd * dsize
         cursor.close()
 
     # Compare the original and backed-up files using the wt dump command.
     def compare(self, uri, dir_full, dir_incr):
-        # print "Compare: full URI: " + uri + " with incremental URI " 
+        # print "Compare: full URI: " + uri + " with incremental URI "
         if dir_full == None:
             full_name='original'
         else:
@@ -159,10 +156,8 @@ class test_backup_target(wttest.WiredTigerTestCase, suite_subprocess):
         #   Copy log files returned by log targeted backup cursor
         #   Truncate (archive) the log files
         #   Close the backup cursor
-        count = 5
-        increment = 0
         updstr="bcdefghi"
-        while increment < count:
+        for increment in range(0, 5):
             full_dir = self.dir + str(increment)
             # Add more work to move the logs forward.
             self.update(self.uri, self.dsize, updstr[increment], self.nops)
@@ -170,14 +165,12 @@ class test_backup_target(wttest.WiredTigerTestCase, suite_subprocess):
 
             self.pr('Iteration: ' + str(increment))
             self.take_incr_backup(self.dir)
-            increment += 1
 
         # After running, take a full backup.  Compare the incremental
         # backup to the original database and the full backup database.
         self.take_full_backup(full_dir)
         self.compare(self.uri, full_dir, self.dir)
         self.compare(self.uri, None, self.dir)
-
 
 if __name__ == '__main__':
     wttest.run()

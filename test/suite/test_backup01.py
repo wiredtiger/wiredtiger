@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -32,8 +32,8 @@ import shutil
 import string
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
-from helper import compare_files,\
-    complex_populate, complex_populate_lsm, simple_populate
+from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
+from helper import compare_files
 
 # test_backup.py
 #    Utilities: wt backup
@@ -43,14 +43,14 @@ class test_backup(wttest.WiredTigerTestCase, suite_subprocess):
 
     pfx = 'test_backup'
     objs = [
-        ( 'file:' + pfx + '.1',  simple_populate, 0),
-        ( 'file:' + pfx + '.2',  simple_populate, 0),
-        ('table:' + pfx + '.3',  simple_populate, 0),
-        ('table:' + pfx + '.4',  simple_populate, 0),
-        ('table:' + pfx + '.5', complex_populate, 0),
-        ('table:' + pfx + '.6', complex_populate, 0),
-        ('table:' + pfx + '.7', complex_populate_lsm, 1),
-        ('table:' + pfx + '.8', complex_populate_lsm, 1),
+        ( 'file:' + pfx + '.1', SimpleDataSet, 0),
+        ( 'file:' + pfx + '.2', SimpleDataSet, 0),
+        ('table:' + pfx + '.3', SimpleDataSet, 0),
+        ('table:' + pfx + '.4', SimpleDataSet, 0),
+        ('table:' + pfx + '.5', ComplexDataSet, 0),
+        ('table:' + pfx + '.6', ComplexDataSet, 0),
+        ('table:' + pfx + '.7', ComplexLSMDataSet, 1),
+        ('table:' + pfx + '.8', ComplexLSMDataSet, 1),
     ]
 
     # Populate a set of objects.
@@ -59,7 +59,7 @@ class test_backup(wttest.WiredTigerTestCase, suite_subprocess):
             if i[2]:
                 if skiplsm:
                         continue
-            i[1](self, i[0], 'key_format=S', 100)
+            i[1](self, i[0], 100).populate()
 
     # Compare the original and backed-up files using the wt dump command.
     def compare(self, uri):
@@ -98,7 +98,7 @@ class test_backup(wttest.WiredTigerTestCase, suite_subprocess):
 
     # Check that a URI doesn't exist, both the meta-data and the file names.
     def confirmPathDoesNotExist(self, uri):
-        conn = wiredtiger.wiredtiger_open(self.dir)
+        conn = self.wiredtiger_open(self.dir)
         session = conn.open_session()
         self.assertRaises(wiredtiger.WiredTigerError,
             lambda: session.open_cursor(uri, None, None))

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wtscenario import check_scenarios
+from wtscenario import make_scenarios
 
 # test_base04.py
 #     Cursor operations
@@ -38,7 +38,7 @@ class test_cursor04(wttest.WiredTigerTestCase):
     table_name1 = 'test_cursor04'
     nentries = 20
 
-    scenarios = check_scenarios([
+    scenarios = make_scenarios([
         ('row', dict(tablekind='row', uri='table')),
         ('lsm-row', dict(tablekind='row', uri='lsm')),
         ('col', dict(tablekind='col', uri='table')),
@@ -113,7 +113,7 @@ class test_cursor04(wttest.WiredTigerTestCase):
             self.assertEqual(direction, 0)
             self.assertEqual(cursor.get_key(), origkey)
             self.assertEqual(cursor.get_value(), 0)
-        
+
     def test_searches(self):
         """
         Create entries, and read back in a cursor: key=string, value=string
@@ -174,7 +174,7 @@ class test_cursor04(wttest.WiredTigerTestCase):
             self.assertEqual(cmp, 0)
             self.assertEqual(cursor.get_key(), self.genkey(0))
             self.assertEqual(cursor.get_value(), 0)
-            
+
         cursor.set_key(self.genkey(5))
         self.expect_either(cursor, 4, 6)
 

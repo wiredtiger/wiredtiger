@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -28,9 +28,9 @@
 
 import os, time
 import wiredtiger, wttest
-from helper import confirm_does_not_exist, complex_populate, \
-    complex_populate_index_name, simple_populate
-from wtscenario import check_scenarios
+from helper import confirm_does_not_exist
+from wtdataset import SimpleDataSet, ComplexDataSet
+from wtscenario import make_scenarios
 
 # test_drop.py
 #    session level drop operation
@@ -38,17 +38,17 @@ class test_drop(wttest.WiredTigerTestCase):
     name = 'test_drop'
     extra_config = ''
 
-    scenarios = check_scenarios([
+    scenarios = make_scenarios([
         ('file', dict(uri='file:')),
         ('table', dict(uri='table:')),
-        #Not yet: drop failing with an open cursor needs handle locking
-        #('table-lsm', dict(uri='table:', extra_config=',type=lsm')),
+        ('table-lsm', dict(uri='table:', extra_config=',type=lsm')),
     ])
 
     # Populate an object, remove it and confirm it no longer exists.
-    def drop(self, populate, with_cursor, close_session, drop_index):
+    def drop(self, dataset, with_cursor, reopen, drop_index):
         uri = self.uri + self.name
-        populate(self, uri, 'key_format=S' + self.extra_config, 10)
+        ds = dataset(self, uri, 10, config=self.extra_config)
+        ds.populate()
 
         # Open cursors should cause failure.
         if with_cursor:
@@ -57,11 +57,11 @@ class test_drop(wttest.WiredTigerTestCase):
                 lambda: self.session.drop(uri, None))
             cursor.close()
 
-        if close_session:
+        if reopen:
             self.reopen_conn()
 
         if drop_index:
-            drop_uri = complex_populate_index_name(self, uri)
+            drop_uri = ds.index_name(0)
         else:
             drop_uri = uri
         self.session.drop(drop_uri, None)
@@ -73,17 +73,17 @@ class test_drop(wttest.WiredTigerTestCase):
         # Try all combinations except dropping the index, the simple
         # case has no indices.
         for with_cursor in [False, True]:
-            for close_session in [False, True]:
-                self.drop(simple_populate, with_cursor, close_session, False)
+            for reopen in [False, True]:
+                self.drop(SimpleDataSet, with_cursor, reopen, False)
 
         # A complex, multi-file table object.
         # Try all test combinations.
         if self.uri == "table:":
             for with_cursor in [False, True]:
-                for close_session in [False, True]:
+                for reopen in [False, True]:
                     for drop_index in [False, True]:
-                        self.drop(complex_populate, with_cursor,
-                                  close_session, drop_index)
+                        self.drop(ComplexDataSet, with_cursor,
+                                  reopen, drop_index)
 
     # Test drop of a non-existent object: force succeeds, without force fails.
     def test_drop_dne(self):

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -32,8 +32,7 @@
 
 import fnmatch, os, shutil, time
 from suite_subprocess import suite_subprocess
-from wiredtiger import wiredtiger_open
-from wtscenario import multiply_scenarios, number_scenarios, prune_scenarios
+from wtscenario import make_scenarios
 import wttest
 
 class test_txn09(wttest.WiredTigerTestCase, suite_subprocess):
@@ -74,27 +73,16 @@ class test_txn09(wttest.WiredTigerTestCase, suite_subprocess):
     txn3s = [('t3c', dict(txn3='commit')), ('t3r', dict(txn3='rollback'))]
     txn4s = [('t4c', dict(txn4='commit')), ('t4r', dict(txn4='rollback'))]
 
-    all_scenarios = multiply_scenarios('.', types,
-        op1s, txn1s, op2s, txn2s, op3s, txn3s, op4s, txn4s)
-
     # This test generates thousands of potential scenarios.
     # For default runs, we'll use a small subset of them, for
     # long runs (when --long is set) we'll set a much larger limit.
-    scenarios = number_scenarios(prune_scenarios(all_scenarios, 20, 5000))
+    scenarios = make_scenarios(types,
+        op1s, txn1s, op2s, txn2s, op3s, txn3s, op4s, txn4s,
+        prune=20, prunelong=5000)
 
-    # Overrides WiredTigerTestCase
-    def setUpConnectionOpen(self, dir):
-        self.home = dir
-        conn_params = \
-                'create,error_prefix="%s: ",' % self.shortid() + \
-                'log=(archive=false,enabled=%s),' % int(self.log_enabled) + \
-                'transaction_sync=(enabled=false),'
-
-        # print "Opening conn at '%s' with config '%s'" % (dir, conn_params)
-        conn = wiredtiger_open(dir, conn_params)
-        self.pr(`conn`)
-        self.session2 = conn.open_session()
-        return conn
+    def conn_config(self):
+        return 'log=(archive=false,enabled=%s),' % int(self.log_enabled) + \
+            'transaction_sync=(enabled=false)'
 
     # Check that a cursor (optionally started in a new transaction), sees the
     # expected values.
@@ -139,10 +127,11 @@ class test_txn09(wttest.WiredTigerTestCase, suite_subprocess):
         for i, ot in enumerate(zip(ops, txns)):
             ok, txn = ot
             op, k = ok
-            
+
             # Close and reopen the connection and cursor, toggling the log
             self.log_enabled = not self.log_enabled
             self.reopen_conn()
+            self.session2 = self.conn.open_session()
             c = self.session.open_cursor(self.uri, None, 'overwrite')
 
             self.session.begin_transaction(

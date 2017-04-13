@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -99,7 +99,6 @@ class test_util09(wttest.WiredTigerTestCase, suite_subprocess):
         keys = self.populate_file("loadtext.in", 200, 300)
         self.runWt(["loadtext", "table:" + self.tablename], infilename="loadtext.in")
         self.check_keys(self.tablename, keys)
-
 
 if __name__ == '__main__':
     wttest.run()

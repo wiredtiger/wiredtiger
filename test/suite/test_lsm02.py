@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -27,7 +27,6 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wtscenario, wttest
-from helper import simple_populate
 
 # test_lsm02.py
 #    Test LSM schema level operations

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -30,8 +30,7 @@
 #   Transactions: test long-running snapshots
 
 from suite_subprocess import suite_subprocess
-from wtscenario import multiply_scenarios, number_scenarios
-from helper import simple_populate
+from wtdataset import SimpleDataSet
 import wiredtiger, wttest
 
 class test_txn06(wttest.WiredTigerTestCase, suite_subprocess):
@@ -41,14 +40,14 @@ class test_txn06(wttest.WiredTigerTestCase, suite_subprocess):
     source_uri = 'table:' + tablename + "_src"
     nrows = 100000
 
-    def setUpConnectionOpen(self, *args):
+    def conn_config(self):
         if not wiredtiger.verbose_build():
             self.skipTest('requires a verbose build')
-        return super(test_txn06, self).setUpConnectionOpen(*args)
+        return ''
 
     def test_long_running(self):
         # Populate a table
-        simple_populate(self, self.source_uri, 'key_format=S', self.nrows)
+        SimpleDataSet(self, self.source_uri, self.nrows).populate()
 
         # Now scan the table and copy the rows into a new table
         c_src = self.session.create(self.uri, "key_format=S")

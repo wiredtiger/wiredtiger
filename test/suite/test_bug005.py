@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -30,20 +30,20 @@
 #       Regression tests.
 
 import wiredtiger, wttest
-from helper import key_populate, value_populate
+from wtdataset import SimpleDataSet, simple_key, simple_value
 
 # Check that verify works when the file has additional data after the last
 # checkpoint.
 class test_bug005(wttest.WiredTigerTestCase):
     # This is a btree layer test, test files, ignore tables.
     uri = 'file:test_bug005'
-    
+
     def test_bug005(self):
         # Create the object.
         self.session.create(self.uri, 'value_format=S,key_format=S')
         cursor = self.session.open_cursor(self.uri, None)
         for i in range(1, 1000):
-            cursor[key_populate(cursor, i)] = value_populate(cursor, i)
+            cursor[simple_key(cursor, i)] = simple_value(cursor, i)
         cursor.close()
 
         # Verify the object, force it to disk, and verify the on-disk version.
@@ -58,7 +58,6 @@ class test_bug005(wttest.WiredTigerTestCase):
 
         # Verify the object again.
         self.session.verify(self.uri)
-
 
 if __name__ == '__main__':
     wttest.run()

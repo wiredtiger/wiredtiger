@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -28,7 +28,7 @@
 
 import os, struct
 from suite_subprocess import suite_subprocess
-from wtscenario import number_scenarios, multiply_scenarios
+from wtscenario import make_scenarios
 import wiredtiger, wttest
 from wiredtiger import stat
 
@@ -49,14 +49,8 @@ class test_stat04(wttest.WiredTigerTestCase, suite_subprocess):
         ('large', dict(nentries=100000, valuesize=1)),
         ('jumboval', dict(nentries=100, valuesize=4200000)),
     ]
-    scenarios = number_scenarios(multiply_scenarios('.', keyfmt, nentries))
-
-    # Override WiredTigerTestCase
-    def setUpConnectionOpen(self, dir):
-        return wiredtiger.wiredtiger_open(dir,
-            'create,' +
-            'statistics=(all),' +
-            'error_prefix="%s: "' % self.shortid())
+    scenarios = make_scenarios(keyfmt, nentries)
+    conn_config = 'statistics=(all)'
 
     def init_test(self):
         self.valuepfx = self.valuesize * 'X'
@@ -97,6 +91,7 @@ class test_stat04(wttest.WiredTigerTestCase, suite_subprocess):
                 self.checkcount(uri, count)
             cursor[self.genkey(i)] = self.genvalue(i)
             count += 1
+
         # Remove a number of entries, at each step checking that stats match.
         for i in range(0, self.nentries / 37):
             cursor.set_key(self.genkey(i*11 % self.nentries))
@@ -104,6 +99,11 @@ class test_stat04(wttest.WiredTigerTestCase, suite_subprocess):
                 count -= 1
             self.checkcount(uri, count)
         cursor.close()
+
+        # Confirm the count is correct after writing to the backing file,
+        # that tests the on-disk format as well as the in-memory format.
+        self.reopen_conn()
+        self.checkcount(uri, count)
 
 if __name__ == '__main__':
     wttest.run()

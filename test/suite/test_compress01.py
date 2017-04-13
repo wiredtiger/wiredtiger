@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -32,7 +32,7 @@
 
 import os, run
 import wiredtiger, wttest
-from wtscenario import multiply_scenarios, number_scenarios
+from wtscenario import make_scenarios
 
 # Test basic compression
 class test_compress01(wttest.WiredTigerTestCase):
@@ -42,36 +42,19 @@ class test_compress01(wttest.WiredTigerTestCase):
         ('table', dict(uri='table:test_compress01')),
     ]
     compress = [
-        ('bzip2', dict(compress='bzip2')),
         ('nop', dict(compress='nop')),
         ('snappy', dict(compress='snappy')),
         ('none', dict(compress=None)),
     ]
-    scenarios = number_scenarios(multiply_scenarios('.', types, compress))
+    scenarios = make_scenarios(types, compress)
 
     nrecords = 10000
     bigvalue = "abcdefghij" * 1000
 
-    # Override WiredTigerTestCase, we have extensions.
-    def setUpConnectionOpen(self, dir):
-        conn = wiredtiger.wiredtiger_open( dir, 'create,' +
-            ('error_prefix="%s: ",' % self.shortid()) +
-            self.extensionArg(self.compress))
-        self.pr(`conn`)
-        return conn
-
-    # Return the wiredtiger_open extension argument for a shared library.
-    def extensionArg(self, name):
-        if name == None:
-            return ''
-
-        testdir = os.path.dirname(__file__)
-        extdir = os.path.join(run.wt_builddir, 'ext/compressors')
-        extfile = os.path.join(
-            extdir, name, '.libs', 'libwiredtiger_' + name + '.so')
-        if not os.path.exists(extfile):
-            self.skipTest('compression extension "' + extfile + '" not built')
-        return ',extensions=["' + extfile + '"]'
+    # Load the compression extension, skip the test if missing
+    def conn_extensions(self, extlist):
+        extlist.skip_if_missing = True
+        extlist.extension('compressors', self.compress)
 
     # Create a table, add keys with both big and small values, then verify them.
     def test_compress(self):
@@ -105,7 +88,6 @@ class test_compress01(wttest.WiredTigerTestCase):
             else:
                 self.assertEquals(cursor.get_value(), `idx` + "abcdefg")
         cursor.close()
-
 
 if __name__ == '__main__':
     wttest.run()

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wtscenario import check_scenarios
+from wtscenario import make_scenarios
 
 # test_base05.py
 #    Cursor operations
@@ -40,7 +40,7 @@ class test_base05(wttest.WiredTigerTestCase):
     table_name1 = 'test_base05a'
     table_name2 = 'test_base05b'
     nentries = 1000
-    scenarios = check_scenarios([
+    scenarios = make_scenarios([
         ('no_huffman', dict(extraconfig='')),
         ('huffman_key', dict(extraconfig='huffman_key="english"')),
         ('huffman_val', dict(extraconfig='huffman_value="english"')),
@@ -154,7 +154,7 @@ class test_base05(wttest.WiredTigerTestCase):
             choice = (n + i) % len(reflist)
             result += reflist[choice]
         return result + ':' + str(n)
-        
+
     def test_table_ss(self):
         """
         Create entries, and read back in a cursor: key=string, value=string
@@ -196,7 +196,7 @@ class test_base05(wttest.WiredTigerTestCase):
 
     def do_test_table_base(self, convert):
         """
-        Base functionality that uses regular strings with 
+        Base functionality that uses regular strings with
         non-ASCII (UTF) chars and optionally converts them to
         Unicode (considered a type separate from string in Python).
         """

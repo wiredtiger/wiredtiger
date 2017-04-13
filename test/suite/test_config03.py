@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -48,8 +48,6 @@ class test_config03(test_base03.test_base03):
     eviction_trigger_scenarios = wtscenario.quick_scenarios(
         's_eviction_trigger',
         [50, 90, 95, 99], None)
-    hazard_max_scenarios = wtscenario.quick_scenarios('s_hazard_max',
-        [15, 50, 500], [0.4, 0.8, 0.8])
     multiprocess_scenarios = wtscenario.quick_scenarios('s_multiprocess',
         [True,False], [1.0,1.0])
     session_max_scenarios = wtscenario.quick_scenarios('s_session_max',
@@ -66,17 +64,14 @@ class test_config03(test_base03.test_base03):
     verbose_scenarios = wtscenario.quick_scenarios('s_verbose', [None], None)
 
     config_vars = [ 'cache_size', 'create', 'error_prefix', 'eviction_target',
-                    'eviction_trigger', 'hazard_max', 'multiprocess',
-                    'session_max', 'verbose' ]
+                    'eviction_trigger', 'multiprocess', 'session_max',
+                    'verbose' ]
 
-    all_scenarios = wtscenario.multiply_scenarios('_',
+    scenarios = wtscenario.make_scenarios(
         cache_size_scenarios, create_scenarios, error_prefix_scenarios,
         eviction_target_scenarios, eviction_trigger_scenarios,
-        hazard_max_scenarios, multiprocess_scenarios, session_max_scenarios,
-        transactional_scenarios, verbose_scenarios)
-
-    scenarios = wtscenario.prune_scenarios(all_scenarios, 1000)
-    scenarios = wtscenario.number_scenarios(scenarios)
+        multiprocess_scenarios, session_max_scenarios,
+        transactional_scenarios, verbose_scenarios, prune=100, prunelong=1000)
 
     #wttest.WiredTigerTestCase.printVerbose(2, 'test_config03: running ' + \
     #                      str(len(scenarios)) + ' of ' + \
@@ -127,7 +122,7 @@ class test_config03(test_base03.test_base03):
             args = successargs
 
         self.verbose(3, 'wiredtiger_open with args: ' + args)
-        conn = wiredtiger.wiredtiger_open(dir, args)
+        conn = self.wiredtiger_open(dir, args)
         self.pr(`conn`)
         return conn
 

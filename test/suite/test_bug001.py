@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -100,7 +100,6 @@ class test_bug001(wttest.WiredTigerTestCase):
         self.assertEquals(cursor.close(), 0)
         self.session.drop(uri)
 
-
     # Test a bug where cursor remove inside implicit records looped infinitely.
     def test_implicit_record_cursor_remove(self):
         uri='file:xxx'
@@ -148,7 +147,6 @@ class test_bug001(wttest.WiredTigerTestCase):
 
         self.assertEquals(cursor.close(), 0)
         self.session.drop(uri)
-
 
 if __name__ == '__main__':
     wttest.run()

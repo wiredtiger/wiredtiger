@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2016 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -33,11 +33,7 @@ import wiredtiger, wttest
 class test_schema07(wttest.WiredTigerTestCase):
     tablename = 'table:test_schema07'
 
-    def setUpConnectionOpen(self, dir):
-        wtopen_args = 'create,cache_size=10MB'
-        conn = wiredtiger.wiredtiger_open(dir, wtopen_args)
-        self.pr(`conn`)
-        return conn
+    conn_config = 'cache_size=10MB'
 
     @wttest.longtest("Creating many tables shouldn't fill the cache")
     def test_many_tables(self):

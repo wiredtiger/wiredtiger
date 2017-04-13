@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -32,24 +32,20 @@
 import wiredtiger, wttest
 import random
 from time import clock, time
-from wtscenario import check_scenarios
+from wtscenario import make_scenarios
 
 # Test performance of inserting into a table with an index.
 class test_perf001(wttest.WiredTigerTestCase):
     table_name = 'test_perf001'
 
-    scenarios = check_scenarios([
+    scenarios = make_scenarios([
         #('file-file', dict(tabletype='file',indextype='file')),
-        ('file-lsm', dict(tabletype='file',indextype='lsm')),
+        ('file-lsm', dict(tabletype='file',indextype='lsm', cfg='',
+            conn_config="statistics=(fast),statistics_log=(wait=1)")),
         #('lsm-file', dict(tabletype='lsm',indextype='file')),
         #('lsm-lsm', dict(tabletype='lsm',indextype='lsm')),
     ])
-
-    def setUpConnectionOpen(self, dir):
-        wtopen_args = 'create,cache_size=512M'
-        conn = wiredtiger.wiredtiger_open(dir, wtopen_args)
-        self.pr(`conn`)
-        return conn
+    conn_config = 'cache_size=512M'
 
     def test_performance_of_indices(self):
         uri = 'table:' + self.table_name
@@ -72,4 +68,3 @@ class test_perf001(wttest.WiredTigerTestCase):
 
 if __name__ == '__main__':
     wttest.run()
-

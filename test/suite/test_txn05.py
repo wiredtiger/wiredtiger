@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -32,8 +32,7 @@
 
 import fnmatch, os, shutil, time
 from suite_subprocess import suite_subprocess
-from wiredtiger import wiredtiger_open
-from wtscenario import multiply_scenarios, number_scenarios
+from wtscenario import make_scenarios
 import wttest
 
 class test_txn05(wttest.WiredTigerTestCase, suite_subprocess):
@@ -64,25 +63,16 @@ class test_txn05(wttest.WiredTigerTestCase, suite_subprocess):
     ]
     txn1s = [('t1c', dict(txn1='commit')), ('t1r', dict(txn1='rollback'))]
 
-    scenarios = number_scenarios(multiply_scenarios('.', types, op1s, txn1s))
-    # scenarios = number_scenarios(multiply_scenarios('.', types, op1s, txn1s))[:3]
-    # Overrides WiredTigerTestCase
-    def setUpConnectionOpen(self, dir):
-        self.home = dir
+    scenarios = make_scenarios(types, op1s, txn1s)
+
+    def conn_config(self):
         # Cycle through the different transaction_sync values in a
         # deterministic manner.
-        self.txn_sync = self.sync_list[
+        txn_sync = self.sync_list[
             self.scenario_number % len(self.sync_list)]
-        self.backup_dir = os.path.join(self.home, "WT_BACKUP")
-        conn_params = \
-                'log=(archive=false,enabled,file_max=%s),' % self.logmax + \
-                'create,error_prefix="%s: ",' % self.shortid() + \
-                'transaction_sync="%s",' % self.txn_sync
-        # print "Creating conn at '%s' with config '%s'" % (dir, conn_params)
-        conn = wiredtiger_open(dir, conn_params)
-        self.pr(`conn`)
-        self.session2 = conn.open_session()
-        return conn
+        # Set archive false on the home directory.
+        return 'log=(archive=false,enabled,file_max=%s),' % self.logmax + \
+            'transaction_sync="%s",' % txn_sync
 
     # Check that a cursor (optionally started in a new transaction), sees the
     # expected values.
@@ -111,10 +101,13 @@ class test_txn05(wttest.WiredTigerTestCase, suite_subprocess):
         self.check(self.session2, "isolation=read-uncommitted", current)
 
         # Opening a clone of the database home directory should run
-        # recovery and see the committed results.
+        # recovery and see the committed results.  Flush the log because
+        # the backup may not get all the log records if we are running
+        # without a sync option.  Use sync=off to force a write to the OS.
+        self.session.log_flush('sync=off')
         self.backup(self.backup_dir)
         backup_conn_params = 'log=(enabled,file_max=%s)' % self.logmax
-        backup_conn = wiredtiger_open(self.backup_dir, backup_conn_params)
+        backup_conn = self.wiredtiger_open(self.backup_dir, backup_conn_params)
         try:
             self.check(backup_conn.open_session(), None, committed)
         finally:
@@ -138,10 +131,15 @@ class test_txn05(wttest.WiredTigerTestCase, suite_subprocess):
         endcount = 2
         count = 0
         while count < endcount:
-            backup_conn = wiredtiger_open(self.backup_dir, backup_conn_params)
+            backup_conn = self.wiredtiger_open(self.backup_dir,
+                                               backup_conn_params)
             try:
-                 self.check(backup_conn.open_session(), None, committed)
+                 session = backup_conn.open_session()
             finally:
+                self.check(session, None, committed)
+                # Force a checkpoint because we don't record the recovery
+                # checkpoint as available for archiving.
+                session.checkpoint("force")
                 # Sleep long enough so that the archive thread is guaranteed
                 # to run before we close the connection.
                 time.sleep(1.0)
@@ -164,6 +162,8 @@ class test_txn05(wttest.WiredTigerTestCase, suite_subprocess):
         self.runWt(['-h', self.backup_dir, 'printlog'], outfilename='printlog.out')
 
     def test_ops(self):
+        self.backup_dir = os.path.join(self.home, "WT_BACKUP")
+        self.session2 = self.conn.open_session()
         # print "Creating %s with config '%s'" % (self.uri, self.create_params)
         self.session.create(self.uri, self.create_params)
         # Set up the table with entries for 1-5.
@@ -181,7 +181,7 @@ class test_txn05(wttest.WiredTigerTestCase, suite_subprocess):
             ok, txn = ot
             # print '%d: %s(%d)[%s]' % (i, ok[0], ok[1], txn)
             op, k = ok
-            
+
             # print '%d: %s(%d)[%s]' % (i, ok[0], ok[1], txn)
             if op == 'stop':
                 c.set_key(k)

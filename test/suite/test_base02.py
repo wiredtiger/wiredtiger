@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -32,14 +32,14 @@
 
 import json
 import wiredtiger, wttest
-from wtscenario import check_scenarios
+from wtscenario import make_scenarios
 
 # Test configuration strings.
 class test_base02(wttest.WiredTigerTestCase):
     name = 'test_base02a'
     extra_config = ''
 
-    scenarios = check_scenarios([
+    scenarios = make_scenarios([
         ('file', dict(uri='file:')),
         ('table', dict(uri='table:')),
         ('lsm', dict(uri='lsm:')),

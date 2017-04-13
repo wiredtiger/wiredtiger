@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -28,15 +28,14 @@
 
 import Queue
 import threading, time, wiredtiger, wttest
-from helper import key_populate, simple_populate
 from wtthread import backup_thread, checkpoint_thread, op_thread
-from wtscenario import check_scenarios
+from wtscenario import make_scenarios
 
 # test_backup02.py
 #   Run background checkpoints and backsups repeatedly while doing inserts
 #   in another thread
 class test_backup02(wttest.WiredTigerTestCase):
-    scenarios = check_scenarios([
+    scenarios = make_scenarios([
         ('table', dict(uri='table:test',fmt='L',dsize=100,nops=200,nthreads=1,time=30)),
     ])
 
@@ -86,4 +85,3 @@ class test_backup02(wttest.WiredTigerTestCase):
 
 if __name__ == '__main__':
     wttest.run()
-

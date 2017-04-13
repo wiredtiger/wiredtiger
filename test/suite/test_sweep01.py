@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -33,15 +33,18 @@
 
 import fnmatch, os, shutil, run, time
 from suite_subprocess import suite_subprocess
-from wiredtiger import wiredtiger_open, stat
-from wtscenario import multiply_scenarios, number_scenarios, prune_scenarios
+from wtscenario import make_scenarios
+from wiredtiger import stat
 import wttest
 
 class test_sweep01(wttest.WiredTigerTestCase, suite_subprocess):
     tablebase = 'test_sweep01'
     uri = 'table:' + tablebase
-    numfiles = 50
+    numfiles = 30
     numkv = 1000
+    conn_config = 'file_manager=(close_handle_minimum=0,' + \
+                  'close_idle_time=6,close_scan_interval=2),' + \
+                  'statistics=(fast),'
 
     types = [
         ('row', dict(tabletype='row',
@@ -52,27 +55,7 @@ class test_sweep01(wttest.WiredTigerTestCase, suite_subprocess):
                     create_params = 'key_format=r,value_format=8t')),
     ]
 
-    scenarios = types
-
-    # Overrides WiredTigerTestCase
-    def setUpConnectionOpen(self, dir):
-        self.home = dir
-        self.backup_dir = os.path.join(self.home, "WT_BACKUP")
-        # Configure sweep to run every 2 seconds with a 6 second timeout.
-        # That matches the ratio of the default 10 and 30 seconds.
-        conn_params = \
-                ',create,error_prefix="%s: ",' % self.shortid() + \
-                'file_manager=(close_handle_minimum=0,' + \
-                'close_idle_time=6,close_scan_interval=2),' + \
-                'statistics=(fast),'
-        # print "Creating conn at '%s' with config '%s'" % (dir, conn_params)
-        try:
-            conn = wiredtiger_open(dir, conn_params)
-        except wiredtiger.WiredTigerError as e:
-            print "Failed conn at '%s' with config '%s'" % (dir, conn_params)
-        self.pr(`conn`)
-        self.session2 = conn.open_session()
-        return conn
+    scenarios = make_scenarios(types)
 
     def test_ops(self):
         #
@@ -104,7 +87,7 @@ class test_sweep01(wttest.WiredTigerTestCase, suite_subprocess):
         #
         # We've configured checkpoints to run every 5 seconds, sweep server to
         # run every 2 seconds and idle time to be 6 seconds. It should take
-        # about 8 seconds for a handle to be closed. Sleep for 12 seconds to be
+        # about 8 seconds for a handle to be closed. Sleep for double to be
         # safe.
         #
         uri = '%s.test' % self.uri
@@ -122,13 +105,29 @@ class test_sweep01(wttest.WiredTigerTestCase, suite_subprocess):
         c = self.session.open_cursor(uri, None)
         k = 0
         sleep = 0
-        while sleep < 12:
+        max = 60
+        final_nfile = 4
+        while sleep < max:
             self.session.checkpoint()
             k = k+1
             c[k] = 1
             sleep += 2
             time.sleep(2)
+            # Give slow machines time to process files.
+            stat_cursor = self.session.open_cursor('statistics:', None, None)
+            this_nfile = stat_cursor[stat.conn.file_open][2]
+            removed = stat_cursor[stat.conn.dh_sweep_remove][2]
+            stat_cursor.close()
+            self.pr("==== loop " + str(sleep))
+            self.pr("this_nfile " + str(this_nfile))
+            self.pr("removed " + str(removed))
+            # On slow machines there can be a lag where files get closed but
+            # the sweep server cannot yet remove the handles.  So wait for the
+            # removed statistic to indicate forward progress too.
+            if this_nfile == final_nfile and removed != remove1:
+                break
         c.close()
+        self.pr("Sweep loop took " + str(sleep))
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         close2 = stat_cursor[stat.conn.dh_sweep_close][2]
@@ -149,7 +148,7 @@ class test_sweep01(wttest.WiredTigerTestCase, suite_subprocess):
         # print "tod1: " + str(tod1) + " tod2: " + str(tod2)
         # print "ref1: " + str(ref1) + " ref2: " + str(ref2)
 
-        # 
+        #
         # The files are all closed.  Check that sweep did its work even
         # in the presence of recent checkpoints.
         #
@@ -192,9 +191,9 @@ class test_sweep01(wttest.WiredTigerTestCase, suite_subprocess):
             print "ref1: " + str(ref1) + " ref2: " + str(ref2)
             print "XX: nfile1: " + str(nfile1) + " nfile2: " + str(nfile2)
         self.assertEqual(nfile2 < nfile1, True)
-        # The only files that should be left is the metadata, the lock file
-        # and the active file.
-        if (nfile2 != 3):
+        # The only files that should be left are the metadata, the lookaside
+        # file, the lock file, and the active file.
+        if (nfile2 != final_nfile):
             print "close1: " + str(close1) + " close2: " + str(close2)
             print "remove1: " + str(remove1) + " remove2: " + str(remove2)
             print "sweep1: " + str(sweep1) + " sweep2: " + str(sweep2)
@@ -203,7 +202,7 @@ class test_sweep01(wttest.WiredTigerTestCase, suite_subprocess):
             print "tod1: " + str(tod1) + " tod2: " + str(tod2)
             print "ref1: " + str(ref1) + " ref2: " + str(ref2)
             print "XX2: nfile1: " + str(nfile1) + " nfile2: " + str(nfile2)
-        self.assertEqual(nfile2 == 3, True)
+        self.assertEqual(nfile2 == final_nfile, True)
 
 if __name__ == '__main__':
     wttest.run()
