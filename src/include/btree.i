@@ -1023,33 +1023,6 @@ __wt_row_leaf_key(WT_SESSION_IMPL *session,
 }
 
 /*
- * __wt_cursor_row_leaf_key --
- *	Set a buffer to reference a cursor-referenced row-store leaf page key.
- */
-static inline int
-__wt_cursor_row_leaf_key(WT_CURSOR_BTREE *cbt, WT_ITEM *key)
-{
-	WT_PAGE *page;
-	WT_ROW *rip;
-	WT_SESSION_IMPL *session;
-
-	/*
-	 * If the cursor references a WT_INSERT item, take the key from there,
-	 * else take the key from the original page.
-	 */
-	if (cbt->ins == NULL) {
-		session = (WT_SESSION_IMPL *)cbt->iface.session;
-		page = cbt->ref->page;
-		rip = &page->pg_row[cbt->slot];
-		WT_RET(__wt_row_leaf_key(session, page, rip, key, false));
-	} else {
-		key->data = WT_INSERT_KEY(cbt->ins);
-		key->size = WT_INSERT_KEY_SIZE(cbt->ins);
-	}
-	return (0);
-}
-
-/*
  * __wt_row_leaf_value_cell --
  *	Return a pointer to the value cell for a row-store leaf page key, or
  * NULL if there isn't one.
@@ -1313,6 +1286,16 @@ __wt_page_can_evict(
 		return (true);
 
 	/*
+	 * We can't split or evict multiblock row-store pages where the parent's
+	 * key for the page is an overflow item, because the split into the
+	 * parent frees the backing blocks for any no-longer-used overflow keys,
+	 * which will corrupt the checkpoint's block management.
+	 */
+	if (btree->checkpointing != WT_CKPT_OFF &&
+	    F_ISSET_ATOMIC(ref->home, WT_PAGE_OVERFLOW_KEYS))
+		return (false);
+
+	/*
 	 * Check for in-memory splits before other eviction tests. If the page
 	 * should split in-memory, return success immediately and skip more
 	 * detailed eviction tests. We don't need further tests since the page
@@ -1337,16 +1320,6 @@ __wt_page_can_evict(
 		WT_STAT_DATA_INCR(session, cache_eviction_checkpoint);
 		return (false);
 	}
-
-	/*
-	 * We can't evict clean, multiblock row-store pages where the parent's
-	 * key for the page is an overflow item, because the split into the
-	 * parent frees the backing blocks for any no-longer-used overflow keys,
-	 * which will corrupt the checkpoint's block management.
-	 */
-	if (btree->checkpointing != WT_CKPT_OFF &&
-	    F_ISSET_ATOMIC(ref->home, WT_PAGE_OVERFLOW_KEYS))
-		return (false);
 
 	/*
 	 * If a split created new internal pages, those newly created internal
