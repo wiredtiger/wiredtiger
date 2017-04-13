@@ -26,15 +26,15 @@ __txn_op_log_row_key_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	WT_PAGE *page;
 	WT_ROW *rip;
 
-	cursor = (WT_CURSOR *)cbt;
+	cursor = &cbt->iface;
 	WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_SET));
 
 	memset(&key, 0, sizeof(key));
 
 	/*
-	 * Before 04/2017, we took the key for row-store logging from the page
+	 * We used to take the key for row-store logging from the page
 	 * referenced by the cursor, when we switched to taking it from the
-	 * cursor itself. For a few months, assert they are the same.
+	 * cursor itself. Check that they are the same.
 	 *
 	 * If the cursor references a WT_INSERT item, take the key from there,
 	 * else take the key from the original page.
@@ -44,7 +44,7 @@ __txn_op_log_row_key_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 		page = cbt->ref->page;
 		rip = &page->pg_row[cbt->slot];
 		WT_ASSERT(session,
-		    !__wt_row_leaf_key(session, page, rip, &key, false));
+		    __wt_row_leaf_key(session, page, rip, &key, false) == 0);
 	} else {
 		key.data = WT_INSERT_KEY(cbt->ins);
 		key.size = WT_INSERT_KEY_SIZE(cbt->ins);
@@ -71,7 +71,7 @@ __txn_op_log(WT_SESSION_IMPL *session,
 	WT_UPDATE *upd;
 	uint64_t recno;
 
-	cursor = (WT_CURSOR *)cbt;
+	cursor = &cbt->iface;
 
 	upd = op->u.upd;
 	value.data = WT_UPDATE_DATA(upd);
