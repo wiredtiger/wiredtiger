@@ -405,14 +405,14 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 	WT_STAT_CONN_INCR(session, cursor_search);
 	WT_STAT_DATA_INCR(session, cursor_search);
 
+	__cursor_state_save(cursor, &state);
+
 	/*
-	 * Any pinned page goes away if we do a search, make sure there's a
-	 * local copy of any key or value.
+	 * The pinned page goes away if we do a search, make sure there's a
+	 * local copy of any key or value, then re-save the cursor state.
 	 */
 	WT_ERR(__cursor_localkey(cursor));
 	WT_ERR(__cursor_localvalue(cursor));
-
-	/* Save the cursor state. */
 	__cursor_state_save(cursor, &state);
 
 	/*
@@ -491,14 +491,14 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 	WT_STAT_CONN_INCR(session, cursor_search_near);
 	WT_STAT_DATA_INCR(session, cursor_search_near);
 
+	__cursor_state_save(cursor, &state);
+
 	/*
 	 * Any pinned page goes away if we do a search, make sure there's a
-	 * local copy of any key or value.
+	 * local copy of any key or value, then re-save the cursor state.
 	 */
 	WT_ERR(__cursor_localkey(cursor));
 	WT_ERR(__cursor_localvalue(cursor));
-
-	/* Save the cursor state. */
 	__cursor_state_save(cursor, &state);
 
 	/*
