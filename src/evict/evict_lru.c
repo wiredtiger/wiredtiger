@@ -96,7 +96,7 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
 		return (WT_READGEN_OLDEST);
 
 	/* Any page from a dead tree is a great choice. */
-	if ( F_ISSET(btree->dhandle, WT_DHANDLE_DEAD))
+	if (F_ISSET(btree->dhandle, WT_DHANDLE_DEAD))
 		return (WT_READGEN_OLDEST);
 
 	/* Any empty page (leaf or internal), is a good choice. */
