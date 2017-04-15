@@ -2617,7 +2617,8 @@ struct __wt_async_callback {
 struct __wt_event_handler {
 	/*!
 	 * Callback to handle error messages; by default, error messages are
-	 * written to the stderr stream. See @ref error_handling.
+	 * written to the stderr stream and \c WT_PANIC errors will cause the
+	 * application to exit with a non-zero value. See @ref error_handling.
 	 *
 	 * Errors that require the application to exit and restart will have
 	 * their \c error value set to \c WT_PANIC. The application can exit
