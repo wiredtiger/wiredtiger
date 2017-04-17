@@ -666,8 +666,8 @@ __wt_tree_walk_count(WT_SESSION_IMPL *session,
  *	of leaf pages before returning.
  */
 int
-__wt_tree_walk_skip(WT_SESSION_IMPL *session,
-    WT_REF **refp, uint64_t *skipleafcntp, uint32_t flags)
+__wt_tree_walk_skip(
+    WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *skipleafcntp)
 {
 	/*
 	 * Optionally skip leaf pages, the second half. The tree-walk function
@@ -679,8 +679,13 @@ __wt_tree_walk_skip(WT_SESSION_IMPL *session,
 	 * decrementing the count.
 	 */
 	do {
-		WT_RET(__tree_walk_internal(
-		    session, refp, NULL, skipleafcntp, flags));
+		WT_RET(__tree_walk_internal(session, refp, NULL, skipleafcntp,
+		    WT_READ_NO_GEN | WT_READ_SKIP_INTL | WT_READ_WONT_NEED));
+
+		/*
+		 * The walk skipped internal pages, any page returned must be a
+		 * leaf page.
+		 */
 		if (*skipleafcntp > 0)
 			--*skipleafcntp;
 	} while (*skipleafcntp > 0);
