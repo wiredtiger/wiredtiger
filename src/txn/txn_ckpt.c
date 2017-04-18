@@ -943,13 +943,11 @@ __txn_checkpoint_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
 
 	WT_STAT_CONN_SET(session, txn_checkpoint_running, 1);
 	txn_global->checkpoint_running = true;
-	WT_FULL_BARRIER();
 
 	ret = __txn_checkpoint(session, cfg);
 
 	WT_STAT_CONN_SET(session, txn_checkpoint_running, 0);
 	txn_global->checkpoint_running = false;
-	WT_FULL_BARRIER();
 
 	return (ret);
 }
