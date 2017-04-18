@@ -1,8 +1,15 @@
 inline std::ostream&
 operator<<(std::ostream &os, const timespec &ts)
 {
-    double secs = ts.tv_sec + (double)ts.tv_nsec / (double)1000000000;
-    os << std::fixed << std::setprecision(2) << secs;
+    char oldfill;
+    std::streamsize oldwidth;
+
+    os << ts.tv_sec << ".";
+    oldfill = os.fill('0');
+    oldwidth = os.width(3);
+    os << (int)(ts.tv_nsec / 1000000);
+    os.fill(oldfill);
+    os.width(oldwidth);
     return (os);
 }
 
@@ -39,9 +46,24 @@ operator<(const timespec &lhs, const timespec &rhs)
 }
 
 inline bool
+operator>(const timespec &lhs, const timespec &rhs)
+{
+    if (lhs.tv_sec == rhs.tv_sec)
+	return (lhs.tv_nsec > rhs.tv_nsec);
+    else
+	return (lhs.tv_sec > rhs.tv_sec);
+}
+
+inline bool
 operator>=(const timespec &lhs, const timespec &rhs)
 {
     return (!(lhs < rhs));
+}
+
+inline bool
+operator<=(const timespec &lhs, const timespec &rhs)
+{
+    return (!(lhs > rhs));
 }
 
 inline bool
@@ -79,4 +101,44 @@ operator-=(timespec &lhs, const timespec &rhs)
 	lhs.tv_sec -= 1;
     }
     return (lhs);
+}
+
+inline timespec
+ts_add_ms(const timespec &lhs, const uint64_t n)
+{
+    timespec ts;
+
+    ts.tv_sec = lhs.tv_sec + (n / 1000);
+    ts.tv_nsec = lhs.tv_nsec + 1000000 * (n % 1000);
+    while (ts.tv_nsec > 1000000000) {
+	ts.tv_nsec -= 1000000000;
+	ts.tv_sec++;
+    }
+    return (ts);
+}
+
+inline void
+ts_assign(timespec &lhs, const timespec &rhs)
+{
+    lhs.tv_sec = rhs.tv_sec;
+    lhs.tv_nsec = rhs.tv_nsec;
+}
+
+inline void
+ts_clear(timespec &ts)
+{
+    ts.tv_sec = 0;
+    ts.tv_nsec = 0;
+}
+
+inline uint64_t
+ts_ms(const timespec &ts)
+{
+    return (ts.tv_nsec / 1000000) + (ts.tv_sec * 1000);
+}
+
+inline uint64_t
+ts_us(const timespec &ts)
+{
+    return (ts.tv_nsec / 1000) + (ts.tv_sec * 1000000);
 }

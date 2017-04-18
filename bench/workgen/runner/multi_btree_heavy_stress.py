@@ -72,23 +72,28 @@ print('populate:')
 pop_workload.run(conn)
 
 ins_ops = operations(Operation.OP_INSERT, tables, Key(Key.KEYGEN_APPEND, 20), Value(500), 0, logtable)
-upd_ops = operations(Operation.OP_UPDATE, tables, Key(Key.KEYGEN_APPEND, 20), Value(500), 0, logtable)
-read_ops = operations(Operation.OP_SEARCH, tables, Key(Key.KEYGEN_APPEND, 20), None, 3)
+upd_ops = operations(Operation.OP_UPDATE, tables, Key(Key.KEYGEN_UNIFORM, 20), Value(500), 0, logtable)
+read_ops = operations(Operation.OP_SEARCH, tables, Key(Key.KEYGEN_UNIFORM, 20), None, 3)
 
 ins_thread = Thread(OpList([ins_ops]))
 upd_thread = Thread(OpList([upd_ops]))
 read_thread = Thread(OpList([read_ops]))
+ins_thread.options.throttle = 250
+ins_thread.options.name = "Insert"
+upd_thread.options.throttle = 250
+upd_thread.options.name = "Update"
+read_thread.options.throttle = 1000
+read_thread.options.name = "Read"
 ##threads = [ins_thread] * 10 + [upd_thread] * 10 + [read_thread] * 80
-threads = [ins_thread] * 1 + [upd_thread] * 1 + [read_thread] * 8
+threads = [ins_thread] * 1 + [upd_thread] * 1 + [read_thread] * 2
 workload = Workload(context, ThreadList(threads))
 ##workload.options.run_time = 3600
-workload.options.run_time = 5
+workload.options.run_time = 10
 workload.options.report_interval=1
 print('heavy stress workload:')
 workload.run(conn)
 
 #### TODO:
-#### throttle 250, 250, 600
 ####compression=snappy
 ####sample_interval=5
 ####sample_rate=1

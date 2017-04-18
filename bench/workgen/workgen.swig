@@ -80,6 +80,9 @@ import numbers
 }
 %enddef
 
+/*
+ * Define a __str__ function for all public workgen classes.
+ */
 %define WorkgenClass(classname)
 %extend workgen::classname {
 	const std::string __str__() {
@@ -87,6 +90,24 @@ import numbers
 		$self->describe(out);
 		return out.str();
 	}
+};
+%enddef
+
+/*
+ * To forestall errors, make it impossible to add new attributes to certain
+ * classes.  This trick relies on the implementation of SWIG providing
+ * predictably named functions in the _workgen namespace to set attributes.
+ */
+%define WorkgenFrozenClass(classname)
+%extend workgen::classname {
+%pythoncode %{
+    def __setattr__(self, attr, val):
+        if getattr(self, attr) == None:
+            raise AttributeError("'" + #classname +
+              "' object has no attribute '" + attr + "'")
+        f = _workgen.__dict__[#classname + '_' + attr + '_set']
+        f(self, val)
+%}
 };
 %enddef
 
@@ -102,14 +123,18 @@ InterruptableFunction(workgen::Workload::run)
 
 WorkgenClass(Key)
 WorkgenClass(Operation)
-WorkgenClass(Thread)
 WorkgenClass(Table)
 WorkgenClass(TableStats)
+WorkgenClass(Thread)
+WorkgenClass(ThreadOptions)
 WorkgenClass(Transaction)
 WorkgenClass(Value)
 WorkgenClass(Workload)
 WorkgenClass(WorkloadOptions)
 WorkgenClass(Context)
+
+WorkgenFrozenClass(WorkloadOptions)
+WorkgenFrozenClass(ThreadOptions)
 
 %extend workgen::Operation {
 %pythoncode %{
@@ -134,21 +159,5 @@ WorkgenClass(Context)
         else:
             self._group.append(other)
             return self
-%}
-};
-
-/*
- * To forestall errors, make it impossible to add new attributes to options.
- * This trick relies on the implementation of SWIG providing predictably
- * named functions in the _workgen namespace to set attributes.
- */
-%extend workgen::WorkloadOptions {
-%pythoncode %{
-    def __setattr__(self, attr, val):
-        if getattr(self, attr) == None:
-            raise AttributeError("'WorkloadOptions' object has no attribute '" +
-              attr + "'")
-        f = _workgen.__dict__['WorkloadOptions_' + attr + '_set']
-        f(self, val)
 %}
 };
