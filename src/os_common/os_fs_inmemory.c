@@ -513,15 +513,16 @@ static int
 __im_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session)
 {
 	WT_DECL_RET;
-	WT_FILE_HANDLE_INMEM *im_fh;
+	WT_FILE_HANDLE_INMEM *im_fh, *im_fh_tmp;
 	WT_FILE_SYSTEM_INMEM *im_fs;
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	im_fs = (WT_FILE_SYSTEM_INMEM *)file_system;
 
-	while ((im_fh = TAILQ_FIRST(&im_fs->fhqh)) != NULL)
+	WT_TAILQ_SAFE_REMOVE_BEGIN(im_fh, &im_fs->fhqh, q, im_fh_tmp) {
 		WT_TRET(__im_handle_remove(session, file_system, im_fh, true));
+	} WT_TAILQ_SAFE_REMOVE_END
 
 	__wt_spin_destroy(session, &im_fs->lock);
 	__wt_free(session, im_fs);

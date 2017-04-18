@@ -359,9 +359,10 @@ int
 __wt_close_connection_close(WT_SESSION_IMPL *session)
 {
 	WT_DECL_RET;
-	WT_FH *fh;
+	WT_FH *fh, *fh_tmp;
 
-	while ((fh = TAILQ_FIRST(&S2C(session)->fhqh)) != NULL)
+	WT_TAILQ_SAFE_REMOVE_BEGIN(fh, &S2C(session)->fhqh, q, fh_tmp) {
 		WT_TRET(__handle_close(session, fh));
+	} WT_TAILQ_SAFE_REMOVE_END
 	return (ret);
 }
