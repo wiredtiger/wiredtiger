@@ -508,7 +508,7 @@ restart:	/*
 			 * to figure out it's a leaf page without reading it.
 			 */
 			if (skipleafcntp != NULL &&
-			    *skipleafcntp > 0 && __ref_is_leaf(ref) ) {
+			    *skipleafcntp > 0 && __ref_is_leaf(ref)) {
 				--*skipleafcntp;
 				break;
 			}
