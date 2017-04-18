@@ -25,11 +25,6 @@ __handle_error_default(WT_EVENT_HANDLER *handler,
 
 	WT_RET(__wt_fprintf(session, WT_STDERR(session), "%s\n", errmsg));
 	WT_RET(__wt_fflush(session, WT_STDERR(session)));
-
-	/* The standard error handler exits non-zero on panic. */
-	if (error == WT_PANIC)
-		exit (1);
-
 	return (0);
 }
 
