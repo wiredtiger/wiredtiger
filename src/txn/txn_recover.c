@@ -561,6 +561,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 done:	FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE);
 err:	WT_TRET(__recovery_free(&r));
 	__wt_free(session, config);
+	FLD_CLR(conn->log_flags, WT_CONN_LOG_RECOVER_DIRTY);
 
 	if (ret != 0)
 		__wt_err(session, ret, "Recovery failed");
@@ -574,7 +575,7 @@ err:	WT_TRET(__recovery_free(&r));
 		WT_TRET(__wt_evict_destroy(session));
 
 	WT_TRET(session->iface.close(&session->iface, NULL));
-	F_CLR(conn, WT_CONN_LOG_RECOVER_DIRTY | WT_CONN_RECOVERING);
+	F_CLR(conn, WT_CONN_RECOVERING);
 
 	return (ret);
 }
