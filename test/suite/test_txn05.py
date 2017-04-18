@@ -140,6 +140,9 @@ class test_txn05(wttest.WiredTigerTestCase, suite_subprocess):
                 # Sleep long enough so that the archive thread is guaranteed
                 # to run before we close the connection.
                 time.sleep(1.0)
+                if count == 0:
+                    first_logs = \
+                        fnmatch.filter(os.listdir(self.backup_dir), "*Log*")
                 backup_conn.close()
             count += 1
         #
@@ -149,6 +152,11 @@ class test_txn05(wttest.WiredTigerTestCase, suite_subprocess):
         #
         cur_logs = fnmatch.filter(os.listdir(self.backup_dir), "*Log*")
         for o in orig_logs:
+            # Creating the backup was effectively an unclean shutdown so
+            # even after sleeping, we should never archive log files
+            # because a checkpoint has not run.  Later opens and runs of
+            # recovery will detect a clean shutdown and allow archiving.
+            self.assertEqual(True, o in first_logs)
             if self.archive == 'true':
                 self.assertEqual(False, o in cur_logs)
             else:
