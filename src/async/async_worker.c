@@ -57,7 +57,6 @@ retry:
 			return (0);
 		if (!F_ISSET(conn, WT_CONN_SERVER_ASYNC))
 			return (0);
-		WT_RET(WT_SESSION_CHECK_PANIC(session));
 		WT_ORDERED_READ(last_consume, async->alloc_tail);
 	}
 	if (async->flush_state == WT_ASYNC_FLUSHING)
@@ -282,7 +281,7 @@ WT_THREAD_RET
 __wt_async_worker(void *arg)
 {
 	WT_ASYNC *async;
-	WT_ASYNC_CURSOR *ac, *acnext;
+	WT_ASYNC_CURSOR *ac;
 	WT_ASYNC_OP_IMPL *op;
 	WT_ASYNC_WORKER_STATE worker;
 	WT_CONNECTION_IMPL *conn;
@@ -341,12 +340,10 @@ err:		WT_PANIC_MSG(session, ret, "async worker error");
 	 * Worker thread cleanup, close our cached cursors and free all the
 	 * WT_ASYNC_CURSOR structures.
 	 */
-	ac = TAILQ_FIRST(&worker.cursorqh);
-	while (ac != NULL) {
-		acnext = TAILQ_NEXT(ac, q);
+	while ((ac = TAILQ_FIRST(&worker.cursorqh)) != NULL) {
+		TAILQ_REMOVE(&worker.cursorqh, ac, q);
 		WT_TRET(ac->c->close(ac->c));
 		__wt_free(session, ac);
-		ac = acnext;
 	}
 	return (WT_THREAD_RET_VALUE);
 }
