@@ -48,9 +48,8 @@ typedef struct {
 	/* Track the page's maximum transaction ID. */
 	uint64_t max_txn;
 
-	/* Track if all updates were skipped. */
-	uint64_t update_cnt;
-	uint64_t update_skip_cnt;
+	uint64_t update_cnt;		/* Total updates */
+	uint64_t update_skip_cnt;	/* Skipped updates */
 
 	/*
 	 * When we can't mark the page clean (for example, checkpoint found some
@@ -453,7 +452,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	 * that's worth trying. The lookaside table doesn't help if we skipped
 	 * updates, it can only help with older readers preventing eviction.
 	 */
-	if (lookaside_retryp != NULL && r->update_cnt == r->update_skip_cnt)
+	if (lookaside_retryp != NULL && r->update_skip_cnt == 0)
 		*lookaside_retryp = true;
 
 	/* Update statistics. */
@@ -557,7 +556,7 @@ __rec_las_checkpoint_test(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
 /*
  * __rec_write_check_complete --
- *	Check that reconciliation should complete
+ *	Check that reconciliation should complete.
  */
 static int
 __rec_write_check_complete(WT_SESSION_IMPL *session, WT_RECONCILE *r)
@@ -573,16 +572,27 @@ __rec_write_check_complete(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		return (EBUSY);
 
 	/*
-	 * If we are doing update/restore based eviction, confirm part of the
-	 * page is being discarded, or at least 10% of the updates won't have
-	 * to be re-instantiated. Otherwise, it isn't progress, don't bother.
+	 * If doing update/restore based eviction, see if rewriting the page in
+	 * memory is worth the effort.
 	 */
 	if (F_ISSET(r, WT_EVICT_UPDATE_RESTORE)) {
-		for (bnd = r->bnd, i = 0; i < r->bnd_entries; ++bnd, ++i)
+		/* If discarding a disk-page size chunk, do it. */
+		for (bnd = r->bnd, i = 0; i < r->bnd_next; ++bnd, ++i)
 			if (bnd->supd == NULL)
-				break;
-		if (i == r->bnd_entries &&
-		    r->update_cnt / 10 >= r->update_skip_cnt)
+				return (0);
+
+		/*
+		 * Switch to the lookaside table if we can: it's more effective
+		 * than rewriting a page in memory because it implies eviction.
+		 */
+		if (r->update_skip_cnt == 0)
+			return (EBUSY);
+
+		/*
+		 * If 10% of the update chains won't have to be re-instantiated,
+		 * rewrite the page in memory.
+		 */
+		if (r->update_cnt - (r->update_cnt / 10) > r->update_skip_cnt)
 			return (EBUSY);
 	}
 	return (0);
@@ -1202,6 +1212,15 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		r->max_txn = max_txn;
 
 	/*
+	 * Track update chains with skipped entries. A page with no uncommitted
+	 * (skipped) updates, that can't be evicted because some updates aren't
+	 * yet globally visible, can be evicted by writing previous versions of
+	 * the updates to the lookaside file.
+	 */
+	if (skipped)
+		++r->update_skip_cnt;
+
+	/*
 	 * If there are no skipped updates and all updates are globally visible,
 	 * the page can be marked clean and we're done, regardless if evicting
 	 * or checkpointing.
@@ -1227,12 +1246,6 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		    txnid != S2C(session)->txn_global.checkpoint_txnid ||
 		    WT_SESSION_IS_CHECKPOINT(session));
 #endif
-
-		/*
-		 * Track how many update chains we saw vs. how many update
-		 * chains had an entry we skipped.
-		 */
-		++r->update_skip_cnt;
 		return (0);
 	}
 
