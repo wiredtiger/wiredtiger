@@ -669,24 +669,23 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
 
 		/*
 		 * The pinned page goes away if we fail for any reason, get a
-		 * local copy of any key and discard any pinned value. (Restart
-		 * could still use the pinned page, but that's an unlikely
-		 * path.) Re-save the cursor state: we may retry but eventually
-		 * fail.
+		 * local copy of any pinned key or value. (Restart could still
+		 * use the pinned page, but that's an unlikely path.) Re-save
+		 * the cursor state: we may retry but eventually fail.
 		 */
 		WT_TRET(__cursor_localkey(cursor));
-		__cursor_novalue(cursor);
+		WT_TRET(__cursor_localvalue(cursor));
 		__cursor_state_save(cursor, &state);
 		goto err;
 	}
 
 	/*
 	 * The pinned page goes away if we do a search, get a local copy of any
-	 * key and discard any pinned value. Re-save the cursor state: we may
-	 * retry but eventually fail.
+	 * pinned key or value. Re-save the cursor state: we may retry but
+	 * eventually fail.
 	 */
 	WT_ERR(__cursor_localkey(cursor));
-	__cursor_novalue(cursor);
+	WT_ERR(__cursor_localvalue(cursor));
 	__cursor_state_save(cursor, &state);
 
 retry:	WT_ERR(__cursor_func_init(cbt, true));
@@ -1038,24 +1037,23 @@ __btcur_update(WT_CURSOR_BTREE *cbt, bool is_reserve)
 
 		/*
 		 * The pinned page goes away if we fail for any reason, get a
-		 * a local copy of any pinned key and discard any pinned value.
-		 * (Restart could still use the pinned page, but that's an
-		 * unlikely path.) Re-save the cursor state: we may retry but
-		 * eventually fail.
+		 * a local copy of any pinned key or value. (Restart could still
+		 * use the pinned page, but that's an unlikely path.) Re-save
+		 * the cursor state: we may retry but eventually fail.
 		 */
 		WT_TRET(__cursor_localkey(cursor));
-		__cursor_novalue(cursor);
+		WT_TRET(__cursor_localvalue(cursor));
 		__cursor_state_save(cursor, &state);
 		goto err;
 	}
 
 	/*
 	 * The pinned page goes away if we do a search, get a local copy of any
-	 * pinned key and discard any pinned value. Re-save the cursor state: we
-	 * may retry but eventually fail.
+	 * pinned key or value. Re-save the cursor state: we may retry but
+	 * eventually fail.
 	 */
 	WT_ERR(__cursor_localkey(cursor));
-	__cursor_novalue(cursor);
+	WT_ERR(__cursor_localvalue(cursor));
 	__cursor_state_save(cursor, &state);
 
 retry:	WT_ERR(__cursor_func_init(cbt, true));
