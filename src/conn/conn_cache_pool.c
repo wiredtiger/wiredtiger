@@ -449,7 +449,8 @@ __cache_pool_balance(WT_SESSION_IMPL *session, bool forward)
 	for (i = 0;
 	    i < 2 * WT_CACHE_POOL_BUMP_THRESHOLD &&
 	    F_ISSET(cp, WT_CACHE_POOL_ACTIVE) &&
-	    FLD_ISSET(S2C(session)->cache->pool_flags, WT_CACHE_POOL_RUN); i++) {
+	    FLD_ISSET(S2C(session)->cache->pool_flags, WT_CACHE_POOL_RUN);
+	    i++) {
 		__cache_pool_adjust(
 		    session, highest, bump_threshold, forward, &adjusted);
 		/*
