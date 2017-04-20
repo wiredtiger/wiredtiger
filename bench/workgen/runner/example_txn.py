@@ -6,16 +6,18 @@ s = conn.open_session()
 tname = "table:test"
 s.create(tname, 'key_format=S,value_format=S')
 table = Table(tname)
+table.options.key_size = 20
+table.options.value_size = 100
 
 context = Context()
-op = Operation(Operation.OP_INSERT, table, Key(Key.KEYGEN_APPEND, 20), Value(100))
+op = Operation(Operation.OP_INSERT, table)
 thread = Thread(op * 500000)
 pop_workload = Workload(context, thread)
 print('populate:')
 pop_workload.run(conn)
 
-opread = Operation(Operation.OP_SEARCH, table, Key(Key.KEYGEN_UNIFORM, 20))
-opwrite = Operation(Operation.OP_INSERT, table, Key(Key.KEYGEN_APPEND, 20), Value(100))
+opread = Operation(Operation.OP_SEARCH, table)
+opwrite = Operation(Operation.OP_INSERT, table)
 treader = Thread(opread)
 twriter = Thread(txn(opwrite * 2))
 workload = Workload(context, treader * 8 + twriter * 2)
