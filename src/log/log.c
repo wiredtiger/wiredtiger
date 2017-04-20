@@ -925,9 +925,19 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp,
 	memset(buf->mem, 0, allocsize);
 	WT_ERR(__wt_read(session, fh, allocsize, allocsize, buf->mem));
 	logrec = (WT_LOG_RECORD *)buf->mem;
+	/*
+	 * We have a valid header but the system record is not there.
+	 * The log ends here.  Return without setting the LSN.
+	 */
+	if (logrec->len == 0) {
+		__wt_verbose(session, WT_VERB_LOG,
+		    "Log %s found empty log after header", fh->name);
+		goto err;
+	}
+
 	if (!__log_checksum_match(session, buf, allocsize))
 		WT_ERR_MSG(session, WT_ERROR,
-		    "System log record checksum mismatch");
+		    "%s: System log record checksum mismatch", fh->name);
 	__wt_log_record_byteswap(logrec);
 	p = WT_LOG_SKIP_HEADER(buf->data);
 	end = (const uint8_t *)buf->data + allocsize;
@@ -1845,6 +1855,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 	uint32_t allocsize, firstlog, lastlog, lognum, rdup_len, reclen;
 	u_int i, logcount;
 	int firstrecord;
+	uint16_t minor;
 	bool eol, partial_record;
 	char **logfiles;
 
@@ -1976,7 +1987,7 @@ advance:
 			if (rd_lsn.l.file > end_lsn.l.file)
 				break;
 			WT_ERR(__log_open_verify(session,
-			    rd_lsn.l.file, &log_fh, &prev_lsn, NULL, NULL));
+			    rd_lsn.l.file, &log_fh, &prev_lsn, NULL, &minor));
 			/*
 			 * Opening the log file reads with verify sets up the
 			 * previous LSN from the first record.  This detects
@@ -1989,6 +2000,15 @@ advance:
 				    prev_eof.l.file == prev_lsn.l.file);
 				break;
 			}
+			/*
+			 * If we read a current version log file without a
+			 * previous LSN record the log ended after writing
+			 * that header.  We're done.
+			 */
+			if (LF_ISSET(WT_LOGSCAN_RECOVER) &&
+			    minor == WT_LOG_MINOR_SYSTEM &&
+			    WT_IS_INIT_LSN(&prev_lsn))
+				break;
 			if (LF_ISSET(WT_LOGSCAN_RECOVER))
 				__wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
 				    "Recovering log %" PRIu32

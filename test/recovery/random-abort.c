@@ -300,6 +300,8 @@ main(int argc, char *argv[])
 			if (nth < MIN_TH)
 				nth = MIN_TH;
 		}
+		printf("Parent: Compatibility %d in-mem log %d\n",
+		    compat, inmem);
 		printf("Parent: Create %" PRIu32
 		    " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
 		/*
