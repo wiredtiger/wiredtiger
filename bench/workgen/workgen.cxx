@@ -44,17 +44,15 @@ extern "C" {
         }                                                               \
     } while(0)
 
-#define THROW(str)                                                      \
+#define THROW_ERRNO(e, args)                                            \
     do {                                                                \
-        WorkgenException wge(0, str);                                   \
+        std::stringstream sstm;                                         \
+        sstm << args;                                                   \
+        WorkgenException wge(e, sstm.str().c_str());                    \
         throw(wge);                                                     \
     } while(0)
 
-#define THROW_ERRNO(str, e)                                             \
-    do {                                                                \
-        WorkgenException wge(e, str);                                   \
-        throw(wge);                                                     \
-    } while(0)
+#define THROW(args)   THROW_ERRNO(0, args)
 
 #define VERBOSE(env, args)                                              \
     do {                                                                \
@@ -456,7 +454,6 @@ Operation::Operation(const Operation &other) :
     _keymax(other._keymax), _valuemax(other._valuemax) {
     // Creation and destruction of _group and _transaction is managed
     // by Python.
-    // TODO: anything more to do, like add to Python's reference count?
 }
 
 Operation::~Operation()
@@ -544,12 +541,9 @@ void Operation::kv_gen(bool iskey, uint64_t n, char *result) const {
 
     size = iskey ? _keysize : _valuesize;
     max = iskey ? _keymax : _valuemax;
-    if (n > max) {
-        std::stringstream sstm;
-        sstm << (iskey ? "Key" : "Value") << " (" << n
-             << ") too large for size (" << size << ")";
-        THROW(sstm.str().c_str());
-    }
+    if (n > max)
+        THROW((iskey ? "Key" : "Value") << " (" << n
+          << ") too large for size (" << size << ")");
     workgen_u64_to_string_zf(n, result, size);
 }
 
@@ -561,11 +555,10 @@ void Operation::kv_compute_max(bool iskey) {
     if (size == 0)
         size = iskey ? _table.options.key_size : _table.options.value_size;
 
-    // TODO: should include table name with throw
     if (iskey && size < 2)
-        THROW("Key.size too small");
+        THROW("Key.size too small for table '" << _table._uri << "'");
     if (!iskey && size < 1)
-        THROW("Value.size too small");
+        THROW("Value.size too small for table '" << _table._uri << "'");
 
     if (size > 1)
         max = power64(10, (size - 1)) - 1;
