@@ -353,6 +353,8 @@ TORTIOUS
 TSO
 TXN
 TXNC
+ThreadList
+ThreadListWrapper
 Timespec
 Timestamp
 TryCV

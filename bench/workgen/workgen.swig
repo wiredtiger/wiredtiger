@@ -124,6 +124,7 @@ InterruptableFunction(workgen::Workload::run)
 WorkgenClass(Key)
 WorkgenClass(Operation)
 WorkgenClass(Table)
+WorkgenClass(TableOptions)
 WorkgenClass(TableStats)
 WorkgenClass(Thread)
 WorkgenClass(ThreadOptions)
@@ -133,8 +134,9 @@ WorkgenClass(Workload)
 WorkgenClass(WorkloadOptions)
 WorkgenClass(Context)
 
-WorkgenFrozenClass(WorkloadOptions)
+WorkgenFrozenClass(TableOptions)
 WorkgenFrozenClass(ThreadOptions)
+WorkgenFrozenClass(WorkloadOptions)
 
 %extend workgen::Operation {
 %pythoncode %{
@@ -149,7 +151,7 @@ WorkgenFrozenClass(ThreadOptions)
     __rmul__ = __mul__
 
     def __add__(self, other):
-        if type(self) != type(other):
+        if not isinstance(other, Operation):
             raise Exception('Operation.__sum__ requires an Operation')
         if self._group == None or self._repeatgroup != 1 or self._transaction != None:
             op = Operation()
@@ -159,5 +161,44 @@ WorkgenFrozenClass(ThreadOptions)
         else:
             self._group.append(other)
             return self
+%}
+};
+
+%extend workgen::Thread {
+%pythoncode %{
+    def __mul__(self, other):
+        if not isinstance(other, numbers.Integral):
+            raise Exception('Thread.__mul__ requires an integral number')
+        return ThreadListWrapper(ThreadList([self] * other))
+
+    __rmul__ = __mul__
+
+    def __add__(self, other):
+        if type(self) != type(other):
+            raise Exception('Thread.__sum__ requires an Thread')
+        return ThreadListWrapper(ThreadList([self, other]))
+%}
+};
+
+%extend workgen::ThreadListWrapper {
+%pythoncode %{
+    def __mul__(self, other):
+        if not isinstance(other, numbers.Integral):
+            raise Exception('ThreadList.__mul__ requires an integral number')
+        tlw = ThreadListWrapper(self)
+        tlw.multiply(other)
+        return tlw
+
+    __rmul__ = __mul__
+
+    def __add__(self, other):
+        tlw = ThreadListWrapper(self)
+        if isinstance(other, ThreadListWrapper):
+            tlw.extend(other)
+        elif isinstance(other, Thread):
+            tlw.append(other)
+        else:
+            raise Exception('ThreadList.__sum__ requires an Thread or ThreadList')
+        return tlw
 %}
 };

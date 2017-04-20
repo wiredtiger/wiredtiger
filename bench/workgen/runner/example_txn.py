@@ -9,16 +9,16 @@ table = Table(tname)
 
 context = Context()
 op = Operation(Operation.OP_INSERT, table, Key(Key.KEYGEN_APPEND, 20), Value(100))
-thread = Thread(OpList([op * 500000]))
-pop_workload = Workload(context, ThreadList([thread]))
+thread = Thread(op * 500000)
+pop_workload = Workload(context, thread)
 print('populate:')
 pop_workload.run(conn)
 
 opread = Operation(Operation.OP_SEARCH, table, Key(Key.KEYGEN_UNIFORM, 20))
 opwrite = Operation(Operation.OP_INSERT, table, Key(Key.KEYGEN_APPEND, 20), Value(100))
-treader = Thread(OpList([opread]))
-twriter = Thread(OpList([txn(opwrite * 2)]))
-workload = Workload(context, ThreadList([treader] * 8 + [twriter] * 2))
+treader = Thread(opread)
+twriter = Thread(txn(opwrite * 2))
+workload = Workload(context, treader * 8 + twriter * 2)
 workload.options.run_time = 10
 workload.options.report_interval = 5
 print('transactional write workload:')

@@ -14,6 +14,16 @@ def show(tname):
     print('<><><><><><><><><><><><>')
     c.close()
 
+def expectException(expr):
+    gotit = False
+    try:
+        expr()
+    except BaseException as e:
+        print('got expected exception: ' + str(e))
+        gotit = True
+    if not gotit:
+        raise Exception("missing expected exception")
+
 context = Context()
 conn = wiredtiger_open("WT_TEST", "create,cache_size=1G")
 s = conn.open_session()
@@ -22,10 +32,10 @@ tname1 = tablename(1)
 s.create(tname0, 'key_format=S,value_format=S')
 s.create(tname1, 'key_format=S,value_format=S')
 
-ops = [Operation(Operation.OP_INSERT, Table(tname0), Key(Key.KEYGEN_APPEND, 10), Value(100))]
-thread0 = Thread(OpList(ops))
-workload = Workload(context, ThreadList([thread0]))
+ops = Operation(Operation.OP_INSERT, Table(tname0), Key(Key.KEYGEN_APPEND, 10), Value(100))
+workload = Workload(context, Thread(ops))
 
+print('RUN1')
 workload.run(conn)
 show(tname0)
 
@@ -40,8 +50,9 @@ op2 = Operation(Operation.OP_INSERT, Table(tname1), Key(Key.KEYGEN_APPEND, 20), 
 o = op2 * 10
 print 'op is: ' + str(op)
 print 'multiplying op is: ' + str(o)
-thread0 = Thread(OpList([o, op, op]))
-workload = Workload(context, ThreadList([thread0]))
+thread0 = Thread(o + op + op)
+workload = Workload(context, thread0)
+print('RUN2')
 workload.run(conn)
 show(tname0)
 show(tname1)
@@ -53,8 +64,9 @@ s.truncate(tname1, None, None)
 op += Operation(Operation.OP_INSERT, Table(tname0), Key(Key.KEYGEN_APPEND, 10), Value(10))
 op *= 2
 op += Operation(Operation.OP_INSERT, Table(tname0), Key(Key.KEYGEN_APPEND, 10), Value(10))
-thread0 = Thread(OpList([op * 10 + op2 * 20]))
-workload = Workload(context, ThreadList([thread0]))
+thread0 = Thread(op * 10 + op2 * 20)
+workload = Workload(context, thread0)
+print('RUN3')
 workload.run(conn)
 show(tname0)
 show(tname1)
@@ -62,33 +74,16 @@ show(tname1)
 print('workload is ' + str(workload))
 print('thread0 is ' + str(thread0))
 
-opx = None
-got_exception = False
-try:
-    opx = Operation(Operation.OP_INSERT, Table('foo'), Key(Key.KEYGEN_APPEND, 10))
-except BaseException as e:
-    print('got expected exception: ' + str(e))
-    got_exception = True
-if not got_exception or opx != None:
-    print('*** ERROR: did not get exception')
-
-def expectException(expr):
-    gotit = False
-    try:
-        expr()
-    except BaseException as e:
-        print('got expected exception: ' + str(e))
-        gotit = True
-    if not gotit:
-        raise Exception("missing expected exception")
-
 def assignit(k, n):
     k._size = n
 
-expectException(lambda: Key(Key.KEYGEN_APPEND, 1))
-k = Key(Key.KEYGEN_APPEND, 5)
+expectException(lambda: Operation(
+    Operation.OP_INSERT, Table('foo'), Key(Key.KEYGEN_APPEND, 10)))
+# we don't catch this exception here, but in Workload.run()
+k = Key(Key.KEYGEN_APPEND, 1)
 assignit(k, 30)
 assignit(k, 1)  # we don't catch this exception here, but in Workload.run()
 op = Operation(Operation.OP_INSERT, Table(tname0), k, Value(10))
-workload = Workload(context, ThreadList([Thread(OpList([op]))]))
+workload = Workload(context, Thread(op))
+print('RUN4')
 expectException(lambda: workload.run(conn))

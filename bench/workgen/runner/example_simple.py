@@ -17,13 +17,13 @@ s = conn.open_session()
 tname = 'table:simple'
 s.create(tname, 'key_format=S,value_format=S')
 
-ops = [Operation(Operation.OP_INSERT, Table(tname), Key(Key.KEYGEN_APPEND, 10), Value(40))]
-thread = Thread(OpList(ops))
-workload = Workload(context, ThreadList([thread]))
+ops = Operation(Operation.OP_INSERT, Table(tname), Key(Key.KEYGEN_APPEND, 10), Value(40))
+thread = Thread(ops)
+workload = Workload(context, thread)
 workload.run(conn)
 show(tname)
 
-thread = Thread(OpList(ops * 5))
-workload = Workload(context, ThreadList([thread]))
+thread = Thread(ops * 5)
+workload = Workload(context, thread)
 workload.run(conn)
 show(tname)

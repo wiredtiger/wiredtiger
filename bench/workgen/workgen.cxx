@@ -44,6 +44,18 @@ extern "C" {
         }                                                               \
     } while(0)
 
+#define THROW(str)                                                      \
+    do {                                                                \
+        WorkgenException wge(0, str);                                   \
+        throw(wge);                                                     \
+    } while(0)
+
+#define THROW_ERRNO(str, e)                                             \
+    do {                                                                \
+        WorkgenException wge(e, str);                                   \
+        throw(wge);                                                     \
+    } while(0)
+
 #define VERBOSE(env, args)                                              \
     do {                                                                \
         if (env._context->_verbose)                                     \
@@ -63,7 +75,11 @@ static uint32_t context_count = 0;
 
 static void *thread_runner(void *arg) {
     ThreadEnvironment *env = (ThreadEnvironment *)arg;
-    env->_errno = env->_thread->run(*env);
+    try {
+        env->_errno = env->_thread->run(*env);
+    } catch (WorkgenException &wge) {
+        env->_exception = wge;
+    }
     return (NULL);
 }
 
@@ -83,17 +99,11 @@ static uint64_t power64(int base, int exp) {
     return result;
 }
 
-static void set_kv_max(int size, uint64_t *max) {
-    *max = power64(10, (size - 1) - 1);
-}
-
 Context::Context() : _verbose(false), _tint(), _table_names(),
     _recno(NULL), _recno_alloced(0), _tint_last(0), _context_count(0) {
     uint32_t count;
-    if ((count = workgen_atomic_add32(&context_count, 1)) != 1) {
-        WorkgenException wge(0, "multiple Contexts not supported");
-	throw(wge);
-    }
+    if ((count = workgen_atomic_add32(&context_count, 1)) != 1)
+        THROW("multiple Contexts not supported");
     _context_count = count;
 }
 
@@ -116,54 +126,8 @@ int Context::create_all() {
     return (0);
 }
 
-void Key::gen(uint64_t n, char *result) const {
-    if (n > _max) {
-        std::stringstream sstm;
-        sstm << "Key (" << n << ") too large for size (" << _size << ")";
-        WorkgenException wge(0, sstm.str().c_str());
-	throw(wge);
-    }
-    workgen_u64_to_string_zf(n, result, _size);
-}
-
-void Key::compute_max() {
-    if (_size < 2) {
-        WorkgenException wge(0, "Key.size too small");
-	throw(wge);
-    }
-    set_kv_max(_size, &_max);
-}
-
-void Key::size_buffer(size_t &keysize) const {
-    if ((size_t)_size > keysize)
-        keysize = _size;
-}
-
-void Value::gen(uint64_t n, char *result) const {
-    if (n > _max) {
-        std::stringstream sstm;
-        sstm << "Value (" << n << ") too large for size (" << _size << ")";
-        WorkgenException wge(0, sstm.str().c_str());
-	throw(wge);
-    }
-    workgen_u64_to_string_zf(n, result, _size);
-}
-
-void Value::compute_max() {
-    if (_size < 2) {
-        WorkgenException wge(0, "Value.size too small");
-	throw(wge);
-    }
-    set_kv_max(_size, &_max);
-}
-
-void Value::size_buffer(size_t &valuesize) const {
-    if ((size_t)_size > valuesize)
-        valuesize = _size;
-}
-
 ThreadEnvironment::ThreadEnvironment() :
-    _errno(0), _thread(NULL), _context(NULL), _rand_state(NULL),
+    _errno(0), _exception(), _thread(NULL), _context(NULL), _rand_state(NULL),
     _throttle(NULL), _throttle_ops(0), _throttle_limit(0),
     _in_transaction(false), _number(0), _stats(), _table_usage(),
     _cursors(NULL) {
@@ -327,17 +291,40 @@ ThreadOptions::ThreadOptions(const ThreadOptions &other) :
     throttle_burst(other.throttle_burst) {}
 ThreadOptions::~ThreadOptions() {}
 
-Thread::Thread() : options(), _ops(), _stop(false), _count(0),
+void
+ThreadListWrapper::extend(const ThreadListWrapper &other) {
+    for (std::vector<Thread>::const_iterator i = other._threads.begin();
+         i != other._threads.end(); i++)
+        _threads.push_back(*i);
+}
+
+void
+ThreadListWrapper::append(const Thread &t) {
+    _threads.push_back(t);
+}
+
+void
+ThreadListWrapper::multiply(const int n) {
+    if (n == 0) {
+        _threads.clear();
+    } else {
+        std::vector<Thread> copy(_threads);
+        for (int cnt = 1; cnt < n; cnt++)
+            extend(copy);
+    }
+}
+
+Thread::Thread() : options(), _op(), _stop(false),
     _session(NULL), _keybuf(NULL), _valuebuf(NULL), _repeat(false) {
 }
 
-Thread::Thread(const std::vector<Operation> &ops, int count) : options(),
-    _ops(ops), _stop(false), _count(count), _session(NULL),
+Thread::Thread(const Operation &op) : options(),
+    _op(op), _stop(false), _session(NULL),
     _keybuf(NULL), _valuebuf(NULL), _repeat(false) {
 }
 
-Thread::Thread(const Thread &other) : options(other.options), _ops(other._ops),
-    _stop(false), _count(other._count), _session(NULL),
+Thread::Thread(const Thread &other) : options(other.options), _op(other._op),
+    _stop(false), _session(NULL),
     _keybuf(NULL), _valuebuf(NULL), _repeat(false) {
     // Note: a partial copy, we only want one thread to own _keybuf, _valuebuf.
 }
@@ -359,18 +346,13 @@ void Thread::free_all() {
 
 void Thread::describe(std::ostream &os) const {
     os << "Thread: [" << std::endl;
-    for (std::vector<Operation>::const_iterator i = _ops.begin(); i != _ops.end(); i++) {
-        os << "  "; i->describe(os); os << std::endl;
-    }
+    _op.describe(os); os << std::endl;
     os << "]";
 }
 
 int Thread::open_all(ThreadEnvironment &env) {
     env.open(_session);
-    for (std::vector<Operation>::iterator i = _ops.begin(); i != _ops.end();
-         i++) {
-        WT_RET(i->open_all(_session, env));
-    }
+    WT_RET(_op.open_all(_session, env));
     return (0);
 }
 
@@ -384,9 +366,7 @@ int Thread::create_all(WT_CONNECTION *conn, ThreadEnvironment &env) {
     env._table_usage.clear();
     keysize = 1;
     valuesize = 1;
-    for (std::vector<Operation>::iterator i = _ops.begin(); i != _ops.end();
-         i++)
-        i->create_all(env, keysize, valuesize);
+    _op.create_all(env, keysize, valuesize);
     _keybuf = new char[keysize];
     _valuebuf = new char[valuesize];
     _keybuf[keysize - 1] = '\0';
@@ -417,10 +397,8 @@ int Thread::run(ThreadEnvironment &env) {
         env._throttle = new Throttle(env, options.throttle,
           options.throttle_burst);
     }
-    for (int cnt = 0; !_stop && (_repeat || cnt < _count) && ret == 0; cnt++)
-        for (std::vector<Operation>::iterator i = _ops.begin();
-          !_stop && i != _ops.end(); i++)
-            WT_ERR(i->run(env));
+    for (int cnt = 0; !_stop && (_repeat || cnt < 1) && ret == 0; cnt++)
+        WT_ERR(_op.run(env));
 
 err:
 #ifdef _DEBUG
@@ -440,34 +418,42 @@ err:
 
 void Thread::get_static_counts(TableStats &stats)
 {
-    for (std::vector<Operation>::iterator i = _ops.begin();
-      i != _ops.end(); i++)
-        i->get_static_counts(stats);
+    _op.get_static_counts(stats, 1);
 }
 
 Operation::Operation() :
     _optype(OP_NONE), _table(), _key(), _value(), _transaction(NULL),
-    _group(NULL), _repeatgroup(0) {
+    _group(NULL), _repeatgroup(0),
+    _keysize(0), _valuesize(0), _keymax(0), _valuemax(0) {
 }
 
 Operation::Operation(OpType optype, Table table, Key key, Value value) :
     _optype(optype), _table(table), _key(key), _value(value),
-    _transaction(NULL), _group(NULL), _repeatgroup(0) {
+    _transaction(NULL), _group(NULL), _repeatgroup(0),
+    _keysize(0), _valuesize(0), _keymax(0), _valuemax(0) {
+    size_check();
 }
 
 Operation::Operation(OpType optype, Table table, Key key) :
     _optype(optype), _table(table), _key(key), _value(), _transaction(NULL),
-    _group(NULL), _repeatgroup(0) {
-    if (OP_HAS_VALUE(this)) {
-        WorkgenException wge(0, "OP_INSERT and OP_UPDATE require a value");
-	throw(wge);
-    }
+    _group(NULL), _repeatgroup(0),
+    _keysize(0), _valuesize(0), _keymax(0), _valuemax(0) {
+    size_check();
+}
+
+Operation::Operation(OpType optype, Table table) :
+    _optype(optype), _table(table), _key(), _value(), _transaction(NULL),
+    _group(NULL), _repeatgroup(0),
+    _keysize(0), _valuesize(0), _keymax(0), _valuemax(0) {
+    size_check();
 }
 
 Operation::Operation(const Operation &other) :
     _optype(other._optype), _table(other._table), _key(other._key),
     _value(other._value), _transaction(other._transaction),
-    _group(other._group), _repeatgroup(other._repeatgroup) {
+    _group(other._group), _repeatgroup(other._repeatgroup),
+    _keysize(other._keysize), _valuesize(other._valuesize),
+    _keymax(other._keymax), _valuemax(other._valuemax) {
     // Creation and destruction of _group and _transaction is managed
     // by Python.
     // TODO: anything more to do, like add to Python's reference count?
@@ -476,6 +462,14 @@ Operation::Operation(const Operation &other) :
 Operation::~Operation()
 {
     // Creation and destruction of _group, _transaction is managed by Python.
+}
+
+void Operation::size_check() const {
+    if (_optype != OP_NONE && _key._size == 0 && _table.options.key_size == 0)
+        THROW("operation requires a key size");
+    if (OP_HAS_VALUE(this) && _value._size == 0 &&
+      _table.options.value_size == 0)
+        THROW("operation requires a value size");
 }
 
 void Operation::describe(std::ostream &os) const {
@@ -504,17 +498,19 @@ void Operation::describe(std::ostream &os) const {
 
 void Operation::create_all(ThreadEnvironment &env, size_t &keysize,
   size_t &valuesize) {
+    size_check();
     if (_optype != OP_NONE) {
-        _key.size_buffer(keysize);
-        _value.size_buffer(valuesize);
+        kv_compute_max(true);
+        if (OP_HAS_VALUE(this))
+            kv_compute_max(false);
+        kv_size_buffer(true, keysize);
+        kv_size_buffer(false, valuesize);
 
         // Note: to support multiple contexts we'd need a generation
         // count whenever we execute.
         if (_table._context_count != 0 &&
-          _table._context_count != env._context->_context_count) {
-            WorkgenException wge(0, "multiple Contexts not supported");
-            throw(wge);
-        }
+          _table._context_count != env._context->_context_count)
+            THROW("multiple Contexts not supported");
         if (_table._tint == 0) {
             tint_t tint;
 
@@ -540,6 +536,59 @@ void Operation::create_all(ThreadEnvironment &env, size_t &keysize,
         for (std::vector<Operation>::iterator i = _group->begin();
             i != _group->end(); i++)
             i->create_all(env, keysize, valuesize);
+}
+
+void Operation::kv_gen(bool iskey, uint64_t n, char *result) const {
+    uint64_t max;
+    int size;
+
+    size = iskey ? _keysize : _valuesize;
+    max = iskey ? _keymax : _valuemax;
+    if (n > max) {
+        std::stringstream sstm;
+        sstm << (iskey ? "Key" : "Value") << " (" << n
+             << ") too large for size (" << size << ")";
+        THROW(sstm.str().c_str());
+    }
+    workgen_u64_to_string_zf(n, result, size);
+}
+
+void Operation::kv_compute_max(bool iskey) {
+    uint64_t max;
+    int size;
+
+    size = iskey ? _key._size : _value._size;
+    if (size == 0)
+        size = iskey ? _table.options.key_size : _table.options.value_size;
+
+    // TODO: should include table name with throw
+    if (iskey && size < 2)
+        THROW("Key.size too small");
+    if (!iskey && size < 1)
+        THROW("Value.size too small");
+
+    if (size > 1)
+        max = power64(10, (size - 1)) - 1;
+    else
+        max = 0;
+
+    if (iskey) {
+        _keysize = size;
+        _keymax = max;
+    } else {
+        _valuesize = size;
+        _valuemax = max;
+    }
+}
+
+void Operation::kv_size_buffer(bool iskey, size_t &maxsize) const {
+    if (iskey) {
+        if ((size_t)_keysize > maxsize)
+            maxsize = _keysize;
+    } else {
+        if ((size_t)_valuesize > maxsize)
+            maxsize = _valuesize;
+    }
 }
 
 int Operation::run(ThreadEnvironment &env) {
@@ -586,21 +635,19 @@ int Operation::run(ThreadEnvironment &env) {
         }
     }
     if (_transaction != NULL) {
-        if (env._in_transaction) {
-            WorkgenException wge(0, "nested transactions not supported");
-            throw(wge);
-        }
+        if (env._in_transaction)
+            THROW("nested transactions not supported");
         session->begin_transaction(session,
           _transaction->_begin_config.c_str());
         env._in_transaction = true;
     }
     if (_optype != OP_NONE) {
         buf = thread->_keybuf;
-        _key.gen(recno, buf);
+        kv_gen(true, recno, buf);
         cursor->set_key(cursor, buf);
         if (OP_HAS_VALUE(this)) {
             buf = thread->_valuebuf;
-            _value.gen(recno, buf);
+            kv_gen(false, recno, buf);
             cursor->set_value(cursor, buf);
         }
         switch (_optype) {
@@ -652,22 +699,22 @@ err:
     return (ret);
 }
 
-void Operation::get_static_counts(TableStats &stats)
+void Operation::get_static_counts(TableStats &stats, int multiplier)
 {
     switch (_optype) {
     case OP_NONE:
         break;
     case OP_INSERT:
-        stats.inserts++;
+        stats.inserts += multiplier;
         break;
     case OP_REMOVE:
-        stats.removes++;
+        stats.removes += multiplier;
         break;
     case OP_SEARCH:
-        stats.reads++;
+        stats.reads += multiplier;
         break;
     case OP_UPDATE:
-        stats.updates++;
+        stats.updates += multiplier;
         break;
     default:
         ASSERT(false);
@@ -675,16 +722,11 @@ void Operation::get_static_counts(TableStats &stats)
     if (_group != NULL)
         for (std::vector<Operation>::iterator i = _group->begin();
           i != _group->end(); i++)
-            i->get_static_counts(stats);
+            i->get_static_counts(stats, multiplier * _repeatgroup);
 }
 
 int Operation::open_all(WT_SESSION *session, ThreadEnvironment &env) {
     (void)env;
-    if (_optype != OP_NONE) {
-        _key.compute_max();
-        if (OP_HAS_VALUE(this))
-            _value.compute_max();
-    }
     if (_group != NULL)
         for (std::vector<Operation>::iterator i = _group->begin();
           i != _group->end(); i++)
@@ -763,10 +805,16 @@ void TableStats::describe(std::ostream &os) const {
     os << ", removes " << removes;
 }
 
-Table::Table() : _uri(), _tint(0), _context_count(0) {}
-Table::Table(const char *uri) : _uri(uri), _tint(0), _context_count(0) {}
-Table::Table(const Table &other) : _uri(other._uri), _tint(0),
+TableOptions::TableOptions() : key_size(0), value_size(0) {}
+TableOptions::TableOptions(const TableOptions &other) :
+    key_size(other.key_size), value_size(other.value_size) {}
+TableOptions::~TableOptions() {}
+
+Table::Table() : options(), _uri(), _tint(0), _context_count(0) {}
+Table::Table(const char *uri) : options(), _uri(uri), _tint(0),
     _context_count(0) {}
+Table::Table(const Table &other) : options(other.options), _uri(other._uri),
+    _tint(other._tint), _context_count(other._context_count) {}
 Table::~Table() {}
 
 void Table::describe(std::ostream &os) const {
@@ -778,12 +826,17 @@ WorkloadOptions::WorkloadOptions(const WorkloadOptions &other) :
     run_time(other.run_time), report_interval(other.report_interval) {}
 WorkloadOptions::~WorkloadOptions() {}
 
-Workload::Workload(Context *context, const std::vector<Thread> &threads) :
-    options(), _context(context), _threads(threads) {
-    if (context == NULL) {
-        WorkgenException wge(0, "Workload contructor requires a Context");
-	throw(wge);
-    }
+Workload::Workload(Context *context, const ThreadListWrapper &tlw) :
+    options(), _context(context), _threads(tlw._threads) {
+    if (context == NULL)
+        THROW("Workload contructor requires a Context");
+}
+
+Workload::Workload(Context *context, const Thread &thread) :
+    options(), _context(context), _threads() {
+    if (context == NULL)
+        THROW("Workload contructor requires a Context");
+    _threads.push_back(thread);
 }
 
 Workload::Workload(const Workload &other) :
@@ -870,6 +923,7 @@ int Workload::run_all(std::vector<ThreadEnvironment> &envs) {
     void *status;
     std::vector<pthread_t> thread_handles;
     TableStats stats;
+    WorkgenException *exception;
     WT_DECL_RET;
 
     for (size_t i = 0; i < _threads.size(); i++)
@@ -929,6 +983,7 @@ int Workload::run_all(std::vector<ThreadEnvironment> &envs) {
         for (size_t i = 0; i < _threads.size(); i++)
             _threads[i]._stop = true;
 
+    exception = NULL;
     for (size_t i = 0; i < _threads.size(); i++) {
         WT_TRET(pthread_join(thread_handles[i], &status));
         if (envs[i]._errno != 0)
@@ -936,6 +991,8 @@ int Workload::run_all(std::vector<ThreadEnvironment> &envs) {
                     "Thread " << i << " has errno " << envs[i]._errno);
         WT_TRET(envs[i]._errno);
         _threads[i].close_all(envs[i]);
+        if (exception == NULL && !envs[i]._exception._str.empty())
+            exception = &envs[i]._exception;
     }
     timespec finalsecs = now - start;
     final_report(envs, finalsecs);
@@ -943,6 +1000,8 @@ int Workload::run_all(std::vector<ThreadEnvironment> &envs) {
     if (ret != 0)
         std::cerr << "run_all failed err=" << ret << std::endl;
     std::cout << std::endl;
+    if (exception != NULL)
+        throw *exception;
     return (ret);
 }
 
