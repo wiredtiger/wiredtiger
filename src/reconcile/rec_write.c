@@ -48,8 +48,8 @@ typedef struct {
 	/* Track the page's maximum transaction ID. */
 	uint64_t max_txn;
 
-	uint64_t update_cnt;		/* Total updates */
-	uint64_t update_skip_cnt;	/* Skipped updates */
+	uint64_t update_mem;		/* Total update memory */
+	uint64_t update_mem_skipped;	/* Skipped update memory */
 
 	/*
 	 * When we can't mark the page clean (for example, checkpoint found some
@@ -452,7 +452,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	 * that's worth trying. The lookaside table doesn't help if we skipped
 	 * updates, it can only help with older readers preventing eviction.
 	 */
-	if (lookaside_retryp != NULL && r->update_skip_cnt == 0)
+	if (lookaside_retryp != NULL && r->update_mem_skipped == 0)
 		*lookaside_retryp = true;
 
 	/* Update statistics. */
@@ -585,14 +585,16 @@ __rec_write_check_complete(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		 * Switch to the lookaside table if we can: it's more effective
 		 * than rewriting a page in memory because it implies eviction.
 		 */
-		if (r->update_skip_cnt == 0)
+		if (r->update_mem_skipped == 0)
 			return (EBUSY);
 
 		/*
-		 * If 10% of the update chains won't have to be re-instantiated,
-		 * rewrite the page in memory.
+		 * Don't rewrite pages where we're not going to get back enough
+		 * memory to care. There's no empirical evidence the 10KB limit
+		 * is a good configuration, but it should keep us from wasting
+		 * time on tiny pages and pages with only a few updates.
 		 */
-		if (r->update_cnt - (r->update_cnt / 10) > r->update_skip_cnt)
+		if (r->update_mem - r->update_mem_skipped < 10 * WT_KILOBYTE)
 			return (EBUSY);
 	}
 	return (0);
@@ -898,7 +900,7 @@ __rec_write_init(WT_SESSION_IMPL *session,
 	r->max_txn = WT_TXN_NONE;
 
 	/* Track if all updates were skipped. */
-	r->update_cnt = r->update_skip_cnt = 0;
+	r->update_mem = r->update_mem_skipped = 0;
 
 	/* Track if the page can be marked clean. */
 	r->leave_dirty = false;
@@ -1122,7 +1124,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	WT_DECL_ITEM(tmp);
 	WT_PAGE *page;
 	WT_UPDATE *append, *upd, *upd_list;
-	size_t notused;
+	size_t notused, update_mem;
 	uint64_t max_txn, min_txn, txnid;
 	bool append_origv, skipped;
 
@@ -1143,8 +1145,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	} else
 		upd_list = ins->upd;
 
-	++r->update_cnt;
-	for (skipped = false,
+	for (skipped = false, update_mem = 0,
 	    max_txn = WT_TXN_NONE, min_txn = UINT64_MAX,
 	    upd = upd_list; upd != NULL; upd = upd->next) {
 		if ((txnid = upd->txnid) == WT_TXN_ABORTED)
@@ -1165,12 +1166,17 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			 *
 			 * When reconciling for eviction, track whether any
 			 * uncommitted updates are found.
+			 *
+			 * When reconciling for eviction, track the memory held
+			 * by the update chain.
 			 */
 			if (__wt_txn_committed(session, txnid)) {
 				if (*updp == NULL)
 					*updp = upd;
 			} else
 				skipped = true;
+
+			update_mem += WT_UPDATE_MEMSIZE(upd);
 		} else {
 			/*
 			 * Checkpoint can only write updates visible as of its
@@ -1212,13 +1218,21 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		r->max_txn = max_txn;
 
 	/*
-	 * Track update chains with skipped entries. A page with no uncommitted
-	 * (skipped) updates, that can't be evicted because some updates aren't
-	 * yet globally visible, can be evicted by writing previous versions of
-	 * the updates to the lookaside file.
+	 * Track the memory required by the update chain.
+	 *
+	 * A page with no uncommitted (skipped) updates, that can't be evicted
+	 * because some updates aren't yet globally visible, can be evicted by
+	 * writing previous versions of the updates to the lookaside file. That
+	 * test is just checking if the skipped updates memory is zero.
+	 *
+	 * If that's not possible (there are skipped updates), we can rewrite
+	 * the pages in-memory, but we don't want to unless there's memory to
+	 * recover. That test is comparing the memory we'd recover to the memory
+	 * we'd have to re-instantiate as part of the rewrite.
 	 */
+	r->update_mem += update_mem;
 	if (skipped)
-		++r->update_skip_cnt;
+		r->update_mem_skipped += update_mem;
 
 	/*
 	 * If there are no skipped updates and all updates are globally visible,
