@@ -418,6 +418,7 @@ __wt_lsm_merge(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, u_int id)
 	WT_ERR(__wt_calloc_one(session, &chunk));
 	created_chunk = true;
 	chunk->id = dest_id;
+	chunk->generation = generation;
 
 	if (FLD_ISSET(lsm_tree->bloom, WT_LSM_BLOOM_MERGED) &&
 	    (FLD_ISSET(lsm_tree->bloom, WT_LSM_BLOOM_OLDEST) ||
@@ -453,6 +454,20 @@ __wt_lsm_merge(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, u_int id)
 	cfg[1] = "bulk,raw,skip_sort_check";
 	cfg[2] = NULL;
 	WT_ERR(__wt_open_cursor(session, chunk->uri, NULL, cfg, &dest));
+
+	if (lsm_tree->custom_generation != 0 &&
+	    chunk->generation >= lsm_tree->custom_generation) {
+		WT_DATA_SOURCE *dsrc =
+		    __wt_schema_get_source(session, chunk->uri);
+
+		if (dsrc != NULL && dsrc->lsm_pre_merge != NULL) {
+			/* Call the callback. */
+			WT_ERR(dsrc->lsm_pre_merge(dsrc, src, dest));
+
+			/* Make sure the source is ready to start the scan. */
+			WT_ERR(src->reset(src));
+		}
+	}
 
 #define	LSM_MERGE_CHECK_INTERVAL	WT_THOUSAND
 	for (insert_count = 0; (ret = src->next(src)) == 0; insert_count++) {
@@ -568,7 +583,6 @@ __wt_lsm_merge(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, u_int id)
 	if (create_bloom)
 		F_SET(chunk, WT_LSM_CHUNK_BLOOM);
 	chunk->count = insert_count;
-	chunk->generation = generation;
 	F_SET(chunk, WT_LSM_CHUNK_ONDISK);
 
 	/*

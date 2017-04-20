@@ -604,6 +604,19 @@ my_terminate(WT_DATA_SOURCE *dsrc, WT_SESSION *session)
 	return (0);
 }
 
+/*! [WT_DATA_SOURCE lsm_pre_merge] */
+static int
+my_lsm_pre_merge(WT_DATA_SOURCE *dsrc, WT_CURSOR *source, WT_CURSOR *dest)
+/*! [WT_DATA_SOURCE lsm_pre_merge] */
+{
+	/* Unused parameters */
+	(void)dsrc;
+	(void)source;
+	(void)dest;
+
+	return (0);
+}
+
 int
 main(void)
 {
@@ -630,7 +643,8 @@ main(void)
 		my_range_truncate,
 		my_verify,
 		my_checkpoint,
-		my_terminate
+		my_terminate,
+		my_lsm_pre_merge
 	};
 	ret = conn->add_data_source(conn, "dsrc:", &my_dsrc, NULL);
 	/*! [WT_DATA_SOURCE register] */

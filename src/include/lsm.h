@@ -186,6 +186,11 @@ struct __wt_lsm_tree {
 	const char *key_format, *value_format;
 	const char *bloom_config, *file_config;
 
+	uint32_t custom_generation;	/* Level at which a custom data source
+					   should be used for merges. */
+	const char *custom_prefix;	/* Prefix for custom data source */
+	const char *custom_suffix;	/* Suffix for custom data source */
+
 	WT_COLLATOR *collator;
 	const char *collator_name;
 	int collator_owned;
