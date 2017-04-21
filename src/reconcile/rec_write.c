@@ -1145,6 +1145,11 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	} else
 		upd_list = ins->upd;
 
+	/* Discard obsolete updates if evicting. */
+	if (F_ISSET(r, WT_EVICTING) && (upd =
+	    __wt_update_obsolete_check(session, page, upd_list->next)) != NULL)
+		__wt_update_obsolete_free(session, page, upd);
+
 	for (skipped = false, update_mem = 0,
 	    max_txn = WT_TXN_NONE, min_txn = UINT64_MAX,
 	    upd = upd_list; upd != NULL; upd = upd->next) {
