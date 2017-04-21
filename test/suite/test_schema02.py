@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wtscenario import check_scenarios
+from wtscenario import make_scenarios
 
 # test_schema02.py
 #    Columns, column groups, indexes
@@ -37,7 +37,7 @@ class test_schema02(wttest.WiredTigerTestCase):
     """
     nentries = 1000
 
-    scenarios = check_scenarios([
+    scenarios = make_scenarios([
         ('normal', { 'idx_config' : '' }),
         ('lsm', { 'idx_config' : ',type=lsm' }),
     ])
@@ -98,6 +98,10 @@ class test_schema02(wttest.WiredTigerTestCase):
 
         # expect this to work
         self.session.create("colgroup:main:c1", "columns=(S1,i2)")
+
+        # exclusive: no error message
+        self.expect_failure_colgroup("main:c1", "columns=(S1,i2),exclusive",
+                                     "")
 
         # colgroup not declared in initial create
         self.expect_failure_colgroup("main:c3", "columns=(S3,i4)",
@@ -163,6 +167,7 @@ class test_schema02(wttest.WiredTigerTestCase):
             "index:main:i2S1i4", "columns=(i2,S1,i4)" + self.idx_config)
 
         self.check_entries()
+        self.check_indices()
 
     def populate(self):
         cursor = self.session.open_cursor('table:main', None, None)
@@ -172,7 +177,7 @@ class test_schema02(wttest.WiredTigerTestCase):
             cursor[(i, 'key' + str(i))] = \
                 ('val' + str(square), square, 'val' + str(cube), cube)
         cursor.close()
-        
+
     def check_entries(self):
         cursor = self.session.open_cursor('table:main', None, None)
         # spot check via search
@@ -189,9 +194,11 @@ class test_schema02(wttest.WiredTigerTestCase):
             self.assertEqual(i4, cube)
 
         i = 0
+        count = 0
         # then check all via cursor
         cursor.reset()
         for ikey, skey, s1, i2, s3, i4 in cursor:
+            i = ikey
             square = i * i
             cube = square * i
             self.assertEqual(ikey, i)
@@ -200,10 +207,70 @@ class test_schema02(wttest.WiredTigerTestCase):
             self.assertEqual(i2, square)
             self.assertEqual(s3, 'val' + str(cube))
             self.assertEqual(i4, cube)
-            i += 1
+            count += 1
         cursor.close()
-        self.assertEqual(i, n)
-        
+        self.assertEqual(count, n)
+
+    def check_indices(self):
+        # we check an index that was created before populating
+        cursor = self.session.open_cursor('index:main:S1i4', None, None)
+        count = 0
+        n = self.nentries
+        for s1key, i4key, s1, i2, s3, i4 in cursor:
+            i = int(i4key ** (1 / 3.0) + 0.0001)  # cuberoot
+            #self.tty('index:main:S1i4[' + str(i) + '] (' +
+            #         str(s1key) + ',' +
+            #         str(i4key) + ') -> (' +
+            #         str(s1) + ',' +
+            #         str(i2) + ',' +
+            #         str(s3) + ',' +
+            #         str(i4) + ')')
+            self.assertEqual(s1key, s1)
+            self.assertEqual(i4key, i4)
+            ikey = i
+            skey = 'key' + str(i)
+            square = i * i
+            cube = square * i
+            self.assertEqual(ikey, i)
+            self.assertEqual(skey, 'key' + str(i))
+            self.assertEqual(s1, 'val' + str(square))
+            self.assertEqual(i2, square)
+            self.assertEqual(s3, 'val' + str(cube))
+            self.assertEqual(i4, cube)
+            count += 1
+        cursor.close()
+        self.assertEqual(count, n)
+
+        # we check an index that was created after populating
+        cursor = self.session.open_cursor('index:main:i2S1i4', None, None)
+        count = 0
+        for i2key, s1key, i4key, s1, i2, s3, i4 in cursor:
+            i = int(i4key ** (1 / 3.0) + 0.0001)  # cuberoot
+            #self.tty('index:main:i2S1i4[' + str(i) + '] (' +
+            #         str(i2key) + ',' +
+            #         str(s1key) + ',' +
+            #         str(i4key) + ') -> (' +
+            #         str(s1) + ',' +
+            #         str(i2) + ',' +
+            #         str(s3) + ',' +
+            #         str(i4) + ')')
+            self.assertEqual(i2key, i2)
+            self.assertEqual(s1key, s1)
+            self.assertEqual(i4key, i4)
+            ikey = i
+            skey = 'key' + str(i)
+            square = i * i
+            cube = square * i
+            self.assertEqual(ikey, i)
+            self.assertEqual(skey, 'key' + str(i))
+            self.assertEqual(s1, 'val' + str(square))
+            self.assertEqual(i2, square)
+            self.assertEqual(s3, 'val' + str(cube))
+            self.assertEqual(i4, cube)
+            count += 1
+        cursor.close()
+        self.assertEqual(count, n)
+
     def test_colgroups(self):
         self.session.create("table:main", "key_format=iS,value_format=SiSi,"
                             "columns=(ikey,Skey,S1,i2,S3,i4),colgroups=(c1,c2)")
@@ -211,7 +278,6 @@ class test_schema02(wttest.WiredTigerTestCase):
         self.session.create("colgroup:main:c2", "columns=(S3,i4)")
         self.populate()
         self.check_entries()
-
 
 if __name__ == '__main__':
     wttest.run()

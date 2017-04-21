@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -61,14 +61,40 @@ def log2chr(val):
         return chr(ord('0') + p)
     else:
         return chr(ord('a') + p - 10)
-    
+
 megabyte = 1024 * 1024
+
+def make_scenarios(*args, **kwargs):
+    """
+    The standard way to create scenarios for WT tests.
+    Scenarios can be combined by listing them all as arguments.
+    A final prune= and/or prunelong= argument may be given that
+    forces the list of entries in the scenario to be pruned.
+    The result is a (combined) scenario that has been checked
+    for name duplicates and has been given names and numbers.
+    """
+    scenes = multiply_scenarios('.', *args)
+    pruneval = None
+    prunelong = None
+    for key in kwargs:
+        if key == 'prune':
+            pruneval = kwargs[key]
+        elif key == 'prunelong':
+            prunelong = kwargs[key]
+        else:
+            raise AssertionError(
+                'make_scenarios: unexpected named arg: ' + key)
+    if pruneval != None or prunelong != None:
+        pruneval = pruneval if pruneval != None else -1
+        prunelong = prunelong if prunelong != None else -1
+        scenes = prune_scenarios(scenes, pruneval, prunelong)
+    return number_scenarios(scenes)
 
 def check_scenarios(scenes):
     """
-    Make sure all scenarios have unique names
+    Make sure all scenarios have unique case insensitive names
     """
-    assert len(scenes) == len(dict(scenes))
+    assert len(scenes) == len(dict((k.lower(), v) for k, v in scenes))
     return scenes
 
 def multiply_scenarios(sep, *args):
@@ -81,8 +107,8 @@ def multiply_scenarios(sep, *args):
             result = scenes
         else:
             total = []
-            for scena in scenes:
-                for scenb in result:
+            for scena in result:
+                for scenb in scenes:
                     # Create a merged scenario with a concatenated name
                     name = scena[0] + sep + scenb[0]
                     tdict = {}
@@ -235,7 +261,7 @@ class wtscenario:
                             scen.lmax = lmax
                             scen.cache_size = cache
                             s.append((scen.shortName(), dict(session_create_scenario=scen)))
-        return s
+        return make_scenarios(s)
 
     def shortName(self):
         """

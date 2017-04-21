@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -28,14 +28,8 @@
 
 import sys, threading, wiredtiger, wttest
 from suite_subprocess import suite_subprocess
-from wiredtiger import wiredtiger_open, WiredTigerError
-from wtscenario import check_scenarios
-
-# TODO - tmp code
-def tty_pr(s):
-    o = open('/dev/tty', 'w')
-    o.write(s + '\n')
-    o.close()
+from wiredtiger import WiredTigerError
+from wtscenario import make_scenarios
 
 class Callback(wiredtiger.AsyncCallback):
     def __init__(self, current):
@@ -49,9 +43,9 @@ class Callback(wiredtiger.AsyncCallback):
         self.lock = threading.RLock()
 
     def notify_error(self, key, value, optype, exp, desc):
-        tty_pr('ERROR: notify(' + str(key) + ',' + str(value) + ',' +
+        self.tty('ERROR: notify(' + str(key) + ',' + str(value) + ',' +
             str(optype) + '): ' + 'Expected: ' + str(exp) + ' ' + desc)
-        
+
     def notify(self, op, op_ret, flags):
 
         # Note: we are careful not to throw any errors here.  Any
@@ -105,11 +99,10 @@ class Callback(wiredtiger.AsyncCallback):
                 self.nerror += 1
                 self.lock.release()
         except (BaseException) as err:
-            tty_pr('ERROR: exception in notify: ' + str(err))
+            self.tty('ERROR: exception in notify: ' + str(err))
             raise
 
         return 0
-
 
 # test_async02.py
 #    Async operations
@@ -125,7 +118,7 @@ class test_async02(wttest.WiredTigerTestCase, suite_subprocess):
     async_threads = 3
     current = {}
 
-    scenarios = check_scenarios([
+    scenarios = make_scenarios([
         ('file-col', dict(tablekind='col',uri='file')),
         ('file-fix', dict(tablekind='fix',uri='file')),
         ('file-row', dict(tablekind='row',uri='file')),
@@ -135,18 +128,10 @@ class test_async02(wttest.WiredTigerTestCase, suite_subprocess):
         ('table-row', dict(tablekind='row',uri='table')),
     ])
 
-    # Overrides WiredTigerTestCase so that we can configure
-    # async operations.
-    def setUpConnectionOpen(self, dir):
-        self.home = dir
-        conn_params = \
-                'create,error_prefix="%s: ",' % self.shortid() + \
-                'async=(enabled=true,ops_max=%s,' % self.async_ops + \
-                'threads=%s)' % self.async_threads
-        sys.stdout.flush()
-        conn = wiredtiger_open(dir, conn_params)
-        self.pr(`conn`)
-        return conn
+    # Enable async for this test.
+    def conn_config(self):
+        return 'async=(enabled=true,ops_max=%s,' % self.async_ops + \
+            'threads=%s)' % self.async_threads
 
     def genkey(self, i):
         if self.tablekind == 'row':
@@ -232,7 +217,6 @@ class test_async02(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Make sure all callbacks went according to plan.
         self.assertTrue(callback.nerror == 0)
-
 
 if __name__ == '__main__':
     wttest.run()

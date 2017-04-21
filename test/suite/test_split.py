@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -32,10 +32,6 @@
 
 import wiredtiger, wttest
 from wiredtiger import stat
-from helper import confirm_empty,\
-    key_populate, value_populate, simple_populate,\
-    complex_populate, complex_value_populate
-from wtscenario import multiply_scenarios, number_scenarios
 
 # Test splits
 class test_split(wttest.WiredTigerTestCase):

@@ -1,6 +1,6 @@
-#!usr/bin/env python
+#!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -26,51 +26,49 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import helper, random, wiredtiger, wttest
-from helper import simple_populate
+import random, wiredtiger, wttest
+from wtdataset import SimpleDataSet
 
 # test_bug011.py
-#    Eviction working on more files than there are hazard pointers.
+#    Eviction working on more trees than the eviction server can walk
+#    simultaneously.  There is a builtin limit of 1000 trees, we open double
+#    that, which makes this a long-running test.
 class test_bug011(wttest.WiredTigerTestCase):
     """
     Test having eviction working on more files than the number of
     allocated hazard pointers.
     """
     table_name = 'test_bug011'
-    ntables = 50
+    ntables = 2000
     nrows = 10000
     nops = 10000
+    # Add connection configuration for this test.
+    def conn_config(self):
+        return 'cache_size=1GB'
 
-    # Overrides WiredTigerTestCase
-    def setUpConnectionOpen(self, dir):
-        self.home = dir
-        conn_params = 'create,cache_size=10MB,' \
-                      'hazard_max=' + str(self.ntables / 2)
-        conn = wiredtiger.wiredtiger_open(dir, conn_params)
-        self.pr(`conn`)
-        return conn
-
+    @wttest.longtest("Eviction copes with lots of files")
     def test_eviction(self):
         cursors = []
+        datasets = []
         for i in range(0, self.ntables):
-            this_uri = 'table:%s-%03d' % (self.table_name, i)
-            simple_populate(self, this_uri,
-                'key_format=S,allocation_size=1KB,leaf_page_max=1KB',
-                self.nrows)
+            this_uri = 'table:%s-%05d' % (self.table_name, i)
+            ds = SimpleDataSet(self, this_uri, self.nrows,
+                               config='allocation_size=1KB,leaf_page_max=1KB')
+            ds.populate()
+            datasets.append(ds)
 
         # Switch over to on-disk trees with multiple leaf pages
         self.reopen_conn()
 
-        # Make sure we have a cursor for the table so it stays in cache.
+        # Make sure we have a cursor for every table so it stays in cache.
         for i in range(0, self.ntables):
-            this_uri = 'table:%s-%03d' % (self.table_name, i)
-            cursors.append(self.session.open_cursor(this_uri, None)) 
+            this_uri = 'table:%s-%05d' % (self.table_name, i)
+            cursors.append(self.session.open_cursor(this_uri, None))
 
         # Make use of the cache.
         for i in range(0, self.nops):
             for i in range(0, self.ntables):
-                cursors[i].set_key(helper.key_populate(cursors[i],
-                    random.randint(0, self.nrows - 1)))
+                cursors[i].set_key(ds.key(random.randint(0, self.nrows - 1)))
                 cursors[i].search()
                 cursors[i].reset()
 

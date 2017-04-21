@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -32,8 +32,7 @@
 
 import fnmatch, os, shutil, time
 from suite_subprocess import suite_subprocess
-from wiredtiger import wiredtiger_open
-from wtscenario import multiply_scenarios, number_scenarios, prune_scenarios
+from wtscenario import make_scenarios
 import wttest
 
 class test_txn02(wttest.WiredTigerTestCase, suite_subprocess):
@@ -82,38 +81,34 @@ class test_txn02(wttest.WiredTigerTestCase, suite_subprocess):
     txn3s = [('t3c', dict(txn3='commit')), ('t3r', dict(txn3='rollback'))]
     txn4s = [('t4c', dict(txn4='commit')), ('t4r', dict(txn4='rollback'))]
 
-    all_scenarios = multiply_scenarios('.', types,
-        op1s, txn1s, op2s, txn2s, op3s, txn3s, op4s, txn4s)
-
     # This test generates thousands of potential scenarios.
     # For default runs, we'll use a small subset of them, for
     # long runs (when --long is set) we'll set a much larger limit.
-    scenarios = number_scenarios(prune_scenarios(all_scenarios, 20, 5000))
+    scenarios = make_scenarios(types,
+        op1s, txn1s, op2s, txn2s, op3s, txn3s, op4s, txn4s,
+        prune=20, prunelong=5000)
 
     # Each check_log() call takes a second, so we don't call it for
     # every scenario, we'll limit it to the value of checklog_calls.
     checklog_calls = 100 if wttest.islongtest() else 2
     checklog_mod = (len(scenarios) / checklog_calls + 1)
 
-    # scenarios = number_scenarios(multiply_scenarios('.', types,
-    # op1s, txn1s, op2s, txn2s, op3s, txn3s, op4s, txn4s)) [:3]
-    # Overrides WiredTigerTestCase
-    def setUpConnectionOpen(self, dir):
-        self.home = dir
+    def conn_config(self):
         # Cycle through the different transaction_sync values in a
         # deterministic manner.
-        self.txn_sync = self.sync_list[
+        txn_sync = self.sync_list[
             self.scenario_number % len(self.sync_list)]
-        self.backup_dir = os.path.join(self.home, "WT_BACKUP")
-        conn_params = \
-                'log=(archive=false,enabled,file_max=%s),' % self.logmax + \
-                'create,error_prefix="%s: ",' % self.shortid() + \
-                'transaction_sync="%s",' % self.txn_sync
-        # print "Creating conn at '%s' with config '%s'" % (dir, conn_params)
-        conn = wiredtiger_open(dir, conn_params)
-        self.pr(`conn`)
-        self.session2 = conn.open_session()
-        return conn
+        #
+        # We don't want to run zero fill with only the same settings, such
+        # as archive or sync, which are an even number of options.
+        #
+        freq = 3
+        zerofill = 'false'
+        if self.scenario_number % freq == 0:
+            zerofill = 'true'
+        return 'log=(archive=false,enabled,file_max=%s),' % self.logmax + \
+            'log=(zero_fill=%s),' % zerofill + \
+            'transaction_sync="%s",' % txn_sync
 
     # Check that a cursor (optionally started in a new transaction), sees the
     # expected values.
@@ -142,10 +137,13 @@ class test_txn02(wttest.WiredTigerTestCase, suite_subprocess):
         self.check(self.session2, "isolation=read-uncommitted", current)
 
         # Opening a clone of the database home directory should run
-        # recovery and see the committed results.
+        # recovery and see the committed results.  Flush the log because
+        # the backup may not get all the log records if we are running
+        # without a sync option.  Use sync=off to force a write to the OS.
+        self.session.log_flush('sync=off')
         self.backup(self.backup_dir)
         backup_conn_params = 'log=(enabled,file_max=%s)' % self.logmax
-        backup_conn = wiredtiger_open(self.backup_dir, backup_conn_params)
+        backup_conn = self.wiredtiger_open(self.backup_dir, backup_conn_params)
         try:
             self.check(backup_conn.open_session(), None, committed)
         finally:
@@ -169,10 +167,13 @@ class test_txn02(wttest.WiredTigerTestCase, suite_subprocess):
         endcount = 2
         count = 0
         while count < endcount:
-            backup_conn = wiredtiger_open(self.backup_dir, backup_conn_params)
+            backup_conn = self.wiredtiger_open(self.backup_dir,
+                                               backup_conn_params)
             try:
-                self.check(backup_conn.open_session(), None, committed)
+                session = backup_conn.open_session()
             finally:
+                session.checkpoint("force")
+                self.check(backup_conn.open_session(), None, committed)
                 # Sleep long enough so that the archive thread is guaranteed
                 # to run before we close the connection.
                 time.sleep(1.0)
@@ -199,6 +200,8 @@ class test_txn02(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(cur_logs, pr_logs)
 
     def test_ops(self):
+        self.backup_dir = os.path.join(self.home, "WT_BACKUP")
+        self.session2 = self.conn.open_session()
         # print "Creating %s with config '%s'" % (self.uri, self.create_params)
         self.session.create(self.uri, self.create_params)
         # Set up the table with entries for 1, 2, 10 and 11.
@@ -217,10 +220,11 @@ class test_txn02(wttest.WiredTigerTestCase, suite_subprocess):
         for i, ot in enumerate(zip(ops, txns)):
             ok, txn = ot
             op, k = ok
-            
+
             # Close and reopen the connection and cursor.
             if reopen == 'reopen':
                 self.reopen_conn()
+                self.session2 = self.conn.open_session()
                 c = self.session.open_cursor(self.uri, None, 'overwrite')
 
             self.session.begin_transaction(

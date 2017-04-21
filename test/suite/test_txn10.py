@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -32,21 +32,14 @@
 
 import fnmatch, os, shutil, time
 from suite_subprocess import suite_subprocess
-from wiredtiger import wiredtiger_open
-from wtscenario import multiply_scenarios, number_scenarios, prune_scenarios
 import wttest
 
 class test_txn10(wttest.WiredTigerTestCase, suite_subprocess):
     t1 = 'table:test_txn10_1'
     t2 = 'table:test_txn10_2'
     create_params = 'key_format=i,value_format=i'
-
-    # Overrides WiredTigerTestCase, add extra config params
-    def setUpConnectionOpen(self, dir):
-        self.conn_config = \
-                'log=(archive=false,enabled,file_max=100K),' + \
+    conn_config = 'log=(archive=false,enabled,file_max=100K),' + \
                 'transaction_sync=(method=dsync,enabled)'
-        return wttest.WiredTigerTestCase.setUpConnectionOpen(self, dir)
 
     def simulate_crash_restart(self, olddir, newdir):
         ''' Simulate a crash from olddir and restart in newdir. '''
@@ -56,21 +49,24 @@ class test_txn10(wttest.WiredTigerTestCase, suite_subprocess):
         for fname in os.listdir(olddir):
             fullname = os.path.join(olddir, fname)
             # Skip lock file on Windows since it is locked
-            if os.path.isfile(fullname) and "WiredTiger.lock" not in fullname:
+            if os.path.isfile(fullname) and \
+                "WiredTiger.lock" not in fullname and \
+                "Tmplog" not in fullname and \
+                "Preplog" not in fullname:
                 shutil.copy(fullname, newdir)
         # close the original connection and open to new directory
         self.close_conn()
         self.conn = self.setUpConnectionOpen(newdir)
         self.session = self.setUpSessionOpen(self.conn)
-        
+
     def test_recovery(self):
         ''' Check for bugs in file ID allocation. '''
 
         # Here's the strategy:
-        #    - Create a table (t1). 
-        #    - Do a clean restart. 
-        #    - Create another table (t2). 
-        #    - Insert data into t2. 
+        #    - Create a table (t1).
+        #    - Do a clean restart.
+        #    - Create another table (t2).
+        #    - Insert data into t2.
         #    - Make recovery run.
         #
         # If we aren't tracking file IDs properly, it's possible that

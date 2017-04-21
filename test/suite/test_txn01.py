@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -27,13 +27,13 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wtscenario import check_scenarios
+from wtscenario import make_scenarios
 
 # test_txn01.py
 #    Transactions: basic functionality
 class test_txn01(wttest.WiredTigerTestCase):
     nentries = 1000
-    scenarios = check_scenarios([
+    scenarios = make_scenarios([
         ('col-f', dict(uri='file:text_txn01',key_format='r',value_format='S')),
         ('col-t', dict(uri='table:text_txn01',key_format='r',value_format='S')),
         ('fix-f', dict(uri='file:text_txn01',key_format='r',value_format='8t')),
@@ -41,13 +41,6 @@ class test_txn01(wttest.WiredTigerTestCase):
         ('row-f', dict(uri='file:text_txn01',key_format='S',value_format='S')),
         ('row-t', dict(uri='table:text_txn01',key_format='S',value_format='S')),
     ])
-
-    # Overrides WiredTigerTestCase
-    def setUpConnectionOpen(self, dir):
-        conn = wiredtiger.wiredtiger_open(dir, 'create,' +
-                ('error_prefix="%s: ",' % self.shortid()))
-        self.pr(`conn`)
-        return conn
 
     # Return the number of records visible to the cursor.
     def cursor_count(self, cursor):
@@ -138,7 +131,6 @@ class test_txn01(wttest.WiredTigerTestCase):
         self.session.commit_transaction()
         self.check(cursor, self.nentries, self.nentries)
 
-
 # Test that read-committed is the default isolation level.
 class test_read_committed_default(wttest.WiredTigerTestCase):
     uri = 'table:test_txn'
@@ -168,7 +160,6 @@ class test_read_committed_default(wttest.WiredTigerTestCase):
         self.assertEqual(self.cursor_count(cursor), 1)
         s.commit_transaction()
         s.close()
-
 
 if __name__ == '__main__':
     wttest.run()

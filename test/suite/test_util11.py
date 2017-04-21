@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -127,7 +127,6 @@ class test_util11(wttest.WiredTigerTestCase, suite_subprocess):
         outfile = "listout.txt"
         self.runWt(["list"], outfilename=outfile)
         self.check_file_content(outfile, filelist)
-
 
 if __name__ == '__main__':
     wttest.run()

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -30,14 +30,14 @@
 #       Regression tests.
 
 import wiredtiger, wttest
-from helper import key_populate, value_populate
-from wtscenario import check_scenarios
+from wtdataset import SimpleDataSet, simple_key, simple_value
+from wtscenario import make_scenarios
 
 # Check that verify and salvage both raise exceptions if there is an open
 # cursor.
 class test_bug006(wttest.WiredTigerTestCase):
     name = 'test_bug006'
-    scenarios = check_scenarios([
+    scenarios = make_scenarios([
         ('file', dict(uri='file:')),
         ('table', dict(uri='table:')),
     ])
@@ -47,7 +47,7 @@ class test_bug006(wttest.WiredTigerTestCase):
         self.session.create(uri, 'value_format=S,key_format=S')
         cursor = self.session.open_cursor(uri, None)
         for i in range(1, 1000):
-            cursor[key_populate(cursor, i)] = value_populate(cursor, i)
+            cursor[simple_key(cursor, i)] = simple_value(cursor, i)
 
         # Table operations should fail, the cursor is open.
         self.assertRaises(
@@ -57,9 +57,6 @@ class test_bug006(wttest.WiredTigerTestCase):
             lambda: self.session.rename(uri, self.uri + "new", None))
         self.assertRaises(
             wiredtiger.WiredTigerError, lambda: self.session.salvage(uri, None))
-        self.assertRaises(
-            wiredtiger.WiredTigerError,
-            lambda: self.session.truncate(uri, None, None, None))
         self.assertRaises(
             wiredtiger.WiredTigerError, lambda: self.session.upgrade(uri, None))
         self.assertRaises(
@@ -76,7 +73,6 @@ class test_bug006(wttest.WiredTigerTestCase):
         self.session.verify(uri, None)
 
         self.session.drop(uri, None)
-
 
 if __name__ == '__main__':
     wttest.run()

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -168,7 +168,7 @@ class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
                     dumpargs.append("-x")
                 dumpargs.append(self.tablename)
                 self.runWt(dumpargs, outfilename="dump.out")
-                
+
         self.assertTrue(self.compare_files("expect.out", "dump.out"))
 
     def test_dump_process(self):
@@ -179,10 +179,9 @@ class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_dump_api(self):
         self.dump(True, False)
- 
+
     def test_dump_api_hex(self):
         self.dump(True, True)
- 
 
 if __name__ == '__main__':
     wttest.run()

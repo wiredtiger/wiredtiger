@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -32,8 +32,7 @@
 
 import shutil, os
 from suite_subprocess import suite_subprocess
-from wiredtiger import wiredtiger_open
-from wtscenario import multiply_scenarios, number_scenarios
+from wtscenario import make_scenarios
 import wttest
 
 class test_txn04(wttest.WiredTigerTestCase, suite_subprocess):
@@ -63,25 +62,16 @@ class test_txn04(wttest.WiredTigerTestCase, suite_subprocess):
     ]
     txn1s = [('t1c', dict(txn1='commit')), ('t1r', dict(txn1='rollback'))]
 
-    scenarios = number_scenarios(multiply_scenarios('.', types, op1s, txn1s))
-    # Overrides WiredTigerTestCase
-    def setUpConnectionOpen(self, dir):
-        self.home = dir
+    scenarios = make_scenarios(types, op1s, txn1s)
+
+    def conn_config(self):
         # Cycle through the different transaction_sync values in a
         # deterministic manner.
-        self.txn_sync = self.sync_list[
+        txn_sync = self.sync_list[
             self.scenario_number % len(self.sync_list)]
-        self.backup_dir = os.path.join(self.home, "WT_BACKUP")
-        # Set archive false on the home directory.  
-        conn_params = \
-                'log=(archive=false,enabled,file_max=%s),' % self.logmax + \
-                'create,error_prefix="%s: ",' % self.shortid() + \
-                'transaction_sync="%s",' % self.txn_sync
-        # print "Creating conn at '%s' with config '%s'" % (dir, conn_params)
-        conn = wiredtiger_open(dir, conn_params)
-        self.pr(`conn`)
-        self.session2 = conn.open_session()
-        return conn
+        # Set archive false on the home directory.
+        return 'log=(archive=false,enabled,file_max=%s),' % self.logmax + \
+            'transaction_sync="%s",' % txn_sync
 
     # Check that a cursor (optionally started in a new transaction), sees the
     # expected values.
@@ -122,17 +112,14 @@ class test_txn04(wttest.WiredTigerTestCase, suite_subprocess):
 
         cmd += self.backup_dir
         self.runWt(cmd.split())
-        self.exception='false'
         backup_conn_params = 'log=(enabled,file_max=%s)' % self.logmax
-        backup_conn = wiredtiger_open(self.backup_dir, backup_conn_params)
+        backup_conn = self.wiredtiger_open(self.backup_dir, backup_conn_params)
         try:
             self.check(backup_conn.open_session(), None, committed)
-        except:
-            self.exception='true'
         finally:
             backup_conn.close()
 
-    def test_ops(self):
+    def ops(self):
         self.session.create(self.uri, self.create_params)
         c = self.session.open_cursor(self.uri, None, 'overwrite')
         # Set up the table with entries for 1-5.
@@ -150,7 +137,7 @@ class test_txn04(wttest.WiredTigerTestCase, suite_subprocess):
             # The runWt command closes our connection and sessions so
             # we need to reopen them here.
             self.hot_backup(None, committed)
-            self.assertEqual(True, self.exception == 'false')
+            self.session2 = self.conn.open_session()
             c = self.session.open_cursor(self.uri, None, 'overwrite')
             c.set_value(1)
             # Then do the given modification.
@@ -158,7 +145,7 @@ class test_txn04(wttest.WiredTigerTestCase, suite_subprocess):
             self.session.begin_transaction()
             ok, txn = ot
             op, k = ok
-            
+
             # print '%d: %s(%d)[%s]' % (i, ok[0], ok[1], txn)
             if op == 'insert' or op == 'update':
                 c[k] = i + 2
@@ -193,14 +180,15 @@ class test_txn04(wttest.WiredTigerTestCase, suite_subprocess):
             # Check the state after each commit/rollback.
             self.check_all(current, committed)
 
-        # Backup the target we modified.  We expect that running
-        # recovery now will generate an exception if we committed.
+        # Backup the target we modified and verify the data.
         # print 'Call hot_backup with ' + self.uri
         self.hot_backup(self.uri, committed)
-        if txn == 'commit':
-            self.assertEqual(True, self.exception == 'true')
-        else: 
-            self.assertEqual(True, self.exception == 'false')
+
+    def test_ops(self):
+        self.backup_dir = os.path.join(self.home, "WT_BACKUP")
+        self.session2 = self.conn.open_session()
+        with self.expectedStdoutPattern('recreating metadata'):
+            self.ops()
 
 if __name__ == '__main__':
     wttest.run()

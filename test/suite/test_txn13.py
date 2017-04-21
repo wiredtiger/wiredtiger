@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -33,8 +33,7 @@
 
 #import fnmatch, os, shutil, run, time
 from suite_subprocess import suite_subprocess
-from wiredtiger import wiredtiger_open
-from wtscenario import check_scenarios
+from wtscenario import make_scenarios
 import wiredtiger, wttest
 
 class test_txn13(wttest.WiredTigerTestCase, suite_subprocess):
@@ -44,26 +43,18 @@ class test_txn13(wttest.WiredTigerTestCase, suite_subprocess):
     nops = 1024
     create_params = 'key_format=i,value_format=S'
 
-    scenarios = check_scenarios([
+    scenarios = make_scenarios([
         ('1gb', dict(expect_err=False, valuesize=1048576)),
         ('2gb', dict(expect_err=False, valuesize=2097152)),
         ('4gb', dict(expect_err=True, valuesize=4194304))
     ])
 
-    # Overrides WiredTigerTestCase
-    def setUpConnectionOpen(self, dir):
-        self.home = dir
-        conn_params = \
-                'log=(archive=false,enabled,file_max=%s)' % self.logmax + \
-                ',create,cache_size=8G,error_prefix="%s: ",' % self.shortid()
-        # print "Creating conn at '%s' with config '%s'" % (dir, conn_params)
-        try:
-            conn = wiredtiger_open(dir, conn_params)
-        except wiredtiger.WiredTigerError as e:
-            print "Failed conn at '%s' with config '%s'" % (dir, conn_params)
-        self.pr(`conn`)
-        return conn
+    # Turn on logging for this test.
+    def conn_config(self):
+        return 'log=(archive=false,enabled,file_max=%s)' % self.logmax + \
+            ',cache_size=8G'
 
+    @wttest.longtest('txn tests with huge values')
     def test_large_values(self):
         # print "Creating %s with config '%s'" % (self.uri, self.create_params)
         # print "Running with %d" % (self.valuesize)

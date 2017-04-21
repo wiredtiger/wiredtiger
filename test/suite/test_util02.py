@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -29,7 +29,8 @@
 import string, os
 import wiredtiger, wttest
 from suite_subprocess import suite_subprocess
-from wtscenario import check_scenarios
+from wtdataset import ComplexDataSet
+from wtscenario import make_scenarios
 
 # test_util02.py
 #    Utilities: wt load
@@ -43,7 +44,7 @@ class test_util02(wttest.WiredTigerTestCase, suite_subprocess):
     nentries = 1000
     stringclass = ''.__class__
 
-    scenarios = check_scenarios([
+    scenarios = make_scenarios([
         ('SS', dict(key_format='S',value_format='S')),
         ('rS', dict(key_format='r',value_format='S')),
         ('ri', dict(key_format='r',value_format='i')),
@@ -110,7 +111,8 @@ class test_util02(wttest.WiredTigerTestCase, suite_subprocess):
                     result += "%0.2x" % ord(c)
                 elif c == '\\':
                     result += '\\\\'
-                elif c == ' ' or (c in string.printable and not c in string.whitespace):
+                elif c == ' ' or \
+                    (c in string.printable and not c in string.whitespace):
                     result += c
                 else:
                     result += '\\' + "%0.2x" % ord(c)
@@ -121,7 +123,8 @@ class test_util02(wttest.WiredTigerTestCase, suite_subprocess):
         return result
 
     def table_config(self):
-        return 'key_format=' + self.key_format + ',value_format=' + self.value_format
+        return 'key_format=' + \
+            self.key_format + ',value_format=' + self.value_format
 
     def load_process(self, hexoutput):
         params = self.table_config()
@@ -142,7 +145,8 @@ class test_util02(wttest.WiredTigerTestCase, suite_subprocess):
 
         self.runWt(["load", "-f", "dump.out", "-r", self.tablename2])
 
-        cursor = self.session.open_cursor('table:' + self.tablename2, None, None)
+        cursor =\
+            self.session.open_cursor('table:' + self.tablename2, None, None)
         self.assertEqual(cursor.key_format, self.key_format)
         self.assertEqual(cursor.value_format, self.value_format)
         i = 0
@@ -157,6 +161,63 @@ class test_util02(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_load_process_hex(self):
         self.load_process(True)
+
+# test_load_commandline --
+#       Test the command-line processing.
+class test_load_commandline(wttest.WiredTigerTestCase, suite_subprocess):
+    uri = "table:command_line"
+
+    def load_commandline(self, args, fail):
+        errfile= "errfile"
+        ComplexDataSet(self, self.uri, 20).populate()
+        self.runWt(["dump", self.uri], outfilename="dump.out")
+        loadargs = ["load", "-f", "dump.out"] + args
+        self.runWt(loadargs, errfilename=errfile, failure=fail)
+        if fail:
+                self.check_non_empty_file(errfile)
+        else:
+                self.check_empty_file(errfile)
+
+    # Empty arguments should suceed.
+    def test_load_commandline_1(self):
+        self.load_commandline([], False)
+
+    # Arguments are in pairs.
+    def test_load_commandline_2(self):
+        self.load_commandline(["table"], True)
+        self.load_commandline(
+            [self.uri, "block_allocation=first", self.uri], True)
+
+    # You can use short-hand URIs for a single object, but cannot match multiple
+    # objects.
+    def test_load_commandline_3(self):
+        self.load_commandline(["table", "block_allocation=first"], False)
+        self.load_commandline(["colgroup", "block_allocation=first"], True)
+
+    # You can't reference non-existent objects.
+    def test_load_commandline_4(self):
+        self.load_commandline([self.uri, "block_allocation=first"], False)
+        self.load_commandline(["table:bar", "block_allocation=first"], True)
+
+    # You can specify multipleconfiguration arguments for the same object.
+    def test_load_commandline_5(self):
+        self.load_commandline([
+            self.uri, "block_allocation=first",
+            self.uri, "block_allocation=best",
+            self.uri, "block_allocation=first",
+            self.uri, "block_allocation=best"], False)
+
+    # You can't modify a format.
+    def test_load_commandline_6(self):
+        self.load_commandline(["table", "key_format=d"], True)
+        self.load_commandline(["table", "value_format=d"], True)
+
+    # You can set the source or version, but it gets stripped; confirm the
+    # attempt succeeds, so we know they configuration values are stripped.
+    def test_load_commandline_7(self):
+        self.load_commandline(["table", "filename=bar"], False)
+        self.load_commandline(["table", "source=bar"], False)
+        self.load_commandline(["table", "version=(100,200)"], False)
 
 if __name__ == '__main__':
     wttest.run()

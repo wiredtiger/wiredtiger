@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2015 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -27,43 +27,40 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from helper import key_populate, value_populate, simple_populate
-from helper import complex_value_populate, complex_populate
-from wtscenario import check_scenarios
+from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
+from wtscenario import make_scenarios
 
 # test_cursor06.py
 #    Test cursor reconfiguration.
 class test_cursor06(wttest.WiredTigerTestCase):
     name = 'reconfigure'
-    scenarios = check_scenarios([
-        ('file-r', dict(type='file:',keyfmt='r',complex=0)),
-        ('file-S', dict(type='file:',keyfmt='S',complex=0)),
-        ('lsm-S', dict(type='lsm:',keyfmt='S',complex=0)),
-        ('table-r', dict(type='table:',keyfmt='r',complex=0)),
-        ('table-S', dict(type='table:',keyfmt='S',complex=0)),
-        ('table-r-complex', dict(type='table:',keyfmt='r',complex=1)),
-        ('table-S-complex', dict(type='table:',keyfmt='S',complex=1)),
+    scenarios = make_scenarios([
+        ('file-r', dict(type='file:', keyfmt='r', dataset=SimpleDataSet)),
+        ('file-S', dict(type='file:', keyfmt='S', dataset=SimpleDataSet)),
+        ('lsm-S', dict(type='lsm:', keyfmt='S', dataset=SimpleDataSet)),
+        ('table-r', dict(type='table:', keyfmt='r', dataset=SimpleDataSet)),
+        ('table-S', dict(type='table:', keyfmt='S', dataset=SimpleDataSet)),
+        ('table-r-complex', dict(type='table:', keyfmt='r',
+            dataset=ComplexDataSet)),
+        ('table-S-complex', dict(type='table:', keyfmt='S',
+            dataset=ComplexDataSet)),
+        ('table-S-complex-lsm', dict(type='table:', keyfmt='S',
+            dataset=ComplexLSMDataSet)),
     ])
 
-    def pop(self, uri):
-        if self.complex == 1:
-            complex_populate(self, uri, 'key_format=' + self.keyfmt, 100)
-        else:
-            simple_populate(self, uri, 'key_format=' + self.keyfmt, 100)
+    def populate(self, uri):
+        self.ds = self.dataset(self, uri, 100, key_format=self.keyfmt)
+        self.ds.populate()
 
     def set_kv(self, cursor):
-        cursor.set_key(key_populate(cursor, 10))
-        if self.complex == 1:
-            v = complex_value_populate(cursor, 10)
-            cursor.set_value(v[0], v[1], v[2], v[3])
-        else:
-            cursor.set_value(value_populate(cursor, 10))
-            
+        cursor.set_key(self.ds.key(10))
+        cursor.set_value(self.ds.value(10))
+
     def test_reconfigure_overwrite(self):
         uri = self.type + self.name
         for open_config in (None, "overwrite=0", "overwrite=1"):
             self.session.drop(uri, "force")
-            self.pop(uri)
+            self.populate(uri)
             cursor = self.session.open_cursor(uri, None, open_config)
             if open_config != "overwrite=0":
                 self.set_kv(cursor)
@@ -77,17 +74,18 @@ class test_cursor06(wttest.WiredTigerTestCase):
                 self.set_kv(cursor)
                 cursor.insert()
             cursor.close()
-            
+
     def test_reconfigure_readonly(self):
         uri = self.type + self.name
         for open_config in (None, "readonly=0", "readonly=1"):
             self.session.drop(uri, "force")
-            self.pop(uri)
+            self.populate(uri)
             cursor = self.session.open_cursor(uri, None, open_config)
+            msg = '/Unsupported cursor/'
             if open_config == "readonly=1":
                 self.set_kv(cursor)
-                self.assertRaises(wiredtiger.WiredTigerError,
-                                  lambda: cursor.update())
+                self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                                  lambda: cursor.update(), msg)
             else:
                 self.set_kv(cursor)
                 cursor.update()
