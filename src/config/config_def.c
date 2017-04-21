@@ -33,7 +33,9 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_open_session[] = {
 };
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_query_timestamp[] = {
-	{ "oldest_timestamp", "string", NULL, NULL, NULL, 0 },
+	{ "get", "string",
+	    NULL, "choices=[\"all_committed\"]",
+	    NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
 
@@ -163,9 +165,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
 };
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_set_oldest_timestamp[] = {
-	{ "get", "string",
-	    NULL, "choices=[\"all_committed\"]",
-	    NULL, 0 },
+	{ "oldest_timestamp", "string", NULL, NULL, NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
 
@@ -1072,7 +1072,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_WT_CONNECTION_open_session, 2
 	},
 	{ "WT_CONNECTION.query_timestamp",
-	  "oldest_timestamp=",
+	  "get=all_committed",
 	  confchk_WT_CONNECTION_query_timestamp, 1
 	},
 	{ "WT_CONNECTION.reconfigure",
@@ -1095,7 +1095,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  NULL, 0
 	},
 	{ "WT_CONNECTION.set_oldest_timestamp",
-	  "get=all_committed",
+	  "oldest_timestamp=",
 	  confchk_WT_CONNECTION_set_oldest_timestamp, 1
 	},
 	{ "WT_CURSOR.close",

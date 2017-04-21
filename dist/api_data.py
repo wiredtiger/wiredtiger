@@ -1217,17 +1217,17 @@ methods = {
 'WT_CONNECTION.open_session' : Method(session_config),
 
 'WT_CONNECTION.query_timestamp' : Method([
-    Config('oldest_timestamp', '', r'''
-        future queries will be at least as recent as the specified timestamp,
-        see @ref transaction_timestamps'''),
-]),
-
-'WT_CONNECTION.set_oldest_timestamp' : Method([
     Config('get', 'all_committed', r'''
         specify which timestamp to query: \c all_committed returns the largest
         timestamp such that all earlier timestamps have committed.  See @ref
         transaction_timestamps''',
         choices=['all_committed']),
+]),
+
+'WT_CONNECTION.set_oldest_timestamp' : Method([
+    Config('oldest_timestamp', '', r'''
+        future queries will be at least as recent as the specified timestamp,
+        see @ref transaction_timestamps'''),
 ]),
 
 'WT_SESSION.reconfigure' : Method(session_config),
