@@ -1145,28 +1145,36 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	} else
 		upd_list = ins->upd;
 
-	/* Discard obsolete updates if evicting. */
-	if (F_ISSET(r, WT_EVICTING) && (upd =
-	    __wt_update_obsolete_check(session, page, upd_list->next)) != NULL)
-		__wt_update_obsolete_free(session, page, upd);
+	skipped = false;
+	update_mem = 0;
+	max_txn = WT_TXN_NONE;
+	min_txn = UINT64_MAX;
 
-	for (skipped = false, update_mem = 0,
-	    max_txn = WT_TXN_NONE, min_txn = UINT64_MAX,
-	    upd = upd_list; upd != NULL; upd = upd->next) {
-		if ((txnid = upd->txnid) == WT_TXN_ABORTED)
-			continue;
+	if (F_ISSET(r, WT_EVICTING)) {
+		/* Discard obsolete updates. */
+		if ((upd = __wt_update_obsolete_check(
+		    session, page, upd_list->next)) != NULL)
+			__wt_update_obsolete_free(session, page, upd);
 
-		/* Track the largest/smallest transaction IDs on the list. */
-		if (WT_TXNID_LT(max_txn, txnid))
-			max_txn = txnid;
-		if (WT_TXNID_LT(txnid, min_txn))
-			min_txn = txnid;
+		for (upd = upd_list; upd != NULL; upd = upd->next) {
+			/* Track the total memory in the update chain. */
+			update_mem += WT_UPDATE_MEMSIZE(upd);
 
-		/*
-		 * Find the first update we can use.
-		 */
-		if (F_ISSET(r, WT_EVICTING)) {
+			if ((txnid = upd->txnid) == WT_TXN_ABORTED)
+				continue;
+
 			/*
+			 * Track the largest/smallest transaction IDs on the
+			 * list.
+			 */
+			if (WT_TXNID_LT(max_txn, txnid))
+				max_txn = txnid;
+			if (WT_TXNID_LT(txnid, min_txn))
+				min_txn = txnid;
+
+			/*
+			 * Find the first update we can use.
+			 *
 			 * Eviction can write any committed update.
 			 *
 			 * When reconciling for eviction, track whether any
@@ -1180,10 +1188,19 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 					*updp = upd;
 			} else
 				skipped = true;
+		}
+	} else
+		for (upd = upd_list; upd != NULL; upd = upd->next) {
+			if ((txnid = upd->txnid) == WT_TXN_ABORTED)
+				continue;
 
-			update_mem += WT_UPDATE_MEMSIZE(upd);
-		} else {
+			/* Track the largest transaction ID on the list. */
+			if (WT_TXNID_LT(max_txn, txnid))
+				max_txn = txnid;
+
 			/*
+			 * Find the first update we can use.
+			 *
 			 * Checkpoint can only write updates visible as of its
 			 * snapshot.
 			 *
@@ -1198,7 +1215,6 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 					skipped = true;
 			}
 		}
-	}
 
 	/* Reconciliation should never see a reserved update. */
 	WT_ASSERT(session, *updp == NULL || !WT_UPDATE_RESERVED_ISSET(*updp));
@@ -1221,23 +1237,6 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 */
 	if (WT_TXNID_LT(r->max_txn, max_txn))
 		r->max_txn = max_txn;
-
-	/*
-	 * Track the memory required by the update chain.
-	 *
-	 * A page with no uncommitted (skipped) updates, that can't be evicted
-	 * because some updates aren't yet globally visible, can be evicted by
-	 * writing previous versions of the updates to the lookaside file. That
-	 * test is just checking if the skipped updates memory is zero.
-	 *
-	 * If that's not possible (there are skipped updates), we can rewrite
-	 * the pages in-memory, but we don't want to unless there's memory to
-	 * recover. That test is comparing the memory we'd recover to the memory
-	 * we'd have to re-instantiate as part of the rewrite.
-	 */
-	r->update_mem += update_mem;
-	if (skipped)
-		r->update_mem_skipped += update_mem;
 
 	/*
 	 * If there are no skipped updates and all updates are globally visible,
@@ -1307,6 +1306,23 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		return (EBUSY);
 	if (skipped && !F_ISSET(r, WT_EVICT_UPDATE_RESTORE))
 		return (EBUSY);
+
+	/*
+	 * Track the memory required by the update chain.
+	 *
+	 * A page with no uncommitted (skipped) updates, that can't be evicted
+	 * because some updates aren't yet globally visible, can be evicted by
+	 * writing previous versions of the updates to the lookaside file. That
+	 * test is just checking if the skipped updates memory is zero.
+	 *
+	 * If that's not possible (there are skipped updates), we can rewrite
+	 * the pages in-memory, but we don't want to unless there's memory to
+	 * recover. That test is comparing the memory we'd recover to the memory
+	 * we'd have to re-instantiate as part of the rewrite.
+	 */
+	r->update_mem += update_mem;
+	if (skipped)
+		r->update_mem_skipped += update_mem;
 
 	append_origv = false;
 	if (F_ISSET(r, WT_EVICT_UPDATE_RESTORE)) {
