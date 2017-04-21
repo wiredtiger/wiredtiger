@@ -873,7 +873,7 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp,
 	else
 		allocsize = log->allocsize;
 	if (lsnp != NULL)
-		WT_INIT_LSN(lsnp);
+		WT_ZERO_LSN(lsnp);
 	WT_ERR(__wt_buf_grow(session, buf, allocsize));
 	memset(buf->mem, 0, allocsize);
 
@@ -1986,6 +1986,11 @@ advance:
 			WT_SET_LSN(&rd_lsn, rd_lsn.l.file + 1, 0);
 			if (rd_lsn.l.file > end_lsn.l.file)
 				break;
+			if (LF_ISSET(WT_LOGSCAN_RECOVER))
+				__wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+				    "Recovering log %" PRIu32
+				    " through %" PRIu32,
+				    rd_lsn.l.file, end_lsn.l.file);
 			WT_ERR(__log_open_verify(session,
 			    rd_lsn.l.file, &log_fh, &prev_lsn, NULL, &minor));
 			/*
@@ -1995,6 +2000,7 @@ advance:
 			 */
 			if (LF_ISSET(WT_LOGSCAN_RECOVER) &&
 			    !WT_IS_INIT_LSN(&prev_lsn) &&
+			    !WT_IS_ZERO_LSN(&prev_lsn) &&
 			    prev_lsn.l.offset != prev_eof.l.offset) {
 				WT_ASSERT(session,
 				    prev_eof.l.file == prev_lsn.l.file);
@@ -2007,13 +2013,12 @@ advance:
 			 */
 			if (LF_ISSET(WT_LOGSCAN_RECOVER) &&
 			    minor == WT_LOG_MINOR_SYSTEM &&
-			    WT_IS_INIT_LSN(&prev_lsn))
+			    WT_IS_ZERO_LSN(&prev_lsn)) {
+				__wt_verbose(session, WT_VERB_LOG,
+				    "log_scan: Stopping, no system "
+				    "record detected in %s.", log_fh->name);
 				break;
-			if (LF_ISSET(WT_LOGSCAN_RECOVER))
-				__wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
-				    "Recovering log %" PRIu32
-				    " through %" PRIu32,
-				    rd_lsn.l.file, end_lsn.l.file);
+			}
 			WT_ERR(__wt_filesize(session, log_fh, &log_size));
 			eol = false;
 			continue;

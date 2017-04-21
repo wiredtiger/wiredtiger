@@ -42,7 +42,7 @@ union __wt_lsn {
 #define	WT_ZERO_LSN(l)	WT_SET_LSN((l), 0, 0)
 
 /*
- * Initialize LSN is (1,0).  We only need to shift the 1 for comparison.
+ * Test for initial LSN.  We only need to shift the 1 for comparison.
  */
 #define	WT_IS_INIT_LSN(l)	((l)->file_offset == ((uint64_t)1 << 32))
 /*
@@ -52,6 +52,10 @@ union __wt_lsn {
 #define	WT_IS_MAX_LSN(lsn)						\
 	((lsn)->l.file == UINT32_MAX &&					\
 	 ((lsn)->l.offset == INT32_MAX || (lsn)->l.offset == UINT32_MAX))
+/*
+ * Test for zero LSN.  We only need to shift the 1 for comparison.
+ */
+#define	WT_IS_ZERO_LSN(l)	((l)->file_offset == 0)
 
 /*
  * Both of the macros below need to change if the content of __wt_lsn
