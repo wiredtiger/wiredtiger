@@ -49,9 +49,9 @@ static bool inmem;
 
 #define	ENV_CONFIG_COMPAT	",compatibility=(release=\"2.9\")"
 #define	ENV_CONFIG_DEF						\
-    "create,log=(file_max=10M,archive=false,enabled)"
+    "create,log=(file_max=10M,enabled)"
 #define	ENV_CONFIG_TXNSYNC					\
-    "create,log=(file_max=10M,archive=false,enabled),"		\
+    "create,log=(file_max=10M,enabled),"		\
     "transaction_sync=(enabled,method=none)"
 #define	ENV_CONFIG_REC "log=(recover=on)"
 #define	MAX_VAL	4096

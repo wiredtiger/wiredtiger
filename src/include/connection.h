@@ -325,14 +325,15 @@ struct __wt_connection_impl {
 	const char	*stat_stamp;	/* Statistics log entry timestamp */
 	uint64_t	 stat_usecs;	/* Statistics log period */
 
-#define	WT_CONN_LOG_ARCHIVE		0x01	/* Archive is enabled */
-#define	WT_CONN_LOG_DOWNGRADED		0x02	/* Running older version */
-#define	WT_CONN_LOG_ENABLED		0x04	/* Logging is enabled */
-#define	WT_CONN_LOG_EXISTED		0x08	/* Log files found */
-#define	WT_CONN_LOG_FORCE_DOWNGRADE	0x10	/* Force downgrade */
-#define	WT_CONN_LOG_RECOVER_DONE	0x20	/* Recovery completed */
-#define	WT_CONN_LOG_RECOVER_ERR		0x40	/* Error if recovery required */
-#define	WT_CONN_LOG_ZERO_FILL		0x80	/* Manually zero files */
+#define	WT_CONN_LOG_ARCHIVE		0x001	/* Archive is enabled */
+#define	WT_CONN_LOG_DOWNGRADED		0x002	/* Running older version */
+#define	WT_CONN_LOG_ENABLED		0x004	/* Logging is enabled */
+#define	WT_CONN_LOG_EXISTED		0x008	/* Log files found */
+#define	WT_CONN_LOG_FORCE_DOWNGRADE	0x010	/* Force downgrade */
+#define	WT_CONN_LOG_RECOVER_DIRTY	0x020	/* Recovering unclean */
+#define	WT_CONN_LOG_RECOVER_DONE	0x040	/* Recovery completed */
+#define	WT_CONN_LOG_RECOVER_ERR		0x080	/* Error if recovery required */
+#define	WT_CONN_LOG_ZERO_FILL		0x100	/* Manually zero files */
 	uint32_t	 log_flags;	/* Global logging configuration */
 	WT_CONDVAR	*log_cond;	/* Log server wait mutex */
 	WT_SESSION_IMPL *log_session;	/* Log server session */
