@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -41,7 +41,7 @@ __split_safe_free(WT_SESSION_IMPL *session,
 {
 	/* We should only call safe free if we aren't pinning the memory. */
 	WT_ASSERT(session,
-	   __wt_session_gen(session, WT_GEN_SPLIT) != split_gen);
+	    __wt_session_gen(session, WT_GEN_SPLIT) != split_gen);
 
 	/*
 	 * We have swapped something in a page: if we don't have exclusive
@@ -1425,7 +1425,7 @@ __split_multi_inmem(
 
 			/* Apply the modification. */
 			WT_ERR(__wt_col_modify(
-			    session, &cbt, recno, NULL, upd, false));
+			    session, &cbt, recno, NULL, upd, false, false));
 			break;
 		case WT_PAGE_ROW_LEAF:
 			/* Build a key. */
@@ -1447,7 +1447,7 @@ __split_multi_inmem(
 
 			/* Apply the modification. */
 			WT_ERR(__wt_row_modify(
-			    session, &cbt, key, NULL, upd, false));
+			    session, &cbt, key, NULL, upd, false, false));
 			break;
 		WT_ILLEGAL_VALUE_ERR(session);
 		}

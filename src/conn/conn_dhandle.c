@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -364,8 +364,8 @@ __wt_conn_btree_open(
 	F_SET(dhandle, WT_DHANDLE_OPEN);
 
 	/*
-	 * Checkpoint handles are read only, so eviction calculations
-	 * based on the number of btrees are better to ignore them.
+	 * Checkpoint handles are read-only, so eviction calculations based on
+	 * the number of btrees are better to ignore them.
 	 */
 	if (dhandle->checkpoint == NULL)
 		++S2C(session)->open_btree_count;
@@ -634,7 +634,7 @@ int
 __wt_conn_dhandle_discard(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
-	WT_DATA_HANDLE *dhandle;
+	WT_DATA_HANDLE *dhandle, *dhandle_tmp;
 	WT_DECL_RET;
 
 	conn = S2C(session);
@@ -680,10 +680,11 @@ restart:
 		WT_TRET(session->meta_cursor->close(session->meta_cursor));
 
 	/* Close the metadata file handle. */
-	while ((dhandle = TAILQ_FIRST(&conn->dhqh)) != NULL)
+	WT_TAILQ_SAFE_REMOVE_BEGIN(dhandle, &conn->dhqh, q, dhandle_tmp) {
 		WT_WITH_DHANDLE(session, dhandle,
 		    WT_TRET(__wt_conn_dhandle_discard_single(
 		    session, true, F_ISSET(conn, WT_CONN_IN_MEMORY))));
+	} WT_TAILQ_SAFE_REMOVE_END
 
 	return (ret);
 }

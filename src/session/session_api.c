@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -72,11 +72,7 @@ __wt_session_copy_values(WT_SESSION_IMPL *session)
 			    (WT_PREFIX_MATCH(cursor->uri, "file:") &&
 			    F_ISSET((WT_CURSOR_BTREE *)cursor, WT_CBT_NO_TXN)));
 #endif
-
-			F_CLR(cursor, WT_CURSTD_VALUE_INT);
-			WT_RET(__wt_buf_set(session, &cursor->value,
-			    cursor->value.data, cursor->value.size));
-			F_SET(cursor, WT_CURSTD_VALUE_EXT);
+			WT_RET(__cursor_localvalue(cursor));
 		}
 
 	return (0);
@@ -183,7 +179,7 @@ static int
 __session_close(WT_SESSION *wt_session, const char *config)
 {
 	WT_CONNECTION_IMPL *conn;
-	WT_CURSOR *cursor;
+	WT_CURSOR *cursor, *cursor_tmp;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 
@@ -205,7 +201,7 @@ __session_close(WT_SESSION *wt_session, const char *config)
 		__wt_txn_release_snapshot(session);
 
 	/* Close all open cursors. */
-	while ((cursor = TAILQ_FIRST(&session->cursors)) != NULL) {
+	WT_TAILQ_SAFE_REMOVE_BEGIN(cursor, &session->cursors, q, cursor_tmp) {
 		/*
 		 * Notify the user that we are closing the cursor handle
 		 * via the registered close callback.
@@ -215,7 +211,7 @@ __session_close(WT_SESSION *wt_session, const char *config)
 			WT_TRET(session->event_handler->handle_close(
 			    session->event_handler, wt_session, cursor));
 		WT_TRET(cursor->close(cursor));
-	}
+	} WT_TAILQ_SAFE_REMOVE_END
 
 	WT_ASSERT(session, session->ncursors == 0);
 
@@ -293,8 +289,7 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 	 */
 	WT_UNUSED(cfg);
 
-	if (F_ISSET(&session->txn, WT_TXN_RUNNING))
-		WT_ERR_MSG(session, EINVAL, "transaction in progress");
+	WT_ERR(__wt_txn_context_check(session, false));
 
 	WT_ERR(__wt_session_reset_cursors(session, false));
 
@@ -808,8 +803,7 @@ __session_reset(WT_SESSION *wt_session)
 
 	SESSION_API_CALL_NOCONF(session, reset);
 
-	if (F_ISSET(&session->txn, WT_TXN_RUNNING))
-		WT_ERR_MSG(session, EINVAL, "transaction in progress");
+	WT_ERR(__wt_txn_context_check(session, false));
 
 	WT_TRET(__wt_session_reset_cursors(session, true));
 
@@ -1395,8 +1389,7 @@ __session_begin_transaction(WT_SESSION *wt_session, const char *config)
 	SESSION_API_CALL(session, begin_transaction, config, cfg);
 	WT_STAT_CONN_INCR(session, txn_begin);
 
-	if (F_ISSET(&session->txn, WT_TXN_RUNNING))
-		WT_ERR_MSG(session, EINVAL, "Transaction already running");
+	WT_ERR(__wt_txn_context_check(session, false));
 
 	ret = __wt_txn_begin(session, cfg);
 
@@ -1417,6 +1410,8 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL(session, commit_transaction, config, cfg);
 	WT_STAT_CONN_INCR(session, txn_commit);
+
+	WT_ERR(__wt_txn_context_check(session, true));
 
 	txn = &session->txn;
 	if (F_ISSET(txn, WT_TXN_ERROR) && txn->mod_count != 0)
@@ -1446,6 +1441,8 @@ __session_rollback_transaction(WT_SESSION *wt_session, const char *config)
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL(session, rollback_transaction, config, cfg);
 	WT_STAT_CONN_INCR(session, txn_rollback);
+
+	WT_ERR(__wt_txn_context_check(session, true));
 
 	WT_TRET(__wt_session_reset_cursors(session, false));
 
@@ -1528,7 +1525,6 @@ __session_transaction_sync(WT_SESSION *wt_session, const char *config)
 	WT_DECL_RET;
 	WT_LOG *log;
 	WT_SESSION_IMPL *session;
-	WT_TXN *txn;
 	struct timespec now, start;
 	uint64_t remaining_usec, timeout_ms, waited_ms;
 	bool forever;
@@ -1538,9 +1534,7 @@ __session_transaction_sync(WT_SESSION *wt_session, const char *config)
 	WT_STAT_CONN_INCR(session, txn_sync);
 
 	conn = S2C(session);
-	txn = &session->txn;
-	if (F_ISSET(txn, WT_TXN_RUNNING))
-		WT_ERR_MSG(session, EINVAL, "transaction in progress");
+	WT_ERR(__wt_txn_context_check(session, false));
 
 	/*
 	 * If logging is not enabled there is nothing to do.
@@ -1631,7 +1625,6 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	WT_TXN *txn;
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
@@ -1656,10 +1649,7 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
 	 * from evicting anything newer than this because we track the oldest
 	 * transaction ID in the system that is not visible to all readers.
 	 */
-	txn = &session->txn;
-	if (F_ISSET(txn, WT_TXN_RUNNING))
-		WT_ERR_MSG(session, EINVAL,
-		    "Checkpoint not permitted in a transaction");
+	WT_ERR(__wt_txn_context_check(session, false));
 
 	ret = __wt_txn_checkpoint(session, cfg, true);
 

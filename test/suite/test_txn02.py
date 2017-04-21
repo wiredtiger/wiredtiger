@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2016 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -172,7 +172,6 @@ class test_txn02(wttest.WiredTigerTestCase, suite_subprocess):
             try:
                 session = backup_conn.open_session()
             finally:
-                session.checkpoint("force")
                 self.check(backup_conn.open_session(), None, committed)
                 # Sleep long enough so that the archive thread is guaranteed
                 # to run before we close the connection.

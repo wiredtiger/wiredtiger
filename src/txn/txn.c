@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -679,10 +679,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	txn = &session->txn;
 	conn = S2C(session);
 	did_update = txn->mod_count != 0;
-	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) || !did_update);
 
-	if (!F_ISSET(txn, WT_TXN_RUNNING))
-		WT_RET_MSG(session, EINVAL, "No transaction is active");
+	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
+	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) || !did_update);
 
 	/*
 	 * Look for a commit timestamp.
@@ -781,26 +780,39 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/* Process and free updates. */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
-#if TIMESTAMP_SIZE > 0
-		if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
-			switch (op->type) {
-			case WT_TXN_OP_BASIC:
-			case WT_TXN_OP_INMEM:
-				memcpy(op->u.upd->timestamp,
-				    txn->commit_timestamp, TIMESTAMP_SIZE);
-				break;
-
-			case WT_TXN_OP_REF:
-				memcpy(op->u.ref->page_del->timestamp,
-				    txn->commit_timestamp, TIMESTAMP_SIZE);
-				break;
-
-			case WT_TXN_OP_TRUNCATE_COL:
-			case WT_TXN_OP_TRUNCATE_ROW:
-				/* Other operations don't need timestamps. */
+		switch (op->type) {
+		case WT_TXN_OP_BASIC:
+		case WT_TXN_OP_INMEM:
+			/*
+			 * Switch reserved operations to abort to
+			 * simplify obsolete update list truncation.
+			 */
+			if (WT_UPDATE_RESERVED_ISSET(op->u.upd)) {
+				op->u.upd->txnid = WT_TXN_ABORTED;
 				break;
 			}
+
+#if TIMESTAMP_SIZE > 0
+			if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+				memcpy(op->u.upd->timestamp,
+				    txn->commit_timestamp, TIMESTAMP_SIZE);
 #endif
+			break;
+
+		case WT_TXN_OP_REF:
+#if TIMESTAMP_SIZE > 0
+			if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+				memcpy(op->u.ref->page_del->timestamp,
+				    txn->commit_timestamp, TIMESTAMP_SIZE);
+#endif
+			break;
+
+		case WT_TXN_OP_TRUNCATE_COL:
+		case WT_TXN_OP_TRUNCATE_ROW:
+			/* Other operations don't need timestamps. */
+			break;
+		}
+
 		__wt_txn_op_free(session, op);
 	}
 	txn->mod_count = 0;
@@ -824,8 +836,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_UNUSED(cfg);
 
 	txn = &session->txn;
-	if (!F_ISSET(txn, WT_TXN_RUNNING))
-		WT_RET_MSG(session, EINVAL, "No transaction is active");
+	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 
 	/* Rollback notification. */
 	if (txn->notify != NULL)

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -75,9 +75,7 @@ cursor_scope_ops(WT_SESSION *session, const char *uri)
 		{ "insert", INSERT, NULL, },
 		{ "search", SEARCH, NULL, },
 		{ "search", SEARCH_NEAR, NULL, },
-#if 0
 		{ "reserve", RESERVE, NULL, },
-#endif
 		{ "update", UPDATE, NULL, },
 		{ "remove", REMOVE, NULL, },
 		{ "remove", REMOVE_POS, NULL, },
@@ -148,9 +146,7 @@ cursor_scope_ops(WT_SESSION *session, const char *uri)
 			testutil_check(cursor->remove(cursor));
 			break;
 		case RESERVE:
-#if 0
 			testutil_check(cursor->reserve(cursor));
-#endif
 			break;
 		case UPDATE:
 			testutil_check(cursor->update(cursor));

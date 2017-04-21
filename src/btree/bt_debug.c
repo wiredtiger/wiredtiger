@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -987,6 +987,8 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 	for (; upd != NULL; upd = upd->next)
 		if (WT_UPDATE_DELETED_ISSET(upd))
 			WT_RET(ds->f(ds, "\tvalue {deleted}\n"));
+		else if (WT_UPDATE_RESERVED_ISSET(upd))
+			WT_RET(ds->f(ds, "\tvalue {reserved}\n"));
 		else if (hexbyte) {
 			WT_RET(ds->f(ds, "\t{"));
 			WT_RET(__debug_hex_byte(ds,

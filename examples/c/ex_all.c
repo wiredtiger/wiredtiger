@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -296,6 +296,16 @@ cursor_ops(WT_SESSION *session)
 	if (ret == 0)
 		ret = cursor->get_key(cursor, &recno);
 	/*! [Insert a new record and assign a record number] */
+	}
+
+	{
+	/*! [Reserve a record] */
+	const char *key = "some key";
+	ret = session->open_cursor(
+	    session, "table:mytable", NULL, NULL, &cursor);
+	cursor->set_key(cursor, key);
+	ret = cursor->reserve(cursor);
+	/*! [Reserve a record] */
 	}
 
 	{

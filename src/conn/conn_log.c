@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -391,13 +391,11 @@ __log_file_server(void *arg)
 			WT_ERR(__wt_log_extract_lognum(session, close_fh->name,
 			    &filenum));
 			/*
-			 * We update the close file handle before updating the
-			 * close LSN when changing files.  It is possible we
-			 * could see mismatched settings.  If we do, yield
-			 * until it is set.  This should rarely happen.
+			 * The closing file handle should have a correct close
+			 * LSN.
 			 */
-			while (log->log_close_lsn.l.file < filenum)
-				__wt_yield();
+			WT_ASSERT(session,
+			    log->log_close_lsn.l.file == filenum);
 
 			if (__wt_log_cmp(
 			    &log->write_lsn, &log->log_close_lsn) >= 0) {
@@ -522,7 +520,7 @@ __log_file_server(void *arg)
 	}
 
 	if (0) {
-err:		__wt_err(session, ret, "log close server error");
+err:		WT_PANIC_MSG(session, ret, "log close server error");
 	}
 	if (locked)
 		__wt_spin_unlock(session, &log->log_sync_lock);
@@ -740,7 +738,8 @@ __log_wrlsn_server(void *arg)
 	WT_ERR(__wt_log_force_write(session, 1, NULL));
 	__wt_log_wrlsn(session, NULL);
 	if (0) {
-err:		__wt_err(session, ret, "log wrlsn server error");
+err:		WT_PANIC_MSG(session, ret, "log wrlsn server error");
+
 	}
 	return (WT_THREAD_RET_VALUE);
 }
@@ -844,7 +843,7 @@ __log_server(void *arg)
 	}
 
 	if (0) {
-err:		__wt_err(session, ret, "log server error");
+err:		WT_PANIC_MSG(session, ret, "log server error");
 	}
 	return (WT_THREAD_RET_VALUE);
 }

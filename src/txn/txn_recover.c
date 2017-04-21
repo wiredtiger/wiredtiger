@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -441,7 +441,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 	 * last checkpoint was done with logging disabled, recovery should not
 	 * run.  Scan the metadata to figure out the largest file ID.
 	 */
-	if (!FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_EXISTED) ||
+	if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_EXISTED) ||
 	    WT_IS_MAX_LSN(&metafile->ckpt_lsn)) {
 		WT_ERR(__recovery_file_scan(&r));
 		conn->next_file_id = r.max_fileid;
@@ -535,6 +535,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 	 * this is not a read-only connection.
 	 * We can consider skipping it in the future.
 	 */
+	if (needs_rec)
+		FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DIRTY);
 	if (WT_IS_INIT_LSN(&r.ckpt_lsn))
 		WT_ERR(__wt_log_scan(session, NULL,
 		    WT_LOGSCAN_FIRST | WT_LOGSCAN_RECOVER,
@@ -559,6 +561,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 done:	FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE);
 err:	WT_TRET(__recovery_free(&r));
 	__wt_free(session, config);
+	FLD_CLR(conn->log_flags, WT_CONN_LOG_RECOVER_DIRTY);
 
 	if (ret != 0)
 		__wt_err(session, ret, "Recovery failed");

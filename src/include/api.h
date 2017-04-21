@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -12,21 +12,19 @@
 	const char *__oldname = (s)->name;				\
 	(s)->dhandle = (dh);						\
 	(s)->name = (s)->lastop = #h "." #n;				\
-
-#define	API_CALL_NOCONF(s, h, n, dh) do {				\
-	API_SESSION_INIT(s, h, n, dh);					\
 	WT_ERR(WT_SESSION_CHECK_PANIC(s));				\
 	__wt_verbose((s), WT_VERB_API, "CALL: " #h ":" #n)
+
+#define	API_CALL_NOCONF(s, h, n, dh) do {				\
+	API_SESSION_INIT(s, h, n, dh)
 
 #define	API_CALL(s, h, n, dh, config, cfg) do {				\
 	const char *(cfg)[] =						\
 	    { WT_CONFIG_BASE(s, h##_##n), config, NULL };		\
 	API_SESSION_INIT(s, h, n, dh);					\
-	WT_ERR(WT_SESSION_CHECK_PANIC(s));				\
 	if ((config) != NULL)						\
 		WT_ERR(__wt_config_check((s),				\
-		    WT_CONFIG_REF(session, h##_##n), (config), 0));	\
-	__wt_verbose((s), WT_VERB_API, "CALL: " #h ":" #n)
+		    WT_CONFIG_REF(session, h##_##n), (config), 0))
 
 #define	API_END(s, ret)							\
 	if ((s) != NULL) {						\
