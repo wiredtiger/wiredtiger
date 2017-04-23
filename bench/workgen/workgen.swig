@@ -34,7 +34,9 @@
 %include "typemaps.i"
 %include "std_vector.i"
 %include "std_string.i"
+%include "stdint.i"
 %include "attribute.i"
+%include "carrays.i"
 
 /* We only need to reference WiredTiger types. */
 %import "wiredtiger.h"
@@ -120,12 +122,14 @@ InterruptableFunction(workgen::Workload::run)
 
 %template(OpList) std::vector<workgen::Operation>;
 %template(ThreadList) std::vector<workgen::Thread>;
+%array_class(uint32_t, uint32Array);
+%array_class(long, longArray);
 
 WorkgenClass(Key)
 WorkgenClass(Operation)
+WorkgenClass(Stats)
 WorkgenClass(Table)
 WorkgenClass(TableOptions)
-WorkgenClass(TableStats)
 WorkgenClass(Thread)
 WorkgenClass(ThreadOptions)
 WorkgenClass(Transaction)
@@ -200,5 +204,29 @@ WorkgenFrozenClass(WorkloadOptions)
         else:
             raise Exception('ThreadList.__sum__ requires an Thread or ThreadList')
         return tlw
+%}
+};
+
+%extend workgen::Track {
+%pythoncode %{
+    def __longarray(self, size):
+        result = longArray(size)
+        result.__len__ = lambda: size
+        return result
+
+    def us(self):
+        result = self.__longarray(1000)
+        self._get_us(result)
+        return result
+
+    def ms(self):
+        result = self.__longarray(1000)
+        self._get_ms(result)
+        return result
+
+    def sec(self):
+        result = self.__longarray(100)
+        self._get_sec(result)
+        return result
 %}
 };

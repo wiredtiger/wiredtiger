@@ -13,24 +13,78 @@ namespace workgen {
 
 struct Context;
 struct Thread;
+struct ThreadEnvironment;
 struct Throttle;
 struct Transaction;
 
-struct TableStats {
-    uint64_t inserts;
-    uint64_t not_found;
-    uint64_t reads;
-    uint64_t removes;
-    uint64_t updates;
-    uint64_t truncates;
-    TableStats() : inserts(0), not_found(0), reads(0), removes(0),
-	updates(0), truncates(0) {}
-    void add(const TableStats&);
-    void subtract(const TableStats&);
+struct Track {
+    // Threads maintain the total thread operation and total latency they've
+    // experienced; the monitor thread periodically copies these values into
+    // the last_XXX fields.
+
+    uint64_t ops;                       // Total operations */
+    uint64_t latency_ops;               // Total ops sampled for latency
+    uint64_t latency;                   // Total latency */
+
+    uint64_t last_latency_ops;          // Last read by monitor thread
+    uint64_t last_latency;
+
+    // Minimum/maximum latency, shared with the monitor thread, that is, the
+    // monitor thread clears it so it's recalculated again for each period.
+
+    uint32_t min_latency;                // Minimum latency (uS)
+    uint32_t max_latency;                // Maximum latency (uS)
+
+    Track(bool latency_tracking = false);
+    Track(const Track &other);
+    ~Track();
+
+    void add(const Track&);
+    void assign(const Track&);
+    void clear();
+    void incr();
+    void incr_with_latency(uint64_t usecs);
+    void subtract(const Track&);
+    void track_latency(bool);
+    bool track_latency() const { return (us != NULL); }
+
+    void _get_us(long *);
+    void _get_ms(long *);
+    void _get_sec(long *);
+private:
+    // Latency buckets. From python, accessed via methods us(), ms(), sec()
+
+    uint32_t *us;                        // < 1us ... 1000us
+    uint32_t *ms;                        // < 1ms ... 1000ms
+    uint32_t *sec;                       // < 1s 2s ... 100s
+
+    Track & operator=(const Track &other);   // use explicit assign method
+};
+
+struct Stats {
+    Track insert;
+    Track not_found;
+    Track read;
+    Track remove;
+    Track update;
+    Track truncate;
+
+    Stats(bool latency = false);
+    Stats(const Stats &other);
+    ~Stats();
+
+    void add(const Stats&);
+    void assign(const Stats&);
     void clear();
     void describe(std::ostream &os) const;
-    void report(std::ostream &os) const;
     void final_report(std::ostream &os, timespec &totalsecs) const;
+    void report(std::ostream &os) const;
+    void subtract(const Stats&);
+    void track_latency(bool);
+    bool track_latency() const { return (insert.track_latency()); }
+
+private:
+    Stats & operator=(const Stats &other);   // use explicit assign method
 };
 
 #ifndef SWIG
@@ -56,44 +110,6 @@ struct WorkgenException {
     }
     WorkgenException(const WorkgenException &other) : _str(other._str) {}
     ~WorkgenException() {}
-};
-
-// There is one of these per Thread object.
-// It is not exposed to Python.
-struct ThreadEnvironment {
-    int _errno;
-    WorkgenException _exception;
-    Thread *_thread;
-    Context *_context;
-    workgen_random_state *_rand_state;
-    Throttle *_throttle;
-    uint64_t _throttle_ops;
-    uint64_t _throttle_limit;
-    bool _in_transaction;
-    uint32_t _number;
-    TableStats _stats;
-
-    typedef enum {
-	USAGE_READ = 0x1, USAGE_WRITE = 0x2, USAGE_MIXED = 0x4 } Usage;
-    std::map<tint_t, uint32_t> _table_usage;       // value is Usage
-    WT_CURSOR **_cursors;                          // indexed by tint_t
-
-    ThreadEnvironment();
-    ~ThreadEnvironment();
-
-    int create(WT_SESSION *session);
-    int open(WT_SESSION *session);
-    int close();
-    void free_all();
-    static int cross_check(std::vector<ThreadEnvironment> &envs);
-
-#ifdef _DEBUG
-    std::stringstream _debug_messages;
-    std::string get_debug();
-#define	DEBUG_CAPTURE(env, expr)	env._debug_messages << expr
-#else
-#define	DEBUG_CAPTURE(env, expr)
-#endif
 };
 
 struct Throttle {
@@ -140,7 +156,9 @@ struct Context {
 };
 
 struct TableOptions {
+    /*! default size of the key, unless overridden by Key.size */
     int key_size;
+    /*! default size of the value, unless overridden by Value.size */
     int value_size;
 
     TableOptions();
@@ -227,6 +245,7 @@ struct Operation {
     void describe(std::ostream &os) const;
 
 #ifndef SWIG
+    uint64_t get_key_recno(ThreadEnvironment &env, tint_t tint);
     void kv_compute_max(bool);
     void kv_gen(bool, uint64_t, char *) const;
     void kv_size_buffer(bool, size_t &size) const;
@@ -234,7 +253,7 @@ struct Operation {
     int run(ThreadEnvironment &env);
     void create_all(ThreadEnvironment &env, size_t &keysize,
 	size_t &valuesize);
-    void get_static_counts(TableStats &, int);
+    void get_static_counts(Stats &, int);
     void size_check() const;
 #endif
 };
@@ -293,7 +312,7 @@ struct Thread {
     int close_all(ThreadEnvironment &env);
     int create_all(WT_CONNECTION *conn, ThreadEnvironment &env);
     void free_all();
-    void get_static_counts(TableStats &);
+    void get_static_counts(Stats &);
     int open_all(ThreadEnvironment &env);
     int run(ThreadEnvironment &env);
 #endif
@@ -318,8 +337,16 @@ struct Transaction {
 };
 
 struct WorkloadOptions {
-    int run_time;
+    /*! output throughput information every interval seconds, 0 to disable */
     int report_interval;
+    /*! total workload seconds */
+    int run_time;
+    /*! performance logging every interval seconds, 0 to disable */
+    int sample_interval;
+    /*! how often the latency of operations is measured. 1 for every operation,
+     * 2 for every second operation, 3 for every third operation etc.
+     */
+    int sample_rate;
 
     WorkloadOptions();
     WorkloadOptions(const WorkloadOptions &other);
@@ -333,6 +360,7 @@ struct WorkloadOptions {
 
 struct Workload {
     WorkloadOptions options;
+    Stats stats;
     Context *_context;
     std::vector<Thread> _threads;
 
@@ -358,10 +386,53 @@ private:
     int create_all(WT_CONNECTION *conn, Context *context,
 	std::vector<ThreadEnvironment> &envs);
     void final_report(std::vector<ThreadEnvironment>&, timespec &);
-    void get_stats(std::vector<ThreadEnvironment>&, TableStats &stats);
+    void get_stats(std::vector<ThreadEnvironment>&, Stats &stats);
     int open_all(std::vector<ThreadEnvironment> &envs);
-    void report(std::vector<ThreadEnvironment>&, time_t, time_t, TableStats &);
+    void report(std::vector<ThreadEnvironment>&, time_t, time_t, Stats &);
     int run_all(std::vector<ThreadEnvironment> &envs);
 };
+
+#ifndef SWIG
+
+// There is one of these per Thread object.
+// It is not exposed to Python.
+struct ThreadEnvironment {
+    int _errno;
+    WorkgenException _exception;
+    Thread *_thread;
+    Context *_context;
+    Workload *_workload;
+    workgen_random_state *_rand_state;
+    Throttle *_throttle;
+    uint64_t _throttle_ops;
+    uint64_t _throttle_limit;
+    bool _in_transaction;
+    uint32_t _number;
+    Stats _stats;
+
+    typedef enum {
+	USAGE_READ = 0x1, USAGE_WRITE = 0x2, USAGE_MIXED = 0x4 } Usage;
+    std::map<tint_t, uint32_t> _table_usage;       // value is Usage
+    WT_CURSOR **_cursors;                          // indexed by tint_t
+
+    ThreadEnvironment();
+    ~ThreadEnvironment();
+
+    int create(WT_SESSION *session);
+    int open(WT_SESSION *session);
+    int close();
+    void free_all();
+    static int cross_check(std::vector<ThreadEnvironment> &envs);
+
+#ifdef _DEBUG
+    std::stringstream _debug_messages;
+    std::string get_debug();
+#define	DEBUG_CAPTURE(env, expr)	env._debug_messages << expr
+#else
+#define	DEBUG_CAPTURE(env, expr)
+#endif
+};
+
+#endif
 
 };

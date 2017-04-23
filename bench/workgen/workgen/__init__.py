@@ -29,80 +29,14 @@
 # __init__.py
 #      initialization for workgen module
 #
-import glob, os, sys
+import os, sys
 
 # After importing the SWIG-generated file, copy all symbols from from it
 # to this module so they will appear in the workgen namespace.
 me = sys.modules[__name__]
 sys.path.append(os.path.dirname(__file__))  # needed for Python3
-import workgen
-for name in dir(workgen):
-    value = getattr(workgen, name)
-    setattr(me, name, value)
-
-def txn(op, config=None):
-    t = Transaction(config)
-    op._transaction = t
-    return op
-
-def wiredtiger_builddir():
-    thisdir = os.path.dirname(__file__)
-    wt_disttop = os.path.dirname(os.path.dirname(os.path.dirname(thisdir)))
-
-    # Check for a local build that contains the wt utility. First check in
-    # current working directory, then in build_posix and finally in the disttop
-    # directory. This isn't ideal - if a user has multiple builds in a tree we
-    # could pick the wrong one.
-    if os.path.isfile(os.path.join(os.getcwd(), 'wt')):
-        builddir = os.getcwd()
-    elif os.path.isfile(os.path.join(wt_disttop, 'wt')):
-        builddir = wt_disttop
-    elif os.path.isfile(os.path.join(wt_disttop, 'build_posix', 'wt')):
-        builddir = os.path.join(wt_disttop, 'build_posix')
-    elif os.path.isfile(os.path.join(wt_disttop, 'wt.exe')):
-        builddir = wt_disttop
-    else:
-        raise Exception('Unable to find useable WiredTiger build')
-    return builddir
-
-# Return the wiredtiger_open extension argument for any needed shared library.
-# Called with a list of extensions, e.g.
-#    [ 'compressors/snappy', 'encryptors/rotn=config_string' ]
-def extensions_config(exts):
-    result = ''
-    extfiles = {}
-    errpfx = 'extensions_config'
-    builddir = wiredtiger_builddir()
-    for ext in exts:
-        extconf = ''
-        if '=' in ext:
-            splits = ext.split('=', 1)
-            ext = splits[0]
-            extconf = '=' + splits[1]
-        splits = ext.split('/')
-        if len(splits) != 2:
-            raise Exception(errpfx + ": " + ext +
-                ": extension is not named <dir>/<name>")
-        libname = splits[1]
-        dirname = splits[0]
-        pat = os.path.join(builddir, 'ext',
-            dirname, libname, '.libs', 'libwiredtiger_*.so')
-        filenames = glob.glob(pat)
-        if len(filenames) == 0:
-            raise Exception(errpfx +
-                ": " + ext +
-                ": no extensions library found matching: " + pat)
-        elif len(filenames) > 1:
-            raise Exception(errpfx + ": " + ext +
-                ": multiple extensions libraries found matching: " + pat)
-        complete = '"' + filenames[0] + '"' + extconf
-        if ext in extfiles:
-            if extfiles[ext] != complete:
-                raise Exception(errpfx +
-                    ": non-matching extension arguments in " +
-                    str(exts))
-        else:
-            extfiles[ext] = complete
-    if len(extfiles) != 0:
-        result = ',extensions=[' + ','.join(extfiles.values()) + ']'
-    return result
+import workgen, workgen_util
+for module in workgen, workgen_util:
+    for name in dir(module):
+        value = getattr(module, name)
+        setattr(me, name, value)

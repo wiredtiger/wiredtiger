@@ -90,10 +90,10 @@ threads = ins_thread * 1 + upd_thread * 1 + read_thread * 2
 workload = Workload(context, threads)
 ##workload.options.run_time = 3600
 workload.options.run_time = 10
-workload.options.report_interval=1
+workload.options.report_interval = 1
+workload.options.sample_interval = 5
+workload.options.sample_rate = 1
 print('heavy stress workload:')
 workload.run(conn)
 
-#### TODO:
-####sample_interval=5
-####sample_rate=1
+workload_latency(workload)

@@ -18,6 +18,10 @@ extern "C" {
 #include "misc.h"
 }
 
+#define LATENCY_US_BUCKETS 1000
+#define LATENCY_MS_BUCKETS 1000
+#define LATENCY_SEC_BUCKETS 100
+
 #define THROTTLE_PER_SEC  20     // times per sec we will throttle
 
 #define MIN(a, b)		((a) < (b) ? (a) : (b))
@@ -125,9 +129,9 @@ int Context::create_all() {
 }
 
 ThreadEnvironment::ThreadEnvironment() :
-    _errno(0), _exception(), _thread(NULL), _context(NULL), _rand_state(NULL),
-    _throttle(NULL), _throttle_ops(0), _throttle_limit(0),
-    _in_transaction(false), _number(0), _stats(), _table_usage(),
+    _errno(0), _exception(), _thread(NULL), _context(NULL), _workload(NULL),
+    _rand_state(NULL), _throttle(NULL), _throttle_ops(0), _throttle_limit(0),
+    _in_transaction(false), _number(0), _stats(false), _table_usage(),
     _cursors(NULL) {
 }
 
@@ -136,6 +140,8 @@ ThreadEnvironment::~ThreadEnvironment() {
 }
 
 int ThreadEnvironment::create(WT_SESSION *session) {
+    _table_usage.clear();
+    _stats.track_latency(_workload->options.sample_interval > 0);
     WT_RET(workgen_random_alloc(session, &_rand_state));
     _throttle_ops = 0;
     _throttle_limit = 0;
@@ -264,7 +270,7 @@ int Throttle::throttle(uint64_t op_count, uint64_t *op_limit) {
               rand_signed(workgen_random(_env._rand_state)));
             if (sleep_ms > 0) {
                 DEBUG_CAPTURE(_env, ", sleep=" << sleep_ms);
-                usleep((useconds_t)(sleep_ms * 1000));
+                usleep((useconds_t)ms_to_us(sleep_ms));
             }
         }
         _next_div = ts_add_ms(_next_div, _ms_per_div);
@@ -361,7 +367,6 @@ int Thread::create_all(WT_CONNECTION *conn, ThreadEnvironment &env) {
     ASSERT(_session == NULL);
     WT_RET(conn->open_session(conn, NULL, NULL, &_session));
     WT_RET(env.create(_session));
-    env._table_usage.clear();
     keysize = 1;
     valuesize = 1;
     _op.create_all(env, keysize, valuesize);
@@ -414,7 +419,7 @@ err:
     return (ret);
 }
 
-void Thread::get_static_counts(TableStats &stats)
+void Thread::get_static_counts(Stats &stats)
 {
     _op.get_static_counts(stats, 1);
 }
@@ -584,19 +589,31 @@ void Operation::kv_size_buffer(bool iskey, size_t &maxsize) const {
     }
 }
 
+uint64_t Operation::get_key_recno(ThreadEnvironment &env, tint_t tint)
+{
+    uint64_t recno_count;
+    uint32_t rand;
+
+    recno_count = env._context->_recno[tint];
+    if (recno_count == 0)
+        // The file has no entries, returning 0 forces a WT_NOTFOUND return.
+        return (0);
+    rand = workgen_random(env._rand_state);
+    return (rand % recno_count + 1);  // recnos are one-based.
+}
+
 int Operation::run(ThreadEnvironment &env) {
-    TableStats *stats;
     Thread *thread = env._thread;
+    Track *track;
     tint_t tint = _table._tint;
     WT_CURSOR *cursor = env._cursors[tint];
     WT_SESSION *session = thread->_session;
     WT_DECL_RET;
-    uint64_t recno, recno_count;
-    uint32_t rand;
+    uint64_t recno;
     char *buf;
+    bool measure_latency;
 
     recno = 0;
-    stats = &env._stats;
     if (env._throttle != NULL) {
         if (env._throttle_ops >= env._throttle_limit && !env._in_transaction) {
             WT_ERR(env._throttle->throttle(env._throttle_ops,
@@ -615,18 +632,37 @@ int Operation::run(ThreadEnvironment &env) {
     // the record will get WT_NOTFOUND.  It should be somewhat rare
     // (and most likely when the threads are first beginning).  Any
     // WT_NOTFOUND returns are allowed and get their own statistic bumped.
-    if (_optype == OP_INSERT)
+    switch (_optype) {
+    case OP_INSERT:
+        track = &env._stats.insert;
         recno = workgen_atomic_add64(&env._context->_recno[tint], 1);
-    else if (_optype != OP_NONE) {
-        recno_count = env._context->_recno[tint];
-        if (recno_count == 0)
-            // The file has no entries, force a WT_NOTFOUND return.
-            recno = 0;
-        else {
-            rand = workgen_random(env._rand_state);
-            recno = rand % recno_count + 1;  // recnos are one-based.
-        }
+        break;
+    case OP_REMOVE:
+        track = &env._stats.remove;
+        recno = get_key_recno(env, tint);
+        break;
+    case OP_SEARCH:
+        track = &env._stats.read;
+        recno = get_key_recno(env, tint);
+        break;
+    case OP_UPDATE:
+        track = &env._stats.update;
+        recno = get_key_recno(env, tint);
+        break;
+    case OP_NONE:
+        recno = 0;
+        track = NULL;
+        break;
     }
+
+    measure_latency = track != NULL && track->ops != 0 &&
+      track->track_latency() &&
+      (track->ops % env._workload->options.sample_rate == 0);
+
+    timespec start;
+    if (measure_latency)
+        workgen_epoch(&start);
+
     if (_transaction != NULL) {
         if (env._in_transaction)
             THROW("nested transactions not supported");
@@ -646,35 +682,32 @@ int Operation::run(ThreadEnvironment &env) {
         switch (_optype) {
         case OP_INSERT:
             WT_ERR(cursor->insert(cursor));
-            stats->inserts++;
             break;
         case OP_REMOVE:
             WT_ERR_NOTFOUND_OK(cursor->remove(cursor));
-            if (ret == 0)
-                stats->removes++;
-            else
-                stats->not_found++;
             break;
         case OP_SEARCH:
             ret = cursor->search(cursor);
-            if (ret == 0)
-                stats->reads++;
-            else
-                stats->not_found++;
             break;
         case OP_UPDATE:
             WT_ERR_NOTFOUND_OK(cursor->update(cursor));
-            if (ret == 0)
-                stats->updates++;
-            else
-                stats->not_found++;
             break;
         default:
             ASSERT(false);
         }
-        ret = 0;  // WT_NOTFOUND allowed.
+        if (ret != 0) {
+            track = &env._stats.not_found;
+            ret = 0;  // WT_NOTFOUND allowed.
+        }
         cursor->reset(cursor);
     }
+    if (measure_latency) {
+        timespec stop;
+        workgen_epoch(&stop);
+        track->incr_with_latency(ts_us(stop - start));
+    } else if (track != NULL)
+        track->incr();
+
     if (_group != NULL)
         for (int count = 0; !thread->_stop && count < _repeatgroup; count++)
             for (std::vector<Operation>::iterator i = _group->begin();
@@ -692,22 +725,22 @@ err:
     return (ret);
 }
 
-void Operation::get_static_counts(TableStats &stats, int multiplier)
+void Operation::get_static_counts(Stats &stats, int multiplier)
 {
     switch (_optype) {
     case OP_NONE:
         break;
     case OP_INSERT:
-        stats.inserts += multiplier;
+        stats.insert.ops += multiplier;
         break;
     case OP_REMOVE:
-        stats.removes += multiplier;
+        stats.remove.ops += multiplier;
         break;
     case OP_SEARCH:
-        stats.reads += multiplier;
+        stats.read.ops += multiplier;
         break;
     case OP_UPDATE:
-        stats.updates += multiplier;
+        stats.update.ops += multiplier;
         break;
     default:
         ASSERT(false);
@@ -727,75 +760,293 @@ int Operation::open_all(WT_SESSION *session, ThreadEnvironment &env) {
     return (0);
 }
 
-void TableStats::add(const TableStats &other) {
-    inserts += other.inserts;
-    not_found += other.not_found;
-    reads += other.reads;
-    removes += other.removes;
-    updates += other.updates;
-    truncates += other.truncates;
+Track::Track(bool latency_tracking) : ops(0), latency_ops(0), latency(0),
+    last_latency_ops(0), last_latency(0), min_latency(0), max_latency(0),
+    us(NULL), ms(NULL), sec(NULL) {
+    track_latency(latency_tracking);
 }
 
-void TableStats::subtract(const TableStats &other) {
-    inserts -= other.inserts;
-    not_found -= other.not_found;
-    reads -= other.reads;
-    removes -= other.removes;
-    updates -= other.updates;
-    truncates -= other.truncates;
-}
-
-void TableStats::clear() {
-    inserts = 0;
-    not_found = 0;
-    reads = 0;
-    removes = 0;
-    updates = 0;
-    truncates = 0;
-}
-
-void TableStats::report(std::ostream &os) const {
-    os << reads << " reads";
-    if (not_found > 0) {
-        os << " (" << not_found << " not found)";
+Track::Track(const Track &other) : ops(other.ops),
+    latency_ops(other.latency_ops), latency(other.latency),
+    last_latency_ops(other.last_latency_ops), last_latency(other.last_latency),
+    min_latency(other.min_latency), max_latency(other.max_latency),
+    us(NULL), ms(NULL), sec(NULL) {
+    if (other.us != NULL) {
+        us = new uint32_t[LATENCY_US_BUCKETS];
+        ms = new uint32_t[LATENCY_MS_BUCKETS];
+        sec = new uint32_t[LATENCY_SEC_BUCKETS];
+        memcpy(us, other.us, sizeof(uint32_t) * LATENCY_US_BUCKETS);
+        memcpy(ms, other.ms, sizeof(uint32_t) * LATENCY_MS_BUCKETS);
+        memcpy(sec, other.sec, sizeof(uint32_t) * LATENCY_SEC_BUCKETS);
     }
-    os << ", " << inserts << " inserts, ";
-    os << updates << " updates, ";
-    os << truncates << " truncates, ";
-    os << removes << " removes";
 }
 
-void TableStats::final_report(std::ostream &os, timespec &totalsecs) const {
+Track::~Track() {
+    if (us != NULL) {
+        delete us;
+        delete ms;
+        delete sec;
+    }
+}
+
+void Track::add(const Track &other) {
+    ops += other.ops;
+    latency_ops += other.latency_ops;
+    latency += other.latency;
+    last_latency_ops += other.last_latency_ops;
+    last_latency += other.last_latency;
+
+    min_latency = MIN(min_latency, other.min_latency);
+    max_latency = MAX(max_latency, other.max_latency);
+
+    if (us != NULL && other.us != NULL) {
+        for (int i = 0; i < LATENCY_US_BUCKETS; i++)
+            us[i] += other.us[i];
+        for (int i = 0; i < LATENCY_MS_BUCKETS; i++)
+            ms[i] += other.ms[i];
+        for (int i = 0; i < LATENCY_SEC_BUCKETS; i++)
+            sec[i] += other.sec[i];
+    }
+}
+
+void Track::assign(const Track &other) {
+    ops = other.ops;
+    latency_ops = other.latency_ops;
+    latency = other.latency;
+    last_latency_ops = other.last_latency_ops;
+    last_latency = other.last_latency;
+    min_latency = other.min_latency;
+    max_latency = other.max_latency;
+
+    if (other.us == NULL && us != NULL) {
+        delete us;
+        delete ms;
+        delete sec;
+        us = NULL;
+        ms = NULL;
+        sec = NULL;
+    }
+    else if (other.us != NULL && us == NULL) {
+        us = new uint32_t[LATENCY_US_BUCKETS];
+        ms = new uint32_t[LATENCY_MS_BUCKETS];
+        sec = new uint32_t[LATENCY_SEC_BUCKETS];
+    }
+    if (us != NULL) {
+        memcpy(us, other.us, sizeof(uint32_t) * LATENCY_US_BUCKETS);
+        memcpy(ms, other.ms, sizeof(uint32_t) * LATENCY_MS_BUCKETS);
+        memcpy(sec, other.sec, sizeof(uint32_t) * LATENCY_SEC_BUCKETS);
+    }
+}
+
+void Track::clear() {
+    ops = 0;
+    latency_ops = 0;
+    latency = 0;
+    last_latency_ops = 0;
+    last_latency = 0;
+    min_latency = 0;
+    max_latency = 0;
+    if (us != NULL) {
+        memset(us, 0, sizeof(uint32_t) * LATENCY_US_BUCKETS);
+        memset(ms, 0, sizeof(uint32_t) * LATENCY_MS_BUCKETS);
+        memset(sec, 0, sizeof(uint32_t) * LATENCY_SEC_BUCKETS);
+    }
+}
+
+void Track::incr() {
+    ops++;
+}
+
+void Track::incr_with_latency(uint64_t usecs) {
+    ASSERT(us != NULL);
+
+    ops++;
+    latency_ops++;
+    latency += usecs;
+    if (usecs > max_latency)
+        max_latency = (uint32_t)usecs;
+    if (usecs < min_latency)
+        min_latency = (uint32_t)usecs;
+
+    // Update a latency bucket.
+    // First buckets: usecs from 100us to 1000us at 100us each.
+    if (usecs < LATENCY_US_BUCKETS)
+        us[usecs]++;
+
+    // Second buckets: milliseconds from 1ms to 1000ms, at 1ms each.
+    else if (usecs < ms_to_us(LATENCY_MS_BUCKETS))
+        ms[us_to_ms(usecs)]++;
+
+    // Third buckets are seconds from 1s to 100s, at 1s each.
+    else if (usecs < sec_to_us(LATENCY_SEC_BUCKETS))
+        sec[us_to_sec(usecs)]++;
+
+    // >100 seconds, accumulate in the biggest bucket. */
+    else
+        sec[LATENCY_SEC_BUCKETS - 1]++;
+}
+
+void Track::subtract(const Track &other) {
+    ops -= other.ops;
+    latency_ops -= other.latency_ops;
+    latency -= other.latency;
+    last_latency_ops -= other.last_latency_ops;
+    last_latency -= other.last_latency;
+
+    // There's no sensible thing to be done for min/max_latency.
+
+    if (us != NULL && other.us != NULL) {
+        for (int i = 0; i < LATENCY_US_BUCKETS; i++)
+            us[i] -= other.us[i];
+        for (int i = 0; i < LATENCY_MS_BUCKETS; i++)
+            ms[i] -= other.ms[i];
+        for (int i = 0; i < LATENCY_SEC_BUCKETS; i++)
+            sec[i] -= other.sec[i];
+    }
+}
+
+void Track::track_latency(bool newval) {
+    if (newval) {
+        if (us == NULL) {
+            us = new uint32_t[LATENCY_US_BUCKETS];
+            ms = new uint32_t[LATENCY_MS_BUCKETS];
+            sec = new uint32_t[LATENCY_SEC_BUCKETS];
+            memset(us, 0, sizeof(uint32_t) * LATENCY_US_BUCKETS);
+            memset(ms, 0, sizeof(uint32_t) * LATENCY_MS_BUCKETS);
+            memset(sec, 0, sizeof(uint32_t) * LATENCY_SEC_BUCKETS);
+        }
+    } else {
+        if (us != NULL) {
+            delete us;
+            delete ms;
+            delete sec;
+            us = NULL;
+            ms = NULL;
+            sec = NULL;
+        }
+    }
+}
+
+void Track::_get_us(long *result) {
+    if (us != NULL) {
+        for (int i = 0; i < LATENCY_US_BUCKETS; i++)
+            result[i] = (long)us[i];
+    } else
+        memset(result, 0, sizeof(long) * LATENCY_US_BUCKETS);
+}
+void Track::_get_ms(long *result) {
+    if (ms != NULL) {
+        for (int i = 0; i < LATENCY_MS_BUCKETS; i++)
+            result[i] = (long)ms[i];
+    } else
+        memset(result, 0, sizeof(long) * LATENCY_MS_BUCKETS);
+}
+void Track::_get_sec(long *result) {
+    if (sec != NULL) {
+        for (int i = 0; i < LATENCY_SEC_BUCKETS; i++)
+            result[i] = (long)sec[i];
+    } else
+        memset(result, 0, sizeof(long) * LATENCY_SEC_BUCKETS);
+}
+
+Stats::Stats(bool latency) : insert(latency), not_found(latency),
+    read(latency), remove(latency), update(latency), truncate(latency) {
+}
+
+Stats::Stats(const Stats &other) : insert(other.insert),
+    not_found(other.not_found), read(other.read), remove(other.remove),
+    update(other.update), truncate(other.truncate) {
+}
+
+Stats::~Stats() {}
+
+void Stats::add(const Stats &other) {
+    insert.add(other.insert);
+    not_found.add(other.not_found);
+    read.add(other.read);
+    remove.add(other.remove);
+    update.add(other.update);
+    truncate.add(other.truncate);
+}
+
+void Stats::assign(const Stats &other) {
+    insert.assign(other.insert);
+    not_found.assign(other.not_found);
+    read.assign(other.read);
+    remove.assign(other.remove);
+    update.assign(other.update);
+    truncate.assign(other.truncate);
+}
+
+void Stats::clear() {
+    insert.clear();
+    not_found.clear();
+    read.clear();
+    remove.clear();
+    update.clear();
+    truncate.clear();
+}
+
+void Stats::describe(std::ostream &os) const {
+    os << "Stats: reads " << read.ops;
+    if (not_found.ops > 0) {
+        os << " (" << not_found.ops << " not found)";
+    }
+    os << ", inserts " << insert.ops;
+    os << ", updates " << update.ops;
+    os << ", truncates " << truncate.ops;
+    os << ", removes " << remove.ops;
+}
+
+void Stats::final_report(std::ostream &os, timespec &totalsecs) const {
     uint64_t ops = 0;
-    ops += reads;
-    ops += not_found;
-    ops += inserts;
-    ops += updates;
-    ops += truncates;
-    ops += removes;
+    ops += read.ops;
+    ops += not_found.ops;
+    ops += insert.ops;
+    ops += update.ops;
+    ops += truncate.ops;
+    ops += remove.ops;
 
 #define FINAL_OUTPUT(os, field, singular, ops, totalsecs)               \
     os << "Executed " << field << " " #singular " operations ("         \
        << PCT(field, ops) << "%) " << OPS_PER_SEC(field, totalsecs)     \
        << " ops/sec" << std::endl
 
-    FINAL_OUTPUT(os, reads, read, ops, totalsecs);
-    FINAL_OUTPUT(os, not_found, not found, ops, totalsecs);
-    FINAL_OUTPUT(os, inserts, insert, ops, totalsecs);
-    FINAL_OUTPUT(os, updates, update, ops, totalsecs);
-    FINAL_OUTPUT(os, truncates, truncate, ops, totalsecs);
-    FINAL_OUTPUT(os, removes, remove, ops, totalsecs);
+    FINAL_OUTPUT(os, read.ops, read, ops, totalsecs);
+    FINAL_OUTPUT(os, not_found.ops, not found, ops, totalsecs);
+    FINAL_OUTPUT(os, insert.ops, insert, ops, totalsecs);
+    FINAL_OUTPUT(os, update.ops, update, ops, totalsecs);
+    FINAL_OUTPUT(os, truncate.ops, truncate, ops, totalsecs);
+    FINAL_OUTPUT(os, remove.ops, remove, ops, totalsecs);
 }
 
-void TableStats::describe(std::ostream &os) const {
-    os << "TableStats: reads " << reads;
-    if (not_found > 0) {
-        os << " (" << not_found << " not found)";
+void Stats::report(std::ostream &os) const {
+    os << read.ops << " reads";
+    if (not_found.ops > 0) {
+        os << " (" << not_found.ops << " not found)";
     }
-    os << ", inserts " << inserts;
-    os << ", updates " << updates;
-    os << ", truncates " << truncates;
-    os << ", removes " << removes;
+    os << ", " << insert.ops << " inserts, ";
+    os << update.ops << " updates, ";
+    os << truncate.ops << " truncates, ";
+    os << remove.ops << " removes";
+}
+
+void Stats::subtract(const Stats &other) {
+    insert.subtract(other.insert);
+    not_found.subtract(other.not_found);
+    read.subtract(other.read);
+    remove.subtract(other.remove);
+    update.subtract(other.update);
+    truncate.subtract(other.truncate);
+}
+
+void Stats::track_latency(bool latency) {
+    insert.track_latency(latency);
+    not_found.track_latency(latency);
+    read.track_latency(latency);
+    remove.track_latency(latency);
+    update.track_latency(latency);
+    truncate.track_latency(latency);
 }
 
 TableOptions::TableOptions() : key_size(0), value_size(0) {}
@@ -814,26 +1065,29 @@ void Table::describe(std::ostream &os) const {
     os << "Table: " << _uri;
 }
 
-WorkloadOptions::WorkloadOptions() : run_time(0), report_interval(0) {}
+WorkloadOptions::WorkloadOptions() : report_interval(0), run_time(0),
+    sample_interval(0), sample_rate(1) {}
 WorkloadOptions::WorkloadOptions(const WorkloadOptions &other) :
-    run_time(other.run_time), report_interval(other.report_interval) {}
+    report_interval(other.report_interval), run_time(other.run_time),
+    sample_interval(other.sample_interval), sample_rate(other.sample_rate) {}
 WorkloadOptions::~WorkloadOptions() {}
 
 Workload::Workload(Context *context, const ThreadListWrapper &tlw) :
-    options(), _context(context), _threads(tlw._threads) {
+    options(), stats(), _context(context), _threads(tlw._threads) {
     if (context == NULL)
         THROW("Workload contructor requires a Context");
 }
 
 Workload::Workload(Context *context, const Thread &thread) :
-    options(), _context(context), _threads() {
+    options(), stats(), _context(context), _threads() {
     if (context == NULL)
         THROW("Workload contructor requires a Context");
     _threads.push_back(thread);
 }
 
 Workload::Workload(const Workload &other) :
-    options(other.options), _context(other._context), _threads(other._threads) {
+    options(other.options), stats(other.stats), _context(other._context),
+    _threads(other._threads) {
 }
 
 Workload::~Workload() {
@@ -856,6 +1110,7 @@ int Workload::create_all(WT_CONNECTION *conn, Context *context,
         }
         envs[i]._thread = &_threads[i];
         envs[i]._context = context;
+        envs[i]._workload = this;
         envs[i]._number = (uint32_t)i;
         // TODO: recover from partial failure here
         WT_RET(_threads[i].create_all(conn, envs[i]));
@@ -875,6 +1130,8 @@ int Workload::run(WT_CONNECTION *conn) {
     WT_DECL_RET;
     std::vector<ThreadEnvironment> envs(_threads.size());
 
+    if (options.sample_interval > 0 && options.sample_rate <= 0)
+        THROW("Workload.options.sample_rate must be positive");
     WT_ERR(create_all(conn, _context, envs));
     WT_ERR(open_all(envs));
     WT_ERR(ThreadEnvironment::cross_check(envs));
@@ -886,18 +1143,18 @@ int Workload::run(WT_CONNECTION *conn) {
 }
 
 void Workload::get_stats(std::vector<ThreadEnvironment> &envs,
-  TableStats &stats) {
+  Stats &result) {
     for (size_t i = 0; i < _threads.size(); i++)
-        stats.add(envs[i]._stats);
+        result.add(envs[i]._stats);
 }
 
 void Workload::report(std::vector<ThreadEnvironment> &envs, time_t interval,
-  time_t totalsecs, TableStats &totals) {
-    TableStats stats;
-    get_stats(envs, stats);
-    TableStats diff(stats);
-    diff.subtract(totals);
-    totals = stats;
+  time_t totalsecs, Stats &prev_totals) {
+    Stats new_totals(prev_totals.track_latency());
+    get_stats(envs, new_totals);
+    Stats diff(new_totals);
+    diff.subtract(prev_totals);
+    prev_totals.assign(new_totals);
     diff.report(std::cout);
     std::cout << " in " << interval << " secs ("
               << totalsecs << " total secs)" << std::endl;
@@ -905,7 +1162,8 @@ void Workload::report(std::vector<ThreadEnvironment> &envs, time_t interval,
 
 void Workload::final_report(std::vector<ThreadEnvironment> &envs,
   timespec &totalsecs) {
-    TableStats stats;
+    stats.clear();
+    stats.track_latency(options.sample_interval > 0);
 
     get_stats(envs, stats);
     stats.final_report(std::cout, totalsecs);
@@ -915,14 +1173,14 @@ void Workload::final_report(std::vector<ThreadEnvironment> &envs,
 int Workload::run_all(std::vector<ThreadEnvironment> &envs) {
     void *status;
     std::vector<pthread_t> thread_handles;
-    TableStats stats;
+    Stats counts(false);
     WorkgenException *exception;
     WT_DECL_RET;
 
     for (size_t i = 0; i < _threads.size(); i++)
-        _threads[i].get_static_counts(stats);
+        _threads[i].get_static_counts(counts);
     std::cout << "Starting workload: " << _threads.size() << " threads, ";
-    stats.report(std::cout);
+    counts.report(std::cout);
     std::cout << std::endl;
 
     for (size_t i = 0; i < _threads.size(); i++) {
@@ -949,7 +1207,7 @@ int Workload::run_all(std::vector<ThreadEnvironment> &envs) {
     timespec end = start + options.run_time;
     timespec next_report = start + options.report_interval;
 
-    stats.clear();
+    Stats curstats(false);
     timespec now = start;
     while (now < end) {
         timespec sleep_amt;
@@ -967,7 +1225,8 @@ int Workload::run_all(std::vector<ThreadEnvironment> &envs) {
 
         workgen_epoch(&now);
         if (now >= next_report && now < end && options.report_interval != 0) {
-            report(envs, options.report_interval, (now - start).tv_sec, stats);
+            report(envs, options.report_interval, (now - start).tv_sec,
+              curstats);
             while (now >= next_report)
                 next_report += options.report_interval;
         }
