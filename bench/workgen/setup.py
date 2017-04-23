@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
+from __future__ import print_function
 import re, os, sys
 from distutils.core import setup, Extension
 
@@ -39,6 +40,15 @@ if not 'ARCHFLAGS' in os.environ:
 extra_cflags = [ '-Wmissing-field-initializers', '-Wextra', '-Wno-shadow', '-I../../src/include', '-I../../test/utility']
 
 dir = os.path.dirname(__file__)
+abs_dir = os.path.dirname(os.path.abspath(__file__))
+
+if abs_dir.endswith(os.sep + os.path.join('bench', 'workgen')):
+    wt_dir = os.path.dirname(os.path.dirname(abs_dir))
+else:
+    print(os.path.basename(__file__) + ": running from unknown dir", file=sys.stderr)
+    sys.exit(1)
+
+build_dir = os.path.join(wt_dir, 'build_posix')
 
 # Read the version information from the RELEASE_INFO file
 for l in open(os.path.join(dir, '..', '..', 'RELEASE_INFO')):
@@ -49,10 +59,10 @@ wt_ver = '%d.%d' % (WIREDTIGER_VERSION_MAJOR, WIREDTIGER_VERSION_MINOR)
 
 setup(name='workgen', version=wt_ver,
     ext_modules=[Extension('_workgen',
-                [os.path.join(dir, 'workgen_wrap.cxx'),
-                 os.path.join(dir, 'workgen.cxx'),
-                 os.path.join(dir, 'workgen_func.c')],
+                [os.path.join(dir, 'workgen_wrap.cxx')],
         libraries=['wiredtiger', 'pthread'],
+        extra_objects = [ os.path.join(build_dir, 'bench', 'workgen', \
+                                       '.libs', 'libworkgen.a') ],
         extra_compile_args=extra_cflags,
     )],
     package_dir={'' : dir},
