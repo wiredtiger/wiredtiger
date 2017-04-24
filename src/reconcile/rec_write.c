@@ -3661,9 +3661,13 @@ __rec_update_las(WT_SESSION_IMPL *session,
 
 		/*
 		 * Walk the list of updates, storing each key/value pair into
-		 * the lookaside table.
+		 * the lookaside table. Skipped reserved items, they're never
+		 * restored, obviously.
 		 */
 		do {
+			if (WT_UPDATE_RESERVED_ISSET(upd))
+				continue;
+
 			cursor->set_key(cursor, btree_id,
 			    &las_addr, ++las_counter, list->onpage_txn, key);
 
