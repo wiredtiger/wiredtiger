@@ -234,7 +234,7 @@ Throttle::~Throttle() {}
 
 // Given a random 32-bit value, return a float value equally distributed
 // between -1.0 and 1.0.
-float rand_signed(uint32_t r) {
+static float rand_signed(uint32_t r) {
     int sign = ((r & 0x1) == 0 ? 1 : -1);
     return (((float)r * sign) / UINT32_MAX);
 }
@@ -614,6 +614,7 @@ int Operation::run(ThreadEnvironment &env) {
     bool measure_latency;
 
     recno = 0;
+    track = NULL;
     if (env._throttle != NULL) {
         if (env._throttle_ops >= env._throttle_limit && !env._in_transaction) {
             WT_ERR(env._throttle->throttle(env._throttle_ops,
@@ -651,7 +652,6 @@ int Operation::run(ThreadEnvironment &env) {
         break;
     case OP_NONE:
         recno = 0;
-        track = NULL;
         break;
     }
 

@@ -1,5 +1,6 @@
 #include "wiredtiger.h"
 #include "test_util.h"
+#include "workgen_func.h"
 
 /* This is an opaque type handle. */
 typedef struct workgen_random_state {} workgen_random_state;
