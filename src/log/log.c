@@ -1627,8 +1627,8 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 			/* Offsets must be on allocation boundaries. */
 			if (lsnp->l.offset % allocsize != 0)
 				WT_RET_MSG(session, WT_NOTFOUND,
-				    "__wt_log_scan unaligned LSN %" PRIu32 "/%" PRIu32,
-				    lsnp->l.file, lsnp->l.offset);
+				    "__wt_log_scan unaligned LSN %" PRIu32
+				    "/%" PRIu32, lsnp->l.file, lsnp->l.offset);
 			if (lsnp->l.file > log->fileid)
 				WT_RET_MSG(session, WT_NOTFOUND,
 				    "__wt_log_scan LSN %" PRIu32 "/%" PRIu32
