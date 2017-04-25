@@ -47,6 +47,7 @@
 #include <signal.h>
 #include "wiredtiger.h"
 #include "workgen.h"
+#include "workgen_int.h"
 %}
 
 %pythoncode %{
