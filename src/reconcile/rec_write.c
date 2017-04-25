@@ -590,11 +590,11 @@ __rec_write_check_complete(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
 		/*
 		 * Don't rewrite pages where we're not going to get back enough
-		 * memory to care. There's no empirical evidence the 10KB limit
+		 * memory to care. There's no empirical evidence the 2KB limit
 		 * is a good configuration, but it should keep us from wasting
 		 * time on tiny pages and pages with only a few updates.
 		 */
-		if (r->update_mem - r->update_mem_skipped < 10 * WT_KILOBYTE)
+		if (r->update_mem - r->update_mem_skipped < 2 * WT_KILOBYTE)
 			return (EBUSY);
 	}
 	return (0);
