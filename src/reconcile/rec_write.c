@@ -565,6 +565,16 @@ __rec_write_check_complete(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	size_t i;
 
 	/*
+	 * Tests in this function are lookaside tests and tests to decide if
+	 * rewriting a page in memory is worth doing. In-memory configurations
+	 * can't use a lookaside table, and we ignore page rewrite desirability
+	 * checks for in-memory eviction because a small cache can force us to
+	 * rewrite every possible page.
+	 */
+	if (F_ISSET(r, WT_EVICT_IN_MEMORY))
+		return (0);
+
+	/*
 	 * If we have used the lookaside table, check for a lookaside table and
 	 * checkpoint collision.
 	 */
