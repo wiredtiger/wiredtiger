@@ -37,19 +37,14 @@ struct ContextInternal;
 struct TableInternal;
 struct Thread;
 struct Transaction;
-struct WorkloadInternal;
 
 struct Track {
     // Threads maintain the total thread operation and total latency they've
-    // experienced; the monitor thread periodically copies these values into
-    // the last_XXX fields.
+    // experienced.
 
     uint64_t ops;                       // Total operations */
     uint64_t latency_ops;               // Total ops sampled for latency
     uint64_t latency;                   // Total latency */
-
-    uint64_t last_latency_ops;          // Last read by monitor thread
-    uint64_t last_latency;
 
     // Minimum/maximum latency, shared with the monitor thread, that is, the
     // monitor thread clears it so it's recalculated again for each period.
@@ -61,11 +56,13 @@ struct Track {
     Track(const Track &other);
     ~Track();
 
-    void add(const Track&);
+    void add(Track&, bool reset = false);
     void assign(const Track&);
+    uint64_t average_latency() const;
     void clear();
     void incr();
     void incr_with_latency(uint64_t usecs);
+    void smooth(const Track&);
     void subtract(const Track&);
     void track_latency(bool);
     bool track_latency() const { return (us != NULL); }
@@ -95,7 +92,7 @@ struct Stats {
     Stats(const Stats &other);
     ~Stats();
 
-    void add(const Stats&);
+    void add(Stats&, bool reset = false);
     void assign(const Stats&);
     void clear();
     void describe(std::ostream &os) const;
@@ -103,6 +100,7 @@ struct Stats {
     void final_report(std::ostream &os, timespec &totalsecs) const;
     void report(std::ostream &os) const;
 #endif
+    void smooth(const Stats&);
     void subtract(const Stats&);
     void track_latency(bool);
     bool track_latency() const { return (insert.track_latency()); }
@@ -292,6 +290,11 @@ struct Transaction {
 };
 
 struct WorkloadOptions {
+    /*! notify if any latency measured exceeds this number of milliseconds.
+     * Aborts or prints warning based on min_throughput_fatal setting.
+     * Requires sample_interval to be configured
+     */
+    int max_latency;
     /*! output throughput information every interval seconds, 0 to disable */
     int report_interval;
     /*! total workload seconds */
@@ -318,7 +321,6 @@ struct Workload {
     Stats stats;
     Context *_context;
     std::vector<Thread> _threads;
-    WorkloadInternal *_internal;
 
     Workload(Context *context, const ThreadListWrapper &threadlist);
     Workload(Context *context, const Thread &thread);

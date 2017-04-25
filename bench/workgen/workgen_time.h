@@ -183,6 +183,12 @@ ts_clear(timespec &ts)
 }
 
 inline uint64_t
+ts_sec(const timespec &ts)
+{
+    return (ns_to_sec(ts.tv_nsec) + ts.tv_sec);
+}
+
+inline uint64_t
 ts_ms(const timespec &ts)
 {
     return (ns_to_ms(ts.tv_nsec) + sec_to_ms(ts.tv_sec));

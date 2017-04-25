@@ -105,12 +105,22 @@ namespace workgen {
 // than one.
 static uint32_t context_count = 0;
 
-static void *thread_main(void *arg) {
+static void *thread_runner_main(void *arg) {
     ThreadRunner *runner = (ThreadRunner *)arg;
     try {
         runner->_errno = runner->run();
     } catch (WorkgenException &wge) {
         runner->_exception = wge;
+    }
+    return (NULL);
+}
+
+static void *monitor_main(void *arg) {
+    Monitor *monitor = (Monitor *)arg;
+    try {
+        monitor->_errno = monitor->run();
+    } catch (WorkgenException &wge) {
+        monitor->_exception = wge;
     }
     return (NULL);
 }
@@ -166,9 +176,100 @@ int ContextInternal::create_all() {
     return (0);
 }
 
+Monitor::Monitor(WorkloadRunner &wrunner) :
+    _errno(0), _exception(), _wrunner(wrunner), _stop(false), _handle() {}
+Monitor::~Monitor() {}
+
+int Monitor::run() {
+    struct timespec t;
+    struct tm *tm, _tm;
+    char time_buf[64];
+    Stats prev_totals;
+    WorkloadOptions *options = &_wrunner._workload->options;
+    uint64_t latency_max = (uint64_t)options->max_latency;
+
+    std::cout << "#time,"
+	    "totalsec,"
+	    "read ops per second,"
+	    "insert ops per second,"
+	    "update ops per second,"
+	    "checkpoints,"
+	    "read average latency(uS),"
+	    "read minimum latency(uS),"
+	    "read maximum latency(uS),"
+	    "insert average latency(uS),"
+	    "insert min latency(uS),"
+	    "insert maximum latency(uS),"
+	    "update average latency(uS),"
+	    "update min latency(uS),"
+	    "update maximum latency(uS)"
+	    "\n";
+
+    Stats prev_interval;
+    while (!_stop) {
+        for (int i = 0; i < options->sample_interval && !_stop; i++)
+            sleep(1);
+        if (_stop)
+            break;
+
+        workgen_epoch(&t);
+        tm = localtime_r(&t.tv_sec, &_tm);
+        (void)strftime(time_buf, sizeof(time_buf), "%b %d %H:%M:%S", tm);
+
+        Stats new_totals(true);
+        for (std::vector<ThreadRunner>::iterator tr =
+          _wrunner._trunners.begin(); tr != _wrunner._trunners.end(); tr++)
+            new_totals.add(tr->_stats, true);
+        Stats interval(new_totals);
+        interval.subtract(prev_totals);
+        interval.smooth(prev_interval);
+
+        int interval_secs = options->sample_interval;
+        uint64_t cur_reads = interval.read.ops / interval_secs;
+        uint64_t cur_inserts = interval.insert.ops / interval_secs;
+        uint64_t cur_updates = interval.update.ops / interval_secs;
+
+        uint64_t totalsec = ts_sec(t - _wrunner._start);
+        std::cout << time_buf
+                  << "," << totalsec
+                  << "," << cur_reads
+                  << "," << cur_inserts
+                  << "," << cur_updates
+                  << "," << 'N'   // checkpoint in progress
+                  << "," << interval.read.average_latency()
+                  << "," << interval.read.min_latency
+                  << "," << interval.read.max_latency
+                  << "," << interval.insert.average_latency()
+                  << "," << interval.insert.min_latency
+                  << "," << interval.insert.max_latency
+                  << "," << interval.update.average_latency()
+                  << "," << interval.update.min_latency
+                  << "," << interval.update.max_latency
+                  << std::endl;
+
+        uint64_t read_max = interval.read.max_latency;
+        uint64_t insert_max = interval.read.max_latency;
+        uint64_t update_max = interval.read.max_latency;
+
+        if (latency_max != 0 &&
+          (read_max > latency_max || insert_max > latency_max ||
+          update_max > latency_max)) {
+            std::cerr << "WARNING: max latency exceeded:"
+                      << " threshold " << latency_max
+                      << " read max " << read_max
+                      << " insert max " << insert_max
+                      << " update max " << update_max << std::endl;
+        }
+
+        prev_interval.assign(interval);
+        prev_totals.assign(new_totals);
+    }
+    return (0);
+}
+
 ThreadRunner::ThreadRunner() :
     _errno(0), _exception(), _thread(NULL), _context(NULL), _icontext(NULL),
-    _workload(NULL), _iworkload(NULL), _rand_state(NULL),
+    _workload(NULL), _wrunner(NULL), _rand_state(NULL),
     _throttle(NULL), _throttle_ops(0), _throttle_limit(0),
     _in_transaction(false), _number(0), _stats(false), _table_usage(),
     _cursors(NULL), _stop(false), _session(NULL), _keybuf(NULL),
@@ -179,17 +280,29 @@ ThreadRunner::~ThreadRunner() {
     free_all();
 }
 
-int ThreadRunner::create(WT_SESSION *session) {
+int ThreadRunner::create_all(WT_CONNECTION *conn) {
+    size_t keysize, valuesize;
+
+    WT_RET(close_all());
+    ASSERT(_session == NULL);
+    WT_RET(conn->open_session(conn, NULL, NULL, &_session));
     _table_usage.clear();
     _stats.track_latency(_workload->options.sample_interval > 0);
-    WT_RET(workgen_random_alloc(session, &_rand_state));
+    WT_RET(workgen_random_alloc(_session, &_rand_state));
     _throttle_ops = 0;
     _throttle_limit = 0;
     _in_transaction = 0;
+    keysize = 1;
+    valuesize = 1;
+    op_create_all(&_thread->_op, keysize, valuesize);
+    _keybuf = new char[keysize];
+    _valuebuf = new char[valuesize];
+    _keybuf[keysize - 1] = '\0';
+    _valuebuf[valuesize - 1] = '\0';
     return (0);
 }
 
-int ThreadRunner::open(WT_SESSION *session) {
+int ThreadRunner::open_all() {
     typedef WT_CURSOR *WT_CURSOR_PTR;
     if (_cursors != NULL)
         delete _cursors;
@@ -199,19 +312,20 @@ int ThreadRunner::open(WT_SESSION *session) {
          i != _table_usage.end(); i++) {
         uint32_t tindex = i->first;
         const char *uri = _icontext->_table_names[tindex].c_str();
-        WT_RET(session->open_cursor(session, uri, NULL, NULL,
+        WT_RET(_session->open_cursor(_session, uri, NULL, NULL,
           &_cursors[tindex]));
     }
     return (0);
 }
 
-int ThreadRunner::close() {
-    WT_CURSOR *cursor;
-
-    if (_cursors != NULL) {
-        for (uint32_t i = 0; i < _icontext->_tint_last; i++)
-            if ((cursor = _cursors[i]) != NULL)
-                cursor->close(cursor);
+int ThreadRunner::close_all() {
+    if (_throttle != NULL) {
+        delete _throttle;
+        _throttle = NULL;
+    }
+    if (_session != NULL) {
+        WT_RET(_session->close(_session, NULL));
+        _session = NULL;
     }
     free_all();
     return (0);
@@ -261,43 +375,6 @@ int ThreadRunner::cross_check(std::vector<ThreadRunner> &runners) {
             }
         }
     }
-    return (0);
-}
-
-int ThreadRunner::open_all() {
-    open(_session);
-    return (0);
-}
-
-int ThreadRunner::create_all(WT_CONNECTION *conn) {
-    size_t keysize, valuesize;
-
-    WT_RET(close_all());
-    ASSERT(_session == NULL);
-    WT_RET(conn->open_session(conn, NULL, NULL, &_session));
-    WT_RET(create(_session));
-    keysize = 1;
-    valuesize = 1;
-    op_create_all(&_thread->_op, keysize, valuesize);
-    _keybuf = new char[keysize];
-    _valuebuf = new char[valuesize];
-    _keybuf[keysize - 1] = '\0';
-    _valuebuf[valuesize - 1] = '\0';
-    return (0);
-}
-
-// TODO: combine this method with close()
-int ThreadRunner::close_all() {
-    if (_throttle != NULL) {
-        delete _throttle;
-        _throttle = NULL;
-    }
-    WT_RET(close());
-    if (_session != NULL) {
-        WT_RET(_session->close(_session, NULL));
-        _session = NULL;
-    }
-    free_all();
     return (0);
 }
 
@@ -793,14 +870,12 @@ void Operation::size_check() const {
 }
 
 Track::Track(bool latency_tracking) : ops(0), latency_ops(0), latency(0),
-    last_latency_ops(0), last_latency(0), min_latency(0), max_latency(0),
-    us(NULL), ms(NULL), sec(NULL) {
+    min_latency(0), max_latency(0), us(NULL), ms(NULL), sec(NULL) {
     track_latency(latency_tracking);
 }
 
 Track::Track(const Track &other) : ops(other.ops),
     latency_ops(other.latency_ops), latency(other.latency),
-    last_latency_ops(other.last_latency_ops), last_latency(other.last_latency),
     min_latency(other.min_latency), max_latency(other.max_latency),
     us(NULL), ms(NULL), sec(NULL) {
     if (other.us != NULL) {
@@ -821,15 +896,17 @@ Track::~Track() {
     }
 }
 
-void Track::add(const Track &other) {
+void Track::add(Track &other, bool reset) {
     ops += other.ops;
     latency_ops += other.latency_ops;
     latency += other.latency;
-    last_latency_ops += other.last_latency_ops;
-    last_latency += other.last_latency;
 
     min_latency = MIN(min_latency, other.min_latency);
+    if (reset)
+        other.min_latency = 0;
     max_latency = MAX(max_latency, other.max_latency);
+    if (reset)
+        other.max_latency = 0;
 
     if (us != NULL && other.us != NULL) {
         for (int i = 0; i < LATENCY_US_BUCKETS; i++)
@@ -845,8 +922,6 @@ void Track::assign(const Track &other) {
     ops = other.ops;
     latency_ops = other.latency_ops;
     latency = other.latency;
-    last_latency_ops = other.last_latency_ops;
-    last_latency = other.last_latency;
     min_latency = other.min_latency;
     max_latency = other.max_latency;
 
@@ -870,12 +945,17 @@ void Track::assign(const Track &other) {
     }
 }
 
+uint64_t Track::average_latency() const {
+    if (latency_ops == 0)
+        return (0);
+    else
+        return (latency / latency_ops);
+}
+
 void Track::clear() {
     ops = 0;
     latency_ops = 0;
     latency = 0;
-    last_latency_ops = 0;
-    last_latency = 0;
     min_latency = 0;
     max_latency = 0;
     if (us != NULL) {
@@ -922,8 +1002,6 @@ void Track::subtract(const Track &other) {
     ops -= other.ops;
     latency_ops -= other.latency_ops;
     latency -= other.latency;
-    last_latency_ops -= other.last_latency_ops;
-    last_latency -= other.last_latency;
 
     // There's no sensible thing to be done for min/max_latency.
 
@@ -934,6 +1012,19 @@ void Track::subtract(const Track &other) {
             ms[i] -= other.ms[i];
         for (int i = 0; i < LATENCY_SEC_BUCKETS; i++)
             sec[i] -= other.sec[i];
+    }
+}
+
+// If there are no entries in this Track, take them from
+// a previous Track. Used to smooth graphs.  We don't worry
+// about latency buckets here.
+void Track::smooth(const Track &other) {
+    if (latency_ops == 0) {
+        ops = other.ops;
+        latency = other.latency;
+        latency_ops = other.latency_ops;
+        min_latency = other.min_latency;
+        max_latency = other.max_latency;
     }
 }
 
@@ -992,13 +1083,13 @@ Stats::Stats(const Stats &other) : insert(other.insert),
 
 Stats::~Stats() {}
 
-void Stats::add(const Stats &other) {
-    insert.add(other.insert);
-    not_found.add(other.not_found);
-    read.add(other.read);
-    remove.add(other.remove);
-    update.add(other.update);
-    truncate.add(other.truncate);
+void Stats::add(Stats &other, bool reset) {
+    insert.add(other.insert, reset);
+    not_found.add(other.not_found, reset);
+    read.add(other.read, reset);
+    remove.add(other.remove, reset);
+    update.add(other.update, reset);
+    truncate.add(other.truncate, reset);
 }
 
 void Stats::assign(const Stats &other) {
@@ -1063,6 +1154,15 @@ void Stats::report(std::ostream &os) const {
     os << remove.ops << " removes";
 }
 
+void Stats::smooth(const Stats &other) {
+    insert.smooth(other.insert);
+    not_found.smooth(other.not_found);
+    read.smooth(other.read);
+    remove.smooth(other.remove);
+    update.smooth(other.update);
+    truncate.smooth(other.truncate);
+}
+
 void Stats::subtract(const Stats &other) {
     insert.subtract(other.insert);
     not_found.subtract(other.not_found);
@@ -1119,112 +1219,105 @@ WorkloadOptions::WorkloadOptions(const WorkloadOptions &other) :
 WorkloadOptions::~WorkloadOptions() {}
 
 Workload::Workload(Context *context, const ThreadListWrapper &tlw) :
-    options(), stats(), _context(context), _threads(tlw._threads),
-    _internal(new WorkloadInternal()) {
+    options(), stats(), _context(context), _threads(tlw._threads) {
     if (context == NULL)
         THROW("Workload contructor requires a Context");
-    _internal->_workload = this;
 }
 
 Workload::Workload(Context *context, const Thread &thread) :
-    options(), stats(), _context(context), _threads(),
-    _internal(new WorkloadInternal()) {
+    options(), stats(), _context(context), _threads() {
     if (context == NULL)
         THROW("Workload contructor requires a Context");
     _threads.push_back(thread);
-    _internal->_workload = this;
 }
 
 Workload::Workload(const Workload &other) :
     options(other.options), stats(other.stats), _context(other._context),
-    _threads(other._threads),
-    _internal(new WorkloadInternal(*other._internal)) {
-    _internal->_workload = this;
-}
-
-Workload::~Workload() {
-}
+    _threads(other._threads) {}
+Workload::~Workload() {}
 
 Workload& Workload::operator=(const Workload &other) {
     options = other.options;
     stats.assign(other.stats);
     *_context = *other._context;
     _threads = other._threads;
-    *_internal = *other._internal;
     return (*this);
 }
 
 int Workload::run(WT_CONNECTION *conn) {
-    return (_internal->run(conn));
+    WorkloadRunner runner(this);
+
+    return (runner.run(conn));
 }
 
-WorkloadInternal::WorkloadInternal() {}
-WorkloadInternal::WorkloadInternal(const WorkloadInternal &other) {}
-WorkloadInternal::~WorkloadInternal() {}
+WorkloadRunner::WorkloadRunner(Workload *workload) :
+    _workload(workload), _trunners(), _start() {
+    ts_clear(_start);
+}
+WorkloadRunner::~WorkloadRunner() {}
 
-int WorkloadInternal::run(WT_CONNECTION *conn) {
+int WorkloadRunner::run(WT_CONNECTION *conn) {
     WT_DECL_RET;
-    std::vector<ThreadRunner> runners(_workload->_threads.size());
     WorkloadOptions *options = &_workload->options;
 
+    _trunners.resize(_workload->_threads.size());
     if (options->sample_interval > 0 && options->sample_rate <= 0)
         THROW("Workload.options.sample_rate must be positive");
-    WT_ERR(create_all(conn, _workload->_context, runners));
-    WT_ERR(open_all(runners));
-    WT_ERR(ThreadRunner::cross_check(runners));
-    WT_ERR(run_all(runners));
+    WT_ERR(create_all(conn, _workload->_context));
+    WT_ERR(open_all());
+    WT_ERR(ThreadRunner::cross_check(_trunners));
+    WT_ERR(run_all());
 
   err:
     //TODO: (void)close_all();
     return (ret);
 }
 
-int WorkloadInternal::open_all(std::vector<ThreadRunner> &runners) {
-    for (size_t i = 0; i < runners.size(); i++) {
-        WT_RET(runners[i].open_all());
+int WorkloadRunner::open_all() {
+    for (size_t i = 0; i < _trunners.size(); i++) {
+        WT_RET(_trunners[i].open_all());
     }
     return (0);
 }
 
-int WorkloadInternal::create_all(WT_CONNECTION *conn, Context *context,
-                        std::vector<ThreadRunner> &runners) {
-    for (size_t i = 0; i < runners.size(); i++) {
+int WorkloadRunner::create_all(WT_CONNECTION *conn, Context *context) {
+    for (size_t i = 0; i < _trunners.size(); i++) {
+        ThreadRunner *runner = &_trunners[i];
         std::stringstream sstm;
         Thread *thread = &_workload->_threads[i];
         if (thread->options.name.empty()) {
             sstm << "thread" << i;
             thread->options.name = sstm.str();
         }
-        runners[i]._thread = thread;
-        runners[i]._context = context;
-        runners[i]._icontext = context->_internal;
-        runners[i]._workload = _workload;
-        runners[i]._iworkload = this;
-        runners[i]._number = (uint32_t)i;
+        runner->_thread = thread;
+        runner->_context = context;
+        runner->_icontext = context->_internal;
+        runner->_workload = _workload;
+        runner->_wrunner = this;
+        runner->_number = (uint32_t)i;
         // TODO: recover from partial failure here
-        WT_RET(runners[i].create_all(conn));
+        WT_RET(runner->create_all(conn));
     }
     WT_RET(context->_internal->create_all());
     return (0);
 }
 
-int WorkloadInternal::close_all(std::vector<ThreadRunner> &runners) {
-    for (size_t i = 0; i < runners.size(); i++)
-        runners[i].close_all();
+int WorkloadRunner::close_all() {
+    for (size_t i = 0; i < _trunners.size(); i++)
+        _trunners[i].close_all();
 
     return (0);
 }
 
-void WorkloadInternal::get_stats(std::vector<ThreadRunner> &runners,
-  Stats *result) {
-    for (size_t i = 0; i < runners.size(); i++)
-        result->add(runners[i]._stats);
+void WorkloadRunner::get_stats(Stats *result) {
+    for (size_t i = 0; i < _trunners.size(); i++)
+        result->add(_trunners[i]._stats);
 }
 
-void WorkloadInternal::report(std::vector<ThreadRunner> &runners,
-  time_t interval, time_t totalsecs, Stats *prev_totals) {
+void WorkloadRunner::report(time_t interval, time_t totalsecs,
+  Stats *prev_totals) {
     Stats new_totals(prev_totals->track_latency());
-    get_stats(runners, &new_totals);
+    get_stats(&new_totals);
     Stats diff(new_totals);
     diff.subtract(*prev_totals);
     prev_totals->assign(new_totals);
@@ -1233,57 +1326,67 @@ void WorkloadInternal::report(std::vector<ThreadRunner> &runners,
               << totalsecs << " total secs)" << std::endl;
 }
 
-void WorkloadInternal::final_report(std::vector<ThreadRunner> &runners,
-  timespec &totalsecs) {
+void WorkloadRunner::final_report(timespec &totalsecs) {
     Stats *stats = &_workload->stats;
     stats->clear();
     stats->track_latency(_workload->options.sample_interval > 0);
 
-    get_stats(runners, stats);
+    get_stats(stats);
     stats->final_report(std::cout, totalsecs);
     std::cout << "Run completed: " << totalsecs << " seconds" << std::endl;
 }
 
-int WorkloadInternal::run_all(std::vector<ThreadRunner> &runners) {
+int WorkloadRunner::run_all() {
     void *status;
     std::vector<pthread_t> thread_handles;
     Stats counts(false);
     WorkgenException *exception;
     WorkloadOptions *options = &_workload->options;
+    Monitor monitor(*this);
     WT_DECL_RET;
 
-    for (size_t i = 0; i < runners.size(); i++)
-        runners[i].get_static_counts(counts);
-    std::cout << "Starting workload: " << runners.size() << " threads, ";
+    for (size_t i = 0; i < _trunners.size(); i++)
+        _trunners[i].get_static_counts(counts);
+    std::cout << "Starting workload: " << _trunners.size() << " threads, ";
     counts.report(std::cout);
     std::cout << std::endl;
 
-    for (size_t i = 0; i < runners.size(); i++) {
+    workgen_epoch(&_start);
+    timespec end = _start + options->run_time;
+    timespec next_report = _start + options->report_interval;
+
+    // Start all threads
+    if (options->sample_interval > 0) {
+        if ((ret = pthread_create(&monitor._handle, NULL, monitor_main,
+          &monitor)) != 0) {
+            std::cerr << "monitor thread failed err=" << ret << std::endl;
+            return (ret);
+        }
+    }
+
+    for (size_t i = 0; i < _trunners.size(); i++) {
         pthread_t thandle;
-        runners[i]._stop = false;
-        runners[i]._repeat = (options->run_time != 0);
-        if ((ret = pthread_create(&thandle, NULL, thread_main,
-          &runners[i])) != 0) {
+        ThreadRunner *runner = &_trunners[i];
+        runner->_stop = false;
+        runner->_repeat = (options->run_time != 0);
+        if ((ret = pthread_create(&thandle, NULL, thread_runner_main,
+          runner)) != 0) {
             std::cerr << "pthread_create failed err=" << ret << std::endl;
             std::cerr << "Stopping all threads." << std::endl;
             for (size_t j = 0; j < thread_handles.size(); j++) {
-                runners[j]._stop = true;
+                _trunners[j]._stop = true;
                 (void)pthread_join(thread_handles[j], &status);
-                runners[j].close_all();
+                _trunners[j].close_all();
             }
             return (ret);
         }
         thread_handles.push_back(thandle);
-        runners[i]._stats.clear();
+        runner->_stats.clear();
     }
 
-    timespec start;
-    workgen_epoch(&start);
-    timespec end = start + options->run_time;
-    timespec next_report = start + options->report_interval;
-
+    // Let the test run, reporting as needed.
     Stats curstats(false);
-    timespec now = start;
+    timespec now = _start;
     while (now < end) {
         timespec sleep_amt;
 
@@ -1300,29 +1403,43 @@ int WorkloadInternal::run_all(std::vector<ThreadRunner> &runners) {
 
         workgen_epoch(&now);
         if (now >= next_report && now < end && options->report_interval != 0) {
-            report(runners, options->report_interval, (now - start).tv_sec,
-              &curstats);
+            report(options->report_interval, (now - _start).tv_sec, &curstats);
             while (now >= next_report)
                 next_report += options->report_interval;
         }
     }
-    if (options->run_time != 0)
-        for (size_t i = 0; i < runners.size(); i++)
-            runners[i]._stop = true;
 
+    // signal all threads to stop
+    if (options->run_time != 0)
+        for (size_t i = 0; i < _trunners.size(); i++)
+            _trunners[i]._stop = true;
+    if (options->sample_interval > 0)
+        monitor._stop = true;
+
+    // wait for all threads
     exception = NULL;
-    for (size_t i = 0; i < runners.size(); i++) {
+    for (size_t i = 0; i < _trunners.size(); i++) {
         WT_TRET(pthread_join(thread_handles[i], &status));
-        if (runners[i]._errno != 0)
-            VERBOSE(runners[i],
-                    "Thread " << i << " has errno " << runners[i]._errno);
-        WT_TRET(runners[i]._errno);
-        runners[i].close_all();
-        if (exception == NULL && !runners[i]._exception._str.empty())
-            exception = &runners[i]._exception;
+        if (_trunners[i]._errno != 0)
+            VERBOSE(_trunners[i],
+                    "Thread " << i << " has errno " << _trunners[i]._errno);
+        WT_TRET(_trunners[i]._errno);
+        _trunners[i].close_all();
+        if (exception == NULL && !_trunners[i]._exception._str.empty())
+            exception = &_trunners[i]._exception;
     }
-    timespec finalsecs = now - start;
-    final_report(runners, finalsecs);
+    if (options->sample_interval > 0) {
+        WT_TRET(pthread_join(monitor._handle, &status));
+        if (monitor._errno != 0)
+            std::cerr << "Monitor thread has errno " << monitor._errno
+                      << std::endl;
+        if (exception == NULL && !monitor._exception._str.empty())
+            exception = &monitor._exception;
+    }
+
+    // issue the final report
+    timespec finalsecs = now - _start;
+    final_report(finalsecs);
 
     if (ret != 0)
         std::cerr << "run_all failed err=" << ret << std::endl;

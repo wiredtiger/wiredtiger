@@ -133,15 +133,12 @@ def latency_plot(box, ch, left, width, arr, merge, scale):
             pos += 1
         nch = scale * t
         y = 0
-        thisch = ch
         while nch > 0.0:
-            if nch < 1.0:
-                thisch = '.'
-            box[y][left + x] = thisch
+            box[y][left + x] = ch
             nch -= 1.0
             y += 1
 
-def latency_optype(name, t):
+def latency_optype(name, ch, t):
     if t.ops == 0:
         return
     if t.latency_ops == 0:
@@ -164,9 +161,9 @@ def latency_optype(name, t):
     # a list of a list of characters
     box = [list(' ' * 80) for x in range(height)]
     scale = (1.0 / (max_height + 1)) * height
-    latency_plot(box, 'u', 0,  25, us, 40, scale)
-    latency_plot(box, 'm', 27, 25, ms, 40, scale)
-    latency_plot(box, 's', 54, 25, sec, 4, scale)
+    latency_plot(box, ch, 0,  25, us, 40, scale)
+    latency_plot(box, ch, 27, 25, ms, 40, scale)
+    latency_plot(box, ch, 54, 25, sec, 4, scale)
     box.reverse()
     for line in box:
         print(''.join(line))
@@ -181,9 +178,9 @@ def latency_optype(name, t):
     print('')
 
 def workload_latency(workload):
-    latency_optype('insert', workload.stats.insert)
-    latency_optype('read', workload.stats.read)
-    latency_optype('remove', workload.stats.remove)
-    latency_optype('update', workload.stats.update)
-    latency_optype('truncate', workload.stats.truncate)
-    latency_optype('not found', workload.stats.not_found)
+    latency_optype('insert', 'I', workload.stats.insert)
+    latency_optype('read', 'R', workload.stats.read)
+    latency_optype('remove', 'X', workload.stats.remove)
+    latency_optype('update', 'U', workload.stats.update)
+    latency_optype('truncate', 'T', workload.stats.truncate)
+    latency_optype('not found', 'N', workload.stats.not_found)
