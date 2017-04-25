@@ -159,7 +159,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 	/* Update the reference and discard the page. */
 	if (__wt_ref_is_root(ref))
 		__wt_ref_out(session, ref);
-	else if ((clean_page && !LF_ISSET(WT_EVICT_IN_MEMORY)) || tree_dead)
+	else if ((clean_page && !F_ISSET(conn, WT_CONN_IN_MEMORY)) || tree_dead)
 		/*
 		 * Pages that belong to dead trees never write back to disk
 		 * and can't support page splits.
@@ -208,8 +208,8 @@ __evict_delete_ref(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		return (0);
 
 	/*
-	 * Avoid doing reverse splits when closing the file, it is
-	 * wasted work and some structure may already have been freed.
+	 * Avoid doing reverse splits when closing the file, it is wasted work
+	 * and some structures may have already been freed.
 	 */
 	if (!closing) {
 		parent = ref->home;
