@@ -177,7 +177,7 @@ struct Key {
     ~Key() {}
 
     void describe(std::ostream &os) const {
-        os << "Key: type " << _keytype << ", size " << _size; }
+	os << "Key: type " << _keytype << ", size " << _size; }
 };
 
 struct Value {

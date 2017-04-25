@@ -240,10 +240,10 @@ int ThreadRunner::cross_check(std::vector<ThreadRunner> &runners) {
     std::map<uint32_t, uint32_t> usage;
 
     // Determine which tables have cross usage
-    for (std::vector<ThreadRunner>::iterator e = runners.begin();
-      e != runners.end(); e++) {
-        for (std::map<uint32_t, uint32_t>::iterator i = e->_table_usage.begin();
-          i != e->_table_usage.end(); i++) {
+    for (std::vector<ThreadRunner>::iterator r = runners.begin();
+      r != runners.end(); r++) {
+        for (std::map<uint32_t, uint32_t>::iterator i = r->_table_usage.begin();
+          i != r->_table_usage.end(); i++) {
             uint32_t tindex = i->first;
             uint32_t thisusage = i->second;
             uint32_t curusage = CONTAINER_VALUE(usage, tindex, 0);
@@ -255,9 +255,9 @@ int ThreadRunner::cross_check(std::vector<ThreadRunner> &runners) {
     for (std::map<uint32_t, uint32_t>::iterator i = usage.begin();
          i != usage.end(); i++) {
         if ((i->second & USAGE_MIXED) != 0) {
-            for (std::vector<ThreadRunner>::iterator e = runners.begin();
-                 e != runners.end(); e++) {
-                e->_table_usage[i->first] |= USAGE_MIXED;
+            for (std::vector<ThreadRunner>::iterator r = runners.begin();
+                 r != runners.end(); r++) {
+                r->_table_usage[i->first] |= USAGE_MIXED;
             }
         }
     }
