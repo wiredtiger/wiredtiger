@@ -29,7 +29,6 @@
 #include <string>
 #include <vector>
 #include <map>
-#include <set>
 
 namespace workgen {
 
@@ -38,6 +37,44 @@ struct TableInternal;
 struct Thread;
 struct Transaction;
 
+#ifndef SWIG
+struct OptionsList {
+    OptionsList();
+    OptionsList(const OptionsList &other);
+
+    void add_int(const char *name, int default_value, const char *desc);
+    void add_bool(const char *name, bool default_value, const char *desc);
+    void add_double(const char *name, double default_value, const char *desc);
+    void add_string(const char *name, const std::string &default_value,
+      const char *desc);
+
+    std::string help() const;
+    std::string help_description(const char *option_name) const;
+    std::string help_type(const char *option_name) const;
+
+private:
+    void add_option(const char *name, const std::string typestr,
+      const char *desc);
+    typedef std::pair<std::string, std::string> TypeDescPair;
+    std::map<std::string, TypeDescPair> _option_map;
+};
+#endif
+
+// These classes are all exposed to Python via SWIG. While they may contain
+// data that is private to C++, such data must not prevent the objects from
+// being shared. Tables, Keys, Values, Operations and Threads can be shared: a
+// single Key object might appear in many operations; Operations may appear
+// multiple times in a Thread or in different Threads; the same Thread may
+// appear multiple times in a Workload list, etc.
+//
+// Certain kinds of state are allowed: A Table contains a unique pointer that
+// is used within the internal part of the Context.  Stats contain lots
+// of state, but is made available after a Workload.run().
+//
+// Python controls the lifetime of (nearly) all objects of these classes.
+// The exception is Stat/Track objects, which are also created/used
+// internally to calculate and show statistics during a run.
+//
 struct Track {
     // Threads maintain the total thread operation and total latency they've
     // experienced.
@@ -127,10 +164,11 @@ struct Context {
 #endif
 };
 
+// To prevent silent errors, this class is set up in Python so that new
+// properties are prevented, only existing properties can be set.
+//
 struct TableOptions {
-    /*! default size of the key, unless overridden by Key.size */
     int key_size;
-    /*! default size of the value, unless overridden by Value.size */
     int value_size;
 
     TableOptions();
@@ -141,6 +179,15 @@ struct TableOptions {
 	os << "key_size " << key_size;
 	os << ", value_size " << value_size;
     }
+
+    std::string help() const { return _options.help(); }
+    std::string help_description(const char *option_name) const {
+	return _options.help_description(option_name); }
+    std::string help_type(const char *option_name) const {
+	return _options.help_type(option_name); }
+
+private:
+    OptionsList _options;
 };
 
 struct Table {
@@ -227,10 +274,13 @@ struct Operation {
 #endif
 };
 
+// To prevent silent errors, this class is set up in Python so that new
+// properties are prevented, only existing properties can be set.
+//
 struct ThreadOptions {
     std::string name;
     double throttle;
-    double throttle_burst;  // 0.0 = steady, 1.0 = moderate bursts, etc.
+    double throttle_burst;
 
     ThreadOptions();
     ThreadOptions(const ThreadOptions &other);
@@ -239,6 +289,15 @@ struct ThreadOptions {
     void describe(std::ostream &os) const {
 	os << "throttle " << throttle;
     }
+
+    std::string help() const { return _options.help(); }
+    std::string help_description(const char *option_name) const {
+	return _options.help_description(option_name); }
+    std::string help_type(const char *option_name) const {
+	return _options.help_type(option_name); }
+
+private:
+    OptionsList _options;
 };
 
 // This is a list of threads, which may be used in the Workload constructor.
@@ -289,21 +348,14 @@ struct Transaction {
     }
 };
 
+// To prevent silent errors, this class is set up in Python so that new
+// properties are prevented, only existing properties can be set.
+//
 struct WorkloadOptions {
-    /*! notify if any latency measured exceeds this number of milliseconds.
-     * Aborts or prints warning based on min_throughput_fatal setting.
-     * Requires sample_interval to be configured
-     */
     int max_latency;
-    /*! output throughput information every interval seconds, 0 to disable */
     int report_interval;
-    /*! total workload seconds */
     int run_time;
-    /*! performance logging every interval seconds, 0 to disable */
     int sample_interval;
-    /*! how often the latency of operations is measured. 1 for every operation,
-     * 2 for every second operation, 3 for every third operation etc.
-     */
     int sample_rate;
 
     WorkloadOptions();
@@ -314,6 +366,15 @@ struct WorkloadOptions {
 	os << "run_time " << run_time;
 	os << ", report_interval " << report_interval;
     }
+
+    std::string help() const { return _options.help(); }
+    std::string help_description(const char *option_name) const {
+	return _options.help_description(option_name); }
+    std::string help_type(const char *option_name) const {
+	return _options.help_type(option_name); }
+
+private:
+    OptionsList _options;
 };
 
 struct Workload {

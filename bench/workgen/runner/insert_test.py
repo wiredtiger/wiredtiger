@@ -87,3 +87,6 @@ op = Operation(Operation.OP_INSERT, Table(tname0), k, Value(10))
 workload = Workload(context, Thread(op))
 print('RUN4')
 expectException(lambda: workload.run(conn))
+
+print('HELP:')
+print(workload.options.help())

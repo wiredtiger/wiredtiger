@@ -141,6 +141,96 @@ static uint64_t power64(int base, int exp) {
     return result;
 }
 
+OptionsList::OptionsList() : _option_map() {}
+OptionsList::OptionsList(const OptionsList &other) :
+    _option_map(other._option_map) {}
+
+void OptionsList::add_option(const char *name, const std::string typestr,
+  const char *desc) {
+    std::string descstr(desc);
+    std::string key(name);
+    TypeDescPair pair(typestr, descstr);
+    _option_map[key] = pair;
+}
+
+void OptionsList::add_int(const char *name, int default_value,
+  const char *desc) {
+    std::stringstream sstm;
+    sstm << "int, default=" << default_value;
+    add_option(name, sstm.str(), desc);
+}
+
+void OptionsList::add_bool(const char *name, bool default_value,
+  const char *desc) {
+    std::stringstream sstm;
+    sstm << "boolean, default=" << (default_value ? "true" : "false");
+    add_option(name, sstm.str(), desc);
+}
+
+void OptionsList::add_double(const char *name, double default_value,
+  const char *desc) {
+    std::stringstream sstm;
+    sstm << "double, default=" << default_value;
+    add_option(name, sstm.str(), desc);
+}
+
+void OptionsList::add_string(const char *name,
+  const std::string &default_value, const char *desc) {
+    std::stringstream sstm;
+    sstm << "string, default=\"" << default_value << "\"";
+    add_option(name, sstm.str(), desc);
+}
+
+static void
+pretty_print(const char *p, const char *indent, std::stringstream &sstm)
+{
+    const char *t;
+
+    for (;; p = t + 1) {
+        if (strlen(p) <= 70)
+            break;
+        for (t = p + 70; t > p && *t != ' '; --t)
+            ;
+        if (t == p)			/* No spaces? */
+            break;
+        if (indent != NULL)
+            sstm << indent;
+        std::string line(p, (size_t)(t - p));
+        sstm << line << std::endl;
+    }
+    if (*p != '\0') {
+        if (indent != NULL)
+            sstm << indent;
+        sstm << p << std::endl;
+    }
+}
+
+std::string OptionsList::help() const {
+    std::stringstream sstm;
+    for (std::map<std::string, std::pair<std::string, std::string> >::const_iterator i = _option_map.begin();
+         i != _option_map.end(); i++) {
+        sstm << i->first << " (" << i->second.first << ")" << std::endl;
+        pretty_print(i->second.second.c_str(), "\t", sstm);
+    }
+    return sstm.str();
+}
+
+std::string OptionsList::help_description(const char *option_name) const {
+    const std::string key(option_name);
+    if (_option_map.count(key) == 0)
+        return (std::string(""));
+    else
+        return (_option_map.find(key)->second.second);
+}
+
+std::string OptionsList::help_type(const char *option_name) const {
+    const std::string key(option_name);
+    if (_option_map.count(key) == 0)
+        return std::string("");
+    else
+        return (_option_map.find(key)->second.first);
+}
+
 Context::Context() : _verbose(false), _internal(new ContextInternal()) {}
 Context::~Context() { delete _internal; }
 Context& Context::operator=(const Context &other) {
@@ -660,10 +750,18 @@ int Throttle::throttle(uint64_t op_count, uint64_t *op_limit) {
     return (0);
 }
 
-ThreadOptions::ThreadOptions() : name(), throttle(0.0), throttle_burst(1.0) {}
+ThreadOptions::ThreadOptions() : name(), throttle(0.0), throttle_burst(1.0),
+    _options() {
+    _options.add_string("name", name, "name of the thread");
+    _options.add_double("throttle", throttle,
+      "Limit to this number of operations per second");
+    _options.add_double("throttle_burst", throttle_burst,
+      "Changes characteristic of throttling from smooth (0.0) "
+      "to having large bursts with lulls (10.0 or larger)");
+}
 ThreadOptions::ThreadOptions(const ThreadOptions &other) :
     name(other.name), throttle(other.throttle),
-    throttle_burst(other.throttle_burst) {}
+    throttle_burst(other.throttle_burst), _options(other._options) {}
 ThreadOptions::~ThreadOptions() {}
 
 void
@@ -1181,9 +1279,15 @@ void Stats::track_latency(bool latency) {
     truncate.track_latency(latency);
 }
 
-TableOptions::TableOptions() : key_size(0), value_size(0) {}
+TableOptions::TableOptions() : key_size(0), value_size(0), _options() {
+    _options.add_int("key_size", key_size,
+      "default size of the key, unless overridden by Key.size");
+    _options.add_int("value_size", value_size,
+      "default size of the value, unless overridden by Value.size");
+}
 TableOptions::TableOptions(const TableOptions &other) :
-    key_size(other.key_size), value_size(other.value_size) {}
+    key_size(other.key_size), value_size(other.value_size),
+    _options(other._options) {}
 TableOptions::~TableOptions() {}
 
 Table::Table() : options(), _uri(), _internal(new TableInternal()) {
@@ -1211,11 +1315,26 @@ TableInternal::TableInternal(const TableInternal &other) : _tint(other._tint),
     _context_count(other._context_count) {}
 TableInternal::~TableInternal() {}
 
-WorkloadOptions::WorkloadOptions() : report_interval(0), run_time(0),
-    sample_interval(0), sample_rate(1) {}
+WorkloadOptions::WorkloadOptions() : max_latency(0), report_interval(0),
+    run_time(0), sample_interval(0), sample_rate(1), _options() {
+    _options.add_int("max_latency", max_latency,
+      "notify if any latency measured exceeds this number of milliseconds. "
+      "Aborts or prints warning based on min_throughput_fatal setting. "
+      "Requires sample_interval to be configured.");
+    _options.add_int("report_interval", report_interval,
+      "output throughput information every interval seconds, 0 to disable");
+    _options.add_int("run_time", run_time, "total workload seconds");
+    _options.add_int("sample_interval", sample_interval,
+      "performance logging every interval seconds, 0 to disable");
+    _options.add_int("sample_rate", sample_rate,
+      "how often the latency of operations is measured. 1 for every operation, "
+      "2 for every second operation, 3 for every third operation etc.");
+}
+
 WorkloadOptions::WorkloadOptions(const WorkloadOptions &other) :
-    report_interval(other.report_interval), run_time(other.run_time),
-    sample_interval(other.sample_interval), sample_rate(other.sample_rate) {}
+    max_latency(other.max_latency), report_interval(other.report_interval),
+    run_time(other.run_time), sample_interval(other.sample_interval),
+    sample_rate(other.sample_rate), _options(other._options) {}
 WorkloadOptions::~WorkloadOptions() {}
 
 Workload::Workload(Context *context, const ThreadListWrapper &tlw) :
