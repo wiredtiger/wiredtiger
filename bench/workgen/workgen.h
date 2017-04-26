@@ -353,6 +353,7 @@ struct Transaction {
 //
 struct WorkloadOptions {
     int max_latency;
+    std::string report_file;
     int report_interval;
     int run_time;
     int sample_interval;

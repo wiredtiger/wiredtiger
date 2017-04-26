@@ -29,6 +29,7 @@
 #define __STDC_LIMIT_MACROS   // needed to get UINT64_MAX in C++
 #include <iomanip>
 #include <iostream>
+#include <fstream>
 #include <sstream>
 #include "wiredtiger.h"
 #include "workgen.h"
@@ -79,10 +80,10 @@ extern "C" {
 
 #define THROW_ERRNO(e, args)                                            \
     do {                                                                \
-        std::stringstream sstm;                                         \
-        sstm << args;                                                   \
-        WorkgenException wge(e, sstm.str().c_str());                    \
-        throw(wge);                                                     \
+        std::stringstream __sstm;                                       \
+        __sstm << args;                                                 \
+        WorkgenException __wge(e, __sstm.str().c_str());                \
+        throw(__wge);                                                   \
     } while(0)
 
 #define THROW(args)   THROW_ERRNO(0, args)
@@ -147,10 +148,8 @@ OptionsList::OptionsList(const OptionsList &other) :
 
 void OptionsList::add_option(const char *name, const std::string typestr,
   const char *desc) {
-    std::string descstr(desc);
-    std::string key(name);
-    TypeDescPair pair(typestr, descstr);
-    _option_map[key] = pair;
+    TypeDescPair pair(typestr, desc);
+    _option_map[name] = pair;
 }
 
 void OptionsList::add_int(const char *name, int default_value,
@@ -191,7 +190,7 @@ pretty_print(const char *p, const char *indent, std::stringstream &sstm)
             break;
         for (t = p + 70; t > p && *t != ' '; --t)
             ;
-        if (t == p)			/* No spaces? */
+        if (t == p)            /* No spaces? */
             break;
         if (indent != NULL)
             sstm << indent;
@@ -207,8 +206,8 @@ pretty_print(const char *p, const char *indent, std::stringstream &sstm)
 
 std::string OptionsList::help() const {
     std::stringstream sstm;
-    for (std::map<std::string, std::pair<std::string, std::string> >::const_iterator i = _option_map.begin();
-         i != _option_map.end(); i++) {
+    for (std::map<std::string, TypeDescPair>::const_iterator i =
+         _option_map.begin(); i != _option_map.end(); i++) {
         sstm << i->first << " (" << i->second.first << ")" << std::endl;
         pretty_print(i->second.second.c_str(), "\t", sstm);
     }
@@ -279,21 +278,21 @@ int Monitor::run() {
     uint64_t latency_max = (uint64_t)options->max_latency;
 
     std::cout << "#time,"
-	    "totalsec,"
-	    "read ops per second,"
-	    "insert ops per second,"
-	    "update ops per second,"
-	    "checkpoints,"
-	    "read average latency(uS),"
-	    "read minimum latency(uS),"
-	    "read maximum latency(uS),"
-	    "insert average latency(uS),"
-	    "insert min latency(uS),"
-	    "insert maximum latency(uS),"
-	    "update average latency(uS),"
-	    "update min latency(uS),"
-	    "update maximum latency(uS)"
-	    "\n";
+      "totalsec,"
+      "read ops per second,"
+      "insert ops per second,"
+      "update ops per second,"
+      "checkpoints,"
+      "read average latency(uS),"
+      "read minimum latency(uS),"
+      "read maximum latency(uS),"
+      "insert average latency(uS),"
+      "insert min latency(uS),"
+      "insert maximum latency(uS),"
+      "update average latency(uS),"
+      "update min latency(uS),"
+      "update maximum latency(uS)"
+              << std::endl;
 
     Stats prev_interval;
     while (!_stop) {
@@ -491,8 +490,7 @@ err:
     }
 #endif
     if (ret != 0)
-        std::cerr << "thread " << name << " failed err="
-                  << ret << std::endl;
+        std::cerr << "thread " << name << " failed err=" << ret << std::endl;
     VERBOSE(*this, "thread " << name << "finished");
     return (ret);
 }
@@ -1315,14 +1313,21 @@ TableInternal::TableInternal(const TableInternal &other) : _tint(other._tint),
     _context_count(other._context_count) {}
 TableInternal::~TableInternal() {}
 
-WorkloadOptions::WorkloadOptions() : max_latency(0), report_interval(0),
-    run_time(0), sample_interval(0), sample_rate(1), _options() {
+WorkloadOptions::WorkloadOptions() : max_latency(0),
+    report_file("workload.stat"), report_interval(0),
+    run_time(0), sample_interval(0), sample_rate(1),
+    _options() {
     _options.add_int("max_latency", max_latency,
       "notify if any latency measured exceeds this number of milliseconds. "
       "Aborts or prints warning based on min_throughput_fatal setting. "
       "Requires sample_interval to be configured.");
     _options.add_int("report_interval", report_interval,
       "output throughput information every interval seconds, 0 to disable");
+    _options.add_string("report_file", report_file,
+      "file name for collecting run output, "
+      "including output from the report_interval option. "
+      "The file name is relative to the connection's home directory. "
+      "When set to the empty string, stdout is used.");
     _options.add_int("run_time", run_time, "total workload seconds");
     _options.add_int("sample_interval", sample_interval,
       "performance logging every interval seconds, 0 to disable");
@@ -1370,7 +1375,8 @@ int Workload::run(WT_CONNECTION *conn) {
 }
 
 WorkloadRunner::WorkloadRunner(Workload *workload) :
-    _workload(workload), _trunners(workload->_threads.size()), _start() {
+    _workload(workload), _trunners(workload->_threads.size()),
+    _report_out(&std::cout), _start() {
     ts_clear(_start);
 }
 WorkloadRunner::~WorkloadRunner() {}
@@ -1378,16 +1384,31 @@ WorkloadRunner::~WorkloadRunner() {}
 int WorkloadRunner::run(WT_CONNECTION *conn) {
     WT_DECL_RET;
     WorkloadOptions *options = &_workload->options;
+    std::ofstream report_out;
 
     if (options->sample_interval > 0 && options->sample_rate <= 0)
         THROW("Workload.options.sample_rate must be positive");
+    if (!options->report_file.empty()) {
+        std::stringstream sstm;
+        const char *home;
+
+        home = conn->get_home(conn);
+        if (strlen(home) != 0)
+            sstm << home << "/";
+        sstm << options->report_file;
+        report_out.open(sstm.str(), std::fstream::app);
+        if (!report_out)
+            THROW_ERRNO(errno, "Workload.options.report_file: \"" <<
+              options->report_file << "\" could not be opened");
+        _report_out = &report_out;
+    }
     WT_ERR(create_all(conn, _workload->_context));
     WT_ERR(open_all());
     WT_ERR(ThreadRunner::cross_check(_trunners));
     WT_ERR(run_all());
-
   err:
     //TODO: (void)close_all();
+    _report_out = &std::cout;
     return (ret);
 }
 
@@ -1434,24 +1455,28 @@ void WorkloadRunner::get_stats(Stats *result) {
 
 void WorkloadRunner::report(time_t interval, time_t totalsecs,
   Stats *prev_totals) {
+    std::ostream &out = *_report_out;
     Stats new_totals(prev_totals->track_latency());
+
     get_stats(&new_totals);
     Stats diff(new_totals);
     diff.subtract(*prev_totals);
     prev_totals->assign(new_totals);
-    diff.report(std::cout);
-    std::cout << " in " << interval << " secs ("
-              << totalsecs << " total secs)" << std::endl;
+    diff.report(out);
+    out << " in " << interval << " secs ("
+        << totalsecs << " total secs)" << std::endl;
 }
 
 void WorkloadRunner::final_report(timespec &totalsecs) {
+    std::ostream &out = *_report_out;
     Stats *stats = &_workload->stats;
+
     stats->clear();
     stats->track_latency(_workload->options.sample_interval > 0);
 
     get_stats(stats);
-    stats->final_report(std::cout, totalsecs);
-    std::cout << "Run completed: " << totalsecs << " seconds" << std::endl;
+    stats->final_report(out, totalsecs);
+    out << "Run completed: " << totalsecs << " seconds" << std::endl;
 }
 
 int WorkloadRunner::run_all() {
@@ -1461,13 +1486,14 @@ int WorkloadRunner::run_all() {
     WorkgenException *exception;
     WorkloadOptions *options = &_workload->options;
     Monitor monitor(*this);
+    std::ostream &out = *_report_out;
     WT_DECL_RET;
 
     for (size_t i = 0; i < _trunners.size(); i++)
         _trunners[i].get_static_counts(counts);
-    std::cout << "Starting workload: " << _trunners.size() << " threads, ";
-    counts.report(std::cout);
-    std::cout << std::endl;
+    out << "Starting workload: " << _trunners.size() << " threads, ";
+    counts.report(out);
+    out << std::endl;
 
     workgen_epoch(&_start);
     timespec end = _start + options->run_time;
@@ -1561,7 +1587,7 @@ int WorkloadRunner::run_all() {
 
     if (ret != 0)
         std::cerr << "run_all failed err=" << ret << std::endl;
-    std::cout << std::endl;
+    (*_report_out) << std::endl;
     if (exception != NULL)
         throw *exception;
     return (ret);

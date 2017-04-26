@@ -179,6 +179,7 @@ struct TableInternal {
 struct WorkloadRunner {
     Workload *_workload;
     std::vector<ThreadRunner> _trunners;
+    std::ostream *_report_out;
     timespec _start;
 
     WorkloadRunner(Workload *);
@@ -193,6 +194,9 @@ private:
     int open_all();
     void report(time_t, time_t, Stats *stats);
     int run_all();
+
+    WorkloadRunner(const WorkloadRunner &);                 // disallowed
+    WorkloadRunner& operator=(const WorkloadRunner &other); // disallowed
 };
 
 };
