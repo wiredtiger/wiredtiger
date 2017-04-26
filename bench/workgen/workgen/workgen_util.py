@@ -29,6 +29,7 @@
 # workgen_util.py
 #      Utility functions that are mixed into the workgen namespace
 
+from __future__ import print_function
 import glob, os, sys
 from wiredtiger import *
 from workgen import *
@@ -100,7 +101,7 @@ def extensions_config(exts):
         result = ',extensions=[' + ','.join(extfiles.values()) + ']'
     return result
 
-def show_buckets(title, mult, buckets, n):
+def show_buckets(fh, title, mult, buckets, n):
     shown = False
     s = title + ': '
     for count in range(0, n):
@@ -110,7 +111,7 @@ def show_buckets(title, mult, buckets, n):
                 s += ','
             s += str(count*mult) + '=' + str(val)
             shown = True
-    print(s)
+    print(s, file=fh)
 
 def latency_preprocess(arr, merge):
     mx = 0
@@ -138,16 +139,17 @@ def latency_plot(box, ch, left, width, arr, merge, scale):
             nch -= 1.0
             y += 1
 
-def latency_optype(name, ch, t):
+def latency_optype(fh, name, ch, t):
     if t.ops == 0:
         return
     if t.latency_ops == 0:
-        print('**** ' + name + ' operations: ' + str(t.ops))
+        print('**** ' + name + ' operations: ' + str(t.ops), file=fh)
         return
     print('**** ' + name + ' operations: ' + str(t.ops) + \
-          ', latency operations: ' + str(t.latency_ops))
+          ', latency operations: ' + str(t.latency_ops), file=fh)
     print('  avg: ' + str(t.latency/t.latency_ops) + \
-          ', min: ' + str(t.min_latency) + ', max: ' + str(t.max_latency))
+          ', min: ' + str(t.min_latency) + ', max: ' + str(t.max_latency),
+          file=fh)
     us = t.us()
     ms = t.ms()
     sec = t.sec()
@@ -166,21 +168,25 @@ def latency_optype(name, ch, t):
     latency_plot(box, ch, 54, 25, sec, 4, scale)
     box.reverse()
     for line in box:
-        print(''.join(line))
+        print(''.join(line), file=fh)
     dash25 = '-' * 25
-    print('  '.join([dash25] * 3))
+    print('  '.join([dash25] * 3), file=fh)
     print(' 0 - 999 us (40/bucket)     1 - 999 ms (40/bucket)     ' + \
-          '1 - 99 sec (4/bucket)')
-    print('')
-    show_buckets(name + ' us', 1, us, 1000)
-    show_buckets(name + ' ms', 1000, ms, 1000)
-    show_buckets(name + ' sec', 1000000, sec, 100)
-    print('')
+          '1 - 99 sec (4/bucket)', file=fh)
+    print('', file=fh)
+    show_buckets(fh, name + ' us', 1, us, 1000)
+    show_buckets(fh, name + ' ms', 1000, ms, 1000)
+    show_buckets(fh, name + ' sec', 1000000, sec, 100)
+    print('', file=fh)
 
-def workload_latency(workload):
-    latency_optype('insert', 'I', workload.stats.insert)
-    latency_optype('read', 'R', workload.stats.read)
-    latency_optype('remove', 'X', workload.stats.remove)
-    latency_optype('update', 'U', workload.stats.update)
-    latency_optype('truncate', 'T', workload.stats.truncate)
-    latency_optype('not found', 'N', workload.stats.not_found)
+def workload_latency(workload, outfilename = None):
+    if outfilename:
+        fh = open(outfilename, 'w')
+    else:
+        fh = sys.stdout
+    latency_optype(fh, 'insert', 'I', workload.stats.insert)
+    latency_optype(fh, 'read', 'R', workload.stats.read)
+    latency_optype(fh, 'remove', 'X', workload.stats.remove)
+    latency_optype(fh, 'update', 'U', workload.stats.update)
+    latency_optype(fh, 'truncate', 'T', workload.stats.truncate)
+    latency_optype(fh, 'not found', 'N', workload.stats.not_found)

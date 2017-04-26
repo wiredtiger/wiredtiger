@@ -96,4 +96,6 @@ workload.options.sample_rate = 1
 print('heavy stress workload:')
 workload.run(conn)
 
-workload_latency(workload)
+latency_filename = conn.get_home() + '/latency.out'
+print('for latency output, see: ' + latency_filename)
+workload_latency(workload, latency_filename)

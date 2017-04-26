@@ -1318,9 +1318,8 @@ WorkloadOptions::WorkloadOptions() : max_latency(0),
     run_time(0), sample_interval(0), sample_rate(1),
     _options() {
     _options.add_int("max_latency", max_latency,
-      "notify if any latency measured exceeds this number of milliseconds. "
-      "Aborts or prints warning based on min_throughput_fatal setting. "
-      "Requires sample_interval to be configured.");
+      "prints warning if any latency measured exceeds this number of "
+      "milliseconds. Requires sample_interval to be configured.");
     _options.add_int("report_interval", report_interval,
       "output throughput information every interval seconds, 0 to disable");
     _options.add_string("report_file", report_file,
