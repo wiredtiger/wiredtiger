@@ -1251,7 +1251,7 @@ int Workload::run(WT_CONNECTION *conn) {
 }
 
 WorkloadRunner::WorkloadRunner(Workload *workload) :
-    _workload(workload), _trunners(), _start() {
+    _workload(workload), _trunners(workload->_threads.size()), _start() {
     ts_clear(_start);
 }
 WorkloadRunner::~WorkloadRunner() {}
@@ -1260,7 +1260,6 @@ int WorkloadRunner::run(WT_CONNECTION *conn) {
     WT_DECL_RET;
     WorkloadOptions *options = &_workload->options;
 
-    _trunners.resize(_workload->_threads.size());
     if (options->sample_interval > 0 && options->sample_rate <= 0)
         THROW("Workload.options.sample_rate must be positive");
     WT_ERR(create_all(conn, _workload->_context));
