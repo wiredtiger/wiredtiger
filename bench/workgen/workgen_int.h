@@ -145,6 +145,7 @@ struct Monitor {
     WorkloadRunner &_wrunner;
     volatile bool _stop;
     pthread_t _handle;
+    std::ostream *_out;
 
     Monitor(WorkloadRunner &wrunner);
     ~Monitor();
@@ -180,6 +181,7 @@ struct WorkloadRunner {
     Workload *_workload;
     std::vector<ThreadRunner> _trunners;
     std::ostream *_report_out;
+    std::string _wt_home;
     timespec _start;
 
     WorkloadRunner(Workload *);
@@ -192,6 +194,7 @@ private:
     void final_report(timespec &);
     void get_stats(Stats *stats);
     int open_all();
+    void open_report_file(std::ofstream &, const char *, const char *);
     void report(time_t, time_t, Stats *stats);
     int run_all();
 

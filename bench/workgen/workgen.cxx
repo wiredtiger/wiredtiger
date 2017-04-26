@@ -277,22 +277,22 @@ int Monitor::run() {
     WorkloadOptions *options = &_wrunner._workload->options;
     uint64_t latency_max = (uint64_t)options->max_latency;
 
-    std::cout << "#time,"
-      "totalsec,"
-      "read ops per second,"
-      "insert ops per second,"
-      "update ops per second,"
-      "checkpoints,"
-      "read average latency(uS),"
-      "read minimum latency(uS),"
-      "read maximum latency(uS),"
-      "insert average latency(uS),"
-      "insert min latency(uS),"
-      "insert maximum latency(uS),"
-      "update average latency(uS),"
-      "update min latency(uS),"
-      "update maximum latency(uS)"
-              << std::endl;
+    (*_out) << "#time,"
+            << "totalsec,"
+            << "read ops per second,"
+            << "insert ops per second,"
+            << "update ops per second,"
+            << "checkpoints,"
+            << "read average latency(uS),"
+            << "read minimum latency(uS),"
+            << "read maximum latency(uS),"
+            << "insert average latency(uS),"
+            << "insert min latency(uS),"
+            << "insert maximum latency(uS),"
+            << "update average latency(uS),"
+            << "update min latency(uS),"
+            << "update maximum latency(uS)"
+            << std::endl;
 
     Stats prev_interval;
     while (!_stop) {
@@ -319,22 +319,22 @@ int Monitor::run() {
         uint64_t cur_updates = interval.update.ops / interval_secs;
 
         uint64_t totalsec = ts_sec(t - _wrunner._start);
-        std::cout << time_buf
-                  << "," << totalsec
-                  << "," << cur_reads
-                  << "," << cur_inserts
-                  << "," << cur_updates
-                  << "," << 'N'   // checkpoint in progress
-                  << "," << interval.read.average_latency()
-                  << "," << interval.read.min_latency
-                  << "," << interval.read.max_latency
-                  << "," << interval.insert.average_latency()
-                  << "," << interval.insert.min_latency
-                  << "," << interval.insert.max_latency
-                  << "," << interval.update.average_latency()
-                  << "," << interval.update.min_latency
-                  << "," << interval.update.max_latency
-                  << std::endl;
+        (*_out) << time_buf
+                << "," << totalsec
+                << "," << cur_reads
+                << "," << cur_inserts
+                << "," << cur_updates
+                << "," << 'N'   // checkpoint in progress
+                << "," << interval.read.average_latency()
+                << "," << interval.read.min_latency
+                << "," << interval.read.max_latency
+                << "," << interval.insert.average_latency()
+                << "," << interval.insert.min_latency
+                << "," << interval.insert.max_latency
+                << "," << interval.update.average_latency()
+                << "," << interval.update.min_latency
+                << "," << interval.update.max_latency
+                << std::endl;
 
         uint64_t read_max = interval.read.max_latency;
         uint64_t insert_max = interval.read.max_latency;
@@ -1386,20 +1386,12 @@ int WorkloadRunner::run(WT_CONNECTION *conn) {
     WorkloadOptions *options = &_workload->options;
     std::ofstream report_out;
 
+    _wt_home = conn->get_home(conn);
     if (options->sample_interval > 0 && options->sample_rate <= 0)
         THROW("Workload.options.sample_rate must be positive");
     if (!options->report_file.empty()) {
-        std::stringstream sstm;
-        const char *home;
-
-        home = conn->get_home(conn);
-        if (strlen(home) != 0)
-            sstm << home << "/";
-        sstm << options->report_file;
-        report_out.open(sstm.str(), std::fstream::app);
-        if (!report_out)
-            THROW_ERRNO(errno, "Workload.options.report_file: \"" <<
-              options->report_file << "\" could not be opened");
+        open_report_file(report_out, options->report_file.c_str(),
+          "Workload.options.report_file");
         _report_out = &report_out;
     }
     WT_ERR(create_all(conn, _workload->_context));
@@ -1417,6 +1409,19 @@ int WorkloadRunner::open_all() {
         WT_RET(_trunners[i].open_all());
     }
     return (0);
+}
+
+void WorkloadRunner::open_report_file(std::ofstream &of, const char *filename,
+  const char *desc) {
+    std::stringstream sstm;
+
+    if (!_wt_home.empty())
+        sstm << _wt_home << "/";
+    sstm << filename;
+    of.open(sstm.str(), std::fstream::app);
+    if (!of)
+        THROW_ERRNO(errno, desc << ": \"" << sstm.str()
+          << "\" could not be opened");
 }
 
 int WorkloadRunner::create_all(WT_CONNECTION *conn, Context *context) {
@@ -1486,6 +1491,7 @@ int WorkloadRunner::run_all() {
     WorkgenException *exception;
     WorkloadOptions *options = &_workload->options;
     Monitor monitor(*this);
+    std::ofstream monitor_out;
     std::ostream &out = *_report_out;
     WT_DECL_RET;
 
@@ -1501,6 +1507,9 @@ int WorkloadRunner::run_all() {
 
     // Start all threads
     if (options->sample_interval > 0) {
+        open_report_file(monitor_out, "monitor", "monitor output file");
+        monitor._out = &monitor_out;
+
         if ((ret = pthread_create(&monitor._handle, NULL, monitor_main,
           &monitor)) != 0) {
             std::cerr << "monitor thread failed err=" << ret << std::endl;
