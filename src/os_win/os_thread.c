@@ -24,9 +24,11 @@ __wt_thread_create(WT_SESSION_IMPL *session,
 	WT_FULL_BARRIER();
 
 	/* Spawn a new thread of control. */
-	*tidret = (HANDLE)_beginthreadex(NULL, 0, func, arg, 0, NULL);
-	if (*tidret != 0)
+	tidret->id = (HANDLE)_beginthreadex(NULL, 0, func, arg, 0, NULL);
+	if (tidret->id != 0) {
+		tidret->created = true;
 		return (0);
+	}
 
 	WT_RET_MSG(session, __wt_errno(), "thread create: _beginthreadex");
 }
