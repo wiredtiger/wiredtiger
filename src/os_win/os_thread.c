@@ -40,6 +40,10 @@ __wt_thread_join(WT_SESSION_IMPL *session, wt_thread_t tid)
 {
 	DWORD windows_error;
 
+	/* Only attempt to join if thread was created successfully */
+	if (!tid.created)
+		return (0);
+
 	/*
 	 * Joining a thread isn't a memory barrier, but WiredTiger commonly
 	 * sets flags and or state and then expects worker threads to halt.
@@ -48,7 +52,7 @@ __wt_thread_join(WT_SESSION_IMPL *session, wt_thread_t tid)
 	WT_FULL_BARRIER();
 
 	if ((windows_error =
-	    WaitForSingleObject(tid, INFINITE)) != WAIT_OBJECT_0) {
+	    WaitForSingleObject(tid.id, INFINITE)) != WAIT_OBJECT_0) {
 		if (windows_error == WAIT_FAILED)
 			windows_error = __wt_getlasterror();
 		__wt_errx(session, "thread join: WaitForSingleObject: %s",
@@ -58,13 +62,14 @@ __wt_thread_join(WT_SESSION_IMPL *session, wt_thread_t tid)
 		return (WT_PANIC);
 	}
 
-	if (CloseHandle(tid) == 0) {
+	if (CloseHandle(tid.id) == 0) {
 		windows_error = __wt_getlasterror();
 		__wt_errx(session, "thread join: CloseHandle: %s",
 		    __wt_formatmessage(session, windows_error));
 		return (__wt_map_windows_error(windows_error));
 	}
 
+	tid.created = false;
 	return (0);
 }
 
