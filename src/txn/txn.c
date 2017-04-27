@@ -457,18 +457,25 @@ __wt_txn_set_oldest_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	    __wt_config_gets_def(session, cfg, "oldest_timestamp", 0, &cval));
 	if (cval.len != 0) {
 #if TIMESTAMP_SIZE > 0
-		WT_DECL_RET;
 		WT_TXN_GLOBAL *txn_global;
+		uint8_t ts[TIMESTAMP_SIZE];
 
 		txn_global = &S2C(session)->txn_global;
 
+		WT_RET(__txn_set_timestamp(session, "oldest", ts, &cval));
+
+		/*
+		 * This method can be called from multiple threads, check that
+		 * we are moving the global oldest timestamp forwards.
+		 */
 		__wt_writelock(session, &txn_global->oldest_rwlock);
-		ret = __txn_set_timestamp(
-		    session, "oldest", txn_global->commit_timestamp, &cval);
-		if (ret == 0 && !txn_global->has_oldest_ts)
+		if (!txn_global->has_oldest_ts || memcmp(
+		    txn_global->oldest_timestamp, ts, TIMESTAMP_SIZE) < 0) {
+			memcpy(
+			    txn_global->oldest_timestamp, ts, TIMESTAMP_SIZE);
 			txn_global->has_oldest_ts = true;
+		}
 		__wt_writeunlock(session, &txn_global->oldest_rwlock);
-		WT_RET(ret);
 #else
 		WT_RET_MSG(session, EINVAL, "oldest_timestamp requires a "
 		    "version of WiredTiger built with timestamp support");
@@ -782,6 +789,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
 		switch (op->type) {
 		case WT_TXN_OP_BASIC:
+		case WT_TXN_OP_BASIC_TS:
 		case WT_TXN_OP_INMEM:
 			/*
 			 * Switch reserved operations to abort to
@@ -793,7 +801,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			}
 
 #if TIMESTAMP_SIZE > 0
-			if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+			if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
+			    op->type != WT_TXN_OP_BASIC_TS)
 				memcpy(op->u.upd->timestamp,
 				    txn->commit_timestamp, TIMESTAMP_SIZE);
 #endif
@@ -851,6 +860,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
 		switch (op->type) {
 		case WT_TXN_OP_BASIC:
+		case WT_TXN_OP_BASIC_TS:
 		case WT_TXN_OP_INMEM:
 		       WT_ASSERT(session, op->u.upd->txnid == txn->id);
 			op->u.upd->txnid = WT_TXN_ABORTED;
