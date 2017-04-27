@@ -10,8 +10,6 @@
 #define	WT_SIZET_FMT	"zu"			/* size_t format string */
 
 /* GCC-specific attributes. */
-#define	WT_ATTRIBUTE_LIBRARY_VISIBLE	__attribute__((visibility("default")))
-
 #define	WT_PACKED_STRUCT_BEGIN(name)					\
 	struct __attribute__ ((__packed__)) name {
 #define	WT_PACKED_STRUCT_END						\

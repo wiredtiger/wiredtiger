@@ -10,8 +10,6 @@
 #define	WT_SIZET_FMT	"zu"			/* size_t format string */
 
 /* Lint-specific attributes. */
-#define	WT_ATTRIBUTE_LIBRARY_VISIBLE
-
 #define	WT_PACKED_STRUCT_BEGIN(name)					\
 	struct name {
 #define	WT_PACKED_STRUCT_END						\
