@@ -43,6 +43,7 @@ extern "C" {
 #include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
 #include <math.h>
 #include "error.h"
 #include "misc.h"
@@ -1417,7 +1418,7 @@ void WorkloadRunner::open_report_file(std::ofstream &of, const char *filename,
     if (!_wt_home.empty())
         sstm << _wt_home << "/";
     sstm << filename;
-    of.open(sstm.str(), std::fstream::app);
+    of.open(sstm.str().c_str(), std::fstream::app);
     if (!of)
         THROW_ERRNO(errno, desc << ": \"" << sstm.str()
           << "\" could not be opened");
