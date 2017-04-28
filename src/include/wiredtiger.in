@@ -507,7 +507,7 @@ struct __wt_cursor {
 	 * the modify requires more than the configured cache size to complete,
 	 * ::WT_CACHE_FULL is returned.
 	 */
-	int __F(modify)(WT_CURSOR *cursor, WT_MODIFY *entries, u_int nentries);
+	int __F(modify)(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries);
 
 	/*!
 	 * Update an existing record and optionally insert a record.

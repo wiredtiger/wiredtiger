@@ -1190,7 +1190,7 @@ col_reserve(WT_CURSOR *cursor, uint64_t keyno, bool positioned)
 	return (0);
 }
 
-#if 0
+#ifdef MODIFY_STRING_VERBOSE
 /*
  * show --
  *	Dump out a string.
@@ -1214,18 +1214,20 @@ show(const char *tag, uint8_t *p, size_t len)
  */
 static bool
 modify_build(TINFO *tinfo,
-    WT_CURSOR *cursor, WT_MODIFY *entries, u_int *nentriesp, WT_ITEM *value)
+    WT_CURSOR *cursor, WT_MODIFY *entries, int *nentriesp, WT_ITEM *value)
 {
 	static char repl[64];
-	u_int i, nentries;
 	size_t len, newlen, size;
+	u_int i, nentries;
 	uint8_t *ta, *tb, *tc;
 
 	if (repl[0] == '\0')
 		memset(repl, '+', sizeof(repl));
 
 	testutil_check(cursor->get_value(cursor, value));
-	//show("O", (uint8_t *)value->data, value->size);
+#ifdef MODIFY_STRING_VERBOSE
+	show("O", (uint8_t *)value->data, value->size);
+#endif
 
 	/*
 	 * Randomly select a number of byte changes, offsets and lengths. Start
@@ -1238,7 +1240,6 @@ modify_build(TINFO *tinfo,
 		entries[i].offset = (size_t)mmrand(&tinfo->rnd, 20, 40);
 		entries[i].size = (size_t)mmrand(&tinfo->rnd, 0, 10);
 	}
-	*nentriesp = nentries;
 
 	/*
 	 * Calculate how big a buffer we need by adding/subtracting bytes being
@@ -1269,9 +1270,11 @@ modify_build(TINFO *tinfo,
 	memcpy(ta, value->data, value->size);
 	len = value->size;
 	for (i = 0; i < nentries; ++i) {
-		//show("\n1", ta, len);
+#ifdef MODIFY_STRING_VERBOSE
+		show("\n1", ta, len);
 		fprintf(stderr, "o/s %" WT_SIZET_FMT "/%" WT_SIZET_FMT "\n",
 		    entries[i].offset, entries[i].size);
+#endif
 
 		/* Take leading bytes from the original, plus any gap bytes. */
 		if (entries[i].offset >= len) {
@@ -1287,13 +1290,15 @@ modify_build(TINFO *tinfo,
 		} else
 			memcpy(tb, ta, entries[i].offset);
 		newlen = entries[i].offset;
-		//show("2", tb, newlen);
-
+#ifdef MODIFY_STRING_VERBOSE
+		show("2", tb, newlen);
+#endif
 		/* Take replacement bytes. */
 		memcpy(tb + newlen, entries[i].data.data, entries[i].data.size);
 		newlen += entries[i].data.size;
-		//show("3", tb, newlen);
-
+#ifdef MODIFY_STRING_VERBOSE
+		show("3", tb, newlen);
+#endif
 		/* Take trailing bytes from the original. */
 		if (len > entries[i].offset + entries[i].size) {
 			len -= entries[i].offset + entries[i].size;
@@ -1301,8 +1306,9 @@ modify_build(TINFO *tinfo,
 			    ta + (entries[i].offset + entries[i].size), len);
 			newlen += len;
 		}
-		//show("4", tb, newlen);
-
+#ifdef MODIFY_STRING_VERBOSE
+		show("4", tb, newlen);
+#endif
 		len = newlen;
 		tc = ta;
 		ta = tb;
@@ -1314,11 +1320,14 @@ modify_build(TINFO *tinfo,
 	value->data = value->mem;
 	value->size = len;
 
-	//show("F", (uint8_t *)value->data, value->size);
+#ifdef MODIFY_STRING_VERBOSE
+	show("F", (uint8_t *)value->data, value->size);
+#endif
 
 	free(ta);
 	free(tb);
 
+	*nentriesp = (int)nentries;
 	return (true);
 }
 
@@ -1332,7 +1341,7 @@ row_modify(TINFO *tinfo, WT_CURSOR *cursor,
 {
 	WT_DECL_RET;
 	WT_MODIFY entries[MAX_MODIFY_ENTRIES];
-	u_int nentries;
+	int nentries;
 
 	if (!positioned) {
 		key_gen(key, keyno);
@@ -1390,7 +1399,7 @@ col_modify(TINFO *tinfo, WT_CURSOR *cursor,
 {
 	WT_DECL_RET;
 	WT_MODIFY entries[MAX_MODIFY_ENTRIES];
-	u_int nentries;
+	int nentries;
 
 	if (!positioned) {
 		cursor->set_key(cursor, keyno);

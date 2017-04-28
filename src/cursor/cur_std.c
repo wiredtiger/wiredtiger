@@ -94,7 +94,7 @@ __wt_cursor_equals_notsup(WT_CURSOR *cursor, WT_CURSOR *other, int *equalp)
  *	Unsupported cursor modify.
  */
 int
-__wt_cursor_modify_notsup(WT_CURSOR *cursor, WT_MODIFY *entries, u_int nentries)
+__wt_cursor_modify_notsup(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 {
 	WT_UNUSED(entries);
 	WT_UNUSED(nentries);
