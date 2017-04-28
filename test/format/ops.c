@@ -29,6 +29,8 @@
 #include "format.h"
 
 static int   col_insert(TINFO *, WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t *);
+static int   col_modify(
+		TINFO *, WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t, bool);
 static int   col_remove(WT_CURSOR *, WT_ITEM *, uint64_t, bool);
 static int   col_reserve(WT_CURSOR *, uint64_t, bool);
 static int   col_update(
@@ -36,6 +38,8 @@ static int   col_update(
 static int   nextprev(WT_CURSOR *, int);
 static void *ops(void *);
 static int   row_insert(
+		TINFO *, WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t, bool);
+static int   row_modify(
 		TINFO *, WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t, bool);
 static int   row_remove(WT_CURSOR *, WT_ITEM *, uint64_t, bool);
 static int   row_reserve(WT_CURSOR *, WT_ITEM *, uint64_t, bool);
@@ -743,18 +747,36 @@ skip_checkpoint:	/* Pick the next checkpoint operation. */
 update_instead_of_insert:
 			++tinfo->update;
 
-			/* Update the row. */
-			switch (g.type) {
-			case ROW:
-				ret = row_update(tinfo,
-				    cursor, key, value, keyno, positioned);
-				break;
-			case FIX:
-			case VAR:
-				ret = col_update(tinfo,
-				    cursor, key, value, keyno, positioned);
-				break;
-			}
+			/*
+			 * Update or modify the row.
+			 *
+			 * Split updates into cursor modify and cursor update,
+			 * it's simpler, even though it makes format harder to
+			 * configure more specifically.
+			 */
+			if (g.type != FIX && mmrand(&tinfo->rnd, 0, 10) == 1)
+				switch (g.type) {
+				case ROW:
+					ret = row_modify(tinfo, cursor,
+					    key, value, keyno, positioned);
+					break;
+				case VAR:
+					ret = col_modify(tinfo, cursor,
+					    key, value, keyno, positioned);
+					break;
+				}
+			else
+				switch (g.type) {
+				case ROW:
+					ret = row_update(tinfo, cursor,
+					    key, value, keyno, positioned);
+					break;
+				case FIX:
+				case VAR:
+					ret = col_update(tinfo, cursor,
+					    key, value, keyno, positioned);
+					break;
+				}
 			if (ret == 0) {
 				positioned = true;
 				if (SNAP_TRACK)
@@ -1165,6 +1187,255 @@ col_reserve(WT_CURSOR *cursor, uint64_t keyno, bool positioned)
 	default:
 		testutil_die(ret, "col_reserve: %" PRIu64, keyno);
 	}
+	return (0);
+}
+
+#if 0
+/*
+ * show --
+ *	Dump out a string.
+ */
+static void
+show(const char *tag, uint8_t *p, size_t len)
+{
+	size_t i;
+
+	fprintf(stderr, "%s: {", tag);
+	for (i = 0; i < len; ++i, ++p)
+		fprintf(stderr, "%c", *p == '\0' ? '-' : *p);
+	fprintf(stderr, "}\n");
+}
+#endif
+
+/*
+ * modify_build --
+ *	Generate a set of modify vectors, and copy what the final result
+ * should be into the value buffer.
+ */
+static bool
+modify_build(TINFO *tinfo,
+    WT_CURSOR *cursor, WT_MODIFY *entries, u_int *nentriesp, WT_ITEM *value)
+{
+	static char repl[64];
+	u_int i, nentries;
+	size_t len, newlen, size;
+	uint8_t *ta, *tb, *tc;
+
+	if (repl[0] == '\0')
+		memset(repl, '+', sizeof(repl));
+
+	testutil_check(cursor->get_value(cursor, value));
+	//show("O", (uint8_t *)value->data, value->size);
+
+	/*
+	 * Randomly select a number of byte changes, offsets and lengths. Start
+	 * at least 11 bytes in so we skip the leading key information.
+	 */
+	nentries = mmrand(&tinfo->rnd, 1, MAX_MODIFY_ENTRIES);
+	for (i = 0; i < nentries; ++i) {
+		entries[i].data.data = repl;
+		entries[i].data.size = (size_t)mmrand(&tinfo->rnd, 0, 10);
+		entries[i].offset = (size_t)mmrand(&tinfo->rnd, 20, 40);
+		entries[i].size = (size_t)mmrand(&tinfo->rnd, 0, 10);
+	}
+	*nentriesp = nentries;
+
+	/*
+	 * Calculate how big a buffer we need by adding/subtracting bytes being
+	 * added to the string vs. bytes being replaced. Pessimistic (if the
+	 * offset is past the end of the value, replacement size is ignored),
+	 * but close enough.
+	 */
+	for (size = value->size, i = 0; i < nentries; ++i)
+		if (entries[i].size > entries[i].data.size)
+			size -= entries[i].size - entries[i].data.size;
+		else if (entries[i].size < entries[i].data.size)
+			size += entries[i].data.size - entries[i].size;
+
+	/* If size is larger than the available buffer size, skip this one. */
+	if (size >= value->memsize)
+		return (false);
+
+	/* Allocate a pair of buffers. */
+	ta = dcalloc(size + 1, sizeof(uint8_t));
+	tb = dcalloc(size + 1, sizeof(uint8_t));
+
+	/*
+	 * Use a brute-force process to create the value WiredTiger will create
+	 * from this change vector. Don't do anything tricky to speed it up, we
+	 * want to use a different algorithm from WiredTiger's, the idea is to
+	 * bug-check the library.
+	 */
+	memcpy(ta, value->data, value->size);
+	len = value->size;
+	for (i = 0; i < nentries; ++i) {
+		//show("\n1", ta, len);
+		fprintf(stderr, "o/s %u/%u\n",
+		    (u_int)entries[i].offset, (u_int)entries[i].size);
+
+		/* Take leading bytes from the original, plus any gap bytes. */
+		if (entries[i].offset >= len) {
+			memcpy(tb, ta, len);
+			if (entries[i].offset > len)
+				memset(tb + len, '\0', entries[i].offset - len);
+
+			/*
+			 * If the offset is past the end of the previous value,
+			 * the size is ignored.
+			 */
+			entries[i].size = 0;
+		} else
+			memcpy(tb, ta, entries[i].offset);
+		newlen = entries[i].offset;
+		//show("2", tb, newlen);
+
+		/* Take replacement bytes. */
+		memcpy(tb + newlen, entries[i].data.data, entries[i].data.size);
+		newlen += entries[i].data.size;
+		//show("3", tb, newlen);
+
+		/* Take trailing bytes from the original. */
+		if (len > entries[i].offset + entries[i].size) {
+			len -= entries[i].offset + entries[i].size;
+			memcpy(tb + newlen,
+			    ta + (entries[i].offset + entries[i].size), len);
+			newlen += len;
+		}
+		//show("4", tb, newlen);
+
+		len = newlen;
+		tc = ta;
+		ta = tb;
+		tb = tc;
+	}
+
+	/* Copy the expected result value into the our value. */
+	memcpy(value->mem, ta, len);
+	value->data = value->mem;
+	value->size = len;
+
+	//show("F", (uint8_t *)value->data, value->size);
+
+	free(ta);
+	free(tb);
+
+	return (true);
+}
+
+/*
+ * row_modify --
+ *	Modify a row in a row-store file.
+ */
+static int
+row_modify(TINFO *tinfo, WT_CURSOR *cursor,
+    WT_ITEM *key, WT_ITEM *value, uint64_t keyno, bool positioned)
+{
+	WT_DECL_RET;
+	WT_MODIFY entries[MAX_MODIFY_ENTRIES];
+	u_int nentries;
+
+	if (!positioned) {
+		key_gen(key, keyno);
+		cursor->set_key(cursor, key);
+		switch (ret = cursor->search(cursor)) {
+		case 0:
+			break;
+		case WT_CACHE_FULL:
+		case WT_ROLLBACK:
+			return (WT_ROLLBACK);
+		case WT_NOTFOUND:
+			return (WT_NOTFOUND);
+		default:
+			testutil_die(ret,
+			    "row_modify: read row %" PRIu64 " by key", keyno);
+		}
+	}
+
+	/*
+	 * Generate a set of change vectors and copy the expected result into
+	 * the value buffer. If the return value is non-zero, there wasn't a
+	 * big enough value to work with, or for some reason we couldn't build
+	 * a reasonable change vector.
+	 */
+	ret = 0;
+	if (modify_build(tinfo, cursor, entries, &nentries, value))
+		ret = cursor->modify(cursor, entries, nentries);
+	switch (ret) {
+	case 0:
+		break;
+	case WT_CACHE_FULL:
+	case WT_ROLLBACK:
+		return (WT_ROLLBACK);
+	default:
+		testutil_die(ret,
+		    "row_modify: modify row %" PRIu64 " by key", keyno);
+	}
+
+#ifdef HAVE_BERKELEY_DB
+	if (!SINGLETHREADED)
+		return (0);
+
+	bdb_update(key->data, key->size, value->data, value->size);
+#endif
+	return (0);
+}
+
+/*
+ * col_modify --
+ *	Modify a row in a column-store file.
+ */
+static int
+col_modify(TINFO *tinfo, WT_CURSOR *cursor,
+    WT_ITEM *key, WT_ITEM *value, uint64_t keyno, bool positioned)
+{
+	WT_DECL_RET;
+	WT_MODIFY entries[MAX_MODIFY_ENTRIES];
+	u_int nentries;
+
+	if (!positioned) {
+		cursor->set_key(cursor, keyno);
+		switch (ret = cursor->search(cursor)) {
+		case 0:
+			break;
+		case WT_CACHE_FULL:
+		case WT_ROLLBACK:
+			return (WT_ROLLBACK);
+		case WT_NOTFOUND:
+			return (WT_NOTFOUND);
+		default:
+			testutil_die(ret,
+			    "col_modify: read row %" PRIu64, keyno);
+		}
+	}
+
+	/*
+	 * Generate a set of change vectors and copy the expected result into
+	 * the value buffer. If the return value is non-zero, there wasn't a
+	 * big enough value to work with, or for some reason we couldn't build
+	 * a reasonable change vector.
+	 */
+	ret = 0;
+	if (modify_build(tinfo, cursor, entries, &nentries, value))
+		ret = cursor->modify(cursor, entries, nentries);
+	switch (ret) {
+	case 0:
+		break;
+	case WT_CACHE_FULL:
+	case WT_ROLLBACK:
+		return (WT_ROLLBACK);
+	default:
+		testutil_die(ret, "col_modify: modify row %" PRIu64, keyno);
+	}
+
+#ifdef HAVE_BERKELEY_DB
+	if (!SINGLETHREADED)
+		return (0);
+
+	key_gen(key, keyno);
+	bdb_update(key->data, key->size, value->data, value->size);
+#else
+	(void)key;				/* [-Wunused-variable] */
+#endif
 	return (0);
 }
 

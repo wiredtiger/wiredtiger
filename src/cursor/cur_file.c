@@ -430,6 +430,7 @@ __curfile_create(WT_SESSION_IMPL *session,
 	    __curfile_search,			/* search */
 	    __curfile_search_near,		/* search-near */
 	    __curfile_insert,			/* insert */
+	    __wt_cursor_modify_notsup,		/* modify */
 	    __curfile_update,			/* update */
 	    __curfile_remove,			/* remove */
 	    __curfile_reserve,			/* reserve */

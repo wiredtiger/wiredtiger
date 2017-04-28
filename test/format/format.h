@@ -78,6 +78,8 @@
 
 #define	FORMAT_OPERATION_REPS	3		/* 3 thread operations sets */
 
+#define	MAX_MODIFY_ENTRIES	15		/* maximum change vectors */
+
 typedef struct {
 	char *home;				/* Home directory */
 	char *home_backup;			/* Hot-backup directory */

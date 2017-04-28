@@ -90,6 +90,19 @@ __wt_cursor_equals_notsup(WT_CURSOR *cursor, WT_CURSOR *other, int *equalp)
 }
 
 /*
+ * __wt_cursor_modify_notsup --
+ *	Unsupported cursor modify.
+ */
+int
+__wt_cursor_modify_notsup(WT_CURSOR *cursor, WT_MODIFY *entries, u_int nentries)
+{
+	WT_UNUSED(entries);
+	WT_UNUSED(nentries);
+
+	return (__wt_cursor_notsup(cursor));
+}
+
+/*
  * __wt_cursor_search_near_notsup --
  *	Unsupported cursor search-near.
  */

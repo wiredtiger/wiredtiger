@@ -945,6 +945,7 @@ nd
 needkey
 needvalue
 negint
+nentries
 newbar
 newfile
 newuri
