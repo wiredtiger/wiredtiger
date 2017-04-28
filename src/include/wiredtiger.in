@@ -489,6 +489,9 @@ struct __wt_cursor {
 	 * Modification structures are applied in order, and later modifications
 	 * can update earlier modifications.
 	 *
+	 * The modify method is only supported on raw byte arrays accessed using
+	 * a WT_ITEM structure, that is, a format type of \c u.
+	 *
 	 * @snippet ex_all.c Modify an existing record
 	 *
 	 * On success, the cursor ends positioned at the modified record; to
