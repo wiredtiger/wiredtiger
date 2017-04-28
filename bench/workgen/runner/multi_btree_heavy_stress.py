@@ -1,14 +1,15 @@
+#!/usr/bin/python
 # Drive a constant high workload through, even if WiredTiger isn't keeping
 # up by dividing the workload across a lot of threads. This needs to be
 # tuned to the particular machine so the workload is close to capacity in the
 # steady state, but not overwhelming.
 #
 ################
-# Note: this somewhat works as a proof of concept, with caveats.
+# Note: as a proof of concept for workgen, this matches closely
+# bench/wtperf/runner/multi-btree-read-heavy-stress.wtperf .
 # Run time, #ops, #threads are ratcheted way down for testing.
-# There is no throttling, compression or latency tracking.
 #
-
+from runner import *
 from wiredtiger import *
 from workgen import *
 
@@ -98,4 +99,4 @@ workload.run(conn)
 
 latency_filename = conn.get_home() + '/latency.out'
 print('for latency output, see: ' + latency_filename)
-workload_latency(workload, latency_filename)
+latency.workload_latency(workload, latency_filename)

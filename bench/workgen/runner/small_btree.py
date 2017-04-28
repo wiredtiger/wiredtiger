@@ -1,3 +1,5 @@
+#!/usr/bin/python
+from runner import *
 from wiredtiger import *
 from workgen import *
 

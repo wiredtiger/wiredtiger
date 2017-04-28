@@ -36,7 +36,7 @@ import os, sys
 me = sys.modules[__name__]
 sys.path.append(os.path.dirname(__file__))  # needed for Python3
 import workgen, workgen_util
-for module in workgen, workgen_util:
+for module in workgen:
     for name in dir(module):
         value = getattr(module, name)
         setattr(me, name, value)
