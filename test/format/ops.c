@@ -1270,8 +1270,8 @@ modify_build(TINFO *tinfo,
 	len = value->size;
 	for (i = 0; i < nentries; ++i) {
 		//show("\n1", ta, len);
-		fprintf(stderr, "o/s %u/%u\n",
-		    (u_int)entries[i].offset, (u_int)entries[i].size);
+		fprintf(stderr, "o/s %" WT_SIZET_FMT "/%" WT_SIZET_FMT "\n",
+		    entries[i].offset, entries[i].size);
 
 		/* Take leading bytes from the original, plus any gap bytes. */
 		if (entries[i].offset >= len) {
