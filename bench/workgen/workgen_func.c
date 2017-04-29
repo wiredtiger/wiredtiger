@@ -29,8 +29,10 @@
 #include "test_util.h"
 #include "workgen_func.h"
 
-/* This is an opaque type handle. */
-typedef struct workgen_random_state {} workgen_random_state;
+/* workgen_random_state is used as an opaque type handle. */
+typedef struct workgen_random_state {
+	WT_RAND_STATE state;
+} workgen_random_state;
 
 /*
  * These functions call their WiredTiger equivalents.
@@ -38,38 +40,39 @@ typedef struct workgen_random_state {} workgen_random_state;
 uint32_t
 workgen_atomic_add32(uint32_t *vp, uint32_t v)
 {
-    return (__wt_atomic_add32(vp, v));
+	return (__wt_atomic_add32(vp, v));
 }
 
 uint64_t
 workgen_atomic_add64(uint64_t *vp, uint64_t v)
 {
-    return (__wt_atomic_add64(vp, v));
+	return (__wt_atomic_add64(vp, v));
 }
 
 void
 workgen_epoch(struct timespec *tsp)
 {
-    __wt_epoch(NULL, tsp);
+	__wt_epoch(NULL, tsp);
 }
 
 uint32_t
 workgen_random(workgen_random_state volatile * rnd_state)
 {
-	return (__wt_random((WT_RAND_STATE *)rnd_state));
+	return (__wt_random(&rnd_state->state));
 }
 
 int
 workgen_random_alloc(WT_SESSION *session, workgen_random_state **rnd_state)
 {
-	WT_RAND_STATE *state;
-	state = malloc(sizeof(WT_RAND_STATE));
+	workgen_random_state *state;
+
+	state = malloc(sizeof(workgen_random_state));
 	if (state == NULL) {
 		*rnd_state = NULL;
 		return (ENOMEM);
 	}
-	__wt_random_init_seed((WT_SESSION_IMPL *)session, state);
-	*rnd_state = (workgen_random_state *)state;
+	__wt_random_init_seed((WT_SESSION_IMPL *)session, &state->state);
+	*rnd_state = state;
 	return (0);
 }
 
