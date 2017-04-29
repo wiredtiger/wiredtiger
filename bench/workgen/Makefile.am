@@ -28,5 +28,3 @@ install-exec-local:
 # be removed is created under the build directory.
 clean-local:
 	rm -rf build _workgen.so workgen_wrap.o WT_TEST
-
-TESTS = run-ex_access
