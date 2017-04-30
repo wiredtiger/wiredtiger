@@ -37,7 +37,8 @@ if not 'ARCHFLAGS' in os.environ:
     os.environ['ARCHFLAGS'] = ''
 
 # Suppress warnings building SWIG generated code
-extra_cflags = [ '-Wmissing-field-initializers', '-Wextra', '-Wno-shadow', '-I../../src/include', '-I../../test/utility']
+extra_cflags = [ '-w', '-Wno-sign-conversion', '-I../../src/include', \
+                 '-I../../test/utility']
 
 dir = os.path.dirname(__file__)
 abs_dir = os.path.dirname(os.path.abspath(__file__))
@@ -45,7 +46,8 @@ abs_dir = os.path.dirname(os.path.abspath(__file__))
 if abs_dir.endswith(os.sep + os.path.join('bench', 'workgen')):
     wt_dir = os.path.dirname(os.path.dirname(abs_dir))
 else:
-    print(os.path.basename(__file__) + ": running from unknown dir", file=sys.stderr)
+    print(os.path.basename(__file__) + ": running from unknown dir", \
+          file=sys.stderr)
     sys.exit(1)
 
 build_dir = os.path.join(wt_dir, 'build_posix')
@@ -60,9 +62,7 @@ wt_ver = '%d.%d' % (WIREDTIGER_VERSION_MAJOR, WIREDTIGER_VERSION_MINOR)
 setup(name='workgen', version=wt_ver,
     ext_modules=[Extension('_workgen',
                 [os.path.join(dir, 'workgen_wrap.cxx')],
-        libraries=['wiredtiger', 'pthread'],
-        extra_objects = [ os.path.join(build_dir, 'bench', 'workgen', \
-                                       '.libs', 'libworkgen.a') ],
+        libraries=['wiredtiger', 'pthread', 'workgen'],
         extra_compile_args=extra_cflags,
     )],
     package_dir={'' : dir},

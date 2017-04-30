@@ -3,7 +3,7 @@ AM_CPPFLAGS += -I$(top_srcdir)/src/include
 AM_CPPFLAGS +=-I$(top_srcdir)/test/utility
 
 PYSRC = $(top_srcdir)/bench/workgen
-PYDIRS = -t $(abs_builddir) -I $(abs_top_srcdir):$(abs_top_builddir) -L $(abs_top_builddir)/.libs
+PYDIRS = -t $(abs_builddir) -I $(abs_top_srcdir):$(abs_top_builddir) -L $(abs_top_builddir)/.libs:$(abs_top_builddir)/bench/workgen/.libs
 all-local: _workgen.so libworkgen.la
 libworkgen_la_SOURCES = workgen.cxx workgen_func.c
 noinst_LTLIBRARIES = libworkgen.la
