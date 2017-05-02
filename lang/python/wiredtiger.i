@@ -373,8 +373,8 @@ retry:
 }
 %enddef
 
-/* Any API that returns an enum type uses this. */
-%define ENUM_OK(m)
+/* An API that returns a value that shouldn't be checked uses this. */
+%define ANY_OK(m)
 %exception m {
 	$action
 }
@@ -408,12 +408,16 @@ retry:
 %enddef
 
 EBUSY_OK(__wt_connection::async_new_op)
-ENUM_OK(__wt_async_op::get_type)
+ANY_OK(__wt_async_op::get_type)
 NOTFOUND_OK(__wt_cursor::next)
 NOTFOUND_OK(__wt_cursor::prev)
 NOTFOUND_OK(__wt_cursor::remove)
 NOTFOUND_OK(__wt_cursor::search)
 NOTFOUND_OK(__wt_cursor::update)
+ANY_OK(__wt_modify::__wt_modify)
+ANY_OK(__wt_modify::~__wt_modify)
+ANY_OK(__wt_python_modify_list::__wt_python_modify_list)
+ANY_OK(__wt_python_modify_list::~__wt_python_modify_list)
 
 COMPARE_OK(__wt_cursor::_compare)
 COMPARE_OK(__wt_cursor::_equals)
@@ -448,6 +452,11 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %ignore __wt_cursor::get_value;
 %ignore __wt_cursor::set_key;
 %ignore __wt_cursor::set_value;
+%ignore __wt_modify::data;
+%ignore __wt_modify::position;
+%ignore __wt_modify::size;
+%ignore __wt_cursor::modify;
+%rename (modify_wrap) __wt_cursor::modify;
 
 /* Next, override methods that return integers via arguments. */
 %ignore __wt_cursor::compare(WT_CURSOR *, WT_CURSOR *, int *);
@@ -772,6 +781,10 @@ typedef int int_void;
 		return (cursorFreeHandler($self));
 	}
 
+	int _modify(WT_MODIFY_LIST *list) {
+		return (self->modify(self, list->mod_array, list->count));
+	}
+
 %pythoncode %{
 	def get_key(self):
 		'''get_key(self) -> object
@@ -867,7 +880,65 @@ typedef int int_void;
 		self.set_value(value)
 		if self.insert() != 0:
 			raise KeyError
+
+	def modify(self, modifies):
+		l = WT_MODIFY_LIST(len(modifies))
+		pos = 0
+		for m in modifies:
+			l.set(pos, m)
+			pos += 1
+		self._modify(l)
 %}
+};
+
+/*
+ * Support for WT_CURSOR.modify.  An internal Python class encapsulates
+ * a list of Modify objects (stored as a WT_MODIFY array in C).
+ */
+%inline %{
+typedef struct __wt_python_modify_list {
+	WT_MODIFY *mod_array;
+	int count;
+} WT_MODIFY_LIST;
+%}
+%extend __wt_python_modify_list {
+	__wt_python_modify_list(int count) {
+		WT_MODIFY_LIST *self =
+		    (WT_MODIFY_LIST *)calloc(1, sizeof(WT_MODIFY_LIST));
+		self->mod_array = (WT_MODIFY *)calloc(count, sizeof(WT_MODIFY));
+		self->count = count;
+		return (self);
+	}
+	~__wt_python_modify_list() {
+		free(self->mod_array);
+		free(self);
+	}
+	int set(int i, WT_MODIFY *m) {
+		self->mod_array[i] = *m;
+	}
+};
+
+%extend __wt_modify {
+	__wt_modify() {
+		WT_MODIFY *self = (WT_MODIFY *)calloc(1, sizeof(WT_MODIFY));
+		self->data.data = NULL;
+		self->data.size = 0;
+		self->offset = 0;
+		self->size = 0;
+		return (self);
+	}
+	__wt_modify(char *itemdata,
+	    size_t offset, size_t size) {
+		WT_MODIFY *self = (WT_MODIFY *)calloc(1, sizeof(WT_MODIFY));
+		self->data.data = itemdata;
+		self->data.size = strlen(itemdata);
+		self->offset = offset;
+		self->size = size;
+		return (self);
+	}
+	~__wt_modify() {
+		free(self);
+	}
 };
 
 %extend __wt_session {
@@ -951,6 +1022,7 @@ OVERRIDE_METHOD(__wt_session, WT_SESSION, log_printf, (self, msg))
 
 %rename(AsyncOp) __wt_async_op;
 %rename(Cursor) __wt_cursor;
+%rename(Modify) __wt_modify;
 %rename(Session) __wt_session;
 %rename(Connection) __wt_connection;
 
@@ -1232,4 +1304,3 @@ _rename_with_prefix('WT_STAT_CONN_', stat.conn)
 _rename_with_prefix('WT_STAT_DSRC_', stat.dsrc)
 del _rename_with_prefix
 %}
-
