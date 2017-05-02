@@ -416,8 +416,8 @@ NOTFOUND_OK(__wt_cursor::search)
 NOTFOUND_OK(__wt_cursor::update)
 ANY_OK(__wt_modify::__wt_modify)
 ANY_OK(__wt_modify::~__wt_modify)
-ANY_OK(__wt_modify_list::__wt_modify_list)
-ANY_OK(__wt_modify_list::~__wt_modify_list)
+ANY_OK(__wt_python_modify_list::__wt_python_modify_list)
+ANY_OK(__wt_python_modify_list::~__wt_python_modify_list)
 
 COMPARE_OK(__wt_cursor::_compare)
 COMPARE_OK(__wt_cursor::_equals)
@@ -896,20 +896,20 @@ typedef int int_void;
  * a list of Modify objects (stored as a WT_MODIFY array in C).
  */
 %inline %{
-typedef struct __wt_modify_list {
+typedef struct __wt_python_modify_list {
 	WT_MODIFY *mod_array;
 	int count;
 } WT_MODIFY_LIST;
 %}
-%extend __wt_modify_list {
-	__wt_modify_list(int count) {
+%extend __wt_python_modify_list {
+	__wt_python_modify_list(int count) {
 		WT_MODIFY_LIST *self =
 		    (WT_MODIFY_LIST *)calloc(1, sizeof(WT_MODIFY_LIST));
 		self->mod_array = (WT_MODIFY *)calloc(count, sizeof(WT_MODIFY));
 		self->count = count;
 		return (self);
 	}
-	~__wt_modify_list() {
+	~__wt_python_modify_list() {
 		free(self->mod_array);
 		free(self);
 	}
