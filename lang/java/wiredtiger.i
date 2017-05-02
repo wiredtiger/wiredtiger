@@ -47,6 +47,7 @@
 %}
 
 %{
+#include "wiredtiger.h"
 #include "src/include/wt_internal.h"
 
 /*
@@ -318,6 +319,10 @@ WT_CLASS(struct __wt_async_op, WT_ASYNC_OP, op)
 %rename (getKeyFormat) __wt_async_op::getKey_format;
 %rename (getValueFormat) __wt_async_op::getValue_format;
 %rename (getType) __wt_async_op::get_type;
+
+/* XXX WT_MODIFY support not yet implemented for Java. */
+%ignore __wt_modify;
+%ignore __wt_cursor::modify;
 
 /*
  * Special cases: override the out typemap, return checking is done in the

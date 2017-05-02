@@ -49,12 +49,6 @@ extern "C" {
 #define	WT_ATTRIBUTE_LIBRARY_VISIBLE	__attribute__((visibility("default")))
 #endif
 
-#ifdef SWIG
-%{
-#include <wiredtiger.h>
-%}
-#endif
-
 /*!
  * @defgroup wt WiredTiger API
  * The functions, handles and methods applications use to access and manage
