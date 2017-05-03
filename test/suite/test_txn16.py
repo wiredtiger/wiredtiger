@@ -58,7 +58,7 @@ class test_txn16(wttest.WiredTigerTestCase, suite_subprocess):
             if i % 900 == 0:
                 self.session.checkpoint()
         c.close()
-        
+
     def copy_dir(self, olddir, newdir):
         ''' Simulate a crash from olddir and restart in newdir. '''
         # with the connection still open, copy files to new directory
@@ -118,6 +118,6 @@ class test_txn16(wttest.WiredTigerTestCase, suite_subprocess):
         self.copy_dir(".", "RESTART")
         self.run_toggle(".")
         self.run_toggle("RESTART")
-            
+
 if __name__ == '__main__':
     wttest.run()
