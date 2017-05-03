@@ -418,6 +418,7 @@ ANY_OK(__wt_modify::__wt_modify)
 ANY_OK(__wt_modify::~__wt_modify)
 ANY_OK(__wt_python_modify_list::__wt_python_modify_list)
 ANY_OK(__wt_python_modify_list::~__wt_python_modify_list)
+ANY_OK(__wt_python_modify_list::set)
 
 COMPARE_OK(__wt_cursor::_compare)
 COMPARE_OK(__wt_cursor::_equals)
@@ -887,7 +888,7 @@ typedef int int_void;
 		for m in modifies:
 			l.set(pos, m)
 			pos += 1
-		self._modify(l)
+		return self._modify(l)
 %}
 };
 
@@ -905,7 +906,8 @@ typedef struct __wt_python_modify_list {
 	__wt_python_modify_list(int count) {
 		WT_MODIFY_LIST *self =
 		    (WT_MODIFY_LIST *)calloc(1, sizeof(WT_MODIFY_LIST));
-		self->mod_array = (WT_MODIFY *)calloc(count, sizeof(WT_MODIFY));
+		self->mod_array = (WT_MODIFY *)calloc((size_t)count,
+		    sizeof(WT_MODIFY));
 		self->count = count;
 		return (self);
 	}
@@ -913,7 +915,7 @@ typedef struct __wt_python_modify_list {
 		free(self->mod_array);
 		free(self);
 	}
-	int set(int i, WT_MODIFY *m) {
+	void set(int i, WT_MODIFY *m) {
 		self->mod_array[i] = *m;
 	}
 };
