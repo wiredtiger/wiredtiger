@@ -46,7 +46,7 @@ class test_cursor12(wttest.WiredTigerTestCase):
         mods = []
         mod = wiredtiger.Modify('\xA1\xA2\xA3\xA4', 1, 1)
         mods.append(mod)
-        mod = wiredtiger.Modify('\xB1\xB2\xB3\xB4', 1, 1)
+        mod = wiredtiger.Modify('\xB1\xB2\xB3\xB4', 3, 1)
         mods.append(mod)
         cursor.set_key('ABC')
         self.KNOWN_FAILURE('WT_CURSOR.modify() is not yet implemented')
