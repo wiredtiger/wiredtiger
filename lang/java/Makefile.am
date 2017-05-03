@@ -18,6 +18,7 @@ JAVA_SRC = \
 		$(JAVADESTFULL)/AsyncOpType.java \
 		$(JAVADESTFULL)/Connection.java \
 		$(JAVADESTFULL)/Cursor.java \
+		$(JAVADESTFULL)/Modify.java \
 		$(JAVADESTFULL)/SearchStatus.java \
 		$(JAVADESTFULL)/PackFormatInputStream.java \
 		$(JAVADESTFULL)/PackInputStream.java \
