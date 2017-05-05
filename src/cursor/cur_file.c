@@ -298,10 +298,10 @@ __curfile_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 	WT_STAT_DATA_INCR(session, cursor_modify);
 
 	/* On demand, acquire position and value. */
-	if (F_MASK(cursor, WT_CURSTD_KEY_SET) != WT_CURSTD_KEY_INT) {
+	if (F_MASK(cursor, WT_CURSTD_KEY_SET) != WT_CURSTD_KEY_INT)
 		WT_ERR(cursor->search(cursor));
-		WT_ERR(cursor->get_value(cursor));
-	}
+	WT_ASSERT(session,
+	    F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
 	/*
 	 * Process the entries to figure out how large a buffer we need. This is
