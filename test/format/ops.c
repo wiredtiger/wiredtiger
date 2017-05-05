@@ -1205,7 +1205,7 @@ modify_build(TINFO *tinfo,
     WT_CURSOR *cursor, WT_MODIFY *entries, int *nentriesp, WT_ITEM *value)
 {
 	static char repl[64];
-	size_t len, max, size;
+	size_t len, size;
 	u_int i, nentries;
 	WT_ITEM *ta, _ta, *tb, _tb, *tmp;
 
@@ -1223,7 +1223,7 @@ modify_build(TINFO *tinfo,
 	 * Randomly select a number of byte changes, offsets and lengths. Start
 	 * at least 11 bytes in so we skip the leading key information.
 	 */
-	nentries = 1 /* mmrand(&tinfo->rnd, 1, MAX_MODIFY_ENTRIES) */;
+	nentries = mmrand(&tinfo->rnd, 1, MAX_MODIFY_ENTRIES);
 	for (i = 0; i < nentries; ++i) {
 		entries[i].data.data = repl;
 		entries[i].data.size = (size_t)mmrand(&tinfo->rnd, 0, 10);
@@ -1232,25 +1232,23 @@ modify_build(TINFO *tinfo,
 	}
 
 	/*
-	 * Calculate how big a buffer we need by taking the larger of the cursor
-	 * value and the change vector data offset, then add additional bytes.
-	 * Pessimistic because we are ignoring bytes that get replaced, but it's
-	 * simpler.
+	 * Process the entries to figure out how large a buffer we need. This is
+	 * a bit pessimistic because we're ignoring replacement bytes, but it's
+	 * a simpler calculation.
 	 */
-	for (max = 0, i = 0; i < nentries; ++i) {
-		size = WT_MAX(cursor->value.size, entries[i].offset);
+	for (size = cursor->value.size, i = 0; i < nentries; ++i) {
+		if (entries[i].offset >= size)
+			size = entries[i].offset;
 		size += entries[i].data.size;
-		if (size > max)
-			max = size;
 	}
 
 	/* If size is larger than the available buffer size, skip this one. */
-	if (max >= value->memsize)
+	if (size >= value->memsize)
 		return (false);
 
 	/* Allocate a pair of buffers. */
-	ta->mem = dcalloc(max, sizeof(uint8_t));
-	tb->mem = dcalloc(max, sizeof(uint8_t));
+	ta->mem = dcalloc(size, sizeof(uint8_t));
+	tb->mem = dcalloc(size, sizeof(uint8_t));
 
 	/*
 	 * Use a brute-force process to create the value WiredTiger will create
@@ -1284,8 +1282,9 @@ modify_build(TINFO *tinfo,
 		if (ta->size > len) {
 			memcpy((uint8_t *)tb->mem + tb->size,
 			    (uint8_t *)ta->mem + len, ta->size - len);
-			tb->size += (ta->size - len);
+			tb->size += ta->size - len;
 		}
+		testutil_assert(tb->size <= size);
 
 		tmp = ta;
 		ta = tb;
