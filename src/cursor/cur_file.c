@@ -287,7 +287,7 @@ __curfile_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 	WT_DECL_ITEM(ta);
 	WT_DECL_ITEM(tb);
 	WT_DECL_ITEM(tmp);
-	size_t len, max, size;
+	size_t len, size;
 	int i;
 
 	cbt = (WT_CURSOR_BTREE *)cursor;
@@ -298,27 +298,25 @@ __curfile_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 	WT_STAT_DATA_INCR(session, cursor_modify);
 
 	/* On demand, acquire position and value. */
-	if (F_MASK(cursor, WT_CURSTD_KEY_SET) != WT_CURSTD_KEY_INT) {
+	if (F_MASK(cursor, WT_CURSTD_KEY_SET) != WT_CURSTD_KEY_INT)
 		WT_ERR(cursor->search(cursor));
-		WT_ERR(cursor->get_value(cursor));
-	}
+	WT_ASSERT(session,
+	    F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
 	/*
-	 * Calculate how big a buffer we need by taking the larger of the cursor
-	 * value and the change vector data offset, then add additional bytes.
-	 * Pessimistic because we are ignoring bytes that get replaced, but it's
-	 * simpler.
+	 * Process the entries to figure out how large a buffer we need. This is
+	 * a bit pessimistic because we're ignoring replacement bytes, but it's
+	 * a simpler calculation.
 	 */
-	for (max = 0, i = 0; i < nentries; ++i) {
-		size = WT_MAX(cursor->value.size, entries[i].offset);
+	for (size = cursor->value.size, i = 0; i < nentries; ++i) {
+		if (entries[i].offset >= size)
+			size = entries[i].offset;
 		size += entries[i].data.size;
-		if (size > max)
-			max = size;
 	}
 
 	/* Allocate a pair of buffers. */
-	WT_ERR(__wt_scr_alloc(session, max, &ta));
-	WT_ERR(__wt_scr_alloc(session, max, &tb));
+	WT_ERR(__wt_scr_alloc(session, size, &ta));
+	WT_ERR(__wt_scr_alloc(session, size, &tb));
 
 	/* Apply the change vector to the value. */
 	WT_ERR(__wt_buf_set(
@@ -349,6 +347,7 @@ __curfile_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 			    (uint8_t *)ta->mem + len, ta->size - len);
 			tb->size += ta->size - len;
 		}
+		WT_ASSERT(session, tb->size <= size);
 
 		tmp = ta;
 		ta = tb;
