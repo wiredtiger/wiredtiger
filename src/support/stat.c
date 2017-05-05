@@ -97,6 +97,7 @@ static const char * const __stats_dsrc_desc[] = {
 	"cursor: cursor-remove key bytes removed",
 	"cursor: cursor-update value bytes updated",
 	"cursor: insert calls",
+	"cursor: modify calls",
 	"cursor: next calls",
 	"cursor: prev calls",
 	"cursor: remove calls",
@@ -259,6 +260,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
 	stats->cursor_remove_bytes = 0;
 	stats->cursor_update_bytes = 0;
 	stats->cursor_insert = 0;
+	stats->cursor_modify = 0;
 	stats->cursor_next = 0;
 	stats->cursor_prev = 0;
 	stats->cursor_remove = 0;
@@ -410,6 +412,7 @@ __wt_stat_dsrc_aggregate_single(
 	to->cursor_remove_bytes += from->cursor_remove_bytes;
 	to->cursor_update_bytes += from->cursor_update_bytes;
 	to->cursor_insert += from->cursor_insert;
+	to->cursor_modify += from->cursor_modify;
 	to->cursor_next += from->cursor_next;
 	to->cursor_prev += from->cursor_prev;
 	to->cursor_remove += from->cursor_remove;
@@ -588,6 +591,7 @@ __wt_stat_dsrc_aggregate(
 	to->cursor_remove_bytes += WT_STAT_READ(from, cursor_remove_bytes);
 	to->cursor_update_bytes += WT_STAT_READ(from, cursor_update_bytes);
 	to->cursor_insert += WT_STAT_READ(from, cursor_insert);
+	to->cursor_modify += WT_STAT_READ(from, cursor_modify);
 	to->cursor_next += WT_STAT_READ(from, cursor_next);
 	to->cursor_prev += WT_STAT_READ(from, cursor_prev);
 	to->cursor_remove += WT_STAT_READ(from, cursor_remove);
@@ -740,6 +744,7 @@ static const char * const __stats_connection_desc[] = {
 	"connection: total write I/Os",
 	"cursor: cursor create calls",
 	"cursor: cursor insert calls",
+	"cursor: cursor modify calls",
 	"cursor: cursor next calls",
 	"cursor: cursor prev calls",
 	"cursor: cursor remove calls",
@@ -1032,6 +1037,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->write_io = 0;
 	stats->cursor_create = 0;
 	stats->cursor_insert = 0;
+	stats->cursor_modify = 0;
 	stats->cursor_next = 0;
 	stats->cursor_prev = 0;
 	stats->cursor_remove = 0;
@@ -1344,6 +1350,7 @@ __wt_stat_connection_aggregate(
 	to->write_io += WT_STAT_READ(from, write_io);
 	to->cursor_create += WT_STAT_READ(from, cursor_create);
 	to->cursor_insert += WT_STAT_READ(from, cursor_insert);
+	to->cursor_modify += WT_STAT_READ(from, cursor_modify);
 	to->cursor_next += WT_STAT_READ(from, cursor_next);
 	to->cursor_prev += WT_STAT_READ(from, cursor_prev);
 	to->cursor_remove += WT_STAT_READ(from, cursor_remove);

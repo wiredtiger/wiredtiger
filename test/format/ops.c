@@ -420,7 +420,8 @@ ops(void *arg)
 	u_int i;
 	int dir;
 	char *ckpt_config, ckpt_name[64];
-	bool ckpt_available, intxn, iso_snapshot, positioned, readonly;
+	bool ckpt_available, can_modify, intxn, iso_snapshot, positioned;
+	bool readonly;
 
 	tinfo = arg;
 
@@ -452,6 +453,9 @@ ops(void *arg)
 
 	/* Set the first operation where we'll reset the session. */
 	reset_op = mmrand(&tinfo->rnd, 100, 10000);
+
+	/* See if modify is available. */
+	can_modify = !(g.type == FIX || DATASOURCE("lsm"));
 
 	for (intxn = false; !tinfo->quit; ++tinfo->ops) {
 		/*
@@ -754,7 +758,7 @@ update_instead_of_insert:
 			 * it's simpler, even though it makes format harder to
 			 * configure more specifically.
 			 */
-			if (g.type != FIX && mmrand(&tinfo->rnd, 0, 10) == 1)
+			if (can_modify && mmrand(&tinfo->rnd, 0, 10) == 1)
 				switch (g.type) {
 				case ROW:
 					ret = row_modify(tinfo, cursor,
@@ -785,7 +789,8 @@ update_instead_of_insert:
 				positioned = false;
 				if (ret == WT_ROLLBACK && intxn)
 					goto deadlock;
-				testutil_assert(ret == 0 || ret == WT_ROLLBACK);
+				testutil_assert(ret == 0 ||
+				    ret == WT_NOTFOUND || ret == WT_ROLLBACK);
 			}
 			break;
 		}
@@ -1190,23 +1195,6 @@ col_reserve(WT_CURSOR *cursor, uint64_t keyno, bool positioned)
 	return (0);
 }
 
-#ifdef MODIFY_STRING_VERBOSE
-/*
- * show --
- *	Dump out a string.
- */
-static void
-show(const char *tag, uint8_t *p, size_t len)
-{
-	size_t i;
-
-	fprintf(stderr, "%s: {", tag);
-	for (i = 0; i < len; ++i, ++p)
-		fprintf(stderr, "%c", *p == '\0' ? '-' : *p);
-	fprintf(stderr, "}\n");
-}
-#endif
-
 /*
  * modify_build --
  *	Generate a set of modify vectors, and copy what the final result
@@ -1217,23 +1205,25 @@ modify_build(TINFO *tinfo,
     WT_CURSOR *cursor, WT_MODIFY *entries, int *nentriesp, WT_ITEM *value)
 {
 	static char repl[64];
-	size_t len, newlen, size;
+	size_t len, max, size;
 	u_int i, nentries;
-	uint8_t *ta, *tb, *tc;
+	WT_ITEM *ta, _ta, *tb, _tb, *tmp;
 
 	if (repl[0] == '\0')
 		memset(repl, '+', sizeof(repl));
 
+	ta = &_ta;
+	memset(ta, 0, sizeof(*ta));
+	tb = &_tb;
+	memset(tb, 0, sizeof(*tb));
+
 	testutil_check(cursor->get_value(cursor, value));
-#ifdef MODIFY_STRING_VERBOSE
-	show("O", (uint8_t *)value->data, value->size);
-#endif
 
 	/*
 	 * Randomly select a number of byte changes, offsets and lengths. Start
 	 * at least 11 bytes in so we skip the leading key information.
 	 */
-	nentries = mmrand(&tinfo->rnd, 1, MAX_MODIFY_ENTRIES);
+	nentries = 1 /* mmrand(&tinfo->rnd, 1, MAX_MODIFY_ENTRIES) */;
 	for (i = 0; i < nentries; ++i) {
 		entries[i].data.data = repl;
 		entries[i].data.size = (size_t)mmrand(&tinfo->rnd, 0, 10);
@@ -1242,24 +1232,25 @@ modify_build(TINFO *tinfo,
 	}
 
 	/*
-	 * Calculate how big a buffer we need by adding/subtracting bytes being
-	 * added to the string vs. bytes being replaced. Pessimistic (if the
-	 * offset is past the end of the value, replacement size is ignored),
-	 * but close enough.
+	 * Calculate how big a buffer we need by taking the larger of the cursor
+	 * value and the change vector data offset, then add additional bytes.
+	 * Pessimistic because we are ignoring bytes that get replaced, but it's
+	 * simpler.
 	 */
-	for (size = value->size, i = 0; i < nentries; ++i)
-		if (entries[i].size > entries[i].data.size)
-			size -= entries[i].size - entries[i].data.size;
-		else if (entries[i].size < entries[i].data.size)
-			size += entries[i].data.size - entries[i].size;
+	for (max = 0, i = 0; i < nentries; ++i) {
+		size = WT_MAX(cursor->value.size, entries[i].offset);
+		size += entries[i].data.size;
+		if (size > max)
+			max = size;
+	}
 
 	/* If size is larger than the available buffer size, skip this one. */
-	if (size >= value->memsize)
+	if (max >= value->memsize)
 		return (false);
 
 	/* Allocate a pair of buffers. */
-	ta = dcalloc(size + 1, sizeof(uint8_t));
-	tb = dcalloc(size + 1, sizeof(uint8_t));
+	ta->mem = dcalloc(max, sizeof(uint8_t));
+	tb->mem = dcalloc(max, sizeof(uint8_t));
 
 	/*
 	 * Use a brute-force process to create the value WiredTiger will create
@@ -1267,65 +1258,47 @@ modify_build(TINFO *tinfo,
 	 * want to use a different algorithm from WiredTiger's, the idea is to
 	 * bug-check the library.
 	 */
-	memcpy(ta, value->data, value->size);
-	len = value->size;
+	memcpy(ta->mem, value->data, value->size);
+	ta->size = value->size;
 	for (i = 0; i < nentries; ++i) {
-#ifdef MODIFY_STRING_VERBOSE
-		show("\n1", ta, len);
-		fprintf(stderr, "o/s %" WT_SIZET_FMT "/%" WT_SIZET_FMT "\n",
-		    entries[i].offset, entries[i].size);
-#endif
-
 		/* Take leading bytes from the original, plus any gap bytes. */
-		if (entries[i].offset >= len) {
-			memcpy(tb, ta, len);
-			if (entries[i].offset > len)
-				memset(tb + len, '\0', entries[i].offset - len);
-
-			/*
-			 * If the offset is past the end of the previous value,
-			 * the size is ignored.
-			 */
-			entries[i].size = 0;
+		if (entries[i].offset >= ta->size) {
+			memcpy(tb->mem, ta->mem, ta->size);
+			if (entries[i].offset > ta->size)
+				memset((uint8_t *)tb->mem + ta->size,
+				    '\0', entries[i].offset - ta->size);
 		} else
-			memcpy(tb, ta, entries[i].offset);
-		newlen = entries[i].offset;
-#ifdef MODIFY_STRING_VERBOSE
-		show("2", tb, newlen);
-#endif
+			if (entries[i].offset > 0)
+				memcpy(tb->mem, ta->mem, entries[i].offset);
+		tb->size = entries[i].offset;
+
 		/* Take replacement bytes. */
-		memcpy(tb + newlen, entries[i].data.data, entries[i].data.size);
-		newlen += entries[i].data.size;
-#ifdef MODIFY_STRING_VERBOSE
-		show("3", tb, newlen);
-#endif
-		/* Take trailing bytes from the original. */
-		if (len > entries[i].offset + entries[i].size) {
-			len -= entries[i].offset + entries[i].size;
-			memcpy(tb + newlen,
-			    ta + (entries[i].offset + entries[i].size), len);
-			newlen += len;
+		if (entries[i].data.size > 0) {
+			memcpy((uint8_t *)tb->mem + tb->size,
+			    entries[i].data.data, entries[i].data.size);
+			tb->size += entries[i].data.size;
 		}
-#ifdef MODIFY_STRING_VERBOSE
-		show("4", tb, newlen);
-#endif
-		len = newlen;
-		tc = ta;
+
+		/* Take trailing bytes from the original. */
+		len = entries[i].offset + entries[i].size;
+		if (ta->size > len) {
+			memcpy((uint8_t *)tb->mem + tb->size,
+			    (uint8_t *)ta->mem + len, ta->size - len);
+			tb->size += (ta->size - len);
+		}
+
+		tmp = ta;
 		ta = tb;
-		tb = tc;
+		tb = tmp;
 	}
 
-	/* Copy the expected result value into the our value. */
-	memcpy(value->mem, ta, len);
+	/* Copy the expected result into the value structure. */
+	memcpy(value->mem, ta->mem, ta->size);
 	value->data = value->mem;
-	value->size = len;
+	value->size = ta->size;
 
-#ifdef MODIFY_STRING_VERBOSE
-	show("F", (uint8_t *)value->data, value->size);
-#endif
-
-	free(ta);
-	free(tb);
+	free(ta->mem);
+	free(tb->mem);
 
 	*nentriesp = (int)nentries;
 	return (true);
@@ -1366,7 +1339,7 @@ row_modify(TINFO *tinfo, WT_CURSOR *cursor,
 	 * big enough value to work with, or for some reason we couldn't build
 	 * a reasonable change vector.
 	 */
-	ret = 0;
+	ret = WT_NOTFOUND;
 	if (modify_build(tinfo, cursor, entries, &nentries, value))
 		ret = cursor->modify(cursor, entries, nentries);
 	switch (ret) {
@@ -1375,6 +1348,8 @@ row_modify(TINFO *tinfo, WT_CURSOR *cursor,
 	case WT_CACHE_FULL:
 	case WT_ROLLBACK:
 		return (WT_ROLLBACK);
+	case WT_NOTFOUND:
+		return (WT_NOTFOUND);
 	default:
 		testutil_die(ret,
 		    "row_modify: modify row %" PRIu64 " by key", keyno);
@@ -1423,7 +1398,7 @@ col_modify(TINFO *tinfo, WT_CURSOR *cursor,
 	 * big enough value to work with, or for some reason we couldn't build
 	 * a reasonable change vector.
 	 */
-	ret = 0;
+	ret = WT_NOTFOUND;
 	if (modify_build(tinfo, cursor, entries, &nentries, value))
 		ret = cursor->modify(cursor, entries, nentries);
 	switch (ret) {
@@ -1432,6 +1407,8 @@ col_modify(TINFO *tinfo, WT_CURSOR *cursor,
 	case WT_CACHE_FULL:
 	case WT_ROLLBACK:
 		return (WT_ROLLBACK);
+	case WT_NOTFOUND:
+		return (WT_NOTFOUND);
 	default:
 		testutil_die(ret, "col_modify: modify row %" PRIu64, keyno);
 	}

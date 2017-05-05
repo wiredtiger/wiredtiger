@@ -27,34 +27,98 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
-from wtscenario import make_scenarios
 
 # test_cursor12.py
 #    Test cursor modify call
 class test_cursor12(wttest.WiredTigerTestCase):
-    uri = 'table:cursor12'
-
     def test_modify(self):
-        """
-        Create entries, and modify a portion of each
-        """
-        self.session.create(self.uri, 'key_format=S,value_format=u')
-        cursor = self.session.open_cursor(self.uri, None, None)
-        cursor['ABC'] = '\x01\x02\x03\x04'
-        cursor['DEF'] = '\x11\x12\x13\x14'
-        mods = []
-        mod = wiredtiger.Modify('\xA1\xA2\xA3\xA4', 1, 1)
-        mods.append(mod)
-        mod = wiredtiger.Modify('\xB1\xB2\xB3\xB4', 3, 1)
-        mods.append(mod)
-        cursor.set_key('ABC')
-        self.KNOWN_FAILURE('WT_CURSOR.modify() is not yet implemented')
-        cursor.modify(mods)
-        print str(cursor['ABC'])
-        cursor.set_key('DEF')
-        cursor.modify(mods)
-        print str(cursor['DEF'])
+        # List with original value, final value, and modifications to get
+        # there.
+        list = [
+        {
+        'o' : 'ABCDEFGH',           # rewrite beginning
+        'f' : '--CDEFGH',
+        'mods' : [['--', 0, 2]]
+        },{
+        'o' : 'ABCDEFGH',           # rewrite end
+        'f' : 'ABCDEF--',
+        'mods' : [['--', 6, 2]]
+        },{
+        'o' : 'ABCDEFGH',           # append
+        'f' : 'ABCDEFGH--',
+        'mods' : [['--', 8, 2]]
+        },{
+        'o' : 'ABCDEFGH',           # append with gap
+        'f' : 'ABCDEFGH\00\00--',
+        'mods' : [['--', 10, 2]]
+        },{
+        'o' : 'ABCDEFGH',           # multiple replacements
+        'f' : 'A-C-E-G-',
+        'mods' : [['-', 1, 1], ['-', 3, 1], ['-', 5, 1], ['-', 7, 1]]
+        },{
+        'o' : 'ABCDEFGH',           # multiple overlapping replacements
+        'f' : 'A-CDEFGH',
+        'mods' : [['+', 1, 1], ['+', 1, 1], ['+', 1, 1], ['-', 1, 1]]
+        },{
+        'o' : 'ABCDEFGH',           # multiple overlapping gap replacements
+        'f' : 'ABCDEFGH\00\00--',
+        'mods' : [['+', 10, 1], ['+', 10, 1], ['+', 10, 1], ['--', 10, 2]]
+        },{
+        'o' : 'ABCDEFGH',           # shrink beginning
+        'f' : '--EFGH',
+        'mods' : [['--', 0, 4]]
+        },{
+        'o' : 'ABCDEFGH',           # shrink middle
+        'f' : 'AB--GH',
+        'mods' : [['--', 2, 4]]
+        },{
+        'o' : 'ABCDEFGH',           # shrink end
+        'f' : 'ABCD--',
+        'mods' : [['--', 4, 4]]
+        },{
+        'o' : 'ABCDEFGH',           # grow beginning
+        'f' : '--ABCDEFGH',
+        'mods' : [['--', 0, 0]]
+        },{
+        'o' : 'ABCDEFGH',           # grow middle
+        'f' : 'ABCD--EFGH',
+        'mods' : [['--', 4, 0]]
+        },{
+        'o' : 'ABCDEFGH',           # grow end
+        'f' : 'ABCDEFGH--',
+        'mods' : [['--', 8, 0]]
+        },{
+        'o' : 'ABCDEFGH',           # discard beginning
+        'f' : 'EFGH',
+        'mods' : [['', 0, 4]]
+        },{
+        'o' : 'ABCDEFGH',           # discard middle
+        'f' : 'ABGH',
+        'mods' : [['', 2, 4]]
+        },{
+        'o' : 'ABCDEFGH',           # discard end
+        'f' : 'ABCD',
+        'mods' : [['', 4, 4]]
+        }
+        ]
+
+        uri = 'table:modify'
+        self.session.create(uri, 'key_format=S,value_format=u')
+        cursor = self.session.open_cursor(uri, None, None)
+
+        # For each test in the list, set the original value, apply modifications
+        # in order, then confirm the final state.
+        for i in list:
+            cursor['ABC'] = i['o']
+
+            mods = []
+            for j in i['mods']:
+                mod = wiredtiger.Modify(j[0], j[1], j[2])
+                mods.append(mod)
+
+            cursor.set_key('ABC')
+            cursor.modify(mods)
+            self.assertEquals(str(cursor['ABC']), i['f'])
 
 if __name__ == '__main__':
     wttest.run()

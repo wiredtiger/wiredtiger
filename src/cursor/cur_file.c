@@ -275,6 +275,101 @@ err:	CURSOR_UPDATE_API_END(session, ret);
 }
 
 /*
+ * __curfile_modify --
+ *	WT_CURSOR->modify method for the btree cursor type.
+ */
+static int
+__curfile_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
+{
+	WT_CURSOR_BTREE *cbt;
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+	WT_DECL_ITEM(ta);
+	WT_DECL_ITEM(tb);
+	WT_DECL_ITEM(tmp);
+	size_t len, max, size;
+	int i;
+
+	cbt = (WT_CURSOR_BTREE *)cursor;
+	CURSOR_UPDATE_API_CALL(cursor, session, modify, cbt->btree);
+	WT_ERR(__cursor_checkkey(cursor));
+
+	WT_STAT_CONN_INCR(session, cursor_modify);
+	WT_STAT_DATA_INCR(session, cursor_modify);
+
+	/* On demand, acquire position and value. */
+	if (F_MASK(cursor, WT_CURSTD_KEY_SET) != WT_CURSTD_KEY_INT) {
+		WT_ERR(cursor->search(cursor));
+		WT_ERR(cursor->get_value(cursor));
+	}
+
+	/*
+	 * Calculate how big a buffer we need by taking the larger of the cursor
+	 * value and the change vector data offset, then add additional bytes.
+	 * Pessimistic because we are ignoring bytes that get replaced, but it's
+	 * simpler.
+	 */
+	for (max = 0, i = 0; i < nentries; ++i) {
+		size = WT_MAX(cursor->value.size, entries[i].offset);
+		size += entries[i].data.size;
+		if (size > max)
+			max = size;
+	}
+
+	/* Allocate a pair of buffers. */
+	WT_ERR(__wt_scr_alloc(session, max, &ta));
+	WT_ERR(__wt_scr_alloc(session, max, &tb));
+
+	/* Apply the change vector to the value. */
+	WT_ERR(__wt_buf_set(
+	    session, ta, cursor->value.data, cursor->value.size));
+	for (i = 0; i < nentries; ++i) {
+		/* Take leading bytes from the original, plus any gap bytes. */
+		if (entries[i].offset >= ta->size) {
+			memcpy(tb->mem, ta->mem, ta->size);
+			if (entries[i].offset > ta->size)
+				memset((uint8_t *)tb->mem + ta->size,
+				    '\0', entries[i].offset - ta->size);
+		} else
+			if (entries[i].offset > 0)
+				memcpy(tb->mem, ta->mem, entries[i].offset);
+		tb->size = entries[i].offset;
+
+		/* Take replacement bytes. */
+		if (entries[i].data.size > 0) {
+			memcpy((uint8_t *)tb->mem + tb->size,
+			    entries[i].data.data, entries[i].data.size);
+			tb->size += entries[i].data.size;
+		}
+
+		/* Take trailing bytes from the original. */
+		len = entries[i].offset + entries[i].size;
+		if (ta->size > len) {
+			memcpy((uint8_t *)tb->mem + tb->size,
+			    (uint8_t *)ta->mem + len, ta->size - len);
+			tb->size += ta->size - len;
+		}
+
+		tmp = ta;
+		ta = tb;
+		tb = tmp;
+	}
+
+	/* Set the cursor's value. */
+	ta->data = ta->mem;
+	cursor->set_value(cursor, ta);
+
+	/* We know both key and value are set, "overwrite" doesn't matter. */
+	ret = cursor->update(cursor);
+
+err:	__wt_scr_free(session, &ta);
+	__wt_scr_free(session, &tb);
+
+	CURSOR_UPDATE_API_END(session, ret);
+	return (ret);
+}
+
+/*
  * __curfile_update --
  *	WT_CURSOR->update method for the btree cursor type.
  */
@@ -352,6 +447,10 @@ __curfile_reserve(WT_CURSOR *cursor)
 
 	WT_ERR(__wt_btcur_reserve(cbt));
 
+	/*
+	 * Reserve maintains a position, key and value, but the value isn't
+	 * necessarily internal.
+	 */
 	WT_ASSERT(session,
 	    F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
 	WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_VALUE_SET) == 0);
@@ -504,6 +603,10 @@ __curfile_create(WT_SESSION_IMPL *session,
 		if (cval.val != 0)
 			cbt->next_random_sample_size = (u_int)cval.val;
 	}
+
+	/* WT_CURSOR.modify supported on 'u' value formats. */
+	if (WT_STREQ(cursor->value_format, "u"))
+		cursor->modify = __curfile_modify;
 
 	/* Underlying btree initialization. */
 	__wt_btcur_open(cbt);
