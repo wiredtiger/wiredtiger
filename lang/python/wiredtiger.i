@@ -151,6 +151,72 @@ from packing import pack, unpack
 	}
 }
 
+%typemap(in) WT_MODIFY * (int len, WT_MODIFY *modarray) {
+	len = PyList_Size($input);
+	/*
+	 * We allocate an extra cleared WT_MODIFY struct, it acts as a
+	 * sentinal.
+	 */
+	modarray = (WT_MODIFY *)calloc((size_t)len + 1, sizeof(WT_MODIFY));
+	for (int i = 0; i < len; i++) {
+		PyObject *dataobj, *modobj, *offsetobj, *sizeobj;
+		char *datadata;
+		long offset, size;
+		Py_ssize_t datasize;
+
+		if ((modobj = PySequence_GetItem($input, i)) == NULL)
+			SWIG_exception_fail(SWIG_IndexError,
+			    "Modify sequence failed");
+
+		WT_GETATTR(dataobj, modobj, "data");
+		if (PyString_AsStringAndSize(dataobj, &datadata,
+		    &datasize) < 0) {
+			Py_DECREF(dataobj);
+			Py_DECREF(modobj);
+			SWIG_exception_fail(SWIG_AttributeError,
+			    "Modify.data bad value");
+		}
+		modarray[i].data.data = malloc(datasize);
+		memcpy(modarray[i].data.data, datadata, datasize);
+		modarray[i].data.size = datasize;
+		Py_DECREF(dataobj);
+
+		WT_GETATTR(offsetobj, modobj, "offset");
+		if ((offset = PyInt_AsLong(offsetobj)) < 0) {
+			Py_DECREF(offsetobj);
+			Py_DECREF(modobj);
+			SWIG_exception_fail(SWIG_RuntimeError,
+			    "Modify.offset bad value");
+		}
+		modarray[i].offset = offset;
+		Py_DECREF(offsetobj);
+
+		WT_GETATTR(sizeobj, modobj, "size");
+		if ((size = PyInt_AsLong(sizeobj)) < 0) {
+			Py_DECREF(sizeobj);
+			Py_DECREF(modobj);
+			SWIG_exception_fail(SWIG_RuntimeError,
+			    "Modify.size bad value");
+		}
+		modarray[i].size = size;
+		Py_DECREF(sizeobj);
+		Py_DECREF(modobj);
+	}
+	$1 = modarray;
+}
+
+%typemap(freearg) WT_MODIFY * {
+	/* The WT_MODIFY arg is in position 2.  Is there a better way? */
+	WT_MODIFY *modarray = modarray2;
+	int count = 0;
+
+	while (modarray[count].data.size != 0 && modarray[count].size != 0) {
+		free(modarray[count].data.data);
+		count++;
+	}
+	free(modarray);
+}
+
 /* 64 bit typemaps. */
 %typemap(in) uint64_t {
 	$1 = PyLong_AsUnsignedLongLong($input);
@@ -244,6 +310,13 @@ static PyObject *wtError;
 
 static int sessionFreeHandler(WT_SESSION *session_arg);
 static int cursorFreeHandler(WT_CURSOR *cursor_arg);
+
+#define WT_GETATTR(var, parent, name)					\
+	do if ((var = PyObject_GetAttrString(parent, name)) == NULL) {	\
+		Py_DECREF(parent);					\
+		SWIG_exception_fail(SWIG_AttributeError,		\
+		    "Modify." #name " get failed");			\
+	} while(0)
 %}
 
 %init %{
@@ -416,9 +489,6 @@ NOTFOUND_OK(__wt_cursor::search)
 NOTFOUND_OK(__wt_cursor::update)
 ANY_OK(__wt_modify::__wt_modify)
 ANY_OK(__wt_modify::~__wt_modify)
-ANY_OK(__wt_python_modify_list::__wt_python_modify_list)
-ANY_OK(__wt_python_modify_list::~__wt_python_modify_list)
-ANY_OK(__wt_python_modify_list::set)
 
 COMPARE_OK(__wt_cursor::_compare)
 COMPARE_OK(__wt_cursor::_equals)
@@ -453,11 +523,11 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %ignore __wt_cursor::get_value;
 %ignore __wt_cursor::set_key;
 %ignore __wt_cursor::set_value;
+%ignore __wt_cursor::modify(WT_CURSOR *, WT_MODIFY *, int);
+%rename (_modify) __wt_cursor::modify;
 %ignore __wt_modify::data;
-%ignore __wt_modify::position;
+%ignore __wt_modify::offset;
 %ignore __wt_modify::size;
-%ignore __wt_cursor::modify;
-%rename (modify_wrap) __wt_cursor::modify;
 
 /* Next, override methods that return integers via arguments. */
 %ignore __wt_cursor::compare(WT_CURSOR *, WT_CURSOR *, int *);
@@ -782,8 +852,12 @@ typedef int int_void;
 		return (cursorFreeHandler($self));
 	}
 
-	int _modify(WT_MODIFY_LIST *list) {
-		return (self->modify(self, list->mod_array, list->count));
+	int _modify(WT_MODIFY *list) {
+		int count = 0;
+
+		while (list[count].data.size != 0 && list[count].size != 0)
+			count++;
+		return (self->modify(self, list, count));
 	}
 
 %pythoncode %{
@@ -881,66 +955,22 @@ typedef int int_void;
 		self.set_value(value)
 		if self.insert() != 0:
 			raise KeyError
-
-	def modify(self, modifies):
-		l = WT_MODIFY_LIST(len(modifies))
-		pos = 0
-		for m in modifies:
-			l.set(pos, m)
-			pos += 1
-		return self._modify(l)
 %}
 };
 
 /*
- * Support for WT_CURSOR.modify.  An internal Python class encapsulates
- * a list of Modify objects (stored as a WT_MODIFY array in C).
+ * Support for WT_CURSOR.modify.  The WT_MODIFY object is known to
+ * SWIG, but its attributes are regular Python attributes.
+ * We extract the attributes at the call site to WT_CURSOR.modify
+ * so we don't have to deal with managing Python objects references.
  */
-%inline %{
-typedef struct __wt_python_modify_list {
-	WT_MODIFY *mod_array;
-	int count;
-} WT_MODIFY_LIST;
-%}
-%extend __wt_python_modify_list {
-	__wt_python_modify_list(int count) {
-		WT_MODIFY_LIST *self =
-		    (WT_MODIFY_LIST *)calloc(1, sizeof(WT_MODIFY_LIST));
-		self->mod_array = (WT_MODIFY *)calloc((size_t)count,
-		    sizeof(WT_MODIFY));
-		self->count = count;
-		return (self);
-	}
-	~__wt_python_modify_list() {
-		free(self->mod_array);
-		free(self);
-	}
-	void set(int i, WT_MODIFY *m) {
-		self->mod_array[i] = *m;
-	}
-};
-
 %extend __wt_modify {
-	__wt_modify() {
-		WT_MODIFY *self = (WT_MODIFY *)calloc(1, sizeof(WT_MODIFY));
-		self->data.data = NULL;
-		self->data.size = 0;
-		self->offset = 0;
-		self->size = 0;
-		return (self);
-	}
-	__wt_modify(char *itemdata,
-	    size_t offset, size_t size) {
-		WT_MODIFY *self = (WT_MODIFY *)calloc(1, sizeof(WT_MODIFY));
-		self->data.data = itemdata;
-		self->data.size = strlen(itemdata);
-		self->offset = offset;
-		self->size = size;
-		return (self);
-	}
-	~__wt_modify() {
-		free(self);
-	}
+%pythoncode %{
+	def __init__(self, data = '', offset = 0, size = 0):
+		self.data = data
+		self.offset = offset
+		self.size = size
+%}
 };
 
 %extend __wt_session {
