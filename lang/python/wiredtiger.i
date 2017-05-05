@@ -210,7 +210,7 @@ from packing import pack, unpack
 	WT_MODIFY *modarray = modarray2;
 	int count = 0;
 
-	while (modarray[count].data.size != 0 && modarray[count].size != 0) {
+	while (modarray[count].data.size != 0 || modarray[count].size != 0) {
 		free(modarray[count].data.data);
 		count++;
 	}
@@ -524,7 +524,7 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %ignore __wt_cursor::set_key;
 %ignore __wt_cursor::set_value;
 %ignore __wt_cursor::modify(WT_CURSOR *, WT_MODIFY *, int);
-%rename (_modify) __wt_cursor::modify;
+%rename (modify) __wt_cursor::_modify;
 %ignore __wt_modify::data;
 %ignore __wt_modify::offset;
 %ignore __wt_modify::size;
@@ -855,7 +855,7 @@ typedef int int_void;
 	int _modify(WT_MODIFY *list) {
 		int count = 0;
 
-		while (list[count].data.size != 0 && list[count].size != 0)
+		while (list[count].data.size != 0 || list[count].size != 0)
 			count++;
 		return (self->modify(self, list, count));
 	}
