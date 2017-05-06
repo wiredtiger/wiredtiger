@@ -407,7 +407,7 @@ snap_check(WT_CURSOR *cursor,
 static void *
 ops(void *arg)
 {
-	enum { INSERT, READ, REMOVE, UPDATE } op;
+	enum { INSERT, MODIFY, READ, REMOVE, UPDATE } op;
 	SNAP_OPS *snap, snap_list[64];
 	TINFO *tinfo;
 	WT_CONNECTION *conn;
@@ -420,8 +420,7 @@ ops(void *arg)
 	u_int i;
 	int dir;
 	char *ckpt_config, ckpt_name[64];
-	bool ckpt_available, can_modify, intxn, iso_snapshot, positioned;
-	bool readonly;
+	bool ckpt_available, intxn, iso_snapshot, positioned, readonly;
 
 	tinfo = arg;
 
@@ -453,9 +452,6 @@ ops(void *arg)
 
 	/* Set the first operation where we'll reset the session. */
 	reset_op = mmrand(&tinfo->rnd, 100, 10000);
-
-	/* See if modify is available. */
-	can_modify = !(g.type == FIX || DATASOURCE("lsm"));
 
 	for (intxn = false; !tinfo->quit; ++tinfo->ops) {
 		/*
@@ -618,11 +614,12 @@ skip_checkpoint:	/* Pick the next checkpoint operation. */
 				op = REMOVE;
 			else if (i < g.c_delete_pct + g.c_insert_pct)
 				op = INSERT;
-			else if (i <
-			    g.c_delete_pct + g.c_insert_pct + g.c_write_pct)
+			else if (i < g.c_delete_pct +
+			    g.c_insert_pct + g.c_modify_pct)
+				op = MODIFY;
+			else if (i < g.c_delete_pct +
+			    g.c_insert_pct + g.c_modify_pct + g.c_write_pct)
 				op = UPDATE;
-			else
-				op = READ;
 		}
 
 		/*
@@ -706,6 +703,30 @@ skip_checkpoint:	/* Pick the next checkpoint operation. */
 				testutil_assert(ret == 0 || ret == WT_ROLLBACK);
 			}
 			break;
+		case MODIFY:
+			++tinfo->update;
+			switch (g.type) {
+			case ROW:
+				ret = row_modify(tinfo, cursor,
+				    key, value, keyno, positioned);
+				break;
+			case VAR:
+				ret = col_modify(tinfo, cursor,
+				    key, value, keyno, positioned);
+				break;
+			}
+			if (ret == 0) {
+				positioned = true;
+				if (SNAP_TRACK)
+					snap_track(snap++, keyno, NULL, value);
+			} else {
+				positioned = false;
+				if (ret == WT_ROLLBACK && intxn)
+					goto deadlock;
+				testutil_assert(ret == 0 ||
+				    ret == WT_NOTFOUND || ret == WT_ROLLBACK);
+			}
+			break;
 		case READ:
 			++tinfo->search;
 			ret = read_row(cursor, key, value, keyno);
@@ -750,37 +771,17 @@ skip_checkpoint:	/* Pick the next checkpoint operation. */
 		case UPDATE:
 update_instead_of_insert:
 			++tinfo->update;
-
-			/*
-			 * Update or modify the row.
-			 *
-			 * Split updates into cursor modify and cursor update,
-			 * it's simpler, even though it makes format harder to
-			 * configure more specifically.
-			 */
-			if (can_modify && mmrand(&tinfo->rnd, 0, 10) == 1)
-				switch (g.type) {
-				case ROW:
-					ret = row_modify(tinfo, cursor,
-					    key, value, keyno, positioned);
-					break;
-				case VAR:
-					ret = col_modify(tinfo, cursor,
-					    key, value, keyno, positioned);
-					break;
-				}
-			else
-				switch (g.type) {
-				case ROW:
-					ret = row_update(tinfo, cursor,
-					    key, value, keyno, positioned);
-					break;
-				case FIX:
-				case VAR:
-					ret = col_update(tinfo, cursor,
-					    key, value, keyno, positioned);
-					break;
-				}
+			switch (g.type) {
+			case ROW:
+				ret = row_update(tinfo, cursor,
+				    key, value, keyno, positioned);
+				break;
+			case FIX:
+			case VAR:
+				ret = col_update(tinfo, cursor,
+				    key, value, keyno, positioned);
+				break;
+			}
 			if (ret == 0) {
 				positioned = true;
 				if (SNAP_TRACK)
@@ -789,8 +790,7 @@ update_instead_of_insert:
 				positioned = false;
 				if (ret == WT_ROLLBACK && intxn)
 					goto deadlock;
-				testutil_assert(ret == 0 ||
-				    ret == WT_NOTFOUND || ret == WT_ROLLBACK);
+				testutil_assert(ret == 0 || ret == WT_ROLLBACK);
 			}
 			break;
 		}
