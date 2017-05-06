@@ -162,6 +162,11 @@ struct __wt_modify {
 	 *
 	 * If the offset is past the end of the previous value, the size is
 	 * ignored.
+	 *
+	 * If the offset plus the size is past the end of the previous value,
+	 * size will be limited and bytes from the offset to the end of the
+	 * previous value will be replaced.
+	 *
 	 */
 	 size_t size;
 };
