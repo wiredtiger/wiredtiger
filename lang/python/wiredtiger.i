@@ -151,14 +151,14 @@ from packing import pack, unpack
 	}
 }
 
-%typemap(in) WT_MODIFY * (int len, WT_MODIFY *modarray) {
+%typemap(in) WT_MODIFY * (int len, WT_MODIFY *modarray, int i) {
 	len = PyList_Size($input);
 	/*
 	 * We allocate an extra cleared WT_MODIFY struct, it acts as a
 	 * sentinal.
 	 */
 	modarray = (WT_MODIFY *)calloc((size_t)len + 1, sizeof(WT_MODIFY));
-	for (int i = 0; i < len; i++) {
+	for (i = 0; i < len; i++) {
 		PyObject *dataobj, *modobj, *offsetobj, *sizeobj;
 		char *datadata;
 		long offset, size;
