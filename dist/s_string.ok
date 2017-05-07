@@ -344,6 +344,7 @@ Split's
 Stoica
 StoreLoad
 StoreStore
+Su
 Syscall
 TAILQ
 TCMalloc
@@ -1090,6 +1091,7 @@ rotN
 rotn
 rp
 rpc
+ru
 run's
 runtime
 rwlock
