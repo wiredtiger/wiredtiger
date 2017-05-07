@@ -447,8 +447,9 @@ __curfile_reserve(WT_CURSOR *cursor)
 	WT_ERR(__wt_btcur_reserve(cbt));
 
 	/*
-	 * Reserve maintains a position, key and value, but the value isn't
-	 * necessarily internal.
+	 * Reserve maintains a position and key, which doesn't match the library
+	 * API, where reserve maintains a value. Fix the API by searching after
+	 * each successful reserve operation.
 	 */
 	WT_ASSERT(session,
 	    F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
