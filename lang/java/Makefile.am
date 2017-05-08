@@ -32,6 +32,7 @@ JAVA_SRC = \
 		$(JAVADESTFULL)/wiredtiger.java \
 		$(JAVADESTFULL)/wiredtigerConstants.java \
 		$(JAVADESTFULL)/wiredtigerJNI.java \
+		$(JAVADESTFULL)/WT_MODIFY_LIST.java \
 		$(JAVAEXAMPLES)/ex_access.java \
 		$(JAVAEXAMPLES)/ex_all.java \
 		$(JAVAEXAMPLES)/ex_async.java \

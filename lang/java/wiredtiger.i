@@ -1281,6 +1281,38 @@ WT_ASYNC_CALLBACK javaApiAsyncHandler = {javaAsyncHandler};
 		modify_list_release(list);
 		return (ret);
 	}
+
+	/*
+	 * Called internally after a new call.  The artificial constructor for
+	 * WT_MODIFY_LIST has no opportunity to throw an exception on a memory
+	 * allocation failure, so the the null check must be made within a
+	 * method on WT_CURSOR.
+	 */
+	bool _new_check_modify_list(WT_MODIFY_LIST *list) {
+		JAVA_CALLBACK *jcb;
+		if (list == NULL) {
+			jcb = (JAVA_CALLBACK *)$self->lang_private;
+			throwWiredTigerException(jcb->jnienv, ENOMEM);
+			return (false);
+		}
+		return (true);
+	}
+
+	/*
+	 * Called internally after a new call.  The artificial constructor for
+	 * WT_MODIFY has no opportunity to throw an exception on a memory
+	 * allocation failure, so the the null check must be made within a
+	 * method on WT_CURSOR.
+	 */
+	bool _new_check_modify(WT_MODIFY *mod) {
+		JAVA_CALLBACK *jcb;
+		if (mod == NULL) {
+			jcb = (JAVA_CALLBACK *)$self->lang_private;
+			throwWiredTigerException(jcb->jnienv, ENOMEM);
+			return (false);
+		}
+		return (true);
+	}
 }
 
 /* Cache key/value formats in Cursor */
@@ -1890,9 +1922,13 @@ WT_ASYNC_CALLBACK javaApiAsyncHandler = {javaAsyncHandler};
 	public int modify(Modify mods[])
 	throws WiredTigerException {
 		WT_MODIFY_LIST l = new WT_MODIFY_LIST(mods.length);
+		if (!_new_check_modify_list(l))
+			return (0);   // exception is already thrown
 		int pos = 0;
 
 		for (Modify m : mods) {
+			if (!_new_check_modify(m))
+				return (0);   // exception is already thrown
 			l.set(pos, m);
 			pos++;
 		}
@@ -1915,7 +1951,7 @@ typedef struct __wt_java_item_hold {
 } WT_ITEM_HOLD;
 
 /*
- * An internal Python class encapsulates a list of Modify objects (stored as a
+ * An internal Java class encapsulates a list of Modify objects (stored as a
  * WT_MODIFY array in C).
  */
 typedef struct __wt_java_modify_list {
@@ -1929,18 +1965,26 @@ typedef struct __wt_java_modify_list {
 %}
 %extend __wt_java_modify_list {
 	__wt_java_modify_list(int count) {
-		WT_MODIFY_LIST *self =
-		    (WT_MODIFY_LIST *)calloc(1, sizeof(WT_MODIFY_LIST));
-		self->mod_array = (WT_MODIFY *)calloc((size_t)count,
-		    sizeof(WT_MODIFY));
-		self->ref_array = (jobject *)calloc((size_t)count,
-		    sizeof(jobject));
+		WT_MODIFY_LIST *self;
+		if (__wt_calloc_def(NULL, 1, &self) != 0)
+			return (NULL);
+		if (__wt_calloc_def(NULL, (size_t)count,
+		    &self->mod_array) != 0) {
+			__wt_free(NULL, self);
+			return (NULL);
+		}
+		if (__wt_calloc_def(NULL, (size_t)count,
+		    &self->ref_array) != 0) {
+			__wt_free(NULL, self->mod_array);
+			__wt_free(NULL, self);
+			return (NULL);
+		}
 		self->count = count;
 		return (self);
 	}
 	~__wt_java_modify_list() {
 		modify_list_release(self);
-		free(self);
+		__wt_free(NULL, self);
 	}
 	void set(int i, WT_MODIFY *m) {
 		WT_MODIFY_IMPL *impl = (WT_MODIFY_IMPL *)m;
@@ -1953,8 +1997,9 @@ typedef struct __wt_java_modify_list {
 
 %extend __wt_modify {
 	__wt_modify() {
-		WT_MODIFY_IMPL *self =
-		    (WT_MODIFY_IMPL *)calloc(1, sizeof(WT_MODIFY_IMPL));
+		WT_MODIFY_IMPL *self;
+		if (__wt_calloc_def(NULL, 1, &self) != 0)
+			return (NULL);
 		self->modify.data.data = NULL;
 		self->modify.data.size = 0;
 		self->modify.offset = 0;
@@ -1963,8 +2008,9 @@ typedef struct __wt_java_modify_list {
 	}
 	__wt_modify(WT_ITEM_HOLD *itemdata,
 	    size_t offset, size_t size) {
-		WT_MODIFY_IMPL *self =
-		    (WT_MODIFY_IMPL *)calloc(1, sizeof(WT_MODIFY_IMPL));
+		WT_MODIFY_IMPL *self;
+		if (__wt_calloc_def(NULL, 1, &self) != 0)
+			return (NULL);
 		self->modify.data.data = itemdata->data;
 		self->modify.data.size = itemdata->size;
 		self->modify.offset = offset;
@@ -1975,7 +2021,7 @@ typedef struct __wt_java_modify_list {
 	}
 	~__wt_modify() {
 		modify_impl_release((WT_MODIFY_IMPL *)self);
-		free(self);
+		__wt_free(NULL, self);
 	}
 };
 
@@ -1989,8 +2035,8 @@ static void modify_list_release(WT_MODIFY_LIST *list) {
 			(*list->jnienv)->DeleteGlobalRef(
 			    list->jnienv, list->ref_array[i]);
 		}
-	free(list->ref_array);
-	free(list->mod_array);
+	__wt_free(NULL, list->ref_array);
+	__wt_free(NULL, list->mod_array);
 	list->count = 0;
 }
 
