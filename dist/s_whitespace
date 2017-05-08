@@ -23,10 +23,11 @@ find bench dist examples ext src test \
     -name '*.py' -o \
     -name 's_*' -o \
     -name 'Makefile.am' |
-    sed -e '/Makefile.in/d' \
-        -e '/checksum\/power8/d' \
-        -e '/3rdparty/d' \
-        -e '/docs\/tools/d' \
+    sed -e '/3rdparty/d' \
+	-e '/Makefile.in/d' \
+	-e '/checksum\/power8/d' \
+	-e '/dist\/clang-tidy/d' \
+	-e '/docs\/tools/d' \
 | while read f ; do
 	whitespace $f
 done

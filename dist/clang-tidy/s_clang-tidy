@@ -1,0 +1,52 @@
+#! /bin/sh
+
+# A script to run clang-tidy on the current set of changes.
+
+grep '^Copyright.*WiredTiger, Inc.' LICENSE 2>/dev/null 1>/dev/null || {
+	echo "$0: not run from the top-level WiredTiger source directory"
+	exit 1
+}
+
+cleanup()
+{
+	mv wiredtiger_config.h.backup wiredtiger_config.h
+	rm -f compile_commands.json
+}
+trap 'cleanup; exit 0' 0 1 2 3 13 15
+
+# We need a custom wiredtiger_config.h, clang-tidy doesn't know where to
+# find the x86intrin.h include file.
+rm -f wiredtiger_config.h.backup
+cp wiredtiger_config.h wiredtiger_config.h.backup
+sed '/HAVE_X86INTRIN_H/d' < wiredtiger_config.h.backup > wiredtiger_config.h
+
+# Build a clang compilation database; we don't need much, just include files.
+cmd='cc -I. -Isrc/include -Itest/utility -I/usr/local/include'
+(echo '['
+for i in `find bench src test -name '*.c'`; do
+	echo "{"
+	echo "    \"directory\": \"$PWD\","
+	echo "    \"command\": \"$cmd $i\","
+	echo "    \"file\": \"$i\""
+	echo "},"
+done
+echo ']') > compile_commands.json
+
+# List the clang-tidy checks we use.
+args="-checks=*"
+args="$args,-clang-analyzer-core.NullDereference"
+args="$args,-clang-analyzer-optin.performance.Padding"
+args="$args,-google-readability-braces-around-statements"
+args="$args,-google-readability-casting"
+args="$args,-llvm-header-guard"
+args="$args,-llvm-include-order"
+args="$args,-readability-braces-around-statements"
+args="$args,-readability-named-parameter"
+args="$args,-readability-non-const-parameter"
+
+git diff -U0 'HEAD^' | \
+    python dist/clang-tidy/clang-tidy-diff.py -p1 "$args" 2>&1 |
+    sed -e '/^[0-9][0-9]* warnings generated\.$/d' \
+	-e '/^Suppressed [0-9][0-9]* warnings/d' \
+	-e '/^Skipping .* Compile command not found\./d' \
+	-e '/^Use -header-filter.*to display errors/d'
