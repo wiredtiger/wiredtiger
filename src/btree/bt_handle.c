@@ -419,10 +419,9 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 
 	/*
 	 * We do not use __wt_config_gets_none here because "none" and the empty
-	 * string have different meanings.  The empty string means inherit the
+	 * string have different meanings. The empty string means inherit the
 	 * system encryption setting and "none" means this table is in the clear
-	 * even if the database is encrypted. If the encryption name is not set,
-	 * always inherit from the connection.
+	 * even if the database is encrypted.
 	 */
 	WT_RET(__wt_config_gets(session, cfg, "encryption.name", &cval));
 	if (cval.len == 0)
