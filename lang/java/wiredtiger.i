@@ -357,7 +357,6 @@ WT_CLASS(struct __wt_async_op, WT_ASYNC_OP, op)
 %ignore __wt_modify::position;
 %ignore __wt_modify::size;
 %ignore __wt_cursor::modify;
-%rename (modify_wrap) __wt_cursor::modify;
 
 %ignore __wt_cursor::compare(WT_CURSOR *, WT_CURSOR *, int *);
 %rename (compare_wrap) __wt_cursor::compare;
@@ -1274,9 +1273,10 @@ WT_ASYNC_CALLBACK javaApiAsyncHandler = {javaAsyncHandler};
 		return (0);
 	}
 
-	int _modify(WT_MODIFY_LIST *list) {
+	int modify_wrap(WT_MODIFY_LIST *list, WT_ITEM *k) {
 		int ret;
 
+		$self->set_key($self, k);
 		ret = $self->modify(self, list->mod_array, list->count);
 		modify_list_release(list);
 		return (ret);
@@ -1921,6 +1921,9 @@ WT_ASYNC_CALLBACK javaApiAsyncHandler = {javaAsyncHandler};
 	 */
 	public int modify(Modify mods[])
 	throws WiredTigerException {
+		byte[] key = keyPacker.getValue();
+		keyPacker.reset();
+
 		WT_MODIFY_LIST l = new WT_MODIFY_LIST(mods.length);
 		if (!_new_check_modify_list(l))
 			return (0);   // exception is already thrown
@@ -1932,7 +1935,7 @@ WT_ASYNC_CALLBACK javaApiAsyncHandler = {javaAsyncHandler};
 			l.set(pos, m);
 			pos++;
 		}
-		return (_modify(l));
+		return modify_wrap(l, key);
 	}
 %}
 
