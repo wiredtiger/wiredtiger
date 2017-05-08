@@ -157,7 +157,8 @@ from packing import pack, unpack
 	 * We allocate an extra cleared WT_MODIFY struct, it acts as a
 	 * sentinal.
 	 */
-	modarray = (WT_MODIFY *)calloc((size_t)len + 1, sizeof(WT_MODIFY));
+	if (__wt_calloc_def(NULL, (size_t)len + 1, &modarray) != 0)
+		SWIG_exception_fail(SWIG_MemoryError, "WT calloc failed");
 	for (i = 0; i < len; i++) {
 		PyObject *dataobj, *modobj, *offsetobj, *sizeobj;
 		char *datadata;
@@ -211,10 +212,10 @@ from packing import pack, unpack
 	int count = 0;
 
 	while (modarray[count].data.size != 0 || modarray[count].size != 0) {
-		free(modarray[count].data.data);
+		__wt_free(NULL, modarray[count].data.data);
 		count++;
 	}
-	free(modarray);
+	__wt_free(NULL, modarray);
 }
 
 /* 64 bit typemaps. */
@@ -1078,7 +1079,7 @@ writeToPythonStream(const char *streamname, const char *message)
 	written = NULL;
 	arglist = arglist2 = NULL;
 	msglen = strlen(message);
-	msg = malloc(msglen + 2);
+	WT_RET(__wt_malloc(NULL, msglen + 2, &msg));
 	strcpy(msg, message);
 	strcpy(&msg[msglen], "\n");
 
@@ -1114,8 +1115,7 @@ err:	Py_XDECREF(arglist2);
 	/* Release python Global Interpreter Lock */
 	SWIG_PYTHON_THREAD_END_BLOCK;
 
-	if (msg)
-		free(msg);
+	__wt_free(NULL, msg);
 	return (ret);
 }
 
