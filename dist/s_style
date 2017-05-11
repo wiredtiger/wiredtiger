@@ -103,8 +103,8 @@ else
 
 	# If we don't have matching pack-begin and pack-end calls, we don't get
 	# an error, we just get a Windows performance regression.
-	egrep WT_PACKED_STRUCT "$f" > $t
-	cnt=`awk 'BEGIN { line=0 } { ++line } END { print line }' $t`
+	egrep WT_PACKED_STRUCT $f > $t
+	cnt=`wc -l < $t`
 	test `expr "$cnt" % 2` -ne 0 && {
 		echo "$f: mismatched WT_PACKED_STRUCT_BEGIN/END lines"
 		cat $t
