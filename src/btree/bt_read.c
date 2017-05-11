@@ -447,6 +447,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref)
 	 */
 	dsk = tmp.data;
 	if (F_ISSET(dsk, WT_PAGE_LAS_UPDATE) && __wt_las_is_written(session)) {
+		__wt_verbose(session, WT_VERB_LOOKASIDE,
+		    "Lookaside read triggered by operation: %s", session->name);
 		WT_STAT_CONN_INCR(session, cache_read_lookaside);
 		WT_STAT_DATA_INCR(session, cache_read_lookaside);
 

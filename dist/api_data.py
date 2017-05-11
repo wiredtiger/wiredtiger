@@ -529,6 +529,7 @@ connection_runtime_config = [
             'fileops',
             'handleops',
             'log',
+            'lookaside',
             'lsm',
             'lsm_manager',
             'metadata',

@@ -3697,9 +3697,12 @@ __rec_update_las(WT_SESSION_IMPL *session,
 
 err:	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 
-	if (insert_cnt > 0)
+	if (insert_cnt > 0) {
 		(void)__wt_atomic_addi64(
 		    &S2C(session)->las_record_cnt, insert_cnt);
+		if (WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE))
+			__wt_verbose_lookaside_write(session, insert_cnt);
+	}
 
 	__wt_scr_free(session, &key);
 	return (ret);
@@ -6590,4 +6593,31 @@ __rec_dictionary_lookup(
 	__rec_dictionary_skip_insert(r->dictionary_head, next, hash);
 	*dpp = next;
 	return (0);
+}
+
+/*
+ * __wt_verbose_lookaside_write --
+ * Create a verbose message to display with details about the transaction state
+ * when performing a lookaside table write.
+ */
+void
+__wt_verbose_lookaside_write(WT_SESSION_IMPL *session, uint64_t inserted_cnt)
+{
+	WT_SESSION* wt_session;
+	WT_CACHE* cache;
+	uint32_t pct_dirty, pct_full;
+	uint64_t pinned_range;
+
+	wt_session = &session->iface;
+
+	__wt_eviction_clean_needed(session, &pct_full);
+	__wt_eviction_dirty_needed(session, &pct_dirty);
+	wt_session->transaction_pinned_range(wt_session, &pinned_range);
+
+	__wt_verbose(session, WT_VERB_LOOKASIDE,
+	    "Lookaside written to. Number of TXN ID's Pinned: %" PRIu64
+	    ". Cache is %" PRIu32 "%% dirty. "
+	    "Cache is %" PRIu32 "%% full. "
+	    "Page entries requiring LAS support: %" PRIu64,
+	    pinned_range, pct_dirty, pct_full, inserted_cnt);
 }
