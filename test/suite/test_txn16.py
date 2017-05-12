@@ -92,6 +92,7 @@ class test_txn16(wttest.WiredTigerTestCase, suite_subprocess):
                     for l in last_logs:
                         self.assertEqual(o in cur_logs, True)
                     last_logs = cur_logs
+            loop += 1
             off_conn = self.wiredtiger_open(homedir, self.conn_off)
             # XXX Do we want/need to add data here?  If not remove t4
             off_conn.close()
