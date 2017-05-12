@@ -22,7 +22,7 @@ An application that catches this exception should call rollback() on
 the relevant transaction, and retry as necessary.
 
 The \c WiredTigerPanicException is a specific type of \c WiredTigerException,
-thrown when there is fatal error requiring database restart.  Applications
+thrown when there is a fatal error requiring database restart. Applications
 will normally handle \c WiredTigerPanicException as a special case. A
 correctly-written WiredTiger application will likely catch
 \c WiredTigerPanicException and immediately exit or otherwise handle fatal
