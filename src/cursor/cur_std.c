@@ -595,6 +595,96 @@ err:	API_END(session, ret);
 }
 
 /*
+ * __cursor_modify --
+ *	WT_CURSOR->modify default implementation.
+ */
+static int
+__cursor_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
+{
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+	WT_DECL_ITEM(ta);
+	WT_DECL_ITEM(tb);
+	WT_DECL_ITEM(tmp);
+	size_t len, size;
+	int i;
+
+	CURSOR_UPDATE_API_CALL(cursor, session, modify, NULL);
+
+	WT_STAT_CONN_INCR(session, cursor_modify);
+	WT_STAT_DATA_INCR(session, cursor_modify);
+
+	WT_ERR(__cursor_checkkey(cursor));
+
+	/* Acquire position and value. */
+	WT_ERR(cursor->search(cursor));
+
+	/*
+	 * Process the entries to figure out how large a buffer we need. This is
+	 * a bit pessimistic because we're ignoring replacement bytes, but it's
+	 * a simpler calculation.
+	 */
+	for (size = cursor->value.size, i = 0; i < nentries; ++i) {
+		if (entries[i].offset >= size)
+			size = entries[i].offset;
+		size += entries[i].data.size;
+	}
+
+	/* Allocate a pair of buffers. */
+	WT_ERR(__wt_scr_alloc(session, size, &ta));
+	WT_ERR(__wt_scr_alloc(session, size, &tb));
+
+	/* Apply the change vector to the value. */
+	WT_ERR(__wt_buf_set(
+	    session, ta, cursor->value.data, cursor->value.size));
+	for (i = 0; i < nentries; ++i) {
+		/* Take leading bytes from the original, plus any gap bytes. */
+		if (entries[i].offset >= ta->size) {
+			memcpy(tb->mem, ta->mem, ta->size);
+			if (entries[i].offset > ta->size)
+				memset((uint8_t *)tb->mem + ta->size,
+				    '\0', entries[i].offset - ta->size);
+		} else
+			if (entries[i].offset > 0)
+				memcpy(tb->mem, ta->mem, entries[i].offset);
+		tb->size = entries[i].offset;
+
+		/* Take replacement bytes. */
+		if (entries[i].data.size > 0) {
+			memcpy((uint8_t *)tb->mem + tb->size,
+			    entries[i].data.data, entries[i].data.size);
+			tb->size += entries[i].data.size;
+		}
+
+		/* Take trailing bytes from the original. */
+		len = entries[i].offset + entries[i].size;
+		if (ta->size > len) {
+			memcpy((uint8_t *)tb->mem + tb->size,
+			    (uint8_t *)ta->mem + len, ta->size - len);
+			tb->size += ta->size - len;
+		}
+		WT_ASSERT(session, tb->size <= size);
+
+		tmp = ta;
+		ta = tb;
+		tb = tmp;
+	}
+
+	/* Set the cursor's value. */
+	ta->data = ta->mem;
+	cursor->set_value(cursor, ta);
+
+	/* We know both key and value are set, "overwrite" doesn't matter. */
+	ret = cursor->update(cursor);
+
+err:	__wt_scr_free(session, &ta);
+	__wt_scr_free(session, &tb);
+
+	CURSOR_UPDATE_API_END(session, ret);
+	return (ret);
+}
+
+/*
  * __wt_cursor_reconfigure --
  *	Set runtime-configurable settings.
  */
@@ -756,6 +846,10 @@ __wt_cursor_init(WT_CURSOR *cursor,
 		owner = cdump;
 	} else
 		cdump = NULL;
+
+	/* WT_CURSOR.modify supported on 'u' value formats. */
+	if (WT_STREQ(cursor->value_format, "u"))
+		cursor->modify = __cursor_modify;
 
 	/* overwrite */
 	WT_RET(__wt_config_gets_def(session, cfg, "overwrite", 1, &cval));

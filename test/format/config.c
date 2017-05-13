@@ -510,8 +510,8 @@ config_pct(void)
 		testutil_die(EINVAL,
 		    "operation percentages total to more than 100%%");
 
-	/* Cursor modify isn't possible for fixed-length column store or LSM. */
-	if (g.type == FIX || DATASOURCE("lsm")) {
+	/* Cursor modify isn't possible for fixed-length column store. */
+	if (g.type == FIX) {
 		if (config_is_perm("modify_pct"))
 			testutil_die(EINVAL,
 			    "WT_CURSOR.modify not supported by fixed-length "
