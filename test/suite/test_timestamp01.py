@@ -37,6 +37,12 @@ import wiredtiger, wttest
 def timestamp_str(t):
     return '%x' % t
 
+def timestamp_ret_str(t):
+    s = timestamp_str(t)
+    if len(s) % 2 == 1:
+        s = '0' + s
+    return s
+
 class test_timestamp01(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_timestamp01'
     uri = 'table:' + tablename
@@ -104,7 +110,8 @@ class test_timestamp01(wttest.WiredTigerTestCase, suite_subprocess):
                 {k:1 for k in orig_keys[:i+1]})
 
         # Bump the oldest timestamp, we're not going back...
-        self.conn.set_oldest_timestamp('oldest_timestamp=' + timestamp_str(100))
+        self.assertEqual(self.conn.query_timestamp(), timestamp_ret_str(100))
+        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(100))
 
         # Update them and retry.
         random.shuffle(keys)
@@ -118,7 +125,8 @@ class test_timestamp01(wttest.WiredTigerTestCase, suite_subprocess):
                 {k:(2 if j <= i else 1) for j, k in enumerate(orig_keys)})
 
         # Bump the oldest timestamp, we're not going back...
-        self.conn.set_oldest_timestamp('oldest_timestamp=' + timestamp_str(200))
+        self.assertEqual(self.conn.query_timestamp(), timestamp_ret_str(200))
+        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(200))
 
         # Remove them and retry
         random.shuffle(keys)

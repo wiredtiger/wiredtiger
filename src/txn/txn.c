@@ -8,7 +8,24 @@
 
 #include "wt_internal.h"
 
+#if TIMESTAMP_SIZE > 0
 static const uint8_t zero_timestamp[TIMESTAMP_SIZE];
+
+static inline int
+__ts_cmp(const uint8_t *ts1, const uint8_t *ts2) {
+	return (memcmp(ts1, ts2, TIMESTAMP_SIZE));
+}
+
+static inline void
+__ts_set(uint8_t *dest, const uint8_t *src) {
+	(void)memcpy(dest, src, TIMESTAMP_SIZE);
+}
+
+static inline bool
+__ts_iszero(const uint8_t *ts) {
+	return (memcmp(ts, zero_timestamp, TIMESTAMP_SIZE) == 0);
+}
+#endif
 
 /*
  * __snapsort_partition --
@@ -437,7 +454,7 @@ __txn_set_timestamp(WT_SESSION_IMPL *session,
 	memcpy(timestamp + TIMESTAMP_SIZE - ts.size,
 	    ts.data, ts.size);
 
-	if (memcmp(timestamp, zero_timestamp, TIMESTAMP_SIZE) == 0)
+	if (__ts_iszero(timestamp))
 		WT_RET_MSG(session, EINVAL,
 		    "Failed to parse %s timestamp '%.*s': zero not permitted",
 		    name, (int)cval->len, cval->str);
@@ -447,24 +464,59 @@ __txn_set_timestamp(WT_SESSION_IMPL *session,
 #endif
 
 /*
- * __wt_txn_query_timestamp --
+ * __wt_txn_global_query_timestamp --
  *	Query a timestamp.
  */
 int
-__wt_txn_query_timestamp(
+__wt_txn_global_query_timestamp(
     WT_SESSION_IMPL *session, char *timestamp, const char *cfg[])
 {
+#if TIMESTAMP_SIZE > 0
+	WT_CONNECTION_IMPL *conn;
 	WT_CONFIG_ITEM cval;
+	WT_ITEM hexts;
+	WT_TXN_GLOBAL *txn_global;
+	WT_TXN_STATE *s;
+	size_t len;
+	uint32_t i, session_cnt;
+	uint8_t ts[TIMESTAMP_SIZE], *tsp;
 
-	WT_UNUSED(timestamp);
-
-	/* XXX: todo */
+	conn = S2C(session);
+	txn_global = &S2C(session)->txn_global;
 
 	WT_RET(__wt_config_gets(session, cfg, "get", &cval));
-	if (WT_STRING_MATCH("all_committed", cval.str, cval.len))
-		memset(timestamp, 0, 2 * TIMESTAMP_SIZE + 1);
+	if (WT_STRING_MATCH("all_committed", cval.str, cval.len)) {
+		__wt_readlock_spin(session, &txn_global->current_rwlock);
+		__ts_set(ts, txn_global->commit_timestamp);
+		WT_ORDERED_READ(session_cnt, conn->session_cnt);
+		for (i = 0, s = txn_global->states; i < session_cnt; i++, s++) {
+			if (s->id == WT_TXN_NONE ||
+			    __ts_iszero(s->commit_timestamp))
+				continue;
+			if (__ts_cmp(s->commit_timestamp, ts) < 0)
+				__ts_set(ts, s->commit_timestamp);
+		}
+		__wt_readunlock(session, &txn_global->current_rwlock);
+	} else
+		__ts_set(ts, zero_timestamp);
 
+	/* Avoid memory allocation: set up an item guaranteed large enough. */
+	hexts.data = hexts.mem = timestamp;
+	hexts.memsize = 2 * TIMESTAMP_SIZE + 1;
+	/* Trim leading zeros. */
+	for (tsp = ts, len = TIMESTAMP_SIZE;
+	    len > 0 && *tsp == 0;
+	    ++tsp, --len)
+		;
+	WT_RET(__wt_raw_to_hex(session, tsp, len, &hexts));
 	return (0);
+#else
+	WT_UNUSED(session);
+	WT_UNUSED(timestamp);
+	WT_UNUSED(cfg);
+
+	return (ENOTSUP);
+#endif
 }
 
 /*
@@ -495,10 +547,9 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		 * we are moving the global oldest timestamp forwards.
 		 */
 		__wt_writelock(session, &txn_global->oldest_rwlock);
-		if (!txn_global->has_oldest_ts || memcmp(
-		    txn_global->oldest_timestamp, ts, TIMESTAMP_SIZE) < 0) {
-			memcpy(
-			    txn_global->oldest_timestamp, ts, TIMESTAMP_SIZE);
+		if (!txn_global->has_oldest_ts ||
+		    __ts_cmp(txn_global->oldest_timestamp, ts) < 0) {
+			__ts_set(txn_global->oldest_timestamp, ts);
 			txn_global->has_oldest_ts = true;
 		}
 		__wt_writeunlock(session, &txn_global->oldest_rwlock);
@@ -521,6 +572,11 @@ __wt_txn_set_timestamp(
 {
 	WT_CONFIG_ITEM cval;
 	WT_DECL_RET;
+	WT_TXN_GLOBAL *txn_global;
+	WT_TXN_STATE *txn_state;
+
+	txn_global = &S2C(session)->txn_global;
+	txn_state = WT_SESSION_TXN_STATE(session);
 
 	/*
 	 * Look for a commit timestamp.
@@ -533,7 +589,13 @@ __wt_txn_set_timestamp(
 		txn = &session->txn;
 		WT_RET(__txn_set_timestamp(
 		    session, "commit", txn->commit_timestamp, &cval));
-		F_SET(txn, WT_TXN_HAS_TS_COMMIT);
+		if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
+			__wt_writelock(session, &txn_global->current_rwlock);
+			__ts_set(txn_state->commit_timestamp,
+			    txn->commit_timestamp);
+			__wt_writeunlock(session, &txn_global->current_rwlock);
+			F_SET(txn, WT_TXN_HAS_TS_COMMIT);
+		}
 #else
 		WT_RET_MSG(session, EINVAL, "commit_timestamp requires a "
 		    "version of WiredTiger built with timestamp support");
@@ -674,6 +736,18 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 		WT_ASSERT(session, txn_state->id != WT_TXN_NONE &&
 		    txn->id != WT_TXN_NONE);
 		WT_PUBLISH(txn_state->id, WT_TXN_NONE);
+#if TIMESTAMP_SIZE > 0
+		if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
+			/*
+			 * We rely on a non-zero ID to protect our published
+			 * commit timestamp.  Otherwise we would need a lock
+			 * here.
+			 */
+			WT_WRITE_BARRIER();
+			__ts_set(txn_state->commit_timestamp, zero_timestamp);
+		}
+#endif
+
 		txn->id = WT_TXN_NONE;
 	}
 
@@ -705,12 +779,16 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_TXN *txn;
+	WT_TXN_GLOBAL *txn_global;
+	WT_TXN_STATE *txn_state;
 	WT_TXN_OP *op;
 	u_int i;
 	bool did_update;
 
 	txn = &session->txn;
 	conn = S2C(session);
+	txn_global = &conn->txn_global;
+	txn_state = WT_SESSION_TXN_STATE(session);
 	did_update = txn->mod_count != 0;
 
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
@@ -725,7 +803,13 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #if TIMESTAMP_SIZE > 0
 		WT_RET(__txn_set_timestamp(
 		    session, "commit", txn->commit_timestamp, &cval));
-		F_SET(txn, WT_TXN_HAS_TS_COMMIT);
+		if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
+			__wt_writelock(session, &txn_global->current_rwlock);
+			__ts_set(txn_state->commit_timestamp,
+			    txn->commit_timestamp);
+			__wt_writeunlock(session, &txn_global->current_rwlock);
+			F_SET(txn, WT_TXN_HAS_TS_COMMIT);
+		}
 #else
 		WT_RET_MSG(session, EINVAL, "commit_timestamp requires a "
 		    "version of WiredTiger built with timestamp support");
@@ -829,16 +913,16 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #if TIMESTAMP_SIZE > 0
 			if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
 			    op->type != WT_TXN_OP_BASIC_TS)
-				memcpy(op->u.upd->timestamp,
-				    txn->commit_timestamp, TIMESTAMP_SIZE);
+				__ts_set(op->u.upd->timestamp,
+				    txn->commit_timestamp);
 #endif
 			break;
 
 		case WT_TXN_OP_REF:
 #if TIMESTAMP_SIZE > 0
 			if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
-				memcpy(op->u.ref->page_del->timestamp,
-				    txn->commit_timestamp, TIMESTAMP_SIZE);
+				__ts_set(op->u.ref->page_del->timestamp,
+				    txn->commit_timestamp);
 #endif
 			break;
 
@@ -852,7 +936,43 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	}
 	txn->mod_count = 0;
 
+#if TIMESTAMP_SIZE > 0
+	{
+	uint8_t prev_commit_timestamp[TIMESTAMP_SIZE];
+	bool update_timestamp;
+
+	/*
+	 * Track the largest commit timestamp we have seen.
+	 *
+	 * We don't actually clear the local commit timestamp, just the flag.
+	 * That said, we can't update the global commit timestamp until this
+	 * transaction is visible, which happens when we release it.
+	 */
+	update_timestamp = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT);
 	__wt_txn_release(session);
+	/* First check if we've already committed something in the future. */
+	if (update_timestamp) {
+		__wt_readlock_spin(session, &txn_global->current_rwlock);
+		__ts_set(prev_commit_timestamp, txn_global->commit_timestamp);
+		__wt_readunlock(session, &txn_global->current_rwlock);
+		update_timestamp = __ts_cmp(
+		    txn->commit_timestamp, prev_commit_timestamp) > 0;
+	}
+
+	/*
+	 * If it looks like we need to move the global commit timestamp,
+	 * write lock and re-check.
+	 */
+	if (update_timestamp) {
+		__wt_writelock(session, &txn_global->current_rwlock);
+		__ts_set(prev_commit_timestamp, txn_global->commit_timestamp);
+		if (__ts_cmp(txn->commit_timestamp, prev_commit_timestamp) > 0)
+			__ts_set(txn_global->commit_timestamp,
+			    txn->commit_timestamp);
+		__wt_writeunlock(session, &txn_global->current_rwlock);
+	}
+	}
+#endif
 	return (0);
 }
 

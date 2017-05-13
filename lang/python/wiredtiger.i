@@ -474,6 +474,13 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
 %typemap(frearg) (uint64_t *recnop) "";
 %typemap(argout) (uint64_t *recnop) { $result = PyLong_FromUnsignedLongLong(*$1); }
 
+/* Handle returned timestamps. */
+%typemap(in,numinputs=0) (char *timestamp) (char tsbuf[2 * TIMESTAMP_SIZE + 1]) { $1 = tsbuf; }
+%typemap(argout) (char *timestamp) {
+	if (*$1)
+		$result = SWIG_FromCharPtr($1);
+}
+
 %{
 typedef int int_void;
 %}
