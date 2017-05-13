@@ -1224,9 +1224,10 @@ methods = {
         choices=['all_committed']),
 ]),
 
-'WT_CONNECTION.set_oldest_timestamp' : Method([
+'WT_CONNECTION.set_timestamp' : Method([
     Config('oldest_timestamp', '', r'''
-        future queries will be at least as recent as the specified timestamp,
+        future commits and queries will be no earlier than the specified
+        timestamp. Supplied values must be monotonically increasing.
         see @ref transaction_timestamps'''),
 ]),
 

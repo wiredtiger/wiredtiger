@@ -61,7 +61,7 @@ struct __wt_config_parser_impl {
 #define	WT_CONFIG_ENTRY_WT_CONNECTION_query_timestamp	 9
 #define	WT_CONFIG_ENTRY_WT_CONNECTION_reconfigure	10
 #define	WT_CONFIG_ENTRY_WT_CONNECTION_set_file_system	11
-#define	WT_CONFIG_ENTRY_WT_CONNECTION_set_oldest_timestamp	12
+#define	WT_CONFIG_ENTRY_WT_CONNECTION_set_timestamp	12
 #define	WT_CONFIG_ENTRY_WT_CURSOR_close			13
 #define	WT_CONFIG_ENTRY_WT_CURSOR_reconfigure		14
 #define	WT_CONFIG_ENTRY_WT_SESSION_alter		15

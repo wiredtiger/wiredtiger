@@ -2153,22 +2153,20 @@ struct __wt_connection {
 	    WT_CONNECTION *connection, char *timestamp, const char *config);
 
 	/*!
-	 * Set the oldest transaction timestamp.  Once set, the application
-	 * cannot use timestamps earlier than this value.  Supplied values must
-	 * be monotonically increasing.
+	 * Set a global transaction timestamp.
 	 *
 	 * @snippet ex_all.c set oldest timestamp
 	 *
 	 * @param connection the connection handle
-	 * @configstart{WT_CONNECTION.query_timestamp, see dist/api_data.py}
-	 * @config{get, specify which timestamp to query: \c all_committed
-	 * returns the largest timestamp such that all earlier timestamps have
-	 * committed.  See @ref transaction_timestamps., a string\, chosen from
-	 * the following options: \c "all_committed"; default \c all_committed.}
+	 * @configstart{WT_CONNECTION.set_timestamp, see dist/api_data.py}
+	 * @config{oldest_timestamp, future commits and queries will be no
+	 * earlier than the specified timestamp.  Supplied values must be
+	 * monotonically increasing.  see @ref transaction_timestamps., a
+	 * string; default empty.}
 	 * @configend
 	 * @errors
 	 */
-	int __F(set_oldest_timestamp)(
+	int __F(set_timestamp)(
 	    WT_CONNECTION *connection, const char *config);
 	/*! @} */
 

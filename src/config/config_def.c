@@ -164,7 +164,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
 
-static const WT_CONFIG_CHECK confchk_WT_CONNECTION_set_oldest_timestamp[] = {
+static const WT_CONFIG_CHECK confchk_WT_CONNECTION_set_timestamp[] = {
 	{ "oldest_timestamp", "string", NULL, NULL, NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
@@ -1094,9 +1094,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "",
 	  NULL, 0
 	},
-	{ "WT_CONNECTION.set_oldest_timestamp",
+	{ "WT_CONNECTION.set_timestamp",
 	  "oldest_timestamp=",
-	  confchk_WT_CONNECTION_set_oldest_timestamp, 1
+	  confchk_WT_CONNECTION_set_timestamp, 1
 	},
 	{ "WT_CURSOR.close",
 	  "",

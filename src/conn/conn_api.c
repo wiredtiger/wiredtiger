@@ -1203,11 +1203,11 @@ err:	API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
 /*
- * __conn_set_oldest_timestamp --
- *	WT_CONNECTION->set_oldest_timestamp method.
+ * __conn_set_timestamp --
+ *	WT_CONNECTION->set_timestamp method.
  */
 static int
-__conn_set_oldest_timestamp(WT_CONNECTION *wt_conn, const char *config)
+__conn_set_timestamp(WT_CONNECTION *wt_conn, const char *config)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
@@ -1215,8 +1215,8 @@ __conn_set_oldest_timestamp(WT_CONNECTION *wt_conn, const char *config)
 
 	conn = (WT_CONNECTION_IMPL *)wt_conn;
 
-	CONNECTION_API_CALL(conn, session, set_oldest_timestamp, config, cfg);
-	WT_TRET(__wt_txn_set_oldest_timestamp(session, cfg));
+	CONNECTION_API_CALL(conn, session, set_timestamp, config, cfg);
+	WT_TRET(__wt_txn_global_set_timestamp(session, cfg));
 err:	API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
@@ -2125,7 +2125,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 		__conn_is_new,
 		__conn_open_session,
 		__conn_query_timestamp,
-		__conn_set_oldest_timestamp,
+		__conn_set_timestamp,
 		__conn_load_extension,
 		__conn_add_data_source,
 		__conn_add_collator,

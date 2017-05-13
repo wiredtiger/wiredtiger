@@ -425,7 +425,9 @@ __txn_set_timestamp(WT_SESSION_IMPL *session,
 	ts.data = ts.mem = tsbuf;
 	ts.memsize = sizeof(tsbuf);
 
-	WT_ERR(__wt_nhex_to_raw(session, hexts, hexlen, &ts));
+	if ((ret = __wt_nhex_to_raw(session, hexts, hexlen, &ts)) != 0)
+		WT_RET_MSG(session, ret, "Failed to parse %s timestamp '%.*s'",
+		    name, (int)cval->len, cval->str);
 	WT_ASSERT(session, ts.size <= TIMESTAMP_SIZE);
 
 	if (ts.size < TIMESTAMP_SIZE)
@@ -436,14 +438,10 @@ __txn_set_timestamp(WT_SESSION_IMPL *session,
 	    ts.data, ts.size);
 
 	if (memcmp(timestamp, zero_timestamp, TIMESTAMP_SIZE) == 0)
-		WT_RET_MSG(session, EINVAL, 
+		WT_RET_MSG(session, EINVAL,
 		    "Failed to parse %s timestamp '%.*s': zero not permitted",
 		    name, (int)cval->len, cval->str);
 
-	if (0) {
-err:		__wt_err(session, ret, "Failed to parse %s timestamp '%.*s'",
-		    name, (int)cval->len, cval->str);
-	}
 	return (ret);
 }
 #endif
@@ -470,11 +468,11 @@ __wt_txn_query_timestamp(
 }
 
 /*
- * __wt_txn_set_oldest_timestamp --
- *	Set the oldest timestamp.
+ * __wt_txn_global_set_timestamp --
+ *	Set a global transaction timestamp.
  */
 int
-__wt_txn_set_oldest_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_CONFIG_ITEM cval;
 
