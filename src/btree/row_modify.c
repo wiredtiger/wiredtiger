@@ -274,9 +274,9 @@ __wt_update_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value,
 	if (is_remove || is_reserve) {
 		WT_RET(__wt_calloc(session, 1, sizeof(WT_UPDATE), &upd));
 		if (is_remove)
-			WT_UPDATE_DELETED_SET(upd);
+			upd->type = WT_UPDATE_DELETED_TYPE;
 		if (is_reserve)
-			WT_UPDATE_RESERVED_SET(upd);
+			upd->type = WT_UPDATE_RESERVED_TYPE;
 	} else {
 		WT_RET(__wt_calloc(
 		    session, 1, sizeof(WT_UPDATE) + value->size, &upd));

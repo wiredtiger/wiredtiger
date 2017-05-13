@@ -1227,7 +1227,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		}
 
 	/* Reconciliation should never see a reserved update. */
-	WT_ASSERT(session, *updp == NULL || !WT_UPDATE_RESERVED_ISSET(*updp));
+	WT_ASSERT(session,
+	    *updp == NULL || (*updp)->type != WT_UPDATE_RESERVED_TYPE);
 
 	/*
 	 * If all of the updates were aborted, quit. This test is not strictly
@@ -3675,20 +3676,20 @@ __rec_update_las(WT_SESSION_IMPL *session,
 		 * restored, obviously.
 		 */
 		do {
-			if (WT_UPDATE_RESERVED_ISSET(upd))
+			if (upd->type == WT_UPDATE_RESERVED_TYPE)
 				continue;
 
 			cursor->set_key(cursor, btree_id,
 			    &las_addr, ++las_counter, list->onpage_txn, key);
 
-			if (WT_UPDATE_DELETED_ISSET(upd))
+			if (upd->type == WT_UPDATE_DELETED_TYPE)
 				las_value.size = 0;
 			else {
 				las_value.data = WT_UPDATE_DATA(upd);
 				las_value.size = upd->size;
 			}
 			cursor->set_value(
-			    cursor, upd->txnid, upd->size, &las_value);
+			    cursor, upd->txnid, upd->type, &las_value);
 
 			WT_ERR(cursor->insert(cursor));
 			++insert_cnt;
@@ -4614,7 +4615,7 @@ record_loop:	/*
 				update_no_copy = true;	/* No data copy */
 				repeat_count = 1;	/* Single record */
 
-				deleted = WT_UPDATE_DELETED_ISSET(upd);
+				deleted = upd->type == WT_UPDATE_DELETED_TYPE;
 				if (!deleted) {
 					data = WT_UPDATE_DATA(upd);
 					size = upd->size;
@@ -4849,7 +4850,7 @@ compare:		/*
 				}
 			} else {
 				deleted = upd == NULL ||
-				    WT_UPDATE_DELETED_ISSET(upd);
+				    upd->type == WT_UPDATE_DELETED_TYPE;
 				if (!deleted) {
 					data = WT_UPDATE_DATA(upd);
 					size = upd->size;
@@ -5394,7 +5395,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 				    __wt_ovfl_cache(session, page, rip, vpack));
 
 			/* If this key/value pair was deleted, we're done. */
-			if (WT_UPDATE_DELETED_ISSET(upd)) {
+			if (upd->type == WT_UPDATE_DELETED_TYPE) {
 				/*
 				 * Overflow keys referencing discarded values
 				 * are no longer useful, discard the backing
@@ -5604,7 +5605,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 	for (; ins != NULL; ins = WT_SKIP_NEXT(ins)) {
 		/* Look for an update. */
 		WT_RET(__rec_txn_read(session, r, ins, NULL, NULL, &upd));
-		if (upd == NULL || WT_UPDATE_DELETED_ISSET(upd))
+		if (upd == NULL || upd->type == WT_UPDATE_DELETED_TYPE)
 			continue;
 
 		if (upd->size == 0)			/* Build value cell. */

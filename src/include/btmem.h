@@ -208,7 +208,7 @@ struct __wt_ovfl_txnc {
  */
 #define	WT_LAS_FORMAT							\
     "key_format=" WT_UNCHECKED_STRING(IuQQu)				\
-    ",value_format=" WT_UNCHECKED_STRING(QIu)
+    ",value_format=" WT_UNCHECKED_STRING(QBu)
 
 /*
  * WT_PAGE_MODIFY --
@@ -912,19 +912,11 @@ WT_PACKED_STRUCT_BEGIN(__wt_update)
 
 	WT_UPDATE *next;		/* forward-linked list */
 
-	/*
-	 * Use the maximum size and maximum size-1 as is-deleted and is-reserved
-	 * flags (which means we can't store 4GB objects), instead of increasing
-	 * the size of this structure for a flag bit.
-	 */
-#define	WT_UPDATE_DELETED_VALUE		UINT32_MAX
-#define	WT_UPDATE_DELETED_SET(u)	((u)->size = WT_UPDATE_DELETED_VALUE)
-#define	WT_UPDATE_DELETED_ISSET(u)	((u)->size == WT_UPDATE_DELETED_VALUE)
-
-#define	WT_UPDATE_RESERVED_VALUE	(UINT32_MAX - 1)
-#define	WT_UPDATE_RESERVED_SET(u)	((u)->size = WT_UPDATE_RESERVED_VALUE)
-#define	WT_UPDATE_RESERVED_ISSET(u)	((u)->size == WT_UPDATE_RESERVED_VALUE)
 	uint32_t size;			/* update length */
+
+#define	WT_UPDATE_DELETED_TYPE		1
+#define	WT_UPDATE_RESERVED_TYPE		2
+	uint8_t type;			/* update type */
 
 	/* The untyped value immediately follows the WT_UPDATE structure. */
 #define	WT_UPDATE_DATA(upd)						\
@@ -936,9 +928,13 @@ WT_PACKED_STRUCT_BEGIN(__wt_update)
 	 * cache overhead calculation.
 	 */
 #define	WT_UPDATE_MEMSIZE(upd)						\
-	WT_ALIGN(sizeof(WT_UPDATE) + (WT_UPDATE_DELETED_ISSET(upd) ||	\
-	    WT_UPDATE_RESERVED_ISSET(upd) ? 0 : (upd)->size), 32)
+	WT_ALIGN(sizeof(WT_UPDATE) + (upd)->size, 32)
 WT_PACKED_STRUCT_END
+/*
+ * WT_UPDATE_SIZE is the expected structure size -- we verify the build to
+ * ensure the compiler hasn't inserted padding.
+ */
+#define	WT_UPDATE_SIZE	21
 
 /*
  * WT_INSERT --

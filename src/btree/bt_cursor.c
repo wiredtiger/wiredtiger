@@ -224,7 +224,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 	 */
 	if (cbt->ins != NULL &&
 	    (upd = __wt_txn_read(session, cbt->ins->upd)) != NULL) {
-		if (WT_UPDATE_DELETED_ISSET(upd))
+		if (upd->type == WT_UPDATE_DELETED_TYPE)
 			return (false);
 		if (updp != NULL)
 			*updp = upd;
@@ -297,7 +297,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 		    page->modify->mod_row_update != NULL &&
 		    (upd = __wt_txn_read(session,
 		    page->modify->mod_row_update[cbt->slot])) != NULL) {
-			if (WT_UPDATE_DELETED_ISSET(upd))
+			if (upd->type == WT_UPDATE_DELETED_TYPE)
 				return (false);
 			if (updp != NULL)
 				*updp = upd;
