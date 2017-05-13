@@ -8,6 +8,8 @@
 
 #include "wt_internal.h"
 
+static const uint8_t zero_timestamp[TIMESTAMP_SIZE];
+
 /*
  * __snapsort_partition --
  *	Custom quick sort partitioning for snapshots.
@@ -388,34 +390,60 @@ static int
 __txn_set_timestamp(WT_SESSION_IMPL *session,
      const char *name, uint8_t *timestamp, WT_CONFIG_ITEM *cval)
 {
-	WT_DECL_ITEM(tsbuf);
 	WT_DECL_RET;
+	WT_ITEM ts;
+	char padbuf[2 * TIMESTAMP_SIZE], tsbuf[TIMESTAMP_SIZE];
+	const char *hexts;
+	size_t hexlen;
 
-	WT_RET(__wt_scr_alloc(session, TIMESTAMP_SIZE, &tsbuf));
+	if (cval->len == 0) {
+		memset(timestamp, 0, TIMESTAMP_SIZE);
+		return (0);
+	}
+
+	/* Protect against unexpectedly long hex strings. */
+	if (cval->len > 2 * TIMESTAMP_SIZE)
+		WT_RET_MSG(session, EINVAL,
+		    "Failed to parse %s timestamp '%.*s': too long",
+		    name, (int)cval->len, cval->str);
 
 	/*
-	 * XXX need something slightly different: this code assumes it is
-	 * decoding data produced by dump and so requires an even number of hex
-	 * digits.
+	 * The decoding function assumes it is decoding data produced by dump
+	 * and so requires an even number of hex digits.
 	 */
-	WT_ERR(__wt_nhex_to_raw(session, cval->str, cval->len, tsbuf));
+	if ((cval->len & 1) == 0) {
+		hexts = cval->str;
+		hexlen = cval->len;
+	} else {
+		padbuf[0] = '0';
+		memcpy(padbuf + 1, cval->str, cval->len);
+		hexts = padbuf;
+		hexlen = cval->len + 1;
+	}
+
+	/* Avoid memory allocation to decode timestamps. */
+	ts.data = ts.mem = tsbuf;
+	ts.memsize = sizeof(tsbuf);
+
+	WT_ERR(__wt_nhex_to_raw(session, hexts, hexlen, &ts));
+	WT_ASSERT(session, ts.size <= TIMESTAMP_SIZE);
+
+	if (ts.size < TIMESTAMP_SIZE)
+		memset(timestamp, 0, TIMESTAMP_SIZE - ts.size);
 
 	/* Copy the raw value to the end of the timestamp. */
-	if (tsbuf->size == TIMESTAMP_SIZE)
-		memcpy(timestamp, tsbuf->data, TIMESTAMP_SIZE);
-	else if (tsbuf->size < TIMESTAMP_SIZE)
-		memcpy(timestamp + TIMESTAMP_SIZE - tsbuf->size,
-		    tsbuf->data, tsbuf->size);
-	else
-		memcpy(timestamp,
-		    (const uint8_t *)tsbuf->data + tsbuf->size - TIMESTAMP_SIZE,
-		    TIMESTAMP_SIZE);
+	memcpy(timestamp + TIMESTAMP_SIZE - ts.size,
+	    ts.data, ts.size);
+
+	if (memcmp(timestamp, zero_timestamp, TIMESTAMP_SIZE) == 0)
+		WT_RET_MSG(session, EINVAL, 
+		    "Failed to parse %s timestamp '%.*s': zero not permitted",
+		    name, (int)cval->len, cval->str);
 
 	if (0) {
 err:		__wt_err(session, ret, "Failed to parse %s timestamp '%.*s'",
 		    name, (int)cval->len, cval->str);
 	}
-	__wt_scr_free(session, &tsbuf);
 	return (ret);
 }
 #endif

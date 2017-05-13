@@ -32,10 +32,10 @@
 
 import random
 from suite_subprocess import suite_subprocess
-import wttest
+import wiredtiger, wttest
 
 def timestamp_str(t):
-    return '%06x' % t
+    return '%x' % t
 
 class test_timestamp01(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_timestamp01'
@@ -57,6 +57,31 @@ class test_timestamp01(wttest.WiredTigerTestCase, suite_subprocess):
         c.close()
         if txn_config:
             session.commit_transaction()
+
+    def test_timestamp_range(self):
+        # Zero is not permitted
+        self.session.begin_transaction()
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.commit_transaction(
+                'commit_timestamp=' + timestamp_str(0)),
+                '/zero not permitted/')
+        self.session.rollback_transaction()
+
+        # Too big is also not permitted
+        self.session.begin_transaction()
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.commit_transaction(
+                'commit_timestamp=' + timestamp_str(1 << 100)),
+                '/too long/')
+        self.session.rollback_transaction()
+
+        # One is okay, as is 2**64 - 1
+        self.session.begin_transaction()
+        self.session.commit_transaction(
+            'commit_timestamp=' + timestamp_str(1))
+        self.session.begin_transaction()
+        self.session.commit_transaction(
+            'commit_timestamp=' + timestamp_str(1 << 64 - 1))
 
     def test_basic(self):
         self.session.create(self.uri, 'key_format=i,value_format=i')
