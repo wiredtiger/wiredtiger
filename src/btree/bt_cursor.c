@@ -998,15 +998,6 @@ __btcur_update(WT_CURSOR_BTREE *cbt, bool is_reserve)
 	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cursor->session;
 
-	WT_STAT_CONN_INCR(session, cursor_update);
-	WT_STAT_DATA_INCR(session, cursor_update);
-	WT_STAT_DATA_INCRV(session, cursor_update_bytes, cursor->value.size);
-
-	if (btree->type == BTREE_ROW)
-		WT_RET(__cursor_size_chk(session, &cursor->key));
-	if (!is_reserve)
-		WT_RET(__cursor_size_chk(session, &cursor->value));
-
 	/* It's no longer possible to bulk-load into the tree. */
 	__cursor_disable_bulk(session, btree);
 
@@ -1131,9 +1122,14 @@ __wt_btcur_reserve(WT_CURSOR_BTREE *cbt)
 {
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
 	bool overwrite;
 
 	cursor = &cbt->iface;
+	session = (WT_SESSION_IMPL *)cursor->session;
+
+	WT_STAT_CONN_INCR(session, cursor_reserve);
+	WT_STAT_DATA_INCR(session, cursor_reserve);
 
 	/* WT_CURSOR.reserve is update-without-overwrite and a special value. */
 	overwrite = F_ISSET(cursor, WT_CURSTD_OVERWRITE);
@@ -1151,6 +1147,22 @@ __wt_btcur_reserve(WT_CURSOR_BTREE *cbt)
 int
 __wt_btcur_update(WT_CURSOR_BTREE *cbt)
 {
+	WT_BTREE *btree;
+	WT_CURSOR *cursor;
+	WT_SESSION_IMPL *session;
+
+	btree = cbt->btree;
+	cursor = &cbt->iface;
+	session = (WT_SESSION_IMPL *)cursor->session;
+
+	WT_STAT_CONN_INCR(session, cursor_update);
+	WT_STAT_DATA_INCR(session, cursor_update);
+	WT_STAT_DATA_INCRV(session, cursor_update_bytes, cursor->value.size);
+
+	if (btree->type == BTREE_ROW)
+		WT_RET(__cursor_size_chk(session, &cursor->key));
+	WT_RET(__cursor_size_chk(session, &cursor->value));
+
 	return (__btcur_update(cbt, false));
 }
 

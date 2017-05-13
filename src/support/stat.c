@@ -101,6 +101,7 @@ static const char * const __stats_dsrc_desc[] = {
 	"cursor: next calls",
 	"cursor: prev calls",
 	"cursor: remove calls",
+	"cursor: reserve calls",
 	"cursor: reset calls",
 	"cursor: restarted searches",
 	"cursor: search calls",
@@ -264,6 +265,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
 	stats->cursor_next = 0;
 	stats->cursor_prev = 0;
 	stats->cursor_remove = 0;
+	stats->cursor_reserve = 0;
 	stats->cursor_reset = 0;
 	stats->cursor_restart = 0;
 	stats->cursor_search = 0;
@@ -416,6 +418,7 @@ __wt_stat_dsrc_aggregate_single(
 	to->cursor_next += from->cursor_next;
 	to->cursor_prev += from->cursor_prev;
 	to->cursor_remove += from->cursor_remove;
+	to->cursor_reserve += from->cursor_reserve;
 	to->cursor_reset += from->cursor_reset;
 	to->cursor_restart += from->cursor_restart;
 	to->cursor_search += from->cursor_search;
@@ -595,6 +598,7 @@ __wt_stat_dsrc_aggregate(
 	to->cursor_next += WT_STAT_READ(from, cursor_next);
 	to->cursor_prev += WT_STAT_READ(from, cursor_prev);
 	to->cursor_remove += WT_STAT_READ(from, cursor_remove);
+	to->cursor_reserve += WT_STAT_READ(from, cursor_reserve);
 	to->cursor_reset += WT_STAT_READ(from, cursor_reset);
 	to->cursor_restart += WT_STAT_READ(from, cursor_restart);
 	to->cursor_search += WT_STAT_READ(from, cursor_search);
@@ -748,6 +752,7 @@ static const char * const __stats_connection_desc[] = {
 	"cursor: cursor next calls",
 	"cursor: cursor prev calls",
 	"cursor: cursor remove calls",
+	"cursor: cursor reserve calls",
 	"cursor: cursor reset calls",
 	"cursor: cursor restarted searches",
 	"cursor: cursor search calls",
@@ -1041,6 +1046,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cursor_next = 0;
 	stats->cursor_prev = 0;
 	stats->cursor_remove = 0;
+	stats->cursor_reserve = 0;
 	stats->cursor_reset = 0;
 	stats->cursor_restart = 0;
 	stats->cursor_search = 0;
@@ -1354,6 +1360,7 @@ __wt_stat_connection_aggregate(
 	to->cursor_next += WT_STAT_READ(from, cursor_next);
 	to->cursor_prev += WT_STAT_READ(from, cursor_prev);
 	to->cursor_remove += WT_STAT_READ(from, cursor_remove);
+	to->cursor_reserve += WT_STAT_READ(from, cursor_reserve);
 	to->cursor_reset += WT_STAT_READ(from, cursor_reset);
 	to->cursor_restart += WT_STAT_READ(from, cursor_restart);
 	to->cursor_search += WT_STAT_READ(from, cursor_search);
