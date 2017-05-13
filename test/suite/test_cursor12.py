@@ -27,10 +27,18 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
+from wtscenario import make_scenarios
 
 # test_cursor12.py
 #    Test cursor modify call
 class test_cursor12(wttest.WiredTigerTestCase):
+    types = [
+        ('file', dict(uri='file:modify')),
+        ('lsm', dict(uri='lsm:modify')),
+        ('table', dict(uri='table:modify')),
+    ]
+    scenarios = make_scenarios(types)
+
     def test_modify(self):
         # List with original value, final value, and modifications to get
         # there.
@@ -102,9 +110,8 @@ class test_cursor12(wttest.WiredTigerTestCase):
         }
         ]
 
-        uri = 'table:modify'
-        self.session.create(uri, 'key_format=S,value_format=u')
-        cursor = self.session.open_cursor(uri, None, None)
+        self.session.create(self.uri, 'key_format=S,value_format=u')
+        cursor = self.session.open_cursor(self.uri, None, None)
 
         # For each test in the list, set the original value, apply modifications
         # in order, then confirm the final state.
