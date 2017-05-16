@@ -827,6 +827,7 @@ isrc
 isspace
 isupper
 isxdigit
+iszero
 iter
 iteratively
 iters

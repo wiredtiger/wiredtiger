@@ -11,16 +11,28 @@
 #if TIMESTAMP_SIZE > 0
 static const uint8_t zero_timestamp[TIMESTAMP_SIZE];
 
+/*
+ * __ts_cmp --
+ *	Compare two timestamps.
+ */
 static inline int
 __ts_cmp(const uint8_t *ts1, const uint8_t *ts2) {
 	return (memcmp(ts1, ts2, TIMESTAMP_SIZE));
 }
 
+/*
+ * __ts_set --
+ *	Set a timestamp
+ */
 static inline void
 __ts_set(uint8_t *dest, const uint8_t *src) {
 	(void)memcpy(dest, src, TIMESTAMP_SIZE);
 }
 
+/*
+ * __ts_iszero --
+ *	Check if a timestamp is equal to the special "zero" time.
+ */
 static inline bool
 __ts_iszero(const uint8_t *ts) {
 	return (memcmp(ts, zero_timestamp, TIMESTAMP_SIZE) == 0);
