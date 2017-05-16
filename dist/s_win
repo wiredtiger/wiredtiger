@@ -39,7 +39,20 @@ win_export()
 	     (echo "Building $f" && rm -f $f && cp $t $f)
 }
 
+win_pack()
+{
+	# If we don't have matching pack-begin and pack-end calls, we don't get
+	# an error, we just get a Windows performance regression.
+	cnt=`egrep WT_PACKED_STRUCT ../src/include/*.h ../src/include/*.in |
+	    awk '{ ++line } END { print line }'`
+	if test `expr "$cnt" % 2` -ne 0; then
+		echo 'Error: mismatched WT_PACKED_STRUCT_BEGIN/END lines.'
+		exit 1
+	fi
+}
+
 win_config
 win_export
+win_pack
 
 exit 0
