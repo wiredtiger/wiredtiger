@@ -616,6 +616,11 @@ __cursor_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
 	WT_ERR(__cursor_checkkey(cursor));
 
+	/* If we get an empty damage vector, that's just strange. */
+	if (nentries == 0)
+		WT_ERR_MSG(
+		    session, EINVAL, "Empty damage vectors not permitted");
+
 	/* Acquire position and value. */
 	WT_ERR(cursor->search(cursor));
 
