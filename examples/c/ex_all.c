@@ -844,6 +844,9 @@ transaction_ops(WT_CONNECTION *conn, WT_SESSION *session)
 	/*! [transaction timestamp] */
 
 	{
+#ifndef TIMESTAMP_SIZE
+#define	TIMESTAMP_SIZE	8
+#endif
 	/*! [query timestamp] */
 	char timestamp_buf[2 * TIMESTAMP_SIZE + 1];
 
