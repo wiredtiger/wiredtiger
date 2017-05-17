@@ -47,8 +47,8 @@ class test_txn16(wttest.WiredTigerTestCase, suite_subprocess):
         'transaction_sync=(method=dsync,enabled)'
     conn_on = 'config_base=false,' + \
         'log=(archive=false,enabled,file_max=100K),' + \
-        'transaction_sync=(method=dsync,enabled),verbose=(temporary)'
-    conn_off = 'config_base=false,log=(enabled=false),verbose=(temporary)'
+        'transaction_sync=(method=dsync,enabled)'
+    conn_off = 'config_base=false,log=(enabled=false)'
 
     def populate_table(self, uri):
         self.session.create(uri, self.create_params)
@@ -77,26 +77,39 @@ class test_txn16(wttest.WiredTigerTestCase, suite_subprocess):
 
     def run_toggle(self, homedir):
         loop = 0
+        # Record original log files.  There should never be overlap
+        # with these even after they're removed.
+        orig_logs = fnmatch.filter(os.listdir(homedir), "*Log*")
         while loop < 3:
             # Reopen with logging on to run recovery first time
             on_conn = self.wiredtiger_open(homedir, self.conn_on)
             on_conn.close()
             if loop > 0:
+                # Get current log files.
                 cur_logs = fnmatch.filter(os.listdir(homedir), "*Log*")
                 scur = set(cur_logs)
                 sorig = set(orig_logs)
+                # There should never be overlap with the log files that
+                # were there originally.  Mostly this checks that after
+                # opening with logging disabled and then re-enabled, we
+                # don't see log file 1.
                 self.assertEqual(scur.isdisjoint(sorig), True)
                 if loop > 1:
+                    # We should be creating the same log files each time.
                     for l in cur_logs:
-                        self.assertEqual(o in last_logs, True)
+                        self.assertEqual(l in last_logs, True)
                     for l in last_logs:
-                        self.assertEqual(o in cur_logs, True)
-                    last_logs = cur_logs
+                        self.assertEqual(l in cur_logs, True)
+                last_logs = cur_logs
             loop += 1
+            # Remove all log files before opening without logging.
+            # XXX We don't currently, but could detect and do this internally.
+            cur_logs = fnmatch.filter(os.listdir(homedir), "*Log*")
+            for l in cur_logs:
+                path=homedir + "/" + l
+                os.remove(path)
             off_conn = self.wiredtiger_open(homedir, self.conn_off)
-            # XXX Do we want/need to add data here?  If not remove t4
             off_conn.close()
-            orig_logs = fnmatch.filter(os.listdir(homedir), "*Log*")
 
     def test_recovery(self):
         ''' Check log file creation when toggling. '''
@@ -107,10 +120,11 @@ class test_txn16(wttest.WiredTigerTestCase, suite_subprocess):
         #    - Copy to a new directory to simulate a crash.
         #    - Close the original connection.
         #    On both a "copy" to simulate a crash and the original (3x):
+        #    - Record log files existing.
         #    - Reopen with logging to run recovery.  Close connection.
         #    - Record log files existing.
+        #    - Remove all log files.
         #    - Open connection with logging disabled.
-        #    - Create (first pass) and insert data into t5.
         #    - Record log files existing.  Verify we don't keep adding.
         #
         self.populate_table(self.t1)

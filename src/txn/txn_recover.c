@@ -458,13 +458,9 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 		 * larger than any checkpoint LSN we have from the earlier time.
 		 */
 		WT_ERR(__recovery_file_scan(&r));
-		__wt_verbose(session, WT_VERB_TEMPORARY,
-		    "recover:  max_lsn %" PRIu32 "/%" PRIu32,
-		    r.max_lsn.l.file, r.max_lsn.l.offset);
-
 		conn->next_file_id = r.max_fileid;
 
-		if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_EXISTED) &&
+		if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) &&
 		    WT_IS_MAX_LSN(&metafile->ckpt_lsn) &&
 		    !WT_IS_MAX_LSN(&r.max_lsn)) {
 			WT_ERR(__wt_log_reset(session, r.max_lsn.l.file));

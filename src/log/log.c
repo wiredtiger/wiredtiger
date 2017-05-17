@@ -458,12 +458,8 @@ __wt_log_reset(WT_SESSION_IMPL *session, uint32_t lognum)
 	log = conn->log;
 
 	if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ||
-	    log->fileid > lognum) {
-		__wt_verbose(session, WT_VERB_TEMPORARY,
-		    "RESET: log %" PRIu32 " in range of log fileid %" PRIu32,
-		    lognum, log->fileid);
+	    log->fileid > lognum)
 		return (0);
-	}
 
 	WT_ASSERT(session, F_ISSET(conn, WT_CONN_RECOVERING));
 	WT_ASSERT(session, !F_ISSET(conn, WT_CONN_READONLY));
@@ -482,8 +478,6 @@ __wt_log_reset(WT_SESSION_IMPL *session, uint32_t lognum)
 		WT_ERR(__wt_log_extract_lognum(
 		    session, logfiles[i], &old_lognum));
 		WT_ASSERT(session, old_lognum < lognum);
-		__wt_verbose(session, WT_VERB_TEMPORARY,
-		    "RESET: removing log %" PRIu32, old_lognum);
 		WT_ERR(__wt_log_remove(
 		    session, WT_LOG_FILENAME, old_lognum));
 	}
@@ -492,9 +486,7 @@ __wt_log_reset(WT_SESSION_IMPL *session, uint32_t lognum)
 	/* Send in true to update connection creation LSNs. */
 	WT_WITH_SLOT_LOCK(session, log,
 	    ret = __log_newfile(session, true, NULL));
-	__wt_verbose(session, WT_VERB_TEMPORARY,
-	    "RESET: after newfile alloc_lsn %" PRIu32 "/%" PRIu32,
-	    log->alloc_lsn.l.file, log->alloc_lsn.l.offset);
+	WT_ERR(__wt_log_slot_init(session, false));
 err:	WT_TRET(
 	    __wt_fs_directory_list_free(session, &logfiles, logcount));
 	return (ret);
