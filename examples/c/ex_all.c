@@ -840,15 +840,19 @@ transaction_ops(WT_CONNECTION *conn, WT_SESSION *session)
 	}
 
 	/*! [transaction timestamp] */
-	/* XXX todo */
+	ret = session->timestamp_transaction(session, "commit_timestamp=2a");
 	/*! [transaction timestamp] */
 
+	{
 	/*! [query timestamp] */
-	/* XXX todo */
+	char timestamp_buf[2 * TIMESTAMP_SIZE + 1];
+
+	ret = conn->query_timestamp(conn, timestamp_buf, "get=all_committed");
 	/*! [query timestamp] */
+	}
 
 	/*! [set oldest timestamp] */
-	/* XXX todo */
+	ret = conn->set_timestamp(conn, "oldest_timestamp=2a");
 	/*! [set oldest timestamp] */
 
 	return (ret);
