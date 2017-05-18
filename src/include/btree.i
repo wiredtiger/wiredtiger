@@ -1313,6 +1313,16 @@ __wt_page_can_evict(
 		return (true);
 
 	/*
+	 * We can't split or evict multiblock row-store pages where the parent's
+	 * key for the page is an overflow item, because the split into the
+	 * parent frees the backing blocks for any no-longer-used overflow keys,
+	 * which will corrupt the checkpoint's block management.
+	 */
+	if (btree->checkpointing != WT_CKPT_OFF &&
+	    F_ISSET_ATOMIC(ref->home, WT_PAGE_OVERFLOW_KEYS))
+		return (false);
+
+	/*
 	 * Check for in-memory splits before other eviction tests. If the page
 	 * should split in-memory, return success immediately and skip more
 	 * detailed eviction tests. We don't need further tests since the page
@@ -1339,16 +1349,6 @@ __wt_page_can_evict(
 	}
 
 	/*
-	 * We can't evict clean, multiblock row-store pages where the parent's
-	 * key for the page is an overflow item, because the split into the
-	 * parent frees the backing blocks for any no-longer-used overflow keys,
-	 * which will corrupt the checkpoint's block management.
-	 */
-	if (btree->checkpointing != WT_CKPT_OFF &&
-	    F_ISSET_ATOMIC(ref->home, WT_PAGE_OVERFLOW_KEYS))
-		return (false);
-
-	/*
 	 * If a split created new internal pages, those newly created internal
 	 * pages cannot be evicted until all threads are known to have exited
 	 * the original parent page's index, because evicting an internal page
@@ -1360,8 +1360,8 @@ __wt_page_can_evict(
 	 * that case, no readers can be looking at an old index.
 	 */
 	if (!F_ISSET(session->dhandle, WT_DHANDLE_EXCLUSIVE) &&
-	    WT_PAGE_IS_INTERNAL(page) && !__wt_split_obsolete(
-	    session, page->pg_intl_split_gen))
+	    WT_PAGE_IS_INTERNAL(page) &&
+	    page->pg_intl_split_gen >= __wt_gen_oldest(session, WT_GEN_SPLIT))
 		return (false);
 
 	/*
