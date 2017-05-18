@@ -54,6 +54,12 @@ __wt_seconds(WT_SESSION_IMPL *session, time_t *timep)
 	*timep = t.tv_sec;
 }
 
+/*
+ * __wt_time_backward --
+ *	Check and prevent time running backward.  If we detect it
+ *	we set the time structure to the previous values, making
+ *	time stand still for this call.
+ */
 static inline void
 __wt_time_backward(WT_SESSION_IMPL *session, struct timespec *tsp)
 {
