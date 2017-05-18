@@ -6601,10 +6601,9 @@ __rec_dictionary_lookup(
  * when performing a lookaside table write.
  */
 void
-__wt_verbose_lookaside_write(WT_SESSION_IMPL *session, uint64_t inserted_cnt)
+__wt_verbose_lookaside_write(WT_SESSION_IMPL *session, int64_t inserted_cnt)
 {
 	WT_SESSION* wt_session;
-	WT_CACHE* cache;
 	uint32_t pct_dirty, pct_full;
 	uint64_t pinned_range;
 
@@ -6618,6 +6617,6 @@ __wt_verbose_lookaside_write(WT_SESSION_IMPL *session, uint64_t inserted_cnt)
 	    "Lookaside written to. Number of TXN ID's Pinned: %" PRIu64
 	    ". Cache is %" PRIu32 "%% dirty. "
 	    "Cache is %" PRIu32 "%% full. "
-	    "Page entries requiring LAS support: %" PRIu64,
+	    "Page entries requiring LAS support: %" PRId64,
 	    pinned_range, pct_dirty, pct_full, inserted_cnt);
 }
