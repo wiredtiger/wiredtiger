@@ -39,9 +39,10 @@ class test_txn16(wttest.WiredTigerTestCase, suite_subprocess):
     t1 = 'table:test_txn16_1'
     t2 = 'table:test_txn16_2'
     t3 = 'table:test_txn16_3'
-    t4 = 'table:test_txn16_4'
     nentries = 1000
     create_params = 'key_format=i,value_format=i'
+    # Set the log file size small so we generate checkpoints
+    # with LSNs in different files.
     conn_config = 'config_base=false,' + \
         'log=(archive=false,enabled,file_max=100K),' + \
         'transaction_sync=(method=dsync,enabled)'
@@ -53,6 +54,8 @@ class test_txn16(wttest.WiredTigerTestCase, suite_subprocess):
     def populate_table(self, uri):
         self.session.create(uri, self.create_params)
         c = self.session.open_cursor(uri, None, None)
+        # Populate with an occasional checkpoint to generate
+        # some varying LSNs.
         for i in range(self.nentries):
             c[i] = i + 1
             if i % 900 == 0:
@@ -103,7 +106,6 @@ class test_txn16(wttest.WiredTigerTestCase, suite_subprocess):
                 last_logs = cur_logs
             loop += 1
             # Remove all log files before opening without logging.
-            # XXX We don't currently, but could detect and do this internally.
             cur_logs = fnmatch.filter(os.listdir(homedir), "*Log*")
             for l in cur_logs:
                 path=homedir + "/" + l
