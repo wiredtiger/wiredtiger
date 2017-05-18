@@ -55,10 +55,12 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 	WT_BTREE *btree;
 	WT_DECL_RET;
 	WT_PAGE *page;
+	struct timespec start, stop;
 	bool locked, too_big;
 
 	btree = S2BT(session);
 	page = ref->page;
+	__wt_epoch(session, &start);
 
 	/*
 	 * Take some care with order of operations: if we release the hazard
@@ -86,8 +88,12 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 			 */
 			WT_STAT_CONN_INCR(
 			    session, cache_eviction_force_delete);
-	} else
+	} else {
+		__wt_epoch(session, &stop);
 		WT_STAT_CONN_INCR(session, cache_eviction_force_fail);
+		WT_STAT_CONN_INCRV(session, cache_eviction_force_fail_time,
+		    WT_TIMEDIFF_US(stop, start));
+	}
 
 	(void)__wt_atomic_subv32(&btree->evict_busy, 1);
 
