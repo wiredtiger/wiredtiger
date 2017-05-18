@@ -39,10 +39,6 @@ __wt_epoch(WT_SESSION_IMPL *session, struct timespec *tsp)
 
 	WT_SYSCALL_RETRY(gettimeofday(&v, NULL), ret);
 	if (ret == 0) {
-		/*
-		 * Detect time going backward.  If so, use the last
-		 * saved timestamp.
-		 */
 		tsp->tv_sec = v.tv_sec;
 		tsp->tv_nsec = v.tv_usec * WT_THOUSAND;
 		__wt_time_backward(session, tsp);
