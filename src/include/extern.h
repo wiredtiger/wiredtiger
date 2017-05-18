@@ -556,7 +556,7 @@ extern int __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 extern int __wt_bulk_insert_fix( WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool deleted) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_bulk_insert_fix_bitmap(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_bulk_insert_var( WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool deleted) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern void __wt_verbose_lookaside_write(WT_SESSION_IMPL *session, uint64_t inserted_cnt);
+extern void __wt_verbose_lookaside_write(WT_SESSION_IMPL *session, int64_t inserted_cnt);
 extern int __wt_schema_alter(WT_SESSION_IMPL *session, const char *uri, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_direct_io_size_check(WT_SESSION_IMPL *session, const char **cfg, const char *config_name, uint32_t *allocsizep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_colgroup_source(WT_SESSION_IMPL *session, WT_TABLE *table, const char *cgname, const char *config, WT_ITEM *buf) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
