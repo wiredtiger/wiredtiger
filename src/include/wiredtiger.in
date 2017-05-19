@@ -133,40 +133,38 @@ struct __wt_item {
 };
 
 /*!
- * A set of modifications for a value, including a pointer to replacement data
- * and a length, plus a target offset and length in the value to be modified.
+ * A set of modifications for a value, including a pointer to new data and a
+ * length, plus a target offset in the value and an optional length of data
+ * in the value to be replaced.
  *
  * WT_MODIFY structures do not need to be cleared before use.
  */
 struct __wt_modify {
 	/*!
-	 * Replacement data.
+	 * New data. The size of the new data may be zero when no new data is
+	 * provided.
 	 */
 	WT_ITEM data;
 
 	/*!
-	 * The zero-based byte offset in the value where data replacement
-	 * begins.
+	 * The zero-based byte offset in the value where the new data is placed.
 	 *
-	 * If the offset is past the end of the previous value, nul bytes will
-	 * be appended to the value up to the specified offset.
+	 * If the offset is past the end of the value, nul bytes are appended to
+	 * the value up to the specified offset.
 	 */
 	 size_t offset;
 
 	/*!
-	 * The number of bytes in the value that will be replaced.
+	 * The number of bytes in the value to be replaced.
 	 *
-	 * If the size is zero, no bytes from the original value are replaced,
-	 * that is, the replacement data will be inserted into the value at the
-	 * byte offset.
+	 * If the size is zero, no bytes from the value are replaced and the new
+	 * data is inserted.
 	 *
-	 * If the offset is past the end of the previous value, the size is
-	 * ignored.
+	 * If the offset is past the end of the value, the size is ignored.
 	 *
-	 * If the offset plus the size is past the end of the previous value,
-	 * size will be limited and bytes from the offset to the end of the
-	 * previous value will be replaced.
-	 *
+	 * If the offset plus the size overlaps the end of the previous value,
+	 * bytes from the offset to the end of the value are replaced and any
+	 * remaining new data is appended.
 	 */
 	 size_t size;
 };
@@ -482,7 +480,8 @@ struct __wt_cursor {
 	/*!
 	 * Modify an existing record.
 	 *
-	 * The key must be set and the key's value will be updated.
+	 * Both the key and value must be set and the record must already exist;
+	 * the record will be updated.
 	 *
 	 * Modification structures are applied in order, and later modifications
 	 * can update earlier modifications.

@@ -610,16 +610,15 @@ __cursor_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 	int i;
 
 	CURSOR_UPDATE_API_CALL(cursor, session, modify, NULL);
+	WT_ERR(__cursor_checkkey(cursor));
+
+	/* Check for a rational damage vector count. */
+	if (nentries <= 0)
+		WT_ERR_MSG(
+		    session, EINVAL, "Illegal damage vector of %d", nentries);
 
 	WT_STAT_CONN_INCR(session, cursor_modify);
 	WT_STAT_DATA_INCR(session, cursor_modify);
-
-	WT_ERR(__cursor_checkkey(cursor));
-
-	/* If we get an empty damage vector, that's just strange. */
-	if (nentries == 0)
-		WT_ERR_MSG(
-		    session, EINVAL, "Empty damage vectors not permitted");
 
 	/* Acquire position and value. */
 	WT_ERR(cursor->search(cursor));
@@ -852,10 +851,6 @@ __wt_cursor_init(WT_CURSOR *cursor,
 	} else
 		cdump = NULL;
 
-	/* WT_CURSOR.modify supported on 'u' value formats. */
-	if (WT_STREQ(cursor->value_format, "u"))
-		cursor->modify = __cursor_modify;
-
 	/* overwrite */
 	WT_RET(__wt_config_gets_def(session, cfg, "overwrite", 1, &cval));
 	if (cval.val)
@@ -867,6 +862,14 @@ __wt_cursor_init(WT_CURSOR *cursor,
 	WT_RET(__wt_config_gets_def(session, cfg, "raw", 0, &cval));
 	if (cval.val != 0)
 		F_SET(cursor, WT_CURSTD_RAW);
+
+	/*
+	 * WT_CURSOR.modify supported on 'u' value formats, but may have been
+	 * already initialized.
+	 */
+	if (WT_STREQ(cursor->value_format, "u") &&
+	    cursor->modify == __wt_cursor_modify_notsup)
+		cursor->modify = __cursor_modify;
 
 	/*
 	 * Cursors that are internal to some other cursor (such as file cursors

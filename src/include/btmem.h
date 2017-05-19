@@ -914,8 +914,10 @@ WT_PACKED_STRUCT_BEGIN(__wt_update)
 
 	uint32_t size;			/* update length */
 
-#define	WT_UPDATE_DELETED_TYPE		1
-#define	WT_UPDATE_RESERVED_TYPE		2
+#define	WT_UPDATE_STANDARD	0
+#define	WT_UPDATE_DELETED	1
+#define	WT_UPDATE_MODIFIED	2
+#define	WT_UPDATE_RESERVED	3
 	uint8_t type;			/* update type */
 
 	/* The untyped value immediately follows the WT_UPDATE structure. */
