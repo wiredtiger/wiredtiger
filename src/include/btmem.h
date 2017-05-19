@@ -908,16 +908,16 @@ struct __wt_ikey {
  * list.
  */
 WT_PACKED_STRUCT_BEGIN(__wt_update)
-	uint64_t txnid;			/* update transaction */
+	uint64_t txnid;			/* transaction */
 
 	WT_UPDATE *next;		/* forward-linked list */
 
-	uint32_t size;			/* update length */
+	uint32_t size;			/* data length */
 
 #define	WT_UPDATE_STANDARD	0
 #define	WT_UPDATE_DELETED	1
 #define	WT_UPDATE_RESERVED	2
-	uint8_t type;			/* update type */
+	uint8_t type;			/* type (one byte to conserve memory) */
 
 	/* The untyped value immediately follows the WT_UPDATE structure. */
 #define	WT_UPDATE_DATA(upd)						\
