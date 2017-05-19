@@ -916,8 +916,7 @@ WT_PACKED_STRUCT_BEGIN(__wt_update)
 
 #define	WT_UPDATE_STANDARD	0
 #define	WT_UPDATE_DELETED	1
-#define	WT_UPDATE_MODIFIED	2
-#define	WT_UPDATE_RESERVED	3
+#define	WT_UPDATE_RESERVED	2
 	uint8_t type;			/* update type */
 
 	/* The untyped value immediately follows the WT_UPDATE structure. */
