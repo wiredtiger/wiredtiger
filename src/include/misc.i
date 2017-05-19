@@ -55,13 +55,13 @@ __wt_seconds(WT_SESSION_IMPL *session, time_t *timep)
 }
 
 /*
- * __wt_time_backward --
- *	Check and prevent time running backward.  If we detect it
- *	we set the time structure to the previous values, making
- *	time stand still for this call.
+ * __wt_time_check_monotonic --
+ *	Check and prevent time running backward.  If we detect that it has, we
+ *	set the time structure to the previous values, making time stand still
+ *	until we see a time in the future of the highest value seen so far.
  */
 static inline void
-__wt_time_backward(WT_SESSION_IMPL *session, struct timespec *tsp)
+__wt_time_check_monotonic(WT_SESSION_IMPL *session, struct timespec *tsp)
 {
 	/*
 	 * Detect time going backward.  If so, use the last
@@ -75,8 +75,8 @@ __wt_time_backward(WT_SESSION_IMPL *session, struct timespec *tsp)
 	     tsp->tv_nsec < session->last_epoch.tv_nsec)) {
 		WT_STAT_CONN_INCR(session, time_travel);
 		*tsp = session->last_epoch;
-	}
-	session->last_epoch = *tsp;
+	} else
+		session->last_epoch = *tsp;
 }
 
 /*

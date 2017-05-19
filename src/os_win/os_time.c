@@ -24,7 +24,7 @@ __wt_epoch(WT_SESSION_IMPL *session, struct timespec *tsp)
 	    - 116444736000000000LL;
 	tsp->tv_sec = ns100 / 10000000;
 	tsp->tv_nsec = (long)((ns100 % 10000000) * 100);
-	__wt_time_backward(session, tsp);
+	__wt_time_check_monotonic(session, tsp);
 }
 
 /*
