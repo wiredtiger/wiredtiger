@@ -350,6 +350,8 @@ static int  __rec_dictionary_init(WT_SESSION_IMPL *, WT_RECONCILE *, u_int);
 static int  __rec_dictionary_lookup(
 		WT_SESSION_IMPL *, WT_RECONCILE *, WT_KV *, WT_DICTIONARY **);
 static void __rec_dictionary_reset(WT_RECONCILE *);
+static void __verbose_lookaside_write(
+		WT_SESSION_IMPL *session, uint64_t inserted_cnt);
 
 /*
  * __wt_reconcile --
@@ -3581,8 +3583,7 @@ __rec_update_las(WT_SESSION_IMPL *session,
 	WT_PAGE *page;
 	WT_SAVE_UPD *list;
 	WT_UPDATE *upd;
-	uint64_t las_counter;
-	int64_t insert_cnt;
+	uint64_t insert_cnt, las_counter;
 	uint32_t i, session_flags, slot;
 	uint8_t *p;
 
@@ -3700,8 +3701,7 @@ err:	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 	if (insert_cnt > 0) {
 		(void)__wt_atomic_addi64(
 		    &S2C(session)->las_record_cnt, insert_cnt);
-		if (WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE))
-			__wt_verbose_lookaside_write(session, insert_cnt);
+		__verbose_lookaside_write(session, insert_cnt);
 	}
 
 	__wt_scr_free(session, &key);
@@ -6596,27 +6596,35 @@ __rec_dictionary_lookup(
 }
 
 /*
- * __wt_verbose_lookaside_write --
- * Create a verbose message to display with details about the transaction state
- * when performing a lookaside table write.
+ * __verbose_lookaside_write --
+ *	Create a verbose message to display with details about the transaction
+ * state when performing a lookaside table write.
  */
-void
-__wt_verbose_lookaside_write(WT_SESSION_IMPL *session, int64_t inserted_cnt)
+static void
+__verbose_lookaside_write(WT_SESSION_IMPL *session, uint64_t inserted_cnt)
 {
-	WT_SESSION* wt_session;
-	uint32_t pct_dirty, pct_full;
+#ifdef HAVE_VERBOSE
+	WT_SESSION *wt_session;
 	uint64_t pinned_range;
+	uint32_t pct_dirty, pct_full;
 
-	wt_session = &session->iface;
+	if (WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE)) {
 
-	__wt_eviction_clean_needed(session, &pct_full);
-	__wt_eviction_dirty_needed(session, &pct_dirty);
-	wt_session->transaction_pinned_range(wt_session, &pinned_range);
+		wt_session = &session->iface;
 
-	__wt_verbose(session, WT_VERB_LOOKASIDE,
-	    "Lookaside written to. Number of TXN ID's Pinned: %" PRIu64
-	    ". Cache is %" PRIu32 "%% dirty. "
-	    "Cache is %" PRIu32 "%% full. "
-	    "Page entries requiring LAS support: %" PRId64,
-	    pinned_range, pct_dirty, pct_full, inserted_cnt);
+		(void)__wt_eviction_clean_needed(session, &pct_full);
+		(void)__wt_eviction_dirty_needed(session, &pct_dirty);
+		wt_session->transaction_pinned_range(wt_session, &pinned_range);
+
+		__wt_verbose(session, WT_VERB_LOOKASIDE,
+		    "Page reconciliation required %" PRIu64
+		    " lookaside entries: %" PRIu64
+		    " pinned TXN ID's, cache is %" PRIu32
+		    "/%" PRIu32 "%% dirty/clean",
+		    inserted_cnt, pinned_range, pct_dirty, pct_full);
+	}
+#else
+	WT_UNUSED(session);
+	WT_UNUSED(inserted_cnt);
+#endif
 }
