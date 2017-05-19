@@ -3699,7 +3699,7 @@ __rec_update_las(WT_SESSION_IMPL *session,
 err:	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 
 	if (insert_cnt > 0) {
-		(void)__wt_atomic_addi64(
+		(void)__wt_atomic_add64(
 		    &S2C(session)->las_record_cnt, insert_cnt);
 		__verbose_lookaside_write(session, insert_cnt);
 	}

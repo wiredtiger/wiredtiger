@@ -19,8 +19,7 @@ __wt_las_remove_block(WT_SESSION_IMPL *session,
 	WT_DECL_ITEM(las_addr);
 	WT_DECL_ITEM(las_key);
 	WT_DECL_RET;
-	uint64_t las_counter, las_txnid;
-	int64_t remove_cnt;
+	uint64_t las_counter, las_txnid, remove_cnt;
 	uint32_t las_id;
 	int exact;
 
@@ -74,7 +73,7 @@ err:	__wt_scr_free(session, &las_addr);
 	if (remove_cnt > S2C(session)->las_record_cnt)
 		S2C(session)->las_record_cnt = 0;
 	else if (remove_cnt > 0)
-		(void)__wt_atomic_subi64(
+		(void)__wt_atomic_sub64(
 		    &S2C(session)->las_record_cnt, remove_cnt);
 
 	return (ret);
