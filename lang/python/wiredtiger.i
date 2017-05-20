@@ -154,18 +154,20 @@ from packing import pack, unpack
 %typemap(in) WT_MODIFY * (int len, WT_MODIFY *modarray, int i) {
 	len = PyList_Size($input);
 	/*
-	 * We allocate an extra cleared WT_MODIFY struct, it acts as a
-	 * sentinal.
+	 * We allocate an extra cleared WT_MODIFY struct, the first
+	 * entry will be used solely to transmit the array length to
+	 * the call site.
 	 */
 	if (__wt_calloc_def(NULL, (size_t)len + 1, &modarray) != 0)
 		SWIG_exception_fail(SWIG_MemoryError, "WT calloc failed");
-	for (i = 0; i < len; i++) {
+	modarray[0].size = (size_t)len;
+	for (i = 1; i <= len; i++) {
 		PyObject *dataobj, *modobj, *offsetobj, *sizeobj;
 		char *datadata;
 		long offset, size;
 		Py_ssize_t datasize;
 
-		if ((modobj = PySequence_GetItem($input, i)) == NULL)
+		if ((modobj = PySequence_GetItem($input, i - 1)) == NULL)
 			SWIG_exception_fail(SWIG_IndexError,
 			    "Modify sequence failed");
 
@@ -209,12 +211,11 @@ from packing import pack, unpack
 %typemap(freearg) WT_MODIFY * {
 	/* The WT_MODIFY arg is in position 2.  Is there a better way? */
 	WT_MODIFY *modarray = modarray2;
-	int count = 0;
+	size_t i, len;
 
-	while (modarray[count].data.size != 0 || modarray[count].size != 0) {
-		__wt_free(NULL, modarray[count].data.data);
-		count++;
-	}
+	len = modarray[0].size;
+	for (i = 1; i <= len; i++)
+		__wt_free(NULL, modarray[i].data.data);
 	__wt_free(NULL, modarray);
 }
 
@@ -853,12 +854,13 @@ typedef int int_void;
 		return (cursorFreeHandler($self));
 	}
 
+	/*
+	 * modify: the size of the array was put into the first element by the
+	 * typemap.
+	 */
 	int _modify(WT_MODIFY *list) {
-		int count = 0;
-
-		while (list[count].data.size != 0 || list[count].size != 0)
-			count++;
-		return (self->modify(self, list, count));
+		int count = (int)list[0].size;
+		return (self->modify(self, &list[1], count));
 	}
 
 %pythoncode %{
