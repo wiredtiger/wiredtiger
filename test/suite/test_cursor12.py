@@ -44,6 +44,10 @@ class test_cursor12(wttest.WiredTigerTestCase):
         # there.
         list = [
         {
+        'o' : 'ABCDEFGH',           # no operation
+        'f' : 'ABCDEFGH',
+        'mods' : [['', 0, 0]]
+        },{
         'o' : 'ABCDEFGH',           # rewrite beginning
         'f' : '--CDEFGH',
         'mods' : [['--', 0, 2]]
