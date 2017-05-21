@@ -39,7 +39,8 @@ class test_cursor12(wttest.WiredTigerTestCase):
     ]
     scenarios = make_scenarios(types)
 
-    def test_modify(self):
+    # Smoke-test the modify API.
+    def test_modify_smoke(self):
         # List with original value, final value, and modifications to get
         # there.
         list = [
@@ -47,6 +48,10 @@ class test_cursor12(wttest.WiredTigerTestCase):
         'o' : 'ABCDEFGH',           # no operation
         'f' : 'ABCDEFGH',
         'mods' : [['', 0, 0]]
+        },{
+        'o' : 'ABCDEFGH',           # no operation with offset
+        'f' : 'ABCDEFGH',
+        'mods' : [['', 4, 0]]
         },{
         'o' : 'ABCDEFGH',           # rewrite beginning
         'f' : '--CDEFGH',
@@ -111,6 +116,14 @@ class test_cursor12(wttest.WiredTigerTestCase):
         'o' : 'ABCDEFGH',           # discard end
         'f' : 'ABCD',
         'mods' : [['', 4, 4]]
+        },{
+        'o' : 'ABCDEFGH',           # overlap the end and append
+        'f' : 'ABCDEF--XX',
+        'mods' : [['--XX', 6, 2]]
+        },{
+        'o' : 'ABCDEFGH',           # overlap the end with incorrect size
+        'f' : 'ABCDEFG01234567',
+        'mods' : [['01234567', 7, 2000]]
         }
         ]
 
@@ -130,6 +143,23 @@ class test_cursor12(wttest.WiredTigerTestCase):
             cursor.set_key('ABC')
             cursor.modify(mods)
             self.assertEquals(str(cursor['ABC']), i['f'])
+
+    # Check that modify returns not-found after a delete.
+    def test_modify_delete(self):
+        self.session.create(self.uri, 'key_format=S,value_format=u')
+        cursor = self.session.open_cursor(self.uri, None, None)
+        cursor['ABC'] = 'ABCDEFGH'
+        cursor.set_key('ABC')
+        cursor.remove()
+
+        mods = []
+        mod = wiredtiger.Modify('ABCD', 3, 3)
+        mods.append(mod)
+
+        cursor.set_key('ABC')
+        #self.assertEqual(cursor.modify(mods), wiredtiger.WT_NOTFOUND)
+        self.assertRaises(
+            wiredtiger.WiredTigerError, lambda:cursor.modify(mods))
 
 if __name__ == '__main__':
     wttest.run()
