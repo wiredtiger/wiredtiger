@@ -464,7 +464,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 		    WT_IS_MAX_LSN(&metafile->ckpt_lsn) &&
 		    !WT_IS_MAX_LSN(&r.max_lsn)) {
 			WT_ERR(__wt_log_reset(session, r.max_lsn.l.file));
-			goto ckp;
+			goto ckpt;
 		} else
 			goto done;
 	}
@@ -577,7 +577,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 	 * open is fast and keep the metadata up to date with the checkpoint
 	 * LSN and archiving.
 	 */
-ckp:	WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
+ckpt:	WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
 
 done:	FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE);
 err:	WT_TRET(__recovery_free(&r));
