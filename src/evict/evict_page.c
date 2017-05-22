@@ -77,19 +77,33 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 	(void)__wt_atomic_addv32(&btree->evict_busy, 1);
 
 	too_big = page->memory_footprint >= btree->splitmempage;
-	if ((ret = __wt_evict(session, ref, false)) == 0) {
-		if (too_big)
+
+	/*
+	 * We want to track the timing of how long the call to evict took. The
+	 * reason for forced evict depends on the size of the page's size. If
+	 * eviction is successful then we have one of two sets of stats to
+	 * increment, if eviction fails then we only need to increment the
+	 * "forced eviction failed" set of stats
+	 */
+	ret = __wt_evict(session, ref, false);
+	__wt_epoch(session, &stop);
+	if (ret == 0) {
+		if (too_big) {
 			WT_STAT_CONN_INCR(session, cache_eviction_force);
-		else
+			WT_STAT_CONN_INCRV(session, cache_eviction_force_time,
+			    WT_TIMEDIFF_US(stop, start));
+		} else {
 			/*
 			 * If the page isn't too big, we are evicting it because
 			 * it had a chain of deleted entries that make traversal
 			 * expensive.
 			 */
-			WT_STAT_CONN_INCR(
-			    session, cache_eviction_force_delete);
+			WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
+			WT_STAT_CONN_INCRV(session,
+			    cache_eviction_force_delete_time,
+			    WT_TIMEDIFF_US(stop, start));
+		}
 	} else {
-		__wt_epoch(session, &stop);
 		WT_STAT_CONN_INCR(session, cache_eviction_force_fail);
 		WT_STAT_CONN_INCRV(session, cache_eviction_force_fail_time,
 		    WT_TIMEDIFF_US(stop, start));
