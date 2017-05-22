@@ -1129,6 +1129,9 @@ methods = {
     Config('name', '', r'''
         if set, specify a name for the checkpoint (note that checkpoints
         including LSM trees may not be named)'''),
+    Config('read_timestamp', '', r'''
+        if set, read data as of the specified timestamp when writing the
+        checkpoint'''),
     Config('target', '', r'''
         if non-empty, checkpoint the list of objects''', type='list'),
 ]),

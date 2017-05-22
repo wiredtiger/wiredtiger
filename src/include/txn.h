@@ -81,6 +81,7 @@ struct __wt_txn_state {
 	volatile uint64_t metadata_pinned;
 #if TIMESTAMP_SIZE > 0
 	uint8_t commit_timestamp[TIMESTAMP_SIZE];
+	uint8_t read_timestamp[TIMESTAMP_SIZE];
 #endif
 	WT_CACHE_LINE_PAD_END
 };
@@ -101,7 +102,8 @@ struct __wt_txn_global {
 	uint8_t commit_timestamp[TIMESTAMP_SIZE];
 	uint8_t read_timestamp[TIMESTAMP_SIZE];
 	uint8_t oldest_timestamp[TIMESTAMP_SIZE];
-	bool has_oldest_ts;
+	uint8_t pinned_timestamp[TIMESTAMP_SIZE];
+	bool has_oldest_ts, has_pinned_ts;
 #endif
 
 	WT_SPINLOCK id_lock;
@@ -129,8 +131,7 @@ struct __wt_txn_global {
 	 */
 	volatile bool	  checkpoint_running;	/* Checkpoint running */
 	volatile uint32_t checkpoint_id;	/* Checkpoint's session ID */
-	volatile uint64_t checkpoint_pinned;	/* Oldest ID for checkpoint */
-	volatile uint64_t checkpoint_txnid;	/* Checkpoint's txn ID */
+	WT_TXN_STATE	  checkpoint_state;	/* Checkpoint's txn state */
 
 	volatile uint64_t metadata_pinned;	/* Oldest ID for metadata */
 

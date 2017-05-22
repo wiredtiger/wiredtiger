@@ -1273,7 +1273,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 */
 		txnid = *updp == NULL ? WT_TXN_NONE : (*updp)->txnid;
 		WT_ASSERT(session, txnid == WT_TXN_NONE ||
-		    txnid != S2C(session)->txn_global.checkpoint_txnid ||
+		    txnid != S2C(session)->txn_global.checkpoint_state.id ||
 		    WT_SESSION_IS_CHECKPOINT(session));
 #endif
 		return (0);

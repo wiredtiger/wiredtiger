@@ -166,7 +166,8 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
 	include_checkpoint_txn = btree == NULL ||
 	    btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT);
 	WT_READ_BARRIER();
-	checkpoint_pinned = txn_global->checkpoint_pinned;
+	if (!include_checkpoint_txn)
+		return (oldest_id);
 
 	/*
 	 * Checkpoint transactions often fall behind ordinary application
@@ -178,7 +179,8 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
 	 * the active checkpoint then it's safe to ignore the checkpoint ID in
 	 * the visibility check.
 	 */
-	if (!include_checkpoint_txn || checkpoint_pinned == WT_TXN_NONE ||
+	checkpoint_pinned = txn_global->checkpoint_state.pinned_id;
+	if (checkpoint_pinned == WT_TXN_NONE ||
 	    WT_TXNID_LT(oldest_id, checkpoint_pinned))
 		return (oldest_id);
 
@@ -227,18 +229,17 @@ __wt_txn_visible_all(
 #if TIMESTAMP_SIZE > 0
 	{
 	WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
-	bool result;
+	int cmp;
 
 	/* Timestamp check. */
-	if (!txn_global->has_oldest_ts || timestamp == NULL)
+	if (!txn_global->has_pinned_ts || timestamp == NULL)
 		return (true);
 
 	__wt_readlock(session, &txn_global->oldest_rwlock);
-	result = memcmp(
-	    timestamp, txn_global->oldest_timestamp, TIMESTAMP_SIZE) < 0;
+	cmp = __wt_ts_cmp(timestamp, txn_global->pinned_timestamp);
 	__wt_readunlock(session, &txn_global->oldest_rwlock);
 
-	return (result);
+	return (cmp < 0);
 	}
 #else
 	WT_UNUSED(timestamp);

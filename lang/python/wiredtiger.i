@@ -432,6 +432,7 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %exception wiredtiger_strerror;
 %exception wiredtiger_version;
 %exception diagnostic_build;
+%exception timestamp_build;
 %exception verbose_build;
 
 /* WT_ASYNC_OP customization. */
@@ -902,6 +903,10 @@ int diagnostic_build() {
 #endif
 }
 
+int timestamp_build() {
+	return TIMESTAMP_SIZE > 0;
+}
+
 int verbose_build() {
 #ifdef HAVE_VERBOSE
 	return 1;
@@ -911,6 +916,7 @@ int verbose_build() {
 }
 %}
 int diagnostic_build();
+int timestamp_build();
 int verbose_build();
 
 /* Remove / rename parts of the C API that we don't want in Python. */

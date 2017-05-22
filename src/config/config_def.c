@@ -200,6 +200,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_checkpoint[] = {
 	{ "drop", "list", NULL, NULL, NULL, 0 },
 	{ "force", "boolean", NULL, NULL, NULL, 0 },
 	{ "name", "string", NULL, NULL, NULL, 0 },
+	{ "read_timestamp", "string", NULL, NULL, NULL, 0 },
 	{ "target", "list", NULL, NULL, NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
@@ -1115,8 +1116,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_WT_SESSION_begin_transaction, 6
 	},
 	{ "WT_SESSION.checkpoint",
-	  "drop=,force=false,name=,target=",
-	  confchk_WT_SESSION_checkpoint, 4
+	  "drop=,force=false,name=,read_timestamp=,target=",
+	  confchk_WT_SESSION_checkpoint, 5
 	},
 	{ "WT_SESSION.close",
 	  "",

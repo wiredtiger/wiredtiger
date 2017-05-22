@@ -564,18 +564,27 @@ __checkpoint_fail_reset(WT_SESSION_IMPL *session)
 static int
 __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 {
+	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_STATE *txn_state;
+	char timestamp_config[100];
 	const char *txn_cfg[] = { WT_CONFIG_BASE(session,
-	    WT_SESSION_begin_transaction), "isolation=snapshot", NULL };
+	    WT_SESSION_begin_transaction), "isolation=snapshot", NULL, NULL };
 
 	conn = S2C(session);
 	txn = &session->txn;
 	txn_global = &conn->txn_global;
 	txn_state = WT_SESSION_TXN_STATE(session);
+
+	WT_RET(__wt_config_gets(session, cfg, "read_timestamp", &cval));
+	if (cval.len > 0) {
+		WT_RET(__wt_snprintf(timestamp_config, sizeof(timestamp_config),
+		    "read_timestamp=%.*s", (int)cval.len, cval.str));
+		txn_cfg[2] = timestamp_config;
+	}
 
 	/*
 	 * Start a snapshot transaction for the checkpoint.
@@ -614,8 +623,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	 * checkpoints often take a long time and only write to the metadata.
 	 */
 	__wt_writelock(session, &txn_global->oldest_rwlock);
-	txn_global->checkpoint_txnid = txn->id;
-	txn_global->checkpoint_pinned = WT_MIN(txn->id, txn->snap_min);
+	txn_global->checkpoint_state = *txn_state;
+	txn_global->checkpoint_state.pinned_id = WT_MIN(txn->id, txn->snap_min);
 
 	/*
 	 * Sanity check that the oldest ID hasn't moved on before we have
@@ -852,7 +861,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * Now that the metadata is stable, re-open the metadata file for
 	 * regular eviction by clearing the checkpoint_pinned flag.
 	 */
-	txn_global->checkpoint_pinned = WT_TXN_NONE;
+	txn_global->checkpoint_state.pinned_id = WT_TXN_NONE;
 
 	if (full) {
 		__wt_epoch(session, &stop);

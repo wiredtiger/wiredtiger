@@ -1706,6 +1706,8 @@ struct __wt_session {
 	 * @config{name, if set\, specify a name for the checkpoint (note that
 	 * checkpoints including LSM trees may not be named)., a string; default
 	 * empty.}
+	 * @config{read_timestamp, if set\, read data as of the specified
+	 * timestamp when writing the checkpoint., a string; default empty.}
 	 * @config{target, if non-empty\, checkpoint the list of objects., a
 	 * list of strings; default empty.}
 	 * @configend

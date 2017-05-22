@@ -33,38 +33,16 @@
 import random
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
+from wtscenario import make_scenarios
 
 def timestamp_str(t):
     return '%x' % t
 
-def timestamp_ret_str(t):
-    s = timestamp_str(t)
-    if len(s) % 2 == 1:
-        s = '0' + s
-    return s
-
 class test_timestamp01(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = 'test_timestamp01'
-    uri = 'table:' + tablename
-
-    conn_config = 'log=(enabled)'
-
-    # Check that a cursor (optionally started in a new transaction), sees the
-    # expected values.
-    def check(self, session, txn_config, expected):
-        if txn_config:
-            session.begin_transaction(txn_config)
-        c = session.open_cursor(self.uri, None)
-        actual = dict((k, v) for k, v in c if v != 0)
-        self.assertEqual(actual, expected)
-        # Search for the expected items as well as iterating
-        for k, v in expected.iteritems():
-            self.assertEqual(c[k], v, "for key " + str(k))
-        c.close()
-        if txn_config:
-            session.commit_transaction()
-
     def test_timestamp_range(self):
+        if not wiredtiger.timestamp_build():
+            self.skipTest('requires a timestamp build')
+
         # Zero is not permitted
         self.session.begin_transaction()
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
@@ -88,56 +66,6 @@ class test_timestamp01(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.begin_transaction()
         self.session.commit_transaction(
             'commit_timestamp=' + timestamp_str(1 << 64 - 1))
-
-    def test_basic(self):
-        self.session.create(self.uri, 'key_format=i,value_format=i')
-        c = self.session.open_cursor(self.uri)
-
-        # Insert keys 1..100 each with timestamp=key, in some order
-        orig_keys = range(1, 101)
-        keys = orig_keys[:]
-        random.shuffle(keys)
-
-        for k in keys:
-            self.session.begin_transaction()
-            c[k] = 1
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(k))
-
-        # Now check that we see the expected state when reading at each
-        # timestamp
-        for i, t in enumerate(orig_keys):
-            self.check(self.session, 'read_timestamp=' + timestamp_str(t),
-                {k:1 for k in orig_keys[:i+1]})
-
-        # Bump the oldest timestamp, we're not going back...
-        self.assertEqual(self.conn.query_timestamp(), timestamp_ret_str(100))
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(100))
-
-        # Update them and retry.
-        random.shuffle(keys)
-        for k in keys:
-            self.session.begin_transaction()
-            c[k] = 2
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(k + 100))
-
-        for i, t in enumerate(orig_keys):
-            self.check(self.session, 'read_timestamp=' + timestamp_str(t + 100),
-                {k:(2 if j <= i else 1) for j, k in enumerate(orig_keys)})
-
-        # Bump the oldest timestamp, we're not going back...
-        self.assertEqual(self.conn.query_timestamp(), timestamp_ret_str(200))
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(200))
-
-        # Remove them and retry
-        random.shuffle(keys)
-        for k in keys:
-            self.session.begin_transaction()
-            del c[k]
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(k + 200))
-
-        for i, t in enumerate(orig_keys):
-            self.check(self.session, 'read_timestamp=' + timestamp_str(t + 200),
-                {k:2 for k in orig_keys[i+1:]})
 
 if __name__ == '__main__':
     wttest.run()
