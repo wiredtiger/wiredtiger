@@ -3581,7 +3581,7 @@ __rec_update_las(WT_SESSION_IMPL *session,
 	WT_CURSOR *cursor;
 	WT_DECL_ITEM(key);
 	WT_DECL_RET;
-	WT_ITEM las_addr, las_value;
+	WT_ITEM las_addr, las_timestamp, las_value;
 	WT_PAGE *page;
 	WT_SAVE_UPD *list;
 	WT_UPDATE *upd;
@@ -3691,8 +3691,15 @@ __rec_update_las(WT_SESSION_IMPL *session,
 				las_value.data = WT_UPDATE_DATA(upd);
 				las_value.size = upd->size;
 			}
-			cursor->set_value(
-			    cursor, upd->txnid, upd->size, &las_value);
+#if TIMESTAMP_SIZE > 0
+			las_timestamp.data = upd->timestamp;
+			las_timestamp.size = TIMESTAMP_SIZE;
+#else
+			las_timestamp.data = NULL;
+			las_timestamp.size = 0;
+#endif
+			cursor->set_value(cursor,
+			    upd->txnid, &las_timestamp, upd->size, &las_value);
 
 			WT_ERR(cursor->insert(cursor));
 			++insert_cnt;

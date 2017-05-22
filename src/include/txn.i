@@ -9,6 +9,37 @@
 static inline int __wt_txn_id_check(WT_SESSION_IMPL *session);
 static inline void __wt_txn_read_last(WT_SESSION_IMPL *session);
 
+#if TIMESTAMP_SIZE > 0
+static const uint8_t zero_timestamp[TIMESTAMP_SIZE];
+
+/*
+ * __wt_ts_cmp --
+ *	Compare two timestamps.
+ */
+static inline int
+__wt_ts_cmp(const uint8_t *ts1, const uint8_t *ts2) {
+	return (memcmp(ts1, ts2, TIMESTAMP_SIZE));
+}
+
+/*
+ * __wt_ts_set --
+ *	Set a timestamp
+ */
+static inline void
+__wt_ts_set(uint8_t *dest, const uint8_t *src) {
+	(void)memcpy(dest, src, TIMESTAMP_SIZE);
+}
+
+/*
+ * __wt_ts_iszero --
+ *	Check if a timestamp is equal to the special "zero" time.
+ */
+static inline bool
+__wt_ts_iszero(const uint8_t *ts) {
+	return (memcmp(ts, zero_timestamp, TIMESTAMP_SIZE) == 0);
+}
+#endif
+
 /*
  * __txn_next_op --
  *	Mark a WT_UPDATE object modified by the current transaction.

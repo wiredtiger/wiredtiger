@@ -208,7 +208,7 @@ struct __wt_ovfl_txnc {
  */
 #define	WT_LAS_FORMAT							\
     "key_format=" WT_UNCHECKED_STRING(IuQQu)				\
-    ",value_format=" WT_UNCHECKED_STRING(QIu)
+    ",value_format=" WT_UNCHECKED_STRING(QuIu)
 
 /*
  * WT_PAGE_MODIFY --
