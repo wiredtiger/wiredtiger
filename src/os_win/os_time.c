@@ -23,9 +23,10 @@ __wt_epoch(WT_SESSION_IMPL *session, struct timespec *tsp)
 
 	ns100 = (((int64_t)time.dwHighDateTime << 32) + time.dwLowDateTime)
 	    - 116444736000000000LL;
-	tmp.tv_sec = tsp->tv_sec = ns100 / 10000000;
-	tmp.tv_nsec = tsp->tv_nsec = (long)((ns100 % 10000000) * 100);
+	tmp.tv_sec = ns100 / 10000000;
+	tmp.tv_nsec = (long)((ns100 % 10000000) * 100);
 	__wt_time_check_monotonic(session, &tmp);
+	*tsp = tmp;
 }
 
 /*
