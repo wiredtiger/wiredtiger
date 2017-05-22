@@ -809,11 +809,11 @@ struct __wt_row {	/* On-page key, on-page cell, or off-page WT_IKEY */
  *	Walk the entries of an in-memory row-store leaf page.
  */
 #define	WT_ROW_FOREACH(page, rip, i)					\
-	for ((i) = (page)->entries,				\
+	for ((i) = (page)->entries,					\
 	    (rip) = (page)->pg_row; (i) > 0; ++(rip), --(i))
 #define	WT_ROW_FOREACH_REVERSE(page, rip, i)				\
-	for ((i) = (page)->entries,				\
-	    (rip) = (page)->pg_row + ((page)->entries - 1);	\
+	for ((i) = (page)->entries,					\
+	    (rip) = (page)->pg_row + ((page)->entries - 1);		\
 	    (i) > 0; --(rip), --(i))
 
 /*
@@ -861,7 +861,7 @@ struct __wt_col {
  *	Walk the entries of variable-length column-store leaf page.
  */
 #define	WT_COL_FOREACH(page, cip, i)					\
-	for ((i) = (page)->entries,				\
+	for ((i) = (page)->entries,					\
 	    (cip) = (page)->pg_var; (i) > 0; ++(cip), --(i))
 
 /*
