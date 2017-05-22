@@ -117,6 +117,10 @@ class test_cursor12(wttest.WiredTigerTestCase):
         'f' : 'ABCD',
         'mods' : [['', 4, 4]]
         },{
+        'o' : 'ABCDEFGH',           # discard everything
+        'f' : '',
+        'mods' : [['', 0, 8]]
+        },{
         'o' : 'ABCDEFGH',           # overlap the end and append
         'f' : 'ABCDEF--XX',
         'mods' : [['--XX', 6, 2]]

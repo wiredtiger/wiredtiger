@@ -105,6 +105,7 @@ extern int __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp) WT_GCC_FUNC
 extern int __wt_btcur_insert(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_insert_check(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_remove(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_reserve(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_update(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_compare(WT_CURSOR_BTREE *a_arg, WT_CURSOR_BTREE *b_arg, int *cmpp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -164,6 +165,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
  );
 extern int __wt_bt_rebalance(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_key_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_value_return( WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_kv_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_bt_salvage(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_REF **refp, size_t *incrp, bool closing) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

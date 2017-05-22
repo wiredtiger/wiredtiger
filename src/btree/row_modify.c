@@ -308,12 +308,19 @@ __wt_update_obsolete_check(
 	 *
 	 * Walk the list of updates, looking for obsolete updates at the end.
 	 */
-	for (first = NULL, count = 0; upd != NULL; upd = upd->next, count++)
+	for (first = NULL, count = 0; upd != NULL; upd = upd->next, count++) {
+		/*
+		 * Skip update structures in modify chains, that is, an update
+		 * structure that depends on a subsequent update structure.
+		 */
+		if (upd->type == WT_UPDATE_MODIFIED)
+			continue;
 		if (__wt_txn_visible_all(session, upd->txnid)) {
 			if (first == NULL)
 				first = upd;
 		} else if (upd->txnid != WT_TXN_ABORTED)
 			first = NULL;
+	}
 
 	/*
 	 * We cannot discard this WT_UPDATE structure, we can only discard

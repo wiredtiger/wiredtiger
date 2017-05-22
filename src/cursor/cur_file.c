@@ -275,6 +275,46 @@ err:	CURSOR_UPDATE_API_END(session, ret);
 }
 
 /*
+ * __curfile_modify --
+ *	WT_CURSOR->modify method for the btree cursor type.
+ */
+static int
+__curfile_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
+{
+	WT_CURSOR_BTREE *cbt;
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	cbt = (WT_CURSOR_BTREE *)cursor;
+	CURSOR_UPDATE_API_CALL(cursor, session, modify, cbt->btree);
+	WT_ERR(__cursor_checkkey(cursor));
+
+	/* Check for a rational modify vector count. */
+	if (nentries <= 0)
+		WT_ERR_MSG(session, EINVAL,
+		    "Illegal modify vector with %d entries", nentries);
+
+	WT_ERR(__wt_btcur_modify(cbt, entries, nentries));
+
+	/*
+	 * Modify maintains a position and key, which doesn't match the library
+	 * API, where modify maintains a value. Fix the API by searching after
+	 * each successful modify operation.
+	 */
+	WT_ASSERT(session,
+	    F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
+	WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_VALUE_SET) == 0);
+
+err:	CURSOR_UPDATE_API_END(session, ret);
+
+	/*
+	 * The application might do a WT_CURSOR.get_value call when we return,
+	 * so we need a value and the underlying functions didn't set one up.
+	 */
+	return (ret == 0 ? cursor->search(cursor) : ret);
+}
+
+/*
  * __curfile_update --
  *	WT_CURSOR->update method for the btree cursor type.
  */
@@ -512,6 +552,10 @@ __curfile_create(WT_SESSION_IMPL *session,
 
 	/* Underlying btree initialization. */
 	__wt_btcur_open(cbt);
+
+	/* WT_CURSOR.modify supported on 'u' value formats. */
+	if (WT_STREQ(cursor->value_format, "u"))
+		cursor->modify = __curfile_modify;
 
 	WT_ERR(__wt_cursor_init(
 	    cursor, cursor->internal_uri, owner, cfg, cursorp));

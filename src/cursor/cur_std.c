@@ -614,8 +614,8 @@ __cursor_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
 	/* Check for a rational modify vector count. */
 	if (nentries <= 0)
-		WT_ERR_MSG(
-		    session, EINVAL, "Illegal modify vector of %d", nentries);
+		WT_ERR_MSG(session, EINVAL,
+		    "Illegal modify vector with %d entries", nentries);
 
 	WT_STAT_CONN_INCR(session, cursor_modify);
 	WT_STAT_DATA_INCR(session, cursor_modify);

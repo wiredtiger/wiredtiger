@@ -1098,7 +1098,8 @@ err:	if (ret == WT_RESTART) {
 	 * pointer to the modify function's allocated update structure.
 	 */
 done:	if (ret == 0) {
-		if (modify_type == WT_UPDATE_RESERVED) {
+		if (modify_type == WT_UPDATE_MODIFIED ||
+		    modify_type == WT_UPDATE_RESERVED) {
 			F_CLR(cursor, WT_CURSTD_VALUE_SET);
 			WT_TRET(__wt_key_return(session, cbt));
 		} else
@@ -1111,6 +1112,72 @@ done:	if (ret == 0) {
 		__cursor_state_restore(cursor, &state);
 	}
 
+	return (ret);
+}
+
+/*
+ * __wt_btcur_modify --
+ *     Modify a record in the tree.
+ */
+int
+__wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
+{
+	WT_CURSOR *cursor;
+	WT_DECL_ITEM(value);
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+	size_t len, *p;
+	int i;
+	bool overwrite;
+	uint8_t *data;
+
+	cursor = &cbt->iface;
+	session = (WT_SESSION_IMPL *)cursor->session;
+
+	WT_STAT_CONN_INCR(session, cursor_modify);
+	WT_STAT_DATA_INCR(session, cursor_modify);
+
+	/*
+	 * Build the value. For now, the value is the entries count, followed by
+	 * the modify structures written in order, followed by the data (data at
+	 * the end to avoid unaligned reads).
+	 */
+	len = sizeof(size_t);				/* nentries */
+	for (i = 0; i < nentries; ++i) {
+		len += 3 * sizeof(size_t);		/* WT_MODIFY fields */
+		len += entries[i].data.size;		/* data */
+	}
+	WT_ERR(__wt_scr_alloc(session, len, &value));
+	data = (uint8_t *)value->mem +
+	    sizeof(size_t) + ((u_int)nentries * 3 * sizeof(size_t));
+	p = value->mem;
+	*p++ = (size_t)nentries;
+	for (i = 0; i < nentries; ++i) {
+		*p++ = entries[i].data.size;
+		*p++ = entries[i].offset;
+		*p++ = entries[i].size;
+
+		memcpy(data, entries[i].data.data, entries[i].data.size);
+		data += entries[i].data.size;
+	}
+	value->size = WT_PTRDIFF(data, value->data);
+
+	/*
+	 * Copy the value into place. We could do something trickier (maybe swap
+	 * memory between the scratch buffer and the cursor buffer), but there's
+	 * no point if the modify arrays are small and relatively uncomplicated.
+	 */
+	WT_ERR(__wt_buf_set(session, &cursor->value, value->data, value->size));
+
+	/* WT_CURSOR.modify is update-without-overwrite. */
+	overwrite = F_ISSET(cursor, WT_CURSTD_OVERWRITE);
+	F_CLR(cursor, WT_CURSTD_OVERWRITE);
+	ret = __btcur_update(cbt, WT_UPDATE_MODIFIED);
+	if (overwrite)
+	       F_SET(cursor, WT_CURSTD_OVERWRITE);
+	WT_ERR(ret);
+
+err:	__wt_scr_free(session, &value);
 	return (ret);
 }
 
