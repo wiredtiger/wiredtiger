@@ -216,8 +216,8 @@ typedef struct {
 	u_int c_checksum_flag;			/* Checksum flag value */
 
 #define	COMPAT_NONE			1
-#define	COMPAT_V10			2
-#define	COMPAT_V11			3
+#define	COMPAT_V1			2
+#define	COMPAT_V2			3
 	u_int c_compat_flag;			/* Compatibility flag value */
 
 #define	COMPRESS_NONE			1

@@ -96,7 +96,7 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
 	WT_LOG *log;
 	bool downgrade, live_chg;
 	uint32_t first_record, lognum;
-	uint16_t new_major, new_minor;
+	uint16_t new_major;
 
 	conn = S2C(session);
 	log = conn->log;
@@ -112,14 +112,12 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
 	 * to check the major number, not the minor number in the compatibility
 	 * setting.
 	 */
-	if (conn->compat_major < WT_LOG_V11_MAJOR) {
+	if (conn->compat_major < WT_LOG_V2) {
 		new_major = 1;
-		new_minor = 0;
 		first_record = WT_LOG_END_HEADER;
 		downgrade = true;
 	} else {
-		new_major = 1;
-		new_minor = 1;
+		new_major = 2;
 		first_record = WT_LOG_END_HEADER + log->allocsize;
 		downgrade = false;
 	}
@@ -135,18 +133,16 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
 	 * because other threads may be changing log files, using pre-allocated
 	 * files.
 	 */
-	live_chg = false;
-	if (reconfig &&
-	    (log->log_major != new_major ||
-	    (log->log_major == new_major &&
-	    log->log_minor != new_minor)))
+	if (reconfig && log->log_major != new_major)
 		live_chg = true;
+	else
+		live_chg = false;
 
 	/*
 	 * Set the version.  If it is a live change the logging subsystem will
 	 * do other work as well to move to a new log file.
 	 */
-	WT_RET(__wt_log_set_version(session, new_major, new_minor,
+	WT_RET(__wt_log_set_version(session, new_major,
 	    first_record, downgrade, live_chg, &lognum));
 	if (live_chg && FLD_ISSET(conn->log_flags, WT_CONN_LOG_DOWNGRADED))
 		WT_RET(__logmgr_force_archive(session, lognum));

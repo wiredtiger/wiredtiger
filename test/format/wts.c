@@ -69,9 +69,9 @@ compatibility(uint32_t compat_flag)
 	switch (compat_flag) {
 	case COMPAT_NONE:
 		return ("");
-	case COMPAT_V10:
+	case COMPAT_V1:
 		return ("2.6");
-	case COMPAT_V11:
+	case COMPAT_V2:
 		return ("3.0");
 	default:
 		break;

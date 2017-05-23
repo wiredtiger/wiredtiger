@@ -861,10 +861,10 @@ config_map_compatibility(const char *s, u_int *vp)
 {
 	if (strcmp(s, "none") == 0)
 		*vp = COMPAT_NONE;
-	else if (strcmp(s, "v10") == 0)
-		*vp = COMPAT_V10;
-	else if (strcmp(s, "v11") == 0)
-		*vp = COMPAT_V10;
+	else if (strcmp(s, "v1") == 0)
+		*vp = COMPAT_V1;
+	else if (strcmp(s, "v2") == 0)
+		*vp = COMPAT_V2;
 	else
 		testutil_die(EINVAL,
 		    "illegal compatibility configuration: %s", s);

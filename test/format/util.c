@@ -513,8 +513,8 @@ alter(void *arg)
 	return (NULL);
 }
 
-#define	COMPAT_V0	"compatibility=(release=2.6)"
-#define	COMPAT_V1	"compatibility=(release=3.0)"
+#define	COMPATSTR_V1	"compatibility=(release=2.6)"
+#define	COMPATSTR_V2	"compatibility=(release=3.0)"
 
 /*
  * compat --
@@ -538,9 +538,9 @@ compat(void *arg)
 	 */
 	for (period = mmrand(NULL, 1, 10), count = 0;; ++count, period = 7) {
 		if (count % 2 == 0)
-			str = COMPAT_V0;
+			str = COMPATSTR_V1;
 		else
-			str = COMPAT_V1;
+			str = COMPATSTR_V2;
 		if ((ret = conn->reconfigure(conn, str)) != 0)
 			testutil_die(ret, "conn.reconfigure");
 

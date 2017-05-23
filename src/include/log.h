@@ -221,7 +221,6 @@ struct __wt_log {
 	WT_LSN		 log_close_lsn;	/* LSN needed to close */
 
 	uint16_t	 log_major;	/* Major version of log file */
-	uint16_t	 log_minor;	/* Minor version of log file */
 
 	/*
 	 * System LSNs
@@ -313,20 +312,18 @@ __wt_log_record_byteswap(WT_LOG_RECORD *record)
 struct __wt_log_desc {
 #define	WT_LOG_MAGIC		0x101064
 	uint32_t	log_magic;	/* 00-03: Magic number */
-#define	WT_LOG_MAJOR_VERSION	1
+#define	WT_LOG_MAJOR_VERSION	2
 	uint16_t	majorv;		/* 04-05: Major version */
-#define	WT_LOG_MINOR_VERSION	1
-	uint16_t	minorv;		/* 06-07: Minor version */
+	uint16_t	unused;		/* 06-07: Unused */
 	uint64_t	log_size;	/* 08-15: Log file size */
 };
-#define	WT_LOG_MAJOR_SYSTEM	1
-#define	WT_LOG_MINOR_SYSTEM	1
+#define	WT_LOG_MAJOR_SYSTEM	2
 /*
  * WiredTiger release version where log format version changed.
  * We only have to check the major version for now.  It is minor
  * version 0 once release numbers move on.
  */
-#define	WT_LOG_V11_MAJOR	3
+#define	WT_LOG_V2	3
 
 /*
  * __wt_log_desc_byteswap --
@@ -339,7 +336,7 @@ __wt_log_desc_byteswap(WT_LOG_DESC *desc)
 #ifdef	WORDS_BIGENDIAN
 	desc->log_magic = __wt_bswap32(desc->log_magic);
 	desc->majorv = __wt_bswap16(desc->majorv);
-	desc->minorv = __wt_bswap16(desc->minorv);
+	desc->unused = __wt_bswap16(desc->unused);
 	desc->log_size = __wt_bswap64(desc->log_size);
 #else
 	WT_UNUSED(desc);
