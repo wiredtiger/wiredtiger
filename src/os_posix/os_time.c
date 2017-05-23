@@ -50,7 +50,7 @@ __wt_epoch(WT_SESSION_IMPL *session, struct timespec *tsp)
 		tmp.tv_sec = v.tv_sec;
 		tmp.tv_nsec = v.tv_usec * WT_THOUSAND;
 		__wt_time_check_monotonic(session, &tmp);
-		*tsp->tv_sec = tmp;
+		*tsp = tmp;
 		return;
 	}
 	WT_PANIC_MSG(session, ret, "gettimeofday");
