@@ -43,6 +43,7 @@ __wt_epoch(WT_SESSION_IMPL *session, struct timespec *tsp)
 	}
 	WT_PANIC_MSG(session, ret, "clock_gettime");
 #elif defined(HAVE_GETTIMEOFDAY)
+	{
 	struct timeval v;
 
 	WT_SYSCALL_RETRY(gettimeofday(&v, NULL), ret);
@@ -54,6 +55,7 @@ __wt_epoch(WT_SESSION_IMPL *session, struct timespec *tsp)
 		return;
 	}
 	WT_PANIC_MSG(session, ret, "gettimeofday");
+	}
 #else
 	NO TIME-OF-DAY IMPLEMENTATION: see src/os_posix/os_time.c
 #endif
