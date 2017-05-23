@@ -53,7 +53,7 @@ union __wt_lsn {
 	((lsn)->l.file == UINT32_MAX &&					\
 	 ((lsn)->l.offset == INT32_MAX || (lsn)->l.offset == UINT32_MAX))
 /*
- * Test for zero LSN.  We only need to shift the 1 for comparison.
+ * Test for zero LSN.
  */
 #define	WT_IS_ZERO_LSN(l)	((l)->file_offset == 0)
 
@@ -318,7 +318,7 @@ struct __wt_log_desc {
 	uint64_t	log_size;	/* 08-15: Log file size */
 };
 /*
- * This is the version that introduced the system record.
+ * This is the log version that introduced the system record.
  */
 #define	WT_LOG_VERSION_SYSTEM	2
 

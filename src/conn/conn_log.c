@@ -117,7 +117,7 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
 		first_record = WT_LOG_END_HEADER;
 		downgrade = true;
 	} else {
-		new_version = 2;
+		new_version = WT_LOG_VERSION;
 		first_record = WT_LOG_END_HEADER + log->allocsize;
 		downgrade = false;
 	}
