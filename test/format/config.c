@@ -329,10 +329,10 @@ config_compatibility(void)
 	if (!config_is_perm("compatibility"))
 		switch (mmrand(NULL, 1, 10)) {
 		case 1:					/* 10% */
-			config_single("compatibility=v10", 0);
+			config_single("compatibility=v1", 0);
 			break;
 		case 2:					/* 10% */
-			config_single("compatibility=v11", 0);
+			config_single("compatibility=v2", 0);
 			break;
 		default:				/* 80% */
 			config_single("compatibility=none", 0);

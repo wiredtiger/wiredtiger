@@ -172,7 +172,7 @@ __log_fs_write(WT_SESSION_IMPL *session,
 	 * writes to the previous log file to complete otherwise there could
 	 * be a hole at the end of the previous log file that we cannot detect.
 	 */
-	if (S2C(session)->log->log_major != WT_LOG_MAJOR_VERSION &&
+	if (S2C(session)->log->log_version != WT_LOG_VERSION &&
 	    slot->slot_release_lsn.l.file < slot->slot_start_lsn.l.file) {
 		__log_wait_for_earlier_slot(session, slot);
 		WT_RET(__wt_log_force_sync(session, &slot->slot_release_lsn));
@@ -813,7 +813,7 @@ __log_file_header(
 	logrec = (WT_LOG_RECORD *)buf->mem;
 	desc = (WT_LOG_DESC *)logrec->record;
 	desc->log_magic = WT_LOG_MAGIC;
-	desc->majorv = log->log_major;
+	desc->version = log->log_version;
 	desc->log_size = (uint64_t)conn->log_file_max;
 	__wt_log_desc_byteswap(desc);
 
@@ -905,7 +905,7 @@ err:	__wt_scr_free(session, &buf);
  */
 static int
 __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp,
-    WT_LSN *lsnp, uint16_t *majorp)
+    WT_LSN *lsnp, uint16_t *versionp)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_ITEM(buf);
@@ -946,18 +946,18 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp,
 	/*
 	 * We cannot read future log file formats.
 	 */
-	if (desc->majorv > WT_LOG_MAJOR_VERSION)
+	if (desc->version > WT_LOG_VERSION)
 		WT_ERR_MSG(session, WT_ERROR,
 		    "unsupported WiredTiger file version: this build "
 		    " only supports versions up to %d,"
 		    " and the file is version %" PRIu16,
-		    WT_LOG_MAJOR_VERSION, desc->majorv);
+		    WT_LOG_VERSION, desc->version);
 
 	/*
 	 * Set up the return values if the magic number is valid.
 	 */
-	if (majorp != NULL)
-		*majorp = desc->majorv;
+	if (versionp != NULL)
+		*versionp = desc->version;
 
 	/*
 	 * Skip reading in the previous LSN if log file is an old version
@@ -966,7 +966,7 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp,
 	 * the correct size.  Reuse it.
 	 */
 	if (lsnp == NULL ||
-	    (desc->majorv < WT_LOG_MAJOR_SYSTEM))
+	    (desc->version < WT_LOG_VERSION_SYSTEM))
 		goto err;
 
 	memset(buf->mem, 0, allocsize);
@@ -1167,7 +1167,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
 	 * If we're running the version where we write a system record
 	 * do so now and update the alloc_lsn.
 	 */
-	if (log->log_major == WT_LOG_MAJOR_VERSION) {
+	if (log->log_version == WT_LOG_VERSION) {
 		WT_RET(__wt_log_system_record(session,
 		    log_fh, &logrec_lsn));
 		WT_SET_LSN(&log->alloc_lsn, log->fileid, log->first_record);
@@ -1195,7 +1195,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
  *	Set version related information under lock.
  */
 static int
-__log_set_version(WT_SESSION_IMPL *session, uint16_t major,
+__log_set_version(WT_SESSION_IMPL *session, uint16_t version,
     uint32_t first_rec, bool live_chg, bool downgrade)
 {
 	WT_CONNECTION_IMPL *conn;
@@ -1204,7 +1204,7 @@ __log_set_version(WT_SESSION_IMPL *session, uint16_t major,
 	conn = S2C(session);
 	log = conn->log;
 
-	log->log_major = major;
+	log->log_version = version;
 	log->first_record = first_rec;
 	if (downgrade)
 		FLD_SET(conn->log_flags, WT_CONN_LOG_DOWNGRADED);
@@ -1225,7 +1225,7 @@ __log_set_version(WT_SESSION_IMPL *session, uint16_t major,
  *	pre-allocated files.
  */
 int
-__wt_log_set_version(WT_SESSION_IMPL *session, uint16_t major,
+__wt_log_set_version(WT_SESSION_IMPL *session, uint16_t version,
     uint32_t first_rec, bool downgrade, bool live_chg, uint32_t *lognump)
 {
 	WT_CONNECTION_IMPL *conn;
@@ -1244,7 +1244,7 @@ __wt_log_set_version(WT_SESSION_IMPL *session, uint16_t major,
 	 */
 	WT_WITH_SLOT_LOCK(session, log,
 	    ret = __log_set_version(session,
-	    major, first_rec, live_chg, downgrade));
+	    version, first_rec, live_chg, downgrade));
 	if (!live_chg)
 		return (ret);
 	WT_ERR(ret);
@@ -1260,7 +1260,7 @@ __wt_log_set_version(WT_SESSION_IMPL *session, uint16_t major,
 	 * Write an internal printf record.
 	 */
 	WT_ERR(__log_printf_internal(session,
-	    "COMPATIBILITY: Version now %" PRIu16, log->log_major));
+	    "COMPATIBILITY: Version now %" PRIu16, log->log_version));
 	if (lognump != NULL)
 		*lognump = log->alloc_lsn.l.file;
 err:
@@ -1513,7 +1513,7 @@ __wt_log_open(WT_SESSION_IMPL *session)
 	WT_DECL_RET;
 	WT_LOG *log;
 	uint32_t firstlog, lastlog, lognum;
-	uint16_t major;
+	uint16_t version;
 	u_int i, logcount;
 	char **logfiles;
 
@@ -1583,12 +1583,12 @@ __wt_log_open(WT_SESSION_IMPL *session)
 				 * have to close the file.
 				 */
 				WT_ERR(__log_open_verify(session,
-				    lognum, NULL, NULL, &major));
+				    lognum, NULL, NULL, &version));
 				/*
 				 * If we find any log file at the wrong version
 				 * set the flag and we're done.
 				 */
-				if (log->log_major != major) {
+				if (log->log_version != version) {
 					FLD_SET(conn->log_flags,
 					    WT_CONN_LOG_FORCE_DOWNGRADE);
 					break;
@@ -1897,7 +1897,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 	uint32_t allocsize, firstlog, lastlog, lognum, rdup_len, reclen;
 	u_int i, logcount;
 	int firstrecord;
-	uint16_t major;
+	uint16_t version;
 	bool eol, partial_record;
 	char **logfiles;
 
@@ -2064,7 +2064,7 @@ advance:
 				    " through %" PRIu32,
 				    rd_lsn.l.file, end_lsn.l.file);
 			WT_ERR(__log_open_verify(session,
-			    rd_lsn.l.file, &log_fh, &prev_lsn, &major));
+			    rd_lsn.l.file, &log_fh, &prev_lsn, &version));
 			/*
 			 * Opening the log file reads with verify sets up the
 			 * previous LSN from the first record.  This detects
@@ -2084,7 +2084,7 @@ advance:
 			 * that header.  We're done.
 			 */
 			if (LF_ISSET(WT_LOGSCAN_RECOVER) &&
-			    major == WT_LOG_MAJOR_SYSTEM &&
+			    version == WT_LOG_VERSION_SYSTEM &&
 			    WT_IS_ZERO_LSN(&prev_lsn)) {
 				__wt_verbose(session, WT_VERB_LOG,
 				    "log_scan: Stopping, no system "

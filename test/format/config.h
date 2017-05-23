@@ -118,7 +118,7 @@ static CONFIG c[] = {
 	  C_BOOL, 10, 0, 0, &g.c_compact, NULL },
 
 	{ "compatibility",
-	  "log file compatibility (none | v10 | v11 )",
+	  "log file compatibility (none | v1 | v2 )",
 	  C_IGNORE|C_STRING, 0, 0, 0, NULL, &g.c_compat },
 
 	{ "compression",
