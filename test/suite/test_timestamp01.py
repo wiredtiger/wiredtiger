@@ -49,7 +49,6 @@ class test_timestamp01(wttest.WiredTigerTestCase, suite_subprocess):
             lambda: self.session.commit_transaction(
                 'commit_timestamp=' + timestamp_str(0)),
                 '/zero not permitted/')
-        self.session.rollback_transaction()
 
         # Too big is also not permitted
         self.session.begin_transaction()
@@ -57,7 +56,6 @@ class test_timestamp01(wttest.WiredTigerTestCase, suite_subprocess):
             lambda: self.session.commit_transaction(
                 'commit_timestamp=' + timestamp_str(1 << 100)),
                 '/too long/')
-        self.session.rollback_transaction()
 
         # One is okay, as is 2**64 - 1
         self.session.begin_transaction()
