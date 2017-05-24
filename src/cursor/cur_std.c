@@ -609,7 +609,7 @@ __wt_cursor_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 	size_t len, size;
 	int i;
 
-	CURSOR_UPDATE_API_CALL(cursor, session, modify, NULL);
+	CURSOR_UPDATE_API_CALL(cursor, session, modify);
 	WT_ERR(__cursor_checkkey(cursor));
 
 	/* Check for a rational modify vector count. */
