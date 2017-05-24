@@ -286,7 +286,7 @@ __curfile_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 	WT_SESSION_IMPL *session;
 
 	cbt = (WT_CURSOR_BTREE *)cursor;
-	CURSOR_UPDATE_API_CALL(cursor, session, modify, cbt->btree);
+	CURSOR_UPDATE_API_CALL_BTREE(cursor, session, modify, cbt->btree);
 	WT_ERR(__cursor_checkkey(cursor));
 
 	/* Check for a rational modify vector count. */
