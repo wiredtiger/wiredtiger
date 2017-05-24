@@ -79,11 +79,8 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 	too_big = page->memory_footprint >= btree->splitmempage;
 
 	/*
-	 * We want to track the timing of how long the call to evict took. The
-	 * reason for forced evict depends on the size of the page's size. If
-	 * eviction is successful then we have one of two sets of pairs to
-	 * increment, if eviction fails then we only need to increment the pair
-	 * of "forced eviction failed"  stats.
+	 * Track how long the call to evict took. If eviction is successful then
+	 * we have one of two pairs of stats to increment.
 	 */
 	ret = __wt_evict(session, ref, false);
 	__wt_epoch(session, &stop);
