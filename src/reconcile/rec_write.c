@@ -299,7 +299,6 @@ typedef struct {
 	 * and a layering violation, we need a better solution.
 	 */
 	WT_CURSOR_BTREE update_modify_cbt;
-	WT_REF update_modify_cbt_ref;
 } WT_RECONCILE;
 
 #define	WT_CROSSING_MIN_BND(r, next_len)				\
@@ -989,9 +988,7 @@ __rec_write_init(WT_SESSION_IMPL *session,
 
 	/* Initialize fake cursor used to figure out modified update values. */
 	memset(&r->update_modify_cbt, 0, sizeof(r->update_modify_cbt));
-	memset(&r->update_modify_cbt_ref, 0, sizeof(r->update_modify_cbt_ref));
-	r->update_modify_cbt.ref = &r->update_modify_cbt_ref;
-	r->update_modify_cbt.ref->page = page;
+	r->update_modify_cbt.ref = ref;
 
 	return (0);
 }
