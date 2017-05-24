@@ -121,17 +121,8 @@ __txn_op_apply(
 	end = *pp + opsize;
 
 	switch (optype) {
-	case WT_LOGOP_COL_PUT:
-		WT_ERR(__wt_logop_col_put_unpack(session, pp, end,
-		    &fileid, &recno, &value));
-		GET_RECOVERY_CURSOR(session, r, lsnp, fileid, &cursor);
-		cursor->set_key(cursor, recno);
-		__wt_cursor_set_raw_value(cursor, &value);
-		WT_ERR(cursor->insert(cursor));
-		break;
-
 	case WT_LOGOP_COL_MODIFY:
-		WT_ERR(__wt_logop_col_put_unpack(session, pp, end,
+		WT_ERR(__wt_logop_col_modify_unpack(session, pp, end,
 		    &fileid, &recno, &value));
 		GET_RECOVERY_CURSOR(session, r, lsnp, fileid, &cursor);
 		cursor->set_key(cursor, recno);
@@ -139,6 +130,15 @@ __txn_op_apply(
 		WT_ERR(cursor->get_value(cursor));
 		WT_ERR(__wt_value_modify_apply(
 		    session, &cursor->value, value.data));
+		WT_ERR(cursor->insert(cursor));
+		break;
+
+	case WT_LOGOP_COL_PUT:
+		WT_ERR(__wt_logop_col_put_unpack(session, pp, end,
+		    &fileid, &recno, &value));
+		GET_RECOVERY_CURSOR(session, r, lsnp, fileid, &cursor);
+		cursor->set_key(cursor, recno);
+		__wt_cursor_set_raw_value(cursor, &value);
 		WT_ERR(cursor->insert(cursor));
 		break;
 
@@ -182,15 +182,6 @@ __txn_op_apply(
 		WT_ERR(ret);
 		break;
 
-	case WT_LOGOP_ROW_PUT:
-		WT_ERR(__wt_logop_row_put_unpack(session, pp, end,
-		    &fileid, &key, &value));
-		GET_RECOVERY_CURSOR(session, r, lsnp, fileid, &cursor);
-		__wt_cursor_set_raw_key(cursor, &key);
-		__wt_cursor_set_raw_value(cursor, &value);
-		WT_ERR(cursor->insert(cursor));
-		break;
-
 	case WT_LOGOP_ROW_MODIFY:
 		WT_ERR(__wt_logop_row_modify_unpack(session, pp, end,
 		    &fileid, &key, &value));
@@ -200,6 +191,15 @@ __txn_op_apply(
 		WT_ERR(cursor->get_value(cursor));
 		WT_ERR(__wt_value_modify_apply(
 		    session, &cursor->value, value.data));
+		WT_ERR(cursor->insert(cursor));
+		break;
+
+	case WT_LOGOP_ROW_PUT:
+		WT_ERR(__wt_logop_row_put_unpack(session, pp, end,
+		    &fileid, &key, &value));
+		GET_RECOVERY_CURSOR(session, r, lsnp, fileid, &cursor);
+		__wt_cursor_set_raw_key(cursor, &key);
+		__wt_cursor_set_raw_value(cursor, &value);
 		WT_ERR(cursor->insert(cursor));
 		break;
 
