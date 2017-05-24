@@ -27,143 +27,300 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
+from helper import copy_wiredtiger_home
+from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 # test_cursor12.py
 #    Test cursor modify call
 class test_cursor12(wttest.WiredTigerTestCase):
+    keyfmt = [
+        ('recno', dict(keyfmt='r')),
+        ('string', dict(keyfmt='S')),
+    ]
     types = [
         ('file', dict(uri='file:modify')),
         ('lsm', dict(uri='lsm:modify')),
         ('table', dict(uri='table:modify')),
     ]
-    scenarios = make_scenarios(types)
+    scenarios = make_scenarios(types, keyfmt)
+
+    # List with original value, final value, and modifications to get
+    # there.
+    list = [
+    {
+    'o' : 'ABCDEFGH',           # no operation
+    'f' : 'ABCDEFGH',
+    'mods' : [['', 0, 0]]
+    },{
+    'o' : 'ABCDEFGH',           # no operation with offset
+    'f' : 'ABCDEFGH',
+    'mods' : [['', 4, 0]]
+    },{
+    'o' : 'ABCDEFGH',           # rewrite beginning
+    'f' : '--CDEFGH',
+    'mods' : [['--', 0, 2]]
+    },{
+    'o' : 'ABCDEFGH',           # rewrite end
+    'f' : 'ABCDEF--',
+    'mods' : [['--', 6, 2]]
+    },{
+    'o' : 'ABCDEFGH',           # append
+    'f' : 'ABCDEFGH--',
+    'mods' : [['--', 8, 2]]
+    },{
+    'o' : 'ABCDEFGH',           # append with gap
+    'f' : 'ABCDEFGH\00\00--',
+    'mods' : [['--', 10, 2]]
+    },{
+    'o' : 'ABCDEFGH',           # multiple replacements
+    'f' : 'A-C-E-G-',
+    'mods' : [['-', 1, 1], ['-', 3, 1], ['-', 5, 1], ['-', 7, 1]]
+    },{
+    'o' : 'ABCDEFGH',           # multiple overlapping replacements
+    'f' : 'A-CDEFGH',
+    'mods' : [['+', 1, 1], ['+', 1, 1], ['+', 1, 1], ['-', 1, 1]]
+    },{
+    'o' : 'ABCDEFGH',           # multiple overlapping gap replacements
+    'f' : 'ABCDEFGH\00\00--',
+    'mods' : [['+', 10, 1], ['+', 10, 1], ['+', 10, 1], ['--', 10, 2]]
+    },{
+    'o' : 'ABCDEFGH',           # shrink beginning
+    'f' : '--EFGH',
+    'mods' : [['--', 0, 4]]
+    },{
+    'o' : 'ABCDEFGH',           # shrink middle
+    'f' : 'AB--GH',
+    'mods' : [['--', 2, 4]]
+    },{
+    'o' : 'ABCDEFGH',           # shrink end
+    'f' : 'ABCD--',
+    'mods' : [['--', 4, 4]]
+    },{
+    'o' : 'ABCDEFGH',           # grow beginning
+    'f' : '--ABCDEFGH',
+    'mods' : [['--', 0, 0]]
+    },{
+    'o' : 'ABCDEFGH',           # grow middle
+    'f' : 'ABCD--EFGH',
+    'mods' : [['--', 4, 0]]
+    },{
+    'o' : 'ABCDEFGH',           # grow end
+    'f' : 'ABCDEFGH--',
+    'mods' : [['--', 8, 0]]
+    },{
+    'o' : 'ABCDEFGH',           # discard beginning
+    'f' : 'EFGH',
+    'mods' : [['', 0, 4]]
+    },{
+    'o' : 'ABCDEFGH',           # discard middle
+    'f' : 'ABGH',
+    'mods' : [['', 2, 4]]
+    },{
+    'o' : 'ABCDEFGH',           # discard end
+    'f' : 'ABCD',
+    'mods' : [['', 4, 4]]
+    },{
+    'o' : 'ABCDEFGH',           # discard everything
+    'f' : '',
+    'mods' : [['', 0, 8]]
+    },{
+    'o' : 'ABCDEFGH',           # overlap the end and append
+    'f' : 'ABCDEF--XX',
+    'mods' : [['--XX', 6, 2]]
+    },{
+    'o' : 'ABCDEFGH',           # overlap the end with incorrect size
+    'f' : 'ABCDEFG01234567',
+    'mods' : [['01234567', 7, 2000]]
+    }
+    ]
+
+    def skip(self):
+        return self.keyfmt == 'r' and 'lsm' in self.uri
 
     # Smoke-test the modify API.
     def test_modify_smoke(self):
-        # List with original value, final value, and modifications to get
-        # there.
-        list = [
-        {
-        'o' : 'ABCDEFGH',           # no operation
-        'f' : 'ABCDEFGH',
-        'mods' : [['', 0, 0]]
-        },{
-        'o' : 'ABCDEFGH',           # no operation with offset
-        'f' : 'ABCDEFGH',
-        'mods' : [['', 4, 0]]
-        },{
-        'o' : 'ABCDEFGH',           # rewrite beginning
-        'f' : '--CDEFGH',
-        'mods' : [['--', 0, 2]]
-        },{
-        'o' : 'ABCDEFGH',           # rewrite end
-        'f' : 'ABCDEF--',
-        'mods' : [['--', 6, 2]]
-        },{
-        'o' : 'ABCDEFGH',           # append
-        'f' : 'ABCDEFGH--',
-        'mods' : [['--', 8, 2]]
-        },{
-        'o' : 'ABCDEFGH',           # append with gap
-        'f' : 'ABCDEFGH\00\00--',
-        'mods' : [['--', 10, 2]]
-        },{
-        'o' : 'ABCDEFGH',           # multiple replacements
-        'f' : 'A-C-E-G-',
-        'mods' : [['-', 1, 1], ['-', 3, 1], ['-', 5, 1], ['-', 7, 1]]
-        },{
-        'o' : 'ABCDEFGH',           # multiple overlapping replacements
-        'f' : 'A-CDEFGH',
-        'mods' : [['+', 1, 1], ['+', 1, 1], ['+', 1, 1], ['-', 1, 1]]
-        },{
-        'o' : 'ABCDEFGH',           # multiple overlapping gap replacements
-        'f' : 'ABCDEFGH\00\00--',
-        'mods' : [['+', 10, 1], ['+', 10, 1], ['+', 10, 1], ['--', 10, 2]]
-        },{
-        'o' : 'ABCDEFGH',           # shrink beginning
-        'f' : '--EFGH',
-        'mods' : [['--', 0, 4]]
-        },{
-        'o' : 'ABCDEFGH',           # shrink middle
-        'f' : 'AB--GH',
-        'mods' : [['--', 2, 4]]
-        },{
-        'o' : 'ABCDEFGH',           # shrink end
-        'f' : 'ABCD--',
-        'mods' : [['--', 4, 4]]
-        },{
-        'o' : 'ABCDEFGH',           # grow beginning
-        'f' : '--ABCDEFGH',
-        'mods' : [['--', 0, 0]]
-        },{
-        'o' : 'ABCDEFGH',           # grow middle
-        'f' : 'ABCD--EFGH',
-        'mods' : [['--', 4, 0]]
-        },{
-        'o' : 'ABCDEFGH',           # grow end
-        'f' : 'ABCDEFGH--',
-        'mods' : [['--', 8, 0]]
-        },{
-        'o' : 'ABCDEFGH',           # discard beginning
-        'f' : 'EFGH',
-        'mods' : [['', 0, 4]]
-        },{
-        'o' : 'ABCDEFGH',           # discard middle
-        'f' : 'ABGH',
-        'mods' : [['', 2, 4]]
-        },{
-        'o' : 'ABCDEFGH',           # discard end
-        'f' : 'ABCD',
-        'mods' : [['', 4, 4]]
-        },{
-        'o' : 'ABCDEFGH',           # discard everything
-        'f' : '',
-        'mods' : [['', 0, 8]]
-        },{
-        'o' : 'ABCDEFGH',           # overlap the end and append
-        'f' : 'ABCDEF--XX',
-        'mods' : [['--XX', 6, 2]]
-        },{
-        'o' : 'ABCDEFGH',           # overlap the end with incorrect size
-        'f' : 'ABCDEFG01234567',
-        'mods' : [['01234567', 7, 2000]]
-        }
-        ]
+        if self.skip():
+            return
 
-        self.session.create(self.uri, 'key_format=S,value_format=u')
-        cursor = self.session.open_cursor(self.uri, None, None)
+        # Populate a database.
+        ds = SimpleDataSet(self,
+            self.uri, 100, key_format=self.keyfmt, value_format='u')
+        ds.populate()
 
-        # For each test in the list, set the original value, apply modifications
-        # in order, then confirm the final state.
-        for i in list:
-            cursor['ABC'] = i['o']
+        # For each test in the list:
+        #       set the original value,
+        #       apply modifications in order,
+        #       confirm the final state,
+        row = 10
+        c = self.session.open_cursor(self.uri, None)
+        for i in self.list:
+            c.set_key(ds.key(row))
+            c.set_value(i['o'])
+            self.assertEquals(c.update(), 0)
+            c.reset()
 
+            c.set_key(ds.key(row))
             mods = []
             for j in i['mods']:
                 mod = wiredtiger.Modify(j[0], j[1], j[2])
                 mods.append(mod)
+            self.assertEquals(c.modify(mods), 0)
+            c.reset()
 
-            cursor.set_key('ABC')
-            cursor.modify(mods)
-            self.assertEquals(str(cursor['ABC']), i['f'])
+            c.set_key(ds.key(row))
+            self.assertEquals(c.search(), 0)
+            self.assertEquals(c.get_value(), i['f'])
+
+            row = row + 1
+        c.close()
+
+    # Smoke-test the modify API, closing and re-opening the database.
+    def test_modify_smoke_reopen(self):
+        if self.skip():
+            return
+
+        # Populate a database.
+        ds = SimpleDataSet(self,
+            self.uri, 100, key_format=self.keyfmt, value_format='u')
+        ds.populate()
+
+        # For each test in the list:
+        #       set the original value,
+        #       apply modifications in order,
+        #       confirm the final state,
+        row = 10
+        c = self.session.open_cursor(self.uri, None)
+        for i in self.list:
+            c.set_key(ds.key(row))
+            c.set_value(i['o'])
+            self.assertEquals(c.update(), 0)
+            c.reset()
+
+            c.set_key(ds.key(row))
+            mods = []
+            for j in i['mods']:
+                mod = wiredtiger.Modify(j[0], j[1], j[2])
+                mods.append(mod)
+            self.assertEquals(c.modify(mods), 0)
+            c.reset()
+
+            c.set_key(ds.key(row))
+            self.assertEquals(c.search(), 0)
+            self.assertEquals(c.get_value(), i['f'])
+
+            row = row + 1
+        c.close()
+
+        # Flush to disk, forcing reconciliation.
+        #
+        # XXX KEITH
+        # I think this is a Python API problem, for some reason LSM can't
+        # reopen the connection if the final is an empty string.
+        if 'lsm' not in self.uri or i['f'] != '':
+            self.reopen_conn()
+
+        # For each test in the list:
+        #       confirm the final state
+        row = 10
+        c = self.session.open_cursor(self.uri, None)
+        for i in self.list:
+            c.set_key(ds.key(row))
+            self.assertEquals(c.search(), 0)
+            self.assertEquals(c.get_value(), i['f'])
+
+            row = row + 1
+        c.close()
+
+    # Smoke-test the modify API, recovering the database.
+    def test_modify_smoke_recover(self):
+        if self.skip():
+            return
+
+        # Close the original database.
+        self.conn.close()
+
+        # Open a new database with logging configured.
+        self.conn_config = \
+            'log=(enabled=true),transaction_sync=(method=dsync,enabled)'
+        self.conn = self.setUpConnectionOpen(".")
+        self.session = self.setUpSessionOpen(self.conn)
+
+        # Populate a database, and checkpoint it so it exists after recovery.
+        ds = SimpleDataSet(self,
+            self.uri, 100, key_format=self.keyfmt, value_format='u')
+        ds.populate()
+        self.session.checkpoint()
+
+        # For each test in the list:
+        #       set the original value,
+        #       apply modifications in order,
+        #       confirm the final state,
+        #       confirm the final state is there.
+        row = 10
+        c = self.session.open_cursor(self.uri, None)
+        for i in self.list:
+            c.set_key(ds.key(row))
+            c.set_value(i['o'])
+            self.assertEquals(c.update(), 0)
+            c.reset()
+
+            c.set_key(ds.key(row))
+            mods = []
+            for j in i['mods']:
+                mod = wiredtiger.Modify(j[0], j[1], j[2])
+                mods.append(mod)
+            self.assertEquals(c.modify(mods), 0)
+            c.reset()
+
+            c.set_key(ds.key(row))
+            self.assertEquals(c.search(), 0)
+            self.assertEquals(c.get_value(), i['f'])
+
+            row = row + 1
+        c.close()
+
+        # Crash and recover in a new directory.
+        newdir = 'RESTART'
+        copy_wiredtiger_home('.', newdir)
+        self.conn.close()
+        self.conn = self.setUpConnectionOpen(newdir)
+        self.session = self.setUpSessionOpen(self.conn)
+        self.session.verify(self.uri)
+
+        # For each test in the list:
+        #       confirm the final state is there.
+        row = 10
+        c = self.session.open_cursor(self.uri, None)
+        for i in self.list:
+            c.set_key(ds.key(row))
+            self.assertEquals(c.search(), 0)
+            self.assertEquals(c.get_value(), i['f'])
+
+            row = row + 1
+        c.close()
 
     # Check that modify returns not-found after a delete.
     def test_modify_delete(self):
-        self.session.create(self.uri, 'key_format=S,value_format=u')
-        cursor = self.session.open_cursor(self.uri, None, None)
-        cursor['ABC'] = 'ABCDEFGH'
-        cursor.set_key('ABC')
-        cursor.remove()
+        ds = SimpleDataSet(self,
+            self.uri, 20, key_format=self.keyfmt, value_format='u')
+        ds.populate()
+
+        c = self.session.open_cursor(self.uri, None)
+        c.set_key(ds.key(10))
+        self.assertEquals(c.remove(), 0)
 
         mods = []
         mod = wiredtiger.Modify('ABCD', 3, 3)
         mods.append(mod)
 
-        cursor.set_key('ABC')
-        #self.assertEqual(cursor.modify(mods), wiredtiger.WT_NOTFOUND)
+        c.set_key(ds.key(10))
+        # XXX KEITH
+        # I think this is a Python API problem, c.modify should return
+        # WT_NOTFOUND, not raising an exception.
+        # self.assertEqual(c.modify(mods), wiredtiger.WT_NOTFOUND)
         self.assertRaises(
-            wiredtiger.WiredTigerError, lambda:cursor.modify(mods))
+            wiredtiger.WiredTigerError, lambda:c.modify(mods))
 
 if __name__ == '__main__':
     wttest.run()

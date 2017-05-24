@@ -4410,18 +4410,22 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_LOGREC_MESSAGE	3
 /*! invalid operation */
 #define	WT_LOGOP_INVALID	0
-/*! column put */
+/*! column-store put */
 #define	WT_LOGOP_COL_PUT	1
-/*! column remove */
+/*! column-store remove */
 #define	WT_LOGOP_COL_REMOVE	2
-/*! column truncate */
+/*! column-store truncate */
 #define	WT_LOGOP_COL_TRUNCATE	3
-/*! row put */
+/*! row-store put */
 #define	WT_LOGOP_ROW_PUT	4
-/*! row remove */
+/*! row-store remove */
 #define	WT_LOGOP_ROW_REMOVE	5
-/*! row truncate */
+/*! row-store truncate */
 #define	WT_LOGOP_ROW_TRUNCATE	6
+/*! column-store modify */
+#define	WT_LOGOP_COL_MODIFY	7
+/*! row-store modify */
+#define	WT_LOGOP_ROW_MODIFY	8
 /*! @} */
 
 /*******************************************

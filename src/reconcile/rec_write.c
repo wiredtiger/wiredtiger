@@ -290,6 +290,16 @@ typedef struct {
 	bool cache_write_restore;	/* Used update/restoration */
 
 	uint32_t tested_ref_state;	/* Debugging information */
+
+	/*
+	 * XXX KEITH
+	 * In the case of a modified update, we potentially have to get a copy
+	 * of the original on-page value as a set of bytes. We call back into
+	 * the btree code with a fake cursor to make that work. This is fragile
+	 * and a layering violation, we need a better solution.
+	 */
+	WT_CURSOR_BTREE update_modify_cbt;
+	WT_REF update_modify_cbt_ref;
 } WT_RECONCILE;
 
 #define	WT_CROSSING_MIN_BND(r, next_len)				\
@@ -977,6 +987,12 @@ __rec_write_init(WT_SESSION_IMPL *session,
 
 	r->cache_write_lookaside = r->cache_write_restore = false;
 
+	/* Initialize fake cursor used to figure out modified update values. */
+	memset(&r->update_modify_cbt, 0, sizeof(r->update_modify_cbt));
+	memset(&r->update_modify_cbt_ref, 0, sizeof(r->update_modify_cbt_ref));
+	r->update_modify_cbt.ref = &r->update_modify_cbt_ref;
+	r->update_modify_cbt.ref->page = page;
+
 	return (0);
 }
 
@@ -1009,6 +1025,8 @@ __rec_destroy(WT_SESSION_IMPL *session, void *reconcilep)
 	__wt_buf_free(session, &r->v.buf);
 	__wt_buf_free(session, &r->_cur);
 	__wt_buf_free(session, &r->_last);
+
+	__wt_buf_free(session, &r->update_modify_cbt.iface.value);
 
 	__rec_dictionary_free(session, r);
 
@@ -4478,6 +4496,7 @@ __rec_col_var(WT_SESSION_IMPL *session,
 	WT_CELL *cell;
 	WT_CELL_UNPACK *vpack, _vpack;
 	WT_COL *cip;
+	WT_CURSOR_BTREE *cbt;
 	WT_DECL_ITEM(orig);
 	WT_DECL_RET;
 	WT_INSERT *ins;
@@ -4493,6 +4512,7 @@ __rec_col_var(WT_SESSION_IMPL *session,
 	page = pageref->page;
 	last = r->last;
 	vpack = &_vpack;
+	cbt = &r->update_modify_cbt;
 
 	WT_RET(__rec_split_init(
 	    session, r, page, pageref->ref_recno, btree->maxleafpage));
@@ -4611,21 +4631,30 @@ record_loop:	/*
 				    session, r, ins, NULL, vpack, &upd));
 				ins = WT_SKIP_NEXT(ins);
 			}
-			if (upd != NULL) {
-				update_no_copy = true;	/* No data copy */
-				repeat_count = 1;	/* Single record */
 
-				deleted = upd->type == WT_UPDATE_DELETED;
-				if (!deleted) {
+			update_no_copy = true;	/* No data copy */
+			repeat_count = 1;	/* Single record */
+			deleted = false;
+
+			if (upd != NULL) {
+				switch (upd->type) {
+				case WT_UPDATE_STANDARD:
 					data = WT_UPDATE_DATA(upd);
 					size = upd->size;
+					break;
+				case WT_UPDATE_DELETED:
+					deleted = true;
+					break;
+				case WT_UPDATE_MODIFIED:
+					cbt->slot = WT_COL_SLOT(page, cip);
+					WT_ERR(__wt_value_return(
+					    session, cbt, upd));
+					data = cbt->iface.value.data;
+					size = (uint32_t)cbt->iface.value.size;
+					break;
+				WT_ILLEGAL_VALUE_ERR(session);
 				}
 			} else if (vpack->raw == WT_CELL_VALUE_OVFL_RM) {
-				update_no_copy = true;	/* No data copy */
-				repeat_count = 1;	/* Single record */
-
-				deleted = false;
-
 				/*
 				 * If doing update save and restore, there's an
 				 * update that's not globally visible, and the
@@ -4848,14 +4877,32 @@ compare:		/*
 					rle += skip;
 					src_recno += skip;
 				}
-			} else {
-				deleted = upd == NULL ||
-				    upd->type == WT_UPDATE_DELETED;
-				if (!deleted) {
+			} else if (upd == NULL)
+				deleted = true;
+			else
+				switch (upd->type) {
+				case WT_UPDATE_STANDARD:
+					deleted = false;
 					data = WT_UPDATE_DATA(upd);
 					size = upd->size;
+					break;
+				case WT_UPDATE_DELETED:
+					deleted = true;
+					break;
+				case WT_UPDATE_MODIFIED:
+					deleted = false;
+					/*
+					 * Not setting a cursor slot, as there
+					 * must be a valid update record from
+					 * which we can roll forward.
+					 */
+					WT_ERR(__wt_value_return(
+					    session, cbt, upd));
+					data = cbt->iface.value.data;
+					size = (uint32_t)cbt->iface.value.size;
+					break;
+				WT_ILLEGAL_VALUE_ERR(session);
 				}
-			}
 
 			/*
 			 * Handle RLE accounting and comparisons -- see comment
@@ -5213,6 +5260,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
     WT_RECONCILE *r, WT_PAGE *page, WT_SALVAGE_COOKIE *salvage)
 {
 	WT_BTREE *btree;
+	WT_CURSOR_BTREE *cbt;
 	WT_CELL *cell, *val_cell;
 	WT_CELL_UNPACK *kpack, _kpack, *vpack, _vpack;
 	WT_DECL_ITEM(tmpkey);
@@ -5232,6 +5280,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 
 	btree = S2BT(session);
 	slvg_skip = salvage == NULL ? 0 : salvage->skip;
+	cbt = &r->update_modify_cbt;
 
 	key = &r->k;
 	val = &r->v;
@@ -5394,9 +5443,29 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 				WT_ERR(
 				    __wt_ovfl_cache(session, page, rip, vpack));
 
-			/* If this key/value pair was deleted, we're done. */
-			if (upd->type == WT_UPDATE_DELETED) {
+			switch (upd->type) {
+			case WT_UPDATE_STANDARD:
 				/*
+				 * If no value, nothing needs to be copied.
+				 * Otherwise, build the value's chunk from the
+				 * update value.
+				 */
+				if (upd->size == 0) {
+					val->buf.data = NULL;
+					val->cell_len =
+					    val->len = val->buf.size = 0;
+				} else {
+					WT_ERR(__rec_cell_build_val(session, r,
+					    WT_UPDATE_DATA(upd), upd->size,
+					    (uint64_t)0));
+					dictionary = true;
+				}
+				break;
+			case WT_UPDATE_DELETED:
+				/*
+				 * If this key/value pair was deleted, we're
+				 * done.
+				 *
 				 * Overflow keys referencing discarded values
 				 * are no longer useful, discard the backing
 				 * blocks.  Don't worry about reuse, reusing
@@ -5431,21 +5500,15 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 
 				/* Proceed with appended key/value pairs. */
 				goto leaf_insert;
-			}
-
-			/*
-			 * If no value, nothing needs to be copied.  Otherwise,
-			 * build the value's WT_CELL chunk from the most recent
-			 * update value.
-			 */
-			if (upd->size == 0) {
-				val->buf.data = NULL;
-				val->cell_len = val->len = val->buf.size = 0;
-			} else {
+			case WT_UPDATE_MODIFIED:
+				cbt->slot = WT_ROW_SLOT(page, rip);
+				WT_ERR(__wt_value_return(session, cbt, upd));
 				WT_ERR(__rec_cell_build_val(session, r,
-				    WT_UPDATE_DATA(upd), upd->size,
-				    (uint64_t)0));
+				    cbt->iface.value.data,
+				    cbt->iface.value.size, (uint64_t)0));
 				dictionary = true;
+				break;
+			WT_ILLEGAL_VALUE_ERR(session);
 			}
 		}
 
@@ -5593,27 +5656,46 @@ static int
 __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 {
 	WT_BTREE *btree;
+	WT_CURSOR_BTREE *cbt;
 	WT_KV *key, *val;
 	WT_UPDATE *upd;
 	bool ovfl_key;
 
 	btree = S2BT(session);
+	cbt = &r->update_modify_cbt;
 
 	key = &r->k;
 	val = &r->v;
 
 	for (; ins != NULL; ins = WT_SKIP_NEXT(ins)) {
-		/* Look for an update. */
+		/* Look for an update, if nothing is visible, we're done. */
 		WT_RET(__rec_txn_read(session, r, ins, NULL, NULL, &upd));
-		if (upd == NULL || upd->type == WT_UPDATE_DELETED)
+		if (upd == NULL)
 			continue;
 
-		if (upd->size == 0)			/* Build value cell. */
-			val->len = 0;
-		else
+		switch (upd->type) {
+		case WT_UPDATE_STANDARD:
+			if (upd->size == 0)
+				val->len = 0;
+			else
+				WT_RET(__rec_cell_build_val(session, r,
+				    WT_UPDATE_DATA(upd), upd->size,
+				    (uint64_t)0));
+			break;
+		case WT_UPDATE_DELETED:
+			continue;
+		case WT_UPDATE_MODIFIED:
+			/*
+			 * Not setting a cursor slot, as there must be a valid
+			 * update record from which we can roll forward.
+			 */
+			WT_RET(__wt_value_return(session, cbt, upd));
 			WT_RET(__rec_cell_build_val(session, r,
-			    WT_UPDATE_DATA(upd), upd->size, (uint64_t)0));
-
+			    cbt->iface.value.data,
+			    cbt->iface.value.size, (uint64_t)0));
+			break;
+		WT_ILLEGAL_VALUE(session);
+		}
 							/* Build key cell. */
 		WT_RET(__rec_cell_build_leaf_key(session, r,
 		    WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins), &ovfl_key));

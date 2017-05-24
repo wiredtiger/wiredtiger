@@ -129,12 +129,12 @@ __value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 }
 
 /*
- * __value_upd_apply_one --
+ * __value_modify_apply_one --
  *	Apply a single modify structure change to the buffer.
  */
 static int
-__value_upd_apply_one(WT_SESSION_IMPL *session,
-    WT_ITEM *value, uint8_t *data, size_t data_size, size_t offset, size_t size)
+__value_modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value,
+    const uint8_t *data, size_t data_size, size_t offset, size_t size)
 {
 	uint8_t *p, *t;
 
@@ -204,28 +204,29 @@ __value_upd_apply_one(WT_SESSION_IMPL *session,
 }
 
 /*
- * __value_upd_apply --
- *	Apply a single update structure's changes to the buffer.
+ * __wt_value_modify_apply --
+ *	Apply a single update structure's WT_MODIFY changes to the buffer.
  */
-static int
-__value_upd_apply(WT_SESSION_IMPL *session, WT_ITEM *value, WT_UPDATE *upd)
+int
+__wt_value_modify_apply(
+    WT_SESSION_IMPL *session, WT_ITEM *value, const void *modify)
 {
+	const size_t *p;
 	int nentries;
-	size_t *p;
-	uint8_t *data;
+	const uint8_t *data;
 
 	/*
 	 * Get the number of entries, and set a second pointer to reference the
 	 * change data.
 	 */
-	p = WT_UPDATE_DATA(upd);
+	p = modify;
 	nentries = (int)*p++;
-	data = (uint8_t *)WT_UPDATE_DATA(upd) +
+	data = (uint8_t *)modify +
 	    sizeof(size_t) + ((u_int)nentries * 3 * sizeof(size_t));
 
 	/* Step through the list of entries, applying them in order. */
 	for (; nentries-- > 0; data += p[0], p += 3)
-		WT_RET(__value_upd_apply_one(
+		WT_RET(__value_modify_apply_one(
 		    session, value, data, p[0], p[1], p[2]));
 
 	return (0);
@@ -241,30 +242,32 @@ __value_return_upd(
     WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
 	WT_CURSOR *cursor;
-	WT_UPDATE **listp, *list[100];			/* XXX KEITH: 100 */
+	void **listp, *list[100];			/* XXX KEITH: 100 */
 
 	cursor = &cbt->iface;
 
-	/* If this isn't a list of modified update structures, it's fast. */
-	if (upd->type != WT_UPDATE_MODIFIED) {
+	/* Fast path standard updates. */
+	if (upd->type == WT_UPDATE_STANDARD) {
 		cursor->value.data = WT_UPDATE_DATA(upd);
 		cursor->value.size = upd->size;
 		return (0);
 	}
 
 	/*
-	 * Find a complete update, skipping over reserved updates or other
-	 * modifications.
+	 * Find a complete update, skipping reserved updates and tracking other
+	 * modifications (we shouldn't ever see a deleted update).
 	 *
 	 * XXX KEITH: is there any way we can be here with an update that
 	 * isn't visible to us?
 	 */
-	for (listp = list; upd != NULL; *listp++ = upd, upd = upd->next) {
+	for (listp = list; upd != NULL; upd = upd->next) {
 		if (upd->type == WT_UPDATE_STANDARD)
 			break;
 
-		/* Not possible to be here with a deleted update. */
 		WT_ASSERT(session, upd->type != WT_UPDATE_DELETED);
+
+		if (upd->type == WT_UPDATE_MODIFIED)
+			*listp++ = WT_UPDATE_DATA(upd);
 	}
 
 	/*
@@ -279,7 +282,8 @@ __value_return_upd(
 		    &cursor->value, WT_UPDATE_DATA(upd), upd->size));
 
 	while (listp > list)
-		WT_RET(__value_upd_apply(session, &cursor->value, *--listp));
+		WT_RET(__wt_value_modify_apply(
+		    session, &cursor->value, *--listp));
 	return (0);
 }
 

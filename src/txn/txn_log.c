@@ -78,31 +78,47 @@ __txn_op_log(WT_SESSION_IMPL *session,
 	value.size = upd->size;
 
 	/*
-	 * Log the operation. It must be a row- or column-store insert, remove
-	 * or update, all of which require log records. We shouldn't ever log
-	 * reserve operations.
+	 * Log the row- or column-store insert, modify, remove or update. Our
+	 * caller doesn't log reserve operations, we shouldn't see them here.
 	 */
-	WT_ASSERT(session, upd->type != WT_UPDATE_RESERVED);
 	if (cbt->btree->type == BTREE_ROW) {
 #ifdef HAVE_DIAGNOSTIC
 		__txn_op_log_row_key_check(session, cbt);
 #endif
-		if (upd->type == WT_UPDATE_DELETED)
-			WT_RET(__wt_logop_row_remove_pack(
-			    session, logrec, op->fileid, &cursor->key));
-		else
+		switch (upd->type) {
+		case WT_UPDATE_STANDARD:
 			WT_RET(__wt_logop_row_put_pack(
 			    session, logrec, op->fileid, &cursor->key, &value));
+			break;
+		case WT_UPDATE_DELETED:
+			WT_RET(__wt_logop_row_remove_pack(
+			    session, logrec, op->fileid, &cursor->key));
+			break;
+		case WT_UPDATE_MODIFIED:
+			WT_RET(__wt_logop_row_modify_pack(
+			    session, logrec, op->fileid, &cursor->key, &value));
+			break;
+		WT_ILLEGAL_VALUE(session);
+		}
 	} else {
 		recno = WT_INSERT_RECNO(cbt->ins);
 		WT_ASSERT(session, recno != WT_RECNO_OOB);
 
-		if (upd->type == WT_UPDATE_DELETED)
-			WT_RET(__wt_logop_col_remove_pack(
-			    session, logrec, op->fileid, recno));
-		else
+		switch (upd->type) {
+		case WT_UPDATE_STANDARD:
 			WT_RET(__wt_logop_col_put_pack(
 			    session, logrec, op->fileid, recno, &value));
+			break;
+		case WT_UPDATE_DELETED:
+			WT_RET(__wt_logop_col_remove_pack(
+			    session, logrec, op->fileid, recno));
+			break;
+		case WT_UPDATE_MODIFIED:
+			WT_RET(__wt_logop_col_modify_pack(
+			    session, logrec, op->fileid, recno, &value));
+			break;
+		WT_ILLEGAL_VALUE(session);
+		}
 	}
 
 	return (0);
