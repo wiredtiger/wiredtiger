@@ -242,7 +242,7 @@ __value_return_upd(
     WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
 	WT_CURSOR *cursor;
-	void **listp, *list[100];			/* XXX KEITH: 100 */
+	void **listp, *list[WT_MAX_MODIFY_UPDATE + 5];
 
 	cursor = &cbt->iface;
 

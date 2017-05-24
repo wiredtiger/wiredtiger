@@ -308,6 +308,14 @@ __curfile_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 err:	CURSOR_UPDATE_API_END(session, ret);
 
 	/*
+	 * Limit update chain length in order to avoid penalizing reads and to
+	 * permit truncation. The btree layer knows if we've hit a limit, but
+	 * the cursor layer has the ability to fallback to a full update.
+	 */
+	if (ret == WT_UPDATE_CHAIN_MAX)
+		return (__wt_cursor_modify(cursor, entries, nentries));
+
+	/*
 	 * The application might do a WT_CURSOR.get_value call when we return,
 	 * so we need a value and the underlying functions didn't set one up.
 	 */

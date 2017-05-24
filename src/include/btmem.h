@@ -939,6 +939,13 @@ WT_PACKED_STRUCT_END
 #define	WT_UPDATE_SIZE	21
 
 /*
+ * WT_MAX_MODIFY_UPDATE --
+ *	Limit update chains to a small value to avoid penalizing reads and
+ * permit truncation.
+ */
+#define	WT_MAX_MODIFY_UPDATE	100
+
+/*
  * WT_INSERT --
  *
  * Row-store leaf pages support inserts of new K/V pairs.  When the first K/V

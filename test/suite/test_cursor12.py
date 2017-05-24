@@ -26,6 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import random, string
 import wiredtiger, wttest
 from helper import copy_wiredtiger_home
 from wtdataset import SimpleDataSet
@@ -287,6 +288,29 @@ class test_cursor12(wttest.WiredTigerTestCase):
         self.session.verify(self.uri)
 
         self.modify_confirm(ds, False)
+
+    # Check that we can perform a large number of modifications to a record.
+    def test_modify_many(self):
+        ds = SimpleDataSet(self,
+            self.uri, 20, key_format=self.keyfmt, value_format='u')
+        ds.populate()
+
+        c = self.session.open_cursor(self.uri, None)
+        c.set_key(ds.key(10))
+        orig = 'abcdefghijklmnopqrstuvwxyz'
+        c.set_value(orig)
+        self.assertEquals(c.update(), 0)
+        for i in range(0, 50000):
+            new = "".join([random.choice(string.digits) for i in xrange(5)])
+            orig = orig[:10] + new + orig[15:]
+            mods = []
+            mod = wiredtiger.Modify(new, 10, 5)
+            mods.append(mod)
+            self.assertEquals(c.modify(mods), 0)
+
+        c.set_key(ds.key(10))
+        self.assertEquals(c.search(), 0)
+        self.assertEquals(c.get_value(), orig)
 
     # Check that modify returns not-found after a delete.
     def test_modify_delete(self):

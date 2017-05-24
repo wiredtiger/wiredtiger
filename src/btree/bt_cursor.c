@@ -983,6 +983,24 @@ done:	/*
 }
 
 /*
+ * __btcur_limit_update_chain --
+ *	Check if an update chain has exceeded the limit.
+ */
+static int
+__btcur_limit_update_chain(WT_CURSOR_BTREE *cbt)
+{
+	WT_UPDATE *upd;
+	u_int i;
+
+	if (cbt->ins == NULL)
+		return (0);
+	for (i = 0, upd = cbt->ins->upd; upd != NULL; ++i, upd = upd->next)
+		if (i >= WT_MAX_MODIFY_UPDATE)
+			return (WT_UPDATE_CHAIN_MAX);
+	return (0);
+}
+
+/*
  * __btcur_update --
  *	Update a record in the tree.
  */
@@ -1015,6 +1033,14 @@ __btcur_update(WT_CURSOR_BTREE *cbt, u_int modify_type)
 	 */
 	if (__cursor_page_pinned(cbt) && F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
 		WT_ERR(__wt_txn_autocommit_check(session));
+
+		/*
+		 * Limit update chains to a small value to avoid penalizing
+		 * reads and permit truncation.
+		 */
+		if (modify_type == WT_UPDATE_MODIFIED)
+			WT_ERR(__btcur_limit_update_chain(cbt));
+
 		/*
 		 * The cursor position may not be exact (the cursor's comparison
 		 * value not equal to zero). Correct to an exact match so we can
@@ -1052,6 +1078,14 @@ retry:	WT_ERR(__cursor_func_init(cbt, true));
 
 	if (btree->type == BTREE_ROW) {
 		WT_ERR(__cursor_row_search(session, cbt, NULL, true));
+
+		/*
+		 * Limit update chains to a small value to avoid penalizing
+		 * reads and permit truncation.
+		 */
+		if (modify_type == WT_UPDATE_MODIFIED)
+			WT_ERR(__btcur_limit_update_chain(cbt));
+
 		/*
 		 * If not overwriting, check for conflicts and fail if the key
 		 * does not exist.
@@ -1064,6 +1098,13 @@ retry:	WT_ERR(__cursor_func_init(cbt, true));
 		ret = __cursor_row_modify(session, cbt, modify_type);
 	} else {
 		WT_ERR(__cursor_col_search(session, cbt, NULL));
+
+		/*
+		 * Limit update chains to a small value to avoid penalizing
+		 * reads and permit truncation.
+		 */
+		if (modify_type == WT_UPDATE_MODIFIED)
+			WT_ERR(__btcur_limit_update_chain(cbt));
 
 		/*
 		 * If not overwriting, fail if the key doesn't exist.  If we
@@ -1166,8 +1207,12 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 	 * Copy the value into place. We could do something trickier (maybe swap
 	 * memory between the scratch buffer and the cursor buffer), but there's
 	 * no point if the modify arrays are small and relatively uncomplicated.
+	 * We don't know the cursor value's state, and it shouldn't matter, but
+	 * avoid surprises, coerce it to an internal copy.
 	 */
 	WT_ERR(__wt_buf_set(session, &cursor->value, value->data, value->size));
+	F_CLR(cursor, WT_CURSTD_VALUE_SET);
+	F_SET(cursor, WT_CURSTD_KEY_EXT);
 
 	/* WT_CURSOR.modify is update-without-overwrite. */
 	overwrite = F_ISSET(cursor, WT_CURSTD_OVERWRITE);

@@ -38,6 +38,9 @@ __wt_wiredtiger_error(int error)
 		return ("WT_RUN_RECOVERY: recovery must be run to continue");
 	case WT_CACHE_FULL:
 		return ("WT_CACHE_FULL: operation would overflow cache");
+	case WT_UPDATE_CHAIN_MAX:
+		return ("WT_UPDATE_CHAIN_MAX: "
+		    "update chain exceeds maximum (internal)");
 	}
 
 	/* Windows strerror doesn't support ENOTSUP. */
