@@ -137,8 +137,12 @@ class test_alter02(wttest.WiredTigerTestCase):
                 log_str = 'log=(enabled=%s)' % a
             alter_param = '%s' % log_str
             if alter_param != '':
-                self.pr("Alter string: " + alter_param)
                 special = self.use_cg or self.use_index
+
+                # Altering the log setting currently fails on an
+                # open handle, so it is expected to succeed when
+                # we reopen the connection and return an error when
+                # we attempt with the same open connection.
                 if self.reopen:
                     self.reopen_conn()
                     self.session.alter(uri, alter_param)
@@ -148,7 +152,6 @@ class test_alter02(wttest.WiredTigerTestCase):
                     else:
                         self.verify_metadata(log_str)
                 else:
-                    self.pr("Expect error from alter")
                     msg = '/Cannot alter open table/'
                     if special:
                         alteruri = suburi
@@ -157,7 +160,6 @@ class test_alter02(wttest.WiredTigerTestCase):
                     self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                         lambda:self.session.alter(alteruri, alter_param), msg)
 
-                    self.pr("Success")
 
 if __name__ == '__main__':
     wttest.run()
