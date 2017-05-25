@@ -160,6 +160,5 @@ class test_alter02(wttest.WiredTigerTestCase):
                     self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                         lambda:self.session.alter(alteruri, alter_param), msg)
 
-
 if __name__ == '__main__':
     wttest.run()
