@@ -327,12 +327,7 @@ class test_cursor12(wttest.WiredTigerTestCase):
         mods.append(mod)
 
         c.set_key(ds.key(10))
-        # XXX KEITH
-        # I think this is a Python API problem, c.modify should return
-        # WT_NOTFOUND, not raising an exception.
-        # self.assertEqual(c.modify(mods), wiredtiger.WT_NOTFOUND)
-        self.assertRaises(
-            wiredtiger.WiredTigerError, lambda:c.modify(mods))
+        self.assertEqual(c.modify(mods), wiredtiger.WT_NOTFOUND)
 
 if __name__ == '__main__':
     wttest.run()
