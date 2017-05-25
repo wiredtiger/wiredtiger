@@ -172,7 +172,6 @@ __thread_group_resize(
 		alloc = group->alloc * sizeof(*group->threads);
 		WT_RET(__wt_realloc(session, &alloc,
 		    new_max * sizeof(*group->threads), &group->threads));
-		group->alloc = new_max;
 	}
 
 	/*
@@ -212,6 +211,7 @@ __thread_group_resize(
 		F_SET(thread, WT_THREAD_RUN);
 		WT_ERR(__wt_thread_create(thread->session,
 		    &thread->tid, __thread_run, thread));
+		group->alloc++;
 
 		WT_ASSERT(session, group->threads[i] == NULL);
 		group->threads[i] = thread;
