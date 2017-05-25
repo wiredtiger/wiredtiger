@@ -39,7 +39,9 @@ import wttest
 class test_cursor07(wttest.WiredTigerTestCase, suite_subprocess):
     logmax = "100K"
     tablename = 'test_cursor07'
+    tablename2 = 'test_cursor07nolog'
     uri = 'table:' + tablename
+    uri2 = 'table:' + tablename2
     #  A large number of keys will force a log file change which will
     # test that scenario for log cursors.
     nkeys = 7000
@@ -56,17 +58,27 @@ class test_cursor07(wttest.WiredTigerTestCase, suite_subprocess):
     def test_log_cursor(self):
         # print "Creating %s with config '%s'" % (self.uri, self.create_params)
         create_params = 'key_format=i,value_format=S'
+        create2_params = 'key_format=i,value_format=S,log=(enabled=false)'
         self.session.create(self.uri, create_params)
         c = self.session.open_cursor(self.uri, None)
+        self.session.create(self.uri2, create2_params)
+        c2 = self.session.open_cursor(self.uri2, None)
 
         # A binary value.
         value = u'\u0001\u0002abcd\u0003\u0004'
+        value2 = u'\u0001\u0002dcba\u0003\u0004'
 
         self.session.begin_transaction()
         for k in range(self.nkeys):
             c[k] = value
         self.session.commit_transaction()
         c.close()
+
+        self.session.begin_transaction()
+        for k in range(self.nkeys):
+            c2[k] = value2
+        self.session.commit_transaction()
+        c2.close()
 
         if self.reopen:
             self.reopen_conn()
@@ -82,6 +94,7 @@ class test_cursor07(wttest.WiredTigerTestCase, suite_subprocess):
             try:
                 if value in str(values[5]):   # logrec_value
                     count += 1
+                self.assertFalse(value2 in str(values[5]))
             except:
                 pass
         c.close()
