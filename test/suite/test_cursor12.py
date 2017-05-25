@@ -157,9 +157,7 @@ class test_cursor12(wttest.WiredTigerTestCase):
         mods.append(mod)
 
         cursor.set_key('ABC')
-        #self.assertEqual(cursor.modify(mods), wiredtiger.WT_NOTFOUND)
-        self.assertRaises(
-            wiredtiger.WiredTigerError, lambda:cursor.modify(mods))
+        self.assertEqual(cursor.modify(mods), wiredtiger.WT_NOTFOUND)
 
 if __name__ == '__main__':
     wttest.run()
