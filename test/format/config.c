@@ -508,7 +508,7 @@ config_pct(void)
 			list[i].order = mmrand(NULL, 1, 1000);
 	if (pct > 100)
 		testutil_die(EINVAL,
-		    "operation percentages total to more than 100%%");
+		    "operation percentages do not total to 100%%");
 
 	/* Cursor modify isn't possible for fixed-length column store. */
 	if (g.type == FIX) {
