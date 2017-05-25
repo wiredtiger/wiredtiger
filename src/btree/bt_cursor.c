@@ -1212,7 +1212,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 	 */
 	WT_ERR(__wt_buf_set(session, &cursor->value, value->data, value->size));
 	F_CLR(cursor, WT_CURSTD_VALUE_SET);
-	F_SET(cursor, WT_CURSTD_KEY_EXT);
+	F_SET(cursor, WT_CURSTD_VALUE_EXT);
 
 	/* WT_CURSOR.modify is update-without-overwrite. */
 	overwrite = F_ISSET(cursor, WT_CURSTD_OVERWRITE);
