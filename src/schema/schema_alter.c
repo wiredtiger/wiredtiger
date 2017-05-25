@@ -15,6 +15,7 @@
 static int
 __alter_file(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
 {
+	WT_CONFIG_ITEM cval;
 	WT_DECL_RET;
 	const char *cfg[4], *filename;
 	char *config, *newconfig;
@@ -28,6 +29,30 @@ __alter_file(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
 	WT_RET(__wt_metadata_search(session, uri, &config));
 
 	WT_ASSERT(session, newcfg[0] != NULL);
+	/*
+	 * Check for an open handle if we're changing the logging
+	 * setting for a table.  We expect the handle is not open for
+	 * altering the logging.  We only care if the user passed in
+	 * the log setting to the method.  We don't care about its
+	 * value or setting, just whether it was used at all.
+	 */
+	if ((ret = __wt_config_getones(
+	    session, newcfg[0], "log.enabled", &cval)) == 0) {
+		/*
+		 * If the user is changing the log setting on the URI,
+		 * then we require the handle not be open already.
+		 */
+		WT_WITH_HANDLE_LIST_READ_LOCK(session,
+		    ret = __wt_conn_dhandle_find(session, uri, NULL));
+		if (ret != WT_NOTFOUND) {
+			if (ret == 0)
+				WT_ERR_MSG(session, EINVAL,
+				    "Cannot alter open table %s", uri);
+			else
+				WT_ERR(ret);
+		}
+	}
+	WT_ERR_NOTFOUND_OK(ret);
 	/*
 	 * Start with the base configuration because collapse is like
 	 * a projection and if we are reading older metadata, it may not
