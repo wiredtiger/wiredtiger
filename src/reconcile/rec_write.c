@@ -350,8 +350,7 @@ static int  __rec_dictionary_init(WT_SESSION_IMPL *, WT_RECONCILE *, u_int);
 static int  __rec_dictionary_lookup(
 		WT_SESSION_IMPL *, WT_RECONCILE *, WT_KV *, WT_DICTIONARY **);
 static void __rec_dictionary_reset(WT_RECONCILE *);
-static void __verbose_lookaside_write(
-		WT_SESSION_IMPL *session, uint64_t inserted_cnt);
+static void __rec_verbose_lookaside_write(WT_SESSION_IMPL *, uint64_t);
 
 /*
  * __wt_reconcile --
@@ -3701,7 +3700,7 @@ err:	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 	if (insert_cnt > 0) {
 		(void)__wt_atomic_add64(
 		    &S2C(session)->las_record_cnt, insert_cnt);
-		__verbose_lookaside_write(session, insert_cnt);
+		__rec_verbose_lookaside_write(session, insert_cnt);
 	}
 
 	__wt_scr_free(session, &key);
@@ -6596,35 +6595,31 @@ __rec_dictionary_lookup(
 }
 
 /*
- * __verbose_lookaside_write --
+ * __rec_verbose_lookaside_write --
  *	Create a verbose message to display with details about the transaction
  * state when performing a lookaside table write.
  */
 static void
-__verbose_lookaside_write(WT_SESSION_IMPL *session, uint64_t inserted_cnt)
+__rec_verbose_lookaside_write(WT_SESSION_IMPL *session, uint64_t insert_cnt)
 {
 #ifdef HAVE_VERBOSE
-	WT_SESSION *wt_session;
 	uint64_t pinned_range;
 	uint32_t pct_dirty, pct_full;
 
 	if (WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE)) {
-
-		wt_session = &session->iface;
-
 		(void)__wt_eviction_clean_needed(session, &pct_full);
 		(void)__wt_eviction_dirty_needed(session, &pct_dirty);
-		wt_session->transaction_pinned_range(wt_session, &pinned_range);
+		__wt_txn_pinned_range(session, &pinned_range);
 
 		__wt_verbose(session, WT_VERB_LOOKASIDE,
-		    "Page reconciliation required %" PRIu64
-		    " lookaside entries: %" PRIu64
-		    " pinned TXN ID's, cache is %" PRIu32
-		    "/%" PRIu32 "%% dirty/clean",
-		    inserted_cnt, pinned_range, pct_dirty, pct_full);
+		    "Page reconciliation triggered lookaside write. "
+		    "Entries written: %" PRIu64 ", "
+		    "pinned transaction IDs: %" PRIu64 ", "
+		    "cache dirty: %" PRIu32 "%% , cache clean: %" PRIu32 "%%",
+		    insert_cnt, pinned_range, pct_dirty, pct_full);
 	}
 #else
 	WT_UNUSED(session);
-	WT_UNUSED(inserted_cnt);
+	WT_UNUSED(insert_cnt);
 #endif
 }

@@ -1474,25 +1474,11 @@ __session_transaction_pinned_range(WT_SESSION *wt_session, uint64_t *prange)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	WT_TXN_STATE *txn_state;
-	uint64_t pinned;
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL_NOCONF(session, pinned_range);
 
-	txn_state = WT_SESSION_TXN_STATE(session);
-
-	/* Assign pinned to the lesser of id or snap_min */
-	if (txn_state->id != WT_TXN_NONE &&
-	    WT_TXNID_LT(txn_state->id, txn_state->pinned_id))
-		pinned = txn_state->id;
-	else
-		pinned = txn_state->pinned_id;
-
-	if (pinned == WT_TXN_NONE)
-		*prange = 0;
-	else
-		*prange = S2C(session)->txn_global.current - pinned;
+	__wt_txn_pinned_range(session, prange);
 
 err:	API_END_RET(session, ret);
 }
