@@ -19,6 +19,21 @@ struct __wt_data_handle_cache {
 };
 
 /*
+ * WT_PROGRESS --
+ *	Tracks the progress of long running operations.
+ */
+struct __wt_progress {
+	time_t start_time;
+	time_t report_time;
+	uint64_t current_handle;
+	uint64_t handles;
+	uint64_t writes;
+	uint64_t bytes;
+};
+#define	WT_CHECKPOINT_PROGRESS_SECONDS		30
+#define	WT_CHECKPOINT_WRITE_CHECKS		10
+
+/*
  * WT_HAZARD --
  *	A hazard pointer.
  */
@@ -127,6 +142,7 @@ struct __wt_session_impl {
 	WT_DATA_HANDLE **ckpt_handle;	/* Handle list */
 	u_int   ckpt_handle_next;	/* Next empty slot */
 	size_t  ckpt_handle_allocated;	/* Bytes allocated */
+	WT_PROGRESS *ckpt_progress;	/* Tallies progress of checkpoint */
 
 	/*
 	 * Operations acting on handles.
