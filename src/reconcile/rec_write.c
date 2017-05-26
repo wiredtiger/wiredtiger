@@ -596,7 +596,7 @@ __rec_write_check_complete(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		 * than rewriting a page in memory because it implies eviction.
 		 */
 		if (r->update_mem_skipped == 0)
-			return (EBUSY);
+			return (0);
 
 		/*
 		 * Don't rewrite pages where we're not going to get back enough
