@@ -6603,20 +6603,40 @@ static void
 __rec_verbose_lookaside_write(WT_SESSION_IMPL *session, uint64_t insert_cnt)
 {
 #ifdef HAVE_VERBOSE
-	uint64_t pinned_range;
+	WT_CONNECTION_IMPL *conn;
+	uint64_t ckpt_gen_current, ckpt_gen_last, pinned_range;
 	uint32_t pct_dirty, pct_full;
 
-	if (WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE)) {
-		(void)__wt_eviction_clean_needed(session, &pct_full);
-		(void)__wt_eviction_dirty_needed(session, &pct_dirty);
-		__wt_txn_pinned_range(session, &pinned_range);
+	conn = S2C(session);
+	ckpt_gen_current = __wt_gen(session, WT_GEN_CHECKPOINT);
+	ckpt_gen_last = conn->las_verb_ckpt_gen;
 
-		__wt_verbose(session, WT_VERB_LOOKASIDE,
-		    "Page reconciliation triggered lookaside write. "
-		    "Entries written: %" PRIu64 ", "
-		    "pinned transaction IDs: %" PRIu64 ", "
-		    "cache dirty: %" PRIu32 "%% , cache clean: %" PRIu32 "%%",
-		    insert_cnt, pinned_range, pct_dirty, pct_full);
+	/*
+	 * This message is only printed once per checkpoint. To do this we
+	 * track the last checkpoint for which sent the message was printed
+	 * check against that here.
+	 */
+	if (WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE) &&
+	    ckpt_gen_current > ckpt_gen_last) {
+		/*
+		 * Attempt to replace the last checkpoint for which this message
+		 * was printed. If the CAS fails we have raced and another
+		 * thread printed the message.
+		 */
+		if (__wt_atomic_casv64(&conn->las_verb_ckpt_gen,
+			ckpt_gen_last,  ckpt_gen_current)) {
+			(void)__wt_eviction_clean_needed(session, &pct_full);
+			(void)__wt_eviction_dirty_needed(session, &pct_dirty);
+			__wt_txn_pinned_range(session, &pinned_range);
+
+			__wt_verbose(session, WT_VERB_LOOKASIDE,
+			    "Page reconciliation triggered lookaside write. "
+			    "Entries written: %" PRIu64 ", "
+			    "pinned transaction IDs: %" PRIu64 ", "
+			    "cache dirty: %" PRIu32 "%% ,"
+			    " cache clean: %" PRIu32 "%%",
+			    insert_cnt, pinned_range, pct_dirty, pct_full);
+		}
 	}
 #else
 	WT_UNUSED(session);

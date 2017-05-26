@@ -376,6 +376,12 @@ struct __wt_connection_impl {
 
 	WT_ITEM		 las_sweep_key;	/* Sweep server's saved key */
 	uint64_t	 las_record_cnt;/* Count of lookaside records */
+	/*
+	 * The "lookaside_activity" verbose message is throttled to once per
+	 * checkpoint, we track the last checkpoint for which sent the message
+	 * here.
+	 */
+	volatile uint64_t	 las_verb_ckpt_gen;
 
 					/* Locked: collator list */
 	TAILQ_HEAD(__wt_coll_qh, __wt_named_collator) collqh;
