@@ -297,29 +297,15 @@ __curfile_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 	WT_ERR(__wt_btcur_modify(cbt, entries, nentries));
 
 	/*
-	 * Modify maintains a position and key, which doesn't match the library
-	 * API, where modify maintains a value. Fix the API by searching after
-	 * each successful modify operation.
+	 * Modify maintains a position, key and value. Unlike update, it's not
+	 * always an internal value.
 	 */
 	WT_ASSERT(session,
 	    F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
-	WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_VALUE_SET) == 0);
+	WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_VALUE_SET) != 0);
 
 err:	CURSOR_UPDATE_API_END(session, ret);
-
-	/*
-	 * Limit update chain length in order to avoid penalizing reads and to
-	 * permit truncation. The btree layer knows if we've hit a limit, but
-	 * the cursor layer has the ability to fallback to a full update.
-	 */
-	if (ret == WT_UPDATE_CHAIN_MAX)
-		return (__wt_cursor_modify(cursor, entries, nentries));
-
-	/*
-	 * The application might do a WT_CURSOR.get_value call when we return,
-	 * so we need a value and the underlying functions didn't set one up.
-	 */
-	return (ret == 0 ? cursor->search(cursor) : ret);
+	return (ret);
 }
 
 /*
