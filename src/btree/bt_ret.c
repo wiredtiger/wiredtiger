@@ -150,20 +150,36 @@ __value_return_upd(
 	}
 
 	/*
-	 * Find a complete update, skipping reserved updates and tracking other
-	 * modifications (we shouldn't ever see a deleted update).
-	 *
-	 * XXX KEITH: is there any way we can be here with an update that
-	 * isn't visible to us?
+	 * Find a complete update that's visible to us, tracking modifications
+	 * and skipping aborted and reserved updates.
 	 */
 	for (listp = list; upd != NULL; upd = upd->next) {
-		if (upd->type == WT_UPDATE_STANDARD)
+		switch (upd->type) {
+		case WT_UPDATE_STANDARD:
+			/*
+			 * Visibility checks aren't cheap, and standard updates
+			 * should be visible to us, but we have to skip aborted
+			 * updates anyway and it's less fragile to check using
+			 * the standard API than roll my own test.
+			 */
+			if (!__wt_txn_visible(session, upd->txnid))
+				continue;
 			break;
-
-		WT_ASSERT(session, upd->type != WT_UPDATE_DELETED);
-
-		if (upd->type == WT_UPDATE_MODIFIED)
+		case WT_UPDATE_DELETED:
+			/*
+			 * We should never see a deleted record, it must have
+			 * been aborted for us to get here.
+			 */
+			WT_ASSERT(session,
+			    !__wt_txn_visible(session, upd->txnid));
+			continue;
+		case WT_UPDATE_MODIFIED:
 			*listp++ = WT_UPDATE_DATA(upd);
+			continue;
+		case WT_UPDATE_RESERVED:
+			continue;
+		}
+		break;
 	}
 
 	/*
