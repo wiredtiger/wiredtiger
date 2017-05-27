@@ -127,7 +127,7 @@ __txn_op_apply(
 		GET_RECOVERY_CURSOR(session, r, lsnp, fileid, &cursor);
 		cursor->set_key(cursor, recno);
 		WT_ERR(cursor->search(cursor));
-		WT_ERR(cursor->get_value(cursor));
+		WT_ERR(cursor->get_value(cursor, &cursor->value));
 		WT_ERR(__wt_value_modify_apply(
 		    session, &cursor->value, value.data));
 		WT_ERR(cursor->insert(cursor));
