@@ -4853,6 +4853,9 @@ compare:		/*
 			n = WT_INSERT_RECNO(ins);
 		}
 		while (src_recno <= n) {
+			deleted = false;
+			update_no_copy = true;
+
 			/*
 			 * The application may have inserted records which left
 			 * gaps in the name space, and these gaps can be huge.
@@ -4879,7 +4882,6 @@ compare:		/*
 			else
 				switch (upd->type) {
 				case WT_UPDATE_STANDARD:
-					deleted = false;
 					data = WT_UPDATE_DATA(upd);
 					size = upd->size;
 					break;
@@ -4887,7 +4889,6 @@ compare:		/*
 					deleted = true;
 					break;
 				case WT_UPDATE_MODIFIED:
-					deleted = false;
 					/*
 					 * Not setting a cursor slot, as there
 					 * must be a valid update record from
@@ -4897,6 +4898,7 @@ compare:		/*
 					    session, cbt, upd));
 					data = cbt->iface.value.data;
 					size = (uint32_t)cbt->iface.value.size;
+					update_no_copy = false;
 					break;
 				WT_ILLEGAL_VALUE_ERR(session);
 				}
@@ -4918,16 +4920,24 @@ compare:		/*
 			}
 
 			/*
-			 * Swap the current/last state.  We always assign the
-			 * data values to the buffer because they can only be
-			 * the data from a WT_UPDATE structure.
-			 *
-			 * Reset RLE counter and turn on comparisons.
+			 * Swap the current/last state. We can't simply assign
+			 * the data values into the last buffer because they may
+			 * be a temporary copy built from a chain of modified
+			 * updates and creating the next record will overwrite
+			 * that memory. Check, we'd like to avoid the copy. If
+			 * data was taken from an update structure, we can just
+			 * use the pointers, they're not moving.
 			 */
 			if (!deleted) {
-				last->data = data;
-				last->size = size;
+				if (update_no_copy) {
+					last->data = data;
+					last->size = size;
+				} else
+					WT_ERR(__wt_buf_set(
+					    session, last, data, size));
 			}
+
+			/* Ready for the next loop, reset the RLE counter. */
 			last_deleted = deleted;
 			rle = 1;
 
