@@ -1165,6 +1165,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 	WT_DECL_ITEM(modify);
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	WT_CURFILE_STATE state;
 	WT_UPDATE *upd;
 	int i;
 	bool overwrite;
@@ -1177,6 +1178,9 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 
 	/* Build the packed modify structure. */
 	WT_RET(__wt_modify_pack(session, &modify, entries, nentries));
+
+	/* Save the cursor state. */
+	__cursor_state_save(cursor, &state);
 
 	/*
 	 * Get the current value and apply the modification to it, for a few
@@ -1213,7 +1217,18 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 	if (overwrite)
 	       F_SET(cursor, WT_CURSTD_OVERWRITE);
 
-err:	__wt_scr_free(session, &modify);
+	/*
+	 * We have our own cursor state restoration because we've modified the
+	 * cursor before calling the underlying cursor update function and we
+	 * need to restore it to its original state. This means multiple calls
+	 * to reset the cursor, but that shouldn't be a problem.
+	 */
+	if (ret != 0) {
+err:		WT_TRET(__cursor_reset(cbt));
+		__cursor_state_restore(cursor, &state);
+	}
+
+	__wt_scr_free(session, &modify);
 	return (ret);
 }
 
