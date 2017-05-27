@@ -129,6 +129,24 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value,
 }
 
 /*
+ * __wt_modify_apply_api --
+ *	Apply a single set of WT_MODIFY changes to a buffer, the cursor API
+ * interface.
+ */
+int
+__wt_modify_apply_api(
+    WT_SESSION_IMPL *session, WT_ITEM *value, WT_MODIFY *entries, int nentries)
+{
+	int i;
+
+	for (i = 0; i < nentries; ++i)
+		WT_RET(__modify_apply_one(session, value, entries[i].data.size,
+		    entries[i].offset, entries[i].size, entries[i].data.data));
+
+	return (0);
+}
+
+/*
  * __wt_modify_apply --
  *	Apply a single set of WT_MODIFY changes to a buffer.
  */
