@@ -12,7 +12,7 @@
  * __key_return --
  *	Change the cursor to reference an internal return key.
  */
-static int
+static inline int
 __key_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 {
 	WT_CURSOR *cursor;
@@ -77,7 +77,7 @@ __key_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
  * __value_return --
  *	Change the cursor to reference an internal original-page return value.
  */
-static int
+static inline int
 __value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 {
 	WT_BTREE *btree;
@@ -133,7 +133,7 @@ __value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
  *	Change the cursor to reference an internal update structure return
  * value.
  */
-static int
+static inline int
 __value_return_upd(
     WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
@@ -244,18 +244,5 @@ __wt_value_return(
 	else
 		WT_RET(__value_return_upd(session, cbt, upd));
 	F_SET(cursor, WT_CURSTD_VALUE_INT);
-	return (0);
-}
-
-/*
- * __wt_kv_return --
- *	Return a page referenced key/value pair to the application.
- */
-int
-__wt_kv_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
-{
-	WT_RET(__wt_key_return(session, cbt));
-	WT_RET(__wt_value_return(session, cbt, upd));
-
 	return (0);
 }

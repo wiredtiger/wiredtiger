@@ -595,11 +595,11 @@ err:	API_END(session, ret);
 }
 
 /*
- * __wt_cursor_modify --
+ * __cursor_modify --
  *	WT_CURSOR->modify default implementation.
  */
-int
-__wt_cursor_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
+static int
+__cursor_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -812,7 +812,7 @@ __wt_cursor_init(WT_CURSOR *cursor,
 	 */
 	if (WT_STREQ(cursor->value_format, "u") &&
 	    cursor->modify == __wt_cursor_modify_notsup)
-		cursor->modify = __wt_cursor_modify;
+		cursor->modify = __cursor_modify;
 
 	/*
 	 * Cursors that are internal to some other cursor (such as file cursors

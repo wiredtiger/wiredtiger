@@ -308,6 +308,20 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 }
 
 /*
+ * __cursor_kv_return --
+ *	Return a page referenced key/value pair to the application.
+ */
+static inline int
+__cursor_kv_return(
+    WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
+{
+	WT_RET(__wt_key_return(session, cbt));
+	WT_RET(__wt_value_return(session, cbt, upd));
+
+	return (0);
+}
+
+/*
  * __cursor_col_search --
  *	Column-store search from a cursor.
  */
@@ -466,7 +480,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 	}
 
 	if (valid)
-		ret = __wt_kv_return(session, cbt, upd);
+		ret = __cursor_kv_return(session, cbt, upd);
 	else if (__cursor_fix_implicit(btree, cbt)) {
 		/*
 		 * Creating a record past the end of the tree in a fixed-length
@@ -588,7 +602,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 	 */
 	if (valid) {
 		exact = cbt->compare;
-		ret = __wt_kv_return(session, cbt, upd);
+		ret = __cursor_kv_return(session, cbt, upd);
 	} else if (__cursor_fix_implicit(btree, cbt)) {
 		cbt->recno = cursor->recno;
 		cbt->v = 0;
@@ -606,7 +620,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 		    __cursor_col_search(session, cbt, NULL));
 		if (__wt_cursor_valid(cbt, &upd)) {
 			exact = cbt->compare;
-			ret = __wt_kv_return(session, cbt, upd);
+			ret = __cursor_kv_return(session, cbt, upd);
 		} else if ((ret = __wt_btcur_prev(cbt, false)) != WT_NOTFOUND)
 			exact = -1;
 	}
@@ -1125,6 +1139,14 @@ err:	if (ret == WT_RESTART) {
 	 */
 done:	if (ret == 0)
 		switch (modify_type) {
+		case WT_UPDATE_STANDARD:
+		case WT_UPDATE_DELETED:
+			/*
+			 * WT_CURSOR.update returns a key and a value.
+			 */
+			WT_TRET(__cursor_kv_return(
+			    session, cbt, cbt->modify_update));
+			break;
 		case WT_UPDATE_RESERVED:
 			/*
 			 * WT_CURSOR.reserve doesn't return any value.
@@ -1138,12 +1160,6 @@ done:	if (ret == 0)
 			 */
 			WT_TRET(__wt_key_return(session, cbt));
 			break;
-		case WT_UPDATE_STANDARD:
-			/*
-			 * WT_CURSOR.update returns a key and a value.
-			 */
-			WT_TRET(
-			    __wt_kv_return(session, cbt, cbt->modify_update));
 		}
 
 	if (ret != 0) {
