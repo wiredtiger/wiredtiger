@@ -58,8 +58,6 @@ errors = [
         more than the configured cache size to complete. The operation
         may be retried; if a transaction is in progress, it should be
         rolled back and the operation retried in a new transaction.'''),
-    Error('WT_UPDATE_CHAIN_MAX', -31808,
-        'update chain exceeds maximum (internal)', undoc=True),
 ]
 
 # Update the #defines in the wiredtiger.in file.
@@ -122,10 +120,7 @@ __wt_wiredtiger_error(int error)
 
 for err in errors:
     tfile.write('\tcase ' + err.name + ':\n')
-    o = 'return ("' + err.name + ': ' + err.desc + '");'
-    if len(o) > 80 - 16:
-        o = o.replace(': ', ': "\n\t\t    "')
-    tfile.write("\t\t" + o + "\n")
+    tfile.write('\t\treturn ("' + err.name + ': ' + err.desc + '");\n')
 tfile.write('''\t}
 
 \t/* Windows strerror doesn't support ENOTSUP. */

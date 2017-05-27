@@ -3231,10 +3231,6 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
  * transaction.
  */
 #define	WT_CACHE_FULL	(-31807)
-/*! @cond internal */
-/*! Update chain exceeds maximum (internal). */
-#define	WT_UPDATE_CHAIN_MAX	(-31808)
-/*! @endcond */
 /*
  * Error return section: END
  * DO NOT EDIT: automatically built by dist/api_err.py.
