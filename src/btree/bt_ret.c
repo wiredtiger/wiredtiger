@@ -129,110 +129,6 @@ __value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 }
 
 /*
- * __value_modify_apply_one --
- *	Apply a single modify structure change to the buffer.
- */
-static int
-__value_modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value,
-    const uint8_t *data, size_t data_size, size_t offset, size_t size)
-{
-	uint8_t *p, *t;
-
-	/*
-	 * Fast-path the expected case, where we're overwriting a set of bytes
-	 * that already exist in the buffer.
-	 */
-	if (value->size > offset + data_size && data_size == size) {
-		memmove((uint8_t *)value->data + offset, data, data_size);
-		return (0);
-	}
-
-	/*
-	 * Grow the buffer to the maximum size we'll need. This is pessimistic
-	 * because it ignores replacement bytes, but it's a simpler calculation.
-	 */
-	WT_RET(__wt_buf_grow(
-	    session, value, WT_MAX(value->size, offset) + data_size));
-
-	/*
-	 * If appending bytes past the end of the value, initialize gap bytes
-	 * and copy the new bytes into place.
-	 */
-	if (value->size <= offset) {
-		if (value->size < offset)
-			memset((uint8_t *)value->data +
-			    value->size, '\0', offset - value->size);
-		memmove((uint8_t *)value->data + offset, data, data_size);
-		value->size = offset + data_size;
-		return (0);
-	}
-
-	/*
-	 * Correct the size if it's nonsense, we can't replace more bytes than
-	 * remain in the value.
-	 */
-	if (value->size < offset + size)
-		size = value->size - offset;
-
-	if (data_size == size) {			/* Overwrite */
-		/* Copy in the new data. */
-		memmove((uint8_t *)value->data + offset, data, data_size);
-
-		/*
-		 * The new data must overlap the buffer's end (else, we'd use
-		 * the fast-path code above). Grow the buffer size to include
-		 * the new data.
-		 */
-		value->size = offset + data_size;
-	} else {					/* Shrink or grow */
-		/* Shift the current data into its new location. */
-		p = (uint8_t *)value->data + offset + size;
-		t = (uint8_t *)value->data + offset + data_size;
-		memmove(t, p, value->size - (offset + size));
-
-		/* Copy in the new data. */
-		memmove((uint8_t *)value->data + offset, data, data_size);
-
-		/* Fix the size. */
-		if (data_size > size)
-			value->size += (data_size - size);
-		else
-			value->size -= (size - data_size);
-	}
-
-	return (0);
-}
-
-/*
- * __wt_value_modify_apply --
- *	Apply a single update structure's WT_MODIFY changes to the buffer.
- */
-int
-__wt_value_modify_apply(
-    WT_SESSION_IMPL *session, WT_ITEM *value, const void *modify)
-{
-	const size_t *p;
-	int nentries;
-	const uint8_t *data;
-
-	/*
-	 * Get the number of entries, and set a second pointer to reference the
-	 * change data.
-	 */
-	p = modify;
-	nentries = (int)*p++;
-	data = (uint8_t *)modify +
-	    sizeof(size_t) + ((u_int)nentries * 3 * sizeof(size_t));
-
-	/* Step through the list of entries, applying them in order. */
-	for (; nentries-- > 0; data += p[0], p += 3)
-		WT_RET(__value_modify_apply_one(
-		    session, value, data, p[0], p[1], p[2]));
-
-	return (0);
-}
-
-/*
  * __value_return_upd --
  *	Change the cursor to reference an internal update structure return
  * value.
@@ -282,8 +178,7 @@ __value_return_upd(
 		    &cursor->value, WT_UPDATE_DATA(upd), upd->size));
 
 	while (listp > list)
-		WT_RET(__wt_value_modify_apply(
-		    session, &cursor->value, *--listp));
+		WT_RET(__wt_modify_apply(session, &cursor->value, *--listp));
 	return (0);
 }
 

@@ -128,8 +128,7 @@ __txn_op_apply(
 		cursor->set_key(cursor, recno);
 		WT_ERR(cursor->search(cursor));
 		WT_ERR(cursor->get_value(cursor, &cursor->value));
-		WT_ERR(__wt_value_modify_apply(
-		    session, &cursor->value, value.data));
+		WT_ERR(__wt_modify_apply(session, &cursor->value, value.data));
 		WT_ERR(cursor->insert(cursor));
 		break;
 
@@ -189,8 +188,7 @@ __txn_op_apply(
 		__wt_cursor_set_raw_key(cursor, &key);
 		WT_ERR(cursor->search(cursor));
 		WT_ERR(cursor->get_value(cursor));
-		WT_ERR(__wt_value_modify_apply(
-		    session, &cursor->value, value.data));
+		WT_ERR(__wt_modify_apply(session, &cursor->value, value.data));
 		WT_ERR(cursor->insert(cursor));
 		break;
 

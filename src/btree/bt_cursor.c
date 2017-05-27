@@ -1166,10 +1166,8 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	WT_UPDATE *upd;
-	size_t len, *p;
 	int i;
 	bool overwrite;
-	uint8_t *data;
 
 	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cursor->session;
@@ -1177,40 +1175,18 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 	WT_STAT_CONN_INCR(session, cursor_modify);
 	WT_STAT_DATA_INCR(session, cursor_modify);
 
-	/*
-	 * Build the modify value. For now, it's the entries count, followed by
-	 * the modify structures written in order, followed by the data (data at
-	 * the end to avoid unaligned reads).
-	 */
-	len = sizeof(size_t);				/* nentries */
-	for (i = 0; i < nentries; ++i) {
-		len += 3 * sizeof(size_t);		/* WT_MODIFY fields */
-		len += entries[i].data.size;		/* data */
-	}
-	WT_ERR(__wt_scr_alloc(session, len, &modify));
-	data = (uint8_t *)modify->mem +
-	    sizeof(size_t) + ((u_int)nentries * 3 * sizeof(size_t));
-	p = modify->mem;
-	*p++ = (size_t)nentries;
-	for (i = 0; i < nentries; ++i) {
-		*p++ = entries[i].data.size;
-		*p++ = entries[i].offset;
-		*p++ = entries[i].size;
-
-		memcpy(data, entries[i].data.data, entries[i].data.size);
-		data += entries[i].data.size;
-	}
-	modify->size = WT_PTRDIFF(data, modify->data);
+	/* Build the packed modify structure. */
+	WT_RET(__wt_modify_pack(session, &modify, entries, nentries));
 
 	/*
-	 * Go get the current value and apply the modification to it. We do this
-	 * for a couple of reasons: we have to return the updated value so the
-	 * application can call get-value on the cursor, and second, we use the
-	 * complete as the real update if the update chain is too long.
+	 * get the current value and apply the modification to it, for a couple
+	 * of reasons: we return the updated value so the application can call
+	 * get-value on the cursor, and second, we use the complete value as the
+	 * update if the current update chain is too long.
 	 */
 	WT_ERR(__wt_btcur_search(cbt));
 	WT_ERR(__cursor_localvalue(cursor));
-	WT_ERR(__wt_value_modify_apply(session, &cursor->value, modify->data));
+	WT_ERR(__wt_modify_apply(session, &cursor->value, modify->data));
 
 	/* Check if the update chain has exceeded the limit. */
 	i = 0;
