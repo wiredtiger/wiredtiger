@@ -1179,14 +1179,16 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 	WT_RET(__wt_modify_pack(session, &modify, entries, nentries));
 
 	/*
-	 * get the current value and apply the modification to it, for a couple
-	 * of reasons: we return the updated value so the application can call
-	 * get-value on the cursor, and second, we use the complete value as the
-	 * update if the current update chain is too long.
+	 * Get the current value and apply the modification to it, for a few
+	 * reasons: first, we return the updated value so the application can
+	 * call get-value on the cursor; second, we use the complete value as
+	 * the update if the current update chain is too long; third, there's
+	 * a check if the complete value is too large to store.
 	 */
 	WT_ERR(__wt_btcur_search(cbt));
 	WT_ERR(__cursor_localvalue(cursor));
 	WT_ERR(__wt_modify_apply(session, &cursor->value, modify->data));
+	WT_ERR(__cursor_size_chk(session, &cursor->value));
 
 	/* Check if the update chain has exceeded the limit. */
 	i = 0;
