@@ -24,8 +24,7 @@ __wt_modify_pack(WT_SESSION_IMPL *session,
 	/*
 	 * Build the in-memory modify value. For now, it's the entries count,
 	 * followed by the modify structure offsets written in order, followed
-	 * by the data (data at the end to avoid unaligned reads). The format
-	 * never ends up on disk so it can be changed at will.
+	 * by the data (data at the end to avoid unaligned reads).
 	 */
 	len = sizeof(size_t);                           /* nentries */
 	for (i = 0; i < nentries; ++i) {
