@@ -192,7 +192,7 @@ __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 	WT_STAT_CONN_INCR(session, rwlock_read);
 
 	WT_DIAGNOSTIC_YIELD;
- 
+
 	/*
 	 * Try to get the lock in a single operation if it is available to
 	 * readers.  This avoids the situation where multiple readers arrive
