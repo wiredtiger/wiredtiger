@@ -200,7 +200,7 @@ __wt_conn_btree_sync_and_close(WT_SESSION_IMPL *session, bool final, bool force)
 			__wt_evict_priority_clear(session);
 		}
 		if (!marked_dead || final)
-			WT_ERR(__wt_checkpoint_close(session, final));
+			WT_TRET(__wt_checkpoint_close(session, final));
 	}
 
 	WT_TRET(__wt_btree_close(session));
@@ -219,7 +219,7 @@ __wt_conn_btree_sync_and_close(WT_SESSION_IMPL *session, bool final, bool force)
 	    F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
 	    !F_ISSET(dhandle, WT_DHANDLE_OPEN));
 
-err:	__wt_spin_unlock(session, &dhandle->close_lock);
+	__wt_spin_unlock(session, &dhandle->close_lock);
 
 	if (no_schema_lock)
 		F_CLR(session, WT_SESSION_NO_SCHEMA_LOCK);
