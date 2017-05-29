@@ -681,7 +681,7 @@ skip_evict:
 
 /*
  * __btree_verbose_lookaside_read --
- *      Create a verbose message to display at most once per checkpoint when
+ *	Create a verbose message to display at most once per checkpoint when
  *	performing a lookaside table read.
  */
 static void

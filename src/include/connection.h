@@ -382,8 +382,8 @@ struct __wt_connection_impl {
 	 * checkpoint. To accomplish this we track the checkpoint generation
 	 * for the most recent read and write verbose messages.
 	 */
-	volatile uint64_t        las_verb_gen_read;
-	volatile uint64_t	 las_verb_gen_write;
+	volatile uint64_t	las_verb_gen_read;
+	volatile uint64_t	las_verb_gen_write;
 
 					/* Locked: collator list */
 	TAILQ_HEAD(__wt_coll_qh, __wt_named_collator) collqh;

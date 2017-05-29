@@ -6625,7 +6625,7 @@ __rec_verbose_lookaside_write(WT_SESSION_IMPL *session)
 		 * we have raced and the winning thread will print the message.
 		 */
 		if (__wt_atomic_casv64(&conn->las_verb_gen_write,
-		    ckpt_gen_last,  ckpt_gen_current)) {
+		    ckpt_gen_last, ckpt_gen_current)) {
 			(void)__wt_eviction_clean_needed(session, &pct_full);
 			(void)__wt_eviction_dirty_needed(session, &pct_dirty);
 
