@@ -151,6 +151,9 @@ __page_out_int(WT_SESSION_IMPL *session, WT_PAGE **pagep, bool rewrite)
 		break;
 	}
 
+	/* Destroy the page lock. */
+	__wt_rwlock_destroy(session, &page->page_lock);
+
 	/* Discard any allocated disk image. */
 	if (F_ISSET_ATOMIC(page, WT_PAGE_DISK_ALLOC))
 		__wt_overwrite_and_free_len(session, dsk, dsk->mem_size);

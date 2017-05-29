@@ -690,7 +690,6 @@ extern int __wt_huffman_decode(WT_SESSION_IMPL *session, void *huffman_arg, cons
 extern void __wt_rwlock_init(WT_SESSION_IMPL *session, WT_RWLOCK *l);
 extern void __wt_rwlock_destroy(WT_SESSION_IMPL *session, WT_RWLOCK *l);
 extern int __wt_try_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern void __wt_readlock_spin(WT_SESSION_IMPL *session, WT_RWLOCK *l);
 extern void __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l);
 extern void __wt_readunlock(WT_SESSION_IMPL *session, WT_RWLOCK *l);
 extern int __wt_try_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

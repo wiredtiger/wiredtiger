@@ -37,17 +37,21 @@ struct __wt_condvar {
  * Don't modify this structure without understanding the read/write locking
  * functions.
  */
-union __wt_rwlock {			/* Read/write lock */
-	uint64_t u;
-	struct {
-		uint32_t wr;		/* Writers and readers */
-	} i;
-	struct {
-		uint16_t writers;	/* Now serving for writers */
-		uint16_t readers;	/* Now serving for readers */
-		uint16_t next;		/* Next available ticket number */
-		uint16_t writers_active;/* Count of active writers */
-	} s;
+struct __wt_rwlock {			/* Read/write lock */
+	union {
+		uint64_t v;			/* Full 64-bit value */
+		struct {
+			uint32_t wr;		/* Writers and readers */
+		} i;
+		struct {
+			uint16_t writers;	/* Now serving for writers */
+			uint16_t readers;	/* Now serving for readers */
+			uint16_t next;		/* Next available ticket */
+			uint16_t writers_active;/* Count of active writers */
+		} s;
+	} u;
+
+	WT_CONDVAR *cond;		/* Blocking */
 };
 
 /*

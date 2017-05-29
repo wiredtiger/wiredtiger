@@ -65,6 +65,9 @@ __wt_page_alloc(WT_SESSION_IMPL *session,
 	page->type = type;
 	page->read_gen = WT_READGEN_NOTSET;
 
+	/* Initialize the page lock. */
+	__wt_rwlock_init(session, &page->page_lock);
+
 	switch (type) {
 	case WT_PAGE_COL_FIX:
 		page->entries = alloc_entries;
