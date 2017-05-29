@@ -704,9 +704,9 @@ __btree_verbose_lookaside_read(WT_SESSION_IMPL *session)
 	 */
 	if (ckpt_gen_current > ckpt_gen_last) {
 		/*
-		 * Attempt to atomically replace the last checkpoint for which
-		 * this message was printed. If the atomic swap fails we have
-		 * raced and another thread printed the message.
+		 * Attempt to atomically replace the last checkpoint generation
+		 * for which this message was printed. If the atomic swap fails
+		 * we have raced and the winning thread will print the message.
 		 */
 		if (__wt_atomic_casv64(&conn->las_verb_gen_read,
 			ckpt_gen_last, ckpt_gen_current)) {

@@ -6596,8 +6596,8 @@ __rec_dictionary_lookup(
 
 /*
  * __rec_verbose_lookaside_write --
- *	Create a verbose message to display with details about the transaction
- * state when performing a lookaside table write.
+ *	Create a verbose message to display once per checkpoint with details
+ * about the cache state when performing a lookaside table write.
  */
 static void
 __rec_verbose_lookaside_write(WT_SESSION_IMPL *session)
@@ -6620,9 +6620,9 @@ __rec_verbose_lookaside_write(WT_SESSION_IMPL *session)
 	 */
 	if (ckpt_gen_current > ckpt_gen_last) {
 		/*
-		 * Attempt to atomically replace the last checkpoint for which
-		 * this message was printed. If the atomic swap fails we have
-		 * raced and another thread printed the message.
+		 * Attempt to atomically replace the last checkpoint generation
+		 * for which this message was printed. If the atomic swap fails
+		 * we have raced and the winning thread will print the message.
 		 */
 		if (__wt_atomic_casv64(&conn->las_verb_gen_write,
 		    ckpt_gen_last,  ckpt_gen_current)) {
@@ -6639,6 +6639,5 @@ __rec_verbose_lookaside_write(WT_SESSION_IMPL *session)
 	}
 #else
 	WT_UNUSED(session);
-	WT_UNUSED(insert_cnt);
 #endif
 }
