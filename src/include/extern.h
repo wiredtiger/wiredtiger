@@ -754,7 +754,6 @@ extern int __wt_txn_init(WT_SESSION_IMPL *session, WT_SESSION_IMPL *session_ret)
 extern void __wt_txn_stats_update(WT_SESSION_IMPL *session);
 extern void __wt_txn_destroy(WT_SESSION_IMPL *session);
 extern int __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern void __wt_txn_pinned_range(WT_SESSION_IMPL *session, uint64_t *prange);
 extern void __wt_txn_global_destroy(WT_SESSION_IMPL *session);
 extern int __wt_verbose_dump_txn(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

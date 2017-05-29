@@ -8,6 +8,8 @@
 
 #include "wt_internal.h"
 
+static void __btree_verbose_lookaside_read(WT_SESSION_IMPL *);
+
 /*
  * __wt_las_remove_block --
  *	Remove all records matching a key prefix from the lookaside store.
@@ -446,8 +448,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref)
 	 */
 	dsk = tmp.data;
 	if (F_ISSET(dsk, WT_PAGE_LAS_UPDATE) && __wt_las_is_written(session)) {
-		__wt_verbose(session, WT_VERB_LOOKASIDE,
-		    "Lookaside read triggered by operation: %s", session->name);
+		__btree_verbose_lookaside_read(session);
 		WT_STAT_CONN_INCR(session, cache_read_lookaside);
 		WT_STAT_DATA_INCR(session, cache_read_lookaside);
 
@@ -676,4 +677,44 @@ skip_evict:
 		WT_STAT_CONN_INCRV(session, page_sleep, sleep_cnt);
 		__wt_sleep(0, sleep_cnt);
 	}
+}
+
+/*
+ * __btree_verbose_lookaside_read --
+ *      Create a verbose message to display at most once per checkpoint when
+ *	performing a lookaside table read.
+ */
+static void
+__btree_verbose_lookaside_read(WT_SESSION_IMPL *session)
+{
+#ifdef HAVE_VERBOSE
+	WT_CONNECTION_IMPL *conn;
+	uint64_t ckpt_gen_current, ckpt_gen_last;
+
+	if (!WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE)) return;
+
+	conn = S2C(session);
+	ckpt_gen_current = __wt_gen(session, WT_GEN_CHECKPOINT);
+	ckpt_gen_last = conn->las_verb_gen_read;
+
+	/*
+	 * This message is throttled to one per checkpoint. To do this we
+	 * track the generation of the last checkpoint for which the message
+	 * was printed and check against the current checkpoint generation.
+	 */
+	if (ckpt_gen_current > ckpt_gen_last) {
+		/*
+		 * Attempt to atomically replace the last checkpoint for which
+		 * this message was printed. If the atomic swap fails we have
+		 * raced and another thread printed the message.
+		 */
+		if (__wt_atomic_casv64(&conn->las_verb_gen_read,
+			ckpt_gen_last, ckpt_gen_current)) {
+			__wt_verbose(session, WT_VERB_LOOKASIDE,
+			    "Read from lookaside file triggered.");
+		}
+	}
+#else
+	WT_UNUSED(session);
+#endif
 }

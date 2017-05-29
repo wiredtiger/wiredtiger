@@ -350,7 +350,7 @@ static int  __rec_dictionary_init(WT_SESSION_IMPL *, WT_RECONCILE *, u_int);
 static int  __rec_dictionary_lookup(
 		WT_SESSION_IMPL *, WT_RECONCILE *, WT_KV *, WT_DICTIONARY **);
 static void __rec_dictionary_reset(WT_RECONCILE *);
-static void __rec_verbose_lookaside_write(WT_SESSION_IMPL *, uint64_t);
+static void __rec_verbose_lookaside_write(WT_SESSION_IMPL *);
 
 /*
  * __wt_reconcile --
@@ -3700,7 +3700,7 @@ err:	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 	if (insert_cnt > 0) {
 		(void)__wt_atomic_add64(
 		    &S2C(session)->las_record_cnt, insert_cnt);
-		__rec_verbose_lookaside_write(session, insert_cnt);
+		__rec_verbose_lookaside_write(session);
 	}
 
 	__wt_scr_free(session, &key);
@@ -6600,42 +6600,41 @@ __rec_dictionary_lookup(
  * state when performing a lookaside table write.
  */
 static void
-__rec_verbose_lookaside_write(WT_SESSION_IMPL *session, uint64_t insert_cnt)
+__rec_verbose_lookaside_write(WT_SESSION_IMPL *session)
 {
 #ifdef HAVE_VERBOSE
 	WT_CONNECTION_IMPL *conn;
-	uint64_t ckpt_gen_current, ckpt_gen_last, pinned_range;
+	uint64_t ckpt_gen_current, ckpt_gen_last;
 	uint32_t pct_dirty, pct_full;
+
+	if (!WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE)) return;
 
 	conn = S2C(session);
 	ckpt_gen_current = __wt_gen(session, WT_GEN_CHECKPOINT);
-	ckpt_gen_last = conn->las_verb_ckpt_gen;
+	ckpt_gen_last = conn->las_verb_gen_write;
 
 	/*
-	 * This message is only printed once per checkpoint. To do this we
-	 * track the last checkpoint for which sent the message was printed
-	 * check against that here.
+	 * This message is throttled to one per checkpoint. To do this we
+	 * track the generation of the last checkpoint for which the message
+	 * was printed and check against the current checkpoint generation.
 	 */
-	if (WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE) &&
-	    ckpt_gen_current > ckpt_gen_last) {
+	if (ckpt_gen_current > ckpt_gen_last) {
 		/*
-		 * Attempt to replace the last checkpoint for which this message
-		 * was printed. If the CAS fails we have raced and another
-		 * thread printed the message.
+		 * Attempt to atomically replace the last checkpoint for which
+		 * this message was printed. If the atomic swap fails we have
+		 * raced and another thread printed the message.
 		 */
-		if (__wt_atomic_casv64(&conn->las_verb_ckpt_gen,
-			ckpt_gen_last,  ckpt_gen_current)) {
+		if (__wt_atomic_casv64(&conn->las_verb_gen_write,
+		    ckpt_gen_last,  ckpt_gen_current)) {
 			(void)__wt_eviction_clean_needed(session, &pct_full);
 			(void)__wt_eviction_dirty_needed(session, &pct_dirty);
-			__wt_txn_pinned_range(session, &pinned_range);
 
 			__wt_verbose(session, WT_VERB_LOOKASIDE,
 			    "Page reconciliation triggered lookaside write. "
-			    "Entries written: %" PRIu64 ", "
-			    "pinned transaction IDs: %" PRIu64 ", "
-			    "cache dirty: %" PRIu32 "%% ,"
-			    " cache clean: %" PRIu32 "%%",
-			    insert_cnt, pinned_range, pct_dirty, pct_full);
+			    "Entries now in lookaside file: %" PRIu64 ", "
+			    "cache dirty: %" PRIu32 "%% , "
+			    "cache use: %" PRIu32 "%%",
+			    conn->las_record_cnt, pct_dirty, pct_full);
 		}
 	}
 #else
