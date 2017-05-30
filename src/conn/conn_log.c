@@ -50,11 +50,11 @@ __logmgr_force_archive(WT_SESSION_IMPL *session, uint32_t lognum)
 	WT_CONNECTION_IMPL *conn;
 	WT_LOG *log;
 	WT_SESSION_IMPL *tmp_session;
-	bool first;
+	int yield;
 
 	conn = S2C(session);
 	log = conn->log;
-	first = true;
+	yield = 0;
 	WT_RET(__wt_open_internal_session(conn,
 	    "compatibility-reconfig", true, 0, &tmp_session));
 	while (log->first_lsn.l.file < lognum) {
@@ -65,21 +65,33 @@ __logmgr_force_archive(WT_SESSION_IMPL *session, uint32_t lognum)
 		 * log record could still reflect the previous log file in
 		 * cases such as the write LSN has not yet advanced into the
 		 * new log file due to another group of threads still in
-		 * progress with their writes.
+		 * progress with their slot copies or writes.
 		 */
 		WT_RET(tmp_session->iface.checkpoint(
 		    &tmp_session->iface, "force=1"));
 		/*
 		 * We need to wait for the archival to reach up to the
 		 * log number needed to be assured no previous version
-		 * log files exist.  There could be outstanding writes or a
-		 * cursor open preventing archiving.
+		 * log files exist.  There could be outstanding writes from
+		 * a thread group still copying to a slot or a log cursor
+		 * open, preventing archiving.
+		 *
+		 * We don't expect to need to wait here generally, so only yield
+		 * if we come through more than once.
 		 */
-		if (!first)
-			__wt_yield();
+		if (yield++ != 0) {
+			if (yield < WT_THOUSAND) {
+				WT_STAT_CONN_INCR(session,
+				    log_force_archive_yield);
+				__wt_yield();
+			} else {
+				WT_STAT_CONN_INCR(session,
+				    log_force_archive_sleep);
+				__wt_sleep(0, WT_THOUSAND);
+			}
+		}
 		WT_RET(WT_SESSION_CHECK_PANIC(tmp_session));
 		WT_RET(__wt_log_truncate_files(tmp_session, NULL, true));
-		first = false;
 	}
 	WT_RET(tmp_session->iface.close(&tmp_session->iface, NULL));
 	return (0);
