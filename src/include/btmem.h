@@ -287,17 +287,17 @@ struct __wt_page_modify {
 		void	*disk_image;
 
 		/*
-		 * List of unresolved updates. Updates are either a WT_INSERT
-		 * or a row-store leaf page entry; when creating lookaside
-		 * records, there is an additional value, the committed item's
-		 * transaction ID.
+		 * List of unresolved updates. Updates are either a row-store
+		 * row-store insert list or update list, or column-store insert
+		 * list. When creating lookaside records, there is an additional
+		 * value, the committed item's transaction ID.
 		 *
 		 * If there are unresolved updates, the block wasn't written and
 		 * there will always be a disk image.
 		 */
 		struct __wt_save_upd {
-			WT_INSERT *ins;
-			WT_ROW	  *rip;
+			WT_INSERT *ins;		/* Insert list reference */
+			WT_ROW	  *ripcip;	/* Original on-page reference */
 			uint64_t   onpage_txn;
 		} *supd;
 		uint32_t supd_entries;

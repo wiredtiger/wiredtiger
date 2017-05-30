@@ -1106,12 +1106,12 @@ __rec_bnd_cleanup(WT_SESSION_IMPL *session, WT_RECONCILE *r, bool destroy)
  */
 static int
 __rec_update_save(WT_SESSION_IMPL *session,
-    WT_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip, uint64_t txnid)
+    WT_RECONCILE *r, WT_INSERT *ins, void *ripcip, uint64_t txnid)
 {
 	WT_RET(__wt_realloc_def(
 	    session, &r->supd_allocated, r->supd_next + 1, &r->supd));
 	r->supd[r->supd_next].ins = ins;
-	r->supd[r->supd_next].rip = rip;
+	r->supd[r->supd_next].ripcip = ripcip;
 	r->supd[r->supd_next].onpage_txn = txnid;
 	++r->supd_next;
 	return (0);
@@ -1131,7 +1131,7 @@ __rec_update_move(WT_SESSION_IMPL *session, WT_BOUNDARY *bnd, WT_SAVE_UPD *supd)
 	++bnd->supd_next;
 
 	supd->ins = NULL;
-	supd->rip = NULL;
+	supd->ripcip = NULL;
 	return (0);
 }
 
@@ -1142,7 +1142,7 @@ __rec_update_move(WT_SESSION_IMPL *session, WT_BOUNDARY *bnd, WT_SAVE_UPD *supd)
  */
 static int
 __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
-    WT_INSERT *ins, WT_ROW *rip, WT_CELL_UNPACK *vpack, WT_UPDATE **updp)
+    WT_INSERT *ins, void *ripcip, WT_CELL_UNPACK *vpack, WT_UPDATE **updp)
 {
 	WT_BTREE *btree;
 	WT_DECL_RET;
@@ -1165,7 +1165,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 * (which may not exist). Return immediately if the item has no updates.
 	 */
 	if (ins == NULL) {
-		if ((upd_list = WT_ROW_UPDATE(page, rip)) == NULL)
+		if ((upd_list = WT_ROW_UPDATE(page, ripcip)) == NULL)
 			return (0);
 	} else
 		upd_list = ins->upd;
@@ -1468,7 +1468,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 * the lookaside table records, allowing them to be discarded.
 	 */
 	return (__rec_update_save(session,
-	    r, ins, rip, (*updp == NULL) ? WT_TXN_NONE : (*updp)->txnid));
+	    r, ins, ripcip, (*updp == NULL) ? WT_TXN_NONE : (*updp)->txnid));
 }
 
 /*
@@ -2419,7 +2419,7 @@ __rec_split_row_promote(
 			supd = &r->supd[i - 1];
 			if (supd->ins == NULL)
 				WT_ERR(__wt_row_leaf_key(session,
-				    r->page, supd->rip, update, false));
+				    r->page, supd->ripcip, update, false));
 			else {
 				update->data = WT_INSERT_KEY(supd->ins);
 				update->size = WT_INSERT_KEY_SIZE(supd->ins);
@@ -3424,7 +3424,7 @@ __rec_split_write(WT_SESSION_IMPL *session,
 		case WT_PAGE_ROW_LEAF:
 			if (supd->ins == NULL)
 				WT_ERR(__wt_row_leaf_key(
-				    session, page, supd->rip, key, false));
+				    session, page, supd->ripcip, key, false));
 			else {
 				key->data = WT_INSERT_KEY(supd->ins);
 				key->size = WT_INSERT_KEY_SIZE(supd->ins);
@@ -3591,6 +3591,7 @@ __rec_update_las(WT_SESSION_IMPL *session,
     WT_RECONCILE *r, uint32_t btree_id, WT_BOUNDARY *bnd)
 {
 	WT_CURSOR *cursor;
+	WT_CURSOR_BTREE *cbt;
 	WT_DECL_ITEM(key);
 	WT_DECL_RET;
 	WT_ITEM las_addr, las_value;
@@ -3603,6 +3604,7 @@ __rec_update_las(WT_SESSION_IMPL *session,
 	uint8_t *p;
 
 	cursor = NULL;
+	cbt = &r->update_modify_cbt;
 	WT_CLEAR(las_addr);
 	WT_CLEAR(las_value);
 	page = r->page;
@@ -3655,12 +3657,11 @@ __rec_update_las(WT_SESSION_IMPL *session,
 			WT_ERR(
 			    __wt_vpack_uint(&p, 0, WT_INSERT_RECNO(list->ins)));
 			key->size = WT_PTRDIFF(p, key->data);
-
 			break;
 		case WT_PAGE_ROW_LEAF:
 			if (list->ins == NULL)
 				WT_ERR(__wt_row_leaf_key(
-				    session, page, list->rip, key, false));
+				    session, page, list->ripcip, key, false));
 			else {
 				key->data = WT_INSERT_KEY(list->ins);
 				key->size = WT_INSERT_KEY_SIZE(list->ins);
@@ -3669,40 +3670,48 @@ __rec_update_las(WT_SESSION_IMPL *session,
 		WT_ILLEGAL_VALUE_ERR(session);
 		}
 
-		/* Lookaside table value component: update reference. */
-		switch (page->type) {
-		case WT_PAGE_COL_FIX:
-		case WT_PAGE_COL_VAR:
-			upd = list->ins->upd;
-			break;
-		case WT_PAGE_ROW_LEAF:
-			if (list->ins == NULL) {
-				slot = WT_ROW_SLOT(page, list->rip);
-				upd = page->modify->mod_row_update[slot];
-			} else
-				upd = list->ins->upd;
-			break;
-		WT_ILLEGAL_VALUE_ERR(session);
-		}
+		/*
+		 * Lookaside table value component: update reference.
+		 * Updates come from the row-store insert list or update array,
+		 * or from a column-store insert list (column-store format has
+		 * no update array). When rolling forward a modified update from
+		 * an original on-page item, we need an on-page slot.
+		 */
+		slot = UINT32_MAX;			/* Impossible slot */
+		if (list->ripcip != NULL)
+			slot = page->type == WT_PAGE_ROW_LEAF ?
+			    WT_ROW_SLOT(page, list->ripcip) :
+			    WT_COL_SLOT(page, list->ripcip);
+		upd = list->ins == NULL ?
+		    page->modify->mod_row_update[slot] : list->ins->upd;
 
 		/*
 		 * Walk the list of updates, storing each key/value pair into
-		 * the lookaside table. Skipped reserved items, they're never
-		 * restored, obviously.
+		 * the lookaside table. Skip reserved items, they're obviously
+		 * never restored.
 		 */
 		do {
-			if (upd->type == WT_UPDATE_RESERVED)
+			switch (upd->type) {
+			case WT_UPDATE_STANDARD:
+				las_value.data = WT_UPDATE_DATA(upd);
+				las_value.size = upd->size;
+				break;
+			case WT_UPDATE_DELETED:
+				las_value.size = 0;
+				break;
+			case WT_UPDATE_MODIFIED:
+				cbt->slot = slot;
+				WT_ERR(__wt_value_return(session, cbt, upd));
+				las_value.data = cbt->iface.value.data;
+				las_value.size =
+				    (uint32_t)cbt->iface.value.size;
+				break;
+			case WT_UPDATE_RESERVED:
 				continue;
+			}
 
 			cursor->set_key(cursor, btree_id,
 			    &las_addr, ++las_counter, list->onpage_txn, key);
-
-			if (upd->type == WT_UPDATE_DELETED)
-				las_value.size = 0;
-			else {
-				las_value.data = WT_UPDATE_DATA(upd);
-				las_value.size = upd->size;
-			}
 			cursor->set_value(
 			    cursor, upd->txnid, upd->type, &las_value);
 
@@ -4625,7 +4634,7 @@ record_loop:	/*
 			upd = NULL;
 			if (ins != NULL && WT_INSERT_RECNO(ins) == src_recno) {
 				WT_ERR(__rec_txn_read(
-				    session, r, ins, NULL, vpack, &upd));
+				    session, r, ins, cip, vpack, &upd));
 				ins = WT_SKIP_NEXT(ins);
 			}
 
