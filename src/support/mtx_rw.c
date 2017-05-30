@@ -27,7 +27,7 @@
  */
 
 /*
- * Based on "Spinlocks and Read-Write Locks" by Dr. Steven Fuerst:
+ * Inspired by "Spinlocks and Read-Write Locks" by Dr. Steven Fuerst:
  *	http://locklessinc.com/articles/locks/
  *
  * Dr. Fuerst further credits:
@@ -126,7 +126,9 @@ __wt_rwlock_init(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 	l->u.v = 0;
 
 	/* XXX needs real error handling. */
-	ret = __wt_cond_alloc(session, "rwlock wait", &l->cond);
+	ret = __wt_cond_alloc(session, "rwlock wait", &l->cond_readers);
+	WT_ASSERT(session, ret == 0);
+	ret = __wt_cond_alloc(session, "rwlock wait", &l->cond_writers);
 	WT_ASSERT(session, ret == 0);
 	WT_UNUSED(ret);
 }
@@ -143,7 +145,9 @@ __wt_rwlock_destroy(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 	l->u.v = 0;
 
 	/* XXX needs real error handling. */
-	ret = __wt_cond_destroy(session, &l->cond);
+	ret = __wt_cond_destroy(session, &l->cond_readers);
+	WT_ASSERT(session, ret == 0);
+	ret = __wt_cond_destroy(session, &l->cond_writers);
 	WT_ASSERT(session, ret == 0);
 	WT_UNUSED(ret);
 }
@@ -161,22 +165,26 @@ __wt_try_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 
 	new.u.v = old.u.v = l->u.v;
 
-	/*
-	 * This read lock can only be granted if the lock was last granted to
-	 * a reader and there are no readers or writers blocked on the lock,
-	 * that is, if this thread's ticket would be the next ticket granted.
-	 * Do the cheap test to see if this can possibly succeed (and confirm
-	 * the lock is in the correct state to grant this read lock).
-	 */
-	if (old.u.s.readers != old.u.s.next)
+	/* This read lock can only be granted if there are no active writers. */
+	if (old.u.s.current != old.u.s.next)
 		return (EBUSY);
 
-	/*
-	 * The replacement lock value is a result of allocating a new ticket and
-	 * incrementing the reader value to match it.
-	 */
-	new.u.s.readers = new.u.s.next = old.u.s.next + 1;
-	return (__wt_atomic_cas64(&l->u.v, old.u.v, new.u.v) ? 0 : EBUSY);
+	/* The replacement lock value is a result of adding an active reader. */
+	new.u.s.readers_active++;
+	return (__wt_atomic_casv64(&l->u.v, old.u.v, new.u.v) ? 0 : EBUSY);
+}
+
+/*
+ * __read_blocked --
+ *	Check whether the current read lock request should keep waiting.
+ */
+static bool
+__read_blocked(WT_SESSION_IMPL *session) {
+	WT_RWLOCK old;
+	uint8_t ticket = session->current_rwticket;
+
+	old.u.v = session->current_rwlock->u.v;
+	return (ticket != old.u.s.current);
 }
 
 /*
@@ -186,51 +194,75 @@ __wt_try_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 void
 __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 {
-	uint16_t ticket;
+	WT_RWLOCK new, old;
 	int pause_cnt;
+	uint8_t ticket;
 
 	WT_STAT_CONN_INCR(session, rwlock_read);
 
 	WT_DIAGNOSTIC_YIELD;
 
-	/*
-	 * Try to get the lock in a single operation if it is available to
-	 * readers.  This avoids the situation where multiple readers arrive
-	 * concurrently and have to line up in order to enter the lock.  For
-	 * read-heavy workloads it can make a significant difference.
-	 */
-	for (pause_cnt = 0; l->u.s.writers_active == 0; pause_cnt++) {
-		if (__wt_try_readlock(session, l) == 0)
-			return;
-		if (pause_cnt < 1000)
+	pause_cnt = 0;
+	do {
+restart:	/*
+		 * Fast path: if there is no active writer, join the current
+		 * group.
+		 */
+		for (old.u.v = l->u.v;
+		    old.u.s.current == old.u.s.next;
+		    old.u.v = l->u.v) {
+			new.u.v = old.u.v;
+			new.u.s.readers_active++;
+			if (__wt_atomic_casv64(&l->u.v, old.u.v, new.u.v))
+				return;
 			WT_PAUSE();
-		else
-			__wt_yield();
-	}
+		}
 
-	/*
-	 * Possibly wrap: if we have more than 64K lockers waiting, the ticket
-	 * value will wrap and two lockers will simultaneously be granted the
-	 * lock.
-	 */
-	ticket = __wt_atomic_fetch_add16(&l->u.s.next, 1);
-	for (pause_cnt = 0; ticket != l->u.s.readers; pause_cnt++) {
+		/*
+		 * There is an active writer: join the next group.
+		 * Check for wrapping: if the maximum number of readers are
+		 * already queued, wait until we can get a valid ticket.
+		 * If we are the first reader to queue, set the next read
+		 * group.
+		 * Note: don't re-read from the lock or we could race with a
+		 * writer unlocking.
+		 */
+		if (old.u.s.readers_queued == UINT16_MAX ||
+		    (old.u.s.next != old.u.s.current &&
+		    old.u.s.readers_queued > old.u.s.next - old.u.s.current)) {
+			__wt_cond_wait(
+			    session, l->cond_readers, WT_THOUSAND, NULL);
+			goto restart;
+		}
+		new.u.v = old.u.v;
+		if (new.u.s.readers_queued++ == 0)
+			new.u.s.reader = new.u.s.next;
+		ticket = new.u.s.reader;
+
+		/*
+		 * Check for wrapping: if we have more than 64K lockers
+		 * waiting, the ticket value will wrap and two lockers will
+		 * simultaneously be granted the lock.
+		 */
+		WT_ASSERT(session, new.u.s.readers_queued != 0);
+	} while (!__wt_atomic_casv64(&l->u.v, old.u.v, new.u.v));
+
+	/* Wait for our group to start. */
+	for (pause_cnt = 0; ticket != l->u.s.current; pause_cnt++) {
 		if (pause_cnt < 1000)
 			WT_PAUSE();
-		else if (pause_cnt < 1100)
+		else if (pause_cnt < 1200)
 			__wt_yield();
 		else {
-			__wt_cond_wait(session, l->cond, WT_THOUSAND, NULL);
-			if (ticket <= l->u.s.readers + 10)
-				pause_cnt = 0;
+			session->current_rwlock = l;
+			session->current_rwticket = ticket;
+			__wt_cond_wait(
+			    session, l->cond_readers, 0, __read_blocked);
+			pause_cnt = 0;
 		}
 	}
 
-	/*
-	 * We're the only writer of the readers field, so the update does not
-	 * need to be atomic.
-	 */
-	++l->u.s.readers;
+	WT_ASSERT(session, l->u.s.readers_active > 0);
 
 	/*
 	 * Applications depend on a barrier here so that operations holding the
@@ -246,15 +278,22 @@ __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 void
 __wt_readunlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 {
-	WT_UNUSED(session);
+	WT_RWLOCK new, old;
 
-	/*
-	 * Increment the writers value (other readers are doing the same, make
-	 * sure we don't race).
-	 */
-	(void)__wt_atomic_add16(&l->u.s.writers, 1);
+	do {
+		old.u.v = l->u.v;
+		WT_ASSERT(session, old.u.s.readers_active > 0);
 
-	__wt_cond_signal(session, l->cond);
+		/*
+		 * Decrement the active reader count (other readers are doing
+		 * the same, make sure we don't race).
+		 */
+		new.u.v = old.u.v;
+		--new.u.s.readers_active;
+	} while (!__wt_atomic_casv64(&l->u.v, old.u.v, new.u.v));
+
+	if (new.u.s.readers_active == 0 && new.u.s.current != new.u.s.next)
+		__wt_cond_signal(session, l->cond_writers);
 }
 
 /*
@@ -268,22 +307,35 @@ __wt_try_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 
 	WT_STAT_CONN_INCR(session, rwlock_write);
 
-	old.u.v = new.u.v = l->u.v;
-
 	/*
-	 * This write lock can only be granted if the lock was last granted to
-	 * a writer and there are no readers or writers blocked on the lock,
-	 * that is, if this thread's ticket would be the next ticket granted.
-	 * Do the cheap test to see if this can possibly succeed (and confirm
-	 * the lock is in the correct state to grant this write lock).
+	 * This write lock can only be granted if no readers or writers blocked
+	 * on the lock, that is, if this thread's ticket would be the next
+	 * ticket granted.  Check if this can possibly succeed (and confirm the
+	 * lock is in the correct state to grant this write lock).
 	 */
-	if (old.u.s.writers != old.u.s.next)
+	old.u.v = l->u.v;
+	if (old.u.s.current != old.u.s.next || old.u.s.readers_active != 0)
 		return (EBUSY);
 
+	WT_ASSERT(session, old.u.s.readers_queued == 0);
+
 	/* The replacement lock value is a result of allocating a new ticket. */
-	++new.u.s.next;
-	++new.u.s.writers_active;
-	return (__wt_atomic_cas64(&l->u.v, old.u.v, new.u.v) ? 0 : EBUSY);
+	new.u.v = old.u.v;
+	new.u.s.next++;
+	return (__wt_atomic_casv64(&l->u.v, old.u.v, new.u.v) ? 0 : EBUSY);
+}
+
+/*
+ * __write_blocked --
+ *	Check whether the current write lock request should keep waiting.
+ */
+static bool
+__write_blocked(WT_SESSION_IMPL *session) {
+	WT_RWLOCK old;
+	uint8_t ticket = session->current_rwticket;
+
+	old.u.v = session->current_rwlock->u.v;
+	return (ticket != old.u.s.current || old.u.s.readers_active != 0);
 }
 
 /*
@@ -293,25 +345,41 @@ __wt_try_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 void
 __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 {
-	uint16_t ticket;
+	WT_RWLOCK new, old;
 	int pause_cnt;
+	uint8_t ticket;
 
 	WT_STAT_CONN_INCR(session, rwlock_write);
 
-	/*
-	 * Possibly wrap: if we have more than 64K lockers waiting, the ticket
-	 * value will wrap and two lockers will simultaneously be granted the
-	 * lock.
-	 */
-	ticket = __wt_atomic_fetch_add16(&l->u.s.next, 1);
-	(void)__wt_atomic_add16(&l->u.s.writers_active, 1);
-	for (pause_cnt = 0; ticket != l->u.s.writers; pause_cnt++) {
+	do {
+restart:	new.u.v = old.u.v = l->u.v;
+		ticket = new.u.s.next++;
+
+		/*
+		 * Avoid wrapping: if we allocate more than 256 tickets, two
+		 * lockers will simultaneously be granted the lock.
+		 */
+		if (new.u.s.next == new.u.s.current) {
+			__wt_cond_wait(
+			    session, l->cond_writers, WT_THOUSAND, NULL);
+			goto restart;
+		}
+	} while (!__wt_atomic_casv64(&l->u.v, old.u.v, new.u.v));
+
+	/* Wait for our group to start and any readers to drain. */
+	for (pause_cnt = 0;
+	    ticket != l->u.s.current || l->u.s.readers_active != 0;
+	    pause_cnt++) {
 		if (pause_cnt < 1000)
 			WT_PAUSE();
-		else if (pause_cnt < 1100)
+		else if (pause_cnt < 1200)
 			__wt_yield();
-		else
-			__wt_cond_wait(session, l->cond, WT_THOUSAND, NULL);
+		else {
+			session->current_rwlock = l;
+			session->current_rwticket = ticket;
+			__wt_cond_wait(
+			    session, l->cond_writers, 0, __write_blocked);
+		}
 	}
 
 	/*
@@ -328,33 +396,36 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 void
 __wt_writeunlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 {
-	WT_RWLOCK new;
+	WT_RWLOCK new, old;
 
-	WT_UNUSED(session);
+	do {
+		new.u.v = old.u.v = l->u.v;
 
-	(void)__wt_atomic_sub16(&l->u.s.writers_active, 1);
+		/*
+		 * We're holding the lock exclusive, there shouldn't be any
+		 * active readers.
+		 */
+		WT_ASSERT(session, old.u.s.readers_active == 0);
 
-	/*
-	 * Ensure that all updates made while the lock was held are visible to
-	 * the next thread to acquire the lock.
-	 */
-	WT_WRITE_BARRIER();
-
-	new = *l;
-
-	/*
-	 * We're the only writer of the writers/readers fields, so the update
-	 * does not need to be atomic; we have to update both values at the
-	 * same time though, otherwise we'd potentially race with the thread
-	 * next granted the lock.
-	 */
-	++new.u.s.writers;
-	++new.u.s.readers;
-	l->u.i.wr = new.u.i.wr;
+		/*
+		 * Allow the next batch to start.
+		 *
+		 * If there are readers in the next group, swap queued readers
+		 * to active: this could race with new readlock requests, so we
+		 * have to spin.
+		 */
+		if (++new.u.s.current == new.u.s.reader) {
+			new.u.s.readers_active = new.u.s.readers_queued;
+			new.u.s.readers_queued = 0;
+		}
+	} while (!__wt_atomic_casv64(&l->u.v, old.u.v, new.u.v));
 
 	WT_DIAGNOSTIC_YIELD;
 
-	__wt_cond_signal(session, l->cond);
+	if (new.u.s.readers_active != 0)
+		__wt_cond_signal(session, l->cond_readers);
+	else if (new.u.s.current != new.u.s.next)
+		__wt_cond_signal(session, l->cond_writers);
 }
 
 #ifdef HAVE_DIAGNOSTIC
@@ -367,6 +438,6 @@ __wt_rwlock_islocked(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 {
 	WT_UNUSED(session);
 
-	return (l->u.s.writers != l->u.s.next || l->u.s.readers != l->u.s.next);
+	return (l->u.s.current != l->u.s.next || l->u.s.readers_active != 0);
 }
 #endif

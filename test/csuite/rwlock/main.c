@@ -33,20 +33,24 @@
  */
 #define	MAX_THREADS 1000
 //#define	READS_PER_WRITE	10000
-//#define	READS_PER_WRITE	1000000
-#define	READS_PER_WRITE	100
+#define	READS_PER_WRITE	1000000
+//#define	READS_PER_WRITE	100
 #define	USE_POSIX false
+//#define	USE_POSIX true
 
 WT_RWLOCK rwlock;
 pthread_rwlock_t p_rwlock;
+bool running;
+
 void *thread_rwlock(void *);
+void *thread_dump(void *);
 
 int
 main(int argc, char *argv[])
 {
 	TEST_OPTS *opts, _opts;
 	struct timespec te, ts;
-	pthread_t id[MAX_THREADS];
+	pthread_t dump_id, id[MAX_THREADS];
 	int i;
 
 	if (!testutil_enable_long_tests())	/* Ignore unless requested */
@@ -57,6 +61,7 @@ main(int argc, char *argv[])
 	opts->nthreads = 100;
 	opts->nops = 1000000; /* per thread */
 	testutil_check(testutil_parse_opts(argc, argv, opts));
+	running = true;
 
 	testutil_make_work_dir(opts->home);
 	testutil_check(wiredtiger_open(opts->home, NULL,
@@ -64,6 +69,9 @@ main(int argc, char *argv[])
 
 	__wt_rwlock_init(NULL, &rwlock);
 	pthread_rwlock_init(&p_rwlock, NULL);
+
+	testutil_check(pthread_create(
+	    &dump_id, NULL, thread_dump, (void *)opts));
 
 	__wt_epoch(NULL, &ts);
 	for (i = 0; i < (int)opts->nthreads; ++i) {
@@ -74,6 +82,9 @@ main(int argc, char *argv[])
 		testutil_check(pthread_join(id[i], NULL));
 	__wt_epoch(NULL, &te);
 	printf("%.2lf\n", WT_TIMEDIFF_MS(te, ts) / 1000.0);
+
+	running = false;
+	testutil_check(pthread_join(dump_id, NULL));
 
 	pthread_rwlock_destroy(&p_rwlock);
 	testutil_cleanup(opts);
@@ -125,12 +136,31 @@ thread_rwlock(void *arg)
 		}
 
 		if (i % 10000 == 0) {
-			printf(".");
+			printf(session->id == 20 ? ".\n" : ".");
 			fflush(stdout);
 		}
 	}
 
 	opts->running = false;
+
+	return (NULL);
+}
+
+void *
+thread_dump(void *arg) {
+	WT_UNUSED(arg);
+
+	while (running) {
+		sleep(1);
+		printf("\n"
+		    "rwlock { current %u, next %u, reader %u, "
+		    "readers_active %u, readers_queued %u }\n",
+		    (u_int)rwlock.u.s.current,
+		    (u_int)rwlock.u.s.next,
+		    (u_int)rwlock.u.s.reader,
+		    (u_int)rwlock.u.s.readers_active,
+		    (u_int)rwlock.u.s.readers_queued);
+	}
 
 	return (NULL);
 }

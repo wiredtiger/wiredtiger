@@ -38,20 +38,19 @@ struct __wt_condvar {
  * functions.
  */
 struct __wt_rwlock {			/* Read/write lock */
-	union {
+	volatile union {
 		uint64_t v;			/* Full 64-bit value */
 		struct {
-			uint32_t wr;		/* Writers and readers */
-		} i;
-		struct {
-			uint16_t writers;	/* Now serving for writers */
-			uint16_t readers;	/* Now serving for readers */
-			uint16_t next;		/* Next available ticket */
-			uint16_t writers_active;/* Count of active writers */
+			uint8_t current;	/* Current ticket */
+			uint8_t next;		/* Next available ticket */
+			uint8_t reader;		/* Read queue ticket */
+			uint16_t readers_active;/* Count of active readers */
+			uint16_t readers_queued;/* Count of queued readers */
 		} s;
 	} u;
 
-	WT_CONDVAR *cond;		/* Blocking */
+	WT_CONDVAR *cond_readers;	/* Blocking readers */
+	WT_CONDVAR *cond_writers;	/* Blocking writers */
 };
 
 /*
