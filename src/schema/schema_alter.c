@@ -30,11 +30,13 @@ __alter_file(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
 
 	WT_ASSERT(session, newcfg[0] != NULL);
 	/*
-	 * Check for an open handle if we're changing the logging
-	 * setting for a table.  We expect the handle is not open for
-	 * altering the logging.  We only care if the user passed in
-	 * the log setting to the method.  We don't care about its
-	 * value or setting, just whether it was used at all.
+	 * Check for an open handle if we're changing the log setting for a
+	 * table.  We expect the handle is not open for altering the log
+	 * setting.  We don't care about the value, just whether the log setting
+	 * was used at all.
+	 *
+	 * XXX This could be generalized for all alter settings.  Those changes
+	 * won't take effect on any open handles.  They're just less critical.
 	 */
 	if ((ret = __wt_config_getones(
 	    session, newcfg[0], "log.enabled", &cval)) == 0) {
@@ -44,6 +46,10 @@ __alter_file(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
 		 */
 		WT_WITH_HANDLE_LIST_READ_LOCK(session,
 		    ret = __wt_conn_dhandle_find(session, uri, NULL));
+		/*
+		 * If it is not open we expect WT_NOTFOUND.  If it is open
+		 * we expect a return of 0.
+		 */
 		if (ret != WT_NOTFOUND) {
 			if (ret == 0)
 				WT_ERR_MSG(session, EINVAL,
