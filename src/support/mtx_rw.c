@@ -39,77 +39,46 @@
  * by John Mellor-Crummey and Michael Scott in their landmark paper "Scalable
  * Reader-Writer Synchronization for Shared-Memory Multiprocessors".
  *
- * The following is an explanation of this code. First, the underlying lock
- * structure.
+ * The following is an explanation of our interpretation and implementation.
+ * First, the underlying lock structure.
  *
- *	struct {
- *		uint16_t writers;	Now serving for writers
- *		uint16_t readers;	Now serving for readers
- *		uint16_t next;		Next available ticket number
- *		uint16_t __notused;	Padding
- *	}
+ * union {
+ *		uint64_t v;			// Full 64-bit value
+ *		struct {
+ *			uint8_t current;	// Current ticket
+ *			uint8_t next;		// Next available ticket
+ *			uint8_t reader;		// Read queue ticket
+ *			uint8_t __notused;	// Padding
+ *			uint16_t readers_active;// Count of active readers
+ *			uint16_t readers_queued;// Count of queued readers
+ *		} s;
+ *	} u;
  *
  * First, imagine a store's 'take a number' ticket algorithm. A customer takes
  * a unique ticket number and customers are served in ticket order. In the data
- * structure, 'writers' is the next writer to be served, 'readers' is the next
- * reader to be served, and 'next' is the next available ticket number.
+ * structure, 'next' is the ticket that will be allocated next, and 'current'
+ * is the ticket being served.
  *
- * Next, consider exclusive (write) locks. The 'now serving' number for writers
- * is 'writers'. To lock, 'take a number' and wait until that number is being
- * served; more specifically, atomically copy and increment the current value of
- * 'next', and then wait until 'writers' equals that copied number.
+ * Next, consider exclusive (write) locks.  To lock, 'take a number' and wait
+ * until that number is being served; more specifically, atomically increment
+ * 'next', and then wait until 'current' equals that allocated ticket.
  *
- * Shared (read) locks are similar. Like writers, readers atomically get the
- * next number available. However, instead of waiting for 'writers' to equal
- * their number, they wait for 'readers' to equal their number.
+ * Shared (read) locks are similar, except that readers can share a ticket
+ * (both with each other and with a single writer).  Readers with a given
+ * ticket execute before the writer with that ticket.  In other words, writers
+ * wait for both their ticket to become current and for all readers to exit
+ * the lock.
  *
- * This has the effect of queuing lock requests in the order they arrive
- * (incidentally avoiding starvation).
+ * If there are no active writers (indicated by 'current' == 'next'), readers
+ * can immediately enter the lock by atomically incrementing 'readers_active'.
+ * When there are writers active, readers form a new queue by first setting
+ * 'reader' to 'next' (i.e. readers are scheduled after any queued writers,
+ * avoiding starvation), then atomically incrementing 'readers_queued'.
  *
- * Each lock/unlock pair requires incrementing both 'readers' and 'writers'.
- * In the case of a reader, the 'readers' increment happens when the reader
- * acquires the lock (to allow read-lock sharing), and the 'writers' increment
- * happens when the reader releases the lock. In the case of a writer, both
- * 'readers' and 'writers' are incremented when the writer releases the lock.
- *
- * For example, consider the following read (R) and write (W) lock requests:
- *
- *						writers	readers	next
- *						0	0	0
- *	R: ticket 0, readers match	OK	0	1	1
- *	R: ticket 1, readers match	OK	0	2	2
- *	R: ticket 2, readers match	OK	0	3	3
- *	W: ticket 3, writers no match	block	0	3	4
- *	R: ticket 2, unlock			1	3	4
- *	R: ticket 0, unlock			2	3	4
- *	R: ticket 1, unlock			3	3	4
- *	W: ticket 3, writers match	OK	3	3	4
- *
- * Note the writer blocks until 'writers' equals its ticket number and it does
- * not matter if readers unlock in order or not.
- *
- * Readers or writers entering the system after the write lock is queued block,
- * and the next ticket holder (reader or writer) will unblock when the writer
- * unlocks. An example, continuing from the last line of the above example:
- *
- *						writers	readers	next
- *	W: ticket 3, writers match	OK	3	3	4
- *	R: ticket 4, readers no match	block	3	3	5
- *	R: ticket 5, readers no match	block	3	3	6
- *	W: ticket 6, writers no match	block	3	3	7
- *	W: ticket 3, unlock			4	4	7
- *	R: ticket 4, readers match	OK	4	5	7
- *	R: ticket 5, readers match	OK	4	6	7
- *
- * The 'next' field is a 2-byte value so the available ticket number wraps at
- * 64K requests. If a thread's lock request is not granted until the 'next'
- * field cycles and the same ticket is taken by another thread, we could grant
- * a lock to two separate threads at the same time, and bad things happen: two
- * writer threads or a reader thread and a writer thread would run in parallel,
- * and lock waiters could be skipped if the unlocks race. This is unlikely, it
- * only happens if a lock request is blocked by 64K other requests. The fix is
- * to grow the lock structure fields, but the largest atomic instruction we have
- * is 8 bytes, the structure has no room to grow.
+ * The 'next' field is a 1-byte value so the available ticket number wraps
+ * after 256 requests. If a thread's write lock request would cause the 'next'
+ * field to catch up with 'current', instead it waits to avoid the same ticket
+ * being allocated to multiple threads.
  */
 
 #include "wt_internal.h"
