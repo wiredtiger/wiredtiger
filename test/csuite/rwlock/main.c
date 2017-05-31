@@ -35,12 +35,12 @@
 //#define	READS_PER_WRITE	10000
 #define	READS_PER_WRITE	1000000
 //#define	READS_PER_WRITE	100
-#define	USE_POSIX false
-//#define	USE_POSIX true
 
-WT_RWLOCK rwlock;
-pthread_rwlock_t p_rwlock;
-bool running;
+#define	USE_POSIX	0
+
+static WT_RWLOCK rwlock;
+static pthread_rwlock_t p_rwlock;
+static bool running;
 
 void *thread_rwlock(void *);
 void *thread_dump(void *);
@@ -68,16 +68,16 @@ main(int argc, char *argv[])
 	    "create,session_max=1000,statistics=(fast)", &opts->conn));
 
 	__wt_rwlock_init(NULL, &rwlock);
-	pthread_rwlock_init(&p_rwlock, NULL);
+	testutil_check(pthread_rwlock_init(&p_rwlock, NULL));
 
 	testutil_check(pthread_create(
 	    &dump_id, NULL, thread_dump, (void *)opts));
 
 	__wt_epoch(NULL, &ts);
-	for (i = 0; i < (int)opts->nthreads; ++i) {
+	for (i = 0; i < (int)opts->nthreads; ++i)
 		testutil_check(pthread_create(
 		    &id[i], NULL, thread_rwlock, (void *)opts));
-	}
+
 	while (--i >= 0)
 		testutil_check(pthread_join(id[i], NULL));
 	__wt_epoch(NULL, &te);
@@ -86,7 +86,7 @@ main(int argc, char *argv[])
 	running = false;
 	testutil_check(pthread_join(dump_id, NULL));
 
-	pthread_rwlock_destroy(&p_rwlock);
+	testutil_check(pthread_rwlock_destroy(&p_rwlock));
 	testutil_cleanup(opts);
 	return (EXIT_SUCCESS);
 }
@@ -112,31 +112,31 @@ thread_rwlock(void *arg)
 	for (i = 1; i <= opts->nops; ++i) {
 		writelock = (i % READS_PER_WRITE == 0);
 
-		if (USE_POSIX) {
-			if (writelock)
-				pthread_rwlock_wrlock(&p_rwlock);
-			else
-				pthread_rwlock_rdlock(&p_rwlock);
-		} else {
-			if (writelock)
-				__wt_writelock(session, &rwlock);
-			else
-				__wt_readlock(session, &rwlock);
-		}
+#ifdef USE_POSIX
+		if (writelock)
+			testutil_check(pthread_rwlock_wrlock(&p_rwlock));
+		else
+			testutil_check(pthread_rwlock_rdlock(&p_rwlock));
+#else
+		if (writelock)
+			__wt_writelock(session, &rwlock);
+		else
+			__wt_readlock(session, &rwlock);
+#endif
 
-		__wt_atomic_add64(&counter, 1);
+		(void)__wt_atomic_add64(&counter, 1);
 
-		if (USE_POSIX) {
-			pthread_rwlock_unlock(&p_rwlock);
-		} else {
-			if (writelock)
-				__wt_writeunlock(session, &rwlock);
-			else
-				__wt_readunlock(session, &rwlock);
-		}
+#ifdef USE_POSIX
+		testutil_check(pthread_rwlock_unlock(&p_rwlock));
+#else
+		if (writelock)
+			__wt_writeunlock(session, &rwlock);
+		else
+			__wt_readunlock(session, &rwlock);
+#endif
 
 		if (i % 10000 == 0) {
-			printf(session->id == 20 ? ".\n" : ".");
+			printf("%s", session->id == 20 ? ".\n" : ".");
 			fflush(stdout);
 		}
 	}
@@ -153,13 +153,14 @@ thread_dump(void *arg) {
 	while (running) {
 		sleep(1);
 		printf("\n"
-		    "rwlock { current %u, next %u, reader %u, "
-		    "readers_active %u, readers_queued %u }\n",
-		    (u_int)rwlock.u.s.current,
-		    (u_int)rwlock.u.s.next,
-		    (u_int)rwlock.u.s.reader,
-		    (u_int)rwlock.u.s.readers_active,
-		    (u_int)rwlock.u.s.readers_queued);
+		    "rwlock { current %" PRIu8 ", next %" PRIu8
+		    ", reader %" PRIu8 ", readers_active %" PRIu16
+		    ", readers_queued %" PRIu16 " }\n",
+		    rwlock.u.s.current,
+		    rwlock.u.s.next,
+		    rwlock.u.s.reader,
+		    rwlock.u.s.readers_active,
+		    rwlock.u.s.readers_queued);
 	}
 
 	return (NULL);
