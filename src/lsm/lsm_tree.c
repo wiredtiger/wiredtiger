@@ -882,6 +882,12 @@ __wt_lsm_tree_alter(
 			    __wt_schema_alter(session, chunk->bloom_uri, cfg));
 	}
 	WT_ERR(__wt_lsm_meta_write(session, lsm_tree, cfg[0]));
+	/*
+	 * Reread the tree's metadata so that we update the configuration
+	 * in the current tree's structure to the new, altered values,
+	 * not just on-disk in the metadata file.
+	 */
+	WT_ERR(__wt_lsm_meta_read(session, lsm_tree));
 
 err:	if (locked)
 		__wt_lsm_tree_writeunlock(session, lsm_tree);
