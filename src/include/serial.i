@@ -217,7 +217,7 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
 	*new_insp = NULL;
 
 	simple = true;
-	for (i = 0; !exclusive && i < skipdepth; i++)
+	for (i = 0; i < skipdepth; i++)
 		if (new_ins->next[i] == NULL)
 			simple = false;
 
@@ -225,10 +225,12 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
 		ret = __insert_simple_func(
 		    session, ins_stack, new_ins, skipdepth);
 	else {
-		WT_PAGE_LOCK(session, page);
+		if (!exclusive)
+			WT_PAGE_LOCK(session, page);
 		ret = __insert_serial_func(
 		    session, ins_head, ins_stack, new_ins, skipdepth);
-		WT_PAGE_UNLOCK(session, page);
+		if (!exclusive)
+			WT_PAGE_UNLOCK(session, page);
 	}
 
 	if (ret != 0) {
