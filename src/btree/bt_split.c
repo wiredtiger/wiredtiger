@@ -403,9 +403,6 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
 	root_decr = root_incr = 0;
 	complete = WT_ERR_RETURN;
 
-	/* The root page will be marked dirty, make sure that will succeed. */
-	WT_RET(__wt_page_modify_init(session, root));
-
 	/*
 	 * Our caller is holding the root page locked to single-thread splits,
 	 * which means we can safely look at the page's index without setting a
@@ -608,8 +605,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	empty_parent = false;
 	complete = WT_ERR_RETURN;
 
-	/* The parent page will be marked dirty, make sure that will succeed. */
-	WT_RET(__wt_page_modify_init(session, parent));
+	WT_ASSERT(session, parent->modify != NULL);
 
 	/*
 	 * We've locked the parent, which means it cannot split (which is the
@@ -904,9 +900,6 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 	WT_STAT_CONN_INCR(session, cache_eviction_split_internal);
 	WT_STAT_DATA_INCR(session, cache_eviction_split_internal);
 
-	/* The page will be marked dirty, make sure that will succeed. */
-	WT_RET(__wt_page_modify_init(session, page));
-
 	btree = S2BT(session);
 	alloc_index = replace_index = NULL;
 	page_ref = page->pg_intl_parent_ref;
@@ -1166,13 +1159,19 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock,
 	for (;;) {
 		parent = ref->home;
 
+		/*
+		 * The page will be marked dirty, and we can only lock a page
+		 * with a modify structure.
+		 */
+		WT_RET(__wt_page_modify_init(session, parent));
+
 		if (trylock)
-			WT_RET(__wt_try_writelock(session, &parent->page_lock));
+			WT_RET(WT_PAGE_TRYLOCK(session, parent));
 		else
-			__wt_writelock(session, &parent->page_lock);
+			WT_PAGE_LOCK(session, parent);
 		if (parent == ref->home)
 			break;
-		__wt_writeunlock(session, &parent->page_lock);
+		WT_PAGE_UNLOCK(session, parent);
 	}
 
 	/*
@@ -1195,7 +1194,7 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock,
 	*parentp = parent;
 	return (0);
 
-err:	__wt_writeunlock(session, &parent->page_lock);
+err:	WT_PAGE_UNLOCK(session, parent);
 	return (ret);
 }
 
@@ -1211,7 +1210,7 @@ __split_internal_unlock(WT_SESSION_IMPL *session, WT_PAGE *parent, bool hazard)
 	if (hazard)
 		ret = __wt_hazard_clear(session, parent->pg_intl_parent_ref);
 
-	__wt_writeunlock(session, &parent->page_lock);
+	WT_PAGE_UNLOCK(session, parent);
 	return (ret);
 }
 

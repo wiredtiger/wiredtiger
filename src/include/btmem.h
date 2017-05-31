@@ -422,6 +422,8 @@ struct __wt_page_modify {
 
 #define	WT_PAGE_LOCK(s, p)						\
 	__wt_spin_lock((s), &S2C(s)->page_lock[(p)->modify->page_lock])
+#define	WT_PAGE_TRYLOCK(s, p)						\
+	__wt_spin_trylock((s), &S2C(s)->page_lock[(p)->modify->page_lock])
 #define	WT_PAGE_UNLOCK(s, p)						\
 	__wt_spin_unlock((s), &S2C(s)->page_lock[(p)->modify->page_lock])
 	uint8_t page_lock;		/* Page's spinlock */
@@ -602,13 +604,6 @@ struct __wt_page {
 	uint8_t flags_atomic;		/* Atomic flags, use F_*_ATOMIC */
 
 	uint8_t unused[2];		/* Unused padding */
-
-	/*
-	 * Used to protect and co-ordinate splits for internal pages and
-	 * reconciliation for all pages. Only used to co-ordinate among the
-	 * uncommon cases that require exclusive access to a page.
-	 */
-	WT_RWLOCK page_lock;
 
 	/*
 	 * The page's read generation acts as an LRU value for each page in the

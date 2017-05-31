@@ -98,7 +98,6 @@ __page_out_int(WT_SESSION_IMPL *session, WT_PAGE **pagep, bool rewrite)
 	 */
 	WT_ASSERT(session, !__wt_page_is_modified(page));
 	WT_ASSERT(session, !F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU));
-	WT_ASSERT(session, !__wt_rwlock_islocked(session, &page->page_lock));
 
 	/*
 	 * If a root page split, there may be one or more pages linked from the
@@ -150,9 +149,6 @@ __page_out_int(WT_SESSION_IMPL *session, WT_PAGE **pagep, bool rewrite)
 		__free_page_row_leaf(session, page);
 		break;
 	}
-
-	/* Destroy the page lock. */
-	__wt_rwlock_destroy(session, &page->page_lock);
 
 	/* Discard any allocated disk image. */
 	if (F_ISSET_ATOMIC(page, WT_PAGE_DISK_ALLOC))
