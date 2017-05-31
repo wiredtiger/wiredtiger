@@ -1679,7 +1679,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 		if (lsnp == NULL) {
 			if (LF_ISSET(WT_LOGSCAN_FROM_CKP))
 				start_lsn = log->ckpt_lsn;
-			else
+			else if (!LF_ISSET(WT_LOGSCAN_FIRST))
 				return (WT_ERROR);	/* Illegal usage */
 		}
 	} else {
