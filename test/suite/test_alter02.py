@@ -33,10 +33,19 @@ from wtscenario import make_scenarios
 #    Smoke-test the session alter operations.
 class test_alter02(wttest.WiredTigerTestCase):
     entries = 500
-    conn_config = 'log=(archive=false,enabled,file_max=100K)'
     # Binary values.
     value = u'\u0001\u0002abcd\u0003\u0004'
     value2 = u'\u0001\u0002dcba\u0003\u0004'
+
+    conn_log = [
+        ('conn-always-logged', dict(conncreate=True, connreopen=True)),
+        ('conn-create-logged', dict(conncreate=True, connreopen=False)),
+        ('conn-reopen-logged', dict(conncreate=False, connreopen=True)),
+        ('conn-never-logged', dict(conncreate=False, connreopen=False)),
+    ]
+    conn_log = [
+        ('conn-create-logged', dict(conncreate=True, connreopen=False)),
+    ]
 
     types = [
         ('file', dict(uri='file:', use_cg=False, use_index=False)),
@@ -44,6 +53,10 @@ class test_alter02(wttest.WiredTigerTestCase):
         ('table-cg', dict(uri='table:', use_cg=True, use_index=False)),
         ('table-index', dict(uri='table:', use_cg=False, use_index=True)),
         ('table-simple', dict(uri='table:', use_cg=False, use_index=False)),
+    ]
+    types = [
+        ('file', dict(uri='file:', use_cg=False, use_index=False)),
+        ('lsm', dict(uri='lsm:', use_cg=False, use_index=False)),
     ]
 
     tables = [
@@ -57,7 +70,27 @@ class test_alter02(wttest.WiredTigerTestCase):
         ('no-reopen', dict(reopen=False)),
         ('reopen', dict(reopen=True)),
     ]
-    scenarios = make_scenarios(types, tables, reopen)
+    reopen = [
+        ('reopen', dict(reopen=True)),
+    ]
+    scenarios = make_scenarios(conn_log, types, tables, reopen)
+
+    # This test varies the log setting.  Override the standard methods.
+    def setUpConnectionOpen(self, dir):
+        return None
+    def setUpSessionOpen(self, conn):
+        return None
+    def ConnectionOpen(self):
+        self.home = '.'
+
+        conn_params = 'create,log=(archive=false,file_max=100K,%s)' % self.uselog
+        self.pr("CONNECTION OPEN: " + conn_params)
+        
+        try:
+            self.conn = wiredtiger.wiredtiger_open(self.home, conn_params)
+        except wiredtiger.WiredTigerError as e:
+            print "Failed conn at '%s' with config '%s'" % (dir, conn_params)
+        self.session = self.conn.open_session()
 
     # Verify the metadata string for this URI and that its setting in the
     # metdata file is correct.
@@ -114,6 +147,13 @@ class test_alter02(wttest.WiredTigerTestCase):
         # If we're not explicitly setting the parameter, then don't
         # modify create_params to test using the default.
         #
+        if self.conncreate:
+            self.uselog = 'enabled=true'
+        else:
+            self.uselog = 'enabled=false'
+        self.pr("CREATE: " + self.uselog)
+        self.ConnectionOpen()
+
         if self.logcreate:
             log_param = 'log=(enabled=true)'
         else:
@@ -151,12 +191,13 @@ class test_alter02(wttest.WiredTigerTestCase):
         # Verify the string in the metadata
         self.verify_metadata(log_param)
 
-        # Verify the logged operations
-        if self.logcreate:
-            expected_keys = self.entries
-        else:
-            expected_keys = 0
-        self.verify_logrecs(expected_keys)
+        # Verify the logged operations only if logging is enabled.
+        if self.conncreate:
+            if self.logcreate:
+                expected_keys = self.entries
+            else:
+                expected_keys = 0
+            self.verify_logrecs(expected_keys)
 
         # Run through all combinations of the alter commands
         # for all allowed settings.  This tests having only one or
@@ -175,7 +216,14 @@ class test_alter02(wttest.WiredTigerTestCase):
         # we reopen the connection and return an error when
         # we attempt with the same open connection.
         if self.reopen:
-            self.reopen_conn()
+            if self.connreopen:
+                self.uselog = 'enabled=true'
+            else:
+                self.uselog = 'enabled=false'
+
+            self.conn.close()
+            self.pr("REOPEN: " + self.uselog)
+            self.ConnectionOpen()
             self.session.alter(uri, alter_param)
             if special:
                 self.session.alter(suburi, alter_param)
@@ -191,9 +239,14 @@ class test_alter02(wttest.WiredTigerTestCase):
             for k in range(self.entries):
                 c[k + self.entries] = myvalue
             c.close()
-            if self.logalter:
+            # If we logged the connection and the table, add in the
+            # number of keys we expect.
+            if self.logalter and self.connreopen:
                 expected_keys += self.entries
-            self.verify_logrecs(expected_keys)
+            # If we logged the connection at any time then check
+            # the log records.
+            if self.connreopen or self.conncreate:
+                self.verify_logrecs(expected_keys)
         else:
             msg = '/Cannot alter open table/'
             if special:
