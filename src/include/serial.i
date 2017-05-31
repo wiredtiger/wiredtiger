@@ -154,7 +154,7 @@ __col_append_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head,
 static inline int
 __wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
     WT_INSERT_HEAD *ins_head, WT_INSERT ***ins_stack, WT_INSERT **new_insp,
-    size_t new_ins_size, uint64_t *recnop, u_int skipdepth)
+    size_t new_ins_size, uint64_t *recnop, u_int skipdepth, bool exclusive)
 {
 	WT_INSERT *new_ins = *new_insp;
 	WT_DECL_RET;
@@ -165,11 +165,16 @@ __wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
 	/* Clear references to memory we now own and must free on error. */
 	*new_insp = NULL;
 
-	/* Acquire the page's spinlock, call the worker function. */
-	WT_PAGE_LOCK(session, page);
+	/*
+	 * Acquire the page's spinlock unless we already have exclusive access.
+	 * Then call the worker function.
+	 */
+	if (!exclusive)
+		WT_PAGE_LOCK(session, page);
 	ret = __col_append_serial_func(
 	    session, ins_head, ins_stack, new_ins, recnop, skipdepth);
-	WT_PAGE_UNLOCK(session, page);
+	if (!exclusive)
+		WT_PAGE_UNLOCK(session, page);
 
 	if (ret != 0) {
 		/* Free unused memory on error. */
@@ -198,7 +203,7 @@ __wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
 static inline int
 __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
     WT_INSERT_HEAD *ins_head, WT_INSERT ***ins_stack, WT_INSERT **new_insp,
-    size_t new_ins_size, u_int skipdepth)
+    size_t new_ins_size, u_int skipdepth, bool exclusive)
 {
 	WT_INSERT *new_ins = *new_insp;
 	WT_DECL_RET;
@@ -212,7 +217,7 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
 	*new_insp = NULL;
 
 	simple = true;
-	for (i = 0; i < skipdepth; i++)
+	for (i = 0; !exclusive && i < skipdepth; i++)
 		if (new_ins->next[i] == NULL)
 			simple = false;
 
@@ -252,7 +257,8 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
  */
 static inline int
 __wt_update_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
-    WT_UPDATE **srch_upd, WT_UPDATE **updp, size_t upd_size)
+    WT_UPDATE **srch_upd, WT_UPDATE **updp, size_t upd_size,
+    bool exclusive)
 {
 	WT_DECL_RET;
 	WT_UPDATE *obsolete, *upd = *updp;
@@ -295,7 +301,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
 	/*
 	 * If there are no subsequent WT_UPDATE structures we are done here.
 	 */
-	if (upd->next == NULL)
+	if (upd->next == NULL || exclusive)
 		return (0);
 
 	/*

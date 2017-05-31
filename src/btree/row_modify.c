@@ -129,7 +129,7 @@ __wt_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 
 		/* Serialize the update. */
 		WT_ERR(__wt_update_serial(
-		    session, page, upd_entry, &upd, upd_size));
+		    session, page, upd_entry, &upd, upd_size, upd_arg != NULL));
 	} else {
 		/*
 		 * Allocate the insert array as necessary.
@@ -204,7 +204,7 @@ __wt_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 		/* Insert the WT_INSERT structure. */
 		WT_ERR(__wt_insert_serial(
 		    session, page, cbt->ins_head, cbt->ins_stack,
-		    &ins, ins_size, skipdepth));
+		    &ins, ins_size, skipdepth, upd_arg != NULL));
 	}
 
 	if (logged && modify_type != WT_UPDATE_RESERVED)

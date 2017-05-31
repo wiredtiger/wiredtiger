@@ -106,7 +106,7 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 
 		/* Serialize the update. */
 		WT_ERR(__wt_update_serial(
-		    session, page, &cbt->ins->upd, &upd, upd_size));
+		    session, page, &cbt->ins->upd, &upd, upd_size, false));
 	} else {
 		/* Allocate the append/update list reference as necessary. */
 		if (append) {
@@ -188,11 +188,12 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 		if (append)
 			WT_ERR(__wt_col_append_serial(
 			    session, page, cbt->ins_head, cbt->ins_stack,
-			    &ins, ins_size, &cbt->recno, skipdepth));
+			    &ins, ins_size, &cbt->recno, skipdepth,
+			    upd_arg != NULL));
 		else
 			WT_ERR(__wt_insert_serial(
 			    session, page, cbt->ins_head, cbt->ins_stack,
-			    &ins, ins_size, skipdepth));
+			    &ins, ins_size, skipdepth, upd_arg != NULL));
 	}
 
 	/* If the update was successful, add it to the in-memory log. */
