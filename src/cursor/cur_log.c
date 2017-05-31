@@ -303,9 +303,6 @@ __curlog_close(WT_CURSOR *cursor)
 	cl = (WT_CURSOR_LOG *)cursor;
 	conn = S2C(session);
 
-#if 0
-	WT_ASSERT(session, FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED));
-#endif
 	if (F_ISSET(cl, WT_CURLOG_ARCHIVE_LOCK))
 		__wt_readunlock(session, &conn->log->log_archive_lock);
 
@@ -357,11 +354,6 @@ __wt_curlog_open(WT_SESSION_IMPL *session,
 
 	WT_STATIC_ASSERT(offsetof(WT_CURSOR_LOG, iface) == 0);
 	conn = S2C(session);
-#if 0
-	if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
-		WT_RET_MSG(session, EINVAL,
-		    "Cannot open a log cursor without logging enabled");
-#endif
 
 	log = conn->log;
 	cl = NULL;

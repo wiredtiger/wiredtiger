@@ -43,9 +43,6 @@ class test_alter02(wttest.WiredTigerTestCase):
         ('conn-reopen-logged', dict(conncreate=False, connreopen=True)),
         ('conn-never-logged', dict(conncreate=False, connreopen=False)),
     ]
-    conn_log = [
-        ('conn-create-logged', dict(conncreate=True, connreopen=False)),
-    ]
 
     types = [
         ('file', dict(uri='file:', use_cg=False, use_index=False)),
@@ -53,10 +50,6 @@ class test_alter02(wttest.WiredTigerTestCase):
         ('table-cg', dict(uri='table:', use_cg=True, use_index=False)),
         ('table-index', dict(uri='table:', use_cg=False, use_index=True)),
         ('table-simple', dict(uri='table:', use_cg=False, use_index=False)),
-    ]
-    types = [
-        ('file', dict(uri='file:', use_cg=False, use_index=False)),
-        ('lsm', dict(uri='lsm:', use_cg=False, use_index=False)),
     ]
 
     tables = [
@@ -70,9 +63,6 @@ class test_alter02(wttest.WiredTigerTestCase):
         ('no-reopen', dict(reopen=False)),
         ('reopen', dict(reopen=True)),
     ]
-    reopen = [
-        ('reopen', dict(reopen=True)),
-    ]
     scenarios = make_scenarios(conn_log, types, tables, reopen)
 
     # This test varies the log setting.  Override the standard methods.
@@ -84,8 +74,7 @@ class test_alter02(wttest.WiredTigerTestCase):
         self.home = '.'
 
         conn_params = 'create,log=(archive=false,file_max=100K,%s)' % self.uselog
-        self.pr("CONNECTION OPEN: " + conn_params)
-        
+
         try:
             self.conn = wiredtiger.wiredtiger_open(self.home, conn_params)
         except wiredtiger.WiredTigerError as e:
@@ -151,7 +140,6 @@ class test_alter02(wttest.WiredTigerTestCase):
             self.uselog = 'enabled=true'
         else:
             self.uselog = 'enabled=false'
-        self.pr("CREATE: " + self.uselog)
         self.ConnectionOpen()
 
         if self.logcreate:
@@ -167,7 +155,6 @@ class test_alter02(wttest.WiredTigerTestCase):
         if self.use_cg:
             cgparam += 'colgroups=(g0),'
 
-        self.pr("CREATE: create_params " + create_params + cgparam)
         self.session.create(uri, create_params + cgparam)
         # Add in column group or index settings.
         if self.use_cg:
@@ -192,11 +179,10 @@ class test_alter02(wttest.WiredTigerTestCase):
         self.verify_metadata(log_param)
 
         # Verify the logged operations only if logging is enabled.
+        expected_keys = 0
         if self.conncreate:
             if self.logcreate:
                 expected_keys = self.entries
-            else:
-                expected_keys = 0
             self.verify_logrecs(expected_keys)
 
         # Run through all combinations of the alter commands
@@ -222,7 +208,6 @@ class test_alter02(wttest.WiredTigerTestCase):
                 self.uselog = 'enabled=false'
 
             self.conn.close()
-            self.pr("REOPEN: " + self.uselog)
             self.ConnectionOpen()
             self.session.alter(uri, alter_param)
             if special:
