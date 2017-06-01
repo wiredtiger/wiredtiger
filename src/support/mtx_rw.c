@@ -197,8 +197,9 @@ __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 		 * until we can get a valid ticket.
 		 */
 		writers_queued = old.u.s.next - old.u.s.reader;
-		if (writers_queued != 0 &&
-		    old.u.s.readers_queued > writers_queued) {
+		if (old.u.s.readers_queued == UINT16_MAX ||
+		    (writers_queued != 0 &&
+		    old.u.s.readers_queued > writers_queued)) {
 stall:			__wt_cond_wait(
 			    session, l->cond_readers, WT_THOUSAND, NULL);
 			continue;
