@@ -7,7 +7,7 @@ Usage() {
 Usage: $0 [ options ]
 Options:
     -h <WT_home_directory>     # set the WiredTiger home directory
-    -t2                        # run t2 on the combined files
+    -e <analyzer_name>         # run analyzer on the combined files
     -o <output_file>           # output file for result 
 
 At least one of '-t2' or '-o' must be selected.
@@ -21,7 +21,7 @@ Filter() {
 
 wthome=.
 outfile=
-runt2=false
+analyze=
 
 while [ "$#" != 0 ]; do
     arg="$1"
@@ -41,8 +41,12 @@ while [ "$#" != 0 ]; do
             outfile="$1"
             shift
             ;;
-        -t2 )
-            runt2=true
+        -e )
+            if [ $# = 0 ]; then
+                Usage
+            fi
+            analyze="$1"
+            shift
             ;;
     esac
 done
@@ -55,17 +59,17 @@ if [ ! -f "$wthome/WiredTiger.wt" ]; then
     exit 1
 fi
 if [ "$outfile" = '' ]; then
-   if [ "$runt2" = false ]; then
+   if [ "$analyze" = false ]; then
        Usage
    fi
    outfile="$wthome/stat_tmp.json"
 fi
 (cd $wthome; Filter WiredTigerStat.* sample.json) | sort > $outfile
-if $runt2; then
+if [ "$analyze" != '' ]; then
     sysname=`uname -s`
     if [ "$sysname" = Darwin ]; then
-        open -a t2 $outfile
+        open -a "$analyze" "$outfile"
     else
-        t2 $outfile
+        "$analyze" "$outfile"
     fi
 fi
