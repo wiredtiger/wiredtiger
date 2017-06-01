@@ -116,7 +116,6 @@ class test_alter02(wttest.WiredTigerTestCase):
             keys = c.get_key()
             # txnid, rectype, optype, fileid, logrec_key, logrec_value
             values = c.get_value()
-            # !!! rectype 1 == WT_LOGREC_COMMIT
             try:
                 if self.value in str(values[5]):     # logrec_value
                     count += 1
@@ -132,16 +131,14 @@ class test_alter02(wttest.WiredTigerTestCase):
         create_params = 'key_format=i,value_format=S,'
         complex_params = ''
 
-        #
-        # If we're not explicitly setting the parameter, then don't
-        # modify create_params to test using the default.
-        #
+        # Set up logging for the connection.
         if self.conncreate:
             self.uselog = 'enabled=true'
         else:
             self.uselog = 'enabled=false'
         self.ConnectionOpen()
 
+        # Set up logging for the table.
         if self.logcreate:
             log_param = 'log=(enabled=true)'
         else:
@@ -175,7 +172,7 @@ class test_alter02(wttest.WiredTigerTestCase):
             c[k] = myvalue
         c.close()
 
-        # Verify the string in the metadata
+        # Verify the logging string in the metadata.
         self.verify_metadata(log_param)
 
         # Verify the logged operations only if logging is enabled.
@@ -185,11 +182,7 @@ class test_alter02(wttest.WiredTigerTestCase):
                 expected_keys = self.entries
             self.verify_logrecs(expected_keys)
 
-        # Run through all combinations of the alter commands
-        # for all allowed settings.  This tests having only one or
-        # the other set as well as having both set.  It will also
-        # cover trying to change the setting to its current value.
-        alter_param = ''
+        # Set the alter setting for the table.
         if self.logalter:
             log_str = 'log=(enabled=true)'
         else:
@@ -202,6 +195,7 @@ class test_alter02(wttest.WiredTigerTestCase):
         # we reopen the connection and return an error when
         # we attempt with the same open connection.
         if self.reopen:
+            # Set the log setting on the new connection.
             if self.connreopen:
                 self.uselog = 'enabled=true'
             else:
@@ -209,12 +203,11 @@ class test_alter02(wttest.WiredTigerTestCase):
 
             self.conn.close()
             self.ConnectionOpen()
+            # Alter the table setting in the new connection.
             self.session.alter(uri, alter_param)
             if special:
                 self.session.alter(suburi, alter_param)
-                self.verify_metadata(log_str)
-            else:
-                self.verify_metadata(log_str)
+            self.verify_metadata(log_str)
             # Put some more data in table.
             c = self.session.open_cursor(uri, None)
             if self.logalter:
@@ -224,7 +217,7 @@ class test_alter02(wttest.WiredTigerTestCase):
             for k in range(self.entries):
                 c[k + self.entries] = myvalue
             c.close()
-            # If we logged the connection and the table, add in the
+            # If we logged the new connection and the table, add in the
             # number of keys we expect.
             if self.logalter and self.connreopen:
                 expected_keys += self.entries
