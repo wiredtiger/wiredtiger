@@ -200,8 +200,8 @@ __wt_conn_btree_sync_and_close(WT_SESSION_IMPL *session, bool final, bool force)
 			__wt_evict_priority_clear(session);
 		}
 		if (!marked_dead || final) {
-			ret = __wt_checkpoint_close(session, final);
-			if (ret == EBUSY)
+			if ((ret = __wt_checkpoint_close(
+			    session, final)) == EBUSY)
 				WT_ERR(ret);
 			else
 				WT_TRET(ret);
