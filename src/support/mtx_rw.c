@@ -196,8 +196,7 @@ __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 		 * If the maximum number of readers are already queued, wait
 		 * until we can get a valid ticket.
 		 */
-		max_queued_readers = WT_MIN(10,
-		    (uint16_t)(old.u.s.next - old.u.s.current));
+		max_queued_readers = WT_MIN(10, old.u.s.next - old.u.s.current);
 		if (old.u.s.readers_queued == UINT16_MAX ||
 		    (old.u.s.reader != old.u.s.next &&
 		    old.u.s.readers_queued > max_queued_readers)) {
