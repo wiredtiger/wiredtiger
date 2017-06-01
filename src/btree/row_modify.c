@@ -15,18 +15,12 @@
 int
 __wt_page_modify_alloc(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
-	WT_CONNECTION_IMPL *conn;
 	WT_PAGE_MODIFY *modify;
-
-	conn = S2C(session);
 
 	WT_RET(__wt_calloc_one(session, &modify));
 
-	/*
-	 * Select a spinlock for the page; let the barrier immediately below
-	 * keep things from racing too badly.
-	 */
-	modify->page_lock = ++conn->page_lock_cnt % WT_PAGE_LOCKS;
+	/* Initialize the spinlock for the page. */
+	WT_RET(__wt_spin_init(session, &modify->page_lock, "btree page"));
 
 	/*
 	 * Multiple threads of control may be searching and deciding to modify

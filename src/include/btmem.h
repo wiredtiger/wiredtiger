@@ -420,13 +420,13 @@ struct __wt_page_modify {
 	 */
 	uint32_t write_gen;
 
-#define	WT_PAGE_LOCK(s, p)						\
-	__wt_spin_lock((s), &S2C(s)->page_lock[(p)->modify->page_lock])
+#define	WT_PAGE_LOCK(s, p) 						\
+	__wt_spin_lock((s), &(p)->modify->page_lock)
 #define	WT_PAGE_TRYLOCK(s, p)						\
-	__wt_spin_trylock((s), &S2C(s)->page_lock[(p)->modify->page_lock])
-#define	WT_PAGE_UNLOCK(s, p)						\
-	__wt_spin_unlock((s), &S2C(s)->page_lock[(p)->modify->page_lock])
-	uint8_t page_lock;		/* Page's spinlock */
+	__wt_spin_trylock((s), &(p)->modify->page_lock)
+#define	WT_PAGE_UNLOCK(s, p) 						\
+	__wt_spin_unlock((s), &(p)->modify->page_lock)
+	WT_SPINLOCK page_lock;		/* Page's spinlock */
 
 #define	WT_PM_REC_EMPTY		1	/* Reconciliation: no replacement */
 #define	WT_PM_REC_MULTIBLOCK	2	/* Reconciliation: multiple blocks */
