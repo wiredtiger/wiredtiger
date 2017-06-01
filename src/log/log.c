@@ -1672,6 +1672,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 	 * Set up the allocation size, starting and ending LSNs.  The values
 	 * for those depend on whether logging is currently enabled or not.
 	 */
+	lastlog = 0;
 	if (log != NULL) {
 		allocsize = log->allocsize;
 		end_lsn = log->alloc_lsn;
@@ -1682,6 +1683,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 			else if (!LF_ISSET(WT_LOGSCAN_FIRST))
 				return (WT_ERROR);	/* Illegal usage */
 		}
+		lastlog = log->fileid;
 	} else {
 		/*
 		 * If logging is not configured, we can still print out the log
@@ -1694,7 +1696,6 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 		 * a multiple of this.
 		 */
 		allocsize = WT_LOG_ALIGN;
-		lastlog = 0;
 		firstlog = UINT32_MAX;
 		WT_RET(__log_get_files(session,
 		    WT_LOG_FILENAME, &logfiles, &logcount));
@@ -1735,13 +1736,12 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 		 * from recovery, we expect valid LSNs so give more
 		 * information about that.
 		 */
-		if (lsnp->l.file > end_lsn.l.file) {
+		if (lsnp->l.file > lastlog) {
 			if (LF_ISSET(WT_LOGSCAN_RECOVER))
 				WT_ERR_MSG(session, WT_NOTFOUND,
 				    "__wt_log_scan LSN %" PRIu32 "/%" PRIu32
 				    " larger than biggest log file %" PRIu32,
-				    lsnp->l.file,
-				    lsnp->l.offset, end_lsn.l.file);
+				    lsnp->l.file, lsnp->l.offset, lastlog);
 			else
 				return (WT_NOTFOUND);
 		}
