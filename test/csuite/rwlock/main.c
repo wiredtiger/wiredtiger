@@ -67,7 +67,7 @@ main(int argc, char *argv[])
 	testutil_check(wiredtiger_open(opts->home, NULL,
 	    "create,session_max=1000,statistics=(fast)", &opts->conn));
 
-	__wt_rwlock_init(NULL, &rwlock);
+	testutil_check(__wt_rwlock_init(NULL, &rwlock));
 	testutil_check(pthread_rwlock_init(&p_rwlock, NULL));
 
 	testutil_check(pthread_create(

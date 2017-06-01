@@ -782,8 +782,8 @@ __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[])
 
 	WT_RET(__wt_spin_init(session,
 	    &txn_global->id_lock, "transaction id lock"));
-	__wt_rwlock_init(session, &txn_global->scan_rwlock);
-	__wt_rwlock_init(session, &txn_global->nsnap_rwlock);
+	WT_RET(__wt_rwlock_init(session, &txn_global->scan_rwlock));
+	WT_RET(__wt_rwlock_init(session, &txn_global->nsnap_rwlock));
 	txn_global->nsnap_oldest_id = WT_TXN_NONE;
 	TAILQ_INIT(&txn_global->nsnaph);
 

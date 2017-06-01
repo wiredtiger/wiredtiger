@@ -87,19 +87,14 @@
  * __wt_rwlock_init --
  *	Initialize a read/write lock.
  */
-void
+int
 __wt_rwlock_init(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 {
-	WT_DECL_RET;
-
 	l->u.v = 0;
 
-	/* XXX needs real error handling. */
-	ret = __wt_cond_alloc(session, "rwlock wait", &l->cond_readers);
-	WT_ASSERT(session, ret == 0);
-	ret = __wt_cond_alloc(session, "rwlock wait", &l->cond_writers);
-	WT_ASSERT(session, ret == 0);
-	WT_UNUSED(ret);
+	WT_RET(__wt_cond_alloc(session, "rwlock wait", &l->cond_readers));
+	WT_RET(__wt_cond_alloc(session, "rwlock wait", &l->cond_writers));
+	return (0);
 }
 
 /*
@@ -109,16 +104,10 @@ __wt_rwlock_init(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 void
 __wt_rwlock_destroy(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 {
-	WT_DECL_RET;
-
 	l->u.v = 0;
 
-	/* XXX needs real error handling. */
-	ret = __wt_cond_destroy(session, &l->cond_readers);
-	WT_ASSERT(session, ret == 0);
-	ret = __wt_cond_destroy(session, &l->cond_writers);
-	WT_ASSERT(session, ret == 0);
-	WT_UNUSED(ret);
+	__wt_cond_destroy(session, &l->cond_readers);
+	__wt_cond_destroy(session, &l->cond_writers);
 }
 
 /*
