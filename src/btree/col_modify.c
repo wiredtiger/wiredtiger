@@ -17,7 +17,8 @@ static int __col_insert_alloc(
  */
 int
 __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
-    uint64_t recno, const WT_ITEM *value, WT_UPDATE *upd_arg, u_int modify_type)
+    uint64_t recno, const WT_ITEM *value,
+    WT_UPDATE *upd_arg, u_int modify_type, bool exclusive)
 {
 	static const WT_ITEM col_fix_remove = { "", 1, NULL, 0, 0 };
 	WT_BTREE *btree;
@@ -188,12 +189,11 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 		if (append)
 			WT_ERR(__wt_col_append_serial(
 			    session, page, cbt->ins_head, cbt->ins_stack,
-			    &ins, ins_size, &cbt->recno, skipdepth,
-			    upd_arg != NULL));
+			    &ins, ins_size, &cbt->recno, skipdepth, exclusive));
 		else
 			WT_ERR(__wt_insert_serial(
 			    session, page, cbt->ins_head, cbt->ins_stack,
-			    &ins, ins_size, skipdepth, upd_arg != NULL));
+			    &ins, ins_size, skipdepth, exclusive));
 	}
 
 	/* If the update was successful, add it to the in-memory log. */

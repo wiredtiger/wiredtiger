@@ -403,6 +403,9 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
 	root_decr = root_incr = 0;
 	complete = WT_ERR_RETURN;
 
+	/* The root page will be marked dirty, make sure that will succeed. */
+	WT_RET(__wt_page_modify_init(session, root));
+
 	/*
 	 * Our caller is holding the root page locked to single-thread splits,
 	 * which means we can safely look at the page's index without setting a
@@ -605,7 +608,8 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	empty_parent = false;
 	complete = WT_ERR_RETURN;
 
-	WT_ASSERT(session, parent->modify != NULL);
+	/* The parent page will be marked dirty, make sure that will succeed. */
+	WT_RET(__wt_page_modify_init(session, parent));
 
 	/*
 	 * We've locked the parent, which means it cannot split (which is the
@@ -899,6 +903,9 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 
 	WT_STAT_CONN_INCR(session, cache_eviction_split_internal);
 	WT_STAT_DATA_INCR(session, cache_eviction_split_internal);
+
+	/* The page will be marked dirty, make sure that will succeed. */
+	WT_RET(__wt_page_modify_init(session, page));
 
 	btree = S2BT(session);
 	alloc_index = replace_index = NULL;
@@ -1424,7 +1431,7 @@ __split_multi_inmem(
 
 			/* Apply the modification. */
 			WT_ERR(__wt_col_modify(session,
-			    &cbt, recno, NULL, upd, WT_UPDATE_STANDARD));
+			    &cbt, recno, NULL, upd, WT_UPDATE_STANDARD, true));
 			break;
 		case WT_PAGE_ROW_LEAF:
 			/* Build a key. */
@@ -1445,8 +1452,8 @@ __split_multi_inmem(
 			WT_ERR(__wt_row_search(session, key, ref, &cbt, true));
 
 			/* Apply the modification. */
-			WT_ERR(__wt_row_modify(
-			    session, &cbt, key, NULL, upd, WT_UPDATE_STANDARD));
+			WT_ERR(__wt_row_modify(session, &cbt,
+			    key, NULL, upd, WT_UPDATE_STANDARD, true));
 			break;
 		WT_ILLEGAL_VALUE_ERR(session);
 		}
