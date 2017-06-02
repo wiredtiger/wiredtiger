@@ -67,8 +67,8 @@ struct __wt_rwlock {			/* Read/write lock */
 #define	SPINLOCK_PTHREAD_MUTEX_ADAPTIVE	3
 
 struct __wt_spinlock {
-	WT_CACHE_LINE_PAD_BEGIN
 #if SPINLOCK_TYPE == SPINLOCK_GCC
+	WT_CACHE_LINE_PAD_BEGIN
 	volatile int lock;
 #elif SPINLOCK_TYPE == SPINLOCK_PTHREAD_MUTEX ||			\
 	SPINLOCK_TYPE == SPINLOCK_PTHREAD_MUTEX_ADAPTIVE ||		\
@@ -91,5 +91,8 @@ struct __wt_spinlock {
 	int16_t stat_int_usecs_off;	/* waiting server threads offset */
 
 	int8_t initialized;		/* Lock initialized, for cleanup */
+
+#if SPINLOCK_TYPE == SPINLOCK_GCC
 	WT_CACHE_LINE_PAD_END
+#endif
 };
