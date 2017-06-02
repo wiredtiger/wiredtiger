@@ -123,8 +123,13 @@ __wt_try_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 
 	new.u.v = old.u.v = l->u.v;
 
-	/* This read lock can only be granted if there are no active writers. */
-	if (old.u.s.current != old.u.s.next)
+	/*
+	 * This read lock can only be granted if there are no active writers.
+	 *
+	 * Also check for overflow in case there are 64K active readers.
+	 */
+	if (old.u.s.current != old.u.s.next ||
+	    new.u.s.readers_active == UINT16_MAX)
 		return (EBUSY);
 
 	/*
