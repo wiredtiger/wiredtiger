@@ -156,7 +156,7 @@ __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 {
 	WT_RWLOCK new, old;
 	int pause_cnt;
-	int16_t writers_queued;
+	int16_t writers_active;
 	uint8_t ticket;
 
 	WT_STAT_CONN_INCR(session, rwlock_read);
@@ -186,20 +186,17 @@ __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 		/*
 		 * There is an active writer: join the next group.
 		 *
-		 * If more writers have queued up after a group of readers,
-		 * (indicated by `reader != next`), limit how many readers can
-		 * join the group: don't allow more readers to queue than there
-		 * are queued writers (calculated as `next - reader`):
-		 * otherwise, in write-heavy workloads, readers can keep
-		 * queuing up in front of writers and throughput is unstable.
+		 * Limit how many readers can queue: don't allow more readers
+		 * to queue than there are active writers (calculated as
+		 * `next - current`): otherwise, in write-heavy workloads,
+		 * readers can keep queuing up in front of writers and
+		 * throughput is unstable.
 		 *
 		 * If the maximum number of readers are already queued, wait
 		 * until we can get a valid ticket.
 		 */
-		writers_queued = old.u.s.next - old.u.s.reader;
-		if (old.u.s.readers_queued == UINT16_MAX ||
-		    (writers_queued != 0 &&
-		    old.u.s.readers_queued > writers_queued)) {
+		writers_active = old.u.s.next - old.u.s.current;
+		if (old.u.s.readers_queued > writers_active) {
 stall:			__wt_cond_wait(
 			    session, l->cond_readers, WT_THOUSAND, NULL);
 			continue;
