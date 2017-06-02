@@ -32,15 +32,17 @@
  * Test rwlock collapse under load.
  */
 #define	MAX_THREADS 1000
-//#define	READS_PER_WRITE	10000
-#define	READS_PER_WRITE	1000000
+#define	READS_PER_WRITE	10000
+//#define	READS_PER_WRITE	1000000
 //#define	READS_PER_WRITE	100
 
+#define	CHECK_CORRECTNESS 1
 //#define	USE_POSIX	1
 
 static WT_RWLOCK rwlock;
 static pthread_rwlock_t p_rwlock;
 static bool running;
+static uint64_t shared_counter;
 
 void *thread_rwlock(void *);
 void *thread_dump(void *);
@@ -124,7 +126,22 @@ thread_rwlock(void *arg)
 			__wt_readlock(session, &rwlock);
 #endif
 
+		/*
+		 * Do a tiny amount of work inside the lock so the compiler
+		 * can't optimize everything away.
+		 */
 		(void)__wt_atomic_add64(&counter, 1);
+
+#ifdef CHECK_CORRECTNESS
+		if (writelock)
+			counter = ++shared_counter;
+		else
+			counter = shared_counter;
+
+		__wt_yield();
+
+		testutil_assert(counter == shared_counter);
+#endif
 
 #ifdef USE_POSIX
 		testutil_check(pthread_rwlock_unlock(&p_rwlock));
