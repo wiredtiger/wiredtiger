@@ -42,17 +42,17 @@
  * The following is an explanation of our interpretation and implementation.
  * First, the underlying lock structure.
  *
- * union {
- *		uint64_t v;			// Full 64-bit value
- *		struct {
- *			uint8_t current;	// Current ticket
- *			uint8_t next;		// Next available ticket
- *			uint8_t reader;		// Read queue ticket
- *			uint8_t __notused;	// Padding
- *			uint16_t readers_active;// Count of active readers
- *			uint16_t readers_queued;// Count of queued readers
- *		} s;
- *	} u;
+ * volatile union {
+ *	uint64_t v;				// Full 64-bit value
+ *	struct {
+ *		uint8_t current;		// Current ticket
+ *		uint8_t next;			// Next available ticket
+ *		uint8_t reader;			// Read queue ticket
+ *		uint8_t __notused;		// Padding
+ *		uint16_t readers_active;	// Count of active readers
+ *		uint16_t readers_queued;	// Count of queued readers
+ *	} s;
+ * } u;
  *
  * First, imagine a store's 'take a number' ticket algorithm. A customer takes
  * a unique ticket number and customers are served in ticket order. In the data
