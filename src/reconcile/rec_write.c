@@ -2204,9 +2204,6 @@ __rec_split_init(WT_SESSION_IMPL *session,
 	disk_img_buf_size = WT_MAX(corrected_page_size, r->split_size);
 	WT_RET(bm->write_size(bm, session, &corrected_page_size));
 	WT_RET(__wt_buf_init(session, &r->disk_image[0], disk_img_buf_size));
-	// can defer init of the second img untill needed, makes simpler though
-	// specially since need to free them too.
-	WT_RET(__wt_buf_init(session, &r->disk_image[1], disk_img_buf_size));
 
 	/*
 	 * Clear the disk page header to ensure all of it is initialized, even
@@ -2218,8 +2215,6 @@ __rec_split_init(WT_SESSION_IMPL *session,
 	 */
 	memset(r->disk_image[0].mem, 0, page->type == WT_PAGE_COL_FIX ?
 	    disk_img_buf_size : WT_PAGE_HEADER_SIZE);
-	memset(r->disk_image[1].mem, 0, page->type == WT_PAGE_COL_FIX ?
-	    disk_img_buf_size : WT_PAGE_HEADER_SIZE);
 
 	/*
 	 * Set the page type (the type doesn't change, and setting it later
@@ -2227,14 +2222,10 @@ __rec_split_init(WT_SESSION_IMPL *session,
 	 */
 	dsk = r->disk_image[0].mem;
 	dsk->type = page->type;
-
-	r->first_free = WT_PAGE_HEADER_BYTE(btree, dsk);
-
-	dsk = r->disk_image[1].mem;
-	dsk->type = page->type;
-
 	r->cur_img_ptr = &r->disk_image[0];
 	r->prev_img_ptr = NULL;
+
+	r->first_free = WT_PAGE_HEADER_BYTE(btree, dsk);
 
 	/* Initialize the first boundary. */
 	r->bnd_next = 0;
@@ -2455,10 +2446,7 @@ __rec_split_grow(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t add_len)
 	corrected_page_size = inuse + add_len;
 
 	WT_RET(bm->write_size(bm, session, &corrected_page_size));
-	/* Need to account for buffer carrying two chunks worth of data */
-	// should we only grow the current image
-	WT_RET(__wt_buf_grow(session, &r->disk_image[0], corrected_page_size));
-	WT_RET(__wt_buf_grow(session, &r->disk_image[1], corrected_page_size));
+	WT_RET(__wt_buf_grow(session, r->cur_img_ptr, corrected_page_size));
 
 	r->first_free = (uint8_t *)r->cur_img_ptr->mem + inuse;
 	WT_ASSERT(session, corrected_page_size >= inuse);
@@ -2470,13 +2458,10 @@ __rec_split_grow(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t add_len)
 
 /*
  * __rec_split_write_prev_and_swap_buf --
- *	Write the previous split chunk to the disk as a page. Shift the contents
- *	of the current chunk to the start of the buffer, making space for a new
- *	chunk to be written.
- *	If the caller asks for a chunk resizing, the boundary between the two
- *	chunks is readjusted to the minimum split size boundary details stored
- *	in the previous chunk, letting the current chunk grow at the cost of the
- *	previous chunk.
+ *	If there is a previous split chunk held in the memory, write it to the
+ *	disk as a page. If there isn't one, initialize a second buffer to hold
+ *	it. Swap the previous and current buffer pointers, making the current
+ *	buffer as the previous one.
  */
 static int
 __rec_split_write_prev_and_swap_buf(
@@ -2485,6 +2470,8 @@ __rec_split_write_prev_and_swap_buf(
 	WT_BOUNDARY *bnd_cur, *bnd_prev;
 	WT_ITEM *tmp_img_ptr;
 	WT_PAGE_HEADER *dsk;
+	size_t disk_img_size;
+	uint8_t page_type;
 
 	bnd_cur = &r->bnd[r->bnd_next];
 	bnd_prev = bnd_cur - 1;
@@ -2500,9 +2487,23 @@ __rec_split_write_prev_and_swap_buf(
 		r->prev_img_ptr->size = dsk->mem_size;
 		WT_RET(__rec_split_write(session,
 		    r, bnd_prev, r->prev_img_ptr, false));
-	} else
-		/* initialize the previous buffer before we swap buffers */
+	} else {
+		/*
+		 * If we do not have a previous buffer, we should initialize the
+		 * second buffer before proceeding. We will create the second
+		 * buffer of the same size as the current buffer.
+		 */
+		disk_img_size = r->cur_img_ptr->memsize;
+		page_type = ((WT_PAGE_HEADER *)r->cur_img_ptr->mem)->type;
+		WT_RET(__wt_buf_init(session,
+		    &r->disk_image[1], disk_img_size));
 		r->prev_img_ptr = &r->disk_image[1];
+		dsk = r->prev_img_ptr->mem;
+		memset(dsk, 0,
+		    page_type == WT_PAGE_COL_FIX ?
+		    disk_img_size : WT_PAGE_HEADER_SIZE);
+		dsk->type = page_type;
+	}
 
 	/* swap previous and current buffers */
 	tmp_img_ptr = r->prev_img_ptr;
@@ -3127,18 +3128,105 @@ __rec_split_raw(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 }
 
 /*
- * __rec_split_finish_std --
- *	Finish processing a page, standard version.
+ * __rec_split_finish_process_prev --
+ * 	If the two split chunks together fit in a single page, merge them into
+ * 	one. If they do not fit in a single page but the last is smaller than
+ * 	the minimum desired, move some data from the penultimate chunk to the
+ * 	last chunk and write out the previous/penultimate. Finally, update the
+ * 	pointer to the current image buffer.
  */
-static int
-__rec_split_finish_std(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+static inline int
+__rec_split_finish_process_prev(
+    WT_SESSION_IMPL *session, WT_RECONCILE *r, bool *chunks_merged)
 {
 	WT_BOUNDARY *bnd_cur, *bnd_prev;
 	WT_BTREE *btree;
 	WT_PAGE_HEADER *dsk;
 	uint32_t combined_size, len_to_move;
 	uint8_t *cur_dsk_start;
-	bool grow_bnd;
+
+	WT_ASSERT(session, r->prev_img_ptr != NULL);
+
+	btree = S2BT(session);
+	bnd_cur = &r->bnd[r->bnd_next];
+	bnd_prev = bnd_cur - 1;
+	*chunks_merged = false;
+	combined_size = bnd_prev->size +
+	    bnd_cur->size - WT_PAGE_HEADER_BYTE_SIZE(btree);
+
+	if (combined_size <= r->page_size) {
+		/*
+		 * We have two boundaries, but the data in the buffers can fit a
+		 * single page. Merge the boundaries and create a single chunk.
+		 */
+		dsk = r->cur_img_ptr->mem;
+		memcpy((uint8_t *)r->prev_img_ptr->mem + bnd_prev->size,
+		    WT_PAGE_HEADER_BYTE(btree, dsk),
+		    bnd_cur->size - WT_PAGE_HEADER_BYTE_SIZE(btree));
+		bnd_prev->size = combined_size;
+		bnd_prev->max_bnd_entries += bnd_cur->max_bnd_entries;
+		r->bnd_next--;
+		*chunks_merged = true;
+	} else {
+		if (bnd_cur->size < r->min_split_size &&
+		    bnd_prev->min_bnd_offset != 0 ) {
+			/* readjust data between the two buffers */
+			// What if length is really large and we have to
+			// readjust the cur buf size accordingly
+			len_to_move = bnd_prev->size - bnd_prev->min_bnd_offset;
+			cur_dsk_start = WT_PAGE_HEADER_BYTE(btree,
+			    r->cur_img_ptr->mem);
+
+			/*
+			 * Shift the contents of the current buffer to make
+			 * space for the data that will be prepended into the
+			 * current buffer
+			 */
+			memmove(cur_dsk_start + len_to_move,
+			    cur_dsk_start, bnd_cur->size -
+			    WT_PAGE_HEADER_BYTE_SIZE(btree));
+			/*
+			 * copy any data more than the minimum, from the
+			 * previous buffer to the start of the current.
+			 */
+			memcpy(cur_dsk_start, (uint8_t *)r->prev_img_ptr->mem +
+			    bnd_prev->min_bnd_offset, len_to_move);
+
+			/* Update boundary information */
+			bnd_cur->size += len_to_move;
+			bnd_prev->size -= len_to_move;
+			bnd_cur->max_bnd_entries += bnd_prev->max_bnd_entries -
+			    bnd_prev->min_bnd_entries;
+			bnd_prev->max_bnd_entries = bnd_prev->min_bnd_entries;
+			bnd_cur->max_bnd_recno = bnd_prev->min_bnd_recno;
+			WT_RET(__wt_buf_set(session,
+			    &bnd_cur->max_bnd_key, bnd_prev->min_bnd_key.data,
+			    bnd_prev->min_bnd_key.size));
+		}
+
+		/* Write out the previous image */
+		__rec_split_write_prev_and_swap_buf(session, r);
+	}
+
+	/*
+	 * At this point, there is only one disk image in the memory, pointed to
+	 * by the previous image pointer. Update the current image pointer to
+	 * this image.
+	 */
+	r->cur_img_ptr = r->prev_img_ptr;
+	return (0);
+}
+
+/*
+ * __rec_split_finish_std --
+ *	Finish processing a page, standard version.
+ */
+static int
+__rec_split_finish_std(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+{
+	WT_BOUNDARY *bnd_cur;
+	WT_PAGE_HEADER *dsk;
+	bool chunks_merged;
 
 	/*
 	 * We may arrive here with no entries to write if the page was entirely
@@ -3170,85 +3258,17 @@ __rec_split_finish_std(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	bnd_cur->max_bnd_entries = r->entries;
 	bnd_cur->size = WT_PTRDIFF(r->first_free, r->cur_img_ptr->mem);
 
-	grow_bnd = true;
-	/* If we have two chunks:
-	 * 1. If two chunks can be merged to fit in a single page, do so
-	 * 2. If last chunk is smaller than the minimum desired,
-	 *     readjust between the last two
-	 * 3. Finally the previous page out
-	 */
-	if (r->prev_img_ptr != NULL) {
-		btree = S2BT(session);
-		bnd_prev = bnd_cur - 1;
-		combined_size = bnd_prev->size + bnd_cur->size -
-		    WT_PAGE_HEADER_BYTE_SIZE(btree);
-		if (combined_size <= r->page_size) {
-			/*
-			 * We have two boundaries, but the data in the
-			 * buffer can fit a single page. Merge the
-			 * boundaries to create a single chunk.
-			 */
-			dsk = r->cur_img_ptr->mem;
-			memcpy((uint8_t *)r->prev_img_ptr->mem + bnd_prev->size,
-			    WT_PAGE_HEADER_BYTE(btree, dsk),
-			    bnd_cur->size - WT_PAGE_HEADER_BYTE_SIZE(btree));
-			bnd_prev->size = combined_size;
-			bnd_prev->max_bnd_entries += bnd_cur->max_bnd_entries;
-			r->bnd_next--;
-			grow_bnd = false;
-		} else {
-			if (bnd_cur->size < r->min_split_size &&
-			    bnd_prev->min_bnd_offset != 0 ) {
-				/* readjust data between buffers */
-				// What if length is really large and we have to
-				// readjust the cur buf size to accomodate
-				len_to_move = bnd_prev->size -
-				    bnd_prev->min_bnd_offset;
-				cur_dsk_start = WT_PAGE_HEADER_BYTE(btree,
-				    r->cur_img_ptr->mem);
-
-				/*
-				 * Shift the contents of the current buffer to
-				 * make space for the data that will be
-				 * prepended to these contents
-				 */
-				memmove(cur_dsk_start + len_to_move,
-				    cur_dsk_start, bnd_cur->size -
-				    WT_PAGE_HEADER_BYTE_SIZE(btree));
-				/*
-				 * copy the extra stuff from previous to current
-				 * buffer
-				 */
-				memcpy(cur_dsk_start,
-				    (uint8_t *)r->prev_img_ptr->mem +
-				    bnd_prev->min_bnd_offset, len_to_move);
-
-				/* Fix boundary data */
-				bnd_cur->size += len_to_move;
-				bnd_prev->size -= len_to_move;
-				bnd_cur->max_bnd_entries +=
-				    bnd_prev->max_bnd_entries -
-				    bnd_prev->min_bnd_entries;
-				bnd_prev->max_bnd_entries =
-				    bnd_prev->min_bnd_entries;
-				bnd_cur->max_bnd_recno =
-				    bnd_prev->min_bnd_recno;
-				WT_RET(__wt_buf_set(session,
-				    &bnd_cur->max_bnd_key,
-				    bnd_prev->min_bnd_key.data,
-				    bnd_prev->min_bnd_key.size));
-			}
-			__rec_split_write_prev_and_swap_buf(session, r);
-		}
-		r->cur_img_ptr = r->prev_img_ptr;
-	}
+	chunks_merged = false;
+	if (r->prev_img_ptr != NULL)
+		WT_RET(__rec_split_finish_process_prev(session,
+		    r, &chunks_merged));
 
 	/*
 	 * We already have space for an extra boundary if we merged two
 	 * boundaries above, in that case we do not need to grow the boundary
 	 * structure.
 	 */
-	if (grow_bnd)
+	if (!chunks_merged)
 		WT_RET(__rec_split_bnd_grow(session, r));
 	bnd_cur = &r->bnd[r->bnd_next];
 	r->bnd_next++;
