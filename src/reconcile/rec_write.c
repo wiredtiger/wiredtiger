@@ -3170,12 +3170,19 @@ __rec_split_finish_process_prev(
 	} else {
 		if (bnd_cur->size < r->min_split_size &&
 		    bnd_prev->min_bnd_offset != 0 ) {
-			/* readjust data between the two buffers */
-			// What if length is really large and we have to
-			// readjust the cur buf size accordingly
+			/*
+			 * The last chunk, pointed to by the current image
+			 * pointer, has less than the minimum data. Let's move
+			 * any data more than the minimum from the previous
+			 * image into the current.
+			 */
 			len_to_move = bnd_prev->size - bnd_prev->min_bnd_offset;
 			cur_dsk_start = WT_PAGE_HEADER_BYTE(btree,
 			    r->cur_img_ptr->mem);
+			/* Grow current buffer if it is not large enough */
+			if (r->space_avail < len_to_move)
+				WT_RET(__rec_split_grow(session,
+				    r, len_to_move));
 
 			/*
 			 * Shift the contents of the current buffer to make
@@ -3376,7 +3383,6 @@ __rec_split_write(WT_SESSION_IMPL *session,
 		break;
 	WT_ILLEGAL_VALUE(session);
 	}
-	// Size settings can be moved out, except in raw comp this comes preset
 	bnd->size = (uint32_t)buf->size;
 	bnd->checksum = 0;
 
