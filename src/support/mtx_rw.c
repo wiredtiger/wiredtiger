@@ -123,22 +123,20 @@ __wt_try_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 
 	old.u.v = l->u.v;
 
-	/*
-	 * This read lock can only be granted if there are no active writers.
-	 *
-	 * Also check for overflow in case there are 64K active readers.
-	 */
+	/* This read lock can only be granted if there are no active writers. */
 	if (old.u.s.current != old.u.s.next)
 		return (EBUSY);
 
 	/*
 	 * The replacement lock value is a result of adding an active reader.
-	 *
-	 * We rely on this atomic operation to provide a barrier.
+	 * Check for overflow: if the maximum number of readers are already
+	 * active, no new readers can enter the lock.
 	 */
 	new.u.v = old.u.v;
 	if (++new.u.s.readers_active == 0)
 		return (EBUSY);
+
+	/* We rely on this atomic operation to provide a barrier. */
 	return (__wt_atomic_casv64(&l->u.v, old.u.v, new.u.v) ? 0 : EBUSY);
 }
 
@@ -180,7 +178,8 @@ __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 			new.u.v = old.u.v;
 			/*
 			 * Check for overflow: if the maximum number of readers
-			 * are already active, wait to try again.
+			 * are already active, no new readers can enter the
+			 * lock.
 			 */
 			if (++new.u.s.readers_active == 0)
 				goto stall;
@@ -245,7 +244,9 @@ stall:			__wt_cond_wait(
 	 */
 	WT_READ_BARRIER();
 
-	WT_ASSERT(session, l->u.s.readers_active > 0);
+	/* Sanity check that we (still) have the lock. */
+	WT_ASSERT(session,
+	    ticket == l->u.s.current && l->u.s.readers_active > 0);
 }
 
 /*
@@ -345,8 +346,9 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 		ticket = new.u.s.next++;
 
 		/*
-		 * Avoid wrapping: if we allocate more than 256 tickets, two
-		 * lockers will simultaneously be granted the lock.
+		 * Check for overflow: if the next ticket is allowed to catch
+		 * up with the current batch, two writers could be granted the
+		 * lock simultaneously.
 		 */
 		if (new.u.s.current == new.u.s.next) {
 			__wt_cond_wait(
@@ -357,7 +359,14 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 			break;
 	}
 
-	/* Wait for our group to start and any readers to drain. */
+	/*
+	 * Wait for our group to start and any readers to drain.
+	 *
+	 * We take care here to do an atomic read of the full 64-bit lock
+	 * value.  Otherwise, reads are not guaranteed to be ordered and we
+	 * could see no readers active from a different batch and decide that
+	 * we have the lock.
+	 */
 	for (pause_cnt = 0, old.u.v = l->u.v;
 	    ticket != old.u.s.current || old.u.s.readers_active != 0;
 	    pause_cnt++, old.u.v = l->u.v) {
@@ -382,8 +391,9 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 	 */
 	WT_READ_BARRIER();
 
-	WT_ASSERT(session, ticket == old.u.s.current);
-	WT_ASSERT(session, old.u.s.readers_active == 0);
+	/* Sanity check that we (still) have the lock. */
+	WT_ASSERT(session,
+	    ticket == l->u.s.current && l->u.s.readers_active == 0);
 }
 
 /*
