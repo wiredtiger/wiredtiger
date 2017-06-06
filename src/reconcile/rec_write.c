@@ -25,6 +25,21 @@ typedef struct {
 	WT_PAGE *page;
 	uint32_t flags;			/* Caller's configuration */
 
+	/*
+	 * Reconciliation can end up requiring two temporary disk image buffers
+	 * if a page split is involved. These two disk images are pointed to by
+	 * current and the previous image pointers. During initialization the
+	 * first image is allocated and pointed to by the current image pointer.
+	 * If and when a split is involved the second image gets allocated and
+	 * is pointed to by the current image pointer. The previous image
+	 * pointer is made to refer the first image at this point. Two images
+	 * are kept in memory to redistribute data among them in case the last
+	 * split chunk ends up being smaller than the minimum required. As
+	 * reconciliation generates more split chunks, the image referred to by
+	 * the previous image pointer is written to the disk, the current and
+	 * the previous image pointers are swapped, letting upcoming split chunk
+	 * to be generated in the buffer that was just written out to the disk.
+	 */
 	WT_ITEM disk_image[2];		/* Temporary disk-image buffers */
 	WT_ITEM *cur_img_ptr;
 	WT_ITEM *prev_img_ptr;
@@ -2195,10 +2210,9 @@ __rec_split_init(WT_SESSION_IMPL *session,
 	 * Ensure the disk image buffer is large enough for the max object, as
 	 * corrected by the underlying block manager.
 	 *
-	 * The buffer that we build disk image in, needs to hold two chunks
-	 * worth of data. Since we want to support split_size more than the page
-	 * size (to allow for adjustments based on the compression), this buffer
-	 * should be greater of twice of split_size and page_size.
+	 * Since we want to support split_size more than the page size (to allow
+	 * for adjustments based on the compression), this buffer should be
+	 * greater of split_size and page_size.
 	 */
 	corrected_page_size = r->page_size;
 	disk_img_buf_size = WT_MAX(corrected_page_size, r->split_size);
@@ -2460,8 +2474,8 @@ __rec_split_grow(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t add_len)
  * __rec_split_write_prev_and_swap_buf --
  *	If there is a previous split chunk held in the memory, write it to the
  *	disk as a page. If there isn't one, initialize a second buffer to hold
- *	it. Swap the previous and current buffer pointers, making the current
- *	buffer as the previous one.
+ *	the previous chunk. Swap the previous and current buffer pointers,
+ *	making the current buffer as the previous one.
  */
 static int
 __rec_split_write_prev_and_swap_buf(
@@ -2476,10 +2490,11 @@ __rec_split_write_prev_and_swap_buf(
 	bnd_cur = &r->bnd[r->bnd_next];
 	bnd_prev = bnd_cur - 1;
 
+	WT_ASSERT(session, (r->prev_img_ptr == NULL && r->bnd_next == 0) ||
+	    (r->prev_img_ptr != NULL && r->bnd_next != 0));
+
 	/* Write previous chunk, if there is one */
 	if (r->prev_img_ptr != NULL) {
-		WT_ASSERT(session, r->bnd_next != 0);
-
 		dsk = r->prev_img_ptr->mem;
 		dsk->recno = bnd_prev->max_bnd_recno;
 		dsk->u.entries = bnd_prev->max_bnd_entries;
@@ -3133,7 +3148,9 @@ __rec_split_raw(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
  * 	one. If they do not fit in a single page but the last is smaller than
  * 	the minimum desired, move some data from the penultimate chunk to the
  * 	last chunk and write out the previous/penultimate. Finally, update the
- * 	pointer to the current image buffer.
+ * 	pointer to the current image buffer.  After this function exits, we will
+ * 	have one (last) buffer in memory, pointed to by the current image
+ * 	pointer.
  */
 static inline int
 __rec_split_finish_process_prev(
@@ -3151,6 +3168,11 @@ __rec_split_finish_process_prev(
 	bnd_cur = &r->bnd[r->bnd_next];
 	bnd_prev = bnd_cur - 1;
 	*chunks_merged = false;
+	/*
+	 * The sizes referred to in the boundary structure include the header,
+	 * so when calculating the combined size, make sure not to include the
+	 * header twice.
+	 */
 	combined_size = bnd_prev->size +
 	    bnd_cur->size - WT_PAGE_HEADER_BYTE_SIZE(btree);
 
