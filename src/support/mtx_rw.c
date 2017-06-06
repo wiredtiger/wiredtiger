@@ -202,8 +202,8 @@ __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 		 */
 		writers_active = old.u.s.next - old.u.s.current;
 		if (old.u.s.readers_queued > writers_active) {
-stall:			__wt_cond_wait(
-			    session, l->cond_readers, WT_THOUSAND, NULL);
+stall:			__wt_cond_wait(session,
+			    l->cond_readers, 10 * WT_THOUSAND, NULL);
 			continue;
 		}
 
@@ -230,8 +230,8 @@ stall:			__wt_cond_wait(
 		else {
 			session->current_rwlock = l;
 			session->current_rwticket = ticket;
-			__wt_cond_wait(
-			    session, l->cond_readers, 0, __read_blocked);
+			__wt_cond_wait(session,
+			    l->cond_readers, 10 * WT_THOUSAND, __read_blocked);
 		}
 	}
 
@@ -351,8 +351,8 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 		 * lock simultaneously.
 		 */
 		if (new.u.s.current == new.u.s.next) {
-			__wt_cond_wait(
-			    session, l->cond_writers, WT_THOUSAND, NULL);
+			__wt_cond_wait(session,
+			    l->cond_writers, 10 * WT_THOUSAND, NULL);
 			continue;
 		}
 		if (__wt_atomic_casv64(&l->u.v, old.u.v, new.u.v))
@@ -377,8 +377,8 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 		else {
 			session->current_rwlock = l;
 			session->current_rwticket = ticket;
-			__wt_cond_wait(
-			    session, l->cond_writers, 0, __write_blocked);
+			__wt_cond_wait(session,
+			    l->cond_writers, 10 * WT_THOUSAND, __write_blocked);
 		}
 	}
 
