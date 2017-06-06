@@ -420,7 +420,6 @@ env.Append(CPPPATH=["test/utility"])
 t = env.Program("t_bloom",
     "test/bloom/test_bloom.c",
     LIBS=[wtlib, testutil])
-env.Alias("check", env.SmokeTest(t))
 Default(t)
 
 t = env.Program("t_checkpoint",
