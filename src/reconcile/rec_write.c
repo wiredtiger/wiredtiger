@@ -3177,12 +3177,12 @@ __rec_split_finish_process_prev(
 			 * image into the current.
 			 */
 			len_to_move = bnd_prev->size - bnd_prev->min_bnd_offset;
-			cur_dsk_start = WT_PAGE_HEADER_BYTE(btree,
-			    r->cur_img_ptr->mem);
 			/* Grow current buffer if it is not large enough */
 			if (r->space_avail < len_to_move)
 				WT_RET(__rec_split_grow(session,
 				    r, len_to_move));
+			cur_dsk_start = WT_PAGE_HEADER_BYTE(btree,
+			    r->cur_img_ptr->mem);
 
 			/*
 			 * Shift the contents of the current buffer to make
