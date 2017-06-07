@@ -126,7 +126,7 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 	n = 0;
 
 	/* We're going to scan the table: wait for the lock. */
-	__wt_readlock_spin(session, &txn_global->current_rwlock);
+	__wt_readlock(session, &txn_global->current_rwlock);
 
 	current_id = pinned_id = txn_global->current;
 	prev_oldest_id = txn_global->oldest_id;
@@ -293,7 +293,7 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 
 	/* First do a read-only scan. */
 	if (wait)
-		__wt_readlock_spin(session, &txn_global->oldest_rwlock);
+		__wt_readlock(session, &txn_global->oldest_rwlock);
 	else if ((ret =
 	    __wt_try_readlock(session, &txn_global->oldest_rwlock)) != 0)
 		return (ret == EBUSY ? 0 : ret);
@@ -462,7 +462,7 @@ __txn_global_query_timestamp(
 
 	WT_RET(__wt_config_gets(session, cfg, "get", &cval));
 	if (WT_STRING_MATCH("all_committed", cval.str, cval.len)) {
-		__wt_readlock_spin(session, &txn_global->current_rwlock);
+		__wt_readlock(session, &txn_global->current_rwlock);
 		__wt_ts_set(ts, txn_global->commit_timestamp);
 		WT_ORDERED_READ(session_cnt, conn->session_cnt);
 		for (i = 0, s = txn_global->states; i < session_cnt; i++, s++) {
@@ -474,7 +474,7 @@ __txn_global_query_timestamp(
 		}
 		__wt_readunlock(session, &txn_global->current_rwlock);
 	} else if (WT_STRING_MATCH("oldest_reader", cval.str, cval.len)) {
-		__wt_readlock_spin(session, &txn_global->current_rwlock);
+		__wt_readlock(session, &txn_global->current_rwlock);
 		__wt_ts_set(ts, txn_global->oldest_timestamp);
 		/* Look at running checkpoints. */
 		s = &txn_global->checkpoint_state;
@@ -933,7 +933,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			 * Switch reserved operations to abort to
 			 * simplify obsolete update list truncation.
 			 */
-			if (WT_UPDATE_RESERVED_ISSET(op->u.upd)) {
+			if (op->u.upd->type == WT_UPDATE_RESERVED) {
 				op->u.upd->txnid = WT_TXN_ABORTED;
 				break;
 			}
@@ -980,7 +980,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	__wt_txn_release(session);
 	/* First check if we've already committed something in the future. */
 	if (update_timestamp) {
-		__wt_readlock_spin(session, &txn_global->current_rwlock);
+		__wt_readlock(session, &txn_global->current_rwlock);
 		__wt_ts_set(
 		    prev_commit_timestamp, txn_global->commit_timestamp);
 		__wt_readunlock(session, &txn_global->current_rwlock);
@@ -1181,10 +1181,10 @@ __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[])
 
 	WT_RET(__wt_spin_init(
 	    session, &txn_global->id_lock, "transaction id lock"));
+	WT_RET(__wt_rwlock_init(session, &txn_global->current_rwlock));
+	//WT_RET(__wt_rwlock_init(session, &txn_global->oldest_rwlock));
+	WT_RET(__wt_rwlock_init(session, &txn_global->nsnap_rwlock));
 
-	__wt_rwlock_init(session, &txn_global->current_rwlock);
-	//__wt_rwlock_init(session, &txn_global->oldest_rwlock);
-	__wt_rwlock_init(session, &txn_global->nsnap_rwlock);
 	txn_global->nsnap_oldest_id = WT_TXN_NONE;
 	TAILQ_INIT(&txn_global->nsnaph);
 

@@ -48,8 +48,9 @@ typedef struct {
 	/* Track the page's maximum transaction ID. */
 	uint64_t max_txn;
 
-	uint64_t update_mem;		/* Total update memory */
-	uint64_t update_mem_skipped;	/* Skipped update memory */
+	uint64_t update_mem_all;	/* Total update memory size */
+	uint64_t update_mem_saved;	/* Saved update memory size */
+	uint64_t update_mem_uncommitted;/* Uncommitted update memory size */
 
 	/*
 	 * When we can't mark the page clean (for example, checkpoint found some
@@ -350,6 +351,7 @@ static int  __rec_dictionary_init(WT_SESSION_IMPL *, WT_RECONCILE *, u_int);
 static int  __rec_dictionary_lookup(
 		WT_SESSION_IMPL *, WT_RECONCILE *, WT_KV *, WT_DICTIONARY **);
 static void __rec_dictionary_reset(WT_RECONCILE *);
+static void __rec_verbose_lookaside_write(WT_SESSION_IMPL *);
 
 /*
  * __wt_reconcile --
@@ -385,7 +387,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	 *    In-memory splits: reconciliation of an internal page cannot handle
 	 * a child page splitting during the reconciliation.
 	 */
-	__wt_writelock(session, &page->page_lock);
+	WT_PAGE_LOCK(session, page);
 
 	oldest_id = __wt_txn_oldest_id(session);
 	if (LF_ISSET(WT_EVICTING))
@@ -404,7 +406,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	/* Initialize the reconciliation structure for each new run. */
 	if ((ret = __rec_write_init(
 	    session, ref, flags, salvage, &session->reconcile)) != 0) {
-		__wt_writeunlock(session, &page->page_lock);
+		WT_PAGE_UNLOCK(session, page);
 		return (ret);
 	}
 	r = session->reconcile;
@@ -445,14 +447,14 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 		WT_TRET(__rec_write_wrapup_err(session, r, page));
 
 	/* Release the reconciliation lock. */
-	__wt_writeunlock(session, &page->page_lock);
+	WT_PAGE_UNLOCK(session, page);
 
 	/*
 	 * If our caller can configure lookaside table reconciliation, flag if
 	 * that's worth trying. The lookaside table doesn't help if we skipped
 	 * updates, it can only help with older readers preventing eviction.
 	 */
-	if (lookaside_retryp != NULL && r->update_mem_skipped == 0)
+	if (lookaside_retryp != NULL && r->update_mem_uncommitted == 0)
 		*lookaside_retryp = true;
 
 	/* Update statistics. */
@@ -561,9 +563,6 @@ __rec_las_checkpoint_test(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 static int
 __rec_write_check_complete(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
-	WT_BOUNDARY *bnd;
-	size_t i;
-
 	/*
 	 * Tests in this function are lookaside tests and tests to decide if
 	 * rewriting a page in memory is worth doing. In-memory configurations
@@ -582,31 +581,16 @@ __rec_write_check_complete(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		return (EBUSY);
 
 	/*
-	 * If doing update/restore based eviction, see if rewriting the page in
-	 * memory is worth the effort.
+	 * If when doing update/restore based eviction, we didn't split and
+	 * didn't apply any updates, then give up.
+	 *
+	 * This may lead to saving the page to the lookaside table: that
+	 * decision is made by eviction.
 	 */
-	if (F_ISSET(r, WT_EVICT_UPDATE_RESTORE)) {
-		/* If discarding a disk-page size chunk, do it. */
-		for (bnd = r->bnd, i = 0; i < r->bnd_next; ++bnd, ++i)
-			if (bnd->supd == NULL)
-				return (0);
+	if (F_ISSET(r, WT_EVICT_UPDATE_RESTORE) && r->bnd_next == 1 &&
+	    r->update_mem_all != 0 && r->update_mem_all == r->update_mem_saved)
+		return (EBUSY);
 
-		/*
-		 * Switch to the lookaside table if we can: it's more effective
-		 * than rewriting a page in memory because it implies eviction.
-		 */
-		if (r->update_mem_skipped == 0)
-			return (EBUSY);
-
-		/*
-		 * Don't rewrite pages where we're not going to get back enough
-		 * memory to care. There's no empirical evidence the 2KB limit
-		 * is a good configuration, but it should keep us from wasting
-		 * time on tiny pages and pages with only a few updates.
-		 */
-		if (r->update_mem - r->update_mem_skipped < 2 * WT_KILOBYTE)
-			return (EBUSY);
-	}
 	return (0);
 }
 
@@ -910,7 +894,7 @@ __rec_write_init(WT_SESSION_IMPL *session,
 	r->max_txn = WT_TXN_NONE;
 
 	/* Track if all updates were skipped. */
-	r->update_mem = r->update_mem_skipped = 0;
+	r->update_mem_all = r->update_mem_saved = r->update_mem_uncommitted = 0;
 
 	/* Track if the page can be marked clean. */
 	r->leave_dirty = false;
@@ -1227,7 +1211,10 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		}
 
 	/* Reconciliation should never see a reserved update. */
-	WT_ASSERT(session, *updp == NULL || !WT_UPDATE_RESERVED_ISSET(*updp));
+	WT_ASSERT(session,
+	    *updp == NULL || (*updp)->type != WT_UPDATE_RESERVED);
+
+	r->update_mem_all += update_mem;
 
 	/*
 	 * If all of the updates were aborted, quit. This test is not strictly
@@ -1332,9 +1319,9 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 * recover. That test is comparing the memory we'd recover to the memory
 	 * we'd have to re-instantiate as part of the rewrite.
 	 */
-	r->update_mem += update_mem;
+	r->update_mem_saved += update_mem;
 	if (skipped)
-		r->update_mem_skipped += update_mem;
+		r->update_mem_uncommitted += update_mem;
 
 	append_origv = false;
 	if (F_ISSET(r, WT_EVICT_UPDATE_RESTORE)) {
@@ -1413,14 +1400,14 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 * place a deleted record at the end of the update list.
 		 */
 		if (vpack == NULL || vpack->type == WT_CELL_DEL)
-			WT_RET(__wt_update_alloc(
-			    session, NULL, &append, &notused, true, false));
+			WT_RET(__wt_update_alloc(session,
+			    NULL, &append, &notused, WT_UPDATE_DELETED));
 		else {
 			WT_RET(__wt_scr_alloc(session, 0, &tmp));
 			if ((ret = __wt_page_cell_data_ref(
 			    session, page, vpack, tmp)) == 0)
 				ret = __wt_update_alloc(session,
-				    tmp, &append, &notused, false, false);
+				    tmp, &append, &notused, WT_UPDATE_STANDARD);
 			__wt_scr_free(session, &tmp);
 			WT_RET(ret);
 		}
@@ -2167,8 +2154,8 @@ __rec_split_init(WT_SESSION_IMPL *session,
 	r->page_size = r->page_size_orig = max;
 	if (r->raw_compression)
 		r->max_raw_page_size = r->page_size =
-		    (uint32_t)WT_MIN(r->page_size * 10,
-		    WT_MAX(r->page_size, btree->maxmempage / 2));
+		    (uint32_t)WT_MIN((uint64_t)r->page_size * 10,
+		    WT_MAX((uint64_t)r->page_size, btree->maxmempage / 2));
 	/*
 	 * If we have to split, we want to choose a smaller page size for the
 	 * split pages, because otherwise we could end up splitting one large
@@ -3585,8 +3572,7 @@ __rec_update_las(WT_SESSION_IMPL *session,
 	WT_PAGE *page;
 	WT_SAVE_UPD *list;
 	WT_UPDATE *upd;
-	uint64_t las_counter;
-	int64_t insert_cnt;
+	uint64_t insert_cnt, las_counter;
 	uint32_t i, session_flags, slot;
 	uint8_t *p;
 
@@ -3679,13 +3665,13 @@ __rec_update_las(WT_SESSION_IMPL *session,
 		 * restored, obviously.
 		 */
 		do {
-			if (WT_UPDATE_RESERVED_ISSET(upd))
+			if (upd->type == WT_UPDATE_RESERVED)
 				continue;
 
 			cursor->set_key(cursor, btree_id,
 			    &las_addr, ++las_counter, list->onpage_txn, key);
 
-			if (WT_UPDATE_DELETED_ISSET(upd))
+			if (upd->type == WT_UPDATE_DELETED)
 				las_value.size = 0;
 			else {
 				las_value.data = WT_UPDATE_DATA(upd);
@@ -3699,7 +3685,7 @@ __rec_update_las(WT_SESSION_IMPL *session,
 			las_timestamp.size = 0;
 #endif
 			cursor->set_value(cursor,
-			    upd->txnid, &las_timestamp, upd->size, &las_value);
+			    upd->txnid, &las_timestamp, upd->type, &las_value);
 
 			WT_ERR(cursor->insert(cursor));
 			++insert_cnt;
@@ -3708,9 +3694,11 @@ __rec_update_las(WT_SESSION_IMPL *session,
 
 err:	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 
-	if (insert_cnt > 0)
-		(void)__wt_atomic_addi64(
+	if (insert_cnt > 0) {
+		(void)__wt_atomic_add64(
 		    &S2C(session)->las_record_cnt, insert_cnt);
+		__rec_verbose_lookaside_write(session);
+	}
 
 	__wt_scr_free(session, &key);
 	return (ret);
@@ -4625,7 +4613,7 @@ record_loop:	/*
 				update_no_copy = true;	/* No data copy */
 				repeat_count = 1;	/* Single record */
 
-				deleted = WT_UPDATE_DELETED_ISSET(upd);
+				deleted = upd->type == WT_UPDATE_DELETED;
 				if (!deleted) {
 					data = WT_UPDATE_DATA(upd);
 					size = upd->size;
@@ -4860,7 +4848,7 @@ compare:		/*
 				}
 			} else {
 				deleted = upd == NULL ||
-				    WT_UPDATE_DELETED_ISSET(upd);
+				    upd->type == WT_UPDATE_DELETED;
 				if (!deleted) {
 					data = WT_UPDATE_DATA(upd);
 					size = upd->size;
@@ -5405,7 +5393,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 				    __wt_ovfl_cache(session, page, rip, vpack));
 
 			/* If this key/value pair was deleted, we're done. */
-			if (WT_UPDATE_DELETED_ISSET(upd)) {
+			if (upd->type == WT_UPDATE_DELETED) {
 				/*
 				 * Overflow keys referencing discarded values
 				 * are no longer useful, discard the backing
@@ -5615,7 +5603,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 	for (; ins != NULL; ins = WT_SKIP_NEXT(ins)) {
 		/* Look for an update. */
 		WT_RET(__rec_txn_read(session, r, ins, NULL, NULL, &upd));
-		if (upd == NULL || WT_UPDATE_DELETED_ISSET(upd))
+		if (upd == NULL || upd->type == WT_UPDATE_DELETED)
 			continue;
 
 		if (upd->size == 0)			/* Build value cell. */
@@ -6601,4 +6589,52 @@ __rec_dictionary_lookup(
 	__rec_dictionary_skip_insert(r->dictionary_head, next, hash);
 	*dpp = next;
 	return (0);
+}
+
+/*
+ * __rec_verbose_lookaside_write --
+ *	Create a verbose message to display once per checkpoint with details
+ * about the cache state when performing a lookaside table write.
+ */
+static void
+__rec_verbose_lookaside_write(WT_SESSION_IMPL *session)
+{
+#ifdef HAVE_VERBOSE
+	WT_CONNECTION_IMPL *conn;
+	uint64_t ckpt_gen_current, ckpt_gen_last;
+	uint32_t pct_dirty, pct_full;
+
+	if (!WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE)) return;
+
+	conn = S2C(session);
+	ckpt_gen_current = __wt_gen(session, WT_GEN_CHECKPOINT);
+	ckpt_gen_last = conn->las_verb_gen_write;
+
+	/*
+	 * This message is throttled to one per checkpoint. To do this we
+	 * track the generation of the last checkpoint for which the message
+	 * was printed and check against the current checkpoint generation.
+	 */
+	if (ckpt_gen_current > ckpt_gen_last) {
+		/*
+		 * Attempt to atomically replace the last checkpoint generation
+		 * for which this message was printed. If the atomic swap fails
+		 * we have raced and the winning thread will print the message.
+		 */
+		if (__wt_atomic_casv64(&conn->las_verb_gen_write,
+		    ckpt_gen_last, ckpt_gen_current)) {
+			(void)__wt_eviction_clean_needed(session, &pct_full);
+			(void)__wt_eviction_dirty_needed(session, &pct_dirty);
+
+			__wt_verbose(session, WT_VERB_LOOKASIDE,
+			    "Page reconciliation triggered lookaside write. "
+			    "Entries now in lookaside file: %" PRIu64 ", "
+			    "cache dirty: %" PRIu32 "%% , "
+			    "cache use: %" PRIu32 "%%",
+			    conn->las_record_cnt, pct_dirty, pct_full);
+		}
+	}
+#else
+	WT_UNUSED(session);
+#endif
 }

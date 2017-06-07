@@ -316,6 +316,7 @@ struct __wt_connection_stats {
 	int64_t cache_eviction_worker_removed;
 	int64_t cache_eviction_stable_state_workers;
 	int64_t cache_eviction_force_fail;
+	int64_t cache_eviction_force_fail_time;
 	int64_t cache_eviction_walks_active;
 	int64_t cache_eviction_walks_started;
 	int64_t cache_eviction_force_retune;
@@ -340,7 +341,9 @@ struct __wt_connection_stats {
 	int64_t cache_write_lookaside;
 	int64_t cache_pages_inuse;
 	int64_t cache_eviction_force;
+	int64_t cache_eviction_force_time;
 	int64_t cache_eviction_force_delete;
+	int64_t cache_eviction_force_delete_time;
 	int64_t cache_eviction_app;
 	int64_t cache_eviction_pages_queued;
 	int64_t cache_eviction_pages_queued_urgent;
@@ -374,9 +377,11 @@ struct __wt_connection_stats {
 	int64_t write_io;
 	int64_t cursor_create;
 	int64_t cursor_insert;
+	int64_t cursor_modify;
 	int64_t cursor_next;
 	int64_t cursor_prev;
 	int64_t cursor_remove;
+	int64_t cursor_reserve;
 	int64_t cursor_reset;
 	int64_t cursor_restart;
 	int64_t cursor_search;
@@ -394,16 +399,20 @@ struct __wt_connection_stats {
 	int64_t lock_checkpoint_count;
 	int64_t lock_checkpoint_wait_application;
 	int64_t lock_checkpoint_wait_internal;
-	int64_t lock_handle_list_wait_eviction;
+	int64_t lock_dhandle_wait_application;
+	int64_t lock_dhandle_wait_internal;
+	int64_t lock_dhandle_read_count;
+	int64_t lock_dhandle_write_count;
 	int64_t lock_metadata_count;
 	int64_t lock_metadata_wait_application;
 	int64_t lock_metadata_wait_internal;
 	int64_t lock_schema_count;
 	int64_t lock_schema_wait_application;
 	int64_t lock_schema_wait_internal;
-	int64_t lock_table_count;
 	int64_t lock_table_wait_application;
 	int64_t lock_table_wait_internal;
+	int64_t lock_table_read_count;
+	int64_t lock_table_write_count;
 	int64_t log_slot_switch_busy;
 	int64_t log_bytes_payload;
 	int64_t log_bytes_written;
@@ -508,6 +517,7 @@ struct __wt_connection_stats {
 	int64_t txn_sync;
 	int64_t txn_commit;
 	int64_t txn_rollback;
+	int64_t txn_update_conflict;
 };
 
 /*
@@ -609,9 +619,11 @@ struct __wt_dsrc_stats {
 	int64_t cursor_remove_bytes;
 	int64_t cursor_update_bytes;
 	int64_t cursor_insert;
+	int64_t cursor_modify;
 	int64_t cursor_next;
 	int64_t cursor_prev;
 	int64_t cursor_remove;
+	int64_t cursor_reserve;
 	int64_t cursor_reset;
 	int64_t cursor_restart;
 	int64_t cursor_search;

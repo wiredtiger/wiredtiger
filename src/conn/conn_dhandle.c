@@ -52,7 +52,7 @@ __wt_conn_dhandle_alloc(
 
 	WT_RET(__wt_calloc_one(session, &dhandle));
 
-	__wt_rwlock_init(session, &dhandle->rwlock);
+	WT_ERR(__wt_rwlock_init(session, &dhandle->rwlock));
 	dhandle->name_hash = __wt_hash_city64(uri, strlen(uri));
 	WT_ERR(__wt_strdup(session, uri, &dhandle->name));
 	WT_ERR(__wt_strdup(session, checkpoint, &dhandle->checkpoint));
@@ -199,8 +199,13 @@ __wt_conn_btree_sync_and_close(WT_SESSION_IMPL *session, bool final, bool force)
 			/* Reset the tree's eviction priority (if any). */
 			__wt_evict_priority_clear(session);
 		}
-		if (!marked_dead || final)
-			WT_ERR(__wt_checkpoint_close(session, final));
+		if (!marked_dead || final) {
+			if ((ret = __wt_checkpoint_close(
+			    session, final)) == EBUSY)
+				WT_ERR(ret);
+			else
+				WT_TRET(ret);
+		}
 	}
 
 	WT_TRET(__wt_btree_close(session));
