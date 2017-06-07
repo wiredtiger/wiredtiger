@@ -389,9 +389,8 @@ err:		__wt_buf_free(session, key);
 	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 
 	/*
-	 * If there were races to remove records, we can over-count.  All
-	 * arithmetic is signed, so underflow isn't fatal, but check anyway so
-	 * we don't skew low over time.
+	 * If there were races to remove records, we can over-count. Underflow
+	 * isn't fatal, but check anyway so we don't skew low over time.
 	 */
 	if (remove_cnt > conn->las_record_cnt)
 		conn->las_record_cnt = 0;
