@@ -520,7 +520,7 @@ alter(void *arg)
  * compat --
  *	Periodically reconfigure the compatibility option.
  */
-void *
+WT_THREAD_RET
 compat(void *arg)
 {
 	WT_CONNECTION *conn;
