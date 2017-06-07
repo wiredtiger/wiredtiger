@@ -50,6 +50,11 @@ struct __wt_rwlock {			/* Read/write lock */
 		} s;
 	} u;
 
+	int16_t stat_read_count_off;	/* read acquisitions offset */
+	int16_t stat_write_count_off;	/* write acquisitions offset */
+	int16_t stat_app_usecs_off;	/* waiting application threads offset */
+	int16_t stat_int_usecs_off;	/* waiting server threads offset */
+
 	WT_CONDVAR *cond_readers;	/* Blocking readers */
 	WT_CONDVAR *cond_writers;	/* Blocking writers */
 };
