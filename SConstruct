@@ -419,28 +419,28 @@ env.Append(CPPPATH=["test/utility"])
 
 t = env.Program("t_bloom",
     "test/bloom/test_bloom.c",
-    LIBS=[wtlib, testutil])
+    LIBS=[wtlib, shim, testutil] + wtlibs)
 Default(t)
 
 t = env.Program("t_checkpoint",
     ["test/checkpoint/checkpointer.c",
     "test/checkpoint/test_checkpoint.c",
     "test/checkpoint/workers.c"],
-    LIBS=[wtlib, shim, testutil])
+    LIBS=[wtlib, shim, testutil] + wtlibs)
 Default(t)
 
 t = env.Program("t_cursor_order",
     ["test/cursor_order/cursor_order.c",
     "test/cursor_order/cursor_order_file.c",
     "test/cursor_order/cursor_order_ops.c"],
-    LIBS=[wtlib, shim, testutil])
+    LIBS=[wtlib, shim, testutil] + wtlibs)
 Default(t)
 
 t = env.Program("t_fops",
     ["test/fops/file.c",
     "test/fops/fops.c",
     "test/fops/t.c"],
-    LIBS=[wtlib, shim, testutil])
+    LIBS=[wtlib, shim, testutil] + wtlibs)
 Default(t)
 
 t = env.Program("t_format",
@@ -455,41 +455,41 @@ t = env.Program("t_format",
     "test/format/t.c",
     "test/format/util.c",
     "test/format/wts.c"],
-     LIBS=[wtlib, shim, testutil] + wtlibs)
+    LIBS=[wtlib, shim, testutil] + wtlibs)
 Default(t)
 
 t = env.Program("t_huge",
     "test/huge/huge.c",
-    LIBS=[wtlib, shim, testutil])
+    LIBS=[wtlib, shim, testutil] + wtlibs)
 Default(t)
 
 t = env.Program("t_manydbs",
     "test/manydbs/manydbs.c",
-    LIBS=[wtlib, shim, testutil])
+    LIBS=[wtlib, shim, testutil] + wtlibs)
 Default(t)
 
 # t_readonly doesn't currently build/run.
 #t = env.Program("t_readonly",
 #    "test/readonly/readonly.c",
-#    LIBS=[wtlib, shim, testutil])
+#    LIBS=[wtlib, shim, testutil] + wtlibs)
 #Default(t)
 
 # t_random-abort doesn't currently build/run.
 #t = env.Program("t_random-abort",
 #    "test/recovery/random-abort.c",
-#    LIBS=[wtlib, shim, testutil])
+#    LIBS=[wtlib, shim, testutil] + wtlibs)
 #Default(t)
 
 # t_truncated-log doesn't currently build/run.
 #t = env.Program("t_truncated-log",
 #    "test/recovery/truncated-log.c",
-#    LIBS=[wtlib, shim, testutil])
+#    LIBS=[wtlib, shim, testutil] + wtlibs)
 #Default(t)
 
 # t_salvage-log doesn't currently build/run.
 #t = env.Program("t_salvage",
 #    "test/salvage/salvage.c",
-#    LIBS=[wtlib, shim, testutil])
+#    LIBS=[wtlib, shim, testutil] + wtlibs)
 #Default(t)
 
 # t_thread doesn't currently build/run.
@@ -498,7 +498,7 @@ Default(t)
 #    "test/thread/rw.c",
 #    "test/thread/stats.c",
 #    "test/thread/t.c"],
-#    LIBS=[wtlib, shim, testutil])
+#    LIBS=[wtlib, shim, testutil] + wtlibs)
 #Default(t)
 
 t = env.Program("wtperf", [
