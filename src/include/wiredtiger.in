@@ -4741,12 +4741,12 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! lock: checkpoint lock internal thread wait time (usecs) */
 #define	WT_STAT_CONN_LOCK_CHECKPOINT_WAIT_INTERNAL	1141
 /*!
- * lock: dhandle lock application thread time waiting for the table lock
- * (usecs)
+ * lock: dhandle lock application thread time waiting for the dhandle
+ * lock (usecs)
  */
 #define	WT_STAT_CONN_LOCK_DHANDLE_WAIT_APPLICATION	1142
 /*!
- * lock: dhandle lock internal thread time waiting for the table lock
+ * lock: dhandle lock internal thread time waiting for the dhandle lock
  * (usecs)
  */
 #define	WT_STAT_CONN_LOCK_DHANDLE_WAIT_INTERNAL		1143
