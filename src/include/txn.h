@@ -28,7 +28,7 @@
 #define	WT_SESSION_IS_CHECKPOINT(s)					\
 	((s)->id != 0 && (s)->id == S2C(s)->txn_global.checkpoint_id)
 
-#if TIMESTAMP_SIZE > 0
+#ifdef HAVE_TIMESTAMPS
 #define	WT_GET_TIMESTAMP(x) ((x)->timestamp)
 #else
 #define	WT_GET_TIMESTAMP(x) (NULL)
@@ -79,7 +79,7 @@ struct __wt_txn_state {
 	volatile uint64_t id;
 	volatile uint64_t pinned_id;
 	volatile uint64_t metadata_pinned;
-#if TIMESTAMP_SIZE > 0
+#ifdef HAVE_TIMESTAMPS
 	uint8_t commit_timestamp[TIMESTAMP_SIZE];
 	uint8_t read_timestamp[TIMESTAMP_SIZE];
 #endif
@@ -98,7 +98,7 @@ struct __wt_txn_global {
 	 */
 	volatile uint64_t oldest_id;
 
-#if TIMESTAMP_SIZE > 0
+#ifdef HAVE_TIMESTAMPS
 	uint8_t commit_timestamp[TIMESTAMP_SIZE];
 	uint8_t read_timestamp[TIMESTAMP_SIZE];
 	uint8_t oldest_timestamp[TIMESTAMP_SIZE];
@@ -209,7 +209,7 @@ struct __wt_txn {
 	uint32_t snapshot_count;
 	uint32_t txn_logsync;	/* Log sync configuration */
 
-#if TIMESTAMP_SIZE > 0
+#ifdef HAVE_TIMESTAMPS
 	uint8_t read_timestamp[TIMESTAMP_SIZE];
 	uint8_t commit_timestamp[TIMESTAMP_SIZE];
 #endif

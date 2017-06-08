@@ -379,7 +379,7 @@ done:	__wt_writeunlock(session, &txn_global->oldest_rwlock);
 	return (ret);
 }
 
-#if TIMESTAMP_SIZE > 0
+#ifdef HAVE_TIMESTAMPS
 /*
  * __txn_set_timestamp --
  *	Decodes and sets a timestamp.
@@ -506,7 +506,7 @@ int
 __wt_txn_global_query_timestamp(
     WT_SESSION_IMPL *session, char *timestamp, const char *cfg[])
 {
-#if TIMESTAMP_SIZE > 0
+#ifdef HAVE_TIMESTAMPS
 	WT_ITEM hexts;
 	size_t len;
 	uint8_t ts[TIMESTAMP_SIZE], *tsp;
@@ -547,7 +547,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_RET(
 	    __wt_config_gets_def(session, cfg, "oldest_timestamp", 0, &cval));
 	if (cval.len != 0) {
-#if TIMESTAMP_SIZE > 0
+#ifdef HAVE_TIMESTAMPS
 		WT_TXN_GLOBAL *txn_global;
 		uint8_t active_ts[TIMESTAMP_SIZE], oldest_ts[TIMESTAMP_SIZE];
 		uint8_t pinned_ts[TIMESTAMP_SIZE];
@@ -606,7 +606,7 @@ __wt_txn_set_timestamp(
 	 */
 	ret = __wt_config_gets(session, cfg, "commit_timestamp", &cval);
 	if (ret == 0 && cval.len != 0) {
-#if TIMESTAMP_SIZE > 0
+#ifdef HAVE_TIMESTAMPS
 		WT_TXN *txn = &session->txn;
 		WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
 		WT_TXN_STATE *txn_state = WT_SESSION_TXN_STATE(session);
@@ -683,7 +683,7 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 
 	WT_RET(__wt_config_gets_def(session, cfg, "read_timestamp", 0, &cval));
 	if (cval.len > 0) {
-#if TIMESTAMP_SIZE > 0
+#ifdef HAVE_TIMESTAMPS
 		WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
 		WT_TXN_STATE *txn_state = WT_SESSION_TXN_STATE(session);
 		uint8_t oldest_ts[TIMESTAMP_SIZE];
@@ -772,7 +772,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 		WT_ASSERT(session, txn_state->id != WT_TXN_NONE &&
 		    txn->id != WT_TXN_NONE);
 		WT_PUBLISH(txn_state->id, WT_TXN_NONE);
-#if TIMESTAMP_SIZE > 0
+#ifdef HAVE_TIMESTAMPS
 		if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
 			/*
 			 * We rely on a non-zero ID to protect our published
@@ -817,9 +817,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_DECL_RET;
 	WT_TXN *txn;
 	WT_TXN_OP *op;
-#if TIMESTAMP_SIZE > 0
+#ifdef HAVE_TIMESTAMPS
 	WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
 	WT_TXN_STATE *txn_state = WT_SESSION_TXN_STATE(session);
+	uint8_t prev_commit_timestamp[TIMESTAMP_SIZE];
+	bool update_timestamp;
 #endif
 	u_int i;
 	bool did_update;
@@ -837,7 +839,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_ERR(
 	    __wt_config_gets_def(session, cfg, "commit_timestamp", 0, &cval));
 	if (cval.len != 0) {
-#if TIMESTAMP_SIZE > 0
+#ifdef HAVE_TIMESTAMPS
 		WT_ERR(__txn_set_timestamp(
 		    session, "commit", txn->commit_timestamp, &cval));
 		if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
@@ -938,7 +940,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 				break;
 			}
 
-#if TIMESTAMP_SIZE > 0
+#ifdef HAVE_TIMESTAMPS
 			if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
 			    op->type != WT_TXN_OP_BASIC_TS)
 				__wt_ts_set(op->u.upd->timestamp,
@@ -947,7 +949,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			break;
 
 		case WT_TXN_OP_REF:
-#if TIMESTAMP_SIZE > 0
+#ifdef HAVE_TIMESTAMPS
 			if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
 				__wt_ts_set(op->u.ref->page_del->timestamp,
 				    txn->commit_timestamp);
@@ -964,11 +966,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	}
 	txn->mod_count = 0;
 
-#if TIMESTAMP_SIZE > 0
-	{
-	uint8_t prev_commit_timestamp[TIMESTAMP_SIZE];
-	bool update_timestamp;
-
+#ifdef HAVE_TIMESTAMPS
 	/*
 	 * Track the largest commit timestamp we have seen.
 	 *
@@ -977,7 +975,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	 * transaction is visible, which happens when we release it.
 	 */
 	update_timestamp = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT);
+#endif
+
 	__wt_txn_release(session);
+
+#ifdef HAVE_TIMESTAMPS
 	/* First check if we've already committed something in the future. */
 	if (update_timestamp) {
 		__wt_readlock(session, &txn_global->current_rwlock);
@@ -1000,10 +1002,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			    txn->commit_timestamp);
 		__wt_writeunlock(session, &txn_global->current_rwlock);
 	}
-	}
-#else
-	__wt_txn_release(session);
 #endif
+
 	return (0);
 
 err:	/*

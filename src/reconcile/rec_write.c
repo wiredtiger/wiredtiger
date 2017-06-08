@@ -3677,7 +3677,7 @@ __rec_update_las(WT_SESSION_IMPL *session,
 				las_value.data = WT_UPDATE_DATA(upd);
 				las_value.size = upd->size;
 			}
-#if TIMESTAMP_SIZE > 0
+#ifdef HAVE_TIMESTAMPS
 			las_timestamp.data = upd->timestamp;
 			las_timestamp.size = TIMESTAMP_SIZE;
 #else

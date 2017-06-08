@@ -716,7 +716,7 @@ struct __wt_page {
  */
 struct __wt_page_deleted {
 	uint64_t txnid;			/* Transaction ID */
-#if TIMESTAMP_SIZE > 0
+#ifdef HAVE_TIMESTAMPS
 	uint8_t timestamp[TIMESTAMP_SIZE];
 #endif
 
@@ -912,7 +912,7 @@ WT_PACKED_STRUCT_BEGIN(__wt_update)
 
 	WT_UPDATE *next;		/* forward-linked list */
 
-#if TIMESTAMP_SIZE > 0
+#ifdef HAVE_TIMESTAMPS
 	uint8_t timestamp[TIMESTAMP_SIZE];
 #endif
 

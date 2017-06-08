@@ -9,7 +9,7 @@
 static inline int __wt_txn_id_check(WT_SESSION_IMPL *session);
 static inline void __wt_txn_read_last(WT_SESSION_IMPL *session);
 
-#if TIMESTAMP_SIZE > 0
+#ifdef HAVE_TIMESTAMPS
 static const uint8_t zero_timestamp[TIMESTAMP_SIZE];
 
 /*
@@ -226,7 +226,7 @@ __wt_txn_visible_all(
 	if (!__txn_visible_all_id(session, id))
 		return (false);
 
-#if TIMESTAMP_SIZE > 0
+#ifdef HAVE_TIMESTAMPS
 	{
 	WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
 	int cmp;
@@ -322,7 +322,7 @@ __wt_txn_visible(
 	if (!__txn_visible_id(session, id))
 		return (false);
 
-#if TIMESTAMP_SIZE > 0
+#ifdef HAVE_TIMESTAMPS
 	{
 	WT_TXN *txn = &session->txn;
 
