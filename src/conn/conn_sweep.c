@@ -401,7 +401,7 @@ __wt_sweep_create(WT_SESSION_IMPL *session)
 	session = conn->sweep_session;
 
 	WT_RET(__wt_cond_init(
-	    session, "handle sweep server", &conn->sweep_cond));
+	    session, &conn->sweep_cond, "handle sweep server"));
 
 	WT_RET(__wt_thread_create(
 	    session, &conn->sweep_tid, __sweep_server, session));

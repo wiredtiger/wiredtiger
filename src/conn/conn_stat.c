@@ -572,7 +572,7 @@ __statlog_start(WT_CONNECTION_IMPL *conn)
 	session = conn->stat_session;
 
 	WT_RET(__wt_cond_init(
-	    session, "statistics log server", &conn->stat_cond));
+	    session, &conn->stat_cond, "statistics log server"));
 
 	/*
 	 * Start the thread.

@@ -898,8 +898,8 @@ __wt_logmgr_create(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_INIT_LSN(&log->write_lsn);
 	WT_INIT_LSN(&log->write_start_lsn);
 	log->fileid = 0;
-	WT_RET(__wt_cond_init(session, "log sync", &log->log_sync_cond));
-	WT_RET(__wt_cond_init(session, "log write", &log->log_write_cond));
+	WT_RET(__wt_cond_init(session, &log->log_sync_cond, "log sync"));
+	WT_RET(__wt_cond_init(session, &log->log_write_cond, "log write"));
 	WT_RET(__wt_log_open(session));
 	WT_RET(__wt_log_slot_init(session, true));
 
@@ -932,7 +932,7 @@ __wt_logmgr_open(WT_SESSION_IMPL *session)
 	WT_RET(__wt_open_internal_session(conn,
 	    "log-close-server", false, session_flags, &conn->log_file_session));
 	WT_RET(__wt_cond_init(
-	    conn->log_file_session, "log close server", &conn->log_file_cond));
+	    conn->log_file_session, &conn->log_file_cond, "log close server"));
 
 	/*
 	 * Start the log file close thread.
@@ -948,7 +948,7 @@ __wt_logmgr_open(WT_SESSION_IMPL *session)
 	WT_RET(__wt_open_internal_session(conn, "log-wrlsn-server",
 	    false, session_flags, &conn->log_wrlsn_session));
 	WT_RET(__wt_cond_auto_init(conn->log_wrlsn_session,
-	    "log write lsn server", 10000, WT_MILLION, &conn->log_wrlsn_cond));
+	    &conn->log_wrlsn_cond, "log write lsn server", 10000, WT_MILLION));
 	WT_RET(__wt_thread_create(conn->log_wrlsn_session,
 	    &conn->log_wrlsn_tid, __log_wrlsn_server, conn->log_wrlsn_session));
 	conn->log_wrlsn_tid_set = true;
@@ -967,7 +967,7 @@ __wt_logmgr_open(WT_SESSION_IMPL *session)
 		WT_RET(__wt_open_internal_session(conn,
 		    "log-server", false, session_flags, &conn->log_session));
 		WT_RET(__wt_cond_auto_init(conn->log_session,
-		    "log server", 50000, WT_MILLION, &conn->log_cond));
+		    &conn->log_cond, "log server", 50000, WT_MILLION));
 
 		/*
 		 * Start the thread.

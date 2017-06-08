@@ -200,7 +200,7 @@ __thread_group_resize(
 		thread->run_func = group->run_func;
 		thread->stop_func = group->stop_func;
 		WT_ERR(__wt_cond_init(
-		    session, "Thread cond", &thread->pause_cond));
+		    session, &thread->pause_cond, "Thread cond"));
 
 		/*
 		 * Start thread as inactive.  We'll activate the needed
@@ -292,7 +292,7 @@ __wt_thread_group_create(
 
 	WT_RET(__wt_rwlock_init(session, &group->lock));
 	WT_ERR(__wt_cond_init(
-	    session, "thread group cond", &group->wait_cond));
+	    session, &group->wait_cond, "thread group cond"));
 	cond_alloced = true;
 
 	__wt_writelock(session, &group->lock);

@@ -13,8 +13,10 @@
  *	Initialize a condition variable.
  */
 int
-__wt_cond_init(WT_SESSION_IMPL *session, const char *name, WT_CONDVAR *cond)
+__wt_cond_init(WT_SESSION_IMPL *session, WT_CONDVAR *cond, const char *name)
 {
+	WT_UNUSED(session);
+
 	WT_RET(pthread_mutex_init(&cond->mtx, NULL));
 
 	/* Initialize the condition variable to permit self-blocking. */

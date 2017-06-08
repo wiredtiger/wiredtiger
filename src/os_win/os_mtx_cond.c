@@ -15,6 +15,8 @@
 int
 __wt_cond_init(WT_SESSION_IMPL *session, const char *name, WT_CONDVAR *cond)
 {
+	WT_UNUSED(session);
+
 	InitializeCriticalSection(&cond->mtx);
 
 	/* Initialize the condition variable to permit self-blocking. */

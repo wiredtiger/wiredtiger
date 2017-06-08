@@ -94,8 +94,8 @@ __wt_rwlock_init(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 	l->stat_read_count_off = l->stat_write_count_off = -1;
 	l->stat_app_usecs_off = l->stat_int_usecs_off = -1;
 
-	WT_RET(__wt_cond_init(session, "rwlock wait", &l->cond_readers));
-	WT_RET(__wt_cond_init(session, "rwlock wait", &l->cond_writers));
+	WT_RET(__wt_cond_init(session, &l->cond_readers, "rwlock wait"));
+	WT_RET(__wt_cond_init(session, &l->cond_writers, "rwlock wait"));
 	return (0);
 }
 

@@ -19,9 +19,9 @@
  */
 int
 __wt_cond_auto_init(WT_SESSION_IMPL *session,
-    const char *name, uint64_t min, uint64_t max, WT_CONDVAR *cond)
+    WT_CONDVAR *cond, const char *name, uint64_t min, uint64_t max)
 {
-	WT_RET(__wt_cond_init(session, name, cond));
+	WT_RET(__wt_cond_init(session, cond, name));
 	cond->min_wait = min;
 	cond->max_wait = max;
 	cond->prev_wait = min;
