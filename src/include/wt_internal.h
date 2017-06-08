@@ -264,6 +264,8 @@ struct __wt_page_modify;
     typedef struct __wt_page_modify WT_PAGE_MODIFY;
 struct __wt_process;
     typedef struct __wt_process WT_PROCESS;
+struct __wt_progress;
+    typedef struct __wt_progress WT_PROGRESS;
 struct __wt_ref;
     typedef struct __wt_ref WT_REF;
 struct __wt_row;

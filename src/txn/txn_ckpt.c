@@ -661,6 +661,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
+	WT_PROGRESS progress;
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_ISOLATION saved_isolation;
@@ -675,6 +676,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	txn_global = &conn->txn_global;
 	saved_isolation = session->isolation;
 	full = idle = logging = tracking = false;
+	WT_CLEAR(progress);
 
 	/*
 	 * Do a pass over the configuration arguments and figure out what kind
@@ -690,6 +692,10 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/* Initialize the verbose tracking timer */
 	__wt_epoch(session, &verb_timer);
+	progress.start_time = verb_timer.tv_sec;
+	progress.report_time = progress.start_time +
+	    WT_CHECKPOINT_PROGRESS_SECONDS;
+	session->ckpt_progress = &progress;
 
 	/*
 	 * Update the global oldest ID so we do all possible cleanup.
@@ -756,9 +762,9 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	WT_WITH_SCHEMA_LOCK(session, ret = __checkpoint_prepare(session, cfg));
 	WT_ERR(ret);
+	session->ckpt_progress->handles = session->ckpt_handle_next;
 
 	WT_ASSERT(session, txn->isolation == WT_ISO_SNAPSHOT);
-
 	/*
 	 * Unblock updates -- we can figure out that any updates to clean pages
 	 * after this point are too new to be written in the checkpoint.
@@ -926,6 +932,7 @@ err:	/*
 	session->ckpt_handle_allocated = session->ckpt_handle_next = 0;
 
 	session->isolation = txn->isolation = saved_isolation;
+	session->ckpt_progress = NULL;
 	return (ret);
 }
 
@@ -1616,13 +1623,34 @@ __wt_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
+ * __wt_checkpoint_progress_report --
+ *	Report progress on a long checkpoint.
+ */
+int
+__wt_checkpoint_progress_report(WT_SESSION_IMPL *session, time_t curtime)
+{
+	session->ckpt_progress->report_time =
+	    curtime + WT_CHECKPOINT_PROGRESS_SECONDS;
+	return (__wt_msg(session,
+	    "checkpoint: %ld seconds elapsed, %" PRIu64 " bytes in %" PRIu64
+	    " writes, %" PRIu64 "/%" PRIu64 " handles synced",
+	    (long)(curtime - session->ckpt_progress->start_time),
+	    session->ckpt_progress->bytes,
+	    session->ckpt_progress->writes,
+	    session->ckpt_progress->current_handle,
+	    session->ckpt_progress->handles));
+}
+
+/*
  * __wt_checkpoint_sync --
  *	Sync a file that has been checkpointed, and wait for the result.
  */
 int
 __wt_checkpoint_sync(WT_SESSION_IMPL *session, const char *cfg[])
 {
+	struct timespec sync_time;
 	WT_BM *bm;
+	WT_DECL_RET;
 
 	WT_UNUSED(cfg);
 
@@ -1635,7 +1663,15 @@ __wt_checkpoint_sync(WT_SESSION_IMPL *session, const char *cfg[])
 	if (!F_ISSET(S2C(session), WT_CONN_CKPT_SYNC))
 		return (0);
 
-	return (bm->sync(bm, session, true));
+	__wt_epoch(session, &sync_time);
+	if (session->ckpt_progress != NULL &&
+	    sync_time.tv_sec >= session->ckpt_progress->report_time)
+		WT_RET(__wt_checkpoint_progress_report(session,
+		    sync_time.tv_sec));
+	ret = bm->sync(bm, session, true);
+	if (session->ckpt_progress != NULL)
+		session->ckpt_progress->current_handle++;
+	return (ret);
 }
 
 /*

@@ -228,6 +228,7 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
     WT_ITEM *buf, wt_off_t *offsetp, uint32_t *sizep, uint32_t *checksump,
     bool data_checksum, bool checkpoint_io, bool caller_locked)
 {
+	struct timespec now;
 	WT_BLOCK_HEADER *blk;
 	WT_DECL_RET;
 	WT_FH *fh;
@@ -235,7 +236,6 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	wt_off_t offset;
 	uint32_t checksum;
 	bool local_locked;
-
 	*offsetp = 0;			/* -Werror=maybe-uninitialized */
 	*sizep = 0;			/* -Werror=maybe-uninitialized */
 	*checksump = 0;			/* -Werror=maybe-uninitialized */
@@ -369,9 +369,21 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 
 	WT_STAT_CONN_INCR(session, block_write);
 	WT_STAT_CONN_INCRV(session, block_byte_write, align_size);
-	if (checkpoint_io)
+	if (checkpoint_io) {
 		WT_STAT_CONN_INCRV(
 		    session, block_byte_write_checkpoint, align_size);
+		if (session->ckpt_progress != NULL) {
+			session->ckpt_progress->bytes += align_size;
+			if (++session->ckpt_progress->writes %
+			    WT_CHECKPOINT_WRITE_CHECKS == 0) {
+				__wt_epoch(session, &now);
+				if (now.tv_sec >=
+				    session->ckpt_progress->report_time)
+					WT_RET(__wt_checkpoint_progress_report(
+					    session, now.tv_sec));
+			}
+		}
+	}
 
 	__wt_verbose(session, WT_VERB_WRITE,
 	    "off %" PRIuMAX ", size %" PRIuMAX ", checksum %" PRIu32,
