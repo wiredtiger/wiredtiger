@@ -15,10 +15,10 @@
 int
 __wt_cond_init(WT_SESSION_IMPL *session, const char *name, WT_CONDVAR *cond)
 {
-	InitializeCriticalSection(cond->mtx);
+	InitializeCriticalSection(&cond->mtx);
 
 	/* Initialize the condition variable to permit self-blocking. */
-	InitializeConditionVariable(cond->cond);
+	InitializeConditionVariable(&cond->cond);
 
 	cond->name = name;
 	cond->waiters = 0;
@@ -164,5 +164,5 @@ __wt_cond_destroy(WT_SESSION_IMPL *session, WT_CONDVAR *cond)
 		return;
 
 	/* Do nothing to delete Condition Variable */
-	DeleteCriticalSection(cond->mtx);
+	DeleteCriticalSection(&cond->mtx);
 }
