@@ -89,6 +89,8 @@ __txn_global_query_timestamp(
 
 	WT_RET(__wt_config_gets(session, cfg, "get", &cval));
 	if (WT_STRING_MATCH("all_committed", cval.str, cval.len)) {
+		if (!txn_global->has_commit_timestamp)
+			return (WT_NOTFOUND);
 		__wt_readlock(session, &txn_global->current_rwlock);
 		__wt_timestamp_set(ts, txn_global->commit_timestamp);
 		WT_ORDERED_READ(session_cnt, conn->session_cnt);
@@ -101,6 +103,8 @@ __txn_global_query_timestamp(
 		}
 		__wt_readunlock(session, &txn_global->current_rwlock);
 	} else if (WT_STRING_MATCH("oldest_reader", cval.str, cval.len)) {
+		if (!txn_global->has_oldest_timestamp)
+			return (WT_NOTFOUND);
 		__wt_readlock(session, &txn_global->current_rwlock);
 		__wt_timestamp_set(ts, txn_global->oldest_timestamp);
 		/* Look at running checkpoints. */
@@ -185,13 +189,6 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 
 		WT_RET(__wt_txn_parse_timestamp(
 		    session, "oldest", oldest_timestamp, &cval));
-		WT_RET(__txn_global_query_timestamp(
-		    session, active_timestamp, query_cfg));
-
-		if (__wt_timestamp_cmp(oldest_timestamp, active_timestamp) < 0)
-			__wt_timestamp_set(pinned_timestamp, oldest_timestamp);
-		else
-			__wt_timestamp_set(pinned_timestamp, active_timestamp);
 
 		/*
 		 * This method can be called from multiple threads, check that
@@ -205,6 +202,18 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 			    txn_global->oldest_timestamp, oldest_timestamp);
 			txn_global->has_oldest_timestamp = true;
 		}
+		__wt_writeunlock(session, &txn_global->oldest_rwlock);
+
+		/* Now update the global pinned timestamp. */
+		WT_RET(__txn_global_query_timestamp(
+		    session, active_timestamp, query_cfg));
+
+		if (__wt_timestamp_cmp(oldest_timestamp, active_timestamp) < 0)
+			__wt_timestamp_set(pinned_timestamp, oldest_timestamp);
+		else
+			__wt_timestamp_set(pinned_timestamp, active_timestamp);
+
+		__wt_writelock(session, &txn_global->oldest_rwlock);
 		if (!txn_global->has_pinned_timestamp || __wt_timestamp_cmp(
 		    txn_global->pinned_timestamp, pinned_timestamp) < 0) {
 			__wt_timestamp_set(

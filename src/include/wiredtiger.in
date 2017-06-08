@@ -2203,6 +2203,9 @@ struct __wt_connection {
 	 *
 	 * @snippet ex_all.c query timestamp
 	 *
+	 * If there is no matching timestamp (e.g., if this method is called
+	 * before timestamps are used) ::WT_NOTFOUND will be returned.
+	 *
 	 * @param connection the connection handle
 	 * @param[out] hex_timestamp a buffer that will be set to the
 	 * hexadecimal encoding of the timestamp being queried.  Must be large

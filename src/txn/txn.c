@@ -751,9 +751,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	if (update_timestamp) {
 		__wt_writelock(session, &txn_global->current_rwlock);
 		if (__wt_timestamp_cmp(txn->commit_timestamp,
-		    txn_global->commit_timestamp) > 0)
+		    txn_global->commit_timestamp) > 0) {
 			__wt_timestamp_set(txn_global->commit_timestamp,
 			    txn->commit_timestamp);
+			txn_global->has_commit_timestamp = true;
+		}
 		__wt_writeunlock(session, &txn_global->current_rwlock);
 	}
 #endif
