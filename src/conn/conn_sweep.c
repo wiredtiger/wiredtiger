@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -10,7 +10,7 @@
 
 #define	WT_DHANDLE_CAN_DISCARD(dhandle)					\
 	(!F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE | WT_DHANDLE_OPEN) &&	\
-	dhandle->session_inuse == 0 && dhandle->session_ref == 0)
+	(dhandle)->session_inuse == 0 && (dhandle)->session_ref == 0)
 
 /*
  * __sweep_mark --
@@ -219,21 +219,18 @@ static int
 __sweep_remove_handles(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
-	WT_DATA_HANDLE *dhandle, *dhandle_next;
+	WT_DATA_HANDLE *dhandle, *dhandle_tmp;
 	WT_DECL_RET;
 
 	conn = S2C(session);
 
-	for (dhandle = TAILQ_FIRST(&conn->dhqh);
-	    dhandle != NULL;
-	    dhandle = dhandle_next) {
-		dhandle_next = TAILQ_NEXT(dhandle, q);
+	TAILQ_FOREACH_SAFE(dhandle, &conn->dhqh, q, dhandle_tmp) {
 		if (WT_IS_METADATA(dhandle))
 			continue;
 		if (!WT_DHANDLE_CAN_DISCARD(dhandle))
 			continue;
 
-		WT_WITH_HANDLE_LIST_LOCK(session,
+		WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
 		    ret = __sweep_remove_one(session, dhandle));
 		if (ret == 0)
 			WT_STAT_CONN_INCR(session, dh_sweep_remove);
@@ -432,7 +429,7 @@ __wt_sweep_destroy(WT_SESSION_IMPL *session)
 		WT_TRET(__wt_thread_join(session, conn->sweep_tid));
 		conn->sweep_tid_set = 0;
 	}
-	WT_TRET(__wt_cond_destroy(session, &conn->sweep_cond));
+	__wt_cond_destroy(session, &conn->sweep_cond);
 
 	if (conn->sweep_session != NULL) {
 		wt_session = &conn->sweep_session->iface;

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -66,6 +66,9 @@ typedef struct {
 	uint64_t throttle;		/* Maximum operations/second */
 		/* Number of operations per transaction. Zero for autocommit */
 	int64_t ops_per_txn;
+	int64_t pause;			/* Time between scans */
+	int64_t read_range;		/* Range of reads */
+	int32_t table_index;		/* Table to focus ops on */
 	int64_t truncate;		/* Truncate ratio */
 	uint64_t truncate_pct;		/* Truncate Percent */
 	uint64_t truncate_count;	/* Truncate Count */
@@ -225,10 +228,11 @@ typedef struct {
 
 struct __wtperf_thread {		/* Per-thread structure */
 	WTPERF *wtperf;			/* Enclosing configuration */
+	WT_CURSOR *rand_cursor;		/* Random key cursor */
 
 	WT_RAND_STATE rnd;		/* Random number generation state */
 
-	pthread_t handle;		/* Handle */
+	wt_thread_t handle;		/* Handle */
 
 	char *key_buf, *value_buf;	/* Key/value memory */
 
@@ -265,8 +269,8 @@ int	 run_truncate(
 int	 setup_log_file(WTPERF *);
 void	 setup_throttle(WTPERF_THREAD *);
 int	 setup_truncate(WTPERF *, WTPERF_THREAD *, WT_SESSION *);
-int	 start_idle_table_cycle(WTPERF *, pthread_t *);
-int	 stop_idle_table_cycle(WTPERF *, pthread_t);
+void	 start_idle_table_cycle(WTPERF *, wt_thread_t *);
+void	 stop_idle_table_cycle(WTPERF *, wt_thread_t);
 void	 worker_throttle(WTPERF_THREAD *);
 uint64_t sum_ckpt_ops(WTPERF *);
 uint64_t sum_insert_ops(WTPERF *);

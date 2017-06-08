@@ -31,6 +31,7 @@ AC_DEFUN([AM_GCC_WARNINGS], [
 	w="$w -Wstrict-prototypes"
 	w="$w -Wswitch-enum"
 	w="$w -Wundef"
+	w="$w -Wuninitialized"
 	w="$w -Wunreachable-code"
 	w="$w -Wunsafe-loop-optimizations"
 	w="$w -Wunused"
@@ -40,7 +41,14 @@ AC_DEFUN([AM_GCC_WARNINGS], [
 	w="$w -Wno-error=inline"
 	w="$w -Wno-error=unsafe-loop-optimizations"
 
+	# GCC 4.7
+	#	WiredTiger uses anonymous structures/unions, a C11 extension,
+	#	turn off those warnings.
+	# GCC 6.X
+	#	Additional warning messages.
 	case "$1" in
+	[*4.7.[0-9]*])					# gcc4.7
+		w="$w -Wno-c11-extensions";;
 	[*6.[0-9].[0-9]*])				# gcc6.X
 		w="$w -Wduplicated-cond"
 		w="$w -Wmisleading-indentation";;
@@ -65,6 +73,10 @@ AC_DEFUN([AM_CLANG_WARNINGS], [
 	# For now, turn it off.
 	# w="$w -Wno-error=cast-qual"
 	w="$w -Wno-cast-qual"
+
+	# On Centos 7.3.1611, system header files aren't compatible with
+	# -Wdisabled-macro-expansion.
+	w="$w -Wno-disabled-macro-expansion"
 
 	case "$1" in
 	*Apple*clang*version*4.1*)

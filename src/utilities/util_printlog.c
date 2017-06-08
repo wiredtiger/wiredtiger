@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -14,8 +14,8 @@ int
 util_printlog(WT_SESSION *session, int argc, char *argv[])
 {
 	WT_DECL_RET;
-	int ch;
 	uint32_t flags;
+	int ch;
 
 	flags = 0;
 	while ((ch = __wt_getopt(progname, argc, argv, "f:x")) != EOF)
@@ -41,17 +41,9 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
 	if (argc != 0)
 		return (usage());
 
-	ret = __wt_txn_printlog(session, flags);
+	if ((ret = __wt_txn_printlog(session, flags)) != 0)
+		(void)util_err(session, ret, "printlog");
 
-	if (ret != 0) {
-		fprintf(stderr, "%s: printlog failed: %s\n",
-		    progname, session->strerror(session, ret));
-		goto err;
-	}
-
-	if (0) {
-err:		ret = 1;
-	}
 	return (ret);
 }
 

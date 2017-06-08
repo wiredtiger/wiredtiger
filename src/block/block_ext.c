@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -634,11 +634,11 @@ __wt_block_off_free(
 	 */
 	if ((ret = __wt_block_off_remove_overlap(
 	    session, block, &block->live.alloc, offset, size)) == 0)
-		ret = __block_merge(session, block,
-		    &block->live.avail, offset, (wt_off_t)size);
+		ret = __block_merge(
+		    session, block, &block->live.avail, offset, size);
 	else if (ret == WT_NOTFOUND)
-		ret = __block_merge(session, block,
-		    &block->live.discard, offset, (wt_off_t)size);
+		ret = __block_merge(
+		    session, block, &block->live.discard, offset, size);
 	return (ret);
 }
 
@@ -1247,7 +1247,8 @@ __wt_block_extlist_write(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	WT_EXT *ext;
 	WT_PAGE_HEADER *dsk;
-	size_t entries, size;
+	uint32_t entries;
+	size_t size;
 	uint8_t *p;
 
 	WT_RET(__block_extlist_dump(session, block, el, "write"));
@@ -1271,7 +1272,7 @@ __wt_block_extlist_write(WT_SESSION_IMPL *session,
 	 * entries: the initial WT_BLOCK_EXTLIST_MAGIC/0 pair and the list-
 	 * terminating WT_BLOCK_INVALID_OFFSET/0 pair.
 	 */
-	size = (entries + 2) * 2 * WT_INTPACK64_MAXSIZE;
+	size = ((size_t)entries + 2) * 2 * WT_INTPACK64_MAXSIZE;
 	WT_RET(__wt_block_write_size(session, block, &size));
 	WT_RET(__wt_scr_alloc(session, size, &tmp));
 	dsk = tmp->mem;
@@ -1377,8 +1378,8 @@ __wt_block_extlist_init(WT_SESSION_IMPL *session,
 	size = (name == NULL ? 0 : strlen(name)) +
 	    strlen(".") + (extname == NULL ? 0 : strlen(extname) + 1);
 	WT_RET(__wt_calloc_def(session, size, &el->name));
-	(void)snprintf(el->name, size, "%s.%s",
-	    name == NULL ? "" : name, extname == NULL ? "" : extname);
+	WT_RET(__wt_snprintf(el->name, size, "%s.%s",
+	    name == NULL ? "" : name, extname == NULL ? "" : extname));
 
 	el->offset = WT_BLOCK_INVALID_OFFSET;
 	el->track_size = track_size;

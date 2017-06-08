@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -29,7 +29,7 @@
 #include "test_checkpoint.h"
 
 static int real_worker(void);
-static void *worker(void *);
+static WT_THREAD_RET worker(void *);
 
 /*
  * create_table --
@@ -39,14 +39,12 @@ static int
 create_table(WT_SESSION *session, COOKIE *cookie)
 {
 	int ret;
-	char *p, *end, config[128];
+	char config[128];
 
-	p = config;
-	end = config + sizeof(config);
-	p += snprintf(p, (size_t)(end - p),
-	    "key_format=%s,value_format=S", cookie->type == COL ? "r" : "q");
-	if (cookie->type == LSM)
-		(void)snprintf(p, (size_t)(end - p), ",type=lsm");
+	testutil_check(__wt_snprintf(config, sizeof(config),
+	    "key_format=%s,value_format=S,%s",
+	    cookie->type == COL ? "r" : "q",
+	    cookie->type == LSM ? ",type=lsm" : ""));
 
 	if ((ret = session->create(session, cookie->uri, config)) != 0)
 		if (ret != EEXIST)
@@ -66,9 +64,8 @@ start_workers(table_type type)
 	WT_SESSION *session;
 	struct timeval start, stop;
 	double seconds;
-	pthread_t *tids;
+	wt_thread_t *tids;
 	int i, ret;
-	void *thread_ret;
 
 	ret = 0;
 
@@ -88,8 +85,9 @@ start_workers(table_type type)
 			    (table_type)((i % MAX_TABLE_TYPE) + 1);
 		else
 			g.cookies[i].type = type;
-		(void)snprintf(g.cookies[i].uri, 128,
-		    "%s%04d", URI_BASE, g.cookies[i].id);
+		testutil_check(__wt_snprintf(
+		    g.cookies[i].uri, sizeof(g.cookies[i].uri),
+		    "%s%04d", URI_BASE, g.cookies[i].id));
 
 		/* Should probably be atomic to avoid races. */
 		if ((ret = create_table(session, &g.cookies[i])) != 0)
@@ -99,17 +97,13 @@ start_workers(table_type type)
 	(void)gettimeofday(&start, NULL);
 
 	/* Create threads. */
-	for (i = 0; i < g.nworkers; ++i) {
-		if ((ret = pthread_create(
-		    &tids[i], NULL, worker, &g.cookies[i])) != 0) {
-			(void)log_print_err("pthread_create", ret, 1);
-			goto err;
-		}
-	}
+	for (i = 0; i < g.nworkers; ++i)
+		testutil_check(__wt_thread_create(
+		    NULL, &tids[i], worker, &g.cookies[i]));
 
 	/* Wait for the threads. */
 	for (i = 0; i < g.nworkers; ++i)
-		(void)pthread_join(tids[i], &thread_ret);
+		testutil_check(__wt_thread_join(NULL, tids[i]));
 
 	(void)gettimeofday(&stop, NULL);
 	seconds = (stop.tv_sec - start.tv_sec) +
@@ -132,7 +126,8 @@ worker_op(WT_CURSOR *cursor, uint64_t keyno, u_int new_val)
 	char valuebuf[64];
 
 	cursor->set_key(cursor, keyno);
-	(void)snprintf(valuebuf, sizeof(valuebuf), "%037u", new_val);
+	testutil_check(__wt_snprintf(
+	    valuebuf, sizeof(valuebuf), "%037u", new_val));
 	cursor->set_value(cursor, valuebuf);
 	if ((ret = cursor->insert(cursor)) != 0) {
 		if (ret == WT_ROLLBACK)
@@ -146,18 +141,18 @@ worker_op(WT_CURSOR *cursor, uint64_t keyno, u_int new_val)
  * worker --
  *	Worker thread start function.
  */
-static void *
+static WT_THREAD_RET
 worker(void *arg)
 {
 	char tid[128];
 
 	WT_UNUSED(arg);
 
-	__wt_thread_id(tid, sizeof(tid));
+	testutil_check(__wt_thread_id(tid, sizeof(tid)));
 	printf("worker thread starting: tid: %s\n", tid);
 
 	(void)real_worker();
-	return (NULL);
+	return (WT_THREAD_RET_VALUE);
 }
 
 /*
@@ -215,7 +210,7 @@ real_worker(void)
 			    }
 		} else if (ret == WT_ROLLBACK) {
 			if ((ret = session->rollback_transaction(
-			   session, NULL)) != 0) {
+			    session, NULL)) != 0) {
 				(void)log_print_err(
 				    "real_worker:rollback_transaction", ret, 1);
 				goto err;

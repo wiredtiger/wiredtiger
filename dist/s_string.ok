@@ -63,10 +63,12 @@ CPUs
 CRC
 CSV
 CStream
+CURFILE
 CURSORs
 CURSTD
 CallsCustDate
 Castagnoli
+CentOS
 Checkpointing
 Checksum
 Checksums
@@ -223,8 +225,10 @@ MEMALIGN
 MERCHANTABILITY
 METADATA
 MONGODB
+MOVEFILE
 MRXB
 MRXBOPC
+MSDN
 MSVC
 MULTI
 MULTIBLOCK
@@ -238,8 +242,7 @@ Metadata
 Mewhort
 Mitzenmacher
 MongoDB
-MoveFile
-MoveFileW
+MoveFileExW
 Multi
 MultiByteToWideChar
 Multithreaded
@@ -302,6 +305,7 @@ RMW
 RNG
 RPC
 RUNDIR
+RWLOCK
 RXB
 Radu
 ReadFile
@@ -341,6 +345,7 @@ Split's
 Stoica
 StoreLoad
 StoreStore
+Su
 Syscall
 TAILQ
 TCMalloc
@@ -350,6 +355,8 @@ TORTIOUS
 TSO
 TXN
 TXNC
+ThreadList
+ThreadListWrapper
 Timespec
 Timestamp
 TryCV
@@ -512,11 +519,13 @@ change's
 changelog
 chdir
 checkfmt
+checkkey
 checkpointed
 checkpointer
 checkpointing
 checksum
 checksums
+checkvalue
 children's
 chk
 chmod
@@ -728,6 +737,7 @@ fsyncLock
 fsyncs
 ftruncate
 func
+fvisibility
 gcc
 gdb
 ge
@@ -770,6 +780,7 @@ idx
 ifdef
 ifdef's
 iiSii
+iiiS
 iiii
 iiu
 ikey
@@ -802,6 +813,7 @@ intl
 intnum
 intpack
 intptr
+intr
 intrin
 inuse
 io
@@ -860,7 +872,9 @@ llll
 llu
 loadtext
 localTime
+localkey
 localtime
+localvalue
 logf
 logmgr
 lognum
@@ -934,7 +948,10 @@ nbits
 nchunks
 nclr
 nd
+needkey
+needvalue
 negint
+nentries
 newbar
 newfile
 newuri
@@ -953,6 +970,7 @@ noraw
 notfound
 notsup
 notused
+novalue
 nowait
 nset
 nsnap
@@ -1077,6 +1095,7 @@ rotN
 rotn
 rp
 rpc
+ru
 run's
 runtime
 rwlock
@@ -1138,6 +1157,7 @@ subgetraw
 subgets
 subinit
 sublicense
+subtest
 subtree
 sunique
 superset
@@ -1145,6 +1165,7 @@ sw
 sx
 sy
 sys
+syscall
 sz
 t's
 tV
@@ -1180,8 +1201,10 @@ txnid
 txnmin
 txt
 typedef
+typemaps
 uB
 uS
+ui
 uint
 uintmax
 unbare
@@ -1260,6 +1283,7 @@ whitespace
 wiredTiger
 wiredtiger
 workFactor
+workgen
 wrapup
 writeable
 writelock

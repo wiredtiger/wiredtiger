@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -34,7 +34,7 @@ static const					/* Output separator */
 
 static int __debug_cell(WT_DBG *, const WT_PAGE_HEADER *, WT_CELL_UNPACK *);
 static int __debug_cell_data(
-	WT_DBG *, WT_PAGE *, int type, const char *, WT_CELL_UNPACK *);
+	WT_DBG *, WT_PAGE *, int, const char *, WT_CELL_UNPACK *);
 static int __debug_col_skip(WT_DBG *, WT_INSERT_HEAD *, const char *, bool);
 static int __debug_config(WT_SESSION_IMPL *, WT_DBG *, const char *);
 static int __debug_dsk_cell(WT_DBG *, const WT_PAGE_HEADER *);
@@ -64,7 +64,7 @@ __wt_debug_set_verbose(WT_SESSION_IMPL *session, const char *v)
 	const char *cfg[2] = { NULL, NULL };
 	char buf[256];
 
-	snprintf(buf, sizeof(buf), "verbose=[%s]", v);
+	WT_RET(__wt_snprintf(buf, sizeof(buf), "verbose=[%s]", v));
 	cfg[0] = buf;
 	return (__wt_verbose_config(session, cfg));
 }
@@ -87,6 +87,7 @@ __debug_hex_byte(WT_DBG *ds, uint8_t v)
 static int
 __dmsg_event(WT_DBG *ds, const char *fmt, ...)
 {
+	WT_DECL_RET;
 	WT_ITEM *msg;
 	WT_SESSION_IMPL *session;
 	size_t len, space;
@@ -107,8 +108,9 @@ __dmsg_event(WT_DBG *ds, const char *fmt, ...)
 		p = (char *)msg->mem + msg->size;
 		space = msg->memsize - msg->size;
 		va_start(ap, fmt);
-		len = (size_t)vsnprintf(p, space, fmt, ap);
+		ret = __wt_vsnprintf_len_set(p, space, &len, fmt, ap);
 		va_end(ap);
+		WT_RET(ret);
 
 		/* Check if there was enough space. */
 		if (len < space) {
@@ -447,19 +449,19 @@ __debug_tree_shape_info(WT_PAGE *page)
 	const char *unit;
 
 	v = page->memory_footprint;
-	if (page->memory_footprint > WT_GIGABYTE) {
-		v = page->memory_footprint / WT_GIGABYTE;
+
+	if (v > WT_GIGABYTE) {
+		v /= WT_GIGABYTE;
 		unit = "G";
-	} else if (page->memory_footprint > WT_MEGABYTE) {
-		v = page->memory_footprint / WT_MEGABYTE;
+	} else if (v > WT_MEGABYTE) {
+		v /= WT_MEGABYTE;
 		unit = "M";
 	} else {
-		v = page->memory_footprint;
 		unit = "B";
 	}
 
-	snprintf(buf, sizeof(buf), "(%p, %" PRIu64 "%s, evict gen %" PRIu64
-	    ", create gen %" PRIu64 ")",
+	(void)__wt_snprintf(buf, sizeof(buf), "(%p, %" PRIu64
+	    "%s, evict gen %" PRIu64 ", create gen %" PRIu64 ")",
 	    (void *)page, v, unit,
 	    page->evict_pass_gen, page->cache_create_gen);
 	return (buf);
@@ -694,8 +696,6 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
 	WT_RET(ds->f(ds, ", entries %" PRIu32, entries));
 	WT_RET(ds->f(ds,
 	    ", %s", __wt_page_is_modified(page) ? "dirty" : "clean"));
-	WT_RET(ds->f(ds, ", %s", __wt_rwlock_islocked(
-	    session, &page->page_lock) ? "locked" : "unlocked"));
 
 	if (F_ISSET_ATOMIC(page, WT_PAGE_BUILD_KEYS))
 		WT_RET(ds->f(ds, ", keys-built"));
@@ -707,8 +707,6 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
 		WT_RET(ds->f(ds, ", evict-lru"));
 	if (F_ISSET_ATOMIC(page, WT_PAGE_OVERFLOW_KEYS))
 		WT_RET(ds->f(ds, ", overflow-keys"));
-	if (F_ISSET_ATOMIC(page, WT_PAGE_SPLIT_BLOCK))
-		WT_RET(ds->f(ds, ", split-block"));
 	if (F_ISSET_ATOMIC(page, WT_PAGE_SPLIT_INSERT))
 		WT_RET(ds->f(ds, ", split-insert"));
 	if (F_ISSET_ATOMIC(page, WT_PAGE_UPDATE_IGNORE))
@@ -848,7 +846,8 @@ __debug_page_col_var(WT_DBG *ds, WT_REF *ref)
 			__wt_cell_unpack(cell, unpack);
 			rle = __wt_cell_rle(unpack);
 		}
-		snprintf(tag, sizeof(tag), "%" PRIu64 " %" PRIu64, recno, rle);
+		WT_RET(__wt_snprintf(
+		    tag, sizeof(tag), "%" PRIu64 " %" PRIu64, recno, rle));
 		WT_RET(
 		    __debug_cell_data(ds, page, WT_PAGE_COL_VAR, tag, unpack));
 
@@ -991,8 +990,10 @@ static int
 __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 {
 	for (; upd != NULL; upd = upd->next)
-		if (WT_UPDATE_DELETED_ISSET(upd))
+		if (upd->type == WT_UPDATE_DELETED)
 			WT_RET(ds->f(ds, "\tvalue {deleted}\n"));
+		else if (upd->type == WT_UPDATE_RESERVED)
+			WT_RET(ds->f(ds, "\tvalue {reserved}\n"));
 		else if (hexbyte) {
 			WT_RET(ds->f(ds, "\t{"));
 			WT_RET(__debug_hex_byte(ds,

@@ -1,12 +1,12 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
 
-#define	WT_DEBUG_POINT	((void *)0xdeadbeef)
+#define	WT_DEBUG_POINT	((void *)(uintptr_t)0xdeadbeef)
 #define	WT_DEBUG_BYTE	(0xab)
 
 /* In DIAGNOSTIC mode, yield in places where we want to encourage races. */
@@ -67,14 +67,16 @@
 	int __ret;							\
 	if ((__ret = (a)) != 0 &&					\
 	    (__ret == WT_PANIC ||					\
-	    ret == 0 || ret == WT_DUPLICATE_KEY || ret == WT_NOTFOUND))	\
+	    ret == 0 || ret == WT_DUPLICATE_KEY ||			\
+	    ret == WT_NOTFOUND || ret == WT_RESTART))			\
 		ret = __ret;						\
 } while (0)
 #define	WT_TRET_ERROR_OK(a, e) do {					\
 	int __ret;							\
 	if ((__ret = (a)) != 0 && __ret != (e) &&			\
 	    (__ret == WT_PANIC ||					\
-	    ret == 0 || ret == WT_DUPLICATE_KEY || ret == WT_NOTFOUND))	\
+	    ret == 0 || ret == WT_DUPLICATE_KEY ||			\
+	    ret == WT_NOTFOUND || ret == WT_RESTART))			\
 		ret = __ret;						\
 } while (0)
 #define	WT_TRET_NOTFOUND_OK(a)	WT_TRET_ERROR_OK(a, WT_NOTFOUND)

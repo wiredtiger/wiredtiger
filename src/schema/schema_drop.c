@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -30,7 +30,7 @@ __drop_file(
 
 	WT_RET(__wt_schema_backup_check(session, filename));
 	/* Close all btree handles associated with this file. */
-	WT_WITH_HANDLE_LIST_LOCK(session,
+	WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
 	    ret = __wt_conn_dhandle_close_all(session, uri, force));
 	WT_RET(ret);
 
@@ -201,7 +201,7 @@ __wt_schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 		ret = force ? 0 : ENOENT;
 
 	/* Bump the schema generation so that stale data is ignored. */
-	++S2C(session)->schema_gen;
+	(void)__wt_gen_next(session, WT_GEN_SCHEMA);
 
 	WT_TRET(__wt_meta_track_off(session, true, ret != 0));
 

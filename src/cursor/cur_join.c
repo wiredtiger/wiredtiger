@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -34,6 +34,7 @@ static int __curjoin_split_key(WT_SESSION_IMPL *, WT_CURSOR_JOIN *, WT_ITEM *,
  */
 int
 __wt_curjoin_joined(WT_CURSOR *cursor)
+    WT_GCC_FUNC_ATTRIBUTE((cold))
 {
 	WT_SESSION_IMPL *session;
 
@@ -185,7 +186,7 @@ __curjoin_iter_set_entry(WT_CURSOR_JOIN_ITER *iter, u_int entry_pos)
 
 		size = strlen(to_dup->internal_uri) + 3;
 		WT_ERR(__wt_calloc(session, size, 1, &uri));
-		snprintf(uri, size, "%s()", to_dup->internal_uri);
+		WT_ERR(__wt_snprintf(uri, size, "%s()", to_dup->internal_uri));
 		if ((c = iter->cursor) == NULL || !WT_STREQ(c->uri, uri)) {
 			iter->cursor = NULL;
 			if (c != NULL)
@@ -270,7 +271,7 @@ again:
 			iter->positioned = true;
 			return (ret);
 		}
-		else if (ret == WT_NOTFOUND) {
+		if (ret == WT_NOTFOUND) {
 			WT_RET(__curjoin_iter_close_all(iter->child));
 			entry->subjoin->iter = NULL;
 			iter->child = NULL;
@@ -518,8 +519,7 @@ __curjoin_entry_in_range(WT_SESSION_IMPL *session, WT_CURSOR_JOIN_ENTRY *entry,
 	}
 	if (disjunction && end == endmax)
 		return (WT_NOTFOUND);
-	else
-		return (0);
+	return (0);
 }
 
 typedef struct {
@@ -591,8 +591,10 @@ __curjoin_entry_member(WT_SESSION_IMPL *session, WT_CURSOR_JOIN_ENTRY *entry,
 	    __wt_cursor_notsup,			/* search */
 	    __wt_cursor_search_near_notsup,	/* search-near */
 	    __curjoin_extract_insert,		/* insert */
+	    __wt_cursor_modify_notsup,		/* modify */
 	    __wt_cursor_notsup,			/* update */
 	    __wt_cursor_notsup,			/* remove */
+	    __wt_cursor_notsup,			/* reserve */
 	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
 	    __wt_cursor_notsup);		/* close */
 	WT_DECL_RET;
@@ -930,7 +932,7 @@ __curjoin_init_next(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
 	if ((proj = cjoin->projection) != NULL) {
 		size = strlen(urimain) + strlen(proj) + 1;
 		WT_ERR(__wt_calloc(session, size, 1, &mainbuf));
-		snprintf(mainbuf, size, "%s%s", urimain, proj);
+		WT_ERR(__wt_snprintf(mainbuf, size, "%s%s", urimain, proj));
 		urimain = mainbuf;
 	}
 	WT_ERR(__wt_open_cursor(session, urimain, (WT_CURSOR *)cjoin, config,
@@ -975,8 +977,8 @@ __curjoin_init_next(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
 		if (!iterable && F_ISSET(je, WT_CURJOIN_ENTRY_BLOOM)) {
 			if (session->txn.isolation == WT_ISO_READ_UNCOMMITTED)
 			       WT_ERR_MSG(session, EINVAL,
-				   "join cursors with Bloom filters cannot be "
-				   "used with read-uncommitted isolation");
+				    "join cursors with Bloom filters cannot be "
+				    "used with read-uncommitted isolation");
 			if (je->bloom == NULL) {
 				/*
 				 * Look for compatible filters to be shared,
@@ -1149,8 +1151,8 @@ __curjoin_open_main(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
 
 	newsize = strlen(cjoin->table->name) + idx->colconf.len + 1;
 	WT_ERR(__wt_calloc(session, 1, newsize, &main_uri));
-	snprintf(main_uri, newsize, "%s%.*s",
-	    cjoin->table->name, (int)idx->colconf.len, idx->colconf.str);
+	WT_ERR(__wt_snprintf(main_uri, newsize, "%s%.*s",
+	    cjoin->table->name, (int)idx->colconf.len, idx->colconf.str));
 	WT_ERR(__wt_open_cursor(session, main_uri,
 	    (WT_CURSOR *)cjoin, raw_cfg, &entry->main));
 	if (idx->extractor == NULL) {
@@ -1163,7 +1165,8 @@ __curjoin_open_main(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
 		 */
 		len = strlen(entry->main->value_format) + 3;
 		WT_ERR(__wt_calloc(session, len, 1, &newformat));
-		snprintf(newformat, len, "%s0x", entry->main->value_format);
+		WT_ERR(__wt_snprintf(
+		    newformat, len, "%s0x", entry->main->value_format));
 		__wt_free(session, entry->main->value_format);
 		entry->main->value_format = newformat;
 	}
@@ -1291,8 +1294,10 @@ __wt_curjoin_open(WT_SESSION_IMPL *session,
 	    __wt_cursor_notsup,			/* search */
 	    __wt_cursor_search_near_notsup,	/* search-near */
 	    __wt_cursor_notsup,			/* insert */
+	    __wt_cursor_modify_notsup,		/* modify */
 	    __wt_cursor_notsup,			/* update */
 	    __wt_cursor_notsup,			/* remove */
+	    __wt_cursor_notsup,			/* reserve */
 	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
 	    __curjoin_close);			/* close */
 	WT_CURSOR *cursor;
@@ -1532,8 +1537,8 @@ __wt_curjoin_join(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
 			len = strlen(cindex->iface.key_format) + 3;
 			WT_RET(__wt_calloc(session, len, 1,
 			    &entry->repack_format));
-			snprintf(entry->repack_format, len, "%s0x",
-			    cindex->iface.key_format);
+			WT_RET(__wt_snprintf(entry->repack_format,
+			    len, "%s0x", cindex->iface.key_format));
 		}
 	}
 	return (0);

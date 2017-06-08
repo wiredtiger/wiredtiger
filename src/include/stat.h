@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -72,7 +72,7 @@
  * and the session ID is a small, monotonically increasing number.
  */
 #define	WT_STATS_SLOT_ID(session)					\
-	((session)->id) % WT_COUNTER_SLOTS
+	(((session)->id) % WT_COUNTER_SLOTS)
 
 /*
  * Statistic structures are arrays of int64_t's. We have functions to read/write
@@ -329,8 +329,10 @@ struct __wt_connection_stats {
 	int64_t cache_eviction_worker_removed;
 	int64_t cache_eviction_stable_state_workers;
 	int64_t cache_eviction_force_fail;
+	int64_t cache_eviction_force_fail_time;
 	int64_t cache_eviction_walks_active;
 	int64_t cache_eviction_walks_started;
+	int64_t cache_eviction_force_retune;
 	int64_t cache_eviction_hazard;
 	int64_t cache_hazard_checks;
 	int64_t cache_hazard_walks;
@@ -352,7 +354,9 @@ struct __wt_connection_stats {
 	int64_t cache_write_lookaside;
 	int64_t cache_pages_inuse;
 	int64_t cache_eviction_force;
+	int64_t cache_eviction_force_time;
 	int64_t cache_eviction_force_delete;
+	int64_t cache_eviction_force_delete_time;
 	int64_t cache_eviction_app;
 	int64_t cache_eviction_pages_queued;
 	int64_t cache_eviction_pages_queued_urgent;
@@ -373,6 +377,7 @@ struct __wt_connection_stats {
 	int64_t cache_eviction_clean;
 	int64_t cond_auto_wait_reset;
 	int64_t cond_auto_wait;
+	int64_t time_travel;
 	int64_t file_open;
 	int64_t memory_allocation;
 	int64_t memory_free;
@@ -385,9 +390,11 @@ struct __wt_connection_stats {
 	int64_t write_io;
 	int64_t cursor_create;
 	int64_t cursor_insert;
+	int64_t cursor_modify;
 	int64_t cursor_next;
 	int64_t cursor_prev;
 	int64_t cursor_remove;
+	int64_t cursor_reserve;
 	int64_t cursor_reset;
 	int64_t cursor_restart;
 	int64_t cursor_search;
@@ -405,24 +412,21 @@ struct __wt_connection_stats {
 	int64_t lock_checkpoint_count;
 	int64_t lock_checkpoint_wait_application;
 	int64_t lock_checkpoint_wait_internal;
-	int64_t lock_handle_list_count;
-	int64_t lock_handle_list_wait_application;
-	int64_t lock_handle_list_wait_internal;
+	int64_t lock_dhandle_wait_application;
+	int64_t lock_dhandle_wait_internal;
+	int64_t lock_dhandle_read_count;
+	int64_t lock_dhandle_write_count;
 	int64_t lock_metadata_count;
 	int64_t lock_metadata_wait_application;
 	int64_t lock_metadata_wait_internal;
 	int64_t lock_schema_count;
 	int64_t lock_schema_wait_application;
 	int64_t lock_schema_wait_internal;
-	int64_t lock_table_count;
 	int64_t lock_table_wait_application;
 	int64_t lock_table_wait_internal;
+	int64_t lock_table_read_count;
+	int64_t lock_table_write_count;
 	int64_t log_slot_switch_busy;
-	int64_t log_slot_closes;
-	int64_t log_slot_races;
-	int64_t log_slot_transitions;
-	int64_t log_slot_joins;
-	int64_t log_slot_unbuffered;
 	int64_t log_bytes_payload;
 	int64_t log_bytes_written;
 	int64_t log_zero_fills;
@@ -449,6 +453,19 @@ struct __wt_connection_stats {
 	int64_t log_prealloc_files;
 	int64_t log_prealloc_used;
 	int64_t log_scan_records;
+	int64_t log_slot_close_race;
+	int64_t log_slot_close_unbuf;
+	int64_t log_slot_closes;
+	int64_t log_slot_races;
+	int64_t log_slot_yield_race;
+	int64_t log_slot_immediate;
+	int64_t log_slot_yield_close;
+	int64_t log_slot_yield_sleep;
+	int64_t log_slot_yield;
+	int64_t log_slot_active_closed;
+	int64_t log_slot_yield_duration;
+	int64_t log_slot_no_free_slots;
+	int64_t log_slot_unbuffered;
 	int64_t log_compress_mem;
 	int64_t log_buffer_size;
 	int64_t log_compress_len;
@@ -513,6 +530,7 @@ struct __wt_connection_stats {
 	int64_t txn_sync;
 	int64_t txn_commit;
 	int64_t txn_rollback;
+	int64_t txn_update_conflict;
 };
 
 /*
@@ -632,9 +650,11 @@ struct __wt_dsrc_stats {
 	int64_t cursor_remove_bytes;
 	int64_t cursor_update_bytes;
 	int64_t cursor_insert;
+	int64_t cursor_modify;
 	int64_t cursor_next;
 	int64_t cursor_prev;
 	int64_t cursor_remove;
+	int64_t cursor_reserve;
 	int64_t cursor_reset;
 	int64_t cursor_restart;
 	int64_t cursor_search;

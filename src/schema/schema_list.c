@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -25,7 +25,7 @@ __schema_add_table(WT_SESSION_IMPL *session,
 	/* Make sure the metadata is open before getting other locks. */
 	WT_RET(__wt_metadata_cursor(session, NULL));
 
-	WT_WITH_TABLE_LOCK(session,
+	WT_WITH_TABLE_READ_LOCK(session,
 	    ret = __wt_schema_open_table(
 	    session, name, namelen, ok_incomplete, &table));
 	WT_RET(ret);
@@ -66,7 +66,8 @@ restart:
 			 * between checking the generation and opening the
 			 * first column group.
 			 */
-			if (table->schema_gen != S2C(session)->schema_gen) {
+			if (table->schema_gen !=
+			    __wt_gen(session, WT_GEN_SCHEMA)) {
 				if (table->refcnt == 0) {
 					WT_RET(__wt_schema_remove_table(
 					    session, table));
@@ -243,9 +244,11 @@ int
 __wt_schema_close_tables(WT_SESSION_IMPL *session)
 {
 	WT_DECL_RET;
-	WT_TABLE *table;
+	WT_TABLE *table, *table_tmp;
 
-	while ((table = TAILQ_FIRST(&session->tables)) != NULL)
+	WT_TAILQ_SAFE_REMOVE_BEGIN(table, &session->tables, q, table_tmp) {
 		WT_TRET(__wt_schema_remove_table(session, table));
+	} WT_TAILQ_SAFE_REMOVE_END
+
 	return (ret);
 }

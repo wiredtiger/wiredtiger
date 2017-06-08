@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -32,26 +32,23 @@
 #define	DEFAULT_HOME		"WT_TEST"
 #define	DEFAULT_MONITOR_DIR	"WT_TEST"
 
-static const char * const debug_cconfig = "";
-static const char * const debug_tconfig = "";
-
-static void	*checkpoint_worker(void *);
+static WT_THREAD_RET checkpoint_worker(void *);
 static int	 drop_all_tables(WTPERF *);
 static int	 execute_populate(WTPERF *);
 static int	 execute_workload(WTPERF *);
 static int	 find_table_count(WTPERF *);
-static void	*monitor(void *);
-static void	*populate_thread(void *);
+static WT_THREAD_RET monitor(void *);
+static WT_THREAD_RET populate_thread(void *);
 static void	 randomize_value(WTPERF_THREAD *, char *);
 static void	 recreate_dir(const char *);
 static int	 start_all_runs(WTPERF *);
 static int	 start_run(WTPERF *);
-static int	 start_threads(WTPERF *,
-		    WORKLOAD *, WTPERF_THREAD *, u_int, void *(*)(void *));
-static int	 stop_threads(WTPERF *, u_int, WTPERF_THREAD *);
-static void	*thread_run_wtperf(void *);
+static void	 start_threads(WTPERF *, WORKLOAD *,
+		    WTPERF_THREAD *, u_int, WT_THREAD_CALLBACK(*)(void *));
+static void	 stop_threads(u_int, WTPERF_THREAD *);
+static WT_THREAD_RET thread_run_wtperf(void *);
 static void	 update_value_delta(WTPERF_THREAD *);
-static void	*worker(void *);
+static WT_THREAD_RET worker(void *);
 
 static uint64_t	 wtperf_rand(WTPERF_THREAD *);
 static uint64_t	 wtperf_value_range(WTPERF *);
@@ -315,7 +312,7 @@ op_name(uint8_t *op)
 	/* NOTREACHED */
 }
 
-static void *
+static WT_THREAD_RET
 worker_async(void *arg)
 {
 	CONFIG_OPTS *opts;
@@ -423,7 +420,7 @@ op_err:			lprintf(wtperf, ret, 0,
 	if (0) {
 err:		wtperf->error = wtperf->stop = true;
 	}
-	return (NULL);
+	return (WT_THREAD_RET_VALUE);
 }
 
 /*
@@ -432,19 +429,17 @@ err:		wtperf->error = wtperf->stop = true;
  *	search do them. Ensuring the keys we see are always in order.
  */
 static int
-do_range_reads(WTPERF *wtperf, WT_CURSOR *cursor)
+do_range_reads(WTPERF *wtperf, WT_CURSOR *cursor, int64_t read_range)
 {
-	CONFIG_OPTS *opts;
-	size_t range;
 	uint64_t next_val, prev_val;
+	int64_t range;
 	char *range_key_buf;
 	char buf[512];
 	int ret;
 
-	opts = wtperf->opts;
 	ret = 0;
 
-	if (opts->read_range == 0)
+	if (read_range == 0)
 		return (0);
 
 	memset(&buf[0], 0, 512 * sizeof(char));
@@ -454,7 +449,7 @@ do_range_reads(WTPERF *wtperf, WT_CURSOR *cursor)
 	testutil_check(cursor->get_key(cursor, &range_key_buf));
 	extract_key(range_key_buf, &next_val);
 
-	for (range = 0; range < opts->read_range; ++range) {
+	for (range = 0; range < read_range; ++range) {
 		prev_val = next_val;
 		ret = cursor->next(cursor);
 		/* We are done if we reach the end. */
@@ -475,12 +470,56 @@ do_range_reads(WTPERF *wtperf, WT_CURSOR *cursor)
 	return (0);
 }
 
-static void *
+/* pre_load_data --
+ *	Pull everything into cache before starting the workload phase.
+ */
+static int
+pre_load_data(WTPERF *wtperf)
+{
+	CONFIG_OPTS *opts;
+	WT_CONNECTION *conn;
+	WT_CURSOR *cursor;
+	WT_SESSION *session;
+	char *key;
+	int ret;
+	size_t i;
+
+	opts = wtperf->opts;
+	conn = wtperf->conn;
+
+	if ((ret = conn->open_session(
+	    conn, NULL, opts->sess_config, &session)) != 0) {
+		lprintf(wtperf, ret, 0, "worker: WT_CONNECTION.open_session");
+		goto err;
+	}
+	for (i = 0; i < opts->table_count; i++) {
+		if ((ret = session->open_cursor(session,
+		    wtperf->uris[i], NULL, NULL, &cursor)) != 0) {
+			lprintf(wtperf, ret, 0,
+			    "worker: WT_SESSION.open_cursor: %s",
+			    wtperf->uris[i]);
+			goto err;
+		}
+		while (cursor->next(cursor) == 0)
+			if ((ret = cursor->get_key(cursor, &key)) != 0)
+				goto err;
+		if ((ret = cursor->close(cursor)) != 0)
+			goto err;
+	}
+	if ((ret = session->close(session, NULL)) != 0)
+		goto err;
+	if (ret != 0)
+err:		lprintf(wtperf, ret, 0, "Pre-workload traverse error");
+	return (ret);
+}
+
+static WT_THREAD_RET
 worker(void *arg)
 {
 	struct timespec start, stop;
 	CONFIG_OPTS *opts;
 	TRACK *trk;
+	WORKLOAD *workload;
 	WTPERF *wtperf;
 	WTPERF_THREAD *thread;
 	WT_CONNECTION *conn;
@@ -495,13 +534,14 @@ worker(void *arg)
 	char buf[512];
 
 	thread = (WTPERF_THREAD *)arg;
+	workload = thread->workload;
 	wtperf = thread->wtperf;
 	opts = wtperf->opts;
 	conn = wtperf->conn;
 	cursors = NULL;
-	log_table_cursor = NULL;	/* -Wconditional-initialized */
+	cursor = log_table_cursor = NULL;	/* -Wconditional-initialized */
 	ops = 0;
-	ops_per_txn = thread->workload->ops_per_txn;
+	ops_per_txn = workload->ops_per_txn;
 	session = NULL;
 	trk = NULL;
 
@@ -510,9 +550,9 @@ worker(void *arg)
 		lprintf(wtperf, ret, 0, "worker: WT_CONNECTION.open_session");
 		goto err;
 	}
-	cursors = dcalloc(opts->table_count, sizeof(WT_CURSOR *));
 	for (i = 0; i < opts->table_count_idle; i++) {
-		snprintf(buf, 512, "%s_idle%05d", wtperf->uris[0], (int)i);
+		testutil_check(__wt_snprintf(
+		    buf, 512, "%s_idle%05d", wtperf->uris[0], (int)i));
 		if ((ret = session->open_cursor(
 		    session, buf, NULL, NULL, &tmp_cursor)) != 0) {
 			lprintf(wtperf, ret, 0,
@@ -525,13 +565,33 @@ worker(void *arg)
 			goto err;
 		}
 	}
-	for (i = 0; i < opts->table_count; i++) {
+	if (workload->table_index != INT32_MAX) {
 		if ((ret = session->open_cursor(session,
-		    wtperf->uris[i], NULL, NULL, &cursors[i])) != 0) {
+		    wtperf->uris[workload->table_index],
+		    NULL, NULL, &cursor)) != 0) {
 			lprintf(wtperf, ret, 0,
 			    "worker: WT_SESSION.open_cursor: %s",
-			    wtperf->uris[i]);
+			    wtperf->uris[workload->table_index]);
 			goto err;
+		}
+		if ((ret = session->open_cursor(session,
+		    wtperf->uris[workload->table_index],
+		    NULL, "next_random=true", &thread->rand_cursor)) != 0) {
+			lprintf(wtperf, ret, 0,
+			    "worker: WT_SESSION.open_cursor: random %s",
+			    wtperf->uris[workload->table_index]);
+			goto err;
+		}
+	} else {
+		cursors = dcalloc(opts->table_count, sizeof(WT_CURSOR *));
+		for (i = 0; i < opts->table_count; i++) {
+			if ((ret = session->open_cursor(session,
+			    wtperf->uris[i], NULL, NULL, &cursors[i])) != 0) {
+				lprintf(wtperf, ret, 0,
+				    "worker: WT_SESSION.open_cursor: %s",
+				    wtperf->uris[i]);
+				goto err;
+			}
 		}
 	}
 	if (opts->log_like_table && (ret = session->open_cursor(session,
@@ -543,19 +603,19 @@ worker(void *arg)
 	}
 
 	/* Setup the timer for throttling. */
-	if (thread->workload->throttle != 0)
+	if (workload->throttle != 0)
 		setup_throttle(thread);
 
 	/* Setup for truncate */
-	if (thread->workload->truncate != 0)
+	if (workload->truncate != 0)
 		if ((ret = setup_truncate(wtperf, thread, session)) != 0)
 			goto err;
 
 	key_buf = thread->key_buf;
 	value_buf = thread->value_buf;
 
-	op = thread->workload->ops;
-	op_end = op + sizeof(thread->workload->ops);
+	op = workload->ops;
+	op_end = op + sizeof(workload->ops);
 
 	if ((ops_per_txn != 0 || opts->log_like_table) &&
 		(ret = session->begin_transaction(session, NULL)) != 0) {
@@ -564,6 +624,8 @@ worker(void *arg)
 	}
 
 	while (!wtperf->stop) {
+		if (workload->pause != 0)
+			(void)sleep((unsigned int)workload->pause);
 		/*
 		 * Generate the next key and setup operation specific
 		 * statistics tracking objects.
@@ -603,10 +665,12 @@ worker(void *arg)
 
 		generate_key(opts, key_buf, next_val);
 
-		/*
-		 * Spread the data out around the multiple databases.
-		 */
-		cursor = cursors[map_key_to_table(wtperf->opts, next_val)];
+		if (workload->table_index == INT32_MAX)
+			/*
+			 * Spread the data out around the multiple databases.
+			 */
+			cursor = cursors[
+			    map_key_to_table(wtperf->opts, next_val)];
 
 		/*
 		 * Skip the first time we do an operation, when trk->ops
@@ -642,7 +706,8 @@ worker(void *arg)
 				 * for several operations, confirming that the
 				 * next key is in the correct order.
 				 */
-				ret = do_range_reads(wtperf, cursor);
+				ret = do_range_reads(wtperf,
+				    cursor, workload->read_range);
 			}
 
 			if (ret == 0 || ret == WT_NOTFOUND)
@@ -689,7 +754,7 @@ worker(void *arg)
 				 */
 				strncpy(value_buf,
 				    value, opts->value_sz_max - 1);
-				if (thread->workload->update_delta != 0)
+				if (workload->update_delta != 0)
 					update_value_delta(thread);
 				if (value_buf[0] == 'a')
 					value_buf[0] = 'b';
@@ -806,7 +871,7 @@ op_err:			if (ret == WT_ROLLBACK && ops_per_txn != 0) {
 
 		/* Schedule the next operation */
 		if (++op == op_end)
-			op = thread->workload->ops;
+			op = workload->ops;
 
 		/*
 		 * Decrement throttle ops and check if we should sleep
@@ -828,7 +893,7 @@ err:		wtperf->error = wtperf->stop = true;
 	}
 	free(cursors);
 
-	return (NULL);
+	return (WT_THREAD_RET_VALUE);
 }
 
 /*
@@ -843,7 +908,7 @@ run_mix_schedule_op(WORKLOAD *workp, int op, int64_t op_cnt)
 	uint8_t *p, *end;
 
 	/* Jump around the array to roughly spread out the operations. */
-	jump = 100 / op_cnt;
+	jump = (int)(100 / op_cnt);
 
 	/*
 	 * Find a read operation and replace it with another operation.  This
@@ -884,17 +949,6 @@ run_mix_schedule(WTPERF *wtperf, WORKLOAD *workp)
 
 	opts = wtperf->opts;
 
-	/* Confirm reads, inserts, truncates and updates cannot all be zero. */
-	if (workp->insert == 0 && workp->read == 0 &&
-	    workp->truncate == 0 && workp->update == 0) {
-		lprintf(wtperf, EINVAL, 0, "no operations scheduled");
-		return (EINVAL);
-	}
-
-	/*
-	 * Handle truncate first - it's a special case that can't be used in
-	 * a mixed workload.
-	 */
 	if (workp->truncate != 0) {
 		if (workp->insert != 0 ||
 		    workp->read != 0 || workp->update != 0) {
@@ -904,6 +958,12 @@ run_mix_schedule(WTPERF *wtperf, WORKLOAD *workp)
 		}
 		memset(workp->ops, WORKER_TRUNCATE, sizeof(workp->ops));
 		return (0);
+	}
+
+	/* Confirm reads, inserts and updates cannot all be zero. */
+	if (workp->insert == 0 && workp->read == 0 && workp->update == 0) {
+		lprintf(wtperf, EINVAL, 0, "no operations scheduled");
+		return (EINVAL);
 	}
 
 	/*
@@ -954,7 +1014,7 @@ run_mix_schedule(WTPERF *wtperf, WORKLOAD *workp)
 	return (0);
 }
 
-static void *
+static WT_THREAD_RET
 populate_thread(void *arg)
 {
 	struct timespec start, stop;
@@ -1103,10 +1163,10 @@ err:		wtperf->error = wtperf->stop = true;
 	}
 	free(cursors);
 
-	return (NULL);
+	return (WT_THREAD_RET_VALUE);
 }
 
-static void *
+static WT_THREAD_RET
 populate_async(void *arg)
 {
 	struct timespec start, stop;
@@ -1201,10 +1261,10 @@ populate_async(void *arg)
 	if (0) {
 err:		wtperf->error = wtperf->stop = true;
 	}
-	return (NULL);
+	return (WT_THREAD_RET_VALUE);
 }
 
-static void *
+static WT_THREAD_RET
 monitor(void *arg)
 {
 	struct timespec t;
@@ -1238,7 +1298,8 @@ monitor(void *arg)
 	/* Open the logging file. */
 	len = strlen(wtperf->monitor_dir) + 100;
 	path = dmalloc(len);
-	snprintf(path, len, "%s/monitor", wtperf->monitor_dir);
+	testutil_check(__wt_snprintf(
+	    path, len, "%s/monitor", wtperf->monitor_dir));
 	if ((fp = fopen(path, "w")) == NULL) {
 		lprintf(wtperf, errno, 0, "%s", path);
 		goto err;
@@ -1365,10 +1426,10 @@ err:		wtperf->error = wtperf->stop = true;
 		(void)fclose(fp);
 	free(path);
 
-	return (NULL);
+	return (WT_THREAD_RET_VALUE);
 }
 
-static void *
+static WT_THREAD_RET
 checkpoint_worker(void *arg)
 {
 	CONFIG_OPTS *opts;
@@ -1429,7 +1490,7 @@ checkpoint_worker(void *arg)
 err:		wtperf->error = wtperf->stop = true;
 	}
 
-	return (NULL);
+	return (WT_THREAD_RET_VALUE);
 }
 
 static int
@@ -1437,15 +1498,15 @@ execute_populate(WTPERF *wtperf)
 {
 	struct timespec start, stop;
 	CONFIG_OPTS *opts;
-	WTPERF_THREAD *popth;
 	WT_ASYNC_OP *asyncop;
-	pthread_t idle_table_cycle_thread;
+	WTPERF_THREAD *popth;
+	WT_THREAD_CALLBACK(*pfunc)(void *);
 	size_t i;
 	uint64_t last_ops, msecs, print_ops_sec;
 	uint32_t interval, tables;
+	wt_thread_t idle_table_cycle_thread;
 	double print_secs;
 	int elapsed, ret;
-	void *(*pfunc)(void *);
 
 	opts = wtperf->opts;
 
@@ -1455,9 +1516,7 @@ execute_populate(WTPERF *wtperf)
 	    opts->populate_threads, opts->icount);
 
 	/* Start cycling idle tables if configured. */
-	if ((ret =
-	    start_idle_table_cycle(wtperf, &idle_table_cycle_thread)) != 0)
-		return (ret);
+	start_idle_table_cycle(wtperf, &idle_table_cycle_thread);
 
 	wtperf->insert_key = 0;
 
@@ -1469,9 +1528,8 @@ execute_populate(WTPERF *wtperf)
 		pfunc = populate_async;
 	} else
 		pfunc = populate_thread;
-	if ((ret = start_threads(wtperf, NULL,
-	    wtperf->popthreads, opts->populate_threads, pfunc)) != 0)
-		return (ret);
+	start_threads(wtperf, NULL,
+	    wtperf->popthreads, opts->populate_threads, pfunc);
 
 	__wt_epoch(NULL, &start);
 	for (elapsed = 0, interval = 0, last_ops = 0;
@@ -1507,10 +1565,8 @@ execute_populate(WTPERF *wtperf)
 	 */
 	popth = wtperf->popthreads;
 	wtperf->popthreads = NULL;
-	ret = stop_threads(wtperf, opts->populate_threads, popth);
+	stop_threads(opts->populate_threads, popth);
 	free(popth);
-	if (ret != 0)
-		return (ret);
 
 	/* Report if any worker threads didn't finish. */
 	if (wtperf->error) {
@@ -1579,8 +1635,7 @@ execute_populate(WTPERF *wtperf)
 	}
 
 	/* Stop cycling idle tables. */
-	if ((ret = stop_idle_table_cycle(wtperf, idle_table_cycle_thread)) != 0)
-		return (ret);
+	stop_idle_table_cycle(wtperf, idle_table_cycle_thread);
 
 	return (0);
 }
@@ -1592,6 +1647,9 @@ close_reopen(WTPERF *wtperf)
 	int ret;
 
 	opts = wtperf->opts;
+
+	if (opts->in_memory)
+		return (0);
 
 	if (!opts->readonly && !opts->reopen_connection)
 		return (0);
@@ -1637,13 +1695,13 @@ execute_workload(WTPERF *wtperf)
 	WTPERF_THREAD *threads;
 	WT_CONNECTION *conn;
 	WT_SESSION **sessions;
-	pthread_t idle_table_cycle_thread;
+	WT_THREAD_CALLBACK(*pfunc)(void *);
+	wt_thread_t idle_table_cycle_thread;
 	uint64_t last_ckpts, last_inserts, last_reads, last_truncates;
 	uint64_t last_updates;
 	uint32_t interval, run_ops, run_time;
 	u_int i;
-	int ret, t_ret;
-	void *(*pfunc)(void *);
+	int ret;
 
 	opts = wtperf->opts;
 
@@ -1658,9 +1716,7 @@ execute_workload(WTPERF *wtperf)
 	sessions = NULL;
 
 	/* Start cycling idle tables. */
-	if ((ret =
-	    start_idle_table_cycle(wtperf, &idle_table_cycle_thread)) != 0)
-		return (ret);
+	start_idle_table_cycle(wtperf, &idle_table_cycle_thread);
 
 	if (opts->warmup != 0)
 		wtperf->in_warmup = true;
@@ -1704,9 +1760,8 @@ execute_workload(WTPERF *wtperf)
 			goto err;
 
 		/* Start the workload's threads. */
-		if ((ret = start_threads(
-		    wtperf, workp, threads, (u_int)workp->threads, pfunc)) != 0)
-			goto err;
+		start_threads(
+		    wtperf, workp, threads, (u_int)workp->threads, pfunc);
 		threads += workp->threads;
 	}
 
@@ -1772,12 +1827,9 @@ execute_workload(WTPERF *wtperf)
 err:	wtperf->stop = true;
 
 	/* Stop cycling idle tables. */
-	if ((ret = stop_idle_table_cycle(wtperf, idle_table_cycle_thread)) != 0)
-		return (ret);
+	stop_idle_table_cycle(wtperf, idle_table_cycle_thread);
 
-	if ((t_ret = stop_threads(wtperf,
-	    (u_int)wtperf->workers_cnt, wtperf->workers)) != 0 && ret == 0)
-		ret = t_ret;
+	stop_threads((u_int)wtperf->workers_cnt, wtperf->workers);
 
 	/* Drop tables if configured to and this isn't an error path */
 	if (ret == 0 &&
@@ -1875,19 +1927,19 @@ create_uris(WTPERF *wtperf)
 		/* If there is only one table, just use the base name. */
 		wtperf->uris[i] = dmalloc(len);
 		if (opts->table_count == 1)
-			snprintf(wtperf->uris[i],
-			    len, "table:%s", opts->table_name);
+			testutil_check(__wt_snprintf(wtperf->uris[i],
+			    len, "table:%s", opts->table_name));
 		else
-			snprintf(wtperf->uris[i],
-			    len, "table:%s%05d", opts->table_name, i);
+			testutil_check(__wt_snprintf(wtperf->uris[i],
+			    len, "table:%s%05d", opts->table_name, i));
 	}
 
 	/* Create the log-like-table URI. */
 	len = strlen("table:") +
 	    strlen(opts->table_name) + strlen("_log_table") + 1;
 	wtperf->log_table_uri = dmalloc(len);
-	snprintf(
-	    wtperf->log_table_uri, len, "table:%s_log_table", opts->table_name);
+	testutil_check(__wt_snprintf(wtperf->log_table_uri,
+	    len, "table:%s_log_table", opts->table_name));
 }
 
 static int
@@ -1909,7 +1961,8 @@ create_tables(WTPERF *wtperf)
 	}
 
 	for (i = 0; i < opts->table_count_idle; i++) {
-		snprintf(buf, 512, "%s_idle%05d", wtperf->uris[0], (int)i);
+		testutil_check(__wt_snprintf(
+		    buf, 512, "%s_idle%05d", wtperf->uris[0], (int)i));
 		if ((ret = session->create(
 		    session, buf, opts->table_config)) != 0) {
 			lprintf(wtperf, ret, 0,
@@ -1938,8 +1991,9 @@ create_tables(WTPERF *wtperf)
 			return (ret);
 		}
 		if (opts->index) {
-			snprintf(buf, 512, "index:%s:val_idx",
-			    wtperf->uris[i] + strlen("table:"));
+			testutil_check(__wt_snprintf(buf, 512,
+			    "index:%s:val_idx",
+			    wtperf->uris[i] + strlen("table:")));
 			if ((ret = session->create(
 			    session, buf, "columns=(val)")) != 0) {
 				lprintf(wtperf, ret, 0,
@@ -2097,9 +2151,9 @@ start_all_runs(WTPERF *wtperf)
 {
 	CONFIG_OPTS *opts;
 	WTPERF *next_wtperf, **wtperfs;
-	pthread_t *threads;
 	size_t i, len;
-	int ret, t_ret;
+	wt_thread_t *threads;
+	int ret;
 
 	opts = wtperf->opts;
 	wtperfs = NULL;
@@ -2112,7 +2166,7 @@ start_all_runs(WTPERF *wtperf)
 	wtperfs = dcalloc(opts->database_count, sizeof(WTPERF *));
 
 	/* Allocate an array to hold our thread IDs. */
-	threads = dcalloc(opts->database_count, sizeof(pthread_t));
+	threads = dcalloc(opts->database_count, sizeof(*threads));
 
 	for (i = 0; i < opts->database_count; i++) {
 		wtperf_copy(wtperf, &next_wtperf);
@@ -2124,35 +2178,28 @@ start_all_runs(WTPERF *wtperf)
 		 */
 		len = strlen(wtperf->home) + 5;
 		next_wtperf->home = dmalloc(len);
-		snprintf(
-		    next_wtperf->home, len, "%s/D%02d", wtperf->home, (int)i);
+		testutil_check(__wt_snprintf(
+		    next_wtperf->home, len, "%s/D%02d", wtperf->home, (int)i));
 		if (opts->create != 0)
 			recreate_dir(next_wtperf->home);
 
 		len = strlen(wtperf->monitor_dir) + 5;
 		next_wtperf->monitor_dir = dmalloc(len);
-		snprintf(next_wtperf->monitor_dir,
-		    len, "%s/D%02d", wtperf->monitor_dir, (int)i);
+		testutil_check(__wt_snprintf(next_wtperf->monitor_dir,
+		    len, "%s/D%02d", wtperf->monitor_dir, (int)i));
 		if (opts->create != 0 &&
 		    strcmp(next_wtperf->home, next_wtperf->monitor_dir) != 0)
 			recreate_dir(next_wtperf->monitor_dir);
 
-		if ((ret = pthread_create(
-		    &threads[i], NULL, thread_run_wtperf, next_wtperf)) != 0) {
-			lprintf(wtperf, ret, 0, "Error creating thread");
-			goto err;
-		}
+		testutil_check(__wt_thread_create(NULL,
+		    &threads[i], thread_run_wtperf, next_wtperf));
 	}
 
 	/* Wait for threads to finish. */
 	for (i = 0; i < opts->database_count; i++)
-		if ((t_ret = pthread_join(threads[i], NULL)) != 0) {
-			lprintf(wtperf, ret, 0, "Error joining thread");
-			if (ret == 0)
-				ret = t_ret;
-		}
+		testutil_check(__wt_thread_join(NULL, threads[i]));
 
-err:	for (i = 0; i < opts->database_count && wtperfs[i] != NULL; i++) {
+	for (i = 0; i < opts->database_count && wtperfs[i] != NULL; i++) {
 		wtperf_free(wtperfs[i]);
 		free(wtperfs[i]);
 	}
@@ -2163,7 +2210,7 @@ err:	for (i = 0; i < opts->database_count && wtperfs[i] != NULL; i++) {
 }
 
 /* Run an instance of wtperf for a given configuration. */
-static void *
+static WT_THREAD_RET
 thread_run_wtperf(void *arg)
 {
 	WTPERF *wtperf;
@@ -2172,14 +2219,14 @@ thread_run_wtperf(void *arg)
 	wtperf = (WTPERF *)arg;
 	if ((ret = start_run(wtperf)) != 0)
 		lprintf(wtperf, ret, 0, "Run failed for: %s.", wtperf->home);
-	return (NULL);
+	return (WT_THREAD_RET_VALUE);
 }
 
 static int
 start_run(WTPERF *wtperf)
 {
 	CONFIG_OPTS *opts;
-	pthread_t monitor_thread;
+	wt_thread_t monitor_thread;
 	uint64_t total_ops;
 	uint32_t run_time;
 	int monitor_created, ret, t_ret;
@@ -2206,12 +2253,8 @@ start_run(WTPERF *wtperf)
 
 	/* Start the monitor thread. */
 	if (opts->sample_interval != 0) {
-		if ((ret = pthread_create(
-		    &monitor_thread, NULL, monitor, wtperf)) != 0) {
-			lprintf(wtperf,
-			    ret, 0, "Error creating monitor thread.");
-			goto err;
-		}
+		testutil_check(__wt_thread_create(
+		    NULL, &monitor_thread, monitor, wtperf));
 		monitor_created = 1;
 	}
 
@@ -2240,10 +2283,11 @@ start_run(WTPERF *wtperf)
 			    opts->checkpoint_threads);
 			wtperf->ckptthreads = dcalloc(
 			     opts->checkpoint_threads, sizeof(WTPERF_THREAD));
-			if (start_threads(wtperf, NULL, wtperf->ckptthreads,
-			    opts->checkpoint_threads, checkpoint_worker) != 0)
-				goto err;
+			start_threads(wtperf, NULL, wtperf->ckptthreads,
+			    opts->checkpoint_threads, checkpoint_worker);
 		}
+		if (opts->pre_load_data && (ret = pre_load_data(wtperf)) != 0)
+			goto err;
 		/* Execute the workload. */
 		if ((ret = execute_workload(wtperf)) != 0)
 			goto err;
@@ -2294,16 +2338,10 @@ err:		if (ret == 0)
 	/* Notify the worker threads they are done. */
 	wtperf->stop = true;
 
-	if ((t_ret = stop_threads(wtperf, 1, wtperf->ckptthreads)) != 0)
-		if (ret == 0)
-			ret = t_ret;
+	stop_threads(1, wtperf->ckptthreads);
 
-	if (monitor_created != 0 &&
-	    (t_ret = pthread_join(monitor_thread, NULL)) != 0) {
-		lprintf(wtperf, ret, 0, "Error joining monitor thread.");
-		if (ret == 0)
-			ret = t_ret;
-	}
+	if (monitor_created != 0)
+		testutil_check(__wt_thread_join(NULL, monitor_thread));
 
 	if (wtperf->conn != NULL && opts->close_conn &&
 	    (t_ret = wtperf->conn->close(wtperf->conn, NULL)) != 0) {
@@ -2479,9 +2517,9 @@ main(int argc, char *argv[])
 		 */
 		req_len = strlen(",async=(enabled=true,threads=)") + 4;
 		wtperf->async_config = dmalloc(req_len);
-		snprintf(wtperf->async_config, req_len,
+		testutil_check(__wt_snprintf(wtperf->async_config, req_len,
 		    ",async=(enabled=true,threads=%" PRIu32 ")",
-		    opts->async_threads);
+		    opts->async_threads));
 	}
 	if ((ret = config_compress(wtperf)) != 0)
 		goto err;
@@ -2502,9 +2540,9 @@ main(int argc, char *argv[])
 	__wt_stream_set_line_buffer(stdout);
 
 	/* Concatenate non-default configuration strings. */
-	if ((opts->verbose > 1 && strlen(debug_cconfig) != 0) ||
-	     user_cconfig != NULL || opts->session_count_idle > 0 ||
-	     wtperf->compress_ext != NULL || wtperf->async_config != NULL) {
+	if (user_cconfig != NULL || opts->session_count_idle > 0 ||
+	     wtperf->compress_ext != NULL || wtperf->async_config != NULL ||
+	     opts->in_memory) {
 		req_len = 20;
 		req_len += wtperf->async_config != NULL ?
 		    strlen(wtperf->async_config) : 0;
@@ -2514,87 +2552,82 @@ main(int argc, char *argv[])
 			sreq_len = strlen("session_max=") + 6;
 			req_len += sreq_len;
 			sess_cfg = dmalloc(sreq_len);
-			snprintf(sess_cfg, sreq_len,
+			testutil_check(__wt_snprintf(sess_cfg, sreq_len,
 			    "session_max=%" PRIu32,
 			    opts->session_count_idle +
-			    wtperf->workers_cnt + opts->populate_threads + 10);
+			    wtperf->workers_cnt + opts->populate_threads + 10));
 		}
+		req_len += opts->in_memory ? strlen("in_memory=true") : 0;
 		req_len += user_cconfig != NULL ? strlen(user_cconfig) : 0;
-		req_len += debug_cconfig != NULL ? strlen(debug_cconfig) : 0;
 		cc_buf = dmalloc(req_len);
 
 		pos = 0;
 		append_comma = "";
 		if (wtperf->async_config != NULL &&
 		    strlen(wtperf->async_config) != 0) {
-			pos += (size_t)snprintf(
-			    cc_buf + pos, req_len - pos, "%s%s",
-			    append_comma, wtperf->async_config);
+			testutil_check(__wt_snprintf_len_incr(
+			    cc_buf + pos, req_len - pos, &pos, "%s%s",
+			    append_comma, wtperf->async_config));
 			append_comma = ",";
 		}
 		if (wtperf->compress_ext != NULL &&
 		    strlen(wtperf->compress_ext) != 0) {
-			pos += (size_t)snprintf(
-			    cc_buf + pos, req_len - pos, "%s%s",
-			    append_comma, wtperf->compress_ext);
+			testutil_check(__wt_snprintf_len_incr(
+			    cc_buf + pos, req_len - pos, &pos, "%s%s",
+			    append_comma, wtperf->compress_ext));
+			append_comma = ",";
+		}
+		if (opts->in_memory) {
+			testutil_check(__wt_snprintf_len_incr(
+			    cc_buf + pos, req_len - pos, &pos, "%s%s",
+			    append_comma, "in_memory=true"));
 			append_comma = ",";
 		}
 		if (sess_cfg != NULL && strlen(sess_cfg) != 0) {
-			pos += (size_t)snprintf(
-			    cc_buf + pos, req_len - pos, "%s%s",
-			    append_comma, sess_cfg);
+			testutil_check(__wt_snprintf_len_incr(
+			    cc_buf + pos, req_len - pos, &pos, "%s%s",
+			    append_comma, sess_cfg));
 			append_comma = ",";
 		}
 		if (user_cconfig != NULL && strlen(user_cconfig) != 0) {
-			pos += (size_t)snprintf(
-			    cc_buf + pos, req_len - pos, "%s%s",
-			    append_comma, user_cconfig);
-			append_comma = ",";
+			testutil_check(__wt_snprintf_len_incr(
+			    cc_buf + pos, req_len - pos, &pos, "%s%s",
+			    append_comma, user_cconfig));
 		}
-		if (opts->verbose > 1 && strlen(debug_cconfig) != 0)
-			pos += (size_t)snprintf(
-			    cc_buf + pos, req_len - pos, "%s%s",
-			    append_comma, debug_cconfig);
 
 		if (strlen(cc_buf) != 0 && (ret =
 		    config_opt_name_value(wtperf, "conn_config", cc_buf)) != 0)
 			goto err;
 	}
-	if ((opts->verbose > 1 && strlen(debug_tconfig) != 0) || opts->index ||
+	if (opts->index ||
 	    user_tconfig != NULL || wtperf->compress_table != NULL) {
 		req_len = 20;
 		req_len += wtperf->compress_table != NULL ?
 		    strlen(wtperf->compress_table) : 0;
 		req_len += opts->index ? strlen(INDEX_COL_NAMES) : 0;
 		req_len += user_tconfig != NULL ? strlen(user_tconfig) : 0;
-		req_len += debug_tconfig != NULL ? strlen(debug_tconfig) : 0;
 		tc_buf = dmalloc(req_len);
 
 		pos = 0;
 		append_comma = "";
 		if (wtperf->compress_table != NULL &&
 		    strlen(wtperf->compress_table) != 0) {
-			pos += (size_t)snprintf(
-			    tc_buf + pos, req_len - pos, "%s%s",
-			    append_comma, wtperf->compress_table);
+			testutil_check(__wt_snprintf_len_incr(
+			    tc_buf + pos, req_len - pos, &pos, "%s%s",
+			    append_comma, wtperf->compress_table));
 			append_comma = ",";
 		}
 		if (opts->index) {
-			pos += (size_t)snprintf(
-			    tc_buf + pos, req_len - pos, "%s%s",
-			    append_comma, INDEX_COL_NAMES);
+			testutil_check(__wt_snprintf_len_incr(
+			    tc_buf + pos, req_len - pos, &pos, "%s%s",
+			    append_comma, INDEX_COL_NAMES));
 			append_comma = ",";
 		}
 		if (user_tconfig != NULL && strlen(user_tconfig) != 0) {
-			pos += (size_t)snprintf(
-			    tc_buf + pos, req_len - pos, "%s%s",
-			    append_comma, user_tconfig);
-			append_comma = ",";
+			testutil_check(__wt_snprintf_len_incr(
+			    tc_buf + pos, req_len - pos, &pos, "%s%s",
+			    append_comma, user_tconfig));
 		}
-		if (opts->verbose > 1 && strlen(debug_tconfig) != 0)
-			pos += (size_t)snprintf(
-			    tc_buf + pos, req_len - pos, "%s%s",
-			    append_comma, debug_tconfig);
 
 		if (strlen(tc_buf) != 0 && (ret =
 		    config_opt_name_value(wtperf, "table_config", tc_buf)) != 0)
@@ -2604,8 +2637,9 @@ main(int argc, char *argv[])
 		req_len = strlen(opts->table_config) +
 		    strlen(LOG_PARTIAL_CONFIG) + 1;
 		wtperf->partial_config = dmalloc(req_len);
-		snprintf(wtperf->partial_config, req_len, "%s%s",
-		    opts->table_config, LOG_PARTIAL_CONFIG);
+		testutil_check(__wt_snprintf(
+		    wtperf->partial_config, req_len, "%s%s",
+		    opts->table_config, LOG_PARTIAL_CONFIG));
 	}
 	/*
 	 * Set the config for reopen.  If readonly add in that string.
@@ -2618,11 +2652,12 @@ main(int argc, char *argv[])
 		req_len = strlen(opts->conn_config) + 1;
 	wtperf->reopen_config = dmalloc(req_len);
 	if (opts->readonly)
-		snprintf(wtperf->reopen_config, req_len, "%s%s",
-		    opts->conn_config, READONLY_CONFIG);
+		testutil_check(__wt_snprintf(
+		    wtperf->reopen_config, req_len, "%s%s",
+		    opts->conn_config, READONLY_CONFIG));
 	else
-		snprintf(wtperf->reopen_config,
-		    req_len, "%s", opts->conn_config);
+		testutil_check(__wt_snprintf(
+		    wtperf->reopen_config, req_len, "%s", opts->conn_config));
 
 	/* Sanity-check the configuration. */
 	if ((ret = config_sanity(wtperf)) != 0)
@@ -2635,7 +2670,8 @@ main(int argc, char *argv[])
 	/* Write a copy of the config. */
 	req_len = strlen(wtperf->home) + strlen("/CONFIG.wtperf") + 1;
 	path = dmalloc(req_len);
-	snprintf(path, req_len, "%s/CONFIG.wtperf", wtperf->home);
+	testutil_check(__wt_snprintf(
+	    path, req_len, "%s/CONFIG.wtperf", wtperf->home));
 	config_opt_log(opts, path);
 	free(path);
 
@@ -2662,14 +2698,13 @@ err:	wtperf_free(wtperf);
 	return (ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
-static int
-start_threads(WTPERF *wtperf,
-    WORKLOAD *workp, WTPERF_THREAD *base, u_int num, void *(*func)(void *))
+static void
+start_threads(WTPERF *wtperf, WORKLOAD *workp,
+    WTPERF_THREAD *base, u_int num, WT_THREAD_CALLBACK(*func)(void *))
 {
 	CONFIG_OPTS *opts;
 	WTPERF_THREAD *thread;
 	u_int i;
-	int ret;
 
 	opts = wtperf->opts;
 
@@ -2713,29 +2748,20 @@ start_threads(WTPERF *wtperf,
 
 	/* Start the threads. */
 	for (i = 0, thread = base; i < num; ++i, ++thread)
-		if ((ret = pthread_create(
-		    &thread->handle, NULL, func, thread)) != 0) {
-			lprintf(wtperf, ret, 0, "Error creating thread");
-			return (ret);
-		}
-
-	return (0);
+		testutil_check(__wt_thread_create(
+		    NULL, &thread->handle, func, thread));
 }
 
-static int
-stop_threads(WTPERF *wtperf, u_int num, WTPERF_THREAD *threads)
+static void
+stop_threads(u_int num, WTPERF_THREAD *threads)
 {
 	u_int i;
-	int ret;
 
 	if (num == 0 || threads == NULL)
-		return (0);
+		return;
 
 	for (i = 0; i < num; ++i, ++threads) {
-		if ((ret = pthread_join(threads->handle, NULL)) != 0) {
-			lprintf(wtperf, ret, 0, "Error joining thread");
-			return (ret);
-		}
+		testutil_check(__wt_thread_join(NULL, threads->handle));
 
 		free(threads->key_buf);
 		threads->key_buf = NULL;
@@ -2749,7 +2775,6 @@ stop_threads(WTPERF *wtperf, u_int num, WTPERF_THREAD *threads)
 	 * being read by the monitor thread (among others).  As a standalone
 	 * program, leaking memory isn't a concern, and it's simpler that way.
 	 */
-	return (0);
 }
 
 static void
@@ -2760,7 +2785,8 @@ recreate_dir(const char *name)
 
 	len = strlen(name) * 2 + 100;
 	buf = dmalloc(len);
-	(void)snprintf(buf, len, "rm -rf %s && mkdir %s", name, name);
+	testutil_check(__wt_snprintf(
+	    buf, len, "rm -rf %s && mkdir %s", name, name));
 	testutil_checkfmt(system(buf), "system: %s", buf);
 	free(buf);
 }
@@ -2827,12 +2853,41 @@ static uint64_t
 wtperf_rand(WTPERF_THREAD *thread)
 {
 	CONFIG_OPTS *opts;
+	WT_CURSOR *rnd_cursor;
 	WTPERF *wtperf;
 	double S1, S2, U;
 	uint64_t rval;
+	int ret;
+	char *key_buf;
 
 	wtperf = thread->wtperf;
 	opts = wtperf->opts;
+
+	/*
+	 * If we have a random cursor set up then use it.
+	 */
+	if ((rnd_cursor = thread->rand_cursor) != NULL) {
+		if ((ret = rnd_cursor->next(rnd_cursor)) != 0) {
+			lprintf(wtperf, ret, 0, "worker: rand next failed");
+			/* 0 is outside the expected range. */
+			return (0);
+		}
+		if ((ret = rnd_cursor->get_key(rnd_cursor, &key_buf)) != 0) {
+			lprintf(wtperf, ret, 0,
+			    "worker: rand next key retrieval");
+			return (0);
+		}
+		/*
+		 * Resetting the cursor is not fatal.  We still return the
+		 * value we retrieved above.  We do it so that we don't
+		 * leave a cursor positioned.
+		 */
+		if ((ret = rnd_cursor->reset(rnd_cursor)) != 0)
+			lprintf(wtperf, ret, 0,
+			    "worker: rand cursor reset failed");
+		extract_key(key_buf, &rval);
+		return (rval);
+	}
 
 	/*
 	 * Use WiredTiger's random number routine: it's lock-free and fairly

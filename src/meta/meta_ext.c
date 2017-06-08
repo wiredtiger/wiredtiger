@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -102,5 +102,5 @@ void
 __wt_metadata_free_ckptlist(WT_SESSION *session, WT_CKPT *ckptbase)
     WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
-	__wt_meta_ckptlist_free((WT_SESSION_IMPL *)session, ckptbase);
+	__wt_meta_ckptlist_free((WT_SESSION_IMPL *)session, &ckptbase);
 }

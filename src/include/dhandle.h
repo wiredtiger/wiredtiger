@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -36,6 +36,24 @@
 /* The metadata cursor's data handle. */
 #define	WT_SESSION_META_DHANDLE(s)					\
 	(((WT_CURSOR_BTREE *)((s)->meta_cursor))->btree->dhandle)
+
+#define	WT_DHANDLE_ACQUIRE(dhandle)					\
+    (void)__wt_atomic_add32(&(dhandle)->session_ref, 1)
+
+#define	WT_DHANDLE_RELEASE(dhandle)					\
+    (void)__wt_atomic_sub32(&(dhandle)->session_ref, 1)
+
+#define	WT_DHANDLE_NEXT(session, dhandle, head, field) do {		\
+	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST));\
+	if ((dhandle) == NULL)						\
+		(dhandle) = TAILQ_FIRST(head);				\
+	else {								\
+		    WT_DHANDLE_RELEASE(dhandle);			\
+		    (dhandle) = TAILQ_NEXT(dhandle, field);		\
+	}								\
+	if ((dhandle) != NULL)						\
+		    WT_DHANDLE_ACQUIRE(dhandle);			\
+} while (0)
 
 /*
  * WT_DATA_HANDLE --

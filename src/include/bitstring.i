@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -230,7 +230,7 @@ __bit_getv(uint8_t *bitf, uint64_t entry, uint8_t width)
 #define	__BIT_GET(len, mask)						\
 	case len:							\
 		if (__bit_test(bitf, bit))				\
-			value |= mask;					\
+			value |= (mask);				\
 		++bit							\
 		/* FALLTHROUGH */
 

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -46,8 +46,8 @@ setup_log_file(WTPERF *wtperf)
 	len = strlen(wtperf->monitor_dir) +
 	    strlen(opts->table_name) + strlen(".stat") + 2;
 	fname = dmalloc(len);
-	snprintf(fname, len,
-	    "%s/%s.stat", wtperf->monitor_dir, opts->table_name);
+	testutil_check(__wt_snprintf(fname, len,
+	    "%s/%s.stat", wtperf->monitor_dir, opts->table_name));
 	if ((wtperf->logf = fopen(fname, "w")) == NULL) {
 		ret = errno;
 		fprintf(stderr, "%s: %s\n", fname, strerror(ret));

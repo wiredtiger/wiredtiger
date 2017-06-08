@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -37,8 +37,8 @@ __bloom_init(WT_SESSION_IMPL *session,
 		len += strlen(config);
 	WT_ERR(__wt_calloc_def(session, len, &bloom->config));
 	/* Add the standard config at the end, so it overrides user settings. */
-	(void)snprintf(bloom->config, len,
-	    "%s,%s", config == NULL ? "" : config, WT_BLOOM_TABLE_CONFIG);
+	WT_ERR(__wt_snprintf(bloom->config, len,
+	    "%s,%s", config == NULL ? "" : config, WT_BLOOM_TABLE_CONFIG));
 
 	bloom->session = session;
 
@@ -133,8 +133,12 @@ __bloom_open_cursor(WT_BLOOM *bloom, WT_CURSOR *owner)
 	c = NULL;
 	WT_RET(__wt_open_cursor(session, bloom->uri, owner, cfg, &c));
 
-	/* Bump the cache priority for Bloom filters. */
-	__wt_evict_priority_set(session, WT_EVICT_INT_SKEW);
+	/*
+	 * Bump the cache priority for Bloom filters: this makes eviction favor
+	 * pages from other trees over Bloom filters.
+	 */
+#define	WT_EVICT_BLOOM_SKEW	1000
+	__wt_evict_priority_set(session, WT_EVICT_BLOOM_SKEW);
 
 	bloom->c = c;
 	return (0);

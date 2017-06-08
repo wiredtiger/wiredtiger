@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -9,6 +9,7 @@
 #define	WT_PTRDIFFT_FMT	"td"			/* ptrdiff_t format string */
 #define	WT_SIZET_FMT	"zu"			/* size_t format string */
 
+/* Lint-specific attributes. */
 #define	WT_PACKED_STRUCT_BEGIN(name)					\
 	struct name {
 #define	WT_PACKED_STRUCT_END						\
@@ -29,9 +30,9 @@ __wt_atomic_fetch_add##name(type *vp, type v)				\
 {									\
 	type orig;							\
 									\
-	old = *vp;							\
+	orig = *vp;							\
 	*vp += v;							\
-	return (old);							\
+	return (orig);							\
 }									\
 static inline ret							\
 __wt_atomic_store##name(type *vp, type v)				\
@@ -40,7 +41,7 @@ __wt_atomic_store##name(type *vp, type v)				\
 									\
 	orig = *vp;							\
 	*vp = v;							\
-	return (old);							\
+	return (orig);							\
 }									\
 static inline ret							\
 __wt_atomic_sub##name(type *vp, type v)					\
@@ -49,9 +50,9 @@ __wt_atomic_sub##name(type *vp, type v)					\
 	return (*vp);							\
 }									\
 static inline bool							\
-__wt_atomic_cas##name(type *vp, type old, type new)			\
+__wt_atomic_cas##name(type *vp, type orig, type new)			\
 {									\
-	if (*vp == old) {						\
+	if (*vp == orig) {						\
 		*vp = new;						\
 		return (true);						\
 	}								\
@@ -75,8 +76,8 @@ WT_ATOMIC_FUNC(size, size_t, size_t)
  *	Pointer compare and swap.
  */
 static inline bool
-__wt_atomic_cas_ptr(void *vp, void *old, void *new) {
-	if (*(void **)vp == old) {
+__wt_atomic_cas_ptr(void *vp, void *orig, void *new) {
+	if (*(void **)vp == orig) {
 		*(void **)vp = new;
 		return (true);
 	}

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2016 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -99,7 +99,7 @@ class test_compact02(wttest.WiredTigerTestCase):
     def ConnectionOpen(self, cacheSize):
         self.home = '.'
         conn_params = 'create,' + \
-            cacheSize + ',error_prefix="%s: ",' % self.shortid() + \
+            cacheSize + ',error_prefix="%s",' % self.shortid() + \
             'statistics=(all),' + \
             'eviction_dirty_target=99,eviction_dirty_trigger=99'
         try:

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -58,19 +58,18 @@ typedef struct {
 	u_int nkeys;				/* Keys to load */
 	u_int nops;				/* Operations per thread */
 	FILE *logfp;				/* Message log file. */
-	char *progname;				/* Program name */
 	int nworkers;				/* Number workers configured */
 	int ntables;				/* Number tables configured */
 	int ntables_created;			/* Number tables opened */
 	int running;				/* Whether to stop */
 	int status;				/* Exit status */
 	COOKIE *cookies;			/* Per-thread info */
-	pthread_t checkpoint_thread;		/* Checkpoint thread */
+	wt_thread_t checkpoint_thread;		/* Checkpoint thread */
 } GLOBAL;
 extern GLOBAL g;
 
-int end_checkpoints(void);
-int log_print_err(const char *, int, int);
-int start_checkpoints(void);
-int start_workers(table_type);
+void	end_checkpoints(void);
+int	log_print_err(const char *, int, int);
+void	start_checkpoints(void);
+int	start_workers(table_type);
 const char *type_to_string(table_type);

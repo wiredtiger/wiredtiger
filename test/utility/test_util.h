@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -25,21 +25,21 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
-#include "wt_internal.h"			/* For __wt_XXX */
+#include "wt_internal.h"
 
 #ifdef _WIN32
-	#define DIR_DELIM '\\'
-	#define DIR_DELIM_STR "\\"
-	#define DIR_EXISTS_COMMAND "IF EXIST "
-	#define RM_COMMAND "rd /s /q "
+#define	DIR_DELIM		'\\'
+#define	DIR_DELIM_STR		"\\"
+#define	DIR_EXISTS_COMMAND	"IF EXIST "
+#define	RM_COMMAND		"rd /s /q "
 #else
-	#define	DIR_DELIM '/'
-	#define	DIR_DELIM_STR "/"
-	#define RM_COMMAND "rm -rf "
+#define	DIR_DELIM		'/'
+#define	DIR_DELIM_STR		"/"
+#define	RM_COMMAND		"rm -rf "
 #endif
 
-#define	DEFAULT_DIR "WT_TEST"
-#define	MKDIR_COMMAND "mkdir "
+#define	DEFAULT_DIR	"WT_TEST"
+#define	MKDIR_COMMAND	"mkdir "
 
 #ifdef _WIN32
 #include "windows_shim.h"
@@ -48,7 +48,7 @@
 /* Generic option parsing structure shared by all test cases. */
 typedef struct {
 	char  *home;
-	char  *progname;
+	const char  *progname;
 	enum {	TABLE_COL=1,	/* Fixed-length column store */
 		TABLE_FIX=2,	/* Variable-length column store */
 		TABLE_ROW=3	/* Row-store */
@@ -183,12 +183,15 @@ void *dmalloc(size_t);
 void *drealloc(void *, size_t);
 void *dstrdup(const void *);
 void *dstrndup(const char *, size_t);
-void  testutil_clean_work_dir(char *);
+void  testutil_clean_work_dir(const char *);
 void  testutil_cleanup(TEST_OPTS *);
-bool  testutil_disable_long_tests(void);
+bool  testutil_enable_long_tests(void);
 void  testutil_make_work_dir(char *);
 int   testutil_parse_opts(int, char * const *, TEST_OPTS *);
 void  testutil_work_dir_from_path(char *, size_t, const char *);
 void *thread_append(void *);
 void *thread_insert_append(void *);
 void *thread_prev(void *);
+
+extern const char *progname;
+const char *testutil_set_progname(char * const *);

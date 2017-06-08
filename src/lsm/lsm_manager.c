@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -89,7 +89,6 @@ __lsm_general_worker_start(WT_SESSION_IMPL *session)
 			if (manager->lsm_workers % 2 == 0)
 				FLD_SET(worker_args->type, WT_LSM_WORK_MERGE);
 		}
-		F_SET(worker_args, WT_LSM_WORKER_RUN);
 		WT_RET(__wt_lsm_worker_start(session, worker_args));
 	}
 
@@ -129,17 +128,13 @@ __lsm_stop_workers(WT_SESSION_IMPL *session)
 	    manager->lsm_workers--) {
 		worker_args =
 		    &manager->lsm_worker_cookies[manager->lsm_workers - 1];
-		/*
-		 * Clear this worker's flag so it stops.
-		 */
-		F_CLR(worker_args, WT_LSM_WORKER_RUN);
-		WT_ASSERT(session, worker_args->tid != 0);
-		WT_RET(__wt_thread_join(session, worker_args->tid));
-		worker_args->tid = 0;
+		WT_ASSERT(session, worker_args->tid_set);
+
+		WT_RET(__wt_lsm_worker_stop(session, worker_args));
 		worker_args->type = 0;
-		worker_args->flags = 0;
+
 		/*
-		 * We do not clear the session because they are allocated
+		 * We do not clear the other fields because they are allocated
 		 * statically when the connection was opened.
 		 */
 	}
@@ -237,11 +232,11 @@ __wt_lsm_manager_start(WT_SESSION_IMPL *session)
 		manager->lsm_worker_cookies[i].session = worker_session;
 	}
 
+	F_SET(conn, WT_CONN_SERVER_LSM);
+
 	/* Start the LSM manager thread. */
 	WT_ERR(__wt_thread_create(session, &manager->lsm_worker_cookies[0].tid,
 	    __lsm_worker_manager, &manager->lsm_worker_cookies[0]));
-
-	F_SET(conn, WT_CONN_SERVER_LSM);
 
 	if (0) {
 err:		for (i = 0;
@@ -289,13 +284,14 @@ __wt_lsm_manager_destroy(WT_SESSION_IMPL *session)
 	manager = &conn->lsm_manager;
 	removed = 0;
 
+	/* Clear the LSM server flag. */
+	F_CLR(conn, WT_CONN_SERVER_LSM);
+
 	WT_ASSERT(session, !F_ISSET(conn, WT_CONN_READONLY) ||
 	    manager->lsm_workers == 0);
 	if (manager->lsm_workers > 0) {
-		/*
-		 * Stop the main LSM manager thread first.
-		 */
-		while (F_ISSET(conn, WT_CONN_SERVER_LSM))
+		/* Wait for the main LSM manager thread to finish. */
+		while (!F_ISSET(manager, WT_LSM_MANAGER_SHUTDOWN))
 			__wt_yield();
 
 		/* Clean up open LSM handles. */
@@ -303,7 +299,6 @@ __wt_lsm_manager_destroy(WT_SESSION_IMPL *session)
 
 		WT_TRET(__wt_thread_join(
 		    session, manager->lsm_worker_cookies[0].tid));
-		manager->lsm_worker_cookies[0].tid = 0;
 
 		/* Release memory from any operations left on the queue. */
 		while ((current = TAILQ_FIRST(&manager->switchqh)) != NULL) {
@@ -335,14 +330,14 @@ __wt_lsm_manager_destroy(WT_SESSION_IMPL *session)
 	__wt_spin_destroy(session, &manager->switch_lock);
 	__wt_spin_destroy(session, &manager->app_lock);
 	__wt_spin_destroy(session, &manager->manager_lock);
-	WT_TRET(__wt_cond_destroy(session, &manager->work_cond));
+	__wt_cond_destroy(session, &manager->work_cond);
 
 	return (ret);
 }
 
 /*
  * __lsm_manager_worker_shutdown --
- *	Shutdown the LSM manager and worker threads.
+ *	Shutdown the LSM worker threads.
  */
 static int
 __lsm_manager_worker_shutdown(WT_SESSION_IMPL *session)
@@ -354,14 +349,13 @@ __lsm_manager_worker_shutdown(WT_SESSION_IMPL *session)
 	manager = &S2C(session)->lsm_manager;
 
 	/*
-	 * Wait for the rest of the LSM workers to shutdown. Stop at index
+	 * Wait for the rest of the LSM workers to shutdown. Start at index
 	 * one - since we (the manager) are at index 0.
 	 */
 	for (i = 1; i < manager->lsm_workers; i++) {
-		WT_ASSERT(session, manager->lsm_worker_cookies[i].tid != 0);
-		__wt_cond_signal(session, manager->work_cond);
-		WT_TRET(__wt_thread_join(
-		    session, manager->lsm_worker_cookies[i].tid));
+		WT_ASSERT(session, manager->lsm_worker_cookies[i].tid_set);
+		WT_TRET(__wt_lsm_worker_stop(
+		    session, &manager->lsm_worker_cookies[i]));
 	}
 	return (ret);
 }
@@ -383,14 +377,14 @@ __lsm_manager_run_server(WT_SESSION_IMPL *session)
 	conn = S2C(session);
 	dhandle_locked = false;
 
-	while (F_ISSET(conn, WT_CONN_SERVER_RUN)) {
+	while (F_ISSET(conn, WT_CONN_SERVER_LSM)) {
 		__wt_sleep(0, 10000);
 		if (TAILQ_EMPTY(&conn->lsmqh))
 			continue;
-		__wt_spin_lock(session, &conn->dhandle_lock);
-		F_SET(session, WT_SESSION_LOCKED_HANDLE_LIST);
+		__wt_readlock(session, &conn->dhandle_lock);
+		F_SET(session, WT_SESSION_LOCKED_HANDLE_LIST_READ);
 		dhandle_locked = true;
-		TAILQ_FOREACH(lsm_tree, &S2C(session)->lsmqh, q) {
+		TAILQ_FOREACH(lsm_tree, &conn->lsmqh, q) {
 			if (!lsm_tree->active)
 				continue;
 			__wt_epoch(session, &now);
@@ -448,14 +442,14 @@ __lsm_manager_run_server(WT_SESSION_IMPL *session)
 				    session, WT_LSM_WORK_MERGE, 0, lsm_tree));
 			}
 		}
-		__wt_spin_unlock(session, &conn->dhandle_lock);
-		F_CLR(session, WT_SESSION_LOCKED_HANDLE_LIST);
+		__wt_readunlock(session, &conn->dhandle_lock);
+		F_CLR(session, WT_SESSION_LOCKED_HANDLE_LIST_READ);
 		dhandle_locked = false;
 	}
 
 err:	if (dhandle_locked) {
-		__wt_spin_unlock(session, &conn->dhandle_lock);
-		F_CLR(session, WT_SESSION_LOCKED_HANDLE_LIST);
+		__wt_readunlock(session, &conn->dhandle_lock);
+		F_CLR(session, WT_SESSION_LOCKED_HANDLE_LIST_READ);
 	}
 	return (ret);
 }
@@ -469,11 +463,13 @@ static WT_THREAD_RET
 __lsm_worker_manager(void *arg)
 {
 	WT_DECL_RET;
+	WT_LSM_MANAGER *manager;
 	WT_LSM_WORKER_ARGS *cookie;
 	WT_SESSION_IMPL *session;
 
 	cookie = (WT_LSM_WORKER_ARGS *)arg;
 	session = cookie->session;
+	manager = &S2C(session)->lsm_manager;
 
 	WT_ERR(__lsm_general_worker_start(session));
 	WT_ERR(__lsm_manager_run_server(session));
@@ -482,7 +478,11 @@ __lsm_worker_manager(void *arg)
 	if (ret != 0) {
 err:		WT_PANIC_MSG(session, ret, "LSM worker manager thread error");
 	}
-	F_CLR(S2C(session), WT_CONN_SERVER_LSM);
+
+	/* Connection close waits on us to shutdown, let it know we're done. */
+	F_SET(manager, WT_LSM_MANAGER_SHUTDOWN);
+	WT_FULL_BARRIER();
+
 	return (WT_THREAD_RET_VALUE);
 }
 
@@ -496,7 +496,7 @@ void
 __wt_lsm_manager_clear_tree(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 {
 	WT_LSM_MANAGER *manager;
-	WT_LSM_WORK_UNIT *current, *next;
+	WT_LSM_WORK_UNIT *current, *tmp;
 	uint64_t removed;
 
 	manager = &S2C(session)->lsm_manager;
@@ -504,11 +504,7 @@ __wt_lsm_manager_clear_tree(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 
 	/* Clear out the tree from the switch queue */
 	__wt_spin_lock(session, &manager->switch_lock);
-
-	/* Structure the loop so that it's safe to free as we iterate */
-	for (current = TAILQ_FIRST(&manager->switchqh);
-	    current != NULL; current = next) {
-		next = TAILQ_NEXT(current, q);
+	TAILQ_FOREACH_SAFE(current, &manager->switchqh, q, tmp) {
 		if (current->lsm_tree != lsm_tree)
 			continue;
 		++removed;
@@ -518,9 +514,7 @@ __wt_lsm_manager_clear_tree(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 	__wt_spin_unlock(session, &manager->switch_lock);
 	/* Clear out the tree from the application queue */
 	__wt_spin_lock(session, &manager->app_lock);
-	for (current = TAILQ_FIRST(&manager->appqh);
-	    current != NULL; current = next) {
-		next = TAILQ_NEXT(current, q);
+	TAILQ_FOREACH_SAFE(current, &manager->appqh, q, tmp) {
 		if (current->lsm_tree != lsm_tree)
 			continue;
 		++removed;
@@ -530,9 +524,7 @@ __wt_lsm_manager_clear_tree(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 	__wt_spin_unlock(session, &manager->app_lock);
 	/* Clear out the tree from the manager queue */
 	__wt_spin_lock(session, &manager->manager_lock);
-	for (current = TAILQ_FIRST(&manager->managerqh);
-	    current != NULL; current = next) {
-		next = TAILQ_NEXT(current, q);
+	TAILQ_FOREACH_SAFE(current, &manager->managerqh, q, tmp) {
 		if (current->lsm_tree != lsm_tree)
 			continue;
 		++removed;

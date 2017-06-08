@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -23,11 +23,14 @@ struct __wt_lsm_worker_cookie {
 struct __wt_lsm_worker_args {
 	WT_SESSION_IMPL	*session;	/* Session */
 	WT_CONDVAR	*work_cond;	/* Owned by the manager */
+
 	wt_thread_t	tid;		/* Thread id */
+	bool		tid_set;	/* Thread id set */
+
 	u_int		id;		/* My manager slot id */
 	uint32_t	type;		/* Types of operations handled */
-#define	WT_LSM_WORKER_RUN	0x01
-	uint32_t	flags;		/* Worker flags */
+
+	volatile bool	running;	/* Worker is running */
 };
 
 /*
@@ -162,6 +165,9 @@ struct __wt_lsm_manager {
 #define	WT_LSM_MAX_WORKERS	20
 #define	WT_LSM_MIN_WORKERS	3
 	WT_LSM_WORKER_ARGS lsm_worker_cookies[WT_LSM_MAX_WORKERS];
+
+#define	WT_LSM_MANAGER_SHUTDOWN	0x01	/* Manager has shut down */
+	uint32_t flags;
 };
 
 /*
@@ -234,11 +240,11 @@ struct __wt_lsm_tree {
 	 * area, copying them into place when a statistics cursor is created.
 	 */
 #define	WT_LSM_TREE_STAT_INCR(session, fld) do {			\
-	if (WT_STAT_ENABLED(session))	\
+	if (WT_STAT_ENABLED(session))					\
 		++(fld);						\
 } while (0)
 #define	WT_LSM_TREE_STAT_INCRV(session, fld, v) do {			\
-	if (WT_STAT_ENABLED(session))	\
+	if (WT_STAT_ENABLED(session))					\
 		(fld) += (int64_t)(v);					\
 } while (0)
 	int64_t bloom_false_positive;

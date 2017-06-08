@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2016 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -302,7 +302,7 @@ class WiredTigerTestCase(unittest.TestCase):
         # In case the open starts additional threads, flush first to
         # avoid confusion.
         sys.stdout.flush()
-        conn_param = 'create,error_prefix="%s: ",%s' % (self.shortid(), config)
+        conn_param = 'create,error_prefix="%s",%s' % (self.shortid(), config)
         try:
             conn = self.wiredtiger_open(home, conn_param)
         except wiredtiger.WiredTigerError as e:

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -34,9 +34,12 @@ util_alter(WT_SESSION *session, int argc, char *argv[])
 	for (configp = argv;
 	    configp != NULL && *configp != NULL; configp += 2)
 		if ((ret = session->alter(
-		    session, configp[0], configp[1])) != 0)
-			break;
-	return (ret);
+		    session, configp[0], configp[1])) != 0) {
+			(void)util_err(session, ret,
+			    "session.alter: %s, %s", configp[0], configp[1]);
+			return (1);
+		}
+	return (0);
 }
 
 static int

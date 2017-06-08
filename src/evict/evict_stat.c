@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -163,5 +163,5 @@ __wt_curstat_cache_walk(WT_SESSION_IMPL *session)
 	WT_STAT_DATA_SET(session,
 	    cache_state_root_size, btree->root.page->memory_footprint);
 
-	WT_WITH_HANDLE_LIST_LOCK(session, __evict_stat_walk(session));
+	__evict_stat_walk(session);
 }

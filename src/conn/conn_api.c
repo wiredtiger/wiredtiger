@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -175,13 +175,13 @@ __wt_conn_remove_collator(WT_SESSION_IMPL *session)
 	conn = S2C(session);
 
 	while ((ncoll = TAILQ_FIRST(&conn->collqh)) != NULL) {
+		/* Remove from the connection's list, free memory. */
+		TAILQ_REMOVE(&conn->collqh, ncoll, q);
 		/* Call any termination method. */
 		if (ncoll->collator->terminate != NULL)
 			WT_TRET(ncoll->collator->terminate(
 			    ncoll->collator, (WT_SESSION *)session));
 
-		/* Remove from the connection's list, free memory. */
-		TAILQ_REMOVE(&conn->collqh, ncoll, q);
 		__wt_free(session, ncoll->name);
 		__wt_free(session, ncoll);
 	}
@@ -281,13 +281,13 @@ __wt_conn_remove_compressor(WT_SESSION_IMPL *session)
 	conn = S2C(session);
 
 	while ((ncomp = TAILQ_FIRST(&conn->compqh)) != NULL) {
+		/* Remove from the connection's list, free memory. */
+		TAILQ_REMOVE(&conn->compqh, ncomp, q);
 		/* Call any termination method. */
 		if (ncomp->compressor->terminate != NULL)
 			WT_TRET(ncomp->compressor->terminate(
 			    ncomp->compressor, (WT_SESSION *)session));
 
-		/* Remove from the connection's list, free memory. */
-		TAILQ_REMOVE(&conn->compqh, ncomp, q);
 		__wt_free(session, ncomp->name);
 		__wt_free(session, ncomp);
 	}
@@ -346,13 +346,13 @@ __wt_conn_remove_data_source(WT_SESSION_IMPL *session)
 	conn = S2C(session);
 
 	while ((ndsrc = TAILQ_FIRST(&conn->dsrcqh)) != NULL) {
+		/* Remove from the connection's list, free memory. */
+		TAILQ_REMOVE(&conn->dsrcqh, ndsrc, q);
 		/* Call any termination method. */
 		if (ndsrc->dsrc->terminate != NULL)
 			WT_TRET(ndsrc->dsrc->terminate(
 			    ndsrc->dsrc, (WT_SESSION *)session));
 
-		/* Remove from the connection's list, free memory. */
-		TAILQ_REMOVE(&conn->dsrcqh, ndsrc, q);
 		__wt_free(session, ndsrc->prefix);
 		__wt_free(session, ndsrc);
 	}
@@ -536,14 +536,16 @@ __wt_conn_remove_encryptor(WT_SESSION_IMPL *session)
 	conn = S2C(session);
 
 	while ((nenc = TAILQ_FIRST(&conn->encryptqh)) != NULL) {
+		/* Remove from the connection's list, free memory. */
+		TAILQ_REMOVE(&conn->encryptqh, nenc, q);
 		while ((kenc = TAILQ_FIRST(&nenc->keyedqh)) != NULL) {
+			/* Remove from the connection's list, free memory. */
+			TAILQ_REMOVE(&nenc->keyedqh, kenc, q);
 			/* Call any termination method. */
 			if (kenc->owned && kenc->encryptor->terminate != NULL)
 				WT_TRET(kenc->encryptor->terminate(
 				    kenc->encryptor, (WT_SESSION *)session));
 
-			/* Remove from the connection's list, free memory. */
-			TAILQ_REMOVE(&nenc->keyedqh, kenc, q);
 			__wt_free(session, kenc->keyid);
 			__wt_free(session, kenc);
 		}
@@ -553,8 +555,6 @@ __wt_conn_remove_encryptor(WT_SESSION_IMPL *session)
 			WT_TRET(nenc->encryptor->terminate(
 			    nenc->encryptor, (WT_SESSION *)session));
 
-		/* Remove from the connection's list, free memory. */
-		TAILQ_REMOVE(&conn->encryptqh, nenc, q);
 		__wt_free(session, nenc->name);
 		__wt_free(session, nenc);
 	}
@@ -680,13 +680,13 @@ __wt_conn_remove_extractor(WT_SESSION_IMPL *session)
 	conn = S2C(session);
 
 	while ((nextractor = TAILQ_FIRST(&conn->extractorqh)) != NULL) {
+		/* Remove from the connection's list, free memory. */
+		TAILQ_REMOVE(&conn->extractorqh, nextractor, q);
 		/* Call any termination method. */
 		if (nextractor->extractor->terminate != NULL)
 			WT_TRET(nextractor->extractor->terminate(
 			    nextractor->extractor, (WT_SESSION *)session));
 
-		/* Remove from the connection's list, free memory. */
-		TAILQ_REMOVE(&conn->extractorqh, nextractor, q);
 		__wt_free(session, nextractor->name);
 		__wt_free(session, nextractor);
 	}
@@ -1662,8 +1662,8 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 			WT_ERR_MSG(session, EINVAL,
 			    "Creating a new database is incompatible with "
 			    "read-only configuration");
-		len = (size_t)snprintf(buf, sizeof(buf),
-		    "%s\n%s\n", WT_WIREDTIGER, WIREDTIGER_VERSION_STRING);
+		WT_ERR(__wt_snprintf_len_set(buf, sizeof(buf), &len,
+		    "%s\n%s\n", WT_WIREDTIGER, WIREDTIGER_VERSION_STRING));
 		WT_ERR(__wt_write(session, fh, (wt_off_t)0, len, buf));
 		WT_ERR(__wt_fsync(session, fh, true));
 	} else {
@@ -1803,6 +1803,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 		{ "fileops",		WT_VERB_FILEOPS },
 		{ "handleops",		WT_VERB_HANDLEOPS },
 		{ "log",		WT_VERB_LOG },
+		{ "lookaside_activity",	WT_VERB_LOOKASIDE },
 		{ "lsm",		WT_VERB_LSM },
 		{ "lsm_manager",	WT_VERB_LSM_MANAGER },
 		{ "metadata",		WT_VERB_METADATA },
@@ -2250,10 +2251,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	WT_ERR(__wt_scr_alloc(session, 0, &i3));
 	cfg[0] = WT_CONFIG_BASE(session, wiredtiger_open_all);
 	cfg[1] = NULL;
-	WT_ERR_TEST(snprintf(version, sizeof(version),
+	WT_ERR(__wt_snprintf(version, sizeof(version),
 	    "version=(major=%d,minor=%d)",
-	    WIREDTIGER_VERSION_MAJOR, WIREDTIGER_VERSION_MINOR) >=
-	    (int)sizeof(version), ENOMEM);
+	    WIREDTIGER_VERSION_MAJOR, WIREDTIGER_VERSION_MINOR));
 	__conn_config_append(cfg, version);
 
 	/* Ignore the base_config file if config_base_set is false. */

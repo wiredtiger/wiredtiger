@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -507,12 +507,12 @@ main(void)
 	 * we decrypt on read.
 	 */
 	for (i = 0; i < MAX_KEYS; i++) {
-		snprintf(keybuf, sizeof(keybuf), "key%d", i);
+		(void)snprintf(keybuf, sizeof(keybuf), "key%d", i);
 		c1->set_key(c1, keybuf);
 		c2->set_key(c2, keybuf);
 		nc->set_key(nc, keybuf);
 
-		snprintf(valbuf, sizeof(valbuf), "value%d", i);
+		(void)snprintf(valbuf, sizeof(valbuf), "value%d", i);
 		c1->set_value(c1, valbuf);
 		c2->set_value(c2, valbuf);
 		nc->set_value(nc, valbuf);

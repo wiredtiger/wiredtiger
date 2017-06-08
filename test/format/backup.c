@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -63,7 +63,7 @@ copy_file(WT_SESSION *session, const char *name)
 
 	len = strlen("BACKUP") + strlen(name) + 10;
 	first = dmalloc(len);
-	(void)snprintf(first, len, "BACKUP/%s", name);
+	testutil_check(__wt_snprintf(first, len, "BACKUP/%s", name));
 	testutil_check(__wt_copy_and_sync(session, name, first));
 
 	/*
@@ -72,7 +72,7 @@ copy_file(WT_SESSION *session, const char *name)
 	 */
 	len = strlen("BACKUP_COPY") + strlen(name) + 10;
 	second = dmalloc(len);
-	(void)snprintf(second, len, "BACKUP_COPY/%s", name);
+	testutil_check(__wt_snprintf(second, len, "BACKUP_COPY/%s", name));
 	testutil_check(__wt_copy_and_sync(session, first, second));
 
 	free(first);
@@ -83,7 +83,7 @@ copy_file(WT_SESSION *session, const char *name)
  * backup --
  *	Periodically do a backup and verify it.
  */
-void *
+WT_THREAD_RET
 backup(void *arg)
 {
 	WT_CONNECTION *conn;
@@ -100,7 +100,7 @@ backup(void *arg)
 
 	/* Backups aren't supported for non-standard data sources. */
 	if (DATASOURCE("helium") || DATASOURCE("kvsbdb"))
-		return (NULL);
+		return (WT_THREAD_RET_VALUE);
 
 	/* Open a session. */
 	testutil_check(conn->open_session(conn, NULL, NULL, &session));
@@ -188,5 +188,5 @@ backup(void *arg)
 
 	testutil_check(session->close(session, NULL));
 
-	return (NULL);
+	return (WT_THREAD_RET_VALUE);
 }

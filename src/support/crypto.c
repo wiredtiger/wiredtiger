@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -133,5 +133,4 @@ __wt_encrypt_size(WT_SESSION_IMPL *session,
 		return;
 
 	*sizep = incoming_size + kencryptor->size_const + WT_ENCRYPT_LEN_SIZE;
-	return;
 }

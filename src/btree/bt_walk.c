@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -340,9 +340,7 @@ __tree_walk_internal(WT_SESSION_IMPL *session,
 	 * Take a copy of any held page and clear the return value.  Remember
 	 * the hazard pointer we're currently holding.
 	 *
-	 * We may be passed a pointer to btree->evict_page that we are clearing
-	 * here.  We check when discarding pages that we're not discarding that
-	 * page, so this clear must be done before the page is released.
+	 * Clear the returned value, it makes future error handling easier.
 	 */
 	couple = couple_orig = ref = *refp;
 	*refp = NULL;
@@ -350,16 +348,19 @@ __tree_walk_internal(WT_SESSION_IMPL *session,
 	/* If no page is active, begin a walk from the start/end of the tree. */
 	if (ref == NULL) {
 restart:	/*
-		 * We can reach here with a NULL or root reference; the release
+		 * We can be here with a NULL or root WT_REF; the page release
 		 * function handles them internally, don't complicate this code
 		 * by calling them out.
 		 */
 		WT_ERR(__wt_page_release(session, couple, flags));
 
-		couple = couple_orig = ref = &btree->root;
-		if (ref->page == NULL)
-			goto done;
+		/*
+		 * We're not supposed to walk trees without root pages. As this
+		 * has not always been the case, assert to debug that change.
+		 */
+		WT_ASSERT(session, btree->root.page != NULL);
 
+		couple = couple_orig = ref = &btree->root;
 		initial_descent = true;
 		goto descend;
 	}
@@ -496,29 +497,21 @@ restart:	/*
 			}
 
 			/*
-			 * Optionally skip leaf pages: skip all leaf pages if
-			 * WT_READ_SKIP_LEAF is set, when the skip-leaf-count
-			 * variable is non-zero, skip some count of leaf pages.
-			 * If this page is disk-based, crack the cell to figure
-			 * out it's a leaf page without reading it.
+			 * Optionally skip leaf pages: when the skip-leaf-count
+			 * variable is non-zero, skip some count of leaf pages,
+			 * then take the next leaf page we can.
 			 *
-			 * If skipping some number of leaf pages, decrement the
-			 * count of pages to zero, and then take the next leaf
-			 * page we can. Be cautious around the page decrement,
-			 * if for some reason don't take this particular page,
-			 * we can take the next one, and, there are additional
-			 * tests/decrements when we're about to return a leaf
-			 * page.
+			 * The reason to do some of this work here (rather than
+			 * in our caller), is because we can look at the cell
+			 * and know it's a leaf page without reading it into
+			 * memory. If this page is disk-based, crack the cell
+			 * to figure out it's a leaf page without reading it.
 			 */
-			if (skipleafcntp != NULL || LF_ISSET(WT_READ_SKIP_LEAF))
-				if (__ref_is_leaf(ref)) {
-					if (LF_ISSET(WT_READ_SKIP_LEAF))
-						break;
-					if (*skipleafcntp > 0) {
-						--*skipleafcntp;
-						break;
-					}
-				}
+			if (skipleafcntp != NULL &&
+			    *skipleafcntp > 0 && __ref_is_leaf(ref)) {
+				--*skipleafcntp;
+				break;
+			}
 
 			ret = __wt_page_swap(session, couple, ref,
 			    WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK | flags);
@@ -625,34 +618,18 @@ descend:			empty_internal = true;
 					    session, ref, &pindex);
 					slot = pindex->entries - 1;
 				}
-			} else {
-				/*
-				 * At the lowest tree level (considering a leaf
-				 * page), turn off the initial-descent state.
-				 * Descent race tests are different when moving
-				 * through the tree vs. the initial descent.
-				 */
-				initial_descent = false;
-
-				/*
-				 * Optionally skip leaf pages, the second half.
-				 * We didn't have an on-page cell to figure out
-				 * if it was a leaf page, we had to acquire the
-				 * hazard pointer and look at the page.
-				 */
-				if (skipleafcntp != NULL ||
-				    LF_ISSET(WT_READ_SKIP_LEAF)) {
-					if (LF_ISSET(WT_READ_SKIP_LEAF))
-						break;
-					if (*skipleafcntp > 0) {
-						--*skipleafcntp;
-						break;
-					}
-				}
-
-				*refp = ref;
-				goto done;
+				continue;
 			}
+
+			/*
+			 * The tree-walk restart code knows we return any leaf
+			 * page we acquire (never hazard-pointer coupling on
+			 * after acquiring a leaf page), and asserts no restart
+			 * happens while holding a leaf page. This page must be
+			 * returned to our caller.
+			 */
+			*refp = ref;
+			goto done;
 		}
 	}
 
@@ -689,8 +666,29 @@ __wt_tree_walk_count(WT_SESSION_IMPL *session,
  *	of leaf pages before returning.
  */
 int
-__wt_tree_walk_skip(WT_SESSION_IMPL *session,
-    WT_REF **refp, uint64_t *skipleafcntp, uint32_t flags)
+__wt_tree_walk_skip(
+    WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *skipleafcntp)
 {
-	return (__tree_walk_internal(session, refp, NULL, skipleafcntp, flags));
+	/*
+	 * Optionally skip leaf pages, the second half. The tree-walk function
+	 * didn't have an on-page cell it could use to figure out if the page
+	 * was a leaf page or not, it had to acquire the hazard pointer and look
+	 * at the page. The tree-walk code never acquires a hazard pointer on a
+	 * leaf page without returning it, and it's not trivial to change that.
+	 * So, the tree-walk code returns all leaf pages here and we deal with
+	 * decrementing the count.
+	 */
+	do {
+		WT_RET(__tree_walk_internal(session, refp, NULL, skipleafcntp,
+		    WT_READ_NO_GEN | WT_READ_SKIP_INTL | WT_READ_WONT_NEED));
+
+		/*
+		 * The walk skipped internal pages, any page returned must be a
+		 * leaf page.
+		 */
+		if (*skipleafcntp > 0)
+			--*skipleafcntp;
+	} while (*skipleafcntp > 0);
+
+	return (0);
 }

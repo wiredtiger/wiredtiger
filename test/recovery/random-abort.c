@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -32,7 +32,7 @@
 #include <signal.h>
 
 static char home[1024];			/* Program working dir */
-static const char *progname;		/* Program name */
+
 /*
  * These two names for the URI and file system must be maintained in tandem.
  */
@@ -47,9 +47,9 @@ static bool inmem;
 #define	RECORDS_FILE	"records-%" PRIu32
 
 #define	ENV_CONFIG_DEF						\
-    "create,log=(file_max=10M,archive=false,enabled)"
+    "create,log=(file_max=10M,enabled)"
 #define	ENV_CONFIG_TXNSYNC					\
-    "create,log=(file_max=10M,archive=false,enabled),"		\
+    "create,log=(file_max=10M,enabled),"		\
     "transaction_sync=(enabled,method=none)"
 #define	ENV_CONFIG_REC "log=(recover=on)"
 #define	MAX_VAL	4096
@@ -69,7 +69,7 @@ typedef struct {
 	uint32_t id;
 } WT_THREAD_DATA;
 
-static void *
+static WT_THREAD_RET
 thread_run(void *arg)
 {
 	FILE *fp;
@@ -94,14 +94,16 @@ thread_run(void *arg)
 	/*
 	 * The value is the name of the record file with our id appended.
 	 */
-	snprintf(buf, sizeof(buf), RECORDS_FILE, td->id);
+	testutil_check(__wt_snprintf(buf, sizeof(buf), RECORDS_FILE, td->id));
 	/*
 	 * Set up a large value putting our id in it.  Write it in there a
 	 * bunch of times, but the rest of the buffer can just be zero.
 	 */
-	snprintf(lgbuf, sizeof(lgbuf), "th-%" PRIu32, td->id);
+	testutil_check(__wt_snprintf(
+	    lgbuf, sizeof(lgbuf), "th-%" PRIu32, td->id));
 	for (i = 0; i < 128; i += strlen(lgbuf))
-		snprintf(&large[i], lsize - i, "%s", lgbuf);
+		testutil_check(__wt_snprintf(
+		    &large[i], lsize - i, "%s", lgbuf));
 	/*
 	 * Keep a separate file with the records we wrote for checking.
 	 */
@@ -124,7 +126,8 @@ thread_run(void *arg)
 	 * Write our portion of the key space until we're killed.
 	 */
 	for (i = td->start; ; ++i) {
-		snprintf(kname, sizeof(kname), "%" PRIu64, i);
+		testutil_check(__wt_snprintf(
+		    kname, sizeof(kname), "%" PRIu64, i));
 		cursor->set_key(cursor, kname);
 		/*
 		 * Every 30th record write a very large record that exceeds the
@@ -158,15 +161,15 @@ static void fill_db(uint32_t)
 static void
 fill_db(uint32_t nth)
 {
-	pthread_t *thr;
 	WT_CONNECTION *conn;
 	WT_SESSION *session;
 	WT_THREAD_DATA *td;
+	wt_thread_t *thr;
 	uint32_t i;
 	int ret;
 	const char *envconf;
 
-	thr = dcalloc(nth, sizeof(pthread_t));
+	thr = dcalloc(nth, sizeof(*thr));
 	td = dcalloc(nth, sizeof(WT_THREAD_DATA));
 	if (chdir(home) != 0)
 		testutil_die(errno, "Child chdir: %s", home);
@@ -189,9 +192,8 @@ fill_db(uint32_t nth)
 		td[i].conn = conn;
 		td[i].start = (UINT64_MAX / nth) * i;
 		td[i].id = i;
-		if ((ret = pthread_create(
-		    &thr[i], NULL, thread_run, &td[i])) != 0)
-			testutil_die(ret, "pthread_create");
+		testutil_check(__wt_thread_create(
+		    NULL, &thr[i], thread_run, &td[i]));
 	}
 	printf("Spawned %" PRIu32 " writer threads\n", nth);
 	fflush(stdout);
@@ -200,7 +202,7 @@ fill_db(uint32_t nth)
 	 * it is killed.
 	 */
 	for (i = 0; i < nth; ++i)
-		testutil_assert(pthread_join(thr[i], NULL) == 0);
+		testutil_check(__wt_thread_join(NULL, thr[i]));
 	/*
 	 * NOTREACHED
 	 */
@@ -229,10 +231,7 @@ main(int argc, char *argv[])
 	const char *working_dir;
 	char fname[64], kname[64], statname[1024];
 
-	if ((progname = strrchr(argv[0], DIR_DELIM)) == NULL)
-		progname = argv[0];
-	else
-		++progname;
+	(void)testutil_set_progname(argv);
 
 	inmem = false;
 	nth = MIN_TH;
@@ -316,7 +315,8 @@ main(int argc, char *argv[])
 		 * still exists in case the child aborts for some reason we
 		 * don't stay in this loop forever.
 		 */
-		snprintf(statname, sizeof(statname), "%s/%s", home, fs_main);
+		testutil_check(__wt_snprintf(
+		    statname, sizeof(statname), "%s/%s", home, fs_main));
 		while (stat(statname, &sb) != 0 && kill(pid, 0) == 0)
 			sleep(1);
 		sleep(timeout);
@@ -351,7 +351,8 @@ main(int argc, char *argv[])
 	fatal = false;
 	for (i = 0; i < nth; ++i) {
 		middle = 0;
-		snprintf(fname, sizeof(fname), RECORDS_FILE, i);
+		testutil_check(__wt_snprintf(
+		    fname, sizeof(fname), RECORDS_FILE, i));
 		if ((fp = fopen(fname, "r")) == NULL)
 			testutil_die(errno, "fopen: %s", fname);
 
@@ -379,7 +380,8 @@ main(int argc, char *argv[])
 				    fname, key, last_key);
 				break;
 			}
-			snprintf(kname, sizeof(kname), "%" PRIu64, key);
+			testutil_check(__wt_snprintf(
+			    kname, sizeof(kname), "%" PRIu64, key));
 			cursor->set_key(cursor, kname);
 			if ((ret = cursor->search(cursor)) != 0) {
 				if (ret != WT_NOTFOUND)

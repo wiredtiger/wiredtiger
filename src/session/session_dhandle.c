@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -44,8 +44,7 @@ __session_discard_dhandle(
 	TAILQ_REMOVE(&session->dhandles, dhandle_cache, q);
 	TAILQ_REMOVE(&session->dhhash[bucket], dhandle_cache, hashq);
 
-	(void)__wt_atomic_sub32(&dhandle_cache->dhandle->session_ref, 1);
-
+	WT_DHANDLE_RELEASE(dhandle_cache->dhandle);
 	__wt_overwrite_and_free(session, dhandle_cache);
 }
 
@@ -230,7 +229,8 @@ __wt_session_lock_dhandle(
 			WT_ASSERT(session, !F_ISSET(dhandle, WT_DHANDLE_DEAD));
 			return (0);
 		}
-		if (ret != EBUSY || (is_open && want_exclusive))
+		if (ret != EBUSY || (is_open && want_exclusive) ||
+		    LF_ISSET(WT_DHANDLE_LOCK_ONLY))
 			return (ret);
 		lock_busy = true;
 
@@ -262,8 +262,8 @@ __wt_session_release_btree(WT_SESSION_IMPL *session)
 	 * can get a handle without special flags.
 	 */
 	if (F_ISSET(dhandle, WT_DHANDLE_DISCARD | WT_DHANDLE_DISCARD_FORCE)) {
-		__session_find_dhandle(session,
-		    dhandle->name, dhandle->checkpoint, &dhandle_cache);
+		WT_SAVE_DHANDLE(session, __session_find_dhandle(session,
+		    dhandle->name, dhandle->checkpoint, &dhandle_cache));
 		if (dhandle_cache != NULL)
 			__session_discard_dhandle(session, dhandle_cache);
 	}
@@ -271,6 +271,16 @@ __wt_session_release_btree(WT_SESSION_IMPL *session)
 	if (F_ISSET(dhandle, WT_DHANDLE_DISCARD_FORCE)) {
 		ret = __wt_conn_btree_sync_and_close(session, false, true);
 		F_CLR(dhandle, WT_DHANDLE_DISCARD_FORCE);
+	} else if (F_ISSET(btree, WT_BTREE_BULK)) {
+		WT_ASSERT(session, F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) &&
+		    !F_ISSET(dhandle, WT_DHANDLE_DISCARD));
+		/*
+		 * Acquire the schema lock while completing a bulk load.  This
+		 * avoids racing with a checkpoint while it gathers a set
+		 * of handles.
+		 */
+		WT_WITH_SCHEMA_LOCK(session, ret =
+		    __wt_conn_btree_sync_and_close(session, false, false));
 	} else if (F_ISSET(dhandle, WT_DHANDLE_DISCARD) ||
 	    F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS)) {
 		WT_ASSERT(session, F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE));
@@ -360,10 +370,12 @@ retry:			WT_RET(__wt_meta_checkpoint_last_name(
 void
 __wt_session_close_cache(WT_SESSION_IMPL *session)
 {
-	WT_DATA_HANDLE_CACHE *dhandle_cache;
+	WT_DATA_HANDLE_CACHE *dhandle_cache, *dhandle_cache_tmp;
 
-	while ((dhandle_cache = TAILQ_FIRST(&session->dhandles)) != NULL)
+	WT_TAILQ_SAFE_REMOVE_BEGIN(dhandle_cache,
+	    &session->dhandles, q, dhandle_cache_tmp) {
 		__session_discard_dhandle(session, dhandle_cache);
+	} WT_TAILQ_SAFE_REMOVE_END
 }
 
 /*
@@ -375,7 +387,7 @@ __session_dhandle_sweep(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
-	WT_DATA_HANDLE_CACHE *dhandle_cache, *dhandle_cache_next;
+	WT_DATA_HANDLE_CACHE *dhandle_cache, *dhandle_cache_tmp;
 	time_t now;
 
 	conn = S2C(session);
@@ -391,9 +403,8 @@ __session_dhandle_sweep(WT_SESSION_IMPL *session)
 
 	WT_STAT_CONN_INCR(session, dh_session_sweeps);
 
-	dhandle_cache = TAILQ_FIRST(&session->dhandles);
-	while (dhandle_cache != NULL) {
-		dhandle_cache_next = TAILQ_NEXT(dhandle_cache, q);
+	TAILQ_FOREACH_SAFE(dhandle_cache,
+	    &session->dhandles, q, dhandle_cache_tmp) {
 		dhandle = dhandle_cache->dhandle;
 		if (dhandle != session->dhandle &&
 		    dhandle->session_inuse == 0 &&
@@ -405,24 +416,33 @@ __session_dhandle_sweep(WT_SESSION_IMPL *session)
 			WT_ASSERT(session, !WT_IS_METADATA(dhandle));
 			__session_discard_dhandle(session, dhandle_cache);
 		}
-		dhandle_cache = dhandle_cache_next;
 	}
 }
 
 /*
  * __session_find_shared_dhandle --
  *	Search for a data handle in the connection and add it to a session's
- *	cache.  Since the data handle isn't locked, this must be called holding
- *	the handle list lock, and we must increment the handle's reference
- *	count before releasing it.
+ *	cache.  We must increment the handle's reference count while holding
+ *	the handle list lock.
  */
 static int
 __session_find_shared_dhandle(
     WT_SESSION_IMPL *session, const char *uri, const char *checkpoint)
 {
-	WT_RET(__wt_conn_dhandle_find(session, uri, checkpoint));
-	(void)__wt_atomic_add32(&session->dhandle->session_ref, 1);
-	return (0);
+	WT_DECL_RET;
+
+	WT_WITH_HANDLE_LIST_READ_LOCK(session,
+	    if ((ret = __wt_conn_dhandle_find(session, uri, checkpoint)) == 0)
+		    WT_DHANDLE_ACQUIRE(session->dhandle));
+
+	if (ret != WT_NOTFOUND)
+		return (ret);
+
+	WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
+	    if ((ret = __wt_conn_dhandle_alloc(session, uri, checkpoint)) == 0)
+		    WT_DHANDLE_ACQUIRE(session->dhandle));
+
+	return (ret);
 }
 
 /*
@@ -450,16 +470,16 @@ __session_get_dhandle(
 	 * We didn't find a match in the session cache, search the shared
 	 * handle list and cache the handle we find.
 	 */
-	WT_WITH_HANDLE_LIST_LOCK(session,
-	    ret = __session_find_shared_dhandle(session, uri, checkpoint));
-	WT_RET(ret);
+	WT_RET(__session_find_shared_dhandle(session, uri, checkpoint));
 
 	/*
 	 * Fixup the reference count on failure (we incremented the reference
 	 * count while holding the handle-list lock).
 	 */
-	if ((ret = __session_add_dhandle(session)) != 0)
-		(void)__wt_atomic_sub32(&session->dhandle->session_ref, 1);
+	if ((ret = __session_add_dhandle(session)) != 0) {
+		WT_DHANDLE_RELEASE(session->dhandle);
+		session->dhandle = NULL;
+	}
 
 	return (ret);
 }
@@ -505,17 +525,15 @@ __wt_session_get_btree(WT_SESSION_IMPL *session,
 		 * reopen handles in the meantime.  A combination of the schema
 		 * and handle list locks are used to enforce this.
 		 */
-		if (!F_ISSET(session, WT_SESSION_LOCKED_SCHEMA) ||
-		    !F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST)) {
+		if (!F_ISSET(session, WT_SESSION_LOCKED_SCHEMA)) {
 			dhandle->excl_session = NULL;
 			dhandle->excl_ref = 0;
 			F_CLR(dhandle, WT_DHANDLE_EXCLUSIVE);
 			__wt_writeunlock(session, &dhandle->rwlock);
 
 			WT_WITH_SCHEMA_LOCK(session,
-			    WT_WITH_HANDLE_LIST_LOCK(session,
-				ret = __wt_session_get_btree(
-				session, uri, checkpoint, cfg, flags)));
+			    ret = __wt_session_get_btree(
+				session, uri, checkpoint, cfg, flags));
 
 			return (ret);
 		}
@@ -553,7 +571,7 @@ __wt_session_get_btree(WT_SESSION_IMPL *session,
 int
 __wt_session_lock_checkpoint(WT_SESSION_IMPL *session, const char *checkpoint)
 {
-	WT_DATA_HANDLE *dhandle, *saved_dhandle;
+	WT_DATA_HANDLE *saved_dhandle;
 	WT_DECL_RET;
 
 	WT_ASSERT(session, WT_META_TRACKING(session));
@@ -561,31 +579,33 @@ __wt_session_lock_checkpoint(WT_SESSION_IMPL *session, const char *checkpoint)
 
 	/*
 	 * Get the checkpoint handle exclusive, so no one else can access it
-	 * while we are creating the new checkpoint.
+	 * while we are creating the new checkpoint.  Hold the lock until the
+	 * checkpoint completes.
 	 */
 	WT_ERR(__wt_session_get_btree(session, saved_dhandle->name,
 	    checkpoint, NULL, WT_DHANDLE_EXCLUSIVE | WT_DHANDLE_LOCK_ONLY));
+	if ((ret = __wt_meta_track_handle_lock(session, false)) != 0) {
+		WT_TRET(__wt_session_release_btree(session));
+		goto err;
+	}
 
 	/*
-	 * Flush any pages in this checkpoint from the cache (we are about to
-	 * re-write the checkpoint which will mean cached pages no longer have
-	 * valid contents).  This is especially noticeable with memory mapped
-	 * files, since changes to the underlying file are visible to the in
-	 * memory pages.
+	 * Get exclusive access to the handle and then flush any pages in this
+	 * checkpoint from the cache (we are about to re-write the checkpoint
+	 * which will mean cached pages no longer have valid contents). This
+	 * is especially noticeable with memory mapped files, since changes to
+	 * the underlying file are visible to the in-memory pages.
 	 */
+	WT_ERR(__wt_evict_file_exclusive_on(session));
 	WT_ERR(__wt_cache_op(session, WT_SYNC_DISCARD));
 
 	/*
 	 * We lock checkpoint handles that we are overwriting, so the handle
 	 * must be closed when we release it.
 	 */
-	dhandle = session->dhandle;
-	F_SET(dhandle, WT_DHANDLE_DISCARD);
+	F_SET(session->dhandle, WT_DHANDLE_DISCARD);
 
-	WT_ERR(__wt_meta_track_handle_lock(session, false));
-
-	/* Restore the original btree in the session. */
+	/* Restore the original data handle in the session. */
 err:	session->dhandle = saved_dhandle;
-
 	return (ret);
 }
