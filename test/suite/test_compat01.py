@@ -91,7 +91,7 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
         self.pr("Conn config:" + log_str + compat_str)
         return log_str + compat_str
 
-    def check_prev_lsn(self, exists, conn_close):
+    def check_prev_lsn(self, conn_close, prev_lsn_count):
         #
         # Run printlog and look for the prev_lsn log record.  Verify its
         # existence with the passed in expected result.  We don't use
@@ -100,17 +100,22 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
         # the entire file if needed and set a boolean for comparison.
         #
         self.runWt(['printlog'], outfilename='printlog.out', closeconn=conn_close)
-        contains = False
+        contains = 0
         with open('printlog.out') as logfile:
             for line in logfile:
                 if 'prev_lsn' in line:
-                    contains = True
-                    break
-        self.assertEqual(exists, contains)
+                    contains += 1
+        self.assertEqual(prev_lsn_count, contains)
 
     def check_log(self, reconfig):
         orig_logs = fnmatch.filter(os.listdir('.'), "*Log*")
         compat_str = self.make_compat_str(False)
+        if self.current1:
+            prev_lsn_logs = len(orig_logs)
+        else:
+            prev_lsn_logs = 0
+        orig_set = set(orig_logs)
+
         if not reconfig:
             #
             # Close and open the connection to force recovery and log archiving
@@ -118,7 +123,7 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
             # If we are downgrading we must archive newer logs.  Verify
             # log files have or have not been archived.
             #
-            self.check_prev_lsn(self.current1, True)
+            self.check_prev_lsn(True, prev_lsn_logs)
 
             self.conn.close()
             log_str = 'log=(enabled,file_max=%s,archive=false),' % self.logmax
@@ -137,19 +142,20 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
 
         #
         # Archiving is turned off explicitly.
-        #
-        # Check logs. The original logs should have been archived only if
-        # we downgraded.  In all other cases the original logs should be there.
+        # Check logs. 
         #
         cur_logs = fnmatch.filter(os.listdir('.'), "*Log*")
-        log_present = True
-        #if self.current1 == True and self.current2 == False:
-        #    log_present = False
-        for o in orig_logs:
-            self.assertEqual(log_present, o in cur_logs)
+        cur_set = set(cur_logs)
+        self.assertTrue(cur_set.issuperset(orig_set))
+        if self.current2:
+            prev_lsn_logs += len(cur_set) - len(orig_set)
 
         # Run printlog and verify the new record does or does not exist.
-        #self.check_prev_lsn(self.current2, check_close)
+        # Need to check count of log files that should and should not have
+        # the prev_lsn record based on the count of log files that exist
+        # before and after.  Pass that into this function and check the
+        # number of prev_lsn records we see.
+        self.check_prev_lsn(check_close, prev_lsn_logs)
 
     def run_test(self, reconfig):
         # If reconfiguring with the empty string there is nothing to do.
