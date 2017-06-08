@@ -590,7 +590,8 @@ __evict_review(
 	    __wt_page_is_modified(page) ||
 	    LF_ISSET(WT_EVICT_LOOKASIDE) ||
 	    F_ISSET(S2BT(session), WT_BTREE_LOOKASIDE) ||
-	    __wt_txn_visible_all(session, page->modify->rec_max_txn, NULL));
+	    __wt_txn_visible_all(session, page->modify->rec_max_txn,
+	    WT_TIMESTAMP(page->modify->rec_max_timestamp)));
 
 	return (0);
 }

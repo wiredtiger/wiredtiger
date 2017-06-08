@@ -1189,7 +1189,7 @@ err:	API_END_RET_NOTFOUND_MAP(session, ret);
  */
 static int
 __conn_query_timestamp(WT_CONNECTION *wt_conn,
-    char *timestamp, const char *config)
+    char *hex_timestamp, const char *config)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
@@ -1198,7 +1198,7 @@ __conn_query_timestamp(WT_CONNECTION *wt_conn,
 	conn = (WT_CONNECTION_IMPL *)wt_conn;
 
 	CONNECTION_API_CALL(conn, session, query_timestamp, config, cfg);
-	WT_TRET(__wt_txn_global_query_timestamp(session, timestamp, cfg));
+	WT_TRET(__wt_txn_global_query_timestamp(session, hex_timestamp, cfg));
 err:	API_END_RET_NOTFOUND_MAP(session, ret);
 }
 

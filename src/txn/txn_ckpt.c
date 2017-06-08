@@ -1676,14 +1676,12 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
 	/*
 	 * If closing an unmodified file, check that no update is required
 	 * for active readers.
-	 *
-	 * XXX needs to check timestamp as well.
 	 */
 	if (!btree->modified && !bulk) {
 		WT_RET(__wt_txn_update_oldest(
 		    session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
-		return (__wt_txn_visible_all(
-		    session, btree->rec_max_txn, NULL) ?
+		return (__wt_txn_visible_all(session, btree->rec_max_txn,
+		    WT_TIMESTAMP(btree->rec_max_timestamp)) ?
 		    __wt_cache_op(session, WT_SYNC_DISCARD) : EBUSY);
 	}
 

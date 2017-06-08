@@ -28,12 +28,6 @@
 #define	WT_SESSION_IS_CHECKPOINT(s)					\
 	((s)->id != 0 && (s)->id == S2C(s)->txn_global.checkpoint_id)
 
-#ifdef HAVE_TIMESTAMPS
-#define	WT_GET_TIMESTAMP(x) ((x)->timestamp)
-#else
-#define	WT_GET_TIMESTAMP(x) (NULL)
-#endif
-
 /*
  * Perform an operation at the specified isolation level.
  *
@@ -79,10 +73,10 @@ struct __wt_txn_state {
 	volatile uint64_t id;
 	volatile uint64_t pinned_id;
 	volatile uint64_t metadata_pinned;
-#ifdef HAVE_TIMESTAMPS
-	uint8_t commit_timestamp[TIMESTAMP_SIZE];
-	uint8_t read_timestamp[TIMESTAMP_SIZE];
-#endif
+
+	WT_DECL_TIMESTAMP(commit_timestamp)
+	WT_DECL_TIMESTAMP(read_timestamp)
+
 	WT_CACHE_LINE_PAD_END
 };
 
@@ -98,13 +92,11 @@ struct __wt_txn_global {
 	 */
 	volatile uint64_t oldest_id;
 
-#ifdef HAVE_TIMESTAMPS
-	uint8_t commit_timestamp[TIMESTAMP_SIZE];
-	uint8_t read_timestamp[TIMESTAMP_SIZE];
-	uint8_t oldest_timestamp[TIMESTAMP_SIZE];
-	uint8_t pinned_timestamp[TIMESTAMP_SIZE];
-	bool has_oldest_ts, has_pinned_ts;
-#endif
+	WT_DECL_TIMESTAMP(commit_timestamp)
+	WT_DECL_TIMESTAMP(oldest_timestamp)
+	WT_DECL_TIMESTAMP(pinned_timestamp)
+	WT_DECL_TIMESTAMP(read_timestamp)
+	bool has_oldest_timestamp, has_pinned_timestamp;
 
 	WT_SPINLOCK id_lock;
 
@@ -209,10 +201,8 @@ struct __wt_txn {
 	uint32_t snapshot_count;
 	uint32_t txn_logsync;	/* Log sync configuration */
 
-#ifdef HAVE_TIMESTAMPS
-	uint8_t read_timestamp[TIMESTAMP_SIZE];
-	uint8_t commit_timestamp[TIMESTAMP_SIZE];
-#endif
+	WT_DECL_TIMESTAMP(read_timestamp)
+	WT_DECL_TIMESTAMP(commit_timestamp)
 
 	/* Array of modifications by this transaction. */
 	WT_TXN_OP      *mod;

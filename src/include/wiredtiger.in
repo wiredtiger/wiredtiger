@@ -2204,9 +2204,10 @@ struct __wt_connection {
 	 * @snippet ex_all.c query timestamp
 	 *
 	 * @param connection the connection handle
-	 * @param[out] timestamp a buffer that will be set to the timestamp
-	 * being queried.  Must be large enough to hold a hex-encoded timestamp
-	 * (i.e., double the timestamp size plus one byte for NUL termination).
+	 * @param[out] hex_timestamp a buffer that will be set to the
+	 * hexadecimal encoding of the timestamp being queried.  Must be large
+	 * enough to hold a hex-encoded timestamp (i.e., double the timestamp
+	 * size plus one byte for NUL termination).
 	 * @configstart{WT_CONNECTION.query_timestamp, see dist/api_data.py}
 	 * @config{get, specify which timestamp to query: \c all_committed
 	 * returns the largest timestamp such that all earlier timestamps have
@@ -2216,7 +2217,7 @@ struct __wt_connection {
 	 * @errors
 	 */
 	int __F(query_timestamp)(
-	    WT_CONNECTION *connection, char *timestamp, const char *config);
+	    WT_CONNECTION *connection, char *hex_timestamp, const char *config);
 
 	/*!
 	 * Set a global transaction timestamp.

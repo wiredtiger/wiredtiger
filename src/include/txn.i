@@ -10,32 +10,32 @@ static inline int __wt_txn_id_check(WT_SESSION_IMPL *session);
 static inline void __wt_txn_read_last(WT_SESSION_IMPL *session);
 
 #ifdef HAVE_TIMESTAMPS
-static const uint8_t zero_timestamp[TIMESTAMP_SIZE];
+static const wt_timestamp_t zero_timestamp;
 
 /*
- * __wt_ts_cmp --
+ * __wt_timestamp_cmp --
  *	Compare two timestamps.
  */
 static inline int
-__wt_ts_cmp(const uint8_t *ts1, const uint8_t *ts2) {
+__wt_timestamp_cmp(const uint8_t *ts1, const uint8_t *ts2) {
 	return (memcmp(ts1, ts2, TIMESTAMP_SIZE));
 }
 
 /*
- * __wt_ts_set --
+ * __wt_timestamp_set --
  *	Set a timestamp
  */
 static inline void
-__wt_ts_set(uint8_t *dest, const uint8_t *src) {
+__wt_timestamp_set(uint8_t *dest, const uint8_t *src) {
 	(void)memcpy(dest, src, TIMESTAMP_SIZE);
 }
 
 /*
- * __wt_ts_iszero --
+ * __wt_timestamp_iszero --
  *	Check if a timestamp is equal to the special "zero" time.
  */
 static inline bool
-__wt_ts_iszero(const uint8_t *ts) {
+__wt_timestamp_iszero(const uint8_t *ts) {
 	return (memcmp(ts, zero_timestamp, TIMESTAMP_SIZE) == 0);
 }
 #endif
@@ -232,11 +232,11 @@ __wt_txn_visible_all(
 	int cmp;
 
 	/* Timestamp check. */
-	if (!txn_global->has_pinned_ts || timestamp == NULL)
+	if (!txn_global->has_pinned_timestamp || timestamp == NULL)
 		return (true);
 
 	__wt_readlock(session, &txn_global->oldest_rwlock);
-	cmp = __wt_ts_cmp(timestamp, txn_global->pinned_timestamp);
+	cmp = __wt_timestamp_cmp(timestamp, txn_global->pinned_timestamp);
 	__wt_readunlock(session, &txn_global->oldest_rwlock);
 
 	return (cmp < 0);

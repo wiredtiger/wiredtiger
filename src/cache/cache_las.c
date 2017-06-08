@@ -288,8 +288,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_CURSOR *cursor;
-	WT_DECL_ITEM(las_addr);
-	WT_DECL_ITEM(las_key);
+	WT_ITEM las_addr, las_key, las_timestamp;
 	WT_DECL_RET;
 	WT_ITEM *key;
 	uint64_t cnt, las_counter, las_txnid, remove_cnt;
@@ -301,9 +300,6 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	key = &conn->las_sweep_key;
 	remove_cnt = 0;
 	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
-
-	WT_ERR(__wt_scr_alloc(session, 0, &las_addr));
-	WT_ERR(__wt_scr_alloc(session, 0, &las_key));
 
 	__wt_las_cursor(session, &cursor, &session_flags);
 
@@ -362,8 +358,10 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 				    session, key, key->data, key->size));
 		}
 
-		WT_ERR(cursor->get_key(cursor,
-		    &las_id, las_addr, &las_counter, &las_txnid, las_key));
+		WT_ERR(cursor->get_key(cursor, &las_id, &las_addr, &las_counter,
+		    &las_txnid, &las_timestamp, &las_key));
+		if (las_timestamp.size == 0)
+			las_timestamp.data = NULL;
 
 		/*
 		 * If the on-page record transaction ID associated with the
@@ -372,10 +370,9 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		 * Cursor opened overwrite=true: won't return WT_NOTFOUND should
 		 * another thread remove the record before we do, and the cursor
 		 * remains positioned in that case.
-		 *
-		 * XXX lookaside needs to know about timestamps
 		 */
-		if (__wt_txn_visible_all(session, las_txnid, NULL)) {
+		if (__wt_txn_visible_all(
+		    session, las_txnid, las_timestamp.data)) {
 			WT_ERR(cursor->remove(cursor));
 			++remove_cnt;
 		}
@@ -400,9 +397,6 @@ err:		__wt_buf_free(session, key);
 		(void)__wt_atomic_sub64(&conn->las_record_cnt, remove_cnt);
 
 	F_CLR(session, WT_SESSION_NO_CACHE);
-
-	__wt_scr_free(session, &las_addr);
-	__wt_scr_free(session, &las_key);
 
 	return (ret);
 }

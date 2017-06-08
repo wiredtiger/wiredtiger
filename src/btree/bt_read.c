@@ -18,7 +18,7 @@ int
 __wt_las_remove_block(WT_SESSION_IMPL *session,
     WT_CURSOR *cursor, uint32_t btree_id, const uint8_t *addr, size_t addr_size)
 {
-	WT_ITEM las_addr, las_key;
+	WT_ITEM las_addr, las_key, las_timestamp;
 	WT_DECL_RET;
 	uint64_t las_counter, las_txnid, remove_cnt;
 	uint32_t las_id;
@@ -33,13 +33,14 @@ __wt_las_remove_block(WT_SESSION_IMPL *session,
 	las_addr.data = addr;
 	las_addr.size = addr_size;
 	las_key.size = 0;
-	cursor->set_key(
-	    cursor, btree_id, &las_addr, (uint64_t)0, (uint32_t)0, &las_key);
+	las_timestamp.size = 0;
+	cursor->set_key(cursor, btree_id, &las_addr,
+	    (uint64_t)0, (uint32_t)0, &las_timestamp, &las_key);
 	if ((ret = cursor->search_near(cursor, &exact)) == 0 && exact < 0)
 		ret = cursor->next(cursor);
 	for (; ret == 0; ret = cursor->next(cursor)) {
-		WT_ERR(cursor->get_key(cursor,
-		    &las_id, &las_addr, &las_counter, &las_txnid, &las_key));
+		WT_ERR(cursor->get_key(cursor, &las_id, &las_addr, &las_counter,
+		    &las_txnid, &las_timestamp, &las_key));
 
 		/*
 		 * Confirm the search using the unique prefix; if not a match,
@@ -154,13 +155,16 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 	las_addr.data = addr;
 	las_addr.size = addr_size;
 	las_key.size = 0;
-	cursor->set_key(
-	    cursor, read_id, &las_addr, (uint64_t)0, (uint32_t)0, &las_key);
+	las_timestamp.size = 0;
+	cursor->set_key(cursor, read_id, &las_addr,
+	    (uint64_t)0, (uint32_t)0, &las_timestamp, &las_key);
 	if ((ret = cursor->search_near(cursor, &exact)) == 0 && exact < 0)
 		ret = cursor->next(cursor);
 	for (; ret == 0; ret = cursor->next(cursor)) {
-		WT_ERR(cursor->get_key(cursor,
-		    &las_id, &las_addr, &las_counter, &las_txnid, &las_key));
+		WT_ERR(cursor->get_key(cursor, &las_id, &las_addr, &las_counter,
+		    &las_txnid, &las_timestamp, &las_key));
+		if (las_timestamp.size == 0)
+			las_timestamp.data = NULL;
 
 		/*
 		 * Confirm the search using the unique prefix; if not a match,
@@ -175,7 +179,8 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 		 * If the on-page value has become globally visible, this record
 		 * is no longer needed.
 		 */
-		if (__wt_txn_visible_all(session, las_txnid, NULL))
+		if (__wt_txn_visible_all(
+		    session, las_txnid, las_timestamp.data))
 			continue;
 
 		/* Allocate the WT_UPDATE structure. */
@@ -188,7 +193,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 		upd->txnid = upd_txnid;
 #ifdef HAVE_TIMESTAMPS
 		WT_ASSERT(session, las_timestamp.size == TIMESTAMP_SIZE);
-		__wt_ts_set(upd->timestamp, las_timestamp.data);
+		__wt_timestamp_set(upd->timestamp, las_timestamp.data);
 #endif
 
 		switch (page->type) {
