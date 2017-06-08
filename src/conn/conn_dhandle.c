@@ -545,14 +545,9 @@ __wt_conn_dhandle_close_all(
 	WT_ASSERT(session, session->dhandle == NULL);
 
 	/*
-	 * Lock the live handle exclusively.  If this is part of
-	 * schema-changing operation (indicated by metadata tracking being
-	 * enabled), hold the lock for the duration of the operation.
-	 *
-	 * This ordering is important: we rely on locking the live handle to
-	 * fail fast if the tree is busy (e.g., in a checkpoint).  Otherwise we
-	 * can spin waiting for a handle lock on a checkpoint in the tree that
-	 * is not open but merely locked by the checkpoint.
+	 * Lock the live handle first.  This ordering is important: we rely on
+	 * locking the live handle to fail fast if the tree is busy (e.g., with
+	 * cursors open or in a checkpoint).
 	 */
 	WT_ERR(__conn_dhandle_close_one(session, uri, NULL, force));
 
