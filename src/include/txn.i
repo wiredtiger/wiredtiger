@@ -103,15 +103,15 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 		    "Attempt to update in a read-only transaction");
 
 	WT_RET(__txn_next_op(session, &op));
-#if TIMESTAMP_SIZE > 0
+	op->type = F_ISSET(session, WT_SESSION_LOGGING_INMEM) ?
+	    WT_TXN_OP_INMEM : WT_TXN_OP_BASIC;
+#if HAVE_TIMESTAMPS
 	if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
-		memcpy(upd->timestamp, txn->commit_timestamp, TIMESTAMP_SIZE);
-		op->type = F_ISSET(session, WT_SESSION_LOGGING_INMEM) ?
-		    WT_TXN_OP_INMEM : WT_TXN_OP_BASIC_TS;
-	} else
+		__wt_timestamp_set(upd->timestamp, txn->commit_timestamp);
+		if (!F_ISSET(session, WT_SESSION_LOGGING_INMEM))
+			op->type = WT_TXN_OP_BASIC_TS;
+	}
 #endif
-		op->type = F_ISSET(session, WT_SESSION_LOGGING_INMEM) ?
-		    WT_TXN_OP_INMEM : WT_TXN_OP_BASIC;
 	op->u.upd = upd;
 	upd->txnid = session->txn.id;
 	return (0);
