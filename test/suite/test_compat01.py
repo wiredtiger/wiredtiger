@@ -30,7 +30,7 @@
 # Check compatibility API
 #
 
-import fnmatch, os, shutil, time
+import fnmatch, os, shutil, sys, time
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 import wttest
@@ -143,13 +143,13 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
         #
         cur_logs = fnmatch.filter(os.listdir('.'), "*Log*")
         log_present = True
-        if self.current1 == True and self.current2 == False:
-            log_present = False
+        #if self.current1 == True and self.current2 == False:
+        #    log_present = False
         for o in orig_logs:
             self.assertEqual(log_present, o in cur_logs)
 
         # Run printlog and verify the new record does or does not exist.
-        self.check_prev_lsn(self.current2, check_close)
+        #self.check_prev_lsn(self.current2, check_close)
 
     def run_test(self, reconfig):
         # If reconfiguring with the empty string there is nothing to do.
@@ -162,10 +162,18 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
         #
         for i in range(self.entries):
             c[i] = i + 1
+        c.close()
 
         # Check the log state after the entire op completes
         # and run recovery with the restart compatibility mode.
         self.check_log(reconfig)
+        c = self.session.open_cursor(self.uri, None)
+        #
+        # Add some entries to generate log files.
+        #
+        for i in range(20):
+            c[i+1000000] = i + 1000000
+        c.close()
 
     # Run the same test but reset the compatibility via
     # reconfigure or changing it when reopening the connection.

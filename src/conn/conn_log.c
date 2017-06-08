@@ -40,12 +40,12 @@ __logmgr_sync_cfg(WT_SESSION_IMPL *session, const char **cfg)
 }
 
 /*
- * __logmgr_force_archive --
- *	Force a checkpoint out and then force an archive, waiting for
- *	the first log to be archived up to the given log number.
+ * __logmgr_force_ckpt --
+ *	Force a checkpoint out, waiting for the checkpoint LSN in the log
+ *	is up to the given log number.
  */
 static int
-__logmgr_force_archive(WT_SESSION_IMPL *session, uint32_t lognum)
+__logmgr_force_ckpt(WT_SESSION_IMPL *session, uint32_t lognum)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_LOG *log;
@@ -57,7 +57,7 @@ __logmgr_force_archive(WT_SESSION_IMPL *session, uint32_t lognum)
 	yield = 0;
 	WT_RET(__wt_open_internal_session(conn,
 	    "compatibility-reconfig", true, 0, &tmp_session));
-	while (log->first_lsn.l.file < lognum) {
+	while (log->ckpt_lsn.l.file < lognum) {
 		/*
 		 * Force a checkpoint to be written in the new log file and
 		 * force the archiving of all previous log files.  We do the
@@ -69,29 +69,15 @@ __logmgr_force_archive(WT_SESSION_IMPL *session, uint32_t lognum)
 		 */
 		WT_RET(tmp_session->iface.checkpoint(
 		    &tmp_session->iface, "force=1"));
-		/*
-		 * We need to wait for the archival to reach up to the
-		 * log number needed to be assured no previous version
-		 * log files exist.  There could be outstanding writes from
-		 * a thread group still copying to a slot or a log cursor
-		 * open, preventing archiving.
-		 *
-		 * We don't expect to need to wait here generally, so only yield
-		 * if we come through more than once.
-		 */
-		if (yield++ != 0) {
-			if (yield < WT_THOUSAND) {
-				WT_STAT_CONN_INCR(session,
-				    log_force_archive_yield);
-				__wt_yield();
-			} else {
-				WT_STAT_CONN_INCR(session,
-				    log_force_archive_sleep);
-				__wt_sleep(0, WT_THOUSAND);
-			}
-		}
 		WT_RET(WT_SESSION_CHECK_PANIC(tmp_session));
-		WT_RET(__wt_log_truncate_files(tmp_session, NULL, true));
+		/*
+		 * Only sleep in the rare case that we had to come through
+		 * this loop more than once.
+		 */
+		if (yield++) {
+			WT_STAT_CONN_INCR(session, log_force_ckpt_sleep);
+			__wt_sleep(0, WT_THOUSAND);
+		}
 	}
 	WT_RET(tmp_session->iface.close(&tmp_session->iface, NULL));
 	return (0);
@@ -157,7 +143,7 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
 	WT_RET(__wt_log_set_version(session, new_version,
 	    first_record, downgrade, live_chg, &lognum));
 	if (live_chg && FLD_ISSET(conn->log_flags, WT_CONN_LOG_DOWNGRADED))
-		WT_RET(__logmgr_force_archive(session, lognum));
+		WT_RET(__logmgr_force_ckpt(session, lognum));
 	return (0);
 }
 
