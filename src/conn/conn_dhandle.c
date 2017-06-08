@@ -482,8 +482,7 @@ err:	WT_DHANDLE_RELEASE(dhandle);
 
 /*
  * __conn_dhandle_close_one --
- *	Close a data handles handles with matching name (including all
- *	checkpoint handles).
+ *	Lock and, if necessary, close a data handle.
  */
 static int
 __conn_dhandle_close_one(WT_SESSION_IMPL *session,
