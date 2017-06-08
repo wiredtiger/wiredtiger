@@ -26,7 +26,7 @@ __thread_run(void *arg)
 		if (!F_ISSET(thread, WT_THREAD_RUN))
 			break;
 		if (!F_ISSET(thread, WT_THREAD_ACTIVE))
-			__wt_cond_wait(session, thread->pause_cond,
+			__wt_cond_wait(session, &thread->pause_cond,
 			    WT_THREAD_PAUSE * WT_MILLION, thread->chk_func);
 		WT_ERR(thread->run_func(session, thread));
 	}
@@ -89,8 +89,8 @@ __thread_group_shrink(
 		/*
 		 * Signal the thread in case it is in a long timeout.
 		 */
-		__wt_cond_signal(session, thread->pause_cond);
-		__wt_cond_signal(session, group->wait_cond);
+		__wt_cond_signal(session, &thread->pause_cond);
+		__wt_cond_signal(session, &group->wait_cond);
 	}
 
 	/*
@@ -199,7 +199,7 @@ __thread_group_resize(
 		thread->chk_func = group->chk_func;
 		thread->run_func = group->run_func;
 		thread->stop_func = group->stop_func;
-		WT_ERR(__wt_cond_alloc(
+		WT_ERR(__wt_cond_init(
 		    session, "Thread cond", &thread->pause_cond));
 
 		/*
@@ -291,7 +291,7 @@ __wt_thread_group_create(
 	    "Creating thread group: %p", (void *)group);
 
 	WT_RET(__wt_rwlock_init(session, &group->lock));
-	WT_ERR(__wt_cond_alloc(
+	WT_ERR(__wt_cond_init(
 	    session, "thread group cond", &group->wait_cond));
 	cond_alloced = true;
 
@@ -370,7 +370,7 @@ __wt_thread_group_start_one(
 		    (void *)group, thread->id);
 		WT_ASSERT(session, !F_ISSET(thread, WT_THREAD_ACTIVE));
 		F_SET(thread, WT_THREAD_ACTIVE);
-		__wt_cond_signal(session, thread->pause_cond);
+		__wt_cond_signal(session, &thread->pause_cond);
 	}
 	if (!is_locked)
 		__wt_writeunlock(session, &group->lock);
@@ -397,7 +397,7 @@ __wt_thread_group_stop_one(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group)
 		    (void *)group, thread->id);
 		WT_ASSERT(session, F_ISSET(thread, WT_THREAD_ACTIVE));
 		F_CLR(thread, WT_THREAD_ACTIVE);
-		__wt_cond_signal(session, thread->pause_cond);
+		__wt_cond_signal(session, &thread->pause_cond);
 	}
 	__wt_writeunlock(session, &group->lock);
 }

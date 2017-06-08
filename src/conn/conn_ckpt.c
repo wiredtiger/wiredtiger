@@ -95,7 +95,7 @@ __ckpt_server(void *arg)
 		 * will be 0 and this wait won't return until signalled.
 		 */
 		__wt_cond_wait(session,
-		    conn->ckpt_cond, conn->ckpt_usecs, __ckpt_server_run_chk);
+		    &conn->ckpt_cond, conn->ckpt_usecs, __ckpt_server_run_chk);
 
 		/* Check if we're quitting or being reconfigured. */
 		if (!__ckpt_server_run_chk(session))
@@ -128,7 +128,7 @@ __ckpt_server(void *arg)
 				 * immediately.
 				 */
 				__wt_cond_wait(
-				    session, conn->ckpt_cond, 1, NULL);
+				    session, &conn->ckpt_cond, 1, NULL);
 			}
 		} else
 			WT_STAT_CONN_INCR(session, txn_checkpoint_skipped);
@@ -167,7 +167,7 @@ __ckpt_server_start(WT_CONNECTION_IMPL *conn)
 	    "checkpoint-server", true, session_flags, &conn->ckpt_session));
 	session = conn->ckpt_session;
 
-	WT_RET(__wt_cond_alloc(session, "checkpoint server", &conn->ckpt_cond));
+	WT_RET(__wt_cond_init(session, "checkpoint server", &conn->ckpt_cond));
 
 	/*
 	 * Start the thread.
@@ -227,7 +227,7 @@ __wt_checkpoint_server_destroy(WT_SESSION_IMPL *session)
 
 	F_CLR(conn, WT_CONN_SERVER_CHECKPOINT);
 	if (conn->ckpt_tid_set) {
-		__wt_cond_signal(session, conn->ckpt_cond);
+		__wt_cond_signal(session, &conn->ckpt_cond);
 		WT_TRET(__wt_thread_join(session, conn->ckpt_tid));
 		conn->ckpt_tid_set = false;
 	}
@@ -245,7 +245,6 @@ __wt_checkpoint_server_destroy(WT_SESSION_IMPL *session)
 	 */
 	conn->ckpt_session = NULL;
 	conn->ckpt_tid_set = false;
-	conn->ckpt_cond = NULL;
 	conn->ckpt_usecs = 0;
 
 	return (ret);
@@ -263,7 +262,7 @@ __wt_checkpoint_signal(WT_SESSION_IMPL *session, wt_off_t logsize)
 	conn = S2C(session);
 	WT_ASSERT(session, WT_CKPT_LOGSIZE(conn));
 	if (logsize >= conn->ckpt_logsize && !conn->ckpt_signalled) {
-		__wt_cond_signal(session, conn->ckpt_cond);
+		__wt_cond_signal(session, &conn->ckpt_cond);
 		conn->ckpt_signalled = true;
 	}
 }

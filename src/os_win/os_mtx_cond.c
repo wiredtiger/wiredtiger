@@ -9,25 +9,19 @@
 #include "wt_internal.h"
 
 /*
- * __wt_cond_alloc --
- *	Allocate and initialize a condition variable.
+ * __wt_cond_init --
+ *	Initialize a condition variable.
  */
 int
-__wt_cond_alloc(WT_SESSION_IMPL *session, const char *name, WT_CONDVAR **condp)
+__wt_cond_init(WT_SESSION_IMPL *session, const char *name, WT_CONDVAR *cond)
 {
-	WT_CONDVAR *cond;
-
-	WT_RET(__wt_calloc_one(session, &cond));
-
-	InitializeCriticalSection(&cond->mtx);
+	InitializeCriticalSection(cond->mtx);
 
 	/* Initialize the condition variable to permit self-blocking. */
-	InitializeConditionVariable(&cond->cond);
+	InitializeConditionVariable(cond->cond);
 
 	cond->name = name;
 	cond->waiters = 0;
-
-	*condp = cond;
 	return (0);
 }
 
@@ -164,15 +158,11 @@ __wt_cond_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond)
  *	Destroy a condition variable.
  */
 void
-__wt_cond_destroy(WT_SESSION_IMPL *session, WT_CONDVAR **condp)
+__wt_cond_destroy(WT_SESSION_IMPL *session, WT_CONDVAR *cond)
 {
-	WT_CONDVAR *cond;
-
-	cond = *condp;
 	if (cond == NULL)
 		return;
 
 	/* Do nothing to delete Condition Variable */
-	DeleteCriticalSection(&cond->mtx);
-	__wt_free(session, *condp);
+	DeleteCriticalSection(cond->mtx);
 }

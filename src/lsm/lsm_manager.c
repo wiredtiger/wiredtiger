@@ -661,6 +661,6 @@ __wt_lsm_manager_push_entry(WT_SESSION_IMPL *session,
 		LSM_PUSH_ENTRY(&manager->appqh,
 		    &manager->app_lock, lsm_work_queue_app);
 
-	__wt_cond_signal(session, manager->work_cond);
+	__wt_cond_signal(session, &manager->work_cond);
 	return (0);
 }

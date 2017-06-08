@@ -532,7 +532,7 @@ __statlog_server(void *arg)
 
 	for (;;) {
 		/* Wait until the next event. */
-		__wt_cond_wait(session, conn->stat_cond,
+		__wt_cond_wait(session, &conn->stat_cond,
 		    conn->stat_usecs, __statlog_server_run_chk);
 
 		/* Check if we're quitting or being reconfigured. */
@@ -571,7 +571,7 @@ __statlog_start(WT_CONNECTION_IMPL *conn)
 	    conn, "statlog-server", true, 0, &conn->stat_session));
 	session = conn->stat_session;
 
-	WT_RET(__wt_cond_alloc(
+	WT_RET(__wt_cond_init(
 	    session, "statistics log server", &conn->stat_cond));
 
 	/*
@@ -644,7 +644,7 @@ __wt_statlog_destroy(WT_SESSION_IMPL *session, bool is_close)
 	/* Stop the server thread. */
 	F_CLR(conn, WT_CONN_SERVER_STATISTICS);
 	if (conn->stat_tid_set) {
-		__wt_cond_signal(session, conn->stat_cond);
+		__wt_cond_signal(session, &conn->stat_cond);
 		WT_TRET(__wt_thread_join(session, conn->stat_tid));
 		conn->stat_tid_set = false;
 	}

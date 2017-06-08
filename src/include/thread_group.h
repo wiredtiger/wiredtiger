@@ -31,7 +31,7 @@ struct __wt_thread {
 	 * Condition signalled when a thread becomes active.  Paused
 	 * threads wait on this condition.
 	 */
-	WT_CONDVAR      *pause_cond;
+	WT_CONDVAR      pause_cond;
 
 	/* The check function used by all threads. */
 	bool (*chk_func)(WT_SESSION_IMPL *session);
@@ -60,7 +60,7 @@ struct __wt_thread_group {
 	 * part of the group - for example when shutting down. This condition
 	 * can also be used by group owners to ensure state changes are noticed.
 	 */
-	WT_CONDVAR      *wait_cond;
+	WT_CONDVAR      wait_cond;
 
 	/*
 	 * The threads need to be held in an array of arrays, not an array of

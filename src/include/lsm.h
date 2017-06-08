@@ -22,7 +22,7 @@ struct __wt_lsm_worker_cookie {
  */
 struct __wt_lsm_worker_args {
 	WT_SESSION_IMPL	*session;	/* Session */
-	WT_CONDVAR	*work_cond;	/* Owned by the manager */
+	WT_CONDVAR	work_cond;	/* Owned by the manager */
 
 	wt_thread_t	tid;		/* Thread id */
 	bool		tid_set;	/* Thread id set */
@@ -159,7 +159,7 @@ struct __wt_lsm_manager {
 	WT_SPINLOCK	switch_lock;	/* Lock for switch queue */
 	WT_SPINLOCK	app_lock;	/* Lock for application queue */
 	WT_SPINLOCK	manager_lock;	/* Lock for manager queue */
-	WT_CONDVAR     *work_cond;	/* Used to notify worker of activity */
+	WT_CONDVAR      work_cond;	/* Used to notify worker of activity */
 	uint32_t	lsm_workers;	/* Current number of LSM workers */
 	uint32_t	lsm_workers_max;
 #define	WT_LSM_MAX_WORKERS	20

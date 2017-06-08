@@ -56,6 +56,7 @@ func_ok()
 	    -e '/int __wt_curjoin_joined$/d' \
 	    -e '/int __wt_cursor_close$/d' \
 	    -e '/int __wt_cursor_noop$/d' \
+	    -e '/int __wt_cond_init$/d' \
 	    -e '/int __wt_epoch$/d' \
 	    -e '/int __wt_errno$/d' \
 	    -e '/int __wt_get_vm_pagesize$/d' \
