@@ -175,21 +175,6 @@ struct __wt_connection_impl {
 	WT_SPINLOCK turtle_lock;	/* Turtle file spinlock */
 	WT_RWLOCK dhandle_lock;		/* Data handle list lock */
 
-	/*
-	 * We distribute the btree page locks across a set of spin locks. Don't
-	 * use too many: they are only held for very short operations, each one
-	 * is 64 bytes, so 256 will fill the L1 cache on most CPUs.
-	 *
-	 * Use a prime number of buckets rather than assuming a good hash
-	 * (Reference Sedgewick, Algorithms in C, "Hash Functions").
-	 *
-	 * Note: this can't be an array, we impose cache-line alignment and gcc
-	 * doesn't support that for arrays smaller than the alignment.
-	 */
-#define	WT_PAGE_LOCKS		17
-	WT_SPINLOCK *page_lock;	        /* Btree page spinlocks */
-	u_int	     page_lock_cnt;	/* Next spinlock to use */
-
 					/* Connection queue */
 	TAILQ_ENTRY(__wt_connection_impl) q;
 					/* Cache pool queue */
@@ -375,7 +360,15 @@ struct __wt_connection_impl {
 	bool		 las_written;	/* Lookaside table has been written */
 
 	WT_ITEM		 las_sweep_key;	/* Sweep server's saved key */
-	int64_t		 las_record_cnt;/* Count of lookaside records */
+	uint64_t	 las_record_cnt;/* Count of lookaside records */
+
+	/*
+	 * The "lookaside_activity" verbose messages are throttled to once per
+	 * checkpoint. To accomplish this we track the checkpoint generation
+	 * for the most recent read and write verbose messages.
+	 */
+	volatile uint64_t	las_verb_gen_read;
+	volatile uint64_t	las_verb_gen_write;
 
 					/* Locked: collator list */
 	TAILQ_HEAD(__wt_coll_qh, __wt_named_collator) collqh;

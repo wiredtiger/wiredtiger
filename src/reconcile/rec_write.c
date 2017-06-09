@@ -351,6 +351,7 @@ static int  __rec_dictionary_init(WT_SESSION_IMPL *, WT_RECONCILE *, u_int);
 static int  __rec_dictionary_lookup(
 		WT_SESSION_IMPL *, WT_RECONCILE *, WT_KV *, WT_DICTIONARY **);
 static void __rec_dictionary_reset(WT_RECONCILE *);
+static void __rec_verbose_lookaside_write(WT_SESSION_IMPL *);
 
 /*
  * __wt_reconcile --
@@ -386,7 +387,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	 *    In-memory splits: reconciliation of an internal page cannot handle
 	 * a child page splitting during the reconciliation.
 	 */
-	__wt_writelock(session, &page->page_lock);
+	WT_PAGE_LOCK(session, page);
 
 	oldest_id = __wt_txn_oldest_id(session);
 	if (LF_ISSET(WT_EVICTING))
@@ -405,7 +406,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	/* Initialize the reconciliation structure for each new run. */
 	if ((ret = __rec_write_init(
 	    session, ref, flags, salvage, &session->reconcile)) != 0) {
-		__wt_writeunlock(session, &page->page_lock);
+		WT_PAGE_UNLOCK(session, page);
 		return (ret);
 	}
 	r = session->reconcile;
@@ -446,7 +447,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 		WT_TRET(__rec_write_wrapup_err(session, r, page));
 
 	/* Release the reconciliation lock. */
-	__wt_writeunlock(session, &page->page_lock);
+	WT_PAGE_UNLOCK(session, page);
 
 	/*
 	 * If our caller can configure lookaside table reconciliation, flag if
@@ -2149,8 +2150,8 @@ __rec_split_init(WT_SESSION_IMPL *session,
 	r->page_size = r->page_size_orig = max;
 	if (r->raw_compression)
 		r->max_raw_page_size = r->page_size =
-		    (uint32_t)WT_MIN(r->page_size * 10,
-		    WT_MAX(r->page_size, btree->maxmempage / 2));
+		    (uint32_t)WT_MIN((uint64_t)r->page_size * 10,
+		    WT_MAX((uint64_t)r->page_size, btree->maxmempage / 2));
 	/*
 	 * If we have to split, we want to choose a smaller page size for the
 	 * split pages, because otherwise we could end up splitting one large
@@ -3567,8 +3568,7 @@ __rec_update_las(WT_SESSION_IMPL *session,
 	WT_PAGE *page;
 	WT_SAVE_UPD *list;
 	WT_UPDATE *upd;
-	uint64_t las_counter;
-	int64_t insert_cnt;
+	uint64_t insert_cnt, las_counter;
 	uint32_t i, session_flags, slot;
 	uint8_t *p;
 
@@ -3683,9 +3683,11 @@ __rec_update_las(WT_SESSION_IMPL *session,
 
 err:	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 
-	if (insert_cnt > 0)
-		(void)__wt_atomic_addi64(
+	if (insert_cnt > 0) {
+		(void)__wt_atomic_add64(
 		    &S2C(session)->las_record_cnt, insert_cnt);
+		__rec_verbose_lookaside_write(session);
+	}
 
 	__wt_scr_free(session, &key);
 	return (ret);
@@ -6576,4 +6578,52 @@ __rec_dictionary_lookup(
 	__rec_dictionary_skip_insert(r->dictionary_head, next, hash);
 	*dpp = next;
 	return (0);
+}
+
+/*
+ * __rec_verbose_lookaside_write --
+ *	Create a verbose message to display once per checkpoint with details
+ * about the cache state when performing a lookaside table write.
+ */
+static void
+__rec_verbose_lookaside_write(WT_SESSION_IMPL *session)
+{
+#ifdef HAVE_VERBOSE
+	WT_CONNECTION_IMPL *conn;
+	uint64_t ckpt_gen_current, ckpt_gen_last;
+	uint32_t pct_dirty, pct_full;
+
+	if (!WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE)) return;
+
+	conn = S2C(session);
+	ckpt_gen_current = __wt_gen(session, WT_GEN_CHECKPOINT);
+	ckpt_gen_last = conn->las_verb_gen_write;
+
+	/*
+	 * This message is throttled to one per checkpoint. To do this we
+	 * track the generation of the last checkpoint for which the message
+	 * was printed and check against the current checkpoint generation.
+	 */
+	if (ckpt_gen_current > ckpt_gen_last) {
+		/*
+		 * Attempt to atomically replace the last checkpoint generation
+		 * for which this message was printed. If the atomic swap fails
+		 * we have raced and the winning thread will print the message.
+		 */
+		if (__wt_atomic_casv64(&conn->las_verb_gen_write,
+		    ckpt_gen_last, ckpt_gen_current)) {
+			(void)__wt_eviction_clean_needed(session, &pct_full);
+			(void)__wt_eviction_dirty_needed(session, &pct_dirty);
+
+			__wt_verbose(session, WT_VERB_LOOKASIDE,
+			    "Page reconciliation triggered lookaside write. "
+			    "Entries now in lookaside file: %" PRIu64 ", "
+			    "cache dirty: %" PRIu32 "%% , "
+			    "cache use: %" PRIu32 "%%",
+			    conn->las_record_cnt, pct_dirty, pct_full);
+		}
+	}
+#else
+	WT_UNUSED(session);
+#endif
 }
