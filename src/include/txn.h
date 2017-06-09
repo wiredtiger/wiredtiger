@@ -96,18 +96,12 @@ struct __wt_txn_global {
 	WT_DECL_TIMESTAMP(oldest_timestamp)
 	WT_DECL_TIMESTAMP(pinned_timestamp)
 	bool has_commit_timestamp, has_oldest_timestamp, has_pinned_timestamp;
+	bool oldest_is_pinned;
 
 	WT_SPINLOCK id_lock;
 
-	/* Protects the leading edge of the active transaction window. */
-	WT_RWLOCK current_rwlock;
-
-#if 0
-	/* Protects the trailing edge of the active transaction window. */
-	WT_RWLOCK oldest_rwlock;
-#else
-#define	oldest_rwlock current_rwlock
-#endif
+	/* Protects the active transaction states. */
+	WT_RWLOCK rwlock;
 
 	/*
 	 * Track information about the running checkpoint. The transaction

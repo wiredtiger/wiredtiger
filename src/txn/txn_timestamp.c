@@ -91,7 +91,7 @@ __txn_global_query_timestamp(
 	if (WT_STRING_MATCH("all_committed", cval.str, cval.len)) {
 		if (!txn_global->has_commit_timestamp)
 			return (WT_NOTFOUND);
-		__wt_readlock(session, &txn_global->current_rwlock);
+		__wt_readlock(session, &txn_global->rwlock);
 		__wt_timestamp_set(ts, txn_global->commit_timestamp);
 		WT_ORDERED_READ(session_cnt, conn->session_cnt);
 		for (i = 0, s = txn_global->states; i < session_cnt; i++, s++) {
@@ -101,11 +101,11 @@ __txn_global_query_timestamp(
 			if (__wt_timestamp_cmp(s->commit_timestamp, ts) < 0)
 				__wt_timestamp_set(ts, s->commit_timestamp);
 		}
-		__wt_readunlock(session, &txn_global->current_rwlock);
+		__wt_readunlock(session, &txn_global->rwlock);
 	} else if (WT_STRING_MATCH("oldest_reader", cval.str, cval.len)) {
 		if (!txn_global->has_oldest_timestamp)
 			return (WT_NOTFOUND);
-		__wt_readlock(session, &txn_global->current_rwlock);
+		__wt_readlock(session, &txn_global->rwlock);
 		__wt_timestamp_set(ts, txn_global->oldest_timestamp);
 		/* Look at running checkpoints. */
 		s = &txn_global->checkpoint_state;
@@ -121,7 +121,7 @@ __txn_global_query_timestamp(
 			if (__wt_timestamp_cmp(s->read_timestamp, ts) < 0)
 				__wt_timestamp_set(ts, s->read_timestamp);
 		}
-		__wt_readunlock(session, &txn_global->current_rwlock);
+		__wt_readunlock(session, &txn_global->rwlock);
 	} else
 		__wt_timestamp_set(ts, zero_timestamp);
 
@@ -165,6 +165,53 @@ __wt_txn_global_query_timestamp(
 }
 
 /*
+ * __wt_txn_update_pinned_timestamp --
+ *	Update the pinned timestamp (the oldest timestamp that has to be
+ *	maintained for current or future readers).
+ */
+int
+__wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session)
+{
+	WT_DECL_RET;
+	WT_TXN_GLOBAL *txn_global;
+	wt_timestamp_t active_timestamp;
+	wt_timestamp_t oldest_timestamp;
+	wt_timestamp_t pinned_timestamp;
+	const char *query_cfg[] = { WT_CONFIG_BASE(session,
+	    WT_CONNECTION_query_timestamp), "get=oldest_reader", NULL };
+
+	txn_global = &S2C(session)->txn_global;
+
+	/* Skip locking and scanning when the oldest timestamp is pinned. */
+	if (txn_global->oldest_is_pinned)
+		return (0);
+
+	/* Scan to find the global pinned timestamp. */
+	if ((ret = __txn_global_query_timestamp(
+	    session, active_timestamp, query_cfg)) != 0)
+		return (ret == WT_NOTFOUND ? 0 : ret);
+
+	if (__wt_timestamp_cmp(oldest_timestamp, active_timestamp) < 0) {
+		__wt_timestamp_set(pinned_timestamp, oldest_timestamp);
+	} else
+		__wt_timestamp_set(pinned_timestamp, active_timestamp);
+
+	__wt_writelock(session, &txn_global->rwlock);
+	if (!txn_global->has_pinned_timestamp || __wt_timestamp_cmp(
+	    txn_global->pinned_timestamp, pinned_timestamp) < 0) {
+		__wt_timestamp_set(
+		    txn_global->pinned_timestamp, pinned_timestamp);
+		txn_global->has_pinned_timestamp = true;
+		txn_global->oldest_is_pinned = __wt_timestamp_cmp(
+		    txn_global->pinned_timestamp,
+		    txn_global->oldest_timestamp) == 0;
+	}
+	__wt_writeunlock(session, &txn_global->rwlock);
+
+	return (0);
+}
+
+/*
  * __wt_txn_global_set_timestamp --
  *	Set a global transaction timestamp.
  */
@@ -181,11 +228,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	if (cval.len != 0) {
 #ifdef HAVE_TIMESTAMPS
 		WT_TXN_GLOBAL *txn_global;
-		wt_timestamp_t active_timestamp;
 		wt_timestamp_t oldest_timestamp;
-		wt_timestamp_t pinned_timestamp;
-		const char *query_cfg[] = { WT_CONFIG_BASE(session,
-		    WT_CONNECTION_query_timestamp), "get=oldest_reader", NULL };
 
 		WT_RET(__wt_txn_parse_timestamp(
 		    session, "oldest", oldest_timestamp, &cval));
@@ -195,32 +238,17 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		 * we are moving the global oldest timestamp forwards.
 		 */
 		txn_global = &S2C(session)->txn_global;
-		__wt_writelock(session, &txn_global->oldest_rwlock);
+		__wt_writelock(session, &txn_global->rwlock);
 		if (!txn_global->has_oldest_timestamp || __wt_timestamp_cmp(
 		    txn_global->oldest_timestamp, oldest_timestamp) < 0) {
 			__wt_timestamp_set(
 			    txn_global->oldest_timestamp, oldest_timestamp);
 			txn_global->has_oldest_timestamp = true;
+			txn_global->oldest_is_pinned = false;
 		}
-		__wt_writeunlock(session, &txn_global->oldest_rwlock);
+		__wt_writeunlock(session, &txn_global->rwlock);
 
-		/* Now update the global pinned timestamp. */
-		WT_RET(__txn_global_query_timestamp(
-		    session, active_timestamp, query_cfg));
-
-		if (__wt_timestamp_cmp(oldest_timestamp, active_timestamp) < 0)
-			__wt_timestamp_set(pinned_timestamp, oldest_timestamp);
-		else
-			__wt_timestamp_set(pinned_timestamp, active_timestamp);
-
-		__wt_writelock(session, &txn_global->oldest_rwlock);
-		if (!txn_global->has_pinned_timestamp || __wt_timestamp_cmp(
-		    txn_global->pinned_timestamp, pinned_timestamp) < 0) {
-			__wt_timestamp_set(
-			    txn_global->pinned_timestamp, pinned_timestamp);
-			txn_global->has_pinned_timestamp = true;
-		}
-		__wt_writeunlock(session, &txn_global->oldest_rwlock);
+		WT_RET(__wt_txn_update_pinned_timestamp(session));
 #else
 		WT_RET_MSG(session, EINVAL, "oldest_timestamp requires a "
 		    "version of WiredTiger built with timestamp support");
@@ -254,10 +282,10 @@ __wt_txn_set_timestamp(
 		WT_RET(__wt_txn_parse_timestamp(
 		    session, "commit", txn->commit_timestamp, &cval));
 		if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
-			__wt_writelock(session, &txn_global->current_rwlock);
+			__wt_writelock(session, &txn_global->rwlock);
 			__wt_timestamp_set(txn_state->commit_timestamp,
 			    txn->commit_timestamp);
-			__wt_writeunlock(session, &txn_global->current_rwlock);
+			__wt_writeunlock(session, &txn_global->rwlock);
 			F_SET(txn, WT_TXN_HAS_TS_COMMIT);
 		}
 #else

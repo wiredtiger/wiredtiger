@@ -622,7 +622,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	 * This allows ordinary visibility checks to move forward because
 	 * checkpoints often take a long time and only write to the metadata.
 	 */
-	__wt_writelock(session, &txn_global->oldest_rwlock);
+	__wt_writelock(session, &txn_global->rwlock);
 	txn_global->checkpoint_state = *txn_state;
 	txn_global->checkpoint_state.pinned_id = WT_MIN(txn->id, txn->snap_min);
 
@@ -643,7 +643,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	txn_state->id = txn_state->pinned_id =
 	    txn_state->metadata_pinned = WT_TXN_NONE;
-	__wt_writeunlock(session, &txn_global->oldest_rwlock);
+	__wt_writeunlock(session, &txn_global->rwlock);
 
 	/*
 	 * Get a list of handles we want to flush; for named checkpoints this

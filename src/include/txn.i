@@ -235,11 +235,18 @@ __wt_txn_visible_all(
 	if (!txn_global->has_pinned_timestamp || timestamp == NULL)
 		return (true);
 
-	__wt_readlock(session, &txn_global->oldest_rwlock);
+	__wt_readlock(session, &txn_global->rwlock);
 	cmp = __wt_timestamp_cmp(timestamp, txn_global->pinned_timestamp);
-	__wt_readunlock(session, &txn_global->oldest_rwlock);
+	__wt_readunlock(session, &txn_global->rwlock);
 
-	return (cmp < 0);
+	/*
+	 * We can discard updates with timestamps less than or equal to the
+	 * pinned timestamp.  This is different to the situation for
+	 * transaction IDs, because we know that updates with timestamps are
+	 * definitely committed (and in this case, that the transaction ID is
+	 * globally visible).
+	 */
+	return (cmp <= 0);
 	}
 #else
 	WT_UNUSED(timestamp);

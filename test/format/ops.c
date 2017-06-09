@@ -415,17 +415,17 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session)
 	char *commit_conf, config_buf[64];
 	uint64_t ts;
 
+	conn = g.wts_conn;
+
 	if (g.c_txn_timestamps) {
 		ts = __wt_atomic_addv64(&g.timestamp, 1);
 
 		/* Periodically bump the oldest timestamp. */
-		if (ts % 100 == 0) {
+		if (ts > 100 && ts % 100 == 0) {
 			testutil_check(__wt_snprintf(
 			    config_buf, sizeof(config_buf),
 			    "oldest_timestamp=%x", ts));
-			conn = session->connection;
-			testutil_check(
-			    conn->set_timestamp(conn, config_buf));
+			testutil_check(conn->set_timestamp(conn, config_buf));
 		}
 
 		testutil_check(__wt_snprintf(
