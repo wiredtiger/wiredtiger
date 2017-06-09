@@ -42,25 +42,25 @@ static void* do_checkpoints(void *);
 static void* do_ops(void *);
 
 void op_bulk(WT_CONNECTION *, const char *);
-void op_bulk_unique(WT_CONNECTION *, const char *, int);
+void op_bulk_unique(WT_CONNECTION *, const char *, int, int);
 void op_create(WT_CONNECTION *, const char *);
-void op_create_unique(WT_CONNECTION *, const char *, int);
+void op_create_unique(WT_CONNECTION *, const char *, int, int);
 void op_cursor(WT_CONNECTION *);
 void op_drop(WT_CONNECTION *, int);
 
-#define MAX_EXECUTION_TIME 2
-#define N_THREADS 10
-#define RUNTIME 900.0
+#define	N_THREADS 10
+#define	RUNTIME 900.0
 
 typedef struct {
-        TEST_OPTS *testopts;
-        int threadnum;
-        int nthread;
-        int done;
+	TEST_OPTS *testopts;
+	int threadnum;
+	int nthread;
+	int done;
 } THREAD_ARGS;
 
-pthread_rwlock_t single;                 /* Single-thread */
+pthread_rwlock_t single;
 static uint64_t uid = 1;
+const uint64_t max_execution_time = 4;
 uint64_t thread_counters[N_THREADS];
 const char *uri;
 
@@ -68,18 +68,18 @@ int
 main(int argc, char *argv[])
 {
 	static WT_EVENT_HANDLER event_handler = {
-                handle_error,
-                handle_message,
-                NULL,
-                NULL    /* Close handler. */
-        };
+		handle_error,
+		handle_message,
+		NULL,
+		NULL
+	};
 	TEST_OPTS *opts, _opts;
 	THREAD_ARGS thread_args[N_THREADS];
 	pthread_t ckpt_thread, mon_thread, threads[N_THREADS];
 	int i;
 
-	//if (!testutil_enable_long_tests())	/* Ignore unless requested */
-		//return (EXIT_SUCCESS);
+	if (!testutil_enable_long_tests())	/* Ignore unless requested */
+		return (EXIT_SUCCESS);
 
 	opts = &_opts;
 	memset(opts, 0, sizeof(*opts));
@@ -88,24 +88,23 @@ main(int argc, char *argv[])
 	testutil_make_work_dir(opts->home);
 
 	testutil_check(wiredtiger_open(
-	    opts->home, &event_handler, "create,cache_size=1G", &opts->conn));
+	    opts->home, &event_handler, "create,cache_size=1G,", &opts->conn));
 
 	uri = opts->uri;
 
 	testutil_check(pthread_create(
 	    &ckpt_thread, NULL, do_checkpoints, (void *)opts->conn));
-	
+
 	for (i = 0; i < N_THREADS; ++i) {
 		thread_counters[i] = 0;
-                thread_args[i].threadnum = i;
-                thread_args[i].nthread = N_THREADS;
-                thread_args[i].testopts = opts;
-                testutil_check(pthread_create(&threads[i], NULL,
-                    do_ops, (void *)&thread_args[i]));
-        }
+		thread_args[i].threadnum = i;
+		thread_args[i].nthread = N_THREADS;
+		thread_args[i].testopts = opts;
+		testutil_check(pthread_create(&threads[i], NULL,
+		    do_ops, (void *)&thread_args[i]));
+	}
 
 	testutil_check(pthread_create(&mon_thread, NULL, monitor, NULL));
-
 
 	for (i = 0; i < N_THREADS; ++i)
 		testutil_check(pthread_join(threads[i], NULL));
@@ -124,35 +123,35 @@ static int
 handle_error(WT_EVENT_HANDLER *handler,
     WT_SESSION *session, int error, const char *errmsg)
 {
-        (void)(handler);
-        (void)(session);
-        (void)(error);
+	(void)(handler);
+	(void)(session);
+	(void)(error);
 
-        /* Ignore complaints about missing files. */
-        if (error == ENOENT)
-                return (0);
+	/* Ignore complaints about missing files. */
+	if (error == ENOENT)
+		return (0);
 
-        /* Ignore complaints about failure to open bulk cursors. */
-        if (strstr(
-            errmsg, "bulk-load is only supported on newly created") != NULL)
-                return (0);
+	/* Ignore complaints about failure to open bulk cursors. */
+	if (strstr(
+	    errmsg, "bulk-load is only supported on newly created") != NULL)
+		return (0);
 
-        return (fprintf(stderr, "%s\n", errmsg) < 0 ? -1 : 0);
+	return (fprintf(stderr, "%s\n", errmsg) < 0 ? -1 : 0);
 }
 
 static int
 handle_message(WT_EVENT_HANDLER *handler,
     WT_SESSION *session, const char *message)
 {
-        (void)(handler);
-        (void)(session);
+	(void)(handler);
+	(void)(session);
 
-        /* Ignore messages about failing to create forced checkpoints. */
-        if (strstr(
-            message, "forced or named checkpoint") != NULL)
-                return (0);
+	/* Ignore messages about failing to create forced checkpoints. */
+	if (strstr(
+	    message, "forced or named checkpoint") != NULL)
+		return (0);
 
-        return (printf("%s\n", message) < 0 ? -1 : 0);
+	return (printf("%s\n", message) < 0 ? -1 : 0);
 }
 
 static void *
@@ -171,54 +170,56 @@ do_checkpoints(void *connection)
 		if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
 			testutil_die(ret, "conn.session");
 
-		if ((ret = session->checkpoint(session, "force")) != 0)
+		if ((ret = session->checkpoint(
+		    session, "force,fake_checkpoint_latency=10")) != 0)
 			if (ret != EBUSY && ret != ENOENT)
 				testutil_die(ret, "session.checkpoint");
 
 		if ((ret = session->close(session, NULL)) != 0)
 			testutil_die(ret, "session.close");
 		(void)time(&now);
+		sleep(1);
 	}
 
 	return (NULL);
 }
 
 static void *
-monitor(void *args) 
+monitor(void *args)
 {
 	time_t now, start;
 	uint64_t last_ops[N_THREADS];
 	int i;
 
 	/* Unused */
-	(void) args;
+(void)args;
 
 	(void)time(&start);
 	(void)time(&now);
 
-	for(i = 0; i < N_THREADS; i++)
+	for (i = 0; i < N_THREADS; i++)
 		last_ops[i] = 0;
 
 	while (difftime(now, start) < RUNTIME) {
-		sleep(MAX_EXECUTION_TIME);
+		sleep(max_execution_time);
 
-		for(i = 0; i < N_THREADS; i++) {
-			if (thread_counters[i] != 0) {
-				if (thread_counters[i] != last_ops[i])
-					last_ops[i] = thread_counters[i];
-				else {
-					printf("Thread %d had a task running "
-					    " for more than %d seconds\n",
-					    i, MAX_EXECUTION_TIME);
-					abort();
+		for (i = 0; i < N_THREADS; i++) {
+			if (thread_counters[i] == 0)
+				continue;
+			if (thread_counters[i] != last_ops[i])
+				last_ops[i] = thread_counters[i];
+			else {
+				printf("Thread %d had a task running"
+				    " for more than %" PRIu64  " seconds\n",
+				    i, max_execution_time);
+				abort();
 
-				}
 			}
 		}
 		(void)time(&now);
 	}
 
-	return (NULL);	
+	return (NULL);
 }
 
 static void *
@@ -229,7 +230,7 @@ do_ops(void *args)
 	WT_RAND_STATE rnd;
 	time_t now, start;
 	const char *config = NULL;
-	
+
 	arg = (THREAD_ARGS *)args;
 	conn = arg->testopts->conn;
 	__wt_random_init_seed(NULL, &rnd);
@@ -237,7 +238,7 @@ do_ops(void *args)
 	(void)time(&now);
 
 	while (difftime(now, start) < RUNTIME) {
-		switch(__wt_random(&rnd) % 6) {
+		switch (__wt_random(&rnd) % 6) {
 			case 0:
 				op_bulk(conn, config);
 				break;
@@ -251,12 +252,12 @@ do_ops(void *args)
 				op_drop(conn, __wt_random(&rnd) & 1);
 				break;
 			case 4:
-				op_bulk_unique(
-				    conn, config, __wt_random(&rnd) & 1);
+				op_bulk_unique(conn, config,
+				    __wt_random(&rnd) & 1, arg->threadnum);
 				break;
 			case 5:
-				op_create_unique(
-				    conn, config, __wt_random(&rnd) & 1);
+				op_create_unique(conn, config,
+				    __wt_random(&rnd) & 1, arg->threadnum);
 				break;
 		}
 		__wt_atomic_add64(&thread_counters[arg->threadnum], 1);
@@ -294,7 +295,7 @@ op_bulk(WT_CONNECTION *conn, const char *config)
 }
 
 void
-op_bulk_unique(WT_CONNECTION *conn, const char *config, int force)
+op_bulk_unique(WT_CONNECTION *conn, const char *config, int force, int tid)
 {
 	WT_CURSOR *c;
 	WT_SESSION *session;
@@ -328,10 +329,12 @@ op_bulk_unique(WT_CONNECTION *conn, const char *config, int force)
 		testutil_die(ret,
 		  "session.open_cursor bulk unique: %s", new_uri);
 
-	while ((ret = session->drop(
-	  session, new_uri, force ? "force,checkpoint_wait=false" : "checkpoint_wait=false")) != 0)
+	while ((ret = session->drop(session, new_uri, force ?
+	    "force,checkpoint_wait=false" : "checkpoint_wait=false")) != 0)
 		if (ret != EBUSY)
 			testutil_die(ret, "session.drop: %s", new_uri);
+		else
+			__wt_atomic_add64(&thread_counters[tid], 1);
 
 	if ((ret = session->close(session, NULL)) != 0)
 		testutil_die(ret, "session.close");
@@ -377,7 +380,7 @@ op_create(WT_CONNECTION *conn, const char *config)
 }
 
 void
-op_create_unique(WT_CONNECTION *conn, const char *config, int force)
+op_create_unique(WT_CONNECTION *conn, const char *config, int force, int tid)
 {
 	WT_SESSION *session;
 	int ret;
@@ -398,10 +401,12 @@ op_create_unique(WT_CONNECTION *conn, const char *config, int force)
 		testutil_die(ret, "session.create");
 
 	__wt_yield();
-	while ((ret = session->drop(
-	  session, new_uri, force ? "force,checkpoint_wait=false" : "checkpoint_wait=false")) != 0)
+	while ((ret = session->drop(session, new_uri,force ?
+	    "force,checkpoint_wait=false" : "checkpoint_wait=false")) != 0)
 		if (ret != EBUSY)
 			testutil_die(ret, "session.drop: %s", new_uri);
+		else
+			__wt_atomic_add64(&thread_counters[tid], 1);
 
 	if ((ret = session->close(session, NULL)) != 0)
 		testutil_die(ret, "session.close");
@@ -416,7 +421,8 @@ op_drop(WT_CONNECTION *conn, int force)
 	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
 		testutil_die(ret, "conn.session");
 
-	if ((ret = session->drop(session, uri, force ? "force,checkpoint_wait=false" : "checkpoint_wait=false")) != 0)
+	if ((ret = session->drop(session, uri, force ?
+	    "force,checkpoint_wait=false" : "checkpoint_wait=false")) != 0)
 		if (ret != ENOENT && ret != EBUSY)
 			testutil_die(ret, "session.drop");
 

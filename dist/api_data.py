@@ -1110,6 +1110,10 @@ methods = {
         including the named checkpoint.  Checkpoints cannot be
         dropped while a hot backup is in progress or if open in
         a cursor''', type='list'),
+    Config('fake_checkpoint_latency', 'none', r'''
+        amount of 'fake' latency to add to checkpoints. This is used for testing
+        cases where an environment is expirencing long checkpoints''',
+    type='int',undoc=True),
     Config('force', 'false', r'''
         by default, checkpoints may be skipped if the underlying object
         has not been modified, this option forces the checkpoint''',

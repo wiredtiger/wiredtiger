@@ -659,13 +659,14 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	struct timespec fsync_start, fsync_stop;
 	struct timespec start, stop, verb_timer;
 	WT_CACHE *cache;
+	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_ISOLATION saved_isolation;
 	void *saved_meta_next;
-	u_int i;
+	u_int fake_lag, i;
 	uint64_t fsync_duration_usecs, generation;
 	bool failed, full, idle, logging, tracking;
 
@@ -675,6 +676,10 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	txn_global = &conn->txn_global;
 	saved_isolation = session->isolation;
 	full = idle = logging = tracking = false;
+
+	WT_RET(__wt_config_gets(
+	    session, cfg, "fake_checkpoint_latency", &cval));
+	fake_lag = (u_int)cval.val;
 
 	/*
 	 * Do a pass over the configuration arguments and figure out what kind
@@ -771,6 +776,10 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_ERR(__wt_txn_checkpoint_log(
 		    session, full, WT_TXN_LOG_CKPT_START, NULL));
 
+#ifdef HAVE_VERBOSE
+	if (fake_lag > 0)
+		__wt_sleep(fake_lag, 0);
+#endif
 	WT_ERR(__checkpoint_apply(session, cfg, __checkpoint_tree_helper));
 
 	/*
