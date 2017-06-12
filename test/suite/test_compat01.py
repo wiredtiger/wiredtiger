@@ -30,7 +30,7 @@
 # Check compatibility API
 #
 
-import fnmatch, os, shutil, time
+import fnmatch, os, shutil, sys, time
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 import wttest
@@ -59,13 +59,13 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
         ('old_patch', dict(compat1="1.8.1", current1=False)),
     ]
     restart_compat = [
-        ('def', dict(compat2='none', current2=True)),
-        ('current', dict(compat2="3.0", current2=True)),
-        ('current_patch', dict(compat2="3.0.0", current2=True)),
-        ('minor_only', dict(compat2="2.6", current2=False)),
-        ('minor_patch', dict(compat2="2.6.1", current2=False)),
-        ('old', dict(compat2="1.8", current2=False)),
-        ('old_patch', dict(compat2="1.8.1", current2=False)),
+        ('def2', dict(compat2='none', current2=True)),
+        ('current2', dict(compat2="3.0", current2=True)),
+        ('current_patch2', dict(compat2="3.0.0", current2=True)),
+        ('minor_only2', dict(compat2="2.6", current2=False)),
+        ('minor_patch2', dict(compat2="2.6.1", current2=False)),
+        ('old2', dict(compat2="1.8", current2=False)),
+        ('old_patch2', dict(compat2="1.8.1", current2=False)),
     ]
     scenarios = make_scenarios(restart_compat, start_compat)
 
@@ -91,7 +91,7 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
         self.pr("Conn config:" + log_str + compat_str)
         return log_str + compat_str
 
-    def check_prev_lsn(self, exists, conn_close):
+    def check_prev_lsn(self, conn_close, prev_lsn_count):
         #
         # Run printlog and look for the prev_lsn log record.  Verify its
         # existence with the passed in expected result.  We don't use
@@ -100,26 +100,26 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
         # the entire file if needed and set a boolean for comparison.
         #
         self.runWt(['printlog'], outfilename='printlog.out', closeconn=conn_close)
-        contains = False
+        contains = 0
         with open('printlog.out') as logfile:
             for line in logfile:
                 if 'prev_lsn' in line:
-                    contains = True
-                    break
-        self.assertEqual(exists, contains)
+                    contains += 1
+        self.assertEqual(prev_lsn_count, contains)
 
     def check_log(self, reconfig):
         orig_logs = fnmatch.filter(os.listdir('.'), "*Log*")
         compat_str = self.make_compat_str(False)
+        if self.current1:
+            prev_lsn_logs = len(orig_logs)
+        else:
+            prev_lsn_logs = 0
+
         if not reconfig:
             #
-            # Close and open the connection to force recovery and log archiving
-            # even if archive is turned off (in some circumstances).
-            # If we are downgrading we must archive newer logs.  Verify
-            # log files have or have not been archived.
+            # Close and open the connection to force recovery and reset the
+            # compatibility string on startup.
             #
-            self.check_prev_lsn(self.current1, True)
-
             self.conn.close()
             log_str = 'log=(enabled,file_max=%s,archive=false),' % self.logmax
             restart_config = log_str + compat_str
@@ -130,26 +130,29 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
             conn = self.wiredtiger_open('.', restart_config)
             conn.close()
             check_close = False
+            #
+            # If the version was upgraded we'll see a new log file containing
+            # the new log record no matter what the original setting was.
+            #
+            if self.current2:
+                prev_lsn_logs += 1
         else:
             self.pr("Reconfigure: " + compat_str)
             self.conn.reconfigure(compat_str)
             check_close = True
-
-        #
-        # Archiving is turned off explicitly.
-        #
-        # Check logs. The original logs should have been archived only if
-        # we downgraded.  In all other cases the original logs should be there.
-        #
-        cur_logs = fnmatch.filter(os.listdir('.'), "*Log*")
-        log_present = True
-        if self.current1 == True and self.current2 == False:
-            log_present = False
-        for o in orig_logs:
-            self.assertEqual(log_present, o in cur_logs)
+            #
+            # If we're reconfiguring, we'll only see another new log file
+            # when upgrading.  Staying at the same version has no effect.
+            #
+            if self.current2 and not self.current1:
+                prev_lsn_logs += 1
 
         # Run printlog and verify the new record does or does not exist.
-        self.check_prev_lsn(self.current2, check_close)
+        # Need to check count of log files that should and should not have
+        # the prev_lsn record based on the count of log files that exist
+        # before and after.  Pass that into this function and check the
+        # number of prev_lsn records we see.
+        self.check_prev_lsn(check_close, prev_lsn_logs)
 
     def run_test(self, reconfig):
         # If reconfiguring with the empty string there is nothing to do.
@@ -162,6 +165,7 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
         #
         for i in range(self.entries):
             c[i] = i + 1
+        c.close()
 
         # Check the log state after the entire op completes
         # and run recovery with the restart compatibility mode.
