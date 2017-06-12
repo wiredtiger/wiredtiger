@@ -147,7 +147,6 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
             if self.current2 and not self.current1:
                 prev_lsn_logs += 1
 
-
         # Run printlog and verify the new record does or does not exist.
         # Need to check count of log files that should and should not have
         # the prev_lsn record based on the count of log files that exist
