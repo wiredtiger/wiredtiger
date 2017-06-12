@@ -36,7 +36,7 @@ static int   col_reserve(WT_CURSOR *, uint64_t, bool);
 static int   col_update(
 		TINFO *, WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t, bool);
 static int   nextprev(WT_CURSOR *, int);
-static void *ops(void *);
+static WT_THREAD_RET ops(void *);
 static int   row_insert(
 		TINFO *, WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t, bool);
 static int   row_modify(
@@ -62,7 +62,7 @@ wts_ops(int lastrun)
 	TINFO **tinfo_list, *tinfo, total;
 	WT_CONNECTION *conn;
 	WT_SESSION *session;
-	pthread_t alter_tid, backup_tid, compact_tid, compat_tid, lrt_tid;
+	wt_thread_t alter_tid, backup_tid, compact_tid, compat_tid, lrt_tid;
 	int64_t fourths, thread_ops;
 	uint32_t i;
 	int running;
@@ -122,7 +122,8 @@ wts_ops(int lastrun)
 		tinfo_list[i] = tinfo = dcalloc(1, sizeof(TINFO));
 		tinfo->id = (int)i + 1;
 		tinfo->state = TINFO_RUNNING;
-		testutil_check(pthread_create(&tinfo->tid, NULL, ops, tinfo));
+		testutil_check(
+		    __wt_thread_create(NULL, &tinfo->tid, ops, tinfo));
 	}
 
 	/*
@@ -130,16 +131,19 @@ wts_ops(int lastrun)
 	 * long-running reader threads.
 	 */
 	if (g.c_alter)
-		testutil_check(pthread_create(&alter_tid, NULL, alter, NULL));
+		testutil_check(
+		    __wt_thread_create(NULL, &alter_tid, alter, NULL));
 	if (g.c_backups)
-		testutil_check(pthread_create(&backup_tid, NULL, backup, NULL));
+		testutil_check(
+		    __wt_thread_create(NULL, &backup_tid, backup, NULL));
 	if (g.c_compact)
 		testutil_check(
-		    pthread_create(&compact_tid, NULL, compact, NULL));
+		    __wt_thread_create(NULL, &compact_tid, compact, NULL));
 	if (g.c_compat_flag != COMPAT_NONE)
-		testutil_check(pthread_create(&compat_tid, NULL, compat, NULL));
+		testutil_check(
+		    __wt_thread_create(NULL, &compat_tid, compat, NULL));
 	if (!SINGLETHREADED && g.c_long_running_txn)
-		testutil_check(pthread_create(&lrt_tid, NULL, lrt, NULL));
+		testutil_check(__wt_thread_create(NULL, &lrt_tid, lrt, NULL));
 
 	/* Spin on the threads, calculating the totals. */
 	for (;;) {
@@ -161,7 +165,8 @@ wts_ops(int lastrun)
 				break;
 			case TINFO_COMPLETE:
 				tinfo->state = TINFO_JOINED;
-				(void)pthread_join(tinfo->tid, NULL);
+				testutil_check(
+				    __wt_thread_join(NULL, tinfo->tid));
 				break;
 			case TINFO_JOINED:
 				break;
@@ -199,15 +204,15 @@ wts_ops(int lastrun)
 	/* Wait for the other threads. */
 	g.workers_finished = 1;
 	if (g.c_alter)
-		(void)pthread_join(alter_tid, NULL);
+		testutil_check(__wt_thread_join(NULL, alter_tid));
 	if (g.c_backups)
-		(void)pthread_join(backup_tid, NULL);
+		testutil_check(__wt_thread_join(NULL, backup_tid));
 	if (g.c_compact)
-		(void)pthread_join(compact_tid, NULL);
+		testutil_check(__wt_thread_join(NULL, compact_tid));
 	if (g.c_compat_flag != COMPAT_NONE)
-		(void)pthread_join(compat_tid, NULL);
+		testutil_check(__wt_thread_join(NULL, compat_tid));
 	if (!SINGLETHREADED && g.c_long_running_txn)
-		(void)pthread_join(lrt_tid, NULL);
+		testutil_check(__wt_thread_join(NULL, lrt_tid));
 	g.workers_finished = 0;
 
 	if (g.logging != 0) {
@@ -409,7 +414,7 @@ snap_check(WT_CURSOR *cursor,
  * ops --
  *     Per-thread operations.
  */
-static void *
+static WT_THREAD_RET
 ops(void *arg)
 {
 	enum { INSERT, MODIFY, READ, REMOVE, UPDATE } op;
@@ -869,7 +874,7 @@ deadlock:			++tinfo->deadlock;
 	free(value->mem);
 
 	tinfo->state = TINFO_COMPLETE;
-	return (NULL);
+	return (WT_THREAD_RET_VALUE);
 }
 
 /*
