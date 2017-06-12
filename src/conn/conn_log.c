@@ -92,7 +92,7 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_LOG *log;
-	bool downgrade, live_chg;
+	bool downgrade;
 	uint32_t first_record, lognum;
 	uint16_t new_version;
 
@@ -121,6 +121,11 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
 	}
 
 	/*
+	 * If the version is the same, there is nothing to do.
+	 */
+	if (log->log_version == new_version)
+		return (0);
+	/*
 	 * If we are reconfiguring and at a new version we need to force
 	 * the log file to advance so that we write out a log file at the
 	 * correct version.  When we are downgrading we must force a checkpoint
@@ -131,18 +136,13 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
 	 * because other threads may be changing log files, using pre-allocated
 	 * files.
 	 */
-	if (reconfig && log->log_version != new_version)
-		live_chg = true;
-	else
-		live_chg = false;
-
 	/*
 	 * Set the version.  If it is a live change the logging subsystem will
 	 * do other work as well to move to a new log file.
 	 */
 	WT_RET(__wt_log_set_version(session, new_version,
-	    first_record, downgrade, live_chg, &lognum));
-	if (live_chg && FLD_ISSET(conn->log_flags, WT_CONN_LOG_DOWNGRADED))
+	    first_record, downgrade, reconfig, &lognum));
+	if (reconfig && FLD_ISSET(conn->log_flags, WT_CONN_LOG_DOWNGRADED))
 		WT_RET(__logmgr_force_ckpt(session, lognum));
 	return (0);
 }
