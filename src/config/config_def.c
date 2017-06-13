@@ -1094,7 +1094,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_WT_SESSION_begin_transaction, 5
 	},
 	{ "WT_SESSION.checkpoint",
-	  "debug_checkpoint_latency=none,drop=,force=false,name=,target=",
+	  "debug_checkpoint_latency=0,drop=,force=false,name=,target=",
 	  confchk_WT_SESSION_checkpoint, 5
 	},
 	{ "WT_SESSION.close",

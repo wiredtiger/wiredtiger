@@ -316,6 +316,13 @@ do_ops(void *args)
 /*
  * There are 6 operations below. These are taken originally from the operations
  * we do in test/fops and modified somewhat bit to avoid blocking states.
+ * The operations borrowed from fops are:
+ * - op_bulk
+ * - op_bulk_unique
+ * - op_cursor
+ * - op_create
+ * - op_create_unique
+ * - op_drop
  */
 
 void
