@@ -185,8 +185,8 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_begin_transaction[] = {
 };
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_checkpoint[] = {
+	{ "debug_checkpoint_latency", "int", NULL, NULL, NULL, 0 },
 	{ "drop", "list", NULL, NULL, NULL, 0 },
-	{ "fake_checkpoint_latency", "int", NULL, NULL, NULL, 0 },
 	{ "force", "boolean", NULL, NULL, NULL, 0 },
 	{ "name", "string", NULL, NULL, NULL, 0 },
 	{ "target", "list", NULL, NULL, NULL, 0 },
@@ -1094,7 +1094,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_WT_SESSION_begin_transaction, 5
 	},
 	{ "WT_SESSION.checkpoint",
-	  "drop=,fake_checkpoint_latency=none,force=false,name=,target=",
+	  "debug_checkpoint_latency=none,drop=,force=false,name=,target=",
 	  confchk_WT_SESSION_checkpoint, 5
 	},
 	{ "WT_SESSION.close",

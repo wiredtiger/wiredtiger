@@ -29,18 +29,24 @@
 
 /*
  * JIRA ticket reference: WT-3362
+ *
  * Test case description: There are a number of operations that we run that we
- * expect not to conflict with or block against a running checkpoint.
- * Failure mode: We monitor the execution time of all operations and if we see
- * that execution time has taken longer than ideal we flag and abort.
+ * expect not to conflict with or block against a running checkpoint. This test
+ * aims to run repeated checkpoints in a thread, while running an assortment
+ * of operations that we expect to execute quickly on further threads. To
+ * ensure that we catch any blockages we introduce a very large delay into the
+ * checkpoint and measure that no operation takes 1/2 the length of this delay.
+ *
+ * Failure mode: We monitor the execution time of all operations and if we find
+ * any operation taking longer than 1/2 the delay time, we abort dumping a core
+ * file which can be used to determine what operation was blocked. 
  */
 
-static int handle_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *);
-static int handle_message(WT_EVENT_HANDLER *, WT_SESSION *, const char *);
-static void* monitor(void *);
-static void* do_checkpoints(void *);
-static void* do_ops(void *);
-
+int handle_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *);
+int handle_message(WT_EVENT_HANDLER *, WT_SESSION *, const char *);
+void* monitor(void *);
+void* do_checkpoints(void *);
+void* do_ops(void *);
 void op_bulk(WT_CONNECTION *, const char *);
 void op_bulk_unique(WT_CONNECTION *, const char *, int, int);
 void op_create(WT_CONNECTION *, const char *);
@@ -59,8 +65,21 @@ typedef struct {
 } THREAD_ARGS;
 
 pthread_rwlock_t single;
-static uint64_t uid = 1;
-const uint64_t max_execution_time = 4;
+/*
+ * Time delay to introduce into checkpoints in seconds. Should be at-least
+ * double the maximum time that any one of the operations should take. Currently
+ * this is set to 10 seconds and we expect no single operation to take longer
+ * than 5 seconds.
+ */
+const uint64_t max_execution_time = 10;
+
+/* Int used to make unique table names */
+uint64_t uid = 1;
+
+/*
+ * An array of the number of operations that each of the worker threads has
+ * performed.
+ */
 uint64_t thread_counters[N_THREADS];
 const char *uri;
 
@@ -119,7 +138,8 @@ main(int argc, char *argv[])
 	return (EXIT_SUCCESS);
 }
 
-static int
+/* WiredTiger error handling function */
+int
 handle_error(WT_EVENT_HANDLER *handler,
     WT_SESSION *session, int error, const char *errmsg)
 {
@@ -139,7 +159,8 @@ handle_error(WT_EVENT_HANDLER *handler,
 	return (fprintf(stderr, "%s\n", errmsg) < 0 ? -1 : 0);
 }
 
-static int
+/* WiredTiger message handling function */
+int
 handle_message(WT_EVENT_HANDLER *handler,
     WT_SESSION *session, const char *message)
 {
@@ -154,15 +175,19 @@ handle_message(WT_EVENT_HANDLER *handler,
 	return (printf("%s\n", message) < 0 ? -1 : 0);
 }
 
-static void *
+/* Function for repeatedly running checkpoint operations */
+void *
 do_checkpoints(void *connection)
 {
 	WT_CONNECTION *conn;
 	WT_SESSION *session;
 	time_t now, start;
 	int ret;
-	conn = (WT_CONNECTION *)connection;
+	char config[64];
 
+	conn = (WT_CONNECTION *)connection;
+	testutil_check(__wt_snprintf(config, sizeof(config),
+	    "force,debug_checkpoint_latency=%" PRIu64, max_execution_time));
 	(void)time(&start);
 	(void)time(&now);
 
@@ -170,21 +195,29 @@ do_checkpoints(void *connection)
 		if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
 			testutil_die(ret, "conn.session");
 
-		if ((ret = session->checkpoint(
-		    session, "force,fake_checkpoint_latency=10")) != 0)
+		if ((ret = session->checkpoint(session, config)) != 0)
 			if (ret != EBUSY && ret != ENOENT)
 				testutil_die(ret, "session.checkpoint");
 
 		if ((ret = session->close(session, NULL)) != 0)
 			testutil_die(ret, "session.close");
 		(void)time(&now);
+
+		/*
+		 * A short sleep to let operations process and avoid back to
+		 * back checkpoints locking up resources.
+		 */
 		sleep(1);
 	}
 
 	return (NULL);
 }
 
-static void *
+/*
+ * The thread to monitor running operation and abort to dump core in the event
+ * that we catch an operation running long.
+ */
+void *
 monitor(void *args)
 {
 	time_t now, start;
@@ -192,7 +225,7 @@ monitor(void *args)
 	int i;
 
 	/* Unused */
-(void)args;
+	(void)args;
 
 	(void)time(&start);
 	(void)time(&now);
@@ -201,17 +234,29 @@ monitor(void *args)
 		last_ops[i] = 0;
 
 	while (difftime(now, start) < RUNTIME) {
-		sleep(max_execution_time);
+		/*
+		 * Checkpoints will run for slightly over max_execution_time.
+		 * max_execution_times hould always be long enough that we can
+		 * complete any operation in 1/2 that time.
+		 */
+		sleep(max_execution_time/2);
 
 		for (i = 0; i < N_THREADS; i++) {
+			/* Ignore any threads which may not have started yet */
 			if (thread_counters[i] == 0)
 				continue;
+			/*
+			 * We track how many operations each thread has done. If
+			 * We have slept and not progresseded on a thread we are
+			 * stuck and should drop a core so the cause of the hang
+			 * can be investigated.
+			 */
 			if (thread_counters[i] != last_ops[i])
 				last_ops[i] = thread_counters[i];
 			else {
 				printf("Thread %d had a task running"
 				    " for more than %" PRIu64  " seconds\n",
-				    i, max_execution_time);
+				    i, max_execution_time/2);
 				abort();
 
 			}
@@ -222,7 +267,8 @@ monitor(void *args)
 	return (NULL);
 }
 
-static void *
+/* Worker thread. Executes random operations from the set of 6 */
+void *
 do_ops(void *args)
 {
 	THREAD_ARGS *arg;
@@ -266,6 +312,11 @@ do_ops(void *args)
 
 	return (NULL);
 }
+
+/*
+ * There are 6 operations below. These are taken originally from the operations
+ * we do in test/fops and modifed somewhat bit to avoid blocking states.
+ */
 
 void
 op_bulk(WT_CONNECTION *conn, const char *config)
@@ -334,6 +385,11 @@ op_bulk_unique(WT_CONNECTION *conn, const char *config, int force, int tid)
 		if (ret != EBUSY)
 			testutil_die(ret, "session.drop: %s", new_uri);
 		else
+			/*
+			 * The EBUSY is expected when we run with
+			 * checkpoint_wait set to false, so we increment the
+			 * counter while in this loop to avoid false positives.
+			 */
 			__wt_atomic_add64(&thread_counters[tid], 1);
 
 	if ((ret = session->close(session, NULL)) != 0)
@@ -406,6 +462,11 @@ op_create_unique(WT_CONNECTION *conn, const char *config, int force, int tid)
 		if (ret != EBUSY)
 			testutil_die(ret, "session.drop: %s", new_uri);
 		else
+			/*
+			 * The EBUSY is expected when we run with
+			 * checkpoint_wait set to false, so we increment the
+			 * counter while in this loop to avoid false positives.
+			 */
 			__wt_atomic_add64(&thread_counters[tid], 1);
 
 	if ((ret = session->close(session, NULL)) != 0)
