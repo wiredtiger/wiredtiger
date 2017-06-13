@@ -47,10 +47,10 @@ int handle_message(WT_EVENT_HANDLER *, WT_SESSION *, const char *);
 void* monitor(void *);
 void* do_checkpoints(void *);
 void* do_ops(void *);
-void op_bulk(WT_CONNECTION *, const char *);
-void op_bulk_unique(WT_CONNECTION *, const char *, int, int);
-void op_create(WT_CONNECTION *, const char *);
-void op_create_unique(WT_CONNECTION *, const char *, int, int);
+void op_bulk(WT_CONNECTION *);
+void op_bulk_unique(WT_CONNECTION *, int, int);
+void op_create(WT_CONNECTION *);
+void op_create_unique(WT_CONNECTION *, int, int);
 void op_cursor(WT_CONNECTION *);
 void op_drop(WT_CONNECTION *, int);
 
@@ -119,8 +119,8 @@ main(int argc, char *argv[])
 		thread_args[i].threadnum = i;
 		thread_args[i].nthread = N_THREADS;
 		thread_args[i].testopts = opts;
-		testutil_check(pthread_create(&threads[i], NULL,
-		    do_ops, (void *)&thread_args[i]));
+		testutil_check(pthread_create(
+		    &threads[i], NULL, do_ops, (void *)&thread_args[i]));
 	}
 
 	testutil_check(pthread_create(&mon_thread, NULL, monitor, NULL));
@@ -168,8 +168,7 @@ handle_message(WT_EVENT_HANDLER *handler,
 	(void)(session);
 
 	/* Ignore messages about failing to create forced checkpoints. */
-	if (strstr(
-	    message, "forced or named checkpoint") != NULL)
+	if (strstr(message, "forced or named checkpoint") != NULL)
 		return (0);
 
 	return (printf("%s\n", message) < 0 ? -1 : 0);
@@ -255,7 +254,7 @@ monitor(void *args)
 				last_ops[i] = thread_counters[i];
 			else {
 				printf("Thread %d had a task running"
-				    " for more than %" PRIu64  " seconds\n",
+				    " for more than %" PRIu64 " seconds\n",
 				    i, max_execution_time/2);
 				abort();
 
@@ -275,7 +274,6 @@ do_ops(void *args)
 	WT_CONNECTION *conn;
 	WT_RAND_STATE rnd;
 	time_t now, start;
-	const char *config = NULL;
 
 	arg = (THREAD_ARGS *)args;
 	conn = arg->testopts->conn;
@@ -286,10 +284,10 @@ do_ops(void *args)
 	while (difftime(now, start) < RUNTIME) {
 		switch (__wt_random(&rnd) % 6) {
 			case 0:
-				op_bulk(conn, config);
+				op_bulk(conn);
 				break;
 			case 1:
-				op_create(conn, config);
+				op_create(conn);
 				break;
 			case 2:
 				op_cursor(conn);
@@ -298,11 +296,11 @@ do_ops(void *args)
 				op_drop(conn, __wt_random(&rnd) & 1);
 				break;
 			case 4:
-				op_bulk_unique(conn, config,
+				op_bulk_unique(conn,
 				    __wt_random(&rnd) & 1, arg->threadnum);
 				break;
 			case 5:
-				op_create_unique(conn, config,
+				op_create_unique(conn,
 				    __wt_random(&rnd) & 1, arg->threadnum);
 				break;
 		}
@@ -327,7 +325,7 @@ do_ops(void *args)
  */
 
 void
-op_bulk(WT_CONNECTION *conn, const char *config)
+op_bulk(WT_CONNECTION *conn)
 {
 	WT_CURSOR *c;
 	WT_SESSION *session;
@@ -336,7 +334,7 @@ op_bulk(WT_CONNECTION *conn, const char *config)
 	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
 		testutil_die(ret, "conn.session");
 
-	if ((ret = session->create(session, uri, config)) != 0)
+	if ((ret = session->create(session, uri, NULL)) != 0)
 		if (ret != EEXIST && ret != EBUSY)
 			testutil_die(ret, "session.create");
 
@@ -354,7 +352,7 @@ op_bulk(WT_CONNECTION *conn, const char *config)
 }
 
 void
-op_bulk_unique(WT_CONNECTION *conn, const char *config, int force, int tid)
+op_bulk_unique(WT_CONNECTION *conn, int force, int tid)
 {
 	WT_CURSOR *c;
 	WT_SESSION *session;
@@ -372,7 +370,7 @@ op_bulk_unique(WT_CONNECTION *conn, const char *config, int force, int tid)
 	if ((ret = pthread_rwlock_unlock(&single)) != 0)
 		testutil_die(ret, "pthread_rwlock_unlock single");
 
-	if ((ret = session->create(session, new_uri, config)) != 0)
+	if ((ret = session->create(session, new_uri, NULL)) != 0)
 		testutil_die(ret, "session.create: %s", new_uri);
 
 	__wt_yield();
@@ -427,7 +425,7 @@ op_cursor(WT_CONNECTION *conn)
 }
 
 void
-op_create(WT_CONNECTION *conn, const char *config)
+op_create(WT_CONNECTION *conn)
 {
 	WT_SESSION *session;
 	int ret;
@@ -435,7 +433,7 @@ op_create(WT_CONNECTION *conn, const char *config)
 	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
 		testutil_die(ret, "conn.session");
 
-	if ((ret = session->create(session, uri, config)) != 0)
+	if ((ret = session->create(session, uri, NULL)) != 0)
 		if (ret != EEXIST && ret != EBUSY)
 			testutil_die(ret, "session.create");
 
@@ -444,7 +442,7 @@ op_create(WT_CONNECTION *conn, const char *config)
 }
 
 void
-op_create_unique(WT_CONNECTION *conn, const char *config, int force, int tid)
+op_create_unique(WT_CONNECTION *conn,  int force, int tid)
 {
 	WT_SESSION *session;
 	int ret;
@@ -461,7 +459,7 @@ op_create_unique(WT_CONNECTION *conn, const char *config, int force, int tid)
 	if ((ret = pthread_rwlock_unlock(&single)) != 0)
 		testutil_die(ret, "pthread_rwlock_unlock single");
 
-	if ((ret = session->create(session, new_uri, config)) != 0)
+	if ((ret = session->create(session, new_uri, NULL)) != 0)
 		testutil_die(ret, "session.create");
 
 	__wt_yield();
