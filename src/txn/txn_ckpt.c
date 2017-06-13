@@ -659,7 +659,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	struct timespec fsync_start, fsync_stop;
 	struct timespec start, stop, verb_timer;
 	WT_CACHE *cache;
-	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_TXN *txn;
@@ -668,6 +667,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	void *saved_meta_next;
 	u_int i;
 #ifdef HAVE_VERBOSE
+	WT_CONFIG_ITEM cval;
 	u_int debug_latency;
 #endif
 	uint64_t fsync_duration_usecs, generation;
