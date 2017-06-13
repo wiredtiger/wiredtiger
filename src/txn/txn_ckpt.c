@@ -665,11 +665,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_ISOLATION saved_isolation;
 	void *saved_meta_next;
-	u_int i;
-#ifdef HAVE_VERBOSE
+	u_int debug_latency, i;
 	WT_CONFIG_ITEM cval;
-	u_int debug_latency;
-#endif
 	uint64_t fsync_duration_usecs, generation;
 	bool failed, full, idle, logging, tracking;
 
@@ -684,6 +681,9 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_RET(__wt_config_gets(
 	    session, cfg, "debug_checkpoint_latency", &cval));
 	debug_latency = (u_int)cval.val;
+#else
+	WT_UNUSED(cval);
+	WT_UNUSED(debug_latency);
 #endif
 
 	/*
