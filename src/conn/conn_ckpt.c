@@ -230,8 +230,8 @@ __wt_checkpoint_server_destroy(WT_SESSION_IMPL *session)
 		__wt_cond_signal(session, &conn->ckpt_cond);
 		WT_TRET(__wt_thread_join(session, conn->ckpt_tid));
 		conn->ckpt_tid_set = false;
+		__wt_cond_destroy(session, &conn->ckpt_cond);
 	}
-	__wt_cond_destroy(session, &conn->ckpt_cond);
 
 	/* Close the server thread's session. */
 	if (conn->ckpt_session != NULL) {
