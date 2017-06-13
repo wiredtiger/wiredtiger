@@ -39,7 +39,7 @@
  *
  * Failure mode: We monitor the execution time of all operations and if we find
  * any operation taking longer than 1/2 the delay time, we abort dumping a core
- * file which can be used to determine what operation was blocked. 
+ * file which can be used to determine what operation was blocked.
  */
 
 int handle_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *);
@@ -236,7 +236,7 @@ monitor(void *args)
 	while (difftime(now, start) < RUNTIME) {
 		/*
 		 * Checkpoints will run for slightly over max_execution_time.
-		 * max_execution_times hould always be long enough that we can
+		 * max_execution_times should always be long enough that we can
 		 * complete any operation in 1/2 that time.
 		 */
 		sleep(max_execution_time/2);
@@ -247,9 +247,9 @@ monitor(void *args)
 				continue;
 			/*
 			 * We track how many operations each thread has done. If
-			 * We have slept and not progresseded on a thread we are
-			 * stuck and should drop a core so the cause of the hang
-			 * can be investigated.
+			 * we have slept and the counter remains the same for a
+			 * thread it is stuck and should drop a core so the
+			 * cause of the hang can be investigated.
 			 */
 			if (thread_counters[i] != last_ops[i])
 				last_ops[i] = thread_counters[i];
@@ -315,7 +315,7 @@ do_ops(void *args)
 
 /*
  * There are 6 operations below. These are taken originally from the operations
- * we do in test/fops and modifed somewhat bit to avoid blocking states.
+ * we do in test/fops and modified somewhat bit to avoid blocking states.
  */
 
 void
