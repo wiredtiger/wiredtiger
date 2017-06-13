@@ -666,7 +666,10 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_ISOLATION saved_isolation;
 	void *saved_meta_next;
-	u_int debug_latency, i;
+	u_int i;
+#ifdef HAVE_VERBOSE
+	u_int debug_latency;
+#endif
 	uint64_t fsync_duration_usecs, generation;
 	bool failed, full, idle, logging, tracking;
 
@@ -677,9 +680,11 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	saved_isolation = session->isolation;
 	full = idle = logging = tracking = false;
 
+#ifdef HAVE_VERBOSE
 	WT_RET(__wt_config_gets(
 	    session, cfg, "debug_checkpoint_latency", &cval));
 	debug_latency = (u_int)cval.val;
+#endif
 
 	/*
 	 * Do a pass over the configuration arguments and figure out what kind
