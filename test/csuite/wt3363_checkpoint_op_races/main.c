@@ -214,7 +214,7 @@ do_checkpoints(void *connection)
 }
 
 /*
- * The thread to monitor running operation and abort to dump core in the event
+ * Function to monitor running operations and abort to dump core in the event
  * that we catch an operation running long.
  */
 void *
@@ -237,7 +237,7 @@ monitor(void *args)
 		/*
 		 * Checkpoints will run for slightly over max_execution_time.
 		 * max_execution_times should always be long enough that we can
-		 * complete any operation in 1/2 that time.
+		 * complete any single operation in 1/2 that time.
 		 */
 		sleep(max_execution_time/2);
 
@@ -306,6 +306,7 @@ do_ops(void *args)
 				    __wt_random(&rnd) & 1, arg->threadnum);
 				break;
 		}
+		/* Increment how many ops this thread has performed */
 		__wt_atomic_add64(&thread_counters[arg->threadnum], 1);
 		(void)time(&now);
 	}
