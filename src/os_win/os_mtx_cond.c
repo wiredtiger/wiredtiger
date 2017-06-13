@@ -162,6 +162,8 @@ __wt_cond_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond)
 void
 __wt_cond_destroy(WT_SESSION_IMPL *session, WT_CONDVAR *cond)
 {
+	WT_UNUSED(session);
+
 	if (cond == NULL)
 		return;
 

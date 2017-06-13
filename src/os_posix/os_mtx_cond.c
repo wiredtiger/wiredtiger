@@ -17,6 +17,7 @@ __wt_cond_init(WT_SESSION_IMPL *session, WT_CONDVAR *cond, const char *name)
 {
 	WT_UNUSED(session);
 
+	WT_CLEAR(*cond);
 	WT_RET(pthread_mutex_init(&cond->mtx, NULL));
 
 	/* Initialize the condition variable to permit self-blocking. */
