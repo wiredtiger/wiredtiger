@@ -64,24 +64,24 @@ typedef struct {
 	int done;
 } THREAD_ARGS;
 
-pthread_rwlock_t single;
+static pthread_rwlock_t single;
 /*
  * Time delay to introduce into checkpoints in seconds. Should be at-least
  * double the maximum time that any one of the operations should take. Currently
  * this is set to 10 seconds and we expect no single operation to take longer
  * than 5 seconds.
  */
-const uint64_t max_execution_time = 10;
+static const uint64_t max_execution_time = 10;
 
 /* Int used to make unique table names */
-uint64_t uid = 1;
+static uint64_t uid = 1;
 
 /*
  * An array of the number of operations that each of the worker threads has
  * performed.
  */
-uint64_t thread_counters[N_THREADS];
-const char *uri;
+static uint64_t thread_counters[N_THREADS];
+static const char *uri;
 
 int
 main(int argc, char *argv[])
