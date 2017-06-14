@@ -429,9 +429,9 @@ __wt_sweep_destroy(WT_SESSION_IMPL *session)
 		WT_TRET(__wt_thread_join(session, conn->sweep_tid));
 		conn->sweep_tid_set = 0;
 	}
-	__wt_cond_destroy(session, &conn->sweep_cond);
 
 	if (conn->sweep_session != NULL) {
+		__wt_cond_destroy(session, &conn->sweep_cond);
 		wt_session = &conn->sweep_session->iface;
 		WT_TRET(wt_session->close(wt_session, NULL));
 

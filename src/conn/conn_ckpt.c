@@ -147,7 +147,6 @@ err:		WT_PANIC_MSG(session, ret, "checkpoint server error");
 static int
 __ckpt_server_start(WT_CONNECTION_IMPL *conn)
 {
-	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	uint32_t session_flags;
 
@@ -173,12 +172,8 @@ __ckpt_server_start(WT_CONNECTION_IMPL *conn)
 	/*
 	 * Start the thread.
 	 */
-	ret = __wt_thread_create(
-	    session, &conn->ckpt_tid, __ckpt_server, session);
-	if (ret != 0) {
-		__wt_cond_destroy(session, &conn->ckpt_cond);
-		WT_RET(ret);
-	}
+	WT_RET(__wt_thread_create(
+	    session, &conn->ckpt_tid, __ckpt_server, session));
 	conn->ckpt_tid_set = true;
 
 	return (0);
@@ -235,11 +230,11 @@ __wt_checkpoint_server_destroy(WT_SESSION_IMPL *session)
 		__wt_cond_signal(session, &conn->ckpt_cond);
 		WT_TRET(__wt_thread_join(session, conn->ckpt_tid));
 		conn->ckpt_tid_set = false;
-		__wt_cond_destroy(session, &conn->ckpt_cond);
 	}
 
 	/* Close the server thread's session. */
 	if (conn->ckpt_session != NULL) {
+		__wt_cond_destroy(session, &conn->ckpt_cond);
 		wt_session = &conn->ckpt_session->iface;
 		WT_TRET(wt_session->close(wt_session, NULL));
 	}

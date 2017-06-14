@@ -558,7 +558,6 @@ err:		WT_PANIC_MSG(session, ret, "statistics log server error");
 static int
 __statlog_start(WT_CONNECTION_IMPL *conn)
 {
-	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 
 	/* Nothing to do if the server is already running. */
@@ -585,12 +584,8 @@ __statlog_start(WT_CONNECTION_IMPL *conn)
 	 * have more than one thread, I just didn't feel like writing the code
 	 * to figure out the scheduling.
 	 */
-	ret = __wt_thread_create(
-	    session, &conn->stat_tid, __statlog_server, session);
-	if (ret != 0) {
-		__wt_cond_destroy(session, &conn->stat_cond);
-		WT_RET(ret);
-	}
+	WT_RET(__wt_thread_create(
+	    session, &conn->stat_tid, __statlog_server, session));
 	conn->stat_tid_set = true;
 
 	return (0);
@@ -652,7 +647,6 @@ __wt_statlog_destroy(WT_SESSION_IMPL *session, bool is_close)
 		__wt_cond_signal(session, &conn->stat_cond);
 		WT_TRET(__wt_thread_join(session, conn->stat_tid));
 		conn->stat_tid_set = false;
-		__wt_cond_destroy(session, &conn->stat_cond);
 	}
 
 	/* Log a set of statistics on shutdown if configured. */
@@ -664,6 +658,7 @@ __wt_statlog_destroy(WT_SESSION_IMPL *session, bool is_close)
 
 	/* Close the server thread's session. */
 	if (conn->stat_session != NULL) {
+		__wt_cond_destroy(session, &conn->stat_cond);
 		wt_session = &conn->stat_session->iface;
 		WT_TRET(wt_session->close(wt_session, NULL));
 		conn->stat_session = NULL;
