@@ -992,7 +992,6 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 			/* Fix up the public URI to match what was passed in. */
 			cursor = *cursorp;
 			__wt_free(session, cursor->uri);
-			cursor->uri = NULL;
 			WT_TRET(__wt_strdup(session, uri, &cursor->uri));
 		}
 		return (ret);
