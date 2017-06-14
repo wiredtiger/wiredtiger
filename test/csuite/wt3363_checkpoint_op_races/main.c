@@ -119,7 +119,8 @@ main(int argc, char *argv[])
 		    &threads[i], NULL, do_ops, (void *)&thread_args[i]));
 	}
 
-	testutil_check(pthread_create(&mon_thread, NULL, monitor, &thread_args));
+	testutil_check(
+	    pthread_create(&mon_thread, NULL, monitor, &thread_args));
 
 	for (i = 0; i < N_THREADS; ++i)
 		testutil_check(pthread_join(threads[i], NULL));
@@ -406,7 +407,7 @@ op_bulk_unique(WT_CONNECTION *conn, int force, int *counter)
 			 * checkpoint_wait set to false, so we increment the
 			 * counter while in this loop to avoid false positives.
 			 */
-			counter++;
+			(*counter)++;
 
 	if ((ret = session->close(session, NULL)) != 0)
 		testutil_die(ret, "session.close");
@@ -483,7 +484,7 @@ op_create_unique(WT_CONNECTION *conn,  int force, int *counter)
 			 * checkpoint_wait set to false, so we increment the
 			 * counter while in this loop to avoid false positives.
 			 */
-			counter++;
+			(*counter)++;
 
 	if ((ret = session->close(session, NULL)) != 0)
 		testutil_die(ret, "session.close");
