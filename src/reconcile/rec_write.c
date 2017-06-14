@@ -2486,7 +2486,6 @@ __rec_split_write_prev_and_swap_buf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	WT_ITEM *tmp_img_ptr;
 	WT_PAGE_HEADER *dsk;
 	size_t disk_img_size;
-	uint8_t page_type;
 
 	WT_ASSERT(session, (r->prev_img_ptr == NULL && r->bnd_next == 0) ||
 	    (r->prev_img_ptr != NULL && r->bnd_next != 0));
@@ -2508,15 +2507,14 @@ __rec_split_write_prev_and_swap_buf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		 * buffer of the same size as the current buffer.
 		 */
 		disk_img_size = r->cur_img_ptr->memsize;
-		page_type = ((WT_PAGE_HEADER *)r->cur_img_ptr->mem)->type;
 		WT_RET(__wt_buf_init(session,
 		    &r->disk_image[1], disk_img_size));
 		r->prev_img_ptr = &r->disk_image[1];
 		dsk = r->prev_img_ptr->mem;
 		memset(dsk, 0,
-		    page_type == WT_PAGE_COL_FIX ?
+		    r->page->type == WT_PAGE_COL_FIX ?
 		    disk_img_size : WT_PAGE_HEADER_SIZE);
-		dsk->type = page_type;
+		dsk->type = r->page->type;
 	}
 
 	/* swap previous and current buffers */
@@ -3151,7 +3149,7 @@ __rec_split_raw(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
  * 	have one (last) buffer in memory, pointed to by the current image
  * 	pointer.
  */
-static inline int
+static int
 __rec_split_finish_process_prev(
     WT_SESSION_IMPL *session, WT_RECONCILE *r, bool *chunks_merged)
 {
