@@ -229,7 +229,8 @@ __wt_session_lock_dhandle(
 			WT_ASSERT(session, !F_ISSET(dhandle, WT_DHANDLE_DEAD));
 			return (0);
 		}
-		if (ret != EBUSY || (is_open && want_exclusive))
+		if (ret != EBUSY || (is_open && want_exclusive) ||
+		    LF_ISSET(WT_DHANDLE_LOCK_ONLY))
 			return (ret);
 		lock_busy = true;
 
@@ -261,8 +262,8 @@ __wt_session_release_btree(WT_SESSION_IMPL *session)
 	 * can get a handle without special flags.
 	 */
 	if (F_ISSET(dhandle, WT_DHANDLE_DISCARD | WT_DHANDLE_DISCARD_FORCE)) {
-		__session_find_dhandle(session,
-		    dhandle->name, dhandle->checkpoint, &dhandle_cache);
+		WT_SAVE_DHANDLE(session, __session_find_dhandle(session,
+		    dhandle->name, dhandle->checkpoint, &dhandle_cache));
 		if (dhandle_cache != NULL)
 			__session_discard_dhandle(session, dhandle_cache);
 	}
