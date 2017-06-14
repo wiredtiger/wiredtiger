@@ -134,15 +134,19 @@ class test_alter02(wttest.WiredTigerTestCase):
         # Set up logging for the connection.
         if self.conncreate:
             self.uselog = 'enabled=true'
+            conn_logged = 1
         else:
             self.uselog = 'enabled=false'
+            conn_logged = 0
         self.ConnectionOpen()
 
         # Set up logging for the table.
         if self.logcreate:
             log_param = 'log=(enabled=true)'
+            table_logged = 1
         else:
             log_param = 'log=(enabled=false)'
+            table_logged = 0
         create_params += '%s,' % log_param
         complex_params += '%s,' % log_param
 
@@ -176,63 +180,55 @@ class test_alter02(wttest.WiredTigerTestCase):
         self.verify_metadata(log_param)
 
         # Verify the logged operations only if logging is enabled.
-        expected_keys = 0
-        if self.conncreate:
-            if self.logcreate:
-                expected_keys = self.entries
+        expected_keys = conn_logged * table_logged * self.entries
+        if conn_logged != 0:
+            self.pr("EXPECTED KEYS 1: " + str(expected_keys))
             self.verify_logrecs(expected_keys)
 
         # Set the alter setting for the table.
         if self.logalter:
             log_str = 'log=(enabled=true)'
+            table_logged = 1
         else:
             log_str = 'log=(enabled=false)'
+            table_logged = 0
         alter_param = '%s' % log_str
         special = self.use_cg or self.use_index
 
-        # Altering the log setting currently fails on an
-        # open handle, so it is expected to succeed when
-        # we reopen the connection and return an error when
-        # we attempt with the same open connection.
+        # Set the log setting on the new connection.
         if self.reopen:
-            # Set the log setting on the new connection.
             if self.connreopen:
                 self.uselog = 'enabled=true'
+                conn_logged = 1
             else:
                 self.uselog = 'enabled=false'
-
+                conn_logged = 0
             self.conn.close()
             self.ConnectionOpen()
-            # Alter the table setting in the new connection.
-            self.session.alter(uri, alter_param)
-            if special:
-                self.session.alter(suburi, alter_param)
-            self.verify_metadata(log_str)
-            # Put some more data in table.
-            c = self.session.open_cursor(uri, None)
-            if self.logalter:
-                myvalue = self.value
-            else:
-                myvalue = self.value2
-            for k in range(self.entries):
-                c[k + self.entries] = myvalue
-            c.close()
-            # If we logged the new connection and the table, add in the
-            # number of keys we expect.
-            if self.logalter and self.connreopen:
-                expected_keys += self.entries
-            # If we logged the connection at any time then check
-            # the log records.
-            if self.connreopen or self.conncreate:
-                self.verify_logrecs(expected_keys)
+
+        self.session.alter(uri, alter_param)
+        if special:
+            self.session.alter(suburi, alter_param)
+        self.verify_metadata(log_str)
+        # Put some more data in table.
+        c = self.session.open_cursor(uri, None)
+        if self.logalter:
+            myvalue = self.value
         else:
-            msg = '/Cannot alter open table/'
-            if special:
-                alteruri = suburi
-            else:
-                alteruri = uri
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                lambda:self.session.alter(alteruri, alter_param), msg)
+            myvalue = self.value2
+        for k in range(self.entries):
+            c[k + self.entries] = myvalue
+        c.close()
+        # If we logged the new connection and the table, add in the
+        # number of keys we expect.
+        expected_keys += conn_logged * table_logged * self.entries
+        # if self.logalter and self.connreopen == self.reopen:
+        #     expected_keys += self.entries
+        # If we logged the connection at any time then check
+        # the log records.
+        if self.conncreate or (self.connreopen and self.reopen):
+            self.pr("EXPECTED KEYS 2: " + str(expected_keys))
+            self.verify_logrecs(expected_keys)
 
 if __name__ == '__main__':
     wttest.run()

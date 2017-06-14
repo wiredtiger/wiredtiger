@@ -851,51 +851,6 @@ __wt_lsm_tree_retire_chunks(WT_SESSION_IMPL *session,
 }
 
 /*
- * __wt_lsm_tree_alter --
- *	Alter an LSM tree.
- */
-int
-__wt_lsm_tree_alter(
-    WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
-{
-	WT_DECL_RET;
-	WT_LSM_CHUNK *chunk;
-	WT_LSM_TREE *lsm_tree;
-	u_int i;
-	bool locked;
-
-	locked = false;
-
-	/* Get the LSM tree. */
-	WT_RET(__wt_lsm_tree_get(session, uri, false, &lsm_tree));
-
-	/* Prevent any new opens. */
-	__wt_lsm_tree_writelock(session, lsm_tree);
-	locked = true;
-
-	/* Alter the chunks. */
-	for (i = 0; i < lsm_tree->nchunks; i++) {
-		chunk = lsm_tree->chunk[i];
-		WT_ERR(__wt_schema_alter(session, chunk->uri, cfg));
-		if (F_ISSET(chunk, WT_LSM_CHUNK_BLOOM))
-			WT_ERR(
-			    __wt_schema_alter(session, chunk->bloom_uri, cfg));
-	}
-	WT_ERR(__wt_lsm_meta_write(session, lsm_tree, cfg[0]));
-	/*
-	 * Reread the tree's metadata so that we update the configuration
-	 * in the current tree's structure to the new, altered values,
-	 * not just on-disk in the metadata file.
-	 */
-	WT_ERR(__wt_lsm_meta_read(session, lsm_tree));
-
-err:	if (locked)
-		__wt_lsm_tree_writeunlock(session, lsm_tree);
-	__wt_lsm_tree_release(session, lsm_tree);
-	return (ret);
-}
-
-/*
  * __wt_lsm_tree_drop --
  *	Drop an LSM tree.
  */
@@ -1391,6 +1346,19 @@ __wt_lsm_tree_worker(WT_SESSION_IMPL *session,
 			WT_ERR(__wt_schema_worker(session, chunk->bloom_uri,
 			    file_func, name_func, cfg, open_flags));
 	}
+#if 1
+	/*
+	 * If this was an alter operation, we need to alter the configuration
+	 * for the overall tree and then reread it so it isn't out of date.
+	 * Reread it here so that we update the configuration of the
+	 * current tree's structure to any new, altered values.
+	 */
+	if (FLD_ISSET(open_flags, WT_BTREE_ALTER)) {
+		WT_ERR(__wt_lsm_meta_write(session, lsm_tree, cfg[0]));
+		WT_ERR(__wt_lsm_meta_read(session, lsm_tree));
+	}
+#endif
+
 err:	if (locked) {
 		if (exclusive)
 			__wt_lsm_tree_writeunlock(session, lsm_tree);

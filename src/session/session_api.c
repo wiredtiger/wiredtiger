@@ -161,8 +161,8 @@ __session_alter(WT_SESSION *wt_session, const char *uri, const char *config)
 	cfg[1] = NULL;
 	WT_WITH_CHECKPOINT_LOCK(session,
 	    WT_WITH_SCHEMA_LOCK(session,
-		WT_WITH_TABLE_WRITE_LOCK(session,
-		    ret = __wt_schema_alter(session, uri, cfg))));
+		ret = __wt_schema_worker(session, uri, __wt_alter, NULL, cfg,
+		WT_BTREE_ALTER | WT_DHANDLE_DISCARD_FORCE | WT_DHANDLE_EXCLUSIVE)));
 
 err:	if (ret != 0)
 		WT_STAT_CONN_INCR(session, session_table_alter_fail);
