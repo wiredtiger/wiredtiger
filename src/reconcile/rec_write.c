@@ -37,8 +37,9 @@ typedef struct {
 	 * split chunk ends up being smaller than the minimum required. As
 	 * reconciliation generates more split chunks, the image referred to by
 	 * the previous image pointer is written to the disk, the current and
-	 * the previous image pointers are swapped, letting upcoming split chunk
-	 * to be generated in the buffer that was just written out to the disk.
+	 * the previous image pointers are swapped, making space for another
+	 * split chunk to be reconciled in the buffer that was just written out
+	 * to the disk.
 	 */
 	WT_ITEM disk_image[2];		/* Temporary disk-image buffers */
 	WT_ITEM *cur_img_ptr;
@@ -2216,8 +2217,8 @@ __rec_split_init(WT_SESSION_IMPL *session,
 	 * greater of split_size and page_size.
 	 */
 	corrected_page_size = r->page_size;
-	disk_img_buf_size = WT_MAX(corrected_page_size, r->split_size);
 	WT_RET(bm->write_size(bm, session, &corrected_page_size));
+	disk_img_buf_size = WT_MAX(corrected_page_size, r->split_size);
 	WT_RET(__wt_buf_init(session, &r->disk_image[0], disk_img_buf_size));
 
 	/*
@@ -2474,28 +2475,25 @@ __rec_split_grow(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t add_len)
 /*
  * __rec_split_write_prev_and_swap_buf --
  *	If there is a previous split chunk held in the memory, write it to the
- *	disk as a page. If there isn't one, initialize a second buffer to hold
- *	the previous chunk. Swap the previous and current buffer pointers,
- *	making the current buffer as the previous one.
+ *	disk as a page. If there isn't one, this is the first time we are
+ *	splitting and need to initialize a second buffer. Also, swap the
+ *	previous and the current buffer pointers.
  */
 static int
-__rec_split_write_prev_and_swap_buf(
-    WT_SESSION_IMPL *session, WT_RECONCILE *r)
+__rec_split_write_prev_and_swap_buf(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
-	WT_BOUNDARY *bnd_cur, *bnd_prev;
+	WT_BOUNDARY *bnd_prev;
 	WT_ITEM *tmp_img_ptr;
 	WT_PAGE_HEADER *dsk;
 	size_t disk_img_size;
 	uint8_t page_type;
-
-	bnd_cur = &r->bnd[r->bnd_next];
-	bnd_prev = bnd_cur - 1;
 
 	WT_ASSERT(session, (r->prev_img_ptr == NULL && r->bnd_next == 0) ||
 	    (r->prev_img_ptr != NULL && r->bnd_next != 0));
 
 	/* Write previous chunk, if there is one */
 	if (r->prev_img_ptr != NULL) {
+		bnd_prev = &r->bnd[r->bnd_next - 1];
 		dsk = r->prev_img_ptr->mem;
 		dsk->recno = bnd_prev->max_bnd_recno;
 		dsk->u.entries = bnd_prev->max_bnd_entries;
@@ -2557,7 +2555,6 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 		    "%s page too large, attempted split during salvage",
 		    __wt_page_type_string(r->page->type));
 
-	last = &r->bnd[r->bnd_next];
 	inuse = WT_PTRDIFF(r->first_free, dsk);
 
 	/*
@@ -2572,6 +2569,7 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 	__rec_dictionary_reset(r);
 
 	/* Set the number of entries and size for the just finished chunk. */
+	last = &r->bnd[r->bnd_next];
 	last->max_bnd_entries = r->entries;
 	last->size = (uint32_t)inuse;
 
@@ -3160,7 +3158,8 @@ __rec_split_finish_process_prev(
 	WT_BOUNDARY *bnd_cur, *bnd_prev;
 	WT_BTREE *btree;
 	WT_PAGE_HEADER *dsk;
-	uint32_t combined_size, len_to_move;
+	size_t len_to_move;
+	uint32_t combined_size;
 	uint8_t *cur_dsk_start;
 
 	WT_ASSERT(session, r->prev_img_ptr != NULL);
@@ -3175,7 +3174,7 @@ __rec_split_finish_process_prev(
 	 * header twice.
 	 */
 	combined_size = bnd_prev->size +
-	    bnd_cur->size - WT_PAGE_HEADER_BYTE_SIZE(btree);
+	    (bnd_cur->size - WT_PAGE_HEADER_BYTE_SIZE(btree));
 
 	if (combined_size <= r->page_size) {
 		/*
@@ -3235,7 +3234,7 @@ __rec_split_finish_process_prev(
 		}
 
 		/* Write out the previous image */
-		__rec_split_write_prev_and_swap_buf(session, r);
+		WT_RET(__rec_split_write_prev_and_swap_buf(session, r));
 	}
 
 	/*
@@ -3286,7 +3285,7 @@ __rec_split_finish_std(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	/* Set the number of entries and size for the just finished chunk. */
 	bnd_cur = &r->bnd[r->bnd_next];
 	bnd_cur->max_bnd_entries = r->entries;
-	bnd_cur->size = WT_PTRDIFF(r->first_free, r->cur_img_ptr->mem);
+	bnd_cur->size = WT_PTRDIFF32(r->first_free, r->cur_img_ptr->mem);
 
 	chunks_merged = false;
 	if (r->prev_img_ptr != NULL)
