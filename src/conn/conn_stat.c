@@ -558,6 +558,7 @@ err:		WT_PANIC_MSG(session, ret, "statistics log server error");
 static int
 __statlog_start(WT_CONNECTION_IMPL *conn)
 {
+	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 
 	/* Nothing to do if the server is already running. */
@@ -584,8 +585,12 @@ __statlog_start(WT_CONNECTION_IMPL *conn)
 	 * have more than one thread, I just didn't feel like writing the code
 	 * to figure out the scheduling.
 	 */
-	WT_RET(__wt_thread_create(
-	    session, &conn->stat_tid, __statlog_server, session));
+	ret = __wt_thread_create(
+	    session, &conn->stat_tid, __statlog_server, session);
+	if (ret != 0) {
+		__wt_cond_destroy(session, &conn->stat_cond);
+		WT_RET(ret);
+	}
 	conn->stat_tid_set = true;
 
 	return (0);

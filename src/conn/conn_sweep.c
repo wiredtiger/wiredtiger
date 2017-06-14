@@ -428,8 +428,8 @@ __wt_sweep_destroy(WT_SESSION_IMPL *session)
 		__wt_cond_signal(session, &conn->sweep_cond);
 		WT_TRET(__wt_thread_join(session, conn->sweep_tid));
 		conn->sweep_tid_set = 0;
-		__wt_cond_destroy(session, &conn->sweep_cond);
 	}
+	__wt_cond_destroy(session, &conn->sweep_cond);
 
 	if (conn->sweep_session != NULL) {
 		wt_session = &conn->sweep_session->iface;
