@@ -1346,7 +1346,6 @@ __wt_lsm_tree_worker(WT_SESSION_IMPL *session,
 			WT_ERR(__wt_schema_worker(session, chunk->bloom_uri,
 			    file_func, name_func, cfg, open_flags));
 	}
-#if 1
 	/*
 	 * If this was an alter operation, we need to alter the configuration
 	 * for the overall tree and then reread it so it isn't out of date.
@@ -1357,7 +1356,6 @@ __wt_lsm_tree_worker(WT_SESSION_IMPL *session,
 		WT_ERR(__wt_lsm_meta_write(session, lsm_tree, cfg[0]));
 		WT_ERR(__wt_lsm_meta_read(session, lsm_tree));
 	}
-#endif
 
 err:	if (locked) {
 		if (exclusive)
