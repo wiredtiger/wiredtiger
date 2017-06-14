@@ -13,6 +13,8 @@ static int __checkpoint_lock_dirty_tree(
 static int __checkpoint_mark_skip(WT_SESSION_IMPL *, WT_CKPT *, bool);
 static int __checkpoint_presync(WT_SESSION_IMPL *, const char *[]);
 static int __checkpoint_tree_helper(WT_SESSION_IMPL *, const char *[]);
+static inline int __checkpoint_debug_latency(
+    WT_SESSION_IMPL *, const char *[]);
 
 /*
  * __checkpoint_name_ok --
@@ -665,8 +667,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_ISOLATION saved_isolation;
 	void *saved_meta_next;
-	u_int debug_latency, i;
-	WT_CONFIG_ITEM cval;
+	u_int i;
 	uint64_t fsync_duration_usecs, generation;
 	bool failed, full, idle, logging, tracking;
 
@@ -676,15 +677,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	txn_global = &conn->txn_global;
 	saved_isolation = session->isolation;
 	full = idle = logging = tracking = false;
-
-#ifdef HAVE_VERBOSE
-	WT_RET(__wt_config_gets(
-	    session, cfg, "debug_checkpoint_latency", &cval));
-	debug_latency = (u_int)cval.val;
-#else
-	WT_UNUSED(cval);
-	WT_UNUSED(debug_latency);
-#endif
 
 	/*
 	 * Do a pass over the configuration arguments and figure out what kind
@@ -781,9 +773,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_ERR(__wt_txn_checkpoint_log(
 		    session, full, WT_TXN_LOG_CKPT_START, NULL));
 
-#ifdef HAVE_VERBOSE
-	if (debug_latency > 0)
-		__wt_sleep(debug_latency, 0);
+#ifdef HAVE_DIAGNOSTIC
+	WT_ERR(__checkpoint_debug_latency(session, cfg));
 #endif
 	WT_ERR(__checkpoint_apply(session, cfg, __checkpoint_tree_helper));
 
@@ -1710,4 +1701,24 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
 		WT_TRET(__wt_meta_track_off(session, true, ret != 0));
 
 	return (ret);
+}
+
+/*
+ * __checkpoint_debug_latency --
+ *	Optionally add a delay to a checkpoint to simulate a long running
+ *	checkpoint for debug purposes.
+ */
+static inline int
+__checkpoint_debug_latency(WT_SESSION_IMPL *session, const char *cfg[])
+{
+	WT_CONFIG_ITEM cval;
+	u_int debug_latency;
+
+	WT_RET(__wt_config_gets(
+	    session, cfg, "debug_checkpoint_latency", &cval));
+	debug_latency = (u_int)cval.val;
+
+	if (debug_latency > 0)
+		__wt_sleep(debug_latency, 0);
+	return (0);
 }

@@ -28,7 +28,7 @@
 #include "test_util.h"
 
 /*
- * JIRA ticket reference: WT-3362
+ * JIRA ticket reference: WT-3363
  *
  * Test case description: There are a number of operations that we run that we
  * expect not to conflict with or block against a running checkpoint. This test
@@ -48,12 +48,19 @@ void* monitor(void *);
 void* do_checkpoints(void *);
 void* do_ops(void *);
 void op_bulk(WT_CONNECTION *);
-void op_bulk_unique(WT_CONNECTION *, int, int);
+void op_bulk_unique(WT_CONNECTION *, int, int *);
 void op_create(WT_CONNECTION *);
-void op_create_unique(WT_CONNECTION *, int, int);
+void op_create_unique(WT_CONNECTION *, int, int *);
 void op_cursor(WT_CONNECTION *);
 void op_drop(WT_CONNECTION *, int);
 
+/*
+ * Time delay to introduce into checkpoints in seconds. Should be at-least
+ * double the maximum time that any one of the operations should take. Currently
+ * this is set to 10 seconds and we expect no single operation to take longer
+ * than 5 seconds.
+ */
+#define	MAX_EXECUTION_TIME 10
 #define	N_THREADS 10
 #define	RUNTIME 900.0
 
@@ -61,37 +68,26 @@ typedef struct {
 	TEST_OPTS *testopts;
 	int threadnum;
 	int nthread;
-	int done;
+	int thread_counter;
 } THREAD_ARGS;
 
-static pthread_rwlock_t single;
-/*
- * Time delay to introduce into checkpoints in seconds. Should be at-least
- * double the maximum time that any one of the operations should take. Currently
- * this is set to 10 seconds and we expect no single operation to take longer
- * than 5 seconds.
- */
-static const uint64_t max_execution_time = 10;
+static WT_EVENT_HANDLER event_handler = {
+	handle_error,
+	handle_message,
+	NULL,
+	NULL
+};
 
-/* Int used to make unique table names */
+static pthread_rwlock_t single;
+
+/* Integer used to make unique table names */
 static uint64_t uid = 1;
 
-/*
- * An array of the number of operations that each of the worker threads has
- * performed.
- */
-static uint64_t thread_counters[N_THREADS];
 static const char *uri;
 
 int
 main(int argc, char *argv[])
 {
-	static WT_EVENT_HANDLER event_handler = {
-		handle_error,
-		handle_message,
-		NULL,
-		NULL
-	};
 	TEST_OPTS *opts, _opts;
 	THREAD_ARGS thread_args[N_THREADS];
 	pthread_t ckpt_thread, mon_thread, threads[N_THREADS];
@@ -112,10 +108,10 @@ main(int argc, char *argv[])
 	uri = opts->uri;
 
 	testutil_check(pthread_create(
-	    &ckpt_thread, NULL, do_checkpoints, (void *)opts->conn));
+	    &ckpt_thread, NULL, do_checkpoints, (void *)opts));
 
 	for (i = 0; i < N_THREADS; ++i) {
-		thread_counters[i] = 0;
+		thread_args[i].thread_counter = 0;
 		thread_args[i].threadnum = i;
 		thread_args[i].nthread = N_THREADS;
 		thread_args[i].testopts = opts;
@@ -123,7 +119,7 @@ main(int argc, char *argv[])
 		    &threads[i], NULL, do_ops, (void *)&thread_args[i]));
 	}
 
-	testutil_check(pthread_create(&mon_thread, NULL, monitor, NULL));
+	testutil_check(pthread_create(&mon_thread, NULL, monitor, &thread_args));
 
 	for (i = 0; i < N_THREADS; ++i)
 		testutil_check(pthread_join(threads[i], NULL));
@@ -138,7 +134,9 @@ main(int argc, char *argv[])
 	return (EXIT_SUCCESS);
 }
 
-/* WiredTiger error handling function */
+/*
+ * WiredTiger error handling function
+ */
 int
 handle_error(WT_EVENT_HANDLER *handler,
     WT_SESSION *session, int error, const char *errmsg)
@@ -147,7 +145,11 @@ handle_error(WT_EVENT_HANDLER *handler,
 	(void)(session);
 	(void)(error);
 
-	/* Ignore complaints about missing files. */
+	/*
+	 * Ignore complaints about missing files. It's unlikely but possible
+	 * that checkpoints and cursor open operations can return this due to
+	 * the sequencing of the various ops.
+	 */
 	if (error == ENOENT)
 		return (0);
 
@@ -159,7 +161,9 @@ handle_error(WT_EVENT_HANDLER *handler,
 	return (fprintf(stderr, "%s\n", errmsg) < 0 ? -1 : 0);
 }
 
-/* WiredTiger message handling function */
+/*
+ * WiredTiger message handling function
+ */
 int
 handle_message(WT_EVENT_HANDLER *handler,
     WT_SESSION *session, const char *message)
@@ -174,19 +178,23 @@ handle_message(WT_EVENT_HANDLER *handler,
 	return (printf("%s\n", message) < 0 ? -1 : 0);
 }
 
-/* Function for repeatedly running checkpoint operations */
+/*
+ * Function for repeatedly running checkpoint operations
+ */
 void *
-do_checkpoints(void *connection)
+do_checkpoints(void *_opts)
 {
+	TEST_OPTS *opts;
 	WT_CONNECTION *conn;
 	WT_SESSION *session;
 	time_t now, start;
 	int ret;
 	char config[64];
 
-	conn = (WT_CONNECTION *)connection;
+	opts = (TEST_OPTS *)_opts;
+	conn = opts->conn;
 	testutil_check(__wt_snprintf(config, sizeof(config),
-	    "force,debug_checkpoint_latency=%" PRIu64, max_execution_time));
+	    "force,debug_checkpoint_latency=%" PRIu64, MAX_EXECUTION_TIME));
 	(void)time(&start);
 	(void)time(&now);
 
@@ -200,13 +208,13 @@ do_checkpoints(void *connection)
 
 		if ((ret = session->close(session, NULL)) != 0)
 			testutil_die(ret, "session.close");
-		(void)time(&now);
 
 		/*
 		 * A short sleep to let operations process and avoid back to
 		 * back checkpoints locking up resources.
 		 */
 		sleep(1);
+		(void)time(&now);
 	}
 
 	return (NULL);
@@ -219,30 +227,30 @@ do_checkpoints(void *connection)
 void *
 monitor(void *args)
 {
+	THREAD_ARGS *thread_args;
 	time_t now, start;
-	uint64_t last_ops[N_THREADS];
-	int i;
+	int i, thread_counter, last_ops[N_THREADS];
 
-	/* Unused */
-	(void)args;
+	thread_args = (THREAD_ARGS*)args;
 
 	(void)time(&start);
 	(void)time(&now);
 
-	for (i = 0; i < N_THREADS; i++)
-		last_ops[i] = 0;
+	memset(last_ops, 0, N_THREADS);
 
 	while (difftime(now, start) < RUNTIME) {
 		/*
-		 * Checkpoints will run for slightly over max_execution_time.
-		 * max_execution_times should always be long enough that we can
+		 * Checkpoints will run for slightly over MAX_EXECUTION_TIME.
+		 * MAX_EXECUTION_TIME should always be long enough that we can
 		 * complete any single operation in 1/2 that time.
 		 */
-		sleep(max_execution_time/2);
+		sleep(MAX_EXECUTION_TIME/2);
 
 		for (i = 0; i < N_THREADS; i++) {
+			thread_counter = thread_args[i].thread_counter;
+
 			/* Ignore any threads which may not have started yet */
-			if (thread_counters[i] == 0)
+			if (thread_counter == 0)
 				continue;
 			/*
 			 * We track how many operations each thread has done. If
@@ -250,12 +258,12 @@ monitor(void *args)
 			 * thread it is stuck and should drop a core so the
 			 * cause of the hang can be investigated.
 			 */
-			if (thread_counters[i] != last_ops[i])
-				last_ops[i] = thread_counters[i];
+			if (thread_counter != last_ops[i])
+				last_ops[i] = thread_counter;
 			else {
 				printf("Thread %d had a task running"
-				    " for more than %" PRIu64 " seconds\n",
-				    i, max_execution_time/2);
+				    " for more than %d seconds\n",
+				    i, MAX_EXECUTION_TIME/2);
 				abort();
 
 			}
@@ -266,7 +274,9 @@ monitor(void *args)
 	return (NULL);
 }
 
-/* Worker thread. Executes random operations from the set of 6 */
+/*
+ * Worker thread. Executes random operations from the set of 6
+ */
 void *
 do_ops(void *args)
 {
@@ -296,16 +306,16 @@ do_ops(void *args)
 				op_drop(conn, __wt_random(&rnd) & 1);
 				break;
 			case 4:
-				op_bulk_unique(conn,
-				    __wt_random(&rnd) & 1, arg->threadnum);
+				op_bulk_unique(conn, __wt_random(&rnd) & 1,
+				    &arg->thread_counter);
 				break;
 			case 5:
-				op_create_unique(conn,
-				    __wt_random(&rnd) & 1, arg->threadnum);
+				op_create_unique(conn, __wt_random(&rnd) & 1,
+				    &arg->thread_counter);
 				break;
 		}
 		/* Increment how many ops this thread has performed */
-		__wt_atomic_add64(&thread_counters[arg->threadnum], 1);
+		arg->thread_counter++;
 		(void)time(&now);
 	}
 
@@ -314,7 +324,7 @@ do_ops(void *args)
 
 /*
  * There are 6 operations below. These are taken originally from the operations
- * we do in test/fops and modified somewhat bit to avoid blocking states.
+ * we do in test/fops and slightly modified to avoid blocking states.
  * The operations borrowed from fops are:
  * - op_bulk
  * - op_bulk_unique
@@ -352,7 +362,7 @@ op_bulk(WT_CONNECTION *conn)
 }
 
 void
-op_bulk_unique(WT_CONNECTION *conn, int force, int tid)
+op_bulk_unique(WT_CONNECTION *conn, int force, int *counter)
 {
 	WT_CURSOR *c;
 	WT_SESSION *session;
@@ -396,7 +406,7 @@ op_bulk_unique(WT_CONNECTION *conn, int force, int tid)
 			 * checkpoint_wait set to false, so we increment the
 			 * counter while in this loop to avoid false positives.
 			 */
-			__wt_atomic_add64(&thread_counters[tid], 1);
+			counter++;
 
 	if ((ret = session->close(session, NULL)) != 0)
 		testutil_die(ret, "session.close");
@@ -442,7 +452,7 @@ op_create(WT_CONNECTION *conn)
 }
 
 void
-op_create_unique(WT_CONNECTION *conn,  int force, int tid)
+op_create_unique(WT_CONNECTION *conn,  int force, int *counter)
 {
 	WT_SESSION *session;
 	int ret;
@@ -473,7 +483,7 @@ op_create_unique(WT_CONNECTION *conn,  int force, int tid)
 			 * checkpoint_wait set to false, so we increment the
 			 * counter while in this loop to avoid false positives.
 			 */
-			__wt_atomic_add64(&thread_counters[tid], 1);
+			counter++;
 
 	if ((ret = session->close(session, NULL)) != 0)
 		testutil_die(ret, "session.close");
