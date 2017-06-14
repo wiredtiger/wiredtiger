@@ -496,8 +496,8 @@ ops(void *arg)
 				 * open_cursor can return EBUSY if concurrent
 				 * with a metadata operation, retry.
 				 */
-				while ((ret = session->open_cursor(session, g.uri,
-				    NULL, ckpt_name, &cursor)) == EBUSY)
+				while ((ret = session->open_cursor(session,
+				    g.uri, NULL, ckpt_name, &cursor)) == EBUSY)
 					__wt_yield();
 				testutil_check(ret);
 
@@ -513,8 +513,8 @@ ops(void *arg)
 				 * open_cursor can return EBUSY if concurrent
 				 * with a metadata operation, retry.
 				 */
-				while ((ret = session->open_cursor(session, g.uri,
-				    NULL, "append", &cursor)) == EBUSY)
+				while ((ret = session->open_cursor(session,
+				    g.uri, NULL, "append", &cursor)) == EBUSY)
 					__wt_yield();
 				testutil_check(ret);
 
