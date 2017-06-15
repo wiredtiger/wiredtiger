@@ -8,13 +8,13 @@
 
 #include "wt_internal.h"
 
+static inline int __checkpoint_debug_latency(
+    WT_SESSION_IMPL *, const char *[]);
 static int __checkpoint_lock_dirty_tree(
     WT_SESSION_IMPL *, bool, bool, bool, const char *[]);
 static int __checkpoint_mark_skip(WT_SESSION_IMPL *, WT_CKPT *, bool);
 static int __checkpoint_presync(WT_SESSION_IMPL *, const char *[]);
 static int __checkpoint_tree_helper(WT_SESSION_IMPL *, const char *[]);
-static inline int __checkpoint_debug_latency(
-    WT_SESSION_IMPL *, const char *[]);
 
 /*
  * __checkpoint_name_ok --

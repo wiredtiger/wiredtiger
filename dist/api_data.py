@@ -1101,7 +1101,7 @@ methods = {
 
 'WT_SESSION.checkpoint' : Method([
     Config('debug_checkpoint_latency', '0', r'''
-        adds a sleep of some number of seconds to checkpoints. This is to
+        add a sleep of some number of seconds to checkpoints. This is to
         simulate long running checkpoints, intended for debugging''',
         type='int',undoc=True),
     Config('drop', '', r'''

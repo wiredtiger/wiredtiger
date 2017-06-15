@@ -44,9 +44,9 @@
 
 int handle_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *);
 int handle_message(WT_EVENT_HANDLER *, WT_SESSION *, const char *);
-void* monitor(void *);
 void* do_checkpoints(void *);
 void* do_ops(void *);
+void* monitor(void *);
 void op_bulk(WT_CONNECTION *);
 void op_bulk_unique(WT_CONNECTION *, int, int *);
 void op_create(WT_CONNECTION *);
@@ -62,12 +62,17 @@ void op_drop(WT_CONNECTION *, int);
  */
 #define	MAX_EXECUTION_TIME 10
 #define	N_THREADS 10
+/*
+ * Number of seconds to execute for. Initially set to 15 minutes, as we need to
+ * run long enough to be certain we have captured any blockages. In initial
+ * testing 5 minutes was enough to reproduce the issue, so we run for 3x that
+ * here to ensure we reproduce before declaring success.
+ */
 #define	RUNTIME 900.0
 
 typedef struct {
 	TEST_OPTS *testopts;
 	int threadnum;
-	int nthread;
 	int thread_counter;
 } THREAD_ARGS;
 
@@ -80,7 +85,7 @@ static WT_EVENT_HANDLER event_handler = {
 
 static pthread_rwlock_t single;
 
-/* Integer used to make unique table names */
+/* Counter used to make unique table names. */
 static uint64_t uid = 1;
 
 static const char *uri;
@@ -93,7 +98,7 @@ main(int argc, char *argv[])
 	pthread_t ckpt_thread, mon_thread, threads[N_THREADS];
 	int i;
 
-	if (!testutil_enable_long_tests())	/* Ignore unless requested */
+	if (!testutil_enable_long_tests())	/* Ignore unless requested. */
 		return (EXIT_SUCCESS);
 
 	opts = &_opts;
@@ -113,7 +118,6 @@ main(int argc, char *argv[])
 	for (i = 0; i < N_THREADS; ++i) {
 		thread_args[i].thread_counter = 0;
 		thread_args[i].threadnum = i;
-		thread_args[i].nthread = N_THREADS;
 		thread_args[i].testopts = opts;
 		testutil_check(pthread_create(
 		    &threads[i], NULL, do_ops, (void *)&thread_args[i]));
@@ -136,7 +140,7 @@ main(int argc, char *argv[])
 }
 
 /*
- * WiredTiger error handling function
+ * WiredTiger error handling function.
  */
 int
 handle_error(WT_EVENT_HANDLER *handler,
@@ -163,7 +167,7 @@ handle_error(WT_EVENT_HANDLER *handler,
 }
 
 /*
- * WiredTiger message handling function
+ * WiredTiger message handling function.
  */
 int
 handle_message(WT_EVENT_HANDLER *handler,
@@ -180,7 +184,7 @@ handle_message(WT_EVENT_HANDLER *handler,
 }
 
 /*
- * Function for repeatedly running checkpoint operations
+ * Function for repeatedly running checkpoint operations.
  */
 void *
 do_checkpoints(void *_opts)
@@ -250,7 +254,7 @@ monitor(void *args)
 		for (i = 0; i < N_THREADS; i++) {
 			thread_counter = thread_args[i].thread_counter;
 
-			/* Ignore any threads which may not have started yet */
+			/* Ignore any threads which may not have started yet. */
 			if (thread_counter == 0)
 				continue;
 			/*
@@ -276,7 +280,7 @@ monitor(void *args)
 }
 
 /*
- * Worker thread. Executes random operations from the set of 6
+ * Worker thread. Executes random operations from the set of 6.
  */
 void *
 do_ops(void *args)
@@ -315,7 +319,7 @@ do_ops(void *args)
 				    &arg->thread_counter);
 				break;
 		}
-		/* Increment how many ops this thread has performed */
+		/* Increment how many ops this thread has performed. */
 		arg->thread_counter++;
 		(void)time(&now);
 	}
@@ -387,7 +391,7 @@ op_bulk_unique(WT_CONNECTION *conn, int force, int *counter)
 	__wt_yield();
 	/*
 	 * Opening a bulk cursor may have raced with a forced checkpoint
-	 * which created a checkpoint of the empty file, and triggers an EINVAL
+	 * which created a checkpoint of the empty file, and triggers an EINVAL.
 	 */
 	if ((ret = session->open_cursor(
 	  session, new_uri, NULL, "bulk,checkpoint_wait=false", &c)) == 0) {
