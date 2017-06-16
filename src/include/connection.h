@@ -254,7 +254,7 @@ struct __wt_connection_impl {
 	WT_SESSION_IMPL *ckpt_session;	/* Checkpoint thread session */
 	wt_thread_t	 ckpt_tid;	/* Checkpoint thread */
 	bool		 ckpt_tid_set;	/* Checkpoint thread set */
-	WT_CONDVAR	*ckpt_cond;	/* Checkpoint wait mutex */
+	WT_CONDVAR	 ckpt_cond;	/* Checkpoint wait mutex */
 #define	WT_CKPT_LOGSIZE(conn)	((conn)->ckpt_logsize != 0)
 	wt_off_t	 ckpt_logsize;	/* Checkpoint log size period */
 	bool		 ckpt_signalled;/* Checkpoint signalled */
@@ -299,7 +299,7 @@ struct __wt_connection_impl {
 	WT_SESSION_IMPL *stat_session;	/* Statistics log session */
 	wt_thread_t	 stat_tid;	/* Statistics log thread */
 	bool		 stat_tid_set;	/* Statistics log thread set */
-	WT_CONDVAR	*stat_cond;	/* Statistics log wait mutex */
+	WT_CONDVAR	 stat_cond;	/* Statistics log wait mutex */
 	const char	*stat_format;	/* Statistics log timestamp format */
 	WT_FSTREAM	*stat_fs;	/* Statistics log stream */
 	char		*stat_path;	/* Statistics log path format */
@@ -315,15 +315,15 @@ struct __wt_connection_impl {
 #define	WT_CONN_LOG_RECOVER_ERR		0x20	/* Error if recovery required */
 #define	WT_CONN_LOG_ZERO_FILL		0x40	/* Manually zero files */
 	uint32_t	 log_flags;	/* Global logging configuration */
-	WT_CONDVAR	*log_cond;	/* Log server wait mutex */
+	WT_CONDVAR	 log_cond;	/* Log server wait mutex */
 	WT_SESSION_IMPL *log_session;	/* Log server session */
 	wt_thread_t	 log_tid;	/* Log server thread */
 	bool		 log_tid_set;	/* Log server thread set */
-	WT_CONDVAR	*log_file_cond;	/* Log file thread wait mutex */
+	WT_CONDVAR	 log_file_cond;	/* Log file thread wait mutex */
 	WT_SESSION_IMPL *log_file_session;/* Log file thread session */
 	wt_thread_t	 log_file_tid;	/* Log file thread */
 	bool		 log_file_tid_set;/* Log file thread set */
-	WT_CONDVAR	*log_wrlsn_cond;/* Log write lsn thread wait mutex */
+	WT_CONDVAR	 log_wrlsn_cond;/* Log write lsn thread wait mutex */
 	WT_SESSION_IMPL *log_wrlsn_session;/* Log write lsn thread session */
 	wt_thread_t	 log_wrlsn_tid;	/* Log write lsn thread */
 	bool		 log_wrlsn_tid_set;/* Log write lsn thread set */
@@ -345,7 +345,7 @@ struct __wt_connection_impl {
 	WT_SESSION_IMPL *sweep_session;	   /* Handle sweep session */
 	wt_thread_t	 sweep_tid;	   /* Handle sweep thread */
 	int		 sweep_tid_set;	   /* Handle sweep thread set */
-	WT_CONDVAR      *sweep_cond;	   /* Handle sweep wait mutex */
+	WT_CONDVAR       sweep_cond;	   /* Handle sweep wait mutex */
 	uint64_t         sweep_idle_time;  /* Handle sweep idle time */
 	uint64_t         sweep_interval;   /* Handle sweep interval */
 	uint64_t         sweep_handles_min;/* Handle sweep minimum open */

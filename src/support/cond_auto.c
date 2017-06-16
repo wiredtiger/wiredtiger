@@ -14,18 +14,14 @@
  */
 
 /*
- * __wt_cond_auto_alloc --
- *	Allocate and initialize an automatically adjusting condition variable.
+ * __wt_cond_auto_init --
+ *	Initialize an automatically adjusting condition variable.
  */
 int
-__wt_cond_auto_alloc(WT_SESSION_IMPL *session,
-    const char *name, uint64_t min, uint64_t max, WT_CONDVAR **condp)
+__wt_cond_auto_init(WT_SESSION_IMPL *session,
+    WT_CONDVAR *cond, const char *name, uint64_t min, uint64_t max)
 {
-	WT_CONDVAR *cond;
-
-	WT_RET(__wt_cond_alloc(session, name, condp));
-	cond = *condp;
-
+	WT_RET(__wt_cond_init(session, cond, name));
 	cond->min_wait = min;
 	cond->max_wait = max;
 	cond->prev_wait = min;

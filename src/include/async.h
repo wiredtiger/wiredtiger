@@ -91,7 +91,7 @@ struct __wt_async {
 	uint32_t	 	 flush_state;
 
 	/* Notify any waiting threads when flushing is done. */
-	WT_CONDVAR		*flush_cond;
+	WT_CONDVAR		 flush_cond;
 	WT_ASYNC_OP_IMPL	 flush_op;	/* Special flush op */
 	uint32_t		 flush_count;	/* Worker count */
 	uint64_t		 flush_gen;	/* Flush generation number */

@@ -239,9 +239,9 @@ struct __wt_log {
 	WT_RWLOCK	 log_archive_lock;/* Archive and log cursors */
 
 	/* Notify any waiting threads when sync_lsn is updated. */
-	WT_CONDVAR	*log_sync_cond;
+	WT_CONDVAR	 log_sync_cond;
 	/* Notify any waiting threads when write_lsn is updated. */
-	WT_CONDVAR	*log_write_cond;
+	WT_CONDVAR	 log_write_cond;
 
 	/*
 	 * Consolidation array information

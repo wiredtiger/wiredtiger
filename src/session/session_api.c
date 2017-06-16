@@ -1581,12 +1581,12 @@ __session_transaction_sync(WT_SESSION *wt_session, const char *config)
 		if (!__transaction_sync_run_chk(session))
 			WT_ERR(ETIMEDOUT);
 
-		__wt_cond_signal(session, conn->log_file_cond);
+		__wt_cond_signal(session, &conn->log_file_cond);
 		__wt_epoch(session, &now);
 		waited_ms = WT_TIMEDIFF_MS(now, start);
 		if (forever || waited_ms < timeout_ms) {
 			remaining_usec = (timeout_ms - waited_ms) * WT_THOUSAND;
-			__wt_cond_wait(session, log->log_sync_cond,
+			__wt_cond_wait(session, &log->log_sync_cond,
 			    remaining_usec, __transaction_sync_run_chk);
 		} else
 			WT_ERR(ETIMEDOUT);

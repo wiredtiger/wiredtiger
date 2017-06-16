@@ -9,30 +9,23 @@
 #include "wt_internal.h"
 
 /*
- * __wt_cond_alloc --
- *	Allocate and initialize a condition variable.
+ * __wt_cond_init --
+ *	Initialize a condition variable.
  */
 int
-__wt_cond_alloc(WT_SESSION_IMPL *session, const char *name, WT_CONDVAR **condp)
+__wt_cond_init(WT_SESSION_IMPL *session, WT_CONDVAR *cond, const char *name)
 {
-	WT_CONDVAR *cond;
-	WT_DECL_RET;
+	WT_UNUSED(session);
 
-	WT_RET(__wt_calloc_one(session, &cond));
-
-	WT_ERR(pthread_mutex_init(&cond->mtx, NULL));
+	WT_CLEAR(*cond);
+	WT_RET(pthread_mutex_init(&cond->mtx, NULL));
 
 	/* Initialize the condition variable to permit self-blocking. */
-	WT_ERR(pthread_cond_init(&cond->cond, NULL));
+	WT_RET(pthread_cond_init(&cond->cond, NULL));
 
 	cond->name = name;
 	cond->waiters = 0;
-
-	*condp = cond;
 	return (0);
-
-err:	__wt_free(session, cond);
-	return (ret);
 }
 
 /*
@@ -154,12 +147,10 @@ err:
  *	Destroy a condition variable.
  */
 void
-__wt_cond_destroy(WT_SESSION_IMPL *session, WT_CONDVAR **condp)
+__wt_cond_destroy(WT_SESSION_IMPL *session, WT_CONDVAR *cond)
 {
-	WT_CONDVAR *cond;
 	WT_DECL_RET;
 
-	cond = *condp;
 	if (cond == NULL)
 		return;
 
@@ -170,6 +161,4 @@ __wt_cond_destroy(WT_SESSION_IMPL *session, WT_CONDVAR **condp)
 	if ((ret = pthread_mutex_destroy(&cond->mtx)) != 0)
 		WT_PANIC_MSG(
 		    session, ret, "pthread_mutex_destroy: %s", cond->name);
-
-	__wt_free(session, *condp);
 }

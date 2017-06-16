@@ -104,8 +104,8 @@ __wt_cache_pool_config(WT_SESSION_IMPL *session, const char **cfg)
 		TAILQ_INIT(&cp->cache_pool_qh);
 		WT_ERR(__wt_spin_init(
 		    session, &cp->cache_pool_lock, "cache shared pool"));
-		WT_ERR(__wt_cond_alloc(
-		    session, "cache pool server", &cp->cache_pool_cond));
+		WT_ERR(__wt_cond_init(
+		    session, &cp->cache_pool_cond, "cache pool server"));
 
 		__wt_process.cache_pool = cp;
 		__wt_verbose(session,
@@ -213,7 +213,7 @@ __wt_cache_pool_config(WT_SESSION_IMPL *session, const char **cfg)
 	/* Wake up the cache pool server so any changes are noticed. */
 	if (updating)
 		__wt_cond_signal(
-		    session, __wt_process.cache_pool->cache_pool_cond);
+		    session, &__wt_process.cache_pool->cache_pool_cond);
 
 	__wt_verbose(session, WT_VERB_SHARED_CACHE,
 	    "Configured cache pool %s. Size: %" PRIu64
@@ -282,7 +282,7 @@ __wt_conn_cache_pool_open(WT_SESSION_IMPL *session)
 	    __wt_cache_pool_server, cache->cp_session));
 
 	/* Wake up the cache pool server to get our initial chunk. */
-	__wt_cond_signal(session, cp->cache_pool_cond);
+	__wt_cond_signal(session, &cp->cache_pool_cond);
 
 	return (0);
 }
@@ -341,7 +341,7 @@ __wt_conn_cache_pool_destroy(WT_SESSION_IMPL *session)
 		cp_locked = false;
 
 		FLD_CLR(cache->pool_flags, WT_CACHE_POOL_RUN);
-		__wt_cond_signal(session, cp->cache_pool_cond);
+		__wt_cond_signal(session, &cp->cache_pool_cond);
 		WT_TRET(__wt_thread_join(session, cache->cp_tid));
 
 		wt_session = &cache->cp_session->iface;
@@ -764,7 +764,7 @@ __wt_cache_pool_server(void *arg)
 	    FLD_ISSET(cache->pool_flags, WT_CACHE_POOL_RUN)) {
 		if (cp->currently_used <= cp->size)
 			__wt_cond_wait(
-			    session, cp->cache_pool_cond, WT_MILLION, NULL);
+			    session, &cp->cache_pool_cond, WT_MILLION, NULL);
 
 		/*
 		 * Re-check pool run flag - since we want to avoid getting the

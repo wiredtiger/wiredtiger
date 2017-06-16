@@ -275,7 +275,7 @@ __sweep_server(void *arg)
 	 */
 	for (;;) {
 		/* Wait until the next event. */
-		__wt_cond_wait(session, conn->sweep_cond,
+		__wt_cond_wait(session, &conn->sweep_cond,
 		    conn->sweep_interval * WT_MILLION, __sweep_server_run_chk);
 
 		/* Check if we're quitting or being reconfigured. */
@@ -400,8 +400,8 @@ __wt_sweep_create(WT_SESSION_IMPL *session)
 	    conn, "sweep-server", true, session_flags, &conn->sweep_session));
 	session = conn->sweep_session;
 
-	WT_RET(__wt_cond_alloc(
-	    session, "handle sweep server", &conn->sweep_cond));
+	WT_RET(__wt_cond_init(
+	    session, &conn->sweep_cond, "handle sweep server"));
 
 	WT_RET(__wt_thread_create(
 	    session, &conn->sweep_tid, __sweep_server, session));
@@ -425,13 +425,13 @@ __wt_sweep_destroy(WT_SESSION_IMPL *session)
 
 	F_CLR(conn, WT_CONN_SERVER_SWEEP);
 	if (conn->sweep_tid_set) {
-		__wt_cond_signal(session, conn->sweep_cond);
+		__wt_cond_signal(session, &conn->sweep_cond);
 		WT_TRET(__wt_thread_join(session, conn->sweep_tid));
 		conn->sweep_tid_set = 0;
 	}
-	__wt_cond_destroy(session, &conn->sweep_cond);
 
 	if (conn->sweep_session != NULL) {
+		__wt_cond_destroy(session, &conn->sweep_cond);
 		wt_session = &conn->sweep_session->iface;
 		WT_TRET(wt_session->close(wt_session, NULL));
 

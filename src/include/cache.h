@@ -103,7 +103,7 @@ struct __wt_cache {
 	/*
 	 * Eviction thread information.
 	 */
-	WT_CONDVAR *evict_cond;		/* Eviction server condition */
+	WT_CONDVAR evict_cond;		/* Eviction server condition */
 	WT_SPINLOCK evict_walk_lock;	/* Eviction walk location */
 
 	u_int eviction_dirty_target;    /* Percent to allow dirty */
@@ -205,7 +205,7 @@ struct __wt_cache {
  */
 struct __wt_cache_pool {
 	WT_SPINLOCK cache_pool_lock;
-	WT_CONDVAR *cache_pool_cond;
+	WT_CONDVAR cache_pool_cond;
 	const char *name;
 	uint64_t size;
 	uint64_t chunk;

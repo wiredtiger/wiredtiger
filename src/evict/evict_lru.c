@@ -244,7 +244,7 @@ __wt_evict_server_wake(WT_SESSION_IMPL *session)
 	}
 #endif
 
-	__wt_cond_signal(session, cache->evict_cond);
+	__wt_cond_signal(session, &cache->evict_cond);
 }
 
 /*
@@ -309,7 +309,7 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
 			/* Don't rely on signals: check periodically. */
 			__wt_cond_auto_wait(session,
-			    cache->evict_cond, did_work, NULL);
+			    &cache->evict_cond, did_work, NULL);
 			__wt_verbose(session, WT_VERB_EVICTSERVER, "waking");
 		}
 	} else
@@ -734,7 +734,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 				WT_STAT_CONN_INCR(session,
 				    cache_eviction_server_slept);
 				__wt_cond_wait(session,
-				    cache->evict_cond, WT_THOUSAND, NULL);
+				    &cache->evict_cond, WT_THOUSAND, NULL);
 				continue;
 			}
 
@@ -1143,7 +1143,7 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
 	if (ret == WT_NOTFOUND && !is_server &&
 	    F_ISSET(conn, WT_CONN_EVICTION_RUN))
 		__wt_cond_wait(
-		    session, conn->evict_threads.wait_cond, 10000, NULL);
+		    session, &conn->evict_threads.wait_cond, 10000, NULL);
 
 	return (ret == WT_NOTFOUND ? 0 : ret);
 }
@@ -1305,7 +1305,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 	 * Signal any application or helper threads that may be waiting
 	 * to help with eviction.
 	 */
-	__wt_cond_signal(session, S2C(session)->evict_threads.wait_cond);
+	__wt_cond_signal(session, &S2C(session)->evict_threads.wait_cond);
 
 	return (0);
 }
@@ -2252,7 +2252,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 		case WT_NOTFOUND:
 			/* Allow the queue to re-populate before retrying. */
 			__wt_cond_wait(session,
-			    conn->evict_threads.wait_cond, 10000, NULL);
+			    &conn->evict_threads.wait_cond, 10000, NULL);
 			cache->app_waits++;
 			break;
 		default:
@@ -2319,7 +2319,7 @@ done:	__wt_spin_unlock(session, &cache->evict_queue_lock);
 		WT_STAT_CONN_INCR(session, cache_eviction_pages_queued_urgent);
 		if (WT_EVICT_HAS_WORKERS(session))
 			__wt_cond_signal(session,
-			    S2C(session)->evict_threads.wait_cond);
+			    &S2C(session)->evict_threads.wait_cond);
 		else
 			__wt_evict_server_wake(session);
 	}

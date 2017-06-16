@@ -94,8 +94,8 @@ __wt_rwlock_init(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 	l->stat_read_count_off = l->stat_write_count_off = -1;
 	l->stat_app_usecs_off = l->stat_int_usecs_off = -1;
 
-	WT_RET(__wt_cond_alloc(session, "rwlock wait", &l->cond_readers));
-	WT_RET(__wt_cond_alloc(session, "rwlock wait", &l->cond_writers));
+	WT_RET(__wt_cond_init(session, &l->cond_readers, "rwlock wait"));
+	WT_RET(__wt_cond_init(session, &l->cond_writers, "rwlock wait"));
 	return (0);
 }
 
@@ -217,7 +217,7 @@ __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 		writers_active = old.u.s.next - old.u.s.current;
 		if (old.u.s.readers_queued > writers_active) {
 stall:			__wt_cond_wait(session,
-			    l->cond_readers, 10 * WT_THOUSAND, NULL);
+			    &l->cond_readers, 10 * WT_THOUSAND, NULL);
 			continue;
 		}
 
@@ -247,7 +247,7 @@ stall:			__wt_cond_wait(session,
 			session->current_rwlock = l;
 			session->current_rwticket = ticket;
 			__wt_cond_wait(session,
-			    l->cond_readers, 10 * WT_THOUSAND, __read_blocked);
+			    &l->cond_readers, 10 * WT_THOUSAND, __read_blocked);
 		}
 	}
 	if (set_stats) {
@@ -296,7 +296,7 @@ __wt_readunlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 	} while (!__wt_atomic_casv64(&l->u.v, old.u.v, new.u.v));
 
 	if (new.u.s.readers_active == 0 && new.u.s.current != new.u.s.next)
-		__wt_cond_signal(session, l->cond_writers);
+		__wt_cond_signal(session, &l->cond_writers);
 }
 
 /*
@@ -389,7 +389,7 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 		 */
 		if (new.u.s.current == new.u.s.next) {
 			__wt_cond_wait(session,
-			    l->cond_writers, 10 * WT_THOUSAND, NULL);
+			    &l->cond_writers, 10 * WT_THOUSAND, NULL);
 			continue;
 		}
 		if (__wt_atomic_casv64(&l->u.v, old.u.v, new.u.v))
@@ -416,8 +416,8 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 		else {
 			session->current_rwlock = l;
 			session->current_rwticket = ticket;
-			__wt_cond_wait(session,
-			    l->cond_writers, 10 * WT_THOUSAND, __write_blocked);
+			__wt_cond_wait(session, &l->cond_writers,
+			    10 * WT_THOUSAND, __write_blocked);
 		}
 	}
 	if (set_stats) {
@@ -477,9 +477,9 @@ __wt_writeunlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 	} while (!__wt_atomic_casv64(&l->u.v, old.u.v, new.u.v));
 
 	if (new.u.s.readers_active != 0)
-		__wt_cond_signal(session, l->cond_readers);
+		__wt_cond_signal(session, &l->cond_readers);
 	else if (new.u.s.current != new.u.s.next)
-		__wt_cond_signal(session, l->cond_writers);
+		__wt_cond_signal(session, &l->cond_writers);
 
 	WT_DIAGNOSTIC_YIELD;
 }
