@@ -140,3 +140,267 @@ thread_prev(void *arg)
 	testutil_check(session->close(session, NULL));
 	return (NULL);
 }
+
+/*
+ *
+ */
+
+/*
+ * Create a table and open a bulk cursor on it.
+ */
+void *
+op_bulk(void *arg)
+{
+	TEST_OPTS *opts;
+	PER_THREAD_ARGS *args;
+	WT_CONNECTION *conn;
+	WT_CURSOR *c;
+	WT_SESSION *session;
+	int ret;
+	char *uri;
+
+	args = (PER_THREAD_ARGS *)arg;
+	opts = args->testopts;
+	conn = opts->conn;
+	uri = args->s_args->uri;
+
+	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
+		testutil_die(ret, "conn.session");
+
+	if ((ret = session->create(session, uri, NULL)) != 0)
+		if (ret != EEXIST && ret != EBUSY)
+			testutil_die(ret, "session.create");
+
+	if (ret == 0) {
+		__wt_yield();
+		if ((ret = session->open_cursor(
+		  session, uri, NULL, "bulk,checkpoint_wait=false", &c)) == 0) {
+			if ((ret = c->close(c)) != 0)
+				testutil_die(ret, "cursor.close");
+		} else if (ret != ENOENT && ret != EBUSY && ret != EINVAL)
+			testutil_die(ret, "session.open_cursor bulk");
+	}
+	if ((ret = session->close(session, NULL)) != 0)
+		testutil_die(ret, "session.close");
+
+	return (NULL);
+}
+
+/*
+ * Create a guaranteed unique table and open and close a bulk cursor on it.
+ */
+void *
+op_bulk_unique(void *arg)
+{
+	TEST_OPTS *opts;
+	PER_THREAD_ARGS *args;
+	WT_CONNECTION *conn;
+	WT_CURSOR *c;
+	WT_SESSION *session;
+	int force, ret;
+	char new_uri[64], *uri;
+
+	args = (PER_THREAD_ARGS *)arg;
+	opts = args->testopts;
+	conn = opts->conn;
+	uri = args->s_args->uri;
+	force = __wt_random(&args->s_args->rnd) & 1;
+
+	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
+		testutil_die(ret, "conn.session");
+
+	/* Generate a unique object name. */
+	if ((ret = pthread_rwlock_wrlock(&args->s_args->lock)) != 0)
+		testutil_die(ret, "pthread_rwlock_wrlock lock");
+	testutil_check(__wt_snprintf(
+	    new_uri, sizeof(new_uri), "%s.%u",
+	    uri, __wt_atomic_add64(&args->s_args->uid, 1)));
+	if ((ret = pthread_rwlock_unlock(&args->s_args->lock)) != 0)
+		testutil_die(ret, "pthread_rwlock_unlock lock");
+
+	if ((ret = session->create(session, new_uri, NULL)) != 0)
+		testutil_die(ret, "session.create: %s", new_uri);
+
+	__wt_yield();
+	/*
+	 * Opening a bulk cursor may have raced with a forced checkpoint
+	 * which created a checkpoint of the empty file, and triggers an EINVAL.
+	 */
+	if ((ret = session->open_cursor(
+	    session, new_uri, NULL, "bulk,checkpoint_wait=false", &c)) == 0) {
+		if ((ret = c->close(c)) != 0)
+			testutil_die(ret, "cursor.close");
+	} else if (ret != EINVAL && ret != EBUSY)
+		testutil_die(ret,
+		    "session.open_cursor bulk unique: %s", new_uri);
+
+	while ((ret = session->drop(session, new_uri, force ?
+	    "force,checkpoint_wait=false" : "checkpoint_wait=false")) != 0)
+		if (ret != EBUSY)
+			testutil_die(ret, "session.drop: %s", new_uri);
+		else
+			/*
+			 * The EBUSY is expected when we run with
+			 * checkpoint_wait set to false, so we increment the
+			 * counter while in this loop to avoid false positives.
+			 */
+			args->thread_counter++;
+
+	if ((ret = session->close(session, NULL)) != 0)
+		testutil_die(ret, "session.close");
+
+	return (NULL);
+}
+
+/*
+ * Open and close cursor on a table.
+ */
+void *
+op_cursor(void *arg)
+{
+	TEST_OPTS *opts;
+	PER_THREAD_ARGS *args;
+	WT_CONNECTION *conn;
+	WT_SESSION *session;
+	WT_CURSOR *cursor;
+	int ret;
+	char *uri;
+
+	args = (PER_THREAD_ARGS *)arg;
+	opts = args->testopts;
+	conn = opts->conn;
+	uri = args->s_args->uri;
+
+	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
+		testutil_die(ret, "conn.session");
+
+	if ((ret =
+	      session->open_cursor(session, uri, NULL, NULL, &cursor)) != 0) {
+		if (ret != ENOENT && ret != EBUSY)
+			testutil_die(ret, "session.open_cursor");
+	} else {
+		if ((ret = cursor->close(cursor)) != 0)
+			testutil_die(ret, "cursor.close");
+	}
+	if ((ret = session->close(session, NULL)) != 0)
+		testutil_die(ret, "session.close");
+
+	return (NULL);
+}
+
+/*
+ * Create a table.
+ */
+void *
+op_create(void *arg)
+{
+	TEST_OPTS *opts;
+	PER_THREAD_ARGS *args;
+	WT_CONNECTION *conn;
+	WT_SESSION *session;
+	int ret;
+	char *uri;
+
+	args = (PER_THREAD_ARGS *)arg;
+	opts = args->testopts;
+	conn = opts->conn;
+	uri = args->s_args->uri;
+
+	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
+		testutil_die(ret, "conn.session");
+
+	if ((ret = session->create(session, uri, NULL)) != 0)
+		if (ret != EEXIST && ret != EBUSY)
+			testutil_die(ret, "session.create");
+
+	if ((ret = session->close(session, NULL)) != 0)
+		testutil_die(ret, "session.close");
+
+	return (NULL);
+}
+
+/*
+ * Create and drop a unique guaranteed table.
+ */
+void *
+op_create_unique(void *arg)
+{
+	TEST_OPTS *opts;
+	PER_THREAD_ARGS *args;
+	WT_CONNECTION *conn;
+	WT_SESSION *session;
+	int force, ret;
+	char new_uri[64], *uri;
+
+	args = (PER_THREAD_ARGS *)arg;
+	opts = args->testopts;
+	conn = opts->conn;
+	uri = args->s_args->uri;
+	force = __wt_random(&args->s_args->rnd) & 1;
+
+	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
+		testutil_die(ret, "conn.session");
+
+	/* Generate a unique object name. */
+	if ((ret = pthread_rwlock_wrlock(&args->s_args->lock)) != 0)
+		testutil_die(ret, "pthread_rwlock_wrlock lock");
+	testutil_check(__wt_snprintf(
+	    new_uri, sizeof(new_uri), "%s.%u",
+	    uri, __wt_atomic_add64(&args->s_args->uid, 1)));
+	if ((ret = pthread_rwlock_unlock(&args->s_args->lock)) != 0)
+		testutil_die(ret, "pthread_rwlock_unlock lock");
+
+	if ((ret = session->create(session, new_uri, NULL)) != 0)
+		testutil_die(ret, "session.create");
+
+	__wt_yield();
+	while ((ret = session->drop(session, new_uri,force ?
+	    "force,checkpoint_wait=false" : "checkpoint_wait=false")) != 0)
+		if (ret != EBUSY)
+			testutil_die(ret, "session.drop: %s", new_uri);
+		else
+			/*
+			 * The EBUSY is expected when we run with
+			 * checkpoint_wait set to false, so we increment the
+			 * counter while in this loop to avoid false positives.
+			 */
+			args->thread_counter++;
+
+	if ((ret = session->close(session, NULL)) != 0)
+		testutil_die(ret, "session.close");
+
+	return (NULL);
+}
+
+/*
+ * Drop a table.
+ */
+void *
+op_drop(void *arg)
+{
+	PER_THREAD_ARGS *args;
+	TEST_OPTS *opts;
+	WT_CONNECTION *conn;
+	WT_SESSION *session;
+	int force, ret;
+	char *uri;
+
+	args = (PER_THREAD_ARGS *)arg;
+	opts = args->testopts;
+	conn = opts->conn;
+	uri = args->s_args->uri;
+	force = __wt_random(&args->s_args->rnd) & 1;
+
+	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
+		testutil_die(ret, "conn.session");
+
+	if ((ret = session->drop(session, uri, force ?
+	    "force,checkpoint_wait=false" : "checkpoint_wait=false")) != 0)
+		if (ret != ENOENT && ret != EBUSY)
+			testutil_die(ret, "session.drop");
+
+	if ((ret = session->close(session, NULL)) != 0)
+		testutil_die(ret, "session.close");
+
+	return (NULL);
+}

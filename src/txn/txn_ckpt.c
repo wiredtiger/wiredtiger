@@ -8,8 +8,7 @@
 
 #include "wt_internal.h"
 
-static inline int __checkpoint_debug_latency(
-    WT_SESSION_IMPL *, const char *[]);
+static int __checkpoint_debug_latency(WT_SESSION_IMPL *, const char *[]);
 static int __checkpoint_lock_dirty_tree(
     WT_SESSION_IMPL *, bool, bool, bool, const char *[]);
 static int __checkpoint_mark_skip(WT_SESSION_IMPL *, WT_CKPT *, bool);
@@ -773,9 +772,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_ERR(__wt_txn_checkpoint_log(
 		    session, full, WT_TXN_LOG_CKPT_START, NULL));
 
-#ifdef HAVE_DIAGNOSTIC
 	WT_ERR(__checkpoint_debug_latency(session, cfg));
-#endif
+
 	WT_ERR(__checkpoint_apply(session, cfg, __checkpoint_tree_helper));
 
 	/*
@@ -1706,19 +1704,25 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
 /*
  * __checkpoint_debug_latency --
  *	Optionally add a delay to a checkpoint to simulate a long running
- *	checkpoint for debug purposes.
+ *	checkpoint for debug purposes. The driver or this option was finding
+ *	operations that can block while waiting for a checkpoint to complete.
  */
-static inline int
+static int
 __checkpoint_debug_latency(WT_SESSION_IMPL *session, const char *cfg[])
 {
+#ifdef HAVE_DIAGNOSTIC
 	WT_CONFIG_ITEM cval;
-	u_int debug_latency;
+	uint64_t debug_latency;
 
 	WT_RET(__wt_config_gets(
-	    session, cfg, "debug_checkpoint_latency", &cval));
-	debug_latency = (u_int)cval.val;
+	    session, cfg, "diagnostic_checkpoint_latency", &cval));
+	debug_latency = (uint64_t)cval.val;
 
 	if (debug_latency > 0)
 		__wt_sleep(debug_latency, 0);
+#else
+	WT_UNUSED(session);
+	WT_UNUSED(cfg);
+#endif
 	return (0);
 }

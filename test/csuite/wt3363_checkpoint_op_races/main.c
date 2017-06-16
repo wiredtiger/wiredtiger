@@ -47,12 +47,6 @@ int handle_message(WT_EVENT_HANDLER *, WT_SESSION *, const char *);
 void* do_checkpoints(void *);
 void* do_ops(void *);
 void* monitor(void *);
-void op_bulk(WT_CONNECTION *);
-void op_bulk_unique(WT_CONNECTION *, int, int *);
-void op_create(WT_CONNECTION *);
-void op_create_unique(WT_CONNECTION *, int, int *);
-void op_cursor(WT_CONNECTION *);
-void op_drop(WT_CONNECTION *, int);
 
 /*
  * Time delay to introduce into checkpoints in seconds. Should be at-least
@@ -70,12 +64,6 @@ void op_drop(WT_CONNECTION *, int);
  */
 #define	RUNTIME 900.0
 
-typedef struct {
-	TEST_OPTS *testopts;
-	int threadnum;
-	int thread_counter;
-} THREAD_ARGS;
-
 static WT_EVENT_HANDLER event_handler = {
 	handle_error,
 	handle_message,
@@ -83,18 +71,13 @@ static WT_EVENT_HANDLER event_handler = {
 	NULL
 };
 
-static pthread_rwlock_t single;
-
-/* Counter used to make unique table names. */
-static uint64_t uid = 1;
-
-static const char *uri;
-
 int
 main(int argc, char *argv[])
 {
+	PER_THREAD_ARGS thread_args[N_THREADS];
+	SHARED_THREAD_ARGS shared_args;
 	TEST_OPTS *opts, _opts;
-	THREAD_ARGS thread_args[N_THREADS];
+
 	pthread_t ckpt_thread, mon_thread, threads[N_THREADS];
 	int i;
 
@@ -106,19 +89,19 @@ main(int argc, char *argv[])
 
 	testutil_check(testutil_parse_opts(argc, argv, opts));
 	testutil_make_work_dir(opts->home);
+	testutil_init_shared_thread_args(&shared_args, opts->uri);
 
 	testutil_check(wiredtiger_open(
 	    opts->home, &event_handler, "create,cache_size=1G,", &opts->conn));
-
-	uri = opts->uri;
 
 	testutil_check(pthread_create(
 	    &ckpt_thread, NULL, do_checkpoints, (void *)opts));
 
 	for (i = 0; i < N_THREADS; ++i) {
+		thread_args[i].s_args = &shared_args;
+		thread_args[i].testopts = opts;
 		thread_args[i].thread_counter = 0;
 		thread_args[i].threadnum = i;
-		thread_args[i].testopts = opts;
 		testutil_check(pthread_create(
 		    &threads[i], NULL, do_ops, (void *)&thread_args[i]));
 	}
@@ -148,7 +131,6 @@ handle_error(WT_EVENT_HANDLER *handler,
 {
 	(void)(handler);
 	(void)(session);
-	(void)(error);
 
 	/*
 	 * Ignore complaints about missing files. It's unlikely but possible
@@ -198,8 +180,9 @@ do_checkpoints(void *_opts)
 
 	opts = (TEST_OPTS *)_opts;
 	conn = opts->conn;
-	testutil_check(__wt_snprintf(config, sizeof(config),
-	    "force,debug_checkpoint_latency=%" PRIu64, MAX_EXECUTION_TIME));
+	testutil_check(__wt_snprintf(
+	    config, sizeof(config), "force,diagnostic_checkpoint_latency=%"
+	    PRIu64, MAX_EXECUTION_TIME));
 	(void)time(&start);
 	(void)time(&now);
 
@@ -232,11 +215,11 @@ do_checkpoints(void *_opts)
 void *
 monitor(void *args)
 {
-	THREAD_ARGS *thread_args;
+	PER_THREAD_ARGS *thread_args;
 	time_t now, start;
 	int i, thread_counter, last_ops[N_THREADS];
 
-	thread_args = (THREAD_ARGS*)args;
+	thread_args = (PER_THREAD_ARGS*)args;
 
 	(void)time(&start);
 	(void)time(&now);
@@ -285,13 +268,11 @@ monitor(void *args)
 void *
 do_ops(void *args)
 {
-	THREAD_ARGS *arg;
-	WT_CONNECTION *conn;
+	PER_THREAD_ARGS *arg;
 	WT_RAND_STATE rnd;
 	time_t now, start;
 
-	arg = (THREAD_ARGS *)args;
-	conn = arg->testopts->conn;
+	arg = (PER_THREAD_ARGS *)args;
 	__wt_random_init_seed(NULL, &rnd);
 	(void)time(&start);
 	(void)time(&now);
@@ -299,24 +280,22 @@ do_ops(void *args)
 	while (difftime(now, start) < RUNTIME) {
 		switch (__wt_random(&rnd) % 6) {
 			case 0:
-				op_bulk(conn);
+				op_bulk((void *)arg);
 				break;
 			case 1:
-				op_create(conn);
+				op_create((void *)arg);
 				break;
 			case 2:
-				op_cursor(conn);
+				op_cursor((void *)arg);
 				break;
 			case 3:
-				op_drop(conn, __wt_random(&rnd) & 1);
+				op_drop((void *)arg);
 				break;
 			case 4:
-				op_bulk_unique(conn, __wt_random(&rnd) & 1,
-				    &arg->thread_counter);
+				op_bulk_unique((void *)arg);
 				break;
 			case 5:
-				op_create_unique(conn, __wt_random(&rnd) & 1,
-				    &arg->thread_counter);
+				op_create_unique((void *)arg);
 				break;
 		}
 		/* Increment how many ops this thread has performed. */
@@ -325,189 +304,4 @@ do_ops(void *args)
 	}
 
 	return (NULL);
-}
-
-/*
- * There are 6 operations below. These are taken originally from the operations
- * we do in test/fops and slightly modified to avoid blocking states.
- * The operations borrowed from fops are:
- * - op_bulk
- * - op_bulk_unique
- * - op_cursor
- * - op_create
- * - op_create_unique
- * - op_drop
- */
-
-void
-op_bulk(WT_CONNECTION *conn)
-{
-	WT_CURSOR *c;
-	WT_SESSION *session;
-	int ret;
-
-	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "conn.session");
-
-	if ((ret = session->create(session, uri, NULL)) != 0)
-		if (ret != EEXIST && ret != EBUSY)
-			testutil_die(ret, "session.create");
-
-	if (ret == 0) {
-		__wt_yield();
-		if ((ret = session->open_cursor(
-		  session, uri, NULL, "bulk,checkpoint_wait=false", &c)) == 0) {
-			if ((ret = c->close(c)) != 0)
-				testutil_die(ret, "cursor.close");
-		} else if (ret != ENOENT && ret != EBUSY && ret != EINVAL)
-			testutil_die(ret, "session.open_cursor bulk");
-	}
-	if ((ret = session->close(session, NULL)) != 0)
-		testutil_die(ret, "session.close");
-}
-
-void
-op_bulk_unique(WT_CONNECTION *conn, int force, int *counter)
-{
-	WT_CURSOR *c;
-	WT_SESSION *session;
-	int ret;
-	char new_uri[64];
-
-	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "conn.session");
-
-	/* Generate a unique object name. */
-	if ((ret = pthread_rwlock_wrlock(&single)) != 0)
-		testutil_die(ret, "pthread_rwlock_wrlock single");
-	testutil_check(__wt_snprintf(
-	  new_uri, sizeof(new_uri), "%s.%u", uri, __wt_atomic_add64(&uid,1)));
-	if ((ret = pthread_rwlock_unlock(&single)) != 0)
-		testutil_die(ret, "pthread_rwlock_unlock single");
-
-	if ((ret = session->create(session, new_uri, NULL)) != 0)
-		testutil_die(ret, "session.create: %s", new_uri);
-
-	__wt_yield();
-	/*
-	 * Opening a bulk cursor may have raced with a forced checkpoint
-	 * which created a checkpoint of the empty file, and triggers an EINVAL.
-	 */
-	if ((ret = session->open_cursor(
-	  session, new_uri, NULL, "bulk,checkpoint_wait=false", &c)) == 0) {
-		if ((ret = c->close(c)) != 0)
-			testutil_die(ret, "cursor.close");
-	} else if (ret != EINVAL && ret != EBUSY)
-		testutil_die(ret,
-		  "session.open_cursor bulk unique: %s", new_uri);
-
-	while ((ret = session->drop(session, new_uri, force ?
-	    "force,checkpoint_wait=false" : "checkpoint_wait=false")) != 0)
-		if (ret != EBUSY)
-			testutil_die(ret, "session.drop: %s", new_uri);
-		else
-			/*
-			 * The EBUSY is expected when we run with
-			 * checkpoint_wait set to false, so we increment the
-			 * counter while in this loop to avoid false positives.
-			 */
-			(*counter)++;
-
-	if ((ret = session->close(session, NULL)) != 0)
-		testutil_die(ret, "session.close");
-}
-
-void
-op_cursor(WT_CONNECTION *conn)
-{
-	WT_SESSION *session;
-	WT_CURSOR *cursor;
-	int ret;
-
-	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "conn.session");
-
-	if ((ret =
-	  session->open_cursor(session, uri, NULL, NULL, &cursor)) != 0) {
-		if (ret != ENOENT && ret != EBUSY)
-			testutil_die(ret, "session.open_cursor");
-	} else {
-		if ((ret = cursor->close(cursor)) != 0)
-			testutil_die(ret, "cursor.close");
-	}
-	if ((ret = session->close(session, NULL)) != 0)
-		testutil_die(ret, "session.close");
-}
-
-void
-op_create(WT_CONNECTION *conn)
-{
-	WT_SESSION *session;
-	int ret;
-
-	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "conn.session");
-
-	if ((ret = session->create(session, uri, NULL)) != 0)
-		if (ret != EEXIST && ret != EBUSY)
-			testutil_die(ret, "session.create");
-
-	if ((ret = session->close(session, NULL)) != 0)
-		testutil_die(ret, "session.close");
-}
-
-void
-op_create_unique(WT_CONNECTION *conn,  int force, int *counter)
-{
-	WT_SESSION *session;
-	int ret;
-	char new_uri[64];
-
-	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "conn.session");
-
-	/* Generate a unique object name. */
-	if ((ret = pthread_rwlock_wrlock(&single)) != 0)
-		testutil_die(ret, "pthread_rwlock_wrlock single");
-	testutil_check(__wt_snprintf(
-	  new_uri, sizeof(new_uri), "%s.%u", uri, __wt_atomic_add64(&uid, 1)));
-	if ((ret = pthread_rwlock_unlock(&single)) != 0)
-		testutil_die(ret, "pthread_rwlock_unlock single");
-
-	if ((ret = session->create(session, new_uri, NULL)) != 0)
-		testutil_die(ret, "session.create");
-
-	__wt_yield();
-	while ((ret = session->drop(session, new_uri,force ?
-	    "force,checkpoint_wait=false" : "checkpoint_wait=false")) != 0)
-		if (ret != EBUSY)
-			testutil_die(ret, "session.drop: %s", new_uri);
-		else
-			/*
-			 * The EBUSY is expected when we run with
-			 * checkpoint_wait set to false, so we increment the
-			 * counter while in this loop to avoid false positives.
-			 */
-			(*counter)++;
-
-	if ((ret = session->close(session, NULL)) != 0)
-		testutil_die(ret, "session.close");
-}
-
-void
-op_drop(WT_CONNECTION *conn, int force)
-{
-	WT_SESSION *session;
-	int ret;
-
-	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "conn.session");
-
-	if ((ret = session->drop(session, uri, force ?
-	    "force,checkpoint_wait=false" : "checkpoint_wait=false")) != 0)
-		if (ret != ENOENT && ret != EBUSY)
-			testutil_die(ret, "session.drop");
-
-	if ((ret = session->close(session, NULL)) != 0)
-		testutil_die(ret, "session.close");
 }

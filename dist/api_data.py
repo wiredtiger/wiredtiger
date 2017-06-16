@@ -1100,7 +1100,7 @@ methods = {
 'WT_SESSION.rollback_transaction' : Method([]),
 
 'WT_SESSION.checkpoint' : Method([
-    Config('debug_checkpoint_latency', '0', r'''
+    Config('diagnostic_checkpoint_latency', '0', r'''
         add a sleep of some number of seconds to checkpoints. This is to
         simulate long running checkpoints, intended for debugging''',
         type='int',undoc=True),
