@@ -3698,7 +3698,7 @@ __rec_update_las(WT_SESSION_IMPL *session,
 
 #ifdef HAVE_TIMESTAMPS
 			las_timestamp.data = list->onpage_timestamp;
-			las_timestamp.size = TIMESTAMP_SIZE;
+			las_timestamp.size = WT_TIMESTAMP_SIZE;
 #else
 			las_timestamp.data = NULL;
 			las_timestamp.size = 0;
@@ -3715,7 +3715,7 @@ __rec_update_las(WT_SESSION_IMPL *session,
 			}
 #ifdef HAVE_TIMESTAMPS
 			las_timestamp.data = upd->timestamp;
-			las_timestamp.size = TIMESTAMP_SIZE;
+			las_timestamp.size = WT_TIMESTAMP_SIZE;
 #else
 			las_timestamp.data = NULL;
 			las_timestamp.size = 0;

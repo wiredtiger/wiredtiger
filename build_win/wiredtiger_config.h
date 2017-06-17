@@ -118,9 +118,6 @@
 /* Define to 1 if you have the <sys/types.h> header file. */
 #define HAVE_SYS_TYPES_H 1
 
-/* Define to 1 to enable timestamp support. */
-#define HAVE_TIMESTAMPS 1
-
 /* Define to 1 if you have the <unistd.h> header file. */
 /* #undef HAVE_UNISTD_H */
 
@@ -137,7 +134,7 @@
 #define STDC_HEADERS 1
 
 /* Size of a transaction timestamp in bytes */
-#define TIMESTAMP_SIZE 8
+#define WT_TIMESTAMP_SIZE 8
 
 /* Define WORDS_BIGENDIAN to 1 if your processor stores words with the most
    significant byte first (like Motorola and SPARC, unlike Intel). */

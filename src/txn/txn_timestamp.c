@@ -19,7 +19,7 @@ __wt_txn_parse_timestamp(WT_SESSION_IMPL *session,
 {
 	WT_DECL_RET;
 	WT_ITEM ts;
-	char padbuf[2 * TIMESTAMP_SIZE];
+	char padbuf[2 * WT_TIMESTAMP_SIZE];
 	wt_timestamp_t tsbuf;
 	const char *hexts;
 	size_t hexlen;
@@ -30,7 +30,7 @@ __wt_txn_parse_timestamp(WT_SESSION_IMPL *session,
 		return (0);
 
 	/* Protect against unexpectedly long hex strings. */
-	if (cval->len > 2 * TIMESTAMP_SIZE)
+	if (cval->len > 2 * WT_TIMESTAMP_SIZE)
 		WT_RET_MSG(session, EINVAL,
 		    "Failed to parse %s timestamp '%.*s': too long",
 		    name, (int)cval->len, cval->str);
@@ -56,10 +56,10 @@ __wt_txn_parse_timestamp(WT_SESSION_IMPL *session,
 	if ((ret = __wt_nhex_to_raw(session, hexts, hexlen, &ts)) != 0)
 		WT_RET_MSG(session, ret, "Failed to parse %s timestamp '%.*s'",
 		    name, (int)cval->len, cval->str);
-	WT_ASSERT(session, ts.size <= TIMESTAMP_SIZE);
+	WT_ASSERT(session, ts.size <= WT_TIMESTAMP_SIZE);
 
 	/* Copy the raw value to the end of the timestamp. */
-	memcpy(timestamp + TIMESTAMP_SIZE - ts.size,
+	memcpy(timestamp + WT_TIMESTAMP_SIZE - ts.size,
 	    ts.data, ts.size);
 
 	if (__wt_timestamp_iszero(timestamp))
@@ -147,9 +147,9 @@ __wt_txn_global_query_timestamp(
 
 	/* Avoid memory allocation: set up an item guaranteed large enough. */
 	hexts.data = hexts.mem = hex_timestamp;
-	hexts.memsize = 2 * TIMESTAMP_SIZE + 1;
+	hexts.memsize = 2 * WT_TIMESTAMP_SIZE + 1;
 	/* Trim leading zeros. */
-	for (tsp = ts, len = TIMESTAMP_SIZE;
+	for (tsp = ts, len = WT_TIMESTAMP_SIZE;
 	    len > 0 && *tsp == 0;
 	    ++tsp, --len)
 		;

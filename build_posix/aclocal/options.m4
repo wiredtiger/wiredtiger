@@ -251,10 +251,7 @@ AC_ARG_WITH(timestamp-size,
 	    [with_timestamp_size=$withval],
 	    [with_timestamp_size=8])
 AC_MSG_RESULT($with_timestamp_size)
-AC_DEFINE_UNQUOTED(TIMESTAMP_SIZE, [$with_timestamp_size], [Size of a transaction timestamp in bytes])
-if test $with_timestamp_size -gt 0 ; then
-	AC_DEFINE(HAVE_TIMESTAMPS, [1], [Define to 1 to enable timestamp support.])
-fi
+AC_DEFINE_UNQUOTED(WT_TIMESTAMP_SIZE, [$with_timestamp_size], [Size of a transaction timestamp in bytes])
 
 AH_TEMPLATE(HAVE_VERBOSE, [Enable verbose message configuration.])
 AC_MSG_CHECKING(if --enable-verbose option specified)

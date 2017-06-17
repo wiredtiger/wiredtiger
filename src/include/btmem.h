@@ -938,7 +938,7 @@ WT_PACKED_STRUCT_END
  * WT_UPDATE_SIZE is the expected structure size -- we verify the build to
  * ensure the compiler hasn't inserted padding.
  */
-#define	WT_UPDATE_SIZE	21 + TIMESTAMP_SIZE
+#define	WT_UPDATE_SIZE	(21 + WT_TIMESTAMP_SIZE)
 
 /*
  * WT_INSERT --

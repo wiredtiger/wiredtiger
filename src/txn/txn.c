@@ -1011,7 +1011,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session)
 	 * Now that all transactions have completed, no timestamps should be
 	 * pinned.
 	 */
-	memset(txn_global->pinned_timestamp, 0xff, TIMESTAMP_SIZE);
+	memset(txn_global->pinned_timestamp, 0xff, WT_TIMESTAMP_SIZE);
 
 	return (ret);
 }

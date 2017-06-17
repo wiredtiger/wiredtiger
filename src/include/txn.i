@@ -18,7 +18,7 @@ static const wt_timestamp_t zero_timestamp;
  */
 static inline int
 __wt_timestamp_cmp(const uint8_t *ts1, const uint8_t *ts2) {
-	return (memcmp(ts1, ts2, TIMESTAMP_SIZE));
+	return (memcmp(ts1, ts2, WT_TIMESTAMP_SIZE));
 }
 
 /*
@@ -27,7 +27,7 @@ __wt_timestamp_cmp(const uint8_t *ts1, const uint8_t *ts2) {
  */
 static inline void
 __wt_timestamp_set(uint8_t *dest, const uint8_t *src) {
-	(void)memcpy(dest, src, TIMESTAMP_SIZE);
+	(void)memcpy(dest, src, WT_TIMESTAMP_SIZE);
 }
 
 /*
@@ -36,7 +36,7 @@ __wt_timestamp_set(uint8_t *dest, const uint8_t *src) {
  */
 static inline bool
 __wt_timestamp_iszero(const uint8_t *ts) {
-	return (memcmp(ts, zero_timestamp, TIMESTAMP_SIZE) == 0);
+	return (memcmp(ts, zero_timestamp, WT_TIMESTAMP_SIZE) == 0);
 }
 #endif
 
@@ -337,7 +337,7 @@ __wt_txn_visible(
 	if (!F_ISSET(txn, WT_TXN_HAS_TS_READ) || timestamp == NULL)
 		return (true);
 
-	return (memcmp(timestamp, txn->read_timestamp, TIMESTAMP_SIZE) <= 0);
+	return (memcmp(timestamp, txn->read_timestamp, WT_TIMESTAMP_SIZE) <= 0);
 	}
 #else
 	WT_UNUSED(timestamp);

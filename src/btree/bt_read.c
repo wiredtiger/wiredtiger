@@ -192,7 +192,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 		total_incr += incr;
 		upd->txnid = upd_txnid;
 #ifdef HAVE_TIMESTAMPS
-		WT_ASSERT(session, las_timestamp.size == TIMESTAMP_SIZE);
+		WT_ASSERT(session, las_timestamp.size == WT_TIMESTAMP_SIZE);
 		__wt_timestamp_set(upd->timestamp, las_timestamp.data);
 #endif
 

@@ -250,9 +250,15 @@
 } while (0)
 
 /* Timestamp type and helper macros. */
+#if WT_TIMESTAMP_SIZE > 0
+#define	HAVE_TIMESTAMPS 1
+#else
+#undef HAVE_TIMESTAMPS
+#endif
+
 #ifdef HAVE_TIMESTAMPS
 #define	WT_TIMESTAMP(x) (x)
-typedef uint8_t wt_timestamp_t[TIMESTAMP_SIZE];
+typedef uint8_t wt_timestamp_t[WT_TIMESTAMP_SIZE];
 #define	WT_DECL_TIMESTAMP(x) wt_timestamp_t x;
 #else
 #define	WT_TIMESTAMP(x) (NULL)
