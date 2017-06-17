@@ -186,6 +186,10 @@ __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session)
 	if (txn_global->oldest_is_pinned)
 		return (0);
 
+	__wt_readlock(session, &txn_global->rwlock);
+	__wt_timestamp_set(oldest_timestamp, txn_global->oldest_timestamp);
+	__wt_readunlock(session, &txn_global->rwlock);
+
 	/* Scan to find the global pinned timestamp. */
 	if ((ret = __txn_global_query_timestamp(
 	    session, active_timestamp, query_cfg)) != 0)
