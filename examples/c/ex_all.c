@@ -877,11 +877,11 @@ transaction_ops(WT_CONNECTION *conn, WT_SESSION *session)
 	/*! [transaction timestamp] */
 
 	{
-#ifndef TIMESTAMP_SIZE
-#define	TIMESTAMP_SIZE	8
+#ifndef WT_TIMESTAMP_SIZE
+#define	WT_TIMESTAMP_SIZE	8
 #endif
 	/*! [query timestamp] */
-	char timestamp_buf[2 * TIMESTAMP_SIZE + 1];
+	char timestamp_buf[2 * WT_TIMESTAMP_SIZE + 1];
 
 	ret = conn->query_timestamp(conn, timestamp_buf, "get=all_committed");
 	/*! [query timestamp] */
