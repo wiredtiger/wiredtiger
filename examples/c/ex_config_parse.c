@@ -39,6 +39,7 @@ main(int argc, char *argv[])
 	(void)argc;					/* Unused variable */
 	(void)testutil_set_progname(argv);
 
+	{
 	/*! [Create a configuration parser] */
 	WT_CONFIG_ITEM k, v;
 	WT_CONFIG_PARSER *parser;
@@ -119,8 +120,10 @@ main(int argc, char *argv[])
 			error_check(sub_parser->close(sub_parser));
 		}
 	}
+	scan_end_check(ret == WT_NOTFOUND);
 	/*! [nested traverse] */
 	error_check(parser->close(parser));
+	}
 	}
 
 	return (EXIT_SUCCESS);
