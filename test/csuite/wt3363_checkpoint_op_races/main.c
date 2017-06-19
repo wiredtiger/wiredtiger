@@ -75,21 +75,20 @@ int
 main(int argc, char *argv[])
 {
 	PER_THREAD_ARGS thread_args[N_THREADS];
-	SHARED_THREAD_ARGS shared_args;
 	TEST_OPTS *opts, _opts;
-
 	pthread_t ckpt_thread, mon_thread, threads[N_THREADS];
+	uint64_t uid;
 	int i;
 
 	if (!testutil_enable_long_tests())	/* Ignore unless requested. */
 		return (EXIT_SUCCESS);
 
+	uid = 0;
 	opts = &_opts;
 	memset(opts, 0, sizeof(*opts));
 
 	testutil_check(testutil_parse_opts(argc, argv, opts));
 	testutil_make_work_dir(opts->home);
-	testutil_init_shared_thread_args(&shared_args, opts->uri);
 
 	testutil_check(wiredtiger_open(
 	    opts->home, &event_handler, "create,cache_size=1G,", &opts->conn));
@@ -98,7 +97,7 @@ main(int argc, char *argv[])
 	    &ckpt_thread, NULL, do_checkpoints, (void *)opts));
 
 	for (i = 0; i < N_THREADS; ++i) {
-		thread_args[i].s_args = &shared_args;
+		thread_args[i].uid = &uid;
 		thread_args[i].testopts = opts;
 		thread_args[i].thread_counter = 0;
 		thread_args[i].threadnum = i;
@@ -187,15 +186,13 @@ do_checkpoints(void *_opts)
 	(void)time(&now);
 
 	while (difftime(now, start) < RUNTIME) {
-		if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
-			testutil_die(ret, "conn.session");
+		testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
 		if ((ret = session->checkpoint(session, config)) != 0)
 			if (ret != EBUSY && ret != ENOENT)
 				testutil_die(ret, "session.checkpoint");
 
-		if ((ret = session->close(session, NULL)) != 0)
-			testutil_die(ret, "session.close");
+		 testutil_check(session->close(session, NULL));
 
 		/*
 		 * A short sleep to let operations process and avoid back to
@@ -224,7 +221,7 @@ monitor(void *args)
 	(void)time(&start);
 	(void)time(&now);
 
-	memset(last_ops, 0, N_THREADS);
+	memset(last_ops, 0, sizeof(int) + N_THREADS);
 
 	while (difftime(now, start) < RUNTIME) {
 		/*
@@ -268,11 +265,9 @@ monitor(void *args)
 void *
 do_ops(void *args)
 {
-	PER_THREAD_ARGS *arg;
 	WT_RAND_STATE rnd;
 	time_t now, start;
 
-	arg = (PER_THREAD_ARGS *)args;
 	__wt_random_init_seed(NULL, &rnd);
 	(void)time(&start);
 	(void)time(&now);
@@ -280,26 +275,24 @@ do_ops(void *args)
 	while (difftime(now, start) < RUNTIME) {
 		switch (__wt_random(&rnd) % 6) {
 			case 0:
-				op_bulk((void *)arg);
+				op_bulk(args);
 				break;
 			case 1:
-				op_create((void *)arg);
+				op_create(args);
 				break;
 			case 2:
-				op_cursor((void *)arg);
+				op_cursor(args);
 				break;
 			case 3:
-				op_drop((void *)arg);
+				op_drop(args);
 				break;
 			case 4:
-				op_bulk_unique((void *)arg);
+				op_bulk_unique(args);
 				break;
 			case 5:
-				op_create_unique((void *)arg);
+				op_create_unique(args);
 				break;
 		}
-		/* Increment how many ops this thread has performed. */
-		arg->thread_counter++;
 		(void)time(&now);
 	}
 

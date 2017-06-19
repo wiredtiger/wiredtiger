@@ -142,7 +142,11 @@ thread_prev(void *arg)
 }
 
 /*
- *
+ * Below are a series of functions originally designed for test/fops. These
+ * threads perform a series of simple API access calls, such as opening and
+ * closing sessions and cursors. These threads require use of the
+ * PER_THREAD_ARGS structure in test_util.h. An example of the use of these
+ * functions and structures is in the csuite test for WT-3363.
  */
 
 /*
@@ -153,35 +157,31 @@ op_bulk(void *arg)
 {
 	TEST_OPTS *opts;
 	PER_THREAD_ARGS *args;
-	WT_CONNECTION *conn;
 	WT_CURSOR *c;
 	WT_SESSION *session;
 	int ret;
-	char *uri;
 
 	args = (PER_THREAD_ARGS *)arg;
 	opts = args->testopts;
-	conn = opts->conn;
-	uri = args->s_args->uri;
 
-	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "conn.session");
+	testutil_check(
+	    opts->conn->open_session(opts->conn, NULL, NULL, &session));
 
-	if ((ret = session->create(session, uri, NULL)) != 0)
+	if ((ret = session->create(session, opts->uri, NULL)) != 0)
 		if (ret != EEXIST && ret != EBUSY)
 			testutil_die(ret, "session.create");
 
 	if (ret == 0) {
 		__wt_yield();
-		if ((ret = session->open_cursor(
-		  session, uri, NULL, "bulk,checkpoint_wait=false", &c)) == 0) {
-			if ((ret = c->close(c)) != 0)
-				testutil_die(ret, "cursor.close");
+		if ((ret = session->open_cursor(session,
+		    opts->uri, NULL, "bulk,checkpoint_wait=false", &c)) == 0) {
+			 testutil_check(c->close(c));
 		} else if (ret != ENOENT && ret != EBUSY && ret != EINVAL)
 			testutil_die(ret, "session.open_cursor bulk");
 	}
-	if ((ret = session->close(session, NULL)) != 0)
-		testutil_die(ret, "session.close");
+
+	testutil_check(session->close(session, NULL));
+	args->thread_counter++;
 
 	return (NULL);
 }
@@ -194,32 +194,24 @@ op_bulk_unique(void *arg)
 {
 	TEST_OPTS *opts;
 	PER_THREAD_ARGS *args;
-	WT_CONNECTION *conn;
 	WT_CURSOR *c;
+	WT_RAND_STATE rnd;
 	WT_SESSION *session;
-	int force, ret;
-	char new_uri[64], *uri;
+	int ret;
+	char new_uri[64];
 
 	args = (PER_THREAD_ARGS *)arg;
 	opts = args->testopts;
-	conn = opts->conn;
-	uri = args->s_args->uri;
-	force = __wt_random(&args->s_args->rnd) & 1;
+	__wt_random_init_seed(NULL, &rnd);
 
-	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "conn.session");
+	testutil_check(
+	    opts->conn->open_session(opts->conn, NULL, NULL, &session));
 
 	/* Generate a unique object name. */
-	if ((ret = pthread_rwlock_wrlock(&args->s_args->lock)) != 0)
-		testutil_die(ret, "pthread_rwlock_wrlock lock");
 	testutil_check(__wt_snprintf(
 	    new_uri, sizeof(new_uri), "%s.%u",
-	    uri, __wt_atomic_add64(&args->s_args->uid, 1)));
-	if ((ret = pthread_rwlock_unlock(&args->s_args->lock)) != 0)
-		testutil_die(ret, "pthread_rwlock_unlock lock");
-
-	if ((ret = session->create(session, new_uri, NULL)) != 0)
-		testutil_die(ret, "session.create: %s", new_uri);
+	    opts->uri, __wt_atomic_add64(args->uid, 1)));
+	testutil_check(session->create(session, new_uri, NULL));
 
 	__wt_yield();
 	/*
@@ -228,13 +220,12 @@ op_bulk_unique(void *arg)
 	 */
 	if ((ret = session->open_cursor(
 	    session, new_uri, NULL, "bulk,checkpoint_wait=false", &c)) == 0) {
-		if ((ret = c->close(c)) != 0)
-			testutil_die(ret, "cursor.close");
+		testutil_check(c->close(c));
 	} else if (ret != EINVAL && ret != EBUSY)
 		testutil_die(ret,
 		    "session.open_cursor bulk unique: %s", new_uri);
 
-	while ((ret = session->drop(session, new_uri, force ?
+	while ((ret = session->drop(session, new_uri, __wt_random(&rnd) & 1 ?
 	    "force,checkpoint_wait=false" : "checkpoint_wait=false")) != 0)
 		if (ret != EBUSY)
 			testutil_die(ret, "session.drop: %s", new_uri);
@@ -246,8 +237,8 @@ op_bulk_unique(void *arg)
 			 */
 			args->thread_counter++;
 
-	if ((ret = session->close(session, NULL)) != 0)
-		testutil_die(ret, "session.close");
+	testutil_check(session->close(session, NULL));
+	args->thread_counter++;
 
 	return (NULL);
 }
@@ -260,30 +251,25 @@ op_cursor(void *arg)
 {
 	TEST_OPTS *opts;
 	PER_THREAD_ARGS *args;
-	WT_CONNECTION *conn;
 	WT_SESSION *session;
 	WT_CURSOR *cursor;
 	int ret;
-	char *uri;
 
 	args = (PER_THREAD_ARGS *)arg;
 	opts = args->testopts;
-	conn = opts->conn;
-	uri = args->s_args->uri;
 
-	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "conn.session");
+	testutil_check(
+	    opts->conn->open_session(opts->conn, NULL, NULL, &session));
 
-	if ((ret =
-	      session->open_cursor(session, uri, NULL, NULL, &cursor)) != 0) {
+	if ((ret = session->open_cursor(
+	    session, opts->uri, NULL, NULL, &cursor)) != 0) {
 		if (ret != ENOENT && ret != EBUSY)
 			testutil_die(ret, "session.open_cursor");
-	} else {
-		if ((ret = cursor->close(cursor)) != 0)
-			testutil_die(ret, "cursor.close");
-	}
-	if ((ret = session->close(session, NULL)) != 0)
-		testutil_die(ret, "session.close");
+	} else
+		testutil_check(cursor->close(cursor));
+
+	testutil_check(session->close(session, NULL));
+	args->thread_counter++;
 
 	return (NULL);
 }
@@ -296,25 +282,21 @@ op_create(void *arg)
 {
 	TEST_OPTS *opts;
 	PER_THREAD_ARGS *args;
-	WT_CONNECTION *conn;
 	WT_SESSION *session;
 	int ret;
-	char *uri;
 
 	args = (PER_THREAD_ARGS *)arg;
 	opts = args->testopts;
-	conn = opts->conn;
-	uri = args->s_args->uri;
 
-	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "conn.session");
+	testutil_check(
+	    opts->conn->open_session(opts->conn, NULL, NULL, &session));
 
-	if ((ret = session->create(session, uri, NULL)) != 0)
+	if ((ret = session->create(session, opts->uri, NULL)) != 0)
 		if (ret != EEXIST && ret != EBUSY)
 			testutil_die(ret, "session.create");
 
-	if ((ret = session->close(session, NULL)) != 0)
-		testutil_die(ret, "session.close");
+	testutil_check(session->close(session, NULL));
+	args->thread_counter++;
 
 	return (NULL);
 }
@@ -327,34 +309,26 @@ op_create_unique(void *arg)
 {
 	TEST_OPTS *opts;
 	PER_THREAD_ARGS *args;
-	WT_CONNECTION *conn;
+	WT_RAND_STATE rnd;
 	WT_SESSION *session;
-	int force, ret;
-	char new_uri[64], *uri;
+	int ret;
+	char new_uri[64];
 
 	args = (PER_THREAD_ARGS *)arg;
 	opts = args->testopts;
-	conn = opts->conn;
-	uri = args->s_args->uri;
-	force = __wt_random(&args->s_args->rnd) & 1;
+	__wt_random_init_seed(NULL, &rnd);
 
-	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "conn.session");
+	testutil_check(
+	    opts->conn->open_session(opts->conn, NULL, NULL, &session));
 
 	/* Generate a unique object name. */
-	if ((ret = pthread_rwlock_wrlock(&args->s_args->lock)) != 0)
-		testutil_die(ret, "pthread_rwlock_wrlock lock");
 	testutil_check(__wt_snprintf(
 	    new_uri, sizeof(new_uri), "%s.%u",
-	    uri, __wt_atomic_add64(&args->s_args->uid, 1)));
-	if ((ret = pthread_rwlock_unlock(&args->s_args->lock)) != 0)
-		testutil_die(ret, "pthread_rwlock_unlock lock");
-
-	if ((ret = session->create(session, new_uri, NULL)) != 0)
-		testutil_die(ret, "session.create");
+	    opts->uri, __wt_atomic_add64(args->uid, 1)));
+	testutil_check(session->create(session, new_uri, NULL));
 
 	__wt_yield();
-	while ((ret = session->drop(session, new_uri,force ?
+	while ((ret = session->drop(session, new_uri, __wt_random(&rnd) & 1 ?
 	    "force,checkpoint_wait=false" : "checkpoint_wait=false")) != 0)
 		if (ret != EBUSY)
 			testutil_die(ret, "session.drop: %s", new_uri);
@@ -366,8 +340,8 @@ op_create_unique(void *arg)
 			 */
 			args->thread_counter++;
 
-	if ((ret = session->close(session, NULL)) != 0)
-		testutil_die(ret, "session.close");
+	testutil_check(session->close(session, NULL));
+	args->thread_counter++;
 
 	return (NULL);
 }
@@ -380,27 +354,24 @@ op_drop(void *arg)
 {
 	PER_THREAD_ARGS *args;
 	TEST_OPTS *opts;
-	WT_CONNECTION *conn;
+	WT_RAND_STATE rnd;
 	WT_SESSION *session;
-	int force, ret;
-	char *uri;
+	int ret;
 
 	args = (PER_THREAD_ARGS *)arg;
 	opts = args->testopts;
-	conn = opts->conn;
-	uri = args->s_args->uri;
-	force = __wt_random(&args->s_args->rnd) & 1;
+	__wt_random_init_seed(NULL, &rnd);
 
-	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "conn.session");
+	testutil_check(
+	    opts->conn->open_session(opts->conn, NULL, NULL, &session));
 
-	if ((ret = session->drop(session, uri, force ?
+	if ((ret = session->drop(session, opts->uri, __wt_random(&rnd) & 1 ?
 	    "force,checkpoint_wait=false" : "checkpoint_wait=false")) != 0)
 		if (ret != ENOENT && ret != EBUSY)
 			testutil_die(ret, "session.drop");
 
-	if ((ret = session->close(session, NULL)) != 0)
-		testutil_die(ret, "session.close");
+	testutil_check(session->close(session, NULL));
+	args->thread_counter++;
 
 	return (NULL);
 }

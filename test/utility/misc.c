@@ -188,19 +188,6 @@ testutil_enable_long_tests(void)
 }
 
 /*
- * testutil_init_shared_thread_args --
- *	Initialize the shared thread arguments for the op_ test functions.
- */
-void
-testutil_init_shared_thread_args(SHARED_THREAD_ARGS *args, char *uri)
-{
-	pthread_rwlock_init(&args->lock, NULL);
-	__wt_random_init_seed(NULL, &args->rnd);
-	args->uid = 1;
-	args->uri = uri;
-}
-
-/*
  * dcalloc --
  *	Call calloc, dying on failure.
  */

@@ -73,24 +73,22 @@ typedef struct {
 	char	  *uri;
 	volatile uint64_t   next_threadid;
 	uint64_t   max_inserted_id;
-
 } TEST_OPTS;
-
- /* A structure for the shared data used by the op_ series of threads. */
-typedef struct {
-	WT_RAND_STATE rnd;      /* Random number generator */
-	pthread_rwlock_t lock;  /* Lock for synchronization */
-	uint64_t uid;           /* Counter used for unique table names */
-	char *uri;              /* URI to be used by threads */
-} SHARED_THREAD_ARGS;
 
 /*
  * A structure for the data specific to a single thread of those used by the
  * op_ series of threads.
  */
 typedef struct {
-	SHARED_THREAD_ARGS *s_args;
 	TEST_OPTS *testopts;
+		/*
+	 * The "uid" must be shared amongst all threads using the op_ functions
+	 * in order to generate unique table names. It should be allocated in
+	 * the main of your test and each instance of PER_THREAD_ARGS should
+	 * contain the pointer to this variable. See the csuite test for WT-3363
+	 * for an example.
+	 */
+	uint64_t *uid;
 	int threadnum;
 	int thread_counter;
 } PER_THREAD_ARGS;
@@ -212,7 +210,6 @@ void *op_drop(void *);
 void  testutil_clean_work_dir(const char *);
 void  testutil_cleanup(TEST_OPTS *);
 bool  testutil_enable_long_tests(void);
-void testutil_init_shared_thread_args(SHARED_THREAD_ARGS *, char *);
 void  testutil_make_work_dir(char *);
 int   testutil_parse_opts(int, char * const *, TEST_OPTS *);
 void  testutil_work_dir_from_path(char *, size_t, const char *);
