@@ -81,12 +81,12 @@ typedef struct {
  */
 typedef struct {
 	TEST_OPTS *testopts;
-		/*
-	 * The "uid" must be shared amongst all threads using the op_ functions
-	 * in order to generate unique table names. It should be allocated in
-	 * the main of your test and each instance of PER_THREAD_ARGS should
-	 * contain the pointer to this variable. See the csuite test for WT-3363
-	 * for an example.
+	/*
+	 * This unique id must be shared among all threads using the op_
+	 * functions in order to generate unique table names. It should be
+	 * allocated in the main of your test and each instance of
+	 * PER_THREAD_ARGS should contain the pointer to this variable. See
+	 * the csuite test for WT-3363 for an example.
 	 */
 	uint64_t *uid;
 	int threadnum;
@@ -201,6 +201,12 @@ void *dmalloc(size_t);
 void *drealloc(void *, size_t);
 void *dstrdup(const void *);
 void *dstrndup(const char *, size_t);
+/*
+ * The op_ functions can generate errors that we wish to ignore. We have handler
+ * functions available for them here, to avoid making tests crash prematurely.
+ */
+int handle_op_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *);
+int handle_op_message(WT_EVENT_HANDLER *, WT_SESSION *, const char *);
 void *op_bulk(void *);
 void *op_bulk_unique(void *);
 void *op_cursor(void *);

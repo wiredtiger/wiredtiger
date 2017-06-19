@@ -42,8 +42,6 @@
  * file which can be used to determine what operation was blocked.
  */
 
-int handle_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *);
-int handle_message(WT_EVENT_HANDLER *, WT_SESSION *, const char *);
 void* do_checkpoints(void *);
 void* do_ops(void *);
 void* monitor(void *);
@@ -65,8 +63,8 @@ void* monitor(void *);
 #define	RUNTIME 900.0
 
 static WT_EVENT_HANDLER event_handler = {
-	handle_error,
-	handle_message,
+	handle_op_error,
+	handle_op_message,
 	NULL,
 	NULL
 };
@@ -119,49 +117,6 @@ main(int argc, char *argv[])
 
 	testutil_cleanup(opts);
 	return (EXIT_SUCCESS);
-}
-
-/*
- * WiredTiger error handling function.
- */
-int
-handle_error(WT_EVENT_HANDLER *handler,
-    WT_SESSION *session, int error, const char *errmsg)
-{
-	(void)(handler);
-	(void)(session);
-
-	/*
-	 * Ignore complaints about missing files. It's unlikely but possible
-	 * that checkpoints and cursor open operations can return this due to
-	 * the sequencing of the various ops.
-	 */
-	if (error == ENOENT)
-		return (0);
-
-	/* Ignore complaints about failure to open bulk cursors. */
-	if (strstr(
-	    errmsg, "bulk-load is only supported on newly created") != NULL)
-		return (0);
-
-	return (fprintf(stderr, "%s\n", errmsg) < 0 ? -1 : 0);
-}
-
-/*
- * WiredTiger message handling function.
- */
-int
-handle_message(WT_EVENT_HANDLER *handler,
-    WT_SESSION *session, const char *message)
-{
-	(void)(handler);
-	(void)(session);
-
-	/* Ignore messages about failing to create forced checkpoints. */
-	if (strstr(message, "forced or named checkpoint") != NULL)
-		return (0);
-
-	return (printf("%s\n", message) < 0 ? -1 : 0);
 }
 
 /*
