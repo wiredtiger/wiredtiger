@@ -99,8 +99,7 @@ print_join_cursor_stats(WT_SESSION *session)
 	    session, "join:table:access", NULL, NULL, &join_cursor));
 	error_check(session->join(
 	    session, join_cursor, idx_cursor, "compare=gt"));
-	// KEITH
-	// error_check(join_cursor->next(join_cursor));
+	print_cursor(join_cursor);
 
 	/*! [statistics join cursor function] */
 	error_check(session->open_cursor(session,
