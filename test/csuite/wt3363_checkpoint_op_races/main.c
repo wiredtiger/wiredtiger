@@ -168,7 +168,7 @@ monitor(void *args)
 {
 	PER_THREAD_ARGS *thread_args;
 	time_t now, start;
-	int i, thread_counter, last_ops[N_THREADS];
+	int ctr, i, last_ops[N_THREADS];
 
 	thread_args = (PER_THREAD_ARGS*)args;
 
@@ -186,10 +186,10 @@ monitor(void *args)
 		sleep(MAX_EXECUTION_TIME/2);
 
 		for (i = 0; i < N_THREADS; i++) {
-			thread_counter = thread_args[i].thread_counter;
+			ctr = thread_args[i].thread_counter;
 
 			/* Ignore any threads which may not have started yet. */
-			if (thread_counter == 0)
+			if (ctr == 0)
 				continue;
 			/*
 			 * We track how many operations each thread has done. If
@@ -197,8 +197,8 @@ monitor(void *args)
 			 * thread it is stuck and should drop a core so the
 			 * cause of the hang can be investigated.
 			 */
-			if (thread_counter != last_ops[i])
-				last_ops[i] = thread_counter;
+			if (ctr != last_ops[i])
+				last_ops[i] = ctr;
 			else {
 				printf("Thread %d had a task running"
 				    " for more than %d seconds\n",
