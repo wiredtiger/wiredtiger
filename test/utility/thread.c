@@ -144,9 +144,11 @@ thread_prev(void *arg)
 /*
  * Below are a series of functions originally designed for test/fops. These
  * threads perform a series of simple API access calls, such as opening and
- * closing sessions and cursors. These threads require use of the
- * PER_THREAD_ARGS structure in test_util.h. An example of the use of these
- * functions and structures is in the csuite test for WT-3363.
+ * closing sessions and cursors. These functions require use of the
+ * PER_THREAD_ARGS structure in test_util.h. Additionally there are two event
+ * handler functions that should be used to suppress "expected" errors that
+ * these functions generate. An example of the use of these functions and
+ * structures is in the csuite test wt3363_checkpoint_op_races.
  */
 
 /*

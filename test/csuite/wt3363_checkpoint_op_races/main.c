@@ -126,14 +126,12 @@ void *
 do_checkpoints(void *_opts)
 {
 	TEST_OPTS *opts;
-	WT_CONNECTION *conn;
 	WT_SESSION *session;
 	time_t now, start;
 	int ret;
 	char config[64];
 
 	opts = (TEST_OPTS *)_opts;
-	conn = opts->conn;
 	testutil_check(__wt_snprintf(
 	    config, sizeof(config), "force,diagnostic_checkpoint_latency=%"
 	    PRIu64, MAX_EXECUTION_TIME));
@@ -141,7 +139,8 @@ do_checkpoints(void *_opts)
 	(void)time(&now);
 
 	while (difftime(now, start) < RUNTIME) {
-		testutil_check(conn->open_session(conn, NULL, NULL, &session));
+		testutil_check(
+		    opts->conn->open_session(opts->conn, NULL, NULL, &session));
 
 		if ((ret = session->checkpoint(session, config)) != 0)
 			if (ret != EBUSY && ret != ENOENT)
