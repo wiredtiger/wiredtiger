@@ -72,7 +72,7 @@ typedef struct {
 	bool	   running;
 	char	  *uri;
 	volatile uint64_t   next_threadid;
-	volatile uint64_t   unique_id;
+	uint64_t   unique_id;
 	uint64_t   max_inserted_id;
 } TEST_OPTS;
 
