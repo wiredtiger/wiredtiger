@@ -41,7 +41,6 @@
  * any operation taking longer than 1/2 the delay time, we abort dumping a core
  * file which can be used to determine what operation was blocked.
  */
-
 void* do_checkpoints(void *);
 void* do_ops(void *);
 void* monitor(void *);
@@ -54,6 +53,7 @@ void* monitor(void *);
  */
 #define	MAX_EXECUTION_TIME 10
 #define	N_THREADS 10
+
 /*
  * Number of seconds to execute for. Initially set to 15 minutes, as we need to
  * run long enough to be certain we have captured any blockages. In initial
@@ -72,30 +72,29 @@ static WT_EVENT_HANDLER event_handler = {
 int
 main(int argc, char *argv[])
 {
-	PER_THREAD_ARGS thread_args[N_THREADS];
+	TEST_PER_THREAD_OPTS thread_args[N_THREADS];
 	TEST_OPTS *opts, _opts;
 	pthread_t ckpt_thread, mon_thread, threads[N_THREADS];
-	uint64_t uid;
 	int i;
 
 	if (!testutil_enable_long_tests())	/* Ignore unless requested. */
 		return (EXIT_SUCCESS);
 
-	uid = 0;
 	opts = &_opts;
+	opts->unique_id = 0;
 	memset(opts, 0, sizeof(*opts));
 
 	testutil_check(testutil_parse_opts(argc, argv, opts));
 	testutil_make_work_dir(opts->home);
 
-	testutil_check(wiredtiger_open(
-	    opts->home, &event_handler, "create,cache_size=1G,", &opts->conn));
+	testutil_check(wiredtiger_open(opts->home, &event_handler,
+	    "create,cache_size=1G,diagnostic_timing_stress=[checkpoint_slow]",
+	    &opts->conn));
 
 	testutil_check(pthread_create(
 	    &ckpt_thread, NULL, do_checkpoints, (void *)opts));
 
 	for (i = 0; i < N_THREADS; ++i) {
-		thread_args[i].uid = &uid;
 		thread_args[i].testopts = opts;
 		thread_args[i].thread_counter = 0;
 		thread_args[i].threadnum = i;
@@ -129,12 +128,8 @@ do_checkpoints(void *_opts)
 	WT_SESSION *session;
 	time_t now, start;
 	int ret;
-	char config[64];
 
 	opts = (TEST_OPTS *)_opts;
-	testutil_check(__wt_snprintf(
-	    config, sizeof(config), "force,diagnostic_checkpoint_latency=%"
-	    PRIu64, MAX_EXECUTION_TIME));
 	(void)time(&start);
 	(void)time(&now);
 
@@ -142,7 +137,7 @@ do_checkpoints(void *_opts)
 		testutil_check(
 		    opts->conn->open_session(opts->conn, NULL, NULL, &session));
 
-		if ((ret = session->checkpoint(session, config)) != 0)
+		if ((ret = session->checkpoint(session, "force")) != 0)
 			if (ret != EBUSY && ret != ENOENT)
 				testutil_die(ret, "session.checkpoint");
 
@@ -166,11 +161,11 @@ do_checkpoints(void *_opts)
 void *
 monitor(void *args)
 {
-	PER_THREAD_ARGS *thread_args;
+	TEST_PER_THREAD_OPTS *thread_args;
 	time_t now, start;
 	int ctr, i, last_ops[N_THREADS];
 
-	thread_args = (PER_THREAD_ARGS*)args;
+	thread_args = (TEST_PER_THREAD_OPTS*)args;
 
 	(void)time(&start);
 	(void)time(&now);
@@ -178,6 +173,7 @@ monitor(void *args)
 	memset(last_ops, 0, sizeof(int) + N_THREADS);
 
 	while (difftime(now, start) < RUNTIME) {
+
 		/*
 		 * Checkpoints will run for slightly over MAX_EXECUTION_TIME.
 		 * MAX_EXECUTION_TIME should always be long enough that we can
@@ -191,6 +187,7 @@ monitor(void *args)
 			/* Ignore any threads which may not have started yet. */
 			if (ctr == 0)
 				continue;
+
 			/*
 			 * We track how many operations each thread has done. If
 			 * we have slept and the counter remains the same for a
@@ -204,7 +201,6 @@ monitor(void *args)
 				    " for more than %d seconds\n",
 				    i, MAX_EXECUTION_TIME/2);
 				abort();
-
 			}
 		}
 		(void)time(&now);

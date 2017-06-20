@@ -72,26 +72,19 @@ typedef struct {
 	bool	   running;
 	char	  *uri;
 	volatile uint64_t   next_threadid;
+	volatile uint64_t   unique_id;
 	uint64_t   max_inserted_id;
 } TEST_OPTS;
 
 /*
  * A structure for the data specific to a single thread of those used by the
- * op_ series of threads.
+ * group of threads defined below.
  */
 typedef struct {
 	TEST_OPTS *testopts;
-	/*
-	 * This unique id must be shared among all threads using the op_
-	 * functions in order to generate unique table names. It should be
-	 * allocated in the main of your test and each instance of
-	 * PER_THREAD_ARGS should contain the pointer to this variable. See
-	 * the csuite test for WT-3363 for an example.
-	 */
-	uint64_t *uid;
 	int threadnum;
 	int thread_counter;
-} PER_THREAD_ARGS;
+} TEST_PER_THREAD_OPTS;
 
 /*
  * testutil_assert --
@@ -201,9 +194,11 @@ void *dmalloc(size_t);
 void *drealloc(void *, size_t);
 void *dstrdup(const void *);
 void *dstrndup(const char *, size_t);
+
 /*
- * The op_ functions can generate errors that we wish to ignore. We have handler
- * functions available for them here, to avoid making tests crash prematurely.
+ * The functions below can generate errors that we wish to ignore. We have
+ * handler functions available for them here, to avoid making tests crash
+ * prematurely.
  */
 int handle_op_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *);
 int handle_op_message(WT_EVENT_HANDLER *, WT_SESSION *, const char *);

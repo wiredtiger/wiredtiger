@@ -401,6 +401,15 @@ connection_runtime_config = [
             above 0 configures periodic checkpoints''',
             min='0', max='100000'),
         ]),
+    Config('diagnostic_timing_stress', '', r'''
+        enable insertion of code that interrupts the usual timing of
+        operations with a goal of uncovering race conditions and unexpected
+        blocking. This option is intended for use with internal stress
+        testing of WiredTiger. Only available if WiredTiger is configured
+        with --enable-diagnostic. Options are given as a list, such as
+        <code>"diagnostic_timing_stress=[checkpoint_slow]"</code>''',
+        type='list', undoc=True, choices=[
+            'checkpoint_slow']),
     Config('error_prefix', '', r'''
         prefix string for error messages'''),
     Config('eviction', '', r'''
@@ -1100,10 +1109,6 @@ methods = {
 'WT_SESSION.rollback_transaction' : Method([]),
 
 'WT_SESSION.checkpoint' : Method([
-    Config('diagnostic_checkpoint_latency', '0', r'''
-        add a sleep of some number of seconds to checkpoints. This is to
-        simulate long running checkpoints, intended for debugging''',
-        type='int',undoc=True),
     Config('drop', '', r'''
         specify a list of checkpoints to drop.
         The list may additionally contain one of the following keys:

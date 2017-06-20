@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-static int __checkpoint_diagnostic_latency(WT_SESSION_IMPL *, const char *[]);
+static void __checkpoint_diagnostic_latency(WT_SESSION_IMPL *);
 static int __checkpoint_lock_dirty_tree(
     WT_SESSION_IMPL *, bool, bool, bool, const char *[]);
 static int __checkpoint_mark_skip(WT_SESSION_IMPL *, WT_CKPT *, bool);
@@ -772,7 +772,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_ERR(__wt_txn_checkpoint_log(
 		    session, full, WT_TXN_LOG_CKPT_START, NULL));
 
-	WT_ERR(__checkpoint_diagnostic_latency(session, cfg));
+	__checkpoint_diagnostic_latency(session);
 
 	WT_ERR(__checkpoint_apply(session, cfg, __checkpoint_tree_helper));
 
@@ -1703,26 +1703,19 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
 
 /*
  * __checkpoint_diagnostic_latency --
- *	Optionally add a delay to a checkpoint to simulate a long running
- *	checkpoint for debug purposes. The reason for this option is finding
- *	operations that can block while waiting for a checkpoint to complete.
+ *	Optionally add a 10 second delay to a checkpoint to simulate a long
+ *	running checkpoint for debug purposes. The reason for this option is
+ *	finding	operations that can block while waiting for a checkpoint to
+ *	complete.
  */
-static int
-__checkpoint_diagnostic_latency(WT_SESSION_IMPL *session, const char *cfg[])
+static void
+__checkpoint_diagnostic_latency(WT_SESSION_IMPL *session)
 {
 #ifdef HAVE_DIAGNOSTIC
-	WT_CONFIG_ITEM cval;
-	uint64_t diagnostic_latency;
-
-	WT_RET(__wt_config_gets(
-	    session, cfg, "diagnostic_checkpoint_latency", &cval));
-	diagnostic_latency = (uint64_t)cval.val;
-
-	if (diagnostic_latency > 0)
-		__wt_sleep(diagnostic_latency, 0);
+	if (FLD_ISSET(
+	    S2C(session)->diag_stress_flags, WT_DIAGNOSTIC_CHECKPOINT_SLOW))
+		__wt_sleep(10, 0);
 #else
 	WT_UNUSED(session);
-	WT_UNUSED(cfg);
 #endif
-	return (0);
 }
