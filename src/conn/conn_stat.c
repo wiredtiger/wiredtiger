@@ -268,6 +268,14 @@ __statlog_dump(WT_SESSION_IMPL *session, const char *name, bool conn_stats)
 		WT_ERR(__wt_fprintf(session, conn->stat_fs,
 		     "{\"version\":\"%s\",\"localTime\":\"%s\"",
 		     WIREDTIGER_VERSION_STRING, conn->stat_stamp));
+
+		/*
+		 * When printing stats for handles in JSON mode we print then
+		 * name of the handle to allow mapping of stats to tables.
+		 */
+		if (!conn_stats)
+			WT_ERR(__wt_fprintf(session,
+			    conn->stat_fs, ",\"handle\":\"%s\"", name));
 		WT_ERR(__wt_fprintf(
 		    session, conn->stat_fs, ",\"wiredTiger\":{"));
 		while ((ret = cursor->next(cursor)) == 0) {
