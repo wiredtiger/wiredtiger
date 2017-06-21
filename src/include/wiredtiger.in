@@ -1770,8 +1770,6 @@ struct __wt_session {
 	 * @config{name, if set\, specify a name for the checkpoint (note that
 	 * checkpoints including LSM trees may not be named)., a string; default
 	 * empty.}
-	 * @config{read_timestamp, if set\, read data as of the specified
-	 * timestamp when writing the checkpoint., a string; default empty.}
 	 * @config{target, if non-empty\, checkpoint the list of objects., a
 	 * list of strings; default empty.}
 	 * @configend
@@ -2203,9 +2201,6 @@ struct __wt_connection {
 	 *
 	 * @snippet ex_all.c query timestamp
 	 *
-	 * If there is no matching timestamp (e.g., if this method is called
-	 * before timestamps are used) ::WT_NOTFOUND will be returned.
-	 *
 	 * @param connection the connection handle
 	 * @param[out] hex_timestamp a buffer that will be set to the
 	 * hexadecimal encoding of the timestamp being queried.  Must be large
@@ -2218,6 +2213,8 @@ struct __wt_connection {
 	 * the following options: \c "all_committed"; default \c all_committed.}
 	 * @configend
 	 * @errors
+	 * If there is no matching timestamp (e.g., if this method is called
+	 * before timestamps are used) ::WT_NOTFOUND will be returned.
 	 */
 	int __F(query_timestamp)(
 	    WT_CONNECTION *connection, char *hex_timestamp, const char *config);
@@ -3178,9 +3175,6 @@ struct __wt_config_parser {
 	/*!
 	 * Return the next key/value pair.
 	 *
-	 * When iteration would pass the end of the configuration string
-	 * ::WT_NOTFOUND will be returned.
-	 *
 	 * If an item has no explicitly assigned value, the item will be
 	 * returned in \c key and the \c value will be set to the boolean
 	 * \c "true" value.
@@ -3189,7 +3183,8 @@ struct __wt_config_parser {
 	 * @param key the returned key
 	 * @param value the returned value
 	 * @errors
-	 *
+	 * When iteration would pass the end of the configuration string
+	 * ::WT_NOTFOUND will be returned.
 	 */
 	int __F(next)(WT_CONFIG_PARSER *config_parser,
 	    WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value);

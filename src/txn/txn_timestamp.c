@@ -85,7 +85,7 @@ __txn_global_query_timestamp(
 	uint32_t i, session_cnt;
 
 	conn = S2C(session);
-	txn_global = &S2C(session)->txn_global;
+	txn_global = &conn->txn_global;
 
 	WT_RET(__wt_config_gets(session, cfg, "get", &cval));
 	if (WT_STRING_MATCH("all_committed", cval.str, cval.len)) {

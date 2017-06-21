@@ -209,13 +209,14 @@ real_worker(void)
 				if (ts > 100 && ts % 100 == 0) {
 					testutil_check(__wt_snprintf(
 					    config_buf, sizeof(config_buf),
-					    "oldest_timestamp=%x", ts - 100));
+					    "oldest_timestamp=%" PRIx64,
+					    ts - 100));
 					testutil_check(g.conn->set_timestamp(
 					    g.conn, config_buf));
 				}
 				testutil_check(__wt_snprintf(
 				    config_buf, sizeof(config_buf),
-				    "commit_timestamp=%x", ts));
+				    "commit_timestamp=%" PRIx64, ts));
 			}
 
 			if ((ret = session->commit_transaction(session,

@@ -300,6 +300,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	key = &conn->las_sweep_key;
 	remove_cnt = 0;
 	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
+	WT_CLEAR(las_timestamp);
 
 	__wt_las_cursor(session, &cursor, &session_flags);
 
@@ -360,8 +361,6 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 
 		WT_ERR(cursor->get_key(cursor, &las_id, &las_addr, &las_counter,
 		    &las_txnid, &las_timestamp, &las_key));
-		if (las_timestamp.size == 0)
-			las_timestamp.data = NULL;
 
 		/*
 		 * If the on-page record transaction ID associated with the
@@ -370,6 +369,10 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		 * Cursor opened overwrite=true: won't return WT_NOTFOUND should
 		 * another thread remove the record before we do, and the cursor
 		 * remains positioned in that case.
+		 *
+		 * We clear the las_timestamp structure above to avoid reading
+		 * uninitialized memory here when timestamps are disabled (even
+		 * though it is unused in that case).
 		 */
 		if (__wt_txn_visible_all(
 		    session, las_txnid, las_timestamp.data)) {

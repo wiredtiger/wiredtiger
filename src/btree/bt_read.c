@@ -133,6 +133,8 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 	total_incr = 0;
 	current_recno = recno = WT_RECNO_OOB;
 	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
+	WT_CLEAR(las_key);
+	WT_CLEAR(las_timestamp);
 
 	__wt_btcur_init(session, &cbt);
 	__wt_btcur_open(&cbt);
@@ -154,8 +156,6 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 	 */
 	las_addr.data = addr;
 	las_addr.size = addr_size;
-	las_key.size = 0;
-	las_timestamp.size = 0;
 	cursor->set_key(cursor, read_id, &las_addr,
 	    (uint64_t)0, (uint32_t)0, &las_timestamp, &las_key);
 	if ((ret = cursor->search_near(cursor, &exact)) == 0 && exact < 0)
@@ -163,8 +163,6 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 	for (; ret == 0; ret = cursor->next(cursor)) {
 		WT_ERR(cursor->get_key(cursor, &las_id, &las_addr, &las_counter,
 		    &las_txnid, &las_timestamp, &las_key));
-		if (las_timestamp.size == 0)
-			las_timestamp.data = NULL;
 
 		/*
 		 * Confirm the search using the unique prefix; if not a match,
@@ -177,7 +175,10 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 
 		/*
 		 * If the on-page value has become globally visible, this record
-		 * is no longer needed.
+		 * is no longer needed.  We clear the las_timestamp structure
+		 * above to avoid reading uninitialized memory here when
+		 * timestamps are disabled (even though it is unused in that
+		 * case).
 		 */
 		if (__wt_txn_visible_all(
 		    session, las_txnid, las_timestamp.data))

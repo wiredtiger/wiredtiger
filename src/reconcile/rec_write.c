@@ -1191,8 +1191,10 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 
 #ifdef HAVE_TIMESTAMPS
 			/* Similarly for the oldest timestamp. */
-			if (__wt_timestamp_cmp(min_timestamp, upd->timestamp) > 0)
-				__wt_timestamp_set(min_timestamp, upd->timestamp);
+			if (__wt_timestamp_cmp(
+			    min_timestamp, upd->timestamp) > 0)
+				__wt_timestamp_set(
+				    min_timestamp, upd->timestamp);
 #endif
 
 			/*
@@ -1411,7 +1413,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 */
 		if (vpack != NULL &&
 		    vpack->raw == WT_CELL_VALUE_OVFL_RM &&
-		    !__wt_txn_visible_all(session, min_txn, WT_TIMESTAMP(min_timestamp)))
+		    !__wt_txn_visible_all(
+		    session, min_txn, WT_TIMESTAMP(min_timestamp)))
 			append_origv = true;
 	} else {
 		/*
@@ -1421,7 +1424,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 * list and ignore the current on-page value. If no update is
 		 * globally visible, readers require the page's original value.
 		 */
-		if (!__wt_txn_visible_all(session, min_txn, WT_TIMESTAMP(min_timestamp)))
+		if (!__wt_txn_visible_all(
+		    session, min_txn, WT_TIMESTAMP(min_timestamp)))
 			append_origv = true;
 	}
 
