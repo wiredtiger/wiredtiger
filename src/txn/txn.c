@@ -282,9 +282,11 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 	prev_metadata_pinned = txn_global->metadata_pinned;
 	prev_oldest_id = txn_global->oldest_id;
 
+#ifdef HAVE_TIMESTAMPS
 	/* Try to move the pinned timestamp forward. */
 	if (strict)
 		WT_RET(__wt_txn_update_pinned_timestamp(session));
+#endif
 
 	/*
 	 * For pure read-only workloads, or if the update isn't forced and the
@@ -1007,11 +1009,13 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session)
 		__wt_yield();
 	}
 
+#ifdef HAVE_TIMESTAMPS
 	/*
 	 * Now that all transactions have completed, no timestamps should be
 	 * pinned.
 	 */
 	memset(txn_global->pinned_timestamp, 0xff, WT_TIMESTAMP_SIZE);
+#endif
 
 	return (ret);
 }

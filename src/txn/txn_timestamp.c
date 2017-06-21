@@ -164,6 +164,7 @@ __wt_txn_global_query_timestamp(
 #endif
 }
 
+#ifdef HAVE_TIMESTAMPS
 /*
  * __wt_txn_update_pinned_timestamp --
  *	Update the pinned timestamp (the oldest timestamp that has to be
@@ -214,6 +215,7 @@ __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session)
 
 	return (0);
 }
+#endif
 
 /*
  * __wt_txn_global_set_timestamp --

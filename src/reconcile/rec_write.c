@@ -1133,6 +1133,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	WT_BTREE *btree;
 	WT_DECL_RET;
 	WT_DECL_ITEM(tmp);
+	WT_DECL_TIMESTAMP(min_timestamp)
 	WT_DECL_TIMESTAMP(max_timestamp)
 	WT_PAGE *page;
 	WT_UPDATE *append, *upd, *upd_list;
@@ -1162,6 +1163,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	max_txn = WT_TXN_NONE;
 #ifdef HAVE_TIMESTAMPS
 	__wt_timestamp_set(max_timestamp, zero_timestamp);
+	memset(min_timestamp, 0xff, WT_TIMESTAMP_SIZE);
 #endif
 	min_txn = UINT64_MAX;
 
@@ -1186,6 +1188,12 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 				max_txn = txnid;
 			if (WT_TXNID_LT(txnid, min_txn))
 				min_txn = txnid;
+
+#ifdef HAVE_TIMESTAMPS
+			/* Similarly for the oldest timestamp. */
+			if (__wt_timestamp_cmp(min_timestamp, upd->timestamp) > 0)
+				__wt_timestamp_set(min_timestamp, upd->timestamp);
+#endif
 
 			/*
 			 * Find the first update we can use.
@@ -1403,7 +1411,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 */
 		if (vpack != NULL &&
 		    vpack->raw == WT_CELL_VALUE_OVFL_RM &&
-		    !__wt_txn_visible_all(session, min_txn, NULL))
+		    !__wt_txn_visible_all(session, min_txn, WT_TIMESTAMP(min_timestamp)))
 			append_origv = true;
 	} else {
 		/*
@@ -1413,7 +1421,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 * list and ignore the current on-page value. If no update is
 		 * globally visible, readers require the page's original value.
 		 */
-		if (!__wt_txn_visible_all(session, min_txn, NULL))
+		if (!__wt_txn_visible_all(session, min_txn, WT_TIMESTAMP(min_timestamp)))
 			append_origv = true;
 	}
 
@@ -3606,6 +3614,7 @@ __rec_update_las(WT_SESSION_IMPL *session,
 
 	cursor = NULL;
 	WT_CLEAR(las_addr);
+	WT_CLEAR(las_timestamp);
 	WT_CLEAR(las_value);
 	page = r->page;
 	insert_cnt = 0;
@@ -3699,9 +3708,6 @@ __rec_update_las(WT_SESSION_IMPL *session,
 #ifdef HAVE_TIMESTAMPS
 			las_timestamp.data = list->onpage_timestamp;
 			las_timestamp.size = WT_TIMESTAMP_SIZE;
-#else
-			las_timestamp.data = NULL;
-			las_timestamp.size = 0;
 #endif
 			cursor->set_key(cursor,
 			    btree_id, &las_addr, ++las_counter,
@@ -3716,9 +3722,6 @@ __rec_update_las(WT_SESSION_IMPL *session,
 #ifdef HAVE_TIMESTAMPS
 			las_timestamp.data = upd->timestamp;
 			las_timestamp.size = WT_TIMESTAMP_SIZE;
-#else
-			las_timestamp.data = NULL;
-			las_timestamp.size = 0;
 #endif
 			cursor->set_value(cursor,
 			    upd->txnid, &las_timestamp, upd->type, &las_value);
