@@ -1704,7 +1704,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
 /*
  * __checkpoint_diagnostic_latency --
  *	Optionally add a 10 second delay to a checkpoint to simulate a long
- *	running checkpoint for debug purposes. The reason for this option is
+ *	running checkpoint for debug purposes. The reason for this option is 
  *	finding	operations that can block while waiting for a checkpoint to
  *	complete.
  */
@@ -1712,8 +1712,18 @@ static void
 __checkpoint_diagnostic_latency(WT_SESSION_IMPL *session)
 {
 #ifdef HAVE_DIAGNOSTIC
-	if (FLD_ISSET(
-	    S2C(session)->diag_stress_flags, WT_DIAGNOSTIC_CHECKPOINT_SLOW))
+	WT_CONNECTION_IMPL *conn;
+
+	conn = S2C(session);
+
+	/*
+	 * We only want to sleep if the flag is set and the checkpoint comes
+	 * from the API, so check if the session used is either of the two
+	 * sessions set aside for internal checkpoints.
+	 */
+	if (conn->ckpt_session != session &&
+	    conn->meta_ckpt_session != session &&
+	    FLD_ISSET(conn->diag_stress_flags, WT_DIAGNOSTIC_CHECKPOINT_SLOW))
 		__wt_sleep(10, 0);
 #else
 	WT_UNUSED(session);

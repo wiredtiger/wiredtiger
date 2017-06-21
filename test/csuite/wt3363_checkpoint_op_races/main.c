@@ -102,6 +102,11 @@ main(int argc, char *argv[])
 		    &threads[i], NULL, do_ops, (void *)&thread_args[i]));
 	}
 
+	/*
+	 * Pass the whole array of thread arguments to the monitoring thread.
+	 * This thread will need to monitor each threads counter to track if it
+	 * is stuck. 
+	 */
 	testutil_check(
 	    pthread_create(&mon_thread, NULL, monitor, &thread_args));
 

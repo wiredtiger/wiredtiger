@@ -412,7 +412,7 @@ struct __wt_connection_impl {
 
 	/*
 	 * Variable with flags for which subsystems the diagnostic stress timing
-	 * has been requested.
+	 * delays have been requested.
 	 */
 	uint32_t diag_stress_flags;
 
