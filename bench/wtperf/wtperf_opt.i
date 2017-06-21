@@ -92,7 +92,7 @@ DEF_OPT_AS_UINT32(checkpoint_stress_rate, 0,
     "checkpoint every rate operations during the populate phase in the "
     "populate thread(s), 0 to disable")
 DEF_OPT_AS_UINT32(checkpoint_threads, 0, "number of checkpoint threads")
-DEF_OPT_AS_CONFIG_STRING(conn_config, 
+DEF_OPT_AS_CONFIG_STRING(conn_config,
     "create,statistics_log=(json=true,wait=1)",
     "connection configuration string")
 DEF_OPT_AS_BOOL(close_conn, 1, "properly close connection at end of test. "
