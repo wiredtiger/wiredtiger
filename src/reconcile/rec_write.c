@@ -587,8 +587,9 @@ __rec_write_check_complete(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	 * This may lead to saving the page to the lookaside table: that
 	 * decision is made by eviction.
 	 */
-	if (F_ISSET(r, WT_EVICT_UPDATE_RESTORE) && r->bnd_next == 1 &&
-	    r->update_mem_all != 0 && r->update_mem_all == r->update_mem_saved)
+	if (F_ISSET(r, WT_EVICT_UPDATE_RESTORE) && r->bnd->supd != NULL &&
+	    r->bnd_next == 1 && r->update_mem_saved == r->update_mem_all &&
+	    r->update_mem_uncommitted == 0)
 		return (EBUSY);
 
 	return (0);
