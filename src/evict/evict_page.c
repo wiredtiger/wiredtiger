@@ -557,8 +557,8 @@ __evict_review(
 				LF_SET(WT_EVICT_SCRUB);
 
 			/*
-			 * Switch to the lookaside table, if reconciliation says
-			 * we should.
+			 * Check if reconciliation suggests trying the
+			 * lookaside table.
 			 */
 			lookaside_retryp = &lookaside_retry;
 		}
@@ -568,12 +568,11 @@ __evict_review(
 	ret = __wt_reconcile(session, ref, NULL, flags, lookaside_retryp);
 
 	/*
-	 * If reconciliation fails, eviction is stuck and reconciliation reports
-	 * it might succeed if we use the lookaside table (the page didn't have
-	 * uncommitted updates, it was not-yet-globally visible updates causing
-	 * the problem), configure reconciliation to write those updates to the
-	 * lookaside table, allowing the eviction of pages we'd otherwise have
-	 * to retain in cache to support older readers.
+	 * If reconciliation fails, eviction is stuck and reconciliation
+	 * reports it might succeed if we use the lookaside table, then
+	 * configure reconciliation to write those updates to the lookaside
+	 * table, allowing the eviction of pages we'd otherwise have to retain
+	 * in cache to support older readers.
 	 */
 	if (ret == EBUSY && lookaside_retry && __wt_cache_stuck(session)) {
 		LF_CLR(WT_EVICT_SCRUB | WT_EVICT_UPDATE_RESTORE);

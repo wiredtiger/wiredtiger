@@ -577,10 +577,11 @@ __rec_write_check_complete(
 	/*
 	 * Eviction can configure lookaside table reconciliation, consider if
 	 * it's worth giving up this reconciliation attempt and falling back to
-	 * the lookaside table.  We continue on if switching to the lookaside
-	 * doesn't make sense for any reason: we won't retry an evict/restore
-	 * reconciliation until/unless the transactional system moves forward,
-	 * so at worst it's a single wasted effort.
+	 * using the lookaside table.  We continue with evict/restore if
+	 * switching to the lookaside doesn't make sense for any reason: we
+	 * won't retry an evict/restore reconciliation until/unless the
+	 * transactional system moves forward, so at worst it's a single wasted
+	 * effort.
 	 *
 	 * First, check if the lookaside table is a possible alternative.
 	 */
@@ -588,45 +589,40 @@ __rec_write_check_complete(
 		return (0);
 
 	/*
-	 * We only suggest lookaside if currently in an evict/restore attempt.
-	 * Our caller sets the evict/restore flag based on various conditions
-	 * (like if this is a leaf page), which is why we're testing that flag
-	 * instead of a set of other conditions.
+	 * We only suggest lookaside if currently in an evict/restore attempt
+	 * and some updates were saved.  Our caller sets the evict/restore flag
+	 * based on various conditions (like if this is a leaf page), which is
+	 * why we're testing that flag instead of a set of other conditions.
+	 * If no updates were saved, eviction will succeed without needing to
+	 * restore anything.
 	 */
-	if (!F_ISSET(r, WT_EVICT_UPDATE_RESTORE))
+	if (!F_ISSET(r, WT_EVICT_UPDATE_RESTORE) || r->bnd->supd == NULL)
 		return (0);
 
 	/*
-	 * Second, check if this reconciliation attempt is making progress, if
-	 * there's any sign of progress, don't fallback to the lookaside table.
+	 * Check if this reconciliation attempt is making progress.  If there's
+	 * any sign of progress, don't fall back to the lookaside table.
 	 *
-	 * Check if the current reconciliation split, in which case we'll likely
-	 * get to write at least one of the blocks.
+	 * Check if the current reconciliation split, in which case we'll
+	 * likely get to write at least one of the blocks.  If that page is
+	 * empty, that's also progress.
 	 */
-	if (r->bnd_next > 1)
+	if (r->bnd_next != 1)
 		return (0);
 
 	/*
-	 * Check if the current reconciliation skipped updates, in which case
-	 * evict/restore should gain us some space.
+	 * Check if the current reconciliation applied some updates, in which
+	 * case evict/restore should gain us some space.
 	 */
 	if (r->update_mem_saved != r->update_mem_all)
 		return (0);
 
 	/*
-	 * Third, check if lookaside is likely to be effective.
-	 *
-	 * Check if we skipped any updates (the lookaside table doesn't help in
-	 * that case, it can only help with older readers preventing eviction).
+	 * Check if lookaside eviction is possible.  If any of the updates we
+	 * saw were uncommitted, the lookaside table cannot be used: it only
+	 * helps with older readers preventing eviction.
 	 */
 	if (r->update_mem_uncommitted != 0)
-		return (0);
-
-	/*
-	 * Check if there were saved updates: if there aren't, lookaside can't
-	 * be useful.
-	 */
-	if (r->bnd->supd == NULL)
 		return (0);
 
 	/*
