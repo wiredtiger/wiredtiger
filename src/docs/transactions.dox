@@ -184,4 +184,12 @@ applications violate this rule, data consistency can be violated.
 The commits to a particular data item must be performed in timestamp order.
 Again, this is only checked in diagnostic builds and if applications violate
 this rule, data consistency can be violated.
+
+@subsection Timestamp support in the extension API
+
+The extension API, used by modules that extend WiredTiger via
+WT_CONNECTION::get_extension_api, is not timestamp-aware.  In particular,
+WT_EXTENSION_API::transaction_oldest and
+WT_EXTENSION_API::transaction_visible do not take timestamps into account.
+Extensions relying on these functions may not work correctly with timestamps.
  */

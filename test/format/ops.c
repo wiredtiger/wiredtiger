@@ -412,8 +412,8 @@ static void
 commit_transaction(TINFO *tinfo, WT_SESSION *session)
 {
 	WT_CONNECTION *conn;
-	char *commit_conf, config_buf[64];
 	uint64_t ts;
+	char *commit_conf, config_buf[64];
 
 	conn = g.wts_conn;
 
@@ -435,8 +435,7 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session)
 	} else
 		commit_conf = NULL;
 
-	testutil_check(
-	    session->commit_transaction(session, commit_conf));
+	testutil_check(session->commit_transaction(session, commit_conf));
 	++tinfo->commit;
 }
 

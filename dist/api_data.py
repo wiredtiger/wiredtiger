@@ -1226,6 +1226,7 @@ methods = {
         timestamp such that all earlier timestamps have committed.  See @ref
         transaction_timestamps''',
         choices=['all_committed']),
+    # We also support "oldest_reader" as an internal-only choice.
 ]),
 
 'WT_CONNECTION.set_timestamp' : Method([

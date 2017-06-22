@@ -123,7 +123,7 @@ __txn_global_query_timestamp(
 		}
 		__wt_readunlock(session, &txn_global->rwlock);
 	} else
-		__wt_timestamp_set(ts, zero_timestamp);
+		return (__wt_illegal_value(session, NULL));
 
 	return (0);
 }
@@ -175,9 +175,7 @@ __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session)
 {
 	WT_DECL_RET;
 	WT_TXN_GLOBAL *txn_global;
-	wt_timestamp_t active_timestamp;
-	wt_timestamp_t oldest_timestamp;
-	wt_timestamp_t pinned_timestamp;
+	wt_timestamp_t active_timestamp, oldest_timestamp, pinned_timestamp;
 	const char *query_cfg[] = { WT_CONFIG_BASE(session,
 	    WT_CONNECTION_query_timestamp), "get=oldest_reader", NULL };
 
@@ -269,8 +267,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
  *	Set a transaction's timestamp.
  */
 int
-__wt_txn_set_timestamp(
-    WT_SESSION_IMPL *session, const char *cfg[])
+__wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_CONFIG_ITEM cval;
 	WT_DECL_RET;

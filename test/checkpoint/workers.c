@@ -166,10 +166,10 @@ real_worker(void)
 	WT_CURSOR **cursors;
 	WT_SESSION *session;
 	WT_RAND_STATE rnd;
-	char config_buf[64];
 	uint64_t ts;
 	u_int i, keyno;
 	int j, ret, t_ret;
+	char config_buf[64];
 
 	ret = t_ret = 0;
 

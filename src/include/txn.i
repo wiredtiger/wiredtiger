@@ -157,17 +157,21 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
 
 	/*
 	 * Take a local copy of these IDs in case they are updated while we are
-	 * checking visibility.  The read of the transaction ID pinned by a
-	 * checkpoint needs to be carefully ordered: if a checkpoint is
-	 * starting and we have to start checking the pinned ID, we take the
-	 * minimum of it with the oldest ID, which is what we want.
+	 * checking visibility.
 	 */
 	oldest_id = txn_global->oldest_id;
 	include_checkpoint_txn = btree == NULL ||
 	    btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT);
-	WT_READ_BARRIER();
 	if (!include_checkpoint_txn)
 		return (oldest_id);
+
+	/*
+	 * The read of the transaction ID pinned by a checkpoint needs to be
+	 * carefully ordered: if a checkpoint is starting and we have to start
+	 * checking the pinned ID, we take the minimum of it with the oldest
+	 * ID, which is what we want.
+	 */
+	WT_READ_BARRIER();
 
 	/*
 	 * Checkpoint transactions often fall behind ordinary application
