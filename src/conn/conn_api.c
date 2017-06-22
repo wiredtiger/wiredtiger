@@ -1199,7 +1199,7 @@ __conn_query_timestamp(WT_CONNECTION *wt_conn,
 
 	CONNECTION_API_CALL(conn, session, query_timestamp, config, cfg);
 	WT_TRET(__wt_txn_global_query_timestamp(session, hex_timestamp, cfg));
-err:	API_END_RET_NOTFOUND_MAP(session, ret);
+err:	API_END_RET(session, ret);
 }
 
 /*
@@ -1217,7 +1217,7 @@ __conn_set_timestamp(WT_CONNECTION *wt_conn, const char *config)
 
 	CONNECTION_API_CALL(conn, session, set_timestamp, config, cfg);
 	WT_TRET(__wt_txn_global_set_timestamp(session, cfg));
-err:	API_END_RET_NOTFOUND_MAP(session, ret);
+err:	API_END_RET(session, ret);
 }
 
 /*
