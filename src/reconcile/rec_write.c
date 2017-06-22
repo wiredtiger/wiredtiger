@@ -3220,8 +3220,8 @@ __rec_split_finish_process_prev(
 			    bnd_prev->min_bnd_offset, len_to_move);
 
 			/* Update boundary information */
-			bnd_cur->size += len_to_move;
-			bnd_prev->size -= len_to_move;
+			bnd_cur->size += (uint32_t)len_to_move;
+			bnd_prev->size -= (uint32_t)len_to_move;
 			bnd_cur->max_bnd_entries += bnd_prev->max_bnd_entries -
 			    bnd_prev->min_bnd_entries;
 			bnd_prev->max_bnd_entries = bnd_prev->min_bnd_entries;
