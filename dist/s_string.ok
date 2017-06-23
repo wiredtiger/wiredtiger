@@ -833,6 +833,7 @@ isrc
 isspace
 isupper
 isxdigit
+iszero
 iter
 iteratively
 iters
@@ -1103,6 +1104,7 @@ runtime
 rwlock
 sH
 sHQ
+sT
 scalability
 sched
 scr
@@ -1179,7 +1181,9 @@ testutil
 th
 tid
 timestamp
+timestamps
 tmp
+todo
 tokenizer
 toklen
 tokname

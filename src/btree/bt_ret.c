@@ -162,7 +162,7 @@ __value_return_upd(
 			 * updates anyway and it's less fragile to check using
 			 * the standard API than roll my own test.
 			 */
-			if (!__wt_txn_visible(session, upd->txnid))
+			if (!__wt_txn_upd_visible(session, upd))
 				continue;
 			break;
 		case WT_UPDATE_DELETED:
@@ -171,7 +171,7 @@ __value_return_upd(
 			 * been aborted for us to get here.
 			 */
 			WT_ASSERT(session,
-			    !__wt_txn_visible(session, upd->txnid));
+			    !__wt_txn_upd_visible(session, upd));
 			continue;
 		case WT_UPDATE_MODIFIED:
 			*listp++ = WT_UPDATE_DATA(upd);

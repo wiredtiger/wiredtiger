@@ -137,7 +137,7 @@ new_page:	if (cbt->ins == NULL)
 		if ((upd = __wt_txn_read(session, cbt->ins->upd)) == NULL)
 			continue;
 		if (upd->type == WT_UPDATE_DELETED) {
-			if (__wt_txn_visible_all(session, upd->txnid))
+			if (__wt_txn_upd_visible_all(session, upd))
 				++cbt->page_deleted_count;
 			continue;
 		}
@@ -196,7 +196,7 @@ new_page:	/* Find the matching WT_COL slot. */
 		    NULL : __wt_txn_read(session, cbt->ins->upd);
 		if (upd != NULL) {
 			if (upd->type == WT_UPDATE_DELETED) {
-				if (__wt_txn_visible_all(session, upd->txnid))
+				if (__wt_txn_upd_visible_all(session, upd))
 					++cbt->page_deleted_count;
 				continue;
 			}
@@ -312,7 +312,7 @@ new_insert:	if ((ins = cbt->ins) != NULL) {
 			if ((upd = __wt_txn_read(session, ins->upd)) == NULL)
 				continue;
 			if (upd->type == WT_UPDATE_DELETED) {
-				if (__wt_txn_visible_all(session, upd->txnid))
+				if (__wt_txn_upd_visible_all(session, upd))
 					++cbt->page_deleted_count;
 				continue;
 			}
@@ -343,7 +343,7 @@ new_insert:	if ((ins = cbt->ins) != NULL) {
 		rip = &page->pg_row[cbt->slot];
 		upd = __wt_txn_read(session, WT_ROW_UPDATE(page, rip));
 		if (upd != NULL && upd->type == WT_UPDATE_DELETED) {
-			if (__wt_txn_visible_all(session, upd->txnid))
+			if (__wt_txn_upd_visible_all(session, upd))
 				++cbt->page_deleted_count;
 			continue;
 		}

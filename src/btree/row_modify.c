@@ -310,7 +310,7 @@ __wt_update_obsolete_check(
 		 */
 		if (upd->type == WT_UPDATE_MODIFIED)
 			continue;
-		if (__wt_txn_visible_all(session, upd->txnid)) {
+		if (__wt_txn_upd_visible_all(session, upd)) {
 			if (first == NULL)
 				first = upd;
 		} else if (upd->txnid != WT_TXN_ABORTED)
