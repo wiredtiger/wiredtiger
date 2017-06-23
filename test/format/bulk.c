@@ -62,8 +62,8 @@ wts_load(void)
 	    is_bulk ? "bulk,append" : NULL, &cursor));
 
 	/* Set up the key/value buffers. */
-	key_gen_setup(&key);
-	val_gen_setup(NULL, &value);
+	key_gen_init(&key);
+	val_gen_init(&value);
 
 	for (;;) {
 		if (++g.key_cnt > g.c_rows) {
@@ -152,6 +152,6 @@ wts_load(void)
 
 	testutil_check(session->close(session, NULL));
 
-	free(key.mem);
-	free(value.mem);
+	key_gen_teardown(&key);
+	val_gen_teardown(&value);
 }

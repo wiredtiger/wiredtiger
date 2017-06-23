@@ -976,6 +976,35 @@ __debug_row_skip(WT_DBG *ds, WT_INSERT_HEAD *head)
 }
 
 /*
+ * __debug_modified --
+ *	Dump a modified update.
+ */
+static int
+__debug_modified(WT_DBG *ds, WT_UPDATE *upd)
+{
+	const size_t *p;
+	int nentries;
+	const uint8_t *data;
+	void *modify;
+
+	modify = WT_UPDATE_DATA(upd);
+
+	p = modify;
+	nentries = (int)*p++;
+	data = (uint8_t *)modify +
+	    sizeof(size_t) + ((size_t)nentries * 3 * sizeof(size_t));
+
+	WT_RET(ds->f(ds, "%d: ", nentries));
+	for (; nentries-- > 0; data += p[0], p += 3)
+		WT_RET(ds->f(ds,
+		    "{%" WT_SIZET_FMT ", %" WT_SIZET_FMT ", %" WT_SIZET_FMT
+		    ", %.*s}%s", p[0], p[1], p[2],
+		    (int)p[2], data, nentries == 0 ? "" : ", "));
+
+	return (0);
+}
+
+/*
  * __debug_update --
  *	Dump an update list.
  */
@@ -983,18 +1012,29 @@ static int
 __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 {
 	for (; upd != NULL; upd = upd->next)
-		if (upd->type == WT_UPDATE_DELETED)
+		switch (upd->type) {
+		case WT_UPDATE_STANDARD:
+			if (hexbyte) {
+				WT_RET(ds->f(ds, "\t{"));
+				WT_RET(__debug_hex_byte(ds,
+				    *(uint8_t *)WT_UPDATE_DATA(upd)));
+				WT_RET(ds->f(ds, "}\n"));
+			} else
+				WT_RET(__debug_item(ds,
+				    "value", WT_UPDATE_DATA(upd), upd->size));
+			break;
+		case WT_UPDATE_DELETED:
 			WT_RET(ds->f(ds, "\tvalue {deleted}\n"));
-		else if (upd->type == WT_UPDATE_RESERVED)
-			WT_RET(ds->f(ds, "\tvalue {reserved}\n"));
-		else if (hexbyte) {
-			WT_RET(ds->f(ds, "\t{"));
-			WT_RET(__debug_hex_byte(ds,
-			    *(uint8_t *)WT_UPDATE_DATA(upd)));
+			break;
+		case WT_UPDATE_MODIFIED:
+			WT_RET(ds->f(ds, "\tvalue {modified: "));
+			WT_RET(__debug_modified(ds, upd));
 			WT_RET(ds->f(ds, "}\n"));
-		} else
-			WT_RET(__debug_item(ds,
-			    "value", WT_UPDATE_DATA(upd), upd->size));
+			break;
+		case WT_UPDATE_RESERVED:
+			WT_RET(ds->f(ds, "\tvalue {reserved}\n"));
+			break;
+		}
 	return (0);
 }
 

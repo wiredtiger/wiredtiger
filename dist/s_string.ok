@@ -355,6 +355,7 @@ TORTIOUS
 TSO
 TXN
 TXNC
+Teardown
 ThreadList
 ThreadListWrapper
 Timespec
@@ -1081,6 +1082,7 @@ refp
 regionp
 reinitialization
 relocked
+repl
 resize
 resizing
 ret
@@ -1310,3 +1312,4 @@ zseries
 zstd
 zstd's
 zu
+zyxwvutsrqponmlkjihgfedcba
