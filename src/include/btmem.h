@@ -290,9 +290,9 @@ struct __wt_page_modify {
 
 		/*
 		 * List of unresolved updates. Updates are either a row-store
-		 * row-store insert list or update list, or column-store insert
-		 * list. When creating lookaside records, there is an additional
-		 * value, the committed item's transaction ID.
+		 * insert or update list, or column-store insert list. When
+		 * creating lookaside records, there is an additional value,
+		 * the committed item's transaction information.
 		 *
 		 * If there are unresolved updates, the block wasn't written and
 		 * there will always be a disk image.
