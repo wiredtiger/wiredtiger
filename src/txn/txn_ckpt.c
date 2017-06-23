@@ -1704,7 +1704,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
 /*
  * __checkpoint_diagnostic_latency --
  *	Optionally add a 10 second delay to a checkpoint to simulate a long
- *	running checkpoint for debug purposes. The reason for this option is 
+ *	running checkpoint for debug purposes. The reason for this option is
  *	finding	operations that can block while waiting for a checkpoint to
  *	complete.
  */

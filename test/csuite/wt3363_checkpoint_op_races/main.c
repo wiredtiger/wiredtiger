@@ -76,8 +76,21 @@ main(int argc, char *argv[])
 	TEST_OPTS *opts, _opts;
 	pthread_t ckpt_thread, mon_thread, threads[N_THREADS];
 	int i;
+	bool diagnostic;
 
-	if (!testutil_enable_long_tests())	/* Ignore unless requested. */
+#ifdef HAVE_DIAGNOSTIC
+	diagnostic = true;
+#else
+	diagnostic = false;
+#endif
+
+	/*
+	 * This test should not run unless we have compiled with diagnostic
+	 * support and the long tests flag is set. The test will fail when
+	 * attempting to set the option to add the delays to checkpoints if
+	 * diagnostic mode is not enable and runs for 15 minutes.
+	 */
+	if (!testutil_enable_long_tests() || !diagnostic)
 		return (EXIT_SUCCESS);
 
 	opts = &_opts;
@@ -105,7 +118,7 @@ main(int argc, char *argv[])
 	/*
 	 * Pass the whole array of thread arguments to the monitoring thread.
 	 * This thread will need to monitor each threads counter to track if it
-	 * is stuck. 
+	 * is stuck.
 	 */
 	testutil_check(
 	    pthread_create(&mon_thread, NULL, monitor, &thread_args));
