@@ -108,7 +108,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 	WT_RET(__txn_next_op(session, &op));
 	op->type = F_ISSET(session, WT_SESSION_LOGGING_INMEM) ?
 	    WT_TXN_OP_INMEM : WT_TXN_OP_BASIC;
-#if HAVE_TIMESTAMPS
+#ifdef HAVE_TIMESTAMPS
 	if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
 		__wt_timestamp_set(upd->timestamp, txn->commit_timestamp);
 		if (!F_ISSET(session, WT_SESSION_LOGGING_INMEM))
