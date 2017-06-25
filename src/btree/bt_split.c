@@ -353,10 +353,9 @@ __split_ref_prepare(WT_SESSION_IMPL *session,
 		child->pg_intl_split_gen = split_gen;
 
 		/*
-		 * We use a page flag to prevent the child from splitting from
-		 * underneath us, but the split-generation error checks don't
-		 * know about that flag; use the standard macros to ensure that
-		 * reading the child's page index structure is safe.
+		 * The split-generation error checks don't know about that flag;
+		 * use the standard macros to ensure that reading the child's
+		 * page index structure is safe.
 		 */
 		j = 0;
 		WT_ENTER_PAGE_INDEX(session);
@@ -526,6 +525,10 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
 	 * Get a generation for this split, mark the root page.  This must be
 	 * after the new index is swapped into place in order to know that no
 	 * readers are looking at the old index.
+	 *
+	 * Note: as the root page cannot currently be evicted, the root split
+	 * generation isn't ever used. That said, it future proofs evictiion
+	 * and isn't expensive enough to special-case.
 	 */
 	split_gen = __wt_gen_next(session, WT_GEN_SPLIT);
 	root->pg_intl_split_gen = split_gen;
@@ -760,7 +763,6 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	 * Swapping in the new page index released the page for eviction, we can
 	 * no longer look inside the page.
 	 */
-
 	if (ref->page == NULL)
 		__wt_verbose(session, WT_VERB_SPLIT,
 		    "%p: reverse split into parent %p, %" PRIu32 " -> %" PRIu32
@@ -779,8 +781,6 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	/*
 	 * The new page index is in place, free the WT_REF we were splitting and
 	 * any deleted WT_REFs we found, modulo the usual safe free semantics.
-	 *
-	 * Acquire a new split generation.
 	 */
 	for (i = 0, deleted_refs = scr->mem; i < deleted_entries; ++i) {
 		next_ref = pindex->index[deleted_refs[i]];
