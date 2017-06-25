@@ -1960,18 +1960,17 @@ err:	if (split_ref[0] != NULL) {
 }
 
 /*
- * __wt_split_insert --
- *	Lock, then split.
+ * __split_insert_lock --
+ *	Split a page's last insert list entries into a separate page.
  */
-int
-__wt_split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
+static int
+__split_insert_lock(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	WT_DECL_RET;
 	WT_PAGE *parent;
 	bool hazard;
 
-	__wt_verbose(session, WT_VERB_SPLIT, "%p: split-insert", (void *)ref);
-
+	/* Lock the parent page, then proceed with the insert split. */
 	WT_RET(__split_internal_lock(session, ref, true, &parent, &hazard));
 	if ((ret = __split_insert(session, ref)) != 0) {
 		WT_TRET(__split_internal_unlock(session, parent, hazard));
@@ -1984,6 +1983,26 @@ __wt_split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * releasing that lock.
 	 */
 	return (__split_parent_climb(session, parent, hazard));
+}
+
+/*
+ * __wt_split_insert --
+ *	Split a page's last insert list entries into a separate page.
+ */
+int
+__wt_split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+	WT_DECL_RET;
+
+	__wt_verbose(session, WT_VERB_SPLIT, "%p: split-insert", (void *)ref);
+
+	/*
+	 * Set the session split generation to ensure underlying code isn't
+	 * surprised by internal page eviction, then proceed with the insert
+	 * split.
+	 */
+	WT_WITH_PAGE_INDEX(session, ret = __split_insert_lock(session, ref));
+	return (ret);
 }
 
 /*
@@ -2051,18 +2070,17 @@ err:		for (i = 0; i < new_entries; ++i)
 }
 
 /*
- * __wt_split_multi --
- *	Lock, then split.
+ * __split_multi_lock --
+ *	Split a page into multiple pages.
  */
-int
-__wt_split_multi(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
+static int
+__split_multi_lock(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
 {
 	WT_DECL_RET;
 	WT_PAGE *parent;
 	bool hazard;
 
-	__wt_verbose(session, WT_VERB_SPLIT, "%p: split-multi", (void *)ref);
-
+	/* Lock the parent page, then proceed with the split. */
 	WT_RET(__split_internal_lock(session, ref, false, &parent, &hazard));
 	if ((ret = __split_multi(session, ref, closing)) != 0 || closing) {
 		WT_TRET(__split_internal_unlock(session, parent, hazard));
@@ -2078,22 +2096,60 @@ __wt_split_multi(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
 }
 
 /*
- * __wt_split_reverse --
- *	We have a locked ref that is empty and we want to rewrite the index in
- *	its parent.
+ * __wt_split_multi --
+ *	Split a page into multiple pages.
  */
 int
-__wt_split_reverse(WT_SESSION_IMPL *session, WT_REF *ref)
+__wt_split_multi(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
+{
+	WT_DECL_RET;
+
+	__wt_verbose(session, WT_VERB_SPLIT, "%p: split-multi", (void *)ref);
+
+	/*
+	 * Set the session split generation to ensure underlying code isn't
+	 * surprised by internal page eviction, then proceed with the split.
+	 */
+	WT_WITH_PAGE_INDEX(session,
+	    ret = __split_multi_lock(session, ref, closing));
+	return (ret);
+}
+
+/*
+ * __split_reverse --
+ *	Reverse split (rewrite a parent page's index to reflect an empty page).
+ */
+static int
+__split_reverse(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	WT_DECL_RET;
 	WT_PAGE *parent;
 	bool hazard;
 
-	__wt_verbose(session, WT_VERB_SPLIT, "%p: reverse-split", (void *)ref);
-
+	/* Lock the parent page, then proceed with the reverse split. */
 	WT_RET(__split_internal_lock(session, ref, false, &parent, &hazard));
 	ret = __split_parent(session, ref, NULL, 0, 0, false, true);
 	WT_TRET(__split_internal_unlock(session, parent, hazard));
+	return (ret);
+}
+
+/*
+ * __wt_split_reverse --
+ *	Reverse split (rewrite a parent page's index to reflect an empty page).
+ */
+int
+__wt_split_reverse(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+	WT_DECL_RET;
+
+	__wt_verbose(session, WT_VERB_SPLIT, "%p: reverse-split", (void *)ref);
+
+	/*
+	 * Set the session split generation to ensure underlying code isn't
+	 * surprised by internal page eviction, then proceed with the reverse
+	 * split.
+	 */
+	WT_WITH_PAGE_INDEX(session, ret = __split_reverse(session, ref));
 	return (ret);
 }
 
