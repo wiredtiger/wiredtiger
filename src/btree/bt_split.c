@@ -698,6 +698,9 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	 * Get a generation for this split, mark the page.  This must be after
 	 * the new index is swapped into place in order to know that no readers
 	 * are looking at the old index.
+	 *
+	 * Getting a new split generation implies a full barrier, no additional
+	 * barrier is needed.
 	 */
 	split_gen = __wt_gen_next(session, WT_GEN_SPLIT);
 	parent->pg_intl_split_gen = split_gen;
@@ -1118,14 +1121,11 @@ err:	switch (complete) {
  *	Lock an internal page.
  */
 static int
-__split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock,
-    WT_PAGE **parentp, bool *hazardp)
+__split_internal_lock(
+    WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PAGE **parentp)
 {
-	WT_DECL_RET;
 	WT_PAGE *parent;
-	WT_REF *parent_ref;
 
-	*hazardp = false;
 	*parentp = NULL;
 
 	/*
@@ -1158,10 +1158,7 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock,
 	for (;;) {
 		parent = ref->home;
 
-		/*
-		 * The page will be marked dirty, and we can only lock a page
-		 * with a modify structure.
-		 */
+		/* Page locks live in the modify structure. */
 		WT_RET(__wt_page_modify_init(session, parent));
 
 		if (trylock)
@@ -1174,43 +1171,28 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock,
 	}
 
 	/*
-	 * We have exclusive access to split the parent, and at this point, the
-	 * child prevents the parent from being evicted.  However, once we
+	 * This child has exclusive access to split its parent and the child's
+	 * existence prevents the parent from being evicted. However, once we
 	 * update the parent's index, it may no longer refer to the child, and
-	 * could conceivably be evicted.  Get a hazard pointer on the parent
-	 * now, so that we can safely access it after updating the index.
-	 *
-	 * Take care getting the page doesn't trigger eviction work: we could
-	 * block trying to split a different child of our parent and deadlock
-	 * or we could be the eviction server relied upon by other threads to
-	 * populate the eviction queue.
+	 * could conceivably be evicted. If the parent page is dirty, our page
+	 * lock prevents eviction because reconciliation is blocked. However,
+	 * if the page were clean, it could be evicted without encountering our
+	 * page lock. That isn't possible because you cannot move a child page
+	 * and still leave the parent page clean.
 	 */
-	if (!__wt_ref_is_root(parent_ref = parent->pg_intl_parent_ref)) {
-		WT_ERR(__wt_page_in(session, parent_ref, WT_READ_NO_EVICT));
-		*hazardp = true;
-	}
 
 	*parentp = parent;
 	return (0);
-
-err:	WT_PAGE_UNLOCK(session, parent);
-	return (ret);
 }
 
 /*
  * __split_internal_unlock --
  *	Unlock the parent page.
  */
-static int
-__split_internal_unlock(WT_SESSION_IMPL *session, WT_PAGE *parent, bool hazard)
+static void
+__split_internal_unlock(WT_SESSION_IMPL *session, WT_PAGE *parent)
 {
-	WT_DECL_RET;
-
-	if (hazard)
-		ret = __wt_hazard_clear(session, parent->pg_intl_parent_ref);
-
 	WT_PAGE_UNLOCK(session, parent);
-	return (ret);
 }
 
 /*
@@ -1263,13 +1245,12 @@ __split_internal_should_split(WT_SESSION_IMPL *session, WT_REF *ref)
  *	Check if we should split up the tree.
  */
 static int
-__split_parent_climb(WT_SESSION_IMPL *session, WT_PAGE *page, bool page_hazard)
+__split_parent_climb(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
 	WT_BTREE *btree;
 	WT_DECL_RET;
 	WT_PAGE *parent;
 	WT_REF *ref;
-	bool parent_hazard;
 
 	btree = S2BT(session);
 
@@ -1283,8 +1264,10 @@ __split_parent_climb(WT_SESSION_IMPL *session, WT_PAGE *page, bool page_hazard)
 	 * split chunk, but we'll write it upon finding it in a different part
 	 * of the tree.
 	 */
-	if (btree->checkpointing != WT_CKPT_OFF)
-		return (__split_internal_unlock(session, page, page_hazard));
+	if (btree->checkpointing != WT_CKPT_OFF) {
+		__split_internal_unlock(session, page);
+		return (0);
+	}
 
 	/*
 	 * Page splits trickle up the tree, that is, as leaf pages grow large
@@ -1306,7 +1289,6 @@ __split_parent_climb(WT_SESSION_IMPL *session, WT_PAGE *page, bool page_hazard)
 	 */
 	for (;;) {
 		parent = NULL;
-		parent_hazard = false;
 		ref = page->pg_intl_parent_ref;
 
 		/* If we don't need to split the page, we're done. */
@@ -1326,22 +1308,18 @@ __split_parent_climb(WT_SESSION_IMPL *session, WT_PAGE *page, bool page_hazard)
 		 * Lock the parent and split into it, then swap the parent/page
 		 * locks, lock-coupling up the tree.
 		 */
-		WT_ERR(__split_internal_lock(
-		    session, ref, true, &parent, &parent_hazard));
+		WT_ERR(__split_internal_lock(session, ref, true, &parent));
 		ret = __split_internal(session, parent, page);
-		WT_TRET(__split_internal_unlock(session, page, page_hazard));
+		__split_internal_unlock(session, page);
 
 		page = parent;
-		page_hazard = parent_hazard;
 		parent = NULL;
-		parent_hazard = false;
 		WT_ERR(ret);
 	}
 
 err:	if (parent != NULL)
-		WT_TRET(
-		    __split_internal_unlock(session, parent, parent_hazard));
-	WT_TRET(__split_internal_unlock(session, page, page_hazard));
+		__split_internal_unlock(session, parent);
+	__split_internal_unlock(session, page);
 
 	/* A page may have been busy, in which case return without error. */
 	WT_RET_BUSY_OK(ret);
@@ -1960,12 +1938,11 @@ __split_insert_lock(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	WT_DECL_RET;
 	WT_PAGE *parent;
-	bool hazard;
 
 	/* Lock the parent page, then proceed with the insert split. */
-	WT_RET(__split_internal_lock(session, ref, true, &parent, &hazard));
+	WT_RET(__split_internal_lock(session, ref, true, &parent));
 	if ((ret = __split_insert(session, ref)) != 0) {
-		WT_TRET(__split_internal_unlock(session, parent, hazard));
+		__split_internal_unlock(session, parent);
 		return (ret);
 	}
 
@@ -1974,7 +1951,7 @@ __split_insert_lock(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * parent page locked, note the functions we call are responsible for
 	 * releasing that lock.
 	 */
-	return (__split_parent_climb(session, parent, hazard));
+	return (__split_parent_climb(session, parent));
 }
 
 /*
@@ -2070,12 +2047,11 @@ __split_multi_lock(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
 {
 	WT_DECL_RET;
 	WT_PAGE *parent;
-	bool hazard;
 
 	/* Lock the parent page, then proceed with the split. */
-	WT_RET(__split_internal_lock(session, ref, false, &parent, &hazard));
+	WT_RET(__split_internal_lock(session, ref, false, &parent));
 	if ((ret = __split_multi(session, ref, closing)) != 0 || closing) {
-		WT_TRET(__split_internal_unlock(session, parent, hazard));
+		__split_internal_unlock(session, parent);
 		return (ret);
 	}
 
@@ -2084,7 +2060,7 @@ __split_multi_lock(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
 	 * parent page locked, note the functions we call are responsible for
 	 * releasing that lock.
 	 */
-	return (__split_parent_climb(session, parent, hazard));
+	return (__split_parent_climb(session, parent));
 }
 
 /*
@@ -2116,12 +2092,11 @@ __split_reverse(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	WT_DECL_RET;
 	WT_PAGE *parent;
-	bool hazard;
 
 	/* Lock the parent page, then proceed with the reverse split. */
-	WT_RET(__split_internal_lock(session, ref, false, &parent, &hazard));
+	WT_RET(__split_internal_lock(session, ref, false, &parent));
 	ret = __split_parent(session, ref, NULL, 0, 0, false, true);
-	WT_TRET(__split_internal_unlock(session, parent, hazard));
+	__split_internal_unlock(session, parent);
 	return (ret);
 }
 
