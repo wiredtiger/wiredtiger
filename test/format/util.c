@@ -552,5 +552,5 @@ compat(void *arg)
 		if (g.workers_finished)
 			break;
 	}
-	return (NULL);
+	return (WT_THREAD_RET_VALUE);
 }
