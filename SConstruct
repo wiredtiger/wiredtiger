@@ -374,6 +374,7 @@ examples = [
     "ex_pack",
     "ex_process",
     "ex_schema",
+    "ex_smoke",
     "ex_stat",
     "ex_thread",
     ]
