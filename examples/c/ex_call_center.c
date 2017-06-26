@@ -90,7 +90,6 @@ main(int argc, char *argv[])
 	};
 
 	home = example_setup(argc, argv);
-
 	error_check(wiredtiger_open(home, NULL, "create", &conn));
 
 	/*! [call-center work] */

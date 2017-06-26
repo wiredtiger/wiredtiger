@@ -845,6 +845,27 @@ transaction_ops(WT_CONNECTION *conn, WT_SESSION *session)
 	error_check(session->transaction_pinned_range(session, &range));
 	/*! [transaction pinned range] */
 	}
+
+	/*! [transaction timestamp] */
+	error_check(
+	    session->timestamp_transaction(session, "commit_timestamp=2a"));
+	/*! [transaction timestamp] */
+
+	{
+#ifndef WT_TIMESTAMP_SIZE
+#define	WT_TIMESTAMP_SIZE	8
+#endif
+	/*! [query timestamp] */
+	char timestamp_buf[2 * WT_TIMESTAMP_SIZE + 1];
+
+	error_check(conn->query_timestamp(
+	    conn, timestamp_buf, "get=all_committed"));
+	/*! [query timestamp] */
+	}
+
+	/*! [set oldest timestamp] */
+	error_check(conn->set_timestamp(conn, "oldest_timestamp=2a"));
+	/*! [set oldest timestamp] */
 }
 
 /*! [Implement WT_COLLATOR] */
