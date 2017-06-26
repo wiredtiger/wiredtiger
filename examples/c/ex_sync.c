@@ -89,8 +89,7 @@ main(int argc, char *argv[])
 	}
 	error_check(session->commit_transaction(session, "sync=background"));
 	printf("Wait forever until stable\n");
-	// KEITH
-	// error_check(session->transaction_sync(session, NULL));
+	error_check(session->transaction_sync(session, NULL));
 	printf("Transactions now stable\n");
 	error_check(session->begin_transaction(session, NULL));
 	/*
