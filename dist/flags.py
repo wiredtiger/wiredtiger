@@ -9,7 +9,7 @@ flags = {
 # Internal routine flag declarations
 ###################################################
     'diagnostic_timing_stress' : [
-        'DIAGNOSTIC_CHECKPOINT_SLOW',
+        'TIMING_STRESS_CHECKPOINT_SLOW',
     ],
     'log_scan' : [
         'LOGSCAN_FIRST',

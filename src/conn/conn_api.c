@@ -1143,7 +1143,7 @@ __conn_reconfigure(WT_CONNECTION *wt_conn, const char *config)
 	WT_ERR(__wt_statlog_create(session, cfg));
 	WT_ERR(__wt_sweep_config(session, cfg));
 	WT_ERR(__wt_verbose_config(session, cfg));
-	WT_ERR(__wt_diagnostic_stress_config(session, cfg));
+	WT_ERR(__wt_timing_stress_config(session, cfg));
 
 	/* Third, merge everything together, creating a new connection state. */
 	WT_ERR(__wt_config_merge(session, cfg, NULL, &p));
@@ -1858,14 +1858,14 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
- * __wt_diagnostic_stress_config --
+ * __wt_timing_stress_config --
  *	Set diagnostic stress timing delay configuration.
  */
 int
-__wt_diagnostic_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	static const WT_NAME_FLAG diag_stress_types[] = {
-		{ "checkpoint_slow",	WT_DIAGNOSTIC_CHECKPOINT_SLOW },
+		{ "checkpoint_slow",	WT_TIMING_STRESS_CHECKPOINT_SLOW },
 		{ NULL, 0 }
 	};
 	WT_CONFIG_ITEM cval, sval;
@@ -1897,7 +1897,7 @@ __wt_diagnostic_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_RET_NOTFOUND_OK(ret);
 	}
 
-	conn->diag_stress_flags = flags;
+	conn->timing_stress_flags = flags;
 	return (0);
 }
 
@@ -2365,7 +2365,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 		    session, cval.str, cval.len, &conn->error_prefix));
 	}
 	WT_ERR(__wt_verbose_config(session, cfg));
-	WT_ERR(__wt_diagnostic_stress_config(session, cfg));
+	WT_ERR(__wt_timing_stress_config(session, cfg));
 
 	WT_ERR(__wt_config_gets(session, cfg, "session_max", &cval));
 	conn->session_size = (uint32_t)cval.val + WT_EXTRA_INTERNAL_SESSIONS;
