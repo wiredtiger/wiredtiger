@@ -1864,7 +1864,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 int
 __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
-	static const WT_NAME_FLAG diag_stress_types[] = {
+	static const WT_NAME_FLAG stress_types[] = {
 		{ "checkpoint_slow",	WT_TIMING_STRESS_CHECKPOINT_SLOW },
 		{ NULL, 0 }
 	};
@@ -1880,7 +1880,7 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
 	    session, cfg, "diagnostic_timing_stress", &cval));
 
 	flags = 0;
-	for (ft = diag_stress_types; ft->name != NULL; ft++) {
+	for (ft = stress_types; ft->name != NULL; ft++) {
 		if ((ret = __wt_config_subgets(
 		    session, &cval, ft->name, &sval)) == 0 && sval.val != 0) {
 #ifdef HAVE_DIAGNOSTIC

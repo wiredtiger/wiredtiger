@@ -1722,6 +1722,7 @@ __checkpoint_timing_stress(WT_SESSION_IMPL *session)
 	 */
 	if (conn->ckpt_session != session &&
 	    conn->meta_ckpt_session != session &&
-	    FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_SLOW))
+	    FLD_ISSET(conn->timing_stress_flags,
+	    WT_TIMING_STRESS_CHECKPOINT_SLOW))
 		__wt_sleep(10, 0);
 }
