@@ -1,6 +1,5 @@
 /*-
  * Public Domain 2014-2017 MongoDB, Inc.
-
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -187,7 +186,6 @@ monitor(void *args)
 	memset(last_ops, 0, sizeof(int) + N_THREADS);
 
 	while (difftime(now, start) < RUNTIME) {
-
 		/*
 		 * Checkpoints will run for slightly over MAX_EXECUTION_TIME.
 		 * MAX_EXECUTION_TIME should always be long enough that we can
