@@ -78,18 +78,25 @@ compressor(uint32_t compress_flag)
 static const char *
 compatibility(uint32_t compat_flag)
 {
+	const char *p;
+
+	p = "unrecognized compatibility flag";
 	switch (compat_flag) {
 	case COMPAT_NONE:
-		return ("");
-	case COMPAT_V1:
-		return ("2.6");
-	case COMPAT_V2:
-		return ("3.0");
-	default:
+		p = "";
 		break;
+	case COMPAT_V1:
+		p = "2.6";
+		break;
+	case COMPAT_V2:
+		p = "3.0";
+		break;
+	default:
+		testutil_die(EINVAL,
+		    "illegal compatibility flag: %#" PRIx32, compat_flag);
+		/* NOTREACHED */
 	}
-	testutil_die(EINVAL,
-	    "illegal compatibility flag: %#" PRIx32, compat_flag);
+	return (p);
 }
 
 /*
