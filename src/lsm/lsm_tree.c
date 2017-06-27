@@ -1354,6 +1354,12 @@ __wt_lsm_tree_worker(WT_SESSION_IMPL *session,
 	 */
 	if (FLD_ISSET(open_flags, WT_BTREE_ALTER)) {
 		WT_ERR(__wt_lsm_meta_write(session, lsm_tree, cfg[0]));
+		/*
+		 * We're about to read in the new configuration that
+		 * we just wrote.  Free the old ones.
+		 */
+		__wt_free(session, lsm_tree->config);
+		__wt_free(session, lsm_tree->file_config);
 		WT_ERR(__wt_lsm_meta_read(session, lsm_tree));
 	}
 
