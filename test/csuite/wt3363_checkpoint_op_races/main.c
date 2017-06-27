@@ -41,9 +41,9 @@
  * any operation taking longer than 1/2 the delay time, we abort dumping a core
  * file which can be used to determine what operation was blocked.
  */
-void *do_checkpoints(void *);
-void *do_ops(void *);
-void *monitor(void *);
+static WT_THREAD_RET do_checkpoints(void *);
+static WT_THREAD_RET do_ops(void *);
+static WT_THREAD_RET monitor(void *);
 
 /*
  * Time delay to introduce into checkpoints in seconds. Should be at-least
@@ -134,7 +134,7 @@ main(int argc, char *argv[])
 /*
  * Function for repeatedly running checkpoint operations.
  */
-void *
+static WT_THREAD_RET
 do_checkpoints(void *_opts)
 {
 	TEST_OPTS *opts;
@@ -164,14 +164,14 @@ do_checkpoints(void *_opts)
 		(void)time(&now);
 	}
 
-	return (NULL);
+	return (WT_THREAD_RET_VALUE);
 }
 
 /*
  * Function to monitor running operations and abort to dump core in the event
  * that we catch an operation running long.
  */
-void *
+static WT_THREAD_RET
 monitor(void *args)
 {
 	TEST_PER_THREAD_OPTS *thread_args;
@@ -219,13 +219,13 @@ monitor(void *args)
 		(void)time(&now);
 	}
 
-	return (NULL);
+	return (WT_THREAD_RET_VALUE);
 }
 
 /*
  * Worker thread. Executes random operations from the set of 6.
  */
-void *
+static WT_THREAD_RET
 do_ops(void *args)
 {
 	WT_RAND_STATE rnd;
@@ -259,5 +259,5 @@ do_ops(void *args)
 		(void)time(&now);
 	}
 
-	return (NULL);
+	return (WT_THREAD_RET_VALUE);
 }
