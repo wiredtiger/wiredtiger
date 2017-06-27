@@ -77,7 +77,6 @@ main(int argc, char *argv[])
 	pthread_t ckpt_thread, mon_thread, threads[N_THREADS];
 	int i;
 
-
 	/*
 	 * This test should not run unless we have compiled with diagnostic
 	 * support and the long tests flag is set. The test will fail when
@@ -118,7 +117,7 @@ main(int argc, char *argv[])
 	 * is stuck.
 	 */
 	testutil_check(
-	    pthread_create(&mon_thread, NULL, monitor, &thread_args));
+	    pthread_create(&mon_thread, NULL, monitor, thread_args));
 
 	for (i = 0; i < N_THREADS; ++i)
 		testutil_check(pthread_join(threads[i], NULL));
@@ -180,7 +179,7 @@ monitor(void *args)
 	time_t now, start;
 	int ctr, i, last_ops[N_THREADS];
 
-	thread_args = (TEST_PER_THREAD_OPTS*)args;
+	thread_args = (TEST_PER_THREAD_OPTS *)args;
 
 	(void)time(&start);
 	(void)time(&now);
