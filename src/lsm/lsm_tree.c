@@ -15,6 +15,21 @@ static int __lsm_tree_open(
 static int __lsm_tree_set_name(WT_SESSION_IMPL *, WT_LSM_TREE *, const char *);
 
 /*
+ * __lsm_tree_meta_discard --
+ *	Free the metadata related LSM tree pointers.
+ */
+static void
+__lsm_tree_meta_discard(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
+{
+	__wt_free(session, lsm_tree->config);
+	__wt_free(session, lsm_tree->key_format);
+	__wt_free(session, lsm_tree->value_format);
+	__wt_free(session, lsm_tree->collator_name);
+	__wt_free(session, lsm_tree->bloom_config);
+	__wt_free(session, lsm_tree->file_config);
+}
+
+/*
  * __lsm_tree_discard --
  *	Free an LSM tree structure.
  */
@@ -48,12 +63,7 @@ __lsm_tree_discard(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, bool final)
 		    lsm_tree->collator, &session->iface));
 
 	__wt_free(session, lsm_tree->name);
-	__wt_free(session, lsm_tree->config);
-	__wt_free(session, lsm_tree->key_format);
-	__wt_free(session, lsm_tree->value_format);
-	__wt_free(session, lsm_tree->collator_name);
-	__wt_free(session, lsm_tree->bloom_config);
-	__wt_free(session, lsm_tree->file_config);
+	__lsm_tree_meta_discard(session, lsm_tree);
 
 	__wt_rwlock_destroy(session, &lsm_tree->rwlock);
 
@@ -1358,8 +1368,7 @@ __wt_lsm_tree_worker(WT_SESSION_IMPL *session,
 		 * We're about to read in the new configuration that
 		 * we just wrote.  Free the old ones.
 		 */
-		__wt_free(session, lsm_tree->config);
-		__wt_free(session, lsm_tree->file_config);
+		__lsm_tree_meta_discard(session, lsm_tree);
 		WT_ERR(__wt_lsm_meta_read(session, lsm_tree));
 	}
 
