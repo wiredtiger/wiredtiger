@@ -170,7 +170,7 @@ testutil_cleanup(TEST_OPTS *opts)
  *	Return if an environment variable flag is set.
  */
 bool
-testutil_is_flag_set(char *flag)
+testutil_is_flag_set(const char *flag)
 {
 	const char *res;
 	bool enable_long_tests;
