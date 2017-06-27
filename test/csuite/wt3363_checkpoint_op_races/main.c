@@ -1,5 +1,6 @@
 /*-
  * Public Domain 2014-2017 MongoDB, Inc.
+
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -101,14 +102,14 @@ main(int argc, char *argv[])
 	    &opts->conn));
 
 	testutil_check(pthread_create(
-	    &ckpt_thread, NULL, do_checkpoints, (void *)opts));
+	    &ckpt_thread, NULL, do_checkpoints, opts));
 
 	for (i = 0; i < N_THREADS; ++i) {
 		thread_args[i].testopts = opts;
 		thread_args[i].thread_counter = 0;
 		thread_args[i].threadnum = i;
 		testutil_check(pthread_create(
-		    &threads[i], NULL, do_ops, (void *)&thread_args[i]));
+		    &threads[i], NULL, do_ops, &thread_args[i]));
 	}
 
 	/*
