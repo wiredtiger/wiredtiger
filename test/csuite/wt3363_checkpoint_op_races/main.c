@@ -76,13 +76,7 @@ main(int argc, char *argv[])
 	TEST_OPTS *opts, _opts;
 	pthread_t ckpt_thread, mon_thread, threads[N_THREADS];
 	int i;
-	bool diagnostic;
 
-#ifdef HAVE_DIAGNOSTIC
-	diagnostic = true;
-#else
-	diagnostic = false;
-#endif
 
 	/*
 	 * This test should not run unless we have compiled with diagnostic
@@ -90,7 +84,10 @@ main(int argc, char *argv[])
 	 * attempting to set the option to add the delays to checkpoints if
 	 * diagnostic mode is not enable and runs for 15 minutes.
 	 */
-	if (!testutil_is_flag_set("WT3363_CHECKPOINT_OP_RACES") || !diagnostic)
+#if !defined(HAVE_DIAGNOSTIC)
+	return (EXIT_SUCCESS);
+#endif
+	if (!testutil_is_flag_set("WT3363_CHECKPOINT_OP_RACES"))
 		return (EXIT_SUCCESS);
 
 	opts = &_opts;
