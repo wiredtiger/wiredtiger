@@ -21,12 +21,33 @@ static int __lsm_tree_set_name(WT_SESSION_IMPL *, WT_LSM_TREE *, const char *);
 static void
 __lsm_tree_meta_discard(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 {
+	WT_LSM_CHUNK *chunk;
+	u_int i;
+
 	__wt_free(session, lsm_tree->config);
 	__wt_free(session, lsm_tree->key_format);
 	__wt_free(session, lsm_tree->value_format);
 	__wt_free(session, lsm_tree->collator_name);
 	__wt_free(session, lsm_tree->bloom_config);
 	__wt_free(session, lsm_tree->file_config);
+
+	for (i = 0; i < lsm_tree->nchunks; i++) {
+		if ((chunk = lsm_tree->chunk[i]) == NULL)
+			continue;
+
+		__wt_free(session, chunk->bloom_uri);
+		__wt_free(session, chunk->uri);
+		__wt_free(session, chunk);
+	}
+
+	for (i = 0; i < lsm_tree->nold_chunks; i++) {
+		chunk = lsm_tree->old_chunks[i];
+		WT_ASSERT(session, chunk != NULL);
+
+		__wt_free(session, chunk->bloom_uri);
+		__wt_free(session, chunk->uri);
+		__wt_free(session, chunk);
+	}
 }
 
 /*
@@ -37,8 +58,6 @@ static int
 __lsm_tree_discard(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, bool final)
 {
 	WT_DECL_RET;
-	WT_LSM_CHUNK *chunk;
-	u_int i;
 
 	WT_UNUSED(final);	/* Only used in diagnostic builds */
 
@@ -64,28 +83,11 @@ __lsm_tree_discard(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, bool final)
 
 	__wt_free(session, lsm_tree->name);
 	__lsm_tree_meta_discard(session, lsm_tree);
+	__wt_free(session, lsm_tree->chunk);
+	__wt_free(session, lsm_tree->old_chunks);
 
 	__wt_rwlock_destroy(session, &lsm_tree->rwlock);
 
-	for (i = 0; i < lsm_tree->nchunks; i++) {
-		if ((chunk = lsm_tree->chunk[i]) == NULL)
-			continue;
-
-		__wt_free(session, chunk->bloom_uri);
-		__wt_free(session, chunk->uri);
-		__wt_free(session, chunk);
-	}
-	__wt_free(session, lsm_tree->chunk);
-
-	for (i = 0; i < lsm_tree->nold_chunks; i++) {
-		chunk = lsm_tree->old_chunks[i];
-		WT_ASSERT(session, chunk != NULL);
-
-		__wt_free(session, chunk->bloom_uri);
-		__wt_free(session, chunk->uri);
-		__wt_free(session, chunk);
-	}
-	__wt_free(session, lsm_tree->old_chunks);
 	__wt_free(session, lsm_tree);
 
 	return (ret);
