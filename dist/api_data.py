@@ -407,6 +407,15 @@ connection_runtime_config = [
         Config('release', '', r'''
             compatibility release version string'''),
         ]),
+    Config('diagnostic_timing_stress', '', r'''
+        enable insertion of code that interrupts the usual timing of
+        operations with a goal of uncovering race conditions and unexpected
+        blocking. This option is intended for use with internal stress
+        testing of WiredTiger. Only available if WiredTiger is configured
+        with --enable-diagnostic. Options are given as a list, such as
+        <code>"diagnostic_timing_stress=[checkpoint_slow]"</code>''',
+        type='list', undoc=True, choices=[
+            'checkpoint_slow']),
     Config('error_prefix', '', r'''
         prefix string for error messages'''),
     Config('eviction', '', r'''
@@ -1034,7 +1043,8 @@ methods = {
 ]),
 'WT_SESSION.strerror' : Method([]),
 'WT_SESSION.transaction_sync' : Method([
-    Config('timeout_ms', '1200000', r'''
+    Config('timeout_ms', '1200000', # !!! Must match WT_SESSION_BG_SYNC_MSEC
+        r'''
         maximum amount of time to wait for background sync to complete in
         milliseconds.  A value of zero disables the timeout and returns
         immediately''',
