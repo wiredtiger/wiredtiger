@@ -41,9 +41,9 @@
  * any operation taking longer than 1/2 the delay time, we abort dumping a core
  * file which can be used to determine what operation was blocked.
  */
-void* do_checkpoints(void *);
-void* do_ops(void *);
-void* monitor(void *);
+void *do_checkpoints(void *);
+void *do_ops(void *);
+void *monitor(void *);
 
 /*
  * Time delay to introduce into checkpoints in seconds. Should be at-least
@@ -51,8 +51,8 @@ void* monitor(void *);
  * this is set to 10 seconds and we expect no single operation to take longer
  * than 5 seconds.
  */
-#define	MAX_EXECUTION_TIME 10
-#define	N_THREADS 10
+#define	MAX_EXECUTION_TIME	10
+#define	N_THREADS		10
 
 /*
  * Number of seconds to execute for. Initially set to 15 minutes, as we need to
@@ -60,7 +60,7 @@ void* monitor(void *);
  * testing 5 minutes was enough to reproduce the issue, so we run for 3x that
  * here to ensure we reproduce before declaring success.
  */
-#define	RUNTIME 900.0
+#define	RUNTIME	900.0
 
 static WT_EVENT_HANDLER event_handler = {
 	handle_op_error,
@@ -72,8 +72,8 @@ static WT_EVENT_HANDLER event_handler = {
 int
 main(int argc, char *argv[])
 {
-	TEST_PER_THREAD_OPTS thread_args[N_THREADS];
 	TEST_OPTS *opts, _opts;
+	TEST_PER_THREAD_OPTS thread_args[N_THREADS];
 	pthread_t ckpt_thread, mon_thread, threads[N_THREADS];
 	int i;
 
@@ -116,8 +116,7 @@ main(int argc, char *argv[])
 	 * This thread will need to monitor each threads counter to track if it
 	 * is stuck.
 	 */
-	testutil_check(
-	    pthread_create(&mon_thread, NULL, monitor, thread_args));
+	testutil_check(pthread_create(&mon_thread, NULL, monitor, thread_args));
 
 	for (i = 0; i < N_THREADS; ++i)
 		testutil_check(pthread_join(threads[i], NULL));
@@ -155,7 +154,7 @@ do_checkpoints(void *_opts)
 			if (ret != EBUSY && ret != ENOENT)
 				testutil_die(ret, "session.checkpoint");
 
-		 testutil_check(session->close(session, NULL));
+		testutil_check(session->close(session, NULL));
 
 		/*
 		 * A short sleep to let operations process and avoid back to
@@ -193,7 +192,7 @@ monitor(void *args)
 		 * MAX_EXECUTION_TIME should always be long enough that we can
 		 * complete any single operation in 1/2 that time.
 		 */
-		sleep(MAX_EXECUTION_TIME/2);
+		sleep(MAX_EXECUTION_TIME / 2);
 
 		for (i = 0; i < N_THREADS; i++) {
 			ctr = thread_args[i].thread_counter;
@@ -213,7 +212,7 @@ monitor(void *args)
 			else {
 				printf("Thread %d had a task running"
 				    " for more than %d seconds\n",
-				    i, MAX_EXECUTION_TIME/2);
+				    i, MAX_EXECUTION_TIME / 2);
 				abort();
 			}
 		}
@@ -238,24 +237,24 @@ do_ops(void *args)
 
 	while (difftime(now, start) < RUNTIME) {
 		switch (__wt_random(&rnd) % 6) {
-			case 0:
-				op_bulk(args);
-				break;
-			case 1:
-				op_create(args);
-				break;
-			case 2:
-				op_cursor(args);
-				break;
-			case 3:
-				op_drop(args);
-				break;
-			case 4:
-				op_bulk_unique(args);
-				break;
-			case 5:
-				op_create_unique(args);
-				break;
+		case 0:
+			op_bulk(args);
+			break;
+		case 1:
+			op_create(args);
+			break;
+		case 2:
+			op_cursor(args);
+			break;
+		case 3:
+			op_drop(args);
+			break;
+		case 4:
+			op_bulk_unique(args);
+			break;
+		case 5:
+			op_create_unique(args);
+			break;
 		}
 		(void)time(&now);
 	}
