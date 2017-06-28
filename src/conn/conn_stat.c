@@ -239,21 +239,30 @@ __statlog_print_header(WT_SESSION_IMPL *session)
 	WT_RET(__wt_fprintf(session, conn->stat_fs,
 	    "{\"version\":\"%s\",\"localTime\":\"%s\"",
 	    WIREDTIGER_VERSION_STRING, conn->stat_stamp));
-
 	return (0);
 }
 
 /*
- * __statlog_print_json_table_name --
- *	Write the JSON header for the wiredTigerTables section of statistics if
- *	the header has not been written this round.
+ * __statlog_print_table_name --
+ *	Write the header for the wiredTigerTables section of statistics if
+ *	running in JSON mode and the header has not been written this round.
  */
 static int
-__statlog_print_json_table_name(WT_SESSION_IMPL *session, const char *name)
+__statlog_print_table_name(
+    WT_SESSION_IMPL *session, const char *name, bool conn_stats)
 {
 	WT_CONNECTION_IMPL *conn;
 
 	conn = S2C(session);
+
+	/*
+	 * If printing the connection stats, write that header and we are done.
+	 */
+	if (conn_stats) {
+		WT_RET(__wt_fprintf(
+		    session, conn->stat_fs, ",\"wiredTiger\":{"));
+		return (0);
+	}
 
 	/*
 	 * If this is the first table we are printing stats for print the header
@@ -267,9 +276,7 @@ __statlog_print_json_table_name(WT_SESSION_IMPL *session, const char *name)
 		WT_RET(__wt_fprintf(session,
 		    conn->stat_fs,",\"wiredTigerTables\":{"));
 	}
-
 	WT_RET(__wt_fprintf(session, conn->stat_fs, "\"%s\":{", name));
-
 	return (0);
 }
 
@@ -292,9 +299,7 @@ __statlog_print_footer(WT_SESSION_IMPL *session)
 		WT_RET(__wt_fprintf(session, conn->stat_fs, "}"));
 		FLD_CLR(conn->stat_flags, WT_STAT_JSON_PRINT_TABLES);
 	}
-
 	WT_RET(__wt_fprintf(session, conn->stat_fs, "}\n"));
-
 	return (0);
 }
 
@@ -342,15 +347,10 @@ __statlog_dump(WT_SESSION_IMPL *session, const char *name, bool conn_stats)
 		goto err;
 	}
 
-	if (FLD_ISSET(conn->stat_flags, WT_STAT_JSON)) {
-		if (conn_stats)
-			WT_ERR(__wt_fprintf(
-			    session, conn->stat_fs, ",\"wiredTiger\":{"));
-		else
-			WT_ERR(__statlog_print_json_table_name(session, name));
-
-		while ((ret = cursor->next(cursor)) == 0) {
-			WT_ERR(cursor->get_value(cursor, &desc, &valstr, &val));
+	WT_ERR(__statlog_print_table_name(session, name, conn_stats));
+	while ((ret = cursor->next(cursor)) == 0) {
+		WT_ERR(cursor->get_value(cursor, &desc, &valstr, &val));
+		if (FLD_ISSET(conn->stat_flags, WT_STAT_JSON)) {
 			/* Check if we are starting a new section. */
 			endprefix = strchr(desc, ':');
 			prefixlen = WT_PTRDIFF(endprefix, desc);
@@ -370,18 +370,15 @@ __statlog_dump(WT_SESSION_IMPL *session, const char *name, bool conn_stats)
 			    "%s\"%s\":%" PRId64,
 			    groupfirst ? "" : ",", endprefix + 2, val));
 			groupfirst = false;
-		}
-		WT_ERR_NOTFOUND_OK(ret);
-		WT_ERR(__wt_fprintf(session, conn->stat_fs, "}}"));
-	} else {
-		while ((ret = cursor->next(cursor)) == 0) {
-			WT_ERR(cursor->get_value(cursor, &desc, &valstr, &val));
+		} else {
 			WT_ERR(__wt_fprintf(session, conn->stat_fs,
 			    "%s %" PRId64 " %s %s\n",
 			    conn->stat_stamp, val, name, desc));
 		}
-		WT_ERR_NOTFOUND_OK(ret);
 	}
+	WT_ERR_NOTFOUND_OK(ret);
+	if (FLD_ISSET(conn->stat_flags, WT_STAT_JSON))
+		WT_ERR(__wt_fprintf(session, conn->stat_fs, "}}"));
 
 err:	__wt_scr_free(session, &tmp);
 	if (cursor != NULL)
@@ -516,7 +513,6 @@ __statlog_log_one(WT_SESSION_IMPL *session, WT_ITEM *path, WT_ITEM *tmp)
 	if (strftime(tmp->mem, tmp->memsize, conn->stat_format, tm) == 0)
 		WT_RET_MSG(session, ENOMEM, "strftime timestamp conversion");
 	conn->stat_stamp = tmp->mem;
-
 	WT_RET(__statlog_print_header(session));
 
 	/* Dump the connection statistics. */
@@ -540,7 +536,6 @@ __statlog_log_one(WT_SESSION_IMPL *session, WT_ITEM *path, WT_ITEM *tmp)
 	 */
 	if (conn->stat_sources != NULL)
 		WT_RET(__statlog_lsm_apply(session));
-
 	WT_RET(__statlog_print_footer(session));
 
 	/* Flush. */
