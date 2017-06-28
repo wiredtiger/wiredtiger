@@ -134,7 +134,7 @@ key_gen_insert(WT_RAND_STATE *rnd, WT_ITEM *key, uint64_t keyno)
 	    "11", "12", "13", "14", "15"
 	};
 
-	key_gen_common(key, keyno, suffix[mmrand(rnd, 1, 15) - 1]);
+	key_gen_common(key, keyno, suffix[mmrand(rnd, 0, 14)]);
 }
 
 static uint32_t val_dup_data_len;	/* Length of duplicate data items */
