@@ -233,7 +233,6 @@ connection_stats = [
     CacheStat('cache_eviction_target_page_ge64', 'Per tree page target greater than 64'),
     CacheStat('cache_eviction_target_page_lt2', 'Per tree page target less than 2'),
     CacheStat('cache_eviction_target_page_lt4', 'Per tree page target less than 4'),
-    CacheStat('cache_eviction_target_page_lt6', 'Per tree page target less than 6'),
     CacheStat('cache_eviction_target_page_lt8', 'Per tree page target less than 8'),
     CacheStat('cache_eviction_target_page_lt16', 'Per tree page target less than 16'),
     CacheStat('cache_eviction_target_page_lt32', 'Per tree page target less than 32'),
@@ -247,6 +246,7 @@ connection_stats = [
     CacheStat('cache_eviction_walks_ended', 'eviction walks reached end of tree'),
     CacheStat('cache_eviction_walks_gave_up', 'eviction walks gave up because they saw too many pages'),
     CacheStat('cache_eviction_walks_started', 'files with new eviction walks started'),
+    CacheStat('cache_eviction_walks_stopped', 'eviction walks gave up because they walked the tree twice'),
     CacheStat('cache_eviction_worker_created', 'eviction worker thread created'),
     CacheStat('cache_eviction_worker_evicting', 'eviction worker thread evicting pages'),
     CacheStat('cache_eviction_worker_removed', 'eviction worker thread removed'),
@@ -529,7 +529,6 @@ dsrc_stats = [
     CacheStat('cache_eviction_target_page_ge64', 'Per tree page target greater than 64'),
     CacheStat('cache_eviction_target_page_lt2', 'Per tree page target less than 2'),
     CacheStat('cache_eviction_target_page_lt4', 'Per tree page target less than 4'),
-    CacheStat('cache_eviction_target_page_lt6', 'Per tree page target less than 6'),
     CacheStat('cache_eviction_target_page_lt8', 'Per tree page target less than 8'),
     CacheStat('cache_eviction_target_page_lt16', 'Per tree page target less than 16'),
     CacheStat('cache_eviction_target_page_lt32', 'Per tree page target less than 32'),
@@ -540,6 +539,7 @@ dsrc_stats = [
     CacheStat('cache_eviction_walks_abandoned', 'eviction walks abandoned'),
     CacheStat('cache_eviction_walks_ended', 'eviction walks reached end of tree'),
     CacheStat('cache_eviction_walks_gave_up', 'eviction walks gave up because they saw too many pages'),
+    CacheStat('cache_eviction_walks_stopped', 'eviction walks gave up because they walked the tree twice'),
     CacheStat('cache_inmem_split', 'in-memory page splits'),
     CacheStat('cache_inmem_splittable', 'in-memory page passed criteria to be split'),
     CacheStat('cache_overflow_value', 'overflow values cached in memory', 'no_scale'),
@@ -554,8 +554,8 @@ dsrc_stats = [
     ##########################################
     # Cache content statistics
     ##########################################
-    CacheWalkStat('cache_state_avg_visited_age', 'Average time in cache for pages that have been visited by the eviction server', 'no_clear,no_scale'),
     CacheWalkStat('cache_state_avg_unvisited_age', 'Average time in cache for pages that have not been visited by the eviction server', 'no_clear,no_scale'),
+    CacheWalkStat('cache_state_avg_visited_age', 'Average time in cache for pages that have been visited by the eviction server', 'no_clear,no_scale'),
     CacheWalkStat('cache_state_avg_written_size', 'Average on-disk page image size seen', 'no_clear,no_scale'),
     CacheWalkStat('cache_state_gen_avg_gap', 'Average difference between current eviction generation when the page was last considered', 'no_clear,no_scale'),
     CacheWalkStat('cache_state_gen_current', 'Current eviction generation', 'no_clear,no_scale'),

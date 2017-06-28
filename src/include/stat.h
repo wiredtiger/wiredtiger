@@ -293,7 +293,6 @@ struct __wt_connection_stats {
 	int64_t cache_eviction_target_page_lt2;
 	int64_t cache_eviction_target_page_lt32;
 	int64_t cache_eviction_target_page_lt4;
-	int64_t cache_eviction_target_page_lt6;
 	int64_t cache_eviction_target_page_lt64;
 	int64_t cache_eviction_target_page_lt8;
 	int64_t cache_read_app_count;
@@ -320,6 +319,7 @@ struct __wt_connection_stats {
 	int64_t cache_eviction_state;
 	int64_t cache_eviction_walks_abandoned;
 	int64_t cache_eviction_walks_gave_up;
+	int64_t cache_eviction_walks_stopped;
 	int64_t cache_eviction_walks_ended;
 	int64_t cache_eviction_walk_from_root;
 	int64_t cache_eviction_walk_saved_pos;
@@ -583,7 +583,6 @@ struct __wt_dsrc_stats {
 	int64_t cache_eviction_target_page_lt2;
 	int64_t cache_eviction_target_page_lt32;
 	int64_t cache_eviction_target_page_lt4;
-	int64_t cache_eviction_target_page_lt6;
 	int64_t cache_eviction_target_page_lt64;
 	int64_t cache_eviction_target_page_lt8;
 	int64_t cache_bytes_inuse;
@@ -594,6 +593,7 @@ struct __wt_dsrc_stats {
 	int64_t cache_eviction_walk_passes;
 	int64_t cache_eviction_walks_abandoned;
 	int64_t cache_eviction_walks_gave_up;
+	int64_t cache_eviction_walks_stopped;
 	int64_t cache_eviction_walks_ended;
 	int64_t cache_eviction_walk_from_root;
 	int64_t cache_eviction_walk_saved_pos;

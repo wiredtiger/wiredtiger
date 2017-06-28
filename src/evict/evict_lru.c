@@ -1686,9 +1686,6 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	} else if (target_pages < 4) {
 		WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt4);
 		WT_STAT_DATA_INCR(session, cache_eviction_target_page_lt4);
-	} else if (target_pages < 6) {
-		WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt6);
-		WT_STAT_DATA_INCR(session, cache_eviction_target_page_lt6);
 	} else if (target_pages < 8) {
 		WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt8);
 		WT_STAT_DATA_INCR(session, cache_eviction_target_page_lt8);
@@ -1809,8 +1806,13 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 			WT_STAT_DATA_INCR(
 			    session, cache_eviction_walks_ended);
 
-			if (++restarts == 2)
+			if (++restarts == 2) {
+				WT_STAT_CONN_INCR(
+				    session, cache_eviction_walks_stopped);
+				WT_STAT_DATA_INCR(
+				    session, cache_eviction_walks_stopped);
 				break;
+			}
 			WT_STAT_CONN_INCR(
 			    session, cache_eviction_walks_started);
 			continue;
