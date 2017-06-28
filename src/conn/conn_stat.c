@@ -221,15 +221,18 @@ err:	__stat_sources_free(session, &sources);
 }
 
 /*
- * __statlog_print_json_header --
- *	Write the JSON header for statistics.
+ * __statlog_print_header --
+ *	Write the header for statistics when running in JSON mode.
  */
 static int
-__statlog_print_json_header(WT_SESSION_IMPL *session)
+__statlog_print_header(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
 
 	conn = S2C(session);
+
+	if (!FLD_ISSET(conn->stat_flags, WT_STAT_JSON))
+		return (0);
 
 	WT_RET(__wt_fprintf(session, conn->stat_fs,
 	    "{\"version\":\"%s\",\"localTime\":\"%s\"",
@@ -239,17 +242,22 @@ __statlog_print_json_header(WT_SESSION_IMPL *session)
 }
 
 /*
- * __statlog_print_json_tables_header --
+ * __statlog_print_json_table_name --
  *	Write the JSON header for the wiredTigerTables section of statistics if
  *	the header has not been written this round.
  */
 static int
-__statlog_print_json_tables_header(WT_SESSION_IMPL *session)
+__statlog_print_json_table_name(WT_SESSION_IMPL *session, const char *name)
 {
 	WT_CONNECTION_IMPL *conn;
 
 	conn = S2C(session);
 
+	/*
+	 * If this is the first table we are printing stats for print the header
+	 * for the wiredTigerTables section. Otherwise print a comma as this
+	 * is a subsequent table.
+	 */
 	if (FLD_ISSET(conn->stat_flags, WT_STAT_JSON_PRINT_TABLES))
 		WT_RET(__wt_fprintf(session, conn->stat_fs,","));
 	else  {
@@ -258,20 +266,26 @@ __statlog_print_json_tables_header(WT_SESSION_IMPL *session)
 		    conn->stat_fs,",\"wiredTigerTables\":{"));
 	}
 
+	WT_RET(__wt_fprintf(session, conn->stat_fs, "\"%s\":{", name));
+
 	return (0);
 }
 
 /*
- * __statlog_print_json_footer --
- *	Write the JSON footer for the statistics.
+ * __statlog_print_footer --
+ *	Write the footer for statistics when running in JSON mode.
  */
 static int
-__statlog_print_json_footer(WT_SESSION_IMPL *session)
+__statlog_print_footer(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
 
 	conn = S2C(session);
 
+	if (!FLD_ISSET(conn->stat_flags, WT_STAT_JSON))
+		return (0);
+
+	/* If we have printed a tables stats, then close that section. */
 	if (FLD_ISSET(conn->stat_flags, WT_STAT_JSON_PRINT_TABLES)) {
 		WT_RET(__wt_fprintf(session, conn->stat_fs, "}"));
 		FLD_CLR(conn->stat_flags, WT_STAT_JSON_PRINT_TABLES);
@@ -327,18 +341,12 @@ __statlog_dump(WT_SESSION_IMPL *session, const char *name, bool conn_stats)
 	}
 
 	if (FLD_ISSET(conn->stat_flags, WT_STAT_JSON)) {
-		/*
-		 * When printing per-dhandle stats in JSON mode print the name
-		 * of the table to allow mapping of stats to the table.
-		 */
 		if (conn_stats)
 			WT_ERR(__wt_fprintf(
 			    session, conn->stat_fs, ",\"wiredTiger\":{"));
-		else {
-			WT_ERR(__statlog_print_json_tables_header(session));
-			WT_ERR(__wt_fprintf(session,
-			    conn->stat_fs, "\"%s\":{", name));
-		}
+		else
+			WT_ERR(__statlog_print_json_table_name(session, name));
+
 		while ((ret = cursor->next(cursor)) == 0) {
 			WT_ERR(cursor->get_value(cursor, &desc, &valstr, &val));
 			/* Check if we are starting a new section. */
@@ -507,9 +515,9 @@ __statlog_log_one(WT_SESSION_IMPL *session, WT_ITEM *path, WT_ITEM *tmp)
 		WT_RET_MSG(session, ENOMEM, "strftime timestamp conversion");
 	conn->stat_stamp = tmp->mem;
 
+	WT_RET(__statlog_print_header(session));
+
 	/* Dump the connection statistics. */
-	if (FLD_ISSET(conn->stat_flags, WT_STAT_JSON))
-		WT_RET(__statlog_print_json_header(session));
 	WT_RET(__statlog_dump(session, conn->home, true));
 
 	/*
@@ -531,8 +539,7 @@ __statlog_log_one(WT_SESSION_IMPL *session, WT_ITEM *path, WT_ITEM *tmp)
 	if (conn->stat_sources != NULL)
 		WT_RET(__statlog_lsm_apply(session));
 
-	if (FLD_ISSET(conn->stat_flags, WT_STAT_JSON))
-		WT_RET(__statlog_print_json_footer(session));
+	WT_RET(__statlog_print_footer(session));
 
 	/* Flush. */
 	return (__wt_fflush(session, conn->stat_fs));
