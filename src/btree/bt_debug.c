@@ -445,7 +445,7 @@ static char *
 __debug_tree_shape_info(WT_PAGE *page)
 {
 	uint64_t v;
-	static char buf[64];
+	static char buf[128];
 	const char *unit;
 
 	v = page->memory_footprint;
@@ -456,6 +456,9 @@ __debug_tree_shape_info(WT_PAGE *page)
 	} else if (v > WT_MEGABYTE) {
 		v /= WT_MEGABYTE;
 		unit = "M";
+	} else if (v > WT_KILOBYTE) {
+		v /= WT_KILOBYTE;
+		unit = "K";
 	} else {
 		unit = "B";
 	}

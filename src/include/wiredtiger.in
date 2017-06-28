@@ -4549,33 +4549,33 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_EVICTION_AGGRESSIVE_SET	1052
 /*! cache: eviction empty score */
 #define	WT_STAT_CONN_CACHE_EVICTION_EMPTY_SCORE		1053
+/*! cache: eviction passes of a file */
+#define	WT_STAT_CONN_CACHE_EVICTION_WALK_PASSES		1054
 /*! cache: eviction server candidate queue empty when topping up */
-#define	WT_STAT_CONN_CACHE_EVICTION_QUEUE_EMPTY		1054
+#define	WT_STAT_CONN_CACHE_EVICTION_QUEUE_EMPTY		1055
 /*! cache: eviction server candidate queue not empty when topping up */
-#define	WT_STAT_CONN_CACHE_EVICTION_QUEUE_NOT_EMPTY	1055
+#define	WT_STAT_CONN_CACHE_EVICTION_QUEUE_NOT_EMPTY	1056
 /*! cache: eviction server evicting pages */
-#define	WT_STAT_CONN_CACHE_EVICTION_SERVER_EVICTING	1056
+#define	WT_STAT_CONN_CACHE_EVICTION_SERVER_EVICTING	1057
 /*!
  * cache: eviction server slept, because we did not make progress with
  * eviction
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_SERVER_SLEPT	1057
+#define	WT_STAT_CONN_CACHE_EVICTION_SERVER_SLEPT	1058
 /*! cache: eviction server unable to reach eviction goal */
-#define	WT_STAT_CONN_CACHE_EVICTION_SLOW		1058
+#define	WT_STAT_CONN_CACHE_EVICTION_SLOW		1059
 /*! cache: eviction state */
-#define	WT_STAT_CONN_CACHE_EVICTION_STATE		1059
-/*! cache: eviction walk tree passes */
-#define	WT_STAT_CONN_CACHE_EVICTION_WALK_PASSES		1060
+#define	WT_STAT_CONN_CACHE_EVICTION_STATE		1060
 /*! cache: eviction walks abandoned */
 #define	WT_STAT_CONN_CACHE_EVICTION_WALKS_ABANDONED	1061
 /*! cache: eviction walks gave up because they saw too many pages */
 #define	WT_STAT_CONN_CACHE_EVICTION_WALKS_GAVE_UP	1062
+/*! cache: eviction walks reached end of tree */
+#define	WT_STAT_CONN_CACHE_EVICTION_WALKS_ENDED		1063
 /*! cache: eviction walks started from root of tree */
-#define	WT_STAT_CONN_CACHE_EVICTION_WALK_FROM_ROOT	1063
-/*! cache: eviction walks started from saved location */
-#define	WT_STAT_CONN_CACHE_EVICTION_WALK_SAVED_POS	1064
-/*! cache: eviction walks traversed whole file */
-#define	WT_STAT_CONN_CACHE_EVICTION_WALKS_ENDED		1065
+#define	WT_STAT_CONN_CACHE_EVICTION_WALK_FROM_ROOT	1064
+/*! cache: eviction walks started from saved location in tree */
+#define	WT_STAT_CONN_CACHE_EVICTION_WALK_SAVED_POS	1065
 /*! cache: eviction worker thread active */
 #define	WT_STAT_CONN_CACHE_EVICTION_ACTIVE_WORKERS	1066
 /*! cache: eviction worker thread created */
@@ -5171,18 +5171,18 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_CACHE_EVICTION_CHECKPOINT		2051
 /*! cache: data source pages selected for eviction unable to be evicted */
 #define	WT_STAT_DSRC_CACHE_EVICTION_FAIL		2052
-/*! cache: eviction walk tree passes */
+/*! cache: eviction walk passes of a file */
 #define	WT_STAT_DSRC_CACHE_EVICTION_WALK_PASSES		2053
 /*! cache: eviction walks abandoned */
 #define	WT_STAT_DSRC_CACHE_EVICTION_WALKS_ABANDONED	2054
 /*! cache: eviction walks gave up because they saw too many pages */
 #define	WT_STAT_DSRC_CACHE_EVICTION_WALKS_GAVE_UP	2055
+/*! cache: eviction walks reached end of tree */
+#define	WT_STAT_DSRC_CACHE_EVICTION_WALKS_ENDED		2056
 /*! cache: eviction walks started from root of tree */
-#define	WT_STAT_DSRC_CACHE_EVICTION_WALK_FROM_ROOT	2056
-/*! cache: eviction walks started from saved location */
-#define	WT_STAT_DSRC_CACHE_EVICTION_WALK_SAVED_POS	2057
-/*! cache: eviction walks traversed whole file */
-#define	WT_STAT_DSRC_CACHE_EVICTION_WALKS_ENDED		2058
+#define	WT_STAT_DSRC_CACHE_EVICTION_WALK_FROM_ROOT	2057
+/*! cache: eviction walks started from saved location in tree */
+#define	WT_STAT_DSRC_CACHE_EVICTION_WALK_SAVED_POS	2058
 /*! cache: hazard pointer blocked page eviction */
 #define	WT_STAT_DSRC_CACHE_EVICTION_HAZARD		2059
 /*! cache: in-memory page passed criteria to be split */

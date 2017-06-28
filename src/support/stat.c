@@ -56,12 +56,12 @@ static const char * const __stats_dsrc_desc[] = {
 	"cache: bytes written from cache",
 	"cache: checkpoint blocked page eviction",
 	"cache: data source pages selected for eviction unable to be evicted",
-	"cache: eviction walk tree passes",
+	"cache: eviction walk passes of a file",
 	"cache: eviction walks abandoned",
 	"cache: eviction walks gave up because they saw too many pages",
+	"cache: eviction walks reached end of tree",
 	"cache: eviction walks started from root of tree",
-	"cache: eviction walks started from saved location",
-	"cache: eviction walks traversed whole file",
+	"cache: eviction walks started from saved location in tree",
 	"cache: hazard pointer blocked page eviction",
 	"cache: in-memory page passed criteria to be split",
 	"cache: in-memory page splits",
@@ -241,9 +241,9 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
 	stats->cache_eviction_walk_passes = 0;
 	stats->cache_eviction_walks_abandoned = 0;
 	stats->cache_eviction_walks_gave_up = 0;
+	stats->cache_eviction_walks_ended = 0;
 	stats->cache_eviction_walk_from_root = 0;
 	stats->cache_eviction_walk_saved_pos = 0;
-	stats->cache_eviction_walks_ended = 0;
 	stats->cache_eviction_hazard = 0;
 	stats->cache_inmem_splittable = 0;
 	stats->cache_inmem_split = 0;
@@ -418,11 +418,11 @@ __wt_stat_dsrc_aggregate_single(
 	    from->cache_eviction_walks_abandoned;
 	to->cache_eviction_walks_gave_up +=
 	    from->cache_eviction_walks_gave_up;
+	to->cache_eviction_walks_ended += from->cache_eviction_walks_ended;
 	to->cache_eviction_walk_from_root +=
 	    from->cache_eviction_walk_from_root;
 	to->cache_eviction_walk_saved_pos +=
 	    from->cache_eviction_walk_saved_pos;
-	to->cache_eviction_walks_ended += from->cache_eviction_walks_ended;
 	to->cache_eviction_hazard += from->cache_eviction_hazard;
 	to->cache_inmem_splittable += from->cache_inmem_splittable;
 	to->cache_inmem_split += from->cache_inmem_split;
@@ -609,12 +609,12 @@ __wt_stat_dsrc_aggregate(
 	    WT_STAT_READ(from, cache_eviction_walks_abandoned);
 	to->cache_eviction_walks_gave_up +=
 	    WT_STAT_READ(from, cache_eviction_walks_gave_up);
+	to->cache_eviction_walks_ended +=
+	    WT_STAT_READ(from, cache_eviction_walks_ended);
 	to->cache_eviction_walk_from_root +=
 	    WT_STAT_READ(from, cache_eviction_walk_from_root);
 	to->cache_eviction_walk_saved_pos +=
 	    WT_STAT_READ(from, cache_eviction_walk_saved_pos);
-	to->cache_eviction_walks_ended +=
-	    WT_STAT_READ(from, cache_eviction_walks_ended);
 	to->cache_eviction_hazard +=
 	    WT_STAT_READ(from, cache_eviction_hazard);
 	to->cache_inmem_splittable +=
@@ -789,18 +789,18 @@ static const char * const __stats_connection_desc[] = {
 	"cache: eviction calls to get a page found queue empty after locking",
 	"cache: eviction currently operating in aggressive mode",
 	"cache: eviction empty score",
+	"cache: eviction passes of a file",
 	"cache: eviction server candidate queue empty when topping up",
 	"cache: eviction server candidate queue not empty when topping up",
 	"cache: eviction server evicting pages",
 	"cache: eviction server slept, because we did not make progress with eviction",
 	"cache: eviction server unable to reach eviction goal",
 	"cache: eviction state",
-	"cache: eviction walk tree passes",
 	"cache: eviction walks abandoned",
 	"cache: eviction walks gave up because they saw too many pages",
+	"cache: eviction walks reached end of tree",
 	"cache: eviction walks started from root of tree",
-	"cache: eviction walks started from saved location",
-	"cache: eviction walks traversed whole file",
+	"cache: eviction walks started from saved location in tree",
 	"cache: eviction worker thread active",
 	"cache: eviction worker thread created",
 	"cache: eviction worker thread evicting pages",
@@ -1105,18 +1105,18 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cache_eviction_get_ref_empty2 = 0;
 		/* not clearing cache_eviction_aggressive_set */
 		/* not clearing cache_eviction_empty_score */
+	stats->cache_eviction_walk_passes = 0;
 	stats->cache_eviction_queue_empty = 0;
 	stats->cache_eviction_queue_not_empty = 0;
 	stats->cache_eviction_server_evicting = 0;
 	stats->cache_eviction_server_slept = 0;
 	stats->cache_eviction_slow = 0;
 		/* not clearing cache_eviction_state */
-	stats->cache_eviction_walk_passes = 0;
 	stats->cache_eviction_walks_abandoned = 0;
 	stats->cache_eviction_walks_gave_up = 0;
+	stats->cache_eviction_walks_ended = 0;
 	stats->cache_eviction_walk_from_root = 0;
 	stats->cache_eviction_walk_saved_pos = 0;
-	stats->cache_eviction_walks_ended = 0;
 		/* not clearing cache_eviction_active_workers */
 	stats->cache_eviction_worker_created = 0;
 	stats->cache_eviction_worker_evicting = 0;
@@ -1417,6 +1417,8 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, cache_eviction_aggressive_set);
 	to->cache_eviction_empty_score +=
 	    WT_STAT_READ(from, cache_eviction_empty_score);
+	to->cache_eviction_walk_passes +=
+	    WT_STAT_READ(from, cache_eviction_walk_passes);
 	to->cache_eviction_queue_empty +=
 	    WT_STAT_READ(from, cache_eviction_queue_empty);
 	to->cache_eviction_queue_not_empty +=
@@ -1427,18 +1429,16 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, cache_eviction_server_slept);
 	to->cache_eviction_slow += WT_STAT_READ(from, cache_eviction_slow);
 	to->cache_eviction_state += WT_STAT_READ(from, cache_eviction_state);
-	to->cache_eviction_walk_passes +=
-	    WT_STAT_READ(from, cache_eviction_walk_passes);
 	to->cache_eviction_walks_abandoned +=
 	    WT_STAT_READ(from, cache_eviction_walks_abandoned);
 	to->cache_eviction_walks_gave_up +=
 	    WT_STAT_READ(from, cache_eviction_walks_gave_up);
+	to->cache_eviction_walks_ended +=
+	    WT_STAT_READ(from, cache_eviction_walks_ended);
 	to->cache_eviction_walk_from_root +=
 	    WT_STAT_READ(from, cache_eviction_walk_from_root);
 	to->cache_eviction_walk_saved_pos +=
 	    WT_STAT_READ(from, cache_eviction_walk_saved_pos);
-	to->cache_eviction_walks_ended +=
-	    WT_STAT_READ(from, cache_eviction_walks_ended);
 	to->cache_eviction_active_workers +=
 	    WT_STAT_READ(from, cache_eviction_active_workers);
 	to->cache_eviction_worker_created +=

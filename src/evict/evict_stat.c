@@ -19,33 +19,22 @@ __evict_stat_walk(WT_SESSION_IMPL *session)
 	WT_CACHE *cache;
 	WT_PAGE *page;
 	WT_REF *next_walk;
-	uint64_t dsk_size, gen_gap, size;
-	uint64_t written_size_cnt, written_size_sum;
-	uint64_t visited_count, gen_gap_max, gen_gap_sum;
-	uint64_t visited_age_gap_sum, unvisited_age_gap_sum;
-	uint64_t max_pagesize, min_written_size;
-	uint64_t num_memory, num_queued, num_not_queueable, num_smaller_allocsz;
-	uint64_t pages_clean, pages_dirty, pages_internal, pages_leaf;
-	uint64_t seen_count, unvisited_count, walk_count;
+	uint64_t dsk_size, gen_gap, gen_gap_max, gen_gap_sum, max_pagesize;
+	uint64_t min_written_size, num_memory, num_not_queueable, num_queued;
+	uint64_t num_smaller_allocsz, pages_clean, pages_dirty, pages_internal;
+	uint64_t pages_leaf, seen_count, size, visited_count;
+	uint64_t visited_age_gap_sum, unvisited_count, unvisited_age_gap_sum;
+	uint64_t walk_count, written_size_cnt, written_size_sum;
 
 	btree = S2BT(session);
 	cache = S2C(session)->cache;
 	next_walk = NULL;
-	written_size_cnt = written_size_sum = 0;
-	visited_count = gen_gap_max = gen_gap_sum = 0;
-	max_pagesize = 0;
-	num_memory = num_queued = num_not_queueable = num_smaller_allocsz = 0;
-	pages_clean = pages_dirty = pages_internal = pages_leaf = 0;
-	seen_count = walk_count = 0;
-	/* NEW */
-	dsk_size = gen_gap = size = 0;
-	written_size_cnt = written_size_sum = 0;
-	visited_count = gen_gap_max = gen_gap_sum = 0;
-	visited_age_gap_sum = unvisited_age_gap_sum = 0;
-	max_pagesize = 0;
-	num_memory = num_queued = num_not_queueable = num_smaller_allocsz = 0;
-	pages_clean = pages_dirty = pages_internal = pages_leaf = 0;
-	seen_count = unvisited_count = walk_count = 0;
+	dsk_size = gen_gap = gen_gap_max = gen_gap_sum = max_pagesize = 0;
+	num_memory = num_not_queueable = num_queued = 0;
+	num_smaller_allocsz = pages_clean = pages_dirty = pages_internal = 0;
+	pages_leaf = seen_count = size = visited_count = 0;
+	visited_age_gap_sum = unvisited_count = unvisited_age_gap_sum = 0;
+	walk_count = written_size_cnt = written_size_sum = 0;
 	min_written_size = UINT64_MAX;
 
 	while (__wt_tree_walk_count(session, &next_walk, &walk_count,
@@ -93,11 +82,11 @@ __evict_stat_walk(WT_SESSION_IMPL *session)
 
 		if (page->evict_pass_gen == 0) {
 			unvisited_age_gap_sum +=
-			    cache->pages_inmem - page->cache_create_gen;
+			    (cache->evict_pass_gen - page->cache_create_gen);
 			++unvisited_count;
 		} else {
 			visited_age_gap_sum +=
-			    cache->pages_inmem - page->cache_create_gen;
+			    (cache->evict_pass_gen - page->cache_create_gen);
 			gen_gap = cache->evict_pass_gen - page->evict_pass_gen;
 			if (gen_gap > gen_gap_max)
 				gen_gap_max = gen_gap;
@@ -114,9 +103,6 @@ __evict_stat_walk(WT_SESSION_IMPL *session)
 	    unvisited_count == 0 ? 0 : unvisited_age_gap_sum / unvisited_count);
 	WT_STAT_DATA_SET(session, cache_state_avg_visited_age,
 	    visited_count == 0 ? 0 : visited_age_gap_sum / visited_count);
-	WT_STAT_DATA_SET(session, cache_state_avg_unvisited_age,
-	    unvisited_count == 0 ? 0 :
-	    unvisited_age_gap_sum / unvisited_count);
 
 	WT_STAT_DATA_SET(session, cache_state_gen_max_gap, gen_gap_max);
 	WT_STAT_DATA_SET(session, cache_state_max_pagesize, max_pagesize);
