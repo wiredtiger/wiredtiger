@@ -234,6 +234,8 @@ __statlog_print_header(WT_SESSION_IMPL *session)
 	if (!FLD_ISSET(conn->stat_flags, WT_STAT_JSON))
 		return (0);
 
+	/* Defensively clear the flag, as we are printing a new set of stats */
+	FLD_CLR(conn->stat_flags, WT_STAT_JSON_PRINT_TABLES);
 	WT_RET(__wt_fprintf(session, conn->stat_fs,
 	    "{\"version\":\"%s\",\"localTime\":\"%s\"",
 	    WIREDTIGER_VERSION_STRING, conn->stat_stamp));
