@@ -245,7 +245,8 @@ __statlog_print_header(WT_SESSION_IMPL *session)
 /*
  * __statlog_print_table_name --
  *	Write the header for the wiredTigerTables section of statistics if
- *	running in JSON mode and the header has not been written this round.
+ *	running in JSON mode and the header has not been written this round,
+ *	then print the name of the table.
  */
 static int
 __statlog_print_table_name(
