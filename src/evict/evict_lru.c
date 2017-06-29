@@ -1680,6 +1680,13 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	    target_pages > remaining_slots)
 		target_pages = remaining_slots;
 
+	/*
+	 * These statistics generate a histogram of the number of pages targeted
+	 * for eviction each round. The range of values here are targeted at the
+	 * likely ranges for eviction based on some intitial testing. The aim
+	 * is to cover these likley ranges in as few statistics as possible to
+	 * reduce the overall overhead.
+	 */
 	if (target_pages < 16) {
 		WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt16);
 		WT_STAT_DATA_INCR(session, cache_eviction_target_page_lt16);
