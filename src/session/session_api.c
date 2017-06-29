@@ -700,7 +700,7 @@ __session_rebalance(WT_SESSION *wt_session, const char *uri, const char *config)
 
 	SESSION_API_CALL(session, rebalance, config, cfg);
 
-	/* In-memory doesn't support rebalance operations. */
+	/* In-memory ignores rebalance operations. */
 	if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
 		goto err;
 
@@ -1322,6 +1322,12 @@ __session_upgrade(WT_SESSION *wt_session, const char *uri, const char *config)
 	session = (WT_SESSION_IMPL *)wt_session;
 
 	SESSION_API_CALL(session, upgrade, config, cfg);
+
+	if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+		WT_ERR_MSG(session, ENOTSUP,
+		    "WT_SESSION.upgrade not supported for in-memory "
+		    "configurations");
+
 	/* Block out checkpoints to avoid spurious EBUSY errors. */
 	WT_WITH_CHECKPOINT_LOCK(session,
 	    WT_WITH_SCHEMA_LOCK(session,
