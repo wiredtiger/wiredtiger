@@ -1680,27 +1680,21 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	    target_pages > remaining_slots)
 		target_pages = remaining_slots;
 
-	if (target_pages < 2) {
-		WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt2);
-		WT_STAT_DATA_INCR(session, cache_eviction_target_page_lt2);
-	} else if (target_pages < 4) {
-		WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt4);
-		WT_STAT_DATA_INCR(session, cache_eviction_target_page_lt4);
-	} else if (target_pages < 8) {
-		WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt8);
-		WT_STAT_DATA_INCR(session, cache_eviction_target_page_lt8);
-	} else if (target_pages < 16) {
+	if (target_pages < 16) {
 		WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt16);
 		WT_STAT_DATA_INCR(session, cache_eviction_target_page_lt16);
 	} else if (target_pages < 32) {
 		WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt32);
 		WT_STAT_DATA_INCR(session, cache_eviction_target_page_lt32);
-	} else if (target_pages < 64) {
-		WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt64);
-		WT_STAT_DATA_INCR(session, cache_eviction_target_page_lt64);
+	} else if (target_pages < 128) {
+		WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt128);
+		WT_STAT_DATA_INCR(session, cache_eviction_target_page_lt128);
+	} else if (target_pages < 512) {
+		WT_STAT_CONN_INCR(session, cache_eviction_target_page_lt512);
+		WT_STAT_DATA_INCR(session, cache_eviction_target_page_lt512);
 	} else {
-		WT_STAT_CONN_INCR(session, cache_eviction_target_page_ge64);
-		WT_STAT_DATA_INCR(session, cache_eviction_target_page_ge64);
+		WT_STAT_CONN_INCR(session, cache_eviction_target_page_ge512);
+		WT_STAT_DATA_INCR(session, cache_eviction_target_page_ge512);
 	}
 
 	end = start + target_pages;

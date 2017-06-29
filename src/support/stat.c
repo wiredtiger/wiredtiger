@@ -43,13 +43,11 @@ static const char * const __stats_dsrc_desc[] = {
 	"btree: pages rewritten by compaction",
 	"btree: row-store internal pages",
 	"btree: row-store leaf pages",
-	"cache: Per tree page target greater than 64",
-	"cache: Per tree page target less than 16",
-	"cache: Per tree page target less than 2",
-	"cache: Per tree page target less than 32",
-	"cache: Per tree page target less than 4",
-	"cache: Per tree page target less than 64",
-	"cache: Per tree page target less than 8",
+	"cache: Histogram - Per tree page target 1-16",
+	"cache: Histogram - Per tree page target 128-512",
+	"cache: Histogram - Per tree page target 16-32",
+	"cache: Histogram - Per tree page target 32-128",
+	"cache: Histogram - Per tree page target greater than 512",
 	"cache: bytes currently in the cache",
 	"cache: bytes read into cache",
 	"cache: bytes written from cache",
@@ -225,13 +223,11 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
 	stats->btree_compact_rewrite = 0;
 	stats->btree_row_internal = 0;
 	stats->btree_row_leaf = 0;
-	stats->cache_eviction_target_page_ge64 = 0;
 	stats->cache_eviction_target_page_lt16 = 0;
-	stats->cache_eviction_target_page_lt2 = 0;
+	stats->cache_eviction_target_page_lt512 = 0;
 	stats->cache_eviction_target_page_lt32 = 0;
-	stats->cache_eviction_target_page_lt4 = 0;
-	stats->cache_eviction_target_page_lt64 = 0;
-	stats->cache_eviction_target_page_lt8 = 0;
+	stats->cache_eviction_target_page_lt128 = 0;
+	stats->cache_eviction_target_page_ge512 = 0;
 		/* not clearing cache_bytes_inuse */
 	stats->cache_bytes_read = 0;
 	stats->cache_bytes_write = 0;
@@ -392,20 +388,16 @@ __wt_stat_dsrc_aggregate_single(
 	to->btree_compact_rewrite += from->btree_compact_rewrite;
 	to->btree_row_internal += from->btree_row_internal;
 	to->btree_row_leaf += from->btree_row_leaf;
-	to->cache_eviction_target_page_ge64 +=
-	    from->cache_eviction_target_page_ge64;
 	to->cache_eviction_target_page_lt16 +=
 	    from->cache_eviction_target_page_lt16;
-	to->cache_eviction_target_page_lt2 +=
-	    from->cache_eviction_target_page_lt2;
+	to->cache_eviction_target_page_lt512 +=
+	    from->cache_eviction_target_page_lt512;
 	to->cache_eviction_target_page_lt32 +=
 	    from->cache_eviction_target_page_lt32;
-	to->cache_eviction_target_page_lt4 +=
-	    from->cache_eviction_target_page_lt4;
-	to->cache_eviction_target_page_lt64 +=
-	    from->cache_eviction_target_page_lt64;
-	to->cache_eviction_target_page_lt8 +=
-	    from->cache_eviction_target_page_lt8;
+	to->cache_eviction_target_page_lt128 +=
+	    from->cache_eviction_target_page_lt128;
+	to->cache_eviction_target_page_ge512 +=
+	    from->cache_eviction_target_page_ge512;
 	to->cache_bytes_inuse += from->cache_bytes_inuse;
 	to->cache_bytes_read += from->cache_bytes_read;
 	to->cache_bytes_write += from->cache_bytes_write;
@@ -581,20 +573,16 @@ __wt_stat_dsrc_aggregate(
 	    WT_STAT_READ(from, btree_compact_rewrite);
 	to->btree_row_internal += WT_STAT_READ(from, btree_row_internal);
 	to->btree_row_leaf += WT_STAT_READ(from, btree_row_leaf);
-	to->cache_eviction_target_page_ge64 +=
-	    WT_STAT_READ(from, cache_eviction_target_page_ge64);
 	to->cache_eviction_target_page_lt16 +=
 	    WT_STAT_READ(from, cache_eviction_target_page_lt16);
-	to->cache_eviction_target_page_lt2 +=
-	    WT_STAT_READ(from, cache_eviction_target_page_lt2);
+	to->cache_eviction_target_page_lt512 +=
+	    WT_STAT_READ(from, cache_eviction_target_page_lt512);
 	to->cache_eviction_target_page_lt32 +=
 	    WT_STAT_READ(from, cache_eviction_target_page_lt32);
-	to->cache_eviction_target_page_lt4 +=
-	    WT_STAT_READ(from, cache_eviction_target_page_lt4);
-	to->cache_eviction_target_page_lt64 +=
-	    WT_STAT_READ(from, cache_eviction_target_page_lt64);
-	to->cache_eviction_target_page_lt8 +=
-	    WT_STAT_READ(from, cache_eviction_target_page_lt8);
+	to->cache_eviction_target_page_lt128 +=
+	    WT_STAT_READ(from, cache_eviction_target_page_lt128);
+	to->cache_eviction_target_page_ge512 +=
+	    WT_STAT_READ(from, cache_eviction_target_page_ge512);
 	to->cache_bytes_inuse += WT_STAT_READ(from, cache_bytes_inuse);
 	to->cache_bytes_read += WT_STAT_READ(from, cache_bytes_read);
 	to->cache_bytes_write += WT_STAT_READ(from, cache_bytes_write);
@@ -766,13 +754,11 @@ static const char * const __stats_connection_desc[] = {
 	"block-manager: bytes written for checkpoint",
 	"block-manager: mapped blocks read",
 	"block-manager: mapped bytes read",
-	"cache: Per tree page target greater than 64",
-	"cache: Per tree page target less than 16",
-	"cache: Per tree page target less than 2",
-	"cache: Per tree page target less than 32",
-	"cache: Per tree page target less than 4",
-	"cache: Per tree page target less than 64",
-	"cache: Per tree page target less than 8",
+	"cache: Histogram - Per tree page target 1-16",
+	"cache: Histogram - Per tree page target 128-512",
+	"cache: Histogram - Per tree page target 16-32",
+	"cache: Histogram - Per tree page target 32-128",
+	"cache: Histogram - Per tree page target greater than 512",
 	"cache: application threads page read from disk to cache count",
 	"cache: application threads page read from disk to cache time (usecs)",
 	"cache: application threads page write from cache to disk count",
@@ -1082,13 +1068,11 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->block_byte_write_checkpoint = 0;
 	stats->block_map_read = 0;
 	stats->block_byte_map_read = 0;
-	stats->cache_eviction_target_page_ge64 = 0;
 	stats->cache_eviction_target_page_lt16 = 0;
-	stats->cache_eviction_target_page_lt2 = 0;
+	stats->cache_eviction_target_page_lt512 = 0;
 	stats->cache_eviction_target_page_lt32 = 0;
-	stats->cache_eviction_target_page_lt4 = 0;
-	stats->cache_eviction_target_page_lt64 = 0;
-	stats->cache_eviction_target_page_lt8 = 0;
+	stats->cache_eviction_target_page_lt128 = 0;
+	stats->cache_eviction_target_page_ge512 = 0;
 	stats->cache_read_app_count = 0;
 	stats->cache_read_app_time = 0;
 	stats->cache_write_app_count = 0;
@@ -1379,20 +1363,16 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, block_byte_write_checkpoint);
 	to->block_map_read += WT_STAT_READ(from, block_map_read);
 	to->block_byte_map_read += WT_STAT_READ(from, block_byte_map_read);
-	to->cache_eviction_target_page_ge64 +=
-	    WT_STAT_READ(from, cache_eviction_target_page_ge64);
 	to->cache_eviction_target_page_lt16 +=
 	    WT_STAT_READ(from, cache_eviction_target_page_lt16);
-	to->cache_eviction_target_page_lt2 +=
-	    WT_STAT_READ(from, cache_eviction_target_page_lt2);
+	to->cache_eviction_target_page_lt512 +=
+	    WT_STAT_READ(from, cache_eviction_target_page_lt512);
 	to->cache_eviction_target_page_lt32 +=
 	    WT_STAT_READ(from, cache_eviction_target_page_lt32);
-	to->cache_eviction_target_page_lt4 +=
-	    WT_STAT_READ(from, cache_eviction_target_page_lt4);
-	to->cache_eviction_target_page_lt64 +=
-	    WT_STAT_READ(from, cache_eviction_target_page_lt64);
-	to->cache_eviction_target_page_lt8 +=
-	    WT_STAT_READ(from, cache_eviction_target_page_lt8);
+	to->cache_eviction_target_page_lt128 +=
+	    WT_STAT_READ(from, cache_eviction_target_page_lt128);
+	to->cache_eviction_target_page_ge512 +=
+	    WT_STAT_READ(from, cache_eviction_target_page_ge512);
 	to->cache_read_app_count += WT_STAT_READ(from, cache_read_app_count);
 	to->cache_read_app_time += WT_STAT_READ(from, cache_read_app_time);
 	to->cache_write_app_count +=
