@@ -149,6 +149,10 @@ __session_alter(WT_SESSION *wt_session, const char *uri, const char *config)
 
 	SESSION_API_CALL(session, alter, config, cfg);
 
+	/* In-memory ignores alter operations. */
+	if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+		goto err;
+
 	/* Disallow objects in the WiredTiger name space. */
 	WT_ERR(__wt_str_name_check(session, uri));
 
