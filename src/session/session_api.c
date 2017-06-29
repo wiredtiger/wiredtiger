@@ -700,6 +700,10 @@ __session_rebalance(WT_SESSION *wt_session, const char *uri, const char *config)
 
 	SESSION_API_CALL(session, rebalance, config, cfg);
 
+	/* In-memory doesn't support rebalance operations. */
+	if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+		goto err;
+
 	/* Block out checkpoints to avoid spurious EBUSY errors. */
 	WT_WITH_CHECKPOINT_LOCK(session,
 	    WT_WITH_SCHEMA_LOCK(session,
@@ -709,8 +713,7 @@ __session_rebalance(WT_SESSION *wt_session, const char *uri, const char *config)
 err:	if (ret != 0)
 		WT_STAT_CONN_INCR(session, session_table_rebalance_fail);
 	else
-		WT_STAT_CONN_INCR(session,
-		    session_table_rebalance_success);
+		WT_STAT_CONN_INCR(session, session_table_rebalance_success);
 	API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
