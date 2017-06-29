@@ -234,7 +234,18 @@ __statlog_print_header(WT_SESSION_IMPL *session)
 	if (!FLD_ISSET(conn->stat_flags, WT_STAT_JSON))
 		return (0);
 
-	/* Defensively clear the flag, as we are printing a new set of stats */
+	/*
+	 * This flag is required in order to generate correct JSON when printing
+	 * out stats for individual tables. When we are about to print the first
+	 * table's stats we must print out the wiredTigerTables header once
+	 * only and add a correct closing brace when we finish the tables
+	 * section. To do this we maintain a flag variable to note when we have
+	 * printed the first table. Unfortunately, the mechanism which we use
+	 * to print stats for each table does not allow passing of variables
+	 * by reference, this necessitates the use of a variable on the
+	 * connection. The variable is safe as the JSON printing logic is only
+	 * performed by the single threaded stat server.
+	 */
 	FLD_CLR(conn->stat_flags, WT_STAT_JSON_PRINT_TABLES);
 	WT_RET(__wt_fprintf(session, conn->stat_fs,
 	    "{\"version\":\"%s\",\"localTime\":\"%s\"",
