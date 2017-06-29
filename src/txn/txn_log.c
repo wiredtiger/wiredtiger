@@ -148,6 +148,7 @@ __wt_txn_op_free(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
 	switch (op->type) {
 	case WT_TXN_OP_BASIC:
+	case WT_TXN_OP_BASIC_TS:
 	case WT_TXN_OP_INMEM:
 	case WT_TXN_OP_REF:
 	case WT_TXN_OP_TRUNCATE_COL:
@@ -225,6 +226,7 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 
 	switch (op->type) {
 	case WT_TXN_OP_BASIC:
+	case WT_TXN_OP_BASIC_TS:
 		ret = __txn_op_log(session, logrec, op, cbt);
 		break;
 	case WT_TXN_OP_INMEM:
@@ -423,7 +425,8 @@ __wt_txn_checkpoint_log(
 		 * metadata LSN and we do not want to archive in that case.
 		 */
 		if (!conn->hot_backup &&
-		    !FLD_ISSET(conn->log_flags, WT_CONN_LOG_RECOVER_DIRTY) &&
+		    (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_RECOVER_DIRTY) ||
+		    FLD_ISSET(conn->log_flags, WT_CONN_LOG_FORCE_DOWNGRADE)) &&
 		    txn->full_ckpt)
 			__wt_log_ckpt(session, ckpt_lsn);
 
@@ -586,6 +589,16 @@ __txn_printlog(WT_SESSION_IMPL *session,
 		    "    \"type\" : \"message\",\n"));
 		WT_RET(__wt_fprintf(session, WT_STDOUT(session),
 		    "    \"message\" : \"%s\"\n", msg));
+		break;
+
+	case WT_LOGREC_SYSTEM:
+		WT_RET(__wt_struct_unpack(session, p, WT_PTRDIFF(end, p),
+		    WT_UNCHECKED_STRING(II), &lsnfile, &lsnoffset));
+		WT_RET(__wt_fprintf(session, WT_STDOUT(session),
+		    "    \"type\" : \"system\",\n"));
+		WT_RET(__wt_fprintf(session, WT_STDOUT(session),
+		    "    \"prev_lsn\" : [%" PRIu32 ",%" PRIu32 "]\n",
+		    lsnfile, lsnoffset));
 		break;
 	}
 

@@ -67,15 +67,11 @@ var.Add('CPPPATH', 'C Preprocessor include path', [
 ])
 
 var.Add('CFLAGS', 'C Compiler Flags', [
-    "/Z7", # Generate debugging symbols
     "/wd4090", # Ignore warning about mismatched const qualifiers
     "/wd4996", # Ignore deprecated functions
     "/W3", # Warning level 3
-    #"/we4244", # Possible loss of data
-    "/we4013", # Error on undefined functions
-    #"/we4047", # Indirection differences in types
-    #"/we4024", # Differences in parameter types
-    #"/we4100", # Unreferenced local parameter
+    "/WX", # Warnings are fatal
+    "/Z7", # Generate debugging symbols
     "/TC", # Compile as C code
     #"/Od", # Disable optimization
     "/Ob1", # inline expansion
@@ -299,6 +295,7 @@ wtbin = env.Program("wt", [
     "src/utilities/util_cpyright.c",
     "src/utilities/util_compact.c",
     "src/utilities/util_create.c",
+    "src/utilities/util_downgrade.c",
     "src/utilities/util_drop.c",
     "src/utilities/util_dump.c",
     "src/utilities/util_list.c",
@@ -338,6 +335,8 @@ if GetOption("lang-python"):
             "-nodefaultctor",
             "-nodefaultdtor",
             ])
+    # Ignore warnings in swig-generated code.
+    pythonEnv['CFLAGS'].remove("/WX")
 
     swiglib = pythonEnv.SharedLibrary('_wiredtiger',
                       [ 'lang\python\wiredtiger.i'],
@@ -515,15 +514,10 @@ Default(t)
 
 #Build the Examples
 for ex in examples:
-    if(ex in ['ex_all', 'ex_async', 'ex_encrypt', 'ex_file_system' , 'ex_thread']):
-        exp = env.Program(ex, "examples/c/" + ex + ".c", LIBS=[wtlib, shim] + wtlibs)
-        Default(exp)
-        env.Alias("check", env.SmokeTest(exp))
-    else:
-        exp = env.Program(ex, "examples/c/" + ex + ".c", LIBS=[wtdll[1]] + wtlibs)
-        Default(exp)
-        if not ex == 'ex_log':
-            env.Alias("check", env.SmokeTest(exp))
+    exp = env.Program(ex, "examples/c/" + ex + ".c", LIBS=[wtlib, shim, testutil] + wtlibs)
+    Default(exp)
+    if not ex == 'ex_log':
+	env.Alias("check", env.SmokeTest(exp))
 
 # Install Target
 #

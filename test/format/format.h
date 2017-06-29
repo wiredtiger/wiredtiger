@@ -123,6 +123,8 @@ typedef struct {
 
 	WT_RAND_STATE rnd;			/* Global RNG state */
 
+	uint64_t timestamp;			/* Counter for timestamps. */
+
 	/*
 	 * We have a list of records that are appended, but not yet "resolved",
 	 * that is, we haven't yet incremented the g.rows value to reflect the
@@ -153,6 +155,7 @@ typedef struct {
 	char	*c_checksum;
 	uint32_t c_chunk_size;
 	uint32_t c_compact;
+	char	*c_compat;
 	char	*c_compression;
 	char	*c_config_open;
 	uint32_t c_data_extend;
@@ -202,6 +205,7 @@ typedef struct {
 	uint32_t c_threads;
 	uint32_t c_timer;
 	uint32_t c_txn_freq;
+	uint32_t c_txn_timestamps;
 	uint32_t c_value_max;
 	uint32_t c_value_min;
 	uint32_t c_verify;
@@ -216,6 +220,11 @@ typedef struct {
 #define	CHECKSUM_ON			2
 #define	CHECKSUM_UNCOMPRESSED		3
 	u_int c_checksum_flag;			/* Checksum flag value */
+
+#define	COMPAT_NONE			1
+#define	COMPAT_V1			2
+#define	COMPAT_V2			3
+	u_int c_compat_flag;			/* Compatibility flag value */
 
 #define	COMPRESS_NONE			1
 #define	COMPRESS_LZ4			2
@@ -282,6 +291,7 @@ void	 bdb_update(const void *, size_t, const void *, size_t);
 WT_THREAD_RET alter(void *);
 WT_THREAD_RET backup(void *);
 WT_THREAD_RET compact(void *);
+WT_THREAD_RET compat(void *);
 void	 config_clear(void);
 void	 config_error(void);
 void	 config_file(const char *);
@@ -315,10 +325,17 @@ void	 wts_verify(const char *);
 
 /*
  * mmrand --
- *	Return a random value between a min/max pair.
+ *	Return a random value between a min/max pair, inclusive.
  */
 static inline uint32_t
 mmrand(WT_RAND_STATE *rnd, u_int min, u_int max)
 {
-	return (rng(rnd) % (((max) + 1) - (min)) + (min));
+	uint32_t v;
+	u_int range;
+
+	v = rng(rnd);
+	range = (max - min) + 1;
+	v %= range;
+	v += min;
+	return (v);
 }
