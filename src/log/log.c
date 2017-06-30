@@ -936,8 +936,8 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp,
 	__wt_log_desc_byteswap(desc);
 	if (desc->log_magic != WT_LOG_MAGIC)
 		WT_PANIC_RET(session, WT_ERROR,
-		   "log file %s corrupted: Bad magic number %" PRIu32,
-		   fh->name, desc->log_magic);
+		    "log file %s corrupted: Bad magic number %" PRIu32,
+		    fh->name, desc->log_magic);
 	/*
 	 * We cannot read future log file formats.
 	 */
