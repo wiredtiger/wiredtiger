@@ -107,20 +107,15 @@ __log_prealloc_remove(WT_SESSION_IMPL *session)
 	WT_ERR(__log_get_files(session,
 	    WT_LOG_TMPNAME, &logfiles, &logcount));
 	for (i = 0; i < logcount; i++) {
-		WT_ERR(__wt_log_extract_lognum(
-		    session, logfiles[i], &lognum));
-		WT_ERR(__wt_log_remove(
-		    session, WT_LOG_TMPNAME, lognum));
+		WT_ERR(__wt_log_extract_lognum(session, logfiles[i], &lognum));
+		WT_ERR(__wt_log_remove(session, WT_LOG_TMPNAME, lognum));
 	}
-	WT_ERR(
-	    __wt_fs_directory_list_free(session, &logfiles, logcount));
+	WT_ERR(__wt_fs_directory_list_free(session, &logfiles, logcount));
 	WT_ERR(__log_get_files(session,
 	    WT_LOG_PREPNAME, &logfiles, &logcount));
 	for (i = 0; i < logcount; i++) {
-		WT_ERR(__wt_log_extract_lognum(
-		    session, logfiles[i], &lognum));
-		WT_ERR(__wt_log_remove(
-		    session, WT_LOG_PREPNAME, lognum));
+		WT_ERR(__wt_log_extract_lognum(session, logfiles[i], &lognum));
+		WT_ERR(__wt_log_remove(session, WT_LOG_PREPNAME, lognum));
 	}
 err:	WT_TRET(__wt_fs_directory_list_free(session, &logfiles, logcount));
 	__wt_spin_unlock(session, &log->log_fs_lock);
