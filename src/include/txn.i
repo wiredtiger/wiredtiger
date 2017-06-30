@@ -42,12 +42,20 @@ __wt_timestamp_iszero(const uint8_t *ts)
 	return (memcmp(ts, zero_timestamp, WT_TIMESTAMP_SIZE) == 0);
 }
 
+/*
+ * __wt_timestamp_set_inf --
+ *	Set a timestamp to the maximum value.
+ */
 static inline void
 __wt_timestamp_set_inf(uint8_t *ts)
 {
 	memset(ts, 0xff, WT_TIMESTAMP_SIZE);
 }
 
+/*
+ * __wt_timestamp_set_zero --
+ *	Zero out a timestamp.
+ */
 static inline void
 __wt_timestamp_set_zero(uint8_t *ts)
 {
