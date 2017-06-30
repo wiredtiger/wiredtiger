@@ -997,6 +997,7 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 			    "value", WT_UPDATE_DATA(upd), upd->size));
 		WT_RET(ds->f(ds, "\t" "txn id %" PRIu64, upd->txnid));
 
+#ifdef HAVE_TIMESTAMPS
 		if (!__wt_timestamp_iszero(upd->timestamp)) {
 #if WT_TIMESTAMP_SIZE == 8
 			{
@@ -1014,6 +1015,7 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 			}
 #endif
 		}
+#endif
 		WT_RET(ds->f(ds, "\n"));
 	}
 	return (0);
