@@ -224,7 +224,8 @@ __wt_lex_compare_short(const WT_ITEM *user_item, const WT_ITEM *tree_item)
 	case n:								\
 		if (*userp != *treep)					\
 			break;						\
-		++userp, ++treep
+		++userp, ++treep;					\
+		WT_GCC_ATTRIBUTE((fallthrough))
 	switch (len) {
 	WT_COMPARE_SHORT(9);
 	WT_COMPARE_SHORT(8);
