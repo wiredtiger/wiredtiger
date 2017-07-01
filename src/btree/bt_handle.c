@@ -290,7 +290,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 		WT_RET(__wt_config_gets(session, cfg, "version.minor", &cval));
 		min_version = cval.val;
 		__wt_verbose(session, WT_VERB_VERSION,
-		    "%" PRIu64 ".%" PRIu64, maj_version, min_version);
+		    "%" PRId64 ".%" PRId64, maj_version, min_version);
 	}
 
 	/* Get the file ID. */
