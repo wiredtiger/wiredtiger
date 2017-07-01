@@ -171,14 +171,16 @@ __bit_ffc(uint8_t *bitf, uint64_t nbits, uint64_t *retp)
 	if (nbits == 0)
 		return (-1);
 
-	for (byte = 0,
-	    stopbyte = __bit_byte(nbits - 1); byte <= stopbyte; ++byte)
+	for (byte = 0, stopbyte = __bit_byte(nbits - 1);; ++byte) {
 		if (bitf[byte] != 0xff) {
 			value = byte << 3;
 			for (lb = bitf[byte]; lb & 0x01; ++value, lb >>= 1)
 				;
 			break;
 		}
+		if (byte == stopbyte)
+			break;
+	}
 
 	if (byte > stopbyte || value >= nbits)
 		return (-1);
@@ -201,14 +203,16 @@ __bit_ffs(uint8_t *bitf, uint64_t nbits, uint64_t *retp)
 	if (nbits == 0)
 		return (-1);
 
-	for (byte = 0,
-	    stopbyte = __bit_byte(nbits - 1); byte <= stopbyte; ++byte)
+	for (byte = 0, stopbyte = __bit_byte(nbits - 1);; ++byte) {
 		if (bitf[byte] != 0) {
 			value = byte << 3;
 			for (lb = bitf[byte]; !(lb & 0x01); ++value, lb >>= 1)
 				;
 			break;
 		}
+		if (byte == stopbyte)
+			break;
+	}
 
 	if (byte > stopbyte || value >= nbits)
 		return (-1);
@@ -231,8 +235,13 @@ __bit_getv(uint8_t *bitf, uint64_t entry, uint8_t width)
 	case len:							\
 		if (__bit_test(bitf, bit))				\
 			value |= (mask);				\
-		++bit							\
-		/* FALLTHROUGH */
+		++bit;							\
+		/*							\
+		 * GCC 7.X complains about implicit fallthrough, and	\
+		 * FALLTHROUGH comments inside macros are insufficient	\
+		 * to quiet the warning.				\
+		 */							\
+		WT_GCC_ATTRIBUTE((fallthrough))
 
 	value = 0;
 	bit = entry * width;
@@ -282,8 +291,13 @@ __bit_setv(uint8_t *bitf, uint64_t entry, uint8_t width, uint8_t value)
 			__bit_set(bitf, bit);				\
 		else							\
 			__bit_clear(bitf, bit);				\
-		++bit							\
-		/* FALLTHROUGH */
+		++bit;							\
+		/*							\
+		 * GCC 7.X complains about implicit fallthrough, and	\
+		 * FALLTHROUGH comments inside macros are insufficient	\
+		 * to quiet the warning.				\
+		 */							\
+		WT_GCC_ATTRIBUTE((fallthrough))
 
 	bit = entry * width;
 
