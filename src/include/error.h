@@ -124,3 +124,17 @@
 #define	WT_ASSERT(session, exp)						\
 	WT_UNUSED(session)
 #endif
+
+/*
+ * __wt_verbose --
+ *	Display a verbose message. Not an inlined function because you can't
+ * inline functions that take variadic arguments.
+ */
+#ifdef HAVE_VERBOSE
+#define	__wt_verbose(session, flag, fmt, ...) do {			\
+	if (WT_VERBOSE_ISSET(session, flag))				\
+		__wt_verbose_worker(session, fmt, __VA_ARGS__);		\
+} while (0)
+#else
+#define	__wt_verbose(session, flag, fmt, ...)
+#endif
