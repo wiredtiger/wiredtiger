@@ -33,7 +33,6 @@ AC_DEFUN([AM_GCC_WARNINGS], [
 	w="$w -Wundef"
 	w="$w -Wuninitialized"
 	w="$w -Wunreachable-code"
-	w="$w -Wunsafe-loop-optimizations"
 	w="$w -Wunused"
 	w="$w -Wwrite-strings"
 
@@ -48,8 +47,13 @@ AC_DEFUN([AM_GCC_WARNINGS], [
 	#	Additional warning messages.
 	case "$1" in
 	[*4.7.[0-9]*])					# gcc4.7
-		w="$w -Wno-c11-extensions";;
+		w="$w -Wno-c11-extensions"
+		w="$w -Wunsafe-loop-optimizations";;
 	[*6.[0-9].[0-9]*])				# gcc6.X
+		w="$w -Wduplicated-cond"
+		w="$w -Wmisleading-indentation"
+		w="$w -Wunsafe-loop-optimizations";;
+	[*7.[0-9].[0-9]*])				# gcc7.X
 		w="$w -Wduplicated-cond"
 		w="$w -Wmisleading-indentation";;
 	esac
