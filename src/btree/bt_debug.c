@@ -1001,9 +1001,10 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 		if (!__wt_timestamp_iszero(upd->timestamp)) {
 #if WT_TIMESTAMP_SIZE == 8
 			{
-			uint64_t ts, *tsp;
-			tsp = (uint64_t *)&upd->timestamp;
-			ts = __wt_bswap64(*tsp);
+			uint64_t ts;
+			__wt_timestamp_set(
+			    (uint8_t *)&ts, (uint8_t *)&upd->timestamp[0]);
+			ts = __wt_bswap64(ts);
 			WT_RET(ds->f(ds, ", stamp %" PRIu64, ts));
 			}
 #else
