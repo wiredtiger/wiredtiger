@@ -731,7 +731,7 @@ __cache_pool_adjust(WT_SESSION_IMPL *session,
 				cp->currently_used -= adjustment;
 			}
 			__wt_verbose(session, WT_VERB_SHARED_CACHE,
-			    "Allocated %s%" PRId64 " to %s",
+			    "Allocated %s%" PRIu64 " to %s",
 			    grow ? "" : "-", adjustment, entry->home);
 
 			/*
