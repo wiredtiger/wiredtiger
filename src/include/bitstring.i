@@ -231,18 +231,6 @@ __bit_getv(uint8_t *bitf, uint64_t entry, uint8_t width)
 	uint8_t value;
 	uint64_t bit;
 
-#define	__BIT_GET(len, mask)						\
-	case len:							\
-		if (__bit_test(bitf, bit))				\
-			value |= (mask);				\
-		++bit;							\
-		/*							\
-		 * GCC 7.X complains about implicit fallthrough, and	\
-		 * FALLTHROUGH comments inside macros are insufficient	\
-		 * to quiet the warning.				\
-		 */							\
-		WT_GCC_ATTRIBUTE((fallthrough))
-
 	value = 0;
 	bit = entry * width;
 
@@ -254,13 +242,41 @@ __bit_getv(uint8_t *bitf, uint64_t entry, uint8_t width)
 	switch (width) {
 	case 8:
 		return (bitf[__bit_byte(bit)]);
-	__BIT_GET(7, 0x40);
-	__BIT_GET(6, 0x20);
-	__BIT_GET(5, 0x10);
-	__BIT_GET(4, 0x08);
-	__BIT_GET(3, 0x04);
-	__BIT_GET(2, 0x02);
-	__BIT_GET(1, 0x01);
+	case 7:
+		if (__bit_test(bitf, bit))
+			value |= 0x40;
+		++bit;
+		/* FALLTHROUGH */
+	case 6:
+		if (__bit_test(bitf, bit))
+			value |= 0x20;
+		++bit;
+		/* FALLTHROUGH */
+	case 5:
+		if (__bit_test(bitf, bit))
+			value |= 0x10;
+		++bit;
+		/* FALLTHROUGH */
+	case 4:
+		if (__bit_test(bitf, bit))
+			value |= 0x08;
+		++bit;
+		/* FALLTHROUGH */
+	case 3:
+		if (__bit_test(bitf, bit))
+			value |= 0x04;
+		++bit;
+		/* FALLTHROUGH */
+	case 2:
+		if (__bit_test(bitf, bit))
+			value |= 0x02;
+		++bit;
+		/* FALLTHROUGH */
+	case 1:
+		if (__bit_test(bitf, bit))
+			value |= 0x01;
+		++bit;
+		break;
 	}
 	return (value);
 }
@@ -285,20 +301,6 @@ __bit_setv(uint8_t *bitf, uint64_t entry, uint8_t width, uint8_t value)
 {
 	uint64_t bit;
 
-#define	__BIT_SET(len, mask)						\
-	case len:							\
-		if (value & (mask))					\
-			__bit_set(bitf, bit);				\
-		else							\
-			__bit_clear(bitf, bit);				\
-		++bit;							\
-		/*							\
-		 * GCC 7.X complains about implicit fallthrough, and	\
-		 * FALLTHROUGH comments inside macros are insufficient	\
-		 * to quiet the warning.				\
-		 */							\
-		WT_GCC_ATTRIBUTE((fallthrough))
-
 	bit = entry * width;
 
 	/*
@@ -310,12 +312,54 @@ __bit_setv(uint8_t *bitf, uint64_t entry, uint8_t width, uint8_t value)
 	case 8:
 		bitf[__bit_byte(bit)] = value;
 		return;
-	__BIT_SET(7, 0x40);
-	__BIT_SET(6, 0x20);
-	__BIT_SET(5, 0x10);
-	__BIT_SET(4, 0x08);
-	__BIT_SET(3, 0x04);
-	__BIT_SET(2, 0x02);
-	__BIT_SET(1, 0x01);
+	case 7:
+		if (value & 0x40)
+			__bit_set(bitf, bit);
+		else
+			__bit_clear(bitf, bit);
+		++bit;
+		/* FALLTHROUGH */
+	case 6:
+		if (value & 0x20)
+			__bit_set(bitf, bit);
+		else
+			__bit_clear(bitf, bit);
+		++bit;
+		/* FALLTHROUGH */
+	case 5:
+		if (value & 0x10)
+			__bit_set(bitf, bit);
+		else
+			__bit_clear(bitf, bit);
+		++bit;
+		/* FALLTHROUGH */
+	case 4:
+		if (value & 0x08)
+			__bit_set(bitf, bit);
+		else
+			__bit_clear(bitf, bit);
+		++bit;
+		/* FALLTHROUGH */
+	case 3:
+		if (value & 0x04)
+			__bit_set(bitf, bit);
+		else
+			__bit_clear(bitf, bit);
+		++bit;
+		/* FALLTHROUGH */
+	case 2:
+		if (value & 0x02)
+			__bit_set(bitf, bit);
+		else
+			__bit_clear(bitf, bit);
+		++bit;
+		/* FALLTHROUGH */
+	case 1:
+		if (value & 0x01)
+			__bit_set(bitf, bit);
+		else
+			__bit_clear(bitf, bit);
+		++bit;
+		break;
 	}
 }

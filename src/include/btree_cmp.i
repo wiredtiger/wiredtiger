@@ -219,22 +219,55 @@ __wt_lex_compare_short(const WT_ITEM *user_item, const WT_ITEM *tree_item)
 	 * packed record numbers as keys.
 	 */
 #define	WT_COMPARE_SHORT_MAXLEN 9
-#undef	WT_COMPARE_SHORT
-#define	WT_COMPARE_SHORT(n)						\
-	case n:								\
-		if (*userp != *treep)					\
-			break;						\
-		++userp, ++treep;					\
-		WT_GCC_ATTRIBUTE((fallthrough))
 	switch (len) {
-	WT_COMPARE_SHORT(9);
-	WT_COMPARE_SHORT(8);
-	WT_COMPARE_SHORT(7);
-	WT_COMPARE_SHORT(6);
-	WT_COMPARE_SHORT(5);
-	WT_COMPARE_SHORT(4);
-	WT_COMPARE_SHORT(3);
-	WT_COMPARE_SHORT(2);
+	case 9:
+		if (*userp != *treep)
+			break;
+		++userp;
+		++treep;
+		/* FALLTHROUGH */
+	case 8:
+		if (*userp != *treep)
+			break;
+		++userp;
+		++treep;
+		/* FALLTHROUGH */
+	case 7:
+		if (*userp != *treep)
+			break;
+		++userp;
+		++treep;
+		/* FALLTHROUGH */
+	case 6:
+		if (*userp != *treep)
+			break;
+		++userp;
+		++treep;
+		/* FALLTHROUGH */
+	case 5:
+		if (*userp != *treep)
+			break;
+		++userp;
+		++treep;
+		/* FALLTHROUGH */
+	case 4:
+		if (*userp != *treep)
+			break;
+		++userp;
+		++treep;
+		/* FALLTHROUGH */
+	case 3:
+		if (*userp != *treep)
+			break;
+		++userp;
+		++treep;
+		/* FALLTHROUGH */
+	case 2:
+		if (*userp != *treep)
+			break;
+		++userp;
+		++treep;
+		/* FALLTHROUGH */
 	case 1:
 		if (*userp != *treep)
 			break;

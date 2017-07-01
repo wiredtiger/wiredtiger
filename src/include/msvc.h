@@ -28,8 +28,6 @@
 #define	WT_GCC_FUNC_ATTRIBUTE(x)
 #define	WT_GCC_FUNC_DECL_ATTRIBUTE(x)
 
-#define	WT_GCC_ATTRIBUTE(x)
-
 #define	WT_ATOMIC_FUNC(name, ret, type, s, t)				\
 static inline ret							\
 __wt_atomic_add##name(type *vp, type v)					\
