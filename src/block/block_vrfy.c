@@ -385,6 +385,8 @@ __verify_filefrag_add(WT_SESSION_IMPL *session, WT_BLOCK *block,
 {
 	uint64_t f, frag, frags, i;
 
+	WT_UNUSED(type);				/* !HAVE_VERBOSE */
+
 	__wt_verbose(session, WT_VERB_VERIFY,
 	    "add file block%s%s%s at %" PRIuMAX "-%" PRIuMAX " (%" PRIuMAX ")",
 	    type == NULL ? "" : " (",

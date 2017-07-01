@@ -136,5 +136,9 @@
 		__wt_verbose_worker(session, fmt, __VA_ARGS__);		\
 } while (0)
 #else
-#define	__wt_verbose(session, flag, fmt, ...)
+#define	__wt_verbose(session, flag, fmt, ...) do {			\
+	WT_UNUSED(session);						\
+	WT_UNUSED(flag);						\
+	WT_UNUSED(fmt);							\
+} while (0)
 #endif
