@@ -36,9 +36,9 @@ main(void)
 	const uint8_t *cp;
 	int i;
 
-	ncalls = 0;
+	memset(buf, 0xff, sizeof(buf));	/* -Werror=maybe-uninitialized */
 
-	for (i = 0; i < 10000000; i++) {
+	for (ncalls = 0, i = 0; i < 10000000; i++) {
 		for (s = 0; s < 50; s += 5) {
 			++ncalls;
 			r = 1ULL << s;
