@@ -386,7 +386,7 @@ struct __wt_page_modify {
 
 		/* Cached overflow value cell/update address pairs. */
 		struct {
-			void	  *cell;
+			WT_CELL   *cell;
 			WT_UPDATE *upd;
 		} *remove;
 		size_t	 remove_allocated;
