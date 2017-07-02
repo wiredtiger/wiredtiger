@@ -179,10 +179,10 @@ __bit_ffc(uint8_t *bitf, uint64_t nbits, uint64_t *retp)
 			break;
 		}
 		if (byte == stopbyte)
-			break;
+			return (-1);
 	}
 
-	if (byte > stopbyte || value >= nbits)
+	if (value >= nbits)
 		return (-1);
 
 	*retp = value;
@@ -211,10 +211,10 @@ __bit_ffs(uint8_t *bitf, uint64_t nbits, uint64_t *retp)
 			break;
 		}
 		if (byte == stopbyte)
-			break;
+			return (-1);
 	}
 
-	if (byte > stopbyte || value >= nbits)
+	if (value >= nbits)
 		return (-1);
 
 	*retp = value;
