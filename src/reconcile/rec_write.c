@@ -4905,16 +4905,12 @@ compare:		/*
 		}
 
 		/*
-		 * If we had a reference to an overflow record we never used,
+		 * The first time we find an overflow record we never used,
 		 * discard the underlying blocks, they're no longer useful.
-		 *
-		 * One complication: we must cache a copy before discarding the
-		 * on-disk version if there's a transaction in the system that
-		 * might read the original value.
 		 */
 		if (ovfl_state == OVFL_UNUSED &&
 		    vpack->raw != WT_CELL_VALUE_OVFL_RM)
-			WT_ERR(__wt_ovfl_cache(session, page, upd, vpack));
+			WT_ERR(__wt_ovfl_remove(session, page, upd, vpack));
 	}
 
 	/* Walk any append list. */
@@ -5508,16 +5504,13 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 			}
 		} else {
 			/*
-			 * If the original value was an overflow and we've not
-			 * already done so, discard it.  One complication: we
-			 * must cache a copy before discarding the on-disk
-			 * version if there's a transaction in the system that
-			 * might read the original value.
+			 * The first time we find an overflow record we're not
+			 * going to use, discard the underlying blocks.
 			 */
 			if (vpack != NULL &&
 			    vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)
-				WT_ERR(
-				    __wt_ovfl_cache(session, page, rip, vpack));
+				WT_ERR(__wt_ovfl_remove(
+				    session, page, upd, vpack));
 
 			/* If this key/value pair was deleted, we're done. */
 			if (upd->type == WT_UPDATE_DELETED) {
