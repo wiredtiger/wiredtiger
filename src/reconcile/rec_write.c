@@ -1179,7 +1179,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	WT_DECL_TIMESTAMP(max_timestamp)
 	WT_PAGE *page;
 	WT_UPDATE *append, *upd, *upd_list;
-	size_t notused, update_mem;
+	size_t size, update_mem;
 	uint64_t max_txn, min_txn, txnid;
 	bool append_origv, skipped;
 
@@ -1482,15 +1482,16 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 * key/value pair which simply doesn't exist for some reader;
 		 * place a deleted record at the end of the update list.
 		 */
+		size = 0;		/* -Wconditional-uninitialized */
 		if (vpack == NULL || vpack->type == WT_CELL_DEL)
 			WT_RET(__wt_update_alloc(session,
-			    NULL, &append, &notused, WT_UPDATE_DELETED));
+			    NULL, &append, &size, WT_UPDATE_DELETED));
 		else {
 			WT_RET(__wt_scr_alloc(session, 0, &tmp));
 			if ((ret = __wt_page_cell_data_ref(
 			    session, page, vpack, tmp)) == 0)
 				ret = __wt_update_alloc(session,
-				    tmp, &append, &notused, WT_UPDATE_STANDARD);
+				    tmp, &append, &size, WT_UPDATE_STANDARD);
 			__wt_scr_free(session, &tmp);
 			WT_RET(ret);
 		}
@@ -1508,8 +1509,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		for (upd = upd_list; upd->next != NULL; upd = upd->next)
 			;
 		WT_PUBLISH(upd->next, append);
-		__wt_cache_page_inmem_incr(
-		    session, page, WT_UPDATE_MEMSIZE(append));
+		__wt_cache_page_inmem_incr(session, page, size);
 	}
 
 	/*
