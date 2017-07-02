@@ -1419,45 +1419,6 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 
 		/* The page can't be marked clean. */
 		r->leave_dirty = true;
-
-		/*
-		 * A special-case for overflow values, where we can't write the
-		 * original on-page value item to disk because it's been updated
-		 * or removed.
-		 *
-		 * What happens is that an overflow value is updated or removed
-		 * and its backing blocks freed.  If any reader in the system
-		 * might still want the value, a copy was cached in the page
-		 * reconciliation tracking memory, and the page cell set to
-		 * WT_CELL_VALUE_OVFL_RM.  Eviction then chose the page and
-		 * we're splitting it up in order to push parts of it out of
-		 * memory.
-		 *
-		 * We could write the original on-page value item to disk... if
-		 * we had a copy.  The cache may not have a copy (a globally
-		 * visible update would have kept a value from being cached), or
-		 * an update that subsequently became globally visible could
-		 * cause a cached value to be discarded.  Either way, once there
-		 * is a globally visible update, we may not have the original
-		 * value.
-		 *
-		 * Fortunately, if there's a globally visible update we don't
-		 * care about the original version, so we simply ignore it, no
-		 * transaction can ever try and read it.  If there isn't a
-		 * globally visible update, there had better be a cached value.
-		 *
-		 * In the latter case, we could write the value out to disk, but
-		 * (1) we are planning on re-instantiating this page in memory,
-		 * it isn't going to disk, and (2) the value item is eventually
-		 * going to be discarded, that seems like a waste of a write.
-		 * Instead, find the cached value and append it to the update
-		 * list we're saving for later restoration.
-		 */
-		if (vpack != NULL &&
-		    vpack->raw == WT_CELL_VALUE_OVFL_RM &&
-		    !__wt_txn_visible_all(
-		    session, min_txn, WT_TIMESTAMP(min_timestamp)))
-			append_origv = true;
 	} else {
 		/*
 		 * The lookaside table eviction path.
@@ -4752,29 +4713,25 @@ record_loop:	/*
 				deleted = false;
 
 				/*
-				 * If doing update save and restore, there's an
-				 * update that's not globally visible, and the
+				 * If doing an update save and restore, and the
 				 * underlying value is a removed overflow value,
 				 * we end up here.
 				 *
-				 * When the update save/restore code noticed the
-				 * removed overflow value, it appended a copy of
-				 * the cached, original overflow value to the
-				 * update list being saved (ensuring the on-page
-				 * item will never be accessed after the page is
-				 * re-instantiated), then returned a NULL update
-				 * to us.
+				 * If necessary, when the overflow value was
+				 * originally removed, reconciliation appended
+				 * a globally visible copy of the value to the
+				 * key's update list, meaning the on-page item
+				 * isn't accessed after page re-instantiation.
 				 *
-				 * Assert the case: if we remove an underlying
-				 * overflow object, checkpoint reconciliation
-				 * should never see it again, there should be a
-				 * visible update in the way.
-				 *
-				 * Write a placeholder.
+				 * Assert the case.
 				 */
 				WT_ASSERT(session,
 				    F_ISSET(r, WT_EVICT_UPDATE_RESTORE));
 
+				/*
+				 * The on-page value will never be accessed,
+				 * write a placeholder record.
+				 */
 				data = "@";
 				size = 1;
 			} else {
@@ -5447,18 +5404,15 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 				dictionary = true;
 			} else if (vpack->raw == WT_CELL_VALUE_OVFL_RM) {
 				/*
-				 * If doing update save and restore in service
-				 * of eviction, there's an update that's not
-				 * globally visible, and the underlying value
-				 * is a removed overflow value, we end up here.
+				 * If doing an update save and restore, and the
+				 * underlying value is a removed overflow value,
+				 * we end up here.
 				 *
-				 * When the update save/restore code noticed the
-				 * removed overflow value, it appended a copy of
-				 * the cached, original overflow value to the
-				 * update list being saved (ensuring any on-page
-				 * item will never be accessed after the page is
-				 * re-instantiated), then returned a NULL update
-				 * to us.
+				 * If necessary, when the overflow value was
+				 * originally removed, reconciliation appended
+				 * a globally visible copy of the value to the
+				 * key's update list, meaning the on-page item
+				 * isn't accessed after page re-instantiation.
 				 *
 				 * Assert the case.
 				 */
