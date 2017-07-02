@@ -268,11 +268,8 @@ __wt_ovfl_remove(WT_SESSION_IMPL *session,
 	 * If there's no globally visible update, there's a reader in the system
 	 * that might try and read the old value, cache it.
 	 */
-	if (!visible) {
+	if (!visible)
 		WT_RET(__ovfl_cache(session, page, upd_list, unpack));
-		WT_STAT_CONN_INCR(session, cache_overflow_value);
-		WT_STAT_DATA_INCR(session, cache_overflow_value);
-	}
 
 	/*
 	 * Queue the on-page cell to be set to WT_CELL_VALUE_OVFL_RM and the
