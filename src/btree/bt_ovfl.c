@@ -74,9 +74,6 @@ __wt_ovfl_read(WT_SESSION_IMPL *session,
 		track = page->modify->ovfl_track;
 		for (upd = NULL, i = 0; i < track->remove_next; ++i)
 			if (track->remove[i].cell == unpack->cell) {
-				fprintf(stderr,
-				    "%p reading\n", unpack->cell);
-				    fflush(stderr);
 				upd = track->remove[i].upd;
 				break;
 			}
