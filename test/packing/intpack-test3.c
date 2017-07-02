@@ -35,7 +35,7 @@ void
 test_value(int64_t val)
 {
 	const uint8_t *cp;
-	uint8_t buf[10], *p;
+	uint8_t buf[WT_INTPACK64_MAXSIZE], *p;
 	int64_t sinput, soutput;
 	uint64_t uinput, uoutput;
 	size_t used_len;
