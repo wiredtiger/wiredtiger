@@ -1219,7 +1219,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			/* Track the total memory in the update chain. */
 			update_mem += WT_UPDATE_MEMSIZE(upd);
 
-			if ((txnid = upd->txnid) == WT_TXN_ABORTED)
+			if (upd->type == WT_UPDATE_RESERVED ||
+			    (txnid = upd->txnid) == WT_TXN_ABORTED)
 				continue;
 
 			/*
@@ -1264,7 +1265,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		}
 	} else
 		for (upd = upd_list; upd != NULL; upd = upd->next) {
-			if ((txnid = upd->txnid) == WT_TXN_ABORTED)
+			if (upd->type == WT_UPDATE_RESERVED ||
+			    (txnid = upd->txnid) == WT_TXN_ABORTED)
 				continue;
 
 			/* Track the largest transaction ID on the list. */
@@ -1288,10 +1290,6 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 					skipped = true;
 			}
 		}
-
-	/* Reconciliation should never see a reserved update. */
-	WT_ASSERT(session,
-	    *updp == NULL || (*updp)->type != WT_UPDATE_RESERVED);
 
 	r->update_mem_all += update_mem;
 
