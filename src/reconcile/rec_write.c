@@ -1458,8 +1458,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		}
 
 		/*
-		 * Give the entry an impossibly low transaction ID to ensure its
-		 * global visibility, append it to the update list.
+		 * Give the entry no transaction ID to ensure global visibility,
+		 * append it to the update list.
 		 *
 		 * Note the change to the actual reader-accessible update list:
 		 * from now on, the original on-page value appears at the end

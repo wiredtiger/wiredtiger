@@ -150,8 +150,8 @@ __ovfl_cache_append_update(WT_SESSION_IMPL *session, WT_PAGE *page,
 	WT_ERR(__ovfl_read(session, unpack->data, unpack->size, tmp));
 
 	/*
-	 * Create an update entry with an impossibly low transaction ID to
-	 * ensure global visibility, append it to the update list.
+	 * Create an update entry with no transaction ID to ensure global
+	 * visibility, append it to the update list.
 	 *
 	 * We don't need locks or barriers in this function: any thread reading
 	 * the update list will see our newly appended record or not, it doesn't
