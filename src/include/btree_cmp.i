@@ -217,6 +217,10 @@ __wt_lex_compare_short(const WT_ITEM *user_item, const WT_ITEM *tree_item)
 	/*
 	 * The maximum packed uint64_t is 9B, catch row-store objects using
 	 * packed record numbers as keys.
+	 *
+	 * Don't use a #define to compress this case statement: gcc7 complains
+	 * about implicit fallthrough and doesn't support explicit fallthrough
+	 * comments in macros.
 	 */
 #define	WT_COMPARE_SHORT_MAXLEN 9
 	switch (len) {

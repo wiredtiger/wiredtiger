@@ -238,6 +238,11 @@ __bit_getv(uint8_t *bitf, uint64_t entry, uint8_t width)
 	 * Fast-path single bytes, do repeated tests for the rest: we could
 	 * slice-and-dice instead, but the compiler is probably going to do
 	 * a better job than I will.
+	 *
+	 * The Berkeley version of this file uses a #define to compress this
+	 * case statement. This code expands the case statement because gcc7
+	 * complains about implicit fallthrough and doesn't support explicit
+	 * fallthrough comments in macros.
 	 */
 	switch (width) {
 	case 8:
@@ -307,6 +312,11 @@ __bit_setv(uint8_t *bitf, uint64_t entry, uint8_t width, uint8_t value)
 	 * Fast-path single bytes, do repeated tests for the rest: we could
 	 * slice-and-dice instead, but the compiler is probably going to do
 	 * a better job than I will.
+	 *
+	 * The Berkeley version of this file uses a #define to compress this
+	 * case statement. This code expands the case statement because gcc7
+	 * complains about implicit fallthrough and doesn't support explicit
+	 * fallthrough comments in macros.
 	 */
 	switch (width) {
 	case 8:
