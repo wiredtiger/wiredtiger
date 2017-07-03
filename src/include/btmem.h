@@ -897,6 +897,10 @@ WT_PACKED_STRUCT_BEGIN(__wt_update)
 #define	WT_UPDATE_RESERVED	2
 	uint8_t type;			/* type (one byte to conserve memory) */
 
+	/* The update includes a complete value. */
+#define	WT_UPDATE_DATA_VALUE(upd)					\
+	((upd)->type == WT_UPDATE_STANDARD || (upd)->type == WT_UPDATE_DELETED)
+
 	/* The untyped value immediately follows the WT_UPDATE structure. */
 #define	WT_UPDATE_DATA(upd)						\
 	((void *)((uint8_t *)(upd) + sizeof(WT_UPDATE)))

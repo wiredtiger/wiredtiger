@@ -109,9 +109,7 @@ __ovfl_cache_col_visible(
 	 * the value.
 	 */
 	if (__wt_cell_rle(unpack) == 1 &&
-	    (upd->type == WT_UPDATE_STANDARD ||
-	    upd->type == WT_UPDATE_DELETED) &&
-	    __wt_txn_upd_visible_all(session, upd))
+	    WT_UPDATE_DATA_VALUE(upd) && __wt_txn_upd_visible_all(session, upd))
 		return (true);
 	return (false);
 }
@@ -125,8 +123,7 @@ __ovfl_cache_row_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
 	/* Check to see if there's a globally visible update. */
 	for (; upd != NULL; upd = upd->next)
-		 if ((upd->type == WT_UPDATE_STANDARD ||
-		     upd->type == WT_UPDATE_DELETED) &&
+		 if (WT_UPDATE_DATA_VALUE(upd) &&
 		     __wt_txn_upd_visible_all(session, upd))
 			return (true);
 
