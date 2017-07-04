@@ -333,6 +333,8 @@ static int  __rec_col_var(WT_SESSION_IMPL *,
 static int  __rec_col_var_helper(WT_SESSION_IMPL *, WT_RECONCILE *,
 		WT_SALVAGE_COOKIE *, WT_ITEM *, bool, uint8_t, uint64_t);
 static int  __rec_destroy_session(WT_SESSION_IMPL *);
+static int  __rec_init(WT_SESSION_IMPL *,
+		WT_REF *, uint32_t, WT_SALVAGE_COOKIE *, void *);
 static uint32_t __rec_min_split_page_size(WT_BTREE *, uint32_t);
 static int  __rec_root_write(WT_SESSION_IMPL *, WT_PAGE *, uint32_t);
 static int  __rec_row_int(WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
@@ -352,8 +354,6 @@ static int  __rec_update_las(
 		WT_SESSION_IMPL *, WT_RECONCILE *, uint32_t, WT_BOUNDARY *);
 static int  __rec_write_check_complete(
 		WT_SESSION_IMPL *, WT_RECONCILE *, bool *);
-static int  __rec_write_init(WT_SESSION_IMPL *,
-		WT_REF *, uint32_t, WT_SALVAGE_COOKIE *, void *);
 static void __rec_write_page_status(WT_SESSION_IMPL *, WT_RECONCILE *);
 static int  __rec_write_wrapup(WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
 static int  __rec_write_wrapup_err(
@@ -417,7 +417,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 #endif
 
 	/* Initialize the reconciliation structure for each new run. */
-	if ((ret = __rec_write_init(
+	if ((ret = __rec_init(
 	    session, ref, flags, salvage, &session->reconcile)) != 0) {
 		WT_PAGE_UNLOCK(session, page);
 		return (ret);
@@ -868,11 +868,11 @@ __rec_raw_compression_config(
 }
 
 /*
- * __rec_write_init --
+ * __rec_init --
  *	Initialize the reconciliation structure.
  */
 static int
-__rec_write_init(WT_SESSION_IMPL *session,
+__rec_init(WT_SESSION_IMPL *session,
     WT_REF *ref, uint32_t flags, WT_SALVAGE_COOKIE *salvage, void *reconcilep)
 {
 	WT_BTREE *btree;
@@ -1023,8 +1023,10 @@ __rec_write_init(WT_SESSION_IMPL *session,
 
 	r->cache_write_lookaside = r->cache_write_restore = false;
 
-	/* Initialize fake cursor used to figure out modified update values. */
-	memset(&r->update_modify_cbt, 0, sizeof(r->update_modify_cbt));
+	/*
+	 * The fake cursor used to figure out modified update values points to
+	 * the enclosing WT_REF as a way to access the page.
+	 */
 	r->update_modify_cbt.ref = ref;
 
 	return (0);
@@ -3847,8 +3849,7 @@ __wt_bulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 	cbulk->ref = pindex->index[0];
 	cbulk->leaf = cbulk->ref->page;
 
-	WT_RET(
-	    __rec_write_init(session, cbulk->ref, 0, NULL, &cbulk->reconcile));
+	WT_RET(__rec_init(session, cbulk->ref, 0, NULL, &cbulk->reconcile));
 	r = cbulk->reconcile;
 	r->is_bulk_load = true;
 
@@ -4978,10 +4979,11 @@ compare:		/*
 					break;
 				case WT_UPDATE_MODIFIED:
 					/*
-					 * Not setting a cursor slot, as there
-					 * must be a valid update record from
-					 * which we can roll forward.
+					 * Impossible slot, there must be a
+					 * valid update record from which we
+					 * can roll forward.
 					 */
+					cbt->slot = UINT32_MAX;
 					WT_ERR(__wt_value_return(
 					    session, cbt, upd));
 					data = cbt->iface.value.data;
@@ -5775,9 +5777,10 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 			continue;
 		case WT_UPDATE_MODIFIED:
 			/*
-			 * Not setting a cursor slot, as there must be a valid
-			 * update record from which we can roll forward.
+			 * Impossible slot, there must be a valid update record
+			 * from which we can roll forward.
 			 */
+			cbt->slot = UINT32_MAX;
 			WT_RET(__wt_value_return(session, cbt, upd));
 			WT_RET(__rec_cell_build_val(session, r,
 			    cbt->iface.value.data,
