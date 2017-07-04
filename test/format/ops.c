@@ -1253,8 +1253,7 @@ col_reserve(WT_CURSOR *cursor, uint64_t keyno, bool positioned)
 
 /*
  * modify_build --
- *	Generate a set of modify vectors, and copy what the final result
- * should be into the value buffer.
+ *	Generate a set of modify vectors.
  */
 static void
 modify_build(TINFO *tinfo, WT_MODIFY *entries, int *nentriesp)
