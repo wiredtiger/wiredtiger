@@ -615,14 +615,11 @@ __cursor_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 	WT_STAT_CONN_INCR(session, cursor_modify);
 	WT_STAT_DATA_INCR(session, cursor_modify);
 
-	/* Acquire the current value. */
+	/* Get the current value, make a copy, apply the modifications. */
 	WT_ERR(cursor->search(cursor));
-
-	/* Apply the modifications. */
+	WT_ERR(__cursor_localvalue(cursor));
 	WT_ERR(__wt_modify_apply_api(
 	    session, &cursor->value, entries, nentries));
-	F_CLR(cursor, WT_CURSTD_VALUE_SET);
-	F_SET(cursor, WT_CURSTD_VALUE_EXT);
 
 	/* We know both key and value are set, "overwrite" doesn't matter. */
 	ret = cursor->update(cursor);
