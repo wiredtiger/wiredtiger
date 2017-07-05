@@ -59,7 +59,7 @@ static int
 __modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value,
     size_t data_size, size_t offset, size_t size, const uint8_t *data)
 {
-	uint8_t *p, *t;
+	uint8_t *from, *to;
 
 	/*
 	 * Fast-path the expected case, where we're overwriting a set of bytes
@@ -104,15 +104,15 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value,
 
 		/*
 		 * The new data must overlap the buffer's end (else, we'd use
-		 * the fast-path code above). Grow the buffer size to include
+		 * the fast-path code above). Set the buffer size to include
 		 * the new data.
 		 */
 		value->size = offset + data_size;
 	} else {					/* Shrink or grow */
-		/* Shift the current data into its new location. */
-		p = (uint8_t *)value->data + offset + size;
-		t = (uint8_t *)value->data + offset + data_size;
-		memmove(t, p, value->size - (offset + size));
+		/* Move trailing data forward/backward to its new location. */
+		from = (uint8_t *)value->data + (offset + size);
+		to = (uint8_t *)value->data + (offset + data_size);
+		memmove(to, from, value->size - (offset + size));
 
 		/* Copy in the new data. */
 		memmove((uint8_t *)value->data + offset, data, data_size);
