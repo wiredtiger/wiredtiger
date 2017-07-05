@@ -138,6 +138,12 @@ __wt_modify_apply_api(
 {
 	int i;
 
+	/*
+	 * We're called with cursors that can reference on-page memory and the
+	 * bug is difficult to find. Assert we're only modifying local memory.
+	 */
+	WT_ASSERT(session, WT_DATA_IN_ITEM(value));
+
 	for (i = 0; i < nentries; ++i)
 		WT_RET(__modify_apply_one(session, value, entries[i].data.size,
 		    entries[i].offset, entries[i].size, entries[i].data.data));
@@ -155,6 +161,12 @@ __wt_modify_apply(WT_SESSION_IMPL *session, WT_ITEM *value, const void *modify)
 	const size_t *p;
 	int nentries;
 	const uint8_t *data;
+
+	/*
+	 * We're called with cursors that can reference on-page memory and the
+	 * bug is difficult to find. Assert we're only modifying local memory.
+	 */
+	WT_ASSERT(session, WT_DATA_IN_ITEM(value));
 
 	/*
 	 * Get the number of entries, and set a second pointer to reference the
