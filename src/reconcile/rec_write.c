@@ -4745,6 +4745,7 @@ record_loop:	/*
 					    session, cbt, upd));
 					data = cbt->iface.value.data;
 					size = (uint32_t)cbt->iface.value.size;
+					update_no_copy = false;
 					break;
 				WT_ILLEGAL_VALUE_ERR(session);
 				}
