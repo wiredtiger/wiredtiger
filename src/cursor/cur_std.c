@@ -615,9 +615,8 @@ __cursor_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 	WT_STAT_CONN_INCR(session, cursor_modify);
 	WT_STAT_DATA_INCR(session, cursor_modify);
 
-	/* Get the current value, make a copy, apply the modifications. */
+	/* Get the current value, apply the modifications. */
 	WT_ERR(cursor->search(cursor));
-	WT_ERR(__cursor_localvalue(cursor));
 	WT_ERR(__wt_modify_apply_api(
 	    session, &cursor->value, entries, nentries));
 

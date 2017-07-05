@@ -1205,7 +1205,6 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 	 * simplifies the calculation of bytes being added/removed.
 	 */
 	WT_ERR(__wt_btcur_search(cbt));
-	WT_ERR(__cursor_localvalue(cursor));
 	orig = cursor->value.size;
 	WT_ERR(__wt_modify_apply_api(
 	    session, &cursor->value, entries, nentries));

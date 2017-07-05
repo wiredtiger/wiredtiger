@@ -186,17 +186,9 @@ __value_return_upd(
 	 * If we hit the end of the chain, roll forward from the update item we
 	 * found, otherwise, from the original page's value.
 	 */
-	if (upd == NULL) {
+	if (upd == NULL)
 		WT_RET(__value_return(session, cbt));
-		/*
-		 * Get a local copy of the value, we're about to modify the
-		 * values referenced by the buffer. Not the usual is-local
-		 * call, it won't work because the cursor flags aren't set.
-		 */
-		if (!WT_DATA_IN_ITEM(&cursor->value))
-			WT_RET(__wt_buf_set(session, &cursor->value,
-			    cursor->value.data, cursor->value.size));
-	} else
+	else
 		WT_RET(__wt_buf_set(session,
 		    &cursor->value, WT_UPDATE_DATA(upd), upd->size));
 
