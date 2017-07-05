@@ -15,11 +15,11 @@ static int __lsm_tree_open(
 static int __lsm_tree_set_name(WT_SESSION_IMPL *, WT_LSM_TREE *, const char *);
 
 /*
- * __lsm_tree_meta_discard --
- *	Free the metadata related LSM tree pointers.
+ * __lsm_tree_discard_state --
+ *	Free the metadata configuration state  related LSM tree pointers.
  */
 static void
-__lsm_tree_meta_discard(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
+__lsm_tree_discard_state(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 {
 	WT_LSM_CHUNK *chunk;
 	u_int i;
@@ -82,7 +82,7 @@ __lsm_tree_discard(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, bool final)
 		    lsm_tree->collator, &session->iface));
 
 	__wt_free(session, lsm_tree->name);
-	__lsm_tree_meta_discard(session, lsm_tree);
+	__lsm_tree_discard_state(session, lsm_tree);
 	__wt_free(session, lsm_tree->chunk);
 	__wt_free(session, lsm_tree->old_chunks);
 
@@ -1370,8 +1370,10 @@ __wt_lsm_tree_worker(WT_SESSION_IMPL *session,
 		 * We're about to read in the new configuration that
 		 * we just wrote.  Free the old ones.
 		 */
-		__lsm_tree_meta_discard(session, lsm_tree);
-		WT_ERR(__wt_lsm_meta_read(session, lsm_tree));
+		__lsm_tree_discard_state(session, lsm_tree);
+		if ((ret = __wt_lsm_meta_read(session, lsm_tree)) != 0)
+			WT_PANIC_ERR(session, ret,
+			    "Failed to read updated LSM configuration");
 	}
 
 err:	if (locked) {
