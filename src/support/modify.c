@@ -135,6 +135,7 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value,
 int
 __wt_modify_apply_api(
     WT_SESSION_IMPL *session, WT_ITEM *value, WT_MODIFY *entries, int nentries)
+    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	int i;
 
