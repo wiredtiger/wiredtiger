@@ -107,20 +107,15 @@ __log_prealloc_remove(WT_SESSION_IMPL *session)
 	WT_ERR(__log_get_files(session,
 	    WT_LOG_TMPNAME, &logfiles, &logcount));
 	for (i = 0; i < logcount; i++) {
-		WT_ERR(__wt_log_extract_lognum(
-		    session, logfiles[i], &lognum));
-		WT_ERR(__wt_log_remove(
-		    session, WT_LOG_TMPNAME, lognum));
+		WT_ERR(__wt_log_extract_lognum(session, logfiles[i], &lognum));
+		WT_ERR(__wt_log_remove(session, WT_LOG_TMPNAME, lognum));
 	}
-	WT_ERR(
-	    __wt_fs_directory_list_free(session, &logfiles, logcount));
+	WT_ERR(__wt_fs_directory_list_free(session, &logfiles, logcount));
 	WT_ERR(__log_get_files(session,
 	    WT_LOG_PREPNAME, &logfiles, &logcount));
 	for (i = 0; i < logcount; i++) {
-		WT_ERR(__wt_log_extract_lognum(
-		    session, logfiles[i], &lognum));
-		WT_ERR(__wt_log_remove(
-		    session, WT_LOG_PREPNAME, lognum));
+		WT_ERR(__wt_log_extract_lognum(session, logfiles[i], &lognum));
+		WT_ERR(__wt_log_remove(session, WT_LOG_PREPNAME, lognum));
 	}
 err:	WT_TRET(__wt_fs_directory_list_free(session, &logfiles, logcount));
 	__wt_spin_unlock(session, &log->log_fs_lock);
@@ -169,6 +164,8 @@ static int
 __log_fs_write(WT_SESSION_IMPL *session,
     WT_LOGSLOT *slot, wt_off_t offset, size_t len, const void *buf)
 {
+	WT_DECL_RET;
+
 	/*
 	 * If we're writing into a new log file and we're running in
 	 * compatibility mode to an older release, we have to wait for all
@@ -180,7 +177,10 @@ __log_fs_write(WT_SESSION_IMPL *session,
 		__log_wait_for_earlier_slot(session, slot);
 		WT_RET(__wt_log_force_sync(session, &slot->slot_release_lsn));
 	}
-	return (__wt_write(session, slot->slot_fh, offset, len, buf));
+	if ((ret = __wt_write(session, slot->slot_fh, offset, len, buf)) != 0)
+		WT_PANIC_MSG(session, ret,
+		    "%s: fatal log failure", slot->slot_fh->name);
+	return (ret);
 }
 
 /*
@@ -941,8 +941,8 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp,
 	__wt_log_desc_byteswap(desc);
 	if (desc->log_magic != WT_LOG_MAGIC)
 		WT_PANIC_RET(session, WT_ERROR,
-		   "log file %s corrupted: Bad magic number %" PRIu32,
-		   fh->name, desc->log_magic);
+		    "log file %s corrupted: Bad magic number %" PRIu32,
+		    fh->name, desc->log_magic);
 	/*
 	 * We cannot read future log file formats.
 	 */
