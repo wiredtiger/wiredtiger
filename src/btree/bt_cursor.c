@@ -1216,7 +1216,11 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 	else
 		WT_STAT_DATA_DECRV(session, cursor_update_bytes, orig - new);
 
-	/* Check if the update chain has exceeded the limit. */
+	/*
+	 * Check if the update chain has exceeded the limit. We can't see any
+	 * deleted updates here, we already "searched" for the key which would
+	 * have failed in that case.
+	 */
 	i = 0;
 	if (cbt->ins != NULL)
 		for (upd = cbt->ins->upd;; ++i, upd = upd->next)
