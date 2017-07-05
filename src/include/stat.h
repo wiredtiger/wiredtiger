@@ -495,6 +495,7 @@ struct __wt_connection_stats {
 	int64_t page_locked_blocked;
 	int64_t page_read_blocked;
 	int64_t page_sleep;
+	int64_t txn_release_blocked;
 	int64_t txn_snapshots_created;
 	int64_t txn_snapshots_dropped;
 	int64_t txn_begin;

@@ -866,6 +866,7 @@ static const char * const __stats_connection_desc[] = {
 	"thread-yield: page acquire locked blocked",
 	"thread-yield: page acquire read blocked",
 	"thread-yield: page acquire time sleeping (usecs)",
+	"thread-yield: transaction release blocked shutdown",
 	"transaction: number of named snapshots created",
 	"transaction: number of named snapshots dropped",
 	"transaction: transaction begins",
@@ -1169,6 +1170,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->page_locked_blocked = 0;
 	stats->page_read_blocked = 0;
 	stats->page_sleep = 0;
+	stats->txn_release_blocked = 0;
 	stats->txn_snapshots_created = 0;
 	stats->txn_snapshots_dropped = 0;
 	stats->txn_begin = 0;
@@ -1541,6 +1543,7 @@ __wt_stat_connection_aggregate(
 	to->page_locked_blocked += WT_STAT_READ(from, page_locked_blocked);
 	to->page_read_blocked += WT_STAT_READ(from, page_read_blocked);
 	to->page_sleep += WT_STAT_READ(from, page_sleep);
+	to->txn_release_blocked += WT_STAT_READ(from, txn_release_blocked);
 	to->txn_snapshots_created +=
 	    WT_STAT_READ(from, txn_snapshots_created);
 	to->txn_snapshots_dropped +=

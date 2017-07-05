@@ -452,6 +452,7 @@ connection_stats = [
     YieldStat('page_locked_blocked', 'page acquire locked blocked'),
     YieldStat('page_read_blocked', 'page acquire read blocked'),
     YieldStat('page_sleep', 'page acquire time sleeping (usecs)'),
+	YieldStat('txn_release_blocked', 'transaction release blocked shutdown')
 ]
 
 connection_stats = sorted(connection_stats, key=attrgetter('desc'))
