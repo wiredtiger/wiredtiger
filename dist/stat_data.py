@@ -458,6 +458,8 @@ connection_stats = [
     YieldStat('application_blocked_eviction', 'application blocked for eviction'),
     YieldStat('conn_close_blocked_lsm', 'connection close blocked waiting for lsm manager'),
     YieldStat('page_del_rollback_blocked', 'page delete rollback blocked'),
+    YieldStat('page_index_slot_blocked', 'page index and slot reference blocked'),
+    YieldStat('tree_descend_blocked', ' tree descend one level blocked'),
 ]
 
 connection_stats = sorted(connection_stats, key=attrgetter('desc'))

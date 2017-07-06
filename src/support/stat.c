@@ -859,6 +859,7 @@ static const char * const __stats_connection_desc[] = {
 	"thread-state: active filesystem fsync calls",
 	"thread-state: active filesystem read calls",
 	"thread-state: active filesystem write calls",
+	"thread-yield:  tree descend one level blocked",
 	"thread-yield: Data handle lock blocked",
 	"thread-yield: Internal page blocked by child modification",
 	"thread-yield: application blocked for eviction",
@@ -872,6 +873,7 @@ static const char * const __stats_connection_desc[] = {
 	"thread-yield: page acquire read blocked",
 	"thread-yield: page acquire time sleeping (usecs)",
 	"thread-yield: page delete rollback blocked",
+	"thread-yield: page index and slot reference blocked",
 	"transaction: number of named snapshots created",
 	"transaction: number of named snapshots dropped",
 	"transaction: transaction begins",
@@ -1168,6 +1170,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing thread_fsync_active */
 		/* not clearing thread_read_active */
 		/* not clearing thread_write_active */
+	stats->tree_descend_blocked = 0;
 	stats->dhandle_lock_blocked = 0;
 	stats->child_modify_blocked_page = 0;
 	stats->application_blocked_eviction = 0;
@@ -1181,6 +1184,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->page_read_blocked = 0;
 	stats->page_sleep = 0;
 	stats->page_del_rollback_blocked = 0;
+	stats->page_index_slot_blocked = 0;
 	stats->txn_snapshots_created = 0;
 	stats->txn_snapshots_dropped = 0;
 	stats->txn_begin = 0;
@@ -1543,6 +1547,7 @@ __wt_stat_connection_aggregate(
 	to->thread_fsync_active += WT_STAT_READ(from, thread_fsync_active);
 	to->thread_read_active += WT_STAT_READ(from, thread_read_active);
 	to->thread_write_active += WT_STAT_READ(from, thread_write_active);
+	to->tree_descend_blocked += WT_STAT_READ(from, tree_descend_blocked);
 	to->dhandle_lock_blocked += WT_STAT_READ(from, dhandle_lock_blocked);
 	to->child_modify_blocked_page +=
 	    WT_STAT_READ(from, child_modify_blocked_page);
@@ -1563,6 +1568,8 @@ __wt_stat_connection_aggregate(
 	to->page_sleep += WT_STAT_READ(from, page_sleep);
 	to->page_del_rollback_blocked +=
 	    WT_STAT_READ(from, page_del_rollback_blocked);
+	to->page_index_slot_blocked +=
+	    WT_STAT_READ(from, page_index_slot_blocked);
 	to->txn_snapshots_created +=
 	    WT_STAT_READ(from, txn_snapshots_created);
 	to->txn_snapshots_dropped +=
