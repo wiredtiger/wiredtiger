@@ -60,6 +60,7 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value,
     size_t data_size, size_t offset, size_t size, const uint8_t *data)
 {
 	uint8_t *from, *to;
+	size_t len;
 
 	/*
 	 * Grow the buffer to the maximum size we'll need. This is pessimistic
@@ -68,9 +69,14 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value,
 	 * Done before we fast-path the expected case: our caller is often using
 	 * a cursor value buffer that references on-page memory, and that bug is
 	 * difficult to find, ensure a buffer-local copy at the same time.
+	 *
+	 * Because our buffer may reference an overflow item, the data may not
+	 * start at the start of the buffer's memory and we have to correct for
+	 * that.
 	 */
-	WT_RET(__wt_buf_grow(
-	    session, value, WT_MAX(value->size, offset) + data_size));
+	len = WT_DATA_IN_ITEM(value) ? WT_PTRDIFF(value->data, value->mem) : 0;
+	WT_RET(__wt_buf_grow(session, value,
+	    len + WT_MAX(value->size, offset) + data_size));
 
 	/*
 	 * Fast-path the expected case, where we're overwriting a set of bytes
@@ -115,7 +121,13 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value,
 	} else {					/* Shrink or grow */
 		/* Move trailing data forward/backward to its new location. */
 		from = (uint8_t *)value->data + (offset + size);
+		WT_ASSERT(session, WT_DATA_IN_ITEM(value) &&
+		    from + (value->size - (offset + size)) <=
+		    (uint8_t *)value->mem + value->memsize);
 		to = (uint8_t *)value->data + (offset + data_size);
+		WT_ASSERT(session, WT_DATA_IN_ITEM(value) &&
+		    to + (value->size - (offset + size)) <=
+		    (uint8_t *)value->mem + value->memsize);
 		memmove(to, from, value->size - (offset + size));
 
 		/* Copy in the new data. */
