@@ -153,6 +153,7 @@ void
 __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	WT_UPDATE **upd;
+	uint64_t yield_count = 0;
 
 	/*
 	 * If the page is still "deleted", it's as we left it, reset the state
@@ -160,7 +161,7 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * instantiated or being instantiated.  Loop because it's possible for
 	 * the page to return to the deleted state if instantiation fails.
 	 */
-	for (;; __wt_yield())
+	for (;; yield_count++)
 		switch (ref->state) {
 		case WT_REF_DISK:
 		case WT_REF_READING:
@@ -205,6 +206,8 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 			__wt_free(session, ref->page_del);
 			return;
 		}
+
+	WT_STAT_CONN_INCRV(session, page_del_rollback_blocked, yield_count);
 }
 
 /*
