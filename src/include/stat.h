@@ -488,6 +488,7 @@ struct __wt_connection_stats {
 	int64_t thread_fsync_active;
 	int64_t thread_read_active;
 	int64_t thread_write_active;
+	int64_t log_server_sync_blocked;
 	int64_t tree_descend_blocked;
 	int64_t dhandle_lock_blocked;
 	int64_t child_modify_blocked_page;

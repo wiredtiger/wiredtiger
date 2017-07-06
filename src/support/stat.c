@@ -859,6 +859,7 @@ static const char * const __stats_connection_desc[] = {
 	"thread-state: active filesystem fsync calls",
 	"thread-state: active filesystem read calls",
 	"thread-state: active filesystem write calls",
+	"thread-yield:  sync log server blocked",
 	"thread-yield:  tree descend one level blocked",
 	"thread-yield: Data handle lock blocked",
 	"thread-yield: Internal page blocked by child modification",
@@ -1170,6 +1171,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing thread_fsync_active */
 		/* not clearing thread_read_active */
 		/* not clearing thread_write_active */
+	stats->log_server_sync_blocked = 0;
 	stats->tree_descend_blocked = 0;
 	stats->dhandle_lock_blocked = 0;
 	stats->child_modify_blocked_page = 0;
@@ -1547,6 +1549,8 @@ __wt_stat_connection_aggregate(
 	to->thread_fsync_active += WT_STAT_READ(from, thread_fsync_active);
 	to->thread_read_active += WT_STAT_READ(from, thread_read_active);
 	to->thread_write_active += WT_STAT_READ(from, thread_write_active);
+	to->log_server_sync_blocked +=
+	    WT_STAT_READ(from, log_server_sync_blocked);
 	to->tree_descend_blocked += WT_STAT_READ(from, tree_descend_blocked);
 	to->dhandle_lock_blocked += WT_STAT_READ(from, dhandle_lock_blocked);
 	to->child_modify_blocked_page +=

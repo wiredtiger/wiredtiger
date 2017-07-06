@@ -485,6 +485,7 @@ __log_file_server(void *arg)
 	WT_LSN close_end_lsn, min_lsn;
 	WT_SESSION_IMPL *session;
 	uint32_t filenum;
+	uint64_t yield_cnt = 0;
 	bool locked;
 
 	session = arg;
@@ -619,12 +620,14 @@ __log_file_server(void *arg)
 				 * thread a chance to run and try again in
 				 * this case.
 				 */
+				yield_cnt++;
 				__wt_yield();
 				continue;
 			}
 		}
 
 		/* Wait until the next event. */
+		WT_STAT_CONN_INCRV(session, log_server_sync_blocked, yield_cnt);
 		__wt_cond_wait(session, conn->log_file_cond, 100000, NULL);
 	}
 

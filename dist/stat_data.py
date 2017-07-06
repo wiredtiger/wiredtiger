@@ -460,6 +460,7 @@ connection_stats = [
     YieldStat('page_del_rollback_blocked', 'page delete rollback blocked'),
     YieldStat('page_index_slot_blocked', 'page index and slot reference blocked'),
     YieldStat('tree_descend_blocked', ' tree descend one level blocked'),
+    YieldStat('log_server_sync_blocked', ' sync log server blocked'),
 ]
 
 connection_stats = sorted(connection_stats, key=attrgetter('desc'))
