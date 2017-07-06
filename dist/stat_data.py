@@ -455,6 +455,7 @@ connection_stats = [
     YieldStat('txn_release_blocked', 'connection close blocked waiting for transaction state stabilization'),
     YieldStat('dhandle_lock_blocked', 'Data handle lock blocked'),
     YieldStat('child_modify_blocked_page', 'Internal page blocked by child modification'),
+    YieldStat('application_blocked_eviction', 'application blocked for eviction'),
 ]
 
 connection_stats = sorted(connection_stats, key=attrgetter('desc'))

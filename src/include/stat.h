@@ -490,6 +490,7 @@ struct __wt_connection_stats {
 	int64_t thread_write_active;
 	int64_t dhandle_lock_blocked;
 	int64_t child_modify_blocked_page;
+	int64_t application_blocked_eviction;
 	int64_t application_evict_time;
 	int64_t application_cache_time;
 	int64_t txn_release_blocked;

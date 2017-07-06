@@ -861,6 +861,7 @@ static const char * const __stats_connection_desc[] = {
 	"thread-state: active filesystem write calls",
 	"thread-yield: Data handle lock blocked",
 	"thread-yield: Internal page blocked by child modification",
+	"thread-yield: application blocked for eviction",
 	"thread-yield: application thread time evicting (usecs)",
 	"thread-yield: application thread time waiting for cache (usecs)",
 	"thread-yield: connection close blocked waiting for transaction state stabilization",
@@ -1167,6 +1168,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing thread_write_active */
 	stats->dhandle_lock_blocked = 0;
 	stats->child_modify_blocked_page = 0;
+	stats->application_blocked_eviction = 0;
 	stats->application_evict_time = 0;
 	stats->application_cache_time = 0;
 	stats->txn_release_blocked = 0;
@@ -1540,6 +1542,8 @@ __wt_stat_connection_aggregate(
 	to->dhandle_lock_blocked += WT_STAT_READ(from, dhandle_lock_blocked);
 	to->child_modify_blocked_page +=
 	    WT_STAT_READ(from, child_modify_blocked_page);
+	to->application_blocked_eviction +=
+	    WT_STAT_READ(from, application_blocked_eviction);
 	to->application_evict_time +=
 	    WT_STAT_READ(from, application_evict_time);
 	to->application_cache_time +=

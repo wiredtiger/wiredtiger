@@ -1635,7 +1635,7 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 {
 	WT_DECL_RET;
 	WT_PAGE_MODIFY *mod;
-	int64_t yield_count = 0;
+	uint64_t yield_count = 0;
 
 	/* We may acquire a hazard pointer our caller must release. */
 	*hazardp = false;
