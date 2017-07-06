@@ -63,8 +63,13 @@ compact(void *arg)
 		if (g.workers_finished)
 			break;
 
+		/*
+		 * Tolerate EBUSY from LSM.
+		 */
 		if ((ret = session->compact(
-		    session, g.uri, NULL)) != 0 && ret != WT_ROLLBACK)
+		    session, g.uri, NULL)) != 0 &&
+		    (!(ret == EBUSY && DATASOURCE("lsm")) &&
+		    ret != WT_ROLLBACK))
 			testutil_die(ret, "session.compact");
 	}
 
