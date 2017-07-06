@@ -493,6 +493,7 @@ struct __wt_connection_stats {
 	int64_t application_blocked_eviction;
 	int64_t application_evict_time;
 	int64_t application_cache_time;
+	int64_t conn_close_blocked_lsm;
 	int64_t txn_release_blocked;
 	int64_t page_busy_blocked;
 	int64_t page_forcible_evict_blocked;

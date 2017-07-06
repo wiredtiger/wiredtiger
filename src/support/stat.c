@@ -864,6 +864,7 @@ static const char * const __stats_connection_desc[] = {
 	"thread-yield: application blocked for eviction",
 	"thread-yield: application thread time evicting (usecs)",
 	"thread-yield: application thread time waiting for cache (usecs)",
+	"thread-yield: connection close blocked waiting for lsm manager",
 	"thread-yield: connection close blocked waiting for transaction state stabilization",
 	"thread-yield: page acquire busy blocked",
 	"thread-yield: page acquire eviction blocked",
@@ -1171,6 +1172,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->application_blocked_eviction = 0;
 	stats->application_evict_time = 0;
 	stats->application_cache_time = 0;
+	stats->conn_close_blocked_lsm = 0;
 	stats->txn_release_blocked = 0;
 	stats->page_busy_blocked = 0;
 	stats->page_forcible_evict_blocked = 0;
@@ -1548,6 +1550,8 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, application_evict_time);
 	to->application_cache_time +=
 	    WT_STAT_READ(from, application_cache_time);
+	to->conn_close_blocked_lsm +=
+	    WT_STAT_READ(from, conn_close_blocked_lsm);
 	to->txn_release_blocked += WT_STAT_READ(from, txn_release_blocked);
 	to->page_busy_blocked += WT_STAT_READ(from, page_busy_blocked);
 	to->page_forcible_evict_blocked +=
