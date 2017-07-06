@@ -1772,6 +1772,10 @@ struct __wt_session {
 	 * empty.}
 	 * @config{target, if non-empty\, checkpoint the list of objects., a
 	 * list of strings; default empty.}
+	 * @config{use_timestamp, by default\, create the checkpoint as of the
+	 * last stable timestamp if timestamps are in use.  This option\, if
+	 * false\, generates a checkpoint with all updates including those later
+	 * than the timestamp., a boolean flag; default \c true.}
 	 * @configend
 	 * @errors
 	 */

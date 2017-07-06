@@ -1151,6 +1151,11 @@ methods = {
         undoc=True),
     Config('target', '', r'''
         if non-empty, checkpoint the list of objects''', type='list'),
+    Config('use_timestamp', 'true', r'''
+        by default, create the checkpoint as of the last stable timestamp
+        if timestamps are in use.  This option, if false, generates a checkpoint
+        with all updates including those later than the timestamp''',
+        type='boolean'),
 ]),
 
 'WT_SESSION.snapshot' : Method([
