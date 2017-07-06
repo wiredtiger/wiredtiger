@@ -64,12 +64,11 @@ compact(void *arg)
 			break;
 
 		/*
-		 * Tolerate EBUSY from LSM.
+		 * Compact can return EBUSY if concurrent with alter.
 		 */
-		if ((ret = session->compact(
-		    session, g.uri, NULL)) != 0 &&
-		    (!(ret == EBUSY && DATASOURCE("lsm")) &&
-		    ret != WT_ROLLBACK))
+		while ((ret = session->compact(session, g.uri, NULL)) == EBUSY)
+			__wt_yield();
+		if (ret != 0 && ret != WT_ROLLBACK)
 			testutil_die(ret, "session.compact");
 	}
 
