@@ -118,6 +118,7 @@ __wt_session_lock_dhandle(
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
 	bool is_open, lock_busy, want_exclusive;
+	uint64_t yield_count = 0;
 
 	*is_deadp = 0;
 
@@ -142,7 +143,7 @@ __wt_session_lock_dhandle(
 		    F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS)))
 			return (EBUSY);
 		++dhandle->excl_ref;
-		return (0);
+		return (ret);
 	}
 
 	/*
@@ -159,15 +160,17 @@ __wt_session_lock_dhandle(
 		/* If the handle is dead, give up. */
 		if (F_ISSET(dhandle, WT_DHANDLE_DEAD)) {
 			*is_deadp = 1;
-			return (0);
+			break;
 		}
 
 		/*
 		 * If the handle is already open for a special operation,
 		 * give up.
 		 */
-		if (F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS))
-			return (EBUSY);
+		if (F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS)) {
+			ret = EBUSY;
+			break;
+		}
 
 		/*
 		 * If the handle is open, get a read lock and recheck.
@@ -184,12 +187,12 @@ __wt_session_lock_dhandle(
 			if (F_ISSET(dhandle, WT_DHANDLE_DEAD)) {
 				*is_deadp = 1;
 				__wt_readunlock(session, &dhandle->rwlock);
-				return (0);
+				break;
 			}
 
 			is_open = F_ISSET(dhandle, WT_DHANDLE_OPEN);
 			if (is_open && !want_exclusive)
-				return (0);
+				break;
 			__wt_readunlock(session, &dhandle->rwlock);
 		} else
 			is_open = false;
@@ -205,7 +208,7 @@ __wt_session_lock_dhandle(
 			if (F_ISSET(dhandle, WT_DHANDLE_DEAD)) {
 				*is_deadp = 1;
 				__wt_writeunlock(session, &dhandle->rwlock);
-				return (0);
+				break;
 			}
 
 			/*
@@ -227,16 +230,20 @@ __wt_session_lock_dhandle(
 			dhandle->excl_session = session;
 			dhandle->excl_ref = 1;
 			WT_ASSERT(session, !F_ISSET(dhandle, WT_DHANDLE_DEAD));
-			return (0);
+			break;
 		}
 		if (ret != EBUSY || (is_open && want_exclusive) ||
 		    LF_ISSET(WT_DHANDLE_LOCK_ONLY))
-			return (ret);
+			break;
 		lock_busy = true;
 
 		/* Give other threads a chance to make progress. */
+		yield_count++;
 		__wt_yield();
 	}
+
+	WT_STAT_CONN_INCRV(session, dhandle_lock_blocked, yield_count);
+	return (ret);
 }
 
 /*

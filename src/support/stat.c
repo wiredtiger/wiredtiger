@@ -859,14 +859,16 @@ static const char * const __stats_connection_desc[] = {
 	"thread-state: active filesystem fsync calls",
 	"thread-state: active filesystem read calls",
 	"thread-state: active filesystem write calls",
+	"thread-yield: Data handle lock blocked",
+	"thread-yield: Internal page blocked by child modification",
 	"thread-yield: application thread time evicting (usecs)",
 	"thread-yield: application thread time waiting for cache (usecs)",
+	"thread-yield: connection close blocked waiting for transaction state stabilization",
 	"thread-yield: page acquire busy blocked",
 	"thread-yield: page acquire eviction blocked",
 	"thread-yield: page acquire locked blocked",
 	"thread-yield: page acquire read blocked",
 	"thread-yield: page acquire time sleeping (usecs)",
-	"thread-yield: transaction release blocked shutdown",
 	"transaction: number of named snapshots created",
 	"transaction: number of named snapshots dropped",
 	"transaction: transaction begins",
@@ -1163,14 +1165,16 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing thread_fsync_active */
 		/* not clearing thread_read_active */
 		/* not clearing thread_write_active */
+	stats->dhandle_lock_blocked = 0;
+	stats->child_modify_blocked_page = 0;
 	stats->application_evict_time = 0;
 	stats->application_cache_time = 0;
+	stats->txn_release_blocked = 0;
 	stats->page_busy_blocked = 0;
 	stats->page_forcible_evict_blocked = 0;
 	stats->page_locked_blocked = 0;
 	stats->page_read_blocked = 0;
 	stats->page_sleep = 0;
-	stats->txn_release_blocked = 0;
 	stats->txn_snapshots_created = 0;
 	stats->txn_snapshots_dropped = 0;
 	stats->txn_begin = 0;
@@ -1533,17 +1537,20 @@ __wt_stat_connection_aggregate(
 	to->thread_fsync_active += WT_STAT_READ(from, thread_fsync_active);
 	to->thread_read_active += WT_STAT_READ(from, thread_read_active);
 	to->thread_write_active += WT_STAT_READ(from, thread_write_active);
+	to->dhandle_lock_blocked += WT_STAT_READ(from, dhandle_lock_blocked);
+	to->child_modify_blocked_page +=
+	    WT_STAT_READ(from, child_modify_blocked_page);
 	to->application_evict_time +=
 	    WT_STAT_READ(from, application_evict_time);
 	to->application_cache_time +=
 	    WT_STAT_READ(from, application_cache_time);
+	to->txn_release_blocked += WT_STAT_READ(from, txn_release_blocked);
 	to->page_busy_blocked += WT_STAT_READ(from, page_busy_blocked);
 	to->page_forcible_evict_blocked +=
 	    WT_STAT_READ(from, page_forcible_evict_blocked);
 	to->page_locked_blocked += WT_STAT_READ(from, page_locked_blocked);
 	to->page_read_blocked += WT_STAT_READ(from, page_read_blocked);
 	to->page_sleep += WT_STAT_READ(from, page_sleep);
-	to->txn_release_blocked += WT_STAT_READ(from, txn_release_blocked);
 	to->txn_snapshots_created +=
 	    WT_STAT_READ(from, txn_snapshots_created);
 	to->txn_snapshots_dropped +=

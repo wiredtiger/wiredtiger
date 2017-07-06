@@ -1635,6 +1635,7 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 {
 	WT_DECL_RET;
 	WT_PAGE_MODIFY *mod;
+	int64_t yield_count = 0;
 
 	/* We may acquire a hazard pointer our caller must release. */
 	*hazardp = false;
@@ -1654,7 +1655,7 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 	 * not reserved for our exclusive use, there are other page states that
 	 * must be considered.
 	 */
-	for (;; __wt_yield())
+	for (;; yield_count++, __wt_yield())
 		switch (r->tested_ref_state = ref->state) {
 		case WT_REF_DISK:
 			/* On disk, not modified by definition. */
@@ -1687,7 +1688,8 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 			 */
 			if (F_ISSET(r, WT_EVICTING)) {
 				WT_ASSERT(session, !F_ISSET(r, WT_EVICTING));
-				return (EBUSY);
+				ret = EBUSY;
+				goto done;
 			}
 
 			/*
@@ -1712,7 +1714,8 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 			 */
 			if (F_ISSET(r, WT_EVICTING)) {
 				WT_ASSERT(session, !F_ISSET(r, WT_EVICTING));
-				return (EBUSY);
+				ret = EBUSY;
+				goto done;
 			}
 
 			/*
@@ -1729,7 +1732,9 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 				ret = 0;
 				break;
 			}
-			WT_RET(ret);
+			if (ret != 0)
+				goto done;
+
 			*hazardp = true;
 			goto in_memory;
 
@@ -1743,7 +1748,7 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 			 */
 			if (F_ISSET(r, WT_EVICTING)) {
 				WT_ASSERT(session, !F_ISSET(r, WT_EVICTING));
-				return (EBUSY);
+				ret = EBUSY;
 			}
 			goto done;
 
@@ -1761,7 +1766,8 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 			 * for checkpoint.
 			 */
 			WT_ASSERT(session, WT_REF_SPLIT != WT_REF_SPLIT);
-			return (EBUSY);
+			ret = EBUSY;
+			goto done;
 
 		WT_ILLEGAL_VALUE(session);
 		}
@@ -1796,7 +1802,15 @@ in_memory:
 		WT_CHILD_RELEASE(session, *hazardp, ref);
 	}
 
-done:	WT_DIAGNOSTIC_YIELD;
+done:
+	/*
+	 * Yield_count is not incremented here, even though when diagonistics are
+	 * enabled WT_DIAGNOSTIC_YIELD will yield.
+	 * One less yield_count will not harm the statistics, as this will keep
+	 * code simple
+	 */
+	WT_DIAGNOSTIC_YIELD;
+	WT_STAT_CONN_INCRV(session, child_modify_blocked_page, yield_count);
 	return (ret);
 }
 

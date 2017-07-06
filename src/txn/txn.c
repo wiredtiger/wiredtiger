@@ -1006,7 +1006,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session)
 		    txn_global->metadata_pinned == txn_global->current)
 			break;
 
-		WT_STAT_CONN_INCR(session,txn_release_blocked);
+		WT_STAT_CONN_INCR(session, txn_release_blocked);
 		__wt_yield();
 	}
 
