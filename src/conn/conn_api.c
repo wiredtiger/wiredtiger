@@ -1292,8 +1292,8 @@ __conn_reconfigure(WT_CONNECTION *wt_conn, const char *config)
 err:	__conn_compat_config_leave(session);
 
 	if (F_ISSET(conn, WT_CONN_RECONFIGURE)) {
-		__wt_spin_unlock(session, &conn->reconfig_lock);
 		F_CLR(conn, WT_CONN_RECONFIGURE);
+		__wt_spin_unlock(session, &conn->reconfig_lock);
 	}
 
 	API_END_RET(session, ret);
