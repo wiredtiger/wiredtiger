@@ -1238,6 +1238,7 @@ unpackv
 unpadded
 unreferenced
 unregister
+unshared
 unsized
 unterminated
 untyped
