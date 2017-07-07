@@ -1804,10 +1804,10 @@ in_memory:
 
 done:
 	/*
-	 * Yield_count is not incremented here, even though when diagonistics are
-	 * enabled WT_DIAGNOSTIC_YIELD will yield.
-	 * One less yield_count will not harm the statistics, as this will keep
-	 * code simple
+	 * Yield_count is not incremented here, even though when diagnostics
+	 * are enabled WT_DIAGNOSTIC_YIELD will yield.
+	 * One less yield_count will not harm the statistics, as this will
+	 * keep code simple
 	 */
 	WT_DIAGNOSTIC_YIELD;
 	WT_STAT_CONN_INCRV(session, child_modify_blocked_page, yield_count);
