@@ -161,7 +161,7 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * instantiated or being instantiated.  Loop because it's possible for
 	 * the page to return to the deleted state if instantiation fails.
 	 */
-	for (;; yield_count++)
+	for (;; yield_count++, __wt_yield())
 		switch (ref->state) {
 		case WT_REF_DISK:
 		case WT_REF_READING:
