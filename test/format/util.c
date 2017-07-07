@@ -507,6 +507,7 @@ WT_THREAD_RET
 alter(void *arg)
 {
 	WT_CONNECTION *conn;
+	WT_DECL_RET;
 	WT_SESSION *session;
 	u_int period;
 	bool access_value;
@@ -532,8 +533,12 @@ alter(void *arg)
 		    "access_pattern_hint=%s",
 		    access_value ? "random" : "none"));
 		access_value = !access_value;
-		if (session->alter(session, g.uri, buf) != 0)
-			break;
+		/*
+		 * Alter can return EBUSY if concurrent with other operations.
+		 */
+		while ((ret = session->alter(session, g.uri, buf)) != 0 &&
+		    ret != EBUSY)
+			testutil_die(ret, "session.alter");
 		while (period > 0 && !g.workers_finished) {
 			--period;
 			sleep(1);
