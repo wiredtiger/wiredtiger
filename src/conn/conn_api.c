@@ -226,7 +226,12 @@ __wt_conn_compat_enter(WT_SESSION_IMPL *session)
 	 * on the generation to drain once, ignores if a thread's generation
 	 * changes after that, threads entering the generation do nothing but
 	 * exit the generation until the flag clears.
+	 *
+	 * Finally, reconfiguration itself is exempt, as it starts checkpoint
+	 * transactions.
 	 */
+	if (F_ISSET(conn, WT_CONN_RECONFIGURE))
+		return;
 	for (;; __wt_sleep(1, 0)) {
 		if (!conn->compat_update)
 			__wt_session_gen_enter(session, WT_GEN_COMPATIBILITY);
@@ -243,6 +248,12 @@ __wt_conn_compat_enter(WT_SESSION_IMPL *session)
 void
 __wt_conn_compat_leave(WT_SESSION_IMPL *session)
 {
+	WT_CONNECTION_IMPL *conn;
+
+	conn = S2C(session);
+
+	if (F_ISSET(conn, WT_CONN_RECONFIGURE))
+		return;
 	__wt_session_gen_leave(session, WT_GEN_COMPATIBILITY);
 }
 
@@ -1230,16 +1241,14 @@ __conn_reconfigure(WT_CONNECTION *wt_conn, const char *config)
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	const char *p;
-	bool locked;
 
 	conn = (WT_CONNECTION_IMPL *)wt_conn;
-	locked = false;
 
 	CONNECTION_API_CALL(conn, session, reconfigure, config, cfg);
 
 	/* Serialize reconfiguration. */
 	__wt_spin_lock(session, &conn->reconfig_lock);
-	locked = true;
+	F_SET(conn, WT_CONN_RECONFIGURE);
 
 	/*
 	 * The configuration argument has been checked for validity, update the
@@ -1282,8 +1291,10 @@ __conn_reconfigure(WT_CONNECTION *wt_conn, const char *config)
 
 err:	__conn_compat_config_leave(session);
 
-	if (locked)
+	if (F_ISSET(conn, WT_CONN_RECONFIGURE)) {
 		__wt_spin_unlock(session, &conn->reconfig_lock);
+		F_CLR(conn, WT_CONN_RECONFIGURE);
+	}
 
 	API_END_RET(session, ret);
 }
