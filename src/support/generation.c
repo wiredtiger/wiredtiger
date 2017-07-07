@@ -75,7 +75,7 @@ __wt_gen_next_drain(WT_SESSION_IMPL *session, int which)
 
 /*
  * __wt_gen_drain --
- *	Wait for the resource to drain.
+ *	Wait for the resource to drain from a single generation.
  */
 void
 __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
@@ -133,6 +133,16 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
 				__wt_sleep(0, 10);
 		}
 	}
+}
+
+/*
+ * __wt_gen_drain_all --
+ *	Wait for the resource to drain entirely.
+ */
+void
+__wt_gen_drain_all(WT_SESSION_IMPL *session, int which)
+{
+	__wt_gen_drain(session, which, UINT64_MAX);
 }
 
 /*

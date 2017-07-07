@@ -565,6 +565,8 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 
 	/* Ensure the transaction flags are cleared on exit */
 	txn->flags = 0;
+
+	__wt_conn_compat_leave(session);
 }
 
 /*
