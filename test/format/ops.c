@@ -49,7 +49,6 @@ static void  table_append_init(void);
 
 #ifdef HAVE_BERKELEY_DB
 static int   notfound_chk(const char *, int, int, uint64_t);
-static void  print_item(const char *, WT_ITEM *);
 #endif
 
 static char modify_repl[256];
@@ -399,28 +398,46 @@ snap_check(WT_CURSOR *cursor,
 			    ret == WT_NOTFOUND ? 0 : *(uint8_t *)value->data);
 			/* NOTREACHED */
 		case ROW:
+			fprintf(stderr,
+			    "snapshot-isolation %.*s search mismatch\n",
+			    (int)key->size, (const char *)key->data);
+
+			if (start->deleted)
+				fprintf(stderr, "expected {deleted}\n");
+			else
+				print_item_data(
+				    "expected", start->vdata, start->vsize);
+			if (ret == WT_NOTFOUND)
+				fprintf(stderr, "found {deleted}\n");
+			else
+				print_item_data(
+				    "   found", value->data, value->size);
+
+			((WT_CURSOR_BTREE *)cursor)->xxx = 1;
+			cursor->search(cursor);
 			testutil_die(ret,
-			    "snapshot-isolation: %.*s search: "
-			    "expected {%.*s}, found {%.*s}",
-			    (int)key->size, key->data,
-			    start->deleted ?
-			    (int)strlen("deleted") : (int)start->vsize,
-			    start->deleted ? "deleted" : start->vdata,
-			    ret == WT_NOTFOUND ?
-			    (int)strlen("deleted") : (int)value->size,
-			    ret == WT_NOTFOUND ? "deleted" : value->data);
+			    "snapshot-isolation: %.*s search mismatch",
+			    (int)key->size, key->data);
 			/* NOTREACHED */
 		case VAR:
+			fprintf(stderr,
+			    "snapshot-isolation %" PRIu64 " search mismatch\n",
+			    start->keyno);
+
+			if (start->deleted)
+				fprintf(stderr, "expected {deleted}\n");
+			else
+				print_item_data(
+				    "expected", start->vdata, start->vsize);
+			if (ret == WT_NOTFOUND)
+				fprintf(stderr, "found {deleted}\n");
+			else
+				print_item_data(
+				    "   found", value->data, value->size);
+
 			testutil_die(ret,
-			    "snapshot-isolation: %" PRIu64 " search: "
-			    "expected {%.*s}, found {%.*s}",
-			    start->keyno,
-			    start->deleted ?
-			    (int)strlen("deleted") : (int)start->vsize,
-			    start->deleted ? "deleted" : start->vdata,
-			    ret == WT_NOTFOUND ?
-			    (int)strlen("deleted") : (int)value->size,
-			    ret == WT_NOTFOUND ? "deleted" : value->data);
+			    "snapshot-isolation: %" PRIu64 " search mismatch",
+			    start->keyno);
 			/* NOTREACHED */
 		}
 	}
@@ -1815,36 +1832,5 @@ notfound_chk(const char *f, int wt_ret, int bdb_notfound, uint64_t keyno)
 		testutil_die(0, NULL);
 	}
 	return (0);
-}
-
-/*
- * print_item --
- *	Display a single data/size pair, with a tag.
- */
-static void
-print_item(const char *tag, WT_ITEM *item)
-{
-	static const char hex[] = "0123456789abcdef";
-	const uint8_t *data;
-	size_t size;
-	u_char ch;
-
-	data = item->data;
-	size = item->size;
-
-	fprintf(stderr, "\t%s {", tag);
-	if (g.type == FIX)
-		fprintf(stderr, "0x%02x", data[0]);
-	else
-		for (; size > 0; --size, ++data) {
-			ch = data[0];
-			if (__wt_isprint(ch))
-				fprintf(stderr, "%c", (int)ch);
-			else
-				fprintf(stderr, "%x%x",
-				    hex[(data[0] & 0xf0) >> 4],
-				    hex[data[0] & 0x0f]);
-		}
-	fprintf(stderr, "}\n");
 }
 #endif
