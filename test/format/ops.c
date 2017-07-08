@@ -413,8 +413,6 @@ snap_check(WT_CURSOR *cursor,
 				print_item_data(
 				    "   found", value->data, value->size);
 
-			((WT_CURSOR_BTREE *)cursor)->xxx = 1;
-			cursor->search(cursor);
 			testutil_die(ret,
 			    "snapshot-isolation: %.*s search mismatch",
 			    (int)key->size, key->data);
