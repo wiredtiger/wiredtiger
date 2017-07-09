@@ -301,21 +301,18 @@ __wt_update_obsolete_check(
 	 * a serialization function, the caller has responsibility for actually
 	 * freeing the memory.
 	 *
+	 * Only updates with self-contained data can truncate update chains,
+	 * ignore modified and reserved updates.
+	 *
 	 * Walk the list of updates, looking for obsolete updates at the end.
 	 */
-	for (first = NULL, count = 0; upd != NULL; upd = upd->next, count++) {
-		/*
-		 * Skip update structures in modify chains, that is, an update
-		 * structure that depends on a subsequent update structure.
-		 */
-		if (upd->type == WT_UPDATE_MODIFIED)
-			continue;
-		if (__wt_txn_upd_visible_all(session, upd)) {
-			if (first == NULL)
+	for (first = NULL, count = 0; upd != NULL; upd = upd->next, count++)
+		if (WT_UPDATE_DATA_VALUE(upd) &&
+		    __wt_txn_upd_visible_all(session, upd)) {
+			if (first == NULL && WT_UPDATE_DATA_VALUE(upd))
 				first = upd;
 		} else if (upd->txnid != WT_TXN_ABORTED)
 			first = NULL;
-	}
 
 	/*
 	 * We cannot discard this WT_UPDATE structure, we can only discard
