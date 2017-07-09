@@ -3764,10 +3764,13 @@ __rec_update_las(WT_SESSION_IMPL *session,
 
 		/*
 		 * Walk the list of updates, storing each key/value pair into
-		 * the lookaside table. Skip reserved items, they're obviously
-		 * never restored.
+		 * the lookaside table. Skip aborted and reserved items, they
+		 * are never useful.
 		 */
 		do {
+			if (upd->txnid == WT_TXN_ABORTED)
+				continue;
+
 			switch (upd->type) {
 			case WT_UPDATE_STANDARD:
 				las_value.data = WT_UPDATE_DATA(upd);
