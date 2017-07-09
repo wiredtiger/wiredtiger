@@ -605,15 +605,24 @@ __cursor_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 	WT_SESSION_IMPL *session;
 
 	CURSOR_UPDATE_API_CALL(cursor, session, modify);
-	WT_ERR(__cursor_checkkey(cursor));
+
+	WT_STAT_CONN_INCR(session, cursor_modify);
+	WT_STAT_DATA_INCR(session, cursor_modify);
 
 	/* Check for a rational modify vector count. */
 	if (nentries <= 0)
 		WT_ERR_MSG(session, EINVAL,
 		    "Illegal modify vector with %d entries", nentries);
 
-	WT_STAT_CONN_INCR(session, cursor_modify);
-	WT_STAT_DATA_INCR(session, cursor_modify);
+	/*
+	 * The underlying btree code cannot support WT_CURSOR.modify within
+	 * a read-uncommitted transaction. Disallow it here for consistency.
+	 */
+	if (session->txn.isolation == WT_ISO_READ_UNCOMMITTED)
+		WT_ERR_MSG(session, ENOTSUP,
+		    "not supported in read-uncommitted transactions");
+
+	WT_ERR(__cursor_checkkey(cursor));
 
 	/* Get the current value, apply the modifications. */
 	WT_ERR(cursor->search(cursor));

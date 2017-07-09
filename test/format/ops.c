@@ -242,25 +242,29 @@ wts_ops(int lastrun)
  * isolation_config --
  *	Return an isolation configuration.
  */
-static inline const char *
-isolation_config(WT_RAND_STATE *rnd, bool *iso_snapshotp)
+static inline u_int
+isolation_config(WT_RAND_STATE *rnd, WT_SESSION *session)
 {
+	const char *config;
 	u_int v;
 
 	if ((v = g.c_isolation_flag) == ISOLATION_RANDOM)
 		v = mmrand(rnd, 2, 4);
 	switch (v) {
 	case ISOLATION_READ_UNCOMMITTED:
-		*iso_snapshotp = false;
-		return ("isolation=read-uncommitted");
+		config = "isolation=read-uncommitted";
+		break;
 	case ISOLATION_READ_COMMITTED:
-		*iso_snapshotp = false;
-		return ("isolation=read-committed");
+		config = "isolation=read-committed";
+		break;
 	case ISOLATION_SNAPSHOT:
 	default:
-		*iso_snapshotp = true;
-		return ("isolation=snapshot");
+		v = ISOLATION_SNAPSHOT;
+		config = "isolation=snapshot";
+		break;
 	}
+	testutil_check(session->reconfigure(session, config));
+	return (v);
 }
 
 typedef struct {
@@ -494,10 +498,10 @@ ops(void *arg)
 	WT_SESSION *session;
 	uint64_t keyno, ckpt_op, reset_op, session_op;
 	uint32_t rnd;
-	u_int i;
+	u_int i, iso_config;
 	int dir;
 	char *ckpt_config, ckpt_name[64];
-	bool ckpt_available, intxn, iso_snapshot, positioned, readonly;
+	bool ckpt_available, intxn, positioned, readonly;
 
 	tinfo = arg;
 
@@ -506,7 +510,7 @@ ops(void *arg)
 
 	/* Initialize tracking of snapshot isolation transaction returns. */
 	snap = NULL;
-	iso_snapshot = false;
+	iso_config = 0;
 	memset(snap_list, 0, sizeof(snap_list));
 
 	/* Initialize the per-thread random number generator. */
@@ -677,13 +681,12 @@ skip_checkpoint:	/* Pick the next checkpoint operation. */
 		 */
 		if (!SINGLETHREADED &&
 		    !intxn && mmrand(&tinfo->rnd, 1, 100) >= g.c_txn_freq) {
-			testutil_check(
-			    session->reconfigure(session,
-				isolation_config(&tinfo->rnd, &iso_snapshot)));
+			iso_config = isolation_config(&tinfo->rnd, session);
 			testutil_check(
 			    session->begin_transaction(session, NULL));
 
-			snap = iso_snapshot ? snap_list : NULL;
+			snap =
+			    iso_config == ISOLATION_SNAPSHOT ? snap_list : NULL;
 			intxn = true;
 		}
 
@@ -768,7 +771,7 @@ skip_checkpoint:	/* Pick the next checkpoint operation. */
 				 * of inserting.
 				 */
 				if (g.append_cnt >= g.append_max)
-					goto update_instead_of_insert;
+					goto update_instead_of_chosen_op;
 
 				ret = col_insert(
 				    tinfo, cursor, key, value, &keyno);
@@ -789,6 +792,13 @@ skip_checkpoint:	/* Pick the next checkpoint operation. */
 			}
 			break;
 		case MODIFY:
+			/*
+			 * Change modify into update if in a read-uncommitted
+			 * transaction, modify isn't supported in that case.
+			 */
+			if (iso_config == ISOLATION_READ_UNCOMMITTED)
+				goto update_instead_of_chosen_op;
+
 			++tinfo->update;
 			switch (g.type) {
 			case ROW:
@@ -854,7 +864,7 @@ skip_checkpoint:	/* Pick the next checkpoint operation. */
 			}
 			break;
 		case UPDATE:
-update_instead_of_insert:
+update_instead_of_chosen_op:
 			++tinfo->update;
 			switch (g.type) {
 			case ROW:

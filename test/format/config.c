@@ -561,6 +561,23 @@ config_pct(void)
 	}
 
 	/*
+	 * Cursor modify isn't possible for read-uncommitted transactions.
+	 * If both forced, it's an error, else, prefer the forced one, else,
+	 * prefer modify operations.
+	 */
+	if (g.c_isolation_flag == ISOLATION_READ_UNCOMMITTED) {
+		if (config_is_perm("isolation")) {
+			if (config_is_perm("modify_pct"))
+				testutil_die(EINVAL,
+				    "WT_CURSOR.modify not supported with "
+				    "read-uncommitted transactions");
+			list[CONFIG_MODIFY_ENTRY].order = 0;
+			*list[CONFIG_MODIFY_ENTRY].vp = 0;
+		} else
+			config_single("isolation=random", 0);
+	}
+
+	/*
 	 * If the delete percentage isn't nailed down, periodically set it to
 	 * 0 so salvage gets run. Don't do it on the first run, all our smoke
 	 * tests would hit it.

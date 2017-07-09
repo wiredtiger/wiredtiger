@@ -1233,8 +1233,15 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 	 * retrieve the cursor's value; second, we use the updated value as
 	 * the update if the update chain is too long; third, there's a check
 	 * if the updated value is too large to store; fourth, to simplify the
-	 * count of bytes being added/removed.
+	 * count of bytes being added/removed; fifth, we can get into serious
+	 * trouble if we attempt to modify a value that doesn't exist. For the
+	 * fifth reason, verify we're not in a read-uncommitted transaction,
+	 * that implies a value that might disappear out from under us.
 	 */
+	if (session->txn.isolation == WT_ISO_READ_UNCOMMITTED)
+		WT_ERR_MSG(session, ENOTSUP,
+		    "not supported in read-uncommitted transactions");
+
 	WT_ERR(__wt_btcur_search(cbt));
 	orig = cursor->value.size;
 	WT_ERR(__wt_modify_apply_api(
