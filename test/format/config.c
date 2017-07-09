@@ -74,8 +74,11 @@ config_setup(void)
 		else
 			switch (mmrand(NULL, 1, 10)) {
 			case 1:					/* 10% */
-				config_single("file_type=fix", 0);
-				break;
+				if (!config_is_perm("modify_pct")) {
+					config_single("file_type=fix", 0);
+					break;
+				}
+				/* FALLTHROUGH */
 			case 2: case 3: case 4:			/* 30% */
 				config_single("file_type=var", 0);
 				break;				/* 60% */
@@ -552,17 +555,7 @@ config_pct(void)
 		if (config_is_perm("modify_pct"))
 			testutil_die(EINVAL,
 			    "WT_CURSOR.modify not supported by fixed-length "
-			    "column store or LSM");
-		list[CONFIG_MODIFY_ENTRY].order = 0;
-		*list[CONFIG_MODIFY_ENTRY].vp = 0;
-	}
-
-	/* Cursor modify isn't possible for fixed-length column store. */
-	if (g.type == FIX) {
-		if (config_is_perm("modify_pct"))
-			testutil_die(EINVAL,
-			    "WT_CURSOR.modify not supported by fixed-length "
-			    "column store or LSM");
+			    "column store");
 		list[CONFIG_MODIFY_ENTRY].order = 0;
 		*list[CONFIG_MODIFY_ENTRY].vp = 0;
 	}
