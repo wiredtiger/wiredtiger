@@ -1219,8 +1219,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			/* Track the total memory in the update chain. */
 			update_mem += WT_UPDATE_MEMSIZE(upd);
 
-			if (upd->type == WT_UPDATE_RESERVED ||
-			    (txnid = upd->txnid) == WT_TXN_ABORTED)
+			if ((txnid = upd->txnid) == WT_TXN_ABORTED)
 				continue;
 
 			/*
@@ -1239,7 +1238,6 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 				__wt_timestamp_set(
 				    min_timestamp, upd->timestamp);
 #endif
-
 			/*
 			 * Find the first update we can use.
 			 *
@@ -1251,7 +1249,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			 * When reconciling for eviction, track the memory held
 			 * by the update chain.
 			 */
-			if (__wt_txn_committed(session, txnid)) {
+			if (upd->type != WT_UPDATE_RESERVED &&
+			    __wt_txn_committed(session, txnid)) {
 				if (*updp == NULL)
 					*updp = upd;
 #ifdef HAVE_TIMESTAMPS
@@ -1265,8 +1264,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		}
 	} else
 		for (upd = upd_list; upd != NULL; upd = upd->next) {
-			if (upd->type == WT_UPDATE_RESERVED ||
-			    (txnid = upd->txnid) == WT_TXN_ABORTED)
+			if ((txnid = upd->txnid) == WT_TXN_ABORTED)
 				continue;
 
 			/* Track the largest transaction ID on the list. */
@@ -1284,7 +1282,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			 * visible update.
 			 */
 			if (*updp == NULL) {
-				if (__wt_txn_upd_visible(session, upd))
+				if (upd->type != WT_UPDATE_RESERVED &&
+				    __wt_txn_upd_visible(session, upd))
 					*updp = upd;
 				else
 					skipped = true;
