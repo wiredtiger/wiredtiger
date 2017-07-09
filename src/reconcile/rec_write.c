@@ -3748,11 +3748,12 @@ __rec_update_las(WT_SESSION_IMPL *session,
 		}
 
 		/*
-		 * Lookaside table value component: update reference.
-		 * Updates come from the row-store insert list or update array,
-		 * or from a column-store insert list (column-store format has
-		 * no update array). When rolling forward a modified update from
-		 * an original on-page item, we need an on-page slot.
+		 * Lookaside table value component: update reference. Updates
+		 * come from the row-store insert list or update array, or from
+		 * a column-store insert list (column-store format has no update
+		 * array). When rolling forward a modify update from an original
+		 * on-page item, we need an on-page slot, when rolling forward
+		 * from an insert list, no on-page slot is possible.
 		 */
 		slot = UINT32_MAX;			/* Impossible slot */
 		if (list->ripcip != NULL)
@@ -4983,9 +4984,8 @@ compare:		/*
 					break;
 				case WT_UPDATE_MODIFIED:
 					/*
-					 * Impossible slot, there must be a
-					 * valid update record from which we
-					 * can roll forward.
+					 * Impossible slot, there's no backing
+					 * on-page item.
 					 */
 					cbt->slot = UINT32_MAX;
 					WT_ERR(__wt_value_return(
@@ -5780,10 +5780,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 		case WT_UPDATE_DELETED:
 			continue;
 		case WT_UPDATE_MODIFIED:
-			/*
-			 * Impossible slot, there must be a valid update record
-			 * from which we can roll forward.
-			 */
+			/* Impossible slot, there's no backing on-page item. */
 			cbt->slot = UINT32_MAX;
 			WT_RET(__wt_value_return(session, cbt, upd));
 			WT_RET(__rec_cell_build_val(session, r,
