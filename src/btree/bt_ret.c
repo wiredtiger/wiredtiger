@@ -197,9 +197,19 @@ __value_return_upd(
 	 * If we hit the end of the chain, roll forward from the update item we
 	 * found, otherwise, from the original page's value.
 	 */
-	if (upd == NULL)
+	if (upd == NULL) {
+		/*
+		 * Callers of this function set the cursor slot to an impossible
+		 * value to check we're not trying to return on-page values when
+		 * the update list should have been sufficient (which happens,
+		 * for example, if an update list was truncated, deleting some
+		 * standard update required by a previous modify update). Assert
+		 * the case.
+		 */
+		WT_ASSERT(session, cbt->slot != UINT32_MAX);
+
 		WT_ERR(__value_return(session, cbt));
-	else if (upd->type == WT_UPDATE_DELETED)
+	} else if (upd->type == WT_UPDATE_DELETED)
 		WT_ERR(__wt_buf_set(session, &cursor->value, "", 0));
 	else
 		WT_ERR(__wt_buf_set(session,
