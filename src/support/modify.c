@@ -133,11 +133,19 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value,
 		/* Copy in the new data. */
 		memmove((uint8_t *)value->data + offset, data, data_size);
 
-		/* Fix the size. */
-		if (data_size > size)
-			value->size += (data_size - size);
-		else
-			value->size -= (size - data_size);
+		/*
+		 * Correct the size. This works because of how the C standard
+		 * defines unsigned arithmetic, and gcc7 complains about more
+		 * verbose forms:
+		 *
+		 *	if (data_size > size)
+		 *		value->size += (data_size - size);
+		 *	else
+		 *		value->size -= (size - data_size);
+		 *
+		 * because the branches are identical.
+		 */
+		 value->size += (data_size - size);
 	}
 
 	return (0);
