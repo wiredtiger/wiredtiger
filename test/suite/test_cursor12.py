@@ -329,5 +329,49 @@ class test_cursor12(wttest.WiredTigerTestCase):
         c.set_key(ds.key(10))
         self.assertEqual(c.modify(mods), wiredtiger.WT_NOTFOUND)
 
+    # Check that modify returns not-found when an insert is not yet committed
+    # and after it's aborted.
+    def test_modify_abort(self):
+        ds = SimpleDataSet(self,
+            self.uri, 20, key_format=self.keyfmt, value_format='u')
+        ds.populate()
+
+        # Start a transaction.
+        self.session.begin_transaction()
+
+        # Insert a new record.
+        c = self.session.open_cursor(self.uri, None)
+        c.set_key(ds.key(30))
+        c.set_value(ds.value(30))
+        self.assertEquals(c.insert(), 0)
+
+        # Test that we can successfully modify our own record.
+        mods = []
+        mod = wiredtiger.Modify('ABCD', 3, 3)
+        mods.append(mod)
+        c.set_key(ds.key(30))
+        self.assertEqual(c.modify(mods), 0)
+
+        # Test that another transaction cannot modify our uncommitted record.
+        xs = self.conn.open_session()
+        xc = xs.open_cursor(self.uri, None)
+        xc.set_key(ds.key(30))
+        xc.set_value(ds.value(30))
+        mods = []
+        mod = wiredtiger.Modify('ABCD', 3, 3)
+        mods.append(mod)
+        xc.set_key(ds.key(30))
+        self.assertEqual(xc.modify(mods), wiredtiger.WT_NOTFOUND)
+
+        # Rollback our transaction.
+        self.session.rollback_transaction()
+
+        # Test that we can't modify our aborted insert.
+        mods = []
+        mod = wiredtiger.Modify('ABCD', 3, 3)
+        mods.append(mod)
+        c.set_key(ds.key(30))
+        self.assertEqual(c.modify(mods), wiredtiger.WT_NOTFOUND)
+
 if __name__ == '__main__':
     wttest.run()
