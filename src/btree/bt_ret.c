@@ -138,11 +138,18 @@ __value_return_upd(
     WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
 	WT_CURSOR *cursor;
-	void **listp, *list[WT_MAX_MODIFY_UPDATE + 5];
+	WT_DECL_RET;
+	WT_UPDATE **listp, *list[WT_MAX_MODIFY_UPDATE];
+	u_int i;
+	size_t allocated_bytes;
 
 	cursor = &cbt->iface;
+	allocated_bytes = 0;
 
-	/* Fast path standard updates. */
+	/*
+	 * We're passed an update that's visible to us. If it's a standard item,
+	 * we're done (our caller has already checked for deleted items).
+	 */
 	if (upd->type == WT_UPDATE_STANDARD) {
 		cursor->value.data = WT_UPDATE_DATA(upd);
 		cursor->value.size = upd->size;
@@ -151,30 +158,34 @@ __value_return_upd(
 
 	/*
 	 * Find a complete update that's visible to us, tracking modifications
-	 * and skipping aborted and reserved updates.
+	 * that are visible to us.
 	 */
-	for (listp = list; upd != NULL; upd = upd->next) {
+	for (i = 0, listp = list; upd != NULL; upd = upd->next) {
 		switch (upd->type) {
 		case WT_UPDATE_STANDARD:
-			/*
-			 * Visibility checks aren't cheap, and standard updates
-			 * should be visible to us, but we have to skip aborted
-			 * updates anyway and it's less fragile to check using
-			 * the standard API than roll my own test.
-			 */
+		case WT_UPDATE_DELETED:
 			if (!__wt_txn_upd_visible(session, upd))
 				continue;
 			break;
-		case WT_UPDATE_DELETED:
-			/*
-			 * We should never see a deleted record, it must have
-			 * been aborted for us to get here.
-			 */
-			WT_ASSERT(session,
-			    !__wt_txn_upd_visible(session, upd));
-			continue;
 		case WT_UPDATE_MODIFIED:
-			*listp++ = WT_UPDATE_DATA(upd);
+			if (!__wt_txn_upd_visible(session, upd))
+				continue;
+
+			/*
+			 * Update lists are expected to be short, but it's not
+			 * guaranteed. There's sufficient room on the stack to
+			 * avoid memory allocation in normal cases, but we have
+			 * to handle the edge cases too.
+			 */
+			if (i >= WT_MAX_MODIFY_UPDATE) {
+				if (i == WT_MAX_MODIFY_UPDATE)
+					listp = NULL;
+				WT_ERR(__wt_realloc_def(
+				    session, &allocated_bytes, i + 1, &listp));
+				if (i == WT_MAX_MODIFY_UPDATE)
+					memcpy(listp, list, sizeof(list));
+			}
+			listp[i++] = upd;
 			continue;
 		case WT_UPDATE_RESERVED:
 			continue;
@@ -187,14 +198,20 @@ __value_return_upd(
 	 * found, otherwise, from the original page's value.
 	 */
 	if (upd == NULL)
-		WT_RET(__value_return(session, cbt));
+		WT_ERR(__value_return(session, cbt));
+	else if (upd->type == WT_UPDATE_DELETED)
+		WT_ERR(__wt_buf_set(session, &cursor->value, "", 0));
 	else
-		WT_RET(__wt_buf_set(session,
+		WT_ERR(__wt_buf_set(session,
 		    &cursor->value, WT_UPDATE_DATA(upd), upd->size));
 
-	while (listp > list)
-		WT_RET(__wt_modify_apply(session, &cursor->value, *--listp));
-	return (0);
+	while (i > 0)
+		WT_ERR(__wt_modify_apply(
+		    session, &cursor->value, WT_UPDATE_DATA(listp[--i])));
+
+err:	if (allocated_bytes)
+		__wt_free(session, listp);
+	return (ret);
 }
 
 /*
