@@ -94,7 +94,7 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value,
 	if (value->size <= offset) {
 		if (value->size < offset)
 			memset((uint8_t *)value->data +
-			    value->size, '\0', offset - value->size);
+			    value->size, 0, offset - value->size);
 		memmove((uint8_t *)value->data + offset, data, data_size);
 		value->size = offset + data_size;
 		return (0);
