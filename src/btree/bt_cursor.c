@@ -1171,6 +1171,39 @@ done:	if (ret == 0)
 }
 
 /*
+ * __cursor_chain_exceeded --
+ *	Return if the update chain has exceeded the limit. Deleted or standard
+ * updates are anticipated to be sufficient to base the modify (although that's
+ * not guaranteed). Also, this is not a hard limit, threads can race setting
+ * modify updates.
+ */
+static bool
+__cursor_chain_exceeded(WT_CURSOR_BTREE *cbt)
+{
+	WT_PAGE *page;
+	WT_UPDATE *upd;
+	int i;
+
+	page = cbt->ref->page;
+
+	upd = NULL;
+	if (cbt->ins != NULL)
+		upd = cbt->ins->upd;
+	else if (cbt->btree->type == BTREE_ROW &&
+	    page->modify != NULL && page->modify->mod_row_update != NULL)
+		upd = page->modify->mod_row_update[cbt->slot];
+
+	for (i = 0; upd != NULL; ++i, upd = upd->next) {
+		if (upd->type == WT_UPDATE_STANDARD ||
+		    upd->type == WT_UPDATE_DELETED)
+			return (false);
+		if (i >= WT_MAX_MODIFY_UPDATE)
+			return (true);
+	}
+	return (false);
+}
+
+/*
  * __wt_btcur_modify --
  *     Modify a record in the tree.
  */
@@ -1182,10 +1215,8 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	WT_CURFILE_STATE state;
-	WT_UPDATE *upd;
 	size_t orig, new;
-	int i;
-	bool overwrite;
+	bool chain_exceeded, overwrite;
 
 	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cursor->session;
@@ -1198,11 +1229,11 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 
 	/*
 	 * Get the current value and apply the modification to it, for a few
-	 * reasons: first, we return the updated value so the application can
-	 * call get-value on the cursor; second, we use the complete value as
-	 * the update if the current update chain is too long; third, there's
-	 * a check if the complete value is too large to store; fourth, it
-	 * simplifies the calculation of bytes being added/removed.
+	 * reasons: first, we set the updated value so the application can
+	 * retrieve the cursor's value; second, we use the updated value as
+	 * the update if the update chain is too long; third, there's a check
+	 * if the updated value is too large to store; fourth, to simplify the
+	 * count of bytes being added/removed.
 	 */
 	WT_ERR(__wt_btcur_search(cbt));
 	orig = cursor->value.size;
@@ -1216,26 +1247,6 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 		WT_STAT_DATA_DECRV(session, cursor_update_bytes, orig - new);
 
 	/*
-	 * Check if the update chain has exceeded the limit. We can't see any
-	 * deleted updates here, we already "searched" for the key which would
-	 * have failed in that case.
-	 */
-	i = 0;
-	if (cbt->ins != NULL)
-		for (upd = cbt->ins->upd;; ++i, upd = upd->next)
-			if (upd == NULL ||
-			    upd->type == WT_UPDATE_STANDARD ||
-			    i >= WT_MAX_MODIFY_UPDATE)
-				break;
-
-	/*
-	 * If there's room for another modify entry in the update chain, build
-	 * the packed modify structure.
-	 */
-	if (i < WT_MAX_MODIFY_UPDATE)
-		WT_ERR(__wt_modify_pack(session, &modify, entries, nentries));
-
-	/*
 	 * WT_CURSOR.modify is update-without-overwrite.
 	 *
 	 * Use the modify buffer as the update if under the limit, else use the
@@ -1243,9 +1254,12 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 	 */
 	overwrite = F_ISSET(cursor, WT_CURSTD_OVERWRITE);
 	F_CLR(cursor, WT_CURSTD_OVERWRITE);
-	ret = i < WT_MAX_MODIFY_UPDATE ?
-	    __btcur_update(cbt, modify, WT_UPDATE_MODIFIED) :
-	    __btcur_update(cbt, &cursor->value, WT_UPDATE_STANDARD);
+	chain_exceeded = __cursor_chain_exceeded(cbt);
+	if (chain_exceeded)
+		ret = __btcur_update(cbt, &cursor->value, WT_UPDATE_STANDARD);
+	else if ((ret =
+	    __wt_modify_pack(session, &modify, entries, nentries)) == 0)
+		ret = __btcur_update(cbt, modify, WT_UPDATE_MODIFIED);
 	if (overwrite)
 	       F_SET(cursor, WT_CURSTD_OVERWRITE);
 
