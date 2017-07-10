@@ -126,9 +126,13 @@ __txn_op_apply(
 		    &fileid, &recno, &value));
 		GET_RECOVERY_CURSOR(session, r, lsnp, fileid, &cursor);
 		cursor->set_key(cursor, recno);
-		WT_ERR(cursor->search(cursor));
-		WT_ERR(__wt_modify_apply(session, &cursor->value, value.data));
-		WT_ERR(cursor->insert(cursor));
+		if ((ret = cursor->search(cursor)) != 0)
+			WT_ERR_NOTFOUND_OK(ret);
+		else {
+			WT_ERR(__wt_modify_apply(
+			    session, &cursor->value, value.data));
+			WT_ERR(cursor->insert(cursor));
+		}
 		break;
 
 	case WT_LOGOP_COL_PUT:
@@ -185,9 +189,13 @@ __txn_op_apply(
 		    &fileid, &key, &value));
 		GET_RECOVERY_CURSOR(session, r, lsnp, fileid, &cursor);
 		__wt_cursor_set_raw_key(cursor, &key);
-		WT_ERR(cursor->search(cursor));
-		WT_ERR(__wt_modify_apply(session, &cursor->value, value.data));
-		WT_ERR(cursor->insert(cursor));
+		if ((ret = cursor->search(cursor)) != 0)
+			WT_ERR_NOTFOUND_OK(ret);
+		else {
+			WT_ERR(__wt_modify_apply(
+			    session, &cursor->value, value.data));
+			WT_ERR(cursor->insert(cursor));
+		}
 		break;
 
 	case WT_LOGOP_ROW_PUT:
