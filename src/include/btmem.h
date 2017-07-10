@@ -162,41 +162,16 @@ struct __wt_ovfl_reuse {
 };
 
 /*
- * Overflow tracking for cached values: When a page is reconciled, we write new
- * K/V overflow items, and discard previous underlying blocks.  If there's a
- * transaction in the system that needs to read the previous value, we have to
- * cache the old value until no running transaction needs it.
- */
-struct __wt_ovfl_txnc {
-	uint64_t current;		/* Maximum transaction ID at store */
-
-	uint32_t value_offset;		/* Overflow value offset */
-	uint32_t value_size;		/* Overflow value size */
-	uint8_t  addr_offset;		/* Overflow addr offset */
-	uint8_t  addr_size;		/* Overflow addr size */
-
-	/*
-	 * The untyped address immediately follows the WT_OVFL_TXNC
-	 * structure, the untyped value immediately follows the address.
-	 */
-#define	WT_OVFL_TXNC_ADDR(p)						\
-	((void *)((uint8_t *)(p) + (p)->addr_offset))
-#define	WT_OVFL_TXNC_VALUE(p)						\
-	((void *)((uint8_t *)(p) + (p)->value_offset))
-
-	WT_OVFL_TXNC *next[0];		/* Forward-linked skip list */
-};
-
-/*
  * Lookaside table support: when a page is being reconciled for eviction and has
  * updates that might be required by earlier readers in the system, the updates
  * are written into a lookaside table, and restored as necessary if the page is
  * read. The key is a unique marker for the page (a file ID plus an address),
  * a counter (used to ensure the update records remain in the original order),
- * the on-page item's transaction ID (so we can discard any update records from
- * the lookaside table once the on-page item's transaction is globally visible),
- * and the page key (byte-string for row-store, record number for column-store).
- * The value is the WT_UPDATE structure's transaction ID, update size and value.
+ * the on-page item's transaction ID and timestamp (so we can discard any
+ * update records from the lookaside table once the on-page item's transaction
+ * is globally visible), and the page key (byte-string for row-store, record
+ * number for column-store).  The value is the WT_UPDATE structure's
+ * transaction ID, update size and value.
  *
  * As the key for the lookaside table is different for row- and column-store, we
  * store both key types in a WT_ITEM, building/parsing them in the code, because
@@ -207,8 +182,8 @@ struct __wt_ovfl_txnc {
  * the row-store key is relatively large.
  */
 #define	WT_LAS_FORMAT							\
-    "key_format=" WT_UNCHECKED_STRING(IuQQu)				\
-    ",value_format=" WT_UNCHECKED_STRING(QBu)
+    "key_format=" WT_UNCHECKED_STRING(IuQQuu)				\
+    ",value_format=" WT_UNCHECKED_STRING(QuBu)
 
 /*
  * WT_PAGE_MODIFY --
@@ -229,8 +204,9 @@ struct __wt_page_modify {
 	/* Avoid checking for obsolete updates during checkpoints. */
 	uint64_t obsolete_check_txn;
 
-	/* The largest transaction ID seen on the page by reconciliation. */
+	/* The largest transaction seen on the page by reconciliation. */
 	uint64_t rec_max_txn;
+	WT_DECL_TIMESTAMP(rec_max_timestamp)
 
 	/* The largest update transaction ID (approximate). */
 	uint64_t update_txn;
@@ -299,6 +275,7 @@ struct __wt_page_modify {
 			WT_INSERT *ins;
 			WT_ROW	  *rip;
 			uint64_t   onpage_txn;
+			WT_DECL_TIMESTAMP(onpage_timestamp)
 		} *supd;
 		uint32_t supd_entries;
 
@@ -400,18 +377,20 @@ struct __wt_page_modify {
 		WT_OVFL_REUSE	*ovfl_reuse[WT_SKIP_MAXDEPTH];
 
 		/*
-		 * Overflow value address/byte-string pairs cached until no
-		 * running transaction will possibly read them.
-		 */
-		WT_OVFL_TXNC	*ovfl_txnc[WT_SKIP_MAXDEPTH];
-
-		/*
 		 * Overflow key/value addresses to be discarded from the block
 		 * manager after reconciliation completes successfully.
 		 */
 		WT_CELL **discard;
 		size_t	  discard_entries;
 		size_t	  discard_allocated;
+
+		/* Cached overflow value cell/update address pairs. */
+		struct {
+			WT_CELL   *cell;
+			WT_UPDATE *upd;
+		} *remove;
+		size_t	 remove_allocated;
+		uint32_t remove_next;
 	} *ovfl_track;
 
 #define	WT_PAGE_LOCK(s, p) 						\
@@ -716,6 +695,7 @@ struct __wt_page {
  */
 struct __wt_page_deleted {
 	uint64_t txnid;			/* Transaction ID */
+	WT_DECL_TIMESTAMP(timestamp)
 
 	WT_UPDATE **update_list;	/* List of updates for abort */
 };
@@ -906,6 +886,7 @@ struct __wt_ikey {
  */
 WT_PACKED_STRUCT_BEGIN(__wt_update)
 	uint64_t txnid;			/* transaction */
+	WT_DECL_TIMESTAMP(timestamp)
 
 	WT_UPDATE *next;		/* forward-linked list */
 
@@ -915,6 +896,10 @@ WT_PACKED_STRUCT_BEGIN(__wt_update)
 #define	WT_UPDATE_DELETED	1
 #define	WT_UPDATE_RESERVED	2
 	uint8_t type;			/* type (one byte to conserve memory) */
+
+	/* The update includes a complete value. */
+#define	WT_UPDATE_DATA_VALUE(upd)					\
+	((upd)->type == WT_UPDATE_STANDARD || (upd)->type == WT_UPDATE_DELETED)
 
 	/* The untyped value immediately follows the WT_UPDATE structure. */
 #define	WT_UPDATE_DATA(upd)						\
@@ -928,11 +913,12 @@ WT_PACKED_STRUCT_BEGIN(__wt_update)
 #define	WT_UPDATE_MEMSIZE(upd)						\
 	WT_ALIGN(sizeof(WT_UPDATE) + (upd)->size, 32)
 WT_PACKED_STRUCT_END
+
 /*
  * WT_UPDATE_SIZE is the expected structure size -- we verify the build to
  * ensure the compiler hasn't inserted padding.
  */
-#define	WT_UPDATE_SIZE	21
+#define	WT_UPDATE_SIZE	(21 + WT_TIMESTAMP_SIZE)
 
 /*
  * WT_INSERT --

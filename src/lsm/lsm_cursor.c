@@ -240,7 +240,7 @@ __clsm_enter(WT_CURSOR_LSM *clsm, bool reset, bool update)
 						break;
 					WT_ASSERT(session,
 					    !__wt_txn_visible_all(
-					    session, switch_txn));
+					    session, switch_txn, NULL));
 				}
 			}
 		}
@@ -539,7 +539,7 @@ retry:	if (F_ISSET(clsm, WT_CLSM_MERGE)) {
 				clsm->chunks[ngood - 1]->switch_txn =
 				    chunk->switch_txn;
 				if (__wt_txn_visible_all(
-				    session, chunk->switch_txn))
+				    session, chunk->switch_txn, NULL))
 					break;
 			}
 		} else {
@@ -1466,8 +1466,8 @@ __clsm_put(WT_SESSION_IMPL *session, WT_CURSOR_LSM *clsm,
 
 	for (i = 0, slot = clsm->nchunks - 1; i < clsm->nupdates; i++, slot--) {
 		/* Check if we need to keep updating old chunks. */
-		if (i > 0 &&
-		    __wt_txn_visible(session, clsm->chunks[slot]->switch_txn)) {
+		if (i > 0 && __wt_txn_visible(
+		    session, clsm->chunks[slot]->switch_txn, NULL)) {
 			clsm->nupdates = i;
 			break;
 		}
@@ -1725,8 +1725,6 @@ __wt_clsm_close(WT_CURSOR *cursor)
 	/* In case we were somehow left positioned, clear that. */
 	__clsm_leave(clsm);
 
-	/* The WT_LSM_TREE owns the URI. */
-	cursor->uri = NULL;
 	if (clsm->lsm_tree != NULL)
 		__wt_lsm_tree_release(session, clsm->lsm_tree);
 	WT_TRET(__wt_cursor_close(cursor));
@@ -1777,9 +1775,7 @@ __wt_clsm_open(WT_SESSION_IMPL *session,
 	if (!WT_PREFIX_MATCH(uri, "lsm:"))
 		return (__wt_unexpected_object_type(session, uri, "lsm:"));
 
-	if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
-		WT_RET_MSG(session, EINVAL,
-		    "LSM trees not supported by in-memory configurations");
+	WT_RET(__wt_inmem_unsupported_op(session, "LSM trees"));
 
 	WT_RET(__wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
 	if (cval.len != 0)
@@ -1810,7 +1806,7 @@ __wt_clsm_open(WT_SESSION_IMPL *session,
 	cursor = &clsm->iface;
 	*cursor = iface;
 	cursor->session = &session->iface;
-	cursor->uri = lsm_tree->name;
+	WT_ERR(__wt_strdup(session, lsm_tree->name, &cursor->uri));
 	cursor->key_format = lsm_tree->key_format;
 	cursor->value_format = lsm_tree->value_format;
 

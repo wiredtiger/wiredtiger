@@ -305,12 +305,14 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 			    F_ISSET(thread, WT_THREAD_RUN))
 				__wt_yield();
 		else {
-			__wt_verbose(session, WT_VERB_EVICTSERVER, "sleeping");
+			__wt_verbose(session,
+			    WT_VERB_EVICTSERVER, "%s", "sleeping");
 
 			/* Don't rely on signals: check periodically. */
 			__wt_cond_auto_wait(session,
 			    cache->evict_cond, did_work, NULL);
-			__wt_verbose(session, WT_VERB_EVICTSERVER, "waking");
+			__wt_verbose(session,
+			    WT_VERB_EVICTSERVER, "%s", "waking");
 		}
 	} else
 		WT_ERR(__evict_lru_pages(session, false));
@@ -351,8 +353,8 @@ __wt_evict_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
 	 */
 	WT_ASSERT(session, F_ISSET(conn, WT_CONN_CLOSING | WT_CONN_RECOVERING));
 
-	__wt_verbose(
-	    session, WT_VERB_EVICTSERVER, "cache eviction thread exiting");
+	__wt_verbose(session,
+	    WT_VERB_EVICTSERVER, "%s", "cache eviction thread exiting");
 
 	if (0) {
 err:		WT_PANIC_MSG(session, ret, "cache eviction thread error");
@@ -410,7 +412,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 	} else if (cache->pages_evicted != cache->pages_evict) {
 		cache->pages_evicted = cache->pages_evict;
 #if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
-		__wt_epoch(session, &cache->stuck_ts);
+		__wt_epoch(session, &cache->stuck_time);
 	} else if (!F_ISSET(conn, WT_CONN_IN_MEMORY)) {
 		/*
 		 * If we're stuck for 5 minutes in diagnostic mode, or the
@@ -425,7 +427,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 		 * servicing reads while the cache appears stuck to eviction.
 		 */
 		__wt_epoch(session, &now);
-		if (WT_TIMEDIFF_SEC(now, cache->stuck_ts) > 300) {
+		if (WT_TIMEDIFF_SEC(now, cache->stuck_time) > 300) {
 #if defined(HAVE_DIAGNOSTIC)
 			__wt_err(session, ETIMEDOUT,
 			    "Cache stuck for too long, giving up");
@@ -439,7 +441,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 				WT_RET(__wt_verbose_dump_cache(session));
 
 				/* Reset the timer. */
-				__wt_epoch(session, &cache->stuck_ts);
+				__wt_epoch(session, &cache->stuck_time);
 			}
 #endif
 		}
@@ -477,7 +479,7 @@ __wt_evict_create(WT_SESSION_IMPL *session)
 	/*
 	 * Ensure the cache stuck timer is initialized when starting eviction.
 	 */
-	__wt_epoch(session, &conn->cache->stuck_ts);
+	__wt_epoch(session, &conn->cache->stuck_time);
 #endif
 
 	/*
@@ -515,7 +517,7 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
 	__wt_evict_server_wake(session);
 
 	__wt_verbose(
-	    session, WT_VERB_EVICTSERVER, "waiting for helper threads");
+	    session, WT_VERB_EVICTSERVER, "%s", "waiting for helper threads");
 
 	/*
 	 * We call the destroy function still holding the write lock.
@@ -740,7 +742,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 
 			WT_STAT_CONN_INCR(session, cache_eviction_slow);
 			__wt_verbose(session, WT_VERB_EVICTSERVER,
-			    "unable to reach eviction goal");
+			    "%s", "unable to reach eviction goal");
 			break;
 		} else {
 			if (cache->evict_aggressive_score > 0) {
@@ -1106,8 +1108,8 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 			    &conn->evict_threads, false);
 			WT_STAT_CONN_INCR(session,
 			    cache_eviction_worker_created);
-			__wt_verbose(session, WT_VERB_EVICTSERVER,
-			    "added worker thread");
+			__wt_verbose(session,
+			    WT_VERB_EVICTSERVER, "%s", "added worker thread");
 		}
 		conn->evict_tune_last_action_time = current_time;
 	}
@@ -1842,7 +1844,7 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 		mod = page->modify;
 		if (modified && txn_global->current != txn_global->oldest_id &&
 		    (mod->last_eviction_id == __wt_txn_oldest_id(session) ||
-		    !__wt_txn_visible_all(session, mod->update_txn)))
+		    !__wt_txn_visible_all(session, mod->update_txn, NULL)))
 			continue;
 
 fast:		/* If the page can't be evicted, give up. */
