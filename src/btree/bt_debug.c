@@ -1035,7 +1035,10 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 			WT_RET(ds->f(ds, "\tvalue {reserved}\n"));
 			break;
 		}
-		WT_RET(ds->f(ds, "\t" "txn id %" PRIu64, upd->txnid));
+		if (upd->txnid == WT_TXN_ABORTED)
+			WT_RET(ds->f(ds, "\t" "txn aborted"));
+		else
+			WT_RET(ds->f(ds, "\t" "txn id %" PRIu64, upd->txnid));
 
 #ifdef HAVE_TIMESTAMPS
 		if (!__wt_timestamp_iszero(upd->timestamp)) {
