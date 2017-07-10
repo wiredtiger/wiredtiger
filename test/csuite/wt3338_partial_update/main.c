@@ -246,6 +246,8 @@ modify_init(WT_ITEM *local, WT_ITEM *library)
 	testutil_check(__wt_buf_set(NULL, library, modify_repl, len));
 }
 
+static int nruns = 1000;
+
 /*
  * modify_run
  *	Run some tests.
@@ -255,7 +257,7 @@ modify_run(WT_ITEM *local, WT_ITEM *library, bool verbose)
 {
 	int i, j;
 
-	for (i = 0; i < 10000; ++i) {
+	for (i = 0; i < nruns; ++i) {
 		modify_init(local, library);
 
 		for (j = 0; j < 1000; ++j) {
@@ -268,7 +270,7 @@ modify_run(WT_ITEM *local, WT_ITEM *library, bool verbose)
 			diff(local, library);
 		}
 		if (verbose) {
-			printf("%d (%d%%)\r", i, (i * 100) / 10000);
+			printf("%d (%d%%)\r", i, (i * 100) / nruns);
 			fflush(stdout);
 		}
 	}
@@ -282,9 +284,8 @@ main(int argc, char *argv[])
 	TEST_OPTS *opts, _opts;
 	WT_ITEM *local, _local, *library, _library;
 
-	/* Ignore unless requested */
-	if (!testutil_is_flag_set("TESTUTIL_ENABLE_LONG_TESTS"))
-		return (EXIT_SUCCESS);
+	if (testutil_is_flag_set("TESTUTIL_ENABLE_LONG_TESTS"))
+		nruns = 10000;
 
 	opts = &_opts;
 	memset(opts, 0, sizeof(*opts));
