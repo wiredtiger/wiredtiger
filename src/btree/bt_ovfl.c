@@ -45,12 +45,14 @@ __ovfl_read(WT_SESSION_IMPL *session,
  */
 int
 __wt_ovfl_read(WT_SESSION_IMPL *session,
-    WT_PAGE *page, WT_CELL_UNPACK *unpack, WT_ITEM *store)
+    WT_PAGE *page, WT_CELL_UNPACK *unpack, WT_ITEM *store, bool *decoded)
 {
 	WT_DECL_RET;
 	WT_OVFL_TRACK *track;
 	WT_UPDATE *upd;
 	size_t i;
+
+	*decoded = false;
 
 	/*
 	 * If no page specified, there's no need to lock and there's no cache
@@ -80,6 +82,7 @@ __wt_ovfl_read(WT_SESSION_IMPL *session,
 		WT_ASSERT(session, i < track->remove_next);
 		store->data = WT_UPDATE_DATA(upd);
 		store->size = upd->size;
+		*decoded = true;
 	} else
 		ret = __ovfl_read(session, unpack->data, unpack->size, store);
 	__wt_readunlock(session, &S2BT(session)->ovfl_lock);
@@ -147,7 +150,7 @@ __ovfl_cache_append_update(WT_SESSION_IMPL *session, WT_PAGE *page,
 
 	/* Read the overflow value. */
 	WT_RET(__wt_scr_alloc(session, 1024, &tmp));
-	WT_ERR(__ovfl_read(session, unpack->data, unpack->size, tmp));
+	WT_ERR(__wt_dsk_cell_data_ref(session, page->type, unpack, tmp));
 
 	/*
 	 * Create an update entry with no transaction ID to ensure global
