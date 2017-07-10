@@ -143,7 +143,7 @@ __wt_session_lock_dhandle(
 		    F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS)))
 			return (EBUSY);
 		++dhandle->excl_ref;
-		return (ret);
+		return (0);
 	}
 
 	/*
@@ -160,6 +160,7 @@ __wt_session_lock_dhandle(
 		/* If the handle is dead, give up. */
 		if (F_ISSET(dhandle, WT_DHANDLE_DEAD)) {
 			*is_deadp = 1;
+			ret = 0;
 			break;
 		}
 
@@ -168,7 +169,7 @@ __wt_session_lock_dhandle(
 		 * give up.
 		 */
 		if (F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS)) {
-			ret = EBUSY;
+			ret = (EBUSY);
 			break;
 		}
 
@@ -187,12 +188,15 @@ __wt_session_lock_dhandle(
 			if (F_ISSET(dhandle, WT_DHANDLE_DEAD)) {
 				*is_deadp = 1;
 				__wt_readunlock(session, &dhandle->rwlock);
+				ret = 0;
 				break;
 			}
 
 			is_open = F_ISSET(dhandle, WT_DHANDLE_OPEN);
-			if (is_open && !want_exclusive)
+			if (is_open && !want_exclusive) {
+				ret = 0;
 				break;
+			}
 			__wt_readunlock(session, &dhandle->rwlock);
 		} else
 			is_open = false;
@@ -208,6 +212,7 @@ __wt_session_lock_dhandle(
 			if (F_ISSET(dhandle, WT_DHANDLE_DEAD)) {
 				*is_deadp = 1;
 				__wt_writeunlock(session, &dhandle->rwlock);
+				ret = 0;
 				break;
 			}
 
@@ -230,6 +235,7 @@ __wt_session_lock_dhandle(
 			dhandle->excl_session = session;
 			dhandle->excl_ref = 1;
 			WT_ASSERT(session, !F_ISSET(dhandle, WT_DHANDLE_DEAD));
+			ret = 0;
 			break;
 		}
 		if (ret != EBUSY || (is_open && want_exclusive) ||
