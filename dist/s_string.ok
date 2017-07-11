@@ -690,6 +690,7 @@ extern
 extlist
 fadvise
 fallocate
+fallthrough
 fblocks
 fc
 fclose
@@ -803,6 +804,7 @@ initn
 initsize
 initval
 inline
+inlined
 inmem
 inmemory
 insertK
@@ -1263,6 +1265,7 @@ valuep
 valuev
 vanishingly
 variable's
+variadic
 vectorized
 versa
 vfprintf
