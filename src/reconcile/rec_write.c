@@ -3788,8 +3788,7 @@ __rec_update_las(WT_SESSION_IMPL *session,
 				cbt->slot = slot;
 				WT_ERR(__wt_value_return(session, cbt, upd));
 				las_value.data = cbt->iface.value.data;
-				las_value.size =
-				    (uint32_t)cbt->iface.value.size;
+				las_value.size = cbt->iface.value.size;
 				break;
 			case WT_UPDATE_RESERVED:
 				continue;
