@@ -3749,11 +3749,15 @@ __rec_update_las(WT_SESSION_IMPL *session,
 
 		/*
 		 * Lookaside table value component: update reference. Updates
-		 * come from the row-store insert list or update array, or from
+		 * come from the row-store insert list (an inserted item), or
+		 * update array (an update to an original on-page item), or from
 		 * a column-store insert list (column-store format has no update
-		 * array). When rolling forward a modify update from an original
-		 * on-page item, we need an on-page slot, when rolling forward
-		 * from an insert list, no on-page slot is possible.
+		 * array, the insert list contains both inserted items and
+		 * updates to original on-page items). When rolling forward a
+		 * modify update from an original on-page item, we need an
+		 * on-page slot so we can find the original on-page item. When
+		 * rolling forward from an inserted item, no on-page slot is
+		 * possible.
 		 */
 		slot = UINT32_MAX;			/* Impossible slot */
 		if (list->ripcip != NULL)
