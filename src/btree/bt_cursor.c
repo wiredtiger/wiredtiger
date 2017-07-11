@@ -1140,7 +1140,6 @@ err:	if (ret == WT_RESTART) {
 done:	if (ret == 0)
 		switch (modify_type) {
 		case WT_UPDATE_STANDARD:
-		case WT_UPDATE_DELETED:
 			/*
 			 * WT_CURSOR.update returns a key and a value.
 			 */
@@ -1160,6 +1159,10 @@ done:	if (ret == 0)
 			 */
 			WT_TRET(__wt_key_return(session, cbt));
 			break;
+		case WT_UPDATE_DELETED:
+		default:
+			WT_TRET(__wt_illegal_value(session, NULL));
+			break;
 		}
 
 	if (ret != 0) {
@@ -1174,8 +1177,8 @@ done:	if (ret == 0)
  * __cursor_chain_exceeded --
  *	Return if the update chain has exceeded the limit. Deleted or standard
  * updates are anticipated to be sufficient to base the modify (although that's
- * not guaranteed). Also, this is not a hard limit, threads can race setting
- * modify updates.
+ * not guaranteed, they may not be visible or might abort before we read them).
+ * Also, this is not a hard limit, threads can race modifying updates.
  */
 static bool
 __cursor_chain_exceeded(WT_CURSOR_BTREE *cbt)
@@ -1210,11 +1213,11 @@ __cursor_chain_exceeded(WT_CURSOR_BTREE *cbt)
 int
 __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 {
+	WT_CURFILE_STATE state;
 	WT_CURSOR *cursor;
 	WT_DECL_ITEM(modify);
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	WT_CURFILE_STATE state;
 	size_t orig, new;
 	bool chain_exceeded, overwrite;
 
