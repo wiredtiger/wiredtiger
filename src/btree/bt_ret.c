@@ -147,30 +147,31 @@ __value_return_upd(
 	allocated_bytes = 0;
 
 	/*
-	 * We're passed an update that's visible to us. If it's a standard item,
-	 * we're done (our caller has already checked for deleted items).
+	 * We're passed a "standard" or "modified"  update that's visible to us.
+	 * Our caller should have already checked for deleted items (we're too
+	 * far down the call stack to return not-found).
+	 *
+	 * Fast path if it's a standard item, assert our caller's behavior.
 	 */
 	if (upd->type == WT_UPDATE_STANDARD) {
 		cursor->value.data = WT_UPDATE_DATA(upd);
 		cursor->value.size = upd->size;
 		return (0);
 	}
+	WT_ASSERT(session, upd->type == WT_UPDATE_MODIFIED);
 
 	/*
 	 * Find a complete update that's visible to us, tracking modifications
 	 * that are visible to us.
 	 */
 	for (i = 0, listp = list; upd != NULL; upd = upd->next) {
-		switch (upd->type) {
-		case WT_UPDATE_STANDARD:
-		case WT_UPDATE_DELETED:
-			if (!__wt_txn_upd_visible(session, upd))
-				continue;
-			break;
-		case WT_UPDATE_MODIFIED:
-			if (!__wt_txn_upd_visible(session, upd))
-				continue;
+		if (!__wt_txn_upd_visible(session, upd))
+			continue;
 
+		if (WT_UPDATE_DATA_VALUE(upd))
+			break;
+
+		if (upd->type == WT_UPDATE_MODIFIED) {
 			/*
 			 * Update lists are expected to be short, but it's not
 			 * guaranteed. There's sufficient room on the stack to
@@ -186,11 +187,7 @@ __value_return_upd(
 					memcpy(listp, list, sizeof(list));
 			}
 			listp[i++] = upd;
-			continue;
-		case WT_UPDATE_RESERVED:
-			continue;
 		}
-		break;
 	}
 
 	/*
