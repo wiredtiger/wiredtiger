@@ -296,11 +296,11 @@ typedef struct {
 	uint32_t tested_ref_state;	/* Debugging information */
 
 	/*
-	 * XXX KEITH
-	 * In the case of a modified update, we potentially have to get a copy
-	 * of the original on-page value as a set of bytes. We call back into
-	 * the btree code with a fake cursor to make that work. This is fragile
-	 * and a layering violation, we need a better solution.
+	 * XXX
+	 * In the case of a modified update, we may need a copy of the current
+	 * value as a set of bytes. We call back into the btree code using a
+	 * fake cursor to do that work. This a layering violation and fragile,
+	 * we need a better solution.
 	 */
 	WT_CURSOR_BTREE update_modify_cbt;
 } WT_RECONCILE;
