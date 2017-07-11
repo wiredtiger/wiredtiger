@@ -489,10 +489,10 @@ struct __wt_cursor {
 	 * The modify method is only supported on raw byte arrays accessed using
 	 * a WT_ITEM structure, that is, a format type of \c u.
 	 *
-	 * Calling the WT_CURSOR::method outside of snapshot isolation can lead
-	 * to unexpected results. While \c read-committed isolation is supported
-	 * with the WT_CURSOR::modify method, \c read-uncommitted isolation is
-	 * not.
+	 * Calling the WT_CURSOR::modify method outside of snapshot isolation
+	 * can lead to unexpected results. While \c read-committed isolation
+	 * is supported with the WT_CURSOR::modify method, \c read-uncommitted
+	 * isolation is not.
 	 *
 	 * @snippet ex_all.c Modify an existing record
 	 *
