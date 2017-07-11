@@ -309,7 +309,7 @@ __wt_update_obsolete_check(
 	for (first = NULL, count = 0; upd != NULL; upd = upd->next, count++)
 		if (WT_UPDATE_DATA_VALUE(upd) &&
 		    __wt_txn_upd_visible_all(session, upd)) {
-			if (first == NULL && WT_UPDATE_DATA_VALUE(upd))
+			if (first == NULL)
 				first = upd;
 		} else if (upd->txnid != WT_TXN_ABORTED)
 			first = NULL;
