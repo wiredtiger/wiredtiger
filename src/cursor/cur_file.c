@@ -547,18 +547,13 @@ __curfile_create(WT_SESSION_IMPL *session,
 	/* Underlying btree initialization. */
 	__wt_btcur_open(cbt);
 
-#if 0
 	/*
-	 * XXX KEITH
 	 * WT_CURSOR.modify supported on 'u' value formats, but the fast-path
 	 * through the btree code requires log file format changes, it's not
 	 * available in all versions.
 	 */
 	if (WT_STREQ(cursor->value_format, "u") &&
-	    conn->compat_major >= WT_LOG_V11_MAJOR)
-#else
-	if (WT_STREQ(cursor->value_format, "u"))
-#endif
+	    S2C(session)->compat_major >= WT_LOG_V2)
 		cursor->modify = __curfile_modify;
 
 	WT_ERR(__wt_cursor_init(

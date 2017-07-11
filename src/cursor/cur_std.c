@@ -813,7 +813,7 @@ __wt_cursor_init(WT_CURSOR *cursor,
 
 	/*
 	 * WT_CURSOR.modify supported on 'u' value formats, but may have been
-	 * already initialized.
+	 * already initialized (file cursors have a faster implementation).
 	 */
 	if (WT_STREQ(cursor->value_format, "u") &&
 	    cursor->modify == __wt_cursor_modify_notsup)
