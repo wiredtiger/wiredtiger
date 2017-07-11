@@ -32,9 +32,9 @@ __txn_op_log_row_key_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	memset(&key, 0, sizeof(key));
 
 	/*
-	 * We used to take the key for row-store logging from the page
-	 * referenced by the cursor, when we switched to taking it from the
-	 * cursor itself. Check that they are the same.
+	 * We used to take the row-store logging key from the page referenced by
+	 * the cursor, then switched to taking it from the cursor itself. Check
+	 * they are the same.
 	 *
 	 * If the cursor references a WT_INSERT item, take the key from there,
 	 * else take the key from the original page.
@@ -50,8 +50,7 @@ __txn_op_log_row_key_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 		key.size = WT_INSERT_KEY_SIZE(cbt->ins);
 	}
 
-	WT_ASSERT(session,
-	    key.size == cursor->key.size &&
+	WT_ASSERT(session, key.size == cursor->key.size &&
 	    memcmp(key.data, cursor->key.data, key.size) == 0);
 
 	__wt_buf_free(session, &key);
