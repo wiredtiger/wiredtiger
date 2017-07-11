@@ -1,5 +1,7 @@
 #! /bin/sh
 
+PLANTUML_URL="https://downloads.sourceforge.net/project/plantuml/plantuml.jar?r=&ts=1499750156&use_mirror=nchc"
+
 t=__wt.$$
 trap 'rm -f $t' 0 1 2 3 13 15
 
@@ -9,6 +11,12 @@ test -n "$WT_RELEASE_BUILD" && exit 0
 # We require doxygen which may not be installed.
 type doxygen > /dev/null 2>&1 || {
 	echo 'skipped: doxygen not found'
+	exit 0
+}
+
+# We require java which may not be installed.
+type java > /dev/null 2>&1 || {
+	echo 'skipped: java not found'
 	exit 0
 }
 
@@ -129,6 +137,10 @@ build()
 	# Build from scratch on demand.
 	[ "$1" -eq 0 ] || (cd .. && rm -rf docs && mkdir docs)
 
+	# Generate PlantUML docs
+	mkdir -p ../docs/images/plantuml-gen-img
+	java  -Djava.awt.headless=true -jar ../dist/plantuml.jar -o ../docs/images/plantuml-gen-img "../src/docs/**.(c|cpp|doc|h|dox)"
+
 	# Run doxygen to generate warnings for the base HTML documentation.
 	#
 	# We omit Python because warnings are expected there (the code generated
@@ -183,6 +195,7 @@ EOF
 }
 
 clean=0
+download_plantuml=0
 additional_languages=1
 filter="|sed '/PROJECT_BRIEF/s,=.*,=\"$WIREDTIGER_VERSION\",'"
 filter="$filter| sed '/PROJECT_NUMBER/s,=.*,=\"Version $WIREDTIGER_VERSION\",'"
@@ -190,6 +203,9 @@ while :
 	do case "$1" in
 	-a)	# Build from scratch
 		clean=1
+		shift;;
+	-d)	# Download plantuml if not already there
+		download_plantuml=1
 		shift;;
 	-l)	# Generate the top-level landing page in ../docs/top
 		filter="$filter| sed '/GENERATE_MAN/s,=.*,=NO,';"
@@ -213,6 +229,28 @@ while :
 		break;;
 	esac
 done
+
+# plantuml is needed, check if already downloaded, else download if suggested
+# by an argument
+file ../dist/plantuml.jar > /dev/null 2>&1 || {
+	echo -n 'dist/plantuml.jar not found. '
+	if [ $download_plantuml -eq 1 ]
+	then
+		echo 'Downloading plantuml:'
+		wget $PLANTUML_URL -O ../dist/plantuml.jar
+	else
+		echo 'plantuml can be downloaded from:'
+		echo 'https://sourceforge.net/projects/plantuml/files/plantuml.jar/download'
+		echo 'To download automatically pass -d argument to the script'
+		exit 0
+	fi
+}
+
+# Check plantuml works as expected
+java -jar ../dist/plantuml.jar -testdot > /dev/null || {
+	echo 'error: plantuml installation check failed'
+	exit 1
+}
 
 # Generate the change log
 changelog
