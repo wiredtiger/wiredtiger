@@ -5364,9 +5364,9 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
     WT_RECONCILE *r, WT_PAGE *page, WT_SALVAGE_COOKIE *salvage)
 {
 	WT_BTREE *btree;
-	WT_CURSOR_BTREE *cbt;
 	WT_CELL *cell, *val_cell;
 	WT_CELL_UNPACK *kpack, _kpack, *vpack, _vpack;
+	WT_CURSOR_BTREE *cbt;
 	WT_DECL_ITEM(tmpkey);
 	WT_DECL_ITEM(tmpval);
 	WT_DECL_RET;
@@ -5383,8 +5383,8 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 	void *copy;
 
 	btree = S2BT(session);
-	slvg_skip = salvage == NULL ? 0 : salvage->skip;
 	cbt = &r->update_modify_cbt;
+	slvg_skip = salvage == NULL ? 0 : salvage->skip;
 
 	key = &r->k;
 	val = &r->v;
