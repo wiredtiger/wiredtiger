@@ -22,9 +22,9 @@ __wt_modify_pack(WT_SESSION_IMPL *session,
 	uint8_t *data;
 
 	/*
-	 * Build the in-memory modify value. For now, it's the entries count,
-	 * followed by the modify structure offsets written in order, followed
-	 * by the data (data at the end to avoid unaligned reads).
+	 * Build the in-memory modify value. It's the entries count, followed
+	 * by the modify structure offsets written in order, followed by the
+	 * data (data at the end to avoid unaligned reads/writes).
 	 */
 	len = sizeof(size_t);                           /* nentries */
 	for (i = 0; i < nentries; ++i) {
@@ -66,11 +66,12 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value,
 	 * Grow the buffer to the maximum size we'll need. This is pessimistic
 	 * because it ignores replacement bytes, but it's a simpler calculation.
 	 *
-	 * Done before we fast-path the expected case: our caller is often using
-	 * a cursor value buffer that references on-page memory, and that bug is
-	 * difficult to find, ensure a buffer-local copy at the same time.
+	 * Grow the buffer before we fast-path the expected case. This function
+	 * is often called using a cursor buffer referencing on-page memory and
+	 * it's easy to overwrite a page. A side-effect of growing the buffer is
+	 * to ensure the buffer's value is in buffer-local memory.
 	 *
-	 * Because our buffer may reference an overflow item, the data may not
+	 * Because the buffer may reference an overflow item, the data may not
 	 * start at the start of the buffer's memory and we have to correct for
 	 * that.
 	 */
