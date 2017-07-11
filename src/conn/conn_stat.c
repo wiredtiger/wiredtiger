@@ -246,7 +246,7 @@ __statlog_print_header(WT_SESSION_IMPL *session)
 	 * connection. The variable is safe as the JSON printing logic is only
 	 * performed by the single threaded stat server.
 	 */
-	FLD_CLR(conn->stat_flags, WT_STAT_JSON_PRINT_TABLES);
+	conn->stat_json_tables = false;
 	WT_RET(__wt_fprintf(session, conn->stat_fs,
 	    "{\"version\":\"%s\",\"localTime\":\"%s\"",
 	    WIREDTIGER_VERSION_STRING, conn->stat_stamp));
@@ -281,10 +281,10 @@ __statlog_print_table_name(
 	 * for the WiredTigerTables section. Otherwise print a comma as this
 	 * is a subsequent table.
 	 */
-	if (FLD_ISSET(conn->stat_flags, WT_STAT_JSON_PRINT_TABLES))
+	if (conn->stat_json_tables)
 		WT_RET(__wt_fprintf(session, conn->stat_fs,","));
 	else  {
-		FLD_SET(conn->stat_flags, WT_STAT_JSON_PRINT_TABLES);
+		conn->stat_json_tables = true;
 		WT_RET(__wt_fprintf(session,
 		    conn->stat_fs,",\"WiredTigerTables\":{"));
 	}
@@ -307,9 +307,9 @@ __statlog_print_footer(WT_SESSION_IMPL *session)
 		return (0);
 
 	/* If we have printed a tables stats, then close that section. */
-	if (FLD_ISSET(conn->stat_flags, WT_STAT_JSON_PRINT_TABLES)) {
+	if (conn->stat_json_tables) {
 		WT_RET(__wt_fprintf(session, conn->stat_fs, "}"));
-		FLD_CLR(conn->stat_flags, WT_STAT_JSON_PRINT_TABLES);
+		conn->stat_json_tables = false;
 	}
 	WT_RET(__wt_fprintf(session, conn->stat_fs, "}\n"));
 	return (0);

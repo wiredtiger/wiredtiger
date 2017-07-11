@@ -142,7 +142,6 @@ flags = {
     'stat' : [
         'STAT_CLEAR',
         'STAT_JSON',
-        'STAT_JSON_PRINT_TABLES',
         'STAT_ON_CLOSE',
         'STAT_TYPE_ALL',
         'STAT_TYPE_CACHE_WALK',
