@@ -153,7 +153,7 @@ void
 __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	WT_UPDATE **upd;
-	WT_DECL_RET; 
+	WT_DECL_RET;
 	uint64_t yield_count;
 
 	/*
