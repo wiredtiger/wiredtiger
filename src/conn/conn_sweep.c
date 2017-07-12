@@ -84,8 +84,8 @@ __sweep_expire_one(WT_SESSION_IMPL *session)
 	WT_RET(__wt_try_writelock(session, &dhandle->rwlock));
 
 	/* Only sweep clean trees where all updates are visible. */
-	if (btree->modified ||
-	    !__wt_txn_visible_all(session, btree->rec_max_txn))
+	if (btree->modified || !__wt_txn_visible_all(session,
+	    btree->rec_max_txn, WT_TIMESTAMP(btree->rec_max_timestamp)))
 		goto err;
 
 	/*
@@ -429,7 +429,7 @@ __wt_sweep_destroy(WT_SESSION_IMPL *session)
 		WT_TRET(__wt_thread_join(session, conn->sweep_tid));
 		conn->sweep_tid_set = 0;
 	}
-	WT_TRET(__wt_cond_destroy(session, &conn->sweep_cond));
+	__wt_cond_destroy(session, &conn->sweep_cond);
 
 	if (conn->sweep_session != NULL) {
 		wt_session = &conn->sweep_session->iface;

@@ -6,7 +6,7 @@
  * See the file LICENSE for redistribution information.
  */
 
-#define	WT_DEBUG_POINT	((void *)0xdeadbeef)
+#define	WT_DEBUG_POINT	((void *)(uintptr_t)0xdeadbeef)
 #define	WT_DEBUG_BYTE	(0xab)
 
 /* In DIAGNOSTIC mode, yield in places where we want to encourage races. */
@@ -123,4 +123,29 @@
 #else
 #define	WT_ASSERT(session, exp)						\
 	WT_UNUSED(session)
+#endif
+
+/*
+ * __wt_verbose --
+ *	Display a verbose message.
+ *
+ * Not an inlined function because you can't inline functions taking variadic
+ * arguments and we don't want to make a function call in production systems
+ * just to find out a verbose flag isn't set.
+ *
+ * The macro must take a format string and at least one additional argument,
+ * there's no portable way to remove the comma before an empty __VA_ARGS__
+ * value.
+ */
+#ifdef HAVE_VERBOSE
+#define	__wt_verbose(session, flag, fmt, ...) do {			\
+	if (WT_VERBOSE_ISSET(session, flag))				\
+		__wt_verbose_worker(session, fmt, __VA_ARGS__);		\
+} while (0)
+#else
+#define	__wt_verbose(session, flag, fmt, ...) do {			\
+	WT_UNUSED(session);						\
+	WT_UNUSED(flag);						\
+	WT_UNUSED(fmt);							\
+} while (0)
 #endif

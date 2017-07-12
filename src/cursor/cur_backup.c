@@ -119,6 +119,7 @@ __wt_curbackup_open(WT_SESSION_IMPL *session,
 	    __wt_cursor_notsup,			/* search */
 	    __wt_cursor_search_near_notsup,	/* search-near */
 	    __wt_cursor_notsup,			/* insert */
+	    __wt_cursor_modify_notsup,		/* modify */
 	    __wt_cursor_notsup,			/* update */
 	    __wt_cursor_notsup,			/* remove */
 	    __wt_cursor_notsup,			/* reserve */
@@ -208,6 +209,8 @@ __backup_start(
 	cb->next = 0;
 	cb->list = NULL;
 	cb->list_next = 0;
+
+	WT_RET(__wt_inmem_unsupported_op(session, "backup cursor"));
 
 	/*
 	 * Single thread hot backups: we're holding the schema lock, so we

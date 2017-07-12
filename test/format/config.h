@@ -117,6 +117,10 @@ static CONFIG c[] = {
 	  "if compaction is running",				/* 10% */
 	  C_BOOL, 10, 0, 0, &g.c_compact, NULL },
 
+	{ "compatibility",
+	  "log file compatibility (none | v1 | v2 )",
+	  C_IGNORE|C_STRING, 0, 0, 0, NULL, &g.c_compat },
+
 	{ "compression",
 	  "type of compression " COMPRESSION_LIST,
 	  C_IGNORE|C_STRING, 0, 0, 0, NULL, &g.c_compression },
@@ -238,6 +242,10 @@ static CONFIG c[] = {
 	  "configure for mmap operations",			/* 90% */
 	  C_BOOL, 90, 0, 0, &g.c_mmap, NULL },
 
+	{ "modify_pct",
+	  "percent operations that are value modifications",
+	  C_IGNORE, 0, 0, 100, &g.c_modify_pct, NULL },
+
 	{ "ops",
 	  "the number of modification operations done per run",
 	  0x0, 0, M(2), M(100), &g.c_ops, NULL },
@@ -302,6 +310,10 @@ static CONFIG c[] = {
 	  "maximum time to run in minutes (default 20 minutes)",
 	  C_IGNORE, 0, UINT_MAX, UINT_MAX, &g.c_timer, NULL },
 
+	{ "transaction_timestamps",				/* 10% */
+	  "enable transaction timestamp support",
+	  C_BOOL, 10, 0, 0, &g.c_txn_timestamps, NULL },
+
 	{ "transaction-frequency",
 	  "percent operations done inside an explicit transaction",
 	  0x0, 1, 100, 100, &g.c_txn_freq, NULL },
@@ -323,7 +335,7 @@ static CONFIG c[] = {
 	  C_IGNORE|C_STRING, 0, 0, 0, NULL, &g.c_config_open },
 
 	{ "write_pct",
-	  "percent operations that are writes",
+	  "percent operations that are value updates",
 	  C_IGNORE, 0, 0, 100, &g.c_write_pct, NULL },
 
 	{ NULL, NULL, 0x0, 0, 0, 0, NULL, NULL }

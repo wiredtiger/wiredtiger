@@ -66,6 +66,7 @@ struct __wt_session_impl {
 					/* Session handle reference list */
 	TAILQ_HEAD(__dhandles, __wt_data_handle_cache) dhandles;
 	time_t last_sweep;		/* Last sweep for dead handles */
+	struct timespec last_epoch;	/* Last epoch time returned */
 
 					/* Cursors closed with the session */
 	TAILQ_HEAD(__cursors, __wt_cursor) cursors;
@@ -97,6 +98,10 @@ struct __wt_session_impl {
 	 */
 	TAILQ_HEAD(__tables, __wt_table) tables;
 
+	/* Current rwlock for callback. */
+	WT_RWLOCK *current_rwlock;
+	uint8_t current_rwticket;
+
 	WT_ITEM	**scratch;		/* Temporary memory for any function */
 	u_int	  scratch_alloc;	/* Currently allocated */
 	size_t	  scratch_cached;	/* Scratch bytes cached */
@@ -117,6 +122,7 @@ struct __wt_session_impl {
 
 	WT_TXN_ISOLATION isolation;
 	WT_TXN	txn;			/* Transaction state */
+#define	WT_SESSION_BG_SYNC_MSEC		1200000
 	WT_LSN	bg_sync_lsn;		/* Background sync operation LSN. */
 	u_int	ncursors;		/* Count of active file cursors. */
 

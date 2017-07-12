@@ -689,8 +689,6 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
 	WT_RET(ds->f(ds, ", entries %" PRIu32, entries));
 	WT_RET(ds->f(ds,
 	    ", %s", __wt_page_is_modified(page) ? "dirty" : "clean"));
-	WT_RET(ds->f(ds, ", %s", __wt_rwlock_islocked(
-	    session, &page->page_lock) ? "locked" : "unlocked"));
 
 	if (F_ISSET_ATOMIC(page, WT_PAGE_BUILD_KEYS))
 		WT_RET(ds->f(ds, ", keys-built"));
@@ -984,10 +982,10 @@ __debug_row_skip(WT_DBG *ds, WT_INSERT_HEAD *head)
 static int
 __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 {
-	for (; upd != NULL; upd = upd->next)
-		if (WT_UPDATE_DELETED_ISSET(upd))
+	for (; upd != NULL; upd = upd->next) {
+		if (upd->type == WT_UPDATE_DELETED)
 			WT_RET(ds->f(ds, "\tvalue {deleted}\n"));
-		else if (WT_UPDATE_RESERVED_ISSET(upd))
+		else if (upd->type == WT_UPDATE_RESERVED)
 			WT_RET(ds->f(ds, "\tvalue {reserved}\n"));
 		else if (hexbyte) {
 			WT_RET(ds->f(ds, "\t{"));
@@ -997,6 +995,30 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 		} else
 			WT_RET(__debug_item(ds,
 			    "value", WT_UPDATE_DATA(upd), upd->size));
+		WT_RET(ds->f(ds, "\t" "txn id %" PRIu64, upd->txnid));
+
+#ifdef HAVE_TIMESTAMPS
+		if (!__wt_timestamp_iszero(upd->timestamp)) {
+#if WT_TIMESTAMP_SIZE == 8
+			{
+			uint64_t ts;
+			__wt_timestamp_set(
+			    (uint8_t *)&ts, (uint8_t *)&upd->timestamp[0]);
+			ts = __wt_bswap64(ts);
+			WT_RET(ds->f(ds, ", stamp %" PRIu64, ts));
+			}
+#else
+			{
+			int i;
+			WT_RET(ds->f(ds, ", stamp 0x"));
+			for (i = 0; i < WT_TIMESTAMP_SIZE; ++i)
+				WT_RET(ds->f(ds, "%" PRIx8, upd->timestamp[i]));
+			}
+#endif
+		}
+#endif
+		WT_RET(ds->f(ds, "\n"));
+	}
 	return (0);
 }
 

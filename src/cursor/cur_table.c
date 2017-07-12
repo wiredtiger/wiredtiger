@@ -91,6 +91,7 @@ __wt_apply_single_idx(WT_SESSION_IMPL *session, WT_INDEX *idx,
 	    __wt_cursor_notsup,			/* search */
 	    __wt_cursor_search_near_notsup,	/* search-near */
 	    __curextract_insert,		/* insert */
+	    __wt_cursor_modify_notsup,		/* modify */
 	    __wt_cursor_notsup,			/* update */
 	    __wt_cursor_notsup,			/* remove */
 	    __wt_cursor_notsup,			/* reserve */
@@ -484,7 +485,7 @@ __curtable_insert(WT_CURSOR *cursor)
 	u_int i;
 
 	ctable = (WT_CURSOR_TABLE *)cursor;
-	JOINABLE_CURSOR_UPDATE_API_CALL(cursor, session, insert, NULL);
+	JOINABLE_CURSOR_UPDATE_API_CALL(cursor, session, insert);
 	WT_ERR(__curtable_open_indices(ctable));
 
 	/*
@@ -563,7 +564,7 @@ __curtable_update(WT_CURSOR *cursor)
 	WT_SESSION_IMPL *session;
 
 	ctable = (WT_CURSOR_TABLE *)cursor;
-	JOINABLE_CURSOR_UPDATE_API_CALL(cursor, session, update, NULL);
+	JOINABLE_CURSOR_UPDATE_API_CALL(cursor, session, update);
 	WT_ERR(__curtable_open_indices(ctable));
 
 	/*
@@ -673,7 +674,7 @@ __curtable_reserve(WT_CURSOR *cursor)
 	WT_SESSION_IMPL *session;
 
 	ctable = (WT_CURSOR_TABLE *)cursor;
-	JOINABLE_CURSOR_UPDATE_API_CALL(cursor, session, update, NULL);
+	JOINABLE_CURSOR_UPDATE_API_CALL(cursor, session, update);
 
 	/*
 	 * We don't have to open the indices here, but it makes the code similar
@@ -949,6 +950,7 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 	    __curtable_search,			/* search */
 	    __curtable_search_near,		/* search-near */
 	    __curtable_insert,			/* insert */
+	    __wt_cursor_modify_notsup,		/* modify */
 	    __curtable_update,			/* update */
 	    __curtable_remove,			/* remove */
 	    __curtable_reserve,			/* reserve */
@@ -986,6 +988,12 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 		    table->cgroups[0]->source, NULL, cfg, cursorp);
 
 		__wt_schema_release_table(session, table);
+		if (ret == 0) {
+			/* Fix up the public URI to match what was passed in. */
+			cursor = *cursorp;
+			__wt_free(session, cursor->uri);
+			WT_TRET(__wt_strdup(session, uri, &cursor->uri));
+		}
 		return (ret);
 	}
 

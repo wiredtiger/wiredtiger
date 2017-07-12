@@ -38,6 +38,7 @@ static char home[1024];			/* Program working dir */
  */
 static const char * const uri = "table:main";
 static const char * const fs_main = "main.wt";
+static bool compat;
 static bool inmem;
 
 #define	MAX_TH	12
@@ -46,6 +47,7 @@ static bool inmem;
 #define	MIN_TIME	10
 #define	RECORDS_FILE	"records-%" PRIu32
 
+#define	ENV_CONFIG_COMPAT	",compatibility=(release=\"2.9\")"
 #define	ENV_CONFIG_DEF						\
     "create,log=(file_max=10M,enabled)"
 #define	ENV_CONFIG_TXNSYNC					\
@@ -69,7 +71,7 @@ typedef struct {
 	uint32_t id;
 } WT_THREAD_DATA;
 
-static void *
+static WT_THREAD_RET
 thread_run(void *arg)
 {
 	FILE *fp;
@@ -161,22 +163,25 @@ static void fill_db(uint32_t)
 static void
 fill_db(uint32_t nth)
 {
-	pthread_t *thr;
 	WT_CONNECTION *conn;
 	WT_SESSION *session;
 	WT_THREAD_DATA *td;
+	wt_thread_t *thr;
 	uint32_t i;
 	int ret;
-	const char *envconf;
+	char envconf[512];
 
-	thr = dcalloc(nth, sizeof(pthread_t));
+	thr = dcalloc(nth, sizeof(*thr));
 	td = dcalloc(nth, sizeof(WT_THREAD_DATA));
 	if (chdir(home) != 0)
 		testutil_die(errno, "Child chdir: %s", home);
 	if (inmem)
-		envconf = ENV_CONFIG_DEF;
+		strcpy(envconf, ENV_CONFIG_DEF);
 	else
-		envconf = ENV_CONFIG_TXNSYNC;
+		strcpy(envconf, ENV_CONFIG_TXNSYNC);
+	if (compat)
+		strcat(envconf, ENV_CONFIG_COMPAT);
+
 	if ((ret = wiredtiger_open(NULL, NULL, envconf, &conn)) != 0)
 		testutil_die(ret, "wiredtiger_open");
 	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
@@ -192,9 +197,8 @@ fill_db(uint32_t nth)
 		td[i].conn = conn;
 		td[i].start = (UINT64_MAX / nth) * i;
 		td[i].id = i;
-		if ((ret = pthread_create(
-		    &thr[i], NULL, thread_run, &td[i])) != 0)
-			testutil_die(ret, "pthread_create");
+		testutil_check(__wt_thread_create(
+		    NULL, &thr[i], thread_run, &td[i]));
 	}
 	printf("Spawned %" PRIu32 " writer threads\n", nth);
 	fflush(stdout);
@@ -203,7 +207,7 @@ fill_db(uint32_t nth)
 	 * it is killed.
 	 */
 	for (i = 0; i < nth; ++i)
-		testutil_assert(pthread_join(thr[i], NULL) == 0);
+		testutil_check(__wt_thread_join(NULL, thr[i]));
 	/*
 	 * NOTREACHED
 	 */
@@ -222,27 +226,30 @@ main(int argc, char *argv[])
 	FILE *fp;
 	WT_CONNECTION *conn;
 	WT_CURSOR *cursor;
-	WT_SESSION *session;
 	WT_RAND_STATE rnd;
+	WT_SESSION *session;
+	pid_t pid;
 	uint64_t absent, count, key, last_key, middle;
 	uint32_t i, nth, timeout;
 	int ch, status, ret;
-	pid_t pid;
-	bool fatal, rand_th, rand_time, verify_only;
 	const char *working_dir;
 	char fname[64], kname[64], statname[1024];
+	bool fatal, rand_th, rand_time, verify_only;
 
 	(void)testutil_set_progname(argv);
 
-	inmem = false;
+	compat = inmem = false;
 	nth = MIN_TH;
 	rand_th = rand_time = true;
 	timeout = MIN_TIME;
 	verify_only = false;
 	working_dir = "WT_TEST.random-abort";
 
-	while ((ch = __wt_getopt(progname, argc, argv, "h:mT:t:v")) != EOF)
+	while ((ch = __wt_getopt(progname, argc, argv, "Ch:mT:t:v")) != EOF)
 		switch (ch) {
+		case 'C':
+			compat = true;
+			break;
 		case 'h':
 			working_dir = __wt_optarg;
 			break;
@@ -292,6 +299,8 @@ main(int argc, char *argv[])
 			if (nth < MIN_TH)
 				nth = MIN_TH;
 		}
+		printf("Parent: Compatibility %s in-mem log %s\n",
+		    compat ? "true" : "false", inmem ? "true" : "false");
 		printf("Parent: Create %" PRIu32
 		    " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
 		/*

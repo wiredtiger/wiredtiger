@@ -15,6 +15,44 @@ static int __lsm_tree_open(
 static int __lsm_tree_set_name(WT_SESSION_IMPL *, WT_LSM_TREE *, const char *);
 
 /*
+ * __lsm_tree_discard_state --
+ *	Free the metadata configuration state  related LSM tree pointers.
+ */
+static void
+__lsm_tree_discard_state(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
+{
+	WT_LSM_CHUNK *chunk;
+	u_int i;
+
+	__wt_free(session, lsm_tree->config);
+	__wt_free(session, lsm_tree->key_format);
+	__wt_free(session, lsm_tree->value_format);
+	__wt_free(session, lsm_tree->collator_name);
+	__wt_free(session, lsm_tree->custom_prefix);
+	__wt_free(session, lsm_tree->custom_suffix);
+	__wt_free(session, lsm_tree->bloom_config);
+	__wt_free(session, lsm_tree->file_config);
+
+	for (i = 0; i < lsm_tree->nchunks; i++) {
+		if ((chunk = lsm_tree->chunk[i]) == NULL)
+			continue;
+
+		__wt_free(session, chunk->bloom_uri);
+		__wt_free(session, chunk->uri);
+		__wt_free(session, chunk);
+	}
+
+	for (i = 0; i < lsm_tree->nold_chunks; i++) {
+		chunk = lsm_tree->old_chunks[i];
+		WT_ASSERT(session, chunk != NULL);
+
+		__wt_free(session, chunk->bloom_uri);
+		__wt_free(session, chunk->uri);
+		__wt_free(session, chunk);
+	}
+}
+
+/*
  * __lsm_tree_discard --
  *	Free an LSM tree structure.
  */
@@ -22,8 +60,6 @@ static int
 __lsm_tree_discard(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, bool final)
 {
 	WT_DECL_RET;
-	WT_LSM_CHUNK *chunk;
-	u_int i;
 
 	WT_UNUSED(final);	/* Only used in diagnostic builds */
 
@@ -48,36 +84,12 @@ __lsm_tree_discard(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, bool final)
 		    lsm_tree->collator, &session->iface));
 
 	__wt_free(session, lsm_tree->name);
-	__wt_free(session, lsm_tree->config);
-	__wt_free(session, lsm_tree->key_format);
-	__wt_free(session, lsm_tree->value_format);
-	__wt_free(session, lsm_tree->collator_name);
-	__wt_free(session, lsm_tree->custom_prefix);
-	__wt_free(session, lsm_tree->custom_suffix);
-	__wt_free(session, lsm_tree->bloom_config);
-	__wt_free(session, lsm_tree->file_config);
+	__lsm_tree_discard_state(session, lsm_tree);
+	__wt_free(session, lsm_tree->chunk);
+	__wt_free(session, lsm_tree->old_chunks);
 
 	__wt_rwlock_destroy(session, &lsm_tree->rwlock);
 
-	for (i = 0; i < lsm_tree->nchunks; i++) {
-		if ((chunk = lsm_tree->chunk[i]) == NULL)
-			continue;
-
-		__wt_free(session, chunk->bloom_uri);
-		__wt_free(session, chunk->uri);
-		__wt_free(session, chunk);
-	}
-	__wt_free(session, lsm_tree->chunk);
-
-	for (i = 0; i < lsm_tree->nold_chunks; i++) {
-		chunk = lsm_tree->old_chunks[i];
-		WT_ASSERT(session, chunk != NULL);
-
-		__wt_free(session, chunk->bloom_uri);
-		__wt_free(session, chunk->uri);
-		__wt_free(session, chunk);
-	}
-	__wt_free(session, lsm_tree->old_chunks);
 	__wt_free(session, lsm_tree);
 
 	return (ret);
@@ -276,7 +288,7 @@ __wt_lsm_tree_setup_chunk(
     WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, WT_LSM_CHUNK *chunk)
 {
 	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SCHEMA));
-	__wt_epoch(session, &chunk->create_ts);
+	__wt_epoch(session, &chunk->create_time);
 
 	WT_RET(__wt_lsm_tree_chunk_name(
 	    session, lsm_tree, chunk->id, chunk->generation, &chunk->uri));
@@ -482,7 +494,7 @@ __lsm_tree_open(WT_SESSION_IMPL *session,
 
 	/* Try to open the tree. */
 	WT_RET(__wt_calloc_one(session, &lsm_tree));
-	__wt_rwlock_init(session, &lsm_tree->rwlock);
+	WT_ERR(__wt_rwlock_init(session, &lsm_tree->rwlock));
 
 	WT_ERR(__lsm_tree_set_name(session, lsm_tree, uri));
 
@@ -507,7 +519,7 @@ __lsm_tree_open(WT_SESSION_IMPL *session,
 	lsm_tree->queue_ref = 0;
 
 	/* Set a flush timestamp as a baseline. */
-	__wt_epoch(session, &lsm_tree->last_flush_ts);
+	__wt_epoch(session, &lsm_tree->last_flush_time);
 
 	/* Now the tree is setup, make it visible to others. */
 	TAILQ_INSERT_HEAD(&conn->lsmqh, lsm_tree, q);
@@ -661,10 +673,10 @@ __wt_lsm_tree_throttle(
 		lsm_tree->ckpt_throttle =
 		    WT_MAX(WT_LSM_THROTTLE_START, 2 * lsm_tree->ckpt_throttle);
 	} else {
-		WT_ASSERT(session,
-		    WT_TIMECMP(last_chunk->create_ts, ondisk->create_ts) >= 0);
-		timediff =
-		    WT_TIMEDIFF_NS(last_chunk->create_ts, ondisk->create_ts);
+		WT_ASSERT(session, WT_TIMECMP(
+		    last_chunk->create_time, ondisk->create_time) >= 0);
+		timediff = WT_TIMEDIFF_NS(
+		    last_chunk->create_time, ondisk->create_time);
 		lsm_tree->ckpt_throttle =
 		    (in_memory - 2) * timediff / (20 * record_count);
 
@@ -714,13 +726,13 @@ __wt_lsm_tree_throttle(
 		prev_chunk = lsm_tree->chunk[lsm_tree->nchunks - 2];
 		WT_ASSERT(session, prev_chunk->generation == 0);
 		WT_ASSERT(session, WT_TIMECMP(
-		    last_chunk->create_ts, prev_chunk->create_ts) >= 0);
+		    last_chunk->create_time, prev_chunk->create_time) >= 0);
 		timediff = WT_TIMEDIFF_NS(
-		    last_chunk->create_ts, prev_chunk->create_ts);
-		WT_ASSERT(session,
-		    WT_TIMECMP(prev_chunk->create_ts, ondisk->create_ts) >= 0);
+		    last_chunk->create_time, prev_chunk->create_time);
+		WT_ASSERT(session, WT_TIMECMP(
+		    prev_chunk->create_time, ondisk->create_time) >= 0);
 		oldtime = WT_TIMEDIFF_NS(
-		    prev_chunk->create_ts, ondisk->create_ts);
+		    prev_chunk->create_time, ondisk->create_time);
 		if (timediff < 10 * oldtime)
 			lsm_tree->chunk_fill_ms =
 			    (3 * lsm_tree->chunk_fill_ms +
@@ -858,45 +870,6 @@ __wt_lsm_tree_retire_chunks(WT_SESSION_IMPL *session,
 		    lsm_tree->chunk[start_chunk + i];
 
 	return (0);
-}
-
-/*
- * __wt_lsm_tree_alter --
- *	Alter an LSM tree.
- */
-int
-__wt_lsm_tree_alter(
-    WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
-{
-	WT_DECL_RET;
-	WT_LSM_CHUNK *chunk;
-	WT_LSM_TREE *lsm_tree;
-	u_int i;
-	bool locked;
-
-	locked = false;
-
-	/* Get the LSM tree. */
-	WT_RET(__wt_lsm_tree_get(session, uri, false, &lsm_tree));
-
-	/* Prevent any new opens. */
-	__wt_lsm_tree_writelock(session, lsm_tree);
-	locked = true;
-
-	/* Alter the chunks. */
-	for (i = 0; i < lsm_tree->nchunks; i++) {
-		chunk = lsm_tree->chunk[i];
-		WT_ERR(__wt_schema_alter(session, chunk->uri, cfg));
-		if (F_ISSET(chunk, WT_LSM_CHUNK_BLOOM))
-			WT_ERR(
-			    __wt_schema_alter(session, chunk->bloom_uri, cfg));
-	}
-	WT_ERR(__wt_lsm_meta_write(session, lsm_tree, cfg[0]));
-
-err:	if (locked)
-		__wt_lsm_tree_writeunlock(session, lsm_tree);
-	__wt_lsm_tree_release(session, lsm_tree);
-	return (ret);
 }
 
 /*
@@ -1395,6 +1368,24 @@ __wt_lsm_tree_worker(WT_SESSION_IMPL *session,
 			WT_ERR(__wt_schema_worker(session, chunk->bloom_uri,
 			    file_func, name_func, cfg, open_flags));
 	}
+	/*
+	 * If this was an alter operation, we need to alter the configuration
+	 * for the overall tree and then reread it so it isn't out of date.
+	 * Reread it here so that we update the configuration of the
+	 * current tree's structure to any new, altered values.
+	 */
+	if (FLD_ISSET(open_flags, WT_BTREE_ALTER)) {
+		WT_ERR(__wt_lsm_meta_write(session, lsm_tree, cfg[0]));
+		/*
+		 * We're about to read in the new configuration that
+		 * we just wrote.  Free the old ones.
+		 */
+		__lsm_tree_discard_state(session, lsm_tree);
+		if ((ret = __wt_lsm_meta_read(session, lsm_tree)) != 0)
+			WT_PANIC_ERR(session, ret,
+			    "Failed to read updated LSM configuration");
+	}
+
 err:	if (locked) {
 		if (exclusive)
 			__wt_lsm_tree_writeunlock(session, lsm_tree);

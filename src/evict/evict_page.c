@@ -55,10 +55,12 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 	WT_BTREE *btree;
 	WT_DECL_RET;
 	WT_PAGE *page;
+	struct timespec start, stop;
 	bool locked, too_big;
 
 	btree = S2BT(session);
 	page = ref->page;
+	__wt_epoch(session, &start);
 
 	/*
 	 * Take some care with order of operations: if we release the hazard
@@ -75,19 +77,34 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 	(void)__wt_atomic_addv32(&btree->evict_busy, 1);
 
 	too_big = page->memory_footprint >= btree->splitmempage;
-	if ((ret = __wt_evict(session, ref, false)) == 0) {
-		if (too_big)
+
+	/*
+	 * Track how long the call to evict took. If eviction is successful then
+	 * we have one of two pairs of stats to increment.
+	 */
+	ret = __wt_evict(session, ref, false);
+	__wt_epoch(session, &stop);
+	if (ret == 0) {
+		if (too_big) {
 			WT_STAT_CONN_INCR(session, cache_eviction_force);
-		else
+			WT_STAT_CONN_INCRV(session, cache_eviction_force_time,
+			    WT_TIMEDIFF_US(stop, start));
+		} else {
 			/*
 			 * If the page isn't too big, we are evicting it because
 			 * it had a chain of deleted entries that make traversal
 			 * expensive.
 			 */
-			WT_STAT_CONN_INCR(
-			    session, cache_eviction_force_delete);
-	} else
+			WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
+			WT_STAT_CONN_INCRV(session,
+			    cache_eviction_force_delete_time,
+			    WT_TIMEDIFF_US(stop, start));
+		}
+	} else {
 		WT_STAT_CONN_INCR(session, cache_eviction_force_fail);
+		WT_STAT_CONN_INCRV(session, cache_eviction_force_fail_time,
+		    WT_TIMEDIFF_US(stop, start));
+	}
 
 	(void)__wt_atomic_subv32(&btree->evict_busy, 1);
 
@@ -403,7 +420,7 @@ __evict_review(
 	WT_DECL_RET;
 	WT_PAGE *page;
 	uint32_t flags;
-	bool lookaside_retry, modified;
+	bool lookaside_retry, *lookaside_retryp, modified;
 
 	conn = S2C(session);
 	flags = WT_EVICTING;
@@ -524,6 +541,9 @@ __evict_review(
 	 * the page and keep it in memory.
 	 */
 	cache = conn->cache;
+	lookaside_retry = false;
+	lookaside_retryp = NULL;
+
 	if (closing)
 		LF_SET(WT_VISIBILITY_ERR);
 	else if (!WT_PAGE_IS_INTERNAL(page)) {
@@ -535,23 +555,26 @@ __evict_review(
 
 			if (F_ISSET(cache, WT_CACHE_EVICT_SCRUB))
 				LF_SET(WT_EVICT_SCRUB);
+
+			/*
+			 * Check if reconciliation suggests trying the
+			 * lookaside table.
+			 */
+			lookaside_retryp = &lookaside_retry;
 		}
 	}
 
 	/* Reconcile the page. */
-	ret = __wt_reconcile(session, ref, NULL, flags, &lookaside_retry);
+	ret = __wt_reconcile(session, ref, NULL, flags, lookaside_retryp);
 
 	/*
-	 * If reconciliation fails, eviction is stuck and reconciliation reports
-	 * it might succeed if we use the lookaside table (the page didn't have
-	 * uncommitted updates, it was not-yet-globally visible updates causing
-	 * the problem), configure reconciliation to write those updates to the
-	 * lookaside table, allowing the eviction of pages we'd otherwise have
-	 * to retain in cache to support older readers.
+	 * If reconciliation fails, eviction is stuck and reconciliation
+	 * reports it might succeed if we use the lookaside table, then
+	 * configure reconciliation to write those updates to the lookaside
+	 * table, allowing the eviction of pages we'd otherwise have to retain
+	 * in cache to support older readers.
 	 */
-	if (ret == EBUSY &&
-	    !F_ISSET(conn, WT_CONN_IN_MEMORY) &&
-	    __wt_cache_stuck(session) && lookaside_retry) {
+	if (ret == EBUSY && lookaside_retry && __wt_cache_stuck(session)) {
 		LF_CLR(WT_EVICT_SCRUB | WT_EVICT_UPDATE_RESTORE);
 		LF_SET(WT_EVICT_LOOKASIDE);
 		ret = __wt_reconcile(session, ref, NULL, flags, NULL);
@@ -573,7 +596,8 @@ __evict_review(
 	    __wt_page_is_modified(page) ||
 	    LF_ISSET(WT_EVICT_LOOKASIDE) ||
 	    F_ISSET(S2BT(session), WT_BTREE_LOOKASIDE) ||
-	    __wt_txn_visible_all(session, page->modify->rec_max_txn));
+	    __wt_txn_visible_all(session, page->modify->rec_max_txn,
+	    WT_TIMESTAMP(page->modify->rec_max_timestamp)));
 
 	return (0);
 }

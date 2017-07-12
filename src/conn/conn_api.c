@@ -190,6 +190,45 @@ __wt_conn_remove_collator(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __conn_compat_config --
+ *	Configure compatibility version.
+ */
+static int
+__conn_compat_config(WT_SESSION_IMPL *session, const char **cfg)
+{
+	WT_CONFIG_ITEM cval;
+	WT_CONNECTION_IMPL *conn;
+	uint16_t patch;
+
+	conn = S2C(session);
+	WT_RET(__wt_config_gets(session, cfg,
+	    "compatibility.release", &cval));
+	if (cval.len != 0) {
+		/*
+		 * Accept either a major.minor release string or a
+		 * major.minor.patch release string.  We ignore the patch
+		 * value, but allow it in the string.
+		 */
+		if (sscanf(cval.str, "%" SCNu16 ".%" SCNu16,
+		    &conn->compat_major, &conn->compat_minor) != 2 &&
+		    sscanf(cval.str, "%" SCNu16 ".%" SCNu16 ".%" SCNu16,
+		    &conn->compat_major, &conn->compat_minor, &patch) != 3)
+			WT_RET_MSG(session,
+			    EINVAL, "illegal compatibility release");
+		if (conn->compat_major > WIREDTIGER_VERSION_MAJOR)
+			WT_RET_MSG(session, EINVAL, "unknown major version");
+		if (conn->compat_major == WIREDTIGER_VERSION_MAJOR &&
+		    conn->compat_minor > WIREDTIGER_VERSION_MINOR)
+			WT_RET_MSG(session,
+			    EINVAL, "illegal compatibility version");
+	} else {
+		conn->compat_major = WIREDTIGER_VERSION_MAJOR;
+		conn->compat_minor = WIREDTIGER_VERSION_MINOR;
+	}
+	return (0);
+}
+
+/*
  * __compressor_confchk --
  *	Validate the compressor.
  */
@@ -1134,6 +1173,7 @@ __conn_reconfigure(WT_CONNECTION *wt_conn, const char *config)
 	cfg[1] = config;
 
 	/* Second, reconfigure the system. */
+	WT_ERR(__conn_compat_config(session, cfg));
 	WT_ERR(__conn_statistics_config(session, cfg));
 	WT_ERR(__wt_async_reconfig(session, cfg));
 	WT_ERR(__wt_cache_config(session, true, cfg));
@@ -1143,6 +1183,7 @@ __conn_reconfigure(WT_CONNECTION *wt_conn, const char *config)
 	WT_ERR(__wt_statlog_create(session, cfg));
 	WT_ERR(__wt_sweep_config(session, cfg));
 	WT_ERR(__wt_verbose_config(session, cfg));
+	WT_ERR(__wt_timing_stress_config(session, cfg));
 
 	/* Third, merge everything together, creating a new connection state. */
 	WT_ERR(__wt_config_merge(session, cfg, NULL, &p));
@@ -1181,6 +1222,43 @@ __conn_open_session(WT_CONNECTION *wt_conn,
 	*wt_sessionp = &session_ret->iface;
 
 err:	API_END_RET_NOTFOUND_MAP(session, ret);
+}
+
+/*
+ * __conn_query_timestamp --
+ *	WT_CONNECTION->query_timestamp method.
+ */
+static int
+__conn_query_timestamp(WT_CONNECTION *wt_conn,
+    char *hex_timestamp, const char *config)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	conn = (WT_CONNECTION_IMPL *)wt_conn;
+
+	CONNECTION_API_CALL(conn, session, query_timestamp, config, cfg);
+	WT_TRET(__wt_txn_global_query_timestamp(session, hex_timestamp, cfg));
+err:	API_END_RET(session, ret);
+}
+
+/*
+ * __conn_set_timestamp --
+ *	WT_CONNECTION->set_timestamp method.
+ */
+static int
+__conn_set_timestamp(WT_CONNECTION *wt_conn, const char *config)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	conn = (WT_CONNECTION_IMPL *)wt_conn;
+
+	CONNECTION_API_CALL(conn, session, set_timestamp, config, cfg);
+	WT_TRET(__wt_txn_global_set_timestamp(session, cfg));
+err:	API_END_RET(session, ret);
 }
 
 /*
@@ -1803,6 +1881,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 		{ "fileops",		WT_VERB_FILEOPS },
 		{ "handleops",		WT_VERB_HANDLEOPS },
 		{ "log",		WT_VERB_LOG },
+		{ "lookaside_activity",	WT_VERB_LOOKASIDE },
 		{ "lsm",		WT_VERB_LSM },
 		{ "lsm_manager",	WT_VERB_LSM_MANAGER },
 		{ "metadata",		WT_VERB_METADATA },
@@ -1852,6 +1931,50 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 	}
 
 	conn->verbose = flags;
+	return (0);
+}
+
+/*
+ * __wt_timing_stress_config --
+ *	Set diagnostic stress timing delay configuration.
+ */
+int
+__wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
+{
+	static const WT_NAME_FLAG stress_types[] = {
+		{ "checkpoint_slow",	WT_TIMING_STRESS_CHECKPOINT_SLOW },
+		{ NULL, 0 }
+	};
+	WT_CONFIG_ITEM cval, sval;
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+	const WT_NAME_FLAG *ft;
+	uint32_t flags;
+
+	conn = S2C(session);
+
+	WT_RET(__wt_config_gets(
+	    session, cfg, "diagnostic_timing_stress", &cval));
+
+	flags = 0;
+	for (ft = stress_types; ft->name != NULL; ft++) {
+		if ((ret = __wt_config_subgets(
+		    session, &cval, ft->name, &sval)) == 0 && sval.val != 0) {
+#ifdef HAVE_DIAGNOSTIC
+			LF_SET(ft->flag);
+#else
+			WT_RET_MSG(session, EINVAL,
+			    "diagnostic_timing_stress option specified when "
+			    "WiredTiger built without diagnostic support. Add "
+			    "--enable-diagnostic to configure command and "
+			    "rebuild to include support for diagnostic stress "
+			    "timing delays");
+#endif
+		}
+		WT_RET_NOTFOUND_OK(ret);
+	}
+
+	conn->timing_stress_flags = flags;
 	return (0);
 }
 
@@ -1935,6 +2058,7 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
 	 * merge the rest to be written.
 	 */
 	WT_ERR(__wt_config_merge(session, cfg + 1,
+	    "compatibility=(release=),"
 	    "config_base=,"
 	    "create=,"
 	    "encryption=(secretkey=),"
@@ -2087,6 +2211,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 		__conn_configure_method,
 		__conn_is_new,
 		__conn_open_session,
+		__conn_query_timestamp,
+		__conn_set_timestamp,
 		__conn_load_extension,
 		__conn_add_data_source,
 		__conn_add_collator,
@@ -2200,6 +2326,11 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	 * extension is to configure a file system).
 	 */
 	WT_ERR(__conn_load_extensions(session, cfg, true));
+
+	/*
+	 * Set compatibility versions early so that any subsystem sees it.
+	 */
+	WT_ERR(__conn_compat_config(session, cfg));
 
 	/*
 	 * If the application didn't configure its own file system, configure
@@ -2319,6 +2450,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 		    session, cval.str, cval.len, &conn->error_prefix));
 	}
 	WT_ERR(__wt_verbose_config(session, cfg));
+	WT_ERR(__wt_timing_stress_config(session, cfg));
 
 	WT_ERR(__wt_config_gets(session, cfg, "session_max", &cval));
 	conn->session_size = (uint32_t)cval.val + WT_EXTRA_INTERNAL_SESSIONS;

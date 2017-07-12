@@ -296,7 +296,7 @@ __wt_lsm_checkpoint_chunk(WT_SESSION_IMPL *session,
 	WT_RET(__wt_txn_update_oldest(
 	    session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 	if (chunk->switch_txn == WT_TXN_NONE ||
-	    !__wt_txn_visible_all(session, chunk->switch_txn)) {
+	    !__wt_txn_visible_all(session, chunk->switch_txn, NULL)) {
 		__wt_verbose(session, WT_VERB_LSM,
 		    "LSM worker %s: running transaction, return",
 		    chunk->uri);
@@ -328,8 +328,9 @@ __wt_lsm_checkpoint_chunk(WT_SESSION_IMPL *session,
 	 */
 	saved_isolation = session->txn.isolation;
 	session->txn.isolation = WT_ISO_READ_UNCOMMITTED;
-	WT_ERR(__wt_cache_op(session, WT_SYNC_WRITE_LEAVES));
+	ret = __wt_cache_op(session, WT_SYNC_WRITE_LEAVES);
 	session->txn.isolation = saved_isolation;
+	WT_ERR(ret);
 
 	__wt_verbose(session, WT_VERB_LSM, "LSM worker checkpointing %s",
 	    chunk->uri);
@@ -358,7 +359,7 @@ __wt_lsm_checkpoint_chunk(WT_SESSION_IMPL *session,
 	WT_ERR(__wt_lsm_tree_set_chunk_size(session, chunk));
 
 	/* Update the flush timestamp to help track ongoing progress. */
-	__wt_epoch(session, &lsm_tree->last_flush_ts);
+	__wt_epoch(session, &lsm_tree->last_flush_time);
 	++lsm_tree->chunks_flushed;
 
 	/* Lock the tree, mark the chunk as on disk and update the metadata. */

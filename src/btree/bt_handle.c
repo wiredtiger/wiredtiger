@@ -279,6 +279,9 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 	bool fixed;
 	const char **cfg, *enc_cfg[] = { NULL, NULL };
 
+	WT_UNUSED(maj_version);				/* !HAVE_VERBOSE */
+	WT_UNUSED(min_version);				/* !HAVE_VERBOSE */
+
 	btree = S2BT(session);
 	cfg = btree->dhandle->cfg;
 	conn = S2C(session);
@@ -290,7 +293,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 		WT_RET(__wt_config_gets(session, cfg, "version.minor", &cval));
 		min_version = cval.val;
 		__wt_verbose(session, WT_VERB_VERSION,
-		    "%" PRIu64 ".%" PRIu64, maj_version, min_version);
+		    "%" PRId64 ".%" PRId64, maj_version, min_version);
 	}
 
 	/* Get the file ID. */
@@ -418,15 +421,13 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 	WT_RET(__wt_compressor_config(session, &cval, &btree->compressor));
 
 	/*
-	 * We do not use __wt_config_gets_none here because "none"
-	 * and the empty string have different meanings.  The
-	 * empty string means inherit the system encryption setting
-	 * and "none" means this table is in the clear even if the
-	 * database is encrypted.  If this is the metadata handle
-	 * always inherit from the connection.
+	 * We do not use __wt_config_gets_none here because "none" and the empty
+	 * string have different meanings. The empty string means inherit the
+	 * system encryption setting and "none" means this table is in the clear
+	 * even if the database is encrypted.
 	 */
 	WT_RET(__wt_config_gets(session, cfg, "encryption.name", &cval));
-	if (WT_IS_METADATA(btree->dhandle) || cval.len == 0)
+	if (cval.len == 0)
 		btree->kencryptor = conn->kencryptor;
 	else if (WT_STRING_MATCH("none", cval.str, cval.len))
 		btree->kencryptor = NULL;
@@ -444,7 +445,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 	}
 
 	/* Initialize locks. */
-	__wt_rwlock_init(session, &btree->ovfl_lock);
+	WT_RET(__wt_rwlock_init(session, &btree->ovfl_lock));
 	WT_RET(__wt_spin_init(session, &btree->flush_lock, "btree flush"));
 
 	btree->modified = false;			/* Clean */
