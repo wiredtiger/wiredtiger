@@ -484,14 +484,15 @@ __log_file_server(void *arg)
 	WT_LOG *log;
 	WT_LSN close_end_lsn, min_lsn;
 	WT_SESSION_IMPL *session;
+	uint64_t yield_cnt;
 	uint32_t filenum;
-	uint64_t yield_cnt = 0;
 	bool locked;
 
 	session = arg;
 	conn = S2C(session);
 	log = conn->log;
 	locked = false;
+	yield_cnt = 0;
 	while (F_ISSET(conn, WT_CONN_SERVER_LOG)) {
 		/*
 		 * If there is a log file to close, make sure any outstanding

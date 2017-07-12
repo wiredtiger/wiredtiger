@@ -1635,7 +1635,7 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 {
 	WT_DECL_RET;
 	WT_PAGE_MODIFY *mod;
-	uint64_t yield_count = 0;
+	uint64_t yield_count;
 
 	/* We may acquire a hazard pointer our caller must release. */
 	*hazardp = false;
@@ -1655,7 +1655,7 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 	 * not reserved for our exclusive use, there are other page states that
 	 * must be considered.
 	 */
-	for (;; yield_count++, __wt_yield())
+	for (yield_count = 0;; yield_count++, __wt_yield())
 		switch (r->tested_ref_state = ref->state) {
 		case WT_REF_DISK:
 			/* On disk, not modified by definition. */
