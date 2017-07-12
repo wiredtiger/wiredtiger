@@ -162,10 +162,23 @@ __ovfl_cache_append_update(WT_SESSION_IMPL *session, WT_PAGE *page,
 	 * involves atomic operations which will act as our barrier. Regardless,
 	 * we update the page footprint as part of this operation, which acts as
 	 * a barrier as well.
+	 *
+	 * The update transaction ID choice is tricky, to work around an issue
+	 * in variable-length column store. Imagine an overflow value with an
+	 * RLE greater than 1. We append a copy to the end of an update chain,
+	 * but it's possible it's the overflow value for more than one record,
+	 * and appending it to the end of one record's update chain means a
+	 * subsequent enter of a globally visible value to one of the records
+	 * would allow the truncation of the overflow chain that leaves other
+	 * records without a value. If appending such an overflow record, set
+	 * the transaction ID to the first possible transaction ID. That ID is
+	 * old enough to be globally visible, but we can use it as a flag if an
+	 * update record cannot be discarded when truncating an update chain.
 	 */
 	WT_ERR(__wt_update_alloc(
 	    session, tmp, &append, &size, WT_UPDATE_STANDARD));
-	append->txnid = WT_TXN_NONE;
+	append->txnid = page->type == WT_PAGE_COL_VAR &&
+	    __wt_cell_rle(unpack) > 1 ? WT_TXN_FIRST : WT_TXN_NONE;
 	for (upd = upd_list; upd->next != NULL; upd = upd->next)
 		;
 	WT_PUBLISH(upd->next, append);

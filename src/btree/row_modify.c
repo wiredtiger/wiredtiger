@@ -301,14 +301,17 @@ __wt_update_obsolete_check(
 	 * a serialization function, the caller has responsibility for actually
 	 * freeing the memory.
 	 *
-	 * Only updates with self-contained data can truncate update chains,
-	 * ignore modified and reserved updates.
-	 *
 	 * Walk the list of updates, looking for obsolete updates at the end.
+	 *
+	 * Only updates with globally visible, self-contained data can terminate
+	 * update chains, ignore modified and reserved updates. Special case the
+	 * first transaction ID, it flags column-store overflow values which can
+	 * never be discarded.
 	 */
 	for (first = NULL, count = 0; upd != NULL; upd = upd->next, count++)
 		if (WT_UPDATE_DATA_VALUE(upd) &&
-		    __wt_txn_upd_visible_all(session, upd)) {
+		    __wt_txn_upd_visible_all(session, upd) &&
+		    upd->txnid != WT_TXN_FIRST) {
 			if (first == NULL)
 				first = upd;
 		} else if (upd->txnid != WT_TXN_ABORTED)
