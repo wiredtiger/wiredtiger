@@ -269,7 +269,15 @@ __txn_rollback_nondurable_commits_btree(
 		return (0);
 
 	ret = __wt_config_gets(session, cfg, "timestamp", &cval);
-	WT_ASSERT(session, ret == 0 && cval.len != 0);
+	/*
+	 * This check isn't strictly necessary, since we've already done a
+	 * check of this configuration between ourselves and the API, but
+	 * it's better safe than sorry, and otherwise difficult to structure
+	 * the code in a way that makes static checkers happy.
+	 */
+	if (ret != 0 || cval.len == 0)
+		WT_RET_MSG(session, EINVAL, "rollback_nondurable_commits "
+		    "requires a timestamp in the configuration string");
 	WT_RET(__wt_txn_parse_timestamp(session,
 	    "rollback_nondurable_commits", rollback_timestamp, &cval));
 
