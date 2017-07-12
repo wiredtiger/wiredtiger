@@ -2240,6 +2240,31 @@ struct __wt_connection {
 	 */
 	int __F(set_timestamp)(
 	    WT_CONNECTION *connection, const char *config);
+
+	/*!
+	 * Rollback in-memory non-logged state to an earlier point in time.
+	 *
+	 * The available points in time are limited. Requires applications
+	 * use timestamps - as timestamp is how the point in time is defined.
+	 * Requires that there are no active cursor operations for the duration
+	 * of the operation.
+	 *
+	 * @snippet ex_all.c rollback non-durable commits
+	 *
+	 * @param connection the connection handle
+	 * @configstart{WT_CONNECTION.rollback_nondurable_commits, see
+	 * dist/api_data.py}
+	 * @config{timestamp, the most recent timestamp where commits will
+	 * remain visible after the rollback completes. Supplied value must
+	 * be more recent than the latest checkpoint timestamp TODO: this is
+	 * probably actually the oldest_timestamp? see
+	 * @ref transaction_timestamps., a string; default empty.}
+	 * @configend
+	 * @errors
+	 */
+	int __F(rollback_nondurable_commits)(
+	    WT_CONNECTION *connection, const char *config);
+
 	/*! @} */
 
 	/*!

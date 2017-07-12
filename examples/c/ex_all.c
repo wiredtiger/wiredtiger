@@ -866,6 +866,10 @@ transaction_ops(WT_CONNECTION *conn, WT_SESSION *session)
 	/*! [set oldest timestamp] */
 	error_check(conn->set_timestamp(conn, "oldest_timestamp=2a"));
 	/*! [set oldest timestamp] */
+
+	/*! [rollback non-durable commits] */
+	error_check(conn->rollback_nondurable_commits(conn, "timestamp=2a"));
+	/*! [rollback non-durable commits] */
 }
 
 /*! [Implement WT_COLLATOR] */

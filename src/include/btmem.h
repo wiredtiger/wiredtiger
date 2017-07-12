@@ -744,12 +744,13 @@ struct __wt_ref {
 #define	ref_ikey	key.ikey
 
 	WT_PAGE_DELETED	*page_del;	/* Deleted on-disk page information */
+	bool has_las_records;
 };
 /*
  * WT_REF_SIZE is the expected structure size -- we verify the build to ensure
  * the compiler hasn't inserted padding which would break the world.
  */
-#define	WT_REF_SIZE	48
+#define	WT_REF_SIZE	56
 
 /*
  * WT_ROW --

@@ -276,7 +276,9 @@ __ref_initial_descent_prev(
  */
 static inline int
 __tree_walk_internal(WT_SESSION_IMPL *session,
-    WT_REF **refp, uint64_t *walkcntp, uint64_t *skipleafcntp, uint32_t flags)
+    WT_REF **refp, uint64_t *walkcntp, uint64_t *skipleafcntp,
+    int (*skip_func)(WT_SESSION_IMPL *, WT_REF *, void *, bool *),
+    void *func_context, uint32_t flags)
 {
 	WT_BTREE *btree;
 	WT_DECL_RET;
@@ -477,14 +479,9 @@ restart:	/*
 				if (skip)
 					break;
 				empty_internal = false;
-			} else if (LF_ISSET(WT_READ_COMPACT)) {
-				/*
-				 * Compaction has relatively complex tests to
-				 * decide if a page can be skipped, call out
-				 * to a helper function.
-				 */
-				WT_ERR(__wt_compact_page_skip(
-				    session, ref, &skip));
+			} else if (LF_ISSET(WT_READ_CUSTOM_SKIP)) {
+				WT_ERR(skip_func(session,
+				    ref, func_context, &skip));
 				if (skip)
 					break;
 			} else {
@@ -645,7 +642,8 @@ err:	WT_LEAVE_PAGE_INDEX(session);
 int
 __wt_tree_walk(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags)
 {
-	return (__tree_walk_internal(session, refp, NULL, NULL, flags));
+	return (__tree_walk_internal(
+	    session, refp, NULL, NULL, NULL, NULL, flags));
 }
 
 /*
@@ -657,13 +655,30 @@ int
 __wt_tree_walk_count(WT_SESSION_IMPL *session,
     WT_REF **refp, uint64_t *walkcntp, uint32_t flags)
 {
-	return (__tree_walk_internal(session, refp, walkcntp, NULL, flags));
+	return (__tree_walk_internal(
+	    session, refp, walkcntp, NULL, NULL, NULL, flags));
+}
+
+/*
+ * __wt_tree_walk_custom_skip --
+ *	Walk the tree calling a custom function to decide whether to skip refs.
+ */
+int
+__wt_tree_walk_custom_skip(
+    WT_SESSION_IMPL *session, WT_REF **refp,
+   int (*skip_func)(WT_SESSION_IMPL *, WT_REF *, void *, bool *),
+   void *func_context,
+   uint32_t flags)
+{
+	return (__tree_walk_internal(session, refp,
+	    NULL, NULL, skip_func, func_context, WT_READ_CUSTOM_SKIP | flags));
 }
 
 /*
  * __wt_tree_walk_skip --
  *	Move to the next/previous page in the tree, skipping a certain number
  *	of leaf pages before returning.
+ *	TODO: Fold this into the new custom skip function methodology.
  */
 int
 __wt_tree_walk_skip(
@@ -680,6 +695,7 @@ __wt_tree_walk_skip(
 	 */
 	do {
 		WT_RET(__tree_walk_internal(session, refp, NULL, skipleafcntp,
+		    NULL, NULL,
 		    WT_READ_NO_GEN | WT_READ_SKIP_INTL | WT_READ_WONT_NEED));
 
 		/*

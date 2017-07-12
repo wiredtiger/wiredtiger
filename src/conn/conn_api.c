@@ -1262,6 +1262,25 @@ err:	API_END_RET(session, ret);
 }
 
 /*
+ * __conn_rollback_nondurable_commits --
+ *	WT_CONNECTION->rollback_nondurable_commits method.
+ */
+static int
+__conn_rollback_nondurable_commits(WT_CONNECTION *wt_conn, const char *config)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	conn = (WT_CONNECTION_IMPL *)wt_conn;
+
+	CONNECTION_API_CALL(
+	    conn, session, rollback_nondurable_commits, config, cfg);
+	WT_TRET(__wt_txn_rollback_nondurable_commits(session, cfg));
+err:	API_END_RET(session, ret);
+}
+
+/*
  * __conn_config_append --
  *	Append an entry to a config stack.
  */
@@ -2213,6 +2232,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 		__conn_open_session,
 		__conn_query_timestamp,
 		__conn_set_timestamp,
+		__conn_rollback_nondurable_commits,
 		__conn_load_extension,
 		__conn_add_data_source,
 		__conn_add_collator,

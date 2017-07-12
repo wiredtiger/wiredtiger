@@ -1252,6 +1252,15 @@ methods = {
         see @ref transaction_timestamps'''),
 ]),
 
+'WT_CONNECTION.rollback_nondurable_commits' : Method([
+    Config('timestamp', '', r'''
+        the most recent timestamp where updates will
+        remain visible after the rollback completes. Supplied value must
+        be more recent than the latest checkpoint timestamp TODO: this is
+        probably actually the oldest_timestamp? see
+        @ref transaction_timestamps'''),
+]),
+
 'WT_SESSION.reconfigure' : Method(session_config),
 
 # There are 4 variants of the wiredtiger_open configurations.
