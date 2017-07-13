@@ -257,15 +257,22 @@
 #endif
 
 #ifdef HAVE_TIMESTAMPS
-#define	WT_TIMESTAMP(x) (x)
-typedef uint8_t wt_timestamp_t[WT_TIMESTAMP_SIZE];
+#define	WT_TIMESTAMP_PTR(x) (&x)
+struct __wt_timestamp_t {
+	union {
+		uint64_t val;
+		uint8_t ts[WT_TIMESTAMP_SIZE];
+	};
+};
+typedef struct __wt_timestamp_t wt_timestamp_t;
 #define	WT_DECL_TIMESTAMP(x) wt_timestamp_t x;
 #else
-#define	WT_TIMESTAMP(x) (NULL)
+typedef void wt_timestamp_t;
+#define	WT_TIMESTAMP_PTR(x) (NULL)
 #define	WT_DECL_TIMESTAMP(x)
 #endif
 
-#define	WT_GET_TIMESTAMP(x) WT_TIMESTAMP((x)->timestamp)
+#define	WT_GET_TIMESTAMP_PTR(x) WT_TIMESTAMP_PTR((x)->timestamp)
 
 /*
  * In diagnostic mode we track the locations from which hazard pointers and
