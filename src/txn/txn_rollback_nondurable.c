@@ -126,37 +126,6 @@ __txn_abort_newer_row_leaf(
 }
 
 /*
- * __txn_abort_newer_fast_deleted --
- *	Fixup deleted refs so they are left in the correct state
- */
-static void
-__txn_abort_newer_fast_deleted(WT_REF *ref, wt_timestamp_t rollback_timestamp)
-{
-	WT_UPDATE **del_upd;
-
-	/* Review deleted pages saved to the ref */
-	if (ref->page_del != NULL) {
-		for (del_upd =
-		    ref->page_del->update_list; *del_upd != NULL; ++del_upd) {
-			if (__wt_timestamp_cmp(
-			    rollback_timestamp, (*del_upd)->timestamp) < 0)
-				(*del_upd)->txnid = WT_TXN_ABORTED;
-				/* TODO: should we clear the timestamp? */
-		}
-		/*
-		 * TODO: I doubt this is legal, I think if we are aborting
-		 * the page deleted structure itself, we should free the update
-		 * list, free the page deleted, and make sure the pages ref
-		 * is in the correct state, which I think is WT_REF_DISK
-		 */
-		if (__wt_timestamp_cmp(
-		    rollback_timestamp, ref->page_del->timestamp) < 0)
-			ref->page_del->txnid = WT_TXN_ABORTED;
-			/* TODO: should we clear the timestamp? */
-	}
-}
-
-/*
  * __txn_abort_newer_updates --
  *	Abort updates on this page newer than the timestamp.
  */
@@ -201,9 +170,8 @@ __txn_rollback_nondurable_updates_custom_skip(
 	WT_UNUSED(session);
 	WT_UNUSED(context);
 
-	/* Review all pages that are in memory or have lookaside records. */
-	if (ref->state == WT_REF_MEM || ref->state == WT_REF_DELETED ||
-	    (ref->state == WT_REF_DISK && ref->has_las_records))
+	/* Review all pages that are in memory. */
+	if (ref->state == WT_REF_MEM || ref->state == WT_REF_DELETED)
 		*skipp = false;
 	else
 		*skipp = true;
@@ -230,12 +198,16 @@ __txn_rollback_nondurable_commits_btree_walk(
 	    NULL, WT_READ_NO_EVICT)) == 0 && ref != NULL) {
 		page = ref->page;
 
-		__txn_abort_newer_fast_deleted(ref, rollback_timestamp);
+		/* Review deleted page saved to the ref */
+		if (ref->page_del != NULL && __wt_timestamp_cmp(
+		    rollback_timestamp, ref->page_del->timestamp) < 0)
+			__wt_delete_page_rollback(session, ref);
 
 		if (!__wt_page_is_modified(page))
 			continue;
 
-		__txn_abort_newer_updates(session, ref, rollback_timestamp);
+		WT_RET(__txn_abort_newer_updates(
+		    session, ref, rollback_timestamp));
 	}
 	return (ret);
 }

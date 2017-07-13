@@ -3516,12 +3516,6 @@ supd_check_complete:
 	 */
 	if (F_ISSET(r, WT_EVICT_LOOKASIDE) && bnd->supd != NULL) {
 		F_SET(dsk, WT_PAGE_LAS_UPDATE);
-		/*
-		 * This is going to mark more pages as LAS than necessary and
-		 * the flag doesn't ever get cleared at the moment, but
-		 * better conservative than wrong.
-		 */
-		r->ref->has_las_records = true;
 		r->cache_write_lookaside = true;
 	}
 

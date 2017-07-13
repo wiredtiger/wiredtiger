@@ -479,7 +479,7 @@ restart:	/*
 				if (skip)
 					break;
 				empty_internal = false;
-			} else if (LF_ISSET(WT_READ_CUSTOM_SKIP)) {
+			} else if (skip_func != NULL) {
 				WT_ERR(skip_func(session,
 				    ref, func_context, &skip));
 				if (skip)
@@ -671,7 +671,7 @@ __wt_tree_walk_custom_skip(
    uint32_t flags)
 {
 	return (__tree_walk_internal(session, refp,
-	    NULL, NULL, skip_func, func_context, WT_READ_CUSTOM_SKIP | flags));
+	    NULL, NULL, skip_func, func_context, flags));
 }
 
 /*
