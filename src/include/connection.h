@@ -302,7 +302,7 @@ struct __wt_connection_impl {
 	WT_CONDVAR	*stat_cond;	/* Statistics log wait mutex */
 	const char	*stat_format;	/* Statistics log timestamp format */
 	WT_FSTREAM	*stat_fs;	/* Statistics log stream */
-	/* Statistics log print json formatted tables */
+	/* Statistics log json table printing state flag */
 	bool		 stat_json_tables;
 	char		*stat_path;	/* Statistics log path format */
 	char	       **stat_sources;	/* Statistics log list of objects */

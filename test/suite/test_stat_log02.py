@@ -50,8 +50,8 @@ class test_stat_log02(wttest.WiredTigerTestCase):
     def test_stats_log_json(self):
         self.conn = self.wiredtiger_open(
             None, "create,statistics=(fast),statistics_log=(wait=1,json)")
-        # Wait for the default interval, to ensure stats have been written.
-        time.sleep(2)
+
+        self.wait_for_stats_file(".")
         self.check_stats_file(".")
 
     def test_stats_log_on_json_with_tables(self):
@@ -66,12 +66,23 @@ class test_stat_log02(wttest.WiredTigerTestCase):
         c.close()
         session.close()
 
-        # Sleep to let stats generate
-        time.sleep(2)
-
+        self.wait_for_stats_file(".")
         self.close_conn()
         self.check_stats_file(".")
         self.check_file_contains_tables(".")
+
+    def wait_for_stats_file(self, dir):
+        # We wait for 30 sleeps then fail
+        number_sleeps = 0
+        while True:
+            time.sleep(1)
+            files = glob.glob(dir + '/' + 'WiredTigerStat.[0-9]*')
+            for f in files:
+                if os.stat(f).st_size != 0:
+                    return
+
+            number_sleeps += 1
+            self.assertLess(number_sleeps, 30)
 
     def check_stats_file(self, dir):
         files = glob.glob(dir + '/' + 'WiredTigerStat.[0-9]*')
