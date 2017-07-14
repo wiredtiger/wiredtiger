@@ -255,9 +255,18 @@ __txn_rollback_nondurable_commits_btree(
 	WT_RET(__wt_txn_parse_timestamp(session,
 	    "rollback_nondurable_commits", rollback_timestamp, &cval));
 
-	WT_RET(__txn_rollback_nondurable_commits_btree_walk(
-	    session, rollback_timestamp));
-	return (0);
+	/*
+	 * Ensure the eviction server is out of the file - we don't
+	 * want it messing with us. This step shouldn't be required, but
+	 * it simplifies some of the reasoning about what state trees can
+	 * be in.
+	 */
+	WT_RET(__wt_evict_file_exclusive_on(session));
+	ret = __txn_rollback_nondurable_commits_btree_walk(
+	    session, rollback_timestamp);
+	__wt_evict_file_exclusive_off(session);
+
+	return (ret);
 }
 #endif
 
