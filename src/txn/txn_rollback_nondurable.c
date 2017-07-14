@@ -145,7 +145,6 @@ __txn_abort_newer_updates(
 		 * changes - and thus won't need to roll back structure
 		 * changes on internal pages.
 		 */
-		/* That is a lie: I think we need to check for fast deleted pages */
 		break;
 	case WT_PAGE_ROW_LEAF:
 		__txn_abort_newer_row_leaf(session, page, rollback_timestamp);
