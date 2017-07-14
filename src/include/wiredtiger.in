@@ -4584,63 +4584,63 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_BLOCK_MAP_READ			1029
 /*! block-manager: mapped bytes read */
 #define	WT_STAT_CONN_BLOCK_BYTE_MAP_READ		1030
-/*! cache: Histogram - Per tree page target 0-10 */
-#define	WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_LT10	1031
-/*! cache: Histogram - Per tree page target 10-32 */
-#define	WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_LT32	1032
-/*! cache: Histogram - Per tree page target 32-64 */
-#define	WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_LT64	1033
-/*! cache: Histogram - Per tree page target 64-128 */
-#define	WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_LT128	1034
-/*! cache: Histogram - Per tree page target greater than 128 */
-#define	WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_GE128	1035
 /*! cache: application threads page read from disk to cache count */
-#define	WT_STAT_CONN_CACHE_READ_APP_COUNT		1036
+#define	WT_STAT_CONN_CACHE_READ_APP_COUNT		1031
 /*! cache: application threads page read from disk to cache time (usecs) */
-#define	WT_STAT_CONN_CACHE_READ_APP_TIME		1037
+#define	WT_STAT_CONN_CACHE_READ_APP_TIME		1032
 /*! cache: application threads page write from cache to disk count */
-#define	WT_STAT_CONN_CACHE_WRITE_APP_COUNT		1038
+#define	WT_STAT_CONN_CACHE_WRITE_APP_COUNT		1033
 /*! cache: application threads page write from cache to disk time (usecs) */
-#define	WT_STAT_CONN_CACHE_WRITE_APP_TIME		1039
+#define	WT_STAT_CONN_CACHE_WRITE_APP_TIME		1034
 /*! cache: bytes belonging to page images in the cache */
-#define	WT_STAT_CONN_CACHE_BYTES_IMAGE			1040
+#define	WT_STAT_CONN_CACHE_BYTES_IMAGE			1035
 /*! cache: bytes currently in the cache */
-#define	WT_STAT_CONN_CACHE_BYTES_INUSE			1041
+#define	WT_STAT_CONN_CACHE_BYTES_INUSE			1036
 /*! cache: bytes not belonging to page images in the cache */
-#define	WT_STAT_CONN_CACHE_BYTES_OTHER			1042
+#define	WT_STAT_CONN_CACHE_BYTES_OTHER			1037
 /*! cache: bytes read into cache */
-#define	WT_STAT_CONN_CACHE_BYTES_READ			1043
+#define	WT_STAT_CONN_CACHE_BYTES_READ			1038
 /*! cache: bytes written from cache */
-#define	WT_STAT_CONN_CACHE_BYTES_WRITE			1044
+#define	WT_STAT_CONN_CACHE_BYTES_WRITE			1039
 /*! cache: checkpoint blocked page eviction */
-#define	WT_STAT_CONN_CACHE_EVICTION_CHECKPOINT		1045
+#define	WT_STAT_CONN_CACHE_EVICTION_CHECKPOINT		1040
 /*! cache: eviction calls to get a page */
-#define	WT_STAT_CONN_CACHE_EVICTION_GET_REF		1046
+#define	WT_STAT_CONN_CACHE_EVICTION_GET_REF		1041
 /*! cache: eviction calls to get a page found queue empty */
-#define	WT_STAT_CONN_CACHE_EVICTION_GET_REF_EMPTY	1047
+#define	WT_STAT_CONN_CACHE_EVICTION_GET_REF_EMPTY	1042
 /*! cache: eviction calls to get a page found queue empty after locking */
-#define	WT_STAT_CONN_CACHE_EVICTION_GET_REF_EMPTY2	1048
+#define	WT_STAT_CONN_CACHE_EVICTION_GET_REF_EMPTY2	1043
 /*! cache: eviction currently operating in aggressive mode */
-#define	WT_STAT_CONN_CACHE_EVICTION_AGGRESSIVE_SET	1049
+#define	WT_STAT_CONN_CACHE_EVICTION_AGGRESSIVE_SET	1044
 /*! cache: eviction empty score */
-#define	WT_STAT_CONN_CACHE_EVICTION_EMPTY_SCORE		1050
+#define	WT_STAT_CONN_CACHE_EVICTION_EMPTY_SCORE		1045
 /*! cache: eviction passes of a file */
-#define	WT_STAT_CONN_CACHE_EVICTION_WALK_PASSES		1051
+#define	WT_STAT_CONN_CACHE_EVICTION_WALK_PASSES		1046
 /*! cache: eviction server candidate queue empty when topping up */
-#define	WT_STAT_CONN_CACHE_EVICTION_QUEUE_EMPTY		1052
+#define	WT_STAT_CONN_CACHE_EVICTION_QUEUE_EMPTY		1047
 /*! cache: eviction server candidate queue not empty when topping up */
-#define	WT_STAT_CONN_CACHE_EVICTION_QUEUE_NOT_EMPTY	1053
+#define	WT_STAT_CONN_CACHE_EVICTION_QUEUE_NOT_EMPTY	1048
 /*! cache: eviction server evicting pages */
-#define	WT_STAT_CONN_CACHE_EVICTION_SERVER_EVICTING	1054
+#define	WT_STAT_CONN_CACHE_EVICTION_SERVER_EVICTING	1049
 /*!
  * cache: eviction server slept, because we did not make progress with
  * eviction
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_SERVER_SLEPT	1055
+#define	WT_STAT_CONN_CACHE_EVICTION_SERVER_SLEPT	1050
 /*! cache: eviction server unable to reach eviction goal */
-#define	WT_STAT_CONN_CACHE_EVICTION_SLOW		1056
+#define	WT_STAT_CONN_CACHE_EVICTION_SLOW		1051
 /*! cache: eviction state */
-#define	WT_STAT_CONN_CACHE_EVICTION_STATE		1057
+#define	WT_STAT_CONN_CACHE_EVICTION_STATE		1052
+/*! cache: eviction walk target pages histogram - 0-9 */
+#define	WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_LT10	1053
+/*! cache: eviction walk target pages histogram - 10-31 */
+#define	WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_LT32	1054
+/*! cache: eviction walk target pages histogram - 128 and higher */
+#define	WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_GE128	1055
+/*! cache: eviction walk target pages histogram - 32-63 */
+#define	WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_LT64	1056
+/*! cache: eviction walk target pages histogram - 64-128 */
+#define	WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_LT128	1057
 /*! cache: eviction walks abandoned */
 #define	WT_STAT_CONN_CACHE_EVICTION_WALKS_ABANDONED	1058
 /*! cache: eviction walks gave up because they restarted their walk twice */
@@ -5230,28 +5230,28 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * statistics are enabled
  */
 #define	WT_STAT_DSRC_BTREE_ROW_LEAF			2039
-/*! cache: Histogram - Per tree page target 0-10 */
-#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT10	2040
-/*! cache: Histogram - Per tree page target 10-32 */
-#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT32	2041
-/*! cache: Histogram - Per tree page target 32-64 */
-#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT64	2042
-/*! cache: Histogram - Per tree page target 64-128 */
-#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT128	2043
-/*! cache: Histogram - Per tree page target greater than 128 */
-#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_GE128	2044
 /*! cache: bytes currently in the cache */
-#define	WT_STAT_DSRC_CACHE_BYTES_INUSE			2045
+#define	WT_STAT_DSRC_CACHE_BYTES_INUSE			2040
 /*! cache: bytes read into cache */
-#define	WT_STAT_DSRC_CACHE_BYTES_READ			2046
+#define	WT_STAT_DSRC_CACHE_BYTES_READ			2041
 /*! cache: bytes written from cache */
-#define	WT_STAT_DSRC_CACHE_BYTES_WRITE			2047
+#define	WT_STAT_DSRC_CACHE_BYTES_WRITE			2042
 /*! cache: checkpoint blocked page eviction */
-#define	WT_STAT_DSRC_CACHE_EVICTION_CHECKPOINT		2048
+#define	WT_STAT_DSRC_CACHE_EVICTION_CHECKPOINT		2043
 /*! cache: data source pages selected for eviction unable to be evicted */
-#define	WT_STAT_DSRC_CACHE_EVICTION_FAIL		2049
+#define	WT_STAT_DSRC_CACHE_EVICTION_FAIL		2044
 /*! cache: eviction walk passes of a file */
-#define	WT_STAT_DSRC_CACHE_EVICTION_WALK_PASSES		2050
+#define	WT_STAT_DSRC_CACHE_EVICTION_WALK_PASSES		2045
+/*! cache: eviction walk target pages histogram - 0-9 */
+#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT10	2046
+/*! cache: eviction walk target pages histogram - 10-31 */
+#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT32	2047
+/*! cache: eviction walk target pages histogram - 128 and higher */
+#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_GE128	2048
+/*! cache: eviction walk target pages histogram - 32-63 */
+#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT64	2049
+/*! cache: eviction walk target pages histogram - 64-128 */
+#define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT128	2050
 /*! cache: eviction walks abandoned */
 #define	WT_STAT_DSRC_CACHE_EVICTION_WALKS_ABANDONED	2051
 /*! cache: eviction walks gave up because they restarted their walk twice */
