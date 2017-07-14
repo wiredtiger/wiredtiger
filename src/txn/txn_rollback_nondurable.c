@@ -61,7 +61,7 @@ __txn_abort_newer_update(WT_SESSION_IMPL *session,
 		    __wt_timestamp_cmp(
 		    rollback_timestamp, next_upd->timestamp) < 0) {
 			next_upd->txnid = WT_TXN_ABORTED;
-			/* TODO: should we clear the timestamp? */
+			__wt_timestamp_set_zero(next_upd->timestamp);
 
 			/*
 			* If any updates are aborted, all newer updates
@@ -145,15 +145,14 @@ __txn_abort_newer_updates(
 		 * changes - and thus won't need to roll back structure
 		 * changes on internal pages.
 		 */
+		/* That is a lie: I think we need to check for fast deleted pages */
 		break;
 	case WT_PAGE_ROW_LEAF:
 		__txn_abort_newer_row_leaf(session, page, rollback_timestamp);
 		break;
 	default:
-		/* TODO: Fix this */
-		WT_RET_MSG(session, EINVAL,
-		    "rollback_nondurable_commits only supports row store");
-
+		WT_RET_MSG(session, EINVAL, "rollback_nondurable_commits "
+		    "is only supported for row store btrees");
 	}
 
 	return (0);
@@ -176,7 +175,6 @@ __txn_rollback_nondurable_updates_custom_skip(
 	else
 		*skipp = true;
 	return (0);
-
 }
 
 /*
@@ -240,7 +238,12 @@ __txn_rollback_nondurable_commits_btree(
 	if (btree->root.page == NULL)
 		return (0);
 
+	if (btree->type != BTREE_ROW)
+		WT_RET_MSG(session, EINVAL, "rollback_nondurable_commits "
+		    "is only supported for row store btrees");
+
 	ret = __wt_config_gets(session, cfg, "timestamp", &cval);
+
 	/*
 	 * This check isn't strictly necessary, since we've already done a
 	 * check of this configuration between ourselves and the API, but

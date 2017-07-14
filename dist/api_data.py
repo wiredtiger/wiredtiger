@@ -1256,8 +1256,7 @@ methods = {
     Config('timestamp', '', r'''
         the most recent timestamp where updates will
         remain visible after the rollback completes. Supplied value must
-        be more recent than the latest checkpoint timestamp TODO: this is
-        probably actually the oldest_timestamp? see
+        be more recent than the pinned timestamp. see
         @ref transaction_timestamps'''),
 ]),
 
