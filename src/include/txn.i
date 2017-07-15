@@ -15,9 +15,13 @@ static inline void __wt_txn_read_last(WT_SESSION_IMPL *session);
  *	Compare two timestamps.
  */
 static inline int
-__wt_timestamp_cmp(const uint8_t *ts1, const uint8_t *ts2)
+__wt_timestamp_cmp(const wt_timestamp_t *ts1, const wt_timestamp_t *ts2)
 {
+#if WT_TIMESTAMP_SIZE == 8
+	return (*ts1 == *ts2 ? 0 : (*ts1 > *ts2 ? 1 : -1));
+#else
 	return (memcmp(ts1, ts2, WT_TIMESTAMP_SIZE));
+#endif
 }
 
 /*
@@ -25,9 +29,13 @@ __wt_timestamp_cmp(const uint8_t *ts1, const uint8_t *ts2)
  *	Set a timestamp.
  */
 static inline void
-__wt_timestamp_set(uint8_t *dest, const uint8_t *src)
+__wt_timestamp_set(wt_timestamp_t *dest, const wt_timestamp_t *src)
 {
+#if WT_TIMESTAMP_SIZE == 8
+	*dest = *src;
+#else
 	(void)memcpy(dest, src, WT_TIMESTAMP_SIZE);
+#endif
 }
 
 /*
@@ -35,11 +43,16 @@ __wt_timestamp_set(uint8_t *dest, const uint8_t *src)
  *	Check if a timestamp is equal to the special "zero" time.
  */
 static inline bool
-__wt_timestamp_iszero(const uint8_t *ts)
+__wt_timestamp_iszero(wt_timestamp_t *ts)
 {
+#if WT_TIMESTAMP_SIZE == 8
+	return (*ts == 0);
+#else
 	static const wt_timestamp_t zero_timestamp;
 
-	return (memcmp(ts, zero_timestamp, WT_TIMESTAMP_SIZE) == 0);
+	return (memcmp(ts,
+	    WT_TIMESTAMP(zero_timestamp), WT_TIMESTAMP_SIZE) == 0);
+#endif
 }
 
 /*
@@ -47,9 +60,13 @@ __wt_timestamp_iszero(const uint8_t *ts)
  *	Set a timestamp to the maximum value.
  */
 static inline void
-__wt_timestamp_set_inf(uint8_t *ts)
+__wt_timestamp_set_inf(wt_timestamp_t *ts)
 {
+#if WT_TIMESTAMP_SIZE == 8
+	*ts = UINT64_MAX;
+#else
 	memset(ts, 0xff, WT_TIMESTAMP_SIZE);
+#endif
 }
 
 /*
@@ -57,9 +74,13 @@ __wt_timestamp_set_inf(uint8_t *ts)
  *	Zero out a timestamp.
  */
 static inline void
-__wt_timestamp_set_zero(uint8_t *ts)
+__wt_timestamp_set_zero(wt_timestamp_t *ts)
 {
+#if WT_TIMESTAMP_SIZE == 8
+	*ts = 0;
+#else
 	memset(ts, 0x00, WT_TIMESTAMP_SIZE);
+#endif
 }
 #endif
 
@@ -130,7 +151,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 	    WT_TXN_OP_INMEM : WT_TXN_OP_BASIC;
 #ifdef HAVE_TIMESTAMPS
 	if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
-		__wt_timestamp_set(upd->timestamp, txn->commit_timestamp);
+		WT_TIMESTAMP_SET(upd->timestamp, txn->commit_timestamp);
 		if (!F_ISSET(session, WT_SESSION_LOGGING_INMEM))
 			op->type = WT_TXN_OP_BASIC_TS;
 	}
@@ -248,7 +269,7 @@ __txn_visible_all_id(WT_SESSION_IMPL *session, uint64_t id)
  */
 static inline bool
 __wt_txn_visible_all(
-    WT_SESSION_IMPL *session, uint64_t id, const uint8_t *timestamp)
+    WT_SESSION_IMPL *session, uint64_t id, const void *timestamp)
 {
 	if (!__txn_visible_all_id(session, id))
 		return (false);
@@ -263,7 +284,8 @@ __wt_txn_visible_all(
 		return (true);
 
 	__wt_readlock(session, &txn_global->rwlock);
-	cmp = __wt_timestamp_cmp(timestamp, txn_global->pinned_timestamp);
+	cmp = __wt_timestamp_cmp(
+	    timestamp, WT_TIMESTAMP(txn_global->pinned_timestamp));
 	__wt_readunlock(session, &txn_global->rwlock);
 
 	/*
@@ -289,7 +311,7 @@ static inline bool
 __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
 	return (__wt_txn_visible_all(
-	    session, upd->txnid, WT_GET_TIMESTAMP(upd)));
+	    session, upd->txnid, WT_TIMESTAMP(upd->timestamp)));
 }
 
 /*
@@ -351,7 +373,7 @@ __txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
  */
 static inline bool
 __wt_txn_visible(
-    WT_SESSION_IMPL *session, uint64_t id, const uint8_t *timestamp)
+    WT_SESSION_IMPL *session, uint64_t id, const void *timestamp)
 {
 	if (!__txn_visible_id(session, id))
 		return (false);
@@ -364,7 +386,8 @@ __wt_txn_visible(
 	if (!F_ISSET(txn, WT_TXN_HAS_TS_READ) || timestamp == NULL)
 		return (true);
 
-	return (memcmp(timestamp, txn->read_timestamp, WT_TIMESTAMP_SIZE) <= 0);
+	return (__wt_timestamp_cmp(
+	    timestamp, WT_TIMESTAMP(txn->read_timestamp)) <= 0);
 	}
 #else
 	WT_UNUSED(timestamp);
@@ -379,7 +402,8 @@ __wt_txn_visible(
 static inline bool
 __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-	return (__wt_txn_visible(session, upd->txnid, WT_GET_TIMESTAMP(upd)));
+	return (__wt_txn_visible(
+	    session, upd->txnid, WT_TIMESTAMP(upd->timestamp)));
 }
 
 /*

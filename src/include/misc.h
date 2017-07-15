@@ -257,15 +257,35 @@
 #endif
 
 #ifdef HAVE_TIMESTAMPS
-#define	WT_TIMESTAMP(x) (x)
-typedef uint8_t wt_timestamp_t[WT_TIMESTAMP_SIZE];
-#define	WT_DECL_TIMESTAMP(x) wt_timestamp_t x;
+#if WT_TIMESTAMP_SIZE == 8
+typedef uint64_t wt_timestamp_t;
+#define	WT_TIMESTAMP(x)		((wt_timestamp_t *)(&(x)))
 #else
-#define	WT_TIMESTAMP(x) (NULL)
-#define	WT_DECL_TIMESTAMP(x)
+typedef uint8_t wt_timestamp_t[WT_TIMESTAMP_SIZE];
+#define	WT_TIMESTAMP(x)		((wt_timestamp_t *)(x))
 #endif
+#define	WT_DECL_TIMESTAMP(x)	wt_timestamp_t x;
 
-#define	WT_GET_TIMESTAMP(x) WT_TIMESTAMP((x)->timestamp)
+#define	WT_TIMESTAMP_CMP(ts1, ts2)					\
+	__wt_timestamp_cmp(WT_TIMESTAMP(ts1), WT_TIMESTAMP(ts2))
+#define	WT_TIMESTAMP_SET(dest, src)					\
+	__wt_timestamp_set(WT_TIMESTAMP(dest), WT_TIMESTAMP(src))
+#define	WT_TIMESTAMP_ISZERO(ts)						\
+	__wt_timestamp_iszero(WT_TIMESTAMP(ts))
+#define	WT_TIMESTAMP_SET_INF(ts)					\
+	__wt_timestamp_set_inf(WT_TIMESTAMP(ts))
+#define	WT_TIMESTAMP_SET_ZERO(ts)					\
+	__wt_timestamp_set_zero(WT_TIMESTAMP(ts))
+#else
+#define	WT_TIMESTAMP(x)		(NULL)
+#define	WT_DECL_TIMESTAMP(x)
+
+#define	WT_TIMESTAMP_CMP(ts1, ts2)
+#define	WT_TIMESTAMP_SET(dest, src)
+#define	WT_TIMESTAMP_ISZERO(ts)
+#define	WT_TIMESTAMP_SET_INF(ts)
+#define	WT_TIMESTAMP_SET_ZERO(ts)
+#endif
 
 /*
  * In diagnostic mode we track the locations from which hazard pointers and
