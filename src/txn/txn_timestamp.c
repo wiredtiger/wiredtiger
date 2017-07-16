@@ -28,7 +28,7 @@ __wt_txn_parse_timestamp(WT_SESSION_IMPL *session,
 		    "Failed to parse %s timestamp '%.*s': too long",
 		    name, (int)cval->len, cval->str);
 
-#if WT_TIMESTAMP_SIZE == 8
+#ifdef WT_TIMESTAMP_UINT64
 	{
 	static const u_char hextable[] = {
 	    0,  0,  0,  0,  0,  0,  0,  0,
@@ -178,7 +178,7 @@ __wt_txn_global_query_timestamp(
 
 	WT_RET(__txn_global_query_timestamp(session, WT_TIMESTAMP(ts), cfg));
 
-#if WT_TIMESTAMP_SIZE == 8
+#ifdef WT_TIMESTAMP_UINT64
 	{
 	char *p, v;
 
@@ -216,7 +216,8 @@ __wt_txn_global_query_timestamp(
 	WT_UNUSED(hex_timestamp);
 	WT_UNUSED(cfg);
 
-	return (ENOTSUP);
+	WT_RET_MSG(session, ENOTSUP, "WT_CONNECTION.query_timestamp "
+	    "requires a version of WiredTiger built with timestamp support");
 #endif
 }
 

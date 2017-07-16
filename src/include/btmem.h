@@ -887,14 +887,14 @@ struct __wt_ikey {
  */
 WT_PACKED_STRUCT_BEGIN(__wt_update)
 	uint64_t txnid;			/* transaction */
-#if WT_TIMESTAMP_SIZE == 8
+#if defined(HAVE_TIMESTAMPS) && defined(WT_TIMESTAMP_UINT64)
 	WT_DECL_TIMESTAMP(timestamp)
 #endif
 	WT_UPDATE *next;		/* forward-linked list */
 
 	uint32_t size;			/* data length */
 
-#if WT_TIMESTAMP_SIZE != 8
+#if defined(HAVE_TIMESTAMPS) && !defined(WT_TIMESTAMP_UINT64)
 	WT_DECL_TIMESTAMP(timestamp)
 #endif
 

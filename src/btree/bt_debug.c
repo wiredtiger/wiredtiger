@@ -1009,7 +1009,7 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 
 #ifdef HAVE_TIMESTAMPS
 		if (!WT_TIMESTAMP_ISZERO(upd->timestamp)) {
-#if WT_TIMESTAMP_SIZE == 8
+#ifdef WT_TIMESTAMP_UINT64
 			WT_RET(ds->f(ds, ", stamp %" PRIu64, upd->timestamp));
 #else
 			int i;

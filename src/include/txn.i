@@ -17,7 +17,7 @@ static inline void __wt_txn_read_last(WT_SESSION_IMPL *session);
 static inline int
 __wt_timestamp_cmp(const wt_timestamp_t *ts1, const wt_timestamp_t *ts2)
 {
-#if WT_TIMESTAMP_SIZE == 8
+#ifdef WT_TIMESTAMP_UINT64
 	return (*ts1 == *ts2 ? 0 : (*ts1 > *ts2 ? 1 : -1));
 #else
 	return (memcmp(ts1, ts2, WT_TIMESTAMP_SIZE));
@@ -31,7 +31,7 @@ __wt_timestamp_cmp(const wt_timestamp_t *ts1, const wt_timestamp_t *ts2)
 static inline void
 __wt_timestamp_set(wt_timestamp_t *dest, const wt_timestamp_t *src)
 {
-#if WT_TIMESTAMP_SIZE == 8
+#ifdef WT_TIMESTAMP_UINT64
 	*dest = *src;
 #else
 	(void)memcpy(dest, src, WT_TIMESTAMP_SIZE);
@@ -45,7 +45,7 @@ __wt_timestamp_set(wt_timestamp_t *dest, const wt_timestamp_t *src)
 static inline bool
 __wt_timestamp_iszero(wt_timestamp_t *ts)
 {
-#if WT_TIMESTAMP_SIZE == 8
+#ifdef WT_TIMESTAMP_UINT64
 	return (*ts == 0);
 #else
 	static const wt_timestamp_t zero_timestamp;
@@ -62,7 +62,7 @@ __wt_timestamp_iszero(wt_timestamp_t *ts)
 static inline void
 __wt_timestamp_set_inf(wt_timestamp_t *ts)
 {
-#if WT_TIMESTAMP_SIZE == 8
+#ifdef WT_TIMESTAMP_UINT64
 	*ts = UINT64_MAX;
 #else
 	memset(ts, 0xff, WT_TIMESTAMP_SIZE);
@@ -76,13 +76,13 @@ __wt_timestamp_set_inf(wt_timestamp_t *ts)
 static inline void
 __wt_timestamp_set_zero(wt_timestamp_t *ts)
 {
-#if WT_TIMESTAMP_SIZE == 8
+#ifdef WT_TIMESTAMP_UINT64
 	*ts = 0;
 #else
 	memset(ts, 0x00, WT_TIMESTAMP_SIZE);
 #endif
 }
-#endif
+#endif	/* HAVE_TIMESTAMPS */
 
 /*
  * __txn_next_op --

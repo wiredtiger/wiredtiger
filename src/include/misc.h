@@ -251,19 +251,30 @@
 
 /* Timestamp type and helper macros. */
 #if WT_TIMESTAMP_SIZE > 0
-#define	HAVE_TIMESTAMPS 1
+#define	HAVE_TIMESTAMPS
 #else
-#undef HAVE_TIMESTAMPS
+#undef	HAVE_TIMESTAMPS
 #endif
 
 #ifdef HAVE_TIMESTAMPS
 #if WT_TIMESTAMP_SIZE == 8
+#define	WT_TIMESTAMP_UINT64
+#else
+#undef	WT_TIMESTAMP_UINT64
+#endif
+#endif
+
+#ifdef HAVE_TIMESTAMPS
+#ifdef WT_TIMESTAMP_UINT64
 typedef uint64_t wt_timestamp_t;
 #define	WT_TIMESTAMP(x)		((wt_timestamp_t *)(&(x)))
 #else
 typedef uint8_t wt_timestamp_t[WT_TIMESTAMP_SIZE];
 #define	WT_TIMESTAMP(x)		((wt_timestamp_t *)(x))
 #endif
+#endif
+
+#ifdef HAVE_TIMESTAMPS
 #define	WT_DECL_TIMESTAMP(x)	wt_timestamp_t x;
 
 #define	WT_TIMESTAMP_CMP(ts1, ts2)					\
