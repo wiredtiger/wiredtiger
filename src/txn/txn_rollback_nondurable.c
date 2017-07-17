@@ -45,6 +45,68 @@ __txn_rollback_nondurable_commits_check(
 }
 
 /*
+ * __txn_rollback_nondurable_lookaside_fixup --
+ *	Remove any updates that need to be rolled back from the lookaside file.
+ */
+static int
+__txn_rollback_nondurable_lookaside_fixup(
+    WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_CURSOR *cursor;
+	WT_ITEM las_addr, las_key, las_timestamp;
+	WT_DECL_RET;
+	uint64_t las_counter, las_txnid, remove_cnt;
+	uint32_t las_id, session_flags;
+
+	conn = S2C(session);
+	cursor = NULL;
+	remove_cnt = 0;
+	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
+	WT_CLEAR(las_timestamp);
+
+	__wt_las_cursor(session, &cursor, &session_flags);
+
+	/* Discard pages we read as soon as we're done with them. */
+	F_SET(session, WT_SESSION_NO_CACHE);
+
+	/* Walk the file. */
+	for (; (ret = cursor->next(cursor)) == 0; ) {
+
+		WT_ERR(cursor->get_key(cursor, &las_id, &las_addr, &las_counter,
+		    &las_txnid, &las_timestamp, &las_key));
+
+		/* Check the file ID so we can skip durable tables */
+		if (__bit_test(conn->nondurable_rollback_bitstring, las_id))
+			continue;
+
+		if (!__wt_timestamp_iszero(las_timestamp.data) &&
+		    __wt_timestamp_cmp(
+		    rollback_timestamp, las_timestamp.data) < 0) {
+			WT_ERR(cursor->remove(cursor));
+			++remove_cnt;
+		}
+	}
+
+	WT_ERR_NOTFOUND_OK(ret);
+
+err:	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
+
+	/*
+	 * If there were races to remove records, we can over-count. Underflow
+	 * isn't fatal, but check anyway so we don't skew low over time.
+	 */
+	if (remove_cnt > conn->las_record_cnt)
+		conn->las_record_cnt = 0;
+	else if (remove_cnt > 0)
+		(void)__wt_atomic_sub64(&conn->las_record_cnt, remove_cnt);
+
+	F_CLR(session, WT_SESSION_NO_CACHE);
+
+	return (ret);
+}
+
+/*
  * __txn_abort_newer_update --
  *	Review an update chain
  */
@@ -226,8 +288,15 @@ __txn_rollback_nondurable_commits_btree(
 
 	/* Logged files don't get their commits wiped - that wouldn't be safe */
 	if (FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED) &&
-	    !F_ISSET(btree, WT_BTREE_NO_LOGGING))
+	    !F_ISSET(btree, WT_BTREE_NO_LOGGING)) {
+		/*
+		 * Add the btree ID to the bitstring, so we can exclude any
+		 * lookaside entries for this btree.
+		 */
+		__bit_set(
+		    S2C(session)->nondurable_rollback_bitstring, btree->id);
 		return (0);
+	}
 
 	/* There is never anything to do for checkpoint handles */
 	if (session->dhandle->checkpoint != NULL)
@@ -286,10 +355,12 @@ __wt_txn_rollback_nondurable_commits(
 	    "requires a version of WiredTiger built with timestamp "
 	    "support");
 #else
+	WT_CONNECTION_IMPL *conn;
 	WT_CONFIG_ITEM cval;
 	WT_DECL_RET;
 	WT_DECL_TIMESTAMP(rollback_timestamp)
 
+	conn = S2C(session);
 	/*
 	 * Get the timestamp.
 	 */
@@ -303,8 +374,21 @@ __wt_txn_rollback_nondurable_commits(
 	WT_RET(__txn_rollback_nondurable_commits_check(
 	    session, rollback_timestamp));
 
-	WT_RET(__wt_conn_btree_apply(session,
+	/* Allocate a non-durable btree bitstring */
+	WT_RET(__bit_alloc(session,
+	    conn->next_file_id, conn->nondurable_rollback_bitstring));
+	WT_ERR(__wt_conn_btree_apply(session,
 	    NULL, __txn_rollback_nondurable_commits_btree, NULL, cfg));
-	return (0);
+
+	/*
+	 * Clear any offending content from the lookaside file. This must be
+	 * done after the in-memory application, since the process of walking
+	 * trees in cache populates a list that is used to check which
+	 * lookaside records should be removed.
+	 */
+	WT_ERR(__txn_rollback_nondurable_lookaside_fixup(
+	    session, rollback_timestamp));
+err:	__wt_free(session, conn->nondurable_rollback_bitstring);
+	return (ret);
 #endif
 }
