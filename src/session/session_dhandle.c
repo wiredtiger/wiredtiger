@@ -168,7 +168,7 @@ __wt_session_lock_dhandle(
 		 * give up.
 		 */
 		if (F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS)) {
-			ret = (EBUSY);
+			ret = EBUSY;
 			break;
 		}
 

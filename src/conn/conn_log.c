@@ -628,13 +628,13 @@ __log_file_server(void *arg)
 		}
 
 		/* Wait until the next event. */
-		WT_STAT_CONN_INCRV(session, log_server_sync_blocked, yield_cnt);
 		__wt_cond_wait(session, conn->log_file_cond, 100000, NULL);
 	}
 
 	if (0) {
 err:		WT_PANIC_MSG(session, ret, "log close server error");
 	}
+	WT_STAT_CONN_INCRV(session, log_server_sync_blocked, yield_cnt);
 	if (locked)
 		__wt_spin_unlock(session, &log->log_sync_lock);
 	return (WT_THREAD_RET_VALUE);
