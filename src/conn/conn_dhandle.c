@@ -151,7 +151,6 @@ __wt_conn_btree_sync_and_close(WT_SESSION_IMPL *session, bool final, bool force)
 	btree = S2BT(session);
 	bm = btree->bm;
 	dhandle = session->dhandle;
-	marked_dead = false;
 
 	if (!F_ISSET(dhandle, WT_DHANDLE_OPEN))
 		return (0);
@@ -190,30 +189,37 @@ __wt_conn_btree_sync_and_close(WT_SESSION_IMPL *session, bool final, bool force)
 	 * memory mapped trees contain pointers into memory that will become
 	 * invalid if the mapping is closed.
 	 */
+	marked_dead = false;
 	if (!F_ISSET(btree,
 	    WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
-		if (force && (bm == NULL || !bm->is_mapped(bm, session))) {
-			F_SET(session->dhandle, WT_DHANDLE_DEAD);
+		if (force && (bm == NULL || !bm->is_mapped(bm, session)))
 			marked_dead = true;
-
-			/* Reset the tree's eviction priority (if any). */
-			__wt_evict_priority_clear(session);
-		}
 		if (!marked_dead || final) {
-			if ((ret = __wt_checkpoint_close(
-			    session, final)) == EBUSY)
+			WT_TRET(__wt_checkpoint_close(session, final));
+			if (ret == EBUSY)
 				WT_ERR(ret);
-			else
-				WT_TRET(ret);
 		}
 	}
 
+	/* Reset the tree's eviction priority (if any). */
+	__wt_evict_priority_clear(session);
+
+	/* Discard the underlying btree handle. */
 	WT_TRET(__wt_btree_close(session));
 	F_CLR(btree, WT_BTREE_SPECIAL_FLAGS);
 
 	/*
-	 * If we marked a handle dead it will be closed by sweep, via
-	 * another call to sync and close.
+	 * If marking the handle dead, do so after closing the underlying btree.
+	 * (Don't do it before that, the block manager asserts there are never
+	 * two references to a block manager object, and it's possible to open
+	 * another handle once we mark this handle dead.)
+	 */
+	if (marked_dead)
+		F_SET(session->dhandle, WT_DHANDLE_DEAD);
+
+	/*
+	 * If we marked a handle dead it will be closed by sweep, via another
+	 * call to sync and close.
 	 */
 	if (!marked_dead) {
 		F_CLR(dhandle, WT_DHANDLE_OPEN);
