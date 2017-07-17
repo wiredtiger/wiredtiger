@@ -20,7 +20,7 @@ static int __checkpoint_tree_helper(WT_SESSION_IMPL *, const char *[]);
  *	Dump out the 8 bytes of the timestamp.
  */
 void
-__wt_timestamp_dump(WT_SESSION_IMPL *session, char *msg, uint8_t *ts)
+__wt_timestamp_dump(WT_SESSION_IMPL *session, const char *msg, uint8_t *ts)
 {
 	/* For now just assume 8 bytes */
 	__wt_errx(session, "%s: %d %d %d %d %d %d %d %d", msg, ts[0], ts[1],
