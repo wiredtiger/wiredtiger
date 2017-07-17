@@ -16,6 +16,18 @@ static int __checkpoint_presync(WT_SESSION_IMPL *, const char *[]);
 static int __checkpoint_tree_helper(WT_SESSION_IMPL *, const char *[]);
 
 /*
+ * __wt_timestamp_dump --
+ *	Dump out the 8 bytes of the timestamp.
+ */
+void
+__wt_timestamp_dump(WT_SESSION_IMPL *session, char *msg, uint8_t *ts)
+{
+	/* For now just assume 8 bytes */
+	__wt_errx(session, "%s: %d %d %d %d %d %d %d %d", msg, ts[0], ts[1],
+	    ts[2], ts[3], ts[4], ts[5], ts[6], ts[7]);
+}
+
+/*
  * __checkpoint_name_ok --
  *	Complain if the checkpoint name isn't acceptable.
  */
@@ -590,8 +602,9 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	if (cval.len > 0) {
 		WT_RET(__wt_snprintf(timestamp_config, sizeof(timestamp_config),
 		    "read_timestamp=%.*s", (int)cval.len, cval.str));
+		__wt_timestamp_dump(session, "USER TS", (uint8_t *)cval.str);
 		txn_cfg[2] = timestamp_config;
-	} else {
+	} else if (txn_global->has_oldest_timestamp) {
 		WT_RET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
 		/*
 		 * Get the oldest reader timestamp currently set.
@@ -601,6 +614,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 			    timestamp_buf, query_cfg)) != 0 &&
 			    ret != WT_NOTFOUND)
 				return (ret);
+			__wt_timestamp_dump(session, "QUERY", (uint8_t *)timestamp_buf);
 			WT_RET(__wt_snprintf(timestamp_config,
 			    sizeof(timestamp_config),
 			    "read_timestamp=%s", timestamp_buf));

@@ -48,6 +48,9 @@ __wt_txn_parse_timestamp(WT_SESSION_IMPL *session,
 		hexts = padbuf;
 		hexlen = cval->len + 1;
 	}
+#if 0
+	__wt_timestamp_dump(session, "PARSE", (uint8_t *)hexts);
+#endif
 
 	/* Avoid memory allocation to decode timestamps. */
 	ts.data = ts.mem = tsbuf;
