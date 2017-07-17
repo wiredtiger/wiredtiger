@@ -614,7 +614,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 			    timestamp_buf, query_cfg)) != 0 &&
 			    ret != WT_NOTFOUND)
 				return (ret);
-			__wt_timestamp_dump(session, "QUERY", (uint8_t *)timestamp_buf);
+			__wt_timestamp_dump(session, "QUERY",
+			    (uint8_t *)timestamp_buf);
 			WT_RET(__wt_snprintf(timestamp_config,
 			    sizeof(timestamp_config),
 			    "read_timestamp=%s", timestamp_buf));
