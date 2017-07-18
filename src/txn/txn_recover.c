@@ -129,6 +129,11 @@ __txn_op_apply(
 		if ((ret = cursor->search(cursor)) != 0)
 			WT_ERR_NOTFOUND_OK(ret);
 		else {
+			/*
+			 * Build/insert a complete value during recovery rather
+			 * than using cursor modify to create a partial update
+			 * (for no particular reason than simplicity).
+			 */
 			WT_ERR(__wt_modify_apply(
 			    session, &cursor->value, value.data));
 			WT_ERR(cursor->insert(cursor));
@@ -192,6 +197,11 @@ __txn_op_apply(
 		if ((ret = cursor->search(cursor)) != 0)
 			WT_ERR_NOTFOUND_OK(ret);
 		else {
+			/*
+			 * Build/insert a complete value during recovery rather
+			 * than using cursor modify to create a partial update
+			 * (for no particular reason than simplicity).
+			 */
 			WT_ERR(__wt_modify_apply(
 			    session, &cursor->value, value.data));
 			WT_ERR(cursor->insert(cursor));

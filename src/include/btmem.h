@@ -893,10 +893,10 @@ WT_PACKED_STRUCT_BEGIN(__wt_update)
 
 	uint32_t size;			/* data length */
 
-#define	WT_UPDATE_STANDARD	0
-#define	WT_UPDATE_DELETED	1
-#define	WT_UPDATE_MODIFIED	2
-#define	WT_UPDATE_RESERVED	3
+#define	WT_UPDATE_STANDARD	0	/* complete value */
+#define	WT_UPDATE_DELETED	1	/* deleted */
+#define	WT_UPDATE_MODIFIED	2	/* partial-update modify value */
+#define	WT_UPDATE_RESERVED	3	/* reserved */
 	uint8_t type;			/* type (one byte to conserve memory) */
 
 	/* The update includes a complete value. */
