@@ -113,7 +113,7 @@ __wt_timestamp_set_zero(wt_timestamp_t *ts)
 {
 	memset(ts->ts, 0x00, WT_TIMESTAMP_SIZE);
 }
-#endif /* WT_TIMESTAMP_SIZE == 8 */ 
+#endif /* WT_TIMESTAMP_SIZE == 8 */
 #endif /* HAVE_TIMESTAMPS */
 
 /*
