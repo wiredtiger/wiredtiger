@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -27,13 +27,8 @@
  *
  * ex_event_handler.c
  *	Demonstrate how to use the WiredTiger event handler mechanism.
- *
  */
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include <wiredtiger.h>
+#include <test_util.h>
 
 static const char *home;
 
@@ -70,6 +65,10 @@ handle_wiredtiger_error(WT_EVENT_HANDLER *handler,
 	    "app_id %s, thread context %p, error %d, message %s\n",
 	    custom_handler->app_id, (void *)session, error, message);
 
+	/* Exit if the database has a fatal error. */
+	if (error == WT_PANIC)
+		exit (1);
+
 	return (0);
 }
 
@@ -90,12 +89,11 @@ handle_wiredtiger_message(
 }
 /*! [Function event_handler] */
 
-static int
+static void
 config_event_handler(void)
 {
 	WT_CONNECTION *conn;
 	WT_SESSION *session;
-	int ret;
 
 	/*! [Configure event_handler] */
 	CUSTOM_EVENT_HANDLER event_handler;
@@ -107,35 +105,25 @@ config_event_handler(void)
 	event_handler.h.handle_close = NULL;
 	event_handler.app_id = "example_event_handler";
 
-	ret = wiredtiger_open(home,
-	    (WT_EVENT_HANDLER *)&event_handler, "create", &conn);
+	error_check(wiredtiger_open(home,
+	    (WT_EVENT_HANDLER *)&event_handler, "create", &conn));
 	/*! [Configure event_handler] */
 
 	/* Make an invalid API call, to ensure the event handler works. */
-	printf("ex_event_handler: expect an error message to follow\n");
-	ret = conn->open_session(conn, NULL, "isolation=invalid", &session);
+	fprintf(stderr,
+	    "ex_event_handler: expect an error message to follow:\n");
+	(void)conn->open_session(conn, NULL, "isolation=invalid", &session);
+	fprintf(stderr, "ex_event_handler: end of error message\n");
 
-	ret = conn->close(conn, NULL);
-
-	return (ret);
+	error_check(conn->close(conn, NULL));
 }
 
 int
-main(void)
+main(int argc, char *argv[])
 {
-	int ret;
+	home = example_setup(argc, argv);
 
-	/*
-	 * Create a clean test directory for this run of the test program if the
-	 * environment variable isn't already set (as is done by make check).
-	 */
-	if (getenv("WIREDTIGER_HOME") == NULL) {
-		home = "WT_HOME";
-		ret = system("rm -rf WT_HOME && mkdir WT_HOME");
-	} else
-		home = NULL;
+	config_event_handler();
 
-	ret = config_event_handler();
-
-	return (ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
+	return (EXIT_SUCCESS);
 }

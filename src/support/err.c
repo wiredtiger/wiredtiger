@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -144,6 +144,8 @@ __wt_event_handler_set(WT_SESSION_IMPL *session, WT_EVENT_HANDLER *handler)
 			handler->handle_message = __handle_message_default;
 		if (handler->handle_progress == NULL)
 			handler->handle_progress = __handle_progress_default;
+		if (handler->handle_close == NULL)
+			handler->handle_close = __handle_close_default;
 	}
 
 	session->event_handler = handler;
@@ -359,6 +361,22 @@ __wt_ext_err_printf(
 }
 
 /*
+ * __wt_verbose_worker --
+ * 	Verbose message.
+ */
+void
+__wt_verbose_worker(WT_SESSION_IMPL *session, const char *fmt, ...)
+    WT_GCC_FUNC_ATTRIBUTE((format (printf, 2, 3)))
+    WT_GCC_FUNC_ATTRIBUTE((cold))
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	WT_IGNORE_RET(__wt_eventv(session, true, 0, NULL, 0, fmt, ap));
+	va_end(ap);
+}
+
+/*
  * info_msg --
  * 	Informational message.
  */
@@ -500,8 +518,12 @@ __wt_panic(WT_SESSION_IMPL *session)
 #if defined(HAVE_DIAGNOSTIC)
 	__wt_abort(session);			/* Drop core if testing. */
 	/* NOTREACHED */
-#else
+#endif
+#if !defined(HAVE_DIAGNOSTIC) || defined(_WIN32)
 	/*
+	 * Confusing #ifdef structure because gcc knows we can't get here and
+	 * Visual Studio doesn't.
+	 *
 	 * Chaos reigns within.
 	 * Reflect, repent, and reboot.
 	 * Order shall return.
@@ -523,12 +545,23 @@ __wt_illegal_value(WT_SESSION_IMPL *session, const char *name)
 	    name == NULL ? "" : name, name == NULL ? "" : ": ",
 	    "encountered an illegal file format or internal value");
 
-#if defined(HAVE_DIAGNOSTIC)
-	__wt_abort(session);			/* Drop core if testing. */
-	/* NOTREACHED */
-#else
 	return (__wt_panic(session));
-#endif
+}
+
+/*
+ * __wt_inmem_unsupported_op --
+ *	Print a standard error message for an operation that's not supported
+ * for in-memory configurations.
+ */
+int
+__wt_inmem_unsupported_op(WT_SESSION_IMPL *session, const char *tag)
+    WT_GCC_FUNC_ATTRIBUTE((cold))
+{
+	if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+		WT_RET_MSG(session, ENOTSUP,
+		    "%s%snot supported for in-memory configurations",
+		    tag == NULL ? "" : tag, tag == NULL ? "" : ": ");
+	return (0);
 }
 
 /*

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -25,21 +25,21 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
-#include "wt_internal.h"			/* For __wt_XXX */
+#include "wt_internal.h"
 
 #ifdef _WIN32
-	#define DIR_DELIM '\\'
-	#define DIR_DELIM_STR "\\"
-	#define DIR_EXISTS_COMMAND "IF EXIST "
-	#define RM_COMMAND "rd /s /q "
+#define	DIR_DELIM		'\\'
+#define	DIR_DELIM_STR		"\\"
+#define	DIR_EXISTS_COMMAND	"IF EXIST "
+#define	RM_COMMAND		"rd /s /q "
 #else
-	#define	DIR_DELIM '/'
-	#define	DIR_DELIM_STR "/"
-	#define RM_COMMAND "rm -rf "
+#define	DIR_DELIM		'/'
+#define	DIR_DELIM_STR		"/"
+#define	RM_COMMAND		"rm -rf "
 #endif
 
-#define	DEFAULT_DIR "WT_TEST"
-#define	MKDIR_COMMAND "mkdir "
+#define	DEFAULT_DIR	"WT_TEST"
+#define	MKDIR_COMMAND	"mkdir "
 
 #ifdef _WIN32
 #include "windows_shim.h"
@@ -72,8 +72,19 @@ typedef struct {
 	bool	   running;
 	char	  *uri;
 	volatile uint64_t   next_threadid;
+	uint64_t   unique_id;
 	uint64_t   max_inserted_id;
 } TEST_OPTS;
+
+/*
+ * A structure for the data specific to a single thread of those used by the
+ * group of threads defined below.
+ */
+typedef struct {
+	TEST_OPTS *testopts;
+	int threadnum;
+	int thread_counter;
+} TEST_PER_THREAD_OPTS;
 
 /*
  * testutil_assert --
@@ -115,6 +126,20 @@ typedef struct {
 		testutil_die(__r, "%s/%d: %s: " fmt,			\
 		    __func__, __LINE__, #call, __VA_ARGS__);		\
 } while (0)
+
+/*
+ * error_check --
+ *	Complain and quit if a function call fails. The same as testutil_check,
+ * but with a different name because it appears in the documentation.
+ */
+#define	error_check(call)	testutil_check(call)
+
+/*
+ * scan_end_check --
+ *	Complain and quit if something isn't true. The same as testutil_assert,
+ * with a different name because it appears in the documentation.
+ */
+#define	scan_end_check(a)	testutil_assert(a)
 
 /*
  * u64_to_string --
@@ -183,15 +208,28 @@ void *dmalloc(size_t);
 void *drealloc(void *, size_t);
 void *dstrdup(const void *);
 void *dstrndup(const char *, size_t);
-void  testutil_clean_work_dir(const char *);
-void  testutil_cleanup(TEST_OPTS *);
-bool  testutil_enable_long_tests(void);
-void  testutil_make_work_dir(char *);
-int   testutil_parse_opts(int, char * const *, TEST_OPTS *);
-void  testutil_work_dir_from_path(char *, size_t, const char *);
-void *thread_append(void *);
-void *thread_insert_append(void *);
-void *thread_prev(void *);
+const char *example_setup(int, char * const *);
+
+/*
+ * The functions below can generate errors that we wish to ignore. We have
+ * handler functions available for them here, to avoid making tests crash
+ * prematurely.
+ */
+int handle_op_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *);
+int handle_op_message(WT_EVENT_HANDLER *, WT_SESSION *, const char *);
+void op_bulk(void *);
+void op_bulk_unique(void *);
+void op_create(void *);
+void op_create_unique(void *);
+void op_cursor(void *);
+void op_drop(void *);
+void testutil_clean_work_dir(const char *);
+void testutil_cleanup(TEST_OPTS *);
+bool testutil_is_flag_set(const char *);
+void testutil_make_work_dir(const char *);
+int  testutil_parse_opts(int, char * const *, TEST_OPTS *);
+void testutil_work_dir_from_path(char *, size_t, const char *);
+WT_THREAD_RET thread_append(void *);
 
 extern const char *progname;
 const char *testutil_set_progname(char * const *);

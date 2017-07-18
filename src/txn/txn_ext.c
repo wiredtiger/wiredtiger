@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -101,5 +101,5 @@ __wt_ext_transaction_visible(
 	(void)wt_api;					/* Unused parameters */
 
 	return (__wt_txn_visible(
-	    (WT_SESSION_IMPL *)wt_session, transaction_id));
+	    (WT_SESSION_IMPL *)wt_session, transaction_id, NULL));
 }

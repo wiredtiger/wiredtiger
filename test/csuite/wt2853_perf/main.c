@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -82,7 +82,8 @@ main(int argc, char *argv[])
 	int i, nfail;
 	const char *tablename;
 
-	if (!testutil_enable_long_tests())	/* Ignore unless requested */
+	/* Ignore unless requested */
+	if (!testutil_is_flag_set("TESTUTIL_ENABLE_LONG_TESTS"))
 		return (EXIT_SUCCESS);
 
 	opts = &_opts;
@@ -148,8 +149,8 @@ main(int argc, char *argv[])
 		insert_args[i].nthread = N_INSERT_THREAD;
 		insert_args[i].testopts = opts;
 		insert_args[i].sharedopts = sharedopts;
-		testutil_check(pthread_create(&insert_tid[i], NULL,
-		    thread_insert, (void *)&insert_args[i]));
+		testutil_check(pthread_create(
+		    &insert_tid[i], NULL, thread_insert, &insert_args[i]));
 	}
 
 	for (i = 0; i < N_GET_THREAD; ++i) {
@@ -157,8 +158,8 @@ main(int argc, char *argv[])
 		get_args[i].nthread = N_GET_THREAD;
 		get_args[i].testopts = opts;
 		get_args[i].sharedopts = sharedopts;
-		testutil_check(pthread_create(&get_tid[i], NULL,
-		    thread_get, (void *)&get_args[i]));
+		testutil_check(pthread_create(
+		    &get_tid[i], NULL, thread_get, &get_args[i]));
 	}
 
 	/*

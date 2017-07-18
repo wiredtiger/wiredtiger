@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2016 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -127,7 +127,7 @@ class test_txn05(wttest.WiredTigerTestCase, suite_subprocess):
             self.scenario_number % len(self.archive_list)]
         backup_conn_params = \
             'log=(enabled,file_max=%s,archive=%s)' % (self.logmax, self.archive)
-        orig_logs = fnmatch.filter(os.listdir(self.backup_dir), "*Log*")
+        orig_logs = fnmatch.filter(os.listdir(self.backup_dir), "*gerLog*")
         endcount = 2
         count = 0
         while count < endcount:
@@ -137,12 +137,12 @@ class test_txn05(wttest.WiredTigerTestCase, suite_subprocess):
                  session = backup_conn.open_session()
             finally:
                 self.check(session, None, committed)
-                # Force a checkpoint because we don't record the recovery
-                # checkpoint as available for archiving.
-                session.checkpoint("force")
                 # Sleep long enough so that the archive thread is guaranteed
                 # to run before we close the connection.
                 time.sleep(1.0)
+                if count == 0:
+                    first_logs = \
+                        fnmatch.filter(os.listdir(self.backup_dir), "*gerLog*")
                 backup_conn.close()
             count += 1
         #
@@ -150,8 +150,13 @@ class test_txn05(wttest.WiredTigerTestCase, suite_subprocess):
         # have been archived if configured. Subsequent openings would not
         # archive because no checkpoint is written due to no modifications.
         #
-        cur_logs = fnmatch.filter(os.listdir(self.backup_dir), "*Log*")
+        cur_logs = fnmatch.filter(os.listdir(self.backup_dir), "*gerLog*")
         for o in orig_logs:
+            # Creating the backup was effectively an unclean shutdown so
+            # even after sleeping, we should never archive log files
+            # because a checkpoint has not run.  Later opens and runs of
+            # recovery will detect a clean shutdown and allow archiving.
+            self.assertEqual(True, o in first_logs)
             if self.archive == 'true':
                 self.assertEqual(False, o in cur_logs)
             else:

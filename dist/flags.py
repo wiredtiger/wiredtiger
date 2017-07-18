@@ -8,6 +8,9 @@ flags = {
 ###################################################
 # Internal routine flag declarations
 ###################################################
+    'diagnostic_timing_stress' : [
+        'TIMING_STRESS_CHECKPOINT_SLOW',
+    ],
     'log_scan' : [
         'LOGSCAN_FIRST',
         'LOGSCAN_FROM_CKP',
@@ -32,7 +35,6 @@ flags = {
         'READ_PREV',
         'READ_RESTART_OK',
         'READ_SKIP_INTL',
-        'READ_SKIP_LEAF',
         'READ_TRUNCATE',
         'READ_WONT_NEED',
     ],
@@ -68,6 +70,7 @@ flags = {
         'VERB_FILEOPS',
         'VERB_HANDLEOPS',
         'VERB_LOG',
+        'VERB_LOOKASIDE',
         'VERB_LSM',
         'VERB_LSM_MANAGER',
         'VERB_METADATA',

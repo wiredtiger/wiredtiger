@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -57,14 +57,12 @@ __wt_gen_next(WT_SESSION_IMPL *session, int which)
 	return (__wt_atomic_addv64(&S2C(session)->generations[which], 1));
 }
 
-#if 0
 /*
  * __wt_gen_next_drain --
  *	Switch the resource to its next generation, then wait for it to drain.
  */
 uint64_t
-	TABBED IN to avoid dist/ functions:
-	__wt_gen_next_drain(WT_SESSION_IMPL *session, int which)
+__wt_gen_next_drain(WT_SESSION_IMPL *session, int which)
 {
 	uint64_t v;
 
@@ -80,8 +78,7 @@ uint64_t
  *	Wait for the resource to drain.
  */
 void
-	TABBED IN to avoid dist/ functions:
-	__wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
+__wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_SESSION_IMPL *s;
@@ -109,8 +106,21 @@ void
 			/* Ensure we only read the value once. */
 			WT_ORDERED_READ(v, s->generations[which]);
 
-			if (v == 0 || generation <= v)
+			/*
+			 * The generation argument is newer than the limit. Wait
+			 * for threads in generations older than the argument
+			 * generation, threads in argument generations are OK.
+			 *
+			 * The thread's generation may be 0 (that is, not set).
+			 */
+			if (v == 0 || v >= generation)
 				break;
+
+			/* If we're waiting on ourselves, we're deadlocked. */
+			if (session == s) {
+				WT_ASSERT(session, session != s);
+				WT_IGNORE_RET(__wt_panic(session));
+			}
 
 			/*
 			 * The pause count is cumulative, quit spinning if it's
@@ -124,7 +134,6 @@ void
 		}
 	}
 }
-#endif
 
 /*
  * __wt_gen_oldest --
@@ -156,6 +165,7 @@ __wt_gen_oldest(WT_SESSION_IMPL *session, int which)
 
 		/* Ensure we only read the value once. */
 		WT_ORDERED_READ(v, s->generations[which]);
+
 		if (v != 0 && v < oldest)
 			oldest = v;
 	}
@@ -328,7 +338,7 @@ __wt_stash_discard_all(WT_SESSION_IMPL *session_safe, WT_SESSION_IMPL *session)
 
 	/*
 	 * This function is called during WT_CONNECTION.close to discard any
-	 * memory that remains.  For that reason, we take two WT_SESSION_IMPL
+	 * memory that remains. For that reason, we take two WT_SESSION_IMPL
 	 * arguments: session_safe is still linked to the WT_CONNECTION and
 	 * can be safely used for calls to other WiredTiger functions, while
 	 * session is the WT_SESSION_IMPL we're cleaning up.

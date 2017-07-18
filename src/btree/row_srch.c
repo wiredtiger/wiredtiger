@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -591,13 +591,13 @@ leaf_match:	cbt->compare = 0;
 	 */
 	if (base == 0) {
 		cbt->compare = 1;
-		cbt->slot = WT_ROW_SLOT(page, page->pg_row);
+		cbt->slot = 0;
 
 		F_SET(cbt, WT_CBT_SEARCH_SMALLEST);
 		ins_head = WT_ROW_INSERT_SMALLEST(page);
 	} else {
 		cbt->compare = -1;
-		cbt->slot = WT_ROW_SLOT(page, page->pg_row + (base - 1));
+		cbt->slot = base - 1;
 
 		ins_head = WT_ROW_INSERT_SLOT(page, cbt->slot);
 	}

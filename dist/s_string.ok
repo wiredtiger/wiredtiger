@@ -305,6 +305,7 @@ RMW
 RNG
 RPC
 RUNDIR
+RWLOCK
 RXB
 Radu
 ReadFile
@@ -344,6 +345,7 @@ Split's
 Stoica
 StoreLoad
 StoreStore
+Su
 Syscall
 TAILQ
 TCMalloc
@@ -353,6 +355,8 @@ TORTIOUS
 TSO
 TXN
 TXNC
+ThreadList
+ThreadListWrapper
 Timespec
 Timestamp
 TryCV
@@ -515,11 +519,13 @@ change's
 changelog
 chdir
 checkfmt
+checkkey
 checkpointed
 checkpointer
 checkpointing
 checksum
 checksums
+checkvalue
 children's
 chk
 chmod
@@ -684,6 +690,7 @@ extern
 extlist
 fadvise
 fallocate
+fallthrough
 fblocks
 fc
 fclose
@@ -731,6 +738,7 @@ fsyncLock
 fsyncs
 ftruncate
 func
+fvisibility
 gcc
 gdb
 ge
@@ -796,6 +804,7 @@ initn
 initsize
 initval
 inline
+inlined
 inmem
 inmemory
 insertK
@@ -806,6 +815,7 @@ intl
 intnum
 intpack
 intptr
+intr
 intrin
 inuse
 io
@@ -824,6 +834,7 @@ isrc
 isspace
 isupper
 isxdigit
+iszero
 iter
 iteratively
 iters
@@ -864,7 +875,9 @@ llll
 llu
 loadtext
 localTime
+localkey
 localtime
+localvalue
 logf
 logmgr
 lognum
@@ -938,7 +951,10 @@ nbits
 nchunks
 nclr
 nd
+needkey
+needvalue
 negint
+nentries
 newbar
 newfile
 newuri
@@ -957,6 +973,7 @@ noraw
 notfound
 notsup
 notused
+novalue
 nowait
 nset
 nsnap
@@ -1018,6 +1035,7 @@ prepended
 prepending
 presize
 presync
+prevlsn
 primary's
 printf
 printlog
@@ -1081,11 +1099,13 @@ rotN
 rotn
 rp
 rpc
+ru
 run's
 runtime
 rwlock
 sH
 sHQ
+sT
 scalability
 sched
 scr
@@ -1162,7 +1182,9 @@ testutil
 th
 tid
 timestamp
+timestamps
 tmp
+todo
 tokenizer
 toklen
 tokname
@@ -1186,6 +1208,7 @@ txnid
 txnmin
 txt
 typedef
+typemaps
 uB
 uS
 ui
@@ -1218,6 +1241,7 @@ unregister
 unsized
 unterminated
 untyped
+unvisited
 upd
 update's
 upg
@@ -1241,6 +1265,7 @@ valuep
 valuev
 vanishingly
 variable's
+variadic
 vectorized
 versa
 vfprintf
@@ -1264,8 +1289,10 @@ wb
 wcursor
 whitespace
 wiredTiger
+wiredTigerTables
 wiredtiger
 workFactor
+workgen
 wrapup
 writeable
 writelock

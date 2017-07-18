@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2016 MongoDB, Inc.
+# Public Domain 2014-2017 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -50,12 +50,12 @@ class test_txn11(wttest.WiredTigerTestCase, suite_subprocess):
             'transaction_sync=(enabled=false),'
 
     def run_checkpoints(self):
-        orig_logs = fnmatch.filter(os.listdir(self.home), "*Log*")
+        orig_logs = fnmatch.filter(os.listdir(self.home), "*gerLog*")
         checkpoints = 0
         sorig = set(orig_logs)
         while checkpoints < 500:
             self.session.checkpoint()
-            cur_logs = fnmatch.filter(os.listdir(self.home), "*Log*")
+            cur_logs = fnmatch.filter(os.listdir(self.home), "*gerLog*")
             scur = set(cur_logs)
             if scur.isdisjoint(sorig):
                 break

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -1884,6 +1884,8 @@ __slvg_row_build_leaf(
 	WT_SALVAGE_COOKIE *cookie, _cookie;
 	uint32_t i, skip_start, skip_stop;
 	int cmp;
+
+	WT_UNUSED(ss);					/* !HAVE_VERBOSE */
 
 	btree = S2BT(session);
 	page = NULL;

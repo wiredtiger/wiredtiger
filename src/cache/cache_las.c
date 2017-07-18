@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -140,8 +140,9 @@ __wt_las_set_written(WT_SESSION_IMPL *session)
 		conn->las_written = true;
 
 		/*
-		 * Push the flag: unnecessary, but from now page reads must deal
-		 * with lookaside table records, and we only do the write once.
+		 * Future page reads must deal with lookaside table records.
+		 * No write could be cached until a future read might matter,
+		 * the barrier is more documentation than requirement.
 		 */
 		WT_FULL_BARRIER();
 	}
@@ -287,12 +288,10 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_CURSOR *cursor;
-	WT_DECL_ITEM(las_addr);
-	WT_DECL_ITEM(las_key);
+	WT_ITEM las_addr, las_key, las_timestamp;
 	WT_DECL_RET;
 	WT_ITEM *key;
-	uint64_t cnt, las_counter, las_txnid;
-	int64_t remove_cnt;
+	uint64_t cnt, las_counter, las_txnid, remove_cnt;
 	uint32_t las_id, session_flags;
 	int notused;
 
@@ -301,9 +300,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	key = &conn->las_sweep_key;
 	remove_cnt = 0;
 	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
-
-	WT_ERR(__wt_scr_alloc(session, 0, &las_addr));
-	WT_ERR(__wt_scr_alloc(session, 0, &las_key));
+	WT_CLEAR(las_timestamp);
 
 	__wt_las_cursor(session, &cursor, &session_flags);
 
@@ -341,7 +338,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	 * blocks in the cache in order to get rid of them, and slowly review
 	 * lookaside blocks that have already been evicted.
 	 */
-	cnt = (uint64_t)WT_MAX(100, conn->las_record_cnt / 30);
+	cnt = WT_MAX(100, conn->las_record_cnt / 30);
 
 	/* Discard pages we read as soon as we're done with them. */
 	F_SET(session, WT_SESSION_NO_CACHE);
@@ -362,8 +359,8 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 				    session, key, key->data, key->size));
 		}
 
-		WT_ERR(cursor->get_key(cursor,
-		    &las_id, las_addr, &las_counter, &las_txnid, las_key));
+		WT_ERR(cursor->get_key(cursor, &las_id, &las_addr, &las_counter,
+		    &las_txnid, &las_timestamp, &las_key));
 
 		/*
 		 * If the on-page record transaction ID associated with the
@@ -372,8 +369,13 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		 * Cursor opened overwrite=true: won't return WT_NOTFOUND should
 		 * another thread remove the record before we do, and the cursor
 		 * remains positioned in that case.
+		 *
+		 * We clear the las_timestamp structure above to avoid reading
+		 * uninitialized memory here when timestamps are disabled (even
+		 * though it is unused in that case).
 		 */
-		if (__wt_txn_visible_all(session, las_txnid)) {
+		if (__wt_txn_visible_all(
+		    session, las_txnid, las_timestamp.data)) {
 			WT_ERR(cursor->remove(cursor));
 			++remove_cnt;
 		}
@@ -389,19 +391,15 @@ err:		__wt_buf_free(session, key);
 	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 
 	/*
-	 * If there were races to remove records, we can over-count.  All
-	 * arithmetic is signed, so underflow isn't fatal, but check anyway so
-	 * we don't skew low over time.
+	 * If there were races to remove records, we can over-count. Underflow
+	 * isn't fatal, but check anyway so we don't skew low over time.
 	 */
-	if (remove_cnt > S2C(session)->las_record_cnt)
-		S2C(session)->las_record_cnt = 0;
+	if (remove_cnt > conn->las_record_cnt)
+		conn->las_record_cnt = 0;
 	else if (remove_cnt > 0)
-		(void)__wt_atomic_subi64(&conn->las_record_cnt, remove_cnt);
+		(void)__wt_atomic_sub64(&conn->las_record_cnt, remove_cnt);
 
 	F_CLR(session, WT_SESSION_NO_CACHE);
-
-	__wt_scr_free(session, &las_addr);
-	__wt_scr_free(session, &las_key);
 
 	return (ret);
 }

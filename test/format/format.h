@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -78,6 +78,8 @@
 
 #define	FORMAT_OPERATION_REPS	3		/* 3 thread operations sets */
 
+#define	MAX_MODIFY_ENTRIES	5		/* maximum change vectors */
+
 typedef struct {
 	char *home;				/* Home directory */
 	char *home_backup;			/* Hot-backup directory */
@@ -121,6 +123,8 @@ typedef struct {
 
 	WT_RAND_STATE rnd;			/* Global RNG state */
 
+	uint64_t timestamp;			/* Counter for timestamps. */
+
 	/*
 	 * We have a list of records that are appended, but not yet "resolved",
 	 * that is, we haven't yet incremented the g.rows value to reflect the
@@ -147,28 +151,29 @@ typedef struct {
 	uint32_t c_bloom_hash_count;
 	uint32_t c_bloom_oldest;
 	uint32_t c_cache;
-	uint32_t c_compact;
 	uint32_t c_checkpoints;
-	char *c_checksum;
+	char	*c_checksum;
 	uint32_t c_chunk_size;
-	char *c_compression;
-	char *c_encryption;
-	char *c_config_open;
+	uint32_t c_compact;
+	char	*c_compat;
+	char	*c_compression;
+	char	*c_config_open;
 	uint32_t c_data_extend;
-	char *c_data_source;
+	char	*c_data_source;
 	uint32_t c_delete_pct;
 	uint32_t c_dictionary;
 	uint32_t c_direct_io;
+	char	*c_encryption;
 	uint32_t c_evict_max;
+	char	*c_file_type;
 	uint32_t c_firstfit;
-	char *c_file_type;
 	uint32_t c_huffman_key;
 	uint32_t c_huffman_value;
 	uint32_t c_in_memory;
 	uint32_t c_insert_pct;
 	uint32_t c_internal_key_truncation;
 	uint32_t c_intl_page_max;
-	char *c_isolation;
+	char	*c_isolation;
 	uint32_t c_key_gap;
 	uint32_t c_key_max;
 	uint32_t c_key_min;
@@ -176,22 +181,23 @@ typedef struct {
 	uint32_t c_leak_memory;
 	uint32_t c_logging;
 	uint32_t c_logging_archive;
-	char *c_logging_compression;
+	char	*c_logging_compression;
 	uint32_t c_logging_prealloc;
 	uint32_t c_long_running_txn;
 	uint32_t c_lsm_worker_threads;
 	uint32_t c_merge_max;
 	uint32_t c_mmap;
+	uint32_t c_modify_pct;
 	uint32_t c_ops;
-	uint32_t c_quiet;
 	uint32_t c_prefix_compression;
 	uint32_t c_prefix_compression_min;
+	uint32_t c_quiet;
+	uint32_t c_read_pct;
+	uint32_t c_rebalance;
 	uint32_t c_repeat_data_pct;
 	uint32_t c_reverse;
 	uint32_t c_rows;
 	uint32_t c_runs;
-	uint32_t c_read_pct;
-	uint32_t c_rebalance;
 	uint32_t c_salvage;
 	uint32_t c_split_pct;
 	uint32_t c_statistics;
@@ -199,6 +205,7 @@ typedef struct {
 	uint32_t c_threads;
 	uint32_t c_timer;
 	uint32_t c_txn_freq;
+	uint32_t c_txn_timestamps;
 	uint32_t c_value_max;
 	uint32_t c_value_min;
 	uint32_t c_verify;
@@ -213,6 +220,11 @@ typedef struct {
 #define	CHECKSUM_ON			2
 #define	CHECKSUM_UNCOMPRESSED		3
 	u_int c_checksum_flag;			/* Checksum flag value */
+
+#define	COMPAT_NONE			1
+#define	COMPAT_V1			2
+#define	COMPAT_V2			3
+	u_int c_compat_flag;			/* Compatibility flag value */
 
 #define	COMPRESS_NONE			1
 #define	COMPRESS_LZ4			2
@@ -256,7 +268,7 @@ typedef struct {
 	uint64_t deadlock;
 
 	int       id;				/* simple thread ID */
-	pthread_t tid;				/* thread ID */
+	wt_thread_t tid;			/* thread ID */
 
 	int quit;				/* thread should quit */
 
@@ -276,9 +288,10 @@ void	 bdb_remove(uint64_t, int *);
 void	 bdb_update(const void *, size_t, const void *, size_t);
 #endif
 
-void	*alter(void *);
-void	*backup(void *);
-void	*compact(void *);
+WT_THREAD_RET alter(void *);
+WT_THREAD_RET backup(void *);
+WT_THREAD_RET compact(void *);
+WT_THREAD_RET compat(void *);
 void	 config_clear(void);
 void	 config_error(void);
 void	 config_file(const char *);
@@ -290,7 +303,7 @@ void	 key_gen(WT_ITEM *, uint64_t);
 void	 key_gen_insert(WT_RAND_STATE *, WT_ITEM *, uint64_t);
 void	 key_gen_setup(WT_ITEM *);
 void	 key_len_setup(void);
-void	*lrt(void *);
+WT_THREAD_RET lrt(void *);
 void	 path_setup(const char *);
 int	 read_row(WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t);
 uint32_t rng(WT_RAND_STATE *);
@@ -312,10 +325,17 @@ void	 wts_verify(const char *);
 
 /*
  * mmrand --
- *	Return a random value between a min/max pair.
+ *	Return a random value between a min/max pair, inclusive.
  */
 static inline uint32_t
 mmrand(WT_RAND_STATE *rnd, u_int min, u_int max)
 {
-	return (rng(rnd) % (((max) + 1) - (min)) + (min));
+	uint32_t v;
+	u_int range;
+
+	v = rng(rnd);
+	range = (max - min) + 1;
+	v %= range;
+	v += min;
+	return (v);
 }

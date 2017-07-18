@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -79,8 +79,7 @@ __thread_group_shrink(
 		if (thread == NULL)
 			continue;
 
-		/* Wake threads to ensure they notice the state change */
-		WT_ASSERT(session, thread->tid != 0);
+		WT_ASSERT(session, thread->tid.created);
 		__wt_verbose(session, WT_VERB_THREAD_GROUP,
 		    "Stopping utility thread: %p:%" PRIu32,
 		    (void *)group, thread->id);
@@ -92,8 +91,27 @@ __thread_group_shrink(
 		 */
 		__wt_cond_signal(session, thread->pause_cond);
 		__wt_cond_signal(session, group->wait_cond);
+	}
+
+	/*
+	 * We have to perform the join without holding the lock because
+	 * the threads themselves may be waiting on the lock.
+	 */
+	__wt_writeunlock(session, &group->lock);
+	for (current_slot = group->alloc; current_slot > new_count; ) {
+		thread = group->threads[--current_slot];
+
+		if (thread == NULL)
+			continue;
 		WT_TRET(__wt_thread_join(session, thread->tid));
-		WT_TRET(__wt_cond_destroy(session, &thread->pause_cond));
+		__wt_cond_destroy(session, &thread->pause_cond);
+	}
+	__wt_writelock(session, &group->lock);
+	for (current_slot = group->alloc; current_slot > new_count; ) {
+		thread = group->threads[--current_slot];
+
+		if (thread == NULL)
+			continue;
 		WT_ASSERT(session, thread->session != NULL);
 		wt_session = (WT_SESSION *)thread->session;
 		WT_TRET(wt_session->close(wt_session, NULL));
@@ -116,11 +134,13 @@ __thread_group_resize(
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
+	WT_SESSION *wt_session;
 	WT_THREAD *thread;
 	size_t alloc;
 	uint32_t i, session_flags;
 
 	conn = S2C(session);
+	thread = NULL;
 	session_flags = 0;
 
 	__wt_verbose(session, WT_VERB_THREAD_GROUP,
@@ -181,8 +201,6 @@ __thread_group_resize(
 		thread->stop_func = group->stop_func;
 		WT_ERR(__wt_cond_alloc(
 		    session, "Thread cond", &thread->pause_cond));
-		WT_ASSERT(session, group->threads[i] == NULL);
-		group->threads[i] = thread;
 
 		/*
 		 * Start thread as inactive.  We'll activate the needed
@@ -192,30 +210,43 @@ __thread_group_resize(
 		    "Starting utility thread: %p:%" PRIu32,
 		    (void *)group, thread->id);
 		F_SET(thread, WT_THREAD_RUN);
-		WT_ASSERT(session, thread->session != NULL);
 		WT_ERR(__wt_thread_create(thread->session,
 		    &thread->tid, __thread_run, thread));
+
+		WT_ASSERT(session, group->threads[i] == NULL);
+		group->threads[i] = thread;
+		thread = NULL;
 	}
 
+	group->max = new_max;
+	group->min = new_min;
+	while (group->current_threads < new_min)
+		__wt_thread_group_start_one(session, group, true);
+	return (0);
+
 err:	/*
+	 * An error resizing a thread array is currently fatal, it should only
+	 * happen in an out of memory situation. Do real cleanup just in case
+	 * that changes in the future.
+	 */
+	if (thread != NULL) {
+		if (thread->session != NULL) {
+			wt_session = (WT_SESSION *)thread->session;
+			WT_TRET(wt_session->close(wt_session, NULL));
+		}
+		__wt_cond_destroy(session, &thread->pause_cond);
+		__wt_free(session, thread);
+	}
+
+	/*
 	 * Update the thread group information even on failure to improve our
 	 * chances of cleaning up properly.
 	 */
 	group->max = new_max;
 	group->min = new_min;
+	WT_TRET(__wt_thread_group_destroy(session, group));
 
-	/*
-	 * An error resizing a thread array is fatal, it should only happen
-	 * in an out of memory situation.
-	 */
-	if (ret == 0)
-		while (group->current_threads < new_min)
-			__wt_thread_group_start_one(session, group, true);
-	else {
-		WT_TRET(__wt_thread_group_destroy(session, group));
-		WT_PANIC_RET(session, ret, "Error while resizing thread group");
-	}
-	return (ret);
+	WT_PANIC_RET(session, ret, "Error while resizing thread group");
 }
 
 /*
@@ -259,7 +290,7 @@ __wt_thread_group_create(
 	__wt_verbose(session, WT_VERB_THREAD_GROUP,
 	    "Creating thread group: %p", (void *)group);
 
-	__wt_rwlock_init(session, &group->lock);
+	WT_RET(__wt_rwlock_init(session, &group->lock));
 	WT_ERR(__wt_cond_alloc(
 	    session, "thread group cond", &group->wait_cond));
 	cond_alloced = true;
@@ -276,7 +307,7 @@ __wt_thread_group_create(
 	/* Cleanup on error to avoid leaking resources */
 err:	if (ret != 0) {
 		if (cond_alloced)
-			WT_TRET(__wt_cond_destroy(session, &group->wait_cond));
+			__wt_cond_destroy(session, &group->wait_cond);
 		__wt_rwlock_destroy(session, &group->lock);
 	}
 	return (ret);
@@ -301,7 +332,7 @@ __wt_thread_group_destroy(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group)
 
 	__wt_free(session, group->threads);
 
-	WT_TRET(__wt_cond_destroy(session, &group->wait_cond));
+	__wt_cond_destroy(session, &group->wait_cond);
 	__wt_rwlock_destroy(session, &group->lock);
 
 	/*

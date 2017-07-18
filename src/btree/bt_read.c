@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -7,6 +7,8 @@
  */
 
 #include "wt_internal.h"
+
+static void __btree_verbose_lookaside_read(WT_SESSION_IMPL *);
 
 /*
  * __wt_las_remove_block --
@@ -16,41 +18,37 @@ int
 __wt_las_remove_block(WT_SESSION_IMPL *session,
     WT_CURSOR *cursor, uint32_t btree_id, const uint8_t *addr, size_t addr_size)
 {
-	WT_DECL_ITEM(las_addr);
-	WT_DECL_ITEM(las_key);
+	WT_ITEM las_addr, las_key, las_timestamp;
 	WT_DECL_RET;
-	uint64_t las_counter, las_txnid;
-	int64_t remove_cnt;
+	uint64_t las_counter, las_txnid, remove_cnt;
 	uint32_t las_id;
 	int exact;
 
 	remove_cnt = 0;
 
-	WT_ERR(__wt_scr_alloc(session, 0, &las_addr));
-	WT_ERR(__wt_scr_alloc(session, 0, &las_key));
-
 	/*
 	 * Search for the block's unique prefix and step through all matching
 	 * records, removing them.
 	 */
-	las_addr->data = addr;
-	las_addr->size = addr_size;
-	las_key->size = 0;
-	cursor->set_key(
-	    cursor, btree_id, las_addr, (uint64_t)0, (uint32_t)0, las_key);
+	las_addr.data = addr;
+	las_addr.size = addr_size;
+	las_key.size = 0;
+	las_timestamp.size = 0;
+	cursor->set_key(cursor, btree_id, &las_addr,
+	    (uint64_t)0, (uint32_t)0, &las_timestamp, &las_key);
 	if ((ret = cursor->search_near(cursor, &exact)) == 0 && exact < 0)
 		ret = cursor->next(cursor);
 	for (; ret == 0; ret = cursor->next(cursor)) {
-		WT_ERR(cursor->get_key(cursor,
-		    &las_id, las_addr, &las_counter, &las_txnid, las_key));
+		WT_ERR(cursor->get_key(cursor, &las_id, &las_addr, &las_counter,
+		    &las_txnid, &las_timestamp, &las_key));
 
 		/*
 		 * Confirm the search using the unique prefix; if not a match,
 		 * we're done searching for records for this page.
 		 */
 		 if (las_id != btree_id ||
-		     las_addr->size != addr_size ||
-		     memcmp(las_addr->data, addr, addr_size) != 0)
+		     las_addr.size != addr_size ||
+		     memcmp(las_addr.data, addr, addr_size) != 0)
 			break;
 
 		/*
@@ -63,10 +61,7 @@ __wt_las_remove_block(WT_SESSION_IMPL *session,
 	}
 	WT_ERR_NOTFOUND_OK(ret);
 
-err:	__wt_scr_free(session, &las_addr);
-	__wt_scr_free(session, &las_key);
-
-	/*
+err:	/*
 	 * If there were races to remove records, we can over-count.  All
 	 * arithmetic is signed, so underflow isn't fatal, but check anyway so
 	 * we don't skew low over time.
@@ -74,7 +69,7 @@ err:	__wt_scr_free(session, &las_addr);
 	if (remove_cnt > S2C(session)->las_record_cnt)
 		S2C(session)->las_record_cnt = 0;
 	else if (remove_cnt > 0)
-		(void)__wt_atomic_subi64(
+		(void)__wt_atomic_sub64(
 		    &S2C(session)->las_record_cnt, remove_cnt);
 
 	return (ret);
@@ -90,7 +85,8 @@ __col_instantiate(WT_SESSION_IMPL *session,
 {
 	/* Search the page and add updates. */
 	WT_RET(__wt_col_search(session, recno, ref, cbt));
-	WT_RET(__wt_col_modify(session, cbt, recno, NULL, upd, false));
+	WT_RET(__wt_col_modify(
+	    session, cbt, recno, NULL, upd, WT_UPDATE_STANDARD, false));
 	return (0);
 }
 
@@ -104,7 +100,8 @@ __row_instantiate(WT_SESSION_IMPL *session,
 {
 	/* Search the page and add updates. */
 	WT_RET(__wt_row_search(session, key, ref, cbt, true));
-	WT_RET(__wt_row_modify(session, cbt, key, NULL, upd, false));
+	WT_RET(__wt_row_modify(
+	    session, cbt, key, NULL, upd, WT_UPDATE_STANDARD, false));
 	return (0);
 }
 
@@ -119,15 +116,14 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 	WT_CURSOR *cursor;
 	WT_CURSOR_BTREE cbt;
 	WT_DECL_ITEM(current_key);
-	WT_DECL_ITEM(las_addr);
-	WT_DECL_ITEM(las_key);
-	WT_DECL_ITEM(las_value);
+	WT_ITEM las_addr, las_key, las_timestamp, las_value;
 	WT_DECL_RET;
 	WT_PAGE *page;
 	WT_UPDATE *first_upd, *last_upd, *upd;
 	size_t incr, total_incr;
 	uint64_t current_recno, las_counter, las_txnid, recno, upd_txnid;
-	uint32_t las_id, upd_size, session_flags;
+	uint32_t las_id, session_flags;
+	uint8_t upd_type;
 	int exact;
 	const uint8_t *p;
 
@@ -137,14 +133,13 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 	total_incr = 0;
 	current_recno = recno = WT_RECNO_OOB;
 	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
+	WT_CLEAR(las_key);
+	WT_CLEAR(las_timestamp);
 
 	__wt_btcur_init(session, &cbt);
 	__wt_btcur_open(&cbt);
 
 	WT_ERR(__wt_scr_alloc(session, 0, &current_key));
-	WT_ERR(__wt_scr_alloc(session, 0, &las_addr));
-	WT_ERR(__wt_scr_alloc(session, 0, &las_key));
-	WT_ERR(__wt_scr_alloc(session, 0, &las_value));
 
 	/* Open a lookaside table cursor. */
 	__wt_las_cursor(session, &cursor, &session_flags);
@@ -159,46 +154,53 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 	 * Search for the block's unique prefix, stepping through any matching
 	 * records.
 	 */
-	las_addr->data = addr;
-	las_addr->size = addr_size;
-	las_key->size = 0;
-	cursor->set_key(
-	    cursor, read_id, las_addr, (uint64_t)0, (uint32_t)0, las_key);
+	las_addr.data = addr;
+	las_addr.size = addr_size;
+	cursor->set_key(cursor, read_id, &las_addr,
+	    (uint64_t)0, (uint32_t)0, &las_timestamp, &las_key);
 	if ((ret = cursor->search_near(cursor, &exact)) == 0 && exact < 0)
 		ret = cursor->next(cursor);
 	for (; ret == 0; ret = cursor->next(cursor)) {
-		WT_ERR(cursor->get_key(cursor,
-		    &las_id, las_addr, &las_counter, &las_txnid, las_key));
+		WT_ERR(cursor->get_key(cursor, &las_id, &las_addr, &las_counter,
+		    &las_txnid, &las_timestamp, &las_key));
 
 		/*
 		 * Confirm the search using the unique prefix; if not a match,
 		 * we're done searching for records for this page.
 		 */
 		if (las_id != read_id ||
-		    las_addr->size != addr_size ||
-		    memcmp(las_addr->data, addr, addr_size) != 0)
+		    las_addr.size != addr_size ||
+		    memcmp(las_addr.data, addr, addr_size) != 0)
 			break;
 
 		/*
 		 * If the on-page value has become globally visible, this record
-		 * is no longer needed.
+		 * is no longer needed.  We clear the las_timestamp structure
+		 * above to avoid reading uninitialized memory here when
+		 * timestamps are disabled (even though it is unused in that
+		 * case).
 		 */
-		if (__wt_txn_visible_all(session, las_txnid))
+		if (__wt_txn_visible_all(
+		    session, las_txnid, las_timestamp.data))
 			continue;
 
 		/* Allocate the WT_UPDATE structure. */
-		WT_ERR(cursor->get_value(
-		    cursor, &upd_txnid, &upd_size, las_value));
-		WT_ERR(__wt_update_alloc(session,
-		    (upd_size == WT_UPDATE_DELETED_VALUE) ? NULL : las_value,
-		    &upd, &incr));
+		WT_ERR(cursor->get_value(cursor,
+		    &upd_txnid, &las_timestamp, &upd_type, &las_value));
+		WT_ERR(__wt_update_alloc(session, &las_value, &upd, &incr,
+		    upd_type == WT_UPDATE_DELETED ?
+		    WT_UPDATE_DELETED : WT_UPDATE_STANDARD));
 		total_incr += incr;
 		upd->txnid = upd_txnid;
+#ifdef HAVE_TIMESTAMPS
+		WT_ASSERT(session, las_timestamp.size == WT_TIMESTAMP_SIZE);
+		__wt_timestamp_set(upd->timestamp, las_timestamp.data);
+#endif
 
 		switch (page->type) {
 		case WT_PAGE_COL_FIX:
 		case WT_PAGE_COL_VAR:
-			p = las_key->data;
+			p = las_key.data;
 			WT_ERR(__wt_vunpack_uint(&p, 0, &recno));
 			if (current_recno == recno)
 				break;
@@ -212,9 +214,9 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 			current_recno = recno;
 			break;
 		case WT_PAGE_ROW_LEAF:
-			if (current_key->size == las_key->size &&
+			if (current_key->size == las_key.size &&
 			    memcmp(current_key->data,
-			    las_key->data, las_key->size) == 0)
+			    las_key.data, las_key.size) == 0)
 				break;
 
 			if (first_upd != NULL) {
@@ -223,7 +225,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 				first_upd = NULL;
 			}
 			WT_ERR(__wt_buf_set(session,
-			    current_key, las_key->data, las_key->size));
+			    current_key, las_key.data, las_key.size));
 			break;
 		WT_ILLEGAL_VALUE_ERR(session);
 		}
@@ -285,9 +287,6 @@ err:	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 	__wt_free_update_list(session, first_upd);
 
 	__wt_scr_free(session, &current_key);
-	__wt_scr_free(session, &las_addr);
-	__wt_scr_free(session, &las_key);
-	__wt_scr_free(session, &las_value);
 
 	return (ret);
 }
@@ -448,6 +447,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref)
 	 */
 	dsk = tmp.data;
 	if (F_ISSET(dsk, WT_PAGE_LAS_UPDATE) && __wt_las_is_written(session)) {
+		__btree_verbose_lookaside_read(session);
 		WT_STAT_CONN_INCR(session, cache_read_lookaside);
 		WT_STAT_DATA_INCR(session, cache_read_lookaside);
 
@@ -586,15 +586,10 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			 * if the page qualifies for forced eviction and update
 			 * the page's generation number. If eviction isn't being
 			 * done on this file, we're done.
-			 * In-memory split of large pages is allowed while
-			 * no_eviction is set on btree, whereas reconciliation
-			 * is not allowed.
 			 */
 			if (LF_ISSET(WT_READ_NO_EVICT) ||
 			    F_ISSET(session, WT_SESSION_NO_EVICTION) ||
-			    btree->lsm_primary ||
-			    (btree->evict_disabled > 0 &&
-			    !F_ISSET(btree, WT_BTREE_ALLOW_SPLITS)))
+			    btree->evict_disabled > 0 || btree->lsm_primary)
 				goto skip_evict;
 
 			/*
@@ -681,4 +676,44 @@ skip_evict:
 		WT_STAT_CONN_INCRV(session, page_sleep, sleep_cnt);
 		__wt_sleep(0, sleep_cnt);
 	}
+}
+
+/*
+ * __btree_verbose_lookaside_read --
+ *	Create a verbose message to display at most once per checkpoint when
+ *	performing a lookaside table read.
+ */
+static void
+__btree_verbose_lookaside_read(WT_SESSION_IMPL *session)
+{
+#ifdef HAVE_VERBOSE
+	WT_CONNECTION_IMPL *conn;
+	uint64_t ckpt_gen_current, ckpt_gen_last;
+
+	if (!WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE)) return;
+
+	conn = S2C(session);
+	ckpt_gen_current = __wt_gen(session, WT_GEN_CHECKPOINT);
+	ckpt_gen_last = conn->las_verb_gen_read;
+
+	/*
+	 * This message is throttled to one per checkpoint. To do this we
+	 * track the generation of the last checkpoint for which the message
+	 * was printed and check against the current checkpoint generation.
+	 */
+	if (ckpt_gen_current > ckpt_gen_last) {
+		/*
+		 * Attempt to atomically replace the last checkpoint generation
+		 * for which this message was printed. If the atomic swap fails
+		 * we have raced and the winning thread will print the message.
+		 */
+		if (__wt_atomic_casv64(&conn->las_verb_gen_read,
+			ckpt_gen_last, ckpt_gen_current)) {
+			__wt_verbose(session, WT_VERB_LOOKASIDE,
+			    "%s", "Read from lookaside file triggered.");
+		}
+	}
+#else
+	WT_UNUSED(session);
+#endif
 }

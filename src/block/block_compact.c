@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -8,7 +8,9 @@
 
 #include "wt_internal.h"
 
+#ifdef HAVE_VERBOSE
 static void __block_dump_avail(WT_SESSION_IMPL *, WT_BLOCK *, bool);
+#endif
 
 /*
  * __wt_block_compact_start --
@@ -78,9 +80,11 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
 
 	__wt_spin_lock(session, &block->live_lock);
 
+#ifdef HAVE_VERBOSE
 	/* Dump the current state of the file. */
 	if (WT_VERBOSE_ISSET(session, WT_VERB_COMPACT))
 		__block_dump_avail(session, block, true);
+#endif
 
 	/* Sum the available bytes in the initial 80% and 90% of the file. */
 	avail_eighty = avail_ninety = 0;
@@ -195,6 +199,7 @@ __wt_block_compact_page_skip(WT_SESSION_IMPL *session,
 	return (0);
 }
 
+#ifdef HAVE_VERBOSE
 /*
  * __block_dump_avail --
  *	Dump out the avail list so we can see what compaction will look like.
@@ -242,8 +247,10 @@ __block_dump_avail(WT_SESSION_IMPL *session, WT_BLOCK *block, bool start)
 	memset(percentile, 0, sizeof(percentile));
 	WT_EXT_FOREACH(ext, el->off)
 		for (i = 0; i < ext->size / 512; ++i) {
-			++decile[((ext->off + i * 512) * 10) / size];
-			++percentile[((ext->off + i * 512) * 100) / size];
+			++decile[
+			    ((ext->off + (wt_off_t)i * 512) * 10) / size];
+			++percentile[
+			    ((ext->off + (wt_off_t)i * 512) * 100) / size];
 		}
 
 #ifdef __VERBOSE_OUTPUT_PERCENTILE
@@ -269,3 +276,4 @@ __block_dump_avail(WT_SESSION_IMPL *session, WT_BLOCK *block, bool start)
 		    (uintmax_t)((v * 100) / (wt_off_t)el->bytes));
 	}
 }
+#endif

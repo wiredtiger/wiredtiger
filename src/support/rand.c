@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -119,16 +119,4 @@ __wt_random(WT_RAND_STATE volatile * rnd_state)
 	*rnd_state = rnd;
 
 	return ((z << 16) + (w & 65535));
-}
-
-/*
- * __wt_random64 --
- *	Return a 64-bit pseudo-random number.
- */
-uint64_t
-__wt_random64(WT_RAND_STATE volatile * rnd_state)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
-{
-	return (((uint64_t)__wt_random(rnd_state) << 32) +
-	    __wt_random(rnd_state));
 }

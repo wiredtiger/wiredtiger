@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -250,7 +250,7 @@ main(int argc, char *argv[])
 		/* Overwrite the progress line with a completion line. */
 		if (!g.c_quiet)
 			printf("\r%78s\r", " ");
-		printf("%4d: %s, %s (%.0f seconds)\n",
+		printf("%4" PRIu32 ": %s, %s (%.0f seconds)\n",
 		    g.run_cnt, g.c_data_source,
 		    g.c_file_type, difftime(time(NULL), start));
 		fflush(stdout);

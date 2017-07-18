@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -74,6 +74,7 @@ struct __wt_session_impl {
 					/* Session handle reference list */
 	TAILQ_HEAD(__dhandles, __wt_data_handle_cache) dhandles;
 	time_t last_sweep;		/* Last sweep for dead handles */
+	struct timespec last_epoch;	/* Last epoch time returned */
 
 					/* Cursors closed with the session */
 	TAILQ_HEAD(__cursors, __wt_cursor) cursors;
@@ -105,6 +106,10 @@ struct __wt_session_impl {
 	 */
 	TAILQ_HEAD(__tables, __wt_table) tables;
 
+	/* Current rwlock for callback. */
+	WT_RWLOCK *current_rwlock;
+	uint8_t current_rwticket;
+
 	WT_ITEM	**scratch;		/* Temporary memory for any function */
 	u_int	  scratch_alloc;	/* Currently allocated */
 	size_t	  scratch_cached;	/* Scratch bytes cached */
@@ -125,6 +130,7 @@ struct __wt_session_impl {
 
 	WT_TXN_ISOLATION isolation;
 	WT_TXN	txn;			/* Transaction state */
+#define	WT_SESSION_BG_SYNC_MSEC		1200000
 	WT_LSN	bg_sync_lsn;		/* Background sync operation LSN. */
 	u_int	ncursors;		/* Count of active file cursors. */
 
@@ -177,10 +183,11 @@ struct __wt_session_impl {
 
 					/* Generations manager */
 #define	WT_GEN_CHECKPOINT	0	/* Checkpoint generation */
-#define	WT_GEN_HAZARD		1	/* Hazard pointer */
-#define	WT_GEN_SCHEMA		2	/* Schema version */
-#define	WT_GEN_SPLIT		3	/* Page splits */
-#define	WT_GENERATIONS		4	/* Total generation manager entries */
+#define	WT_GEN_EVICT		1	/* Eviction generation */
+#define	WT_GEN_HAZARD		2	/* Hazard pointer */
+#define	WT_GEN_SCHEMA		3	/* Schema version */
+#define	WT_GEN_SPLIT		4	/* Page splits */
+#define	WT_GENERATIONS		5	/* Total generation manager entries */
 	volatile uint64_t generations[WT_GENERATIONS];
 
 	/*

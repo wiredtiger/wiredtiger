@@ -48,6 +48,19 @@ static const char * const __stats_dsrc_desc[] = {
 	"cache: bytes written from cache",
 	"cache: checkpoint blocked page eviction",
 	"cache: data source pages selected for eviction unable to be evicted",
+	"cache: eviction walk passes of a file",
+	"cache: eviction walk target pages histogram - 0-9",
+	"cache: eviction walk target pages histogram - 10-31",
+	"cache: eviction walk target pages histogram - 128 and higher",
+	"cache: eviction walk target pages histogram - 32-63",
+	"cache: eviction walk target pages histogram - 64-128",
+	"cache: eviction walks abandoned",
+	"cache: eviction walks gave up because they restarted their walk twice",
+	"cache: eviction walks gave up because they saw too many pages and found no candidates",
+	"cache: eviction walks gave up because they saw too many pages and found too few candidates",
+	"cache: eviction walks reached end of tree",
+	"cache: eviction walks started from root of tree",
+	"cache: eviction walks started from saved location in tree",
 	"cache: hazard pointer blocked page eviction",
 	"cache: in-memory page passed criteria to be split",
 	"cache: in-memory page splits",
@@ -56,18 +69,20 @@ static const char * const __stats_dsrc_desc[] = {
 	"cache: leaf pages split during eviction",
 	"cache: modified pages evicted",
 	"cache: overflow pages read into cache",
-	"cache: overflow values cached in memory",
 	"cache: page split during eviction deepened the tree",
 	"cache: page written requiring lookaside records",
 	"cache: pages read into cache",
 	"cache: pages read into cache requiring lookaside entries",
 	"cache: pages requested from the cache",
+	"cache: pages seen by eviction walk",
 	"cache: pages written from cache",
 	"cache: pages written requiring in-memory restoration",
 	"cache: tracked dirty bytes in the cache",
 	"cache: unmodified pages evicted",
 	"cache_walk: Average difference between current eviction generation when the page was last considered",
 	"cache_walk: Average on-disk page image size seen",
+	"cache_walk: Average time in cache for pages that have been visited by the eviction server",
+	"cache_walk: Average time in cache for pages that have not been visited by the eviction server",
 	"cache_walk: Clean pages currently in cache",
 	"cache_walk: Current eviction generation",
 	"cache_walk: Dirty pages currently in cache",
@@ -77,6 +92,7 @@ static const char * const __stats_dsrc_desc[] = {
 	"cache_walk: Maximum difference between current eviction generation when the page was last considered",
 	"cache_walk: Maximum page size seen",
 	"cache_walk: Minimum on-disk page image size seen",
+	"cache_walk: Number of pages never visited by eviction server",
 	"cache_walk: On-disk page image sizes smaller than a single allocation unit",
 	"cache_walk: Pages created in memory and never written",
 	"cache_walk: Pages currently queued for eviction",
@@ -97,9 +113,11 @@ static const char * const __stats_dsrc_desc[] = {
 	"cursor: cursor-remove key bytes removed",
 	"cursor: cursor-update value bytes updated",
 	"cursor: insert calls",
+	"cursor: modify calls",
 	"cursor: next calls",
 	"cursor: prev calls",
 	"cursor: remove calls",
+	"cursor: reserve calls",
 	"cursor: reset calls",
 	"cursor: restarted searches",
 	"cursor: search calls",
@@ -210,6 +228,19 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
 	stats->cache_bytes_write = 0;
 	stats->cache_eviction_checkpoint = 0;
 	stats->cache_eviction_fail = 0;
+	stats->cache_eviction_walk_passes = 0;
+	stats->cache_eviction_target_page_lt10 = 0;
+	stats->cache_eviction_target_page_lt32 = 0;
+	stats->cache_eviction_target_page_ge128 = 0;
+	stats->cache_eviction_target_page_lt64 = 0;
+	stats->cache_eviction_target_page_lt128 = 0;
+	stats->cache_eviction_walks_abandoned = 0;
+	stats->cache_eviction_walks_stopped = 0;
+	stats->cache_eviction_walks_gave_up_no_targets = 0;
+	stats->cache_eviction_walks_gave_up_ratio = 0;
+	stats->cache_eviction_walks_ended = 0;
+	stats->cache_eviction_walk_from_root = 0;
+	stats->cache_eviction_walk_saved_pos = 0;
 	stats->cache_eviction_hazard = 0;
 	stats->cache_inmem_splittable = 0;
 	stats->cache_inmem_split = 0;
@@ -218,18 +249,20 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
 	stats->cache_eviction_split_leaf = 0;
 	stats->cache_eviction_dirty = 0;
 	stats->cache_read_overflow = 0;
-	stats->cache_overflow_value = 0;
 	stats->cache_eviction_deepen = 0;
 	stats->cache_write_lookaside = 0;
 	stats->cache_read = 0;
 	stats->cache_read_lookaside = 0;
 	stats->cache_pages_requested = 0;
+	stats->cache_eviction_pages_seen = 0;
 	stats->cache_write = 0;
 	stats->cache_write_restore = 0;
 		/* not clearing cache_bytes_dirty */
 	stats->cache_eviction_clean = 0;
 		/* not clearing cache_state_gen_avg_gap */
 		/* not clearing cache_state_avg_written_size */
+		/* not clearing cache_state_avg_visited_age */
+		/* not clearing cache_state_avg_unvisited_age */
 		/* not clearing cache_state_pages_clean */
 		/* not clearing cache_state_gen_current */
 		/* not clearing cache_state_pages_dirty */
@@ -239,6 +272,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
 		/* not clearing cache_state_gen_max_gap */
 		/* not clearing cache_state_max_pagesize */
 		/* not clearing cache_state_min_written_size */
+		/* not clearing cache_state_unvisited_count */
 		/* not clearing cache_state_smaller_alloc_size */
 		/* not clearing cache_state_memory */
 		/* not clearing cache_state_queued */
@@ -259,9 +293,11 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
 	stats->cursor_remove_bytes = 0;
 	stats->cursor_update_bytes = 0;
 	stats->cursor_insert = 0;
+	stats->cursor_modify = 0;
 	stats->cursor_next = 0;
 	stats->cursor_prev = 0;
 	stats->cursor_remove = 0;
+	stats->cursor_reserve = 0;
 	stats->cursor_reset = 0;
 	stats->cursor_restart = 0;
 	stats->cursor_search = 0;
@@ -357,6 +393,30 @@ __wt_stat_dsrc_aggregate_single(
 	to->cache_bytes_write += from->cache_bytes_write;
 	to->cache_eviction_checkpoint += from->cache_eviction_checkpoint;
 	to->cache_eviction_fail += from->cache_eviction_fail;
+	to->cache_eviction_walk_passes += from->cache_eviction_walk_passes;
+	to->cache_eviction_target_page_lt10 +=
+	    from->cache_eviction_target_page_lt10;
+	to->cache_eviction_target_page_lt32 +=
+	    from->cache_eviction_target_page_lt32;
+	to->cache_eviction_target_page_ge128 +=
+	    from->cache_eviction_target_page_ge128;
+	to->cache_eviction_target_page_lt64 +=
+	    from->cache_eviction_target_page_lt64;
+	to->cache_eviction_target_page_lt128 +=
+	    from->cache_eviction_target_page_lt128;
+	to->cache_eviction_walks_abandoned +=
+	    from->cache_eviction_walks_abandoned;
+	to->cache_eviction_walks_stopped +=
+	    from->cache_eviction_walks_stopped;
+	to->cache_eviction_walks_gave_up_no_targets +=
+	    from->cache_eviction_walks_gave_up_no_targets;
+	to->cache_eviction_walks_gave_up_ratio +=
+	    from->cache_eviction_walks_gave_up_ratio;
+	to->cache_eviction_walks_ended += from->cache_eviction_walks_ended;
+	to->cache_eviction_walk_from_root +=
+	    from->cache_eviction_walk_from_root;
+	to->cache_eviction_walk_saved_pos +=
+	    from->cache_eviction_walk_saved_pos;
 	to->cache_eviction_hazard += from->cache_eviction_hazard;
 	to->cache_inmem_splittable += from->cache_inmem_splittable;
 	to->cache_inmem_split += from->cache_inmem_split;
@@ -366,12 +426,12 @@ __wt_stat_dsrc_aggregate_single(
 	to->cache_eviction_split_leaf += from->cache_eviction_split_leaf;
 	to->cache_eviction_dirty += from->cache_eviction_dirty;
 	to->cache_read_overflow += from->cache_read_overflow;
-	to->cache_overflow_value += from->cache_overflow_value;
 	to->cache_eviction_deepen += from->cache_eviction_deepen;
 	to->cache_write_lookaside += from->cache_write_lookaside;
 	to->cache_read += from->cache_read;
 	to->cache_read_lookaside += from->cache_read_lookaside;
 	to->cache_pages_requested += from->cache_pages_requested;
+	to->cache_eviction_pages_seen += from->cache_eviction_pages_seen;
 	to->cache_write += from->cache_write;
 	to->cache_write_restore += from->cache_write_restore;
 	to->cache_bytes_dirty += from->cache_bytes_dirty;
@@ -379,6 +439,9 @@ __wt_stat_dsrc_aggregate_single(
 	to->cache_state_gen_avg_gap += from->cache_state_gen_avg_gap;
 	to->cache_state_avg_written_size +=
 	    from->cache_state_avg_written_size;
+	to->cache_state_avg_visited_age += from->cache_state_avg_visited_age;
+	to->cache_state_avg_unvisited_age +=
+	    from->cache_state_avg_unvisited_age;
 	to->cache_state_pages_clean += from->cache_state_pages_clean;
 	to->cache_state_gen_current += from->cache_state_gen_current;
 	to->cache_state_pages_dirty += from->cache_state_pages_dirty;
@@ -389,6 +452,7 @@ __wt_stat_dsrc_aggregate_single(
 	to->cache_state_max_pagesize += from->cache_state_max_pagesize;
 	to->cache_state_min_written_size +=
 	    from->cache_state_min_written_size;
+	to->cache_state_unvisited_count += from->cache_state_unvisited_count;
 	to->cache_state_smaller_alloc_size +=
 	    from->cache_state_smaller_alloc_size;
 	to->cache_state_memory += from->cache_state_memory;
@@ -410,9 +474,11 @@ __wt_stat_dsrc_aggregate_single(
 	to->cursor_remove_bytes += from->cursor_remove_bytes;
 	to->cursor_update_bytes += from->cursor_update_bytes;
 	to->cursor_insert += from->cursor_insert;
+	to->cursor_modify += from->cursor_modify;
 	to->cursor_next += from->cursor_next;
 	to->cursor_prev += from->cursor_prev;
 	to->cursor_remove += from->cursor_remove;
+	to->cursor_reserve += from->cursor_reserve;
 	to->cursor_reset += from->cursor_reset;
 	to->cursor_restart += from->cursor_restart;
 	to->cursor_search += from->cursor_search;
@@ -514,6 +580,32 @@ __wt_stat_dsrc_aggregate(
 	to->cache_eviction_checkpoint +=
 	    WT_STAT_READ(from, cache_eviction_checkpoint);
 	to->cache_eviction_fail += WT_STAT_READ(from, cache_eviction_fail);
+	to->cache_eviction_walk_passes +=
+	    WT_STAT_READ(from, cache_eviction_walk_passes);
+	to->cache_eviction_target_page_lt10 +=
+	    WT_STAT_READ(from, cache_eviction_target_page_lt10);
+	to->cache_eviction_target_page_lt32 +=
+	    WT_STAT_READ(from, cache_eviction_target_page_lt32);
+	to->cache_eviction_target_page_ge128 +=
+	    WT_STAT_READ(from, cache_eviction_target_page_ge128);
+	to->cache_eviction_target_page_lt64 +=
+	    WT_STAT_READ(from, cache_eviction_target_page_lt64);
+	to->cache_eviction_target_page_lt128 +=
+	    WT_STAT_READ(from, cache_eviction_target_page_lt128);
+	to->cache_eviction_walks_abandoned +=
+	    WT_STAT_READ(from, cache_eviction_walks_abandoned);
+	to->cache_eviction_walks_stopped +=
+	    WT_STAT_READ(from, cache_eviction_walks_stopped);
+	to->cache_eviction_walks_gave_up_no_targets +=
+	    WT_STAT_READ(from, cache_eviction_walks_gave_up_no_targets);
+	to->cache_eviction_walks_gave_up_ratio +=
+	    WT_STAT_READ(from, cache_eviction_walks_gave_up_ratio);
+	to->cache_eviction_walks_ended +=
+	    WT_STAT_READ(from, cache_eviction_walks_ended);
+	to->cache_eviction_walk_from_root +=
+	    WT_STAT_READ(from, cache_eviction_walk_from_root);
+	to->cache_eviction_walk_saved_pos +=
+	    WT_STAT_READ(from, cache_eviction_walk_saved_pos);
 	to->cache_eviction_hazard +=
 	    WT_STAT_READ(from, cache_eviction_hazard);
 	to->cache_inmem_splittable +=
@@ -527,7 +619,6 @@ __wt_stat_dsrc_aggregate(
 	    WT_STAT_READ(from, cache_eviction_split_leaf);
 	to->cache_eviction_dirty += WT_STAT_READ(from, cache_eviction_dirty);
 	to->cache_read_overflow += WT_STAT_READ(from, cache_read_overflow);
-	to->cache_overflow_value += WT_STAT_READ(from, cache_overflow_value);
 	to->cache_eviction_deepen +=
 	    WT_STAT_READ(from, cache_eviction_deepen);
 	to->cache_write_lookaside +=
@@ -536,6 +627,8 @@ __wt_stat_dsrc_aggregate(
 	to->cache_read_lookaside += WT_STAT_READ(from, cache_read_lookaside);
 	to->cache_pages_requested +=
 	    WT_STAT_READ(from, cache_pages_requested);
+	to->cache_eviction_pages_seen +=
+	    WT_STAT_READ(from, cache_eviction_pages_seen);
 	to->cache_write += WT_STAT_READ(from, cache_write);
 	to->cache_write_restore += WT_STAT_READ(from, cache_write_restore);
 	to->cache_bytes_dirty += WT_STAT_READ(from, cache_bytes_dirty);
@@ -544,6 +637,10 @@ __wt_stat_dsrc_aggregate(
 	    WT_STAT_READ(from, cache_state_gen_avg_gap);
 	to->cache_state_avg_written_size +=
 	    WT_STAT_READ(from, cache_state_avg_written_size);
+	to->cache_state_avg_visited_age +=
+	    WT_STAT_READ(from, cache_state_avg_visited_age);
+	to->cache_state_avg_unvisited_age +=
+	    WT_STAT_READ(from, cache_state_avg_unvisited_age);
 	to->cache_state_pages_clean +=
 	    WT_STAT_READ(from, cache_state_pages_clean);
 	to->cache_state_gen_current +=
@@ -562,6 +659,8 @@ __wt_stat_dsrc_aggregate(
 	    WT_STAT_READ(from, cache_state_max_pagesize);
 	to->cache_state_min_written_size +=
 	    WT_STAT_READ(from, cache_state_min_written_size);
+	to->cache_state_unvisited_count +=
+	    WT_STAT_READ(from, cache_state_unvisited_count);
 	to->cache_state_smaller_alloc_size +=
 	    WT_STAT_READ(from, cache_state_smaller_alloc_size);
 	to->cache_state_memory += WT_STAT_READ(from, cache_state_memory);
@@ -588,9 +687,11 @@ __wt_stat_dsrc_aggregate(
 	to->cursor_remove_bytes += WT_STAT_READ(from, cursor_remove_bytes);
 	to->cursor_update_bytes += WT_STAT_READ(from, cursor_update_bytes);
 	to->cursor_insert += WT_STAT_READ(from, cursor_insert);
+	to->cursor_modify += WT_STAT_READ(from, cursor_modify);
 	to->cursor_next += WT_STAT_READ(from, cursor_next);
 	to->cursor_prev += WT_STAT_READ(from, cursor_prev);
 	to->cursor_remove += WT_STAT_READ(from, cursor_remove);
+	to->cursor_reserve += WT_STAT_READ(from, cursor_reserve);
 	to->cursor_reset += WT_STAT_READ(from, cursor_reset);
 	to->cursor_restart += WT_STAT_READ(from, cursor_restart);
 	to->cursor_search += WT_STAT_READ(from, cursor_search);
@@ -670,19 +771,32 @@ static const char * const __stats_connection_desc[] = {
 	"cache: eviction calls to get a page found queue empty after locking",
 	"cache: eviction currently operating in aggressive mode",
 	"cache: eviction empty score",
+	"cache: eviction passes of a file",
 	"cache: eviction server candidate queue empty when topping up",
 	"cache: eviction server candidate queue not empty when topping up",
 	"cache: eviction server evicting pages",
 	"cache: eviction server slept, because we did not make progress with eviction",
 	"cache: eviction server unable to reach eviction goal",
 	"cache: eviction state",
+	"cache: eviction walk target pages histogram - 0-9",
+	"cache: eviction walk target pages histogram - 10-31",
+	"cache: eviction walk target pages histogram - 128 and higher",
+	"cache: eviction walk target pages histogram - 32-63",
+	"cache: eviction walk target pages histogram - 64-128",
 	"cache: eviction walks abandoned",
+	"cache: eviction walks gave up because they restarted their walk twice",
+	"cache: eviction walks gave up because they saw too many pages and found no candidates",
+	"cache: eviction walks gave up because they saw too many pages and found too few candidates",
+	"cache: eviction walks reached end of tree",
+	"cache: eviction walks started from root of tree",
+	"cache: eviction walks started from saved location in tree",
 	"cache: eviction worker thread active",
 	"cache: eviction worker thread created",
 	"cache: eviction worker thread evicting pages",
 	"cache: eviction worker thread removed",
 	"cache: eviction worker thread stable number",
-	"cache: failed eviction of pages that exceeded the in-memory maximum",
+	"cache: failed eviction of pages that exceeded the in-memory maximum count",
+	"cache: failed eviction of pages that exceeded the in-memory maximum time (usecs)",
 	"cache: files with active eviction walks",
 	"cache: files with new eviction walks started",
 	"cache: force re-tuning of eviction workers once in a while",
@@ -702,12 +816,13 @@ static const char * const __stats_connection_desc[] = {
 	"cache: modified pages evicted",
 	"cache: modified pages evicted by application threads",
 	"cache: overflow pages read into cache",
-	"cache: overflow values cached in memory",
 	"cache: page split during eviction deepened the tree",
 	"cache: page written requiring lookaside records",
 	"cache: pages currently held in the cache",
-	"cache: pages evicted because they exceeded the in-memory maximum",
-	"cache: pages evicted because they had chains of deleted items",
+	"cache: pages evicted because they exceeded the in-memory maximum count",
+	"cache: pages evicted because they exceeded the in-memory maximum time (usecs)",
+	"cache: pages evicted because they had chains of deleted items count",
+	"cache: pages evicted because they had chains of deleted items time (usecs)",
 	"cache: pages evicted by application threads",
 	"cache: pages queued for eviction",
 	"cache: pages queued for urgent eviction",
@@ -728,6 +843,7 @@ static const char * const __stats_connection_desc[] = {
 	"cache: unmodified pages evicted",
 	"connection: auto adjusting condition resets",
 	"connection: auto adjusting condition wait calls",
+	"connection: detected system time went backwards",
 	"connection: files currently open",
 	"connection: memory allocations",
 	"connection: memory frees",
@@ -740,9 +856,11 @@ static const char * const __stats_connection_desc[] = {
 	"connection: total write I/Os",
 	"cursor: cursor create calls",
 	"cursor: cursor insert calls",
+	"cursor: cursor modify calls",
 	"cursor: cursor next calls",
 	"cursor: cursor prev calls",
 	"cursor: cursor remove calls",
+	"cursor: cursor reserve calls",
 	"cursor: cursor reset calls",
 	"cursor: cursor restarted searches",
 	"cursor: cursor search calls",
@@ -760,24 +878,22 @@ static const char * const __stats_connection_desc[] = {
 	"lock: checkpoint lock acquisitions",
 	"lock: checkpoint lock application thread wait time (usecs)",
 	"lock: checkpoint lock internal thread wait time (usecs)",
-	"lock: handle-list lock eviction thread wait time (usecs)",
+	"lock: dhandle lock application thread time waiting for the dhandle lock (usecs)",
+	"lock: dhandle lock internal thread time waiting for the dhandle lock (usecs)",
+	"lock: dhandle read lock acquisitions",
+	"lock: dhandle write lock acquisitions",
 	"lock: metadata lock acquisitions",
 	"lock: metadata lock application thread wait time (usecs)",
 	"lock: metadata lock internal thread wait time (usecs)",
 	"lock: schema lock acquisitions",
 	"lock: schema lock application thread wait time (usecs)",
 	"lock: schema lock internal thread wait time (usecs)",
-	"lock: table lock acquisitions",
 	"lock: table lock application thread time waiting for the table lock (usecs)",
 	"lock: table lock internal thread time waiting for the table lock (usecs)",
+	"lock: table read lock acquisitions",
+	"lock: table write lock acquisitions",
 	"log: busy returns attempting to switch slots",
-	"log: consolidated slot closures",
-	"log: consolidated slot join active slot closed",
-	"log: consolidated slot join races",
-	"log: consolidated slot join transitions",
-	"log: consolidated slot joins",
-	"log: consolidated slot transitions unable to find free slot",
-	"log: consolidated slot unbuffered writes",
+	"log: force checkpoint calls slept",
 	"log: log bytes of payload data",
 	"log: log bytes written",
 	"log: log files manually zero-filled",
@@ -804,6 +920,19 @@ static const char * const __stats_connection_desc[] = {
 	"log: pre-allocated log files prepared",
 	"log: pre-allocated log files used",
 	"log: records processed by log scan",
+	"log: slot close lost race",
+	"log: slot close unbuffered waits",
+	"log: slot closures",
+	"log: slot join atomic update races",
+	"log: slot join calls atomic updates raced",
+	"log: slot join calls did not yield",
+	"log: slot join calls found active slot closed",
+	"log: slot join calls slept",
+	"log: slot join calls yielded",
+	"log: slot join found active slot closed",
+	"log: slot joins yield time (usecs)",
+	"log: slot transitions unable to find free slot",
+	"log: slot unbuffered writes",
 	"log: total in-memory size of compressed records",
 	"log: total log buffer size",
 	"log: total size of compressed records",
@@ -868,6 +997,7 @@ static const char * const __stats_connection_desc[] = {
 	"transaction: transaction sync calls",
 	"transaction: transactions committed",
 	"transaction: transactions rolled back",
+	"transaction: update conflicts",
 };
 
 int
@@ -956,19 +1086,32 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cache_eviction_get_ref_empty2 = 0;
 		/* not clearing cache_eviction_aggressive_set */
 		/* not clearing cache_eviction_empty_score */
+	stats->cache_eviction_walk_passes = 0;
 	stats->cache_eviction_queue_empty = 0;
 	stats->cache_eviction_queue_not_empty = 0;
 	stats->cache_eviction_server_evicting = 0;
 	stats->cache_eviction_server_slept = 0;
 	stats->cache_eviction_slow = 0;
 		/* not clearing cache_eviction_state */
+	stats->cache_eviction_target_page_lt10 = 0;
+	stats->cache_eviction_target_page_lt32 = 0;
+	stats->cache_eviction_target_page_ge128 = 0;
+	stats->cache_eviction_target_page_lt64 = 0;
+	stats->cache_eviction_target_page_lt128 = 0;
 	stats->cache_eviction_walks_abandoned = 0;
+	stats->cache_eviction_walks_stopped = 0;
+	stats->cache_eviction_walks_gave_up_no_targets = 0;
+	stats->cache_eviction_walks_gave_up_ratio = 0;
+	stats->cache_eviction_walks_ended = 0;
+	stats->cache_eviction_walk_from_root = 0;
+	stats->cache_eviction_walk_saved_pos = 0;
 		/* not clearing cache_eviction_active_workers */
 	stats->cache_eviction_worker_created = 0;
 	stats->cache_eviction_worker_evicting = 0;
 	stats->cache_eviction_worker_removed = 0;
 		/* not clearing cache_eviction_stable_state_workers */
 	stats->cache_eviction_force_fail = 0;
+	stats->cache_eviction_force_fail_time = 0;
 		/* not clearing cache_eviction_walks_active */
 	stats->cache_eviction_walks_started = 0;
 	stats->cache_eviction_force_retune = 0;
@@ -988,12 +1131,13 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cache_eviction_dirty = 0;
 	stats->cache_eviction_app_dirty = 0;
 	stats->cache_read_overflow = 0;
-	stats->cache_overflow_value = 0;
 	stats->cache_eviction_deepen = 0;
 	stats->cache_write_lookaside = 0;
 		/* not clearing cache_pages_inuse */
 	stats->cache_eviction_force = 0;
+	stats->cache_eviction_force_time = 0;
 	stats->cache_eviction_force_delete = 0;
+	stats->cache_eviction_force_delete_time = 0;
 	stats->cache_eviction_app = 0;
 	stats->cache_eviction_pages_queued = 0;
 	stats->cache_eviction_pages_queued_urgent = 0;
@@ -1014,6 +1158,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cache_eviction_clean = 0;
 	stats->cond_auto_wait_reset = 0;
 	stats->cond_auto_wait = 0;
+	stats->time_travel = 0;
 		/* not clearing file_open */
 	stats->memory_allocation = 0;
 	stats->memory_free = 0;
@@ -1026,9 +1171,11 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->write_io = 0;
 	stats->cursor_create = 0;
 	stats->cursor_insert = 0;
+	stats->cursor_modify = 0;
 	stats->cursor_next = 0;
 	stats->cursor_prev = 0;
 	stats->cursor_remove = 0;
+	stats->cursor_reserve = 0;
 	stats->cursor_reset = 0;
 	stats->cursor_restart = 0;
 	stats->cursor_search = 0;
@@ -1046,24 +1193,22 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->lock_checkpoint_count = 0;
 	stats->lock_checkpoint_wait_application = 0;
 	stats->lock_checkpoint_wait_internal = 0;
-	stats->lock_handle_list_wait_eviction = 0;
+	stats->lock_dhandle_wait_application = 0;
+	stats->lock_dhandle_wait_internal = 0;
+	stats->lock_dhandle_read_count = 0;
+	stats->lock_dhandle_write_count = 0;
 	stats->lock_metadata_count = 0;
 	stats->lock_metadata_wait_application = 0;
 	stats->lock_metadata_wait_internal = 0;
 	stats->lock_schema_count = 0;
 	stats->lock_schema_wait_application = 0;
 	stats->lock_schema_wait_internal = 0;
-	stats->lock_table_count = 0;
 	stats->lock_table_wait_application = 0;
 	stats->lock_table_wait_internal = 0;
+	stats->lock_table_read_count = 0;
+	stats->lock_table_write_count = 0;
 	stats->log_slot_switch_busy = 0;
-	stats->log_slot_closes = 0;
-	stats->log_slot_active_closed = 0;
-	stats->log_slot_races = 0;
-	stats->log_slot_transitions = 0;
-	stats->log_slot_joins = 0;
-	stats->log_slot_no_free_slots = 0;
-	stats->log_slot_unbuffered = 0;
+	stats->log_force_ckpt_sleep = 0;
 	stats->log_bytes_payload = 0;
 	stats->log_bytes_written = 0;
 	stats->log_zero_fills = 0;
@@ -1090,6 +1235,19 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->log_prealloc_files = 0;
 	stats->log_prealloc_used = 0;
 	stats->log_scan_records = 0;
+	stats->log_slot_close_race = 0;
+	stats->log_slot_close_unbuf = 0;
+	stats->log_slot_closes = 0;
+	stats->log_slot_races = 0;
+	stats->log_slot_yield_race = 0;
+	stats->log_slot_immediate = 0;
+	stats->log_slot_yield_close = 0;
+	stats->log_slot_yield_sleep = 0;
+	stats->log_slot_yield = 0;
+	stats->log_slot_active_closed = 0;
+		/* not clearing log_slot_yield_duration */
+	stats->log_slot_no_free_slots = 0;
+	stats->log_slot_unbuffered = 0;
 	stats->log_compress_mem = 0;
 		/* not clearing log_buffer_size */
 	stats->log_compress_len = 0;
@@ -1154,6 +1312,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->txn_sync = 0;
 	stats->txn_commit = 0;
 	stats->txn_rollback = 0;
+	stats->txn_update_conflict = 0;
 }
 
 void
@@ -1230,6 +1389,8 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, cache_eviction_aggressive_set);
 	to->cache_eviction_empty_score +=
 	    WT_STAT_READ(from, cache_eviction_empty_score);
+	to->cache_eviction_walk_passes +=
+	    WT_STAT_READ(from, cache_eviction_walk_passes);
 	to->cache_eviction_queue_empty +=
 	    WT_STAT_READ(from, cache_eviction_queue_empty);
 	to->cache_eviction_queue_not_empty +=
@@ -1240,8 +1401,30 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, cache_eviction_server_slept);
 	to->cache_eviction_slow += WT_STAT_READ(from, cache_eviction_slow);
 	to->cache_eviction_state += WT_STAT_READ(from, cache_eviction_state);
+	to->cache_eviction_target_page_lt10 +=
+	    WT_STAT_READ(from, cache_eviction_target_page_lt10);
+	to->cache_eviction_target_page_lt32 +=
+	    WT_STAT_READ(from, cache_eviction_target_page_lt32);
+	to->cache_eviction_target_page_ge128 +=
+	    WT_STAT_READ(from, cache_eviction_target_page_ge128);
+	to->cache_eviction_target_page_lt64 +=
+	    WT_STAT_READ(from, cache_eviction_target_page_lt64);
+	to->cache_eviction_target_page_lt128 +=
+	    WT_STAT_READ(from, cache_eviction_target_page_lt128);
 	to->cache_eviction_walks_abandoned +=
 	    WT_STAT_READ(from, cache_eviction_walks_abandoned);
+	to->cache_eviction_walks_stopped +=
+	    WT_STAT_READ(from, cache_eviction_walks_stopped);
+	to->cache_eviction_walks_gave_up_no_targets +=
+	    WT_STAT_READ(from, cache_eviction_walks_gave_up_no_targets);
+	to->cache_eviction_walks_gave_up_ratio +=
+	    WT_STAT_READ(from, cache_eviction_walks_gave_up_ratio);
+	to->cache_eviction_walks_ended +=
+	    WT_STAT_READ(from, cache_eviction_walks_ended);
+	to->cache_eviction_walk_from_root +=
+	    WT_STAT_READ(from, cache_eviction_walk_from_root);
+	to->cache_eviction_walk_saved_pos +=
+	    WT_STAT_READ(from, cache_eviction_walk_saved_pos);
 	to->cache_eviction_active_workers +=
 	    WT_STAT_READ(from, cache_eviction_active_workers);
 	to->cache_eviction_worker_created +=
@@ -1254,6 +1437,8 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, cache_eviction_stable_state_workers);
 	to->cache_eviction_force_fail +=
 	    WT_STAT_READ(from, cache_eviction_force_fail);
+	to->cache_eviction_force_fail_time +=
+	    WT_STAT_READ(from, cache_eviction_force_fail_time);
 	to->cache_eviction_walks_active +=
 	    WT_STAT_READ(from, cache_eviction_walks_active);
 	to->cache_eviction_walks_started +=
@@ -1286,15 +1471,18 @@ __wt_stat_connection_aggregate(
 	to->cache_eviction_app_dirty +=
 	    WT_STAT_READ(from, cache_eviction_app_dirty);
 	to->cache_read_overflow += WT_STAT_READ(from, cache_read_overflow);
-	to->cache_overflow_value += WT_STAT_READ(from, cache_overflow_value);
 	to->cache_eviction_deepen +=
 	    WT_STAT_READ(from, cache_eviction_deepen);
 	to->cache_write_lookaside +=
 	    WT_STAT_READ(from, cache_write_lookaside);
 	to->cache_pages_inuse += WT_STAT_READ(from, cache_pages_inuse);
 	to->cache_eviction_force += WT_STAT_READ(from, cache_eviction_force);
+	to->cache_eviction_force_time +=
+	    WT_STAT_READ(from, cache_eviction_force_time);
 	to->cache_eviction_force_delete +=
 	    WT_STAT_READ(from, cache_eviction_force_delete);
+	to->cache_eviction_force_delete_time +=
+	    WT_STAT_READ(from, cache_eviction_force_delete_time);
 	to->cache_eviction_app += WT_STAT_READ(from, cache_eviction_app);
 	to->cache_eviction_pages_queued +=
 	    WT_STAT_READ(from, cache_eviction_pages_queued);
@@ -1320,6 +1508,7 @@ __wt_stat_connection_aggregate(
 	to->cache_eviction_clean += WT_STAT_READ(from, cache_eviction_clean);
 	to->cond_auto_wait_reset += WT_STAT_READ(from, cond_auto_wait_reset);
 	to->cond_auto_wait += WT_STAT_READ(from, cond_auto_wait);
+	to->time_travel += WT_STAT_READ(from, time_travel);
 	to->file_open += WT_STAT_READ(from, file_open);
 	to->memory_allocation += WT_STAT_READ(from, memory_allocation);
 	to->memory_free += WT_STAT_READ(from, memory_free);
@@ -1332,9 +1521,11 @@ __wt_stat_connection_aggregate(
 	to->write_io += WT_STAT_READ(from, write_io);
 	to->cursor_create += WT_STAT_READ(from, cursor_create);
 	to->cursor_insert += WT_STAT_READ(from, cursor_insert);
+	to->cursor_modify += WT_STAT_READ(from, cursor_modify);
 	to->cursor_next += WT_STAT_READ(from, cursor_next);
 	to->cursor_prev += WT_STAT_READ(from, cursor_prev);
 	to->cursor_remove += WT_STAT_READ(from, cursor_remove);
+	to->cursor_reserve += WT_STAT_READ(from, cursor_reserve);
 	to->cursor_reset += WT_STAT_READ(from, cursor_reset);
 	to->cursor_restart += WT_STAT_READ(from, cursor_restart);
 	to->cursor_search += WT_STAT_READ(from, cursor_search);
@@ -1355,8 +1546,14 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, lock_checkpoint_wait_application);
 	to->lock_checkpoint_wait_internal +=
 	    WT_STAT_READ(from, lock_checkpoint_wait_internal);
-	to->lock_handle_list_wait_eviction +=
-	    WT_STAT_READ(from, lock_handle_list_wait_eviction);
+	to->lock_dhandle_wait_application +=
+	    WT_STAT_READ(from, lock_dhandle_wait_application);
+	to->lock_dhandle_wait_internal +=
+	    WT_STAT_READ(from, lock_dhandle_wait_internal);
+	to->lock_dhandle_read_count +=
+	    WT_STAT_READ(from, lock_dhandle_read_count);
+	to->lock_dhandle_write_count +=
+	    WT_STAT_READ(from, lock_dhandle_write_count);
 	to->lock_metadata_count += WT_STAT_READ(from, lock_metadata_count);
 	to->lock_metadata_wait_application +=
 	    WT_STAT_READ(from, lock_metadata_wait_application);
@@ -1367,21 +1564,16 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, lock_schema_wait_application);
 	to->lock_schema_wait_internal +=
 	    WT_STAT_READ(from, lock_schema_wait_internal);
-	to->lock_table_count += WT_STAT_READ(from, lock_table_count);
 	to->lock_table_wait_application +=
 	    WT_STAT_READ(from, lock_table_wait_application);
 	to->lock_table_wait_internal +=
 	    WT_STAT_READ(from, lock_table_wait_internal);
+	to->lock_table_read_count +=
+	    WT_STAT_READ(from, lock_table_read_count);
+	to->lock_table_write_count +=
+	    WT_STAT_READ(from, lock_table_write_count);
 	to->log_slot_switch_busy += WT_STAT_READ(from, log_slot_switch_busy);
-	to->log_slot_closes += WT_STAT_READ(from, log_slot_closes);
-	to->log_slot_active_closed +=
-	    WT_STAT_READ(from, log_slot_active_closed);
-	to->log_slot_races += WT_STAT_READ(from, log_slot_races);
-	to->log_slot_transitions += WT_STAT_READ(from, log_slot_transitions);
-	to->log_slot_joins += WT_STAT_READ(from, log_slot_joins);
-	to->log_slot_no_free_slots +=
-	    WT_STAT_READ(from, log_slot_no_free_slots);
-	to->log_slot_unbuffered += WT_STAT_READ(from, log_slot_unbuffered);
+	to->log_force_ckpt_sleep += WT_STAT_READ(from, log_force_ckpt_sleep);
 	to->log_bytes_payload += WT_STAT_READ(from, log_bytes_payload);
 	to->log_bytes_written += WT_STAT_READ(from, log_bytes_written);
 	to->log_zero_fills += WT_STAT_READ(from, log_zero_fills);
@@ -1412,6 +1604,22 @@ __wt_stat_connection_aggregate(
 	to->log_prealloc_files += WT_STAT_READ(from, log_prealloc_files);
 	to->log_prealloc_used += WT_STAT_READ(from, log_prealloc_used);
 	to->log_scan_records += WT_STAT_READ(from, log_scan_records);
+	to->log_slot_close_race += WT_STAT_READ(from, log_slot_close_race);
+	to->log_slot_close_unbuf += WT_STAT_READ(from, log_slot_close_unbuf);
+	to->log_slot_closes += WT_STAT_READ(from, log_slot_closes);
+	to->log_slot_races += WT_STAT_READ(from, log_slot_races);
+	to->log_slot_yield_race += WT_STAT_READ(from, log_slot_yield_race);
+	to->log_slot_immediate += WT_STAT_READ(from, log_slot_immediate);
+	to->log_slot_yield_close += WT_STAT_READ(from, log_slot_yield_close);
+	to->log_slot_yield_sleep += WT_STAT_READ(from, log_slot_yield_sleep);
+	to->log_slot_yield += WT_STAT_READ(from, log_slot_yield);
+	to->log_slot_active_closed +=
+	    WT_STAT_READ(from, log_slot_active_closed);
+	to->log_slot_yield_duration +=
+	    WT_STAT_READ(from, log_slot_yield_duration);
+	to->log_slot_no_free_slots +=
+	    WT_STAT_READ(from, log_slot_no_free_slots);
+	to->log_slot_unbuffered += WT_STAT_READ(from, log_slot_unbuffered);
 	to->log_compress_mem += WT_STAT_READ(from, log_compress_mem);
 	to->log_buffer_size += WT_STAT_READ(from, log_buffer_size);
 	to->log_compress_len += WT_STAT_READ(from, log_compress_len);
@@ -1515,6 +1723,7 @@ __wt_stat_connection_aggregate(
 	to->txn_sync += WT_STAT_READ(from, txn_sync);
 	to->txn_commit += WT_STAT_READ(from, txn_commit);
 	to->txn_rollback += WT_STAT_READ(from, txn_rollback);
+	to->txn_update_conflict += WT_STAT_READ(from, txn_update_conflict);
 }
 
 static const char * const __stats_join_desc[] = {

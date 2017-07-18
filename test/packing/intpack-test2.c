@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -31,7 +31,7 @@
 int
 main(void)
 {
-	uint8_t buf[10], *p, *end;
+	uint8_t buf[WT_INTPACK64_MAXSIZE], *p, *end;
 	int64_t i;
 
 	for (i = 1; i < 1LL << 60; i <<= 1) {

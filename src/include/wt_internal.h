@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -250,8 +250,6 @@ struct __wt_ovfl_reuse;
     typedef struct __wt_ovfl_reuse WT_OVFL_REUSE;
 struct __wt_ovfl_track;
     typedef struct __wt_ovfl_track WT_OVFL_TRACK;
-struct __wt_ovfl_txnc;
-    typedef struct __wt_ovfl_txnc WT_OVFL_TXNC;
 struct __wt_page;
     typedef struct __wt_page WT_PAGE;
 struct __wt_page_deleted;
@@ -268,6 +266,8 @@ struct __wt_ref;
     typedef struct __wt_ref WT_REF;
 struct __wt_row;
     typedef struct __wt_row WT_ROW;
+struct __wt_rwlock;
+    typedef struct __wt_rwlock WT_RWLOCK;
 struct __wt_salvage_cookie;
     typedef struct __wt_salvage_cookie WT_SALVAGE_COOKIE;
 struct __wt_save_upd;
@@ -306,8 +306,6 @@ union __wt_lsn;
     typedef union __wt_lsn WT_LSN;
 union __wt_rand_state;
     typedef union __wt_rand_state WT_RAND_STATE;
-union __wt_rwlock;
-    typedef union __wt_rwlock WT_RWLOCK;
 /*
  * Forward type declarations for internal types: END
  * DO NOT EDIT: automatically built by dist/s_typedef.

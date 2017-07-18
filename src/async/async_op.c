@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2017 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+
 /*
  * __async_get_key --
  *	WT_ASYNC_OP->get_key implementation for op handles.

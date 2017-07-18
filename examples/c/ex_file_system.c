@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -28,22 +28,7 @@
  * ex_file_system.c
  * 	demonstrates how to use the custom file system interface
  */
-
-#include <assert.h>
-#include <errno.h>
-#include <inttypes.h>
-#include <queue.h>
-#include <stdlib.h>
-#include <string.h>
-
-#ifndef _WIN32
-#include <pthread.h>
-#else
-#include "windows_shim.h"
-#endif
-
-#include <wiredtiger.h>
-#include <wiredtiger_ext.h>
+#include <test_util.h>
 
 /*
  * This example code uses pthread functions for portable locking, we ignore
@@ -52,25 +37,25 @@
 static void
 allocate_file_system_lock(pthread_rwlock_t *lockp)
 {
-	assert(pthread_rwlock_init(lockp, NULL) == 0);
+	error_check(pthread_rwlock_init(lockp, NULL));
 }
 
 static void
 destroy_file_system_lock(pthread_rwlock_t *lockp)
 {
-	assert(pthread_rwlock_destroy(lockp) == 0);
+	error_check(pthread_rwlock_destroy(lockp));
 }
 
 static void
 lock_file_system(pthread_rwlock_t *lockp)
 {
-	assert(pthread_rwlock_wrlock(lockp) == 0);
+	error_check(pthread_rwlock_wrlock(lockp));
 }
 
 static void
 unlock_file_system(pthread_rwlock_t *lockp)
 {
-	assert(pthread_rwlock_unlock(lockp) == 0);
+	error_check(pthread_rwlock_unlock(lockp));
 }
 
 /*
@@ -583,13 +568,13 @@ demo_fs_size(WT_FILE_SYSTEM *file_system,
 static int
 demo_fs_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
 {
-	DEMO_FILE_HANDLE *demo_fh;
+	DEMO_FILE_HANDLE *demo_fh, *demo_fh_tmp;
 	DEMO_FILE_SYSTEM *demo_fs;
 	int ret = 0, tret;
 
 	demo_fs = (DEMO_FILE_SYSTEM *)file_system;
 
-	while ((demo_fh = TAILQ_FIRST(&demo_fs->fileq)) != NULL)
+	TAILQ_FOREACH_SAFE(demo_fh, &demo_fs->fileq, q, demo_fh_tmp)
 		if ((tret =
 		    demo_handle_remove(session, demo_fh)) != 0 && ret == 0)
 			ret = tret;

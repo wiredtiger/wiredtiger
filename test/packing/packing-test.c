@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2017 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -51,7 +51,7 @@ check(const char *fmt, ...)
 
 	printf("%s ", fmt);
 	for (p = buf, end = p + len; p < end; p++)
-		printf("%02x", *p & 0xff);
+		printf("%02x", (u_char)*p & 0xff);
 	printf("\n");
 }
 
