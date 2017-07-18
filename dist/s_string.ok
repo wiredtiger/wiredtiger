@@ -1243,6 +1243,7 @@ unregister
 unsized
 unterminated
 untyped
+unvisited
 upd
 update's
 upg
@@ -1290,6 +1291,7 @@ wb
 wcursor
 whitespace
 wiredTiger
+wiredTigerTables
 wiredtiger
 workFactor
 workgen
