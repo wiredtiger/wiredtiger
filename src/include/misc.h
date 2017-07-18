@@ -251,13 +251,12 @@
 
 /* Timestamp type and helper macros. */
 #if WT_TIMESTAMP_SIZE > 0
-#define	HAVE_TIMESTAMPS 1
+#define	HAVE_TIMESTAMPS
 #else
-#undef HAVE_TIMESTAMPS
+#undef	HAVE_TIMESTAMPS
 #endif
 
 #ifdef HAVE_TIMESTAMPS
-#define	WT_TIMESTAMP_PTR(x) (&x)
 struct __wt_timestamp_t {
 	union {
 		uint64_t val;
@@ -265,7 +264,8 @@ struct __wt_timestamp_t {
 	};
 };
 typedef struct __wt_timestamp_t wt_timestamp_t;
-#define	WT_DECL_TIMESTAMP(x) wt_timestamp_t x;
+#define	WT_DECL_TIMESTAMP(x)	wt_timestamp_t x;
+#define	WT_TIMESTAMP_PTR(x)	((wt_timestamp_t *)(&(x)))
 #else
 typedef void wt_timestamp_t;
 #define	WT_TIMESTAMP_PTR(x) (NULL)

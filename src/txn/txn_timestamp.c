@@ -17,13 +17,6 @@ int
 __wt_txn_parse_timestamp(WT_SESSION_IMPL *session,
      const char *name, wt_timestamp_t *timestamp, WT_CONFIG_ITEM *cval)
 {
-	WT_DECL_RET;
-	WT_ITEM ts;
-	wt_timestamp_t tsbuf;
-	size_t hexlen;
-	const char *hexts;
-	char padbuf[2 * WT_TIMESTAMP_SIZE + 1];
-
 	__wt_timestamp_set_zero(timestamp);
 
 	if (cval->len == 0)
@@ -34,6 +27,40 @@ __wt_txn_parse_timestamp(WT_SESSION_IMPL *session,
 		WT_RET_MSG(session, EINVAL,
 		    "Failed to parse %s timestamp '%.*s': too long",
 		    name, (int)cval->len, cval->str);
+
+#if WT_TIMESTAMP_SIZE == 8
+	{
+	static const u_char hextable[] = {
+	    0,  0,  0,  0,  0,  0,  0,  0,
+	    0,  0,  0,  0,  0,  0,  0,  0,
+	    0,  0,  0,  0,  0,  0,  0,  0,
+	    0,  0,  0,  0,  0,  0,  0,  0,
+	    0,  0,  0,  0,  0,  0,  0,  0,
+	    0,  0,  0,  0,  0,  0,  0,  0,
+	    0,  1,  2,  3,  4,  5,  6,  7,
+	    8,  9,  0,  0,  0,  0,  0,  0,
+	    0, 10, 11, 12, 13, 14, 15,  0,
+	    0,  0,  0,  0,  0,  0,  0,  0,
+	    0,  0,  0,  0,  0,  0,  0,  0,
+	    0,  0,  0,  0,  0,  0,  0,  0,
+	    0, 10, 11, 12, 13, 14, 15
+	};
+	wt_timestamp_t ts;
+	size_t len;
+	const char *hex;
+
+	for (ts.val = 0, hex = cval->str, len = cval->len; len > 0; --len)
+		ts.val = (ts.val << 4) | hextable[(int)*hex++];
+	__wt_timestamp_set(timestamp, &ts);
+	}
+#else
+	{
+	WT_DECL_RET;
+	WT_ITEM ts;
+	wt_timestamp_t tsbuf;
+	size_t hexlen;
+	const char *hexts;
+	char padbuf[2 * WT_TIMESTAMP_SIZE + 1];
 
 	/*
 	 * The decoding function assumes it is decoding data produced by dump
@@ -61,13 +88,14 @@ __wt_txn_parse_timestamp(WT_SESSION_IMPL *session,
 	/* Copy the raw value to the end of the timestamp. */
 	memcpy(timestamp->ts + WT_TIMESTAMP_SIZE - ts.size,
 	    ts.data, ts.size);
-
+	}
+#endif
 	if (__wt_timestamp_iszero(timestamp))
 		WT_RET_MSG(session, EINVAL,
 		    "Failed to parse %s timestamp '%.*s': zero not permitted",
 		    name, (int)cval->len, cval->str);
 
-	return (ret);
+	return (0);
 }
 
 /*
@@ -76,12 +104,13 @@ __wt_txn_parse_timestamp(WT_SESSION_IMPL *session,
  */
 static int
 __txn_global_query_timestamp(
-    WT_SESSION_IMPL *session, wt_timestamp_t *ts, const char *cfg[])
+    WT_SESSION_IMPL *session, wt_timestamp_t *tsp, const char *cfg[])
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_CONFIG_ITEM cval;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_STATE *txn_state;
+	wt_timestamp_t ts;
 	uint32_t i, session_cnt;
 
 	conn = S2C(session);
@@ -92,7 +121,7 @@ __txn_global_query_timestamp(
 		if (!txn_global->has_commit_timestamp)
 			return (WT_NOTFOUND);
 		__wt_readlock(session, &txn_global->rwlock);
-		__wt_timestamp_set(ts, &txn_global->commit_timestamp);
+		__wt_timestamp_set(&ts, &txn_global->commit_timestamp);
 		WT_ORDERED_READ(session_cnt, conn->session_cnt);
 		for (i = 0, txn_state = txn_global->states; i < session_cnt;
 		    i++, txn_state++) {
@@ -100,22 +129,22 @@ __txn_global_query_timestamp(
 			    __wt_timestamp_iszero(&txn_state->commit_timestamp))
 				continue;
 			if (__wt_timestamp_cmp(
-			    &txn_state->commit_timestamp, ts) < 0)
+			    &txn_state->commit_timestamp, &ts) < 0)
 				__wt_timestamp_set(
-				    ts, &txn_state->commit_timestamp);
+				    &ts, &txn_state->commit_timestamp);
 		}
 		__wt_readunlock(session, &txn_global->rwlock);
 	} else if (WT_STRING_MATCH("oldest_reader", cval.str, cval.len)) {
 		if (!txn_global->has_oldest_timestamp)
 			return (WT_NOTFOUND);
 		__wt_readlock(session, &txn_global->rwlock);
-		__wt_timestamp_set(ts, &txn_global->oldest_timestamp);
+		__wt_timestamp_set(&ts, &txn_global->oldest_timestamp);
 		/* Look at running checkpoints. */
 		txn_state = &txn_global->checkpoint_state;
 		if (txn_state->pinned_id != WT_TXN_NONE &&
 		    !__wt_timestamp_iszero(&txn_state->read_timestamp) &&
-		    __wt_timestamp_cmp(&txn_state->read_timestamp, ts) < 0)
-			__wt_timestamp_set(ts, &txn_state->read_timestamp);
+		    __wt_timestamp_cmp(&txn_state->read_timestamp, &ts) < 0)
+			__wt_timestamp_set(&ts, &txn_state->read_timestamp);
 		WT_ORDERED_READ(session_cnt, conn->session_cnt);
 		for (i = 0, txn_state = txn_global->states; i < session_cnt;
 		    i++, txn_state++) {
@@ -123,14 +152,17 @@ __txn_global_query_timestamp(
 			    __wt_timestamp_iszero(&txn_state->read_timestamp))
 				continue;
 			if (__wt_timestamp_cmp(
-			    &txn_state->read_timestamp, ts) < 0)
+			    &txn_state->read_timestamp, &ts) < 0)
 				__wt_timestamp_set(
-				    ts, &txn_state->read_timestamp);
+				    &ts, &txn_state->read_timestamp);
 		}
 		__wt_readunlock(session, &txn_global->rwlock);
 	} else
-		return (__wt_illegal_value(session, NULL));
+		WT_RET_MSG(session, EINVAL,
+		    "unknown timestamp query configuration %.*s",
+		    (int)cval.len, cval.str);
 
+	__wt_timestamp_set(tsp, &ts);
 	return (0);
 }
 #endif
@@ -144,12 +176,30 @@ __wt_txn_global_query_timestamp(
     WT_SESSION_IMPL *session, char *hex_timestamp, const char *cfg[])
 {
 #ifdef HAVE_TIMESTAMPS
-	WT_ITEM hexts;
 	wt_timestamp_t ts;
-	size_t len;
-	uint8_t *tsp;
 
 	WT_RET(__txn_global_query_timestamp(session, &ts, cfg));
+
+#if WT_TIMESTAMP_SIZE == 8
+	{
+	char *p, v;
+
+	for (p = hex_timestamp; ts.val != 0; ts.val >>= 4)
+		*p++ = (char)__wt_hex((u_char)(ts.val & 0x0f));
+	*p = '\0';
+
+	/* Reverse the string. */
+	for (--p; p > hex_timestamp;) {
+		v = *p;
+		*p-- = *hex_timestamp;
+		*hex_timestamp++ = v;
+	}
+	}
+#else
+	{
+	WT_ITEM hexts;
+	size_t len;
+	uint8_t *tsp;
 
 	/* Avoid memory allocation: set up an item guaranteed large enough. */
 	hexts.data = hexts.mem = hex_timestamp;
@@ -160,13 +210,16 @@ __wt_txn_global_query_timestamp(
 	    ++tsp, --len)
 		;
 	WT_RET(__wt_raw_to_hex(session, tsp, len, &hexts));
+	}
+#endif
 	return (0);
 #else
 	WT_UNUSED(session);
 	WT_UNUSED(hex_timestamp);
 	WT_UNUSED(cfg);
 
-	return (ENOTSUP);
+	WT_RET_MSG(session, ENOTSUP, "WT_CONNECTION.query_timestamp "
+	    "requires a version of WiredTiger built with timestamp support");
 #endif
 }
 

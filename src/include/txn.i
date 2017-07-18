@@ -10,6 +10,57 @@ static inline int __wt_txn_id_check(WT_SESSION_IMPL *session);
 static inline void __wt_txn_read_last(WT_SESSION_IMPL *session);
 
 #ifdef HAVE_TIMESTAMPS
+#if WT_TIMESTAMP_SIZE == 8
+/*
+ * __wt_timestamp_cmp --
+ *	Compare two timestamps.
+ */
+static inline int
+__wt_timestamp_cmp(const wt_timestamp_t *ts1, const wt_timestamp_t *ts2)
+{
+	return (ts1->val == ts2->val ? 0 : (ts1->val > ts2->val ? 1 : -1));
+}
+
+/*
+ * __wt_timestamp_set --
+ *	Set a timestamp.
+ */
+static inline void
+__wt_timestamp_set(wt_timestamp_t *dest, const wt_timestamp_t *src)
+{
+	dest->val = src->val;
+}
+
+/*
+ * __wt_timestamp_iszero --
+ *	Check if a timestamp is equal to the special "zero" time.
+ */
+static inline bool
+__wt_timestamp_iszero(wt_timestamp_t *ts)
+{
+	return (ts->val == 0);
+}
+
+/*
+ * __wt_timestamp_set_inf --
+ *	Set a timestamp to the maximum value.
+ */
+static inline void
+__wt_timestamp_set_inf(wt_timestamp_t *ts)
+{
+	ts->val = UINT64_MAX;
+}
+
+/*
+ * __wt_timestamp_set_zero --
+ *	Zero out a timestamp.
+ */
+static inline void
+__wt_timestamp_set_zero(wt_timestamp_t *ts)
+{
+	ts->val = 0;
+}
+#else
 /*
  * __wt_timestamp_cmp --
  *	Compare two timestamps.
@@ -35,11 +86,12 @@ __wt_timestamp_set(wt_timestamp_t *dest, const wt_timestamp_t *src)
  *	Check if a timestamp is equal to the special "zero" time.
  */
 static inline bool
-__wt_timestamp_iszero(const wt_timestamp_t *ts)
+__wt_timestamp_iszero(wt_timestamp_t *ts)
 {
 	static const wt_timestamp_t zero_timestamp;
 
-	return (memcmp(ts->ts, zero_timestamp.ts, WT_TIMESTAMP_SIZE) == 0);
+	return (memcmp(ts->ts,
+	    WT_TIMESTAMP_PTR(zero_timestamp), WT_TIMESTAMP_SIZE) == 0);
 }
 
 /*
@@ -61,7 +113,8 @@ __wt_timestamp_set_zero(wt_timestamp_t *ts)
 {
 	memset(ts->ts, 0x00, WT_TIMESTAMP_SIZE);
 }
-#endif
+#endif /* WT_TIMESTAMP_SIZE == 8 */ 
+#endif /* HAVE_TIMESTAMPS */
 
 /*
  * __txn_next_op --

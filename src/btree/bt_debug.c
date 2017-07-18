@@ -998,21 +998,17 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 		WT_RET(ds->f(ds, "\t" "txn id %" PRIu64, upd->txnid));
 
 #ifdef HAVE_TIMESTAMPS
-		if (!__wt_timestamp_iszero(&upd->timestamp)) {
+		if (!__wt_timestamp_iszero(WT_GET_TIMESTAMP_PTR(upd))) {
 #if WT_TIMESTAMP_SIZE == 8
-			{
-			uint64_t ts;
-			ts = __wt_bswap64(upd->timestamp.val);
-			WT_RET(ds->f(ds, ", stamp %" PRIu64, ts));
-			}
+			WT_RET(ds->f(ds,
+			    ", stamp %" PRIu64, upd->timestamp.val));
 #else
-			{
 			int i;
+
 			WT_RET(ds->f(ds, ", stamp 0x"));
 			for (i = 0; i < WT_TIMESTAMP_SIZE; ++i)
 				WT_RET(ds->f(ds,
 				    "%" PRIx8, upd->timestamp.ts[i]));
-			}
 #endif
 		}
 #endif
