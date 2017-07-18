@@ -188,18 +188,20 @@ __wt_conn_btree_sync_and_close(WT_SESSION_IMPL *session, bool final, bool force)
 	if (!F_ISSET(btree,
 	    WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
 		/*
-		 * If the object is already marked dead, we're just here to
+		 * If the handle is already marked dead, we're just here to
 		 * discard it.
 		 */
 		if (F_ISSET(dhandle, WT_DHANDLE_DEAD))
 			discard = true;
 
 		/*
-		 * If a standard object and it's OK to mark the handle dead
-		 * (letting the tree be discarded later), do so. Don't mark
-		 * memory-mapped trees dead (we close the file handle to allow
-		 * the file to be removed, but mapped trees contain pointers
-		 * into memory that become invalid if the mapping is closed).
+		 * Mark the handle dead (letting the tree be discarded later) if
+		 * it's not already marked dead, our caller allows it, it's not
+		 * a final close, and it's not a memory-mapped tree. (We can't
+		 * mark memory-mapped tree handles dead because we close the
+		 * underlying file handle to allow the file to be removed and
+		 * memory-mapped trees contain pointers into memory that become
+		 * invalid if the mapping is closed.)
 		 */
 		if (!discard && force && !final &&
 		    (bm == NULL || !bm->is_mapped(bm, session)))
