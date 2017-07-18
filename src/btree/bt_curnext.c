@@ -347,7 +347,6 @@ new_insert:	if ((ins = cbt->ins) != NULL) {
 				++cbt->page_deleted_count;
 			continue;
 		}
-
 		return (__cursor_row_slot_return(cbt, rip, upd));
 	}
 	/* NOTREACHED */

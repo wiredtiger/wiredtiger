@@ -3777,10 +3777,6 @@ __rec_update_las(WT_SESSION_IMPL *session,
 				continue;
 
 			switch (upd->type) {
-			case WT_UPDATE_STANDARD:
-				las_value.data = WT_UPDATE_DATA(upd);
-				las_value.size = upd->size;
-				break;
 			case WT_UPDATE_DELETED:
 				las_value.size = 0;
 				break;
@@ -3792,6 +3788,10 @@ __rec_update_las(WT_SESSION_IMPL *session,
 				break;
 			case WT_UPDATE_RESERVED:
 				continue;
+			case WT_UPDATE_STANDARD:
+				las_value.data = WT_UPDATE_DATA(upd);
+				las_value.size = upd->size;
+				break;
 			}
 
 #ifdef HAVE_TIMESTAMPS
@@ -4739,10 +4739,6 @@ record_loop:	/*
 
 			if (upd != NULL) {
 				switch (upd->type) {
-				case WT_UPDATE_STANDARD:
-					data = WT_UPDATE_DATA(upd);
-					size = upd->size;
-					break;
 				case WT_UPDATE_DELETED:
 					deleted = true;
 					break;
@@ -4753,6 +4749,10 @@ record_loop:	/*
 					data = cbt->iface.value.data;
 					size = (uint32_t)cbt->iface.value.size;
 					update_no_copy = false;
+					break;
+				case WT_UPDATE_STANDARD:
+					data = WT_UPDATE_DATA(upd);
+					size = upd->size;
 					break;
 				WT_ILLEGAL_VALUE_ERR(session);
 				}
@@ -4978,10 +4978,6 @@ compare:		/*
 				deleted = true;
 			else
 				switch (upd->type) {
-				case WT_UPDATE_STANDARD:
-					data = WT_UPDATE_DATA(upd);
-					size = upd->size;
-					break;
 				case WT_UPDATE_DELETED:
 					deleted = true;
 					break;
@@ -4996,6 +4992,10 @@ compare:		/*
 					data = cbt->iface.value.data;
 					size = (uint32_t)cbt->iface.value.size;
 					update_no_copy = false;
+					break;
+				case WT_UPDATE_STANDARD:
+					data = WT_UPDATE_DATA(upd);
+					size = upd->size;
 					break;
 				WT_ILLEGAL_VALUE_ERR(session);
 				}
@@ -5542,23 +5542,6 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 				    session, page, upd, vpack));
 
 			switch (upd->type) {
-			case WT_UPDATE_STANDARD:
-				/*
-				 * If no value, nothing needs to be copied.
-				 * Otherwise, build the value's chunk from the
-				 * update value.
-				 */
-				if (upd->size == 0) {
-					val->buf.data = NULL;
-					val->cell_len =
-					    val->len = val->buf.size = 0;
-				} else {
-					WT_ERR(__rec_cell_build_val(session, r,
-					    WT_UPDATE_DATA(upd), upd->size,
-					    (uint64_t)0));
-					dictionary = true;
-				}
-				break;
 			case WT_UPDATE_DELETED:
 				/*
 				 * If this key/value pair was deleted, we're
@@ -5605,6 +5588,23 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 				    cbt->iface.value.data,
 				    cbt->iface.value.size, (uint64_t)0));
 				dictionary = true;
+				break;
+			case WT_UPDATE_STANDARD:
+				/*
+				 * If no value, nothing needs to be copied.
+				 * Otherwise, build the value's chunk from the
+				 * update value.
+				 */
+				if (upd->size == 0) {
+					val->buf.data = NULL;
+					val->cell_len =
+					    val->len = val->buf.size = 0;
+				} else {
+					WT_ERR(__rec_cell_build_val(session, r,
+					    WT_UPDATE_DATA(upd), upd->size,
+					    (uint64_t)0));
+					dictionary = true;
+				}
 				break;
 			WT_ILLEGAL_VALUE_ERR(session);
 			}
@@ -5772,14 +5772,6 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 			continue;
 
 		switch (upd->type) {
-		case WT_UPDATE_STANDARD:
-			if (upd->size == 0)
-				val->len = 0;
-			else
-				WT_RET(__rec_cell_build_val(session, r,
-				    WT_UPDATE_DATA(upd), upd->size,
-				    (uint64_t)0));
-			break;
 		case WT_UPDATE_DELETED:
 			continue;
 		case WT_UPDATE_MODIFIED:
@@ -5789,6 +5781,14 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 			WT_RET(__rec_cell_build_val(session, r,
 			    cbt->iface.value.data,
 			    cbt->iface.value.size, (uint64_t)0));
+			break;
+		case WT_UPDATE_STANDARD:
+			if (upd->size == 0)
+				val->len = 0;
+			else
+				WT_RET(__rec_cell_build_val(session, r,
+				    WT_UPDATE_DATA(upd), upd->size,
+				    (uint64_t)0));
 			break;
 		WT_ILLEGAL_VALUE(session);
 		}

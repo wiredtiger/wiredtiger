@@ -85,16 +85,16 @@ __txn_op_log(WT_SESSION_IMPL *session,
 		__txn_op_log_row_key_check(session, cbt);
 #endif
 		switch (upd->type) {
-		case WT_UPDATE_STANDARD:
-			WT_RET(__wt_logop_row_put_pack(
-			    session, logrec, op->fileid, &cursor->key, &value));
-			break;
 		case WT_UPDATE_DELETED:
 			WT_RET(__wt_logop_row_remove_pack(
 			    session, logrec, op->fileid, &cursor->key));
 			break;
 		case WT_UPDATE_MODIFIED:
 			WT_RET(__wt_logop_row_modify_pack(
+			    session, logrec, op->fileid, &cursor->key, &value));
+			break;
+		case WT_UPDATE_STANDARD:
+			WT_RET(__wt_logop_row_put_pack(
 			    session, logrec, op->fileid, &cursor->key, &value));
 			break;
 		WT_ILLEGAL_VALUE(session);
@@ -104,16 +104,16 @@ __txn_op_log(WT_SESSION_IMPL *session,
 		WT_ASSERT(session, recno != WT_RECNO_OOB);
 
 		switch (upd->type) {
-		case WT_UPDATE_STANDARD:
-			WT_RET(__wt_logop_col_put_pack(
-			    session, logrec, op->fileid, recno, &value));
-			break;
 		case WT_UPDATE_DELETED:
 			WT_RET(__wt_logop_col_remove_pack(
 			    session, logrec, op->fileid, recno));
 			break;
 		case WT_UPDATE_MODIFIED:
 			WT_RET(__wt_logop_col_modify_pack(
+			    session, logrec, op->fileid, recno, &value));
+			break;
+		case WT_UPDATE_STANDARD:
+			WT_RET(__wt_logop_col_put_pack(
 			    session, logrec, op->fileid, recno, &value));
 			break;
 		WT_ILLEGAL_VALUE(session);

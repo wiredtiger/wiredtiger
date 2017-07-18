@@ -1023,16 +1023,6 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 {
 	for (; upd != NULL; upd = upd->next) {
 		switch (upd->type) {
-		case WT_UPDATE_STANDARD:
-			if (hexbyte) {
-				WT_RET(ds->f(ds, "\t{"));
-				WT_RET(__debug_hex_byte(ds,
-				    *(uint8_t *)WT_UPDATE_DATA(upd)));
-				WT_RET(ds->f(ds, "}\n"));
-			} else
-				WT_RET(__debug_item(ds,
-				    "value", WT_UPDATE_DATA(upd), upd->size));
-			break;
 		case WT_UPDATE_DELETED:
 			WT_RET(ds->f(ds, "\tvalue {deleted}\n"));
 			break;
@@ -1043,6 +1033,16 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 			break;
 		case WT_UPDATE_RESERVED:
 			WT_RET(ds->f(ds, "\tvalue {reserved}\n"));
+			break;
+		case WT_UPDATE_STANDARD:
+			if (hexbyte) {
+				WT_RET(ds->f(ds, "\t{"));
+				WT_RET(__debug_hex_byte(ds,
+				    *(uint8_t *)WT_UPDATE_DATA(upd)));
+				WT_RET(ds->f(ds, "}\n"));
+			} else
+				WT_RET(__debug_item(ds,
+				    "value", WT_UPDATE_DATA(upd), upd->size));
 			break;
 		}
 		if (upd->txnid == WT_TXN_ABORTED)
