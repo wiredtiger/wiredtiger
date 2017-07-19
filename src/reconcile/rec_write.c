@@ -1764,6 +1764,7 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 			 */
 			WT_ASSERT(session, WT_REF_SPLIT != WT_REF_SPLIT);
 			WT_ERR(EBUSY);
+			break;
 
 		WT_ILLEGAL_VALUE_ERR(session);
 		}
