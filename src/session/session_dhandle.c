@@ -234,7 +234,7 @@ __wt_session_lock_dhandle(
 		}
 		if (ret != EBUSY || (is_open && want_exclusive) ||
 		    LF_ISSET(WT_DHANDLE_LOCK_ONLY))
-			break;
+			WT_ERR(ret);
 		/*
 		 * ret is set to 0 as to ignore if ret is EBUSY
 		 */
@@ -246,7 +246,7 @@ __wt_session_lock_dhandle(
 		__wt_yield();
 	}
 
-	WT_STAT_CONN_INCRV(session, dhandle_lock_blocked, yield_count);
+err:	WT_STAT_CONN_INCRV(session, dhandle_lock_blocked, yield_count);
 	return (ret);
 }
 

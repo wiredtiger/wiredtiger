@@ -18,7 +18,7 @@ __ref_index_slot(WT_SESSION_IMPL *session,
 {
 	WT_PAGE_INDEX *pindex;
 	WT_REF **start, **stop, **p, **t;
-	uint64_t yield_cnt;
+	uint64_t yield_count;
 	uint32_t entries, slot;
 
 	/*
@@ -27,7 +27,7 @@ __ref_index_slot(WT_SESSION_IMPL *session,
 	 * split, their WT_REF structure home values are updated; yield
 	 * and wait for that to happen.
 	 */
-	for (yield_cnt = 0;; yield_cnt++, __wt_yield()) {
+	for (yield_count = 0;; yield_count++, __wt_yield()) {
 		/*
 		 * Copy the parent page's index value: the page can split at
 		 * any time, but the index's value is always valid, even if
@@ -72,7 +72,7 @@ found:	WT_ASSERT(session, pindex->index[slot] == ref);
 	*pindexp = pindex;
 	*slotp = slot;
 
-	WT_STAT_CONN_INCRV(session, page_index_slot_blocked, yield_cnt);
+	WT_STAT_CONN_INCRV(session, page_index_slot_blocked, yield_count);
 }
 
 /*
@@ -179,13 +179,13 @@ __ref_descend_prev(
     WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pindexp)
 {
 	WT_PAGE_INDEX *pindex;
-	uint64_t yield_cnt;
+	uint64_t yield_count;
 
 	/*
 	 * We're passed a child page into which we're descending, and on which
 	 * we have a hazard pointer.
 	 */
-	for (yield_cnt = 0;; yield_cnt++, __wt_yield()) {
+	for (yield_count = 0;; yield_count++, __wt_yield()) {
 		/*
 		 * There's a split race when a cursor moving backwards through
 		 * the tree descends the tree. If we're splitting an internal
@@ -245,7 +245,7 @@ __ref_descend_prev(
 			break;
 	}
 	*pindexp = pindex;
-	WT_STAT_CONN_INCRV(session, tree_descend_blocked, yield_cnt);
+	WT_STAT_CONN_INCRV(session, tree_descend_blocked, yield_count);
 }
 
 /*

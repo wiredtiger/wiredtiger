@@ -2225,7 +2225,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 	WT_DECL_RET;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_STATE *txn_state;
-	uint64_t init_evict_count, max_pages_evicted, yield_count;
+	uint64_t init_evict_count, max_pages_evicted;
 	bool timer;
 
 	conn = S2C(session);
@@ -2252,7 +2252,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 	if (timer)
 		__wt_epoch(session, &enter);
 
-	for (init_evict_count = cache->pages_evict, yield_count = 0;; ret = 0) {
+	for (init_evict_count = cache->pages_evict;; ret = 0) {
 		/*
 		 * A pathological case: if we're the oldest transaction in the
 		 * system and the eviction server is stuck trying to find space,
@@ -2292,7 +2292,6 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 		if (busy && WT_EVICT_HAS_WORKERS(session) &&
 		    cache->eviction_scrub_limit > 0.0 &&
 		    !F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD)) {
-			yield_count++;
 			__wt_yield();
 			continue;
 		}
@@ -2322,7 +2321,6 @@ err:	if (timer) {
 		    application_cache_time, WT_TIMEDIFF_US(leave, enter));
 	}
 
-	WT_STAT_CONN_INCRV(session, application_blocked_eviction, yield_count);
 	return (ret);
 	/* NOTREACHED */
 }

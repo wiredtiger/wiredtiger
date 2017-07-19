@@ -1659,7 +1659,7 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 		switch (r->tested_ref_state = ref->state) {
 		case WT_REF_DISK:
 			/* On disk, not modified by definition. */
-			goto done;
+			goto err;
 
 		case WT_REF_DELETED:
 			/*
@@ -1676,7 +1676,7 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 				break;
 			ret = __rec_child_deleted(session, r, ref, statep);
 			WT_PUBLISH(ref->state, WT_REF_DELETED);
-			goto done;
+			goto err;
 
 		case WT_REF_LOCKED:
 			/*
@@ -1688,8 +1688,7 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 			 */
 			if (F_ISSET(r, WT_EVICTING)) {
 				WT_ASSERT(session, !F_ISSET(r, WT_EVICTING));
-				ret = EBUSY;
-				goto done;
+				WT_ERR(EBUSY);
 			}
 
 			/*
@@ -1714,8 +1713,7 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 			 */
 			if (F_ISSET(r, WT_EVICTING)) {
 				WT_ASSERT(session, !F_ISSET(r, WT_EVICTING));
-				ret = EBUSY;
-				goto done;
+				WT_ERR(EBUSY);
 			}
 
 			/*
@@ -1732,8 +1730,7 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 				ret = 0;
 				break;
 			}
-			if (ret != 0)
-				goto done;
+			WT_ERR(ret);
 
 			*hazardp = true;
 			goto in_memory;
@@ -1750,7 +1747,7 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 				WT_ASSERT(session, !F_ISSET(r, WT_EVICTING));
 				ret = EBUSY;
 			}
-			goto done;
+			goto err;
 
 		case WT_REF_SPLIT:
 			/*
@@ -1766,10 +1763,9 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 			 * for checkpoint.
 			 */
 			WT_ASSERT(session, WT_REF_SPLIT != WT_REF_SPLIT);
-			ret = EBUSY;
-			goto done;
+			WT_ERR(EBUSY);
 
-		WT_ILLEGAL_VALUE(session);
+		WT_ILLEGAL_VALUE_ERR(session);
 		}
 
 in_memory:
@@ -1802,7 +1798,7 @@ in_memory:
 		WT_CHILD_RELEASE(session, *hazardp, ref);
 	}
 
-done:
+err:
 	/*
 	 * Yield_count is not incremented here, even though when diagnostics
 	 * are enabled WT_DIAGNOSTIC_YIELD will yield.

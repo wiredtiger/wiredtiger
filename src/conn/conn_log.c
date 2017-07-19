@@ -484,7 +484,7 @@ __log_file_server(void *arg)
 	WT_LOG *log;
 	WT_LSN close_end_lsn, min_lsn;
 	WT_SESSION_IMPL *session;
-	uint64_t yield_cnt;
+	uint64_t yield_count;
 	uint32_t filenum;
 	bool locked;
 
@@ -492,7 +492,7 @@ __log_file_server(void *arg)
 	conn = S2C(session);
 	log = conn->log;
 	locked = false;
-	yield_cnt = 0;
+	yield_count = 0;
 	while (F_ISSET(conn, WT_CONN_SERVER_LOG)) {
 		/*
 		 * If there is a log file to close, make sure any outstanding
@@ -621,7 +621,7 @@ __log_file_server(void *arg)
 				 * thread a chance to run and try again in
 				 * this case.
 				 */
-				yield_cnt++;
+				yield_count++;
 				__wt_yield();
 				continue;
 			}
@@ -634,7 +634,7 @@ __log_file_server(void *arg)
 	if (0) {
 err:		WT_PANIC_MSG(session, ret, "log close server error");
 	}
-	WT_STAT_CONN_INCRV(session, log_server_sync_blocked, yield_cnt);
+	WT_STAT_CONN_INCRV(session, log_server_sync_blocked, yield_count);
 	if (locked)
 		__wt_spin_unlock(session, &log->log_sync_lock);
 	return (WT_THREAD_RET_VALUE);
