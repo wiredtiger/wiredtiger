@@ -82,6 +82,7 @@ AC_DEFUN([AM_GCC_WARNINGS], [
 AC_DEFUN([AM_CLANG_WARNINGS], [
 	w="-Weverything -Werror"
 
+	w="$w -Wno-address-of-packed-member"
 	w="$w -Wno-cast-align"
 	w="$w -Wno-documentation-unknown-command"
 	w="$w -Wno-format-nonliteral"
