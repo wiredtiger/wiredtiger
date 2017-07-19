@@ -248,12 +248,12 @@ __wt_conn_btree_sync_and_close(
 		F_SET(dhandle, WT_DHANDLE_DEAD);
 
 	/*
-	 * Get rid of any non-durable trees we couldn't mark dead (or trees
-	 * previously marked dead), by simply discarding them from the cache.
-	 * That work is done after marking the data handle dead for a couple of
-	 * reasons: first, we don't need to hold an exclusive handle to do it,
-	 * second, code we call to clear the cache expects the data handle dead
-	 * flag to be set when discarding modified pages.
+	 * Discard from cache any trees not marked dead in this call (that is,
+	 * including trees previously marked dead). Done after marking the data
+	 * handle dead for a couple reasons: first, we don't need to hold an
+	 * exclusive handle to do it, second, code we call to clear the cache
+	 * expects the data handle dead flag to be set when discarding modified
+	 * pages.
 	 */
 	if (discard)
 		WT_TRET(__wt_cache_op(session, WT_SYNC_DISCARD));
