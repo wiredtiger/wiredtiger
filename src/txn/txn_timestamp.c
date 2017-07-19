@@ -162,11 +162,12 @@ __wt_txn_global_query_timestamp(
 	WT_RET(__wt_raw_to_hex(session, tsp, len, &hexts));
 	return (0);
 #else
-	WT_UNUSED(session);
 	WT_UNUSED(hex_timestamp);
 	WT_UNUSED(cfg);
 
-	return (ENOTSUP);
+	WT_RET_MSG(session, ENOTSUP,
+	    "WT_CONNECTION.query_timestamp requires a version of WiredTiger "
+	    "built with timestamp support");
 #endif
 }
 
