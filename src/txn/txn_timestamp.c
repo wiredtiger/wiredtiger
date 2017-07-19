@@ -402,4 +402,5 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
 	__wt_writelock(session, &txn_global->read_timestamp_rwlock);
 	TAILQ_REMOVE(&txn_global->read_timestamph, txn, read_timestampq);
 	__wt_writeunlock(session, &txn_global->read_timestamp_rwlock);
+	F_CLR(txn, WT_TXN_HAS_TS_READ);
 }

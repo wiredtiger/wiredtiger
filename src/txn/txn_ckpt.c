@@ -647,6 +647,15 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	    txn_state->metadata_pinned = WT_TXN_NONE;
 	__wt_writeunlock(session, &txn_global->rwlock);
 
+#ifdef HAVE_TIMESTAMPS
+	/*
+	 * Now that the checkpoint transaction is published, clear it from the
+	 * regular lists.
+	 */
+	__wt_txn_clear_commit_timestamp(session);
+	__wt_txn_clear_read_timestamp(session);
+#endif
+
 	/*
 	 * Get a list of handles we want to flush; for named checkpoints this
 	 * may pull closed objects into the session cache.

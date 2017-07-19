@@ -529,13 +529,14 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 		WT_ASSERT(session, txn_state->id != WT_TXN_NONE &&
 		    txn->id != WT_TXN_NONE);
 		WT_PUBLISH(txn_state->id, WT_TXN_NONE);
-#ifdef HAVE_TIMESTAMPS
-		__wt_txn_clear_commit_timestamp(session);
-		__wt_txn_clear_read_timestamp(session);
-#endif
 
 		txn->id = WT_TXN_NONE;
 	}
+
+#ifdef HAVE_TIMESTAMPS
+	__wt_txn_clear_commit_timestamp(session);
+	__wt_txn_clear_read_timestamp(session);
+#endif
 
 	/* Free the scratch buffer allocated for logging. */
 	__wt_logrec_free(session, &txn->logrec);
