@@ -147,7 +147,7 @@ __wt_txn_global_query_timestamp(
 	 * Keep clang-analyzer happy: it can't tell that ts will be set
 	 * whenever the call below succeeds.
 	 */
-	WT_CLEAR(ts);
+	__wt_timestamp_set_zero(ts);
 	WT_RET(__txn_global_query_timestamp(session, ts, cfg));
 
 	/* Avoid memory allocation: set up an item guaranteed large enough. */
