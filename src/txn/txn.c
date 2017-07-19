@@ -457,7 +457,7 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 			    (int)cval.len, cval.str);
 		}
 		__wt_timestamp_set(
-		    txn_state->read_timestamp, txn->read_timestamp);
+		    &txn_state->read_timestamp, &txn->read_timestamp);
 		__wt_writeunlock(session, &txn_global->rwlock);
 		F_SET(txn, WT_TXN_HAS_TS_READ);
 		txn->isolation = WT_ISO_SNAPSHOT;
@@ -542,7 +542,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 			 * here.
 			 */
 			WT_WRITE_BARRIER();
-			__wt_timestamp_set_zero(txn_state->commit_timestamp);
+			__wt_timestamp_set_zero(&txn_state->commit_timestamp);
 		}
 #endif
 		__wt_writeunlock(session, &txn_global->rwlock);
