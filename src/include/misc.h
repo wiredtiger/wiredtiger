@@ -272,8 +272,6 @@ typedef void wt_timestamp_t;
 #define	WT_DECL_TIMESTAMP(x)
 #endif
 
-#define	WT_GET_TIMESTAMP_PTR(x) WT_TIMESTAMP_PTR((x)->timestamp)
-
 /*
  * In diagnostic mode we track the locations from which hazard pointers and
  * scratch buffers were acquired.

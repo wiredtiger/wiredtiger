@@ -1538,7 +1538,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 */
 	if (F_ISSET(r, WT_VISIBILITY_ERR) && page_del != NULL &&
 	    !__wt_txn_visible(session,
-	    page_del->txnid, WT_GET_TIMESTAMP_PTR(page_del)))
+	    page_del->txnid, WT_TIMESTAMP_PTR(page_del->timestamp)))
 		WT_PANIC_RET(session, EINVAL,
 		    "reconciliation illegally skipped an update");
 
@@ -1568,7 +1568,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 */
 	if (ref->addr != NULL &&
 	    (page_del == NULL || __wt_txn_visible_all(
-	    session, page_del->txnid, WT_GET_TIMESTAMP_PTR(page_del))))
+	    session, page_del->txnid, WT_TIMESTAMP_PTR(page_del->timestamp))))
 		WT_RET(__wt_ref_block_free(session, ref));
 
 	/*
@@ -1619,7 +1619,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 * address normally.  Otherwise, we have to write a proxy record.
 	 */
 	if (__wt_txn_visible(
-	    session, page_del->txnid, WT_GET_TIMESTAMP_PTR(page_del)))
+	    session, page_del->txnid, WT_TIMESTAMP_PTR(page_del->timestamp)))
 		*statep = WT_CHILD_PROXY;
 
 	return (0);

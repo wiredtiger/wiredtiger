@@ -215,7 +215,6 @@ __wt_txn_global_query_timestamp(
 #endif
 	return (0);
 #else
-	WT_UNUSED(session);
 	WT_UNUSED(hex_timestamp);
 	WT_UNUSED(cfg);
 

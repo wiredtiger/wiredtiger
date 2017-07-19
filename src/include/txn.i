@@ -342,7 +342,7 @@ static inline bool
 __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
 	return (__wt_txn_visible_all(
-	    session, upd->txnid, WT_GET_TIMESTAMP_PTR(upd)));
+	    session, upd->txnid, WT_TIMESTAMP_PTR(upd->timestamp)));
 }
 
 /*
@@ -433,7 +433,7 @@ static inline bool
 __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
 	return (__wt_txn_visible(session,
-	    upd->txnid, WT_GET_TIMESTAMP_PTR(upd)));
+	    upd->txnid, WT_TIMESTAMP_PTR(upd->timestamp)));
 }
 
 /*
