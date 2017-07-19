@@ -727,7 +727,7 @@ restart:
 
 		WT_WITH_DHANDLE(session, dhandle,
 		    WT_TRET(__wt_conn_dhandle_discard_single(
-		    session, true, F_ISSET(conn, WT_CONN_IN_MEMORY))));
+		    session, true, false)));
 		goto restart;
 	}
 
@@ -753,7 +753,7 @@ restart:
 	WT_TAILQ_SAFE_REMOVE_BEGIN(dhandle, &conn->dhqh, q, dhandle_tmp) {
 		WT_WITH_DHANDLE(session, dhandle,
 		    WT_TRET(__wt_conn_dhandle_discard_single(
-		    session, true, F_ISSET(conn, WT_CONN_IN_MEMORY))));
+		    session, true, false)));
 	} WT_TAILQ_SAFE_REMOVE_END
 
 	return (ret);
