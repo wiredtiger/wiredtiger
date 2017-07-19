@@ -123,7 +123,8 @@ __txn_global_query_timestamp(
 			__wt_timestamp_set(ts, txn->read_timestamp);
 		__wt_readunlock(session, &txn_global->read_timestamp_rwlock);
 	} else
-		return (__wt_illegal_value(session, NULL));
+		WT_RET_MSG(session, EINVAL,
+		    "unknown timestamp query %.*s", (int)cval.len, cval.str);
 
 	return (0);
 }
