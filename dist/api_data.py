@@ -413,9 +413,10 @@ connection_runtime_config = [
         blocking. This option is intended for use with internal stress
         testing of WiredTiger. Only available if WiredTiger is configured
         with --enable-diagnostic. Options are given as a list, such as
-        <code>"diagnostic_timing_stress=[checkpoint_slow]"</code>''',
+        <code>"diagnostic_timing_stress=[checkpoint_slow,
+                                        page_split_slow]"</code>''',
         type='list', undoc=True, choices=[
-            'checkpoint_slow']),
+            'checkpoint_slow', 'page_split_slow']),
     Config('error_prefix', '', r'''
         prefix string for error messages'''),
     Config('eviction', '', r'''

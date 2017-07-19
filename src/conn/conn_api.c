@@ -1943,6 +1943,7 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	static const WT_NAME_FLAG stress_types[] = {
 		{ "checkpoint_slow",	WT_TIMING_STRESS_CHECKPOINT_SLOW },
+		{ "page_split_slow",	WT_TIMING_STRESS_PAGE_SPLIT_SLOW },
 		{ NULL, 0 }
 	};
 	WT_CONFIG_ITEM cval, sval;

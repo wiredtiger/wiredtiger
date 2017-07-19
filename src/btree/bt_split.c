@@ -30,6 +30,8 @@ typedef enum {
 	WT_ERR_RETURN				/* Clean up and return error */
 } WT_SPLIT_ERROR_PHASE;
 
+static void __page_split_timing_stress(WT_SESSION_IMPL *);
+
 /*
  * __split_safe_free --
  *	Free a buffer if we can be sure no thread is accessing it, or schedule
@@ -1166,6 +1168,7 @@ __split_internal_lock_worker(WT_SESSION_IMPL *session,
 	for (;;) {
 		parent = ref->home;
 
+		__page_split_timing_stress(session);
 		/*
 		 * The page will be marked dirty, and we can only lock a page
 		 * with a modify structure.
@@ -2183,4 +2186,26 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
 
 err:	__split_multi_inmem_fail(session, page, new);
 	return (ret);
+}
+
+/*
+ * __page_split_timing_stress --
+ *  Optionally add a 1000 micro seconds delay to simulate the race
+ *  conditions in page split for debug purposes. The purpose of
+ *  this is to uncover the race conditions in page split.
+ */
+static void
+__page_split_timing_stress(WT_SESSION_IMPL *session)
+{
+       WT_CONNECTION_IMPL *conn;
+
+       conn = S2C(session);
+
+       /*
+	* We only want to sleep if the diagnostics flag is set
+	*/
+       if (FLD_ISSET(conn->timing_stress_flags,
+	   WT_TIMING_STRESS_PAGE_SPLIT_SLOW))
+	       __wt_sleep(0, 1000);
+
 }
