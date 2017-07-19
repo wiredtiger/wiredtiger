@@ -1342,7 +1342,7 @@ __wt_page_can_evict(
 	 * evict, skip it.
 	 */
 	if (!modified && !__wt_txn_visible_all(session,
-	    mod->rec_max_txn, WT_TIMESTAMP_PTR(mod->rec_max_timestamp)))
+	    mod->rec_max_txn, WT_TIMESTAMP_NULL(&mod->rec_max_timestamp)))
 		return (false);
 
 	return (true);

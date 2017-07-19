@@ -1332,7 +1332,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 */
 	if (!skipped && (F_ISSET(btree, WT_BTREE_LOOKASIDE) ||
 	    __wt_txn_visible_all(session,
-	    max_txn, WT_TIMESTAMP_PTR(max_timestamp)))) {
+	    max_txn, WT_TIMESTAMP_NULL(&max_timestamp)))) {
 #ifdef HAVE_DIAGNOSTIC
 		/*
 		 * The checkpoint transaction is special.  Make sure we never
@@ -1428,7 +1428,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 * globally visible, readers require the page's original value.
 		 */
 		if (!__wt_txn_visible_all(
-		    session, min_txn, WT_TIMESTAMP_PTR(min_timestamp)))
+		    session, min_txn, WT_TIMESTAMP_NULL(&min_timestamp)))
 			append_origv = true;
 	}
 
@@ -1538,7 +1538,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 */
 	if (F_ISSET(r, WT_VISIBILITY_ERR) && page_del != NULL &&
 	    !__wt_txn_visible(session,
-	    page_del->txnid, WT_TIMESTAMP_PTR(page_del->timestamp)))
+	    page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)))
 		WT_PANIC_RET(session, EINVAL,
 		    "reconciliation illegally skipped an update");
 
@@ -1568,7 +1568,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 */
 	if (ref->addr != NULL &&
 	    (page_del == NULL || __wt_txn_visible_all(
-	    session, page_del->txnid, WT_TIMESTAMP_PTR(page_del->timestamp))))
+	    session, page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp))))
 		WT_RET(__wt_ref_block_free(session, ref));
 
 	/*
@@ -1619,7 +1619,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 * address normally.  Otherwise, we have to write a proxy record.
 	 */
 	if (__wt_txn_visible(
-	    session, page_del->txnid, WT_TIMESTAMP_PTR(page_del->timestamp)))
+	    session, page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)))
 		*statep = WT_CHILD_PROXY;
 
 	return (0);

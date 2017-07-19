@@ -91,7 +91,7 @@ __wt_timestamp_iszero(wt_timestamp_t *ts)
 	static const wt_timestamp_t zero_timestamp;
 
 	return (memcmp(ts->ts,
-	    WT_TIMESTAMP_PTR(zero_timestamp), WT_TIMESTAMP_SIZE) == 0);
+	    WT_TIMESTAMP_NULL(&zero_timestamp), WT_TIMESTAMP_SIZE) == 0);
 }
 
 /*
@@ -342,7 +342,7 @@ static inline bool
 __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
 	return (__wt_txn_visible_all(
-	    session, upd->txnid, WT_TIMESTAMP_PTR(upd->timestamp)));
+	    session, upd->txnid, WT_TIMESTAMP_NULL(&upd->timestamp)));
 }
 
 /*
@@ -433,7 +433,7 @@ static inline bool
 __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
 	return (__wt_txn_visible(session,
-	    upd->txnid, WT_TIMESTAMP_PTR(upd->timestamp)));
+	    upd->txnid, WT_TIMESTAMP_NULL(&upd->timestamp)));
 }
 
 /*

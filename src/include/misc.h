@@ -257,18 +257,16 @@
 #endif
 
 #ifdef HAVE_TIMESTAMPS
-struct __wt_timestamp_t {
-	union {
-		uint64_t val;
-		uint8_t ts[WT_TIMESTAMP_SIZE];
-	};
+union __wt_timestamp_t {
+	uint64_t val;
+	uint8_t ts[WT_TIMESTAMP_SIZE];
 };
-typedef struct __wt_timestamp_t wt_timestamp_t;
+typedef union __wt_timestamp_t wt_timestamp_t;
 #define	WT_DECL_TIMESTAMP(x)	wt_timestamp_t x;
-#define	WT_TIMESTAMP_PTR(x)	((wt_timestamp_t *)(&(x)))
+#define	WT_TIMESTAMP_NULL(x)	(x)
 #else
 typedef void wt_timestamp_t;
-#define	WT_TIMESTAMP_PTR(x) (NULL)
+#define	WT_TIMESTAMP_NULL(x)	(NULL)
 #define	WT_DECL_TIMESTAMP(x)
 #endif
 
