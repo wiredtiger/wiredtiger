@@ -140,7 +140,8 @@ __wt_conn_dhandle_find(
  *	Sync and close the underlying btree handle.
  */
 int
-__wt_conn_btree_sync_and_close(WT_SESSION_IMPL *session, bool final, bool force)
+__wt_conn_btree_sync_and_close(
+    WT_SESSION_IMPL *session, bool final, bool mark_dead)
 {
 	WT_BM *bm;
 	WT_BTREE *btree;
@@ -203,19 +204,20 @@ __wt_conn_btree_sync_and_close(WT_SESSION_IMPL *session, bool final, bool force)
 		 * memory-mapped trees contain pointers into memory that become
 		 * invalid if the mapping is closed.)
 		 */
-		if (!discard && force && !final &&
+		if (!discard && mark_dead && !final &&
 		    (bm == NULL || !bm->is_mapped(bm, session)))
 			marked_dead = true;
 
 		/*
-		 * Get rid of any durable objects we couldn't mark dead. Durable
-		 * objects require a checkpoint, which can fail if an update
-		 * cannot be written, failing the close: if not the final close,
-		 * return the EBUSY error to our caller for eventual retry.
+		 * Flush dirty data from any durable trees we couldn't mark
+		 * dead.  That involves writing a checkpoint, which can fail if
+		 * an update cannot be written, causing the close to fail: if
+		 * not the final close, return the EBUSY error to our caller
+		 * for eventual retry.
 		 *
-		 * We can't discard non-durable objects yet: we have to set the
-		 * data handle dead flag before we do that, and that flag can't
-		 * be set until we close the underlying btree.
+		 * We can't discard non-durable trees yet: first we have to
+		 * close the underlying btree handle, then we can mark the
+		 * data handle dead.
 		 */
 		if (!discard && !marked_dead) {
 			if (F_ISSET(conn, WT_CONN_IN_MEMORY) ||
@@ -246,7 +248,7 @@ __wt_conn_btree_sync_and_close(WT_SESSION_IMPL *session, bool final, bool force)
 		F_SET(dhandle, WT_DHANDLE_DEAD);
 
 	/*
-	 * Get rid of any non-durable objects we couldn't mark dead (or objects
+	 * Get rid of any non-durable trees we couldn't mark dead (or trees
 	 * previously marked dead), by simply discarding them from the cache.
 	 * That work is done after marking the data handle dead for a couple of
 	 * reasons: first, we don't need to hold an exclusive handle to do it,
@@ -371,7 +373,7 @@ __wt_conn_btree_open(
 	 * If the handle is already open, it has to be closed so it can be
 	 * reopened with a new configuration.
 	 *
-	 * This call can return EBUSY if there's an update in the object that's
+	 * This call can return EBUSY if there's an update in the tree that's
 	 * not yet globally visible. That's not a problem because it can only
 	 * happen when we're switching from a normal handle to a "special" one,
 	 * so we're returning EBUSY to an attempt to verify or do other special
@@ -531,7 +533,7 @@ err:	WT_DHANDLE_RELEASE(dhandle);
  */
 static int
 __conn_dhandle_close_one(WT_SESSION_IMPL *session,
-    const char *uri, const char *checkpoint, bool force)
+    const char *uri, const char *checkpoint, bool mark_dead)
 {
 	WT_DECL_RET;
 
@@ -551,7 +553,7 @@ __conn_dhandle_close_one(WT_SESSION_IMPL *session,
 	 */
 	if (F_ISSET(session->dhandle, WT_DHANDLE_OPEN)) {
 		__wt_meta_track_sub_on(session);
-		ret = __wt_conn_btree_sync_and_close(session, false, force);
+		ret = __wt_conn_btree_sync_and_close(session, false, mark_dead);
 
 		/*
 		 * If the close succeeded, drop any locks it acquired.  If
@@ -575,7 +577,7 @@ __conn_dhandle_close_one(WT_SESSION_IMPL *session,
  */
 int
 __wt_conn_dhandle_close_all(
-    WT_SESSION_IMPL *session, const char *uri, bool force)
+    WT_SESSION_IMPL *session, const char *uri, bool mark_dead)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
@@ -593,7 +595,7 @@ __wt_conn_dhandle_close_all(
 	 * locking the live handle to fail fast if the tree is busy (e.g., with
 	 * cursors open or in a checkpoint).
 	 */
-	WT_ERR(__conn_dhandle_close_one(session, uri, NULL, force));
+	WT_ERR(__conn_dhandle_close_one(session, uri, NULL, mark_dead));
 
 	bucket = __wt_hash_city64(uri, strlen(uri)) % WT_HASH_ARRAY_SIZE;
 	TAILQ_FOREACH(dhandle, &conn->dhhash[bucket], hashq) {
@@ -603,7 +605,7 @@ __wt_conn_dhandle_close_all(
 			continue;
 
 		WT_ERR(__conn_dhandle_close_one(
-		    session, dhandle->name, dhandle->checkpoint, force));
+		    session, dhandle->name, dhandle->checkpoint, mark_dead));
 	}
 
 err:	session->dhandle = NULL;
@@ -645,7 +647,7 @@ __conn_dhandle_remove(WT_SESSION_IMPL *session, bool final)
  */
 int
 __wt_conn_dhandle_discard_single(
-    WT_SESSION_IMPL *session, bool final, bool force)
+    WT_SESSION_IMPL *session, bool final, bool mark_dead)
 {
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
@@ -655,7 +657,8 @@ __wt_conn_dhandle_discard_single(
 	dhandle = session->dhandle;
 
 	if (F_ISSET(dhandle, WT_DHANDLE_OPEN)) {
-		tret = __wt_conn_btree_sync_and_close(session, final, force);
+		tret =
+		    __wt_conn_btree_sync_and_close(session, final, mark_dead);
 		if (final && tret != 0) {
 			__wt_err(session, tret,
 			    "Final close of %s failed", dhandle->name);
