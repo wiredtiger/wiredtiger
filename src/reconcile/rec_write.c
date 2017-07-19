@@ -1635,7 +1635,6 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 {
 	WT_DECL_RET;
 	WT_PAGE_MODIFY *mod;
-	uint64_t yield_count;
 
 	/* We may acquire a hazard pointer our caller must release. */
 	*hazardp = false;
@@ -1655,11 +1654,11 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 	 * not reserved for our exclusive use, there are other page states that
 	 * must be considered.
 	 */
-	for (yield_count = 0;; yield_count++, __wt_yield())
+	for (;; __wt_yield()) {
 		switch (r->tested_ref_state = ref->state) {
 		case WT_REF_DISK:
 			/* On disk, not modified by definition. */
-			goto err;
+			goto done;
 
 		case WT_REF_DELETED:
 			/*
@@ -1676,7 +1675,7 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 				break;
 			ret = __rec_child_deleted(session, r, ref, statep);
 			WT_PUBLISH(ref->state, WT_REF_DELETED);
-			goto err;
+			goto done;
 
 		case WT_REF_LOCKED:
 			/*
@@ -1688,7 +1687,7 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 			 */
 			if (F_ISSET(r, WT_EVICTING)) {
 				WT_ASSERT(session, !F_ISSET(r, WT_EVICTING));
-				WT_ERR(EBUSY);
+				return (EBUSY);
 			}
 
 			/*
@@ -1713,7 +1712,7 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 			 */
 			if (F_ISSET(r, WT_EVICTING)) {
 				WT_ASSERT(session, !F_ISSET(r, WT_EVICTING));
-				WT_ERR(EBUSY);
+				return (EBUSY);
 			}
 
 			/*
@@ -1730,8 +1729,7 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 				ret = 0;
 				break;
 			}
-			WT_ERR(ret);
-
+			WT_RET(ret);
 			*hazardp = true;
 			goto in_memory;
 
@@ -1745,9 +1743,9 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 			 */
 			if (F_ISSET(r, WT_EVICTING)) {
 				WT_ASSERT(session, !F_ISSET(r, WT_EVICTING));
-				ret = EBUSY;
+				return (EBUSY);
 			}
-			goto err;
+			goto done;
 
 		case WT_REF_SPLIT:
 			/*
@@ -1763,11 +1761,12 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 			 * for checkpoint.
 			 */
 			WT_ASSERT(session, WT_REF_SPLIT != WT_REF_SPLIT);
-			WT_ERR(EBUSY);
-			break;
+			return (EBUSY);
 
-		WT_ILLEGAL_VALUE_ERR(session);
+		WT_ILLEGAL_VALUE(session);
 		}
+	WT_STAT_CONN_INCR(session, child_modify_blocked_page);
+	}
 
 in_memory:
 	/*
@@ -1799,15 +1798,7 @@ in_memory:
 		WT_CHILD_RELEASE(session, *hazardp, ref);
 	}
 
-err:
-	/*
-	 * Yield_count is not incremented here, even though when diagnostics
-	 * are enabled WT_DIAGNOSTIC_YIELD will yield.
-	 * One less yield_count will not harm the statistics, as this will
-	 * keep code simple
-	 */
-	WT_DIAGNOSTIC_YIELD;
-	WT_STAT_CONN_INCRV(session, child_modify_blocked_page, yield_count);
+done:	WT_DIAGNOSTIC_YIELD;
 	return (ret);
 }
 

@@ -117,7 +117,6 @@ __wt_session_lock_dhandle(
 	WT_BTREE *btree;
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
-	uint64_t yield_count;
 	bool is_open, lock_busy, want_exclusive;
 
 	*is_deadp = 0;
@@ -156,21 +155,19 @@ __wt_session_lock_dhandle(
 	 * using it.  Alternatively, if we can get an exclusive lock
 	 * and WT_DHANDLE_OPEN is still not set, we need to do the open.
 	 */
-	for (yield_count = 0;;) {
+	for (;;) {
 		/* If the handle is dead, give up. */
 		if (F_ISSET(dhandle, WT_DHANDLE_DEAD)) {
 			*is_deadp = 1;
-			break;
+			return (0);
 		}
 
 		/*
 		 * If the handle is already open for a special operation,
 		 * give up.
 		 */
-		if (F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS)) {
-			ret = EBUSY;
-			break;
-		}
+		if (F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS))
+			return (EBUSY);
 
 		/*
 		 * If the handle is open, get a read lock and recheck.
@@ -187,12 +184,12 @@ __wt_session_lock_dhandle(
 			if (F_ISSET(dhandle, WT_DHANDLE_DEAD)) {
 				*is_deadp = 1;
 				__wt_readunlock(session, &dhandle->rwlock);
-				break;
+				return (0);
 			}
 
 			is_open = F_ISSET(dhandle, WT_DHANDLE_OPEN);
 			if (is_open && !want_exclusive)
-				break;
+				return (0);
 			__wt_readunlock(session, &dhandle->rwlock);
 		} else
 			is_open = false;
@@ -208,7 +205,7 @@ __wt_session_lock_dhandle(
 			if (F_ISSET(dhandle, WT_DHANDLE_DEAD)) {
 				*is_deadp = 1;
 				__wt_writeunlock(session, &dhandle->rwlock);
-				break;
+				return (0);
 			}
 
 			/*
@@ -230,24 +227,18 @@ __wt_session_lock_dhandle(
 			dhandle->excl_session = session;
 			dhandle->excl_ref = 1;
 			WT_ASSERT(session, !F_ISSET(dhandle, WT_DHANDLE_DEAD));
-			break;
+			return (0);
 		}
 		if (ret != EBUSY || (is_open && want_exclusive) ||
 		    LF_ISSET(WT_DHANDLE_LOCK_ONLY))
-			WT_ERR(ret);
-		/*
-		 * ret is set to 0 as to ignore if ret is EBUSY
-		 */
-		ret = 0;
+			return (ret);
 		lock_busy = true;
 
 		/* Give other threads a chance to make progress. */
-		yield_count++;
+		WT_STAT_CONN_INCR(session, dhandle_lock_blocked);
 		__wt_yield();
 	}
 
-err:	WT_STAT_CONN_INCRV(session, dhandle_lock_blocked, yield_count);
-	return (ret);
 }
 
 /*
