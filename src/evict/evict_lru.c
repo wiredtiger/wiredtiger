@@ -1813,10 +1813,8 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 		}
 
 		if (ref == NULL) {
-			WT_STAT_CONN_INCR(
-			    session, cache_eviction_walks_ended);
-			WT_STAT_DATA_INCR(
-			    session, cache_eviction_walks_ended);
+			WT_STAT_CONN_INCR(session, cache_eviction_walks_ended);
+			WT_STAT_DATA_INCR(session, cache_eviction_walks_ended);
 
 			if (++restarts == 2) {
 				WT_STAT_CONN_INCR(
