@@ -1604,7 +1604,6 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	start = queue->evict_queue + *slotp;
 	remaining_slots = max_entries - *slotp;
 	total_slots = max_entries - queue->evict_entries;
-	btree_inuse = cache_inuse = 0;
 	target_pages_clean = target_pages_dirty = 0;
 
 	/*
