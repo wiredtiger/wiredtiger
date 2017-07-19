@@ -964,7 +964,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	 * If we have a fixed number of eviction threads, there is no value in
 	 * calculating if we should do any tuning.
 	 */
-       if (conn->evict_threads_max == conn->evict_threads_min)
+	if (conn->evict_threads_max == conn->evict_threads_min)
 		return;
 
 	WT_ASSERT(session, conn->evict_threads.threads[0]->session == session);
