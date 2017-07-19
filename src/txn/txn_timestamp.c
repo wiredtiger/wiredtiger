@@ -299,6 +299,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	return (0);
 }
 
+#ifdef HAVE_TIMESTAMPS
 /*
  * __wt_txn_set_commit_timestamp --
  *	Publish a transaction's commit timestamp.
@@ -405,3 +406,4 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
 	__wt_writeunlock(session, &txn_global->read_timestamp_rwlock);
 	F_CLR(txn, WT_TXN_HAS_TS_READ);
 }
+#endif
