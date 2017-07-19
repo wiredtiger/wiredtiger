@@ -965,7 +965,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	 * calculating if we should do any tuning.
 	 */
        if (conn->evict_threads_max == conn->evict_threads_min)
-               return;
+		return;
 
 	WT_ASSERT(session, conn->evict_threads.threads[0]->session == session);
 	pgs_evicted_cur = 0;
