@@ -56,4 +56,3 @@ echo -n "Generating plantuml images .. "
 mkdir -p ../docs/images/plantuml_gen_img
 java  -Djava.awt.headless=true -jar ../dist/plantuml.jar -o ../docs/images/plantuml_gen_img "../src/docs/**.(doc|dox)" &&
     echo "Done"
-
