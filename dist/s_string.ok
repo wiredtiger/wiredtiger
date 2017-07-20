@@ -690,6 +690,7 @@ extern
 extlist
 fadvise
 fallocate
+fallthrough
 fblocks
 fc
 fclose
@@ -803,6 +804,7 @@ initn
 initsize
 initval
 inline
+inlined
 inmem
 inmemory
 insertK
@@ -1240,6 +1242,7 @@ unregister
 unsized
 unterminated
 untyped
+unvisited
 upd
 update's
 upg
@@ -1263,6 +1266,7 @@ valuep
 valuev
 vanishingly
 variable's
+variadic
 vectorized
 versa
 vfprintf
@@ -1286,6 +1290,7 @@ wb
 wcursor
 whitespace
 wiredTiger
+wiredTigerTables
 wiredtiger
 workFactor
 workgen

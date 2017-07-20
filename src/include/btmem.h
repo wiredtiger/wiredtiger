@@ -620,6 +620,7 @@ struct __wt_page {
 
 	/* This is the 64 byte boundary, try to keep hot fields above here. */
 
+	uint64_t cache_create_gen;	/* Page create timestamp */
 	uint64_t evict_pass_gen;	/* Eviction pass generation */
 };
 
@@ -694,7 +695,7 @@ struct __wt_page {
  *	Related information for fast-delete, on-disk pages.
  */
 struct __wt_page_deleted {
-	uint64_t txnid;			/* Transaction ID */
+	volatile uint64_t txnid;			/* Transaction ID */
 	WT_DECL_TIMESTAMP(timestamp)
 
 	WT_UPDATE **update_list;	/* List of updates for abort */
@@ -885,7 +886,7 @@ struct __wt_ikey {
  * list.
  */
 WT_PACKED_STRUCT_BEGIN(__wt_update)
-	uint64_t txnid;			/* transaction */
+	volatile uint64_t txnid;			/* Transaction ID */
 	WT_DECL_TIMESTAMP(timestamp)
 
 	WT_UPDATE *next;		/* forward-linked list */
