@@ -885,8 +885,8 @@ struct __wt_ikey {
  * is done for an entry, WT_UPDATE structures are formed into a forward-linked
  * list.
  */
-WT_PACKED_STRUCT_BEGIN(__wt_update)
-	volatile uint64_t txnid;			/* Transaction ID */
+struct __wt_update {
+	volatile uint64_t txnid;	/* transaction ID */
 	WT_DECL_TIMESTAMP(timestamp)
 
 	WT_UPDATE *next;		/* forward-linked list */
@@ -898,13 +898,16 @@ WT_PACKED_STRUCT_BEGIN(__wt_update)
 #define	WT_UPDATE_RESERVED	2
 	uint8_t type;			/* type (one byte to conserve memory) */
 
-	/* The update includes a complete value. */
+	/* If the update includes a complete value. */
 #define	WT_UPDATE_DATA_VALUE(upd)					\
 	((upd)->type == WT_UPDATE_STANDARD || (upd)->type == WT_UPDATE_DELETED)
 
-	/* The untyped value immediately follows the WT_UPDATE structure. */
-#define	WT_UPDATE_DATA(upd)						\
-	((void *)((uint8_t *)(upd) + sizeof(WT_UPDATE)))
+	/*
+	 * An untyped value immediately follows the WT_UPDATE structure. The
+	 * first 3 bytes are declared to simplify layout and provide a field
+	 * name.
+	 */
+	uint8_t data[3];		/* start of the data */
 
 	/*
 	 * The memory size of an update: include some padding because this is
@@ -913,13 +916,13 @@ WT_PACKED_STRUCT_BEGIN(__wt_update)
 	 */
 #define	WT_UPDATE_MEMSIZE(upd)						\
 	WT_ALIGN(sizeof(WT_UPDATE) + (upd)->size, 32)
-WT_PACKED_STRUCT_END
+};
 
 /*
  * WT_UPDATE_SIZE is the expected structure size -- we verify the build to
  * ensure the compiler hasn't inserted padding.
  */
-#define	WT_UPDATE_SIZE	(21 + WT_TIMESTAMP_SIZE)
+#define	WT_UPDATE_SIZE	32
 
 /*
  * WT_INSERT --
