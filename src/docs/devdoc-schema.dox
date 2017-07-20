@@ -11,7 +11,7 @@ sequence of steps define a generic schema operation:
 
 @plantuml_start{schema_generic.png}
 @startuml{schema_generic.png}
-:a schema operation;
+:A schema operation;
 partition with-schema-lock {
     :perform operation on underlying data-object;
     :update metadata-file;
@@ -30,7 +30,7 @@ schema types are as follows:
 
 @plantuml_start{schema_create.png}
 @startuml{schema_create.png}
-:WT_SESSION->create(..,name,..)
+:WT_SESSION->create(.,name,.)
 (__session_create());
 
 partition session-API-call {
@@ -55,7 +55,9 @@ partition with-schema-lock {
             :uri matches "colgroup:";
             :__create_colgroup();
         split again
-            :uri matches "file:";
+            :uri matches "file:"
+            ("file" is the underlying
+             type for all the objects);
         split again
             :uri matches "lsm:";
             :__wt_lsm_tree_create();
@@ -67,9 +69,6 @@ partition with-schema-lock {
             :__create_data_source();
         end split
 
-	note right
-            "file" is the underlying type for all the objects
-        end note
         partition __create_file() {
             :exit if file exists;
             :validate allocation size;
