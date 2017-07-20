@@ -153,8 +153,7 @@ __txn_global_query_timestamp(
 		__wt_readunlock(session, &txn_global->read_timestamp_rwlock);
 	} else
 		WT_RET_MSG(session, EINVAL,
-		    "unknown timestamp query configuration %.*s",
-		    (int)cval.len, cval.str);
+		    "unknown timestamp query %.*s", (int)cval.len, cval.str);
 
 	__wt_timestamp_set(tsp, &ts);
 	return (0);
@@ -199,7 +198,7 @@ __wt_txn_global_query_timestamp(
 	 * Keep clang-analyzer happy: it can't tell that ts will be set
 	 * whenever the call below succeeds.
 	 */
-	WT_CLEAR(ts.ts);
+	__wt_timestamp_set_zero(&ts);
 	WT_RET(__txn_global_query_timestamp(session, &ts, cfg));
 
 	/* Avoid memory allocation: set up an item guaranteed large enough. */
@@ -218,8 +217,9 @@ __wt_txn_global_query_timestamp(
 	WT_UNUSED(hex_timestamp);
 	WT_UNUSED(cfg);
 
-	WT_RET_MSG(session, ENOTSUP, "WT_CONNECTION.query_timestamp "
-	    "requires a version of WiredTiger built with timestamp support");
+	WT_RET_MSG(session, ENOTSUP,
+	    "WT_CONNECTION.query_timestamp requires a version of WiredTiger "
+	    "built with timestamp support");
 #endif
 }
 
@@ -352,6 +352,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	return (0);
 }
 
+#ifdef HAVE_TIMESTAMPS
 /*
  * __wt_txn_set_commit_timestamp --
  *	Publish a transaction's commit timestamp.
@@ -458,3 +459,4 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
 	__wt_writeunlock(session, &txn_global->read_timestamp_rwlock);
 	F_CLR(txn, WT_TXN_HAS_TS_READ);
 }
+#endif
