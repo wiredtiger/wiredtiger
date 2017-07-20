@@ -6,12 +6,12 @@ information), operated upon through a WT_SESSION reference. This section details
 the internals of these various schema operations.
 
 Schema operations cause an update to the metadata and are performed under a
-schema lock to avoid concurrent operations on the same object. Following
+schema lock to avoid concurrent operations on the same object. The following
 sequence of steps define a generic schema operation:
 
 @plantuml_start{schema_generic.png}
 @startuml{schema_generic.png}
-:WT_SESSION->generic_schema_op;
+:a schema operation;
 partition with-schema-lock {
     :perform operation on underlying data-object;
     :update metadata-file;
@@ -30,7 +30,7 @@ schema types are as follows:
 
 @plantuml_start{schema_create.png}
 @startuml{schema_create.png}
-:WT_SESSION->create
+:WT_SESSION->create(..,name,..)
 (__session_create());
 
 partition session-API-call {
@@ -39,7 +39,12 @@ partition session-API-call {
     :exit if invalid configuration;
 }
 
-:validate "type" config parameter;
+:validate "name" and if passed "type" config parameter;
+note right
+    "name" parameter is called as "uri" internally.
+    "type" is usually not passed and generally
+    implied from the uri.
+end note
 
 partition with-schema-lock {
     partition with-table-lock {
@@ -62,6 +67,9 @@ partition with-schema-lock {
             :__create_data_source();
         end split
 
+	note right
+            "file" is the underlying type for all the objects
+        end note
         partition __create_file() {
             :exit if file exists;
             :validate allocation size;
