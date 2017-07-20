@@ -1765,7 +1765,7 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 
 		WT_ILLEGAL_VALUE(session);
 		}
-	WT_STAT_CONN_INCR(session, child_modify_blocked_page);
+		WT_STAT_CONN_INCR(session, child_modify_blocked_page);
 	}
 
 in_memory:

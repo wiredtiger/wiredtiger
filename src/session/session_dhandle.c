@@ -238,7 +238,6 @@ __wt_session_lock_dhandle(
 		WT_STAT_CONN_INCR(session, dhandle_lock_blocked);
 		__wt_yield();
 	}
-
 }
 
 /*
