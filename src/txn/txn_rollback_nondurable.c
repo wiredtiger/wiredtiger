@@ -376,7 +376,7 @@ __wt_txn_rollback_nondurable_commits(
 
 	/* Allocate a non-durable btree bitstring */
 	WT_RET(__bit_alloc(session,
-	    conn->next_file_id, conn->nondurable_rollback_bitstring));
+	    conn->next_file_id, &conn->nondurable_rollback_bitstring));
 	WT_ERR(__wt_conn_btree_apply(session,
 	    NULL, __txn_rollback_nondurable_commits_btree, NULL, cfg));
 
