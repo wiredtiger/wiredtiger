@@ -52,12 +52,15 @@ partition with-schema-lock {
         :check uri}
 
         split
-            :uri matches "colgroup:";
-            :__create_colgroup();
-        split again
             :uri matches "file:"
             ("file" is the underlying
              type for all the objects);
+        split again
+            :uri matches "colgroup:";
+            :__create_colgroup();
+        split again
+            :uri matches "table:";
+            :__create_table();
         split again
             :uri matches "lsm:";
             :__wt_lsm_tree_create();
