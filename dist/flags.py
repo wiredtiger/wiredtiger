@@ -10,7 +10,7 @@ flags = {
 ###################################################
     'diagnostic_timing_stress' : [
         'TIMING_STRESS_CHECKPOINT_SLOW',
-        'TIMING_STRESS_PAGE_SPLIT_SLOW',
+        'TIMING_STRESS_PAGE_SPLIT_RACE',
     ],
     'log_scan' : [
         'LOGSCAN_FIRST',

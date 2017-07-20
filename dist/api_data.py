@@ -411,12 +411,11 @@ connection_runtime_config = [
         enable insertion of code that interrupts the usual timing of
         operations with a goal of uncovering race conditions and unexpected
         blocking. This option is intended for use with internal stress
-        testing of WiredTiger. Only available if WiredTiger is configured
-        with --enable-diagnostic. Options are given as a list, such as
+        testing of WiredTiger. Options are given as a list, such as
         <code>"diagnostic_timing_stress=[checkpoint_slow,
-                                        page_split_slow]"</code>''',
+                                        page_split_race]"</code>''',
         type='list', undoc=True, choices=[
-            'checkpoint_slow', 'page_split_slow']),
+            'checkpoint_slow', 'page_split_race']),
     Config('error_prefix', '', r'''
         prefix string for error messages'''),
     Config('eviction', '', r'''
