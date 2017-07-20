@@ -887,7 +887,9 @@ struct __wt_ikey {
  */
 struct __wt_update {
 	volatile uint64_t txnid;	/* transaction ID */
-	WT_DECL_TIMESTAMP(timestamp)
+#if WT_TIMESTAMP_SIZE == 8
+	WT_DECL_TIMESTAMP(timestamp)	/* aligned uint64_t timestamp */
+#endif
 
 	WT_UPDATE *next;		/* forward-linked list */
 
@@ -901,6 +903,10 @@ struct __wt_update {
 	/* If the update includes a complete value. */
 #define	WT_UPDATE_DATA_VALUE(upd)					\
 	((upd)->type == WT_UPDATE_STANDARD || (upd)->type == WT_UPDATE_DELETED)
+
+#if WT_TIMESTAMP_SIZE != 8
+	WT_DECL_TIMESTAMP(timestamp)	/* unaligned uint8_t array timestamp */
+#endif
 
 	/*
 	 * An untyped value immediately follows the WT_UPDATE structure. The
