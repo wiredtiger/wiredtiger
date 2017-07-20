@@ -1,4 +1,13 @@
 #! /bin/sh
+# Usage: ./s_plantuml [-d | Auto download plantuml if doesn't exist in dist/]
+# This script checks for the existence of plantuml jar file (optionally
+# downloading it from sourceforge) and then generates uml images from the
+# plantuml templates embedded in the documentation.
+# Run this script after adding new plantuml templates to generate a fresh set of
+# uml images. All new images generated should be commited with the code.
+# For easy prototyping, following link can be used to generate these images
+# online:
+# http://www.plantuml.com/plantuml
 
 PLANTUML_URL="https://downloads.sourceforge.net/project/plantuml/plantuml.jar?r=&ts=1499750156&use_mirror=nchc"
 
@@ -41,6 +50,10 @@ java -jar ../dist/plantuml.jar -testdot > /dev/null || {
 	exit 1
 }
 
-# Generate PlantUML docs
-mkdir -p ../docs/images/plantuml-gen-img
-java  -Djava.awt.headless=true -jar ../dist/plantuml.jar -o ../docs/images/plantuml-gen-img "../src/docs/**.(c|cpp|doc|h|dox)"
+# Generate PlantUML docs. This command looks for plantuml template code embedded
+# in files at /src/docs/ with doc or dox extension.
+echo -n "Generating plantuml images .. "
+mkdir -p ../docs/images/plantuml_gen_img
+java  -Djava.awt.headless=true -jar ../dist/plantuml.jar -o ../docs/images/plantuml_gen_img "../src/docs/**.(doc|dox)" &&
+    echo "Done"
+

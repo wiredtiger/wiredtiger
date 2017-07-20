@@ -51,28 +51,6 @@ partition with-schema-lock {
             :__create_colgroup();
         split again
             :uri matches "file:";
-            partition __create_file() {
-                :exit if file exists;
-                :validate allocation size;
-                :block manager creates the file:
-                 1.create file using __wt_open()
-                 2.write an initial descriptor to file
-                 3.fsync and close the file handle;
-                if (metadata-file?) then (yes)
-                else (no)
-                    :update metadata with file
-                     configuration and version;
-                endif
-                :check if file setup correctly by
-                 getting btree handle with
-                 WT_DHANDLE_EXCLUSIVE set;
-                if (metatracking on?) then (yes)
-                    :track locked handle*;
-                else (no)
-                    :release btree -
-                     sync and close;
-                endif
-            }
         split again
             :uri matches "lsm:";
             :__wt_lsm_tree_create();
@@ -83,6 +61,29 @@ partition with-schema-lock {
             :matches a named data-source;
             :__create_data_source();
         end split
+
+        partition __create_file() {
+            :exit if file exists;
+            :validate allocation size;
+            :block manager creates the file:
+             1.create file using __wt_open()
+             2.write an initial descriptor to file
+             3.fsync and close the file handle;
+            if (metadata-file?) then (yes)
+            else (no)
+                :update metadata with file
+                 configuration and version;
+            endif
+            :check if file setup correctly by
+             getting btree handle with
+             WT_DHANDLE_EXCLUSIVE set;
+            if (metatracking on?) then (yes)
+                :track locked handle*;
+            else (no)
+                :release btree -
+                 sync and close;
+            endif
+        }
 
         partition turn-off-meta-tracking {
             if (errors?) then (yes)
