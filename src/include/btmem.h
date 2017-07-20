@@ -921,7 +921,7 @@ struct __wt_update {
 	 * cache overhead calculation.
 	 */
 #define	WT_UPDATE_MEMSIZE(upd)						\
-	WT_ALIGN(sizeof(WT_UPDATE) + (upd)->size, 32)
+	WT_ALIGN(WT_UPDATE_SIZE + (upd)->size, 32)
 };
 
 /*
