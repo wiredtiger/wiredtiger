@@ -367,6 +367,8 @@ __wt_txn_checkpoint_log(
 	switch (flags) {
 	case WT_TXN_LOG_CKPT_PREPARE:
 		txn->full_ckpt = true;
+		WT_ERR(__wt_log_printf_internal(session,
+		    "CHECKPOINT: Starting record"));
 		WT_ERR(__wt_log_flush_lsn(session, ckpt_lsn, true));
 		/*
 		 * We need to make sure that the log records in the checkpoint
