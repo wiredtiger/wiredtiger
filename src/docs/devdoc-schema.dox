@@ -9,6 +9,7 @@ Schema operations cause an update to the metadata and are performed under a
 schema lock to avoid concurrent operations on the same object. Following
 sequence of steps define a generic schema operation:
 
+@plantuml_start{schema_generic.png}
 @startuml{schema_generic.png}
 :WT_SESSION->generic_schema_op;
 partition with-schema-lock {
@@ -18,6 +19,7 @@ partition with-schema-lock {
 }
 stop
 @enduml
+@plantuml_end
 
 @section schema_create Schema Create
 
@@ -26,6 +28,7 @@ object on the filesystem with the right parameters and then creating an entry
 for this new object into the metadata. The sequence of operations for various
 schema types are as follows:
 
+@plantuml_start{schema_create.png}
 @startuml{schema_create.png}
 :WT_SESSION->create
 (__session_create());
@@ -108,5 +111,6 @@ partition with-schema-lock {
 
 stop
 @enduml
+@plantuml_end
 
 */
