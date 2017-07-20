@@ -1,0 +1,46 @@
+#! /bin/sh
+
+PLANTUML_URL="https://downloads.sourceforge.net/project/plantuml/plantuml.jar?r=&ts=1499750156&use_mirror=nchc"
+
+# We require java which may not be installed.
+type java > /dev/null 2>&1 || {
+	echo 'skipped: java not found'
+	exit 0
+}
+
+download_plantuml=0
+while :
+	do case "$1" in
+	-d)	# Download plantuml if not already there
+		download_plantuml=1
+		shift;;
+	*)
+		break;;
+	esac
+done
+
+# plantuml is needed, check if already downloaded, else download if suggested
+# by an argument
+file ../dist/plantuml.jar > /dev/null 2>&1 || {
+	echo -n 'dist/plantuml.jar not found. '
+	if [ $download_plantuml -eq 1 ]
+	then
+		echo 'Downloading plantuml:'
+		wget $PLANTUML_URL -O ../dist/plantuml.jar
+	else
+		echo 'plantuml can be downloaded from:'
+		echo 'https://sourceforge.net/projects/plantuml/files/plantuml.jar/download'
+		echo 'To download automatically pass -d argument to the script'
+		exit 1
+	fi
+}
+
+# Check plantuml works as expected
+java -jar ../dist/plantuml.jar -testdot > /dev/null || {
+	echo 'error: plantuml installation check failed'
+	exit 1
+}
+
+# Generate PlantUML docs
+mkdir -p ../docs/images/plantuml-gen-img
+java  -Djava.awt.headless=true -jar ../dist/plantuml.jar -o ../docs/images/plantuml-gen-img "../src/docs/**.(c|cpp|doc|h|dox)"
