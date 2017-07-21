@@ -43,9 +43,7 @@ __page_split_timing_stress(WT_SESSION_IMPL *session)
 
 	conn = S2C(session);
 
-	/*
-	 * We only want to sleep if the diagnostics flag is set
-	 */
+	/* We only want to sleep when page split race flag is set. */
 	if (FLD_ISSET(conn->timing_stress_flags,
 	    WT_TIMING_STRESS_PAGE_SPLIT_RACE))
 		__wt_sleep(0, WT_THOUSAND);

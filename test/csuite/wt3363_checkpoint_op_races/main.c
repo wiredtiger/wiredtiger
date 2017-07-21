@@ -92,7 +92,7 @@ main(int argc, char *argv[])
 	testutil_make_work_dir(opts->home);
 
 	testutil_check(wiredtiger_open(opts->home, &event_handler,
-	    "create,cache_size=1G,diagnostic_timing_stress=[checkpoint_slow]",
+	    "create,cache_size=1G,timing_stress_for_test=[checkpoint_slow]",
 	    &opts->conn));
 
 	testutil_check(pthread_create(

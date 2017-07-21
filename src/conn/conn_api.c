@@ -1936,7 +1936,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 
 /*
  * __wt_timing_stress_config --
- *	Set diagnostic stress timing delay configuration.
+ *	Set timing stress for test delay configuration.
  */
 int
 __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
@@ -1955,7 +1955,7 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
 	conn = S2C(session);
 
 	WT_RET(__wt_config_gets(
-	    session, cfg, "diagnostic_timing_stress", &cval));
+	    session, cfg, "timing_stress_for_test", &cval));
 
 	flags = 0;
 	for (ft = stress_types; ft->name != NULL; ft++) {
