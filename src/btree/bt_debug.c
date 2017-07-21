@@ -999,7 +999,7 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 			WT_RET(ds->f(ds, "\tvalue {reserved}\n"));
 		else if (hexbyte) {
 			WT_RET(ds->f(ds, "\t{"));
-			WT_RET(__debug_hex_byte(ds, *(uint8_t *)upd->data));
+			WT_RET(__debug_hex_byte(ds, *upd->data));
 			WT_RET(ds->f(ds, "}\n"));
 		} else
 			WT_RET(__debug_item(ds, "value", upd->data, upd->size));

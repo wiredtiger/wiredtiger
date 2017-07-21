@@ -909,11 +909,11 @@ struct __wt_update {
 #endif
 
 	/*
-	 * An untyped value immediately follows the WT_UPDATE structure. The
-	 * first 3 bytes are declared to simplify layout and provide a field
-	 * name.
+	 * Zero or more bytes of value (the payload) immediately follows the
+	 * WT_UPDATE structure.  We use a C99 flexible array member which has
+	 * the semantics we want.
 	 */
-	uint8_t data[3];		/* start of the data */
+	uint8_t data[];			/* start of the data */
 
 	/*
 	 * The memory size of an update: include some padding because this is
