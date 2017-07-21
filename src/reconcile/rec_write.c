@@ -3790,8 +3790,8 @@ __rec_update_las(WT_SESSION_IMPL *session,
 
 		/*
 		 * Walk the list of updates, storing each key/value pair into
-		 * the lookaside table. Skip aborted and reserved items, they
-		 * are never useful.
+		 * the lookaside table. Skip aborted items (there's no point
+		 * to restoring them), and assert we never see a reserved item.
 		 */
 		do {
 			if (upd->txnid == WT_TXN_ABORTED)
@@ -3808,6 +3808,8 @@ __rec_update_las(WT_SESSION_IMPL *session,
 				las_value.size = cbt->iface.value.size;
 				break;
 			case WT_UPDATE_RESERVED:
+				WT_ASSERT(session,
+				    upd->type != WT_UPDATE_RESERVED);
 				continue;
 			case WT_UPDATE_STANDARD:
 				las_value.data = WT_UPDATE_DATA(upd);
