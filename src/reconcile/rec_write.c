@@ -1310,8 +1310,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 
 	/* Reconciliation should never see a reserved update. */
 	WT_ASSERT(session, *updp == NULL ||
-	    (*updp)->txnid != WT_TXN_ABORTED &&
-	    (*updp)->type != WT_UPDATE_RESERVED);
+	    ((*updp)->txnid != WT_TXN_ABORTED &&
+	    (*updp)->type != WT_UPDATE_RESERVED));
 
 	r->update_mem_all += update_mem;
 
