@@ -415,8 +415,7 @@ connection_runtime_config = [
         with --enable-diagnostic. Options are given as a list, such as
         <code>"diagnostic_timing_stress=[checkpoint_slow]"</code>''',
         type='list', undoc=True, choices=[
-            'checkpoint_slow',
-            'latency_tracking']),
+            'checkpoint_slow']),
     Config('error_prefix', '', r'''
         prefix string for error messages'''),
     Config('eviction', '', r'''
