@@ -925,10 +925,10 @@ struct __wt_update {
 };
 
 /*
- * WT_UPDATE_SIZE is the expected structure size -- we verify the build to
- * ensure the compiler hasn't inserted padding.
+ * WT_UPDATE_SIZE is the expected structure size excluding the payload data --
+ * we verify the build to ensure the compiler hasn't inserted padding.
  */
-#define	WT_UPDATE_SIZE	(24 + WT_TIMESTAMP_SIZE)
+#define	WT_UPDATE_SIZE	(21 + WT_TIMESTAMP_SIZE)
 
 /*
  * WT_INSERT --

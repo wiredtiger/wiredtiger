@@ -259,7 +259,6 @@ __wt_update_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value,
     WT_UPDATE **updp, size_t *sizep, u_int modify_type)
 {
 	WT_UPDATE *upd;
-	size_t len;
 
 	*updp = NULL;
 
@@ -271,13 +270,8 @@ __wt_update_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value,
 	    modify_type == WT_UPDATE_RESERVED)
 		WT_RET(__wt_calloc(session, 1, WT_UPDATE_SIZE, &upd));
 	else {
-		/*
-		 * The first 3 data bytes are declared in the WT_UPDATE
-		 * structure to simply structure layout and avoid having
-		 * to calculate the data start. Adjust the value's size.
-		 */
-		len = value->size <= 3 ? 0 : value->size - 3;
-		WT_RET(__wt_calloc(session, 1, WT_UPDATE_SIZE + len, &upd));
+		WT_RET(__wt_calloc(
+		    session, 1, WT_UPDATE_SIZE + value->size, &upd));
 		if (value->size != 0) {
 			upd->size = WT_STORE_SIZE(value->size);
 			memcpy(upd->data, value->data, value->size);

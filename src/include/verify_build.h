@@ -54,10 +54,13 @@ __wt_verify_build(void)
 	WT_SIZE_CHECK(WT_REF, WT_REF_SIZE);
 
 	/*
-	 * WT_UPDATE is special, we don't use sizeof on that structure because
-	 * the compiler pads it based on how timestamps are configured.
+	 * WT_UPDATE is special: we arrange fields to avoid padding within the
+	 * structure but it could be padded at the end depending on the
+	 * timestamp size.  Further check that the data field in the update
+	 * structure is where we expect it.
 	 */
-	WT_STATIC_ASSERT(offsetof(WT_UPDATE, data) + 3 == WT_UPDATE_SIZE);
+	WT_SIZE_CHECK(WT_UPDATE, WT_ALIGN(WT_UPDATE_SIZE, 8));
+	WT_STATIC_ASSERT(offsetof(WT_UPDATE, data) == WT_UPDATE_SIZE);
 
 	/* Check specific structures were padded. */
 #define	WT_PADDING_CHECK(s)						\
