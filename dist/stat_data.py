@@ -84,6 +84,10 @@ class LSMStat(Stat):
     prefix = 'LSM'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, LSMStat.prefix, desc, flags)
+class PerfHistStat(Stat):
+    prefix = 'perf'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, PerfHistStat.prefix, desc, flags)
 class RecStat(Stat):
     prefix = 'reconciliation'
     def __init__(self, name, desc, flags=''):
@@ -128,6 +132,7 @@ groups['memory'] = [
 groups['system'] = [
     ConnStat.prefix,
     DhandleStat.prefix,
+    PerfHistStat.prefix,
     SessionStat.prefix,
     ThreadStat.prefix
 ]
@@ -386,6 +391,32 @@ connection_stats = [
     LSMStat('lsm_work_units_done', 'tree maintenance operations executed'),
 
     ##########################################
+    # Performance Histogram Stats
+    ##########################################
+    PerfHistStat('perf_hist_readfs_latency_gt1000', 'file system read latency histogram - 1000ms+'),
+    PerfHistStat('perf_hist_readfs_latency_lt50', 'file system read latency histogram - 10-49ms'),
+    PerfHistStat('perf_hist_readfs_latency_lt100', 'file system read latency histogram - 50-99ms'),
+    PerfHistStat('perf_hist_readfs_latency_lt250', 'file system read latency histogram - 100-249ms'),
+    PerfHistStat('perf_hist_readfs_latency_lt500', 'file system read latency histogram - 250-499ms'),
+    PerfHistStat('perf_hist_readfs_latency_lt1000', 'file system read latency histogram - 500-999ms'),
+    PerfHistStat('perf_hist_readop_latency_gt10000', 'operation read latency histogram - 10000us+'),
+    PerfHistStat('perf_hist_readop_latency_lt250', 'operation read latency histogram - 100-249us'),
+    PerfHistStat('perf_hist_readop_latency_lt500', 'operation read latency histogram - 250-499us'),
+    PerfHistStat('perf_hist_readop_latency_lt1000', 'operation read latency histogram - 500-999us'),
+    PerfHistStat('perf_hist_readop_latency_lt10000', 'operation read latency histogram - 1000-9999us'),
+    PerfHistStat('perf_hist_writefs_latency_gt1000', 'file system write latency histogram - 1000ms+'),
+    PerfHistStat('perf_hist_writefs_latency_lt50', 'file system write latency histogram - 10-49ms'),
+    PerfHistStat('perf_hist_writefs_latency_lt100', 'file system write latency histogram - 50-99ms'),
+    PerfHistStat('perf_hist_writefs_latency_lt250', 'file system write latency histogram - 100-249ms'),
+    PerfHistStat('perf_hist_writefs_latency_lt500', 'file system write latency histogram - 250-499ms'),
+    PerfHistStat('perf_hist_writefs_latency_lt1000', 'file system write latency histogram - 500-999ms'),
+    PerfHistStat('perf_hist_writeop_latency_gt10000', 'operation write latency histogram - 10000us+'),
+    PerfHistStat('perf_hist_writeop_latency_lt250', 'operation write latency histogram - 100-249us'),
+    PerfHistStat('perf_hist_writeop_latency_lt500', 'operation write latency histogram - 250-499us'),
+    PerfHistStat('perf_hist_writeop_latency_lt1000', 'operation write latency histogram - 500-999us'),
+    PerfHistStat('perf_hist_writeop_latency_lt10000', 'operation write latency histogram - 1000-9999us'),
+
+##########################################
     # Reconciliation statistics
     ##########################################
     RecStat('rec_page_delete', 'pages deleted'),

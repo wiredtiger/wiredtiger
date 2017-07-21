@@ -176,6 +176,7 @@ err:	API_END_RET(session, ret);
 static int
 __curfile_search(WT_CURSOR *cursor)
 {
+	struct timespec start, stop;
 	WT_CURSOR_BTREE *cbt;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -184,7 +185,10 @@ __curfile_search(WT_CURSOR *cursor)
 	CURSOR_API_CALL(cursor, session, search, cbt->btree);
 	WT_ERR(__cursor_checkkey(cursor));
 
+	__wt_epoch(session, &start);
 	WT_ERR(__wt_btcur_search(cbt));
+	__wt_epoch(session, &stop);
+	 __wt_stat_read_op_histogram(session, WT_TIMEDIFF_US(stop, start));
 
 	/* Search maintains a position, key and value. */
 	WT_ASSERT(session,
@@ -201,6 +205,7 @@ err:	API_END_RET(session, ret);
 static int
 __curfile_search_near(WT_CURSOR *cursor, int *exact)
 {
+	struct timespec start, stop;
 	WT_CURSOR_BTREE *cbt;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -209,7 +214,10 @@ __curfile_search_near(WT_CURSOR *cursor, int *exact)
 	CURSOR_API_CALL(cursor, session, search_near, cbt->btree);
 	WT_ERR(__cursor_checkkey(cursor));
 
+	__wt_epoch(session, &start);
 	WT_ERR(__wt_btcur_search_near(cbt, exact));
+	__wt_epoch(session, &stop);
+	__wt_stat_read_op_histogram(session, WT_TIMEDIFF_US(stop, start));
 
 	/* Search-near maintains a position, key and value. */
 	WT_ASSERT(session,
@@ -226,6 +234,7 @@ err:	API_END_RET(session, ret);
 static int
 __curfile_insert(WT_CURSOR *cursor)
 {
+	struct timespec start, stop;
 	WT_CURSOR_BTREE *cbt;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -237,7 +246,9 @@ __curfile_insert(WT_CURSOR *cursor)
 		WT_ERR(__cursor_checkkey(cursor));
 	WT_ERR(__cursor_checkvalue(cursor));
 
+	__wt_epoch(session, &start);
 	WT_ERR(__wt_btcur_insert(cbt));
+	__wt_epoch(session, &stop);
 
 	/*
 	 * Insert maintains no position, key or value (except for column-store
@@ -248,6 +259,8 @@ __curfile_insert(WT_CURSOR *cursor)
 	    F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT) ||
 	    (!F_ISSET(cursor, WT_CURSTD_APPEND) &&
 	    F_MASK(cursor, WT_CURSTD_KEY_SET) == 0));
+
+	__wt_stat_write_op_histogram(session, WT_TIMEDIFF_US(stop, start));
 
 err:	CURSOR_UPDATE_API_END(session, ret);
 	return (ret);
@@ -281,6 +294,7 @@ err:	CURSOR_UPDATE_API_END(session, ret);
 static int
 __curfile_update(WT_CURSOR *cursor)
 {
+	struct timespec start, stop;
 	WT_CURSOR_BTREE *cbt;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -290,12 +304,16 @@ __curfile_update(WT_CURSOR *cursor)
 	WT_ERR(__cursor_checkkey(cursor));
 	WT_ERR(__cursor_checkvalue(cursor));
 
+	__wt_epoch(session, &start);
 	WT_ERR(__wt_btcur_update(cbt));
+	__wt_epoch(session, &stop);
 
 	/* Update maintains a position, key and value. */
 	WT_ASSERT(session,
 	    F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
 	    F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
+
+	__wt_stat_write_op_histogram(session, WT_TIMEDIFF_US(stop, start));
 
 err:	CURSOR_UPDATE_API_END(session, ret);
 	return (ret);
@@ -308,6 +326,7 @@ err:	CURSOR_UPDATE_API_END(session, ret);
 static int
 __curfile_remove(WT_CURSOR *cursor)
 {
+	struct timespec start, stop;
 	WT_CURSOR_BTREE *cbt;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -316,7 +335,10 @@ __curfile_remove(WT_CURSOR *cursor)
 	CURSOR_REMOVE_API_CALL(cursor, session, cbt->btree);
 	WT_ERR(__cursor_checkkey(cursor));
 
+	__wt_epoch(session, &start);
 	WT_ERR(__wt_btcur_remove(cbt));
+	__wt_epoch(session, &stop);
+	__wt_stat_write_op_histogram(session, WT_TIMEDIFF_US(stop, start));
 
 	/*
 	 * Remove with a search-key is fire-and-forget, no position and no key.

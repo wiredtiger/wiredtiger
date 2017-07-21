@@ -938,6 +938,28 @@ static const char * const __stats_connection_desc[] = {
 	"log: total size of compressed records",
 	"log: written slots coalesced",
 	"log: yields waiting for previous log file close",
+	"perf: file system read latency histogram - 10-49ms",
+	"perf: file system read latency histogram - 100-249ms",
+	"perf: file system read latency histogram - 1000ms+",
+	"perf: file system read latency histogram - 250-499ms",
+	"perf: file system read latency histogram - 50-99ms",
+	"perf: file system read latency histogram - 500-999ms",
+	"perf: file system write latency histogram - 10-49ms",
+	"perf: file system write latency histogram - 100-249ms",
+	"perf: file system write latency histogram - 1000ms+",
+	"perf: file system write latency histogram - 250-499ms",
+	"perf: file system write latency histogram - 50-99ms",
+	"perf: file system write latency histogram - 500-999ms",
+	"perf: operation read latency histogram - 100-249us",
+	"perf: operation read latency histogram - 1000-9999us",
+	"perf: operation read latency histogram - 10000us+",
+	"perf: operation read latency histogram - 250-499us",
+	"perf: operation read latency histogram - 500-999us",
+	"perf: operation write latency histogram - 100-249us",
+	"perf: operation write latency histogram - 1000-9999us",
+	"perf: operation write latency histogram - 10000us+",
+	"perf: operation write latency histogram - 250-499us",
+	"perf: operation write latency histogram - 500-999us",
 	"reconciliation: fast-path pages deleted",
 	"reconciliation: page reconciliation calls",
 	"reconciliation: page reconciliation calls for eviction",
@@ -1253,6 +1275,28 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->log_compress_len = 0;
 	stats->log_slot_coalesced = 0;
 	stats->log_close_yields = 0;
+	stats->perf_hist_readfs_latency_lt50 = 0;
+	stats->perf_hist_readfs_latency_lt250 = 0;
+	stats->perf_hist_readfs_latency_gt1000 = 0;
+	stats->perf_hist_readfs_latency_lt500 = 0;
+	stats->perf_hist_readfs_latency_lt100 = 0;
+	stats->perf_hist_readfs_latency_lt1000 = 0;
+	stats->perf_hist_writefs_latency_lt50 = 0;
+	stats->perf_hist_writefs_latency_lt250 = 0;
+	stats->perf_hist_writefs_latency_gt1000 = 0;
+	stats->perf_hist_writefs_latency_lt500 = 0;
+	stats->perf_hist_writefs_latency_lt100 = 0;
+	stats->perf_hist_writefs_latency_lt1000 = 0;
+	stats->perf_hist_readop_latency_lt250 = 0;
+	stats->perf_hist_readop_latency_lt10000 = 0;
+	stats->perf_hist_readop_latency_gt10000 = 0;
+	stats->perf_hist_readop_latency_lt500 = 0;
+	stats->perf_hist_readop_latency_lt1000 = 0;
+	stats->perf_hist_writeop_latency_lt250 = 0;
+	stats->perf_hist_writeop_latency_lt10000 = 0;
+	stats->perf_hist_writeop_latency_gt10000 = 0;
+	stats->perf_hist_writeop_latency_lt500 = 0;
+	stats->perf_hist_writeop_latency_lt1000 = 0;
 	stats->rec_page_delete_fast = 0;
 	stats->rec_pages = 0;
 	stats->rec_pages_eviction = 0;
@@ -1625,6 +1669,50 @@ __wt_stat_connection_aggregate(
 	to->log_compress_len += WT_STAT_READ(from, log_compress_len);
 	to->log_slot_coalesced += WT_STAT_READ(from, log_slot_coalesced);
 	to->log_close_yields += WT_STAT_READ(from, log_close_yields);
+	to->perf_hist_readfs_latency_lt50 +=
+	    WT_STAT_READ(from, perf_hist_readfs_latency_lt50);
+	to->perf_hist_readfs_latency_lt250 +=
+	    WT_STAT_READ(from, perf_hist_readfs_latency_lt250);
+	to->perf_hist_readfs_latency_gt1000 +=
+	    WT_STAT_READ(from, perf_hist_readfs_latency_gt1000);
+	to->perf_hist_readfs_latency_lt500 +=
+	    WT_STAT_READ(from, perf_hist_readfs_latency_lt500);
+	to->perf_hist_readfs_latency_lt100 +=
+	    WT_STAT_READ(from, perf_hist_readfs_latency_lt100);
+	to->perf_hist_readfs_latency_lt1000 +=
+	    WT_STAT_READ(from, perf_hist_readfs_latency_lt1000);
+	to->perf_hist_writefs_latency_lt50 +=
+	    WT_STAT_READ(from, perf_hist_writefs_latency_lt50);
+	to->perf_hist_writefs_latency_lt250 +=
+	    WT_STAT_READ(from, perf_hist_writefs_latency_lt250);
+	to->perf_hist_writefs_latency_gt1000 +=
+	    WT_STAT_READ(from, perf_hist_writefs_latency_gt1000);
+	to->perf_hist_writefs_latency_lt500 +=
+	    WT_STAT_READ(from, perf_hist_writefs_latency_lt500);
+	to->perf_hist_writefs_latency_lt100 +=
+	    WT_STAT_READ(from, perf_hist_writefs_latency_lt100);
+	to->perf_hist_writefs_latency_lt1000 +=
+	    WT_STAT_READ(from, perf_hist_writefs_latency_lt1000);
+	to->perf_hist_readop_latency_lt250 +=
+	    WT_STAT_READ(from, perf_hist_readop_latency_lt250);
+	to->perf_hist_readop_latency_lt10000 +=
+	    WT_STAT_READ(from, perf_hist_readop_latency_lt10000);
+	to->perf_hist_readop_latency_gt10000 +=
+	    WT_STAT_READ(from, perf_hist_readop_latency_gt10000);
+	to->perf_hist_readop_latency_lt500 +=
+	    WT_STAT_READ(from, perf_hist_readop_latency_lt500);
+	to->perf_hist_readop_latency_lt1000 +=
+	    WT_STAT_READ(from, perf_hist_readop_latency_lt1000);
+	to->perf_hist_writeop_latency_lt250 +=
+	    WT_STAT_READ(from, perf_hist_writeop_latency_lt250);
+	to->perf_hist_writeop_latency_lt10000 +=
+	    WT_STAT_READ(from, perf_hist_writeop_latency_lt10000);
+	to->perf_hist_writeop_latency_gt10000 +=
+	    WT_STAT_READ(from, perf_hist_writeop_latency_gt10000);
+	to->perf_hist_writeop_latency_lt500 +=
+	    WT_STAT_READ(from, perf_hist_writeop_latency_lt500);
+	to->perf_hist_writeop_latency_lt1000 +=
+	    WT_STAT_READ(from, perf_hist_writeop_latency_lt1000);
 	to->rec_page_delete_fast += WT_STAT_READ(from, rec_page_delete_fast);
 	to->rec_pages += WT_STAT_READ(from, rec_pages);
 	to->rec_pages_eviction += WT_STAT_READ(from, rec_pages_eviction);

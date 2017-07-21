@@ -231,8 +231,9 @@ prefix_list = [
     'thread-yield',
     'cache_walk',
     'async',
+    'compression',
     'btree',
     'thread-state',
-    'compression',
+    'perf',
 ]
-groups = {'cursor': ['cursor', 'session'], 'lsm': ['LSM', 'transaction'], 'system': ['connection', 'data-handle', 'session', 'thread-state'], 'evict': ['block-manager', 'cache', 'cache_walk', 'connection', 'thread-state'], 'memory': ['cache', 'cache_walk', 'connection', 'reconciliation']}
+groups = {'cursor': ['cursor', 'session'], 'lsm': ['LSM', 'transaction'], 'system': ['connection', 'data-handle', 'perf', 'session', 'thread-state'], 'evict': ['block-manager', 'cache', 'cache_walk', 'connection', 'thread-state'], 'memory': ['cache', 'cache_walk', 'connection', 'reconciliation']}

@@ -367,3 +367,52 @@ __wt_close_connection_close(WT_SESSION_IMPL *session)
 	} WT_TAILQ_SAFE_REMOVE_END
 	return (ret);
 }
+
+/*
+ * __wt_stat_read_io_histogram --
+ *	Add an operations execution time to the disk read histogram.
+ */
+void
+__wt_stat_read_io_histogram(WT_SESSION_IMPL *session, uint64_t msecs)
+{
+	if (msecs < 10)
+		return;
+
+	if (msecs < 50) {
+		WT_STAT_CONN_INCR(session, perf_hist_readfs_latency_lt50);
+	} else if (msecs < 100) {
+		WT_STAT_CONN_INCR(session, perf_hist_readfs_latency_lt100);
+	} else if (msecs < 250) {
+		WT_STAT_CONN_INCR(session, perf_hist_readfs_latency_lt250);
+	} else if (msecs < 500) {
+		WT_STAT_CONN_INCR(session, perf_hist_readfs_latency_lt500);
+	} else if (msecs < 1000) {
+		WT_STAT_CONN_INCR(session, perf_hist_readfs_latency_lt1000);
+	} else {
+		WT_STAT_CONN_INCR(session, perf_hist_readfs_latency_gt1000);
+	}
+}
+/*
+ * __wt_stat_write_io_histogram --
+ *	Add an operations execution time to the disk write histogram.
+ */
+void
+__wt_stat_write_io_histogram(WT_SESSION_IMPL *session, uint64_t msecs)
+{
+	if (msecs < 10)
+		return;
+
+	if (msecs < 50) {
+		WT_STAT_CONN_INCR(session, perf_hist_writefs_latency_lt50);
+	} else if (msecs < 100) {
+		WT_STAT_CONN_INCR(session, perf_hist_writefs_latency_lt100);
+	} else if (msecs < 250) {
+		WT_STAT_CONN_INCR(session, perf_hist_writefs_latency_lt250);
+	} else if (msecs < 500) {
+		WT_STAT_CONN_INCR(session, perf_hist_writefs_latency_lt500);
+	} else if (msecs < 1000) {
+		WT_STAT_CONN_INCR(session, perf_hist_writefs_latency_lt1000);
+	} else {
+		WT_STAT_CONN_INCR(session, perf_hist_writefs_latency_gt1000);
+	}
+}
