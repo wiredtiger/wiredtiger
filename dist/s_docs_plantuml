@@ -1,5 +1,5 @@
 #! /bin/sh
-# Usage: ./s_plantuml [-d | Auto download plantuml if doesn't exist in dist/]
+# Usage: ./s_docs_plantuml [-d|Auto download plantuml if doesn't exist in dist/]
 # This script checks for the existence of plantuml jar file (optionally
 # downloading it from sourceforge) and then generates uml images from the
 # plantuml templates embedded in the documentation.
