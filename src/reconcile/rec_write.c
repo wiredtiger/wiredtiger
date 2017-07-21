@@ -4322,7 +4322,7 @@ __rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 		if (upd != NULL)
 			__bit_setv(r->first_free,
 			    WT_INSERT_RECNO(ins) - pageref->ref_recno,
-			    btree->bitcnt, *(uint8_t *)upd->data);
+			    btree->bitcnt, *upd->data);
 	}
 
 	/* Calculate the number of entries per page remainder. */
@@ -4379,7 +4379,7 @@ __rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 
 			if (nrecs > 0) {
 				__bit_setv(r->first_free, entry, btree->bitcnt,
-				    upd == NULL ? 0 : *(uint8_t *)upd->data);
+				    upd == NULL ? 0 : *upd->data);
 				--nrecs;
 				++entry;
 				++r->recno;
