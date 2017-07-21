@@ -290,6 +290,8 @@ struct __wt_thread;
     typedef struct __wt_thread WT_THREAD;
 struct __wt_thread_group;
     typedef struct __wt_thread_group WT_THREAD_GROUP;
+struct __wt_timestamp_t;
+    typedef struct __wt_timestamp_t WT_TIMESTAMP_T;
 struct __wt_txn;
     typedef struct __wt_txn WT_TXN;
 struct __wt_txn_global;
@@ -304,8 +306,6 @@ union __wt_lsn;
     typedef union __wt_lsn WT_LSN;
 union __wt_rand_state;
     typedef union __wt_rand_state WT_RAND_STATE;
-union __wt_timestamp_t;
-    typedef union __wt_timestamp_t WT_TIMESTAMP_T;
 /*
  * Forward type declarations for internal types: END
  * DO NOT EDIT: automatically built by dist/s_typedef.

@@ -3774,7 +3774,7 @@ __rec_update_las(WT_SESSION_IMPL *session,
 				continue;
 
 #ifdef HAVE_TIMESTAMPS
-			las_timestamp.data = list->onpage_timestamp.ts;
+			las_timestamp.data = &list->onpage_timestamp;
 			las_timestamp.size = WT_TIMESTAMP_SIZE;
 #endif
 			cursor->set_key(cursor,
@@ -3784,11 +3784,11 @@ __rec_update_las(WT_SESSION_IMPL *session,
 			if (upd->type == WT_UPDATE_DELETED)
 				las_value.size = 0;
 			else {
-				las_value.data = WT_UPDATE_DATA(upd);
+				las_value.data = upd->data;
 				las_value.size = upd->size;
 			}
 #ifdef HAVE_TIMESTAMPS
-			las_timestamp.data = upd->timestamp.ts;
+			las_timestamp.data = &upd->timestamp;
 			las_timestamp.size = WT_TIMESTAMP_SIZE;
 #endif
 			cursor->set_value(cursor,
@@ -4322,7 +4322,7 @@ __rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 		if (upd != NULL)
 			__bit_setv(r->first_free,
 			    WT_INSERT_RECNO(ins) - pageref->ref_recno,
-			    btree->bitcnt, *(uint8_t *)WT_UPDATE_DATA(upd));
+			    btree->bitcnt, *upd->data);
 	}
 
 	/* Calculate the number of entries per page remainder. */
@@ -4379,8 +4379,7 @@ __rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 
 			if (nrecs > 0) {
 				__bit_setv(r->first_free, entry, btree->bitcnt,
-				    upd == NULL ? 0 :
-				    *(uint8_t *)WT_UPDATE_DATA(upd));
+				    upd == NULL ? 0 : *upd->data);
 				--nrecs;
 				++entry;
 				++r->recno;
@@ -4722,7 +4721,7 @@ record_loop:	/*
 
 				deleted = upd->type == WT_UPDATE_DELETED;
 				if (!deleted) {
-					data = WT_UPDATE_DATA(upd);
+					data = upd->data;
 					size = upd->size;
 				}
 			} else if (vpack->raw == WT_CELL_VALUE_OVFL_RM) {
@@ -4949,7 +4948,7 @@ compare:		/*
 				deleted = upd == NULL ||
 				    upd->type == WT_UPDATE_DELETED;
 				if (!deleted) {
-					data = WT_UPDATE_DATA(upd);
+					data = upd->data;
 					size = upd->size;
 				}
 			}
@@ -5534,8 +5533,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 				val->cell_len = val->len = val->buf.size = 0;
 			} else {
 				WT_ERR(__rec_cell_build_val(session, r,
-				    WT_UPDATE_DATA(upd), upd->size,
-				    (uint64_t)0));
+				    upd->data, upd->size, (uint64_t)0));
 				dictionary = true;
 			}
 		}
@@ -5703,7 +5701,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 			val->len = 0;
 		else
 			WT_RET(__rec_cell_build_val(session, r,
-			    WT_UPDATE_DATA(upd), upd->size, (uint64_t)0));
+			    upd->data, upd->size, (uint64_t)0));
 
 							/* Build key cell. */
 		WT_RET(__rec_cell_build_leaf_key(session, r,

@@ -257,11 +257,14 @@
 #endif
 
 #ifdef HAVE_TIMESTAMPS
-union __wt_timestamp_t {
+struct __wt_timestamp_t {
+#if WT_TIMESTAMP_SIZE == 8
 	uint64_t val;
+#else
 	uint8_t ts[WT_TIMESTAMP_SIZE];
+#endif
 };
-typedef union __wt_timestamp_t wt_timestamp_t;
+typedef struct __wt_timestamp_t wt_timestamp_t;
 #define	WT_DECL_TIMESTAMP(x)	wt_timestamp_t x;
 #define	WT_TIMESTAMP_NULL(x)	(x)
 #else
