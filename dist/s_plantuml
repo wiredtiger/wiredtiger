@@ -30,8 +30,8 @@ done
 
 # plantuml is needed, check if already downloaded, else download if suggested
 # by an argument
-file ../dist/plantuml.jar > /dev/null 2>&1 || {
-	echo -n 'dist/plantuml.jar not found. '
+test -f "../dist/plantuml.jar" || {
+	echo 'dist/plantuml.jar not found. '
 	if [ $download_plantuml -eq 1 ]
 	then
 		echo 'Downloading plantuml:'
@@ -52,7 +52,7 @@ java -jar ../dist/plantuml.jar -testdot > /dev/null || {
 
 # Generate PlantUML docs. This command looks for plantuml template code embedded
 # in files at /src/docs/ with doc or dox extension.
-echo -n "Generating plantuml images .. "
+echo 'Generating plantuml images .. '
 mkdir -p ../docs/images/plantuml_gen_img
 java  -Djava.awt.headless=true -jar ../dist/plantuml.jar -o ../docs/images/plantuml_gen_img "../src/docs/**.(doc|dox)" &&
-    echo "Done"
+    echo 'Done'
