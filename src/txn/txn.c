@@ -685,9 +685,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 #ifdef HAVE_TIMESTAMPS
 			if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
-			    op->type != WT_TXN_OP_BASIC_TS)
+			    op->type != WT_TXN_OP_BASIC_TS) {
 				__wt_timestamp_set(op->u.upd->timestamp,
 				    txn->commit_timestamp);
+			}
 #endif
 			break;
 
