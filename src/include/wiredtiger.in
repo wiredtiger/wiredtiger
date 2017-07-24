@@ -4489,6 +4489,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_LOGREC_MESSAGE	3
 /*! system/internal record */
 #define	WT_LOGREC_SYSTEM	4
+/*! checkpoint start */
+#define	WT_LOGREC_CHECKPOINT_START	5
 /*! invalid operation */
 #define	WT_LOGOP_INVALID	0
 /*! column put */
@@ -4503,8 +4505,6 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_LOGOP_ROW_REMOVE	5
 /*! row truncate */
 #define	WT_LOGOP_ROW_TRUNCATE	6
-/*! checkpoint start */
-#define	WT_LOGREC_CHECKPOINT_START	7
 /*! @} */
 
 /*******************************************
