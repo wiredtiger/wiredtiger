@@ -36,7 +36,7 @@ __wt_timestamp_set(wt_timestamp_t *dest, const wt_timestamp_t *src)
  *	Check if a timestamp is equal to the special "zero" time.
  */
 static inline bool
-__wt_timestamp_iszero(wt_timestamp_t *ts)
+__wt_timestamp_iszero(const wt_timestamp_t *ts)
 {
 	return (ts->val == 0);
 }
@@ -86,7 +86,7 @@ __wt_timestamp_set(wt_timestamp_t *dest, const wt_timestamp_t *src)
  *	Check if a timestamp is equal to the special "zero" time.
  */
 static inline bool
-__wt_timestamp_iszero(wt_timestamp_t *ts)
+__wt_timestamp_iszero(const wt_timestamp_t *ts)
 {
 	static const wt_timestamp_t zero_timestamp;
 

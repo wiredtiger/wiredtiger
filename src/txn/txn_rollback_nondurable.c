@@ -16,14 +16,14 @@
  */
 static int
 __txn_rollback_nondurable_commits_check(
-    WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
+    WT_SESSION_IMPL *session, wt_timestamp_t *rollback_timestamp)
 {
 	WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
 	WT_TXN_STATE *s;
 	uint32_t i, session_cnt;
 
 	if (__wt_timestamp_cmp(
-	    rollback_timestamp, txn_global->pinned_timestamp) < 0)
+	    rollback_timestamp, &txn_global->pinned_timestamp) < 0)
 		WT_RET_MSG(session, EINVAL, "rollback_nondurable_commits "
 		    "requires a timestamp greater than the pinned timestamp");
 
@@ -50,7 +50,7 @@ __txn_rollback_nondurable_commits_check(
  */
 static int
 __txn_rollback_nondurable_lookaside_fixup(
-    WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
+    WT_SESSION_IMPL *session, wt_timestamp_t *rollback_timestamp)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_CURSOR *cursor;
@@ -112,18 +112,18 @@ err:	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
  */
 static void
 __txn_abort_newer_update(WT_SESSION_IMPL *session,
-    WT_UPDATE *upd, wt_timestamp_t rollback_timestamp)
+    WT_UPDATE *upd, wt_timestamp_t *rollback_timestamp)
 {
 	bool aborted_one = false;
 	WT_UPDATE *next_upd;
 
 	for (next_upd = upd; next_upd != NULL; next_upd = next_upd->next) {
 		/* Only updates with timestamps will be aborted */
-		if (!__wt_timestamp_iszero(next_upd->timestamp) &&
+		if (!__wt_timestamp_iszero(&next_upd->timestamp) &&
 		    __wt_timestamp_cmp(
-		    rollback_timestamp, next_upd->timestamp) < 0) {
+		    rollback_timestamp, &next_upd->timestamp) < 0) {
 			next_upd->txnid = WT_TXN_ABORTED;
-			__wt_timestamp_set_zero(next_upd->timestamp);
+			__wt_timestamp_set_zero(&next_upd->timestamp);
 
 			/*
 			* If any updates are aborted, all newer updates
@@ -143,7 +143,7 @@ __txn_abort_newer_update(WT_SESSION_IMPL *session,
  */
 static void
 __txn_abort_newer_row_skip(WT_SESSION_IMPL *session,
-    WT_INSERT_HEAD *head, wt_timestamp_t rollback_timestamp)
+    WT_INSERT_HEAD *head, wt_timestamp_t *rollback_timestamp)
 {
 	WT_INSERT *ins;
 
@@ -157,7 +157,7 @@ __txn_abort_newer_row_skip(WT_SESSION_IMPL *session,
  */
 static void
 __txn_abort_newer_row_leaf(
-    WT_SESSION_IMPL *session, WT_PAGE *page, wt_timestamp_t rollback_timestamp)
+    WT_SESSION_IMPL *session, WT_PAGE *page, wt_timestamp_t *rollback_timestamp)
 {
 	WT_INSERT_HEAD *insert;
 	WT_ROW *rip;
@@ -193,7 +193,7 @@ __txn_abort_newer_row_leaf(
  */
 static int
 __txn_abort_newer_updates(
-    WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
+    WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t *rollback_timestamp)
 {
 	WT_PAGE *page;
 
@@ -244,7 +244,7 @@ __txn_rollback_nondurable_updates_custom_skip(
  */
 static int
 __txn_rollback_nondurable_commits_btree_walk(
-    WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
+    WT_SESSION_IMPL *session, wt_timestamp_t *rollback_timestamp)
 {
 	WT_DECL_RET;
 	WT_PAGE *page;
@@ -259,7 +259,7 @@ __txn_rollback_nondurable_commits_btree_walk(
 
 		/* Review deleted page saved to the ref */
 		if (ref->page_del != NULL && __wt_timestamp_cmp(
-		    rollback_timestamp, ref->page_del->timestamp) < 0)
+		    rollback_timestamp, &ref->page_del->timestamp) < 0)
 			__wt_delete_page_rollback(session, ref);
 
 		if (!__wt_page_is_modified(page))
@@ -322,7 +322,7 @@ __txn_rollback_nondurable_commits_btree(
 		WT_RET_MSG(session, EINVAL, "rollback_nondurable_commits "
 		    "requires a timestamp in the configuration string");
 	WT_RET(__wt_txn_parse_timestamp(session,
-	    "rollback_nondurable_commits", rollback_timestamp, &cval));
+	    "rollback_nondurable_commits", &rollback_timestamp, &cval));
 
 	/*
 	 * Ensure the eviction server is out of the file - we don't
@@ -332,7 +332,7 @@ __txn_rollback_nondurable_commits_btree(
 	 */
 	WT_RET(__wt_evict_file_exclusive_on(session));
 	ret = __txn_rollback_nondurable_commits_btree_walk(
-	    session, rollback_timestamp);
+	    session, &rollback_timestamp);
 	__wt_evict_file_exclusive_off(session);
 
 	return (ret);
@@ -370,9 +370,9 @@ __wt_txn_rollback_nondurable_commits(
 		    "requires a timestamp in the configuration string");
 
 	WT_RET(__wt_txn_parse_timestamp(session,
-	    "rollback_nondurable_commits", rollback_timestamp, &cval));
+	    "rollback_nondurable_commits", &rollback_timestamp, &cval));
 	WT_RET(__txn_rollback_nondurable_commits_check(
-	    session, rollback_timestamp));
+	    session, &rollback_timestamp));
 
 	/* Allocate a non-durable btree bitstring */
 	WT_RET(__bit_alloc(session,
@@ -387,7 +387,7 @@ __wt_txn_rollback_nondurable_commits(
 	 * lookaside records should be removed.
 	 */
 	WT_ERR(__txn_rollback_nondurable_lookaside_fixup(
-	    session, rollback_timestamp));
+	    session, &rollback_timestamp));
 err:	__wt_free(session, conn->nondurable_rollback_bitstring);
 	return (ret);
 #endif
