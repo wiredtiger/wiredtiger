@@ -231,39 +231,69 @@ __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session)
 int
 __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 {
-	WT_CONFIG_ITEM cval;
+	WT_CONFIG_ITEM oldest_cval, stable_cval;
+	bool has_oldest, has_stable;
 
 	/*
 	 * Look for a commit timestamp.
 	 */
-	WT_RET(
-	    __wt_config_gets_def(session, cfg, "oldest_timestamp", 0, &cval));
-	if (cval.len != 0) {
+	WT_RET(__wt_config_gets_def(session,
+	    cfg, "oldest_timestamp", 0, &oldest_cval));
+	WT_RET(__wt_config_gets_def(session,
+	    cfg, "stable_timestamp", 0, &stable_cval));
+	if (oldest_cval.len != 0)
+		has_oldest = true;
+	else
+		has_oldest = false;
+	if (stable_cval.len != 0)
+		has_stable = true;
+	else
+		has_stable = false;
+	if (has_oldest || has_stable) {
 #ifdef HAVE_TIMESTAMPS
 		WT_TXN_GLOBAL *txn_global;
-		wt_timestamp_t oldest_timestamp;
+		wt_timestamp_t timestamp;
 
-		WT_RET(__wt_txn_parse_timestamp(
-		    session, "oldest", oldest_timestamp, &cval));
-
-		/*
-		 * This method can be called from multiple threads, check that
-		 * we are moving the global oldest timestamp forwards.
-		 */
 		txn_global = &S2C(session)->txn_global;
 		__wt_writelock(session, &txn_global->rwlock);
-		if (!txn_global->has_oldest_timestamp || __wt_timestamp_cmp(
-		    txn_global->oldest_timestamp, oldest_timestamp) < 0) {
-			__wt_timestamp_set(
-			    txn_global->oldest_timestamp, oldest_timestamp);
-			txn_global->has_oldest_timestamp = true;
-			txn_global->oldest_is_pinned = false;
+		if (has_oldest) {
+			WT_RET(__wt_txn_parse_timestamp(
+			    session, "oldest", timestamp, &oldest_cval));
+			/*
+			 * This method can be called from multiple threads,
+			 * check that we are moving the global oldest
+			 * timestamp forwards.
+			 */
+			if (!txn_global->has_oldest_timestamp ||
+			    __wt_timestamp_cmp(txn_global->oldest_timestamp,
+			    timestamp) < 0) {
+				__wt_timestamp_set(txn_global->oldest_timestamp,
+				    timestamp);
+				txn_global->has_oldest_timestamp = true;
+				txn_global->oldest_is_pinned = false;
+			}
+		}
+		if (has_stable) {
+			WT_RET(__wt_txn_parse_timestamp(
+			    session, "stable", timestamp, &stable_cval));
+			/*
+			 * This method can be called from multiple threads,
+			 * check that we are moving the global stable
+			 * timestamp forwards.
+			 */
+			if (!txn_global->has_stable_timestamp ||
+			    __wt_timestamp_cmp(txn_global->stable_timestamp,
+			    timestamp) < 0) {
+				__wt_timestamp_set(txn_global->stable_timestamp,
+				    timestamp);
+				txn_global->has_stable_timestamp = true;
+				txn_global->stable_is_pinned = false;
+			}
 		}
 		__wt_writeunlock(session, &txn_global->rwlock);
-
 		WT_RET(__wt_txn_update_pinned_timestamp(session));
 #else
-		WT_RET_MSG(session, EINVAL, "oldest_timestamp requires a "
+		WT_RET_MSG(session, EINVAL, "set_timestamp requires a "
 		    "version of WiredTiger built with timestamp support");
 #endif
 	}

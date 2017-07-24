@@ -2243,8 +2243,13 @@ struct __wt_connection {
 	 * @configstart{WT_CONNECTION.set_timestamp, see dist/api_data.py}
 	 * @config{oldest_timestamp, future commits and queries will be no
 	 * earlier than the specified timestamp.  Supplied values must be
-	 * monotonically increasing.  see @ref transaction_timestamps., a
+	 * monotonically increasing.  See @ref transaction_timestamps., a
 	 * string; default empty.}
+	 * @config{stable_timestamp, future checkpoints will be no later than
+	 * the specified timestamp.  Supplied values must be monotonically
+	 * increasing.  The stable timestamp data stability only applies to
+	 * tables that are not being logged.  See @ref transaction_timestamps.,
+	 * a string; default empty.}
 	 * @configend
 	 * @errors
 	 */

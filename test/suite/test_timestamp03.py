@@ -186,6 +186,7 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(self.conn.query_timestamp(), timestamp_ret_str(100))
         self.oldts = timestamp_str(100)
         self.conn.set_timestamp('oldest_timestamp=' + self.oldts)
+        self.conn.set_timestamp('stable_timestamp=' + self.oldts)
         # print "Oldest " + self.oldts
 
         # Update them and retry.
