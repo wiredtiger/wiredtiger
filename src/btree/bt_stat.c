@@ -316,10 +316,6 @@ __stat_page_row_leaf(
 void
 __wt_stat_read_op_histogram(WT_SESSION_IMPL *session, uint64_t usecs)
 {
-	WT_CONNECTION_IMPL *conn;
-
-	conn = S2C(session);
-
 	if (usecs  < 100)
 		return;
 
@@ -342,10 +338,6 @@ __wt_stat_read_op_histogram(WT_SESSION_IMPL *session, uint64_t usecs)
 void
 __wt_stat_write_op_histogram(WT_SESSION_IMPL *session, uint64_t usecs)
 {
-	WT_CONNECTION_IMPL *conn;
-
-	conn = S2C(session);
-
 	if (usecs  < 100)
 		return;
 
