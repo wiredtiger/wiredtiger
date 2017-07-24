@@ -316,6 +316,13 @@ __stat_page_row_leaf(
 void
 __wt_stat_read_op_histogram(WT_SESSION_IMPL *session, uint64_t usecs)
 {
+	/*
+	 * Ignore any operation that takes less than 100us to execute. This
+	 * floor value keeps us from having an excessively large smallest
+	 * execution time bucket. The 100us floor along with the other
+	 * histogram values were chosen here based on testing but performance
+	 * will vary considerably.
+	 */
 	if (usecs  < 100)
 		return;
 
@@ -338,6 +345,13 @@ __wt_stat_read_op_histogram(WT_SESSION_IMPL *session, uint64_t usecs)
 void
 __wt_stat_write_op_histogram(WT_SESSION_IMPL *session, uint64_t usecs)
 {
+	/*
+	 * Ignore any operation that takes less than 100us to execute. This
+	 * floor value keeps us from having an excessively large smallest
+	 * execution time bucket. The 100us floor along with the other
+	 * histogram values were chosen here based on testing but performance
+	 * will vary considerably.
+	 */
 	if (usecs  < 100)
 		return;
 

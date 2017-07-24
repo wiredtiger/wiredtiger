@@ -375,6 +375,12 @@ __wt_close_connection_close(WT_SESSION_IMPL *session)
 void
 __wt_stat_read_io_histogram(WT_SESSION_IMPL *session, uint64_t msecs)
 {
+	/*
+	 * Ignore any operation that takes less than 10ms to execute. This
+	 * floor value keeps us from having an excessively large smallest
+	 * execution time bucket. The 10ms value and the other histogram buckets
+	 * were chosen based on expectations of disk response times and testing.
+	 */
 	if (msecs < 10)
 		return;
 
@@ -399,6 +405,12 @@ __wt_stat_read_io_histogram(WT_SESSION_IMPL *session, uint64_t msecs)
 void
 __wt_stat_write_io_histogram(WT_SESSION_IMPL *session, uint64_t msecs)
 {
+	/*
+	 * Ignore any operation that takes less than 10ms to execute. This
+	 * floor value keeps us from having an excessively large smallest
+	 * execution time bucket. The 10ms value and the other histogram buckets
+	 * were chosen based on expectations of disk response times and testing.
+	 */
 	if (msecs < 10)
 		return;
 
