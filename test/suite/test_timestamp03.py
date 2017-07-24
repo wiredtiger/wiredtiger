@@ -46,7 +46,9 @@ def timestamp_ret_str(t):
     return s
 
 class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = 'test_timestamp03'
+    tablename = 'ts03_ts_nologged'
+    tablename2 = 'ts03_nots_logged'
+    tablename3 = 'ts03_ts_logged'
 
     types = [
         ('file', dict(uri='file:', use_cg=False, use_index=False)),
@@ -60,9 +62,10 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
     ]
 
     ckpt = [
-        ('use_ts_def', dict(ckptcfg='', val=False)),
-        ('use_ts_false', dict(ckptcfg='use_timestamp=false', val=True)),
-        ('use_ts_true', dict(ckptcfg='use_timestamp=true', val=False)),
+        ('use_ts_def', dict(ckptcfg='', val='none')),
+        ('use_ts_false', dict(ckptcfg='use_timestamp=false', val='all')),
+        ('use_ts_true', dict(ckptcfg='use_timestamp=true', val='none')),
+        ('read_ts', dict(ckptcfg='read_timestamp', val='none')),
     ]
 
     scenarios = make_scenarios(types, ckpt)
@@ -89,44 +92,88 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
             session.commit_transaction()
 
     # Check that a cursor sees the expected values after a checkpoint.
-    def ckpt_backup(self):
+    def ckpt_backup(self, valcnt, valcnt2, valcnt3):
         newdir = "BACKUP"
 
         # Take a checkpoint.  Make a copy of the database.  Open the
         # copy and verify whether or not the expected data is in there.
         self.pr("CKPT: " + self.ckptcfg)
-        print "CKPT: " + self.ckptcfg
-        self.session.checkpoint(self.ckptcfg)
+        ckptcfg = self.ckptcfg
+        if ckptcfg == 'read_timestamp':
+            ckptcfg = self.ckptcfg + '=' + self.oldts
+        # print "CKPT: " + ckptcfg
+        self.session.checkpoint(ckptcfg)
         copy_wiredtiger_home('.', newdir, True)
 
         conn = self.setUpConnectionOpen(newdir)
         session = self.setUpSessionOpen(conn)
         c = session.open_cursor(self.uri + self.tablename, None)
+        c2 = session.open_cursor(self.uri + self.tablename2, None)
+        c3 = session.open_cursor(self.uri + self.tablename3, None)
         # Count how many times the second value is present
         count = 0
         for k, v in c:
             if self.value2 in str(v):
+                # print "value2 found in key " + str(k)
                 count += 1
+            # else:
+                # print "Non-value2: key " + str(k)
         c.close()
+        # Count how many times the second value is present in the
+        # non-timestamp table.
+        count2 = 0
+        for k, v in c2:
+            if self.value2 in str(v):
+                # print "value2 found in key " + str(k)
+                count2 += 1
+            # else:
+                # print "Non-value2: key " + str(k)
+        c2.close()
+        # Count how many times the second value is present in the
+        # logged timestamp table.
+        count3 = 0
+        for k, v in c3:
+            if self.value2 in str(v):
+                # print "value2 found in key " + str(k)
+                count3 += 1
+            # else:
+                # print "Non-value2: key " + str(k)
+        c3.close()
         conn.close()
-        self.assertEqual(count != 0, self.val)
+        # print "CHECK BACKUP: Count " + str(count) + " Count2 " + str(count2) + " Count3 " + str(count3)
+        # print "CHECK BACKUP: Expect value2 count " + str(valcnt)
+        # print "CHECK BACKUP: 2nd table Expect value2 count " + str(valcnt2)
+        # print "CHECK BACKUP: 3rd table Expect value2 count " + str(valcnt3)
+        # print "CHECK BACKUP: config " + str(self.ckptcfg)
+        self.assertEqual(count, valcnt)
+        self.assertEqual(count2, valcnt2)
+        self.assertEqual(count3, valcnt3)
 
     def test_timestamp03(self):
         if not wiredtiger.timestamp_build():
             self.skipTest('requires a timestamp build')
 
         uri = self.uri + self.tablename
-        self.session.create(uri, 'key_format=i,value_format=S')
+        uri2 = self.uri + self.tablename2
+        uri3 = self.uri + self.tablename3
+        self.session.create(uri, 'key_format=i,value_format=S,log=(enabled=false)')
         c = self.session.open_cursor(uri)
+        self.session.create(uri2, 'key_format=i,value_format=S')
+        c2 = self.session.open_cursor(uri2)
+        self.session.create(uri3, 'key_format=i,value_format=S')
+        c3 = self.session.open_cursor(uri3)
 
         # Insert keys 1..100 each with timestamp=key, in some order
-        orig_keys = range(1, 101)
+        nkeys = 100
+        orig_keys = range(1, nkeys+1)
         keys = orig_keys[:]
         random.shuffle(keys)
 
         for k in keys:
+            c2[k] = self.value
             self.session.begin_transaction()
             c[k] = self.value
+            c3[k] = self.value
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(k))
 
         # Now check that we see the expected state when reading at each
@@ -137,18 +184,37 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Bump the oldest timestamp, we're not going back...
         self.assertEqual(self.conn.query_timestamp(), timestamp_ret_str(100))
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(100))
+        self.oldts = timestamp_str(100)
+        self.conn.set_timestamp('oldest_timestamp=' + self.oldts)
+        # print "Oldest " + self.oldts
 
         # Update them and retry.
         random.shuffle(keys)
+        count = 0
         for k in keys:
+            # print "Key " + str(k) + " to value2"
+            c2[k] = self.value2
             self.session.begin_transaction()
             c[k] = self.value2
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(k + 100))
+            c3[k] = self.value2
+            ts = timestamp_str(k + 101)
+            self.session.commit_transaction('commit_timestamp=' + ts)
+            # print "Commit key " + str(k) + " ts " + ts
+            count += 1
+        # print "Updated " + str(count) + " keys to value2"
 
         # Take a checkpoint using the given configuration.  Then verify
         # whether value2 appears in a copy of that data or not.
-        self.ckpt_backup()
+        valcnt2 = nkeys
+        if self.val == 'all':
+            valcnt = nkeys
+        else:
+            valcnt = 0
+        # XXX adjust when logged and timestamps is invalid.
+        valcnt3 = valcnt
+        # XXX - REMOVE ONCE WT-3440 is merged.
+        self.session.log_printf("test")
+        self.ckpt_backup(valcnt, valcnt2, valcnt3)
 
 if __name__ == '__main__':
     wttest.run()
