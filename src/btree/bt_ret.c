@@ -154,7 +154,7 @@ __value_return_upd(
 	 * Fast path if it's a standard item, assert our caller's behavior.
 	 */
 	if (upd->type == WT_UPDATE_STANDARD) {
-		cursor->value.data = WT_UPDATE_DATA(upd);
+		cursor->value.data = upd->data;
 		cursor->value.size = upd->size;
 		return (0);
 	}
@@ -210,11 +210,11 @@ __value_return_upd(
 		WT_ERR(__wt_buf_set(session, &cursor->value, "", 0));
 	else
 		WT_ERR(__wt_buf_set(session,
-		    &cursor->value, WT_UPDATE_DATA(upd), upd->size));
+		    &cursor->value, upd->data, upd->size));
 
 	while (i > 0)
 		WT_ERR(__wt_modify_apply(
-		    session, &cursor->value, WT_UPDATE_DATA(listp[--i])));
+		    session, &cursor->value, listp[--i]->data));
 
 err:	if (allocated_bytes)
 		__wt_free(session, listp);

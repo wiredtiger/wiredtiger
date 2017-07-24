@@ -59,7 +59,7 @@ __cursor_fix_append_next(WT_CURSOR_BTREE *cbt, bool newpage)
 		cbt->v = 0;
 		cbt->iface.value.data = &cbt->v;
 	} else
-		cbt->iface.value.data = WT_UPDATE_DATA(upd);
+		cbt->iface.value.data = upd->data;
 	cbt->iface.value.size = 1;
 	return (0);
 }
@@ -106,7 +106,7 @@ new_page:
 		cbt->v = __bit_getv_recno(cbt->ref, cbt->recno, btree->bitcnt);
 		cbt->iface.value.data = &cbt->v;
 	} else
-		cbt->iface.value.data = WT_UPDATE_DATA(upd);
+		cbt->iface.value.data = upd->data;
 	cbt->iface.value.size = 1;
 	return (0);
 }

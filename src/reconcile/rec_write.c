@@ -696,7 +696,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		 */
 		mod->rec_max_txn = r->max_txn;
 #ifdef HAVE_TIMESTAMPS
-		__wt_timestamp_set(mod->rec_max_timestamp, r->max_timestamp);
+		__wt_timestamp_set(&mod->rec_max_timestamp, &r->max_timestamp);
 #endif
 
 		/*
@@ -712,9 +712,9 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 				btree->rec_max_txn = r->max_txn;
 #ifdef HAVE_TIMESTAMPS
 			if (__wt_timestamp_cmp(
-			    btree->rec_max_timestamp, r->max_timestamp) < 0)
-				__wt_timestamp_set(
-				    btree->rec_max_timestamp, r->max_timestamp);
+			    &btree->rec_max_timestamp, &r->max_timestamp) < 0)
+				__wt_timestamp_set(&btree->rec_max_timestamp,
+				    &r->max_timestamp);
 #endif
 		}
 
@@ -1169,7 +1169,7 @@ __rec_update_save(WT_SESSION_IMPL *session,
 #ifdef HAVE_TIMESTAMPS
 	if (upd != NULL)
 		__wt_timestamp_set(
-		    r->supd[r->supd_next].onpage_timestamp, upd->timestamp);
+		    &r->supd[r->supd_next].onpage_timestamp, &upd->timestamp);
 #endif
 	++r->supd_next;
 	return (0);
@@ -1234,8 +1234,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	update_mem = 0;
 	max_txn = WT_TXN_NONE;
 #ifdef HAVE_TIMESTAMPS
-	__wt_timestamp_set_zero(max_timestamp);
-	__wt_timestamp_set_inf(min_timestamp);
+	__wt_timestamp_set_zero(&max_timestamp);
+	__wt_timestamp_set_inf(&min_timestamp);
 #endif
 	min_txn = UINT64_MAX;
 
@@ -1288,14 +1288,14 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 #ifdef HAVE_TIMESTAMPS
 			/* Track min/max timestamps. */
 			if (__wt_timestamp_cmp(
-			    max_timestamp, upd->timestamp) < 0)
+			    &max_timestamp, &upd->timestamp) < 0)
 				__wt_timestamp_set(
-				    max_timestamp, upd->timestamp);
+				    &max_timestamp, &upd->timestamp);
 
 			if (__wt_timestamp_cmp(
-			    min_timestamp, upd->timestamp) > 0)
+			    &min_timestamp, &upd->timestamp) > 0)
 				__wt_timestamp_set(
-				    min_timestamp, upd->timestamp);
+				    &min_timestamp, &upd->timestamp);
 #endif
 		}
 	} else
@@ -1326,8 +1326,9 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		}
 
 	/* Reconciliation should never see a reserved update. */
-	WT_ASSERT(session, (upd = *updp) == NULL ||
-	    (upd->txnid != WT_TXN_ABORTED && upd->type != WT_UPDATE_RESERVED));
+	WT_ASSERT(session, *updp == NULL ||
+	    ((*updp)->txnid != WT_TXN_ABORTED &&
+	    (*updp)->type != WT_UPDATE_RESERVED));
 
 	r->update_mem_all += update_mem;
 
@@ -1350,8 +1351,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	if (WT_TXNID_LT(r->max_txn, max_txn))
 		r->max_txn = max_txn;
 #ifdef HAVE_TIMESTAMPS
-	if (__wt_timestamp_cmp(r->max_timestamp, max_timestamp) < 0)
-		__wt_timestamp_set(r->max_timestamp, max_timestamp);
+	if (__wt_timestamp_cmp(&r->max_timestamp, &max_timestamp) < 0)
+		__wt_timestamp_set(&r->max_timestamp, &max_timestamp);
 #endif
 
 	/*
@@ -1368,7 +1369,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 */
 	if (!skipped && (F_ISSET(btree, WT_BTREE_LOOKASIDE) ||
 	    __wt_txn_visible_all(session,
-	    max_txn, WT_TIMESTAMP(max_timestamp)))) {
+	    max_txn, WT_TIMESTAMP_NULL(&max_timestamp)))) {
 #ifdef HAVE_DIAGNOSTIC
 		/*
 		 * The checkpoint transaction is special.  Make sure we never
@@ -1464,7 +1465,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 * globally visible, readers require the page's original value.
 		 */
 		if (!__wt_txn_visible_all(
-		    session, min_txn, WT_TIMESTAMP(min_timestamp)))
+		    session, min_txn, WT_TIMESTAMP_NULL(&min_timestamp)))
 			append_origv = true;
 	}
 
@@ -1574,7 +1575,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 */
 	if (F_ISSET(r, WT_VISIBILITY_ERR) && page_del != NULL &&
 	    !__wt_txn_visible(session,
-	    page_del->txnid, WT_GET_TIMESTAMP(page_del)))
+	    page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)))
 		WT_PANIC_RET(session, EINVAL,
 		    "reconciliation illegally skipped an update");
 
@@ -1604,7 +1605,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 */
 	if (ref->addr != NULL &&
 	    (page_del == NULL || __wt_txn_visible_all(
-	    session, page_del->txnid, WT_GET_TIMESTAMP(page_del))))
+	    session, page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp))))
 		WT_RET(__wt_ref_block_free(session, ref));
 
 	/*
@@ -1655,7 +1656,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 * address normally.  Otherwise, we have to write a proxy record.
 	 */
 	if (__wt_txn_visible(
-	    session, page_del->txnid, WT_GET_TIMESTAMP(page_del)))
+	    session, page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)))
 		*statep = WT_CHILD_PROXY;
 
 	return (0);
@@ -3812,13 +3813,13 @@ __rec_update_las(WT_SESSION_IMPL *session,
 				    upd->type != WT_UPDATE_RESERVED);
 				continue;
 			case WT_UPDATE_STANDARD:
-				las_value.data = WT_UPDATE_DATA(upd);
+				las_value.data = upd->data;
 				las_value.size = upd->size;
 				break;
 			}
 
 #ifdef HAVE_TIMESTAMPS
-			las_timestamp.data = list->onpage_timestamp;
+			las_timestamp.data = &list->onpage_timestamp;
 			las_timestamp.size = WT_TIMESTAMP_SIZE;
 #endif
 			cursor->set_key(cursor,
@@ -3826,7 +3827,7 @@ __rec_update_las(WT_SESSION_IMPL *session,
 			    list->onpage_txn, &las_timestamp, key);
 
 #ifdef HAVE_TIMESTAMPS
-			las_timestamp.data = upd->timestamp;
+			las_timestamp.data = &upd->timestamp;
 			las_timestamp.size = WT_TIMESTAMP_SIZE;
 #endif
 			cursor->set_value(cursor,
@@ -4359,7 +4360,7 @@ __rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 		if (upd != NULL)
 			__bit_setv(r->first_free,
 			    WT_INSERT_RECNO(ins) - pageref->ref_recno,
-			    btree->bitcnt, *(uint8_t *)WT_UPDATE_DATA(upd));
+			    btree->bitcnt, *upd->data);
 	}
 
 	/* Calculate the number of entries per page remainder. */
@@ -4416,8 +4417,7 @@ __rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 
 			if (nrecs > 0) {
 				__bit_setv(r->first_free, entry, btree->bitcnt,
-				    upd == NULL ? 0 :
-				    *(uint8_t *)WT_UPDATE_DATA(upd));
+				    upd == NULL ? 0 : *upd->data);
 				--nrecs;
 				++entry;
 				++r->recno;
@@ -4774,7 +4774,7 @@ record_loop:	/*
 					update_no_copy = false;
 					break;
 				case WT_UPDATE_STANDARD:
-					data = WT_UPDATE_DATA(upd);
+					data = upd->data;
 					size = upd->size;
 					break;
 				WT_ILLEGAL_VALUE_ERR(session);
@@ -5017,7 +5017,7 @@ compare:		/*
 					update_no_copy = false;
 					break;
 				case WT_UPDATE_STANDARD:
-					data = WT_UPDATE_DATA(upd);
+					data = upd->data;
 					size = upd->size;
 					break;
 				WT_ILLEGAL_VALUE_ERR(session);
@@ -5624,7 +5624,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 					    val->len = val->buf.size = 0;
 				} else {
 					WT_ERR(__rec_cell_build_val(session, r,
-					    WT_UPDATE_DATA(upd), upd->size,
+					    upd->data, upd->size,
 					    (uint64_t)0));
 					dictionary = true;
 				}
@@ -5810,7 +5810,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 				val->len = 0;
 			else
 				WT_RET(__rec_cell_build_val(session, r,
-				    WT_UPDATE_DATA(upd), upd->size,
+				    upd->data, upd->size,
 				    (uint64_t)0));
 			break;
 		WT_ILLEGAL_VALUE(session);
