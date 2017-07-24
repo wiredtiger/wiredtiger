@@ -526,7 +526,7 @@ connection_runtime_config = [
         This option is intended for use with internal stress
         testing of WiredTiger. Options are given as a list, such as
         <code>"timing_stress_for_test=[checkpoint_slow,
-            page_split_race, internal_page_split_race]"</code>''',
+            internal_page_split_race, page_split_race]"</code>''',
         type='list', undoc=True, choices=[
             'checkpoint_slow', 'internal_page_split_race', 'page_split_race']),
     Config('verbose', '', r'''
