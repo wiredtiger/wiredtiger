@@ -4503,6 +4503,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_LOGOP_ROW_REMOVE	5
 /*! row truncate */
 #define	WT_LOGOP_ROW_TRUNCATE	6
+/*! checkpoint start */
+#define	WT_LOGREC_CHECKPOINT_START	7
 /*! @} */
 
 /*******************************************

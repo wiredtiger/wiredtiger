@@ -344,8 +344,8 @@ __wt_txn_checkpoint_log(
 	WT_TXN *txn;
 	uint8_t *end, *p;
 	size_t recsize;
-	uint32_t i, rectype = WT_LOGREC_CHECKPOINT;
-	const char *fmt = WT_UNCHECKED_STRING(IIIIu);
+	uint32_t i, rectype;
+	const char *fmt;
 
 	conn = S2C(session);
 	txn = &session->txn;
@@ -367,9 +367,19 @@ __wt_txn_checkpoint_log(
 	switch (flags) {
 	case WT_TXN_LOG_CKPT_PREPARE:
 		txn->full_ckpt = true;
-		WT_ERR(__wt_log_printf_internal(session,
-		    "CHECKPOINT: Starting record"));
-		WT_ERR(__wt_log_flush_lsn(session, ckpt_lsn, true));
+
+		/* Write the checkpoint log record. */
+		rectype = WT_LOGREC_CHECKPOINT_START;
+		fmt = WT_UNCHECKED_STRING(I);
+		WT_ERR(__wt_struct_size(session, &recsize, fmt, rectype));
+		WT_ERR(__wt_logrec_alloc(session, recsize, &logrec));
+
+		WT_ERR(__wt_struct_pack(session,
+		    (uint8_t *)logrec->data + logrec->size, recsize,
+		    fmt, rectype));
+		logrec->size += (uint32_t)recsize;
+		WT_ERR(__wt_log_write(session, logrec, ckpt_lsn, 0));
+
 		/*
 		 * We need to make sure that the log records in the checkpoint
 		 * LSN are on disk.  In particular to make sure that the
@@ -403,14 +413,16 @@ __wt_txn_checkpoint_log(
 			ckpt_snapshot = txn->ckpt_snapshot;
 
 		/* Write the checkpoint log record. */
-		WT_ERR(__wt_struct_size(session, &recsize, fmt,
-		    rectype, ckpt_lsn->l.file, ckpt_lsn->l.offset,
+		rectype = WT_LOGREC_CHECKPOINT;
+		fmt = WT_UNCHECKED_STRING(IIIIu);
+		WT_ERR(__wt_struct_size(session, &recsize,
+		    fmt, rectype, ckpt_lsn->l.file, ckpt_lsn->l.offset,
 		    txn->ckpt_nsnapshot, ckpt_snapshot));
 		WT_ERR(__wt_logrec_alloc(session, recsize, &logrec));
 
 		WT_ERR(__wt_struct_pack(session,
-		    (uint8_t *)logrec->data + logrec->size, recsize, fmt,
-		    rectype, ckpt_lsn->l.file, ckpt_lsn->l.offset,
+		    (uint8_t *)logrec->data + logrec->size, recsize,
+		    fmt, rectype, ckpt_lsn->l.file, ckpt_lsn->l.offset,
 		    txn->ckpt_nsnapshot, ckpt_snapshot));
 		logrec->size += (uint32_t)recsize;
 		WT_ERR(__wt_log_write(session, logrec, lsnp,
@@ -562,6 +574,11 @@ __txn_printlog(WT_SESSION_IMPL *session,
 		WT_RET(__wt_fprintf(session, WT_STDOUT(session),
 		    "    \"ckpt_lsn\" : [%" PRIu32 ",%" PRIu32 "]\n",
 		    lsnfile, lsnoffset));
+		break;
+
+	case WT_LOGREC_CHECKPOINT_START:
+		WT_RET(__wt_fprintf(session, WT_STDOUT(session),
+		    "    \"type\" : \"checkpoint_start\",\n"));
 		break;
 
 	case WT_LOGREC_COMMIT:

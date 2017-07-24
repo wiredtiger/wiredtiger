@@ -25,6 +25,8 @@ class LogRecordType:
 #
 rectypes = [
     # A database-wide checkpoint.
+    LogRecordType('checkpoint_start', 'checkpoint start', []),
+
     LogRecordType('checkpoint', 'checkpoint', [
         ('WT_LSN', 'ckpt_lsn'), ('uint32', 'nsnapshot'), ('item', 'snapshot')]),
 
