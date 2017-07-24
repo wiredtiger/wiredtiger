@@ -94,17 +94,19 @@ main(int argc, char *argv[])
 			break;
 		case 's':
 			/*
-			 * commented below block temporarily to avoid spurious
-			 * test failures in jenkins as per ticket WT-3446 and
-			 * to be uncommented when WT-3386 is merged.
+			 * disabled below block temporarily to avoid spurious
+			 * test failures as per ticket WT-3446 and
+			 * to be reverted when WT-3386 is merged.
+			 */
+#if 0
 #ifdef HAVE_TIMESTAMPS
 			g.use_timestamps = true;
 #endif
 			break;
-			 */
+#endif
 			/*
 			 * The below code segment to be deleted as part of
-			 * uncommenting the above block i.e. WT-3386
+			 * reverting the above block i.e. WT-3386
 			 */
 			fprintf(stderr,
 			    "Checkpoint Timestamp testing is not supported\n");
