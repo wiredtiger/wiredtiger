@@ -528,7 +528,7 @@ connection_runtime_config = [
         <code>"timing_stress_for_test=[checkpoint_slow,
             page_split_race, internal_page_split_race]"</code>''',
         type='list', undoc=True, choices=[
-            'checkpoint_slow', 'page_split_race', 'internal_page_split_race']),
+            'checkpoint_slow', 'internal_page_split_race', 'page_split_race']),
     Config('verbose', '', r'''
         enable messages for various events. Only available if WiredTiger
         is configured with --enable-verbose. Options are given as a
