@@ -50,15 +50,12 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
     tablename2 = 'ts03_nots_logged'
     tablename3 = 'ts03_ts_logged'
 
-    #types = [
-    #    ('file', dict(uri='file:', use_cg=False, use_index=False)),
-    #    ('lsm', dict(uri='lsm:', use_cg=False, use_index=False)),
-    #    ('table-cg', dict(uri='table:', use_cg=True, use_index=False)),
-    #    ('table-index', dict(uri='table:', use_cg=False, use_index=True)),
-    #    ('table-simple', dict(uri='table:', use_cg=False, use_index=False)),
-    #]
     types = [
         ('file', dict(uri='file:', use_cg=False, use_index=False)),
+        ('lsm', dict(uri='lsm:', use_cg=False, use_index=False)),
+        ('table-cg', dict(uri='table:', use_cg=True, use_index=False)),
+        ('table-index', dict(uri='table:', use_cg=False, use_index=True)),
+        ('table-simple', dict(uri='table:', use_cg=False, use_index=False)),
     ]
 
     ckpt = [
