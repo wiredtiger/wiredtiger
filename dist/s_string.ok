@@ -350,6 +350,8 @@ Syscall
 TAILQ
 TCMalloc
 TESTUTIL
+TIMESTAMP
+TIMESTAMPS
 TODO
 TORTIOUS
 TSO
@@ -412,7 +414,6 @@ WiredTigerInit
 WiredTigerLAS
 WiredTigerLog
 WiredTigerPreplog
-WiredTigerTables
 WiredTigerTmplog
 WiredTigerTxn
 WithSeeds
@@ -1290,6 +1291,7 @@ wb
 wcursor
 whitespace
 wiredTiger
+wiredTigerTables
 wiredtiger
 workFactor
 workgen

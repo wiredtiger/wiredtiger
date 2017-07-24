@@ -58,6 +58,9 @@ typedef struct {
 	uint64_t orig_btree_checkpoint_gen;
 	uint64_t orig_txn_checkpoint_gen;
 
+	/* Track the oldest transaction running when reconciliation starts. */
+	uint64_t last_running;
+
 	/* Track the page's maximum transaction. */
 	uint64_t max_txn;
 	WT_DECL_TIMESTAMP(max_timestamp)
@@ -684,7 +687,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		 */
 		mod->rec_max_txn = r->max_txn;
 #ifdef HAVE_TIMESTAMPS
-		__wt_timestamp_set(mod->rec_max_timestamp, r->max_timestamp);
+		__wt_timestamp_set(&mod->rec_max_timestamp, &r->max_timestamp);
 #endif
 
 		/*
@@ -700,9 +703,9 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 				btree->rec_max_txn = r->max_txn;
 #ifdef HAVE_TIMESTAMPS
 			if (__wt_timestamp_cmp(
-			    btree->rec_max_timestamp, r->max_timestamp) < 0)
-				__wt_timestamp_set(
-				    btree->rec_max_timestamp, r->max_timestamp);
+			    &btree->rec_max_timestamp, &r->max_timestamp) < 0)
+				__wt_timestamp_set(&btree->rec_max_timestamp,
+				    &r->max_timestamp);
 #endif
 		}
 
@@ -903,6 +906,16 @@ __rec_write_init(WT_SESSION_IMPL *session,
 	r->orig_btree_checkpoint_gen = btree->checkpoint_gen;
 	r->orig_txn_checkpoint_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
 	WT_ORDERED_READ(r->orig_write_gen, page->modify->write_gen);
+
+	/*
+	 * Cache the oldest running transaction ID.  This is used to check
+	 * whether updates seen by reconciliation have committed.  We keep a
+	 * cached copy to avoid races where a concurrent transaction could
+	 * abort while reconciliation is examining its updates.  This way, any
+	 * transaction running when reconciliation starts is considered
+	 * uncommitted.
+	 */
+	WT_ORDERED_READ(r->last_running, S2C(session)->txn_global.last_running);
 
 	/*
 	 * Lookaside table eviction is configured when eviction gets aggressive,
@@ -1139,7 +1152,7 @@ __rec_update_save(WT_SESSION_IMPL *session,
 #ifdef HAVE_TIMESTAMPS
 	if (upd != NULL)
 		__wt_timestamp_set(
-		    r->supd[r->supd_next].onpage_timestamp, upd->timestamp);
+		    &r->supd[r->supd_next].onpage_timestamp, &upd->timestamp);
 #endif
 	++r->supd_next;
 	return (0);
@@ -1204,8 +1217,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	update_mem = 0;
 	max_txn = WT_TXN_NONE;
 #ifdef HAVE_TIMESTAMPS
-	__wt_timestamp_set_zero(max_timestamp);
-	__wt_timestamp_set_inf(min_timestamp);
+	__wt_timestamp_set_zero(&max_timestamp);
+	__wt_timestamp_set_inf(&min_timestamp);
 #endif
 	min_txn = UINT64_MAX;
 
@@ -1231,36 +1244,42 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			if (WT_TXNID_LT(txnid, min_txn))
 				min_txn = txnid;
 
-#ifdef HAVE_TIMESTAMPS
-			/* Similarly for the oldest timestamp. */
-			if (__wt_timestamp_cmp(
-			    min_timestamp, upd->timestamp) > 0)
-				__wt_timestamp_set(
-				    min_timestamp, upd->timestamp);
-#endif
-
 			/*
 			 * Find the first update we can use.
 			 *
-			 * Eviction can write any committed update.
+			 * Check whether the update was committed before
+			 * reconciliation started.  The global commit point can
+			 * move forward during reconciliation so we use a
+			 * cached copy to avoid races when a concurrent
+			 * transaction commits or rolls back while we are
+			 * examining its updates.
+			 *
+			 * Lookaside eviction can cope with any committed
+			 * update.  Other eviction modes check that the maximum
+			 * transaction ID and timestamp seen are stable.
 			 *
 			 * When reconciling for eviction, track whether any
 			 * uncommitted updates are found.
-			 *
-			 * When reconciling for eviction, track the memory held
-			 * by the update chain.
 			 */
-			if (__wt_txn_committed(session, txnid)) {
-				if (*updp == NULL)
-					*updp = upd;
-#ifdef HAVE_TIMESTAMPS
-				if (__wt_timestamp_cmp(
-				    max_timestamp, upd->timestamp) < 0)
-					__wt_timestamp_set(
-					    max_timestamp, upd->timestamp);
-#endif
-			} else
+			if (WT_TXNID_LE(r->last_running, txnid)) {
 				skipped = true;
+				continue;
+			}
+
+			if (*updp == NULL)
+				*updp = upd;
+#ifdef HAVE_TIMESTAMPS
+			/* Track min/max timestamps. */
+			if (__wt_timestamp_cmp(
+			    &max_timestamp, &upd->timestamp) < 0)
+				__wt_timestamp_set(
+				    &max_timestamp, &upd->timestamp);
+
+			if (__wt_timestamp_cmp(
+			    &min_timestamp, &upd->timestamp) > 0)
+				__wt_timestamp_set(
+				    &min_timestamp, &upd->timestamp);
+#endif
 		}
 	} else
 		for (upd = upd_list; upd != NULL; upd = upd->next) {
@@ -1290,8 +1309,9 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		}
 
 	/* Reconciliation should never see a reserved update. */
-	WT_ASSERT(session,
-	    *updp == NULL || (*updp)->type != WT_UPDATE_RESERVED);
+	WT_ASSERT(session, *updp == NULL ||
+	    ((*updp)->txnid != WT_TXN_ABORTED &&
+	    (*updp)->type != WT_UPDATE_RESERVED));
 
 	r->update_mem_all += update_mem;
 
@@ -1314,8 +1334,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	if (WT_TXNID_LT(r->max_txn, max_txn))
 		r->max_txn = max_txn;
 #ifdef HAVE_TIMESTAMPS
-	if (__wt_timestamp_cmp(r->max_timestamp, max_timestamp) < 0)
-		__wt_timestamp_set(r->max_timestamp, max_timestamp);
+	if (__wt_timestamp_cmp(&r->max_timestamp, &max_timestamp) < 0)
+		__wt_timestamp_set(&r->max_timestamp, &max_timestamp);
 #endif
 
 	/*
@@ -1332,7 +1352,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 */
 	if (!skipped && (F_ISSET(btree, WT_BTREE_LOOKASIDE) ||
 	    __wt_txn_visible_all(session,
-	    max_txn, WT_TIMESTAMP(max_timestamp)))) {
+	    max_txn, WT_TIMESTAMP_NULL(&max_timestamp)))) {
 #ifdef HAVE_DIAGNOSTIC
 		/*
 		 * The checkpoint transaction is special.  Make sure we never
@@ -1428,7 +1448,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 * globally visible, readers require the page's original value.
 		 */
 		if (!__wt_txn_visible_all(
-		    session, min_txn, WT_TIMESTAMP(min_timestamp)))
+		    session, min_txn, WT_TIMESTAMP_NULL(&min_timestamp)))
 			append_origv = true;
 	}
 
@@ -1538,7 +1558,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 */
 	if (F_ISSET(r, WT_VISIBILITY_ERR) && page_del != NULL &&
 	    !__wt_txn_visible(session,
-	    page_del->txnid, WT_GET_TIMESTAMP(page_del)))
+	    page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)))
 		WT_PANIC_RET(session, EINVAL,
 		    "reconciliation illegally skipped an update");
 
@@ -1568,7 +1588,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 */
 	if (ref->addr != NULL &&
 	    (page_del == NULL || __wt_txn_visible_all(
-	    session, page_del->txnid, WT_GET_TIMESTAMP(page_del))))
+	    session, page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp))))
 		WT_RET(__wt_ref_block_free(session, ref));
 
 	/*
@@ -1619,7 +1639,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 * address normally.  Otherwise, we have to write a proxy record.
 	 */
 	if (__wt_txn_visible(
-	    session, page_del->txnid, WT_GET_TIMESTAMP(page_del)))
+	    session, page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)))
 		*statep = WT_CHILD_PROXY;
 
 	return (0);
@@ -1654,7 +1674,7 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 	 * not reserved for our exclusive use, there are other page states that
 	 * must be considered.
 	 */
-	for (;; __wt_yield())
+	for (;; __wt_yield()) {
 		switch (r->tested_ref_state = ref->state) {
 		case WT_REF_DISK:
 			/* On disk, not modified by definition. */
@@ -1765,6 +1785,8 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 
 		WT_ILLEGAL_VALUE(session);
 		}
+		WT_STAT_CONN_INCR(session, child_modify_blocked_page);
+	}
 
 in_memory:
 	/*
@@ -3755,7 +3777,7 @@ __rec_update_las(WT_SESSION_IMPL *session,
 				continue;
 
 #ifdef HAVE_TIMESTAMPS
-			las_timestamp.data = list->onpage_timestamp;
+			las_timestamp.data = &list->onpage_timestamp;
 			las_timestamp.size = WT_TIMESTAMP_SIZE;
 #endif
 			cursor->set_key(cursor,
@@ -3765,11 +3787,11 @@ __rec_update_las(WT_SESSION_IMPL *session,
 			if (upd->type == WT_UPDATE_DELETED)
 				las_value.size = 0;
 			else {
-				las_value.data = WT_UPDATE_DATA(upd);
+				las_value.data = upd->data;
 				las_value.size = upd->size;
 			}
 #ifdef HAVE_TIMESTAMPS
-			las_timestamp.data = upd->timestamp;
+			las_timestamp.data = &upd->timestamp;
 			las_timestamp.size = WT_TIMESTAMP_SIZE;
 #endif
 			cursor->set_value(cursor,
@@ -4303,7 +4325,7 @@ __rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 		if (upd != NULL)
 			__bit_setv(r->first_free,
 			    WT_INSERT_RECNO(ins) - pageref->ref_recno,
-			    btree->bitcnt, *(uint8_t *)WT_UPDATE_DATA(upd));
+			    btree->bitcnt, *upd->data);
 	}
 
 	/* Calculate the number of entries per page remainder. */
@@ -4360,8 +4382,7 @@ __rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 
 			if (nrecs > 0) {
 				__bit_setv(r->first_free, entry, btree->bitcnt,
-				    upd == NULL ? 0 :
-				    *(uint8_t *)WT_UPDATE_DATA(upd));
+				    upd == NULL ? 0 : *upd->data);
 				--nrecs;
 				++entry;
 				++r->recno;
@@ -4703,7 +4724,7 @@ record_loop:	/*
 
 				deleted = upd->type == WT_UPDATE_DELETED;
 				if (!deleted) {
-					data = WT_UPDATE_DATA(upd);
+					data = upd->data;
 					size = upd->size;
 				}
 			} else if (vpack->raw == WT_CELL_VALUE_OVFL_RM) {
@@ -4930,7 +4951,7 @@ compare:		/*
 				deleted = upd == NULL ||
 				    upd->type == WT_UPDATE_DELETED;
 				if (!deleted) {
-					data = WT_UPDATE_DATA(upd);
+					data = upd->data;
 					size = upd->size;
 				}
 			}
@@ -5515,8 +5536,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 				val->cell_len = val->len = val->buf.size = 0;
 			} else {
 				WT_ERR(__rec_cell_build_val(session, r,
-				    WT_UPDATE_DATA(upd), upd->size,
-				    (uint64_t)0));
+				    upd->data, upd->size, (uint64_t)0));
 				dictionary = true;
 			}
 		}
@@ -5684,7 +5704,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 			val->len = 0;
 		else
 			WT_RET(__rec_cell_build_val(session, r,
-			    WT_UPDATE_DATA(upd), upd->size, (uint64_t)0));
+			    upd->data, upd->size, (uint64_t)0));
 
 							/* Build key cell. */
 		WT_RET(__rec_cell_build_leaf_key(session, r,

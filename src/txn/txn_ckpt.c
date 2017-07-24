@@ -660,6 +660,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	__wt_writelock(session, &txn_global->rwlock);
 	txn_global->checkpoint_state = *txn_state;
+	txn_global->checkpoint_txn = txn;
 	txn_global->checkpoint_state.pinned_id = WT_MIN(txn->id, txn->snap_min);
 
 	/*
@@ -680,6 +681,15 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	txn_state->id = txn_state->pinned_id =
 	    txn_state->metadata_pinned = WT_TXN_NONE;
 	__wt_writeunlock(session, &txn_global->rwlock);
+
+#ifdef HAVE_TIMESTAMPS
+	/*
+	 * Now that the checkpoint transaction is published, clear it from the
+	 * regular lists.
+	 */
+	__wt_txn_clear_commit_timestamp(session);
+	__wt_txn_clear_read_timestamp(session);
+#endif
 
 	/*
 	 * Get a list of handles we want to flush; for named checkpoints this
@@ -1700,18 +1710,6 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
 	bulk = F_ISSET(btree, WT_BTREE_BULK);
 
 	/*
-	 * If the handle is already dead or the file isn't durable, force the
-	 * discard.
-	 *
-	 * If the file isn't durable, mark the handle dead, there are asserts
-	 * later on that only dead handles can have modified pages.
-	 */
-	if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT))
-		F_SET(session->dhandle, WT_DHANDLE_DEAD);
-	if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
-		return (__wt_cache_op(session, WT_SYNC_DISCARD));
-
-	/*
 	 * If closing an unmodified file, check that no update is required
 	 * for active readers.
 	 */
@@ -1719,7 +1717,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
 		WT_RET(__wt_txn_update_oldest(
 		    session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 		return (__wt_txn_visible_all(session, btree->rec_max_txn,
-		    WT_TIMESTAMP(btree->rec_max_timestamp)) ?
+		    WT_TIMESTAMP_NULL(&btree->rec_max_timestamp)) ?
 		    __wt_cache_op(session, WT_SYNC_DISCARD) : EBUSY);
 	}
 
