@@ -368,17 +368,21 @@ __wt_txn_checkpoint_log(
 	case WT_TXN_LOG_CKPT_PREPARE:
 		txn->full_ckpt = true;
 
-		/* Write the checkpoint log record. */
-		rectype = WT_LOGREC_CHECKPOINT_START;
-		fmt = WT_UNCHECKED_STRING(I);
-		WT_ERR(__wt_struct_size(session, &recsize, fmt, rectype));
-		WT_ERR(__wt_logrec_alloc(session, recsize, &logrec));
+		if (conn->compat_major >= WT_LOG_V2) {
+			/* Write the checkpoint log record. */
+			rectype = WT_LOGREC_CHECKPOINT_START;
+			fmt = WT_UNCHECKED_STRING(I);
+			WT_ERR(__wt_struct_size(
+			    session, &recsize, fmt, rectype));
+			WT_ERR(__wt_logrec_alloc(session, recsize, &logrec));
 
-		WT_ERR(__wt_struct_pack(session,
-		    (uint8_t *)logrec->data + logrec->size, recsize,
-		    fmt, rectype));
-		logrec->size += (uint32_t)recsize;
-		WT_ERR(__wt_log_write(session, logrec, ckpt_lsn, 0));
+			WT_ERR(__wt_struct_pack(session,
+			    (uint8_t *)logrec->data + logrec->size, recsize,
+			    fmt, rectype));
+			logrec->size += (uint32_t)recsize;
+			WT_ERR(__wt_log_write(session, logrec, ckpt_lsn, 0));
+		} else
+			WT_ERR(__wt_log_flush_lsn(session, ckpt_lsn, true));
 
 		/*
 		 * We need to make sure that the log records in the checkpoint
