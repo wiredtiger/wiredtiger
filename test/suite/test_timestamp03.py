@@ -198,7 +198,7 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
             self.session.begin_transaction()
             c[k] = self.value2
             c3[k] = self.value2
-            ts = timestamp_str(k + 101)
+            ts = timestamp_str(k + 100)
             self.session.commit_transaction('commit_timestamp=' + ts)
             # print "Commit key " + str(k) + " ts " + ts
             count += 1
@@ -216,6 +216,9 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
         # XXX - REMOVE ONCE WT-3440 is merged.
         self.session.log_printf("test")
         self.ckpt_backup(valcnt, valcnt2, valcnt3)
+        if self.ckptcfg != 'read_timestamp':
+            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(100+nkeys))
+            self.ckpt_backup(nkeys, nkeys, nkeys)
 
 if __name__ == '__main__':
     wttest.run()

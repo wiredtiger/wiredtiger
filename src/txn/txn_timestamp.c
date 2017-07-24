@@ -75,9 +75,6 @@ __wt_txn_parse_timestamp(WT_SESSION_IMPL *session,
 		hexts = padbuf;
 		hexlen = cval->len + 1;
 	}
-#if 0
-	__wt_timestamp_dump(session, "PARSE", (uint8_t *)hexts);
-#endif
 
 	/* Avoid memory allocation to decode timestamps. */
 	ts.data = ts.mem = tsbuf.ts;
@@ -154,6 +151,12 @@ __txn_global_query_timestamp(
 		    __wt_timestamp_cmp(&txn->read_timestamp, &ts) < 0)
 			__wt_timestamp_set(&ts, &txn->read_timestamp);
 		__wt_readunlock(session, &txn_global->read_timestamp_rwlock);
+	} else if (WT_STRING_MATCH("stable", cval.str, cval.len)) {
+		if (!txn_global->has_stable_timestamp)
+			return (WT_NOTFOUND);
+		__wt_readlock(session, &txn_global->rwlock);
+		__wt_timestamp_set(&ts, &txn_global->stable_timestamp);
+		__wt_readunlock(session, &txn_global->rwlock);
 	} else
 		WT_RET_MSG(session, EINVAL,
 		    "unknown timestamp query %.*s", (int)cval.len, cval.str);
