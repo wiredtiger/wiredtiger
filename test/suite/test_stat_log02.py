@@ -99,7 +99,7 @@ class test_stat_log02(wttest.WiredTigerTestCase):
         # We wait for another 30 sleeps here to avoid erroring in the case where
         # the stat log has only made the first pass and not yet printed the
         # individual table stats.
-        num_sleeps = 0
+        number_sleeps = 0
         while True:
             files = glob.glob(dir + '/' + 'WiredTigerStat.[0-9]*')
             f = open(files[0], 'r')
