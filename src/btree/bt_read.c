@@ -194,7 +194,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 		upd->txnid = upd_txnid;
 #ifdef HAVE_TIMESTAMPS
 		WT_ASSERT(session, las_timestamp.size == WT_TIMESTAMP_SIZE);
-		__wt_timestamp_set(upd->timestamp, las_timestamp.data);
+		__wt_timestamp_set(&upd->timestamp, las_timestamp.data);
 #endif
 
 		switch (page->type) {
@@ -710,7 +710,7 @@ __btree_verbose_lookaside_read(WT_SESSION_IMPL *session)
 		if (__wt_atomic_casv64(&conn->las_verb_gen_read,
 			ckpt_gen_last, ckpt_gen_current)) {
 			__wt_verbose(session, WT_VERB_LOOKASIDE,
-			    "Read from lookaside file triggered.");
+			    "%s", "Read from lookaside file triggered.");
 		}
 	}
 #else

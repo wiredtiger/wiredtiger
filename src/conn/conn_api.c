@@ -190,6 +190,45 @@ __wt_conn_remove_collator(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __conn_compat_config --
+ *	Configure compatibility version.
+ */
+static int
+__conn_compat_config(WT_SESSION_IMPL *session, const char **cfg)
+{
+	WT_CONFIG_ITEM cval;
+	WT_CONNECTION_IMPL *conn;
+	uint16_t patch;
+
+	conn = S2C(session);
+	WT_RET(__wt_config_gets(session, cfg,
+	    "compatibility.release", &cval));
+	if (cval.len != 0) {
+		/*
+		 * Accept either a major.minor release string or a
+		 * major.minor.patch release string.  We ignore the patch
+		 * value, but allow it in the string.
+		 */
+		if (sscanf(cval.str, "%" SCNu16 ".%" SCNu16,
+		    &conn->compat_major, &conn->compat_minor) != 2 &&
+		    sscanf(cval.str, "%" SCNu16 ".%" SCNu16 ".%" SCNu16,
+		    &conn->compat_major, &conn->compat_minor, &patch) != 3)
+			WT_RET_MSG(session,
+			    EINVAL, "illegal compatibility release");
+		if (conn->compat_major > WIREDTIGER_VERSION_MAJOR)
+			WT_RET_MSG(session, EINVAL, "unknown major version");
+		if (conn->compat_major == WIREDTIGER_VERSION_MAJOR &&
+		    conn->compat_minor > WIREDTIGER_VERSION_MINOR)
+			WT_RET_MSG(session,
+			    EINVAL, "illegal compatibility version");
+	} else {
+		conn->compat_major = WIREDTIGER_VERSION_MAJOR;
+		conn->compat_minor = WIREDTIGER_VERSION_MINOR;
+	}
+	return (0);
+}
+
+/*
  * __compressor_confchk --
  *	Validate the compressor.
  */
@@ -1134,6 +1173,7 @@ __conn_reconfigure(WT_CONNECTION *wt_conn, const char *config)
 	cfg[1] = config;
 
 	/* Second, reconfigure the system. */
+	WT_ERR(__conn_compat_config(session, cfg));
 	WT_ERR(__conn_statistics_config(session, cfg));
 	WT_ERR(__wt_async_reconfig(session, cfg));
 	WT_ERR(__wt_cache_config(session, true, cfg));
@@ -1143,6 +1183,7 @@ __conn_reconfigure(WT_CONNECTION *wt_conn, const char *config)
 	WT_ERR(__wt_statlog_create(session, cfg));
 	WT_ERR(__wt_sweep_config(session, cfg));
 	WT_ERR(__wt_verbose_config(session, cfg));
+	WT_ERR(__wt_timing_stress_config(session, cfg));
 
 	/* Third, merge everything together, creating a new connection state. */
 	WT_ERR(__wt_config_merge(session, cfg, NULL, &p));
@@ -1894,6 +1935,42 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
+ * __wt_timing_stress_config --
+ *	Set timing stress for test delay configuration.
+ */
+int
+__wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
+{
+	static const WT_NAME_FLAG stress_types[] = {
+		{ "checkpoint_slow",	WT_TIMING_STRESS_CHECKPOINT_SLOW },
+		{ "page_split_race",	WT_TIMING_STRESS_PAGE_SPLIT_RACE },
+		{ NULL, 0 }
+	};
+	WT_CONFIG_ITEM cval, sval;
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+	const WT_NAME_FLAG *ft;
+	uint32_t flags;
+
+	conn = S2C(session);
+
+	WT_RET(__wt_config_gets(
+	    session, cfg, "timing_stress_for_test", &cval));
+
+	flags = 0;
+	for (ft = stress_types; ft->name != NULL; ft++) {
+		if ((ret = __wt_config_subgets(
+		    session, &cval, ft->name, &sval)) == 0 && sval.val != 0) {
+			LF_SET(ft->flag);
+		}
+		WT_RET_NOTFOUND_OK(ret);
+	}
+
+	conn->timing_stress_flags = flags;
+	return (0);
+}
+
+/*
  * __conn_write_base_config --
  *	Save the base configuration used to create a database.
  */
@@ -1973,6 +2050,7 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
 	 * merge the rest to be written.
 	 */
 	WT_ERR(__wt_config_merge(session, cfg + 1,
+	    "compatibility=(release=),"
 	    "config_base=,"
 	    "create=,"
 	    "encryption=(secretkey=),"
@@ -2242,6 +2320,11 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	WT_ERR(__conn_load_extensions(session, cfg, true));
 
 	/*
+	 * Set compatibility versions early so that any subsystem sees it.
+	 */
+	WT_ERR(__conn_compat_config(session, cfg));
+
+	/*
 	 * If the application didn't configure its own file system, configure
 	 * one of ours. Check to ensure we have a valid file system.
 	 */
@@ -2359,6 +2442,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 		    session, cval.str, cval.len, &conn->error_prefix));
 	}
 	WT_ERR(__wt_verbose_config(session, cfg));
+	WT_ERR(__wt_timing_stress_config(session, cfg));
 
 	WT_ERR(__wt_config_gets(session, cfg, "session_max", &cval));
 	conn->session_size = (uint32_t)cval.val + WT_EXTRA_INTERNAL_SESSIONS;
