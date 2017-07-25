@@ -307,20 +307,17 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		has_stable = false;
 	if (has_oldest || has_stable) {
 #ifdef HAVE_TIMESTAMPS
-		WT_DECL_RET;
 		WT_TXN_GLOBAL *txn_global;
 		wt_timestamp_t oldest_ts, stable_ts;
-		bool locked;
 
 		txn_global = &S2C(session)->txn_global;
-		__wt_writelock(session, &txn_global->rwlock);
-		locked = true;
 		if (has_oldest)
-			WT_ERR(__wt_txn_parse_timestamp(
+			WT_RET(__wt_txn_parse_timestamp(
 			    session, "oldest", &oldest_ts, &oldest_cval));
 		if (has_stable)
-			WT_ERR(__wt_txn_parse_timestamp(
+			WT_RET(__wt_txn_parse_timestamp(
 			    session, "stable", &stable_ts, &stable_cval));
+		__wt_writelock(session, &txn_global->rwlock);
 		/*
 		 * First do error checking on the timestamp values.  The
 		 * oldest timestamp must always be less than or equal to
@@ -337,10 +334,12 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		    __wt_timestamp_cmp(&stable_ts,
 		    &txn_global->oldest_timestamp) < 0) ||
 		    (has_oldest && has_stable &&	/* both given */
-		    __wt_timestamp_cmp(&oldest_ts, &stable_ts) > 0))
-			WT_ERR_MSG(session, EINVAL,
+		    __wt_timestamp_cmp(&oldest_ts, &stable_ts) > 0)) {
+			__wt_writeunlock(session, &txn_global->rwlock);
+			WT_RET_MSG(session, EINVAL,
 			    "set_timestamp: oldest timestamp must not be "
 			    "later than stable timestamp");
+		}
 		if (has_oldest) {
 			/*
 			 * This method can be called from multiple threads,
@@ -372,13 +371,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 			}
 		}
 		__wt_writeunlock(session, &txn_global->rwlock);
-		locked = false;
-		WT_ERR(__wt_txn_update_pinned_timestamp(session));
-		if (0) {
-err:			 if (locked)
-				 __wt_writeunlock(session, &txn_global->rwlock);
-		}
-		return (ret);
+		WT_RET(__wt_txn_update_pinned_timestamp(session));
 #else
 		WT_RET_MSG(session, EINVAL, "set_timestamp requires a "
 		    "version of WiredTiger built with timestamp support");
