@@ -238,6 +238,7 @@ __session_close(WT_SESSION *wt_session, const char *config)
 	/* Release common session resources. */
 	WT_TRET(__wt_session_release_resources(session));
 
+	/* Close the file where we tracked long operations */
 	close(session->trackfd);
 	printf("Closed tracking file for session %d\n", session->id);
 
@@ -1900,16 +1901,12 @@ __open_session(WT_CONNECTION_IMPL *conn,
 		WT_ERR(
 		    __session_reconfigure((WT_SESSION *)session_ret, config));
 
-	/* Init tracking */
-	char fname[64];
-	snprintf(fname, 64, "%s/track.%d", "/dev/shm",
+	/* Initialize long-operaton tracking */
+	char oplog_fname[PATH_MAX];
+	snprintf(oplog_fname, PATH_MAX, "%s/oplog.%d", conn->oplog,
 		 session_ret->id);
-	session_ret->trackfd = open(fname, O_CREAT | O_RDWR | O_TRUNC, 
-		S_IRUSR | S_IWUSR);
-	if (session_ret->trackfd > 0)
-		printf("Opened file %s\n", fname);
-	else
-		printf("Could not open %s\n", fname);
+	WT_ERR(__wt_open(session, oplog_fname, WT_FS_OPEN_FILE_TYPE_REGULAR,
+			 WT_FS_OPEN_CREATE, &session_ret->oplog_fh));
 
 	/*
 	 * Publish: make the entry visible to server threads.  There must be a

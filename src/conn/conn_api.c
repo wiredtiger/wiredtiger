@@ -1523,6 +1523,43 @@ err:	__wt_free(session, env_config);
       return (ret);
 }
 
+
+/*
+ * __conn_logging_dir --
+ *	Set the directory for operation logging
+ */
+static int
+__conn_oplog_dir(WT_SESSION_IMPL *session, const char *home,
+		   const char *cfg[])
+{
+	WT_CONFIG_ITEM cval;
+
+	/* Only use the environment variable if configured. */
+	WT_RET(__wt_config_gets(session, cfg, "use_environment", &cval));
+	if (cval.val != 0 &&
+	    __wt_getenv(session, "WIREDTIGER_OPLOG", &S2C(session)->oplog) == 0)
+		return (0);
+
+        /* If the application specifies a home directory, use it. */
+	if (home != NULL)
+		goto copy;
+
+	/*
+	 * If there's no WIREDTIGER_OPLOG environment variable, and the
+	 * application did not specify a home directory use ".".
+	 */
+	home = ".";
+
+	/*
+	 * A similar function __conn_home makes a security check here.
+	 * Do we need to make similar checks?
+	 */
+
+copy:	return (__wt_strdup(session, home, &S2C(session)->oplog));
+}
+
+
+
 /*
  * __conn_home --
  *	Set the database home directory.

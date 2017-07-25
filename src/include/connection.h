@@ -192,6 +192,8 @@ struct __wt_connection_impl {
 					/* Configuration */
 	const WT_CONFIG_ENTRY **config_entries;
 
+	const char *oplog;              /* Directory for operation logs */
+
 	void  **foc;			/* Free-on-close array */
 	size_t  foc_cnt;		/* Array entries */
 	size_t  foc_size;		/* Array size */

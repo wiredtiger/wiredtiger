@@ -30,6 +30,10 @@ struct __wt_hazard {
 #endif
 };
 
+/*
+ * WT_TRACK_RECORD --
+ *     A structure for logging potentially long operations.
+ */
 struct __wt_track_record {
 	uint64_t timestamp;
 	uint16_t op_id;
@@ -225,30 +229,36 @@ struct __wt_session_impl {
 	 * slots.
 	 */
 #define	WT_SESSION_INITIAL_HAZARD_SLOTS	250
-	uint32_t   hazard_size;		/* Hazard pointer array slots */
+        uint32_t   hazard_size;		/* Hazard pointer array slots */
 	uint32_t   hazard_inuse;	/* Hazard pointer array slots in-use */
 	uint32_t   nhazard;		/* Count of active hazard pointers */
 	WT_HAZARD *hazard;		/* Hazard pointer array */
 
 
 	/*
-	 * Tracking.
+	 * Long operation tracking.
 	 */
 #define MAXRECS 16384
 #define BUFSIZE MAXRECS * sizeof(WT_TRACK_RECORD)
-	WT_TRACK_RECORD trackbuffer[BUFSIZE];
-	uint trackbuf_ptr;
-	int trackfd;
+        WT_TRACK_RECORD oplog_buf[BUFSIZE];
+	uint oplogbuf_ptr;
+        uint64_t oplog_offset;
+	WT_FH *oplog_fh;
 };
 
-#define WT_TRACK(s, optype)						     \
-	WT_TRACK_RECORD *tr = &(s->trackbuffer[s->trackbuf_ptr++]);	\
+#define WT_TRACK(s, optype)						\
+	WT_TRACK_RECORD *tr = &(s->trackbuffer[s->oplogbuf_ptr++]);	\
 	tr->timestamp = __wt_rdtsc();					\
 	tr->op_type = optype;						\
 	tr->op_id = s->name[0];						\
 	if (s->trackbuf_ptr == MAXRECS) {				\
+		if (s->oplog_fh != NULL) {				\
+			ret = s->oplog_fh->handle->fh_write(            \
+				s->oplog_fh->handle, (WT_SESSION *)s,   \
+				s->oplog_offset, BUFSIZE, s->oplog_buf);\
+			if (ret == 0)                                   \
+				s->oplog_offset += BUFSIZE;             \
+		}                                                       \
 		s->trackbuf_ptr = 0;					\
 	}
 
-		//if (session->trackfd > 0)				\
-		//pwrite(s->trackfd, s->trackbuffer, BUFSIZE, 0);	\
