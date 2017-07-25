@@ -591,10 +591,11 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_RET(__wt_snprintf(timestamp_config, sizeof(timestamp_config),
 		    "read_timestamp=%.*s", (int)cval.len, cval.str));
 		txn_cfg[2] = timestamp_config;
-	} else if (txn_global->has_oldest_timestamp) {
+	} else if (txn_global->has_stable_timestamp) {
 		WT_RET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
 		/*
-		 * Get the oldest stable timestamp currently set.
+		 * Get the stable timestamp currently set.  Then set that as
+		 * the read timestamp for the transaction.
 		 */
 		if (cval.val != 0) {
 			if ((ret = __wt_txn_global_query_timestamp(session,

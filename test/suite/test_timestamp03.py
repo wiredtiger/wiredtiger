@@ -57,9 +57,6 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
         ('table-index', dict(uri='table:', use_cg=False, use_index=True)),
         ('table-simple', dict(uri='table:', use_cg=False, use_index=False)),
     ]
-    types = [
-        ('file', dict(uri='file:', use_cg=False, use_index=False)),
-    ]
 
     ckpt = [
         ('use_ts_def', dict(ckptcfg='', val='none')),
@@ -211,13 +208,17 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
             valcnt = nkeys
         else:
             valcnt = 0
-        # XXX adjust when logged and timestamps is invalid.
+        # XXX adjust when logged + timestamps is fixed and defined.
         valcnt3 = valcnt
         # XXX - REMOVE ONCE WT-3440 is merged.
         self.session.log_printf("test")
         self.ckpt_backup(valcnt, valcnt2, valcnt3)
         if self.ckptcfg != 'read_timestamp':
-            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(100+nkeys))
+            # Update the stable timestamp to the latest, but not the oldest
+            # timestamp and make sure we can see the data.  Once the stable
+            # timestamp is moved we should see all keys with value2.
+            self.conn.set_timestamp('stable_timestamp=' + \
+                timestamp_str(100+nkeys))
             self.ckpt_backup(nkeys, nkeys, nkeys)
 
 if __name__ == '__main__':

@@ -1153,7 +1153,8 @@ methods = {
         if non-empty, checkpoint the list of objects''', type='list'),
     Config('use_timestamp', 'true', r'''
         by default, create the checkpoint as of the last stable timestamp
-        if timestamps are in use.  This option, if false, generates a checkpoint
+        if timestamps are in use, or all current updates if there is no
+        stable timestamp set.  If false, this option generates a checkpoint
         with all updates including those later than the timestamp''',
         type='boolean'),
 ]),
