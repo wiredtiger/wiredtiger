@@ -58,17 +58,24 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
         ('table-simple', dict(uri='table:', use_cg=False, use_index=False)),
     ]
 
+    conncfg = [
+        ('nolog', dict(conncfg='create')),
+        ('V1', dict(conncfg='create,log=(enabled),compatibility=(release="2.9")')),
+        ('V2', dict(conncfg='create,log=(enabled)')),
+    ]
+
     ckpt = [
         ('read_ts', dict(ckptcfg='read_timestamp', val='none')),
     ]
 
-    scenarios = make_scenarios(types, ckpt)
+    scenarios = make_scenarios(types, ckpt, conncfg)
 
     # Binary values.
     value = u'\u0001\u0002abcd\u0003\u0004'
     value2 = u'\u0001\u0002dcba\u0003\u0004'
 
-    conn_config = 'log=(enabled)'
+    def conn_config(self):
+        return self.conncfg
 
     # Check that a cursor (optionally started in a new transaction), sees the
     # expected values.
