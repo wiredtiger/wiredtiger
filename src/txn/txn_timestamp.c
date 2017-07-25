@@ -311,12 +311,14 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		wt_timestamp_t oldest_ts, stable_ts;
 
 		txn_global = &S2C(session)->txn_global;
-		if (has_oldest)
-			WT_RET(__wt_txn_parse_timestamp(
-			    session, "oldest", &oldest_ts, &oldest_cval));
-		if (has_stable)
-			WT_RET(__wt_txn_parse_timestamp(
-			    session, "stable", &stable_ts, &stable_cval));
+		/*
+		 * Parsing will initialize the timestamp to zero even if
+		 * it is not configured.
+		 */
+		WT_RET(__wt_txn_parse_timestamp(
+		    session, "oldest", &oldest_ts, &oldest_cval));
+		WT_RET(__wt_txn_parse_timestamp(
+		    session, "stable", &stable_ts, &stable_cval));
 		__wt_writelock(session, &txn_global->rwlock);
 		/*
 		 * First do error checking on the timestamp values.  The
