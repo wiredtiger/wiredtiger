@@ -381,8 +381,11 @@ __wt_txn_checkpoint_log(
 			    fmt, rectype));
 			logrec->size += (uint32_t)recsize;
 			WT_ERR(__wt_log_write(session, logrec, ckpt_lsn, 0));
-		} else
+		} else {
+			WT_ERR(__wt_log_printf_internal(session,
+			    "CHECKPOINT: Starting record"));
 			WT_ERR(__wt_log_flush_lsn(session, ckpt_lsn, true));
+		}
 
 		/*
 		 * We need to make sure that the log records in the checkpoint
