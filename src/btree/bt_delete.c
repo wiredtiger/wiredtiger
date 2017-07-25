@@ -207,16 +207,18 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 			return;
 		}
 		/*
-		 * We wait for the change in page state, yield before
-		 * retrying, and if we've yielded enough times, start
-		 * sleeping so we don't burn CPU to no purpose.
+		 * We wait for the change in page state, yield before retrying,
+		 * and if we've yielded enough times, start sleeping so we don't
+		 * burn CPU to no purpose.
 		 */
-		if (++yield_count < WT_THOUSAND) {
+		if (yield_count < WT_THOUSAND) {
+			yield_count++;
 			__wt_yield();
 			continue;
 		}
 
-		sleep_count = WT_MIN(sleep_count + WT_THOUSAND, 10000);
+		sleep_count = WT_MIN(sleep_count + WT_THOUSAND,
+		    10 * WT_THOUSAND);
 		WT_STAT_CONN_INCRV(session, page_del_rollback_blocked,
 		    sleep_count);
 		__wt_sleep(0, sleep_count);

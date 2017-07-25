@@ -66,16 +66,18 @@ __ref_index_slot(WT_SESSION_IMPL *session,
 			}
 		}
 		/*
-		 * We failed to get the page index and slot reference,
-		 * yield before retrying, and if we've yielded enough times,
-		 * start sleeping so we don't burn CPU to no purpose.
+		 * We failed to get the page index and slot reference, yield
+		 * before retrying, and if we've yielded enough times, start
+		 * sleeping so we don't burn CPU to no purpose.
 		 */
-		if (++yield_count < WT_THOUSAND) {
+		if (yield_count < WT_THOUSAND) {
+			yield_count++;
 			__wt_yield();
 			continue;
 		}
 
-		sleep_count = WT_MIN(sleep_count + WT_THOUSAND, 10000);
+		sleep_count = WT_MIN(sleep_count + WT_THOUSAND,
+		    10 * WT_THOUSAND);
 		WT_STAT_CONN_INCRV(session, page_index_slot_ref_blocked,
 		    sleep_count);
 		__wt_sleep(0, sleep_count);
