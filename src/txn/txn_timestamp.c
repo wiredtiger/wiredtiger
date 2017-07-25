@@ -288,7 +288,6 @@ int
 __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_CONFIG_ITEM oldest_cval, stable_cval;
-	WT_DECL_RET;
 	bool has_oldest, has_stable;
 
 	/*
@@ -308,6 +307,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		has_stable = false;
 	if (has_oldest || has_stable) {
 #ifdef HAVE_TIMESTAMPS
+		WT_DECL_RET;
 		WT_TXN_GLOBAL *txn_global;
 		wt_timestamp_t oldest_ts, stable_ts;
 		bool locked;
