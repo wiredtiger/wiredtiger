@@ -249,6 +249,7 @@ __curfile_insert(WT_CURSOR *cursor)
 	__wt_epoch(session, &start);
 	WT_ERR(__wt_btcur_insert(cbt));
 	__wt_epoch(session, &stop);
+	__wt_stat_write_op_histogram(session, WT_TIMEDIFF_US(stop, start));
 
 	/*
 	 * Insert maintains no position, key or value (except for column-store
@@ -259,8 +260,6 @@ __curfile_insert(WT_CURSOR *cursor)
 	    F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT) ||
 	    (!F_ISSET(cursor, WT_CURSTD_APPEND) &&
 	    F_MASK(cursor, WT_CURSTD_KEY_SET) == 0));
-
-	__wt_stat_write_op_histogram(session, WT_TIMEDIFF_US(stop, start));
 
 err:	CURSOR_UPDATE_API_END(session, ret);
 	return (ret);
@@ -307,13 +306,12 @@ __curfile_update(WT_CURSOR *cursor)
 	__wt_epoch(session, &start);
 	WT_ERR(__wt_btcur_update(cbt));
 	__wt_epoch(session, &stop);
+	__wt_stat_write_op_histogram(session, WT_TIMEDIFF_US(stop, start));
 
 	/* Update maintains a position, key and value. */
 	WT_ASSERT(session,
 	    F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
 	    F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
-
-	__wt_stat_write_op_histogram(session, WT_TIMEDIFF_US(stop, start));
 
 err:	CURSOR_UPDATE_API_END(session, ret);
 	return (ret);
