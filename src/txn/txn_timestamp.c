@@ -325,15 +325,15 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		 * then compare against the system timestamp.  If we're
 		 * setting both then compare the passed in values.
 		 */
-		if ((has_oldest && !has_stable &&	/* only oldest given */
+		if ((has_oldest && !has_stable &&
 		    txn_global->has_stable_timestamp &&
 		    __wt_timestamp_cmp(&oldest_ts,
 		    &txn_global->stable_timestamp) > 0) ||
-		    (has_stable && !has_oldest &&	/* only stable given */
+		    (has_stable && !has_oldest &&
 		    txn_global->has_oldest_timestamp &&
 		    __wt_timestamp_cmp(&stable_ts,
 		    &txn_global->oldest_timestamp) < 0) ||
-		    (has_oldest && has_stable &&	/* both given */
+		    (has_oldest && has_stable &&
 		    __wt_timestamp_cmp(&oldest_ts, &stable_ts) > 0)) {
 			__wt_writeunlock(session, &txn_global->rwlock);
 			WT_RET_MSG(session, EINVAL,
