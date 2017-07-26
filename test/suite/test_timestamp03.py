@@ -65,13 +65,17 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
         ('read_ts', dict(ckptcfg='read_timestamp', val='none')),
     ]
 
-    scenarios = make_scenarios(types, ckpt)
+    conncfg = [
+        ('nolog', dict(conn_config='create')),
+        ('V1', dict(conn_config='create,log=(enabled),compatibility=(release="2.9")')),
+        ('V2', dict(conn_config='create,log=(enabled)')),
+    ]
+
+    scenarios = make_scenarios(types, ckpt, conncfg)
 
     # Binary values.
     value = u'\u0001\u0002abcd\u0003\u0004'
     value2 = u'\u0001\u0002dcba\u0003\u0004'
-
-    conn_config = 'log=(enabled)'
 
     # Check that a cursor (optionally started in a new transaction), sees the
     # expected values.
@@ -153,6 +157,12 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
         uri = self.uri + self.tablename
         uri2 = self.uri + self.tablename2
         uri3 = self.uri + self.tablename3
+        #
+        # Open three tables:
+        # 1. Table is not logged and uses timestamps.
+        # 2. Table is logged and does not use timestamps.
+        # 3. Table is logged and uses timestamps.
+        #
         self.session.create(uri, 'key_format=i,value_format=S,log=(enabled=false)')
         c = self.session.open_cursor(uri)
         self.session.create(uri2, 'key_format=i,value_format=S')
@@ -190,6 +200,10 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
         random.shuffle(keys)
         count = 0
         for k in keys:
+            # Make sure a timestamp cursor is the last one to update.  This
+            # tests the scenario for a bug we found where recovery replayed
+            # the last record written into the log.
+            #
             # print "Key " + str(k) + " to value2"
             c2[k] = self.value2
             self.session.begin_transaction()
@@ -210,8 +224,6 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
             valcnt = 0
         # XXX adjust when logged + timestamps is fixed and defined.
         valcnt3 = valcnt
-        # XXX - REMOVE ONCE WT-3440 is merged.
-        self.session.log_printf("test")
         self.ckpt_backup(valcnt, valcnt2, valcnt3)
         if self.ckptcfg != 'read_timestamp':
             # Update the stable timestamp to the latest, but not the oldest
