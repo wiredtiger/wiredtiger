@@ -526,9 +526,9 @@ connection_runtime_config = [
         This option is intended for use with internal stress
         testing of WiredTiger. Options are given as a list, such as
         <code>"timing_stress_for_test=[checkpoint_slow,
-            page_split_race]"</code>''',
+            internal_page_split_race, page_split_race]"</code>''',
         type='list', undoc=True, choices=[
-            'checkpoint_slow', 'page_split_race']),
+            'checkpoint_slow', 'internal_page_split_race', 'page_split_race']),
     Config('verbose', '', r'''
         enable messages for various events. Only available if WiredTiger
         is configured with --enable-verbose. Options are given as a
@@ -1151,6 +1151,12 @@ methods = {
         undoc=True),
     Config('target', '', r'''
         if non-empty, checkpoint the list of objects''', type='list'),
+    Config('use_timestamp', 'true', r'''
+        by default, create the checkpoint as of the last stable timestamp
+        if timestamps are in use, or all current updates if there is no
+        stable timestamp set.  If false, this option generates a checkpoint
+        with all updates including those later than the timestamp''',
+        type='boolean'),
 ]),
 
 'WT_SESSION.snapshot' : Method([
@@ -1249,7 +1255,12 @@ methods = {
     Config('oldest_timestamp', '', r'''
         future commits and queries will be no earlier than the specified
         timestamp. Supplied values must be monotonically increasing.
-        see @ref transaction_timestamps'''),
+        See @ref transaction_timestamps'''),
+    Config('stable_timestamp', '', r'''
+        future checkpoints will be no later than the specified
+        timestamp. Supplied values must be monotonically increasing.
+        The stable timestamp data stability only applies to tables
+        that are not being logged.  See @ref transaction_timestamps'''),
 ]),
 
 'WT_CONNECTION.rollback_to_stable' : Method([
