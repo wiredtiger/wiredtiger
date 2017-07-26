@@ -740,6 +740,10 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	WT_INTL_INDEX_SET(parent, alloc_index);
 	alloc_index = NULL;
 
+	/* Encourage a race */
+	__page_split_timing_stress(session,
+	    WT_TIMING_STRESS_INTERNAL_PAGE_SPLIT_RACE, 100 * WT_THOUSAND);
+
 	/*
 	 * Get a generation for this split, mark the page.  This must be after
 	 * the new index is swapped into place in order to know that no readers
@@ -807,10 +811,6 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 		    (void *)ref->page, (void *)parent,
 		    parent_entries, result_entries,
 		    result_entries - parent_entries);
-
-	/* Encourage a race */
-	__page_split_timing_stress(session,
-	    WT_TIMING_STRESS_INTERNAL_PAGE_SPLIT_RACE, 100 * WT_THOUSAND);
 
 	/*
 	 * The new page index is in place, free the WT_REF we were splitting and
