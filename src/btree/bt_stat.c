@@ -349,7 +349,6 @@ __wt_stat_write_op_histogram(WT_SESSION_IMPL *session, uint64_t usecs)
 {
 	if (!WT_STAT_PERF_ENABLED(session))
 		return;
-	printf("recording stats\n");
 	/*
 	 * Ignore any operation that takes less than 100us to execute. This
 	 * floor value keeps us from having an excessively large smallest
