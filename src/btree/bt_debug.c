@@ -445,18 +445,28 @@ static char *
 __debug_tree_shape_info(WT_PAGE *page)
 {
 	uint64_t v;
-	static char buf[32];
+	static char buf[128];
+	const char *unit;
 
 	v = page->memory_footprint;
-	if (v >= WT_GIGABYTE)
-		(void)__wt_snprintf(buf, sizeof(buf),
-		    "(%p %" PRIu64 "G)", (void *)page, v / WT_GIGABYTE);
-	else if (v >= WT_MEGABYTE)
-		(void)__wt_snprintf(buf, sizeof(buf),
-		    "(%p %" PRIu64 "M)", (void *)page, v / WT_MEGABYTE);
-	else
-		(void)__wt_snprintf(buf, sizeof(buf),
-		    "(%p %" PRIu64 ")", (void *)page, v);
+
+	if (v > WT_GIGABYTE) {
+		v /= WT_GIGABYTE;
+		unit = "G";
+	} else if (v > WT_MEGABYTE) {
+		v /= WT_MEGABYTE;
+		unit = "M";
+	} else if (v > WT_KILOBYTE) {
+		v /= WT_KILOBYTE;
+		unit = "K";
+	} else {
+		unit = "B";
+	}
+
+	(void)__wt_snprintf(buf, sizeof(buf), "(%p, %" PRIu64
+	    "%s, evict gen %" PRIu64 ", create gen %" PRIu64 ")",
+	    (void *)page, v, unit,
+	    page->evict_pass_gen, page->cache_create_gen);
 	return (buf);
 }
 
@@ -982,19 +992,37 @@ __debug_row_skip(WT_DBG *ds, WT_INSERT_HEAD *head)
 static int
 __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 {
-	for (; upd != NULL; upd = upd->next)
+	for (; upd != NULL; upd = upd->next) {
 		if (upd->type == WT_UPDATE_DELETED)
 			WT_RET(ds->f(ds, "\tvalue {deleted}\n"));
 		else if (upd->type == WT_UPDATE_RESERVED)
 			WT_RET(ds->f(ds, "\tvalue {reserved}\n"));
 		else if (hexbyte) {
 			WT_RET(ds->f(ds, "\t{"));
-			WT_RET(__debug_hex_byte(ds,
-			    *(uint8_t *)WT_UPDATE_DATA(upd)));
+			WT_RET(__debug_hex_byte(ds, *upd->data));
 			WT_RET(ds->f(ds, "}\n"));
 		} else
-			WT_RET(__debug_item(ds,
-			    "value", WT_UPDATE_DATA(upd), upd->size));
+			WT_RET(__debug_item(ds, "value", upd->data, upd->size));
+		WT_RET(ds->f(ds, "\t" "txn id %" PRIu64, upd->txnid));
+
+#ifdef HAVE_TIMESTAMPS
+		if (!__wt_timestamp_iszero(
+		    WT_TIMESTAMP_NULL(&upd->timestamp))) {
+#if WT_TIMESTAMP_SIZE == 8
+			WT_RET(ds->f(ds,
+			    ", stamp %" PRIu64, upd->timestamp.val));
+#else
+			int i;
+
+			WT_RET(ds->f(ds, ", stamp 0x"));
+			for (i = 0; i < WT_TIMESTAMP_SIZE; ++i)
+				WT_RET(ds->f(ds,
+				    "%" PRIx8, upd->timestamp.ts[i]));
+#endif
+		}
+#endif
+		WT_RET(ds->f(ds, "\n"));
+	}
 	return (0);
 }
 

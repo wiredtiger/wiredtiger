@@ -131,6 +131,14 @@ file_runtime_config = [
         do not ever evict the object's pages from cache. Not compatible with
         LSM tables; see @ref tuning_cache_resident for more information''',
         type='boolean'),
+    Config('log', '', r'''
+        the transaction log configuration for this object.  Only valid if
+        log is enabled in ::wiredtiger_open''',
+        type='category', subconfig=[
+        Config('enabled', 'true', r'''
+            if false, this object has checkpoint-level durability''',
+            type='boolean'),
+        ]),
 ]
 
 # Per-file configuration
@@ -252,14 +260,6 @@ file_config = format_meta + file_runtime_config + [
     Config('leaf_item_max', '0', r'''
         historic term for leaf_key_max and leaf_value_max''',
         min=0, undoc=True),
-    Config('log', '', r'''
-        the transaction log configuration for this object.  Only valid if
-        log is enabled in ::wiredtiger_open''',
-        type='category', subconfig=[
-        Config('enabled', 'true', r'''
-            if false, this object has checkpoint-level durability''',
-            type='boolean'),
-        ]),
     Config('memory_page_max', '5MB', r'''
         the maximum size a page can grow to in memory before being
         reconciled to disk.  The specified size will be adjusted to a lower
@@ -401,6 +401,12 @@ connection_runtime_config = [
             above 0 configures periodic checkpoints''',
             min='0', max='100000'),
         ]),
+    Config('compatibility', '', r'''
+        set compatibility version of database''',
+        type='category', subconfig=[
+        Config('release', '', r'''
+            compatibility release version string'''),
+        ]),
     Config('error_prefix', '', r'''
         prefix string for error messages'''),
     Config('eviction', '', r'''
@@ -514,6 +520,15 @@ connection_runtime_config = [
         @ref statistics for more information''',
         type='list',
         choices=['all', 'cache_walk', 'fast', 'none', 'clear', 'tree_walk']),
+    Config('timing_stress_for_test', '', r'''
+        enable code that interrupts the usual timing of operations with a
+        goal of uncovering race conditions and unexpected blocking.
+        This option is intended for use with internal stress
+        testing of WiredTiger. Options are given as a list, such as
+        <code>"timing_stress_for_test=[checkpoint_slow,
+            internal_page_split_race, page_split_race]"</code>''',
+        type='list', undoc=True, choices=[
+            'checkpoint_slow', 'internal_page_split_race', 'page_split_race']),
     Config('verbose', '', r'''
         enable messages for various events. Only available if WiredTiger
         is configured with --enable-verbose. Options are given as a
@@ -876,7 +891,7 @@ methods = {
         not available immediately''',
         type='boolean', undoc=True),
     Config('remove_files', 'true', r'''
-        should the underlying files be removed?''',
+        if the underlying files should be removed''',
         type='boolean'),
 ]),
 
@@ -1028,7 +1043,8 @@ methods = {
 ]),
 'WT_SESSION.strerror' : Method([]),
 'WT_SESSION.transaction_sync' : Method([
-    Config('timeout_ms', '1200000', r'''
+    Config('timeout_ms', '1200000', # !!! Must match WT_SESSION_BG_SYNC_MSEC
+        r'''
         maximum amount of time to wait for background sync to complete in
         milliseconds.  A value of zero disables the timeout and returns
         immediately''',
@@ -1135,6 +1151,12 @@ methods = {
         undoc=True),
     Config('target', '', r'''
         if non-empty, checkpoint the list of objects''', type='list'),
+    Config('use_timestamp', 'true', r'''
+        by default, create the checkpoint as of the last stable timestamp
+        if timestamps are in use, or all current updates if there is no
+        stable timestamp set.  If false, this option generates a checkpoint
+        with all updates including those later than the timestamp''',
+        type='boolean'),
 ]),
 
 'WT_SESSION.snapshot' : Method([
@@ -1233,7 +1255,12 @@ methods = {
     Config('oldest_timestamp', '', r'''
         future commits and queries will be no earlier than the specified
         timestamp. Supplied values must be monotonically increasing.
-        see @ref transaction_timestamps'''),
+        See @ref transaction_timestamps'''),
+    Config('stable_timestamp', '', r'''
+        future checkpoints will be no later than the specified
+        timestamp. Supplied values must be monotonically increasing.
+        The stable timestamp data stability only applies to tables
+        that are not being logged.  See @ref transaction_timestamps'''),
 ]),
 
 'WT_SESSION.reconfigure' : Method(session_config),

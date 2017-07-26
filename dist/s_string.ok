@@ -350,6 +350,8 @@ Syscall
 TAILQ
 TCMalloc
 TESTUTIL
+TIMESTAMP
+TIMESTAMPS
 TODO
 TORTIOUS
 TSO
@@ -690,6 +692,7 @@ extern
 extlist
 fadvise
 fallocate
+fallthrough
 fblocks
 fc
 fclose
@@ -803,6 +806,7 @@ initn
 initsize
 initval
 inline
+inlined
 inmem
 inmemory
 insertK
@@ -990,6 +994,7 @@ oo
 opcode
 opendir
 openfile
+oplist
 oplog
 optimizations
 optype
@@ -1033,6 +1038,7 @@ prepended
 prepending
 presize
 presync
+prevlsn
 primary's
 printf
 printlog
@@ -1238,6 +1244,7 @@ unregister
 unsized
 unterminated
 untyped
+unvisited
 upd
 update's
 upg
@@ -1261,6 +1268,7 @@ valuep
 valuev
 vanishingly
 variable's
+variadic
 vectorized
 versa
 vfprintf
@@ -1284,6 +1292,7 @@ wb
 wcursor
 whitespace
 wiredTiger
+wiredTigerTables
 wiredtiger
 workFactor
 workgen

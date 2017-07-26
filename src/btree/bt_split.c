@@ -31,6 +31,26 @@ typedef enum {
 } WT_SPLIT_ERROR_PHASE;
 
 /*
+ * __page_split_timing_stress --
+ *  Optionally add delay to simulate the race conditions in
+ *  page split for debug purposes. The purpose is to uncover
+ *  the race conditions in page split.
+ */
+static void
+__page_split_timing_stress(WT_SESSION_IMPL *session,
+    uint32_t flag, uint64_t micro_seconds)
+{
+	WT_CONNECTION_IMPL *conn;
+
+	conn = S2C(session);
+
+	/* We only want to sleep when page split race flag is set. */
+	if (FLD_ISSET(conn->timing_stress_flags, flag))
+		__wt_sleep(0, micro_seconds);
+
+}
+
+/*
  * __split_safe_free --
  *	Free a buffer if we can be sure no thread is accessing it, or schedule
  *	it to be freed otherwise.
@@ -493,6 +513,10 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
 	/* Prepare the WT_REFs for the move. */
 	__split_ref_prepare(session, alloc_index, false);
 
+	/* Encourage a race */
+	__page_split_timing_stress(session,
+	    WT_TIMING_STRESS_INTERNAL_PAGE_SPLIT_RACE, 100 * WT_THOUSAND);
+
 	/*
 	 * Confirm the root page's index hasn't moved, then update it, which
 	 * makes the split visible to threads descending the tree.
@@ -500,6 +524,10 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
 	WT_ASSERT(session, WT_INTL_INDEX_GET_SAFE(root) == pindex);
 	WT_INTL_INDEX_SET(root, alloc_index);
 	alloc_index = NULL;
+
+	/* Encourage a race */
+	__page_split_timing_stress(session,
+	    WT_TIMING_STRESS_INTERNAL_PAGE_SPLIT_RACE, 100 * WT_THOUSAND);
 
 	/*
 	 * Get a generation for this split, mark the root page.  This must be
@@ -686,6 +714,10 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	/* Start making real changes to the tree, errors are fatal. */
 	complete = WT_ERR_PANIC;
 
+	/* Encourage a race */
+	__page_split_timing_stress(session,
+	    WT_TIMING_STRESS_INTERNAL_PAGE_SPLIT_RACE, 100 * WT_THOUSAND);
+
 	/*
 	 * Confirm the parent page's index hasn't moved then update it, which
 	 * makes the split visible to threads descending the tree.
@@ -693,6 +725,10 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	WT_ASSERT(session, WT_INTL_INDEX_GET_SAFE(parent) == pindex);
 	WT_INTL_INDEX_SET(parent, alloc_index);
 	alloc_index = NULL;
+
+	/* Encourage a race */
+	__page_split_timing_stress(session,
+	    WT_TIMING_STRESS_INTERNAL_PAGE_SPLIT_RACE, 100 * WT_THOUSAND);
 
 	/*
 	 * Get a generation for this split, mark the page.  This must be after
@@ -1036,6 +1072,10 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 	/* Prepare the WT_REFs for the move. */
 	__split_ref_prepare(session, alloc_index, true);
 
+	/* Encourage a race */
+	__page_split_timing_stress(session,
+	    WT_TIMING_STRESS_INTERNAL_PAGE_SPLIT_RACE, 100 * WT_THOUSAND);
+
 	/* Split into the parent. */
 	WT_ERR(__split_parent(session, page_ref, alloc_index->index,
 	    alloc_index->entries, parent_incr, false, false));
@@ -1046,6 +1086,10 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 	 */
 	WT_ASSERT(session, WT_INTL_INDEX_GET_SAFE(page) == pindex);
 	WT_INTL_INDEX_SET(page, replace_index);
+
+	/* Encourage a race */
+	__page_split_timing_stress(session,
+	    WT_TIMING_STRESS_INTERNAL_PAGE_SPLIT_RACE, 100 * WT_THOUSAND);
 
 	/*
 	 * Get a generation for this split, mark the parent page.  This must be
@@ -1157,6 +1201,10 @@ __split_internal_lock(
 	 */
 	for (;;) {
 		parent = ref->home;
+
+		/* Encourage race */
+		__page_split_timing_stress(session,
+		    WT_TIMING_STRESS_PAGE_SPLIT_RACE, WT_THOUSAND);
 
 		/* Page locks live in the modify structure. */
 		WT_RET(__wt_page_modify_init(session, parent));

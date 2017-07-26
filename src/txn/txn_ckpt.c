@@ -8,6 +8,7 @@
 
 #include "wt_internal.h"
 
+static void __checkpoint_timing_stress(WT_SESSION_IMPL *);
 static int __checkpoint_lock_dirty_tree(
     WT_SESSION_IMPL *, bool, bool, bool, const char *[]);
 static int __checkpoint_mark_skip(WT_SESSION_IMPL *, WT_CKPT *, bool);
@@ -570,7 +571,9 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_STATE *txn_state;
-	char timestamp_config[100];
+	char timestamp_buf[2 * WT_TIMESTAMP_SIZE + 1], timestamp_config[100];
+	const char *query_cfg[] = { WT_CONFIG_BASE(session,
+	    WT_CONNECTION_query_timestamp), "get=stable", NULL };
 	const char *txn_cfg[] = { WT_CONFIG_BASE(session,
 	    WT_SESSION_begin_transaction), "isolation=snapshot", NULL, NULL };
 
@@ -579,11 +582,31 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	txn_global = &conn->txn_global;
 	txn_state = WT_SESSION_TXN_STATE(session);
 
+	/*
+	 * Someone giving us a specific timestamp overrides the general
+	 * use_timestamp.
+	 */
 	WT_RET(__wt_config_gets(session, cfg, "read_timestamp", &cval));
 	if (cval.len > 0) {
 		WT_RET(__wt_snprintf(timestamp_config, sizeof(timestamp_config),
 		    "read_timestamp=%.*s", (int)cval.len, cval.str));
 		txn_cfg[2] = timestamp_config;
+	} else if (txn_global->has_stable_timestamp) {
+		WT_RET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
+		/*
+		 * Get the stable timestamp currently set.  Then set that as
+		 * the read timestamp for the transaction.
+		 */
+		if (cval.val != 0) {
+			if ((ret = __wt_txn_global_query_timestamp(session,
+			    timestamp_buf, query_cfg)) != 0 &&
+			    ret != WT_NOTFOUND)
+				return (ret);
+			WT_RET(__wt_snprintf(timestamp_config,
+			    sizeof(timestamp_config),
+			    "read_timestamp=%s", timestamp_buf));
+			txn_cfg[2] = timestamp_config;
+		}
 	}
 
 	/*
@@ -624,6 +647,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	__wt_writelock(session, &txn_global->rwlock);
 	txn_global->checkpoint_state = *txn_state;
+	txn_global->checkpoint_txn = txn;
 	txn_global->checkpoint_state.pinned_id = WT_MIN(txn->id, txn->snap_min);
 
 	/*
@@ -644,6 +668,15 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	txn_state->id = txn_state->pinned_id =
 	    txn_state->metadata_pinned = WT_TXN_NONE;
 	__wt_writeunlock(session, &txn_global->rwlock);
+
+#ifdef HAVE_TIMESTAMPS
+	/*
+	 * Now that the checkpoint transaction is published, clear it from the
+	 * regular lists.
+	 */
+	__wt_txn_clear_commit_timestamp(session);
+	__wt_txn_clear_read_timestamp(session);
+#endif
 
 	/*
 	 * Get a list of handles we want to flush; for named checkpoints this
@@ -779,6 +812,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	if (full && logging)
 		WT_ERR(__wt_txn_checkpoint_log(
 		    session, full, WT_TXN_LOG_CKPT_START, NULL));
+
+	__checkpoint_timing_stress(session);
 
 	WT_ERR(__checkpoint_apply(session, cfg, __checkpoint_tree_helper));
 
@@ -1662,18 +1697,6 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
 	bulk = F_ISSET(btree, WT_BTREE_BULK);
 
 	/*
-	 * If the handle is already dead or the file isn't durable, force the
-	 * discard.
-	 *
-	 * If the file isn't durable, mark the handle dead, there are asserts
-	 * later on that only dead handles can have modified pages.
-	 */
-	if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT))
-		F_SET(session->dhandle, WT_DHANDLE_DEAD);
-	if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
-		return (__wt_cache_op(session, WT_SYNC_DISCARD));
-
-	/*
 	 * If closing an unmodified file, check that no update is required
 	 * for active readers.
 	 */
@@ -1681,7 +1704,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
 		WT_RET(__wt_txn_update_oldest(
 		    session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 		return (__wt_txn_visible_all(session, btree->rec_max_txn,
-		    WT_TIMESTAMP(btree->rec_max_timestamp)) ?
+		    WT_TIMESTAMP_NULL(&btree->rec_max_timestamp)) ?
 		    __wt_cache_op(session, WT_SYNC_DISCARD) : EBUSY);
 	}
 
@@ -1706,4 +1729,30 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
 		WT_TRET(__wt_meta_track_off(session, true, ret != 0));
 
 	return (ret);
+}
+
+/*
+ * __checkpoint_timing_stress --
+ *	Optionally add a 10 second delay to a checkpoint to simulate a long
+ *	running checkpoint for debug purposes. The reason for this option is
+ *	finding	operations that can block while waiting for a checkpoint to
+ *	complete.
+ */
+static void
+__checkpoint_timing_stress(WT_SESSION_IMPL *session)
+{
+	WT_CONNECTION_IMPL *conn;
+
+	conn = S2C(session);
+
+	/*
+	 * We only want to sleep if the flag is set and the checkpoint comes
+	 * from the API, so check if the session used is either of the two
+	 * sessions set aside for internal checkpoints.
+	 */
+	if (conn->ckpt_session != session &&
+	    conn->meta_ckpt_session != session &&
+	    FLD_ISSET(conn->timing_stress_flags,
+	    WT_TIMING_STRESS_CHECKPOINT_SLOW))
+		__wt_sleep(10, 0);
 }
