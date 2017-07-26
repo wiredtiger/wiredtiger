@@ -248,6 +248,14 @@ __wt_stats_clear(void *stats_arg, int slot)
 } while (0)
 
 /*
+ * Only update the "perf" statistics is we have the gathering of those stats
+ * enabled, they can be very costly.
+ */
+#define	WT_STAT_PERF_ENABLED(session) 					\
+	FLD_ISSET(S2C(session)->stat_flags,				\
+	    WT_STAT_TYPE_PERF | WT_STAT_TYPE_ALL)
+
+/*
  * DO NOT EDIT: automatically built by dist/stat.py.
  */
 /* Statistics section: BEGIN */

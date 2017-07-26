@@ -375,6 +375,8 @@ __wt_close_connection_close(WT_SESSION_IMPL *session)
 void
 __wt_stat_read_io_histogram(WT_SESSION_IMPL *session, uint64_t msecs)
 {
+	if (!WT_STAT_PERF_ENABLED(session))
+		return;
 	/*
 	 * Ignore any operation that takes less than 10ms to execute. This
 	 * floor value keeps us from having an excessively large smallest
@@ -405,6 +407,8 @@ __wt_stat_read_io_histogram(WT_SESSION_IMPL *session, uint64_t msecs)
 void
 __wt_stat_write_io_histogram(WT_SESSION_IMPL *session, uint64_t msecs)
 {
+	if (!WT_STAT_PERF_ENABLED(session))
+		return;
 	/*
 	 * Ignore any operation that takes less than 10ms to execute. This
 	 * floor value keeps us from having an excessively large smallest

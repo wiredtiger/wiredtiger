@@ -147,6 +147,7 @@ flags = {
         'STAT_TYPE_ALL',
         'STAT_TYPE_CACHE_WALK',
         'STAT_TYPE_FAST',
+        'STAT_TYPE_PERF',
         'STAT_TYPE_SIZE',
         'STAT_TYPE_TREE_WALK',
     ],

@@ -509,7 +509,10 @@ connection_runtime_config = [
         Maintain database statistics, which may impact performance.
         Choosing "all" maintains all statistics regardless of cost,
         "fast" maintains a subset of statistics that are relatively
-        inexpensive, "none" turns off all statistics.  The "clear"
+        inexpensive, "none" turns off all statistics.  The "perf"
+        configuration enables the gathering of performance statistics.
+        These can be quite costly, to gather but provide insight into
+        when delays in operation execution may occur. The "clear"
         configuration resets statistics after they are gathered,
         where appropriate (for example, a cache size statistic is
         not cleared, while the count of cursor insert operations will
@@ -519,7 +522,14 @@ connection_runtime_config = [
         are logged using the \c statistics_log configuration.  See
         @ref statistics for more information''',
         type='list',
-        choices=['all', 'cache_walk', 'fast', 'none', 'clear', 'tree_walk']),
+        choices=[
+            'all',
+            'cache_walk',
+            'fast',
+            'none',
+            'clear',
+            'perf',
+            'tree_walk']),
     Config('timing_stress_for_test', '', r'''
         enable code that interrupts the usual timing of operations with a
         goal of uncovering race conditions and unexpected blocking.

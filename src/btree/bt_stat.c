@@ -316,6 +316,8 @@ __stat_page_row_leaf(
 void
 __wt_stat_read_op_histogram(WT_SESSION_IMPL *session, uint64_t usecs)
 {
+	if (!WT_STAT_PERF_ENABLED(session))
+		return;
 	/*
 	 * Ignore any operation that takes less than 100us to execute. This
 	 * floor value keeps us from having an excessively large smallest
@@ -345,6 +347,9 @@ __wt_stat_read_op_histogram(WT_SESSION_IMPL *session, uint64_t usecs)
 void
 __wt_stat_write_op_histogram(WT_SESSION_IMPL *session, uint64_t usecs)
 {
+	if (!WT_STAT_PERF_ENABLED(session))
+		return;
+	printf("recording stats\n");
 	/*
 	 * Ignore any operation that takes less than 100us to execute. This
 	 * floor value keeps us from having an excessively large smallest

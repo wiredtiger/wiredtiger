@@ -156,7 +156,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
 	    confchk_wiredtiger_open_shared_cache_subconfigs, 5 },
 	{ "statistics", "list",
 	    NULL, "choices=[\"all\",\"cache_walk\",\"fast\",\"none\","
-	    "\"clear\",\"tree_walk\"]",
+	    "\"clear\",\"perf\",\"tree_walk\"]",
 	    NULL, 0 },
 	{ "statistics_log", "category",
 	    NULL, NULL,
@@ -777,7 +777,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
 	    confchk_wiredtiger_open_shared_cache_subconfigs, 5 },
 	{ "statistics", "list",
 	    NULL, "choices=[\"all\",\"cache_walk\",\"fast\",\"none\","
-	    "\"clear\",\"tree_walk\"]",
+	    "\"clear\",\"perf\",\"tree_walk\"]",
 	    NULL, 0 },
 	{ "statistics_log", "category",
 	    NULL, NULL,
@@ -871,7 +871,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
 	    confchk_wiredtiger_open_shared_cache_subconfigs, 5 },
 	{ "statistics", "list",
 	    NULL, "choices=[\"all\",\"cache_walk\",\"fast\",\"none\","
-	    "\"clear\",\"tree_walk\"]",
+	    "\"clear\",\"perf\",\"tree_walk\"]",
 	    NULL, 0 },
 	{ "statistics_log", "category",
 	    NULL, NULL,
@@ -962,7 +962,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
 	    confchk_wiredtiger_open_shared_cache_subconfigs, 5 },
 	{ "statistics", "list",
 	    NULL, "choices=[\"all\",\"cache_walk\",\"fast\",\"none\","
-	    "\"clear\",\"tree_walk\"]",
+	    "\"clear\",\"perf\",\"tree_walk\"]",
 	    NULL, 0 },
 	{ "statistics_log", "category",
 	    NULL, NULL,
@@ -1051,7 +1051,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
 	    confchk_wiredtiger_open_shared_cache_subconfigs, 5 },
 	{ "statistics", "list",
 	    NULL, "choices=[\"all\",\"cache_walk\",\"fast\",\"none\","
-	    "\"clear\",\"tree_walk\"]",
+	    "\"clear\",\"perf\",\"tree_walk\"]",
 	    NULL, 0 },
 	{ "statistics_log", "category",
 	    NULL, NULL,
