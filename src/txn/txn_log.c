@@ -109,11 +109,11 @@ __txn_op_log(WT_SESSION_IMPL *session,
 }
 
 /*
- * __txn_commit_printlog --
- *	Print a commit log record.
+ * __txn_oplist_printlog --
+ *	Print a list of operations from a log record.
  */
 static int
-__txn_commit_printlog(WT_SESSION_IMPL *session,
+__txn_oplist_printlog(WT_SESSION_IMPL *session,
     const uint8_t **pp, const uint8_t *end, uint32_t flags)
 {
 	bool firstrecord;
@@ -369,8 +369,11 @@ __wt_txn_checkpoint_log(
 		txn->full_ckpt = true;
 
 		if (conn->compat_major >= WT_LOG_V2) {
-			/* Write the checkpoint log record. */
-			rectype = WT_LOGREC_CHECKPOINT_START;
+			/*
+			 * Write the system log record containing a checkpoint
+			 * start operation.
+			 */
+			rectype = WT_LOGREC_SYSTEM;
 			fmt = WT_UNCHECKED_STRING(I);
 			WT_ERR(__wt_struct_size(
 			    session, &recsize, fmt, rectype));
@@ -380,9 +383,11 @@ __wt_txn_checkpoint_log(
 			    (uint8_t *)logrec->data + logrec->size, recsize,
 			    fmt, rectype));
 			logrec->size += (uint32_t)recsize;
+			WT_ERR(__wt_logop_checkpoint_start_pack(
+			    session, logrec));
 			WT_ERR(__wt_log_write(session, logrec, ckpt_lsn, 0));
 		} else {
-			WT_ERR(__wt_log_printf_internal(session,
+			WT_ERR(__wt_log_printf(session,
 			    "CHECKPOINT: Starting record"));
 			WT_ERR(__wt_log_flush_lsn(session, ckpt_lsn, true));
 		}
@@ -583,18 +588,13 @@ __txn_printlog(WT_SESSION_IMPL *session,
 		    lsnfile, lsnoffset));
 		break;
 
-	case WT_LOGREC_CHECKPOINT_START:
-		WT_RET(__wt_fprintf(session, WT_STDOUT(session),
-		    "    \"type\" : \"checkpoint_start\",\n"));
-		break;
-
 	case WT_LOGREC_COMMIT:
 		WT_RET(__wt_vunpack_uint(&p, WT_PTRDIFF(end, p), &txnid));
 		WT_RET(__wt_fprintf(session, WT_STDOUT(session),
 		    "    \"type\" : \"commit\",\n"));
 		WT_RET(__wt_fprintf(session, WT_STDOUT(session),
 		    "    \"txnid\" : %" PRIu64 ",\n", txnid));
-		WT_RET(__txn_commit_printlog(session, &p, end, args->flags));
+		WT_RET(__txn_oplist_printlog(session, &p, end, args->flags));
 		break;
 
 	case WT_LOGREC_FILE_SYNC:
@@ -622,9 +622,7 @@ __txn_printlog(WT_SESSION_IMPL *session,
 		    WT_UNCHECKED_STRING(II), &lsnfile, &lsnoffset));
 		WT_RET(__wt_fprintf(session, WT_STDOUT(session),
 		    "    \"type\" : \"system\",\n"));
-		WT_RET(__wt_fprintf(session, WT_STDOUT(session),
-		    "    \"prev_lsn\" : [%" PRIu32 ",%" PRIu32 "]\n",
-		    lsnfile, lsnoffset));
+		WT_RET(__txn_oplist_printlog(session, &p, end, args->flags));
 		break;
 	}
 
