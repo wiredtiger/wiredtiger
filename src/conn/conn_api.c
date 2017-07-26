@@ -2358,6 +2358,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	/* Set the database home so extensions have access to it. */
 	WT_ERR(__conn_home(session, home, cfg));
 
+	/* Set up the directory for operation logs. */
+	WT_ERR(__conn_oplog_dir(session, home, cfg));
+
 	/*
 	 * Load early extensions before doing further initialization (one early
 	 * extension is to configure a file system).

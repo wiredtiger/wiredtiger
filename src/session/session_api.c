@@ -239,8 +239,8 @@ __session_close(WT_SESSION *wt_session, const char *config)
 	WT_TRET(__wt_session_release_resources(session));
 
 	/* Close the file where we tracked long operations */
-	close(session->trackfd);
-	printf("Closed tracking file for session %d\n", session->id);
+	if (session->oplog_fh != NULL)
+		WT_IGNORE_RET(__wt_close(session, &session->oplog_fh));
 
 	/* The API lock protects opening and closing of sessions. */
 	__wt_spin_lock(session, &conn->api_lock);

@@ -30,6 +30,26 @@ __wt_hex(int c)
 }
 
 /*
+ * __wt_rdtsc --
+ *      Get a timestamp from CPU registers.
+ */
+static inline uint64_t
+__wt_rdtsc(void) {
+#ifdef __i386
+	uint64_t x;
+	__asm__ volatile ("rdtsc" : "=A" (x));
+	return x;
+
+#elif defined __amd64
+	uint64_t a, d;
+	__asm__ volatile ("rdtsc" : "=a" (a), "=d" (d));
+	return (d<<32) | a;
+#else
+        NO RDTSC INSTRUCTION AVAILABLE: see src/os_posix/os_time.c
+#endif
+}
+
+/*
  * __wt_strdup --
  *	ANSI strdup function.
  */

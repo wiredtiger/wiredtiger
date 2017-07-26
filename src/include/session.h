@@ -247,11 +247,11 @@ struct __wt_session_impl {
 };
 
 #define WT_TRACK(s, optype)						\
-	WT_TRACK_RECORD *tr = &(s->trackbuffer[s->oplogbuf_ptr++]);	\
+	WT_TRACK_RECORD *tr = &(s->oplog_buf[s->oplogbuf_ptr++]);	\
 	tr->timestamp = __wt_rdtsc();					\
 	tr->op_type = optype;						\
 	tr->op_id = s->name[0];						\
-	if (s->trackbuf_ptr == MAXRECS) {				\
+	if (s->oplogbuf_ptr == MAXRECS) {				\
 		if (s->oplog_fh != NULL) {				\
 			ret = s->oplog_fh->handle->fh_write(            \
 				s->oplog_fh->handle, (WT_SESSION *)s,   \
@@ -259,6 +259,6 @@ struct __wt_session_impl {
 			if (ret == 0)                                   \
 				s->oplog_offset += BUFSIZE;             \
 		}                                                       \
-		s->trackbuf_ptr = 0;					\
+		s->oplogbuf_ptr = 0;					\
 	}
 
