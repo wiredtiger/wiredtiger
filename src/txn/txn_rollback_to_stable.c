@@ -23,9 +23,9 @@ __txn_rollback_to_stable_check(
 	uint32_t i, session_cnt;
 
 	if (__wt_timestamp_cmp(
-	    rollback_timestamp, &txn_global->pinned_timestamp) < 0)
-		WT_RET_MSG(session, EINVAL, "rollback_to_stable "
-		    "requires a timestamp greater than the pinned timestamp");
+	    rollback_timestamp, &txn_global->stable_timestamp) < 0)
+		WT_RET_MSG(session, EINVAL, "rollback_to_stable requires a "
+		    "timestamp greater or equal to the stable timestamp");
 
 	/*
 	 * Help the user - see if they have any active transactions. I'd
