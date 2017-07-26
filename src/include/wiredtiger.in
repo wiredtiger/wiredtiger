@@ -2255,10 +2255,10 @@ struct __wt_connection {
 	 * Requires that there are no active cursor operations for the duration
 	 * of the operation.
 	 *
-	 * @snippet ex_all.c rollback non-durable commits
+	 * @snippet ex_all.c rollback to stable
 	 *
 	 * @param connection the connection handle
-	 * @configstart{WT_CONNECTION.rollback_nondurable_commits, see
+	 * @configstart{WT_CONNECTION.rollback_to_stable, see
 	 * dist/api_data.py}
 	 * @config{timestamp, the most recent timestamp where commits will
 	 * remain visible after the rollback completes. Supplied value must
@@ -2268,7 +2268,7 @@ struct __wt_connection {
 	 * @configend
 	 * @errors
 	 */
-	int __F(rollback_nondurable_commits)(
+	int __F(rollback_to_stable)(
 	    WT_CONNECTION *connection, const char *config);
 
 	/*! @} */

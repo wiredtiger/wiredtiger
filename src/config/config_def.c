@@ -177,7 +177,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
 
-static const WT_CONFIG_CHECK confchk_WT_CONNECTION_rollback_nondurable_commits[] = {
+static const WT_CONFIG_CHECK confchk_WT_CONNECTION_rollback_to_stable[] = {
 	{ "timestamp", "string", NULL, NULL, NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
@@ -1141,9 +1141,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "timing_stress_for_test=,verbose=",
 	  confchk_WT_CONNECTION_reconfigure, 21
 	},
-	{ "WT_CONNECTION.rollback_nondurable_commits",
+	{ "WT_CONNECTION.rollback_to_stable",
 	  "timestamp=",
-	  confchk_WT_CONNECTION_rollback_nondurable_commits, 1
+	  confchk_WT_CONNECTION_rollback_to_stable, 1
 	},
 	{ "WT_CONNECTION.set_file_system",
 	  "",

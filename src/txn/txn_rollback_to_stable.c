@@ -11,11 +11,11 @@
 #ifdef HAVE_TIMESTAMPS
 
 /*
- * __txn_rollback_nondurable_commits_check --
+ * __txn_rollback_to_stable_check --
  *	Ensure the rollback request is reasonable.
  */
 static int
-__txn_rollback_nondurable_commits_check(
+__txn_rollback_to_stable_check(
     WT_SESSION_IMPL *session, wt_timestamp_t *rollback_timestamp)
 {
 	WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
@@ -24,7 +24,7 @@ __txn_rollback_nondurable_commits_check(
 
 	if (__wt_timestamp_cmp(
 	    rollback_timestamp, &txn_global->pinned_timestamp) < 0)
-		WT_RET_MSG(session, EINVAL, "rollback_nondurable_commits "
+		WT_RET_MSG(session, EINVAL, "rollback_to_stable "
 		    "requires a timestamp greater than the pinned timestamp");
 
 	/*
@@ -37,7 +37,7 @@ __txn_rollback_nondurable_commits_check(
 	for (i = 0, s = txn_global->states; i < session_cnt; i++, s++) {
 		if (s->id != WT_TXN_NONE || s->pinned_id != WT_TXN_NONE)
 			WT_RET_MSG(session, EINVAL,
-			    "rollback_nondurable_commits not supported with "
+			    "rollback_to_stable not supported with "
 			    "active transactions");
 	}
 
@@ -45,11 +45,11 @@ __txn_rollback_nondurable_commits_check(
 }
 
 /*
- * __txn_rollback_nondurable_lookaside_fixup --
+ * __txn_rollback_to_stable_lookaside_fixup --
  *	Remove any updates that need to be rolled back from the lookaside file.
  */
 static int
-__txn_rollback_nondurable_lookaside_fixup(
+__txn_rollback_to_stable_lookaside_fixup(
     WT_SESSION_IMPL *session, wt_timestamp_t *rollback_timestamp)
 {
 	WT_CONNECTION_IMPL *conn;
@@ -77,7 +77,7 @@ __txn_rollback_nondurable_lookaside_fixup(
 		    &las_txnid, &las_timestamp, &las_key));
 
 		/* Check the file ID so we can skip durable tables */
-		if (__bit_test(conn->nondurable_rollback_bitstring, las_id))
+		if (__bit_test(conn->stable_rollback_bitstring, las_id))
 			continue;
 
 		if (!__wt_timestamp_iszero(las_timestamp.data) &&
@@ -212,7 +212,7 @@ __txn_abort_newer_updates(
 		__txn_abort_newer_row_leaf(session, page, rollback_timestamp);
 		break;
 	default:
-		WT_RET_MSG(session, EINVAL, "rollback_nondurable_commits "
+		WT_RET_MSG(session, EINVAL, "rollback_to_stable "
 		    "is only supported for row store btrees");
 	}
 
@@ -220,11 +220,11 @@ __txn_abort_newer_updates(
 }
 
 /*
- * __txn_rollback_nondurable_updates_custom_skip --
+ * __txn_rollback_to_stable_updates_custom_skip --
  *	Return if custom rollback requires we read this page.
  */
 static int
-__txn_rollback_nondurable_updates_custom_skip(
+__txn_rollback_to_stable_updates_custom_skip(
     WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *skipp)
 {
 	WT_UNUSED(session);
@@ -239,11 +239,11 @@ __txn_rollback_nondurable_updates_custom_skip(
 }
 
 /*
- * __txn_rollback_nondurable_commits_btree_walk --
+ * __txn_rollback_to_stable_btree_walk --
  *	Called for each open handle - choose to either skip or wipe the commits
  */
 static int
-__txn_rollback_nondurable_commits_btree_walk(
+__txn_rollback_to_stable_btree_walk(
     WT_SESSION_IMPL *session, wt_timestamp_t *rollback_timestamp)
 {
 	WT_DECL_RET;
@@ -253,7 +253,7 @@ __txn_rollback_nondurable_commits_btree_walk(
 	/* Walk the tree, marking commits aborted where appropriate. */
 	ref = NULL;
 	while ((ret = __wt_tree_walk_custom_skip(session, &ref,
-	    __txn_rollback_nondurable_updates_custom_skip,
+	    __txn_rollback_to_stable_updates_custom_skip,
 	    NULL, WT_READ_NO_EVICT)) == 0 && ref != NULL) {
 		page = ref->page;
 
@@ -272,11 +272,11 @@ __txn_rollback_nondurable_commits_btree_walk(
 }
 
 /*
- * __txn_rollback_nondurable_commits_btree --
+ * __txn_rollback_to_stable_btree --
  *	Called for each open handle - choose to either skip or wipe the commits
  */
 static int
-__txn_rollback_nondurable_commits_btree(
+__txn_rollback_to_stable_btree(
     WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_CONFIG_ITEM cval;
@@ -294,7 +294,7 @@ __txn_rollback_nondurable_commits_btree(
 		 * lookaside entries for this btree.
 		 */
 		__bit_set(
-		    S2C(session)->nondurable_rollback_bitstring, btree->id);
+		    S2C(session)->stable_rollback_bitstring, btree->id);
 		return (0);
 	}
 
@@ -307,7 +307,7 @@ __txn_rollback_nondurable_commits_btree(
 		return (0);
 
 	if (btree->type != BTREE_ROW)
-		WT_RET_MSG(session, EINVAL, "rollback_nondurable_commits "
+		WT_RET_MSG(session, EINVAL, "rollback_to_stable "
 		    "is only supported for row store btrees");
 
 	ret = __wt_config_gets(session, cfg, "timestamp", &cval);
@@ -319,10 +319,10 @@ __txn_rollback_nondurable_commits_btree(
 	 * the code in a way that makes static checkers happy.
 	 */
 	if (ret != 0 || cval.len == 0)
-		WT_RET_MSG(session, EINVAL, "rollback_nondurable_commits "
+		WT_RET_MSG(session, EINVAL, "rollback_to_stable "
 		    "requires a timestamp in the configuration string");
 	WT_RET(__wt_txn_parse_timestamp(session,
-	    "rollback_nondurable_commits", &rollback_timestamp, &cval));
+	    "rollback_to_stable", &rollback_timestamp, &cval));
 
 	/*
 	 * Ensure the eviction server is out of the file - we don't
@@ -331,7 +331,7 @@ __txn_rollback_nondurable_commits_btree(
 	 * be in.
 	 */
 	WT_RET(__wt_evict_file_exclusive_on(session));
-	ret = __txn_rollback_nondurable_commits_btree_walk(
+	ret = __txn_rollback_to_stable_btree_walk(
 	    session, &rollback_timestamp);
 	__wt_evict_file_exclusive_off(session);
 
@@ -340,18 +340,18 @@ __txn_rollback_nondurable_commits_btree(
 #endif
 
 /*
- * __wt_txn_rollback_nondurable_commits --
+ * __wt_txn_rollback_to_stable --
  *	Rollback all in-memory state related to timestamps more recent than
  *	the passed in timestamp.
  */
 int
-__wt_txn_rollback_nondurable_commits(
+__wt_txn_rollback_to_stable(
     WT_SESSION_IMPL *session, const char *cfg[])
 {
 #ifndef HAVE_TIMESTAMPS
 	WT_UNUSED(cfg);
 
-	WT_RET_MSG(session, EINVAL, "rollback_nondurable_commits "
+	WT_RET_MSG(session, EINVAL, "rollback_to_stable "
 	    "requires a version of WiredTiger built with timestamp "
 	    "support");
 #else
@@ -366,19 +366,19 @@ __wt_txn_rollback_nondurable_commits(
 	 */
 	ret = __wt_config_gets(session, cfg, "timestamp", &cval);
 	if (ret != 0 || cval.len == 0)
-		WT_RET_MSG(session, EINVAL, "rollback_nondurable_commits "
+		WT_RET_MSG(session, EINVAL, "rollback_to_stable "
 		    "requires a timestamp in the configuration string");
 
 	WT_RET(__wt_txn_parse_timestamp(session,
-	    "rollback_nondurable_commits", &rollback_timestamp, &cval));
-	WT_RET(__txn_rollback_nondurable_commits_check(
+	    "rollback_to_stable", &rollback_timestamp, &cval));
+	WT_RET(__txn_rollback_to_stable_check(
 	    session, &rollback_timestamp));
 
 	/* Allocate a non-durable btree bitstring */
 	WT_RET(__bit_alloc(session,
-	    conn->next_file_id, &conn->nondurable_rollback_bitstring));
+	    conn->next_file_id, &conn->stable_rollback_bitstring));
 	WT_ERR(__wt_conn_btree_apply(session,
-	    NULL, __txn_rollback_nondurable_commits_btree, NULL, cfg));
+	    NULL, __txn_rollback_to_stable_btree, NULL, cfg));
 
 	/*
 	 * Clear any offending content from the lookaside file. This must be
@@ -386,9 +386,9 @@ __wt_txn_rollback_nondurable_commits(
 	 * trees in cache populates a list that is used to check which
 	 * lookaside records should be removed.
 	 */
-	WT_ERR(__txn_rollback_nondurable_lookaside_fixup(
+	WT_ERR(__txn_rollback_to_stable_lookaside_fixup(
 	    session, &rollback_timestamp));
-err:	__wt_free(session, conn->nondurable_rollback_bitstring);
+err:	__wt_free(session, conn->stable_rollback_bitstring);
 	return (ret);
 #endif
 }

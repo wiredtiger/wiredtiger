@@ -1262,11 +1262,11 @@ err:	API_END_RET(session, ret);
 }
 
 /*
- * __conn_rollback_nondurable_commits --
- *	WT_CONNECTION->rollback_nondurable_commits method.
+ * __conn_rollback_to_stable --
+ *	WT_CONNECTION->rollback_to_stable method.
  */
 static int
-__conn_rollback_nondurable_commits(WT_CONNECTION *wt_conn, const char *config)
+__conn_rollback_to_stable(WT_CONNECTION *wt_conn, const char *config)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
@@ -1275,8 +1275,8 @@ __conn_rollback_nondurable_commits(WT_CONNECTION *wt_conn, const char *config)
 	conn = (WT_CONNECTION_IMPL *)wt_conn;
 
 	CONNECTION_API_CALL(
-	    conn, session, rollback_nondurable_commits, config, cfg);
-	WT_TRET(__wt_txn_rollback_nondurable_commits(session, cfg));
+	    conn, session, rollback_to_stable, config, cfg);
+	WT_TRET(__wt_txn_rollback_to_stable(session, cfg));
 err:	API_END_RET(session, ret);
 }
 
@@ -2224,7 +2224,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 		__conn_open_session,
 		__conn_query_timestamp,
 		__conn_set_timestamp,
-		__conn_rollback_nondurable_commits,
+		__conn_rollback_to_stable,
 		__conn_load_extension,
 		__conn_add_data_source,
 		__conn_add_collator,

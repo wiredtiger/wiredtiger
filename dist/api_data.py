@@ -1252,7 +1252,7 @@ methods = {
         see @ref transaction_timestamps'''),
 ]),
 
-'WT_CONNECTION.rollback_nondurable_commits' : Method([
+'WT_CONNECTION.rollback_to_stable' : Method([
     Config('timestamp', '', r'''
         the most recent timestamp where updates will
         remain visible after the rollback completes. Supplied value must

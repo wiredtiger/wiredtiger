@@ -60,7 +60,7 @@ struct __wt_config_parser_impl {
 #define	WT_CONFIG_ENTRY_WT_CONNECTION_open_session	 8
 #define	WT_CONFIG_ENTRY_WT_CONNECTION_query_timestamp	 9
 #define	WT_CONFIG_ENTRY_WT_CONNECTION_reconfigure	10
-#define	WT_CONFIG_ENTRY_WT_CONNECTION_rollback_nondurable_commits	11
+#define	WT_CONFIG_ENTRY_WT_CONNECTION_rollback_to_stable	11
 #define	WT_CONFIG_ENTRY_WT_CONNECTION_set_file_system	12
 #define	WT_CONFIG_ENTRY_WT_CONNECTION_set_timestamp	13
 #define	WT_CONFIG_ENTRY_WT_CURSOR_close			14
