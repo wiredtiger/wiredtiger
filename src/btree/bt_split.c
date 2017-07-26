@@ -728,6 +728,10 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	/* Start making real changes to the tree, errors are fatal. */
 	complete = WT_ERR_PANIC;
 
+	/* Encourage a race */
+	__page_split_timing_stress(session,
+	    WT_TIMING_STRESS_INTERNAL_PAGE_SPLIT_RACE, 100 * WT_THOUSAND);
+
 	/*
 	 * Confirm the parent page's index hasn't moved then update it, which
 	 * makes the split visible to threads descending the tree.
@@ -803,6 +807,10 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 		    (void *)ref->page, (void *)parent,
 		    parent_entries, result_entries,
 		    result_entries - parent_entries);
+
+	/* Encourage a race */
+	__page_split_timing_stress(session,
+	    WT_TIMING_STRESS_INTERNAL_PAGE_SPLIT_RACE, 100 * WT_THOUSAND);
 
 	/*
 	 * The new page index is in place, free the WT_REF we were splitting and
@@ -1076,11 +1084,6 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 	/* Split into the parent. */
 	if ((ret = __split_parent(session, page_ref, alloc_index->index,
 	    alloc_index->entries, parent_incr, false, false)) == 0) {
-		/* Encourage a race */
-		__page_split_timing_stress(session,
-		    WT_TIMING_STRESS_INTERNAL_PAGE_SPLIT_RACE,
-		    100 * WT_THOUSAND);
-
 		/*
 		 * Confirm the page's index hasn't moved, then update it, which
 		 * makes the split visible to threads descending the tree.
