@@ -220,11 +220,11 @@ __txn_abort_newer_updates(
 }
 
 /*
- * __txn_rollback_to_stable_updates_custom_skip --
+ * __txn_rollback_to_stable_custom_skip --
  *	Return if custom rollback requires we read this page.
  */
 static int
-__txn_rollback_to_stable_updates_custom_skip(
+__txn_rollback_to_stable_custom_skip(
     WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *skipp)
 {
 	WT_UNUSED(session);
@@ -253,7 +253,7 @@ __txn_rollback_to_stable_btree_walk(
 	/* Walk the tree, marking commits aborted where appropriate. */
 	ref = NULL;
 	while ((ret = __wt_tree_walk_custom_skip(session, &ref,
-	    __txn_rollback_to_stable_updates_custom_skip,
+	    __txn_rollback_to_stable_custom_skip,
 	    NULL, WT_READ_NO_EVICT)) == 0 && ref != NULL) {
 		page = ref->page;
 
