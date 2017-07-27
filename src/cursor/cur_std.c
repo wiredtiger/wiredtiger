@@ -141,15 +141,16 @@ __wt_cursor_set_notsup(WT_CURSOR *cursor)
 	 * in the future to change these configurations.
 	 */
 	cursor->compare = __wt_cursor_compare_notsup;
+	cursor->insert = __wt_cursor_notsup;
+	cursor->modify = __wt_cursor_modify_notsup;
 	cursor->next = __wt_cursor_notsup;
 	cursor->prev = __wt_cursor_notsup;
+	cursor->remove = __wt_cursor_notsup;
+	cursor->reserve = __wt_cursor_notsup;
 	cursor->reset = __wt_cursor_noop;
 	cursor->search = __wt_cursor_notsup;
 	cursor->search_near = __wt_cursor_search_near_notsup;
-	cursor->insert = __wt_cursor_notsup;
 	cursor->update = __wt_cursor_notsup;
-	cursor->remove = __wt_cursor_notsup;
-	cursor->reserve = __wt_cursor_notsup;
 }
 
 /*
@@ -737,6 +738,7 @@ __wt_cursor_init(WT_CURSOR *cursor,
 	WT_CONFIG_ITEM cval;
 	WT_CURSOR *cdump;
 	WT_SESSION_IMPL *session;
+	bool readonly;
 
 	session = (WT_SESSION_IMPL *)cursor->session;
 
@@ -758,21 +760,23 @@ __wt_cursor_init(WT_CURSOR *cursor,
 	 * Checkpoint cursors are permanently read-only, avoid the extra work
 	 * of two configuration string checks.
 	 */
-	WT_RET(__wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
-	if (cval.len != 0) {
+	readonly = F_ISSET(S2C(session), WT_CONN_READONLY);
+	if (!readonly) {
+		WT_RET(
+		    __wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
+		readonly = cval.len != 0;
+	}
+	if (!readonly) {
+		WT_RET(
+		    __wt_config_gets_def(session, cfg, "readonly", 0, &cval));
+		readonly = cval.val != 0;
+	}
+	if (readonly) {
 		cursor->insert = __wt_cursor_notsup;
+		cursor->modify = __wt_cursor_modify_notsup;
 		cursor->remove = __wt_cursor_notsup;
 		cursor->reserve = __wt_cursor_notsup;
 		cursor->update = __wt_cursor_notsup;
-	} else {
-		WT_RET(
-		    __wt_config_gets_def(session, cfg, "readonly", 0, &cval));
-		if (cval.val != 0 || F_ISSET(S2C(session), WT_CONN_READONLY)) {
-			cursor->insert = __wt_cursor_notsup;
-			cursor->remove = __wt_cursor_notsup;
-			cursor->reserve = __wt_cursor_notsup;
-			cursor->update = __wt_cursor_notsup;
-		}
 	}
 
 	/*
