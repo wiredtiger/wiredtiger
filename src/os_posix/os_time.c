@@ -60,15 +60,6 @@ __wt_epoch(WT_SESSION_IMPL *session, struct timespec *tsp)
 	struct timespec tmp;
 
 	/*
-	 * This function doesn't return an error, but panics on failure (which
-	 * should never happen, it's done this way to simplify error handling
-	 * in the caller). However, some compilers complain about using garbage
-	 * values. Initializing the values avoids the complaint.
-	 */
-	tsp->tv_sec = 0;
-	tsp->tv_nsec = 0;
-
-	/*
 	 * Read into a local variable so that we're comparing the correct
 	 * value when we check for monotonic increasing time.  There are
 	 * many places we read into an unlocked global variable.
