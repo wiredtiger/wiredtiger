@@ -1523,9 +1523,8 @@ err:	__wt_free(session, env_config);
       return (ret);
 }
 
-
 /*
- * __conn_logging_dir --
+ * __conn_oplog_dir --
  *	Set the directory for operation logging
  */
 static int
@@ -1558,7 +1557,33 @@ __conn_oplog_dir(WT_SESSION_IMPL *session, const char *home,
 copy:	return (__wt_strdup(session, home, &S2C(session)->oplog));
 }
 
+/*
+ * __conn_oplog_setup --
+ *     Set up operation logging.
+ */
 
+static int
+__conn_oplog_setup(WT_SESSION_IMPL *session, const char *home,
+		   const char *cfg[])
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+
+	conn = S2C(session);
+
+	if ((conn->oplog_dlhandle = dlopen(NULL, RTLD_NOW)) == NULL) {
+		printf("%s\n", dlerror());
+		WT_ERR_MSG(session, WT_ERROR,
+			   "Could not set up operation logging. "
+			   "dlopen returned NULL handle");
+	}
+
+	/* Set up the directory for operation logs. */
+	return __conn_oplog_dir(session, home, cfg);
+
+err:
+	return (ret);
+}
 
 /*
  * __conn_home --
@@ -2358,8 +2383,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	/* Set the database home so extensions have access to it. */
 	WT_ERR(__conn_home(session, home, cfg));
 
-	/* Set up the directory for operation logs. */
-	WT_ERR(__conn_oplog_dir(session, home, cfg));
+	/* Set up operation logging. */
+	WT_ERR(__conn_oplog_setup(session, home, cfg));
 
 	/*
 	 * Load early extensions before doing further initialization (one early
