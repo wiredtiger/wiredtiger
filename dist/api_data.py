@@ -1265,11 +1265,9 @@ methods = {
 
 'WT_CONNECTION.rollback_to_stable' : Method([
     Config('timestamp', '', r'''
-        the most recent timestamp where updates will
-        remain visible after the rollback completes. Supplied value must
-        be more recent than the pinned timestamp. see
-        @ref transaction_timestamps'''),
-]),
+        the most recent timestamp where updates will remain visible after the
+        rollback completes. Supplied value must be more recent than the pinned
+        timestamp. see @ref transaction_timestamps'''), ]),
 
 'WT_SESSION.reconfigure' : Method(session_config),
 

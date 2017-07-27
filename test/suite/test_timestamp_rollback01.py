@@ -131,7 +131,8 @@ class test_timestamp_rollback01(wttest.WiredTigerTestCase, suite_subprocess):
         # There should be 50 keys, the first half of which have a value of 2, the
         # second half have a value of 1
         self.check(self.session, 'read_timestamp=' + timestamp_str(2 * key_range),
-            dict((k, (2 if j <= (key_range / 4) else 1)) for j, k in enumerate(keys[:(key_range / 2)])))
+            dict((k, (2 if j <= (key_range / 4) else 1))
+            for j, k in enumerate(keys[:(key_range / 2)])))
         self.check(self.session, 'read_timestamp=' + timestamp_str(key_range / 2),
             dict((k, 1) for k in keys[(1 + key_range / 2):]), missing=True)
 

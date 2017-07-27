@@ -968,7 +968,6 @@ nocase
 noclear
 nocrypto
 nolock
-nondurable
 nonliteral
 noop
 nop
