@@ -47,24 +47,3 @@ __wt_epoch_raw(WT_SESSION_IMPL *session, struct timespec *tsp)
 	NO TIME-OF-DAY IMPLEMENTATION: see src/os_posix/os_time.c
 #endif
 }
-
-/*
- * __wt_epoch --
- *	Return the time since the Epoch, adjusted so it never appears to go
- *	backwards.
- */
-void
-__wt_epoch(WT_SESSION_IMPL *session, struct timespec *tsp)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
-{
-	struct timespec tmp;
-
-	/*
-	 * Read into a local variable so that we're comparing the correct
-	 * value when we check for monotonic increasing time.  There are
-	 * many places we read into an unlocked global variable.
-	 */
-	__wt_epoch_raw(session, &tmp);
-	__wt_time_check_monotonic(session, &tmp);
-	*tsp = tmp;
-}

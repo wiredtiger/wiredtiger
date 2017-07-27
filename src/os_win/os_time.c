@@ -29,20 +29,6 @@ __wt_epoch_raw(WT_SESSION_IMPL *session, struct timespec *tsp)
 }
 
 /*
- * __wt_epoch --
- *	Return the time since the Epoch.
- */
-void
-__wt_epoch(WT_SESSION_IMPL *session, struct timespec *tsp)
-{
-	struct timespec tmp;
-
-	__wt_epoch_raw(session, &tmp);
-	__wt_time_check_monotonic(session, &tmp);
-	*tsp = tmp;
-}
-
-/*
  * localtime_r --
  *	Return the current local time.
  */
