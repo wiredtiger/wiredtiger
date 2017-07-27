@@ -178,7 +178,7 @@ partition with-checkpoint-lock {
                 :rename the underlying file;
                 if (meta-tracking?) then (yes)
                     :track filesystem op;
-                else (no) 
+                else (no)
                 endif
             }
 
