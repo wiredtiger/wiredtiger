@@ -1574,7 +1574,6 @@ __session_transaction_sync(WT_SESSION *wt_session, const char *config)
 		WT_ERR_MSG(session, EINVAL, "logging not enabled");
 
 	log = conn->log;
-	timeout_ms = waited_ms = 0;
 
 	/*
 	 * If there is no background sync LSN in this session, there
