@@ -32,9 +32,8 @@ typedef enum {
 
 /*
  * __page_split_timing_stress --
- *  Optionally add delay to simulate the race conditions in
- *  page split for debug purposes. The purpose is to uncover
- *  the race conditions in page split.
+ *	Optionally add delay to simulate the race conditions in page split for
+ * debug purposes. The purpose is to uncover the race conditions in page split.
  */
 static void
 __page_split_timing_stress(WT_SESSION_IMPL *session,
