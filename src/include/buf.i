@@ -122,11 +122,11 @@ __wt_scr_free(WT_SESSION_IMPL *session, WT_ITEM **bufp)
 
 	if (session->scratch_cached + buf->memsize >=
 	    S2C(session)->session_scratch_max) {
-		__wt_buf_free(session, buf);
-		return;
-	}
+		__wt_free(session, buf->mem);
+		buf->memsize = 0;
+	} else
+		session->scratch_cached += buf->memsize;
 
-	session->scratch_cached += buf->memsize;
 	buf->data = NULL;
 	buf->size = 0;
 	F_CLR(buf, WT_ITEM_INUSE);
