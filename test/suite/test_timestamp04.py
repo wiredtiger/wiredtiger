@@ -100,7 +100,7 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(k))
             # Setup an oldest timestamp to ensure state remains in cache.
             if k == 1:
-                self.conn.set_timestamp('stable_timestamp=' + timestamp_str(1))
+                self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
 
         # Roll back half the timestamps.
         self.conn.rollback_to_stable('timestamp=' + timestamp_str(key_range / 2))
@@ -113,7 +113,7 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
             dict((k, 1) for k in keys[(key_range / 2 + 1):]), missing=True)
 
         # Bump the oldest timestamp, we're not going back...
-        self.conn.set_timestamp('commit_timestamp=' + timestamp_str(key_range / 2))
+        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(key_range / 2))
 
         # Update the values again in preparation for rolling back more
         for k in keys:
