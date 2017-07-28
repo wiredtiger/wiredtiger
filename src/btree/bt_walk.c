@@ -287,7 +287,7 @@ static inline int
 __tree_walk_internal(WT_SESSION_IMPL *session,
     WT_REF **refp, uint64_t *walkcntp,
     int (*skip_func)(WT_SESSION_IMPL *, WT_REF *, void *, bool *),
-    void *func_context, uint32_t flags)
+    void *func_cookie, uint32_t flags)
 {
 	WT_BTREE *btree;
 	WT_DECL_RET;
@@ -490,7 +490,7 @@ restart:	/*
 				empty_internal = false;
 			} else if (skip_func != NULL) {
 				WT_ERR(skip_func(session,
-				    ref, func_context, &skip));
+				    ref, func_cookie, &skip));
 				if (skip)
 					break;
 			} else {
@@ -659,11 +659,10 @@ int
 __wt_tree_walk_custom_skip(
     WT_SESSION_IMPL *session, WT_REF **refp,
    int (*skip_func)(WT_SESSION_IMPL *, WT_REF *, void *, bool *),
-   void *func_context,
-   uint32_t flags)
+   void *func_cookie, uint32_t flags)
 {
 	return (__tree_walk_internal(session, refp,
-	    NULL, skip_func, func_context, flags));
+	    NULL, skip_func, func_cookie, flags));
 }
 
 /*
@@ -684,7 +683,6 @@ __tree_walk_skip_count_callback(
 	uint64_t *skipleafcntp;
 
 	skipleafcntp = (uint64_t *)context;
-
 	WT_ASSERT(session, skipleafcntp != NULL);
 
 	/*

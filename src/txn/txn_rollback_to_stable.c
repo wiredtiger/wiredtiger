@@ -9,41 +9,6 @@
 #include "wt_internal.h"
 
 #ifdef HAVE_TIMESTAMPS
-
-/*
- * __txn_rollback_to_stable_check --
- *	Ensure the rollback request is reasonable.
- */
-static int
-__txn_rollback_to_stable_check(
-    WT_SESSION_IMPL *session, wt_timestamp_t *rollback_timestamp)
-{
-	WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
-	WT_TXN_STATE *s;
-	uint32_t i, session_cnt;
-
-	if (__wt_timestamp_cmp(
-	    rollback_timestamp, &txn_global->stable_timestamp) < 0)
-		WT_RET_MSG(session, EINVAL, "rollback_to_stable requires a "
-		    "timestamp greater or equal to the stable timestamp");
-
-	/*
-	 * Help the user - see if they have any active transactions. I'd
-	 * like to check the transaction running flag, but that would
-	 * require peeking into all open sessions, which isn't really
-	 * kosher.
-	 */
-	WT_ORDERED_READ(session_cnt, S2C(session)->session_cnt);
-	for (i = 0, s = txn_global->states; i < session_cnt; i++, s++) {
-		if (s->id != WT_TXN_NONE || s->pinned_id != WT_TXN_NONE)
-			WT_RET_MSG(session, EINVAL,
-			    "rollback_to_stable not supported with "
-			    "active transactions");
-	}
-
-	return (0);
-}
-
 /*
  * __txn_rollback_to_stable_lookaside_fixup --
  *	Remove any updates that need to be rolled back from the lookaside file.
@@ -54,8 +19,8 @@ __txn_rollback_to_stable_lookaside_fixup(
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_CURSOR *cursor;
-	WT_ITEM las_addr, las_key, las_timestamp;
 	WT_DECL_RET;
+	WT_ITEM las_addr, las_key, las_timestamp;
 	uint64_t las_counter, las_txnid, remove_cnt;
 	uint32_t las_id, session_flags;
 
@@ -72,7 +37,6 @@ __txn_rollback_to_stable_lookaside_fixup(
 
 	/* Walk the file. */
 	for (; (ret = cursor->next(cursor)) == 0; ) {
-
 		WT_ERR(cursor->get_key(cursor, &las_id, &las_addr, &las_counter,
 		    &las_txnid, &las_timestamp, &las_key));
 
@@ -87,11 +51,8 @@ __txn_rollback_to_stable_lookaside_fixup(
 			++remove_cnt;
 		}
 	}
-
 	WT_ERR_NOTFOUND_OK(ret);
-
 err:	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
-
 	/*
 	 * If there were races to remove records, we can over-count. Underflow
 	 * isn't fatal, but check anyway so we don't skew low over time.
@@ -108,15 +69,17 @@ err:	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 
 /*
  * __txn_abort_newer_update --
- *	Review an update chain
+ *	Abort updates in an update change with timestamps newer than the
+ *	rollback timestamp.
  */
 static void
 __txn_abort_newer_update(WT_SESSION_IMPL *session,
     WT_UPDATE *upd, wt_timestamp_t *rollback_timestamp)
 {
-	bool aborted_one = false;
 	WT_UPDATE *next_upd;
+	bool aborted_one;
 
+	aborted_one = false;
 	for (next_upd = upd; next_upd != NULL; next_upd = next_upd->next) {
 		/* Only updates with timestamps will be aborted */
 		if (!__wt_timestamp_iszero(&next_upd->timestamp) &&
@@ -153,7 +116,8 @@ __txn_abort_newer_row_skip(WT_SESSION_IMPL *session,
 
 /*
  * __txn_abort_newer_row_leaf --
- *	Abort updates on a row leaf page with timestamps too new.
+ *	Abort updates on a row leaf page with timestamps newer than the
+ *	rollback timestamp.
  */
 static void
 __txn_abort_newer_row_leaf(
@@ -198,7 +162,6 @@ __txn_abort_newer_updates(
 	WT_PAGE *page;
 
 	page = ref->page;
-
 	switch (page->type) {
 	case WT_PAGE_ROW_INT:
 		/*
@@ -302,7 +265,7 @@ __txn_rollback_to_stable_btree(
 	if (session->dhandle->checkpoint != NULL)
 		return (0);
 
-	/* It is possible to have empty trees - there is nothing */
+	/* There is nothing to do on an empty tree. */
 	if (btree->root.page == NULL)
 		return (0);
 
@@ -336,6 +299,45 @@ __txn_rollback_to_stable_btree(
 	__wt_evict_file_exclusive_off(session);
 
 	return (ret);
+}
+
+/*
+ * __txn_rollback_to_stable_check --
+ *	Ensure the rollback request is reasonable.
+ */
+static int
+__txn_rollback_to_stable_check(
+    WT_SESSION_IMPL *session, wt_timestamp_t *rollback_timestamp)
+{
+	WT_TXN_GLOBAL *txn_global;
+	WT_TXN_STATE *s;
+	uint32_t i, session_cnt;
+	int cmp;
+
+	txn_global = &S2C(session)->txn_global;
+	__wt_readlock(session, &txn_global->rwlock);
+	cmp = __wt_timestamp_cmp(
+	    rollback_timestamp, &txn_global->stable_timestamp);
+	__wt_readunlock(session, &txn_global->rwlock);
+	if (cmp < 0)
+		WT_RET_MSG(session, EINVAL, "rollback_to_stable requires a "
+		    "timestamp greater or equal to the stable timestamp");
+
+	/*
+	 * Help the user - see if they have any active transactions. I'd
+	 * like to check the transaction running flag, but that would
+	 * require peeking into all open sessions, which isn't really
+	 * kosher.
+	 */
+	WT_ORDERED_READ(session_cnt, S2C(session)->session_cnt);
+	for (i = 0, s = txn_global->states; i < session_cnt; i++, s++) {
+		if (s->id != WT_TXN_NONE || s->pinned_id != WT_TXN_NONE)
+			WT_RET_MSG(session, EINVAL,
+			    "rollback_to_stable not supported with "
+			    "active transactions");
+	}
+
+	return (0);
 }
 #endif
 
