@@ -1165,9 +1165,6 @@ __wt_session_range_truncate(WT_SESSION_IMPL *session,
 	 * reference the same object and the keys are set.
 	 */
 	if (start != NULL && stop != NULL) {
-						/* quiet clang scan-build */
-		WT_ASSERT(session, start->compare != NULL);
-
 		WT_ERR(start->compare(start, stop, &cmp));
 		if (cmp > 0)
 			WT_ERR_MSG(session, EINVAL,
