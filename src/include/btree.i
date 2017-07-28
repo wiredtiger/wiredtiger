@@ -1623,3 +1623,67 @@ __wt_ref_state_yield_sleep(uint64_t *yield_count, uint64_t *sleep_count)
 	(*sleep_count) = WT_MIN((*sleep_count) + WT_THOUSAND, 10 * WT_THOUSAND);
 	__wt_sleep(0, (*sleep_count));
 }
+
+/*
+ * __wt_stat_read_op_histogram --
+ * 	Add an operations execution time to the read operation histogram.
+ */
+static inline void
+__wt_stat_read_op_histogram(WT_SESSION_IMPL *session, uint64_t usecs)
+{
+	if (!WT_STAT_PERF_ENABLED(session))
+		return;
+	/*
+	 * Ignore any operation that takes less than 100us to execute. This
+	 * floor value keeps us from having an excessively large smallest
+	 * execution time bucket. The 100us floor along with the other
+	 * histogram values were chosen here based on testing but performance
+	 * will vary considerably.
+	 */
+	if (usecs  < 100)
+		return;
+
+	if (usecs < 250) {
+		WT_STAT_CONN_INCR(session, perf_hist_readop_latency_lt250);
+	} else if (usecs < 500) {
+		WT_STAT_CONN_INCR(session, perf_hist_readop_latency_lt500);
+	} else if (usecs < 1000) {
+		WT_STAT_CONN_INCR(session, perf_hist_readop_latency_lt1000);
+	} else if (usecs < 10000) {
+		WT_STAT_CONN_INCR(session, perf_hist_readop_latency_lt10000);
+	} else {
+		WT_STAT_CONN_INCR(session, perf_hist_readop_latency_gt10000);
+	}
+}
+
+/*
+ * __wt_stat_write_op_histogram --
+ *	Add an operations execution time to the write operation histogram.
+ */
+static inline void
+__wt_stat_write_op_histogram(WT_SESSION_IMPL *session, uint64_t usecs)
+{
+	if (!WT_STAT_PERF_ENABLED(session))
+		return;
+	/*
+	 * Ignore any operation that takes less than 100us to execute. This
+	 * floor value keeps us from having an excessively large smallest
+	 * execution time bucket. The 100us floor along with the other
+	 * histogram values were chosen here based on testing but performance
+	 * will vary considerably.
+	 */
+	if (usecs  < 100)
+		return;
+
+	if (usecs < 250) {
+		WT_STAT_CONN_INCR(session, perf_hist_writeop_latency_lt250);
+	} else if (usecs < 500) {
+		WT_STAT_CONN_INCR(session, perf_hist_writeop_latency_lt500);
+	} else if (usecs < 1000) {
+		WT_STAT_CONN_INCR(session, perf_hist_writeop_latency_lt1000);
+	} else if (usecs < 10000) {
+		WT_STAT_CONN_INCR(session, perf_hist_writeop_latency_lt10000);
+	} else {
+		WT_STAT_CONN_INCR(session, perf_hist_writeop_latency_gt10000);
+	}
+}
