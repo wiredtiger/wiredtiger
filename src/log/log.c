@@ -1211,8 +1211,8 @@ __log_set_version(WT_SESSION_IMPL *session, uint16_t version,
 		F_SET(log, WT_LOG_FORCE_NEWFILE);
 	if (!F_ISSET(conn, WT_CONN_READONLY))
 		return (__log_prealloc_remove(session));
-	else
-		return (0);
+
+	return (0);
 }
 
 /*
