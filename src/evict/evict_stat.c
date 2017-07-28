@@ -19,7 +19,7 @@ __evict_stat_walk(WT_SESSION_IMPL *session)
 	WT_CACHE *cache;
 	WT_PAGE *page;
 	WT_REF *next_walk;
-	uint64_t gen_gap, gen_gap_max, gen_gap_sum, max_pagesize;
+	uint64_t dsk_size, gen_gap, gen_gap_max, gen_gap_sum, max_pagesize;
 	uint64_t min_written_size, num_memory, num_not_queueable, num_queued;
 	uint64_t num_smaller_allocsz, pages_clean, pages_dirty, pages_internal;
 	uint64_t pages_leaf, seen_count, size, visited_count;
