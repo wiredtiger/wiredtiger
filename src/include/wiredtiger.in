@@ -1783,6 +1783,11 @@ struct __wt_session {
 	 * empty.}
 	 * @config{target, if non-empty\, checkpoint the list of objects., a
 	 * list of strings; default empty.}
+	 * @config{use_timestamp, by default\, create the checkpoint as of the
+	 * last stable timestamp if timestamps are in use\, or all current
+	 * updates if there is no stable timestamp set.  If false\, this option
+	 * generates a checkpoint with all updates including those later than
+	 * the timestamp., a boolean flag; default \c true.}
 	 * @configend
 	 * @errors
 	 */
@@ -2244,8 +2249,13 @@ struct __wt_connection {
 	 * @configstart{WT_CONNECTION.set_timestamp, see dist/api_data.py}
 	 * @config{oldest_timestamp, future commits and queries will be no
 	 * earlier than the specified timestamp.  Supplied values must be
-	 * monotonically increasing.  see @ref transaction_timestamps., a
+	 * monotonically increasing.  See @ref transaction_timestamps., a
 	 * string; default empty.}
+	 * @config{stable_timestamp, future checkpoints will be no later than
+	 * the specified timestamp.  Supplied values must be monotonically
+	 * increasing.  The stable timestamp data stability only applies to
+	 * tables that are not being logged.  See @ref transaction_timestamps.,
+	 * a string; default empty.}
 	 * @configend
 	 * @errors
 	 */
@@ -4508,10 +4518,14 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_LOGOP_ROW_REMOVE	5
 /*! row-store truncate */
 #define	WT_LOGOP_ROW_TRUNCATE	6
+/*! checkpoint start */
+#define	WT_LOGOP_CHECKPOINT_START	7
+/*! previous LSN */
+#define	WT_LOGOP_PREV_LSN	8
 /*! column-store modify */
-#define	WT_LOGOP_COL_MODIFY	7
+#define	WT_LOGOP_COL_MODIFY	9
 /*! row-store modify */
-#define	WT_LOGOP_ROW_MODIFY	8
+#define	WT_LOGOP_ROW_MODIFY	10
 /*! @} */
 
 /*******************************************
@@ -5063,24 +5077,30 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CONN_CLOSE_BLOCKED_LSM		1246
 /*! thread-yield: data handle lock yielded */
 #define	WT_STAT_CONN_DHANDLE_LOCK_BLOCKED		1247
+/*!
+ * thread-yield: get reference for page index and slot time sleeping
+ * (usecs)
+ */
+#define	WT_STAT_CONN_PAGE_INDEX_SLOT_REF_BLOCKED	1248
 /*! thread-yield: log server sync yielded for log write */
-#define	WT_STAT_CONN_LOG_SERVER_SYNC_BLOCKED		1248
+#define	WT_STAT_CONN_LOG_SERVER_SYNC_BLOCKED		1249
 /*! thread-yield: page acquire busy blocked */
-#define	WT_STAT_CONN_PAGE_BUSY_BLOCKED			1249
+#define	WT_STAT_CONN_PAGE_BUSY_BLOCKED			1250
 /*! thread-yield: page acquire eviction blocked */
-#define	WT_STAT_CONN_PAGE_FORCIBLE_EVICT_BLOCKED	1250
+#define	WT_STAT_CONN_PAGE_FORCIBLE_EVICT_BLOCKED	1251
 /*! thread-yield: page acquire locked blocked */
-#define	WT_STAT_CONN_PAGE_LOCKED_BLOCKED		1251
+#define	WT_STAT_CONN_PAGE_LOCKED_BLOCKED		1252
 /*! thread-yield: page acquire read blocked */
-#define	WT_STAT_CONN_PAGE_READ_BLOCKED			1252
+#define	WT_STAT_CONN_PAGE_READ_BLOCKED			1253
 /*! thread-yield: page acquire time sleeping (usecs) */
-#define	WT_STAT_CONN_PAGE_SLEEP				1253
-/*! thread-yield: page delete rollback yielded for instantiation */
-#define	WT_STAT_CONN_PAGE_DEL_ROLLBACK_BLOCKED		1254
+#define	WT_STAT_CONN_PAGE_SLEEP				1254
+/*!
+ * thread-yield: page delete rollback time sleeping for state change
+ * (usecs)
+ */
+#define	WT_STAT_CONN_PAGE_DEL_ROLLBACK_BLOCKED		1255
 /*! thread-yield: page reconciliation yielded due to child modification */
-#define	WT_STAT_CONN_CHILD_MODIFY_BLOCKED_PAGE		1255
-/*! thread-yield: reference for page index and slot yielded */
-#define	WT_STAT_CONN_PAGE_INDEX_SLOT_BLOCKED		1256
+#define	WT_STAT_CONN_CHILD_MODIFY_BLOCKED_PAGE		1256
 /*!
  * thread-yield: tree descend one level yielded for split page index
  * update
