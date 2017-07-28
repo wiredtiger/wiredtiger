@@ -313,7 +313,7 @@ __stat_page_row_leaf(
  * __wt_stat_read_op_histogram --
  * 	Add an operations execution time to the read operation histogram.
  */
-void
+inline void
 __wt_stat_read_op_histogram(WT_SESSION_IMPL *session, uint64_t usecs)
 {
 	if (!WT_STAT_PERF_ENABLED(session))
@@ -344,7 +344,7 @@ __wt_stat_read_op_histogram(WT_SESSION_IMPL *session, uint64_t usecs)
  * __wt_stat_write_op_histogram --
  *	Add an operations execution time to the write operation histogram.
  */
-void
+inline void
 __wt_stat_write_op_histogram(WT_SESSION_IMPL *session, uint64_t usecs)
 {
 	if (!WT_STAT_PERF_ENABLED(session))
