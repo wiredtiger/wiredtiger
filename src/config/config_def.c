@@ -162,7 +162,8 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
 	    NULL, NULL,
 	    confchk_WT_CONNECTION_reconfigure_statistics_log_subconfigs, 5 },
 	{ "timing_stress_for_test", "list",
-	    NULL, "choices=[\"checkpoint_slow\",\"page_split_race\"]",
+	    NULL, "choices=[\"checkpoint_slow\",\"internal_page_split_race\""
+	    ",\"page_split_race\"]",
 	    NULL, 0 },
 	{ "verbose", "list",
 	    NULL, "choices=[\"api\",\"block\",\"checkpoint\",\"compact\","
@@ -179,6 +180,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_set_timestamp[] = {
 	{ "oldest_timestamp", "string", NULL, NULL, NULL, 0 },
+	{ "stable_timestamp", "string", NULL, NULL, NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
 
@@ -224,6 +226,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_checkpoint[] = {
 	{ "name", "string", NULL, NULL, NULL, 0 },
 	{ "read_timestamp", "string", NULL, NULL, NULL, 0 },
 	{ "target", "list", NULL, NULL, NULL, 0 },
+	{ "use_timestamp", "boolean", NULL, NULL, NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
 
@@ -783,7 +786,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
 	    NULL, NULL,
 	    confchk_wiredtiger_open_statistics_log_subconfigs, 6 },
 	{ "timing_stress_for_test", "list",
-	    NULL, "choices=[\"checkpoint_slow\",\"page_split_race\"]",
+	    NULL, "choices=[\"checkpoint_slow\",\"internal_page_split_race\""
+	    ",\"page_split_race\"]",
 	    NULL, 0 },
 	{ "transaction_sync", "category",
 	    NULL, NULL,
@@ -877,7 +881,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
 	    NULL, NULL,
 	    confchk_wiredtiger_open_statistics_log_subconfigs, 6 },
 	{ "timing_stress_for_test", "list",
-	    NULL, "choices=[\"checkpoint_slow\",\"page_split_race\"]",
+	    NULL, "choices=[\"checkpoint_slow\",\"internal_page_split_race\""
+	    ",\"page_split_race\"]",
 	    NULL, 0 },
 	{ "transaction_sync", "category",
 	    NULL, NULL,
@@ -968,7 +973,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
 	    NULL, NULL,
 	    confchk_wiredtiger_open_statistics_log_subconfigs, 6 },
 	{ "timing_stress_for_test", "list",
-	    NULL, "choices=[\"checkpoint_slow\",\"page_split_race\"]",
+	    NULL, "choices=[\"checkpoint_slow\",\"internal_page_split_race\""
+	    ",\"page_split_race\"]",
 	    NULL, 0 },
 	{ "transaction_sync", "category",
 	    NULL, NULL,
@@ -1057,7 +1063,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
 	    NULL, NULL,
 	    confchk_wiredtiger_open_statistics_log_subconfigs, 6 },
 	{ "timing_stress_for_test", "list",
-	    NULL, "choices=[\"checkpoint_slow\",\"page_split_race\"]",
+	    NULL, "choices=[\"checkpoint_slow\",\"internal_page_split_race\""
+	    ",\"page_split_race\"]",
 	    NULL, 0 },
 	{ "transaction_sync", "category",
 	    NULL, NULL,
@@ -1141,8 +1148,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  NULL, 0
 	},
 	{ "WT_CONNECTION.set_timestamp",
-	  "oldest_timestamp=",
-	  confchk_WT_CONNECTION_set_timestamp, 1
+	  "oldest_timestamp=,stable_timestamp=",
+	  confchk_WT_CONNECTION_set_timestamp, 2
 	},
 	{ "WT_CURSOR.close",
 	  "",
@@ -1161,8 +1168,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_WT_SESSION_begin_transaction, 6
 	},
 	{ "WT_SESSION.checkpoint",
-	  "drop=,force=false,name=,read_timestamp=,target=",
-	  confchk_WT_SESSION_checkpoint, 5
+	  "drop=,force=false,name=,read_timestamp=,target=,"
+	  "use_timestamp=true",
+	  confchk_WT_SESSION_checkpoint, 6
 	},
 	{ "WT_SESSION.close",
 	  "",
