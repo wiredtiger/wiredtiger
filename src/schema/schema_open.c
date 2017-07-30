@@ -440,18 +440,25 @@ __schema_open_table(WT_SESSION_IMPL *session,
 	WT_ERR(__wt_buf_fmt(session, buf, "table:%.*s", (int)namelen, name));
 	WT_ERR(__wt_strndup(session, buf->data, buf->size, &table->name));
 
+	/*
+	 * Don't hold the metadata cursor pinned, we call functions that use it
+	 * to retrieve column group information.
+	 */
 	WT_ERR(__wt_metadata_cursor(session, &cursor));
 	cursor->set_key(cursor, table->name);
-	WT_ERR(cursor->search(cursor));
-	WT_ERR(cursor->get_value(cursor, &tconfig));
+	if ((ret = cursor->search(cursor)) == 0 &&
+	    (ret = cursor->get_value(cursor, &tconfig)) == 0)
+		ret = __wt_strdup(session, tconfig, &table->config);
+	WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+	WT_ERR(ret);
 
-	WT_ERR(__wt_config_getones(session, tconfig, "columns", &cval));
-
-	WT_ERR(__wt_config_getones(session, tconfig, "key_format", &cval));
+	WT_ERR(__wt_config_getones(session, table->config, "columns", &cval));
+	WT_ERR(__wt_config_getones(
+	    session, table->config, "key_format", &cval));
 	WT_ERR(__wt_strndup(session, cval.str, cval.len, &table->key_format));
-	WT_ERR(__wt_config_getones(session, tconfig, "value_format", &cval));
+	WT_ERR(__wt_config_getones(
+	    session, table->config, "value_format", &cval));
 	WT_ERR(__wt_strndup(session, cval.str, cval.len, &table->value_format));
-	WT_ERR(__wt_strdup(session, tconfig, &table->config));
 
 	/* Point to some items in the copy to save re-parsing. */
 	WT_ERR(__wt_config_getones(session, table->config,
@@ -505,7 +512,6 @@ __schema_open_table(WT_SESSION_IMPL *session,
 	if (0) {
 err:		WT_TRET(__wt_schema_destroy_table(session, &table));
 	}
-	WT_TRET(__wt_metadata_cursor_release(session, &cursor));
 
 	__wt_scr_free(session, &buf);
 	return (ret);
