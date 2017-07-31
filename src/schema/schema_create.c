@@ -141,7 +141,7 @@ __wt_schema_colgroup_source(WT_SESSION_IMPL *session,
 	size_t len;
 	const char *prefix, *suffix, *tablename;
 
-	tablename = table->name + strlen("table:");
+	tablename = table->iface.name + strlen("table:");
 	if ((ret = __wt_config_getones(session, config, "type", &cval)) == 0 &&
 	    !WT_STRING_MATCH("file", cval.str, cval.len)) {
 		prefix = cval.str;
@@ -202,8 +202,8 @@ __create_colgroup(WT_SESSION_IMPL *session,
 	} else
 		tlen = strlen(tablename);
 
-	if ((ret =
-	    __wt_schema_get_table(session, tablename, tlen, true, &table)) != 0)
+	if ((ret = __wt_schema_get_table(
+	    session, tablename, tlen, true, 0, &table)) != 0)
 		WT_RET_MSG(session, (ret == WT_NOTFOUND) ? ENOENT : ret,
 		    "Can't create '%s' for non-existent table '%.*s'",
 		    name, (int)tlen, tablename);
@@ -273,7 +273,7 @@ err:	__wt_free(session, cgconf);
 	__wt_buf_free(session, &fmt);
 	__wt_buf_free(session, &namebuf);
 
-	__wt_schema_release_table(session, table);
+	WT_TRET(__wt_schema_release_table(session, table));
 	return (ret);
 }
 
@@ -290,7 +290,7 @@ __wt_schema_index_source(WT_SESSION_IMPL *session,
 	size_t len;
 	const char *prefix, *suffix, *tablename;
 
-	tablename = table->name + strlen("table:");
+	tablename = table->iface.name + strlen("table:");
 	if ((ret = __wt_config_getones(session, config, "type", &cval)) == 0 &&
 	    !WT_STRING_MATCH("file", cval.str, cval.len)) {
 		prefix = cval.str;
@@ -335,7 +335,7 @@ __fill_index(WT_SESSION_IMPL *session, WT_TABLE *table, WT_INDEX *idx)
 	WT_ERR(wt_session->open_cursor(wt_session,
 	    idx->source, NULL, "bulk=unordered", &icur));
 	WT_ERR(wt_session->open_cursor(wt_session,
-	    table->name, NULL, "readonly", &tcur));
+	    table->iface.name, NULL, "readonly", &tcur));
 
 	while ((ret = tcur->next(tcur)) == 0)
 		WT_ERR(__wt_apply_single_idx(session, idx,
@@ -392,8 +392,8 @@ __create_index(WT_SESSION_IMPL *session,
 		    "should be <table name>:<index name>: %s", name);
 
 	tlen = (size_t)(idxname++ - tablename);
-	if ((ret =
-	    __wt_schema_get_table(session, tablename, tlen, true, &table)) != 0)
+	if ((ret = __wt_schema_get_table(
+	    session, tablename, tlen, true, 0, &table)) != 0)
 		WT_RET_MSG(session, ret,
 		    "Can't create an index for a non-existent table: %.*s",
 		    (int)tlen, tablename);
@@ -540,7 +540,7 @@ err:	__wt_free(session, idxconf);
 	__wt_buf_free(session, &fmt);
 	__wt_buf_free(session, &namebuf);
 
-	__wt_schema_release_table(session, table);
+	WT_TRET(__wt_schema_release_table(session, table));
 	return (ret);
 }
 
@@ -573,13 +573,14 @@ __create_table(WT_SESSION_IMPL *session,
 	if (!WT_PREFIX_SKIP(tablename, "table:"))
 		return (__wt_unexpected_object_type(session, name, "table:"));
 
-	if ((ret = __wt_schema_get_table(session,
-	    tablename, strlen(tablename), false, &table)) == 0) {
+	if ((ret = __wt_schema_get_table(
+	    session, tablename, strlen(tablename), false, 0, &table)) == 0) {
 		if (exclusive)
 			WT_ERR(EEXIST);
 		exists = true;
 	}
-	WT_ERR_NOTFOUND_OK(ret);
+	if (ret != ENOENT)
+		WT_ERR_NOTFOUND_OK(ret);
 
 	WT_ERR(__wt_config_gets(session, cfg, "colgroups", &cval));
 	__wt_config_subinit(session, &conf, &cval);
@@ -594,9 +595,15 @@ __create_table(WT_SESSION_IMPL *session,
 	if (!exists) {
 		WT_ERR(__wt_metadata_insert(session, name, tableconf));
 
-		/* Attempt to open the table now to catch any errors. */
+		/*
+		 * Attempt to open the table now to catch any errors.
+		 * Don't keep it pinned while we create column groups.
+		 */
 		WT_ERR(__wt_schema_get_table(
-		    session, tablename, strlen(tablename), true, &table));
+		    session, tablename, strlen(tablename), true, 0, &table));
+		ret = __wt_schema_release_table(session, table);
+		table = NULL;
+		WT_ERR(ret);
 
 		if (ncolgroups == 0) {
 			cgsize = strlen("colgroup:") + strlen(tablename) + 1;
@@ -608,14 +615,8 @@ __create_table(WT_SESSION_IMPL *session,
 		}
 	}
 
-	if (0) {
-err:		if (table != NULL) {
-			WT_TRET(__wt_schema_remove_table(session, table));
-			table = NULL;
-		}
-	}
-	if (table != NULL)
-		__wt_schema_release_table(session, table);
+err:	if (table != NULL)
+		WT_TRET(__wt_schema_release_table(session, table));
 	__wt_free(session, cgname);
 	__wt_free(session, tableconf);
 	return (ret);

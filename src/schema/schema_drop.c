@@ -115,7 +115,7 @@ __drop_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 
 	table = NULL;
 	WT_ERR(__wt_schema_get_table(
-	    session, name, strlen(name), true, &table));
+	    session, name, strlen(name), true, WT_DHANDLE_EXCLUSIVE, &table));
 
 	/* Drop the column groups. */
 	for (i = 0; i < WT_COLGROUPS(table); i++) {
@@ -144,14 +144,14 @@ __drop_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 		WT_ERR(__wt_metadata_remove(session, idx->name));
 	}
 
-	WT_ERR(__wt_schema_remove_table(session, table));
-	table = NULL;
+	/* Make sure the table data handle is closed. */
+	F_SET(&table->iface, WT_DHANDLE_DISCARD);
 
 	/* Remove the metadata entry (ignore missing items). */
 	WT_ERR(__wt_metadata_remove(session, uri));
 
 err:	if (table != NULL)
-		__wt_schema_release_table(session, table);
+		WT_TRET(__wt_schema_release_table(session, table));
 	return (ret);
 }
 
@@ -199,9 +199,6 @@ __wt_schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 	 */
 	if (ret == WT_NOTFOUND || ret == ENOENT)
 		ret = force ? 0 : ENOENT;
-
-	/* Bump the schema generation so that stale data is ignored. */
-	(void)__wt_gen_next(session, WT_GEN_SCHEMA);
 
 	WT_TRET(__wt_meta_track_off(session, true, ret != 0));
 

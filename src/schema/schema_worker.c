@@ -76,9 +76,14 @@ __wt_schema_worker(WT_SESSION_IMPL *session,
 		WT_ERR(__wt_lsm_tree_worker(session,
 		    uri, file_func, name_func, cfg, open_flags));
 	} else if (WT_PREFIX_SKIP(tablename, "table:")) {
+		/*
+		 * Note: we would like to use open_flags here (e.g., to lock
+		 * the table exclusive during schema-changing operations), but
+		 * that is currently problematic because we get the table again
+		 * in order to discover column groups and indexes.
+		 */
 		WT_ERR(__wt_schema_get_table(session,
-		    tablename, strlen(tablename), false, &table));
-		WT_ASSERT(session, session->dhandle == NULL);
+		    tablename, strlen(tablename), false, 0, &table));
 
 		/*
 		 * We could make a recursive call for each colgroup or index
@@ -128,6 +133,6 @@ __wt_schema_worker(WT_SESSION_IMPL *session,
 		WT_ERR(__wt_bad_object_type(session, uri));
 
 err:	if (table != NULL)
-		__wt_schema_release_table(session, table);
+		WT_TRET(__wt_schema_release_table(session, table));
 	return (ret);
 }

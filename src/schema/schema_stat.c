@@ -145,7 +145,7 @@ __wt_curstat_table_init(WT_SESSION_IMPL *session,
 
 	name = uri + strlen("table:");
 	WT_RET(__wt_schema_get_table(
-	    session, name, strlen(name), false, &table));
+	    session, name, strlen(name), false, 0, &table));
 
 	WT_ERR(__wt_scr_alloc(session, 0, &buf));
 
@@ -184,7 +184,7 @@ __wt_curstat_table_init(WT_SESSION_IMPL *session,
 
 	__wt_curstat_dsrc_final(cst);
 
-err:	__wt_schema_release_table(session, table);
+err:	WT_TRET(__wt_schema_release_table(session, table));
 
 	__wt_scr_free(session, &buf);
 	return (ret);

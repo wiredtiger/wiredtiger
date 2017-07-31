@@ -139,7 +139,7 @@ __wt_session_lock_dhandle(
 	if (dhandle->excl_session == session) {
 		if (!LF_ISSET(WT_DHANDLE_LOCK_ONLY) &&
 		    (!F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
-		    F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS)))
+		    (btree != NULL && F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS))))
 			return (EBUSY);
 		++dhandle->excl_ref;
 		return (0);
@@ -166,7 +166,7 @@ __wt_session_lock_dhandle(
 		 * If the handle is already open for a special operation,
 		 * give up.
 		 */
-		if (F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS))
+		if (btree != NULL && F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS))
 			return (EBUSY);
 
 		/*
@@ -241,11 +241,11 @@ __wt_session_lock_dhandle(
 }
 
 /*
- * __wt_session_release_btree --
- *	Unlock a btree handle.
+ * __wt_session_release_dhandle --
+ *	Unlock a data handle.
  */
 int
-__wt_session_release_btree(WT_SESSION_IMPL *session)
+__wt_session_release_dhandle(WT_SESSION_IMPL *session)
 {
 	WT_BTREE *btree;
 	WT_DATA_HANDLE *dhandle;
@@ -253,8 +253,8 @@ __wt_session_release_btree(WT_SESSION_IMPL *session)
 	WT_DECL_RET;
 	bool locked, write_locked;
 
-	btree = S2BT(session);
 	dhandle = session->dhandle;
+	btree = dhandle->handle;
 	write_locked = F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE);
 	locked = true;
 
@@ -269,7 +269,7 @@ __wt_session_release_btree(WT_SESSION_IMPL *session)
 			__session_discard_dhandle(session, dhandle_cache);
 	}
 
-	if (F_ISSET(btree, WT_BTREE_BULK)) {
+	if (btree != NULL && F_ISSET(btree, WT_BTREE_BULK)) {
 		WT_ASSERT(session, F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) &&
 		    !F_ISSET(dhandle, WT_DHANDLE_DISCARD));
 		/*
@@ -279,7 +279,7 @@ __wt_session_release_btree(WT_SESSION_IMPL *session)
 		 */
 		WT_WITH_SCHEMA_LOCK(session, ret =
 		    __wt_conn_btree_sync_and_close(session, false, false));
-	} else if (F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS) ||
+	} else if ((btree != NULL && F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS)) ||
 	    F_ISSET(dhandle, WT_DHANDLE_DISCARD | WT_DHANDLE_DISCARD_KILL)) {
 		WT_ASSERT(session, F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE));
 		ret = __wt_conn_btree_sync_and_close(session, false,
@@ -303,6 +303,16 @@ __wt_session_release_btree(WT_SESSION_IMPL *session)
 
 	session->dhandle = NULL;
 	return (ret);
+}
+
+/*
+ * __wt_session_release_btree --
+ *	Unlock a btree handle.
+ */
+int
+__wt_session_release_btree(WT_SESSION_IMPL *session)
+{
+	return (__wt_session_release_dhandle(session));
 }
 
 /*
@@ -484,11 +494,11 @@ __session_get_dhandle(
 }
 
 /*
- * __wt_session_get_btree --
- *	Get a btree handle for the given name, set session->dhandle.
+ * __wt_session_get_dhandle --
+ *	Get a data handle for the given name, set session->dhandle.
  */
 int
-__wt_session_get_btree(WT_SESSION_IMPL *session,
+__wt_session_get_dhandle(WT_SESSION_IMPL *session,
     const char *uri, const char *checkpoint, const char *cfg[], uint32_t flags)
 {
 	WT_DATA_HANDLE *dhandle;
@@ -531,14 +541,14 @@ __wt_session_get_btree(WT_SESSION_IMPL *session,
 			__wt_writeunlock(session, &dhandle->rwlock);
 
 			WT_WITH_SCHEMA_LOCK(session,
-			    ret = __wt_session_get_btree(
+			    ret = __wt_session_get_dhandle(
 				session, uri, checkpoint, cfg, flags));
 
 			return (ret);
 		}
 
 		/* Open the handle. */
-		if ((ret = __wt_conn_btree_open(session, cfg, flags)) == 0 &&
+		if ((ret = __wt_conn_dhandle_open(session, cfg, flags)) == 0 &&
 		    LF_ISSET(WT_DHANDLE_EXCLUSIVE))
 			break;
 
@@ -561,6 +571,17 @@ __wt_session_get_btree(WT_SESSION_IMPL *session,
 	    F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) || dhandle->excl_ref > 1);
 
 	return (0);
+}
+
+/*
+ * __wt_session_get_btree --
+ *	Get a btree handle for the given name, set session->dhandle.
+ */
+int
+__wt_session_get_btree(WT_SESSION_IMPL *session,
+    const char *uri, const char *checkpoint, const char *cfg[], uint32_t flags)
+{
+	return (__wt_session_get_dhandle(session, uri, checkpoint, cfg, flags));
 }
 
 /*

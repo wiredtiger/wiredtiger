@@ -63,8 +63,8 @@ __sweep_expire_one(WT_SESSION_IMPL *session)
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
 
-	btree = S2BT(session);
 	dhandle = session->dhandle;
+	btree = dhandle->handle;
 
 	/*
 	 * Acquire an exclusive lock on the handle and mark it dead.
@@ -84,8 +84,8 @@ __sweep_expire_one(WT_SESSION_IMPL *session)
 	WT_RET(__wt_try_writelock(session, &dhandle->rwlock));
 
 	/* Only sweep clean trees where all updates are visible. */
-	if (btree->modified || !__wt_txn_visible_all(session,
-	    btree->rec_max_txn, WT_TIMESTAMP_NULL(&btree->rec_max_timestamp)))
+	if (btree != NULL && (btree->modified || !__wt_txn_visible_all(session,
+	    btree->rec_max_txn, WT_TIMESTAMP_NULL(&btree->rec_max_timestamp))))
 		goto err;
 
 	/*
