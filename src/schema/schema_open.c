@@ -419,13 +419,11 @@ __schema_open_table(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_CONFIG cparser;
 	WT_CONFIG_ITEM ckey, cval;
-	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_TABLE *table;
 	const char *tablename;
 	const char **table_cfg;
 
-	cursor = NULL;
 	table = (WT_TABLE *)session->dhandle;
 	table_cfg = table->iface.cfg;
 	tablename = table->iface.name;
