@@ -422,7 +422,7 @@ __schema_open_table(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_TABLE *table;
-	const char *tablename, *tconfig;
+	const char *tablename;
 	const char **table_cfg;
 
 	cursor = NULL;
@@ -432,18 +432,6 @@ __schema_open_table(WT_SESSION_IMPL *session, const char *cfg[])
 
 	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_TABLE));
 	WT_UNUSED(cfg);
-
-	/*
-	 * Don't hold the metadata cursor pinned, we call functions that use it
-	 * to retrieve column group information.
-	 */
-	WT_RET(__wt_metadata_cursor(session, &cursor));
-	cursor->set_key(cursor, tablename);
-	if ((ret = cursor->search(cursor)) == 0 &&
-	    (ret = cursor->get_value(cursor, &tconfig)) == 0)
-		ret = __wt_strdup(session, tconfig, &tconfig);
-	WT_TRET(__wt_metadata_cursor_release(session, &cursor));
-	WT_RET(ret);
 
 	WT_RET(__wt_config_gets(session, table_cfg, "columns", &cval));
 	WT_RET(__wt_config_gets(
