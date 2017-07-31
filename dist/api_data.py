@@ -1269,7 +1269,7 @@ methods = {
         rollback completes. Supplied value must be greater than or equal to
         the current stable timestamp. Any updates made to logged tables will
         not be rolled back.  Any updates made without an associated timestamp
-        will not be rolled back.see @ref transaction_timestamps'''), ]),
+        will not be rolled back. See @ref transaction_timestamps'''), ]),
 
 'WT_SESSION.reconfigure' : Method(session_config),
 
