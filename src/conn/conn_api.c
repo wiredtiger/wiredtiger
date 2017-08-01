@@ -1571,13 +1571,6 @@ __conn_oplog_setup(WT_SESSION_IMPL *session, const char *home,
 
 	conn = S2C(session);
 
-	if ((conn->oplog_dlhandle = dlopen(NULL, RTLD_NOW)) == NULL) {
-		printf("%s\n", dlerror());
-		WT_ERR_MSG(session, WT_ERROR,
-			   "Could not set up operation logging. "
-			   "dlopen returned NULL handle");
-	}
-
 	/* Set up the directory for operation logs. */
 	return __conn_oplog_dir(session, home, cfg);
 

@@ -245,15 +245,13 @@ struct __wt_session_impl {
 	WT_FH *oplog_fh;
 };
 
-#define FUNC_ADDR(s) (dlsym(S2C(s)->oplog_dlhandle, __func__))
+#define FUNC_ADDR(s) 0
 
 #define WT_TRACK(s, optype)						\
 	WT_TRACK_RECORD *tr = &(s->oplog_buf[s->oplogbuf_ptr++]);	\
 	tr->timestamp = __wt_rdtsc();					\
 	tr->op_type = optype;						\
 	tr->op_id = (uint64_t)FUNC_ADDR(s);				\
-	//printf("Addr for %s is %p\n", __func__, (void*)tr->op_id);	\
-	//if (tr->op_id == NULL) printf("%s\n", dlerror());		\
 	if (s->oplogbuf_ptr == MAXRECS) {				\
 		if (s->oplog_fh != NULL) {				\
 			ret = s->oplog_fh->handle->fh_write(            \
