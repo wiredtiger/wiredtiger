@@ -187,9 +187,8 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 		/* Allocate the WT_UPDATE structure. */
 		WT_ERR(cursor->get_value(cursor,
 		    &upd_txnid, &las_timestamp, &upd_type, &las_value));
-		WT_ERR(__wt_update_alloc(session, &las_value, &upd, &incr,
-		    upd_type == WT_UPDATE_DELETED ?
-		    WT_UPDATE_DELETED : WT_UPDATE_STANDARD));
+		WT_ERR(__wt_update_alloc(
+		    session, &las_value, &upd, &incr, upd_type));
 		upd->update_from_las = 1;
 		total_incr += incr;
 		upd->txnid = upd_txnid;
