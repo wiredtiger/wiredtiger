@@ -3690,7 +3690,6 @@ __rec_update_las(WT_SESSION_IMPL *session,
     WT_RECONCILE *r, uint32_t btree_id, WT_BOUNDARY *bnd)
 {
 	WT_CURSOR *cursor;
-	WT_CURSOR_BTREE *cbt;
 	WT_DECL_ITEM(key);
 	WT_DECL_RET;
 	WT_ITEM las_addr, las_timestamp, las_value;
@@ -3702,7 +3701,6 @@ __rec_update_las(WT_SESSION_IMPL *session,
 	uint8_t *p;
 
 	cursor = NULL;
-	cbt = &r->update_modify_cbt;
 	WT_CLEAR(las_addr);
 	WT_CLEAR(las_timestamp);
 	WT_CLEAR(las_value);
