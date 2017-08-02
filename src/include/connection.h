@@ -343,8 +343,9 @@ struct __wt_connection_impl {
 
 	WT_SESSION_IMPL *meta_ckpt_session;/* Metadata checkpoint session */
 
+	/* Macro to set a current time to be the same as the clock server */
 #define	WT_CLOCK_TIME(session, time)	time = S2C(session)->epoch_clock
-	struct timespec	epoch_clock;	/* WIP */
+	struct timespec	epoch_clock;	/* The clock of the clock server */
 	wt_thread_t	clock_tid;	/* Clock thread */
 	bool		clock_tid_set;	/* Clock thread set */
 

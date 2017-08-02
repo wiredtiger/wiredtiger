@@ -91,8 +91,8 @@ __wt_seconds(WT_SESSION_IMPL *session, time_t *timep)
 }
 
 /*
- * __wt_time_server --
- *	WIP
+ * __clock_server --
+ *	The time server
  */
 static WT_THREAD_RET
 __clock_server(void *arg)
@@ -127,6 +127,10 @@ __clock_server(void *arg)
 	return (WT_THREAD_RET_VALUE);
 }
 
+/*
+ * __wt_clock_server_start --
+ *	Start the clock server.
+ */
 int
 __wt_clock_server_start(WT_SESSION_IMPL *session)
 {
@@ -143,6 +147,10 @@ __wt_clock_server_start(WT_SESSION_IMPL *session)
 	return (0);
 }
 
+/*
+ * __wt_clock_server_destroy --
+ *	Destroy the clock server.
+ */
 int
 __wt_clock_server_destroy(WT_SESSION_IMPL *session)
 {
