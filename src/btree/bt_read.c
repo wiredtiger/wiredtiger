@@ -190,6 +190,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 		WT_ERR(__wt_update_alloc(session, &las_value, &upd, &incr,
 		    upd_type == WT_UPDATE_DELETED ?
 		    WT_UPDATE_DELETED : WT_UPDATE_STANDARD));
+		upd->update_from_las = 1;
 		total_incr += incr;
 		upd->txnid = upd_txnid;
 #ifdef HAVE_TIMESTAMPS

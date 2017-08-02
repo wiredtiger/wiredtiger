@@ -416,10 +416,20 @@ snap_check(WT_CURSOR *cursor,
 			else
 				print_item_data(
 				    "   found", value->data, value->size);
+			{
+			WT_SESSION_IMPL *s;
+			WT_CURSOR_BTREE *c;
+			char buf[64];
 
-			testutil_die(ret,
-			    "snapshot-isolation: %.*s search mismatch",
-			    (int)key->size, key->data);
+			s = (WT_SESSION_IMPL *)cursor->session;
+			c = (WT_CURSOR_BTREE *)cursor;
+			s->dhandle = c->btree->dhandle;
+			(void)snprintf(buf, sizeof(buf),
+			    "/tmp/page.%u", (u_int)getpid());
+
+			ret = __wt_debug_page(s, c->ref, buf);
+			abort();
+			}
 			/* NOTREACHED */
 		case VAR:
 			fprintf(stderr,
