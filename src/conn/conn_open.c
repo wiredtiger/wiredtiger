@@ -89,6 +89,9 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	WT_TRET(__wt_async_flush(session));
 	WT_TRET(__wt_async_destroy(session));
 
+	/* Destroy the clock server */
+	WT_RET(__wt_clock_server_destroy(session));
+
 	/*
 	 * Shut down server threads other than the eviction server, which is
 	 * needed later to close btree handles.  Some of these threads access
@@ -246,6 +249,9 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/* Start the handle sweep thread. */
 	WT_RET(__wt_sweep_create(session));
+
+	/* Start the clock server. */
+	WT_RET(__wt_clock_server_start(session));
 
 	/* Start the optional async threads. */
 	WT_RET(__wt_async_create(session, cfg));

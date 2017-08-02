@@ -112,6 +112,7 @@ flags = {
         'CONN_RECOVERING',
         'CONN_SERVER_ASYNC',
         'CONN_SERVER_CHECKPOINT',
+        'CONN_SERVER_CLOCK',
         'CONN_SERVER_LOG',
         'CONN_SERVER_LSM',
         'CONN_SERVER_STATISTICS',

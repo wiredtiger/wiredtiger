@@ -343,6 +343,11 @@ struct __wt_connection_impl {
 
 	WT_SESSION_IMPL *meta_ckpt_session;/* Metadata checkpoint session */
 
+#define	WT_CLOCK_TIME(session, time)	time = S2C(session)->epoch_clock
+	struct timespec	epoch_clock;	/* WIP */
+	wt_thread_t	clock_tid;	/* Clock thread */
+	bool		clock_tid_set;	/* Clock thread set */
+
 	/*
 	 * Is there a data/schema change that needs to be the part of a
 	 * checkpoint.

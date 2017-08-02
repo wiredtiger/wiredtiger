@@ -28,6 +28,8 @@
 
 #include "wt_internal.h"
 
+#define	TIMER_ACCURACY 25
+
 /*
  * __time_check_monotonic --
  *	Check and prevent time running backward.  If we detect that it has, we
@@ -86,4 +88,79 @@ __wt_seconds(WT_SESSION_IMPL *session, time_t *timep)
 	__wt_epoch(session, &t);
 
 	*timep = t.tv_sec;
+}
+
+/*
+ * __wt_time_server --
+ *	WIP
+ */
+static WT_THREAD_RET
+__clock_server(void *arg)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_SESSION_IMPL *session;
+	uint64_t timer_runs;
+
+	session = arg;
+	conn = S2C(session);
+	timer_runs = 0;
+
+	while (F_ISSET(conn, WT_CONN_SERVER_CLOCK)) {
+		/*
+		 * We re-capture timing the long way every so often to ensure
+		 * that we don't skew too much in our timing.
+		 */
+		if (timer_runs % TIMER_ACCURACY == 0) {
+			__wt_epoch(NULL, &conn->epoch_clock);
+		} else {
+			if (conn->epoch_clock.tv_nsec >= 999999000) {
+				conn->epoch_clock.tv_sec++;
+				conn->epoch_clock.tv_nsec = 0;
+			} else {
+				conn->epoch_clock.tv_nsec += 1000;
+			}
+		}
+
+		__wt_sleep(0, 1);
+		timer_runs += 1;
+	}
+	return (WT_THREAD_RET_VALUE);
+}
+
+int
+__wt_clock_server_start(WT_SESSION_IMPL *session)
+{
+	WT_CONNECTION_IMPL *conn;
+
+	conn = S2C(session);
+
+	F_SET(conn, WT_CONN_SERVER_CLOCK);
+
+	WT_RET(__wt_thread_create(
+	    session, &conn->clock_tid, __clock_server, session));
+	conn->clock_tid_set = 1;
+
+	return (0);
+}
+
+int
+__wt_clock_server_destroy(WT_SESSION_IMPL *session)
+{
+	WT_CONNECTION_IMPL *conn;
+
+	conn = S2C(session);
+
+	/*
+	 * Clear the clock server flag and then sleep for 2 microseconds to
+	 * allow the clock server to finish.
+	 */
+	F_CLR(conn, WT_CONN_SERVER_CLOCK);
+	__wt_sleep(0, 2);
+
+	if (conn->sweep_tid_set) {
+		WT_RET(__wt_thread_join(session, conn->clock_tid));
+		conn->clock_tid_set = 0;
+	}
+
+	return (0);
 }

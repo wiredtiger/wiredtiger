@@ -185,9 +185,9 @@ __curfile_search(WT_CURSOR *cursor)
 	CURSOR_API_CALL(cursor, session, search, cbt->btree);
 	WT_ERR(__cursor_checkkey(cursor));
 
-	__wt_epoch(session, &start);
+	WT_CLOCK_TIME(session, start);
 	WT_ERR(__wt_btcur_search(cbt));
-	__wt_epoch(session, &stop);
+	WT_CLOCK_TIME(session, stop);
 	 __wt_stat_read_op_histogram(session, WT_TIMEDIFF_US(stop, start));
 
 	/* Search maintains a position, key and value. */
@@ -214,9 +214,9 @@ __curfile_search_near(WT_CURSOR *cursor, int *exact)
 	CURSOR_API_CALL(cursor, session, search_near, cbt->btree);
 	WT_ERR(__cursor_checkkey(cursor));
 
-	__wt_epoch(session, &start);
+	WT_CLOCK_TIME(session, start);
 	WT_ERR(__wt_btcur_search_near(cbt, exact));
-	__wt_epoch(session, &stop);
+	WT_CLOCK_TIME(session, stop);
 	__wt_stat_read_op_histogram(session, WT_TIMEDIFF_US(stop, start));
 
 	/* Search-near maintains a position, key and value. */
@@ -246,9 +246,9 @@ __curfile_insert(WT_CURSOR *cursor)
 		WT_ERR(__cursor_checkkey(cursor));
 	WT_ERR(__cursor_checkvalue(cursor));
 
-	__wt_epoch(session, &start);
+	WT_CLOCK_TIME(session, start);
 	WT_ERR(__wt_btcur_insert(cbt));
-	__wt_epoch(session, &stop);
+	WT_CLOCK_TIME(session, stop);
 	__wt_stat_write_op_histogram(session, WT_TIMEDIFF_US(stop, start));
 
 	/*
@@ -337,9 +337,9 @@ __curfile_update(WT_CURSOR *cursor)
 	WT_ERR(__cursor_checkkey(cursor));
 	WT_ERR(__cursor_checkvalue(cursor));
 
-	__wt_epoch(session, &start);
+	WT_CLOCK_TIME(session, start);
 	WT_ERR(__wt_btcur_update(cbt));
-	__wt_epoch(session, &stop);
+	WT_CLOCK_TIME(session, stop);
 	__wt_stat_write_op_histogram(session, WT_TIMEDIFF_US(stop, start));
 
 	/* Update maintains a position, key and value. */
@@ -367,9 +367,9 @@ __curfile_remove(WT_CURSOR *cursor)
 	CURSOR_REMOVE_API_CALL(cursor, session, cbt->btree);
 	WT_ERR(__cursor_checkkey(cursor));
 
-	__wt_epoch(session, &start);
+	WT_CLOCK_TIME(session, start);
 	WT_ERR(__wt_btcur_remove(cbt));
-	__wt_epoch(session, &stop);
+	WT_CLOCK_TIME(session, stop);
 	__wt_stat_write_op_histogram(session, WT_TIMEDIFF_US(stop, start));
 
 	/*
