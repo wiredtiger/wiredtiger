@@ -498,6 +498,8 @@ main(int argc, char *argv[])
 	 * !!! If we wanted to take a copy of the directory before recovery,
 	 * this is the place to do it.
 	 */
+	if (chdir(home) != 0)
+		testutil_die(errno, "parent chdir: %s", home);
 	printf("Open database, run recovery and verify content\n");
 
 	/*
