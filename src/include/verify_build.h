@@ -53,7 +53,6 @@ __wt_verify_build(void)
 	WT_SIZE_CHECK(WT_BLOCK_DESC, WT_BLOCK_DESC_SIZE);
 	WT_SIZE_CHECK(WT_REF, WT_REF_SIZE);
 
-#if 0
 	/*
 	 * WT_UPDATE is special: we arrange fields to avoid padding within the
 	 * structure but it could be padded at the end depending on the
@@ -62,7 +61,6 @@ __wt_verify_build(void)
 	 */
 	WT_SIZE_CHECK(WT_UPDATE, WT_ALIGN(WT_UPDATE_SIZE, 8));
 	WT_STATIC_ASSERT(offsetof(WT_UPDATE, data) == WT_UPDATE_SIZE);
-#endif
 
 	/* Check specific structures were padded. */
 #define	WT_PADDING_CHECK(s)						\

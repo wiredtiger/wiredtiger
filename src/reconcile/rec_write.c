@@ -1503,7 +1503,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 * of the update list, even if this reconciliation subsequently
 		 * fails.
 		 */
-		append->txnid = 3;
+		append->txnid = WT_TXN_NONE;
 		for (upd = upd_list; upd->next != NULL; upd = upd->next)
 			;
 		WT_PUBLISH(upd->next, append);
