@@ -129,7 +129,7 @@ thread_ckpt_run(void *arg)
 		sleep(sleep_time);
 		ts = global_ts;
 		testutil_check(session->checkpoint(
-		    session, NULL /*"use_timestamp=true"*/));
+		    session, "use_timestamp=true"));
 		printf("Checkpoint %d complete.  Minimum ts %" PRIu64 "\n",
 		    i, ts);
 		fflush(stdout);
@@ -163,30 +163,17 @@ thread_run(void *arg)
 	WT_THREAD_DATA *td;
 	uint64_t i, stable_ts;
 	int ret;
-	size_t lsize;
-	char buf[MAX_VAL], kname[64], lgbuf[8];
-	char large[128*1024], tscfg[64];
+	char buf[MAX_VAL], kname[64], tscfg[64];
 
 	__wt_random_init(&rnd);
 	memset(buf, 0, sizeof(buf));
 	memset(kname, 0, sizeof(kname));
-	lsize = sizeof(large);
-	memset(large, 0, lsize);
 
 	td = (WT_THREAD_DATA *)arg;
 	/*
 	 * The value is the name of the record file with our id appended.
 	 */
 	testutil_check(__wt_snprintf(buf, sizeof(buf), RECORDS_FILE, td->id));
-	/*
-	 * Set up a large value putting our id in it.  Write it in there a
-	 * bunch of times, but the rest of the buffer can just be zero.
-	 */
-	testutil_check(__wt_snprintf(
-	    lgbuf, sizeof(lgbuf), "th-%" PRIu32, td->id));
-	for (i = 0; i < 128; i += strlen(lgbuf))
-		testutil_check(__wt_snprintf(
-		    &large[i], lsize - i, "%s", lgbuf));
 	/*
 	 * Keep a separate file with the records we wrote for checking.
 	 */
@@ -234,23 +221,14 @@ thread_run(void *arg)
 		cur_local->set_key(cur_local, kname);
 		cur_oplog->set_key(cur_oplog, kname);
 		/*
-		 * Every 30th record write a very large record that exceeds the
-		 * log buffer size.  This forces us to use the unbuffered path.
+		 * Put an informative string into the value so that it
+		 * can be viewed well in a binary dump.
 		 */
-		if (i % 30 == 0) {
-			data.size = 128 * 1024;
-			data.data = large;
-		} else {
-			/*
-			 * Put an informative string into the value so that it
-			 * can be viewed well in a binary dump.
-			 */
-			testutil_check(__wt_snprintf(buf, sizeof(buf),
-			    "thread:%" PRIu64 " ts:%" PRIu64 " key: %" PRIu64,
-			    td->id, stable_ts, i));
-			data.size = __wt_random(&rnd) % MAX_VAL;
-			data.data = buf;
-		}
+		testutil_check(__wt_snprintf(buf, sizeof(buf),
+		    "thread:%" PRIu64 " ts:%" PRIu64 " key: %" PRIu64,
+		    td->id, stable_ts, i));
+		data.size = __wt_random(&rnd) % MAX_VAL;
+		data.data = buf;
 		cur_coll->set_value(cur_coll, &data);
 		cur_local->set_value(cur_local, &data);
 		cur_oplog->set_value(cur_oplog, &data);
