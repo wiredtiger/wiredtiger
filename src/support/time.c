@@ -8,7 +8,8 @@
 
 #include "wt_internal.h"
 
-#define	TIMER_ACCURACY 25
+#define	TIMER_PRECISION_MS 1
+#define	TIMER_RECHECK_PERIOD 25
 
 /*
  * __time_check_monotonic --
@@ -72,7 +73,14 @@ __wt_seconds(WT_SESSION_IMPL *session, time_t *timep)
 
 /*
  * __clock_server --
- *	The time server
+ *	Within WiredTiger there are a number of places where we wish to time
+ *	the execution of operations, but the cost of calling time() is too high.
+ *	To work around this issue, we create a clock server below which keeps
+ *	time on the connection accessible globally.
+ *
+ * 	The clock server aims to keep time to roughly the precision of the
+ * 	TIMER_PRECISION_MS value and we accept that sometimes things may skew
+ *	until the next reset.
  */
 static WT_THREAD_RET
 __clock_server(void *arg)
@@ -90,18 +98,24 @@ __clock_server(void *arg)
 		 * We re-capture timing the long way every so often to ensure
 		 * that we don't skew too much in our timing.
 		 */
-		if (timer_runs % TIMER_ACCURACY == 0) {
+		if (timer_runs % TIMER_RECHECK_PERIOD == 0) {
 			__wt_epoch(NULL, &conn->epoch_clock);
 		} else {
-			if (conn->epoch_clock.tv_nsec >= 999999000) {
+			/*
+			 * Fuzzy time tracking means we don't mind loosing some
+			 * precision when incrementing the time here.
+			 */
+			if (conn->epoch_clock.tv_nsec >=
+			    1000000000 - (TIMER_PRECISION_MS * WT_THOUSAND)) {
 				conn->epoch_clock.tv_sec++;
 				conn->epoch_clock.tv_nsec = 0;
 			} else {
-				conn->epoch_clock.tv_nsec += 1000;
+				conn->epoch_clock.tv_nsec
+				    += TIMER_PRECISION_MS * WT_THOUSAND;
 			}
 		}
 
-		__wt_sleep(0, 1);
+		__wt_sleep(0, TIMER_PRECISION_MS);
 		timer_runs += 1;
 	}
 	return (WT_THREAD_RET_VALUE);
@@ -139,11 +153,11 @@ __wt_clock_server_destroy(WT_SESSION_IMPL *session)
 	conn = S2C(session);
 
 	/*
-	 * Clear the clock server flag and then sleep for 2 microseconds to
+	 * Clear the clock server flag and then sleep for 2 clock sleeps to
 	 * allow the clock server to finish.
 	 */
 	F_CLR(conn, WT_CONN_SERVER_CLOCK);
-	__wt_sleep(0, 2);
+	__wt_sleep(0, 2 * TIMER_PRECISION_MS);
 
 	if (conn->sweep_tid_set) {
 		WT_RET(__wt_thread_join(session, conn->clock_tid));
