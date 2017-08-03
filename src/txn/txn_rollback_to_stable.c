@@ -14,13 +14,14 @@
  *	Remove any updates that need to be rolled back from the lookaside file.
  */
 static int
-__txn_rollback_to_stable_lookaside_fixup(
-    WT_SESSION_IMPL *session, wt_timestamp_t *rollback_timestamp)
+__txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
+	WT_DECL_TIMESTAMP(rollback_timestamp)
 	WT_ITEM las_addr, las_key, las_timestamp;
+	WT_TXN_GLOBAL *txn_global;
 	uint64_t las_counter, las_txnid, remove_cnt;
 	uint32_t las_id, session_flags;
 
@@ -29,6 +30,17 @@ __txn_rollback_to_stable_lookaside_fixup(
 	remove_cnt = 0;
 	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
 	WT_CLEAR(las_timestamp);
+
+	/*
+	 * Copy the stable timestamp, otherwise we'd need to lock it each time
+	 * it's accessed. Even though the stable timestamp isn't supposed to be
+	 * updated while rolling back, accessing it without a lock would
+	 * violate protocol.
+	 */
+	txn_global = &S2C(session)->txn_global;
+	__wt_readlock(session, &txn_global->rwlock);
+	__wt_timestamp_set(&rollback_timestamp, &txn_global->stable_timestamp);
+	__wt_readunlock(session, &txn_global->rwlock);
 
 	__wt_las_cursor(session, &cursor, &session_flags);
 
@@ -44,9 +56,13 @@ __txn_rollback_to_stable_lookaside_fixup(
 		if (__bit_test(conn->stable_rollback_bitstring, las_id))
 			continue;
 
-		if (!__wt_timestamp_iszero(las_timestamp.data) &&
-		    __wt_timestamp_cmp(
-		    rollback_timestamp, las_timestamp.data) < 0) {
+		/*
+		 * Entries with no timestamp will have a timestamp of zero,
+		 * which will fail the following check and cause them to never
+		 * be removed.
+		 */
+		if (__wt_timestamp_cmp(
+		    &rollback_timestamp, las_timestamp.data) < 0) {
 			WT_ERR(cursor->remove(cursor));
 			++remove_cnt;
 		}
@@ -81,9 +97,12 @@ __txn_abort_newer_update(WT_SESSION_IMPL *session,
 
 	aborted_one = false;
 	for (next_upd = upd; next_upd != NULL; next_upd = next_upd->next) {
-		/* Only updates with timestamps will be aborted */
-		if (!__wt_timestamp_iszero(&next_upd->timestamp) &&
-		    __wt_timestamp_cmp(
+		/*
+		 * Updates with no timestamp will have a timestamp of zero
+		 * which will fail the following check and cause them to never
+		 * be aborted.
+		 */
+		if (__wt_timestamp_cmp(
 		    rollback_timestamp, &next_upd->timestamp) < 0) {
 			next_upd->txnid = WT_TXN_ABORTED;
 			__wt_timestamp_set_zero(&next_upd->timestamp);
@@ -242,16 +261,25 @@ static int
 __txn_rollback_to_stable_btree(
     WT_SESSION_IMPL *session, const char *cfg[])
 {
-	WT_CONFIG_ITEM cval;
 	WT_DECL_RET;
 	WT_DECL_TIMESTAMP(rollback_timestamp)
 	WT_BTREE *btree;
+	WT_TXN_GLOBAL *txn_global;
+
+	WT_UNUSED(cfg);
 
 	btree = S2BT(session);
+	txn_global = &S2C(session)->txn_global;
 
-	/* Logged files don't get their commits wiped - that wouldn't be safe */
-	if (FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED) &&
-	    !F_ISSET(btree, WT_BTREE_NO_LOGGING)) {
+	/*
+	 * Immediately durable files don't get their commits wiped. This case
+	 * mostly exists to support the semantic required for the oplog in
+	 * MongoDB - updates that have been made to the oplog should not be
+	 * aborted. It also wouldn't be safe to roll back updates for any
+	 * table that had it's records logged, since those updates would be
+	 * recovered after a crash making them inconsistent.
+	 */
+	if (__wt_btree_immediately_durable(session)) {
 		/*
 		 * Add the btree ID to the bitstring, so we can exclude any
 		 * lookaside entries for this btree.
@@ -273,19 +301,15 @@ __txn_rollback_to_stable_btree(
 		WT_RET_MSG(session, EINVAL, "rollback_to_stable "
 		    "is only supported for row store btrees");
 
-	ret = __wt_config_gets(session, cfg, "timestamp", &cval);
-
 	/*
-	 * This check isn't strictly necessary, since we've already done a
-	 * check of this configuration between ourselves and the API, but
-	 * it's better safe than sorry, and otherwise difficult to structure
-	 * the code in a way that makes static checkers happy.
+	 * Copy the stable timestamp, otherwise we'd need to lock it each time
+	 * it's accessed. Even though the stable timestamp isn't supposed to be
+	 * updated while rolling back, accessing it without a lock would
+	 * violate protocol.
 	 */
-	if (ret != 0 || cval.len == 0)
-		WT_RET_MSG(session, EINVAL, "rollback_to_stable "
-		    "requires a timestamp in the configuration string");
-	WT_RET(__wt_txn_parse_timestamp(session,
-	    "rollback_to_stable", &rollback_timestamp, &cval));
+	__wt_readlock(session, &txn_global->rwlock);
+	__wt_timestamp_set(&rollback_timestamp, &txn_global->stable_timestamp);
+	__wt_readunlock(session, &txn_global->rwlock);
 
 	/*
 	 * Ensure the eviction server is out of the file - we don't
@@ -306,22 +330,20 @@ __txn_rollback_to_stable_btree(
  *	Ensure the rollback request is reasonable.
  */
 static int
-__txn_rollback_to_stable_check(
-    WT_SESSION_IMPL *session, wt_timestamp_t *rollback_timestamp)
+__txn_rollback_to_stable_check(WT_SESSION_IMPL *session)
 {
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_STATE *s;
 	uint32_t i, session_cnt;
-	int cmp;
+	bool stable_set;
 
 	txn_global = &S2C(session)->txn_global;
 	__wt_readlock(session, &txn_global->rwlock);
-	cmp = __wt_timestamp_cmp(
-	    rollback_timestamp, &txn_global->stable_timestamp);
+	stable_set = __wt_timestamp_iszero(&txn_global->stable_timestamp);
 	__wt_readunlock(session, &txn_global->rwlock);
-	if (cmp < 0)
+	if (!stable_set)
 		WT_RET_MSG(session, EINVAL, "rollback_to_stable requires a "
-		    "timestamp greater or equal to the stable timestamp");
+		    "stable timestamp");
 
 	/*
 	 * Help the user - see if they have any active transactions. I'd
@@ -347,8 +369,7 @@ __txn_rollback_to_stable_check(
  *	the passed in timestamp.
  */
 int
-__wt_txn_rollback_to_stable(
-    WT_SESSION_IMPL *session, const char *cfg[])
+__wt_txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
 {
 #ifndef HAVE_TIMESTAMPS
 	WT_UNUSED(cfg);
@@ -358,23 +379,10 @@ __wt_txn_rollback_to_stable(
 	    "support");
 #else
 	WT_CONNECTION_IMPL *conn;
-	WT_CONFIG_ITEM cval;
 	WT_DECL_RET;
-	WT_DECL_TIMESTAMP(rollback_timestamp)
 
 	conn = S2C(session);
-	/*
-	 * Get the timestamp.
-	 */
-	ret = __wt_config_gets(session, cfg, "timestamp", &cval);
-	if (ret != 0 || cval.len == 0)
-		WT_RET_MSG(session, EINVAL, "rollback_to_stable "
-		    "requires a timestamp in the configuration string");
-
-	WT_RET(__wt_txn_parse_timestamp(session,
-	    "rollback_to_stable", &rollback_timestamp, &cval));
-	WT_RET(__txn_rollback_to_stable_check(
-	    session, &rollback_timestamp));
+	WT_RET(__txn_rollback_to_stable_check(session));
 
 	/* Allocate a non-durable btree bitstring */
 	WT_RET(__bit_alloc(session,
@@ -388,8 +396,7 @@ __wt_txn_rollback_to_stable(
 	 * trees in cache populates a list that is used to check which
 	 * lookaside records should be removed.
 	 */
-	WT_ERR(__txn_rollback_to_stable_lookaside_fixup(
-	    session, &rollback_timestamp));
+	WT_ERR(__txn_rollback_to_stable_lookaside_fixup(session));
 err:	__wt_free(session, conn->stable_rollback_bitstring);
 	return (ret);
 #endif

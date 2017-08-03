@@ -178,11 +178,6 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
 
-static const WT_CONFIG_CHECK confchk_WT_CONNECTION_rollback_to_stable[] = {
-	{ "timestamp", "string", NULL, NULL, NULL, 0 },
-	{ NULL, NULL, NULL, NULL, NULL, 0 }
-};
-
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_set_timestamp[] = {
 	{ "oldest_timestamp", "string", NULL, NULL, NULL, 0 },
 	{ "stable_timestamp", "string", NULL, NULL, NULL, 0 },
@@ -1149,8 +1144,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_WT_CONNECTION_reconfigure, 21
 	},
 	{ "WT_CONNECTION.rollback_to_stable",
-	  "timestamp=",
-	  confchk_WT_CONNECTION_rollback_to_stable, 1
+	  "",
+	  NULL, 0
 	},
 	{ "WT_CONNECTION.set_file_system",
 	  "",

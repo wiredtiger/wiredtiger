@@ -1263,13 +1263,7 @@ methods = {
         that are not being logged.  See @ref transaction_timestamps'''),
 ]),
 
-'WT_CONNECTION.rollback_to_stable' : Method([
-    Config('timestamp', '', r'''
-        the most recent timestamp where updates will remain visible after the
-        rollback completes. Supplied value must be greater than or equal to
-        the current stable timestamp. Any updates made to logged tables will
-        not be rolled back.  Any updates made without an associated timestamp
-        will not be rolled back. See @ref transaction_timestamps'''), ]),
+'WT_CONNECTION.rollback_to_stable' : Method([]),
 
 'WT_SESSION.reconfigure' : Method(session_config),
 
