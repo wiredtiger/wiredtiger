@@ -153,9 +153,9 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	if (conn->lock_fh != NULL)
 		WT_TRET(__wt_close(session, &conn->lock_fh));
 
-	/* Close any oplog files */
-	if (session->oplog_fh != NULL)
-		WT_IGNORE_RET(__wt_close(session, &session->oplog_fh));
+	/* Close any optrack files */
+	if (session->optrack_fh != NULL)
+		WT_IGNORE_RET(__wt_close(session, &session->optrack_fh));
 
 	/* Close any file handles left open. */
 	WT_TRET(__wt_close_connection_close(session));

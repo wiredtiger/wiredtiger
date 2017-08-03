@@ -355,6 +355,7 @@ union __wt_rand_state;
 #include "lsm.h"
 #include "meta.h"
 #include "os.h"
+#include "optrack.h"
 #include "schema.h"
 #include "thread_group.h"
 #include "txn.h"
@@ -391,6 +392,8 @@ union __wt_rand_state;
 #include "os_fstream.i"
 #include "packing.i"
 #include "serial.i"
+
+#include "optrack.i"                    /* relies os_fhandle.i */
 
 #if defined(__cplusplus)
 }

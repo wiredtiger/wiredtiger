@@ -1063,6 +1063,94 @@ err:	API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
 /*
+ * __conn_optrack_dir --
+ *	Set the directory for operation logging
+ */
+static int
+__conn_optrack_dir(WT_SESSION_IMPL *session, const char *home,
+		   const char *cfg[])
+{
+	WT_CONFIG_ITEM cval;
+
+	/* Only use the environment variable if configured. */
+	WT_RET(__wt_config_gets(session, cfg, "use_environment", &cval));
+	if (cval.val != 0 &&
+	    __wt_getenv(session, "WIREDTIGER_OPTRACK",
+			&S2C(session)->optrack) == 0)
+		return (0);
+
+        /* If the application specifies a home directory, use it. */
+	if (home != NULL)
+		goto copy;
+
+	/*
+	 * If there's no WIREDTIGER_OPTRACK environment variable, and the
+	 * application did not specify a home directory use ".".
+	 */
+	home = ".";
+
+	/*
+	 * A similar function __conn_home makes a security check here.
+	 * Do we need to make similar checks?
+	 */
+
+copy:	return (__wt_strdup(session, home, &S2C(session)->optrack));
+}
+
+/*
+ * __conn_optrack_setup --
+ *     Set up operation logging.
+ */
+
+static int
+__conn_optrack_setup(WT_SESSION_IMPL *session, const char *home,
+		   const char *cfg[])
+{
+	bool exists;
+	char optrack_map_name[PATH_MAX];
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+
+	conn = S2C(session);
+
+	/* Set up the directory for operation logs. */
+	WT_RET(__conn_optrack_dir(session, home, cfg));
+
+	/*
+	 * Open the file in the same directory that will hold
+	 * a map of translations between function names and
+	 * function IDs. If the file exists, remove it.
+	 */
+	snprintf(optrack_map_name, PATH_MAX, "%s/optrack-map.txt",
+		 conn->optrack);
+	WT_RET(__wt_fs_exist(session, optrack_map_name, &exists));
+	if (exists)
+		WT_RET(__wt_fs_remove(session, optrack_map_name, 1));
+	WT_RET(__wt_open(session, optrack_map_name,
+			 WT_FS_OPEN_FILE_TYPE_REGULAR,
+			 WT_FS_OPEN_CREATE, &conn->optrack_map_fh));
+	WT_RET(__wt_spin_init(session, &conn->optrack_map_spinlock,
+			      "optrack map spinlock"));
+	return (ret);
+}
+
+/*
+ * __conn_optrack_teardown --
+ *      Clean up connection-wide resources used for operation logging.
+ */
+static void
+__conn_optrack_teardown(WT_SESSION_IMPL *session)
+{
+	WT_CONNECTION_IMPL *conn;
+
+	conn = S2C(session);
+
+	__wt_spin_destroy(session, &conn->optrack_map_spinlock);
+	WT_IGNORE_RET(__wt_close(session, &conn->optrack_map_fh));
+}
+
+
+/*
  * __conn_is_new --
  *	WT_CONNECTION->is_new method.
  */
@@ -1125,6 +1213,7 @@ err:	/*
 			WT_TRET(wt_session->close(wt_session, config));
 		}
 
+	__conn_optrack_teardown(session);
 	WT_TRET(__wt_connection_close(conn));
 
 	/* We no longer have a session, don't try to update it. */
@@ -1521,61 +1610,6 @@ __conn_config_env(WT_SESSION_IMPL *session, const char *cfg[], WT_ITEM *cbuf)
 err:	__wt_free(session, env_config);
 
       return (ret);
-}
-
-/*
- * __conn_oplog_dir --
- *	Set the directory for operation logging
- */
-static int
-__conn_oplog_dir(WT_SESSION_IMPL *session, const char *home,
-		   const char *cfg[])
-{
-	WT_CONFIG_ITEM cval;
-
-	/* Only use the environment variable if configured. */
-	WT_RET(__wt_config_gets(session, cfg, "use_environment", &cval));
-	if (cval.val != 0 &&
-	    __wt_getenv(session, "WIREDTIGER_OPLOG", &S2C(session)->oplog) == 0)
-		return (0);
-
-        /* If the application specifies a home directory, use it. */
-	if (home != NULL)
-		goto copy;
-
-	/*
-	 * If there's no WIREDTIGER_OPLOG environment variable, and the
-	 * application did not specify a home directory use ".".
-	 */
-	home = ".";
-
-	/*
-	 * A similar function __conn_home makes a security check here.
-	 * Do we need to make similar checks?
-	 */
-
-copy:	return (__wt_strdup(session, home, &S2C(session)->oplog));
-}
-
-/*
- * __conn_oplog_setup --
- *     Set up operation logging.
- */
-
-static int
-__conn_oplog_setup(WT_SESSION_IMPL *session, const char *home,
-		   const char *cfg[])
-{
-	WT_CONNECTION_IMPL *conn;
-	WT_DECL_RET;
-
-	conn = S2C(session);
-
-	/* Set up the directory for operation logs. */
-	return __conn_oplog_dir(session, home, cfg);
-
-err:
-	return (ret);
 }
 
 /*
@@ -2376,9 +2410,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	/* Set the database home so extensions have access to it. */
 	WT_ERR(__conn_home(session, home, cfg));
 
-	/* Set up operation logging. */
-	WT_ERR(__conn_oplog_setup(session, home, cfg));
-
 	/*
 	 * Load early extensions before doing further initialization (one early
 	 * extension is to configure a file system).
@@ -2406,6 +2437,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	}
 	WT_ERR(
 	    __conn_chk_file_system(session, F_ISSET(conn, WT_CONN_READONLY)));
+
+	/* Set up operation logging. */
+	WT_ERR(__conn_optrack_setup(session, home, cfg));
 
 	/* Make sure no other thread of control already owns this database. */
 	WT_ERR(__conn_single(session, cfg));

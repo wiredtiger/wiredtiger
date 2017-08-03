@@ -239,8 +239,8 @@ __session_close(WT_SESSION *wt_session, const char *config)
 	WT_TRET(__wt_session_release_resources(session));
 
 	/* Close the file where we tracked long operations */
-	if (session->oplog_fh != NULL)
-		WT_IGNORE_RET(__wt_close(session, &session->oplog_fh));
+	if (session->optrack_fh != NULL)
+		WT_IGNORE_RET(__wt_close(session, &session->optrack_fh));
 
 	/* The API lock protects opening and closing of sessions. */
 	__wt_spin_lock(session, &conn->api_lock);
@@ -1747,6 +1747,8 @@ __open_session(WT_CONNECTION_IMPL *conn,
     WT_EVENT_HANDLER *event_handler, const char *config,
     WT_SESSION_IMPL **sessionp)
 {
+	char optrack_fname[PATH_MAX];
+
 	static const WT_SESSION stds = {
 		NULL,
 		NULL,
@@ -1902,11 +1904,10 @@ __open_session(WT_CONNECTION_IMPL *conn,
 		    __session_reconfigure((WT_SESSION *)session_ret, config));
 
 	/* Initialize long-operaton tracking */
-	char oplog_fname[PATH_MAX];
-	snprintf(oplog_fname, PATH_MAX, "%s/oplog.%d", conn->oplog,
+	snprintf(optrack_fname, PATH_MAX, "%s/optrack.%d", conn->optrack,
 		 session_ret->id);
-	WT_ERR(__wt_open(session, oplog_fname, WT_FS_OPEN_FILE_TYPE_REGULAR,
-			 WT_FS_OPEN_CREATE, &session_ret->oplog_fh));
+	WT_ERR(__wt_open(session, optrack_fname, WT_FS_OPEN_FILE_TYPE_REGULAR,
+			 WT_FS_OPEN_CREATE, &session_ret->optrack_fh));
 
 	/*
 	 * Publish: make the entry visible to server threads.  There must be a

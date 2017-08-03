@@ -30,17 +30,6 @@ struct __wt_hazard {
 #endif
 };
 
-/*
- * WT_TRACK_RECORD --
- *     A structure for logging potentially long operations.
- */
-struct __wt_track_record {
-	uint64_t timestamp;
-	uint64_t op_id;
-	uint16_t op_type;
-};
-
-
 /* Get the connection implementation for a session */
 #define	S2C(session)	  ((WT_CONNECTION_IMPL *)(session)->iface.connection)
 
@@ -233,33 +222,11 @@ struct __wt_session_impl {
 	uint32_t   nhazard;		/* Count of active hazard pointers */
 	WT_HAZARD *hazard;		/* Hazard pointer array */
 
-
 	/*
 	 * Long operation tracking.
 	 */
-#define MAXRECS 16384
-#define BUFSIZE MAXRECS * sizeof(WT_TRACK_RECORD)
-        WT_TRACK_RECORD oplog_buf[BUFSIZE];
-	uint oplogbuf_ptr;
-        uint64_t oplog_offset;
-	WT_FH *oplog_fh;
+        WT_TRACK_RECORD optrack_buf[WT_OPTRACK_BUFSIZE];
+	uint optrackbuf_ptr;
+        uint64_t optrack_offset;
+	WT_FH *optrack_fh;
 };
-
-#define FUNC_ADDR(s) 0
-
-#define WT_TRACK(s, optype)						\
-	WT_TRACK_RECORD *tr = &(s->oplog_buf[s->oplogbuf_ptr++]);	\
-	tr->timestamp = __wt_rdtsc();					\
-	tr->op_type = optype;						\
-	tr->op_id = (uint64_t)FUNC_ADDR(s);				\
-	if (s->oplogbuf_ptr == MAXRECS) {				\
-		if (s->oplog_fh != NULL) {				\
-			ret = s->oplog_fh->handle->fh_write(            \
-				s->oplog_fh->handle, (WT_SESSION *)s,   \
-				s->oplog_offset, BUFSIZE, s->oplog_buf);\
-			if (ret == 0)                                   \
-				s->oplog_offset += BUFSIZE;             \
-		}                                                       \
-		s->oplogbuf_ptr = 0;					\
-	}
-
