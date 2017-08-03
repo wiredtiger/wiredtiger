@@ -1609,7 +1609,7 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
 	btree = S2BT(session);
 	txn = &session->txn;
 
-	/* Are we using a read timestamp for this checkpoint? */
+	/* Are we using a read timestamp for this checkpoint transaction? */
 	with_timestamp = F_ISSET(txn, WT_TXN_HAS_TS_READ);
 
 	/*

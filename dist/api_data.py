@@ -1257,7 +1257,7 @@ methods = {
         timestamp. Supplied values must be monotonically increasing.
         See @ref transaction_timestamps'''),
     Config('stable_timestamp', '', r'''
-        checkpoints will not include commits the are new the specified
+        checkpoints will not include commits that are newer than the specified
         timestamp in tables configured with \c log=(enabled=false).  Supplied
         values must be monotonically increasing.  The stable timestamp data
         stability only applies to tables that are not being logged.  See @ref

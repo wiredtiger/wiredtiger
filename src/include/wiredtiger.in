@@ -2262,8 +2262,8 @@ struct __wt_connection {
 	 * earlier than the specified timestamp.  Supplied values must be
 	 * monotonically increasing.  See @ref transaction_timestamps., a
 	 * string; default empty.}
-	 * @config{stable_timestamp, checkpoints will not include commits the
-	 * are new the specified timestamp in tables configured with \c
+	 * @config{stable_timestamp, checkpoints will not include commits that
+	 * are newer than the specified timestamp in tables configured with \c
 	 * log=(enabled=false). Supplied values must be monotonically
 	 * increasing.  The stable timestamp data stability only applies to
 	 * tables that are not being logged.  See @ref transaction_timestamps.,
