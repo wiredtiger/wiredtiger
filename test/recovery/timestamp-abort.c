@@ -223,6 +223,7 @@ thread_run(void *arg)
 	/*
 	 * Write our portion of the key space until we're killed.
 	 */
+	printf("Thread %" PRIu32 " starts at %" PRIu64 "\n", td->id, td->start);
 	for (i = td->start; ; ++i) {
 		stable_ts = global_ts++;
 		testutil_check(__wt_snprintf(
@@ -240,9 +241,13 @@ thread_run(void *arg)
 			data.size = 128 * 1024;
 			data.data = large;
 		} else {
+			/*
+			 * Put an informative string into the value so that it
+			 * can be viewed well in a binary dump.
+			 */
 			testutil_check(__wt_snprintf(buf, sizeof(buf),
-			    "thread-%" PRIu64 " ts-%" PRIu64,
-			    i, stable_ts));
+			    "thread:%" PRIu64 " ts:%" PRIu64 " key: %" PRIu64,
+			    td->id, stable_ts, i));
 			data.size = __wt_random(&rnd) % MAX_VAL;
 			data.data = buf;
 		}
@@ -631,8 +636,6 @@ main(int argc, char *argv[])
 				    fname, middle_local, key);
 				fatal = true;
 			}
-#if 0
-/* XXX This can happen until WT-3458 is complete. */
 			/*
 			 * The oplog table should always have all data.
 			 */
@@ -654,7 +657,6 @@ main(int argc, char *argv[])
 				    fname, middle_oplog, key);
 				fatal = true;
 			}
-#endif
 		}
 		if (fclose(fp) != 0)
 			testutil_die(errno, "fclose");
