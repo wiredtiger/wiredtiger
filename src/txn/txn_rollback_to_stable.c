@@ -339,7 +339,7 @@ __txn_rollback_to_stable_check(WT_SESSION_IMPL *session)
 
 	txn_global = &S2C(session)->txn_global;
 	__wt_readlock(session, &txn_global->rwlock);
-	stable_set = __wt_timestamp_iszero(&txn_global->stable_timestamp);
+	stable_set = !__wt_timestamp_iszero(&txn_global->stable_timestamp);
 	__wt_readunlock(session, &txn_global->rwlock);
 	if (!stable_set)
 		WT_RET_MSG(session, EINVAL, "rollback_to_stable requires a "
