@@ -1631,8 +1631,6 @@ __wt_ref_state_yield_sleep(uint64_t *yield_count, uint64_t *sleep_count)
 static inline void
 __wt_stat_read_op_histogram(WT_SESSION_IMPL *session, uint64_t usecs)
 {
-	if (!WT_STAT_PERF_ENABLED(session))
-		return;
 	/*
 	 * Ignore any operation that takes less than 100us to execute. This
 	 * floor value keeps us from having an excessively large smallest
@@ -1663,8 +1661,6 @@ __wt_stat_read_op_histogram(WT_SESSION_IMPL *session, uint64_t usecs)
 static inline void
 __wt_stat_write_op_histogram(WT_SESSION_IMPL *session, uint64_t usecs)
 {
-	if (!WT_STAT_PERF_ENABLED(session))
-		return;
 	/*
 	 * Ignore any operation that takes less than 100us to execute. This
 	 * floor value keeps us from having an excessively large smallest

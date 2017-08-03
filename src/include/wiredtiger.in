@@ -2088,19 +2088,17 @@ struct __wt_connection {
 	 * @config{statistics, Maintain database statistics\, which may impact
 	 * performance.  Choosing "all" maintains all statistics regardless of
 	 * cost\, "fast" maintains a subset of statistics that are relatively
-	 * inexpensive\, "none" turns off all statistics.  The "perf"
-	 * configuration enables the gathering of performance statistics.  These
-	 * can be quite costly\, to gather but provide insight into when delays
-	 * in operation execution may occur.  The "clear" configuration resets
-	 * statistics after they are gathered\, where appropriate (for example\,
-	 * a cache size statistic is not cleared\, while the count of cursor
-	 * insert operations will be cleared). When "clear" is configured for
-	 * the database\, gathered statistics are reset each time a statistics
-	 * cursor is used to gather statistics\, as well as each time statistics
-	 * are logged using the \c statistics_log configuration.  See @ref
-	 * statistics for more information., a list\, with values chosen from
-	 * the following options: \c "all"\, \c "cache_walk"\, \c "fast"\, \c
-	 * "none"\, \c "clear"\, \c "perf"\, \c "tree_walk"; default \c none.}
+	 * inexpensive\, "none" turns off all statistics.  The "clear"
+	 * configuration resets statistics after they are gathered\, where
+	 * appropriate (for example\, a cache size statistic is not cleared\,
+	 * while the count of cursor insert operations will be cleared). When
+	 * "clear" is configured for the database\, gathered statistics are
+	 * reset each time a statistics cursor is used to gather statistics\, as
+	 * well as each time statistics are logged using the \c statistics_log
+	 * configuration.  See @ref statistics for more information., a list\,
+	 * with values chosen from the following options: \c "all"\, \c
+	 * "cache_walk"\, \c "fast"\, \c "none"\, \c "clear"\, \c "tree_walk";
+	 * default \c none.}
 	 * @config{statistics_log = (, log any statistics the database is
 	 * configured to maintain\, to a file.  See @ref statistics for more
 	 * information.  Enabling the statistics log server uses a session from
@@ -2659,18 +2657,16 @@ struct __wt_connection {
  * @config{statistics, Maintain database statistics\, which may impact
  * performance.  Choosing "all" maintains all statistics regardless of cost\,
  * "fast" maintains a subset of statistics that are relatively inexpensive\,
- * "none" turns off all statistics.  The "perf" configuration enables the
- * gathering of performance statistics.  These can be quite costly\, to gather
- * but provide insight into when delays in operation execution may occur.  The
- * "clear" configuration resets statistics after they are gathered\, where
- * appropriate (for example\, a cache size statistic is not cleared\, while the
- * count of cursor insert operations will be cleared). When "clear" is
- * configured for the database\, gathered statistics are reset each time a
- * statistics cursor is used to gather statistics\, as well as each time
- * statistics are logged using the \c statistics_log configuration.  See @ref
- * statistics for more information., a list\, with values chosen from the
- * following options: \c "all"\, \c "cache_walk"\, \c "fast"\, \c "none"\, \c
- * "clear"\, \c "perf"\, \c "tree_walk"; default \c none.}
+ * "none" turns off all statistics.  The "clear" configuration resets statistics
+ * after they are gathered\, where appropriate (for example\, a cache size
+ * statistic is not cleared\, while the count of cursor insert operations will
+ * be cleared). When "clear" is configured for the database\, gathered
+ * statistics are reset each time a statistics cursor is used to gather
+ * statistics\, as well as each time statistics are logged using the \c
+ * statistics_log configuration.  See @ref statistics for more information., a
+ * list\, with values chosen from the following options: \c "all"\, \c
+ * "cache_walk"\, \c "fast"\, \c "none"\, \c "clear"\, \c "tree_walk"; default
+ * \c none.}
  * @config{statistics_log = (, log any statistics the database is configured to
  * maintain\, to a file.  See @ref statistics for more information.  Enabling
  * the statistics log server uses a session from the configured session_max., a

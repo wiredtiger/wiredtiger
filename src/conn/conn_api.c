@@ -1803,13 +1803,6 @@ __conn_statistics_config(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_RET_NOTFOUND_OK(ret);
 
 	if ((ret = __wt_config_subgets(
-	    session, &cval, "perf", &sval)) == 0 && sval.val != 0) {
-		LF_SET(WT_STAT_TYPE_PERF);
-		++set;
-	}
-	WT_RET_NOTFOUND_OK(ret);
-
-	if ((ret = __wt_config_subgets(
 	    session, &cval, "all", &sval)) == 0 && sval.val != 0) {
 		LF_SET(
 		    WT_STAT_TYPE_ALL | WT_STAT_TYPE_CACHE_WALK |
@@ -1820,8 +1813,8 @@ __conn_statistics_config(WT_SESSION_IMPL *session, const char *cfg[])
 
 	if (set > 1)
 		WT_RET_MSG(session, EINVAL,
-		    "Only one of all, fast, perf, none configuration values "
-		    "should be specified");
+		    "Only one of all, fast, none configuration values should "
+		    "be specified");
 
 	/*
 	 * Now that we've parsed general statistics categories, process
