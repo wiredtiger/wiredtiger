@@ -11,6 +11,8 @@ test "$TESTUTIL_ENABLE_LONG_TESTS" = "1" || exit 0
 export DONT_FAKE_MONOTONIC=1
 RUN_OS=$(uname -s)
 
+# linux we run with cpu affinity, to control the execution time
+# if we don't control the execution time this test is not effective
 echo "test read write lock for time shifting using libfaketime"
 SEC1=`date +%s`
 if [ "$RUN_OS" = "Darwin" ]
@@ -33,12 +35,8 @@ then
     export DYLD_FORCE_FLAT_NAMESPACE=y
     export DYLD_INSERT_LIBRARIES=./libfaketime.1.dylib
     ./test_rwlock &
-elif [ "$RUN_OS" = "Linux" ]
-then
-    LD_PRELOAD=./libfaketimeMT.so.1 taskset -c 0-1 ./test_rwlock &
 else
-    echo "not able to decide running OS, so exiting"
-    exit 1
+    LD_PRELOAD=./libfaketimeMT.so.1 taskset -c 0-1 ./test_rwlock &
 fi
 
 # get pid of test run in background
