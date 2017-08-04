@@ -74,9 +74,6 @@ struct __wt_txn_state {
 	volatile uint64_t pinned_id;
 	volatile uint64_t metadata_pinned;
 
-	WT_DECL_TIMESTAMP(commit_timestamp)
-	WT_DECL_TIMESTAMP(read_timestamp)
-
 	WT_CACHE_LINE_PAD_END
 };
 
@@ -95,13 +92,26 @@ struct __wt_txn_global {
 	WT_DECL_TIMESTAMP(commit_timestamp)
 	WT_DECL_TIMESTAMP(oldest_timestamp)
 	WT_DECL_TIMESTAMP(pinned_timestamp)
-	bool has_commit_timestamp, has_oldest_timestamp, has_pinned_timestamp;
+	WT_DECL_TIMESTAMP(stable_timestamp)
+	bool has_commit_timestamp;
+	bool has_oldest_timestamp;
+	bool has_pinned_timestamp;
+	bool has_stable_timestamp;
 	bool oldest_is_pinned;
+	bool stable_is_pinned;
 
 	WT_SPINLOCK id_lock;
 
 	/* Protects the active transaction states. */
 	WT_RWLOCK rwlock;
+
+	/* List of transactions sorted by commit timestamp. */
+	WT_RWLOCK commit_timestamp_rwlock;
+	TAILQ_HEAD(__wt_txn_cts_qh, __wt_txn) commit_timestamph;
+
+	/* List of transactions sorted by read timestamp. */
+	WT_RWLOCK read_timestamp_rwlock;
+	TAILQ_HEAD(__wt_txn_rts_qh, __wt_txn) read_timestamph;
 
 	/*
 	 * Track information about the running checkpoint. The transaction
@@ -117,6 +127,7 @@ struct __wt_txn_global {
 	volatile bool	  checkpoint_running;	/* Checkpoint running */
 	volatile uint32_t checkpoint_id;	/* Checkpoint's session ID */
 	WT_TXN_STATE	  checkpoint_state;	/* Checkpoint's txn state */
+	WT_TXN           *checkpoint_txn;	/* Checkpoint's txn structure */
 
 	volatile uint64_t metadata_pinned;	/* Oldest ID for metadata */
 
@@ -194,8 +205,25 @@ struct __wt_txn {
 	uint32_t snapshot_count;
 	uint32_t txn_logsync;	/* Log sync configuration */
 
-	WT_DECL_TIMESTAMP(read_timestamp)
+	/*
+	 * Timestamp copied into updates created by this transaction.
+	 *
+	 * In some use cases, this can be updated while the transaction is
+	 * running.
+	 */
 	WT_DECL_TIMESTAMP(commit_timestamp)
+
+	/*
+	 * Set to the first commit timestamp used in the transaction and fixed
+	 * while the transaction is on the public list of committed timestamps.
+	 */
+	WT_DECL_TIMESTAMP(first_commit_timestamp)
+
+	/* Read updates committed as of this timestamp. */
+	WT_DECL_TIMESTAMP(read_timestamp)
+
+	TAILQ_ENTRY(__wt_txn) commit_timestampq;
+	TAILQ_ENTRY(__wt_txn) read_timestampq;
 
 	/* Array of modifications by this transaction. */
 	WT_TXN_OP      *mod;
@@ -221,8 +249,10 @@ struct __wt_txn {
 #define	WT_TXN_HAS_TS_COMMIT	0x010
 #define	WT_TXN_HAS_TS_READ	0x020
 #define	WT_TXN_NAMED_SNAPSHOT	0x040
-#define	WT_TXN_READONLY		0x080
-#define	WT_TXN_RUNNING		0x100
-#define	WT_TXN_SYNC_SET		0x200
+#define	WT_TXN_PUBLIC_TS_COMMIT	0x080
+#define	WT_TXN_PUBLIC_TS_READ	0x100
+#define	WT_TXN_READONLY		0x200
+#define	WT_TXN_RUNNING		0x400
+#define	WT_TXN_SYNC_SET		0x800
 	uint32_t flags;
 };

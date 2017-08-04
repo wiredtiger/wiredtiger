@@ -86,7 +86,7 @@ __col_instantiate(WT_SESSION_IMPL *session,
 	/* Search the page and add updates. */
 	WT_RET(__wt_col_search(session, recno, ref, cbt));
 	WT_RET(__wt_col_modify(
-	    session, cbt, recno, NULL, upd, WT_UPDATE_STANDARD, false));
+	    session, cbt, recno, NULL, upd, upd->type, false));
 	return (0);
 }
 
@@ -100,8 +100,7 @@ __row_instantiate(WT_SESSION_IMPL *session,
 {
 	/* Search the page and add updates. */
 	WT_RET(__wt_row_search(session, key, ref, cbt, true));
-	WT_RET(__wt_row_modify(
-	    session, cbt, key, NULL, upd, WT_UPDATE_STANDARD, false));
+	WT_RET(__wt_row_modify(session, cbt, key, NULL, upd, upd->type, false));
 	return (0);
 }
 
@@ -187,14 +186,13 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 		/* Allocate the WT_UPDATE structure. */
 		WT_ERR(cursor->get_value(cursor,
 		    &upd_txnid, &las_timestamp, &upd_type, &las_value));
-		WT_ERR(__wt_update_alloc(session, &las_value, &upd, &incr,
-		    upd_type == WT_UPDATE_DELETED ?
-		    WT_UPDATE_DELETED : WT_UPDATE_STANDARD));
+		WT_ERR(__wt_update_alloc(
+		    session, &las_value, &upd, &incr, upd_type));
 		total_incr += incr;
 		upd->txnid = upd_txnid;
 #ifdef HAVE_TIMESTAMPS
 		WT_ASSERT(session, las_timestamp.size == WT_TIMESTAMP_SIZE);
-		__wt_timestamp_set(upd->timestamp, las_timestamp.data);
+		__wt_timestamp_set(&upd->timestamp, las_timestamp.data);
 #endif
 
 		switch (page->type) {
@@ -487,7 +485,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 	WT_BTREE *btree;
 	WT_DECL_RET;
 	WT_PAGE *page;
-	u_int sleep_cnt, wait_cnt;
+	uint64_t sleep_cnt, wait_cnt;
 	bool busy, cache_work, evict_soon, stalled;
 	int force_attempts;
 
@@ -672,9 +670,8 @@ skip_evict:
 			if (cache_work)
 				continue;
 		}
-		sleep_cnt = WT_MIN(sleep_cnt + WT_THOUSAND, 10000);
+		__wt_ref_state_yield_sleep(&wait_cnt, &sleep_cnt);
 		WT_STAT_CONN_INCRV(session, page_sleep, sleep_cnt);
-		__wt_sleep(0, sleep_cnt);
 	}
 }
 

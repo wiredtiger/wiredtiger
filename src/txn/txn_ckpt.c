@@ -571,7 +571,9 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_STATE *txn_state;
-	char timestamp_config[100];
+	char timestamp_buf[2 * WT_TIMESTAMP_SIZE + 1], timestamp_config[100];
+	const char *query_cfg[] = { WT_CONFIG_BASE(session,
+	    WT_CONNECTION_query_timestamp), "get=stable", NULL };
 	const char *txn_cfg[] = { WT_CONFIG_BASE(session,
 	    WT_SESSION_begin_transaction), "isolation=snapshot", NULL, NULL };
 
@@ -580,11 +582,31 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	txn_global = &conn->txn_global;
 	txn_state = WT_SESSION_TXN_STATE(session);
 
+	/*
+	 * Someone giving us a specific timestamp overrides the general
+	 * use_timestamp.
+	 */
 	WT_RET(__wt_config_gets(session, cfg, "read_timestamp", &cval));
 	if (cval.len > 0) {
 		WT_RET(__wt_snprintf(timestamp_config, sizeof(timestamp_config),
 		    "read_timestamp=%.*s", (int)cval.len, cval.str));
 		txn_cfg[2] = timestamp_config;
+	} else if (txn_global->has_stable_timestamp) {
+		WT_RET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
+		/*
+		 * Get the stable timestamp currently set.  Then set that as
+		 * the read timestamp for the transaction.
+		 */
+		if (cval.val != 0) {
+			if ((ret = __wt_txn_global_query_timestamp(session,
+			    timestamp_buf, query_cfg)) != 0 &&
+			    ret != WT_NOTFOUND)
+				return (ret);
+			WT_RET(__wt_snprintf(timestamp_config,
+			    sizeof(timestamp_config),
+			    "read_timestamp=%s", timestamp_buf));
+			txn_cfg[2] = timestamp_config;
+		}
 	}
 
 	/*
@@ -625,6 +647,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	__wt_writelock(session, &txn_global->rwlock);
 	txn_global->checkpoint_state = *txn_state;
+	txn_global->checkpoint_txn = txn;
 	txn_global->checkpoint_state.pinned_id = WT_MIN(txn->id, txn->snap_min);
 
 	/*
@@ -645,6 +668,15 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	txn_state->id = txn_state->pinned_id =
 	    txn_state->metadata_pinned = WT_TXN_NONE;
 	__wt_writeunlock(session, &txn_global->rwlock);
+
+#ifdef HAVE_TIMESTAMPS
+	/*
+	 * Now that the checkpoint transaction is published, clear it from the
+	 * regular lists.
+	 */
+	__wt_txn_clear_commit_timestamp(session);
+	__wt_txn_clear_read_timestamp(session);
+#endif
 
 	/*
 	 * Get a list of handles we want to flush; for named checkpoints this
@@ -1571,10 +1603,27 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_BTREE *btree;
 	WT_DECL_RET;
+	WT_TXN *txn;
+	bool with_timestamp;
 
 	btree = S2BT(session);
+	txn = &session->txn;
+
+	/* Are we using a read timestamp for this checkpoint transaction? */
+	with_timestamp = F_ISSET(txn, WT_TXN_HAS_TS_READ);
+
+	/*
+	 * For tables with immediate durability (indicated by having logging
+	 * enabled), ignore any read timestamp configured for the checkpoint.
+	 */
+	if (!F_ISSET(btree, WT_BTREE_NO_LOGGING))
+		F_CLR(txn, WT_TXN_HAS_TS_READ);
 
 	ret = __checkpoint_tree(session, true, cfg);
+
+	/* Restore the use of the timestamp for other tables. */
+	if (with_timestamp)
+		F_SET(txn, WT_TXN_HAS_TS_READ);
 
 	/*
 	 * Whatever happened, we aren't visiting this tree again in this
@@ -1665,18 +1714,6 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
 	bulk = F_ISSET(btree, WT_BTREE_BULK);
 
 	/*
-	 * If the handle is already dead or the file isn't durable, force the
-	 * discard.
-	 *
-	 * If the file isn't durable, mark the handle dead, there are asserts
-	 * later on that only dead handles can have modified pages.
-	 */
-	if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT))
-		F_SET(session->dhandle, WT_DHANDLE_DEAD);
-	if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
-		return (__wt_cache_op(session, WT_SYNC_DISCARD));
-
-	/*
 	 * If closing an unmodified file, check that no update is required
 	 * for active readers.
 	 */
@@ -1684,7 +1721,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
 		WT_RET(__wt_txn_update_oldest(
 		    session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 		return (__wt_txn_visible_all(session, btree->rec_max_txn,
-		    WT_TIMESTAMP(btree->rec_max_timestamp)) ?
+		    WT_TIMESTAMP_NULL(&btree->rec_max_timestamp)) ?
 		    __wt_cache_op(session, WT_SYNC_DISCARD) : EBUSY);
 	}
 
