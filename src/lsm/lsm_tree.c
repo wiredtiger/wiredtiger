@@ -242,16 +242,27 @@ err:	__wt_scr_free(session, &tmp);
  */
 int
 __wt_lsm_tree_set_chunk_size(
-    WT_SESSION_IMPL *session, WT_LSM_CHUNK *chunk)
+    WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, WT_LSM_CHUNK *chunk)
 {
+	WT_DATA_SOURCE *dsrc;
 	wt_off_t size;
 	const char *filename;
 
-	filename = chunk->uri;
-	if (!WT_PREFIX_SKIP(filename, "file:"))
-		WT_RET_MSG(session, EINVAL,
-		    "Expected a 'file:' URI: %s", chunk->uri);
-	WT_RET(__wt_fs_size(session, filename, &size));
+	if (lsm_tree->custom_generation != 0 &&
+	    chunk->generation >= lsm_tree->custom_generation) {
+		dsrc = __wt_schema_get_source(session, chunk->uri);
+		if (dsrc != NULL && dsrc->size != NULL) {
+			/* Call the callback. */
+			WT_RET(dsrc->size(
+			    dsrc, (WT_SESSION*)session, chunk->uri, &size));
+		}
+	} else {
+		filename = chunk->uri;
+		if (!WT_PREFIX_SKIP(filename, "file:"))
+			WT_RET_MSG(session, EINVAL,
+			    "Expected a 'file:' URI: %s", chunk->uri);
+		WT_RET(__wt_fs_size(session, filename, &size));
+	}
 
 	chunk->size = (uint64_t)size;
 
@@ -270,10 +281,12 @@ __lsm_tree_cleanup_old(WT_SESSION_IMPL *session, const char *uri)
 	WT_DECL_RET;
 	const char *cfg[] =
 	    { WT_CONFIG_BASE(session, WT_SESSION_drop), "force", NULL };
-	bool exists;
+	bool exists, is_file;
 
-	WT_RET(__wt_fs_exist(session, uri + strlen("file:"), &exists));
-	if (exists)
+	is_file = WT_PREFIX_MATCH(uri, "file:");
+	if (is_file)
+		WT_RET(__wt_fs_exist(session, uri + strlen("file:"), &exists));
+	if (!is_file || exists)
 		WT_WITH_SCHEMA_LOCK(session,
 		    ret = __wt_schema_drop(session, uri, cfg));
 	return (ret);
