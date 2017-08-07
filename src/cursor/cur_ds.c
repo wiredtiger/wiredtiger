@@ -12,11 +12,17 @@
  * __curds_txn_enter --
  *	Do transactional initialization when starting an operation.
  */
-static void
-__curds_txn_enter(WT_SESSION_IMPL *session)
+static int
+__curds_txn_enter(WT_SESSION_IMPL *session, bool update)
 {
+	/* Check if we need to start an autocommit transaction. */
+	if (update)
+		WT_RET(__wt_txn_autocommit_check(session));
+
 	session->ncursors++;				/* XXX */
 	__wt_txn_cursor_op(session);
+
+	return (0);
 }
 
 /*
@@ -185,7 +191,7 @@ __curds_next(WT_CURSOR *cursor)
 	WT_STAT_CONN_INCR(session, cursor_next);
 	WT_STAT_DATA_INCR(session, cursor_next);
 
-	__curds_txn_enter(session);
+	WT_ERR(__curds_txn_enter(session, false));
 
 	F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 	ret = __curds_cursor_resolve(cursor, source->next(source));
@@ -213,7 +219,7 @@ __curds_prev(WT_CURSOR *cursor)
 	WT_STAT_CONN_INCR(session, cursor_prev);
 	WT_STAT_DATA_INCR(session, cursor_prev);
 
-	__curds_txn_enter(session);
+	WT_ERR(__curds_txn_enter(session, false));
 
 	F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 	ret = __curds_cursor_resolve(cursor, source->prev(source));
@@ -265,7 +271,7 @@ __curds_search(WT_CURSOR *cursor)
 	WT_STAT_CONN_INCR(session, cursor_search);
 	WT_STAT_DATA_INCR(session, cursor_search);
 
-	__curds_txn_enter(session);
+	WT_ERR(__curds_txn_enter(session, false));
 
 	WT_ERR(__curds_key_set(cursor));
 	ret = __curds_cursor_resolve(cursor, source->search(source));
@@ -293,7 +299,7 @@ __curds_search_near(WT_CURSOR *cursor, int *exact)
 	WT_STAT_CONN_INCR(session, cursor_search_near);
 	WT_STAT_DATA_INCR(session, cursor_search_near);
 
-	__curds_txn_enter(session);
+	WT_ERR(__curds_txn_enter(session, false));
 
 	WT_ERR(__curds_key_set(cursor));
 	ret =
@@ -319,7 +325,7 @@ __curds_insert(WT_CURSOR *cursor)
 
 	CURSOR_UPDATE_API_CALL(cursor, session, insert);
 
-	__curds_txn_enter(session);
+	WT_ERR(__curds_txn_enter(session, true));
 
 	WT_STAT_CONN_INCR(session, cursor_insert);
 	WT_STAT_DATA_INCR(session, cursor_insert);
@@ -356,7 +362,7 @@ __curds_update(WT_CURSOR *cursor)
 	WT_STAT_DATA_INCR(session, cursor_update);
 	WT_STAT_DATA_INCRV(session, cursor_update_bytes, cursor->value.size);
 
-	__curds_txn_enter(session);
+	WT_ERR(__curds_txn_enter(session, true));
 
 	WT_ERR(__curds_key_set(cursor));
 	WT_ERR(__curds_value_set(cursor));
@@ -387,7 +393,7 @@ __curds_remove(WT_CURSOR *cursor)
 	WT_STAT_DATA_INCR(session, cursor_remove);
 	WT_STAT_DATA_INCRV(session, cursor_remove_bytes, cursor->key.size);
 
-	__curds_txn_enter(session);
+	WT_ERR(__curds_txn_enter(session, true));
 
 	WT_ERR(__curds_key_set(cursor));
 	ret = __curds_cursor_resolve(cursor, source->remove(source));
