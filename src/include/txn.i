@@ -728,3 +728,25 @@ __wt_txn_am_oldest(WT_SESSION_IMPL *session)
 
 	return (true);
 }
+
+/*
+ * __wt_txn_are_any_active --
+ *	Check whether there are any running transactions.
+ */
+static inline int
+__wt_txn_are_any_active(WT_SESSION_IMPL *session, bool *any_active)
+{
+	WT_TXN_GLOBAL *txn_global;
+
+	txn_global = &S2C(session)->txn_global;
+
+	/*
+	 * Ensure the oldest ID is as up to date as possible so we can use a
+	 * simple check to find if there are any running transactions.
+	 */
+	WT_RET(__wt_txn_update_oldest(session,
+	    WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
+
+	*any_active = (txn_global->oldest_id != txn_global->current);
+	return (0);
+}

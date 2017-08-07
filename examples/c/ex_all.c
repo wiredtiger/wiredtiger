@@ -868,7 +868,7 @@ transaction_ops(WT_CONNECTION *conn, WT_SESSION *session)
 	/*! [set oldest timestamp] */
 
 	/*! [rollback to stable] */
-	error_check(conn->rollback_to_stable(conn, "timestamp=2a"));
+	error_check(conn->rollback_to_stable(conn, ""));
 	/*! [rollback to stable] */
 }
 

@@ -895,5 +895,4 @@ __wt_btree_immediately_durable(WT_SESSION_IMPL *session)
 	 */
 	return (FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED) &&
 	    !F_ISSET(btree, WT_BTREE_NO_LOGGING));
-
 }

@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_timestamp04.py
-#   Timestamps: basic semantics
+#   Timestamps: Test that rollback_to_stable obeys expected visibility rules
 #
 
 import datetime
