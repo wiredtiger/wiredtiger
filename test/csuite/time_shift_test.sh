@@ -2,11 +2,24 @@
 
 set -e
 
+# the purpose of this test is to ensure we use monotonic clock instead of
+# realtime clock in our code. we had the instances where WT is hanging when
+# system clock shifts (for eg: due to NTP servers). this test calculates
+# the execution time of a test(test_rwlock), shifts the clock -vely by that
+# time period and reexecutes the test. if the difference in the two execution
+# times is less than 20% test is considered passed. 20% is selected, based on
+# assumption that other factors of the environment will influence the execution
+# time by less than 20%.
+
+
 # uncomment the below line if this has to be run separately
 #export TESTUTIL_ENABLE_LONG_TESTS=1
 
 # We will run only when long tests are enabled.
 test "$TESTUTIL_ENABLE_LONG_TESTS" = "1" || exit 0
+
+EXIT_SUCCESS=0
+EXIT_FAILURE=1
 
 export DONT_FAKE_MONOTONIC=1
 RUN_OS=$(uname -s)
@@ -23,7 +36,7 @@ then
     taskset -c 0-1 ./test_rwlock
 else
     echo "not able to decide running OS, so exiting"
-    exit 1
+    exit $EXIT_FAILURE
 fi
 
 SEC2=`date +%s`
@@ -67,12 +80,15 @@ echo "execution time with -ve time shift : ($DIFF2) seconds"
 
 if [ "$DIFF2" -lt "$DIFF1" ]
 then
-   echo "PASS"
+   echo "pass : execution time is not affected by -ve time shift"
+   exit $EXIT_SUCCESS
 else
    if [ "$PERC" -le 20 ]
    then
-      echo "PASS"
+      echo "pass : execution time is not affected by -ve time shift"
+      exit $EXIT_SUCCESS
    else
-      echo "FAIL"
+      echo "fail : execution time is affected by -ve time shift"
+      exit $EXIT_FAILURE
    fi
 fi
