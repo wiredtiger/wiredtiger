@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-#define	TIMER_PRECISION_MS 1
+#define	TIMER_PRECISION_US 1
 #define	TIMER_RECHECK_PERIOD 25
 
 /*
@@ -79,12 +79,13 @@ __wt_seconds(WT_SESSION_IMPL *session, time_t *timep)
  *	time on the connection accessible globally.
  *
  * 	The clock server aims to keep time to roughly the precision of the
- * 	TIMER_PRECISION_MS value and we accept that sometimes things may skew
+ * 	TIMER_PRECISION_US value and we accept that sometimes things may skew
  *	until the next reset.
  */
 static WT_THREAD_RET
 __clock_server(void *arg)
 {
+	struct timespec time;
 	WT_CONNECTION_IMPL *conn;
 	WT_SESSION_IMPL *session;
 	uint64_t timer_runs;
@@ -99,23 +100,17 @@ __clock_server(void *arg)
 		 * that we don't skew too much in our timing.
 		 */
 		if (timer_runs % TIMER_RECHECK_PERIOD == 0) {
-			__wt_epoch(NULL, &conn->epoch_clock);
+			__wt_epoch(NULL, &time);
+			WT_CLOCK_SET_TIME(session, time);
 		} else {
 			/*
 			 * Fuzzy time tracking means we don't mind loosing some
 			 * precision when incrementing the time here.
 			 */
-			if (conn->epoch_clock.tv_nsec >=
-			    1000000000 - (TIMER_PRECISION_MS * WT_THOUSAND)) {
-				conn->epoch_clock.tv_sec++;
-				conn->epoch_clock.tv_nsec = 0;
-			} else {
-				conn->epoch_clock.tv_nsec
-				    += TIMER_PRECISION_MS * WT_THOUSAND;
-			}
+			conn->server_clock+= TIMER_PRECISION_US;
 		}
 
-		__wt_sleep(0, TIMER_PRECISION_MS);
+		__wt_sleep(0, TIMER_PRECISION_US);
 		timer_runs += 1;
 	}
 	return (WT_THREAD_RET_VALUE);
@@ -157,7 +152,7 @@ __wt_clock_server_destroy(WT_SESSION_IMPL *session)
 	 * allow the clock server to finish.
 	 */
 	F_CLR(conn, WT_CONN_SERVER_CLOCK);
-	__wt_sleep(0, 2 * TIMER_PRECISION_MS);
+	__wt_sleep(0, 2 * TIMER_PRECISION_US);
 
 	if (conn->sweep_tid_set) {
 		WT_RET(__wt_thread_join(session, conn->clock_tid));
