@@ -103,13 +103,13 @@ __clock_server(void *arg)
 			__wt_epoch(NULL, &time);
 			WT_CLOCK_SET_TIME(session, time);
 		} else {
-			/*
-			 * Fuzzy time tracking means we don't mind loosing some
-			 * precision when incrementing the time here.
-			 */
-			conn->server_clock+= TIMER_PRECISION_US;
+			__wt_atomic_add64(
+			    &conn->server_clock, TIMER_PRECISION_US);
 		}
-
+		/*
+		 * Fuzzy time tracking means we don't mind loosing some
+		 * precision when sleeping.
+		 */
 		__wt_sleep(0, TIMER_PRECISION_US);
 		timer_runs += 1;
 	}
@@ -123,9 +123,14 @@ __clock_server(void *arg)
 int
 __wt_clock_server_start(WT_SESSION_IMPL *session)
 {
+	struct timespec time;
 	WT_CONNECTION_IMPL *conn;
 
 	conn = S2C(session);
+
+	/* Set the initial time value before starting the thread */
+	__wt_epoch(NULL, &time);
+	WT_CLOCK_SET_TIME(session, time);
 
 	F_SET(conn, WT_CONN_SERVER_CLOCK);
 

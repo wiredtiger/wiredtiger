@@ -90,7 +90,7 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	WT_TRET(__wt_async_destroy(session));
 
 	/* Destroy the clock server */
-	WT_RET(__wt_clock_server_destroy(session));
+	WT_TRET(__wt_clock_server_destroy(session));
 
 	/*
 	 * Shut down server threads other than the eviction server, which is
