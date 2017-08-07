@@ -405,6 +405,35 @@ err:	__curds_txn_leave(session);
 }
 
 /*
+ * __curds_reserve --
+ *	WT_CURSOR.reserve method for the data-source cursor type.
+ */
+static int
+__curds_reserve(WT_CURSOR *cursor)
+{
+	WT_CURSOR *source;
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	source = ((WT_CURSOR_DATA_SOURCE *)cursor)->source;
+
+	CURSOR_UPDATE_API_CALL(cursor, session, reserve);
+
+	WT_STAT_CONN_INCR(session, cursor_reserve);
+	WT_STAT_DATA_INCR(session, cursor_reserve);
+
+	WT_ERR(__curds_txn_enter(session, true));
+
+	WT_ERR(__curds_key_set(cursor));
+	ret = __curds_cursor_resolve(cursor, source->reserve(source));
+
+err:	__curds_txn_leave(session);
+
+	CURSOR_UPDATE_API_END(session, ret);
+	return (ret);
+}
+
+/*
  * __curds_close --
  *	WT_CURSOR.close method for the data-source cursor type.
  */
@@ -467,7 +496,7 @@ __wt_curds_open(
 	    __wt_cursor_modify_notsup,		/* modify */
 	    __curds_update,			/* update */
 	    __curds_remove,			/* remove */
-	    __wt_cursor_notsup,			/* reserve */
+	    __curds_reserve,			/* reserve */
 	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
 	    __curds_close);			/* close */
 	WT_CONFIG_ITEM cval, metadata;

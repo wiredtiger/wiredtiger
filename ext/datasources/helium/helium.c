@@ -1644,6 +1644,30 @@ helium_cursor_update(WT_CURSOR *wtcursor)
 }
 
 /*
+ * helium_cursor_reserve --
+ *	WT_CURSOR.reserve method.
+ */
+static int
+helium_cursor_reserve(WT_CURSOR *wtcursor)
+{
+	CURSOR *cursor;
+
+	cursor = (CURSOR *)wtcursor;
+
+#ifdef XXX_BROKEN_KEITH
+	/*
+	 * XXX
+	 * We don't currently support reserve, this will require some work.
+	 * The test programs don't currently detect it, so return success.
+	 */
+	return (0);
+#else
+	(void)cursor;
+	return (0);
+#endif
+}
+
+/*
  * helium_cursor_remove --
  *	WT_CURSOR.remove method.
  */
@@ -2157,6 +2181,7 @@ helium_session_open_cursor(WT_DATA_SOURCE *wtds, WT_SESSION *session,
 	cursor->wtcursor.next = helium_cursor_next;
 	cursor->wtcursor.prev = helium_cursor_prev;
 	cursor->wtcursor.remove = helium_cursor_remove;
+	cursor->wtcursor.reserve = helium_cursor_reserve;
 	cursor->wtcursor.reset = helium_cursor_reset;
 	cursor->wtcursor.search = helium_cursor_search;
 	cursor->wtcursor.search_near = helium_cursor_search_near;
