@@ -146,8 +146,7 @@ config_setup(void)
 
 	/* Required shared libraries. */
 	if (DATASOURCE("helium") && access(HELIUM_PATH, R_OK) != 0)
-		testutil_die(errno,
-		    "Levyx/Helium shared library: %s", HELIUM_PATH);
+		testutil_die(errno, "Helium shared library: %s", HELIUM_PATH);
 	if (DATASOURCE("kvsbdb") && access(KVS_BDB_PATH, R_OK) != 0)
 		testutil_die(errno, "kvsbdb shared library: %s", KVS_BDB_PATH);
 
