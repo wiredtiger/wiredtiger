@@ -75,7 +75,7 @@ static int verbose = 0;					/* Verbose messages */
 		 * If we're set to a Helium error at the end of the day,\
 		 * switch to a generic WiredTiger error.		\
 		 */							\
-		if (ret < 0 && ret > -31,800)				\
+		if (ret < 0 && (ret > -31800 || ret < -31999))		\
 			ret = WT_ERROR;					\
 	}								\
 } while (0)
@@ -2417,6 +2417,7 @@ static int
 helium_session_truncate(WT_DATA_SOURCE *wtds,
     WT_SESSION *session, const char *uri, WT_CONFIG_ARG *config)
 {
+#ifdef XXX_BROKEN_KEITH
 	DATA_SOURCE *ds;
 	WT_EXTENSION_API *wt_api;
 	WT_SOURCE *ws;
@@ -2440,6 +2441,13 @@ helium_session_truncate(WT_DATA_SOURCE *wtds,
 
 	ESET(unlock(wt_api, session, &ws->lock));
 	return (ret);
+#else
+	(void)wtds;
+	(void)session;
+	(void)uri;
+	(void)config;
+	return (0);
+#endif
 }
 
 /*
@@ -2620,14 +2628,18 @@ cache_cleaner(WT_EXTENSION_API *wt_api,
 		} else {
 			r->val = cp->v;
 			r->val_len = cp->len;
+#ifdef XXX_BROKEN_KEITH
 			/*
 			 * If compression configured for this datastore, set the
 			 * compression flag, we're updating the "real" store.
 			 */
 			if (ws->config_compress)
 				r->flags |= HE_I_COMPRESS;
+#endif
 			ret = he_update(ws->he, r);
+#ifdef XXX_BROKEN_KEITH
 			r->flags = 0;
+#endif
 			if (ret == 0)
 				continue;
 
@@ -2851,8 +2863,10 @@ cache_cleaner_worker(void *arg)
 			if ((ret = he_stats(ws->he_cache, &stats)) != 0)
 				EMSG_ERR(wt_api, NULL,
 				    ret, "he_stats: %s", he_strerror(ret));
+#ifdef XXX_BROKEN_KEITH
 			if (stats.size > CACHE_SIZE_TRIGGER)
 				break;
+#endif
 		}
 		if (!cleaner_stop && ws == NULL)
 			continue;
@@ -2930,6 +2944,7 @@ helium_config_read(WT_EXTENSION_API *wt_api, WT_CONFIG_ITEM *config,
 			memcpy(*devicep, v.str, v.len);
 			continue;
 		}
+#ifdef XXX_BROKEN_KEITH
 		if (string_match("helium_env_read_cache_size", k.str, k.len)) {
 			envp->read_cache_size = (uint64_t)v.val;
 			*env_setp = 1;
@@ -2940,6 +2955,9 @@ helium_config_read(WT_EXTENSION_API *wt_api, WT_CONFIG_ITEM *config,
 			*env_setp = 1;
 			continue;
 		}
+#else
+		(void)envp;
+#endif
 		if (string_match("helium_o_volume_truncate", k.str, k.len)) {
 			if (v.val != 0)
 				*flagsp |= HE_O_VOLUME_TRUNCATE;
@@ -3017,8 +3035,12 @@ helium_source_open(DATA_SOURCE *ds, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v)
 	 * an object at the same time, that's why we have object flags as well
 	 * as volume flags.
 	 */
+#ifdef XXX_BROKEN_KEITH
 	flags |= HE_O_CREATE |
 	    HE_O_TRUNCATE | HE_O_VOLUME_CLEAN | HE_O_VOLUME_CREATE;
+#else
+	flags |= HE_O_CREATE | HE_O_TRUNCATE | HE_O_VOLUME_CREATE;
+#endif
 	if ((hs->he_volume = he_open(
 	    hs->device, WT_NAME_INIT, flags, env_set ? &env : NULL)) == NULL) {
 		ret = os_errno();
@@ -3164,9 +3186,11 @@ helium_source_recover_namespace(WT_DATA_SOURCE *wtds,
 	/* Process, then clear, the cache. */
 	if ((ret = cache_cleaner(wt_api, wtcursor, 0, NULL)) != 0)
 		goto err;
+#ifdef XXX_BROKEN_KEITH
 	if ((ret = he_truncate(ws->he_cache)) != 0)
 		EMSG_ERR(wt_api, NULL, ret,
 		    "he_truncate: %s(cache): %s", ws->uri, he_strerror(ret));
+#endif
 
 	/* Close the underlying WiredTiger sources. */
 err:	while ((ws = hs->ws_head) != NULL) {
@@ -3258,11 +3282,13 @@ helium_source_recover(
 		    wtds, hs, names.list[i], config)) != 0)
 			goto err;
 
+#ifdef XXX_BROKEN_KEITH
 	/* Clear the transaction store. */
 	if ((ret = he_truncate(hs->he_txn)) != 0)
 		EMSG_ERR(wt_api, NULL, ret,
 		    "he_truncate: %s: %s: %s",
 		    hs->name, WT_NAME_TXN, he_strerror(ret));
+#endif
 
 err:	for (i = 0; i < names.list_cnt; ++i)
 		free(names.list[i]);
@@ -3352,7 +3378,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 	WT_CONFIG_ITEM k, v;
 	WT_CONFIG_PARSER *config_parser;
 	WT_EXTENSION_API *wt_api;
-	int vmajor, vminor, ret = 0;
+	int vmajor, vminor, vpatch, ret = 0;
 	const char **p;
 
 	config_parser = NULL;
@@ -3361,16 +3387,16 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 	wt_api = connection->get_extension_api(connection);
 
 						/* Check the library version */
-#if HE_VERSION_MAJOR != 2 || HE_VERSION_MINOR != 2
+#if HE_VERSION_MAJOR != 2 || HE_VERSION_MINOR != 12
 	ERET(wt_api, NULL, EINVAL,
-	    "unsupported Levyx/Helium header file %d.%d, expected version 2.2",
+	    "unsupported Helium header file %d.%d, expected version 2.12",
 	    HE_VERSION_MAJOR, HE_VERSION_MINOR);
 #endif
-	he_version(&vmajor, &vminor);
-	if (vmajor != 2 || vminor != 2)
+	he_version(&vmajor, &vminor, &vpatch);
+	if (vmajor != 2 || vminor != 12)
 		ERET(wt_api, NULL, EINVAL,
-		    "unsupported Levyx/Helium library version %d.%d, expected "
-		    "version 2.2", vmajor, vminor);
+		    "unsupported Helium library version %d.%d, expected "
+		    "version 2.12", vmajor, vminor);
 
 	/* Allocate and initialize the local data-source structure. */
 	if ((ds = calloc(1, sizeof(DATA_SOURCE))) == NULL)
