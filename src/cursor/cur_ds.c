@@ -497,12 +497,15 @@ __wt_curds_open(
 	WT_ERR(__wt_cursor_init(cursor, uri, owner, cfg, cursorp));
 
 	/* Data-source cursors may have a custom collator. */
-	WT_ERR(
-	    __wt_config_getones(session, metaconf, "app_metadata", &metadata));
-	WT_ERR(__wt_config_gets_none(session, cfg, "collator", &cval));
-	if (cval.len != 0)
+	ret = __wt_config_getones(session, metaconf, "collator", &cval);
+	if (ret == 0 && cval.len != 0) {
+		WT_CLEAR(metadata);
+		WT_ERR_NOTFOUND_OK(__wt_config_getones(
+		    session, metaconf, "app_metadata", &metadata));
 		WT_ERR(__wt_collator_config(session, uri, &cval, &metadata,
 		    &data_source->collator, &data_source->collator_owned));
+	}
+	WT_ERR_NOTFOUND_OK(ret);
 
 	WT_ERR(dsrc->open_cursor(dsrc,
 	    &session->iface, uri, (WT_CONFIG_ARG *)cfg, &data_source->source));
