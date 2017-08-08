@@ -42,7 +42,6 @@
 
 typedef struct he_env	HE_ENV;
 typedef struct he_item	HE_ITEM;
-typedef struct he_stats	HE_STATS;
 
 static int verbose = 0;					/* Verbose messages */
 
@@ -175,7 +174,8 @@ typedef struct __wt_source {
 	 */
 	he_t	he;				/* Underlying Helium object */
 	he_t	he_cache;			/* Underlying Helium cache */
-	int	he_cache_inuse;
+	int	he_cache_inuse;			/* Cache is in use */
+	int	he_cache_ops;			/* Operations since cleaning */
 
 	struct __he_source *hs;			/* Underlying Helium source */
 	struct __wt_source *next;		/* List of WiredTiger objects */
@@ -1497,6 +1497,7 @@ helium_cursor_insert(WT_CURSOR *wtcursor)
 	/* Update the state while still holding the lock. */
 	if (ws->he_cache_inuse == 0)
 		ws->he_cache_inuse = 1;
+	++ws->he_cache_ops;
 
 	/* Discard the lock. */
 err:	ESET(unlock(wt_api, session, &ws->lock));
@@ -1602,6 +1603,7 @@ update(WT_CURSOR *wtcursor, int remove_op)
 	/* Update the state while still holding the lock. */
 	if (ws->he_cache_inuse == 0)
 		ws->he_cache_inuse = 1;
+	++ws->he_cache_ops;
 
 	/* Discard the lock. */
 err:	ESET(unlock(wt_api, session, &ws->lock));
@@ -2782,7 +2784,6 @@ cache_cleaner_worker(void *arg)
 	struct timeval t;
 	CURSOR *cursor;
 	HELIUM_SOURCE *hs;
-	HE_STATS stats;
 	WT_CURSOR *wtcursor;
 	WT_EXTENSION_API *wt_api;
 	WT_SOURCE *ws;
@@ -2823,24 +2824,18 @@ cache_cleaner_worker(void *arg)
 			++delay;
 
 		/*
-		 * Clean the datastore caches, depending on their size.  It's
-		 * both more and less expensive to return values from the cache:
-		 * more because we have to marshall/unmarshall the values, less
-		 * because there's only a single call, to the cache store rather
-		 * one to the cache and one to the primary.  I have no turning
-		 * information, for now simply set the limit at 50MB.
+		 * Clean the datastore caches. It's both more and less expensive
+		 * to return values from the cache: more because we have to
+		 * marshall/unmarshall the values, less because there's only a
+		 * single lookup to the cache store rather than a lookup into
+		 * the cache and then the primary. I have no tuning information,
+		 * for now, just clean if there have been 1K operations.
 		 */
 #undef	CACHE_SIZE_TRIGGER
-#define	CACHE_SIZE_TRIGGER	(50 * 1048576)
-		for (ws = hs->ws_head; ws != NULL; ws = ws->next) {
-			if ((ret = he_stats(ws->he_cache, &stats)) != 0)
-				EMSG_ERR(wt_api, NULL,
-				    ret, "he_stats: %s", he_strerror(ret));
-#ifdef XXX_BROKEN_KEITH
-			if (stats.size > CACHE_SIZE_TRIGGER)
+#define	CACHE_SIZE_TRIGGER	(1000)
+		for (ws = hs->ws_head; ws != NULL; ws = ws->next)
+			if (ws->he_cache_ops > CACHE_SIZE_TRIGGER)
 				break;
-#endif
-		}
 		if (!cleaner_stop && ws == NULL)
 			continue;
 
@@ -2863,6 +2858,9 @@ cache_cleaner_worker(void *arg)
 		 */
 		txnmin = UINT64_MAX;
 		for (ws = hs->ws_head; ws != NULL; ws = ws->next) {
+			/* Reset the operations counter. */
+			ws->he_cache_ops = 0;
+
 			cursor->ws = ws;
 			WT_ERR(cache_cleaner(
 			    wt_api, wtcursor, oldest, &txntmp));
