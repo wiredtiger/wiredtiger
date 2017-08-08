@@ -10,6 +10,70 @@
 
 #ifdef HAVE_TIMESTAMPS
 /*
+ * __wt_timestamp_to_hex_string --
+ *	Convert a timestamp to hex string representation.
+ */
+static int
+__wt_timestamp_to_hex_string(
+    WT_SESSION_IMPL *session, char *hex_timestamp, const wt_timestamp_t *ts_src)
+{
+	wt_timestamp_t ts;
+
+	__wt_timestamp_set(&ts, ts_src);
+#if WT_TIMESTAMP_SIZE == 8
+	{
+	char *p, v;
+
+	for (p = hex_timestamp; ts.val != 0; ts.val >>= 4)
+		*p++ = (char)__wt_hex((u_char)(ts.val & 0x0f));
+	*p = '\0';
+
+	/* Reverse the string. */
+	for (--p; p > hex_timestamp;) {
+		v = *p;
+		*p-- = *hex_timestamp;
+		*hex_timestamp++ = v;
+	}
+	WT_UNUSED(session);
+	}
+#else
+	{
+	WT_ITEM hexts;
+	size_t len;
+	uint8_t *tsp;
+
+	/* Avoid memory allocation: set up an item guaranteed large enough. */
+	hexts.data = hexts.mem = hex_timestamp;
+	hexts.memsize = 2 * WT_TIMESTAMP_SIZE + 1;
+	/* Trim leading zeros. */
+	for (tsp = ts.ts, len = WT_TIMESTAMP_SIZE;
+	    len > 0 && *tsp == 0;
+	    ++tsp, --len)
+		;
+	WT_RET(__wt_raw_to_hex(session, tsp, len, &hexts));
+	}
+#endif
+	return (0);
+}
+
+/*
+ * __wt_verbose_timestamp --
+ *	Output a verbose message along with the specified timestamp
+ */
+void
+__wt_verbose_timestamp(WT_SESSION_IMPL *session,
+    const wt_timestamp_t *ts, const char *msg)
+{
+	char timestamp_buf[2 * WT_TIMESTAMP_SIZE + 1];
+
+	if (0 != __wt_timestamp_to_hex_string(session, timestamp_buf, ts))
+	       return;
+
+	__wt_verbose(session,
+	    WT_VERB_TIMESTAMP, "Timestamp %s : %s", timestamp_buf, msg);
+}
+
+/*
  * __wt_txn_parse_timestamp --
  *	Decodes and sets a timestamp.
  */
@@ -181,47 +245,7 @@ __wt_txn_global_query_timestamp(
 	wt_timestamp_t ts;
 
 	WT_RET(__txn_global_query_timestamp(session, &ts, cfg));
-
-#if WT_TIMESTAMP_SIZE == 8
-	{
-	char *p, v;
-
-	for (p = hex_timestamp; ts.val != 0; ts.val >>= 4)
-		*p++ = (char)__wt_hex((u_char)(ts.val & 0x0f));
-	*p = '\0';
-
-	/* Reverse the string. */
-	for (--p; p > hex_timestamp;) {
-		v = *p;
-		*p-- = *hex_timestamp;
-		*hex_timestamp++ = v;
-	}
-	}
-#else
-	{
-	WT_ITEM hexts;
-	size_t len;
-	uint8_t *tsp;
-
-	/*
-	 * Keep clang-analyzer happy: it can't tell that ts will be set
-	 * whenever the call below succeeds.
-	 */
-	__wt_timestamp_set_zero(&ts);
-	WT_RET(__txn_global_query_timestamp(session, &ts, cfg));
-
-	/* Avoid memory allocation: set up an item guaranteed large enough. */
-	hexts.data = hexts.mem = hex_timestamp;
-	hexts.memsize = 2 * WT_TIMESTAMP_SIZE + 1;
-	/* Trim leading zeros. */
-	for (tsp = ts.ts, len = WT_TIMESTAMP_SIZE;
-	    len > 0 && *tsp == 0;
-	    ++tsp, --len)
-		;
-	WT_RET(__wt_raw_to_hex(session, tsp, len, &hexts));
-	}
-#endif
-	return (0);
+	return (__wt_timestamp_to_hex_string(session, hex_timestamp, &ts));
 #else
 	WT_UNUSED(hex_timestamp);
 	WT_UNUSED(cfg);
@@ -276,6 +300,8 @@ __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session)
 		txn_global->oldest_is_pinned = __wt_timestamp_cmp(
 		    &txn_global->pinned_timestamp,
 		    &txn_global->oldest_timestamp) == 0;
+		__wt_verbose_timestamp(session,
+		    &pinned_timestamp, "Updated pinned timestamp");
 	}
 	__wt_writeunlock(session, &txn_global->rwlock);
 
@@ -358,6 +384,8 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 				    &txn_global->oldest_timestamp, &oldest_ts);
 				txn_global->has_oldest_timestamp = true;
 				txn_global->oldest_is_pinned = false;
+				__wt_verbose_timestamp(session,
+				    &oldest_ts, "Updated oldest timestamp");
 			}
 		}
 		if (has_stable) {
@@ -373,6 +401,8 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 				    &txn_global->stable_timestamp, &stable_ts);
 				txn_global->has_stable_timestamp = true;
 				txn_global->stable_is_pinned = false;
+				__wt_verbose_timestamp(session,
+				    &stable_ts, "Updated stable timestamp");
 			}
 		}
 		__wt_writeunlock(session, &txn_global->rwlock);

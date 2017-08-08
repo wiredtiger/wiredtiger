@@ -172,8 +172,8 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
 	    "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
 	    "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
 	    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
-	    "\"thread_group\",\"transaction\",\"verify\",\"version\","
-	    "\"write\"]",
+	    "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
+	    "\"version\",\"write\"]",
 	    NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
@@ -801,8 +801,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
 	    "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
 	    "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
 	    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
-	    "\"thread_group\",\"transaction\",\"verify\",\"version\","
-	    "\"write\"]",
+	    "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
+	    "\"version\",\"write\"]",
 	    NULL, 0 },
 	{ "write_through", "list",
 	    NULL, "choices=[\"data\",\"log\"]",
@@ -896,8 +896,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
 	    "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
 	    "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
 	    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
-	    "\"thread_group\",\"transaction\",\"verify\",\"version\","
-	    "\"write\"]",
+	    "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
+	    "\"version\",\"write\"]",
 	    NULL, 0 },
 	{ "version", "string", NULL, NULL, NULL, 0 },
 	{ "write_through", "list",
@@ -986,8 +986,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
 	    "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
 	    "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
 	    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
-	    "\"thread_group\",\"transaction\",\"verify\",\"version\","
-	    "\"write\"]",
+	    "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
+	    "\"version\",\"write\"]",
 	    NULL, 0 },
 	{ "version", "string", NULL, NULL, NULL, 0 },
 	{ "write_through", "list",
@@ -1076,8 +1076,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
 	    "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
 	    "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
 	    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
-	    "\"thread_group\",\"transaction\",\"verify\",\"version\","
-	    "\"write\"]",
+	    "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
+	    "\"version\",\"write\"]",
 	    NULL, 0 },
 	{ "write_through", "list",
 	    NULL, "choices=[\"data\",\"log\"]",

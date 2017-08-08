@@ -88,6 +88,7 @@ flags = {
         'VERB_SPLIT',
         'VERB_TEMPORARY',
         'VERB_THREAD_GROUP',
+        'VERB_TIMESTAMP',
         'VERB_TRANSACTION',
         'VERB_VERIFY',
         'VERB_VERSION',
