@@ -2927,20 +2927,16 @@ helium_config_read(WT_EXTENSION_API *wt_api, WT_CONFIG_ITEM *config,
 			memcpy(*devicep, v.str, v.len);
 			continue;
 		}
-#ifdef XXX_BROKEN_KEITH
-		if (string_match("helium_env_read_cache_size", k.str, k.len)) {
-			envp->read_cache_size = (uint64_t)v.val;
+		if (string_match("helium_read_cache", k.str, k.len)) {
+			envp->read_cache = (uint64_t)v.val;
 			*env_setp = 1;
 			continue;
 		}
-		if (string_match("helium_env_write_cache_size", k.str, k.len)) {
-			envp->write_cache_size = (uint64_t)v.val;
+		if (string_match("helium_write_cache", k.str, k.len)) {
+			envp->write_cache = (uint64_t)v.val;
 			*env_setp = 1;
 			continue;
 		}
-#else
-		(void)envp;
-#endif
 		if (string_match("helium_o_volume_truncate", k.str, k.len)) {
 			if (v.val != 0)
 				*flagsp |= HE_O_VOLUME_TRUNCATE;
