@@ -356,7 +356,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		__wt_writeunlock(session, &txn_global->rwlock);
 		WT_RET_MSG(session, EINVAL,
 		    "set_timestamp: stable timestamp must not be later than "
-		    "stable timestamp");
+		    "commit timestamp");
 	}
 
 	if ((has_oldest || txn_global->has_oldest_timestamp) &&
@@ -371,11 +371,15 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	/*
 	 * This method can be called from multiple threads, check that we are
 	 * moving the global timestamps forwards.
+	 *
+	 * The exception is the commit timestamp, where the application can
+	 * move it backwards (in fact, it only really makes sense to explicitly
+	 * move it backwards because it otherwise tracks the largest
+	 * commit_timestamp so it moves forward whenever transactions are
+	 * assigned timestamps).
 	 */
-	if (has_commit && (!txn_global->has_commit_timestamp ||
-	    __wt_timestamp_cmp(
-	    &commit_ts, &txn_global->commit_timestamp) > 0)) {
-		__wt_timestamp_set(&txn_global->oldest_timestamp, &oldest_ts);
+	if (has_commit) {
+		__wt_timestamp_set(&txn_global->commit_timestamp, &commit_ts);
 		txn_global->has_commit_timestamp = true;
 	}
 
@@ -386,6 +390,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		txn_global->has_oldest_timestamp = true;
 		txn_global->oldest_is_pinned = false;
 	}
+
 	if (has_stable && (!txn_global->has_stable_timestamp ||
 	    __wt_timestamp_cmp(
 	    &stable_ts, &txn_global->stable_timestamp) > 0)) {
