@@ -166,7 +166,6 @@ typedef struct __wt_source {
 	uint64_t append_recno;			/* Allocation record number */
 
 	int	 config_bitfield;		/* config "value_format=#t" */
-	int	 config_compress;		/* config "helium_o_compress" */
 	int	 config_recno;			/* config "key_format=r" */
 
 	/*
@@ -1908,10 +1907,17 @@ bad_name:	ERET(wt_api, session, EINVAL, "%s: illegal name format", uri);
 	 * The naming scheme is simple: the URI names the primary store, and the
 	 * URI with a trailing suffix names the associated caching store.
 	 *
-	 * We can set truncate flag, we always set the create flag, our caller
-	 * handles attempts to create existing objects.
+	 * We always set the create flag, our caller handles attempts to create
+	 * existing objects.
 	 */
 	oflags = HE_O_CREATE;
+	if ((ret = wt_api->config_get(wt_api,
+	    session, config, "helium_o_compress", &a)) == 0 && a.val != 0)
+		oflags |= HE_O_COMPRESS;
+	if (ret != 0 && ret != WT_NOTFOUND)
+		EMSG_ERR(wt_api, session, ret,
+		    "helium_o_compress configuration: %s",
+		    wt_api->strerror(wt_api, session, ret));
 	if ((ret = wt_api->config_get(wt_api,
 	    session, config, "helium_o_truncate", &a)) == 0 && a.val != 0)
 		oflags |= HE_O_TRUNCATE;
@@ -2198,13 +2204,6 @@ helium_session_open_cursor(WT_DATA_SOURCE *wtds, WT_SESSION *session,
 			    wt_api->strerror(wt_api, session, ret));
 		ws->config_bitfield = v.len == 2 &&
 		    isdigit((u_char)v.str[0]) && v.str[1] == 't';
-
-		if ((ret = config_parser->get(
-		    config_parser, "helium_o_compress", &v)) != 0)
-			EMSG_ERR(wt_api, session, ret,
-			    "helium_o_compress configuration: %s",
-			    wt_api->strerror(wt_api, session, ret));
-		ws->config_compress = v.val ? 1 : 0;
 
 		/*
 		 * If it's a record-number key, read the last record from the
@@ -2616,18 +2615,7 @@ cache_cleaner(WT_EXTENSION_API *wt_api,
 		} else {
 			r->val = cp->v;
 			r->val_len = cp->len;
-#ifdef XXX_BROKEN_KEITH
-			/*
-			 * If compression configured for this datastore, set the
-			 * compression flag, we're updating the "real" store.
-			 */
-			if (ws->config_compress)
-				r->flags |= HE_I_COMPRESS;
-#endif
 			ret = he_update(ws->he, r);
-#ifdef XXX_BROKEN_KEITH
-			r->flags = 0;
-#endif
 			if (ret == 0)
 				continue;
 
@@ -3343,7 +3331,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 		helium_terminate		/* termination */
 	};
 	static const char *session_create_opts[] = {
-		"helium_o_compress=0",		/* HE_I_COMPRESS */
+		"helium_o_compress=0",		/* HE_O_COMPRESS */
 		"helium_o_truncate=0",		/* HE_O_TRUNCATE */
 		NULL
 	};
