@@ -64,6 +64,7 @@ void
 __wt_verbose_timestamp(WT_SESSION_IMPL *session,
     const wt_timestamp_t *ts, const char *msg)
 {
+#ifdef HAVE_VERBOSE
 	char timestamp_buf[2 * WT_TIMESTAMP_SIZE + 1];
 
 	if (0 != __wt_timestamp_to_hex_string(session, timestamp_buf, ts))
@@ -71,6 +72,11 @@ __wt_verbose_timestamp(WT_SESSION_IMPL *session,
 
 	__wt_verbose(session,
 	    WT_VERB_TIMESTAMP, "Timestamp %s : %s", timestamp_buf, msg);
+#else
+	WT_UNUSED(session);
+	WT_UNUSED(ts);
+	WT_UNUSED(msg);
+#endif
 }
 
 /*
