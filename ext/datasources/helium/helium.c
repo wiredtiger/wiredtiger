@@ -2999,12 +2999,7 @@ helium_source_open(DATA_SOURCE *ds, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v)
 	 * an object at the same time, that's why we have object flags as well
 	 * as volume flags.
 	 */
-#ifdef XXX_BROKEN_KEITH
-	flags |= HE_O_CREATE |
-	    HE_O_TRUNCATE | HE_O_VOLUME_CLEAN | HE_O_VOLUME_CREATE;
-#else
-	flags |= HE_O_CREATE | HE_O_TRUNCATE | HE_O_VOLUME_CREATE;
-#endif
+	flags |= HE_O_CREATE | HE_O_TRUNCATE | HE_O_CLEAN | HE_O_VOLUME_CREATE;
 	if ((hs->he_volume = he_open(
 	    hs->device, WT_NAME_INIT, flags, env_set ? &env : NULL)) == NULL) {
 		ret = os_errno();
