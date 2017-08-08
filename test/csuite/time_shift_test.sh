@@ -12,8 +12,8 @@ set -e
 # time by less than 20%.
 
 
-# uncomment the below line if this has to be run separately
-#export TESTUTIL_ENABLE_LONG_TESTS=1
+# need to enable long tests to run test_rwlock 
+export TESTUTIL_ENABLE_LONG_TESTS=1
 
 # We will run only when long tests are enabled.
 test "$TESTUTIL_ENABLE_LONG_TESTS" = "1" || exit 0
@@ -73,22 +73,16 @@ SEC3=`date +%s`
 DIFF2=$((SEC3 - SEC2))
 
 PERC=$((((DIFF2 - DIFF1)*100)/DIFF1)) 
-echo "execution time increase in % : $PERC"
-echo "normal execution time : ($DIFF1) seconds"
-echo "fake time reduction by : ($DIFF1) seconds"
-echo "execution time with -ve time shift : ($DIFF2) seconds"
+echo "execution time difference : $PERC %, less than 20% is ok"
+echo "normal execution time : $DIFF1 seconds"
+echo "fake time reduction by : $DIFF1 seconds"
+echo "execution time with -ve time shift : $DIFF2 seconds"
 
-if [ "$DIFF2" -lt "$DIFF1" ]
+if [ "$PERC" -le 20 ]
 then
-   echo "pass : execution time is not affected by -ve time shift"
+   echo "pass : execution time is affected $PERC % by -ve time shift"
    exit $EXIT_SUCCESS
 else
-   if [ "$PERC" -le 20 ]
-   then
-      echo "pass : execution time is not affected by -ve time shift"
-      exit $EXIT_SUCCESS
-   else
-      echo "fail : execution time is affected by -ve time shift"
-      exit $EXIT_FAILURE
-   fi
+   echo "fail : execution time is affected $PERC % by -ve time shift"
+   exit $EXIT_FAILURE
 fi
