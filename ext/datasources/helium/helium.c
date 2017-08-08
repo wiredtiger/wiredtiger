@@ -3386,7 +3386,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 	config_parser = NULL;
 
 	/* Find and open the database transaction store. */
-	WT_RET(helium_source_open_txn(ds));
+	WT_ERR(helium_source_open_txn(ds));
 
 	/* Recover each Helium source. */
 	for (hs = ds->hs_head; hs != NULL; hs = hs->next)
