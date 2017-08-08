@@ -46,6 +46,16 @@ typedef struct he_stats	HE_STATS;
 
 static int verbose = 0;					/* Verbose messages */
 
+#define	WT_ERR(a) do {							\
+	if ((ret = (a)) != 0)						\
+		goto err;						\
+} while (0)
+#define	WT_RET(a) do {							\
+	int __ret;							\
+	if ((__ret = (a)) != 0)						\
+		return (__ret);						\
+} while (0)
+
 /*
  * Macros to output error  and verbose messages, and set or return an error.
  * Error macros require local "ret" variable.
@@ -442,9 +452,8 @@ helium_dump(WT_EXTENSION_API *wt_api, he_t he, const char *tag)
 	while ((ret = he_next(he, r, (size_t)0, sizeof(v))) == 0) {
 #if 0
 		uint64_t recno;
-		if ((ret = wt_api->struct_unpack(wt_api,
-		    NULL, r->key, r->key_len, "r", &recno)) != 0)
-			return (ret);
+		WT_RET(wt_api->struct_unpack(wt_api,
+		    NULL, r->key, r->key_len, "r", &recno));
 		fprintf(stderr, "K: %" PRIu64, recno);
 #else
 		helium_dump_kv("K: ", r->key, r->key_len, stderr);
@@ -995,7 +1004,6 @@ copyin_key(WT_CURSOR *wtcursor, int allocate_key)
 	WT_SESSION *session;
 	WT_SOURCE *ws;
 	size_t size;
-	int ret = 0;
 
 	session = wtcursor->session;
 	cursor = (CURSOR *)wtcursor;
@@ -1021,25 +1029,20 @@ copyin_key(WT_CURSOR *wtcursor, int allocate_key)
 		 * not quite right.
 		 */
 		if (allocate_key && cursor->config_append) {
-			if ((ret = writelock(wt_api, session, &ws->lock)) != 0)
-				return (ret);
+			WT_RET(writelock(wt_api, session, &ws->lock));
 			wtcursor->recno = ++ws->append_recno;
-			if ((ret = unlock(wt_api, session, &ws->lock)) != 0)
-				return (ret);
+			WT_RET(unlock(wt_api, session, &ws->lock));
 		} else if (wtcursor->recno > ws->append_recno) {
-			if ((ret = writelock(wt_api, session, &ws->lock)) != 0)
-				return (ret);
+			WT_RET(writelock(wt_api, session, &ws->lock));
 			if (wtcursor->recno > ws->append_recno)
 				ws->append_recno = wtcursor->recno;
-			if ((ret = unlock(wt_api, session, &ws->lock)) != 0)
-				return (ret);
+			WT_RET(unlock(wt_api, session, &ws->lock));
 		}
 
-		if ((ret = wt_api->struct_size(wt_api, session,
-		    &size, "r", wtcursor->recno)) != 0 ||
-		    (ret = wt_api->struct_pack(wt_api, session,
-		    r->key, HE_MAX_KEY_LEN, "r", wtcursor->recno)) != 0)
-			return (ret);
+		WT_RET(wt_api->struct_size(wt_api,
+		    session, &size, "r", wtcursor->recno));
+		WT_RET(wt_api->struct_pack(wt_api,
+		    session, r->key, HE_MAX_KEY_LEN, "r", wtcursor->recno));
 		r->key_len = size;
 	} else {
 		/* I'm not sure this test is necessary, but it's cheap. */
@@ -1073,7 +1076,6 @@ copyout_key(WT_CURSOR *wtcursor)
 	WT_EXTENSION_API *wt_api;
 	WT_SESSION *session;
 	WT_SOURCE *ws;
-	int ret = 0;
 
 	session = wtcursor->session;
 	cursor = (CURSOR *)wtcursor;
@@ -1081,11 +1083,10 @@ copyout_key(WT_CURSOR *wtcursor)
 	ws = cursor->ws;
 
 	r = &cursor->record;
-	if (ws->config_recno) {
-		if ((ret = wt_api->struct_unpack(wt_api,
-		    session, r->key, r->key_len, "r", &wtcursor->recno)) != 0)
-			return (ret);
-	} else {
+	if (ws->config_recno)
+		WT_RET(wt_api->struct_unpack(wt_api,
+		    session, r->key, r->key_len, "r", &wtcursor->recno));
+	else {
 		wtcursor->key.data = r->key;
 		wtcursor->key.size = (size_t)r->key_len;
 	}
@@ -1175,8 +1176,7 @@ skip_deleted:
 	for (cache_rm = 0;;) {
 		if ((ret = helium_call(wtcursor, fname, ws->he_cache, f)) != 0)
 			break;
-		if ((ret = cache_value_unmarshall(wtcursor)) != 0)
-			return (ret);
+		WT_RET(cache_value_unmarshall(wtcursor));
 
 		/* If there's no visible entry, move to the next one. */
 		if (!cache_value_visible(wtcursor, &cp))
@@ -1245,9 +1245,7 @@ cache_clean:
 		a.size = (uint32_t)r->key_len;
 		b.data = cursor->t2.v;		/* b is the cache */
 		b.size = (uint32_t)cursor->t2.len;
-		if ((ret = wt_api->collate(
-		    wt_api, session, NULL, &a, &b, &cmp)) != 0)
-			return (ret);
+		WT_RET(wt_api->collate(wt_api, session, NULL, &a, &b, &cmp));
 
 		if (f == he_next) {
 			if (cmp >= 0)
@@ -1283,10 +1281,8 @@ cache_clean:
 	}
 
 	/* Copy out the chosen key/value pair. */
-	if ((ret = copyout_key(wtcursor)) != 0)
-		return (ret);
-	if ((ret = copyout_val(wtcursor, NULL)) != 0)
-		return (ret);
+	WT_RET(copyout_key(wtcursor));
+	WT_RET(copyout_val(wtcursor, NULL));
 	return (0);
 }
 
@@ -1347,8 +1343,7 @@ helium_cursor_search(WT_CURSOR *wtcursor)
 	ws = cursor->ws;
 
 	/* Copy in the WiredTiger cursor's key. */
-	if ((ret = copyin_key(wtcursor, 0)) != 0)
-		return (ret);
+	WT_RET(copyin_key(wtcursor, 0));
 
 	/*
 	 * Check for an entry in the cache.  If we find one, unmarshall it
@@ -1356,8 +1351,7 @@ helium_cursor_search(WT_CURSOR *wtcursor)
 	 */
 	if ((ret =
 	    helium_call(wtcursor, "he_lookup", ws->he_cache, he_lookup)) == 0) {
-		if ((ret = cache_value_unmarshall(wtcursor)) != 0)
-			return (ret);
+		WT_RET(cache_value_unmarshall(wtcursor));
 		if (cache_value_visible(wtcursor, &cp))
 			return (cp->remove ?
 			    WT_NOTFOUND : copyout_val(wtcursor, cp));
@@ -1365,10 +1359,10 @@ helium_cursor_search(WT_CURSOR *wtcursor)
 		return (ret);
 
 	/* Check for an entry in the primary store. */
-	if ((ret = helium_call(wtcursor, "he_lookup", ws->he, he_lookup)) != 0)
-		return (ret);
+	WT_RET(helium_call(wtcursor, "he_lookup", ws->he, he_lookup));
+	WT_RET(copyout_val(wtcursor, NULL));
 
-	return (copyout_val(wtcursor, NULL));
+	return (0);
 }
 
 /*
@@ -1438,8 +1432,7 @@ helium_cursor_insert(WT_CURSOR *wtcursor)
 	r = &cursor->record;
 
 	/* Get the WiredTiger cursor's key. */
-	if ((ret = copyin_key(wtcursor, 1)) != 0)
-		return (ret);
+	WT_RET(copyin_key(wtcursor, 1));
 
 	VMSG(wt_api, session, VERBOSE_L2,
 	    "I %.*s.%.*s", (int)r->key_len, r->key, (int)r->val_len, r->val);
@@ -1448,20 +1441,17 @@ helium_cursor_insert(WT_CURSOR *wtcursor)
 	cursor->len = 0;
 
 	/* Updates are read-modify-writes, lock the underlying cache. */
-	if ((ret = writelock(wt_api, session, &ws->lock)) != 0)
-		return (ret);
+	WT_RET(writelock(wt_api, session, &ws->lock));
 
 	/* Read the record from the cache store. */
 	switch (ret = helium_call(
 	    wtcursor, "he_lookup", ws->he_cache, he_lookup)) {
 	case 0:
 		/* Crack the record. */
-		if ((ret = cache_value_unmarshall(wtcursor)) != 0)
-			goto err;
+		WT_ERR(cache_value_unmarshall(wtcursor));
 
 		/* Check if the update can proceed. */
-		if ((ret = cache_value_update_check(wtcursor)) != 0)
-			goto err;
+		WT_ERR(cache_value_update_check(wtcursor));
 
 		if (cursor->config_overwrite)
 			break;
@@ -1501,8 +1491,7 @@ helium_cursor_insert(WT_CURSOR *wtcursor)
 	 * Create a new value using the current cache record plus the WiredTiger
 	 * cursor's value, and update the cache.
 	 */
-	if ((ret = cache_value_append(wtcursor, 0)) != 0)
-		goto err;
+	WT_ERR(cache_value_append(wtcursor, 0));
 	if ((ret = he_update(ws->he_cache, r)) != 0)
 		EMSG(wt_api, session, ret, "he_update: %s", he_strerror(ret));
 
@@ -1545,8 +1534,7 @@ update(WT_CURSOR *wtcursor, int remove_op)
 	r = &cursor->record;
 
 	/* Get the WiredTiger cursor's key. */
-	if ((ret = copyin_key(wtcursor, 0)) != 0)
-		return (ret);
+	WT_RET(copyin_key(wtcursor, 0));
 
 	VMSG(wt_api, session, VERBOSE_L2,
 	    "%c %.*s.%.*s",
@@ -1557,20 +1545,17 @@ update(WT_CURSOR *wtcursor, int remove_op)
 	cursor->len = 0;
 
 	/* Updates are read-modify-writes, lock the underlying cache. */
-	if ((ret = writelock(wt_api, session, &ws->lock)) != 0)
-		return (ret);
+	WT_RET(writelock(wt_api, session, &ws->lock));
 
 	/* Read the record from the cache store. */
 	switch (ret = helium_call(
 	    wtcursor, "he_lookup", ws->he_cache, he_lookup)) {
 	case 0:
 		/* Crack the record. */
-		if ((ret = cache_value_unmarshall(wtcursor)) != 0)
-			goto err;
+		WT_ERR(cache_value_unmarshall(wtcursor));
 
 		/* Check if the update can proceed. */
-		if ((ret = cache_value_update_check(wtcursor)) != 0)
-			goto err;
+		WT_ERR(cache_value_update_check(wtcursor));
 
 		if (cursor->config_overwrite)
 			break;
@@ -1593,9 +1578,7 @@ update(WT_CURSOR *wtcursor, int remove_op)
 			break;
 
 		/* If overwrite is false, no entry is an error. */
-		if ((ret =
-		    helium_call(wtcursor, "he_lookup", ws->he, he_lookup)) != 0)
-			goto err;
+		WT_ERR(helium_call(wtcursor, "he_lookup", ws->he, he_lookup));
 
 		/*
 		 * All we care about is the cache entry, which didn't exist;
@@ -1611,8 +1594,7 @@ update(WT_CURSOR *wtcursor, int remove_op)
 	 * Create a new cache value based on the current cache record plus the
 	 * WiredTiger cursor's value.
 	 */
-	if ((ret = cache_value_append(wtcursor, remove_op)) != 0)
-		goto err;
+	WT_ERR(cache_value_append(wtcursor, remove_op));
 
 	/* Push the record into the cache. */
 	if ((ret = he_update(ws->he_cache, r)) != 0)
@@ -1821,8 +1803,7 @@ ws_source_open_object(WT_DATA_SOURCE *wtds, WT_SESSION *session,
 	p = NULL;
 
 	/* Open the underlying Helium object. */
-	if ((ret = ws_source_name(wtds, session, uri, suffix, &p)) != 0)
-		return (ret);
+	WT_RET(ws_source_name(wtds, session, uri, suffix, &p));
 	VMSG(wt_api, session, VERBOSE_L1, "open %s/%s", hs->name, p);
 	if ((he = he_open(hs->device, p, flags, NULL)) == NULL) {
 		ret = os_errno();
@@ -1885,8 +1866,7 @@ bad_name:	ERET(wt_api, session, EINVAL, "%s: illegal name format", uri);
 	 * We're about to walk the Helium device's list of files, acquire the
 	 * global lock.
 	 */
-	if ((ret = writelock(wt_api, session, &ds->global_lock)) != 0)
-		return (ret);
+	WT_RET(writelock(wt_api, session, &ds->global_lock));
 
 	/*
 	 * Check for a match: if we find one, optionally trade the global lock
@@ -1918,8 +1898,7 @@ bad_name:	ERET(wt_api, session, EINVAL, "%s: illegal name format", uri);
 		ret = os_errno();
 		goto err;
 	}
-	if ((ret = lock_init(wt_api, session, &ws->lock)) != 0)
-		goto err;
+	WT_ERR(lock_init(wt_api, session, &ws->lock));
 	ws->lockinit = 1;
 	ws->hs = hs;
 
@@ -1941,20 +1920,17 @@ bad_name:	ERET(wt_api, session, EINVAL, "%s: illegal name format", uri);
 		    "helium_o_truncate configuration: %s",
 		    wt_api->strerror(wt_api, session, ret));
 
-	if ((ret = ws_source_open_object(
-	    wtds, session, hs, uri, NULL, oflags, &ws->he)) != 0)
-		goto err;
-	if ((ret = ws_source_open_object(
-	    wtds, session, hs, uri, WT_NAME_CACHE, oflags, &ws->he_cache)) != 0)
-		goto err;
+	WT_ERR(ws_source_open_object(
+	    wtds, session, hs, uri, NULL, oflags, &ws->he));
+	WT_ERR(ws_source_open_object(
+	    wtds, session, hs, uri, WT_NAME_CACHE, oflags, &ws->he_cache));
 	if ((ret = he_commit(ws->he)) != 0)
 		EMSG_ERR(wt_api, session, ret,
 		    "he_commit: %s", he_strerror(ret));
 
 	/* Optionally trade the global lock for the object lock. */
-	if (!(flags & WS_SOURCE_OPEN_GLOBAL) &&
-	    (ret = writelock(wt_api, session, &ws->lock)) != 0)
-		goto err;
+	if (!(flags & WS_SOURCE_OPEN_GLOBAL))
+		WT_ERR(writelock(wt_api, session, &ws->lock));
 
 	/* Insert the new entry at the head of the list. */
 	ws->next = hs->ws_head;
@@ -2029,10 +2005,8 @@ master_uri_rename(WT_DATA_SOURCE *wtds,
 	value = NULL;
 
 	/* Insert the record under a new name. */
-	if ((ret = master_uri_get(wtds, session, uri, &value)) != 0 ||
-	    (ret =
-	    wt_api->metadata_insert(wt_api, session, newuri, value)) != 0)
-		goto err;
+	WT_ERR(master_uri_get(wtds, session, uri, &value));
+	WT_ERR(wt_api->metadata_insert(wt_api, session, newuri, value));
 
 	/*
 	 * Remove the original record, and if that fails, attempt to remove
@@ -2194,8 +2168,7 @@ helium_session_open_cursor(WT_DATA_SOURCE *wtds, WT_SESSION *session,
 	cursor->mem_len = 128;
 
 	/* Get a locked reference to the WiredTiger source. */
-	if ((ret = ws_source_open(wtds, session, uri, config, 0, &ws)) != 0)
-		goto err;
+	WT_ERR(ws_source_open(wtds, session, uri, config, 0, &ws));
 	locked = 1;
 	cursor->ws = ws;
 
@@ -2204,8 +2177,7 @@ helium_session_open_cursor(WT_DATA_SOURCE *wtds, WT_SESSION *session,
 	 * using information stored in the master record.
 	 */
 	if (!ws->configured) {
-		if ((ret = master_uri_get(wtds, session, uri, &value)) != 0)
-			goto err;
+		WT_ERR(master_uri_get(wtds, session, uri, &value));
 
 		if ((ret = wt_api->config_parser_open(wt_api,
 		    session, value, strlen(value), &config_parser)) != 0)
@@ -2240,16 +2212,14 @@ helium_session_open_cursor(WT_DATA_SOURCE *wtds, WT_SESSION *session,
 		 */
 		if (ws->config_recno) {
 			wtcursor = (WT_CURSOR *)cursor;
-			if ((ret = helium_cursor_reset(wtcursor)) != 0)
-				goto err;
+			WT_ERR(helium_cursor_reset(wtcursor));
 
 			if ((ret = helium_cursor_prev(wtcursor)) == 0)
 				ws->append_recno = wtcursor->recno;
 			else if (ret != WT_NOTFOUND)
 				goto err;
 
-			if ((ret = helium_cursor_reset(wtcursor)) != 0)
-				goto err;
+			WT_ERR(helium_cursor_reset(wtcursor));
 		}
 
 		ws->configured = 1;
@@ -2257,8 +2227,7 @@ helium_session_open_cursor(WT_DATA_SOURCE *wtds, WT_SESSION *session,
 
 	/* Increment the open reference count to pin the URI and unlock it. */
 	++ws->ref;
-	if ((ret = unlock(wt_api, session, &ws->lock)) != 0)
-		goto err;
+	WT_ERR(unlock(wt_api, session, &ws->lock));
 
 	*new_cursor = (WT_CURSOR *)cursor;
 
@@ -2288,7 +2257,6 @@ helium_session_create(WT_DATA_SOURCE *wtds,
 	DATA_SOURCE *ds;
 	WT_EXTENSION_API *wt_api;
 	WT_SOURCE *ws;
-	int ret = 0;
 
 	ds = (DATA_SOURCE *)wtds;
 	wt_api = ds->wt_api;
@@ -2297,10 +2265,8 @@ helium_session_create(WT_DATA_SOURCE *wtds,
 	 * Get a locked reference to the WiredTiger source, then immediately
 	 * unlock it, we aren't doing anything else.
 	 */
-	if ((ret = ws_source_open(wtds, session, uri, config, 0, &ws)) != 0)
-		return (ret);
-	if ((ret = unlock(wt_api, session, &ws->lock)) != 0)
-		return (ret);
+	WT_RET(ws_source_open(wtds, session, uri, config, 0, &ws));
+	WT_RET(unlock(wt_api, session, &ws->lock));
 
 	/*
 	 * Create the URI master record if it doesn't already exist.
@@ -2339,9 +2305,8 @@ helium_session_drop(WT_DATA_SOURCE *wtds,
 	 * Remove the entry from the WT_SOURCE list -- it's a singly-linked
 	 * list, find the reference to it.
 	 */
-	if ((ret = ws_source_open(wtds, session, uri, config,
-	    WS_SOURCE_OPEN_BUSY | WS_SOURCE_OPEN_GLOBAL, &ws)) != 0)
-		return (ret);
+	WT_RET(ws_source_open(wtds, session, uri, config,
+	    WS_SOURCE_OPEN_BUSY | WS_SOURCE_OPEN_GLOBAL, &ws));
 	hs = ws->hs;
 	for (p = &hs->ws_head; *p != NULL; p = &(*p)->next)
 		if (*p == ws) {
@@ -2395,9 +2360,8 @@ helium_session_rename(WT_DATA_SOURCE *wtds, WT_SESSION *session,
 	 * we are going to change the object's name, and we can't allow
 	 * other threads walking the list and comparing against the name.
 	 */
-	if ((ret = ws_source_open(wtds, session, uri, config,
-	    WS_SOURCE_OPEN_BUSY | WS_SOURCE_OPEN_GLOBAL, &ws)) != 0)
-		return (ret);
+	WT_RET(ws_source_open(wtds, session, uri, config,
+	    WS_SOURCE_OPEN_BUSY | WS_SOURCE_OPEN_GLOBAL, &ws));
 
 	/* Get a copy of the new name for the WT_SOURCE structure. */
 	if ((p = strdup(newuri)) == NULL) {
@@ -2452,9 +2416,8 @@ helium_session_truncate(WT_DATA_SOURCE *wtds,
 	wt_api = ds->wt_api;
 
 	/* Get a locked reference to the WiredTiger source. */
-	if ((ret = ws_source_open(wtds, session,
-	    uri, config, WS_SOURCE_OPEN_BUSY, &ws)) != 0)
-		return (ret);
+	WT_RET(ws_source_open(
+	    wtds, session, uri, config, WS_SOURCE_OPEN_BUSY, &ws));
 
 	/* Truncate the underlying namespaces. */
 	if ((tret = he_truncate(ws->he)) != 0)
@@ -2708,8 +2671,7 @@ cache_cleaner(WT_EXTENSION_API *wt_api,
 	 * We're updating the cache, which requires a lock during normal
 	 * cleaning.
 	 */
-	if ((ret = writelock(wt_api, NULL, &ws->lock)) != 0)
-		goto err;
+	WT_ERR(writelock(wt_api, NULL, &ws->lock));
 	locked = 1;
 
 	for (r->key_len = 0; (ret =
@@ -2718,8 +2680,7 @@ cache_cleaner(WT_EXTENSION_API *wt_api,
 		 * Unmarshall the value, and if all of the updates are globally
 		 * visible, remove the cache entry.
 		 */
-		if ((ret = cache_value_unmarshall(wtcursor)) != 0)
-			goto err;
+		WT_ERR(cache_value_unmarshall(wtcursor));
 		if (cache_value_visible_all(wtcursor, oldest)) {
 			if ((ret = he_delete(ws->he_cache, r)) != 0)
 				EMSG_ERR(wt_api, NULL, ret,
@@ -2741,8 +2702,7 @@ cache_cleaner(WT_EXTENSION_API *wt_api,
 	}
 
 	locked = 0;
-	if ((ret = unlock(wt_api, NULL, &ws->lock)) != 0)
-		goto err;
+	WT_ERR(unlock(wt_api, NULL, &ws->lock));
 	if (ret == WT_NOTFOUND)
 		ret = 0;
 	if (ret != 0)
@@ -2916,9 +2876,8 @@ cache_cleaner_worker(void *arg)
 		txnmin = UINT64_MAX;
 		for (ws = hs->ws_head; ws != NULL; ws = ws->next) {
 			cursor->ws = ws;
-			if ((ret = cache_cleaner(
-			    wt_api, wtcursor, oldest, &txntmp)) != 0)
-				goto err;
+			WT_ERR(cache_cleaner(
+			    wt_api, wtcursor, oldest, &txntmp));
 			if (txntmp < txnmin)
 				txnmin = txntmp;
 		}
@@ -2933,8 +2892,7 @@ cache_cleaner_worker(void *arg)
 		 * problem here.
 		 */
 		cursor->ws = NULL;
-		if ((ret = txn_cleaner(wtcursor, hs->he_txn, txnmin)) != 0)
-			goto err;
+		WT_ERR(txn_cleaner(wtcursor, hs->he_txn, txnmin));
 	}
 
 err:	cursor_destroy(cursor);
@@ -3048,9 +3006,8 @@ helium_source_open(DATA_SOURCE *ds, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v)
 
 	/* Read the configuration, require a device naming the Helium store. */
 	memset(&env, 0, sizeof(env));
-	if ((ret = helium_config_read(
-	    wt_api, v, &hs->device, &env, &env_set, &flags)) != 0)
-		goto err;
+	WT_ERR(helium_config_read(
+	    wt_api, v, &hs->device, &env, &env_set, &flags));
 	if (hs->device == NULL)
 		EMSG_ERR(wt_api, NULL,
 		    EINVAL, "%s: no Helium volumes specified", hs->name);
@@ -3197,10 +3154,8 @@ helium_source_recover_namespace(WT_DATA_SOURCE *wtds,
 	 * Open the cache/primary pair by going through the full open process,
 	 * instantiating the underlying WT_SOURCE object.
 	 */
-	if ((ret = ws_source_open(wtds, NULL, uri, config, 0, &ws)) != 0)
-		goto err;
-	if ((ret = unlock(wt_api, NULL, &ws->lock)) != 0)
-		goto err;
+	WT_ERR(ws_source_open(wtds, NULL, uri, config, 0, &ws));
+	WT_ERR(unlock(wt_api, NULL, &ws->lock));
 
 	/* Fake up a cursor. */
 	if ((ret = fake_cursor(wt_api, &wtcursor)) != 0)
@@ -3209,8 +3164,7 @@ helium_source_recover_namespace(WT_DATA_SOURCE *wtds,
 	cursor->ws = ws;
 
 	/* Process, then clear, the cache. */
-	if ((ret = cache_cleaner(wt_api, wtcursor, 0, NULL)) != 0)
-		goto err;
+	WT_ERR(cache_cleaner(wt_api, wtcursor, 0, NULL));
 #ifdef XXX_BROKEN_KEITH
 	if ((ret = he_truncate(ws->he_cache)) != 0)
 		EMSG_ERR(wt_api, NULL, ret,
@@ -3303,9 +3257,8 @@ helium_source_recover(
 
 	/* Recover the objects. */
 	for (i = 0; i < names.list_cnt; ++i)
-		if ((ret = helium_source_recover_namespace(
-		    wtds, hs, names.list[i], config)) != 0)
-			goto err;
+		WT_ERR(helium_source_recover_namespace(
+		    wtds, hs, names.list[i], config));
 
 #ifdef XXX_BROKEN_KEITH
 	/* Clear the transaction store. */
@@ -3428,8 +3381,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 		return (os_errno());
 	ds->wtds = wtds;
 	ds->wt_api = wt_api;
-	if ((ret = lock_init(wt_api, NULL, &ds->global_lock)) != 0)
-		goto err;
+	WT_ERR(lock_init(wt_api, NULL, &ds->global_lock));
 	ds->lockinit = 1;
 
 	/* Step through the list of Helium sources, opening each one. */
@@ -3457,13 +3409,11 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 	config_parser = NULL;
 
 	/* Find and open the database transaction store. */
-	if ((ret = helium_source_open_txn(ds)) != 0)
-		return (ret);
+	WT_RET(helium_source_open_txn(ds));
 
 	/* Recover each Helium source. */
 	for (hs = ds->hs_head; hs != NULL; hs = hs->next)
-		if ((ret = helium_source_recover(&ds->wtds, hs, config)) != 0)
-			goto err;
+		WT_ERR(helium_source_recover(&ds->wtds, hs, config));
 
 	/* Start each Helium source cleaner thread. */
 	for (hs = ds->hs_head; hs != NULL; hs = hs->next)
