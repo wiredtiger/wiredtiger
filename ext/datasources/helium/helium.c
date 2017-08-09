@@ -3347,7 +3347,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 	    "unsupported Helium header file %d.%d, expected version 2.12",
 	    HE_VERSION_MAJOR, HE_VERSION_MINOR);
 #endif
-	he_version(&vmajor, &vminor, &vpatch);
+	(void)he_version(&vmajor, &vminor, &vpatch);
 	if (vmajor != 2 || vminor != 12)
 		ERET(wt_api, NULL, EINVAL,
 		    "unsupported Helium library version %d.%d, expected "
