@@ -592,7 +592,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 		    "read_timestamp=%.*s", (int)cval.len, cval.str));
 		txn_cfg[2] = timestamp_config;
 		__wt_verbose(session, WT_VERB_TIMESTAMP,
-		    "Checkpoint requested at specific timestamp: %s",
+		    "Timestamp %s : Checkpoint requested at specific timestamp",
 		    timestamp_config);
 	} else if (txn_global->has_stable_timestamp) {
 		WT_RET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
@@ -610,8 +610,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 			    "read_timestamp=%s", timestamp_buf));
 			txn_cfg[2] = timestamp_config;
 			__wt_verbose(session, WT_VERB_TIMESTAMP,
-			    "Checkpoint requested at stable timestamp: %s",
-			    timestamp_config);
+			    "Timestamp %s : Checkpoint requested at stable "
+			    "timestamp", timestamp_config);
 		}
 	}
 
