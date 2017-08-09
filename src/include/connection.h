@@ -349,7 +349,8 @@ struct __wt_connection_impl {
 	/* Macro to set the clock servers time */
 #define	WT_CLOCK_SET_TIME(session, time)				\
 	__wt_atomic_store64(&S2C(session)->server_clock,		\
-	(uint64_t)(time.tv_sec * 1000000) + (uint64_t)(time.tv_nsec / 1000))
+	    (uint64_t)(time.tv_sec * WT_MILLION) +			\
+	    (uint64_t)(time.tv_nsec / WT_THOUSAND))
 
 	uint64_t	server_clock;	/* The clock of the clock server */
 	wt_thread_t	clock_tid;	/* Clock thread */

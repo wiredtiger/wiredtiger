@@ -136,7 +136,7 @@ __wt_clock_server_start(WT_SESSION_IMPL *session)
 
 	WT_RET(__wt_thread_create(
 	    session, &conn->clock_tid, __clock_server, session));
-	conn->clock_tid_set = 1;
+	conn->clock_tid_set = true;
 
 	return (0);
 }
@@ -161,7 +161,7 @@ __wt_clock_server_destroy(WT_SESSION_IMPL *session)
 
 	if (conn->sweep_tid_set) {
 		WT_RET(__wt_thread_join(session, conn->clock_tid));
-		conn->clock_tid_set = 0;
+		conn->clock_tid_set = false;
 	}
 
 	return (0);
