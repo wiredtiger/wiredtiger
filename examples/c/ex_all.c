@@ -937,6 +937,10 @@ transaction_ops(WT_SESSION *session_arg)
 	/*! [query timestamp] */
 	}
 
+	/*! [set commit timestamp] */
+	error_check(conn->set_timestamp(conn, "commit_timestamp=2a"));
+	/*! [set commit timestamp] */
+
 	/*! [set oldest timestamp] */
 	error_check(conn->set_timestamp(conn, "oldest_timestamp=2a"));
 	/*! [set oldest timestamp] */
@@ -944,6 +948,10 @@ transaction_ops(WT_SESSION *session_arg)
 	/*! [set stable timestamp] */
 	error_check(conn->set_timestamp(conn, "stable_timestamp=2a"));
 	/*! [set stable timestamp] */
+
+	/*! [rollback to stable] */
+	error_check(conn->rollback_to_stable(conn, NULL));
+	/*! [rollback to stable] */
 }
 
 /*! [Implement WT_COLLATOR] */
