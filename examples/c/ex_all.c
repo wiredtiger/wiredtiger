@@ -812,8 +812,15 @@ session_ops(WT_SESSION *session)
 	error_check(session->verify(session, "table:mytable", NULL));
 	/*! [Verify a table] */
 
-	/* Call other functions, where possible. */
+	/*
+	 * We can't call the backup function because it includes absolute paths
+	 * for documentation purposes that don't exist on test systems.  That
+	 * said, we have to reference the function to avoid build warnings
+	 * about unused static code.
+	 */
 	(void)backup;
+
+	/* Call other functions, where possible. */
 	checkpoint_ops(session);
 	cursor_ops(session);
 	cursor_statistics(session);
