@@ -29,9 +29,9 @@ RUN_OS=$(uname -s)
 echo "test read write lock for time shifting using libfaketime"
 
 # check for the existence of dependent library
-if [ ! -r /usr/local/lib/faketime/libfaketimeMT.so.1 ]
+if [ ! -r $1/libfaketimeMT.so.1 ]
 then
-   echo "fail : /usr/local/lib/faketime/libfaketimeMT.so.1 is not readable"
+   echo "fail : $1/libfaketimeMT.so.1 is not readable"
    exit $EXIT_FAILURE
 fi
 
@@ -54,10 +54,10 @@ DIFF1=$((SEC2 - SEC1))
 if [ "$RUN_OS" = "Darwin" ]
 then
     export DYLD_FORCE_FLAT_NAMESPACE=y
-    export DYLD_INSERT_LIBRARIES=./libfaketime.1.dylib
+    export DYLD_INSERT_LIBRARIES=$1/libfaketime.1.dylib
     ./test_rwlock &
 else
-    LD_PRELOAD=/usr/local/lib/faketime/libfaketimeMT.so.1 taskset -c 0-1 ./test_rwlock &
+    LD_PRELOAD=$1/libfaketimeMT.so.1 taskset -c 0-1 ./test_rwlock &
 fi
 
 # get pid of test run in background
