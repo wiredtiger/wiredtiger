@@ -1197,8 +1197,7 @@ __cursor_chain_exceeded(WT_CURSOR_BTREE *cbt)
 		upd = page->modify->mod_row_update[cbt->slot];
 
 	for (i = 0; upd != NULL; ++i, upd = upd->next) {
-		if (upd->type == WT_UPDATE_DELETED ||
-		    upd->type == WT_UPDATE_STANDARD)
+		if (WT_UPDATE_DATA_VALUE(upd))
 			return (false);
 		if (i >= WT_MAX_MODIFY_UPDATE)
 			return (true);
