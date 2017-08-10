@@ -29,11 +29,24 @@ RUN_OS=$(uname -s)
 CPU_SET=0-1
 echo "test read write lock for time shifting using libfaketime"
 
+
+# check for program arguements, if not present, print usage
+if [ -z $1 ]
+then
+    echo "fail : this test needs libfaketime library with path"
+    echo "Usage :"
+    echo "       " $0 " <libpath> [cpuset] "
+    echo "         libpath : path to libfaketime library"
+    echo "         cpuset  : set of cpu's to be used for taskset on linux"
+    echo "                 : default is 0-1 "
+    exit $EXIT_FAILURE
+fi
+
 # check for the existence of dependent library
 if [ ! -r $1 ]
 then
-   echo "fail : $1 , libfaketime library is not readable"
-   exit $EXIT_FAILURE
+    echo "fail : $1 , libfaketime library is not readable"
+    exit $EXIT_FAILURE
 fi
 
 SEC1=`date +%s`
