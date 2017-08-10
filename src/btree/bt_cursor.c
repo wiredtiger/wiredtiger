@@ -1218,7 +1218,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	size_t orig, new;
-	bool chain_exceeded, overwrite;
+	bool overwrite;
 
 	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cursor->session;
@@ -1258,13 +1258,14 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 	/*
 	 * WT_CURSOR.modify is update-without-overwrite.
 	 *
-	 * Use the modify buffer as the update if under the limit, else use the
-	 * complete value.
+	 * Use the modify buffer as the update if the data package saves us some
+	 * memory and the update chain is under the limit, else use the complete
+	 * value.
 	 */
 	overwrite = F_ISSET(cursor, WT_CURSTD_OVERWRITE);
 	F_CLR(cursor, WT_CURSTD_OVERWRITE);
-	chain_exceeded = __cursor_chain_exceeded(cbt);
-	if (chain_exceeded)
+	if (cursor->value.size <= modify->size + 64 ||
+	    __cursor_chain_exceeded(cbt))
 		ret = __btcur_update(cbt, &cursor->value, WT_UPDATE_STANDARD);
 	else if ((ret =
 	    __wt_modify_pack(session, &modify, entries, nentries)) == 0)
