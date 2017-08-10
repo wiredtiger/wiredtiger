@@ -74,6 +74,7 @@ Checksum
 Checksums
 CityHash
 CloseHandle
+Cmvz
 Collet
 Comparator
 Config
@@ -264,6 +265,7 @@ NoAddr
 Noll
 Nul
 OOB
+OPLOG
 OPTYPE
 OUTBUFF
 OVFL
@@ -1284,6 +1286,7 @@ vtype
 vunpack
 vw
 vxr
+vz
 waitpid
 waker
 wakeup
