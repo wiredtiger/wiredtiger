@@ -81,10 +81,12 @@ static int verbose = 0;					/* Verbose messages */
 		    ret == WT_DUPLICATE_KEY || ret == WT_NOTFOUND)	\
 			ret = __v;					\
 		/*							\
-		 * If we're set to a Helium error at the end of the day,\
-		 * switch to a generic WiredTiger error.		\
+		 * We don't want to return Helium errors to our caller.	\
+		 * Map non-system errors (indicated by a negative	\
+		 * value), outside the WiredTiger error name space, to a\
+		 * generic WiredTiger error.				\
 		 */							\
-		if (ret < 0 && (ret > -31800 || ret < -31999))		\
+		if (ret < -31999 || (ret > -31800 && ret < 0))		\
 			ret = WT_ERROR;					\
 	}								\
 } while (0)
