@@ -1264,8 +1264,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 	 */
 	overwrite = F_ISSET(cursor, WT_CURSTD_OVERWRITE);
 	F_CLR(cursor, WT_CURSTD_OVERWRITE);
-	if (cursor->value.size <= modify->size + 64 ||
-	    __cursor_chain_exceeded(cbt))
+	if (cursor->value.size <= 64 || __cursor_chain_exceeded(cbt))
 		ret = __btcur_update(cbt, &cursor->value, WT_UPDATE_STANDARD);
 	else if ((ret =
 	    __wt_modify_pack(session, &modify, entries, nentries)) == 0)
