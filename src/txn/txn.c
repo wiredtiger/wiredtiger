@@ -575,11 +575,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	bool update_timestamp;
 #endif
 	u_int i;
-	bool did_update;
+	bool did_update, logged;
 
 	txn = &session->txn;
 	conn = S2C(session);
 	did_update = txn->mod_count != 0;
+	logged = false;
 
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) || !did_update);
@@ -665,6 +666,15 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		 * This is particularly important for checkpoints.
 		 */
 		__wt_txn_release_snapshot(session);
+
+		/*
+		 * Checkpoint needs to know that all log records that have been
+		 * written are for updates that are included in the checkpoint.
+		 * Otherwise recovery can start too late in the log and lose
+		 * updates.
+		 */
+		__wt_readlock(session, &txn_global->committing_rwlock);
+		logged = true;
 		WT_ERR(__wt_txn_log_commit(session, cfg));
 	}
 
@@ -725,6 +735,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 	__wt_txn_release(session);
 
+	if (logged)
+		__wt_readunlock(session, &txn_global->committing_rwlock);
+
 #ifdef HAVE_TIMESTAMPS
 	/* First check if we've already committed something in the future. */
 	if (update_timestamp) {
@@ -761,6 +774,10 @@ err:	/*
 	 * Nothing can fail after this point.
 	 */
 	WT_TRET(__wt_txn_rollback(session, cfg));
+
+	if (logged)
+		__wt_readunlock(session, &txn_global->committing_rwlock);
+
 	return (ret);
 }
 
@@ -930,6 +947,7 @@ __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_RET(__wt_spin_init(
 	    session, &txn_global->id_lock, "transaction id lock"));
 	WT_RET(__wt_rwlock_init(session, &txn_global->rwlock));
+	WT_RET(__wt_rwlock_init(session, &txn_global->committing_rwlock));
 
 	WT_RET(__wt_rwlock_init(session, &txn_global->commit_timestamp_rwlock));
 	TAILQ_INIT(&txn_global->commit_timestamph);
@@ -968,6 +986,7 @@ __wt_txn_global_destroy(WT_SESSION_IMPL *session)
 
 	__wt_spin_destroy(session, &txn_global->id_lock);
 	__wt_rwlock_destroy(session, &txn_global->rwlock);
+	__wt_rwlock_destroy(session, &txn_global->committing_rwlock);
 	__wt_rwlock_destroy(session, &txn_global->commit_timestamp_rwlock);
 	__wt_rwlock_destroy(session, &txn_global->read_timestamp_rwlock);
 	__wt_rwlock_destroy(session, &txn_global->nsnap_rwlock);
