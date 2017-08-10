@@ -362,13 +362,11 @@ __wt_txn_checkpoint_log(
 	size_t recsize;
 	uint32_t i, rectype;
 	const char *fmt;
-	bool locked;
 
 	conn = S2C(session);
 	txn_global = &conn->txn_global;
 	txn = &session->txn;
 	ckpt_lsn = &txn->ckpt_lsn;
-	locked = false;
 
 	/*
 	 * If this is a file sync, log it unless there is a full checkpoint in
@@ -387,8 +385,6 @@ __wt_txn_checkpoint_log(
 	case WT_TXN_LOG_CKPT_PREPARE:
 		txn->full_ckpt = true;
 
-		__wt_writelock(session, &txn_global->visibility_rwlock);
-		locked = true;
 		if (conn->compat_major >= WT_LOG_V2) {
 			/*
 			 * Write the system log record containing a checkpoint
@@ -412,8 +408,15 @@ __wt_txn_checkpoint_log(
 			    "CHECKPOINT: Starting record"));
 			WT_ERR(__wt_log_flush_lsn(session, ckpt_lsn, true));
 		}
+
+		/*
+		 * We take and immediately release the visibility lock.
+		 * Acquiring the write lock guarantees that any transaction
+		 * that has written to the log has also made its transaction
+		 * visible at this time.
+		 */
+		__wt_writelock(session, &txn_global->visibility_rwlock);
 		__wt_writeunlock(session, &txn_global->visibility_rwlock);
-		locked = false;
 
 		/*
 		 * We need to make sure that the log records in the checkpoint
@@ -491,8 +494,6 @@ __wt_txn_checkpoint_log(
 	}
 
 err:	__wt_logrec_free(session, &logrec);
-	if (locked)
-		__wt_writeunlock(session, &txn_global->visibility_rwlock);
 	return (ret);
 }
 
