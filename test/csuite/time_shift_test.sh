@@ -26,12 +26,13 @@ RUN_OS=$(uname -s)
 
 # linux we run with cpu affinity, to control the execution time
 # if we don't control the execution time this test is not effective
+CPU_SET=0-1
 echo "test read write lock for time shifting using libfaketime"
 
 # check for the existence of dependent library
-if [ ! -r $1/libfaketimeMT.so.1 ]
+if [ ! -r $1 ]
 then
-   echo "fail : $1/libfaketimeMT.so.1 is not readable"
+   echo "fail : $1 , libfaketime library is not readable"
    exit $EXIT_FAILURE
 fi
 
@@ -41,7 +42,13 @@ then
     ./test_rwlock
 elif [ "$RUN_OS" = "Linux" ]
 then
-    taskset -c 0-1 ./test_rwlock
+    if [ -z $2 ]
+    then
+        echo "default taskset value is 0-1"
+    else
+        CPU_SET=$2
+    fi
+    taskset -c $CPU_SET ./test_rwlock
 else
     echo "not able to decide running OS, so exiting"
     exit $EXIT_FAILURE
@@ -54,10 +61,10 @@ DIFF1=$((SEC2 - SEC1))
 if [ "$RUN_OS" = "Darwin" ]
 then
     export DYLD_FORCE_FLAT_NAMESPACE=y
-    export DYLD_INSERT_LIBRARIES=$1/libfaketime.1.dylib
+    export DYLD_INSERT_LIBRARIES=$1
     ./test_rwlock &
 else
-    LD_PRELOAD=$1/libfaketimeMT.so.1 taskset -c 0-1 ./test_rwlock &
+    LD_PRELOAD=$1 taskset -c $CPU_SET ./test_rwlock &
 fi
 
 # get pid of test run in background
