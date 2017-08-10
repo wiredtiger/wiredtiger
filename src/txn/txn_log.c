@@ -357,6 +357,7 @@ __wt_txn_checkpoint_log(
 	WT_ITEM *ckpt_snapshot, empty;
 	WT_LSN *ckpt_lsn;
 	WT_TXN *txn;
+	WT_TXN_GLOBAL *txn_global;
 	uint8_t *end, *p;
 	size_t recsize;
 	uint32_t i, rectype;
@@ -364,6 +365,7 @@ __wt_txn_checkpoint_log(
 
 	conn = S2C(session);
 	txn = &session->txn;
+	txn_global = &conn->txn_global;
 	ckpt_lsn = &txn->ckpt_lsn;
 
 	/*
@@ -413,6 +415,13 @@ __wt_txn_checkpoint_log(
 		 * current log file exists.
 		 */
 		WT_ERR(__wt_log_force_sync(session, ckpt_lsn));
+
+		/*
+		 * Also make sure that any transactions that committed before
+		 * this point are visible to the checkpoint.
+		 */
+		__wt_writelock(session, &txn_global->committing_rwlock);
+		__wt_writeunlock(session, &txn_global->committing_rwlock);
 		break;
 	case WT_TXN_LOG_CKPT_START:
 		/* Take a copy of the transaction snapshot. */

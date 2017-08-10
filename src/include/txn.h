@@ -129,6 +129,13 @@ struct __wt_txn_global {
 	WT_TXN_STATE	  checkpoint_state;	/* Checkpoint's txn state */
 	WT_TXN           *checkpoint_txn;	/* Checkpoint's txn structure */
 
+	/*
+	 * Checkpoint calculates an LSN where recovery should start, and needs
+	 * to make sure all transactions with earlier commit LSNs are visible
+	 * in the checkpoint.  This read/write lock is used to guarantee that.
+	 */
+	WT_RWLOCK committing_rwlock;
+
 	volatile uint64_t metadata_pinned;	/* Oldest ID for metadata */
 
 	/* Named snapshot state. */
