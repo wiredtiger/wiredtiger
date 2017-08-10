@@ -188,10 +188,7 @@ typedef struct __wt_source {
  *	A Helium volume, supporting one or more WT_SOURCE objects.
  */
 typedef struct __he_source {
-	/*
-	 * XXX
-	 * The transaction commit handler must appear first in the structure.
-	 */
+	/* The transaction commit handler must appear first in the structure. */
 	WT_TXN_NOTIFY txn_notify;		/* Transaction commit handler */
 
 	WT_EXTENSION_API *wt_api;		/* Extension functions */
