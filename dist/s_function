@@ -91,4 +91,26 @@ for f in `find bench examples ext src test -name '*.[ci]'`; do
 	}
 done
 
+# S2C with a local WT_CONNECTION_IMPL variable.
+for f in `find bench examples ext src test -name '*.[ci]'`; do
+	file_parse $f |
+	egrep 'conn = S2C.*S2C' |
+	sed 's/:.*//' > $t
+	test -s $t && {
+		echo "$f: S2C with a local WT_CONNECTION_IMPL variable."
+		sed 's/^/function @ line:/' < $t
+	}
+done
+
+# S2B with a local WT_BTREE variable.
+for f in `find bench examples ext src test -name '*.[ci]'`; do
+	file_parse $f |
+	egrep 'btree = S2B.*S2B' |
+	sed 's/:.*//' > $t
+	test -s $t && {
+		echo "$f: S2B with a local WT_BTREE variable."
+		sed 's/^/function @ line:/' < $t
+	}
+done
+
 exit 0
