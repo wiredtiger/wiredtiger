@@ -1102,6 +1102,14 @@ copy:	return (__wt_strdup(session, home, &S2C(session)->optrack));
  *     Set up operation logging.
  */
 
+/*
+ * A global variable that tells us whether or not we have created a
+ * map file for the current process. Map files, translating binary
+ * numbers into function names are valid per-process, so we have to
+ * set them once per process, not per connection or per session.
+ */
+static bool __wt_optrack_map_setup = 0;
+
 static int
 __conn_optrack_setup(WT_SESSION_IMPL *session, const char *home,
 		   const char *cfg[])
@@ -1113,6 +1121,8 @@ __conn_optrack_setup(WT_SESSION_IMPL *session, const char *home,
 
 	conn = S2C(session);
 
+	printf("Setting up optrack for session %d\n", session->id);
+
 	/* Set up the directory for operation logs. */
 	WT_RET(__conn_optrack_dir(session, home, cfg));
 
@@ -1123,9 +1133,15 @@ __conn_optrack_setup(WT_SESSION_IMPL *session, const char *home,
 	 */
 	snprintf(optrack_map_name, PATH_MAX, "%s/optrack-map.txt",
 		 conn->optrack);
-	WT_RET(__wt_fs_exist(session, optrack_map_name, &exists));
-	if (exists)
-		WT_RET(__wt_fs_remove(session, optrack_map_name, 1));
+
+	if (!__wt_optrack_map_setup) {
+		WT_RET(__wt_fs_exist(session, optrack_map_name, &exists));
+		if (exists)
+			WT_RET(__wt_fs_remove(session, optrack_map_name, 1));
+
+		__wt_optrack_map_setup = 1;
+	}
+
 	WT_RET(__wt_open(session, optrack_map_name,
 			 WT_FS_OPEN_FILE_TYPE_REGULAR,
 			 WT_FS_OPEN_CREATE, &conn->optrack_map_fh));
