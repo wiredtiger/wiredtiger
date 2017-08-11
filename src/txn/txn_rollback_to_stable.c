@@ -37,7 +37,7 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 	 * updated while rolling back, accessing it without a lock would
 	 * violate protocol.
 	 */
-	txn_global = &S2C(session)->txn_global;
+	txn_global = &conn->txn_global;
 	__wt_readlock(session, &txn_global->rwlock);
 	__wt_timestamp_set(&rollback_timestamp, &txn_global->stable_timestamp);
 	__wt_readunlock(session, &txn_global->rwlock);
