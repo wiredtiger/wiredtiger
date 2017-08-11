@@ -311,10 +311,10 @@ cursor_ops(WT_SESSION *session)
 	{
 	/*! [Reserve a record] */
 	const char *key = "some key";
-	session->begin_transaction(session, NULL);
+	error_check(session->begin_transaction(session, NULL));
 	cursor->set_key(cursor, key);
 	error_check(cursor->reserve(cursor));
-	session->commit_transaction(session, NULL);
+	error_check(session->commit_transaction(session, NULL));
 	/*! [Reserve a record] */
 	}
 
