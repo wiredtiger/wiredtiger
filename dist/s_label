@@ -80,4 +80,15 @@ for f in `find bench examples ext src test -name '*.[ci]'`; do
 
 done
 
+# API_END with a return
+for f in `find bench examples ext src test -name '*.[ci]'`; do
+	file_parse $f |
+	egrep '[^A-Z_]API_END.*return' |
+	sed 's/:.*//' > $t
+	test -s $t && {
+		echo "$f: API_END followed by return."
+		sed 's/^/function @ line:/' < $t
+	}
+done
+
 exit 0
