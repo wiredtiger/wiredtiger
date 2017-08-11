@@ -568,17 +568,18 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_TXN *txn;
-	WT_TXN_OP *op;
-#ifdef HAVE_TIMESTAMPS
 	WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
+	WT_TXN_OP *op;
+	u_int i;
+	bool did_update, locked;
+#ifdef HAVE_TIMESTAMPS
 	wt_timestamp_t prev_commit_timestamp;
 	bool update_timestamp;
 #endif
-	u_int i;
-	bool did_update, locked;
 
 	txn = &session->txn;
 	conn = S2C(session);
+	txn_global = &conn->txn_global;
 	did_update = txn->mod_count != 0;
 	locked = false;
 
