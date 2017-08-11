@@ -1446,8 +1446,8 @@ __split_multi_inmem(
 			WT_ERR(__wt_col_search(session, recno, ref, &cbt));
 
 			/* Apply the modification. */
-			WT_ERR(__wt_col_modify(
-			    session, &cbt, recno, NULL, upd, upd->type, true));
+			WT_ERR(__wt_col_modify(session, &cbt,
+			    recno, NULL, upd, WT_UPDATE_IMPOSSIBLE, true));
 			break;
 		case WT_PAGE_ROW_LEAF:
 			/* Build a key. */
