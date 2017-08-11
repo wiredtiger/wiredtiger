@@ -325,8 +325,8 @@ cursor_ops(WT_SESSION *session)
 	{
 	WT_ITEM value;
 	value.data = "abcdefghijklmnopqrstuvwxyz"
-	   "abcdefghijklmnopqrstuvwxyz"
-	   "abcdefghijklmnopqrstuvwxyz";
+	    "abcdefghijklmnopqrstuvwxyz"
+	    "abcdefghijklmnopqrstuvwxyz";
 	value.size = strlen(value.data);
 	cursor->set_key(cursor, "some key");
 	cursor->set_value(cursor, &value);
