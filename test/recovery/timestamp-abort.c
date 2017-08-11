@@ -148,7 +148,7 @@ thread_ckpt_run(void *arg)
 			if ((fp = fopen(ckpt_file, "w")) == NULL)
 				testutil_die(errno, "fopen");
 			first_ckpt = false;
-			fclose(fp);
+			testutil_checksys(fclose(fp) != 0);
 		}
 	}
 	/* NOTREACHED */
