@@ -943,6 +943,7 @@ msvc
 multi
 multiblock
 multicore
+multicycle
 multiprocess
 multisocket
 multithreaded
