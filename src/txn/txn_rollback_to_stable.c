@@ -284,8 +284,7 @@ __txn_rollback_to_stable_btree(
 		 * Add the btree ID to the bitstring, so we can exclude any
 		 * lookaside entries for this btree.
 		 */
-		__bit_set(
-		    S2C(session)->stable_rollback_bitstring, btree->id);
+		__bit_set(S2C(session)->stable_rollback_bitstring, btree->id);
 		return (0);
 	}
 
@@ -340,8 +339,8 @@ __txn_rollback_to_stable_check(WT_SESSION_IMPL *session)
 	stable_set = !__wt_timestamp_iszero(&txn_global->stable_timestamp);
 	__wt_readunlock(session, &txn_global->rwlock);
 	if (!stable_set)
-		WT_RET_MSG(session, EINVAL, "rollback_to_stable requires a "
-		    "stable timestamp");
+		WT_RET_MSG(session, EINVAL,
+		    "rollback_to_stable requires a stable timestamp");
 
 	/*
 	 * Help the user - see if they have any active transactions. I'd
@@ -370,8 +369,7 @@ __wt_txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_UNUSED(cfg);
 
 	WT_RET_MSG(session, EINVAL, "rollback_to_stable "
-	    "requires a version of WiredTiger built with timestamp "
-	    "support");
+	    "requires a version of WiredTiger built with timestamp support");
 #else
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
