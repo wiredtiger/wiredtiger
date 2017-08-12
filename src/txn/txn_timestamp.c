@@ -74,7 +74,7 @@ __wt_verbose_timestamp(WT_SESSION_IMPL *session,
 #ifdef HAVE_VERBOSE
 	char timestamp_buf[2 * WT_TIMESTAMP_SIZE + 1];
 
-	if (0 != __wt_timestamp_to_hex_string(session, timestamp_buf, ts))
+	if (__wt_timestamp_to_hex_string(session, timestamp_buf, ts) != 0)
 	       return;
 
 	__wt_verbose(session,
