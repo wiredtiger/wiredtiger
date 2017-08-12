@@ -13,13 +13,20 @@
  * __wt_timestamp_to_hex_string --
  *	Convert a timestamp to hex string representation.
  */
-static int
+int
 __wt_timestamp_to_hex_string(
     WT_SESSION_IMPL *session, char *hex_timestamp, const wt_timestamp_t *ts_src)
 {
 	wt_timestamp_t ts;
 
 	__wt_timestamp_set(&ts, ts_src);
+
+	if (__wt_timestamp_iszero(&ts)) {
+		hex_timestamp[0] = '0';
+		hex_timestamp[1] = '\0';
+		return (0);
+	}
+
 #if WT_TIMESTAMP_SIZE == 8
 	{
 	char *p, v;
