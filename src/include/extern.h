@@ -500,6 +500,8 @@ extern int __wt_meta_track_destroy(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_AT
 extern int __wt_turtle_init(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_turtle_read(WT_SESSION_IMPL *session, const char *key, char **valuep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern void __wt_optrack_record_funcid(WT_SESSION_IMPL *session, uint64_t op_id, 			 void *func, size_t funcsize, 			 volatile bool *id_recorded);
+extern size_t __wt_optrack_flush_buffer(WT_SESSION_IMPL *s);
 extern int __wt_filename(WT_SESSION_IMPL *session, const char *name, char **path) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_nfilename( WT_SESSION_IMPL *session, const char *name, size_t namelen, char **path) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_remove_if_exists(WT_SESSION_IMPL *session, const char *name, bool durable) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

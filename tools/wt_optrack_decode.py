@@ -1,11 +1,28 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2.7
 
 import argparse
+import colorsys
+from multiprocessing import Process
+import multiprocessing
 import os
 import os.path
 import struct
 import sys
+import subprocess
+import time
 import traceback
+
+class color:
+   PURPLE = '\033[95m'
+   CYAN = '\033[96m'
+   DARKCYAN = '\033[36m'
+   BLUE = '\033[94m'
+   GREEN = '\033[92m'
+   YELLOW = '\033[93m'
+   RED = '\033[91m'
+   BOLD = '\033[1m'
+   UNDERLINE = '\033[4m'
+   END = '\033[0m'
 
 functionMap = {};
 
@@ -19,7 +36,9 @@ def buildTranslationMap(mapFileName):
     try:
         mapFile = open(mapFileName, "r");
     except:
+        print(color.BOLD + color.RED);
         print("Could not open " + mapFileName + " for reading");
+        print(color.END);
         return;
 
     # Read lines from the map file and build an in-memory map
@@ -89,20 +108,24 @@ def parseFile(fileName):
     outputFile = None;
     totalRecords = 0;
 
-    print("Processing file " + fileName);
+    print(color.BOLD + "Processing file " + fileName + color.END);
 
     # Open the log file for reading
     try:
         file = open(fileName, "r");
     except:
+        print(color.BOLD + color.RED);
         print("Could not open " + fileName + " for reading");
+        print(color.END);
         return;
 
     # Open the text file for writing
     try:
         outputFile = open(fileName + ".txt", "w");
     except:
+        print(color.BOLD + color.RED);
         print("Could not open file " + fileName + ".txt for writing.");
+        print(color.END);
         return;
 
     while (not done):
@@ -122,15 +145,37 @@ def parseFile(fileName):
             except:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 traceback.print_exception(exc_type, exc_value, exc_traceback);
+                print(color.BOLD + color.RED);
                 print("Could not write record " + str(record) +
                       " to file " + fileName + ".txt.");
+                print(color.END);
                 done = True;
 
     print("Wrote " + str(totalRecords) + " records to " + fileName + ".txt.");
     file.close();
     outputFile.close();
 
+def waitOnOneProcess(runningProcesses):
+
+    success = False;
+    for fname, p in runningProcesses.items():
+        if (not p.is_alive()):
+            del runningProcesses[fname];
+            success = True;
+
+    # If we have not found a terminated process, sleep for a while
+    if (not success):
+        time.sleep(5);
+
 def main():
+
+    runnableProcesses = {};
+    returnValues = {};
+    spawnedProcesses = {};
+    successfullyProcessedFiles = [];
+    targetParallelism = multiprocessing.cpu_count();
+    terminatedProcesses = {};
+
     parser = argparse.ArgumentParser(description=
                                      'Convert WiredTiger operation \
                                      tracking logs from binary to \
@@ -138,6 +183,9 @@ def main():
 
     parser.add_argument('files', type=str, nargs='*',
                     help='optrack log files to process');
+
+    parser.add_argument('-j', dest='jobParallelism', type=int,
+                        default='0');
 
     parser.add_argument('-m', '--mapfile', dest='mapFileName', type=str,
                         default='optrack-map.txt');
@@ -155,9 +203,36 @@ def main():
         print("Cannot proceed.");
         return;
 
-    # Convert the binary logs into text format.
-    for fileName in args.files:
-        parseFile(fileName);
+    # Determine the target job parallelism
+    if (args.jobParallelism > 0):
+        targetParallelism = args.jobParallelism;
+    if (targetParallelism == 0):
+        targetParallelism = len(args.files);
+    print(color.BLUE + color.BOLD);
+    print("Will process " + str(targetParallelism) + " files in parallel.");
+    print(color.END);
+
+    # Prepare the processes that will parse files, one per file
+    if (len(args.files) > 0):
+        for fname in args.files:
+            p = Process(target=parseFile, args=(fname,));
+            runnableProcesses[fname] = p;
+
+    # Spawn these processes, not exceeding the desired parallelism
+    while (len(runnableProcesses) > 0):
+        while (len(spawnedProcesses) < targetParallelism
+               and len(runnableProcesses) > 0):
+
+            fname, p = runnableProcesses.popitem();
+            p.start();
+            spawnedProcesses[fname] = p;
+
+        # Find at least one terminated process
+        waitOnOneProcess(spawnedProcesses);
+
+    # Wait for all processes to terminate
+    while (len(spawnedProcesses) > 0):
+        waitOnOneProcess(spawnedProcesses);
 
 if __name__ == '__main__':
     main()

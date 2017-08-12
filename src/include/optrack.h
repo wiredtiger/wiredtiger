@@ -38,9 +38,7 @@ struct __wt_track_record {
 	tr->timestamp = __wt_rdtsc();					\
 	tr->op_type = optype;						\
 	tr->op_id = (uint64_t)WT_FUNC_ADDR(s);				\
-	if (s->id ==2)							\
-		printf("%d %p %llu\n", tr->op_type, (void*)tr->op_id,	\
-		       tr->timestamp);					\
+									\
 	if (optype == 0 && !id_recorded)				\
 		__wt_optrack_record_funcid(s, tr->op_id,		\
 					   (void*)&__func__,		\

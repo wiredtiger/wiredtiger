@@ -393,8 +393,6 @@ union __wt_rand_state;
 #include "packing.i"
 #include "serial.i"
 
-#include "optrack.i"                    /* relies os_fhandle.i */
-
 #if defined(__cplusplus)
 }
 #endif

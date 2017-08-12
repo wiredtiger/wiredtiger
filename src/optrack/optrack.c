@@ -6,7 +6,9 @@
  * See the file LICENSE for redistribution information.
  */
 
-static void
+#include "wt_internal.h"
+
+void
 __wt_optrack_record_funcid(WT_SESSION_IMPL *session, uint64_t op_id,
 			   void *func, size_t funcsize,
 			   volatile bool *id_recorded)
@@ -39,7 +41,7 @@ __wt_optrack_record_funcid(WT_SESSION_IMPL *session, uint64_t op_id,
 	__wt_spin_unlock(session, &conn->optrack_map_spinlock);
 }
 
-static size_t
+size_t
 __wt_optrack_flush_buffer(WT_SESSION_IMPL *s)
 {
 	WT_DECL_RET;

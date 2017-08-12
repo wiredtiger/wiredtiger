@@ -1121,8 +1121,6 @@ __conn_optrack_setup(WT_SESSION_IMPL *session, const char *home,
 
 	conn = S2C(session);
 
-	printf("Setting up optrack for session %d\n", session->id);
-
 	/* Set up the directory for operation logs. */
 	WT_RET(__conn_optrack_dir(session, home, cfg));
 
