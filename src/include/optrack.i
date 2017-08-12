@@ -6,7 +6,7 @@
  * See the file LICENSE for redistribution information.
  */
 
-static inline void
+static void
 __wt_optrack_record_funcid(WT_SESSION_IMPL *session, uint64_t op_id,
 			   void *func, size_t funcsize,
 			   volatile bool *id_recorded)
@@ -37,4 +37,21 @@ __wt_optrack_record_funcid(WT_SESSION_IMPL *session, uint64_t op_id,
 		*id_recorded = 1;
 	}
 	__wt_spin_unlock(session, &conn->optrack_map_spinlock);
+}
+
+static size_t
+__wt_optrack_flush_buffer(WT_SESSION_IMPL *s)
+{
+	WT_DECL_RET;
+	ret = s->optrack_fh->handle->fh_write(s->optrack_fh->handle,
+					      (WT_SESSION *)s,
+					      s->optrack_offset,
+					      s->optrackbuf_ptr *
+					      sizeof(WT_TRACK_RECORD),
+					      s->optrack_buf);
+
+	if (ret == 0)
+		return s->optrackbuf_ptr * sizeof(WT_TRACK_RECORD);
+	else
+		return 0;
 }

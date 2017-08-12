@@ -13,11 +13,21 @@
 /*
  * WT_TRACK_RECORD --
  *     A structure for logging potentially long operations.
+ *
+ * We pad the record so that the size of the entire record is
+ * three double words, or 24 bytes. If we don't do this, the compiler
+ * will pad it for us, because we keep records in the record buffer
+ * array and each new record must be aligned on the 8-byte boundary,
+ * since its first element is an 8-byte timestamp. Instead of letting
+ * the compiler insert the padding silently, we pad explicitly, so that
+ * whoever writes the binary decoder can refer to this struct to find
+ * out the record size.
  */
 struct __wt_track_record {
 	uint64_t timestamp;
 	uint64_t op_id;
 	uint16_t op_type;
+	char padding[6];
 };
 
 #define WT_FUNC_ADDR(s) &__func__
@@ -28,6 +38,9 @@ struct __wt_track_record {
 	tr->timestamp = __wt_rdtsc();					\
 	tr->op_type = optype;						\
 	tr->op_id = (uint64_t)WT_FUNC_ADDR(s);				\
+	if (s->id ==2)							\
+		printf("%d %p %llu\n", tr->op_type, (void*)tr->op_id,	\
+		       tr->timestamp);					\
 	if (optype == 0 && !id_recorded)				\
 		__wt_optrack_record_funcid(s, tr->op_id,		\
 					   (void*)&__func__,		\
@@ -35,12 +48,8 @@ struct __wt_track_record {
 					   &id_recorded);		\
 	if (s->optrackbuf_ptr == WT_OPTRACK_MAXRECS) {			\
 		if (s->optrack_fh != NULL) {				\
-			ret = s->optrack_fh->handle->fh_write(		\
-				s->optrack_fh->handle, (WT_SESSION *)s,	\
-				s->optrack_offset, WT_OPTRACK_BUFSIZE,  \
-				s->optrack_buf);			\
-			if (ret == 0)                                   \
-				s->optrack_offset += WT_OPTRACK_BUFSIZE;\
+			size_t bytes = __wt_optrack_flush_buffer(s);	\
+			s->optrack_offset += bytes;			\
 		}                                                       \
 		s->optrackbuf_ptr = 0;					\
 	}

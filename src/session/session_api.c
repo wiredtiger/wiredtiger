@@ -238,9 +238,11 @@ __session_close(WT_SESSION *wt_session, const char *config)
 	/* Release common session resources. */
 	WT_TRET(__wt_session_release_resources(session));
 
-	/* Close the file where we tracked long operations */
-	if (session->optrack_fh != NULL)
+	/* Close the file where we tracked long operations. */
+	if (session->optrack_fh != NULL) {
+		WT_IGNORE_RET(__wt_optrack_flush_buffer(session));
 		WT_IGNORE_RET(__wt_close(session, &session->optrack_fh));
+	}
 
 	/* The API lock protects opening and closing of sessions. */
 	__wt_spin_lock(session, &conn->api_lock);
