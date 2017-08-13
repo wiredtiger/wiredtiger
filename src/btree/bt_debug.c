@@ -1035,7 +1035,7 @@ __debug_modified(WT_DBG *ds, WT_UPDATE *upd)
 	data = upd->data +
 	    sizeof(size_t) + ((size_t)nentries * 3 * sizeof(size_t));
 
-	WT_RET(ds->f(ds, "%d: ", nentries));
+	WT_RET(ds->f(ds, "%" WT_SIZET_FMT ": ", nentries));
 	for (; nentries-- > 0; data += data_size) {
 		memcpy(&data_size, p++, sizeof(size_t));
 		memcpy(&offset, p++, sizeof(size_t));
