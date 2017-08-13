@@ -4793,8 +4793,8 @@ record_loop:	/*
 				 * The on-page value will never be accessed,
 				 * write a placeholder record.
 				 */
-				data = "@";
-				size = 1;
+				data = "ovfl-unused";
+				size = WT_STORE_SIZE(strlen("ovfl-unused"));
 			} else {
 				update_no_copy = false;	/* Maybe data copy */
 
