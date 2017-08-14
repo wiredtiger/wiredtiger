@@ -394,6 +394,8 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	/* We shouldn't get called with a clean page, that's an error. */
 	WT_ASSERT(session, __wt_page_is_modified(page));
 
+	page->ovflrm_cnt = 0;
+
 	/*
 	 * Reconciliation locks the page for three reasons:
 	 *    Reconciliation reads the lists of page updates, obsolete updates

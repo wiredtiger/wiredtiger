@@ -152,6 +152,8 @@ __ovfl_cache_append_update(WT_SESSION_IMPL *session, WT_PAGE *page,
 	WT_RET(__wt_scr_alloc(session, 1024, &tmp));
 	WT_ERR(__wt_dsk_cell_data_ref(session, page->type, unpack, tmp));
 
+	++page->ovflrm_cnt;
+
 	/*
 	 * Create an update entry with no transaction ID to ensure global
 	 * visibility, append it to the update list.
@@ -178,7 +180,7 @@ __ovfl_cache_append_update(WT_SESSION_IMPL *session, WT_PAGE *page,
 	WT_ERR(__wt_update_alloc(
 	    session, tmp, &append, &size, WT_UPDATE_STANDARD));
 	append->txnid = page->type == WT_PAGE_COL_VAR &&
-	    __wt_cell_rle(unpack) > 1 ? WT_TXN_FIRST : WT_TXN_NONE;
+	    __wt_cell_rle(unpack) > 1 ? WT_TXN_FIRST : 3;
 	for (upd = upd_list; upd->next != NULL; upd = upd->next)
 		;
 	WT_PUBLISH(upd->next, append);
