@@ -190,41 +190,138 @@ __wt_conn_remove_collator(WT_SESSION_IMPL *session)
 }
 
 /*
- * __conn_compat_config --
+ * __wt_conn_compat_enter --
+ *	Enter a compatibility generation.
+ */
+void
+__wt_conn_compat_enter(WT_SESSION_IMPL *session)
+{
+	WT_CONNECTION_IMPL *conn;
+
+	conn = S2C(session);
+
+	/*
+	 * Enter a connection compatibility generation.
+	 *
+	 * If/when the compatibility version changes, we must pause the system
+	 * while the changeover happens (for example, in-flight transactions
+	 * might include log records we can't write in a downgraded version).
+	 * Reconfiguration should be vanishingly rare and it would be bad to
+	 * add read/write or other locks on the transaction begin/commit path.
+	 *
+	 * Instead, each session has a compatibility version generation number,
+	 * and there's a global compatibility version change flag. Threads
+	 * publish their generation, then check the change flag. If the change
+	 * flag is set, they release their generation and wait on the change
+	 * flag until it clears. On the reconfiguration side, we set the flag,
+	 * wait for all threads to drain, proceed with reconfiguration, then
+	 * clear the flag. This limits the transaction begin/commit cycle to
+	 * a few memory reads and the single write of an unshared location.
+	 *
+	 * This is different from other generation handling in we're not waiting
+	 * for the threads in one generation to drain, we're waiting for threads
+	 * in all generations to drain. This is safe because of the global flag:
+	 * threads entering the generation after checking the flag repeat the
+	 * check and will simply exit if the flag is set. Reconfiguration waits
+	 * on the generation to drain once, ignores if a thread's generation
+	 * changes after that, threads entering the generation do nothing but
+	 * exit the generation until the flag clears.
+	 *
+	 * Finally, reconfiguration itself is exempt, as it starts checkpoint
+	 * transactions.
+	 */
+	if (F_ISSET(conn, WT_CONN_RECONFIGURE))
+		return;
+	for (;; __wt_sleep(1, 0)) {
+		if (!conn->compat_update)
+			__wt_session_gen_enter(session, WT_GEN_COMPATIBILITY);
+		if (!conn->compat_update)
+			break;
+		__wt_session_gen_leave(session, WT_GEN_COMPATIBILITY);
+	}
+}
+
+/*
+ * __wt_conn_compat_leave --
+ *	Leave a compatibility generation.
+ */
+void
+__wt_conn_compat_leave(WT_SESSION_IMPL *session)
+{
+	WT_CONNECTION_IMPL *conn;
+
+	conn = S2C(session);
+
+	if (F_ISSET(conn, WT_CONN_RECONFIGURE))
+		return;
+	__wt_session_gen_leave(session, WT_GEN_COMPATIBILITY);
+}
+
+/*
+ * __conn_compat_config_enter --
  *	Configure compatibility version.
  */
 static int
-__conn_compat_config(WT_SESSION_IMPL *session, const char **cfg)
+__conn_compat_config_enter(WT_SESSION_IMPL *session, const char **cfg)
 {
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
 	uint16_t patch;
 
 	conn = S2C(session);
-	WT_RET(__wt_config_gets(session, cfg,
-	    "compatibility.release", &cval));
-	if (cval.len != 0) {
-		/*
-		 * Accept either a major.minor release string or a
-		 * major.minor.patch release string.  We ignore the patch
-		 * value, but allow it in the string.
-		 */
-		if (sscanf(cval.str, "%" SCNu16 ".%" SCNu16,
-		    &conn->compat_major, &conn->compat_minor) != 2 &&
-		    sscanf(cval.str, "%" SCNu16 ".%" SCNu16 ".%" SCNu16,
-		    &conn->compat_major, &conn->compat_minor, &patch) != 3)
-			WT_RET_MSG(session,
-			    EINVAL, "illegal compatibility release");
-		if (conn->compat_major > WIREDTIGER_VERSION_MAJOR)
-			WT_RET_MSG(session, EINVAL, "unknown major version");
-		if (conn->compat_major == WIREDTIGER_VERSION_MAJOR &&
-		    conn->compat_minor > WIREDTIGER_VERSION_MINOR)
-			WT_RET_MSG(session,
-			    EINVAL, "illegal compatibility version");
-	} else {
+	WT_RET(__wt_config_gets(session, cfg, "compatibility.release", &cval));
+	if (cval.len == 0) {
 		conn->compat_major = WIREDTIGER_VERSION_MAJOR;
 		conn->compat_minor = WIREDTIGER_VERSION_MINOR;
+		return (0);
 	}
+
+	/*
+	 * Accept either a major.minor release string or a major.minor.patch
+	 * release string. Ignore the patch value, but allow it in the string.
+	 */
+	if (sscanf(cval.str, "%" SCNu16 ".%" SCNu16,
+	    &conn->compat_major, &conn->compat_minor) != 2 &&
+	    sscanf(cval.str, "%" SCNu16 ".%" SCNu16 ".%" SCNu16,
+	    &conn->compat_major, &conn->compat_minor, &patch) != 3)
+		WT_RET_MSG(session, EINVAL, "illegal compatibility release");
+	if (conn->compat_major > WIREDTIGER_VERSION_MAJOR)
+		WT_RET_MSG(session, EINVAL, "unknown major version");
+	if (conn->compat_major == WIREDTIGER_VERSION_MAJOR &&
+	    conn->compat_minor > WIREDTIGER_VERSION_MINOR)
+		WT_RET_MSG(session, EINVAL, "illegal compatibility version");
+
+	/*
+	 * Wait for all threads to drain. No barrier is needed to set the update
+	 * flag, waiting for the threads to drain includes barrier instructions.
+	 */
+	conn->compat_update = true;
+	__wt_gen_drain_all(session, WT_GEN_COMPATIBILITY);
+
+	return (0);
+}
+
+/*
+ * __conn_compat_config_leave --
+ *	Configure compatibility version.
+ */
+static void
+__conn_compat_config_leave(WT_SESSION_IMPL *session)
+{
+	S2C(session)->compat_update = false;
+	WT_FULL_BARRIER();			/* Let threads proceed. */
+}
+
+/*
+ * __conn_compat_config --
+ *	Enter/leave configure compatibility version.
+ */
+static int
+__conn_compat_config(WT_SESSION_IMPL *session, const char **cfg)
+{
+	WT_RET(__conn_compat_config_enter(session, cfg));
+	__conn_compat_config_leave(session);
+
 	return (0);
 }
 
@@ -1144,16 +1241,14 @@ __conn_reconfigure(WT_CONNECTION *wt_conn, const char *config)
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	const char *p;
-	bool locked;
 
 	conn = (WT_CONNECTION_IMPL *)wt_conn;
-	locked = false;
 
 	CONNECTION_API_CALL(conn, session, reconfigure, config, cfg);
 
 	/* Serialize reconfiguration. */
 	__wt_spin_lock(session, &conn->reconfig_lock);
-	locked = true;
+	F_SET(conn, WT_CONN_RECONFIGURE);
 
 	/*
 	 * The configuration argument has been checked for validity, update the
@@ -1172,8 +1267,12 @@ __conn_reconfigure(WT_CONNECTION *wt_conn, const char *config)
 	cfg[0] = conn->cfg;
 	cfg[1] = config;
 
-	/* Second, reconfigure the system. */
-	WT_ERR(__conn_compat_config(session, cfg));
+	/*
+	 * Second, reconfigure the system, always checking the compatibility
+	 * version first.
+	 */
+	WT_ERR(__conn_compat_config_enter(session, cfg));
+
 	WT_ERR(__conn_statistics_config(session, cfg));
 	WT_ERR(__wt_async_reconfig(session, cfg));
 	WT_ERR(__wt_cache_config(session, true, cfg));
@@ -1190,8 +1289,12 @@ __conn_reconfigure(WT_CONNECTION *wt_conn, const char *config)
 	__wt_free(session, conn->cfg);
 	conn->cfg = p;
 
-err:	if (locked)
+err:	__conn_compat_config_leave(session);
+
+	if (F_ISSET(conn, WT_CONN_RECONFIGURE)) {
+		F_CLR(conn, WT_CONN_RECONFIGURE);
 		__wt_spin_unlock(session, &conn->reconfig_lock);
+	}
 
 	API_END_RET(session, ret);
 }

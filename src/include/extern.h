@@ -239,6 +239,8 @@ extern int __wt_config_upgrade(WT_SESSION_IMPL *session, WT_ITEM *buf) WT_GCC_FU
 extern const char *__wt_wiredtiger_error(int error);
 extern int __wt_collator_config(WT_SESSION_IMPL *session, const char *uri, WT_CONFIG_ITEM *cname, WT_CONFIG_ITEM *metadata, WT_COLLATOR **collatorp, int *ownp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_remove_collator(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern void __wt_conn_compat_enter(WT_SESSION_IMPL *session);
+extern void __wt_conn_compat_leave(WT_SESSION_IMPL *session);
 extern int __wt_compressor_config( WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_COMPRESSOR **compressorp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_remove_compressor(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_remove_data_source(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -674,6 +676,7 @@ extern uint64_t __wt_gen(WT_SESSION_IMPL *session, int which);
 extern uint64_t __wt_gen_next(WT_SESSION_IMPL *session, int which);
 extern uint64_t __wt_gen_next_drain(WT_SESSION_IMPL *session, int which);
 extern void __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation);
+extern void __wt_gen_drain_all(WT_SESSION_IMPL *session, int which);
 extern uint64_t __wt_gen_oldest(WT_SESSION_IMPL *session, int which);
 extern uint64_t __wt_session_gen(WT_SESSION_IMPL *session, int which);
 extern void __wt_session_gen_enter(WT_SESSION_IMPL *session, int which);

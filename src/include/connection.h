@@ -186,6 +186,7 @@ struct __wt_connection_impl {
 
 	uint16_t compat_major;		/* Compatibility major version */
 	uint16_t compat_minor;		/* Compatibility minor version */
+	volatile bool compat_update;	/* Compatibility version changed */
 
 	WT_EXTENSION_API extension_api;	/* Extension API */
 

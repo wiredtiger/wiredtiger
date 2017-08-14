@@ -109,6 +109,7 @@ flags = {
         'CONN_LSM_MERGE',
         'CONN_PANIC',
         'CONN_READONLY',
+        'CONN_RECONFIGURE',
         'CONN_RECOVERING',
         'CONN_SERVER_ASYNC',
         'CONN_SERVER_CHECKPOINT',
