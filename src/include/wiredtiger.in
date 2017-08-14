@@ -506,9 +506,9 @@ struct __wt_cursor {
 	 *
 	 * The WT_CURSOR::modify method stores a change record in cache and
 	 * writes a change record to the log, instead of the usual complete
-	 * value. This can reduces cache and logging requirements, but may
-	 * result in slower reads because the complete value must be assembled
-	 * during retrieval.
+	 * value. This can reduce cache and logging requirements, but may result
+	 * in slower reads because the complete value must be assembled during
+	 * retrieval.
 	 *
 	 * @param cursor the cursor handle
 	 * @param entries an array of modification data structures
