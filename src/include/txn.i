@@ -90,8 +90,7 @@ __wt_timestamp_iszero(const wt_timestamp_t *ts)
 {
 	static const wt_timestamp_t zero_timestamp;
 
-	return (memcmp(ts->ts,
-	    WT_TIMESTAMP_NULL(&zero_timestamp), WT_TIMESTAMP_SIZE) == 0);
+	return (memcmp(ts->ts, &zero_timestamp, WT_TIMESTAMP_SIZE) == 0);
 }
 
 /*
@@ -182,7 +181,17 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 	op->type = F_ISSET(session, WT_SESSION_LOGGING_INMEM) ?
 	    WT_TXN_OP_INMEM : WT_TXN_OP_BASIC;
 #ifdef HAVE_TIMESTAMPS
-	if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
+	/*
+	 * Mark the update with a timestamp, if we have one.
+	 *
+	 * Updates in the metadata never get timestamps (either now or at
+	 * commit): metadata cannot be read at a point in time, only the most
+	 * recently committed data matches files on disk.
+	 */
+	if (WT_IS_METADATA(session->dhandle)) {
+		if (!F_ISSET(session, WT_SESSION_LOGGING_INMEM))
+			op->type = WT_TXN_OP_BASIC_TS;
+	} else if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
 		__wt_timestamp_set(&upd->timestamp, &txn->commit_timestamp);
 		if (!F_ISSET(session, WT_SESSION_LOGGING_INMEM))
 			op->type = WT_TXN_OP_BASIC_TS;
@@ -285,9 +294,9 @@ __txn_visible_all_id(WT_SESSION_IMPL *session, uint64_t id)
 
 /*
  * __wt_txn_visible_all --
- *	Check if a given transaction is "globally visible".	This is, if
- *	all sessions in the system will see the transaction ID including the
- *	ID that belongs to a running checkpoint.
+ *	Check if a given transaction is "globally visible". This is, if all
+ *	sessions in the system will see the transaction ID including the ID
+ *	that belongs to a running checkpoint.
  */
 static inline bool
 __wt_txn_visible_all(
@@ -581,8 +590,7 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
 
 /*
  * __wt_txn_id_check --
- *	A transaction is going to do an update, start an auto commit
- *	transaction if required and allocate a transaction ID.
+ *	A transaction is going to do an update, allocate a transaction ID.
  */
 static inline int
 __wt_txn_id_check(WT_SESSION_IMPL *session)
@@ -606,7 +614,7 @@ __wt_txn_id_check(WT_SESSION_IMPL *session)
 	 * more we can do.
 	 */
 	if (txn->id == WT_TXN_ABORTED)
-		WT_RET_MSG(session, ENOMEM, "Out of transaction IDs");
+		WT_RET_MSG(session, WT_ERROR, "out of transaction IDs");
 	F_SET(txn, WT_TXN_HAS_ID);
 
 	return (0);
