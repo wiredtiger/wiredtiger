@@ -172,13 +172,14 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
 	    "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
 	    "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
 	    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
-	    "\"thread_group\",\"transaction\",\"verify\",\"version\","
-	    "\"write\"]",
+	    "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
+	    "\"version\",\"write\"]",
 	    NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_set_timestamp[] = {
+	{ "commit_timestamp", "string", NULL, NULL, NULL, 0 },
 	{ "oldest_timestamp", "string", NULL, NULL, NULL, 0 },
 	{ "stable_timestamp", "string", NULL, NULL, NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
@@ -801,8 +802,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
 	    "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
 	    "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
 	    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
-	    "\"thread_group\",\"transaction\",\"verify\",\"version\","
-	    "\"write\"]",
+	    "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
+	    "\"version\",\"write\"]",
 	    NULL, 0 },
 	{ "write_through", "list",
 	    NULL, "choices=[\"data\",\"log\"]",
@@ -896,8 +897,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
 	    "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
 	    "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
 	    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
-	    "\"thread_group\",\"transaction\",\"verify\",\"version\","
-	    "\"write\"]",
+	    "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
+	    "\"version\",\"write\"]",
 	    NULL, 0 },
 	{ "version", "string", NULL, NULL, NULL, 0 },
 	{ "write_through", "list",
@@ -986,8 +987,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
 	    "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
 	    "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
 	    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
-	    "\"thread_group\",\"transaction\",\"verify\",\"version\","
-	    "\"write\"]",
+	    "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
+	    "\"version\",\"write\"]",
 	    NULL, 0 },
 	{ "version", "string", NULL, NULL, NULL, 0 },
 	{ "write_through", "list",
@@ -1076,8 +1077,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
 	    "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
 	    "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
 	    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
-	    "\"thread_group\",\"transaction\",\"verify\",\"version\","
-	    "\"write\"]",
+	    "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
+	    "\"version\",\"write\"]",
 	    NULL, 0 },
 	{ "write_through", "list",
 	    NULL, "choices=[\"data\",\"log\"]",
@@ -1143,13 +1144,17 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "timing_stress_for_test=,verbose=",
 	  confchk_WT_CONNECTION_reconfigure, 21
 	},
+	{ "WT_CONNECTION.rollback_to_stable",
+	  "",
+	  NULL, 0
+	},
 	{ "WT_CONNECTION.set_file_system",
 	  "",
 	  NULL, 0
 	},
 	{ "WT_CONNECTION.set_timestamp",
-	  "oldest_timestamp=,stable_timestamp=",
-	  confchk_WT_CONNECTION_set_timestamp, 2
+	  "commit_timestamp=,oldest_timestamp=,stable_timestamp=",
+	  confchk_WT_CONNECTION_set_timestamp, 3
 	},
 	{ "WT_CURSOR.close",
 	  "",
