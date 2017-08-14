@@ -73,7 +73,7 @@ __wt_ext_transaction_notify(
 		return (0);
 	if (txn->notify != NULL)
 		WT_RET_MSG(
-		    session, EAGAIN, "transaction notify already scheduled");
+		    session, WT_ERROR, "transaction notify already scheduled");
 
 	txn->notify = notify;
 
