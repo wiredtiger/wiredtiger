@@ -1372,17 +1372,15 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	if (!skipped && (F_ISSET(btree, WT_BTREE_LOOKASIDE) ||
 	    __wt_txn_visible_all(session,
 	    max_txn, WT_TIMESTAMP_NULL(&max_timestamp)))) {
-#ifdef HAVE_DIAGNOSTIC
 		/*
 		 * The checkpoint transaction is special.  Make sure we never
 		 * write (metadata) updates from a checkpoint in a concurrent
 		 * session.
 		 */
-		txnid = *updp == NULL ? WT_TXN_NONE : (*updp)->txnid;
-		WT_ASSERT(session, txnid == WT_TXN_NONE ||
-		    txnid != S2C(session)->txn_global.checkpoint_state.id ||
+		WT_ASSERT(session, *updp == NULL ||
+		    (*updp)->txnid !=
+		    S2C(session)->txn_global.checkpoint_state.id ||
 		    WT_SESSION_IS_CHECKPOINT(session));
-#endif
 		return (0);
 	}
 
