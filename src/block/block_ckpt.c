@@ -341,9 +341,7 @@ __ckpt_verify(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
 			if (ckpt[1].name == NULL)
 				break;
 			/* FALLTHROUGH */
-		default:
-			return (
-			    __wt_illegal_value(session, "checkpoint array"));
+		WT_ILLEGAL_VALUE(session);
 		}
 	return (0);
 }
