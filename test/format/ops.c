@@ -447,12 +447,14 @@ snap_check(WT_CURSOR *cursor,
 			(void)snprintf(buf, sizeof(buf),
 			    "/tmp/page.%u", (u_int)getpid());
 			ret = __wt_debug_page(s, c->ref, buf);
-			__wt_attach(s);
+			__wt_abort(s);
 			}
 
+#if 0
 			testutil_die(ret,
 			    "snapshot-isolation: %" PRIu64 " search mismatch",
 			    start->keyno);
+#endif
 			/* NOTREACHED */
 		}
 	}
