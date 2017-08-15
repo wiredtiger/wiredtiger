@@ -38,23 +38,21 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg)
 	    &conn->compat_major, &conn->compat_minor) != 2 &&
 	    sscanf(cval.str, "%" SCNu16 ".%" SCNu16 ".%" SCNu16,
 	    &conn->compat_major, &conn->compat_minor, &patch) != 3)
-		WT_RET_MSG(session,
-		    EINVAL, "illegal compatibility release");
+		WT_RET_MSG(session, EINVAL, "illegal compatibility release");
 	if (conn->compat_major > WIREDTIGER_VERSION_MAJOR)
 		WT_RET_MSG(session, EINVAL, "unknown major version");
 	if (conn->compat_major == WIREDTIGER_VERSION_MAJOR &&
 	    conn->compat_minor > WIREDTIGER_VERSION_MINOR)
-		WT_RET_MSG(session,
-		    EINVAL, "illegal compatibility version");
+		WT_RET_MSG(session, EINVAL, "illegal compatibility version");
 
 	/*
 	 * We're doing an upgrade or downgrade, check whether transactions are
-	 * active.  Wait for any in-progress checkpoints to complete.
+	 * active.
 	 */
 	WT_RET(__wt_txn_activity_check(session, &txn_active));
 	if (txn_active)
-		WT_RET_MSG(session,
-		    ENOTSUP, "upgrade / downgrade must run single-threaded");
+		WT_RET_MSG(session, ENOTSUP,
+		    "upgrade / downgrade must run single-threaded");
 	return (0);
 }
 
