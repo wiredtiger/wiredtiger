@@ -90,8 +90,7 @@ __wt_timestamp_iszero(const wt_timestamp_t *ts)
 {
 	static const wt_timestamp_t zero_timestamp;
 
-	return (memcmp(ts->ts,
-	    WT_TIMESTAMP_NULL(&zero_timestamp), WT_TIMESTAMP_SIZE) == 0);
+	return (memcmp(ts->ts, &zero_timestamp, WT_TIMESTAMP_SIZE) == 0);
 }
 
 /*
@@ -295,9 +294,9 @@ __txn_visible_all_id(WT_SESSION_IMPL *session, uint64_t id)
 
 /*
  * __wt_txn_visible_all --
- *	Check if a given transaction is "globally visible".	This is, if
- *	all sessions in the system will see the transaction ID including the
- *	ID that belongs to a running checkpoint.
+ *	Check if a given transaction is "globally visible". This is, if all
+ *	sessions in the system will see the transaction ID including the ID
+ *	that belongs to a running checkpoint.
  */
 static inline bool
 __wt_txn_visible_all(
@@ -591,8 +590,7 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
 
 /*
  * __wt_txn_id_check --
- *	A transaction is going to do an update, start an auto commit
- *	transaction if required and allocate a transaction ID.
+ *	A transaction is going to do an update, allocate a transaction ID.
  */
 static inline int
 __wt_txn_id_check(WT_SESSION_IMPL *session)
@@ -616,7 +614,7 @@ __wt_txn_id_check(WT_SESSION_IMPL *session)
 	 * more we can do.
 	 */
 	if (txn->id == WT_TXN_ABORTED)
-		WT_RET_MSG(session, ENOMEM, "Out of transaction IDs");
+		WT_RET_MSG(session, WT_ERROR, "out of transaction IDs");
 	F_SET(txn, WT_TXN_HAS_ID);
 
 	return (0);
@@ -740,11 +738,11 @@ __wt_txn_am_oldest(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_txn_are_any_active --
+ * __wt_txn_activity_check --
  *	Check whether there are any running transactions.
  */
 static inline int
-__wt_txn_are_any_active(WT_SESSION_IMPL *session, bool *any_active)
+__wt_txn_activity_check(WT_SESSION_IMPL *session, bool *txn_active)
 {
 	WT_TXN_GLOBAL *txn_global;
 
@@ -757,6 +755,8 @@ __wt_txn_are_any_active(WT_SESSION_IMPL *session, bool *any_active)
 	WT_RET(__wt_txn_update_oldest(session,
 	    WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 
-	*any_active = (txn_global->oldest_id != txn_global->current);
+	*txn_active = (txn_global->oldest_id != txn_global->current ||
+	    txn_global->metadata_pinned != txn_global->current);
+
 	return (0);
 }

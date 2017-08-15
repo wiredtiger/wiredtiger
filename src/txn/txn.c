@@ -570,12 +570,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_OP *op;
+	u_int i;
+	bool did_update, locked;
 #ifdef HAVE_TIMESTAMPS
 	wt_timestamp_t prev_commit_timestamp;
 	bool update_timestamp;
 #endif
-	u_int i;
-	bool did_update, locked;
 
 	txn = &session->txn;
 	conn = S2C(session);
@@ -1000,10 +1000,7 @@ __wt_txn_global_destroy(WT_SESSION_IMPL *session)
 int
 __wt_txn_global_shutdown(WT_SESSION_IMPL *session)
 {
-	WT_DECL_RET;
-	WT_TXN_GLOBAL *txn_global;
-
-	txn_global = &S2C(session)->txn_global;
+	bool txn_active;
 
 	/*
 	 * We're shutting down.  Make sure everything gets freed.
@@ -1014,10 +1011,8 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session)
 	 * transaction ID will catch up with the current ID.
 	 */
 	for (;;) {
-		WT_TRET(__wt_txn_update_oldest(session,
-		    WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
-		if (txn_global->oldest_id == txn_global->current &&
-		    txn_global->metadata_pinned == txn_global->current)
+		WT_RET(__wt_txn_activity_check(session, &txn_active));
+		if (!txn_active)
 			break;
 
 		WT_STAT_CONN_INCR(session, txn_release_blocked);
@@ -1029,10 +1024,10 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session)
 	 * Now that all transactions have completed, no timestamps should be
 	 * pinned.
 	 */
-	__wt_timestamp_set_inf(&txn_global->pinned_timestamp);
+	__wt_timestamp_set_inf(&S2C(session)->txn_global.pinned_timestamp);
 #endif
 
-	return (ret);
+	return (0);
 }
 
 #if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
@@ -1050,7 +1045,9 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 	const char *iso_tag;
 	uint64_t id;
 	uint32_t i, session_cnt;
-
+#ifdef HAVE_TIMESTAMPS
+	char hex_timestamp[3][2 * WT_TIMESTAMP_SIZE + 1];
+#endif
 	conn = S2C(session);
 	txn_global = &conn->txn_global;
 
@@ -1061,10 +1058,35 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 	WT_RET(__wt_msg(session,
 	    "last running ID: %" PRIu64, txn_global->last_running));
 	WT_RET(__wt_msg(session, "oldest ID: %" PRIu64, txn_global->oldest_id));
-	WT_RET(__wt_msg(session,
-	    "oldest named snapshot ID: %" PRIu64, txn_global->nsnap_oldest_id));
 
-	WT_RET(__wt_msg(session, "checkpoint running? %s",
+#ifdef HAVE_TIMESTAMPS
+	WT_RET(__wt_timestamp_to_hex_string(
+	    session, hex_timestamp[0], &txn_global->commit_timestamp));
+	WT_RET(__wt_msg(session, "commit timestamp: %s", hex_timestamp[0]));
+	WT_RET(__wt_timestamp_to_hex_string(
+	    session, hex_timestamp[0], &txn_global->oldest_timestamp));
+	WT_RET(__wt_msg(session, "oldest timestamp: %s", hex_timestamp[0]));
+	WT_RET(__wt_timestamp_to_hex_string(
+	    session, hex_timestamp[0], &txn_global->pinned_timestamp));
+	WT_RET(__wt_msg(session, "pinned timestamp: %s", hex_timestamp[0]));
+	WT_RET(__wt_timestamp_to_hex_string(
+	    session, hex_timestamp[0], &txn_global->stable_timestamp));
+	WT_RET(__wt_msg(session, "stable timestamp: %s", hex_timestamp[0]));
+	WT_RET(__wt_msg(session, "has_commit_timestamp: %s",
+	    txn_global->has_commit_timestamp ? "yes" : "no"));
+	WT_RET(__wt_msg(session, "has_oldest_timestamp: %s",
+	    txn_global->has_oldest_timestamp ? "yes" : "no"));
+	WT_RET(__wt_msg(session, "has_pinned_timestamp: %s",
+	    txn_global->has_pinned_timestamp ? "yes" : "no"));
+	WT_RET(__wt_msg(session, "has_stable_timestamp: %s",
+	    txn_global->has_stable_timestamp ? "yes" : "no"));
+	WT_RET(__wt_msg(session, "oldest_is_pinned: %s",
+	    txn_global->oldest_is_pinned ? "yes" : "no"));
+	WT_RET(__wt_msg(session, "stable_is_pinned: %s",
+	    txn_global->stable_is_pinned ? "yes" : "no"));
+#endif
+
+	WT_RET(__wt_msg(session, "checkpoint running: %s",
 	    txn_global->checkpoint_running ? "yes" : "no"));
 	WT_RET(__wt_msg(session, "checkpoint generation: %" PRIu64,
 	    __wt_gen(session, WT_GEN_CHECKPOINT)));
@@ -1073,9 +1095,11 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 	WT_RET(__wt_msg(session, "checkpoint txn ID: %" PRIu64,
 	    txn_global->checkpoint_state.id));
 
+	WT_RET(__wt_msg(session,
+	    "oldest named snapshot ID: %" PRIu64, txn_global->nsnap_oldest_id));
+
 	WT_ORDERED_READ(session_cnt, conn->session_cnt);
 	WT_RET(__wt_msg(session, "session count: %" PRIu32, session_cnt));
-
 	WT_RET(__wt_msg(session, "Transaction state of active sessions:"));
 
 	/*
@@ -1102,7 +1126,40 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 			iso_tag = "WT_ISO_SNAPSHOT";
 			break;
 		}
-
+#ifdef HAVE_TIMESTAMPS
+		WT_RET(__wt_timestamp_to_hex_string(
+		    session, hex_timestamp[0], &txn->commit_timestamp));
+		WT_RET(__wt_timestamp_to_hex_string(
+		    session, hex_timestamp[1], &txn->first_commit_timestamp));
+		WT_RET(__wt_timestamp_to_hex_string(
+		    session, hex_timestamp[2], &txn->read_timestamp));
+		WT_RET(__wt_msg(session,
+		    "ID: %8" PRIu64
+		    ", mod count: %u"
+		    ", pinned ID: %8" PRIu64
+		    ", snap min: %" PRIu64
+		    ", snap max: %" PRIu64
+		    ", commit_timestamp: %s"
+		    ", first_commit_timestamp: %s"
+		    ", read_timestamp: %s"
+		    ", metadata pinned ID: %" PRIu64
+		    ", flags: 0x%08" PRIx32
+		    ", name: %s"
+		    ", isolation: %s",
+		    id,
+		    txn->mod_count,
+		    s->pinned_id,
+		    txn->snap_min,
+		    txn->snap_max,
+		    hex_timestamp[0],
+		    hex_timestamp[1],
+		    hex_timestamp[2],
+		    s->metadata_pinned,
+		    txn->flags,
+		    conn->sessions[i].name == NULL ?
+		    "EMPTY" : conn->sessions[i].name,
+		    iso_tag));
+#else
 		WT_RET(__wt_msg(session,
 		    "ID: %6" PRIu64
 		    ", mod count: %u"
@@ -1123,6 +1180,7 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 		    conn->sessions[i].name == NULL ?
 		    "EMPTY" : conn->sessions[i].name,
 		    iso_tag));
+#endif
 	}
 	WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
 
