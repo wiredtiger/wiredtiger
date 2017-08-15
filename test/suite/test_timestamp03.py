@@ -39,12 +39,6 @@ from wtscenario import make_scenarios
 def timestamp_str(t):
     return '%x' % t
 
-def timestamp_ret_str(t):
-    s = timestamp_str(t)
-    if len(s) % 2 == 1:
-        s = '0' + s
-    return s
-
 class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'ts03_ts_nologged'
     tablename2 = 'ts03_nots_logged'
@@ -57,6 +51,9 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
         ('table-index', dict(uri='table:', use_cg=False, use_index=True)),
         ('table-simple', dict(uri='table:', use_cg=False, use_index=False)),
     ]
+    types = [
+        ('file', dict(uri='file:', use_cg=False, use_index=False)),
+    ]
 
     ckpt = [
         ('use_ts_def', dict(ckptcfg='', val='none')),
@@ -64,14 +61,32 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
         ('use_ts_true', dict(ckptcfg='use_timestamp=true', val='none')),
         ('read_ts', dict(ckptcfg='read_timestamp', val='none')),
     ]
+    ckpt = [
+        ('use_ts_def', dict(ckptcfg='', val='none')),
+    ]
 
     conncfg = [
         ('nolog', dict(conn_config='create', using_log=False)),
         ('V1', dict(conn_config='create,log=(enabled),compatibility=(release="2.9")', using_log=True)),
         ('V2', dict(conn_config='create,log=(enabled)', using_log=True)),
+        ('evict', dict(conn_config='create,log=(enabled),cache_size=1M', using_log=True)),
+    ]
+    conncfg = [
+        ('evict', dict(conn_config='create,log=(enabled),cache_size=1M,statistics=(fast),statistics_log=(on_close)', using_log=True)),
     ]
 
-    scenarios = make_scenarios(types, ckpt, conncfg)
+    nkeys = [
+        ('100keys', dict(nkeys=100)),
+        ('300keys', dict(nkeys=300)),
+        ('500keys', dict(nkeys=500)),
+        ('1000keys', dict(nkeys=1000)),
+    ]
+    nkeys = [
+        ('100keys', dict(nkeys=100)),
+        ('500keys', dict(nkeys=500)),
+    ]
+
+    scenarios = make_scenarios(types, ckpt, conncfg, nkeys)
 
     # Binary values.
     value = u'\u0001\u0002abcd\u0003\u0004'
@@ -82,9 +97,16 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
     # expected values.
     def check(self, session, txn_config, expected):
         if txn_config:
+            #print "Check: txn_config:"
+            #print txn_config
             session.begin_transaction(txn_config)
         c = session.open_cursor(self.uri + self.tablename, None)
         actual = dict((k, v) for k, v in c if v != 0)
+        self.maxDiff = None
+        #print "Expected:"
+        #print expected
+        #print "Actual:"
+        #print actual
         self.assertEqual(actual, expected)
         # Search for the expected items as well as iterating
         for k, v in expected.iteritems():
@@ -170,9 +192,9 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.create(uri3, 'key_format=i,value_format=S')
         c3 = self.session.open_cursor(uri3)
 
-        # Insert keys 1..100 each with timestamp=key, in some order
-        nkeys = 100
-        orig_keys = range(1, nkeys+1)
+        # Insert keys 1..nkeys each with timestamp=key, in some order
+        # 351 works, 352 fails the test in 'check'.
+        orig_keys = range(1, self.nkeys+1)
         keys = orig_keys[:]
         random.shuffle(keys)
 
@@ -190,8 +212,8 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
                 dict((k, self.value) for k in orig_keys[:i+1]))
 
         # Bump the oldest timestamp, we're not going back...
-        self.assertEqual(self.conn.query_timestamp(), timestamp_ret_str(100))
-        self.oldts = timestamp_str(100)
+        self.assertEqual(self.conn.query_timestamp(), timestamp_str(self.nkeys))
+        self.oldts = timestamp_str(self.nkeys)
         self.conn.set_timestamp('oldest_timestamp=' + self.oldts)
         self.conn.set_timestamp('stable_timestamp=' + self.oldts)
         # print "Oldest " + self.oldts
@@ -209,7 +231,7 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
             self.session.begin_transaction()
             c[k] = self.value2
             c3[k] = self.value2
-            ts = timestamp_str(k + 100)
+            ts = timestamp_str(k + self.nkeys)
             self.session.commit_transaction('commit_timestamp=' + ts)
             # print "Commit key " + str(k) + " ts " + ts
             count += 1
@@ -217,9 +239,9 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Take a checkpoint using the given configuration.  Then verify
         # whether value2 appears in a copy of that data or not.
-        valcnt2 = valcnt3 = nkeys
+        valcnt2 = valcnt3 = self.nkeys
         if self.val == 'all':
-            valcnt = nkeys
+            valcnt = self.nkeys
         else:
             valcnt = 0
         self.ckpt_backup(self.value2, valcnt, valcnt2, valcnt3)
@@ -228,8 +250,8 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
             # timestamp and make sure we can see the data.  Once the stable
             # timestamp is moved we should see all keys with value2.
             self.conn.set_timestamp('stable_timestamp=' + \
-                timestamp_str(100+nkeys))
-            self.ckpt_backup(self.value2, nkeys, nkeys, nkeys)
+                timestamp_str(self.nkeys*2))
+            self.ckpt_backup(self.value2, self.nkeys, self.nkeys, self.nkeys)
 
         # If we're not using the log we're done.
         if not self.using_log:
@@ -248,7 +270,7 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
             self.session.begin_transaction()
             c[k] = self.value3
             c3[k] = self.value3
-            ts = timestamp_str(k + 200)
+            ts = timestamp_str(k + self.nkeys*2)
             self.session.commit_transaction('commit_timestamp=' + ts)
             # print "Commit key " + str(k) + " ts " + ts
             count += 1
@@ -262,7 +284,7 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
         # all the data regardless of timestamps.  The table that is not
         # logged should not see any of it.
         valcnt = 0
-        valcnt2 = valcnt3 = nkeys
+        valcnt2 = valcnt3 = self.nkeys
         self.backup_check(self.value3, valcnt, valcnt2, valcnt3)
 
 if __name__ == '__main__':
