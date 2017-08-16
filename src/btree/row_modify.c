@@ -322,12 +322,8 @@ __wt_update_obsolete_check(
 	 */
 	if (first != NULL &&
 	    (next = first->next) != NULL &&
-	    __wt_atomic_cas_ptr(&first->next, next, NULL)) {
-		first->obsolete = 2;
-		for (first = next; first != NULL; first = first->next)
-			first->obsolete = 1;
+	    __wt_atomic_cas_ptr(&first->next, next, NULL))
 		return (next);
-	}
 
 	/*
 	 * If the list is long, don't retry checks on this page until the
