@@ -211,8 +211,9 @@ __wt_txn_named_snapshot_begin(WT_SESSION_IMPL *session, const char *cfg[])
 	if (TAILQ_EMPTY(&txn_global->nsnaph)) {
 		WT_ASSERT(session, txn_global->nsnap_oldest_id == WT_TXN_NONE &&
 		    !__wt_txn_visible_all(session, nsnap_new->pinned_id, NULL));
-		WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
-		    txn_global->nsnap_oldest_id = nsnap_new->pinned_id);
+		__wt_readlock(session, &txn_global->rwlock);
+		txn_global->nsnap_oldest_id = nsnap_new->pinned_id;
+		__wt_readunlock(session, &txn_global->rwlock);
 	}
 	TAILQ_INSERT_TAIL(&txn_global->nsnaph, nsnap_new, q);
 	WT_STAT_CONN_INCR(session, txn_snapshots_created);
