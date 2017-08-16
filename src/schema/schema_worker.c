@@ -59,7 +59,7 @@ __wt_schema_worker(WT_SESSION_IMPL *session,
 			    session, uri, cfg, open_flags));
 			WT_SAVE_DHANDLE(session,
 			    ret = file_func(session, cfg));
-			WT_TRET(__wt_session_release_btree(session));
+			WT_TRET(__wt_session_release_dhandle(session));
 			WT_ERR(ret);
 		}
 	} else if (WT_PREFIX_MATCH(uri, "colgroup:")) {

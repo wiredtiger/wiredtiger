@@ -64,7 +64,14 @@ __sweep_expire_one(WT_SESSION_IMPL *session)
 	WT_DECL_RET;
 
 	dhandle = session->dhandle;
+
+	/*
+	 * The only data handle type that uses the "handle" field is btree.
+	 * For other data handle types, it should be NULL.
+	 */
 	btree = dhandle->handle;
+	WT_ASSERT(session, btree == NULL ||
+	    WT_PREFIX_MATCH(dhandle->name, "file:"));
 
 	/*
 	 * Acquire an exclusive lock on the handle and mark it dead.
@@ -93,7 +100,7 @@ __sweep_expire_one(WT_SESSION_IMPL *session)
 	 * Closing the handle decrements the open file count, meaning the close
 	 * loop won't overrun the configured minimum.
 	 */
-	ret = __wt_conn_btree_sync_and_close(session, false, true);
+	ret = __wt_conn_dhandle_close(session, false, true);
 
 err:	__wt_writeunlock(session, &dhandle->rwlock);
 
@@ -163,7 +170,7 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
 
 		/* If the handle is marked dead, flush it from cache. */
 		WT_WITH_DHANDLE(session, dhandle, ret =
-		    __wt_conn_btree_sync_and_close(session, false, false));
+		    __wt_conn_dhandle_close(session, false, false));
 
 		/* We closed the btree handle. */
 		if (ret == 0) {

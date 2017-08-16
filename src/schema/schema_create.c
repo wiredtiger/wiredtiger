@@ -116,12 +116,12 @@ __create_file(WT_SESSION_IMPL *session,
 	 * Keep the handle exclusive until it is released at the end of the
 	 * call, otherwise we could race with a drop.
 	 */
-	WT_ERR(__wt_session_get_btree(
+	WT_ERR(__wt_session_get_dhandle(
 	    session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
 	if (WT_META_TRACKING(session))
 		WT_ERR(__wt_meta_track_handle_lock(session, true));
 	else
-		WT_ERR(__wt_session_release_btree(session));
+		WT_ERR(__wt_session_release_dhandle(session));
 
 err:	__wt_scr_free(session, &val);
 	__wt_free(session, fileconf);
@@ -573,14 +573,18 @@ __create_table(WT_SESSION_IMPL *session,
 	if (!WT_PREFIX_SKIP(tablename, "table:"))
 		return (__wt_unexpected_object_type(session, name, "table:"));
 
+	/*
+	 * If the table already exists, get it.  If the table does not exist,
+	 * attempting to read its metadata will cause WT_NOTFOUND which may be
+	 * mapped to ENOENT.  That's expected: we're about to create it.
+	 */
 	if ((ret = __wt_schema_get_table(
 	    session, tablename, strlen(tablename), false, 0, &table)) == 0) {
 		if (exclusive)
 			WT_ERR(EEXIST);
 		exists = true;
-	}
-	if (ret != ENOENT)
-		WT_ERR_NOTFOUND_OK(ret);
+	} else if (ret != ENOENT && ret != WT_NOTFOUND)
+		goto err;
 
 	WT_ERR(__wt_config_gets(session, cfg, "colgroups", &cval));
 	__wt_config_subinit(session, &conf, &cval);

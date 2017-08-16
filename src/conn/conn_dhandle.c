@@ -147,11 +147,11 @@ __wt_conn_dhandle_find(
 }
 
 /*
- * __wt_conn_btree_sync_and_close --
+ * __wt_conn_dhandle_close --
  *	Sync and close the underlying btree handle.
  */
 int
-__wt_conn_btree_sync_and_close(
+__wt_conn_dhandle_close(
     WT_SESSION_IMPL *session, bool final, bool mark_dead)
 {
 	WT_BM *bm;
@@ -162,12 +162,18 @@ __wt_conn_btree_sync_and_close(
 	bool discard, marked_dead, no_schema_lock;
 
 	conn = S2C(session);
-	btree = S2BT(session);
-	bm = btree != NULL ? btree->bm : NULL;
 	dhandle = session->dhandle;
 
 	if (!F_ISSET(dhandle, WT_DHANDLE_OPEN))
 		return (0);
+
+	/*
+	 * The only data handle type that uses the "handle" field is btree.
+	 * For other data handle types, it should be NULL.
+	 */
+	btree = dhandle->handle;
+	WT_ASSERT(session, btree == NULL ||
+	    WT_PREFIX_MATCH(dhandle->name, "file:"));
 
 	if (btree != NULL) {
 		/* Turn off eviction. */
@@ -217,6 +223,7 @@ __wt_conn_btree_sync_and_close(
 		 * memory-mapped trees contain pointers into memory that become
 		 * invalid if the mapping is closed.)
 		 */
+		bm = btree->bm;
 		if (!discard && mark_dead && !final &&
 		    (bm == NULL || !bm->is_mapped(bm, session)))
 			marked_dead = true;
@@ -404,7 +411,7 @@ __wt_conn_dhandle_open(
 	 * in the tree that can block the close.
 	 */
 	if (F_ISSET(dhandle, WT_DHANDLE_OPEN))
-		WT_RET(__wt_conn_btree_sync_and_close(session, false, false));
+		WT_RET(__wt_conn_dhandle_close(session, false, false));
 
 	/* Discard any previous configuration, set up the new configuration. */
 	__conn_dhandle_config_clear(session);
@@ -483,12 +490,12 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
 	 * sure it's referenced to stop other internal code dropping the handle
 	 * (e.g in LSM when cleaning up obsolete chunks).
 	 */
-	if ((ret = __wt_session_get_btree(session,
+	if ((ret = __wt_session_get_dhandle(session,
 	    dhandle->name, dhandle->checkpoint, NULL, 0)) != 0)
 		return (ret == EBUSY ? 0 : ret);
 
 	WT_SAVE_DHANDLE(session, ret = file_func(session, cfg));
-	WT_TRET(__wt_session_release_btree(session));
+	WT_TRET(__wt_session_release_dhandle(session));
 	return (ret);
 }
 
@@ -580,7 +587,7 @@ __conn_dhandle_close_one(WT_SESSION_IMPL *session,
 	 */
 	if (F_ISSET(session->dhandle, WT_DHANDLE_OPEN)) {
 		__wt_meta_track_sub_on(session);
-		ret = __wt_conn_btree_sync_and_close(session, false, mark_dead);
+		ret = __wt_conn_dhandle_close(session, false, mark_dead);
 
 		/*
 		 * If the close succeeded, drop any locks it acquired.  If
@@ -592,7 +599,7 @@ __conn_dhandle_close_one(WT_SESSION_IMPL *session,
 	}
 
 	if (!WT_META_TRACKING(session))
-		WT_TRET(__wt_session_release_btree(session));
+		WT_TRET(__wt_session_release_dhandle(session));
 
 	return (ret);
 }
@@ -684,8 +691,7 @@ __wt_conn_dhandle_discard_single(
 	dhandle = session->dhandle;
 
 	if (F_ISSET(dhandle, WT_DHANDLE_OPEN)) {
-		tret =
-		    __wt_conn_btree_sync_and_close(session, final, mark_dead);
+		tret = __wt_conn_dhandle_close(session, final, mark_dead);
 		if (final && tret != 0) {
 			__wt_err(session, tret,
 			    "Final close of %s failed", dhandle->name);

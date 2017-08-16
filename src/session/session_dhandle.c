@@ -269,6 +269,10 @@ __wt_session_release_dhandle(WT_SESSION_IMPL *session)
 			__session_discard_dhandle(session, dhandle_cache);
 	}
 
+	/*
+	 * Close the handle if we are finishing a bulk load or if the handle is
+	 * set to discard on release.
+	 */
 	if (btree != NULL && F_ISSET(btree, WT_BTREE_BULK)) {
 		WT_ASSERT(session, F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) &&
 		    !F_ISSET(dhandle, WT_DHANDLE_DISCARD));
@@ -278,11 +282,12 @@ __wt_session_release_dhandle(WT_SESSION_IMPL *session)
 		 * of handles.
 		 */
 		WT_WITH_SCHEMA_LOCK(session, ret =
-		    __wt_conn_btree_sync_and_close(session, false, false));
+		    __wt_conn_dhandle_close(session, false, false));
 	} else if ((btree != NULL && F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS)) ||
 	    F_ISSET(dhandle, WT_DHANDLE_DISCARD | WT_DHANDLE_DISCARD_KILL)) {
 		WT_ASSERT(session, F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE));
-		ret = __wt_conn_btree_sync_and_close(session, false,
+
+		ret = __wt_conn_dhandle_close(session, false,
 		    F_ISSET(dhandle, WT_DHANDLE_DISCARD_KILL));
 		F_CLR(dhandle, WT_DHANDLE_DISCARD | WT_DHANDLE_DISCARD_KILL);
 	}
@@ -303,16 +308,6 @@ __wt_session_release_dhandle(WT_SESSION_IMPL *session)
 
 	session->dhandle = NULL;
 	return (ret);
-}
-
-/*
- * __wt_session_release_btree --
- *	Unlock a btree handle.
- */
-int
-__wt_session_release_btree(WT_SESSION_IMPL *session)
-{
-	return (__wt_session_release_dhandle(session));
 }
 
 /*
@@ -352,7 +347,7 @@ retry:			WT_RET(__wt_meta_checkpoint_last_name(
 			    session, cval.str, cval.len, &checkpoint));
 	}
 
-	ret = __wt_session_get_btree(session, uri, checkpoint, cfg, flags);
+	ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags);
 	__wt_free(session, checkpoint);
 
 	/*
@@ -574,17 +569,6 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session,
 }
 
 /*
- * __wt_session_get_btree --
- *	Get a btree handle for the given name, set session->dhandle.
- */
-int
-__wt_session_get_btree(WT_SESSION_IMPL *session,
-    const char *uri, const char *checkpoint, const char *cfg[], uint32_t flags)
-{
-	return (__wt_session_get_dhandle(session, uri, checkpoint, cfg, flags));
-}
-
-/*
  * __wt_session_lock_checkpoint --
  *	Lock the btree handle for the given checkpoint name.
  */
@@ -602,10 +586,10 @@ __wt_session_lock_checkpoint(WT_SESSION_IMPL *session, const char *checkpoint)
 	 * while we are creating the new checkpoint.  Hold the lock until the
 	 * checkpoint completes.
 	 */
-	WT_ERR(__wt_session_get_btree(session, saved_dhandle->name,
+	WT_ERR(__wt_session_get_dhandle(session, saved_dhandle->name,
 	    checkpoint, NULL, WT_DHANDLE_EXCLUSIVE | WT_DHANDLE_LOCK_ONLY));
 	if ((ret = __wt_meta_track_handle_lock(session, false)) != 0) {
-		WT_TRET(__wt_session_release_btree(session));
+		WT_TRET(__wt_session_release_dhandle(session));
 		goto err;
 	}
 
