@@ -30,8 +30,6 @@
 #   Timestamps: Test that rollback_to_stable obeys expected visibility rules
 #
 
-import datetime
-import random
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 from wtscenario import make_scenarios
@@ -92,7 +90,8 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         # Configure small page sizes to ensure eviction comes through and we have a
        #  somewhat complex tree
         self.session.create(self.uri,
-            'key_format=i,value_format=i,memory_page_max=32k,leaf_page_max=8k,internal_page_max=8k' + self.extra_config)
+            'key_format=i,value_format=i,memory_page_max=32k,leaf_page_max=8k,internal_page_max=8k'
+                + self.extra_config)
         c = self.session.open_cursor(self.uri)
 
         # Insert keys each with timestamp=key, in some order

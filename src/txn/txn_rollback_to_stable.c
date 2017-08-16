@@ -120,11 +120,11 @@ __txn_abort_newer_update(WT_SESSION_IMPL *session,
 }
 
 /*
- * __txn_abort_newer_skip --
+ * __txn_abort_newer_insert --
  *	Apply the update abort check to each entry in an insert skip list
  */
 static void
-__txn_abort_newer_skip(WT_SESSION_IMPL *session,
+__txn_abort_newer_insert(WT_SESSION_IMPL *session,
     WT_INSERT_HEAD *head, wt_timestamp_t *rollback_timestamp)
 {
 	WT_INSERT *ins;
@@ -149,12 +149,12 @@ __txn_abort_newer_col_var(
 	/* Review the changes to the original on-page data items */
 	WT_COL_FOREACH(page, cip, i)
 		if ((ins = WT_COL_UPDATE(page, cip)) != NULL)
-			__txn_abort_newer_skip(session,
+			__txn_abort_newer_insert(session,
 			    ins, rollback_timestamp);
 
 	/* Review the append list */
 	if ((ins = WT_COL_APPEND(page)) != NULL)
-		__txn_abort_newer_skip(session, ins, rollback_timestamp);
+		__txn_abort_newer_insert(session, ins, rollback_timestamp);
 }
 
 /*
@@ -170,11 +170,11 @@ __txn_abort_newer_col_fix(
 
 	/* Review the changes to the original on-page data items */
 	if ((ins = WT_COL_UPDATE_SINGLE(page)) != NULL)
-		__txn_abort_newer_skip(session, ins, rollback_timestamp);
+		__txn_abort_newer_insert(session, ins, rollback_timestamp);
 
 	/* Review the append list */
 	if ((ins = WT_COL_APPEND(page)) != NULL)
-		__txn_abort_newer_skip(session, ins, rollback_timestamp);
+		__txn_abort_newer_insert(session, ins, rollback_timestamp);
 }
 
 /*
@@ -196,7 +196,7 @@ __txn_abort_newer_row_leaf(
 	 * page.
 	 */
 	if ((insert = WT_ROW_INSERT_SMALLEST(page)) != NULL)
-		__txn_abort_newer_skip(session, insert, rollback_timestamp);
+		__txn_abort_newer_insert(session, insert, rollback_timestamp);
 
 	/*
 	 * Review updates that belong to keys that are on the disk image,
@@ -208,7 +208,7 @@ __txn_abort_newer_row_leaf(
 			    session, upd, rollback_timestamp);
 
 		if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
-			__txn_abort_newer_skip(
+			__txn_abort_newer_insert(
 			    session, insert, rollback_timestamp);
 	}
 }
@@ -243,9 +243,7 @@ __txn_abort_newer_updates(
 	case WT_PAGE_ROW_LEAF:
 		__txn_abort_newer_row_leaf(session, page, rollback_timestamp);
 		break;
-	default:
-		WT_RET_MSG(session, EINVAL, "rollback_to_stable "
-		    "is only supported for row store btrees");
+	WT_ILLEGAL_VALUE(session);
 	}
 
 	return (0);
@@ -263,10 +261,7 @@ __txn_rollback_to_stable_custom_skip(
 	WT_UNUSED(context);
 
 	/* Review all pages that are in memory. */
-	if (ref->state == WT_REF_MEM || ref->state == WT_REF_DELETED)
-		*skipp = false;
-	else
-		*skipp = true;
+	*skipp = !(ref->state == WT_REF_MEM || ref->state == WT_REF_DELETED);
 	return (0);
 }
 
@@ -415,7 +410,7 @@ __wt_txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
 #ifndef HAVE_TIMESTAMPS
 	WT_UNUSED(cfg);
 
-	WT_RET_MSG(session, EINVAL, "rollback_to_stable "
+	WT_RET_MSG(session, ENOTSUP, "rollback_to_stable "
 	    "requires a version of WiredTiger built with timestamp "
 	    "support");
 #else
