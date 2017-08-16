@@ -89,11 +89,18 @@ __sweep_expire_one(WT_SESSION_IMPL *session)
 		goto err;
 
 	/*
-	 * Mark the handle dead and close the underlying file handle.
-	 * Closing the handle decrements the open file count, meaning the close
-	 * loop won't overrun the configured minimum.
+	 * Mark the handle dead and close the underlying handle.
+	 *
+	 * For btree handles, closing the handle decrements the open file
+	 * count, meaning the close loop won't overrun the configured minimum.
+	 * For tables, we need to hold the table lock to avoid racing with
+	 * cursor opens.
 	 */
-	ret = __wt_conn_dhandle_close(session, false, true);
+	if (dhandle->type == WT_DHANDLE_TYPE_TABLE)
+		WT_WITH_TABLE_WRITE_LOCK(session,
+		    ret = __wt_conn_dhandle_close(session, false, true));
+	else
+		ret = __wt_conn_dhandle_close(session, false, true);
 
 err:	__wt_writeunlock(session, &dhandle->rwlock);
 
