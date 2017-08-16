@@ -60,7 +60,7 @@ __drop_colgroup(
 	WT_DECL_RET;
 	WT_TABLE *table;
 
-	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_TABLE));
+	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_TABLE_WRITE));
 
 	/* If we can get the colgroup, detach it from the table. */
 	if ((ret = __wt_schema_get_colgroup(

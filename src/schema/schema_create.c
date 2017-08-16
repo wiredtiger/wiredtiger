@@ -569,6 +569,8 @@ __create_table(WT_SESSION_IMPL *session,
 	tableconf = NULL;
 	exists = false;
 
+	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_TABLE_WRITE));
+
 	tablename = name;
 	if (!WT_PREFIX_SKIP(tablename, "table:"))
 		return (__wt_unexpected_object_type(session, name, "table:"));

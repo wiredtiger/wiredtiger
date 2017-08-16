@@ -230,8 +230,13 @@ __sweep_remove_handles(WT_SESSION_IMPL *session)
 		if (!WT_DHANDLE_CAN_DISCARD(dhandle))
 			continue;
 
-		WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
-		    ret = __sweep_remove_one(session, dhandle));
+		if (dhandle->type == WT_DHANDLE_TYPE_TABLE)
+			WT_WITH_TABLE_WRITE_LOCK(session,
+			    WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
+				ret = __sweep_remove_one(session, dhandle)));
+		else
+			WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
+			    ret = __sweep_remove_one(session, dhandle));
 		if (ret == 0)
 			WT_STAT_CONN_INCR(session, dh_sweep_remove);
 		else
