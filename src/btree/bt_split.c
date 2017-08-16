@@ -1468,8 +1468,8 @@ __split_multi_inmem(
 			WT_ERR(__wt_row_search(session, key, ref, &cbt, true));
 
 			/* Apply the modification. */
-			WT_ERR(__wt_row_modify(
-			    session, &cbt, key, NULL, upd, upd->type, true));
+			WT_ERR(__wt_row_modify(session,
+			    &cbt, key, NULL, upd, WT_UPDATE_IMPOSSIBLE, true));
 			break;
 		WT_ILLEGAL_VALUE_ERR(session);
 		}
