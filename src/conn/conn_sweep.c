@@ -64,14 +64,7 @@ __sweep_expire_one(WT_SESSION_IMPL *session)
 	WT_DECL_RET;
 
 	dhandle = session->dhandle;
-
-	/*
-	 * The only data handle type that uses the "handle" field is btree.
-	 * For other data handle types, it should be NULL.
-	 */
-	btree = dhandle->handle;
-	WT_ASSERT(session, btree == NULL ||
-	    WT_PREFIX_MATCH(dhandle->name, "file:"));
+	btree = dhandle->type == WT_DHANDLE_TYPE_BTREE ? dhandle->handle : NULL;
 
 	/*
 	 * Acquire an exclusive lock on the handle and mark it dead.

@@ -17,11 +17,15 @@ __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
 {
 	WT_DECL_RET;
 
-	if (WT_PREFIX_MATCH(dhandle->name, "file:"))
+	switch (dhandle->type) {
+	case WT_DHANDLE_TYPE_BTREE:
 		WT_WITH_DHANDLE(session, dhandle,
 		    ret = __wt_btree_discard(session));
-	else if (WT_PREFIX_MATCH(dhandle->name, "table:"))
+		break;
+	case WT_DHANDLE_TYPE_TABLE:
 		ret = __wt_schema_close_table(session, (WT_TABLE *)dhandle);
+		break;
+	}
 
 	__wt_rwlock_destroy(session, &dhandle->rwlock);
 	__wt_free(session, dhandle->name);
@@ -55,29 +59,33 @@ __wt_conn_dhandle_alloc(
 	     __wt_conn_dhandle_find(session, uri, checkpoint)) != WT_NOTFOUND)
 		return (ret);
 
-	if (WT_PREFIX_MATCH(uri, "table:")) {
+	if (WT_PREFIX_MATCH(uri, "file:")) {
+		WT_RET(__wt_calloc_one(session, &dhandle));
+		dhandle->type = WT_DHANDLE_TYPE_BTREE;
+	} else if (WT_PREFIX_MATCH(uri, "table:")) {
 		WT_RET(__wt_calloc_one(session, &table));
 		dhandle = &table->iface;
+		dhandle->type = WT_DHANDLE_TYPE_TABLE;
 	} else
-		WT_RET(__wt_calloc_one(session, &dhandle));
+		return (__wt_illegal_value(session, NULL));
+
+	/* Btree handles keep their data separate from the interface. */
+	if (dhandle->type == WT_DHANDLE_TYPE_BTREE) {
+		WT_ERR(__wt_calloc_one(session, &btree));
+		dhandle->handle = btree;
+		btree->dhandle = dhandle;
+	}
+
+	if (strcmp(uri, WT_METAFILE_URI) == 0)
+		F_SET(dhandle, WT_DHANDLE_IS_METADATA);
 
 	WT_ERR(__wt_rwlock_init(session, &dhandle->rwlock));
 	dhandle->name_hash = __wt_hash_city64(uri, strlen(uri));
 	WT_ERR(__wt_strdup(session, uri, &dhandle->name));
 	WT_ERR(__wt_strdup(session, checkpoint, &dhandle->checkpoint));
 
-	/* Btree handles keep their data separate from the interface. */
-	if (WT_PREFIX_MATCH(uri, "file:")) {
-		WT_ERR(__wt_calloc_one(session, &btree));
-		dhandle->handle = btree;
-		btree->dhandle = dhandle;
-	}
-
 	WT_ERR(__wt_spin_init(
 	    session, &dhandle->close_lock, "data handle close"));
-
-	if (strcmp(uri, WT_METAFILE_URI) == 0)
-		F_SET(dhandle, WT_DHANDLE_IS_METADATA);
 
 	/*
 	 * We are holding the data handle list lock, which protects most
@@ -159,7 +167,7 @@ __wt_conn_dhandle_close(
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
-	bool discard, marked_dead, no_schema_lock;
+	bool discard, is_btree, marked_dead, no_schema_lock;
 
 	conn = S2C(session);
 	dhandle = session->dhandle;
@@ -171,11 +179,10 @@ __wt_conn_dhandle_close(
 	 * The only data handle type that uses the "handle" field is btree.
 	 * For other data handle types, it should be NULL.
 	 */
-	btree = dhandle->handle;
-	WT_ASSERT(session, btree == NULL ||
-	    WT_PREFIX_MATCH(dhandle->name, "file:"));
+	is_btree = dhandle->type == WT_DHANDLE_TYPE_BTREE;
+	btree = is_btree ? dhandle->handle : NULL;
 
-	if (btree != NULL) {
+	if (is_btree) {
 		/* Turn off eviction. */
 		WT_RET(__wt_evict_file_exclusive_on(session));
 
@@ -205,7 +212,7 @@ __wt_conn_dhandle_close(
 	__wt_spin_lock(session, &dhandle->close_lock);
 
 	discard = marked_dead = false;
-	if (btree != NULL && !F_ISSET(btree,
+	if (is_btree && !F_ISSET(btree,
 	    WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
 		/*
 		 * If the handle is already marked dead, we're just here to
@@ -251,12 +258,16 @@ __wt_conn_dhandle_close(
 		}
 	}
 
-	/* Discard the underlying btree handle. */
-	if (WT_PREFIX_MATCH(dhandle->name, "file:")) {
+	/* Close the underlying handle. */
+	switch (dhandle->type) {
+	case WT_DHANDLE_TYPE_BTREE:
 		WT_TRET(__wt_btree_close(session));
 		F_CLR(btree, WT_BTREE_SPECIAL_FLAGS);
-	} else if (WT_PREFIX_MATCH(dhandle->name, "table:"))
+		break;
+	case WT_DHANDLE_TYPE_TABLE:
 		WT_TRET(__wt_schema_close_table(session, (WT_TABLE *)dhandle));
+		break;
+	}
 
 	/*
 	 * If marking the handle dead, do so after closing the underlying btree.
@@ -299,7 +310,7 @@ err:	__wt_spin_unlock(session, &dhandle->close_lock);
 	if (no_schema_lock)
 		F_CLR(session, WT_SESSION_NO_SCHEMA_LOCK);
 
-	if (btree != NULL)
+	if (is_btree)
 		__wt_evict_file_exclusive_off(session);
 
 	return (ret);
@@ -363,12 +374,16 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
 	 * it, after the copy, we don't want to free it.
 	 */
 	WT_ERR(__wt_calloc_def(session, 3, &dhandle->cfg));
-	if (WT_PREFIX_MATCH(dhandle->name, "file:"))
+	switch (dhandle->type) {
+	case WT_DHANDLE_TYPE_BTREE:
 		WT_ERR(__wt_strdup(session,
 		    WT_CONFIG_BASE(session, file_meta), &dhandle->cfg[0]));
-	else if (WT_PREFIX_MATCH(dhandle->name, "table:"))
+		break;
+	case WT_DHANDLE_TYPE_TABLE:
 		WT_ERR(__wt_strdup(session,
 		    WT_CONFIG_BASE(session, table_meta), &dhandle->cfg[0]));
+		break;
+	}
 	dhandle->cfg[1] = metaconf;
 	return (0);
 
@@ -417,7 +432,8 @@ __wt_conn_dhandle_open(
 	__conn_dhandle_config_clear(session);
 	WT_RET(__conn_dhandle_config_set(session));
 
-	if (WT_PREFIX_MATCH(dhandle->name, "file:")) {
+	switch (dhandle->type) {
+	case WT_DHANDLE_TYPE_BTREE:
 		/* Set any special flags on the btree handle. */
 		F_SET(btree, LF_MASK(WT_BTREE_SPECIAL_FLAGS));
 
@@ -433,8 +449,11 @@ __wt_conn_dhandle_open(
 			WT_ERR(__wt_stat_dsrc_init(session, dhandle));
 
 		WT_ERR(__wt_btree_open(session, cfg));
-	} else if (WT_PREFIX_MATCH(dhandle->name, "table:"))
+		break;
+	case WT_DHANDLE_TYPE_TABLE:
 		WT_ERR(__wt_schema_open_table(session, cfg));
+		break;
+	}
 
 	/*
 	 * Bulk handles require true exclusive access, otherwise, handles
@@ -548,8 +567,8 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
 
 			if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
 			    F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
+			    dhandle->type != WT_DHANDLE_TYPE_BTREE ||
 			    dhandle->checkpoint != NULL ||
-			    !WT_PREFIX_MATCH(dhandle->name, "file:") ||
 			    WT_IS_METADATA(dhandle))
 				continue;
 			WT_ERR(__conn_btree_apply_internal(session,
