@@ -540,14 +540,6 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 	/* Check if this is the largest transaction ID to update the page. */
 	if (WT_TXNID_LT(page->modify->update_txn, session->txn.id))
 		page->modify->update_txn = session->txn.id;
-#ifdef HAVE_TIMESTAMPS
-	/* Check if this is the largest timestamp to update the page. */
-	if (F_ISSET(&session->txn, WT_TXN_HAS_TS_COMMIT) &&
-	    __wt_timestamp_cmp(&page->modify->update_ts,
-	    &session->txn.commit_timestamp) < 0)
-		__wt_timestamp_set(&page->modify->update_ts,
-		    &session->txn.commit_timestamp);
-#endif
 }
 
 /*

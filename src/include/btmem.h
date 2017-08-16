@@ -210,8 +210,6 @@ struct __wt_page_modify {
 
 	/* The largest update transaction ID (approximate). */
 	uint64_t update_txn;
-	/* The largest update timestamp (approximate). */
-	WT_DECL_TIMESTAMP(update_ts)
 
 	/* Dirty bytes added to the cache. */
 	size_t bytes_dirty;

@@ -308,30 +308,18 @@ __wt_txn_visible_all(
 #ifdef HAVE_TIMESTAMPS
 	{
 	WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
-	int cmp, stable_cmp;
+	int cmp;
 
 	/* Timestamp check. */
-	/*
-	 * If we are given a timestamp but no oldest or stable timestamp
-	 * has been set then the timestamp is not visible.  Otherwise
-	 * anything older than the oldest timestamp and newer than the
-	 * stable timestamp is not visible.
-	 */
-	if (timestamp != NULL) {
-		if (!txn_global->has_stable_timestamp ||
-		    !txn_global->has_oldest_timestamp)
-			return (false);
-		__wt_readlock(session, &txn_global->rwlock);
-		stable_cmp = __wt_timestamp_cmp(timestamp,
-		    &txn_global->stable_timestamp);
-		cmp = __wt_timestamp_cmp(timestamp,
-		    &txn_global->oldest_timestamp);
-		__wt_readunlock(session, &txn_global->rwlock);
-		if (stable_cmp > 0 || cmp < 0)
-			return (false);
-	}
-	if (!txn_global->has_pinned_timestamp || timestamp == NULL)
+	if (timestamp == NULL || __wt_timestamp_iszero(timestamp))
 		return (true);
+
+	/*
+	 * If no oldest timestamp has been supplied, updates have to stay in
+	 * cache until we are shutting down.
+	 */
+	if (!txn_global->has_pinned_timestamp)
+		return (F_ISSET(S2C(session), WT_CONN_CLOSING));
 
 	__wt_readlock(session, &txn_global->rwlock);
 	cmp = __wt_timestamp_cmp(timestamp, &txn_global->pinned_timestamp);
