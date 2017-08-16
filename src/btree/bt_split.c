@@ -1384,10 +1384,10 @@ __split_multi_inmem(
 	WT_DECL_ITEM(key);
 	WT_DECL_RET;
 	WT_PAGE *page;
-	WT_UPDATE *upd, *t;
+	WT_UPDATE *upd;
 	WT_SAVE_UPD *supd;
 	uint64_t recno;
-	uint32_t i, slot, ovflrm_cnt;
+	uint32_t i, slot;
 
 	/*
 	 * In 04/2016, we removed column-store record numbers from the WT_PAGE
@@ -1434,7 +1434,6 @@ __split_multi_inmem(
 	__wt_btcur_open(&cbt);
 
 	/* Re-create each modification we couldn't write. */
-	ovflrm_cnt = 0;
 	for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd)
 		switch (orig->type) {
 		case WT_PAGE_COL_FIX:
@@ -1442,10 +1441,6 @@ __split_multi_inmem(
 			/* Build a key. */
 			upd = supd->ins->upd;
 			recno = WT_INSERT_RECNO(supd->ins);
-
-			for (t = upd; t != NULL; t = t->next)
-				if (t->txnid == 3)
-					++ovflrm_cnt;
 
 			/* Search the page. */
 			WT_ERR(__wt_col_search(session, recno, ref, &cbt));
@@ -1486,8 +1481,6 @@ __split_multi_inmem(
 	 * impossibly old value so this page is never skipped in a checkpoint.
 	 */
 	page->modify->first_dirty_txn = WT_TXN_FIRST;
-
-	WT_ASSERT(session, ovflrm_cnt == page->ovflrm_cnt);
 
 	/*
 	 * If the new page is modified, save the oldest ID from reconciliation
