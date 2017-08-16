@@ -257,8 +257,8 @@ static int
 __txn_rollback_to_stable_custom_skip(
     WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *skipp)
 {
-	WT_UNUSED(session);
 	WT_UNUSED(context);
+	WT_UNUSED(session);
 
 	/* Review all pages that are in memory. */
 	*skipp = !(ref->state == WT_REF_MEM || ref->state == WT_REF_DELETED);
