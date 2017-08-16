@@ -437,24 +437,9 @@ snap_check(WT_CURSOR *cursor,
 				print_item_data(
 				    "   found", value->data, value->size);
 
-			{
-			WT_SESSION_IMPL *s;
-			WT_CURSOR_BTREE *c;
-			char buf[64];
-			s = (WT_SESSION_IMPL *)cursor->session;
-			c = (WT_CURSOR_BTREE *)cursor;
-			s->dhandle = c->btree->dhandle;
-			(void)snprintf(buf, sizeof(buf),
-			    "/tmp/page.%u", (u_int)getpid());
-			ret = __wt_debug_page(s, c->ref, buf);
-			__wt_abort(s);
-			}
-
-#if 0
 			testutil_die(ret,
 			    "snapshot-isolation: %" PRIu64 " search mismatch",
 			    start->keyno);
-#endif
 			/* NOTREACHED */
 		}
 	}
