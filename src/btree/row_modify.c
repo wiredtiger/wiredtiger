@@ -263,6 +263,13 @@ __wt_update_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value,
 	*updp = NULL;
 
 	/*
+	 * The code paths leading here are convoluted: assert we never attempt
+	 * to allocate an update structure if only intending to insert one we
+	 * already have.
+	 */
+	WT_ASSERT(session, modify_type != WT_UPDATE_IMPOSSIBLE);
+
+	/*
 	 * Allocate the WT_UPDATE structure and room for the value, then copy
 	 * the value into place.
 	 */
