@@ -583,7 +583,7 @@ struct __wt_page {
 #define	WT_PAGE_UPDATE_IGNORE	0x40	/* Ignore updates on page discard */
 	uint8_t flags_atomic;		/* Atomic flags, use F_*_ATOMIC */
 
-	uint32_t ovflrm_cnt;
+	uint8_t unused[2];		/* Unused padding */
 
 	/*
 	 * The page's read generation acts as an LRU value for each page in the
@@ -910,7 +910,6 @@ struct __wt_update {
 #if WT_TIMESTAMP_SIZE != 8
 	WT_DECL_TIMESTAMP(timestamp)	/* unaligned uint8_t array timestamp */
 #endif
-	uint8_t obsolete;
 
 	/*
 	 * Zero or more bytes of value (the payload) immediately follows the
@@ -924,7 +923,7 @@ struct __wt_update {
  * WT_UPDATE_SIZE is the expected structure size excluding the payload data --
  * we verify the build to ensure the compiler hasn't inserted padding.
  */
-#define	WT_UPDATE_SIZE	(22 + WT_TIMESTAMP_SIZE)
+#define	WT_UPDATE_SIZE	(21 + WT_TIMESTAMP_SIZE)
 
 /*
  * The memory size of an update: include some padding because this is such a
