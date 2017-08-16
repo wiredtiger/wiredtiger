@@ -37,7 +37,7 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 	 * updated while rolling back, accessing it without a lock would
 	 * violate protocol.
 	 */
-	txn_global = &S2C(session)->txn_global;
+	txn_global = &conn->txn_global;
 	__wt_readlock(session, &txn_global->rwlock);
 	__wt_timestamp_set(&rollback_timestamp, &txn_global->stable_timestamp);
 	__wt_readunlock(session, &txn_global->rwlock);
@@ -329,8 +329,7 @@ __txn_rollback_to_stable_btree(
 		 * Add the btree ID to the bitstring, so we can exclude any
 		 * lookaside entries for this btree.
 		 */
-		__bit_set(
-		    S2C(session)->stable_rollback_bitstring, btree->id);
+		__bit_set(S2C(session)->stable_rollback_bitstring, btree->id);
 		return (0);
 	}
 
@@ -374,15 +373,15 @@ static int
 __txn_rollback_to_stable_check(WT_SESSION_IMPL *session)
 {
 	WT_TXN_GLOBAL *txn_global;
-	bool active_txns, stable_set;
+	bool stable_set, txn_active;
 
 	txn_global = &S2C(session)->txn_global;
 	__wt_readlock(session, &txn_global->rwlock);
 	stable_set = !__wt_timestamp_iszero(&txn_global->stable_timestamp);
 	__wt_readunlock(session, &txn_global->rwlock);
 	if (!stable_set)
-		WT_RET_MSG(session, EINVAL, "rollback_to_stable requires a "
-		    "stable timestamp");
+		WT_RET_MSG(session, EINVAL,
+		    "rollback_to_stable requires a stable timestamp");
 
 	/*
 	 * Help the user - see if they have any active transactions. I'd
@@ -390,8 +389,8 @@ __txn_rollback_to_stable_check(WT_SESSION_IMPL *session)
 	 * require peeking into all open sessions, which isn't really
 	 * kosher.
 	 */
-	WT_RET(__wt_txn_are_any_active(session, &active_txns));
-	if (active_txns)
+	WT_RET(__wt_txn_activity_check(session, &txn_active));
+	if (txn_active)
 		WT_RET_MSG(session, EINVAL,
 		    "rollback_to_stable illegal with active transactions");
 
@@ -411,8 +410,7 @@ __wt_txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_UNUSED(cfg);
 
 	WT_RET_MSG(session, ENOTSUP, "rollback_to_stable "
-	    "requires a version of WiredTiger built with timestamp "
-	    "support");
+	    "requires a version of WiredTiger built with timestamp support");
 #else
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
