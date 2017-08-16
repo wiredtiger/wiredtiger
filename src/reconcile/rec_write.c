@@ -394,8 +394,6 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	/* We shouldn't get called with a clean page, that's an error. */
 	WT_ASSERT(session, __wt_page_is_modified(page));
 
-	page->ovflrm_cnt = 0;
-
 	/*
 	 * Reconciliation locks the page for three reasons:
 	 *    Reconciliation reads the lists of page updates, obsolete updates
@@ -5562,8 +5560,9 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 				 * The on-page value will never be accessed,
 				 * write a placeholder record.
 				 */
-				WT_ERR(__rec_cell_build_val(
-				    session, r, "@", 1, (uint64_t)0));
+				WT_ERR(__rec_cell_build_val(session, r,
+				    "ovfl-unused", strlen("ovfl-unused"),
+				    (uint64_t)0));
 			} else {
 				val->buf.data = val_cell;
 				val->buf.size = __wt_cell_total_len(vpack);
