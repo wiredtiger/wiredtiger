@@ -900,8 +900,7 @@ struct __wt_update {
 #define	WT_UPDATE_MODIFIED	1	/* partial-update modify value */
 #define	WT_UPDATE_RESERVED	2	/* reserved */
 #define	WT_UPDATE_STANDARD	3	/* complete value */
-#define	WT_UPDATE_IMPOSSIBLE	255
-	uint8_t type;			/* type (one byte to conserve memory) */
+	int8_t type;			/* type (one byte to conserve memory) */
 
 	/* If the update includes a complete value. */
 #define	WT_UPDATE_DATA_VALUE(upd)					\
