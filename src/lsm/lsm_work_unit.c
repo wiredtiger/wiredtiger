@@ -264,6 +264,10 @@ bool
 __wt_lsm_chunk_visible_all(
     WT_SESSION_IMPL *session, WT_LSM_CHUNK *chunk)
 {
+	/* Once a chunk has been flushed it's contents must be visible */
+	if (F_ISSET(chunk, WT_LSM_CHUNK_ONDISK | WT_LSM_CHUNK_STABLE))
+		return (true);
+
 	if (chunk->switch_txn == WT_TXN_NONE ||
 	    !__wt_txn_visible_all(session, chunk->switch_txn, NULL))
 		return (false);
@@ -289,11 +293,6 @@ __wt_lsm_chunk_visible_all(
 				__wt_timestamp_set(&chunk->switch_timestamp,
 				    &txn_global->commit_timestamp);
 				__wt_readunlock(session, &txn_global->rwlock);
-				/*
-				 * The lock release acted as a barrier, which
-				 * this code requires because the timestamp
-				 * must be populated before the flag is set.
-				 */
 				F_SET(chunk, WT_LSM_CHUNK_HAS_TIMESTAMP);
 			}
 			__wt_spin_unlock(session, &chunk->timestamp_spinlock);
@@ -301,7 +300,13 @@ __wt_lsm_chunk_visible_all(
 		if (!__wt_txn_visible_all(
 		    session, chunk->switch_txn, &chunk->switch_timestamp))
 			return (false);
-	}
+	} else
+		/*
+		 * If timestamps aren't in use when the chunk becomes visible
+		 * use the zero timestamp for visibility checks. Otherwise
+		 * there could be confusion if timestamps start being used.
+		 */
+		F_SET(chunk, WT_LSM_CHUNK_HAS_TIMESTAMP);
 	}
 #endif
 	return (true);
