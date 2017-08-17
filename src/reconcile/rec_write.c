@@ -1268,12 +1268,11 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
     WT_INSERT *ins, void *ripcip, WT_CELL_UNPACK *vpack, WT_UPDATE **updp)
 {
 	WT_BTREE *btree;
-	WT_DECL_TIMESTAMP(min_timestamp)
 	WT_DECL_TIMESTAMP(max_timestamp)
 	WT_PAGE *page;
 	WT_UPDATE *upd, *upd_list;
 	size_t update_mem;
-	uint64_t max_txn, min_txn, txnid;
+	uint64_t max_txn, txnid;
 	bool skipped;
 
 	*updp = NULL;
@@ -1297,9 +1296,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	max_txn = WT_TXN_NONE;
 #ifdef HAVE_TIMESTAMPS
 	__wt_timestamp_set_zero(&max_timestamp);
-	__wt_timestamp_set_inf(&min_timestamp);
 #endif
-	min_txn = UINT64_MAX;
 
 	if (F_ISSET(r, WT_EVICTING)) {
 		/* Discard obsolete updates. */
@@ -1320,8 +1317,6 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			 */
 			if (WT_TXNID_LT(max_txn, txnid))
 				max_txn = txnid;
-			if (WT_TXNID_LT(txnid, min_txn))
-				min_txn = txnid;
 
 			/*
 			 * Find the first update we can use.
@@ -1353,11 +1348,6 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			    &max_timestamp, &upd->timestamp) < 0)
 				__wt_timestamp_set(
 				    &max_timestamp, &upd->timestamp);
-
-			if (__wt_timestamp_cmp(
-			    &min_timestamp, &upd->timestamp) > 0)
-				__wt_timestamp_set(
-				    &min_timestamp, &upd->timestamp);
 #endif
 		}
 	} else
