@@ -445,12 +445,11 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 
 		WT_RET(__wt_txn_parse_timestamp(
 		    session, "read", &txn->read_timestamp, &cval));
-		__wt_readlock(session, &txn_global->rwlock);
-		__wt_timestamp_set(
-		    &oldest_timestamp, &txn_global->oldest_timestamp);
-		__wt_timestamp_set(
-		    &stable_timestamp, &txn_global->stable_timestamp);
-		__wt_readunlock(session, &txn_global->rwlock);
+		WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
+		    __wt_timestamp_set(
+			&oldest_timestamp, &txn_global->oldest_timestamp);
+		    __wt_timestamp_set(
+			&stable_timestamp, &txn_global->stable_timestamp));
 		if (__wt_timestamp_cmp(
 		    &txn->read_timestamp, &oldest_timestamp) < 0)
 			WT_RET_MSG(session, EINVAL,
@@ -743,10 +742,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #ifdef HAVE_TIMESTAMPS
 	/* First check if we've already committed something in the future. */
 	if (update_timestamp) {
-		__wt_readlock(session, &txn_global->rwlock);
-		__wt_timestamp_set(
-		    &prev_commit_timestamp, &txn_global->commit_timestamp);
-		__wt_readunlock(session, &txn_global->rwlock);
+		WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
+		    __wt_timestamp_set(
+			&prev_commit_timestamp, &txn_global->commit_timestamp));
 		update_timestamp = __wt_timestamp_cmp(
 		    &txn->commit_timestamp, &prev_commit_timestamp) > 0;
 	}
@@ -1000,10 +998,7 @@ __wt_txn_global_destroy(WT_SESSION_IMPL *session)
 int
 __wt_txn_global_shutdown(WT_SESSION_IMPL *session)
 {
-	WT_DECL_RET;
-	WT_TXN_GLOBAL *txn_global;
-
-	txn_global = &S2C(session)->txn_global;
+	bool txn_active;
 
 	/*
 	 * We're shutting down.  Make sure everything gets freed.
@@ -1014,10 +1009,8 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session)
 	 * transaction ID will catch up with the current ID.
 	 */
 	for (;;) {
-		WT_TRET(__wt_txn_update_oldest(session,
-		    WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
-		if (txn_global->oldest_id == txn_global->current &&
-		    txn_global->metadata_pinned == txn_global->current)
+		WT_RET(__wt_txn_activity_check(session, &txn_active));
+		if (!txn_active)
 			break;
 
 		WT_STAT_CONN_INCR(session, txn_release_blocked);
@@ -1029,10 +1022,10 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session)
 	 * Now that all transactions have completed, no timestamps should be
 	 * pinned.
 	 */
-	__wt_timestamp_set_inf(&txn_global->pinned_timestamp);
+	__wt_timestamp_set_inf(&S2C(session)->txn_global.pinned_timestamp);
 #endif
 
-	return (ret);
+	return (0);
 }
 
 #if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
