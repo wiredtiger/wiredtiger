@@ -58,7 +58,7 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
     nkeys = [
         ('100keys', dict(nkeys=100,evicts=False)),
         ('500keys', dict(nkeys=500,evicts=True)),
-        ('1000keys', dict(nkeys=1000,evicts=True)),
+#        ('1000keys', dict(nkeys=1000,evicts=True)),
     ]
 
     scenarios = make_scenarios(types, conncfg, nkeys)
@@ -226,7 +226,7 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
             count += 1
 
         self.assertEqual(self.did_eviction(), self.evicts)
-        
+
         # print "Updated " + str(count) + " keys to value2"
 
         # Take a checkpoint using the given configuration.  Then verify
