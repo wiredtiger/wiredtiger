@@ -923,6 +923,7 @@ mem
 memalign
 membar
 memcpy
+memdup
 memget
 memmove
 memset

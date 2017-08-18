@@ -30,6 +30,29 @@ __wt_hex(int c)
 }
 
 /*
+ * __wt_strndup --
+ *	ANSI strndup function.
+ */
+static inline int
+__wt_strndup(WT_SESSION_IMPL *session, const void *str, size_t len, void *retp)
+
+{
+	uint8_t *p;
+
+	if (str == NULL) {
+		*(void **)retp = NULL;
+		return (0);
+	}
+
+	/* Copy and nul-terminate. */
+	WT_RET(__wt_memdup(session, str, len + 1, &p));
+	p[len] = '\0';
+
+	*(void **)retp = p;
+	return (0);
+}
+
+/*
  * __wt_strdup --
  *	ANSI strdup function.
  */
