@@ -46,10 +46,10 @@ def timestamp_ret_str(t):
     return s
 
 class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = 'ts03_ts_nologged'
-    tablename2 = 'ts03_nots_logged'
-    tablename3 = 'ts03_ts_logged'
-    tablename4 = 'ts03_nots_nologged'
+    table_ts_log     = 'ts03_ts_logged'
+    table_ts_nolog   = 'ts03_ts_nologged'
+    table_nots_log   = 'ts03_nots_logged'
+    table_nots_nolog = 'ts03_nots_nologged'
 
     types = [
         ('file', dict(uri='file:', use_cg=False, use_index=False)),
@@ -75,7 +75,7 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
     scenarios = make_scenarios(types, ckpt, conncfg)
 
     # Binary values.
-    value = u'\u0001\u0002abcd\u0003\u0004'
+    value  = u'\u0001\u0002abcd\u0003\u0004'
     value2 = u'\u0001\u0002dcba\u0003\u0004'
     value3 = u'\u0001\u0002cdef\u0003\u0004'
     value4 = u'\u0001\u0002fedc\u0003\u0004'
@@ -87,72 +87,82 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
         if txn_config:
             session.begin_transaction(txn_config)
 
-        c = session.open_cursor(self.uri + tablename, None)
-        actual = dict((k, v) for k, v in c if v != 0)
+        cur = session.open_cursor(self.uri + tablename, None)
+        actual = dict((k, v) for k, v in cur if v != 0)
         self.assertEqual(actual, expected)
         # Search for the expected items as well as iterating
         for k, v in expected.iteritems():
-            self.assertEqual(c[k], v, "for key " + str(k))
-        c.close()
+            self.assertEqual(cur[k], v, "for key " + str(k))
+        cur.close()
         if txn_config:
             session.commit_transaction()
     #
     # Take a backup of the database and verify that the value we want to
     # check exists in the tables the expected number of times.
     #
-    def backup_check(self, check_value, valcnt, valcnt2, valcnt3, valcnt4):
+    def backup_check(
+        self, check_value, exp_ts_log_cnt, exp_ts_nolog_cnt, exp_nots_log_cnt,
+        exp_nots_nolog_cnt
+    ):
         newdir = "BACKUP"
         copy_wiredtiger_home('.', newdir, True)
 
         conn = self.setUpConnectionOpen(newdir)
         session = self.setUpSessionOpen(conn)
-        c = session.open_cursor(self.uri + self.tablename, None)
-        c2 = session.open_cursor(self.uri + self.tablename2, None)
-        c3 = session.open_cursor(self.uri + self.tablename3, None)
-        c4 = session.open_cursor(self.uri + self.tablename4, None)
-        # Count how many times the second value is present
-        count = 0
-        for k, v in c:
-            if check_value in str(v):
-                # print "check_value found in key " + str(k)
-                count += 1
-        c.close()
-        # Count how many times the second value is present in the
-        # non-timestamp table.
-        count2 = 0
-        for k, v in c2:
-            if check_value in str(v):
-                # print "check_value found in key " + str(k)
-                count2 += 1
-        c2.close()
-        # Count how many times the second value is present in the
+        cur_ts_log      = session.open_cursor(self.uri + self.table_ts_log, None)
+        cur_ts_nolog    = session.open_cursor(self.uri + self.table_ts_nolog, None)
+        cur_nots_log    = session.open_cursor(self.uri + self.table_nots_log, None)
+        cur_nots_nolog  = session.open_cursor(self.uri + self.table_nots_nolog, None)
+        # Count how many times the check_value is present in the
         # logged timestamp table.
-        count3 = 0
-        for k, v in c3:
+        act_ts_log_cnt = 0
+        for k, v in cur_ts_log:
             if check_value in str(v):
-                count3 += 1
-        c3.close()
-        # Count how many times the second value is present in the
-        # non-timestamp table.
-        count4 = 0
-        for k, v in c4:
+                act_ts_log_cnt += 1
+        cur_ts_log.close()
+        # Count how many times the check_value is present in the
+        # not logged timestamp table
+        act_ts_nolog_cnt = 0
+        for k, v in cur_ts_nolog:
             if check_value in str(v):
-                count4 += 1
-        c4.close()
+                # print "check_value found in key " + str(k)
+                act_ts_nolog_cnt += 1
+        cur_ts_nolog.close()
+        # Count how many times the check_value is present in the
+        # logged non-timestamp table.
+        act_nots_log_cnt = 0
+        for k, v in cur_nots_log:
+            if check_value in str(v):
+                # print "check_value found in key " + str(k)
+                act_nots_log_cnt += 1
+        cur_nots_log.close()
+        # Count how many times the check_value is present in the
+        # not logged non-timestamp table.
+        act_nots_nolog_cnt = 0
+        for k, v in cur_nots_nolog:
+            if check_value in str(v):
+                act_nots_nolog_cnt += 1
+        cur_nots_nolog.close()
         conn.close()
-        # print "CHECK BACKUP: Count " + str(count) + " Count2 " + str(count2) + " Count3 " + str(count3) + "Count4 " + str(count4)
-        # print "CHECK BACKUP: Expect value2 count " + str(valcnt)
-        # print "CHECK BACKUP: 2nd table Expect value2 count " + str(valcnt2)
-        # print "CHECK BACKUP: 3rd table Expect value2 count " + str(valcnt3)
-        # print "CHECK BACKUP: 4th table Expect value2 count " + str(valcnt4)
+        # print "CHECK BACKUP: act_ts_log_cnt " + str(act_ts_log_cnt)
+        # print "CHECK BACKUP: exp_ts_log_cnt " + str(exp_ts_log_cnt)
+        # print "CHECK BACKUP: act_ts_nolog_cnt " + str(act_ts_nolog_cnt)
+        # print "CHECK BACKUP: exp_ts_nolog_cnt " + str(exp_ts_nolog_cnt)
+        # print "CHECK BACKUP: act_nots_log_cnt " + str(act_nots_log_cnt)
+        # print "CHECK BACKUP: exp_nots_log_cnt " + str(exp_nots_log_cnt)
+        # print "CHECK BACKUP: act_nots_nolog_cnt " + str(act_nots_nolog_cnt)
+        # print "CHECK BACKUP: exp_nots_nolog_cnt " + str(exp_nots_nolog_cnt)
         # print "CHECK BACKUP: config " + str(self.ckptcfg)
-        self.assertEqual(count, valcnt)
-        self.assertEqual(count2, valcnt2)
-        self.assertEqual(count3, valcnt3)
-        self.assertEqual(count4, valcnt4)
+        self.assertEqual(act_ts_log_cnt, exp_ts_log_cnt)
+        self.assertEqual(act_ts_nolog_cnt, exp_ts_nolog_cnt)
+        self.assertEqual(act_nots_log_cnt, exp_nots_log_cnt)
+        self.assertEqual(act_nots_nolog_cnt, exp_nots_nolog_cnt)
 
     # Check that a cursor sees the expected values after a checkpoint.
-    def ckpt_backup(self, check_value, valcnt, valcnt2, valcnt3, valcnt4, ckptts):
+    def ckpt_backup(
+        self, check_value, val_ts_log_cnt, val_ts_nolog_cnt, val_nots_log_cnt,
+        val_nots_nolog_cnt, ckptts
+    ):
 
         # Take a checkpoint.  Make a copy of the database.  Open the
         # copy and verify whether or not the expected data is in there.
@@ -166,31 +176,32 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
         # print "CKPT: " + ckptcfg
 
         self.session.checkpoint(ckptcfg)
-        self.backup_check(check_value, valcnt, valcnt2, valcnt3, valcnt4)
+        self.backup_check(check_value, val_ts_log_cnt, val_ts_nolog_cnt,
+            val_nots_log_cnt, val_nots_nolog_cnt)
 
     def test_timestamp03(self):
         if not wiredtiger.timestamp_build():
             self.skipTest('requires a timestamp build')
 
-        uri = self.uri + self.tablename
-        uri2 = self.uri + self.tablename2
-        uri3 = self.uri + self.tablename3
-        uri4 = self.uri + self.tablename4
+        uri_ts_log      = self.uri + self.table_ts_log
+        uri_ts_nolog    = self.uri + self.table_ts_nolog
+        uri_nots_log    = self.uri + self.table_nots_log
+        uri_nots_nolog  = self.uri + self.table_nots_nolog
         #
         # Open four tables:
-        # 1. Table is not logged and uses timestamps.
-        # 2. Table is logged and does not use timestamps.
-        # 3. Table is logged and uses timestamps.
+        # 1. Table is logged and uses timestamps.
+        # 2. Table is not logged and uses timestamps.
+        # 3. Table is logged and does not use timestamps.
         # 4. Table is not logged and does not use timestamps.
         #
-        self.session.create(uri, 'key_format=i,value_format=S,log=(enabled=false)')
-        c = self.session.open_cursor(uri)
-        self.session.create(uri2, 'key_format=i,value_format=S')
-        c2 = self.session.open_cursor(uri2)
-        self.session.create(uri3, 'key_format=i,value_format=S')
-        c3 = self.session.open_cursor(uri3)
-        self.session.create(uri4, 'key_format=i,value_format=S, log=(enabled=false)')
-        c4 = self.session.open_cursor(uri4)
+        self.session.create(uri_ts_log, 'key_format=i,value_format=S')
+        cur_ts_log = self.session.open_cursor(uri_ts_log)
+        self.session.create(uri_ts_nolog, 'key_format=i,value_format=S,log=(enabled=false)')
+        cur_ts_nolog = self.session.open_cursor(uri_ts_nolog)
+        self.session.create(uri_nots_log, 'key_format=i,value_format=S')
+        cur_nots_log = self.session.open_cursor(uri_nots_log)
+        self.session.create(uri_nots_nolog, 'key_format=i,value_format=S, log=(enabled=false)')
+        cur_nots_nolog = self.session.open_cursor(uri_nots_nolog)
 
         # Insert keys 1..100 each with timestamp=key, in some order
         nkeys = 100
@@ -199,58 +210,62 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
         random.shuffle(keys)
 
         for k in keys:
-            c2[k] = self.value
-            c4[k] = self.value
+            cur_nots_log[k] = self.value
+            cur_nots_nolog[k] = self.value
             self.session.begin_transaction()
-            c[k] = self.value
-            c3[k] = self.value
+            cur_ts_log[k] = self.value
+            cur_ts_nolog[k] = self.value
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(k))
 
-        # Scenario : 1
-        # Now check that we see the expected when reading with out
-        # read_timestamp as per transaction visibility
-        self.check(self.session, "", self.tablename,
+        # Scenario: 1
+        # Check that we see all the inserted values as per transaction
+        # visibility when reading with out the read_timestamp.
+        # All tables should see all the values.
+        self.check(self.session, "", self.table_ts_log,
             dict((k, self.value) for k in orig_keys))
-        self.check(self.session, "", self.tablename2,
+        self.check(self.session, "", self.table_ts_nolog,
             dict((k, self.value) for k in orig_keys))
-        self.check(self.session, "", self.tablename3,
+        self.check(self.session, "", self.table_nots_log,
             dict((k, self.value) for k in orig_keys))
-        self.check(self.session, "", self.tablename4,
+        self.check(self.session, "", self.table_nots_nolog,
             dict((k, self.value) for k in orig_keys))
 
-        # Scenario : 2
-        # Now check that we see the expected state when reading at each
-        # timestamp
+        # Scenario: 2
+        # Check that we see the inserted values as per the timestamp.
         for i, t in enumerate(orig_keys):
+            # Tables using the timestamps should see the values as per the
+            # given read_timestamp
             self.check(self.session, 'read_timestamp=' + timestamp_str(t),
-                self.tablename, dict((k, self.value) for k in orig_keys[:i+1]))
+                self.table_ts_log, dict((k, self.value) for k in orig_keys[:i+1]))
             self.check(self.session, 'read_timestamp=' + timestamp_str(t),
-                self.tablename2, dict((k, self.value) for k in orig_keys))
+                self.table_ts_nolog, dict((k, self.value) for k in orig_keys[:i+1]))
+            # Tables not using the timestamps should see all the values.
             self.check(self.session, 'read_timestamp=' + timestamp_str(t),
-                self.tablename3, dict((k, self.value) for k in orig_keys[:i+1]))
+                self.table_nots_log, dict((k, self.value) for k in orig_keys))
             self.check(self.session, 'read_timestamp=' + timestamp_str(t),
-                self.tablename4, dict((k, self.value) for k in orig_keys))
+                self.table_nots_nolog, dict((k, self.value) for k in orig_keys))
 
-        # Bump the oldest timestamp, we're not going back...
+        # Bump the oldest_timestamp, we're not going back...
         self.assertEqual(self.conn.query_timestamp(), timestamp_ret_str(100))
         self.oldts = timestamp_str(100)
         self.conn.set_timestamp('oldest_timestamp=' + self.oldts)
         self.conn.set_timestamp('stable_timestamp=' + self.oldts)
         # print "Oldest " + self.oldts
 
-        # Scenario : 3
-        # Now check that we see all the data after moving the oldest timestamp
-        # to current timestamp
-        self.check(self.session, 'read_timestamp=' + timestamp_str(100),
-            self.tablename, dict((k, self.value) for k in orig_keys))
-        self.check(self.session, 'read_timestamp=' + timestamp_str(100),
-            self.tablename2, dict((k, self.value) for k in orig_keys))
-        self.check(self.session, 'read_timestamp=' + timestamp_str(100),
-            self.tablename3, dict((k, self.value) for k in orig_keys))
-        self.check(self.session, 'read_timestamp=' + timestamp_str(100),
-            self.tablename4, dict((k, self.value) for k in orig_keys))
+        # Scenario: 3
+        # Check that we see all the data values after moving the oldest_timestamp
+        # to the current timestamp
+        # All tables should see all the values.
+        self.check(self.session, 'read_timestamp=' + self.oldts,
+            self.table_ts_log, dict((k, self.value) for k in orig_keys))
+        self.check(self.session, 'read_timestamp=' + self.oldts,
+            self.table_ts_nolog, dict((k, self.value) for k in orig_keys))
+        self.check(self.session, 'read_timestamp=' + self.oldts,
+            self.table_nots_log, dict((k, self.value) for k in orig_keys))
+        self.check(self.session, 'read_timestamp=' + self.oldts,
+            self.table_nots_nolog, dict((k, self.value) for k in orig_keys))
 
-        # Update them and retry.
+        # Update the keys and checkpoint using the stable_timestamp.
         random.shuffle(keys)
         count = 0
         for k in keys:
@@ -259,115 +274,133 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
             # the last record written into the log.
             #
             # print "Key " + str(k) + " to value2"
-            c2[k] = self.value2
-            c4[k] = self.value2
+            cur_nots_log[k] = self.value2
+            cur_nots_nolog[k] = self.value2
             self.session.begin_transaction()
-            c[k] = self.value2
-            c3[k] = self.value2
+            cur_ts_log[k] = self.value2
+            cur_ts_nolog[k] = self.value2
             ts = timestamp_str(k + 100)
             self.session.commit_transaction('commit_timestamp=' + ts)
             # print "Commit key " + str(k) + " ts " + ts
             count += 1
         # print "Updated " + str(count) + " keys to value2"
 
-        # Scenario : 4
-        # Now check that we don't see the updated data of timestamp tables
-        # with old read_timestamp
-        self.check(self.session, 'read_timestamp=' + timestamp_str(100),
-            self.tablename, dict((k, self.value) for k in orig_keys))
-        self.check(self.session, 'read_timestamp=' + timestamp_str(100),
-            self.tablename2, dict((k, self.value2) for k in orig_keys))
-        self.check(self.session, 'read_timestamp=' + timestamp_str(100),
-            self.tablename3, dict((k, self.value) for k in orig_keys))
-        self.check(self.session, 'read_timestamp=' + timestamp_str(100),
-            self.tablename4, dict((k, self.value2) for k in orig_keys))
+        # Scenario: 4
+        # Check that we don't see the updated data of timestamp tables
+        # with the read_timestamp as oldest_timestamp
+        # Tables using the timestamps should see old values (i.e. value) only
+        self.check(self.session, 'read_timestamp=' + self.oldts,
+            self.table_ts_log, dict((k, self.value) for k in orig_keys))
+        self.check(self.session, 'read_timestamp=' + self.oldts,
+            self.table_ts_nolog, dict((k, self.value) for k in orig_keys))
+        # Tables not using the timestamps should see updated values (i.e. value2).
+        self.check(self.session, 'read_timestamp=' + self.oldts,
+            self.table_nots_log, dict((k, self.value2) for k in orig_keys))
+        self.check(self.session, 'read_timestamp=' + self.oldts,
+            self.table_nots_nolog, dict((k, self.value2) for k in orig_keys))
 
-        # Scenario : 5
-        # Now check that we see the expected state when reading at each
-        # updated timestamp
-        valdict = dict((k, self.value) for k in orig_keys)
+        # Scenario: 5
+        # Check that we see the updated values as per the timestamp.
+        # Construct expected values.
+        expected_dict = dict((k, self.value) for k in orig_keys)
         for i, t in enumerate(orig_keys):
-            valdict[i+1] = self.value2
+            # update expected value
+            expected_dict[i+1] = self.value2
+            # Tables using the timestamps should see the updated values as per
+            # the given read_timestamp
             self.check(self.session, 'read_timestamp=' + timestamp_str(t + 100),
-                self.tablename, valdict)
+                self.table_ts_log, expected_dict)
             self.check(self.session, 'read_timestamp=' + timestamp_str(t + 100),
-                self.tablename2, dict((k, self.value2) for k in orig_keys))
+                self.table_ts_nolog, expected_dict)
+            # Tables not using the timestamps should see all the data values as
+            # updated values (i.e. value2).
             self.check(self.session, 'read_timestamp=' + timestamp_str(t + 100),
-                self.tablename3, valdict)
+                self.table_nots_log, dict((k, self.value2) for k in orig_keys))
             self.check(self.session, 'read_timestamp=' + timestamp_str(t + 100),
-                self.tablename4, dict((k, self.value2) for k in orig_keys))
+                self.table_nots_nolog, dict((k, self.value2) for k in orig_keys))
 
         # Take a checkpoint using the given configuration.  Then verify
         # whether value2 appears in a copy of that data or not.
-        valcnt2 = valcnt3 = valcnt4 = nkeys
+        val_ts_log_cnt = val_nots_log_cnt = val_nots_nolog_cnt = nkeys
         if self.val == 'all':
-            valcnt = nkeys
+            # if use_timestamp is false, then all updates will be checkpointed.
+            val_ts_nolog_cnt = nkeys
         else:
-            valcnt = 0
-        self.ckpt_backup(self.value2, valcnt, valcnt2, valcnt3, valcnt4, "")
+            val_ts_nolog_cnt = 0
+        self.ckpt_backup(self.value2, val_ts_log_cnt, val_ts_nolog_cnt,
+            val_nots_log_cnt, val_nots_nolog_cnt, "")
         if self.ckptcfg != 'read_timestamp':
-            # Update the stable timestamp to the latest, but not the oldest
-            # timestamp and make sure we can see the data.  Once the stable
-            # timestamp is moved we should see all keys with value2.
+            # Update the stable_timestamp to the latest, but not the
+            # oldest_timestamp and make sure we can see the data.  Once the
+            # stable_timestamp is moved we should see all keys with value2.
             self.conn.set_timestamp('stable_timestamp=' + \
                 timestamp_str(100+nkeys))
             self.ckpt_backup(self.value2, nkeys, nkeys, nkeys, nkeys, "")
 
-        # Update the keys and checkpoing using stable_timestamp, not using
-        # read_timestamp.
+        # Scenario: 6
+        # Update the keys and checkpoint using the stable_timestamp and
+        # the read_timestamp.
         random.shuffle(keys)
         count = 0
         for k in keys:
-            # Make sure a timestamp cursor is the last one to update.  This
-            # tests the scenario for a bug we found where recovery replayed
-            # the last record written into the log.
+            # Make sure a timestamp cursor is the last one to update.
             #
             # print "Key " + str(k) + " to value3"
-            c2[k] = self.value3
-            c4[k] = self.value3
+            cur_nots_log[k] = self.value3
+            cur_nots_nolog[k] = self.value3
             self.session.begin_transaction()
-            c[k] = self.value3
-            c3[k] = self.value3
+            cur_ts_log[k] = self.value3
+            cur_ts_nolog[k] = self.value3
             ts = timestamp_str(k + 200)
             self.session.commit_transaction('commit_timestamp=' + ts)
             # print "Commit key " + str(k) + " ts " + ts
             count += 1
         # print "Updated " + str(count) + " keys to value3"
 
-        # Scenario : 6
-        # when read time stamp != stable timestamp, take checkpoints using both
-        # stable timestamp and read timestamp and check to see the values differ
-        # and are proper.
+        # make the read_timestamp != stable_timestamp, take checkpoints using
+        # both the stable_timestamp and the read_timestamp and check that we
+        # see different data.
         if self.ckptcfg == 'use_timestamp=true':
-            # make sure stable_timestamp is set.
+            # make sure the stable_timestamp is set.
             ckpt_ts = 'stable_timestamp=' + timestamp_str(100 + nkeys)
             self.conn.set_timestamp('stable_timestamp=' + timestamp_str(100 + nkeys))
-            valcnt2 = valcnt3 = valcnt4 = nkeys
-            valcnt = 0
-            self.ckpt_backup(self.value3, valcnt, valcnt2, valcnt3, valcnt4, "")
-            # checkpoint at latest timestamp with read_timestamp
+            # Check that we see the data values as per the stable_timestamp.
+            # Tables not using the timestamps should see all data values as
+            # updated value (i.e. value3)
+            # Table using the timestamps and logged should also see all data values
+            # as updated value (i.e. value3)
+            val_nots_log_cnt = val_ts_log_cnt = val_nots_nolog_cnt = nkeys
+            # Table using the timestamps and not logged should not see any
+            # data value as updated value (i.e. value3)
+            val_ts_nolog_cnt = 0
+            self.ckpt_backup(self.value3, val_ts_log_cnt, val_ts_nolog_cnt,
+                val_nots_log_cnt, val_nots_nolog_cnt, "")
+
+            # Check that we see the data values as per the read_timestamp but
+            # not as per the stable_timestamp.
+            # All Tables should see all data values as updated value (i.e. value3)
             ckpt_ts = 'read_timestamp=' + timestamp_str(200 + nkeys)
-            valcnt = nkeys
-            self.ckpt_backup(self.value3, valcnt, valcnt2, valcnt3, valcnt4, ckpt_ts)
+            val_ts_nolog_cnt = nkeys
+            self.ckpt_backup(self.value3, val_ts_log_cnt, val_ts_nolog_cnt,
+                val_nots_log_cnt, val_nots_nolog_cnt, ckpt_ts)
 
         # If we're not using the log we're done.
         if not self.using_log:
             return
 
-        # Update them and retry.  This time take a backup and recover.
+        # Scenario: 7
+        # Update the keys and log_flush with out checkpoint.
         random.shuffle(keys)
         count = 0
         for k in keys:
-            # Make sure a timestamp cursor is the last one to update.  This
-            # tests the scenario for a bug we found where recovery replayed
-            # the last record written into the log.
+            # Make sure a timestamp cursor is the last one to update.
             #
-            # print "Key " + str(k) + " to value3"
-            c2[k] = self.value4
-            c4[k] = self.value4
+            # print "Key " + str(k) + " to value4"
+            cur_nots_log[k] = self.value4
+            cur_nots_nolog[k] = self.value4
             self.session.begin_transaction()
-            c[k] = self.value4
-            c3[k] = self.value4
+            cur_ts_log[k] = self.value4
+            cur_ts_nolog[k] = self.value4
             ts = timestamp_str(k + 300)
             self.session.commit_transaction('commit_timestamp=' + ts)
             # print "Commit key " + str(k) + " ts " + ts
@@ -377,13 +410,14 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
         # Flush the log but don't checkpoint
         self.session.log_flush('sync=on')
 
-        # Take a backup and then verify whether value3 appears in a copy
+        # Take a backup and then verify whether value4 appears in a copy
         # of that data or not.  Both tables that are logged should see
-        # all the data regardless of timestamps.  The table that is not
+        # all the data regardless of timestamps.  Both tables that are not
         # logged should not see any of it.
-        valcnt = valcnt4 = 0
-        valcnt2 = valcnt3 = nkeys
-        self.backup_check(self.value4, valcnt, valcnt2, valcnt3, valcnt4)
+        val_ts_nolog_cnt = val_nots_nolog_cnt = 0
+        val_ts_log_cnt = val_nots_log_cnt = nkeys
+        self.backup_check(self.value4, val_ts_log_cnt, val_ts_nolog_cnt,
+            val_nots_log_cnt, val_nots_nolog_cnt)
 
 if __name__ == '__main__':
     wttest.run()
