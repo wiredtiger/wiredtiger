@@ -128,6 +128,8 @@ __value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	return (__wt_buf_set(session, &cursor->value, &v, 1));
 }
 
+#define	WT_MODIFY_ARRAY_SIZE	(WT_MAX_MODIFY_UPDATE + 10)
+
 /*
  * __value_return_upd --
  *	Change the cursor to reference an internal update structure return
@@ -139,7 +141,7 @@ __value_return_upd(
 {
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
-	WT_UPDATE **listp, *list[WT_MAX_MODIFY_UPDATE];
+	WT_UPDATE **listp, *list[WT_MODIFY_ARRAY_SIZE];
 	u_int i;
 	size_t allocated_bytes;
 
@@ -178,12 +180,12 @@ __value_return_upd(
 			 * avoid memory allocation in normal cases, but we have
 			 * to handle the edge cases too.
 			 */
-			if (i >= WT_MAX_MODIFY_UPDATE) {
-				if (i == WT_MAX_MODIFY_UPDATE)
+			if (i >= WT_MODIFY_ARRAY_SIZE) {
+				if (i == WT_MODIFY_ARRAY_SIZE)
 					listp = NULL;
 				WT_ERR(__wt_realloc_def(
 				    session, &allocated_bytes, i + 1, &listp));
-				if (i == WT_MAX_MODIFY_UPDATE)
+				if (i == WT_MODIFY_ARRAY_SIZE)
 					memcpy(listp, list, sizeof(list));
 			}
 			listp[i++] = upd;
