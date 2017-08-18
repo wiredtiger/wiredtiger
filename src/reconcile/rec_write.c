@@ -58,8 +58,12 @@ typedef struct {
 	uint64_t orig_btree_checkpoint_gen;
 	uint64_t orig_txn_checkpoint_gen;
 
-	/* Track the oldest transaction running when reconciliation starts. */
+	/*
+	 * Track the oldest running transaction and the stable timestamp when
+	 * reconciliation starts.
+	 */
 	uint64_t last_running;
+	WT_DECL_TIMESTAMP(stable_timestamp)
 
 	/* Track the page's maximum transaction. */
 	uint64_t max_txn;
@@ -888,6 +892,7 @@ __rec_init(WT_SESSION_IMPL *session,
 	WT_BTREE *btree;
 	WT_PAGE *page;
 	WT_RECONCILE *r;
+	WT_TXN_GLOBAL *txn_global;
 
 	btree = S2BT(session);
 	page = ref->page;
@@ -931,7 +936,11 @@ __rec_init(WT_SESSION_IMPL *session,
 	 * transaction running when reconciliation starts is considered
 	 * uncommitted.
 	 */
-	WT_ORDERED_READ(r->last_running, S2C(session)->txn_global.last_running);
+	txn_global = &S2C(session)->txn_global;
+	WT_ORDERED_READ(r->last_running, txn_global->last_running);
+	WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
+	    __wt_timestamp_set(
+		&r->stable_timestamp, &txn_global->stable_timestamp));
 
 	/*
 	 * Lookaside table eviction is configured when eviction gets aggressive,
@@ -1342,10 +1351,11 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 
 			if (*updp == NULL)
 				*updp = upd;
+
 #ifdef HAVE_TIMESTAMPS
 			/* Track min/max timestamps. */
 			if (__wt_timestamp_cmp(
-			    &max_timestamp, &upd->timestamp) < 0)
+			    &upd->timestamp, &max_timestamp) > 0)
 				__wt_timestamp_set(
 				    &max_timestamp, &upd->timestamp);
 #endif
@@ -1474,6 +1484,9 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		return (EBUSY);
 	if (skipped && !F_ISSET(r, WT_EVICT_UPDATE_RESTORE))
 		return (EBUSY);
+	if (!F_ISSET(r, WT_EVICT_UPDATE_RESTORE) &&
+	    __wt_timestamp_cmp(&max_timestamp, &r->stable_timestamp) > 0)
+		return (EBUSY);
 
 	/*
 	 * Track the memory required by the update chain.
@@ -1489,7 +1502,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 * we'd have to re-instantiate as part of the rewrite.
 	 */
 	r->update_mem_saved += update_mem;
-	if (skipped)
+	if (skipped ||
+	    __wt_timestamp_cmp(&max_timestamp, &r->stable_timestamp) > 0)
 		r->update_mem_uncommitted += update_mem;
 
 	if (F_ISSET(r, WT_EVICT_UPDATE_RESTORE)) {
