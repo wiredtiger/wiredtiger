@@ -36,8 +36,8 @@ an object is not available for exclusive access. For example, the
 WT_SESSION::drop or WT_SESSION::verify methods will fail if the object
 has open cursors. Note that internal WiredTiger threads may temporarily
 open cursors on objects (for example, threads performing operations like
-handle sweep or statistics logging), and operations may temporarily fail
-and return \c EBUSY when there are no application cursors open on the object.
+statistics logging), and operations may temporarily fail and return \c EBUSY
+when there are no application cursors open on the object.
 
 @m_if{java}
 The following is a complete list of the WiredTiger-specific return
