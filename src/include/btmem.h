@@ -896,11 +896,11 @@ struct __wt_update {
 
 	uint32_t size;			/* data length */
 
-#define	WT_UPDATE_DELETED	0	/* deleted */
-#define	WT_UPDATE_MODIFIED	1	/* partial-update modify value */
-#define	WT_UPDATE_RESERVED	2	/* reserved */
-#define	WT_UPDATE_STANDARD	3	/* complete value */
-#define	WT_UPDATE_IMPOSSIBLE	255
+#define	WT_UPDATE_INVALID	0	/* diagnostic check */
+#define	WT_UPDATE_DELETED	1	/* deleted */
+#define	WT_UPDATE_MODIFIED	2	/* partial-update modify value */
+#define	WT_UPDATE_RESERVED	3	/* reserved */
+#define	WT_UPDATE_STANDARD	4	/* complete value */
 	uint8_t type;			/* type (one byte to conserve memory) */
 
 	/* If the update includes a complete value. */

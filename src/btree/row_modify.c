@@ -267,7 +267,7 @@ __wt_update_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value,
 	 * to allocate an update structure if only intending to insert one we
 	 * already have.
 	 */
-	WT_ASSERT(session, modify_type != WT_UPDATE_IMPOSSIBLE);
+	WT_ASSERT(session, modify_type != WT_UPDATE_INVALID);
 
 	/*
 	 * Allocate the WT_UPDATE structure and room for the value, then copy
