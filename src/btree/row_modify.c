@@ -43,7 +43,7 @@ err:		__wt_free(session, modify);
 int
 __wt_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
     const WT_ITEM *key, const WT_ITEM *value,
-    WT_UPDATE *upd_arg, int modify_type, bool exclusive)
+    WT_UPDATE *upd_arg, u_int modify_type, bool exclusive)
 {
 	WT_DECL_RET;
 	WT_INSERT *ins;
@@ -255,8 +255,8 @@ __wt_row_insert_alloc(WT_SESSION_IMPL *session,
  *	Allocate a WT_UPDATE structure and associated value and fill it in.
  */
 int
-__wt_update_alloc(WT_SESSION_IMPL *session,
-    const WT_ITEM *value, WT_UPDATE **updp, size_t *sizep, int modify_type)
+__wt_update_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value,
+    WT_UPDATE **updp, size_t *sizep, u_int modify_type)
 {
 	WT_UPDATE *upd;
 
@@ -267,7 +267,7 @@ __wt_update_alloc(WT_SESSION_IMPL *session,
 	 * to allocate an update structure if only intending to insert one we
 	 * already have.
 	 */
-	WT_ASSERT(session, modify_type != -1);
+	WT_ASSERT(session, modify_type != WT_UPDATE_IMPOSSIBLE);
 
 	/*
 	 * Allocate the WT_UPDATE structure and room for the value, then copy
@@ -284,7 +284,7 @@ __wt_update_alloc(WT_SESSION_IMPL *session,
 			memcpy(upd->data, value->data, value->size);
 		}
 	}
-	upd->type = (int8_t)modify_type;
+	upd->type = (uint8_t)modify_type;
 
 	*updp = upd;
 	*sizep = WT_UPDATE_MEMSIZE(upd);

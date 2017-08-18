@@ -18,7 +18,7 @@ static int __col_insert_alloc(
 int
 __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
     uint64_t recno, const WT_ITEM *value,
-    WT_UPDATE *upd_arg, int modify_type, bool exclusive)
+    WT_UPDATE *upd_arg, u_int modify_type, bool exclusive)
 {
 	static const WT_ITEM col_fix_remove = { "", 1, NULL, 0, 0 };
 	WT_BTREE *btree;

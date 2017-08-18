@@ -357,7 +357,7 @@ __cursor_row_search(
  */
 static inline int
 __cursor_col_modify_v(WT_SESSION_IMPL *session,
-    WT_CURSOR_BTREE *cbt, WT_ITEM *value, int modify_type)
+    WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
 {
 	return (__wt_col_modify(session, cbt,
 	    cbt->iface.recno, value, NULL, modify_type, false));
@@ -369,7 +369,7 @@ __cursor_col_modify_v(WT_SESSION_IMPL *session,
  */
 static inline int
 __cursor_row_modify_v(WT_SESSION_IMPL *session,
-    WT_CURSOR_BTREE *cbt, WT_ITEM *value, int modify_type)
+    WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
 {
 	return (__wt_row_modify(session, cbt,
 	    &cbt->iface.key, value, NULL, modify_type, false));
@@ -381,7 +381,7 @@ __cursor_row_modify_v(WT_SESSION_IMPL *session,
  */
 static inline int
 __cursor_col_modify(
-    WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, int modify_type)
+    WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, u_int modify_type)
 {
 	return (__wt_col_modify(session, cbt,
 	    cbt->iface.recno, &cbt->iface.value, NULL, modify_type, false));
@@ -393,7 +393,7 @@ __cursor_col_modify(
  */
 static inline int
 __cursor_row_modify(
-    WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, int modify_type)
+    WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, u_int modify_type)
 {
 	return (__wt_row_modify(session, cbt,
 	    &cbt->iface.key, &cbt->iface.value, NULL, modify_type, false));
@@ -1025,7 +1025,7 @@ done:	/*
  *	Update a record in the tree.
  */
 static int
-__btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, int modify_type)
+__btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
 {
 	WT_BTREE *btree;
 	WT_CURFILE_STATE state;
@@ -1460,7 +1460,7 @@ __wt_btcur_equals(WT_CURSOR_BTREE *a_arg, WT_CURSOR_BTREE *b_arg, int *equalp)
 static int
 __cursor_truncate(WT_SESSION_IMPL *session,
     WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop,
-    int (*rmfunc)(WT_SESSION_IMPL *, WT_CURSOR_BTREE *, int))
+    int (*rmfunc)(WT_SESSION_IMPL *, WT_CURSOR_BTREE *, u_int))
 {
 	WT_DECL_RET;
 
@@ -1515,7 +1515,7 @@ retry:	WT_RET(__wt_btcur_search(start));
 static int
 __cursor_truncate_fix(WT_SESSION_IMPL *session,
     WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop,
-    int (*rmfunc)(WT_SESSION_IMPL *, WT_CURSOR_BTREE *, int))
+    int (*rmfunc)(WT_SESSION_IMPL *, WT_CURSOR_BTREE *, u_int))
 {
 	WT_DECL_RET;
 	const uint8_t *value;
