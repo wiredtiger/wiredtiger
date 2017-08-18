@@ -79,7 +79,7 @@ __wt_cache_pool_config(WT_SESSION_IMPL *session, const char **cfg)
 
 		if (__wt_config_gets(session,
 		    &cfg[1], "cache_size", &cval_tmp) != WT_NOTFOUND)
-			WT_ERR_MSG(session, EINVAL,
+			WT_RET_MSG(session, EINVAL,
 			    "Only one of cache_size and shared_cache can be "
 			    "in the configuration");
 
