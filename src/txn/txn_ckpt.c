@@ -658,13 +658,17 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 		    &txn->read_timestamp, &txn_global->stable_timestamp);
 		F_SET(txn, WT_TXN_HAS_TS_READ);
 	}
+#else
+	WT_UNUSED(use_timestamp);
 #endif
 
 	__wt_writeunlock(session, &txn_global->rwlock);
 
+#ifdef HAVE_TIMESTAMPS
 	if (F_ISSET(txn, WT_TXN_HAS_TS_READ))
 		__wt_verbose_timestamp(session, &txn->read_timestamp,
 		    "Checkpoint requested at stable timestamp");
+#endif
 
 	/*
 	 * Get a list of handles we want to flush; for named checkpoints this
