@@ -47,7 +47,7 @@ int
 __wt_cache_pool_config(WT_SESSION_IMPL *session, const char **cfg)
 {
 	WT_CACHE_POOL *cp;
-	WT_CONFIG_ITEM cval;
+	WT_CONFIG_ITEM cval, cval_tmp;
 	WT_CONNECTION_IMPL *conn, *entry;
 	WT_DECL_RET;
 	char *pool_name;
@@ -77,6 +77,12 @@ __wt_cache_pool_config(WT_SESSION_IMPL *session, const char **cfg)
 			return (0);
 		}
 
+		if (__wt_config_gets(session,
+		    &cfg[1], "cache_size", &cval_tmp) != WT_NOTFOUND)
+			WT_ERR_MSG(session, EINVAL,
+			    "Only one of cache_size and shared_cache can be "
+			    "in the configuration");
+
 		/*
 		 * NOTE: The allocations made when configuring and opening a
 		 * cache pool don't really belong to the connection that
@@ -85,12 +91,6 @@ __wt_cache_pool_config(WT_SESSION_IMPL *session, const char **cfg)
 		 * outside of the connection here.
 		 */
 		WT_RET(__wt_strndup(session, cval.str, cval.len, &pool_name));
-
-		if (__wt_config_gets(session,
-		    &cfg[1], "cache_size", &cval) != WT_NOTFOUND)
-			WT_ERR_MSG(session, EINVAL,
-			    "Only one of cache_size and shared_cache can be "
-			    "in the configuration");
 
 	}
 
