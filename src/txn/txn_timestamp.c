@@ -64,11 +64,11 @@ __wt_timestamp_to_hex_string(
 }
 
 /*
- * __wt_verbose_timestamp --
+ * __verbose_timestamp --
  *	Output a verbose message along with the specified timestamp
  */
-void
-__wt_verbose_timestamp(WT_SESSION_IMPL *session,
+static void
+__verbose_timestamp(WT_SESSION_IMPL *session,
     const wt_timestamp_t *ts, const char *msg)
 {
 #ifdef HAVE_VERBOSE
@@ -311,7 +311,7 @@ __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session)
 		txn_global->oldest_is_pinned = __wt_timestamp_cmp(
 		    &txn_global->pinned_timestamp,
 		    &txn_global->oldest_timestamp) == 0;
-		__wt_verbose_timestamp(session,
+		__verbose_timestamp(session,
 		    &pinned_timestamp, "Updated pinned timestamp");
 	}
 	__wt_writeunlock(session, &txn_global->rwlock);
@@ -425,7 +425,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	if (has_commit) {
 		__wt_timestamp_set(&txn_global->commit_timestamp, &commit_ts);
 		txn_global->has_commit_timestamp = true;
-		__wt_verbose_timestamp(session, &commit_ts,
+		__verbose_timestamp(session, &commit_ts,
 		    "Updated global commit timestamp");
 	}
 
@@ -435,7 +435,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		__wt_timestamp_set(&txn_global->oldest_timestamp, &oldest_ts);
 		txn_global->has_oldest_timestamp = true;
 		txn_global->oldest_is_pinned = false;
-		__wt_verbose_timestamp(session, &oldest_ts,
+		__verbose_timestamp(session, &oldest_ts,
 		    "Updated global oldest timestamp");
 	}
 
@@ -445,7 +445,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		__wt_timestamp_set(&txn_global->stable_timestamp, &stable_ts);
 		txn_global->has_stable_timestamp = true;
 		txn_global->stable_is_pinned = false;
-		__wt_verbose_timestamp(session, &stable_ts,
+		__verbose_timestamp(session, &stable_ts,
 		    "Updated global stable timestamp");
 	}
 	__wt_writeunlock(session, &txn_global->rwlock);
