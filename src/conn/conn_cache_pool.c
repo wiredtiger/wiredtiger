@@ -91,7 +91,6 @@ __wt_cache_pool_config(WT_SESSION_IMPL *session, const char **cfg)
 		 * outside of the connection here.
 		 */
 		WT_RET(__wt_strndup(session, cval.str, cval.len, &pool_name));
-
 	}
 
 	__wt_spin_lock(session, &__wt_process.spinlock);
