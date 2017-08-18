@@ -938,9 +938,11 @@ __rec_init(WT_SESSION_IMPL *session,
 	 */
 	txn_global = &S2C(session)->txn_global;
 	WT_ORDERED_READ(r->last_running, txn_global->last_running);
+#ifdef HAVE_TIMESTAMPS
 	WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
 	    __wt_timestamp_set(
 		&r->stable_timestamp, &txn_global->stable_timestamp));
+#endif
 
 	/*
 	 * Lookaside table eviction is configured when eviction gets aggressive,
@@ -1484,9 +1486,6 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		return (EBUSY);
 	if (skipped && !F_ISSET(r, WT_EVICT_UPDATE_RESTORE))
 		return (EBUSY);
-	if (!F_ISSET(r, WT_EVICT_UPDATE_RESTORE) &&
-	    __wt_timestamp_cmp(&max_timestamp, &r->stable_timestamp) > 0)
-		return (EBUSY);
 
 	/*
 	 * Track the memory required by the update chain.
@@ -1502,9 +1501,22 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 * we'd have to re-instantiate as part of the rewrite.
 	 */
 	r->update_mem_saved += update_mem;
-	if (skipped ||
-	    __wt_timestamp_cmp(&max_timestamp, &r->stable_timestamp) > 0)
+	if (skipped)
 		r->update_mem_uncommitted += update_mem;
+
+#ifdef HAVE_TIMESTAMPS
+	/*
+	 * Don't allow lookaside eviction with updates newer than the stable
+	 * timestamp.  Also don't recommend lookaside eviction in that case.
+	 */
+	if (__wt_timestamp_cmp(&max_timestamp, &r->stable_timestamp) > 0) {
+		if (!F_ISSET(r, WT_EVICT_UPDATE_RESTORE))
+			return (EBUSY);
+
+		if (!skipped)
+			r->update_mem_uncommitted += update_mem;
+	}
+#endif
 
 	if (F_ISSET(r, WT_EVICT_UPDATE_RESTORE)) {
 		/*
