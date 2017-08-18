@@ -8,8 +8,6 @@
 
 #include "wt_internal.h"
 
-static int __conn_statistics_config(WT_SESSION_IMPL *, const char *[]);
-
 /*
  * ext_collate --
  *	Call the collation function (external API version).
@@ -187,45 +185,6 @@ __wt_conn_remove_collator(WT_SESSION_IMPL *session)
 	}
 
 	return (ret);
-}
-
-/*
- * __conn_compat_config --
- *	Configure compatibility version.
- */
-static int
-__conn_compat_config(WT_SESSION_IMPL *session, const char **cfg)
-{
-	WT_CONFIG_ITEM cval;
-	WT_CONNECTION_IMPL *conn;
-	uint16_t patch;
-
-	conn = S2C(session);
-	WT_RET(__wt_config_gets(session, cfg,
-	    "compatibility.release", &cval));
-	if (cval.len != 0) {
-		/*
-		 * Accept either a major.minor release string or a
-		 * major.minor.patch release string.  We ignore the patch
-		 * value, but allow it in the string.
-		 */
-		if (sscanf(cval.str, "%" SCNu16 ".%" SCNu16,
-		    &conn->compat_major, &conn->compat_minor) != 2 &&
-		    sscanf(cval.str, "%" SCNu16 ".%" SCNu16 ".%" SCNu16,
-		    &conn->compat_major, &conn->compat_minor, &patch) != 3)
-			WT_RET_MSG(session,
-			    EINVAL, "illegal compatibility release");
-		if (conn->compat_major > WIREDTIGER_VERSION_MAJOR)
-			WT_RET_MSG(session, EINVAL, "unknown major version");
-		if (conn->compat_major == WIREDTIGER_VERSION_MAJOR &&
-		    conn->compat_minor > WIREDTIGER_VERSION_MINOR)
-			WT_RET_MSG(session,
-			    EINVAL, "illegal compatibility version");
-	} else {
-		conn->compat_major = WIREDTIGER_VERSION_MAJOR;
-		conn->compat_minor = WIREDTIGER_VERSION_MINOR;
-	}
-	return (0);
 }
 
 /*
@@ -1079,7 +1038,7 @@ __conn_optrack_dir(WT_SESSION_IMPL *session, const char *home,
 			&S2C(session)->optrack) == 0)
 		return (0);
 
-        /* If the application specifies a home directory, use it. */
+	/* If the application specifies a home directory, use it. */
 	if (home != NULL)
 		goto copy;
 
@@ -1098,11 +1057,6 @@ copy:	return (__wt_strdup(session, home, &S2C(session)->optrack));
 }
 
 /*
- * __conn_optrack_setup --
- *     Set up operation logging.
- */
-
-/*
  * A global variable that tells us whether or not we have created a
  * map file for the current process. Map files, translating binary
  * numbers into function names are valid per-process, so we have to
@@ -1110,6 +1064,10 @@ copy:	return (__wt_strdup(session, home, &S2C(session)->optrack));
  */
 static bool __wt_optrack_map_setup = 0;
 
+/*
+ * __conn_optrack_setup --
+ *     Set up operation logging.
+ */
 static int
 __conn_optrack_setup(WT_SESSION_IMPL *session, const char *home,
 		   const char *cfg[])
@@ -1117,7 +1075,6 @@ __conn_optrack_setup(WT_SESSION_IMPL *session, const char *home,
 	bool exists;
 	char optrack_map_name[PATH_MAX];
 	WT_CONNECTION_IMPL *conn;
-	WT_DECL_RET;
 
 	conn = S2C(session);
 
@@ -1129,8 +1086,8 @@ __conn_optrack_setup(WT_SESSION_IMPL *session, const char *home,
 	 * a map of translations between function names and
 	 * function IDs. If the file exists, remove it.
 	 */
-	snprintf(optrack_map_name, PATH_MAX, "%s/optrack-map.txt",
-		 conn->optrack);
+	WT_RET(__wt_snprintf(optrack_map_name,
+	    PATH_MAX, "%s/optrack-map.txt", conn->optrack));
 
 	if (!__wt_optrack_map_setup) {
 		WT_RET(__wt_fs_exist(session, optrack_map_name, &exists));
@@ -1140,12 +1097,12 @@ __conn_optrack_setup(WT_SESSION_IMPL *session, const char *home,
 		__wt_optrack_map_setup = 1;
 	}
 
-	WT_RET(__wt_open(session, optrack_map_name,
+	WT_RET(__wt_open(session, "optrack-map.txt",
 			 WT_FS_OPEN_FILE_TYPE_REGULAR,
 			 WT_FS_OPEN_CREATE, &conn->optrack_map_fh));
-	WT_RET(__wt_spin_init(session, &conn->optrack_map_spinlock,
+
+	return (__wt_spin_init(session, &conn->optrack_map_spinlock,
 			      "optrack map spinlock"));
-	return (ret);
 }
 
 /*
@@ -1162,7 +1119,6 @@ __conn_optrack_teardown(WT_SESSION_IMPL *session)
 	__wt_spin_destroy(session, &conn->optrack_map_spinlock);
 	WT_IGNORE_RET(__wt_close(session, &conn->optrack_map_fh));
 }
-
 
 /*
  * __conn_is_new --
@@ -1246,57 +1202,12 @@ __conn_reconfigure(WT_CONNECTION *wt_conn, const char *config)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	const char *p;
-	bool locked;
 
 	conn = (WT_CONNECTION_IMPL *)wt_conn;
-	locked = false;
 
 	CONNECTION_API_CALL(conn, session, reconfigure, config, cfg);
-
-	/* Serialize reconfiguration. */
-	__wt_spin_lock(session, &conn->reconfig_lock);
-	locked = true;
-
-	/*
-	 * The configuration argument has been checked for validity, update the
-	 * previous connection configuration.
-	 *
-	 * DO NOT merge the configuration before the reconfigure calls.  Some
-	 * of the underlying reconfiguration functions do explicit checks with
-	 * the second element of the configuration array, knowing the defaults
-	 * are in slot #1 and the application's modifications are in slot #2.
-	 *
-	 * First, replace the base configuration set up by CONNECTION_API_CALL
-	 * with the current connection configuration, otherwise reconfiguration
-	 * functions will find the base value instead of previously configured
-	 * value.
-	 */
-	cfg[0] = conn->cfg;
-	cfg[1] = config;
-
-	/* Second, reconfigure the system. */
-	WT_ERR(__conn_compat_config(session, cfg));
-	WT_ERR(__conn_statistics_config(session, cfg));
-	WT_ERR(__wt_async_reconfig(session, cfg));
-	WT_ERR(__wt_cache_config(session, true, cfg));
-	WT_ERR(__wt_checkpoint_server_create(session, cfg));
-	WT_ERR(__wt_logmgr_reconfig(session, cfg));
-	WT_ERR(__wt_lsm_manager_reconfig(session, cfg));
-	WT_ERR(__wt_statlog_create(session, cfg));
-	WT_ERR(__wt_sweep_config(session, cfg));
-	WT_ERR(__wt_verbose_config(session, cfg));
-	WT_ERR(__wt_timing_stress_config(session, cfg));
-
-	/* Third, merge everything together, creating a new connection state. */
-	WT_ERR(__wt_config_merge(session, cfg, NULL, &p));
-	__wt_free(session, conn->cfg);
-	conn->cfg = p;
-
-err:	if (locked)
-		__wt_spin_unlock(session, &conn->reconfig_lock);
-
-	API_END_RET(session, ret);
+	ret = __wt_conn_reconfig(session, cfg);
+err:	API_END_RET(session, ret);
 }
 
 /*
@@ -1361,6 +1272,24 @@ __conn_set_timestamp(WT_CONNECTION *wt_conn, const char *config)
 
 	CONNECTION_API_CALL(conn, session, set_timestamp, config, cfg);
 	WT_TRET(__wt_txn_global_set_timestamp(session, cfg));
+err:	API_END_RET(session, ret);
+}
+
+/*
+ * __conn_rollback_to_stable --
+ *	WT_CONNECTION->rollback_to_stable method.
+ */
+static int
+__conn_rollback_to_stable(WT_CONNECTION *wt_conn, const char *config)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	conn = (WT_CONNECTION_IMPL *)wt_conn;
+
+	CONNECTION_API_CALL(conn, session, rollback_to_stable, config, cfg);
+	WT_TRET(__wt_txn_rollback_to_stable(session, cfg));
 err:	API_END_RET(session, ret);
 }
 
@@ -1872,94 +1801,6 @@ err:	/*
 	return (ret);
 }
 
-/*
- * __conn_statistics_config --
- *	Set statistics configuration.
- */
-static int
-__conn_statistics_config(WT_SESSION_IMPL *session, const char *cfg[])
-{
-	WT_CONFIG_ITEM cval, sval;
-	WT_CONNECTION_IMPL *conn;
-	WT_DECL_RET;
-	uint32_t flags;
-	int set;
-
-	conn = S2C(session);
-
-	WT_RET(__wt_config_gets(session, cfg, "statistics", &cval));
-
-	flags = 0;
-	set = 0;
-	if ((ret = __wt_config_subgets(
-	    session, &cval, "none", &sval)) == 0 && sval.val != 0) {
-		flags = 0;
-		++set;
-	}
-	WT_RET_NOTFOUND_OK(ret);
-
-	if ((ret = __wt_config_subgets(
-	    session, &cval, "fast", &sval)) == 0 && sval.val != 0) {
-		LF_SET(WT_STAT_TYPE_FAST);
-		++set;
-	}
-	WT_RET_NOTFOUND_OK(ret);
-
-	if ((ret = __wt_config_subgets(
-	    session, &cval, "all", &sval)) == 0 && sval.val != 0) {
-		LF_SET(
-		    WT_STAT_TYPE_ALL | WT_STAT_TYPE_CACHE_WALK |
-		    WT_STAT_TYPE_FAST | WT_STAT_TYPE_TREE_WALK);
-		++set;
-	}
-	WT_RET_NOTFOUND_OK(ret);
-
-	if (set > 1)
-		WT_RET_MSG(session, EINVAL,
-		    "Only one of all, fast, none configuration values should "
-		    "be specified");
-
-	/*
-	 * Now that we've parsed general statistics categories, process
-	 * sub-categories.
-	 */
-	if ((ret = __wt_config_subgets(
-	    session, &cval, "cache_walk", &sval)) == 0 && sval.val != 0)
-		/*
-		 * Configuring cache walk statistics implies fast statistics.
-		 * Keep that knowledge internal for now - it may change in the
-		 * future.
-		 */
-		LF_SET(WT_STAT_TYPE_FAST | WT_STAT_TYPE_CACHE_WALK);
-	WT_RET_NOTFOUND_OK(ret);
-
-	if ((ret = __wt_config_subgets(
-	    session, &cval, "tree_walk", &sval)) == 0 && sval.val != 0)
-		/*
-		 * Configuring tree walk statistics implies fast statistics.
-		 * Keep that knowledge internal for now - it may change in the
-		 * future.
-		 */
-		LF_SET(WT_STAT_TYPE_FAST | WT_STAT_TYPE_TREE_WALK);
-	WT_RET_NOTFOUND_OK(ret);
-
-	if ((ret = __wt_config_subgets(
-	    session, &cval, "clear", &sval)) == 0 && sval.val != 0) {
-		if (!LF_ISSET(WT_STAT_TYPE_ALL | WT_STAT_TYPE_CACHE_WALK |
-		    WT_STAT_TYPE_FAST | WT_STAT_TYPE_TREE_WALK))
-			WT_RET_MSG(session, EINVAL,
-			    "the value \"clear\" can only be specified if "
-			    "statistics are enabled");
-		LF_SET(WT_STAT_CLEAR);
-	}
-	WT_RET_NOTFOUND_OK(ret);
-
-	/* Configuring statistics clears any existing values. */
-	conn->stat_flags = flags;
-
-	return (0);
-}
-
 /* Simple structure for name and flag configuration searches. */
 typedef struct {
 	const char *name;
@@ -2000,6 +1841,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 		{ "split",		WT_VERB_SPLIT },
 		{ "temporary",		WT_VERB_TEMPORARY },
 		{ "thread_group",	WT_VERB_THREAD_GROUP },
+		{ "timestamp",		WT_VERB_TIMESTAMP },
 		{ "transaction",	WT_VERB_TRANSACTION },
 		{ "verify",		WT_VERB_VERIFY },
 		{ "version",		WT_VERB_VERSION },
@@ -2039,13 +1881,16 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 
 /*
  * __wt_timing_stress_config --
- *	Set diagnostic stress timing delay configuration.
+ *	Set timing stress for test delay configuration.
  */
 int
 __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	static const WT_NAME_FLAG stress_types[] = {
 		{ "checkpoint_slow",	WT_TIMING_STRESS_CHECKPOINT_SLOW },
+		{ "internal_page_split_race",
+		    WT_TIMING_STRESS_INTERNAL_PAGE_SPLIT_RACE },
+		{ "page_split_race",	WT_TIMING_STRESS_PAGE_SPLIT_RACE },
 		{ NULL, 0 }
 	};
 	WT_CONFIG_ITEM cval, sval;
@@ -2057,22 +1902,13 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
 	conn = S2C(session);
 
 	WT_RET(__wt_config_gets(
-	    session, cfg, "diagnostic_timing_stress", &cval));
+	    session, cfg, "timing_stress_for_test", &cval));
 
 	flags = 0;
 	for (ft = stress_types; ft->name != NULL; ft++) {
 		if ((ret = __wt_config_subgets(
 		    session, &cval, ft->name, &sval)) == 0 && sval.val != 0) {
-#ifdef HAVE_DIAGNOSTIC
 			LF_SET(ft->flag);
-#else
-			WT_RET_MSG(session, EINVAL,
-			    "diagnostic_timing_stress option specified when "
-			    "WiredTiger built without diagnostic support. Add "
-			    "--enable-diagnostic to configure command and "
-			    "rebuild to include support for diagnostic stress "
-			    "timing delays");
-#endif
 		}
 		WT_RET_NOTFOUND_OK(ret);
 	}
@@ -2316,6 +2152,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 		__conn_open_session,
 		__conn_query_timestamp,
 		__conn_set_timestamp,
+		__conn_rollback_to_stable,
 		__conn_load_extension,
 		__conn_add_data_source,
 		__conn_add_collator,
@@ -2433,7 +2270,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	/*
 	 * Set compatibility versions early so that any subsystem sees it.
 	 */
-	WT_ERR(__conn_compat_config(session, cfg));
+	WT_ERR(__wt_conn_compat_config(session, cfg));
 
 	/*
 	 * If the application didn't configure its own file system, configure
@@ -2623,7 +2460,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	WT_ERR(__wt_config_gets(session, cfg, "mmap", &cval));
 	conn->mmap = cval.val != 0;
 
-	WT_ERR(__conn_statistics_config(session, cfg));
+	WT_ERR(__wt_conn_statistics_config(session, cfg));
 	WT_ERR(__wt_lsm_manager_config(session, cfg));
 	WT_ERR(__wt_sweep_config(session, cfg));
 

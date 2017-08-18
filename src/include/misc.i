@@ -38,14 +38,14 @@ __wt_rdtsc(void) {
 #ifdef __i386
 	uint64_t x;
 	__asm__ volatile ("rdtsc" : "=A" (x));
-	return x;
+	return (x);
 
 #elif defined __amd64
 	uint64_t a, d;
 	__asm__ volatile ("rdtsc" : "=a" (a), "=d" (d));
 	return (d<<32) | a;
 #else
-        NO RDTSC INSTRUCTION AVAILABLE: see src/os_posix/os_time.c
+	NO RDTSC INSTRUCTION AVAILABLE: see src/os_posix/os_time.c
 #endif
 }
 
@@ -58,45 +58,6 @@ __wt_strdup(WT_SESSION_IMPL *session, const char *str, void *retp)
 {
 	return (__wt_strndup(
 	    session, str, (str == NULL) ? 0 : strlen(str), retp));
-}
-
-/*
- * __wt_seconds --
- *	Return the seconds since the Epoch.
- */
-static inline void
-__wt_seconds(WT_SESSION_IMPL *session, time_t *timep)
-{
-	struct timespec t;
-
-	__wt_epoch(session, &t);
-
-	*timep = t.tv_sec;
-}
-
-/*
- * __wt_time_check_monotonic --
- *	Check and prevent time running backward.  If we detect that it has, we
- *	set the time structure to the previous values, making time stand still
- *	until we see a time in the future of the highest value seen so far.
- */
-static inline void
-__wt_time_check_monotonic(WT_SESSION_IMPL *session, struct timespec *tsp)
-{
-	/*
-	 * Detect time going backward.  If so, use the last
-	 * saved timestamp.
-	 */
-	if (session == NULL)
-		return;
-
-	if (tsp->tv_sec < session->last_epoch.tv_sec ||
-	     (tsp->tv_sec == session->last_epoch.tv_sec &&
-	     tsp->tv_nsec < session->last_epoch.tv_nsec)) {
-		WT_STAT_CONN_INCR(session, time_travel);
-		*tsp = session->last_epoch;
-	} else
-		session->last_epoch = *tsp;
 }
 
 /*

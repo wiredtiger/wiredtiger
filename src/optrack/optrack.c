@@ -8,6 +8,10 @@
 
 #include "wt_internal.h"
 
+/*
+ * __wt_optrack_record_funcid --
+ *	Record optrack function id
+ */
 void
 __wt_optrack_record_funcid(WT_SESSION_IMPL *session, uint64_t op_id,
 			   void *func, size_t funcsize,
@@ -22,8 +26,8 @@ __wt_optrack_record_funcid(WT_SESSION_IMPL *session, uint64_t op_id,
 
 	__wt_spin_lock(session, &conn->optrack_map_spinlock);
 	if (!*id_recorded) {
-		WT_IGNORE_RET(snprintf(id_buf, sizeof(id_buf), "%p ",
-				       (void*)op_id));
+		WT_IGNORE_RET(__wt_snprintf(id_buf,
+		    sizeof(id_buf), "%p ", (void*)op_id));
 		WT_IGNORE_RET(__wt_filesize(session, conn->optrack_map_fh,
 					    &fsize));
 		WT_IGNORE_RET(__wt_write(session, conn->optrack_map_fh, fsize,
@@ -41,13 +45,17 @@ __wt_optrack_record_funcid(WT_SESSION_IMPL *session, uint64_t op_id,
 	__wt_spin_unlock(session, &conn->optrack_map_spinlock);
 }
 
+/*
+ * __wt_optrack_flush_buffer --
+ *	Flush optrack buffer
+ */
 size_t
 __wt_optrack_flush_buffer(WT_SESSION_IMPL *s)
 {
 	WT_DECL_RET;
 	ret = s->optrack_fh->handle->fh_write(s->optrack_fh->handle,
 					      (WT_SESSION *)s,
-					      s->optrack_offset,
+					      (wt_off_t)s->optrack_offset,
 					      s->optrackbuf_ptr *
 					      sizeof(WT_TRACK_RECORD),
 					      s->optrack_buf);
@@ -55,5 +63,5 @@ __wt_optrack_flush_buffer(WT_SESSION_IMPL *s)
 	if (ret == 0)
 		return s->optrackbuf_ptr * sizeof(WT_TRACK_RECORD);
 	else
-		return 0;
+		return (0);
 }

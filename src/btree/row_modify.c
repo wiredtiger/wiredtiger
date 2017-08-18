@@ -268,13 +268,13 @@ __wt_update_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value,
 	 */
 	if (modify_type == WT_UPDATE_DELETED ||
 	    modify_type == WT_UPDATE_RESERVED)
-		WT_RET(__wt_calloc(session, 1, sizeof(WT_UPDATE), &upd));
+		WT_RET(__wt_calloc(session, 1, WT_UPDATE_SIZE, &upd));
 	else {
 		WT_RET(__wt_calloc(
-		    session, 1, sizeof(WT_UPDATE) + value->size, &upd));
+		    session, 1, WT_UPDATE_SIZE + value->size, &upd));
 		if (value->size != 0) {
 			upd->size = WT_STORE_SIZE(value->size);
-			memcpy(WT_UPDATE_DATA(upd), value->data, value->size);
+			memcpy(upd->data, value->data, value->size);
 		}
 	}
 	upd->type = (uint8_t)modify_type;
@@ -302,9 +302,16 @@ __wt_update_obsolete_check(
 	 * freeing the memory.
 	 *
 	 * Walk the list of updates, looking for obsolete updates at the end.
+	 *
+	 * Only updates with globally visible, self-contained data can terminate
+	 * update chains, ignore modified and reserved updates. Special case the
+	 * first transaction ID, it flags column-store overflow values which can
+	 * never be discarded.
 	 */
 	for (first = NULL, count = 0; upd != NULL; upd = upd->next, count++)
-		if (__wt_txn_upd_visible_all(session, upd)) {
+		if (WT_UPDATE_DATA_VALUE(upd) &&
+		    __wt_txn_upd_visible_all(session, upd) &&
+		    upd->txnid != WT_TXN_FIRST) {
 			if (first == NULL)
 				first = upd;
 		} else if (upd->txnid != WT_TXN_ABORTED)
@@ -323,9 +330,11 @@ __wt_update_obsolete_check(
 
 	/*
 	 * If the list is long, don't retry checks on this page until the
-	 * transaction state has moved forwards.
+	 * transaction state has moved forwards. This function is used to
+	 * trim update lists independently of the page state, ensure there
+	 * is a modify structure.
 	 */
-	if (count > 20)
+	if (count > 20 && page->modify != NULL)
 		page->modify->obsolete_check_txn =
 		    S2C(session)->txn_global.last_running;
 

@@ -290,6 +290,8 @@ struct __wt_thread;
     typedef struct __wt_thread WT_THREAD;
 struct __wt_thread_group;
     typedef struct __wt_thread_group WT_THREAD_GROUP;
+struct __wt_timestamp_t;
+    typedef struct __wt_timestamp_t WT_TIMESTAMP_T;
 struct __wt_track_record;
     typedef struct __wt_track_record WT_TRACK_RECORD;
 struct __wt_txn;
@@ -354,8 +356,8 @@ union __wt_rand_state;
 #include "log.h"
 #include "lsm.h"
 #include "meta.h"
-#include "os.h"
 #include "optrack.h"
+#include "os.h"
 #include "schema.h"
 #include "thread_group.h"
 #include "txn.h"

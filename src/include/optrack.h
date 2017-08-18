@@ -6,9 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
-
-#define WT_OPTRACK_MAXRECS 16384
-#define WT_OPTRACK_BUFSIZE WT_OPTRACK_MAXRECS * sizeof(WT_TRACK_RECORD)
+#define	WT_OPTRACK_MAXRECS 16384
+#define	WT_OPTRACK_BUFSIZE WT_OPTRACK_MAXRECS * sizeof(WT_TRACK_RECORD)
 
 /*
  * WT_TRACK_RECORD --
@@ -30,14 +29,10 @@ struct __wt_track_record {
 	char padding[6];
 };
 
-#define WT_FUNC_ADDR(s) &__func__
-
-#define WT_TRACK_OP(s, optype)						\
-	static volatile bool id_recorded = 0;				\
-	WT_TRACK_RECORD *tr = &(s->optrack_buf[s->optrackbuf_ptr++]);	\
+#define	WT_TRACK_OP(s, optype)						\
 	tr->timestamp = __wt_rdtsc();					\
 	tr->op_type = optype;						\
-	tr->op_id = (uint64_t)WT_FUNC_ADDR(s);				\
+	tr->op_id = (uint64_t)&__func__;				\
 									\
 	if (optype == 0 && !id_recorded)				\
 		__wt_optrack_record_funcid(s, tr->op_id,		\
@@ -51,3 +46,12 @@ struct __wt_track_record {
 		}                                                       \
 		s->optrackbuf_ptr = 0;					\
 	}
+
+#define	WT_TRACK_OP_INIT(s)						\
+	WT_TRACK_RECORD *tr = &(s->optrack_buf[s->optrackbuf_ptr++]);	\
+	static volatile bool id_recorded = 0;				\
+	WT_TRACK_OP(s, 0);
+
+#define	WT_TRACK_OP_END(s)						\
+	tr = &(s->optrack_buf[s->optrackbuf_ptr++]);			\
+	WT_TRACK_OP(s, 1);

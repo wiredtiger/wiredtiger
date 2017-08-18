@@ -74,6 +74,7 @@ Checksum
 Checksums
 CityHash
 CloseHandle
+Cmvz
 Collet
 Comparator
 Config
@@ -264,6 +265,8 @@ NoAddr
 Noll
 Nul
 OOB
+OPLOG
+OPTRACK
 OPTYPE
 OUTBUFF
 OVFL
@@ -350,11 +353,14 @@ Syscall
 TAILQ
 TCMalloc
 TESTUTIL
+TIMESTAMP
+TIMESTAMPS
 TODO
 TORTIOUS
 TSO
 TXN
 TXNC
+Teardown
 ThreadList
 ThreadListWrapper
 Timespec
@@ -525,6 +531,7 @@ checkpointer
 checkpointing
 checksum
 checksums
+checksys
 checkvalue
 children's
 chk
@@ -738,6 +745,7 @@ fsyncLock
 fsyncs
 ftruncate
 func
+funcid
 fvisibility
 gcc
 gdb
@@ -937,6 +945,7 @@ msvc
 multi
 multiblock
 multicore
+multicycle
 multiprocess
 multisocket
 multithreaded
@@ -992,8 +1001,10 @@ oo
 opcode
 opendir
 openfile
+oplist
 oplog
 optimizations
+optrack
 optype
 ori
 os
@@ -1066,6 +1077,7 @@ rbrace
 rbracket
 rcursor
 rdonly
+rdtsc
 rduppo
 readlock
 readonly
@@ -1085,6 +1097,7 @@ refp
 regionp
 reinitialization
 relocked
+repl
 resize
 resizing
 ret
@@ -1177,6 +1190,7 @@ tV
 tablename
 tcbench
 td
+teardown
 tempdir
 testutil
 th
@@ -1279,6 +1293,7 @@ vtype
 vunpack
 vw
 vxr
+vz
 waitpid
 waker
 wakeup
@@ -1320,3 +1335,4 @@ zseries
 zstd
 zstd's
 zu
+zyxwvutsrqponmlkjihgfedcba

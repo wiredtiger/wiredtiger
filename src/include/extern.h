@@ -91,7 +91,7 @@ extern int __wt_bloom_intersection(WT_BLOOM *bloom, WT_BLOOM *other) WT_GCC_FUNC
 extern int __wt_bloom_close(WT_BLOOM *bloom) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default"))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_bloom_drop(WT_BLOOM *bloom, const char *config) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default"))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_compact(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_compact_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_compact_page_skip( WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *skipp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_key_order_check( WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_key_order_init(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_cursor_key_order_reset(WT_CURSOR_BTREE *cbt);
@@ -105,6 +105,7 @@ extern int __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp) WT_GCC_FUNC
 extern int __wt_btcur_insert(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_insert_check(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_remove(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_reserve(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_update(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_compare(WT_CURSOR_BTREE *a_arg, WT_CURSOR_BTREE *b_arg, int *cmpp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -139,6 +140,7 @@ extern int __wt_btree_discard(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBU
 extern void __wt_root_ref_init(WT_REF *root_ref, WT_PAGE *root, bool is_recno);
 extern int __wt_btree_tree_open( WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_PAGE **pagep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __wt_btree_immediately_durable(WT_SESSION_IMPL *session);
 extern int __wt_btree_huffman_open(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_btree_huffman_close(WT_SESSION_IMPL *session);
 extern int __wt_bt_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t addr_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -147,7 +149,7 @@ extern const char *__wt_page_type_string(u_int type) WT_GCC_FUNC_DECL_ATTRIBUTE(
 extern const char *__wt_cell_type_string(uint8_t type);
 extern const char *__wt_page_addr_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf);
 extern const char *__wt_addr_string(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, WT_ITEM *buf);
-extern int __wt_ovfl_read(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK *unpack, WT_ITEM *store) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_ovfl_read(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK *unpack, WT_ITEM *store, bool *decoded) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_ovfl_remove(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd_list, WT_CELL_UNPACK *unpack) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_ovfl_discard(WT_SESSION_IMPL *session, WT_CELL *cell) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, bool alloc_refs, WT_PAGE **pagep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -164,7 +166,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
  );
 extern int __wt_bt_rebalance(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_key_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_kv_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_value_return( WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_bt_salvage(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_REF **refp, size_t *incrp, bool closing) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_split_insert(WT_SESSION_IMPL *session, WT_REF *ref) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -179,6 +181,7 @@ extern int __wt_verify_dsk_image(WT_SESSION_IMPL *session, const char *tag, cons
 extern int __wt_verify_dsk(WT_SESSION_IMPL *session, const char *tag, WT_ITEM *buf) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tree_walk(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tree_walk_count(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *walkcntp, uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_tree_walk_custom_skip( WT_SESSION_IMPL *session, WT_REF **refp, int (*skip_func)(WT_SESSION_IMPL *, WT_REF *, void *, bool *), void *func_cookie, uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tree_walk_skip( WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *skipleafcntp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_UPDATE *upd_arg, u_int modify_type, bool exclusive) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_col_search(WT_SESSION_IMPL *session, uint64_t search_recno, WT_REF *leaf, WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -258,11 +261,11 @@ extern int __wt_checkpoint_server_destroy(WT_SESSION_IMPL *session) WT_GCC_FUNC_
 extern void __wt_checkpoint_signal(WT_SESSION_IMPL *session, wt_off_t logsize);
 extern int __wt_conn_dhandle_alloc( WT_SESSION_IMPL *session, const char *uri, const char *checkpoint) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_dhandle_find( WT_SESSION_IMPL *session, const char *uri, const char *checkpoint) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_conn_btree_sync_and_close(WT_SESSION_IMPL *session, bool final, bool force) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_conn_btree_sync_and_close( WT_SESSION_IMPL *session, bool final, bool mark_dead) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_btree_open( WT_SESSION_IMPL *session, const char *cfg[], uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri, int (*file_func)(WT_SESSION_IMPL *, const char *[]), int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_conn_dhandle_close_all( WT_SESSION_IMPL *session, const char *uri, bool force) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_conn_dhandle_discard_single( WT_SESSION_IMPL *session, bool final, bool force) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_conn_dhandle_close_all( WT_SESSION_IMPL *session, const char *uri, bool mark_dead) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_conn_dhandle_discard_single( WT_SESSION_IMPL *session, bool final, bool mark_dead) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_dhandle_discard(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_connection_init(WT_CONNECTION_IMPL *conn) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_connection_destroy(WT_CONNECTION_IMPL *conn);
@@ -275,6 +278,9 @@ extern int __wt_logmgr_destroy(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIB
 extern int __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_connection_close(WT_CONNECTION_IMPL *conn) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_conn_statistics_config(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_conn_reconfig(WT_SESSION_IMPL *session, const char **cfg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_conn_stat_init(WT_SESSION_IMPL *session);
 extern int __wt_statlog_create(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_statlog_destroy(WT_SESSION_IMPL *session, bool is_close) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -362,6 +368,7 @@ extern int __wt_verbose_dump_cache(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_AT
 extern int __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_curstat_cache_walk(WT_SESSION_IMPL *session);
+extern int __wt_log_printf(WT_SESSION_IMPL *session, const char *fmt, ...) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_log_ckpt(WT_SESSION_IMPL *session, WT_LSN *ckp_lsn);
 extern int __wt_log_flush_lsn(WT_SESSION_IMPL *session, WT_LSN *lsn, bool start) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_log_background(WT_SESSION_IMPL *session, WT_LSN *lsn);
@@ -388,6 +395,9 @@ extern int __wt_logrec_alloc(WT_SESSION_IMPL *session, size_t size, WT_ITEM **lo
 extern void __wt_logrec_free(WT_SESSION_IMPL *session, WT_ITEM **logrecp);
 extern int __wt_logrec_read(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t *rectypep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_logop_read(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t *optypep, uint32_t *opsizep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_logop_col_modify_pack( WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, uint64_t recno, WT_ITEM *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_logop_col_modify_unpack( WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t *fileidp, uint64_t *recnop, WT_ITEM *valuep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_logop_col_modify_print(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_logop_col_put_pack( WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, uint64_t recno, WT_ITEM *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_logop_col_put_unpack( WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t *fileidp, uint64_t *recnop, WT_ITEM *valuep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_logop_col_put_print(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -397,6 +407,9 @@ extern int __wt_logop_col_remove_print(WT_SESSION_IMPL *session, const uint8_t *
 extern int __wt_logop_col_truncate_pack( WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, uint64_t start, uint64_t stop) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_logop_col_truncate_unpack( WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t *fileidp, uint64_t *startp, uint64_t *stopp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_logop_col_truncate_print(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_logop_row_modify_pack( WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, WT_ITEM *key, WT_ITEM *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_logop_row_modify_unpack( WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t *fileidp, WT_ITEM *keyp, WT_ITEM *valuep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_logop_row_modify_print(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_logop_row_put_pack( WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, WT_ITEM *key, WT_ITEM *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_logop_row_put_unpack( WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t *fileidp, WT_ITEM *keyp, WT_ITEM *valuep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_logop_row_put_print(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -406,6 +419,12 @@ extern int __wt_logop_row_remove_print(WT_SESSION_IMPL *session, const uint8_t *
 extern int __wt_logop_row_truncate_pack( WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid, WT_ITEM *start, WT_ITEM *stop, uint32_t mode) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_logop_row_truncate_unpack( WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t *fileidp, WT_ITEM *startp, WT_ITEM *stopp, uint32_t *modep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_logop_row_truncate_print(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_logop_checkpoint_start_pack( WT_SESSION_IMPL *session, WT_ITEM *logrec ) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_logop_checkpoint_start_unpack( WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end ) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_logop_checkpoint_start_print(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_logop_prev_lsn_pack( WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *prev_lsn) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_logop_prev_lsn_unpack( WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_LSN *prev_lsnp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_logop_prev_lsn_print(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_op_printlog(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_log_slot_activate(WT_SESSION_IMPL *session, WT_LOGSLOT *slot);
 extern int __wt_log_slot_switch(WT_SESSION_IMPL *session, WT_MYSLOT *myslot, bool retry, bool forced, bool *did_work) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -575,6 +594,7 @@ extern int __wt_schema_destroy_index(WT_SESSION_IMPL *session, WT_INDEX **idxp) 
 extern int __wt_schema_destroy_table(WT_SESSION_IMPL *session, WT_TABLE **tablep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_remove_table(WT_SESSION_IMPL *session, WT_TABLE *table) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_close_tables(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_schema_sweep_tables(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_colgroup_name(WT_SESSION_IMPL *session, WT_TABLE *table, const char *cgname, size_t len, WT_ITEM *buf) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_open_colgroups(WT_SESSION_IMPL *session, WT_TABLE *table) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_open_index(WT_SESSION_IMPL *session, WT_TABLE *table, const char *idxname, size_t len, WT_INDEX **indexp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -649,7 +669,7 @@ __wt_assert(WT_SESSION_IMPL *session,
 #endif
  WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern int __wt_panic(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default"))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_illegal_value(WT_SESSION_IMPL *session, const char *name) WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default"))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_illegal_value_func( WT_SESSION_IMPL *session, const char *tag, const char *file, int line) WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default"))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_inmem_unsupported_op(WT_SESSION_IMPL *session, const char *tag) WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_object_unsupported(WT_SESSION_IMPL *session, const char *uri) WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_bad_object_type(WT_SESSION_IMPL *session, const char *uri) WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -668,7 +688,6 @@ extern int __wt_stash_add(WT_SESSION_IMPL *session, int which, uint64_t generati
 extern void __wt_stash_discard_all(WT_SESSION_IMPL *session_safe, WT_SESSION_IMPL *session);
 extern int __wt_library_init(void) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_breakpoint(void);
-extern void __wt_attach(WT_SESSION_IMPL *session);
 extern uint64_t __wt_hash_city64(const void *s, size_t len);
 extern uint64_t __wt_hash_fnv64(const void *string, size_t len);
 extern int
@@ -693,6 +712,9 @@ extern void __wt_huffman_close(WT_SESSION_IMPL *session, void *huffman_arg);
 extern void __wt_print_huffman_code(void *huffman_arg, uint16_t symbol);
 extern int __wt_huffman_encode(WT_SESSION_IMPL *session, void *huffman_arg, const uint8_t *from_arg, size_t from_len, WT_ITEM *to_buf) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_huffman_decode(WT_SESSION_IMPL *session, void *huffman_arg, const uint8_t *from_arg, size_t from_len, WT_ITEM *to_buf) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_modify_pack(WT_SESSION_IMPL *session, WT_ITEM **modifyp, WT_MODIFY *entries, int nentries) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_modify_apply_api( WT_SESSION_IMPL *session, WT_ITEM *value, WT_MODIFY *entries, int nentries) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default"))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_modify_apply(WT_SESSION_IMPL *session, WT_ITEM *value, const void *modify) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_rwlock_init(WT_SESSION_IMPL *session, WT_RWLOCK *l) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_rwlock_destroy(WT_SESSION_IMPL *session, WT_RWLOCK *l);
 extern int __wt_try_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -749,6 +771,8 @@ extern int __wt_thread_group_create( WT_SESSION_IMPL *session, WT_THREAD_GROUP *
 extern int __wt_thread_group_destroy(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_thread_group_start_one( WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, bool is_locked);
 extern void __wt_thread_group_stop_one(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group);
+extern void __wt_epoch(WT_SESSION_IMPL *session, struct timespec *tsp) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
+extern void __wt_seconds(WT_SESSION_IMPL *session, time_t *timep);
 extern void __wt_txn_release_snapshot(WT_SESSION_IMPL *session);
 extern void __wt_txn_get_snapshot(WT_SESSION_IMPL *session);
 extern int __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -788,8 +812,15 @@ extern int __wt_txn_named_snapshot_get(WT_SESSION_IMPL *session, WT_CONFIG_ITEM 
 extern int __wt_txn_named_snapshot_config(WT_SESSION_IMPL *session, const char *cfg[], bool *has_create, bool *has_drops) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_txn_named_snapshot_destroy(WT_SESSION_IMPL *session);
 extern int __wt_txn_recover(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_txn_parse_timestamp(WT_SESSION_IMPL *session, const char *name, uint8_t *timestamp, WT_CONFIG_ITEM *cval) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_timestamp_to_hex_string( WT_SESSION_IMPL *session, char *hex_timestamp, const wt_timestamp_t *ts_src) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern void __wt_verbose_timestamp(WT_SESSION_IMPL *session, const wt_timestamp_t *ts, const char *msg);
+extern int __wt_txn_parse_timestamp(WT_SESSION_IMPL *session, const char *name, wt_timestamp_t *timestamp, WT_CONFIG_ITEM *cval) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_global_query_timestamp( WT_SESSION_IMPL *session, char *hex_timestamp, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern void __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session);
+extern void __wt_txn_clear_commit_timestamp(WT_SESSION_IMPL *session);
+extern void __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session);
+extern void __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session);

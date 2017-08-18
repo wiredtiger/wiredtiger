@@ -109,7 +109,7 @@ __cursor_needkey(WT_CURSOR *cursor)
 static inline int
 __cursor_needvalue(WT_CURSOR *cursor)
 {
-	WT_RET(__cursor_localkey(cursor));
+	WT_RET(__cursor_localvalue(cursor));
 	return (__cursor_checkvalue(cursor));
 }
 
@@ -441,11 +441,8 @@ value:
 	 * caller passes us the update: it has already resolved which one
 	 * (if any) is visible.
 	 */
-	if (upd != NULL) {
-		vb->data = WT_UPDATE_DATA(upd);
-		vb->size = upd->size;
-		return (0);
-	}
+	if (upd != NULL)
+		return (__wt_value_return(session, cbt, upd));
 
 	/* Else, simple values have their location encoded in the WT_ROW. */
 	if (__wt_row_leaf_value(page, rip, vb))

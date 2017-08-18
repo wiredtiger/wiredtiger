@@ -98,6 +98,12 @@ struct __wt_session_impl {
 	 */
 	TAILQ_HEAD(__tables, __wt_table) tables;
 
+	/*
+	 * Updated when the table cache is swept of all tables older than the
+	 * current schema generation.
+	 */
+	uint64_t table_sweep_gen;
+
 	/* Current rwlock for callback. */
 	WT_RWLOCK *current_rwlock;
 	uint8_t current_rwticket;
@@ -217,7 +223,7 @@ struct __wt_session_impl {
 	 * slots.
 	 */
 #define	WT_SESSION_INITIAL_HAZARD_SLOTS	250
-        uint32_t   hazard_size;		/* Hazard pointer array slots */
+	uint32_t   hazard_size;		/* Hazard pointer array slots */
 	uint32_t   hazard_inuse;	/* Hazard pointer array slots in-use */
 	uint32_t   nhazard;		/* Count of active hazard pointers */
 	WT_HAZARD *hazard;		/* Hazard pointer array */
@@ -225,8 +231,8 @@ struct __wt_session_impl {
 	/*
 	 * Long operation tracking.
 	 */
-        WT_TRACK_RECORD optrack_buf[WT_OPTRACK_BUFSIZE];
-	uint optrackbuf_ptr;
-        uint64_t optrack_offset;
+	WT_TRACK_RECORD optrack_buf[WT_OPTRACK_BUFSIZE];
+	u_int optrackbuf_ptr;
+	uint64_t optrack_offset;
 	WT_FH *optrack_fh;
 };

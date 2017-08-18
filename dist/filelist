@@ -72,6 +72,7 @@ src/conn/conn_dhandle.c
 src/conn/conn_handle.c
 src/conn/conn_log.c
 src/conn/conn_open.c
+src/conn/conn_reconfig.c
 src/conn/conn_stat.c
 src/conn/conn_sweep.c
 src/cursor/cur_backup.c
@@ -188,16 +189,19 @@ src/support/hash_fnv.c
 src/support/hazard.c
 src/support/hex.c
 src/support/huffman.c
+src/support/modify.c
 src/support/mtx_rw.c
 src/support/pow.c
 src/support/rand.c
 src/support/scratch.c
 src/support/stat.c
 src/support/thread_group.c
+src/support/time.c
 src/txn/txn.c
 src/txn/txn_ckpt.c
 src/txn/txn_ext.c
 src/txn/txn_log.c
 src/txn/txn_nsnap.c
 src/txn/txn_recover.c
+src/txn/txn_rollback_to_stable.c
 src/txn/txn_timestamp.c

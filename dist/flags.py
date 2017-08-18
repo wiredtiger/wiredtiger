@@ -8,9 +8,6 @@ flags = {
 ###################################################
 # Internal routine flag declarations
 ###################################################
-    'diagnostic_timing_stress' : [
-        'TIMING_STRESS_CHECKPOINT_SLOW',
-    ],
     'log_scan' : [
         'LOGSCAN_FIRST',
         'LOGSCAN_FROM_CKP',
@@ -26,7 +23,6 @@ flags = {
     ],
     'page_read' : [
         'READ_CACHE',
-        'READ_COMPACT',
         'READ_NOTFOUND_OK',
         'READ_NO_EMPTY',
         'READ_NO_EVICT',
@@ -47,6 +43,11 @@ flags = {
         'EVICT_SCRUB',
         'EVICT_UPDATE_RESTORE',
         'VISIBILITY_ERR',
+    ],
+    'timing_stress_for_test' : [
+        'TIMING_STRESS_CHECKPOINT_SLOW',
+        'TIMING_STRESS_INTERNAL_PAGE_SPLIT_RACE',
+        'TIMING_STRESS_PAGE_SPLIT_RACE',
     ],
     'txn_log_checkpoint' : [
         'TXN_LOG_CKPT_CLEANUP',
@@ -86,6 +87,7 @@ flags = {
         'VERB_SPLIT',
         'VERB_TEMPORARY',
         'VERB_THREAD_GROUP',
+        'VERB_TIMESTAMP',
         'VERB_TRANSACTION',
         'VERB_VERIFY',
         'VERB_VERSION',
