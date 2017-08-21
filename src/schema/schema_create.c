@@ -69,8 +69,7 @@ __create_file(WT_SESSION_IMPL *session,
 	is_metadata = strcmp(uri, WT_METAFILE_URI) == 0;
 
 	filename = uri;
-	if (!WT_PREFIX_SKIP(filename, "file:"))
-		return (__wt_unexpected_object_type(session, uri, "file:"));
+	WT_PREFIX_SKIP_REQUIRED(session, filename, "file:");
 
 	/* Check if the file already exists. */
 	if (!is_metadata && (ret =
@@ -192,9 +191,7 @@ __create_colgroup(WT_SESSION_IMPL *session,
 	exists = false;
 
 	tablename = name;
-	if (!WT_PREFIX_SKIP(tablename, "colgroup:"))
-		return (
-		    __wt_unexpected_object_type(session, name, "colgroup:"));
+	WT_PREFIX_SKIP_REQUIRED(session, tablename, "colgroup:");
 	cgname = strchr(tablename, ':');
 	if (cgname != NULL) {
 		tlen = (size_t)(cgname - tablename);
@@ -384,8 +381,7 @@ __create_index(WT_SESSION_IMPL *session,
 	exists = have_extractor = false;
 
 	tablename = name;
-	if (!WT_PREFIX_SKIP(tablename, "index:"))
-		return (__wt_unexpected_object_type(session, name, "index:"));
+	WT_PREFIX_SKIP_REQUIRED(session, tablename, "index:");
 	idxname = strchr(tablename, ':');
 	if (idxname == NULL)
 		WT_RET_MSG(session, EINVAL, "Invalid index name, "
@@ -572,8 +568,7 @@ __create_table(WT_SESSION_IMPL *session,
 	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_TABLE_WRITE));
 
 	tablename = name;
-	if (!WT_PREFIX_SKIP(tablename, "table:"))
-		return (__wt_unexpected_object_type(session, name, "table:"));
+	WT_PREFIX_SKIP_REQUIRED(session, tablename, "table:");
 
 	/*
 	 * If the table already exists, get it.  If the table does not exist,
