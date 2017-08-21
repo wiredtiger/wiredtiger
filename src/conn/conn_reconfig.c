@@ -39,10 +39,10 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg)
 	    &conn->compat_major, &conn->compat_minor, &patch) != 3)
 		WT_RET_MSG(session, EINVAL, "illegal compatibility release");
 	if (conn->compat_major > WIREDTIGER_VERSION_MAJOR)
-		WT_RET_MSG(session, EINVAL, "unknown major version");
+		WT_RET_MSG(session, ENOTSUP, "unsupported major version");
 	if (conn->compat_major == WIREDTIGER_VERSION_MAJOR &&
 	    conn->compat_minor > WIREDTIGER_VERSION_MINOR)
-		WT_RET_MSG(session, EINVAL, "illegal compatibility version");
+		WT_RET_MSG(session, ENOTSUP, "unsupported minor version");
 
 	/*
 	 * We're doing an upgrade or downgrade, check whether transactions are
@@ -51,7 +51,7 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg)
 	WT_RET(__wt_txn_activity_check(session, &txn_active));
 	if (txn_active)
 		WT_RET_MSG(session, ENOTSUP,
-		    "upgrade / downgrade must run single-threaded");
+		    "system must be quiescent for upgrade or downgrade");
 	return (0);
 }
 
