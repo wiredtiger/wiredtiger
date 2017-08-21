@@ -196,7 +196,6 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
             c3[k] = self.value
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(k))
 
-        self.check_eviction()
         # Now check that we see the expected state when reading at each
         # timestamp.
         for i, t in enumerate(orig_keys):
@@ -227,8 +226,6 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
             self.session.commit_transaction('commit_timestamp=' + ts)
             # print "Commit key " + str(k) + " ts " + ts
             count += 1
-
-        self.check_eviction()
 
         # print "Updated " + str(count) + " keys to value2"
 
@@ -266,6 +263,7 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
             # print "Commit key " + str(k) + " ts " + ts
             count += 1
 
+        # Only check eviction at the end of the test.
         self.check_eviction()
         # print "Updated " + str(count) + " keys to value3"
 
