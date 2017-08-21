@@ -13,24 +13,19 @@
  *	Get the table handle for the named table.
  */
 int
-__wt_schema_get_table(WT_SESSION_IMPL *session,
-    const char *name, size_t namelen, bool ok_incomplete, uint32_t flags,
+__wt_schema_get_table_uri(WT_SESSION_IMPL *session,
+    const char *uri, bool ok_incomplete, uint32_t flags,
     WT_TABLE **tablep)
 {
 	WT_DATA_HANDLE *saved_dhandle;
 	WT_DECL_RET;
-	WT_DECL_ITEM(namebuf);
 	WT_TABLE *table;
 
 	saved_dhandle = session->dhandle;
 
 	*tablep = NULL;
-	WT_RET(__wt_scr_alloc(session, namelen + 1, &namebuf));
-	WT_ERR(__wt_buf_fmt(
-	    session, namebuf, "table:%.*s", (int)namelen, name));
 
-	WT_ERR(__wt_session_get_dhandle(
-	    session, namebuf->data, NULL, NULL, flags));
+	WT_ERR(__wt_session_get_dhandle(session, uri, NULL, NULL, flags));
 	table = (WT_TABLE *)session->dhandle;
 	if (!ok_incomplete && !table->cg_complete) {
 		ret = EINVAL;
@@ -41,8 +36,30 @@ __wt_schema_get_table(WT_SESSION_IMPL *session,
 	}
 	*tablep = table;
 
+err:	session->dhandle = saved_dhandle;
+	return (ret);
+}
+
+/*
+ * __wt_schema_get_table --
+ *	Get the table handle for the named table.
+ */
+int
+__wt_schema_get_table(WT_SESSION_IMPL *session,
+    const char *name, size_t namelen, bool ok_incomplete, uint32_t flags,
+    WT_TABLE **tablep)
+{
+	WT_DECL_RET;
+	WT_DECL_ITEM(namebuf);
+
+	WT_RET(__wt_scr_alloc(session, namelen + 1, &namebuf));
+	WT_ERR(__wt_buf_fmt(
+	    session, namebuf, "table:%.*s", (int)namelen, name));
+
+	WT_ERR(__wt_schema_get_table_uri(
+	    session, namebuf->data, ok_incomplete, flags, tablep));
+
 err:	__wt_scr_free(session, &namebuf);
-	session->dhandle = saved_dhandle;
 	return (ret);
 }
 

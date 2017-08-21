@@ -975,11 +975,13 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 	WT_PREFIX_SKIP_REQUIRED(session, tablename, "table:");
 	columns = strchr(tablename, '(');
 	if (columns == NULL)
-		size = strlen(tablename);
-	else
+		WT_RET(__wt_schema_get_table_uri(
+		    session, uri, false, 0, &table));
+	else {
 		size = WT_PTRDIFF(columns, tablename);
-	WT_RET(__wt_schema_get_table(
-	    session, tablename, size, false, 0, &table));
+		WT_RET(__wt_schema_get_table(
+		    session, tablename, size, false, 0, &table));
+	}
 
 	WT_RET(__curtable_complete(session, table));	/* completeness check */
 
