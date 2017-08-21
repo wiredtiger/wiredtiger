@@ -21,8 +21,7 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg)
 	bool txn_active;
 
 	conn = S2C(session);
-	WT_RET(__wt_config_gets(session, cfg,
-	    "compatibility.release", &cval));
+	WT_RET(__wt_config_gets(session, cfg, "compatibility.release", &cval));
 	if (cval.len == 0) {
 		conn->compat_major = WIREDTIGER_VERSION_MAJOR;
 		conn->compat_minor = WIREDTIGER_VERSION_MINOR;
@@ -30,9 +29,9 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg)
 	}
 
 	/*
-	 * Accept either a major.minor release string or a
-	 * major.minor.patch release string.  We ignore the patch
-	 * value, but allow it in the string.
+	 * Accept either a major.minor release string or a major.minor.patch
+	 * release string.  We ignore the patch value, but allow it in the
+	 * string.
 	 */
 	if (sscanf(cval.str, "%" SCNu16 ".%" SCNu16,
 	    &conn->compat_major, &conn->compat_minor) != 2 &&
