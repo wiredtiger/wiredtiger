@@ -167,10 +167,12 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         log_sync_after = stat_cursor[stat.conn.log_sync][2]
+        commit_ooo = stat_cursor[stat.conn.txn_commit_ts_ooo][2]
         stat_cursor.close()
 
         # Commits were in order, so we shouldn't have done a sync.
         self.assertEqual(log_sync_before, log_sync_after)
+        self.assertEqual(commit_ooo, 0)
 
         # Now do out-of-order commits
         s2 = self.conn.open_session()
@@ -191,10 +193,12 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         log_sync_after = stat_cursor[stat.conn.log_sync][2]
+        commit_ooo = stat_cursor[stat.conn.txn_commit_ts_ooo][2]
         stat_cursor.close()
 
         # Commits were out of order, so we should have done a sync.
         self.assertLess(log_sync_before, log_sync_after)
+        self.assertEqual(commit_ooo, 1)
 
 if __name__ == '__main__':
     wttest.run()
