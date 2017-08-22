@@ -99,9 +99,9 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
     # check exists in the tables the expected number of times.
     #
     def backup_check(
-        self, check_value, exp_ts_log_cnt, exp_ts_nolog_cnt, exp_nots_log_cnt,
-        exp_nots_nolog_cnt
-    ):
+        self, check_value, expected_ts_log, expected_ts_nolog, expected_nots_log,
+        expected_nots_nolog):
+
         newdir = "BACKUP"
         copy_wiredtiger_home('.', newdir, True)
 
@@ -113,64 +113,51 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
         cur_nots_nolog  = session.open_cursor(self.uri + self.table_nots_nolog, None)
         # Count how many times the check_value is present in the
         # logged timestamp table.
-        act_ts_log_cnt = 0
+        actual_ts_log = 0
         for k, v in cur_ts_log:
             if check_value in str(v):
-                act_ts_log_cnt += 1
+                actual_ts_log += 1
         cur_ts_log.close()
         # Count how many times the check_value is present in the
         # not logged timestamp table
-        act_ts_nolog_cnt = 0
+        actual_ts_nolog = 0
         for k, v in cur_ts_nolog:
             if check_value in str(v):
-                # print "check_value found in key " + str(k)
-                act_ts_nolog_cnt += 1
+                actual_ts_nolog += 1
         cur_ts_nolog.close()
         # Count how many times the check_value is present in the
         # logged non-timestamp table.
-        act_nots_log_cnt = 0
+        actual_nots_log = 0
         for k, v in cur_nots_log:
             if check_value in str(v):
-                # print "check_value found in key " + str(k)
-                act_nots_log_cnt += 1
+                actual_nots_log += 1
         cur_nots_log.close()
         # Count how many times the check_value is present in the
         # not logged non-timestamp table.
-        act_nots_nolog_cnt = 0
+        actual_nots_nolog = 0
         for k, v in cur_nots_nolog:
             if check_value in str(v):
-                act_nots_nolog_cnt += 1
+                actual_nots_nolog += 1
         cur_nots_nolog.close()
         conn.close()
-        # print "CHECK BACKUP: act_ts_log_cnt " + str(act_ts_log_cnt)
-        # print "CHECK BACKUP: exp_ts_log_cnt " + str(exp_ts_log_cnt)
-        # print "CHECK BACKUP: act_ts_nolog_cnt " + str(act_ts_nolog_cnt)
-        # print "CHECK BACKUP: exp_ts_nolog_cnt " + str(exp_ts_nolog_cnt)
-        # print "CHECK BACKUP: act_nots_log_cnt " + str(act_nots_log_cnt)
-        # print "CHECK BACKUP: exp_nots_log_cnt " + str(exp_nots_log_cnt)
-        # print "CHECK BACKUP: act_nots_nolog_cnt " + str(act_nots_nolog_cnt)
-        # print "CHECK BACKUP: exp_nots_nolog_cnt " + str(exp_nots_nolog_cnt)
-        # print "CHECK BACKUP: config " + str(self.ckptcfg)
-        self.assertEqual(act_ts_log_cnt, exp_ts_log_cnt)
-        self.assertEqual(act_ts_nolog_cnt, exp_ts_nolog_cnt)
-        self.assertEqual(act_nots_log_cnt, exp_nots_log_cnt)
-        self.assertEqual(act_nots_nolog_cnt, exp_nots_nolog_cnt)
+        self.assertEqual(actual_ts_log, expected_ts_log)
+        self.assertEqual(actual_ts_nolog, expected_ts_nolog)
+        self.assertEqual(actual_nots_log, expected_nots_log)
+        self.assertEqual(actual_nots_nolog, expected_nots_nolog)
 
     # Check that a cursor sees the expected values after a checkpoint.
     def ckpt_backup(
-        self, check_value, val_ts_log_cnt, val_ts_nolog_cnt, val_nots_log_cnt,
-        val_nots_nolog_cnt
-    ):
+        self, check_value, valcnt_ts_log, valcnt_ts_nolog, valcnt_nots_log,
+        valcnt_nots_nolog):
 
         # Take a checkpoint.  Make a copy of the database.  Open the
         # copy and verify whether or not the expected data is in there.
         self.pr("CKPT: " + self.ckptcfg)
         ckptcfg = self.ckptcfg
-        # print "CKPT: " + ckptcfg
 
         self.session.checkpoint(ckptcfg)
-        self.backup_check(check_value, val_ts_log_cnt, val_ts_nolog_cnt,
-            val_nots_log_cnt, val_nots_nolog_cnt)
+        self.backup_check(check_value, valcnt_ts_log, valcnt_ts_nolog,
+            valcnt_nots_log, valcnt_nots_nolog)
 
     def test_timestamp03(self):
         if not wiredtiger.timestamp_build():
@@ -243,7 +230,6 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
         self.oldts = timestamp_str(100)
         self.conn.set_timestamp('oldest_timestamp=' + self.oldts)
         self.conn.set_timestamp('stable_timestamp=' + self.oldts)
-        # print "Oldest " + self.oldts
 
         # Scenario: 3
         # Check that we see all the data values after moving the oldest_timestamp
@@ -266,7 +252,6 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
             # tests the scenario for a bug we found where recovery replayed
             # the last record written into the log.
             #
-            # print "Key " + str(k) + " to value2"
             cur_nots_log[k] = self.value2
             cur_nots_nolog[k] = self.value2
             self.session.begin_transaction()
@@ -274,9 +259,7 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
             cur_ts_nolog[k] = self.value2
             ts = timestamp_str(k + 100)
             self.session.commit_transaction('commit_timestamp=' + ts)
-            # print "Commit key " + str(k) + " ts " + ts
             count += 1
-        # print "Updated " + str(count) + " keys to value2"
 
         # Scenario: 4
         # Check that we don't see the updated data of timestamp tables
@@ -314,18 +297,18 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Take a checkpoint using the given configuration.  Then verify
         # whether value2 appears in a copy of that data or not.
-        val_ts_log_cnt = val_nots_log_cnt = val_nots_nolog_cnt = nkeys
+        valcnt_ts_log = valcnt_nots_log = valcnt_nots_nolog = nkeys
         if self.val == 'all':
             # if use_timestamp is false, then all updates will be checkpointed.
-            val_ts_nolog_cnt = nkeys
+            valcnt_ts_nolog = nkeys
         else:
             # checkpoint will happen with stable_timestamp=100, hence only
             # table_ts_nolog will still have the old values (i.e. value)
             self.ckpt_backup(self.value, 0, nkeys, 0, 0)
             # table_ts_nolog will not have any new values (i.e. value2)
-            val_ts_nolog_cnt = 0
-        self.ckpt_backup(self.value2, val_ts_log_cnt, val_ts_nolog_cnt,
-            val_nots_log_cnt, val_nots_nolog_cnt)
+            valcnt_ts_nolog = 0
+        self.ckpt_backup(self.value2, valcnt_ts_log, valcnt_ts_nolog,
+            valcnt_nots_log, valcnt_nots_nolog)
 
         # Update the stable_timestamp to the latest, but not the
         # oldest_timestamp and make sure we can see the data.  Once the
@@ -344,7 +327,6 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
         for k in keys:
             # Make sure a timestamp cursor is the last one to update.
             #
-            # print "Key " + str(k) + " to value3"
             cur_nots_log[k] = self.value3
             cur_nots_nolog[k] = self.value3
             self.session.begin_transaction()
@@ -352,9 +334,7 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
             cur_ts_nolog[k] = self.value3
             ts = timestamp_str(k + 200)
             self.session.commit_transaction('commit_timestamp=' + ts)
-            # print "Commit key " + str(k) + " ts " + ts
             count += 1
-        # print "Updated " + str(count) + " keys to value3"
 
         # Flush the log but don't checkpoint
         self.session.log_flush('sync=on')
@@ -363,10 +343,10 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
         # of that data or not.  Both tables that are logged should see
         # all the data regardless of timestamps.  Both tables that are not
         # logged should not see any of it.
-        val_ts_nolog_cnt = val_nots_nolog_cnt = 0
-        val_ts_log_cnt = val_nots_log_cnt = nkeys
-        self.backup_check(self.value3, val_ts_log_cnt, val_ts_nolog_cnt,
-            val_nots_log_cnt, val_nots_nolog_cnt)
+        valcnt_ts_nolog = valcnt_nots_nolog = 0
+        valcnt_ts_log = valcnt_nots_log = nkeys
+        self.backup_check(self.value3, valcnt_ts_log, valcnt_ts_nolog,
+            valcnt_nots_log, valcnt_nots_nolog)
 
 if __name__ == '__main__':
     wttest.run()
