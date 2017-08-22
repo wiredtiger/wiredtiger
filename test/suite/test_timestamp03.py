@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_timestamp03.py
-#   Timestamps: checkpoints
+#   Timestamps: checkpoint
 #
 
 from helper import copy_wiredtiger_home
