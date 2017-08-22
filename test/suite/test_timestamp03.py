@@ -77,7 +77,6 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
     value  = u'\u0001\u0002abcd\u0003\u0004'
     value2 = u'\u0001\u0002dcba\u0003\u0004'
     value3 = u'\u0001\u0002cdef\u0003\u0004'
-    value4 = u'\u0001\u0002fedc\u0003\u0004'
 
     # Check that a cursor (optionally started in a new transaction), sees the
     # expected values.
@@ -160,18 +159,13 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
     # Check that a cursor sees the expected values after a checkpoint.
     def ckpt_backup(
         self, check_value, val_ts_log_cnt, val_ts_nolog_cnt, val_nots_log_cnt,
-        val_nots_nolog_cnt, ckptts
+        val_nots_nolog_cnt
     ):
 
         # Take a checkpoint.  Make a copy of the database.  Open the
         # copy and verify whether or not the expected data is in there.
         self.pr("CKPT: " + self.ckptcfg)
         ckptcfg = self.ckptcfg
-        if not ckptts:
-            if ckptcfg == 'read_timestamp':
-                ckptcfg = self.ckptcfg + '=' + self.oldts
-        else:
-            ckptcfg = ckptts
         # print "CKPT: " + ckptcfg
 
         self.session.checkpoint(ckptcfg)
@@ -325,20 +319,26 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
             # if use_timestamp is false, then all updates will be checkpointed.
             val_ts_nolog_cnt = nkeys
         else:
+            # checkpoint will happen with stable_timestamp=100, hence only
+            # table_ts_nolog will still have the old values (i.e. value)
+            self.ckpt_backup(self.value, 0, nkeys, 0, 0)
+            # table_ts_nolog will not have any new values (i.e. value2)
             val_ts_nolog_cnt = 0
         self.ckpt_backup(self.value2, val_ts_log_cnt, val_ts_nolog_cnt,
-            val_nots_log_cnt, val_nots_nolog_cnt, "")
-        if self.ckptcfg != 'read_timestamp':
-            # Update the stable_timestamp to the latest, but not the
-            # oldest_timestamp and make sure we can see the data.  Once the
-            # stable_timestamp is moved we should see all keys with value2.
-            self.conn.set_timestamp('stable_timestamp=' + \
-                timestamp_str(100+nkeys))
-            self.ckpt_backup(self.value2, nkeys, nkeys, nkeys, nkeys, "")
+            val_nots_log_cnt, val_nots_nolog_cnt)
 
-        # Scenario: 6
-        # Update the keys and checkpoint using the stable_timestamp and
-        # the read_timestamp.
+        # Update the stable_timestamp to the latest, but not the
+        # oldest_timestamp and make sure we can see the data.  Once the
+        # stable_timestamp is moved we should see all keys with value2.
+        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(100+nkeys))
+        self.ckpt_backup(self.value2, nkeys, nkeys, nkeys, nkeys)
+
+        # If we're not using the log we're done.
+        if not self.using_log:
+            return
+
+        # Scenario: 7
+        # Update the keys and log_flush with out checkpoint.
         random.shuffle(keys)
         count = 0
         for k in keys:
@@ -356,66 +356,16 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
             count += 1
         # print "Updated " + str(count) + " keys to value3"
 
-        # make the read_timestamp != stable_timestamp, take checkpoints using
-        # both the stable_timestamp and the read_timestamp and check that we
-        # see different data.
-        if self.ckptcfg == 'use_timestamp=true':
-            # make sure the stable_timestamp is set.
-            ckpt_ts = 'stable_timestamp=' + timestamp_str(100 + nkeys)
-            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(100 + nkeys))
-            # Check that we see the data values as per the stable_timestamp.
-            # Tables not using the timestamps should see all data values as
-            # updated value (i.e. value3)
-            # Table using the timestamps and logged should also see all data values
-            # as updated value (i.e. value3)
-            val_nots_log_cnt = val_ts_log_cnt = val_nots_nolog_cnt = nkeys
-            # Table using the timestamps and not logged should not see any
-            # data value as updated value (i.e. value3)
-            val_ts_nolog_cnt = 0
-            self.ckpt_backup(self.value3, val_ts_log_cnt, val_ts_nolog_cnt,
-                val_nots_log_cnt, val_nots_nolog_cnt, "")
-
-            # Check that we see the data values as per the read_timestamp but
-            # not as per the stable_timestamp.
-            # All Tables should see all data values as updated value (i.e. value3)
-            ckpt_ts = 'read_timestamp=' + timestamp_str(200 + nkeys)
-            val_ts_nolog_cnt = nkeys
-            self.ckpt_backup(self.value3, val_ts_log_cnt, val_ts_nolog_cnt,
-                val_nots_log_cnt, val_nots_nolog_cnt, ckpt_ts)
-
-        # If we're not using the log we're done.
-        if not self.using_log:
-            return
-
-        # Scenario: 7
-        # Update the keys and log_flush with out checkpoint.
-        random.shuffle(keys)
-        count = 0
-        for k in keys:
-            # Make sure a timestamp cursor is the last one to update.
-            #
-            # print "Key " + str(k) + " to value4"
-            cur_nots_log[k] = self.value4
-            cur_nots_nolog[k] = self.value4
-            self.session.begin_transaction()
-            cur_ts_log[k] = self.value4
-            cur_ts_nolog[k] = self.value4
-            ts = timestamp_str(k + 300)
-            self.session.commit_transaction('commit_timestamp=' + ts)
-            # print "Commit key " + str(k) + " ts " + ts
-            count += 1
-        # print "Updated " + str(count) + " keys to value4"
-
         # Flush the log but don't checkpoint
         self.session.log_flush('sync=on')
 
-        # Take a backup and then verify whether value4 appears in a copy
+        # Take a backup and then verify whether value3 appears in a copy
         # of that data or not.  Both tables that are logged should see
         # all the data regardless of timestamps.  Both tables that are not
         # logged should not see any of it.
         val_ts_nolog_cnt = val_nots_nolog_cnt = 0
         val_ts_log_cnt = val_nots_log_cnt = nkeys
-        self.backup_check(self.value4, val_ts_log_cnt, val_ts_nolog_cnt,
+        self.backup_check(self.value3, val_ts_log_cnt, val_ts_nolog_cnt,
             val_nots_log_cnt, val_nots_nolog_cnt)
 
 if __name__ == '__main__':
