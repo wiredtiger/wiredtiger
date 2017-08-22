@@ -1004,6 +1004,7 @@ static const char * const __stats_connection_desc[] = {
 	"transaction: transaction range of IDs currently pinned by named snapshots",
 	"transaction: transaction sync calls",
 	"transaction: transactions committed",
+	"transaction: transactions committed with timestamps out of order",
 	"transaction: transactions rolled back",
 	"transaction: update conflicts",
 };
@@ -1327,6 +1328,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing txn_pinned_snapshot_range */
 	stats->txn_sync = 0;
 	stats->txn_commit = 0;
+	stats->txn_commit_ts_ooo = 0;
 	stats->txn_rollback = 0;
 	stats->txn_update_conflict = 0;
 }
@@ -1751,6 +1753,7 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, txn_pinned_snapshot_range);
 	to->txn_sync += WT_STAT_READ(from, txn_sync);
 	to->txn_commit += WT_STAT_READ(from, txn_commit);
+	to->txn_commit_ts_ooo += WT_STAT_READ(from, txn_commit_ts_ooo);
 	to->txn_rollback += WT_STAT_READ(from, txn_rollback);
 	to->txn_update_conflict += WT_STAT_READ(from, txn_update_conflict);
 }

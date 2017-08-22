@@ -285,8 +285,10 @@ __wt_txn_log_commit(WT_SESSION_IMPL *session)
 	/* Check if the commit is out of timestamp order. */
 	if (F_ISSET(txn, WT_TXN_PUBLIC_TS_COMMIT)) {
 		__wt_readlock(session, &txn_global->commit_timestamp_rwlock);
-		if (txn != TAILQ_FIRST(&txn_global->commit_timestamph))
+		if (txn != TAILQ_FIRST(&txn_global->commit_timestamph)) {
+			WT_STAT_CONN_INCR(session, txn_commit_ts_ooo);
 			WT_PUBLISH(txn_global->commit_ooo, true);
+		}
 		__wt_readunlock(session, &txn_global->commit_timestamp_rwlock);
 	}
 
