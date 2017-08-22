@@ -320,12 +320,10 @@ type_to_string(table_type type)
 static int
 usage(void)
 {
-	//    progname, argc, argv, "c:C:h:k:l:n:r:t:T:W:")) != EOF)
-
 	fprintf(stderr,
 	    "usage: %s "
 	    "[-C wiredtiger-config] [-c checkpoint] [-h home] [-k keys]\n\t"
-	    "[-l log] [-n ops] [-r runs] [-s] [-t f|r|v] [-T table-config]\n\t"
+	    "[-l log] [-n ops] [-r runs] [-T table-config] [-t f|r|v]\n\t"
 	    "[-W workers]\n",
 	    progname);
 	fprintf(stderr, "%s",
@@ -336,8 +334,8 @@ usage(void)
 	    "\t-l specify a log file\n"
 	    "\t-n set number of operations each thread does\n"
 	    "\t-r set number of runs (0 for continuous)\n"
-	    "\t-t set a file type ( col | mix | row | lsm )\n"
 	    "\t-T specify a table configuration\n"
+	    "\t-t set a file type ( col | mix | row | lsm )\n"
 	    "\t-W set number of worker threads\n");
 	return (EXIT_FAILURE);
 }
