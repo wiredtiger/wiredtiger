@@ -33,6 +33,7 @@
 import random
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
+from wiredtiger import stat
 from wtscenario import make_scenarios
 
 def timestamp_str(t):
@@ -54,7 +55,7 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
         ('row', dict(extra_config='')),
     ])
 
-    conn_config = 'log=(enabled)'
+    conn_config = 'log=(enabled),statistics=(fast)'
 
     # Check that a cursor (optionally started in a new transaction), sees the
     # expected values.
@@ -140,6 +141,60 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
         for i, t in enumerate(orig_keys):
             self.check(self.session, 'read_timestamp=' + timestamp_str(t + 200),
                 dict((k, 2) for k in orig_keys[i+1:]))
+
+    def test_log_flush(self):
+        if not wiredtiger.timestamp_build():
+            self.skipTest('requires a timestamp build')
+
+        self.session.create(self.uri,
+            'key_format=i,value_format=i' + self.extra_config)
+        c = self.session.open_cursor(self.uri)
+
+        # Insert keys 1..100 each with timestamp=key, in order
+        orig_keys = range(1, 101)
+        keys = orig_keys[:]
+
+        for k in keys:
+            self.session.begin_transaction()
+            c[k] = 1
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(k))
+
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        log_sync_before = stat_cursor[stat.conn.log_sync][2]
+        stat_cursor.close()
+
+        self.session.log_flush('sync=timestamp_unordered')
+
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        log_sync_after = stat_cursor[stat.conn.log_sync][2]
+        stat_cursor.close()
+
+        # Commits were in order, so we shouldn't have done a sync.
+        self.assertEqual(log_sync_before, log_sync_after)
+
+        # Now do out-of-order commits
+        s2 = self.conn.open_session()
+        s2.begin_transaction()
+        s2.timestamp_transaction('commit_timestamp=' + timestamp_str(150))
+
+        self.session.begin_transaction()
+        c[50] = 2
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(200))
+
+        s2.commit_transaction()
+
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        log_sync_before = stat_cursor[stat.conn.log_sync][2]
+        stat_cursor.close()
+
+        self.session.log_flush('sync=timestamp_unordered')
+
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        log_sync_after = stat_cursor[stat.conn.log_sync][2]
+        stat_cursor.close()
+
+        # Commits were out of order, so we should have done a sync.
+        self.assertLess(log_sync_before, log_sync_after)
 
 if __name__ == '__main__':
     wttest.run()

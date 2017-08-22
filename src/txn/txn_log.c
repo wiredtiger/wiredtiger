@@ -268,17 +268,27 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
  *	Write the operations of a transaction to the log at commit time.
  */
 int
-__wt_txn_log_commit(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_txn_log_commit(WT_SESSION_IMPL *session)
 {
 	WT_TXN *txn;
+	WT_TXN_GLOBAL *txn_global;
 
-	WT_UNUSED(cfg);
 	txn = &session->txn;
+	txn_global = &S2C(session)->txn_global;
+
 	/*
 	 * If there are no log records there is nothing to do.
 	 */
 	if (txn->logrec == NULL)
 		return (0);
+
+	/* Check if the commit is out of timestamp order. */
+	if (F_ISSET(txn, WT_TXN_PUBLIC_TS_COMMIT)) {
+		__wt_readlock(session, &txn_global->commit_timestamp_rwlock);
+		if (txn != TAILQ_FIRST(&txn_global->commit_timestamph))
+			WT_PUBLISH(txn_global->commit_ooo, true);
+		__wt_readunlock(session, &txn_global->commit_timestamp_rwlock);
+	}
 
 	/* Write updates to the log. */
 	return (__wt_log_write(session, txn->logrec, NULL, txn->txn_logsync));
