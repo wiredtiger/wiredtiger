@@ -83,7 +83,7 @@ static int
 real_checkpointer(void)
 {
 	WT_SESSION *session;
-	char *checkpoint_config, _buf[128];
+	char *checkpoint_config, buf[128];
 	int ret;
 
 	if (g.running == 0)
@@ -100,8 +100,8 @@ real_checkpointer(void)
 		checkpoint_config = NULL;
 	else {
 		testutil_check(__wt_snprintf(
-		    _buf, sizeof(_buf), "name=%s", g.checkpoint_name));
-		checkpoint_config = _buf;
+		    buf, sizeof(buf), "name=%s", g.checkpoint_name));
+		checkpoint_config = buf;
 	}
 
 	while (g.running) {
