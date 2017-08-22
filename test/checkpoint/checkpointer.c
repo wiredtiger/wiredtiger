@@ -103,11 +103,6 @@ real_checkpointer(void)
 			testutil_check(__wt_snprintf(
 			    _buf, sizeof(_buf), "name=%s", g.checkpoint_name));
 
-		if (g.use_timestamps && g.timestamp > 0)
-			testutil_check(__wt_snprintf(
-			    _buf + strlen(_buf), sizeof(_buf) - strlen(_buf),
-			    ",read_timestamp=%" PRIx64, g.timestamp));
-
 		checkpoint_config = strlen(_buf) > 0 ? _buf : NULL;
 		/* Execute a checkpoint */
 		if ((ret = session->checkpoint(
