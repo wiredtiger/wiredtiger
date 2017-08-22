@@ -27,14 +27,13 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_timestamp07.py
-#   Timestamps: checkpoints and eviction
+#   Timestamps: checkpoints.
 #
 
 from helper import copy_wiredtiger_home
 import random
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
-from wiredtiger import stat
 from wtscenario import make_scenarios
 
 def timestamp_str(t):
@@ -56,9 +55,9 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
     ]
 
     nkeys = [
-        ('100keys', dict(nkeys=100,evicts=False)),
-        ('500keys', dict(nkeys=500,evicts=True)),
-#        ('1000keys', dict(nkeys=1000,evicts=True)),
+        ('100keys', dict(nkeys=100)),
+        ('500keys', dict(nkeys=500)),
+#        ('1000keys', dict(nkeys=1000)),
     ]
 
     scenarios = make_scenarios(types, conncfg, nkeys)
