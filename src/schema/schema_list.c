@@ -9,7 +9,7 @@
 #include "wt_internal.h"
 
 /*
- * __wt_schema_get_table --
+ * __wt_schema_get_table_uri --
  *	Get the table handle for the named table.
  */
 int
