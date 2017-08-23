@@ -1122,9 +1122,9 @@ __conn_dump(WT_CONNECTION *wt_conn, const char *config)
 
 	WT_ERR(__wt_config_gets(session, cfg, "log", &cval));
 	if (cval.val != 0)
-		WT_ERR(__wt_verbose_dump_cache(session));
+		WT_ERR(__wt_verbose_dump_log(session));
 
-	WT_ERR(__wt_config_gets(session, cfg, "session", &cval));
+	WT_ERR(__wt_config_gets(session, cfg, "sessions", &cval));
 	if (cval.val != 0)
 		WT_ERR(__wt_verbose_dump_cache(session));
 
