@@ -91,6 +91,7 @@ AC_DEFUN([AM_CLANG_WARNINGS], [
 	w="$w -Wno-zero-length-array"
 
 	# Added when switching to building with clang 3.4.2
+	w="$w -Wno-array-bounds"
 	w="$w -Wno-parentheses-equality"
 	w="$w -Wno-self-assign"
 	w="$w -Wno-unreachable-code"
