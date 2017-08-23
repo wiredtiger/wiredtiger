@@ -1962,6 +1962,30 @@ struct __wt_connection {
 	    const char *config);
 
 	/*!
+	 * Dump information.
+	 *
+	 * @snippet ex_all.c Dump information about the system
+	 *
+	 * @param connection the connection handle
+	 * @configstart{WT_CONNECTION.dump, see dist/api_data.py}
+	 * @config{cache, dump cache information., a boolean flag; default \c
+	 * false.}
+	 * @config{cursors, dump all open cursor information., a boolean flag;
+	 * default \c false.}
+	 * @config{handles, dump open handles information., a boolean flag;
+	 * default \c false.}
+	 * @config{log, dump log information., a boolean flag; default \c
+	 * false.}
+	 * @config{sessions, dump open session information., a boolean flag;
+	 * default \c false.}
+	 * @config{txn, dump global txn information., a boolean flag; default \c
+	 * false.}
+	 * @configend
+	 * @errors
+	 */
+	int __F(dump)(WT_CONNECTION *connection, const char *config);
+
+	/*!
 	 * Reconfigure a connection handle.
 	 *
 	 * @snippet ex_all.c Reconfigure a connection

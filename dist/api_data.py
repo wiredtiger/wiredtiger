@@ -1214,6 +1214,20 @@ methods = {
         don't free memory during close''',
         type='boolean'),
 ]),
+'WT_CONNECTION.dump' : Method([
+    Config('cache', 'false', r'''
+        dump cache information''', type='boolean'),
+    Config('cursors', 'false', r'''
+        dump all open cursor information''', type='boolean'),
+    Config('handles', 'false', r'''
+        dump open handles information''', type='boolean'),
+    Config('log', 'false', r'''
+        dump log information''', type='boolean'),
+    Config('sessions', 'false', r'''
+        dump open session information''', type='boolean'),
+    Config('txn', 'false', r'''
+        dump global txn information''', type='boolean'),
+]),
 'WT_CONNECTION.reconfigure' : Method(
     connection_reconfigure_log_configuration +\
     connection_reconfigure_statistics_log_configuration +\

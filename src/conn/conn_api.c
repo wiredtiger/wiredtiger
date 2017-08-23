@@ -1093,6 +1093,49 @@ err:	/*
 }
 
 /*
+ * __conn_dump --
+ *	WT_CONNECTION->dump method.
+ */
+static int
+__conn_dump(WT_CONNECTION *wt_conn, const char *config)
+{
+	WT_CONFIG_ITEM cval;
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	conn = (WT_CONNECTION_IMPL *)wt_conn;
+
+	CONNECTION_API_CALL(conn, session, dump, config, cfg);
+
+	WT_ERR(__wt_config_gets(session, cfg, "cache", &cval));
+	if (cval.val != 0)
+		WT_ERR(__wt_verbose_dump_cache(session));
+
+	WT_ERR(__wt_config_gets(session, cfg, "cursors", &cval));
+	if (cval.val != 0)
+		WT_ERR(__wt_verbose_dump_cache(session));
+
+	WT_ERR(__wt_config_gets(session, cfg, "handles", &cval));
+	if (cval.val != 0)
+		WT_ERR(__wt_verbose_dump_cache(session));
+
+	WT_ERR(__wt_config_gets(session, cfg, "log", &cval));
+	if (cval.val != 0)
+		WT_ERR(__wt_verbose_dump_cache(session));
+
+	WT_ERR(__wt_config_gets(session, cfg, "session", &cval));
+	if (cval.val != 0)
+		WT_ERR(__wt_verbose_dump_cache(session));
+
+	WT_ERR(__wt_config_gets(session, cfg, "txn", &cval));
+	if (cval.val != 0)
+		WT_ERR(__wt_verbose_dump_txn(session));
+
+err:	API_END_RET(session, ret);
+}
+
+/*
  * __conn_reconfigure --
  *	WT_CONNECTION->reconfigure method.
  */
@@ -2045,6 +2088,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 		__conn_async_flush,
 		__conn_async_new_op,
 		__conn_close,
+		__conn_dump,
 		__conn_reconfigure,
 		__conn_get_home,
 		__conn_configure_method,
