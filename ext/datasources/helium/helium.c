@@ -3251,14 +3251,6 @@ helium_source_recover(
 		WT_ERR(helium_source_recover_namespace(
 		    wtds, hs, names.list[i], config));
 
-#ifdef XXX_BROKEN_KEITH
-	/* Clear the transaction store. */
-	if ((ret = he_truncate(hs->he_txn)) != 0)
-		EMSG_ERR(wt_api, NULL, ret,
-		    "he_truncate: %s: %s: %s",
-		    hs->name, WT_NAME_TXN, he_strerror(ret));
-#endif
-
 err:	for (i = 0; i < names.list_cnt; ++i)
 		free(names.list[i]);
 	free(names.list);
