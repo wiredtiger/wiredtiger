@@ -72,7 +72,7 @@ class test_stat_log02(wttest.WiredTigerTestCase):
         self.check_file_contains_tables(".")
 
     def wait_for_stats_file(self, dir):
-        # We wait for 30 sleeps then fail
+        # We wait for a minute, then fail.
         number_sleeps = 0
         while True:
             files = glob.glob(dir + '/' + 'WiredTigerStat.[0-9]*')
@@ -82,7 +82,7 @@ class test_stat_log02(wttest.WiredTigerTestCase):
 
             time.sleep(1)
             number_sleeps += 1
-            self.assertLess(number_sleeps, 30)
+            self.assertLess(number_sleeps, 60)
 
     def check_stats_file(self, dir):
         files = glob.glob(dir + '/' + 'WiredTigerStat.[0-9]*')
@@ -96,7 +96,7 @@ class test_stat_log02(wttest.WiredTigerTestCase):
             json.loads(line)
 
     def check_file_contains_tables(self, dir):
-        # We wait for another 30 sleeps here to avoid erroring in the case where
+        # We wait for another minute to avoid erroring in the case where
         # the stat log has only made the first pass and not yet printed the
         # individual table stats.
         number_sleeps = 0
@@ -111,7 +111,7 @@ class test_stat_log02(wttest.WiredTigerTestCase):
 
             time.sleep(1)
             number_sleeps += 1
-            self.assertLess(number_sleeps, 30)
+            self.assertLess(number_sleeps, 60)
 
 if __name__ == '__main__':
     wttest.run()
