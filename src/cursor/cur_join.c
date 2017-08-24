@@ -457,7 +457,6 @@ __curjoin_entry_in_range(WT_SESSION_IMPL *session, WT_CURSOR_JOIN_ENTRY *entry,
 	collator = (entry->index != NULL) ? entry->index->collator : NULL;
 	endmax = &entry->ends[entry->ends_next];
 	disjunction = F_ISSET(entry, WT_CURJOIN_ENTRY_DISJUNCTION);
-	passed = false;
 
 	/*
 	 * The iterator may have already satisfied some endpoint conditions.
@@ -499,9 +498,7 @@ __curjoin_entry_in_range(WT_SESSION_IMPL *session, WT_CURSOR_JOIN_ENTRY *entry,
 			passed = (cmp < 0);
 			break;
 
-		default:
-			WT_RET(__wt_illegal_value(session, NULL));
-			break;
+		WT_ILLEGAL_VALUE(session);
 		}
 
 		if (!passed) {

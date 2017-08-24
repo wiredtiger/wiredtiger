@@ -55,6 +55,7 @@ CET
 CFLAGS
 CHECKKEY
 CKPT
+CLOEXEC
 CMP
 CONCAT
 CONFIG
@@ -530,6 +531,7 @@ checkpointer
 checkpointing
 checksum
 checksums
+checksys
 checkvalue
 children's
 chk
@@ -922,6 +924,7 @@ mem
 memalign
 membar
 memcpy
+memdup
 memget
 memmove
 memset
@@ -942,6 +945,7 @@ msvc
 multi
 multiblock
 multicore
+multicycle
 multiprocess
 multisocket
 multithreaded

@@ -65,11 +65,12 @@ static const char * const ckpt_file = "checkpoint_done";
 static bool compat, inmem, use_ts;
 static uint64_t global_ts = 1;
 
-#define	MAX_TH	12
+#define	MAX_TH		12
 #define	MAX_TIME	40
-#define	MIN_TH	5
+#define	MIN_TH		5
 #define	MIN_TIME	10
 #define	RECORDS_FILE	"records-%" PRIu32
+#define	STABLE_PERIOD	100
 
 #define	ENV_CONFIG_COMPAT	",compatibility=(release=\"2.9\")"
 #define	ENV_CONFIG_DEF						\
@@ -145,10 +146,9 @@ thread_ckpt_run(void *arg)
 		 * timer.
 		 */
 		if (first_ckpt) {
-			if ((fp = fopen(ckpt_file, "w")) == NULL)
-				testutil_die(errno, "fopen");
+			testutil_checksys((fp = fopen(ckpt_file, "w")) == NULL);
 			first_ckpt = false;
-			fclose(fp);
+			testutil_checksys(fclose(fp) != 0);
 		}
 	}
 	/* NOTREACHED */
@@ -184,8 +184,7 @@ thread_run(void *arg)
 	 */
 	testutil_check(__wt_snprintf(cbuf, sizeof(cbuf), RECORDS_FILE, td->id));
 	(void)unlink(cbuf);
-	if ((fp = fopen(cbuf, "w")) == NULL)
-		testutil_die(errno, "fopen");
+	testutil_checksys((fp = fopen(cbuf, "w")) == NULL);
 	/*
 	 * Set to line buffering.  But that is advisory only.  We've seen
 	 * cases where the result files end up with partial lines.
@@ -266,11 +265,23 @@ thread_run(void *arg)
 		if ((ret = cur_local->insert(cur_local)) != 0)
 			testutil_die(ret, "WT_CURSOR.insert");
 
-		if (i % 1000 == 0) {
+		/*
+		 * Every N records we will record our stable timestamp into the
+		 * stable table.  That will define our threshold where we
+		 * expect to find records after recovery.
+		 */
+		if (i % STABLE_PERIOD == 0) {
 			if (use_ts) {
+				/*
+				 * Set both the oldest and stable timestamp
+				 * so that we don't need to maintain read
+				 * availability at older timestamps.
+				 */
 				testutil_check(__wt_snprintf(
 				    tscfg, sizeof(tscfg),
-				    "stable_timestamp=%" PRIx64, stable_ts));
+				    "oldest_timestamp=%" PRIx64
+				    ",stable_timestamp=%" PRIx64,
+				    stable_ts, stable_ts));
 				testutil_check(
 				    td->conn->set_timestamp(td->conn, tscfg));
 			}
@@ -282,8 +293,8 @@ thread_run(void *arg)
 		 * Save the timestamp and key separately for checking later.
 		 */
 		if (fprintf(fp,
-		    "%" PRIu64 " %" PRIu64 "\n", stable_ts, i) == -1)
-			testutil_die(errno, "fprintf");
+		    "%" PRIu64 " %" PRIu64 "\n", stable_ts, i) < 0)
+			testutil_die(EIO, "fprintf");
 	}
 	/* NOTREACHED */
 }
@@ -474,8 +485,7 @@ main(int argc, char *argv[])
 		 * kill the child, run recovery and make sure all items we wrote
 		 * exist after recovery runs.
 		 */
-		if ((pid = fork()) < 0)
-			testutil_die(errno, "fork");
+		testutil_checksys((pid = fork()) < 0);
 
 		if (pid == 0) { /* child */
 			run_workload(nth);
@@ -503,10 +513,8 @@ main(int argc, char *argv[])
 		 * here.
 		 */
 		printf("Kill child\n");
-		if (kill(pid, SIGKILL) != 0)
-			testutil_die(errno, "kill");
-		if (waitpid(pid, &status, 0) == -1)
-			testutil_die(errno, "waitpid");
+		testutil_checksys(kill(pid, SIGKILL) != 0);
+		testutil_checksys(waitpid(pid, &status, 0) == -1);
 	}
 	/*
 	 * !!! If we wanted to take a copy of the directory before recovery,
@@ -547,6 +555,7 @@ main(int argc, char *argv[])
 	 * Find the biggest stable timestamp value that was saved.
 	 */
 	stable_val = 0;
+	memset(val, 0, sizeof(val));
 	while (cur_stable->next(cur_stable) == 0) {
 		cur_stable->get_key(cur_stable, &key);
 		cur_stable->get_value(cur_stable, &val[key]);
@@ -684,8 +693,7 @@ main(int argc, char *argv[])
 				fatal = true;
 			}
 		}
-		if (fclose(fp) != 0)
-			testutil_die(errno, "fclose");
+		testutil_checksys(fclose(fp) != 0);
 	}
 	if ((ret = conn->close(conn, NULL)) != 0)
 		testutil_die(ret, "WT_CONNECTION:close");

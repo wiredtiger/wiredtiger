@@ -402,7 +402,9 @@ connection_runtime_config = [
             min='0', max='100000'),
         ]),
     Config('compatibility', '', r'''
-        set compatibility version of database''',
+        set compatibility version of database.  Changing the compatibility
+        version requires that there are no active operations for the duration
+        of the call.''',
         type='category', subconfig=[
         Config('release', '', r'''
             compatibility release version string'''),
@@ -1123,7 +1125,8 @@ methods = {
 
 'WT_SESSION.timestamp_transaction' : Method([
     Config('commit_timestamp', '', r'''
-        set the commit timestamp for the current transaction, see
+        set the commit timestamp for the current transaction.  It is an error
+        to set the commit timestamp on a transaction that is not running, see
         @ref transaction_timestamps'''),
 ]),
 
@@ -1147,9 +1150,6 @@ methods = {
     Config('name', '', r'''
         if set, specify a name for the checkpoint (note that checkpoints
         including LSM trees may not be named)'''),
-    Config('read_timestamp', '', r'''
-        if set, create the checkpoint as of the specified timestamp''',
-        undoc=True),
     Config('target', '', r'''
         if non-empty, checkpoint the list of objects''', type='list'),
     Config('use_timestamp', 'true', r'''

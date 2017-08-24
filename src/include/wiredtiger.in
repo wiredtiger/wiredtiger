@@ -504,6 +504,12 @@ struct __wt_cursor {
 	 * (as it partially depends on the underlying file configuration), but
 	 * is always a small number of bytes less than 4GB.
 	 *
+	 * The WT_CURSOR::modify method stores a change record in cache and
+	 * writes a change record to the log, instead of the usual complete
+	 * value. This can reduce cache and logging requirements, but may result
+	 * in slower reads because the complete value must be assembled during
+	 * retrieval.
+	 *
 	 * @param cursor the cursor handle
 	 * @param entries an array of modification data structures
 	 * @param nentries the number of modification data structures
@@ -1537,7 +1543,7 @@ struct __wt_session {
 	 * @snippet ex_all.c Reset the session
 	 *
 	 * @param session the session handle
-	 * @ebusy_errors
+	 * @errors
 	 */
 	int __F(reset)(WT_SESSION *session);
 
@@ -1751,8 +1757,9 @@ struct __wt_session {
 	 * @param session the session handle
 	 * @configstart{WT_SESSION.timestamp_transaction, see dist/api_data.py}
 	 * @config{commit_timestamp, set the commit timestamp for the current
-	 * transaction\, see @ref transaction_timestamps., a string; default
-	 * empty.}
+	 * transaction.  It is an error to set the commit timestamp on a
+	 * transaction that is not running\, see @ref transaction_timestamps., a
+	 * string; default empty.}
 	 * @configend
 	 * @errors
 	 */
@@ -1998,8 +2005,10 @@ struct __wt_connection {
 	 * checkpoint; setting this value above 0 configures periodic
 	 * checkpoints., an integer between 0 and 100000; default \c 0.}
 	 * @config{ ),,}
-	 * @config{compatibility = (, set compatibility version of database., a
-	 * set of related configuration options defined below.}
+	 * @config{compatibility = (, set compatibility version of database.
+	 * Changing the compatibility version requires that there are no active
+	 * operations for the duration of the call., a set of related
+	 * configuration options defined below.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;release, compatibility release
 	 * version string., a string; default empty.}
 	 * @config{ ),,}
@@ -2295,8 +2304,8 @@ struct __wt_connection {
 	 * WT_CONNECTION::set_timestamp. Any updates to checkpoint durable
 	 * tables that are more recent than the stable timestamp are removed.
 	 *
-	 * This method requires that there are no active cursor operations
-	 * for the duration of the call.
+	 * This method requires that there are no active operations for the
+	 * duration of the call.
 	 *
 	 * Any updates made to logged tables will not be rolled back. Any
 	 * updates made without an associated timestamp will not be rolled
@@ -2530,10 +2539,12 @@ struct __wt_connection {
  * @config{ ),,}
  * @config{checkpoint_sync, flush files to stable storage when closing or
  * writing checkpoints., a boolean flag; default \c true.}
- * @config{compatibility = (, set compatibility version of database., a set of
- * related configuration options defined below.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;release, compatibility release version
- * string., a string; default empty.}
+ * @config{compatibility = (, set compatibility version of database.  Changing
+ * the compatibility version requires that there are no active operations for
+ * the duration of the call., a set of related configuration options defined
+ * below.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;release, compatibility release
+ * version string., a string; default empty.}
  * @config{ ),,}
  * @config{config_base, write the base configuration file if creating the
  * database.  If \c false in the config passed directly to ::wiredtiger_open\,
@@ -3304,7 +3315,6 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
  * Error returns
  *******************************************/
 /*!
- * @anchor error_returns
  * @name Error returns
  * Most functions and methods in WiredTiger return an integer code indicating
  * whether the operation succeeded or failed.  A return of zero indicates
