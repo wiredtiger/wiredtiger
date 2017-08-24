@@ -2503,6 +2503,7 @@ helium_source_close(
 			    "he_close: %s: %s: %s",
 			    hs->name, WT_NAME_TXN, he_strerror(tret));
 		hs->he_txn = NULL;
+		hs->he_owner = false;
 	}
 
 	/* Flush and close the Helium source. */
@@ -3008,11 +3009,11 @@ err:		if (hs != NULL)
 }
 
 /*
- * helium_source_open_txn --
+ * helium_source_txn_open --
  *	Open the database-wide transaction store.
  */
 static int
-helium_source_open_txn(DATA_SOURCE *ds)
+helium_source_txn_open(DATA_SOURCE *ds)
 {
 	HELIUM_SOURCE *hs, *hs_txn;
 	WT_EXTENSION_API *wt_api;
@@ -3076,6 +3077,38 @@ helium_source_open_txn(DATA_SOURCE *ds)
 		hs->he_txn = he_txn;
 
 	return (0);
+}
+
+/*
+ * helium_source_txn_truncate --
+ *	Truncate the database-wide transaction store.
+ */
+static int
+helium_source_txn_truncate(DATA_SOURCE *ds)
+{
+	HELIUM_SOURCE *hs;
+	WT_EXTENSION_API *wt_api;
+	int ret = 0;
+
+	wt_api = ds->wt_api;
+
+	/*
+	 * We want to truncate the transaction store after recovery, but there
+	 * isn't a Helium truncate operation. Remove/re-open the store instead.
+	 */
+	hs = ds->hs_head;
+	if (hs->he_txn != NULL && (ret = he_remove(hs->he_txn)) != 0)
+		ERET(wt_api, NULL, ret,
+		    "he_remove: %s: %s: %s",
+		    hs->name, WT_NAME_TXN, he_strerror(ret));
+		
+	/* The handle is dead, clear any references. */
+	for (hs = ds->hs_head; hs != NULL; hs = hs->next) {
+		hs->he_txn = NULL;
+		hs->he_owner = false;
+	}
+
+	return (helium_source_txn_open(ds));
 }
 
 /*
@@ -3373,12 +3406,14 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 		    wt_api->strerror(wt_api, NULL, ret));
 	config_parser = NULL;
 
-	/* Find and open the database transaction store. */
-	WT_ERR(helium_source_open_txn(ds));
-
-	/* Recover each Helium source. */
+	/*
+	 * Find and open the database transaction store, recover each Helium
+	 * source, then discard the transaction store's contents.
+	 */
+	WT_ERR(helium_source_txn_open(ds));
 	for (hs = ds->hs_head; hs != NULL; hs = hs->next)
 		WT_ERR(helium_source_recover(&ds->wtds, hs, config));
+	WT_ERR(helium_source_txn_truncate(ds));
 
 	/* Start each Helium source cleaner thread. */
 	for (hs = ds->hs_head; hs != NULL; hs = hs->next)
