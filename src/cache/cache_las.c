@@ -289,7 +289,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
-	WT_DECL_TIMESTAMP(ts)
+	WT_DECL_TIMESTAMP(timestamp)
 	WT_ITEM *key;
 	WT_ITEM las_addr, las_key, las_timestamp;
 	uint64_t cnt, las_counter, las_txnid, remove_cnt;
@@ -375,10 +375,10 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		 */
 #ifdef HAVE_TIMESTAMPS
 		WT_ASSERT(session, las_timestamp.size == WT_TIMESTAMP_SIZE);
-		memcpy(&ts, las_timestamp.data, las_timestamp.size);
+		memcpy(&timestamp, las_timestamp.data, las_timestamp.size);
 #endif
 		if (__wt_txn_visible_all(
-		    session, las_txnid, WT_TIMESTAMP_NULL(&ts))) {
+		    session, las_txnid, WT_TIMESTAMP_NULL(&timestamp))) {
 			WT_ERR(cursor->remove(cursor));
 			++remove_cnt;
 		}

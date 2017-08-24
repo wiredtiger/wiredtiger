@@ -137,7 +137,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 	WT_CURSOR_BTREE cbt;
 	WT_DECL_ITEM(current_key);
 	WT_DECL_RET;
-	WT_DECL_TIMESTAMP(ts)
+	WT_DECL_TIMESTAMP(timestamp)
 	WT_ITEM las_addr, las_key, las_timestamp, las_value;
 	WT_PAGE *page;
 	WT_UPDATE *first_upd, *last_upd, *upd;
@@ -202,10 +202,10 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 		 */
 #ifdef HAVE_TIMESTAMPS
 		WT_ASSERT(session, las_timestamp.size == WT_TIMESTAMP_SIZE);
-		memcpy(&ts, las_timestamp.data, las_timestamp.size);
+		memcpy(&timestamp, las_timestamp.data, las_timestamp.size);
 #endif
 		if (__wt_txn_visible_all(
-		    session, las_txnid, WT_TIMESTAMP_NULL(&ts)))
+		    session, las_txnid, WT_TIMESTAMP_NULL(&timestamp)))
 			continue;
 
 		/* Allocate the WT_UPDATE structure. */
@@ -217,8 +217,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 		upd->txnid = upd_txnid;
 #ifdef HAVE_TIMESTAMPS
 		WT_ASSERT(session, las_timestamp.size == WT_TIMESTAMP_SIZE);
-		memcpy(&ts, las_timestamp.data, las_timestamp.size);
-		__wt_timestamp_set(&upd->timestamp, &ts);
+		memcpy(&upd->timestamp, las_timestamp.data, las_timestamp.size);
 #endif
 
 		switch (page->type) {
