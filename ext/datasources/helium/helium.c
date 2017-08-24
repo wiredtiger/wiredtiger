@@ -159,15 +159,15 @@ typedef struct __wt_source {
 	char *uri;				/* Unique name */
 
 	pthread_rwlock_t lock;			/* Lock */
-	int		 lockinit;		/* Lock created */
+	bool		 lockinit;		/* Lock created */
 
-	int	configured;			/* If structure configured */
+	bool	configured;			/* If structure configured */
 	u_int	ref;				/* Active reference count */
 
 	uint64_t append_recno;			/* Allocation record number */
 
-	int	 config_bitfield;		/* config "value_format=#t" */
-	int	 config_recno;			/* config "key_format=r" */
+	bool	 config_bitfield;		/* config "value_format=#t" */
+	bool	 config_recno;			/* config "key_format=r" */
 
 	/*
 	 * Each WiredTiger object has a "primary" namespace in a Helium store
@@ -176,7 +176,7 @@ typedef struct __wt_source {
 	 */
 	he_t	he;				/* Underlying Helium object */
 	he_t	he_cache;			/* Underlying Helium cache */
-	int	he_cache_inuse;			/* Cache is in use */
+	bool	he_cache_inuse;			/* Cache is in use */
 	int	he_cache_ops;			/* Operations since cleaning */
 
 	struct __he_source *hs;			/* Underlying Helium source */
@@ -227,7 +227,7 @@ typedef struct __he_source {
 #define	TXN_COMMITTED	'C'
 #define	TXN_UNRESOLVED	0
 	he_t	he_txn;				/* Helium txn store */
-	int	he_owner;			/* Owns transaction store */
+	bool	he_owner;			/* Owns transaction store */
 
 	struct __he_source *next;		/* List of Helium sources */
 } HELIUM_SOURCE;
@@ -242,7 +242,7 @@ typedef struct __data_source {
 	WT_EXTENSION_API *wt_api;		/* Extension functions */
 
 	pthread_rwlock_t global_lock;		/* Global lock */
-	int		 lockinit;		/* Lock created */
+	bool		 lockinit;		/* Lock created */
 
 	struct __he_source *hs_head;		/* List of Helium sources */
 } DATA_SOURCE;
@@ -1143,7 +1143,7 @@ nextprev(WT_CURSOR *wtcursor, const char *fname,
 	 * the store.  We don't care if we race, we're not guaranteeing any
 	 * special behavior with respect to phantoms.
 	 */
-	if (ws->he_cache_inuse == 0) {
+	if (!ws->he_cache_inuse) {
 		cache_ret = WT_NOTFOUND;
 		goto cache_clean;
 	}
@@ -1494,8 +1494,8 @@ helium_cursor_insert(WT_CURSOR *wtcursor)
 		EMSG(wt_api, session, ret, "he_update: %s", he_strerror(ret));
 
 	/* Update the state while still holding the lock. */
-	if (ws->he_cache_inuse == 0)
-		ws->he_cache_inuse = 1;
+	if (!ws->he_cache_inuse)
+		ws->he_cache_inuse = true;
 	++ws->he_cache_ops;
 
 	/* Discard the lock. */
@@ -1600,8 +1600,8 @@ update(WT_CURSOR *wtcursor, int remove_op)
 		EMSG(wt_api, session, ret, "he_update: %s", he_strerror(ret));
 
 	/* Update the state while still holding the lock. */
-	if (ws->he_cache_inuse == 0)
-		ws->he_cache_inuse = 1;
+	if (!ws->he_cache_inuse)
+		ws->he_cache_inuse = true;
 	++ws->he_cache_ops;
 
 	/* Discard the lock. */
@@ -1899,7 +1899,7 @@ bad_name:	ERET(wt_api, session, EINVAL, "%s: illegal name format", uri);
 		goto err;
 	}
 	WT_ERR(lock_init(wt_api, session, &ws->lock));
-	ws->lockinit = 1;
+	ws->lockinit = true;
 	ws->hs = hs;
 
 	/*
@@ -2222,7 +2222,7 @@ helium_session_open_cursor(WT_DATA_SOURCE *wtds, WT_SESSION *session,
 			WT_ERR(helium_cursor_reset(wtcursor));
 		}
 
-		ws->configured = 1;
+		ws->configured = true;
 	}
 
 	/* Increment the open reference count to pin the URI and unlock it. */
@@ -3069,7 +3069,7 @@ helium_source_open_txn(DATA_SOURCE *ds)
 	    hs_txn == NULL ? "creating " : "", hs->name);
 
 	/* Set the owner field, this Helium source has to be closed last. */
-	hs->he_owner = 1;
+	hs->he_owner = true;
 
 	/* Add a reference to the transaction store in each Helium source. */
 	for (hs = ds->hs_head; hs != NULL; hs = hs->next)
@@ -3128,13 +3128,13 @@ helium_source_recover_namespace(WT_DATA_SOURCE *wtds,
 	cursor = (CURSOR *)wtcursor;
 	cursor->ws = ws;
 
-	/* Process, then clear, the cache. */
+	/* Process, then remove, the cache. */
 	WT_ERR(cache_cleaner(wt_api, wtcursor, 0, NULL));
-#ifdef XXX_BROKEN_KEITH
-	if ((ret = he_truncate(ws->he_cache)) != 0)
-		EMSG_ERR(wt_api, NULL, ret,
-		    "he_truncate: %s(cache): %s", ws->uri, he_strerror(ret));
-#endif
+
+	if ((ret = he_remove(ws->he_cache)) != 0)
+		EMSG(wt_api, NULL, ret,
+		    "he_remove: %s(cache): %s", ws->uri, he_strerror(ret));
+	ws->he_cache = NULL;			/* The handle is dead. */
 
 	/* Close the underlying WiredTiger sources. */
 err:	while ((ws = hs->ws_head) != NULL) {
@@ -3347,7 +3347,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 	ds->wtds = wtds;
 	ds->wt_api = wt_api;
 	WT_ERR(lock_init(wt_api, NULL, &ds->global_lock));
-	ds->lockinit = 1;
+	ds->lockinit = true;
 
 	/* Step through the list of Helium sources, opening each one. */
 	if ((ret = wt_api->config_parser_open_arg(
