@@ -62,7 +62,9 @@ class test_stat_log02(wttest.WiredTigerTestCase):
         session = self.conn.open_session()
         session.create("table:foo")
         c = session.open_cursor("table:foo")
-        c["foo"] = "foo"
+        for i in xrange(5):
+            c["foo"] = 'abcdefg' + str(i)
+            time.sleep(1)
         c.close()
         session.close()
 
