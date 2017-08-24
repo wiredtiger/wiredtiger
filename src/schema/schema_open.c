@@ -531,7 +531,7 @@ __wt_schema_get_colgroup(WT_SESSION_IMPL *session,
  */
 int
 __wt_schema_get_index(WT_SESSION_IMPL *session,
-    const char *uri, bool quiet, WT_TABLE **tablep, WT_INDEX **indexp)
+    const char *uri, bool invalidate, bool quiet, WT_INDEX **indexp)
 {
 	WT_DECL_RET;
 	WT_INDEX *idx;
@@ -539,8 +539,6 @@ __wt_schema_get_index(WT_SESSION_IMPL *session,
 	const char *tablename, *tend;
 	u_int i;
 
-	if (tablep != NULL)
-		*tablep = NULL;
 	*indexp = NULL;
 
 	tablename = uri;
@@ -555,21 +553,17 @@ __wt_schema_get_index(WT_SESSION_IMPL *session,
 	for (i = 0; i < table->nindices; i++) {
 		idx = table->indices[i];
 		if (idx != NULL && strcmp(idx->name, uri) == 0) {
-			if (tablep != NULL)
-				*tablep = table;
-			else
-				WT_RET(
-				    __wt_schema_release_table(session, table));
 			*indexp = idx;
-			return (0);
+			goto done;
 		}
 	}
 
 	/* Otherwise, open it. */
 	WT_ERR(__wt_schema_open_index(
 	    session, table, tend + 1, strlen(tend + 1), indexp));
-	if (tablep != NULL)
-		*tablep = table;
+
+done:	if (invalidate)
+		table->idx_complete = false;
 
 err:	WT_TRET(__wt_schema_release_table(session, table));
 	WT_RET(ret);
@@ -591,7 +585,7 @@ __wt_schema_open_table(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_DECL_RET;
 
-	WT_WITH_TABLE_READ_LOCK(session,
+	WT_WITH_TABLE_WRITE_LOCK(session,
 	    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
 		ret = __schema_open_table(session, cfg)));
 

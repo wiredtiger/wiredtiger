@@ -181,14 +181,14 @@ __create_colgroup(WT_SESSION_IMPL *session,
 	const char *sourcecfg[] = { config, NULL, NULL };
 	const char *cgname, *source, *sourceconf, *tablename;
 	char *cgconf, *origconf;
-	bool exists;
+	bool exists, tracked;
 
 	sourceconf = NULL;
 	cgconf = origconf = NULL;
 	WT_CLEAR(fmt);
 	WT_CLEAR(confbuf);
 	WT_CLEAR(namebuf);
-	exists = false;
+	exists = tracked = false;
 
 	tablename = name;
 	WT_PREFIX_SKIP_REQUIRED(session, tablename, "colgroup:");
@@ -200,10 +200,17 @@ __create_colgroup(WT_SESSION_IMPL *session,
 		tlen = strlen(tablename);
 
 	if ((ret = __wt_schema_get_table(
-	    session, tablename, tlen, true, 0, &table)) != 0)
+	    session, tablename, tlen, true, WT_DHANDLE_EXCLUSIVE, &table)) != 0)
 		WT_RET_MSG(session, (ret == WT_NOTFOUND) ? ENOENT : ret,
 		    "Can't create '%s' for non-existent table '%.*s'",
 		    name, (int)tlen, tablename);
+
+	if (WT_META_TRACKING(session)) {
+		WT_WITH_DHANDLE(session, &table->iface,
+		    ret = __wt_meta_track_handle_lock(session, false));
+		WT_ERR(ret);
+		tracked = true;
+	}
 
 	/* Make sure the column group is referenced from the table. */
 	if (cgname != NULL && (ret =
@@ -270,7 +277,8 @@ err:	__wt_free(session, cgconf);
 	__wt_buf_free(session, &fmt);
 	__wt_buf_free(session, &namebuf);
 
-	WT_TRET(__wt_schema_release_table(session, table));
+	if (!tracked)
+		WT_TRET(__wt_schema_release_table(session, table));
 	return (ret);
 }
 
@@ -387,6 +395,17 @@ __create_index(WT_SESSION_IMPL *session,
 		WT_RET_MSG(session, EINVAL, "Invalid index name, "
 		    "should be <table name>:<index name>: %s", name);
 
+	/*
+	 * Note: it would be better to get the table exclusive here, while
+	 * changing its indexes.  We don't because some operation we perform
+	 * below reacquire the table handle (such as opening a cursor on the
+	 * table in order to fill the index).  If we get the handle exclusive
+	 * here, those operations wanting ordinary access will conflict,
+	 * leading to errors.
+	 *
+	 * Instead, we rely on the global table lock to protect the set of
+	 * available indexes.
+	 */
 	tlen = (size_t)(idxname++ - tablename);
 	if ((ret = __wt_schema_get_table(
 	    session, tablename, tlen, true, 0, &table)) != 0)
@@ -546,7 +565,7 @@ err:	__wt_free(session, idxconf);
  */
 static int
 __create_table(WT_SESSION_IMPL *session,
-    const char *name, bool exclusive, const char *config)
+    const char *uri, bool exclusive, const char *config)
 {
 	WT_CONFIG conf;
 	WT_CONFIG_ITEM cgkey, cgval, cval;
@@ -558,30 +577,23 @@ __create_table(WT_SESSION_IMPL *session,
 	char *tableconf, *cgname;
 	size_t cgsize;
 	int ncolgroups;
-	bool exists;
 
 	cgname = NULL;
 	table = NULL;
 	tableconf = NULL;
-	exists = false;
 
 	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_TABLE_WRITE));
 
-	tablename = name;
+	tablename = uri;
 	WT_PREFIX_SKIP_REQUIRED(session, tablename, "table:");
 
-	/*
-	 * If the table already exists, get it.  If the table does not exist,
-	 * attempting to read its metadata will cause WT_NOTFOUND which may be
-	 * mapped to ENOENT.  That's expected: we're about to create it.
-	 */
-	if ((ret = __wt_schema_get_table(
-	    session, tablename, strlen(tablename), false, 0, &table)) == 0) {
+	/* Check if the table already exists. */
+	if ((ret = __wt_metadata_search(
+	    session, uri, &tableconf)) != WT_NOTFOUND) {
 		if (exclusive)
-			WT_ERR(EEXIST);
-		exists = true;
-	} else if (ret != ENOENT && ret != WT_NOTFOUND)
+			WT_TRET(EEXIST);
 		goto err;
+	}
 
 	WT_ERR(__wt_config_gets(session, cfg, "colgroups", &cval));
 	__wt_config_subinit(session, &conf, &cval);
@@ -592,28 +604,28 @@ __create_table(WT_SESSION_IMPL *session,
 	WT_ERR_NOTFOUND_OK(ret);
 
 	WT_ERR(__wt_config_collapse(session, cfg, &tableconf));
+	WT_ERR(__wt_metadata_insert(session, uri, tableconf));
 
-	if (!exists) {
-		WT_ERR(__wt_metadata_insert(session, name, tableconf));
+	if (ncolgroups == 0) {
+		cgsize = strlen("colgroup:") + strlen(tablename) + 1;
+		WT_ERR(__wt_calloc_def(session, cgsize, &cgname));
+		WT_ERR(__wt_snprintf(
+		    cgname, cgsize, "colgroup:%s", tablename));
+		WT_ERR(__create_colgroup(
+		    session, cgname, exclusive, config));
+	}
 
-		/*
-		 * Attempt to open the table now to catch any errors.
-		 * Don't keep it pinned while we create column groups.
-		 */
-		WT_ERR(__wt_schema_get_table(
-		    session, tablename, strlen(tablename), true, 0, &table));
-		ret = __wt_schema_release_table(session, table);
-		table = NULL;
+	/*
+	 * Open the table to check that it was setup correctly.  Keep the
+	 * handle exclusive until it is released at the end of the call.
+	 */
+	WT_ERR(__wt_schema_get_table_uri(
+	    session, uri, true, WT_DHANDLE_EXCLUSIVE, &table));
+	if (WT_META_TRACKING(session)) {
+		WT_WITH_DHANDLE(session, &table->iface,
+		    ret = __wt_meta_track_handle_lock(session, true));
 		WT_ERR(ret);
-
-		if (ncolgroups == 0) {
-			cgsize = strlen("colgroup:") + strlen(tablename) + 1;
-			WT_ERR(__wt_calloc_def(session, cgsize, &cgname));
-			WT_ERR(__wt_snprintf(
-			    cgname, cgsize, "colgroup:%s", tablename));
-			WT_ERR(__create_colgroup(
-			    session, cgname, exclusive, config));
-		}
+		table = NULL;
 	}
 
 err:	if (table != NULL)

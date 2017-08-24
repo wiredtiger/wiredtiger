@@ -599,7 +599,7 @@ extern int __wt_schema_open_colgroups(WT_SESSION_IMPL *session, WT_TABLE *table)
 extern int __wt_schema_open_index(WT_SESSION_IMPL *session, WT_TABLE *table, const char *idxname, size_t len, WT_INDEX **indexp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_open_indices(WT_SESSION_IMPL *session, WT_TABLE *table) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_get_colgroup(WT_SESSION_IMPL *session, const char *uri, bool quiet, WT_TABLE **tablep, WT_COLGROUP **colgroupp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_schema_get_index(WT_SESSION_IMPL *session, const char *uri, bool quiet, WT_TABLE **tablep, WT_INDEX **indexp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_schema_get_index(WT_SESSION_IMPL *session, const char *uri, bool invalidate, bool quiet, WT_INDEX **indexp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_open_table(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_colcheck(WT_SESSION_IMPL *session, const char *key_format, const char *value_format, WT_CONFIG_ITEM *colconf, u_int *kcolsp, u_int *vcolsp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_table_check(WT_SESSION_IMPL *session, WT_TABLE *table) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
