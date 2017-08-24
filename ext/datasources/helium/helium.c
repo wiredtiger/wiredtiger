@@ -3101,7 +3101,7 @@ helium_source_txn_truncate(DATA_SOURCE *ds)
 		ERET(wt_api, NULL, ret,
 		    "he_remove: %s: %s: %s",
 		    hs->name, WT_NAME_TXN, he_strerror(ret));
-		
+
 	/* The handle is dead, clear any references. */
 	for (hs = ds->hs_head; hs != NULL; hs = hs->next) {
 		hs->he_txn = NULL;
