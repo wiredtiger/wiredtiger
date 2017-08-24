@@ -356,8 +356,6 @@ config_helium_reset(void)
 		config_single("backups=off", 0);
 	if (!config_is_perm("checkpoints"))
 		config_single("checkpoints=off", 0);
-	if (!config_is_perm("compatibility"))
-		config_single("compatibility=none", 0);
 	if (!config_is_perm("compression"))
 		config_single("compression=none", 0);
 	if (!config_is_perm("in_memory"))
