@@ -1632,21 +1632,14 @@ helium_cursor_update(WT_CURSOR *wtcursor)
 static int
 helium_cursor_reserve(WT_CURSOR *wtcursor)
 {
-	CURSOR *cursor;
+	(void)wtcursor;
 
-	cursor = (CURSOR *)wtcursor;
-
-#ifdef XXX_BROKEN_KEITH
 	/*
 	 * XXX
 	 * We don't currently support reserve, this will require some work.
 	 * The test programs don't currently detect it, so return success.
 	 */
 	return (0);
-#else
-	(void)cursor;
-	return (0);
-#endif
 }
 
 /*
