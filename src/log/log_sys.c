@@ -113,7 +113,7 @@ __wt_verbose_dump_log(WT_SESSION_IMPL *session)
 	    FLD_ISSET(conn->log_flags, WT_CONN_LOG_DOWNGRADED) ? "yes" : "no"));
 	WT_RET(__wt_msg(session, "Zero fill files: %s",
 	    FLD_ISSET(conn->log_flags, WT_CONN_LOG_ZERO_FILL) ? "yes" : "no"));
-	WT_RET(__wt_msg(session, "Preallocate files: %s",
+	WT_RET(__wt_msg(session, "Pre-allocate files: %s",
 	    conn->log_prealloc > 0 ? "yes" : "no"));
 	WT_RET(__wt_msg(session, "Logging directory: %s", conn->log_path));
 	WT_RET(__wt_msg(session, "Logging maximum file size: %" PRId64,
@@ -130,15 +130,19 @@ __wt_verbose_dump_log(WT_SESSION_IMPL *session)
 	    log->fileid));
 	WT_RET(__wt_msg(session, "Current log version number: %" PRIu16,
 	    log->log_version));
-	WT_RET(WT_DUMP_LSN(&log->alloc_lsn, "Next allocation"));
-	WT_RET(WT_DUMP_LSN(&log->bg_sync_lsn, "Last background sync"));
-	WT_RET(WT_DUMP_LSN(&log->ckpt_lsn, "Last checkpoint"));
-	WT_RET(WT_DUMP_LSN(&log->sync_dir_lsn, "Last directory sync"));
-	WT_RET(WT_DUMP_LSN(&log->sync_lsn, "Last sync"));
-	WT_RET(WT_DUMP_LSN(&log->trunc_lsn, "Recovery truncate"));
-	WT_RET(WT_DUMP_LSN(&log->write_lsn, "Last written"));
-	WT_RET(WT_DUMP_LSN(&log->write_start_lsn, "Start of last written"));
-	/* If we wanted a dump of the slots, it would go here. */
+	WT_RET(WT_LSN_MSG(&log->alloc_lsn, "Next allocation"));
+	WT_RET(WT_LSN_MSG(&log->bg_sync_lsn, "Last background sync"));
+	WT_RET(WT_LSN_MSG(&log->ckpt_lsn, "Last checkpoint"));
+	WT_RET(WT_LSN_MSG(&log->sync_dir_lsn, "Last directory sync"));
+	WT_RET(WT_LSN_MSG(&log->sync_lsn, "Last sync"));
+	WT_RET(WT_LSN_MSG(&log->trunc_lsn, "Recovery truncate"));
+	WT_RET(WT_LSN_MSG(&log->write_lsn, "Last written"));
+	WT_RET(WT_LSN_MSG(&log->write_start_lsn, "Start of last written"));
+	/*
+	 * If we wanted a dump of the slots, it would go here. Walking
+	 * the slot pool may not require a lock since they're statically
+	 * allocated, but output could be inconsistent without it.
+	 */
 
 	return (0);
 }

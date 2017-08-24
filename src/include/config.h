@@ -56,7 +56,7 @@ struct __wt_config_parser_impl {
 #define	WT_CONFIG_ENTRY_WT_CONNECTION_add_extractor	 4
 #define	WT_CONFIG_ENTRY_WT_CONNECTION_async_new_op	 5
 #define	WT_CONFIG_ENTRY_WT_CONNECTION_close		 6
-#define	WT_CONFIG_ENTRY_WT_CONNECTION_dump		 7
+#define	WT_CONFIG_ENTRY_WT_CONNECTION_debug_info	 7
 #define	WT_CONFIG_ENTRY_WT_CONNECTION_load_extension	 8
 #define	WT_CONFIG_ENTRY_WT_CONNECTION_open_session	 9
 #define	WT_CONFIG_ENTRY_WT_CONNECTION_query_timestamp	10

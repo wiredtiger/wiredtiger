@@ -1093,11 +1093,11 @@ err:	/*
 }
 
 /*
- * __conn_dump --
- *	WT_CONNECTION->dump method.
+ * __conn_debug_info --
+ *	WT_CONNECTION->debug_info method.
  */
 static int
-__conn_dump(WT_CONNECTION *wt_conn, const char *config)
+__conn_debug_info(WT_CONNECTION *wt_conn, const char *config)
 {
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
@@ -1106,7 +1106,7 @@ __conn_dump(WT_CONNECTION *wt_conn, const char *config)
 
 	conn = (WT_CONNECTION_IMPL *)wt_conn;
 
-	CONNECTION_API_CALL(conn, session, dump, config, cfg);
+	CONNECTION_API_CALL(conn, session, debug_info, config, cfg);
 
 	WT_ERR(__wt_config_gets(session, cfg, "cache", &cval));
 	if (cval.val != 0)
@@ -2088,7 +2088,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 		__conn_async_flush,
 		__conn_async_new_op,
 		__conn_close,
-		__conn_dump,
+		__conn_debug_info,
 		__conn_reconfigure,
 		__conn_get_home,
 		__conn_configure_method,

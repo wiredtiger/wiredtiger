@@ -1037,9 +1037,9 @@ connection_ops(WT_CONNECTION *conn)
 	add_collator(conn);
 	add_extractor(conn);
 
-	/*! [Dump information about the system] */
-	error_check(conn->dump(conn, "cache=true"));
-	/*! [Dump information about the system] */
+	/*! [Print debug information about the system] */
+	error_check(conn->debug_info(conn, "cache=true"));
+	/*! [Print debug information about the system] */
 
 	/*! [Reconfigure a connection] */
 	error_check(conn->reconfigure(conn, "eviction_target=75"));

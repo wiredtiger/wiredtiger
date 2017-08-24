@@ -60,7 +60,7 @@ union __wt_lsn {
 /*
  * Macro to print an LSN.
  */
-#define	WT_DUMP_LSN(lsn, msg)						\
+#define	WT_LSN_MSG(lsn, msg)						\
 	__wt_msg(session, "%s LSN: [%" PRIu32 "][%" PRIu32 "]",		\
 	    (msg), (lsn)->l.file, (lsn)->l.offset)
 
