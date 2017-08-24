@@ -72,7 +72,7 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
             actual = dict((k, v) for k, v in c if v != 0)
             #print expected
             #print actual
-            self.assertEqual(actual, expected)
+            self.assertTrue(actual == expected)
         # Search for the expected items as well as iterating
         for k, v in expected.iteritems():
             if missing == False:
