@@ -1930,7 +1930,7 @@ bad_name:	ERET(wt_api, session, EINVAL, "%s: illegal name format", uri);
 	WT_ERR(ws_source_open_object(
 	    wtds, session, hs, uri, NULL, oflags, &ws->he));
 	WT_ERR(ws_source_open_object(
-	    wtds, session, hs, uri, WT_NAME_CACHE, oflags, &ws->he_cache));
+	    wtds, session, hs, uri, WT_NAME_CACHE, HE_O_CREATE, &ws->he_cache));
 	if ((ret = he_commit(ws->he)) != 0)
 		EMSG_ERR(wt_api, session, ret,
 		    "he_commit: %s", he_strerror(ret));
