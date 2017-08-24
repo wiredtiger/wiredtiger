@@ -48,24 +48,22 @@ class test_stat_log02(wttest.WiredTigerTestCase):
         return None
 
     def test_stats_log_json(self):
-        self.conn = self.wiredtiger_open(
-            None, "create,statistics=(fast),statistics_log=(wait=1,json)")
+        self.conn = self.wiredtiger_open(None,
+            "create,statistics=(fast),statistics_log=(wait=1,json,on_close=1)")
 
         self.wait_for_stats_file(".")
         self.check_stats_file(".")
 
     def test_stats_log_on_json_with_tables(self):
         self.conn = self.wiredtiger_open(None,
-            "create,statistics=(fast),statistics_log=(wait=1,json,sources=[file:])")
+            "create,statistics=(fast)," +\
+            "statistics_log=(wait=1,json,on_close=1,sources=[file:])")
 
         # Create a session and table to give us some stats
         session = self.conn.open_session()
         session.create("table:foo")
         c = session.open_cursor("table:foo")
-        for i in xrange(5):
-            c["foo"] = 'abcdefg' + str(i)
-            time.sleep(1)
-        c.close()
+        c["foo"] = "foo"
         session.close()
 
         self.wait_for_stats_file(".")
