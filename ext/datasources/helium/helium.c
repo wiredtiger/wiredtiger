@@ -2406,36 +2406,25 @@ static int
 helium_session_truncate(WT_DATA_SOURCE *wtds,
     WT_SESSION *session, const char *uri, WT_CONFIG_ARG *config)
 {
-#ifdef XXX_BROKEN_KEITH
 	DATA_SOURCE *ds;
 	WT_EXTENSION_API *wt_api;
-	WT_SOURCE *ws;
-	int ret = 0, tret;
+	int ret = 0;
+
+	(void)config;
 
 	ds = (DATA_SOURCE *)wtds;
 	wt_api = ds->wt_api;
 
-	/* Get a locked reference to the WiredTiger source. */
-	WT_RET(ws_source_open(
-	    wtds, session, uri, config, WS_SOURCE_OPEN_BUSY, &ws));
-
-	/* Truncate the underlying namespaces. */
-	if ((tret = he_truncate(ws->he)) != 0)
-		EMSG(wt_api, session, tret,
-		    "he_truncate: %s: %s", ws->uri, he_strerror(tret));
-	if ((tret = he_truncate(ws->he_cache)) != 0)
-		EMSG(wt_api, session, tret,
-		    "he_truncate: %s: %s", ws->uri, he_strerror(tret));
-
-	ESET(unlock(wt_api, session, &ws->lock));
-	return (ret);
-#else
-	(void)wtds;
-	(void)session;
-	(void)uri;
-	(void)config;
-	return (0);
-#endif
+	/*
+	 * XXX
+	 * Fail URI truncation for now. (Truncation based on a cursor range is
+	 * handled by the upper-levels of WiredTiger, this is just support for
+	 * URI truncation.) The problem is there's no way to truncate an open
+	 * object in Helium without closing handles, and we can't close/re-open
+	 * handles because we don't have the configuration information from the
+	 * open.
+	 */
+	ERET(wt_api, session, ENOTSUP, "WT_SESSION.truncate: %s", uri);
 }
 
 /*
