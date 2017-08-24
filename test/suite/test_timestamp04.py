@@ -47,15 +47,20 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_timestamp04'
     uri = 'table:' + tablename
 
-    scenarios = make_scenarios([
+    storage_type = [
         ('col_fix', dict(empty=1, extra_config=',key_format=r, value_format=8t')),
         ('col_var', dict(empty=0, extra_config=',key_format=r')),
         #('lsm', dict(empty=0, extra_config=',type=lsm')),
         ('row', dict(empty=0, extra_config='')),
-    ])
+    ]
 
     # Rollback only works for non-durable tables
-    conn_config = 'cache_size=20MB,log=(enabled=false)'
+    conncfg = [
+        ('nolog', dict(conn_config = 'cache_size=20MB,log=(enabled=false)')),
+        ('V2', dict(conn_config = 'cache_size=20MB,log=(enabled=true)'))
+    ]
+
+    scenarios = make_scenarios(conncfg, storage_type)
 
     # Check that a cursor (optionally started in a new transaction), sees the
     # expected values.
