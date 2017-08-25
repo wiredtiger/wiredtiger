@@ -55,7 +55,6 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         #('V2', dict(conn_config='create,cache_size=20MB,log=(enabled)', using_log=True)),
     ]
 
-
     types = [
         ('col_fix', dict(empty=1, uri='table:', extra_config=',key_format=r, value_format=8t',is_lsm=False)),
         ('col_var', dict(empty=0, uri='table:', extra_config=',key_format=r',is_lsm=False)),
