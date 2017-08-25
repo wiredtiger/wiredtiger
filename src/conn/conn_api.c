@@ -1099,6 +1099,7 @@ err:	/*
 static int
 __conn_debug_info(WT_CONNECTION *wt_conn, const char *config)
 {
+#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
@@ -1118,7 +1119,7 @@ __conn_debug_info(WT_CONNECTION *wt_conn, const char *config)
 
 	WT_ERR(__wt_config_gets(session, cfg, "handles", &cval));
 	if (cval.val != 0)
-		WT_ERR(__wt_verbose_dump_cache(session));
+		WT_ERR(__wt_verbose_dump_handles(session));
 
 	WT_ERR(__wt_config_gets(session, cfg, "log", &cval));
 	if (cval.val != 0)
@@ -1132,7 +1133,11 @@ __conn_debug_info(WT_CONNECTION *wt_conn, const char *config)
 	if (cval.val != 0)
 		WT_ERR(__wt_verbose_dump_txn(session));
 
-err:	API_END_RET(session, ret);
+err:
+	API_END_RET(session, ret);
+#else
+	return (0);
+#endif
 }
 
 /*
