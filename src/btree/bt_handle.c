@@ -66,7 +66,6 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
 	size_t root_addr_size;
-	uint32_t mask;
 	uint8_t root_addr[WT_BTREE_MAX_ADDR_COOKIE];
 	const char *filename;
 	bool creation, forced_salvage, readonly;
@@ -75,15 +74,14 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 	dhandle = session->dhandle;
 
 	/*
-	 * This may be a re-open of an underlying object and we have to clean
-	 * up. We can't clear the operation flags, however, they're set by the
-	 * connection handle software that called us.
+	 * This may be a re-open, clean up the btree structure.
+	 * Clear the fields that don't persist across a re-open.
+	 * Clear all flags other than the operation flags (which are set by the
+	 * connection handle software that called us).
 	 */
 	WT_RET(__btree_clear(session));
-
-	mask = F_MASK(btree, WT_BTREE_SPECIAL_FLAGS);
-	memset(btree, 0, sizeof(*btree));
-	btree->flags = mask;
+	memset(btree, 0, WT_BTREE_CLEAR_SIZE);
+	F_CLR(btree, ~WT_BTREE_SPECIAL_FLAGS);
 
 	/* Set the data handle first, our called functions reasonably use it. */
 	btree->dhandle = dhandle;

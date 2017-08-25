@@ -1404,7 +1404,12 @@ retry:	while (slot < max_entries) {
 		    !F_ISSET(dhandle, WT_DHANDLE_OPEN))
 			continue;
 
-		/* Skip files that don't allow eviction. */
+		/*
+		 * Skip files that don't allow eviction. Check if eviction is
+		 * disabled before checking anything else in the btree handle,
+		 * the btree handle may be modifying/clearing fields under the
+		 * protection of eviction disabled.
+		 */
 		btree = dhandle->handle;
 		if (btree->evict_disabled > 0)
 			continue;

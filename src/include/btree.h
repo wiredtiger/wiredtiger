@@ -147,6 +147,23 @@ struct __wt_btree {
 	uint64_t    bytes_dirty_intl;	/* Bytes in dirty internal pages. */
 	uint64_t    bytes_dirty_leaf;	/* Bytes in dirty leaf pages. */
 
+	/*
+	 * We flush pages from the tree (in order to make checkpoint faster),
+	 * without a high-level lock.  To avoid multiple threads flushing at
+	 * the same time, lock the tree.
+	 */
+	WT_SPINLOCK	flush_lock;	/* Lock to flush the tree's pages */
+
+	/*
+	 * All of the following fields live at the end of the structure so it's
+	 * easier to clear everything but the fields that persist.
+	 */
+#define	WT_BTREE_CLEAR_SIZE	(offsetof(WT_BTREE, evict_ref))
+
+	/*
+	 * Eviction information is maintained in the btree handle, but owned by
+	 * eviction, not the btree code.
+	 */
 	WT_REF	   *evict_ref;		/* Eviction thread's location */
 	uint64_t    evict_priority;	/* Relative priority of cached pages */
 	u_int	    evict_walk_period;	/* Skip this many LRU walks */
@@ -158,13 +175,8 @@ struct __wt_btree {
 					   (see WT_EVICT_WALK_START). */
 
 	/*
-	 * We flush pages from the tree (in order to make checkpoint faster),
-	 * without a high-level lock.  To avoid multiple threads flushing at
-	 * the same time, lock the tree.
+	 * Flag values up to 0xff are reserved for WT_DHANDLE_XXX.
 	 */
-	WT_SPINLOCK	flush_lock;	/* Lock to flush the tree's pages */
-
-	/* Flags values up to 0xff are reserved for WT_DHANDLE_* */
 #define	WT_BTREE_ALTER		0x000100 /* Handle is for alter */
 #define	WT_BTREE_BULK		0x000200 /* Bulk-load handle */
 #define	WT_BTREE_CLOSED		0x000400 /* Handle closed */
