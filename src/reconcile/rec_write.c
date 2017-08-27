@@ -1224,7 +1224,10 @@ __rec_append_orig_value(WT_SESSION_IMPL *session,
 	WT_UPDATE *append, *upd;
 	size_t size;
 
-	/* If at least one standard update is globally visible, we're done. */
+	/*
+	 * If at least one self-contained update is globally visible, we're
+	 * done.
+	 */
 	for (upd = upd_list; upd != NULL; upd = upd->next)
 		if (WT_UPDATE_DATA_VALUE(upd) &&
 		    __wt_txn_upd_visible_all(session, upd))
@@ -1252,14 +1255,12 @@ __rec_append_orig_value(WT_SESSION_IMPL *session,
 	}
 
 	/*
-	 * Give the entry no transaction ID to ensure global visibility, append
-	 * it to the update list.
+	 * Set the entry's transaction information to the lowest possible value.
+	 * Since cleared memory matches the lowest possible transaction ID and
+	 * timestamp, do nothing.
 	 *
-	 * Note the change to the actual reader-accessible update list: from now
-	 * on, the original on-page value appears at the end of the update list,
-	 * even if this reconciliation subsequently fails.
+	 * Append the new entry to the update list.
 	 */
-	append->txnid = WT_TXN_NONE;
 	for (upd = upd_list; upd->next != NULL; upd = upd->next)
 		;
 	WT_PUBLISH(upd->next, append);
