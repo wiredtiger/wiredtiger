@@ -1522,11 +1522,12 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		/*
 		 * The save/restore eviction path.
 		 *
-		 * Clear the returned update so our caller ignores the key/value
-		 * pair in the case of an insert/append list entry (everything
-		 * we need is in the update list), and otherwise writes the
-		 * original on-page key/value pair to which the update list
-		 * applies.
+		 * Clear the returned update, it's not needed. If there's an
+		 * on-page key/value pair to which the update list applies, our
+		 * caller writes it to the disk image. If an insert/append list,
+		 * our caller can ignore the key/value pair (everything needed
+		 * is in the update list), or in the case of row-store, write
+		 * the key to the disk image to split up the insert/append list.
 		 */
 		*updp = NULL;
 
@@ -5824,32 +5825,50 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 	val = &r->v;
 
 	for (; ins != NULL; ins = WT_SKIP_NEXT(ins)) {
-		/* Look for an update, if nothing is visible, we're done. */
 		WT_RET(__rec_txn_read(session, r, ins, NULL, NULL, &upd));
-		if (upd == NULL)
-			continue;
+		if (upd == NULL) {
+			/*
+			 * Look for an update. If nothing is visible and not in
+			 * evict/restore, there's no work to do.
+			 */
+			if (!F_ISSET(r, WT_EVICT_UPDATE_RESTORE))
+				continue;
 
-		switch (upd->type) {
-		case WT_UPDATE_DELETED:
-			continue;
-		case WT_UPDATE_MODIFIED:
-			/* Impossible slot, there's no backing on-page item. */
-			cbt->slot = UINT32_MAX;
-			WT_RET(__wt_value_return(session, cbt, upd));
-			WT_RET(__rec_cell_build_val(session, r,
-			    cbt->iface.value.data,
-			    cbt->iface.value.size, (uint64_t)0));
-			break;
-		case WT_UPDATE_STANDARD:
-			if (upd->size == 0)
-				val->len = 0;
-			else
+			/*
+			 * When doing evict/restore, move the insert key to the
+			 * page, with an empty value (this allows us to split
+			 * the page if there's a huge, pinned insert list). The
+			 * on-page key must never be read, make sure there is a
+			 * globally visible update in the chain.
+			 */
+			WT_RET(__rec_append_orig_value(
+			    session, r->page, ins->upd, NULL));
+			val->len = 0;
+		} else
+			switch (upd->type) {
+			case WT_UPDATE_DELETED:
+				continue;
+			case WT_UPDATE_MODIFIED:
+				/*
+				 * Impossible slot, there's no backing on-page
+				 * item.
+				 */
+				cbt->slot = UINT32_MAX;
+				WT_RET(__wt_value_return(session, cbt, upd));
 				WT_RET(__rec_cell_build_val(session, r,
-				    upd->data, upd->size,
-				    (uint64_t)0));
-			break;
-		WT_ILLEGAL_VALUE(session);
-		}
+				    cbt->iface.value.data,
+				    cbt->iface.value.size, (uint64_t)0));
+				break;
+			case WT_UPDATE_STANDARD:
+				if (upd->size == 0)
+					val->len = 0;
+				else
+					WT_RET(__rec_cell_build_val(
+					    session, r, upd->data, upd->size,
+					    (uint64_t)0));
+				break;
+			WT_ILLEGAL_VALUE(session);
+			}
 							/* Build key cell. */
 		WT_RET(__rec_cell_build_leaf_key(session, r,
 		    WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins), &ovfl_key));
