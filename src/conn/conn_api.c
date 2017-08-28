@@ -1133,6 +1133,7 @@ __conn_debug_info(WT_CONNECTION *wt_conn, const char *config)
 	if (cval.val != 0)
 		WT_ERR(__wt_verbose_dump_txn(session));
 #else
+	WT_UNUSED(cfg);
 	WT_UNUSED(cval);
 	WT_UNUSED(ret);
 #endif
@@ -1839,6 +1840,7 @@ __wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
 	WT_CURSOR *cursor;
 	WT_SESSION_IMPL *s;
 	uint32_t i;
+	char *state;
 
 	conn = S2C(session);
 	WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
@@ -1887,12 +1889,16 @@ __wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
 				    cursor->uri == NULL ? "EMPTY" : cursor->uri,
 				    cursor->internal_uri == NULL ? "EMPTY" :
 				    cursor->internal_uri));
-				if (F_ISSET(cursor, WT_CURSTD_OPEN))
-					WT_RET(__wt_msg(session, "  OPEN"));
-				if (F_ISSET(cursor, WT_CURSTD_KEY_SET) ||
-				    F_ISSET(cursor, WT_CURSTD_VALUE_SET))
+				if (F_ISSET(cursor, WT_CURSTD_OPEN)) {
+					state = "OPEN";
+					if (F_ISSET(cursor,
+					    WT_CURSTD_KEY_SET) ||
+					    F_ISSET(cursor,
+					    WT_CURSTD_VALUE_SET))
+						state = "OPEN, POSITIONED";
 					WT_RET(__wt_msg(session,
-					    "  POSITIONED"));
+					    "  %s", state));
+				}
 				WT_RET(__wt_msg(session,
 				    "  Flags: 0x%" PRIx32, cursor->flags));
 				WT_RET(__wt_msg(session,
