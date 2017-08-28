@@ -1840,7 +1840,7 @@ __wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
 	WT_CURSOR *cursor;
 	WT_SESSION_IMPL *s;
 	uint32_t i;
-	char *state;
+	const char *state;
 
 	conn = S2C(session);
 	WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
