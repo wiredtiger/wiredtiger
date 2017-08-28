@@ -226,6 +226,15 @@ __wt_btree_close(WT_SESSION_IMPL *session)
 		return (0);
 	F_SET(btree, WT_BTREE_CLOSED);
 
+	/*
+	 * If we turned eviction off and never turned it back on, do that now,
+	 * otherwise the counter will be off.
+	 */
+	if (btree->original) {
+		btree->original = 0;
+		__wt_evict_file_exclusive_off(session);
+	}
+
 	/* Discard any underlying block manager resources. */
 	if ((bm = btree->bm) != NULL) {
 		btree->bm = NULL;
