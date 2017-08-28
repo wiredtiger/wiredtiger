@@ -1836,6 +1836,7 @@ int
 __wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
 {
 	WT_CONNECTION_IMPL *conn;
+	WT_CURSOR *cursor;
 	WT_SESSION_IMPL *s;
 	uint32_t i;
 
@@ -1852,31 +1853,55 @@ __wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
 			continue;
 		WT_ASSERT(session, i == s->id);
 		WT_RET(__wt_msg(session,
-		    "Session: %" PRIu32 " (0x%p):", i, (void *)s));
+		    "Session: ID: %" PRIu32 " @: 0x%p", i, (void *)s));
 		WT_RET(__wt_msg(session, "  Name: %s",
 		    s->name == NULL ? "EMPTY" : s->name));
-		WT_RET(__wt_msg(session, "  Last operation: %s", s->lastop));
-		WT_RET(__wt_msg(session,
-		    "  Current dhandle: %s", s->dhandle->name));
-		WT_RET(__wt_msg(session, "  Backup in progress: %s",
-		    s->bkp_cursor == NULL ? "no" : "yes"));
-		WT_RET(__wt_msg(session, "  Compact state: %s",
-		    s->compact_state == WT_COMPACT_NONE ? "none" :
-		    (s->compact_state == WT_COMPACT_RUNNING ?
-		     "running" : "success")));
-		WT_RET(__wt_msg(session, "  Flags: 0x%" PRIx32, s->flags));
-		WT_RET(__wt_msg(session, "  Isolation level: %s",
-		    s->isolation == WT_ISO_READ_COMMITTED ? "read-committed" :
-		    (s->isolation == WT_ISO_READ_UNCOMMITTED ?
-		     "read-uncommitted" : "snapshot")));
-		WT_RET(__wt_msg(session, "  Transaction: %s",
-		    s->isolation == WT_ISO_READ_COMMITTED ? "read-committed" :
-		    (s->isolation == WT_ISO_READ_UNCOMMITTED ?
-		     "read-uncommitted" : "snapshot")));
-		WT_RET(__wt_verbose_dump_txn_one(session, &s->txn));
-		if (show_cursors) {
+		if (!show_cursors) {
+			WT_RET(__wt_msg(session, "  Last operation: %s",
+			    s->lastop == NULL ? "NONE" : s->lastop));
+			WT_RET(__wt_msg(session, "  Current dhandle: %s",
+			    s->dhandle == NULL ? "NONE" : s->dhandle->name));
+			WT_RET(__wt_msg(session, "  Backup in progress: %s",
+			    s->bkp_cursor == NULL ? "no" : "yes"));
+			WT_RET(__wt_msg(session, "  Compact state: %s",
+			    s->compact_state == WT_COMPACT_NONE ? "none" :
+			    (s->compact_state == WT_COMPACT_RUNNING ?
+			     "running" : "success")));
 			WT_RET(__wt_msg(session,
-			    "  Ncursors: %u", s->ncursors));
+			    "  Flags: 0x%8" PRIx32, s->flags));
+			WT_RET(__wt_msg(session, "  Isolation level: %s",
+			    s->isolation == WT_ISO_READ_COMMITTED ?
+			    "read-committed" :
+			    (s->isolation == WT_ISO_READ_UNCOMMITTED ?
+			     "read-uncommitted" : "snapshot")));
+			WT_RET(__wt_msg(session, "  Transaction:"));
+			WT_RET(__wt_verbose_dump_txn_one(session, &s->txn));
+		} else {
+			WT_RET(__wt_msg(session,
+			    "  Number of positioned cursors: %u", s->ncursors));
+			TAILQ_FOREACH(cursor, &s->cursors, q) {
+				WT_RET(__wt_msg(session,
+				    "Cursor @ 0x%p:", (void *)cursor));
+				WT_RET(__wt_msg(session,
+				    "  URI: %s, Internal URI: %s",
+				    cursor->uri == NULL ? "EMPTY" : cursor->uri,
+				    cursor->internal_uri == NULL ? "EMPTY" :
+				    cursor->internal_uri));
+				if (F_ISSET(cursor, WT_CURSTD_OPEN))
+					WT_RET(__wt_msg(session, "  OPEN"));
+				if (F_ISSET(cursor, WT_CURSTD_KEY_SET) ||
+				    F_ISSET(cursor, WT_CURSTD_VALUE_SET))
+					WT_RET(__wt_msg(session,
+					    "  POSITIONED"));
+				WT_RET(__wt_msg(session,
+				    "  Flags: 0x%" PRIx32, cursor->flags));
+				WT_RET(__wt_msg(session,
+				    "  Key_format: %s, Value_format: %s",
+				    cursor->key_format == NULL ? "EMPTY" :
+				    cursor->key_format,
+				    cursor->value_format == NULL ? "EMPTY" :
+				    cursor->value_format));
+			}
 		}
 	}
 	return (0);

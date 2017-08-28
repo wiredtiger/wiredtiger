@@ -1036,13 +1036,11 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session)
 int
 __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn)
 {
-	WT_CONNECTION_IMPL *conn;
 #ifdef HAVE_TIMESTAMPS
 	char hex_timestamp[3][2 * WT_TIMESTAMP_SIZE + 1];
 #endif
 	const char *iso_tag;
 
-	conn = S2C(session);
 	iso_tag = "INVALID";
 	switch (txn->isolation) {
 	case WT_ISO_READ_COMMITTED:
