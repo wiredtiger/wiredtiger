@@ -228,10 +228,9 @@ __rename_table(WT_SESSION_IMPL *session,
 	F_SET(&table->iface, WT_DHANDLE_DISCARD);
 
 	/* Rename the table. */
-	WT_ERR(__metadata_rename(session, uri, newuri));
+	ret = __metadata_rename(session, uri, newuri);
 
-err:	if (table != NULL)
-		WT_TRET(__wt_schema_release_table(session, table));
+err:	WT_TRET(__wt_schema_release_table(session, table));
 	return (ret);
 }
 
