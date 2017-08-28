@@ -98,6 +98,7 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         key_range = 10000
         keys = range(1, key_range + 1)
 
+        # Set keys 1-key_range to value 1.
         for k in keys:
             self.session.begin_transaction()
             c[k] = 1
@@ -126,7 +127,7 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
             c[k] = 2
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(k + key_range))
 
-        # Now we should have: keys 1-100 with value 2
+        # Now we should have: keys 1-key_range with value 2
         self.check(self.session, 'read_timestamp=' + timestamp_str(2 * key_range),
             dict((k, 2) for k in keys[:]))
 
@@ -134,8 +135,8 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(1 + key_range + key_range / 4))
         self.conn.rollback_to_stable()
 
-        # There should be 50 keys, the first half of which have a value of 2, the
-        # second half have a value of 1
+        # There should be key_range / 2 keys, (key_range / 4 + 1) of which have value 2,
+        # and the remainder which have a value of 1.
         self.check(self.session, 'read_timestamp=' + timestamp_str(2 * key_range),
             dict((k, (2 if j <= (key_range / 4) else 1))
             for j, k in enumerate(keys[:(key_range / 2)])))
