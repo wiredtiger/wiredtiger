@@ -5841,7 +5841,17 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 			 * the page if there's a huge, pinned insert list). The
 			 * on-page key must never be read, make sure there is a
 			 * globally visible update in the chain.
+			 *
+			 * __rec_txn_read also returns a NULL update when all of
+			 * the updates were aborted, without saving the update
+			 * list to the evict/restore array, so we can't append
+			 * a delete update. Ugly, but the alternative is another
+			 * parameter to __rec_txn_read.
 			 */
+			if (r->supd_next == 0 ||
+			    r->supd[r->supd_next - 1].ins != ins)
+				continue;
+
 			WT_RET(__rec_append_orig_value(
 			    session, r->page, ins->upd, NULL));
 			val->len = 0;
