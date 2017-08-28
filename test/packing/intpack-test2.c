@@ -36,6 +36,8 @@ main(void)
 	int64_t i;
 	size_t used_len;
 
+	memset(buf, 0xff, sizeof(buf));	/* -Werror=maybe-uninitialized */
+
 	for (i = 1; i < 1LL << 60; i <<= 1) {
 		end = buf;
 		testutil_check(

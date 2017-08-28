@@ -41,9 +41,10 @@ test_value(int64_t val)
 	uint64_t uinput, uoutput;
 	size_t used_len;
 
-	soutput = 0;	/* -Werror=maybe-uninitialized */
+	memset(buf, 0xff, sizeof(buf));	/* -Werror=maybe-uninitialized */
 	sinput = val;
-	soutput = 0;	/* Make GCC happy. */
+	soutput = 0;	/* -Werror=maybe-uninitialized */
+
 	p = buf;
 	testutil_check(__wt_vpack_int(&p, sizeof(buf), sinput));
 	used_len = (size_t)(p - buf);
