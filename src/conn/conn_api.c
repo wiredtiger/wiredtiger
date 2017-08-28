@@ -1099,7 +1099,6 @@ err:	/*
 static int
 __conn_debug_info(WT_CONNECTION *wt_conn, const char *config)
 {
-#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
@@ -1109,13 +1108,14 @@ __conn_debug_info(WT_CONNECTION *wt_conn, const char *config)
 
 	CONNECTION_API_CALL(conn, session, debug_info, config, cfg);
 
+#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
 	WT_ERR(__wt_config_gets(session, cfg, "cache", &cval));
 	if (cval.val != 0)
 		WT_ERR(__wt_verbose_dump_cache(session));
 
 	WT_ERR(__wt_config_gets(session, cfg, "cursors", &cval));
 	if (cval.val != 0)
-		WT_ERR(__wt_verbose_dump_cache(session));
+		WT_ERR(__wt_verbose_dump_sessions(session, true));
 
 	WT_ERR(__wt_config_gets(session, cfg, "handles", &cval));
 	if (cval.val != 0)
@@ -1127,17 +1127,17 @@ __conn_debug_info(WT_CONNECTION *wt_conn, const char *config)
 
 	WT_ERR(__wt_config_gets(session, cfg, "sessions", &cval));
 	if (cval.val != 0)
-		WT_ERR(__wt_verbose_dump_cache(session));
+		WT_ERR(__wt_verbose_dump_sessions(session, false));
 
 	WT_ERR(__wt_config_gets(session, cfg, "txn", &cval));
 	if (cval.val != 0)
 		WT_ERR(__wt_verbose_dump_txn(session));
-
+#else
+	WT_UNUSED(cval);
+	WT_UNUSED(ret);
+#endif
 err:
 	API_END_RET(session, ret);
-#else
-	return (0);
-#endif
 }
 
 /*
@@ -1826,6 +1826,62 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 	conn->verbose = flags;
 	return (0);
 }
+
+#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
+/*
+ * __wt_verbose_dump_sessions --
+ *	Print out debugging information about sessions.
+ */
+int
+__wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_SESSION_IMPL *s;
+	uint32_t i;
+
+	conn = S2C(session);
+	WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
+	WT_RET(__wt_msg(session, "Active sessions: %" PRIu32 " Max: %" PRIu32,
+	    conn->session_cnt, conn->session_size));
+	for (s = conn->sessions, i = 0; i < conn->session_cnt; ++s, ++i) {
+		/*
+		 * If it is not active or it is an internal session
+		 * it is not interesting.
+		 */
+		if (!s->active || F_ISSET(s, WT_SESSION_INTERNAL))
+			continue;
+		WT_ASSERT(session, i == s->id);
+		WT_RET(__wt_msg(session,
+		    "Session: %" PRIu32 " (0x%p):", i, (void *)s));
+		WT_RET(__wt_msg(session, "  Name: %s",
+		    s->name == NULL ? "EMPTY" : s->name));
+		WT_RET(__wt_msg(session, "  Last operation: %s", s->lastop));
+		WT_RET(__wt_msg(session,
+		    "  Current dhandle: %s", s->dhandle->name));
+		WT_RET(__wt_msg(session, "  Backup in progress: %s",
+		    s->bkp_cursor == NULL ? "no" : "yes"));
+		WT_RET(__wt_msg(session, "  Compact state: %s",
+		    s->compact_state == WT_COMPACT_NONE ? "none" :
+		    (s->compact_state == WT_COMPACT_RUNNING ?
+		     "running" : "success")));
+		WT_RET(__wt_msg(session, "  Flags: 0x%" PRIx32, s->flags));
+		WT_RET(__wt_msg(session, "  Isolation level: %s",
+		    s->isolation == WT_ISO_READ_COMMITTED ? "read-committed" :
+		    (s->isolation == WT_ISO_READ_UNCOMMITTED ?
+		     "read-uncommitted" : "snapshot")));
+		WT_RET(__wt_msg(session, "  Transaction: %s",
+		    s->isolation == WT_ISO_READ_COMMITTED ? "read-committed" :
+		    (s->isolation == WT_ISO_READ_UNCOMMITTED ?
+		     "read-uncommitted" : "snapshot")));
+		WT_RET(__wt_verbose_dump_txn_one(session, &s->txn));
+		if (show_cursors) {
+			WT_RET(__wt_msg(session,
+			    "  Ncursors: %u", s->ncursors));
+		}
+	}
+	return (0);
+}
+#endif
 
 /*
  * __wt_timing_stress_config --
