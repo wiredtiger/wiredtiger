@@ -86,7 +86,6 @@ __wt_log_recover_system(WT_SESSION_IMPL *session,
 	return (0);
 }
 
-#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
 /*
  * __wt_verbose_dump_log --
  *	Dump information about the logging subsystem.
@@ -147,4 +146,3 @@ __wt_verbose_dump_log(WT_SESSION_IMPL *session)
 
 	return (0);
 }
-#endif

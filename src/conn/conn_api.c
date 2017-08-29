@@ -1108,7 +1108,6 @@ __conn_debug_info(WT_CONNECTION *wt_conn, const char *config)
 
 	CONNECTION_API_CALL(conn, session, debug_info, config, cfg);
 
-#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
 	WT_ERR(__wt_config_gets(session, cfg, "cache", &cval));
 	if (cval.val != 0)
 		WT_ERR(__wt_verbose_dump_cache(session));
@@ -1132,11 +1131,6 @@ __conn_debug_info(WT_CONNECTION *wt_conn, const char *config)
 	WT_ERR(__wt_config_gets(session, cfg, "txn", &cval));
 	if (cval.val != 0)
 		WT_ERR(__wt_verbose_dump_txn(session));
-#else
-	WT_UNUSED(cfg);
-	WT_UNUSED(cval);
-	WT_UNUSED(ret);
-#endif
 err:
 	API_END_RET(session, ret);
 }
@@ -1828,7 +1822,6 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 	return (0);
 }
 
-#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
 /*
  * __wt_verbose_dump_sessions --
  *	Print out debugging information about sessions.
@@ -1912,7 +1905,6 @@ __wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
 	}
 	return (0);
 }
-#endif
 
 /*
  * __wt_timing_stress_config --

@@ -1028,7 +1028,6 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session)
 	return (0);
 }
 
-#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
 /*
  * __wt_verbose_dump_txn_one --
  *	Output diagnostic information about a transaction structure.
@@ -1189,4 +1188,3 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 
 	return (0);
 }
-#endif

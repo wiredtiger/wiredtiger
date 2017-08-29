@@ -811,7 +811,6 @@ restart:
 	return (ret);
 }
 
-#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
 /*
  * __wt_verbose_dump_handles --
  *	Dump information about all data handles.
@@ -851,4 +850,3 @@ __wt_verbose_dump_handles(WT_SESSION_IMPL *session)
 	WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
 	return (0);
 }
-#endif

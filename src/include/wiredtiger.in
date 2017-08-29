@@ -1980,10 +1980,12 @@ struct __wt_connection {
 	int __F(close)(WT_HANDLE_CLOSED(WT_CONNECTION) *connection,
 	    const char *config);
 
+#ifndef DOXYGEN
 	/*!
-	 * Print debug information.
-	 *
-	 * @snippet ex_all.c Print debug information about the system
+	 * Output debug information for various subsystems. The output format
+	 * may change over time, gathering the debug information may be
+	 * invasive, and the information reported may not provide a point in
+	 * time view of the system.
 	 *
 	 * @param connection the connection handle
 	 * @configstart{WT_CONNECTION.debug_info, see dist/api_data.py}
@@ -2003,6 +2005,7 @@ struct __wt_connection {
 	 * @errors
 	 */
 	int __F(debug_info)(WT_CONNECTION *connection, const char *config);
+#endif
 
 	/*!
 	 * Reconfigure a connection handle.
