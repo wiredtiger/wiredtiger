@@ -441,15 +441,13 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 	if (cval.len > 0) {
 #ifdef HAVE_TIMESTAMPS
 		WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
-		wt_timestamp_t oldest_timestamp, stable_timestamp;
+		wt_timestamp_t oldest_timestamp;
 
 		WT_RET(__wt_txn_parse_timestamp(
 		    session, "read", &txn->read_timestamp, &cval));
 		WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
 		    __wt_timestamp_set(
-			&oldest_timestamp, &txn_global->oldest_timestamp);
-		    __wt_timestamp_set(
-			&stable_timestamp, &txn_global->stable_timestamp));
+			&oldest_timestamp, &txn_global->oldest_timestamp));
 		if (__wt_timestamp_cmp(
 		    &txn->read_timestamp, &oldest_timestamp) < 0)
 			WT_RET_MSG(session, EINVAL,
@@ -592,8 +590,29 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	    __wt_config_gets_def(session, cfg, "commit_timestamp", 0, &cval));
 	if (cval.len != 0) {
 #ifdef HAVE_TIMESTAMPS
-		WT_ERR(__wt_txn_parse_timestamp(
-		    session, "commit", &txn->commit_timestamp, &cval));
+		wt_timestamp_t ts;
+
+		WT_ERR(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
+		/*
+		 * commit timestamp being set should be newer than the oldest
+		 * timestamp and should move forward in a transaction
+		 */
+		__wt_readlock(session, &txn_global->rwlock);
+		if (txn_global->has_oldest_timestamp && __wt_timestamp_cmp(&ts,
+		    &txn_global->oldest_timestamp) < 0) {
+			__wt_readunlock(session, &txn_global->rwlock);
+			WT_ERR_MSG(session, EINVAL,
+			    "commit timestamp %.*s older than oldest timestamp",
+			    (int)cval.len, cval.str);
+		}
+		__wt_readunlock(session, &txn_global->rwlock);
+		if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
+		    __wt_timestamp_cmp(&ts, &txn->commit_timestamp) < 0)
+			WT_ERR_MSG(session, EINVAL,
+			    "commit timestamp %.*s older than the current "
+			    "commit timestamp set for this transaction",
+			    (int)cval.len, cval.str);
+		__wt_timestamp_set(&txn->commit_timestamp, &ts);
 		__wt_txn_set_commit_timestamp(session);
 #else
 		WT_ERR_MSG(session, EINVAL, "commit_timestamp requires a "

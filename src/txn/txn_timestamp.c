@@ -209,7 +209,12 @@ __txn_global_query_timestamp(
 			WT_ASSERT(session, !__wt_timestamp_iszero(&ts));
 		}
 		__wt_readunlock(session, &txn_global->commit_timestamp_rwlock);
-	} else if (WT_STRING_MATCH("oldest_reader", cval.str, cval.len)) {
+	} else if (WT_STRING_MATCH("oldest", cval.str, cval.len)) {
+		if (!txn_global->has_oldest_timestamp)
+			return (WT_NOTFOUND);
+		WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
+		    __wt_timestamp_set(&ts, &txn_global->oldest_timestamp));
+	} else if (WT_STRING_MATCH("pinned", cval.str, cval.len)) {
 		if (!txn_global->has_oldest_timestamp)
 			return (WT_NOTFOUND);
 		__wt_readlock(session, &txn_global->rwlock);
@@ -279,7 +284,7 @@ __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session)
 	WT_TXN_GLOBAL *txn_global;
 	wt_timestamp_t active_timestamp, oldest_timestamp, pinned_timestamp;
 	const char *query_cfg[] = { WT_CONFIG_BASE(session,
-	    WT_CONNECTION_query_timestamp), "get=oldest_reader", NULL };
+	    WT_CONNECTION_query_timestamp), "get=pinned", NULL };
 
 	txn_global = &S2C(session)->txn_global;
 
@@ -476,13 +481,35 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	if (ret == 0 && cval.len != 0) {
 #ifdef HAVE_TIMESTAMPS
 		WT_TXN *txn = &session->txn;
+		WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
+		wt_timestamp_t ts;
 
 		if (!F_ISSET(txn, WT_TXN_RUNNING))
 			WT_RET_MSG(session, EINVAL,
 			    "Transaction must be running "
 			    "to set a commit_timestamp");
-		WT_RET(__wt_txn_parse_timestamp(
-		    session, "commit", &txn->commit_timestamp, &cval));
+		WT_RET(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
+
+		/*
+		 * commit timestamp being set should be newer than the oldest
+		 * timestamp and should move forward in a transaction
+		 */
+		__wt_readlock(session, &txn_global->rwlock);
+		if (txn_global->has_oldest_timestamp && __wt_timestamp_cmp(&ts,
+		    &txn_global->oldest_timestamp) < 0) {
+			__wt_readunlock(session, &txn_global->rwlock);
+			WT_RET_MSG(session, EINVAL,
+			    "commit timestamp %.*s older than oldest timestamp",
+			    (int)cval.len, cval.str);
+		}
+		__wt_readunlock(session, &txn_global->rwlock);
+		if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
+		    __wt_timestamp_cmp(&ts, &txn->commit_timestamp) < 0)
+			WT_RET_MSG(session, EINVAL,
+			    "commit timestamp %.*s older than the current "
+			    "commit timestamp set for this transaction",
+			    (int)cval.len, cval.str);
+		__wt_timestamp_set(&txn->commit_timestamp, &ts);
 		__wt_txn_set_commit_timestamp(session);
 #else
 		WT_RET_MSG(session, ENOTSUP, "commit_timestamp requires a "
