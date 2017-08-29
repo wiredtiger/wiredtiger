@@ -1441,7 +1441,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 */
 		WT_ASSERT(session, *updp == NULL ||
 		    (*updp)->txnid !=
-		    S2C(session)->txn_global.checkpoint_state.id ||
+		    S2C(session)->txn_global.checkpoint_txn_id ||
 		    WT_SESSION_IS_CHECKPOINT(session));
 
 		goto check_original_value;

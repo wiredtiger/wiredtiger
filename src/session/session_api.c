@@ -66,9 +66,9 @@ __wt_session_copy_values(WT_SESSION_IMPL *session)
 			 * We have to do this with a transaction ID pinned
 			 * unless the cursor is reading from a checkpoint.
 			 */
-			WT_TXN_STATE *txn_state = WT_SESSION_TXN_STATE(session);
+			WT_TXN *txn = &session->txn;
 			WT_ASSERT(session,
-			    txn_state->pinned_id != WT_TXN_NONE ||
+			    txn->pinned_id != WT_TXN_NONE ||
 			    (WT_PREFIX_MATCH(cursor->uri, "file:") &&
 			    F_ISSET((WT_CURSOR_BTREE *)cursor, WT_CBT_NO_TXN)));
 #endif
@@ -161,8 +161,7 @@ __session_close(WT_SESSION *wt_session, const char *config)
 	 * Also release any pinned transaction ID from a non-transactional
 	 * operation.
 	 */
-	if (conn->txn_global.states != NULL)
-		__wt_txn_release_snapshot(session);
+	__wt_txn_release_snapshot(session);
 
 	/* Close all open cursors. */
 	WT_TAILQ_SAFE_REMOVE_BEGIN(cursor, &session->cursors, q, cursor_tmp) {
@@ -1505,20 +1504,18 @@ __session_transaction_pinned_range(WT_SESSION *wt_session, uint64_t *prange)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	WT_TXN_STATE *txn_state;
+	WT_TXN *txn;
 	uint64_t pinned;
 
 	session = (WT_SESSION_IMPL *)wt_session;
+	txn = &session->txn;
+
 	SESSION_API_CALL_NOCONF(session, pinned_range);
 
-	txn_state = WT_SESSION_TXN_STATE(session);
-
 	/* Assign pinned to the lesser of id or snap_min */
-	if (txn_state->id != WT_TXN_NONE &&
-	    WT_TXNID_LT(txn_state->id, txn_state->pinned_id))
-		pinned = txn_state->id;
-	else
-		pinned = txn_state->pinned_id;
+	pinned = txn->pinned_id;
+	if (F_ISSET(txn, WT_TXN_HAS_ID) && WT_TXNID_LT(txn->id, pinned))
+		pinned = txn->id;
 
 	if (pinned == WT_TXN_NONE)
 		*prange = 0;

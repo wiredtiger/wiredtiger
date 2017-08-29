@@ -276,7 +276,7 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
 	 * the active checkpoint then it's safe to ignore the checkpoint ID in
 	 * the visibility check.
 	 */
-	checkpoint_pinned = txn_global->checkpoint_state.pinned_id;
+	checkpoint_pinned = txn_global->checkpoint_pinned_id;
 	if (checkpoint_pinned == WT_TXN_NONE ||
 	    WT_TXNID_LT(oldest_id, checkpoint_pinned))
 		return (oldest_id);
@@ -490,6 +490,8 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
 		if (session->ncursors > 0)
 			WT_RET(__wt_session_copy_values(session));
 
+		__wt_txn_release_snapshot(session);
+
 		/*
 		 * We're about to allocate a snapshot: if we need to block for
 		 * eviction, it's better to do it beforehand.
@@ -532,17 +534,15 @@ static inline int
 __wt_txn_idle_cache_check(WT_SESSION_IMPL *session)
 {
 	WT_TXN *txn;
-	WT_TXN_STATE *txn_state;
 
 	txn = &session->txn;
-	txn_state = WT_SESSION_TXN_STATE(session);
 
 	/*
 	 * Check the published snap_min because read-uncommitted never sets
 	 * WT_TXN_HAS_SNAPSHOT.
 	 */
 	if (F_ISSET(txn, WT_TXN_RUNNING) &&
-	    !F_ISSET(txn, WT_TXN_HAS_ID) && txn_state->pinned_id == WT_TXN_NONE)
+	    !F_ISSET(txn, WT_TXN_PUBLIC_ID | WT_TXN_PUBLIC_PINNED_ID))
 		WT_RET(__wt_cache_eviction_check(session, false, NULL));
 
 	return (0);
@@ -555,12 +555,12 @@ __wt_txn_idle_cache_check(WT_SESSION_IMPL *session)
 static inline uint64_t
 __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
 {
+	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
-	WT_TXN_STATE *txn_state;
 	uint64_t id;
 
+	txn = &session->txn;
 	txn_global = &S2C(session)->txn_global;
-	txn_state = WT_SESSION_TXN_STATE(session);
 
 	/*
 	 * Allocating transaction IDs involves several steps.
@@ -584,12 +584,13 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
 	 * for unlocked reads to be well defined, we must use an atomic
 	 * increment here.
 	 */
-	__wt_spin_lock(session, &txn_global->id_lock);
+	__wt_writelock(session, &txn_global->id_rwlock);
 	id = txn_global->current;
 
 	if (publish) {
-		session->txn.id = id;
-		WT_PUBLISH(txn_state->id, id);
+		txn->id = id;
+		F_SET(txn, WT_TXN_HAS_ID);
+		__wt_txn_publish_id(session);
 	}
 
 	/*
@@ -598,7 +599,7 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
 	 * reads to be well defined, we must use an atomic increment here.
 	 */
 	(void)__wt_atomic_addv64(&txn_global->current, 1);
-	__wt_spin_unlock(session, &txn_global->id_lock);
+	__wt_writeunlock(session, &txn_global->id_rwlock);
 	return (id);
 }
 
@@ -629,7 +630,6 @@ __wt_txn_id_check(WT_SESSION_IMPL *session)
 	 */
 	if (txn->id == WT_TXN_ABORTED)
 		WT_RET_MSG(session, WT_ERROR, "out of transaction IDs");
-	F_SET(txn, WT_TXN_HAS_ID);
 
 	return (0);
 }
@@ -671,7 +671,7 @@ __wt_txn_read_last(WT_SESSION_IMPL *session)
 	txn = &session->txn;
 
 	/*
-	 * Release the snap_min ID we put in the global table.
+	 * Release the pinned ID we published.
 	 *
 	 * If the isolation has been temporarily forced, don't touch the
 	 * snapshot here: it will be restored by WT_WITH_TXN_ISOLATION.
@@ -690,11 +690,9 @@ __wt_txn_cursor_op(WT_SESSION_IMPL *session)
 {
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
-	WT_TXN_STATE *txn_state;
 
 	txn = &session->txn;
 	txn_global = &S2C(session)->txn_global;
-	txn_state = WT_SESSION_TXN_STATE(session);
 
 	/*
 	 * We are about to read data, which means we need to protect against
@@ -714,41 +712,40 @@ __wt_txn_cursor_op(WT_SESSION_IMPL *session)
 	 * positioned on a value, it can't be freed.
 	 */
 	if (txn->isolation == WT_ISO_READ_UNCOMMITTED) {
-		if (txn_state->pinned_id == WT_TXN_NONE)
-			txn_state->pinned_id = txn_global->last_running;
-		if (txn_state->metadata_pinned == WT_TXN_NONE)
-			txn_state->metadata_pinned = txn_state->pinned_id;
+		if (txn->pinned_id == WT_TXN_NONE) {
+			txn->pinned_id = txn_global->last_running;
+			__wt_txn_publish_pinned_id(session);
+		}
+		if (txn->metadata_pinned == WT_TXN_NONE) {
+			txn->metadata_pinned = txn->pinned_id;
+			__wt_txn_publish_metadata_pinned(session);
+		}
 	} else if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
 		__wt_txn_get_snapshot(session);
 }
 
 /*
- * __wt_txn_am_oldest --
+ * __wt_txn_is_oldest --
  *	Am I the oldest transaction in the system?
  */
 static inline bool
-__wt_txn_am_oldest(WT_SESSION_IMPL *session)
+__wt_txn_is_oldest(WT_SESSION_IMPL *session)
 {
-	WT_CONNECTION_IMPL *conn;
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
-	WT_TXN_STATE *s;
-	uint64_t id;
-	uint32_t i, session_cnt;
+	bool is_oldest;
 
-	conn = S2C(session);
 	txn = &session->txn;
-	txn_global = &conn->txn_global;
+	txn_global = &S2C(session)->txn_global;
 
-	if (txn->id == WT_TXN_NONE)
+	if (!F_ISSET(txn, WT_TXN_PUBLIC_ID))
 		return (false);
 
-	WT_ORDERED_READ(session_cnt, conn->session_cnt);
-	for (i = 0, s = txn_global->states; i < session_cnt; i++, s++)
-		if ((id = s->id) != WT_TXN_NONE && WT_TXNID_LT(id, txn->id))
-			return (false);
+	__wt_readlock(session, &txn_global->id_rwlock);
+	is_oldest = TAILQ_FIRST(&txn_global->idh) == txn;
+	__wt_readunlock(session, &txn_global->id_rwlock);
 
-	return (true);
+	return (is_oldest);
 }
 
 /*

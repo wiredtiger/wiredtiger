@@ -46,6 +46,8 @@
 	((const uint8_t *)(p) + (len) <= (const uint8_t *)(begin) + (maxlen)))
 #define	WT_PTR_IN_RANGE(p, begin, maxlen)				\
 	WT_BLOCK_FITS((p), 1, (begin), (maxlen))
+#define	WT_STRUCT_FROM_FIELD(type, p, field)				\
+	(type *)((uint8_t *)(void *)(p) - offsetof(WT_SESSION_IMPL, field))
 
 /*
  * Align an unsigned value of any type to a specified power-of-2, including the

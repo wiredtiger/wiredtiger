@@ -68,7 +68,6 @@ __wt_verify_build(void)
 	    sizeof(s) > WT_CACHE_LINE_ALIGNMENT ||			\
 	    sizeof(s) % WT_CACHE_LINE_ALIGNMENT == 0)
 	WT_PADDING_CHECK(WT_LOGSLOT);
-	WT_PADDING_CHECK(WT_TXN_STATE);
 
 	/*
 	 * The btree code encodes key/value pairs in size_t's, and requires at

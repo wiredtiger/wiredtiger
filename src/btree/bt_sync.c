@@ -84,7 +84,7 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 	btree = S2BT(session);
 	walk = NULL;
 	txn = &session->txn;
-	saved_pinned_id = WT_SESSION_TXN_STATE(session)->pinned_id;
+	saved_pinned_id = txn->pinned_id;
 	flags = WT_READ_CACHE | WT_READ_NO_GEN;
 
 	internal_bytes = leaf_bytes = 0;
