@@ -52,6 +52,7 @@
 	    saved_metadata_pinned == WT_TXN_NONE) &&			\
 	    ((s)->txn.pinned_id == saved_pinned_id ||			\
 	    saved_pinned_id == WT_TXN_NONE));				\
+	WT_UNUSED(saved_id);						\
 	if (saved_metadata_pinned == WT_TXN_NONE)                       \
 		__wt_txn_clear_metadata_pinned(session);                \
 	else                                                            \
