@@ -37,6 +37,7 @@ __lsm_tree_discard_state(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 		if ((chunk = lsm_tree->chunk[i]) == NULL)
 			continue;
 
+		__wt_spin_destroy(session, &chunk->timestamp_spinlock);
 		__wt_free(session, chunk->bloom_uri);
 		__wt_free(session, chunk->uri);
 		__wt_free(session, chunk);
@@ -46,6 +47,7 @@ __lsm_tree_discard_state(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 		chunk = lsm_tree->old_chunks[i];
 		WT_ASSERT(session, chunk != NULL);
 
+		__wt_spin_destroy(session, &chunk->timestamp_spinlock);
 		__wt_free(session, chunk->bloom_uri);
 		__wt_free(session, chunk->uri);
 		__wt_free(session, chunk);
@@ -303,6 +305,8 @@ __wt_lsm_tree_setup_chunk(
 	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SCHEMA));
 	__wt_epoch(session, &chunk->create_time);
 
+	WT_RET(__wt_spin_init(session,
+	    &chunk->timestamp_spinlock, "LSM chunk timestamp"));
 	WT_RET(__wt_lsm_tree_chunk_name(
 	    session, lsm_tree, chunk->id, chunk->generation, &chunk->uri));
 
@@ -497,8 +501,7 @@ __lsm_tree_open(WT_SESSION_IMPL *session,
 	    F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST_WRITE));
 
 	/* Start the LSM manager thread if it isn't running. */
-	if (__wt_atomic_cas32(&conn->lsm_manager.lsm_workers, 0, 1))
-		WT_RET(__wt_lsm_manager_start(session));
+	WT_RET(__wt_lsm_manager_start(session));
 
 	/* Make sure no one beat us to it. */
 	if ((ret = __lsm_tree_find(

@@ -23,7 +23,6 @@ flags = {
     ],
     'page_read' : [
         'READ_CACHE',
-        'READ_COMPACT',
         'READ_NOTFOUND_OK',
         'READ_NO_EMPTY',
         'READ_NO_EVICT',
@@ -88,6 +87,7 @@ flags = {
         'VERB_SPLIT',
         'VERB_TEMPORARY',
         'VERB_THREAD_GROUP',
+        'VERB_TIMESTAMP',
         'VERB_TRANSACTION',
         'VERB_VERIFY',
         'VERB_VERSION',

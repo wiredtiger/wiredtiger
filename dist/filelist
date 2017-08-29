@@ -72,6 +72,7 @@ src/conn/conn_dhandle.c
 src/conn/conn_handle.c
 src/conn/conn_log.c
 src/conn/conn_open.c
+src/conn/conn_reconfig.c
 src/conn/conn_stat.c
 src/conn/conn_sweep.c
 src/cursor/cur_backup.c
@@ -201,4 +202,5 @@ src/txn/txn_ext.c
 src/txn/txn_log.c
 src/txn/txn_nsnap.c
 src/txn/txn_recover.c
+src/txn/txn_rollback_to_stable.c
 src/txn/txn_timestamp.c

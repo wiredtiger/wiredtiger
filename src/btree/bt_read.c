@@ -81,12 +81,22 @@ err:	/*
  */
 static int
 __col_instantiate(WT_SESSION_IMPL *session,
-    uint64_t recno, WT_REF *ref, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
+    uint64_t recno, WT_REF *ref, WT_CURSOR_BTREE *cbt, WT_UPDATE *updlist)
 {
+	WT_PAGE *page;
+	WT_UPDATE *upd;
+
+	page = ref->page;
+
+	/* Discard any of the updates we don't need. */
+	if (updlist->next != NULL &&
+	    (upd = __wt_update_obsolete_check(session, page, updlist)) != NULL)
+		__wt_update_obsolete_free(session, page, upd);
+
 	/* Search the page and add updates. */
 	WT_RET(__wt_col_search(session, recno, ref, cbt));
 	WT_RET(__wt_col_modify(
-	    session, cbt, recno, NULL, upd, upd->type, false));
+	    session, cbt, recno, NULL, updlist, WT_UPDATE_INVALID, false));
 	return (0);
 }
 
@@ -96,11 +106,22 @@ __col_instantiate(WT_SESSION_IMPL *session,
  */
 static int
 __row_instantiate(WT_SESSION_IMPL *session,
-    WT_ITEM *key, WT_REF *ref, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
+    WT_ITEM *key, WT_REF *ref, WT_CURSOR_BTREE *cbt, WT_UPDATE *updlist)
 {
+	WT_PAGE *page;
+	WT_UPDATE *upd;
+
+	page = ref->page;
+
+	/* Discard any of the updates we don't need. */
+	if (updlist->next != NULL &&
+	    (upd = __wt_update_obsolete_check(session, page, updlist)) != NULL)
+		__wt_update_obsolete_free(session, page, upd);
+
 	/* Search the page and add updates. */
 	WT_RET(__wt_row_search(session, key, ref, cbt, true));
-	WT_RET(__wt_row_modify(session, cbt, key, NULL, upd, upd->type, false));
+	WT_RET(__wt_row_modify(
+	    session, cbt, key, NULL, updlist, WT_UPDATE_INVALID, false));
 	return (0);
 }
 
@@ -115,8 +136,9 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 	WT_CURSOR *cursor;
 	WT_CURSOR_BTREE cbt;
 	WT_DECL_ITEM(current_key);
-	WT_ITEM las_addr, las_key, las_timestamp, las_value;
 	WT_DECL_RET;
+	WT_DECL_TIMESTAMP(timestamp)
+	WT_ITEM las_addr, las_key, las_timestamp, las_value;
 	WT_PAGE *page;
 	WT_UPDATE *first_upd, *last_upd, *upd;
 	size_t incr, total_incr;
@@ -133,7 +155,6 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 	current_recno = recno = WT_RECNO_OOB;
 	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
 	WT_CLEAR(las_key);
-	WT_CLEAR(las_timestamp);
 
 	__wt_btcur_init(session, &cbt);
 	__wt_btcur_open(&cbt);
@@ -155,6 +176,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 	 */
 	las_addr.data = addr;
 	las_addr.size = addr_size;
+	las_timestamp.size = 0;
 	cursor->set_key(cursor, read_id, &las_addr,
 	    (uint64_t)0, (uint32_t)0, &las_timestamp, &las_key);
 	if ((ret = cursor->search_near(cursor, &exact)) == 0 && exact < 0)
@@ -174,13 +196,16 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 
 		/*
 		 * If the on-page value has become globally visible, this record
-		 * is no longer needed.  We clear the las_timestamp structure
-		 * above to avoid reading uninitialized memory here when
-		 * timestamps are disabled (even though it is unused in that
-		 * case).
+		 * is no longer needed.
+		 *
+		 * Copy the timestamp from the cursor to avoid unaligned reads.
 		 */
+#ifdef HAVE_TIMESTAMPS
+		WT_ASSERT(session, las_timestamp.size == WT_TIMESTAMP_SIZE);
+		memcpy(&timestamp, las_timestamp.data, las_timestamp.size);
+#endif
 		if (__wt_txn_visible_all(
-		    session, las_txnid, las_timestamp.data))
+		    session, las_txnid, WT_TIMESTAMP_NULL(&timestamp)))
 			continue;
 
 		/* Allocate the WT_UPDATE structure. */
@@ -192,7 +217,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 		upd->txnid = upd_txnid;
 #ifdef HAVE_TIMESTAMPS
 		WT_ASSERT(session, las_timestamp.size == WT_TIMESTAMP_SIZE);
-		__wt_timestamp_set(&upd->timestamp, las_timestamp.data);
+		memcpy(&upd->timestamp, las_timestamp.data, las_timestamp.size);
 #endif
 
 		switch (page->type) {
