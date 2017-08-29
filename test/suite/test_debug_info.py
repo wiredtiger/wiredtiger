@@ -51,7 +51,6 @@ class test_debug_info(wttest.WiredTigerTestCase):
         self.conn.debug_info('cursors')
         c.close()
 
-
     def test_debug(self):
         with self.expectedStdoutPattern('Data handle dump'):
             self.conn.debug_info('handles')
@@ -61,12 +60,12 @@ class test_debug_info(wttest.WiredTigerTestCase):
 
         with self.expectedStdoutPattern('POSITIONED'):
             self.conn_cursors()
-            
+
         special = ['backup:', 'log:', 'metadata:', 'statistics:']
         for s in special:
             pat = 'URI: ' + s
             with self.expectedStdoutPattern(pat):
                 self.conn_cursors_special(s)
-            
+
 if __name__ == '__main__':
     wttest.run()
