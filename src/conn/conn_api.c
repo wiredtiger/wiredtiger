@@ -1834,20 +1834,25 @@ __wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
 	WT_SESSION_IMPL *s;
-	uint32_t i;
+	uint32_t i, internal;
 
 	conn = S2C(session);
 	WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
 	WT_RET(__wt_msg(session, "Active sessions: %" PRIu32 " Max: %" PRIu32,
 	    conn->session_cnt, conn->session_size));
 	WT_RET(__wt_scr_alloc(session, 0, &buf));
+	internal = 0;
 	for (s = conn->sessions, i = 0; i < conn->session_cnt; ++s, ++i) {
 		/*
 		 * If it is not active or it is an internal session
 		 * it is not interesting.
 		 */
-		if (!s->active || F_ISSET(s, WT_SESSION_INTERNAL))
+		if (!s->active)
 			continue;
+		if (F_ISSET(s, WT_SESSION_INTERNAL)) {
+			++internal;
+			continue;
+		}
 		WT_ASSERT(session, i == s->id);
 		WT_ERR(__wt_msg(session,
 		    "Session: ID: %" PRIu32 " @: 0x%p", i, (void *)s));
@@ -1924,6 +1929,9 @@ __wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
 			}
 		}
 	}
+	if (!show_cursors)
+		WT_RET(__wt_msg(session,
+		    "Internal sessions: %" PRIu32, internal));
 err:	__wt_scr_free(session, &buf);
 	return (ret);
 }
