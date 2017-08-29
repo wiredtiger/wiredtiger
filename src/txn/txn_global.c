@@ -182,7 +182,6 @@ __txn_oldest_scan(WT_SESSION_IMPL *session,
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 	uint64_t id, last_running, metadata_pinned, oldest_id;
-	uint32_t i, session_cnt;
 
 	conn = S2C(session);
 	txn_global = &conn->txn_global;
@@ -373,7 +372,6 @@ __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_TXN_GLOBAL *txn_global;
-	u_int i;
 
 	WT_UNUSED(cfg);
 	conn = S2C(session);
