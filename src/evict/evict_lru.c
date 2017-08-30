@@ -1934,6 +1934,10 @@ fast:		/* If the page can't be evicted, give up. */
 	WT_STAT_CONN_INCRV(
 	    session, cache_eviction_pages_queued, (u_int)(evict - start));
 
+	__wt_verbose(session, WT_VERB_EVICTSERVER,
+	    "%s walk: seen %" PRIu64 ", queued %" PRIu64,
+	    session->dhandle->name, pages_seen, pages_queued);
+
 	/*
 	 * If we couldn't find the number of pages we were looking for, skip
 	 * the tree next time.
@@ -2519,6 +2523,7 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
+	u_int pct;
 	uint64_t total_bytes, total_dirty_bytes;
 
 	conn = S2C(session);
@@ -2526,6 +2531,13 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
 
 	WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
 	WT_RET(__wt_msg(session, "cache dump"));
+
+	WT_RET(__wt_msg(session,
+	    "cache full: %s", __wt_cache_full(session) ? "yes" : "no"));
+	WT_RET(__wt_msg(session, "cache clean check: %s (%u%%)",
+	    __wt_eviction_clean_needed(session, &pct) ? "yes" : "no", pct));
+	WT_RET(__wt_msg(session, "cache dirty check: %s (%u%%)",
+	    __wt_eviction_dirty_needed(session, &pct) ? "yes" : "no", pct));
 
 	for (dhandle = NULL;;) {
 		WT_WITH_HANDLE_LIST_READ_LOCK(session,
