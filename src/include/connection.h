@@ -7,10 +7,10 @@
  */
 
 /*
- * Default hash table size; use a prime number of buckets rather than assuming
- * a good hash (Reference Sedgewick, Algorithms in C, "Hash Functions").
+ * Default hash table size; we don't need a prime number of buckets
+ * because we always use a good hash function.
  */
-#define	WT_HASH_ARRAY_SIZE	509
+#define	WT_HASH_ARRAY_SIZE	512
 
 /*******************************************
  * Global per-process structure.
@@ -379,6 +379,7 @@ struct __wt_connection_impl {
 
 	/* Set of btree IDs not being rolled back */
 	uint8_t *stable_rollback_bitstring;
+	uint32_t stable_rollback_maxfile;
 
 					/* Locked: collator list */
 	TAILQ_HEAD(__wt_coll_qh, __wt_named_collator) collqh;
