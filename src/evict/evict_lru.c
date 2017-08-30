@@ -2533,6 +2533,7 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
 
 	conn = S2C(session);
 	total_bytes = total_dirty_bytes = 0;
+	pct = 0;				/* [-Werror=uninitialized] */
 
 	WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
 	WT_RET(__wt_msg(session, "cache dump"));
