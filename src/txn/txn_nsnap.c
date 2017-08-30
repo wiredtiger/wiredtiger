@@ -189,7 +189,7 @@ __wt_txn_named_snapshot_begin(WT_SESSION_IMPL *session, const char *cfg[])
 		nsnap->id = txn->id;
 	} else
 		nsnap->id = WT_TXN_NONE;
-	nsnap->pinned_id = WT_SESSION_TXN_STATE(session)->pinned_id;
+	nsnap->pinned_id = txn->pinned_id;
 	nsnap->snap_min = txn->snap_min;
 	nsnap->snap_max = txn->snap_max;
 	if (txn->snapshot_count > 0) {
@@ -221,7 +221,7 @@ __wt_txn_named_snapshot_begin(WT_SESSION_IMPL *session, const char *cfg[])
 
 err:	if (started_txn) {
 #ifdef HAVE_DIAGNOSTIC
-		uint64_t pinned_id = WT_SESSION_TXN_STATE(session)->pinned_id;
+		uint64_t pinned_id = txn->pinned_id;
 #endif
 		WT_TRET(__wt_txn_rollback(session, NULL));
 		WT_DIAGNOSTIC_YIELD;
@@ -288,11 +288,9 @@ __wt_txn_named_snapshot_get(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *nameval)
 	WT_NAMED_SNAPSHOT *nsnap;
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
-	WT_TXN_STATE *txn_state;
 
 	txn = &session->txn;
 	txn_global = &S2C(session)->txn_global;
-	txn_state = WT_SESSION_TXN_STATE(session);
 
 	txn->isolation = WT_ISO_SNAPSHOT;
 	if (session->ncursors > 0)
@@ -301,19 +299,14 @@ __wt_txn_named_snapshot_get(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *nameval)
 	__wt_readlock(session, &txn_global->nsnap_rwlock);
 	TAILQ_FOREACH(nsnap, &txn_global->nsnaph, q)
 		if (WT_STRING_MATCH(nsnap->name, nameval->str, nameval->len)) {
-			/*
-			 * Acquire the scan lock so the oldest ID can't move
-			 * forward without seeing our pinned ID.
-			 */
-			__wt_readlock(session, &txn_global->rwlock);
-			txn_state->pinned_id = nsnap->pinned_id;
-			__wt_readunlock(session, &txn_global->rwlock);
+			txn->pinned_id = nsnap->pinned_id;
+			__wt_txn_publish_pinned_id(session);
 
 			WT_ASSERT(session, !__wt_txn_visible_all(
-			    session, txn_state->pinned_id, NULL) &&
+			    session, txn->pinned_id, NULL) &&
 			    txn_global->nsnap_oldest_id != WT_TXN_NONE &&
 			    WT_TXNID_LE(txn_global->nsnap_oldest_id,
-			    txn_state->pinned_id));
+			    txn->pinned_id));
 			txn->snap_min = nsnap->snap_min;
 			txn->snap_max = nsnap->snap_max;
 			if ((txn->snapshot_count = nsnap->snapshot_count) != 0)

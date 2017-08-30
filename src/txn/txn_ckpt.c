@@ -570,7 +570,6 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_DECL_RET;
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
-	WT_TXN_STATE *txn_state;
 	const char *txn_cfg[] = { WT_CONFIG_BASE(session,
 	    WT_SESSION_begin_transaction), "isolation=snapshot", NULL, NULL };
 	bool use_timestamp;
@@ -578,7 +577,6 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	conn = S2C(session);
 	txn = &session->txn;
 	txn_global = &conn->txn_global;
-	txn_state = WT_SESSION_TXN_STATE(session);
 
 	WT_RET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
 	use_timestamp = (cval.val != 0);
@@ -610,8 +608,9 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	 *
 	 * We never do checkpoints in the default session (with id zero).
 	 */
-	WT_ASSERT(session, session->id != 0 && txn_global->checkpoint_id == 0);
-	txn_global->checkpoint_id = session->id;
+	WT_ASSERT(session, session->id != 0 &&
+	    txn_global->checkpoint_session_id == 0);
+	txn_global->checkpoint_session_id = session->id;
 
 	/*
 	 * Remove the checkpoint transaction from the global table.
@@ -620,17 +619,17 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	 * checkpoints often take a long time and only write to the metadata.
 	 */
 	__wt_writelock(session, &txn_global->rwlock);
-	txn_global->checkpoint_state = *txn_state;
 	txn_global->checkpoint_txn = txn;
-	txn_global->checkpoint_state.pinned_id = WT_MIN(txn->id, txn->snap_min);
+	txn_global->checkpoint_txn_id = txn->id;
+	txn_global->checkpoint_pinned_id = txn->pinned_id;
 
 	/*
 	 * Sanity check that the oldest ID hasn't moved on before we have
 	 * cleared our entry.
 	 */
 	WT_ASSERT(session,
-	    WT_TXNID_LE(txn_global->oldest_id, txn_state->id) &&
-	    WT_TXNID_LE(txn_global->oldest_id, txn_state->pinned_id));
+	    WT_TXNID_LE(txn_global->oldest_id, txn_global->checkpoint_txn_id) &&
+	    WT_TXNID_LE(txn_global->oldest_id, txn->pinned_id));
 
 	/*
 	 * Clear our entry from the global transaction session table. Any
@@ -639,8 +638,9 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	 * can safely ignore the checkpoint ID (see the visible all check for
 	 * details).
 	 */
-	txn_state->id = txn_state->pinned_id =
-	    txn_state->metadata_pinned = WT_TXN_NONE;
+	__wt_txn_clear_id(session);
+	__wt_txn_clear_metadata_pinned(session);
+	__wt_txn_clear_pinned_id(session);
 
 #ifdef HAVE_TIMESTAMPS
 	/*
@@ -888,7 +888,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * Now that the metadata is stable, re-open the metadata file for
 	 * regular eviction by clearing the checkpoint_pinned flag.
 	 */
-	txn_global->checkpoint_state.pinned_id = WT_TXN_NONE;
+	txn_global->checkpoint_pinned_id = WT_TXN_NONE;
 
 	if (full) {
 		__wt_epoch(session, &stop);

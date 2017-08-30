@@ -337,8 +337,8 @@ static inline int
 __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool *didworkp)
 {
 	WT_BTREE *btree;
+	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
-	WT_TXN_STATE *txn_state;
 	u_int pct_full;
 
 	if (didworkp != NULL)
@@ -351,11 +351,11 @@ __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool *didworkp)
 	 * Otherwise, we are at a transaction boundary and we can work harder
 	 * to make sure there is free space in the cache.
 	 */
+	txn = &session->txn;
 	txn_global = &S2C(session)->txn_global;
-	txn_state = WT_SESSION_TXN_STATE(session);
-	busy = busy || txn_state->id != WT_TXN_NONE ||
+	busy = busy || F_ISSET(txn, WT_TXN_PUBLIC_ID) ||
 	    session->nhazard > 0 ||
-	    (txn_state->pinned_id != WT_TXN_NONE &&
+	    (txn->pinned_id != WT_TXN_NONE &&
 	    txn_global->current != txn_global->oldest_id);
 
 	/*

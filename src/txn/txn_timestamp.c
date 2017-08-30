@@ -217,7 +217,7 @@ __txn_global_query_timestamp(
 
 		/* Check for a running checkpoint */
 		txn = txn_global->checkpoint_txn;
-		if (txn_global->checkpoint_state.pinned_id != WT_TXN_NONE &&
+		if (txn_global->checkpoint_pinned_id != WT_TXN_NONE &&
 		    !__wt_timestamp_iszero(&txn->read_timestamp) &&
 		    __wt_timestamp_cmp(&txn->read_timestamp, &ts) < 0)
 			__wt_timestamp_set(&ts, &txn->read_timestamp);

@@ -229,8 +229,7 @@ __clsm_enter(WT_CURSOR_LSM *clsm, bool reset, bool update)
 			    F_ISSET(clsm, WT_CLSM_OPEN_SNAPSHOT)) {
 				WT_ASSERT(session,
 				    F_ISSET(txn, WT_TXN_HAS_SNAPSHOT));
-				pinned_id =
-				    WT_SESSION_TXN_STATE(session)->pinned_id;
+				pinned_id = txn->pinned_id;
 				for (i = clsm->nchunks - 2;
 				    clsm->nupdates < clsm->nchunks;
 				    clsm->nupdates++, i--) {

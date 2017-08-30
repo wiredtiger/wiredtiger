@@ -298,8 +298,6 @@ struct __wt_txn_global;
     typedef struct __wt_txn_global WT_TXN_GLOBAL;
 struct __wt_txn_op;
     typedef struct __wt_txn_op WT_TXN_OP;
-struct __wt_txn_state;
-    typedef struct __wt_txn_state WT_TXN_STATE;
 struct __wt_update;
     typedef struct __wt_update WT_UPDATE;
 union __wt_lsn;

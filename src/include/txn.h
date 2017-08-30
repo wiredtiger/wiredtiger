@@ -23,10 +23,8 @@
 #define	WT_TXNID_LT(t1, t2)						\
 	((t1) < (t2))
 
-#define	WT_SESSION_TXN_STATE(s) (&S2C(s)->txn_global.states[(s)->id])
-
 #define	WT_SESSION_IS_CHECKPOINT(s)					\
-	((s)->id != 0 && (s)->id == S2C(s)->txn_global.checkpoint_id)
+	((s)->id != 0 && (s)->id == S2C(s)->txn_global.checkpoint_session_id)
 
 /*
  * Perform an operation at the specified isolation level.
@@ -39,8 +37,9 @@
 #define	WT_WITH_TXN_ISOLATION(s, iso, op) do {				\
 	WT_TXN_ISOLATION saved_iso = (s)->isolation;		        \
 	WT_TXN_ISOLATION saved_txn_iso = (s)->txn.isolation;		\
-	WT_TXN_STATE *txn_state = WT_SESSION_TXN_STATE(s);		\
-	WT_TXN_STATE saved_state = *txn_state;				\
+	uint64_t saved_id = (s)->txn.id;				\
+	uint64_t saved_metadata_pinned = (s)->txn.metadata_pinned;	\
+	uint64_t saved_pinned_id = (s)->txn.pinned_id;			\
 	(s)->txn.forced_iso++;						\
 	(s)->isolation = (s)->txn.isolation = (iso);			\
 	op;								\
@@ -48,13 +47,20 @@
 	(s)->txn.isolation = saved_txn_iso;				\
 	WT_ASSERT((s), (s)->txn.forced_iso > 0);                        \
 	(s)->txn.forced_iso--;						\
-	WT_ASSERT((s), txn_state->id == saved_state.id &&		\
-	    (txn_state->metadata_pinned == saved_state.metadata_pinned ||\
-	    saved_state.metadata_pinned == WT_TXN_NONE) &&		\
-	    (txn_state->pinned_id == saved_state.pinned_id ||		\
-	    saved_state.pinned_id == WT_TXN_NONE));			\
-	txn_state->metadata_pinned = saved_state.metadata_pinned;	\
-	txn_state->pinned_id = saved_state.pinned_id;			\
+	WT_ASSERT((s), (s)->txn.id == saved_id &&			\
+	    ((s)->txn.metadata_pinned == saved_metadata_pinned ||	\
+	    saved_metadata_pinned == WT_TXN_NONE) &&			\
+	    ((s)->txn.pinned_id == saved_pinned_id ||			\
+	    saved_pinned_id == WT_TXN_NONE));				\
+	WT_UNUSED(saved_id);						\
+	if (saved_metadata_pinned == WT_TXN_NONE)                       \
+		__wt_txn_clear_metadata_pinned(session);                \
+	else                                                            \
+		(s)->txn.metadata_pinned = saved_metadata_pinned;	\
+	if (saved_pinned_id == WT_TXN_NONE)                             \
+		__wt_txn_clear_pinned_id(session);                      \
+	else                                                            \
+		(s)->txn.pinned_id = saved_pinned_id;			\
 } while (0)
 
 struct __wt_named_snapshot {
@@ -65,15 +71,6 @@ struct __wt_named_snapshot {
 	uint64_t id, pinned_id, snap_min, snap_max;
 	uint64_t *snapshot;
 	uint32_t snapshot_count;
-};
-
-struct __wt_txn_state {
-	WT_CACHE_LINE_PAD_BEGIN
-	volatile uint64_t id;
-	volatile uint64_t pinned_id;
-	volatile uint64_t metadata_pinned;
-
-	WT_CACHE_LINE_PAD_END
 };
 
 struct __wt_txn_global {
@@ -99,13 +96,23 @@ struct __wt_txn_global {
 	bool oldest_is_pinned;
 	bool stable_is_pinned;
 
-	WT_SPINLOCK id_lock;
-
-	/* Protects the active transaction states. */
+	/* Protects the active transaction state. */
 	WT_RWLOCK rwlock;
 
 	/* Protects logging, checkpoints and transaction visibility. */
 	WT_RWLOCK visibility_rwlock;
+
+	/* List of transactions sorted by transaction ID. */
+	WT_RWLOCK id_rwlock;
+	TAILQ_HEAD(__wt_txn_id_qh, __wt_txn) idh;
+
+	/* List of transactions sorted by metadata pinned ID. */
+	WT_RWLOCK metadata_pinned_rwlock;
+	TAILQ_HEAD(__wt_txn_mp_qh, __wt_txn) metadata_pinnedh;
+
+	/* List of transactions sorted by pinned ID. */
+	WT_RWLOCK pinned_id_rwlock;
+	TAILQ_HEAD(__wt_txn_pid_qh, __wt_txn) pinned_idh;
 
 	/* List of transactions sorted by commit timestamp. */
 	WT_RWLOCK commit_timestamp_rwlock;
@@ -127,9 +134,10 @@ struct __wt_txn_global {
 	 * it won't revisit it.
 	 */
 	volatile bool	  checkpoint_running;	/* Checkpoint running */
-	volatile uint32_t checkpoint_id;	/* Checkpoint's session ID */
-	WT_TXN_STATE	  checkpoint_state;	/* Checkpoint's txn state */
+	volatile uint32_t checkpoint_session_id;/* Checkpoint's session ID */
 	WT_TXN           *checkpoint_txn;	/* Checkpoint's txn structure */
+	uint64_t 	  checkpoint_txn_id;	/* Checkpoint's txn ID */
+	uint64_t 	  checkpoint_pinned_id;	/* Checkpoint's pinned ID */
 
 	volatile uint64_t metadata_pinned;	/* Oldest ID for metadata */
 
@@ -137,8 +145,6 @@ struct __wt_txn_global {
 	WT_RWLOCK nsnap_rwlock;
 	volatile uint64_t nsnap_oldest_id;
 	TAILQ_HEAD(__wt_nsnap_qh, __wt_named_snapshot) nsnaph;
-
-	WT_TXN_STATE *states;		/* Per-session transaction states */
 };
 
 typedef enum __wt_txn_isolation {
@@ -191,6 +197,8 @@ struct __wt_txn_op {
  */
 struct __wt_txn {
 	uint64_t id;
+	uint64_t metadata_pinned;
+	uint64_t pinned_id;
 
 	WT_TXN_ISOLATION isolation;
 
@@ -224,6 +232,9 @@ struct __wt_txn {
 	/* Read updates committed as of this timestamp. */
 	WT_DECL_TIMESTAMP(read_timestamp)
 
+	TAILQ_ENTRY(__wt_txn) idq;
+	TAILQ_ENTRY(__wt_txn) metadata_pinnedq;
+	TAILQ_ENTRY(__wt_txn) pinned_idq;
 	TAILQ_ENTRY(__wt_txn) commit_timestampq;
 	TAILQ_ENTRY(__wt_txn) read_timestampq;
 
@@ -244,17 +255,20 @@ struct __wt_txn {
 	WT_ITEM		*ckpt_snapshot;
 	bool		full_ckpt;
 
-#define	WT_TXN_AUTOCOMMIT	0x001
-#define	WT_TXN_ERROR		0x002
-#define	WT_TXN_HAS_ID		0x004
-#define	WT_TXN_HAS_SNAPSHOT	0x008
-#define	WT_TXN_HAS_TS_COMMIT	0x010
-#define	WT_TXN_HAS_TS_READ	0x020
-#define	WT_TXN_NAMED_SNAPSHOT	0x040
-#define	WT_TXN_PUBLIC_TS_COMMIT	0x080
-#define	WT_TXN_PUBLIC_TS_READ	0x100
-#define	WT_TXN_READONLY		0x200
-#define	WT_TXN_RUNNING		0x400
-#define	WT_TXN_SYNC_SET		0x800
+#define	WT_TXN_AUTOCOMMIT		0x0001
+#define	WT_TXN_ERROR			0x0002
+#define	WT_TXN_HAS_ID			0x0004
+#define	WT_TXN_HAS_SNAPSHOT		0x0008
+#define	WT_TXN_HAS_TS_COMMIT		0x0010
+#define	WT_TXN_HAS_TS_READ		0x0020
+#define	WT_TXN_NAMED_SNAPSHOT		0x0040
+#define	WT_TXN_PUBLIC_ID		0x0080
+#define	WT_TXN_PUBLIC_METADATA_PINNED	0x0100
+#define	WT_TXN_PUBLIC_PINNED_ID		0x0200
+#define	WT_TXN_PUBLIC_TS_COMMIT		0x0400
+#define	WT_TXN_PUBLIC_TS_READ		0x0800
+#define	WT_TXN_READONLY			0x1000
+#define	WT_TXN_RUNNING			0x2000
+#define	WT_TXN_SYNC_SET			0x4000
 	uint32_t flags;
 };

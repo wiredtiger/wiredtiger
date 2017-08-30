@@ -2239,15 +2239,15 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
+	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
-	WT_TXN_STATE *txn_state;
 	uint64_t init_evict_count, max_pages_evicted;
 	bool timer;
 
 	conn = S2C(session);
 	cache = conn->cache;
+	txn = &session->txn;
 	txn_global = &conn->txn_global;
-	txn_state = WT_SESSION_TXN_STATE(session);
 
 	/*
 	 * It is not safe to proceed if the eviction server threads aren't
@@ -2275,7 +2275,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 		 * abort the transaction to give up all hazard pointers before
 		 * trying again.
 		 */
-		if (__wt_cache_stuck(session) && __wt_txn_am_oldest(session)) {
+		if (__wt_cache_stuck(session) && __wt_txn_is_oldest(session)) {
 			--cache->evict_aggressive_score;
 			WT_STAT_CONN_INCR(session, txn_fail_cache);
 			WT_ERR(WT_ROLLBACK);
@@ -2290,7 +2290,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 		 * limit the work to 5 evictions and return. If that's not the
 		 * case, we can do more.
 		 */
-		if (!busy && txn_state->pinned_id != WT_TXN_NONE &&
+		if (!busy && txn->pinned_id != WT_TXN_NONE &&
 		    txn_global->current != txn_global->oldest_id)
 			busy = true;
 		max_pages_evicted = busy ? 5 : 20;
