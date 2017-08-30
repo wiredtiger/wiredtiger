@@ -1404,12 +1404,7 @@ retry:	while (slot < max_entries) {
 		    !F_ISSET(dhandle, WT_DHANDLE_OPEN))
 			continue;
 
-		/*
-		 * Skip files that don't allow eviction. Check if eviction is
-		 * disabled before checking anything else in the btree handle,
-		 * the btree handle may be modifying/clearing fields under the
-		 * protection of eviction disabled.
-		 */
+		/* Skip files that don't allow eviction. */
 		btree = dhandle->handle;
 		if (btree->evict_disabled > 0)
 			continue;
@@ -1459,26 +1454,23 @@ retry:	while (slot < max_entries) {
 
 		/*
 		 * Re-check the "no eviction" flag, used to enforce exclusive
-		 * access when a handle is being closed. If not set, remember
-		 * the file to visit first, next loop.
+		 * access when a handle is being closed.
 		 *
 		 * Only try to acquire the lock and simply continue if we fail;
 		 * the lock is held while the thread turning off eviction clears
 		 * the tree's current eviction point, and part of the process is
 		 * waiting on this thread to acknowledge that action.
+		 *
+		 * If a handle is being discarded, it will still be marked open,
+		 * but won't have a root page.
 		 */
 		if (btree->evict_disabled == 0 &&
 		    !__wt_spin_trylock(session, &cache->evict_walk_lock)) {
-			if (btree->evict_disabled == 0) {
+			if (btree->evict_disabled == 0 &&
+			    btree->root.page != NULL) {
 				/*
-				 * Assert the handle has a root page: eviction
-				 * should have been locked out if the tree is
-				 * being discarded or the root page is changing.
-				 * As this has not always been the case, assert
-				 * to debug that change.
+				 * Remember the file to visit first, next loop.
 				 */
-				WT_ASSERT(session, btree->root.page != NULL);
-
 				cache->evict_file_next = dhandle;
 				WT_WITH_DHANDLE(session, dhandle,
 				    ret = __evict_walk_file(

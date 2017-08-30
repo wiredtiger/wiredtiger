@@ -183,13 +183,19 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 	 *
 	 * Files that can still be bulk-loaded cannot be evicted.
 	 * Permanently cache-resident files can never be evicted.
-	 * Special operations don't enable eviction. (The underlying commands
-	 * may turn on eviction, but it's their decision.)
+	 * Special operations don't enable eviction. The underlying commands may
+	 * turn on eviction (for example, verify turns on eviction while working
+	 * a file to keep from consuming the cache), but it's their decision. If
+	 * an underlying command reconfigures eviction, it must either clear the
+	 * evict-disabled-open flag or restore the eviction configuration when
+	 * finished so that handle close behaves correctly.
 	 */
 	if (btree->original ||
 	    F_ISSET(btree, WT_BTREE_IN_MEMORY | WT_BTREE_REBALANCE |
-	    WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY))
+	    WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
 		WT_ERR(__wt_evict_file_exclusive_on(session));
+		btree->evict_disabled_open = true;
+	}
 
 	if (0) {
 err:		WT_TRET(__wt_btree_close(session));
@@ -230,8 +236,8 @@ __wt_btree_close(WT_SESSION_IMPL *session)
 	 * If we turned eviction off and never turned it back on, do that now,
 	 * otherwise the counter will be off.
 	 */
-	if (btree->original) {
-		btree->original = 0;
+	if (btree->evict_disabled_open) {
+		btree->evict_disabled_open = false;
 		__wt_evict_file_exclusive_off(session);
 	}
 
