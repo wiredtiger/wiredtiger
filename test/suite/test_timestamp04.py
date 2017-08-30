@@ -44,67 +44,39 @@ def timestamp_ret_str(t):
     return s
 
 class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
-    table_ts_log     = 'ts04_ts_logged'
-    table_ts_nolog   = 'ts04_ts_nologged'
-    table_nots_log   = 'ts04_nots_logged'
-    table_nots_nolog = 'ts04_nots_nologged'
+    table_ts_log     = 'table:ts04_ts_logged'
+    table_ts_nolog   = 'table:ts04_ts_nologged'
+    table_nots_log   = 'table:ts04_nots_logged'
+    table_nots_nolog = 'table:ts04_nots_nologged'
 
-    # Below two lists conncfg and types are not removed but kept commented for
-    # better understanding of the combinations of scenarios.
-    # Different scenarios are manaually provided instead of combinations as
-    # the cache_size for lsm minimum requirement is 31MB.
-    #conncfg = [
-        #('nolog', dict(conn_config='create,cache_size=20MB', using_log=False)),
-        #('V1', dict(conn_config='create,cache_size=20MB,log=(enabled),compatibility=(release="2.9")', using_log=True)),
-        #('V2', dict(conn_config='create,cache_size=20MB,log=(enabled)', using_log=True)),
-    #]
+    conncfg = [
+        ('nolog', dict(conn_config='', using_log=False)),
+        ('V1', dict(conn_config=',log=(enabled),compatibility=(release="2.9")', using_log=True)),
+        ('V2', dict(conn_config=',log=(enabled)', using_log=True)),
+    ]
 
-    #types = [
-        #('col_fix', dict(empty=1, uri='table:', extra_config=',key_format=r, value_format=8t',is_lsm=False)),
-        #('col_var', dict(empty=0, uri='table:', extra_config=',key_format=r',is_lsm=False)),
-        #('lsm', dict(empty=0, uri='lsm:', extra_config=',type=lsm',is_lsm=True)),
-        #('row', dict(empty=0, uri='table:', extra_config='',is_lsm=False)),
-    #]
+    # Minimum cache_size requirement of lsm is 31MB
+    types = [
+        ('col_fix', dict(empty=1, cacheSize='cache_size=20MB', extra_config=',key_format=r,value_format=8t')),
+        ('col_var', dict(empty=0, cacheSize='cache_size=20MB', extra_config=',key_format=r')),
+        ('lsm', dict(empty=0, cacheSize='cache_size=31MB', extra_config=',type=lsm')),
+        ('row', dict(empty=0, cacheSize='cache_size=20MB', extra_config='',)),
+    ]
 
-    scenarios = make_scenarios([
-        ('nolog_col_fix', dict(conn_config='create,cache_size=20MB', using_log=False,
-            empty=1, uri='table:', extra_config=',key_format=r, value_format=8t',is_lsm=False)),
-        ('nolog_col_var', dict(conn_config='create,cache_size=20MB', using_log=False,
-            empty=0, uri='table:', extra_config=',key_format=r',is_lsm=False)),
-        ('nolog_row', dict(conn_config='create,cache_size=20MB', using_log=False,
-            empty=0, uri='table:', extra_config='',is_lsm=False)),
-        ('nolog_lsm', dict(conn_config='create,cache_size=31MB', using_log=False,
-            empty=0, uri='lsm:', extra_config=',type=lsm',is_lsm=True)),
-        ('V1_col_fix', dict(conn_config='create,cache_size=20MB,log=(enabled),compatibility=(release="2.9")', using_log=True,
-            empty=1, uri='table:', extra_config=',key_format=r, value_format=8t',is_lsm=False)),
-        ('V1_col_var', dict(conn_config='create,cache_size=20MB,log=(enabled),compatibility=(release="2.9")', using_log=True,
-            empty=0, uri='table:', extra_config=',key_format=r',is_lsm=False)),
-        ('V1_row', dict(conn_config='create,cache_size=20MB,log=(enabled),compatibility=(release="2.9")', using_log=True,
-            empty=0, uri='table:', extra_config='',is_lsm=False)),
-        ('V1_lsm', dict(conn_config='create,cache_size=31MB,log=(enabled),compatibility=(release="2.9")', using_log=True,
-            empty=0, uri='lsm:', extra_config=',type=lsm',is_lsm=True)),
-        ('V2_col_fix', dict(conn_config='create,cache_size=20MB,log=(enabled)', using_log=True,
-            empty=1, uri='table:', extra_config=',key_format=r, value_format=8t',is_lsm=False)),
-        ('V2_col_var', dict(conn_config='create,cache_size=20MB,log=(enabled)', using_log=True,
-            empty=0, uri='table:', extra_config=',key_format=r',is_lsm=False)),
-        ('V2_row', dict(conn_config='create,cache_size=20MB,log=(enabled)', using_log=True,
-            empty=0, uri='table:', extra_config='',is_lsm=False)),
-        ('V2_lsm', dict(conn_config='create,cache_size=31MB,log=(enabled)', using_log=True,
-            empty=0, uri='lsm:', extra_config=',type=lsm',is_lsm=True)),
-    ])
+    scenarios = make_scenarios(conncfg, types)
 
     # Check that a cursor (optionally started in a new transaction), sees the
     # expected values.
     def check(self, session, txn_config, tablename, expected, missing=False, prn=False):
         if txn_config:
             session.begin_transaction(txn_config)
-        cur = session.open_cursor(self.uri + tablename, None)
+        cur = session.open_cursor(tablename, None)
         if missing == False:
             actual = dict((k, v) for k, v in cur if v != 0)
             if prn == True:
-                print "CHECK : Expected "
+                print "CHECK : Expected"
                 print expected
-                print "CHECK : Actual   "
+                print "CHECK : Actual"
                 print actual
             self.assertTrue(actual == expected)
 
@@ -123,17 +95,31 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         if txn_config:
             session.commit_transaction()
 
+    # This test varies the cache size and so needs to set up its own connection.
+    # Override the standard methods.
+    def setUpConnectionOpen(self, dir):
+        return None
+
+    def setUpSessionOpen(self, conn):
+        return None
+
+    def ConnectionOpen(self, cacheSize):
+        self.home = '.'
+        conn_params = 'create,' + \
+            cacheSize + ',error_prefix="%s" %s' % (self.shortid(), self.conn_config)
+        try:
+            self.conn = wiredtiger.wiredtiger_open(self.home, conn_params)
+        except wiredtiger.WiredTigerError as e:
+            print "Failed conn at '%s' with config '%s'" % (dir, conn_params)
+        self.session = self.conn.open_session(None)
+
     def test_rollback_to_stable(self):
         if not wiredtiger.timestamp_build():
             self.skipTest('requires a timestamp build')
 
-        uri_ts_log      = self.uri + self.table_ts_log
-        uri_ts_nolog    = self.uri + self.table_ts_nolog
-        uri_nots_log    = self.uri + self.table_nots_log
-        uri_nots_nolog  = self.uri + self.table_nots_nolog
-
-        # Configure small page sizes to ensure eviction comes through and we have a
-        #  somewhat complex tree
+        self.ConnectionOpen(self.cacheSize)
+        # Configure small page sizes to ensure eviction comes through and we
+        # have a somewhat complex tree
         config_default = 'key_format=i,value_format=i,memory_page_max=32k,leaf_page_max=8k,internal_page_max=8k'
         config_nolog   = ',log=(enabled=false)'
         #
@@ -143,14 +129,14 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         # 3. Table is logged and does not use timestamps.
         # 4. Table is not logged and does not use timestamps.
         #
-        self.session.create(uri_ts_log, config_default + self.extra_config)
-        cur_ts_log = self.session.open_cursor(uri_ts_log)
-        self.session.create(uri_ts_nolog, config_default + config_nolog + self.extra_config)
-        cur_ts_nolog = self.session.open_cursor(uri_ts_nolog)
-        self.session.create(uri_nots_log, config_default + self.extra_config)
-        cur_nots_log = self.session.open_cursor(uri_nots_log)
-        self.session.create(uri_nots_nolog, config_default + config_nolog + self.extra_config)
-        cur_nots_nolog = self.session.open_cursor(uri_nots_nolog)
+        self.session.create(self.table_ts_log, config_default + self.extra_config)
+        cur_ts_log = self.session.open_cursor(self.table_ts_log)
+        self.session.create(self.table_ts_nolog, config_default + config_nolog + self.extra_config)
+        cur_ts_nolog = self.session.open_cursor(self.table_ts_nolog)
+        self.session.create(self.table_nots_log, config_default + self.extra_config)
+        cur_nots_log = self.session.open_cursor(self.table_nots_log)
+        self.session.create(self.table_nots_nolog, config_default + config_nolog + self.extra_config)
+        cur_nots_nolog = self.session.open_cursor(self.table_nots_nolog)
 
         # Insert keys each with timestamp=key, in some order
         key_range = 10000
@@ -179,7 +165,7 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         self.check(self.session, 'read_timestamp=' + latest_ts,
             self.table_ts_nolog, dict((k, 1) for k in keys[:]))
 
-        #Scenario: 2
+        # Scenario: 2
         # Roll back half timestamps.
         stable_ts = timestamp_str(key_range / 2)
         self.conn.set_timestamp('stable_timestamp=' + stable_ts)
@@ -192,7 +178,7 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         self.check(self.session, 'read_timestamp=' + latest_ts,
             self.table_nots_nolog, dict((k, 1) for k in keys[:]))
 
-        # if nologging tables the behavior is consistent across connections
+        # For non-logged tables the behavior is consistent across connections
         # with or without log enabled
         # Check that we see the inserted value (i.e. 1) for the keys in a
         # timestamp table till the stable_timestamp only.
@@ -201,15 +187,16 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         self.check(self.session, 'read_timestamp=' + latest_ts,
             self.table_ts_nolog, dict((k, 1) for k in keys[(key_range / 2 + 1):]), missing=True)
 
-        # behavior of logging tables changes for rollback
+        # For logged tables behavior changes for rollback_to_stable based on
+        # whether connection level logging is enabled or not.
         if self.using_log == True:
-            # if log is enabled, none of the keys will be rolledback.
+            # When log is enabled, none of the keys will be rolled back.
             # Check that we see all the keys
             self.check(self.session, 'read_timestamp=' + latest_ts,
                 self.table_ts_log, dict((k, 1) for k in keys[:]))
         else:
-            # if log is disabled, keys will be rolledback till stable_timestamp
-            # Check that we see the insertions are rolledback in timestamp tables
+            # When log is disabled, keys will be rolled back till stable_timestamp
+            # Check that we see the insertions are rolled back in timestamp tables
             # till the stable_timestamp
             self.check(self.session, 'read_timestamp=' + latest_ts,
                 self.table_ts_log, dict((k, 1) for k in keys[:(key_range / 2)]))
@@ -240,9 +227,9 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         self.check(self.session, 'read_timestamp=' + latest_ts,
             self.table_ts_nolog, dict((k, 2) for k in keys[:]))
 
-        #Scenario: 4
-        # Advance the stable_timestamp by a quater range and rollback.
-        # three-quarter timestamps will be rolledback.
+        # Scenario: 4
+        # Advance the stable_timestamp by a quarter range and rollback.
+        # three-quarter timestamps will be rolled back.
         stable_ts = timestamp_str(1 + key_range + key_range / 4)
         self.conn.set_timestamp('stable_timestamp=' + stable_ts)
         self.conn.rollback_to_stable()
@@ -253,30 +240,29 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
             self.table_nots_log, dict((k, 2) for k in keys[:]))
         self.check(self.session, 'read_timestamp=' + latest_ts,
             self.table_nots_nolog, dict((k, 2) for k in keys[:]))
-        # if nologging tables the behavior is consistent across connections
+        # For non-logged tables the behavior is consistent across connections
         # with or without log enabled
-        # Check that we see only half key ranges in timestamp tables.
-        # Check that we see the updated value (i.e. 2) for the first quarter
-        # keys in a timestamp table and old values (i.e. 1) for the second
-        # quarter keys.
+        # Check that we see only half key ranges in timestamp tables. we see
+        # the updated value (i.e. 2) for the first quarter keys and old values
+        # (i.e. 1) for the second quarter keys.
         self.check(self.session, 'read_timestamp=' + latest_ts,
             self.table_ts_nolog, dict((k, (2 if j <= (key_range / 4) else 1))
             for j, k in enumerate(keys[:(key_range / 2)])))
         self.check(self.session, 'read_timestamp=' + latest_ts,
             self.table_ts_nolog, dict((k, 1) for k in keys[(1 + key_range / 2):]), missing=True)
 
-        # behavior of logging tables changes for rollback
+        # For logged tables behavior changes for rollback_to_stable based on
+        # whether connection level logging is enabled or not.
         if self.using_log == True:
-            # if log is enabled, none of the keys will be rolledback.
+            # When log is enabled, none of the keys will be rolled back.
             # Check that we see all the keys
             self.check(self.session, 'read_timestamp=' + latest_ts,
                 self.table_ts_log, dict((k, 2) for k in keys[:]))
         else:
-            # if log is disabled, keys will be rolledback till stable_timestamp
-            # Check that we see only half key ranges in timestamp tables.
-            # Check that we see the updated value (i.e. 2) for the first quarter
-            # keys in a timestamp table and old values (i.e. 1) for the second
-            # quarter keys.
+            # When log is disabled, keys will be rolled back till stable_timestamp
+            # Check that we see only half key ranges in timestamp tables. we see
+            # the updated value (i.e. 2) for the first quarter keys and old values
+            # (i.e. 1) for the second quarter keys.
             self.check(self.session, 'read_timestamp=' + latest_ts,
                 self.table_ts_log, dict((k, (2 if j <= (key_range / 4) else 1))
                 for j, k in enumerate(keys[:(key_range / 2)])))
