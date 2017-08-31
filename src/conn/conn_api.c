@@ -1026,8 +1026,7 @@ err:	API_END_RET_NOTFOUND_MAP(session, ret);
  *	Set the directory for operation logging
  */
 static int
-__conn_optrack_dir(WT_SESSION_IMPL *session, const char *home,
-		   const char *cfg[])
+__conn_optrack_dir(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_CONFIG_ITEM cval;
 
@@ -1038,22 +1037,12 @@ __conn_optrack_dir(WT_SESSION_IMPL *session, const char *home,
 			&S2C(session)->optrack) == 0)
 		return (0);
 
-	/* If the application specifies a home directory, use it. */
-	if (home != NULL)
-		goto copy;
-
 	/*
-	 * If there's no WIREDTIGER_OPTRACK environment variable, and the
-	 * application did not specify a home directory use ".".
+	 * If there's no WIREDTIGER_OPTRACK environment variable, use the
+	 * configured database directory.
 	 */
-	home = ".";
-
-	/*
-	 * A similar function __conn_home makes a security check here.
-	 * Do we need to make similar checks?
-	 */
-
-copy:	return (__wt_strdup(session, home, &S2C(session)->optrack));
+	S2C(session)->optrack = ".";
+	return (0);
 }
 
 /*
@@ -1069,8 +1058,7 @@ static bool __wt_optrack_map_setup = 0;
  *     Set up operation logging.
  */
 static int
-__conn_optrack_setup(WT_SESSION_IMPL *session, const char *home,
-		   const char *cfg[])
+__conn_optrack_setup(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	bool exists;
 	char optrack_map_name[PATH_MAX];
@@ -1079,7 +1067,7 @@ __conn_optrack_setup(WT_SESSION_IMPL *session, const char *home,
 	conn = S2C(session);
 
 	/* Set up the directory for operation logs. */
-	WT_RET(__conn_optrack_dir(session, home, cfg));
+	WT_RET(__conn_optrack_dir(session, cfg));
 
 	/*
 	 * Open the file in the same directory that will hold
@@ -1097,7 +1085,7 @@ __conn_optrack_setup(WT_SESSION_IMPL *session, const char *home,
 		__wt_optrack_map_setup = 1;
 	}
 
-	WT_RET(__wt_open(session, "optrack-map.txt",
+	WT_RET(__wt_open(session, optrack_map_name,
 			 WT_FS_OPEN_FILE_TYPE_REGULAR,
 			 WT_FS_OPEN_CREATE, &conn->optrack_map_fh));
 
@@ -2290,7 +2278,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	    __conn_chk_file_system(session, F_ISSET(conn, WT_CONN_READONLY)));
 
 	/* Set up operation logging. */
-	WT_ERR(__conn_optrack_setup(session, home, cfg));
+	WT_ERR(__conn_optrack_setup(session, cfg));
 
 	/* Make sure no other thread of control already owns this database. */
 	WT_ERR(__conn_single(session, cfg));
