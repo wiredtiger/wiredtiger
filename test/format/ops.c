@@ -453,11 +453,8 @@ snap_check(WT_CURSOR *cursor,
 static void
 commit_transaction(TINFO *tinfo, WT_SESSION *session)
 {
-	WT_CONNECTION *conn;
 	uint64_t ts;
 	char *commit_conf, config_buf[64];
-
-	conn = g.wts_conn;
 
 	if (g.c_txn_timestamps) {
 		ts = __wt_atomic_addv64(&g.timestamp, 1);
