@@ -15,6 +15,16 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_close[] = {
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
 
+static const WT_CONFIG_CHECK confchk_WT_CONNECTION_debug_info[] = {
+	{ "cache", "boolean", NULL, NULL, NULL, 0 },
+	{ "cursors", "boolean", NULL, NULL, NULL, 0 },
+	{ "handles", "boolean", NULL, NULL, NULL, 0 },
+	{ "log", "boolean", NULL, NULL, NULL, 0 },
+	{ "sessions", "boolean", NULL, NULL, NULL, 0 },
+	{ "txn", "boolean", NULL, NULL, NULL, 0 },
+	{ NULL, NULL, NULL, NULL, NULL, 0 }
+};
+
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_load_extension[] = {
 	{ "config", "string", NULL, NULL, NULL, 0 },
 	{ "early_load", "boolean", NULL, NULL, NULL, 0 },
@@ -225,7 +235,6 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_checkpoint[] = {
 	{ "drop", "list", NULL, NULL, NULL, 0 },
 	{ "force", "boolean", NULL, NULL, NULL, 0 },
 	{ "name", "string", NULL, NULL, NULL, 0 },
-	{ "read_timestamp", "string", NULL, NULL, NULL, 0 },
 	{ "target", "list", NULL, NULL, NULL, 0 },
 	{ "use_timestamp", "boolean", NULL, NULL, NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
@@ -1115,6 +1124,11 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "leak_memory=false",
 	  confchk_WT_CONNECTION_close, 1
 	},
+	{ "WT_CONNECTION.debug_info",
+	  "cache=false,cursors=false,handles=false,log=false,sessions=false"
+	  ",txn=false",
+	  confchk_WT_CONNECTION_debug_info, 6
+	},
 	{ "WT_CONNECTION.load_extension",
 	  "config=,early_load=false,entry=wiredtiger_extension_init,"
 	  "terminate=wiredtiger_extension_terminate",
@@ -1173,9 +1187,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_WT_SESSION_begin_transaction, 6
 	},
 	{ "WT_SESSION.checkpoint",
-	  "drop=,force=false,name=,read_timestamp=,target=,"
-	  "use_timestamp=true",
-	  confchk_WT_SESSION_checkpoint, 6
+	  "drop=,force=false,name=,target=,use_timestamp=true",
+	  confchk_WT_SESSION_checkpoint, 5
 	},
 	{ "WT_SESSION.close",
 	  "",

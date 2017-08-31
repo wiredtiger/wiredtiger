@@ -55,6 +55,7 @@ CET
 CFLAGS
 CHECKKEY
 CKPT
+CLOEXEC
 CMP
 CONCAT
 CONFIG
@@ -176,6 +177,7 @@ INMEM
 INSN
 INTL
 INULL
+INUSE
 ISA
 ITEMs
 ITER
@@ -925,6 +927,7 @@ mem
 memalign
 membar
 memcpy
+memdup
 memget
 memmove
 memset
@@ -1069,6 +1072,7 @@ qrrSS
 qsort
 quartile
 queueable
+quiesce
 qup
 rN
 rS

@@ -271,8 +271,6 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 	const char *name;
 	bool force;
 
-	btree = S2BT(session);
-
 	/* Find out if we have to force a checkpoint. */
 	WT_RET(__wt_config_gets_def(session, cfg, "force", 0, &cval));
 	force = cval.val != 0;
@@ -281,9 +279,11 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 		force = cval.len != 0;
 	}
 
-	/* Should not be called with anything other than a file object. */
-	WT_ASSERT(session, session->dhandle->checkpoint == NULL);
-	WT_ASSERT(session, WT_PREFIX_MATCH(session->dhandle->name, "file:"));
+	/* Should not be called with anything other than a live btree handle. */
+	WT_ASSERT(session, session->dhandle->type == WT_DHANDLE_TYPE_BTREE &&
+	    session->dhandle->checkpoint == NULL);
+
+	btree = S2BT(session);
 
 	/* Skip files that are never involved in a checkpoint. */
 	if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT))
@@ -345,7 +345,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 	name = session->dhandle->name;
 	session->dhandle = NULL;
 
-	if ((ret = __wt_session_get_btree(session, name, NULL, NULL, 0)) != 0)
+	if ((ret = __wt_session_get_dhandle(session, name, NULL, NULL, 0)) != 0)
 		return (ret == EBUSY ? 0 : ret);
 
 	/*
@@ -571,49 +571,17 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_STATE *txn_state;
-	char timestamp_buf[2 * WT_TIMESTAMP_SIZE + 1], timestamp_config[100];
-	const char *query_cfg[] = { WT_CONFIG_BASE(session,
-	    WT_CONNECTION_query_timestamp), "get=stable", NULL };
 	const char *txn_cfg[] = { WT_CONFIG_BASE(session,
 	    WT_SESSION_begin_transaction), "isolation=snapshot", NULL, NULL };
+	bool use_timestamp;
 
 	conn = S2C(session);
 	txn = &session->txn;
 	txn_global = &conn->txn_global;
 	txn_state = WT_SESSION_TXN_STATE(session);
 
-	/*
-	 * Someone giving us a specific timestamp overrides the general
-	 * use_timestamp.
-	 */
-	WT_RET(__wt_config_gets(session, cfg, "read_timestamp", &cval));
-	if (cval.len > 0) {
-		WT_RET(__wt_snprintf(timestamp_config, sizeof(timestamp_config),
-		    "read_timestamp=%.*s", (int)cval.len, cval.str));
-		txn_cfg[2] = timestamp_config;
-		__wt_verbose(session, WT_VERB_TIMESTAMP,
-		    "Timestamp %s : Checkpoint requested at specific timestamp",
-		    timestamp_config);
-	} else if (txn_global->has_stable_timestamp) {
-		WT_RET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
-		/*
-		 * Get the stable timestamp currently set.  Then set that as
-		 * the read timestamp for the transaction.
-		 */
-		if (cval.val != 0) {
-			if ((ret = __wt_txn_global_query_timestamp(session,
-			    timestamp_buf, query_cfg)) != 0 &&
-			    ret != WT_NOTFOUND)
-				return (ret);
-			WT_RET(__wt_snprintf(timestamp_config,
-			    sizeof(timestamp_config),
-			    "read_timestamp=%s", timestamp_buf));
-			txn_cfg[2] = timestamp_config;
-			__wt_verbose(session, WT_VERB_TIMESTAMP,
-			    "Timestamp %s : Checkpoint requested at stable "
-			    "timestamp", timestamp_config);
-		}
-	}
+	WT_RET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
+	use_timestamp = (cval.val != 0);
 
 	/*
 	 * Start a snapshot transaction for the checkpoint.
@@ -673,15 +641,33 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	txn_state->id = txn_state->pinned_id =
 	    txn_state->metadata_pinned = WT_TXN_NONE;
-	__wt_writeunlock(session, &txn_global->rwlock);
 
 #ifdef HAVE_TIMESTAMPS
 	/*
-	 * Now that the checkpoint transaction is published, clear it from the
-	 * regular lists.
+	 * Set the checkpoint transaction's timestamp, if requested.
+	 *
+	 * We rely on having the global transaction data locked so the oldest
+	 * timestamp can't move past the stable timestamp.
 	 */
-	__wt_txn_clear_commit_timestamp(session);
-	__wt_txn_clear_read_timestamp(session);
+	WT_ASSERT(session, !F_ISSET(txn,
+	    WT_TXN_HAS_TS_COMMIT | WT_TXN_HAS_TS_READ |
+	    WT_TXN_PUBLIC_TS_COMMIT | WT_TXN_PUBLIC_TS_READ));
+
+	if (use_timestamp && txn_global->has_stable_timestamp) {
+		__wt_timestamp_set(
+		    &txn->read_timestamp, &txn_global->stable_timestamp);
+		F_SET(txn, WT_TXN_HAS_TS_READ);
+	}
+#else
+	WT_UNUSED(use_timestamp);
+#endif
+
+	__wt_writeunlock(session, &txn_global->rwlock);
+
+#ifdef HAVE_TIMESTAMPS
+	if (F_ISSET(txn, WT_TXN_HAS_TS_READ))
+		__wt_verbose_timestamp(session, &txn->read_timestamp,
+		    "Checkpoint requested at stable timestamp");
 #endif
 
 	/*
@@ -969,7 +955,7 @@ err:	/*
 			WT_WITH_DHANDLE(session, session->ckpt_handle[i],
 			    __checkpoint_fail_reset(session));
 		WT_WITH_DHANDLE(session, session->ckpt_handle[i],
-		    WT_TRET(__wt_session_release_btree(session)));
+		    WT_TRET(__wt_session_release_dhandle(session)));
 	}
 
 	__wt_free(session, session->ckpt_handle);

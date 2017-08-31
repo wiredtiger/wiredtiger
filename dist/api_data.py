@@ -1149,9 +1149,6 @@ methods = {
     Config('name', '', r'''
         if set, specify a name for the checkpoint (note that checkpoints
         including LSM trees may not be named)'''),
-    Config('read_timestamp', '', r'''
-        if set, create the checkpoint as of the specified timestamp''',
-        undoc=True),
     Config('target', '', r'''
         if non-empty, checkpoint the list of objects''', type='list'),
     Config('use_timestamp', 'true', r'''
@@ -1215,6 +1212,20 @@ methods = {
     Config('leak_memory', 'false', r'''
         don't free memory during close''',
         type='boolean'),
+]),
+'WT_CONNECTION.debug_info' : Method([
+    Config('cache', 'false', r'''
+        print cache information''', type='boolean'),
+    Config('cursors', 'false', r'''
+        print all open cursor information''', type='boolean'),
+    Config('handles', 'false', r'''
+        print open handles information''', type='boolean'),
+    Config('log', 'false', r'''
+        print log information''', type='boolean'),
+    Config('sessions', 'false', r'''
+        print open session information''', type='boolean'),
+    Config('txn', 'false', r'''
+        print global txn information''', type='boolean'),
 ]),
 'WT_CONNECTION.reconfigure' : Method(
     connection_reconfigure_log_configuration +\
