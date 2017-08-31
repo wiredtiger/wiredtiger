@@ -987,8 +987,12 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 
 	if (table->is_simple) {
 		/* Just return a cursor on the underlying data source. */
-		ret = __wt_open_cursor(session,
-		    table->cgroups[0]->source, NULL, cfg, cursorp);
+		if (table->is_simple_file)
+			ret = __wt_curfile_open(session,
+			    table->cgroups[0]->source, NULL, cfg, cursorp);
+		else
+			ret = __wt_open_cursor(session,
+			    table->cgroups[0]->source, NULL, cfg, cursorp);
 
 		WT_TRET(__wt_schema_release_table(session, table));
 		if (ret == 0) {
