@@ -720,7 +720,7 @@ config_find(const char *s, size_t len, bool fatal)
 
 	/*
 	 * Optionally ignore unknown keywords, it makes it easier to run old
-	 * CONFIGs.
+	 * CONFIG files.
 	 */
 	if (fatal) {
 		fprintf(stderr,
