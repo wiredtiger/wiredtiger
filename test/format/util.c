@@ -590,7 +590,7 @@ alter(void *arg)
 			testutil_die(ret, "session.alter");
 		while (period > 0 && !g.workers_finished) {
 			--period;
-			sleep(1);
+			__wt_sleep(1, 0);
 		}
 	}
 

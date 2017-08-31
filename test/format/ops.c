@@ -209,7 +209,7 @@ wts_ops(int lastrun)
 		track("ops", 0ULL, &total);
 		if (!running)
 			break;
-		(void)usleep(250000);		/* 1/4th of a second */
+		__wt_sleep(0, 250000);		/* 1/4th of a second */
 		if (fourths != -1)
 			--fourths;
 	}
@@ -1594,7 +1594,7 @@ table_append(uint64_t keyno)
 
 		if (done)
 			break;
-		sleep(1);
+		__wt_sleep(1, 0);
 	}
 }
 
