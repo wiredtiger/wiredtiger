@@ -177,6 +177,7 @@ INMEM
 INSN
 INTL
 INULL
+INUSE
 ISA
 ITEMs
 ITER
@@ -1068,6 +1069,7 @@ qrrSS
 qsort
 quartile
 queueable
+quiesce
 qup
 rN
 rS
