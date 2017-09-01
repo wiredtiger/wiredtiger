@@ -231,7 +231,7 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         # Scenario: 4
         # Advance the stable_timestamp by a quarter range and rollback.
         # three-quarter timestamps will be rolled back.
-        stable_ts = timestamp_str(1 + key_range + key_range / 4)
+        stable_ts = timestamp_str(key_range + key_range / 4)
         self.conn.set_timestamp('stable_timestamp=' + stable_ts)
         self.conn.rollback_to_stable()
 
@@ -247,8 +247,8 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         # the updated value (i.e. 2) for the first quarter keys and old values
         # (i.e. 1) for the second quarter keys.
         self.check(self.session, 'read_timestamp=' + latest_ts,
-            self.table_ts_nolog, dict((k, (2 if j <= (key_range / 4) else 1))
-            for j, k in enumerate(keys[:(key_range / 2)])))
+            self.table_ts_nolog, dict((k, 2 if k <= key_range / 4 else 1)
+            for k in keys[:(key_range / 2)]))
         self.check(self.session, 'read_timestamp=' + latest_ts,
             self.table_ts_nolog, dict((k, 1) for k in keys[(1 + key_range / 2):]), missing=True)
 
@@ -265,8 +265,8 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
             # the updated value (i.e. 2) for the first quarter keys and old values
             # (i.e. 1) for the second quarter keys.
             self.check(self.session, 'read_timestamp=' + latest_ts,
-                self.table_ts_log, dict((k, (2 if j <= (key_range / 4) else 1))
-                for j, k in enumerate(keys[:(key_range / 2)])))
+                self.table_ts_log, dict((k, (2 if k <= key_range / 4 else 1))
+                for k in keys[:(key_range / 2)]))
             self.check(self.session, 'read_timestamp=' + latest_ts,
                 self.table_ts_log, dict((k, 1) for k in keys[(1 + key_range / 2):]), missing=True)
 
