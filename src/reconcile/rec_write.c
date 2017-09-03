@@ -960,11 +960,13 @@ __rec_init(WT_SESSION_IMPL *session,
 
 	/* The list of saved updates. */
 	r->supd = NULL;
-	r->supd_next = r->supd_allocated = 0;
+	r->supd_next = 0;
+	r->supd_allocated = 0;
 
 	/* The list of pages we've written. */
 	r->multi = NULL;
-	r->multi_next = r->multi_allocated = 0;
+	r->multi_next = 0;
+	r->multi_allocated = 0;
 
 	/*
 	 * Dictionary compression only writes repeated values once.  We grow
