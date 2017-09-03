@@ -1085,7 +1085,7 @@ __rec_cleanup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	btree = S2BT(session);
 
 	__wt_free(session, r->supd);
-	
+
 	if (btree->type == BTREE_ROW)
 		for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
 			__wt_free(session, multi->key.ikey);
