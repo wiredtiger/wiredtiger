@@ -186,7 +186,7 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(301))
 
         # Scenario: 1
-        # Check that we see all the latest values (i.e. value3) as per transaction
+        # Check that we see all the latest values (i.e. 3) as per transaction
         # visibility when reading with out the read_timestamp.
         # All tables should see all the values.
         self.check(self.session, "", self.table_ts_log,
@@ -196,20 +196,24 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Scenario: 2
 
-        # Bump the oldest_timestamp, we're not going back...
-        #self.assertEqual(self.conn.query_timestamp(), timestamp_ret_str(300))
+        # set oldest and stable timestamps
         self.oldts = timestamp_str(100)
         self.stablets = timestamp_str(200)
         self.conn.set_timestamp('oldest_timestamp=' + self.oldts)
         self.conn.set_timestamp('stable_timestamp=' + self.stablets)
 
+        # for logged table we should see latest values (i.e. 3) when logging
+        # is enabled.
         if self.using_log == True:
             valcnt_ts_log = 100
-            valcnt_ts_nolog = 0
         else:
             valcnt_ts_log = 0
-            valcnt_ts_nolog = 0
 
+        # for non-logged table we should not see the values beyond the
+        # stable_timestamp.
+        valcnt_ts_nolog = 0
+
+        # check to see the count of latest values as expected from checkpoint.
         self.ckpt_backup(3, valcnt_ts_log, valcnt_ts_nolog, prn=True)
         self.ckpt_backup(2, (100 - valcnt_ts_log), (100 - valcnt_ts_nolog))
 
