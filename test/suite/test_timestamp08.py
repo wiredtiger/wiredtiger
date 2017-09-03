@@ -26,8 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_timestamp03.py
-#   Timestamps: checkpoints
+# test_timestamp08.py
+#   Timestamps: multistep transactions
 #
 
 from helper import copy_wiredtiger_home
@@ -46,8 +46,8 @@ def timestamp_ret_str(t):
     return s
 
 class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
-    table_ts_log     = 'table:ts04_ts_logged'
-    table_ts_nolog   = 'table:ts04_ts_nologged'
+    table_ts_log     = 'table:ts08_ts_logged'
+    table_ts_nolog   = 'table:ts08_ts_nologged'
 
     #types = [
     #    ('file', dict(uri='file:', use_cg=False, use_index=False)),
