@@ -222,7 +222,8 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 		WT_ASSERT(session, dsk->mem_size == buf->size);
 		ip = buf;
 	}
-	WT_ERR(__wt_verify_dsk(session, "[write-check]", ip));
+	WT_ASSERT(session,
+	    __wt_verify_dsk(session, "[write-check]", ip) == 0);
 	__wt_scr_free(session, &ctmp);
 #endif
 
