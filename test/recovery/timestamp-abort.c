@@ -64,7 +64,7 @@ static const char * const stable_store = "table:stable";
 static const char * const ckpt_file = "checkpoint_done";
 static bool compat, inmem, use_ts;
 static volatile uint64_t global_ts = 1;
-pthread_rwlock_t commit_ts_lock = PTHREAD_RWLOCK_INITIALIZER;
+static pthread_rwlock_t commit_ts_lock = PTHREAD_RWLOCK_INITIALIZER;
 
 #define	MAX_TH		12
 #define	MAX_TIME	40
