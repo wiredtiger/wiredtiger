@@ -634,8 +634,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 		if (loop == 0)
 			prev = now;
 
-		if (conn->evict_threads.threads[0]->session == session)
-			__evict_tune_workers(session);
+		__evict_tune_workers(session);
 		/*
 		 * Increment the shared read generation. Do this occasionally
 		 * even if eviction is not currently required, so that pages
@@ -924,14 +923,14 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
  * Data points needed before deciding if we should keep adding workers or settle
  * on an earlier value.
  */
-#define	EVICT_TUNE_DATAPT_MIN   3
-#define	EVICT_TUNE_PERIOD	1	/* Tune period in seconds */
+#define	EVICT_TUNE_DATAPT_MIN   8
+#define	EVICT_TUNE_PERIOD	60	/* Tune period in milliseconds */
 
 /*
- * We will do a fresh re-tune every that many seconds to adjust to
+ * We will do a fresh re-tune every that many milliseconds to adjust to
  * significant phase changes.
  */
-#define	EVICT_FORCE_RETUNE	30
+#define	EVICT_FORCE_RETUNE	25000
 
 /*
  * __evict_tune_workers --
@@ -967,11 +966,10 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	if (conn->evict_threads_max == conn->evict_threads_min)
 		return;
 
-	WT_ASSERT(session, conn->evict_threads.threads[0]->session == session);
 	pgs_evicted_cur = 0;
 
 	__wt_epoch(session, &current_time);
-	time_diff = WT_TIMEDIFF_SEC(current_time, conn->evict_tune_last_time);
+	time_diff = WT_TIMEDIFF_MS(current_time, conn->evict_tune_last_time);
 
 	/*
 	 * If we have reached the stable state and have not run long enough to
@@ -990,14 +988,13 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 		conn->evict_tune_pgs_last = 0;
 		conn->evict_tune_num_points = 0;
 		conn->evict_tune_pg_sec_max = 0;
-		conn->evict_tune_workers_best = 0;
 
-		/* Reduce the number of eviction workers to the minimum */
+		/* Reduce the number of eviction workers by one */
 		thread_surplus =
 		    (int32_t)conn->evict_threads.current_threads -
 		    (int32_t)conn->evict_threads_min;
 
-		for (i = 0; i < thread_surplus; i++) {
+		if (thread_surplus > 0) {
 			__wt_thread_group_stop_one(
 			    session, &conn->evict_threads);
 			WT_STAT_CONN_INCR(session,
@@ -1095,14 +1092,12 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 
 	/*
 	 * If we have not added any worker threads in the past, we set the
-	 * number needed equal to the number of data points that we must
-	 * accumulate before deciding if we should keep adding workers or settle
-	 * on a previously tried value of workers.
+	 * number of data points needed equal to the number of data points that
+	 * we must accumulate before deciding if we should keep adding workers
+	 * or settle on a previously tried stable number of workers.
 	 */
 	if (conn->evict_tune_last_action_time.tv_sec == 0)
-		conn->evict_tune_datapts_needed = WT_MIN(EVICT_TUNE_DATAPT_MIN,
-		    (conn->evict_threads_max -
-		    conn->evict_threads.current_threads) / EVICT_TUNE_BATCH);
+		conn->evict_tune_datapts_needed = EVICT_TUNE_DATAPT_MIN;
 
 	if (F_ISSET(cache, WT_CACHE_EVICT_ALL)) {
 		cur_threads = (int32_t)conn->evict_threads.current_threads;
