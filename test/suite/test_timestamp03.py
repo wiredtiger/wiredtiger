@@ -60,9 +60,9 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
     ]
 
     ckpt = [
-        ('use_ts_def', dict(ckptcfg='', val='none')),
-        ('use_ts_false', dict(ckptcfg='use_timestamp=false', val='all')),
-        ('use_ts_true', dict(ckptcfg='use_timestamp=true', val='none')),
+        ('use_ts_def', dict(ckptcfg='', ckpt_ts=True)),
+        ('use_ts_false', dict(ckptcfg='use_timestamp=false', ckpt_ts=False)),
+        ('use_ts_true', dict(ckptcfg='use_timestamp=true', ckpt_ts=True)),
     ]
 
     conncfg = [
@@ -298,15 +298,31 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
         # Take a checkpoint using the given configuration.  Then verify
         # whether value2 appears in a copy of that data or not.
         valcnt_ts_log = valcnt_nots_log = valcnt_nots_nolog = nkeys
-        if self.val == 'all':
+        if self.ckpt_ts == False:
             # if use_timestamp is false, then all updates will be checkpointed.
             valcnt_ts_nolog = nkeys
         else:
-            # checkpoint will happen with stable_timestamp=100, hence only
-            # table_ts_nolog will still have the old values (i.e. value)
-            self.ckpt_backup(self.value, 0, nkeys, 0, 0)
+            # Checkpoint will happen with stable_timestamp=100.
+            if self.using_log == True:
+                # only table_ts_nolog will have old values when logging is enabled
+                self.ckpt_backup(self.value, 0, nkeys, 0, 0)
+            else:
+                # Both table_ts_nolog and table_ts_log will have old values when
+                # logging is disabled.
+                self.ckpt_backup(self.value, nkeys, nkeys, 0, 0)
             # table_ts_nolog will not have any new values (i.e. value2)
             valcnt_ts_nolog = 0
+
+        if self.ckpt_ts == False:
+            valcnt_ts_log = nkeys
+        else:
+            # When log is enabled, table_ts_log will have all new values, else
+            # none.
+            if self.using_log == True:
+                valcnt_ts_log = nkeys
+            else:
+                valcnt_ts_log = 0
+
         self.ckpt_backup(self.value2, valcnt_ts_log, valcnt_ts_nolog,
             valcnt_nots_log, valcnt_nots_nolog)
 
