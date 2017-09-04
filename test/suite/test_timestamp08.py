@@ -49,31 +49,22 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
     table_ts_log     = 'table:ts08_ts_logged'
     table_ts_nolog   = 'table:ts08_ts_nologged'
 
-    #types = [
-    #    ('file', dict(uri='file:', use_cg=False, use_index=False)),
-    #    ('lsm', dict(uri='lsm:', use_cg=False, use_index=False)),
-    #    ('table-cg', dict(uri='table:', use_cg=True, use_index=False)),
-    #    ('table-index', dict(uri='table:', use_cg=False, use_index=True)),
-    #    ('table-simple', dict(uri='table:', use_cg=False, use_index=False)),
-    #]
-
-    # Minimum cache_size requirement of lsm is 31MB
     types = [
-        #('col_fix', dict(empty=1, extra_config=',key_format=r,value_format=8t')),
-        #('col_var', dict(empty=0, extra_config=',key_format=r')),
-        #('lsm', dict(empty=0, extra_config=',type=lsm')),
+        ('col_fix', dict(empty=1, extra_config=',key_format=r,value_format=8t')),
+        ('col_var', dict(empty=0, extra_config=',key_format=r')),
+        ('lsm', dict(empty=0, extra_config=',type=lsm')),
         ('row', dict(empty=0, extra_config='',)),
     ]
     ckpt = [
-        #('use_ts_def', dict(ckptcfg='', val='none')),
-        #('use_ts_false', dict(ckptcfg='use_timestamp=false', val='all')),
-        ('use_ts_true', dict(ckptcfg='use_timestamp=true', val='none')),
+        ('ckpt_ts_def', dict(ckptcfg='', ckpt_ts=True)),
+        ('ckpt_ts_false', dict(ckptcfg='use_timestamp=false', ckpt_ts=False)),
+        ('ckpt_ts_true', dict(ckptcfg='use_timestamp=true', ckpt_ts=True)),
     ]
 
     conncfg = [
         ('nolog', dict(conn_config='create', using_log=False)),
-        #('V1', dict(conn_config='create,log=(enabled),compatibility=(release="2.9")', using_log=True)),
-        #('V2', dict(conn_config='create,log=(enabled)', using_log=True)),
+        ('V1', dict(conn_config='create,log=(enabled),compatibility=(release="2.9")', using_log=True)),
+        ('V2', dict(conn_config='create,log=(enabled)', using_log=True)),
     ]
 
     scenarios = make_scenarios(conncfg, types, ckpt)
@@ -131,7 +122,7 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(actual_ts_nolog, expected_ts_nolog)
 
     # Check that a cursor sees the expected values after a checkpoint.
-    def ckpt_backup(self, check_value, valcnt_ts_log, valcnt_ts_nolog, prn=False):
+    def ckpt_backup(self, check_value, valcnt_ts_log, valcnt_ts_nolog):
 
         # Take a checkpoint.  Make a copy of the database.  Open the
         # copy and verify whether or not the expected data is in there.
@@ -149,7 +140,7 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
         config_nolog   = ',log=(enabled=false)'
 
         #
-        # Open four tables:
+        # Open two timestamp tables:
         # 1. Table is logged and uses timestamps.
         # 2. Table is not logged and uses timestamps.
         #
@@ -158,14 +149,13 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.create(self.table_ts_nolog, 'key_format=i,value_format=i,log=(enabled=false)')
         cur_ts_nolog = self.session.open_cursor(self.table_ts_nolog)
 
-        # Insert keys 1..100 each with timestamp=key, in some order
+        # Insert keys 1..100
         nkeys = 100
         orig_keys = range(1, nkeys+1)
         keys = orig_keys[:]
         random.shuffle(keys)
 
         self.session.begin_transaction()
-
         # Make three updates with different timestamps.
         self.session.timestamp_transaction('commit_timestamp=' + timestamp_str(1))
         for k in keys:
@@ -182,7 +172,6 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
             cur_ts_log[k] = 3
             cur_ts_nolog[k] = 3
 
-
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(301))
 
         # Scenario: 1
@@ -190,42 +179,83 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
         # visibility when reading with out the read_timestamp.
         # All tables should see all the values.
         self.check(self.session, "", self.table_ts_log,
-            dict((k, 3) for k in orig_keys), prn=False)
+            dict((k, 3) for k in orig_keys))
         self.check(self.session, "", self.table_ts_nolog,
-            dict((k, 3) for k in orig_keys), prn=False)
+            dict((k, 3) for k in orig_keys))
 
         # Scenario: 2
-
-        # set oldest and stable timestamps
+        # Set oldest and stable timestamps
         self.oldts = timestamp_str(100)
+        # Set the stable_timestamp such that last update is beyond it.
         self.stablets = timestamp_str(200)
         self.conn.set_timestamp('oldest_timestamp=' + self.oldts)
         self.conn.set_timestamp('stable_timestamp=' + self.stablets)
 
-        # for logged table we should see latest values (i.e. 3) when logging
+        # Check that we see the values correctly till stable_timestamp.
+        self.check(self.session, 'read_timestamp=' + self.stablets,
+            self.table_ts_log,dict((k, 2) for k in orig_keys))
+        self.check(self.session, 'read_timestamp=' + self.stablets,
+            self.table_ts_nolog,dict((k, 2) for k in orig_keys))
+
+        # For logged table we should see latest values (i.e. 3) when logging
         # is enabled.
         if self.using_log == True:
-            valcnt_ts_log = 100
+            valcnt_ts_log = nkeys
         else:
-            valcnt_ts_log = 0
+            # When logging is disabled, we should not see the values beyond the
+            # stable_timestamp with timestamped checkpoints.
+            if self.ckpt_ts == True:
+                valcnt_ts_log = 0
+            else:
+                valcnt_ts_log = nkeys
 
-        # for non-logged table we should not see the values beyond the
-        # stable_timestamp.
-        valcnt_ts_nolog = 0
+        # For non-logged table we should not see the values beyond the
+        # stable_timestamp with timestamped checkpoints.
+        if self.ckpt_ts == True:
+            valcnt_ts_nolog = 0
+        else:
+            valcnt_ts_nolog = nkeys
 
-        # check to see the count of latest values as expected from checkpoint.
-        self.ckpt_backup(3, valcnt_ts_log, valcnt_ts_nolog, prn=True)
-        self.ckpt_backup(2, (100 - valcnt_ts_log), (100 - valcnt_ts_nolog))
-
-        self.conn.rollback_to_stable()
+        # Check to see the count of latest values as expected from checkpoint.
+        self.ckpt_backup(3, valcnt_ts_log, valcnt_ts_nolog)
+        self.ckpt_backup(2, (nkeys - valcnt_ts_log), (nkeys - valcnt_ts_nolog))
 
         # Scenario: 3
         # Check that we see all the data values correct after rollback
-        # All tables should see all the values.
-        self.check(self.session, 'read_timestamp=' + self.stablets,
-            self.table_ts_log, dict((k, 2) for k in orig_keys))
+        self.conn.rollback_to_stable()
+        # All tables should see the values correctly when read with
+        # read_timestamp as stable_timestamp.
         self.check(self.session, 'read_timestamp=' + self.stablets,
             self.table_ts_nolog, dict((k, 2) for k in orig_keys))
+        self.check(self.session, 'read_timestamp=' + self.stablets,
+            self.table_ts_log, dict((k, 2) for k in orig_keys))
+
+        # Scenario: 4
+        # Check that we see the values correctly when read with out any
+        # timestamp.
+        if self.using_log == True:
+            # For logged table we should see latest values (i.e. 3) when logging
+            # is enabled.
+            self.check(self.session, "",
+                self.table_ts_log, dict((k, 3) for k in orig_keys))
+        else:
+            # When logging is disabled, we should not see the values beyond the
+            # stable_timestamp with timestamped checkpoints.
+            if self.ckpt_ts == True:
+                self.check(self.session, "",
+                    self.table_ts_log, dict((k, 2) for k in orig_keys))
+            else:
+                self.check(self.session, "",
+                    self.table_ts_log, dict((k, 3) for k in orig_keys))
+
+        # For non-logged table we should not see the values beyond the
+        # stable_timestamp with timestamped checkpoints.
+        if self.ckpt_ts == True:
+            self.check(self.session, "",
+                self.table_ts_nolog, dict((k, 2) for k in orig_keys))
+        else:
+            self.check(self.session, "",
+                self.table_ts_nolog, dict((k, 3) for k in orig_keys))
 
 if __name__ == '__main__':
     wttest.run()
