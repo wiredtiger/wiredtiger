@@ -169,11 +169,12 @@ __wt_txn_clear_pinned_id(WT_SESSION_IMPL *session)
 }
 
 /*
- * __txn_oldest_scan --
- *	Sweep the running transactions to calculate the oldest ID required.
+ * __txn_oldest_calc --
+ *	Calculate the oldest transactions that have to be kept available for
+ *	reads.
  */
 static void
-__txn_oldest_scan(WT_SESSION_IMPL *session,
+__txn_oldest_calc(WT_SESSION_IMPL *session,
     uint64_t *oldest_idp, uint64_t *last_runningp, uint64_t *metadata_pinnedp,
     WT_SESSION_IMPL **oldest_sessionp)
 {
@@ -187,7 +188,6 @@ __txn_oldest_scan(WT_SESSION_IMPL *session,
 	txn_global = &conn->txn_global;
 	oldest_session = NULL;
 
-	/* The oldest ID cannot change while we are holding the scan lock. */
 	last_running = oldest_id = txn_global->current;
 	if ((metadata_pinned = txn_global->checkpoint_txn_id) == WT_TXN_NONE)
 		metadata_pinned = oldest_id;
@@ -212,6 +212,11 @@ __txn_oldest_scan(WT_SESSION_IMPL *session,
 	 */
 	if ((txn = TAILQ_FIRST(&txn_global->pinned_idh)) != NULL) {
 		oldest_id = txn->pinned_id;
+
+		/*
+		 * Remember the session pinning the oldest ID: it's used for
+		 * verbose messages.
+		 */
 		oldest_session =
 		    WT_STRUCT_FROM_FIELD(WT_SESSION_IMPL, txn, txn);
 	}
@@ -268,22 +273,16 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 
 	/*
 	 * For pure read-only workloads, or if the update isn't forced and the
-	 * oldest ID isn't too far behind, avoid scanning.
+	 * oldest ID isn't too far behind, avoid locking.
 	 */
 	if ((prev_oldest_id == current_id &&
 	    prev_metadata_pinned == current_id) ||
 	    (!strict && WT_TXNID_LT(current_id, prev_oldest_id + 100)))
 		return (0);
 
-	/* First do a read-only scan. */
-	if (wait)
-		__wt_readlock(session, &txn_global->rwlock);
-	else if ((ret =
-	    __wt_try_readlock(session, &txn_global->rwlock)) != 0)
-		return (ret == EBUSY ? 0 : ret);
-	__txn_oldest_scan(session,
+	/* First do a check without locking. */
+	__txn_oldest_calc(session,
 	    &oldest_id, &last_running, &metadata_pinned, &oldest_session);
-	__wt_readunlock(session, &txn_global->rwlock);
 
 	/*
 	 * If the state hasn't changed (or hasn't moved far enough for
@@ -305,7 +304,7 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 
 	/*
 	 * If the oldest ID has been updated while we waited, don't bother
-	 * scanning.
+	 * recalculating.
 	 */
 	if (WT_TXNID_LE(oldest_id, txn_global->oldest_id) &&
 	    WT_TXNID_LE(last_running, txn_global->last_running) &&
@@ -313,12 +312,12 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 		goto done;
 
 	/*
-	 * Re-scan now that we have exclusive access.  This is necessary because
-	 * threads get transaction snapshots with read locks, and we have to be
-	 * sure that there isn't a thread that has got a snapshot locally but
-	 * not yet published its snap_min.
+	 * Re-check now that we have exclusive access.  This is necessary
+	 * because threads get transaction snapshots with read locks, and we
+	 * have to be sure that there isn't a thread that has a snapshot
+	 * locally but not yet published its pinned ID.
 	 */
-	__txn_oldest_scan(session,
+	__txn_oldest_calc(session,
 	    &oldest_id, &last_running, &metadata_pinned, &oldest_session);
 
 #ifdef HAVE_DIAGNOSTIC
@@ -344,8 +343,10 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 		txn_global->last_running = last_running;
 
 #ifdef HAVE_VERBOSE
-		/* Output a verbose message about long-running transactions,
-		 * but only when some progress is being made. */
+		/*
+		 * Output a verbose message about long-running transactions,
+		 * but only when some progress is being made.
+		 */
 		if (WT_VERBOSE_ISSET(session, WT_VERB_TRANSACTION) &&
 		    current_id - oldest_id > 10000 && oldest_session != NULL) {
 			__wt_verbose(session, WT_VERB_TRANSACTION,

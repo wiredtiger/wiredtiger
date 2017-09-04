@@ -511,6 +511,7 @@ bzDecompressInit
 bzalloc
 bzfree
 bzip
+calc
 call's
 calloc
 cas

@@ -68,9 +68,9 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 
 	/*
 	 * We're going to scan the list of running transactions: wait for the
-	 * lock.
+	 * lock.  Hold the global rwlock to prevent the oldest ID moving
+	 * forward while we scan.
 	 */
-	// XXX -- keep oldest pinned
 	__wt_readlock(session, &txn_global->rwlock);
 	__wt_readlock(session, &txn_global->id_rwlock);
 	current_id = pinned_id = txn_global->current;
