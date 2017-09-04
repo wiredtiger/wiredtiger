@@ -55,7 +55,7 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
         # setting a read_timestamp on a txn should fail
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.begin_transaction(
-                'read_timestamp=' + timestamp_str(6)),
+                'read_timestamp=' + timestamp_str(1)),
                 '/requires a version of WiredTiger built with timestamp support/')
 
         # setting a commit_timestamp on a txn should fail
@@ -63,7 +63,7 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
         c[2] = 2
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.timestamp_transaction(
-                'commit_timestamp=' + timestamp_str(3)),
+                'commit_timestamp=' + timestamp_str(1)),
                 '/requires a version of WiredTiger built with timestamp support/')
         self.session.rollback_transaction()
 
@@ -72,7 +72,7 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
         c[2] = 2
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(
-                'commit_timestamp=' + timestamp_str(3)),
+                'commit_timestamp=' + timestamp_str(1)),
                 '/requires a version of WiredTiger built with timestamp support/')
 
         # query_timestamp should fail
