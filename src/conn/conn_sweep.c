@@ -278,7 +278,6 @@ __sweep_server(void *arg)
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	time_t now;
-	uint64_t oldest_id;
 	u_int dead_handles;
 
 	session = arg;
