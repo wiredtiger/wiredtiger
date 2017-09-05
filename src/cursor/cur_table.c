@@ -998,8 +998,11 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 		if (ret == 0) {
 			/* Fix up the public URI to match what was passed in. */
 			cursor = *cursorp;
-			__wt_free(session, cursor->uri);
-			WT_TRET(__wt_strdup(session, uri, &cursor->uri));
+			if (!F_ISSET(cursor, WT_CURSTD_URI_SHARED))
+				__wt_free(session, cursor->uri);
+			cursor->uri = table->iface.name;
+			WT_ASSERT(session, strcmp(uri, cursor->uri) == 0);
+			F_SET(cursor, WT_CURSTD_URI_SHARED);
 		}
 		return (ret);
 	}
