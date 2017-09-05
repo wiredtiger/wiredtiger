@@ -669,9 +669,6 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 		F_SET(txn, WT_TXN_HAS_TS_READ);
 	}
 #else
-	__wt_writeunlock(session, &txn_global->rwlock);
-	WT_RET_MSG(session, EINVAL, "use_timestamp requires a "
-	    "version of WiredTiger built with timestamp support");
 	WT_UNUSED(use_timestamp);
 #endif
 

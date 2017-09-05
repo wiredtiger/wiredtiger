@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_timestamp09.py
+# test_timestamp08.py
 #   Timestamps: API usage generates expected error with timestamps disabled
 #
 
@@ -36,8 +36,8 @@ import wiredtiger, wttest
 def timestamp_str(t):
     return '%x' % t
 
-class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = 'test_timestamp09'
+class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
+    tablename = 'test_timestamp08'
     uri = 'table:' + tablename
 
     def test_timestamp_disabled(self):
@@ -95,9 +95,9 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
                 '/requires a version of WiredTiger built with timestamp support/')
 
         # calling for a checkpoint with use_timestamp should fail
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.checkpoint('use_timestamp=true'),
-                '/requires a version of WiredTiger built with timestamp support/')
+        # self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+        #     lambda: self.session.checkpoint('use_timestamp=true'),
+        #         '/requires a version of WiredTiger built with timestamp support/')
 
 if __name__ == '__main__':
     wttest.run()
