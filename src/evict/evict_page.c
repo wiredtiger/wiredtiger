@@ -152,7 +152,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 	 * If there was an in-memory split, the tree has been left in the state
 	 * we want: there is nothing more to do.
 	 */
-	if (LF_ISSET(WT_EVICT_INMEM_SPLIT))
+	if (LF_ISSET(WT_REC_INMEM_SPLIT))
 		goto done;
 
 	/* Count evictions of internal pages during normal operation. */
@@ -423,7 +423,7 @@ __evict_review(
 	bool lookaside_retry, *lookaside_retryp, modified;
 
 	conn = S2C(session);
-	flags = WT_EVICTING;
+	flags = WT_REC_EVICT | WT_REC_VISIBLE_ALL;
 	*flagsp = flags;
 
 	/*
@@ -502,7 +502,7 @@ __evict_review(
 		 * the page stays in memory and the tree is left in the desired
 		 * state: avoid the usual cleanup.
 		 */
-		if (LF_ISSET(WT_EVICT_INMEM_SPLIT))
+		if (LF_ISSET(WT_REC_INMEM_SPLIT))
 			return (__wt_split_insert(session, ref));
 	}
 
@@ -545,16 +545,16 @@ __evict_review(
 	lookaside_retryp = NULL;
 
 	if (closing)
-		LF_SET(WT_VISIBILITY_ERR);
+		LF_SET(WT_REC_VISIBILITY_ERR);
 	else if (!WT_PAGE_IS_INTERNAL(page)) {
 		if (F_ISSET(conn, WT_CONN_IN_MEMORY))
-			LF_SET(WT_EVICT_IN_MEMORY |
-			    WT_EVICT_SCRUB | WT_EVICT_UPDATE_RESTORE);
+			LF_SET(WT_REC_IN_MEMORY |
+			    WT_REC_SCRUB | WT_REC_UPDATE_RESTORE);
 		else {
-			LF_SET(WT_EVICT_UPDATE_RESTORE);
+			LF_SET(WT_REC_UPDATE_RESTORE);
 
 			if (F_ISSET(cache, WT_CACHE_EVICT_SCRUB))
-				LF_SET(WT_EVICT_SCRUB);
+				LF_SET(WT_REC_SCRUB);
 
 			/*
 			 * Check if reconciliation suggests trying the
@@ -576,8 +576,8 @@ __evict_review(
 	 * in cache to support older readers.
 	 */
 	if (ret == EBUSY && lookaside_retry) {
-		LF_CLR(WT_EVICT_SCRUB | WT_EVICT_UPDATE_RESTORE);
-		LF_SET(WT_EVICT_LOOKASIDE);
+		LF_CLR(WT_REC_SCRUB | WT_REC_UPDATE_RESTORE);
+		LF_SET(WT_REC_LOOKASIDE);
 		ret = __wt_reconcile(session, ref, NULL, flags, NULL);
 	}
 
@@ -592,10 +592,10 @@ __evict_review(
 	 * visible.
 	 */
 	WT_ASSERT(session,
-	    !__wt_page_is_modified(page) || LF_ISSET(WT_EVICT_UPDATE_RESTORE));
+	    !__wt_page_is_modified(page) || LF_ISSET(WT_REC_UPDATE_RESTORE));
 	WT_ASSERT(session,
 	    __wt_page_is_modified(page) ||
-	    LF_ISSET(WT_EVICT_LOOKASIDE) ||
+	    LF_ISSET(WT_REC_LOOKASIDE) ||
 	    F_ISSET(S2BT(session), WT_BTREE_LOOKASIDE) ||
 	    __wt_txn_visible_all(session, page->modify->rec_max_txn,
 	    WT_TIMESTAMP_NULL(&page->modify->rec_max_timestamp)));

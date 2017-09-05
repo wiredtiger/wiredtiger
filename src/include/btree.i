@@ -1303,7 +1303,7 @@ __wt_page_can_evict(
 	 */
 	if (__wt_leaf_page_can_split(session, page)) {
 		if (evict_flagsp != NULL)
-			FLD_SET(*evict_flagsp, WT_EVICT_INMEM_SPLIT);
+			FLD_SET(*evict_flagsp, WT_REC_INMEM_SPLIT);
 		return (true);
 	}
 
