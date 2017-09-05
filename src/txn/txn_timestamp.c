@@ -491,18 +491,19 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_RET(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
 
 		/*
-		 * commit timestamp being set should be newer than the oldest
-		 * timestamp and should move forward in a transaction
+		 * Commit timestamp being set should be newer than the oldest
+		 * timestamp and should move forward in a transaction.
 		 */
 		__wt_readlock(session, &txn_global->rwlock);
 		if (txn_global->has_oldest_timestamp && __wt_timestamp_cmp(&ts,
-		    &txn_global->oldest_timestamp) < 0) {
-			__wt_readunlock(session, &txn_global->rwlock);
-			WT_RET_MSG(session, EINVAL,
+		    &txn_global->oldest_timestamp) < 0)
+			ret = EINVAL;
+		__wt_readunlock(session, &txn_global->rwlock);
+		if (ret != 0)
+			WT_RET_MSG(session, ret,
 			    "commit timestamp %.*s older than oldest timestamp",
 			    (int)cval.len, cval.str);
-		}
-		__wt_readunlock(session, &txn_global->rwlock);
+
 		if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
 		    __wt_timestamp_cmp(&ts, &txn->commit_timestamp) < 0)
 			WT_RET_MSG(session, EINVAL,
