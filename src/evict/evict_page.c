@@ -560,7 +560,8 @@ __evict_review(
 			 * Check if reconciliation suggests trying the
 			 * lookaside table.
 			 */
-			lookaside_retryp = &lookaside_retry;
+			if (__wt_cache_stuck(session))
+				lookaside_retryp = &lookaside_retry;
 		}
 	}
 
@@ -574,7 +575,7 @@ __evict_review(
 	 * table, allowing the eviction of pages we'd otherwise have to retain
 	 * in cache to support older readers.
 	 */
-	if (ret == EBUSY && lookaside_retry && __wt_cache_stuck(session)) {
+	if (ret == EBUSY && lookaside_retry) {
 		LF_CLR(WT_EVICT_SCRUB | WT_EVICT_UPDATE_RESTORE);
 		LF_SET(WT_EVICT_LOOKASIDE);
 		ret = __wt_reconcile(session, ref, NULL, flags, NULL);

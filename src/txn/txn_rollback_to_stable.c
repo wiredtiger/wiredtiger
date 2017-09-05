@@ -20,10 +20,11 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_DECL_TIMESTAMP(rollback_timestamp)
-	WT_ITEM las_addr, las_key, las_timestamp;
+	WT_ITEM las_addr, las_key, las_timestamp, las_value;
 	WT_TXN_GLOBAL *txn_global;
 	uint64_t las_counter, las_txnid, remove_cnt;
 	uint32_t las_id, session_flags;
+	uint8_t upd_type;
 
 	conn = S2C(session);
 	cursor = NULL;
@@ -49,8 +50,8 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 
 	/* Walk the file. */
 	for (; (ret = cursor->next(cursor)) == 0; ) {
-		WT_ERR(cursor->get_key(cursor, &las_id, &las_addr, &las_counter,
-		    &las_txnid, &las_timestamp, &las_key));
+		WT_ERR(cursor->get_key(cursor,
+		    &las_id, &las_addr, &las_counter, &las_key));
 
 		/* Check the file ID so we can skip durable tables */
 		if (las_id >= conn->stable_rollback_maxfile)
@@ -59,6 +60,9 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 			    las_id, conn->stable_rollback_maxfile);
 		if (__bit_test(conn->stable_rollback_bitstring, las_id))
 			continue;
+
+		WT_ERR(cursor->get_value(cursor,
+		    &las_txnid, &las_timestamp, &upd_type, &las_value));
 
 		/*
 		 * Entries with no timestamp will have a timestamp of zero,

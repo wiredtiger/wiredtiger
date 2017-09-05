@@ -367,7 +367,6 @@ struct __wt_connection_impl {
 	WT_SESSION_IMPL *las_session;	/* Lookaside table session */
 	bool		 las_written;	/* Lookaside table has been written */
 
-	WT_ITEM		 las_sweep_key;	/* Sweep server's saved key */
 	uint64_t	 las_record_cnt;/* Count of lookaside records */
 
 	/*

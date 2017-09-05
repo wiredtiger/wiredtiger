@@ -69,9 +69,8 @@ typedef struct {
 	uint64_t max_txn;
 	WT_DECL_TIMESTAMP(max_timestamp)
 
-	uint64_t update_mem_all;	/* Total update memory size */
-	uint64_t update_mem_saved;	/* Saved update memory size */
-	uint64_t update_mem_uncommitted;/* Uncommitted update memory size */
+	bool update_uncommitted;	/* An update was uncommitted */
+	bool update_used;		/* An update could be used */
 
 	/*
 	 * When we can't mark the page clean (for example, checkpoint found some
@@ -601,20 +600,6 @@ __rec_write_check_complete(
 		return (EBUSY);
 
 	/*
-	 * Eviction can configure lookaside table reconciliation, consider if
-	 * it's worth giving up this reconciliation attempt and falling back to
-	 * using the lookaside table.  We continue with evict/restore if
-	 * switching to the lookaside doesn't make sense for any reason: we
-	 * won't retry an evict/restore reconciliation until/unless the
-	 * transactional system moves forward, so at worst it's a single wasted
-	 * effort.
-	 *
-	 * First, check if the lookaside table is a possible alternative.
-	 */
-	if (lookaside_retryp == NULL)
-		return (0);
-
-	/*
 	 * We only suggest lookaside if currently in an evict/restore attempt
 	 * and some updates were saved.  Our caller sets the evict/restore flag
 	 * based on various conditions (like if this is a leaf page), which is
@@ -622,7 +607,8 @@ __rec_write_check_complete(
 	 * If no updates were saved, eviction will succeed without needing to
 	 * restore anything.
 	 */
-	if (!F_ISSET(r, WT_EVICT_UPDATE_RESTORE) || r->bnd->supd == NULL)
+	if (!F_ISSET(r, WT_EVICT_UPDATE_RESTORE) ||
+	    r->bnd->supd == NULL || lookaside_retryp == NULL)
 		return (0);
 
 	/*
@@ -630,31 +616,23 @@ __rec_write_check_complete(
 	 * any sign of progress, don't fall back to the lookaside table.
 	 *
 	 * Check if the current reconciliation split, in which case we'll
-	 * likely get to write at least one of the blocks.  If that page is
-	 * empty, that's also progress.
+	 * likely get to write at least one of the blocks.  If we've created a
+	 * page image for a page that previously didn't have one, or we had a
+	 * page image and it is now empty, that's also progress.
 	 */
-	if (r->bnd_next != 1)
+	if (r->bnd_next > 1 || r->bnd_next == (r->page->dsk == NULL) ? 1 : 0)
 		return (0);
 
 	/*
 	 * Check if the current reconciliation applied some updates, in which
 	 * case evict/restore should gain us some space.
-	 */
-	if (r->update_mem_saved != r->update_mem_all)
-		return (0);
-
-	/*
+	 *
 	 * Check if lookaside eviction is possible.  If any of the updates we
-	 * saw were uncommitted, the lookaside table cannot be used: it only
-	 * helps with older readers preventing eviction.
+	 * saw were uncommitted, the lookaside table cannot be used.
 	 */
-	if (r->update_mem_uncommitted != 0)
+	if (r->update_used || r->update_uncommitted)
 		return (0);
 
-	/*
-	 * The current evict/restore approach shows no signs of being useful,
-	 * lookaside is possible, suggest the lookaside table.
-	 */
 	*lookaside_retryp = true;
 	return (EBUSY);
 }
@@ -986,8 +964,8 @@ __rec_init(WT_SESSION_IMPL *session,
 	/* Track the page's maximum transaction ID. */
 	r->max_txn = WT_TXN_NONE;
 
-	/* Track if all updates were skipped. */
-	r->update_mem_all = r->update_mem_saved = r->update_mem_uncommitted = 0;
+	/* Track if updates were used and/or uncommitted. */
+	r->update_used = r->update_uncommitted = false;
 
 	/* Track if the page can be marked clean. */
 	r->leave_dirty = false;
@@ -1176,19 +1154,13 @@ __rec_bnd_cleanup(WT_SESSION_IMPL *session, WT_RECONCILE *r, bool destroy)
  */
 static int
 __rec_update_save(WT_SESSION_IMPL *session,
-    WT_RECONCILE *r, WT_INSERT *ins, void *ripcip, WT_UPDATE *upd)
+    WT_RECONCILE *r, WT_INSERT *ins, void *ripcip, WT_UPDATE *onpage_upd)
 {
 	WT_RET(__wt_realloc_def(
 	    session, &r->supd_allocated, r->supd_next + 1, &r->supd));
 	r->supd[r->supd_next].ins = ins;
 	r->supd[r->supd_next].ripcip = ripcip;
-	r->supd[r->supd_next].onpage_txn =
-	    upd == NULL ? WT_TXN_NONE : upd->txnid;
-#ifdef HAVE_TIMESTAMPS
-	if (upd != NULL)
-		__wt_timestamp_set(
-		    &r->supd[r->supd_next].onpage_timestamp, &upd->timestamp);
-#endif
+	r->supd[r->supd_next].onpage_upd = onpage_upd;
 	++r->supd_next;
 	return (0);
 }
@@ -1217,7 +1189,7 @@ __rec_update_move(WT_SESSION_IMPL *session, WT_BOUNDARY *bnd, WT_SAVE_UPD *supd)
  */
 static int
 __rec_append_orig_value(WT_SESSION_IMPL *session,
-    WT_PAGE *page, WT_UPDATE *upd_list, WT_CELL_UNPACK *unpack)
+    WT_PAGE *page, WT_UPDATE *first_upd, WT_CELL_UNPACK *unpack)
 {
 	WT_DECL_ITEM(tmp);
 	WT_DECL_RET;
@@ -1228,7 +1200,7 @@ __rec_append_orig_value(WT_SESSION_IMPL *session,
 	 * If at least one self-contained update is globally visible, we're
 	 * done.
 	 */
-	for (upd = upd_list; upd != NULL; upd = upd->next)
+	for (upd = first_upd; upd != NULL; upd = upd->next)
 		if (WT_UPDATE_DATA_VALUE(upd) &&
 		    __wt_txn_upd_visible_all(session, upd))
 			return (0);
@@ -1261,7 +1233,7 @@ __rec_append_orig_value(WT_SESSION_IMPL *session,
 	 *
 	 * Append the new entry to the update list.
 	 */
-	for (upd = upd_list; upd->next != NULL; upd = upd->next)
+	for (upd = first_upd; upd->next != NULL; upd = upd->next)
 		;
 	WT_PUBLISH(upd->next, append);
 	__wt_cache_page_inmem_incr(session, page, size);
@@ -1279,132 +1251,120 @@ static int
 __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
     WT_INSERT *ins, void *ripcip, WT_CELL_UNPACK *vpack, WT_UPDATE **updp)
 {
-	WT_BTREE *btree;
-	WT_DECL_TIMESTAMP(max_timestamp)
 	WT_PAGE *page;
-	WT_UPDATE *upd, *upd_list;
-	size_t update_mem;
+	WT_UPDATE *first_active_upd, *first_upd, *first_ts_upd, *next_upd;
+	WT_UPDATE *prev_upd, *upd;
 	uint64_t max_txn, txnid;
-	bool skipped;
+	bool uncommitted;
 
 	*updp = NULL;
 
-	btree = S2BT(session);
 	page = r->page;
+	first_active_upd = first_ts_upd = prev_upd = NULL;
+	max_txn = WT_TXN_NONE;
+	uncommitted = false;
 
 	/*
 	 * If called with a WT_INSERT item, use its WT_UPDATE list (which must
 	 * exist), otherwise check for an on-page row-store WT_UPDATE list
 	 * (which may not exist). Return immediately if the item has no updates.
 	 */
-	if (ins == NULL) {
-		if ((upd_list = WT_ROW_UPDATE(page, ripcip)) == NULL)
-			return (0);
-	} else
-		upd_list = ins->upd;
+	if (ins != NULL)
+		first_upd = ins->upd;
+	else if ((first_upd = WT_ROW_UPDATE(page, ripcip)) == NULL)
+		return (0);
 
-	skipped = false;
-	update_mem = 0;
-	max_txn = WT_TXN_NONE;
-#ifdef HAVE_TIMESTAMPS
-	__wt_timestamp_set_zero(&max_timestamp);
-#endif
+	for (upd = first_upd, prev_upd = NULL; upd != NULL; upd = next_upd) {
+		next_upd = upd->next;
 
-	if (F_ISSET(r, WT_EVICTING)) {
-		/* Discard obsolete updates. */
-		if ((upd = __wt_update_obsolete_check(
-		    session, page, upd_list->next)) != NULL)
-			__wt_update_obsolete_free(session, page, upd);
+		if ((txnid = upd->txnid) == WT_TXN_ABORTED) {
+			if (F_ISSET(r, WT_EVICTING)) {
+				/* Strip out aborted updates. */
+				if (prev_upd != NULL)
+					prev_upd->next = upd->next;
+				else {
+					first_upd = upd->next;
+					if (ins != NULL)
+						ins->upd = first_upd;
+					else
+						page->modify->mod_row_update[
+						    WT_ROW_SLOT(page, ripcip)] =
+						    first_upd;
+				}
+				upd->next = NULL;
+				__wt_update_obsolete_free(session, page, upd);
+			}
+			continue;
+		}
+		prev_upd = upd;
 
-		for (upd = upd_list; upd != NULL; upd = upd->next) {
-			/* Track the total memory in the update chain. */
-			update_mem += WT_UPDATE_MEMSIZE(upd);
+		/*
+		 * Track the first update in the chain that is not aborted and
+		 * the maximum transaction ID.
+		 */
+		if (first_active_upd == NULL)
+			first_active_upd = upd;
 
-			if ((txnid = upd->txnid) == WT_TXN_ABORTED)
-				continue;
+		if (WT_TXNID_LT(max_txn, txnid))
+			max_txn = txnid;
 
+		/*
+		 * Find the first update we can use.
+		 *
+		 * Update/restore eviction can handle any update (including
+		 * uncommitted updates).  Lookaside eviction can save any
+		 * committed update.  Regular eviction eviction checks that the
+		 * maximum transaction ID and timestamp seen are stable.
+		 */
+		if (F_ISSET(r, WT_EVICTING)) {
 			/*
-			 * Track the largest/smallest transaction IDs on the
-			 * list.
-			 */
-			if (WT_TXNID_LT(max_txn, txnid))
-				max_txn = txnid;
-
-			/*
-			 * Find the first update we can use.
-			 *
 			 * Check whether the update was committed before
 			 * reconciliation started.  The global commit point can
 			 * move forward during reconciliation so we use a
 			 * cached copy to avoid races when a concurrent
 			 * transaction commits or rolls back while we are
 			 * examining its updates.
-			 *
-			 * Lookaside eviction can cope with any committed
-			 * update.  Other eviction modes check that the maximum
-			 * transaction ID and timestamp seen are stable.
-			 *
-			 * When reconciling for eviction, track whether any
-			 * uncommitted updates are found.
 			 */
 			if (WT_TXNID_LE(r->last_running, txnid)) {
-				skipped = true;
+				uncommitted = true;
 				continue;
 			}
 
+#ifdef HAVE_TIMESTAMPS
+			if (first_ts_upd == NULL &&
+			   !__wt_timestamp_iszero(&upd->timestamp))
+				first_ts_upd = upd;
+#endif
+
+			if (__wt_txn_upd_visible_all(session, upd)) {
+				if (*updp == NULL)
+					*updp = upd;
+				if (WT_UPDATE_DATA_VALUE(upd)) {
+					__wt_update_obsolete_free(
+					    session, page, upd->next);
+					upd->next = NULL;
+					break;
+				}
+			}
+		} else if (__wt_txn_upd_visible(session, upd)) {
 			if (*updp == NULL)
 				*updp = upd;
 
 #ifdef HAVE_TIMESTAMPS
-			/* Track min/max timestamps. */
-			if (__wt_timestamp_cmp(
-			    &upd->timestamp, &max_timestamp) > 0)
-				__wt_timestamp_set(
-				    &max_timestamp, &upd->timestamp);
+			if (first_ts_upd == NULL &&
+			   !__wt_timestamp_iszero(&upd->timestamp))
+				first_ts_upd = upd;
 #endif
 		}
-	} else
-		for (upd = upd_list; upd != NULL; upd = upd->next) {
-			if ((txnid = upd->txnid) == WT_TXN_ABORTED)
-				continue;
-
-			/* Track the largest transaction ID on the list. */
-			if (WT_TXNID_LT(max_txn, txnid))
-				max_txn = txnid;
-
-			/*
-			 * Find the first update we can use.
-			 *
-			 * Checkpoint can only write updates visible as of its
-			 * snapshot.
-			 *
-			 * When reconciling for a checkpoint, track whether any
-			 * updates were skipped on the way to finding the first
-			 * visible update.
-			 */
-			if (*updp == NULL) {
-				if (__wt_txn_upd_visible(session, upd))
-					*updp = upd;
-				else
-					skipped = true;
-			}
-		}
+	}
 
 	/* Reconciliation should never see an aborted or reserved update. */
 	WT_ASSERT(session, *updp == NULL ||
 	    ((*updp)->txnid != WT_TXN_ABORTED &&
 	    (*updp)->type != WT_UPDATE_RESERVED));
 
-	r->update_mem_all += update_mem;
-
-	/*
-	 * If all of the updates were aborted, quit. This test is not strictly
-	 * necessary because the above loop exits with skipped not set and the
-	 * maximum transaction left at its initial value of WT_TXN_NONE, so
-	 * the test below will be branch true and return, but it's cheap and a
-	 * little more explicit, and makes Coverity happy.
-	 */
-	if (max_txn == WT_TXN_NONE)
+	/* If all of the updates were aborted, quit. */
+	if (first_active_upd == NULL)
 		return (0);
 
 	/*
@@ -1416,41 +1376,28 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	if (WT_TXNID_LT(r->max_txn, max_txn))
 		r->max_txn = max_txn;
 #ifdef HAVE_TIMESTAMPS
-	if (__wt_timestamp_cmp(&r->max_timestamp, &max_timestamp) < 0)
-		__wt_timestamp_set(&r->max_timestamp, &max_timestamp);
+	if (first_ts_upd != NULL &&
+	    __wt_timestamp_cmp(&r->max_timestamp, &first_ts_upd->timestamp) < 0)
+		__wt_timestamp_set(&r->max_timestamp, &first_ts_upd->timestamp);
 #endif
 
 	/*
-	 * If there are no skipped updates and all updates are globally visible,
-	 * the page can be marked clean and we're done, regardless if evicting
-	 * or checkpointing.
-	 *
-	 * We have to check both: the oldest transaction ID may have moved while
-	 * we were scanning the update list, so it is possible to find a skipped
-	 * update, but then find all updates are stable at the end of the scan.
-	 *
-	 * Skip the visibility check for the lookaside table as a special-case,
-	 * we know there are no older readers of that table.
+	 * The checkpoint transaction is special.  Make sure we never write
+	 * (metadata) updates from a checkpoint in a concurrent session.
 	 */
-	if (!skipped && (F_ISSET(btree, WT_BTREE_LOOKASIDE) ||
-	    __wt_txn_visible_all(session,
-	    max_txn, WT_TIMESTAMP_NULL(&max_timestamp)))) {
-		/*
-		 * The checkpoint transaction is special.  Make sure we never
-		 * write (metadata) updates from a checkpoint in a concurrent
-		 * session.
-		 */
-		WT_ASSERT(session, *updp == NULL ||
-		    (*updp)->txnid !=
-		    S2C(session)->txn_global.checkpoint_state.id ||
-		    WT_SESSION_IS_CHECKPOINT(session));
-
-		goto check_original_value;
-	}
+	WT_ASSERT(session, *updp == NULL || (*updp)->txnid == WT_TXN_NONE ||
+	    (*updp)->txnid != S2C(session)->txn_global.checkpoint_state.id ||
+	    WT_SESSION_IS_CHECKPOINT(session));
 
 	/*
-	 * In some cases, there had better not be skipped updates or updates not
-	 * yet globally visible.
+	 * If there are no skipped updates, the page can be marked clean and
+	 * we're done, regardless if evicting or checkpointing.
+	 */
+	if (*updp == first_active_upd)
+		goto check_original_value;
+
+	/*
+	 * In some cases, there had better not be skipped updates.
 	 */
 	if (F_ISSET(r, WT_VISIBILITY_ERR))
 		WT_PANIC_RET(session, EINVAL,
@@ -1459,8 +1406,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 
 	/*
 	 * If not trying to evict the page, we know what we'll write and we're
-	 * done. Because some updates were skipped or are not globally visible,
-	 * the page can't be marked clean.
+	 * done. Because some updates were skipped, the page can't be marked
+	 * clean.
 	 */
 	if (!F_ISSET(r, WT_EVICTING)) {
 		r->leave_dirty = true;
@@ -1468,16 +1415,15 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	}
 
 	/*
-	 * Evicting with either uncommitted changes or not-yet-globally-visible
-	 * changes. There are two ways to continue, the save/restore eviction
-	 * path or the lookaside table eviction path. Both cannot be configured
-	 * because the paths track different information. The save/restore path
-	 * can handle both uncommitted and not-yet-globally-visible changes, by
-	 * evicting most of the page and then creating a new, smaller page into
-	 * which we re-instantiate those changes. The lookaside table path can
-	 * only handle not-yet-globally-visible changes by writing those changes
-	 * into the lookaside table and restoring them on demand if and when the
-	 * page is read back into memory.
+	 * We are attempting eviction with changes that are not yet stable
+	 * (i.e. globally visible).  There are two ways to continue, the
+	 * save/restore eviction path or the lookaside table eviction path.
+	 * Both cannot be configured because the paths track different
+	 * information. The save/restore path can handle uncommitted changes,
+	 * by evicting most of the page and then creating a new, smaller page
+	 * to which we re-attach those changes. Lookaside eviction writes
+	 * changes into the lookaside table and restores them on demand if and
+	 * when the page is read back into memory.
 	 *
 	 * Both paths are configured outside of reconciliation: the save/restore
 	 * path is the WT_EVICT_UPDATE_RESTORE flag, the lookaside table path is
@@ -1485,83 +1431,34 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 */
 	if (!F_ISSET(r, WT_EVICT_LOOKASIDE | WT_EVICT_UPDATE_RESTORE))
 		return (EBUSY);
-	if (skipped && !F_ISSET(r, WT_EVICT_UPDATE_RESTORE))
+	if (uncommitted && !F_ISSET(r, WT_EVICT_UPDATE_RESTORE))
 		return (EBUSY);
 
-	/*
-	 * Track the memory required by the update chain.
-	 *
-	 * A page with no uncommitted (skipped) updates, that can't be evicted
-	 * because some updates aren't yet globally visible, can be evicted by
-	 * writing previous versions of the updates to the lookaside file. That
-	 * test is just checking if the skipped updates memory is zero.
-	 *
-	 * If that's not possible (there are skipped updates), we can rewrite
-	 * the pages in-memory, but we don't want to unless there's memory to
-	 * recover. That test is comparing the memory we'd recover to the memory
-	 * we'd have to re-instantiate as part of the rewrite.
-	 */
-	r->update_mem_saved += update_mem;
-	if (skipped)
-		r->update_mem_uncommitted += update_mem;
-
-#ifdef HAVE_TIMESTAMPS
-	/*
-	 * Don't allow lookaside eviction with updates newer than the stable
-	 * timestamp.  Also don't recommend lookaside eviction in that case.
-	 */
-	if (__wt_timestamp_cmp(&max_timestamp, &r->stable_timestamp) > 0) {
-		if (!F_ISSET(r, WT_EVICT_UPDATE_RESTORE))
-			return (EBUSY);
-
-		if (!skipped)
-			r->update_mem_uncommitted += update_mem;
-	}
-#endif
-
-	if (F_ISSET(r, WT_EVICT_UPDATE_RESTORE)) {
-		/*
-		 * The save/restore eviction path.
-		 *
-		 * Clear the returned update, it's not needed. If there's an
-		 * on-page key/value pair to which the update list applies, our
-		 * caller writes it to the disk image. If an insert/append list,
-		 * our caller can ignore the key/value pair (everything needed
-		 * is in the update list), or in the case of row-store, write
-		 * the key to the disk image to split up the insert/append list.
-		 */
-		*updp = NULL;
-
+	if (F_ISSET(r, WT_EVICT_UPDATE_RESTORE))
 		/* The page can't be marked clean. */
 		r->leave_dirty = true;
-	}
 
 	/*
 	 * The order of the updates on the list matters, we can't move only the
 	 * unresolved updates, move the entire update list.
-	 *
-	 * If we skipped updates, the transaction value is never used.  If we
-	 * didn't skip updates, the list of updates are eventually written to
-	 * the lookaside table, and associated with each update record is the
-	 * transaction ID of the update we wrote in the reconciled page; once
-	 * that transaction ID is globally visible, we know we no longer need
-	 * the lookaside table records, allowing them to be discarded.
 	 */
 	WT_RET(__rec_update_save(session, r, ins, ripcip, *updp));
 
 check_original_value:
 	/*
 	 * Returning an update means the original on-page value might be lost,
-	 * and that's a problem if there's a reader that needs it. There are
-	 * two cases: any lookaside table eviction (because the backing disk
-	 * image is rewritten), or any reconciliation of a backing overflow
-	 * record that will be physically removed once it's no longer needed.
+	 * and that's a problem if there's a reader that needs it.  This can
+	 * happen if there is any reconciliation of a backing overflow record
+	 * that will be physically removed once it's no longer needed.
 	 */
-	if (*updp != NULL &&
-	    (F_ISSET(r, WT_EVICT_LOOKASIDE) ||
-	    (vpack != NULL &&
-	    vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)))
+	if (*updp != NULL && vpack != NULL &&
+	    vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)
 		WT_RET(__rec_append_orig_value(session, page, *updp, vpack));
+
+	if (*updp != NULL)
+		r->update_used = true;
+	if (uncommitted)
+		r->update_uncommitted = true;
 
 	return (0);
 }
@@ -3853,13 +3750,8 @@ __rec_update_las(WT_SESSION_IMPL *session,
 				continue;
 			}
 
-#ifdef HAVE_TIMESTAMPS
-			las_timestamp.data = &list->onpage_timestamp;
-			las_timestamp.size = WT_TIMESTAMP_SIZE;
-#endif
 			cursor->set_key(cursor,
-			    btree_id, &las_addr, ++las_counter,
-			    list->onpage_txn, &las_timestamp, key);
+			    btree_id, &las_addr, ++las_counter, key);
 
 #ifdef HAVE_TIMESTAMPS
 			las_timestamp.data = &upd->timestamp;
@@ -5827,6 +5719,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 
 	for (; ins != NULL; ins = WT_SKIP_NEXT(ins)) {
 		WT_RET(__rec_txn_read(session, r, ins, NULL, NULL, &upd));
+
 		if (upd == NULL) {
 			/*
 			 * Look for an update. If nothing is visible and not in
@@ -5874,8 +5767,8 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 				if (upd->size == 0)
 					val->len = 0;
 				else
-					WT_RET(__rec_cell_build_val(
-					    session, r, upd->data, upd->size,
+					WT_RET(__rec_cell_build_val(session,
+					    r, upd->data, upd->size,
 					    (uint64_t)0));
 				break;
 			WT_ILLEGAL_VALUE(session);

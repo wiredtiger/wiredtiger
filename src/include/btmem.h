@@ -165,13 +165,13 @@ struct __wt_ovfl_reuse {
  * Lookaside table support: when a page is being reconciled for eviction and has
  * updates that might be required by earlier readers in the system, the updates
  * are written into a lookaside table, and restored as necessary if the page is
- * read. The key is a unique marker for the page (a file ID plus an address),
- * a counter (used to ensure the update records remain in the original order),
- * the on-page item's transaction ID and timestamp (so we can discard any
- * update records from the lookaside table once the on-page item's transaction
- * is globally visible), and the page key (byte-string for row-store, record
- * number for column-store).  The value is the WT_UPDATE structure's
- * transaction ID, update size and value.
+ * read.
+ *
+ * The key is a unique marker for the page (a file ID plus an address), a
+ * counter (used to ensure the update records remain in the original order),
+ * and the record's key (byte-string for row-store, record number for
+ * column-store).  The value is the WT_UPDATE structure's transaction ID,
+ * timestamp, update type and value.
  *
  * As the key for the lookaside table is different for row- and column-store, we
  * store both key types in a WT_ITEM, building/parsing them in the code, because
@@ -182,7 +182,7 @@ struct __wt_ovfl_reuse {
  * the row-store key is relatively large.
  */
 #define	WT_LAS_FORMAT							\
-    "key_format=" WT_UNCHECKED_STRING(IuQQuu)				\
+    "key_format=" WT_UNCHECKED_STRING(IuQu)				\
     ",value_format=" WT_UNCHECKED_STRING(QuBu)
 
 /*
@@ -274,8 +274,7 @@ struct __wt_page_modify {
 		struct __wt_save_upd {
 			WT_INSERT *ins;		/* Insert list reference */
 			WT_ROW	  *ripcip;	/* Original on-page reference */
-			uint64_t   onpage_txn;
-			WT_DECL_TIMESTAMP(onpage_timestamp)
+			WT_UPDATE *onpage_upd;
 		} *supd;
 		uint32_t supd_entries;
 

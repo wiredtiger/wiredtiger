@@ -11,71 +11,6 @@
 static void __btree_verbose_lookaside_read(WT_SESSION_IMPL *);
 
 /*
- * __wt_las_remove_block --
- *	Remove all records matching a key prefix from the lookaside store.
- */
-int
-__wt_las_remove_block(WT_SESSION_IMPL *session,
-    WT_CURSOR *cursor, uint32_t btree_id, const uint8_t *addr, size_t addr_size)
-{
-	WT_ITEM las_addr, las_key, las_timestamp;
-	WT_DECL_RET;
-	uint64_t las_counter, las_txnid, remove_cnt;
-	uint32_t las_id;
-	int exact;
-
-	remove_cnt = 0;
-
-	/*
-	 * Search for the block's unique prefix and step through all matching
-	 * records, removing them.
-	 */
-	las_addr.data = addr;
-	las_addr.size = addr_size;
-	las_key.size = 0;
-	las_timestamp.size = 0;
-	cursor->set_key(cursor, btree_id, &las_addr,
-	    (uint64_t)0, (uint32_t)0, &las_timestamp, &las_key);
-	if ((ret = cursor->search_near(cursor, &exact)) == 0 && exact < 0)
-		ret = cursor->next(cursor);
-	for (; ret == 0; ret = cursor->next(cursor)) {
-		WT_ERR(cursor->get_key(cursor, &las_id, &las_addr, &las_counter,
-		    &las_txnid, &las_timestamp, &las_key));
-
-		/*
-		 * Confirm the search using the unique prefix; if not a match,
-		 * we're done searching for records for this page.
-		 */
-		 if (las_id != btree_id ||
-		     las_addr.size != addr_size ||
-		     memcmp(las_addr.data, addr, addr_size) != 0)
-			break;
-
-		/*
-		 * Cursor opened overwrite=true: won't return WT_NOTFOUND should
-		 * another thread remove the record before we do, and the cursor
-		 * remains positioned in that case.
-		 */
-		WT_ERR(cursor->remove(cursor));
-		++remove_cnt;
-	}
-	WT_ERR_NOTFOUND_OK(ret);
-
-err:	/*
-	 * If there were races to remove records, we can over-count.  All
-	 * arithmetic is signed, so underflow isn't fatal, but check anyway so
-	 * we don't skew low over time.
-	 */
-	if (remove_cnt > S2C(session)->las_record_cnt)
-		S2C(session)->las_record_cnt = 0;
-	else if (remove_cnt > 0)
-		(void)__wt_atomic_sub64(
-		    &S2C(session)->las_record_cnt, remove_cnt);
-
-	return (ret);
-}
-
-/*
  * __col_instantiate --
  *	Update a column-store page entry based on a lookaside table update list.
  */
@@ -137,12 +72,11 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 	WT_CURSOR_BTREE cbt;
 	WT_DECL_ITEM(current_key);
 	WT_DECL_RET;
-	WT_DECL_TIMESTAMP(timestamp)
 	WT_ITEM las_addr, las_key, las_timestamp, las_value;
 	WT_PAGE *page;
 	WT_UPDATE *first_upd, *last_upd, *upd;
 	size_t incr, total_incr;
-	uint64_t current_recno, las_counter, las_txnid, recno, upd_txnid;
+	uint64_t current_recno, las_counter, las_txnid, recno;
 	uint32_t las_id, session_flags;
 	uint8_t upd_type;
 	int exact;
@@ -176,14 +110,12 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 	 */
 	las_addr.data = addr;
 	las_addr.size = addr_size;
-	las_timestamp.size = 0;
-	cursor->set_key(cursor, read_id, &las_addr,
-	    (uint64_t)0, (uint32_t)0, &las_timestamp, &las_key);
+	cursor->set_key(cursor, read_id, &las_addr, (uint64_t)0, &las_key);
 	if ((ret = cursor->search_near(cursor, &exact)) == 0 && exact < 0)
 		ret = cursor->next(cursor);
 	for (; ret == 0; ret = cursor->next(cursor)) {
-		WT_ERR(cursor->get_key(cursor, &las_id, &las_addr, &las_counter,
-		    &las_txnid, &las_timestamp, &las_key));
+		WT_ERR(cursor->get_key(cursor,&las_id, &las_addr, &las_counter,
+		    &las_key));
 
 		/*
 		 * Confirm the search using the unique prefix; if not a match,
@@ -194,27 +126,13 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 		    memcmp(las_addr.data, addr, addr_size) != 0)
 			break;
 
-		/*
-		 * If the on-page value has become globally visible, this record
-		 * is no longer needed.
-		 *
-		 * Copy the timestamp from the cursor to avoid unaligned reads.
-		 */
-#ifdef HAVE_TIMESTAMPS
-		WT_ASSERT(session, las_timestamp.size == WT_TIMESTAMP_SIZE);
-		memcpy(&timestamp, las_timestamp.data, las_timestamp.size);
-#endif
-		if (__wt_txn_visible_all(
-		    session, las_txnid, WT_TIMESTAMP_NULL(&timestamp)))
-			continue;
-
 		/* Allocate the WT_UPDATE structure. */
 		WT_ERR(cursor->get_value(cursor,
-		    &upd_txnid, &las_timestamp, &upd_type, &las_value));
+		    &las_txnid, &las_timestamp, &upd_type, &las_value));
 		WT_ERR(__wt_update_alloc(
 		    session, &las_value, &upd, &incr, upd_type));
 		total_incr += incr;
-		upd->txnid = upd_txnid;
+		upd->txnid = las_txnid;
 #ifdef HAVE_TIMESTAMPS
 		WT_ASSERT(session, las_timestamp.size == WT_TIMESTAMP_SIZE);
 		memcpy(&upd->timestamp, las_timestamp.data, las_timestamp.size);

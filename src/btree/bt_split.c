@@ -1384,7 +1384,7 @@ __split_multi_inmem(
 	WT_DECL_ITEM(key);
 	WT_DECL_RET;
 	WT_PAGE *page;
-	WT_UPDATE *upd;
+	WT_UPDATE *prev_upd, *upd;
 	WT_SAVE_UPD *supd;
 	uint64_t recno;
 	uint32_t i, slot;
@@ -1434,7 +1434,7 @@ __split_multi_inmem(
 	__wt_btcur_open(&cbt);
 
 	/* Re-create each modification we couldn't write. */
-	for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd)
+	for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
 		switch (orig->type) {
 		case WT_PAGE_COL_FIX:
 		case WT_PAGE_COL_VAR:
@@ -1473,6 +1473,26 @@ __split_multi_inmem(
 			break;
 		WT_ILLEGAL_VALUE_ERR(session);
 		}
+
+		/*
+		 * If an update from the list was saved into the page image, it
+		 * must have been globally visible and we don't need two
+		 * copies.
+		 */
+		if (supd->onpage_upd != NULL) {
+			for (prev_upd = upd; prev_upd != NULL &&
+			    prev_upd->next != supd->onpage_upd;
+			    prev_upd = prev_upd->next)
+				;
+			if (prev_upd != NULL) {
+				WT_ASSERT(session,
+				    prev_upd->next == supd->onpage_upd);
+				__wt_update_obsolete_free(
+				    session, page, prev_upd->next);
+				prev_upd->next = NULL;
+			}
+		}
+	}
 
 	/*
 	 * When modifying the page we set the first dirty transaction to the
