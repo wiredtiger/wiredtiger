@@ -227,21 +227,21 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Bump the oldest_timestamp, we're not going back...
         self.assertEqual(self.conn.query_timestamp(), timestamp_ret_str(100))
-        self.oldts = timestamp_str(100)
-        self.conn.set_timestamp('oldest_timestamp=' + self.oldts)
-        self.conn.set_timestamp('stable_timestamp=' + self.oldts)
+        old_ts = timestamp_str(100)
+        self.conn.set_timestamp('oldest_timestamp=' + old_ts)
+        self.conn.set_timestamp('stable_timestamp=' + old_ts)
 
         # Scenario: 3
         # Check that we see all the data values after moving the oldest_timestamp
         # to the current timestamp
         # All tables should see all the values.
-        self.check(self.session, 'read_timestamp=' + self.oldts,
+        self.check(self.session, 'read_timestamp=' + old_ts,
             self.table_ts_log, dict((k, self.value) for k in orig_keys))
-        self.check(self.session, 'read_timestamp=' + self.oldts,
+        self.check(self.session, 'read_timestamp=' + old_ts,
             self.table_ts_nolog, dict((k, self.value) for k in orig_keys))
-        self.check(self.session, 'read_timestamp=' + self.oldts,
+        self.check(self.session, 'read_timestamp=' + old_ts,
             self.table_nots_log, dict((k, self.value) for k in orig_keys))
-        self.check(self.session, 'read_timestamp=' + self.oldts,
+        self.check(self.session, 'read_timestamp=' + old_ts,
             self.table_nots_nolog, dict((k, self.value) for k in orig_keys))
 
         # Update the keys and checkpoint using the stable_timestamp.
@@ -265,14 +265,14 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
         # Check that we don't see the updated data of timestamp tables
         # with the read_timestamp as oldest_timestamp
         # Tables using the timestamps should see old values (i.e. value) only
-        self.check(self.session, 'read_timestamp=' + self.oldts,
+        self.check(self.session, 'read_timestamp=' + old_ts,
             self.table_ts_log, dict((k, self.value) for k in orig_keys))
-        self.check(self.session, 'read_timestamp=' + self.oldts,
+        self.check(self.session, 'read_timestamp=' + old_ts,
             self.table_ts_nolog, dict((k, self.value) for k in orig_keys))
         # Tables not using the timestamps should see updated values (i.e. value2).
-        self.check(self.session, 'read_timestamp=' + self.oldts,
+        self.check(self.session, 'read_timestamp=' + old_ts,
             self.table_nots_log, dict((k, self.value2) for k in orig_keys))
-        self.check(self.session, 'read_timestamp=' + self.oldts,
+        self.check(self.session, 'read_timestamp=' + old_ts,
             self.table_nots_nolog, dict((k, self.value2) for k in orig_keys))
 
         # Scenario: 5

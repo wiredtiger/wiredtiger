@@ -39,12 +39,6 @@ from wtscenario import make_scenarios
 def timestamp_str(t):
     return '%x' % t
 
-def timestamp_ret_str(t):
-    s = timestamp_str(t)
-    if len(s) % 2 == 1:
-        s = '0' + s
-    return s
-
 class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
     table_ts_log     = 'table:ts08_ts_logged'
     table_ts_nolog   = 'table:ts08_ts_nologged'
@@ -72,7 +66,6 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
     # Check that a cursor (optionally started in a new transaction), sees the
     # expected values.
     def check(self, session, txn_config, tablename, expected, prn=False):
-
         if txn_config:
             session.begin_transaction(txn_config)
 
@@ -90,12 +83,10 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
         cur.close()
         if txn_config:
             session.commit_transaction()
-    #
+
     # Take a backup of the database and verify that the value we want to
     # check exists in the tables the expected number of times.
-    #
     def backup_check(self, check_value, expected_ts_log, expected_ts_nolog):
-
         newdir = "BACKUP"
         copy_wiredtiger_home('.', newdir, True)
 
@@ -103,14 +94,14 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
         session = self.setUpSessionOpen(conn)
         cur_ts_log      = session.open_cursor(self.table_ts_log)
         cur_ts_nolog    = session.open_cursor(self.table_ts_nolog)
-        # Count how many times the check_value is present in the
+        # Count how many times the given value is present in the
         # logged timestamp table.
         actual_ts_log = 0
         for k, v in cur_ts_log:
             if check_value == v:
                 actual_ts_log += 1
         cur_ts_log.close()
-        # Count how many times the check_value is present in the
+        # Count how many times the given value is present in the
         # not logged timestamp table
         actual_ts_nolog = 0
         for k, v in cur_ts_nolog:
@@ -123,7 +114,6 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
 
     # Check that a cursor sees the expected values after a checkpoint.
     def ckpt_backup(self, check_value, valcnt_ts_log, valcnt_ts_nolog):
-
         # Take a checkpoint.  Make a copy of the database.  Open the
         # copy and verify whether or not the expected data is in there.
         self.pr("CKPT: " + self.ckptcfg)
@@ -136,14 +126,9 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
         if not wiredtiger.timestamp_build():
             self.skipTest('requires a timestamp build')
 
-        config_default = 'key_format=i,value_format=i,memory_page_max=32k,leaf_page_max=8k,internal_page_max=8k'
-        config_nolog   = ',log=(enabled=false)'
-
-        #
         # Open two timestamp tables:
         # 1. Table is logged and uses timestamps.
         # 2. Table is not logged and uses timestamps.
-        #
         self.session.create(self.table_ts_log, 'key_format=i,value_format=i')
         cur_ts_log = self.session.open_cursor(self.table_ts_log)
         self.session.create(self.table_ts_nolog, 'key_format=i,value_format=i,log=(enabled=false)')
@@ -176,7 +161,7 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Scenario: 1
         # Check that we see all the latest values (i.e. 3) as per transaction
-        # visibility when reading with out the read_timestamp.
+        # visibility when reading with out the read timestamp.
         # All tables should see all the values.
         self.check(self.session, "", self.table_ts_log,
             dict((k, 3) for k in orig_keys))
@@ -184,18 +169,20 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
             dict((k, 3) for k in orig_keys))
 
         # Scenario: 2
+        # Check that we see the values till correctly from checkpointed data
+        # files in case of multistep transactions.
         # Set oldest and stable timestamps
-        self.oldts = timestamp_str(100)
-        # Set the stable_timestamp such that last update is beyond it.
-        self.stablets = timestamp_str(200)
-        self.conn.set_timestamp('oldest_timestamp=' + self.oldts)
-        self.conn.set_timestamp('stable_timestamp=' + self.stablets)
+        old_ts = timestamp_str(100)
+        # Set the stable timestamp such that last update is beyond it.
+        stable_ts = timestamp_str(200)
+        self.conn.set_timestamp('oldest_timestamp=' + old_ts)
+        self.conn.set_timestamp('stable_timestamp=' + stable_ts)
 
-        # Check that we see the values correctly till stable_timestamp.
-        self.check(self.session, 'read_timestamp=' + self.stablets,
-            self.table_ts_log,dict((k, 2) for k in orig_keys))
-        self.check(self.session, 'read_timestamp=' + self.stablets,
-            self.table_ts_nolog,dict((k, 2) for k in orig_keys))
+        # Check that we see the values correctly till stable timestamp.
+        self.check(self.session, 'read_timestamp=' + stable_ts,
+            self.table_ts_log, dict((k, 2) for k in orig_keys))
+        self.check(self.session, 'read_timestamp=' + stable_ts,
+            self.table_ts_nolog, dict((k, 2) for k in orig_keys))
 
         # For logged table we should see latest values (i.e. 3) when logging
         # is enabled.
@@ -203,14 +190,14 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
             valcnt_ts_log = nkeys
         else:
             # When logging is disabled, we should not see the values beyond the
-            # stable_timestamp with timestamped checkpoints.
+            # stable timestamp with timestamped checkpoints.
             if self.ckpt_ts == True:
                 valcnt_ts_log = 0
             else:
                 valcnt_ts_log = nkeys
 
         # For non-logged table we should not see the values beyond the
-        # stable_timestamp with timestamped checkpoints.
+        # stable timestamp with timestamped checkpoints.
         if self.ckpt_ts == True:
             valcnt_ts_nolog = 0
         else:
@@ -221,13 +208,13 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
         self.ckpt_backup(2, (nkeys - valcnt_ts_log), (nkeys - valcnt_ts_nolog))
 
         # Scenario: 3
-        # Check that we see all the data values correct after rollback
+        # Check that we see all the data values correctly after rollback
         self.conn.rollback_to_stable()
         # All tables should see the values correctly when read with
-        # read_timestamp as stable_timestamp.
-        self.check(self.session, 'read_timestamp=' + self.stablets,
+        # read timestamp as stable timestamp.
+        self.check(self.session, 'read_timestamp=' + stable_ts,
             self.table_ts_nolog, dict((k, 2) for k in orig_keys))
-        self.check(self.session, 'read_timestamp=' + self.stablets,
+        self.check(self.session, 'read_timestamp=' + stable_ts,
             self.table_ts_log, dict((k, 2) for k in orig_keys))
 
         # Scenario: 4
@@ -240,7 +227,7 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
                 self.table_ts_log, dict((k, 3) for k in orig_keys))
         else:
             # When logging is disabled, we should not see the values beyond the
-            # stable_timestamp with timestamped checkpoints.
+            # stable timestamp with timestamped checkpoints.
             if self.ckpt_ts == True:
                 self.check(self.session, "",
                     self.table_ts_log, dict((k, 2) for k in orig_keys))
@@ -249,7 +236,7 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
                     self.table_ts_log, dict((k, 3) for k in orig_keys))
 
         # For non-logged table we should not see the values beyond the
-        # stable_timestamp with timestamped checkpoints.
+        # stable timestamp with timestamped checkpoints.
         if self.ckpt_ts == True:
             self.check(self.session, "",
                 self.table_ts_nolog, dict((k, 2) for k in orig_keys))
