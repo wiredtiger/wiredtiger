@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_timestamp08.py
+# test_timestamp06.py
 #   Timestamps: multistep transactions
 #
 
@@ -39,9 +39,9 @@ from wtscenario import make_scenarios
 def timestamp_str(t):
     return '%x' % t
 
-class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
-    table_ts_log     = 'table:ts08_ts_logged'
-    table_ts_nolog   = 'table:ts08_ts_nologged'
+class test_timestamp06(wttest.WiredTigerTestCase, suite_subprocess):
+    table_ts_log     = 'table:ts06_ts_logged'
+    table_ts_nolog   = 'table:ts06_ts_nologged'
 
     types = [
         ('col_fix', dict(empty=1, extra_config=',key_format=r,value_format=8t')),
@@ -122,7 +122,7 @@ class test_timestamp08(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.checkpoint(ckptcfg)
         self.backup_check(check_value, valcnt_ts_log, valcnt_ts_nolog)
 
-    def test_timestamp08(self):
+    def test_timestamp06(self):
         if not wiredtiger.timestamp_build():
             self.skipTest('requires a timestamp build')
 
