@@ -1045,7 +1045,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	 * Compare the current number of data points with the number
 	 * needed variable. If they are equal, we will check whether
 	 * we are still going up on the performance curve, in which
-	 * case we will increase the number of needed data pointsi, to provide
+	 * case we will increase the number of needed data points, to provide
 	 * opportunity for further increasing the number of workers. Or
 	 * we are past the inflection point on the curve, in which case
 	 * we will go back to the best observed number of workers and
