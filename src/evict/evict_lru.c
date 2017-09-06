@@ -983,7 +983,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 		 * Stable state was reached a long time ago. Let's re-tune.
 		 * Reset all the state.
 		 */
-		conn->evict_tune_stable = 0;
+		conn->evict_tune_stable = false;
 		conn->evict_tune_last_action_time.tv_sec = 0;
 		conn->evict_tune_pgs_last = 0;
 		conn->evict_tune_num_points = 0;
@@ -1045,7 +1045,8 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
 	 * Compare the current number of data points with the number
 	 * needed variable. If they are equal, we will check whether
 	 * we are still going up on the performance curve, in which
-	 * case we will continue increasing the number of workers, or
+	 * case we will increase the number of needed data pointsi, to provide
+	 * opportunity for further increasing the number of workers. Or
 	 * we are past the inflection point on the curve, in which case
 	 * we will go back to the best observed number of workers and
 	 * settle into a stable state.
