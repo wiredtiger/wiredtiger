@@ -390,7 +390,7 @@ run_workload(uint32_t nth)
 static bool
 timestamp_build(void)
 {
-#if WT_TIMESTAMP_SIZE > 0
+#ifdef HAVE_TIMESTAMPS
 	return (true);
 #else
 	return (false);
