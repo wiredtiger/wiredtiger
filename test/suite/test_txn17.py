@@ -40,39 +40,39 @@ def timestamp_str(t):
 
 class test_txn17(wttest.WiredTigerTestCase, suite_subprocess):
     def test_txn_api(self):
-        # Test API functionality tagged as requires_transaction
-        # Cannot set a timestamp on a non-running transaction
+        # Test API functionality tagged as requires_transaction.
+        # Cannot set a timestamp on a non-running transaction.
         if wiredtiger.timestamp_build():
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda: self.session.timestamp_transaction(
                     'commit_timestamp=' + timestamp_str(1 << 5000)),
                     '/must be running/')
 
-        # Cannot call commit on a non-running transaction
+        # Cannot call commit on a non-running transaction.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(),
                 '/only permitted in a running transaction/')
 
-        # Cannot call rollback on a non-running transaction
+        # Cannot call rollback on a non-running transaction.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.rollback_transaction(),
                 '/only permitted in a running transaction/')
 
-        # Test API functionality tagged as requires_notransaction
-        # Begin a transaction and execute all the following tests under it
+        # Test API functionality tagged as requires_notransaction.
+        # Begin a transaction and execute all the following tests under it.
         self.session.begin_transaction()
 
-        # Cannot begin a transaction while a transaction is already running
+        # Cannot begin a transaction while a transaction is already running.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.begin_transaction(),
                 '/not permitted in a running transaction/')
 
-        # Cannot take a checkpoint while a transaction is running
+        # Cannot take a checkpoint while a transaction is running.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.checkpoint(),
                 '/not permitted in a running transaction/')
 
-        # Cannot call transaction_sync while a transaction is running
+        # Cannot call transaction_sync while a transaction is running.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.transaction_sync(),
                 '/not permitted in a running transaction/')

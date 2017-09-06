@@ -591,26 +591,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	if (cval.len != 0) {
 #ifdef HAVE_TIMESTAMPS
 		WT_ERR(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
-		/*
-		 * Commit timestamp being set should be newer than the oldest
-		 * timestamp and should move forward in a transaction.
-		 */
-		__wt_readlock(session, &txn_global->rwlock);
-		if (txn_global->has_oldest_timestamp && __wt_timestamp_cmp(&ts,
-		    &txn_global->oldest_timestamp) < 0)
-			ret = EINVAL;
-		__wt_readunlock(session, &txn_global->rwlock);
-		if (ret != 0)
-			WT_ERR_MSG(session, ret,
-			    "commit timestamp %.*s older than oldest timestamp",
-			    (int)cval.len, cval.str);
-
-		if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
-		    __wt_timestamp_cmp(&ts, &txn->commit_timestamp) < 0)
-			WT_ERR_MSG(session, EINVAL,
-			    "commit timestamp %.*s older than the current "
-			    "commit timestamp set for this transaction",
-			    (int)cval.len, cval.str);
+		WT_ERR(__wt_txn_commit_ts_validate(session, &ts, &cval));
 		__wt_timestamp_set(&txn->commit_timestamp, &ts);
 		__wt_txn_set_commit_timestamp(session);
 #else
