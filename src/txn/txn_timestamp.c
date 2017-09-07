@@ -479,8 +479,8 @@ __wt_timestamp_validate(WT_SESSION_IMPL *session, wt_timestamp_t *ts,
 	bool older_than_oldest_ts, older_than_stable_ts;
 
 	/*
-	 * Commit timestamp being set should be newer than the oldest and stable
-	 * timestamp.
+	 * Compare against the oldest and the stable timestamp. Return an error
+	 * if the given timestamp is older than oldest and/or stable timestamp.
 	 */
 	WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
 	    older_than_oldest_ts = (cmp_oldest &&
@@ -499,7 +499,11 @@ __wt_timestamp_validate(WT_SESSION_IMPL *session, wt_timestamp_t *ts,
 		    "commit timestamp %.*s older than stable timestamp",
 		    (int)cval->len, cval->str);
 
-	/* Commit timestamp being set should move forward in a transaction. */
+	/*
+	 * Compare against the commit timestamp of the current transaction.
+	 * Return an error if the given timestamp is older than the commit
+	 * timestamp.
+	 */
 	if (cmp_commit && F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
 	    __wt_timestamp_cmp(ts, &txn->commit_timestamp) < 0)
 		WT_RET_MSG(session, EINVAL,
