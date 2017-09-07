@@ -203,7 +203,7 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
         # whether value2 appears in a copy of that data or not.
         valcnt2 = valcnt3 = self.nkeys
         valcnt = 0
-        # if logging is disabled then value2 should not appear in logged table.
+        # If logging is disabled then value2 should not appear in logged table.
         if self.using_log == False:
             valcnt3 = 0
         self.ckpt_backup(self.value2, valcnt, valcnt2, valcnt3)
