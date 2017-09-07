@@ -466,12 +466,13 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 
 #ifdef HAVE_TIMESTAMPS
 /*
- * __wt_txn_commit_timestamp_validate --
- *	Validate commit timestamp being set
+ * __wt_timestamp_validate --
+ *	Validate a timestamp to be not older than the global oldest and/or
+ *	global stable and/or running transaction commit timestamp.
  */
 int
-__wt_txn_commit_timestamp_validate(WT_SESSION_IMPL *session,
-    wt_timestamp_t *ts, WT_CONFIG_ITEM *cval)
+__wt_timestamp_validate(WT_SESSION_IMPL *session, wt_timestamp_t *ts,
+    WT_CONFIG_ITEM *cval, bool cmp_oldest, bool cmp_stable, bool cmp_commit)
 {
 	WT_TXN *txn = &session->txn;
 	WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
@@ -482,9 +483,11 @@ __wt_txn_commit_timestamp_validate(WT_SESSION_IMPL *session,
 	 * timestamp.
 	 */
 	WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
-	    older_than_oldest_ts = (txn_global->has_oldest_timestamp &&
+	    older_than_oldest_ts = (cmp_oldest &&
+		txn_global->has_oldest_timestamp &&
 		__wt_timestamp_cmp(ts, &txn_global->oldest_timestamp) < 0);
-	    older_than_stable_ts = (txn_global->has_stable_timestamp &&
+	    older_than_stable_ts = (cmp_stable &&
+		txn_global->has_stable_timestamp &&
 		__wt_timestamp_cmp(ts, &txn_global->stable_timestamp) < 0));
 
 	if (older_than_oldest_ts)
@@ -497,7 +500,7 @@ __wt_txn_commit_timestamp_validate(WT_SESSION_IMPL *session,
 		    (int)cval->len, cval->str);
 
 	/* Commit timestamp being set should move forward in a transaction. */
-	if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
+	if (cmp_commit && F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
 	    __wt_timestamp_cmp(ts, &txn->commit_timestamp) < 0)
 		WT_RET_MSG(session, EINVAL,
 		    "commit timestamp %.*s older than the current "
@@ -532,7 +535,8 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 			    "Transaction must be running "
 			    "to set a commit_timestamp");
 		WT_RET(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
-		WT_RET(__wt_txn_commit_timestamp_validate(session, &ts, &cval));
+		WT_RET(__wt_timestamp_validate(session,
+		    &ts, &cval, true, true, true));
 		__wt_timestamp_set(&txn->commit_timestamp, &ts);
 		__wt_txn_set_commit_timestamp(session);
 #else
