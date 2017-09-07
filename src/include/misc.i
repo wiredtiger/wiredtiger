@@ -35,12 +35,12 @@ __wt_hex(int c)
  */
 static inline uint64_t
 __wt_rdtsc(void) {
-#ifdef __i386
+#if (defined __i386) || (defined _M_IA64)
 	uint64_t x;
 	__asm__ volatile ("rdtsc" : "=A" (x));
 	return (x);
 
-#elif defined __amd64
+#elif (defined __amd64) || (defined _M_AMD64)
 	uint64_t a, d;
 	__asm__ volatile ("rdtsc" : "=a" (a), "=d" (d));
 	return (d<<32) | a;
