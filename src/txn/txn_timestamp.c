@@ -466,11 +466,11 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 
 #ifdef HAVE_TIMESTAMPS
 /*
- * __wt_txn_commit_ts_validate --
+ * __wt_txn_commit_timestamp_validate --
  *	Validate commit timestamp being set
  */
 int
-__wt_txn_commit_ts_validate(WT_SESSION_IMPL *session,
+__wt_txn_commit_timestamp_validate(WT_SESSION_IMPL *session,
     wt_timestamp_t *ts, WT_CONFIG_ITEM *cval)
 {
 	WT_TXN *txn = &session->txn;
@@ -532,7 +532,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 			    "Transaction must be running "
 			    "to set a commit_timestamp");
 		WT_RET(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
-		WT_RET(__wt_txn_commit_ts_validate(session, &ts, &cval));
+		WT_RET(__wt_txn_commit_timestamp_validate(session, &ts, &cval));
 		__wt_timestamp_set(&txn->commit_timestamp, &ts);
 		__wt_txn_set_commit_timestamp(session);
 #else

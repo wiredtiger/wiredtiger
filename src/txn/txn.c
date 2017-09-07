@@ -591,7 +591,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	if (cval.len != 0) {
 #ifdef HAVE_TIMESTAMPS
 		WT_ERR(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
-		WT_ERR(__wt_txn_commit_ts_validate(session, &ts, &cval));
+		WT_ERR(__wt_txn_commit_timestamp_validate(session, &ts, &cval));
 		__wt_timestamp_set(&txn->commit_timestamp, &ts);
 		__wt_txn_set_commit_timestamp(session);
 #else
