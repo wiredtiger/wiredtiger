@@ -454,18 +454,25 @@ static void
 commit_transaction(TINFO *tinfo, WT_SESSION *session)
 {
 	uint64_t ts;
-	char *commit_conf, config_buf[64];
+	char config_buf[64];
 
 	if (g.c_txn_timestamps) {
+		/*
+		 * There can be multiple threads doing transactions
+		 * simultaneously requiring us to do some co-ordination so that
+		 * a thread doesn't try to commit with a timestamp older than
+		 * the oldest_timestamp just bumped by another thread.
+		 */
+		testutil_check(pthread_rwlock_rdlock(&g.commit_ts_lock));
 		ts = __wt_atomic_addv64(&g.timestamp, 1);
 		testutil_check(__wt_snprintf(
 		    config_buf, sizeof(config_buf),
 		    "commit_timestamp=%" PRIx64, ts));
-		commit_conf = config_buf;
+		testutil_check(
+		    session->commit_transaction(session, config_buf));
+		testutil_check(pthread_rwlock_unlock(&g.commit_ts_lock));
 	} else
-		commit_conf = NULL;
-
-	testutil_check(session->commit_transaction(session, commit_conf));
+		testutil_check(session->commit_transaction(session, NULL));
 	++tinfo->commit;
 }
 

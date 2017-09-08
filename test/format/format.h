@@ -137,6 +137,9 @@ typedef struct {
 
 	pthread_rwlock_t death_lock;		/* Single-thread failure */
 
+	/* Synchronize setting commit timestamp. */
+	pthread_rwlock_t commit_ts_lock;
+
 	char *uri;				/* Object name */
 
 	char *config_open;			/* Command-line configuration */
