@@ -65,18 +65,17 @@ __row_instantiate(WT_SESSION_IMPL *session,
  *	Instantiate lookaside update records in a recently read page.
  */
 static int
-__las_page_instantiate(WT_SESSION_IMPL *session,
-    WT_REF *ref, uint32_t read_id, const uint8_t *addr, size_t addr_size)
+__las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t read_id)
 {
 	WT_CURSOR *cursor;
 	WT_CURSOR_BTREE cbt;
 	WT_DECL_ITEM(current_key);
 	WT_DECL_RET;
-	WT_ITEM las_addr, las_key, las_timestamp, las_value;
+	WT_ITEM las_key, las_timestamp, las_value;
 	WT_PAGE *page;
 	WT_UPDATE *first_upd, *last_upd, *upd;
 	size_t incr, total_incr;
-	uint64_t current_recno, las_counter, las_txnid, recno;
+	uint64_t current_recno, las_counter, las_pageid, las_txnid, recno;
 	uint32_t las_id, session_flags;
 	uint8_t upd_type;
 	int exact;
@@ -108,22 +107,20 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 	 * Search for the block's unique prefix, stepping through any matching
 	 * records.
 	 */
-	las_addr.data = addr;
-	las_addr.size = addr_size;
-	cursor->set_key(cursor, read_id, &las_addr, (uint64_t)0, &las_key);
+	cursor->set_key(cursor,
+	    read_id, ref->page_las->las_pageid, (uint64_t)0, &las_key);
 	if ((ret = cursor->search_near(cursor, &exact)) == 0 && exact < 0)
 		ret = cursor->next(cursor);
 	for (; ret == 0; ret = cursor->next(cursor)) {
-		WT_ERR(cursor->get_key(cursor,&las_id, &las_addr, &las_counter,
-		    &las_key));
+		WT_ERR(cursor->get_key(cursor,
+		    &las_id, &las_pageid, &las_counter, &las_key));
 
 		/*
 		 * Confirm the search using the unique prefix; if not a match,
 		 * we're done searching for records for this page.
 		 */
 		if (las_id != read_id ||
-		    las_addr.size != addr_size ||
-		    memcmp(las_addr.data, addr, addr_size) != 0)
+		    las_pageid != ref->page_las->las_pageid)
 			break;
 
 		/* Allocate the WT_UPDATE structure. */
@@ -198,6 +195,10 @@ __las_page_instantiate(WT_SESSION_IMPL *session,
 			break;
 		WT_ILLEGAL_VALUE_ERR(session);
 		}
+
+	/* The page is instantiated, we no longer need the lookaside entries. */
+	WT_ERR(__wt_las_remove_block(
+	    session, cursor, read_id, ref->page_las->las_pageid));
 
 	/* Discard the cursor. */
 	WT_ERR(__wt_las_cursor_close(session, &cursor, session_flags));
@@ -307,7 +308,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref)
 	WT_ITEM tmp;
 	WT_PAGE *page;
 	size_t addr_size;
-	uint32_t previous_state;
+	uint32_t new_state, previous_state;
 	const uint8_t *addr;
 	bool timer;
 
@@ -322,23 +323,31 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref)
 
 	/*
 	 * Attempt to set the state to WT_REF_READING for normal reads, or
-	 * WT_REF_LOCKED, for deleted pages.  If successful, we've won the
-	 * race, read the page.
+	 * WT_REF_LOCKED, for deleted pages or pages with lookaside entries.
+	 * If successful, we've won the race, read the page.
 	 */
-	if (__wt_atomic_casv32(&ref->state, WT_REF_DISK, WT_REF_READING))
-		previous_state = WT_REF_DISK;
-	else if (__wt_atomic_casv32(&ref->state, WT_REF_DELETED, WT_REF_LOCKED))
-		previous_state = WT_REF_DELETED;
-	else
+	switch (previous_state = ref->state) {
+	case WT_REF_DISK:
+		new_state = WT_REF_READING;
+		break;
+	case WT_REF_DELETED:
+	case WT_REF_LOOKASIDE:
+		new_state = WT_REF_LOCKED;
+		break;
+	default:
+		return (0);
+	}
+	if (!__wt_atomic_casv32(&ref->state, previous_state, new_state))
 		return (0);
 
 	/*
-	 * Get the address: if there is no address, the page was deleted, but a
-	 * subsequent search or insert is forcing re-creation of the name space.
+	 * Get the address: if there is no address, the page was deleted or had
+	 * only lookaside entries, and a subsequent search or insert is forcing
+	 * re-creation of the name space.
 	 */
 	__wt_ref_info(ref, &addr, &addr_size, NULL);
 	if (addr == NULL) {
-		WT_ASSERT(session, previous_state == WT_REF_DELETED);
+		WT_ASSERT(session, previous_state != WT_REF_DISK);
 
 		WT_ERR(__wt_btree_new_leaf_page(session, &page));
 		ref->page = page;
@@ -387,13 +396,15 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * before doing any work.
 	 */
 	dsk = tmp.data;
-	if (F_ISSET(dsk, WT_PAGE_LAS_UPDATE) && __wt_las_is_written(session)) {
+	if (previous_state == WT_REF_LOOKASIDE) {
+		WT_ASSERT(session, F_ISSET(dsk, WT_PAGE_LAS_UPDATE) &&
+		    __wt_las_is_written(session));
+
 		__btree_verbose_lookaside_read(session);
 		WT_STAT_CONN_INCR(session, cache_read_lookaside);
 		WT_STAT_DATA_INCR(session, cache_read_lookaside);
-
-		WT_ERR(__las_page_instantiate(
-		    session, ref, btree->id, addr, addr_size));
+		WT_ERR(__las_page_instantiate(session, ref, btree->id));
+		__wt_free(session, ref->page_las);
 	}
 
 done:	WT_PUBLISH(ref->state, WT_REF_MEM);
@@ -451,6 +462,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			    __wt_delete_page_skip(session, ref, false))
 				return (WT_NOTFOUND);
 			/* FALLTHROUGH */
+		case WT_REF_LOOKASIDE:
 		case WT_REF_DISK:
 			if (LF_ISSET(WT_READ_CACHE))
 				return (WT_NOTFOUND);

@@ -186,6 +186,8 @@ typedef struct {
 		uint32_t     supd_next;
 		size_t	     supd_allocated;
 
+		uint64_t lookaside_pageid;
+
 		/*
 		 * While reconciling pages, at any given time, we maintain two
 		 * split chunks in the memory to be written out as pages. As we
@@ -923,42 +925,41 @@ __rec_init(WT_SESSION_IMPL *session,
 #endif
 
 	/*
+	 * When operating on the lookaside table, we can't save updates and
+	 * there is no point trying update/restore eviction: just evict pages
+	 * as soon as we can.
+	 */
+	if (F_ISSET(btree, WT_BTREE_LOOKASIDE))
+		LF_CLR(WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE);
+
+	/*
 	 * Lookaside table eviction is configured when eviction gets aggressive,
 	 * adjust the flags for cases we don't support.
+	 *
+	 * We don't yet support fixed-length column-store combined with the
+	 * lookaside table. It's not hard to do, but the underlying function
+	 * that reviews which updates can be written to the evicted page and
+	 * which updates need to be written to the lookaside table needs access
+	 * to the original value from the page being evicted, and there's no
+	 * code path for that in the case of fixed-length column-store objects.
+	 * (Row-store and variable-width column-store objects provide a
+	 * reference to the unpacked on-page cell for this purpose, but there
+	 * isn't an on-page cell for fixed-length column-store objects.) For
+	 * now, turn it off.
 	 */
-	if (LF_ISSET(WT_REC_LOOKASIDE)) {
-		/*
-		 * Saving lookaside table updates into the lookaside table won't
-		 * work.
-		 */
-		if (F_ISSET(btree, WT_BTREE_LOOKASIDE))
-			LF_CLR(WT_REC_LOOKASIDE);
+	if (page->type == WT_PAGE_COL_FIX)
+		LF_CLR(WT_REC_LOOKASIDE);
 
-		/*
-		 * We don't yet support fixed-length column-store combined with
-		 * the lookaside table. It's not hard to do, but the underlying
-		 * function that reviews which updates can be written to the
-		 * evicted page and which updates need to be written to the
-		 * lookaside table needs access to the original value from the
-		 * page being evicted, and there's no code path for that in the
-		 * case of fixed-length column-store objects. (Row-store and
-		 * variable-width column-store objects provide a reference to
-		 * the unpacked on-page cell for this purpose, but there isn't
-		 * an on-page cell for fixed-length column-store objects.) For
-		 * now, turn it off.
-		 */
-		if (page->type == WT_PAGE_COL_FIX)
-			LF_CLR(WT_REC_LOOKASIDE);
+	/*
+	 * Check for a lookaside table and checkpoint collision, and if we find
+	 * one, turn off the lookaside file (we've gone to all the effort of
+	 * getting exclusive access to the page, might as well try and evict
+	 * it).
+	 */
+	if (LF_ISSET(WT_REC_LOOKASIDE) &&
+	    __rec_las_checkpoint_test(session, r))
+		LF_CLR(WT_REC_LOOKASIDE);
 
-		/*
-		 * Check for a lookaside table and checkpoint collision, and if
-		 * we find one, turn off the lookaside file (we've gone to all
-		 * the effort of getting exclusive access to the page, might as
-		 * well try and evict it).
-		 */
-		if (__rec_las_checkpoint_test(session, r))
-			LF_CLR(WT_REC_LOOKASIDE);
-	}
 	r->flags = flags;
 
 	/* Track the page's maximum transaction ID. */
@@ -1251,6 +1252,7 @@ static int
 __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
     WT_INSERT *ins, void *ripcip, WT_CELL_UNPACK *vpack, WT_UPDATE **updp)
 {
+	WT_BTREE *btree;
 	WT_PAGE *page;
 	WT_UPDATE *first_active_upd, *first_upd, *first_ts_upd, *next_upd;
 	WT_UPDATE *prev_upd, *upd;
@@ -1259,6 +1261,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 
 	*updp = NULL;
 
+	btree = S2BT(session);
 	page = r->page;
 	first_active_upd = first_ts_upd = prev_upd = NULL;
 	max_txn = WT_TXN_NONE;
@@ -1330,6 +1333,15 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 				if (F_ISSET(r, WT_REC_VISIBLE_ALL))
 					continue;
 			}
+		}
+
+		/*
+		 * Use the first committed entry we find in the lookaside
+		 * table.
+		 */
+		if (F_ISSET(btree, WT_BTREE_LOOKASIDE)) {
+			*updp = upd;
+			break;
 		}
 
 		if (F_ISSET(r, WT_REC_VISIBLE_ALL)) {
@@ -1404,14 +1416,19 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		    "globally visible");
 
 	/*
+	 * Because some updates were skipped, the page can't be marked clean,
+	 * unless the updates will be saved in the lookaside table.
+	 */
+	if (!F_ISSET(r, WT_REC_LOOKASIDE))
+		r->leave_dirty = true;
+
+	/*
 	 * If not trying to evict the page, we know what we'll write and we're
 	 * done. Because some updates were skipped, the page can't be marked
 	 * clean.
 	 */
-	if (!F_ISSET(r, WT_REC_EVICT)) {
-		r->leave_dirty = true;
+	if (!F_ISSET(r, WT_REC_EVICT))
 		goto check_original_value;
-	}
 
 	/*
 	 * We are attempting eviction with changes that are not yet stable
@@ -1432,10 +1449,6 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		return (EBUSY);
 	if (uncommitted && !F_ISSET(r, WT_REC_UPDATE_RESTORE))
 		return (EBUSY);
-
-	if (F_ISSET(r, WT_REC_UPDATE_RESTORE))
-		/* The page can't be marked clean. */
-		r->leave_dirty = true;
 
 	/*
 	 * The order of the updates on the list matters, we can't move only the
@@ -1675,6 +1688,27 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 			 * to be common.
 			 */
 			break;
+
+		case WT_REF_LOOKASIDE:
+			/*
+			 * On disk, with lookaside updates.
+			 *
+			 * We should never be here during eviction, active
+			 * child pages in an evicted page's subtree fails the
+			 * eviction attempt.
+			 *
+			 * XXX need to deal with leaf pages during close before
+			 * this is true.
+			 */
+#if 0
+			WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT));
+			if (F_ISSET(r, WT_REC_EVICT))
+				return (EBUSY);
+#endif
+			if (ref->addr == NULL)
+				*statep = WT_CHILD_IGNORE;
+
+			goto done;
 
 		case WT_REF_MEM:
 			/*
@@ -3276,27 +3310,13 @@ __rec_split_finish_std(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	/*
 	 * We may arrive here with no entries to write if the page was entirely
 	 * empty or if nothing on the page was visible to us.
+	 *
+	 * Pages with skipped or not-yet-globally visible updates aren't really
+	 * empty; otherwise, the page is truly empty and we will merge it into
+	 * its parent during the parent's reconciliation.
 	 */
-	if (r->entries == 0) {
-		/*
-		 * Pages with skipped or not-yet-globally visible updates aren't
-		 * really empty; otherwise, the page is truly empty and we will
-		 * merge it into its parent during the parent's reconciliation.
-		 */
-		if (r->supd_next == 0)
-			return (0);
-
-		/*
-		 * If using the save/restore eviction path, continue with the
-		 * write, the page will be restored after we finish.
-		 *
-		 * If using the lookaside table eviction path, we can't continue
-		 * (we need a page to be written, otherwise we won't ever find
-		 * the updates for future reads).
-		 */
-		if (F_ISSET(r, WT_REC_LOOKASIDE))
-			return (EBUSY);
-	}
+	if (r->entries == 0 && r->supd_next == 0)
+		return (0);
 
 	/* Set the number of entries and size for the just finished chunk. */
 	bnd_cur = &r->bnd[r->bnd_next];
@@ -3484,26 +3504,30 @@ supd_check_complete:
 	r->supd_next = j;
 
 	/*
-	 * If using the lookaside table eviction path and we found updates that
-	 * weren't globally visible when reconciling this page, note that in the
-	 * page header.
-	 */
-	if (F_ISSET(r, WT_REC_LOOKASIDE) && bnd->supd != NULL) {
-		F_SET(dsk, WT_PAGE_LAS_UPDATE);
-		r->cache_write_lookaside = true;
-	}
-
-	/*
-	 * If configured for an in-memory database, or using the save/restore
-	 * eviction path and we had to skip updates in order to build this disk
-	 * image, we can't actually write it. Instead, we will re-instantiate
-	 * the page using the disk image and any list of updates we skipped.
+	 * If configured for an in-memory database, we can't actually write it.
+	 * Instead, we will re-instantiate the page using the disk image and
+	 * any list of updates we skipped.
 	 */
 	if (F_ISSET(r, WT_REC_IN_MEMORY))
 		goto copy_image;
-	if (F_ISSET(r, WT_REC_UPDATE_RESTORE) && bnd->supd != NULL) {
-		r->cache_write_restore = true;
-		goto copy_image;
+
+	/*
+	 * If there are saved updates, we are either doing update/restore
+	 * eviction or lookaside eviction.  Update/restore never writes the
+	 * disk image.
+	 *
+	 * Lookaside does write disk images, but also needs to cope with the
+	 * case where no updates could be written, which means there are no
+	 * entries in the page image to write.
+	 */
+	if (bnd->supd != NULL) {
+		if (F_ISSET(r, WT_REC_UPDATE_RESTORE)) {
+			r->cache_write_restore = true;
+			goto copy_image;
+		}
+		if (r->entries == 0)
+			goto copy_image;
+		F_SET(dsk, WT_PAGE_LAS_UPDATE);
 	}
 
 	/*
@@ -3572,15 +3596,17 @@ supd_check_complete:
 	WT_ERR(__wt_memdup(session, addr, addr_size, &bnd->addr.addr));
 	bnd->addr.size = (uint8_t)addr_size;
 
+copy_image:
 	/*
 	 * If using the lookaside table eviction path and we found updates that
 	 * weren't globally visible when reconciling this page, copy them into
 	 * the database's lookaside store.
 	 */
-	if (F_ISSET(r, WT_REC_LOOKASIDE) && bnd->supd != NULL)
+	if (F_ISSET(r, WT_REC_LOOKASIDE) && bnd->supd != NULL) {
+		r->cache_write_lookaside = true;
 		WT_ERR(__rec_update_las(session, r, btree->id, bnd));
+	}
 
-copy_image:
 	/*
 	 * If re-instantiating this page in memory (either because eviction
 	 * wants to, or because we skipped updates to build the disk image),
@@ -3627,16 +3653,15 @@ __rec_update_las(WT_SESSION_IMPL *session,
 	WT_CURSOR *cursor;
 	WT_DECL_ITEM(key);
 	WT_DECL_RET;
-	WT_ITEM las_addr, las_timestamp, las_value;
+	WT_ITEM las_timestamp, las_value;
 	WT_PAGE *page;
 	WT_SAVE_UPD *list;
 	WT_UPDATE *upd;
-	uint64_t insert_cnt, las_counter;
+	uint64_t insert_cnt, las_counter, las_pageid;
 	uint32_t i, session_flags, slot;
 	uint8_t *p;
 
 	cursor = NULL;
-	WT_CLEAR(las_addr);
 	WT_CLEAR(las_timestamp);
 	WT_CLEAR(las_value);
 	page = r->page;
@@ -3654,29 +3679,11 @@ __rec_update_las(WT_SESSION_IMPL *session,
 	WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
 
 	/*
-	 * Each key in the lookaside table is associated with a block, and those
-	 * blocks are freed and reallocated to other pages as pages in the tree
-	 * are modified and reconciled. We want to be sure we don't add records
-	 * to the lookaside table, then discard the block to which they apply,
-	 * then write a new block to the same address, and then apply the old
-	 * records to the new block when it's read. We don't want to clean old
-	 * records out of the lookaside table every time we free a block because
-	 * that happens a lot and would be costly; instead, we clean out the old
-	 * records when adding new records into the lookaside table. This works
-	 * because we only read from the lookaside table for pages marked with
-	 * the WT_PAGE_LAS_UPDATE flag: that flag won't be set if we rewrite a
-	 * block with no lookaside records, so the lookaside table won't be
-	 * checked when the block is read, even if there are lookaside table
-	 * records matching that block. If we rewrite a block that has lookaside
-	 * records, we'll run this code, discarding any old records that might
-	 * exist.
+	 * Each key in the lookaside table is associated with a unique
+	 * identifier, allocated sequentially per tree.
 	 */
-	WT_ERR(__wt_las_remove_block(
-	    session, cursor, btree_id, bnd->addr.addr, bnd->addr.size));
-
-	/* Lookaside table key component: block address. */
-	las_addr.data = bnd->addr.addr;
-	las_addr.size = bnd->addr.size;
+	las_pageid = bnd->lookaside_pageid =
+	    __wt_atomic_add64(&S2BT(session)->lookaside_pageid, 1);
 
 	/* Enter each update in the boundary's list into the lookaside store. */
 	for (las_counter = 0, i = 0,
@@ -3747,7 +3754,7 @@ __rec_update_las(WT_SESSION_IMPL *session,
 			}
 
 			cursor->set_key(cursor,
-			    btree_id, &las_addr, ++las_counter, key);
+			    btree_id, las_pageid, ++las_counter, key);
 
 #ifdef HAVE_TIMESTAMPS
 			las_timestamp.data = &upd->timestamp;
@@ -6049,7 +6056,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		 * a sync point. The address was cleared when we were about to
 		 * write the buffer so we know what to do here.
 		 */
-		if (bnd->addr.addr == NULL)
+		if (bnd->addr.addr == NULL && bnd->lookaside_pageid == 0)
 			WT_RET(__wt_bt_write(session, r->cur_img_ptr,
 			    NULL, NULL, true, F_ISSET(r, WT_REC_CHECKPOINT),
 			    bnd->already_compressed));
@@ -6059,6 +6066,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
 			mod->mod_disk_image = bnd->disk_image;
 			bnd->disk_image = NULL;
+
+			mod->mod_replace_las = bnd->lookaside_pageid;
+			bnd->lookaside_pageid = 0;
 		}
 
 		mod->rec_result = WT_PM_REC_REPLACE;
@@ -6208,10 +6218,13 @@ __rec_split_row(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
 		/* Copy any address. */
 		multi->addr = bnd->addr;
+		bnd->addr.addr = NULL;
+
 		multi->addr.reuse = 0;
 		multi->size = bnd->size;
 		multi->checksum = bnd->checksum;
-		bnd->addr.addr = NULL;
+		multi->lookaside_pageid = bnd->lookaside_pageid;
+		bnd->lookaside_pageid = 0;
 	}
 	mod->mod_multi_entries = r->bnd_next;
 
@@ -6255,10 +6268,13 @@ __rec_split_col(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
 		/* Copy any address. */
 		multi->addr = bnd->addr;
+		bnd->addr.addr = NULL;
+
 		multi->addr.reuse = 0;
 		multi->size = bnd->size;
 		multi->checksum = bnd->checksum;
-		bnd->addr.addr = NULL;
+		multi->lookaside_pageid = bnd->lookaside_pageid;
+		bnd->lookaside_pageid = 0;
 	}
 	mod->mod_multi_entries = r->bnd_next;
 

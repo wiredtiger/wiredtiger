@@ -285,11 +285,11 @@ __wt_las_cursor_close(
  */
 int
 __wt_las_remove_block(WT_SESSION_IMPL *session,
-    WT_CURSOR *cursor, uint32_t btree_id, const uint8_t *addr, size_t addr_size)
+    WT_CURSOR *cursor, uint32_t btree_id, uint64_t pageid)
 {
-	WT_ITEM las_addr, las_key;
+	WT_ITEM las_key;
 	WT_DECL_RET;
-	uint64_t las_counter, remove_cnt;
+	uint64_t las_counter, las_pageid, remove_cnt;
 	uint32_t las_id;
 	int exact;
 
@@ -299,24 +299,20 @@ __wt_las_remove_block(WT_SESSION_IMPL *session,
 	 * Search for the block's unique prefix and step through all matching
 	 * records, removing them.
 	 */
-	las_addr.data = addr;
-	las_addr.size = addr_size;
 	las_key.size = 0;
 	cursor->set_key(cursor,
-	    btree_id, &las_addr, (uint64_t)0, &las_key);
+	    btree_id, pageid, (uint64_t)0, &las_key);
 	if ((ret = cursor->search_near(cursor, &exact)) == 0 && exact < 0)
 		ret = cursor->next(cursor);
 	for (; ret == 0; ret = cursor->next(cursor)) {
 		WT_ERR(cursor->get_key(cursor,
-		    &las_id, &las_addr, &las_counter, &las_key));
+		    &las_id, &las_pageid, &las_counter, &las_key));
 
 		/*
 		 * Confirm the search using the unique prefix; if not a match,
 		 * we're done searching for records for this page.
 		 */
-		 if (las_id != btree_id ||
-		     las_addr.size != addr_size ||
-		     memcmp(las_addr.data, addr, addr_size) != 0)
+		 if (las_id != btree_id || las_pageid != pageid)
 			break;
 
 		/*

@@ -122,6 +122,8 @@ struct __wt_btree {
 	WT_KEYED_ENCRYPTOR *kencryptor;	/* Page encryptor */
 	WT_RWLOCK ovfl_lock;		/* Overflow lock */
 
+	uint64_t lookaside_pageid;	/* Lookaside table page ID counter */
+
 	uint64_t last_recno;		/* Column-store last record number */
 
 	WT_REF	root;			/* Root page reference */

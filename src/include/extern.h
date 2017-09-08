@@ -207,7 +207,7 @@ extern bool __wt_las_is_written(WT_SESSION_IMPL *session);
 extern int __wt_las_cursor_open(WT_SESSION_IMPL *session, WT_CURSOR **cursorp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_las_cursor( WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t *session_flags);
 extern int __wt_las_cursor_close( 	WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t session_flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_las_remove_block(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id, const uint8_t *addr, size_t addr_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_las_remove_block(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id, uint64_t pageid) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern uint32_t __wt_checksum_sw(const void *chunk, size_t len) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_checksum_init(void);
 extern void __wt_config_initn( WT_SESSION_IMPL *session, WT_CONFIG *conf, const char *str, size_t len);

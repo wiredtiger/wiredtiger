@@ -312,9 +312,6 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		 * of the page, if we're forced to "read" into that namespace,
 		 * we'll instantiate a new page instead of trying to read from
 		 * the backing store.
-		 *
-		 * Publish: a barrier to ensure the structure fields are set
-		 * before the state change makes the page available to readers.
 		 */
 		__wt_ref_out(session, ref);
 		ref->addr = NULL;
@@ -353,17 +350,26 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		 * Publish: a barrier to ensure the structure fields are set
 		 * before the state change makes the page available to readers.
 		 */
-		WT_RET(__wt_calloc_one(session, &addr));
-		*addr = mod->mod_replace;
-		mod->mod_replace.addr = NULL;
-		mod->mod_replace.size = 0;
-		ref->addr = addr;
+		if (mod->mod_replace.addr == NULL)
+			ref->addr = NULL;
+		else {
+			WT_RET(__wt_calloc_one(session, &addr));
+			*addr = mod->mod_replace;
+			mod->mod_replace.addr = NULL;
+			mod->mod_replace.size = 0;
+			ref->addr = addr;
+		}
 
 		/*
 		 * Eviction wants to keep this page if we have a disk image,
 		 * re-instantiate the page in memory, else discard the page.
 		 */
-		if (mod->mod_disk_image == NULL) {
+		if (mod->mod_replace_las != 0) {
+			__wt_ref_out(session, ref);
+			WT_RET(__wt_calloc_one(session, &ref->page_las));
+			ref->page_las->las_pageid = mod->mod_replace_las;
+			WT_PUBLISH(ref->state, WT_REF_LOOKASIDE);
+		} else if (mod->mod_disk_image == NULL) {
 			__wt_ref_out(session, ref);
 			WT_PUBLISH(ref->state, WT_REF_DISK);
 		} else {
@@ -546,7 +552,8 @@ __evict_review(
 
 	if (closing)
 		LF_SET(WT_REC_VISIBILITY_ERR);
-	else if (!WT_PAGE_IS_INTERNAL(page)) {
+	else if (!WT_PAGE_IS_INTERNAL(page) &&
+	    !F_ISSET(S2BT(session), WT_BTREE_LOOKASIDE)) {
 		if (F_ISSET(conn, WT_CONN_IN_MEMORY))
 			LF_SET(WT_REC_IN_MEMORY |
 			    WT_REC_SCRUB | WT_REC_UPDATE_RESTORE);

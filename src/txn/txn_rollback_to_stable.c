@@ -20,9 +20,9 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_DECL_TIMESTAMP(rollback_timestamp)
-	WT_ITEM las_addr, las_key, las_timestamp, las_value;
+	WT_ITEM las_key, las_timestamp, las_value;
 	WT_TXN_GLOBAL *txn_global;
-	uint64_t las_counter, las_txnid, remove_cnt;
+	uint64_t las_counter, las_pageid, las_txnid, remove_cnt;
 	uint32_t las_id, session_flags;
 	uint8_t upd_type;
 
@@ -51,7 +51,7 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 	/* Walk the file. */
 	for (; (ret = cursor->next(cursor)) == 0; ) {
 		WT_ERR(cursor->get_key(cursor,
-		    &las_id, &las_addr, &las_counter, &las_key));
+		    &las_id, &las_pageid, &las_counter, &las_key));
 
 		/* Check the file ID so we can skip durable tables */
 		if (las_id >= conn->stable_rollback_maxfile)

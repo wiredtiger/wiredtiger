@@ -1634,7 +1634,12 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 		addr->type = multi->addr.type;
 		WT_RET(__wt_memdup(session,
 		    multi->addr.addr, addr->size, &addr->addr));
-		ref->state = WT_REF_DISK;
+		if (multi->lookaside_pageid != 0) {
+			WT_RET(__wt_calloc_one(session, &ref->page_las));
+			ref->page_las->las_pageid = multi->lookaside_pageid;
+			ref->state = WT_REF_LOOKASIDE;
+		} else
+			ref->state = WT_REF_DISK;
 	}
 
 	/*
