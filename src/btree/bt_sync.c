@@ -119,7 +119,7 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 		 */
 		oldest_id = __wt_txn_oldest_id(session);
 
-		flags |= WT_READ_NO_WAIT | WT_READ_SKIP_INTL;
+		LF_SET(WT_READ_NO_WAIT | WT_READ_SKIP_INTL);
 		for (walk = NULL;;) {
 			WT_ERR(__wt_tree_walk(session, &walk, flags));
 			if (walk == NULL)
@@ -184,7 +184,11 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 		btree->checkpointing = WT_CKPT_RUNNING;
 
 		/* Write all dirty in-cache pages. */
-		flags |= WT_READ_NO_EVICT;
+		LF_SET(WT_READ_NO_EVICT);
+
+		/* Read pages with lookaside entries and evict them asap. */
+		LF_SET(WT_READ_LOOKASIDE | WT_READ_WONT_NEED);
+
 		for (walk = NULL;;) {
 			WT_ERR(__wt_tree_walk(session, &walk, flags));
 			if (walk == NULL)

@@ -1389,6 +1389,8 @@ __split_multi_inmem(
 	uint64_t recno;
 	uint32_t i, slot;
 
+	WT_ASSERT(session, multi->lookaside_pageid == 0);
+
 	/*
 	 * In 04/2016, we removed column-store record numbers from the WT_PAGE
 	 * structure, leading to hard-to-debug problems because we corrupt the

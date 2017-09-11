@@ -1696,17 +1696,10 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 			 * We should never be here during eviction, active
 			 * child pages in an evicted page's subtree fails the
 			 * eviction attempt.
-			 *
-			 * XXX need to deal with leaf pages during close before
-			 * this is true.
 			 */
-#if 0
 			WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT));
 			if (F_ISSET(r, WT_REC_EVICT))
 				return (EBUSY);
-#endif
-			if (ref->addr == NULL)
-				*statep = WT_CHILD_IGNORE;
 
 			goto done;
 
@@ -2065,6 +2058,8 @@ __rec_split_bnd_init(WT_SESSION_IMPL *session, WT_BOUNDARY *bnd)
 	__wt_free(session, bnd->supd);
 	bnd->supd_next = 0;
 	bnd->supd_allocated = 0;
+
+	bnd->lookaside_pageid = 0;
 
 	bnd->already_compressed = false;
 

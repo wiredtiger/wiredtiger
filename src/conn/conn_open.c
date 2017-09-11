@@ -111,9 +111,6 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	/* The eviction server is shut down last. */
 	WT_TRET(__wt_evict_destroy(session));
 
-	/* Shut down the lookaside table, after all eviction is complete. */
-	WT_TRET(__wt_las_destroy(session));
-
 	/* Close open data handles. */
 	WT_TRET(__wt_conn_dhandle_discard(session));
 

@@ -299,7 +299,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
  *	Read a page from the file.
  */
 static int
-__page_read(WT_SESSION_IMPL *session, WT_REF *ref)
+__page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 {
 	struct timespec start, stop;
 	const WT_PAGE_HEADER *dsk;
@@ -407,7 +407,15 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref)
 		__wt_free(session, ref->page_las);
 	}
 
-done:	WT_PUBLISH(ref->state, WT_REF_MEM);
+done:
+#if 0
+	/*
+	 * For reads expecting to deal specially with lookaside pages, leave
+	 * the ref locked.
+	 */
+	if (previous_state != WT_REF_LOOKASIDE || !LF_ISSET(WT_READ_LOOKASIDE))
+#endif
+	WT_PUBLISH(ref->state, WT_REF_MEM);
 	return (0);
 
 err:	/*
@@ -464,8 +472,12 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			/* FALLTHROUGH */
 		case WT_REF_LOOKASIDE:
 		case WT_REF_DISK:
-			if (LF_ISSET(WT_READ_CACHE))
-				return (WT_NOTFOUND);
+			if (LF_ISSET(WT_READ_CACHE)) {
+				if (ref->state != WT_REF_LOOKASIDE)
+					return (WT_NOTFOUND);
+				if (!LF_ISSET(WT_READ_LOOKASIDE))
+					return (WT_NOTFOUND);
+			}
 
 			/*
 			 * The page isn't in memory, read it. If this thread is
@@ -475,7 +487,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			if (!LF_ISSET(WT_READ_NO_EVICT))
 				WT_RET(__wt_cache_eviction_check(
 				    session, 1, NULL));
-			WT_RET(__page_read(session, ref));
+			WT_RET(__page_read(session, ref, flags));
 
 			/*
 			 * If configured to not trash the cache, leave the page

@@ -364,14 +364,17 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		 * Eviction wants to keep this page if we have a disk image,
 		 * re-instantiate the page in memory, else discard the page.
 		 */
-		if (mod->mod_replace_las != 0) {
+		if (mod->mod_disk_image == NULL) {
+			if (mod->mod_replace_las != 0) {
+				WT_RET(
+				    __wt_calloc_one(session, &ref->page_las));
+				ref->page_las->las_pageid =
+				    mod->mod_replace_las;
+				WT_ASSERT(session, ref->page == NULL);
+				WT_PUBLISH(ref->state, WT_REF_LOOKASIDE);
+			} else
+				WT_PUBLISH(ref->state, WT_REF_DISK);
 			__wt_ref_out(session, ref);
-			WT_RET(__wt_calloc_one(session, &ref->page_las));
-			ref->page_las->las_pageid = mod->mod_replace_las;
-			WT_PUBLISH(ref->state, WT_REF_LOOKASIDE);
-		} else if (mod->mod_disk_image == NULL) {
-			__wt_ref_out(session, ref);
-			WT_PUBLISH(ref->state, WT_REF_DISK);
 		} else {
 			/*
 			 * The split code works with WT_MULTI structures, build

@@ -781,7 +781,8 @@ __wt_conn_dhandle_discard(WT_SESSION_IMPL *session)
 	 */
 restart:
 	TAILQ_FOREACH(dhandle, &conn->dhqh, q) {
-		if (WT_IS_METADATA(dhandle))
+		if (WT_IS_METADATA(dhandle) ||
+		    strcmp(dhandle->name, WT_LAS_URI) == 0)
 			continue;
 
 		WT_WITH_DHANDLE(session, dhandle,
@@ -789,6 +790,9 @@ restart:
 		    session, true, false)));
 		goto restart;
 	}
+
+	/* Shut down the lookaside table, after all eviction is complete. */
+	WT_TRET(__wt_las_destroy(session));
 
 	/*
 	 * Closing the files may have resulted in entries on our default
@@ -808,7 +812,7 @@ restart:
 	if (session->meta_cursor != NULL)
 		WT_TRET(session->meta_cursor->close(session->meta_cursor));
 
-	/* Close the metadata file handle. */
+	/* Close the remaining handles. */
 	WT_TAILQ_SAFE_REMOVE_BEGIN(dhandle, &conn->dhqh, q, dhandle_tmp) {
 		WT_WITH_DHANDLE(session, dhandle,
 		    WT_TRET(__wt_conn_dhandle_discard_single(
