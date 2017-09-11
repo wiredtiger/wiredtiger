@@ -299,7 +299,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
  *	Read a page from the file.
  */
 static int
-__page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
+__page_read(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	struct timespec start, stop;
 	const WT_PAGE_HEADER *dsk;
@@ -487,7 +487,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			if (!LF_ISSET(WT_READ_NO_EVICT))
 				WT_RET(__wt_cache_eviction_check(
 				    session, 1, NULL));
-			WT_RET(__page_read(session, ref, flags));
+			WT_RET(__page_read(session, ref));
 
 			/*
 			 * If configured to not trash the cache, leave the page
