@@ -302,7 +302,6 @@ static int
 __page_read(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	struct timespec start, stop;
-	const WT_PAGE_HEADER *dsk;
 	WT_BTREE *btree;
 	WT_DECL_RET;
 	WT_ITEM tmp;
@@ -395,10 +394,10 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * We only care if the lookaside table is currently active, check that
 	 * before doing any work.
 	 */
-	dsk = tmp.data;
 	if (previous_state == WT_REF_LOOKASIDE) {
-		WT_ASSERT(session, F_ISSET(dsk, WT_PAGE_LAS_UPDATE) &&
-		    __wt_las_is_written(session));
+		WT_ASSERT(session, __wt_las_is_written(session) &&
+		    (ref->page->dsk == NULL ||
+		    F_ISSET(ref->page->dsk, WT_PAGE_LAS_UPDATE)));
 
 		__btree_verbose_lookaside_read(session);
 		WT_STAT_CONN_INCR(session, cache_read_lookaside);
@@ -408,13 +407,6 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref)
 	}
 
 done:
-#if 0
-	/*
-	 * For reads expecting to deal specially with lookaside pages, leave
-	 * the ref locked.
-	 */
-	if (previous_state != WT_REF_LOOKASIDE || !LF_ISSET(WT_READ_LOOKASIDE))
-#endif
 	WT_PUBLISH(ref->state, WT_REF_MEM);
 	return (0);
 
