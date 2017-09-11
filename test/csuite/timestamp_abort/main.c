@@ -224,7 +224,7 @@ thread_run(void *arg)
 			 * by another thread.
 			 */
 			testutil_check(pthread_rwlock_rdlock(&commit_ts_lock));
-			stable_ts = __wt_atomic_addv64(&global_ts, 1);
+			stable_ts = global_ts++;
 		} else
 			stable_ts = 0;
 		testutil_check(__wt_snprintf(
