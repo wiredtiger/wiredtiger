@@ -673,7 +673,8 @@ retry:	if (F_ISSET(clsm, WT_CLSM_MERGE)) {
 
 	/* Setup the count values for each chunk in the chunks*/
 	for (i = 0; i != clsm->nchunks; i++)
-		clsm->chunks[i]->count = lsm_tree->chunk[i]->count;
+		clsm->chunks[i]->count =
+		    lsm_tree->chunk[start_chunk + i]->count;
 
 	/* The last chunk is our new primary. */
 	if (chunk != NULL &&
