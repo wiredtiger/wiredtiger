@@ -671,7 +671,7 @@ retry:	if (F_ISSET(clsm, WT_CLSM_MERGE)) {
 		    WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
 	}
 
-	/* Setup the count values for each chunk in the chunks*/
+	/* Setup the count values for each chunk in the chunks */
 	for (i = 0; i != clsm->nchunks; i++)
 		clsm->chunks[i]->count =
 		    lsm_tree->chunk[start_chunk + i]->count;
