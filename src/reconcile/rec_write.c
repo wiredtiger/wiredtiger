@@ -610,7 +610,7 @@ __rec_write_check_complete(
 	 * restore anything.
 	 */
 	if (!F_ISSET(r, WT_REC_UPDATE_RESTORE) ||
-	    r->bnd->supd == NULL || lookaside_retryp == NULL)
+	    r->bnd->supd_next == 0 || lookaside_retryp == NULL)
 		return (0);
 
 	/*
@@ -622,7 +622,11 @@ __rec_write_check_complete(
 	 * page image for a page that previously didn't have one, or we had a
 	 * page image and it is now empty, that's also progress.
 	 */
-	if (r->bnd_next > 1 || r->bnd_next == (r->page->dsk == NULL) ? 1 : 0)
+	if (r->bnd_next > 1)
+		return (0);
+	if (r->bnd_next == 0 && r->page->dsk != NULL)
+		return (0);
+	if (r->bnd_next == 1 && r->page->dsk == NULL)
 		return (0);
 
 	/*
@@ -1344,29 +1348,28 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			break;
 		}
 
-		if (F_ISSET(r, WT_REC_VISIBLE_ALL)) {
-			if (__wt_txn_upd_visible_all(session, upd)) {
-				if (*updp == NULL)
-					*updp = upd;
-				if (F_ISSET(r, WT_REC_EVICT) &&
-				    WT_UPDATE_DATA_VALUE(upd)) {
-					__wt_update_obsolete_free(
-					    session, page, upd->next);
-					upd->next = NULL;
-					break;
-				}
-			}
-		} else if (__wt_txn_upd_visible(session, upd)) {
-			if (*updp == NULL)
-				*updp = upd;
-		} else
+		if (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
+		    !__wt_txn_upd_visible_all(session, upd) :
+		    !__wt_txn_upd_visible(session, upd))
 			continue;
+
+		if (*updp == NULL)
+			*updp = upd;
 
 #ifdef HAVE_TIMESTAMPS
 		if (first_ts_upd == NULL &&
 		   !__wt_timestamp_iszero(&upd->timestamp))
 			first_ts_upd = upd;
 #endif
+
+		if (F_ISSET(r, WT_REC_VISIBLE_ALL) &&
+		    F_ISSET(r, WT_REC_EVICT) &&
+		    WT_UPDATE_DATA_VALUE(upd)) {
+			__wt_update_obsolete_free(
+			    session, page, upd->next);
+			upd->next = NULL;
+			break;
+		}
 	}
 
 	/* Reconciliation should never see an aborted or reserved update. */
@@ -1384,8 +1387,11 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 * is used to avoid discarding trees from memory when they have changes
 	 * required to satisfy a snapshot read.
 	 */
-	if (WT_TXNID_LT(r->max_txn, max_txn))
+	if (WT_TXNID_LT(r->max_txn, max_txn)) {
+		WT_ASSERT(session, max_txn < 100000000);
 		r->max_txn = max_txn;
+	}
+
 #ifdef HAVE_TIMESTAMPS
 	if (first_ts_upd != NULL &&
 	    __wt_timestamp_cmp(&r->max_timestamp, &first_ts_upd->timestamp) < 0)
@@ -1404,8 +1410,10 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 * If there are no skipped updates, the page can be marked clean and
 	 * we're done, regardless if evicting or checkpointing.
 	 */
-	if (*updp == first_active_upd)
+	if (*updp == first_active_upd) {
+		r->update_used = true;
 		goto check_original_value;
+	}
 
 	/*
 	 * In some cases, there had better not be skipped updates.
@@ -1467,8 +1475,6 @@ check_original_value:
 	    vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)
 		WT_RET(__rec_append_orig_value(session, page, *updp, vpack));
 
-	if (*updp != NULL)
-		r->update_used = true;
 	if (uncommitted)
 		r->update_uncommitted = true;
 

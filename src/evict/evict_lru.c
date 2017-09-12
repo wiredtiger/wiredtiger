@@ -75,7 +75,8 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
 		return (WT_READGEN_OLDEST);
 
 	/* Any page from a dead tree is a great choice. */
-	if (F_ISSET(btree->dhandle, WT_DHANDLE_DEAD))
+	if (F_ISSET(btree->dhandle, WT_DHANDLE_DEAD) ||
+	    F_ISSET(btree, WT_BTREE_LOOKASIDE))
 		return (WT_READGEN_OLDEST);
 
 	/* Any empty page (leaf or internal), is a good choice. */
@@ -1670,6 +1671,7 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	 * remaining slots.
 	 */
 	if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
+	    F_ISSET(btree, WT_BTREE_LOOKASIDE) ||
 	    target_pages > remaining_slots)
 		target_pages = remaining_slots;
 
@@ -1874,8 +1876,25 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 
 		/* Pages that are empty or from dead trees are fast-tracked. */
 		if (__wt_page_is_empty(page) ||
-		    F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
+		    F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
+		    F_ISSET(btree, WT_BTREE_LOOKASIDE))
 			goto fast;
+
+		/*
+		 * If we're blocked by eviction (and going to consider
+		 * lookaside), and the only thing preventing a clean page from
+		 * being evicted is that it contains historical data, mark it
+		 * dirty so we can do lookaside eviction.
+		 */
+		if (F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD |
+		    WT_CACHE_EVICT_DIRTY_HARD) &&
+		    F_ISSET(cache, WT_CACHE_EVICT_DIRTY) &&
+		    !modified && page->modify != NULL &&
+		    !__wt_txn_visible_all(session, page->modify->rec_max_txn,
+		    WT_TIMESTAMP_NULL(&page->modify->rec_max_timestamp))) {
+			__wt_page_only_modify_set(session, page);
+			modified = true;
+		}
 
 		/* Skip clean pages if appropriate. */
 		if (!modified && !F_ISSET(cache, WT_CACHE_EVICT_CLEAN))

@@ -370,11 +370,12 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 				    __wt_calloc_one(session, &ref->page_las));
 				ref->page_las->las_pageid =
 				    mod->mod_replace_las;
-				WT_ASSERT(session, ref->page == NULL);
+				__wt_ref_out(session, ref);
 				WT_PUBLISH(ref->state, WT_REF_LOOKASIDE);
-			} else
+			} else {
+				__wt_ref_out(session, ref);
 				WT_PUBLISH(ref->state, WT_REF_DISK);
-			__wt_ref_out(session, ref);
+			}
 		} else {
 			/*
 			 * The split code works with WT_MULTI structures, build
@@ -570,7 +571,8 @@ __evict_review(
 			 * Check if reconciliation suggests trying the
 			 * lookaside table.
 			 */
-			if (__wt_cache_stuck(session))
+			if (F_ISSET(cache, WT_CACHE_EVICT_DIRTY_HARD |
+			    WT_CACHE_EVICT_DIRTY_HARD))
 				lookaside_retryp = &lookaside_retry;
 		}
 	}

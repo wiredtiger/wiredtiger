@@ -56,8 +56,8 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
 
     nkeys = [
         ('100keys', dict(nkeys=100)),
-#        ('500keys', dict(nkeys=500)),
-#        ('1000keys', dict(nkeys=1000)),
+        ('500keys', dict(nkeys=500)),
+        ('1000keys', dict(nkeys=1000)),
     ]
 
     scenarios = make_scenarios(types, conncfg, nkeys)
@@ -74,6 +74,9 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
             session.begin_transaction(txn_config)
         c = session.open_cursor(self.uri + self.tablename, None)
         actual = dict((k, v) for k, v in c if v != 0)
+        if actual != expected:
+            self.tty("actual - expected = %s" % (set(actual.iteritems()) - set(expected.iteritems())))
+            self.tty("expected - actual = %s" % (set(expected.iteritems()) - set(actual.iteritems())))
         self.assertTrue(actual == expected)
         # Search for the expected items as well as iterating
         for k, v in expected.iteritems():
@@ -201,9 +204,8 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Take a checkpoint using the given configuration.  Then verify
         # whether value2 appears in a copy of that data or not.
-        valcnt2 = valcnt3 = self.nkeys
-        valcnt = 0
-        self.ckpt_backup(self.value2, valcnt, valcnt2, valcnt3)
+        self.ckpt_backup(self.value2, 0, self.nkeys, self.nkeys)
+
         # Update the stable timestamp to the latest, but not the oldest
         # timestamp and make sure we can see the data.  Once the stable
         # timestamp is moved we should see all keys with value2.

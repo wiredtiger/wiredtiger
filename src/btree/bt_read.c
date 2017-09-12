@@ -203,20 +203,10 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t read_id)
 	/* Discard the cursor. */
 	WT_ERR(__wt_las_cursor_close(session, &cursor, session_flags));
 
-	if (total_incr != 0) {
+	if (total_incr != 0)
 		__wt_cache_page_inmem_incr(session, page, total_incr);
 
-		/*
-		 * We've modified/dirtied the page, but that's not necessary and
-		 * if we keep the page clean, it's easier to evict. We leave the
-		 * lookaside table updates in place, so if we evict this page
-		 * without dirtying it, any future instantiation of it will find
-		 * the records it needs. If the page is dirtied before eviction,
-		 * then we'll write any needed lookaside table records for the
-		 * new location of the page.
-		 */
-		__wt_page_modify_clear(session, page);
-	}
+	page->modify->first_dirty_txn = WT_TXN_FIRST;
 
 err:	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 	WT_TRET(__wt_btcur_close(&cbt, true));
@@ -350,7 +340,10 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref)
 
 		WT_ERR(__wt_btree_new_leaf_page(session, &page));
 		ref->page = page;
-		goto done;
+		if (previous_state == WT_REF_LOOKASIDE)
+			goto skip_read;
+		else
+			goto done;
 	}
 
 	/*
@@ -377,6 +370,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref)
 	 */
 	tmp.mem = NULL;
 
+skip_read:
 	/*
 	 * If reading for a checkpoint, there's no additional work to do, the
 	 * page on disk is correct as written.
@@ -440,7 +434,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 	WT_DECL_RET;
 	WT_PAGE *page;
 	uint64_t sleep_cnt, wait_cnt;
-	bool busy, cache_work, evict_soon, stalled;
+	bool busy, cache_work, did_read, evict_soon, stalled;
 	int force_attempts;
 
 	btree = S2BT(session);
@@ -454,7 +448,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 		WT_STAT_DATA_INCR(session, cache_pages_requested);
 	}
 
-	for (evict_soon = stalled = false,
+	for (did_read = evict_soon = stalled = false,
 	    force_attempts = 0, sleep_cnt = wait_cnt = 0;;) {
 		switch (ref->state) {
 		case WT_REF_DELETED:
@@ -480,6 +474,12 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 				WT_RET(__wt_cache_eviction_check(
 				    session, 1, NULL));
 			WT_RET(__page_read(session, ref));
+
+			/*
+			 * We just read a page, don't evict it before we have a
+			 * chance to read it.
+			 */
+			did_read = true;
 
 			/*
 			 * If configured to not trash the cache, leave the page
@@ -544,7 +544,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			 * the page's generation number. If eviction isn't being
 			 * done on this file, we're done.
 			 */
-			if (LF_ISSET(WT_READ_NO_EVICT) ||
+			if (did_read || LF_ISSET(WT_READ_NO_EVICT) ||
 			    F_ISSET(session, WT_SESSION_NO_EVICTION) ||
 			    btree->evict_disabled > 0 || btree->lsm_primary)
 				goto skip_evict;
