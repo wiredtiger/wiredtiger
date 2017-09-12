@@ -307,6 +307,20 @@ __txn_rollback_to_stable_btree_walk(
 }
 
 /*
+ * __txn_rollback_eviction_drain --
+ *	Wait for eviction to drain from a tree.
+ */
+static int
+__txn_rollback_eviction_drain(WT_SESSION_IMPL *session, const char *cfg[])
+{
+	WT_UNUSED(cfg);
+
+	WT_RET(__wt_evict_file_exclusive_on(session));
+	__wt_evict_file_exclusive_off(session);
+	return (0);
+}
+
+/*
  * __txn_rollback_to_stable_btree --
  *	Called for each open handle - choose to either skip or wipe the commits
  */
@@ -426,7 +440,19 @@ __wt_txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_DECL_RET;
 
 	conn = S2C(session);
-	WT_RET(__txn_rollback_to_stable_check(session));
+
+	/*
+	 * Mark that a rollback operation is in progress and wait for eviction
+	 * to drain.  This is necessary because lookaside eviction uses
+	 * transactions and causes the check for a quiescent system to fail.
+	 */
+	F_SET(conn, WT_CONN_EVICTION_NO_LOOKASIDE);
+	WT_ERR(__wt_conn_btree_apply(session,
+	    NULL, __txn_rollback_eviction_drain, NULL, cfg));
+
+	WT_ERR(__txn_rollback_to_stable_check(session));
+
+	F_CLR(conn, WT_CONN_EVICTION_NO_LOOKASIDE);
 
 	/*
 	 * Allocate a non-durable btree bitstring.  We increment the global
@@ -434,7 +460,7 @@ __wt_txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
 	 * hence we need to add one here.
 	 */
 	conn->stable_rollback_maxfile = conn->next_file_id + 1;
-	WT_RET(__bit_alloc(session,
+	WT_ERR(__bit_alloc(session,
 	    conn->stable_rollback_maxfile, &conn->stable_rollback_bitstring));
 	WT_ERR(__wt_conn_btree_apply(session,
 	    NULL, __txn_rollback_to_stable_btree, NULL, cfg));
@@ -446,7 +472,9 @@ __wt_txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
 	 * lookaside records should be removed.
 	 */
 	WT_ERR(__txn_rollback_to_stable_lookaside_fixup(session));
-err:	__wt_free(session, conn->stable_rollback_bitstring);
+
+err:	F_CLR(conn, WT_CONN_EVICTION_NO_LOOKASIDE);
+	__wt_free(session, conn->stable_rollback_bitstring);
 	return (ret);
 #endif
 }

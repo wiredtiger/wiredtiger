@@ -105,6 +105,7 @@ flags = {
         'CONN_CLOSING',
         'CONN_CLOSING_NO_MORE_OPENS',
         'CONN_EVICTION_RUN',
+        'CONN_EVICTION_NO_LOOKASIDE',
         'CONN_IN_MEMORY',
         'CONN_LAS_OPEN',
         'CONN_LEAK_MEMORY',

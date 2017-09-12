@@ -1888,6 +1888,7 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 		 */
 		if (F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD |
 		    WT_CACHE_EVICT_DIRTY_HARD) &&
+		    !F_ISSET(conn, WT_CONN_EVICTION_NO_LOOKASIDE) &&
 		    F_ISSET(cache, WT_CACHE_EVICT_DIRTY) &&
 		    !modified && page->modify != NULL &&
 		    !__wt_txn_visible_all(session, page->modify->rec_max_txn,

@@ -23,10 +23,14 @@ __col_instantiate(WT_SESSION_IMPL *session,
 
 	page = ref->page;
 
-	/* Discard any of the updates we don't need. */
+	/*
+	 * Discard any of the updates we don't need.
+	 *
+	 * Just free the memory: it hasn't been accounted for on the page yet.
+	 */
 	if (updlist->next != NULL &&
 	    (upd = __wt_update_obsolete_check(session, page, updlist)) != NULL)
-		__wt_update_obsolete_free(session, page, upd);
+		__wt_free_update_list(session, upd);
 
 	/* Search the page and add updates. */
 	WT_RET(__wt_col_search(session, recno, ref, cbt));
@@ -48,10 +52,14 @@ __row_instantiate(WT_SESSION_IMPL *session,
 
 	page = ref->page;
 
-	/* Discard any of the updates we don't need. */
+	/*
+	 * Discard any of the updates we don't need.
+	 *
+	 * Just free the memory: it hasn't been accounted for on the page yet.
+	 */
 	if (updlist->next != NULL &&
 	    (upd = __wt_update_obsolete_check(session, page, updlist)) != NULL)
-		__wt_update_obsolete_free(session, page, upd);
+		__wt_free_update_list(session, upd);
 
 	/* Search the page and add updates. */
 	WT_RET(__wt_row_search(session, key, ref, cbt, true));
@@ -203,10 +211,12 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t read_id)
 	/* Discard the cursor. */
 	WT_ERR(__wt_las_cursor_close(session, &cursor, session_flags));
 
-	if (total_incr != 0)
+	if (total_incr != 0) {
 		__wt_cache_page_inmem_incr(session, page, total_incr);
 
-	page->modify->first_dirty_txn = WT_TXN_FIRST;
+		/* Make sure the page is included in the next checkpoint. */
+		page->modify->first_dirty_txn = WT_TXN_FIRST;
+	}
 
 err:	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 	WT_TRET(__wt_btcur_close(&cbt, true));
@@ -400,8 +410,7 @@ skip_read:
 		__wt_free(session, ref->page_las);
 	}
 
-done:
-	WT_PUBLISH(ref->state, WT_REF_MEM);
+done:	WT_PUBLISH(ref->state, WT_REF_MEM);
 	return (0);
 
 err:	/*
