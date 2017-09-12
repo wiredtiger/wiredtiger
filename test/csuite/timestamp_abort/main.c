@@ -56,22 +56,26 @@ static char home[1024];			/* Program working dir */
  * Each worker thread creates its own records file that records the data it
  * inserted and it records the timestamp that was used for that insertion.
  */
+#define	MAX_CKPT_INVL	5	/* Maximum interval between checkpoints */
+#define	MAX_TH		12
+#define	MAX_TIME	40
+#define	MAX_VAL		1024
+#define	MIN_TH		5
+#define	MIN_TIME	10
+#define	RECORDS_FILE	"records-%" PRIu32
+#define	STABLE_PERIOD	100
+
 static const char * const uri_local = "table:local";
 static const char * const uri_oplog = "table:oplog";
 static const char * const uri_collection = "table:collection";
 
 static const char * const stable_store = "table:stable";
 static const char * const ckpt_file = "checkpoint_done";
+
 static bool compat, inmem, use_ts;
 static volatile uint64_t global_ts = 1;
+static volatile uint64_t th_ts[MAX_TH];
 static pthread_rwlock_t commit_ts_lock = PTHREAD_RWLOCK_INITIALIZER;
-
-#define	MAX_TH		12
-#define	MAX_TIME	40
-#define	MIN_TH		5
-#define	MIN_TIME	10
-#define	RECORDS_FILE	"records-%" PRIu32
-#define	STABLE_PERIOD	100
 
 #define	ENV_CONFIG_COMPAT	",compatibility=(release=\"2.9\")"
 #define	ENV_CONFIG_DEF						\
@@ -80,9 +84,6 @@ static pthread_rwlock_t commit_ts_lock = PTHREAD_RWLOCK_INITIALIZER;
     "create,log=(archive=false,file_max=10M,enabled),"			\
     "transaction_sync=(enabled,method=none)"
 #define	ENV_CONFIG_REC "log=(archive=false,recover=on)"
-
-#define	MAX_CKPT_INTERVAL 5	/* Maximum interval between checkpoints */
-#define	MAX_VAL	1024
 
 static void usage(void)
     WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
@@ -97,8 +98,78 @@ usage(void)
 typedef struct {
 	WT_CONNECTION *conn;
 	uint64_t start;
-	uint32_t id;
+	uint32_t info;
 } WT_THREAD_DATA;
+
+/*
+ * thread_ts_run --
+ *	Runner function for a timestamp thread.
+ */
+static WT_THREAD_RET
+thread_ts_run(void *arg)
+{
+	WT_CURSOR *cur_stable;
+	WT_SESSION *session;
+	WT_THREAD_DATA *td;
+	uint64_t i, last_ts, oldest_ts;
+	int ret;
+	char tscfg[64];
+
+	td = (WT_THREAD_DATA *)arg;
+	last_ts = 0;
+
+	if ((ret = td->conn->open_session(td->conn, NULL, NULL, &session)) != 0)
+		testutil_die(ret, "WT_CONNECTION:open_session");
+	if ((ret = session->open_cursor(
+	    session, stable_store, NULL, NULL, &cur_stable)) != 0)
+		testutil_die(ret, "WT_SESSION.open_cursor: %s", stable_store);
+
+	/*
+	 * Every N records we will record our stable timestamp into the
+	 * stable table.  That will define our threshold where we
+	 * expect to find records after recovery.
+	 */
+	for (;;) {
+		oldest_ts = UINT64_MAX;
+		/*
+		 * For the timestamp thread, the info field contains the
+		 * number of worker threads.
+		 */
+		for (i = 0; i < td->info; ++i) {
+			/*
+			 * We need to let all threads get started, so if we
+			 * find any thread still with a zero timestamp we
+			 * go to sleep.
+			 */
+			if (th_ts[i] == 0)
+				goto ts_wait;
+			if (th_ts[i] != 0 && th_ts[i] < oldest_ts)
+				oldest_ts = th_ts[i];
+		}
+
+		if (oldest_ts != UINT64_MAX &&
+		    oldest_ts - last_ts >  STABLE_PERIOD) {
+			/*
+			 * Set both the oldest and stable timestamp
+			 * so that we don't need to maintain read
+			 * availability at older timestamps.
+			 */
+			testutil_check(__wt_snprintf(
+			    tscfg, sizeof(tscfg),
+			    "oldest_timestamp=%" PRIx64
+			    ",stable_timestamp=%" PRIx64,
+			    oldest_ts, oldest_ts));
+			testutil_check(
+			    td->conn->set_timestamp(td->conn, tscfg));
+			last_ts = oldest_ts;
+			cur_stable->set_key(cur_stable, td->info);
+			cur_stable->set_value(cur_stable, oldest_ts);
+			testutil_check(cur_stable->insert(cur_stable));
+		} else
+ts_wait:		__wt_sleep(0, 1000);
+	}
+	/* NOTREACHED */
+}
 
 /*
  * thread_ckpt_run --
@@ -128,7 +199,7 @@ thread_ckpt_run(void *arg)
 	first_ckpt = true;
 	ts = 0;
 	for (i = 0; ;++i) {
-		sleep_time = __wt_random(&rnd) % MAX_CKPT_INTERVAL;
+		sleep_time = __wt_random(&rnd) % MAX_CKPT_INVL;
 		sleep(sleep_time);
 		if (use_ts)
 			ts = global_ts;
@@ -163,7 +234,7 @@ static WT_THREAD_RET
 thread_run(void *arg)
 {
 	FILE *fp;
-	WT_CURSOR *cur_coll, *cur_local, *cur_oplog, *cur_stable;
+	WT_CURSOR *cur_coll, *cur_local, *cur_oplog;
 	WT_ITEM data;
 	WT_RAND_STATE rnd;
 	WT_SESSION *session;
@@ -183,7 +254,8 @@ thread_run(void *arg)
 	/*
 	 * Set up the separate file for checking.
 	 */
-	testutil_check(__wt_snprintf(cbuf, sizeof(cbuf), RECORDS_FILE, td->id));
+	testutil_check(__wt_snprintf(
+	    cbuf, sizeof(cbuf), RECORDS_FILE, td->info));
 	(void)unlink(cbuf);
 	testutil_checksys((fp = fopen(cbuf, "w")) == NULL);
 	/*
@@ -206,26 +278,15 @@ thread_run(void *arg)
 	    uri_oplog, NULL, NULL, &cur_oplog)) != 0)
 		testutil_die(ret, "WT_SESSION.open_cursor: %s", uri_oplog);
 
-	if ((ret = session->open_cursor(
-	    session, stable_store, NULL, NULL, &cur_stable)) != 0)
-		testutil_die(ret, "WT_SESSION.open_cursor: %s", stable_store);
-
 	/*
 	 * Write our portion of the key space until we're killed.
 	 */
-	printf("Thread %" PRIu32 " starts at %" PRIu64 "\n", td->id, td->start);
+	printf("Thread %" PRIu32 " starts at %" PRIu64 "\n",
+	    td->info, td->start);
 	for (i = td->start; ; ++i) {
-		if (use_ts) {
-			/*
-			 * There can be multiple threads doing transactions
-			 * simultaneously requiring us to do some co-ordination
-			 * so that a thread doesn't try to commit with a
-			 * timestamp older than the oldest_timestamp just bumped
-			 * by another thread.
-			 */
-			testutil_check(pthread_rwlock_rdlock(&commit_ts_lock));
+		if (use_ts)
 			stable_ts = __wt_atomic_addv64(&global_ts, 1);
-		} else
+		else
 			stable_ts = 0;
 		testutil_check(__wt_snprintf(
 		    kname, sizeof(kname), "%" PRIu64, i));
@@ -240,13 +301,13 @@ thread_run(void *arg)
 		 */
 		testutil_check(__wt_snprintf(cbuf, sizeof(cbuf),
 		    "COLL: thread:%" PRIu64 " ts:%" PRIu64 " key: %" PRIu64,
-		    td->id, stable_ts, i));
+		    td->info, stable_ts, i));
 		testutil_check(__wt_snprintf(lbuf, sizeof(lbuf),
 		    "LOCAL: thread:%" PRIu64 " ts:%" PRIu64 " key: %" PRIu64,
-		    td->id, stable_ts, i));
+		    td->info, stable_ts, i));
 		testutil_check(__wt_snprintf(obuf, sizeof(obuf),
 		    "OPLOG: thread:%" PRIu64 " ts:%" PRIu64 " key: %" PRIu64,
-		    td->id, stable_ts, i));
+		    td->info, stable_ts, i));
 		data.size = __wt_random(&rnd) % MAX_VAL;
 		data.data = cbuf;
 		cur_coll->set_value(cur_coll, &data);
@@ -262,7 +323,7 @@ thread_run(void *arg)
 			    "commit_timestamp=%" PRIx64, stable_ts));
 			testutil_check(
 			    session->commit_transaction(session, tscfg));
-			testutil_check(pthread_rwlock_unlock(&commit_ts_lock));
+			th_ts[td->info] = stable_ts;
 		} else
 			testutil_check(
 			    session->commit_transaction(session, NULL));
@@ -275,34 +336,6 @@ thread_run(void *arg)
 		if ((ret = cur_local->insert(cur_local)) != 0)
 			testutil_die(ret, "WT_CURSOR.insert");
 
-		/*
-		 * Every N records we will record our stable timestamp into the
-		 * stable table.  That will define our threshold where we
-		 * expect to find records after recovery.
-		 */
-		if (i % STABLE_PERIOD == 0) {
-			if (use_ts) {
-				/*
-				 * Set both the oldest and stable timestamp
-				 * so that we don't need to maintain read
-				 * availability at older timestamps.
-				 */
-				testutil_check(
-				    pthread_rwlock_wrlock(&commit_ts_lock));
-				testutil_check(__wt_snprintf(
-				    tscfg, sizeof(tscfg),
-				    "oldest_timestamp=%" PRIx64
-				    ",stable_timestamp=%" PRIx64,
-				    stable_ts, stable_ts));
-				testutil_check(
-				    td->conn->set_timestamp(td->conn, tscfg));
-				testutil_check(
-				    pthread_rwlock_unlock(&commit_ts_lock));
-			}
-			cur_stable->set_key(cur_stable, td->id);
-			cur_stable->set_value(cur_stable, stable_ts);
-			testutil_check(cur_stable->insert(cur_stable));
-		}
 		/*
 		 * Save the timestamp and key separately for checking later.
 		 */
@@ -326,12 +359,12 @@ run_workload(uint32_t nth)
 	WT_SESSION *session;
 	WT_THREAD_DATA *td;
 	wt_thread_t *thr;
-	uint32_t i;
+	uint32_t ckpt_id, i, ts_id;
 	int ret;
 	char envconf[512];
 
-	thr = dcalloc(nth+1, sizeof(*thr));
-	td = dcalloc(nth+1, sizeof(WT_THREAD_DATA));
+	thr = dcalloc(nth+2, sizeof(*thr));
+	td = dcalloc(nth+2, sizeof(WT_THREAD_DATA));
 	if (chdir(home) != 0)
 		testutil_die(errno, "Child chdir: %s", home);
 	if (inmem)
@@ -368,17 +401,27 @@ run_workload(uint32_t nth)
 		testutil_die(ret, "WT_SESSION:close");
 
 	/*
-	 * Thread 0 is the checkpoint thread.
+	 * The checkpoint thread and the timestamp threads are added at the end.
 	 */
-	td[0].conn = conn;
-	td[0].id = 0;
+	ckpt_id = nth;
+	td[ckpt_id].conn = conn;
+	td[ckpt_id].info = nth;
 	printf("Create checkpoint thread\n");
 	testutil_check(__wt_thread_create(
-	    NULL, &thr[0], thread_ckpt_run, &td[0]));
-	for (i = 1; i <= nth; ++i) {
+	    NULL, &thr[ckpt_id], thread_ckpt_run, &td[ckpt_id]));
+	ts_id = nth + 1;
+	if (use_ts) {
+		td[ts_id].conn = conn;
+		td[ts_id].info = nth;
+		printf("Create timestamp thread\n");
+		testutil_check(__wt_thread_create(
+		    NULL, &thr[ts_id], thread_ts_run, &td[ts_id]));
+	}
+	printf("Create %" PRIu32 " writer threads\n", nth);
+	for (i = 0; i < nth; ++i) {
 		td[i].conn = conn;
-		td[i].start = (UINT64_MAX / nth) * (i - 1);
-		td[i].id = i;
+		td[i].start = (UINT64_MAX / nth) * i;
+		td[i].info = i;
 		testutil_check(__wt_thread_create(
 		    NULL, &thr[i], thread_run, &td[i]));
 	}
@@ -386,9 +429,8 @@ run_workload(uint32_t nth)
 	 * The threads never exit, so the child will just wait here until
 	 * it is killed.
 	 */
-	printf("Create %" PRIu32 " writer threads\n", nth);
 	fflush(stdout);
-	for (i = 0; i <= nth; ++i)
+	for (i = 0; i <= ts_id; ++i)
 		testutil_check(__wt_thread_join(NULL, thr[i]));
 	/*
 	 * NOTREACHED
@@ -604,7 +646,7 @@ main(int argc, char *argv[])
 	count = 0;
 	absent_coll = absent_local = absent_oplog = 0;
 	fatal = false;
-	for (i = 1; i <= nth; ++i) {
+	for (i = 0; i < nth; ++i) {
 		first_miss = middle_coll = middle_local = middle_oplog = 0;
 		testutil_check(__wt_snprintf(
 		    fname, sizeof(fname), RECORDS_FILE, i));
