@@ -74,7 +74,7 @@ static const char * const ckpt_file = "checkpoint_done";
 
 static bool compat, inmem, use_ts;
 static volatile uint64_t global_ts = 1;
-static volatile uint64_t th_ts[MAX_TH];
+static uint64_t th_ts[MAX_TH];
 
 #define	ENV_CONFIG_COMPAT	",compatibility=(release=\"2.9\")"
 #define	ENV_CONFIG_DEF						\
@@ -111,17 +111,14 @@ thread_ts_run(void *arg)
 	WT_SESSION *session;
 	WT_THREAD_DATA *td;
 	uint64_t i, last_ts, oldest_ts;
-	int ret;
 	char tscfg[64];
 
 	td = (WT_THREAD_DATA *)arg;
 	last_ts = 0;
 
-	if ((ret = td->conn->open_session(td->conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "WT_CONNECTION:open_session");
-	if ((ret = session->open_cursor(
-	    session, stable_store, NULL, NULL, &cur_stable)) != 0)
-		testutil_die(ret, "WT_SESSION.open_cursor: %s", stable_store);
+	testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
+	testutil_check(session->open_cursor(
+	    session, stable_store, NULL, NULL, &cur_stable));
 
 	/*
 	 * Every N records we will record our stable timestamp into the
@@ -147,7 +144,7 @@ thread_ts_run(void *arg)
 		}
 
 		if (oldest_ts != UINT64_MAX &&
-		    oldest_ts - last_ts >  STABLE_PERIOD) {
+		    oldest_ts - last_ts > STABLE_PERIOD) {
 			/*
 			 * Set both the oldest and stable timestamp
 			 * so that we don't need to maintain read
@@ -183,7 +180,7 @@ thread_ckpt_run(void *arg)
 	WT_THREAD_DATA *td;
 	uint64_t ts;
 	uint32_t sleep_time;
-	int i, ret;
+	int i;
 	bool first_ckpt;
 
 	__wt_random_init(&rnd);
@@ -193,8 +190,7 @@ thread_ckpt_run(void *arg)
 	 * Keep a separate file with the records we wrote for checking.
 	 */
 	(void)unlink(ckpt_file);
-	if ((ret = td->conn->open_session(td->conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "WT_CONNECTION:open_session");
+	testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 	first_ckpt = true;
 	ts = 0;
 	for (i = 0; ;++i) {
@@ -239,7 +235,6 @@ thread_run(void *arg)
 	WT_SESSION *session;
 	WT_THREAD_DATA *td;
 	uint64_t i, stable_ts;
-	int ret;
 	char cbuf[MAX_VAL], lbuf[MAX_VAL], obuf[MAX_VAL];
 	char kname[64], tscfg[64];
 
@@ -262,31 +257,26 @@ thread_run(void *arg)
 	 * cases where the result files end up with partial lines.
 	 */
 	__wt_stream_set_line_buffer(fp);
-	if ((ret = td->conn->open_session(td->conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "WT_CONNECTION:open_session");
+	testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 	/*
 	 * Open a cursor to each table.
 	 */
-	if ((ret = session->open_cursor(session,
-	    uri_collection, NULL, NULL, &cur_coll)) != 0)
-		testutil_die(ret, "WT_SESSION.open_cursor: %s", uri_collection);
-	if ((ret = session->open_cursor(session,
-	    uri_local, NULL, NULL, &cur_local)) != 0)
-		testutil_die(ret, "WT_SESSION.open_cursor: %s", uri_local);
-	if ((ret = session->open_cursor(session,
-	    uri_oplog, NULL, NULL, &cur_oplog)) != 0)
-		testutil_die(ret, "WT_SESSION.open_cursor: %s", uri_oplog);
+	testutil_check(session->open_cursor(session,
+	    uri_collection, NULL, NULL, &cur_coll));
+	testutil_check(session->open_cursor(session,
+	    uri_local, NULL, NULL, &cur_local));
+	testutil_check(session->open_cursor(session,
+	    uri_oplog, NULL, NULL, &cur_oplog));
 
 	/*
 	 * Write our portion of the key space until we're killed.
 	 */
 	printf("Thread %" PRIu32 " starts at %" PRIu64 "\n",
 	    td->info, td->start);
-	for (i = td->start; ; ++i) {
+	stable_ts = 0;
+	for (i = td->start;; ++i) {
 		if (use_ts)
 			stable_ts = __wt_atomic_addv64(&global_ts, 1);
-		else
-			stable_ts = 0;
 		testutil_check(__wt_snprintf(
 		    kname, sizeof(kname), "%" PRIu64, i));
 
@@ -310,13 +300,11 @@ thread_run(void *arg)
 		data.size = __wt_random(&rnd) % MAX_VAL;
 		data.data = cbuf;
 		cur_coll->set_value(cur_coll, &data);
-		if ((ret = cur_coll->insert(cur_coll)) != 0)
-			testutil_die(ret, "WT_CURSOR.insert");
+		testutil_check(cur_coll->insert(cur_coll));
 		data.size = __wt_random(&rnd) % MAX_VAL;
 		data.data = obuf;
 		cur_oplog->set_value(cur_oplog, &data);
-		if ((ret = cur_oplog->insert(cur_oplog)) != 0)
-			testutil_die(ret, "WT_CURSOR.insert");
+		testutil_check(cur_oplog->insert(cur_oplog));
 		if (use_ts) {
 			testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
 			    "commit_timestamp=%" PRIx64, stable_ts));
@@ -332,8 +320,7 @@ thread_run(void *arg)
 		data.size = __wt_random(&rnd) % MAX_VAL;
 		data.data = lbuf;
 		cur_local->set_value(cur_local, &data);
-		if ((ret = cur_local->insert(cur_local)) != 0)
-			testutil_die(ret, "WT_CURSOR.insert");
+		testutil_check(cur_local->insert(cur_local));
 
 		/*
 		 * Save the timestamp and key separately for checking later.
@@ -359,7 +346,6 @@ run_workload(uint32_t nth)
 	WT_THREAD_DATA *td;
 	wt_thread_t *thr;
 	uint32_t ckpt_id, i, ts_id;
-	int ret;
 	char envconf[512];
 
 	thr = dcalloc(nth+2, sizeof(*thr));
@@ -373,31 +359,24 @@ run_workload(uint32_t nth)
 	if (compat)
 		strcat(envconf, ENV_CONFIG_COMPAT);
 
-	if ((ret = wiredtiger_open(NULL, NULL, envconf, &conn)) != 0)
-		testutil_die(ret, "wiredtiger_open");
-	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "WT_CONNECTION:open_session");
+	testutil_check(wiredtiger_open(NULL, NULL, envconf, &conn));
+	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 	/*
 	 * Create all the tables.
 	 */
-	if ((ret = session->create(session, uri_collection,
-		"key_format=S,value_format=u,log=(enabled=false)")) != 0)
-		testutil_die(ret, "WT_SESSION.create: %s", uri_collection);
-	if ((ret = session->create(session,
-	    uri_local, "key_format=S,value_format=u")) != 0)
-		testutil_die(ret, "WT_SESSION.create: %s", uri_local);
-	if ((ret = session->create(session,
-	    uri_oplog, "key_format=S,value_format=u")) != 0)
-		testutil_die(ret, "WT_SESSION.create: %s", uri_oplog);
+	testutil_check(session->create(session, uri_collection,
+		"key_format=S,value_format=u,log=(enabled=false)"));
+	testutil_check(session->create(session,
+	    uri_local, "key_format=S,value_format=u"));
+	testutil_check(session->create(session,
+	    uri_oplog, "key_format=S,value_format=u"));
 	/*
 	 * Don't log the stable timestamp table so that we know what timestamp
 	 * was stored at the checkpoint.
 	 */
-	if ((ret = session->create(session, stable_store,
-	    "key_format=Q,value_format=Q,log=(enabled=false)")) != 0)
-		testutil_die(ret, "WT_SESSION.create: %s", stable_store);
-	if ((ret = session->close(session, NULL)) != 0)
-		testutil_die(ret, "WT_SESSION:close");
+	testutil_check(session->create(session, stable_store,
+	    "key_format=Q,value_format=Q,log=(enabled=false)"));
+	testutil_check(session->close(session, NULL));
 
 	/*
 	 * The checkpoint thread and the timestamp threads are added at the end.
@@ -604,25 +583,19 @@ main(int argc, char *argv[])
 	/*
 	 * Open the connection which forces recovery to be run.
 	 */
-	if ((ret = wiredtiger_open(NULL, NULL, ENV_CONFIG_REC, &conn)) != 0)
-		testutil_die(ret, "wiredtiger_open");
-	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "WT_CONNECTION:open_session");
+	testutil_check(wiredtiger_open(NULL, NULL, ENV_CONFIG_REC, &conn));
+	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 	/*
 	 * Open a cursor on all the tables.
 	 */
-	if ((ret = session->open_cursor(session,
-	    uri_collection, NULL, NULL, &cur_coll)) != 0)
-		testutil_die(ret, "WT_SESSION.open_cursor: %s", uri_collection);
-	if ((ret = session->open_cursor(session,
-	    uri_local, NULL, NULL, &cur_local)) != 0)
-		testutil_die(ret, "WT_SESSION.open_cursor: %s", uri_local);
-	if ((ret = session->open_cursor(session,
-	    uri_oplog, NULL, NULL, &cur_oplog)) != 0)
-		testutil_die(ret, "WT_SESSION.open_cursor: %s", uri_oplog);
-	if ((ret = session->open_cursor(session,
-	    stable_store, NULL, NULL, &cur_stable)) != 0)
-		testutil_die(ret, "WT_SESSION.open_cursor: %s", stable_store);
+	testutil_check(session->open_cursor(session,
+	    uri_collection, NULL, NULL, &cur_coll));
+	testutil_check(session->open_cursor(session,
+	    uri_local, NULL, NULL, &cur_local));
+	testutil_check(session->open_cursor(session,
+	    uri_oplog, NULL, NULL, &cur_oplog));
+	testutil_check(session->open_cursor(session,
+	    stable_store, NULL, NULL, &cur_stable));
 
 	/*
 	 * Find the biggest stable timestamp value that was saved.
@@ -768,8 +741,7 @@ main(int argc, char *argv[])
 		}
 		testutil_checksys(fclose(fp) != 0);
 	}
-	if ((ret = conn->close(conn, NULL)) != 0)
-		testutil_die(ret, "WT_CONNECTION:close");
+	testutil_check(conn->close(conn, NULL));
 	if (fatal)
 		return (EXIT_FAILURE);
 	if (!inmem && absent_coll) {
