@@ -196,7 +196,7 @@ __session_close(WT_SESSION *wt_session, const char *config)
 
 	/* Close the file where we tracked long operations. */
 	if (session->optrack_fh != NULL) {
-		WT_IGNORE_RET(__wt_optrack_flush_buffer(session));
+		WT_IGNORE_RET((int)__wt_optrack_flush_buffer(session));
 		WT_IGNORE_RET(__wt_close(session, &session->optrack_fh));
 	}
 
