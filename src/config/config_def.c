@@ -374,7 +374,8 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_join[] = {
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_log_flush[] = {
 	{ "sync", "string",
-	    NULL, "choices=[\"background\",\"off\",\"on\"]",
+	    NULL, "choices=[\"background\",\"off\",\"on\","
+	    "\"timestamp_unordered\"]",
 	    NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };

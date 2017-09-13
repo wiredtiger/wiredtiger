@@ -536,6 +536,7 @@ struct __wt_connection_stats {
 	int64_t txn_pinned_snapshot_range;
 	int64_t txn_sync;
 	int64_t txn_commit;
+	int64_t txn_commit_ts_ooo;
 	int64_t txn_rollback;
 	int64_t txn_update_conflict;
 };

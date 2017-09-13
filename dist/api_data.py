@@ -943,8 +943,12 @@ methods = {
         synchronization intended to be used with a later call to
         WT_SESSION::transaction_sync.  The \c off setting forces any
         buffered log records to be written to the file system.  The
-        \c on setting forces log records to be written to the storage device''',
-        choices=['background', 'off', 'on']),
+        \c on setting forces log records to be written to the storage device.
+        The \c timestamp_unordered setting is equivalent to \c on if any
+        transactions have committed out of timestamp order since the last call.
+        If all transaction commits have been in timestamp order, the \c
+        timestamp_unordered setting will skip the log flush''',
+        choices=['background', 'off', 'on', 'timestamp_unordered']),
 ]),
 
 'WT_SESSION.log_printf' : Method([]),

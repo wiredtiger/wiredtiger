@@ -622,9 +622,12 @@ __session_log_flush(WT_SESSION *wt_session, const char *config)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	WT_TXN_GLOBAL *txn_global;
 	uint32_t flags;
 
 	session = (WT_SESSION_IMPL *)wt_session;
+	txn_global = &S2C(session)->txn_global;
+
 	SESSION_API_CALL(session, log_flush, config, cfg);
 	WT_STAT_CONN_INCR(session, log_flush);
 
@@ -643,8 +646,15 @@ __session_log_flush(WT_SESSION *wt_session, const char *config)
 		flags = WT_LOG_FLUSH;
 	else if (WT_STRING_MATCH("on", cval.str, cval.len))
 		flags = WT_LOG_FSYNC;
+	else if (WT_STRING_MATCH("timestamp_unordered", cval.str, cval.len)) {
+		if (!txn_global->commit_ooo)
+			goto done;
+		WT_PUBLISH(txn_global->commit_ooo, false);
+		flags = WT_LOG_FSYNC;
+	}
 	ret = __wt_log_flush(session, flags);
 
+done:
 err:	API_END_RET(session, ret);
 }
 

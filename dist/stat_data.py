@@ -444,6 +444,7 @@ connection_stats = [
     TxnStat('txn_checkpoint_time_recent', 'transaction checkpoint most recent time (msecs)', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_time_total', 'transaction checkpoint total time (msecs)', 'no_clear,no_scale'),
     TxnStat('txn_commit', 'transactions committed'),
+    TxnStat('txn_commit_ts_ooo', 'transactions committed with timestamps out of order'),
     TxnStat('txn_fail_cache', 'transaction failures due to cache overflow'),
     TxnStat('txn_pinned_checkpoint_range', 'transaction range of IDs currently pinned by a checkpoint', 'no_clear,no_scale'),
     TxnStat('txn_pinned_range', 'transaction range of IDs currently pinned', 'no_clear,no_scale'),

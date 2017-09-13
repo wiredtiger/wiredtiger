@@ -1489,9 +1489,13 @@ struct __wt_session {
 	 * a background synchronization intended to be used with a later call to
 	 * WT_SESSION::transaction_sync.  The \c off setting forces any buffered
 	 * log records to be written to the file system.  The \c on setting
-	 * forces log records to be written to the storage device., a string\,
+	 * forces log records to be written to the storage device.  The \c
+	 * timestamp_unordered setting is equivalent to \c on if any
+	 * transactions have committed out of timestamp order since the last
+	 * call.  If all transaction commits have been in timestamp order\, the
+	 * \c timestamp_unordered setting will skip the log flush., a string\,
 	 * chosen from the following options: \c "background"\, \c "off"\, \c
-	 * "on"; default \c on.}
+	 * "on"\, \c "timestamp_unordered"; default \c on.}
 	 * @configend
 	 * @errors
 	 */
@@ -5273,10 +5277,12 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_SYNC				1277
 /*! transaction: transactions committed */
 #define	WT_STAT_CONN_TXN_COMMIT				1278
+/*! transaction: transactions committed with timestamps out of order */
+#define	WT_STAT_CONN_TXN_COMMIT_TS_OOO			1279
 /*! transaction: transactions rolled back */
-#define	WT_STAT_CONN_TXN_ROLLBACK			1279
+#define	WT_STAT_CONN_TXN_ROLLBACK			1280
 /*! transaction: update conflicts */
-#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1280
+#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1281
 
 /*!
  * @}
