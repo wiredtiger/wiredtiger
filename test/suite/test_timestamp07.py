@@ -204,7 +204,7 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Take a checkpoint using the given configuration.  Then verify
         # whether value2 appears in a copy of that data or not.
-        self.ckpt_backup(self.value2, 0, self.nkeys, self.nkeys)
+        self.ckpt_backup(self.value2, 0, self.nkeys, self.nkeys if self.using_log else 0)
 
         # Update the stable timestamp to the latest, but not the oldest
         # timestamp and make sure we can see the data.  Once the stable
