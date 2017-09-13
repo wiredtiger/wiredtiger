@@ -195,6 +195,7 @@ struct __wt_connection_impl {
 	const char *optrack;              /* Directory for operation logs */
 	WT_FH *optrack_map_fh;            /* Name to id translation file. */
 	WT_SPINLOCK optrack_map_spinlock; /* Translation file spinlock. */
+	char optrack_on;                  /* Is operation tracking on? */
 
 	void  **foc;			/* Free-on-close array */
 	size_t  foc_cnt;		/* Array entries */

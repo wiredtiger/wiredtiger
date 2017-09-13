@@ -1089,8 +1089,11 @@ __conn_optrack_setup(WT_SESSION_IMPL *session, const char *cfg[])
 			 WT_FS_OPEN_FILE_TYPE_REGULAR,
 			 WT_FS_OPEN_CREATE, &conn->optrack_map_fh));
 
-	return (__wt_spin_init(session, &conn->optrack_map_spinlock,
+	WT_RET(__wt_spin_init(session, &conn->optrack_map_spinlock,
 			      "optrack map spinlock"));
+
+	conn->optrack_on = 1;
+	return (0);
 }
 
 /*
@@ -1106,6 +1109,7 @@ __conn_optrack_teardown(WT_SESSION_IMPL *session)
 
 	__wt_spin_destroy(session, &conn->optrack_map_spinlock);
 	WT_IGNORE_RET(__wt_close(session, &conn->optrack_map_fh));
+	conn->optrack_on = 0;
 }
 
 /*
@@ -2436,7 +2440,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	WT_ERR(
 	    __conn_chk_file_system(session, F_ISSET(conn, WT_CONN_READONLY)));
 
-	/* Set up operation logging. */
+	/* Set up operation tracking. */
 	WT_ERR(__conn_optrack_setup(session, cfg));
 
 	/* Make sure no other thread of control already owns this database. */

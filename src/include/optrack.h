@@ -48,10 +48,15 @@ struct __wt_track_record {
 	}
 
 #define	WT_TRACK_OP_INIT(s)						\
-	WT_TRACK_RECORD *tr = &(s->optrack_buf[s->optrackbuf_ptr++]);	\
+	WT_TRACK_RECORD *tr;						\
 	static volatile bool id_recorded = 0;				\
-	WT_TRACK_OP(s, 0);
+	if(S2C(s)->optrack_on) {					\
+		tr = &(s->optrack_buf[s->optrackbuf_ptr++]);		\
+		WT_TRACK_OP(s, 0);					\
+	}
 
 #define	WT_TRACK_OP_END(s)						\
-	tr = &(s->optrack_buf[s->optrackbuf_ptr++]);			\
-	WT_TRACK_OP(s, 1);
+	if(S2C(s)->optrack_on)	{					\
+		tr = &(s->optrack_buf[s->optrackbuf_ptr++]);		\
+		WT_TRACK_OP(s, 1);					\
+	}
