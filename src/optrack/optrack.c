@@ -77,5 +77,5 @@ __wt_optrack_get_expensive_timestamp(WT_SESSION_IMPL *session)
 	struct timespec tsp;
 
 	__wt_epoch_raw(session, &tsp);
-	return (tsp.tv_sec * WT_BILLION + tsp.tv_nsec);
+	return (uint64_t)(tsp.tv_sec * WT_BILLION + tsp.tv_nsec);
 }
