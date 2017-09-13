@@ -121,21 +121,21 @@ thread_ts_run(void *arg)
 	    session, stable_store, NULL, NULL, &cur_stable));
 
 	/*
-	 * Every N records we will record our stable timestamp into the
-	 * stable table.  That will define our threshold where we
-	 * expect to find records after recovery.
+	 * Every N records we will record our stable timestamp into the stable
+	 * table. That will define our threshold where we expect to find records
+	 * after recovery.
 	 */
 	for (;;) {
 		oldest_ts = UINT64_MAX;
 		/*
-		 * For the timestamp thread, the info field contains the
-		 * number of worker threads.
+		 * For the timestamp thread, the info field contains the number
+		 * of worker threads.
 		 */
 		for (i = 0; i < td->info; ++i) {
 			/*
-			 * We need to let all threads get started, so if we
-			 * find any thread still with a zero timestamp we
-			 * go to sleep.
+			 * We need to let all threads get started, so if we find
+			 * any thread still with a zero timestamp we go to
+			 * sleep.
 			 */
 			if (th_ts[i] == 0)
 				goto ts_wait;
@@ -146,9 +146,9 @@ thread_ts_run(void *arg)
 		if (oldest_ts != UINT64_MAX &&
 		    oldest_ts - last_ts > STABLE_PERIOD) {
 			/*
-			 * Set both the oldest and stable timestamp
-			 * so that we don't need to maintain read
-			 * availability at older timestamps.
+			 * Set both the oldest and stable timestamp so that we
+			 * don't need to maintain read availability at older
+			 * timestamps.
 			 */
 			testutil_check(__wt_snprintf(
 			    tscfg, sizeof(tscfg),
