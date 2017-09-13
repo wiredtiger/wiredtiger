@@ -1171,6 +1171,7 @@ err:	/*
 			WT_TRET(wt_session->close(wt_session, config));
 		}
 
+	WT_TRET(__wt_async_flush(session));
 	__conn_optrack_teardown(session);
 	WT_TRET(__wt_connection_close(conn));
 
