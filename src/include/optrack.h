@@ -30,7 +30,7 @@ struct __wt_track_record {
 };
 
 #define	WT_TRACK_OP(s, optype)						\
-	tr->timestamp = __wt_rdtsc();					\
+	tr->timestamp = __wt_rdtsc(s);					\
 	tr->op_type = optype;						\
 	tr->op_id = (uint64_t)&__func__;				\
 									\

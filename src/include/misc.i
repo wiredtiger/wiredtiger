@@ -29,29 +29,23 @@ __wt_hex(int c)
 	return ((u_char)"0123456789abcdef"[c]);
 }
 
-#if (defined __i386) || (defined __amd64)
-#define	ASM __asm__
-#elif (defined _M_IA64) || (defined _M_AMD64)
-#define	ASM __asm
-#endif
-
 /*
  * __wt_rdtsc --
  *      Get a timestamp from CPU registers.
  */
 static inline uint64_t
-__wt_rdtsc(void) {
-#if (defined __i386) || (defined _M_IA64)
+__wt_rdtsc(WT_SESSION_IMPL *session) {
+#if (defined __i386)
 	uint64_t x;
-	ASM volatile ("rdtsc" : "=A" (x));
+	__asm__ volatile ("rdtsc" : "=A" (x));
 	return (x);
 
-#elif (defined __amd64) || (defined _M_AMD64)
+#elif (defined __amd64)
 	uint64_t a, d;
-	ASM volatile ("rdtsc" : "=a" (a), "=d" (d));
+	__asm__ volatile ("rdtsc" : "=a" (a), "=d" (d));
 	return (d<<32) | a;
 #else
-	NO RDTSC INSTRUCTION AVAILABLE: see src/os_posix/os_time.c
+	return __wt_optrack_get_expensive_timestamp(session);
 #endif
 }
 

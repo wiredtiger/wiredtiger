@@ -59,9 +59,23 @@ __wt_optrack_flush_buffer(WT_SESSION_IMPL *s)
 					      s->optrackbuf_ptr *
 					      sizeof(WT_TRACK_RECORD),
 					      s->optrack_buf);
-
 	if (ret == 0)
 		return s->optrackbuf_ptr * sizeof(WT_TRACK_RECORD);
 	else
 		return (0);
+}
+
+/*
+ * __wt_optrack_get_expensive_timestamp --
+ *       Obtain a timestamp via a system call on platforms where
+ *       obtaining it directly from the hardware register is not
+ *       supported.
+ */
+uint64_t
+__wt_optrack_get_expensive_timestamp(WT_SESSION_IMPL *session)
+{
+	struct timespec tsp;
+
+	__wt_epoch_raw(session, &tsp);
+	return (tsp.tv_sec * WT_BILLION + tsp.tv_nsec);
 }
