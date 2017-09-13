@@ -731,7 +731,7 @@ err:
 			 * Make sure the checkpoint config matches when not
 			 * using a custom data source.
 			 */
-			if (lsm_tree->custom_generation != 0 &&
+			if (lsm_tree->custom_generation == 0 ||
 			    chunk->generation < lsm_tree->custom_generation) {
 				checkpoint = ((WT_CURSOR_BTREE *)cursor)->
 				    btree->dhandle->checkpoint;
