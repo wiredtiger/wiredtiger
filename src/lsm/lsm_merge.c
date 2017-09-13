@@ -235,6 +235,15 @@ retry_find:
 			break;
 
 		/*
+		 * If we have enough chunks for a merge and the next chunk is
+		 * in too high a generation, stop.
+		 */
+		if (nchunks >= merge_min &&
+			chunk->generation - youngest_gen > max_level) {
+			break;
+		}
+
+		/*
 		 * If the size of the chunks selected so far exceeds the
 		 * configured maximum chunk size, stop.  Keep going if we can
 		 * slide the window further into the tree: we don't want to
@@ -254,18 +263,6 @@ retry_find:
 
 		if (oldest_gen - youngest_gen > max_gap)
 			break;
-
-		/*
-		 * If we have enough chunks for a merge and the next chunk is
-		 * in too high a generation, stop.
-		 */
-		if (nchunks >= merge_min) {
-			previous = lsm_tree->chunk[start_chunk];
-			max_gen = youngest->generation + max_gap;
-			if (previous->generation <= max_gen &&
-			    chunk->generation > max_gen)
-				break;
-		}
 
 		F_SET(chunk, WT_LSM_CHUNK_MERGING);
 		record_count += chunk->count;
