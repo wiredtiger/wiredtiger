@@ -1365,8 +1365,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		if (F_ISSET(r, WT_REC_VISIBLE_ALL) &&
 		    F_ISSET(r, WT_REC_EVICT) &&
 		    WT_UPDATE_DATA_VALUE(upd)) {
-			__wt_update_obsolete_free(
-			    session, page, upd->next);
+			__wt_update_obsolete_free(session, page, upd->next);
 			upd->next = NULL;
 			break;
 		}

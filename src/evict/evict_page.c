@@ -10,7 +10,7 @@
 
 static int __evict_page_clean_update(WT_SESSION_IMPL *, WT_REF *, bool);
 static int __evict_page_dirty_update(WT_SESSION_IMPL *, WT_REF *, bool);
-static int __evict_review(WT_SESSION_IMPL *, WT_REF *, uint32_t *, bool);
+static int __evict_review(WT_SESSION_IMPL *, WT_REF *, bool, bool, uint32_t *);
 
 /*
  * __evict_exclusive_clear --
@@ -50,7 +50,8 @@ __evict_exclusive(WT_SESSION_IMPL *session, WT_REF *ref)
  *	Release a reference to a page, and attempt to immediately evict it.
  */
 int
-__wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
+__wt_page_release_evict(
+    WT_SESSION_IMPL *session, WT_REF *ref, bool checkpointing)
 {
 	WT_BTREE *btree;
 	WT_DECL_RET;
@@ -82,7 +83,7 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * Track how long the call to evict took. If eviction is successful then
 	 * we have one of two pairs of stats to increment.
 	 */
-	ret = __wt_evict(session, ref, false);
+	ret = __wt_evict(session, ref, checkpointing, false);
 	__wt_epoch(session, &stop);
 	if (ret == 0) {
 		if (too_big) {
@@ -116,7 +117,8 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
  *	Evict a page.
  */
 int
-__wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
+__wt_evict(
+    WT_SESSION_IMPL *session, WT_REF *ref, bool checkpointing, bool closing)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
@@ -146,7 +148,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 	 * to make this check for clean pages, too: while unlikely eviction
 	 * would choose an internal page with children, it's not disallowed.
 	 */
-	WT_ERR(__evict_review(session, ref, &flags, closing));
+	WT_ERR(__evict_review(session, ref, checkpointing, closing, &flags));
 
 	/*
 	 * If there was an in-memory split, the tree has been left in the state
@@ -422,8 +424,8 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
  *	for conditions that would block its eviction.
  */
 static int
-__evict_review(
-    WT_SESSION_IMPL *session, WT_REF *ref, uint32_t *flagsp, bool closing)
+__evict_review(WT_SESSION_IMPL *session, WT_REF *ref,
+    bool checkpointing, bool closing, uint32_t *flagsp)
 {
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
@@ -433,7 +435,9 @@ __evict_review(
 	bool lookaside_retry, *lookaside_retryp, modified;
 
 	conn = S2C(session);
-	flags = WT_REC_EVICT | WT_REC_VISIBLE_ALL;
+	flags = WT_REC_EVICT;
+	if (!checkpointing)
+		LF_SET(WT_REC_VISIBLE_ALL);
 	*flagsp = flags;
 
 	/*

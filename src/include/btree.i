@@ -1310,12 +1310,13 @@ __wt_page_can_evict(
 	modified = __wt_page_is_modified(page);
 
 	/*
-	 * If the file is being checkpointed, we can't evict dirty pages:
-	 * if we write a page and free the previous version of the page, that
+	 * If the file is being checkpointed, other threads can't evict dirty
+	 * pages: if a page is written and the previous version is freed, that
 	 * previous version might be referenced by an internal page already
 	 * been written in the checkpoint, leaving the checkpoint inconsistent.
 	 */
-	if (modified && btree->checkpointing != WT_CKPT_OFF) {
+	if (modified && btree->checkpointing != WT_CKPT_OFF &&
+	    !WT_SESSION_IS_CHECKPOINT(session)) {
 		WT_STAT_CONN_INCR(session, cache_eviction_checkpoint);
 		WT_STAT_DATA_INCR(session, cache_eviction_checkpoint);
 		return (false);
@@ -1391,7 +1392,7 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	    !__wt_page_can_evict(session, ref, NULL))
 		return (__wt_hazard_clear(session, ref));
 
-	WT_RET_BUSY_OK(__wt_page_release_evict(session, ref));
+	WT_RET_BUSY_OK(__wt_page_release_evict(session, ref, false));
 	return (0);
 }
 

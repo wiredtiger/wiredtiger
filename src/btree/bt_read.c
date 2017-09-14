@@ -564,7 +564,8 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			if (force_attempts < 10 &&
 			    __evict_force_check(session, ref)) {
 				++force_attempts;
-				ret = __wt_page_release_evict(session, ref);
+				ret = __wt_page_release_evict(
+				    session, ref, false);
 				/* If forced eviction fails, stall. */
 				if (ret == EBUSY) {
 					ret = 0;
