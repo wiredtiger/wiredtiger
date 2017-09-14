@@ -76,8 +76,8 @@ wts_ops(int lastrun)
 	TINFO **tinfo_list, *tinfo, total;
 	WT_CONNECTION *conn;
 	WT_SESSION *session;
-	wt_thread_t alter_tid, backup_tid, compact_tid, lrt_tid;
-	int64_t fourths, thread_ops;
+	wt_thread_t alter_tid, backup_tid, compact_tid, lrt_tid, timestamp_tid;
+	int64_t fourths, quit_fourths, thread_ops;
 	uint32_t i;
 	int running;
 
@@ -88,16 +88,20 @@ wts_ops(int lastrun)
 	memset(&backup_tid, 0, sizeof(backup_tid));
 	memset(&compact_tid, 0, sizeof(compact_tid));
 	memset(&lrt_tid, 0, sizeof(lrt_tid));
+	memset(&timestamp_tid, 0, sizeof(timestamp_tid));
 
 	modify_repl_init();
 
 	/*
 	 * There are two mechanisms to specify the length of the run, a number
 	 * of operations and a timer, when either expire the run terminates.
+	 *
 	 * Each thread does an equal share of the total operations (and make
 	 * sure that it's not 0).
 	 *
-	 * Calculate how many fourth-of-a-second sleeps until any timer expires.
+	 * Calculate how many fourth-of-a-second sleeps until the timer expires.
+	 * If the timer expires and threads don't return in 15 minutes, assume
+	 * there is something hung, and force the quit.
 	 */
 	if (g.c_ops == 0)
 		thread_ops = -1;
@@ -107,9 +111,11 @@ wts_ops(int lastrun)
 		thread_ops = g.c_ops / g.c_threads;
 	}
 	if (g.c_timer == 0)
-		fourths = -1;
-	else
+		fourths = quit_fourths = -1;
+	else {
 		fourths = ((int64_t)g.c_timer * 4 * 60) / FORMAT_OPERATION_REPS;
+		quit_fourths = fourths + 15 * 4 * 60;
+	}
 
 	/* Initialize the table extension code. */
 	table_append_init();
@@ -156,6 +162,9 @@ wts_ops(int lastrun)
 		    __wt_thread_create(NULL, &compact_tid, compact, NULL));
 	if (!SINGLETHREADED && g.c_long_running_txn)
 		testutil_check(__wt_thread_create(NULL, &lrt_tid, lrt, NULL));
+	if (g.c_txn_timestamps)
+		testutil_check(
+		    __wt_thread_create(NULL, &timestamp_tid, timestamp, NULL));
 
 	/* Spin on the threads, calculating the totals. */
 	for (;;) {
@@ -205,9 +214,15 @@ wts_ops(int lastrun)
 		track("ops", 0ULL, &total);
 		if (!running)
 			break;
-		(void)usleep(250000);		/* 1/4th of a second */
+		__wt_sleep(0, 250000);		/* 1/4th of a second */
 		if (fourths != -1)
 			--fourths;
+		if (quit_fourths != -1 && --quit_fourths == 0) {
+			fprintf(stderr, "%s\n",
+			    "format run exceeded 15 minutes past the maximum "
+			    "time, aborting the process.");
+			abort();
+		}
 	}
 	for (i = 0; i < g.c_threads; ++i)
 		free(tinfo_list[i]);
@@ -223,6 +238,8 @@ wts_ops(int lastrun)
 		testutil_check(__wt_thread_join(NULL, compact_tid));
 	if (!SINGLETHREADED && g.c_long_running_txn)
 		testutil_check(__wt_thread_join(NULL, lrt_tid));
+	if (g.c_txn_timestamps)
+		testutil_check(__wt_thread_join(NULL, timestamp_tid));
 	g.workers_finished = 0;
 
 	if (g.logging != 0) {
@@ -447,31 +464,26 @@ snap_check(WT_CURSOR *cursor,
 static void
 commit_transaction(TINFO *tinfo, WT_SESSION *session)
 {
-	WT_CONNECTION *conn;
 	uint64_t ts;
-	char *commit_conf, config_buf[64];
-
-	conn = g.wts_conn;
+	char config_buf[64];
 
 	if (g.c_txn_timestamps) {
+		/*
+		 * There can be multiple threads doing transactions
+		 * simultaneously requiring us to do some co-ordination so that
+		 * a thread doesn't try to commit with a timestamp older than
+		 * the oldest_timestamp just bumped by another thread.
+		 */
+		testutil_check(pthread_rwlock_rdlock(&g.commit_ts_lock));
 		ts = __wt_atomic_addv64(&g.timestamp, 1);
-
-		/* Periodically bump the oldest timestamp. */
-		if (ts > 100 && ts % 100 == 0) {
-			testutil_check(__wt_snprintf(
-			    config_buf, sizeof(config_buf),
-			    "oldest_timestamp=%" PRIx64, ts));
-			testutil_check(conn->set_timestamp(conn, config_buf));
-		}
-
 		testutil_check(__wt_snprintf(
 		    config_buf, sizeof(config_buf),
 		    "commit_timestamp=%" PRIx64, ts));
-		commit_conf = config_buf;
+		testutil_check(
+		    session->commit_transaction(session, config_buf));
+		testutil_check(pthread_rwlock_unlock(&g.commit_ts_lock));
 	} else
-		commit_conf = NULL;
-
-	testutil_check(session->commit_transaction(session, commit_conf));
+		testutil_check(session->commit_transaction(session, NULL));
 	++tinfo->commit;
 }
 
@@ -1597,7 +1609,7 @@ table_append(uint64_t keyno)
 
 		if (done)
 			break;
-		sleep(1);
+		__wt_sleep(1, 0);
 	}
 }
 

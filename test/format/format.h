@@ -137,6 +137,9 @@ typedef struct {
 
 	pthread_rwlock_t death_lock;		/* Single-thread failure */
 
+	/* Synchronize setting commit timestamp. */
+	pthread_rwlock_t commit_ts_lock;
+
 	char *uri;				/* Object name */
 
 	char *config_open;			/* Command-line configuration */
@@ -303,6 +306,7 @@ void	 print_item(const char *, WT_ITEM *);
 void	 print_item_data(const char *, const uint8_t *, size_t);
 int	 read_row(WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t);
 uint32_t rng(WT_RAND_STATE *);
+WT_THREAD_RET timestamp(void *);
 void	 track(const char *, uint64_t, TINFO *);
 void	 val_gen(WT_RAND_STATE *, WT_ITEM *, uint64_t);
 void	 val_gen_init(WT_ITEM *);
