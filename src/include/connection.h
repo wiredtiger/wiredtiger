@@ -267,6 +267,7 @@ struct __wt_connection_impl {
 	uint64_t  ckpt_time_min;
 	uint64_t  ckpt_time_recent;	/* Checkpoint time recent/total */
 	uint64_t  ckpt_time_total;
+	struct timespec ckpt_tree_verb_time;	/* Checkpoint verbosity timer */
 
 	uint32_t stat_flags;		/* Options declared in flags.py */
 

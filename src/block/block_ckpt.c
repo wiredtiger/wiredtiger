@@ -389,14 +389,18 @@ static int
 __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
 {
 	WT_BLOCK_CKPT *a, *b, *ci;
+	WT_CONNECTION_IMPL *conn;
 	WT_CKPT *ckpt, *next_ckpt;
 	WT_DECL_ITEM(tmp);
 	WT_DECL_RET;
 	uint64_t ckpt_size;
+	uint64_t time_diff;
+	struct timespec current_time;
 	bool deleting, fatal, locked;
 
 	ci = &block->live;
 	fatal = locked = false;
+	conn = S2C(session);
 
 #ifdef HAVE_DIAGNOSTIC
 	WT_RET(__ckpt_verify(session, ckptbase));
@@ -622,6 +626,19 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
 		 * the live system's checkpoint available list.
 		 */
 		WT_ERR(__wt_block_extlist_overlap(session, block, b));
+
+#ifdef HAVE_VERBOSE
+		if (WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT)) {
+			__wt_epoch(session, &current_time);
+			time_diff = WT_TIMEDIFF_SEC(current_time,
+						conn->ckpt_tree_verb_time);
+			if (time_diff > 15)
+				__wt_verbose(session, WT_VERB_CHECKPOINT,
+			            "delete-checkpoint took : %" PRIu64 "sec",
+				    time_diff);
+			conn->ckpt_tree_verb_time = current_time;
+		}
+#endif
 
 		/*
 		 * If we're updating the live system's information, we're done.

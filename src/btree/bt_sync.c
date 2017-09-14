@@ -68,15 +68,19 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_PAGE *page)
 static int
 __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 {
-	struct timespec end, start;
+	struct timespec end, start, cur_time;
 	WT_BTREE *btree;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_PAGE *page;
 	WT_REF *walk;
 	WT_TXN *txn;
+	uint64_t int_bytes_delta, int_page_delta, leaf_bytes_delta, leaf_delta;
+	uint64_t prev_int_bytes, prev_int_pages, prev_leaf_bytes, prev_leaf;
 	uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
 	uint64_t oldest_id, saved_pinned_id;
+	uint32_t page_counter;
+	uint64_t time_diff;
 	uint32_t flags;
 	bool timer;
 
@@ -89,6 +93,9 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
 	internal_bytes = leaf_bytes = 0;
 	internal_pages = leaf_pages = 0;
+	prev_int_bytes = prev_leaf_bytes = 0;
+	prev_int_pages = prev_leaf = 0;
+	page_counter = 0;
 	timer = WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT);
 	if (timer)
 		__wt_epoch(session, &start);
@@ -221,8 +228,45 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 				leaf_bytes += page->memory_footprint;
 				++leaf_pages;
 			}
+			++page_counter;
+
 			WT_ERR(__wt_reconcile(
 			    session, walk, NULL, WT_CHECKPOINTING, NULL));
+
+			if (timer && page_counter > 5000) {
+				__wt_epoch(session, &cur_time);
+				time_diff = WT_TIMEDIFF_SEC(cur_time,
+						conn->ckpt_tree_verb_time);
+
+				if (time_diff > 20) {
+					int_bytes_delta = 
+					    internal_bytes - prev_int_bytes;
+					int_page_delta = 
+					    internal_pages - prev_int_pages;
+					leaf_bytes_delta = 
+					    leaf_bytes - prev_leaf_bytes;
+					leaf_delta = leaf_pages - prev_leaf;
+
+					__wt_verbose(session,
+					    WT_VERB_CHECKPOINT,
+					    "Checkpoint has been running and"
+					    " took %" PRIu64 "sec to write: %"
+					    PRIu64" leaf pages (%" PRIu64 "B),"
+					    "%" PRIu64 " internal pages (%"
+					    PRIu64 "B)", time_diff, leaf_delta,
+					    leaf_bytes_delta, int_page_delta,
+					    int_bytes_delta);
+
+					prev_int_bytes = internal_bytes;
+					prev_int_pages = internal_pages;
+					prev_leaf_bytes = leaf_bytes;
+					prev_leaf = leaf_pages;
+					conn->ckpt_tree_verb_time = cur_time;
+				}
+
+				page_counter = 0;
+			}
+
 		}
 		break;
 	case WT_SYNC_CLOSE:

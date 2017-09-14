@@ -1466,6 +1466,9 @@ __checkpoint_tree(
 			goto fake;
 		}
 
+	/* Start the tree checkpoint verbosity timer */
+	__wt_epoch(session, &conn->ckpt_tree_verb_time);
+
 	/*
 	 * Mark the root page dirty to ensure something gets written. (If the
 	 * tree is modified, we must write the root page anyway, this doesn't
