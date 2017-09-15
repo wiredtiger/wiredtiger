@@ -633,7 +633,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
 						conn->ckpt_tree_verb_time);
 			if (time_diff > 15)
 				__wt_verbose(session, WT_VERB_CHECKPOINT,
-			            "delete-checkpoint took : %" PRIu64 "sec",
+				    "delete-checkpoint took : %" PRIu64 "sec",
 				    time_diff);
 			conn->ckpt_tree_verb_time = current_time;
 		}

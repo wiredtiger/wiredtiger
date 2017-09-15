@@ -239,11 +239,11 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 						conn->ckpt_tree_verb_time);
 
 				if (time_diff > 20) {
-					int_bytes_delta = 
+					int_bytes_delta =
 					    internal_bytes - prev_int_bytes;
-					int_page_delta = 
+					int_page_delta =
 					    internal_pages - prev_int_pages;
-					leaf_bytes_delta = 
+					leaf_bytes_delta =
 					    leaf_bytes - prev_leaf_bytes;
 					leaf_delta = leaf_pages - prev_leaf;
 
