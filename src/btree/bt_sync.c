@@ -75,8 +75,7 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 	WT_PAGE *page;
 	WT_REF *walk;
 	WT_TXN *txn;
-	uint64_t int_bytes_delta, int_page_delta, leaf_bytes_delta, leaf_delta;
-	uint64_t prev_int_bytes, prev_int_pages, prev_leaf_bytes, prev_leaf;
+	uint64_t int_bytes_svpt, int_page_svpt, leaf_bytes_svpt, leaf_svpt;
 	uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
 	uint64_t oldest_id, saved_pinned_id;
 	uint32_t page_counter;
@@ -93,8 +92,8 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
 	internal_bytes = leaf_bytes = 0;
 	internal_pages = leaf_pages = 0;
-	prev_int_bytes = prev_leaf_bytes = 0;
-	prev_int_pages = prev_leaf = 0;
+	int_bytes_svpt = leaf_bytes_svpt = 0;
+	int_page_svpt = leaf_svpt = 0;
 	page_counter = 0;
 	timer = WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT);
 	if (timer)
@@ -239,13 +238,14 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 						conn->ckpt_tree_verb_time);
 
 				if (time_diff > 20) {
-					int_bytes_delta =
-					    internal_bytes - prev_int_bytes;
-					int_page_delta =
-					    internal_pages - prev_int_pages;
-					leaf_bytes_delta =
-					    leaf_bytes - prev_leaf_bytes;
-					leaf_delta = leaf_pages - prev_leaf;
+
+					int_bytes_svpt =
+					    internal_bytes - int_bytes_svpt;
+					int_page_svpt =
+					    internal_pages - int_page_svpt;
+					leaf_bytes_svpt =
+					    leaf_bytes - leaf_bytes_svpt;
+					leaf_svpt = leaf_pages - leaf_svpt;
 
 					__wt_verbose(session,
 					    WT_VERB_CHECKPOINT,
@@ -253,14 +253,14 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 					    " took %" PRIu64 "sec to write: %"
 					    PRIu64" leaf pages (%" PRIu64 "B),"
 					    "%" PRIu64 " internal pages (%"
-					    PRIu64 "B)", time_diff, leaf_delta,
-					    leaf_bytes_delta, int_page_delta,
-					    int_bytes_delta);
+					    PRIu64 "B)", time_diff, leaf_svpt,
+					    leaf_bytes_svpt, int_page_svpt,
+					    int_bytes_svpt);
 
-					prev_int_bytes = internal_bytes;
-					prev_int_pages = internal_pages;
-					prev_leaf_bytes = leaf_bytes;
-					prev_leaf = leaf_pages;
+					int_bytes_svpt = internal_bytes;
+					int_page_svpt = internal_pages;
+					leaf_bytes_svpt = leaf_bytes;
+					leaf_svpt = leaf_pages;
 					conn->ckpt_tree_verb_time = cur_time;
 				}
 
