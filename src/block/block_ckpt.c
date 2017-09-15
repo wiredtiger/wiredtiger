@@ -627,7 +627,6 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
 		 */
 		WT_ERR(__wt_block_extlist_overlap(session, block, b));
 
-#ifdef HAVE_VERBOSE
 		if (WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT)) {
 			__wt_epoch(session, &current_time);
 			time_diff = WT_TIMEDIFF_SEC(current_time,
@@ -638,7 +637,6 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
 				    time_diff);
 			conn->ckpt_tree_verb_time = current_time;
 		}
-#endif
 
 		/*
 		 * If we're updating the live system's information, we're done.
