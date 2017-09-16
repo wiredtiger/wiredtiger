@@ -2928,6 +2928,7 @@ no_slots:
 		/* Move any remnant to the next chunk. */
 		len = WT_PTRDIFF(r->first_free,
 		    (uint8_t *)dsk + chunk->image.size);
+		WT_ASSERT(session, len > 0);
 		WT_RET(__rec_split_chunk_init(
 		    session, r, next, chunk->image.memsize));
 		next_start = WT_PAGE_HEADER_BYTE(btree, next->image.mem);
@@ -2949,7 +2950,6 @@ no_slots:
 			 * in the buffer, we're about to read it for the
 			 * next chunk's initial key.
 			 */
-			WT_ASSERT(session, len > 0);
 			WT_RET(__rec_split_row_promote_cell(
 			    session, r, next->image.mem, &next->key));
 			break;
