@@ -99,12 +99,9 @@ run_child(const char *homedir, int op, int expect)
 	/*
 	 * Make sure we can read the data.
 	 */
-	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "WT_CONNECTION:open_session");
+	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-	if ((ret =
-	    session->open_cursor(session, uri, NULL, NULL, &cursor)) != 0)
-		testutil_die(ret, "WT_SESSION.open_cursor: %s", uri);
+	testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
 
 	i = 0;
 	while ((ret = cursor->next(cursor)) == 0)
