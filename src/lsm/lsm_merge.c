@@ -146,8 +146,8 @@ static int
 __lsm_merge_span(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree,
     u_int id, u_int *start, u_int *end, uint64_t *records)
 {
-	WT_LSM_CHUNK *chunk, *previous, *youngest;
-	uint32_t aggressive, max_gap, max_gen, max_level;
+	WT_LSM_CHUNK *chunk, *youngest;
+	uint32_t aggressive, max_gap, max_level;
 	uint64_t chunk_size, record_count;
 	u_int end_chunk, i, merge_max, merge_min, nchunks, start_chunk;
 	u_int oldest_gen, youngest_gen;
@@ -239,9 +239,8 @@ retry_find:
 		 * in too high a generation, stop.
 		 */
 		if (nchunks >= merge_min &&
-			chunk->generation - youngest_gen > max_gap) {
+			chunk->generation - youngest_gen > max_gap)
 			break;
-		}
 
 		/*
 		 * If the size of the chunks selected so far exceeds the
