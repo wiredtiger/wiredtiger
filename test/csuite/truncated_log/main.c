@@ -60,7 +60,6 @@ write_and_read_new(WT_SESSION *session)
 	WT_ITEM logrec_key, logrec_value;
 	uint64_t txnid;
 	uint32_t fileid, log_file, log_offset, opcount, optype, rectype;
-	int ret;
 	bool saw_msg;
 
 	/*
@@ -74,7 +73,7 @@ write_and_read_new(WT_SESSION *session)
 	testutil_check(
 	    session->open_cursor(session, "log:", NULL, NULL, &logc));
 	saw_msg = false;
-	while ((ret = logc->next(logc)) == 0) {
+	while (logc->next(logc) == 0) {
 		/*
 		 * We don't really need to get the key, but in case we want
 		 * the LSN for some message, get it.
@@ -139,7 +138,6 @@ fill_db(void)
 	WT_LSN lsn, save_lsn;
 	WT_SESSION *session;
 	uint32_t i, max_key, min_key, units, unused;
-	int ret;
 	bool first;
 	char k[K_SIZE], v[V_SIZE];
 
@@ -199,7 +197,7 @@ fill_db(void)
 				    save_lsn.l.file, save_lsn.l.offset, 0);
 				testutil_check(logc->search(logc));
 			}
-			while ((ret = logc->next(logc)) == 0) {
+			while (logc->next(logc) == 0) {
 				testutil_check(logc->get_key(
 				    logc, &lsn.l.file, &lsn.l.offset, &unused));
 				/*
@@ -246,10 +244,10 @@ main(int argc, char *argv[])
 	WT_CONNECTION *conn;
 	WT_CURSOR *cursor;
 	WT_SESSION *session;
+	pid_t pid;
 	uint64_t new_offset, offset;
 	uint32_t count, max_key;
 	int ch, status, ret;
-	pid_t pid;
 	const char *working_dir;
 
 	(void)testutil_set_progname(argv);
@@ -300,8 +298,7 @@ main(int argc, char *argv[])
 	ret = fscanf(fp, "%" SCNu64 " %" SCNu32 "\n", &offset, &max_key);
 	if (ret != 2)
 		testutil_die(errno, "fscanf");
-	if (fclose(fp) != 0)
-		testutil_die(errno, "fclose");
+	testutil_check(fclose(fp));
 	/*
 	 * The offset is the beginning of the last record.  Truncate to
 	 * the middle of that last record (i.e. ahead of that offset).
@@ -312,7 +309,7 @@ main(int argc, char *argv[])
 	printf("Parent: Log file 1: Key %" PRIu32 " at %" PRIu64 "\n",
 	     max_key, offset);
 	printf("Parent: Truncate mid-record to %" PRIu64 "\n", new_offset);
-	if ((ret = truncate(LOG_FILE_1, (wt_off_t)new_offset)) != 0)
+	if (truncate(LOG_FILE_1, (wt_off_t)new_offset) != 0)
 		testutil_die(errno, "truncate");
 
 	testutil_check(wiredtiger_open(NULL, NULL, ENV_CONFIG_REC, &conn));
@@ -325,7 +322,7 @@ main(int argc, char *argv[])
 	 * expect every key to have been recovered.
 	 */
 	count = 0;
-	while ((ret = cursor->next(cursor)) == 0)
+	while (cursor->next(cursor) == 0)
 		++count;
 	/*
 	 * The max key in the saved file is the key we truncated, but the
