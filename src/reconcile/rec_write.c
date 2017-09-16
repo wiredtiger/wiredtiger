@@ -2254,7 +2254,7 @@ __rec_split_init(WT_SESSION_IMPL *session,
 	r->prev_ptr = NULL;
 
 	/* Starting record number, entries, first free byte. */
-	r->recno = recno;
+	r->recno = r->cur_ptr->recno = recno;
 	r->entries = 0;
 	r->first_free = WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem);
 
