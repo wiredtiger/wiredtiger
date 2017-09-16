@@ -298,7 +298,8 @@ main(int argc, char *argv[])
 	ret = fscanf(fp, "%" SCNu64 " %" SCNu32 "\n", &offset, &max_key);
 	if (ret != 2)
 		testutil_die(errno, "fscanf");
-	testutil_check(fclose(fp));
+	if (fclose(fp) != 0)
+		testutil_die(errno, "fclose");
 	/*
 	 * The offset is the beginning of the last record.  Truncate to
 	 * the middle of that last record (i.e. ahead of that offset).
