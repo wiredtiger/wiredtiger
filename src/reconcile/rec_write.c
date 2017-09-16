@@ -2596,29 +2596,28 @@ __rec_split_crossing_bnd(
 	if (WT_CROSSING_MIN_BND(r, next_len) &&
 	    !WT_CROSSING_SPLIT_BND(r, next_len)) {
 		btree = S2BT(session);
-
-		min_offset = WT_PTRDIFF(r->first_free, r->cur_ptr->image.mem);
-		if (min_offset == WT_PAGE_HEADER_BYTE_SIZE(btree))
-			/*
-			 * This is possible if the first record doesn't fit in
-			 * the minimum split size, we write this record without
-			 * setting up any boundary here. We will get the
-			 * opportunity to setup a boundary before writing out
-			 * the next record.
-			 */
-			return (0);
-
 		WT_ASSERT(session, r->cur_ptr->min_offset == 0);
 
-		/* All page boundaries reset the dictionary. */
-		__rec_dictionary_reset(r);
+		/*
+		 * If the first record doesn't fit into the minimum split size,
+		 * we end up here. Write the record without setting a boundary
+		 * here. We will get the opportunity to setup a boundary before
+		 * writing out the next record.
+		 */
+		if (r->entries == 0)
+			return (0);
 
+		min_offset = WT_PTRDIFF(r->first_free, r->cur_ptr->image.mem);
 		r->cur_ptr->min_offset = min_offset;
 		r->cur_ptr->min_entries = r->entries;
 		r->cur_ptr->min_recno = r->recno;
 		if (btree->type == BTREE_ROW)
 			WT_RET(__rec_split_row_promote(
 			    session, r, &r->cur_ptr->min_key, r->page->type));
+
+		/* All page boundaries reset the dictionary. */
+		__rec_dictionary_reset(r);
+
 		return (0);
 	}
 
