@@ -1358,7 +1358,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 
 #ifdef HAVE_TIMESTAMPS
 		if (first_ts_upd == NULL &&
-		   !__wt_timestamp_iszero(&upd->timestamp))
+		    !__wt_timestamp_iszero(&upd->timestamp))
 			first_ts_upd = upd;
 #endif
 

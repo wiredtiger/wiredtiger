@@ -140,8 +140,8 @@ __sync_evict_page(
 	if (ret == EBUSY)
 		ret = 0;
 
-err:	__wt_page_release(session, next, flags);
-	__wt_page_release(session, prev, flags);
+err:	WT_TRET(__wt_page_release(session, next, flags));
+	WT_TRET(__wt_page_release(session, prev, flags));
 	return (ret);
 }
 
