@@ -412,11 +412,15 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 	 * checkpoint target before the actual checkpoint starts. Do not perform
 	 * scrubbing if the dirty data to scrub is less than a pre-configured
 	 * size. This size is to an extent based on the configured cache size
-	 * without being too large or too small for large cache sizes.
+	 * without being too large or too small for large cache sizes. For the
+	 * values chosen, for instance, 100 GB cache will require at-least
+	 * 200 MB of dirty data above eviction checkpoint target, which should
+	 * equate to a scrub phase a few seconds long. Said that, the value of
+	 * 0.2% and 500 MB are still somewhat arbitrary.
 	 */
-	if ((__wt_cache_dirty_leaf_inuse(cache) +
-	    WT_MIN((0.2 * conn->cache_size) / 100, 500 * WT_MEGABYTE)) <
-	    ((cache->eviction_checkpoint_target * conn->cache_size) / 100))
+	if (__wt_cache_dirty_leaf_inuse(cache) <
+	    ((cache->eviction_checkpoint_target * conn->cache_size) / 100) +
+	    WT_MIN((0.2 * conn->cache_size) / 100, 500 * WT_MEGABYTE))
 		return;
 
 	stepdown_us = 10000;
