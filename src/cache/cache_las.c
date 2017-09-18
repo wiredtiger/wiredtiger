@@ -300,8 +300,7 @@ __wt_las_remove_block(WT_SESSION_IMPL *session,
 	 * records, removing them.
 	 */
 	las_key.size = 0;
-	cursor->set_key(cursor,
-	    btree_id, pageid, (uint64_t)0, &las_key);
+	cursor->set_key(cursor, btree_id, pageid, (uint64_t)0, &las_key);
 	if ((ret = cursor->search_near(cursor, &exact)) == 0 && exact < 0)
 		ret = cursor->next(cursor);
 	for (; ret == 0; ret = cursor->next(cursor)) {

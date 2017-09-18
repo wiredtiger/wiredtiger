@@ -352,8 +352,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref)
 		ref->page = page;
 		if (previous_state == WT_REF_LOOKASIDE)
 			goto skip_read;
-		else
-			goto done;
+		goto done;
 	}
 
 	/*
@@ -465,8 +464,8 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			    __wt_delete_page_skip(session, ref, false))
 				return (WT_NOTFOUND);
 			/* FALLTHROUGH */
-		case WT_REF_LOOKASIDE:
 		case WT_REF_DISK:
+		case WT_REF_LOOKASIDE:
 			if (LF_ISSET(WT_READ_CACHE)) {
 				if (ref->state != WT_REF_LOOKASIDE)
 					return (WT_NOTFOUND);

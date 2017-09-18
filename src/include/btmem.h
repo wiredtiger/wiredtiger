@@ -245,10 +245,10 @@ struct __wt_page_modify {
 	} r;
 #undef	mod_replace
 #define	mod_replace	u1.r.replace
-#undef	mod_replace_las
-#define	mod_replace_las	u1.r.lookaside_pageid
 #undef	mod_disk_image
 #define	mod_disk_image	u1.r.disk_image
+#undef	mod_replace_las
+#define	mod_replace_las	u1.r.lookaside_pageid
 
 	struct {			/* Multiple replacement blocks */
 	struct __wt_multi {
@@ -706,10 +706,10 @@ struct __wt_page {
  *	Related information for fast-delete, on-disk pages.
  */
 struct __wt_page_deleted {
-	volatile uint64_t txnid;			/* Transaction ID */
+	volatile uint64_t txnid;		/* Transaction ID */
 	WT_DECL_TIMESTAMP(timestamp)
 
-	WT_UPDATE **update_list;	/* List of updates for abort */
+	WT_UPDATE **update_list;		/* List of updates for abort */
 };
 
 /*

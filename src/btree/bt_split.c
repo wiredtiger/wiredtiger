@@ -1478,8 +1478,7 @@ __split_multi_inmem(
 
 		/*
 		 * If an update from the list was saved into the page image, it
-		 * must have been globally visible and we don't need two
-		 * copies.
+		 * must have been globally visible and we don't need two copies.
 		 */
 		if (supd->onpage_upd != NULL) {
 			for (prev_upd = upd; prev_upd != NULL &&

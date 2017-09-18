@@ -1311,9 +1311,9 @@ __wt_page_can_evict(
 
 	/*
 	 * If the file is being checkpointed, other threads can't evict dirty
-	 * pages: if a page is written and the previous version is freed, that
+	 * pages: if a page is written and the previous version freed, that
 	 * previous version might be referenced by an internal page already
-	 * been written in the checkpoint, leaving the checkpoint inconsistent.
+	 * written in the checkpoint, leaving the checkpoint inconsistent.
 	 */
 	if (modified && btree->checkpointing != WT_CKPT_OFF &&
 	    !WT_SESSION_IS_CHECKPOINT(session)) {
