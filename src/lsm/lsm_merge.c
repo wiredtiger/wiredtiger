@@ -279,9 +279,15 @@ retry_find:
 			WT_ASSERT(session,
 			    F_ISSET(youngest, WT_LSM_CHUNK_MERGING));
 			F_CLR(youngest, WT_LSM_CHUNK_MERGING);
-			record_count -= youngest->count;
-			chunk_size -= youngest->size;
+			/*
+			 * reinit all vars in an effort to recalculate
+			 * oldest_gen & youngest_gen which are obsolete
+			 * once end_chunk is updated
+			 */
+			//record_count -= youngest->count;
+			//chunk_size -= youngest->size;
 			--end_chunk;
+			goto retry_find;
 		} else if (nchunks == merge_max)
 			/* We've found the best full merge we can */
 			break;
