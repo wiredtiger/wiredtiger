@@ -308,7 +308,21 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 		meta_cursor->set_key(meta_cursor, session->dhandle->name);
 		ret = __wt_curfile_insert_check(meta_cursor);
 		if (ret == WT_ROLLBACK) {
-			metadata_race = true;
+			/*
+			 * if create or drop of a table is with in an user
+			 * transaction then checkpoint can see the dhandle
+			 * before the commit, which will lead to this situation
+			 * we will ignore this dhandle as part of this
+			 * checkpoint. Also clear the txn error set.
+			 * See WT-3558 for more context.
+			 */
+
+			if (F_ISSET(&session->txn, WT_TXN_ERROR))
+				F_CLR(&session->txn, WT_TXN_ERROR);
+			WT_TRET(__wt_metadata_cursor_release(session,
+			    &meta_cursor));
+			return (0);
+
 			/*
 			 * Disable this check and assertion for now - it is
 			 * possible that a schema operation with a timestamp in
@@ -316,8 +330,10 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 			 * the checkpoint now that checkpoints can be created
 			 * at the stable timestamp.
 			 * See WT-3559 for context on re-adding this assertion.
+			 * This block is not removed for easy reference.
 			 */
 #if 0
+			metadata_race = true;
 			ret = 0;
 #endif
 		} else

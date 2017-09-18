@@ -33,6 +33,9 @@
 extern WT_CONNECTION *conn;			/* WiredTiger connection */
 
 extern u_int nops;				/* Operations per thread */
+extern bool explicit_transaction;		/* Operations within explicit
+						   transaction
+						 */
 
 extern const char *uri;				/* Object */
 extern const char *config;			/* Object config */
