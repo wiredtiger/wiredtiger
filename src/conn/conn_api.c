@@ -1044,6 +1044,7 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
 	WT_SESSION *wt_session;
 	WT_SESSION_IMPL *s, *session;
 	uint32_t i;
+	const char *checkpoint_cfg[] = { NULL, NULL, NULL };
 
 	conn = (WT_CONNECTION_IMPL *)wt_conn;
 
@@ -1083,6 +1084,27 @@ err:	/*
 				    s->event_handler, wt_session, NULL));
 			WT_TRET(wt_session->close(wt_session, config));
 		}
+
+	/*
+	 * Perform a system-wide checkpoint so that all tables are consistent
+	 * with each other.  All transactions are resolved but ignore
+	 * timestamps to make sure all data gets to disk.  Do this before
+	 * shutting down all the subsystems.  We have shut down all user
+	 * sessions, but send in true for waiting for internal races.
+	 */
+	if (!F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY)) {
+		s = NULL;
+		WT_TRET(__wt_open_internal_session(
+		    conn, "close_ckpt", true, 0, &s));
+		if (s != NULL) {
+			checkpoint_cfg[0] =
+			    WT_CONFIG_BASE(session, WT_SESSION_checkpoint);
+			checkpoint_cfg[1] = "force=1,use_timestamp=false";
+			wt_session = &s->iface;
+			WT_TRET(__wt_txn_checkpoint(s, checkpoint_cfg, true));
+			WT_TRET(wt_session->close(wt_session, config));
+		}
+	}
 
 	WT_TRET(__wt_connection_close(conn));
 
