@@ -69,7 +69,6 @@ obj_bulk(void)
 		if (ret == EINVAL)
 			testutil_die(ret, "session.commit bulk");
 	}
-
 	testutil_check(session->close(session, NULL));
 }
 
@@ -99,9 +98,9 @@ obj_bulk_unique(int force)
 	 * which created a checkpoint of the empty file, and triggers an EINVAL
 	 */
 	if ((ret = session->open_cursor(
-	    session, new_uri, NULL, "bulk", &c)) == 0) {
+	    session, new_uri, NULL, "bulk", &c)) == 0)
 		testutil_check(c->close(c));
-	} else if (ret != EINVAL)
+	else if (ret != EINVAL)
 		testutil_die(ret,
 		    "session.open_cursor bulk unique: %s, new_uri");
 
@@ -181,7 +180,6 @@ obj_create_unique(int force)
 	if (use_txn)
 		testutil_check(session->begin_transaction(session, NULL));
 	testutil_check(session->create(session, new_uri, config));
-
 	if (use_txn &&
 	    (ret = session->commit_transaction(session, NULL)) != 0 &&
 	    ret != EINVAL)
@@ -194,7 +192,6 @@ obj_create_unique(int force)
 	    session, new_uri, force ? "force" : NULL)) != 0)
 		if (ret != EBUSY)
 			testutil_die(ret, "session.drop: %s", new_uri);
-
 	if (use_txn &&
 	    (ret = session->commit_transaction(session, NULL)) != 0 &&
 	    ret != EINVAL)
@@ -232,7 +229,6 @@ obj_drop(int force)
 		if (ret == EINVAL)
 			testutil_die(ret, "session.commit drop");
 	}
-
 	testutil_check(session->close(session, NULL));
 }
 
