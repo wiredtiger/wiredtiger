@@ -57,6 +57,13 @@ obj_bulk(void)
 	}
 
 	if (use_txn) {
+		/*
+		 * As the operations are being performed concurrently,
+		 * return value can be ENOENT, EBUSY or EINVAL.
+		 * __wt_curfile_insert_check when returns error, will set
+		 * WT_TXN_ERROR to transaction opened by session. In these
+		 * cases the transaction has to be aborted.
+		 */
 		if (ret != ENOENT && ret != EBUSY && ret != EINVAL)
 			ret = session->commit_transaction(session, NULL);
 		else
@@ -232,6 +239,13 @@ obj_drop(int force)
 			testutil_die(ret, "session.drop");
 
 	if (use_txn) {
+		/*
+		 * As the operations are being performed concurrently,
+		 * return value can be ENOENT or EBUSY.
+		 * __wt_schema_drop when returns error, will set
+		 * WT_TXN_ERROR to transaction opened by session. In these
+		 * cases the transaction has to be aborted.
+		 */
 		if (ret != ENOENT && ret != EBUSY)
 			ret = session->commit_transaction(session, NULL);
 		else
