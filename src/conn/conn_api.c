@@ -1044,7 +1044,6 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
 	WT_SESSION *wt_session;
 	WT_SESSION_IMPL *s, *session;
 	uint32_t i;
-	const char *checkpoint_cfg[] = { NULL, NULL, NULL };
 
 	conn = (WT_CONNECTION_IMPL *)wt_conn;
 
@@ -1092,16 +1091,27 @@ err:	/*
 	 * shutting down all the subsystems.  We have shut down all user
 	 * sessions, but send in true for waiting for internal races.
 	 */
-	if (!F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY)) {
+	if (!F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY) &&
+	    conn->ever_modified) {
 		s = NULL;
 		WT_TRET(__wt_open_internal_session(
 		    conn, "close_ckpt", true, 0, &s));
 		if (s != NULL) {
-			checkpoint_cfg[0] =
-			    WT_CONFIG_BASE(session, WT_SESSION_checkpoint);
-			checkpoint_cfg[1] = "force=1,use_timestamp=false";
+			const char *checkpoint_cfg[] = {
+			    WT_CONFIG_BASE(session, WT_SESSION_checkpoint),
+			    "use_timestamp=false",
+			    NULL
+			};
 			wt_session = &s->iface;
 			WT_TRET(__wt_txn_checkpoint(s, checkpoint_cfg, true));
+
+			/*
+			 * Mark the metadata dirty so we flush it on close,
+			 * allowing recovery to be skipped.
+			 */
+			WT_WITH_DHANDLE(s, WT_SESSION_META_DHANDLE(s),
+			    __wt_tree_modify_set(s));
+
 			WT_TRET(wt_session->close(wt_session, config));
 		}
 	}
