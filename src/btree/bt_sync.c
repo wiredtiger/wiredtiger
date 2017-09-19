@@ -68,18 +68,18 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_PAGE *page)
 static int
 __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 {
-	struct timespec end, start, cur_time;
+	struct timespec cur_time, end, start;
 	WT_BTREE *btree;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_PAGE *page;
 	WT_REF *walk;
 	WT_TXN *txn;
-	uint64_t int_bytes_svpt, int_page_svpt, leaf_bytes_svpt, leaf_svpt;
+	uint64_t int_bytes_save, int_pg_save, leaf_bytes_save, leaf_pg_save;
 	uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
 	uint64_t oldest_id, saved_pinned_id;
-	uint32_t page_counter;
 	uint64_t time_diff;
+	uint32_t page_counter;
 	uint32_t flags;
 	bool timer;
 
@@ -92,8 +92,6 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
 	internal_bytes = leaf_bytes = 0;
 	internal_pages = leaf_pages = 0;
-	int_bytes_svpt = leaf_bytes_svpt = 0;
-	int_page_svpt = leaf_svpt = 0;
 	page_counter = 0;
 	timer = WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT);
 	if (timer)
@@ -189,6 +187,10 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 		(void)__wt_gen_next_drain(session, WT_GEN_EVICT);
 		btree->checkpointing = WT_CKPT_RUNNING;
 
+		int_bytes_save = leaf_bytes_save = 0;
+		int_pg_save = leaf_pg_save = 0;
+		page_counter = 0;
+
 		/* Write all dirty in-cache pages. */
 		flags |= WT_READ_NO_EVICT;
 		for (walk = NULL;;) {
@@ -227,7 +229,9 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 				leaf_bytes += page->memory_footprint;
 				++leaf_pages;
 			}
-			++page_counter;
+
+			if (timer)
+				++page_counter;
 
 			WT_ERR(__wt_reconcile(
 			    session, walk, NULL, WT_CHECKPOINTING, NULL));
@@ -235,17 +239,17 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 			if (timer && page_counter > 5000) {
 				__wt_epoch(session, &cur_time);
 				time_diff = WT_TIMEDIFF_SEC(cur_time,
-						conn->ckpt_tree_verb_time);
+				    conn->ckpt_tree_verb_time);
 
 				if (time_diff > 20) {
-
-					int_bytes_svpt =
-					    internal_bytes - int_bytes_svpt;
-					int_page_svpt =
-					    internal_pages - int_page_svpt;
-					leaf_bytes_svpt =
-					    leaf_bytes - leaf_bytes_svpt;
-					leaf_svpt = leaf_pages - leaf_svpt;
+					int_bytes_save =
+					    internal_bytes - int_bytes_save;
+					int_pg_save =
+					    internal_pages - int_pg_save;
+					leaf_bytes_save =
+					    leaf_bytes - leaf_bytes_save;
+					leaf_pg_save = 
+					    leaf_pages - leaf_pg_save;
 
 					__wt_verbose(session,
 					    WT_VERB_CHECKPOINT,
@@ -253,17 +257,16 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 					    " took %" PRIu64 "sec to write: %"
 					    PRIu64" leaf pages (%" PRIu64 "B),"
 					    "%" PRIu64 " internal pages (%"
-					    PRIu64 "B)", time_diff, leaf_svpt,
-					    leaf_bytes_svpt, int_page_svpt,
-					    int_bytes_svpt);
+					    PRIu64 "B)", time_diff,
+					    leaf_pg_save, leaf_bytes_save,
+					    int_pg_save, int_bytes_save);
 
-					int_bytes_svpt = internal_bytes;
-					int_page_svpt = internal_pages;
-					leaf_bytes_svpt = leaf_bytes;
-					leaf_svpt = leaf_pages;
+					int_bytes_save = internal_bytes;
+					int_pg_save = internal_pages;
+					leaf_bytes_save = leaf_bytes;
+					leaf_pg_save = leaf_pages;
 					conn->ckpt_tree_verb_time = cur_time;
 				}
-
 				page_counter = 0;
 			}
 
