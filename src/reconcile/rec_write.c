@@ -1032,6 +1032,37 @@ __rec_init(WT_SESSION_IMPL *session,
 }
 
 /*
+ * __rec_cleanup --
+ *	Clean up after a reconciliation run, except for structures cached
+ * across runs.
+ */
+static void
+__rec_cleanup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+{
+	WT_BTREE *btree;
+	WT_MULTI *multi;
+	uint32_t i;
+
+	btree = S2BT(session);
+
+	__wt_free(session, r->supd);
+
+	if (btree->type == BTREE_ROW)
+		for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
+			__wt_free(session, multi->key.ikey);
+	for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
+		__wt_free(session, multi->disk_image);
+		__wt_free(session, multi->supd);
+		__wt_free(session, multi->addr.addr);
+	}
+	__wt_free(session, r->multi);
+	r->multi_next = 0;
+
+	/* Reconciliation is not re-entrant, make sure that doesn't happen. */
+	r->ref = NULL;
+}
+
+/*
  * __rec_destroy --
  *	Clean up the reconciliation structure.
  */
@@ -1079,37 +1110,6 @@ __rec_destroy_session(WT_SESSION_IMPL *session)
 {
 	__rec_destroy(session, &session->reconcile);
 	return (0);
-}
-
-/*
- * __rec_cleanup --
- *	Clean up after a reconciliation run, except for structures cached
- * across runs.
- */
-static void
-__rec_cleanup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
-{
-	WT_BTREE *btree;
-	WT_MULTI *multi;
-	uint32_t i;
-
-	btree = S2BT(session);
-
-	__wt_free(session, r->supd);
-
-	if (btree->type == BTREE_ROW)
-		for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
-			__wt_free(session, multi->key.ikey);
-	for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
-		__wt_free(session, multi->disk_image);
-		__wt_free(session, multi->supd);
-		__wt_free(session, multi->addr.addr);
-	}
-	__wt_free(session, r->multi);
-	r->multi_next = 0;
-
-	/* Reconciliation is not re-entrant, make sure that doesn't happen. */
-	r->ref = NULL;
 }
 
 /*
