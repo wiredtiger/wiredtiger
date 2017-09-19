@@ -301,7 +301,6 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	if (!WT_IS_METADATA(session->dhandle)) {
 		WT_CURSOR *meta_cursor;
-		bool metadata_race;
 
 		WT_ASSERT(session, !F_ISSET(&session->txn, WT_TXN_ERROR));
 		WT_RET(__wt_metadata_cursor(session, &meta_cursor));
@@ -309,12 +308,12 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 		ret = __wt_curfile_insert_check(meta_cursor);
 		if (ret == WT_ROLLBACK) {
 			/*
-			 * if create or drop of a table is with in an user
-			 * transaction then checkpoint can see the dhandle
-			 * before the commit, which will lead to this situation
-			 * we will ignore this dhandle as part of this
-			 * checkpoint. Also clear the txn error set.
-			 * See WT-3558 for more context.
+			 * if create or drop or any schema operation of a table
+			 * is with in an user transaction then checkpoint can
+			 * see the dhandle before the commit, which will lead
+			 * to this situation. We will ignore this dhandle as
+			 * part of this checkpoint by returning from here.
+			 * Also clear the txn error set.
 			 */
 
 			if (F_ISSET(&session->txn, WT_TXN_ERROR))
@@ -322,25 +321,9 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 			WT_TRET(__wt_metadata_cursor_release(session,
 			    &meta_cursor));
 			return (0);
-
-			/*
-			 * Disable this check and assertion for now - it is
-			 * possible that a schema operation with a timestamp in
-			 * the future is in the metadata, but not part of the
-			 * the checkpoint now that checkpoints can be created
-			 * at the stable timestamp.
-			 * See WT-3559 for context on re-adding this assertion.
-			 * This block is not removed for easy reference.
-			 */
-#if 0
-			metadata_race = true;
-			ret = 0;
-#endif
-		} else
-			metadata_race = false;
+		}
 		WT_TRET(__wt_metadata_cursor_release(session, &meta_cursor));
 		WT_RET(ret);
-		WT_ASSERT(session, !metadata_race);
 	}
 #endif
 

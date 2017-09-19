@@ -28,6 +28,7 @@
 
 #include "thread.h"
 
+bool use_txn;					/* Operations with user txn */
 WT_CONNECTION *conn;				/* WiredTiger connection */
 pthread_rwlock_t single;			/* Single thread */
 u_int nops;					/* Operations */
@@ -35,9 +36,6 @@ const char *uri;				/* Object */
 const char *config;				/* Object config */
 
 static FILE *logfp;				/* Log file */
-bool explicit_transaction;			/* Operations within explicit
-						   transaction
-						 */
 
 static char home[512];
 
@@ -81,9 +79,9 @@ main(int argc, char *argv[])
 	nops = 1000;
 	nthreads = 10;
 	runs = 1;
-	explicit_transaction = false;
+	use_txn = false;
 	config_open = working_dir = NULL;
-	while ((ch = __wt_getopt(progname, argc, argv, "C:h:l:n:r:t:i")) != EOF)
+	while ((ch = __wt_getopt(progname, argc, argv, "C:h:l:n:r:t:x")) != EOF)
 		switch (ch) {
 		case 'C':			/* wiredtiger_open config */
 			config_open = __wt_optarg;
@@ -107,8 +105,8 @@ main(int argc, char *argv[])
 		case 't':
 			nthreads = (u_int)atoi(__wt_optarg);
 			break;
-		case 'i':
-			explicit_transaction = true;
+		case 'x':
+			use_txn = true;
 			break;
 		default:
 			return (usage());
@@ -259,7 +257,7 @@ usage(void)
 	fprintf(stderr,
 	    "usage: %s "
 	    "[-C wiredtiger-config] [-l log] [-n ops] [-r runs] [-t threads] "
-	    "[-i] \n",
+	    "[-x] \n",
 	    progname);
 	fprintf(stderr, "%s",
 	    "\t-C specify wiredtiger_open configuration arguments\n"
@@ -268,6 +266,6 @@ usage(void)
 	    "\t-n set number of operations each thread does\n"
 	    "\t-r set number of runs\n"
 	    "\t-t set number of threads\n"
-	    "\t-i operations within explicit transaction \n");
+	    "\t-x operations within user transaction \n");
 	return (EXIT_FAILURE);
 }

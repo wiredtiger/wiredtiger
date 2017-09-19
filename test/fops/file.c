@@ -40,7 +40,7 @@ obj_bulk(void)
 	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
 		testutil_die(ret, "conn.session");
 
-	if (explicit_transaction)
+	if (use_txn)
 		testutil_check(session->begin_transaction(session, NULL));
 	if ((ret = session->create(session, uri, config)) != 0)
 		if (ret != EEXIST && ret != EBUSY)
@@ -56,12 +56,11 @@ obj_bulk(void)
 			testutil_die(ret, "session.open_cursor bulk");
 	}
 
-	if (explicit_transaction) {
+	if (use_txn) {
 		if (ret != ENOENT && ret != EBUSY && ret != EINVAL)
 			ret = session->commit_transaction(session, NULL);
 		else
 			ret = session->rollback_transaction(session, NULL);
-
 		if (ret == EINVAL)
 			testutil_die(ret, "session.commit bulk");
 	}
@@ -89,7 +88,7 @@ obj_bulk_unique(int force)
 	if ((ret = pthread_rwlock_unlock(&single)) != 0)
 		testutil_die(ret, "pthread_rwlock_unlock single");
 
-	if (explicit_transaction)
+	if (use_txn)
 		testutil_check(session->begin_transaction(session, NULL));
 	if ((ret = session->create(session, new_uri, config)) != 0)
 		testutil_die(ret, "session.create: %s", new_uri);
@@ -112,10 +111,10 @@ obj_bulk_unique(int force)
 		if (ret != EBUSY)
 			testutil_die(ret, "session.drop: %s", new_uri);
 
-	if (explicit_transaction)
-		if ((ret = session->commit_transaction(session, NULL)) != 0 &&
-		    ret != EINVAL)
-			testutil_die(ret, "session.commit bulk unique");
+	if (use_txn &&
+	    (ret = session->commit_transaction(session, NULL)) != 0 &&
+	    ret != EINVAL)
+		testutil_die(ret, "session.commit bulk unique");
 	if ((ret = session->close(session, NULL)) != 0)
 		testutil_die(ret, "session.close");
 }
@@ -130,7 +129,7 @@ obj_cursor(void)
 	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
 		testutil_die(ret, "conn.session");
 
-	if (explicit_transaction)
+	if (use_txn)
 		testutil_check(session->begin_transaction(session, NULL));
 	if ((ret =
 	    session->open_cursor(session, uri, NULL, NULL, &cursor)) != 0) {
@@ -141,10 +140,10 @@ obj_cursor(void)
 			testutil_die(ret, "cursor.close");
 	}
 
-	if (explicit_transaction)
-		if ((ret = session->commit_transaction(session, NULL)) != 0 &&
-		    ret != EINVAL)
-			testutil_die(ret, "session.commit cursor");
+	if (use_txn &&
+	    (ret = session->commit_transaction(session, NULL)) != 0 &&
+	    ret != EINVAL)
+		testutil_die(ret, "session.commit cursor");
 	if ((ret = session->close(session, NULL)) != 0)
 		testutil_die(ret, "session.close");
 }
@@ -158,16 +157,16 @@ obj_create(void)
 	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
 		testutil_die(ret, "conn.session");
 
-	if (explicit_transaction)
+	if (use_txn)
 		testutil_check(session->begin_transaction(session, NULL));
 	if ((ret = session->create(session, uri, config)) != 0)
 		if (ret != EEXIST && ret != EBUSY)
 			testutil_die(ret, "session.create");
 
-	if (explicit_transaction)
-		if ((ret = session->commit_transaction(session, NULL)) != 0 &&
-		    ret != EINVAL)
-			testutil_die(ret, "session.commit create");
+	if (use_txn &&
+	    (ret = session->commit_transaction(session, NULL)) != 0 &&
+	    ret != EINVAL)
+		testutil_die(ret, "session.commit create");
 	if ((ret = session->close(session, NULL)) != 0)
 		testutil_die(ret, "session.close");
 }
@@ -190,28 +189,28 @@ obj_create_unique(int force)
 	if ((ret = pthread_rwlock_unlock(&single)) != 0)
 		testutil_die(ret, "pthread_rwlock_unlock single");
 
-	if (explicit_transaction)
+	if (use_txn)
 		testutil_check(session->begin_transaction(session, NULL));
 	if ((ret = session->create(session, new_uri, config)) != 0)
 		testutil_die(ret, "session.create");
 
-	if (explicit_transaction)
-		if ((ret = session->commit_transaction(session, NULL)) != 0 &&
-		    ret != EINVAL)
-			testutil_die(ret, "session.commit create unique");
+	if (use_txn &&
+	    (ret = session->commit_transaction(session, NULL)) != 0 &&
+	    ret != EINVAL)
+		testutil_die(ret, "session.commit create unique");
 
 	__wt_yield();
-	if (explicit_transaction)
+	if (use_txn)
 		testutil_check(session->begin_transaction(session, NULL));
 	while ((ret = session->drop(
 	    session, new_uri, force ? "force" : NULL)) != 0)
 		if (ret != EBUSY)
 			testutil_die(ret, "session.drop: %s", new_uri);
 
-	if (explicit_transaction)
-		if ((ret = session->commit_transaction(session, NULL)) != 0 &&
-		    ret != EINVAL)
-			testutil_die(ret, "session.commit create unique");
+	if (use_txn &&
+	    (ret = session->commit_transaction(session, NULL)) != 0 &&
+	    ret != EINVAL)
+		testutil_die(ret, "session.commit create unique");
 
 	if ((ret = session->close(session, NULL)) != 0)
 		testutil_die(ret, "session.close");
@@ -226,18 +225,17 @@ obj_drop(int force)
 	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
 		testutil_die(ret, "conn.session");
 
-	if (explicit_transaction)
+	if (use_txn)
 		testutil_check(session->begin_transaction(session, NULL));
 	if ((ret = session->drop(session, uri, force ? "force" : NULL)) != 0)
 		if (ret != ENOENT && ret != EBUSY)
 			testutil_die(ret, "session.drop");
 
-	if (explicit_transaction) {
+	if (use_txn) {
 		if (ret != ENOENT && ret != EBUSY)
 			ret = session->commit_transaction(session, NULL);
 		else
 			ret = session->rollback_transaction(session, NULL);
-
 		if (ret == EINVAL)
 			testutil_die(ret, "session.commit drop");
 	}
