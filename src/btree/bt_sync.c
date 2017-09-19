@@ -248,7 +248,7 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 					    internal_pages - int_pg_save;
 					leaf_bytes_save =
 					    leaf_bytes - leaf_bytes_save;
-					leaf_pg_save = 
+					leaf_pg_save =
 					    leaf_pages - leaf_pg_save;
 
 					__wt_verbose(session,
