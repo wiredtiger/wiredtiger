@@ -37,8 +37,7 @@ obj_bulk(void)
 	WT_SESSION *session;
 	int ret;
 
-	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "conn.session");
+	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
 	if (use_txn)
 		testutil_check(session->begin_transaction(session, NULL));
@@ -50,8 +49,7 @@ obj_bulk(void)
 		__wt_yield();
 		if ((ret = session->open_cursor(
 		    session, uri, NULL, "bulk", &c)) == 0) {
-			if ((ret = c->close(c)) != 0)
-				testutil_die(ret, "cursor.close");
+			testutil_check(c->close(c));
 		} else if (ret != ENOENT && ret != EBUSY && ret != EINVAL)
 			testutil_die(ret, "session.open_cursor bulk");
 	}
@@ -72,8 +70,7 @@ obj_bulk(void)
 			testutil_die(ret, "session.commit bulk");
 	}
 
-	if ((ret = session->close(session, NULL)) != 0)
-		testutil_die(ret, "session.close");
+	testutil_check(session->close(session, NULL));
 }
 
 void
@@ -84,21 +81,17 @@ obj_bulk_unique(int force)
 	int ret;
 	char new_uri[64];
 
-	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "conn.session");
+	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
 	/* Generate a unique object name. */
-	if ((ret = pthread_rwlock_wrlock(&single)) != 0)
-		testutil_die(ret, "pthread_rwlock_wrlock single");
+	testutil_check(pthread_rwlock_wrlock(&single));
 	testutil_check(__wt_snprintf(
 	    new_uri, sizeof(new_uri), "%s.%u", uri, ++uid));
-	if ((ret = pthread_rwlock_unlock(&single)) != 0)
-		testutil_die(ret, "pthread_rwlock_unlock single");
+	testutil_check(pthread_rwlock_unlock(&single));
 
 	if (use_txn)
 		testutil_check(session->begin_transaction(session, NULL));
-	if ((ret = session->create(session, new_uri, config)) != 0)
-		testutil_die(ret, "session.create: %s", new_uri);
+	testutil_check(session->create(session, new_uri, config));
 
 	__wt_yield();
 	/*
@@ -107,8 +100,7 @@ obj_bulk_unique(int force)
 	 */
 	if ((ret = session->open_cursor(
 	    session, new_uri, NULL, "bulk", &c)) == 0) {
-		if ((ret = c->close(c)) != 0)
-			testutil_die(ret, "cursor.close");
+		testutil_check(c->close(c));
 	} else if (ret != EINVAL)
 		testutil_die(ret,
 		    "session.open_cursor bulk unique: %s, new_uri");
@@ -122,8 +114,7 @@ obj_bulk_unique(int force)
 	    (ret = session->commit_transaction(session, NULL)) != 0 &&
 	    ret != EINVAL)
 		testutil_die(ret, "session.commit bulk unique");
-	if ((ret = session->close(session, NULL)) != 0)
-		testutil_die(ret, "session.close");
+	testutil_check(session->close(session, NULL));
 }
 
 void
@@ -133,8 +124,7 @@ obj_cursor(void)
 	WT_CURSOR *cursor;
 	int ret;
 
-	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "conn.session");
+	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
 	if (use_txn)
 		testutil_check(session->begin_transaction(session, NULL));
@@ -142,17 +132,14 @@ obj_cursor(void)
 	    session->open_cursor(session, uri, NULL, NULL, &cursor)) != 0) {
 		if (ret != ENOENT && ret != EBUSY)
 			testutil_die(ret, "session.open_cursor");
-	} else {
-		if ((ret = cursor->close(cursor)) != 0)
-			testutil_die(ret, "cursor.close");
-	}
+	} else
+		testutil_check(cursor->close(cursor));
 
 	if (use_txn &&
 	    (ret = session->commit_transaction(session, NULL)) != 0 &&
 	    ret != EINVAL)
 		testutil_die(ret, "session.commit cursor");
-	if ((ret = session->close(session, NULL)) != 0)
-		testutil_die(ret, "session.close");
+	testutil_check(session->close(session, NULL));
 }
 
 void
@@ -161,8 +148,7 @@ obj_create(void)
 	WT_SESSION *session;
 	int ret;
 
-	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "conn.session");
+	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
 	if (use_txn)
 		testutil_check(session->begin_transaction(session, NULL));
@@ -174,8 +160,7 @@ obj_create(void)
 	    (ret = session->commit_transaction(session, NULL)) != 0 &&
 	    ret != EINVAL)
 		testutil_die(ret, "session.commit create");
-	if ((ret = session->close(session, NULL)) != 0)
-		testutil_die(ret, "session.close");
+	testutil_check(session->close(session, NULL));
 }
 
 void
@@ -185,21 +170,17 @@ obj_create_unique(int force)
 	int ret;
 	char new_uri[64];
 
-	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "conn.session");
+	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
 	/* Generate a unique object name. */
-	if ((ret = pthread_rwlock_wrlock(&single)) != 0)
-		testutil_die(ret, "pthread_rwlock_wrlock single");
+	testutil_check(pthread_rwlock_wrlock(&single));
 	testutil_check(__wt_snprintf(
 	    new_uri, sizeof(new_uri), "%s.%u", uri, ++uid));
-	if ((ret = pthread_rwlock_unlock(&single)) != 0)
-		testutil_die(ret, "pthread_rwlock_unlock single");
+	testutil_check(pthread_rwlock_unlock(&single));
 
 	if (use_txn)
 		testutil_check(session->begin_transaction(session, NULL));
-	if ((ret = session->create(session, new_uri, config)) != 0)
-		testutil_die(ret, "session.create");
+	testutil_check(session->create(session, new_uri, config));
 
 	if (use_txn &&
 	    (ret = session->commit_transaction(session, NULL)) != 0 &&
@@ -219,8 +200,7 @@ obj_create_unique(int force)
 	    ret != EINVAL)
 		testutil_die(ret, "session.commit create unique");
 
-	if ((ret = session->close(session, NULL)) != 0)
-		testutil_die(ret, "session.close");
+	testutil_check(session->close(session, NULL));
 }
 
 void
@@ -229,8 +209,7 @@ obj_drop(int force)
 	WT_SESSION *session;
 	int ret;
 
-	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "conn.session");
+	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
 	if (use_txn)
 		testutil_check(session->begin_transaction(session, NULL));
@@ -254,8 +233,7 @@ obj_drop(int force)
 			testutil_die(ret, "session.commit drop");
 	}
 
-	if ((ret = session->close(session, NULL)) != 0)
-		testutil_die(ret, "session.close");
+	testutil_check(session->close(session, NULL));
 }
 
 void
@@ -264,8 +242,7 @@ obj_checkpoint(void)
 	WT_SESSION *session;
 	int ret;
 
-	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "conn.session");
+	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
 	/*
 	 * Force the checkpoint so it has to be taken. Forced checkpoints can
@@ -276,8 +253,7 @@ obj_checkpoint(void)
 		if (ret != EBUSY && ret != ENOENT)
 			testutil_die(ret, "session.checkpoint");
 
-	if ((ret = session->close(session, NULL)) != 0)
-		testutil_die(ret, "session.close");
+	testutil_check(session->close(session, NULL));
 }
 
 void
@@ -286,15 +262,13 @@ obj_rebalance(void)
 	WT_SESSION *session;
 	int ret;
 
-	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "conn.session");
+	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
 	if ((ret = session->rebalance(session, uri, NULL)) != 0)
 		if (ret != ENOENT && ret != EBUSY)
 			testutil_die(ret, "session.rebalance");
 
-	if ((ret = session->close(session, NULL)) != 0)
-		testutil_die(ret, "session.close");
+	testutil_check(session->close(session, NULL));
 }
 
 void
@@ -303,15 +277,13 @@ obj_upgrade(void)
 	WT_SESSION *session;
 	int ret;
 
-	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "conn.session");
+	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
 	if ((ret = session->upgrade(session, uri, NULL)) != 0)
 		if (ret != ENOENT && ret != EBUSY)
 			testutil_die(ret, "session.upgrade");
 
-	if ((ret = session->close(session, NULL)) != 0)
-		testutil_die(ret, "session.close");
+	testutil_check(session->close(session, NULL));
 }
 
 void
@@ -320,13 +292,11 @@ obj_verify(void)
 	WT_SESSION *session;
 	int ret;
 
-	if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0)
-		testutil_die(ret, "conn.session");
+	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
 	if ((ret = session->verify(session, uri, NULL)) != 0)
 		if (ret != ENOENT && ret != EBUSY)
 			testutil_die(ret, "session.verify");
 
-	if ((ret = session->close(session, NULL)) != 0)
-		testutil_die(ret, "session.close");
+	testutil_check(session->close(session, NULL));
 }
