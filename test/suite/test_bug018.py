@@ -26,26 +26,32 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+from helper import copy_wiredtiger_home
 import os, shutil
 import wiredtiger, wttest
 
-class test_close_writefail(wttest.WiredTigerTestCase):
-    '''Test closing tables when writes fail'''
+# test_bug018.py
+#   JIRA WT-3590: if writing table data fails during close then tables
+# that were updated within the same transaction could get out of sync with
+# each other.
+class test_bug018(wttest.WiredTigerTestCase):
+    '''Test closing/reopening/recovering tables when writes fail'''
 
     conn_config = 'log=(enabled)'
 
     def setUp(self):
+        # This test uses Linux-specific code so skip on any other system.
         if os.name != 'posix' or os.uname()[0] != 'Linux':
             self.skipTest('Linux-specific test skipped on ' + os.name)
-        super(test_close_writefail, self).setUp()
+        super(test_bug018, self).setUp()
 
     def create_table(self, uri):
         self.session.create(uri, 'key_format=S,value_format=S')
         return self.session.open_cursor(uri)
 
-    def test_close_writefail(self):
+    def test_bug018(self):
         '''Test closing multiple tables'''
-        basename = 'writefail'
+        basename = 'bug018.'
         baseuri = 'file:' + basename
         c1 = self.create_table(baseuri + '01.wt')
         c2 = self.create_table(baseuri + '02.wt')
@@ -55,8 +61,12 @@ class test_close_writefail(wttest.WiredTigerTestCase):
         c2['key'] = 'value'
         self.session.commit_transaction()
 
-        # Simulate a write failure by close the file descriptor for the second
-        # table out from underneath WiredTiger.
+        # Simulate a write failure by closing the file descriptor for the second
+        # table out from underneath WiredTiger.  We do this right before
+        # closing the connection so that the write error happens during close
+        # when writing out the final data.  Allow table 1 to succeed and force
+        # an erorr writing out table 2.
+        #
         # This is Linux-specific code to figure out the file descriptor.
         for f in os.listdir('/proc/self/fd'):
             try:
@@ -65,7 +75,7 @@ class test_close_writefail(wttest.WiredTigerTestCase):
             except OSError:
                 pass
 
-        # expect an error and error messages, so turn off stderr checking.
+        # Expect an error and messages, so turn off stderr checking.
         with self.expectedStderrPattern(''):
             try:
                 self.close_conn()
@@ -74,11 +84,12 @@ class test_close_writefail(wttest.WiredTigerTestCase):
 
         # Make a backup for forensics in case something goes wrong.
         backup_dir = 'BACKUP'
-        shutil.rmtree(backup_dir, ignore_errors=True)
-        shutil.copytree('.', backup_dir, lambda src, names: (n for n in names if n != backup_dir))
+        copy_wiredtiger_home('.', backup_dir, True)
 
+        # After reopening and running recovery both tables should be in
+        # sync even though table 1 was successfully written and table 2
+        # had an error on close.
         self.open_conn()
-
         c1 = self.session.open_cursor(baseuri + '01.wt')
         c2 = self.session.open_cursor(baseuri + '02.wt')
         self.assertEqual(list(c1), list(c2))
