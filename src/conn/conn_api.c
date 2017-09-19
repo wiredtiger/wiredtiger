@@ -1116,6 +1116,12 @@ err:	/*
 		}
 	}
 
+	if (ret != 0) {
+		__wt_err(session, ret,
+		    "failure during close, disabling further writes");
+		F_SET(conn, WT_CONN_PANIC);
+	}
+
 	WT_TRET(__wt_connection_close(conn));
 
 	/* We no longer have a session, don't try to update it. */
