@@ -1075,8 +1075,6 @@ __rec_destroy(WT_SESSION_IMPL *session, void *reconcilep)
 		return;
 	*(WT_RECONCILE **)reconcilep = NULL;
 
-	__rec_cleanup(session, r);
-
 	__wt_free(session, r->raw_entries);
 	__wt_free(session, r->raw_offsets);
 	__wt_free(session, r->raw_recnos);
@@ -3772,6 +3770,7 @@ __wt_bulk_wrapup(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 	WT_RET(__wt_page_modify_init(session, parent));
 	__wt_page_modify_set(session, parent);
 
+	__rec_cleanup(session, r);
 	__rec_destroy(session, &cbulk->reconcile);
 
 	return (0);
