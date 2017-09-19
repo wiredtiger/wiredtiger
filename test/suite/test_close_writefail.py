@@ -35,7 +35,7 @@ class test_close_writefail(wttest.WiredTigerTestCase):
     conn_config = 'log=(enabled)'
 
     def setUp(self):
-        if os.uname()[0] != 'Linux':
+        if os.name != 'posix' or os.uname()[0] != 'Linux':
             self.skipTest('Linux-specific test skipped on ' + os.name)
         super(test_close_writefail, self).setUp()
 
