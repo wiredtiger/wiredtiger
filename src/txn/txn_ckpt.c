@@ -381,7 +381,7 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 	struct timespec start, last, stop;
 	double current_dirty, delta;
 	uint64_t bytes_written_last, bytes_written_start, bytes_written_total;
-	uint64_t cache_size, max_write;
+	uint64_t cache_size, max_write, scrub_min;
 	uint64_t current_us, stepdown_us, total_ms, work_us;
 	bool progress;
 
@@ -415,12 +415,13 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 	 * without being too large or too small for large cache sizes. For the
 	 * values chosen, for instance, 100 GB cache will require at-least
 	 * 200 MB of dirty data above eviction checkpoint target, which should
-	 * equate to a scrub phase a few seconds long. Said that, the value of
+	 * equate to a scrub phase a few seconds long. That said, the value of
 	 * 0.2% and 500 MB are still somewhat arbitrary.
 	 */
+	scrub_min = WT_MIN((0.2 * conn->cache_size) / 100, 500 * WT_MEGABYTE);
 	if (__wt_cache_dirty_leaf_inuse(cache) <
 	    ((cache->eviction_checkpoint_target * conn->cache_size) / 100) +
-	    WT_MIN((0.2 * conn->cache_size) / 100, 500 * WT_MEGABYTE))
+	    scrub_min)
 		return;
 
 	stepdown_us = 10000;
