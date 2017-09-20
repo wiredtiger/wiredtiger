@@ -18,7 +18,7 @@ __wt_optrack_record_funcid(WT_SESSION_IMPL *session, uint64_t op_id,
 			   volatile bool *id_recorded)
 {
 	char endline[] = "\n";
-	char id_buf[sizeof(uint64_t) + sizeof(char)+4];
+	char id_buf[sizeof(uint64_t)*2 + sizeof(char)*4];
 	WT_CONNECTION_IMPL *conn;
 	wt_off_t fsize;
 
@@ -31,7 +31,8 @@ __wt_optrack_record_funcid(WT_SESSION_IMPL *session, uint64_t op_id,
 		WT_IGNORE_RET(__wt_filesize(session, conn->optrack_map_fh,
 					    &fsize));
 		WT_IGNORE_RET(__wt_write(session, conn->optrack_map_fh, fsize,
-					 sizeof(id_buf)-1, id_buf));
+				WT_MIN(strnlen(id_buf, sizeof(id_buf)-1),
+				       sizeof(id_buf)-1), id_buf));
 		WT_IGNORE_RET(__wt_filesize(session, conn->optrack_map_fh,
 					    &fsize));
 		WT_IGNORE_RET(__wt_write(session, conn->optrack_map_fh,
