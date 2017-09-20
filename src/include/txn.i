@@ -635,12 +635,45 @@ __wt_txn_id_check(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_txn_search_check --
+ *	Check if the current transaction can search.
+ */
+static inline int
+__wt_txn_search_check(WT_SESSION_IMPL *session)
+{
+#ifdef  HAVE_TIMESTAMPS
+	WT_BTREE *btree;
+	WT_TXN *txn;
+
+	txn = &session->txn;
+	btree = S2BT(session);
+	/*
+	 * If the user says a table should always use a read timestamp,
+	 * verify this transaction has one.  Same if it should never have
+	 * a read timestamp.
+	 */
+	if (FLD_ISSET(btree->debug, BTREE_DBG_READTS_ALWAYS) &&
+	    !F_ISSET(txn, WT_TXN_PUBLIC_TS_READ))
+		WT_RET_MSG(session, EINVAL, "read_timestamp required and "
+		    "none set on this transaction");
+	if (FLD_ISSET(btree->debug, BTREE_DBG_READTS_NEVER) &&
+	    F_ISSET(txn, WT_TXN_PUBLIC_TS_READ))
+		WT_RET_MSG(session, EINVAL, "no read_timestamp required and "
+		    "timestamp set on this transaction");
+#endif
+	return (0);
+}
+
+/*
  * __wt_txn_update_check --
  *	Check if the current transaction can update an item.
  */
 static inline int
 __wt_txn_update_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
+#ifdef  HAVE_TIMESTAMPS
+	WT_BTREE *btree;
+#endif
 	WT_TXN *txn;
 
 	txn = &session->txn;
@@ -655,6 +688,17 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 			}
 			upd = upd->next;
 		}
+#ifdef  HAVE_TIMESTAMPS
+	btree = S2BT(session);
+	if (FLD_ISSET(btree->debug, BTREE_DBG_COMMITTS_ALWAYS)) {
+		WT_ASSERT(session, !F_ISSET(txn, WT_TXN_TS_COMMIT_NEVER));
+		F_SET(txn, WT_TXN_TS_COMMIT_ALWAYS);
+	}
+	if (FLD_ISSET(btree->debug, BTREE_DBG_COMMITTS_NEVER)) {
+		WT_ASSERT(session, !F_ISSET(txn, WT_TXN_TS_COMMIT_ALWAYS));
+		F_SET(txn, WT_TXN_TS_COMMIT_NEVER);
+	}
+#endif
 
 	return (0);
 }

@@ -398,6 +398,28 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 	else
 		btree->checksum = CKSUM_UNCOMPRESSED;
 
+	/* Debugging information */
+	WT_RET(__wt_config_gets(session, cfg, "debug.commit_timestamp", &cval));
+	if (WT_STRING_MATCH("always", cval.str, cval.len)) {
+		FLD_SET(btree->debug, BTREE_DBG_COMMITTS_ALWAYS);
+		FLD_CLR(btree->debug, BTREE_DBG_COMMITTS_NEVER);
+	} else if (WT_STRING_MATCH("never", cval.str, cval.len)) {
+		FLD_SET(btree->debug, BTREE_DBG_COMMITTS_NEVER);
+		FLD_CLR(btree->debug, BTREE_DBG_COMMITTS_ALWAYS);
+	} else
+		FLD_CLR(btree->debug,
+		    BTREE_DBG_COMMITTS_ALWAYS | BTREE_DBG_COMMITTS_NEVER);
+	WT_RET(__wt_config_gets(session, cfg, "debug.read_timestamp", &cval));
+	if (WT_STRING_MATCH("always", cval.str, cval.len)) {
+		FLD_SET(btree->debug, BTREE_DBG_READTS_ALWAYS);
+		FLD_CLR(btree->debug, BTREE_DBG_READTS_NEVER);
+	} else if (WT_STRING_MATCH("never", cval.str, cval.len)) {
+		FLD_SET(btree->debug, BTREE_DBG_READTS_NEVER);
+		FLD_CLR(btree->debug, BTREE_DBG_READTS_ALWAYS);
+	} else
+		FLD_CLR(btree->debug,
+		    BTREE_DBG_READTS_ALWAYS | BTREE_DBG_READTS_NEVER);
+
 	/* Huffman encoding */
 	WT_RET(__wt_btree_huffman_open(session));
 
