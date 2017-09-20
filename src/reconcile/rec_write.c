@@ -2144,6 +2144,8 @@ __rec_split_init(WT_SESSION_IMPL *session,
 {
 	WT_BM *bm;
 	WT_BTREE *btree;
+	WT_CHUNK *chunk;
+	WT_REF *ref;
 	size_t corrected_page_size, disk_img_buf_size;
 
 	btree = S2BT(session);
@@ -2252,12 +2254,24 @@ __rec_split_init(WT_SESSION_IMPL *session,
 	r->prev_ptr = NULL;
 
 	/* Starting record number, entries, first free byte. */
-	r->recno = r->cur_ptr->recno = recno;
+	r->recno = recno;
 	r->entries = 0;
 	r->first_free = WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem);
 
 	/* New page, compression off. */
 	r->key_pfx_compress = r->key_sfx_compress = false;
+
+	/* Set the first chunk's key. */
+	chunk = r->cur_ptr;
+	if (btree->type == BTREE_ROW) {
+		ref = r->ref;
+		if (__wt_ref_is_root(ref))
+			WT_RET(__wt_buf_set(session, &chunk->key, "", 1));
+		else
+			__wt_ref_key(ref->home,
+			    ref, &chunk->key.data, &chunk->key.size);
+	} else
+		chunk->recno = recno;
 
 	return (0);
 }
@@ -3343,12 +3357,11 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	WT_PAGE *page;
 	WT_PAGE_MODIFY *mod;
 	WT_REF *ref;
-	size_t addr_size, key_size;
+	size_t addr_size;
 	uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
 #ifdef HAVE_DIAGNOSTIC
 	bool verify_image;
 #endif
-	const char *p;
 
 	btree = S2BT(session);
 	page = r->page;
@@ -3381,27 +3394,12 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	multi->size = WT_STORE_SIZE(chunk->image.size);
 	multi->checksum = 0;
 
-	/*
-	 * Set the boundary key. We never set the first page's key, grab it
-	 * from the original page.
-	 */
-	if (btree->type == BTREE_ROW) {
-		if (r->multi_next == 1) {
-			ref = r->ref;
-			if (__wt_ref_is_root(ref)) {
-				p = "";
-				key_size = 1;
-			} else
-				__wt_ref_key(ref->home, ref, &p, &key_size);
-		} else {
-			p = chunk->key.data;
-			key_size = chunk->key.size;
-		}
-		WT_RET(__wt_row_ikey_alloc(
-		    session, 0, p, key_size, &multi->key.ikey));
-	} else
-		multi->key.recno = r->multi_next == 1 ?
-		    r->ref->ref_recno : chunk->recno;
+	/* Set the key. */
+	if (btree->type == BTREE_ROW)
+		WT_RET(__wt_row_ikey_alloc(session, 0,
+		    chunk->key.data, chunk->key.size, &multi->key.ikey));
+	else
+		multi->key.recno = chunk->recno;
 
 	/* Check if there are saved updates that might belong to this block. */
 	if (r->supd_next != 0)
