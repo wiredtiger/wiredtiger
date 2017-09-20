@@ -1056,7 +1056,6 @@ __rec_cleanup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		__wt_free(session, multi->addr.addr);
 	}
 	__wt_free(session, r->multi);
-	r->multi_next = 0;
 
 	/* Reconciliation is not re-entrant, make sure that doesn't happen. */
 	r->ref = NULL;
