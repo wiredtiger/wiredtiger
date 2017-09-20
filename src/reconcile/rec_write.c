@@ -1386,10 +1386,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 * is used to avoid discarding trees from memory when they have changes
 	 * required to satisfy a snapshot read.
 	 */
-	if (WT_TXNID_LT(r->max_txn, max_txn)) {
-		WT_ASSERT(session, max_txn < 100000000);
+	if (WT_TXNID_LT(r->max_txn, max_txn))
 		r->max_txn = max_txn;
-	}
 
 #ifdef HAVE_TIMESTAMPS
 	if (first_ts_upd != NULL &&
