@@ -962,10 +962,8 @@ __rec_init(WT_SESSION_IMPL *session,
 	r->all_empty_value = true;
 	r->any_empty_value = false;
 
-	/* The list of saved updates. */
-	r->supd = NULL;
+	/* The list of saved updates is reused. */
 	r->supd_next = 0;
-	r->supd_allocated = 0;
 
 	/* The list of pages we've written. */
 	r->multi = NULL;
@@ -1045,8 +1043,6 @@ __rec_cleanup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
 	btree = S2BT(session);
 
-	__wt_free(session, r->supd);
-
 	if (btree->type == BTREE_ROW)
 		for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
 			__wt_free(session, multi->key.ikey);
@@ -1085,6 +1081,8 @@ __rec_destroy(WT_SESSION_IMPL *session, void *reconcilep)
 	__wt_buf_free(session, &r->chunkB.key);
 	__wt_buf_free(session, &r->chunkB.min_key);
 	__wt_buf_free(session, &r->chunkB.image);
+
+	__wt_free(session, r->supd);
 
 	__rec_dictionary_free(session, r);
 
@@ -3229,6 +3227,7 @@ __rec_split_write_supd(WT_SESSION_IMPL *session,
 	if (last_block) {
 		WT_RET(__rec_supd_move(session, multi, r->supd, r->supd_next));
 		r->supd_next = 0;
+		return (0);
 	}
 
 	/*
@@ -5759,6 +5758,9 @@ __rec_split_discard(WT_SESSION_IMPL *session, WT_PAGE *page)
 		if (btree->type == BTREE_ROW)
 			__wt_free(session, multi->key);
 
+		__wt_free(session, multi->disk_image);
+		__wt_free(session, multi->supd);
+
 		/*
 		 * If the page was re-written free the backing disk blocks used
 		 * in the previous write (unless the blocks were reused in this
@@ -5774,8 +5776,6 @@ __rec_split_discard(WT_SESSION_IMPL *session, WT_PAGE *page)
 			    session, multi->addr.addr, multi->addr.size));
 			__wt_free(session, multi->addr.addr);
 		}
-		__wt_free(session, multi->supd);
-		__wt_free(session, multi->disk_image);
 	}
 	__wt_free(session, mod->mod_multi);
 	mod->mod_multi_entries = 0;
