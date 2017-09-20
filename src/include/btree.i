@@ -570,8 +570,6 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
 	 * The btree may already be marked dirty while the connection is still
 	 * clean; mark the connection dirty outside the test of the btree state.
 	 */
-	if (!S2C(session)->ever_modified)
-		S2C(session)->ever_modified = true;
 	if (!S2C(session)->modified)
 		S2C(session)->modified = true;
 }

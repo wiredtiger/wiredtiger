@@ -348,7 +348,6 @@ struct __wt_connection_impl {
 	 * Is there a data/schema change that needs to be the part of a
 	 * checkpoint.
 	 */
-	bool ever_modified;
 	bool modified;
 
 	WT_SESSION_IMPL *sweep_session;	   /* Handle sweep session */

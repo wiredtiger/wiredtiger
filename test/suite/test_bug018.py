@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 from helper import copy_wiredtiger_home
-import os, shutil
+import os
 import wiredtiger, wttest
 
 # test_bug018.py

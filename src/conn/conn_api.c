@@ -1091,8 +1091,7 @@ err:	/*
 	 * shutting down all the subsystems.  We have shut down all user
 	 * sessions, but send in true for waiting for internal races.
 	 */
-	if (!F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY) &&
-	    conn->ever_modified) {
+	if (!F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY)) {
 		s = NULL;
 		WT_TRET(__wt_open_internal_session(
 		    conn, "close_ckpt", true, 0, &s));
