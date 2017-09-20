@@ -1092,6 +1092,9 @@ __conn_optrack_setup(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_RET(__wt_spin_init(session, &conn->optrack_map_spinlock,
 			      "optrack map spinlock"));
 
+	WT_RET(__wt_malloc(session, WT_OPTRACK_BUFSIZE,
+			   &conn->dummy_session.optrack_buf));
+
 	conn->optrack_on = 1;
 	return (0);
 }
@@ -1109,6 +1112,7 @@ __conn_optrack_teardown(WT_SESSION_IMPL *session)
 
 	__wt_spin_destroy(session, &conn->optrack_map_spinlock);
 	WT_IGNORE_RET(__wt_close(session, &conn->optrack_map_fh));
+	__wt_free(session, conn->dummy_session.optrack_buf);
 	conn->optrack_on = 0;
 }
 
