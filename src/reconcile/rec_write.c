@@ -3675,6 +3675,9 @@ __rec_update_las(WT_SESSION_IMPL *session,
 		} while ((upd = upd->next) != NULL);
 	}
 
+	__wt_free(session, multi->supd);
+	multi->supd_entries = 0;
+
 err:	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 
 	if (insert_cnt > 0) {
