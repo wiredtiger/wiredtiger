@@ -308,14 +308,13 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 		ret = __wt_curfile_insert_check(meta_cursor);
 		if (ret == WT_ROLLBACK) {
 			/*
-			 * if create or drop or any schema operation of a table
+			 * If create or drop or any schema operation of a table
 			 * is with in an user transaction then checkpoint can
 			 * see the dhandle before the commit, which will lead
-			 * to this situation. We will ignore this dhandle as
+			 * to the rollback error. We will ignore this dhandle as
 			 * part of this checkpoint by returning from here.
 			 * Also clear the txn error set.
 			 */
-
 			if (F_ISSET(&session->txn, WT_TXN_ERROR))
 				F_CLR(&session->txn, WT_TXN_ERROR);
 			WT_TRET(__wt_metadata_cursor_release(session,
