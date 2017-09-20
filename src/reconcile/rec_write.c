@@ -1046,7 +1046,6 @@ __rec_cleanup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	btree = S2BT(session);
 
 	__wt_free(session, r->supd);
-	r->supd_next = 0;
 
 	if (btree->type == BTREE_ROW)
 		for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
@@ -3230,7 +3229,6 @@ __rec_split_write_supd(WT_SESSION_IMPL *session,
 	 */
 	if (last_block) {
 		WT_RET(__rec_supd_move(session, multi, r->supd, r->supd_next));
-		r->supd = NULL;
 		r->supd_next = 0;
 	}
 
