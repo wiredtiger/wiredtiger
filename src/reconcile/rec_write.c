@@ -3356,7 +3356,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	WT_MULTI *multi, *multi_mod;
 	WT_PAGE *page;
 	WT_PAGE_MODIFY *mod;
-	WT_REF *ref;
 	size_t addr_size;
 	uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
 #ifdef HAVE_DIAGNOSTIC
