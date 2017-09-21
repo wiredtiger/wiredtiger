@@ -185,7 +185,7 @@ extern int __wt_tree_walk_count(WT_SESSION_IMPL *session, WT_REF **refp, uint64_
 extern int __wt_tree_walk_custom_skip( WT_SESSION_IMPL *session, WT_REF **refp, int (*skip_func)(WT_SESSION_IMPL *, WT_REF *, void *, bool *), void *func_cookie, uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tree_walk_skip( WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *skipleafcntp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_UPDATE *upd_arg, u_int modify_type, bool exclusive) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_col_search(WT_SESSION_IMPL *session, uint64_t search_recno, WT_REF *leaf, WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_col_search(WT_SESSION_IMPL *session, uint64_t search_recno, WT_REF *leaf, WT_CURSOR_BTREE *cbt, bool restore) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_row_leaf_keys(WT_SESSION_IMPL *session, WT_PAGE *page) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_row_leaf_key_copy( WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_ITEM *key) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_row_leaf_key_work(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip_arg, WT_ITEM *keyb, bool instantiate) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -199,7 +199,7 @@ extern int __wt_update_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, WT_
 extern WT_UPDATE *__wt_update_obsolete_check( WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd);
 extern void __wt_update_obsolete_free( WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd);
 extern int __wt_search_insert(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head, WT_ITEM *srch_key) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_row_search(WT_SESSION_IMPL *session, WT_ITEM *srch_key, WT_REF *leaf, WT_CURSOR_BTREE *cbt, bool insert) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_row_search(WT_SESSION_IMPL *session, WT_ITEM *srch_key, WT_REF *leaf, WT_CURSOR_BTREE *cbt, bool insert, bool restore) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_las_stats_update(WT_SESSION_IMPL *session);
 extern int __wt_las_create(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_las_destroy(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

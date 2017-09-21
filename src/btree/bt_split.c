@@ -1445,7 +1445,8 @@ __split_multi_inmem(
 			recno = WT_INSERT_RECNO(supd->ins);
 
 			/* Search the page. */
-			WT_ERR(__wt_col_search(session, recno, ref, &cbt));
+			WT_ERR(__wt_col_search(
+			    session, recno, ref, &cbt, true));
 
 			/* Apply the modification. */
 			WT_ERR(__wt_col_modify(session, &cbt,
@@ -1467,7 +1468,8 @@ __split_multi_inmem(
 			}
 
 			/* Search the page. */
-			WT_ERR(__wt_row_search(session, key, ref, &cbt, true));
+			WT_ERR(__wt_row_search(
+			    session, key, ref, &cbt, true, true));
 
 			/* Apply the modification. */
 			WT_ERR(__wt_row_modify(session,
