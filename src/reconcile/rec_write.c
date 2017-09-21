@@ -1014,7 +1014,7 @@ __rec_init(WT_SESSION_IMPL *session,
 /*
  * __rec_cleanup --
  *	Clean up after a reconciliation run, except for structures cached
- * across runs.
+ *	across runs.
  */
 static void
 __rec_cleanup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
@@ -1168,7 +1168,7 @@ err:	__wt_scr_free(session, &tmp);
 /*
  * __rec_txn_read --
  *	Return the update in a list that should be written (or NULL if none can
- * be written).
+ *	be written).
  */
 static int
 __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
@@ -1399,7 +1399,7 @@ check_original_value:
 /*
  * WT_CHILD_RELEASE, WT_CHILD_RELEASE_ERR --
  *	Macros to clean up during internal-page reconciliation, releasing the
- * hazard pointer we're holding on child pages.
+ *	hazard pointer we're holding on child pages.
  */
 #define	WT_CHILD_RELEASE(session, hazard, ref) do {			\
 	if (hazard) {							\
@@ -1995,7 +1995,8 @@ __rec_split_page_size_from_pct(
 /*
  * __wt_split_page_size --
  *	Split page size calculation: we don't want to repeatedly split every
- * time a new entry is added, so we split to a smaller-than-maximum page size.
+ *	time a new entry is added, so we split to a smaller-than-maximum page
+ *	size.
  */
 uint32_t
 __wt_split_page_size(WT_BTREE *btree, uint32_t maxpagesize)
@@ -2406,7 +2407,7 @@ __rec_split_grow(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t add_len)
 /*
  * __rec_split --
  *	Handle the page reconciliation bookkeeping.  (Did you know "bookkeeper"
- * has 3 doubled letters in a row?  Sweet-tooth does, too.)
+ *	has 3 doubled letters in a row?  Sweet-tooth does, too.)
  */
 static int
 __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
@@ -3103,7 +3104,7 @@ __rec_split_finish(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 /*
  * __rec_supd_move --
  *	Move a saved WT_UPDATE list from the per-page cache to a specific
- * block's list.
+ *	block's list.
  */
 static int
 __rec_supd_move(
@@ -3122,7 +3123,7 @@ __rec_supd_move(
 /*
  * __rec_split_write_supd --
  *	Check if we've saved updates that belong to this block, and move any
- * to the per-block structure.
+ *	to the per-block structure.
  */
 static int
 __rec_split_write_supd(WT_SESSION_IMPL *session,
@@ -4263,7 +4264,7 @@ __rec_col_fix_slvg(WT_SESSION_IMPL *session,
 /*
  * __rec_col_var_helper --
  *	Create a column-store variable length record cell and write it onto a
- * page.
+ *	page.
  */
 static int
 __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r,
@@ -5941,7 +5942,7 @@ __rec_write_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 /*
  * __rec_cell_build_int_key --
  *	Process a key and return a WT_CELL structure and byte string to be
- * stored on a row-store internal page.
+ *	stored on a row-store internal page.
  */
 static int
 __rec_cell_build_int_key(WT_SESSION_IMPL *session,
@@ -5978,7 +5979,7 @@ __rec_cell_build_int_key(WT_SESSION_IMPL *session,
 /*
  * __rec_cell_build_leaf_key --
  *	Process a key and return a WT_CELL structure and byte string to be
- * stored on a row-store leaf page.
+ *	stored on a row-store leaf page.
  */
 static int
 __rec_cell_build_leaf_key(WT_SESSION_IMPL *session,
@@ -6081,7 +6082,7 @@ __rec_cell_build_leaf_key(WT_SESSION_IMPL *session,
 /*
  * __rec_cell_build_addr --
  *	Process an address reference and return a cell structure to be stored
- * on the page.
+ *	on the page.
  */
 static void
 __rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r,
@@ -6116,7 +6117,7 @@ __rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 /*
  * __rec_cell_build_val --
  *	Process a data item and return a WT_CELL structure and byte string to
- * be stored on the page.
+ *	be stored on the page.
  */
 static int
 __rec_cell_build_val(WT_SESSION_IMPL *session,
@@ -6357,7 +6358,7 @@ __rec_dictionary_free(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 /*
  * __rec_dictionary_reset --
  *	Reset the dictionary when reconciliation restarts and when crossing a
- * page boundary (a potential split).
+ *	page boundary (a potential split).
  */
 static void
 __rec_dictionary_reset(WT_RECONCILE *r)
@@ -6424,7 +6425,7 @@ __rec_dictionary_lookup(
 /*
  * __rec_verbose_lookaside_write --
  *	Create a verbose message to display once per checkpoint with details
- * about the cache state when performing a lookaside table write.
+ *	about the cache state when performing a lookaside table write.
  */
 static void
 __rec_verbose_lookaside_write(WT_SESSION_IMPL *session)
