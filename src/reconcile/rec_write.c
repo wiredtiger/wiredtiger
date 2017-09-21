@@ -3331,7 +3331,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 */
 	if (last_block &&
 	    r->multi_next == 1 && __rec_is_checkpoint(session, r)) {
-		WT_ASSERT(session, r->supd == NULL);
+		WT_ASSERT(session, r->supd_next == 0);
 
 		if (compressed_image == NULL)
 			r->wrapup_checkpoint = &chunk->image;
