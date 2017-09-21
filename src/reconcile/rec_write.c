@@ -568,18 +568,6 @@ __rec_write_check_complete(
 		return (EBUSY);
 
 	/*
-	 * We only suggest lookaside if currently in an evict/restore attempt
-	 * and some updates were saved.  Our caller sets the evict/restore flag
-	 * based on various conditions (like if this is a leaf page), which is
-	 * why we're testing that flag instead of a set of other conditions.
-	 * If no updates were saved, eviction will succeed without needing to
-	 * restore anything.
-	 */
-	if (!F_ISSET(r, WT_REC_UPDATE_RESTORE) ||
-	    r->supd_next == 0 || lookaside_retryp == NULL)
-		return (0);
-
-	/*
 	 * Check if this reconciliation attempt is making progress.  If there's
 	 * any sign of progress, don't fall back to the lookaside table.
 	 *
@@ -593,6 +581,18 @@ __rec_write_check_complete(
 	if (r->multi_next == 0 && r->page->dsk != NULL)
 		return (0);
 	if (r->multi_next == 1 && r->page->dsk == NULL)
+		return (0);
+
+	/*
+	 * We only suggest lookaside if currently in an evict/restore attempt
+	 * and some updates were saved.  Our caller sets the evict/restore flag
+	 * based on various conditions (like if this is a leaf page), which is
+	 * why we're testing that flag instead of a set of other conditions.
+	 * If no updates were saved, eviction will succeed without needing to
+	 * restore anything.
+	 */
+	if (!F_ISSET(r, WT_REC_UPDATE_RESTORE) || lookaside_retryp == NULL ||
+	    (r->multi_next == 1 && r->multi->supd_entries == 0))
 		return (0);
 
 	/*
