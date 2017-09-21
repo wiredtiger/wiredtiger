@@ -129,9 +129,6 @@ __wt_evict(
 
 	conn = S2C(session);
 
-	/* Checkpoints should never do eviction. */
-	WT_ASSERT(session, !WT_SESSION_IS_CHECKPOINT(session));
-
 	/* Enter the eviction generation. */
 	__wt_session_gen_enter(session, WT_GEN_EVICT);
 
