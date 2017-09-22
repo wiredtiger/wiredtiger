@@ -334,7 +334,8 @@ static int  __rec_dictionary_init(WT_SESSION_IMPL *, WT_RECONCILE *, u_int);
 static int  __rec_dictionary_lookup(
 		WT_SESSION_IMPL *, WT_RECONCILE *, WT_KV *, WT_DICTIONARY **);
 static void __rec_dictionary_reset(WT_RECONCILE *);
-static void __rec_verbose_lookaside_write(WT_SESSION_IMPL *);
+static void __rec_verbose_lookaside_write(
+		WT_SESSION_IMPL *, uint32_t, uint64_t);
 
 /*
  * __wt_reconcile --
@@ -3487,6 +3488,12 @@ __rec_update_las(WT_SESSION_IMPL *session,
 	las_pageid = multi->lookaside_pageid =
 	    __wt_atomic_add64(&S2BT(session)->lookaside_pageid, 1);
 
+	/*
+	 * Make sure there are no left over entries (e.g., from a handle
+	 * reopen).
+	 */
+	WT_ERR(__wt_las_remove_block(session, cursor, btree_id, las_pageid));
+
 	/* Enter each update in the boundary's list into the lookaside store. */
 	for (las_counter = 0, i = 0,
 	    list = multi->supd; i < multi->supd_entries; ++i, ++list) {
@@ -3578,7 +3585,7 @@ err:	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 	if (insert_cnt > 0) {
 		(void)__wt_atomic_add64(
 		    &S2C(session)->las_record_cnt, insert_cnt);
-		__rec_verbose_lookaside_write(session);
+		__rec_verbose_lookaside_write(session, btree_id, las_pageid);
 	}
 
 	__wt_scr_free(session, &key);
@@ -6428,7 +6435,8 @@ __rec_dictionary_lookup(
  *	about the cache state when performing a lookaside table write.
  */
 static void
-__rec_verbose_lookaside_write(WT_SESSION_IMPL *session)
+__rec_verbose_lookaside_write(
+    WT_SESSION_IMPL *session, uint32_t las_id, uint64_t las_pageid)
 {
 #ifdef HAVE_VERBOSE
 	WT_CONNECTION_IMPL *conn;
@@ -6458,10 +6466,12 @@ __rec_verbose_lookaside_write(WT_SESSION_IMPL *session)
 			(void)__wt_eviction_dirty_needed(session, &pct_dirty);
 
 			__wt_verbose(session, WT_VERB_LOOKASIDE,
-			    "Page reconciliation triggered lookaside write. "
+			    "Page reconciliation triggered lookaside write"
+			    "file ID %" PRIu32 ", page ID %" PRIu64 ". "
 			    "Entries now in lookaside file: %" PRIu64 ", "
 			    "cache dirty: %" PRIu32 "%% , "
 			    "cache use: %" PRIu32 "%%",
+			    las_id, las_pageid,
 			    conn->las_record_cnt, pct_dirty, pct_full);
 		}
 	}

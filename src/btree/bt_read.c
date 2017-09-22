@@ -8,7 +8,8 @@
 
 #include "wt_internal.h"
 
-static void __btree_verbose_lookaside_read(WT_SESSION_IMPL *);
+static void __btree_verbose_lookaside_read(
+		WT_SESSION_IMPL *, WT_REF *, uint32_t);
 
 /*
  * __col_instantiate --
@@ -402,7 +403,7 @@ skip_read:
 		    (ref->page->dsk == NULL ||
 		    F_ISSET(ref->page->dsk, WT_PAGE_LAS_UPDATE)));
 
-		__btree_verbose_lookaside_read(session);
+		__btree_verbose_lookaside_read(session, ref, btree->id);
 		WT_STAT_CONN_INCR(session, cache_read_lookaside);
 		WT_STAT_DATA_INCR(session, cache_read_lookaside);
 		WT_ERR(__las_page_instantiate(session, ref, btree->id));
@@ -649,7 +650,8 @@ skip_evict:
  *	performing a lookaside table read.
  */
 static void
-__btree_verbose_lookaside_read(WT_SESSION_IMPL *session)
+__btree_verbose_lookaside_read(
+    WT_SESSION_IMPL *session, WT_REF *ref, uint32_t las_id)
 {
 #ifdef HAVE_VERBOSE
 	WT_CONNECTION_IMPL *conn;
@@ -675,7 +677,9 @@ __btree_verbose_lookaside_read(WT_SESSION_IMPL *session)
 		if (__wt_atomic_casv64(&conn->las_verb_gen_read,
 			ckpt_gen_last, ckpt_gen_current)) {
 			__wt_verbose(session, WT_VERB_LOOKASIDE,
-			    "%s", "Read from lookaside file triggered.");
+			    "Read from lookaside file triggered for "
+			    "file ID %" PRIu32 ", page ID %" PRIu64,
+			    las_id, ref->page_las->las_pageid);
 		}
 	}
 #else
