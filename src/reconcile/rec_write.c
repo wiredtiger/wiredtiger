@@ -3361,8 +3361,8 @@ static bool
 __rec_split_write_reuse(WT_SESSION_IMPL *session,
     WT_RECONCILE *r, WT_MULTI *multi, WT_ITEM *image, bool last_block)
 {
-	WT_PAGE_MODIFY *mod;
 	WT_MULTI *multi_match;
+	WT_PAGE_MODIFY *mod;
 
 	mod = r->page->modify;
 
