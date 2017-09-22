@@ -572,7 +572,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref,
 			 * Check if reconciliation suggests trying the
 			 * lookaside table.
 			 */
-			if (F_ISSET(cache, WT_CACHE_EVICT_DIRTY_HARD |
+			if (F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD |
 			    WT_CACHE_EVICT_DIRTY_HARD) &&
 			    !F_ISSET(conn, WT_CONN_EVICTION_NO_LOOKASIDE))
 				lookaside_retryp = &lookaside_retry;

@@ -1178,7 +1178,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	WT_BTREE *btree;
 	WT_PAGE *page;
 	WT_UPDATE *first_active_upd, *first_upd, *first_ts_upd, *next_upd;
-	WT_UPDATE *prev_upd, *upd;
+	WT_UPDATE *upd;
+	wt_timestamp_t *timestampp;
 	uint64_t max_txn, txnid;
 	bool uncommitted;
 
@@ -1186,7 +1187,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 
 	btree = S2BT(session);
 	page = r->page;
-	first_active_upd = first_ts_upd = prev_upd = NULL;
+	first_active_upd = first_ts_upd = NULL;
 	max_txn = WT_TXN_NONE;
 	uncommitted = false;
 
@@ -1200,29 +1201,11 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	else if ((first_upd = WT_ROW_UPDATE(page, ripcip)) == NULL)
 		return (0);
 
-	for (upd = first_upd, prev_upd = NULL; upd != NULL; upd = next_upd) {
+	for (upd = first_upd; upd != NULL; upd = next_upd) {
 		next_upd = upd->next;
 
-		if ((txnid = upd->txnid) == WT_TXN_ABORTED) {
-			if (F_ISSET(r, WT_REC_EVICT)) {
-				/* Strip out aborted updates. */
-				if (prev_upd != NULL)
-					prev_upd->next = upd->next;
-				else {
-					first_upd = upd->next;
-					if (ins != NULL)
-						ins->upd = first_upd;
-					else
-						page->modify->mod_row_update[
-						    WT_ROW_SLOT(page, ripcip)] =
-						    first_upd;
-				}
-				upd->next = NULL;
-				__wt_update_obsolete_free(session, page, upd);
-			}
+		if ((txnid = upd->txnid) == WT_TXN_ABORTED)
 			continue;
-		}
-		prev_upd = upd;
 
 		/*
 		 * Track the first update in the chain that is not aborted and
@@ -1280,14 +1263,6 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		    !__wt_timestamp_iszero(&upd->timestamp))
 			first_ts_upd = upd;
 #endif
-
-		if (F_ISSET(r, WT_REC_VISIBLE_ALL) &&
-		    F_ISSET(r, WT_REC_EVICT) &&
-		    WT_UPDATE_DATA_VALUE(upd)) {
-			__wt_update_obsolete_free(session, page, upd->next);
-			upd->next = NULL;
-			break;
-		}
 	}
 
 	/* Reconciliation should never see an aborted or reserved update. */
@@ -1323,33 +1298,35 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	    WT_SESSION_IS_CHECKPOINT(session));
 
 	/*
-	 * If there are no skipped updates, the page can be marked clean and
-	 * we're done, regardless if evicting or checkpointing.
+	 * If there are no skipped updates, record that we're making progress.
 	 */
-	if (*updp == first_active_upd) {
+	if (*updp == first_active_upd)
 		r->update_used = true;
+
+	/*
+	 * Check if all updates on the page are visible.  If not, it must stay
+	 * dirty unless we are saving updates to the lookaside table.
+	 *
+	 * Updates can be out of transaction ID order (but not out of timestamp
+	 * order), so we track the maximum transaction ID and the newest update
+	 * with a timestamp (if any).
+	 */
+	timestampp = first_ts_upd == NULL ? NULL :
+	    WT_TIMESTAMP_NULL(&first_ts_upd->timestamp);
+	if (*updp != first_active_upd || !(F_ISSET(r, WT_REC_VISIBLE_ALL) ?
+	    __wt_txn_visible_all(session, max_txn, timestampp) :
+	    __wt_txn_visible(session, max_txn, timestampp))) {
+		if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
+			WT_PANIC_RET(session, EINVAL,
+			    "reconciliation error, update not visible");
+		if (!F_ISSET(r, WT_REC_LOOKASIDE))
+			r->leave_dirty = true;
+	} else
 		goto check_original_value;
-	}
-
-	/*
-	 * In some cases, there had better not be skipped updates.
-	 */
-	if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
-		WT_PANIC_RET(session, EINVAL,
-		    "reconciliation error, uncommitted update or update not "
-		    "globally visible");
-
-	/*
-	 * Because some updates were skipped, the page can't be marked clean,
-	 * unless the updates will be saved in the lookaside table.
-	 */
-	if (!F_ISSET(r, WT_REC_LOOKASIDE))
-		r->leave_dirty = true;
 
 	/*
 	 * If not trying to evict the page, we know what we'll write and we're
-	 * done. Because some updates were skipped, the page can't be marked
-	 * clean.
+	 * done.
 	 */
 	if (!F_ISSET(r, WT_REC_EVICT))
 		goto check_original_value;
@@ -1387,9 +1364,10 @@ check_original_value:
 	 * happen if there is any reconciliation of a backing overflow record
 	 * that will be physically removed once it's no longer needed.
 	 */
-	if (*updp != NULL && vpack != NULL &&
-	    vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)
-		WT_RET(__rec_append_orig_value(session, page, *updp, vpack));
+	if (F_ISSET(r, WT_REC_LOOKASIDE) || (*updp != NULL && vpack != NULL &&
+	    vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM))
+		WT_RET(
+		    __rec_append_orig_value(session, page, first_upd, vpack));
 
 	if (uncommitted)
 		r->update_uncommitted = true;
@@ -5851,7 +5829,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		 */
 		if (F_ISSET(r, WT_REC_IN_MEMORY) ||
 		    (F_ISSET(r, WT_REC_UPDATE_RESTORE) &&
-		    r->multi->supd != NULL))
+		    r->multi->supd_entries != 0))
 			goto split;
 
 		/*
