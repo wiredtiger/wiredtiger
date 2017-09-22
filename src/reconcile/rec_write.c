@@ -3468,7 +3468,7 @@ __rec_update_las(WT_SESSION_IMPL *session,
 	WT_CLEAR(las_timestamp);
 	WT_CLEAR(las_value);
 	page = r->page;
-	insert_cnt = 0;
+	insert_cnt = las_pageid = 0;
 
 	/*
 	 * We're writing lookaside records: start instantiating them on pages
