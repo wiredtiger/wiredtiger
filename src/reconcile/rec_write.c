@@ -6477,5 +6477,7 @@ __rec_verbose_lookaside_write(
 	}
 #else
 	WT_UNUSED(session);
+	WT_UNUSED(las_id);
+	WT_UNUSED(las_pageid);
 #endif
 }

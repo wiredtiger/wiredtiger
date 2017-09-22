@@ -9,7 +9,7 @@
 #include "wt_internal.h"
 
 static void __btree_verbose_lookaside_read(
-		WT_SESSION_IMPL *, WT_REF *, uint32_t);
+		WT_SESSION_IMPL *, uint32_t, uint64_t);
 
 /*
  * __col_instantiate --
@@ -403,7 +403,8 @@ skip_read:
 		    (ref->page->dsk == NULL ||
 		    F_ISSET(ref->page->dsk, WT_PAGE_LAS_UPDATE)));
 
-		__btree_verbose_lookaside_read(session, ref, btree->id);
+		__btree_verbose_lookaside_read(
+		    session, btree->id, ref->page_las->las_pageid);
 		WT_STAT_CONN_INCR(session, cache_read_lookaside);
 		WT_STAT_DATA_INCR(session, cache_read_lookaside);
 		WT_ERR(__las_page_instantiate(session, ref, btree->id));
@@ -651,7 +652,7 @@ skip_evict:
  */
 static void
 __btree_verbose_lookaside_read(
-    WT_SESSION_IMPL *session, WT_REF *ref, uint32_t las_id)
+    WT_SESSION_IMPL *session, uint32_t las_id, uint64_t las_pageid)
 {
 #ifdef HAVE_VERBOSE
 	WT_CONNECTION_IMPL *conn;
@@ -679,10 +680,12 @@ __btree_verbose_lookaside_read(
 			__wt_verbose(session, WT_VERB_LOOKASIDE,
 			    "Read from lookaside file triggered for "
 			    "file ID %" PRIu32 ", page ID %" PRIu64,
-			    las_id, ref->page_las->las_pageid);
+			    las_id, las_pageid);
 		}
 	}
 #else
 	WT_UNUSED(session);
+	WT_UNUSED(las_id);
+	WT_UNUSED(las_pageid);
 #endif
 }
