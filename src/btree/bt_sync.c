@@ -58,8 +58,6 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_PAGE *page)
 		    i = 0; i < mod->mod_multi_entries; ++multi, ++i)
 			if (multi->addr.addr == NULL)
 				return (false);
-
-	WT_ASSERT(session, mod->mod_replace.addr != NULL);
 	return (true);
 }
 
