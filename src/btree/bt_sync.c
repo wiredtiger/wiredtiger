@@ -58,91 +58,9 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_PAGE *page)
 		    i = 0; i < mod->mod_multi_entries; ++multi, ++i)
 			if (multi->addr.addr == NULL)
 				return (false);
+
+	WT_ASSERT(session, mod->mod_replace.addr != NULL);
 	return (true);
-}
-
-/*
- * __sync_dup_walk --
- *	Duplicate a tree walk point.
- */
-static inline int
-__sync_dup_walk(WT_SESSION_IMPL *session, WT_REF *walk)
-{
-	bool busy;
-
-	/*
-	 * We already have a hazard pointer, we should generally be able to get
-	 * another one.  That said, we could race with some thread attempting
-	 * to get exclusive access: just continue on to the ordinary write path
-	 * in that case.
-	 */
-#ifdef HAVE_DIAGNOSTIC
-	WT_RET(__wt_hazard_set(session, walk, &busy, __func__, __LINE__));
-#else
-	WT_RET(__wt_hazard_set(session, walk, &busy));
-#endif
-
-	return (busy ? EBUSY : 0);
-}
-
-/*
- * __sync_evict_page --
- *	Attempt to evict a page during a checkpoint walk.
- */
-static int
-__sync_evict_page(
-    WT_SESSION_IMPL *session, WT_REF **walkp, uint32_t flags, bool *skip_walkp)
-{
-	WT_DECL_RET;
-	WT_REF *next, *prev, *to_evict;
-
-	to_evict = *walkp;
-	next = prev = NULL;
-	*skip_walkp = false;
-
-	/*
-	 * Hedge our bets: save a ref on either side of the page we're
-	 * evicting.
-	 *
-	 * !!! Otherwise, the page could split in the meantime, so backing up
-	 * later is not safe.  We allow in-memory splits during checkpoints,
-	 * for example.
-	 */
-	WT_RET(__sync_dup_walk(session, to_evict));
-	prev = to_evict;
-	WT_ERR(__wt_tree_walk(session, &prev, flags | WT_READ_PREV));
-
-	WT_ERR(__sync_dup_walk(session, to_evict));
-	next = to_evict;
-	WT_ERR(__wt_tree_walk(session, &next, flags));
-
-	/*
-	 * Try to evict the original ref: after this, we must update the walk
-	 * point to either the previous or next ref so our caller can continue.
-	 */
-	if ((ret = __wt_page_release_evict(session, to_evict, true)) == 0) {
-		/*
-		 * Success: continue the walk at the next ref (and don't skip
-		 * over it in our caller).
-		 */
-		*walkp = next;
-		*skip_walkp = true;
-		return (__wt_page_release(session, prev, flags));
-	}
-
-	/*
-	 * We discarded the original reference even though eviction failed.
-	 * Move the walk point back, and don't release that ref.  We will
-	 * return zero in this case, and checkpoint will continue walking.
-	 */
-	*walkp = prev;
-	prev = NULL;
-	if (ret == EBUSY)
-		ret = 0;
-
-err:	WT_TRET(__wt_page_release(session, next, flags));
-	WT_TRET(__wt_page_release(session, prev, flags));
-	return (ret);
 }
 
 /*
@@ -157,18 +75,24 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_PAGE *page;
-	WT_REF *walk;
+	WT_REF **evict_list, *walk;
 	WT_TXN *txn;
+	size_t evict_list_allocated;
 	uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
 	uint64_t oldest_id, saved_pinned_id;
 	uint32_t flags;
-	bool evict_failed, skip_walk, timer;
+	u_int evict_list_next;
+	bool busy, evict_after_move, timer;
 
 	conn = S2C(session);
 	btree = S2BT(session);
 	walk = NULL;
 	txn = &session->txn;
-	evict_failed = skip_walk = false;
+
+	evict_list = NULL;
+	evict_list_allocated = 0;
+	evict_list_next = 0;
+	evict_after_move = false;
 
 	flags = WT_READ_CACHE | WT_READ_NO_GEN;
 	internal_bytes = leaf_bytes = 0;
@@ -275,11 +199,22 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 		LF_SET(WT_READ_LOOKASIDE | WT_READ_WONT_NEED);
 
 		for (;;) {
-			if (!skip_walk)
-				WT_ERR(__wt_tree_walk(session, &walk, flags));
-			skip_walk = false;
+			WT_ERR(__wt_tree_walk(session, &walk, flags));
 			if (walk == NULL)
 				break;
+
+			/*
+			 * If we just moved past an internal page, resolve leaf
+			 * pages we noticed that needed eviction.
+			 */
+			if (evict_after_move) {
+				while (evict_list_next > 0)
+					WT_ERR_BUSY_OK(
+					    __wt_page_release_evict(session,
+					    evict_list[--evict_list_next],
+					    true));
+				evict_after_move = false;
+			}
 
 			/* Skip clean pages. */
 			if (!__wt_page_is_modified(walk->page))
@@ -313,35 +248,47 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 				++leaf_pages;
 			}
 
+			WT_ERR(__wt_reconcile(
+			    session, walk, NULL, WT_REC_CHECKPOINT, NULL));
+
 			/*
-			 * If the page needs forced eviction, try to do that
-			 * now.
+			 * If a leaf page is flagged for forced eviction and it
+			 * doesn't require a split into its parent, remember it
+			 * for later eviction.
 			 *
-			 * For eviction to have a chance, we first need to move
-			 * the walk point to the next page checkpoint will
-			 * visit.  We want to avoid this code being too special
-			 * purpose, so try to reuse the ordinary eviction path.
+			 * Splits into a parent are blocked during checkpoints,
+			 * so we don't bother remembering those pages. We might
+			 * want to allow eviction from this path to split into a
+			 * parent in the future, it's safe to do as long as it's
+			 * behind the checkpoint.
 			 */
 			if (!WT_PAGE_IS_INTERNAL(page) &&
 			    page->read_gen == WT_READGEN_OLDEST &&
-			    !evict_failed) {
-				if ((ret = __sync_evict_page(
-				    session, &walk, flags, &skip_walk)) == 0) {
-					/*
-					 * If eviction succeeded, it has
-					 * already stepped to the next ref.
-					 * Track this so we don't retry an
-					 * eviction that fails the first time.
-					 */
-					evict_failed = !skip_walk;
-					continue;
-				}
-				WT_ERR_BUSY_OK(ret);
+			    page->modify->rec_result != WT_PM_REC_MULTIBLOCK) {
+				WT_ERR(__wt_realloc_def(session,
+				    &evict_list_allocated,
+				    evict_list_next + 1, &evict_list));
+				/*
+				 * If reconciliation resulted in a clean page,
+				 * it might be evicted during the checkpoint.
+				 * Acquire a hazard pointer to ensure it's still
+				 * there when we go back to it. If the page is
+				 * busy, we raced with an eviction thread and
+				 * that's OK.
+				 */
+#ifdef HAVE_DIAGNOSTIC
+				WT_ERR(__wt_hazard_set(
+				    session, walk, &busy, __func__, __LINE__));
+#else
+				WT_ERR(__wt_hazard_set(session, walk, &busy));
+#endif
+				if (!busy)
+					evict_list[evict_list_next++] = walk;
 			}
 
-			evict_failed = false;
-			WT_ERR(__wt_reconcile(
-			    session, walk, NULL, WT_REC_CHECKPOINT, NULL));
+			/* Note if we're about to move past an internal page. */
+			if (WT_PAGE_IS_INTERNAL(page))
+				evict_after_move = true;
 		}
 		break;
 	case WT_SYNC_CLOSE:
@@ -364,6 +311,15 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
 err:	/* On error, clear any left-over tree walk. */
 	WT_TRET(__wt_page_release(session, walk, flags));
+
+	/*
+	 * Evict any pages we saved for later eviction, even on error (we have
+	 * to discard the hazard pointer).
+	 */
+	while (evict_list_next > 0)
+		WT_TRET_BUSY_OK(__wt_page_release_evict(
+		    session, evict_list[--evict_list_next], true));
+	__wt_free(session, evict_list);
 
 	/*
 	 * If we got a snapshot in order to write pages, and there was no
