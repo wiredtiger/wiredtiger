@@ -79,8 +79,7 @@ wts_ops(int lastrun)
 	wt_thread_t alter_tid, backup_tid, compact_tid, lrt_tid, timestamp_tid;
 	int64_t fourths, quit_fourths, thread_ops;
 	uint32_t i;
-	int running;
-	bool spread_rng;
+	bool running, spread_rng;
 
 	conn = g.wts_conn;
 
@@ -189,7 +188,7 @@ wts_ops(int lastrun)
 	for (;;) {
 		/* Clear out the totals each pass. */
 		memset(&total, 0, sizeof(total));
-		for (i = 0, running = 0; i < g.c_threads; ++i) {
+		for (i = 0, running = false; i < g.c_threads; ++i) {
 			tinfo = tinfo_list[i];
 			total.commit += tinfo->commit;
 			total.deadlock += tinfo->deadlock;
@@ -201,7 +200,7 @@ wts_ops(int lastrun)
 
 			switch (tinfo->state) {
 			case TINFO_RUNNING:
-				running = 1;
+				running = true;
 				break;
 			case TINFO_COMPLETE:
 				tinfo->state = TINFO_JOINED;
