@@ -80,6 +80,7 @@ wts_ops(int lastrun)
 	int64_t fourths, quit_fourths, thread_ops;
 	uint32_t i;
 	int running;
+	bool spread_rng;
 
 	conn = g.wts_conn;
 
@@ -135,13 +136,31 @@ wts_ops(int lastrun)
 	}
 
 	/*
+	 * Characterize the per-thread random number generator. Slightly tricky:
+	 * normally we want independent behavior so we start the threads in
+	 * different parts of the RNG space, but we've found bugs by having the
+	 * threads pound on the same key/value pairs, that is, by making them
+	 * traverse the same RNG space. 20% of the time we run in the same RNG
+	 * space.
+	 */
+	spread_rng = mmrand(NULL, 1, 10) > 2;
+
+	/*
 	 * Create the per-thread structures and start the worker threads.
 	 * Allocate the thread structures separately to minimize false sharing.
 	 */
 	tinfo_list = dcalloc((size_t)g.c_threads, sizeof(TINFO *));
 	for (i = 0; i < g.c_threads; ++i) {
 		tinfo_list[i] = tinfo = dcalloc(1, sizeof(TINFO));
+
 		tinfo->id = (int)i + 1;
+
+		if (spread_rng)
+			__wt_random_init_seed(
+			    (WT_SESSION_IMPL *)session, &tinfo->rnd);
+		else
+			__wt_random_init(&tinfo->rnd);
+
 		tinfo->state = TINFO_RUNNING;
 		testutil_check(
 		    __wt_thread_create(NULL, &tinfo->tid, ops, tinfo));
@@ -514,9 +533,6 @@ ops(void *arg)
 	snap = NULL;
 	iso_config = 0;
 	memset(snap_list, 0, sizeof(snap_list));
-
-	/* Initialize the per-thread random number generator. */
-	__wt_random_init(&tinfo->rnd);
 
 	/* Set up the default key and value buffers. */
 	key = &_key;
