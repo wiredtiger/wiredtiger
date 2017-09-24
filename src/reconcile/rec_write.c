@@ -1181,7 +1181,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	WT_UPDATE *upd;
 	wt_timestamp_t *timestampp;
 	uint64_t max_txn, txnid;
-	bool uncommitted;
+	bool all_visible, uncommitted;
 
 	*updp = NULL;
 
@@ -1214,38 +1214,32 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		if (first_active_upd == NULL)
 			first_active_upd = upd;
 
+		/* Track the largest transaction ID seen. */
 		if (WT_TXNID_LT(max_txn, txnid))
 			max_txn = txnid;
+
+		/*
+		 * Check whether the update was committed before reconciliation
+		 * started.  The global commit point can move forward during
+		 * reconciliation so we use a cached copy to avoid races when a
+		 * concurrent transaction commits or rolls back while we are
+		 * examining its updates.
+		 */
+		if (WT_TXNID_LE(r->last_running, txnid))
+			uncommitted = true;
 
 		/*
 		 * Find the first update we can use.
 		 *
 		 * Update/restore eviction can handle any update (including
 		 * uncommitted updates).  Lookaside eviction can save any
-		 * committed update.  Regular eviction eviction checks that the
-		 * maximum transaction ID and timestamp seen are stable.
-		 */
-		if (F_ISSET(r, WT_REC_EVICT)) {
-			/*
-			 * Check whether the update was committed before
-			 * reconciliation started.  The global commit point can
-			 * move forward during reconciliation so we use a
-			 * cached copy to avoid races when a concurrent
-			 * transaction commits or rolls back while we are
-			 * examining its updates.
-			 */
-			if (WT_TXNID_LE(r->last_running, txnid)) {
-				uncommitted = true;
-				if (F_ISSET(r, WT_REC_VISIBLE_ALL))
-					continue;
-			}
-		}
-
-		/*
+		 * committed update.  Regular eviction checks that the maximum
+		 * transaction ID and timestamp seen are stable.
+		 *
 		 * Use the first committed entry we find in the lookaside
 		 * table.
 		 */
-		if (F_ISSET(btree, WT_BTREE_LOOKASIDE)) {
+		if (F_ISSET(btree, WT_BTREE_LOOKASIDE) && !uncommitted) {
 			*updp = upd;
 			break;
 		}
@@ -1313,16 +1307,22 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 */
 	timestampp = first_ts_upd == NULL ? NULL :
 	    WT_TIMESTAMP_NULL(&first_ts_upd->timestamp);
-	if (*updp != first_active_upd || !(F_ISSET(r, WT_REC_VISIBLE_ALL) ?
-	    __wt_txn_visible_all(session, max_txn, timestampp) :
-	    __wt_txn_visible(session, max_txn, timestampp))) {
-		if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
-			WT_PANIC_RET(session, EINVAL,
-			    "reconciliation error, update not visible");
-		if (!F_ISSET(r, WT_REC_LOOKASIDE))
-			r->leave_dirty = true;
-	} else
+	if (F_ISSET(btree, WT_BTREE_LOOKASIDE))
+		all_visible = !uncommitted;
+	else
+		all_visible = *updp == first_active_upd &&
+		    (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
+		    __wt_txn_visible_all(session, max_txn, timestampp) :
+		    __wt_txn_visible(session, max_txn, timestampp));
+
+	if (all_visible)
 		goto check_original_value;
+
+	if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
+		WT_PANIC_RET(session, EINVAL,
+		    "reconciliation error, update not visible");
+	if (!F_ISSET(r, WT_REC_LOOKASIDE))
+		r->leave_dirty = true;
 
 	/*
 	 * If not trying to evict the page, we know what we'll write and we're
@@ -1336,7 +1336,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 * (i.e. globally visible).  There are two ways to continue, the
 	 * save/restore eviction path or the lookaside table eviction path.
 	 * Both cannot be configured because the paths track different
-	 * information. The save/restore path can handle uncommitted changes,
+	 * information. The update/restore path can handle uncommitted changes,
 	 * by evicting most of the page and then creating a new, smaller page
 	 * to which we re-attach those changes. Lookaside eviction writes
 	 * changes into the lookaside table and restores them on demand if and
@@ -1346,7 +1346,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 * path is the WT_REC_UPDATE_RESTORE flag, the lookaside table path is
 	 * the WT_REC_LOOKASIDE flag.
 	 */
-	if (!F_ISSET(r, WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE))
+	if (!F_ISSET(r, WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE) &&
+	    !F_ISSET(btree, WT_BTREE_LOOKASIDE))
 		return (EBUSY);
 	if (uncommitted && !F_ISSET(r, WT_REC_UPDATE_RESTORE))
 		return (EBUSY);
