@@ -152,7 +152,7 @@ wts_ops(int lastrun)
 		 * them traverse the same RNG space. 75% of the time we run in
 		 * independent RNG space.
 		 */
-		if (g.c_independent_rng)
+		if (g.c_independent_thread_rng)
 			__wt_random_init_seed(
 			    (WT_SESSION_IMPL *)session, &tinfo->rnd);
 		else

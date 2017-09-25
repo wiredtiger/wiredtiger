@@ -165,9 +165,9 @@ static CONFIG c[] = {
 	  "if values are huffman encoded",			/* 20% */
 	  C_BOOL, 20, 0, 0, &g.c_huffman_value, NULL },
 
-	{ "independent_rng",
+	{ "independent_thread_rng",
 	  "if thread RNG space is independent",			/* 75% */
-	  C_BOOL, 75, 0, 0, &g.c_independent_rng, NULL },
+	  C_BOOL, 75, 0, 0, &g.c_independent_thread_rng, NULL },
 
 	{ "in_memory",
 	  "if in-memory configured",
