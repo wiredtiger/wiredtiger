@@ -118,15 +118,6 @@ session.create("table:T", "type=lsm");
 LSM only supports key formats of \c S or \c u, that is, \c key_format
 must be configured to one of those two column types.
 
-@subsection lsm_hazard Hazard configuration
-
-Reads from an LSM cursor may need to position a cursor in each active chunk.
-The number of chunks depends on the chunk size, and how many chunks have
-been merged.  There must be at least as many hazard pointers available as
-there are chunks in the tree for each cursor that is open on the LSM tree.
-The number of hazard pointers is configured with the \c "hazard_max"
-configuration key to ::wiredtiger_open.
-
 @subsection lsm_checkpoints Named checkpoints
 
 Named checkpoints are not supported on LSM trees, and cursors cannot be
