@@ -681,6 +681,7 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
 		WT_RET_MSG(session, EINVAL, "no read_timestamp required and "
 		    "timestamp set on this transaction");
 #endif
+        WT_UNUSED(session);
 	return (0);
 }
 
