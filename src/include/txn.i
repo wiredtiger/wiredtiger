@@ -22,6 +22,8 @@ __wt_txn_timestamp_flags(WT_SESSION_IMPL *session)
 {
 	WT_BTREE *btree;
 
+	if (session->dhandle == NULL)
+		return;
 	btree = S2BT(session);
 	if (btree == NULL)
 		return;
