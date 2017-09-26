@@ -43,7 +43,7 @@ class test_debug01(wttest.WiredTigerTestCase, suite_subprocess):
         if not wiredtiger.timestamp_build():
             self.skipTest('requires a timestamp build')
 
-        base = 'debug01.'
+        base = 'debug01'
         base_uri = 'file:' + base
         uri_always = base_uri + '.always.wt'
         uri_def = base_uri + '.def.wt'
@@ -79,6 +79,7 @@ class test_debug01(wttest.WiredTigerTestCase, suite_subprocess):
         c_none.close()
 
         # Commit a transaction with a timestamp containing the never table.
+        # This should return an error.
         msg = "/timestamp set on this transaction/"
         c_never = self.session.open_cursor(uri_never)
         self.session.begin_transaction()
@@ -104,6 +105,7 @@ class test_debug01(wttest.WiredTigerTestCase, suite_subprocess):
         c_none.close()
 
         # Commit a transaction without a timestamp containing the always table.
+        # This should return an error.
         msg = "/none set on this transaction/"
         c_always = self.session.open_cursor(uri_always)
         self.session.begin_transaction()

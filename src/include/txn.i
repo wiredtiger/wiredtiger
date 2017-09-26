@@ -14,6 +14,24 @@ static inline void __wt_txn_read_last(WT_SESSION_IMPL *session);
 #define	WT_WITH_TIMESTAMP_READLOCK(session, l, e)       e
 
 /*
+ * __wt_txn_timestamp_flags --
+ *	Set txn related timestamp flags.
+ */
+static inline void
+__wt_txn_timestamp_flags(WT_SESSION_IMPL *session)
+{
+	WT_BTREE *btree;
+
+	btree = S2BT(session);
+	if (btree == NULL)
+		return;
+	if (FLD_ISSET(btree->debug, BTREE_DBG_COMMITTS_ALWAYS))
+		F_SET(&session->txn, WT_TXN_TS_COMMIT_ALWAYS);
+	if (FLD_ISSET(btree->debug, BTREE_DBG_COMMITTS_NEVER))
+		F_SET(&session->txn, WT_TXN_TS_COMMIT_NEVER);
+}
+
+/*
  * __wt_timestamp_cmp --
  *	Compare two timestamps.
  */
@@ -671,9 +689,6 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
 static inline int
 __wt_txn_update_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-#ifdef  HAVE_TIMESTAMPS
-	WT_BTREE *btree;
-#endif
 	WT_TXN *txn;
 
 	txn = &session->txn;
@@ -688,17 +703,6 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 			}
 			upd = upd->next;
 		}
-#ifdef  HAVE_TIMESTAMPS
-	btree = S2BT(session);
-	if (FLD_ISSET(btree->debug, BTREE_DBG_COMMITTS_ALWAYS)) {
-		WT_ASSERT(session, !F_ISSET(txn, WT_TXN_TS_COMMIT_NEVER));
-		F_SET(txn, WT_TXN_TS_COMMIT_ALWAYS);
-	}
-	if (FLD_ISSET(btree->debug, BTREE_DBG_COMMITTS_NEVER)) {
-		WT_ASSERT(session, !F_ISSET(txn, WT_TXN_TS_COMMIT_ALWAYS));
-		F_SET(txn, WT_TXN_TS_COMMIT_NEVER);
-	}
-#endif
 
 	return (0);
 }
