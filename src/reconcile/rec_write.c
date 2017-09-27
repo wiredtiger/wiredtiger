@@ -1383,7 +1383,7 @@ check_original_value:
 		for (upd = first_upd; upd->next != NULL; upd = upd->next)
 			;
 		if (__wt_timestamp_cmp(
-		    &r->min_saved_timestamp, &upd->timestamp) < 0)
+		    &r->min_saved_timestamp, &upd->timestamp) > 0)
 			__wt_timestamp_set(
 			    &r->min_saved_timestamp, &upd->timestamp);
 	}
