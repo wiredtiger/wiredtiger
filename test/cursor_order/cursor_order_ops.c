@@ -49,8 +49,8 @@ void
 ops_start(SHARED_CONFIG *cfg)
 {
 	struct timeval start, stop;
-	double seconds;
 	wt_thread_t *tids;
+	double seconds;
 	uint64_t i, name_index, offset, total_nops;
 
 	tids = NULL;	/* Keep GCC 4.1 happy. */

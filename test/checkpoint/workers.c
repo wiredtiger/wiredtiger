@@ -63,8 +63,8 @@ start_workers(table_type type)
 {
 	struct timeval start, stop;
 	WT_SESSION *session;
-	double seconds;
 	wt_thread_t *tids;
+	double seconds;
 	int i, ret;
 
 	ret = 0;

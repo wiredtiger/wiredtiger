@@ -1348,10 +1348,10 @@ __conn_config_file(WT_SESSION_IMPL *session,
 {
 	WT_DECL_RET;
 	WT_FH *fh;
-	size_t len;
 	wt_off_t size;
-	bool exist, quoted;
+	size_t len;
 	char *p, *t;
+	bool exist, quoted;
 
 	fh = NULL;
 
@@ -1583,10 +1583,10 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_CONNECTION_IMPL *conn, *t;
 	WT_DECL_RET;
 	WT_FH *fh;
-	size_t len;
 	wt_off_t size;
-	bool bytelock, exist, is_create, match;
+	size_t len;
 	char buf[256];
+	bool bytelock, exist, is_create, match;
 
 	conn = S2C(session);
 	fh = NULL;

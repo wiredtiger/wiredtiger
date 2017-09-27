@@ -561,9 +561,9 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 void
 __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session)
 {
-	wt_timestamp_t ts;
 	WT_TXN *prev, *txn;
 	WT_TXN_GLOBAL *txn_global;
+	wt_timestamp_t ts;
 
 	txn = &session->txn;
 	txn_global = &S2C(session)->txn_global;

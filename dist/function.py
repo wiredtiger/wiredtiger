@@ -40,22 +40,23 @@ def function_args(line):
         'union ' : 2,
         'enum ' : 3,
         'WT_' : 4,
-        'double ' : 5,
-        'float ' : 6,
-        'size_t ' : 7,
-        'uint64_t ' : 8,
-        'int64_t ' : 9,
-        'uint32_t ' : 10,
-        'int32_t ' : 11,
-        'uint8_t ' : 12,
-        'int8_t ' : 13,
-        'u_int ' : 14,
-        'int ' : 15,
-        'u_char ' : 16,
-        'char ' : 17,
-        'bool ' : 18,
-        'va_list ' : 19,
-        'void ' : 20,
+        'wt_' : 5,
+        'double ' : 6,
+        'float ' : 7,
+        'size_t ' : 8,
+        'uint64_t ' : 9,
+        'int64_t ' : 10,
+        'uint32_t ' : 11,
+        'int32_t ' : 12,
+        'uint8_t ' : 13,
+        'int8_t ' : 14,
+        'u_int ' : 15,
+        'int ' : 16,
+        'u_char ' : 17,
+        'char ' : 18,
+        'bool ' : 19,
+        'va_list ' : 20,
+        'void ' : 21,
 
     }
     line = line.strip()
@@ -66,6 +67,13 @@ def function_args(line):
     # of the function and looks like a WT_XXX variable declaration.
     if re.search('^WT_UNUSED', line):
         return False,0
+
+    # Let lines not terminated with a semicolon terminate the parse, if means
+    # there's some kind of interesting line split we probably can't handle.
+    if not re.search(';$', line):
+        return False,0
+
+    # Check for matching types.
     for m in types:
         # Don't list '{' as a legal character in a declaration, that's what
         # prevents us from sorting inline union/struct declarations.
