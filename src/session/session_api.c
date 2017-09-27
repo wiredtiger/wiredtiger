@@ -1916,7 +1916,9 @@ __open_session(WT_CONNECTION_IMPL *conn,
 	WT_ERR(__wt_malloc(session, WT_OPTRACK_BUFSIZE,
 			   &session_ret->optrack_buf));
 	WT_ERR(__wt_snprintf(optrack_fname,
-	    PATH_MAX, "%s/optrack.%d", conn->optrack, session_ret->id));
+	    PATH_MAX, "%s/optrack.%" PRIuMAX ".%d",
+			     conn->optrack, conn->optrack_pid,
+			     session_ret->id));
 	WT_ERR(__wt_open(session, optrack_fname, WT_FS_OPEN_FILE_TYPE_REGULAR,
 			 WT_FS_OPEN_CREATE, &session_ret->optrack_fh));
 
