@@ -313,10 +313,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 			 * see the dhandle before the commit, which will lead
 			 * to the rollback error. We will ignore this dhandle as
 			 * part of this checkpoint by returning from here.
-			 * Also clear the txn error set.
 			 */
-			if (F_ISSET(&session->txn, WT_TXN_ERROR))
-				F_CLR(&session->txn, WT_TXN_ERROR);
 			WT_TRET(__wt_metadata_cursor_release(session,
 			    &meta_cursor));
 			return (0);
