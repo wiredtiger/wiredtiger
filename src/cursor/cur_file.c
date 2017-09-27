@@ -268,8 +268,8 @@ __wt_curfile_insert_check(WT_CURSOR *cursor)
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_UPDATE_API_CALL_BTREE(cursor, session, update, cbt->btree);
 	/*
-  	 * Retain the transaction error state across the function
-  	 */
+	 * Retain the transaction error state across the function
+	 */
 	txn_error = F_ISSET(&session->txn, WT_TXN_ERROR);
 	WT_ERR(__cursor_checkkey(cursor));
 
