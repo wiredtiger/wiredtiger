@@ -298,7 +298,7 @@ struct __wt_page_modify {
 		uint32_t checksum;
 
 		uint64_t lookaside_pageid;
-		WT_DECL_TIMESTAMP(lookaside_min_timestamp);
+		WT_DECL_TIMESTAMP(lookaside_min_timestamp)
 	} *multi;
 	uint32_t multi_entries;		/* Multiple blocks element count */
 	} m;
