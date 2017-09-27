@@ -30,42 +30,46 @@ def function_args_strip(text, prefix):
 # settled on a style, and it's roughly what the KNF/BSD styles look like.
 def function_args(line):
     types = {
-        'WT_UNUSED' : 0,        # Ignore WT_UNUSED (looks like a declaration)
         'u_int16_t ' : -1,      # Not allowed
         'u_int32_t ' : -1,      # Not allowed
         'u_int64_t ' : -1,      # Not allowed
         'u_int8_t ' : -1,       # Not allowed
         'u_quad ' : -1,         # Not allowed
         'uint ' : -1,           # Not allowed
-        'struct\s{' : 0,        # We can't handle inline structure declarations.
-        'union\s{' : 0,         # We can't handle inline union declarations.
-        'struct\s\w' : 1,       # Types in argument display order. */
-        'union\s\w' : 2,
-        'WT_\W*' : 3,
-        'double ' : 4,
-        'float ' : 5,
-        'size_t ' : 6,
-        'uint64_t ' : 7,
-        'int64_t ' : 8,
-        'uint32_t ' : 9,
-        'int32_t ' : 10,
-        'uint8_t ' : 11,
-        'int8_t ' : 12,
-        'u_int ' : 13,
-        'int ' : 14,
-        'u_char ' : 15,
-        'char ' : 16,
-        'bool ' : 17,
-        'va_list ' : 18,
-        'void ' : 19,
+        'struct ' : 1,          # Types in argument display order. */
+        'union ' : 2,
+        'enum ' : 3,
+        'WT_' : 4,
+        'double ' : 5,
+        'float ' : 6,
+        'size_t ' : 7,
+        'uint64_t ' : 8,
+        'int64_t ' : 9,
+        'uint32_t ' : 10,
+        'int32_t ' : 11,
+        'uint8_t ' : 12,
+        'int8_t ' : 13,
+        'u_int ' : 14,
+        'int ' : 15,
+        'u_char ' : 16,
+        'char ' : 17,
+        'bool ' : 18,
+        'va_list ' : 19,
+        'void ' : 20,
 
     }
     line = line.strip()
     line = function_args_strip(line, "const")
     line = function_args_strip(line, "volatile")
 
+    # Let WT_UNUSED terminate the parse. It often appears at the beginning
+    # of the function and looks like a WT_XXX variable declaration.
+    if re.search('^WT_UNUSED', line):
+        return False,0
     for m in types:
-        if re.search('^' + m + "[\s\w]*", line):
+        # Don't list '{' as a legal character in a declaration, that's what
+        # prevents us from sorting inline union/struct declarations.
+        if re.search('^' + m + "\s*[\w(*]", line):
             return True,types[m]
     return False,0
 
@@ -78,6 +82,9 @@ def function_declaration():
         if skip_re.search(s):
             continue
 
+        # Read through the file, and for each function, do a style pass over
+        # the local declarations. Quit tracking declarations as soon as we
+        # find anything we don't understand, leaving it untouched.
         with open(name, 'r') as f:
             tfile = open(tmp_file, 'w')
             tracking = False
