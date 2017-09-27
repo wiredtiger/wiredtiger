@@ -270,7 +270,7 @@ __wt_curfile_insert_check(WT_CURSOR *cursor)
 	/*
 	 * Retain the transaction error state across the function
 	 */
-	txn_error = F_ISSET(&session->txn, WT_TXN_ERROR) ? true : false;
+	txn_error = F_ISSET(&session->txn, WT_TXN_ERROR);
 	WT_ERR(__cursor_checkkey(cursor));
 
 	ret = __wt_btcur_insert_check(cbt);
