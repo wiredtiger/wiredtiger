@@ -263,21 +263,19 @@ __wt_curfile_insert_check(WT_CURSOR *cursor)
 	WT_CURSOR_BTREE *cbt;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	bool txn_error = false;
+	int tret;
 
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_UPDATE_API_CALL_BTREE(cursor, session, update, cbt->btree);
-	/*
-	 * Retain the transaction error state across the function
-	 */
-	txn_error = F_ISSET(&session->txn, WT_TXN_ERROR);
 	WT_ERR(__cursor_checkkey(cursor));
 
-	ret = __wt_btcur_insert_check(cbt);
+	tret = __wt_btcur_insert_check(cbt);
 
+	/*
+	 * Detecting a conflict should not cause transaction error
+	 */
 err:	CURSOR_UPDATE_API_END(session, ret);
-	if (!txn_error && F_ISSET(&session->txn, WT_TXN_ERROR))
-		F_CLR(&session->txn, WT_TXN_ERROR);
+	WT_TRET(tret);
 	return (ret);
 }
 
