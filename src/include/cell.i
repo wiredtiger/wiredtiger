@@ -729,8 +729,8 @@ __cell_data_ref(WT_SESSION_IMPL *session,
     WT_PAGE *page, int page_type, WT_CELL_UNPACK *unpack, WT_ITEM *store)
 {
 	WT_BTREE *btree;
-	void *huffman;
 	bool decoded;
+	void *huffman;
 
 	btree = S2BT(session);
 

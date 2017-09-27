@@ -2018,10 +2018,10 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
 static int
 __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
-	WT_FSTREAM *fs;
 	WT_CONFIG parser;
 	WT_CONFIG_ITEM cval, k, v;
 	WT_DECL_RET;
+	WT_FSTREAM *fs;
 	bool exist;
 	const char *base_config;
 

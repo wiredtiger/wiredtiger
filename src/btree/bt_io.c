@@ -177,12 +177,12 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 	WT_DECL_ITEM(ctmp);
 	WT_DECL_ITEM(etmp);
 	WT_DECL_RET;
-	WT_KEYED_ENCRYPTOR *kencryptor;
 	WT_ITEM *ip;
+	WT_KEYED_ENCRYPTOR *kencryptor;
 	WT_PAGE_HEADER *dsk;
 	size_t dst_len, len, result_len, size, src_len;
-	int compression_failed;		/* Extension API, so not a bool. */
 	uint8_t *dst, *src;
+	int compression_failed;		/* Extension API, so not a bool. */
 	bool data_checksum, encrypted, timer;
 
 	btree = S2BT(session);

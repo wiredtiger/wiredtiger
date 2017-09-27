@@ -81,8 +81,8 @@ static int
 __drop_index(
     WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[])
 {
-	WT_INDEX *idx;
 	WT_DECL_RET;
+	WT_INDEX *idx;
 
 	/* If we can get the index, detach it from the table. */
 	if ((ret = __wt_schema_get_index(session, uri, true, force, &idx)) == 0)

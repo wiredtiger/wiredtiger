@@ -293,8 +293,8 @@ __tree_walk_internal(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	WT_PAGE_INDEX *pindex;
 	WT_REF *couple, *couple_orig, *ref;
-	bool empty_internal, initial_descent, prev, skip;
 	uint32_t slot;
+	bool empty_internal, initial_descent, prev, skip;
 
 	btree = S2BT(session);
 	pindex = NULL;

@@ -329,8 +329,8 @@ void
 __wt_cursor_set_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
 {
 	WT_DECL_RET;
-	WT_SESSION_IMPL *session;
 	WT_ITEM *buf, *item, tmp;
+	WT_SESSION_IMPL *session;
 	size_t sz;
 	va_list ap_copy;
 	const char *fmt, *str;

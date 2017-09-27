@@ -876,8 +876,8 @@ __wt_lsm_tree_drop(
 	WT_DECL_RET;
 	WT_LSM_CHUNK *chunk;
 	WT_LSM_TREE *lsm_tree;
-	int tret;
 	u_int i;
+	int tret;
 	bool locked;
 
 	locked = false;
