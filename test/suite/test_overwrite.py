@@ -41,23 +41,23 @@ class test_overwrite(wttest.WiredTigerTestCase):
         ('string', dict(keyfmt='S')),
     ]
     types = [
-        ('file', dict(uri='file:', ds=SimpleDataSet)),
-        ('lsm', dict(uri='lsm:', ds=SimpleDataSet)),
-        ('table-complex', dict(uri='table:', ds=ComplexDataSet)),
-        ('table-complex-lsm', dict(uri='table:', ds=ComplexLSMDataSet)),
-        ('table-index', dict(uri='table:', ds=SimpleIndexDataSet)),
-        ('table-simple', dict(uri='table:', ds=SimpleDataSet)),
-        ('table-simple-lsm', dict(uri='table:', ds=SimpleLSMDataSet)),
+        ('file', dict(uri='file:', lsm=False, ds=SimpleDataSet)),
+        ('lsm', dict(uri='lsm:', lsm=True, ds=SimpleDataSet)),
+        ('table-complex', dict(uri='table:', lsm=False, ds=ComplexDataSet)),
+        ('table-complex-lsm', dict(uri='table:', lsm=True, ds=ComplexLSMDataSet)),
+        ('table-index', dict(uri='table:', lsm=False, ds=SimpleIndexDataSet)),
+        ('table-simple', dict(uri='table:', lsm=False, ds=SimpleDataSet)),
+        ('table-simple-lsm', dict(uri='table:', lsm=True, ds=SimpleLSMDataSet)),
     ]
     scenarios = make_scenarios(types, keyfmt)
-    def skip(self):
-        return self.keyfmt == 'r' and \
-            (self.ds.is_lsm() or self.uri == 'lsm')
+    # Skip record number keys with LSM.
+    def lsm_recno_skip(self):
+        return self.lsm and self.keyfmt == 'r'
 
     # Confirm a cursor configured with/without overwrite correctly handles
     # non-existent records during insert, remove and update operations.
     def test_overwrite_insert(self):
-        if self.skip():
+        if self.lsm_recno_skip():
             return
 
         uri = self.uri + self.name
@@ -100,7 +100,7 @@ class test_overwrite(wttest.WiredTigerTestCase):
         self.assertEquals(cursor.insert(), 0)
 
     def test_overwrite_remove(self):
-        if self.skip():
+        if self.lsm_recno_skip():
             return
 
         uri = self.uri + self.name
@@ -128,7 +128,7 @@ class test_overwrite(wttest.WiredTigerTestCase):
         self.assertEquals(cursor.remove(), 0)
 
     def test_overwrite_update(self):
-        if self.skip():
+        if self.lsm_recno_skip():
             return
 
         uri = self.uri + self.name

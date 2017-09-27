@@ -35,9 +35,9 @@ class test_cursor_comparison(wttest.WiredTigerTestCase):
     name = 'test_compare'
 
     types = [
-        ('file', dict(type='file:', dataset=SimpleDataSet)),
-        ('lsm', dict(type='table:', dataset=ComplexLSMDataSet)),
-        ('table', dict(type='table:', dataset=ComplexDataSet))
+        ('file', dict(type='file:', lsm=False, dataset=SimpleDataSet)),
+        ('lsm', dict(type='table:', lsm=True, dataset=ComplexLSMDataSet)),
+        ('table', dict(type='table:', lsm=False, dataset=ComplexDataSet))
     ]
     keyfmt = [
         ('integer', dict(keyfmt='i')),
@@ -46,7 +46,14 @@ class test_cursor_comparison(wttest.WiredTigerTestCase):
     ]
     scenarios = make_scenarios(types, keyfmt)
 
+    # Skip record number keys with LSM.
+    def lsm_recno_skip(self):
+        return self.lsm and self.keyfmt == 'r'
+
     def test_cursor_comparison(self):
+        if self.lsm_recno_skip():
+            return
+
         uri = self.type + 'compare'
         uriX = self.type + 'compareX'
 
@@ -136,6 +143,9 @@ class test_cursor_comparison(wttest.WiredTigerTestCase):
             wiredtiger.WiredTigerError, lambda: cX.compare(c1), msg)
 
     def test_cursor_equality(self):
+        if self.lsm_recno_skip():
+            return
+
         uri = self.type + 'equality'
         uriX = self.type + 'compareX'
 

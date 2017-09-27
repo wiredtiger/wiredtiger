@@ -175,7 +175,7 @@ class test_cursor12(wttest.WiredTigerTestCase):
     ]
 
     # Skip record number keys with LSM.
-    def skip(self):
+    def lsm_recno_skip(self):
         return self.keyfmt == 'r' and 'lsm' in self.uri
 
     # Create a set of modified records and verify in-memory reads.
@@ -225,7 +225,7 @@ class test_cursor12(wttest.WiredTigerTestCase):
 
     # Smoke-test the modify API, operating on a group of records.
     def test_modify_smoke(self):
-        if self.skip():
+        if self.lsm_recno_skip():
             return
 
         ds = SimpleDataSet(self,
@@ -235,7 +235,7 @@ class test_cursor12(wttest.WiredTigerTestCase):
 
     # Smoke-test the modify API, operating on a single record
     def test_modify_smoke_single(self):
-        if self.skip():
+        if self.lsm_recno_skip():
             return
 
         ds = SimpleDataSet(self,
@@ -245,7 +245,7 @@ class test_cursor12(wttest.WiredTigerTestCase):
 
     # Smoke-test the modify API, closing and re-opening the database.
     def test_modify_smoke_reopen(self):
-        if self.skip():
+        if self.lsm_recno_skip():
             return
 
         ds = SimpleDataSet(self,
@@ -260,7 +260,7 @@ class test_cursor12(wttest.WiredTigerTestCase):
 
     # Smoke-test the modify API, recovering the database.
     def test_modify_smoke_recover(self):
-        if self.skip():
+        if self.lsm_recno_skip():
             return
 
         # Close the original database.
@@ -291,6 +291,9 @@ class test_cursor12(wttest.WiredTigerTestCase):
 
     # Check that we can perform a large number of modifications to a record.
     def test_modify_many(self):
+        if self.lsm_recno_skip():
+            return
+
         ds = SimpleDataSet(self,
             self.uri, 20, key_format=self.keyfmt, value_format='u')
         ds.populate()
@@ -314,6 +317,9 @@ class test_cursor12(wttest.WiredTigerTestCase):
 
     # Check that modify returns not-found after a delete.
     def test_modify_delete(self):
+        if self.lsm_recno_skip():
+            return
+
         ds = SimpleDataSet(self,
             self.uri, 20, key_format=self.keyfmt, value_format='u')
         ds.populate()
@@ -332,7 +338,7 @@ class test_cursor12(wttest.WiredTigerTestCase):
     # Check that modify returns not-found when an insert is not yet committed
     # and after it's aborted.
     def test_modify_abort(self):
-        if self.skip():
+        if self.lsm_recno_skip():
             return
 
         ds = SimpleDataSet(self,
