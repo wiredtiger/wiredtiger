@@ -19,11 +19,14 @@ def missing_comment():
                    print "%s:%d: missing comment for %s" % \
                            (f, s[:m.start(2)].count('\n'), m.group(2))
 
-# Strip a prefix, used to remove "const" and "volatile" from declarations.
-def function_args_strip(text, prefix):
-    if text.startswith(prefix):
-        return text[len(prefix):]
-    return text
+# Sort helper function, discard * operators so a pointer doesn't necessarily
+# sort before non-pointers.
+def function_args_alpha(text):
+        s = text.strip()
+        s = re.sub("[*]","", s)
+        s = re.sub("^const ","", s)
+        s = re.sub("^volatile ","", s)
+        return s
 
 # Return the sort order of a variable declaration, or no-match.
 #       This order isn't defensible: it's roughly how WiredTiger looked when we
@@ -60,8 +63,8 @@ def function_args(line):
 
     }
     line = line.strip()
-    line = function_args_strip(line, "const")
-    line = function_args_strip(line, "volatile")
+    line = re.sub("^const ", "", line)
+    line = re.sub("^volatile ", "", line)
 
     # Let WT_UNUSED terminate the parse. It often appears at the beginning
     # of the function and looks like a WT_XXX variable declaration.
@@ -111,7 +114,8 @@ def function_declaration():
                     sys.exit(1)
                 if value == 0 or not found:
                     for arg in filter(None, r):
-                        for p in sorted(arg): tfile.write(p)
+                        for p in sorted(arg, key=function_args_alpha):
+                            tfile.write(p)
                     tfile.write(line)
                     tracking = False
                     continue
