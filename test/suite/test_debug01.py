@@ -37,82 +37,78 @@ def timestamp_str(t):
     return '%x' % t
 
 class test_debug01(wttest.WiredTigerTestCase, suite_subprocess):
+    base = 'debug01'
+    base_uri = 'file:' + base
+    uri_always = base_uri + '.always.wt'
+    uri_def = base_uri + '.def.wt'
+    uri_never = base_uri + '.never.wt'
+    uri_none = base_uri + '.none.wt'
+    cfg = 'key_format=S,value_format=S,'
+    cfg_always = 'debug=(commit_timestamp=always)'
+    cfg_def = ''
+    cfg_never = 'debug=(commit_timestamp=never)'
+    cfg_none = 'debug=(commit_timestamp=none)'
+
+    count = 1
+    #
+    # Commit a k/v pair making sure that it detects an error if needed, when
+    # used with and without a commit timestamp.
+    #
+    def insert_check(self, uri, use_ts):
+        c = self.session.open_cursor(uri)
+        key = 'key' + str(self.count)
+        val = 'value' + str(self.count)
+
+        # Commit with a timestamp
+        self.session.begin_transaction()
+        self.session.timestamp_transaction(
+            'commit_timestamp=' + timestamp_str(self.count))
+        c[key] = val
+        # All settings other than never should commit successfully
+        if (use_ts != 'never'):
+            self.session.commit_transaction()
+        else:
+            msg = "/timestamp set on this transaction/"
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda:self.assertEquals(self.session.commit_transaction(),
+                0), msg)
+        c.close()
+        self.count += 1
+
+        # Commit without a timestamp
+        key = 'key' + str(self.count)
+        val = 'value' + str(self.count)
+        c = self.session.open_cursor(uri)
+        self.session.begin_transaction()
+        c[key] = val
+        # All settings other than always should commit successfully
+        if (use_ts != 'always'):
+            self.session.commit_transaction()
+        else:
+            msg = "/none set on this transaction/"
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda:self.assertEquals(self.session.commit_transaction(),
+                0), msg)
+        self.count += 1
+        c.close()
+
     def test_commit_timestamp(self):
         #if not wiredtiger.timestamp_build() or not wiredtiger.diagnostic_build():
         #    self.skipTest('requires a timestamp and diagnostic build')
         if not wiredtiger.timestamp_build():
             self.skipTest('requires a timestamp build')
 
-        base = 'debug01'
-        base_uri = 'file:' + base
-        uri_always = base_uri + '.always.wt'
-        uri_def = base_uri + '.def.wt'
-        uri_never = base_uri + '.never.wt'
-        uri_none = base_uri + '.none.wt'
-
-        cfg = 'key_format=S,value_format=S'
-        cfg_always = cfg + ',debug=(commit_timestamp=always)'
-        cfg_def = cfg
-        cfg_never = cfg + ',debug=(commit_timestamp=never)'
-        cfg_none = cfg + ',debug=(commit_timestamp=none)'
-
         # Create a data item at a timestamp
-        self.session.create(uri_always, cfg_always)
-        self.session.create(uri_def, cfg_def)
-        self.session.create(uri_never, cfg_never)
-        self.session.create(uri_none, cfg_none)
+        self.session.create(self.uri_always, self.cfg + self.cfg_always)
+        self.session.create(self.uri_def, self.cfg + self.cfg_def)
+        self.session.create(self.uri_never, self.cfg + self.cfg_never)
+        self.session.create(self.uri_none, self.cfg + self.cfg_none)
 
-        # Insert a data item at timestamp 2.  This should work for all
-        # except the never table.
-        c_always = self.session.open_cursor(uri_always)
-        c_def = self.session.open_cursor(uri_def)
-        c_none = self.session.open_cursor(uri_none)
-        self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(1))
-        c_always['key1'] = 'value1'
-        c_def['key1'] = 'value1'
-        c_none['key1'] = 'value1'
-        self.session.commit_transaction()
-        c_always.close()
-        c_def.close()
-        c_none.close()
-
-        # Commit a transaction with a timestamp containing the never table.
-        # This should return an error.
-        msg = "/timestamp set on this transaction/"
-        c_never = self.session.open_cursor(uri_never)
-        self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(1))
-        c_never['key1'] = 'value1'
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda:self.assertEquals(self.session.commit_transaction(), 0), msg)
-        c_never.close()
-
-        # Insert a data item with no timestamp.  This should work for all
-        # except the always table.
-        c_def = self.session.open_cursor(uri_def)
-        c_never = self.session.open_cursor(uri_never)
-        c_none = self.session.open_cursor(uri_none)
-        self.session.begin_transaction()
-        c_def['key2'] = 'value2'
-        c_never['key2'] = 'value2'
-        c_none['key2'] = 'value2'
-        self.session.commit_transaction()
-        c_never.close()
-        c_def.close()
-        c_none.close()
-
-        # Commit a transaction without a timestamp containing the always table.
-        # This should return an error.
-        msg = "/none set on this transaction/"
-        c_always = self.session.open_cursor(uri_always)
-        self.session.begin_transaction()
-        c_always['key2'] = 'value2'
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda:self.assertEquals(self.session.commit_transaction(), 0), msg)
-        c_always.close()
+        # Check inserting into each table
+        self.insert_check(self.uri_always, 'always')
+        self.insert_check(self.uri_def, 'none')
+        self.insert_check(self.uri_never, 'never')
+        self.insert_check(self.uri_none, 'none')
 
 if __name__ == '__main__':
     wttest.run()
