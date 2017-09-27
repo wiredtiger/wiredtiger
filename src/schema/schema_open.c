@@ -39,10 +39,10 @@ __wt_schema_open_colgroups(WT_SESSION_IMPL *session, WT_TABLE *table)
 	WT_COLGROUP *colgroup;
 	WT_CONFIG cparser;
 	WT_CONFIG_ITEM ckey, cval;
-	WT_DECL_RET;
 	WT_DECL_ITEM(buf);
-	char *cgconfig;
+	WT_DECL_RET;
 	u_int i;
+	char *cgconfig;
 
 	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_TABLE));
 

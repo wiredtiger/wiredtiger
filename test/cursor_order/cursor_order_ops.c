@@ -258,8 +258,8 @@ append_insert_op(
     SHARED_CONFIG *cfg, WT_SESSION *session, WT_CURSOR *cursor, INFO *s)
 {
 	WT_ITEM *value, _value;
-	uint64_t keyno;
 	size_t len;
+	uint64_t keyno;
 	char keybuf[64], valuebuf[64];
 
 	WT_UNUSED(session);

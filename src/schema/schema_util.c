@@ -110,8 +110,8 @@ __wt_str_name_check(WT_SESSION_IMPL *session, const char *str)
 int
 __wt_name_check(WT_SESSION_IMPL *session, const char *str, size_t len)
 {
-	WT_DECL_RET;
 	WT_DECL_ITEM(tmp);
+	WT_DECL_RET;
 
 	WT_RET(__wt_scr_alloc(session, len, &tmp));
 

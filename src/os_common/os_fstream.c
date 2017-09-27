@@ -133,9 +133,9 @@ __fstream_printf(
     WT_SESSION_IMPL *session, WT_FSTREAM *fstr, const char *fmt, va_list ap)
 {
 	WT_ITEM *buf;
-	va_list ap_copy;
 	size_t len, space;
 	char *p;
+	va_list ap_copy;
 
 	buf = &fstr->buf;
 

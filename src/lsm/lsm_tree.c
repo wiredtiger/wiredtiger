@@ -329,6 +329,7 @@ int
 __wt_lsm_tree_create(WT_SESSION_IMPL *session,
     const char *uri, bool exclusive, const char *config)
 {
+	WT_CONFIG_ITEM cval;
 	WT_DECL_RET;
 	WT_LSM_TREE *lsm_tree;
 	const char *cfg[] =
@@ -345,6 +346,16 @@ __wt_lsm_tree_create(WT_SESSION_IMPL *session,
 	WT_RET_NOTFOUND_OK(ret);
 
 	if (!F_ISSET(S2C(session), WT_CONN_READONLY)) {
+		/*
+		 * LSM only supports S or u key formats.
+		 */
+		WT_ERR(__wt_config_getones(
+		    session, config, "key_format", &cval));
+		if (!WT_STRING_MATCH("S", cval.str, cval.len) &&
+		    !WT_STRING_MATCH("u", cval.str, cval.len))
+			WT_ERR_MSG(session, EINVAL,
+			    "LSM trees require a key_format of 'S' or 'u'");
+
 		WT_ERR(__wt_config_merge(session, cfg, NULL, &metadata));
 		WT_ERR(__wt_metadata_insert(session, uri, metadata));
 	}
@@ -876,8 +887,8 @@ __wt_lsm_tree_drop(
 	WT_DECL_RET;
 	WT_LSM_CHUNK *chunk;
 	WT_LSM_TREE *lsm_tree;
-	int tret;
 	u_int i;
+	int tret;
 	bool locked;
 
 	locked = false;

@@ -183,8 +183,8 @@ static int
 __txn_global_query_timestamp(
     WT_SESSION_IMPL *session, wt_timestamp_t *tsp, const char *cfg[])
 {
-	WT_CONNECTION_IMPL *conn;
 	WT_CONFIG_ITEM cval;
+	WT_CONNECTION_IMPL *conn;
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 	wt_timestamp_t ts;

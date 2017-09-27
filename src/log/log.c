@@ -424,9 +424,9 @@ __wt_log_get_all_files(WT_SESSION_IMPL *session,
 {
 	WT_DECL_RET;
 	WT_LOG *log;
-	char **files;
 	uint32_t id, max;
 	u_int count, i;
+	char **files;
 
 	*filesp = NULL;
 	*countp = 0;
@@ -790,9 +790,9 @@ __log_file_header(
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
 	WT_LOG *log;
+	WT_LOGSLOT tmp;
 	WT_LOG_DESC *desc;
 	WT_LOG_RECORD *logrec;
-	WT_LOGSLOT tmp;
 	WT_MYSLOT myslot;
 
 	conn = S2C(session);
@@ -1712,8 +1712,8 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
 	WT_DECL_RET;
 	WT_LOG *log;
 	WT_LSN sync_lsn;
-	int64_t release_buffered, release_bytes;
 	uint64_t fsync_duration_usecs;
+	int64_t release_buffered, release_bytes;
 	bool locked;
 
 	conn = S2C(session);
@@ -2301,9 +2301,9 @@ __wt_log_write(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 	WT_KEYED_ENCRYPTOR *kencryptor;
 	WT_LOG *log;
 	WT_LOG_RECORD *newlrp;
-	int compression_failed;
 	size_t dst_len, len, new_size, result_len, src_len;
 	uint8_t *dst, *src;
+	int compression_failed;
 
 	conn = S2C(session);
 	log = conn->log;

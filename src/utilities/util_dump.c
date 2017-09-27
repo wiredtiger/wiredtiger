@@ -36,8 +36,8 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
 	WT_DECL_RET;
 	size_t len;
 	int ch, i;
-	bool hex, json, reverse;
 	char *checkpoint, *config, *p, *simpleuri, *uri;
+	bool hex, json, reverse;
 
 	hex = json = reverse = false;
 	checkpoint = config = simpleuri = uri = NULL;
@@ -281,9 +281,9 @@ static int
 dump_projection(WT_SESSION *session, const char *config, WT_CURSOR *cursor,
     char **newconfigp)
 {
-	WT_DECL_RET;
 	WT_CONFIG_ITEM key, value;
 	WT_CONFIG_PARSER *parser;
+	WT_DECL_RET;
 	WT_EXTENSION_API *wt_api;
 	size_t len, vallen;
 	int nkeys;

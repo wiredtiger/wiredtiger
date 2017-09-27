@@ -94,9 +94,9 @@ static void
 run_ops(int dbs)
 {
 	WT_ITEM data;
-	int db_set, i, key;
 	uint32_t db;
 	uint8_t buf[MAX_VAL];
+	int db_set, i, key;
 
 	memset(buf, 0, sizeof(buf));
 	for (i = 0; i < MAX_VAL; ++i)
@@ -121,8 +121,8 @@ run_ops(int dbs)
 int
 main(int argc, char *argv[])
 {
-	uint64_t cond_reset, cond_wait;
 	uint64_t *cond_reset_orig;
+	uint64_t cond_reset, cond_wait;
 	int cfg, ch, dbs, i;
 	bool idle;
 	const char *working_dir, *wt_cfg;

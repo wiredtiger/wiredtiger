@@ -358,9 +358,9 @@ __wt_txn_checkpoint_log(
 	WT_LSN *ckpt_lsn;
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
-	uint8_t *end, *p;
 	size_t recsize;
 	uint32_t i, rectype;
+	uint8_t *end, *p;
 	const char *fmt;
 
 	conn = S2C(session);

@@ -1032,8 +1032,8 @@ __wt_row_leaf_value_cell(WT_PAGE *page, WT_ROW *rip, WT_CELL_UNPACK *kpack)
 {
 	WT_CELL *kcell, *vcell;
 	WT_CELL_UNPACK unpack;
-	void *copy, *key;
 	size_t size;
+	void *copy, *key;
 
 	/* If we already have an unpacked key cell, use it. */
 	if (kpack != NULL)
@@ -1172,8 +1172,8 @@ static inline bool
 __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
 	WT_BTREE *btree;
-	WT_INSERT_HEAD *ins_head;
 	WT_INSERT *ins;
+	WT_INSERT_HEAD *ins_head;
 	size_t size;
 	int count;
 

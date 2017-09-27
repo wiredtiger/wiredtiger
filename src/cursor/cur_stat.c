@@ -84,9 +84,9 @@ __curstat_get_value(WT_CURSOR *cursor, ...)
 	WT_DECL_RET;
 	WT_ITEM *item;
 	WT_SESSION_IMPL *session;
-	va_list ap;
 	size_t size;
 	uint64_t *v;
+	va_list ap;
 	const char *desc, **p;
 
 	cst = (WT_CURSOR_STAT *)cursor;
