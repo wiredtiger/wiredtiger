@@ -1028,20 +1028,55 @@ err:	API_END_RET_NOTFOUND_MAP(session, ret);
 static int
 __conn_optrack_dir(WT_SESSION_IMPL *session, const char *cfg[])
 {
+	bool exists, must_free = false;
+	const char  *parent_dir;
+	char optrack_dirname[PATH_MAX];
 	WT_CONFIG_ITEM cval;
+	WT_FH *dir_fh = NULL;
+	uintmax_t pid;
 
 	/* Only use the environment variable if configured. */
 	WT_RET(__wt_config_gets(session, cfg, "use_environment", &cval));
 	if (cval.val != 0 &&
 	    __wt_getenv(session, "WIREDTIGER_OPTRACK",
-			&S2C(session)->optrack) == 0)
-		return (0);
+			&parent_dir) == 0)
+		must_free = true; /* __wt_getenv allocates memory for us */
 
 	/*
 	 * If there's no WIREDTIGER_OPTRACK environment variable, use the
 	 * configured database directory.
 	 */
-	S2C(session)->optrack = ".";
+	parent_dir = ".";
+
+	printf("Parent dir is %s\n", parent_dir);
+
+	/*
+	 * Within the parent directory, we will need a directory corresponding
+	 * to the current process ID for storing operation tracking log files.
+	 */
+	pid = __wt_process_id();
+
+	WT_RET(__wt_snprintf((char*)optrack_dirname,
+			     PATH_MAX, "%s/%" PRIuMAX "",
+			     parent_dir, pid));
+	WT_RET(__wt_strdup(session, (char*)optrack_dirname,
+			   &S2C(session)->optrack));
+	if (must_free)
+		__wt_free(session, parent_dir);
+
+	printf("optrack dir is %s\n", (char*)optrack_dirname);
+
+	/* If the directory does not exist, create it. */
+	WT_RET(__wt_fs_exist(session, S2C(session)->optrack, &exists));
+	if (!exists)
+		WT_RET(__wt_open(session, S2C(session)->optrack,
+				  WT_FS_OPEN_FILE_TYPE_DIRECTORY,
+				  WT_FS_OPEN_CREATE, &dir_fh));
+	if (dir_fh != NULL)
+		WT_IGNORE_RET(__wt_close(session, &dir_fh));
+
+	printf("Created directory %s or checked that it exists\n",
+	       S2C(session)->optrack);
 	return (0);
 }
 
@@ -1088,6 +1123,9 @@ __conn_optrack_setup(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_RET(__wt_open(session, optrack_map_name,
 			 WT_FS_OPEN_FILE_TYPE_REGULAR,
 			 WT_FS_OPEN_CREATE, &conn->optrack_map_fh));
+	printf("Opened the map file %s with fd %d\n",
+	       optrack_map_name,
+	       ((WT_FILE_HANDLE_POSIX*)conn->optrack_map_fh->handle)->fd);
 
 	WT_RET(__wt_spin_init(session, &conn->optrack_map_spinlock,
 			      "optrack map spinlock"));
@@ -1111,6 +1149,9 @@ __conn_optrack_teardown(WT_SESSION_IMPL *session)
 	conn = S2C(session);
 
 	__wt_spin_destroy(session, &conn->optrack_map_spinlock);
+	printf("Closing optrack map file, fd %d\n",
+	       ((WT_FILE_HANDLE_POSIX*)conn->optrack_map_fh->handle)->fd);
+
 	WT_IGNORE_RET(__wt_close(session, &conn->optrack_map_fh));
 	__wt_free(session, conn->dummy_session.optrack_buf);
 	conn->optrack_on = 0;

@@ -88,3 +88,13 @@ __wt_thread_id(char *buf, size_t buflen)
 	    "%" PRIuMAX ":%p", (uintmax_t)getpid(), (void *)self));
 #endif
 }
+
+/*
+ * __wt_process_id --
+ *      Return the process ID assigned by the operating system.
+ */
+uintmax_t
+__wt_process_id()
+{
+	return (uintmax_t)getpid();
+}
