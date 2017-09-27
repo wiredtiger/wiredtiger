@@ -351,10 +351,9 @@ __wt_lsm_tree_create(WT_SESSION_IMPL *session,
 		 */
 		WT_ERR(__wt_config_getones(
 		    session, config, "key_format", &cval));
-		if (!WT_STRING_MATCH("S", cval.str, cval.len) &&
-		    !WT_STRING_MATCH("u", cval.str, cval.len))
+		if (WT_STRING_MATCH("r", cval.str, cval.len))
 			WT_ERR_MSG(session, EINVAL,
-			    "LSM trees require a key_format of 'S' or 'u'");
+			    "LSM trees do not support a key format of 'r'");
 
 		WT_ERR(__wt_config_merge(session, cfg, NULL, &metadata));
 		WT_ERR(__wt_metadata_insert(session, uri, metadata));

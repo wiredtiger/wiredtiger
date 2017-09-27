@@ -27,30 +27,15 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wtscenario import make_scenarios
 
 # test_lsm_key_format
-#    Test LSM tree key configurations.
+#    LSM doesn't current support column-store keys.
 class test_lsm_key_format(wttest.WiredTigerTestCase):
-    formats = [
-        ('Q1', dict(key_format='key_format=Q', ok=False)),
-        ('Q2', dict(key_format='key_format=q', ok=False)),
-        ('r', dict(key_format='key_format=r', ok=False)),
-        ('S', dict(key_format='key_format=S', ok=True)),
-        ('u', dict(key_format='key_format=u', ok=True))
-    ]
-
-    scenarios = make_scenarios(formats)
-
     def test_lsm_key_format(self):
-        if (self.ok):
-            self.session.create(
-                "table:A", self.key_format + ",value_format=S,type=lsm")
-        else:
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                lambda: self.session.create(
-                "table:A", self.key_format + ",value_format=S,type=lsm"),
-                '/key_format/')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.create(
+            "table:A", "key_format=r,value_format=S,type=lsm"),
+            '/key_format/')
 
 if __name__ == '__main__':
     wttest.run()

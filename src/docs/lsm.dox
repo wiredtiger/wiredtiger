@@ -115,8 +115,8 @@ session.create("table:T", "type=lsm");
 
 @subsection lsm_key_format Key_format configuration
 
-LSM only supports key formats of \c S or \c u, that is, \c key_format
-must be configured to one of those two column types.
+LSM does not support column-store trees, \c key_format may not be set
+to type \c 'r'.
 
 @subsection lsm_checkpoints Named checkpoints
 
