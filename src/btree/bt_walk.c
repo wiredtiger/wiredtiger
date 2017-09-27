@@ -88,8 +88,8 @@ static inline bool
 __ref_is_leaf(WT_REF *ref)
 {
 	size_t addr_size;
-	u_int type;
 	const uint8_t *addr;
+	u_int type;
 
 	/*
 	 * If the page has a disk address, we can crack it to figure out if

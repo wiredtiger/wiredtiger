@@ -134,10 +134,10 @@ static int
 verify_checkpoint(WT_SESSION *session)
 {
 	WT_CURSOR **cursors;
-	const char *type0, *typei;
-	char next_uri[128], ckpt[128];
-	int i, ret, t_ret;
 	uint64_t key_count;
+	int i, ret, t_ret;
+	char next_uri[128], ckpt[128];
+	const char *type0, *typei;
 
 	ret = t_ret = 0;
 	key_count = 0;

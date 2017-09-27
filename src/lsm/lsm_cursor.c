@@ -446,10 +446,10 @@ __clsm_open_cursors(
 	WT_LSM_TREE *lsm_tree;
 	WT_SESSION_IMPL *session;
 	WT_TXN *txn;
-	const char *checkpoint, *ckpt_cfg[3];
 	uint64_t saved_gen;
-	u_int i, nchunks, ngood, nupdates;
 	u_int close_range_end, close_range_start;
+	u_int i, nchunks, ngood, nupdates;
+	const char *checkpoint, *ckpt_cfg[3];
 	bool locked;
 
 	c = &clsm->iface;

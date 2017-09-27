@@ -609,8 +609,8 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	WT_SPLIT_ERROR_PHASE complete;
 	size_t parent_decr, size;
 	uint64_t split_gen;
-	uint32_t *deleted_refs;
 	uint32_t deleted_entries, parent_entries, result_entries;
+	uint32_t *deleted_refs;
 	uint32_t hint, i, j;
 	bool empty_parent;
 

@@ -22,9 +22,9 @@ __wt_log_system_record(
 	WT_LOGSLOT tmp;
 	WT_LOG_RECORD *logrec;
 	WT_MYSLOT myslot;
-	const char *fmt = WT_UNCHECKED_STRING(I);
-	uint32_t rectype = WT_LOGREC_SYSTEM;
 	size_t recsize;
+	uint32_t rectype = WT_LOGREC_SYSTEM;
+	const char *fmt = WT_UNCHECKED_STRING(I);
 
 	log = S2C(session)->log;
 	WT_RET(__wt_logrec_alloc(session, log->allocsize, &logrec_buf));

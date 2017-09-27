@@ -1150,8 +1150,8 @@ __wt_ref_info(WT_REF *ref, const uint8_t **addrp, size_t *sizep, u_int *typep)
 static inline int
 __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-	const uint8_t *addr;
 	size_t addr_size;
+	const uint8_t *addr;
 
 	if (ref->addr == NULL)
 		return (0);

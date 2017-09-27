@@ -358,8 +358,8 @@ config_update(WT_SESSION *session, char **list)
 	WT_DECL_RET;
 	size_t cnt;
 	int found;
-	const char *p, **cfg;
 	char **configp, **listp;
+	const char *p, **cfg;
 
 	/*
 	 * If the object has been renamed, replace all of the column group,

@@ -222,8 +222,8 @@ json_data(WT_SESSION *session,
 	uint64_t gotno, recno;
 	int nfield, nkeys, toktype, tret;
 	char config[64], *endp, *uri;
-	bool isrec;
 	const char *keyformat;
+	bool isrec;
 
 	cursor = NULL;
 	uri = NULL;

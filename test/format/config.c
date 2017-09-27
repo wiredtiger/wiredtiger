@@ -262,8 +262,8 @@ config_checksum(void)
 static void
 config_compression(const char *conf_name)
 {
-	const char *cstr;
 	char confbuf[128];
+	const char *cstr;
 
 	/* Return if already specified. */
 	if (config_is_perm(conf_name))

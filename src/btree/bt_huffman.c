@@ -201,8 +201,8 @@ __wt_btree_huffman_open(WT_SESSION_IMPL *session)
 	WT_BTREE *btree;
 	WT_CONFIG_ITEM key_conf, value_conf;
 	WT_DECL_RET;
-	const char **cfg;
 	u_int entries, numbytes;
+	const char **cfg;
 
 	btree = S2BT(session);
 	cfg = btree->dhandle->cfg;

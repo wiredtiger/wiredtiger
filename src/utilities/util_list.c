@@ -102,8 +102,8 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
 {
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
-	bool found;
 	const char *key, *value;
+	bool found;
 
 	/* Open the metadata file. */
 	if ((ret = session->open_cursor(

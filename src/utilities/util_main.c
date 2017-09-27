@@ -68,9 +68,9 @@ main(int argc, char *argv[])
 	size_t len;
 	int (*cfunc)(WT_SESSION *, WT_CONNECTION *, int, char *[]);
 	int ch, major_v, minor_v, tret, (*func)(WT_SESSION *, int, char *[]);
+	const char *cmd_config, *config, *p1, *p2, *p3, *rec_config;
 	char *p, *secretkey;
 	bool logoff, needconn, recover;
-	const char *cmd_config, *config, *p1, *p2, *p3, *rec_config;
 
 	conn = NULL;
 	p = NULL;

@@ -76,8 +76,8 @@ static int
 get_stat(WT_SESSION *stat_session, int stat_field, uint64_t *valuep)
 {
 	WT_CURSOR *statc;
-	const char *desc, *pvalue;
 	int ret;
+	const char *desc, *pvalue;
 
 	testutil_check(stat_session->open_cursor(stat_session,
 	    "statistics:", NULL, NULL, &statc));
@@ -121,12 +121,12 @@ run_ops(int dbs)
 int
 main(int argc, char *argv[])
 {
-	uint64_t *cond_reset_orig;
 	uint64_t cond_reset, cond_wait;
+	uint64_t *cond_reset_orig;
 	int cfg, ch, dbs, i;
-	bool idle;
-	const char *working_dir, *wt_cfg;
 	char cmd[128];
+	const char *working_dir, *wt_cfg;
+	bool idle;
 
 	(void)testutil_set_progname(argv);
 

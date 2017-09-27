@@ -5243,8 +5243,8 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 	uint64_t slvg_skip;
 	uint32_t i;
 	bool dictionary, key_onpage_ovfl, ovfl_key;
-	const void *p;
 	void *copy;
+	const void *p;
 
 	btree = S2BT(session);
 	cbt = &r->update_modify_cbt;
@@ -6090,8 +6090,8 @@ __rec_cell_build_leaf_key(WT_SESSION_IMPL *session,
 	WT_BTREE *btree;
 	WT_KV *key;
 	size_t pfx_max;
-	uint8_t pfx;
 	const uint8_t *a, *b;
+	uint8_t pfx;
 
 	*is_ovflp = false;
 

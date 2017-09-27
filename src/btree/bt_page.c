@@ -133,8 +133,8 @@ __wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref,
 	WT_DECL_RET;
 	WT_PAGE *page;
 	const WT_PAGE_HEADER *dsk;
-	uint32_t alloc_entries;
 	size_t size;
+	uint32_t alloc_entries;
 
 	*pagep = NULL;
 

@@ -933,9 +933,9 @@ __wt_lsm_tree_rename(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	WT_LSM_CHUNK *chunk;
 	WT_LSM_TREE *lsm_tree;
-	const char *old;
-	int tret;
 	u_int i;
+	int tret;
+	const char *old;
 	bool locked;
 
 	old = NULL;

@@ -70,9 +70,9 @@ __fstream_flush_notsup(WT_SESSION_IMPL *session, WT_FSTREAM *fstr)
 static int
 __fstream_getline(WT_SESSION_IMPL *session, WT_FSTREAM *fstr, WT_ITEM *buf)
 {
-	const char *p;
 	size_t len;
 	char c;
+	const char *p;
 
 	/*
 	 * We always NUL-terminate the returned string (even if it's empty),

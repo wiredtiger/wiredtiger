@@ -273,8 +273,8 @@ wts_ops(int lastrun)
 static inline u_int
 isolation_config(WT_RAND_STATE *rnd, WT_SESSION *session)
 {
-	const char *config;
 	u_int v;
+	const char *config;
 
 	if ((v = g.c_isolation_flag) == ISOLATION_RANDOM)
 		v = mmrand(rnd, 2, 4);

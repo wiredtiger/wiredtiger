@@ -351,8 +351,8 @@ __wt_lsm_merge(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, u_int id)
 	uint32_t generation;
 	u_int dest_id, end_chunk, i, nchunks, start_chunk, start_id, verb;
 	int tret;
-	bool created_chunk, create_bloom, locked, in_sync;
 	const char *cfg[3];
+	bool created_chunk, create_bloom, locked, in_sync;
 	const char *drop_cfg[] =
 	    { WT_CONFIG_BASE(session, WT_SESSION_drop), "force", NULL };
 

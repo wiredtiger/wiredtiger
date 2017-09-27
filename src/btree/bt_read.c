@@ -383,11 +383,11 @@ static int
 __page_read(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	struct timespec start, stop;
-	const WT_PAGE_HEADER *dsk;
 	WT_BTREE *btree;
 	WT_DECL_RET;
 	WT_ITEM tmp;
 	WT_PAGE *page;
+	const WT_PAGE_HEADER *dsk;
 	size_t addr_size;
 	uint32_t previous_state;
 	const uint8_t *addr;

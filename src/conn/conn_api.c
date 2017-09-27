@@ -872,9 +872,9 @@ __conn_load_extension_int(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	WT_DLH *dlh;
 	int (*load)(WT_CONNECTION *, WT_CONFIG_ARG *);
-	bool is_local;
-	const char *ext_config, *init_name, *terminate_name;
 	const char *ext_cfg[2];
+	const char *ext_config, *init_name, *terminate_name;
+	bool is_local;
 
 	dlh = NULL;
 	ext_config = init_name = terminate_name = NULL;
@@ -1487,8 +1487,8 @@ __conn_config_env(WT_SESSION_IMPL *session, const char *cfg[], WT_ITEM *cbuf)
 {
 	WT_CONFIG_ITEM cval;
 	WT_DECL_RET;
-	const char *env_config;
 	size_t len;
+	const char *env_config;
 
 	/* Only use the environment variable if configured. */
 	WT_RET(__wt_config_gets(session, cfg, "use_environment", &cval));
@@ -2022,8 +2022,8 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_CONFIG_ITEM cval, k, v;
 	WT_DECL_RET;
 	WT_FSTREAM *fs;
-	bool exist;
 	const char *base_config;
+	bool exist;
 
 	fs = NULL;
 	base_config = NULL;

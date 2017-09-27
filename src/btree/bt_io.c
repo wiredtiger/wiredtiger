@@ -24,8 +24,8 @@ __wt_bt_read(WT_SESSION_IMPL *session,
 	WT_ENCRYPTOR *encryptor;
 	WT_ITEM *ip;
 	const WT_PAGE_HEADER *dsk;
-	const char *fail_msg;
 	size_t result_len;
+	const char *fail_msg;
 
 	btree = S2BT(session);
 	bm = btree->bm;

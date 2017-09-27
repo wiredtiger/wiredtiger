@@ -1180,8 +1180,8 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session,
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
-	char *name_alloc;
 	const char *name;
+	char *name_alloc;
 	bool hot_backup_locked;
 
 	btree = S2BT(session);
@@ -1373,8 +1373,8 @@ __checkpoint_mark_skip(
 {
 	WT_BTREE *btree;
 	WT_CKPT *ckpt;
-	const char *name;
 	int deleted;
+	const char *name;
 
 	btree = S2BT(session);
 

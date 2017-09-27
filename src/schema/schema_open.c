@@ -274,8 +274,8 @@ __schema_open_index(WT_SESSION_IMPL *session,
 	WT_INDEX *idx;
 	u_int i;
 	int cmp;
-	bool match;
 	const char *idxconf, *name, *tablename, *uri;
+	bool match;
 
 	/* Check if we've already done the work. */
 	if (idxname == NULL && table->idx_complete)
@@ -423,8 +423,8 @@ __schema_open_table(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_CONFIG_ITEM ckey, cval;
 	WT_DECL_RET;
 	WT_TABLE *table;
-	const char *tablename;
 	const char **table_cfg;
+	const char *tablename;
 
 	table = (WT_TABLE *)session->dhandle;
 	table_cfg = table->iface.cfg;
@@ -489,8 +489,8 @@ __wt_schema_get_colgroup(WT_SESSION_IMPL *session,
 {
 	WT_COLGROUP *colgroup;
 	WT_TABLE *table;
-	const char *tablename, *tend;
 	u_int i;
+	const char *tablename, *tend;
 
 	if (tablep != NULL)
 		*tablep = NULL;
@@ -536,8 +536,8 @@ __wt_schema_get_index(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	WT_INDEX *idx;
 	WT_TABLE *table;
-	const char *tablename, *tend;
 	u_int i;
+	const char *tablename, *tend;
 
 	*indexp = NULL;
 

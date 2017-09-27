@@ -69,8 +69,8 @@ __wt_schema_get_source(WT_SESSION_IMPL *session, const char *name)
 int
 __wt_str_name_check(WT_SESSION_IMPL *session, const char *str)
 {
-	const char *name, *sep;
 	int skipped;
+	const char *name, *sep;
 
 	/*
 	 * Check if name is somewhere in the WiredTiger name space: it would be

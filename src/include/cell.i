@@ -233,8 +233,8 @@ __wt_cell_pack_data_match(
     WT_CELL *page_cell, WT_CELL *val_cell, const uint8_t *val_data,
     bool *matchp)
 {
-	const uint8_t *a, *b;
 	uint64_t av, bv;
+	const uint8_t *a, *b;
 	bool rle;
 
 	*matchp = 0;				/* Default to no-match */
