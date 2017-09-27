@@ -94,8 +94,8 @@ load_dump(WT_SESSION *session)
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	int tret;
-	bool hex;
 	char **list, **tlist, *uri, config[64];
+	bool hex;
 
 	cursor = NULL;
 	list = NULL;		/* -Wuninitialized */

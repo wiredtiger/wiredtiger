@@ -136,8 +136,8 @@ static int
 __huffman_confchk_file(WT_SESSION_IMPL *session,
     WT_CONFIG_ITEM *v, bool *is_utf8p, WT_FSTREAM **fsp)
 {
-	WT_FSTREAM *fs;
 	WT_DECL_RET;
+	WT_FSTREAM *fs;
 	size_t len;
 	char *fname;
 

@@ -66,10 +66,10 @@ main(int argc, char *argv[])
 	WT_DECL_RET;
 	WT_SESSION *session;
 	size_t len;
-	int ch, major_v, minor_v, tret, (*func)(WT_SESSION *, int, char *[]);
 	int (*cfunc)(WT_SESSION *, WT_CONNECTION *, int, char *[]);
-	bool logoff, needconn, recover;
+	int ch, major_v, minor_v, tret, (*func)(WT_SESSION *, int, char *[]);
 	char *p, *secretkey;
+	bool logoff, needconn, recover;
 	const char *cmd_config, *config, *p1, *p2, *p3, *rec_config;
 
 	conn = NULL;

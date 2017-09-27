@@ -149,8 +149,8 @@ format:		WT_RET_MSG(session, EINVAL, "%s: invalid record number", p);
 static void
 __curdump_set_key(WT_CURSOR *cursor, ...)
 {
-	WT_CURSOR_DUMP *cdump;
 	WT_CURSOR *child;
+	WT_CURSOR_DUMP *cdump;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	uint64_t recno;
@@ -207,9 +207,9 @@ err:		cursor->saved_err = ret;
 static int
 __curdump_get_value(WT_CURSOR *cursor, ...)
 {
+	WT_CURSOR *child;
 	WT_CURSOR_DUMP *cdump;
 	WT_CURSOR_JSON *json;
-	WT_CURSOR *child;
 	WT_DECL_RET;
 	WT_ITEM item, *itemp;
 	WT_SESSION_IMPL *session;
@@ -255,8 +255,8 @@ err:	va_end(ap);
 static void
 __curdump_set_value(WT_CURSOR *cursor, ...)
 {
-	WT_CURSOR_DUMP *cdump;
 	WT_CURSOR *child;
+	WT_CURSOR_DUMP *cdump;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	va_list ap;
@@ -330,8 +330,8 @@ WT_CURDUMP_PASS(remove)
 static int
 __curdump_close(WT_CURSOR *cursor)
 {
-	WT_CURSOR_DUMP *cdump;
 	WT_CURSOR *child;
+	WT_CURSOR_DUMP *cdump;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 

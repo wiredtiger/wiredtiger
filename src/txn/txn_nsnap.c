@@ -349,8 +349,8 @@ int
 __wt_txn_named_snapshot_config(WT_SESSION_IMPL *session,
     const char *cfg[], bool *has_create, bool *has_drops)
 {
-	WT_CONFIG_ITEM cval;
 	WT_CONFIG_ITEM all_config, names_config, to_config, before_config;
+	WT_CONFIG_ITEM cval;
 	WT_TXN *txn;
 
 	txn = &session->txn;

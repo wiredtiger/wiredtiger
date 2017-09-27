@@ -329,10 +329,10 @@ __inmem_col_var(
     WT_SESSION_IMPL *session, WT_PAGE *page, uint64_t recno, size_t *sizep)
 {
 	WT_BTREE *btree;
-	WT_COL *cip;
-	WT_COL_RLE *repeats;
 	WT_CELL *cell;
 	WT_CELL_UNPACK *unpack, _unpack;
+	WT_COL *cip;
+	WT_COL_RLE *repeats;
 	const WT_PAGE_HEADER *dsk;
 	size_t size;
 	uint64_t rle;

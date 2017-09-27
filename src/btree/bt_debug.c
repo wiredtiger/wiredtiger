@@ -125,8 +125,8 @@ __dmsg_event(WT_DBG *ds, const char *fmt, ...)
 	WT_ITEM *msg;
 	WT_SESSION_IMPL *session;
 	size_t len, space;
-	va_list ap;
 	char *p;
+	va_list ap;
 
 	session = ds->session;
 
@@ -223,8 +223,8 @@ __debug_config(WT_SESSION_IMPL *session, WT_DBG *ds, const char *ofile)
 static int
 __dmsg_wrapup(WT_DBG *ds)
 {
-	WT_SESSION_IMPL *session;
 	WT_ITEM *msg;
+	WT_SESSION_IMPL *session;
 
 	session = ds->session;
 	msg = ds->msg;

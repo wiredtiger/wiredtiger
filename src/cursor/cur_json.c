@@ -726,8 +726,8 @@ __json_pack_struct(WT_SESSION_IMPL *session, void *buffer, size_t size,
 	WT_DECL_RET;
 	WT_PACK pack;
 	size_t toksize;
-	bool multi;
 	uint8_t *p, *end;
+	bool multi;
 	const char *tokstart;
 
 	p = buffer;
