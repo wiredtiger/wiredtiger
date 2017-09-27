@@ -45,9 +45,10 @@ typedef struct {
 	uint64_t last_running;
 	WT_DECL_TIMESTAMP(stable_timestamp)
 
-	/* Track the page's maximum transaction. */
+	/* Track the page's min/maximum transactions. */
 	uint64_t max_txn;
 	WT_DECL_TIMESTAMP(max_timestamp)
+	WT_DECL_TIMESTAMP(min_saved_timestamp)
 
 	bool update_uncommitted;	/* An update was uncommitted */
 	bool update_used;		/* An update could be used */
@@ -924,8 +925,12 @@ __rec_init(WT_SESSION_IMPL *session,
 
 	r->flags = flags;
 
-	/* Track the page's maximum transaction ID. */
+	/* Track the page's min/maximum transaction */
 	r->max_txn = WT_TXN_NONE;
+#ifdef HAVE_TIMESTAMPS
+	__wt_timestamp_set_zero(&r->max_timestamp);
+	__wt_timestamp_set_inf(&r->min_saved_timestamp);
+#endif
 
 	/* Track if updates were used and/or uncommitted. */
 	r->update_used = r->update_uncommitted = false;
@@ -1177,19 +1182,19 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 {
 	WT_BTREE *btree;
 	WT_PAGE *page;
-	WT_UPDATE *first_active_upd, *first_upd, *first_ts_upd, *next_upd;
+	WT_UPDATE *first_ts_upd, *first_txn_upd, *first_upd, *next_upd;
 	WT_UPDATE *upd;
 	wt_timestamp_t *timestampp;
 	uint64_t max_txn, txnid;
-	bool all_visible, uncommitted;
+	bool all_visible, saved, uncommitted;
 
 	*updp = NULL;
 
 	btree = S2BT(session);
 	page = r->page;
-	first_active_upd = first_ts_upd = NULL;
+	first_ts_upd = first_txn_upd = NULL;
 	max_txn = WT_TXN_NONE;
-	uncommitted = false;
+	saved = uncommitted = false;
 
 	/*
 	 * If called with a WT_INSERT item, use its WT_UPDATE list (which must
@@ -1211,8 +1216,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 * Track the first update in the chain that is not aborted and
 		 * the maximum transaction ID.
 		 */
-		if (first_active_upd == NULL)
-			first_active_upd = upd;
+		if (first_txn_upd == NULL)
+			first_txn_upd = upd;
 
 		/* Track the largest transaction ID seen. */
 		if (WT_TXNID_LT(max_txn, txnid))
@@ -1253,6 +1258,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			*updp = upd;
 
 #ifdef HAVE_TIMESTAMPS
+		/* Track the first update with non-zero timestamp. */
 		if (first_ts_upd == NULL &&
 		    !__wt_timestamp_iszero(&upd->timestamp))
 			first_ts_upd = upd;
@@ -1265,7 +1271,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	    (*updp)->type != WT_UPDATE_RESERVED));
 
 	/* If all of the updates were aborted, quit. */
-	if (first_active_upd == NULL)
+	if (first_txn_upd == NULL)
 		return (0);
 
 	/*
@@ -1294,7 +1300,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	/*
 	 * If there are no skipped updates, record that we're making progress.
 	 */
-	if (*updp == first_active_upd)
+	if (*updp == first_txn_upd)
 		r->update_used = true;
 
 	/*
@@ -1310,7 +1316,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	if (F_ISSET(btree, WT_BTREE_LOOKASIDE))
 		all_visible = !uncommitted;
 	else
-		all_visible = *updp == first_active_upd &&
+		all_visible = *updp == first_txn_upd &&
 		    (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 		    __wt_txn_visible_all(session, max_txn, timestampp) :
 		    __wt_txn_visible(session, max_txn, timestampp));
@@ -1357,6 +1363,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 * unresolved updates, move the entire update list.
 	 */
 	WT_RET(__rec_update_save(session, r, ins, ripcip, *updp));
+	saved = true;
 
 check_original_value:
 	/*
@@ -1369,6 +1376,18 @@ check_original_value:
 	    vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM))
 		WT_RET(
 		    __rec_append_orig_value(session, page, first_upd, vpack));
+
+#ifdef HAVE_TIMESTAMPS
+	/* Track the oldest saved timestamp for lookaside. */
+	if (saved && F_ISSET(r, WT_REC_LOOKASIDE)) {
+		for (upd = first_upd; upd->next != NULL; upd = upd->next)
+			;
+		if (__wt_timestamp_cmp(
+		    &r->min_saved_timestamp, &upd->timestamp) < 0)
+			__wt_timestamp_set(
+			    &r->min_saved_timestamp, &upd->timestamp);
+	}
+#endif
 
 	if (uncommitted)
 		r->update_uncommitted = true;
@@ -5843,6 +5862,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			mod->mod_disk_image = r->multi->disk_image;
 			r->multi->disk_image = NULL;
 			mod->mod_replace_las = r->multi->lookaside_pageid;
+			__wt_timestamp_set(&mod->mod_replace_min_timestamp,
+			     &r->min_saved_timestamp);
 			r->multi->lookaside_pageid = 0;
 		} else
 			WT_RET(__wt_bt_write(session, r->wrapup_checkpoint,

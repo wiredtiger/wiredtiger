@@ -242,6 +242,7 @@ struct __wt_page_modify {
 
 		/* The page has lookaside entries. */
 		uint64_t lookaside_pageid;
+		WT_DECL_TIMESTAMP(lookaside_min_timestamp)
 	} r;
 #undef	mod_replace
 #define	mod_replace	u1.r.replace
@@ -249,6 +250,8 @@ struct __wt_page_modify {
 #define	mod_disk_image	u1.r.disk_image
 #undef	mod_replace_las
 #define	mod_replace_las	u1.r.lookaside_pageid
+#undef	mod_replace_min_timestamp
+#define	mod_replace_min_timestamp	u1.r.lookaside_min_timestamp
 
 	struct {			/* Multiple replacement blocks */
 	struct __wt_multi {
@@ -295,6 +298,7 @@ struct __wt_page_modify {
 		uint32_t checksum;
 
 		uint64_t lookaside_pageid;
+		WT_DECL_TIMESTAMP(lookaside_min_timestamp);
 	} *multi;
 	uint32_t multi_entries;		/* Multiple blocks element count */
 	} m;
@@ -718,7 +722,7 @@ struct __wt_page_deleted {
  */
 struct __wt_page_lookaside {
 	uint64_t las_pageid;			/* Page ID in lookaside */
-	WT_DECL_TIMESTAMP(min_timestamp)	/* Smallest timestamp in
+	WT_DECL_TIMESTAMP(min_timestamp)	/* Oldest timestamp in
 						   lookaside for the page */
 };
 

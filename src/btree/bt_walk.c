@@ -464,16 +464,18 @@ restart:	/*
 			    !LF_ISSET(WT_READ_TRUNCATE))
 				empty_internal = false;
 
-			if (LF_ISSET(WT_READ_LOOKASIDE) &&
-			    ref->state == WT_REF_LOOKASIDE)
-				; /* read it */
-			else if (LF_ISSET(WT_READ_CACHE)) {
+			if (LF_ISSET(WT_READ_CACHE)) {
 				/*
 				 * Only look at unlocked pages in memory:
 				 * fast-path some common cases.
 				 */
 				if (LF_ISSET(WT_READ_NO_WAIT) &&
 				    ref->state != WT_REF_MEM)
+					break;
+
+				/* Skip lookaside pages if not requested. */
+				if (ref->state == WT_REF_LOOKASIDE &&
+				    !LF_ISSET(WT_READ_LOOKASIDE))
 					break;
 			} else if (LF_ISSET(WT_READ_TRUNCATE)) {
 				/*

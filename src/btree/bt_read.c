@@ -473,6 +473,19 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 					return (WT_NOTFOUND);
 				if (!LF_ISSET(WT_READ_LOOKASIDE))
 					return (WT_NOTFOUND);
+#ifdef HAVE_TIMESTAMPS
+				/*
+				 * Skip lookaside pages if reading as of a
+				 * timestamp and all the updates are in the
+				 * future.
+				 */
+				if (F_ISSET(
+				    &session->txn, WT_TXN_HAS_TS_READ) &&
+				    __wt_timestamp_cmp(
+				    &ref->page_las->min_timestamp,
+				    &session->txn.read_timestamp) > 0)
+					return (WT_NOTFOUND);
+#endif
 			}
 
 			/*
