@@ -332,6 +332,9 @@ class test_cursor12(wttest.WiredTigerTestCase):
     # Check that modify returns not-found when an insert is not yet committed
     # and after it's aborted.
     def test_modify_abort(self):
+        if self.skip():
+            return
+
         ds = SimpleDataSet(self,
             self.uri, 20, key_format=self.keyfmt, value_format='u')
         ds.populate()
