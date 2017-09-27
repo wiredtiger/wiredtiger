@@ -263,7 +263,7 @@ __wt_curfile_insert_check(WT_CURSOR *cursor)
 	WT_CURSOR_BTREE *cbt;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	int tret;
+	int tret = 0;
 
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_UPDATE_API_CALL_BTREE(cursor, session, update, cbt->btree);
