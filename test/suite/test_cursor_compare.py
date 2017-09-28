@@ -28,7 +28,7 @@
 
 import wiredtiger, wttest, exceptions
 from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
-from wtscenario import make_scenarios
+from wtscenario import filter_scenarios, make_scenarios
 
 # Test cursor comparisons.
 class test_cursor_comparison(wttest.WiredTigerTestCase):
@@ -44,16 +44,11 @@ class test_cursor_comparison(wttest.WiredTigerTestCase):
         ('recno', dict(keyfmt='r')),
         ('string', dict(keyfmt='S'))
     ]
-    scenarios = make_scenarios(types, keyfmt)
-
     # Skip record number keys with LSM.
-    def lsm_recno_skip(self):
-        return self.lsm and self.keyfmt == 'r'
+    scenarios = filter_scenarios(make_scenarios(types, keyfmt),
+        lambda name, d: not (d['lsm'] and d['keyfmt'] == 'r'))
 
     def test_cursor_comparison(self):
-        if self.lsm_recno_skip():
-            return
-
         uri = self.type + 'compare'
         uriX = self.type + 'compareX'
 
@@ -143,9 +138,6 @@ class test_cursor_comparison(wttest.WiredTigerTestCase):
             wiredtiger.WiredTigerError, lambda: cX.compare(c1), msg)
 
     def test_cursor_equality(self):
-        if self.lsm_recno_skip():
-            return
-
         uri = self.type + 'equality'
         uriX = self.type + 'compareX'
 

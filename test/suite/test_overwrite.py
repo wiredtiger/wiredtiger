@@ -29,7 +29,7 @@
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet, SimpleIndexDataSet
 from wtdataset import SimpleLSMDataSet, ComplexDataSet, ComplexLSMDataSet
-from wtscenario import make_scenarios
+from wtscenario import filter_scenarios, make_scenarios
 
 # test_overwrite.py
 #    cursor overwrite configuration method
@@ -49,17 +49,13 @@ class test_overwrite(wttest.WiredTigerTestCase):
         ('table-simple', dict(uri='table:', lsm=False, ds=SimpleDataSet)),
         ('table-simple-lsm', dict(uri='table:', lsm=True, ds=SimpleLSMDataSet)),
     ]
-    scenarios = make_scenarios(types, keyfmt)
     # Skip record number keys with LSM.
-    def lsm_recno_skip(self):
-        return self.lsm and self.keyfmt == 'r'
+    scenarios = filter_scenarios(make_scenarios(types, keyfmt),
+        lambda name, d: not (d['lsm'] and d['keyfmt'] == 'r'))
 
     # Confirm a cursor configured with/without overwrite correctly handles
     # non-existent records during insert, remove and update operations.
     def test_overwrite_insert(self):
-        if self.lsm_recno_skip():
-            return
-
         uri = self.uri + self.name
         ds = self.ds(self, uri, 100, key_format=self.keyfmt)
         ds.populate()
@@ -100,9 +96,6 @@ class test_overwrite(wttest.WiredTigerTestCase):
         self.assertEquals(cursor.insert(), 0)
 
     def test_overwrite_remove(self):
-        if self.lsm_recno_skip():
-            return
-
         uri = self.uri + self.name
         ds = self.ds(self, uri, 100, key_format=self.keyfmt)
         ds.populate()
@@ -128,9 +121,6 @@ class test_overwrite(wttest.WiredTigerTestCase):
         self.assertEquals(cursor.remove(), 0)
 
     def test_overwrite_update(self):
-        if self.lsm_recno_skip():
-            return
-
         uri = self.uri + self.name
         ds = self.ds(self, uri, 100, key_format=self.keyfmt)
         ds.populate()
