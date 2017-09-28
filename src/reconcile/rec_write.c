@@ -1387,6 +1387,8 @@ check_original_value:
 			__wt_timestamp_set(
 			    &r->min_saved_timestamp, &upd->timestamp);
 	}
+#else
+	WT_UNUSED(saved);
 #endif
 
 	if (uncommitted)
@@ -5862,8 +5864,10 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			mod->mod_disk_image = r->multi->disk_image;
 			r->multi->disk_image = NULL;
 			mod->mod_replace_las = r->multi->lookaside_pageid;
+#ifdef HAVE_TIMESTAMPS
 			__wt_timestamp_set(&mod->mod_replace_min_timestamp,
 			     &r->min_saved_timestamp);
+#endif
 			r->multi->lookaside_pageid = 0;
 		} else
 			WT_RET(__wt_bt_write(session, r->wrapup_checkpoint,
