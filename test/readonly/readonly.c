@@ -162,7 +162,7 @@ main(int argc, char *argv[])
 	WT_SESSION *session;
 	uint64_t i;
 	uint8_t buf[MAX_VAL];
-	int ch, status, op, ret;
+	int ch, op, ret, status;
 	char cmd[512];
 	const char *working_dir;
 	bool child;

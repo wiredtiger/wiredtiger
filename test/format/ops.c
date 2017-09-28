@@ -514,7 +514,7 @@ ops(void *arg)
 	WT_DECL_RET;
 	WT_ITEM *key, _key, *value, _value;
 	WT_SESSION *session;
-	uint64_t keyno, ckpt_op, reset_op, session_op;
+	uint64_t ckpt_op, keyno, reset_op, session_op;
 	uint32_t rnd;
 	u_int i, iso_config;
 	int dir;
@@ -1545,7 +1545,7 @@ table_append_init(void)
 static void
 table_append(uint64_t keyno)
 {
-	uint64_t *p, *ep;
+	uint64_t *ep, *p;
 	int done;
 
 	ep = g.append + g.append_max;

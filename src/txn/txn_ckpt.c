@@ -376,7 +376,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 static void
 __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 {
-	struct timespec start, last, stop;
+	struct timespec last, start, stop;
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	double current_dirty, delta, scrub_min;

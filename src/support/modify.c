@@ -178,7 +178,7 @@ __wt_modify_apply_api(
 int
 __wt_modify_apply(WT_SESSION_IMPL *session, WT_ITEM *value, const void *modify)
 {
-	size_t nentries, data_size, offset, size;
+	size_t data_size, nentries, offset, size;
 	const size_t *p;
 	const uint8_t *data;
 

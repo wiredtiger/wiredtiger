@@ -84,7 +84,7 @@ real_checkpointer(void)
 {
 	WT_SESSION *session;
 	int ret;
-	char *checkpoint_config, buf[128];
+	char buf[128], *checkpoint_config;
 
 	if (g.running == 0)
 		return (log_print_err(
@@ -136,7 +136,7 @@ verify_checkpoint(WT_SESSION *session)
 	WT_CURSOR **cursors;
 	uint64_t key_count;
 	int i, ret, t_ret;
-	char next_uri[128], ckpt[128];
+	char ckpt[128], next_uri[128];
 	const char *type0, *typei;
 
 	ret = t_ret = 0;
@@ -241,7 +241,7 @@ compare_cursors(
 {
 	uint64_t key1, key2;
 	int ret;
-	char *val1, *val2, buf[128];
+	char buf[128], *val1, *val2;
 
 	ret = 0;
 	memset(buf, 0, 128);
@@ -286,7 +286,7 @@ diagnose_key_error(
 	WT_SESSION *session;
 	uint64_t key1, key1_orig, key2, key2_orig;
 	int ret;
-	char next_uri[128], ckpt[128];
+	char ckpt[128], next_uri[128];
 
 	/* Hack to avoid passing session as parameter. */
 	session = cursor1->session;

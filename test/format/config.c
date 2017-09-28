@@ -693,7 +693,7 @@ void
 config_file(const char *name)
 {
 	FILE *fp;
-	char *p, buf[256];
+	char buf[256], *p;
 
 	if ((fp = fopen(name, "r")) == NULL)
 		testutil_die(errno, "fopen: %s", name);
