@@ -16,11 +16,11 @@ def missing_comment():
         for m in func_re.finditer(s):
             if not m.group(1) or \
                not m.group(1).startswith('/*\n * %s --\n' % m.group(2)):
-                   print "%s:%d: missing comment for %s" % \
+                   print "%s:%d: missing or malformed comment for %s" % \
                            (f, s[:m.start(2)].count('\n'), m.group(2))
 
 # Sort helper function, discard * operators so a pointer doesn't necessarily
-# sort before non-pointers.
+# sort before non-pointers, ignore const/volatile keywords.
 def function_args_alpha(text):
         s = text.strip()
         s = re.sub("[*]","", s)
@@ -28,40 +28,47 @@ def function_args_alpha(text):
         s = re.sub("^volatile ","", s)
         return s
 
+# List of illegal types.
+illegal_types = [
+    'u_int16_t',
+    'u_int32_t',
+    'u_int64_t',
+    'u_int8_t',
+    'u_quad',
+    'uint '
+]
+
+# List of legal types in sort order.
+types = [
+    'struct',
+    'union',
+    'enum',
+    'WT_',
+    'wt_',
+    'double',
+    'float',
+    'size_t',
+    'uint64_t',
+    'int64_t',
+    'uint32_t',
+    'int32_t',
+    'uint16_t',
+    'int16_t',
+    'uint8_t',
+    'int8_t',
+    'u_int',
+    'int',
+    'u_char',
+    'char',
+    'bool',
+    'va_list',
+    'void '
+]
+
 # Return the sort order of a variable declaration, or no-match.
 #       This order isn't defensible: it's roughly how WiredTiger looked when we
 # settled on a style, and it's roughly what the KNF/BSD styles look like.
 def function_args(line):
-    types = {
-        'u_int16_t ' : -1,      # Not allowed
-        'u_int32_t ' : -1,      # Not allowed
-        'u_int64_t ' : -1,      # Not allowed
-        'u_int8_t ' : -1,       # Not allowed
-        'u_quad ' : -1,         # Not allowed
-        'uint ' : -1,           # Not allowed
-        'struct ' : 1,          # Types in argument display order. */
-        'union ' : 2,
-        'enum ' : 3,
-        'WT_' : 4,
-        'wt_' : 5,
-        'double ' : 6,
-        'float ' : 7,
-        'size_t ' : 8,
-        'uint64_t ' : 9,
-        'int64_t ' : 10,
-        'uint32_t ' : 11,
-        'int32_t ' : 12,
-        'uint8_t ' : 13,
-        'int8_t ' : 14,
-        'u_int ' : 15,
-        'int ' : 16,
-        'u_char ' : 17,
-        'char ' : 18,
-        'bool ' : 19,
-        'va_list ' : 20,
-        'void ' : 21,
-
-    }
     line = line.strip()
     line = re.sub("^const ", "", line)
     line = re.sub("^volatile ", "", line)
@@ -71,17 +78,24 @@ def function_args(line):
     if re.search('^WT_UNUSED', line):
         return False,0
 
-    # Let lines not terminated with a semicolon terminate the parse, if means
+    # Let lines not terminated with a semicolon terminate the parse, it means
     # there's some kind of interesting line split we probably can't handle.
     if not re.search(';$', line):
         return False,0
 
+    # Check for illegal types.
+    for m in illegal_types:
+        if re.search('^' + m + "\s*[\w(*]", line):
+            print >>sys.stderr, \
+                m + ": illegal declaration: " + line.strip()
+            sys.exit(1)
+
     # Check for matching types.
-    for m in types:
+    for n,m in enumerate(types, 0):
         # Don't list '{' as a legal character in a declaration, that's what
         # prevents us from sorting inline union/struct declarations.
         if re.search('^' + m + "\s*[\w(*]", line):
-            return True,types[m]
+            return True,n
     return False,0
 
 # Put function arguments in correct sort order.
@@ -103,29 +117,28 @@ def function_declaration():
                 if not tracking:
                     tfile.write(line)
                     if re.search('^{$', line):
-                        r = [[] for i in range(30)]
+                        r = [[] for i in range(len(types))]
                         tracking = True;
                     continue
 
-                found,value = function_args(line)
-                if value == -1:
-                    print >>sys.stderr, \
-                        name + ": illegal declaration: " + line.strip()
-                    sys.exit(1)
-                if value == 0 or not found:
+                found,n = function_args(line)
+                if found:
+                    r[n].append(line)
+                else :
+                    # Sort the resulting lines (we don't yet sort declarations
+                    # within a single line).
                     for arg in filter(None, r):
                         for p in sorted(arg, key=function_args_alpha):
                             tfile.write(p)
                     tfile.write(line)
                     tracking = False
                     continue
-                r[value].append(line)
 
             tfile.close()
             compare_srcfile(tmp_file, name)
 
 # Report missing function comments.
-#missing_comment()
+missing_comment()
 
 # Update function argument declarations.
 function_declaration()
