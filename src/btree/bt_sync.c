@@ -340,6 +340,7 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 					evict_failed = true;
 				}
 				WT_ERR_BUSY_OK(ret);
+				ret = 0;
 				continue;
 			}
 
