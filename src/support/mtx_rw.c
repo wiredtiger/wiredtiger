@@ -168,9 +168,9 @@ __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 	struct timespec enter, leave;
 	WT_RWLOCK new, old;
 	int64_t **stats;
-	int pause_cnt;
 	int16_t writers_active;
 	uint8_t ticket;
+	int pause_cnt;
 	bool set_stats;
 
 	WT_STAT_CONN_INCR(session, rwlock_read);

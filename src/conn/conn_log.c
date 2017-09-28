@@ -93,8 +93,8 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
 	WT_CONNECTION_IMPL *conn;
 	WT_LOG *log;
 	uint32_t first_record, lognum;
-	bool downgrade;
 	uint16_t new_version;
+	bool downgrade;
 
 	conn = S2C(session);
 	log = conn->log;

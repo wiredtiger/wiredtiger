@@ -1891,11 +1891,11 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 	WT_LSN end_lsn, next_lsn, prev_eof, prev_lsn, rd_lsn, start_lsn;
 	wt_off_t log_size;
 	uint32_t allocsize, firstlog, lastlog, lognum, rdup_len, reclen;
+	uint16_t version;
 	u_int i, logcount;
 	int firstrecord;
-	uint16_t version;
-	bool eol, partial_record;
 	char **logfiles;
+	bool eol, partial_record;
 
 	conn = S2C(session);
 	log = conn->log;
