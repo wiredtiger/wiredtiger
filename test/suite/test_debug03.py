@@ -48,7 +48,7 @@ class test_debug03(wttest.WiredTigerTestCase, suite_subprocess):
         if not wiredtiger.timestamp_build():
             self.skipTest('requires a timestamp build')
 
-        # Create a data item at a timestamp
+        # Create a data item at the default setting
         self.session.create(self.base_uri, self.cfg)
         c = self.session.open_cursor(self.base_uri)
         self.session.begin_transaction()
