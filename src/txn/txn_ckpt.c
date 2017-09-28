@@ -289,7 +289,6 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 	if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT))
 		return (0);
 
-#ifdef HAVE_DIAGNOSTIC
 	/*
 	 * We may have raced between starting the checkpoint transaction and
 	 * some operation completing on the handle that updated the metadata
@@ -321,7 +320,6 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_TRET(__wt_metadata_cursor_release(session, &meta_cursor));
 		WT_RET(ret);
 	}
-#endif
 
 	/*
 	 * Decide whether the tree needs to be included in the checkpoint and

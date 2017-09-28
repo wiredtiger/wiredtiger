@@ -263,16 +263,17 @@ __wt_curfile_insert_check(WT_CURSOR *cursor)
 	WT_CURSOR_BTREE *cbt;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	int tret = 0;
+	int tret;
 
 	cbt = (WT_CURSOR_BTREE *)cursor;
+	tret = 0;
 	CURSOR_UPDATE_API_CALL_BTREE(cursor, session, update, cbt->btree);
 	WT_ERR(__cursor_checkkey(cursor));
 
 	tret = __wt_btcur_insert_check(cbt);
 
 	/*
-	 * Detecting a conflict should not cause transaction error
+	 * Detecting a conflict should not cause transaction error.
 	 */
 err:	CURSOR_UPDATE_API_END(session, ret);
 	WT_TRET(tret);
