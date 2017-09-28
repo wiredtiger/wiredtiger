@@ -366,6 +366,18 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	    LF_ISSET(WT_REC_LOOKASIDE) ? ", lookaside" : "",
 	    LF_ISSET(WT_REC_UPDATE_RESTORE) ? ", update/restore" : "");
 
+	/*
+	 * Sanity check flags.
+	 *
+	 * We can only do update/restore eviction when the version that ends up
+	 * in the page image is the oldest one any reader could need.
+	 * Otherwise we would need to keep updates in memory that go back older
+	 * than the version in the disk image, and since modify operations
+	 * aren't idempotent, that is problematic.
+	 */
+	WT_ASSERT(session, !LF_ISSET(WT_REC_UPDATE_RESTORE) ||
+	    LF_ISSET(WT_REC_VISIBLE_ALL));
+
 	/* We shouldn't get called with a clean page, that's an error. */
 	WT_ASSERT(session, __wt_page_is_modified(page));
 
@@ -427,9 +439,17 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	WT_ILLEGAL_VALUE_SET(session);
 	}
 
-	/* Checks for a successful reconciliation. */
+	/*
+	 * Checks for a successful reconciliation.
+	 *
+	 * XXX special case to fall back to lookaside eviction during
+	 * checkpoints if a page can't be evicted.
+	 */
 	if (ret == 0)
 		ret = __rec_write_check_complete(session, r, lookaside_retryp);
+	else if (ret == EBUSY && lookaside_retryp != NULL &&
+	    !F_ISSET(r, WT_REC_UPDATE_RESTORE) && !r->update_uncommitted)
+		*lookaside_retryp = true;
 
 	/* Wrap up the page reconciliation. */
 	if (ret == 0 && (ret = __rec_write_wrapup(session, r, page)) == 0)
@@ -1231,7 +1251,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 * examining its updates.
 		 */
 		if (WT_TXNID_LE(r->last_running, txnid))
-			uncommitted = true;
+			uncommitted = r->update_uncommitted = true;
 
 		/*
 		 * Find the first update we can use.
@@ -1390,9 +1410,6 @@ check_original_value:
 #else
 	WT_UNUSED(saved);
 #endif
-
-	if (uncommitted)
-		r->update_uncommitted = true;
 
 	return (0);
 }

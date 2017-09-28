@@ -568,10 +568,12 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref,
 			LF_SET(WT_REC_IN_MEMORY |
 			    WT_REC_SCRUB | WT_REC_UPDATE_RESTORE);
 		else {
-			LF_SET(WT_REC_UPDATE_RESTORE);
+			if (!checkpointing) {
+				LF_SET(WT_REC_UPDATE_RESTORE);
 
-			if (F_ISSET(cache, WT_CACHE_EVICT_SCRUB))
-				LF_SET(WT_REC_SCRUB);
+				if (F_ISSET(cache, WT_CACHE_EVICT_SCRUB))
+					LF_SET(WT_REC_SCRUB);
+			}
 
 			/*
 			 * Check if reconciliation suggests trying the

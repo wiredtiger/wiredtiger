@@ -1384,7 +1384,7 @@ __split_multi_inmem(
 	WT_DECL_ITEM(key);
 	WT_DECL_RET;
 	WT_PAGE *page;
-	WT_UPDATE *upd;
+	WT_UPDATE *prev_upd, *upd;
 	WT_SAVE_UPD *supd;
 	uint64_t recno;
 	uint32_t i, slot;
@@ -1476,6 +1476,26 @@ __split_multi_inmem(
 			    &cbt, key, NULL, upd, WT_UPDATE_INVALID, true));
 			break;
 		WT_ILLEGAL_VALUE_ERR(session);
+		}
+
+		/*
+		 * The update used to create the on-page disk image must be
+		 * truncated.  This is not just a performance issue: if the
+		 * update is a modification, it cannot safely be reapplied to
+		 * the full value stored on disk.
+		 */
+		if (supd->onpage_upd != NULL) {
+			for (prev_upd = upd; prev_upd != NULL &&
+			    prev_upd->next != supd->onpage_upd;
+			    prev_upd = prev_upd->next)
+				;
+			if (prev_upd != NULL) {
+				WT_ASSERT(session,
+				    prev_upd->next == supd->onpage_upd);
+				__wt_update_obsolete_free(
+				    session, page, prev_upd->next);
+				prev_upd->next = NULL;
+			}
 		}
 	}
 
