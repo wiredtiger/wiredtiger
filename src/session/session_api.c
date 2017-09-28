@@ -195,13 +195,15 @@ __session_close(WT_SESSION *wt_session, const char *config)
 	WT_TRET(__wt_session_release_resources(session));
 
 	/* Close the file where we tracked long operations. */
-	if (session->optrack_fh != NULL) {
-		WT_IGNORE_RET((int)__wt_optrack_flush_buffer(session));
-		WT_IGNORE_RET(__wt_close(session, &session->optrack_fh));
-	}
+	if (F_ISSET(conn, WT_CONN_OPTRACK)) {
+	    if (session->optrack_fh != NULL) {
+		    WT_IGNORE_RET((int)__wt_optrack_flush_buffer(session));
+		    WT_IGNORE_RET(__wt_close(session, &session->optrack_fh));
+	    }
 
-	/* Free the operation tracking buffer */
-	__wt_free(session, session->optrack_buf);
+	    /* Free the operation tracking buffer */
+	    __wt_free(session, session->optrack_buf);
+	}
 
 	/* The API lock protects opening and closing of sessions. */
 	__wt_spin_lock(session, &conn->api_lock);
@@ -1912,16 +1914,18 @@ __open_session(WT_CONNECTION_IMPL *conn,
 	/* Cache the offset of this session's statistics bucket. */
 	session_ret->stat_bucket = WT_STATS_SLOT_ID(session);
 
-	/* Initialize long-operation tracking */
-	WT_ERR(__wt_malloc(session, WT_OPTRACK_BUFSIZE,
-			   &session_ret->optrack_buf));
-	WT_ERR(__wt_snprintf(optrack_fname,
-	    PATH_MAX, "%s/optrack.%" PRIuMAX ".%d",
-			     conn->optrack, conn->optrack_pid,
-			     session_ret->id));
-	WT_ERR(__wt_open(session, optrack_fname, WT_FS_OPEN_FILE_TYPE_REGULAR,
-			 WT_FS_OPEN_CREATE, &session_ret->optrack_fh));
-
+	if (F_ISSET(conn, WT_CONN_OPTRACK)) {
+		/* Initialize long-operation tracking */
+		WT_ERR(__wt_malloc(session, WT_OPTRACK_BUFSIZE,
+				   &session_ret->optrack_buf));
+		WT_ERR(__wt_snprintf(optrack_fname,
+				     PATH_MAX, "%s/optrack.%" PRIuMAX ".%d",
+				     conn->optrack, conn->optrack_pid,
+				     session_ret->id));
+		WT_ERR(__wt_open(session, optrack_fname,
+				 WT_FS_OPEN_FILE_TYPE_REGULAR,
+				 WT_FS_OPEN_CREATE, &session_ret->optrack_fh));
+	}
 	/*
 	 * Configuration: currently, the configuration for open_session is the
 	 * same as session.reconfigure, so use that function.

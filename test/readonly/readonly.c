@@ -44,9 +44,9 @@ static const char * const uri = "table:main";
 
 #define	ENV_CONFIG						\
     "create,log=(file_max=10M,archive=false,enabled),"		\
-    "transaction_sync=(enabled,method=none)"
-#define	ENV_CONFIG_RD "readonly=true"
-#define	ENV_CONFIG_WR "readonly=false"
+    "optrack=false,transaction_sync=(enabled,method=none)"
+#define	ENV_CONFIG_RD "optrack=false,readonly=true"
+#define	ENV_CONFIG_WR "optrack=false,readonly=false"
 #define	MAX_VAL	4096
 #define	MAX_KV	10000
 

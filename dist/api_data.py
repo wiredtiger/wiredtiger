@@ -760,6 +760,10 @@ wiredtiger_open_common =\
         RPC server for primary processes and use RPC for secondary
         processes). <b>Not yet supported in WiredTiger</b>''',
         type='boolean'),
+    Config('optrack', 'true', r'''
+        enable tracking of performance-critical functions. See @ref optrack
+        for more information''',
+        type='boolean'),
     Config('readonly', 'false', r'''
         open connection in read-only mode.  The database must exist.  All
         methods that may modify a database are disabled.  See @ref readonly

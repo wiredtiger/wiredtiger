@@ -107,6 +107,7 @@ flags = {
         'CONN_LAS_OPEN',
         'CONN_LEAK_MEMORY',
         'CONN_LSM_MERGE',
+        'CONN_OPTRACK',
         'CONN_PANIC',
         'CONN_READONLY',
         'CONN_RECOVERING',

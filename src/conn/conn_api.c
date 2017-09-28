@@ -1031,16 +1031,16 @@ __conn_optrack_dir(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_CONFIG_ITEM cval;
 
 	/* Only use the environment variable if configured. */
-        WT_RET(__wt_config_gets(session, cfg, "use_environment", &cval));
-        if (cval.val != 0 &&
-            __wt_getenv(session, "WIREDTIGER_OPTRACK",
+	WT_RET(__wt_config_gets(session, cfg, "use_environment", &cval));
+	if (cval.val != 0 &&
+	    __wt_getenv(session, "WIREDTIGER_OPTRACK",
 			&S2C(session)->optrack) == 0)
 		return (0);
 
 	/*
-         * If there's no WIREDTIGER_OPTRACK environment variable, use the
-         * configured database directory.
-         */
+	 * If there's no WIREDTIGER_OPTRACK environment variable, use the
+	 * configured database directory.
+	 */
 	S2C(session)->optrack = ".";
 
 	return (0);
@@ -2455,8 +2455,13 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	WT_ERR(
 	    __conn_chk_file_system(session, F_ISSET(conn, WT_CONN_READONLY)));
 
+	WT_ERR(__wt_config_gets(session, cfg, "optrack", &cval));
+	if (cval.val != 0)
+		F_SET(conn, WT_CONN_OPTRACK);
+
 	/* Set up operation tracking. */
-	WT_ERR(__conn_optrack_setup(session, cfg));
+	if (F_ISSET(conn, WT_CONN_OPTRACK))
+		WT_ERR(__conn_optrack_setup(session, cfg));
 
 	/* Make sure no other thread of control already owns this database. */
 	WT_ERR(__conn_single(session, cfg));
