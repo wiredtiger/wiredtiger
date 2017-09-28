@@ -371,8 +371,14 @@ wts_init(void)
 	maxleafkey = mmrand(NULL, maxleafpage / 50, maxleafpage / 40);
 	if (maxleafkey > 20)
 		CONFIG_APPEND(p, ",leaf_key_max=%" PRIu32, maxleafkey);
+
+#if 1
+	/* XXX disable overflow records.  Test-only. */
+	maxleafvalue = 64 * WT_MEGABYTE;
+#else
 	maxleafvalue = mmrand(NULL, maxleafpage * 10, maxleafpage / 40);
 	if (maxleafvalue > 40 && maxleafvalue < 100 * 1024)
+#endif
 		CONFIG_APPEND(p, ",leaf_value_max=%" PRIu32, maxleafvalue);
 
 	switch (g.type) {
