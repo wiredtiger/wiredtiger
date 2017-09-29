@@ -223,10 +223,10 @@ struct ParetoOptions {
     ~ParetoOptions();
 
     void describe(std::ostream &os) const {
-	os << "param " << param;
-        if (range_low != 0.0 || range_high != 1.0) {
-            os << "range [" << range_low << "-" << range_high << "]";
-        }
+	os << "parameter " << param;
+	if (range_low != 0.0 || range_high != 1.0) {
+	    os << "range [" << range_low << "-" << range_high << "]";
+	}
     }
 
     std::string help() const { return _options.help(); }
@@ -251,9 +251,9 @@ struct Key {
     Key() : _keytype(KEYGEN_AUTO), _size(0), _pareto(ParetoOptions::DEFAULT) {}
     Key(KeyType keytype, int size=0,
       const ParetoOptions &pareto=ParetoOptions::DEFAULT) :
-        _keytype(keytype), _size(size), _pareto(pareto) {}
+	_keytype(keytype), _size(size), _pareto(pareto) {}
     Key(const Key &other) : _keytype(other._keytype), _size(other._size),
-        _pareto(other._pareto) {}
+	_pareto(other._pareto) {}
     ~Key() {}
 
     void describe(std::ostream &os) const {

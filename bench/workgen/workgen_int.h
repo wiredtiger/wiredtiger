@@ -36,7 +36,7 @@ extern "C" {
 }
 #endif
 
-#define RANDOMIZER_SIZE  5    /* :NNN: prefix */
+#define	RANDOMIZER_SIZE  5    /* ":000:" prefix */
 
 namespace workgen {
 
