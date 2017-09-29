@@ -366,7 +366,7 @@ wts_init(void)
 	 * if we come up with something crazy.
 	 */
 	/* XXX disable overflow records.  Test-only. */
-#define	__XXX_NO_OVERFLOW 0
+#define	__XXX_NO_OVERFLOW 1
 #if __XXX_NO_OVERFLOW
 	maxintlkey = 1024;
 #else
