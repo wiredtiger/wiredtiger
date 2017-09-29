@@ -590,15 +590,6 @@ __rec_write_check_complete(
 		return (EBUSY);
 
 	/*
-	 * If no updates were visible, we can end up with an empty page image.
-	 * We can restore row store pages in that case but not column store
-	 * pages.
-	 */
-	if (r->multi_next == 0 && r->supd_next != 0 &&
-	    r->page->type != WT_PAGE_ROW_LEAF)
-		return (EBUSY);
-
-	/*
 	 * Check if this reconciliation attempt is making progress.  If there's
 	 * any sign of progress, don't fall back to the lookaside table.
 	 *
@@ -3105,8 +3096,12 @@ __rec_split_finish(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	 * empty; otherwise, the page is truly empty and we will merge it into
 	 * its parent during the parent's reconciliation.
 	 */
-	if (r->entries == 0 && r->supd_next == 0)
-		return (0);
+	if (r->entries == 0) {
+		if (r->supd_next == 0)
+			return (0);
+		if (r->page->type != WT_PAGE_ROW_LEAF)
+			return (EBUSY);
+	}
 
 	/* Set the number of entries and size for the just finished chunk. */
 	r->cur_ptr->image.size =
