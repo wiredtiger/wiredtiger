@@ -2932,7 +2932,7 @@ no_slots:
 		 * Writing the current (possibly compressed), chunk.
 		 * Finalize the current chunk's information.
 		 */
-		chunk->image.size =
+		chunk->image.size = (size_t)
 		    r->raw_offsets[result_slots] + WT_BLOCK_COMPRESS_SKIP;
 		chunk->entries = r->raw_entries[result_slots - 1];
 
