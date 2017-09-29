@@ -1813,7 +1813,7 @@ col_remove(WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno, bool positioned)
 	 */
 	if (g.type == FIX) {
 		key_gen(key, keyno);
-		bdb_update(key->data, key->size, "\0", 1);
+		bdb_update(key->data, key->size, "", 1);
 	} else {
 		int notfound;
 
