@@ -279,7 +279,7 @@ typedef struct {
 } WT_RECONCILE;
 
 #define	WT_CROSSING_MIN_BND(r, next_len)				\
-	(r->cur_ptr->min_offset == 0 &&					\
+	((r)->cur_ptr->min_offset == 0 &&				\
 	    (next_len) > (r)->min_space_avail)
 #define	WT_CROSSING_SPLIT_BND(r, next_len) ((next_len) > (r)->space_avail)
 #define	WT_CHECK_CROSSING_BND(r, next_len)				\
