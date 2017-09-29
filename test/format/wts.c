@@ -365,14 +365,24 @@ wts_init(void)
 	 * Configure the maximum key/value sizes, but leave it as the default
 	 * if we come up with something crazy.
 	 */
+	/* XXX disable overflow records.  Test-only. */
+#define __XXX_NO_OVERFLOW 1
+#if __XXX_NO_OVERFLOW
+	maxintlkey = 1024;
+#else
 	maxintlkey = mmrand(NULL, maxintlpage / 50, maxintlpage / 40);
 	if (maxintlkey > 20)
+#endif
 		CONFIG_APPEND(p, ",internal_key_max=%" PRIu32, maxintlkey);
+#if __XXX_NO_OVERFLOW
+	maxleafkey = 1024;
+#else
 	maxleafkey = mmrand(NULL, maxleafpage / 50, maxleafpage / 40);
 	if (maxleafkey > 20)
+#endif
 		CONFIG_APPEND(p, ",leaf_key_max=%" PRIu32, maxleafkey);
 
-#if 1
+#if __XXX_NO_OVERFLOW
 	/* XXX disable overflow records.  Test-only. */
 	maxleafvalue = 64 * WT_MEGABYTE;
 #else
