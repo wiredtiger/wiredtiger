@@ -572,6 +572,9 @@ static int
 __rec_write_check_complete(
     WT_SESSION_IMPL *session, WT_RECONCILE *r, bool *lookaside_retryp)
 {
+	WT_MULTI *multi;
+	uint32_t i;
+
 	/*
 	 * Tests in this function are lookaside tests and tests to decide if
 	 * rewriting a page in memory is worth doing. In-memory configurations
@@ -588,6 +591,20 @@ __rec_write_check_complete(
 	 */
 	if (r->cache_write_lookaside && __rec_las_checkpoint_test(session, r))
 		return (EBUSY);
+
+	/*
+	 * If no entries were used, the page is empty and we can only restore
+	 * updates against an empty row store leaf page.  (Column store modify
+	 * will attempt to allocate a zero-length array).
+	 */
+	if (r->page->type != WT_PAGE_ROW_LEAF) {
+		if (r->entries == 0 && r->supd_next != 0)
+			return (EBUSY);
+		for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
+			if (multi->disk_image == NULL &&
+			    multi->supd_entries != 0)
+				return (EBUSY);
+	}
 
 	/*
 	 * Check if this reconciliation attempt is making progress.  If there's
@@ -3096,12 +3113,8 @@ __rec_split_finish(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	 * empty; otherwise, the page is truly empty and we will merge it into
 	 * its parent during the parent's reconciliation.
 	 */
-	if (r->entries == 0) {
-		if (r->supd_next == 0)
-			return (0);
-		if (r->page->type != WT_PAGE_ROW_LEAF)
-			return (EBUSY);
-	}
+	if (r->entries == 0 && r->supd_next == 0)
+		return (0);
 
 	/* Set the number of entries and size for the just finished chunk. */
 	r->cur_ptr->image.size =
