@@ -3388,7 +3388,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 * entries in the page image to write.
 	 */
 	if (multi->supd != NULL &&
-	    (F_ISSET(r, WT_REC_UPDATE_RESTORE) || r->entries == 0)) {
+	    (F_ISSET(r, WT_REC_UPDATE_RESTORE) || chunk->entries == 0)) {
 		r->cache_write_restore = true;
 		goto copy_image;
 	}
