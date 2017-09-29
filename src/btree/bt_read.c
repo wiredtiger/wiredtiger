@@ -86,9 +86,9 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t read_id)
 	size_t incr, total_incr;
 	uint64_t current_recno, las_counter, las_pageid, las_txnid, recno;
 	uint32_t las_id, session_flags;
+	const uint8_t *p;
 	uint8_t upd_type;
 	int exact;
-	const uint8_t *p;
 
 	cursor = NULL;
 	page = ref->page;
@@ -444,8 +444,8 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 	WT_DECL_RET;
 	WT_PAGE *page;
 	uint64_t sleep_cnt, wait_cnt;
-	bool busy, cache_work, did_read, evict_soon, stalled;
 	int force_attempts;
+	bool busy, cache_work, did_read, evict_soon, stalled;
 
 	btree = S2BT(session);
 

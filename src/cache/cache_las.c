@@ -287,8 +287,8 @@ int
 __wt_las_remove_block(WT_SESSION_IMPL *session,
     WT_CURSOR *cursor, uint32_t btree_id, uint64_t pageid)
 {
-	WT_ITEM las_key;
 	WT_DECL_RET;
+	WT_ITEM las_key;
 	uint64_t las_counter, las_pageid, remove_cnt;
 	uint32_t las_id;
 	int exact;
