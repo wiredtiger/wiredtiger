@@ -439,15 +439,15 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	WT_ILLEGAL_VALUE_SET(session);
 	}
 
+	/* Check for a successful reconciliation. */
+	if (ret == 0)
+		ret = __rec_write_check_complete(session, r, lookaside_retryp);
+
 	/*
-	 * Checks for a successful reconciliation.
-	 *
 	 * XXX special case to fall back to lookaside eviction during
 	 * checkpoints if a page can't be evicted.
 	 */
-	if (ret == 0)
-		ret = __rec_write_check_complete(session, r, lookaside_retryp);
-	else if (ret == EBUSY && lookaside_retryp != NULL &&
+	if (ret == EBUSY && lookaside_retryp != NULL &&
 	    !F_ISSET(r, WT_REC_UPDATE_RESTORE) && !r->update_uncommitted)
 		*lookaside_retryp = true;
 
@@ -499,14 +499,14 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 			WT_TRET(session->block_manager_cleanup(session));
 
 		WT_TRET(__rec_destroy_session(session));
-
-		/*
-		 * We track removed overflow objects in case there's a reader
-		 * in transit when they're removed. Any form of eviction locks
-		 * out readers, we can discard them all.
-		 */
-		__wt_ovfl_discard_remove(session, page);
 	}
+	/*
+	 * We track removed overflow objects in case there's a reader in
+	 * transit when they're removed. Any form of eviction locks out
+	 * readers, we can discard them all.
+	 */
+	if (LF_ISSET(WT_REC_EVICT))
+		__wt_ovfl_discard_remove(session, page);
 	WT_RET(ret);
 
 	/*
@@ -590,6 +590,15 @@ __rec_write_check_complete(
 		return (EBUSY);
 
 	/*
+	 * If no updates were visible, we can end up with an empty page image.
+	 * We can restore row store pages in that case but not column store
+	 * pages.
+	 */
+	if (r->multi_next == 0 && r->supd_next != 0 &&
+	    r->page->type != WT_PAGE_ROW_LEAF)
+		return (EBUSY);
+
+	/*
 	 * Check if this reconciliation attempt is making progress.  If there's
 	 * any sign of progress, don't fall back to the lookaside table.
 	 *
@@ -599,10 +608,6 @@ __rec_write_check_complete(
 	 * page image and it is now empty, that's also progress.
 	 */
 	if (r->multi_next > 1)
-		return (0);
-	if (r->multi_next == 0 && r->page->dsk != NULL)
-		return (0);
-	if (r->multi_next == 1 && r->page->dsk == NULL)
 		return (0);
 
 	/*
@@ -1206,7 +1211,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	WT_UPDATE *upd;
 	wt_timestamp_t *timestampp;
 	uint64_t max_txn, txnid;
-	bool all_visible, saved, uncommitted;
+	bool all_visible, uncommitted;
 
 	*updp = NULL;
 
@@ -1214,7 +1219,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	page = r->page;
 	first_ts_upd = first_txn_upd = NULL;
 	max_txn = WT_TXN_NONE;
-	saved = uncommitted = false;
+	uncommitted = false;
 
 	/*
 	 * If called with a WT_INSERT item, use its WT_UPDATE list (which must
@@ -1383,7 +1388,18 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 * unresolved updates, move the entire update list.
 	 */
 	WT_RET(__rec_update_save(session, r, ins, ripcip, *updp));
-	saved = true;
+
+#ifdef HAVE_TIMESTAMPS
+	/* Track the oldest saved timestamp for lookaside. */
+	if (F_ISSET(r, WT_REC_LOOKASIDE)) {
+		for (upd = first_upd; upd->next != NULL; upd = upd->next)
+			;
+		if (__wt_timestamp_cmp(
+		    &r->min_saved_timestamp, &upd->timestamp) > 0)
+			__wt_timestamp_set(
+			    &r->min_saved_timestamp, &upd->timestamp);
+	}
+#endif
 
 check_original_value:
 	/*
@@ -1396,20 +1412,6 @@ check_original_value:
 	    vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM))
 		WT_RET(
 		    __rec_append_orig_value(session, page, first_upd, vpack));
-
-#ifdef HAVE_TIMESTAMPS
-	/* Track the oldest saved timestamp for lookaside. */
-	if (saved && F_ISSET(r, WT_REC_LOOKASIDE)) {
-		for (upd = first_upd; upd->next != NULL; upd = upd->next)
-			;
-		if (__wt_timestamp_cmp(
-		    &r->min_saved_timestamp, &upd->timestamp) > 0)
-			__wt_timestamp_set(
-			    &r->min_saved_timestamp, &upd->timestamp);
-	}
-#else
-	WT_UNUSED(saved);
-#endif
 
 	return (0);
 }
@@ -4696,7 +4698,7 @@ compare:		/*
 		if (ovfl_state == OVFL_UNUSED &&
 		    vpack->raw != WT_CELL_VALUE_OVFL_RM)
 			WT_ERR(__wt_ovfl_remove(
-			    session, page, vpack, !F_ISSET(r, WT_REC_EVICT)));
+			    session, page, vpack, F_ISSET(r, WT_REC_EVICT)));
 	}
 
 	/* Walk any append list. */
@@ -5324,7 +5326,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 			if (vpack != NULL &&
 			    vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)
 				WT_ERR(__wt_ovfl_remove(session,
-				    page, vpack, !F_ISSET(r, WT_REC_EVICT)));
+				    page, vpack, F_ISSET(r, WT_REC_EVICT)));
 
 			switch (upd->type) {
 			case WT_UPDATE_DELETED:
