@@ -606,6 +606,18 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref,
 	WT_RET(ret);
 
 	/*
+	 * If attempting eviction in service of a checkpoint, we may
+	 * successfully reconcile but then find that there are updates on the
+	 * page too new to evict.  Give up in that case: checkpoint will
+	 * reconcile the page normally.
+	 */
+	if (checkpointing && !__wt_page_is_modified(page) &&
+	    !LF_ISSET(WT_REC_LOOKASIDE) &&
+	    !__wt_txn_visible_all(session, page->modify->rec_max_txn,
+	    WT_TIMESTAMP_NULL(&page->modify->rec_max_timestamp)))
+		return (EBUSY);
+
+	/*
 	 * Success: assert the page is clean or reconciliation was configured
 	 * for update/restore. If the page is clean, assert that reconciliation
 	 * was configured for a lookaside table, or it's not a durable object
