@@ -83,7 +83,7 @@ __sync_dup_walk(
 		return (0);
 	}
 
-	/*
+retry:	/*
 	 * We already have a hazard pointer, we should generally be able to get
 	 * another one.  That said, we could race with some thread attempting
 	 * to get exclusive access: just continue on to the ordinary write path
@@ -95,8 +95,15 @@ __sync_dup_walk(
 	WT_RET(__wt_hazard_set(session, walk, &busy));
 #endif
 
-	if (busy)
-		return (EBUSY);
+	/*
+	 * We can get spurious busy errors (e.g., if eviction attempt to lock
+	 * the page.  Keep trying: we have one hazard pointer so we should be
+	 * able to get another one.
+	 */
+	if (busy) {
+		__wt_yield();
+		goto retry;
+	}
 
 	*dupp = walk;
 	return (0);
@@ -273,8 +280,12 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 				 * Remember the previous location in case we
 				 * need to back up.
 				 */
-				WT_ERR(__sync_dup_walk(
-				    session, walk, flags, &prev));
+				if ((ret = __sync_dup_walk(
+				    session, walk, flags, &prev)) == EBUSY) {
+					__wt_yield();
+					continue;
+				}
+				WT_ERR(ret);
 				WT_ERR(__wt_tree_walk(session, &walk, flags));
 			}
 			skip_walk = false;

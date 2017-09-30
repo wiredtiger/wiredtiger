@@ -75,9 +75,6 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	wt_conn = &conn->iface;
 	session = conn->default_session;
 
-	/* Shut down transactions (wait for in-flight operations to complete. */
-	WT_TRET(__wt_txn_global_shutdown(session));
-
 	/* Shut down the subsystems, ensuring workers see the state change. */
 	F_SET(conn, WT_CONN_CLOSING);
 	WT_FULL_BARRIER();
