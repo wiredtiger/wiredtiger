@@ -27,9 +27,9 @@ __wt_txn_timestamp_flags(WT_SESSION_IMPL *session)
 	btree = S2BT(session);
 	if (btree == NULL)
 		return;
-	if (FLD_ISSET(btree->debug, BTREE_DBG_COMMITTS_ALWAYS))
+	if (FLD_ISSET(btree->debug_flags, WT_DEBUG_COMMIT_TS_ALWAYS))
 		F_SET(&session->txn, WT_TXN_TS_COMMIT_ALWAYS);
-	if (FLD_ISSET(btree->debug, BTREE_DBG_COMMITTS_NEVER))
+	if (FLD_ISSET(btree->debug_flags, WT_DEBUG_COMMIT_TS_NEVER))
 		F_SET(&session->txn, WT_TXN_TS_COMMIT_NEVER);
 }
 
@@ -672,11 +672,11 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
 	 * verify this transaction has one.  Same if it should never have
 	 * a read timestamp.
 	 */
-	if (FLD_ISSET(btree->debug, BTREE_DBG_READTS_ALWAYS) &&
+	if (FLD_ISSET(btree->debug_flags, WT_DEBUG_READ_TS_ALWAYS) &&
 	    !F_ISSET(txn, WT_TXN_PUBLIC_TS_READ))
 		WT_RET_MSG(session, EINVAL, "read_timestamp required and "
 		    "none set on this transaction");
-	if (FLD_ISSET(btree->debug, BTREE_DBG_READTS_NEVER) &&
+	if (FLD_ISSET(btree->debug_flags, WT_DEBUG_READ_TS_NEVER) &&
 	    F_ISSET(txn, WT_TXN_PUBLIC_TS_READ))
 		WT_RET_MSG(session, EINVAL, "no read_timestamp required and "
 		    "timestamp set on this transaction");
