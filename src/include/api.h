@@ -40,7 +40,7 @@
 
 /* An API call wrapped in a transaction if necessary. */
 #ifdef HAVE_TIMESTAMPS
-#define	WT_TXN_TIMESTAMP_FLAG_CHECK(s) __wt_txn_timestamp_flags((s));
+#define	WT_TXN_TIMESTAMP_FLAG_CHECK(s) __wt_txn_timestamp_flags((s))
 #else
 #define	WT_TXN_TIMESTAMP_FLAG_CHECK(s)
 #endif
