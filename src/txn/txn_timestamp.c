@@ -107,27 +107,38 @@ __wt_txn_parse_timestamp(WT_SESSION_IMPL *session,
 
 #if WT_TIMESTAMP_SIZE == 8
 	{
-	static const u_char hextable[] = {
-	    0,  0,  0,  0,  0,  0,  0,  0,
-	    0,  0,  0,  0,  0,  0,  0,  0,
-	    0,  0,  0,  0,  0,  0,  0,  0,
-	    0,  0,  0,  0,  0,  0,  0,  0,
-	    0,  0,  0,  0,  0,  0,  0,  0,
-	    0,  0,  0,  0,  0,  0,  0,  0,
-	    0,  1,  2,  3,  4,  5,  6,  7,
-	    8,  9,  0,  0,  0,  0,  0,  0,
-	    0, 10, 11, 12, 13, 14, 15,  0,
-	    0,  0,  0,  0,  0,  0,  0,  0,
-	    0,  0,  0,  0,  0,  0,  0,  0,
-	    0,  0,  0,  0,  0,  0,  0,  0,
-	    0, 10, 11, 12, 13, 14, 15
+	static const char hextable[] = {
+	    -1, -1,  -1,  -1,  -1,  -1,  -1,  -1,
+	    -1, -1,  -1,  -1,  -1,  -1,  -1,  -1,
+	    -1, -1,  -1,  -1,  -1,  -1,  -1,  -1,
+	    -1, -1,  -1,  -1,  -1,  -1,  -1,  -1,
+	    -1, -1,  -1,  -1,  -1,  -1,  -1,  -1,
+	    -1, -1,  -1,  -1,  -1,  -1,  -1,  -1,
+	     0,  1,   2,   3,   4,   5,   6,   7,
+	     8,  9,  -1,  -1,  -1,  -1,  -1,  -1,
+	    -1, -1,  -1,  -1,  -1,  -1,  -1,  -1,
+	    -1, -1,  -1,  -1,  -1,  -1,  -1,  -1,
+	    -1, -1,  -1,  -1,  -1,  -1,  -1,  -1,
+	    -1, -1,  -1,  -1,  -1,  -1,  -1,  -1,
+	    -1, 10,  11,  12,  13,  14,  15, -1
 	};
 	wt_timestamp_t ts;
 	size_t len;
-	const char *hex;
+	int hex_val, hextable_count;
+	const char *hex_itr;
 
-	for (ts.val = 0, hex = cval->str, len = cval->len; len > 0; --len)
-		ts.val = (ts.val << 4) | hextable[(int)*hex++];
+	hextable_count = sizeof(hextable)/sizeof(hextable[0]);
+	for (ts.val = 0, hex_itr = cval->str, len = cval->len; len > 0; --len) {
+		if ((int)*hex_itr < hextable_count)
+			hex_val = hextable[(int)*hex_itr++];
+		else
+			hex_val = -1;
+		if (hex_val < 0)
+			WT_RET_MSG(session, EINVAL,
+			    "Failed to parse %s timestamp '%.*s'",
+			    name, (int)cval->len, cval->str);
+		ts.val = (ts.val << 4) | (uint64_t)hex_val;
+	}
 	__wt_timestamp_set(timestamp, &ts);
 	}
 #else
