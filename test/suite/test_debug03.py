@@ -37,9 +37,9 @@ class test_debug03(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'log=(enabled)'
     base_uri = 'file:debug03.wt'
     cfg = 'key_format=S,value_format=S'
-    always = 'debug=(commit_timestamp=always)'
-    never = 'debug=(commit_timestamp=never)'
-    none = 'debug=(commit_timestamp=none)'
+    always = 'assert=(commit_timestamp=always)'
+    never = 'assert=(commit_timestamp=never)'
+    none = 'assert=(commit_timestamp=none)'
 
     def test_debug03(self):
 

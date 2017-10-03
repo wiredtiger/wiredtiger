@@ -51,10 +51,10 @@ class test_debug02(wttest.WiredTigerTestCase, suite_subprocess):
         uri_none = base_uri + '.none.wt'
 
         cfg = 'key_format=S,value_format=S'
-        cfg_always = cfg + ',debug=(read_timestamp=always)'
+        cfg_always = cfg + ',assert=(read_timestamp=always)'
         cfg_def = cfg
-        cfg_never = cfg + ',debug=(read_timestamp=never)'
-        cfg_none = cfg + ',debug=(read_timestamp=none)'
+        cfg_never = cfg + ',assert=(read_timestamp=never)'
+        cfg_none = cfg + ',assert=(read_timestamp=none)'
 
         # Create a data item at a timestamp
         self.session.create(uri_always, cfg_always)

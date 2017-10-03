@@ -1121,19 +1121,6 @@ struct __wt_session {
 	 * cache.  Not compatible with LSM tables; see @ref
 	 * tuning_cache_resident for more information., a boolean flag; default
 	 * \c false.}
-	 * @config{debug = (, enable debug checking., a set of related
-	 * configuration options defined below.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;commit_timestamp, verify that
-	 * timestamps should 'always' or 'never' be used on modifications with
-	 * this table.  Verification is 'none' if mixed update use is allowed.,
-	 * a string\, chosen from the following options: \c "always"\, \c
-	 * "never"\, \c "none"; default \c none.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;read_timestamp, verify that
-	 * timestamps should 'always' or 'never' be used on reads with this
-	 * table.  Verification is 'none' if mixed read use is allowed., a
-	 * string\, chosen from the following options: \c "always"\, \c
-	 * "never"\, \c "none"; default \c none.}
-	 * @config{ ),,}
 	 * @config{log = (, the transaction log configuration for this object.
 	 * Only valid if log is enabled in ::wiredtiger_open., a set of related
 	 * configuration options defined below.}
@@ -1208,19 +1195,6 @@ struct __wt_session {
 	 * value_format.  For colgroups and indices\, all column names must
 	 * appear in the list of columns for the table., a list of strings;
 	 * default empty.}
-	 * @config{debug = (, enable debug checking., a set of related
-	 * configuration options defined below.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;commit_timestamp, verify that
-	 * timestamps should 'always' or 'never' be used on modifications with
-	 * this table.  Verification is 'none' if mixed update use is allowed.,
-	 * a string\, chosen from the following options: \c "always"\, \c
-	 * "never"\, \c "none"; default \c none.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;read_timestamp, verify that
-	 * timestamps should 'always' or 'never' be used on reads with this
-	 * table.  Verification is 'none' if mixed read use is allowed., a
-	 * string\, chosen from the following options: \c "always"\, \c
-	 * "never"\, \c "none"; default \c none.}
-	 * @config{ ),,}
 	 * @config{dictionary, the maximum number of unique values remembered in
 	 * the Btree row-store leaf page value dictionary; see @ref
 	 * file_formats_compression for more information., an integer greater

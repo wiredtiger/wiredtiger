@@ -131,8 +131,8 @@ file_runtime_config = [
         do not ever evict the object's pages from cache. Not compatible with
         LSM tables; see @ref tuning_cache_resident for more information''',
         type='boolean'),
-    Config('debug', '', r'''
-        enable debug checking. ''',
+    Config('assert', '', r'''
+        enable enhanced checking. ''',
         type='category', subconfig= [
         Config('commit_timestamp', 'none', r'''
             verify that timestamps should 'always' or 'never' be used
@@ -144,7 +144,7 @@ file_runtime_config = [
             on reads with this table.  Verification is 'none'
             if mixed read use is allowed.''',
             choices=['always','never','none'])
-        ]),
+        ], undoc=True),
     Config('log', '', r'''
         the transaction log configuration for this object.  Only valid if
         log is enabled in ::wiredtiger_open''',

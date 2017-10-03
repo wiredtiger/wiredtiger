@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_debug01.py
-#   Timestamps: debug settings
+#   Timestamps: debug assertion settings
 #
 
 from suite_subprocess import suite_subprocess
@@ -44,10 +44,10 @@ class test_debug01(wttest.WiredTigerTestCase, suite_subprocess):
     uri_never = base_uri + '.never.wt'
     uri_none = base_uri + '.none.wt'
     cfg = 'key_format=S,value_format=S,'
-    cfg_always = 'debug=(commit_timestamp=always)'
+    cfg_always = 'assert=(commit_timestamp=always)'
     cfg_def = ''
-    cfg_never = 'debug=(commit_timestamp=never)'
-    cfg_none = 'debug=(commit_timestamp=none)'
+    cfg_never = 'assert=(commit_timestamp=never)'
+    cfg_none = 'assert=(commit_timestamp=none)'
 
     count = 1
     #
