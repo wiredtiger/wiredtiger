@@ -104,7 +104,7 @@ typedef struct {
 	WT_CONNECTION	 *wts_conn;
 	WT_EXTENSION_API *wt_api;
 
-	int   rand_log_stop;			/* Logging turned off */
+	bool  rand_log_stop;			/* Logging turned off */
 	FILE *randfp;				/* Random number log */
 
 	uint32_t run_cnt;			/* Run counter */
@@ -115,8 +115,8 @@ typedef struct {
 	} logging;
 	FILE *logfp;				/* Log file */
 
-	int replay;				/* Replaying a run. */
-	int workers_finished;			/* Operations completed */
+	bool replay;				/* Replaying a run. */
+	bool workers_finished;			/* Operations completed */
 
 	pthread_rwlock_t backup_lock;		/* Backup running */
 	pthread_rwlock_t checkpoint_lock;	/* Checkpoint running */
@@ -169,6 +169,7 @@ typedef struct {
 	uint32_t c_huffman_key;
 	uint32_t c_huffman_value;
 	uint32_t c_in_memory;
+	uint32_t c_independent_thread_rng;
 	uint32_t c_insert_pct;
 	uint32_t c_internal_key_truncation;
 	uint32_t c_intl_page_max;
@@ -249,24 +250,24 @@ typedef struct {
 extern GLOBAL g;
 
 typedef struct {
-	WT_RAND_STATE rnd;			/* thread RNG state */
+	int	    id;				/* simple thread ID */
+	wt_thread_t tid;			/* thread ID */
 
-	uint64_t search;			/* operations */
-	uint64_t insert;
-	uint64_t update;
-	uint64_t remove;
-	uint64_t ops;
+	WT_RAND_STATE rnd;			/* thread RNG state */
 
 	uint64_t commit;			/* transaction resolution */
 	uint64_t rollback;
 	uint64_t deadlock;
 
-	int	    id;				/* simple thread ID */
-	wt_thread_t tid;			/* thread ID */
-
 	uint64_t timestamp;			/* last committed timestamp */
 
-	int quit;				/* thread should quit */
+	bool quit;				/* thread should quit */
+
+	uint64_t search;			/* operation counts */
+	uint64_t insert;
+	uint64_t update;
+	uint64_t remove;
+	uint64_t ops;
 
 #define	TINFO_RUNNING	1			/* Running */
 #define	TINFO_COMPLETE	2			/* Finished */
