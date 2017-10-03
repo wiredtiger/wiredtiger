@@ -229,8 +229,8 @@ __checkpoint_apply(WT_SESSION_IMPL *session, const char *cfg[],
 static int
 __checkpoint_data_source(WT_SESSION_IMPL *session, const char *cfg[])
 {
-	WT_NAMED_DATA_SOURCE *ndsrc;
 	WT_DATA_SOURCE *dsrc;
+	WT_NAMED_DATA_SOURCE *ndsrc;
 
 	/*
 	 * A place-holder, to support Helium devices: we assume calling the
@@ -289,7 +289,6 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 	if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT))
 		return (0);
 
-#ifdef HAVE_DIAGNOSTIC
 	/*
 	 * We may have raced between starting the checkpoint transaction and
 	 * some operation completing on the handle that updated the metadata
@@ -301,32 +300,26 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	if (!WT_IS_METADATA(session->dhandle)) {
 		WT_CURSOR *meta_cursor;
-		bool metadata_race;
 
 		WT_ASSERT(session, !F_ISSET(&session->txn, WT_TXN_ERROR));
 		WT_RET(__wt_metadata_cursor(session, &meta_cursor));
 		meta_cursor->set_key(meta_cursor, session->dhandle->name);
 		ret = __wt_curfile_insert_check(meta_cursor);
 		if (ret == WT_ROLLBACK) {
-			metadata_race = true;
 			/*
-			 * Disable this check and assertion for now - it is
-			 * possible that a schema operation with a timestamp in
-			 * the future is in the metadata, but not part of the
-			 * the checkpoint now that checkpoints can be created
-			 * at the stable timestamp.
-			 * See WT-3559 for context on re-adding this assertion.
+			 * If create or drop or any schema operation of a table
+			 * is with in an user transaction then checkpoint can
+			 * see the dhandle before the commit, which will lead
+			 * to the rollback error. We will ignore this dhandle as
+			 * part of this checkpoint by returning from here.
 			 */
-#if 0
-			ret = 0;
-#endif
-		} else
-			metadata_race = false;
+			WT_TRET(__wt_metadata_cursor_release(session,
+			    &meta_cursor));
+			return (0);
+		}
 		WT_TRET(__wt_metadata_cursor_release(session, &meta_cursor));
 		WT_RET(ret);
-		WT_ASSERT(session, !metadata_race);
 	}
-#endif
 
 	/*
 	 * Decide whether the tree needs to be included in the checkpoint and
@@ -376,10 +369,10 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 static void
 __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 {
+	struct timespec last, start, stop;
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
-	struct timespec start, last, stop;
-	double current_dirty, delta;
+	double current_dirty, delta, scrub_min;
 	uint64_t bytes_written_last, bytes_written_start, bytes_written_total;
 	uint64_t cache_size, max_write;
 	uint64_t current_us, stepdown_us, total_ms, work_us;
@@ -405,6 +398,25 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 	 */
 	if (cache_size < 10 * WT_MEGABYTE)
 		return;
+
+	/*
+	 * Skip scrubbing if it won't perform at-least some minimum amount of
+	 * work. Scrubbing is supposed to bring down the dirty data to eviction
+	 * checkpoint target before the actual checkpoint starts. Do not perform
+	 * scrubbing if the dirty data to scrub is less than a pre-configured
+	 * size. This size is to an extent based on the configured cache size
+	 * without being too large or too small for large cache sizes. For the
+	 * values chosen, for instance, 100 GB cache will require at-least
+	 * 200 MB of dirty data above eviction checkpoint target, which should
+	 * equate to a scrub phase a few seconds long. That said, the value of
+	 * 0.2% and 500 MB are still somewhat arbitrary.
+	 */
+	scrub_min = WT_MIN((0.2 * conn->cache_size) / 100, 500 * WT_MEGABYTE);
+	if (__wt_cache_dirty_leaf_inuse(cache) <
+	    ((cache->eviction_checkpoint_target * conn->cache_size) / 100) +
+	    scrub_min)
+		return;
+
 	stepdown_us = 10000;
 	work_us = 0;
 	progress = false;
@@ -708,10 +720,10 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_ISOLATION saved_isolation;
-	void *saved_meta_next;
-	u_int i;
 	uint64_t fsync_duration_usecs, generation;
+	u_int i;
 	bool failed, full, idle, logging, tracking;
+	void *saved_meta_next;
 
 	conn = S2C(session);
 	cache = conn->cache;
@@ -1161,8 +1173,8 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session,
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
-	char *name_alloc;
 	const char *name;
+	char *name_alloc;
 	bool hot_backup_locked;
 
 	btree = S2BT(session);
@@ -1354,8 +1366,8 @@ __checkpoint_mark_skip(
 {
 	WT_BTREE *btree;
 	WT_CKPT *ckpt;
-	const char *name;
 	int deleted;
+	const char *name;
 
 	btree = S2BT(session);
 

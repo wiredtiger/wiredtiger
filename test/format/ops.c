@@ -79,7 +79,7 @@ wts_ops(int lastrun)
 	wt_thread_t alter_tid, backup_tid, compact_tid, lrt_tid, timestamp_tid;
 	int64_t fourths, quit_fourths, thread_ops;
 	uint32_t i;
-	int running;
+	bool running;
 
 	conn = g.wts_conn;
 
@@ -125,7 +125,7 @@ wts_ops(int lastrun)
 	 * after threaded operations start, there's no point.
 	 */
 	if (!SINGLETHREADED)
-		g.rand_log_stop = 1;
+		g.rand_log_stop = true;
 
 	/* Open a session. */
 	if (g.logging != 0) {
@@ -141,7 +141,23 @@ wts_ops(int lastrun)
 	tinfo_list = dcalloc((size_t)g.c_threads, sizeof(TINFO *));
 	for (i = 0; i < g.c_threads; ++i) {
 		tinfo_list[i] = tinfo = dcalloc(1, sizeof(TINFO));
+
 		tinfo->id = (int)i + 1;
+
+		/*
+		 * Characterize the per-thread random number generator. Normally
+		 * we want independent behavior so threads start in different
+		 * parts of the RNG space, but we've found bugs by having the
+		 * threads pound on the same key/value pairs, that is, by making
+		 * them traverse the same RNG space. 75% of the time we run in
+		 * independent RNG space.
+		 */
+		if (g.c_independent_thread_rng)
+			__wt_random_init_seed(
+			    (WT_SESSION_IMPL *)session, &tinfo->rnd);
+		else
+			__wt_random_init(&tinfo->rnd);
+
 		tinfo->state = TINFO_RUNNING;
 		testutil_check(
 		    __wt_thread_create(NULL, &tinfo->tid, ops, tinfo));
@@ -163,14 +179,14 @@ wts_ops(int lastrun)
 	if (!SINGLETHREADED && g.c_long_running_txn)
 		testutil_check(__wt_thread_create(NULL, &lrt_tid, lrt, NULL));
 	if (g.c_txn_timestamps)
-		testutil_check(
-		    __wt_thread_create(NULL, &timestamp_tid, timestamp, NULL));
+		testutil_check(__wt_thread_create(
+		    NULL, &timestamp_tid, timestamp, tinfo_list));
 
 	/* Spin on the threads, calculating the totals. */
 	for (;;) {
 		/* Clear out the totals each pass. */
 		memset(&total, 0, sizeof(total));
-		for (i = 0, running = 0; i < g.c_threads; ++i) {
+		for (i = 0, running = false; i < g.c_threads; ++i) {
 			tinfo = tinfo_list[i];
 			total.commit += tinfo->commit;
 			total.deadlock += tinfo->deadlock;
@@ -182,7 +198,7 @@ wts_ops(int lastrun)
 
 			switch (tinfo->state) {
 			case TINFO_RUNNING:
-				running = 1;
+				running = true;
 				break;
 			case TINFO_COMPLETE:
 				tinfo->state = TINFO_JOINED;
@@ -208,7 +224,7 @@ wts_ops(int lastrun)
 					static char *core = NULL;
 					*core = 0;
 				}
-				tinfo->quit = 1;
+				tinfo->quit = true;
 			}
 		}
 		track("ops", 0ULL, &total);
@@ -224,12 +240,9 @@ wts_ops(int lastrun)
 			abort();
 		}
 	}
-	for (i = 0; i < g.c_threads; ++i)
-		free(tinfo_list[i]);
-	free(tinfo_list);
 
 	/* Wait for the other threads. */
-	g.workers_finished = 1;
+	g.workers_finished = true;
 	if (g.c_alter)
 		testutil_check(__wt_thread_join(NULL, alter_tid));
 	if (g.c_backups)
@@ -240,13 +253,17 @@ wts_ops(int lastrun)
 		testutil_check(__wt_thread_join(NULL, lrt_tid));
 	if (g.c_txn_timestamps)
 		testutil_check(__wt_thread_join(NULL, timestamp_tid));
-	g.workers_finished = 0;
+	g.workers_finished = false;
 
 	if (g.logging != 0) {
 		(void)g.wt_api->msg_printf(g.wt_api, session,
 		    "=============== thread ops stop ===============");
 		testutil_check(session->close(session, NULL));
 	}
+
+	for (i = 0; i < g.c_threads; ++i)
+		free(tinfo_list[i]);
+	free(tinfo_list);
 }
 
 /*
@@ -256,8 +273,8 @@ wts_ops(int lastrun)
 static inline u_int
 isolation_config(WT_RAND_STATE *rnd, WT_SESSION *session)
 {
-	const char *config;
 	u_int v;
+	const char *config;
 
 	if ((v = g.c_isolation_flag) == ISOLATION_RANDOM)
 		v = mmrand(rnd, 2, 4);
@@ -468,20 +485,15 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session)
 	char config_buf[64];
 
 	if (g.c_txn_timestamps) {
-		/*
-		 * There can be multiple threads doing transactions
-		 * simultaneously requiring us to do some co-ordination so that
-		 * a thread doesn't try to commit with a timestamp older than
-		 * the oldest_timestamp just bumped by another thread.
-		 */
-		testutil_check(pthread_rwlock_rdlock(&g.commit_ts_lock));
 		ts = __wt_atomic_addv64(&g.timestamp, 1);
 		testutil_check(__wt_snprintf(
 		    config_buf, sizeof(config_buf),
 		    "commit_timestamp=%" PRIx64, ts));
 		testutil_check(
 		    session->commit_transaction(session, config_buf));
-		testutil_check(pthread_rwlock_unlock(&g.commit_ts_lock));
+
+		/* After the commit, update our last timestamp. */
+		tinfo->timestamp = ts;
 	} else
 		testutil_check(session->commit_transaction(session, NULL));
 	++tinfo->commit;
@@ -502,7 +514,7 @@ ops(void *arg)
 	WT_DECL_RET;
 	WT_ITEM *key, _key, *value, _value;
 	WT_SESSION *session;
-	uint64_t keyno, ckpt_op, reset_op, session_op;
+	uint64_t ckpt_op, keyno, reset_op, session_op;
 	uint32_t rnd;
 	u_int i, iso_config;
 	int dir;
@@ -518,9 +530,6 @@ ops(void *arg)
 	snap = NULL;
 	iso_config = 0;
 	memset(snap_list, 0, sizeof(snap_list));
-
-	/* Initialize the per-thread random number generator. */
-	__wt_random_init(&tinfo->rnd);
 
 	/* Set up the default key and value buffers. */
 	key = &_key;
@@ -1536,7 +1545,7 @@ table_append_init(void)
 static void
 table_append(uint64_t keyno)
 {
-	uint64_t *p, *ep;
+	uint64_t *ep, *p;
 	int done;
 
 	ep = g.append + g.append_max;
@@ -1804,7 +1813,7 @@ col_remove(WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno, bool positioned)
 	 */
 	if (g.type == FIX) {
 		key_gen(key, keyno);
-		bdb_update(key->data, key->size, "\0", 1);
+		bdb_update(key->data, key->size, "", 1);
 	} else {
 		int notfound;
 
