@@ -1284,8 +1284,21 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 
 		if (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 		    !__wt_txn_upd_visible_all(session, upd) :
-		    !__wt_txn_upd_visible(session, upd))
+		    !__wt_txn_upd_visible(session, upd)) {
+			/*
+			 * Rare case: when applications run at low isolation
+			 * levels, update/restore eviction may see a stable
+			 * update followed by an uncommitted update.  Give up
+			 * in that case: we need to discard updates from the
+			 * stable update and older for correctness and we can't
+			 * discard an uncommitted update.
+			 */
+			if (F_ISSET(r, WT_REC_UPDATE_RESTORE) &&
+			    *updp != NULL && uncommitted)
+				return (EBUSY);
+
 			continue;
+		}
 
 		if (*updp == NULL)
 			*updp = upd;
