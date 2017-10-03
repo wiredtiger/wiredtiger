@@ -387,14 +387,9 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 	/* Evict pages from the cache as needed. */
 	WT_RET(__evict_pass(session));
 
-	if (!F_ISSET(conn, WT_CONN_EVICTION_RUN) ||
-	    cache->pass_intr != 0)
+	if (!F_ISSET(conn, WT_CONN_EVICTION_RUN) || cache->pass_intr != 0)
 		return (0);
 
-	/*
-	 * Clear the walks so we don't pin pages while asleep,
-	 * otherwise we can block applications evicting large pages.
-	 */
 	if (!__wt_cache_stuck(session)) {
 		/*
 		 * Try to get the handle list lock: if we give up, that
@@ -405,7 +400,13 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 		if ((ret = __evict_lock_handle_list(session)) == EBUSY)
 			return (0);
 		WT_RET(ret);
+
+		/*
+		 * Clear the walks so we don't pin pages while asleep,
+		 * otherwise we can block applications evicting large pages.
+		 */
 		ret = __evict_clear_all_walks(session);
+
 		__wt_readunlock(session, &conn->dhandle_lock);
 		WT_RET(ret);
 
@@ -2444,6 +2445,7 @@ static int
 __verbose_dump_cache_single(WT_SESSION_IMPL *session,
     uint64_t *total_bytesp, uint64_t *total_dirty_bytesp)
 {
+	WT_BTREE *btree;
 	WT_DATA_HANDLE *dhandle;
 	WT_PAGE *page;
 	WT_REF *next_walk;
@@ -2489,11 +2491,12 @@ __verbose_dump_cache_single(WT_SESSION_IMPL *session,
 	}
 
 	dhandle = session->dhandle;
-	if (dhandle->checkpoint == NULL)
-		WT_RET(__wt_msg(session, "%s(<live>):", dhandle->name));
-	else
-		WT_RET(__wt_msg(session, "%s(checkpoint=%s):",
-		    dhandle->name, dhandle->checkpoint));
+	btree = dhandle->handle;
+	WT_RET(__wt_msg(session, "%s(%s%s)%s%s:",
+	    dhandle->name, dhandle->checkpoint != NULL ? "checkpoint=" : "",
+	    dhandle->checkpoint != NULL ? dhandle->checkpoint : "<live>",
+	    btree->evict_disabled != 0 ?  "eviction disabled" : "",
+	    btree->evict_disabled_open ? " at open" : ""));
 	if (intl_pages != 0)
 		WT_RET(__wt_msg(session,
 		    "internal: "
