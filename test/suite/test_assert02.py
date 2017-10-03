@@ -26,8 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_debug02.py
-#   Timestamps: debug settings
+# test_assert02.py
+#   Timestamps: assert read timestamp settings
 #
 
 from suite_subprocess import suite_subprocess
@@ -36,14 +36,14 @@ import wiredtiger, wttest
 def timestamp_str(t):
     return '%x' % t
 
-class test_debug02(wttest.WiredTigerTestCase, suite_subprocess):
+class test_assert02(wttest.WiredTigerTestCase, suite_subprocess):
     def test_read_timestamp(self):
         #if not wiredtiger.timestamp_build() or not wiredtiger.diagnostic_build():
         #    self.skipTest('requires a timestamp and diagnostic build')
         if not wiredtiger.timestamp_build():
             self.skipTest('requires a timestamp build')
 
-        base = 'debug02.'
+        base = 'assert02.'
         base_uri = 'file:' + base
         uri_always = base_uri + '.always.wt'
         uri_def = base_uri + '.def.wt'

@@ -26,8 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_debug01.py
-#   Timestamps: debug assertion settings
+# test_assert01.py
+#   Timestamps: assert commit settings
 #
 
 from suite_subprocess import suite_subprocess
@@ -36,8 +36,8 @@ import wiredtiger, wttest
 def timestamp_str(t):
     return '%x' % t
 
-class test_debug01(wttest.WiredTigerTestCase, suite_subprocess):
-    base = 'debug01'
+class test_assert01(wttest.WiredTigerTestCase, suite_subprocess):
+    base = 'assert01'
     base_uri = 'file:' + base
     uri_always = base_uri + '.always.wt'
     uri_def = base_uri + '.def.wt'

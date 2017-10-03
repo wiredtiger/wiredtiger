@@ -26,22 +26,22 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_debug03.py
-# Test changing debug setting via alter.
+# test_assert03.py
+# Test changing assert setting via alter.
 #
 
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 
-class test_debug03(wttest.WiredTigerTestCase, suite_subprocess):
+class test_assert03(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'log=(enabled)'
-    base_uri = 'file:debug03.wt'
+    base_uri = 'file:assert03.wt'
     cfg = 'key_format=S,value_format=S'
     always = 'assert=(commit_timestamp=always)'
     never = 'assert=(commit_timestamp=never)'
     none = 'assert=(commit_timestamp=none)'
 
-    def test_debug03(self):
+    def test_assert03(self):
 
         #if not wiredtiger.timestamp_build() or not wiredtiger.diagnostic_build():
         #    self.skipTest('requires a timestamp and diagnostic build')
