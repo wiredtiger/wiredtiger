@@ -1392,7 +1392,7 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	    !__wt_page_can_evict(session, ref, NULL))
 		return (__wt_hazard_clear(session, ref));
 
-	WT_RET_BUSY_OK(__wt_page_release_evict(session, ref, false));
+	WT_RET_BUSY_OK(__wt_page_release_evict(session, ref));
 	return (0);
 }
 

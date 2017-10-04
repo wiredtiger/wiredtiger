@@ -3389,7 +3389,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 * any list of updates we skipped.
 	 */
 	if (F_ISSET(r, WT_REC_IN_MEMORY))
-		goto copy_image;
+		goto skip_write;
 
 	/*
 	 * If there are saved updates, we are either doing update/restore
@@ -3403,7 +3403,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	if (multi->supd != NULL &&
 	    (F_ISSET(r, WT_REC_UPDATE_RESTORE) || chunk->entries == 0)) {
 		r->cache_write_restore = true;
-		goto copy_image;
+		goto skip_write;
 	}
 
 	/*
@@ -3438,7 +3438,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 				multi->addr = multi_mod->addr;
 
 				WT_STAT_DATA_INCR(session, rec_page_match);
-				goto copy_image;
+				goto skip_write;
 			}
 		}
 	}
@@ -3453,7 +3453,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	WT_RET(__wt_memdup(session, addr, addr_size, &multi->addr.addr));
 	multi->addr.size = (uint8_t)addr_size;
 
-copy_image:
+skip_write:
 	/*
 	 * If using the lookaside table eviction path and we found updates that
 	 * weren't globally visible when reconciling this page, copy them into
@@ -3509,12 +3509,6 @@ __rec_update_las(WT_SESSION_IMPL *session,
 	WT_CLEAR(las_value);
 	page = r->page;
 	insert_cnt = las_pageid = 0;
-
-	/*
-	 * We're writing lookaside records: start instantiating them on pages
-	 * we read (with the right flag set), and start sweeping the file.
-	 */
-	__wt_las_set_written(session);
 
 	__wt_las_cursor(session, &cursor, &session_flags);
 
@@ -3623,8 +3617,8 @@ __rec_update_las(WT_SESSION_IMPL *session,
 err:	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 
 	if (insert_cnt > 0) {
-		(void)__wt_atomic_add64(
-		    &S2C(session)->las_record_cnt, insert_cnt);
+		WT_STAT_CONN_INCRV(
+		    session, cache_lookaside_entries, insert_cnt);
 		__rec_verbose_lookaside_write(session, btree_id, las_pageid);
 	}
 
@@ -6516,7 +6510,8 @@ __rec_verbose_lookaside_write(
 			    "cache dirty: %" PRIu32 "%% , "
 			    "cache use: %" PRIu32 "%%",
 			    las_id, las_pageid,
-			    conn->las_record_cnt, pct_dirty, pct_full);
+			    WT_STAT_READ(conn->stats, cache_lookaside_entries),
+			    pct_dirty, pct_full);
 		}
 	}
 #else

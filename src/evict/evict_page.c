@@ -10,7 +10,7 @@
 
 static int __evict_page_clean_update(WT_SESSION_IMPL *, WT_REF *, bool);
 static int __evict_page_dirty_update(WT_SESSION_IMPL *, WT_REF *, bool);
-static int __evict_review(WT_SESSION_IMPL *, WT_REF *, bool, bool, uint32_t *);
+static int __evict_review(WT_SESSION_IMPL *, WT_REF *, bool, uint32_t *);
 
 /*
  * __evict_exclusive_clear --
@@ -50,8 +50,7 @@ __evict_exclusive(WT_SESSION_IMPL *session, WT_REF *ref)
  *	Release a reference to a page, and attempt to immediately evict it.
  */
 int
-__wt_page_release_evict(
-    WT_SESSION_IMPL *session, WT_REF *ref, bool checkpointing)
+__wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	struct timespec start, stop;
 	WT_BTREE *btree;
@@ -83,7 +82,7 @@ __wt_page_release_evict(
 	 * Track how long the call to evict took. If eviction is successful then
 	 * we have one of two pairs of stats to increment.
 	 */
-	ret = __wt_evict(session, ref, checkpointing, false);
+	ret = __wt_evict(session, ref, false);
 	__wt_epoch(session, &stop);
 	if (ret == 0) {
 		if (too_big) {
@@ -118,7 +117,7 @@ __wt_page_release_evict(
  */
 int
 __wt_evict(
-    WT_SESSION_IMPL *session, WT_REF *ref, bool checkpointing, bool closing)
+    WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
@@ -145,7 +144,7 @@ __wt_evict(
 	 * to make this check for clean pages, too: while unlikely eviction
 	 * would choose an internal page with children, it's not disallowed.
 	 */
-	WT_ERR(__evict_review(session, ref, checkpointing, closing, &flags));
+	WT_ERR(__evict_review(session, ref, closing, &flags));
 
 	/*
 	 * If there was an in-memory split, the tree has been left in the state
@@ -426,8 +425,8 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
  *	for conditions that would block its eviction.
  */
 static int
-__evict_review(WT_SESSION_IMPL *session, WT_REF *ref,
-    bool checkpointing, bool closing, uint32_t *flagsp)
+__evict_review(
+    WT_SESSION_IMPL *session, WT_REF *ref, bool closing, uint32_t *flagsp)
 {
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
@@ -438,7 +437,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref,
 
 	conn = S2C(session);
 	flags = WT_REC_EVICT;
-	if (!checkpointing)
+	if (!WT_SESSION_IS_CHECKPOINT(session))
 		LF_SET(WT_REC_VISIBLE_ALL);
 	*flagsp = flags;
 
@@ -568,7 +567,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref,
 			LF_SET(WT_REC_IN_MEMORY |
 			    WT_REC_SCRUB | WT_REC_UPDATE_RESTORE);
 		else {
-			if (!checkpointing) {
+			if (!WT_SESSION_IS_CHECKPOINT(session)) {
 				LF_SET(WT_REC_UPDATE_RESTORE);
 
 				if (F_ISSET(cache, WT_CACHE_EVICT_SCRUB))
@@ -611,7 +610,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref,
 	 * page too new to evict.  Give up in that case: checkpoint will
 	 * reconcile the page normally.
 	 */
-	if (checkpointing && !__wt_page_is_modified(page) &&
+	if (WT_SESSION_IS_CHECKPOINT(session) && !__wt_page_is_modified(page) &&
 	    !LF_ISSET(WT_REC_LOOKASIDE) &&
 	    !__wt_txn_visible_all(session, page->modify->rec_max_txn,
 	    WT_TIMESTAMP_NULL(&page->modify->rec_max_timestamp)))

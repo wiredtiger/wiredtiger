@@ -135,7 +135,7 @@ __sync_evict_page(WT_SESSION_IMPL *session, WT_REF **walkp, uint32_t flags)
 	 * Try to evict the original ref: after this, we must update the walk
 	 * point to either the previous or next ref so our caller can continue.
 	 */
-	if ((ret = __wt_page_release_evict(session, to_evict, true)) == 0) {
+	if ((ret = __wt_page_release_evict(session, to_evict)) == 0) {
 		/* Success: continue the walk at the next ref. */
 		*walkp = next;
 		return (0);

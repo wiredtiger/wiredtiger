@@ -127,38 +127,6 @@ __wt_las_destroy(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_las_set_written --
- *	Flag that the lookaside table has been written.
- */
-void
-__wt_las_set_written(WT_SESSION_IMPL *session)
-{
-	WT_CONNECTION_IMPL *conn;
-
-	conn = S2C(session);
-	if (!conn->las_written) {
-		conn->las_written = true;
-
-		/*
-		 * Future page reads must deal with lookaside table records.
-		 * No write could be cached until a future read might matter,
-		 * the barrier is more documentation than requirement.
-		 */
-		WT_FULL_BARRIER();
-	}
-}
-
-/*
- * __wt_las_is_written --
- *	Return if the lookaside table has been written.
- */
-bool
-__wt_las_is_written(WT_SESSION_IMPL *session)
-{
-	return (S2C(session)->las_written);
-}
-
-/*
  * __wt_las_cursor_open --
  *	Open a new lookaside table cursor.
  */
@@ -314,26 +282,11 @@ __wt_las_remove_block(WT_SESSION_IMPL *session,
 		 if (las_id != btree_id || las_pageid != pageid)
 			break;
 
-		/*
-		 * Cursor opened overwrite=true: won't return WT_NOTFOUND should
-		 * another thread remove the record before we do, and the cursor
-		 * remains positioned in that case.
-		 */
 		WT_ERR(cursor->remove(cursor));
 		++remove_cnt;
 	}
 	WT_ERR_NOTFOUND_OK(ret);
 
-err:	/*
-	 * If there were races to remove records, we can over-count.  All
-	 * arithmetic is signed, so underflow isn't fatal, but check anyway so
-	 * we don't skew low over time.
-	 */
-	if (remove_cnt > S2C(session)->las_record_cnt)
-		S2C(session)->las_record_cnt = 0;
-	else if (remove_cnt > 0)
-		(void)__wt_atomic_sub64(
-		    &S2C(session)->las_record_cnt, remove_cnt);
-
+err:	WT_STAT_CONN_DECRV(session, cache_lookaside_entries, remove_cnt);
 	return (ret);
 }

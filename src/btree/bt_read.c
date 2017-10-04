@@ -74,7 +74,7 @@ __row_instantiate(WT_SESSION_IMPL *session,
  *	Instantiate lookaside update records in a recently read page.
  */
 static int
-__las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t read_id)
+__las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t btree_id)
 {
 	WT_CURSOR *cursor;
 	WT_CURSOR_BTREE cbt;
@@ -117,7 +117,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t read_id)
 	 * records.
 	 */
 	cursor->set_key(cursor,
-	    read_id, ref->page_las->las_pageid, (uint64_t)0, &las_key);
+	    btree_id, ref->page_las->las_pageid, (uint64_t)0, &las_key);
 	if ((ret = cursor->search_near(cursor, &exact)) == 0 && exact < 0)
 		ret = cursor->next(cursor);
 	for (; ret == 0; ret = cursor->next(cursor)) {
@@ -128,7 +128,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t read_id)
 		 * Confirm the search using the unique prefix; if not a match,
 		 * we're done searching for records for this page.
 		 */
-		if (las_id != read_id ||
+		if (las_id != btree_id ||
 		    las_pageid != ref->page_las->las_pageid)
 			break;
 
@@ -204,10 +204,6 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t read_id)
 			break;
 		WT_ILLEGAL_VALUE_ERR(session);
 		}
-
-	/* The page is instantiated, we no longer need the lookaside entries. */
-	WT_ERR(__wt_las_remove_block(
-	    session, cursor, read_id, ref->page_las->las_pageid));
 
 	/* Discard the cursor. */
 	WT_ERR(__wt_las_cursor_close(session, &cursor, session_flags));
@@ -304,11 +300,12 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	struct timespec start, stop;
 	WT_BTREE *btree;
+	WT_CURSOR *las_cursor;
 	WT_DECL_RET;
 	WT_ITEM tmp;
 	WT_PAGE *page;
 	size_t addr_size;
-	uint32_t new_state, previous_state;
+	uint32_t new_state, previous_state, session_flags;
 	const uint8_t *addr;
 	bool timer;
 
@@ -399,8 +396,7 @@ skip_read:
 	 * before doing any work.
 	 */
 	if (previous_state == WT_REF_LOOKASIDE) {
-		WT_ASSERT(session, __wt_las_is_written(session) &&
-		    (ref->page->dsk == NULL ||
+		WT_ASSERT(session, (ref->page->dsk == NULL ||
 		    F_ISSET(ref->page->dsk, WT_PAGE_LAS_UPDATE)));
 
 		__btree_verbose_lookaside_read(
@@ -408,11 +404,22 @@ skip_read:
 		WT_STAT_CONN_INCR(session, cache_read_lookaside);
 		WT_STAT_DATA_INCR(session, cache_read_lookaside);
 		WT_ERR(__las_page_instantiate(session, ref, btree->id));
+
+		/*
+		 * The page is instantiated so we no longer need the lookaside
+		 * entries.  Note that we are discarding updates so the page
+		 * must be marked available even if these operations fail.
+		 */
+		__wt_las_cursor(session, &las_cursor, &session_flags);
+		WT_TRET(__wt_las_remove_block(
+		    session, las_cursor, btree->id, ref->page_las->las_pageid));
 		__wt_free(session, ref->page_las);
+		WT_TRET(__wt_las_cursor_close(
+		    session, &las_cursor, session_flags));
 	}
 
 done:	WT_PUBLISH(ref->state, WT_REF_MEM);
-	return (0);
+	return (ret);
 
 err:	/*
 	 * If the function building an in-memory version of the page failed,
@@ -578,8 +585,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			if (force_attempts < 10 &&
 			    __evict_force_check(session, ref)) {
 				++force_attempts;
-				ret = __wt_page_release_evict(
-				    session, ref, false);
+				ret = __wt_page_release_evict(session, ref);
 				/* If forced eviction fails, stall. */
 				if (ret == EBUSY) {
 					ret = 0;

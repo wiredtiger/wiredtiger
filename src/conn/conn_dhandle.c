@@ -774,9 +774,9 @@ __wt_conn_dhandle_discard(WT_SESSION_IMPL *session)
 	__wt_session_close_cache(session);
 
 	/*
-	 * Close open data handles: first, everything but the metadata file (as
-	 * closing a normal file may open and write the metadata file), then
-	 * the metadata file.
+	 * Close open data handles: first, everything apart from metadata and
+	 * lookaside (as closing a normal file may write metadata and read
+	 * lookaside entries).  Then close whatever is left open.
 	 */
 restart:
 	TAILQ_FOREACH(dhandle, &conn->dhqh, q) {
@@ -790,7 +790,7 @@ restart:
 		goto restart;
 	}
 
-	/* Shut down the lookaside table, after all eviction is complete. */
+	/* Shut down the lookaside table after all eviction is complete. */
 	WT_TRET(__wt_las_destroy(session));
 
 	/*

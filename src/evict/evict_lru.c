@@ -75,8 +75,7 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
 		return (WT_READGEN_OLDEST);
 
 	/* Any page from a dead tree is a great choice. */
-	if (F_ISSET(btree->dhandle, WT_DHANDLE_DEAD) ||
-	    F_ISSET(btree, WT_BTREE_LOOKASIDE))
+	if (F_ISSET(btree->dhandle, WT_DHANDLE_DEAD))
 		return (WT_READGEN_OLDEST);
 
 	/* Any empty page (leaf or internal), is a good choice. */
@@ -1668,7 +1667,6 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	 * remaining slots.
 	 */
 	if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
-	    F_ISSET(btree, WT_BTREE_LOOKASIDE) ||
 	    target_pages > remaining_slots)
 		target_pages = remaining_slots;
 
@@ -1878,20 +1876,21 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 			goto fast;
 
 		/*
-		 * If we're blocked by eviction (and going to consider
-		 * lookaside), and the only thing preventing a clean page from
-		 * being evicted is that it contains historical data, mark it
-		 * dirty so we can do lookaside eviction.
+		 * If application threads are blocked waiting for eviction (so
+		 * we are going to consider lookaside), and the only thing
+		 * preventing a clean page from being evicted is that it
+		 * contains historical data, mark it dirty so we can do
+		 * lookaside eviction.
 		 */
 		if (F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD |
 		    WT_CACHE_EVICT_DIRTY_HARD) &&
 		    !F_ISSET(conn, WT_CONN_EVICTION_NO_LOOKASIDE) &&
-		    F_ISSET(cache, WT_CACHE_EVICT_DIRTY) &&
 		    !modified && page->modify != NULL &&
 		    !__wt_txn_visible_all(session, page->modify->rec_max_txn,
 		    WT_TIMESTAMP_NULL(&page->modify->rec_max_timestamp))) {
 			__wt_page_only_modify_set(session, page);
 			modified = true;
+			goto fast;
 		}
 
 		/* Skip clean pages if appropriate. */
@@ -2234,7 +2233,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 	__wt_cache_read_gen_bump(session, ref->page);
 
 	WT_WITH_BTREE(session, btree,
-	    ret = __wt_evict(session, ref, false, false));
+	    ret = __wt_evict(session, ref, false));
 
 	(void)__wt_atomic_subv32(&btree->evict_busy, 1);
 

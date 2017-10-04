@@ -316,13 +316,17 @@ __wt_free_ref(
 	 */
 	__wt_ref_addr_free(session, ref);
 
-	/* Free any page-deleted information. */
-	if (ref->state == WT_REF_DELETED && ref->page_del != NULL) {
+	/*
+	 * Free any lookaside or page-deleted information.  We only expect a
+	 * lookaside structure for lookaside references, but can see
+	 * page-deleted information in other cases (such as WT_REF_MEM).
+	 */
+	if (ref->state == WT_REF_LOOKASIDE)
+		__wt_free(session, ref->page_las);
+	else if (ref->page_del != NULL) {
 		__wt_free(session, ref->page_del->update_list);
 		__wt_free(session, ref->page_del);
 	}
-	if (ref->state == WT_REF_LOOKASIDE || ref->state == WT_REF_LOCKED)
-		__wt_free(session, ref->page_las);
 
 	__wt_overwrite_and_free(session, ref);
 }
