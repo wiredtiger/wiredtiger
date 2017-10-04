@@ -112,8 +112,6 @@ __wt_spin_unlock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 static inline int
 __wt_spin_init(WT_SESSION_IMPL *session, WT_SPINLOCK *t, const char *name)
 {
-	WT_UNUSED(session);
-
 #if SPINLOCK_TYPE == SPINLOCK_PTHREAD_MUTEX_ADAPTIVE
 	WT_DECL_RET;
 	pthread_mutexattr_t attr;
@@ -129,6 +127,7 @@ __wt_spin_init(WT_SESSION_IMPL *session, WT_SPINLOCK *t, const char *name)
 #endif
 	__spin_init_internal(t, name);
 
+	WT_UNUSED(session);
 	return (0);
 }
 
