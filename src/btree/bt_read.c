@@ -507,7 +507,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 
 			/*
 			 * We just read a page, don't evict it before we have a
-			 * chance to read it.
+			 * chance to use it.
 			 */
 			did_read = true;
 
