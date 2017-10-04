@@ -1366,8 +1366,11 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 * order), so we track the maximum transaction ID and the newest update
 	 * with a timestamp (if any).
 	 */
-	timestampp = first_ts_upd == NULL ? NULL :
-	    WT_TIMESTAMP_NULL(&first_ts_upd->timestamp);
+#ifdef HAVE_TIMESTAMPS
+	timestampp = first_ts_upd == NULL ? NULL : &first_ts_upd->timestamp;
+#else
+	timestampp = NULL;
+#endif
 	if (F_ISSET(btree, WT_BTREE_LOOKASIDE))
 		all_visible = !uncommitted;
 	else
