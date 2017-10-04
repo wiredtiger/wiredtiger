@@ -6506,7 +6506,7 @@ __rec_verbose_lookaside_write(
 			__wt_verbose(session, WT_VERB_LOOKASIDE,
 			    "Page reconciliation triggered lookaside write"
 			    "file ID %" PRIu32 ", page ID %" PRIu64 ". "
-			    "Entries now in lookaside file: %" PRIu64 ", "
+			    "Entries now in lookaside file: %" PRId64 ", "
 			    "cache dirty: %" PRIu32 "%% , "
 			    "cache use: %" PRIu32 "%%",
 			    las_id, las_pageid,
