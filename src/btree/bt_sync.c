@@ -273,16 +273,8 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
 		for (;;) {
 			if (!skip_walk) {
-				/*
-				 * Remember the previous location in case we
-				 * need to back up.
-				 */
-				if ((ret = __sync_dup_walk(
-				    session, walk, flags, &prev)) == EBUSY) {
-					__wt_yield();
-					continue;
-				}
-				WT_ERR(ret);
+				WT_ERR(__sync_dup_walk(
+				    session, walk, flags, &prev));
 				WT_ERR(__wt_tree_walk(session, &walk, flags));
 			}
 			skip_walk = false;
@@ -348,7 +340,6 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 					evict_failed = true;
 				}
 				WT_ERR_BUSY_OK(ret);
-				ret = 0;
 				continue;
 			}
 
