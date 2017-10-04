@@ -296,9 +296,15 @@ class Translator:
                 if len(tlist) > 1:
                     self.fatal_error('run_ops currently supported with a '
                                      'single type of thread')
+                tdecls += '\n'
+                if multi:
+                    tdecls += \
+                        '# Note that op_multi_table has already multiplied\n' +\
+                        '# the number of operations by the number of tables.\n'
                 tdecls += 'ops = ops * (' + \
-                          str(run_ops) + ' / ' + str(topts.count) + \
-                          ')     # run_ops = ' + str(run_ops) + \
+                          str(run_ops) + ' / (' + str(topts.count) + \
+                          ' * table_count))' + \
+                          '     # run_ops = ' + str(run_ops) + \
                           ', thread.count = ' + str(topts.count) + '\n'
             tdecls += thread_name + ' = Thread(ops)\n'
             if topts.throttle > 0:
