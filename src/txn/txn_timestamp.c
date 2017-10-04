@@ -129,7 +129,7 @@ __wt_txn_parse_timestamp(WT_SESSION_IMPL *session,
 
 	for (ts.val = 0, hex_itr = cval->str, len = cval->len; len > 0; --len) {
 		if ((size_t)*hex_itr < WT_ELEMENTS(hextable))
-			hex_val = hextable[(int)*hex_itr++];
+			hex_val = hextable[(size_t)*hex_itr++];
 		else
 			hex_val = -1;
 		if (hex_val < 0)
