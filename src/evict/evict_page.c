@@ -116,8 +116,7 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
  *	Evict a page.
  */
 int
-__wt_evict(
-    WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
+__wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
