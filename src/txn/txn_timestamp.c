@@ -124,12 +124,11 @@ __wt_txn_parse_timestamp(WT_SESSION_IMPL *session,
 	};
 	wt_timestamp_t ts;
 	size_t len;
-	int hex_val, hextable_count;
+	int hex_val;
 	const char *hex_itr;
 
-	hextable_count = sizeof(hextable)/sizeof(hextable[0]);
 	for (ts.val = 0, hex_itr = cval->str, len = cval->len; len > 0; --len) {
-		if ((int)*hex_itr < hextable_count)
+		if ((size_t)*hex_itr < WT_ELEMENTS(hextable))
 			hex_val = hextable[(int)*hex_itr++];
 		else
 			hex_val = -1;
