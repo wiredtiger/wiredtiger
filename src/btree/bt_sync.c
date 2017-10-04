@@ -83,26 +83,23 @@ __sync_dup_walk(
 		return (0);
 	}
 
-retry:	/*
-	 * We already have a hazard pointer, we should generally be able to get
-	 * another one.  That said, we could race with some thread attempting
-	 * to get exclusive access: just continue on to the ordinary write path
-	 * in that case.
-	 */
+	/* Get a duplicate hazard pointer. */
+	for (;;) {
 #ifdef HAVE_DIAGNOSTIC
-	WT_RET(__wt_hazard_set(session, walk, &busy, __func__, __LINE__));
+		WT_RET(
+		    __wt_hazard_set(session, walk, &busy, __func__, __LINE__));
 #else
-	WT_RET(__wt_hazard_set(session, walk, &busy));
+		WT_RET(__wt_hazard_set(session, walk, &busy));
 #endif
-
-	/*
-	 * We can get spurious busy errors (e.g., if eviction attempt to lock
-	 * the page.  Keep trying: we have one hazard pointer so we should be
-	 * able to get another one.
-	 */
-	if (busy) {
+		/*
+		 * We already have a hazard pointer, we should generally be able
+		 * to get another one. We can get spurious busy errors (e.g., if
+		 * eviction is attempting to lock the page. Keep trying: we have
+		 * one hazard pointer so we should be able to get another one.
+		 */
+		if (!busy)
+			break;
 		__wt_yield();
-		goto retry;
 	}
 
 	*dupp = walk;
