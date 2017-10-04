@@ -41,14 +41,14 @@ class test_readonly02(wttest.WiredTigerTestCase, suite_subprocess):
     create_params = 'key_format=i,value_format=i'
     entries = 10
 
-    conn_params = \
-        'create,statistics=(fast),log=(enabled,file_max=100K,zero_fill=true),
-        optrack=false'
-    conn_params_rd = \
-        'create,readonly=true,statistics=(fast),log=(enabled,zero_fill=false),
-        optrack=false'
-    conn_params_rdcfg = \
-        'create,readonly=true,statistics=(fast),log=(enabled),optrack=false'
+    conn_params = """create,statistics=(fast),
+                     log=(enabled,file_max=100K,zero_fill=true),
+                     optrack=false"""
+    conn_params_rd = """create,readonly=true,statistics=(fast),
+                     log=(enabled,zero_fill=false),
+                     optrack=false"""
+    conn_params_rdcfg = """create,readonly=true,statistics=(fast),
+                        log=(enabled),optrack=false"""
 
     #
     # Run to make sure incompatible configuration options return an error.

@@ -41,7 +41,7 @@ class test_readonly03(wttest.WiredTigerTestCase, suite_subprocess):
     create = True
 
     conn_params = 'create,log=(enabled),optrack=false,'
-    conn_params_rd = 'readonly=true'
+    conn_params_rd = 'readonly=true,optrack=false,'
 
     session_ops = [ 'alter', 'create', 'compact', 'drop', 'log_flush',
         'log_printf', 'rebalance', 'rename', 'salvage', 'truncate', 'upgrade', ]

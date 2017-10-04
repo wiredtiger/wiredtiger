@@ -44,8 +44,8 @@ class test_readonly01(wttest.WiredTigerTestCase, suite_subprocess):
     # We want a list of directory writable or readonly.
     #
     basecfg_list = [
-        ('basecfg', dict(basecfg='config_base=true,')),
-        ('no_basecfg', dict(basecfg='config_base=false,')),
+        ('basecfg', dict(basecfg='config_base=true,optrack=false,')),
+        ('no_basecfg', dict(basecfg='config_base=false,optrack=false')),
     ]
     dir_list = [
         ('write', dict(dirchmod=False)),
@@ -54,10 +54,6 @@ class test_readonly01(wttest.WiredTigerTestCase, suite_subprocess):
     log_list = [
         ('logging', dict(logcfg='log=(archive=false,enabled,file_max=100K),')),
         ('no_logging', dict(logcfg='log=(enabled=false),')),
-    ]
-
-    optrack = [
-        ('optrack=false,')
     ]
 
     types = [
@@ -77,7 +73,7 @@ class test_readonly01(wttest.WiredTigerTestCase, suite_subprocess):
                     create_params = 'key_format=r,value_format=8t')),
     ]
 
-    scenarios = make_scenarios(basecfg_list, dir_list, log_list, optrack, types)
+    scenarios = make_scenarios(basecfg_list, dir_list, log_list, types)
 
     def conn_config(self):
         params = \
