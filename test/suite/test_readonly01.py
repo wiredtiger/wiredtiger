@@ -56,6 +56,10 @@ class test_readonly01(wttest.WiredTigerTestCase, suite_subprocess):
         ('no_logging', dict(logcfg='log=(enabled=false),')),
     ]
 
+    optrack = [
+        ('optrack=false,')
+    ]
+
     types = [
         ('lsm', dict(tabletype='lsm', uri='lsm',
                     create_params = 'key_format=i,value_format=i')),
@@ -73,7 +77,7 @@ class test_readonly01(wttest.WiredTigerTestCase, suite_subprocess):
                     create_params = 'key_format=r,value_format=8t')),
     ]
 
-    scenarios = make_scenarios(basecfg_list, dir_list, log_list, types)
+    scenarios = make_scenarios(basecfg_list, dir_list, log_list, optrack, types)
 
     def conn_config(self):
         params = \

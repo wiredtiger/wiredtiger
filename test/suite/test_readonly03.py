@@ -40,7 +40,7 @@ class test_readonly03(wttest.WiredTigerTestCase, suite_subprocess):
     uri2 = 'table:test_readonly03_2'
     create = True
 
-    conn_params = 'create,log=(enabled),'
+    conn_params = 'create,log=(enabled),optrack=false,'
     conn_params_rd = 'readonly=true'
 
     session_ops = [ 'alter', 'create', 'compact', 'drop', 'log_flush',
