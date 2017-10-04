@@ -398,6 +398,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
 	ci = &block->live;
 	fatal = locked = false;
 
+	WT_STAT_CONN_INCR(session, txn_ckpt_process);
 #ifdef HAVE_DIAGNOSTIC
 	WT_RET(__ckpt_verify(session, ckptbase));
 #endif

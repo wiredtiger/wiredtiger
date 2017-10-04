@@ -443,6 +443,7 @@ connection_stats = [
     TxnStat('txn_checkpoint_time_min', 'transaction checkpoint min time (msecs)', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_time_recent', 'transaction checkpoint most recent time (msecs)', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_time_total', 'transaction checkpoint total time (msecs)', 'no_clear,no_scale'),
+    TxnStat('txn_ckpt_process', 'ckpt process function calls'),
     TxnStat('txn_commit', 'transactions committed'),
     TxnStat('txn_commit_queue_head', 'transactions commit timestamp queue inserts to head'),
     TxnStat('txn_commit_queue_inserts', 'transactions commit timestamp queue inserts total'),
