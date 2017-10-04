@@ -89,17 +89,24 @@ __wt_las_create(WT_SESSION_IMPL *session)
 	WT_RET(__wt_session_create(session, WT_LAS_URI, WT_LAS_FORMAT));
 
 	/*
+	 * Flag that the lookaside table has been created (before creating the
+	 * connection's lookaside table session, it checks before creating a
+	 * lookaside table cursor.
+	 */
+	F_SET(conn, WT_CONN_LAS_OPEN);
+
+	/*
 	 * Open a shared internal session used to access the lookaside table.
 	 * This session should never be tapped for eviction.
 	 */
 	session_flags = WT_SESSION_LOOKASIDE_CURSOR | WT_SESSION_NO_EVICTION;
-	WT_RET(__wt_open_internal_session(
+	WT_ERR(__wt_open_internal_session(
 	    conn, "lookaside table", true, session_flags, &conn->las_session));
 
-	/* Flag that the lookaside table has been created. */
-	F_SET(conn, WT_CONN_LAS_OPEN);
-
 	return (0);
+
+err:	F_CLR(conn, WT_CONN_LAS_OPEN);
+	return (ret);
 }
 
 /*
