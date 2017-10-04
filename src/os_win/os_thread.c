@@ -92,7 +92,7 @@ __wt_thread_id(char *buf, size_t buflen)
  *      Return the process ID assigned by the operating system.
  */
 uintmax_t
-__wt_process_id()
+__wt_process_id(void)
 {
 	return (uintmax_t)GetCurrentProcessId();
 }
