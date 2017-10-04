@@ -1871,8 +1871,7 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 
 		/* Pages that are empty or from dead trees are fast-tracked. */
 		if (__wt_page_is_empty(page) ||
-		    F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
-		    F_ISSET(btree, WT_BTREE_LOOKASIDE))
+		    F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
 			goto fast;
 
 		/*
