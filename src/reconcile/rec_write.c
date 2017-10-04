@@ -505,6 +505,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 
 		WT_TRET(__rec_destroy_session(session));
 	}
+
 	/*
 	 * We track removed overflow objects in case there's a reader in
 	 * transit when they're removed. Any form of eviction locks out
@@ -512,6 +513,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	 */
 	if (LF_ISSET(WT_REC_EVICT))
 		__wt_ovfl_discard_remove(session, page);
+
 	WT_RET(ret);
 
 	/*
@@ -957,8 +959,7 @@ __rec_init(WT_SESSION_IMPL *session,
 	 * getting exclusive access to the page, might as well try and evict
 	 * it).
 	 */
-	if (LF_ISSET(WT_REC_LOOKASIDE) &&
-	    __rec_las_checkpoint_test(session, r))
+	if (LF_ISSET(WT_REC_LOOKASIDE) && __rec_las_checkpoint_test(session, r))
 		LF_CLR(WT_REC_LOOKASIDE);
 
 	r->flags = flags;
