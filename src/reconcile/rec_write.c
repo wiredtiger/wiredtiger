@@ -175,7 +175,6 @@ typedef struct {
 		size_t   min_offset;
 
 		WT_ITEM image;				/* disk-image */
-		uint64_t lookaside_pageid;
 	} chunkA, chunkB, *cur_ptr, *prev_ptr;
 
 	/*
