@@ -41,7 +41,7 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 	txn_global = &conn->txn_global;
 	WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
 	    __wt_timestamp_set(
-		&rollback_timestamp, &txn_global->stable_timestamp));
+	    &rollback_timestamp, &txn_global->stable_timestamp));
 
 	__wt_las_cursor(session, &cursor, &session_flags);
 
