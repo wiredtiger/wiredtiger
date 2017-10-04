@@ -117,6 +117,23 @@ def _choose_pareto(nrange, pareto):
         rval = 0
     return int(rval)
 
+# Get the list of subordinate operations that are listed in the group.
+# Generally, the op._optype == Operation.OP_NONE, it indicates that
+# the operation contains a group of subordinates.
+#
+# XXX
+# Note that this function should be called for all iteration, rather than:
+#    for o in op._group
+# because a bug in SWIG versions <= 2.0.11 would cause the above fragment
+# to produce a segmentation violation as described here:
+#    https://sourceforge.net/p/swig/mailman/message/32838320/
+def _op_get_group_list(op):
+    grouplist = op._group
+    result = []
+    if grouplist != None:
+        result.extend(grouplist)
+    return result
+
 def _op_multi_table_as_list(ops_arg, tables, pareto_tables, multiplier):
     result = []
     if ops_arg._optype != Operation.OP_NONE:
@@ -146,8 +163,10 @@ def _op_multi_table_as_list(ops_arg, tables, pareto_tables, multiplier):
                 key._pareto.range_high = (1.0 * (i + 1))/count
                 result.append(Operation(ops_arg._optype, table, key, ops_arg._value))
     else:
-        for op in ops._group:
-            result.extend(_op_multi_table_as_list(op, tables, pareto_tables, multiplier))
+        for op in _op_get_group_list(ops_arg):
+            for o in _op_multi_table_as_list(op, tables, pareto_tables, \
+                                             multiplier):
+                result.append(Operation(o))
     return result
 
 # A convenient way to build a list of operations
@@ -168,7 +187,7 @@ def _check_pareto(ops_arg, cur = 0):
                             'single thread not supported')
         cur = p
     if ops_arg._group != None:
-        for op in ops_arg._group:
+        for op in _op_get_group_list(ops_arg):
             cur = _check_pareto(op, cur)
     return cur
 
@@ -233,7 +252,7 @@ def op_log_like(op, log_table, ops_per_txn):
                 op = txn(op)       # txn for each action.
     else:
         oplist = []
-        for op2 in op._group:
+        for op2 in _op_get_group_list(op):
             if op2._optype == Operation.OP_NONE:
                 oplist.append(op_log_like(op2, log_table))
             elif ops_per_txn == 0 and _optype_is_write(op2._optype):
@@ -264,7 +283,7 @@ def op_group_transaction(ops_arg, ops_per_txn, txn_config):
 
     oplist = []
     txgroup = []
-    for op in ops_arg._group:
+    for op in _op_get_group_list(ops_arg):
         if op.optype == Operation.OP_NONE:
             oplist.append(_op_transaction_list(txgroup, txn_config))
             txgroup = []

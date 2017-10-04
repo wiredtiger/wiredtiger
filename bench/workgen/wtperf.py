@@ -34,7 +34,7 @@
 # See also the usage() function.
 #
 from __future__ import print_function
-import os, sys, tempfile
+import os, shutil, sys, tempfile
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -52,10 +52,11 @@ class Options(object):
     pass
 
 class Translator:
-    def __init__(self, filename, prefix, verbose):
+    def __init__(self, filename, prefix, verbose, homedir):
         self.filename = filename
         self.prefix = prefix
         self.verbose = verbose
+        self.homedir = homedir
         self.linenum = 0
         self.opts_map = {}
         self.opts_used = {}
@@ -186,6 +187,17 @@ class Translator:
             result += ') + \\\n'
             result += '      '
         return result
+
+    def copy_config(self):
+        # Note: If we add the capability of setting options on the command
+        # line, we won't be able to do a simple copy.
+        config_save = os.path.join(self.homedir, 'CONFIG.wtperf')
+        suffix = 0
+        while os.path.exists(config_save):
+            suffix += 1
+            config_save = os.path.join(self.homedir, \
+                                       'CONFIG.wtperf.' + str(suffix))
+        shutil.copyfile(self.filename, config_save)
 
     # Wtperf's throttle is based on the number of regular operations,
     # not including log_like operations.  Workgen counts all operations,
@@ -508,7 +520,11 @@ class Translator:
             s += '        print("ERROR: async notify(" + str(key) + "," + \\\n'
             s += '             str(value) + "," + str(optype) + "): " + desc)\n'
             s += '    def notify(self, op, op_ret, flags):\n'
-            s += '        pass\n\n'
+            s += '        if op_ret != 0:\n'
+            s += '            self.notify_error(op._key, op._value,\\\n'
+            s += '                op._optype, wiredtiger_strerror(op_ret))\n'
+            s += '        return op_ret\n'
+            s += '\n'
         s += 'context = Context()\n'
         extra_config = ''
         s += 'conn_config = ""\n'
@@ -521,7 +537,8 @@ class Translator:
             s += 'conn_config += extensions_config(["compressors/' + \
                 compression + '"])\n'
             compression = 'block_compressor=' + compression + ','
-        s += 'conn = wiredtiger_open("WT_TEST", "create," + conn_config)\n'
+        s += 'conn = wiredtiger_open("' + self.homedir + \
+             '", "create," + conn_config)\n'
         s += 's = conn.open_session("' + sess_config + '")\n'
         s += '\n'
         s += self.translate_table_create()
@@ -538,13 +555,16 @@ class Translator:
                 if readonly:
                     'conn_config += ",readonly=true"\n'
                 s += 'conn = wiredtiger_open(' + \
-                     '"WT_TEST", "create," + conn_config)\n'
+                     '"' + self.homedir + '", "create," + conn_config)\n'
                 s += '\n'
             s += 'workload = Workload(context, ' + t_var + ')\n'
             s += workloadopts
             if self.verbose > 0:
                 s += 'print("workload:")\n'
-            s += 'workload.run(conn)\n'
+            s += 'workload.run(conn)\n\n'
+            s += 'latency_filename = "' + self.homedir + '/latency.out"\n'
+            s += 'latency.workload_latency(workload, latency_filename)\n'
+
         if close_conn:
             s += 'conn.close()\n'
 
@@ -575,6 +595,7 @@ prefix = (
   'sys.path.append("' + runner_dir + '")\n\n')
 
 exit_status = 0
+homedir = 'WT_TEST'
 for arg in sys.argv[1:]:
     if arg == '--pydebug':
         import pdb
@@ -584,7 +605,7 @@ for arg in sys.argv[1:]:
     elif arg == '--verbose' or arg == '-v':
         verbose += 1
     elif arg.endswith('.wtperf'):
-        translator = Translator(arg, prefix, verbose)
+        translator = Translator(arg, prefix, verbose, homedir)
         pysrc = translator.translate()
         if translator.has_error:
             exit_status = 1
@@ -594,8 +615,20 @@ for arg in sys.argv[1:]:
             (outfd, tmpfile) = tempfile.mkstemp(suffix='.py')
             os.write(outfd, pysrc)
             os.close(outfd)
-            execfile(tmpfile)
+            # We make a copy of the configuration file in the home
+            # directory after the run, because the wiredtiger_open
+            # in the generated code will clean out the directory first.
+            raised = None
+            try:
+                execfile(tmpfile)
+            except Exception, exception:
+                raised = exception
+            if not os.path.isdir(homedir):
+                os.makedirs(homedir)
+            translator.copy_config()
             os.remove(tmpfile)
+            if raised != None:
+                raise raised
     else:
         usage()
         sys.exit(1)
