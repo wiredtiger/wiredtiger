@@ -154,7 +154,6 @@ typedef struct {
 	 */
 	struct __rec_chunk {
 		/*
-		 *
 		 * The recno and entries fields are the starting record number
 		 * of the split chunk (for column-store splits), and the number
 		 * of entries in the split chunk.
