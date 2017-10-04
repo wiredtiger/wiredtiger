@@ -1224,8 +1224,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 {
 	WT_BTREE *btree;
 	WT_PAGE *page;
-	WT_UPDATE *first_ts_upd, *first_txn_upd, *first_upd, *next_upd;
-	WT_UPDATE *upd;
+	WT_UPDATE *first_ts_upd, *first_txn_upd, *first_upd, *next_upd, *upd;
 	wt_timestamp_t *timestampp;
 	uint64_t max_txn, txnid;
 	bool all_visible, uncommitted;
@@ -1369,6 +1368,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 #ifdef HAVE_TIMESTAMPS
 	timestampp = first_ts_upd == NULL ? NULL : &first_ts_upd->timestamp;
 #else
+	WT_UNUSED(first_ts_upd);
 	timestampp = NULL;
 #endif
 	if (F_ISSET(btree, WT_BTREE_LOOKASIDE))
