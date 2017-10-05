@@ -1095,7 +1095,6 @@ __conn_optrack_setup(WT_SESSION_IMPL *session, const char *cfg[])
 		__wt_optrack_map_setup = 1;
 	}
 
-	printf("Opening file %s\n", optrack_map_name);
 	WT_RET(__wt_open(session, optrack_map_name,
 			 WT_FS_OPEN_FILE_TYPE_REGULAR,
 			 WT_FS_OPEN_CREATE, &conn->optrack_map_fh));
@@ -1103,7 +1102,6 @@ __conn_optrack_setup(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_RET(__wt_spin_init(session, &conn->optrack_map_spinlock,
 			      "optrack map spinlock"));
 
-	printf("Allocating dummy session buffer for conn %p\n", conn);
 	WT_RET(__wt_malloc(session, WT_OPTRACK_BUFSIZE,
 			   &conn->dummy_session.optrack_buf));
 
@@ -1123,9 +1121,6 @@ __conn_optrack_teardown(WT_SESSION_IMPL *session)
 	conn = S2C(session);
 
 	__wt_spin_destroy(session, &conn->optrack_map_spinlock);
-
-	printf("Closing the map file and freeing buffer for conn %p\n",
-	       conn);
 
 	WT_IGNORE_RET(__wt_close(session, &conn->optrack_map_fh));
 	__wt_free(session, conn->dummy_session.optrack_buf);
