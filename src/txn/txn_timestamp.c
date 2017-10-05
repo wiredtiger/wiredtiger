@@ -10,6 +10,26 @@
 
 #ifdef HAVE_TIMESTAMPS
 /*
+ * __wt_txn_timestamp_flags --
+ *	Set txn related timestamp flags.
+ */
+void
+__wt_txn_timestamp_flags(WT_SESSION_IMPL *session)
+{
+	WT_BTREE *btree;
+
+	if (session->dhandle == NULL)
+		return;
+	btree = S2BT(session);
+	if (btree == NULL)
+		return;
+	if (FLD_ISSET(btree->assert_flags, WT_ASSERT_COMMIT_TS_ALWAYS))
+		F_SET(&session->txn, WT_TXN_TS_COMMIT_ALWAYS);
+	if (FLD_ISSET(btree->assert_flags, WT_ASSERT_COMMIT_TS_NEVER))
+		F_SET(&session->txn, WT_TXN_TS_COMMIT_NEVER);
+}
+
+/*
  * __wt_timestamp_to_hex_string --
  *	Convert a timestamp to hex string representation.
  */
