@@ -154,9 +154,9 @@ Named snapshots are not durable: they do not survive WT_CONNECTION::close.
 Some applications have their own notion of time, including an expected commit
 order for transactions that may be inconsistent with the order assigned by
 WiredTiger.  We assume that applications can represent their notion of a
-timestamp as an integral value of some size that generally increases over
-time.  For example, a simple 64-bit integer could be incremented to generate
-transaction timestamps, if that is sufficient for the application.
+timestamp as an unsigned integral value of some size that generally increases
+over time.  For example, a simple 64-bit integer could be incremented to
+generate transaction timestamps, if that is sufficient for the application.
 
 The application's timestamp size is specified as a number of bytes at build
 time, with <code>configure --with-timestamp-size=X</code>.  The default
