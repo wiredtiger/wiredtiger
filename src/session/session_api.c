@@ -198,10 +198,14 @@ __session_close(WT_SESSION *wt_session, const char *config)
 	if (F_ISSET(conn, WT_CONN_OPTRACK)) {
 	    if (session->optrack_fh != NULL) {
 		    WT_IGNORE_RET((int)__wt_optrack_flush_buffer(session));
+		    printf("Closing optrack file %p for session %p\n",
+			   session->optrack_fh, session);
 		    WT_IGNORE_RET(__wt_close(session, &session->optrack_fh));
 	    }
 
 	    /* Free the operation tracking buffer */
+	    printf("Freeing the buffer %p for session %p\n",
+		   session->optrack_buf, session);
 	    __wt_free(session, session->optrack_buf);
 	}
 
@@ -1925,6 +1929,9 @@ __open_session(WT_CONNECTION_IMPL *conn,
 		WT_ERR(__wt_open(session, optrack_fname,
 				 WT_FS_OPEN_FILE_TYPE_REGULAR,
 				 WT_FS_OPEN_CREATE, &session_ret->optrack_fh));
+		printf("Opened file %p and allocated buffer %p for "
+		       "session %p\n", session_ret->optrack_fh,
+		       session_ret->optrack_buf, session_ret);
 	}
 	/*
 	 * Configuration: currently, the configuration for open_session is the
