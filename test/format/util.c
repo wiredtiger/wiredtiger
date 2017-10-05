@@ -525,8 +525,6 @@ checkpoint(void *arg)
 			continue;
 		}
 
-		session->checkpoint(session, NULL);
-
 		/*
 		 * LSM and data-sources don't support reading from checkpoints.
 		 * Also, we can't drop checkpoints during a backup.
