@@ -1926,14 +1926,19 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 			goto fast;
 
 		/*
-		 * If the oldest transaction hasn't changed since the last time
-		 * this page was written, it's unlikely we can make progress.
-		 * Similarly, if the most recent update on the page is not yet
-		 * globally visible, eviction will fail.  These heuristics
-		 * attempt to avoid repeated attempts to evict the same page.
+		 * If there are active transaction and oldest transaction
+		 * hasn't changed since the last time this page was written,
+		 * it's unlikely we can make progress.  Similarly, if the most
+		 * recent update on the page is not yet globally visible,
+		 * eviction will fail.  This heuristic avoids repeated attempts
+		 * to evict the same page.
+		 *
+		 * We skip this for the lookaside table because updates there
+		 * can be evicted as soon as they are committed.
 		 */
 		mod = page->modify;
-		if (modified && txn_global->current != txn_global->oldest_id &&
+		if (modified && !F_ISSET(btree, WT_BTREE_LOOKASIDE) &&
+		    txn_global->current != txn_global->oldest_id &&
 		    (mod->last_eviction_id == __wt_txn_oldest_id(session) ||
 		    !__wt_txn_visible_all(session, mod->update_txn, NULL)))
 			continue;

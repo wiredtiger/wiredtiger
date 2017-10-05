@@ -362,15 +362,15 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		 * re-instantiate the page in memory, else discard the page.
 		 */
 		if (mod->mod_disk_image == NULL) {
-			if (mod->mod_replace_las != 0) {
+			if (mod->mod_replace_las_pageid != 0) {
 				WT_RET(
 				    __wt_calloc_one(session, &ref->page_las));
 				ref->page_las->las_pageid =
-				    mod->mod_replace_las;
+				    mod->mod_replace_las_pageid;
 #ifdef HAVE_TIMESTAMPS
 				__wt_timestamp_set(
 				    &ref->page_las->min_timestamp,
-				    &mod->mod_replace_min_timestamp);
+				    &mod->mod_replace_las_min_timestamp);
 #endif
 				__wt_ref_out(session, ref);
 				WT_PUBLISH(ref->state, WT_REF_LOOKASIDE);
@@ -577,8 +577,7 @@ __evict_review(
 			 * Check if reconciliation suggests trying the
 			 * lookaside table.
 			 */
-			if (F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD |
-			    WT_CACHE_EVICT_DIRTY_HARD) &&
+			if (__wt_cache_aggressive(session) &&
 			    !F_ISSET(conn, WT_CONN_EVICTION_NO_LOOKASIDE))
 				lookaside_retryp = &lookaside_retry;
 		}

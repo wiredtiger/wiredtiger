@@ -120,23 +120,17 @@ __sync_evict_page(WT_SESSION_IMPL *session, WT_REF **walkp, uint32_t flags)
 	next = NULL;
 
 	/*
-	 * Hedge our bets: we have a ref on either side of the page we're
-	 * evicting.  Otherwise, the page could split in the meantime, so
-	 * backing up later is not safe.  We allow in-memory splits during
-	 * checkpoints, for example.
+	 * Get the ref after the page we're trying to evicting.  If the
+	 * eviction is successful, the walk will continue from here.
 	 */
 	WT_RET(__sync_dup_walk(session, to_evict, flags, &next));
 	WT_ERR(__wt_tree_walk(session, &next, flags));
 
-	/*
-	 * Try to evict the original ref: after this, we must update the walk
-	 * point to either the previous or next ref so our caller can continue.
-	 */
-	if ((ret = __wt_page_release_evict(session, to_evict)) == 0) {
-		/* Success: continue the walk at the next ref. */
-		*walkp = next;
-		return (0);
-	}
+	WT_ERR(__wt_page_release_evict(session, to_evict));
+
+	/* Success: continue the walk at the next page. */
+	*walkp = next;
+	return (0);
 
 err:	WT_TRET(__wt_page_release(session, next, flags));
 	return (ret);

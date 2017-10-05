@@ -1389,7 +1389,7 @@ __split_multi_inmem(
 	uint64_t recno;
 	uint32_t i, slot;
 
-	WT_ASSERT(session, multi->lookaside_pageid == 0);
+	WT_ASSERT(session, multi->las_pageid == 0);
 
 	/*
 	 * In 04/2016, we removed column-store record numbers from the WT_PAGE
@@ -1645,12 +1645,12 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 		addr->type = multi->addr.type;
 		WT_RET(__wt_memdup(session,
 		    multi->addr.addr, addr->size, &addr->addr));
-		if (multi->lookaside_pageid != 0) {
+		if (multi->las_pageid != 0) {
 			WT_RET(__wt_calloc_one(session, &ref->page_las));
-			ref->page_las->las_pageid = multi->lookaside_pageid;
+			ref->page_las->las_pageid = multi->las_pageid;
 #ifdef HAVE_TIMESTAMPS
 			__wt_timestamp_set(&ref->page_las->min_timestamp,
-			    &multi->lookaside_min_timestamp);
+			    &multi->las_min_timestamp);
 #endif
 			ref->state = WT_REF_LOOKASIDE;
 		} else
