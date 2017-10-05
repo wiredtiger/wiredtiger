@@ -501,6 +501,65 @@ fclose_and_clear(FILE **fpp)
 }
 
 /*
+ * checkpoint --
+ *	Periodically take a checkpoint
+ */
+WT_THREAD_RET
+checkpoint(void *arg)
+{
+	WT_CONNECTION *conn;
+	WT_SESSION *session;
+	u_int secs;
+	const char *ckpt_config;
+	bool backup_locked;
+
+	(void)arg;
+	conn = g.wts_conn;
+	testutil_check(conn->open_session(conn, NULL, NULL, &session));
+	secs = mmrand(NULL, 5, 40);
+
+	while (!g.workers_finished) {
+		if (secs > 0) {
+			__wt_sleep(1, 0);
+			--secs;
+			continue;
+		}
+
+		session->checkpoint(session, NULL);
+
+		/*
+		 * LSM and data-sources don't support reading from checkpoints.
+		 * Also, we can't drop checkpoints during a backup.
+		 */
+		ckpt_config = NULL;
+		backup_locked = false;
+		if (!DATASOURCE("helium") && !DATASOURCE("kvsbdb") &&
+		    !DATASOURCE("lsm"))
+			backup_locked =
+			    pthread_rwlock_trywrlock(&g.backup_lock) == 0;
+		if (backup_locked)
+			switch (mmrand(NULL, 1, 20)) {
+			case 1: /* 5% create a named snapshot */
+				ckpt_config = "name=mine";
+				break;
+			case 2: /* 5% drop all named snapshots */
+				ckpt_config = "drop=(all)";
+				break;
+			}
+
+		testutil_check(session->checkpoint(session, ckpt_config));
+
+		if (backup_locked)
+			pthread_rwlock_unlock(&g.backup_lock);
+
+		secs = mmrand(NULL, 5, 40);
+	}
+
+	testutil_check(session->close(session, NULL));
+	return (WT_THREAD_RET_VALUE);
+}
+
+/*
  * timestamp --
  *	Periodically update the oldest timestamp.
  */
