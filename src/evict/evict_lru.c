@@ -460,6 +460,7 @@ int
 __wt_evict_create(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
+	uint32_t session_flags;
 
 	conn = S2C(session);
 
@@ -471,10 +472,12 @@ __wt_evict_create(WT_SESSION_IMPL *session)
 	 * Create the eviction thread group.
 	 * Set the group size to the maximum allowed sessions.
 	 */
+	session_flags = WT_THREAD_CAN_WAIT |
+	    WT_THREAD_LOOKASIDE | WT_THREAD_PANIC_FAIL;
 	WT_RET(__wt_thread_group_create(session, &conn->evict_threads,
 	    "eviction-server", conn->evict_threads_min, conn->evict_threads_max,
-	     WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL, __wt_evict_thread_chk,
-	     __wt_evict_thread_run, __wt_evict_thread_stop));
+	    session_flags, __wt_evict_thread_chk, __wt_evict_thread_run,
+	    __wt_evict_thread_stop));
 
 #if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
 	/*
@@ -2231,8 +2234,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 	 */
 	__wt_cache_read_gen_bump(session, ref->page);
 
-	WT_WITH_BTREE(session, btree,
-	    ret = __wt_evict(session, ref, false));
+	WT_WITH_BTREE(session, btree, ret = __wt_evict(session, ref, false));
 
 	(void)__wt_atomic_subv32(&btree->evict_busy, 1);
 

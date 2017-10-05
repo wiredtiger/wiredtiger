@@ -254,7 +254,7 @@ __wt_row_search(WT_SESSION_IMPL *session,
 	 * the normal case where we are searching a tree, check the page's
 	 * parent keys before doing the full search, it's faster when the
 	 * cursor is being re-positioned.  Skip this if the page is being
-	 * re-instantiated in memory).
+	 * re-instantiated in memory.
 	 */
 	if (leaf != NULL) {
 		if (!restore) {
