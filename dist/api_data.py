@@ -131,6 +131,20 @@ file_runtime_config = [
         do not ever evict the object's pages from cache. Not compatible with
         LSM tables; see @ref tuning_cache_resident for more information''',
         type='boolean'),
+    Config('assert', '', r'''
+        enable enhanced checking. ''',
+        type='category', subconfig= [
+        Config('commit_timestamp', 'none', r'''
+            verify that timestamps should 'always' or 'never' be used
+            on modifications with this table.  Verification is 'none'
+            if mixed update use is allowed.''',
+            choices=['always','never','none']),
+        Config('read_timestamp', 'none', r'''
+            verify that timestamps should 'always' or 'never' be used
+            on reads with this table.  Verification is 'none'
+            if mixed read use is allowed.''',
+            choices=['always','never','none'])
+        ], undoc=True),
     Config('log', '', r'''
         the transaction log configuration for this object.  Only valid if
         log is enabled in ::wiredtiger_open''',
@@ -1263,10 +1277,13 @@ methods = {
 'WT_CONNECTION.query_timestamp' : Method([
     Config('get', 'all_committed', r'''
         specify which timestamp to query: \c all_committed returns the largest
-        timestamp such that all earlier timestamps have committed.  See @ref
-        transaction_timestamps''',
-        choices=['all_committed']),
-    # We also support "oldest_reader" as an internal-only choice.
+        timestamp such that all earlier timestamps have committed, \c oldest
+        returns the most recent \c oldest_timestamp set with
+        WT_CONNECTION::set_timestamp, \c pinned returns the minimum of the
+        \c oldest_timestamp and the read timestamps of all active readers, and
+        \c stable returns the most recent \c stable_timestamp set with
+        WT_CONNECTION::set_timestamp.  See @ref transaction_timestamps''',
+        choices=['all_committed','oldest','pinned','stable']),
 ]),
 
 'WT_CONNECTION.set_timestamp' : Method([

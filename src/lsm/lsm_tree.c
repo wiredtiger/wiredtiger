@@ -102,8 +102,6 @@ __lsm_tree_discard(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, bool final)
 static void
 __lsm_tree_close(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, bool final)
 {
-	int i;
-
 	/*
 	 * Stop any new work units being added. The barrier is necessary
 	 * because we rely on the state change being visible before checking
@@ -118,8 +116,7 @@ __lsm_tree_close(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, bool final)
 	 * we know a user is holding a reference to the tree, so exclusive
 	 * access is not available.
 	 */
-	for (i = 0;
-	    lsm_tree->queue_ref > 0 || (final && lsm_tree->refcnt > 1); ++i) {
+	while (lsm_tree->queue_ref > 0 || (final && lsm_tree->refcnt > 1)) {
 		/*
 		 * Remove any work units from the manager queues. Do this step
 		 * repeatedly in case a work unit was in the process of being
@@ -133,10 +130,8 @@ __lsm_tree_close(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, bool final)
 		 * other schema level operations will return EBUSY, even though
 		 * we're dropping the schema lock here.
 		 */
-		if (i % WT_THOUSAND == 0)
-			WT_WITHOUT_LOCKS(session,
-			    __wt_lsm_manager_clear_tree(session, lsm_tree));
-		__wt_yield();
+		WT_WITHOUT_LOCKS(session,
+		    __wt_lsm_manager_clear_tree(session, lsm_tree));
 	}
 }
 
@@ -329,6 +324,7 @@ int
 __wt_lsm_tree_create(WT_SESSION_IMPL *session,
     const char *uri, bool exclusive, const char *config)
 {
+	WT_CONFIG_ITEM cval;
 	WT_DECL_RET;
 	WT_LSM_TREE *lsm_tree;
 	const char *cfg[] =
@@ -345,6 +341,12 @@ __wt_lsm_tree_create(WT_SESSION_IMPL *session,
 	WT_RET_NOTFOUND_OK(ret);
 
 	if (!F_ISSET(S2C(session), WT_CONN_READONLY)) {
+		/* LSM doesn't yet support the 'r' format. */
+		WT_ERR(__wt_config_gets(session, cfg, "key_format", &cval));
+		if (WT_STRING_MATCH("r", cval.str, cval.len))
+			WT_ERR_MSG(session, EINVAL,
+			    "LSM trees do not support a key format of 'r'");
+
 		WT_ERR(__wt_config_merge(session, cfg, NULL, &metadata));
 		WT_ERR(__wt_metadata_insert(session, uri, metadata));
 	}
@@ -455,7 +457,7 @@ __lsm_tree_open_check(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 		    "must be at least %" PRIu64 " (%" PRIu64 "MB)",
 		    S2C(session)->cache_size,
 		    S2C(session)->cache_size / WT_MEGABYTE,
-		    required, required / WT_MEGABYTE);
+		    required, (required + (WT_MEGABYTE - 1))/ WT_MEGABYTE);
 	return (0);
 }
 
@@ -876,8 +878,8 @@ __wt_lsm_tree_drop(
 	WT_DECL_RET;
 	WT_LSM_CHUNK *chunk;
 	WT_LSM_TREE *lsm_tree;
-	int tret;
 	u_int i;
+	int tret;
 	bool locked;
 
 	locked = false;
@@ -933,9 +935,9 @@ __wt_lsm_tree_rename(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	WT_LSM_CHUNK *chunk;
 	WT_LSM_TREE *lsm_tree;
-	const char *old;
-	int tret;
 	u_int i;
+	int tret;
+	const char *old;
 	bool locked;
 
 	old = NULL;

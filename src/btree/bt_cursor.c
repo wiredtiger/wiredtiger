@@ -133,8 +133,10 @@ __cursor_disable_bulk(WT_SESSION_IMPL *session, WT_BTREE *btree)
 	 * into a tree.  Eviction is disabled when an empty tree is opened, and
 	 * it must only be enabled once.
 	 */
-	if (__wt_atomic_cas8(&btree->original, 1, 0))
+	if (__wt_atomic_cas8(&btree->original, 1, 0)) {
+		btree->evict_disabled_open = false;
 		__wt_evict_file_exclusive_off(session);
+	}
 }
 
 /*
@@ -443,6 +445,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 	WT_STAT_CONN_INCR(session, cursor_search);
 	WT_STAT_DATA_INCR(session, cursor_search);
 
+	WT_RET(__wt_txn_search_check(session));
 	__cursor_state_save(cursor, &state);
 
 	/*
@@ -532,6 +535,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 	WT_STAT_CONN_INCR(session, cursor_search_near);
 	WT_STAT_DATA_INCR(session, cursor_search_near);
 
+	WT_RET(__wt_txn_search_check(session));
 	__cursor_state_save(cursor, &state);
 
 	/*
