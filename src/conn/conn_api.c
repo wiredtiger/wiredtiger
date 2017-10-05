@@ -1061,9 +1061,9 @@ static bool __wt_optrack_map_setup = 0;
 static int
 __conn_optrack_setup(WT_SESSION_IMPL *session, const char *cfg[])
 {
-	bool exists;
-	char optrack_map_name[PATH_MAX];
 	WT_CONNECTION_IMPL *conn;
+	char optrack_map_name[PATH_MAX];
+	bool exists;
 
 	conn = S2C(session);
 

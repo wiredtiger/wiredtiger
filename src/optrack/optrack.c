@@ -17,10 +17,10 @@ __wt_optrack_record_funcid(WT_SESSION_IMPL *session, uint64_t op_id,
 			   void *func, size_t funcsize,
 			   volatile bool *id_recorded)
 {
-	char endline[] = "\n";
-	char id_buf[sizeof(uint64_t)*2 + sizeof(char)*4];
 	WT_CONNECTION_IMPL *conn;
 	wt_off_t fsize;
+	char endline[] = "\n";
+	char id_buf[sizeof(uint64_t)*2 + sizeof(char)*4];
 
 	conn = S2C(session);
 
