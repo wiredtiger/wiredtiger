@@ -107,7 +107,7 @@ __wt_txn_parse_timestamp(WT_SESSION_IMPL *session,
 
 #if WT_TIMESTAMP_SIZE == 8
 	{
-	static const char hextable[] = {
+	static const int8_t hextable[] = {
 	    -1, -1,  -1,  -1,  -1,  -1,  -1,  -1,
 	    -1, -1,  -1,  -1,  -1,  -1,  -1,  -1,
 	    -1, -1,  -1,  -1,  -1,  -1,  -1,  -1,
