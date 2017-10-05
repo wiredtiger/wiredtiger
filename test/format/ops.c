@@ -552,36 +552,39 @@ ops(void *arg)
 	reset_op = mmrand(&tinfo->rnd, 100, 10000);
 
 	for (intxn = false; !tinfo->quit; ++tinfo->ops) {
-		/*
-		 * We can't swap sessions/cursors while in a transaction,
-		 * resolve any running transaction.
-		 */
-		if (intxn && tinfo->ops == session_op) {
-			commit_transaction(tinfo, session);
-			intxn = false;
-		}
-
-		/* Open up a new session and cursors. */
-		if (tinfo->ops == session_op ||
+		/* Periodically open up a new session and cursors. */
+		if (tinfo->ops > session_op ||
 		    session == NULL || cursor == NULL) {
+			/*
+			 * We can't swap sessions/cursors if in a transaction,
+			 * resolve any running transaction.
+			 */
+			if (intxn) {
+				commit_transaction(tinfo, session);
+				intxn = false;
+			}
+
 			if (session != NULL)
 				testutil_check(session->close(session, NULL));
-
 			testutil_check(
 			    conn->open_session(conn, NULL, NULL, &session));
+
+			/* Pick the next session/cursor close/open. */
+			session_op += mmrand(&tinfo->rnd, 100, 5000);
 
 			/*
 			 * 10% of the time, perform some read-only operations
 			 * from a checkpoint.
 			 *
-			 * Skip that if we are single-threaded and doing checks
-			 * against a Berkeley DB database, because that won't
-			 * work because the Berkeley DB database records won't
-			 * match the checkpoint.  Also skip if we are using
-			 * LSM, because it doesn't support reads from
-			 * checkpoints.
+			 * Skip if single-threaded and doing checks against a
+			 * Berkeley DB database, that won't work because the
+			 * Berkeley DB database won't match the checkpoint.
+			 *
+			 * Skip if we are using data-sources or LSM, they don't
+			 * support reading from checkpoints.
 			 */
-			if (!SINGLETHREADED && !DATASOURCE("lsm") &&
+			if (!SINGLETHREADED && !DATASOURCE("helium") &&
+			    !DATASOURCE("kvsbdb") && !DATASOURCE("lsm") &&
 			    mmrand(&tinfo->rnd, 1, 10) == 1) {
 				/*
 				 * open_cursor can return EBUSY if concurrent
@@ -600,9 +603,6 @@ ops(void *arg)
 					continue;
 				testutil_check(ret);
 
-				/* Pick the next session/cursor close/open. */
-				session_op += 250;
-
 				/* Checkpoints are read-only. */
 				readonly = true;
 			} else {
@@ -616,9 +616,6 @@ ops(void *arg)
 				    g.uri, NULL, "append", &cursor)) == EBUSY)
 					__wt_yield();
 				testutil_check(ret);
-
-				/* Pick the next session/cursor close/open. */
-				session_op += mmrand(&tinfo->rnd, 100, 5000);
 
 				/* Updates supported. */
 				readonly = false;
