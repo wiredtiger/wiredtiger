@@ -1423,9 +1423,8 @@ check_original_value:
 	 * image is rewritten), or any reconciliation of a backing overflow
 	 * record that will be physically removed once it's no longer needed.
 	 */
-	if (*updp != NULL &&
-	    (F_ISSET(r, WT_REC_LOOKASIDE) ||
-	    (*updp != NULL && vpack != NULL &&
+	if (*updp != NULL && (F_ISSET(r, WT_REC_LOOKASIDE) ||
+	    (vpack != NULL &&
 	    vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)))
 		WT_RET(
 		    __rec_append_orig_value(session, page, first_upd, vpack));
