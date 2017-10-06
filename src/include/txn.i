@@ -10,6 +10,7 @@ static inline int __wt_txn_id_check(WT_SESSION_IMPL *session);
 static inline void __wt_txn_read_last(WT_SESSION_IMPL *session);
 
 #ifdef HAVE_TIMESTAMPS
+#if WT_TIMESTAMP_SIZE == 8
 /*
  * __wt_txn_timestamp_flags --
  *	Set txn related timestamp flags.
@@ -30,7 +31,6 @@ __wt_txn_timestamp_flags(WT_SESSION_IMPL *session)
 		F_SET(&session->txn, WT_TXN_TS_COMMIT_NEVER);
 }
 
-#if WT_TIMESTAMP_SIZE == 8
 #define	WT_WITH_TIMESTAMP_READLOCK(session, l, e)       e
 
 /*
