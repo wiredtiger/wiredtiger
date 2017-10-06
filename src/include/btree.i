@@ -462,7 +462,7 @@ __wt_cache_page_evict(WT_SESSION_IMPL *session, WT_PAGE *page, bool rewrite)
 	 * real progress.
 	 */
 	if (rewrite)
-		(void)__wt_atomic_subv64(&cache->pages_inmem, 1);
+		(void)__wt_atomic_sub64(&cache->pages_inmem, 1);
 	else
 		(void)__wt_atomic_addv64(&cache->pages_evict, 1);
 }
