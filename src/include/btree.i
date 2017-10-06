@@ -167,24 +167,14 @@ static inline void
 __wt_cache_decr_check_size(
     WT_SESSION_IMPL *session, size_t *vp, size_t v, const char *fld)
 {
-	if (__wt_atomic_subsize(vp, v) < WT_EXABYTE)
-		return;
+	size_t orig;
 
-#ifdef HAVE_DIAGNOSTIC
-	(void)__wt_atomic_addsize(vp, v);
+	while ((orig = *(volatile size_t *)vp) >= v)
+		if (__wt_atomic_cassize(vp, orig, orig - v))
+			return;
 
-	{
-	static bool first = true;
-
-	if (!first)
-		return;
-	__wt_errx(session, "%s underflow: decrementing %" WT_SIZET_FMT, fld, v);
-	first = false;
-	}
-#else
-	WT_UNUSED(fld);
-	WT_UNUSED(session);
-#endif
+	__wt_errx(session,
+	    "%s went negative: ignoring decrement of %" WT_SIZET_FMT, fld, v);
 }
 
 /*
@@ -195,24 +185,14 @@ static inline void
 __wt_cache_decr_check_uint64(
     WT_SESSION_IMPL *session, uint64_t *vp, size_t v, const char *fld)
 {
-	if (__wt_atomic_sub64(vp, v) < WT_EXABYTE)
-		return;
+	uint64_t orig;
 
-#ifdef HAVE_DIAGNOSTIC
-	(void)__wt_atomic_add64(vp, v);
+	while ((orig = *(volatile uint64_t *)vp) >= v)
+		if (__wt_atomic_cassize(vp, orig, orig - v))
+			return;
 
-	{
-	static bool first = true;
-
-	if (!first)
-		return;
-	__wt_errx(session, "%s underflow: decrementing %" WT_SIZET_FMT, fld, v);
-	first = false;
-	}
-#else
-	WT_UNUSED(fld);
-	WT_UNUSED(session);
-#endif
+	__wt_errx(session,
+	    "%s went negative: ignoring decrement of %" WT_SIZET_FMT, fld, v);
 }
 
 /*
@@ -223,12 +203,18 @@ static inline void
 __wt_cache_decr_zero_uint64(
     WT_SESSION_IMPL *session, uint64_t *vp, size_t v, const char *fld)
 {
-	if (__wt_atomic_sub64(vp, v) < WT_EXABYTE)
-		return;
+	uint64_t orig;
 
-	__wt_errx(
-	    session, "%s went negative: decrementing %" WT_SIZET_FMT, fld, v);
-	*vp = 0;
+	for (;;)
+		if ((orig = *(volatile uint64_t *)vp) >= v) {
+			if (__wt_atomic_cassize(vp, orig, orig - v))
+				return;
+		} else
+			if (__wt_atomic_cassize(vp, orig, 0))
+				break;
+
+	__wt_errx(session,
+	    "%s went negative: ignoring decrement of %" WT_SIZET_FMT, fld, v);
 }
 
 /*
