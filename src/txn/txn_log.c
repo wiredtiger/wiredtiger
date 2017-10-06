@@ -298,14 +298,13 @@ __txn_log_file_sync(WT_SESSION_IMPL *session, uint32_t flags, WT_LSN *lsnp)
 	WT_DECL_ITEM(logrec);
 	WT_DECL_RET;
 	size_t header_size;
-	uint32_t rectype;
-	int start;
+	uint32_t rectype, start;
 	const char *fmt;
 	bool need_sync;
 
 	btree = S2BT(session);
 	rectype = WT_LOGREC_FILE_SYNC;
-	start = LF_ISSET(WT_TXN_LOG_CKPT_START);
+	start = LF_ISSET(WT_TXN_LOG_CKPT_START) ? 1 : 0;
 	fmt = WT_UNCHECKED_STRING(III);
 	need_sync = LF_ISSET(WT_TXN_LOG_CKPT_SYNC);
 
