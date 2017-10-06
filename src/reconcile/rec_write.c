@@ -1151,7 +1151,7 @@ __rec_append_orig_value(WT_SESSION_IMPL *session,
 	size_t size;
 
 	/* Done if at least one self-contained update is globally visible. */
-	for (;;) {
+	for (;; upd = upd->next) {
 		if (WT_UPDATE_DATA_VALUE(upd) &&
 		    __wt_txn_upd_visible_all(session, upd))
 			return (0);
