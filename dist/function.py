@@ -72,6 +72,7 @@ types = [
 def function_args(name, line):
     line = line.strip()
     line = re.sub("^const ", "", line)
+    line = re.sub("^static ", "", line)
     line = re.sub("^volatile ", "", line)
 
     # Let WT_UNUSED terminate the parse. It often appears at the beginning
@@ -117,24 +118,36 @@ def function_declaration():
                 if not tracking:
                     tfile.write(line)
                     if re.search('^{$', line):
-                        r = [[] for i in range(len(types))]
+                        list = [[] for i in range(len(types))]
+                        static_list = [[] for i in range(len(types))]
                         tracking = True;
                     continue
 
                 found,n = function_args(name, line)
                 if found:
-                    # Complain about assignments in the string. Ignore braces
+                    # List statics first.
+                    if re.search("^\sstatic", line):
+                        static_list[n].append(line)
+                        continue
+
+                    # Disallow assignments in the declaration. Ignore braces
                     # to allow automatic array initialization using constant
-                    # initializers.
+                    # initializers (and we've already skipped statics, which
+                    # are also typically initialized in the declaration).
                     if re.search("\s=\s[-\w]", line):
                         print >>sys.stderr, \
                             name + ": assignment in string: " + line.strip()
                         sys.exit(1);
-                    r[n].append(line)
-                else :
+
+                    list[n].append(line)
+                else:
                     # Sort the resulting lines (we don't yet sort declarations
-                    # within a single line).
-                    for arg in filter(None, r):
+                    # within a single line). It's two passes, first to catch
+                    # the statics, then to catch everything else.
+                    for arg in filter(None, static_list):
+                        for p in sorted(arg, key=function_args_alpha):
+                            tfile.write(p)
+                    for arg in filter(None, list):
                         for p in sorted(arg, key=function_args_alpha):
                             tfile.write(p)
                     tfile.write(line)
