@@ -1285,7 +1285,8 @@ __slvg_col_build_leaf(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_REF *ref)
 
 	/* Write the new version of the leaf page to disk. */
 	WT_ERR(__slvg_modify_init(session, page));
-	WT_ERR(__wt_reconcile(session, ref, cookie, WT_VISIBILITY_ERR, NULL));
+	WT_ERR(__wt_reconcile(
+	    session, ref, cookie, WT_REC_VISIBILITY_ERR, NULL));
 
 	/* Reset the page. */
 	page->pg_var = save_col_var;
@@ -1337,8 +1338,8 @@ static int
 __slvg_col_ovfl(WT_SESSION_IMPL *session, WT_TRACK *trk,
     WT_PAGE *page, uint64_t recno,  uint64_t skip, uint64_t take)
 {
-	WT_CELL_UNPACK unpack;
 	WT_CELL *cell;
+	WT_CELL_UNPACK unpack;
 	WT_COL *cip;
 	WT_DECL_RET;
 	uint64_t start, stop;
@@ -1405,8 +1406,8 @@ __slvg_col_ovfl(WT_SESSION_IMPL *session, WT_TRACK *trk,
 static int
 __slvg_row_range(WT_SESSION_IMPL *session, WT_STUFF *ss)
 {
-	WT_TRACK *jtrk;
 	WT_BTREE *btree;
+	WT_TRACK *jtrk;
 	uint32_t i, j;
 	int cmp;
 
@@ -1998,7 +1999,8 @@ __slvg_row_build_leaf(
 
 	/* Write the new version of the leaf page to disk. */
 	WT_ERR(__slvg_modify_init(session, page));
-	WT_ERR(__wt_reconcile(session, ref, cookie, WT_VISIBILITY_ERR, NULL));
+	WT_ERR(__wt_reconcile(
+	    session, ref, cookie, WT_REC_VISIBILITY_ERR, NULL));
 
 	/* Reset the page. */
 	page->entries += skip_stop;

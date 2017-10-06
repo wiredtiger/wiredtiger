@@ -239,6 +239,7 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home,
 	void *key;
 
 	ref = *from_refp;
+	addr = NULL;
 
 	/*
 	 * The from-home argument is the page into which the "from" WT_REF may
@@ -290,11 +291,8 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home,
 	if (ref_addr != NULL && !__wt_off_page(from_home, ref_addr)) {
 		__wt_cell_unpack((WT_CELL *)ref_addr, &unpack);
 		WT_RET(__wt_calloc_one(session, &addr));
-		if ((ret = __wt_memdup(
-		    session, unpack.data, unpack.size, &addr->addr)) != 0) {
-			__wt_free(session, addr);
-			return (ret);
-		}
+		WT_ERR(__wt_memdup(
+		    session, unpack.data, unpack.size, &addr->addr));
 		addr->size = (uint8_t)unpack.size;
 		switch (unpack.raw) {
 		case WT_CELL_ADDR_INT:
@@ -306,19 +304,21 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home,
 		case WT_CELL_ADDR_LEAF_NO:
 			addr->type = WT_ADDR_LEAF_NO;
 			break;
-		WT_ILLEGAL_VALUE(session);
+		WT_ILLEGAL_VALUE_ERR(session);
 		}
-		if (!__wt_atomic_cas_ptr(&ref->addr, ref_addr, addr)) {
-			__wt_free(session, addr->addr);
-			__wt_free(session, addr);
-		}
+		if (__wt_atomic_cas_ptr(&ref->addr, ref_addr, addr))
+			addr = NULL;
 	}
 
 	/* And finally, copy the WT_REF pointer itself. */
 	*to_refp = ref;
 	WT_MEM_TRANSFER(*decrp, *incrp, sizeof(WT_REF));
 
-	return (0);
+err:	if (addr != NULL) {
+		__wt_free(session, addr->addr);
+		__wt_free(session, addr);
+	}
+	return (ret);
 }
 
 /*
@@ -608,9 +608,9 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	WT_SPLIT_ERROR_PHASE complete;
 	size_t parent_decr, size;
 	uint64_t split_gen;
-	uint32_t hint, i, j;
 	uint32_t deleted_entries, parent_entries, result_entries;
 	uint32_t *deleted_refs;
+	uint32_t hint, i, j;
 	bool empty_parent;
 
 	parent = ref->home;
@@ -1384,10 +1384,12 @@ __split_multi_inmem(
 	WT_DECL_ITEM(key);
 	WT_DECL_RET;
 	WT_PAGE *page;
-	WT_UPDATE *upd;
 	WT_SAVE_UPD *supd;
+	WT_UPDATE *prev_upd, *upd;
 	uint64_t recno;
 	uint32_t i, slot;
+
+	WT_ASSERT(session, multi->las_pageid == 0);
 
 	/*
 	 * In 04/2016, we removed column-store record numbers from the WT_PAGE
@@ -1434,7 +1436,7 @@ __split_multi_inmem(
 	__wt_btcur_open(&cbt);
 
 	/* Re-create each modification we couldn't write. */
-	for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd)
+	for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
 		switch (orig->type) {
 		case WT_PAGE_COL_FIX:
 		case WT_PAGE_COL_VAR:
@@ -1443,7 +1445,8 @@ __split_multi_inmem(
 			recno = WT_INSERT_RECNO(supd->ins);
 
 			/* Search the page. */
-			WT_ERR(__wt_col_search(session, recno, ref, &cbt));
+			WT_ERR(__wt_col_search(
+			    session, recno, ref, &cbt, true));
 
 			/* Apply the modification. */
 			WT_ERR(__wt_col_modify(session, &cbt,
@@ -1465,7 +1468,8 @@ __split_multi_inmem(
 			}
 
 			/* Search the page. */
-			WT_ERR(__wt_row_search(session, key, ref, &cbt, true));
+			WT_ERR(__wt_row_search(
+			    session, key, ref, &cbt, true, true));
 
 			/* Apply the modification. */
 			WT_ERR(__wt_row_modify(session,
@@ -1473,6 +1477,27 @@ __split_multi_inmem(
 			break;
 		WT_ILLEGAL_VALUE_ERR(session);
 		}
+
+		/*
+		 * The update used to create the on-page disk image must be
+		 * truncated.  This is not just a performance issue: if the
+		 * update is a modification, it cannot safely be reapplied to
+		 * the full value stored on disk.
+		 */
+		if (supd->onpage_upd != NULL) {
+			for (prev_upd = upd; prev_upd != NULL &&
+			    prev_upd->next != supd->onpage_upd;
+			    prev_upd = prev_upd->next)
+				;
+			if (prev_upd != NULL) {
+				WT_ASSERT(session,
+				    prev_upd->next == supd->onpage_upd);
+				__wt_update_obsolete_free(
+				    session, page, prev_upd->next);
+				prev_upd->next = NULL;
+			}
+		}
+	}
 
 	/*
 	 * When modifying the page we set the first dirty transaction to the
@@ -1620,7 +1645,16 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 		addr->type = multi->addr.type;
 		WT_RET(__wt_memdup(session,
 		    multi->addr.addr, addr->size, &addr->addr));
-		ref->state = WT_REF_DISK;
+		if (multi->las_pageid != 0) {
+			WT_RET(__wt_calloc_one(session, &ref->page_las));
+			ref->page_las->las_pageid = multi->las_pageid;
+#ifdef HAVE_TIMESTAMPS
+			__wt_timestamp_set(&ref->page_las->min_timestamp,
+			    &multi->las_min_timestamp);
+#endif
+			ref->state = WT_REF_LOOKASIDE;
+		} else
+			ref->state = WT_REF_DISK;
 	}
 
 	/*
@@ -1645,8 +1679,8 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 static int
 __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-	WT_DECL_RET;
 	WT_DECL_ITEM(key);
+	WT_DECL_RET;
 	WT_INSERT *ins, **insp, *moved_ins, *prev_ins;
 	WT_INSERT_HEAD *ins_head, *tmp_ins_head;
 	WT_PAGE *page, *right;

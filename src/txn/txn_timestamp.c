@@ -107,27 +107,37 @@ __wt_txn_parse_timestamp(WT_SESSION_IMPL *session,
 
 #if WT_TIMESTAMP_SIZE == 8
 	{
-	static const u_char hextable[] = {
-	    0,  0,  0,  0,  0,  0,  0,  0,
-	    0,  0,  0,  0,  0,  0,  0,  0,
-	    0,  0,  0,  0,  0,  0,  0,  0,
-	    0,  0,  0,  0,  0,  0,  0,  0,
-	    0,  0,  0,  0,  0,  0,  0,  0,
-	    0,  0,  0,  0,  0,  0,  0,  0,
-	    0,  1,  2,  3,  4,  5,  6,  7,
-	    8,  9,  0,  0,  0,  0,  0,  0,
-	    0, 10, 11, 12, 13, 14, 15,  0,
-	    0,  0,  0,  0,  0,  0,  0,  0,
-	    0,  0,  0,  0,  0,  0,  0,  0,
-	    0,  0,  0,  0,  0,  0,  0,  0,
-	    0, 10, 11, 12, 13, 14, 15
+	static const int8_t hextable[] = {
+	    -1, -1,  -1,  -1,  -1,  -1,  -1,  -1,
+	    -1, -1,  -1,  -1,  -1,  -1,  -1,  -1,
+	    -1, -1,  -1,  -1,  -1,  -1,  -1,  -1,
+	    -1, -1,  -1,  -1,  -1,  -1,  -1,  -1,
+	    -1, -1,  -1,  -1,  -1,  -1,  -1,  -1,
+	    -1, -1,  -1,  -1,  -1,  -1,  -1,  -1,
+	     0,  1,   2,   3,   4,   5,   6,   7,
+	     8,  9,  -1,  -1,  -1,  -1,  -1,  -1,
+	    -1, -1,  -1,  -1,  -1,  -1,  -1,  -1,
+	    -1, -1,  -1,  -1,  -1,  -1,  -1,  -1,
+	    -1, -1,  -1,  -1,  -1,  -1,  -1,  -1,
+	    -1, -1,  -1,  -1,  -1,  -1,  -1,  -1,
+	    -1, 10,  11,  12,  13,  14,  15,  -1
 	};
 	wt_timestamp_t ts;
 	size_t len;
-	const char *hex;
+	int hex_val;
+	const char *hex_itr;
 
-	for (ts.val = 0, hex = cval->str, len = cval->len; len > 0; --len)
-		ts.val = (ts.val << 4) | hextable[(int)*hex++];
+	for (ts.val = 0, hex_itr = cval->str, len = cval->len; len > 0; --len) {
+		if ((size_t)*hex_itr < WT_ELEMENTS(hextable))
+			hex_val = hextable[(size_t)*hex_itr++];
+		else
+			hex_val = -1;
+		if (hex_val < 0)
+			WT_RET_MSG(session, EINVAL,
+			    "Failed to parse %s timestamp '%.*s'",
+			    name, (int)cval->len, cval->str);
+		ts.val = (ts.val << 4) | (uint64_t)hex_val;
+	}
 	__wt_timestamp_set(timestamp, &ts);
 	}
 #else
@@ -183,8 +193,8 @@ static int
 __txn_global_query_timestamp(
     WT_SESSION_IMPL *session, wt_timestamp_t *tsp, const char *cfg[])
 {
-	WT_CONNECTION_IMPL *conn;
 	WT_CONFIG_ITEM cval;
+	WT_CONNECTION_IMPL *conn;
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 	wt_timestamp_t ts;
@@ -476,6 +486,7 @@ __wt_timestamp_validate(WT_SESSION_IMPL *session, wt_timestamp_t *ts,
 {
 	WT_TXN *txn = &session->txn;
 	WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
+	char hex_timestamp[2 * WT_TIMESTAMP_SIZE + 1];
 	bool older_than_oldest_ts, older_than_stable_ts;
 
 	/*
@@ -501,15 +512,18 @@ __wt_timestamp_validate(WT_SESSION_IMPL *session, wt_timestamp_t *ts,
 
 	/*
 	 * Compare against the commit timestamp of the current transaction.
-	 * Return an error if the given timestamp is older than the commit
-	 * timestamp.
+	 * Return an error if the given timestamp is older than the first
+	 * commit timestamp.
 	 */
 	if (cmp_commit && F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
-	    __wt_timestamp_cmp(ts, &txn->commit_timestamp) < 0)
+	    __wt_timestamp_cmp(ts, &txn->first_commit_timestamp) < 0) {
+		WT_RET(__wt_timestamp_to_hex_string(
+		    session, hex_timestamp, &txn->first_commit_timestamp));
 		WT_RET_MSG(session, EINVAL,
-		    "commit timestamp %.*s older than the current "
-		    "commit timestamp set for this transaction",
-		    (int)cval->len, cval->str);
+		    "commit timestamp %.*s older than the first "
+		    "commit timestamp %s for this transaction",
+		    (int)cval->len, cval->str, hex_timestamp);
+	}
 
 	return (0);
 }
@@ -561,9 +575,9 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 void
 __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session)
 {
-	wt_timestamp_t ts;
 	WT_TXN *prev, *txn;
 	WT_TXN_GLOBAL *txn_global;
+	wt_timestamp_t ts;
 
 	txn = &session->txn;
 	txn_global = &S2C(session)->txn_global;

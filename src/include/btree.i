@@ -1032,8 +1032,8 @@ __wt_row_leaf_value_cell(WT_PAGE *page, WT_ROW *rip, WT_CELL_UNPACK *kpack)
 {
 	WT_CELL *kcell, *vcell;
 	WT_CELL_UNPACK unpack;
-	void *copy, *key;
 	size_t size;
+	void *copy, *key;
 
 	/* If we already have an unpacked key cell, use it. */
 	if (kpack != NULL)
@@ -1150,8 +1150,8 @@ __wt_ref_info(WT_REF *ref, const uint8_t **addrp, size_t *sizep, u_int *typep)
 static inline int
 __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-	const uint8_t *addr;
 	size_t addr_size;
+	const uint8_t *addr;
 
 	if (ref->addr == NULL)
 		return (0);
@@ -1172,8 +1172,8 @@ static inline bool
 __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
 	WT_BTREE *btree;
-	WT_INSERT_HEAD *ins_head;
 	WT_INSERT *ins;
+	WT_INSERT_HEAD *ins_head;
 	size_t size;
 	int count;
 
@@ -1303,19 +1303,20 @@ __wt_page_can_evict(
 	 */
 	if (__wt_leaf_page_can_split(session, page)) {
 		if (evict_flagsp != NULL)
-			FLD_SET(*evict_flagsp, WT_EVICT_INMEM_SPLIT);
+			FLD_SET(*evict_flagsp, WT_REC_INMEM_SPLIT);
 		return (true);
 	}
 
 	modified = __wt_page_is_modified(page);
 
 	/*
-	 * If the file is being checkpointed, we can't evict dirty pages:
-	 * if we write a page and free the previous version of the page, that
+	 * If the file is being checkpointed, other threads can't evict dirty
+	 * pages: if a page is written and the previous version freed, that
 	 * previous version might be referenced by an internal page already
-	 * been written in the checkpoint, leaving the checkpoint inconsistent.
+	 * written in the checkpoint, leaving the checkpoint inconsistent.
 	 */
-	if (modified && btree->checkpointing != WT_CKPT_OFF) {
+	if (modified && btree->checkpointing != WT_CKPT_OFF &&
+	    !WT_SESSION_IS_CHECKPOINT(session)) {
 		WT_STAT_CONN_INCR(session, cache_eviction_checkpoint);
 		WT_STAT_DATA_INCR(session, cache_eviction_checkpoint);
 		return (false);
