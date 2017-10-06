@@ -196,28 +196,6 @@ __wt_cache_decr_check_uint64(
 }
 
 /*
- * __wt_cache_decr_zero_uint64 --
- *	Decrement a uint64_t cache value and zero it on underflow.
- */
-static inline void
-__wt_cache_decr_zero_uint64(
-    WT_SESSION_IMPL *session, uint64_t *vp, size_t v, const char *fld)
-{
-	uint64_t orig;
-
-	for (;;)
-		if ((orig = *(volatile uint64_t *)vp) >= v) {
-			if (__wt_atomic_cassize(vp, orig, orig - v))
-				return;
-		} else
-			if (__wt_atomic_cassize(vp, orig, 0))
-				break;
-
-	__wt_errx(session,
-	    "%s went negative: ignoring decrement of %" WT_SIZET_FMT, fld, v);
-}
-
-/*
  * __wt_cache_page_byte_dirty_decr --
  *	Decrement the page's dirty byte count, guarding from underflow.
  */
@@ -354,10 +332,10 @@ __wt_cache_dirty_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
 	cache = S2C(session)->cache;
 
 	if (WT_PAGE_IS_INTERNAL(page))
-		__wt_cache_decr_zero_uint64(session,
+		__wt_cache_decr_check_uint64(session,
 		    &cache->pages_dirty_intl, 1, "dirty internal page count");
 	else
-		__wt_cache_decr_zero_uint64(session,
+		__wt_cache_decr_check_uint64(session,
 		    &cache->pages_dirty_leaf, 1, "dirty leaf page count");
 
 	modify = page->modify;
@@ -424,17 +402,17 @@ __wt_cache_page_evict(WT_SESSION_IMPL *session, WT_PAGE *page, bool rewrite)
 	/* Update the cache's dirty-byte count. */
 	if (modify != NULL && modify->bytes_dirty != 0) {
 		if (WT_PAGE_IS_INTERNAL(page)) {
-			__wt_cache_decr_zero_uint64(session,
+			__wt_cache_decr_check_uint64(session,
 			    &btree->bytes_dirty_intl,
 			    modify->bytes_dirty, "WT_BTREE.bytes_dirty_intl");
-			__wt_cache_decr_zero_uint64(session,
+			__wt_cache_decr_check_uint64(session,
 			    &cache->bytes_dirty_intl,
 			    modify->bytes_dirty, "WT_CACHE.bytes_dirty_intl");
 		} else if (!btree->lsm_primary) {
-			__wt_cache_decr_zero_uint64(session,
+			__wt_cache_decr_check_uint64(session,
 			    &btree->bytes_dirty_leaf,
 			    modify->bytes_dirty, "WT_BTREE.bytes_dirty_leaf");
-			__wt_cache_decr_zero_uint64(session,
+			__wt_cache_decr_check_uint64(session,
 			    &cache->bytes_dirty_leaf,
 			    modify->bytes_dirty, "WT_CACHE.bytes_dirty_leaf");
 		}
