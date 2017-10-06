@@ -1143,21 +1143,23 @@ __rec_update_save(WT_SESSION_IMPL *session,
  */
 static int
 __rec_append_orig_value(WT_SESSION_IMPL *session,
-    WT_PAGE *page, WT_UPDATE *first_upd, WT_CELL_UNPACK *unpack)
+    WT_PAGE *page, WT_UPDATE *upd, WT_CELL_UNPACK *unpack)
 {
 	WT_DECL_ITEM(tmp);
 	WT_DECL_RET;
-	WT_UPDATE *append, *upd;
+	WT_UPDATE *append;
 	size_t size;
 
-	/*
-	 * If at least one self-contained update is globally visible, we're
-	 * done.
-	 */
-	for (upd = first_upd; upd != NULL; upd = upd->next)
+	/* Done if at least one self-contained update is globally visible. */
+	for (;;) {
 		if (WT_UPDATE_DATA_VALUE(upd) &&
 		    __wt_txn_upd_visible_all(session, upd))
 			return (0);
+
+		/* Leave reference at the last item in the chain. */
+		if (upd->next == NULL)
+			break;
+	}
 
 	/*
 	 * We need the original on-page value for some reader: get a copy and
@@ -1187,8 +1189,6 @@ __rec_append_orig_value(WT_SESSION_IMPL *session,
 	 *
 	 * Append the new entry to the update list.
 	 */
-	for (upd = first_upd; upd->next != NULL; upd = upd->next)
-		;
 	WT_PUBLISH(upd->next, append);
 	__wt_cache_page_inmem_incr(session, page, size);
 
