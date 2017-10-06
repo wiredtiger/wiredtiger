@@ -20,11 +20,12 @@ def missing_comment():
                            (f, s[:m.start(2)].count('\n'), m.group(2))
 
 # Sort helper function, discard * operators so a pointer doesn't necessarily
-# sort before non-pointers, ignore const/volatile keywords.
+# sort before non-pointers, ignore const/static/volatile keywords.
 def function_args_alpha(text):
         s = text.strip()
         s = re.sub("[*]","", s)
         s = re.sub("^const ","", s)
+        s = re.sub("^static ","", s)
         s = re.sub("^volatile ","", s)
         return s
 
@@ -68,7 +69,7 @@ types = [
 # Return the sort order of a variable declaration, or no-match.
 #       This order isn't defensible: it's roughly how WiredTiger looked when we
 # settled on a style, and it's roughly what the KNF/BSD styles look like.
-def function_args(line):
+def function_args(name, line):
     line = line.strip()
     line = re.sub("^const ", "", line)
     line = re.sub("^volatile ", "", line)
@@ -86,8 +87,7 @@ def function_args(line):
     # Check for illegal types.
     for m in illegal_types:
         if re.search('^' + m + "\s*[\w(*]", line):
-            print >>sys.stderr, \
-                m + ": illegal declaration: " + line.strip()
+            print >>sys.stderr, name + ": illegal type: " + line.strip()
             sys.exit(1)
 
     # Check for matching types.
@@ -121,8 +121,15 @@ def function_declaration():
                         tracking = True;
                     continue
 
-                found,n = function_args(line)
+                found,n = function_args(name, line)
                 if found:
+                    # Complain about assignments in the string. Ignore braces
+                    # to allow automatic array initialization using constant
+                    # initializers.
+                    if re.search("\s=\s[-\w]", line):
+                        print >>sys.stderr, \
+                            name + ": assignment in string: " + line.strip()
+                        sys.exit(1);
                     r[n].append(line)
                 else :
                     # Sort the resulting lines (we don't yet sort declarations
