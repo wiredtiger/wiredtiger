@@ -1891,7 +1891,6 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 		    !__wt_txn_visible_all(session, page->modify->rec_max_txn,
 		    WT_TIMESTAMP_NULL(&page->modify->rec_max_timestamp))) {
 			__wt_page_only_modify_set(session, page);
-			modified = true;
 			goto fast;
 		}
 
