@@ -226,7 +226,8 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
                 self.table_nots_nolog, dict((k, self.value) for k in orig_keys))
 
         # Bump the oldest_timestamp, we're not going back...
-        self.assertEqual(self.conn.query_timestamp(), timestamp_ret_str(100))
+        self.assertEqual(self.conn.query_timestamp().lstrip('0'),
+            timestamp_ret_str(100))
         old_ts = timestamp_str(100)
         self.conn.set_timestamp('oldest_timestamp=' + old_ts)
         self.conn.set_timestamp('stable_timestamp=' + old_ts)

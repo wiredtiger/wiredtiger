@@ -98,7 +98,8 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
                 dict((k, 1) for k in orig_keys[:i+1]))
 
         # Everything up to and including timestamp 100 has been committed.
-        self.assertEqual(self.conn.query_timestamp(), timestamp_ret_str(100))
+        self.assertEqual(self.conn.query_timestamp().lstrip('0'),
+            timestamp_ret_str(100))
 
         # Bump the oldest timestamp, we're not going back...
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(100))
@@ -111,11 +112,13 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(k + 100))
 
         # Everything up to and including timestamp 200 has been committed.
-        self.assertEqual(self.conn.query_timestamp(), timestamp_ret_str(200))
+        self.assertEqual(self.conn.query_timestamp().lstrip('0'),
+            timestamp_ret_str(200))
 
         # Test that we can manually move the commit timestamp back
         self.conn.set_timestamp('commit_timestamp=' + timestamp_str(150))
-        self.assertEqual(self.conn.query_timestamp(), timestamp_ret_str(150))
+        self.assertEqual(self.conn.query_timestamp().lstrip('0'),
+            timestamp_ret_str(150))
         self.conn.set_timestamp('commit_timestamp=' + timestamp_str(200))
 
         # Now the stable timestamp before we read.
