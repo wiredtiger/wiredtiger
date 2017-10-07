@@ -390,7 +390,8 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 	WT_STAT_DATA_INCR(session, cache_write);
 	WT_STAT_CONN_INCRV(session, cache_bytes_write, bytes_written);
 	WT_STAT_DATA_INCRV(session, cache_bytes_write, bytes_written);
-	(void)__wt_atomic_add64(&S2C(session)->cache->bytes_written, bytes_written);
+	(void)__wt_atomic_add64(
+	    &S2C(session)->cache->bytes_written, bytes_written);
 
 err:	__wt_scr_free(session, &ctmp);
 	__wt_scr_free(session, &etmp);
