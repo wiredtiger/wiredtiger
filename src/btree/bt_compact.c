@@ -149,7 +149,7 @@ __wt_compact(WT_SESSION_IMPL *session)
 		if (++i > 100) {
 			WT_ERR(__wt_session_compact_check_timeout(session));
 
-			if (__wt_eviction_needed(session, false, NULL))
+			if (__wt_cache_stuck(session))
 				WT_ERR(EBUSY);
 
 			i = 0;

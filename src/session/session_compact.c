@@ -309,8 +309,7 @@ __compact_worker(WT_SESSION_IMPL *session)
 			 * Just quit if eviction is the problem.
 			 */
 			if (ret == EBUSY) {
-				if (__wt_eviction_needed(
-				    session, false, NULL)) {
+				if (__wt_cache_stuck(session)) {
 					WT_ERR_MSG(session, EBUSY,
 					    "compaction halted by eviction "
 					    "pressure");
