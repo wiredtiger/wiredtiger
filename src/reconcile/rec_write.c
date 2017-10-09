@@ -695,7 +695,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		 * about the maximum transaction ID of current updates in the
 		 * tree, and checkpoint visits every dirty page in the tree.
 		 */
-		if (F_ISSET(r, WT_REC_EVICT)) {
+		if (!F_ISSET(r, WT_REC_EVICT)) {
 			if (WT_TXNID_LT(btree->rec_max_txn, r->max_txn))
 				btree->rec_max_txn = r->max_txn;
 #ifdef HAVE_TIMESTAMPS
@@ -3583,6 +3583,9 @@ __rec_update_las(WT_SESSION_IMPL *session,
 	 */
 	las_pageid = multi->las_pageid =
 	    __wt_atomic_add64(&S2BT(session)->las_pageid, 1);
+
+	/* The zero page ID is reserved, check we don't see it. */
+	WT_ASSERT(session, las_pageid != 0);
 
 	/*
 	 * Make sure there are no left over entries (e.g., from a handle
