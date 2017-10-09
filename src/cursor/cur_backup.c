@@ -255,14 +255,11 @@ __backup_start(
 	/*
 	 * If a list of targets was specified, work our way through them.
 	 * Else, generate a list of all database objects.
-	 *
-	 * Include log files if doing a full backup, and copy them before
-	 * copying data files to avoid rolling the metadata forward across
-	 * a checkpoint that completes during the backup.
 	 */
 	target_list = false;
 	WT_ERR(__backup_uri(session, cfg, &target_list, &log_only));
 
+	/* Include log files if doing a full backup. */
 	if (!target_list) {
 		WT_ERR(__backup_log_append(session, cb, true));
 		WT_ERR(__backup_all(session));
