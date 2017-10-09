@@ -1478,10 +1478,13 @@ __split_multi_inmem(
 		}
 
 		/*
-		 * The update used to create the on-page disk image must be
-		 * truncated.  This is not just a performance issue: if the
-		 * update is a modification, it cannot safely be reapplied to
-		 * the full value stored on disk.
+		 * Discard the update used to create the on-page disk image.
+		 * This is not just a performance issue: if the update used to
+		 * create the value for this on-page disk image was a modify,
+		 * and it was applied to the previous on-page value to
+		 * determine a value to write to this disk image, that update
+		 * cannot be applied to the new on-page value without risking
+		 * corruption.
 		 */
 		if (supd->onpage_upd != NULL) {
 			for (prev_upd = upd; prev_upd != NULL &&
