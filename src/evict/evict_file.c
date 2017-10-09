@@ -43,10 +43,21 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
 	walk_flags = WT_READ_CACHE | WT_READ_NO_EVICT;
 
-	/* If discarding a dead tree, remove any lookaside entries. */
+	/*
+	 * If discarding a dead tree, remove any lookaside entries.  This deals
+	 * with the case where a tree is dropped with "force=true".  It happens
+	 * that we also force-drop the lookaside table itself: it can never
+	 * participate in lookaside eviction, and we can't open a cursor on it
+	 * as we are discarding it.
+	 *
+	 * We use the special page ID zero so that all lookaside entries for
+	 * the tree are removed.
+	 */
 	if (F_ISSET(dhandle, WT_DHANDLE_DEAD) &&
 	    F_ISSET(S2C(session), WT_CONN_LAS_OPEN) &&
-	    !WT_IS_METADATA(dhandle) && !F_ISSET(btree, WT_BTREE_LOOKASIDE)) {
+	    !F_ISSET(btree, WT_BTREE_LOOKASIDE)) {
+		WT_ASSERT(session, !WT_IS_METADATA(dhandle));
+
 		__wt_las_cursor(session, &las_cursor, &session_flags);
 		WT_TRET(__wt_las_remove_block(
 		    session, las_cursor, btree->id, 0));
