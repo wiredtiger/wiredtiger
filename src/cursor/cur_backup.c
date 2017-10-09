@@ -253,8 +253,8 @@ __backup_start(
 	WT_ERR(__wt_fopen(session, WT_BACKUP_TMP,
 	    WT_FS_OPEN_CREATE, WT_STREAM_WRITE, &cb->bfs));
 	/*
-	 * If targets were specified, add them to the list, else add all of the
-	 * database objects to the list. Include log files if a full backup.
+	 * If targets were specified, add them to the list. Otherwise it is a
+	 * full backup, add all database objects and log files to the list.
 	 */
 	target_list = false;
 	WT_ERR(__backup_uri(session, cfg, &target_list, &log_only));
