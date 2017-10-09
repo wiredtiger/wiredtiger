@@ -1488,9 +1488,16 @@ __split_multi_inmem(
 			    prev_upd->next != supd->onpage_upd;
 			    prev_upd = prev_upd->next)
 				;
+			/*
+			 * If the on-page update was in fact a tombstone, there
+			 * will be no value on the page.  Don't throw the
+			 * tombstone away: we may need it to correctly resolve
+			 * modifications.
+			 */
+			if (supd->onpage_upd->type == WT_UPDATE_DELETED &&
+			   prev_upd != NULL)
+				prev_upd = prev_upd->next;
 			if (prev_upd != NULL) {
-				WT_ASSERT(session,
-				    prev_upd->next == supd->onpage_upd);
 				__wt_update_obsolete_free(
 				    session, page, prev_upd->next);
 				prev_upd->next = NULL;
