@@ -77,7 +77,6 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
     def check(self, session, txn_config, tablename, expected):
 
         if txn_config:
-             #print "TXN : " + txn_config
             session.begin_transaction(txn_config)
 
         cur = session.open_cursor(self.uri + tablename, None)
