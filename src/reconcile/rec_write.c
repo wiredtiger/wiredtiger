@@ -1293,7 +1293,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			*updp = upd;
 
 #ifdef HAVE_TIMESTAMPS
-		/* Track the first/last update with non-zero timestamp. */
+		/* Track the first update with non-zero timestamp. */
 		if (first_ts_upd == NULL &&
 		    !__wt_timestamp_iszero(&upd->timestamp))
 			first_ts_upd = upd;
@@ -1408,7 +1408,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	/* Track the oldest saved timestamp for lookaside. */
 	if (F_ISSET(r, WT_REC_LOOKASIDE))
 		for (upd = first_upd; upd->next != NULL; upd = upd->next)
-			if (!__wt_timestamp_iszero(&upd->timestamp) &&
+			if (upd->txnid != WT_TXN_ABORTED &&
+			    upd->txnid != WT_TXN_NONE &&
 			    __wt_timestamp_cmp(
 			    &upd->timestamp, &r->min_saved_timestamp) < 0)
 				__wt_timestamp_set(
