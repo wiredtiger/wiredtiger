@@ -1292,6 +1292,7 @@ __wt_page_can_evict(
 	 * which will corrupt the checkpoint's block management.
 	 */
 	if (btree->checkpointing != WT_CKPT_OFF &&
+	    !WT_SESSION_IS_CHECKPOINT(session) &&
 	    F_ISSET_ATOMIC(ref->home, WT_PAGE_OVERFLOW_KEYS))
 		return (false);
 
