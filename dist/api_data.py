@@ -1113,6 +1113,10 @@ methods = {
     Config('read_timestamp', '', r'''
         read using the specified timestamp, see
         @ref transaction_timestamps'''),
+    Config('round_to_oldest', 'false', r'''
+        if read timestamp is earlier than oldest timestamp,
+        read timestamp will be rounded to oldest timestamp''',
+        type='boolean'),
     Config('snapshot', '', r'''
         use a named, in-memory snapshot, see
         @ref transaction_named_snapshots'''),

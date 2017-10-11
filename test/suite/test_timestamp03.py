@@ -77,6 +77,7 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
     def check(self, session, txn_config, tablename, expected):
 
         if txn_config:
+             #print "TXN : " + txn_config
             session.begin_transaction(txn_config)
 
         cur = session.open_cursor(self.uri + tablename, None)
@@ -245,7 +246,6 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
             # Make sure a timestamp cursor is the last one to update.  This
             # tests the scenario for a bug we found where recovery replayed
             # the last record written into the log.
-            #
             cur_nots_log[k] = self.value2
             cur_nots_nolog[k] = self.value2
             self.session.begin_transaction()
@@ -267,6 +267,24 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
         self.check(self.session, 'read_timestamp=' + old_ts,
             self.table_nots_log, dict((k, self.value2) for k in orig_keys))
         self.check(self.session, 'read_timestamp=' + old_ts,
+            self.table_nots_nolog, dict((k, self.value2) for k in orig_keys))
+
+        # Scenario: 4a
+        # This scenario is same as earlier one with read_timestamp earlier than
+         # oldest_timestamp and using the option of round_to_oldest
+        earlier_ts = timestamp_str(90)
+        self.check(self.session,
+            'read_timestamp=' + earlier_ts +',round_to_oldest=true',
+            self.table_ts_log, dict((k, self.value) for k in orig_keys))
+        self.check(self.session,
+            'read_timestamp=' + earlier_ts +',round_to_oldest=true',
+            self.table_ts_nolog, dict((k, self.value) for k in orig_keys))
+        # Tables not using the timestamps should see updated values (i.e. value2).
+        self.check(self.session,
+            'read_timestamp=' + earlier_ts +',round_to_oldest=true',
+            self.table_nots_log, dict((k, self.value2) for k in orig_keys))
+        self.check(self.session,
+            'read_timestamp=' + earlier_ts +',round_to_oldest=true',
             self.table_nots_nolog, dict((k, self.value2) for k in orig_keys))
 
         # Scenario: 5

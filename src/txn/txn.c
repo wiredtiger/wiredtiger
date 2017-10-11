@@ -440,11 +440,37 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_RET(__wt_config_gets_def(session, cfg, "read_timestamp", 0, &cval));
 	if (cval.len > 0) {
 #ifdef HAVE_TIMESTAMPS
+		bool round_to_oldest;
+		int cmp;
 		wt_timestamp_t ts;
+		WT_TXN_GLOBAL *txn_global;
 
+		txn_global = &S2C(session)->txn_global;
 		WT_RET(__wt_txn_parse_timestamp(session, "read", &ts, &cval));
-		WT_RET(__wt_timestamp_validate(session,
-		    &ts, &cval, true, false, false));
+		WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
+		    cmp = __wt_timestamp_cmp(&ts,
+		    &txn_global->oldest_timestamp));
+		if (cmp < 0) {
+			/*
+			 * If given read timestamp is earlier than oldest
+			 * timestamp then round the read timestamp to
+			 * oldest timestamp based on round_to_oldest option.
+			 */
+			WT_RET(__wt_config_gets_def(session, cfg,
+			    "round_to_oldest", 0, &cval));
+			round_to_oldest = cval.val;
+			if (round_to_oldest) {
+				__wt_verbose_timestamp(session, &ts,
+				"Rounded to oldest timestamp");
+				WT_WITH_TIMESTAMP_READLOCK(session,
+				    &txn_global->rwlock,
+				    __wt_timestamp_set(&ts,
+					&txn_global->oldest_timestamp));
+			} else
+				WT_RET_MSG(session, EINVAL,
+				    "read timestamp %.*s older than oldest "
+				    "timestamp", (int)cval.len, cval.str);
+		}
 		__wt_timestamp_set(&txn->read_timestamp, &ts);
 		__wt_txn_set_read_timestamp(session);
 		txn->isolation = WT_ISO_SNAPSHOT;
