@@ -578,6 +578,8 @@ __evict_review(
 			 * lookaside table.
 			 */
 			if (__wt_cache_aggressive(session) &&
+			    F_ISSET(cache, WT_CACHE_EVICT_CLEAN |
+				WT_CACHE_EVICT_DIRTY_HARD) &&
 			    !F_ISSET(conn, WT_CONN_EVICTION_NO_LOOKASIDE))
 				lookaside_retryp = &lookaside_retry;
 		}

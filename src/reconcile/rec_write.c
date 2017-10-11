@@ -1326,9 +1326,10 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 
 	/*
 	 * The checkpoint transaction is special.  Make sure we never write
-	 * (metadata) updates from a checkpoint in a concurrent session.
+	 * metadata updates from a checkpoint in a concurrent session.
 	 */
-	WT_ASSERT(session, *updp == NULL || (*updp)->txnid == WT_TXN_NONE ||
+	WT_ASSERT(session, !WT_IS_METADATA(session->dhandle) ||
+	    *updp == NULL || (*updp)->txnid == WT_TXN_NONE ||
 	    (*updp)->txnid != S2C(session)->txn_global.checkpoint_state.id ||
 	    WT_SESSION_IS_CHECKPOINT(session));
 
