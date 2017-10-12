@@ -440,40 +440,51 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_RET(__wt_config_gets_def(session, cfg, "read_timestamp", 0, &cval));
 	if (cval.len > 0) {
 #ifdef HAVE_TIMESTAMPS
-		bool round_to_oldest;
-		int cmp;
 		wt_timestamp_t ts;
 		WT_TXN_GLOBAL *txn_global;
+		char timestamp_buf[2 * WT_TIMESTAMP_SIZE + 1];
 
 		txn_global = &S2C(session)->txn_global;
 		WT_RET(__wt_txn_parse_timestamp(session, "read", &ts, &cval));
-		WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
-		    cmp = __wt_timestamp_cmp(&ts,
-		    &txn_global->oldest_timestamp));
-		if (cmp < 0) {
+		WT_RET(__wt_config_gets_def(session, cfg, "round_to_oldest", 0,
+		    &cval));
+		__wt_readlock(session, &txn_global->rwlock);
+		if (__wt_timestamp_cmp(&ts, &txn_global->oldest_timestamp) < 0)
+		{
+			/*
+			 * To circumvent error: unused-result
+			 */
+			(void)(__wt_timestamp_to_hex_string(session,
+			    timestamp_buf, &ts) + 1);
 			/*
 			 * If given read timestamp is earlier than oldest
 			 * timestamp then round the read timestamp to
 			 * oldest timestamp based on round_to_oldest option.
 			 */
-			WT_RET(__wt_config_gets_def(session, cfg,
-			    "round_to_oldest", 0, &cval));
-			round_to_oldest = cval.val;
-			if (round_to_oldest) {
-				__wt_verbose_timestamp(session, &ts,
-				"Rounded to oldest timestamp");
-				WT_WITH_TIMESTAMP_READLOCK(session,
-				    &txn_global->rwlock,
-				    __wt_timestamp_set(&ts,
-					&txn_global->oldest_timestamp));
-			} else
-				WT_RET_MSG(session, EINVAL,
-				    "read timestamp %.*s older than oldest "
-				    "timestamp", (int)cval.len, cval.str);
-		}
-		__wt_timestamp_set(&txn->read_timestamp, &ts);
+			if (cval.val)
+				__wt_timestamp_set(&txn->read_timestamp,
+				    &txn_global->oldest_timestamp);
+			else {
+				__wt_readunlock(session, &txn_global->rwlock);
+				WT_RET_MSG(session, EINVAL, "read timestamp "
+				    "%s older than oldest timestamp",
+				    timestamp_buf);
+			}
+		} else
+			__wt_timestamp_set(&txn->read_timestamp, &ts);
+
 		__wt_txn_set_read_timestamp(session);
+		__wt_readunlock(session, &txn_global->rwlock);
 		txn->isolation = WT_ISO_SNAPSHOT;
+		if (__wt_timestamp_cmp(&ts, &txn->read_timestamp) != 0) {
+			/*
+			 * If given timestamp and txn read timestamp are
+			 * different means, it is rounded to oldest timestamp.
+			 */
+			__wt_verbose(session, WT_VERB_TIMESTAMP, "Read "
+			    "timestamp %s : Rounded to oldest timestamp",
+			    timestamp_buf);
+		}
 #else
 		WT_RET_MSG(session, EINVAL, "read_timestamp requires a "
 		    "version of WiredTiger built with timestamp support");
@@ -481,6 +492,7 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 	}
 
 	return (0);
+
 }
 
 /*
