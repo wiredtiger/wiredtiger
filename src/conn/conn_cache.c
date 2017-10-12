@@ -317,8 +317,12 @@ __wt_cache_destroy(WT_SESSION_IMPL *session)
 	__wt_spin_destroy(session, &cache->evict_queue_lock);
 	__wt_spin_destroy(session, &cache->evict_walk_lock);
 	wt_session = &cache->walk_session->iface;
-	if (wt_session != NULL)
+	if (wt_session != NULL) {
+		fprintf(stderr, "Closing walk_session in cache_destroy. "
+			"ID is %d\n",
+			cache->walk_session->id);
 		WT_TRET(wt_session->close(wt_session, NULL));
+	}
 
 	for (i = 0; i < WT_EVICT_QUEUE_MAX; ++i) {
 		__wt_spin_destroy(session, &cache->evict_queues[i].evict_lock);

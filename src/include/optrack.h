@@ -47,16 +47,27 @@ struct __wt_track_record {
 		s->optrackbuf_ptr = 0;					\
 	}
 
+/*
+ * We do not synchronize access to optrackbuf_ptr under the assumption
+ * that there is no more than one thread using a given session. This
+ * assumption does not always hold. When it does not, we might have a race.
+ * In this case, we may lose a few log records. We prefer to risk losing
+ * a few log records occasionally in order not to synchronize this code,
+ * which is intended to be very lightweight.
+ */
+
 #define	WT_TRACK_OP_INIT(s)						\
 	WT_TRACK_RECORD *tr;						\
 	static volatile bool id_recorded = 0;				\
 	if (S2C(s)->optrack_on) {					\
-		tr = &(s->optrack_buf[s->optrackbuf_ptr++]);		\
+		tr = &(s->optrack_buf[s->optrackbuf_ptr % WT_OPTRACK_MAXRECS]);\
+		s->optrackbuf_ptr++;					\
 		WT_TRACK_OP(s, 0);					\
 	}
 
 #define	WT_TRACK_OP_END(s)						\
 	if (S2C(s)->optrack_on)	{					\
-		tr = &(s->optrack_buf[s->optrackbuf_ptr++]);		\
+		tr = &(s->optrack_buf[s->optrackbuf_ptr % WT_OPTRACK_MAXRECS]);\
+		s->optrackbuf_ptr++;					\
 		WT_TRACK_OP(s, 1);					\
 	}

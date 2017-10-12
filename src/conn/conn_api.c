@@ -1191,7 +1191,6 @@ err:	/*
 		}
 
 	WT_TRET(__wt_async_flush(session));
-	__conn_optrack_teardown(session);
 
 	/*
 	 * Perform a system-wide checkpoint so that all tables are consistent
@@ -1230,6 +1229,7 @@ err:	/*
 		F_SET(conn, WT_CONN_PANIC);
 	}
 
+	__conn_optrack_teardown(session);
 	WT_TRET(__wt_connection_close(conn));
 
 	/* We no longer have a session, don't try to update it. */
