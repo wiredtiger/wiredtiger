@@ -213,7 +213,8 @@ __split_ovfl_key_cleanup(WT_SESSION_IMPL *session, WT_PAGE *page, WT_REF *ref)
 		 * sure we're catching all paths and to avoid regressions.
 		 */
 		WT_ASSERT(session,
-		    S2BT(session)->checkpointing != WT_CKPT_RUNNING);
+		    S2BT(session)->checkpointing != WT_CKPT_RUNNING ||
+		    WT_SESSION_IS_CHECKPOINT(session));
 
 		WT_RET(__wt_ovfl_discard(session, cell));
 	}
@@ -1179,7 +1180,7 @@ __split_internal_lock(
 	 * loop until the exclusive lock is resolved). If we want to split
 	 * the parent, give up to avoid that deadlock.
 	 */
-	if (!trylock && S2BT(session)->checkpointing != WT_CKPT_OFF)
+	if (!trylock && !__wt_btree_can_evict_dirty(session))
 		return (EBUSY);
 
 	/*
@@ -1293,12 +1294,9 @@ __split_internal_should_split(WT_SESSION_IMPL *session, WT_REF *ref)
 static int
 __split_parent_climb(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
-	WT_BTREE *btree;
 	WT_DECL_RET;
 	WT_PAGE *parent;
 	WT_REF *ref;
-
-	btree = S2BT(session);
 
 	/*
 	 * Disallow internal splits during the final pass of a checkpoint. Most
@@ -1310,7 +1308,7 @@ __split_parent_climb(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 * split chunk, but we'll write it upon finding it in a different part
 	 * of the tree.
 	 */
-	if (btree->checkpointing != WT_CKPT_OFF) {
+	if (!__wt_btree_can_evict_dirty(session)) {
 		__split_internal_unlock(session, page);
 		return (0);
 	}
@@ -1421,7 +1419,7 @@ __split_multi_inmem(
 	 * leave the new page with the read generation unset.  Eviction will
 	 * set the read generation next time it visits this page.
 	 */
-	if (orig->read_gen != WT_READGEN_OLDEST)
+	if (!WT_READGEN_EVICT_SOON(orig->read_gen))
 		page->read_gen = orig->read_gen;
 
 	/* If there are no updates to apply to the page, we're done. */
@@ -1478,19 +1476,29 @@ __split_multi_inmem(
 		}
 
 		/*
-		 * The update used to create the on-page disk image must be
-		 * truncated.  This is not just a performance issue: if the
-		 * update is a modification, it cannot safely be reapplied to
-		 * the full value stored on disk.
+		 * Discard the update used to create the on-page disk image.
+		 * This is not just a performance issue: if the update used to
+		 * create the value for this on-page disk image was a modify,
+		 * and it was applied to the previous on-page value to
+		 * determine a value to write to this disk image, that update
+		 * cannot be applied to the new on-page value without risking
+		 * corruption.
 		 */
 		if (supd->onpage_upd != NULL) {
 			for (prev_upd = upd; prev_upd != NULL &&
 			    prev_upd->next != supd->onpage_upd;
 			    prev_upd = prev_upd->next)
 				;
+			/*
+			 * If the on-page update was in fact a tombstone, there
+			 * will be no value on the page.  Don't throw the
+			 * tombstone away: we may need it to correctly resolve
+			 * modifications.
+			 */
+			if (supd->onpage_upd->type == WT_UPDATE_DELETED &&
+			   prev_upd != NULL)
+				prev_upd = prev_upd->next;
 			if (prev_upd != NULL) {
-				WT_ASSERT(session,
-				    prev_upd->next == supd->onpage_upd);
 				__wt_update_obsolete_free(
 				    session, page, prev_upd->next);
 				prev_upd->next = NULL;
@@ -1628,7 +1636,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 	/* Verify any disk image we have. */
 	WT_ASSERT(session, multi->disk_image == NULL ||
 	    __wt_verify_dsk_image(session,
-	    "[page instantiate]", multi->disk_image, 0, false) == 0);
+	    "[page instantiate]", multi->disk_image, 0, true) == 0);
 
 	/*
 	 * If there's an address, the page was written, set it.
