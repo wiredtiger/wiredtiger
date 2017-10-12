@@ -274,6 +274,13 @@ struct __wt_connection_impl {
 					/* Checkpoint verbosity start time */
 	struct timespec ckpt_verb_start_time;
 
+	/* Checkpoint progress message data */
+	uint64_t ckpt_leaf_bytes;
+	uint64_t ckpt_leaf_pages;
+	uint64_t ckpt_int_bytes;
+	uint64_t ckpt_int_pages;
+	uint64_t ckpt_progress_count;
+
 	uint32_t stat_flags;		/* Options declared in flags.py */
 
 					/* Connection statistics */

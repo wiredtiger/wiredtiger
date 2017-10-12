@@ -745,6 +745,13 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	/* Initialize the verbose tracking timer */
 	__wt_epoch(session, &conn->ckpt_verb_start_time);
 
+	/* Initialize the checkpoint progress tracking data */
+	conn->ckpt_int_bytes = 0;
+	conn->ckpt_int_pages = 0;
+	conn->ckpt_leaf_bytes = 0;
+	conn->ckpt_leaf_pages = 0;
+	conn->ckpt_progress_count = 0;
+
 	/*
 	 * Update the global oldest ID so we do all possible cleanup.
 	 *

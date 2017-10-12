@@ -66,6 +66,7 @@ flags = {
         'VERB_API',
         'VERB_BLOCK',
         'VERB_CHECKPOINT',
+        'VERB_CHECKPOINT_PROGRESS',
         'VERB_COMPACT',
         'VERB_EVICT',
         'VERB_EVICTSERVER',
