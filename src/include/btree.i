@@ -1289,7 +1289,6 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
 static inline bool
 __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 {
-	WT_BTREE *btree;
 	WT_PAGE *page;
 	WT_PAGE_MODIFY *mod;
 	bool modified;
@@ -1297,7 +1296,6 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 	if (inmem_splitp != NULL)
 		*inmem_splitp = false;
 
-	btree = S2BT(session);
 	page = ref->page;
 	mod = page->modify;
 
