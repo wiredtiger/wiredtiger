@@ -574,12 +574,11 @@ __evict_review(
 			}
 
 			/*
-			 * Check if reconciliation suggests trying the
-			 * lookaside table.
+			 * Once the cache is stuck, check if reconciliation
+			 * suggests trying the lookaside table unless lookaside
+			 * eviction is disabled globally.
 			 */
-			if (__wt_cache_aggressive(session) &&
-			    F_ISSET(cache, WT_CACHE_EVICT_CLEAN |
-				WT_CACHE_EVICT_DIRTY_HARD) &&
+			if (__wt_cache_stuck(session) &&
 			    !F_ISSET(conn, WT_CONN_EVICTION_NO_LOOKASIDE))
 				lookaside_retryp = &lookaside_retry;
 		}
