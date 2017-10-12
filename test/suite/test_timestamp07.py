@@ -166,7 +166,7 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
     def check_stable(self, check_value, valcnt, valcnt2, valcnt3):
         self.ckpt_backup(check_value, valcnt, valcnt2, valcnt3)
 
-        # When reading as-of a timestamps, tables 1 and 3 should match (both
+        # When reading as-of a timestamp, tables 1 and 3 should match (both
         # use timestamps and we're not running recovery, so logging behavior
         # should be irrelevant).
         self.check_reads(self.session, 'read_timestamp=' + self.stablets,

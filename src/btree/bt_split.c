@@ -1180,8 +1180,7 @@ __split_internal_lock(
 	 * loop until the exclusive lock is resolved). If we want to split
 	 * the parent, give up to avoid that deadlock.
 	 */
-	if (!trylock && S2BT(session)->checkpointing != WT_CKPT_OFF &&
-	    !WT_SESSION_IS_CHECKPOINT(session))
+	if (!trylock && !__wt_btree_can_evict_dirty(session))
 		return (EBUSY);
 
 	/*
@@ -1295,12 +1294,9 @@ __split_internal_should_split(WT_SESSION_IMPL *session, WT_REF *ref)
 static int
 __split_parent_climb(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
-	WT_BTREE *btree;
 	WT_DECL_RET;
 	WT_PAGE *parent;
 	WT_REF *ref;
-
-	btree = S2BT(session);
 
 	/*
 	 * Disallow internal splits during the final pass of a checkpoint. Most
@@ -1312,8 +1308,7 @@ __split_parent_climb(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 * split chunk, but we'll write it upon finding it in a different part
 	 * of the tree.
 	 */
-	if (btree->checkpointing != WT_CKPT_OFF &&
-	    !WT_SESSION_IS_CHECKPOINT(session)) {
+	if (!__wt_btree_can_evict_dirty(session)) {
 		__split_internal_unlock(session, page);
 		return (0);
 	}

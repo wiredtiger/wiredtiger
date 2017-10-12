@@ -1660,6 +1660,12 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 			if (F_ISSET(r, WT_REC_EVICT))
 				return (EBUSY);
 
+			/*
+			 * A page evicted with lookaside entries may not have
+			 * an address, if no updates were visible to
+			 * reconciliation.  Any child pages in that state
+			 * should be ignored.
+			 */
 			if (ref->addr == NULL) {
 				*statep = WT_CHILD_IGNORE;
 				WT_CHILD_RELEASE(session, *hazardp, ref);
@@ -2007,18 +2013,22 @@ __rec_leaf_page_max(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 /*
  * __rec_need_split --
  *	Check whether adding some bytes to the page requires a split.
+ *
+ *	This takes into account the disk image growing across a boundary, and
+ *	also triggers a split for row store leaf pages when a threshold number
+ *	of saved updates is reached.  This allows pages to split for update /
+ *	restore and lookaside eviction when there is no visible data that
+ *	causes the disk image to grow.
  */
 static bool
-__rec_need_split(WT_RECONCILE *r, size_t next_len)
+__rec_need_split(WT_RECONCILE *r, size_t len)
 {
 	if (r->page->type == WT_PAGE_ROW_LEAF &&
 	    r->supd_next >= WT_REC_MAX_SAVED_UPDATES)
 		return (true);
 
-	if (r->raw_compression)
-		return (next_len > r->space_avail);
-	else
-		return (WT_CHECK_CROSSING_BND(r, next_len));
+	return (r->raw_compression ?
+	    len > r->space_avail : WT_CHECK_CROSSING_BND(r, len));
 }
 
 /*
@@ -2582,8 +2592,7 @@ __rec_split_crossing_bnd(
 	WT_BTREE *btree;
 	size_t min_offset;
 
-	WT_ASSERT(session, WT_CHECK_CROSSING_BND(r, next_len) ||
-	    __rec_need_split(r, 0));
+	WT_ASSERT(session, __rec_need_split(r, next_len));
 
 	/*
 	 * If crossing the minimum split size boundary, store the boundary
@@ -2592,8 +2601,7 @@ __rec_split_crossing_bnd(
 	 * large enough, just split at this point.
 	 */
 	if (WT_CROSSING_MIN_BND(r, next_len) &&
-	    !WT_CROSSING_SPLIT_BND(r, next_len) &&
-	    !__rec_need_split(r, 0)) {
+	    !WT_CROSSING_SPLIT_BND(r, next_len) && !__rec_need_split(r, 0)) {
 		btree = S2BT(session);
 		WT_ASSERT(session, r->cur_ptr->min_offset == 0);
 
