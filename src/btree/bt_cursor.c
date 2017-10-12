@@ -60,7 +60,7 @@ static inline bool
 __cursor_page_pinned(WT_CURSOR_BTREE *cbt)
 {
 	return (F_ISSET(cbt, WT_CBT_ACTIVE) &&
-	    cbt->ref->page->read_gen != WT_READGEN_OLDEST);
+	    !WT_READGEN_EVICT_SOON(cbt->ref->page->read_gen));
 }
 
 /*
