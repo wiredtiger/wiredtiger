@@ -344,6 +344,9 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		/*
 		 * Update the parent to reference the replacement page.
 		 *
+		 * A page evicted with lookaside entries may not have an
+		 * address, if no updates were visible to reconciliation.
+		 *
 		 * Publish: a barrier to ensure the structure fields are set
 		 * before the state change makes the page available to readers.
 		 */
