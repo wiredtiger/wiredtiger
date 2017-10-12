@@ -1271,7 +1271,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 		 * system.  The queue is sorted, find the first "normal"
 		 * generation.
 		 */
-		read_gen_oldest = WT_READGEN_OLDEST;
+		read_gen_oldest = WT_READGEN_START_VALUE;
 		for (candidates = 0; candidates < entries; ++candidates) {
 			read_gen_oldest = queue->evict_queue[candidates].score;
 			if (!WT_READGEN_EVICT_SOON(read_gen_oldest))

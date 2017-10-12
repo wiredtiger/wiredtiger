@@ -322,7 +322,7 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 			 * remember so we don't retry it.
 			 */
 			if (!WT_PAGE_IS_INTERNAL(page) &&
-			    page->read_gen == WT_READGEN_WONTNEED &&
+			    page->read_gen == WT_READGEN_WONT_NEED &&
 			    !evict_failed) {
 				if ((ret = __sync_evict_page(
 				    session, &walk, flags)) == 0) {

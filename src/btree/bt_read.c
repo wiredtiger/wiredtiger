@@ -621,7 +621,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			page = ref->page;
 			if (page->read_gen == WT_READGEN_NOTSET) {
 				if (wont_need)
-					page->read_gen = WT_READGEN_WONTNEED;
+					page->read_gen = WT_READGEN_WONT_NEED;
 				else
 					__wt_cache_read_gen_new(session, page);
 			} else if (!LF_ISSET(WT_READ_NO_GEN))
