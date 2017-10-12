@@ -1175,9 +1175,9 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
 static inline bool
 __wt_btree_can_evict_dirty(WT_SESSION_IMPL *session)
 {
-        WT_BTREE *btree;
+	WT_BTREE *btree;
 
-        btree = S2BT(session);
+	btree = S2BT(session);
 	return (btree->checkpointing == WT_CKPT_OFF ||
 	    WT_SESSION_IS_CHECKPOINT(session));
 }
