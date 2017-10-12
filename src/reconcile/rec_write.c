@@ -1206,15 +1206,20 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
     WT_INSERT *ins, void *ripcip, WT_CELL_UNPACK *vpack, WT_UPDATE **updp)
 {
 	WT_PAGE *page;
-	WT_UPDATE *first_ts_upd, *first_txn_upd, *first_upd, *upd;
+	WT_UPDATE *first_txn_upd, *first_upd, *upd;
 	wt_timestamp_t *timestampp;
 	uint64_t max_txn, txnid;
 	bool all_visible, uncommitted;
 
+#ifdef HAVE_TIMESTAMPS
+	WT_UPDATE *first_ts_upd;
+	first_ts_upd = NULL;
+#endif
+
 	*updp = NULL;
 
 	page = r->page;
-	first_ts_upd = first_txn_upd = NULL;
+	first_txn_upd = NULL;
 	max_txn = WT_TXN_NONE;
 	uncommitted = false;
 
@@ -1340,7 +1345,6 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 #ifdef HAVE_TIMESTAMPS
 	timestampp = first_ts_upd == NULL ? NULL : &first_ts_upd->timestamp;
 #else
-	WT_UNUSED(first_ts_upd);
 	timestampp = NULL;
 #endif
 	all_visible = *updp == first_txn_upd &&
