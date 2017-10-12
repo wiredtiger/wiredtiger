@@ -574,16 +574,17 @@ __evict_review(
 			}
 
 			/*
-			 * We usually only consider lookaside eviction once
-			 * eviction is struggling.  However, eviction in
-			 * service of a checkpoint (which is only done when
-			 * urgent eviction is required) will try lookaside
-			 * eviction immediately.
+			 * If the cache is nearly stuck, check if
+			 * reconciliation suggests trying the lookaside table
+			 * unless lookaside eviction is disabled globally.
+			 *
+			 * We don't wait until the cache is completely stuck:
+			 * for workloads where lookaside eviction is necessary
+			 * to make progress, we don't want a single successful
+			 * page eviction to make the cache "unstuck" so we have
+			 * to wait again before evicting the next page.
 			 */
-			if ((__wt_cache_aggressive(session) ||
-			    WT_SESSION_IS_CHECKPOINT(session)) &&
-			    F_ISSET(cache, WT_CACHE_EVICT_CLEAN |
-				WT_CACHE_EVICT_DIRTY_HARD) &&
+			if (__wt_cache_nearly_stuck(session) &&
 			    !F_ISSET(conn, WT_CONN_EVICTION_NO_LOOKASIDE))
 				lookaside_retryp = &lookaside_retry;
 		}
