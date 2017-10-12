@@ -449,7 +449,7 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_RET(__wt_txn_parse_timestamp(session, "read", &ts, &cval));
 		WT_RET(__wt_config_gets_def(session, cfg, "round_to_oldest", 0,
 		    &cval));
-		round_to_oldest = 0;
+		round_to_oldest = false;
 		__wt_readlock(session, &txn_global->rwlock);
 		if (__wt_timestamp_cmp(&ts, &txn_global->oldest_timestamp) < 0)
 		{
