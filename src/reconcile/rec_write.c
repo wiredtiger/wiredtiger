@@ -6120,21 +6120,16 @@ err:	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 static int
 __rec_las_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
-	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_MULTI *multi;
-	uint32_t btree_id, i, session_flags;
+	uint32_t btree_id, i;
 
 	btree_id = S2BT(session)->id;
-
-	__wt_las_cursor(session, &cursor, &session_flags);
 
 	for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
 		if (multi->supd != NULL)
 			WT_TRET(__wt_las_remove_block(
-			    session, cursor, btree_id, multi->las_pageid));
-
-	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
+			    session, NULL, btree_id, multi->las_pageid));
 
 	return (ret);
 }

@@ -269,10 +269,18 @@ __wt_las_remove_block(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	WT_ITEM las_key;
 	uint64_t las_counter, las_pageid, remove_cnt;
-	uint32_t las_id;
+	uint32_t las_id, session_flags;
 	int exact;
+	bool local_cursor;
 
 	remove_cnt = 0;
+	session_flags = 0;		/* [-Wconditional-uninitialized] */
+
+	local_cursor = false;
+	if (cursor == NULL) {
+		__wt_las_cursor(session, &cursor, &session_flags);
+		local_cursor = true;
+	}
 
 	/*
 	 * Search for the block's unique prefix and step through all matching
@@ -301,6 +309,9 @@ __wt_las_remove_block(WT_SESSION_IMPL *session,
 	}
 	WT_ERR_NOTFOUND_OK(ret);
 
-err:	WT_STAT_CONN_DECRV(session, cache_lookaside_entries, remove_cnt);
+err:	if (local_cursor)
+		WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
+
+	WT_STAT_CONN_DECRV(session, cache_lookaside_entries, remove_cnt);
 	return (ret);
 }
