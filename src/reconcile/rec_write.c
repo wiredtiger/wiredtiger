@@ -5923,8 +5923,8 @@ __rec_write_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
 	/*
 	 * If using the lookaside table eviction path and we found updates that
-	 * weren't globally visible when reconciling this page, copy them into
-	 * the database's lookaside store.
+	 * weren't globally visible when reconciling this page, we might have
+	 * already copied them into the database's lookaside store. Remove them.
 	 */
 	if (F_ISSET(r, WT_REC_LOOKASIDE))
 		WT_TRET(__rec_las_wrapup_err(session, r));
