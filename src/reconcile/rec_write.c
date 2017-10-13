@@ -5772,6 +5772,14 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 	mod->rec_result = 0;
 
 	/*
+	 * If using the lookaside table eviction path and we found updates that
+	 * weren't globally visible when reconciling this page, copy them into
+	 * the database's lookaside store.
+	 */
+	if (F_ISSET(r, WT_REC_LOOKASIDE))
+		WT_RET(__rec_las_wrapup(session, r));
+
+	/*
 	 * Wrap up overflow tracking.  If we are about to create a checkpoint,
 	 * the system must be entirely consistent at that point (the underlying
 	 * block manager is presumably going to do some action to resolve the
@@ -5779,14 +5787,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 	 * checkpoint).
 	 */
 	WT_RET(__wt_ovfl_track_wrapup(session, page));
-
-	/*
-	 * If using the lookaside table eviction path and we found updates that
-	 * weren't globally visible when reconciling this page, copy them into
-	 * the database's lookaside store.
-	 */
-	if (F_ISSET(r, WT_REC_LOOKASIDE))
-		WT_RET(__rec_las_wrapup(session, r));
 
 	__wt_verbose(session, WT_VERB_RECONCILE,
 	    "%p reconciled into %" PRIu32 " pages", (void *)ref, r->multi_next);
