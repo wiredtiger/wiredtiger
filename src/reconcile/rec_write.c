@@ -341,8 +341,6 @@ static int  __rec_dictionary_init(WT_SESSION_IMPL *, WT_RECONCILE *, u_int);
 static int  __rec_dictionary_lookup(
 		WT_SESSION_IMPL *, WT_RECONCILE *, WT_KV *, WT_DICTIONARY **);
 static void __rec_dictionary_reset(WT_RECONCILE *);
-static void __rec_verbose_lookaside_write(
-		WT_SESSION_IMPL *, uint32_t, uint64_t);
 
 /*
  * __wt_reconcile --
@@ -3540,7 +3538,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			return (EBUSY);
 
 		r->cache_write_restore = true;
-		goto update_las;
+		goto copy_image;
 	}
 
 	/*
@@ -3561,17 +3559,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 #endif
 	WT_RET(__wt_memdup(session, addr, addr_size, &multi->addr.addr));
 	multi->addr.size = (uint8_t)addr_size;
-
-update_las:
-	/*
-	 * If using the lookaside table eviction path and we found updates that
-	 * weren't globally visible when reconciling this page, we'll need to
-	 * copy them into the database's lookaside store. That requires a unique
-	 * page ID, allocate it.
-	 */
-	if (F_ISSET(r, WT_REC_LOOKASIDE) && multi->supd != NULL)
-		multi->las_pageid =
-		    __wt_atomic_add64(&S2BT(session)->las_pageid, 1);
 
 copy_image:
 #ifdef HAVE_DIAGNOSTIC
@@ -5793,9 +5780,16 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 	 */
 	WT_RET(__wt_ovfl_track_wrapup(session, page));
 
+	/*
+	 * If using the lookaside table eviction path and we found updates that
+	 * weren't globally visible when reconciling this page, copy them into
+	 * the database's lookaside store.
+	 */
+	if (F_ISSET(r, WT_REC_LOOKASIDE))
+		WT_RET(__rec_las_wrapup(session, r));
+
 	__wt_verbose(session, WT_VERB_RECONCILE,
-	    "%p reconciled into %" PRIu32 " pages",
-	    (void *)ref, r->multi_next);
+	    "%p reconciled into %" PRIu32 " pages", (void *)ref, r->multi_next);
 
 	switch (r->multi_next) {
 	case 0:						/* Page delete */
@@ -5883,14 +5877,6 @@ split:		for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
 		break;
 	}
 
-	/*
-	 * If using the lookaside table eviction path and we found updates that
-	 * weren't globally visible when reconciling this page, copy them into
-	 * the database's lookaside store.
-	 */
-	if (F_ISSET(r, WT_REC_LOOKASIDE))
-		WT_RET(__rec_las_wrapup(session, r));
-
 	return (0);
 }
 
@@ -5949,6 +5935,60 @@ __rec_write_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 }
 
 /*
+ * __rec_las_update_multi_verbose --
+ *	Display a verbose message once per checkpoint with details about the
+ * cache state when performing a lookaside table write.
+ */
+static void
+__rec_las_update_multi_verbose(
+    WT_SESSION_IMPL *session, uint32_t btree_id, uint64_t las_pageid)
+{
+#ifdef HAVE_VERBOSE
+	WT_CONNECTION_IMPL *conn;
+	uint64_t ckpt_gen_current, ckpt_gen_last;
+	uint32_t pct_dirty, pct_full;
+
+	if (!WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE)) return;
+
+	conn = S2C(session);
+	ckpt_gen_current = __wt_gen(session, WT_GEN_CHECKPOINT);
+	ckpt_gen_last = conn->las_verb_gen_write;
+
+	/*
+	 * This message is throttled to one per checkpoint. To do this we
+	 * track the generation of the last checkpoint for which the message
+	 * was printed and check against the current checkpoint generation.
+	 */
+	if (ckpt_gen_current > ckpt_gen_last) {
+		/*
+		 * Attempt to atomically replace the last checkpoint generation
+		 * for which this message was printed. If the atomic swap fails
+		 * we have raced and the winning thread will print the message.
+		 */
+		if (__wt_atomic_casv64(&conn->las_verb_gen_write,
+		    ckpt_gen_last, ckpt_gen_current)) {
+			(void)__wt_eviction_clean_needed(session, &pct_full);
+			(void)__wt_eviction_dirty_needed(session, &pct_dirty);
+
+			__wt_verbose(session, WT_VERB_LOOKASIDE,
+			    "Page reconciliation triggered lookaside write"
+			    "file ID %" PRIu32 ", page ID %" PRIu64 ". "
+			    "Entries now in lookaside file: %" PRId64 ", "
+			    "cache dirty: %" PRIu32 "%% , "
+			    "cache use: %" PRIu32 "%%",
+			    btree_id, las_pageid,
+			    WT_STAT_READ(conn->stats, cache_lookaside_entries),
+			    pct_dirty, pct_full);
+		}
+	}
+#else
+	WT_UNUSED(session);
+	WT_UNUSED(btree_id);
+	WT_UNUSED(las_pageid);
+#endif
+}
+
+/*
  * __rec_las_update_multi --
  *	Copy one set of saved updates into the database's lookaside buffer.
  */
@@ -5968,14 +6008,10 @@ __rec_las_update_multi(WT_SESSION_IMPL *session,
 	WT_CLEAR(las_value);
 	page = r->page;
 	insert_cnt = 0;
-	btree_id = S2BT(session)->id;
 
-	/*
-	 * The zero page ID is reserved, it flags removal of all of the btree's
-	 * pages, check we don't see it.
-	 */
-	las_pageid = multi->las_pageid;
-	WT_ASSERT(session, las_pageid != 0);
+	btree_id = S2BT(session)->id;
+	las_pageid = multi->las_pageid =
+	    __wt_atomic_add64(&S2BT(session)->las_pageid, 1);
 
 	/*
 	 * Make sure there are no leftover entries (e.g., from a handle
@@ -6072,7 +6108,7 @@ __rec_las_update_multi(WT_SESSION_IMPL *session,
 	if (insert_cnt > 0) {
 		WT_STAT_CONN_INCRV(
 		    session, cache_lookaside_entries, insert_cnt);
-		__rec_verbose_lookaside_write(session, btree_id, las_pageid);
+		__rec_las_update_multi_verbose(session, btree_id, las_pageid);
 	}
 	return (0);
 }
@@ -6126,8 +6162,12 @@ __rec_las_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
 	btree_id = S2BT(session)->id;
 
+	/*
+	 * Note the additional check for a non-zero lookaside page ID, that
+	 * flags if lookaside table entries for this page have been written.
+	 */
 	for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
-		if (multi->supd != NULL)
+		if (multi->supd != NULL && multi->las_pageid != 0)
 			WT_TRET(__wt_las_remove_block(
 			    session, NULL, btree_id, multi->las_pageid));
 
@@ -6615,58 +6655,4 @@ __rec_dictionary_lookup(
 	__rec_dictionary_skip_insert(r->dictionary_head, next, hash);
 	*dpp = next;
 	return (0);
-}
-
-/*
- * __rec_verbose_lookaside_write --
- *	Create a verbose message to display once per checkpoint with details
- *	about the cache state when performing a lookaside table write.
- */
-static void
-__rec_verbose_lookaside_write(
-    WT_SESSION_IMPL *session, uint32_t las_id, uint64_t las_pageid)
-{
-#ifdef HAVE_VERBOSE
-	WT_CONNECTION_IMPL *conn;
-	uint64_t ckpt_gen_current, ckpt_gen_last;
-	uint32_t pct_dirty, pct_full;
-
-	if (!WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE)) return;
-
-	conn = S2C(session);
-	ckpt_gen_current = __wt_gen(session, WT_GEN_CHECKPOINT);
-	ckpt_gen_last = conn->las_verb_gen_write;
-
-	/*
-	 * This message is throttled to one per checkpoint. To do this we
-	 * track the generation of the last checkpoint for which the message
-	 * was printed and check against the current checkpoint generation.
-	 */
-	if (ckpt_gen_current > ckpt_gen_last) {
-		/*
-		 * Attempt to atomically replace the last checkpoint generation
-		 * for which this message was printed. If the atomic swap fails
-		 * we have raced and the winning thread will print the message.
-		 */
-		if (__wt_atomic_casv64(&conn->las_verb_gen_write,
-		    ckpt_gen_last, ckpt_gen_current)) {
-			(void)__wt_eviction_clean_needed(session, &pct_full);
-			(void)__wt_eviction_dirty_needed(session, &pct_dirty);
-
-			__wt_verbose(session, WT_VERB_LOOKASIDE,
-			    "Page reconciliation triggered lookaside write"
-			    "file ID %" PRIu32 ", page ID %" PRIu64 ". "
-			    "Entries now in lookaside file: %" PRId64 ", "
-			    "cache dirty: %" PRIu32 "%% , "
-			    "cache use: %" PRIu32 "%%",
-			    las_id, las_pageid,
-			    WT_STAT_READ(conn->stats, cache_lookaside_entries),
-			    pct_dirty, pct_full);
-		}
-	}
-#else
-	WT_UNUSED(session);
-	WT_UNUSED(las_id);
-	WT_UNUSED(las_pageid);
-#endif
 }
