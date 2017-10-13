@@ -809,8 +809,8 @@ err:	__wt_page_out(session, &next);
  *	Configure raw compression.
  */
 static inline bool
-__rec_raw_compression_config(
-    WT_SESSION_IMPL *session, WT_PAGE *page, WT_SALVAGE_COOKIE *salvage)
+__rec_raw_compression_config(WT_SESSION_IMPL *session,
+    uint32_t flags, WT_PAGE *page, WT_SALVAGE_COOKIE *salvage)
 {
 	WT_BTREE *btree;
 
@@ -823,6 +823,14 @@ __rec_raw_compression_config(
 
 	/* Only for row-store and variable-length column-store objects. */
 	if (page->type == WT_PAGE_COL_FIX)
+		return (false);
+
+	/*
+	 * XXX
+	 * Turn off if lookaside is configured: lookaside potentially writes
+	 * blocks without entries and raw compression isn't ready for that.
+	 */
+	if (LF_ISSET(WT_REC_LOOKASIDE))
 		return (false);
 
 	/*
@@ -964,7 +972,7 @@ __rec_init(WT_SESSION_IMPL *session,
 
 	/* Raw compression. */
 	r->raw_compression =
-	    __rec_raw_compression_config(session, page, salvage);
+	    __rec_raw_compression_config(session, flags, page, salvage);
 	r->raw_destination.flags = WT_ITEM_ALIGNED;
 
 	/* Track overflow items. */
@@ -2995,9 +3003,8 @@ no_slots:
 	 * next key and we might or might not have written a block. In any case,
 	 * make sure the next key fits into the buffer.
 	 */
-split_grow:
 	if (r->space_avail < next_len) {
-		/*
+split_grow:	/*
 		 * Double the page size and make sure we accommodate at least
 		 * one more record. The reason for the latter is that we may
 		 * be here because there's a large key/value pair that won't
