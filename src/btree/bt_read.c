@@ -490,7 +490,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 				    &session->txn, WT_TXN_HAS_TS_READ) &&
 				    __wt_timestamp_cmp(
 				    &ref->page_las->min_timestamp,
-				    &session->txn.read_timestamp) > 0)
+				   &session->txn.read_timestamp) > 0)
 					return (WT_NOTFOUND);
 #endif
 			}
