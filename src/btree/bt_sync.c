@@ -201,8 +201,8 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 	WT_PAGE *page;
 	WT_REF *prev, *walk;
 	WT_TXN *txn;
-	uint64_t oldest_id, saved_pinned_id;
 	uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
+	uint64_t oldest_id, saved_pinned_id;
 	uint32_t flags, i;
 	bool evict_failed, skip_walk, timer, track_ckpt_progress;
 
