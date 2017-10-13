@@ -5676,37 +5676,34 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 	for (; ins != NULL; ins = WT_SKIP_NEXT(ins)) {
 		WT_RET(__rec_txn_read(session, r, ins, NULL, NULL, &upd));
 
-		/*
-		 * Look for an update. If nothing is visible and not in
-		 * evict/restore, there's no work to do.
-		 */
+		/* If no updates are visible there's no work to do. */
 		if (upd == NULL)
 			continue;
-		else
-			switch (upd->type) {
-			case WT_UPDATE_DELETED:
-				continue;
-			case WT_UPDATE_MODIFIED:
-				/*
-				 * Impossible slot, there's no backing on-page
-				 * item.
-				 */
-				cbt->slot = UINT32_MAX;
-				WT_RET(__wt_value_return(session, cbt, upd));
-				WT_RET(__rec_cell_build_val(session, r,
-				    cbt->iface.value.data,
-				    cbt->iface.value.size, (uint64_t)0));
-				break;
-			case WT_UPDATE_STANDARD:
-				if (upd->size == 0)
-					val->len = 0;
-				else
-					WT_RET(__rec_cell_build_val(session,
-					    r, upd->data, upd->size,
-					    (uint64_t)0));
-				break;
-			WT_ILLEGAL_VALUE(session);
-			}
+
+		switch (upd->type) {
+		case WT_UPDATE_DELETED:
+			continue;
+		case WT_UPDATE_MODIFIED:
+			/*
+			 * Impossible slot, there's no backing on-page
+			 * item.
+			 */
+			cbt->slot = UINT32_MAX;
+			WT_RET(__wt_value_return(session, cbt, upd));
+			WT_RET(__rec_cell_build_val(session, r,
+			    cbt->iface.value.data,
+			    cbt->iface.value.size, (uint64_t)0));
+			break;
+		case WT_UPDATE_STANDARD:
+			if (upd->size == 0)
+				val->len = 0;
+			else
+				WT_RET(__rec_cell_build_val(session,
+				    r, upd->data, upd->size,
+				    (uint64_t)0));
+			break;
+		WT_ILLEGAL_VALUE(session);
+		}
 							/* Build key cell. */
 		WT_RET(__rec_cell_build_leaf_key(session, r,
 		    WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins), &ovfl_key));
