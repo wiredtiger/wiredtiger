@@ -89,6 +89,15 @@
 #define	TXN_API_END(s, ret)	TXN_API_END_RETRY(s, ret, 1)
 
 /*
+ * In cursor open call we should not change the transaction state.
+ * If method is about to return WT_NOTFOUND (some underlying object was
+ * not found), map it to ENOENT.
+ */
+#define	CURSOR_OPEN_API_END(s, ret)					\
+	API_END(s, 0);							\
+	return ((ret) == WT_NOTFOUND ? ENOENT : (ret))
+
+/*
  * In almost all cases, API_END is returning immediately, make it simple.
  * If a session or connection method is about to return WT_NOTFOUND (some
  * underlying object was not found), map it to ENOENT, only cursor methods

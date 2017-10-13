@@ -444,18 +444,11 @@ err:		if (cursor != NULL)
 	}
 
 	/*
-	 * Opening a cursor on a non-existent data source will set ret to
-	 * either of ENOENT or WT_NOTFOUND at this point.  However,
-	 * applications may reasonably do this inside a transaction to check
-	 * for the existence of a table or index.
-	 *
-	 * Prefer WT_NOTFOUND here: that does not force running transactions to
-	 * roll back.  It will be mapped back to ENOENT.
+	 * Failure in opening a cursor should not set the txn error.
+	 * However, applications may reasonably handle the error.
 	 */
-	if (ret == ENOENT)
-		ret = WT_NOTFOUND;
 
-	API_END_RET_NOTFOUND_MAP(session, ret);
+	CURSOR_OPEN_API_END(session, ret);
 }
 
 /*

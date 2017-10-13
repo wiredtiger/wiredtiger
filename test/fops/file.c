@@ -55,16 +55,7 @@ obj_bulk(void)
 	}
 
 	if (use_txn) {
-		/*
-		 * As the operations are being performed concurrently,
-		 * return value can be ENOENT, EBUSY or EINVAL will set
-		 * error to transaction opened by session. In these
-		 * cases the transaction has to be aborted.
-		 */
-		if (ret != ENOENT && ret != EBUSY && ret != EINVAL)
-			ret = session->commit_transaction(session, NULL);
-		else
-			ret = session->rollback_transaction(session, NULL);
+		ret = session->commit_transaction(session, NULL);
 		if (ret == EINVAL)
 			testutil_die(ret, "session.commit bulk");
 	}
