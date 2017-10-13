@@ -54,7 +54,7 @@ testutil_die(int e, const char *fmt, ...)
 		fprintf(stderr, ": %s", wiredtiger_strerror(e));
 	fprintf(stderr, "\n");
 
-	exit(EXIT_FAILURE);
+	abort();
 }
 
 /*
