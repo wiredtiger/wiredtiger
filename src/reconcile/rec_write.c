@@ -2633,11 +2633,11 @@ __rec_split_crossing_bnd(
 }
 
 /*
- * __rec_split_raw_worker --
- *	Handle the raw compression page reconciliation bookkeeping.
+ * __rec_split_raw --
+ *	Raw compression.
  */
 static int
-__rec_split_raw_worker(WT_SESSION_IMPL *session,
+__rec_split_raw(WT_SESSION_IMPL *session,
     WT_RECONCILE *r, size_t next_len, bool no_more_rows)
 {
 	WT_BM *bm;
@@ -3017,16 +3017,6 @@ split_grow:	/*
 }
 
 /*
- * __rec_split_raw --
- *	Raw compression split routine.
- */
-static inline int
-__rec_split_raw(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
-{
-	return (__rec_split_raw_worker(session, r, next_len, false));
-}
-
-/*
  * __rec_split_finish_process_prev --
  * 	If the two split chunks together fit in a single page, merge them into
  * 	one. If they do not fit in a single page but the last is smaller than
@@ -3143,7 +3133,7 @@ __rec_split_finish(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 			    WT_PTRDIFF(r->first_free, r->cur_ptr->image.mem);
 			if (data_size <= btree->allocsize)
 				break;
-			WT_RET(__rec_split_raw_worker(session, r, 0, true));
+			WT_RET(__rec_split_raw(session, r, 0, true));
 		}
 		if (r->entries == 0)
 			return (0);
@@ -3852,7 +3842,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 	if (r->raw_compression) {
 		if (key->len + val->len > r->space_avail)
 			WT_RET(__rec_split_raw(
-			    session, r, key->len + val->len));
+			    session, r, key->len + val->len, false));
 	} else
 		if (WT_CROSSING_SPLIT_BND(r, key->len + val->len)) {
 			/*
@@ -4019,7 +4009,7 @@ __wt_bulk_insert_var(
 	/* Boundary: split or write the page. */
 	if (r->raw_compression) {
 		if (val->len > r->space_avail)
-			WT_RET(__rec_split_raw(session, r, val->len));
+			WT_RET(__rec_split_raw(session, r, val->len, false));
 	} else
 		if (WT_CROSSING_SPLIT_BND(r, val->len))
 			WT_RET(__rec_split_crossing_bnd(session, r, val->len));
@@ -4160,7 +4150,8 @@ __rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 		/* Boundary: split or write the page. */
 		if (__rec_need_split(r, val->len)) {
 			if (r->raw_compression)
-				WT_ERR(__rec_split_raw(session, r, val->len));
+				WT_ERR(__rec_split_raw(
+				    session, r, val->len, false));
 			else
 				WT_ERR(__rec_split_crossing_bnd(
 				    session, r, val->len));
@@ -4208,7 +4199,8 @@ __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		/* Boundary: split or write the page. */
 		if (__rec_need_split(r, val->len)) {
 			if (r->raw_compression)
-				WT_RET(__rec_split_raw(session, r, val->len));
+				WT_RET(__rec_split_raw(
+				    session, r, val->len, false));
 			else
 				WT_RET(__rec_split_crossing_bnd(
 				    session, r, val->len));
@@ -4481,7 +4473,7 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	/* Boundary: split or write the page. */
 	if (__rec_need_split(r, val->len)) {
 		if (r->raw_compression)
-			WT_RET(__rec_split_raw(session, r, val->len));
+			WT_RET(__rec_split_raw(session, r, val->len, false));
 		else
 			WT_RET(__rec_split_crossing_bnd(session, r, val->len));
 	}
@@ -5183,7 +5175,7 @@ __rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		if (__rec_need_split(r, key->len + val->len)) {
 			if (r->raw_compression)
 				WT_ERR(__rec_split_raw(
-				    session, r, key->len + val->len));
+				    session, r, key->len + val->len, false));
 			else {
 				/*
 				 * In one path above, we copied address blocks
@@ -5253,7 +5245,7 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		if (__rec_need_split(r, key->len + val->len)) {
 			if (r->raw_compression)
 				WT_RET(__rec_split_raw(
-				    session, r, key->len + val->len));
+				    session, r, key->len + val->len, false));
 			else
 				WT_RET(__rec_split_crossing_bnd(
 				    session, r, key->len + val->len));
@@ -5600,7 +5592,7 @@ build:
 		if (__rec_need_split(r, key->len + val->len)) {
 			if (r->raw_compression)
 				WT_ERR(__rec_split_raw(
-				    session, r, key->len + val->len));
+				    session, r, key->len + val->len, false));
 			else {
 				/*
 				 * If we copied address blocks from the page
@@ -5719,7 +5711,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 		if (__rec_need_split(r, key->len + val->len)) {
 			if (r->raw_compression)
 				WT_RET(__rec_split_raw(
-				    session, r, key->len + val->len));
+				    session, r, key->len + val->len, false));
 			else {
 				/*
 				 * Turn off prefix compression until a full key
