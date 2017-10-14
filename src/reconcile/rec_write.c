@@ -3321,10 +3321,8 @@ __rec_split_write_header(WT_SESSION_IMPL *session,
 	 * and we found updates that weren't globally visible when reconciling
 	 * this page.
 	 */
-	if (F_ISSET(r, WT_REC_LOOKASIDE) && multi->supd != NULL) {
+	if (F_ISSET(r, WT_REC_LOOKASIDE) && multi->supd != NULL)
 		F_SET(dsk, WT_PAGE_LAS_UPDATE);
-		r->cache_write_lookaside = true;
-	}
 
 	dsk->unused[0] = dsk->unused[1] = 0;
 
@@ -3517,28 +3515,35 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		goto copy_image;
 
 	/*
-	 * If there are saved updates, we are either doing update/restore
-	 * eviction or lookaside eviction.  Update/restore never writes the
-	 * disk image.
-	 *
-	 * Lookaside does write disk images, but also needs to cope with the
-	 * case where no updates could be written, which means there are no
-	 * entries in the page image to write.
+	 * If there are saved updates, either doing update/restore eviction or
+	 * lookaside eviction.
 	 */
-	if (multi->supd != NULL &&
-	    (F_ISSET(r, WT_REC_UPDATE_RESTORE) || chunk->entries == 0)) {
+	if (multi->supd != NULL) {
 		/*
+		 * XXX
 		 * If no entries were used, the page is empty and we can only
-		 * restore updates against an empty row store leaf page.
-		 * (Column store modify will attempt to allocate a zero-length
-		 * array).
+		 * restore eviction/restore or lookaside updates against
+		 * empty row-store leaf pages, column-store modify attempts to
+		 * allocate a zero-length array.
 		 */
-		if (r->page->type != WT_PAGE_ROW_LEAF &&
-		    chunk->entries == 0 && multi->supd != NULL)
+		if (r->page->type != WT_PAGE_ROW_LEAF && chunk->entries == 0)
 			return (EBUSY);
 
-		r->cache_write_restore = true;
-		goto copy_image;
+		if (F_ISSET(r, WT_REC_LOOKASIDE)) {
+			r->cache_write_lookaside = true;
+
+			/*
+			 * Lookaside eviction writes disk images, but if no
+			 * entries were used, there's no disk image to write.
+			 */
+			if (chunk->entries == 0)
+				return (0);
+		} else {
+			r->cache_write_restore = true;
+
+			/* Update/restore never writes a disk image. */
+			goto copy_image;
+		}
 	}
 
 	/*
