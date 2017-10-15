@@ -107,7 +107,7 @@ static CONFIG c[] = {
 
 	{ "checkpoint_log_size",
 	  "MB of log to wait if wiredtiger checkpoints configured",
-	  0x0, 1, 20, 1024, &g.c_checkpoint_log_size, NULL},
+	  0x0, 20, 200, 1024, &g.c_checkpoint_log_size, NULL},
 
 	{ "checkpoint_wait",
 	  "seconds to wait if wiredtiger checkpoints configured",
