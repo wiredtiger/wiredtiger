@@ -102,8 +102,16 @@ static CONFIG c[] = {
 	  0x0, 1, 100, 100 * 1024, &g.c_cache, NULL },
 
 	{ "checkpoints",
-	  "if periodic checkpoints are done",			/* 95% */
-	  C_BOOL, 95, 0, 0, &g.c_checkpoints, NULL },
+	  "type of checkpoints (on | off | wiredtiger)",
+	  C_IGNORE|C_STRING, 0, 0, 0, NULL, &g.c_checkpoint},
+
+	{ "checkpoint_log_size",
+	  "MB of log to wait if wiredtiger checkpoints configured",
+	  0x0, 1, 20, 1024, &g.c_checkpoint_log_size, NULL},
+
+	{ "checkpoint_wait",
+	  "seconds to wait if wiredtiger checkpoints configured",
+	  0x0, 5, 100, 3600, &g.c_checkpoint_wait, NULL},
 
 	{ "checksum",
 	  "type of checksums (on | off | uncompressed)",

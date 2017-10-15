@@ -185,6 +185,12 @@ wts_open(const char *home, bool set_api, WT_CONNECTION **connp)
 	if (DATASOURCE("lsm") || g.c_cache < 20)
 		CONFIG_APPEND(p, ",eviction_dirty_trigger=95");
 
+	/* Checkpoints. */
+	if (g.c_checkpoint_flag == CHECKPOINT_WIREDTIGER)
+		CONFIG_APPEND(p,
+		    ",checkpoint=(wait=%" PRIu32 ",log_size=%" PRIu32 ")",
+		    g.c_checkpoint_wait, MEGABYTE(g.c_checkpoint_log_size));
+
 	/* Eviction worker configuration. */
 	if (g.c_evict_max != 0)
 		CONFIG_APPEND(p,
@@ -199,6 +205,7 @@ wts_open(const char *home, bool set_api, WT_CONNECTION **connp)
 		    g.c_logging_prealloc ? 1 : 0,
 		    compressor(g.c_logging_compression_flag));
 
+	/* Encryption. */
 	if (g.c_encryption)
 		CONFIG_APPEND(p,
 		    ",encryption=(name=%s)", encryptor(g.c_encryption_flag));
