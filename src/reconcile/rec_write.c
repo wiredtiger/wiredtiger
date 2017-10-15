@@ -3535,13 +3535,18 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			/*
 			 * Lookaside eviction writes disk images, but if no
 			 * entries were used, there's no disk image to write.
+			 * There's no more work to do in this case, lookaside
+			 * eviction doesn't copy disk images.
 			 */
 			if (chunk->entries == 0)
 				return (0);
 		} else {
 			r->cache_write_restore = true;
 
-			/* Update/restore never writes a disk image. */
+			/*
+			 * Update/restore never writes a disk image, but always
+			 * copies a disk image.
+			 */
 			goto copy_image;
 		}
 	}
@@ -3555,6 +3560,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	    last_block))
 		goto copy_image;
 
+	/* Write the disk image and get an address. */
 	WT_RET(__wt_bt_write(session,
 	    compressed_image == NULL ? &chunk->image : compressed_image,
 	    addr, &addr_size, false, F_ISSET(r, WT_REC_CHECKPOINT),
