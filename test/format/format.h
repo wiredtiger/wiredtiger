@@ -182,8 +182,9 @@ typedef struct {
 	uint32_t c_leaf_page_max;
 	uint32_t c_leak_memory;
 	uint32_t c_logging;
-	uint32_t c_logging_archive;
 	char	*c_logging_compression;
+	uint32_t c_logging_archive;
+	uint32_t c_logging_file_max;
 	uint32_t c_logging_prealloc;
 	uint32_t c_long_running_txn;
 	uint32_t c_lsm_worker_threads;

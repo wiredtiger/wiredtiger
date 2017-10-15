@@ -199,10 +199,11 @@ wts_open(const char *home, bool set_api, WT_CONNECTION **connp)
 	/* Logging configuration. */
 	if (g.c_logging)
 		CONFIG_APPEND(p,
-		    ",log=(enabled=true,archive=%d,prealloc=%d"
-		    ",compressor=\"%s\")",
+		    ",log=(enabled=true,archive=%d,"
+		    "prealloc=%d,file_max=%" PRIu32 ",compressor=\"%s\")",
 		    g.c_logging_archive ? 1 : 0,
 		    g.c_logging_prealloc ? 1 : 0,
+		    KILOBYTE(g.c_logging_file_max),
 		    compressor(g.c_logging_compression_flag));
 
 	/* Encryption. */

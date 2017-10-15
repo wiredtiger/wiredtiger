@@ -230,6 +230,10 @@ static CONFIG c[] = {
 	  "type of logging compression " COMPRESSION_LIST,
 	  C_IGNORE|C_STRING, 0, 0, 0, NULL, &g.c_logging_compression },
 
+	{ "logging_file_max",
+	  "maximum log file size in KB",
+	  0x0, 100, 512000, 2097152, &g.c_logging_file_max, NULL },
+
 	{ "logging_prealloc",
 	  "if log file pre-allocation configured",		/* 50% */
 	  C_BOOL, 50, 0, 0, &g.c_logging_prealloc, NULL },
