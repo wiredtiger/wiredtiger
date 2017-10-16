@@ -167,14 +167,10 @@ static inline void
 __wt_cache_decr_check_size(
     WT_SESSION_IMPL *session, size_t *vp, size_t v, const char *fld)
 {
-	size_t orig;
-
-	while ((orig = *(volatile size_t *)vp) >= v)
-		if (__wt_atomic_cassize(vp, orig, orig - v))
-			return;
-
-	__wt_errx(session,
-	    "%s went negative: ignoring decrement of %" WT_SIZET_FMT, fld, v);
+	if (__wt_atomic_subsize(vp, v) > WT_EXABYTE)
+		WT_PANIC_MSG(session, EINVAL,
+		    "%s went negative with decrement of %" WT_SIZET_FMT,
+		    fld, v);
 }
 
 /*
@@ -185,14 +181,10 @@ static inline void
 __wt_cache_decr_check_uint64(
     WT_SESSION_IMPL *session, uint64_t *vp, size_t v, const char *fld)
 {
-	uint64_t orig;
-
-	while ((orig = *(volatile uint64_t *)vp) >= v)
-		if (__wt_atomic_cassize(vp, orig, orig - v))
-			return;
-
-	__wt_errx(session,
-	    "%s went negative: ignoring decrement of %" WT_SIZET_FMT, fld, v);
+	if (__wt_atomic_sub64(vp, v) > WT_EXABYTE)
+		WT_PANIC_MSG(session, EINVAL,
+		    "%s went negative with decrement of %" WT_SIZET_FMT,
+		    fld, v);
 }
 
 /*
