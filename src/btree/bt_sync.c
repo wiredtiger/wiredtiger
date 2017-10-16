@@ -154,14 +154,14 @@ static void
 	/* Time since the full database checkpoint started */
 	time_diff = WT_TIMEDIFF_SEC(cur_time, conn->ckpt_verb_start_time);
 
-	if ((time_diff / 20) > conn->ckpt_progress_count) {
+	if ((time_diff / 20) > conn->ckpt_progress_msg_count) {
 		__wt_verbose(session, WT_VERB_CHECKPOINT_PROGRESS, "Checkpoint"
 		    " has been running and wrote : %" PRIu64 " leaf_pages (%"
 		    PRIu64 "B), %" PRIu64 " internal pages (%" PRIu64 "B) in %"
 		    PRIu64 " secs", conn->ckpt_leaf_pages,
 		    conn->ckpt_leaf_bytes, conn->ckpt_int_pages,
 		    conn->ckpt_int_bytes, time_diff);
-		conn->ckpt_progress_count++;
+		conn->ckpt_progress_msg_count++;
 	}
 }
 
@@ -360,19 +360,17 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 				++internal_pages;
 
 				/* Update the checkpoint progress data */
-				if (track_ckpt_progress) {
+				if (track_ckpt_progress)
 					__sync_checkpoint_update_internal(
 					    conn, page->memory_footprint);
-				}
 			} else {
 				leaf_bytes += page->memory_footprint;
 				++leaf_pages;
 
 				/* Update the checkpoint progress data */
-				if (track_ckpt_progress) {
+				if (track_ckpt_progress)
 					__sync_checkpoint_update_leaf(
 					    conn, page->memory_footprint);
-				}
 			}
 
 			/*
@@ -408,8 +406,8 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 			WT_ERR(__wt_reconcile(
 			    session, walk, NULL, WT_REC_CHECKPOINT, NULL));
 
-			/* Track checkpoint progress. */
-			if (++i > 5000 ) {
+			/* Periodically track checkpoint progress. */
+			if (++i > 5 * WT_THOUSAND ) {
 				if (track_ckpt_progress)
 					__sync_checkpoint_progress(session);
 				i = 0;

@@ -521,7 +521,8 @@ __checkpoint_stats(
 	/*
 	 * Get time diff in microseconds.
 	 */
-	msec = WT_TIMEDIFF_MS(conn->ckpt_stop_time, conn->ckpt_start_time);
+	msec = WT_TIMEDIFF_MS(conn->ckpt_stop_time,
+	    conn->ckpt_start_time_after_scrub);
 
 	if (msec > conn->ckpt_time_max)
 		conn->ckpt_time_max = msec;
@@ -547,7 +548,6 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session, const char *msg)
 		return;
 
 	conn = S2C(session);
-
 	__wt_epoch(session, &stop);
 
 	/*
@@ -750,7 +750,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	conn->ckpt_int_pages = 0;
 	conn->ckpt_leaf_bytes = 0;
 	conn->ckpt_leaf_pages = 0;
-	conn->ckpt_progress_count = 0;
+	conn->ckpt_progress_msg_count = 0;
 
 	/*
 	 * Update the global oldest ID so we do all possible cleanup.
@@ -778,7 +778,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	__checkpoint_verbose_track(session, "starting transaction");
 
 	if (full)
-		__wt_epoch(session, &conn->ckpt_start_time);
+		__wt_epoch(session, &conn->ckpt_start_time_after_scrub);
 
 	/*
 	 * Start the checkpoint for real.
