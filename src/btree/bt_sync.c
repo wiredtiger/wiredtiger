@@ -352,6 +352,11 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 				continue;
 			}
 
+			/*
+			 * We reach here only if this is a checkpoint
+			 * operation. Determine if checkpoint progress should
+			 * be tracked by checking the verbosity timer.
+			 */
 			track_ckpt_progress =
 			    conn->ckpt_verb_start_time.tv_sec > 0;
 
@@ -407,9 +412,8 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 			    session, walk, NULL, WT_REC_CHECKPOINT, NULL));
 
 			/* Periodically track checkpoint progress. */
-			if (++i > 5 * WT_THOUSAND ) {
-				if (track_ckpt_progress)
-					__sync_checkpoint_progress(session);
+			if (track_ckpt_progress && (++i > 5 * WT_THOUSAND)) {
+				__sync_checkpoint_progress(session);
 				i = 0;
 			}
 		}

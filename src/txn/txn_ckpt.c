@@ -919,6 +919,9 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 		__checkpoint_stats(session);
 	}
 
+	/* Reset the verbosity start time. */
+	conn->ckpt_verb_start_time.tv_sec = 0;
+
 err:	/*
 	 * XXX
 	 * Rolling back the changes here is problematic.
@@ -942,6 +945,8 @@ err:	/*
 
 	cache->eviction_scrub_limit = 0.0;
 	WT_STAT_CONN_SET(session, txn_checkpoint_scrub_target, 0);
+
+	conn->ckpt_verb_start_time.tv_sec = 0;
 
 	if (F_ISSET(txn, WT_TXN_RUNNING)) {
 		/*
