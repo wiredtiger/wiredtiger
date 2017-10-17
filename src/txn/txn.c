@@ -447,17 +447,14 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 
 		txn_global = &S2C(session)->txn_global;
 		WT_RET(__wt_txn_parse_timestamp(session, "read", &ts, &cval));
-		WT_RET(__wt_config_gets_def(session, cfg, "round_to_oldest", 0,
-		    &cval));
+		WT_RET(__wt_config_gets_def(session,
+		    cfg, "round_to_oldest", 0, &cval));
 		round_to_oldest = false;
 		__wt_readlock(session, &txn_global->rwlock);
 		if (__wt_timestamp_cmp(&ts, &txn_global->oldest_timestamp) < 0)
 		{
-			/*
-			 * To circumvent error: unused-result
-			 */
-			(void)(__wt_timestamp_to_hex_string(session,
-			    timestamp_buf, &ts) + 1);
+			WT_RET(__wt_timestamp_to_hex_string(session,
+			    timestamp_buf, &ts));
 			round_to_oldest = cval.val;
 			/*
 			 * If given read timestamp is earlier than oldest
