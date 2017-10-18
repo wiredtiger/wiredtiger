@@ -321,13 +321,10 @@ __wt_cache_destroy(WT_SESSION_IMPL *session)
 	__wt_spin_destroy(session, &cache->evict_pass_lock);
 	__wt_spin_destroy(session, &cache->evict_queue_lock);
 	__wt_spin_destroy(session, &cache->evict_walk_lock);
+
 	wt_session = &cache->walk_session->iface;
-	if (wt_session != NULL) {
-		__wt_errx(session,
-		    "Closing walk_session in cache_destroy. ID is %" PRIu32 "",
-		    cache->walk_session->id);
+	if (wt_session != NULL)
 		WT_TRET(wt_session->close(wt_session, NULL));
-	}
 
 	for (i = 0; i < WT_EVICT_QUEUE_MAX; ++i) {
 		__wt_spin_destroy(session, &cache->evict_queues[i].evict_lock);
