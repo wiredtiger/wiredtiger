@@ -1133,7 +1133,7 @@ err:	/*
 		F_SET(conn, WT_CONN_PANIC);
 	}
 
-	WT_TRET(__wt_conn_optrack_teardown(session));
+	WT_TRET(__wt_conn_optrack_teardown(session, false));
 	WT_TRET(__wt_connection_close(conn));
 
 	/* We no longer have a session, don't try to update it. */
