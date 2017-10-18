@@ -67,7 +67,6 @@ __wt_conn_optrack_setup(WT_SESSION_IMPL *session,
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
 	char optrack_map_name[PATH_MAX];
-	bool exists;
 
 	conn = S2C(session);
 
@@ -103,14 +102,6 @@ __wt_conn_optrack_setup(WT_SESSION_IMPL *session,
 	WT_RET(__wt_snprintf(optrack_map_name,
 	    PATH_MAX, "%s/optrack-map.%" PRIuMAX ".txt",
 	    conn->optrack_path, conn->optrack_pid));
-
-	if (!conn->optrack_map_setup) {
-		WT_RET(__wt_fs_exist(session, optrack_map_name, &exists));
-		if (exists)
-			WT_RET(__wt_fs_remove(session, optrack_map_name, 1));
-
-		conn->optrack_map_setup = true;
-	}
 
 	WT_RET(__wt_open(session, optrack_map_name,
 	    WT_FS_OPEN_FILE_TYPE_REGULAR,

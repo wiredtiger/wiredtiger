@@ -196,9 +196,10 @@ __session_close(WT_SESSION *wt_session, const char *config)
 
 	/* Close the file where we tracked long operations. */
 	if (F_ISSET(conn, WT_CONN_OPTRACK)) {
-	    if (session->optrack_fh != NULL) {
+	    if (session->optrackbuf_ptr > 0) {
 		    WT_IGNORE_RET((int)__wt_optrack_flush_buffer(session));
 		    WT_IGNORE_RET(__wt_close(session, &session->optrack_fh));
+		    session->optrack_fh = NULL; /* Indicate file is closed */
 	    }
 
 	    /* Free the operation tracking buffer */
@@ -1771,8 +1772,6 @@ __open_session(WT_CONNECTION_IMPL *conn,
     WT_EVENT_HANDLER *event_handler, const char *config,
     WT_SESSION_IMPL **sessionp)
 {
-	char optrack_fname[PATH_MAX];
-
 	static const WT_SESSION stds = {
 		NULL,
 		NULL,
@@ -1914,18 +1913,11 @@ __open_session(WT_CONNECTION_IMPL *conn,
 	/* Cache the offset of this session's statistics bucket. */
 	session_ret->stat_bucket = WT_STATS_SLOT_ID(session);
 
-	if (F_ISSET(conn, WT_CONN_OPTRACK)) {
-		/* Initialize long-operation tracking */
+	/* Allocate the buffer for operation tracking */
+	if (F_ISSET(conn, WT_CONN_OPTRACK))
 		WT_ERR(__wt_malloc(session, WT_OPTRACK_BUFSIZE,
 				   &session_ret->optrack_buf));
-		WT_ERR(__wt_snprintf(optrack_fname,
-				     PATH_MAX, "%s/optrack.%" PRIuMAX ".%d",
-				     conn->optrack_path, conn->optrack_pid,
-				     session_ret->id));
-		WT_ERR(__wt_open(session, optrack_fname,
-				 WT_FS_OPEN_FILE_TYPE_REGULAR,
-				 WT_FS_OPEN_CREATE, &session_ret->optrack_fh));
-	}
+
 	/*
 	 * Configuration: currently, the configuration for open_session is the
 	 * same as session.reconfigure, so use that function.

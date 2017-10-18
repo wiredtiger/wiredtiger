@@ -526,6 +526,7 @@ extern int __wt_turtle_init(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE
 extern int __wt_turtle_read(WT_SESSION_IMPL *session, const char *key, char **valuep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_optrack_record_funcid(WT_SESSION_IMPL *session, uint64_t op_id, 			 void *func, size_t funcsize, 			 volatile bool *id_recorded);
+extern int __wt_optrack_open_file(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern size_t __wt_optrack_flush_buffer(WT_SESSION_IMPL *s);
 extern uint64_t __wt_optrack_get_expensive_timestamp(WT_SESSION_IMPL *session);
 extern int __wt_filename(WT_SESSION_IMPL *session, const char *name, char **path) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

@@ -47,13 +47,45 @@ __wt_optrack_record_funcid(WT_SESSION_IMPL *session, uint64_t op_id,
 }
 
 /*
+ * __wt_optrack_open_file --
+ * Open the per-session operation-tracking file.
+ */
+int
+__wt_optrack_open_file(WT_SESSION_IMPL *session)
+{
+	char optrack_fname[PATH_MAX];
+	WT_CONNECTION_IMPL *conn;
+
+	conn = S2C(session);
+
+	if (!F_ISSET(conn, WT_CONN_OPTRACK))
+		return (WT_ERROR);
+
+	WT_RET(__wt_snprintf(optrack_fname,
+			     PATH_MAX, "%s/optrack.%" PRIuMAX ".%d",
+			     conn->optrack_path, conn->optrack_pid,
+			     session->id));
+	WT_RET(__wt_open(session, optrack_fname,
+			 WT_FS_OPEN_FILE_TYPE_REGULAR,
+			 WT_FS_OPEN_CREATE, &session->optrack_fh));
+
+	return (0);
+}
+
+/*
  * __wt_optrack_flush_buffer --
- *	Flush optrack buffer
+ *	Flush optrack buffer. Returns the number of bytes flushed
+ *      to the file.
  */
 size_t
 __wt_optrack_flush_buffer(WT_SESSION_IMPL *s)
 {
 	WT_DECL_RET;
+
+	if (s->optrack_fh == NULL)
+		if (__wt_optrack_open_file(s))
+			return (0);
+
 	ret = s->optrack_fh->handle->fh_write(s->optrack_fh->handle,
 					      (WT_SESSION *)s,
 					      (wt_off_t)s->optrack_offset,
