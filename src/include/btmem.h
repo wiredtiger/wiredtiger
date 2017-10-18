@@ -585,12 +585,13 @@ struct __wt_page {
 	uint8_t type;			/* Page type */
 
 #define	WT_PAGE_BUILD_KEYS	0x01	/* Keys have been built in memory */
-#define	WT_PAGE_DISK_ALLOC	0x02	/* Disk image in allocated memory */
-#define	WT_PAGE_DISK_MAPPED	0x04	/* Disk image in mapped memory */
-#define	WT_PAGE_EVICT_LRU	0x08	/* Page is on the LRU queue */
-#define	WT_PAGE_OVERFLOW_KEYS	0x10	/* Page has overflow keys */
-#define	WT_PAGE_SPLIT_INSERT	0x20	/* A leaf page was split for append */
-#define	WT_PAGE_UPDATE_IGNORE	0x40	/* Ignore updates on page discard */
+#define	WT_PAGE_CHECKPOINT_READ	0x02	/* Page read for checkpoint */
+#define	WT_PAGE_DISK_ALLOC	0x04	/* Disk image in allocated memory */
+#define	WT_PAGE_DISK_MAPPED	0x08	/* Disk image in mapped memory */
+#define	WT_PAGE_EVICT_LRU	0x10	/* Page is on the LRU queue */
+#define	WT_PAGE_OVERFLOW_KEYS	0x20	/* Page has overflow keys */
+#define	WT_PAGE_SPLIT_INSERT	0x40	/* A leaf page was split for append */
+#define	WT_PAGE_UPDATE_IGNORE	0x80	/* Ignore updates on page discard */
 	uint8_t flags_atomic;		/* Atomic flags, use F_*_ATOMIC */
 
 	uint8_t unused[2];		/* Unused padding */

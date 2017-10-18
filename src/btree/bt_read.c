@@ -304,7 +304,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref)
 	WT_ITEM tmp;
 	WT_PAGE *page;
 	size_t addr_size;
-	uint32_t new_state, previous_state;
+	uint32_t flags, new_state, previous_state;
 	const uint8_t *addr;
 	bool timer;
 
@@ -372,9 +372,11 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * the allocated copy of the disk image on return, the in-memory object
 	 * steals it.
 	 */
-	WT_ERR(__wt_page_inmem(session, ref, tmp.data,
-	    WT_DATA_IN_ITEM(&tmp) ?
-	    WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED, &page));
+	flags =
+	    WT_DATA_IN_ITEM(&tmp) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED;
+	if (WT_SESSION_IS_CHECKPOINT(session))
+		LF_SET(WT_PAGE_CHECKPOINT_READ);
+	WT_ERR(__wt_page_inmem(session, ref, tmp.data, flags, &page));
 	tmp.mem = NULL;
 
 skip_read:
