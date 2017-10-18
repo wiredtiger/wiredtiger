@@ -148,11 +148,11 @@ static void
 	uint64_t time_diff;
 
 	conn = S2C(session);
-	time_diff = 0;
 	__wt_epoch(session, &cur_time);
 
 	/* Time since the full database checkpoint started */
-	time_diff = WT_TIMEDIFF_SEC(cur_time, conn->ckpt_verb_start_time);
+	time_diff = WT_TIMEDIFF_SEC(cur_time,
+	    conn->ckpt_verb_start_time_before_scrub);
 
 	if ((time_diff / 20) > conn->ckpt_progress_msg_count) {
 		__wt_verbose(session, WT_VERB_CHECKPOINT_PROGRESS, "Checkpoint"
@@ -358,7 +358,7 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 			 * be tracked by checking the verbosity timer.
 			 */
 			track_ckpt_progress =
-			    conn->ckpt_verb_start_time.tv_sec > 0;
+			    conn->ckpt_verb_start_time_before_scrub.tv_sec > 0;
 
 			if (WT_PAGE_IS_INTERNAL(page)) {
 				internal_bytes += page->memory_footprint;

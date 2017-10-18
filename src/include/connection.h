@@ -271,7 +271,7 @@ struct __wt_connection_impl {
 	/* Checkpoint stats and verbosity timers */
 	struct timespec ckpt_start_time_after_scrub;
 	struct timespec ckpt_stop_time;
-	struct timespec ckpt_verb_start_time;
+	struct timespec ckpt_verb_start_time_before_scrub;
 
 	/* Checkpoint progress message data */
 	uint64_t ckpt_leaf_bytes;

@@ -553,7 +553,7 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session, const char *msg)
 	/*
 	 * Get time diff in microseconds.
 	 */
-	msec = WT_TIMEDIFF_MS(stop, conn->ckpt_verb_start_time);
+	msec = WT_TIMEDIFF_MS(stop, conn->ckpt_verb_start_time_before_scrub);
 	__wt_verbose(session,
 	    WT_VERB_CHECKPOINT, "time: %" PRIu64 " us, gen: %" PRIu64
 	    ": Full database checkpoint %s",
@@ -743,7 +743,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	conn->cache->evict_max_page_size = 0;
 
 	/* Initialize the verbose tracking timer */
-	__wt_epoch(session, &conn->ckpt_verb_start_time);
+	__wt_epoch(session, &conn->ckpt_verb_start_time_before_scrub);
 
 	/* Initialize the checkpoint progress tracking data */
 	conn->ckpt_int_bytes = 0;
@@ -919,10 +919,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 		__checkpoint_stats(session);
 	}
 
-	/* Reset the verbosity start time. */
-	conn->ckpt_verb_start_time.tv_sec = 0;
-
-err:	/*
+err:	conn->ckpt_verb_start_time_before_scrub.tv_sec = 0;
+	/*
 	 * XXX
 	 * Rolling back the changes here is problematic.
 	 *
@@ -945,8 +943,6 @@ err:	/*
 
 	cache->eviction_scrub_limit = 0.0;
 	WT_STAT_CONN_SET(session, txn_checkpoint_scrub_target, 0);
-
-	conn->ckpt_verb_start_time.tv_sec = 0;
 
 	if (F_ISSET(txn, WT_TXN_RUNNING)) {
 		/*
