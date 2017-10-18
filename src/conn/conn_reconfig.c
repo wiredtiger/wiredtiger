@@ -139,6 +139,10 @@ __wt_conn_optrack_teardown(WT_SESSION_IMPL *session, bool reconfig)
 
 	conn = S2C(session);
 
+	if (!reconfig)
+		/* Looks like we are shutting down */
+		__wt_free(session, conn->optrack_path);
+
 	if (!F_ISSET(conn, WT_CONN_OPTRACK))
 		return (0);
 
@@ -147,10 +151,6 @@ __wt_conn_optrack_teardown(WT_SESSION_IMPL *session, bool reconfig)
 	WT_TRET(__wt_close(session, &conn->optrack_map_fh));
 	__wt_free(session, conn->dummy_session.optrack_buf);
 	F_CLR(conn, WT_CONN_OPTRACK);
-
-	if (!reconfig)
-		/* Looks like we are shutting down */
-		__wt_free(session, conn->optrack_path);
 
 	return (ret);
 }
