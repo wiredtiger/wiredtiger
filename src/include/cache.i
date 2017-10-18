@@ -186,14 +186,14 @@ __wt_cache_bytes_other(WT_CACHE *cache)
 	 * against underflow.
 	 */
 	return ((bytes_image > bytes_inmem) ? 0 :
-			__wt_cache_bytes_plus_overhead(cache, bytes_inmem - bytes_image));
+	    __wt_cache_bytes_plus_overhead(cache, bytes_inmem - bytes_image));
 }
 
 /*
  * __wt_cache_lookaside_score --
  *	Get the current lookaside score (between 0 and 100).
  */
-	static inline uint32_t
+static inline uint32_t
 __wt_cache_lookaside_score(WT_CACHE *cache)
 {
 	int32_t global_score;
@@ -206,9 +206,9 @@ __wt_cache_lookaside_score(WT_CACHE *cache)
  * __wt_cache_update_lookaside_score --
  *	Update the lookaside score based how many unstable updates are seen.
  */
-	static inline void
+static inline void
 __wt_cache_update_lookaside_score(
-		WT_SESSION_IMPL *session, u_int updates_seen, u_int updates_unstable)
+        WT_SESSION_IMPL *session, u_int updates_seen, u_int updates_unstable)
 {
 	WT_CACHE *cache;
 	int32_t global_score, score;
