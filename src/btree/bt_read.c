@@ -447,11 +447,13 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 	WT_BTREE *btree;
 	WT_DECL_RET;
 	WT_PAGE *page;
+	WT_TXN *txn;
 	uint64_t sleep_cnt, wait_cnt;
 	int force_attempts;
 	bool busy, cache_work, did_read, stalled, wont_need;
 
 	btree = S2BT(session);
+	txn = &session->txn;
 
 	/*
 	 * Ignore reads of pages already known to be in cache, otherwise the
@@ -475,6 +477,12 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			if (LF_ISSET(WT_READ_CACHE)) {
 				if (ref->state != WT_REF_LOOKASIDE ||
 				    !LF_ISSET(WT_READ_LOOKASIDE))
+					return (WT_NOTFOUND);
+
+				if (!F_ISSET(txn, WT_TXN_HAS_TS_READ) &&
+				    F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) &&
+				    WT_TXNID_LT(ref->page_las->las_max_txn,
+				    txn->snap_min))
 					return (WT_NOTFOUND);
 #ifdef HAVE_TIMESTAMPS
 				/*
@@ -602,7 +610,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 				continue;
 			}
 
-			/*
+skip_evict:		/*
 			 * If we read the page and are configured to not trash
 			 * the cache, and no other thread has already used the
 			 * page, set the read generation so the page is evicted
@@ -621,7 +629,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 					__wt_cache_read_gen_new(session, page);
 			} else if (!LF_ISSET(WT_READ_NO_GEN))
 				__wt_cache_read_gen_bump(session, page);
-skip_evict:
+
 			/*
 			 * Check if we need an autocommit transaction.
 			 * Starting a transaction can trigger eviction, so skip

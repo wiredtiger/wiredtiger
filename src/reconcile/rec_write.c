@@ -50,6 +50,9 @@ typedef struct {
 	WT_DECL_TIMESTAMP(max_timestamp)
 	WT_DECL_TIMESTAMP(min_saved_timestamp)
 
+	u_int updates_seen;		/* Count of updates seen. */
+	u_int updates_unstable;		/* Count of updates not visible_all. */
+
 	bool update_uncommitted;	/* An update was uncommitted */
 	bool update_used;		/* An update could be used */
 
@@ -442,6 +445,15 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 		break;
 	WT_ILLEGAL_VALUE_SET(session);
 	}
+
+	/*
+	 * Update the global lookaside score.  Only use observations during
+	 * eviction, not checkpoints and don't count eviction of the lookaside
+	 * table itself.
+	 */
+	if (F_ISSET(r, WT_REC_EVICT) && !F_ISSET(btree, WT_BTREE_LOOKASIDE))
+		__wt_cache_update_lookaside_score(
+		    session, r->updates_seen, r->updates_unstable);
 
 	/* Check for a successful reconciliation. */
 	WT_TRET(__rec_write_check_complete(session, r, ret, lookaside_retryp));
@@ -963,6 +975,7 @@ __rec_init(WT_SESSION_IMPL *session,
 #endif
 
 	/* Track if updates were used and/or uncommitted. */
+	r->updates_seen = r->updates_unstable = 0;
 	r->update_uncommitted = r->update_used = false;
 
 	/* Track if the page can be marked clean. */
@@ -1248,6 +1261,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		if ((txnid = upd->txnid) == WT_TXN_ABORTED)
 			continue;
 
+		++r->updates_seen;
+
 		/*
 		 * Track the first update in the chain that is not aborted and
 		 * the maximum transaction ID.
@@ -1282,6 +1297,9 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		if (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 		    !__wt_txn_upd_visible_all(session, upd) :
 		    !__wt_txn_upd_visible(session, upd)) {
+			if (F_ISSET(r, WT_REC_EVICT))
+				++r->updates_unstable;
+
 			/*
 			 * Rare case: when applications run at low isolation
 			 * levels, update/restore eviction may see a stable
@@ -1409,9 +1427,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 
 #ifdef HAVE_TIMESTAMPS
 	/* Track the oldest saved timestamp for lookaside. */
-	if (first_ts_upd == NULL)
-		__wt_timestamp_set_zero(&r->min_saved_timestamp);
-	else if (F_ISSET(r, WT_REC_LOOKASIDE))
+	if (F_ISSET(r, WT_REC_LOOKASIDE))
 		for (upd = first_upd; upd != NULL; upd = upd->next)
 			if (upd->txnid != WT_TXN_ABORTED &&
 			    upd->txnid != WT_TXN_NONE &&
@@ -3284,6 +3300,12 @@ __rec_split_write_supd(WT_SESSION_IMPL *session,
 		}
 		r->supd_next = j;
 	}
+
+	/* Track the oldest timestamp seen so far. */
+#ifdef HAVE_TIMESTAMPS
+	multi->las_max_txn = r->max_txn;
+	__wt_timestamp_set(&multi->las_min_timestamp, &r->min_saved_timestamp);
+#endif
 
 err:	__wt_scr_free(session, &key);
 	return (ret);
@@ -5854,6 +5876,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			mod->mod_disk_image = r->multi->disk_image;
 			r->multi->disk_image = NULL;
 			mod->mod_replace_las_pageid = r->multi->las_pageid;
+			mod->mod_replace_las_max_txn = r->max_txn;
 #ifdef HAVE_TIMESTAMPS
 			__wt_timestamp_set(&mod->mod_replace_las_min_timestamp,
 			     &r->min_saved_timestamp);

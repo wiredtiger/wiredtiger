@@ -1667,6 +1667,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 	if (multi->las_pageid != 0) {
 		WT_RET(__wt_calloc_one(session, &ref->page_las));
 		ref->page_las->las_pageid = multi->las_pageid;
+		ref->page_las->las_max_txn = multi->las_max_txn;
 #ifdef HAVE_TIMESTAMPS
 		__wt_timestamp_set(
 		    &ref->page_las->min_timestamp, &multi->las_min_timestamp);
