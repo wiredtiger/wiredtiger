@@ -1998,7 +1998,7 @@ __wt_open_internal_session(WT_CONNECTION_IMPL *conn, const char *name,
 	 * deadlocked getting the cursor late in the process.  Be defensive,
 	 * get it now.
 	 */
-	if (!F_ISSET(conn, WT_CONN_LAS_OPEN))
+	if (!F_ISSET(conn, WT_CONN_LAS_CONFIGURED))
 		F_CLR(session, WT_SESSION_LOOKASIDE_CURSOR);
 	if (F_ISSET(session, WT_SESSION_LOOKASIDE_CURSOR) &&
 	    (ret = __wt_las_cursor_open(session, &session->las_cursor)) != 0) {

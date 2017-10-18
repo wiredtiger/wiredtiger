@@ -26,8 +26,12 @@ __wt_las_stats_update(WT_SESSION_IMPL *session)
 	 * Lookaside table statistics are copied from the underlying lookaside
 	 * table data-source statistics. If there's no lookaside table, values
 	 * remain 0.
+	 *
+	 * The statistics server starts before we create the lookaside table,
+	 * confirm it's there before reading.
 	 */
-	if (!F_ISSET(conn, WT_CONN_LAS_OPEN))
+	if (!F_ISSET(conn, WT_CONN_LAS_CONFIGURED) ||
+	    conn->las_session == NULL || conn->las_session->las_cursor == NULL)
 		return;
 
 	/*
@@ -93,7 +97,7 @@ __wt_las_create(WT_SESSION_IMPL *session)
 	 * connection's lookaside table session, it checks before creating a
 	 * lookaside table cursor.
 	 */
-	F_SET(conn, WT_CONN_LAS_OPEN);
+	F_SET(conn, WT_CONN_LAS_CONFIGURED);
 
 	/*
 	 * Open a shared internal session used to access the lookaside table.
@@ -105,7 +109,7 @@ __wt_las_create(WT_SESSION_IMPL *session)
 
 	return (0);
 
-err:	F_CLR(conn, WT_CONN_LAS_OPEN);
+err:	F_CLR(conn, WT_CONN_LAS_CONFIGURED);
 	return (ret);
 }
 
