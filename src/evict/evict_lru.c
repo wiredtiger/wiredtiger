@@ -411,7 +411,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 		__wt_readunlock(session, &conn->dhandle_lock);
 		WT_RET(ret);
 
-		*did_work = true;
+		*did_work = orig_pages_evict != cache->pages_evict;
 		return (0);
 	}
 
