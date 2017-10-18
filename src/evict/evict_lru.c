@@ -458,8 +458,8 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 		}
 #endif
 	}
-	return (0);
 #endif
+	return (0);
 }
 
 /*
