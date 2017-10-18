@@ -208,7 +208,7 @@ __wt_cache_lookaside_score(WT_CACHE *cache)
  */
 static inline void
 __wt_cache_update_lookaside_score(
-        WT_SESSION_IMPL *session, u_int updates_seen, u_int updates_unstable)
+	WT_SESSION_IMPL *session, u_int updates_seen, u_int updates_unstable)
 {
 	WT_CACHE *cache;
 	int32_t global_score, score;
