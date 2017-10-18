@@ -1666,7 +1666,6 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 	 */
 	if (multi->las_pageid != 0) {
 		WT_ASSERT(session, multi->disk_image == NULL);
-		WT_ASSERT(session, multi->addr.addr != NULL);
 
 		WT_RET(__wt_calloc_one(session, &ref->page_las));
 		ref->page_las->las_pageid = multi->las_pageid;
