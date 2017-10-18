@@ -478,8 +478,8 @@ __debug_dsk_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk)
 static char *
 __debug_tree_shape_info(WT_PAGE *page)
 {
-	uint64_t v;
 	static char buf[128];
+	uint64_t v;
 	const char *unit;
 
 	v = page->memory_footprint;
@@ -1123,6 +1123,9 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
 		break;
 	case WT_REF_LOCKED:
 		state = "locked";
+		break;
+	case WT_REF_LOOKASIDE:
+		state = "lookaside";
 		break;
 	case WT_REF_MEM:
 		state = "memory";

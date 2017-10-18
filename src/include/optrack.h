@@ -48,7 +48,7 @@ struct __wt_track_record {
 	}
 
 /*
- * We do not synchronize access to optrackbuf_ptr under the assumption
+ * We do not synchronize access to optrack buffer pointer under the assumption
  * that there is no more than one thread using a given session. This
  * assumption does not always hold. When it does not, we might have a race.
  * In this case, we may lose a few log records. We prefer to risk losing

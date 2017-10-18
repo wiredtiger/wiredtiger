@@ -177,7 +177,7 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
 	 * The lowest possible page read-generation has a special meaning, it
 	 * marks a page for forcible eviction; don't let it happen by accident.
 	 */
-	cache->read_gen = WT_READGEN_START_VALUE;
+	cache->read_gen = cache->read_gen_oldest = WT_READGEN_START_VALUE;
 
 	/*
 	 * The target size must be lower than the trigger size or we will never
@@ -300,6 +300,11 @@ __wt_cache_destroy(WT_SESSION_IMPL *session)
 		    "cache server: exiting with %" PRIu64 " pages in "
 		    "memory and %" PRIu64 " pages evicted",
 		    cache->pages_inmem, cache->pages_evict);
+	if (cache->bytes_image != 0)
+		__wt_errx(session,
+		    "cache server: exiting with %" PRIu64 " image bytes in "
+		    "memory",
+		    cache->bytes_image);
 	if (cache->bytes_inmem != 0)
 		__wt_errx(session,
 		    "cache server: exiting with %" PRIu64 " bytes in memory",
@@ -318,9 +323,9 @@ __wt_cache_destroy(WT_SESSION_IMPL *session)
 	__wt_spin_destroy(session, &cache->evict_walk_lock);
 	wt_session = &cache->walk_session->iface;
 	if (wt_session != NULL) {
-		fprintf(stderr, "Closing walk_session in cache_destroy. "
-			"ID is %d\n",
-			cache->walk_session->id);
+		__wt_errx(session,
+		    "Closing walk_session in cache_destroy. ID is %" PRIu32 "",
+		    cache->walk_session->id);
 		WT_TRET(wt_session->close(wt_session, NULL));
 	}
 

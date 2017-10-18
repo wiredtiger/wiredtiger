@@ -1193,6 +1193,16 @@ err:	/*
 	WT_TRET(__wt_async_flush(session));
 
 	/*
+	 * Disable lookaside eviction: it doesn't help us shut down and can
+	 * lead to pages being marked dirty, causing spurious assertions to
+	 * fire.
+	 */
+	F_SET(conn, WT_CONN_EVICTION_NO_LOOKASIDE);
+
+	/* Shut down transactions (wait for in-flight operations to complete. */
+	WT_TRET(__wt_txn_global_shutdown(session));
+
+	/*
 	 * Perform a system-wide checkpoint so that all tables are consistent
 	 * with each other.  All transactions are resolved but ignore
 	 * timestamps to make sure all data gets to disk.  Do this before
