@@ -377,13 +377,13 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-	uint64_t orig_pages_evicted;
+	uint64_t orig_pages_evict;
+
+	*did_work = false;
 
 	conn = S2C(session);
 	cache = conn->cache;
-	WT_ASSERT(session, did_work != NULL);
-	*did_work = false;
-	orig_pages_evicted = cache->pages_evicted;
+	orig_pages_evict = cache->pages_evict;
 
 	/* Evict pages from the cache as needed. */
 	WT_RET(__evict_pass(session));
@@ -411,47 +411,55 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 		__wt_readunlock(session, &conn->dhandle_lock);
 		WT_RET(ret);
 
-		cache->pages_evicted = 0;
-	} else if (cache->pages_evicted != cache->pages_evict) {
-		cache->pages_evicted = cache->pages_evict;
-#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
-		__wt_epoch(session, &cache->stuck_time);
-	} else if (!F_ISSET(conn, WT_CONN_IN_MEMORY)) {
-		/*
-		 * If we're stuck for 5 minutes in diagnostic mode, or the
-		 * verbose evict_stuck flag is configured, log the cache
-		 * and transaction state.
-		 *
-		 * If we're stuck for 5 minutes in diagnostic mode, give up.
-		 *
-		 * We don't do this check for in-memory workloads because
-		 * application threads are not blocked by the cache being full.
-		 * If the cache becomes full of clean pages, we can be
-		 * servicing reads while the cache appears stuck to eviction.
-		 */
-		__wt_epoch(session, &now);
-		if (WT_TIMEDIFF_SEC(now, cache->stuck_time) > 300) {
-#if defined(HAVE_DIAGNOSTIC)
-			__wt_err(session, ETIMEDOUT,
-			    "Cache stuck for too long, giving up");
-			ret = ETIMEDOUT;
-			WT_TRET(__wt_verbose_dump_txn(session));
-			WT_TRET(__wt_verbose_dump_cache(session));
-			return (ret);
-#elif defined(HAVE_VERBOSE)
-			if (WT_VERBOSE_ISSET(session, WT_VERB_EVICT_STUCK)) {
-				WT_RET(__wt_verbose_dump_txn(session));
-				WT_RET(__wt_verbose_dump_cache(session));
+		*did_work = true;
+		return (0);
+	}
 
-				/* Reset the timer. */
-				__wt_epoch(session, &cache->stuck_time);
-			}
+	if (orig_pages_evict != cache->pages_evict)  {
+#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
+		/* Eviction is stuck, but still did work, save the time. */
+		__wt_epoch(session, &cache->stuck_time);
 #endif
+		*did_work = true;
+		return (0);
+	}
+
+#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
+	/*
+	 * If we're stuck for 5 minutes in diagnostic mode, or the verbose
+	 * evict_stuck flag is configured, log the cache and transaction state.
+	 *
+	 * If we're stuck for 5 minutes in diagnostic mode, give up.
+	 *
+	 * We don't do this check for in-memory workloads because application
+	 * threads are not blocked by the cache being full. If the cache becomes
+	 * full of clean pages, we can be servicing reads while the cache
+	 * appears stuck to eviction.
+	 */
+	if (F_ISSET(conn, WT_CONN_IN_MEMORY))
+		return (0);
+
+	__wt_epoch(session, &now);
+	if (WT_TIMEDIFF_SEC(now, cache->stuck_time) > 300) {
+#if defined(HAVE_DIAGNOSTIC)
+		__wt_err(session, ETIMEDOUT,
+		    "Cache stuck for too long, giving up");
+		ret = ETIMEDOUT;
+		WT_TRET(__wt_verbose_dump_txn(session));
+		WT_TRET(__wt_verbose_dump_cache(session));
+		return (ret);
+#elif defined(HAVE_VERBOSE)
+		if (WT_VERBOSE_ISSET(session, WT_VERB_EVICT_STUCK)) {
+			WT_RET(__wt_verbose_dump_txn(session));
+			WT_RET(__wt_verbose_dump_cache(session));
+
+			/* Reset the timer. */
+			__wt_epoch(session, &cache->stuck_time);
 		}
 #endif
 	}
-	*did_work = cache->pages_evicted != orig_pages_evicted;
 	return (0);
+#endif
 }
 
 /*
