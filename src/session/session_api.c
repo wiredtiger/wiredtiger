@@ -1920,7 +1920,7 @@ __open_session(WT_CONNECTION_IMPL *conn,
 				   &session_ret->optrack_buf));
 		WT_ERR(__wt_snprintf(optrack_fname,
 				     PATH_MAX, "%s/optrack.%" PRIuMAX ".%d",
-				     conn->optrack, conn->optrack_pid,
+				     conn->optrack_path, conn->optrack_pid,
 				     session_ret->id));
 		WT_ERR(__wt_open(session, optrack_fname,
 				 WT_FS_OPEN_FILE_TYPE_REGULAR,

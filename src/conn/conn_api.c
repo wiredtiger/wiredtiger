@@ -1022,112 +1022,6 @@ err:	API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
 /*
- * __conn_optrack_dir --
- *	Set the directory for operation logging
- */
-static int
-__conn_optrack_dir(WT_SESSION_IMPL *session, const char *cfg[])
-{
-	WT_CONFIG_ITEM cval;
-
-	/* Only use the environment variable if configured. */
-	WT_RET(__wt_config_gets(session, cfg, "use_environment", &cval));
-	if (cval.val != 0 &&
-	    __wt_getenv(session, "WIREDTIGER_OPTRACK",
-			&S2C(session)->optrack) == 0)
-		return (0);
-
-	/*
-	 * If there's no WIREDTIGER_OPTRACK environment variable, use the
-	 * configured database directory.
-	 */
-	S2C(session)->optrack = ".";
-
-	return (0);
-}
-
-/*
- * A global variable that tells us whether or not we have created a
- * map file for the current process. Map files, translating binary
- * numbers into function names are valid per-process, so we have to
- * set them once per process, not per connection or per session.
- */
-static bool __wt_optrack_map_setup = 0;
-
-/*
- * __conn_optrack_setup --
- *     Set up operation logging.
- */
-static int
-__conn_optrack_setup(WT_SESSION_IMPL *session, const char *cfg[])
-{
-	WT_CONNECTION_IMPL *conn;
-	char optrack_map_name[PATH_MAX];
-	bool exists;
-
-	conn = S2C(session);
-
-	/* Set up the directory for operation logs. */
-	WT_RET(__conn_optrack_dir(session, cfg));
-
-	/* Operation tracking files will include the ID
-	 * of the creating process in their name, so we
-	 * can distinguish between log files created by
-	 * different WiredTiger processes in the same
-	 * directory. We cache the process id for future use.
-	 */
-	conn->optrack_pid = __wt_process_id();
-
-	/*
-	 * Open the file in the same directory that will hold
-	 * a map of translations between function names and
-	 * function IDs. If the file exists, remove it.
-	 */
-	WT_RET(__wt_snprintf(optrack_map_name,
-	    PATH_MAX, "%s/optrack-map.%" PRIuMAX ".txt",
-			     conn->optrack, conn->optrack_pid));
-
-	if (!__wt_optrack_map_setup) {
-		WT_RET(__wt_fs_exist(session, optrack_map_name, &exists));
-		if (exists)
-			WT_RET(__wt_fs_remove(session, optrack_map_name, 1));
-
-		__wt_optrack_map_setup = 1;
-	}
-
-	WT_RET(__wt_open(session, optrack_map_name,
-			 WT_FS_OPEN_FILE_TYPE_REGULAR,
-			 WT_FS_OPEN_CREATE, &conn->optrack_map_fh));
-
-	WT_RET(__wt_spin_init(session, &conn->optrack_map_spinlock,
-			      "optrack map spinlock"));
-
-	WT_RET(__wt_malloc(session, WT_OPTRACK_BUFSIZE,
-			   &conn->dummy_session.optrack_buf));
-
-	conn->optrack_on = 1;
-	return (0);
-}
-
-/*
- * __conn_optrack_teardown --
- *      Clean up connection-wide resources used for operation logging.
- */
-static void
-__conn_optrack_teardown(WT_SESSION_IMPL *session)
-{
-	WT_CONNECTION_IMPL *conn;
-
-	conn = S2C(session);
-
-	__wt_spin_destroy(session, &conn->optrack_map_spinlock);
-
-	WT_IGNORE_RET(__wt_close(session, &conn->optrack_map_fh));
-	__wt_free(session, conn->dummy_session.optrack_buf);
-	conn->optrack_on = 0;
-}
-
-/*
  * __conn_is_new --
  *	WT_CONNECTION->is_new method.
  */
@@ -1239,7 +1133,7 @@ err:	/*
 		F_SET(conn, WT_CONN_PANIC);
 	}
 
-	__conn_optrack_teardown(session);
+	WT_TRET(__wt_conn_optrack_teardown(session));
 	WT_TRET(__wt_connection_close(conn));
 
 	/* We no longer have a session, don't try to update it. */
@@ -2503,13 +2397,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	WT_ERR(
 	    __conn_chk_file_system(session, F_ISSET(conn, WT_CONN_READONLY)));
 
-	WT_ERR(__wt_config_gets(session, cfg, "optrack", &cval));
-	if (cval.val != 0)
-		F_SET(conn, WT_CONN_OPTRACK);
-
-	/* Set up operation tracking. */
-	if (F_ISSET(conn, WT_CONN_OPTRACK))
-		WT_ERR(__conn_optrack_setup(session, cfg));
+	/* Set up operation tracking if configured. */
+	WT_ERR(__wt_conn_optrack_setup(session, cfg, false));
 
 	/* Make sure no other thread of control already owns this database. */
 	WT_ERR(__conn_single(session, cfg));
