@@ -378,10 +378,9 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 
-	*did_work = false;
-
 	conn = S2C(session);
 	cache = conn->cache;
+	*did_work = false;
 
 	/* Evict pages from the cache as needed. */
 	WT_RET(__evict_pass(session));
