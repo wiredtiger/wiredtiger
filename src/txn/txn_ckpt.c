@@ -519,7 +519,7 @@ __checkpoint_stats(
 	conn = S2C(session);
 
 	/*
-	 * Get time diff in microseconds.
+	 * Get time diff in milliseconds.
 	 */
 	msec = WT_TIMEDIFF_MS(*stop, *start);
 
@@ -549,11 +549,11 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session,
 	__wt_epoch(session, &stop);
 
 	/*
-	 * Get time diff in microseconds.
+	 * Get time diff in milliseconds.
 	 */
 	msec = WT_TIMEDIFF_MS(stop, *start);
 	__wt_verbose(session,
-	    WT_VERB_CHECKPOINT, "time: %" PRIu64 " us, gen: %" PRIu64
+	    WT_VERB_CHECKPOINT, "time: %" PRIu64 " ms, gen: %" PRIu64
 	    ": Full database checkpoint %s",
 	    msec, __wt_gen(session, WT_GEN_CHECKPOINT), msg);
 
@@ -1018,7 +1018,7 @@ int
 __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
 {
 	WT_DECL_RET;
-	uint32_t mask;
+	uint32_t orig_flags;
 
 	/*
 	 * Reset open cursors.  Do this explicitly, even though it will happen
@@ -1040,11 +1040,23 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
 	 *
 	 * Application checkpoints wait until the checkpoint lock is available,
 	 * compaction checkpoints don't.
+	 *
+	 * Checkpoints should always use a separate session for lookaside
+	 * updates, otherwise those updates are pinned until the checkpoint
+	 * commits.  Also, there are unfortunate interactions between the
+	 * special rules for lookaside eviction and the special handling of the
+	 * checkpoint transaction.
 	 */
-#define	WT_TXN_SESSION_MASK						\
+#undef WT_CHECKPOINT_SESSION_FLAGS
+#define	WT_CHECKPOINT_SESSION_FLAGS \
 	(WT_SESSION_CAN_WAIT | WT_SESSION_NO_EVICTION)
-	mask = F_MASK(session, WT_TXN_SESSION_MASK);
-	F_SET(session, WT_SESSION_CAN_WAIT | WT_SESSION_NO_EVICTION);
+#undef WT_CHECKPOINT_SESSION_FLAGS_OFF
+#define	WT_CHECKPOINT_SESSION_FLAGS_OFF \
+	(WT_SESSION_LOOKASIDE_CURSOR)
+	orig_flags = F_MASK(session,
+	    WT_CHECKPOINT_SESSION_FLAGS | WT_CHECKPOINT_SESSION_FLAGS_OFF);
+	F_SET(session, WT_CHECKPOINT_SESSION_FLAGS);
+	F_CLR(session, WT_CHECKPOINT_SESSION_FLAGS_OFF);
 
 	/*
 	 * Only one checkpoint can be active at a time, and checkpoints must run
@@ -1060,8 +1072,8 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
 		WT_WITH_CHECKPOINT_LOCK_NOWAIT(session, ret,
 		    ret = __txn_checkpoint_wrapper(session, cfg));
 
-	F_CLR(session, WT_TXN_SESSION_MASK);
-	F_SET(session, mask);
+	F_CLR(session, WT_CHECKPOINT_SESSION_FLAGS);
+	F_SET(session, orig_flags);
 
 	return (ret);
 }

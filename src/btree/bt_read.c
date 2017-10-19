@@ -300,12 +300,11 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	struct timespec start, stop;
 	WT_BTREE *btree;
-	WT_CURSOR *las_cursor;
 	WT_DECL_RET;
 	WT_ITEM tmp;
 	WT_PAGE *page;
 	size_t addr_size;
-	uint32_t new_state, previous_state, session_flags;
+	uint32_t new_state, previous_state;
 	const uint8_t *addr;
 	bool timer;
 
@@ -411,12 +410,9 @@ skip_read:
 		 * entries.  Note that we are discarding updates so the page
 		 * must be marked available even if these operations fail.
 		 */
-		__wt_las_cursor(session, &las_cursor, &session_flags);
 		WT_TRET(__wt_las_remove_block(
-		    session, las_cursor, btree->id, ref->page_las->las_pageid));
+		    session, NULL, btree->id, ref->page_las->las_pageid));
 		__wt_free(session, ref->page_las);
-		WT_TRET(__wt_las_cursor_close(
-		    session, &las_cursor, session_flags));
 	}
 
 done:	WT_PUBLISH(ref->state, WT_REF_MEM);
@@ -453,7 +449,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 	WT_PAGE *page;
 	uint64_t sleep_cnt, wait_cnt;
 	int force_attempts;
-	bool busy, cache_work, did_read, evict_soon, stalled;
+	bool busy, cache_work, did_read, stalled, wont_need;
 
 	btree = S2BT(session);
 
@@ -466,7 +462,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 		WT_STAT_DATA_INCR(session, cache_pages_requested);
 	}
 
-	for (did_read = evict_soon = stalled = false,
+	for (did_read = wont_need = stalled = false,
 	    force_attempts = 0, sleep_cnt = wait_cnt = 0;;) {
 		switch (ref->state) {
 		case WT_REF_DELETED:
@@ -477,9 +473,8 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 		case WT_REF_DISK:
 		case WT_REF_LOOKASIDE:
 			if (LF_ISSET(WT_READ_CACHE)) {
-				if (ref->state != WT_REF_LOOKASIDE)
-					return (WT_NOTFOUND);
-				if (!LF_ISSET(WT_READ_LOOKASIDE))
+				if (ref->state != WT_REF_LOOKASIDE ||
+				    !LF_ISSET(WT_READ_LOOKASIDE))
 					return (WT_NOTFOUND);
 #ifdef HAVE_TIMESTAMPS
 				/*
@@ -520,7 +515,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			 * here because we don't want to evict the page before
 			 * we "acquire" it.
 			 */
-			evict_soon = LF_ISSET(WT_READ_WONT_NEED) ||
+			wont_need = LF_ISSET(WT_READ_WONT_NEED) ||
 			    F_ISSET(session, WT_SESSION_NO_CACHE);
 			continue;
 		case WT_REF_READING:
@@ -610,8 +605,8 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			/*
 			 * If we read the page and are configured to not trash
 			 * the cache, and no other thread has already used the
-			 * page, set the oldest read generation so the page is
-			 * forcibly evicted as soon as possible.
+			 * page, set the read generation so the page is evicted
+			 * soon.
 			 *
 			 * Otherwise, if we read the page, or, if configured to
 			 * update the page's read generation and the page isn't
@@ -620,8 +615,8 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			 */
 			page = ref->page;
 			if (page->read_gen == WT_READGEN_NOTSET) {
-				if (evict_soon)
-					__wt_page_evict_soon(session, ref);
+				if (wont_need)
+					page->read_gen = WT_READGEN_WONT_NEED;
 				else
 					__wt_cache_read_gen_new(session, page);
 			} else if (!LF_ISSET(WT_READ_NO_GEN))

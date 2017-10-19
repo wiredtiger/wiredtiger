@@ -365,14 +365,15 @@ struct __wt_connection_impl {
 	 */
 	WT_SPINLOCK	 las_lock;	/* Lookaside table spinlock */
 	WT_SESSION_IMPL *las_session;	/* Lookaside table session */
+	uint32_t         las_fileid;    /* Lookaside table file ID */
 
 	/*
 	 * The "lookaside_activity" verbose messages are throttled to once per
 	 * checkpoint. To accomplish this we track the checkpoint generation
 	 * for the most recent read and write verbose messages.
 	 */
-	volatile uint64_t	las_verb_gen_read;
-	volatile uint64_t	las_verb_gen_write;
+	uint64_t las_verb_gen_read;
+	uint64_t las_verb_gen_write;
 
 	/* Set of btree IDs not being rolled back */
 	uint8_t *stable_rollback_bitstring;

@@ -213,7 +213,8 @@ __split_ovfl_key_cleanup(WT_SESSION_IMPL *session, WT_PAGE *page, WT_REF *ref)
 		 * sure we're catching all paths and to avoid regressions.
 		 */
 		WT_ASSERT(session,
-		    S2BT(session)->checkpointing != WT_CKPT_RUNNING);
+		    S2BT(session)->checkpointing != WT_CKPT_RUNNING ||
+		    WT_SESSION_IS_CHECKPOINT(session));
 
 		WT_RET(__wt_ovfl_discard(session, cell));
 	}
@@ -1179,7 +1180,7 @@ __split_internal_lock(
 	 * loop until the exclusive lock is resolved). If we want to split
 	 * the parent, give up to avoid that deadlock.
 	 */
-	if (!trylock && S2BT(session)->checkpointing != WT_CKPT_OFF)
+	if (!trylock && !__wt_btree_can_evict_dirty(session))
 		return (EBUSY);
 
 	/*
@@ -1293,12 +1294,9 @@ __split_internal_should_split(WT_SESSION_IMPL *session, WT_REF *ref)
 static int
 __split_parent_climb(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
-	WT_BTREE *btree;
 	WT_DECL_RET;
 	WT_PAGE *parent;
 	WT_REF *ref;
-
-	btree = S2BT(session);
 
 	/*
 	 * Disallow internal splits during the final pass of a checkpoint. Most
@@ -1310,7 +1308,7 @@ __split_parent_climb(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 * split chunk, but we'll write it upon finding it in a different part
 	 * of the tree.
 	 */
-	if (btree->checkpointing != WT_CKPT_OFF) {
+	if (!__wt_btree_can_evict_dirty(session)) {
 		__split_internal_unlock(session, page);
 		return (0);
 	}
@@ -1421,7 +1419,7 @@ __split_multi_inmem(
 	 * leave the new page with the read generation unset.  Eviction will
 	 * set the read generation next time it visits this page.
 	 */
-	if (orig->read_gen != WT_READGEN_OLDEST)
+	if (!WT_READGEN_EVICT_SOON(orig->read_gen))
 		page->read_gen = orig->read_gen;
 
 	/* If there are no updates to apply to the page, we're done. */
@@ -1497,8 +1495,8 @@ __split_multi_inmem(
 			 * tombstone away: we may need it to correctly resolve
 			 * modifications.
 			 */
-			if (supd->onpage_upd->type == WT_UPDATE_DELETED &&
-			   prev_upd != NULL)
+			if (prev_upd != NULL &&
+			    prev_upd->type == WT_UPDATE_DELETED)
 				prev_upd = prev_upd->next;
 			if (prev_upd != NULL) {
 				__wt_update_obsolete_free(
@@ -1622,8 +1620,11 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 		break;
 	}
 
-	/* There should be an address or a disk image (or both). */
-	WT_ASSERT(session,
+	/*
+	 * There can be an address or a disk image or both, but if there is
+	 * neither, there must be a backing lookaside page.
+	 */
+	WT_ASSERT(session, multi->las_pageid != 0 ||
 	    multi->addr.addr != NULL || multi->disk_image != NULL);
 
 	/* If closing the file, there better be an address. */
@@ -1638,7 +1639,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 	/* Verify any disk image we have. */
 	WT_ASSERT(session, multi->disk_image == NULL ||
 	    __wt_verify_dsk_image(session,
-	    "[page instantiate]", multi->disk_image, 0, false) == 0);
+	    "[page instantiate]", multi->disk_image, 0, true) == 0);
 
 	/*
 	 * If there's an address, the page was written, set it.
@@ -1654,16 +1655,29 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 		addr->type = multi->addr.type;
 		WT_RET(__wt_memdup(session,
 		    multi->addr.addr, addr->size, &addr->addr));
-		if (multi->las_pageid != 0) {
-			WT_RET(__wt_calloc_one(session, &ref->page_las));
-			ref->page_las->las_pageid = multi->las_pageid;
+
+		ref->state = WT_REF_DISK;
+	}
+
+	/*
+	 * Copy any associated lookaside reference, potentially resetting
+	 * WT_REF.state. Regardless of a backing address, WT_REF_LOOKASIDE
+	 * overrides WT_REF_DISK.
+	 */
+	if (multi->las_pageid != 0) {
+		/*
+		 * We should not have a disk image if we did lookaside
+		 * eviction.
+		 */
+		WT_ASSERT(session, multi->disk_image == NULL);
+
+		WT_RET(__wt_calloc_one(session, &ref->page_las));
+		ref->page_las->las_pageid = multi->las_pageid;
 #ifdef HAVE_TIMESTAMPS
-			__wt_timestamp_set(&ref->page_las->min_timestamp,
-			    &multi->las_min_timestamp);
+		__wt_timestamp_set(
+		    &ref->page_las->min_timestamp, &multi->las_min_timestamp);
 #endif
-			ref->state = WT_REF_LOOKASIDE;
-		} else
-			ref->state = WT_REF_DISK;
+		ref->state = WT_REF_LOOKASIDE;
 	}
 
 	/*
