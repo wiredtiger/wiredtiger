@@ -89,17 +89,6 @@
 #define	TXN_API_END(s, ret)	TXN_API_END_RETRY(s, ret, 1)
 
 /*
- * In cases where transaction error should not be set, but error to be
- * returned to user. Success (i.e. 0) is passed to API_END instead of
- * ret to indicate application has to handle this error.
- * If method is about to return WT_NOTFOUND (some underlying object was
- * not found), map it to ENOENT.
- */
-#define	API_END_RET_NO_TXN_ERROR(s, ret)				\
-	API_END(s, 0);							\
-	return ((ret) == WT_NOTFOUND ? ENOENT : (ret))
-
-/*
  * In almost all cases, API_END is returning immediately, make it simple.
  * If a session or connection method is about to return WT_NOTFOUND (some
  * underlying object was not found), map it to ENOENT, only cursor methods
@@ -110,6 +99,15 @@
 	return (ret)
 #define	API_END_RET_NOTFOUND_MAP(s, ret)				\
 	API_END(s, ret);						\
+	return ((ret) == WT_NOTFOUND ? ENOENT : (ret))
+
+/*
+ * Used in cases where transaction error should not be set, but the error is
+ * returned from the API. Success is passed to the API_END macro.  If the
+ * method is about to return WT_NOTFOUND map it to ENOENT.
+ */
+#define	API_END_RET_NO_TXN_ERROR(s, ret)				\
+	API_END(s, 0);							\
 	return ((ret) == WT_NOTFOUND ? ENOENT : (ret))
 
 #define	CONNECTION_API_CALL(conn, s, n, config, cfg)			\

@@ -449,8 +449,8 @@ err:		if (cursor != NULL)
 	 * applications may reasonably do this inside a transaction to check
 	 * for the existence of a table or index.
 	 *
-	 * WT_NOTFOUND will be mapped back to ENOENT.
-	 * Failure in opening a cursor should not set the txn error.
+	 * Failure in opening a cursor should not set an error on the
+	 * transaction and WT_NOTFOUND will be mapped to ENOENT.
 	 */
 
 	API_END_RET_NO_TXN_ERROR(session, ret);

@@ -58,7 +58,7 @@ obj_bulk(void)
 	}
 
 	if (use_txn) {
-		/* If create session fails, rollback else will commit.*/
+		/* If create fails, rollback else will commit.*/
 		if (!create)
 			ret = session->rollback_transaction(session, NULL);
 		else
