@@ -446,7 +446,7 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 
 		WT_RET(__wt_txn_parse_timestamp(session, "read", &ts, &cval));
 		WT_RET(__wt_timestamp_validate(session,
-		    &ts, &cval, true, false, false));
+		    "read", &ts, &cval, true, false, false));
 		__wt_timestamp_set(&txn->read_timestamp, &ts);
 		__wt_txn_set_read_timestamp(session);
 		txn->isolation = WT_ISO_SNAPSHOT;
@@ -586,7 +586,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #ifdef HAVE_TIMESTAMPS
 		WT_ERR(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
 		WT_ERR(__wt_timestamp_validate(session,
-		    &ts, &cval, true, true, true));
+		    "commit", &ts, &cval, true, true, true));
 		__wt_timestamp_set(&txn->commit_timestamp, &ts);
 		__wt_txn_set_commit_timestamp(session);
 #else
@@ -830,7 +830,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 		case WT_TXN_OP_BASIC:
 		case WT_TXN_OP_BASIC_TS:
 		case WT_TXN_OP_INMEM:
-		       WT_ASSERT(session, op->u.upd->txnid == txn->id);
+			WT_ASSERT(session, op->u.upd->txnid == txn->id);
+			WT_ASSERT(session, S2C(session)->las_fileid == 0 ||
+			    op->fileid != S2C(session)->las_fileid);
 			op->u.upd->txnid = WT_TXN_ABORTED;
 			break;
 		case WT_TXN_OP_REF:
