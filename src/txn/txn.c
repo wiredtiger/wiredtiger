@@ -448,15 +448,16 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 		txn_global = &S2C(session)->txn_global;
 		WT_RET(__wt_txn_parse_timestamp(session, "read", &ts, &cval));
 		/*
-		 * Reading the config item round_to_oldest here itself to reduce
-		 * the span of critical section.
+		 * Read the configuration here to reduce the span of the
+		 * critical section.
 		 */
 		WT_RET(__wt_config_gets_def(session,
 		    cfg, "round_to_oldest", 0, &cval));
 		round_to_oldest = cval.val;
 		/*
-		 * Here not using timestamp validate function to avoid the race
-		 * after checking and before setting transaction timestamp.
+		 * This code is not using the timestamp validate function to
+		 * avoid a race between checking and setting transaction
+		 * timestamp.
 		 */
 		__wt_readlock(session, &txn_global->rwlock);
 		if (__wt_timestamp_cmp(&ts, &txn_global->oldest_timestamp) < 0)
@@ -466,7 +467,7 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 			/*
 			 * If given read timestamp is earlier than oldest
 			 * timestamp then round the read timestamp to
-			 * oldest timestamp based on round_to_oldest option.
+			 * oldest timestamp.
 			 */
 			if (round_to_oldest)
 				__wt_timestamp_set(&txn->read_timestamp,
@@ -480,7 +481,7 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 		} else {
 			__wt_timestamp_set(&txn->read_timestamp, &ts);
 			/*
-			 * Reset to avoid the below verbose msg as read
+			 * Reset to avoid a verbose message as read
 			 * timestamp is not rounded to oldest timestamp.
 			 */
 			round_to_oldest = false;
@@ -491,10 +492,8 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 		txn->isolation = WT_ISO_SNAPSHOT;
 		if (round_to_oldest) {
 			/*
-			 * If round_to_oldest is set, means we have rounded to
-			 * oldest timestamp.
-			 * This msg is here to reduce the span of critical
-			 * section.
+			 * This message is generated here to reduce the span of
+			 * critical section.
 			 */
 			__wt_verbose(session, WT_VERB_TIMESTAMP, "Read "
 			    "timestamp %s : Rounded to oldest timestamp",
