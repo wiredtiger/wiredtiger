@@ -463,20 +463,20 @@ __wt_cache_page_evict(WT_SESSION_IMPL *session, WT_PAGE *page, bool rewrite)
 	else
 		(void)__wt_atomic_addv64(&cache->pages_evicted, 1);
 
-        /*
-         * Track if eviction makes progress.  This is used in various places to
-         * determine whether eviction is stuck.
-         *
-         * We don't count rewrites as progress.
-         *
-         * Further, if a page was read with eviction disabled, we don't count
-         * evicting a it as progress.  Since disabling eviction allows pages to
-         * be read even when the cache is full, we want to avoid workloads
-         * repeatedly reading a page with eviction disabled (e.g., from the
-         * metadata), then evicting that page and deciding that is a sign that
-         * eviction is unstuck.
-         */
-        if (!rewrite && !F_ISSET_ATOMIC(page, WT_PAGE_READ_NO_EVICT))
+	/*
+	 * Track if eviction makes progress.  This is used in various places to
+	 * determine whether eviction is stuck.
+	 *
+	 * We don't count rewrites as progress.
+	 *
+	 * Further, if a page was read with eviction disabled, we don't count
+	 * evicting a it as progress.  Since disabling eviction allows pages to
+	 * be read even when the cache is full, we want to avoid workloads
+	 * repeatedly reading a page with eviction disabled (e.g., from the
+	 * metadata), then evicting that page and deciding that is a sign that
+	 * eviction is unstuck.
+	 */
+	if (!rewrite && !F_ISSET_ATOMIC(page, WT_PAGE_READ_NO_EVICT))
 		(void)__wt_atomic_addv64(&cache->eviction_progress, 1);
 }
 
