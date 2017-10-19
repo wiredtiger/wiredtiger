@@ -453,7 +453,7 @@ err:		if (cursor != NULL)
 	 * Failure in opening a cursor should not set the txn error.
 	 */
 
-	CURSOR_OPEN_API_END(session, ret);
+	API_END_RET_NO_TXN_ERROR(session, ret);
 }
 
 /*

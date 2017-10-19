@@ -36,16 +36,19 @@ obj_bulk(void)
 	WT_CURSOR *c;
 	WT_SESSION *session;
 	int ret;
+	bool create;
 
 	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
 	if (use_txn)
 		testutil_check(session->begin_transaction(session, NULL));
+	create = false;
 	if ((ret = session->create(session, uri, config)) != 0)
 		if (ret != EEXIST && ret != EBUSY)
 			testutil_die(ret, "session.create");
 
 	if (ret == 0) {
+		create = true;
 		__wt_yield();
 		if ((ret = session->open_cursor(
 		    session, uri, NULL, "bulk", &c)) == 0) {
@@ -55,7 +58,12 @@ obj_bulk(void)
 	}
 
 	if (use_txn) {
-		ret = session->commit_transaction(session, NULL);
+		/* If create session fails, rollback else will commit.*/
+		if (!create)
+			ret = session->rollback_transaction(session, NULL);
+		else
+			ret = session->commit_transaction(session, NULL);
+
 		if (ret == EINVAL)
 			testutil_die(ret, "session.commit bulk");
 	}

@@ -89,11 +89,13 @@
 #define	TXN_API_END(s, ret)	TXN_API_END_RETRY(s, ret, 1)
 
 /*
- * In cursor open call we should not change the transaction state.
+ * In cases where transaction error should not be set, but error to be
+ * returned to user. Success (i.e. 0) is passed to API_END instead of
+ * ret to indicate application has to handle this error.
  * If method is about to return WT_NOTFOUND (some underlying object was
  * not found), map it to ENOENT.
  */
-#define	CURSOR_OPEN_API_END(s, ret)					\
+#define	API_END_RET_NO_TXN_ERROR(s, ret)				\
 	API_END(s, 0);							\
 	return ((ret) == WT_NOTFOUND ? ENOENT : (ret))
 
