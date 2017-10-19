@@ -91,12 +91,12 @@ class test_txn18(wttest.WiredTigerTestCase, suite_subprocess):
         msg = '/recovery must be run/'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.wiredtiger_open(errdir, self.conn_recerror), msg)
-        #
-        # !!! Bug - if recover=error is run on the directory and returns
-        # an error and we subsequenty open with recover=on it will not properly
-        # recover all the data.  Reinstate this once that bug is fixed.
-        #self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-        #    lambda:self.wiredtiger_open(newdir, self.conn_recerror), msg)
+        
+        # If recover=error is run on the directory and returns an error,
+        # make sure when we subsequenty open with recover=on it properly
+        # recovers all the data.
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda:self.wiredtiger_open(newdir, self.conn_recerror), msg)
 
         # Opening with recover=on should succeed.
         self.conn = self.wiredtiger_open(newdir, self.conn_recon)
