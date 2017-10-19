@@ -53,8 +53,8 @@ __wt_optrack_record_funcid(WT_SESSION_IMPL *session, uint64_t op_id,
 int
 __wt_optrack_open_file(WT_SESSION_IMPL *session)
 {
-	char optrack_fname[PATH_MAX];
 	WT_CONNECTION_IMPL *conn;
+	char optrack_fname[PATH_MAX];
 
 	conn = S2C(session);
 
