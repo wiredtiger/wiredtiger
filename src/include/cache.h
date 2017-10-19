@@ -64,7 +64,7 @@ struct __wt_cache {
 	uint64_t bytes_dirty_leaf;
 	uint64_t pages_dirty_leaf;
 	uint64_t bytes_evict;		/* Bytes/pages discarded by eviction */
-	volatile uint64_t pages_evicted;
+	uint64_t pages_evicted;
 	uint64_t bytes_image;		/* Bytes of disk images */
 	uint64_t bytes_inmem;		/* Bytes/pages in memory */
 	uint64_t pages_inmem;
@@ -72,7 +72,7 @@ struct __wt_cache {
 	uint64_t bytes_read;		/* Bytes read into memory */
 	uint64_t bytes_written;
 
-	uint64_t eviction_progress;	/* Eviction progress count */
+	volatile uint64_t eviction_progress;	/* Eviction progress count */
 	uint64_t last_eviction_progress;/* Tracked eviction progress */
 
 	uint64_t app_waits;		/* User threads waited for cache */
