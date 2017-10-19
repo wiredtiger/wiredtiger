@@ -585,7 +585,7 @@ struct __wt_page {
 	uint8_t type;			/* Page type */
 
 #define	WT_PAGE_BUILD_KEYS	0x01	/* Keys have been built in memory */
-#define	WT_PAGE_CHECKPOINT_READ	0x02	/* Page read for checkpoint */
+#define	WT_PAGE_READ_NO_EVICT	0x02	/* Page read with eviction disabled */
 #define	WT_PAGE_DISK_ALLOC	0x04	/* Disk image in allocated memory */
 #define	WT_PAGE_DISK_MAPPED	0x08	/* Disk image in mapped memory */
 #define	WT_PAGE_EVICT_LRU	0x10	/* Page is on the LRU queue */

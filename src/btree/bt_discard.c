@@ -116,8 +116,7 @@ __page_out_int(WT_SESSION_IMPL *session, WT_PAGE **pagep, bool rewrite)
 	 * Update the cache's information. Don't count rewrites or checkpoint
 	 * I/O as eviction, there's no guarantee we are making real progress.
 	 */
-	__wt_cache_page_evict(session, page,
-	    !rewrite && !F_ISSET_ATOMIC(page, WT_PAGE_CHECKPOINT_READ));
+	__wt_cache_page_evict(session, page, rewrite);
 
 	dsk = (WT_PAGE_HEADER *)page->dsk;
 	if (F_ISSET_ATOMIC(page, WT_PAGE_DISK_ALLOC))
