@@ -447,15 +447,22 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 
 		txn_global = &S2C(session)->txn_global;
 		WT_RET(__wt_txn_parse_timestamp(session, "read", &ts, &cval));
+		/*
+		 * Reading the config item round_to_oldest here itself to reduce
+		 * the span of critical section.
+		 */
 		WT_RET(__wt_config_gets_def(session,
 		    cfg, "round_to_oldest", 0, &cval));
-		round_to_oldest = false;
+		round_to_oldest = cval.val;
+		/*
+		 * Here not using timestamp validate function to avoid the race
+		 * after checking and before setting transaction timestamp.
+		 */
 		__wt_readlock(session, &txn_global->rwlock);
 		if (__wt_timestamp_cmp(&ts, &txn_global->oldest_timestamp) < 0)
 		{
 			WT_RET(__wt_timestamp_to_hex_string(session,
 			    timestamp_buf, &ts));
-			round_to_oldest = cval.val;
 			/*
 			 * If given read timestamp is earlier than oldest
 			 * timestamp then round the read timestamp to
@@ -470,8 +477,14 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 				    "%s older than oldest timestamp",
 				    timestamp_buf);
 			}
-		} else
+		} else {
 			__wt_timestamp_set(&txn->read_timestamp, &ts);
+			/*
+			 * Reset to avoid the below verbose msg as read
+			 * timestamp is not rounded to oldest timestamp.
+			 */
+			round_to_oldest = false;
+		}
 
 		__wt_txn_set_read_timestamp(session);
 		__wt_readunlock(session, &txn_global->rwlock);
@@ -480,6 +493,8 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 			/*
 			 * If round_to_oldest is set, means we have rounded to
 			 * oldest timestamp.
+			 * This msg is here to reduce the span of critical
+			 * section.
 			 */
 			__wt_verbose(session, WT_VERB_TIMESTAMP, "Read "
 			    "timestamp %s : Rounded to oldest timestamp",
@@ -492,7 +507,6 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 	}
 
 	return (0);
-
 }
 
 /*
