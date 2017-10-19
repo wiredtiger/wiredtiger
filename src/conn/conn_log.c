@@ -92,9 +92,9 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_LOG *log;
-	bool downgrade;
 	uint32_t first_record, lognum;
 	uint16_t new_version;
+	bool downgrade;
 
 	conn = S2C(session);
 	log = conn->log;
@@ -312,8 +312,8 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
 	WT_LOG *log;
 	uint32_t lognum, min_lognum;
 	u_int i, logcount;
-	bool locked;
 	char **logfiles;
+	bool locked;
 
 	conn = S2C(session);
 	log = conn->log;
@@ -543,7 +543,8 @@ __log_file_server(void *arg)
 				if (!conn->hot_backup) {
 					__wt_readlock(
 					    session, &conn->hot_backup_lock);
-					if (!conn->hot_backup)
+					if (!conn->hot_backup &&
+					    conn->log_cursors == 0)
 						WT_ERR_ERROR_OK(
 						    __wt_ftruncate(session,
 						    close_fh,
@@ -668,8 +669,8 @@ __wt_log_wrlsn(WT_SESSION_IMPL *session, int *yield)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_LOG *log;
-	WT_LOG_WRLSN_ENTRY written[WT_SLOT_POOL];
 	WT_LOGSLOT *coalescing, *slot;
+	WT_LOG_WRLSN_ENTRY written[WT_SLOT_POOL];
 	WT_LSN save_lsn;
 	size_t written_i;
 	uint32_t i, save_i;

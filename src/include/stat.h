@@ -341,6 +341,7 @@ struct __wt_connection_stats {
 	int64_t cache_eviction_internal;
 	int64_t cache_eviction_split_internal;
 	int64_t cache_eviction_split_leaf;
+	int64_t cache_lookaside_entries;
 	int64_t cache_lookaside_insert;
 	int64_t cache_lookaside_remove;
 	int64_t cache_bytes_max;
@@ -535,7 +536,13 @@ struct __wt_connection_stats {
 	int64_t txn_pinned_checkpoint_range;
 	int64_t txn_pinned_snapshot_range;
 	int64_t txn_sync;
+	int64_t txn_commit_queue_head;
+	int64_t txn_commit_queue_inserts;
+	int64_t txn_commit_queue_len;
 	int64_t txn_commit;
+	int64_t txn_read_queue_head;
+	int64_t txn_read_queue_inserts;
+	int64_t txn_read_queue_len;
 	int64_t txn_rollback;
 	int64_t txn_update_conflict;
 };

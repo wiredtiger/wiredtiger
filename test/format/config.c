@@ -29,16 +29,18 @@
 #include "format.h"
 #include "config.h"
 
+static void	   config_checkpoint(void);
 static void	   config_checksum(void);
 static void	   config_compression(const char *);
 static void	   config_encryption(void);
 static const char *config_file_type(u_int);
-static CONFIG	  *config_find(const char *, size_t);
+static void	   config_helium_reset(void);
 static void	   config_in_memory(void);
-static void	   config_in_memory_check(void);
+static void	   config_in_memory_reset(void);
 static int	   config_is_perm(const char *);
 static void	   config_isolation(void);
 static void	   config_lrt(void);
+static void	   config_map_checkpoint(const char *, u_int *);
 static void	   config_map_checksum(const char *, u_int *);
 static void	   config_map_compression(const char *, u_int *);
 static void	   config_map_encryption(const char *, u_int *);
@@ -143,13 +145,12 @@ config_setup(void)
 
 	/* Required shared libraries. */
 	if (DATASOURCE("helium") && access(HELIUM_PATH, R_OK) != 0)
-		testutil_die(errno,
-		    "Levyx/helium shared library: %s", HELIUM_PATH);
+		testutil_die(errno, "Helium shared library: %s", HELIUM_PATH);
 	if (DATASOURCE("kvsbdb") && access(KVS_BDB_PATH, R_OK) != 0)
 		testutil_die(errno, "kvsbdb shared library: %s", KVS_BDB_PATH);
 
 	/* Some data-sources don't support user-specified collations. */
-	if (DATASOURCE("helium") || DATASOURCE("kvsbdb"))
+	if (DATASOURCE("kvsbdb"))
 		config_single("reverse=off", 0);
 
 	/*
@@ -160,6 +161,7 @@ config_setup(void)
 	if (!g.replay && g.run_cnt % 20 == 19 && !config_is_perm("threads"))
 		g.c_threads = 1;
 
+	config_checkpoint();
 	config_checksum();
 	config_compression("compression");
 	config_compression("logging_compression");
@@ -179,21 +181,37 @@ config_setup(void)
 			g.c_cache = g.c_threads;
 	}
 
+	/* Give Helium configuration a final review. */
+	if (DATASOURCE("helium"))
+		config_helium_reset();
+
 	/* Give in-memory configuration a final review. */
-	config_in_memory_check();
+	if (g.c_in_memory != 0)
+		config_in_memory_reset();
 
 	/*
-	 * Run-length configured by a number of operations and a timer. If the
-	 * operation count and the timer are both set by a configuration, there
-	 * isn't anything to do. If only the operation count was configured,
-	 * set a default maximum-run of 20 minutes. If only the timer is set,
-	 * clear the operations count (which was set randomly).
+	 * Run-length is configured by a number of operations and a timer.
+	 *
+	 * If the operation count and the timer are both configured, do nothing.
+	 * If only the timer is configured, clear the operations count.
+	 * If only the operation count is configured, limit the run to 6 hours.
+	 * If neither is configured, leave the operations count alone and limit
+	 * the run to 30 minutes.
+	 *
+	 * In other words, if we rolled the dice on everything, do a short run.
+	 * If we chose a number of operations but the rest of the configuration
+	 * means operations take a long time to complete (for example, a small
+	 * cache and many worker threads), don't let it run forever.
 	 */
 	if (config_is_perm("timer")) {
 		if (!config_is_perm("ops"))
 			config_single("ops=0", 0);
-	} else
-		config_single("timer=20", 0);
+	} else {
+		if (!config_is_perm("ops"))
+			config_single("timer=30", 0);
+		else
+			config_single("timer=360", 0);
+	}
 
 	/*
 	 * Key/value minimum/maximum are related, correct unless specified by
@@ -216,6 +234,28 @@ config_setup(void)
 
 	/* Reset the key count. */
 	g.key_cnt = 0;
+}
+
+/*
+ * config_checkpoint --
+ *	Checkpoint configuration.
+ */
+static void
+config_checkpoint(void)
+{
+	/* Choose a checkpoint mode if nothing was specified. */
+	if (!config_is_perm("checkpoints"))
+		switch (mmrand(NULL, 1, 20)) {
+		case 1: case 2: case 3: case 4:		/* 20% */
+			config_single("checkpoints=wiredtiger", 0);
+			break;
+		case 5:					/* 5 % */
+			config_single("checkpoints=off", 0);
+			break;
+		default:				/* 75% */
+			config_single("checkpoints=on", 0);
+			break;
+		}
 }
 
 /*
@@ -247,8 +287,8 @@ config_checksum(void)
 static void
 config_compression(const char *conf_name)
 {
-	const char *cstr;
 	char confbuf[128];
+	const char *cstr;
 
 	/* Return if already specified. */
 	if (config_is_perm(conf_name))
@@ -338,6 +378,36 @@ config_encryption(void)
 }
 
 /*
+ * config_helium_reset --
+ *	Helium configuration review.
+ */
+static void
+config_helium_reset(void)
+{
+	/* Turn off a lot of stuff. */
+	if (!config_is_perm("alter"))
+		config_single("alter=off", 0);
+	if (!config_is_perm("backups"))
+		config_single("backups=off", 0);
+	if (!config_is_perm("checkpoints"))
+		config_single("checkpoints=off", 0);
+	if (!config_is_perm("compression"))
+		config_single("compression=none", 0);
+	if (!config_is_perm("in_memory"))
+		config_single("in_memory=off", 0);
+	if (!config_is_perm("logging"))
+		config_single("logging=off", 0);
+	if (!config_is_perm("rebalance"))
+		config_single("rebalance=off", 0);
+	if (!config_is_perm("reverse"))
+		config_single("reverse=off", 0);
+	if (!config_is_perm("salvage"))
+		config_single("salvage=off", 0);
+	if (!config_is_perm("transaction_timestamps"))
+		config_single("transaction_timestamps=off", 0);
+}
+
+/*
  * config_in_memory --
  *	Periodically set up an in-memory configuration.
  */
@@ -372,16 +442,13 @@ config_in_memory(void)
 }
 
 /*
- * config_in_memory_check --
+ * config_in_memory_reset --
  *	In-memory configuration review.
  */
 static void
-config_in_memory_check(void)
+config_in_memory_reset(void)
 {
 	uint32_t cache;
-
-	if (g.c_in_memory == 0)
-		return;
 
 	/* Turn off a lot of stuff. */
 	if (!config_is_perm("alter"))
@@ -651,7 +718,7 @@ void
 config_file(const char *name)
 {
 	FILE *fp;
-	char *p, buf[256];
+	char buf[256], *p;
 
 	if ((fp = fopen(name, "r")) == NULL)
 		testutil_die(errno, "fopen: %s", name);
@@ -707,6 +774,35 @@ config_reset(void)
 }
 
 /*
+ * config_find
+ *	Find a specific configuration entry.
+ */
+static CONFIG *
+config_find(const char *s, size_t len, bool fatal)
+{
+	CONFIG *cp;
+
+	for (cp = c; cp->name != NULL; ++cp)
+		if (strncmp(s, cp->name, len) == 0 && cp->name[len] == '\0')
+			return (cp);
+
+	/*
+	 * Optionally ignore unknown keywords, it makes it easier to run old
+	 * CONFIG files.
+	 */
+	if (fatal) {
+		fprintf(stderr,
+		    "%s: %s: unknown required configuration keyword\n",
+		    progname, s);
+		exit(EXIT_FAILURE);
+	}
+	fprintf(stderr,
+	    "%s: %s: WARNING, ignoring unknown configuration keyword\n",
+	    progname, s);
+	return (NULL);
+}
+
+/*
  * config_single --
  *	Set a single configuration structure value.
  */
@@ -725,7 +821,9 @@ config_single(const char *s, int perm)
 		exit(EXIT_FAILURE);
 	}
 
-	cp = config_find(s, (size_t)(ep - s));
+	if ((cp = config_find(s, (size_t)(ep - s), false)) == NULL)
+		return;
+
 	F_SET(cp, perm ? C_PERM : C_TEMP);
 	++ep;
 
@@ -750,7 +848,10 @@ config_single(const char *s, int perm)
 			*cp->vstr = NULL;
 		}
 
-		if (strncmp(s, "checksum", strlen("checksum")) == 0) {
+		if (strncmp(s, "checkpoints", strlen("checkpoints")) == 0) {
+			config_map_checkpoint(ep, &g.c_checkpoint_flag);
+			*cp->vstr = dstrdup(ep);
+		} else if (strncmp(s, "checksum", strlen("checksum")) == 0) {
 			config_map_checksum(ep, &g.c_checksum_flag);
 			*cp->vstr = dstrdup(ep);
 		} else if (strncmp(
@@ -761,12 +862,12 @@ config_single(const char *s, int perm)
 		    s, "encryption", strlen("encryption")) == 0) {
 			config_map_encryption(ep, &g.c_encryption_flag);
 			*cp->vstr = dstrdup(ep);
-		} else if (strncmp(s, "isolation", strlen("isolation")) == 0) {
-			config_map_isolation(ep, &g.c_isolation_flag);
-			*cp->vstr = dstrdup(ep);
 		} else if (strncmp(s, "file_type", strlen("file_type")) == 0) {
 			config_map_file_type(ep, &g.type);
 			*cp->vstr = dstrdup(config_file_type(g.type));
+		} else if (strncmp(s, "isolation", strlen("isolation")) == 0) {
+			config_map_isolation(ep, &g.c_isolation_flag);
+			*cp->vstr = dstrdup(ep);
 		} else if (strncmp(s, "logging_compression",
 		    strlen("logging_compression")) == 0) {
 			config_map_compression(ep,
@@ -829,6 +930,24 @@ config_map_file_type(const char *s, u_int *vp)
 		*vp = ROW;
 	else
 		testutil_die(EINVAL, "illegal file type configuration: %s", s);
+}
+
+/*
+ * config_map_checkpoint --
+ *	Map a checkpoint configuration to a flag.
+ */
+static void
+config_map_checkpoint(const char *s, u_int *vp)
+{
+	/* Checkpoint configuration used to be 1/0, let it continue to work. */
+	if (strcmp(s, "on") == 0 || strcmp(s, "1") == 0)
+		*vp = CHECKPOINT_ON;
+	else if (strcmp(s, "off") == 0 || strcmp(s, "0") == 0)
+		*vp = CHECKPOINT_OFF;
+	else if (strcmp(s, "wiredtiger") == 0)
+		*vp = CHECKPOINT_WIREDTIGER;
+	else
+		testutil_die(EINVAL, "illegal checkpoint configuration: %s", s);
 }
 
 /*
@@ -911,25 +1030,6 @@ config_map_isolation(const char *s, u_int *vp)
 }
 
 /*
- * config_find
- *	Find a specific configuration entry.
- */
-static CONFIG *
-config_find(const char *s, size_t len)
-{
-	CONFIG *cp;
-
-	for (cp = c; cp->name != NULL; ++cp)
-		if (strncmp(s, cp->name, len) == 0 && cp->name[len] == '\0')
-			return (cp);
-
-	fprintf(stderr,
-	    "%s: %s: unknown configuration keyword\n", progname, s);
-	config_error();
-	exit(EXIT_FAILURE);
-}
-
-/*
  * config_is_perm
  *	Return if a specific configuration entry was permanently set.
  */
@@ -938,7 +1038,7 @@ config_is_perm(const char *s)
 {
 	CONFIG *cp;
 
-	cp = config_find(s, strlen(s));
+	cp = config_find(s, strlen(s), true);
 	return (F_ISSET(cp, C_PERM) ? 1 : 0);
 }
 

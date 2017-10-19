@@ -186,11 +186,14 @@ __txn_logrec_init(WT_SESSION_IMPL *session)
 	WT_DECL_ITEM(logrec);
 	WT_DECL_RET;
 	WT_TXN *txn;
-	const char *fmt = WT_UNCHECKED_STRING(Iq);
-	uint32_t rectype = WT_LOGREC_COMMIT;
 	size_t header_size;
+	uint32_t rectype;
+	const char *fmt;
 
 	txn = &session->txn;
+	rectype = WT_LOGREC_COMMIT;
+	fmt = WT_UNCHECKED_STRING(Iq);
+
 	if (txn->logrec != NULL)
 		return (0);
 
@@ -295,13 +298,14 @@ __txn_log_file_sync(WT_SESSION_IMPL *session, uint32_t flags, WT_LSN *lsnp)
 	WT_DECL_ITEM(logrec);
 	WT_DECL_RET;
 	size_t header_size;
-	uint32_t rectype = WT_LOGREC_FILE_SYNC;
-	int start;
+	uint32_t rectype, start;
+	const char *fmt;
 	bool need_sync;
-	const char *fmt = WT_UNCHECKED_STRING(III);
 
 	btree = S2BT(session);
-	start = LF_ISSET(WT_TXN_LOG_CKPT_START);
+	rectype = WT_LOGREC_FILE_SYNC;
+	start = LF_ISSET(WT_TXN_LOG_CKPT_START) ? 1 : 0;
+	fmt = WT_UNCHECKED_STRING(III);
 	need_sync = LF_ISSET(WT_TXN_LOG_CKPT_SYNC);
 
 	WT_RET(__wt_struct_size(
@@ -331,7 +335,9 @@ __wt_txn_checkpoint_logread(WT_SESSION_IMPL *session,
 	WT_ITEM ckpt_snapshot_unused;
 	uint32_t ckpt_file, ckpt_offset;
 	u_int ckpt_nsnapshot_unused;
-	const char *fmt = WT_UNCHECKED_STRING(IIIu);
+	const char *fmt;
+
+	fmt = WT_UNCHECKED_STRING(IIIu);
 
 	if ((ret = __wt_struct_unpack(session, *pp, WT_PTRDIFF(end, *pp), fmt,
 	    &ckpt_file, &ckpt_offset,
@@ -358,9 +364,9 @@ __wt_txn_checkpoint_log(
 	WT_LSN *ckpt_lsn;
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
-	uint8_t *end, *p;
 	size_t recsize;
 	uint32_t i, rectype;
+	uint8_t *end, *p;
 	const char *fmt;
 
 	conn = S2C(session);
@@ -571,11 +577,11 @@ __txn_printlog(WT_SESSION_IMPL *session,
 {
 	WT_LOG_RECORD *logrec;
 	WT_TXN_PRINTLOG_ARGS *args;
-	const uint8_t *end, *p;
-	const char *msg;
 	uint64_t txnid;
 	uint32_t fileid, lsnfile, lsnoffset, rectype;
 	int32_t start;
+	const uint8_t *end, *p;
+	const char *msg;
 	bool compressed;
 
 	WT_UNUSED(next_lsnp);

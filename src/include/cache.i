@@ -79,6 +79,22 @@ __wt_cache_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
+ * __wt_cache_nearly_stuck --
+ *      Indicate if the cache is nearly stuck.
+ */
+static inline bool
+__wt_cache_nearly_stuck(WT_SESSION_IMPL *session)
+{
+	WT_CACHE *cache;
+
+	cache = S2C(session)->cache;
+	return (cache->evict_aggressive_score >=
+	    (WT_EVICT_SCORE_MAX - WT_EVICT_SCORE_BUMP) &&
+	    F_ISSET(cache,
+		WT_CACHE_EVICT_CLEAN_HARD | WT_CACHE_EVICT_DIRTY_HARD));
+}
+
+/*
  * __wt_cache_stuck --
  *      Indicate if the cache is stuck (i.e., not making progress).
  */
@@ -216,7 +232,7 @@ __wt_session_can_wait(WT_SESSION_IMPL *session)
 /*
  * __wt_eviction_clean_needed --
  *	Return if an application thread should do eviction due to the total
- *	volume of dirty data in cache.
+ *	volume of data in cache.
  */
 static inline bool
 __wt_eviction_clean_needed(WT_SESSION_IMPL *session, u_int *pct_fullp)
@@ -320,8 +336,8 @@ __wt_eviction_needed(WT_SESSION_IMPL *session, bool busy, u_int *pct_fullp)
 static inline bool
 __wt_cache_full(WT_SESSION_IMPL *session)
 {
-	WT_CONNECTION_IMPL *conn;
 	WT_CACHE *cache;
+	WT_CONNECTION_IMPL *conn;
 
 	conn = S2C(session);
 	cache = conn->cache;

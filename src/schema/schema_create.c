@@ -321,8 +321,8 @@ __wt_schema_index_source(WT_SESSION_IMPL *session,
 static int
 __fill_index(WT_SESSION_IMPL *session, WT_TABLE *table, WT_INDEX *idx)
 {
-	WT_DECL_RET;
 	WT_CURSOR *tcur, *icur;
+	WT_DECL_RET;
 	WT_SESSION *wt_session;
 
 	wt_session = &session->iface;
@@ -609,10 +609,8 @@ __create_table(WT_SESSION_IMPL *session,
 	if (ncolgroups == 0) {
 		cgsize = strlen("colgroup:") + strlen(tablename) + 1;
 		WT_ERR(__wt_calloc_def(session, cgsize, &cgname));
-		WT_ERR(__wt_snprintf(
-		    cgname, cgsize, "colgroup:%s", tablename));
-		WT_ERR(__create_colgroup(
-		    session, cgname, exclusive, config));
+		WT_ERR(__wt_snprintf(cgname, cgsize, "colgroup:%s", tablename));
+		WT_ERR(__create_colgroup(session, cgname, exclusive, config));
 	}
 
 	/*

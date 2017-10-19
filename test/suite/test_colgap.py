@@ -169,14 +169,14 @@ class test_colmax(wttest.WiredTigerTestCase):
             bulk_config = "bulk"
         cursor = self.session.open_cursor(uri, None, bulk_config)
 
-        # Optionaly make the big record the only record in the table.
+        # Optionally make the big record the only record in the table.
         if not self.single:
             for i in range(1, 723):
                 cursor[simple_key(cursor, i)] = simple_value(cursor, i)
 
         # Confirm searching past the end of the table works.
         if not self.bulk:
-            cursor.set_key(recno)
+            cursor.set_key(simple_key(cursor, recno))
             self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
 
         # Insert the big record.
@@ -191,18 +191,18 @@ class test_colmax(wttest.WiredTigerTestCase):
             cursor = self.session.open_cursor(uri, None, None)
 
         # Search for the large record.
-        cursor.set_key(recno)
+        cursor.set_key(simple_key(cursor, recno))
         self.assertEqual(cursor.search(), 0)
         self.assertEqual(cursor.get_value(), simple_value(cursor, recno))
 
         # Update it.
         cursor[simple_key(cursor, recno)] = simple_value(cursor, 37)
-        cursor.set_key(recno)
+        cursor.set_key(simple_key(cursor, recno))
         self.assertEqual(cursor.search(), 0)
         self.assertEqual(cursor.get_value(), simple_value(cursor, 37))
 
         # Remove it.
-        cursor.set_key(recno)
+        cursor.set_key(simple_key(cursor, recno))
         self.assertEqual(cursor.remove(), 0)
         cursor.set_key(simple_key(cursor, recno))
         self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)

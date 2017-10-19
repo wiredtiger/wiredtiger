@@ -15,14 +15,16 @@
 static uint32_t
 __snapsort_partition(uint64_t *array, uint32_t f, uint32_t l, uint64_t pivot)
 {
-	uint32_t i = f - 1, j = l + 1;
+	uint32_t i, j;
 
+	i = f - 1;
+	j = l + 1;
 	for (;;) {
 		while (pivot < array[--j])
 			;
 		while (array[++i] < pivot)
 			;
-		if (i<j) {
+		if (i < j) {
 			uint64_t tmp = array[i];
 			array[i] = array[j];
 			array[j] = tmp;
@@ -440,22 +442,12 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_RET(__wt_config_gets_def(session, cfg, "read_timestamp", 0, &cval));
 	if (cval.len > 0) {
 #ifdef HAVE_TIMESTAMPS
-		WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
-		wt_timestamp_t oldest_timestamp, stable_timestamp;
+		wt_timestamp_t ts;
 
-		WT_RET(__wt_txn_parse_timestamp(
-		    session, "read", &txn->read_timestamp, &cval));
-		WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
-		    __wt_timestamp_set(
-			&oldest_timestamp, &txn_global->oldest_timestamp);
-		    __wt_timestamp_set(
-			&stable_timestamp, &txn_global->stable_timestamp));
-		if (__wt_timestamp_cmp(
-		    &txn->read_timestamp, &oldest_timestamp) < 0)
-			WT_RET_MSG(session, EINVAL,
-			    "read timestamp %.*s older than oldest timestamp",
-			    (int)cval.len, cval.str);
-
+		WT_RET(__wt_txn_parse_timestamp(session, "read", &ts, &cval));
+		WT_RET(__wt_timestamp_validate(session,
+		    &ts, &cval, true, false, false));
+		__wt_timestamp_set(&txn->read_timestamp, &ts);
 		__wt_txn_set_read_timestamp(session);
 		txn->isolation = WT_ISO_SNAPSHOT;
 #else
@@ -572,7 +564,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	u_int i;
 	bool did_update, locked;
 #ifdef HAVE_TIMESTAMPS
-	wt_timestamp_t prev_commit_timestamp;
+	wt_timestamp_t prev_commit_timestamp, ts;
 	bool update_timestamp;
 #endif
 
@@ -592,8 +584,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	    __wt_config_gets_def(session, cfg, "commit_timestamp", 0, &cval));
 	if (cval.len != 0) {
 #ifdef HAVE_TIMESTAMPS
-		WT_ERR(__wt_txn_parse_timestamp(
-		    session, "commit", &txn->commit_timestamp, &cval));
+		WT_ERR(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
+		WT_ERR(__wt_timestamp_validate(session,
+		    &ts, &cval, true, true, true));
+		__wt_timestamp_set(&txn->commit_timestamp, &ts);
 		__wt_txn_set_commit_timestamp(session);
 #else
 		WT_ERR_MSG(session, EINVAL, "commit_timestamp requires a "
@@ -601,6 +595,21 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #endif
 	}
 
+#ifdef HAVE_TIMESTAMPS
+	/*
+	 * Debugging checks on timestamps, if user requested them.
+	 */
+	if (F_ISSET(txn, WT_TXN_TS_COMMIT_ALWAYS) &&
+	    !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
+	    txn->mod_count != 0)
+		WT_ERR_MSG(session, EINVAL, "commit_timestamp required and "
+		    "none set on this transaction");
+	if (F_ISSET(txn, WT_TXN_TS_COMMIT_NEVER) &&
+	    F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
+	    txn->mod_count != 0)
+		WT_ERR_MSG(session, EINVAL, "no commit_timestamp required and "
+		    "timestamp set on this transaction");
+#endif
 	/*
 	 * The default sync setting is inherited from the connection, but can
 	 * be overridden by an explicit "sync" setting for this transaction.
@@ -691,6 +700,16 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			 */
 			if (op->u.upd->type == WT_UPDATE_RESERVED) {
 				op->u.upd->txnid = WT_TXN_ABORTED;
+				break;
+			}
+
+			/*
+			 * Writes to the lookaside file can be evicted as soon
+			 * as they commit.
+			 */
+			if (conn->las_fileid != 0 &&
+			    op->fileid == conn->las_fileid) {
+				op->u.upd->txnid = WT_TXN_NONE;
 				break;
 			}
 
@@ -877,9 +896,9 @@ __wt_txn_init(WT_SESSION_IMPL *session, WT_SESSION_IMPL *session_ret)
 void
 __wt_txn_stats_update(WT_SESSION_IMPL *session)
 {
-	WT_TXN_GLOBAL *txn_global;
 	WT_CONNECTION_IMPL *conn;
 	WT_CONNECTION_STATS **stats;
+	WT_TXN_GLOBAL *txn_global;
 	uint64_t checkpoint_pinned, snapshot_pinned;
 
 	conn = S2C(session);
@@ -907,6 +926,10 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
 	    session, stats, txn_checkpoint_time_recent, conn->ckpt_time_recent);
 	WT_STAT_SET(
 	    session, stats, txn_checkpoint_time_total, conn->ckpt_time_total);
+	WT_STAT_SET(session,
+	    stats, txn_commit_queue_len, txn_global->commit_timestampq_len);
+	WT_STAT_SET(session,
+	    stats, txn_read_queue_len, txn_global->read_timestampq_len);
 }
 
 /*
@@ -1028,7 +1051,70 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session)
 	return (0);
 }
 
-#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
+/*
+ * __wt_verbose_dump_txn_one --
+ *	Output diagnostic information about a transaction structure.
+ */
+int
+__wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn)
+{
+#ifdef HAVE_TIMESTAMPS
+	char hex_timestamp[3][2 * WT_TIMESTAMP_SIZE + 1];
+#endif
+	const char *iso_tag;
+
+	iso_tag = "INVALID";
+	switch (txn->isolation) {
+	case WT_ISO_READ_COMMITTED:
+		iso_tag = "WT_ISO_READ_COMMITTED";
+		break;
+	case WT_ISO_READ_UNCOMMITTED:
+		iso_tag = "WT_ISO_READ_UNCOMMITTED";
+		break;
+	case WT_ISO_SNAPSHOT:
+		iso_tag = "WT_ISO_SNAPSHOT";
+		break;
+	}
+#ifdef HAVE_TIMESTAMPS
+	WT_RET(__wt_timestamp_to_hex_string(
+	    session, hex_timestamp[0], &txn->commit_timestamp));
+	WT_RET(__wt_timestamp_to_hex_string(
+	    session, hex_timestamp[1], &txn->first_commit_timestamp));
+	WT_RET(__wt_timestamp_to_hex_string(
+	    session, hex_timestamp[2], &txn->read_timestamp));
+	WT_RET(__wt_msg(session,
+	    "mod count: %u"
+	    ", snap min: %" PRIu64
+	    ", snap max: %" PRIu64
+	    ", commit_timestamp: %s"
+	    ", first_commit_timestamp: %s"
+	    ", read_timestamp: %s"
+	    ", flags: 0x%08" PRIx32
+	    ", isolation: %s",
+	    txn->mod_count,
+	    txn->snap_min,
+	    txn->snap_max,
+	    hex_timestamp[0],
+	    hex_timestamp[1],
+	    hex_timestamp[2],
+	    txn->flags,
+	    iso_tag));
+#else
+	WT_RET(__wt_msg(session,
+	    "mod count: %u"
+	    ", snap min: %" PRIu64
+	    ", snap max: %" PRIu64
+	    ", flags: 0x%08" PRIx32
+	    ", isolation: %s",
+	    txn->mod_count,
+	    txn->snap_min,
+	    txn->snap_max,
+	    txn->flags,
+	    iso_tag));
+#endif
+	return (0);
+}
+
 /*
  * __wt_verbose_dump_txn --
  *	Output diagnostic information about the global transaction state.
@@ -1037,15 +1123,15 @@ int
 __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
+	WT_SESSION_IMPL *sess;
 	WT_TXN_GLOBAL *txn_global;
-	WT_TXN *txn;
 	WT_TXN_STATE *s;
-	const char *iso_tag;
 	uint64_t id;
 	uint32_t i, session_cnt;
 #ifdef HAVE_TIMESTAMPS
 	char hex_timestamp[3][2 * WT_TIMESTAMP_SIZE + 1];
 #endif
+
 	conn = S2C(session);
 	txn_global = &conn->txn_global;
 
@@ -1110,78 +1196,17 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 		/* Skip sessions with no active transaction */
 		if ((id = s->id) == WT_TXN_NONE && s->pinned_id == WT_TXN_NONE)
 			continue;
-
-		txn = &conn->sessions[i].txn;
-		iso_tag = "INVALID";
-		switch (txn->isolation) {
-		case WT_ISO_READ_COMMITTED:
-			iso_tag = "WT_ISO_READ_COMMITTED";
-			break;
-		case WT_ISO_READ_UNCOMMITTED:
-			iso_tag = "WT_ISO_READ_UNCOMMITTED";
-			break;
-		case WT_ISO_SNAPSHOT:
-			iso_tag = "WT_ISO_SNAPSHOT";
-			break;
-		}
-#ifdef HAVE_TIMESTAMPS
-		WT_RET(__wt_timestamp_to_hex_string(
-		    session, hex_timestamp[0], &txn->commit_timestamp));
-		WT_RET(__wt_timestamp_to_hex_string(
-		    session, hex_timestamp[1], &txn->first_commit_timestamp));
-		WT_RET(__wt_timestamp_to_hex_string(
-		    session, hex_timestamp[2], &txn->read_timestamp));
+		sess = &conn->sessions[i];
 		WT_RET(__wt_msg(session,
-		    "ID: %8" PRIu64
-		    ", mod count: %u"
-		    ", pinned ID: %8" PRIu64
-		    ", snap min: %" PRIu64
-		    ", snap max: %" PRIu64
-		    ", commit_timestamp: %s"
-		    ", first_commit_timestamp: %s"
-		    ", read_timestamp: %s"
-		    ", metadata pinned ID: %" PRIu64
-		    ", flags: 0x%08" PRIx32
-		    ", name: %s"
-		    ", isolation: %s",
-		    id,
-		    txn->mod_count,
-		    s->pinned_id,
-		    txn->snap_min,
-		    txn->snap_max,
-		    hex_timestamp[0],
-		    hex_timestamp[1],
-		    hex_timestamp[2],
-		    s->metadata_pinned,
-		    txn->flags,
-		    conn->sessions[i].name == NULL ?
-		    "EMPTY" : conn->sessions[i].name,
-		    iso_tag));
-#else
-		WT_RET(__wt_msg(session,
-		    "ID: %6" PRIu64
-		    ", mod count: %u"
+		    "ID: %" PRIu64
 		    ", pinned ID: %" PRIu64
-		    ", snap min: %" PRIu64
-		    ", snap max: %" PRIu64
 		    ", metadata pinned ID: %" PRIu64
-		    ", flags: 0x%08" PRIx32
-		    ", name: %s"
-		    ", isolation: %s",
-		    id,
-		    txn->mod_count,
-		    s->pinned_id,
-		    txn->snap_min,
-		    txn->snap_max,
-		    s->metadata_pinned,
-		    txn->flags,
-		    conn->sessions[i].name == NULL ?
-		    "EMPTY" : conn->sessions[i].name,
-		    iso_tag));
-#endif
+		    ", name: %s",
+		    id, s->pinned_id, s->metadata_pinned,
+		    sess->name == NULL ?
+		    "EMPTY" : sess->name));
+		WT_RET(__wt_verbose_dump_txn_one(sess, &sess->txn));
 	}
-	WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
 
 	return (0);
 }
-#endif

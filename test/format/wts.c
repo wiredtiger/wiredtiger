@@ -185,6 +185,12 @@ wts_open(const char *home, bool set_api, WT_CONNECTION **connp)
 	if (DATASOURCE("lsm") || g.c_cache < 20)
 		CONFIG_APPEND(p, ",eviction_dirty_trigger=95");
 
+	/* Checkpoints. */
+	if (g.c_checkpoint_flag == CHECKPOINT_WIREDTIGER)
+		CONFIG_APPEND(p,
+		    ",checkpoint=(wait=%" PRIu32 ",log_size=%" PRIu32 ")",
+		    g.c_checkpoint_wait, MEGABYTE(g.c_checkpoint_log_size));
+
 	/* Eviction worker configuration. */
 	if (g.c_evict_max != 0)
 		CONFIG_APPEND(p,
@@ -193,12 +199,14 @@ wts_open(const char *home, bool set_api, WT_CONNECTION **connp)
 	/* Logging configuration. */
 	if (g.c_logging)
 		CONFIG_APPEND(p,
-		    ",log=(enabled=true,archive=%d,prealloc=%d"
-		    ",compressor=\"%s\")",
+		    ",log=(enabled=true,archive=%d,"
+		    "prealloc=%d,file_max=%" PRIu32 ",compressor=\"%s\")",
 		    g.c_logging_archive ? 1 : 0,
 		    g.c_logging_prealloc ? 1 : 0,
+		    KILOBYTE(g.c_logging_file_max),
 		    compressor(g.c_logging_compression_flag));
 
+	/* Encryption. */
 	if (g.c_encryption)
 		CONFIG_APPEND(p,
 		    ",encryption=(name=%s)", encryptor(g.c_encryption_flag));
@@ -224,11 +232,12 @@ wts_open(const char *home, bool set_api, WT_CONNECTION **connp)
 		if (mmrand(NULL, 0, 5) == 1 &&
 		    memcmp(g.uri, "file:", strlen("file:")) == 0)
 			CONFIG_APPEND(p,
-			    ",statistics=(fast)"
-			    ",statistics_log=(wait=5,sources=(\"file:\"))");
+			    ",statistics=(fast),statistics_log="
+			    "(json,on_close,wait=5,sources=(\"file:\"))");
 		else
 			CONFIG_APPEND(p,
-			    ",statistics=(fast),statistics_log=(wait=5)");
+			    ",statistics=(fast),statistics_log="
+			    "(json,on_close,wait=5)");
 	} else
 		CONFIG_APPEND(p,
 		    ",statistics=(%s)", g.c_statistics ? "fast" : "none");
@@ -581,7 +590,7 @@ wts_stats(void)
 	FILE *fp;
 	size_t len;
 	char *stat_name;
-	const char *pval, *desc;
+	const char *desc, *pval;
 	uint64_t v;
 
 	/* Ignore statistics if they're not configured. */

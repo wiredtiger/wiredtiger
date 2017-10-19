@@ -327,8 +327,8 @@ static inline int
 __pack_write(
     WT_SESSION_IMPL *session, WT_PACK_VALUE *pv, uint8_t **pp, size_t maxlen)
 {
-	uint8_t *oldp;
 	size_t s, pad;
+	uint8_t *oldp;
 
 	switch (pv->type) {
 	case 'x':
@@ -719,8 +719,10 @@ __wt_struct_unpackv(WT_SESSION_IMPL *session,
 static inline void
 __wt_struct_size_adjust(WT_SESSION_IMPL *session, size_t *sizep)
 {
-	size_t curr_size = *sizep;
-	size_t field_size, prev_field_size = 1;
+	size_t curr_size, field_size, prev_field_size;
+
+	curr_size = *sizep;
+	prev_field_size = 1;
 
 	while ((field_size = __wt_vsize_uint(curr_size)) != prev_field_size) {
 		curr_size += field_size - prev_field_size;

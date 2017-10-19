@@ -28,6 +28,7 @@
 
 #include "thread.h"
 
+bool use_txn;					/* Operations with user txn */
 WT_CONNECTION *conn;				/* WiredTiger connection */
 pthread_rwlock_t single;			/* Single thread */
 u_int nops;					/* Operations */
@@ -67,19 +68,19 @@ main(int argc, char *argv[])
 		{ NULL,		NULL, NULL }
 	};
 	u_int nthreads;
-	int ch, cnt, ret, runs;
+	int ch, cnt, runs;
 	char *config_open, *working_dir;
 
 	(void)testutil_set_progname(argv);
 
-	if ((ret = pthread_rwlock_init(&single, NULL)) != 0)
-		testutil_die(ret, "pthread_rwlock_init: single");
+	testutil_check(pthread_rwlock_init(&single, NULL));
 
 	nops = 1000;
 	nthreads = 10;
 	runs = 1;
+	use_txn = false;
 	config_open = working_dir = NULL;
-	while ((ch = __wt_getopt(progname, argc, argv, "C:h:l:n:r:t:")) != EOF)
+	while ((ch = __wt_getopt(progname, argc, argv, "C:h:l:n:r:t:x")) != EOF)
 		switch (ch) {
 		case 'C':			/* wiredtiger_open config */
 			config_open = __wt_optarg;
@@ -102,6 +103,9 @@ main(int argc, char *argv[])
 			break;
 		case 't':
 			nthreads = (u_int)atoi(__wt_optarg);
+			break;
+		case 'x':
+			use_txn = true;
 			break;
 		default:
 			return (usage());
@@ -151,7 +155,6 @@ wt_startup(char *config_open)
 		NULL,
 		NULL	/* Close handler. */
 	};
-	int ret;
 	char config_buf[128];
 
 	testutil_make_work_dir(home);
@@ -161,9 +164,8 @@ wt_startup(char *config_open)
 	    progname,
 	    config_open == NULL ? "" : ",",
 	    config_open == NULL ? "" : config_open));
-	if ((ret = wiredtiger_open(
-	    home, &event_handler, config_buf, &conn)) != 0)
-		testutil_die(ret, "wiredtiger_open");
+	testutil_check(
+	    wiredtiger_open(home, &event_handler, config_buf, &conn));
 }
 
 /*
@@ -173,10 +175,7 @@ wt_startup(char *config_open)
 static void
 wt_shutdown(void)
 {
-	int ret;
-
-	if ((ret = conn->close(conn, NULL)) != 0)
-		testutil_die(ret, "conn.close");
+	testutil_check(conn->close(conn, NULL));
 }
 
 /*
@@ -251,7 +250,8 @@ usage(void)
 {
 	fprintf(stderr,
 	    "usage: %s "
-	    "[-C wiredtiger-config] [-l log] [-n ops] [-r runs] [-t threads]\n",
+	    "[-C wiredtiger-config] [-l log] [-n ops] [-r runs] [-t threads] "
+	    "[-x] \n",
 	    progname);
 	fprintf(stderr, "%s",
 	    "\t-C specify wiredtiger_open configuration arguments\n"
@@ -259,6 +259,7 @@ usage(void)
 	    "\t-l specify a log file\n"
 	    "\t-n set number of operations each thread does\n"
 	    "\t-r set number of runs\n"
-	    "\t-t set number of threads\n");
+	    "\t-t set number of threads\n"
+	    "\t-x operations within user transaction \n");
 	return (EXIT_FAILURE);
 }

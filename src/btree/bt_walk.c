@@ -88,8 +88,8 @@ static inline bool
 __ref_is_leaf(WT_REF *ref)
 {
 	size_t addr_size;
-	u_int type;
 	const uint8_t *addr;
+	u_int type;
 
 	/*
 	 * If the page has a disk address, we can crack it to figure out if
@@ -293,8 +293,8 @@ __tree_walk_internal(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	WT_PAGE_INDEX *pindex;
 	WT_REF *couple, *couple_orig, *ref;
-	bool empty_internal, initial_descent, prev, skip;
 	uint32_t slot;
+	bool empty_internal, initial_descent, prev, skip;
 
 	btree = S2BT(session);
 	pindex = NULL;
@@ -471,6 +471,11 @@ restart:	/*
 				 */
 				if (LF_ISSET(WT_READ_NO_WAIT) &&
 				    ref->state != WT_REF_MEM)
+					break;
+
+				/* Skip lookaside pages if not requested. */
+				if (ref->state == WT_REF_LOOKASIDE &&
+				    !LF_ISSET(WT_READ_LOOKASIDE))
 					break;
 			} else if (LF_ISSET(WT_READ_TRUNCATE)) {
 				/*

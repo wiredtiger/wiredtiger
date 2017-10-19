@@ -31,8 +31,8 @@ void (*custom_die)(void) = NULL;
 const char *progname = "program name not set";
 
 /*
- * die --
- *	Report an error and quit.
+ * testutil_die --
+ *	Report an error and abort.
  */
 void
 testutil_die(int e, const char *fmt, ...)
@@ -53,8 +53,9 @@ testutil_die(int e, const char *fmt, ...)
 	if (e != 0)
 		fprintf(stderr, ": %s", wiredtiger_strerror(e));
 	fprintf(stderr, "\n");
+	fprintf(stderr, "process aborting\n");
 
-	exit(EXIT_FAILURE);
+	abort();
 }
 
 /*
@@ -131,7 +132,6 @@ void
 testutil_make_work_dir(const char *dir)
 {
 	size_t len;
-	int ret;
 	char *buf;
 
 	testutil_clean_work_dir(dir);
@@ -143,8 +143,7 @@ testutil_make_work_dir(const char *dir)
 
 	/* mkdir shares syntax between Windows and Linux */
 	testutil_check(__wt_snprintf(buf, len, "%s%s", MKDIR_COMMAND, dir));
-	if ((ret = system(buf)) != 0)
-		testutil_die(ret, "%s", buf);
+	testutil_check(system(buf));
 	free(buf);
 }
 
@@ -225,6 +224,7 @@ void *
 drealloc(void *p, size_t len)
 {
 	void *t;
+
 	if ((t = realloc(p, len)) != NULL)
 		return (t);
 	testutil_die(errno, "realloc: %" WT_SIZET_FMT "B", len);

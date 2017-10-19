@@ -255,16 +255,19 @@ static int
 __rebalance_row_leaf_key(WT_SESSION_IMPL *session,
     const uint8_t *addr, size_t addr_len, WT_ITEM *key, WT_REBALANCE_STUFF *rs)
 {
-	WT_PAGE *page;
 	WT_DECL_RET;
+	WT_PAGE *page;
 
 	/*
 	 * We need the first key from a leaf page. Leaf pages are relatively
 	 * complex (Huffman encoding, prefix compression, and so on), do the
 	 * work to instantiate the page and copy the first key to the buffer.
+	 *
+	 * Page flags are 0 because we aren't releasing the memory used to read
+	 * the page into memory and we don't want page discard to free it.
 	 */
 	WT_RET(__wt_bt_read(session, rs->tmp1, addr, addr_len));
-	WT_RET(__wt_page_inmem(session, NULL, rs->tmp1->data, 0, 0, &page));
+	WT_RET(__wt_page_inmem(session, NULL, rs->tmp1->data, 0, &page));
 	ret = __wt_row_leaf_key_copy(session, page, &page->pg_row[0], key);
 	__wt_page_out(session, &page);
 	return (ret);
