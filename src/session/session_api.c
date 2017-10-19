@@ -1914,10 +1914,11 @@ __open_session(WT_CONNECTION_IMPL *conn,
 	session_ret->stat_bucket = WT_STATS_SLOT_ID(session);
 
 	/* Allocate the buffer for operation tracking */
-	if (F_ISSET(conn, WT_CONN_OPTRACK))
+	if (F_ISSET(conn, WT_CONN_OPTRACK)) {
 		WT_ERR(__wt_malloc(session, WT_OPTRACK_BUFSIZE,
 				   &session_ret->optrack_buf));
-
+		session_ret->optrackbuf_ptr = 0;
+	}
 	/*
 	 * Configuration: currently, the configuration for open_session is the
 	 * same as session.reconfigure, so use that function.
