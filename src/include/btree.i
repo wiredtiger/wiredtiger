@@ -174,13 +174,13 @@ __wt_cache_decr_check_size(
 	 * It's a bug if this accounting underflowed but allow the application
 	 * to proceed - the consequence is we use more cache than configured.
 	 */
+	*vp = 0;
 	__wt_errx(session,
 	    "%s went negative with decrement of %" WT_SIZET_FMT, fld, v);
 
 #ifdef HAVE_DIAGNOSTIC
 	__wt_abort(session);
 #endif
-	*vp = 0;
 }
 
 /*
@@ -198,13 +198,13 @@ __wt_cache_decr_check_uint64(
 	 * It's a bug if this accounting underflowed but allow the application
 	 * to proceed - the consequence is we use more cache than configured.
 	 */
+	*vp = 0;
 	__wt_errx(session,
 	    "%s went negative with decrement of %" WT_SIZET_FMT, fld, v);
 
 #ifdef HAVE_DIAGNOSTIC
 	__wt_abort(session);
 #endif
-	*vp = 0;
 }
 
 /*
