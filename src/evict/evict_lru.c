@@ -378,8 +378,8 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 
-	/* Assume there has been progress until we decide otherwise. */
-	*did_work = true;
+	/* Assume there has been no progress. */
+	*did_work = false;
 
 	conn = S2C(session);
 	cache = conn->cache;
@@ -415,17 +415,17 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 		return (0);
 	}
 
+	/* Track if work was done. */
+	*did_work = cache->eviction_progress != cache->last_eviction_progress;
+	cache->last_eviction_progress = cache->eviction_progress;
+
 	/* Eviction is stuck, check if we have made progress. */
-	if (cache->last_eviction_progress != cache->eviction_progress) {
+	if (*did_work) {
 #if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
 		__wt_epoch(session, &cache->stuck_time);
 #endif
-		cache->last_eviction_progress = cache->eviction_progress;
 		return (0);
 	}
-
-	/* There has been no progress. */
-	*did_work = false;
 
 #if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
 	/*
