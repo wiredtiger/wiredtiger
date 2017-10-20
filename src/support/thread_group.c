@@ -189,7 +189,7 @@ __thread_group_resize(
 		WT_ERR(__wt_open_internal_session(conn, group->name,
 		    false, session_flags, &thread->session));
 		if (LF_ISSET(WT_THREAD_LOOKASIDE) &&
-		    F_ISSET(conn, WT_CONN_LOOKASIDE_CONFIGURED))
+		    F_ISSET(conn, WT_CONN_LOOKASIDE_OPEN))
 			WT_ERR(__wt_las_cursor_open(thread->session));
 		if (LF_ISSET(WT_THREAD_PANIC_FAIL))
 			F_SET(thread, WT_THREAD_PANIC_FAIL);

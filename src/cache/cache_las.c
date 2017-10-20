@@ -27,7 +27,7 @@ __wt_las_stats_update(WT_SESSION_IMPL *session)
 	 * table data-source statistics. If there's no lookaside table, values
 	 * remain 0.
 	 */
-	if (!F_ISSET(conn, WT_CONN_LOOKASIDE_CONFIGURED))
+	if (!F_ISSET(conn, WT_CONN_LOOKASIDE_OPEN))
 		return;
 
 	/*
@@ -99,7 +99,7 @@ __wt_las_create(WT_SESSION_IMPL *session)
 
 	/* The statistics server is already running, make sure we don't race. */
 	WT_WRITE_BARRIER();
-	F_SET(conn, WT_CONN_LOOKASIDE_CONFIGURED);
+	F_SET(conn, WT_CONN_LOOKASIDE_OPEN);
 
 	return (0);
 }
@@ -117,7 +117,7 @@ __wt_las_destroy(WT_SESSION_IMPL *session)
 
 	conn = S2C(session);
 
-	F_CLR(conn, WT_CONN_LOOKASIDE_CONFIGURED);
+	F_CLR(conn, WT_CONN_LOOKASIDE_OPEN);
 	if (conn->las_session == NULL)
 		return (0);
 
