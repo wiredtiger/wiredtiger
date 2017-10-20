@@ -172,8 +172,7 @@ __wt_cache_decr_check_size(
 
 	/*
 	 * It's a bug if this accounting underflowed but allow the application
-	 * to proceed - the consequence is just that we are potentially using
-	 * cache than was configured.
+	 * to proceed - the consequence is we use more cache than configured.
 	 */
 	__wt_errx(session,
 	    "%s went negative with decrement of %" WT_SIZET_FMT, fld, v);
@@ -197,8 +196,7 @@ __wt_cache_decr_check_uint64(
 
 	/*
 	 * It's a bug if this accounting underflowed but allow the application
-	 * to proceed - the consequence is just that we are potentially using
-	 * cache than was configured.
+	 * to proceed - the consequence is we use more cache than configured.
 	 */
 	__wt_errx(session,
 	    "%s went negative with decrement of %" WT_SIZET_FMT, fld, v);
