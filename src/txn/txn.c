@@ -15,14 +15,16 @@
 static uint32_t
 __snapsort_partition(uint64_t *array, uint32_t f, uint32_t l, uint64_t pivot)
 {
-	uint32_t i = f - 1, j = l + 1;
+	uint32_t i, j;
 
+	i = f - 1;
+	j = l + 1;
 	for (;;) {
 		while (pivot < array[--j])
 			;
 		while (array[++i] < pivot)
 			;
-		if (i<j) {
+		if (i < j) {
 			uint64_t tmp = array[i];
 			array[i] = array[j];
 			array[j] = tmp;
@@ -447,6 +449,7 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 
 		txn_global = &S2C(session)->txn_global;
 		WT_RET(__wt_txn_parse_timestamp(session, "read", &ts, &cval));
+
 		/*
 		 * Read the configuration here to reduce the span of the
 		 * critical section.
@@ -635,7 +638,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #ifdef HAVE_TIMESTAMPS
 		WT_ERR(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
 		WT_ERR(__wt_timestamp_validate(session,
-		    &ts, &cval, true, true, true));
+		    "commit", &ts, &cval, true, true, true));
 		__wt_timestamp_set(&txn->commit_timestamp, &ts);
 		__wt_txn_set_commit_timestamp(session);
 #else
@@ -749,6 +752,16 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			 */
 			if (op->u.upd->type == WT_UPDATE_RESERVED) {
 				op->u.upd->txnid = WT_TXN_ABORTED;
+				break;
+			}
+
+			/*
+			 * Writes to the lookaside file can be evicted as soon
+			 * as they commit.
+			 */
+			if (conn->las_fileid != 0 &&
+			    op->fileid == conn->las_fileid) {
+				op->u.upd->txnid = WT_TXN_NONE;
 				break;
 			}
 
@@ -869,7 +882,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 		case WT_TXN_OP_BASIC:
 		case WT_TXN_OP_BASIC_TS:
 		case WT_TXN_OP_INMEM:
-		       WT_ASSERT(session, op->u.upd->txnid == txn->id);
+			WT_ASSERT(session, op->u.upd->txnid == txn->id);
+			WT_ASSERT(session, S2C(session)->las_fileid == 0 ||
+			    op->fileid != S2C(session)->las_fileid);
 			op->u.upd->txnid = WT_TXN_ABORTED;
 			break;
 		case WT_TXN_OP_REF:

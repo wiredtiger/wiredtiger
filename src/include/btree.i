@@ -462,7 +462,7 @@ __wt_cache_page_evict(WT_SESSION_IMPL *session, WT_PAGE *page, bool rewrite)
 	 * real progress.
 	 */
 	if (rewrite)
-		(void)__wt_atomic_subv64(&cache->pages_inmem, 1);
+		(void)__wt_atomic_sub64(&cache->pages_inmem, 1);
 	else
 		(void)__wt_atomic_addv64(&cache->pages_evict, 1);
 }
@@ -1165,6 +1165,24 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
+ * __wt_btree_can_evict_dirty --
+ *	Check whether eviction of dirty pages or splits are permitted in the
+ *	current tree.
+ *
+ *      We cannot evict dirty pages or split while a checkpoint is in progress,
+ *      unless the checkpoint thread is doing the work.
+ */
+static inline bool
+__wt_btree_can_evict_dirty(WT_SESSION_IMPL *session)
+{
+	WT_BTREE *btree;
+
+	btree = S2BT(session);
+	return (btree->checkpointing == WT_CKPT_OFF ||
+	    WT_SESSION_IS_CHECKPOINT(session));
+}
+
+/*
  * __wt_leaf_page_can_split --
  *	Check whether a page can be split in memory.
  */
@@ -1269,15 +1287,15 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
  *	Check whether a page can be evicted.
  */
 static inline bool
-__wt_page_can_evict(
-    WT_SESSION_IMPL *session, WT_REF *ref, uint32_t *evict_flagsp)
+__wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 {
-	WT_BTREE *btree;
 	WT_PAGE *page;
 	WT_PAGE_MODIFY *mod;
 	bool modified;
 
-	btree = S2BT(session);
+	if (inmem_splitp != NULL)
+		*inmem_splitp = false;
+
 	page = ref->page;
 	mod = page->modify;
 
@@ -1291,7 +1309,7 @@ __wt_page_can_evict(
 	 * parent frees the backing blocks for any no-longer-used overflow keys,
 	 * which will corrupt the checkpoint's block management.
 	 */
-	if (btree->checkpointing != WT_CKPT_OFF &&
+	if (!__wt_btree_can_evict_dirty(session) &&
 	    F_ISSET_ATOMIC(ref->home, WT_PAGE_OVERFLOW_KEYS))
 		return (false);
 
@@ -1302,8 +1320,8 @@ __wt_page_can_evict(
 	 * won't be written or discarded from the cache.
 	 */
 	if (__wt_leaf_page_can_split(session, page)) {
-		if (evict_flagsp != NULL)
-			FLD_SET(*evict_flagsp, WT_REC_INMEM_SPLIT);
+		if (inmem_splitp != NULL)
+			*inmem_splitp = true;
 		return (true);
 	}
 
@@ -1315,8 +1333,7 @@ __wt_page_can_evict(
 	 * previous version might be referenced by an internal page already
 	 * written in the checkpoint, leaving the checkpoint inconsistent.
 	 */
-	if (modified && btree->checkpointing != WT_CKPT_OFF &&
-	    !WT_SESSION_IS_CHECKPOINT(session)) {
+	if (modified && !__wt_btree_can_evict_dirty(session)) {
 		WT_STAT_CONN_INCR(session, cache_eviction_checkpoint);
 		WT_STAT_DATA_INCR(session, cache_eviction_checkpoint);
 		return (false);
@@ -1385,7 +1402,7 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	 * tree, then perform a general check if eviction will be possible.
 	 */
 	page = ref->page;
-	if (page->read_gen != WT_READGEN_OLDEST ||
+	if (!WT_READGEN_EVICT_SOON(page->read_gen) ||
 	    LF_ISSET(WT_READ_NO_EVICT) ||
 	    F_ISSET(session, WT_SESSION_NO_EVICTION) ||
 	    btree->evict_disabled > 0 ||

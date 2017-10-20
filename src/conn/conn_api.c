@@ -1084,6 +1084,13 @@ err:	/*
 			WT_TRET(wt_session->close(wt_session, config));
 		}
 
+	/*
+	 * Disable lookaside eviction: it doesn't help us shut down and can
+	 * lead to pages being marked dirty, causing spurious assertions to
+	 * fire.
+	 */
+	F_SET(conn, WT_CONN_EVICTION_NO_LOOKASIDE);
+
 	/* Shut down transactions (wait for in-flight operations to complete. */
 	WT_TRET(__wt_txn_global_shutdown(session));
 
@@ -2645,8 +2652,15 @@ err:	/* Discard the scratch buffers. */
 		__wt_scr_discard(session);
 	__wt_scr_discard(&conn->dummy_session);
 
-	if (ret != 0)
+	if (ret != 0) {
+		/*
+		 * Set panic if we're returning the run recovery error so that
+		 * we don't try to checkpoint data handles.
+		 */
+		if (ret == WT_RUN_RECOVERY)
+			F_SET(conn, WT_CONN_PANIC);
 		WT_TRET(__wt_connection_close(conn));
+	}
 
 	return (ret);
 }
