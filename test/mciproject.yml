@@ -96,6 +96,9 @@ tasks:
             set -o errexit
             set -o verbose
 
+            # Avoid /usr/bin/python, at least on macOS: with System Integrity
+            # Protection enabled, it ignores DYLD_LIBRARY_PATH and hence
+            # doesn't find the WiredTiger library in the local tree.
             ${test_env_vars|} ${python|/opt/mongodbtoolchain/v2/bin/python2} ./test/suite/run.py -v 2 ${smp_command|} 2>&1
 
   - name: compile-windows-alt
