@@ -191,7 +191,7 @@ static inline void
 __wt_cache_decr_check_uint64(
     WT_SESSION_IMPL *session, uint64_t *vp, size_t v, const char *fld)
 {
-	if (__wt_atomic_sub64(vp, v) > WT_EXABYTE)
+	if (__wt_atomic_sub64(vp, v) < WT_EXABYTE)
 		return;
 
 	/*
