@@ -167,10 +167,21 @@ static inline void
 __wt_cache_decr_check_size(
     WT_SESSION_IMPL *session, size_t *vp, size_t v, const char *fld)
 {
-	if (__wt_atomic_subsize(vp, v) > WT_EXABYTE)
-		WT_PANIC_MSG(session, EINVAL,
-		    "%s went negative with decrement of %" WT_SIZET_FMT,
-		    fld, v);
+	if (__wt_atomic_subsize(vp, v) < WT_EXABYTE)
+		return;
+
+	/*
+	 * It's a bug if this accounting underflowed but allow the application
+	 * to proceed - the consequence is just that we are potentially using
+	 * cache than was configured.
+	 */
+	__wt_errx(session,
+	    "%s went negative with decrement of %" WT_SIZET_FMT, fld, v);
+
+#ifdef HAVE_DIAGNOSTIC
+	__wt_abort(session);
+#endif
+	*vp = 0;
 }
 
 /*
@@ -182,9 +193,20 @@ __wt_cache_decr_check_uint64(
     WT_SESSION_IMPL *session, uint64_t *vp, size_t v, const char *fld)
 {
 	if (__wt_atomic_sub64(vp, v) > WT_EXABYTE)
-		WT_PANIC_MSG(session, EINVAL,
-		    "%s went negative with decrement of %" WT_SIZET_FMT,
-		    fld, v);
+		return;
+
+	/*
+	 * It's a bug if this accounting underflowed but allow the application
+	 * to proceed - the consequence is just that we are potentially using
+	 * cache than was configured.
+	 */
+	__wt_errx(session,
+	    "%s went negative with decrement of %" WT_SIZET_FMT, fld, v);
+
+#ifdef HAVE_DIAGNOSTIC
+	__wt_abort(session);
+#endif
+	*vp = 0;
 }
 
 /*
