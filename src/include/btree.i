@@ -454,14 +454,9 @@ __wt_cache_page_evict(WT_SESSION_IMPL *session, WT_PAGE *page, bool rewrite)
 		}
 	}
 
-	/* Update pages and bytes evicted. */
+	/* Update bytes and pages evicted. */
 	(void)__wt_atomic_add64(&cache->bytes_evict, page->memory_footprint);
-
-	/* Rewriting pages in memory is accounted for separately. */
-	if (!rewrite)
-		(void)__wt_atomic_sub64(&cache->pages_inmem, 1);
-	else
-		(void)__wt_atomic_addv64(&cache->pages_evicted, 1);
+	(void)__wt_atomic_addv64(&cache->pages_evicted, 1);
 
 	/*
 	 * Track if eviction makes progress.  This is used in various places to

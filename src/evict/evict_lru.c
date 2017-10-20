@@ -378,9 +378,11 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 
+	/* Assume there has been progress until we decide otherwise. */
+	*did_work = true;
+
 	conn = S2C(session);
 	cache = conn->cache;
-	*did_work = false;
 
 	/* Evict pages from the cache as needed. */
 	WT_RET(__evict_pass(session));
@@ -419,9 +421,11 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 		__wt_epoch(session, &cache->stuck_time);
 #endif
 		cache->last_eviction_progress = cache->eviction_progress;
-		*did_work = true;
 		return (0);
 	}
+
+	/* There has been no progress. */
+	*did_work = false;
 
 #if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
 	/*
@@ -2029,6 +2033,9 @@ __evict_get_ref(
 	uint32_t candidates;
 	bool is_app, server_only, urgent_ok;
 
+	*btreep = NULL;
+	*refp = NULL;
+
 	cache = S2C(session)->cache;
 	is_app = !F_ISSET(session, WT_SESSION_INTERNAL);
 	server_only = is_server && !WT_EVICT_HAS_WORKERS(session);
@@ -2036,8 +2043,6 @@ __evict_get_ref(
 	    !WT_EVICT_HAS_WORKERS(session) ||
 	    (is_app && __wt_cache_aggressive(session));
 	urgent_queue = cache->evict_urgent_queue;
-	*btreep = NULL;
-	*refp = NULL;
 
 	WT_STAT_CONN_INCR(session, cache_eviction_get_ref);
 
