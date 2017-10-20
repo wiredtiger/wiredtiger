@@ -26,12 +26,8 @@ __wt_las_stats_update(WT_SESSION_IMPL *session)
 	 * Lookaside table statistics are copied from the underlying lookaside
 	 * table data-source statistics. If there's no lookaside table, values
 	 * remain 0.
-	 *
-	 * The statistics server starts before we create the lookaside table,
-	 * confirm it's there before reading.
 	 */
-	if (!F_ISSET(conn, WT_CONN_LAS_CONFIGURED) ||
-	    conn->las_session == NULL || conn->las_session->las_cursor == NULL)
+	if (!F_ISSET(conn, WT_CONN_LOOKASIDE_CONFIGURED))
 		return;
 
 	/*
@@ -93,24 +89,19 @@ __wt_las_create(WT_SESSION_IMPL *session)
 	WT_RET(__wt_session_create(session, WT_LAS_URI, WT_LAS_FORMAT));
 
 	/*
-	 * Flag that the lookaside table has been created (before creating the
-	 * connection's lookaside table session, it checks before creating a
-	 * lookaside table cursor.
+	 * Open a shared internal session and cursor used for the lookaside
+	 * table. This session should never be tapped for eviction.
 	 */
-	F_SET(conn, WT_CONN_LAS_CONFIGURED);
-
-	/*
-	 * Open a shared internal session used to access the lookaside table.
-	 * This session should never be tapped for eviction.
-	 */
-	session_flags = WT_SESSION_LOOKASIDE_CURSOR | WT_SESSION_NO_EVICTION;
-	WT_ERR(__wt_open_internal_session(
+	session_flags = WT_SESSION_NO_EVICTION;
+	WT_RET(__wt_open_internal_session(
 	    conn, "lookaside table", true, session_flags, &conn->las_session));
+	WT_RET(__wt_las_cursor_open(conn->las_session));
+
+	/* The statistics server is already running, make sure we don't race. */
+	WT_WRITE_BARRIER();
+	F_SET(conn, WT_CONN_LOOKASIDE_CONFIGURED);
 
 	return (0);
-
-err:	F_CLR(conn, WT_CONN_LAS_CONFIGURED);
-	return (ret);
 }
 
 /*
@@ -126,6 +117,7 @@ __wt_las_destroy(WT_SESSION_IMPL *session)
 
 	conn = S2C(session);
 
+	F_CLR(conn, WT_CONN_LOOKASIDE_CONFIGURED);
 	if (conn->las_session == NULL)
 		return (0);
 
@@ -142,15 +134,16 @@ __wt_las_destroy(WT_SESSION_IMPL *session)
  *	Open a new lookaside table cursor.
  */
 int
-__wt_las_cursor_open(WT_SESSION_IMPL *session, WT_CURSOR **cursorp)
+__wt_las_cursor_open(WT_SESSION_IMPL *session)
 {
 	WT_BTREE *btree;
+	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	const char *open_cursor_cfg[] = {
 	    WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL };
 
 	WT_WITHOUT_DHANDLE(session, ret = __wt_open_cursor(
-	    session, WT_LAS_URI, NULL, open_cursor_cfg, cursorp));
+	    session, WT_LAS_URI, NULL, open_cursor_cfg, &cursor));
 	WT_RET(ret);
 
 	/*
@@ -158,7 +151,7 @@ __wt_las_cursor_open(WT_SESSION_IMPL *session, WT_CURSOR **cursorp)
 	 * we don't always switch the LAS handle in to the session before
 	 * entering this function.
 	 */
-	btree = ((WT_CURSOR_BTREE *)(*cursorp))->btree;
+	btree = ((WT_CURSOR_BTREE *)cursor)->btree;
 
 	/* Track the lookaside file ID. */
 	if (S2C(session)->las_fileid == 0)
@@ -179,6 +172,9 @@ __wt_las_cursor_open(WT_SESSION_IMPL *session, WT_CURSOR **cursorp)
 		F_SET(btree, WT_BTREE_NO_CHECKPOINT);
 	if (!F_ISSET(btree, WT_BTREE_NO_LOGGING))
 		F_SET(btree, WT_BTREE_NO_LOGGING);
+
+	session->las_cursor = cursor;
+	F_SET(session, WT_SESSION_LOOKASIDE_CURSOR);
 
 	return (0);
 }
