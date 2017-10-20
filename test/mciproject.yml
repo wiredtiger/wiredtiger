@@ -96,16 +96,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            # On 10.12, change the binary location with install_name_tool since DYLD_LIBRARY_PATH
-            # appears not to work for dynamic modules loaded by python. For wt, the libtool generated
-            # script has the wrong path for running on test machines.
-            if [ "$(uname -s)" == "Darwin" ]; then
-              WT_VERSION=$(m4 build_posix/aclocal/version.m4)
-              install_name_tool -change /usr/local/lib/libwiredtiger-$WT_VERSION.dylib $(pwd)/.libs/libwiredtiger-$WT_VERSION.dylib lang/python/_wiredtiger.so
-              install_name_tool -change /usr/local/lib/libwiredtiger-$WT_VERSION.dylib $(pwd)/.libs/libwiredtiger-$WT_VERSION.dylib .libs/wt
-            fi
-
-            ${test_env_vars|} python ./test/suite/run.py -v 2 ${smp_command|} 2>&1
+            ${test_env_vars|} ${python|/opt/mongodbtoolchain/v2/bin/python2} ./test/suite/run.py -v 2 ${smp_command|} 2>&1
 
   - name: compile-windows-alt
     depends_on:
