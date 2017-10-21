@@ -277,7 +277,7 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
 	WT_STAT_CONN_SET(session,
 	    cache_eviction_active_workers, conn->evict_threads.current_threads);
 	WT_STAT_CONN_SET(session,
-	    cache_eviction_stable_state_workers, conn->evict_tune_workers_best);
+	    cache_eviction_stable_state_workers, cache->evict_tune_workers_best);
 
 	/*
 	 * The number of files with active walks ~= number of hazard pointers
@@ -308,11 +308,11 @@ __wt_cache_destroy(WT_SESSION_IMPL *session)
 		return (0);
 
 	/* The cache should be empty at this point.  Complain if not. */
-	if (cache->pages_inmem != cache->pages_evict)
+	if (cache->pages_inmem != cache->pages_evicted)
 		__wt_errx(session,
 		    "cache server: exiting with %" PRIu64 " pages in "
 		    "memory and %" PRIu64 " pages evicted",
-		    cache->pages_inmem, cache->pages_evict);
+		    cache->pages_inmem, cache->pages_evicted);
 	if (cache->bytes_image != 0)
 		__wt_errx(session,
 		    "cache server: exiting with %" PRIu64 " image bytes in "
