@@ -447,13 +447,11 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 	WT_BTREE *btree;
 	WT_DECL_RET;
 	WT_PAGE *page;
-	WT_TXN *txn;
 	uint64_t sleep_cnt, wait_cnt;
 	int force_attempts;
 	bool busy, cache_work, did_read, stalled, wont_need;
 
 	btree = S2BT(session);
-	txn = &session->txn;
 
 	/*
 	 * Ignore reads of pages already known to be in cache, otherwise the
@@ -480,6 +478,9 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 					return (WT_NOTFOUND);
 
 #if 0
+				{
+				WT_TXN *txn = &session->txn;
+
 				/* !!! XXX disable skips for now. */
 				if (!F_ISSET(txn, WT_TXN_HAS_TS_READ) &&
 				    F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) &&
@@ -499,6 +500,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 				    &session->txn.read_timestamp) > 0)
 					return (WT_NOTFOUND);
 #endif
+				}
 #endif
 			}
 
