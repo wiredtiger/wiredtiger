@@ -479,6 +479,8 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 				    !LF_ISSET(WT_READ_LOOKASIDE))
 					return (WT_NOTFOUND);
 
+#if 0
+				/* !!! XXX disable skips for now. */
 				if (!F_ISSET(txn, WT_TXN_HAS_TS_READ) &&
 				    F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) &&
 				    WT_TXNID_LT(ref->page_las->las_max_txn,
@@ -496,6 +498,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 				    &ref->page_las->min_timestamp,
 				    &session->txn.read_timestamp) > 0)
 					return (WT_NOTFOUND);
+#endif
 #endif
 			}
 

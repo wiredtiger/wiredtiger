@@ -1447,12 +1447,14 @@ check_original_value:
 	/*
 	 * Returning an update means the original on-page value might be lost,
 	 * and that's a problem if there's a reader that needs it. There are
-	 * two cases: any lookaside table eviction (because the backing disk
-	 * image is rewritten), or any reconciliation of a backing overflow
-	 * record that will be physically removed once it's no longer needed.
+	 * three cases: any update from a modify operation (because the modify
+	 * has to be applied to a stable update, not the new on-page update),
+	 * any lookaside table eviction (because the backing disk image is
+	 * rewritten), or any reconciliation of a backing overflow record that
+	 * will be physically removed once it's no longer needed.
 	 */
-	if (*updp != NULL && (F_ISSET(r, WT_REC_LOOKASIDE) ||
-	    (vpack != NULL &&
+	if (*updp != NULL && ((*updp)->type == WT_UPDATE_MODIFIED ||
+	    F_ISSET(r, WT_REC_LOOKASIDE) || (vpack != NULL &&
 	    vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)))
 		WT_RET(
 		    __rec_append_orig_value(session, page, first_upd, vpack));
