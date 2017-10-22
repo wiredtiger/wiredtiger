@@ -276,8 +276,8 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
 
 	WT_STAT_CONN_SET(session,
 	    cache_eviction_active_workers, conn->evict_threads.current_threads);
-	WT_STAT_CONN_SET(session,
-	    cache_eviction_stable_state_workers, cache->evict_tune_workers_best);
+	WT_STAT_CONN_SET(session, cache_eviction_stable_state_workers,
+	    cache->evict_tune_workers_best);
 
 	/*
 	 * The number of files with active walks ~= number of hazard pointers
