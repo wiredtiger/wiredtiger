@@ -506,23 +506,52 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_checkpoint_progress --
+ * 	Output a checkpoint progress message.
+ */
+void
+__wt_checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
+{
+	struct timespec cur_time;
+	WT_CONNECTION_IMPL *conn;
+	uint64_t time_diff;
+
+	conn = S2C(session);
+	__wt_epoch(session, &cur_time);
+
+	/* Time since the full database checkpoint started */
+	time_diff = WT_TIMEDIFF_SEC(cur_time,
+	    conn->ckpt_timer_start);
+
+	if (closing || (time_diff / 20) > conn->ckpt_progress_msg_count) {
+		__wt_verbose(session, WT_VERB_CHECKPOINT_PROGRESS,
+		    "Checkpoint %s for %" PRIu64
+		    " seconds and wrote: %" PRIu64 " pages (%" PRIu64 "B)",
+		    closing ? "ran" : "has been running",
+		    time_diff, conn->ckpt_write_pages, conn->ckpt_write_bytes);
+		conn->ckpt_progress_msg_count++;
+	}
+}
+
+/*
  * __checkpoint_stats --
  *	Update checkpoint timer stats.
  */
 static void
-__checkpoint_stats(
-    WT_SESSION_IMPL *session)
+__checkpoint_stats(WT_SESSION_IMPL *session)
 {
+	struct timespec stop;
 	WT_CONNECTION_IMPL *conn;
 	uint64_t msec;
 
 	conn = S2C(session);
 
-	/*
-	 * Get time diff in microseconds.
-	 */
-	msec = WT_TIMEDIFF_MS(conn->ckpt_stop_time,
-	    conn->ckpt_start_time_after_scrub);
+	/* Output a verbose progress message for long running checkpoints */
+	if (conn->ckpt_progress_msg_count > 0)
+		__wt_checkpoint_progress(session, true);
+
+	__wt_epoch(session, &stop);
+	msec = WT_TIMEDIFF_MS(stop, conn->ckpt_timer_scrub_end);
 
 	if (msec > conn->ckpt_time_max)
 		conn->ckpt_time_max = msec;
@@ -553,7 +582,7 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session, const char *msg)
 	/*
 	 * Get time diff in microseconds.
 	 */
-	msec = WT_TIMEDIFF_MS(stop, conn->ckpt_verb_start_time_before_scrub);
+	msec = WT_TIMEDIFF_MS(stop, conn->ckpt_timer_start);
 	__wt_verbose(session,
 	    WT_VERB_CHECKPOINT, "time: %" PRIu64 " us, gen: %" PRIu64
 	    ": Full database checkpoint %s",
@@ -743,14 +772,12 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	conn->cache->evict_max_page_size = 0;
 
 	/* Initialize the verbose tracking timer */
-	__wt_epoch(session, &conn->ckpt_verb_start_time_before_scrub);
+	__wt_epoch(session, &conn->ckpt_timer_start);
 
 	/* Initialize the checkpoint progress tracking data */
-	conn->ckpt_int_bytes = 0;
-	conn->ckpt_int_pages = 0;
-	conn->ckpt_leaf_bytes = 0;
-	conn->ckpt_leaf_pages = 0;
 	conn->ckpt_progress_msg_count = 0;
+	conn->ckpt_write_bytes = 0;
+	conn->ckpt_write_pages = 0;
 
 	/*
 	 * Update the global oldest ID so we do all possible cleanup.
@@ -778,7 +805,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	__checkpoint_verbose_track(session, "starting transaction");
 
 	if (full)
-		__wt_epoch(session, &conn->ckpt_start_time_after_scrub);
+		__wt_epoch(session, &conn->ckpt_timer_scrub_end);
 
 	/*
 	 * Start the checkpoint for real.
@@ -914,12 +941,10 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	txn_global->checkpoint_state.pinned_id = WT_TXN_NONE;
 
-	if (full) {
-		__wt_epoch(session, &conn->ckpt_stop_time);
+	if (full)
 		__checkpoint_stats(session);
-	}
 
-err:	conn->ckpt_verb_start_time_before_scrub.tv_sec = 0;
+err:	conn->ckpt_timer_start.tv_sec = 0;
 	/*
 	 * XXX
 	 * Rolling back the changes here is problematic.

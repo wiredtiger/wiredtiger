@@ -137,57 +137,6 @@ err:	WT_TRET(__wt_page_release(session, next, flags));
 }
 
 /*
- * __sync_checkpoint_progress --
- * 	Output a checkpoint progress message.
- */
-static void
- __sync_checkpoint_progress(WT_SESSION_IMPL *session)
-{
-	struct timespec cur_time;
-	WT_CONNECTION_IMPL *conn;
-	uint64_t time_diff;
-
-	conn = S2C(session);
-	__wt_epoch(session, &cur_time);
-
-	/* Time since the full database checkpoint started */
-	time_diff = WT_TIMEDIFF_SEC(cur_time,
-	    conn->ckpt_verb_start_time_before_scrub);
-
-	if ((time_diff / 20) > conn->ckpt_progress_msg_count) {
-		__wt_verbose(session, WT_VERB_CHECKPOINT_PROGRESS, "Checkpoint"
-		    " has been running and wrote : %" PRIu64 " leaf_pages (%"
-		    PRIu64 "B), %" PRIu64 " internal pages (%" PRIu64 "B) in %"
-		    PRIu64 " secs", conn->ckpt_leaf_pages,
-		    conn->ckpt_leaf_bytes, conn->ckpt_int_pages,
-		    conn->ckpt_int_bytes, time_diff);
-		conn->ckpt_progress_msg_count++;
-	}
-}
-
-/*
- * __sync_checkpoint_update_internal --
- * 	Update internal page checkpoint data.
- */
-static inline void
-__sync_checkpoint_update_internal(WT_CONNECTION_IMPL *conn, uint64_t page_bytes)
-{
-	conn->ckpt_int_bytes += page_bytes;
-	++conn->ckpt_int_pages;
-}
-
-/*
- * __sync_checkpoint_update_leaf --
- * 	Update leaf page checkpoint data.
- */
-static inline void
-__sync_checkpoint_update_leaf(WT_CONNECTION_IMPL *conn, uint64_t page_bytes)
-{
-	conn->ckpt_leaf_bytes += page_bytes;
-	++conn->ckpt_leaf_pages;
-}
-
-/*
  * __sync_file --
  *	Flush pages for a specific file.
  */
@@ -353,29 +302,22 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 			}
 
 			/*
-			 * We reach here only if this is a checkpoint
-			 * operation. Determine if checkpoint progress should
-			 * be tracked by checking the verbosity timer.
+			 * Update checkpoint IO tracking data if configured
+			 * to log verbose progress messages.
 			 */
-			track_ckpt_progress =
-			    conn->ckpt_verb_start_time_before_scrub.tv_sec > 0;
+			 if (conn->ckpt_timer_start.tv_sec > 0) {
+				conn->ckpt_write_bytes +=
+				    page->memory_footprint;
+				++conn->ckpt_write_pages;
+			}
 
 			if (WT_PAGE_IS_INTERNAL(page)) {
 				internal_bytes += page->memory_footprint;
 				++internal_pages;
 
-				/* Update the checkpoint progress data */
-				if (track_ckpt_progress)
-					__sync_checkpoint_update_internal(
-					    conn, page->memory_footprint);
 			} else {
 				leaf_bytes += page->memory_footprint;
 				++leaf_pages;
-
-				/* Update the checkpoint progress data */
-				if (track_ckpt_progress)
-					__sync_checkpoint_update_leaf(
-					    conn, page->memory_footprint);
 			}
 
 			/*
@@ -413,7 +355,7 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
 			/* Periodically track checkpoint progress. */
 			if (track_ckpt_progress && (++i > 5 * WT_THOUSAND)) {
-				__sync_checkpoint_progress(session);
+				__wt_checkpoint_progress(session, false);
 				i = 0;
 			}
 		}
