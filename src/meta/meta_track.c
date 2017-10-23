@@ -241,6 +241,8 @@ __wt_meta_track_off(WT_SESSION_IMPL *session, bool need_sync, bool unroll)
 	WT_SESSION_IMPL *ckpt_session;
 	int saved_ret;
 
+	saved_ret = 0;
+
 	WT_ASSERT(session,
 	    WT_META_TRACKING(session) && session->meta_track_nest > 0);
 
