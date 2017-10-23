@@ -245,9 +245,14 @@ __wt_lsm_tree_set_chunk_size(
 	wt_off_t size;
 	const char *filename;
 
+	size = 0;
 	if (lsm_tree->custom_generation != 0 &&
 	    chunk->generation >= lsm_tree->custom_generation) {
 		dsrc = __wt_schema_get_source(session, chunk->uri);
+		/*
+		 * We can only retrieve a size if the data source exposes the
+		 * information.
+		 */
 		if (dsrc != NULL && dsrc->size != NULL) {
 			/* Call the callback. */
 			WT_RET(dsrc->size(
@@ -280,6 +285,7 @@ __lsm_tree_cleanup_old(WT_SESSION_IMPL *session, const char *uri)
 	    { WT_CONFIG_BASE(session, WT_SESSION_drop), "force", NULL };
 	bool exists, is_file;
 
+	exists = false;
 	is_file = WT_PREFIX_MATCH(uri, "file:");
 	if (is_file)
 		WT_RET(__wt_fs_exist(session, uri + strlen("file:"), &exists));
