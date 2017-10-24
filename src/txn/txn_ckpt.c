@@ -569,8 +569,8 @@ static void
 __checkpoint_verbose_track(WT_SESSION_IMPL *session, const char *msg)
 {
 #ifdef HAVE_VERBOSE
-	WT_CONNECTION_IMPL *conn;
 	struct timespec stop;
+  WT_CONNECTION_IMPL *conn;
 	uint64_t msec;
 
 	if (!WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT))
@@ -582,7 +582,7 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session, const char *msg)
 	/* Get time diff in microseconds. */
 	msec = WT_TIMEDIFF_MS(stop, conn->ckpt_timer_start);
 	__wt_verbose(session,
-	    WT_VERB_CHECKPOINT, "time: %" PRIu64 " us, gen: %" PRIu64
+	    WT_VERB_CHECKPOINT, "time: %" PRIu64 " ms, gen: %" PRIu64
 	    ": Full database checkpoint %s",
 	    msec, __wt_gen(session, WT_GEN_CHECKPOINT), msg);
 

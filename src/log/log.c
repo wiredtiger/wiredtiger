@@ -345,14 +345,15 @@ __wt_log_needs_recovery(WT_SESSION_IMPL *session, WT_LSN *ckp_lsn, bool *recp)
 	uint64_t dummy_txnid;
 	uint32_t dummy_fileid, dummy_optype, rectype;
 
-	conn = S2C(session);
-	log = conn->log;
-
 	/*
 	 * Default is to run recovery always (regardless of whether this
 	 * connection has logging enabled).
 	 */
 	*recp = true;
+
+	conn = S2C(session);
+	log = conn->log;
+
 	if (log == NULL)
 		return (0);
 
@@ -430,11 +431,11 @@ __wt_log_get_all_files(WT_SESSION_IMPL *session,
 
 	*filesp = NULL;
 	*countp = 0;
+	*maxid = 0;
 
 	id = 0;
 	log = S2C(session)->log;
 
-	*maxid = 0;
 	/*
 	 * These may be files needed by backup.  Force the current slot
 	 * to get written to the file.
@@ -1659,10 +1660,11 @@ __log_has_hole(WT_SESSION_IMPL *session,
 	size_t bufsz, rdlen;
 	char *buf, *zerobuf;
 
+	*hole = false;
+
 	conn = S2C(session);
 	log = conn->log;
 	remainder = log_size - offset;
-	*hole = false;
 
 	/*
 	 * It can be very slow looking for the last real record in the log
@@ -2577,11 +2579,13 @@ __wt_log_vprintf(WT_SESSION_IMPL *session, const char *fmt, va_list ap)
 	WT_DECL_ITEM(logrec);
 	WT_DECL_RET;
 	size_t header_size, len;
-	uint32_t rectype = WT_LOGREC_MESSAGE;
-	const char *rec_fmt = WT_UNCHECKED_STRING(I);
+	uint32_t rectype;
+	const char *rec_fmt;
 	va_list ap_copy;
 
 	conn = S2C(session);
+	rectype = WT_LOGREC_MESSAGE;
+	rec_fmt = WT_UNCHECKED_STRING(I);
 
 	if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
 		return (0);
