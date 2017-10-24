@@ -579,7 +579,7 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session, const char *msg)
 	conn = S2C(session);
 	__wt_epoch(session, &stop);
 
-	/* Get time diff in microseconds. */
+	/* Get time diff in milliseconds. */
 	msec = WT_TIMEDIFF_MS(stop, conn->ckpt_timer_start);
 	__wt_verbose(session,
 	    WT_VERB_CHECKPOINT, "time: %" PRIu64 " ms, gen: %" PRIu64
