@@ -137,6 +137,25 @@ __lsm_merge_aggressive_update(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 }
 
 /*
+ * __lsm_merge_clear --
+ *	Clear merge flag on chunks that was set during __lsm_merge_span.
+ */
+static void
+__lsm_merge_clear(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree,
+    u_int start, u_int nchunks)
+{
+    WT_LSM_CHUNK *chunk;
+    u_int i;
+
+    for (i = 0; i < nchunks; i++) {
+        chunk = lsm_tree->chunk[start + i];
+        WT_ASSERT(session,
+            F_ISSET(chunk, WT_LSM_CHUNK_MERGING));
+        F_CLR(chunk, WT_LSM_CHUNK_MERGING);
+    }
+}
+
+/*
  * __lsm_merge_span --
  *	Figure out the best span of chunks to merge. Return an error if
  *	there is no need to do any merges.  Called with the LSM tree
@@ -239,7 +258,7 @@ retry_find:
 		 * in too high a generation, stop.
 		 */
 		if (nchunks >= merge_min &&
-			chunk->generation - youngest_gen > max_gap)
+            chunk->generation > youngest_gen + max_gap)
 			break;
 
 		/*
@@ -266,6 +285,7 @@ retry_find:
 		F_SET(chunk, WT_LSM_CHUNK_MERGING);
 		record_count += chunk->count;
 		--start_chunk;
+		++nchunks;
 
 		/*
 		 * If the merge would be too big, or we have a full window
@@ -276,10 +296,12 @@ retry_find:
 		    (nchunks == merge_max && start_chunk > 0 &&
 		     chunk->generation ==
 		     lsm_tree->chunk[start_chunk - 1]->generation)) {
-			WT_ASSERT(session,
-			    F_ISSET(youngest, WT_LSM_CHUNK_MERGING));
-			F_CLR(youngest, WT_LSM_CHUNK_MERGING);
-			/* try again with smaller range */
+			/*
+			 * Try again with smaller range. Unfortunately all the
+			 * intermediate state will be reset. Since there's no easy
+			 * way to restore youngest_gen and oldest_gen.
+			 */
+            __lsm_merge_clear(session, lsm_tree, start_chunk, nchunks);
 			--end_chunk;
 			goto retry_find;
 		} else if (nchunks == merge_max)
@@ -304,12 +326,7 @@ retry_find:
 	 * Don't do merges that are too small or across too many generations.
 	 */
 	if (nchunks < merge_min || oldest_gen - youngest_gen > max_gap) {
-		for (i = 0; i < nchunks; i++) {
-			chunk = lsm_tree->chunk[start_chunk + i];
-			WT_ASSERT(session,
-			    F_ISSET(chunk, WT_LSM_CHUNK_MERGING));
-			F_CLR(chunk, WT_LSM_CHUNK_MERGING);
-		}
+        __lsm_merge_clear(session, lsm_tree, start_chunk, nchunks);
 		/*
 		 * If we didn't find a merge with appropriate gaps, try again
 		 * with a smaller range.
