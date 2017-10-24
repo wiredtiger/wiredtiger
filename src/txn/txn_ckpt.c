@@ -526,7 +526,7 @@ __wt_checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
 	if (closing || (time_diff / 20) > conn->ckpt_progress_msg_count) {
 		__wt_verbose(session, WT_VERB_CHECKPOINT_PROGRESS,
 		    "Checkpoint %s for %" PRIu64
-		    " seconds and wrote: %" PRIu64 " pages (%" PRIu64 "B)",
+		    " seconds and wrote: %" PRIu64 " pages (%" PRIu64 " B)",
 		    closing ? "ran" : "has been running",
 		    time_diff, conn->ckpt_write_pages, conn->ckpt_write_bytes);
 		conn->ckpt_progress_msg_count++;
@@ -579,9 +579,7 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session, const char *msg)
 	conn = S2C(session);
 	__wt_epoch(session, &stop);
 
-	/*
-	 * Get time diff in microseconds.
-	 */
+	/* Get time diff in microseconds. */
 	msec = WT_TIMEDIFF_MS(stop, conn->ckpt_timer_start);
 	__wt_verbose(session,
 	    WT_VERB_CHECKPOINT, "time: %" PRIu64 " us, gen: %" PRIu64
@@ -944,7 +942,12 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	if (full)
 		__checkpoint_stats(session);
 
-err:	conn->ckpt_timer_start.tv_sec = 0;
+err:	/*
+	 * Reset the timer so that next checkpoint tracks the progress only if
+	 * configured.
+	 */
+	conn->ckpt_timer_start.tv_sec = 0;
+
 	/*
 	 * XXX
 	 * Rolling back the changes here is problematic.

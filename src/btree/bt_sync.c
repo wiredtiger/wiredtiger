@@ -152,17 +152,16 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 	WT_TXN *txn;
 	uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
 	uint64_t oldest_id, saved_pinned_id;
-	uint32_t flags, i;
-	bool evict_failed, skip_walk, timer, track_ckpt_progress;
+	uint32_t flags;
+	bool evict_failed, skip_walk, timer;
 
 	conn = S2C(session);
 	btree = S2BT(session);
 	prev = walk = NULL;
 	txn = &session->txn;
-	evict_failed = skip_walk = track_ckpt_progress = false;
+	evict_failed = skip_walk = false;
 
 	flags = WT_READ_CACHE | WT_READ_NO_GEN;
-	i = 0;
 	internal_bytes = leaf_bytes = 0;
 	internal_pages = leaf_pages = 0;
 	saved_pinned_id = WT_SESSION_TXN_STATE(session)->pinned_id;
@@ -301,20 +300,9 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 				continue;
 			}
 
-			/*
-			 * Update checkpoint IO tracking data if configured
-			 * to log verbose progress messages.
-			 */
-			 if (conn->ckpt_timer_start.tv_sec > 0) {
-				conn->ckpt_write_bytes +=
-				    page->memory_footprint;
-				++conn->ckpt_write_pages;
-			}
-
 			if (WT_PAGE_IS_INTERNAL(page)) {
 				internal_bytes += page->memory_footprint;
 				++internal_pages;
-
 			} else {
 				leaf_bytes += page->memory_footprint;
 				++leaf_pages;
@@ -353,10 +341,19 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 			WT_ERR(__wt_reconcile(
 			    session, walk, NULL, WT_REC_CHECKPOINT, NULL));
 
-			/* Periodically track checkpoint progress. */
-			if (track_ckpt_progress && (++i > 5 * WT_THOUSAND)) {
-				__wt_checkpoint_progress(session, false);
-				i = 0;
+			/*
+			 * Update checkpoint IO tracking data if configured
+			 * to log verbose progress messages.
+			 */
+			if (conn->ckpt_timer_start.tv_sec > 0) {
+				conn->ckpt_write_bytes +=
+				    page->memory_footprint;
+				++conn->ckpt_write_pages;
+
+				/* Periodically log checkpoint progress. */
+				if (conn->ckpt_write_pages % 5000 == 0)
+					__wt_checkpoint_progress(
+					    session, false);
 			}
 		}
 		break;
