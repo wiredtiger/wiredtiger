@@ -570,7 +570,7 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session, const char *msg)
 {
 #ifdef HAVE_VERBOSE
 	struct timespec stop;
-  WT_CONNECTION_IMPL *conn;
+	WT_CONNECTION_IMPL *conn;
 	uint64_t msec;
 
 	if (!WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT))
