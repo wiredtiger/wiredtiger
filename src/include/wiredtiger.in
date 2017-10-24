@@ -2139,7 +2139,7 @@ struct __wt_connection {
 	 * which operation tracking files are written.  The directory must
 	 * already exist.  If the value is not an absolute path\, the path is
 	 * relative to the database home (see @ref absolute_path for more
-	 * information)., a string; default \c "./operation_tracking".}
+	 * information)., a string; default \c "operation_tracking".}
 	 * @config{
 	 * ),,}
 	 * @config{shared_cache = (, shared cache configuration options.  A
@@ -2765,7 +2765,7 @@ struct __wt_connection {
  * operation tracking files are written.  The directory must already exist.  If
  * the value is not an absolute path\, the path is relative to the database home
  * (see @ref absolute_path for more information)., a string; default \c
- * "./operation_tracking".}
+ * "operation_tracking".}
  * @config{ ),,}
  * @config{readonly, open connection in read-only mode.  The database must
  * exist.  All methods that may modify a database are disabled.  See @ref
