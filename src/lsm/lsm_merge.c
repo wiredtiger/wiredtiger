@@ -168,7 +168,7 @@ __lsm_merge_span(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree,
 	WT_LSM_CHUNK *chunk, *youngest;
 	uint64_t chunk_size, record_count;
 	uint32_t aggressive, max_gap, max_level;
-	u_int end_chunk, i, merge_max, merge_min, nchunks, start_chunk;
+	u_int end_chunk, merge_max, merge_min, nchunks, start_chunk;
 	u_int oldest_gen, youngest_gen;
 
 	/* Clear the return parameters */
@@ -258,7 +258,7 @@ retry_find:
 		 * in too high a generation, stop.
 		 */
 		if (nchunks >= merge_min &&
-            chunk->generation > youngest_gen + max_gap)
+                   chunk->generation > youngest_gen + max_gap)
 			break;
 
 		/*
@@ -301,7 +301,7 @@ retry_find:
 			 * intermediate state will be reset. Since there's no easy
 			 * way to restore youngest_gen and oldest_gen.
 			 */
-            __lsm_merge_clear(session, lsm_tree, start_chunk, nchunks);
+			__lsm_merge_clear(session, lsm_tree, start_chunk, nchunks);
 			--end_chunk;
 			goto retry_find;
 		} else if (nchunks == merge_max)
@@ -326,7 +326,7 @@ retry_find:
 	 * Don't do merges that are too small or across too many generations.
 	 */
 	if (nchunks < merge_min || oldest_gen - youngest_gen > max_gap) {
-        __lsm_merge_clear(session, lsm_tree, start_chunk, nchunks);
+		__lsm_merge_clear(session, lsm_tree, start_chunk, nchunks);
 		/*
 		 * If we didn't find a merge with appropriate gaps, try again
 		 * with a smaller range.
