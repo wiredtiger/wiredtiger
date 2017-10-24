@@ -869,9 +869,9 @@ __wt_txn_init(WT_SESSION_IMPL *session, WT_SESSION_IMPL *session_ret)
 void
 __wt_txn_stats_update(WT_SESSION_IMPL *session)
 {
-	WT_TXN_GLOBAL *txn_global;
 	WT_CONNECTION_IMPL *conn;
 	WT_CONNECTION_STATS **stats;
+	WT_TXN_GLOBAL *txn_global;
 	uint64_t checkpoint_pinned, snapshot_pinned;
 
 	conn = S2C(session);
@@ -899,6 +899,10 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
 	    session, stats, txn_checkpoint_time_recent, conn->ckpt_time_recent);
 	WT_STAT_SET(
 	    session, stats, txn_checkpoint_time_total, conn->ckpt_time_total);
+	WT_STAT_SET(session,
+	    stats, txn_commit_queue_len, txn_global->commit_timestampq_len);
+	WT_STAT_SET(session,
+	    stats, txn_read_queue_len, txn_global->read_timestampq_len);
 }
 
 /*
