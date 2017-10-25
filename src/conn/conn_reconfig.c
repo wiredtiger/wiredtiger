@@ -105,7 +105,7 @@ __wt_conn_optrack_setup(WT_SESSION_IMPL *session,
 	 */
 	WT_RET(__wt_scr_alloc(session, 0, &buf));
 	WT_RET(__wt_filename_construct(session, conn->optrack_path,
-	    "optrack-map", conn->optrack_pid, 0, buf));
+	    "optrack-map", conn->optrack_pid, UINT32_MAX, buf));
 	WT_RET(__wt_open(session,
 	    (const char *)buf->data, WT_FS_OPEN_FILE_TYPE_REGULAR,
 	    WT_FS_OPEN_CREATE, &conn->optrack_map_fh));
