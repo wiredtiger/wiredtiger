@@ -378,9 +378,16 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	 * Otherwise we would need to keep updates in memory that go back older
 	 * than the version in the disk image, and since modify operations
 	 * aren't idempotent, that is problematic.
+	 *
+	 * If we try to do eviction using transaction visibility, we had better
+	 * have a snapshot.  This doesn't apply to reconciliation: there are
+	 * (rare) cases where we write data at read-uncommitted isolation.
 	 */
 	WT_ASSERT(session, !LF_ISSET(WT_REC_UPDATE_RESTORE) ||
 	    LF_ISSET(WT_REC_VISIBLE_ALL));
+	WT_ASSERT(session, !LF_ISSET(WT_REC_EVICT) ||
+	    LF_ISSET(WT_REC_VISIBLE_ALL) ||
+	    F_ISSET(&session->txn, WT_TXN_HAS_SNAPSHOT));
 
 	/* We shouldn't get called with a clean page, that's an error. */
 	WT_ASSERT(session, __wt_page_is_modified(page));
@@ -1268,9 +1275,10 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 * concurrent transaction commits or rolls back while we are
 		 * examining its updates.
 		 */
-		if (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
+		if (F_ISSET(r, WT_REC_EVICT) &&
+		    (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 		    WT_TXNID_LE(r->last_running, txnid) :
-		    !__txn_visible_id(session, txnid)) {
+		    !__txn_visible_id(session, txnid))) {
 			uncommitted = r->update_uncommitted = true;
 			continue;
 		}
