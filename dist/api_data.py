@@ -501,10 +501,10 @@ connection_runtime_config = [
         enable tracking of performance-critical functions. See
         @ref operation_tracking for more information''',
         type='category', subconfig=[
-            Config('enabled', 'false', r'''
+            Config('enabled', 'true', r'''
                 enable operation tracking subsystem''',
                 type='boolean'),
-            Config('path', '"operation_tracking"', r'''
+            Config('path', '"."', r'''
                 the name of a directory into which operation tracking files are
                 written. The directory must already exist. If the value is not
                 an absolute path, the path is relative to the database home
