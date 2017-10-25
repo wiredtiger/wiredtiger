@@ -186,6 +186,34 @@ __wt_txn_parse_timestamp(WT_SESSION_IMPL *session,
 }
 
 /*
+ * __wt_txn_all_committed --
+ *	Calculate the largest timestamp such that all previous timestamps are
+ *	known to be committed.
+ */
+void
+__wt_txn_all_committed(WT_SESSION_IMPL *session, wt_timestamp_t *tsp)
+{
+	WT_TXN *txn;
+	WT_TXN_GLOBAL *txn_global;
+
+	txn_global = &S2C(session)->txn_global;
+
+	WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
+	    __wt_timestamp_set(tsp, &txn_global->commit_timestamp));
+	WT_ASSERT(session, !__wt_timestamp_iszero(tsp));
+
+	/* Compare with the oldest running transaction. */
+	__wt_readlock(session, &txn_global->commit_timestamp_rwlock);
+	txn = TAILQ_FIRST(&txn_global->commit_timestamph);
+	if (txn != NULL &&
+	    __wt_timestamp_cmp(&txn->first_commit_timestamp, tsp) < 0) {
+		__wt_timestamp_set(tsp, &txn->first_commit_timestamp);
+		WT_ASSERT(session, !__wt_timestamp_iszero(tsp));
+	}
+	__wt_readunlock(session, &txn_global->commit_timestamp_rwlock);
+}
+
+/*
  * __txn_global_query_timestamp --
  *	Query a timestamp.
  */
@@ -206,19 +234,7 @@ __txn_global_query_timestamp(
 	if (WT_STRING_MATCH("all_committed", cval.str, cval.len)) {
 		if (!txn_global->has_commit_timestamp)
 			return (WT_NOTFOUND);
-		WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
-		    __wt_timestamp_set(&ts, &txn_global->commit_timestamp));
-		WT_ASSERT(session, !__wt_timestamp_iszero(&ts));
-
-		/* Compare with the oldest running transaction. */
-		__wt_readlock(session, &txn_global->commit_timestamp_rwlock);
-		txn = TAILQ_FIRST(&txn_global->commit_timestamph);
-		if (txn != NULL &&
-		    __wt_timestamp_cmp(&txn->first_commit_timestamp, &ts) < 0) {
-			__wt_timestamp_set(&ts, &txn->first_commit_timestamp);
-			WT_ASSERT(session, !__wt_timestamp_iszero(&ts));
-		}
-		__wt_readunlock(session, &txn_global->commit_timestamp_rwlock);
+		__wt_txn_all_committed(session, &ts);
 	} else if (WT_STRING_MATCH("oldest", cval.str, cval.len)) {
 		if (!txn_global->has_oldest_timestamp)
 			return (WT_NOTFOUND);
@@ -441,6 +457,20 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		txn_global->has_commit_timestamp = true;
 		__wt_verbose_timestamp(session, &commit_ts,
 		    "Updated global commit timestamp");
+
+		if (session->event_handler->handle_commit_visibility != NULL) {
+			WT_DECL_RET;
+			wt_timestamp_t ts;
+			char hex_timestamp[2 * WT_TIMESTAMP_SIZE + 1];
+
+			__wt_txn_all_committed(session, &ts);
+			ret = __wt_timestamp_to_hex_string(
+			    session, hex_timestamp, &ts);
+			WT_ASSERT(session, ret == 0);
+			WT_UNUSED(ret);
+			session->event_handler->handle_commit_visibility(
+			    session->event_handler, hex_timestamp);
+		}
 	}
 
 	if (has_oldest && (!txn_global->has_oldest_timestamp ||
@@ -622,6 +652,7 @@ __wt_txn_clear_commit_timestamp(WT_SESSION_IMPL *session)
 {
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
+	bool notify;
 
 	txn = &session->txn;
 	txn_global = &S2C(session)->txn_global;
@@ -630,10 +661,31 @@ __wt_txn_clear_commit_timestamp(WT_SESSION_IMPL *session)
 		return;
 
 	__wt_writelock(session, &txn_global->commit_timestamp_rwlock);
+	/*
+	 * If we are clearing the first entry in the list, the "all_committed"
+	 * query now return a new value.  Notify the application if a callback
+	 * is set.
+	 */
+	notify = session->event_handler->handle_commit_visibility != NULL &&
+	    TAILQ_FIRST(&txn_global->commit_timestamph) == txn;
+
 	TAILQ_REMOVE(&txn_global->commit_timestamph, txn, commit_timestampq);
 	--txn_global->commit_timestampq_len;
 	__wt_writeunlock(session, &txn_global->commit_timestamp_rwlock);
 	F_CLR(txn, WT_TXN_PUBLIC_TS_COMMIT);
+
+	if (notify) {
+		WT_DECL_RET;
+		wt_timestamp_t ts;
+		char hex_timestamp[2 * WT_TIMESTAMP_SIZE + 1];
+
+		__wt_txn_all_committed(session, &ts);
+		ret = __wt_timestamp_to_hex_string(session, hex_timestamp, &ts);
+		WT_ASSERT(session, ret == 0);
+		WT_UNUSED(ret);
+		session->event_handler->handle_commit_visibility(
+		    session->event_handler, hex_timestamp);
+	}
 }
 
 /*

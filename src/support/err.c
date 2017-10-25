@@ -81,7 +81,8 @@ static WT_EVENT_HANDLER __event_handler_default = {
 	__handle_error_default,
 	__handle_message_default,
 	__handle_progress_default,
-	__handle_close_default
+	__handle_close_default,
+	NULL
 };
 
 /*

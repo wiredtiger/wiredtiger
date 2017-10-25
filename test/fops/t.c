@@ -152,8 +152,9 @@ wt_startup(char *config_open)
 	static WT_EVENT_HANDLER event_handler = {
 		handle_error,
 		handle_message,
-		NULL,
-		NULL	/* Close handler. */
+		NULL,   /* Progress handler. */
+		NULL,	/* Close handler. */
+		NULL    /* Commit visibility handler. */
 	};
 	char config_buf[128];
 

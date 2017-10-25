@@ -2983,6 +2983,18 @@ struct __wt_event_handler {
 	 */
 	int (*handle_close)(WT_EVENT_HANDLER *handler,
 	    WT_SESSION *session, WT_CURSOR *cursor);
+
+	/*!
+	 * Callback indicating when query_timestamp for \c all_committed
+	 * would change to return a new value
+	 *
+	 * @param session The session handle that is being closed if the
+	 * cursor parameter is NULL.
+	 * @param hex_timestamp The new value an \c all_committed query would
+	 * return.
+	 */
+	void (*handle_commit_visibility)(WT_EVENT_HANDLER *handler,
+	    char *hex_timestamp);
 };
 
 /*!

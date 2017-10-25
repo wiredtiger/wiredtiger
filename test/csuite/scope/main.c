@@ -55,6 +55,7 @@ static WT_EVENT_HANDLER event_handler = {
 	handle_error,
 	NULL,
 	NULL,
+	NULL,
 	NULL
 };
 
