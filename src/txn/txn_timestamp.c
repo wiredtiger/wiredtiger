@@ -200,7 +200,6 @@ __wt_txn_all_committed(WT_SESSION_IMPL *session, wt_timestamp_t *tsp)
 
 	WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
 	    __wt_timestamp_set(tsp, &txn_global->commit_timestamp));
-	WT_ASSERT(session, !__wt_timestamp_iszero(tsp));
 
 	/* Compare with the oldest running transaction. */
 	__wt_readlock(session, &txn_global->commit_timestamp_rwlock);
@@ -235,6 +234,7 @@ __txn_global_query_timestamp(
 		if (!txn_global->has_commit_timestamp)
 			return (WT_NOTFOUND);
 		__wt_txn_all_committed(session, &ts);
+		WT_ASSERT(session, !__wt_timestamp_iszero(&ts));
 	} else if (WT_STRING_MATCH("oldest", cval.str, cval.len)) {
 		if (!txn_global->has_oldest_timestamp)
 			return (WT_NOTFOUND);
