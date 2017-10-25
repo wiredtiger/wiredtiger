@@ -834,7 +834,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		}
 		__wt_writeunlock(session, &txn_global->rwlock);
 
-		if (notify) {
+		if (notify &&
+		    session->event_handler->handle_commit_visibility != NULL) {
 			char hex_timestamp[2 * WT_TIMESTAMP_SIZE + 1];
 
 			__wt_txn_all_committed(session, &ts);
