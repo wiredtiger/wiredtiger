@@ -617,7 +617,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	bool did_update, locked;
 #ifdef HAVE_TIMESTAMPS
 	wt_timestamp_t prev_commit_timestamp, ts;
-	bool notify = false, update_timestamp;
+	bool update_timestamp;
 #endif
 
 	txn = &session->txn;
@@ -830,22 +830,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		    &txn_global->commit_timestamp) > 0) {
 			__wt_timestamp_set(&txn_global->commit_timestamp,
 			    &txn->commit_timestamp);
-			txn_global->has_commit_timestamp = notify = true;
+			txn_global->has_commit_timestamp = true;
 		}
 		__wt_writeunlock(session, &txn_global->rwlock);
-
-		if (notify &&
-		    session->event_handler->handle_commit_visibility != NULL) {
-			char hex_timestamp[2 * WT_TIMESTAMP_SIZE + 1];
-
-			__wt_txn_all_committed(session, &ts);
-			ret = __wt_timestamp_to_hex_string(
-			    session, hex_timestamp, &ts);
-			WT_ASSERT(session, ret == 0);
-			WT_UNUSED(ret);
-			session->event_handler->handle_commit_visibility(
-			    session->event_handler, hex_timestamp);
-		}
 	}
 #endif
 
