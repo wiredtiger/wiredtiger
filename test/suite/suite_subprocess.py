@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, subprocess
+import os, subprocess, sys
 from run import wt_builddir
 from wttest import WiredTigerTestCase
 
@@ -158,8 +158,9 @@ class suite_subprocess:
                 # 'wt' script created by libtool. On OS/X with System Integrity
                 # Protection enabled, running a shell script strips
                 # environment variables needed to run 'wt'.
-                wtexe = os.path.join(wt_builddir, ".libs", "wt")
-                if not os.path.exists(wtexe):
+                if sys.platform == "darwin":
+                    wtexe = os.path.join(wt_builddir, ".libs", "wt")
+                else:
                     wtexe = os.path.join(wt_builddir, "wt")
                 procargs = [ wtexe ]
                 if self._gdbSubprocess:
