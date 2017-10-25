@@ -526,9 +526,10 @@ __wt_checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
 	if (closing || (time_diff / 20) > conn->ckpt_progress_msg_count) {
 		__wt_verbose(session, WT_VERB_CHECKPOINT_PROGRESS,
 		    "Checkpoint %s for %" PRIu64
-		    " seconds and wrote: %" PRIu64 " pages (%" PRIu64 " B)",
+		    " seconds and wrote: %" PRIu64 " pages (%" PRIu64 " MB)",
 		    closing ? "ran" : "has been running",
-		    time_diff, conn->ckpt_write_pages, conn->ckpt_write_bytes);
+		    time_diff, conn->ckpt_write_pages,
+		    conn->ckpt_write_bytes / WT_MEGABYTE);
 		conn->ckpt_progress_msg_count++;
 	}
 }
