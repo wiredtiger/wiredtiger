@@ -80,9 +80,10 @@ __wt_conn_optrack_setup(WT_SESSION_IMPL *session,
 
 	WT_RET(__wt_config_gets(session,
 	    cfg, "operation_tracking.enabled", &cval));
-	if (cval.val == 0)
-		return (__wt_conn_optrack_teardown(session, reconfig));
-	else if (F_ISSET(conn, WT_CONN_OPTRACK))
+	if (cval.val == 0) {
+		WT_RET(__wt_conn_optrack_teardown(session, reconfig));
+		F_CLR(conn, WT_CONN_OPTRACK);
+	} else if (F_ISSET(conn, WT_CONN_OPTRACK))
 		/* Already enabled, nothing else to do */
 		return (0);
 
@@ -141,7 +142,6 @@ __wt_conn_optrack_teardown(WT_SESSION_IMPL *session, bool reconfig)
 
 	WT_TRET(__wt_close(session, &conn->optrack_map_fh));
 	__wt_free(session, conn->dummy_session.optrack_buf);
-	F_CLR(conn, WT_CONN_OPTRACK);
 
 	return (ret);
 }

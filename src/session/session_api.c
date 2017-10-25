@@ -196,14 +196,15 @@ __session_close(WT_SESSION *wt_session, const char *config)
 
 	/* Close the file where we tracked long operations. */
 	if (F_ISSET(conn, WT_CONN_OPTRACK)) {
-	    if (session->optrackbuf_ptr > 0) {
-		    WT_IGNORE_RET((int)__wt_optrack_flush_buffer(session));
-		    WT_IGNORE_RET(__wt_close(session, &session->optrack_fh));
-		    session->optrack_fh = NULL; /* Indicate file is closed */
-	    }
+		if (session->optrackbuf_ptr > 0 && session->optrack_fh != NULL) {
+			WT_IGNORE_RET((int)__wt_optrack_flush_buffer(session));
+			WT_IGNORE_RET(__wt_close(session, &session->optrack_fh));
+			session->optrack_fh = NULL; /* Indicate file is closed */
+			session->optrackbuf_ptr = 0;
+		}
 
-	    /* Free the operation tracking buffer */
-	    __wt_free(session, session->optrack_buf);
+		/* Free the operation tracking buffer */
+		__wt_free(session, session->optrack_buf);
 	}
 
 	/* The API lock protects opening and closing of sessions. */
