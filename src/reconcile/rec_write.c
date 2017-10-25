@@ -1248,6 +1248,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		if ((txnid = upd->txnid) == WT_TXN_ABORTED)
 			continue;
 
+		upd_memsize += WT_UPDATE_MEMSIZE(upd);
+
 		/*
 		 * Track the first update in the chain that is not aborted and
 		 * the maximum transaction ID.
@@ -1266,10 +1268,19 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 * concurrent transaction commits or rolls back while we are
 		 * examining its updates.
 		 */
-		if (WT_TXNID_LE(r->last_running, txnid))
+		if (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
+		    WT_TXNID_LE(r->last_running, txnid) :
+		    !__txn_visible_id(session, txnid)) {
 			uncommitted = r->update_uncommitted = true;
+			continue;
+		}
 
-		upd_memsize += WT_UPDATE_MEMSIZE(upd);
+#ifdef HAVE_TIMESTAMPS
+		/* Track the first update with non-zero timestamp. */
+		if (first_ts_upd == NULL &&
+		    !__wt_timestamp_iszero(&upd->timestamp))
+			first_ts_upd = upd;
+#endif
 
 		/*
 		 * Find the first update we can use.
@@ -1299,13 +1310,6 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 
 		if (*updp == NULL)
 			*updp = upd;
-
-#ifdef HAVE_TIMESTAMPS
-		/* Track the first update with non-zero timestamp. */
-		if (first_ts_upd == NULL &&
-		    !__wt_timestamp_iszero(&upd->timestamp))
-			first_ts_upd = upd;
-#endif
 	}
 
 	/* Reconciliation should never see an aborted or reserved update. */
@@ -1360,9 +1364,9 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 #else
 	timestampp = NULL;
 #endif
-	all_visible = *updp == first_txn_upd &&
+	all_visible = *updp == first_txn_upd && !uncommitted &&
 	    (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
-	    !uncommitted && __wt_txn_visible_all(session, max_txn, timestampp) :
+	    __wt_txn_visible_all(session, max_txn, timestampp) :
 	    __wt_txn_visible(session, max_txn, timestampp));
 
 	if (all_visible)
@@ -1409,9 +1413,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 
 #ifdef HAVE_TIMESTAMPS
 	/* Track the oldest saved timestamp for lookaside. */
-	if (first_ts_upd == NULL)
-		__wt_timestamp_set_zero(&r->min_saved_timestamp);
-	else if (F_ISSET(r, WT_REC_LOOKASIDE))
+	if (F_ISSET(r, WT_REC_LOOKASIDE))
 		for (upd = first_upd; upd != NULL; upd = upd->next)
 			if (upd->txnid != WT_TXN_ABORTED &&
 			    upd->txnid != WT_TXN_NONE &&
