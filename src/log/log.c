@@ -476,29 +476,6 @@ err:		WT_TRET(__wt_fs_directory_list_free(session, &files, count));
 }
 
 /*
- * __log_filename --
- *	Given a log number, return a WT_ITEM of a generated log file name
- *	of the given prefix type.
- */
-static int
-__log_filename(WT_SESSION_IMPL *session,
-    uint32_t id, const char *file_prefix, WT_ITEM *buf)
-{
-	const char *log_path;
-
-	log_path = S2C(session)->log_path;
-
-	if (log_path != NULL && log_path[0] != '\0')
-		WT_RET(__wt_buf_fmt(session, buf, "%s/%s.%010" PRIu32,
-		    log_path, file_prefix, id));
-	else
-		WT_RET(__wt_buf_fmt(session, buf, "%s.%010" PRIu32,
-		    file_prefix, id));
-
-	return (0);
-}
-
-/*
  * __wt_log_extract_lognum --
  *	Given a log file name, extract out the log number.
  */
@@ -880,10 +857,12 @@ __log_openfile(
 	 */
 	if (LF_ISSET(WT_LOG_OPEN_CREATE_OK)) {
 		wtopen_flags = WT_FS_OPEN_CREATE;
-		WT_ERR(__log_filename(session, id, WT_LOG_TMPNAME, buf));
+		WT_ERR(__wt_filename_construct(session,
+		    conn->log_path, WT_LOG_TMPNAME, 0, id, buf));
 	} else {
 		wtopen_flags = 0;
-		WT_ERR(__log_filename(session, id, WT_LOG_FILENAME, buf));
+		WT_ERR(__wt_filename_construct(session,
+		    conn->log_path, WT_LOG_FILENAME, 0, id, buf));
 	}
 	__wt_verbose(session, WT_VERB_LOG,
 	    "opening log %s", (const char *)buf->data);
@@ -1012,6 +991,7 @@ err:	__wt_scr_free(session, &buf);
 static int
 __log_alloc_prealloc(WT_SESSION_IMPL *session, uint32_t to_num)
 {
+	WT_CONNECTION_IMPL *conn;
 	WT_DECL_ITEM(from_path);
 	WT_DECL_ITEM(to_path);
 	WT_DECL_RET;
@@ -1023,7 +1003,8 @@ __log_alloc_prealloc(WT_SESSION_IMPL *session, uint32_t to_num)
 	/*
 	 * If there are no pre-allocated files, return WT_NOTFOUND.
 	 */
-	log = S2C(session)->log;
+	conn = S2C(session);
+	log = conn->log;
 	logfiles = NULL;
 	WT_ERR(__log_get_files(session, WT_LOG_PREPNAME, &logfiles, &logcount));
 	if (logcount == 0)
@@ -1036,8 +1017,10 @@ __log_alloc_prealloc(WT_SESSION_IMPL *session, uint32_t to_num)
 
 	WT_ERR(__wt_scr_alloc(session, 0, &from_path));
 	WT_ERR(__wt_scr_alloc(session, 0, &to_path));
-	WT_ERR(__log_filename(session, from_num, WT_LOG_PREPNAME, from_path));
-	WT_ERR(__log_filename(session, to_num, WT_LOG_FILENAME, to_path));
+	WT_ERR(__wt_filename_construct(session,
+	    conn->log_path, WT_LOG_PREPNAME, 0, from_num, from_path));
+	WT_ERR(__wt_filename_construct(session,
+	    conn->log_path, WT_LOG_FILENAME, 0, to_num, to_path));
 	__wt_spin_lock(session, &log->log_fs_lock);
 	__wt_verbose(session, WT_VERB_LOG,
 	    "log_alloc_prealloc: rename log %s to %s",
@@ -1450,8 +1433,10 @@ __wt_log_allocfile(
 	WT_RET(__wt_scr_alloc(session, 0, &from_path));
 	WT_ERR(__wt_scr_alloc(session, 0, &to_path));
 	tmp_id = __wt_atomic_add32(&log->tmp_fileid, 1);
-	WT_ERR(__log_filename(session, tmp_id, WT_LOG_TMPNAME, from_path));
-	WT_ERR(__log_filename(session, lognum, dest, to_path));
+	WT_ERR(__wt_filename_construct(session,
+	    conn->log_path, WT_LOG_TMPNAME, 0, tmp_id, from_path));
+	WT_ERR(__wt_filename_construct(session,
+	    conn->log_path, dest, 0, lognum, to_path));
 	__wt_spin_lock(session, &log->log_fs_lock);
 	/*
 	 * Set up the temporary file.
@@ -1488,7 +1473,8 @@ __wt_log_remove(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 
 	WT_RET(__wt_scr_alloc(session, 0, &path));
-	WT_ERR(__log_filename(session, lognum, file_prefix, path));
+	WT_ERR(__wt_filename_construct(session,
+	    S2C(session)->log_path, file_prefix, 0, lognum, path));
 	__wt_verbose(session, WT_VERB_LOG,
 	    "log_remove: remove log %s", (const char *)path->data);
 	WT_ERR(__wt_fs_remove(session, path->data, false));

@@ -53,19 +53,20 @@ int
 __wt_optrack_open_file(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
-	char optrack_fname[PATH_MAX];
+	WT_DECL_ITEM(buf);
 
 	conn = S2C(session);
 
 	if (!F_ISSET(conn, WT_CONN_OPTRACK))
 		return (WT_ERROR);
 
-	WT_RET(__wt_snprintf(optrack_fname,
-	    PATH_MAX, "%s/optrack.%" PRIuMAX ".%d",
-	    conn->optrack_path, conn->optrack_pid, session->id));
+	WT_RET(__wt_scr_alloc(session, 0, &buf));
+	WT_RET(__wt_filename_construct(session, conn->optrack_path,
+	    "optrack", conn->optrack_pid, session->id, buf));
 	WT_RET(__wt_open(session,
-	    optrack_fname, WT_FS_OPEN_FILE_TYPE_REGULAR,
+	    (const char *)buf->data, WT_FS_OPEN_FILE_TYPE_REGULAR,
 	    WT_FS_OPEN_CREATE, &session->optrack_fh));
+	__wt_scr_free(session, &buf);
 
 	return (0);
 }

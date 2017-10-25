@@ -54,6 +54,34 @@ err:	__wt_free(session, buf);
 }
 
 /*
+ * __wt_filename_construct --
+ *	Given unique identifiers, return a WT_ITEM of a generated file name of
+ *	the given prefix type. Ignore the first identifier if it is zero.
+ */
+int
+__wt_filename_construct(WT_SESSION_IMPL *session, const char *path,
+    const char *file_prefix, uintmax_t id_1, uint32_t id_2, WT_ITEM *buf)
+{
+	bool path_provided;
+
+	path_provided = (path != NULL && path[0] != '\0');
+	if (id_1 == 0)
+		WT_RET(__wt_buf_fmt(session, buf,
+		    "%s%s%s.%010" PRIu32,
+		    path_provided ? path : "",
+		    path_provided ? __wt_path_separator() : "",
+		    file_prefix, id_2));
+	else
+		WT_RET(__wt_buf_fmt(session, buf,
+		    "%s%s%s.%010" PRIuMAX ".%010" PRIu32,
+		    path_provided ? path : "",
+		    path_provided ? __wt_path_separator() : "",
+		    file_prefix, id_1, id_2));
+
+	return (0);
+}
+
+/*
  * __wt_remove_if_exists --
  *	Remove a file if it exists.
  */

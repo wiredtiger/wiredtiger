@@ -66,7 +66,7 @@ __wt_conn_optrack_setup(WT_SESSION_IMPL *session,
 {
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
-	char optrack_map_name[PATH_MAX];
+	WT_DECL_ITEM(buf);
 
 	conn = S2C(session);
 
@@ -100,13 +100,13 @@ __wt_conn_optrack_setup(WT_SESSION_IMPL *session,
 	 * translations between function names and function IDs. If the file
 	 * exists, remove it.
 	 */
-	WT_RET(__wt_snprintf(optrack_map_name,
-	    PATH_MAX, "%s/optrack-map.%" PRIuMAX ".txt",
-	    conn->optrack_path, conn->optrack_pid));
-
-	WT_RET(__wt_open(session, optrack_map_name,
-	    WT_FS_OPEN_FILE_TYPE_REGULAR,
+	WT_RET(__wt_scr_alloc(session, 0, &buf));
+	WT_RET(__wt_filename_construct(session, conn->optrack_path,
+	    "optrack-map", 0, conn->optrack_pid, buf));
+	WT_RET(__wt_open(session,
+	    (const char *)buf->data, WT_FS_OPEN_FILE_TYPE_REGULAR,
 	    WT_FS_OPEN_CREATE, &conn->optrack_map_fh));
+	__wt_scr_free(session, &buf);
 
 	WT_RET(__wt_spin_init(session,
 	    &conn->optrack_map_spinlock, "optrack map spinlock"));
