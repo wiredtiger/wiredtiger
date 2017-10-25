@@ -188,7 +188,7 @@ def main():
                         default='0');
 
     parser.add_argument('-m', '--mapfile', dest='mapFileName', type=str,
-                        default='optrack-map.txt');
+                        default='optrack-map');
 
     args = parser.parse_args();
 
