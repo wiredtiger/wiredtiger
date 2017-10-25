@@ -56,7 +56,7 @@ err:	__wt_free(session, buf);
 /*
  * __wt_filename_construct --
  *	Given unique identifiers, return a WT_ITEM of a generated file name of
- *	the given prefix type. Ignore the first identifier if it is zero.
+ *	the given prefix type. Ignore the second identifier if it is zero.
  */
 int
 __wt_filename_construct(WT_SESSION_IMPL *session, const char *path,
@@ -65,12 +65,12 @@ __wt_filename_construct(WT_SESSION_IMPL *session, const char *path,
 	bool path_provided;
 
 	path_provided = (path != NULL && path[0] != '\0');
-	if (id_1 == 0)
+	if (id_2 == 0)
 		WT_RET(__wt_buf_fmt(session, buf,
-		    "%s%s%s.%010" PRIu32,
+		    "%s%s%s.%010" PRIuMAX,
 		    path_provided ? path : "",
 		    path_provided ? __wt_path_separator() : "",
-		    file_prefix, id_2));
+		    file_prefix, id_1));
 	else
 		WT_RET(__wt_buf_fmt(session, buf,
 		    "%s%s%s.%010" PRIuMAX ".%010" PRIu32,

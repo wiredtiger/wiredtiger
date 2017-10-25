@@ -858,11 +858,11 @@ __log_openfile(
 	if (LF_ISSET(WT_LOG_OPEN_CREATE_OK)) {
 		wtopen_flags = WT_FS_OPEN_CREATE;
 		WT_ERR(__wt_filename_construct(session,
-		    conn->log_path, WT_LOG_TMPNAME, 0, id, buf));
+		    conn->log_path, WT_LOG_TMPNAME, id, 0, buf));
 	} else {
 		wtopen_flags = 0;
 		WT_ERR(__wt_filename_construct(session,
-		    conn->log_path, WT_LOG_FILENAME, 0, id, buf));
+		    conn->log_path, WT_LOG_FILENAME, id, 0, buf));
 	}
 	__wt_verbose(session, WT_VERB_LOG,
 	    "opening log %s", (const char *)buf->data);
@@ -1018,9 +1018,9 @@ __log_alloc_prealloc(WT_SESSION_IMPL *session, uint32_t to_num)
 	WT_ERR(__wt_scr_alloc(session, 0, &from_path));
 	WT_ERR(__wt_scr_alloc(session, 0, &to_path));
 	WT_ERR(__wt_filename_construct(session,
-	    conn->log_path, WT_LOG_PREPNAME, 0, from_num, from_path));
+	    conn->log_path, WT_LOG_PREPNAME, from_num, 0, from_path));
 	WT_ERR(__wt_filename_construct(session,
-	    conn->log_path, WT_LOG_FILENAME, 0, to_num, to_path));
+	    conn->log_path, WT_LOG_FILENAME, to_num, 0, to_path));
 	__wt_spin_lock(session, &log->log_fs_lock);
 	__wt_verbose(session, WT_VERB_LOG,
 	    "log_alloc_prealloc: rename log %s to %s",
@@ -1434,9 +1434,9 @@ __wt_log_allocfile(
 	WT_ERR(__wt_scr_alloc(session, 0, &to_path));
 	tmp_id = __wt_atomic_add32(&log->tmp_fileid, 1);
 	WT_ERR(__wt_filename_construct(session,
-	    conn->log_path, WT_LOG_TMPNAME, 0, tmp_id, from_path));
+	    conn->log_path, WT_LOG_TMPNAME, tmp_id, 0, from_path));
 	WT_ERR(__wt_filename_construct(session,
-	    conn->log_path, dest, 0, lognum, to_path));
+	    conn->log_path, dest, lognum, 0, to_path));
 	__wt_spin_lock(session, &log->log_fs_lock);
 	/*
 	 * Set up the temporary file.
@@ -1474,7 +1474,7 @@ __wt_log_remove(WT_SESSION_IMPL *session,
 
 	WT_RET(__wt_scr_alloc(session, 0, &path));
 	WT_ERR(__wt_filename_construct(session,
-	    S2C(session)->log_path, file_prefix, 0, lognum, path));
+	    S2C(session)->log_path, file_prefix, lognum, 0, path));
 	__wt_verbose(session, WT_VERB_LOG,
 	    "log_remove: remove log %s", (const char *)path->data);
 	WT_ERR(__wt_fs_remove(session, path->data, false));
