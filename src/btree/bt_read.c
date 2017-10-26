@@ -88,7 +88,6 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t btree_id)
 	uint32_t las_id, session_flags;
 	const uint8_t *p;
 	uint8_t upd_type;
-	int exact;
 
 	cursor = NULL;
 	page = ref->page;
@@ -112,27 +111,9 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t btree_id)
 	 * in-order updates for a subsequent key. We process all of the updates
 	 * for a key and then insert those updates into the page, then all the
 	 * updates for the next key, and so on.
-	 *
-	 * Search for the block's unique prefix, stepping through any matching
-	 * records.  Because of the special visibility rules for lookaside, a
-	 * new block can appear in between our search and the block of
-	 * interest.  Keep trying until we find it.
 	 */
-retry_search:
-	cursor->set_key(cursor,
-	    btree_id, ref->page_las->las_pageid, (uint64_t)0, &las_key);
-	if ((ret = cursor->search_near(cursor, &exact)) == 0 && exact < 0) {
-		if ((ret = cursor->next(cursor)) != 0) {
-			if (ret == WT_NOTFOUND)
-				ret = 0;
-			goto err;
-		}
-		WT_ERR(cursor->get_key(cursor,
-		    &las_id, &las_pageid, &las_counter, &las_key));
-		if (las_id < btree_id || (las_id == btree_id &&
-		    las_pageid < ref->page_las->las_pageid))
-			goto retry_search;
-	}
+	ret = __wt_las_cursor_position(
+	    cursor, btree_id, ref->page_las->las_pageid);
 	for (; ret == 0; ret = cursor->next(cursor)) {
 		WT_ERR(cursor->get_key(cursor,
 		    &las_id, &las_pageid, &las_counter, &las_key));

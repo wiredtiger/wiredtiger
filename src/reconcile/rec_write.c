@@ -380,7 +380,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	 * aren't idempotent, that is problematic.
 	 *
 	 * If we try to do eviction using transaction visibility, we had better
-	 * have a snapshot.  This doesn't apply to reconciliation: there are
+	 * have a snapshot.  This doesn't apply to checkpoints: there are
 	 * (rare) cases where we write data at read-uncommitted isolation.
 	 */
 	WT_ASSERT(session, !LF_ISSET(WT_REC_UPDATE_RESTORE) ||
