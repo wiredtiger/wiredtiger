@@ -95,6 +95,7 @@ struct __wt_session_impl {
 	u_int	  scratch_alloc;	/* Currently allocated */
 	size_t	  scratch_cached;	/* Scratch bytes cached */
 #ifdef HAVE_DIAGNOSTIC
+	volatile size_t api_tid;	/* Find multi-threading violations */
 	/*
 	 * It's hard to figure out from where a buffer was allocated after it's
 	 * leaked, so in diagnostic mode we track them; DIAGNOSTIC can't simply
