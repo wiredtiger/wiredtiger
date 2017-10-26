@@ -11,7 +11,7 @@
 	{								\
 	size_t __tmp_api_tid;						\
 	__wt_thread_id(&__tmp_api_tid);					\
-	WT_ASSERT(session, (s)->api_tid == 0 ||				\
+	WT_ASSERT(session, (s)->id == 0 || (s)->api_tid == 0 ||		\
 	    (s)->api_tid == __tmp_api_tid);				\
 	(s)->api_tid = __tmp_api_tid;					\
 	}
