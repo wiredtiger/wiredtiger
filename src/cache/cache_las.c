@@ -464,10 +464,28 @@ __wt_las_remove_block(WT_SESSION_IMPL *session,
 	 * Search for the block's unique prefix and step through all matching
 	 * records, removing them.
 	 */
+retry_search:
 	las_key.size = 0;
 	cursor->set_key(cursor, btree_id, pageid, (uint64_t)0, &las_key);
-	if ((ret = cursor->search_near(cursor, &exact)) == 0 && exact < 0)
-		ret = cursor->next(cursor);
+	if ((ret = cursor->search_near(cursor, &exact)) == 0 && exact < 0) {
+		if ((ret = cursor->next(cursor)) != 0) {
+			if (ret == WT_NOTFOUND)
+				ret = 0;
+			goto err;
+		}
+
+		/*
+		 * Because of the special visibility rules for lookaside, a new
+		 * block can appear in between our search and the block of
+		 * interest.  Keep trying until we find it.
+		 */
+		WT_ERR(cursor->get_key(cursor,
+		    &las_id, &las_pageid, &las_counter, &las_key));
+		if (las_id < btree_id ||
+		    (las_id == btree_id && pageid != 0 && las_pageid < pageid))
+			goto retry_search;
+	}
+
 	for (; ret == 0; ret = cursor->next(cursor)) {
 		WT_ERR(cursor->get_key(cursor,
 		    &las_id, &las_pageid, &las_counter, &las_key));

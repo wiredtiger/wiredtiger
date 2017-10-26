@@ -114,12 +114,21 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t btree_id)
 	 * updates for the next key, and so on.
 	 *
 	 * Search for the block's unique prefix, stepping through any matching
-	 * records.
+	 * records.  Because of the special visibility rules for lookaside, a
+	 * new block can appear in between our search and the block of
+	 * interest.  Keep trying until we find it.
 	 */
+retry_search:
 	cursor->set_key(cursor,
 	    btree_id, ref->page_las->las_pageid, (uint64_t)0, &las_key);
-	if ((ret = cursor->search_near(cursor, &exact)) == 0 && exact < 0)
+	if ((ret = cursor->search_near(cursor, &exact)) == 0 && exact < 0) {
 		ret = cursor->next(cursor);
+		WT_ERR(cursor->get_key(cursor,
+		    &las_id, &las_pageid, &las_counter, &las_key));
+		if (las_id < btree_id || (las_id == btree_id &&
+		    las_pageid < ref->page_las->las_pageid))
+			goto retry_search;
+	}
 	for (; ret == 0; ret = cursor->next(cursor)) {
 		WT_ERR(cursor->get_key(cursor,
 		    &las_id, &las_pageid, &las_counter, &las_key));
@@ -204,6 +213,8 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t btree_id)
 			break;
 		WT_ILLEGAL_VALUE_ERR(session);
 		}
+
+	WT_ASSERT(session, __wt_page_is_modified(page));
 
 	/* Discard the cursor. */
 	WT_ERR(__wt_las_cursor_close(session, &cursor, session_flags));
