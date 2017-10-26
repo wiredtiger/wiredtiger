@@ -474,13 +474,33 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 				    !LF_ISSET(WT_READ_LOOKASIDE))
 					return (WT_NOTFOUND);
 
-#if 0
 				{
 				WT_TXN *txn = &session->txn;
+				WT_TXN_GLOBAL *txn_global =
+				    &S2C(session)->txn_global;
 
-				/* !!! XXX disable skips for now. */
+				/*
+				 * Skip lookaside pages if reading without a
+				 * timestamp and all the updates in lookaside
+				 * are in the past.
+				 *
+				 * Lookaside eviction preferentially chooses
+				 * the newest updates when creating page image
+				 * with no stable timestamp.  If a stable
+				 * timestamp has been set, we have to visit the
+				 * page because eviction chooses old version of
+				 * records in that case.
+				 *
+				 * One case where we may need to visit the page
+				 * is if lookaside eviction is active in tree 2
+				 * when a checkpoint has started and is working
+				 * its way through tree 1.  In that case,
+				 * lookaside may have created a page image with
+				 * updates in the future of the checkpoint.
+				 */
 				if (!F_ISSET(txn, WT_TXN_HAS_TS_READ) &&
 				    F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) &&
+				    !txn_global->has_stable_timestamp &&
 				    WT_TXNID_LT(ref->page_las->las_max_txn,
 				    txn->snap_min))
 					return (WT_NOTFOUND);
@@ -488,12 +508,16 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 				/*
 				 * Skip lookaside pages if reading as of a
 				 * timestamp and all the updates are in the
-				 * future.  If we skip a lookaside page, the
-				 * tree cannot be left clean: it must be
-				 * visited by future checkpoints.
+				 * future.  If we skip a lookaside page with
+				 * updates in the future, the tree cannot be
+				 * left clean: it must be visited by the next
+				 * checkpoint.
 				 */
 				if (F_ISSET(
 				    &session->txn, WT_TXN_HAS_TS_READ) &&
+				    txn_global->has_stable_timestamp &&
+				    WT_TXNID_LT(ref->page_las->las_max_txn,
+				    txn->snap_min) &&
 				    __wt_timestamp_cmp(
 				    &ref->page_las->min_timestamp,
 				    &session->txn.read_timestamp) > 0) {
@@ -502,7 +526,6 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 				}
 #endif
 				}
-#endif
 			}
 
 			/*

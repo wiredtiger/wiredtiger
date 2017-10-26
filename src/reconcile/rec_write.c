@@ -1311,7 +1311,22 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 * uncommitted updates).  Lookaside eviction can save any
 		 * committed update.  Regular eviction checks that the maximum
 		 * transaction ID and timestamp seen are stable.
+		 *
+		 * Lookaside eviction tries to choose the same version as a
+		 * subsequent checkpoint, so that checkpoint can skip over
+		 * pages with lookaside entries.  If the application has
+		 * supplied a stable timestamp, we assume (a) that it is old,
+		 * and (b) that the next checkpoint will use it, so we wait to
+		 * see a stable update.  If there is no stable timestamp, we
+		 * assume the next checkpoint will write the most recent
+		 * version (but we save enough information that checkpoint can
+		 * fix things up if we choose an update that is too new).
 		 */
+		if (*updp == NULL && F_ISSET(r, WT_REC_LOOKASIDE) &&
+		    F_ISSET(r, WT_REC_VISIBLE_ALL) &&
+		    !S2C(session)->txn_global.has_stable_timestamp)
+			*updp = upd;
+
 		if (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 		    !__wt_txn_upd_visible_all(session, upd) :
 		    !__wt_txn_upd_visible(session, upd)) {
