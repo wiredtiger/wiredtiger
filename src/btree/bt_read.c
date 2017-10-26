@@ -122,7 +122,11 @@ retry_search:
 	cursor->set_key(cursor,
 	    btree_id, ref->page_las->las_pageid, (uint64_t)0, &las_key);
 	if ((ret = cursor->search_near(cursor, &exact)) == 0 && exact < 0) {
-		ret = cursor->next(cursor);
+		if ((ret = cursor->next(cursor)) != 0) {
+			if (ret == WT_NOTFOUND)
+				ret = 0;
+			goto err;
+		}
 		WT_ERR(cursor->get_key(cursor,
 		    &las_id, &las_pageid, &las_counter, &las_key));
 		if (las_id < btree_id || (las_id == btree_id &&
@@ -213,8 +217,6 @@ retry_search:
 			break;
 		WT_ILLEGAL_VALUE_ERR(session);
 		}
-
-	WT_ASSERT(session, __wt_page_is_modified(page));
 
 	/* Discard the cursor. */
 	WT_ERR(__wt_las_cursor_close(session, &cursor, session_flags));
