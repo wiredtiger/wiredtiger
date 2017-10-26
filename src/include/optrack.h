@@ -37,7 +37,6 @@ struct __wt_track_record {
 		__wt_optrack_record_funcid(s, tr->op_id,		\
 		    (void*)&__func__, sizeof(__func__), &id_recorded);	\
 	if (s->optrackbuf_ptr == WT_OPTRACK_MAXRECS) {			\
-		if (s->optrack_fh != NULL)				\
 			s->optrack_offset += __wt_optrack_flush_buffer(s); \
 		s->optrackbuf_ptr = 0;					\
 	}
