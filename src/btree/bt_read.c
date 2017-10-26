@@ -496,14 +496,18 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 				/*
 				 * Skip lookaside pages if reading as of a
 				 * timestamp and all the updates are in the
-				 * future.
+				 * future.  If we skip a lookaside page, the
+				 * tree cannot be left clean: it must be
+				 * visited by future checkpoints.
 				 */
 				if (F_ISSET(
 				    &session->txn, WT_TXN_HAS_TS_READ) &&
 				    __wt_timestamp_cmp(
 				    &ref->page_las->min_timestamp,
-				    &session->txn.read_timestamp) > 0)
+				    &session->txn.read_timestamp) > 0) {
+					__wt_tree_modify_set(session);
 					return (WT_NOTFOUND);
+				}
 #endif
 			}
 
