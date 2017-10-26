@@ -2522,7 +2522,9 @@ __verbose_dump_cache_single(WT_SESSION_IMPL *session,
 	    dhandle->checkpoint != NULL ? dhandle->checkpoint : "<live>",
 	    btree->evict_disabled != 0 ?  "eviction disabled" : "",
 	    btree->evict_disabled_open ? " at open" : ""));
-	if (intl_pages != 0)
+	if (intl_pages == 0)
+		WT_RET(__wt_msg(session, "internal: 0 pages"));
+	else
 		WT_RET(__wt_msg(session,
 		    "internal: "
 		    "%" PRIu64 " pages, "
@@ -2539,7 +2541,9 @@ __verbose_dump_cache_single(WT_SESSION_IMPL *session,
 		    intl_dirty_bytes / WT_MEGABYTE,
 		    intl_bytes_max / WT_MEGABYTE,
 		    intl_dirty_bytes_max / WT_MEGABYTE));
-	if (leaf_pages != 0)
+	if (leaf_pages == 0)
+		WT_RET(__wt_msg(session, "leaf: 0 pages"));
+	else
 		WT_RET(__wt_msg(session,
 		    "leaf: "
 		    "%" PRIu64 " pages, "
