@@ -129,7 +129,6 @@ extern int __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp) 
 extern void __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref);
 extern bool __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all);
 extern int __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern void __wt_ref_out_int(WT_SESSION_IMPL *session, WT_REF *ref, bool rewrite);
 extern void __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref);
 extern void __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep);
 extern void __wt_free_ref( WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pages);
