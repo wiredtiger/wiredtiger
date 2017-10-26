@@ -67,6 +67,7 @@ __wt_conn_optrack_setup(WT_SESSION_IMPL *session,
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_ITEM(buf);
+	WT_DECL_RET;
 
 	conn = S2C(session);
 
@@ -104,22 +105,23 @@ __wt_conn_optrack_setup(WT_SESSION_IMPL *session,
 	 * exists, remove it.
 	 */
 	WT_RET(__wt_scr_alloc(session, 0, &buf));
-	WT_RET(__wt_filename_construct(session, conn->optrack_path,
+	WT_ERR(__wt_filename_construct(session, conn->optrack_path,
 	    "optrack-map", conn->optrack_pid, UINT32_MAX, buf));
-	WT_RET(__wt_open(session,
+	WT_ERR(__wt_open(session,
 	    (const char *)buf->data, WT_FS_OPEN_FILE_TYPE_REGULAR,
 	    WT_FS_OPEN_CREATE, &conn->optrack_map_fh));
-	__wt_scr_free(session, &buf);
 
-	WT_RET(__wt_spin_init(session,
+	WT_ERR(__wt_spin_init(session,
 	    &conn->optrack_map_spinlock, "optrack map spinlock"));
 
-	WT_RET(__wt_malloc(session, WT_OPTRACK_BUFSIZE,
+	WT_ERR(__wt_malloc(session, WT_OPTRACK_BUFSIZE,
 	    &conn->dummy_session.optrack_buf));
 
 	/* Set operation tracking on */
 	F_SET(conn, WT_CONN_OPTRACK);
-	return (0);
+
+err:	__wt_scr_free(session, &buf);
+	return (ret);
 }
 
 /*

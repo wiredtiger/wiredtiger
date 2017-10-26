@@ -54,6 +54,7 @@ __wt_optrack_open_file(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_ITEM(buf);
+	WT_DECL_RET;
 
 	conn = S2C(session);
 
@@ -61,14 +62,14 @@ __wt_optrack_open_file(WT_SESSION_IMPL *session)
 		return (WT_ERROR);
 
 	WT_RET(__wt_scr_alloc(session, 0, &buf));
-	WT_RET(__wt_filename_construct(session, conn->optrack_path,
+	WT_ERR(__wt_filename_construct(session, conn->optrack_path,
 	    "optrack", conn->optrack_pid, session->id, buf));
-	WT_RET(__wt_open(session,
+	WT_ERR(__wt_open(session,
 	    (const char *)buf->data, WT_FS_OPEN_FILE_TYPE_REGULAR,
 	    WT_FS_OPEN_CREATE, &session->optrack_fh));
-	__wt_scr_free(session, &buf);
+err:	__wt_scr_free(session, &buf);
 
-	return (0);
+	return (ret);
 }
 
 /*

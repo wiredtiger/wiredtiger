@@ -191,10 +191,11 @@ __session_close(WT_SESSION *wt_session, const char *config)
 	/* Free transaction information. */
 	__wt_txn_destroy(session);
 
-	/* Release common session resources. */
-	WT_TRET(__wt_session_release_resources(session));
-
-	/* Close the file where we tracked long operations. */
+	/*
+	 * Close the file where we tracked long operations.  Do this before
+	 * releasing resources, as we do scratch buffer management when we flush
+	 * optrack buffers to disk
+	 */
 	if (F_ISSET(conn, WT_CONN_OPTRACK)) {
 		if (session->optrackbuf_ptr > 0) {
 			WT_IGNORE_RET((int)__wt_optrack_flush_buffer(session));
@@ -207,6 +208,9 @@ __session_close(WT_SESSION *wt_session, const char *config)
 		/* Free the operation tracking buffer */
 		__wt_free(session, session->optrack_buf);
 	}
+
+	/* Release common session resources. */
+	WT_TRET(__wt_session_release_resources(session));
 
 	/* The API lock protects opening and closing of sessions. */
 	__wt_spin_lock(session, &conn->api_lock);
