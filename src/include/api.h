@@ -7,17 +7,25 @@
  */
 
 #ifdef HAVE_DIAGNOSTIC
+/*
+ * Capture cases where a single session handle is used by multiple threads
+ * in parallel. The check isn't trivial because some API calls re-enter
+ * other API calls, so track and clear thread identifier
+ */
 #define	DIAG_SINGLE_THREAD_CHECK_START(s)				\
 	{								\
 	size_t __tmp_api_tid;						\
 	__wt_thread_id(&__tmp_api_tid);					\
 	WT_ASSERT(session, (s)->id == 0 || (s)->api_tid == 0 ||		\
 	    (s)->api_tid == __tmp_api_tid);				\
-	(s)->api_tid = __tmp_api_tid;					\
+	if ((s)->api_tid == 0)						\
+		(s)->api_tid = __tmp_api_tid;				\
+	++(s)->api_enter_refcnt;					\
 	}
 
 #define	DIAG_SINGLE_THREAD_CHECK_STOP(s)				\
-	(s)->api_tid = 0;
+	if (--(s)->api_enter_refcnt == 0)				\
+		(s)->api_tid = 0;
 #else
 #define	DIAG_SINGLE_THREAD_CHECK_START(s)
 #define	DIAG_SINGLE_THREAD_CHECK_STOP(s)
