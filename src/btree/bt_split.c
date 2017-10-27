@@ -1385,7 +1385,7 @@ __split_multi_inmem(
 	WT_SAVE_UPD *supd;
 	WT_UPDATE *prev_upd, *upd;
 	uint64_t recno;
-	uint32_t i, page_flags, slot;
+	uint32_t i, slot;
 
 	WT_ASSERT(session, multi->las_pageid == 0);
 
@@ -1409,9 +1409,6 @@ __split_multi_inmem(
 	 * when discarding the original page, and our caller will discard the
 	 * allocated page on error, when discarding the allocated WT_REF.
 	 */
-	page_flags = WT_PAGE_DISK_ALLOC;
-	if (F_ISSET_ATOMIC(orig, WT_PAGE_EVICT_PROGRESS))
-		FLD_SET(page_flags, WT_PAGE_EVICT_PROGRESS);
 	WT_RET(__wt_page_inmem(
 	    session, ref, multi->disk_image, WT_PAGE_DISK_ALLOC, &page));
 	multi->disk_image = NULL;
@@ -2279,8 +2276,12 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
 	 *
 	 * Pages with unresolved changes are not marked clean during
 	 * reconciliation, do it now.
+	 *
+	 * Don't count this as eviction making progress, we did a one-for-one
+	 * rewrite of a page in memory, typical in the case of cache pressure.
 	 */
 	__wt_page_modify_clear(session, page);
+	F_SET_ATOMIC(page, WT_PAGE_EVICT_NO_PROGRESS);
 	__wt_ref_out(session, ref);
 
 	/* Swap the new page into place. */

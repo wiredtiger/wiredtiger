@@ -438,7 +438,7 @@ __wt_cache_page_evict(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 * Track if eviction makes progress.  This is used in various places to
 	 * determine whether eviction is stuck.
 	 */
-	if (F_ISSET_ATOMIC(page, WT_PAGE_EVICT_PROGRESS))
+	if (!F_ISSET_ATOMIC(page, WT_PAGE_EVICT_NO_PROGRESS))
 		(void)__wt_atomic_addv64(&cache->eviction_progress, 1);
 }
 
