@@ -430,11 +430,11 @@ err:	/*
 }
 
 /*
- * __page_in_lookaside_check --
- *	Review lookaside page references for page in
+ * __las_page_skip --
+ *	 Check if we can skip reading a page with lookaside entries.
  */
-static inline int
-__page_in_lookaside_check(WT_SESSION_IMPL *session, WT_REF *ref)
+static inline bool
+__las_page_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
@@ -459,14 +459,16 @@ __page_in_lookaside_check(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * working its way through tree 1.  In that case, lookaside may have
 	 * created a page image with updates in the future of the checkpoint.
 	 */
+	if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
+		return (false);
+
+	if (WT_TXNID_LE(txn->snap_min, ref->page_las->las_max_txn))
+		return (false);
+
 	if (!F_ISSET(txn, WT_TXN_HAS_TS_READ) &&
-	    F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) &&
-	    !txn_global->has_stable_timestamp &&
-	    WT_TXNID_LT(ref->page_las->las_max_txn,
-	    txn->snap_min)) {
-		__wt_tree_modify_set(session);
-		return (WT_NOTFOUND);
-	}
+	    !txn_global->has_stable_timestamp)
+		return (true);
+
 #ifdef HAVE_TIMESTAMPS
 	/*
 	 * Skip lookaside pages if reading as of a timestamp and all the
@@ -474,14 +476,12 @@ __page_in_lookaside_check(WT_SESSION_IMPL *session, WT_REF *ref)
 	 */
 	if (F_ISSET(&session->txn, WT_TXN_HAS_TS_READ) &&
 	    txn_global->has_stable_timestamp &&
-	    WT_TXNID_LT(ref->page_las->las_max_txn, txn->snap_min) &&
 	    __wt_timestamp_cmp(
-	    &ref->page_las->min_timestamp, &session->txn.read_timestamp) > 0) {
-		__wt_tree_modify_set(session);
-		return (WT_NOTFOUND);
-	}
+	    &ref->page_las->min_timestamp, &session->txn.read_timestamp) > 0)
+		return (true);
 #endif
-	return (0);
+
+	return (false);
 }
 
 /*
@@ -521,18 +521,22 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			if (LF_ISSET(WT_READ_NO_EMPTY) &&
 			    __wt_delete_page_skip(session, ref, false))
 				return (WT_NOTFOUND);
-			/* FALLTHROUGH */
-		case WT_REF_DISK:
+			goto read;
 		case WT_REF_LOOKASIDE:
 			if (LF_ISSET(WT_READ_CACHE)) {
-				if (ref->state != WT_REF_LOOKASIDE ||
-				    !LF_ISSET(WT_READ_LOOKASIDE))
+				if (!LF_ISSET(WT_READ_LOOKASIDE))
 					return (WT_NOTFOUND);
-
-				WT_RET(__page_in_lookaside_check(session, ref));
+				if (__las_page_skip(session, ref)) {
+					__wt_tree_modify_set(session);
+					return (WT_NOTFOUND);
+				}
 			}
+			goto read;
+		case WT_REF_DISK:
+			if (LF_ISSET(WT_READ_CACHE))
+				return (WT_NOTFOUND);
 
-			/*
+read:			/*
 			 * The page isn't in memory, read it. If this thread is
 			 * allowed to do eviction work, check for space in the
 			 * cache.
