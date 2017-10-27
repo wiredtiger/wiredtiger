@@ -430,6 +430,61 @@ err:	/*
 }
 
 /*
+ * __page_in_lookaside_check --
+ *	Review lookaside page references for page in
+ */
+static inline int
+__page_in_lookaside_check(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+	WT_TXN *txn;
+	WT_TXN_GLOBAL *txn_global;
+
+	txn = &session->txn;
+	txn_global = &S2C(session)->txn_global;
+
+	/*
+	 * Skip lookaside pages if reading without a timestamp and all the
+	 * updates in lookaside are in the past.
+	 *
+	 * If we skip a lookaside page, the tree cannot be left clean:
+	 * lookaside entries must be resolved before the tree can be discarded.
+	 *
+	 * Lookaside eviction preferentially chooses the newest updates when
+	 * creating page image with no stable timestamp.  If a stable timestamp
+	 * has been set, we have to visit the page because eviction chooses old
+	 * version of records in that case.
+	 *
+	 * One case where we may need to visit the page is if lookaside
+	 * eviction is active in tree 2 when a checkpoint has started and is
+	 * working its way through tree 1.  In that case, lookaside may have
+	 * created a page image with updates in the future of the checkpoint.
+	 */
+	if (!F_ISSET(txn, WT_TXN_HAS_TS_READ) &&
+	    F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) &&
+	    !txn_global->has_stable_timestamp &&
+	    WT_TXNID_LT(ref->page_las->las_max_txn,
+	    txn->snap_min)) {
+		__wt_tree_modify_set(session);
+		return (WT_NOTFOUND);
+	}
+#ifdef HAVE_TIMESTAMPS
+	/*
+	 * Skip lookaside pages if reading as of a timestamp and all the
+	 * updates are in the future.
+	 */
+	if (F_ISSET(&session->txn, WT_TXN_HAS_TS_READ) &&
+	    txn_global->has_stable_timestamp &&
+	    WT_TXNID_LT(ref->page_las->las_max_txn, txn->snap_min) &&
+	    __wt_timestamp_cmp(
+	    &ref->page_las->min_timestamp, &session->txn.read_timestamp) > 0) {
+		__wt_tree_modify_set(session);
+		return (WT_NOTFOUND);
+	}
+#endif
+	return (0);
+}
+
+/*
  * __wt_page_in_func --
  *	Acquire a hazard pointer to a page; if the page is not in-memory,
  *	read it from the disk and build an in-memory version.
@@ -474,61 +529,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 				    !LF_ISSET(WT_READ_LOOKASIDE))
 					return (WT_NOTFOUND);
 
-				{
-				WT_TXN *txn = &session->txn;
-				WT_TXN_GLOBAL *txn_global =
-				    &S2C(session)->txn_global;
-
-				/*
-				 * Skip lookaside pages if reading without a
-				 * timestamp and all the updates in lookaside
-				 * are in the past.
-				 *
-				 * If we skip a lookaside page, the tree cannot
-				 * be left clean: lookaside entries must be
-				 * resolved before the tree can be discarded.
-				 *
-				 * Lookaside eviction preferentially chooses
-				 * the newest updates when creating page image
-				 * with no stable timestamp.  If a stable
-				 * timestamp has been set, we have to visit the
-				 * page because eviction chooses old version of
-				 * records in that case.
-				 *
-				 * One case where we may need to visit the page
-				 * is if lookaside eviction is active in tree 2
-				 * when a checkpoint has started and is working
-				 * its way through tree 1.  In that case,
-				 * lookaside may have created a page image with
-				 * updates in the future of the checkpoint.
-				 */
-				if (!F_ISSET(txn, WT_TXN_HAS_TS_READ) &&
-				    F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) &&
-				    !txn_global->has_stable_timestamp &&
-				    WT_TXNID_LT(ref->page_las->las_max_txn,
-				    txn->snap_min)) {
-					__wt_tree_modify_set(session);
-					return (WT_NOTFOUND);
-				}
-#ifdef HAVE_TIMESTAMPS
-				/*
-				 * Skip lookaside pages if reading as of a
-				 * timestamp and all the updates are in the
-				 * future.
-				 */
-				if (F_ISSET(
-				    &session->txn, WT_TXN_HAS_TS_READ) &&
-				    txn_global->has_stable_timestamp &&
-				    WT_TXNID_LT(ref->page_las->las_max_txn,
-				    txn->snap_min) &&
-				    __wt_timestamp_cmp(
-				    &ref->page_las->min_timestamp,
-				    &session->txn.read_timestamp) > 0) {
-					__wt_tree_modify_set(session);
-					return (WT_NOTFOUND);
-				}
-#endif
-				}
+				WT_RET(__page_in_lookaside_check(session, ref));
 			}
 
 			/*
