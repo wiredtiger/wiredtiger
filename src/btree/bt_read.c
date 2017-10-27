@@ -484,6 +484,10 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 				 * timestamp and all the updates in lookaside
 				 * are in the past.
 				 *
+				 * If we skip a lookaside page, the tree cannot
+				 * be left clean: lookaside entries must be
+				 * resolved before the tree can be discarded.
+				 *
 				 * Lookaside eviction preferentially chooses
 				 * the newest updates when creating page image
 				 * with no stable timestamp.  If a stable
@@ -502,16 +506,15 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 				    F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) &&
 				    !txn_global->has_stable_timestamp &&
 				    WT_TXNID_LT(ref->page_las->las_max_txn,
-				    txn->snap_min))
+				    txn->snap_min)) {
+					__wt_tree_modify_set(session);
 					return (WT_NOTFOUND);
+				}
 #ifdef HAVE_TIMESTAMPS
 				/*
 				 * Skip lookaside pages if reading as of a
 				 * timestamp and all the updates are in the
-				 * future.  If we skip a lookaside page with
-				 * updates in the future, the tree cannot be
-				 * left clean: it must be visited by the next
-				 * checkpoint.
+				 * future.
 				 */
 				if (F_ISSET(
 				    &session->txn, WT_TXN_HAS_TS_READ) &&
