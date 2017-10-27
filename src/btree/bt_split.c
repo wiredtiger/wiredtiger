@@ -2134,8 +2134,17 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 	/*
 	 * Pages with unresolved changes are not marked clean in reconciliation,
 	 * do it now, then discard the page.
+	 *
+	 * If discarding a lookaside table page, don't count this as eviction
+	 * making progress. The workload for an active lookaside table usually
+	 * involves growing lookaside pages and then splitting them into a set
+	 * of on-disk pages. This isn't precise, but what we're trying to spot
+	 * is the active lookaside pages as opposed to the lookaside pages read
+	 * to satisfy normal cursor operations.
 	 */
 	__wt_page_modify_clear(session, page);
+	if (F_ISSET(S2BT(session), WT_BTREE_LOOKASIDE))
+		F_SET_ATOMIC(page, WT_PAGE_EVICT_NO_PROGRESS);
 	__wt_page_out(session, &page);
 
 	if (0) {
