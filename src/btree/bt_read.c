@@ -437,10 +437,13 @@ static inline bool
 __las_page_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	WT_TXN *txn;
-	WT_TXN_GLOBAL *txn_global;
+	bool skip;
 
 	txn = &session->txn;
-	txn_global = &S2C(session)->txn_global;
+	skip = false;
+
+	if (!__wt_atomic_casv32(&ref->state, WT_REF_LOOKASIDE, WT_REF_LOCKED))
+		return (false);
 
 	/*
 	 * Skip lookaside pages if reading without a timestamp and all the
@@ -460,14 +463,16 @@ __las_page_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * created a page image with updates in the future of the checkpoint.
 	 */
 	if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
-		return (false);
+		goto done;
 
 	if (WT_TXNID_LE(txn->snap_min, ref->page_las->las_max_txn))
-		return (false);
+		goto done;
 
 	if (!F_ISSET(txn, WT_TXN_HAS_TS_READ) &&
-	    !txn_global->has_stable_timestamp)
-		return (true);
+	    !ref->page_las->las_skew_oldest) {
+		skip = true;
+		goto done;
+	}
 
 #ifdef HAVE_TIMESTAMPS
 	/*
@@ -475,13 +480,16 @@ __las_page_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * updates are in the future.
 	 */
 	if (F_ISSET(&session->txn, WT_TXN_HAS_TS_READ) &&
-	    txn_global->has_stable_timestamp &&
+	    ref->page_las->las_skew_oldest &&
 	    __wt_timestamp_cmp(
-	    &ref->page_las->min_timestamp, &session->txn.read_timestamp) > 0)
-		return (true);
+	    &ref->page_las->min_timestamp, &session->txn.read_timestamp) > 0) {
+		skip = true;
+		goto done;
+	}
 #endif
 
-	return (false);
+done:	WT_PUBLISH(ref->state, WT_REF_LOOKASIDE);
+	return (skip);
 }
 
 /*

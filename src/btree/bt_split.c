@@ -1387,7 +1387,7 @@ __split_multi_inmem(
 	uint64_t recno;
 	uint32_t i, slot;
 
-	WT_ASSERT(session, multi->las_pageid == 0);
+	WT_ASSERT(session, multi->page_las.las_pageid == 0);
 
 	/*
 	 * In 04/2016, we removed column-store record numbers from the WT_PAGE
@@ -1594,7 +1594,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 	 * There can be an address or a disk image or both, but if there is
 	 * neither, there must be a backing lookaside page.
 	 */
-	WT_ASSERT(session, multi->las_pageid != 0 ||
+	WT_ASSERT(session, multi->page_las.las_pageid != 0 ||
 	    multi->addr.addr != NULL || multi->disk_image != NULL);
 
 	/* If closing the file, there better be an address. */
@@ -1634,7 +1634,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 	 * WT_REF.state. Regardless of a backing address, WT_REF_LOOKASIDE
 	 * overrides WT_REF_DISK.
 	 */
-	if (multi->las_pageid != 0) {
+	if (multi->page_las.las_pageid != 0) {
 		/*
 		 * We should not have a disk image if we did lookaside
 		 * eviction.
@@ -1642,12 +1642,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 		WT_ASSERT(session, multi->disk_image == NULL);
 
 		WT_RET(__wt_calloc_one(session, &ref->page_las));
-		ref->page_las->las_pageid = multi->las_pageid;
-		ref->page_las->las_max_txn = multi->las_max_txn;
-#ifdef HAVE_TIMESTAMPS
-		__wt_timestamp_set(
-		    &ref->page_las->min_timestamp, &multi->las_min_timestamp);
-#endif
+		*ref->page_las = multi->page_las;
 		ref->state = WT_REF_LOOKASIDE;
 	}
 
