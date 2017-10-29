@@ -558,6 +558,7 @@ __evict_review(
 	if (closing)
 		LF_SET(WT_REC_VISIBILITY_ERR);
 	else if (!WT_PAGE_IS_INTERNAL(page) &&
+	    !WT_IS_METADATA(session->dhandle) &&
 	    !F_ISSET(S2BT(session), WT_BTREE_LOOKASIDE)) {
 		if (F_ISSET(conn, WT_CONN_IN_MEMORY))
 			LF_SET(WT_REC_IN_MEMORY |
