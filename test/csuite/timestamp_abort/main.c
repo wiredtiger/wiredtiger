@@ -446,7 +446,7 @@ handler(int sig)
 	/*
 	 * The core file will indicate why the child exited. Choose EINVAL here.
 	 */
-	testutil_die(EINVAL, "Child process %d abnormally exited", pid);
+	testutil_die(EINVAL, "Child process abnormally exited");
 }
 
 int
