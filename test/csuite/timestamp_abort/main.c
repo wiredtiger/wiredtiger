@@ -84,6 +84,8 @@ static uint64_t th_ts[MAX_TH];
     "transaction_sync=(enabled,method=none)"
 #define	ENV_CONFIG_REC "log=(archive=false,recover=on)"
 
+static void handler(int)
+    WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void usage(void)
     WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
@@ -434,9 +436,23 @@ timestamp_build(void)
 extern int __wt_optind;
 extern char *__wt_optarg;
 
+static void
+handler(int sig)
+{
+	pid_t pid;
+
+	WT_UNUSED(sig);
+	pid = wait(NULL);
+	/*
+	 * The core file will indicate why the child exited. Choose EINVAL here.
+	 */
+	testutil_die(EINVAL, "Child process %d abnormally exited", pid);
+}
+
 int
 main(int argc, char *argv[])
 {
+	struct sigaction sa;
 	struct stat sb;
 	FILE *fp;
 	WT_CONNECTION *conn;
@@ -536,6 +552,9 @@ main(int argc, char *argv[])
 		 * kill the child, run recovery and make sure all items we wrote
 		 * exist after recovery runs.
 		 */
+		memset(&sa, 0, sizeof(sa));
+		sa.sa_handler = handler;
+		sigaction(SIGCHLD, &sa, NULL);
 		testutil_checksys((pid = fork()) < 0);
 
 		if (pid == 0) { /* child */
@@ -548,15 +567,15 @@ main(int argc, char *argv[])
 		 * Sleep for the configured amount of time before killing
 		 * the child.  Start the timeout from the time we notice that
 		 * the file has been created.  That allows the test to run
-		 * correctly on really slow machines.  Verify the process ID
-		 * still exists in case the child aborts for some reason we
-		 * don't stay in this loop forever.
+		 * correctly on really slow machines.
 		 */
 		testutil_check(__wt_snprintf(
 		    statname, sizeof(statname), "%s/%s", home, ckpt_file));
-		while (stat(statname, &sb) != 0 && kill(pid, 0) == 0)
+		while (stat(statname, &sb) != 0)
 			sleep(1);
 		sleep(timeout);
+		sa.sa_handler = SIG_DFL;
+		sigaction(SIGCHLD, &sa, NULL);
 
 		/*
 		 * !!! It should be plenty long enough to make sure more than
