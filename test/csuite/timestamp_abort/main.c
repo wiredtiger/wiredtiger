@@ -312,7 +312,13 @@ thread_run(void *arg)
 			    "commit_timestamp=%" PRIx64, stable_ts));
 			testutil_check(
 			    session->commit_transaction(session, tscfg));
-			th_ts[td->info] = stable_ts;
+			/*
+			 * Update the thread's last-committed timestamp.
+			 * Don't let the compiler re-order this statement,
+			 * if we were to race with the timestamp thread, it
+			 * might see our thread update before the commit.
+			 */
+			WT_PUBLISH(th_ts[td->info], stable_ts);
 		} else
 			testutil_check(
 			    session->commit_transaction(session, NULL));
@@ -446,7 +452,8 @@ handler(int sig)
 	/*
 	 * The core file will indicate why the child exited. Choose EINVAL here.
 	 */
-	testutil_die(EINVAL, "Child process abnormally exited");
+	testutil_die(EINVAL,
+	    "Child process %" PRIu64 " abnormally exited", (uint64_t)pid);
 }
 
 int
