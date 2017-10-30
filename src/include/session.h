@@ -99,8 +99,8 @@ struct __wt_session_impl {
 	 * Variables used to look for violations of the contract that a
 	 * session is only used by a single session at once.
 	 */
-	volatile size_t api_tid;
-	volatile size_t api_enter_refcnt;
+	volatile uintmax_t api_tid;
+	volatile u_int32_t api_enter_refcnt;
 	/*
 	 * It's hard to figure out from where a buffer was allocated after it's
 	 * leaked, so in diagnostic mode we track them; DIAGNOSTIC can't simply

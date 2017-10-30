@@ -88,11 +88,11 @@ __wt_thread_id(size_t *id)
 }
 
 /*
- * __wt_thread_descriptor --
+ * __wt_thread_str --
  *	Fill in a printable version of the process and thread IDs.
  */
 int
-__wt_thread_descriptor(char *buf, size_t buflen)
+__wt_thread_str(char *buf, size_t buflen)
     WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	pthread_t self;

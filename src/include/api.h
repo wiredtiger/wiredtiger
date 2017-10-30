@@ -12,9 +12,9 @@
  * in parallel. The check isn't trivial because some API calls re-enter
  * other API calls, so track and clear thread identifier
  */
-#define	DIAG_SINGLE_THREAD_CHECK_START(s)				\
+#define	WT_DIAG_SINGLE_THREAD_CHECK_START(s)				\
 	{								\
-	size_t __tmp_api_tid;						\
+	uintmax_t __tmp_api_tid;					\
 	__wt_thread_id(&__tmp_api_tid);					\
 	WT_ASSERT(session, (s)->id == 0 || (s)->api_tid == 0 ||		\
 	    (s)->api_tid == __tmp_api_tid);				\
@@ -23,12 +23,12 @@
 	++(s)->api_enter_refcnt;					\
 	}
 
-#define	DIAG_SINGLE_THREAD_CHECK_STOP(s)				\
+#define	WT_DIAG_SINGLE_THREAD_CHECK_STOP(s)				\
 	if (--(s)->api_enter_refcnt == 0)				\
 		(s)->api_tid = 0;
 #else
-#define	DIAG_SINGLE_THREAD_CHECK_START(s)
-#define	DIAG_SINGLE_THREAD_CHECK_STOP(s)
+#define	WT_DIAG_SINGLE_THREAD_CHECK_START(s)
+#define	WT_DIAG_SINGLE_THREAD_CHECK_STOP(s)
 #endif
 
 /* Standard entry points to the API: declares/initializes local variables. */
@@ -37,7 +37,7 @@
 	const char *__oldname = (s)->name;				\
 	(s)->dhandle = (dh);						\
 	(s)->name = (s)->lastop = #h "." #n;				\
-	DIAG_SINGLE_THREAD_CHECK_START(s);				\
+	WT_DIAG_SINGLE_THREAD_CHECK_START(s);				\
 	WT_ERR(WT_SESSION_CHECK_PANIC(s));				\
 	__wt_verbose((s), WT_VERB_API, "%s", "CALL: " #h ":" #n)
 
@@ -54,7 +54,7 @@
 
 #define	API_END(s, ret)							\
 	if ((s) != NULL) {						\
-		DIAG_SINGLE_THREAD_CHECK_STOP(s);			\
+		WT_DIAG_SINGLE_THREAD_CHECK_STOP(s);			\
 		(s)->dhandle = __olddh;					\
 		(s)->name = __oldname;					\
 		if (F_ISSET(&(s)->txn, WT_TXN_RUNNING) &&		\
