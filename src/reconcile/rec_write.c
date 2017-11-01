@@ -48,6 +48,7 @@ typedef struct {
 	/* Track the page's min/maximum transactions. */
 	uint64_t max_txn;
 	WT_DECL_TIMESTAMP(max_timestamp)
+	WT_DECL_TIMESTAMP(max_onpage_timestamp)
 	WT_DECL_TIMESTAMP(min_saved_timestamp)
 
 	u_int updates_seen;		/* Count of updates seen. */
@@ -978,6 +979,7 @@ __rec_init(WT_SESSION_IMPL *session,
 	r->max_txn = WT_TXN_NONE;
 #ifdef HAVE_TIMESTAMPS
 	__wt_timestamp_set_zero(&r->max_timestamp);
+	__wt_timestamp_set_zero(&r->max_onpage_timestamp);
 	__wt_timestamp_set_inf(&r->min_saved_timestamp);
 #endif
 
@@ -1460,6 +1462,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 #ifdef HAVE_TIMESTAMPS
 	/* Track the oldest saved timestamp for lookaside. */
 	if (F_ISSET(r, WT_REC_LOOKASIDE)) {
+		/* If no updates had timestamps, we're done. */
 		if (first_ts_upd == NULL)
 			__wt_timestamp_set_zero(&r->min_saved_timestamp);
 		for (upd = first_upd; upd != *updp; upd = upd->next) {
@@ -1468,6 +1471,9 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			    &r->min_saved_timestamp) < 0)
 				__wt_timestamp_set(&r->min_saved_timestamp,
 				    &upd->timestamp);
+
+			WT_ASSERT(session, upd->txnid == WT_TXN_ABORTED ||
+			    WT_TXNID_LE(upd->txnid, r->max_txn));
 		}
 	}
 #endif
@@ -1493,6 +1499,12 @@ check_original_value:
 	    vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)))
 		WT_RET(
 		    __rec_append_orig_value(session, page, first_upd, vpack));
+
+#ifdef HAVE_TIMESTAMPS
+	if ((upd = *updp) != NULL &&
+	    __wt_timestamp_cmp(&upd->timestamp, &r->max_onpage_timestamp) > 0)
+		__wt_timestamp_set(&r->max_onpage_timestamp, &upd->timestamp);
+#endif
 
 	return (0);
 }
@@ -3347,9 +3359,12 @@ __rec_split_write_supd(WT_SESSION_IMPL *session,
 done:	/* Track the oldest timestamp seen so far. */
 	multi->page_las.las_skew_oldest = r->las_skew_oldest;
 	multi->page_las.las_max_txn = r->max_txn;
+	WT_ASSERT(session, r->max_txn != WT_TXN_NONE);
 #ifdef HAVE_TIMESTAMPS
 	__wt_timestamp_set(
 	    &multi->page_las.min_timestamp, &r->min_saved_timestamp);
+	__wt_timestamp_set(
+	    &multi->page_las.onpage_timestamp, &r->max_onpage_timestamp);
 #endif
 
 err:	__wt_scr_free(session, &key);
