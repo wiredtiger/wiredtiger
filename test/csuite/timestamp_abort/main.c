@@ -605,6 +605,11 @@ main(int argc, char *argv[])
 	    "cp -p WiredTigerLog.* ../%s.SAVE",
 	     home, home, home));
 	(void)system(buf);
+	testutil_check(__wt_snprintf(buf, sizeof(buf),
+	    "rm -rf ../%s.SAVE_FULL && mkdir ../%s.SAVE_FULL && "
+	    "cp -p * ../%s.SAVE_FULL",
+	     home, home, home));
+	(void)system(buf);
 	printf("Open database, run recovery and verify content\n");
 
 	/*

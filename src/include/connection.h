@@ -435,5 +435,5 @@ struct __wt_connection_impl {
 	 */
 	WT_FILE_SYSTEM *file_system;
 
-	uint32_t flags;
+	uint64_t flags;
 };
