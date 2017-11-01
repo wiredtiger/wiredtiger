@@ -1459,7 +1459,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 
 #ifdef HAVE_TIMESTAMPS
 	/* Track the oldest saved timestamp for lookaside. */
-	if (F_ISSET(r, WT_REC_LOOKASIDE))
+	if (F_ISSET(r, WT_REC_LOOKASIDE)) {
 		if (first_ts_upd == NULL)
 			__wt_timestamp_set_zero(&r->min_saved_timestamp);
 		for (upd = first_upd; upd != *updp; upd = upd->next) {
@@ -1469,6 +1469,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 				__wt_timestamp_set(&r->min_saved_timestamp,
 				    &upd->timestamp);
 		}
+	}
 #endif
 
 check_original_value:
