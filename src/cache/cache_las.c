@@ -314,6 +314,7 @@ __las_insert_block_verbose(
     WT_SESSION_IMPL *session, uint32_t btree_id, uint64_t las_pageid)
 {
 #ifdef HAVE_VERBOSE
+	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	uint64_t ckpt_gen_current, ckpt_gen_last;
 	uint32_t pct_dirty, pct_full;
@@ -322,6 +323,7 @@ __las_insert_block_verbose(
 		return;
 
 	conn = S2C(session);
+	cache = conn->cache;
 	ckpt_gen_current = __wt_gen(session, WT_GEN_CHECKPOINT);
 	ckpt_gen_last = cache->las_verb_gen_write;
 
