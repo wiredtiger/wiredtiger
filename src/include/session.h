@@ -209,7 +209,7 @@ struct __wt_session_impl {
 	WT_HAZARD *hazard;		/* Hazard pointer array */
 
 	/*
-	 * Long operation tracking.
+	 * Operation tracking.
 	 */
 	WT_TRACK_RECORD *optrack_buf;
 	u_int optrackbuf_ptr;

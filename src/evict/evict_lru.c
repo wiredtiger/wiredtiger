@@ -1152,6 +1152,7 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 
+	WT_TRACK_OP_INIT(session);
 	conn = S2C(session);
 
 	/*
@@ -1168,6 +1169,7 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
 		__wt_cond_wait(
 		    session, conn->evict_threads.wait_cond, 10000, NULL);
 
+	WT_TRACK_OP_END(session);
 	return (ret == WT_NOTFOUND ? 0 : ret);
 }
 
@@ -1184,6 +1186,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 	uint64_t read_gen_oldest;
 	uint32_t candidates, entries;
 
+	WT_TRACK_OP_INIT(session);
 	cache = S2C(session)->cache;
 
 	/* Age out the score of how much the queue has been empty recently. */
@@ -1208,12 +1211,12 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 	 */
 	if (__evict_queue_full(queue) &&
 	    cache->evict_empty_score < WT_EVICT_SCORE_CUTOFF)
-		return (0);
+		WT_RET_TRACK(0);
 
 	/* Get some more pages to consider for eviction. */
 	if ((ret = __evict_walk(cache->walk_session, queue)) == EBUSY)
-		return (0);	/* An interrupt was requested, give up. */
-	WT_RET_NOTFOUND_OK(ret);
+		WT_RET_TRACK(0);     /* An interrupt was requested, give up. */
+	WT_RET_TRACK_NOTFOUND_OK(ret);
 
 	/*
 	 * If the queue we are filling is empty, pages are being requested
@@ -1271,7 +1274,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 		queue->evict_candidates = 0;
 		queue->evict_current = NULL;
 		__wt_spin_unlock(session, &queue->evict_lock);
-		return (0);
+		WT_RET_TRACK(0);
 	}
 
 	/* Decide how many of the candidates we're going to try and evict. */
@@ -1330,7 +1333,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 	 */
 	__wt_cond_signal(session, S2C(session)->evict_threads.wait_cond);
 
-	return (0);
+	WT_RET_TRACK(0);
 }
 
 /*
@@ -1347,6 +1350,8 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
 	WT_DECL_RET;
 	u_int max_entries, retries, slot, start_slot, total_candidates;
 	bool dhandle_locked, incr;
+
+	WT_TRACK_OP_INIT(session);
 
 	conn = S2C(session);
 	cache = conn->cache;
@@ -1524,10 +1529,10 @@ err:	if (dhandle_locked)
 	 * let our caller know.
 	 */
 	if (queue->evict_entries == slot && cache->pass_intr == 0)
-		return (WT_NOTFOUND);
+		WT_RET_TRACK(WT_NOTFOUND);
 
 	queue->evict_entries = slot;
-	return (ret);
+	WT_RET_TRACK(ret);
 }
 
 /*
@@ -2203,6 +2208,8 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 	WT_REF *ref;
 	bool app_timer;
 
+	WT_TRACK_OP_INIT(session);
+
 	WT_RET(__evict_get_ref(session, is_server, &btree, &ref));
 	WT_ASSERT(session, ref->state == WT_REF_LOCKED);
 
@@ -2250,7 +2257,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 		WT_STAT_CONN_INCRV(session,
 		    application_evict_time, WT_TIMEDIFF_US(leave, enter));
 	}
-	return (ret);
+	WT_RET_TRACK(ret);
 }
 
 /*
@@ -2270,6 +2277,8 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 	uint64_t initial_progress, max_progress;
 	bool timer;
 
+	WT_TRACK_OP_INIT(session);
+
 	conn = S2C(session);
 	cache = conn->cache;
 	txn_global = &conn->txn_global;
@@ -2280,10 +2289,10 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 	 * setup yet.
 	 */
 	if (!conn->evict_server_running)
-		return (0);
+		WT_RET_TRACK(0);
 
 	if (busy && pct_full < 100)
-		return (0);
+		WT_RET_TRACK(0);
 
 	/* Wake the eviction server if we need to do work. */
 	__wt_evict_server_wake(session);
@@ -2363,7 +2372,7 @@ err:	if (timer) {
 		    application_cache_time, WT_TIMEDIFF_US(leave, enter));
 	}
 
-	return (ret);
+	WT_RET_TRACK(ret);
 	/* NOTREACHED */
 }
 
