@@ -136,6 +136,9 @@ __wt_las_destroy(WT_SESSION_IMPL *session)
 	cache = conn->cache;
 
 	F_CLR(conn, WT_CONN_LOOKASIDE_OPEN);
+	if (cache == NULL)
+		return (0);
+
 	for (i = 0; i < WT_LAS_NUM_SESSIONS; i++) {
 		if (cache->las_session[i] == NULL)
 			continue;
