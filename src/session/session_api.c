@@ -259,9 +259,9 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 	ret = __wt_config_getones(session, config, "ignore_cache_size", &cval);
 	if (ret == 0) {
 		if (cval.val)
-			F_SET(session, WT_SESSION_NO_EVICTION);
+			F_SET(session, WT_SESSION_IGNORE_CACHE_SIZE);
 		else
-			F_CLR(session, WT_SESSION_NO_EVICTION);
+			F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
 	}
 	WT_ERR_NOTFOUND_OK(ret);
 

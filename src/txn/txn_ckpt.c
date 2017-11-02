@@ -440,6 +440,13 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 		if (current_dirty <= (double)cache->eviction_checkpoint_target)
 			break;
 
+		/*
+		 * Don't scrub when the lookaside table is in use: scrubbing is
+		 * counter-productive in that case.
+		 */
+		if (F_ISSET(cache, WT_CACHE_EVICT_LOOKASIDE))
+			break;
+
 		__wt_sleep(0, stepdown_us / 10);
 		__wt_epoch(session, &stop);
 		current_us = WT_TIMEDIFF_US(stop, last);
@@ -717,6 +724,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 		__wt_verbose_timestamp(session, &txn->read_timestamp,
 		    "Checkpoint requested at stable timestamp");
 #endif
+
+	__wt_sleep(0, 100 * WT_THOUSAND);
 
 	/*
 	 * Get a list of handles we want to flush; for named checkpoints this
@@ -1080,7 +1089,7 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
 	 */
 #undef WT_CHECKPOINT_SESSION_FLAGS
 #define	WT_CHECKPOINT_SESSION_FLAGS \
-	(WT_SESSION_CAN_WAIT | WT_SESSION_NO_EVICTION)
+	(WT_SESSION_CAN_WAIT | WT_SESSION_IGNORE_CACHE_SIZE)
 #undef WT_CHECKPOINT_SESSION_FLAGS_OFF
 #define	WT_CHECKPOINT_SESSION_FLAGS_OFF \
 	(WT_SESSION_LOOKASIDE_CURSOR)

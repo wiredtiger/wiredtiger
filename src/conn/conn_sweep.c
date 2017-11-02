@@ -383,10 +383,17 @@ __wt_sweep_create(WT_SESSION_IMPL *session)
 	 *
 	 * Don't tap the sweep thread for eviction.
 	 */
-	session_flags = WT_SESSION_CAN_WAIT | WT_SESSION_NO_EVICTION;
+	session_flags = WT_SESSION_CAN_WAIT | WT_SESSION_IGNORE_CACHE_SIZE;
 	WT_RET(__wt_open_internal_session(
 	    conn, "sweep-server", true, session_flags, &conn->sweep_session));
 	session = conn->sweep_session;
+
+	/*
+	 * Sweep should have it's own lookaside cursor to avoid blocking reads
+	 * and eviction when processing drops.
+	 */
+	if (F_ISSET(conn, WT_CONN_LOOKASIDE_OPEN))
+		WT_RET(__wt_las_cursor_open(session));
 
 	WT_RET(__wt_cond_alloc(
 	    session, "handle sweep server", &conn->sweep_cond));

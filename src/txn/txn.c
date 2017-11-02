@@ -757,8 +757,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			 * Writes to the lookaside file can be evicted as soon
 			 * as they commit.
 			 */
-			if (conn->las_fileid != 0 &&
-			    op->fileid == conn->las_fileid) {
+			if (conn->cache->las_fileid != 0 &&
+			    op->fileid == conn->cache->las_fileid) {
 				op->u.upd->txnid = WT_TXN_NONE;
 				break;
 			}
@@ -881,8 +881,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 		case WT_TXN_OP_BASIC_TS:
 		case WT_TXN_OP_INMEM:
 			WT_ASSERT(session, op->u.upd->txnid == txn->id);
-			WT_ASSERT(session, S2C(session)->las_fileid == 0 ||
-			    op->fileid != S2C(session)->las_fileid);
+			WT_ASSERT(session,
+			    S2C(session)->cache->las_fileid == 0 ||
+			    op->fileid != S2C(session)->cache->las_fileid);
 			op->u.upd->txnid = WT_TXN_ABORTED;
 			break;
 		case WT_TXN_OP_REF:
@@ -961,6 +962,15 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
 
 	WT_STAT_SET(session, stats, txn_pinned_range,
 	    txn_global->current - txn_global->oldest_id);
+
+#if WT_TIMESTAMP_SIZE == 8
+	WT_STAT_SET(session, stats, txn_pinned_timestamp,
+	    txn_global->commit_timestamp.val -
+	    txn_global->pinned_timestamp.val);
+	WT_STAT_SET(session, stats, txn_pinned_timestamp_oldest,
+	    txn_global->commit_timestamp.val -
+	    txn_global->oldest_timestamp.val);
+#endif
 
 	WT_STAT_SET(session, stats, txn_pinned_snapshot_range,
 	    snapshot_pinned == WT_TXN_NONE ?
