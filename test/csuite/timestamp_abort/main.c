@@ -596,18 +596,15 @@ main(int argc, char *argv[])
 	}
 	/*
 	 * !!! If we wanted to take a copy of the directory before recovery,
-	 * this is the place to do it.
+	 * this is the place to do it. Don't do it all the time because
+	 * it can use a lot of disk space, which can cause test machine
+	 * issues.
 	 */
 	if (chdir(home) != 0)
 		testutil_die(errno, "parent chdir: %s", home);
 	testutil_check(__wt_snprintf(buf, sizeof(buf),
 	    "rm -rf ../%s.SAVE && mkdir ../%s.SAVE && "
 	    "cp -p WiredTigerLog.* ../%s.SAVE",
-	     home, home, home));
-	(void)system(buf);
-	testutil_check(__wt_snprintf(buf, sizeof(buf),
-	    "rm -rf ../%s.SAVE_FULL && mkdir ../%s.SAVE_FULL && "
-	    "cp -p * ../%s.SAVE_FULL",
 	     home, home, home));
 	(void)system(buf);
 	printf("Open database, run recovery and verify content\n");

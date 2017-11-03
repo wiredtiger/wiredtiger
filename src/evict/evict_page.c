@@ -575,13 +575,9 @@ __evict_review(
 			 * that can't be evicted, check if reconciliation
 			 * suggests trying the lookaside table.
 			 */
-#if 0
 			if (!F_ISSET(conn, WT_CONN_EVICTION_NO_LOOKASIDE) &&
 			    (__wt_cache_lookaside_score(cache) > 50 ||
 			    __wt_cache_stuck(session)))
-#else
-			if (!F_ISSET(conn, WT_CONN_EVICTION_NO_LOOKASIDE))
-#endif
 				lookaside_retryp = &lookaside_retry;
 		}
 	}

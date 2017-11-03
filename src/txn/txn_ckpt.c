@@ -718,8 +718,6 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 		__wt_verbose_timestamp(session, &txn->read_timestamp,
 		    "Checkpoint requested at stable timestamp");
 #endif
-	/* Sleep to encourage a race with lookaside */
-	__wt_sleep(0, 100 * WT_THOUSAND);
 
 	/*
 	 * Get a list of handles we want to flush; for named checkpoints this
