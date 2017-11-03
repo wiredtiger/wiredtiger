@@ -823,6 +823,18 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	 * write lock and re-check.
 	 */
 	if (update_timestamp) {
+#if WT_TIMESTAMP_SIZE == 8
+		while (__wt_timestamp_cmp(
+		    &prev_commit_timestamp, &txn->commit_timestamp) < 0) {
+			if (__wt_atomic_cas64(
+			    &txn_global->commit_timestamp.val,
+			    prev_commit_timestamp.val,
+			    txn->commit_timestamp.val))
+				break;
+		    __wt_timestamp_set(
+			&prev_commit_timestamp, &txn_global->commit_timestamp);
+		}
+#else
 		__wt_writelock(session, &txn_global->rwlock);
 		if (__wt_timestamp_cmp(&txn->commit_timestamp,
 		    &txn_global->commit_timestamp) > 0) {
@@ -831,6 +843,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			txn_global->has_commit_timestamp = true;
 		}
 		__wt_writeunlock(session, &txn_global->rwlock);
+#endif
 	}
 #endif
 
