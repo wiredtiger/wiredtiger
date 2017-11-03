@@ -28,8 +28,8 @@ __wt_optrack_record_funcid(WT_SESSION_IMPL *session, uint64_t op_id,
 	if (!*id_recorded) {
 		WT_IGNORE_RET(__wt_snprintf(id_buf,
 		    sizeof(id_buf), "%p ", (void*)op_id));
-		WT_IGNORE_RET(__wt_filesize(session, conn->optrack_map_fh,
-					    &fsize));
+		WT_IGNORE_RET(__wt_filesize(
+		    session, conn->optrack_map_fh, &fsize));
 		WT_IGNORE_RET(__wt_write(session, conn->optrack_map_fh, fsize,
 				WT_MIN(strnlen(id_buf, sizeof(id_buf)-1),
 				       sizeof(id_buf)-1), id_buf));
