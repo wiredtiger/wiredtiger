@@ -497,6 +497,19 @@ connection_runtime_config = [
     Config('lsm_merge', 'true', r'''
         merge LSM chunks where possible (deprecated)''',
         type='boolean', undoc=True),
+    Config('operation_tracking', '', r'''
+        enable tracking of performance-critical functions. See
+        @ref operation_tracking for more information''',
+        type='category', subconfig=[
+            Config('enabled', 'true', r'''
+                enable operation tracking subsystem''',
+                type='boolean'),
+            Config('path', '"./operation_tracking"', r'''
+                the name of a directory into which operation tracking files are
+                written. The directory must already exist. If the value is not
+                an absolute path, the path is relative to the database home
+                (see @ref absolute_path for more information)'''),
+        ]),
     Config('shared_cache', '', r'''
         shared cache configuration options. A database should configure
         either a cache_size or a shared_cache not both. Enabling a
@@ -774,10 +787,6 @@ wiredtiger_open_common =\
         permit sharing between processes (will automatically start an
         RPC server for primary processes and use RPC for secondary
         processes). <b>Not yet supported in WiredTiger</b>''',
-        type='boolean'),
-    Config('optrack', 'true', r'''
-        enable tracking of performance-critical functions. See @ref optrack
-        for more information''',
         type='boolean'),
     Config('readonly', 'false', r'''
         open connection in read-only mode.  The database must exist.  All

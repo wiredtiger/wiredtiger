@@ -160,7 +160,7 @@ wt_startup(char *config_open)
 	testutil_make_work_dir(home);
 
 	testutil_check(__wt_snprintf(config_buf, sizeof(config_buf),
-	    "create,error_prefix=\"%s\",cache_size=5MB%s%s,optrack=false",
+	    "create,error_prefix=\"%s\",cache_size=5MB%s%s,operation_tracking=false",
 	    progname,
 	    config_open == NULL ? "" : ",",
 	    config_open == NULL ? "" : config_open));
