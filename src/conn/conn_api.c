@@ -1794,7 +1794,7 @@ err:	/*
 /* Simple structure for name and flag configuration searches. */
 typedef struct {
 	const char *name;
-	uint32_t flag;
+	uint64_t flag;
 } WT_NAME_FLAG;
 
 /*
@@ -1843,7 +1843,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	const WT_NAME_FLAG *ft;
-	uint32_t flags;
+	uint64_t flags;
 
 	conn = S2C(session);
 
@@ -2002,7 +2002,7 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	const WT_NAME_FLAG *ft;
-	uint32_t flags;
+	uint64_t flags;
 
 	conn = S2C(session);
 
@@ -2012,13 +2012,12 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
 	flags = 0;
 	for (ft = stress_types; ft->name != NULL; ft++) {
 		if ((ret = __wt_config_subgets(
-		    session, &cval, ft->name, &sval)) == 0 && sval.val != 0) {
+		    session, &cval, ft->name, &sval)) == 0 && sval.val != 0)
 			LF_SET(ft->flag);
-		}
 		WT_RET_NOTFOUND_OK(ret);
 	}
 
-	conn->timing_stress_flags = flags;
+	conn->timing_stress_flags = (uint32_t)flags;
 	return (0);
 }
 
