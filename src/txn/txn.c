@@ -825,12 +825,14 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	if (update_timestamp) {
 #if WT_TIMESTAMP_SIZE == 8
 		while (__wt_timestamp_cmp(
-		    &prev_commit_timestamp, &txn->commit_timestamp) < 0) {
+		    &txn->commit_timestamp, &prev_commit_timestamp) > 0) {
 			if (__wt_atomic_cas64(
 			    &txn_global->commit_timestamp.val,
 			    prev_commit_timestamp.val,
-			    txn->commit_timestamp.val))
+			    txn->commit_timestamp.val)) {
+				txn_global->has_commit_timestamp = true;
 				break;
+			}
 		    __wt_timestamp_set(
 			&prev_commit_timestamp, &txn_global->commit_timestamp);
 		}
