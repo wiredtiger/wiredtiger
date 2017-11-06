@@ -747,7 +747,8 @@ __btree_verbose_lookaside_read(
 	WT_CACHE *cache;
 	uint64_t ckpt_gen_current, ckpt_gen_last;
 
-	if (!WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE))
+	if (!WT_VERBOSE_ISSET(session,
+	    WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY))
 		return;
 
 	cache = S2C(session)->cache;
@@ -759,7 +760,8 @@ __btree_verbose_lookaside_read(
 	 * track the generation of the last checkpoint for which the message
 	 * was printed and check against the current checkpoint generation.
 	 */
-	if (ckpt_gen_current > ckpt_gen_last) {
+	if (WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE) ||
+	    ckpt_gen_current > ckpt_gen_last) {
 		/*
 		 * Attempt to atomically replace the last checkpoint generation
 		 * for which this message was printed. If the atomic swap fails
@@ -767,7 +769,8 @@ __btree_verbose_lookaside_read(
 		 */
 		if (__wt_atomic_casv64(&cache->las_verb_gen_read,
 			ckpt_gen_last, ckpt_gen_current)) {
-			__wt_verbose(session, WT_VERB_LOOKASIDE,
+			__wt_verbose(session,
+			    WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY,
 			    "Read from lookaside file triggered for "
 			    "file ID %" PRIu32 ", page ID %" PRIu64,
 			    las_id, las_pageid);
