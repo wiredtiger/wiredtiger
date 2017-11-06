@@ -631,10 +631,10 @@ __wt_las_remove_block(WT_SESSION_IMPL *session,
 		 * all pages in the tree should be removed.
 		 */
 		if (las_pageid != pageid || las_id != btree_id) {
-			if (pageid == 0)
-				continue;
-			else
+			if (pageid != 0)
 				break;
+			if (las_id != btree_id)
+				continue;
 		}
 
 		WT_ERR(cursor->remove(cursor));

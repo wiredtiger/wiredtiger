@@ -169,14 +169,6 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 	mod = page->modify;
 	clean_page = mod == NULL || mod->rec_result == 0;
 
-	/*
-	 * If we are evicting a page that has been dirtied but is now clean,
-	 * count that as eviction that doesn't need lookaside.
-	 */
-	if (mod != NULL && mod->rec_result == 0 &&
-	    !F_ISSET(S2BT(session), WT_BTREE_LOOKASIDE))
-		__wt_cache_update_lookaside_score(session, 1, 0);
-
 	/* Update the reference and discard the page. */
 	if (__wt_ref_is_root(ref))
 		__wt_ref_out(session, ref);

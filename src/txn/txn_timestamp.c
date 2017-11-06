@@ -210,6 +210,10 @@ __txn_global_query_timestamp(
 		    __wt_timestamp_set(&ts, &txn_global->commit_timestamp));
 		WT_ASSERT(session, !__wt_timestamp_iszero(&ts));
 
+		/* Skip the lock if there are no running transactions. */
+		if (TAILQ_EMPTY(&txn_global->commit_timestamph))
+			goto done;
+
 		/* Compare with the oldest running transaction. */
 		__wt_readlock(session, &txn_global->commit_timestamp_rwlock);
 		txn = TAILQ_FIRST(&txn_global->commit_timestamph);
@@ -254,7 +258,7 @@ __txn_global_query_timestamp(
 		WT_RET_MSG(session, EINVAL,
 		    "unknown timestamp query %.*s", (int)cval.len, cval.str);
 
-	__wt_timestamp_set(tsp, &ts);
+done:	__wt_timestamp_set(tsp, &ts);
 	return (0);
 }
 #endif
@@ -574,7 +578,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	/*
 	 * Look for a commit timestamp.
 	 */
-	ret = __wt_config_gets(session, cfg, "commit_timestamp", &cval);
+	ret = __wt_config_gets_def(session, cfg, "commit_timestamp", 0, &cval);
 	if (ret == 0 && cval.len != 0) {
 #ifdef HAVE_TIMESTAMPS
 		WT_TXN *txn = &session->txn;
