@@ -100,7 +100,7 @@ struct __wt_session_impl {
 	 * session is only used by a single session at once.
 	 */
 	volatile uintmax_t api_tid;
-	volatile u_int32_t api_enter_refcnt;
+	volatile uint32_t api_enter_refcnt;
 	/*
 	 * It's hard to figure out from where a buffer was allocated after it's
 	 * leaked, so in diagnostic mode we track them; DIAGNOSTIC can't simply

@@ -80,9 +80,9 @@ __wt_thread_join(WT_SESSION_IMPL *session, wt_thread_t tid)
  *	Return an arithmetic representation of a thread ID on POSIX.
  */
 void
-__wt_thread_id(size_t *id)
+__wt_thread_id(uintmax_t *id)
 {
-	*id = (size_t)GetCurrentThreadId();
+	*id = (uintmax_t)GetCurrentThreadId();
 }
 
 /*
