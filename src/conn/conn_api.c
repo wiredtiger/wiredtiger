@@ -1084,6 +1084,8 @@ err:	/*
 			WT_TRET(wt_session->close(wt_session, config));
 		}
 
+	WT_TRET(__wt_async_flush(session));
+
 	/*
 	 * Disable lookaside eviction: it doesn't help us shut down and can
 	 * lead to pages being marked dirty, causing spurious assertions to
@@ -1131,6 +1133,7 @@ err:	/*
 		F_SET(conn, WT_CONN_PANIC);
 	}
 
+	WT_TRET(__wt_conn_optrack_teardown(session));
 	WT_TRET(__wt_connection_close(conn));
 
 	/* We no longer have a session, don't try to update it. */
@@ -2394,6 +2397,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	}
 	WT_ERR(
 	    __conn_chk_file_system(session, F_ISSET(conn, WT_CONN_READONLY)));
+
+	/* Set up operation tracking if configured. */
+	WT_ERR(__wt_conn_optrack_setup(session, cfg, false));
 
 	/* Make sure no other thread of control already owns this database. */
 	WT_ERR(__conn_single(session, cfg));

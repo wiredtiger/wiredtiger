@@ -44,8 +44,8 @@ class test_readonly01(wttest.WiredTigerTestCase, suite_subprocess):
     # We want a list of directory writable or readonly.
     #
     basecfg_list = [
-        ('basecfg', dict(basecfg='config_base=true,')),
-        ('no_basecfg', dict(basecfg='config_base=false,')),
+        ('basecfg', dict(basecfg='config_base=true,operation_tracking=false,')),
+        ('no_basecfg', dict(basecfg='config_base=false,operation_tracking=false,')),
     ]
     dir_list = [
         ('write', dict(dirchmod=False)),

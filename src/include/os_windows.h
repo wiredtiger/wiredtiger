@@ -59,3 +59,6 @@ struct tm *localtime_r(const time_t* timer, struct tm* result);
 
 /* Windows does not provide fsync */
 #define	fsync	_commit
+
+/* MAX_PATH is Windows' equivalent of PATH_MAX */
+#define	PATH_MAX MAX_PATH

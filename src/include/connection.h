@@ -192,6 +192,12 @@ struct __wt_connection_impl {
 					/* Configuration */
 	const WT_CONFIG_ENTRY **config_entries;
 
+	const char *optrack_path;	/* Directory for operation logs */
+	WT_FH *optrack_map_fh;		/* Name to id translation file. */
+	WT_SPINLOCK optrack_map_spinlock; /* Translation file spinlock. */
+	uintmax_t optrack_pid;		/* Cache the process ID. */
+	bool optrack_map_setup;		/* Is optrack map setup already */
+
 	void  **foc;			/* Free-on-close array */
 	size_t  foc_cnt;		/* Array entries */
 	size_t  foc_size;		/* Array size */
