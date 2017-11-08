@@ -151,7 +151,7 @@ thread_ts_run(void *arg)
 			this_ts = th_ts[i];
 			if (this_ts == 0)
 				goto ts_wait;
-			if (this_ts != 0 && this_ts < oldest_ts)
+			else if (this_ts < oldest_ts)
 				oldest_ts = this_ts;
 		}
 
