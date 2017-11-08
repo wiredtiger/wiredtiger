@@ -190,7 +190,7 @@ __wt_cache_decr_check_size(
  */
 static inline void
 __wt_cache_decr_check_uint64(
-    WT_SESSION_IMPL *session, uint64_t *vp, size_t v, const char *fld)
+    WT_SESSION_IMPL *session, uint64_t *vp, uint64_t v, const char *fld)
 {
 	if (__wt_atomic_sub64(vp, v) < WT_EXABYTE)
 		return;
@@ -201,7 +201,7 @@ __wt_cache_decr_check_uint64(
 	 */
 	*vp = 0;
 	__wt_errx(session,
-	    "%s went negative with decrement of %" WT_SIZET_FMT, fld, v);
+	    "%s went negative with decrement of %" PRIu64, fld, v);
 
 #ifdef HAVE_DIAGNOSTIC
 	__wt_abort(session);

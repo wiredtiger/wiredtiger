@@ -752,8 +752,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_ITEM *key, las_key;
-	uint64_t cnt, las_counter, las_pageid;
-	int64_t remove_cnt;
+	uint64_t cnt, las_counter, las_pageid, remove_cnt;
 	uint32_t las_id, session_flags;
 	int notused;
 
