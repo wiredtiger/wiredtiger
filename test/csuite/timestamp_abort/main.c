@@ -121,7 +121,7 @@ thread_ts_run(void *arg)
 	WT_CURSOR *cur_stable;
 	WT_SESSION *session;
 	THREAD_DATA *td;
-	uint64_t i, last_ts, oldest_ts;
+	uint64_t i, last_ts, oldest_ts, this_ts;
 	char tscfg[64];
 
 	td = (THREAD_DATA *)arg;
@@ -148,10 +148,11 @@ thread_ts_run(void *arg)
 			 * any thread still with a zero timestamp we go to
 			 * sleep.
 			 */
-			if (th_ts[i] == 0)
+			this_ts = th_ts[i];
+			if (this_ts == 0)
 				goto ts_wait;
-			if (th_ts[i] != 0 && th_ts[i] < oldest_ts)
-				oldest_ts = th_ts[i];
+			if (this_ts != 0 && this_ts < oldest_ts)
+				oldest_ts = this_ts;
 		}
 
 		if (oldest_ts != UINT64_MAX &&
