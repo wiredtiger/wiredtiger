@@ -28,6 +28,7 @@
 
 #include "test_util.h"
 
+#include <assert.h>
 #include <sys/wait.h>
 #include <signal.h>
 
@@ -111,6 +112,14 @@ usage(void)
 	exit(EXIT_FAILURE);
 }
 
+#define	MAXDBG	100
+struct tsdbg {
+	uint64_t last_ts;
+	uint64_t oldest_ts;
+	uint64_t oldest_i;
+} tsdbg[MAXDBG];
+int tsdbgi = 0;
+
 /*
  * thread_ts_run --
  *	Runner function for a timestamp thread.
@@ -121,7 +130,7 @@ thread_ts_run(void *arg)
 	WT_CURSOR *cur_stable;
 	WT_SESSION *session;
 	THREAD_DATA *td;
-	uint64_t i, last_ts, oldest_ts;
+	uint64_t dbgi, i, last_ts, old_i, oldest_ts;
 	char tscfg[64];
 
 	td = (THREAD_DATA *)arg;
@@ -150,10 +159,13 @@ thread_ts_run(void *arg)
 			 */
 			if (th_ts[i] == 0)
 				goto ts_wait;
-			if (th_ts[i] != 0 && th_ts[i] < oldest_ts)
+			if (th_ts[i] != 0 && th_ts[i] < oldest_ts) {
 				oldest_ts = th_ts[i];
+				old_i = i;
+			}
 		}
 
+		assert(oldest_ts >= last_ts);
 		if (oldest_ts != UINT64_MAX &&
 		    oldest_ts - last_ts > STABLE_PERIOD) {
 			/*
@@ -161,6 +173,12 @@ thread_ts_run(void *arg)
 			 * don't need to maintain read availability at older
 			 * timestamps.
 			 */
+			dbgi = tsdbgi++;
+			dbgi %= MAXDBG;
+			tsdbg[dbgi].last_ts = last_ts;
+			tsdbg[dbgi].oldest_ts = oldest_ts;
+			tsdbg[dbgi].oldest_i = old_i;
+
 			testutil_check(__wt_snprintf(
 			    tscfg, sizeof(tscfg),
 			    "oldest_timestamp=%" PRIx64
@@ -317,6 +335,7 @@ thread_run(void *arg)
 		cur_oplog->set_value(cur_oplog, &data);
 		testutil_check(cur_oplog->insert(cur_oplog));
 		if (use_ts) {
+			assert(th_ts[td->info] < stable_ts);
 			testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
 			    "commit_timestamp=%" PRIx64, stable_ts));
 			testutil_check(
