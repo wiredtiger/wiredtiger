@@ -283,6 +283,7 @@ __sweep_server(void *arg)
 
 	session = arg;
 	conn = S2C(session);
+	last_las_sweep_id = WT_TXN_NONE;
 
 	/*
 	 * Sweep for dead and excess handles.
