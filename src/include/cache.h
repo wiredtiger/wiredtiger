@@ -192,7 +192,18 @@ struct __wt_cache {
 	bool las_session_inuse[WT_LAS_NUM_SESSIONS];
 
 	uint32_t las_fileid;            /* Lookaside table file ID */
+	uint64_t las_entry_count;       /* Count of entries in lookaside */
 	uint64_t las_pageid;		/* Lookaside table page ID counter */
+
+	WT_SPINLOCK	 las_sweep_lock;
+	WT_ITEM las_sweep_key;		/* Track sweep position. */
+	uint32_t las_sweep_dropmin;	/* Minimum btree ID in current set. */
+	uint8_t *las_sweep_dropmap;	/* Bitmap of dropped btree IDs. */
+	uint32_t las_sweep_dropmax;	/* Maximum btree ID in current set. */
+
+	uint32_t *las_dropped;		/* List of dropped btree IDs. */
+	size_t las_dropped_next;	/* Next index into drop list. */
+	size_t las_dropped_alloc;	/* Allocated size of drop list. */
 
 	/*
 	 * The "lookaside_activity" verbose messages are throttled to once per

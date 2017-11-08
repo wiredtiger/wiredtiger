@@ -58,7 +58,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 		WT_ASSERT(session, !WT_IS_METADATA(dhandle) &&
 		    !F_ISSET(btree, WT_BTREE_LOOKASIDE));
 
-		WT_RET(__wt_las_remove_block(session, NULL, btree->id, 0));
+		WT_RET(__wt_las_save_dropped(session));
 	} else
 		FLD_SET(walk_flags, WT_READ_LOOKASIDE);
 

@@ -19,6 +19,20 @@
 	WT_SESSION_NO_RECONCILE)
 
 /*
+ * __wt_las_nonempty --
+ *	Return when there are entries in the lookaside table.
+ */
+bool
+__wt_las_nonempty(WT_SESSION_IMPL *session)
+{
+	WT_CACHE *cache;
+
+	cache = S2C(session)->cache;
+
+	return (cache->las_entry_count > 0);
+}
+
+/*
  * __wt_las_stats_update --
  *	Update the lookaside table statistics for return to the application.
  */
@@ -100,7 +114,7 @@ __wt_las_create(WT_SESSION_IMPL *session)
 	WT_RET(ret);
 
 	/* Re-create the table. */
-	WT_RET(__wt_session_create(session, WT_LAS_URI, WT_LAS_FORMAT));
+	WT_RET(__wt_session_create(session, WT_LAS_URI, WT_LAS_CONFIG));
 
 	/*
 	 * Open a shared internal session and cursor used for the lookaside
@@ -147,6 +161,10 @@ __wt_las_destroy(WT_SESSION_IMPL *session)
 		WT_TRET(wt_session->close(wt_session, NULL));
 		cache->las_session[i] = NULL;
 	}
+
+	__wt_buf_free(session, &cache->las_sweep_key);
+	__wt_free(session, cache->las_dropped);
+	__wt_free(session, cache->las_sweep_dropmap);
 
 	return (ret);
 }
@@ -508,6 +526,8 @@ __wt_las_insert_block(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 	if (insert_cnt > 0) {
 		WT_STAT_CONN_INCRV(
 		    session, cache_lookaside_entries, insert_cnt);
+		__wt_atomic_add64(
+		    &S2C(session)->cache->las_entry_count, insert_cnt);
 		WT_ERR(__las_insert_block_verbose(session, multi));
 	}
 
@@ -583,7 +603,7 @@ __wt_las_cursor_position(WT_CURSOR *cursor, uint32_t btree_id, uint64_t pageid)
 
 /*
  * __wt_las_remove_block --
- *	Remove all records matching a key prefix from the lookaside store.
+ *	Remove all records for a given page from the lookaside store.
  */
 int
 __wt_las_remove_block(WT_SESSION_IMPL *session,
@@ -626,16 +646,10 @@ __wt_las_remove_block(WT_SESSION_IMPL *session,
 
 		/*
 		 * Confirm the search using the unique prefix; if not a match,
-		 * we're done searching for records for this page.  Note that
-		 * page ID zero is special: it is a wild card indicating that
-		 * all pages in the tree should be removed.
+		 * we're done searching for records for this page.
 		 */
-		if (las_pageid != pageid || las_id != btree_id) {
-			if (pageid != 0)
-				break;
-			if (las_id != btree_id)
-				continue;
-		}
+		if (las_pageid != pageid || las_id != btree_id)
+			break;
 
 		WT_ERR(cursor->remove(cursor));
 		++remove_cnt;
@@ -653,5 +667,208 @@ err:	if (local_txn) {
 		    session, &cursor, session_flags));
 
 	WT_STAT_CONN_DECRV(session, cache_lookaside_entries, remove_cnt);
+	__wt_cache_decr_check_uint64(session,
+	    &S2C(session)->cache->las_entry_count, remove_cnt,
+	    "lookaside entry count");
+	return (ret);
+}
+
+/*
+ * __wt_las_save_dropped --
+ *	Save a dropped btree ID to be swept from the lookaside table.
+ */
+int
+__wt_las_save_dropped(WT_SESSION_IMPL *session)
+{
+	WT_BTREE *btree;
+	WT_CACHE *cache;
+	WT_DECL_RET;
+
+	btree = S2BT(session);
+	cache = S2C(session)->cache;
+
+	__wt_spin_lock(session, &cache->las_sweep_lock);
+	WT_ERR(__wt_realloc_def(session, &cache->las_dropped_alloc,
+	    cache->las_dropped_next + 1, &cache->las_dropped));
+	cache->las_dropped[cache->las_dropped_next++] = btree->id;
+err:	__wt_spin_unlock(session, &cache->las_sweep_lock);
+	return (ret);
+}
+
+/*
+ * __las_sweep_init --
+ *	Prepare to start a lookaside sweep.
+ */
+static int
+__las_sweep_init(WT_SESSION_IMPL *session)
+{
+	WT_CACHE *cache;
+	WT_DECL_RET;
+	u_int i;
+
+	cache = S2C(session)->cache;
+
+	__wt_spin_lock(session, &cache->las_sweep_lock);
+	/* If no files have been dropped, there's nothing to do. */
+	if (cache->las_dropped_next == 0)
+		WT_ERR(WT_NOTFOUND);
+
+	/* Scan the btree IDs to find min/max. */
+	cache->las_sweep_dropmin = UINT32_MAX;
+	cache->las_sweep_dropmax = 0;
+	for (i = 0; i < cache->las_dropped_next; i++) {
+		cache->las_sweep_dropmin = WT_MIN(
+		    cache->las_sweep_dropmin,
+		    cache->las_dropped[i]);
+		cache->las_sweep_dropmax = WT_MAX(
+		    cache->las_sweep_dropmax,
+		    cache->las_dropped[i]);
+	}
+
+	/* Initialize the bitmap. */
+	__wt_free(session, cache->las_sweep_dropmap);
+	WT_ERR(__bit_alloc(session,
+	    1 + cache->las_sweep_dropmax - cache->las_sweep_dropmin,
+	    &cache->las_sweep_dropmap));
+	for (i = 0; i < cache->las_dropped_next; i++)
+		__bit_set(cache->las_sweep_dropmap,
+		    cache->las_dropped[i] - cache->las_sweep_dropmin);
+
+	/* Clear the list of btree IDs. */
+	cache->las_dropped_next = 0;
+
+err:	__wt_spin_unlock(session, &cache->las_sweep_lock);
+	return (ret);
+}
+
+/*
+ * __wt_las_sweep --
+ *	Sweep the lookaside table.
+ */
+int
+__wt_las_sweep(WT_SESSION_IMPL *session)
+{
+	WT_CACHE *cache;
+	WT_CURSOR *cursor;
+	WT_DECL_RET;
+	WT_ITEM *key, las_key;
+	uint64_t cnt, las_counter, las_pageid;
+	int64_t remove_cnt;
+	uint32_t las_id, session_flags;
+	int notused;
+
+	cache = S2C(session)->cache;
+	cursor = NULL;
+	key = &cache->las_sweep_key;
+	remove_cnt = 0;
+	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
+
+	__wt_las_cursor(session, &cursor, &session_flags);
+
+	/* We should have our own session. */
+	WT_ASSERT(session, cursor->session == &session->iface);
+
+	/*
+	 * If we're starting a new sweep, gather the list of trees to sweep.
+	 *
+	 * Otherwise, when continuing a sweep, position the cursor using the
+	 * key from the last call (we don't care if we're before or after the
+	 * key, either side is fine).
+	 */
+	if (key->size == 0) {
+		if ((ret = __las_sweep_init(session)) != 0)
+			goto srch_notfound;
+	} else {
+		__wt_cursor_set_raw_key(cursor, key);
+		ret = cursor->search_near(cursor, &notused);
+
+		/*
+		 * Don't search for the same key twice; if we don't set a new
+		 * key below, it's because we've reached the end of the table
+		 * and we want the next pass to start at the beginning of the
+		 * table. Searching for the same key could leave us stuck at
+		 * the end of the table, repeatedly checking the same rows.
+		 */
+		key->size = 0;
+		if (ret != 0)
+			goto srch_notfound;
+	}
+
+	/*
+	 * The sweep server wakes up every 10 seconds (by default), it's a slow
+	 * moving thread. Try to review the entire lookaside table once every 5
+	 * minutes, or every 30 calls.
+	 *
+	 * The reason is because the lookaside table exists because we're seeing
+	 * cache/eviction pressure (it allows us to trade performance and disk
+	 * space for cache space), and it's likely lookaside blocks are being
+	 * evicted, and reading them back in doesn't help things. A trickier,
+	 * but possibly better, alternative might be to review all lookaside
+	 * blocks in the cache in order to get rid of them, and slowly review
+	 * lookaside blocks that have already been evicted.
+	 */
+	cnt = (uint64_t)WT_MAX(100, cache->las_entry_count / 30);
+
+	/* Walk the file. */
+	for (; cnt > 0 && (ret = cursor->next(cursor)) == 0; --cnt) {
+		/*
+		 * Give up if the cache is stuck: we are ignoring the cache
+		 * size while scanning the lookaside table, so we're making
+		 * things worse.
+		 */
+		if (__wt_cache_stuck(session))
+			cnt = 1;
+
+		/*
+		 * If the loop terminates after completing a work unit, we will
+		 * continue the table sweep next time. Get a local copy of the
+		 * sweep key, we're going to reset the cursor; do so before
+		 * calling cursor.remove, cursor.remove can discard our hazard
+		 * pointer and the page could be evicted from underneath us.
+		 */
+		if (cnt == 1) {
+			WT_ERR(__wt_cursor_get_raw_key(cursor, key));
+			if (!WT_DATA_IN_ITEM(key))
+				WT_ERR(__wt_buf_set(
+				    session, key, key->data, key->size));
+		}
+
+		WT_ERR(cursor->get_key(cursor,
+		    &las_pageid, &las_id, &las_counter, &las_key));
+
+		/*
+		 * If the entry belongs to a dropped tree, discard it.
+		 *
+		 * Cursor opened overwrite=true: won't return WT_NOTFOUND
+		 * should another thread remove the record before we do (not
+		 * expected for dropped trees), and the cursor remains
+		 * positioned in that case.
+		 *
+		 * TODO it would also be good to remove entries in lookaside
+		 * from live files that have aged out.  If we track for each
+		 * entry whether it was the on-page value chosen by
+		 * reconciliation, we can safely remove entries from that point
+		 * on (for the given key) that are visible to all readers.
+		 */
+		if (__bit_test(cache->las_sweep_dropmap,
+		    las_id - cache->las_sweep_dropmin)) {
+			WT_ERR(cursor->remove(cursor));
+			++remove_cnt;
+		}
+	}
+
+srch_notfound:
+	WT_ERR_NOTFOUND_OK(ret);
+
+	if (0) {
+err:		__wt_buf_free(session, key);
+	}
+
+	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
+
+	__wt_cache_decr_check_uint64(session,
+	    &S2C(session)->cache->las_entry_count, remove_cnt,
+	    "lookaside entry count");
+
 	return (ret);
 }

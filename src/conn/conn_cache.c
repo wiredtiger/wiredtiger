@@ -199,6 +199,8 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
 		    "Failed to create session for eviction walks");
 
 	WT_RET(__wt_spin_init(session, &cache->las_lock, "lookaside table"));
+	WT_RET(__wt_spin_init(
+	    session, &cache->las_sweep_lock, "lookaside sweep"));
 
 	/* Allocate the LRU eviction queue. */
 	cache->evict_slots = WT_EVICT_WALK_BASE + WT_EVICT_WALK_INCR;
@@ -337,6 +339,7 @@ __wt_cache_destroy(WT_SESSION_IMPL *session)
 	__wt_spin_destroy(session, &cache->evict_queue_lock);
 	__wt_spin_destroy(session, &cache->evict_walk_lock);
 	__wt_spin_destroy(session, &cache->las_lock);
+	__wt_spin_destroy(session, &cache->las_sweep_lock);
 	wt_session = &cache->walk_session->iface;
 	if (wt_session != NULL)
 		WT_TRET(wt_session->close(wt_session, NULL));

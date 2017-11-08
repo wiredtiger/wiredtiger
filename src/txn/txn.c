@@ -612,7 +612,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_OP *op;
 	u_int i;
-	bool did_update, locked;
+	bool locked;
 #ifdef HAVE_TIMESTAMPS
 	wt_timestamp_t prev_commit_timestamp, ts;
 	bool update_timestamp;
@@ -621,11 +621,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	txn = &session->txn;
 	conn = S2C(session);
 	txn_global = &conn->txn_global;
-	did_update = txn->mod_count != 0;
 	locked = false;
 
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
-	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) || !did_update);
+	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) ||
+	    txn->mod_count == 0);
 
 	/*
 	 * Look for a commit timestamp.
@@ -716,7 +716,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	}
 
 	/* If we are logging, write a commit log record. */
-	if (did_update &&
+	if (txn->logrec != NULL &&
 	    FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) &&
 	    !F_ISSET(session, WT_SESSION_NO_LOGGING)) {
 		/*

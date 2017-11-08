@@ -182,7 +182,7 @@ struct __wt_ovfl_reuse {
  * makes the lookaside table's value more likely to overflow the page size when
  * the row-store key is relatively large.
  */
-#define	WT_LAS_FORMAT							\
+#define	WT_LAS_CONFIG							\
     "key_format=" WT_UNCHECKED_STRING(QIQu)				\
     ",value_format=" WT_UNCHECKED_STRING(QuBu)
 
