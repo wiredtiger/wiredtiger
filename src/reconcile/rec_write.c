@@ -407,6 +407,15 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	 */
 	WT_PAGE_LOCK(session, page);
 
+	/*
+	 * The state of the page can change after the check is made and between
+	 * the lock, check again to make sure the state is not changed.
+	 */
+	if (!__wt_page_can_evict(session, ref, NULL)) {
+		WT_PAGE_UNLOCK(session, page);
+		return (EBUSY);
+	}
+
 	oldest_id = __wt_txn_oldest_id(session);
 	if (LF_ISSET(WT_REC_EVICT))
 		mod->last_eviction_id = oldest_id;
