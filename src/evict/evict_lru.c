@@ -608,12 +608,10 @@ __evict_update_work(WT_SESSION_IMPL *session)
 
 	/*
 	 * Try lookaside evict when:
-	 * (0) not scrubbing (writing to lookaside during a checkpoint is
-	 * likely to slow the checkpoint down).
 	 * (1) the cache is stuck; OR
-	 * (2) the cache is more than half way from the dirty target to the
-	 *     dirty trigger; and
-	 * (3) the lookaside score goes over 80.
+	 * (2) the lookaside score goes over 80; and
+	 * (3) the cache is more than half way from the dirty target to the
+	 *     dirty trigger.
 	 */
 	if (!F_ISSET(conn, WT_CONN_EVICTION_NO_LOOKASIDE) &&
 	    (__wt_cache_stuck(session) ||

@@ -122,7 +122,7 @@ __checkpoint_update_generation(WT_SESSION_IMPL *session)
  */
 static int
 __checkpoint_apply_all(WT_SESSION_IMPL *session, const char *cfg[],
-	int (*op)(WT_SESSION_IMPL *, const char *[]), bool *fullp)
+    int (*op)(WT_SESSION_IMPL *, const char *[]), bool *fullp)
 {
 	WT_CONFIG targetconf;
 	WT_CONFIG_ITEM cval, k, v;
@@ -205,7 +205,7 @@ err:	__wt_scr_free(session, &tmp);
  */
 static int
 __checkpoint_apply(WT_SESSION_IMPL *session, const char *cfg[],
-	int (*op)(WT_SESSION_IMPL *, const char *[]))
+    int (*op)(WT_SESSION_IMPL *, const char *[]))
 {
 	WT_DECL_RET;
 	u_int i;

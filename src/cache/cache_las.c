@@ -91,9 +91,9 @@ __wt_las_create(WT_SESSION_IMPL *session)
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
+	int i;
 	const char *drop_cfg[] = {
 	    WT_CONFIG_BASE(session, WT_SESSION_drop), "force=true", NULL };
-	int i;
 
 	conn = S2C(session);
 	cache = conn->cache;
@@ -225,7 +225,7 @@ __wt_las_cursor_open(WT_SESSION_IMPL *session)
  */
 void
 __wt_las_cursor(
-	WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t *session_flags)
+    WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t *session_flags)
 {
 	WT_CACHE *cache;
 	int i;
@@ -284,7 +284,7 @@ __wt_las_cursor(
  */
 int
 __wt_las_cursor_close(
-	WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t session_flags)
+    WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t session_flags)
 {
 	WT_CACHE *cache;
 	WT_CURSOR *cursor;
@@ -406,7 +406,7 @@ __las_insert_block_verbose(WT_SESSION_IMPL *session, WT_MULTI *multi)
  */
 int
 __wt_las_insert_block(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
-	WT_PAGE *page, WT_MULTI *multi, WT_ITEM *key)
+    WT_PAGE *page, WT_MULTI *multi, WT_ITEM *key)
 {
 	WT_BTREE *btree;
 	WT_DECL_RET;
@@ -768,16 +768,14 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	WT_ASSERT(session, cursor->session == &session->iface);
 
 	/*
-	 * If we're starting a new sweep, gather the list of trees to sweep.
+	 * When continuing a sweep, position the cursor using the key from the
+	 * last call (we don't care if we're before or after the key, either
+	 * side is fine).
 	 *
-	 * Otherwise, when continuing a sweep, position the cursor using the
-	 * key from the last call (we don't care if we're before or after the
-	 * key, either side is fine).
+	 * Otherwise, we're starting a new sweep, gather the list of trees to
+	 * sweep.
 	 */
-	if (key->size == 0) {
-		if ((ret = __las_sweep_init(session)) != 0)
-			goto srch_notfound;
-	} else {
+	if (key->size != 0) {
 		__wt_cursor_set_raw_key(cursor, key);
 		ret = cursor->search_near(cursor, &notused);
 
@@ -789,9 +787,11 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		 * the end of the table, repeatedly checking the same rows.
 		 */
 		key->size = 0;
-		if (ret != 0)
-			goto srch_notfound;
-	}
+	} else
+		ret = __las_sweep_init(session);
+
+	if (ret != 0)
+		goto srch_notfound;
 
 	/*
 	 * The sweep server wakes up every 10 seconds (by default), it's a slow
