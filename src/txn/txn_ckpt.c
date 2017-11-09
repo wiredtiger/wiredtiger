@@ -725,8 +725,6 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 		    "Checkpoint requested at stable timestamp");
 #endif
 
-	__wt_sleep(0, 100 * WT_THOUSAND);
-
 	/*
 	 * Get a list of handles we want to flush; for named checkpoints this
 	 * may pull closed objects into the session cache.
