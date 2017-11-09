@@ -637,9 +637,12 @@ read:			/*
 				goto skip_evict;
 
 			/*
-			 * Only attempt forced eviction if the page can split.
+			 * If reconciliation is disabled (e.g., when writing
+			 * into lookaside), only attempt forced eviction if the
+			 * page can split.
 			 */
-			if (!__wt_leaf_page_can_split(session, ref->page))
+			if (F_ISSET(session, WT_SESSION_NO_RECONCILE) &&
+			    !__wt_leaf_page_can_split(session, ref->page))
 				goto skip_evict;
 
 			/*

@@ -1204,7 +1204,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 	 */
 	if (__evict_queue_full(queue) &&
 	    cache->evict_empty_score < WT_EVICT_SCORE_CUTOFF)
-		goto done;
+		return (0);
 
 	/* Get some more pages to consider for eviction. */
 	if ((ret = __evict_walk(cache->walk_session, queue)) == EBUSY)
@@ -1316,7 +1316,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 	queue->evict_current = queue->evict_queue;
 	__wt_spin_unlock(session, &queue->evict_lock);
 
-done:	/*
+	/*
 	 * Signal any application or helper threads that may be waiting
 	 * to help with eviction.
 	 */
@@ -2377,7 +2377,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 		case WT_NOTFOUND:
 			/* Allow the queue to re-populate before retrying. */
 			__wt_cond_wait(session,
-			    conn->evict_threads.wait_cond, 1000, NULL);
+			    conn->evict_threads.wait_cond, 10000, NULL);
 			cache->app_waits++;
 			break;
 		default:

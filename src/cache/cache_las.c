@@ -266,7 +266,7 @@ __wt_las_cursor(
 			if (*cursorp != NULL)
 				break;
 			/*
-			 * If all the sessions are busy, stall.
+			 * If all the lookaside sessions are busy, stall.
 			 *
 			 * XXX better as a condition variable.
 			 */
@@ -274,7 +274,7 @@ __wt_las_cursor(
 		}
 	}
 
-	/* Turn caching and eviction off. */
+	/* Configure session to access the lookaside table. */
 	F_SET(session, WT_LAS_SESSION_FLAGS);
 }
 
