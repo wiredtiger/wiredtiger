@@ -408,9 +408,10 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	WT_PAGE_LOCK(session, page);
 
 	/*
-	 * The check, is page evict-able is done again, even though the caller
-	 * checks, as there is a window between the check and page lock which
-	 * can result in page becoming ineligible for eviction.
+	 * Now that the page is locked, if attempting to evict it, check again
+	 * whether eviction is permitted. The page's state could have changed
+	 * while we were waiting to acquire the lock (e.g., the page could have
+	 * split).
 	 */
 	if (LF_ISSET(WT_REC_EVICT) &&
 	    !__wt_page_can_evict(session, ref, NULL)) {
