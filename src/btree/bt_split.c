@@ -346,8 +346,8 @@ __split_ref_prepare(
 	 * page won't yet know about the created children pages. That's OK, we
 	 * spin there until the parent's page index is updated.
 	 *
-	 * Get a page-level lock on the newly created parent page to
-	 * single-thread the split in this page.
+	 * Lock the newly created page to ensure it doesn't split until all
+	 * child pages have been updated.
 	 */
 	for (i = skip_first ? 1 : 0; i < pindex->entries; ++i) {
 		ref = pindex->index[i];
