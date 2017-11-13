@@ -809,6 +809,7 @@ static const char * const __stats_connection_desc[] = {
 	"cache: internal pages evicted",
 	"cache: internal pages split during eviction",
 	"cache: leaf pages split during eviction",
+	"cache: lookaside score",
 	"cache: lookaside table entries",
 	"cache: lookaside table insert calls",
 	"cache: lookaside table remove calls",
@@ -1003,6 +1004,8 @@ static const char * const __stats_connection_desc[] = {
 	"transaction: transaction range of IDs currently pinned",
 	"transaction: transaction range of IDs currently pinned by a checkpoint",
 	"transaction: transaction range of IDs currently pinned by named snapshots",
+	"transaction: transaction range of timestamps currently pinned",
+	"transaction: transaction range of timestamps pinned by the oldest timestamp",
 	"transaction: transaction sync calls",
 	"transaction: transactions commit timestamp queue inserts to head",
 	"transaction: transactions commit timestamp queue inserts total",
@@ -1139,6 +1142,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cache_eviction_internal = 0;
 	stats->cache_eviction_split_internal = 0;
 	stats->cache_eviction_split_leaf = 0;
+		/* not clearing cache_lookaside_score */
 		/* not clearing cache_lookaside_entries */
 	stats->cache_lookaside_insert = 0;
 	stats->cache_lookaside_remove = 0;
@@ -1333,6 +1337,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing txn_pinned_range */
 		/* not clearing txn_pinned_checkpoint_range */
 		/* not clearing txn_pinned_snapshot_range */
+		/* not clearing txn_pinned_timestamp */
+		/* not clearing txn_pinned_timestamp_oldest */
 	stats->txn_sync = 0;
 	stats->txn_commit_queue_head = 0;
 	stats->txn_commit_queue_inserts = 0;
@@ -1490,6 +1496,8 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, cache_eviction_split_internal);
 	to->cache_eviction_split_leaf +=
 	    WT_STAT_READ(from, cache_eviction_split_leaf);
+	to->cache_lookaside_score +=
+	    WT_STAT_READ(from, cache_lookaside_score);
 	to->cache_lookaside_entries +=
 	    WT_STAT_READ(from, cache_lookaside_entries);
 	to->cache_lookaside_insert +=
@@ -1765,6 +1773,9 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, txn_pinned_checkpoint_range);
 	to->txn_pinned_snapshot_range +=
 	    WT_STAT_READ(from, txn_pinned_snapshot_range);
+	to->txn_pinned_timestamp += WT_STAT_READ(from, txn_pinned_timestamp);
+	to->txn_pinned_timestamp_oldest +=
+	    WT_STAT_READ(from, txn_pinned_timestamp_oldest);
 	to->txn_sync += WT_STAT_READ(from, txn_sync);
 	to->txn_commit_queue_head +=
 	    WT_STAT_READ(from, txn_commit_queue_head);
