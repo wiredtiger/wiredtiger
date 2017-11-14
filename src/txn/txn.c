@@ -541,18 +541,20 @@ __wt_txn_reconfigure(WT_SESSION_IMPL *session, const char *config)
  * __wt_txn_release --
  *	Release the resources associated with the current transaction.
  */
-void
+int
 __wt_txn_release(WT_SESSION_IMPL *session)
 {
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_STATE *txn_state;
+	bool readonly;
 
 	txn = &session->txn;
 	txn_global = &S2C(session)->txn_global;
 	txn_state = WT_SESSION_TXN_STATE(session);
 
-	WT_ASSERT(session, txn->mod_count == 0);
+	readonly = txn->mod_count != 0;
+	txn->mod_count = 0;
 	txn->notify = NULL;
 
 	/* Clear the transaction's ID from the global table. */
@@ -596,6 +598,12 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 
 	/* Ensure the transaction flags are cleared on exit */
 	txn->flags = 0;
+
+	/*
+	 * We're between transactions: if we need to block for eviction, it's
+	 * better to do it beforehand.
+	 */
+	return (__wt_cache_eviction_check(session, false, readonly, NULL));
 }
 
 /*
@@ -791,7 +799,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 		__wt_txn_op_free(session, op);
 	}
-	txn->mod_count = 0;
 
 #ifdef HAVE_TIMESTAMPS
 	/*
@@ -804,7 +811,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	update_timestamp = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT);
 #endif
 
-	__wt_txn_release(session);
+	WT_ERR(__wt_txn_release(session));
 	if (locked)
 		__wt_readunlock(session, &txn_global->visibility_rwlock);
 
@@ -918,9 +925,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 		/* Free any memory allocated for the operation. */
 		__wt_txn_op_free(session, op);
 	}
-	txn->mod_count = 0;
 
-	__wt_txn_release(session);
+	WT_TRET(__wt_txn_release(session));
 	return (ret);
 }
 

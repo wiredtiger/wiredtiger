@@ -2284,7 +2284,8 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
  * crosses its boundaries.
  */
 int
-__wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
+__wt_cache_eviction_worker(
+    WT_SESSION_IMPL *session, bool busy, bool readonly, u_int pct_full)
 {
 	struct timespec enter, leave;
 	WT_CACHE *cache;
@@ -2347,7 +2348,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 		max_progress = busy ? 5 : 20;
 
 		/* See if eviction is still needed. */
-		if (!__wt_eviction_needed(session, busy, &pct_full) ||
+		if (!__wt_eviction_needed(session, busy, readonly, &pct_full) ||
 		    ((pct_full < 100 || cache->eviction_scrub_limit > 0.0) &&
 		    (cache->eviction_progress >
 		    initial_progress + max_progress)))
