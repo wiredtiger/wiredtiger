@@ -783,7 +783,7 @@ extern void __wt_txn_get_snapshot(WT_SESSION_IMPL *session);
 extern int __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_reconfigure(WT_SESSION_IMPL *session, const char *config) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_txn_release(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern void __wt_txn_release(WT_SESSION_IMPL *session);
 extern int __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_init(WT_SESSION_IMPL *session, WT_SESSION_IMPL *session_ret) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
