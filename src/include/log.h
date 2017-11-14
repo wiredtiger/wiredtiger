@@ -6,6 +6,21 @@
  * See the file LICENSE for redistribution information.
  */
 
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_LOGSCAN_FIRST	0x1u
+#define	WT_LOGSCAN_FROM_CKP	0x2u
+#define	WT_LOGSCAN_ONE		0x4u
+#define	WT_LOGSCAN_RECOVER	0x8u
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
+
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_LOG_BACKGROUND	0x01u
+#define	WT_LOG_DSYNC		0x02u
+#define	WT_LOG_FLUSH		0x04u
+#define	WT_LOG_FSYNC		0x08u
+#define	WT_LOG_SYNC_ENABLED	0x10u
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
+
 /*
  * WT_LSN --
  *	A log sequence number, representing a position in the transaction log.

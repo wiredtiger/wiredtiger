@@ -10,6 +10,19 @@
 #define	WT_TXN_FIRST	1		/* First transaction to run. */
 #define	WT_TXN_ABORTED	UINT64_MAX	/* Update rolled back, ignore. */
 
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_TXN_LOG_CKPT_CLEANUP	0x01u
+#define	WT_TXN_LOG_CKPT_PREPARE	0x02u
+#define	WT_TXN_LOG_CKPT_START	0x04u
+#define	WT_TXN_LOG_CKPT_STOP	0x08u
+#define	WT_TXN_LOG_CKPT_SYNC	0x10u
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
+
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_TXN_OLDEST_STRICT	0x1u
+#define	WT_TXN_OLDEST_WAIT	0x2u
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
+
 /*
  * Transaction ID comparison dealing with edge cases.
  *
