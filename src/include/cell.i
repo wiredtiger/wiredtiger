@@ -60,22 +60,22 @@
  *
  * Bits 5-8 are cell "types".
  */
-#define	WT_CELL_KEY_SHORT	0x01u		/* Short key */
-#define	WT_CELL_KEY_SHORT_PFX	0x02u		/* Short key with prefix byte */
-#define	WT_CELL_VALUE_SHORT	0x03u		/* Short data */
-#define	WT_CELL_SHORT_TYPE(v)	((v) & 0x03u)
+#define	WT_CELL_KEY_SHORT	0x01		/* Short key */
+#define	WT_CELL_KEY_SHORT_PFX	0x02		/* Short key with prefix byte */
+#define	WT_CELL_VALUE_SHORT	0x03		/* Short data */
+#define	WT_CELL_SHORT_TYPE(v)	((v) & 0x03U)
 
 #define	WT_CELL_SHORT_MAX	63		/* Maximum short key/value */
 #define	WT_CELL_SHORT_SHIFT	2		/* Shift for short key/value */
 
-#define	WT_CELL_64V		0x04u		/* Associated value */
+#define	WT_CELL_64V		0x04		/* Associated value */
 
 /*
  * We could use bit 4 as a single bit (similar to bit 3), or as a type bit in a
  * backward compatible way by adding bit 4 to the type mask and adding new types
  * that incorporate it.
  */
-#define	WT_CELL_UNUSED_BIT4	0x08u		/* Unused */
+#define	WT_CELL_UNUSED_BIT4	0x08		/* Unused */
 
 /*
  * WT_CELL_ADDR_INT is an internal block location, WT_CELL_ADDR_LEAF is a leaf
@@ -104,7 +104,7 @@
 #define	WT_CELL_VALUE_OVFL	(10 << 4)	/* Overflow value */
 #define	WT_CELL_VALUE_OVFL_RM	(11 << 4)	/* Overflow value (removed) */
 
-#define	WT_CELL_TYPE_MASK	(0x0f << 4)	/* Maximum 16 cell types */
+#define	WT_CELL_TYPE_MASK	(0x0fU << 4)	/* Maximum 16 cell types */
 #define	WT_CELL_TYPE(v)		((v) & WT_CELL_TYPE_MASK)
 
 /*
@@ -199,15 +199,16 @@ __wt_cell_pack_addr(WT_CELL *cell, u_int cell_type, uint64_t recno, size_t size)
 static inline size_t
 __wt_cell_pack_data(WT_CELL *cell, uint64_t rle, size_t size)
 {
-	uint8_t *p;
+	uint8_t byte, *p;
 
 	/*
 	 * Short data cells without run-length encoding have 6 bits of data
 	 * length in the descriptor byte.
 	 */
 	if (rle < 2 && size <= WT_CELL_SHORT_MAX) {
-		cell->__chunk[0] = (uint8_t)		/* Type + length */
-		    ((size << WT_CELL_SHORT_SHIFT) | WT_CELL_VALUE_SHORT);
+		byte = (uint8_t)size;			/* Type + length */
+		cell->__chunk[0] = (uint8_t)
+		    ((byte << WT_CELL_SHORT_SHIFT) | WT_CELL_VALUE_SHORT);
 		return (1);
 	}
 
@@ -325,12 +326,13 @@ __wt_cell_pack_del(WT_CELL *cell, uint64_t rle)
 static inline size_t
 __wt_cell_pack_int_key(WT_CELL *cell, size_t size)
 {
-	uint8_t *p;
+	uint8_t byte, *p;
 
 	/* Short keys have 6 bits of data length in the descriptor byte. */
 	if (size <= WT_CELL_SHORT_MAX) {
+		byte = (uint8_t)size;
 		cell->__chunk[0] = (uint8_t)
-		    ((size << WT_CELL_SHORT_SHIFT) | WT_CELL_KEY_SHORT);
+		    ((byte << WT_CELL_SHORT_SHIFT) | WT_CELL_KEY_SHORT);
 		return (1);
 	}
 
@@ -350,18 +352,20 @@ __wt_cell_pack_int_key(WT_CELL *cell, size_t size)
 static inline size_t
 __wt_cell_pack_leaf_key(WT_CELL *cell, uint8_t prefix, size_t size)
 {
-	uint8_t *p;
+	uint8_t byte, *p;
 
 	/* Short keys have 6 bits of data length in the descriptor byte. */
 	if (size <= WT_CELL_SHORT_MAX) {
 		if (prefix == 0) {
-			cell->__chunk[0] = (uint8_t)	/* Type + length */
-			    ((size << WT_CELL_SHORT_SHIFT) | WT_CELL_KEY_SHORT);
+			byte = (uint8_t)size;		/* Type + length */
+			cell->__chunk[0] = (uint8_t)
+			    ((byte << WT_CELL_SHORT_SHIFT) | WT_CELL_KEY_SHORT);
 			return (1);
 		}
-		cell->__chunk[0] = (uint8_t)		/* Type + length */
-		    ((size << WT_CELL_SHORT_SHIFT) | WT_CELL_KEY_SHORT_PFX);
-		cell->__chunk[1] = prefix;		/* Prefix */
+		byte = (uint8_t)size;		/* Type + length */
+		cell->__chunk[0] = (uint8_t)
+		    ((byte << WT_CELL_SHORT_SHIFT) | WT_CELL_KEY_SHORT_PFX);
+		cell->__chunk[1] = prefix;	/* Prefix */
 		return (2);
 	}
 

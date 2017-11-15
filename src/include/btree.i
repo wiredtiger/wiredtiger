@@ -692,11 +692,11 @@ __wt_ref_key(WT_PAGE *page, WT_REF *ref, void *keyp, size_t *sizep)
 	 *	31 bits		page offset of the key's bytes,
 	 *	 1 bits		flags
 	 */
-#define	WT_IK_FLAG			0x01u
+#define	WT_IK_FLAG			0x01
 #define	WT_IK_ENCODE_KEY_LEN(v)		((uintptr_t)(v) << 32)
 #define	WT_IK_DECODE_KEY_LEN(v)		((v) >> 32)
 #define	WT_IK_ENCODE_KEY_OFFSET(v)	((uintptr_t)(v) << 1)
-#define	WT_IK_DECODE_KEY_OFFSET(v)	(((v) & 0xFFFFFFFFu) >> 1)
+#define	WT_IK_DECODE_KEY_OFFSET(v)	(((v) & 0xFFFFFFFF) >> 1)
 	v = (uintptr_t)ref->ref_ikey;
 	if (v & WT_IK_FLAG) {
 		*(void **)keyp =
@@ -824,30 +824,30 @@ __wt_row_leaf_key_info(WT_PAGE *page, void *copy,
 	 * for example, the cell will never be returned if we are working with
 	 * an on-page key.
 	 */
-#define	WT_CELL_FLAG			0x01u
+#define	WT_CELL_FLAG			0x01
 #define	WT_CELL_ENCODE_OFFSET(v)	((uintptr_t)(v) << 2)
-#define	WT_CELL_DECODE_OFFSET(v)	(((v) & 0xFFFFFFFFu) >> 2)
+#define	WT_CELL_DECODE_OFFSET(v)	(((v) & 0xFFFFFFFF) >> 2)
 
-#define	WT_K_FLAG			0x02u
+#define	WT_K_FLAG			0x02
 #define	WT_K_ENCODE_KEY_LEN(v)		((uintptr_t)(v) << 32)
 #define	WT_K_DECODE_KEY_LEN(v)		((v) >> 32)
 #define	WT_K_ENCODE_KEY_OFFSET(v)	((uintptr_t)(v) << 2)
-#define	WT_K_DECODE_KEY_OFFSET(v)	(((v) & 0xFFFFFFFFu) >> 2)
+#define	WT_K_DECODE_KEY_OFFSET(v)	(((v) & 0xFFFFFFFF) >> 2)
 
-#define	WT_KV_FLAG			0x03u
+#define	WT_KV_FLAG			0x03
 #define	WT_KV_ENCODE_KEY_LEN(v)		((uintptr_t)(v) << 55)
 #define	WT_KV_DECODE_KEY_LEN(v)		((v) >> 55)
-#define	WT_KV_MAX_KEY_LEN		(0x200u - 1)
+#define	WT_KV_MAX_KEY_LEN		(0x200 - 1)
 #define	WT_KV_ENCODE_VALUE_LEN(v)	((uintptr_t)(v) << 42)
-#define	WT_KV_DECODE_VALUE_LEN(v)	(((v) & 0x007FFC0000000000u) >> 42)
-#define	WT_KV_MAX_VALUE_LEN		(0x2000u - 1)
+#define	WT_KV_DECODE_VALUE_LEN(v)	(((v) & 0x007FFC0000000000) >> 42)
+#define	WT_KV_MAX_VALUE_LEN		(0x2000 - 1)
 #define	WT_KV_ENCODE_KEY_OFFSET(v)	((uintptr_t)(v) << 22)
-#define	WT_KV_DECODE_KEY_OFFSET(v)	(((v) & 0x000003FFFFC00000u) >> 22)
-#define	WT_KV_MAX_KEY_OFFSET		(0x100000u - 1)
+#define	WT_KV_DECODE_KEY_OFFSET(v)	(((v) & 0x000003FFFFC00000) >> 22)
+#define	WT_KV_MAX_KEY_OFFSET		(0x100000 - 1)
 #define	WT_KV_ENCODE_VALUE_OFFSET(v)	((uintptr_t)(v) << 2)
-#define	WT_KV_DECODE_VALUE_OFFSET(v)	(((v) & 0x00000000003FFFFCu) >> 2)
-#define	WT_KV_MAX_VALUE_OFFSET		(0x100000u - 1)
-	switch (v & 0x03u) {
+#define	WT_KV_DECODE_VALUE_OFFSET(v)	(((v) & 0x00000000003FFFFC) >> 2)
+#define	WT_KV_MAX_VALUE_OFFSET		(0x100000 - 1)
+	switch (v & 0x03) {
 	case WT_CELL_FLAG:
 		/* On-page cell: no instantiated key. */
 		if (ikeyp != NULL)
@@ -1069,7 +1069,7 @@ __wt_row_leaf_value(WT_PAGE *page, WT_ROW *rip, WT_ITEM *value)
 	 * See the comment in __wt_row_leaf_key_info for an explanation of the
 	 * magic.
 	 */
-	if ((v & 0x03u) == WT_KV_FLAG) {
+	if ((v & 0x03) == WT_KV_FLAG) {
 		value->data =
 		    WT_PAGE_REF_OFFSET(page, WT_KV_DECODE_VALUE_OFFSET(v));
 		value->size = WT_KV_DECODE_VALUE_LEN(v);
