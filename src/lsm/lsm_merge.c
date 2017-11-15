@@ -174,6 +174,7 @@ __lsm_merge_span(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree,
 	/* Clear the return parameters */
 	*start = *end = 0;
 	*records = 0;
+    i = 0;
 
 	chunk = youngest = NULL;
 
