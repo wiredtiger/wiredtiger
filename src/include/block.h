@@ -341,7 +341,7 @@ struct __wt_block_header {
 	 */
 	uint32_t checksum;		/* 04-07: checksum */
 
-#define	WT_BLOCK_DATA_CKSUM	0x01	/* Block data is part of the checksum */
+#define	WT_BLOCK_DATA_CKSUM	0x1u	/* Block data is part of the checksum */
 	uint8_t flags;			/* 08: flags */
 
 	/*

@@ -68,11 +68,11 @@ struct __wt_page_header {
 
 	uint8_t type;			/* 24: page type */
 
-#define	WT_PAGE_COMPRESSED	0x01	/* Page is compressed on disk */
-#define	WT_PAGE_EMPTY_V_ALL	0x02	/* Page has all zero-length values */
-#define	WT_PAGE_EMPTY_V_NONE	0x04	/* Page has no zero-length values */
-#define	WT_PAGE_ENCRYPTED	0x08	/* Page is encrypted on disk */
-#define	WT_PAGE_LAS_UPDATE	0x10	/* Page updates in lookaside store */
+#define	WT_PAGE_COMPRESSED	0x01u	/* Page is compressed on disk */
+#define	WT_PAGE_EMPTY_V_ALL	0x02u	/* Page has all zero-length values */
+#define	WT_PAGE_EMPTY_V_NONE	0x04u	/* Page has no zero-length values */
+#define	WT_PAGE_ENCRYPTED	0x08u	/* Page is encrypted on disk */
+#define	WT_PAGE_LAS_UPDATE	0x10u	/* Page updates in lookaside store */
 	uint8_t flags;			/* 25: flags */
 
 	/*
@@ -172,8 +172,10 @@ struct __wt_ovfl_reuse {
 	 * skiplist entry; if reconciliation fails for any reason, discard the
 	 * newly added skiplist entries, along with their underlying blocks.
 	 */
-#define	WT_OVFL_REUSE_INUSE		0x01
-#define	WT_OVFL_REUSE_JUST_ADDED	0x02
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_OVFL_REUSE_INUSE		0x1u
+#define	WT_OVFL_REUSE_JUST_ADDED	0x2u
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint8_t	 flags;
 
 	/*
@@ -621,14 +623,16 @@ struct __wt_page {
 #define	WT_PAGE_ROW_LEAF	7	/* Row-store leaf page */
 	uint8_t type;			/* Page type */
 
-#define	WT_PAGE_BUILD_KEYS	0x01	/* Keys have been built in memory */
-#define	WT_PAGE_DISK_ALLOC	0x02	/* Disk image in allocated memory */
-#define	WT_PAGE_DISK_MAPPED	0x04	/* Disk image in mapped memory */
-#define	WT_PAGE_EVICT_LRU	0x08	/* Page is on the LRU queue */
-#define	WT_PAGE_OVERFLOW_KEYS	0x10	/* Page has overflow keys */
-#define	WT_PAGE_READ_NO_EVICT	0x20	/* Page read with eviction disabled */
-#define	WT_PAGE_SPLIT_INSERT	0x40	/* A leaf page was split for append */
-#define	WT_PAGE_UPDATE_IGNORE	0x80	/* Ignore updates on page discard */
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_PAGE_BUILD_KEYS	0x01u	/* Keys have been built in memory */
+#define	WT_PAGE_DISK_ALLOC	0x02u	/* Disk image in allocated memory */
+#define	WT_PAGE_DISK_MAPPED	0x04u	/* Disk image in mapped memory */
+#define	WT_PAGE_EVICT_LRU	0x08u	/* Page is on the LRU queue */
+#define	WT_PAGE_OVERFLOW_KEYS	0x10u	/* Page has overflow keys */
+#define	WT_PAGE_READ_NO_EVICT	0x20u	/* Page read with eviction disabled */
+#define	WT_PAGE_SPLIT_INSERT	0x40u	/* A leaf page was split for append */
+#define	WT_PAGE_UPDATE_IGNORE	0x80u	/* Ignore updates on page discard */
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint8_t flags_atomic;		/* Atomic flags, use F_*_ATOMIC */
 
 	uint8_t unused[2];		/* Unused padding */

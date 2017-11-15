@@ -28,6 +28,7 @@ def all_h_files():
     file_re = re.compile(r'^\w')
     for line in glob.iglob('../src/*/*.h'):
         yield line
+    yield "../src/include/wiredtiger.in"
 
 # source_dirs --
 #    Return a list of the WiredTiger source directory names.
