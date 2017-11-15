@@ -148,10 +148,10 @@ __lsm_merge_clear(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree,
     u_int i;
 
     for (i = 0; i < nchunks; i++) {
-        chunk = lsm_tree->chunk[start + i];
-        WT_ASSERT(session,
-            F_ISSET(chunk, WT_LSM_CHUNK_MERGING));
-        F_CLR(chunk, WT_LSM_CHUNK_MERGING);
+	chunk = lsm_tree->chunk[start + i];
+	WT_ASSERT(session,
+	    F_ISSET(chunk, WT_LSM_CHUNK_MERGING));
+	F_CLR(chunk, WT_LSM_CHUNK_MERGING);
     }
 }
 
@@ -258,7 +258,7 @@ retry_find:
 		 * in too high a generation, stop.
 		 */
 		if (nchunks >= merge_min &&
-                   chunk->generation > youngest_gen + max_gap)
+		   chunk->generation > youngest_gen + max_gap)
 			break;
 
 		/*
@@ -302,7 +302,7 @@ retry_find:
 			 * easy way to restore youngest_gen and oldest_gen.
 			 */
 			__lsm_merge_clear(
-		            session, lsm_tree, start_chunk, nchunks);
+			    session, lsm_tree, start_chunk, nchunks);
 			--end_chunk;
 			goto retry_find;
 		} else if (nchunks == merge_max)
