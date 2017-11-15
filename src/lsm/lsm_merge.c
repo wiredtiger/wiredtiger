@@ -168,13 +168,14 @@ __lsm_merge_span(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree,
 	WT_LSM_CHUNK *chunk, *youngest;
 	uint64_t chunk_size, record_count;
 	uint32_t aggressive, max_gap, max_level;
-	u_int i, end_chunk, merge_max, merge_min, nchunks, start_chunk;
+	u_int end_chunk, merge_max, merge_min, nchunks, start_chunk;
 	u_int oldest_gen, youngest_gen;
-
+#ifdef  HAVE_DIAGNOSTIC
+    u_int i;
+#endif
 	/* Clear the return parameters */
 	*start = *end = 0;
 	*records = 0;
-    i = 0;
 
 	chunk = youngest = NULL;
 
