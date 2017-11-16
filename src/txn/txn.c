@@ -325,9 +325,10 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 	/* It looks like an update is necessary, wait for exclusive access. */
 	if ((ret = __wt_try_writelock(session, &txn_global->rwlock)) != 0) {
 		WT_STAT_CONN_INCR(session, txn_global_try_fail);
-		if (wait)
+		if (wait) {
+			ret = 0;
 			__wt_writelock(session, &txn_global->rwlock);
-		else
+		} else
 			return (ret == EBUSY ? 0 : ret);
 	} else
 		WT_STAT_CONN_INCR(session, txn_global_try_success);
