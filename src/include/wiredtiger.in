@@ -5294,24 +5294,56 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_OLDEST	1280
 /*! transaction: transaction sync calls */
 #define	WT_STAT_CONN_TXN_SYNC				1281
+/*! transaction: transactions commit timestamp queue insert to empty */
+#define	WT_STAT_CONN_TXN_COMMIT_QUEUE_EMPTY		1282
 /*! transaction: transactions commit timestamp queue inserts to head */
-#define	WT_STAT_CONN_TXN_COMMIT_QUEUE_HEAD		1282
+#define	WT_STAT_CONN_TXN_COMMIT_QUEUE_HEAD		1283
 /*! transaction: transactions commit timestamp queue inserts total */
-#define	WT_STAT_CONN_TXN_COMMIT_QUEUE_INSERTS		1283
+#define	WT_STAT_CONN_TXN_COMMIT_QUEUE_INSERTS		1284
 /*! transaction: transactions commit timestamp queue length */
-#define	WT_STAT_CONN_TXN_COMMIT_QUEUE_LEN		1284
+#define	WT_STAT_CONN_TXN_COMMIT_QUEUE_LEN		1285
+/*! transaction: transactions commit timestamp queue read locks */
+#define	WT_STAT_CONN_TXN_COMMIT_QUEUE_RDLOCK		1286
+/*! transaction: transactions commit timestamp queue write locks */
+#define	WT_STAT_CONN_TXN_COMMIT_QUEUE_WRLOCK		1287
 /*! transaction: transactions committed */
-#define	WT_STAT_CONN_TXN_COMMIT				1285
+#define	WT_STAT_CONN_TXN_COMMIT				1288
+/*! transaction: transactions global read locks */
+#define	WT_STAT_CONN_TXN_GLOBAL_RDLOCK			1289
+/*! transaction: transactions global write locks */
+#define	WT_STAT_CONN_TXN_GLOBAL_WRLOCK			1290
+/*! transaction: transactions query timestamp calls */
+#define	WT_STAT_CONN_TXN_QUERY_TS			1291
+/*! transaction: transactions read timestamp queue insert to empty */
+#define	WT_STAT_CONN_TXN_READ_QUEUE_EMPTY		1292
 /*! transaction: transactions read timestamp queue inserts to head */
-#define	WT_STAT_CONN_TXN_READ_QUEUE_HEAD		1286
+#define	WT_STAT_CONN_TXN_READ_QUEUE_HEAD		1293
 /*! transaction: transactions read timestamp queue inserts total */
-#define	WT_STAT_CONN_TXN_READ_QUEUE_INSERTS		1287
+#define	WT_STAT_CONN_TXN_READ_QUEUE_INSERTS		1294
 /*! transaction: transactions read timestamp queue length */
-#define	WT_STAT_CONN_TXN_READ_QUEUE_LEN			1288
+#define	WT_STAT_CONN_TXN_READ_QUEUE_LEN			1295
+/*! transaction: transactions read timestamp queue read locks */
+#define	WT_STAT_CONN_TXN_READ_QUEUE_RDLOCK		1296
+/*! transaction: transactions read timestamp queue write locks */
+#define	WT_STAT_CONN_TXN_READ_QUEUE_WRLOCK		1297
 /*! transaction: transactions rolled back */
-#define	WT_STAT_CONN_TXN_ROLLBACK			1289
+#define	WT_STAT_CONN_TXN_ROLLBACK			1298
+/*! transaction: transactions set timestamp calls */
+#define	WT_STAT_CONN_TXN_SET_TS				1299
+/*! transaction: transactions set timestamp commit calls */
+#define	WT_STAT_CONN_TXN_SETTS_COMMIT			1300
+/*! transaction: transactions set timestamp commit updates */
+#define	WT_STAT_CONN_TXN_SETTS_COMMIT_UPD		1301
+/*! transaction: transactions set timestamp oldest calls */
+#define	WT_STAT_CONN_TXN_SETTS_OLDEST			1302
+/*! transaction: transactions set timestamp oldest updates */
+#define	WT_STAT_CONN_TXN_SETTS_OLDEST_UPD		1303
+/*! transaction: transactions set timestamp stable calls */
+#define	WT_STAT_CONN_TXN_SETTS_STABLE			1304
+/*! transaction: transactions set timestamp stable updates */
+#define	WT_STAT_CONN_TXN_SETTS_STABLE_UPD		1305
 /*! transaction: update conflicts */
-#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1290
+#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1306
 
 /*!
  * @}

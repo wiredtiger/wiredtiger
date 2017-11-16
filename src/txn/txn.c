@@ -129,6 +129,7 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 
 	/* We're going to scan the table: wait for the lock. */
 	__wt_readlock(session, &txn_global->rwlock);
+	WT_STAT_CONN_INCR(session, txn_global_rdlock);
 
 	current_id = pinned_id = txn_global->current;
 	prev_oldest_id = txn_global->oldest_id;
@@ -305,6 +306,7 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 	else if ((ret =
 	    __wt_try_readlock(session, &txn_global->rwlock)) != 0)
 		return (ret == EBUSY ? 0 : ret);
+	WT_STAT_CONN_INCR(session, txn_global_rdlock);
 	__txn_oldest_scan(session,
 	    &oldest_id, &last_running, &metadata_pinned, &oldest_session);
 	__wt_readunlock(session, &txn_global->rwlock);
@@ -326,6 +328,7 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 	else if ((ret =
 	    __wt_try_writelock(session, &txn_global->rwlock)) != 0)
 		return (ret == EBUSY ? 0 : ret);
+	WT_STAT_CONN_INCR(session, txn_global_wrlock);
 
 	/*
 	 * If the oldest ID has been updated while we waited, don't bother
@@ -463,6 +466,7 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 		 * timestamp.
 		 */
 		__wt_readlock(session, &txn_global->rwlock);
+		WT_STAT_CONN_INCR(session, txn_global_rdlock);
 		if (__wt_timestamp_cmp(&ts, &txn_global->oldest_timestamp) < 0)
 		{
 			WT_RET(__wt_timestamp_to_hex_string(session,
@@ -838,6 +842,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		}
 #else
 		__wt_writelock(session, &txn_global->rwlock);
+		WT_STAT_CONN_INCR(session, txn_global_wrlock);
 		if (__wt_timestamp_cmp(&txn->commit_timestamp,
 		    &txn_global->commit_timestamp) > 0) {
 			__wt_timestamp_set(&txn_global->commit_timestamp,

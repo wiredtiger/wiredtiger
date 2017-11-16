@@ -675,6 +675,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	 * checkpoints often take a long time and only write to the metadata.
 	 */
 	__wt_writelock(session, &txn_global->rwlock);
+	WT_STAT_CONN_INCR(session, txn_global_wrlock);
 	txn_global->checkpoint_state = *txn_state;
 	txn_global->checkpoint_txn = txn;
 	txn_global->checkpoint_state.pinned_id = WT_MIN(txn->id, txn->snap_min);
