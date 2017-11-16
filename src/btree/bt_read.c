@@ -216,16 +216,21 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t btree_id)
 		 *
 		 * This needs care because (a) it creates pages with history
 		 * that can't be evicted until they are marked dirty again, and
-		 * (b) checkpoints may, in fact need to visit these pages to
-		 * resolve changes evicted while a checkpoint is running.
+		 * (b) checkpoints may need to visit these pages to resolve
+		 * changes evicted while a checkpoint is running.
 		 *
 		 * XXX assume that if we haven't seen checkpoints as-of a
 		 * timestamp in the past, we won't in the future.
 		 */
 		page->modify->first_dirty_txn = WT_TXN_FIRST;
 		if (!ref->page_las->las_skew_oldest &&
-		    __txn_visible_all_id(session, ref->page_las->las_max_txn))
+		    !S2C(session)->txn_global.has_stable_timestamp &&
+		    __txn_visible_all_id(session, ref->page_las->las_max_txn)) {
+			page->modify->rec_max_txn = ref->page_las->las_max_txn;
+			__wt_timestamp_set(&page->modify->rec_max_timestamp,
+			    &ref->page_las->onpage_timestamp);
 			__wt_page_modify_clear(session, page);
+		}
 	}
 
 err:	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
