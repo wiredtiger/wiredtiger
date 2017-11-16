@@ -819,8 +819,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	/* First check if we've already committed something in the future. */
 	if (update_timestamp) {
 		WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
-		    __wt_timestamp_set(
-			&prev_commit_timestamp, &txn_global->commit_timestamp));
+		    txn_global_rdlock, __wt_timestamp_set(
+		    &prev_commit_timestamp, &txn_global->commit_timestamp));
 		update_timestamp = __wt_timestamp_cmp(
 		    &txn->commit_timestamp, &prev_commit_timestamp) > 0;
 	}

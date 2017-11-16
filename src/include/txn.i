@@ -31,7 +31,7 @@ __wt_txn_timestamp_flags(WT_SESSION_IMPL *session)
 }
 
 #if WT_TIMESTAMP_SIZE == 8
-#define	WT_WITH_TIMESTAMP_READLOCK(session, l, e)       e
+#define	WT_WITH_TIMESTAMP_READLOCK(session, l, stat, e)       e
 
 /*
  * __wt_timestamp_cmp --
@@ -85,8 +85,9 @@ __wt_timestamp_set_zero(wt_timestamp_t *ts)
 
 #else /* WT_TIMESTAMP_SIZE != 8 */
 
-#define	WT_WITH_TIMESTAMP_READLOCK(s, l, e)	do {                    \
+#define	WT_WITH_TIMESTAMP_READLOCK(s, l, stat, e) do {                  \
 	__wt_readlock((s), (l));                                        \
+	WT_STAT_CONN_INCR((s), (stat));                                 \
 	e;                                                              \
 	__wt_readunlock((s), (l));                                      \
 } while (0)
@@ -362,7 +363,8 @@ __wt_txn_visible_all(
 	if (!txn_global->has_pinned_timestamp)
 		return (F_ISSET(S2C(session), WT_CONN_CLOSING));
 
-	WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
+	WT_WITH_TIMESTAMP_READLOCK(session,
+	    &txn_global->rwlock, txn_global_rdlock,
 	    cmp = __wt_timestamp_cmp(timestamp, &txn_global->pinned_timestamp));
 
 	/*
