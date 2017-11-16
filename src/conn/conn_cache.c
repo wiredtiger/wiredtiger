@@ -145,7 +145,8 @@ __wt_cache_config(WT_SESSION_IMPL *session, bool reconfigure, const char *cfg[])
 		    session, &conn->evict_threads,
 		    conn->evict_threads_min,
 		    conn->evict_threads_max,
-		    WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL));
+		    WT_THREAD_CAN_WAIT | WT_THREAD_LOOKASIDE |
+		    WT_THREAD_PANIC_FAIL));
 
 	return (0);
 }
@@ -232,7 +233,6 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
 void
 __wt_cache_stats_update(WT_SESSION_IMPL *session)
 {
-	WT_BTREE *las_tree;
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	WT_CONNECTION_STATS **stats;
@@ -264,12 +264,9 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
 	    cache_bytes_internal, cache->bytes_internal);
 	WT_STAT_SET(session, stats, cache_bytes_leaf, leaf);
 	if (F_ISSET(conn, WT_CONN_LOOKASIDE_OPEN)) {
-		las_tree = ((WT_CURSOR_BTREE *)
-		    cache->las_session[0]->las_cursor)->btree;
-		WT_STAT_SET(session, stats,
-		    cache_bytes_lookaside, __wt_cache_bytes_plus_overhead(cache,
-		    (uint64_t)WT_STAT_READ(las_tree->dhandle->stats,
-		    cache_bytes_inuse)));
+		WT_STAT_SET(session, stats, cache_bytes_lookaside,
+		    __wt_cache_bytes_plus_overhead(
+		    cache, cache->bytes_lookaside));
 	}
 	WT_STAT_SET(session, stats,
 	    cache_bytes_other, __wt_cache_bytes_other(cache));

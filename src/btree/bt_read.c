@@ -294,7 +294,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * extremely large memory footprints.
 	 */
 	if (page->modify->update_restored &&
-	    page->modify->last_eviction_id == __wt_txn_oldest_id(session))
+	    !__wt_page_evict_retry(session, page))
 		return (false);
 
 	/* Trigger eviction on the next page release. */

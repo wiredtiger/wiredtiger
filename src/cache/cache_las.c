@@ -206,12 +206,10 @@ __wt_las_cursor_open(WT_SESSION_IMPL *session)
 	 * opens (the first update is safe because it's single-threaded from
 	 * wiredtiger_open).
 	 */
-	if (!F_ISSET(btree, WT_BTREE_LOOKASIDE))
-		F_SET(btree, WT_BTREE_LOOKASIDE);
-	if (!F_ISSET(btree, WT_BTREE_NO_CHECKPOINT))
-		F_SET(btree, WT_BTREE_NO_CHECKPOINT);
-	if (!F_ISSET(btree, WT_BTREE_NO_LOGGING))
-		F_SET(btree, WT_BTREE_NO_LOGGING);
+#define	WT_BTREE_LAS_FLAGS						\
+	(WT_BTREE_LOOKASIDE | WT_BTREE_NO_CHECKPOINT | WT_BTREE_NO_LOGGING)
+	if (F_MASK(btree, WT_BTREE_LAS_FLAGS) != WT_BTREE_LAS_FLAGS)
+		F_SET(btree, WT_BTREE_LAS_FLAGS);
 
 	session->las_cursor = cursor;
 	F_SET(session, WT_SESSION_LOOKASIDE_CURSOR);
@@ -518,7 +516,13 @@ __wt_las_insert_block(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 			cursor->set_value(cursor,
 			    upd->txnid, &las_timestamp, upd->type, &las_value);
 
-			WT_ERR(cursor->insert(cursor));
+			/*
+			 * Using update looks a little strange because the keys
+			 * are guaranteed to not exist, but since we're
+			 * appending, we want the cursor to stay positioned in
+			 * between inserts.
+			 */
+			WT_ERR(cursor->update(cursor));
 			++insert_cnt;
 		} while ((upd = upd->next) != NULL);
 	}
