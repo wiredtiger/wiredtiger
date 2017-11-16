@@ -218,12 +218,13 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t btree_id)
 		 * that can't be evicted until they are marked dirty again, and
 		 * (b) checkpoints may, in fact need to visit these pages to
 		 * resolve changes evicted while a checkpoint is running.
+		 *
+		 * XXX assume that if we haven't seen checkpoints as-of a
+		 * timestamp in the past, we won't in the future.
 		 */
 		page->modify->first_dirty_txn = WT_TXN_FIRST;
 		if (!ref->page_las->las_skew_oldest &&
-		    __wt_txn_visible_all(session,
-		    ref->page_las->las_max_txn, WT_TIMESTAMP_NULL(
-		    &ref->page_las->onpage_timestamp)))
+		    __txn_visible_all_id(session, ref->page_las->las_max_txn))
 			__wt_page_modify_clear(session, page);
 	}
 
@@ -581,7 +582,9 @@ read:			/*
 			 */
 			if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
 				WT_RET(__wt_cache_eviction_check(
-				    session, true, true, NULL));
+				    session, true,
+				    !F_ISSET(&session->txn, WT_TXN_HAS_ID),
+				    NULL));
 			WT_RET(__page_read(session, ref, flags));
 
 			/*
@@ -749,7 +752,9 @@ skip_evict:		/*
 		 */
 		if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE)) {
 			WT_RET(__wt_cache_eviction_check(
-			    session, true, true, &cache_work));
+			    session, true,
+			    !F_ISSET(&session->txn, WT_TXN_HAS_ID),
+			    &cache_work));
 			if (cache_work)
 				continue;
 		}

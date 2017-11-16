@@ -855,7 +855,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	 * a good time to do so.  Note that we must ignore any error return
 	 * because the user's data is committed.
 	 */
-	(void)__wt_cache_eviction_check(session, false, readonly, NULL);
+	if (!readonly)
+		(void)__wt_cache_eviction_check(session, false, false, NULL);
 	return (0);
 
 err:	/*
@@ -935,7 +936,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	 * a good time to do so.  Note that we must ignore any error return
 	 * because the user's data is committed.
 	 */
-	(void)__wt_cache_eviction_check(session, false, readonly, NULL);
+	if (!readonly)
+		(void)__wt_cache_eviction_check(session, false, false, NULL);
 	return (ret);
 }
 

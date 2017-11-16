@@ -570,12 +570,16 @@ __evict_review(
 			LF_SET(WT_REC_IN_MEMORY |
 			    WT_REC_SCRUB | WT_REC_UPDATE_RESTORE);
 		else if (!WT_IS_METADATA(session->dhandle)) {
-			if (!WT_SESSION_IS_CHECKPOINT(session)) {
-				LF_SET(WT_REC_UPDATE_RESTORE);
+			LF_SET(WT_REC_UPDATE_RESTORE);
 
-				if (F_ISSET(cache, WT_CACHE_EVICT_SCRUB))
-					LF_SET(WT_REC_SCRUB);
-			}
+			/*
+			 * Don't attempt scrubbing when evicting during a
+			 * checkpoint or if the page needs forced eviction.
+			 */
+			if (!WT_SESSION_IS_CHECKPOINT(session) &&
+			    !WT_READGEN_EVICT_SOON(page->read_gen) &&
+			    F_ISSET(cache, WT_CACHE_EVICT_SCRUB))
+				LF_SET(WT_REC_SCRUB);
 
 			/*
 			 * If the cache is under pressure with many updates

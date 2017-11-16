@@ -1649,25 +1649,12 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 
 	/*
 	 * If the tree is dead or we're near the end of the queue, fill the
-	 * remaining slots.
+	 * remaining slots.  Similarly try to free space in cache taken up by
+	 * lookaside pages as quickly as possible.
 	 */
-	if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
+	if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
+	    F_ISSET(btree, WT_BTREE_LOOKASIDE))
 		target_pages = remaining_slots;
-
-	/*
-	 * Lookaside pages don't count toward the cache's dirty limit.
-	 *
-	 * Preferentially evict lookaside pages unless applications are stalled
-	 * on the dirty limit.  Once application threads are stalled by the
-	 * dirty limit, don't take any lookaside pages unless we're also up
-	 * against the total cache size limit.
-	 */
-	if (F_ISSET(btree, WT_BTREE_LOOKASIDE)) {
-		if (!F_ISSET(cache, WT_CACHE_EVICT_DIRTY_HARD))
-			target_pages = remaining_slots;
-		else if (!F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD))
-			target_pages = 0;
-	}
 
 	/*
 	 * Walk trees with a small fraction of the cache in case there are so
