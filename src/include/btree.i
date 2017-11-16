@@ -1293,7 +1293,7 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 	if (__wt_timestamp_iszero(&mod->last_eviction_timestamp))
 		return (true);
 
-	WT_WITH_TIMESTAMP_READLOCK(session, txn_global->rwlock,
+	WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
 	    same_timestamp = __wt_timestamp_cmp(
 	    &mod->last_eviction_timestamp, &txn_global->pinned_timestamp) == 0);
 	if (same_timestamp)
