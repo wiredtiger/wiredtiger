@@ -557,8 +557,10 @@ __wt_debug_tree_shape(
 	return (__dmsg_wrapup(ds));
 }
 
-#define	WT_DEBUG_TREE_LEAF	0x01			/* Debug leaf pages */
-#define	WT_DEBUG_TREE_WALK	0x02			/* Descend the tree */
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_DEBUG_TREE_LEAF	0x1u			/* Debug leaf pages */
+#define	WT_DEBUG_TREE_WALK	0x2u			/* Descend the tree */
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
 
 /*
  * __wt_debug_tree_all --
