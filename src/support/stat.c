@@ -1013,9 +1013,13 @@ static const char * const __stats_connection_desc[] = {
 	"transaction: transactions commit timestamp queue length",
 	"transaction: transactions commit timestamp queue read locks",
 	"transaction: transactions commit timestamp queue write locks",
+	"transaction: transactions commit timestamp queue write locks failed",
+	"transaction: transactions commit timestamp queue write locks succeeded",
 	"transaction: transactions committed",
 	"transaction: transactions global read locks",
 	"transaction: transactions global write locks",
+	"transaction: transactions global write locks failed",
+	"transaction: transactions global write locks succeeded",
 	"transaction: transactions query timestamp calls",
 	"transaction: transactions read timestamp queue insert to empty",
 	"transaction: transactions read timestamp queue inserts to head",
@@ -1023,6 +1027,8 @@ static const char * const __stats_connection_desc[] = {
 	"transaction: transactions read timestamp queue length",
 	"transaction: transactions read timestamp queue read locks",
 	"transaction: transactions read timestamp queue write locks",
+	"transaction: transactions read timestamp queue write locks failed",
+	"transaction: transactions read timestamp queue write locks succeeded",
 	"transaction: transactions rolled back",
 	"transaction: transactions set timestamp calls",
 	"transaction: transactions set timestamp commit calls",
@@ -1362,9 +1368,13 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->txn_commit_queue_len = 0;
 	stats->txn_commit_queue_rdlock = 0;
 	stats->txn_commit_queue_wrlock = 0;
+	stats->txn_commit_queue_try_fail = 0;
+	stats->txn_commit_queue_try_success = 0;
 	stats->txn_commit = 0;
 	stats->txn_global_rdlock = 0;
 	stats->txn_global_wrlock = 0;
+	stats->txn_global_try_fail = 0;
+	stats->txn_global_try_success = 0;
 	stats->txn_query_ts = 0;
 	stats->txn_read_queue_empty = 0;
 	stats->txn_read_queue_head = 0;
@@ -1372,6 +1382,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->txn_read_queue_len = 0;
 	stats->txn_read_queue_rdlock = 0;
 	stats->txn_read_queue_wrlock = 0;
+	stats->txn_read_queue_try_fail = 0;
+	stats->txn_read_queue_try_success = 0;
 	stats->txn_rollback = 0;
 	stats->txn_set_ts = 0;
 	stats->txn_setts_commit = 0;
@@ -1820,9 +1832,16 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, txn_commit_queue_rdlock);
 	to->txn_commit_queue_wrlock +=
 	    WT_STAT_READ(from, txn_commit_queue_wrlock);
+	to->txn_commit_queue_try_fail +=
+	    WT_STAT_READ(from, txn_commit_queue_try_fail);
+	to->txn_commit_queue_try_success +=
+	    WT_STAT_READ(from, txn_commit_queue_try_success);
 	to->txn_commit += WT_STAT_READ(from, txn_commit);
 	to->txn_global_rdlock += WT_STAT_READ(from, txn_global_rdlock);
 	to->txn_global_wrlock += WT_STAT_READ(from, txn_global_wrlock);
+	to->txn_global_try_fail += WT_STAT_READ(from, txn_global_try_fail);
+	to->txn_global_try_success +=
+	    WT_STAT_READ(from, txn_global_try_success);
 	to->txn_query_ts += WT_STAT_READ(from, txn_query_ts);
 	to->txn_read_queue_empty += WT_STAT_READ(from, txn_read_queue_empty);
 	to->txn_read_queue_head += WT_STAT_READ(from, txn_read_queue_head);
@@ -1833,6 +1852,10 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, txn_read_queue_rdlock);
 	to->txn_read_queue_wrlock +=
 	    WT_STAT_READ(from, txn_read_queue_wrlock);
+	to->txn_read_queue_try_fail +=
+	    WT_STAT_READ(from, txn_read_queue_try_fail);
+	to->txn_read_queue_try_success +=
+	    WT_STAT_READ(from, txn_read_queue_try_success);
 	to->txn_rollback += WT_STAT_READ(from, txn_rollback);
 	to->txn_set_ts += WT_STAT_READ(from, txn_set_ts);
 	to->txn_setts_commit += WT_STAT_READ(from, txn_setts_commit);
