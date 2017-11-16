@@ -2344,9 +2344,9 @@ __wt_cache_eviction_worker(
 			break;
 
 		/*
-		 * Don't make application threads participate in eviction of dirty
-		 * pages until we get desperate.  Just throttle operations
-		 * instead.
+		 * Don't make application threads participate in eviction of
+		 * dirty pages until we get desperate.  Just throttle
+		 * operations instead.
 		 */
 		if (WT_EVICT_HAS_WORKERS(session) &&
 		    F_ISSET(cache, WT_CACHE_EVICT_DIRTY) &&
