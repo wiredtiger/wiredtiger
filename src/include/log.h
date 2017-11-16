@@ -314,6 +314,10 @@ struct __wt_log_record {
 	uint32_t	len;		/* 00-03: Record length including hdr */
 	uint32_t	checksum;	/* 04-07: Checksum of the record */
 
+	/*
+	 * No automatic generation: flag values cannot change, they're written
+	 * to disk.
+	 */
 #define	WT_LOG_RECORD_COMPRESSED	0x01u	/* Compressed except hdr */
 #define	WT_LOG_RECORD_ENCRYPTED		0x02u	/* Encrypted except hdr */
 	uint16_t	flags;		/* 08-09: Flags */

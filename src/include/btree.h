@@ -195,7 +195,8 @@ struct __wt_btree {
 
 	/*
 	 * Flag values up to 0xff are reserved for WT_DHANDLE_XXX. We don't
-	 * automatically generate these flag values for that reason.
+	 * automatically generate these flag values for that reason, there's
+	 * no way to start at an offset.
 	 */
 #define	WT_BTREE_ALTER		0x000100u	/* Handle is for alter */
 #define	WT_BTREE_BULK		0x000200u	/* Bulk-load handle */

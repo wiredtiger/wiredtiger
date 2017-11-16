@@ -341,6 +341,10 @@ struct __wt_block_header {
 	 */
 	uint32_t checksum;		/* 04-07: checksum */
 
+	/*
+	 * No automatic generation: flag values cannot change, they're written
+	 * to disk.
+	 */
 #define	WT_BLOCK_DATA_CKSUM	0x1u	/* Block data is part of the checksum */
 	uint8_t flags;			/* 08: flags */
 
