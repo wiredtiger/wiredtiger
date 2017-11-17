@@ -264,6 +264,9 @@ typedef struct {
 	WT_ITEM *cur, _cur;		/* Key/Value being built */
 	WT_ITEM *last, _last;		/* Last key/value built */
 
+	WT_ITEM *skipkey, _skipkey;	/* Last skipped key */
+	bool last_key_skipped;		/* Last key was skipped. */
+
 	bool key_pfx_compress;		/* If can prefix-compress next key */
 	bool key_pfx_compress_conf;	/* If prefix compression configured */
 	bool key_sfx_compress;		/* If can suffix-compress next key */
@@ -918,6 +921,7 @@ __rec_init(WT_SESSION_IMPL *session,
 		/* Connect pointers/buffers. */
 		r->cur = &r->_cur;
 		r->last = &r->_last;
+		r->skipkey = &r->_skipkey;
 
 		/* Disk buffers need to be aligned for writing. */
 		F_SET(&r->chunkA.image, WT_ITEM_ALIGNED);
@@ -1020,6 +1024,7 @@ __rec_init(WT_SESSION_IMPL *session,
 	/* The list of saved updates is reused. */
 	r->supd_next = 0;
 	r->supd_memsize = 0;
+	r->last_key_skipped = false;
 
 	/* The list of pages we've written. */
 	r->multi = NULL;
@@ -1148,6 +1153,7 @@ __rec_destroy(WT_SESSION_IMPL *session, void *reconcilep)
 	__wt_buf_free(session, &r->v.buf);
 	__wt_buf_free(session, &r->_cur);
 	__wt_buf_free(session, &r->_last);
+	__wt_buf_free(session, &r->_skipkey);
 
 	__wt_buf_free(session, &r->update_modify_cbt.iface.value);
 
@@ -1249,7 +1255,8 @@ err:	__wt_scr_free(session, &tmp);
  */
 static int
 __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
-    WT_INSERT *ins, void *ripcip, WT_CELL_UNPACK *vpack, WT_UPDATE **updp)
+    WT_INSERT *ins, void *ripcip, WT_CELL_UNPACK *vpack,
+    bool *upd_savedp, WT_UPDATE **updp)
 {
 	WT_PAGE *page;
 	WT_UPDATE *first_txn_upd, *first_upd, *upd;
@@ -1263,6 +1270,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	first_ts_upd = NULL;
 #endif
 
+	if (upd_savedp != NULL)
+		*upd_savedp = false;
 	*updp = NULL;
 
 	page = r->page;
@@ -1505,11 +1514,15 @@ check_original_value:
 	/*
 	 * Returning an update means the original on-page value might be lost,
 	 * and that's a problem if there's a reader that needs it. There are
-	 * three cases: any update from a modify operation (because the modify
-	 * has to be applied to a stable update, not the new on-page update),
-	 * any lookaside table eviction (because the backing disk image is
-	 * rewritten), or any reconciliation of a backing overflow record that
-	 * will be physically removed once it's no longer needed.
+	 * several cases:
+	 * - any update with no backing record (because we will store an empty
+	 *   value on page and returning that is wrong).
+	 * - any update from a modify operation (because the modify has to be
+	 *   applied to a stable update, not the new on-page update),
+	 * - any lookaside table eviction (because the backing disk image is
+	 *   rewritten),
+	 * - or any reconciliation of a backing overflow record that will be
+	 *   physically removed once it's no longer needed.
 	 */
 	if (*updp != NULL && ((*updp)->type == WT_UPDATE_MODIFIED ||
 	    F_ISSET(r, WT_REC_LOOKASIDE) || (vpack != NULL &&
@@ -2472,11 +2485,18 @@ __rec_split_row_promote(
 	 * internal pages, you cannot repeat suffix truncation as you split up
 	 * the tree, it loses too much information.
 	 *
-	 * Note #1: if the last key on the previous page was an overflow key,
+	 * Note #1: if the on-disk page image is empty, we haven't see a real
+	 * key.  Just use the last key we saw.
+	 *
+	 * Note #2: if the last key on the previous page was an overflow key,
 	 * we don't have the in-memory key against which to compare, and don't
 	 * try to do suffix compression.  The code for that case turns suffix
 	 * compression off for the next key, we don't have to deal with it here.
 	 */
+	if (r->last_key_skipped)
+		return (__wt_buf_set(
+		    session, key, r->skipkey->data, r->skipkey->size));
+
 	if (type != WT_PAGE_ROW_LEAF || !r->key_sfx_compress)
 		return (__wt_buf_set(session, key, r->cur->data, r->cur->size));
 
@@ -2484,7 +2504,7 @@ __rec_split_row_promote(
 	WT_RET(__wt_scr_alloc(session, 0, &update));
 
 	/*
-	 * Note #2: if we skipped updates, an update key may be larger than the
+	 * Note #3: if we skipped updates, an update key may be larger than the
 	 * last key stored in the previous block (probable for append-centric
 	 * workloads).  If there are skipped updates, check for one larger than
 	 * the last key and smaller than the current key.
@@ -4206,7 +4226,7 @@ __rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 
 	/* Update any changes to the original on-page data items. */
 	WT_SKIP_FOREACH(ins, WT_COL_UPDATE_SINGLE(page)) {
-		WT_RET(__rec_txn_read(session, r, ins, NULL, NULL, &upd));
+		WT_RET(__rec_txn_read(session, r, ins, NULL, NULL, NULL, &upd));
 		if (upd != NULL)
 			__bit_setv(r->first_free,
 			    WT_INSERT_RECNO(ins) - pageref->ref_recno,
@@ -4250,8 +4270,8 @@ __rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 				break;
 			upd = NULL;
 		} else {
-			WT_RET(
-			    __rec_txn_read(session, r, ins, NULL, NULL, &upd));
+			WT_RET(__rec_txn_read(
+			    session, r, ins, NULL, NULL, NULL, &upd));
 			recno = WT_INSERT_RECNO(ins);
 		}
 		for (;;) {
@@ -4602,7 +4622,7 @@ record_loop:	/*
 			upd = NULL;
 			if (ins != NULL && WT_INSERT_RECNO(ins) == src_recno) {
 				WT_ERR(__rec_txn_read(
-				    session, r, ins, cip, vpack, &upd));
+				    session, r, ins, cip, vpack, NULL, &upd));
 				ins = WT_SKIP_NEXT(ins);
 			}
 
@@ -4819,8 +4839,8 @@ compare:		/*
 
 			upd = NULL;
 		} else {
-			WT_ERR(
-			    __rec_txn_read(session, r, ins, NULL, NULL, &upd));
+			WT_ERR(__rec_txn_read(
+			    session, r, ins, NULL, NULL, NULL, &upd));
 			n = WT_INSERT_RECNO(ins);
 		}
 		while (src_recno <= n) {
@@ -5318,7 +5338,8 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 			vpack = &_vpack;
 			__wt_cell_unpack(val_cell, vpack);
 		}
-		WT_ERR(__rec_txn_read(session, r, NULL, rip, vpack, &upd));
+		WT_ERR(__rec_txn_read(
+		    session, r, NULL, rip, vpack, NULL, &upd));
 
 		/* Build value cell. */
 		dictionary = false;
@@ -5632,7 +5653,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 	WT_CURSOR_BTREE *cbt;
 	WT_KV *key, *val;
 	WT_UPDATE *upd;
-	bool ovfl_key;
+	bool ovfl_key, upd_saved;
 
 	btree = S2BT(session);
 	cbt = &r->update_modify_cbt;
@@ -5641,11 +5662,25 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 	val = &r->v;
 
 	for (; ins != NULL; ins = WT_SKIP_NEXT(ins)) {
-		WT_RET(__rec_txn_read(session, r, ins, NULL, NULL, &upd));
+		WT_RET(__rec_txn_read(
+		    session, r, ins, NULL, NULL, &upd_saved, &upd));
 
-		/* If no updates are visible there's no work to do. */
-		if (upd == NULL)
-			continue;
+		/*
+		 * If no update is visible but some were saved, check for
+		 * splits.
+		 */
+		if (upd == NULL) {
+			if (!upd_saved)
+				continue;
+
+			/* Save the last key we've seen, mark it skipped. */
+			WT_RET(__wt_buf_set(session, r->skipkey,
+			    WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins)));
+			r->last_key_skipped = true;
+
+			key->len = val->len = 0;
+			goto check_split;
+		}
 
 		switch (upd->type) {
 		case WT_UPDATE_DELETED:
@@ -5671,11 +5706,12 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 			break;
 		WT_ILLEGAL_VALUE(session);
 		}
-							/* Build key cell. */
+
+		/* Build key cell. */
 		WT_RET(__rec_cell_build_leaf_key(session, r,
 		    WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins), &ovfl_key));
 
-		/* Boundary: split or write the page. */
+check_split:	/* Boundary: split or write the page. */
 		if (__rec_need_split(r, key->len + val->len)) {
 			if (r->raw_compression)
 				WT_RET(__rec_split_raw(
@@ -5700,6 +5736,10 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 				    session, r, key->len + val->len));
 			}
 		}
+
+		/* If there is nothing to write, go on to the next record. */
+		if (key->len + val->len == 0)
+			continue;
 
 		/* Copy the key/value pair onto the page. */
 		__rec_copy_incr(session, r, key);
@@ -6178,6 +6218,7 @@ __rec_cell_build_leaf_key(WT_SESSION_IMPL *session,
 		 * any reason, unable to use the compressed key we generate.
 		 */
 		WT_RET(__wt_buf_set(session, r->cur, data, size));
+		r->last_key_skipped = false;
 
 		/*
 		 * Do prefix compression on the key.  We know by definition the
