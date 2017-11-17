@@ -5679,6 +5679,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 			r->last_key_skipped = true;
 
 			key->len = val->len = 0;
+			ovfl_key = false;
 			goto check_split;
 		}
 
@@ -5723,7 +5724,7 @@ check_split:	/* Boundary: split or write the page. */
 				 * working with an overflow key), rebuild the
 				 * key without compression.
 				 */
-				if (r->key_pfx_compress_conf) {
+				if (r->key_pfx_compress_conf && key->len != 0) {
 					r->key_pfx_compress = false;
 					if (!ovfl_key)
 						WT_RET(
