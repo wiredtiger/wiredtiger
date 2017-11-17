@@ -2340,13 +2340,13 @@ __wt_cache_eviction_worker(
 		    initial_progress + max_progress)))
 			break;
 
-                /*
-                 * Don't make application threads participate in scrubbing for
-                 * checkpoints.  Just throttle updates instead.
-                 */
-                if (WT_EVICT_HAS_WORKERS(session) &&
-                    cache->eviction_scrub_limit > 0.0 &&
-                    !F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD)) {
+		/*
+		 * Don't make application threads participate in scrubbing for
+		 * checkpoints.  Just throttle updates instead.
+		 */
+		if (WT_EVICT_HAS_WORKERS(session) &&
+		    cache->eviction_scrub_limit > 0.0 &&
+		    !F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD)) {
 			__wt_yield();
 			continue;
 		}
