@@ -87,7 +87,7 @@ __wt_timestamp_set_zero(wt_timestamp_t *ts)
 
 #define	WT_WITH_TIMESTAMP_READLOCK(s, l, stat, e) do {                  \
 	__wt_readlock((s), (l));                                        \
-	WT_STAT_CONN_INCR((s), (stat));                                 \
+	WT_STAT_CONN_INCR((s), stat);                                   \
 	e;                                                              \
 	__wt_readunlock((s), (l));                                      \
 } while (0)
