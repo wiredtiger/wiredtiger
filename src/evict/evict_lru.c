@@ -75,8 +75,7 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
 		return (WT_READGEN_OLDEST);
 
 	/* Any page from a dead tree is a great choice. */
-	if (F_ISSET(btree->dhandle, WT_DHANDLE_DEAD) ||
-	    F_ISSET(btree, WT_BTREE_LOOKASIDE))
+	if (F_ISSET(btree->dhandle, WT_DHANDLE_DEAD))
 		return (WT_READGEN_OLDEST);
 
 	/* Any empty page (leaf or internal), is a good choice. */
@@ -1655,11 +1654,9 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 
 	/*
 	 * If the tree is dead or we're near the end of the queue, fill the
-	 * remaining slots.  Similarly try to free space in cache taken up by
-	 * lookaside pages as quickly as possible.
+	 * remaining slots.
 	 */
-	if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
-	    F_ISSET(btree, WT_BTREE_LOOKASIDE))
+	if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
 		target_pages = remaining_slots;
 
 	/*
@@ -2343,15 +2340,14 @@ __wt_cache_eviction_worker(
 		    initial_progress + max_progress)))
 			break;
 
-		/*
-		 * Don't make application threads participate in eviction of
-		 * dirty pages until we get desperate.  Just throttle
-		 * operations instead.
-		 */
-		if (WT_EVICT_HAS_WORKERS(session) &&
-		    F_ISSET(cache, WT_CACHE_EVICT_DIRTY) &&
-		    !F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD)) {
-			__wt_sleep(0, 1000);
+                /*
+                 * Don't make application threads participate in scrubbing for
+                 * checkpoints.  Just throttle updates instead.
+                 */
+                if (WT_EVICT_HAS_WORKERS(session) &&
+                    cache->eviction_scrub_limit > 0.0 &&
+                    !F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD)) {
+			__wt_yield();
 			continue;
 		}
 
