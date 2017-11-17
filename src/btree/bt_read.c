@@ -210,22 +210,21 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t btree_id)
 		 * the page, it must be included in the next checkpoint.
 		 *
 		 * Otherwise, the page image contained the newest versions of
-		 * data so the updates are all older and it can be marked clean
-		 * (i.e., the next checkpoint can use the version already on
-		 * disk).
+		 * data so the updates are all older and we could consider
+		 * marking it clean (i.e., the next checkpoint can use the
+		 * version already on disk).
 		 *
 		 * This needs care because (a) it creates pages with history
 		 * that can't be evicted until they are marked dirty again, and
 		 * (b) checkpoints may need to visit these pages to resolve
 		 * changes evicted while a checkpoint is running.
-		 *
-		 * XXX assume that if we haven't seen checkpoints as-of a
-		 * timestamp in the past, we won't in the future.
 		 */
 		page->modify->first_dirty_txn = WT_TXN_FIRST;
+
 		if (!ref->page_las->las_skew_oldest &&
 		    !S2C(session)->txn_global.has_stable_timestamp &&
-		    __txn_visible_all_id(session, ref->page_las->las_max_txn)) {
+		    __wt_txn_visible_all(session, ref->page_las->las_max_txn,
+		    WT_TIMESTAMP_NULL(&ref->page_las->onpage_timestamp))) {
 			page->modify->rec_max_txn = ref->page_las->las_max_txn;
 			__wt_timestamp_set(&page->modify->rec_max_timestamp,
 			    &ref->page_las->onpage_timestamp);
