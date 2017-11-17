@@ -564,24 +564,18 @@ __evict_review(
 
 	if (closing)
 		LF_SET(WT_REC_VISIBILITY_ERR);
-	else if (WT_SESSION_IS_CHECKPOINT(session)) {
-		if (F_ISSET(cache, WT_CACHE_EVICT_LOOKASIDE))
-			LF_SET(WT_REC_LOOKASIDE);
-	} else if (!WT_PAGE_IS_INTERNAL(page) &&
+	else if (!WT_PAGE_IS_INTERNAL(page) &&
 	    !F_ISSET(S2BT(session), WT_BTREE_LOOKASIDE)) {
 		if (F_ISSET(conn, WT_CONN_IN_MEMORY))
 			LF_SET(WT_REC_IN_MEMORY |
 			    WT_REC_SCRUB | WT_REC_UPDATE_RESTORE);
 		else if (!WT_IS_METADATA(session->dhandle)) {
-			LF_SET(WT_REC_UPDATE_RESTORE);
+			if (!WT_SESSION_IS_CHECKPOINT(session)) {
+				LF_SET(WT_REC_UPDATE_RESTORE);
 
-			/*
-			 * Don't attempt scrubbing when evicting during a
-			 * checkpoint or if the page needs forced eviction.
-			 */
-			if (!WT_READGEN_EVICT_SOON(page->read_gen) &&
-			    F_ISSET(cache, WT_CACHE_EVICT_SCRUB))
-				LF_SET(WT_REC_SCRUB);
+				if (F_ISSET(cache, WT_CACHE_EVICT_SCRUB))
+					LF_SET(WT_REC_SCRUB);
+			}
 
 			/*
 			 * If the cache is under pressure with many updates

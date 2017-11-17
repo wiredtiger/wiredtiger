@@ -267,7 +267,7 @@ __wt_eviction_clean_needed(WT_SESSION_IMPL *session, u_int *pct_fullp)
 	 * shared cache.
 	 */
 	bytes_max = S2C(session)->cache_size + 1;
-	bytes_inuse = cache->bytes_inmem;
+	bytes_inuse = __wt_cache_bytes_inuse(cache);
 
 	if (pct_fullp != NULL)
 		*pct_fullp = (u_int)((100 * bytes_inuse) / bytes_max);
@@ -294,7 +294,7 @@ __wt_eviction_dirty_needed(WT_SESSION_IMPL *session, u_int *pct_fullp)
 	 * shared cache.
 	 */
 	bytes_max = S2C(session)->cache_size + 1;
-	dirty_inuse = cache->bytes_dirty_leaf;
+	dirty_inuse = __wt_cache_dirty_leaf_inuse(cache);
 
 	if (pct_fullp != NULL)
 		*pct_fullp = (u_int)((100 * dirty_inuse) / bytes_max);
@@ -302,23 +302,7 @@ __wt_eviction_dirty_needed(WT_SESSION_IMPL *session, u_int *pct_fullp)
 	if ((dirty_trigger = cache->eviction_scrub_limit) < 1.0)
 		dirty_trigger = (double)cache->eviction_dirty_trigger;
 
-	if (dirty_inuse > (uint64_t)(dirty_trigger * bytes_max) / 100)
-		return (true);
-
-#if 0
-	/*
-	 * Also stall updates when the lookaside table is more than half of the
-	 * dirty limit.
-	 */
-	if (F_ISSET(cache, WT_CACHE_EVICT_LOOKASIDE) && cache->bytes_lookaside >
-	    (uint64_t)(dirty_trigger * bytes_max) / 200) {
-		if (pct_fullp != NULL)
-			*pct_fullp = 100;
-		return (true);
-	}
-#endif
-
-	return (false);
+	return (dirty_inuse > (uint64_t)(dirty_trigger * bytes_max) / 100);
 }
 
 /*
