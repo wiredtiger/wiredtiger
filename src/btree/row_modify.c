@@ -314,12 +314,10 @@ __wt_update_obsolete_check(
 	 * update chains.
 	 */
 	for (first = NULL, count = 0; upd != NULL; upd = upd->next, count++)
-		if (WT_UPDATE_DATA_VALUE(upd) &&
-		    __wt_txn_upd_visible_all(session, upd)) {
-			if (first == NULL)
-				first = upd;
-		} else if (upd->txnid != WT_TXN_ABORTED)
+		if (!__wt_txn_upd_visible_all(session, upd))
 			first = NULL;
+		else if (first == NULL && WT_UPDATE_DATA_VALUE(upd))
+			first = upd;
 
 	/*
 	 * We cannot discard this WT_UPDATE structure, we can only discard
