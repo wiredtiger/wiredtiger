@@ -141,6 +141,9 @@ __split_verify_root(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
 	WT_DECL_RET;
 	WT_REF *ref;
+	uint32_t read_flags;
+
+	read_flags = WT_READ_CACHE | WT_READ_NO_EVICT;
 
 	/* The split is complete and live, verify all of the pages involved. */
 	__split_verify_intl_key_order(session, page);
@@ -156,14 +159,14 @@ __split_verify_root(WT_SESSION_IMPL *session, WT_PAGE *page)
 		 * Ignore pages not in-memory (deleted, on-disk, being read),
 		 * there's no in-memory structure to check.
 		 */
-		if ((ret = __wt_page_in(session,
-		    ref, WT_READ_CACHE | WT_READ_NO_EVICT)) == WT_NOTFOUND)
+		if ((ret =
+		    __wt_page_in(session, ref, read_flags)) == WT_NOTFOUND)
 			continue;
 		WT_ERR(ret);
 
 		__split_verify_intl_key_order(session, ref->page);
 
-		WT_ERR(__wt_page_release(session, ref, WT_READ_NO_EVICT));
+		WT_ERR(__wt_page_release(session, ref, read_flags));
 	} WT_INTL_FOREACH_END;
 
 	return (0);
@@ -345,6 +348,9 @@ __split_ref_prepare(
 	 * ascend into the created children, but eventually fail as that parent
 	 * page won't yet know about the created children pages. That's OK, we
 	 * spin there until the parent's page index is updated.
+	 *
+	 * Lock the newly created page to ensure it doesn't split until all
+	 * child pages have been updated.
 	 */
 	for (i = skip_first ? 1 : 0; i < pindex->entries; ++i) {
 		ref = pindex->index[i];
@@ -352,10 +358,12 @@ __split_ref_prepare(
 
 		/* Switch the WT_REF's to their new page. */
 		j = 0;
+		WT_PAGE_LOCK(session, child);
 		WT_INTL_FOREACH_BEGIN(session, child, child_ref) {
 			child_ref->home = child;
 			child_ref->pindex_hint = j++;
 		} WT_INTL_FOREACH_END;
+		WT_PAGE_UNLOCK(session, child);
 
 #ifdef HAVE_DIAGNOSTIC
 		WT_WITH_PAGE_INDEX(session,
@@ -1383,11 +1391,11 @@ __split_multi_inmem(
 	WT_DECL_RET;
 	WT_PAGE *page;
 	WT_SAVE_UPD *supd;
-	WT_UPDATE *prev_upd, *upd;
+	WT_UPDATE *upd;
 	uint64_t recno;
 	uint32_t i, slot;
 
-	WT_ASSERT(session, multi->las_pageid == 0);
+	WT_ASSERT(session, multi->page_las.las_pageid == 0);
 
 	/*
 	 * In 04/2016, we removed column-store record numbers from the WT_PAGE
@@ -1474,36 +1482,6 @@ __split_multi_inmem(
 			break;
 		WT_ILLEGAL_VALUE_ERR(session);
 		}
-
-		/*
-		 * Discard the update used to create the on-page disk image.
-		 * This is not just a performance issue: if the update used to
-		 * create the value for this on-page disk image was a modify,
-		 * and it was applied to the previous on-page value to
-		 * determine a value to write to this disk image, that update
-		 * cannot be applied to the new on-page value without risking
-		 * corruption.
-		 */
-		if (supd->onpage_upd != NULL) {
-			for (prev_upd = upd; prev_upd != NULL &&
-			    prev_upd->next != supd->onpage_upd;
-			    prev_upd = prev_upd->next)
-				;
-			/*
-			 * If the on-page update was in fact a tombstone, there
-			 * will be no value on the page.  Don't throw the
-			 * tombstone away: we may need it to correctly resolve
-			 * modifications.
-			 */
-			if (supd->onpage_upd->type == WT_UPDATE_DELETED &&
-			    prev_upd != NULL)
-				prev_upd = prev_upd->next;
-			if (prev_upd != NULL) {
-				__wt_update_obsolete_free(
-				    session, page, prev_upd->next);
-				prev_upd->next = NULL;
-			}
-		}
 	}
 
 	/*
@@ -1519,6 +1497,8 @@ __split_multi_inmem(
 	 * to avoid repeatedly attempting eviction on the same page.
 	 */
 	page->modify->last_eviction_id = orig->modify->last_eviction_id;
+	__wt_timestamp_set(&page->modify->last_eviction_timestamp,
+	    &orig->modify->last_eviction_timestamp);
 	page->modify->update_restored = 1;
 
 err:	/* Free any resources that may have been cached in the cursor. */
@@ -1624,7 +1604,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 	 * There can be an address or a disk image or both, but if there is
 	 * neither, there must be a backing lookaside page.
 	 */
-	WT_ASSERT(session, multi->las_pageid != 0 ||
+	WT_ASSERT(session, multi->page_las.las_pageid != 0 ||
 	    multi->addr.addr != NULL || multi->disk_image != NULL);
 
 	/* If closing the file, there better be an address. */
@@ -1664,7 +1644,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 	 * WT_REF.state. Regardless of a backing address, WT_REF_LOOKASIDE
 	 * overrides WT_REF_DISK.
 	 */
-	if (multi->las_pageid != 0) {
+	if (multi->page_las.las_pageid != 0) {
 		/*
 		 * We should not have a disk image if we did lookaside
 		 * eviction.
@@ -1672,11 +1652,8 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 		WT_ASSERT(session, multi->disk_image == NULL);
 
 		WT_RET(__wt_calloc_one(session, &ref->page_las));
-		ref->page_las->las_pageid = multi->las_pageid;
-#ifdef HAVE_TIMESTAMPS
-		__wt_timestamp_set(
-		    &ref->page_las->min_timestamp, &multi->las_min_timestamp);
-#endif
+		*ref->page_las = multi->page_las;
+		WT_ASSERT(session, ref->page_las->las_max_txn != WT_TXN_NONE);
 		ref->state = WT_REF_LOOKASIDE;
 	}
 

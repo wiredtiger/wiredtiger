@@ -7,6 +7,12 @@
  */
 
 /*
+ * Helper: in order to read without any calls to eviction, we have to ignore
+ * the cache size and disable splits.
+ */
+#define	WT_READ_NO_EVICT	(WT_READ_IGNORE_CACHE_SIZE | WT_READ_NO_SPLIT)
+
+/*
  * Tuning constants: I hesitate to call this tuning, but we want to review some
  * number of pages from each file's in-memory tree for each page we evict.
  */
@@ -71,6 +77,8 @@ struct __wt_cache {
 	uint64_t bytes_internal;	/* Bytes of internal pages */
 	uint64_t bytes_read;		/* Bytes read into memory */
 	uint64_t bytes_written;
+
+	uint64_t bytes_lookaside;	/* Lookaside bytes inmem */
 
 	volatile uint64_t eviction_progress;	/* Eviction progress count */
 	uint64_t last_eviction_progress;/* Tracked eviction progress */
@@ -152,20 +160,60 @@ struct __wt_cache {
 #define	WT_EVICT_SCORE_BUMP	10
 #define	WT_EVICT_SCORE_CUTOFF	10
 #define	WT_EVICT_SCORE_MAX	100
-	uint32_t evict_aggressive_score;/* Score of how aggressive eviction
-					   should be about selecting eviction
-					   candidates. If eviction is
-					   struggling to make progress, this
-					   score rises (up to a maximum of
-					   100), at which point the cache is
-					   "stuck" and transaction will be
-					   rolled back. */
-	uint32_t evict_empty_score;	/* Score of how often LRU queues are
-					   empty on refill. This score varies
-					   between 0 (if the queue hasn't been
-					   empty for a long time) and 100 (if
-					   the queue has been empty the last 10
-					   times we filled up. */
+	/*
+	 * Score of how aggressive eviction should be about selecting eviction
+	 * candidates. If eviction is struggling to make progress, this score
+	 * rises (up to a maximum of 100), at which point the cache is "stuck"
+	 * and transaction will be rolled back.
+	 */
+	uint32_t evict_aggressive_score;
+
+	/*
+	 * Score of how often LRU queues are empty on refill. This score varies
+	 * between 0 (if the queue hasn't been empty for a long time) and 100
+	 * (if the queue has been empty the last 10 times we filled up.
+	 */
+	uint32_t evict_empty_score;
+
+	/*
+	 * Score of how much pressure storing historical versions is having on
+	 * eviction.  This score varies between 0, if reconciliation always
+	 * sees updates that are globally visible and hence can be discarded,
+	 * to 100 if no updates are globally visible.
+	 */
+	int32_t evict_lookaside_score;
+
+	/*
+	 * Shared lookaside lock, session and cursor, used by threads accessing
+	 * the lookaside table (other than eviction server and worker threads
+	 * and the sweep thread, all of which have their own lookaside cursors).
+	 */
+#define	WT_LAS_NUM_SESSIONS 5
+	WT_SPINLOCK	 las_lock;
+	WT_SESSION_IMPL *las_session[WT_LAS_NUM_SESSIONS];
+	bool las_session_inuse[WT_LAS_NUM_SESSIONS];
+
+	uint32_t las_fileid;            /* Lookaside table file ID */
+	uint64_t las_entry_count;       /* Count of entries in lookaside */
+	uint64_t las_pageid;		/* Lookaside table page ID counter */
+
+	WT_SPINLOCK	 las_sweep_lock;
+	WT_ITEM las_sweep_key;		/* Track sweep position. */
+	uint32_t las_sweep_dropmin;	/* Minimum btree ID in current set. */
+	uint8_t *las_sweep_dropmap;	/* Bitmap of dropped btree IDs. */
+	uint32_t las_sweep_dropmax;	/* Maximum btree ID in current set. */
+
+	uint32_t *las_dropped;		/* List of dropped btree IDs. */
+	size_t las_dropped_next;	/* Next index into drop list. */
+	size_t las_dropped_alloc;	/* Allocated size of drop list. */
+
+	/*
+	 * The "lookaside_activity" verbose messages are throttled to once per
+	 * checkpoint. To accomplish this we track the checkpoint generation
+	 * for the most recent read and write verbose messages.
+	 */
+	uint64_t las_verb_gen_read;
+	uint64_t las_verb_gen_write;
 
 	/*
 	 * Cache pool information.
@@ -192,8 +240,9 @@ struct __wt_cache {
 #define	WT_CACHE_EVICT_CLEAN_HARD 0x002 /* Clean % blocking app threads */
 #define	WT_CACHE_EVICT_DIRTY	  0x004 /* Evict dirty pages */
 #define	WT_CACHE_EVICT_DIRTY_HARD 0x008 /* Dirty % blocking app threads */
-#define	WT_CACHE_EVICT_SCRUB	  0x010 /* Scrub dirty pages */
-#define	WT_CACHE_EVICT_URGENT	  0x020 /* Pages are in the urgent queue */
+#define	WT_CACHE_EVICT_LOOKASIDE  0x010 /* Try lookaside eviction */
+#define	WT_CACHE_EVICT_SCRUB	  0x020 /* Scrub dirty pages */
+#define	WT_CACHE_EVICT_URGENT	  0x040 /* Pages are in the urgent queue */
 #define	WT_CACHE_EVICT_ALL	(WT_CACHE_EVICT_CLEAN | WT_CACHE_EVICT_DIRTY)
 	uint32_t flags;
 };

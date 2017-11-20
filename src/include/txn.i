@@ -82,7 +82,9 @@ __wt_timestamp_set_zero(wt_timestamp_t *ts)
 {
 	ts->val = 0;
 }
-#else
+
+#else /* WT_TIMESTAMP_SIZE != 8 */
+
 #define	WT_WITH_TIMESTAMP_READLOCK(s, l, e)	do {                    \
 	__wt_readlock((s), (l));                                        \
 	e;                                                              \
@@ -141,6 +143,16 @@ __wt_timestamp_set_zero(wt_timestamp_t *ts)
 	memset(ts->ts, 0x00, WT_TIMESTAMP_SIZE);
 }
 #endif /* WT_TIMESTAMP_SIZE == 8 */
+
+#else /* !HAVE_TIMESTAMPS */
+
+#define	__wt_timestamp_set(dest, src)
+#define	__wt_timestamp_set_inf(ts)
+#define	__wt_timestamp_set_zero(ts)
+#define	__wt_txn_clear_commit_timestamp(session)
+#define	__wt_txn_clear_read_timestamp(session)
+#define	__wt_txn_timestamp_flags(session)
+
 #endif /* HAVE_TIMESTAMPS */
 
 /*
@@ -275,7 +287,8 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
 	 */
 	oldest_id = txn_global->oldest_id;
 	include_checkpoint_txn = btree == NULL ||
-	    btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT);
+	    (!F_ISSET(btree, WT_BTREE_LOOKASIDE) &&
+	    btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT));
 	if (!include_checkpoint_txn)
 		return (oldest_id);
 
@@ -511,11 +524,9 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
 		if (session->ncursors > 0)
 			WT_RET(__wt_session_copy_values(session));
 
-		/*
-		 * We're about to allocate a snapshot: if we need to block for
-		 * eviction, it's better to do it beforehand.
-		 */
-		WT_RET(__wt_cache_eviction_check(session, false, NULL));
+		/* Stall here if the cache is completely full. */
+		WT_RET(__wt_cache_eviction_check(session, false, true, NULL));
+
 		__wt_txn_get_snapshot(session);
 	}
 
@@ -560,11 +571,14 @@ __wt_txn_idle_cache_check(WT_SESSION_IMPL *session)
 
 	/*
 	 * Check the published snap_min because read-uncommitted never sets
-	 * WT_TXN_HAS_SNAPSHOT.
+	 * WT_TXN_HAS_SNAPSHOT.  We don't have any transaction information at
+	 * this point, so assume the transaction will be read-only.  The dirty
+	 * cache check will be performed when the transaction completes, if
+	 * necessary.
 	 */
 	if (F_ISSET(txn, WT_TXN_RUNNING) &&
 	    !F_ISSET(txn, WT_TXN_HAS_ID) && txn_state->pinned_id == WT_TXN_NONE)
-		WT_RET(__wt_cache_eviction_check(session, false, NULL));
+		WT_RET(__wt_cache_eviction_check(session, false, true, NULL));
 
 	return (0);
 }

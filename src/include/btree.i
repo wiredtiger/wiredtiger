@@ -189,7 +189,7 @@ __wt_cache_decr_check_size(
  */
 static inline void
 __wt_cache_decr_check_uint64(
-    WT_SESSION_IMPL *session, uint64_t *vp, size_t v, const char *fld)
+    WT_SESSION_IMPL *session, uint64_t *vp, uint64_t v, const char *fld)
 {
 	if (__wt_atomic_sub64(vp, v) < WT_EXABYTE)
 		return;
@@ -200,7 +200,7 @@ __wt_cache_decr_check_uint64(
 	 */
 	*vp = 0;
 	__wt_errx(session,
-	    "%s went negative with decrement of %" WT_SIZET_FMT, fld, v);
+	    "%s went negative with decrement of %" PRIu64, fld, v);
 
 #ifdef HAVE_DIAGNOSTIC
 	__wt_abort(session);
@@ -1267,6 +1267,44 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
+ * __wt_page_evict_retry --
+ *	Check if there has been transaction progress since the last eviction
+ *	attempt.
+ */
+static inline bool
+__wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+	WT_PAGE_MODIFY *mod;
+	WT_TXN_GLOBAL *txn_global;
+
+	txn_global = &S2C(session)->txn_global;
+
+	if ((mod = page->modify) == NULL)
+		return (true);
+
+	if (txn_global->current != txn_global->oldest_id &&
+	    mod->last_eviction_id == __wt_txn_oldest_id(session))
+		return (false);
+
+#ifdef HAVE_TIMESTAMPS
+	{
+	bool same_timestamp;
+
+	if (__wt_timestamp_iszero(&mod->last_eviction_timestamp))
+		return (true);
+
+	WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
+	    same_timestamp = __wt_timestamp_cmp(
+	    &mod->last_eviction_timestamp, &txn_global->pinned_timestamp) == 0);
+	if (same_timestamp)
+		return (false);
+	}
+#endif
+
+	return (true);
+}
+
+/*
  * __wt_page_can_evict --
  *	Check whether a page can be evicted.
  */
@@ -1359,6 +1397,7 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 {
 	WT_BTREE *btree;
 	WT_PAGE *page;
+	bool inmem_split;
 
 	btree = S2BT(session);
 
@@ -1387,10 +1426,10 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	 */
 	page = ref->page;
 	if (!WT_READGEN_EVICT_SOON(page->read_gen) ||
-	    LF_ISSET(WT_READ_NO_EVICT) ||
-	    F_ISSET(session, WT_SESSION_NO_EVICTION) ||
+	    LF_ISSET(WT_READ_NO_SPLIT) ||
 	    btree->evict_disabled > 0 ||
-	    !__wt_page_can_evict(session, ref, NULL))
+	    !__wt_page_can_evict(session, ref, &inmem_split) ||
+	    (F_ISSET(session, WT_SESSION_NO_RECONCILE) && !inmem_split))
 		return (__wt_hazard_clear(session, ref));
 
 	WT_RET_BUSY_OK(__wt_page_release_evict(session, ref));
@@ -1622,6 +1661,6 @@ __wt_ref_state_yield_sleep(uint64_t *yield_count, uint64_t *sleep_count)
 		return;
 	}
 
-	(*sleep_count) = WT_MIN((*sleep_count) + WT_THOUSAND, 10 * WT_THOUSAND);
+	(*sleep_count) = WT_MIN((*sleep_count) + 100, WT_THOUSAND);
 	__wt_sleep(0, (*sleep_count));
 }
