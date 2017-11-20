@@ -1485,6 +1485,9 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 */
 	WT_RET(__rec_update_save(session, r, ins, ripcip, *updp, upd_memsize));
 
+	if (upd_savedp != NULL)
+		*upd_savedp = true;
+
 #ifdef HAVE_TIMESTAMPS
 	/* Track the oldest saved timestamp for lookaside. */
 	if (F_ISSET(r, WT_REC_LOOKASIDE)) {
