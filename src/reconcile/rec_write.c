@@ -862,10 +862,11 @@ __rec_raw_compression_config(WT_SESSION_IMPL *session,
 
 	/*
 	 * XXX
-	 * Turn off if lookaside is configured: lookaside potentially writes
-	 * blocks without entries and raw compression isn't ready for that.
+	 * Turn off if lookaside or update/restore are configured: those modes
+	 * potentially write blocks without entries and raw compression isn't
+	 * ready for that.
 	 */
-	if (LF_ISSET(WT_REC_LOOKASIDE))
+	if (LF_ISSET(WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE))
 		return (false);
 
 	/*
@@ -5656,40 +5657,53 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 		    session, r, ins, NULL, NULL, &upd_saved, &upd));
 
 		if (upd == NULL) {
+			/*
+			 * If no update is visible but some were saved, check
+			 * for splits.
+			 */
 			if (!upd_saved)
 				continue;
+			if (!__rec_need_split(r, WT_INSERT_KEY_SIZE(ins)))
+				continue;
+
+			/* Copy the current key into place and then split. */
+			WT_RET(__wt_buf_set(session, r->cur,
+			    WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins)));
+			WT_RET(__rec_split_crossing_bnd(
+			    session, r, WT_INSERT_KEY_SIZE(ins)));
 
 			/*
-			 * If no update is visible but some were saved, continue
-			 * by building a key and checking for splits, but don't
-			 * actually write anything to the page.
+			 * Turn off prefix compression until a full key is
+			 * written into the new page.
 			 */
-			val->len = 0;
-		} else
-			switch (upd->type) {
-			case WT_UPDATE_DELETED:
-				continue;
-			case WT_UPDATE_MODIFIED:
-				/*
-				 * Impossible slot, there's no backing on-page
-				 * item.
-				 */
-				cbt->slot = UINT32_MAX;
-				WT_RET(__wt_value_return(session, cbt, upd));
-				WT_RET(__rec_cell_build_val(session, r,
-				    cbt->iface.value.data,
-				    cbt->iface.value.size, (uint64_t)0));
-				break;
-			case WT_UPDATE_STANDARD:
-				if (upd->size == 0)
-					val->len = 0;
-				else
-					WT_RET(__rec_cell_build_val(session,
-					    r, upd->data, upd->size,
-					    (uint64_t)0));
-				break;
-			WT_ILLEGAL_VALUE(session);
-			}
+			r->key_pfx_compress = false;
+			continue;
+		}
+
+		switch (upd->type) {
+		case WT_UPDATE_DELETED:
+			continue;
+		case WT_UPDATE_MODIFIED:
+			/*
+			 * Impossible slot, there's no backing on-page
+			 * item.
+			 */
+			cbt->slot = UINT32_MAX;
+			WT_RET(__wt_value_return(session, cbt, upd));
+			WT_RET(__rec_cell_build_val(session, r,
+			    cbt->iface.value.data,
+			    cbt->iface.value.size, (uint64_t)0));
+			break;
+		case WT_UPDATE_STANDARD:
+			if (upd->size == 0)
+				val->len = 0;
+			else
+				WT_RET(__rec_cell_build_val(session,
+				    r, upd->data, upd->size,
+				    (uint64_t)0));
+			break;
+		WT_ILLEGAL_VALUE(session);
+		}
 
 		/* Build key cell. */
 		WT_RET(__rec_cell_build_leaf_key(session, r,
@@ -5720,10 +5734,6 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 				    session, r, key->len + val->len));
 			}
 		}
-
-		/* If there is nothing to write, go on to the next record. */
-		if (upd == NULL)
-			continue;
 
 		/* Copy the key/value pair onto the page. */
 		__rec_copy_incr(session, r, key);
