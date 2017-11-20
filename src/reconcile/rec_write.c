@@ -264,9 +264,6 @@ typedef struct {
 	WT_ITEM *cur, _cur;		/* Key/Value being built */
 	WT_ITEM *last, _last;		/* Last key/value built */
 
-	WT_ITEM *skipkey, _skipkey;	/* Last skipped key */
-	bool last_key_skipped;		/* Last key was skipped. */
-
 	bool key_pfx_compress;		/* If can prefix-compress next key */
 	bool key_pfx_compress_conf;	/* If prefix compression configured */
 	bool key_sfx_compress;		/* If can suffix-compress next key */
@@ -921,7 +918,6 @@ __rec_init(WT_SESSION_IMPL *session,
 		/* Connect pointers/buffers. */
 		r->cur = &r->_cur;
 		r->last = &r->_last;
-		r->skipkey = &r->_skipkey;
 
 		/* Disk buffers need to be aligned for writing. */
 		F_SET(&r->chunkA.image, WT_ITEM_ALIGNED);
@@ -1024,7 +1020,6 @@ __rec_init(WT_SESSION_IMPL *session,
 	/* The list of saved updates is reused. */
 	r->supd_next = 0;
 	r->supd_memsize = 0;
-	r->last_key_skipped = false;
 
 	/* The list of pages we've written. */
 	r->multi = NULL;
@@ -1153,7 +1148,6 @@ __rec_destroy(WT_SESSION_IMPL *session, void *reconcilep)
 	__wt_buf_free(session, &r->v.buf);
 	__wt_buf_free(session, &r->_cur);
 	__wt_buf_free(session, &r->_last);
-	__wt_buf_free(session, &r->_skipkey);
 
 	__wt_buf_free(session, &r->update_modify_cbt.iface.value);
 
@@ -2488,18 +2482,11 @@ __rec_split_row_promote(
 	 * internal pages, you cannot repeat suffix truncation as you split up
 	 * the tree, it loses too much information.
 	 *
-	 * Note #1: if the on-disk page image is empty, we haven't see a real
-	 * key.  Just use the last key we saw.
-	 *
-	 * Note #2: if the last key on the previous page was an overflow key,
+	 * Note #1: if the last key on the previous page was an overflow key,
 	 * we don't have the in-memory key against which to compare, and don't
 	 * try to do suffix compression.  The code for that case turns suffix
 	 * compression off for the next key, we don't have to deal with it here.
 	 */
-	if (r->last_key_skipped)
-		return (__wt_buf_set(
-		    session, key, r->skipkey->data, r->skipkey->size));
-
 	if (type != WT_PAGE_ROW_LEAF || !r->key_sfx_compress)
 		return (__wt_buf_set(session, key, r->cur->data, r->cur->size));
 
@@ -2507,7 +2494,7 @@ __rec_split_row_promote(
 	WT_RET(__wt_scr_alloc(session, 0, &update));
 
 	/*
-	 * Note #3: if we skipped updates, an update key may be larger than the
+	 * Note #2: if we skipped updates, an update key may be larger than the
 	 * last key stored in the previous block (probable for append-centric
 	 * workloads).  If there are skipped updates, check for one larger than
 	 * the last key and smaller than the current key.
@@ -5668,54 +5655,47 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 		WT_RET(__rec_txn_read(
 		    session, r, ins, NULL, NULL, &upd_saved, &upd));
 
-		/*
-		 * If no update is visible but some were saved, check for
-		 * splits.
-		 */
 		if (upd == NULL) {
 			if (!upd_saved)
 				continue;
 
-			/* Save the last key we've seen, mark it skipped. */
-			WT_RET(__wt_buf_set(session, r->skipkey,
-			    WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins)));
-			r->last_key_skipped = true;
-
-			key->len = val->len = 0;
-			ovfl_key = false;
-			goto check_split;
-		}
-
-		switch (upd->type) {
-		case WT_UPDATE_DELETED:
-			continue;
-		case WT_UPDATE_MODIFIED:
 			/*
-			 * Impossible slot, there's no backing on-page
-			 * item.
+			 * If no update is visible but some were saved, continue
+			 * by building a key and checking for splits, but don't
+			 * actually write anything to the page.
 			 */
-			cbt->slot = UINT32_MAX;
-			WT_RET(__wt_value_return(session, cbt, upd));
-			WT_RET(__rec_cell_build_val(session, r,
-			    cbt->iface.value.data,
-			    cbt->iface.value.size, (uint64_t)0));
-			break;
-		case WT_UPDATE_STANDARD:
-			if (upd->size == 0)
-				val->len = 0;
-			else
-				WT_RET(__rec_cell_build_val(session,
-				    r, upd->data, upd->size,
-				    (uint64_t)0));
-			break;
-		WT_ILLEGAL_VALUE(session);
-		}
+			val->len = 0;
+		} else
+			switch (upd->type) {
+			case WT_UPDATE_DELETED:
+				continue;
+			case WT_UPDATE_MODIFIED:
+				/*
+				 * Impossible slot, there's no backing on-page
+				 * item.
+				 */
+				cbt->slot = UINT32_MAX;
+				WT_RET(__wt_value_return(session, cbt, upd));
+				WT_RET(__rec_cell_build_val(session, r,
+				    cbt->iface.value.data,
+				    cbt->iface.value.size, (uint64_t)0));
+				break;
+			case WT_UPDATE_STANDARD:
+				if (upd->size == 0)
+					val->len = 0;
+				else
+					WT_RET(__rec_cell_build_val(session,
+					    r, upd->data, upd->size,
+					    (uint64_t)0));
+				break;
+			WT_ILLEGAL_VALUE(session);
+			}
 
 		/* Build key cell. */
 		WT_RET(__rec_cell_build_leaf_key(session, r,
 		    WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins), &ovfl_key));
 
-check_split:	/* Boundary: split or write the page. */
+		/* Boundary: split or write the page. */
 		if (__rec_need_split(r, key->len + val->len)) {
 			if (r->raw_compression)
 				WT_RET(__rec_split_raw(
@@ -5727,7 +5707,7 @@ check_split:	/* Boundary: split or write the page. */
 				 * working with an overflow key), rebuild the
 				 * key without compression.
 				 */
-				if (r->key_pfx_compress_conf && key->len != 0) {
+				if (r->key_pfx_compress_conf) {
 					r->key_pfx_compress = false;
 					if (!ovfl_key)
 						WT_RET(
@@ -5742,7 +5722,7 @@ check_split:	/* Boundary: split or write the page. */
 		}
 
 		/* If there is nothing to write, go on to the next record. */
-		if (key->len + val->len == 0)
+		if (upd == NULL)
 			continue;
 
 		/* Copy the key/value pair onto the page. */
@@ -6222,7 +6202,6 @@ __rec_cell_build_leaf_key(WT_SESSION_IMPL *session,
 		 * any reason, unable to use the compressed key we generate.
 		 */
 		WT_RET(__wt_buf_set(session, r->cur, data, size));
-		r->last_key_skipped = false;
 
 		/*
 		 * Do prefix compression on the key.  We know by definition the
