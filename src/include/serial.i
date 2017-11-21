@@ -317,7 +317,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
 			WT_RET(__wt_txn_update_oldest(session, 0));
 
 			if (!__wt_txn_visible_all(
-                            session, txn, obsolete_timestamp))
+			    session, txn, obsolete_timestamp))
 				return (0);
 		}
 
