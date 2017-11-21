@@ -339,9 +339,23 @@ __wt_update_obsolete_check(
 	 * trim update lists independently of the page state, ensure there
 	 * is a modify structure.
 	 */
-	if (count > 20 && page->modify != NULL)
+	if (count > 20 && page->modify != NULL) {
+#ifdef HAVE_TIMESTAMPS
+		WT_TXN_GLOBAL *txn_global;
+		txn_global = &S2C(session)->txn_global;
+		if (txn_global->has_pinned_timestamp) {
+			WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
+			    __wt_timestamp_set(
+				&page->modify->obsolete_check_timestamp,
+				&txn_global->pinned_timestamp));
+			page->modify->obsolete_check_timestamp_ptr =
+				&page->modify->obsolete_check_timestamp;
+		} else
+			page->modify->obsolete_check_timestamp_ptr = NULL;
+#endif
 		page->modify->obsolete_check_txn =
 		    S2C(session)->txn_global.last_running;
+	}
 
 	return (NULL);
 }
