@@ -263,6 +263,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
 {
 	WT_DECL_RET;
 	WT_UPDATE *obsolete, *upd = *updp;
+	wt_timestamp_t *obsolete_timestamp;
 	uint64_t txn;
 
 	/* Clear references to memory we now own and must free on error. */
@@ -309,13 +310,20 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
 	 * is used as an indicator of there being further updates on this page.
 	 */
 	if ((txn = page->modify->obsolete_check_txn) != WT_TXN_NONE) {
-		if (!__wt_txn_visible_all(session, txn,
+#ifdef HAVE_TIMESTAMPS
+		obsolete_timestamp =
 		    page->modify->has_obsolete_check_timestamp ?
-		    &page->modify->obsolete_check_timestamp : NULL)) {
+		    &page->modify->obsolete_check_timestamp : NULL;
+#else
+		WT_UNUSED(obsolete_timestamp);
+#endif
+		if (!__wt_txn_visible_all(session,
+		    txn, WT_TIMESTAMP_NULL(obsolete_timestamp))) {
 			/* Try to move the oldest ID forward and re-check. */
 			WT_RET(__wt_txn_update_oldest(session, 0));
 
-			if (!__wt_txn_visible_all(session, txn, NULL))
+			if (!__wt_txn_visible_all(session,
+			    txn, WT_TIMESTAMP_NULL(obsolete_timestamp)))
 				return (0);
 		}
 
