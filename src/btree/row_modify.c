@@ -299,8 +299,11 @@ WT_UPDATE *
 __wt_update_obsolete_check(
     WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd)
 {
+	WT_TXN_GLOBAL *txn_global;
 	WT_UPDATE *first, *next;
 	u_int count;
+
+	txn_global = &S2C(session)->txn_global;
 
 	/*
 	 * This function identifies obsolete updates, and truncates them from
@@ -340,21 +343,21 @@ __wt_update_obsolete_check(
 	 * is a modify structure.
 	 */
 	if (count > 20 && page->modify != NULL) {
+		page->modify->obsolete_check_txn = txn_global->last_running;
 #ifdef HAVE_TIMESTAMPS
-		WT_TXN_GLOBAL *txn_global;
-		txn_global = &S2C(session)->txn_global;
 		if (txn_global->has_pinned_timestamp) {
 			WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
 			    __wt_timestamp_set(
 				&page->modify->obsolete_check_timestamp,
 				&txn_global->pinned_timestamp));
-			page->modify->obsolete_check_timestamp_ptr =
-				&page->modify->obsolete_check_timestamp;
+			page->modify->has_obsolete_check_timestamp = true;
 		} else
-			page->modify->obsolete_check_timestamp_ptr = NULL;
 #endif
-		page->modify->obsolete_check_txn =
-		    S2C(session)->txn_global.last_running;
+			/*
+			 * Disable the timestamp check if there is no pinned
+			 * timestamp or timestamps are disabled.
+			 */
+			page->modify->has_obsolete_check_timestamp = false;
 	}
 
 	return (NULL);

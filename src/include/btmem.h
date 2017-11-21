@@ -218,8 +218,7 @@ struct __wt_page_modify {
 
 	/* Avoid checking for obsolete updates during checkpoints. */
 	uint64_t obsolete_check_txn;
-
-	wt_timestamp_t *obsolete_check_timestamp_ptr;
+	bool has_obsolete_check_timestamp;
 	WT_DECL_TIMESTAMP(obsolete_check_timestamp)
 
 	/* The largest transaction seen on the page by reconciliation. */
