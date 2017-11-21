@@ -310,20 +310,14 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
 	 * is used as an indicator of there being further updates on this page.
 	 */
 	if ((txn = page->modify->obsolete_check_txn) != WT_TXN_NONE) {
-#ifdef HAVE_TIMESTAMPS
 		obsolete_timestamp =
-		    page->modify->has_obsolete_check_timestamp ?
-		    &page->modify->obsolete_check_timestamp : NULL;
-#else
-		WT_UNUSED(obsolete_timestamp);
-#endif
-		if (!__wt_txn_visible_all(session,
-		    txn, WT_TIMESTAMP_NULL(obsolete_timestamp))) {
+		    WT_TIMESTAMP_NULL(&page->modify->obsolete_check_timestamp);
+		if (!__wt_txn_visible_all(session, txn, obsolete_timestamp)) {
 			/* Try to move the oldest ID forward and re-check. */
 			WT_RET(__wt_txn_update_oldest(session, 0));
 
 			if (!__wt_txn_visible_all(session,
-			    txn, WT_TIMESTAMP_NULL(obsolete_timestamp)))
+			    txn, obsolete_timestamp))
 				return (0);
 		}
 
