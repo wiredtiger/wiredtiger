@@ -50,17 +50,18 @@ class test_index03(wttest.WiredTigerTestCase):
         c1 = session.open_cursor(uri, None)
 
         # Having cursors open across index creates is not currently allowed.
-        with self.expectedStderrPattern('Resource busy'):
+        with self.expectedStderrPattern("Can't create an index for table"):
             self.assertRaises(wiredtiger.WiredTigerError,
                 lambda: session.create(index2_uri, 'columns=(col2)' + config))
         c1.close()
 
         session.create(index2_uri, 'columns=(col2)' + config)
         c1 = session.open_cursor(uri, None)
+        # Having cursors open across drops is not currently allowed.
+        # On the drop side, we need to begin using the cursor
         for i in xrange(100, 200):
             c1[self.key(i)] = self.value(i)
 
-        # Having cursors open across drops is not currently allowed.
         self.assertRaises(wiredtiger.WiredTigerError,
             lambda: session.drop(index2_uri))
         c1.close()
