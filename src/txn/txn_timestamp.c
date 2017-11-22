@@ -357,7 +357,7 @@ int
 __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_CONFIG_ITEM commit_cval, cval, oldest_cval, stable_cval;
-	bool force, has_commit, has_oldest, has_stable;
+	bool has_commit, has_oldest, has_stable;
 
 	WT_RET(__wt_config_gets_def(session,
 	    cfg, "commit_timestamp", 0, &commit_cval));
@@ -375,17 +375,19 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	if (!has_commit && !has_oldest && !has_stable)
 		return (0);
 
-	WT_RET(__wt_config_gets_def(session,
-	    cfg, "force", 0, &cval));
-	force = cval.val != 0;
-
 #ifdef HAVE_TIMESTAMPS
 	{
 	WT_TXN_GLOBAL *txn_global;
 	wt_timestamp_t commit_ts, oldest_ts, stable_ts;
 	wt_timestamp_t last_oldest_ts, last_stable_ts;
+	bool force;
 
 	txn_global = &S2C(session)->txn_global;
+
+	WT_RET(__wt_config_gets_def(session,
+	    cfg, "force", 0, &cval));
+	force = cval.val != 0;
+
 	/*
 	 * Parsing will initialize the timestamp to zero even if
 	 * it is not configured.
