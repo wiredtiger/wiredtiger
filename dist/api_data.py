@@ -1305,7 +1305,7 @@ methods = {
         stable timestamps.  See @ref transaction_timestamps'''),
     Config('force', 'false', r'''
         set timestamps even if they violate normal ordering requirements.
-        For example allow the \c oldest_timestmp to move backwards''',
+        For example allow the \c oldest_timestamp to move backwards''',
         type='boolean'),
     Config('oldest_timestamp', '', r'''
         future commits and queries will be no earlier than the specified
