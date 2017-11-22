@@ -1847,9 +1847,9 @@ __open_session(WT_CONNECTION_IMPL *conn,
 			break;
 	if (i == conn->session_size)
 		WT_ERR_MSG(session, WT_ERROR,
-		    "out of sessions, only configured to support %" PRIu32
-		    " sessions (including %d additional internal sessions)",
-		    conn->session_size, WT_EXTRA_INTERNAL_SESSIONS);
+		    "out of sessions, configured for %" PRIu32 " (including "
+		    "internal sessions)",
+		    conn->session_size);
 
 	/*
 	 * If the active session count is increasing, update it.  We don't worry
