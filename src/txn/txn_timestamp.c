@@ -356,7 +356,7 @@ __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
 int
 __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 {
-	WT_CONFIG_ITEM commit_cval, cval, oldest_cval, stable_cval;
+	WT_CONFIG_ITEM commit_cval, oldest_cval, stable_cval;
 	bool has_commit, has_oldest, has_stable;
 
 	WT_RET(__wt_config_gets_def(session,
@@ -377,6 +377,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 
 #ifdef HAVE_TIMESTAMPS
 	{
+	WT_CONFIG_ITEM cval;
 	WT_TXN_GLOBAL *txn_global;
 	wt_timestamp_t commit_ts, oldest_ts, stable_ts;
 	wt_timestamp_t last_oldest_ts, last_stable_ts;
