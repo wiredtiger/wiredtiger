@@ -1864,6 +1864,10 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 		if (F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU))
 			continue;
 
+		/* Don't queue dirty pages in trees during checkpoints. */
+		if (modified && btree->checkpointing != WT_CKPT_OFF)
+			continue;
+
 		/*
 		 * It's possible (but unlikely) to visit a page without a read
 		 * generation, if we race with the read instantiating the page.
