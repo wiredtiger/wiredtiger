@@ -332,7 +332,7 @@ __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
 	}
 
 	__wt_writelock(session, &txn_global->rwlock);
-	if (!txn_global->has_pinned_timestamp || __wt_timestamp_cmp(
+	if (!txn_global->has_pinned_timestamp || force || __wt_timestamp_cmp(
 	    &txn_global->pinned_timestamp, &pinned_timestamp) < 0) {
 		__wt_timestamp_set(
 		    &txn_global->pinned_timestamp, &pinned_timestamp);
@@ -385,10 +385,6 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 
 	txn_global = &S2C(session)->txn_global;
 
-	WT_RET(__wt_config_gets_def(session,
-	    cfg, "force", 0, &cval));
-	force = cval.val != 0;
-
 	/*
 	 * Parsing will initialize the timestamp to zero even if
 	 * it is not configured.
@@ -399,6 +395,10 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	    session, "oldest", &oldest_ts, &oldest_cval));
 	WT_RET(__wt_txn_parse_timestamp(
 	    session, "stable", &stable_ts, &stable_cval));
+
+	WT_RET(__wt_config_gets_def(session,
+	    cfg, "force", 0, &cval));
+	force = cval.val != 0;
 
 	if (force)
 		goto set;
