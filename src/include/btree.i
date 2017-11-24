@@ -1268,8 +1268,7 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
 
 /*
  * __wt_page_evict_retry --
- *	Check if there has been transaction progress since the last eviction
- *	attempt.
+ *	Avoid busy-spinning attempting to evict the same page all the time.
  */
 static inline bool
 __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
@@ -1283,23 +1282,9 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 		return (true);
 
 	if (txn_global->current != txn_global->oldest_id &&
-	    mod->last_eviction_id == __wt_txn_oldest_id(session))
+            !__wt_cache_aggressive(session) &&
+            mod->last_evict_pass_gen + 10 < S2C(session)->cache->evict_pass_gen)
 		return (false);
-
-#ifdef HAVE_TIMESTAMPS
-	{
-	bool same_timestamp;
-
-	if (__wt_timestamp_iszero(&mod->last_eviction_timestamp))
-		return (true);
-
-	WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
-	    same_timestamp = __wt_timestamp_cmp(
-	    &mod->last_eviction_timestamp, &txn_global->pinned_timestamp) == 0);
-	if (same_timestamp)
-		return (false);
-	}
-#endif
 
 	return (true);
 }
