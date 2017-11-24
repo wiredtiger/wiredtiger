@@ -35,7 +35,7 @@ static inline bool
 __wt_page_evict_clean(WT_PAGE *page)
 {
 	return (page->modify == NULL || (page->modify->write_gen == 0 &&
-            page->modify->rec_result == 0));
+	    page->modify->rec_result == 0));
 }
 
 /*
@@ -1440,8 +1440,8 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	    btree->evict_disabled == 0 &&
 	    __wt_page_can_evict(session, ref, &inmem_split)) {
 		if (!__wt_page_evict_clean(page) &&
-                    (LF_ISSET(WT_READ_NO_SPLIT) || (!inmem_split &&
-                    F_ISSET(session, WT_SESSION_NO_RECONCILE))))
+		    (LF_ISSET(WT_READ_NO_SPLIT) || (!inmem_split &&
+		    F_ISSET(session, WT_SESSION_NO_RECONCILE))))
 			__wt_page_evict_urgent(session, ref);
 		else {
 			WT_RET_BUSY_OK(__wt_page_release_evict(session, ref));
