@@ -1282,8 +1282,8 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 		return (true);
 
 	if (txn_global->current != txn_global->oldest_id &&
-            !__wt_cache_aggressive(session) &&
-            mod->last_evict_pass_gen + 10 < S2C(session)->cache->evict_pass_gen)
+	    !__wt_cache_aggressive(session) &&
+	    mod->last_evict_pass_gen + 10 < S2C(session)->cache->evict_pass_gen)
 		return (false);
 
 	return (true);
