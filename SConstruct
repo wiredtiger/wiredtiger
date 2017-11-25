@@ -31,6 +31,9 @@ AddOption("--enable-lz4", dest="lz4", type="string", nargs=1, action="store",
 AddOption("--enable-python", dest="lang-python", type="string", nargs=1, action="store",
           help="Build Python extension, specify location of swig.exe binary")
 
+AddOption("--enable-java", dest="lang-java", type="string", nargs=1, action="store",
+          help="Build java extension, specify location of swig.exe binary and Java JDK dir separated by comma")
+
 AddOption("--enable-snappy", dest="snappy", type="string", nargs=1, action="store",
           help="Use snappy compression")
 
@@ -271,6 +274,63 @@ if useLz4:
     wtsources.append("ext/compressors/lz4/lz4_compress.c")
 
 wt_objs = [env.Object(a) for a in wtsources]
+
+#
+# wiredtiger_java.dll
+## Usage example
+## c:\Python27\python.exe c:\Python27\Scripts\scons.py --enable-java=c:/Users/paco/Downloads/swigwin-3.0.12/swig.exe,"C:/Program Files/Java/jdk1.8.0_151/"
+useJava = GetOption("lang-java")
+if useJava:
+    useJavaSplit = useJava.split(',')
+    if len(useJavaSplit) == 2:
+        swigExe = useJavaSplit[0]
+        javaPath = useJavaSplit[1]
+        # print useJavaSplit
+        # print swigExe
+        # print javaPath
+        conf.env.Append(CPPPATH=[ javaPath + '/include'])
+        conf.env.Append(CPPPATH=[ javaPath + '/include/win32'])
+
+        swigJavaFiles = ["lang/java/src/com/wiredtiger/db/AsyncOp.java",
+        "lang/java/src/com/wiredtiger/db/AsyncOpType.java",
+        "lang/java/src/com/wiredtiger/db/Connection.java",
+        "lang/java/src/com/wiredtiger/db/Cursor.java",
+        "lang/java/src/com/wiredtiger/db/Modify.java",
+        "lang/java/src/com/wiredtiger/db/SearchStatus.java",
+        "lang/java/src/com/wiredtiger/db/Session.java",
+        "lang/java/src/com/wiredtiger/db/WT_ITEM_HOLD.java",
+        "lang/java/src/com/wiredtiger/db/WT_MODIFY_LIST.java",
+        "lang/java/src/com/wiredtiger/db/wiredtiger.java",
+        "lang/java/src/com/wiredtiger/db/wiredtigerConstants.java",
+        "lang/java/src/com/wiredtiger/db/wiredtigerJNI.java"]
+
+        swigCFile = "wiredtiger_wrap.c"
+
+        swigFiles = env.Command(
+            swigJavaFiles + [swigCFile], '',
+            '"' + swigExe + '" -Wall -v -java -nodefaultctor -nodefaultdtor -package com.wiredtiger.db -outdir lang/java/src/com/wiredtiger/db -o wiredtiger_wrap.c lang/java/wiredtiger.i')
+        env.Depends(swigFiles, wtheader)
+        objectJavaWrap = env.Object(swigCFile)
+        env.Depends(objectJavaWrap, swigCFile)
+
+        # Dynamically Loaded Library - wiredtiger_java.dll
+        #
+        wtjavadll = env.SharedLibrary(
+            target="wiredtiger_java",
+            source=wt_objs + [objectJavaWrap] + ['build_win/wiredtiger.def'], LIBS=wtlibs)
+
+        env.Depends(wtjavadll, [filelistfile, version_file])
+        Default(wtjavadll)
+        # wiredtiger.jar
+        env['JAVAC'] = '"' + javaPath + '/bin/javac.exe"'
+        env['JAR'] = '"' + javaPath + '/bin/jar.exe"'
+        wtClasses = env.Java('lang/java/build', 'lang/java/src/')
+        env.Depends(wtClasses, swigJavaFiles)
+        # jar builder sucks
+        wtJar = env.Command( 'lang/java/wiredtiger.jar', 'lang/java/build', env['JAR'] + " -cf $TARGET -C $SOURCE .")
+        env.Depends(wtJar, wtClasses)
+        Default(wtJar)
+        # end useJava
 
 # Static Library - libwiredtiger.lib
 #
