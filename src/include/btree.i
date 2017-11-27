@@ -1285,10 +1285,6 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 	if ((mod = page->modify) == NULL || !mod->update_restored)
 		return (true);
 
-	/* Retry if this page is from the lookaside table. */
-	if (F_ISSET(S2BT(session), WT_BTREE_LOOKASIDE))
-		return (true);
-
 	/*
          * Retry if a reasonable amount of eviction time has passed, the
          * choice of 5 eviction passes as a reasonable amount of time is
