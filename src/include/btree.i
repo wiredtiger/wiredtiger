@@ -1285,21 +1285,40 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 	if ((mod = page->modify) == NULL || !mod->update_restored)
 		return (true);
 
-	/*
-	 * If this page is from the lookaside table, or we're going to consider
-	 * lookaside eviction, the ordinary transaction visibility rules aren't
-	 * relevant: try eviction.
-	 */
-	if (F_ISSET(S2BT(session), WT_BTREE_LOOKASIDE) ||
-	    F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_LOOKASIDE))
+	/* Retry if this page is from the lookaside table. */
+	if (F_ISSET(S2BT(session), WT_BTREE_LOOKASIDE))
 		return (true);
 
-	if (txn_global->current != txn_global->oldest_id &&
-	    !__wt_cache_aggressive(session) &&
-	    mod->last_evict_pass_gen + 10 < S2C(session)->cache->evict_pass_gen)
-		return (false);
+	/*
+         * Retry if a reasonable amount of eviction time has passed, the
+         * choice of 5 eviction passes as a reasonable amount of time is
+         * currently pretty arbitrary.
+         */
+	if (__wt_cache_aggressive(session) ||
+	    mod->last_evict_pass_gen + 5 < S2C(session)->cache->evict_pass_gen)
+		return (true);
 
-	return (true);
+	/* Retry if the global transaction state has moved forward. */
+	if (txn_global->current == txn_global->oldest_id ||
+	    mod->last_eviction_id != __wt_txn_oldest_id(session))
+		return (true);
+
+#ifdef HAVE_TIMESTAMPS
+	{
+	bool same_timestamp;
+
+	same_timestamp = false;
+	if (!__wt_timestamp_iszero(&mod->last_eviction_timestamp))
+		WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
+		    same_timestamp = __wt_timestamp_cmp(
+		    &mod->last_eviction_timestamp,
+		    &txn_global->pinned_timestamp) == 0);
+	if (!same_timestamp)
+		return (true);
+	}
+#endif
+
+	return (false);
 }
 
 /*
