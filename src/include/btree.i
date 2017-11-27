@@ -1278,7 +1278,20 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 
 	txn_global = &S2C(session)->txn_global;
 
-	if ((mod = page->modify) == NULL)
+	/*
+	 * If the page hasn't been through one round of update/restore, give it
+	 * a try.
+	 */
+	if ((mod = page->modify) == NULL || !mod->update_restored)
+		return (true);
+
+	/*
+	 * If this page is from the lookaside table, or we're going to consider
+	 * lookaside eviction, the ordinary transaction visibility rules aren't
+	 * relevant: try eviction.
+	 */
+	if (F_ISSET(S2BT(session), WT_BTREE_LOOKASIDE) ||
+	    F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_LOOKASIDE))
 		return (true);
 
 	if (txn_global->current != txn_global->oldest_id &&

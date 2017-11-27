@@ -1948,14 +1948,13 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 			goto fast;
 
 		/*
-		 * If there are active transaction and oldest transaction
-		 * hasn't changed since the last time this page was written,
-		 * it's unlikely we can make progress.  Similarly, if the most
-		 * recent update on the page is not yet globally visible,
-		 * eviction will fail.  This heuristic avoids repeated attempts
-		 * to evict the same page.
+		 * If the global transaction state hasn't changed since the
+		 * last time we tried eviction, it's unlikely we can make
+		 * progress.  Similarly, if the most recent update on the page
+		 * is not yet globally visible, eviction will fail.  This
+		 * heuristic avoids repeated attempts to evict the same page.
 		 */
-		if (modified && (!__wt_page_evict_retry(session, page) ||
+		if (!__wt_page_evict_retry(session, page) || (modified &&
 		    !__txn_visible_all_id(session, page->modify->update_txn)))
 			continue;
 
