@@ -59,8 +59,14 @@ __cursor_state_restore(WT_CURSOR *cursor, WT_CURFILE_STATE *state)
 static inline bool
 __cursor_page_pinned(WT_CURSOR_BTREE *cbt)
 {
+	WT_SESSION_IMPL *session;
+
+	session = (WT_SESSION_IMPL *)cbt->iface.session;
+
 	return (F_ISSET(cbt, WT_CBT_ACTIVE) &&
-	    cbt->ref->page->read_gen != WT_READGEN_OLDEST);
+	    cbt->ref->page->read_gen != WT_READGEN_OLDEST &&
+	    (cbt->ref->state != WT_REF_AMNESIA ||
+	    !F_ISSET(&session->txn, WT_TXN_UPDATE)));
 }
 
 /*

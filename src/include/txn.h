@@ -260,5 +260,6 @@ struct __wt_txn {
 #define	WT_TXN_SYNC_SET		0x00800
 #define	WT_TXN_TS_COMMIT_ALWAYS	0x01000
 #define	WT_TXN_TS_COMMIT_NEVER	0x02000
+#define	WT_TXN_UPDATE	        0x04000
 	uint32_t flags;
 };

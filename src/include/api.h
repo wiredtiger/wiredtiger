@@ -73,6 +73,7 @@
 	bool __autotxn = false;						\
 	API_CALL(s, h, n, bt, config, cfg);				\
 	__wt_txn_timestamp_flags(s);					\
+	F_SET(&(s)->txn, WT_TXN_UPDATE);				\
 	__autotxn = !F_ISSET(&(s)->txn, WT_TXN_AUTOCOMMIT | WT_TXN_RUNNING);\
 	if (__autotxn)							\
 		F_SET(&(s)->txn, WT_TXN_AUTOCOMMIT)

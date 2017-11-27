@@ -231,7 +231,8 @@ restart:	/*
 		for (i = 0; i < entries; ++i) {
 			descent =
 			    pindex->index[__wt_random(&session->rnd) % entries];
-			if (descent->state == WT_REF_DISK ||
+			if (descent->state == WT_REF_AMNESIA ||
+			    descent->state == WT_REF_DISK ||
 			    descent->state == WT_REF_LOOKASIDE ||
 			    descent->state == WT_REF_MEM)
 				break;
@@ -239,7 +240,8 @@ restart:	/*
 		if (i == entries)
 			for (i = 0; i < entries; ++i) {
 				descent = pindex->index[i];
-				if (descent->state == WT_REF_DISK ||
+				if (descent->state == WT_REF_AMNESIA ||
+				    descent->state == WT_REF_DISK ||
 				    descent->state == WT_REF_LOOKASIDE ||
 				    descent->state == WT_REF_MEM)
 					break;

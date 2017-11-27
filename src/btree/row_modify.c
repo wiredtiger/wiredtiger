@@ -61,6 +61,9 @@ __wt_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 	upd = upd_arg;
 	logged = false;
 
+	/* XXX read the page to flip it to WT_REF_MEM. */
+	WT_ASSERT(session, cbt->ref->state != WT_REF_AMNESIA);
+
 	/* If we don't yet have a modify structure, we'll need one. */
 	WT_RET(__wt_page_modify_init(session, page));
 	mod = page->modify;
