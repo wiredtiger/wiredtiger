@@ -1476,6 +1476,12 @@ __split_multi_inmem(
 			WT_ERR(__wt_row_search(
 			    session, key, ref, &cbt, true, true));
 
+			/*
+			 * Birthmarks should only be applied to on-page values.
+			 */
+			WT_ASSERT(session, cbt.compare == 0 ||
+			    upd->type != WT_UPDATE_BIRTHMARK);
+
 			/* Apply the modification. */
 			WT_ERR(__wt_row_modify(session,
 			    &cbt, key, NULL, upd, WT_UPDATE_INVALID, true));
@@ -2259,6 +2265,14 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
 
 	/* Swap the new page into place. */
 	ref->page = new->page;
+
+#if 0
+	if (session == S2C(session)->evict_threads.threads[0]->session) {
+		WT_TRET(__wt_msg(session, "After a rewrite:"));
+		WT_TRET(__wt_debug_page(session, ref, NULL));
+	}
+#endif
+
 	WT_PUBLISH(ref->state, WT_REF_MEM);
 
 	__wt_free(session, new);

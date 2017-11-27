@@ -150,6 +150,7 @@ __value_return_upd(
 	WT_UPDATE **listp, *list[WT_MODIFY_ARRAY_SIZE];
 	size_t allocated_bytes;
 	u_int i;
+	bool skipped_birthmark;
 
 	cursor = &cbt->iface;
 	allocated_bytes = 0;
@@ -166,20 +167,30 @@ __value_return_upd(
 		cursor->value.size = upd->size;
 		return (0);
 	}
-	WT_ASSERT(session, upd->type == WT_UPDATE_MODIFIED);
+	WT_ASSERT(session, upd->type == WT_UPDATE_MODIFY);
 
 	/*
 	 * Find a complete update that's visible to us, tracking modifications
 	 * that are visible to us.
 	 */
-	for (i = 0, listp = list; upd != NULL; upd = upd->next) {
-		if (!__wt_txn_upd_visible(session, upd))
+	for (i = 0, listp = list, skipped_birthmark = false;
+	    upd != NULL;
+	    upd = upd->next) {
+		if (!__wt_txn_upd_visible(session, upd)) {
+			if (upd->type == WT_UPDATE_BIRTHMARK)
+				skipped_birthmark = true;
 			continue;
+		}
+
+		if (upd->type == WT_UPDATE_BIRTHMARK) {
+			upd = NULL;
+			break;
+		}
 
 		if (WT_UPDATE_DATA_VALUE(upd))
 			break;
 
-		if (upd->type == WT_UPDATE_MODIFIED) {
+		if (upd->type == WT_UPDATE_MODIFY) {
 			/*
 			 * Update lists are expected to be short, but it's not
 			 * guaranteed. There's sufficient room on the stack to
@@ -202,7 +213,7 @@ __value_return_upd(
 	 * If we hit the end of the chain, roll forward from the update item we
 	 * found, otherwise, from the original page's value.
 	 */
-	if (upd == NULL) {
+	if (upd == NULL && !skipped_birthmark) {
 		/*
 		 * Callers of this function set the cursor slot to an impossible
 		 * value to check we're not trying to return on-page values when
@@ -214,7 +225,7 @@ __value_return_upd(
 		WT_ASSERT(session, cbt->slot != UINT32_MAX);
 
 		WT_ERR(__value_return(session, cbt));
-	} else if (upd->type == WT_UPDATE_DELETED)
+	} else if (upd->type == WT_UPDATE_TOMBSTONE || skipped_birthmark)
 		WT_ERR(__wt_buf_set(session, &cursor->value, "", 0));
 	else
 		WT_ERR(__wt_buf_set(session,
