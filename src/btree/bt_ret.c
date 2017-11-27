@@ -49,7 +49,7 @@ __key_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 			 * itself because our caller might do another search in
 			 * this table using the key we return, and we'd corrupt
 			 * the search key during any subsequent search that used
-			 * the temporary buffer.
+			 * the temporary buffer).
 			 */
 			tmp = cbt->row_key;
 			cbt->row_key = cbt->tmp;
