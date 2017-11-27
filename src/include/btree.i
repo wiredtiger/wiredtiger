@@ -1286,10 +1286,10 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 		return (true);
 
 	/*
-         * Retry if a reasonable amount of eviction time has passed, the
-         * choice of 5 eviction passes as a reasonable amount of time is
-         * currently pretty arbitrary.
-         */
+	 * Retry if a reasonable amount of eviction time has passed, the
+	 * choice of 5 eviction passes as a reasonable amount of time is
+	 * currently pretty arbitrary.
+	 */
 	if (__wt_cache_aggressive(session) ||
 	    mod->last_evict_pass_gen + 5 < S2C(session)->cache->evict_pass_gen)
 		return (true);
