@@ -1247,6 +1247,10 @@ __rec_append_orig_value(WT_SESSION_IMPL *session,
 	/*
 	 * If we're saving the original value for a birthmark, transfer over
 	 * the transaction ID and clear out the birthmark update.
+	 *
+	 * Else, set the entry's transaction information to the lowest possible
+	 * value. Cleared memory matches the lowest possible transaction ID and
+	 * timestamp, do nothing.
 	 */
 	if (upd->type == WT_UPDATE_BIRTHMARK) {
 		append->txnid = upd->txnid;
@@ -1254,13 +1258,7 @@ __rec_append_orig_value(WT_SESSION_IMPL *session,
 		append->next = upd->next;
 	}
 
-	/*
-	 * Set the entry's transaction information to the lowest possible value.
-	 * Since cleared memory matches the lowest possible transaction ID and
-	 * timestamp, do nothing.
-	 *
-	 * Append the new entry to the update list.
-	 */
+	/* Append the new entry into the update list. */
 	WT_PUBLISH(upd->next, append);
 	__wt_cache_page_inmem_incr(session, page, size);
 
@@ -1288,7 +1286,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	wt_timestamp_t *timestampp;
 	size_t upd_memsize;
 	uint64_t max_txn, txnid;
-	bool all_visible, skipped_birthmark, saved, uncommitted;
+	bool all_visible, saved, uncommitted;
 
 #ifdef HAVE_TIMESTAMPS
 	WT_UPDATE *first_ts_upd;
@@ -1303,7 +1301,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	first_txn_upd = NULL;
 	upd_memsize = 0;
 	max_txn = WT_TXN_NONE;
-	saved = skipped_birthmark = uncommitted = false;
+	saved = uncommitted = false;
 
 	/*
 	 * If called with a WT_INSERT item, use its WT_UPDATE list (which must
@@ -1364,16 +1362,15 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 * committed update.  Regular eviction checks that the maximum
 		 * transaction ID and timestamp seen are stable.
 		 *
-		 * Lookaside and update/restore eviction tries to choose the
-		 * same version as a subsequent checkpoint, so that checkpoint
-		 * can skip over pages with lookaside entries.  If the
-		 * application has supplied a stable timestamp, we assume
-		 * (a) that it is old, and (b) that the next checkpoint will
-		 * use it, so we wait to see a stable update.  If there is no
-		 * stable timestamp, we assume the next checkpoint will write
-		 * the most recent version (but we save enough information that
-		 * checkpoint can fix things up if we choose an update that is
-		 * too new).
+		 * Lookaside and update/restore eviction try to choose the same
+		 * version as a subsequent checkpoint, so that checkpoint can
+		 * skip over pages with lookaside entries.  If the application
+		 * has supplied a stable timestamp, we assume (a) that it is
+		 * old, and (b) that the next checkpoint will use it, so we wait
+		 * to see a stable update.  If there is no stable timestamp, we
+		 * assume the next checkpoint will write the most recent version
+		 * (but we save enough information that checkpoint can fix
+		 * things up if we choose an update that is too new).
 		 */
 		if (F_ISSET(r, WT_REC_LOOKASIDE) &&
 		    F_ISSET(r, WT_REC_VISIBLE_ALL) && !r->skew_oldest &&
@@ -1383,13 +1380,6 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		if (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 		    !__wt_txn_upd_visible_all(session, upd) :
 		    !__wt_txn_upd_visible(session, upd)) {
-			if (upd->type == WT_UPDATE_BIRTHMARK)
-				skipped_birthmark = true;
-
-			/*
-			 * If we've found the birthmark for the previous
-			 * on-page value, we're done.
-			 */
 			if (F_ISSET(r, WT_REC_EVICT))
 				++r->updates_unstable;
 
