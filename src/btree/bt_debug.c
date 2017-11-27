@@ -1061,6 +1061,9 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 {
 	for (; upd != NULL; upd = upd->next) {
 		switch (upd->type) {
+		case WT_UPDATE_INVALID:
+			WT_RET(ds->f(ds, "\tvalue {invalid}\n"));
+			break;
 		case WT_UPDATE_BIRTHMARK:
 			WT_RET(ds->f(ds, "\tvalue {birthmark}\n"));
 			break;
