@@ -359,7 +359,6 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	WT_PAGE *page;
 	WT_PAGE_MODIFY *mod;
 	WT_RECONCILE *r;
-	uint64_t oldest_id;
 
 	btree = S2BT(session);
 	page = ref->page;
@@ -419,25 +418,21 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 		return (EBUSY);
 	}
 
-	oldest_id = __wt_txn_oldest_id(session);
-	if (LF_ISSET(WT_REC_EVICT)) {
-		mod->last_eviction_id = oldest_id;
-#ifdef HAVE_TIMESTAMPS
-		WT_WITH_TIMESTAMP_READLOCK(session,
-		    &S2C(session)->txn_global.rwlock,
-		    __wt_timestamp_set(&mod->last_eviction_timestamp,
-		    &S2C(session)->txn_global.pinned_timestamp));
-#endif
-	    }
+	if (LF_ISSET(WT_REC_EVICT))
+		mod->last_evict_pass_gen = S2C(session)->cache->evict_pass_gen;
 
 #ifdef HAVE_DIAGNOSTIC
+	{
+	uint64_t oldest_id;
 	/*
 	 * Check that transaction time always moves forward for a given page.
 	 * If this check fails, reconciliation can free something that a future
 	 * reconciliation will need.
 	 */
+	oldest_id = __wt_txn_oldest_id(session);
 	WT_ASSERT(session, WT_TXNID_LE(mod->last_oldest_id, oldest_id));
 	mod->last_oldest_id = oldest_id;
+	}
 #endif
 
 	/* Initialize the reconciliation structure for each new run. */
