@@ -585,6 +585,11 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			if (!F_ISSET(&session->txn, WT_TXN_UPDATE) &&
 			    __las_page_skip(session, ref))
 				goto hazard;
+			/*
+			 * XXX this isn't sufficient: we need exclusive access
+			 * to flip from AMNESIA to MEM.  There has to be a
+			 * __wt_hazard_check in this path.
+			 */
 			goto read;
 		case WT_REF_DELETED:
 			if (LF_ISSET(WT_READ_NO_EMPTY) &&
