@@ -419,7 +419,7 @@ skip_read:
 	 * We only care if the lookaside table is currently active, check that
 	 * before doing any work.
 	 */
-	if (false && previous_state == WT_REF_LOOKASIDE) {
+	if (previous_state == WT_REF_LOOKASIDE) {
 		WT_ASSERT(session, (ref->page->dsk == NULL ||
 		    F_ISSET(ref->page->dsk, WT_PAGE_LAS_UPDATE)));
 
