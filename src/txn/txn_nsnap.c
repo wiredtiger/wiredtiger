@@ -212,7 +212,6 @@ __wt_txn_named_snapshot_begin(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_ASSERT(session, txn_global->nsnap_oldest_id == WT_TXN_NONE &&
 		    !__wt_txn_visible_all(session, nsnap_new->pinned_id, NULL));
 		__wt_readlock(session, &txn_global->rwlock);
-		WT_STAT_CONN_INCR(session, txn_global_rdlock);
 		txn_global->nsnap_oldest_id = nsnap_new->pinned_id;
 		__wt_readunlock(session, &txn_global->rwlock);
 	}
@@ -307,7 +306,6 @@ __wt_txn_named_snapshot_get(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *nameval)
 			 * forward without seeing our pinned ID.
 			 */
 			__wt_readlock(session, &txn_global->rwlock);
-			WT_STAT_CONN_INCR(session, txn_global_rdlock);
 			txn_state->pinned_id = nsnap->pinned_id;
 			__wt_readunlock(session, &txn_global->rwlock);
 
