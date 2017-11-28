@@ -998,8 +998,17 @@ static const char * const __stats_connection_desc[] = {
 	"thread-yield: page delete rollback time sleeping for state change (usecs)",
 	"thread-yield: page reconciliation yielded due to child modification",
 	"thread-yield: tree descend one level yielded for split page index update",
+	"transaction: commit timestamp queue insert to empty",
+	"transaction: commit timestamp queue inserts to head",
+	"transaction: commit timestamp queue inserts total",
+	"transaction: commit timestamp queue length",
 	"transaction: number of named snapshots created",
 	"transaction: number of named snapshots dropped",
+	"transaction: query timestamp calls",
+	"transaction: read timestamp queue insert to empty",
+	"transaction: read timestamp queue inserts to head",
+	"transaction: read timestamp queue inserts total",
+	"transaction: read timestamp queue length",
 	"transaction: set timestamp calls",
 	"transaction: set timestamp commit calls",
 	"transaction: set timestamp commit updates",
@@ -1027,16 +1036,7 @@ static const char * const __stats_connection_desc[] = {
 	"transaction: transaction range of timestamps currently pinned",
 	"transaction: transaction range of timestamps pinned by the oldest timestamp",
 	"transaction: transaction sync calls",
-	"transaction: transactions commit timestamp queue insert to empty",
-	"transaction: transactions commit timestamp queue inserts to head",
-	"transaction: transactions commit timestamp queue inserts total",
-	"transaction: transactions commit timestamp queue length",
 	"transaction: transactions committed",
-	"transaction: transactions query timestamp calls",
-	"transaction: transactions read timestamp queue insert to empty",
-	"transaction: transactions read timestamp queue inserts to head",
-	"transaction: transactions read timestamp queue inserts total",
-	"transaction: transactions read timestamp queue length",
 	"transaction: transactions rolled back",
 	"transaction: update conflicts",
 };
@@ -1354,8 +1354,17 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->page_del_rollback_blocked = 0;
 	stats->child_modify_blocked_page = 0;
 	stats->tree_descend_blocked = 0;
+	stats->txn_commit_queue_empty = 0;
+	stats->txn_commit_queue_head = 0;
+	stats->txn_commit_queue_inserts = 0;
+	stats->txn_commit_queue_len = 0;
 	stats->txn_snapshots_created = 0;
 	stats->txn_snapshots_dropped = 0;
+	stats->txn_query_ts = 0;
+	stats->txn_read_queue_empty = 0;
+	stats->txn_read_queue_head = 0;
+	stats->txn_read_queue_inserts = 0;
+	stats->txn_read_queue_len = 0;
 	stats->txn_set_ts = 0;
 	stats->txn_set_ts_commit = 0;
 	stats->txn_set_ts_commit_upd = 0;
@@ -1383,16 +1392,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing txn_pinned_timestamp */
 		/* not clearing txn_pinned_timestamp_oldest */
 	stats->txn_sync = 0;
-	stats->txn_commit_queue_empty = 0;
-	stats->txn_commit_queue_head = 0;
-	stats->txn_commit_queue_inserts = 0;
-	stats->txn_commit_queue_len = 0;
 	stats->txn_commit = 0;
-	stats->txn_query_ts = 0;
-	stats->txn_read_queue_empty = 0;
-	stats->txn_read_queue_head = 0;
-	stats->txn_read_queue_inserts = 0;
-	stats->txn_read_queue_len = 0;
 	stats->txn_rollback = 0;
 	stats->txn_update_conflict = 0;
 }
@@ -1811,10 +1811,23 @@ __wt_stat_connection_aggregate(
 	to->child_modify_blocked_page +=
 	    WT_STAT_READ(from, child_modify_blocked_page);
 	to->tree_descend_blocked += WT_STAT_READ(from, tree_descend_blocked);
+	to->txn_commit_queue_empty +=
+	    WT_STAT_READ(from, txn_commit_queue_empty);
+	to->txn_commit_queue_head +=
+	    WT_STAT_READ(from, txn_commit_queue_head);
+	to->txn_commit_queue_inserts +=
+	    WT_STAT_READ(from, txn_commit_queue_inserts);
+	to->txn_commit_queue_len += WT_STAT_READ(from, txn_commit_queue_len);
 	to->txn_snapshots_created +=
 	    WT_STAT_READ(from, txn_snapshots_created);
 	to->txn_snapshots_dropped +=
 	    WT_STAT_READ(from, txn_snapshots_dropped);
+	to->txn_query_ts += WT_STAT_READ(from, txn_query_ts);
+	to->txn_read_queue_empty += WT_STAT_READ(from, txn_read_queue_empty);
+	to->txn_read_queue_head += WT_STAT_READ(from, txn_read_queue_head);
+	to->txn_read_queue_inserts +=
+	    WT_STAT_READ(from, txn_read_queue_inserts);
+	to->txn_read_queue_len += WT_STAT_READ(from, txn_read_queue_len);
 	to->txn_set_ts += WT_STAT_READ(from, txn_set_ts);
 	to->txn_set_ts_commit += WT_STAT_READ(from, txn_set_ts_commit);
 	to->txn_set_ts_commit_upd +=
@@ -1859,20 +1872,7 @@ __wt_stat_connection_aggregate(
 	to->txn_pinned_timestamp_oldest +=
 	    WT_STAT_READ(from, txn_pinned_timestamp_oldest);
 	to->txn_sync += WT_STAT_READ(from, txn_sync);
-	to->txn_commit_queue_empty +=
-	    WT_STAT_READ(from, txn_commit_queue_empty);
-	to->txn_commit_queue_head +=
-	    WT_STAT_READ(from, txn_commit_queue_head);
-	to->txn_commit_queue_inserts +=
-	    WT_STAT_READ(from, txn_commit_queue_inserts);
-	to->txn_commit_queue_len += WT_STAT_READ(from, txn_commit_queue_len);
 	to->txn_commit += WT_STAT_READ(from, txn_commit);
-	to->txn_query_ts += WT_STAT_READ(from, txn_query_ts);
-	to->txn_read_queue_empty += WT_STAT_READ(from, txn_read_queue_empty);
-	to->txn_read_queue_head += WT_STAT_READ(from, txn_read_queue_head);
-	to->txn_read_queue_inserts +=
-	    WT_STAT_READ(from, txn_read_queue_inserts);
-	to->txn_read_queue_len += WT_STAT_READ(from, txn_read_queue_len);
 	to->txn_rollback += WT_STAT_READ(from, txn_rollback);
 	to->txn_update_conflict += WT_STAT_READ(from, txn_update_conflict);
 }
