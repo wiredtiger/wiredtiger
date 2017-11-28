@@ -439,9 +439,17 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 
 	final_state = WT_REF_MEM;
 
-	/* If we already have the page image, just instantiate the history. */
-	if (previous_state == WT_REF_AMNESIA)
+	/*
+	 * If we already have the page image, just instantiate the history.
+	 *
+	 * We need exclusive access because other threads could be reading the
+	 * page without history and we can't change the state underneath them.
+	 */
+	if (previous_state == WT_REF_AMNESIA) {
+		if (__wt_hazard_check(session, ref) != NULL)
+			goto err;
 		goto skip_read;
+	}
 
 	/*
 	 * Get the address: if there is no address, the page was deleted or had
@@ -536,7 +544,7 @@ err:	/*
 	 * it discarded the page, but not the disk image.  Discard the page
 	 * and separately discard the disk image in all cases.
 	 */
-	if (ref->page != NULL)
+	if (ref->page != NULL && previous_state != WT_REF_AMNESIA)
 		__wt_ref_out(session, ref);
 	WT_PUBLISH(ref->state, previous_state);
 
@@ -581,16 +589,6 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 	for (did_read = wont_need = stalled = false,
 	    force_attempts = 0, sleep_cnt = wait_cnt = 0;;) {
 		switch (ref->state) {
-		case WT_REF_AMNESIA:
-			if (!F_ISSET(&session->txn, WT_TXN_UPDATE) &&
-			    __las_page_skip(session, ref))
-				goto hazard;
-			/*
-			 * XXX this isn't sufficient: we need exclusive access
-			 * to flip from AMNESIA to MEM.  There has to be a
-			 * __wt_hazard_check in this path.
-			 */
-			goto read;
 		case WT_REF_DELETED:
 			if (LF_ISSET(WT_READ_NO_EMPTY) &&
 			    __wt_delete_page_skip(session, ref, false))
@@ -659,6 +657,11 @@ read:			/*
 			break;
 		case WT_REF_SPLIT:
 			return (WT_RESTART);
+		case WT_REF_AMNESIA:
+			if (F_ISSET(&session->txn, WT_TXN_UPDATE) ||
+			    !__las_page_skip(session, ref))
+				goto read;
+			/* FALLTHROUGH */
 		case WT_REF_MEM:
 			/*
 			 * The page is in memory.
@@ -670,7 +673,7 @@ read:			/*
 			if (F_ISSET(btree, WT_BTREE_IN_MEMORY))
 				goto skip_evict;
 
-hazard:			/*
+			/*
 			 * The expected reason we can't get a hazard pointer is
 			 * because the page is being evicted, yield, try again.
 			 */
