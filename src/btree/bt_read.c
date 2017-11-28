@@ -134,7 +134,7 @@ __las_page_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 
 	skip = false;
 
-	if ((previous_state = ref->state) != WT_REF_AMNESIA ||
+	if ((previous_state = ref->state) != WT_REF_AMNESIA &&
 	    previous_state != WT_REF_LOOKASIDE)
 		return (false);
 
