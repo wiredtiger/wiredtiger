@@ -450,8 +450,8 @@ __txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
  *	Can the current transaction see the given ID / timestamp?
  */
 static inline bool
-__wt_txn_visible(
-    WT_SESSION_IMPL *session, uint64_t id, const wt_timestamp_t *timestamp)
+__wt_txn_visible(WT_SESSION_IMPL *session, uint64_t id,
+    const wt_timestamp_t *timestamp, const wt_timestamp_t *next_timestamp)
 {
 	if (!__txn_visible_id(session, id))
 		return (false);
@@ -461,10 +461,26 @@ __wt_txn_visible(
 	WT_TXN *txn = &session->txn;
 
 	/* Timestamp check. */
-	if (!F_ISSET(txn, WT_TXN_HAS_TS_READ) || timestamp == NULL)
+	if (timestamp == NULL)
 		return (true);
+	if (F_ISSET(txn, WT_TXN_HAS_TS_READ) &&
+	    __wt_timestamp_cmp(timestamp, &txn->read_timestamp) > 0)
+		return (false);
 
-	return (__wt_timestamp_cmp(timestamp, &txn->read_timestamp) <= 0);
+#ifdef HAVE_DIAGNOSTIC
+	/*
+	 * If given, compare this timestamp against another to verify
+	 * timestamps are updated in order.
+	 */
+	if (next_timestamp != NULL &&
+            __wt_timestamp_cmp(timestamp, next_timestamp) < 0) {
+                __wt_errx(session, "Update out of timestamp order");
+		return (false);
+        }
+#else
+	WT_UNUSED(next_timestamp);
+#endif
+	return (true);
 	}
 #else
 	WT_UNUSED(timestamp);
@@ -479,8 +495,13 @@ __wt_txn_visible(
 static inline bool
 __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-	return (__wt_txn_visible(session,
-	    upd->txnid, WT_TIMESTAMP_NULL(&upd->timestamp)));
+	if (upd->next == NULL)
+		return (__wt_txn_visible(session,
+		    upd->txnid, WT_TIMESTAMP_NULL(&upd->timestamp), NULL));
+	else
+		return (__wt_txn_visible(session,
+		    upd->txnid, WT_TIMESTAMP_NULL(&upd->timestamp),
+		    WT_TIMESTAMP_NULL(&upd->next->timestamp)));
 }
 
 /*
@@ -717,6 +738,8 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 				    session, txn_update_conflict);
 				WT_STAT_DATA_INCR(
 				    session, txn_update_conflict);
+                                __wt_errx(session, "UPDATE: visibility ROLLBACK");
+                                __wt_abort(session);
 				return (WT_ROLLBACK);
 			}
 			upd = upd->next;

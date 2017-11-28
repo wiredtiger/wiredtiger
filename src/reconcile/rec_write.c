@@ -1350,6 +1350,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		if (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 		    !__wt_txn_upd_visible_all(session, upd) :
 		    !__wt_txn_upd_visible(session, upd)) {
+			__wt_errx(session, "REC_TXN_READ: not visible");
 			if (F_ISSET(r, WT_REC_EVICT))
 				++r->updates_unstable;
 
@@ -1434,7 +1435,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	all_visible = *updp == first_txn_upd && !uncommitted &&
 	    (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 	    __wt_txn_visible_all(session, max_txn, timestampp) :
-	    __wt_txn_visible(session, max_txn, timestampp));
+	    __wt_txn_visible(session, max_txn, timestampp, NULL));
 
 	if (all_visible)
 		goto check_original_value;
@@ -1588,7 +1589,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 */
 	if (F_ISSET(r, WT_REC_VISIBILITY_ERR) && page_del != NULL &&
 	    !__wt_txn_visible(session,
-	    page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)))
+	    page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp), NULL))
 		WT_PANIC_RET(session, EINVAL,
 		    "reconciliation illegally skipped an update");
 
@@ -1668,8 +1669,8 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 * If the delete is not visible in this checkpoint, write the original
 	 * address normally.  Otherwise, we have to write a proxy record.
 	 */
-	if (__wt_txn_visible(
-	    session, page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)))
+	if (__wt_txn_visible(session,
+	    page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp), NULL))
 		*statep = WT_CHILD_PROXY;
 
 	return (0);
