@@ -109,8 +109,18 @@ __las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 
 #ifdef HAVE_TIMESTAMPS
 	/*
-	 * Skip lookaside pages if reading as of a timestamp and all the
-	 * updates are in the future.
+	 * Skip lookaside pages if reading as of a timestamp, we evicted new
+	 * versions of data and all the updates are in the past.
+	 */
+	if (F_ISSET(&session->txn, WT_TXN_HAS_TS_READ) &&
+	    !ref->page_las->las_skew_oldest &&
+	    __wt_timestamp_cmp(
+	    &ref->page_las->onpage_timestamp, &session->txn.read_timestamp) < 0)
+		return (true);
+
+	/*
+	 * Skip lookaside pages if reading as of a timestamp, we evicted old
+	 * versions of data and all the updates are in the future.
 	 */
 	if (F_ISSET(&session->txn, WT_TXN_HAS_TS_READ) &&
 	    ref->page_las->las_skew_oldest &&
