@@ -85,7 +85,7 @@ __wt_timestamp_set_zero(wt_timestamp_t *ts)
 
 #else /* WT_TIMESTAMP_SIZE != 8 */
 
-#define	WT_WITH_TIMESTAMP_READLOCK(s, l, e)     do {                    \
+#define	WT_WITH_TIMESTAMP_READLOCK(s, l, e)	do {                    \
 	__wt_readlock((s), (l));                                        \
 	e;                                                              \
 	__wt_readunlock((s), (l));                                      \
