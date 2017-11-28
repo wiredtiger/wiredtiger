@@ -268,7 +268,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * It's hard to imagine a page with a huge memory footprint that has
 	 * never been modified, but check to be sure.
 	 */
-	if (page->modify == NULL)
+	if (__wt_page_evict_clean(page))
 		return (false);
 
 	/* Pages are usually small enough, check that first. */
@@ -297,8 +297,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * skipping the page indefinitely or large records can lead to
 	 * extremely large memory footprints.
 	 */
-	if (page->modify->update_restored &&
-	    !__wt_page_evict_retry(session, page))
+	if (!__wt_page_evict_retry(session, page))
 		return (false);
 
 	/* Trigger eviction on the next page release. */
