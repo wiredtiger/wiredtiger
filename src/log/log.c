@@ -976,11 +976,12 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
 	 * If we need to create the log file, do so now.
 	 */
 	if (create_log) {
-                /*
-                 * Do not increment missed prep logs counter when a hot backup
+		/*
+		 * Do not increment missed prep logs counter when a hot backup
 		 * is in progress and pre-allocation is enabled since
-		 * we deliberately not using prep log files in that case (see comments above).
-                 */
+		 * we deliberately not using prep log files in that case
+		 * (see comments above).
+		 */
 		if ((conn->log_prealloc == 0) || !conn->hot_backup)
 			log->prep_missed++;
 		WT_RET(__wt_log_allocfile(
