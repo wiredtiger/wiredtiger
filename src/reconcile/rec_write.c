@@ -40,9 +40,9 @@ typedef struct {
 
 	/*
 	 * Track the oldest running transaction and whether to skew lookaside
-	 * to the newest or oldest update.
+	 * to the newest update.
 	 */
-	bool skew_oldest;
+	bool las_skew_newest;
 	uint64_t last_running;
 
 	/* Track the page's min/maximum transactions. */
@@ -629,11 +629,10 @@ __rec_write_check_complete(
 
 	/*
 	 * If we have used the lookaside table, check for a lookaside table and
-	 * checkpoint collision.  If there is no collision, go ahead with the
-	 * eviction.
+	 * checkpoint collision.
 	 */
-	if (r->cache_write_lookaside)
-		return (__rec_las_checkpoint_test(session, r) ? EBUSY : 0);
+	if (r->cache_write_lookaside && __rec_las_checkpoint_test(session, r))
+		return (EBUSY);
 
 	/*
 	 * Fall back to lookaside eviction during checkpoints if a page can't
@@ -654,11 +653,8 @@ __rec_write_check_complete(
 	 * likely get to write at least one of the blocks.  If we've created a
 	 * page image for a page that previously didn't have one, or we had a
 	 * page image and it is now empty, that's also progress.
-	 *
-	 * Also check that the current reconciliation applied some updates, in
-	 * which case evict/restore should gain us some space.
 	 */
-	if (r->multi_next > 1 && r->update_used)
+	if (r->multi_next > 1)
 		return (0);
 
 	/*
@@ -674,10 +670,13 @@ __rec_write_check_complete(
 		return (0);
 
 	/*
+	 * Check if the current reconciliation applied some updates, in which
+	 * case evict/restore should gain us some space.
+	 *
 	 * Check if lookaside eviction is possible.  If any of the updates we
 	 * saw were uncommitted, the lookaside table cannot be used.
 	 */
-	if (r->update_uncommitted)
+	if (r->update_uncommitted || r->update_used)
 		return (0);
 
 	*lookaside_retryp = true;
@@ -916,6 +915,7 @@ __rec_init(WT_SESSION_IMPL *session,
 	WT_PAGE *page;
 	WT_RECONCILE *r;
 	WT_TXN_GLOBAL *txn_global;
+	bool las_skew_oldest;
 
 	btree = S2BT(session);
 	page = ref->page;
@@ -961,10 +961,13 @@ __rec_init(WT_SESSION_IMPL *session,
 	 */
 	txn_global = &S2C(session)->txn_global;
 	if (__wt_btree_immediately_durable(session))
-		r->skew_oldest = false;
+		las_skew_oldest = false;
 	else
-		WT_ORDERED_READ(r->skew_oldest,
+		WT_ORDERED_READ(las_skew_oldest,
 		    txn_global->has_stable_timestamp);
+	r->las_skew_newest = LF_ISSET(WT_REC_LOOKASIDE) &&
+	    LF_ISSET(WT_REC_VISIBLE_ALL) && !las_skew_oldest;
+
 	WT_ORDERED_READ(r->last_running, txn_global->last_running);
 
 	/*
@@ -1288,7 +1291,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	wt_timestamp_t *timestampp;
 	size_t upd_memsize;
 	uint64_t max_txn, txnid;
-	bool all_visible, saved, uncommitted;
+	bool all_visible, uncommitted;
 
 #ifdef HAVE_TIMESTAMPS
 	WT_UPDATE *first_ts_upd;
@@ -1303,7 +1306,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	first_txn_upd = NULL;
 	upd_memsize = 0;
 	max_txn = WT_TXN_NONE;
-	saved = uncommitted = false;
+	uncommitted = false;
 
 	/*
 	 * If called with a WT_INSERT item, use its WT_UPDATE list (which must
@@ -1374,9 +1377,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 * (but we save enough information that checkpoint can fix
 		 * things up if we choose an update that is too new).
 		 */
-		if (F_ISSET(r, WT_REC_LOOKASIDE) &&
-		    F_ISSET(r, WT_REC_VISIBLE_ALL) && !r->skew_oldest &&
-		    *updp == NULL)
+		if (*updp == NULL && r->las_skew_newest)
 			*updp = upd;
 
 		if (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
@@ -1520,7 +1521,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 * unresolved updates, move the entire update list.
 	 */
 	WT_RET(__rec_update_save(session, r, ins, ripcip, *updp, upd_memsize));
-	saved = true;
+	if (upd_savedp != NULL)
+		*upd_savedp = true;
 
 #ifdef HAVE_TIMESTAMPS
 	/* Track the oldest saved timestamp for lookaside. */
@@ -1559,23 +1561,17 @@ check_original_value:
 	 * - or any reconciliation of a backing overflow record that will be
 	 *   physically removed once it's no longer needed.
 	 */
-	if (*updp != NULL && ((saved && ((*updp)->type == WT_UPDATE_MODIFY ||
-	    F_ISSET(r, WT_REC_LOOKASIDE))) || (vpack != NULL &&
+	if (*updp != NULL && (!WT_UPDATE_DATA_VALUE(*updp) ||
+	    F_ISSET(r, WT_REC_LOOKASIDE) || (vpack != NULL &&
 	    vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)))
-		if (!F_ISSET(r, WT_REC_LOOKASIDE) || r->skew_oldest ||
-		    ((*updp)->type != WT_UPDATE_STANDARD &&
-		    (*updp)->type != WT_UPDATE_MODIFY))
-			WT_RET(__rec_append_orig_value(
-			    session, page, first_upd, vpack));
+		WT_RET(
+		    __rec_append_orig_value(session, page, first_upd, vpack));
 
 #ifdef HAVE_TIMESTAMPS
 	if ((upd = *updp) != NULL &&
 	    __wt_timestamp_cmp(&upd->timestamp, &r->max_onpage_timestamp) > 0)
 		__wt_timestamp_set(&r->max_onpage_timestamp, &upd->timestamp);
 #endif
-
-	if (upd_savedp != NULL)
-		*upd_savedp = saved;
 
 	return (0);
 }
@@ -3428,7 +3424,7 @@ __rec_split_write_supd(WT_SESSION_IMPL *session,
 	}
 
 done:	/* Track the oldest timestamp seen so far. */
-	multi->page_las.las_skew_oldest = r->skew_oldest;
+	multi->page_las.las_skew_newest = r->las_skew_newest;
 	multi->page_las.las_max_txn = r->max_txn;
 	WT_ASSERT(session, r->max_txn != WT_TXN_NONE);
 #ifdef HAVE_TIMESTAMPS
@@ -4668,8 +4664,9 @@ record_loop:	/*
 				switch (upd->type) {
 				case WT_UPDATE_MODIFY:
 					cbt->slot = WT_COL_SLOT(page, cip);
-					WT_ERR(__wt_value_return(
-					    session, cbt, upd));
+					WT_ERR(__wt_value_return_upd(
+					    session, cbt, upd,
+					    F_ISSET(r, WT_REC_VISIBLE_ALL)));
 					data = cbt->iface.value.data;
 					size = (uint32_t)cbt->iface.value.size;
 					update_no_copy = false;
@@ -4912,8 +4909,9 @@ compare:		/*
 					 * on-page item.
 					 */
 					cbt->slot = UINT32_MAX;
-					WT_ERR(__wt_value_return(
-					    session, cbt, upd));
+					WT_ERR(__wt_value_return_upd(
+					    session, cbt, upd,
+					    F_ISSET(r, WT_REC_VISIBLE_ALL)));
 					data = cbt->iface.value.data;
 					size = (uint32_t)cbt->iface.value.size;
 					update_no_copy = false;
@@ -5474,7 +5472,9 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 			switch (upd->type) {
 			case WT_UPDATE_MODIFY:
 				cbt->slot = WT_ROW_SLOT(page, rip);
-				WT_ERR(__wt_value_return(session, cbt, upd));
+				WT_ERR(__wt_value_return_upd(
+				    session, cbt, upd,
+				    F_ISSET(r, WT_REC_VISIBLE_ALL)));
 				WT_ERR(__rec_cell_build_val(session, r,
 				    cbt->iface.value.data,
 				    cbt->iface.value.size, (uint64_t)0));
@@ -5730,7 +5730,9 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 			 * item.
 			 */
 			cbt->slot = UINT32_MAX;
-			WT_RET(__wt_value_return(session, cbt, upd));
+			WT_RET(__wt_value_return_upd(
+			    session, cbt, upd,
+			    F_ISSET(r, WT_REC_VISIBLE_ALL)));
 			WT_RET(__rec_cell_build_val(session, r,
 			    cbt->iface.value.data,
 			    cbt->iface.value.size, (uint64_t)0));

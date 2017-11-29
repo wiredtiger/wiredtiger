@@ -137,13 +137,13 @@ __value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 #define	WT_MODIFY_ARRAY_SIZE	(WT_MAX_MODIFY_UPDATE + 10)
 
 /*
- * __value_return_upd --
+ * __wt_value_return_upd --
  *	Change the cursor to reference an internal update structure return
  *	value.
  */
-static inline int
-__value_return_upd(
-    WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
+int
+__wt_value_return_upd(WT_SESSION_IMPL *session,
+    WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, bool ignore_visibility)
 {
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
@@ -176,7 +176,10 @@ __value_return_upd(
 	for (i = 0, listp = list, skipped_birthmark = false;
 	    upd != NULL;
 	    upd = upd->next) {
-		if (!__wt_txn_upd_visible(session, upd)) {
+		if (upd->txnid == WT_TXN_ABORTED)
+			continue;
+
+		if (!ignore_visibility && !__wt_txn_upd_visible(session, upd)) {
 			if (upd->type == WT_UPDATE_BIRTHMARK)
 				skipped_birthmark = true;
 			continue;
@@ -284,7 +287,7 @@ __wt_value_return(
 	if (upd == NULL)
 		WT_RET(__value_return(session, cbt));
 	else
-		WT_RET(__value_return_upd(session, cbt, upd));
+		WT_RET(__wt_value_return_upd(session, cbt, upd, false));
 	F_SET(cursor, WT_CURSTD_VALUE_INT);
 	return (0);
 }

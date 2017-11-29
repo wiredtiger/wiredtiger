@@ -385,7 +385,7 @@ __las_insert_block_verbose(WT_SESSION_IMPL *session, WT_MULTI *multi)
 		    btree_id, multi->page_las.las_pageid,
 		    multi->page_las.las_max_txn,
 		    hex_timestamp,
-		    multi->page_las.las_skew_oldest? "oldest" : "youngest",
+		    multi->page_las.las_skew_newest? "newest" : "oldest",
 		    WT_STAT_READ(conn->stats, cache_lookaside_entries),
 		    pct_dirty, pct_full);
 	}
@@ -518,7 +518,7 @@ __wt_las_insert_block(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 			 * If we're saving a value on the page, don't repeat it
 			 * in the lookaside table, save a birthmark instead.
 			 */
-			if (!multi->page_las.las_skew_oldest &&
+			if (multi->page_las.las_skew_newest &&
 			    upd == list->onpage_upd &&
 			    (upd->type == WT_UPDATE_STANDARD ||
 			    upd->type == WT_UPDATE_MODIFY)) {
