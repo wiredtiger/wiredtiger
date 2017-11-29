@@ -104,7 +104,7 @@ __las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 		return (false);
 
 	if (!F_ISSET(txn, WT_TXN_HAS_TS_READ) &&
-	    !ref->page_las->las_skew_oldest)
+	    ref->page_las->las_skew_newest)
 		return (true);
 
 #ifdef HAVE_TIMESTAMPS
@@ -113,7 +113,7 @@ __las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * versions of data and all the updates are in the past.
 	 */
 	if (F_ISSET(&session->txn, WT_TXN_HAS_TS_READ) &&
-	    !ref->page_las->las_skew_oldest &&
+	    ref->page_las->las_skew_newest &&
 	    __wt_timestamp_cmp(
 	    &ref->page_las->onpage_timestamp, &session->txn.read_timestamp) < 0)
 		return (true);
@@ -123,7 +123,7 @@ __las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * versions of data and all the updates are in the future.
 	 */
 	if (F_ISSET(&session->txn, WT_TXN_HAS_TS_READ) &&
-	    ref->page_las->las_skew_oldest &&
+	    !ref->page_las->las_skew_newest &&
 	    __wt_timestamp_cmp(
 	    &ref->page_las->min_timestamp, &session->txn.read_timestamp) > 0)
 		return (true);
@@ -309,7 +309,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t btree_id)
 		 */
 		page->modify->first_dirty_txn = WT_TXN_FIRST;
 
-		if (!ref->page_las->las_skew_oldest &&
+		if (ref->page_las->las_skew_newest &&
 		    !S2C(session)->txn_global.has_stable_timestamp &&
 		    __wt_txn_visible_all(session, ref->page_las->las_max_txn,
 		    WT_TIMESTAMP_NULL(&ref->page_las->onpage_timestamp))) {
@@ -667,9 +667,14 @@ read:			/*
 		case WT_REF_SPLIT:
 			return (WT_RESTART);
 		case WT_REF_AMNESIA:
-			if (F_ISSET(&session->txn, WT_TXN_UPDATE) ||
-			    !__las_page_skip(session, ref))
+			if (((!LF_ISSET(WT_READ_CACHE) ||
+			    LF_ISSET(WT_READ_LOOKASIDE)) &&
+			    !__las_page_skip(session, ref)) ||
+			    F_ISSET(&session->txn, WT_TXN_UPDATE))
 				goto read;
+			if (LF_ISSET(WT_READ_CACHE) &&
+			    LF_ISSET(WT_READ_LOOKASIDE))
+				__wt_tree_modify_set(session);
 			/* FALLTHROUGH */
 		case WT_REF_MEM:
 			/*
