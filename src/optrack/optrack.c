@@ -55,6 +55,7 @@ __wt_optrack_open_file(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
+	WT_OPTRACK_HEADER optrack_header = {WT_OPTRACK_VERSION, 0};
 
 	conn = S2C(session);
 
@@ -67,6 +68,20 @@ __wt_optrack_open_file(WT_SESSION_IMPL *session)
 	WT_ERR(__wt_open(session,
 	    (const char *)buf->data, WT_FS_OPEN_FILE_TYPE_REGULAR,
 	    WT_FS_OPEN_CREATE, &session->optrack_fh));
+
+	/* Write the header into the operation-tracking file. */
+	if (F_ISSET(session, WT_SESSION_INTERNAL))
+	    optrack_header.optrack_session_internal = true;
+
+	ret = session->optrack_fh->handle->fh_write(session->optrack_fh->handle,
+	    (WT_SESSION *)session, 0, sizeof(WT_OPTRACK_HEADER),
+	    &optrack_header);
+	if (ret == 0)
+		session->optrack_offset = sizeof(WT_OPTRACK_HEADER);
+	else {
+		WT_TRET(__wt_close(session, &session->optrack_fh));
+		session->optrack_fh = NULL;
+	}
 err:	__wt_scr_free(session, &buf);
 
 	return (ret);
@@ -87,9 +102,9 @@ __wt_optrack_flush_buffer(WT_SESSION_IMPL *s)
 
 	ret = s->optrack_fh->handle->fh_write(s->optrack_fh->handle,
 	    (WT_SESSION *)s, (wt_off_t)s->optrack_offset,
-	    s->optrackbuf_ptr * sizeof(WT_TRACK_RECORD), s->optrack_buf);
+	    s->optrackbuf_ptr * sizeof(WT_OPTRACK_RECORD), s->optrack_buf);
 	if (ret == 0)
-		return s->optrackbuf_ptr * sizeof(WT_TRACK_RECORD);
+		return s->optrackbuf_ptr * sizeof(WT_OPTRACK_RECORD);
 	else
 		return (0);
 }

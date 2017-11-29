@@ -217,7 +217,7 @@ struct __wt_session_impl {
 	/*
 	 * Operation tracking.
 	 */
-	WT_TRACK_RECORD *optrack_buf;
+	WT_OPTRACK_RECORD *optrack_buf;
 	u_int optrackbuf_ptr;
 	uint64_t optrack_offset;
 	WT_FH *optrack_fh;

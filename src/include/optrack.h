@@ -7,11 +7,22 @@
  */
 
 #define	WT_OPTRACK_MAXRECS 16384
-#define	WT_OPTRACK_BUFSIZE WT_OPTRACK_MAXRECS * sizeof(WT_TRACK_RECORD)
+#define	WT_OPTRACK_BUFSIZE WT_OPTRACK_MAXRECS * sizeof(WT_OPTRACK_RECORD)
+#define	WT_OPTRACK_VERSION 1
 
 /*
- * WT_TRACK_RECORD --
- *     A structure for logging potentially long operations.
+ * WT_OPTRACK_HEADER --
+ *     A header in the operation tracking log file. The interna. session
+ *     identifier is a boolean: 1 if the session is internal, 0 otherwise.
+ */
+struct __wt_optrack_header {
+	uint32_t optrack_version;
+	uint32_t optrack_session_internal;
+};
+
+/*
+ * WT_OPTRACK_RECORD --
+ *     A structure for logging function entry and exit events.
  *
  * We pad the record so that the size of the entire record is three double
  * words, or 24 bytes. If we don't do this, the compiler will pad it for us,
@@ -20,8 +31,16 @@
  * timestamp. Instead of letting the compiler insert the padding silently, we
  * pad explicitly, so that whoever writes the binary decoder can refer to this
  * struct to find out the record size.
+ *
+ * The operation id included in this structure is a unique address of a function
+ * in the binary. As we log operations, we keep track of the correspondence
+ * between function addresses and their names. When the log file is decoded,
+ * operations identifiers are replaced with function names. Therefore, the
+ * present design assumes that the user will be inserting the tracking macros
+ * on function boundaries: when we enter into the function and when we exit
+ * from it.
  */
-struct __wt_track_record {
+struct __wt_optrack_record {
 	uint64_t timestamp;
 	uint64_t op_id;
 	uint16_t op_type;
@@ -50,7 +69,7 @@ struct __wt_track_record {
  * very lightweight.
  */
 #define	WT_TRACK_OP_INIT(s)						\
-	WT_TRACK_RECORD *tr;						\
+	WT_OPTRACK_RECORD *tr;						\
 	static volatile bool id_recorded = false;			\
 	if (F_ISSET(S2C(s), WT_CONN_OPTRACK)) {				\
 		tr = &(s->optrack_buf[s->optrackbuf_ptr % WT_OPTRACK_MAXRECS]);\

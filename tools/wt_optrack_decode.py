@@ -12,6 +12,11 @@ import subprocess
 import time
 import traceback
 
+#
+# This log version must be the same as that defined in ../src/include/optrack.h
+#
+currentLogVersion = 1;
+
 class color:
    PURPLE = '\033[95m'
    CYAN = '\033[96m'
@@ -101,12 +106,52 @@ def parseOneRecord(file):
 
     return record;
 
+#
+# HEADER_SIZE must be the same as the size of WT_OPTRACK_HEADER
+# structure defined in ../src/include/optrack.h
+#
+def validateHeader(file):
+
+    global currentLogVersion;
+
+    bytesRead = "";
+    HEADER_SIZE = 8;
+
+    try:
+        bytesRead = file.read(HEADER_SIZE);
+    except:
+        return False, -1;
+
+    if (len(bytesRead) < HEADER_SIZE):
+        return False, -1;
+
+    version, threadType = struct.unpack('II', bytesRead);
+
+    if (version == currentLogVersion):
+        return True, threadType;
+    else:
+        return False, -1;
+
+def getStringFromThreadType(threadType):
+
+    if (threadType == 0):
+        return "external";
+    elif (threadType == 1):
+        return "internal";
+    else:
+        return unknown;
+
+
 def parseFile(fileName):
 
     done = False;
     file = None;
+    threadType = 0;
+    threadTypeString = None;
     outputFile = None;
+    outputFileName = "";
     totalRecords = 0;
+    validVersion = False;
 
     print(color.BOLD + "Processing file " + fileName + color.END);
 
@@ -114,19 +159,29 @@ def parseFile(fileName):
     try:
         file = open(fileName, "r");
     except:
-        print(color.BOLD + color.RED);
-        print("Could not open " + fileName + " for reading");
-        print(color.END);
+        print(color.BOLD + color.RED +
+              "Could not open " + fileName + " for reading" + color.END);
         return;
+
+    # Read and validate log header
+    validVersion, threadType = validateHeader(file);
+    if (not validVersion):
+        return;
+
+    threadTypeString = getStringFromThreadType(threadType);
 
     # Open the text file for writing
     try:
-        outputFile = open(fileName + ".txt", "w");
+        outputFileName = fileName + "-" + threadTypeString + ".txt";
+        outputFile = open(outputFileName, "w");
     except:
-        print(color.BOLD + color.RED);
-        print("Could not open file " + fileName + ".txt for writing.");
-        print(color.END);
+        print(color.BOLD + color.RED +
+              "Could not open file " + outputfileName + ".txt for writing." +
+              color.END);
         return;
+
+    print(color.BOLD + color.PURPLE +
+          "Writing to output file " + outputFileName + "." + color.END);
 
     while (not done):
         record = parseOneRecord(file);
@@ -151,7 +206,7 @@ def parseFile(fileName):
                 print(color.END);
                 done = True;
 
-    print("Wrote " + str(totalRecords) + " records to " + fileName + ".txt.");
+    print("Wrote " + str(totalRecords) + " records to " + outputFileName + ".");
     file.close();
     outputFile.close();
 
@@ -208,9 +263,9 @@ def main():
         targetParallelism = args.jobParallelism;
     if (targetParallelism == 0):
         targetParallelism = len(args.files);
-    print(color.BLUE + color.BOLD);
-    print("Will process " + str(targetParallelism) + " files in parallel.");
-    print(color.END);
+    print(color.BLUE + color.BOLD +
+          "Will process " + str(targetParallelism) + " files in parallel."
+          + color.END);
 
     # Prepare the processes that will parse files, one per file
     if (len(args.files) > 0):
