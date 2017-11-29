@@ -976,7 +976,13 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
 	 * If we need to create the log file, do so now.
 	 */
 	if (create_log) {
-		log->prep_missed++;
+                /*
+                 * Do not increment missed prep logs counter when a hot backup
+                 * is in progress since we deliberately not using prep log files
+                 * in that case (see comments above).
+                 */
+                if (!conn->hot_backup)
+			log->prep_missed++;
 		WT_RET(__wt_log_allocfile(
 		    session, log->fileid, WT_LOG_FILENAME));
 	}
