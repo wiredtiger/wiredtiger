@@ -12,7 +12,7 @@
 
 /*
  * WT_OPTRACK_HEADER --
- *     A header in the operation tracking log file. The interna. session
+ *     A header in the operation tracking log file. The internal session
  *     identifier is a boolean: 1 if the session is internal, 0 otherwise.
  */
 struct __wt_optrack_header {
