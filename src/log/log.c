@@ -1129,7 +1129,14 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
 	 * If we need to create the log file, do so now.
 	 */
 	if (create_log) {
-		log->prep_missed++;
+		/*
+		 * Increment the missed pre-allocated file counter only
+		 * if a hot backup is not in progress. We are deliberately
+		 * not using pre-allocated log files during backup
+		 * (see comment above).
+		 */
+		if (!conn->hot_backup)
+			log->prep_missed++;
 		WT_RET(__wt_log_allocfile(
 		    session, log->fileid, WT_LOG_FILENAME));
 	}
@@ -2650,8 +2657,10 @@ __wt_log_flush(WT_SESSION_IMPL *session, uint32_t flags)
 	 * Wait until all current outstanding writes have been written
 	 * to the file system.
 	 */
-	while (__wt_log_cmp(&last_lsn, &lsn) > 0)
+	while (__wt_log_cmp(&last_lsn, &lsn) > 0) {
+		__wt_sleep(0, WT_THOUSAND);
 		WT_RET(__wt_log_flush_lsn(session, &lsn, false));
+	}
 
 	__wt_verbose(session, WT_VERB_LOG,
 	    "log_flush: flags %#" PRIx32 " LSN %" PRIu32 "/%" PRIu32,

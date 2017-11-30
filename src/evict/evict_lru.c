@@ -552,6 +552,7 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
 static bool
 __evict_update_work(WT_SESSION_IMPL *session)
 {
+	WT_BTREE *las_tree;
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	uint64_t bytes_inuse, bytes_max, dirty_inuse;
@@ -567,6 +568,14 @@ __evict_update_work(WT_SESSION_IMPL *session)
 
 	if (!__evict_queue_empty(cache->evict_urgent_queue, false))
 		F_SET(cache, WT_CACHE_EVICT_URGENT);
+
+	if (F_ISSET(conn, WT_CONN_LOOKASIDE_OPEN)) {
+		WT_ASSERT(session,
+		    F_ISSET(session, WT_SESSION_LOOKASIDE_CURSOR));
+
+		las_tree = ((WT_CURSOR_BTREE *)session->las_cursor)->btree;
+		cache->bytes_lookaside = las_tree->bytes_inmem;
+	}
 
 	/*
 	 * If we need space in the cache, try to find clean pages to evict.
@@ -604,6 +613,21 @@ __evict_update_work(WT_SESSION_IMPL *session)
 	    ((cache->eviction_dirty_target + cache->eviction_dirty_trigger) *
 	    bytes_max) / 200)
 		F_SET(cache, WT_CACHE_EVICT_SCRUB);
+
+	/*
+	 * Try lookaside evict when:
+	 * (1) the cache is stuck; OR
+	 * (2) the lookaside score goes over 80; and
+	 * (3) the cache is more than half way from the dirty target to the
+	 *     dirty trigger.
+	 */
+	if (!F_ISSET(conn, WT_CONN_EVICTION_NO_LOOKASIDE) &&
+	    (__wt_cache_stuck(session) ||
+	    (__wt_cache_lookaside_score(cache) > 80 &&
+	    dirty_inuse > (uint64_t)
+	    ((cache->eviction_dirty_target + cache->eviction_dirty_trigger) *
+	    bytes_max) / 200)))
+		F_SET(cache, WT_CACHE_EVICT_LOOKASIDE);
 
 	/*
 	 * With an in-memory cache, we only do dirty eviction in order to scrub
@@ -694,8 +718,8 @@ __evict_pass(WT_SESSION_IMPL *session)
 		 * workers, it must service the urgent queue in case all
 		 * application threads are busy.
 		 */
-		if (cache->evict_empty_score < WT_EVICT_SCORE_CUTOFF ||
-		    (!WT_EVICT_HAS_WORKERS(session) &&
+		if (!WT_EVICT_HAS_WORKERS(session) &&
+		    (cache->evict_empty_score < WT_EVICT_SCORE_CUTOFF ||
 		    !__evict_queue_empty(cache->evict_urgent_queue, false)))
 			WT_RET(__evict_lru_pages(session, true));
 
@@ -1566,9 +1590,7 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	WT_EVICT_ENTRY *end, *evict, *start;
 	WT_PAGE *last_parent, *page;
-	WT_PAGE_MODIFY *mod;
 	WT_REF *ref;
-	WT_TXN_GLOBAL *txn_global;
 	uint64_t btree_inuse, bytes_per_slot, cache_inuse, min_pages;
 	uint64_t pages_seen, pages_queued, refs_walked;
 	uint32_t remaining_slots, total_slots, walk_flags;
@@ -1579,7 +1601,6 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	conn = S2C(session);
 	btree = S2BT(session);
 	cache = conn->cache;
-	txn_global = &conn->txn_global;
 	last_parent = NULL;
 	restarts = 0;
 	give_up = urgent_queued = false;
@@ -1637,6 +1658,13 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	    QUEUE_FILLS_PER_PASS;
 
 	/*
+	 * If the tree is dead or we're near the end of the queue, fill the
+	 * remaining slots.
+	 */
+	if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
+		target_pages = remaining_slots;
+
+	/*
 	 * Walk trees with a small fraction of the cache in case there are so
 	 * many trees that none of them use enough of the cache to be allocated
 	 * slots.  Only skip a tree if it has no bytes of interest.
@@ -1657,12 +1685,7 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 	if (target_pages < MIN_PAGES_PER_TREE)
 		target_pages = MIN_PAGES_PER_TREE;
 
-	/*
-	 * If the tree is dead or we're near the end of the queue, fill the
-	 * remaining slots.
-	 */
-	if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
-	    target_pages > remaining_slots)
+	if (target_pages > remaining_slots)
 		target_pages = remaining_slots;
 
 	/*
@@ -1769,6 +1792,7 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 		 * if we get into that situation.
 		 */
 		give_up = !__wt_cache_aggressive(session) &&
+		    !F_ISSET(btree, WT_BTREE_LOOKASIDE) &&
 		    pages_seen > min_pages &&
 		    (pages_queued == 0 || (pages_seen / pages_queued) >
 		    (min_pages / target_pages));
@@ -1843,6 +1867,10 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 		 * multiple times.
 		 */
 		if (F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU))
+			continue;
+
+		/* Don't queue dirty pages in trees during checkpoints. */
+		if (modified && btree->checkpointing != WT_CKPT_OFF)
 			continue;
 
 		/*
@@ -1925,20 +1953,14 @@ __evict_walk_file(WT_SESSION_IMPL *session,
 			goto fast;
 
 		/*
-		 * If there are active transaction and oldest transaction
-		 * hasn't changed since the last time this page was written,
-		 * it's unlikely we can make progress.  Similarly, if the most
-		 * recent update on the page is not yet globally visible,
-		 * eviction will fail.  This heuristic avoids repeated attempts
-		 * to evict the same page.
-		 *
-		 * We skip this for the lookaside table because updates there
-		 * can be evicted as soon as they are committed.
+		 * If the global transaction state hasn't changed since the
+		 * last time we tried eviction, it's unlikely we can make
+		 * progress.  Similarly, if the most recent update on the page
+		 * is not yet globally visible, eviction will fail.  This
+		 * heuristic avoids repeated attempts to evict the same page.
 		 */
-		mod = page->modify;
-		if (modified && txn_global->current != txn_global->oldest_id &&
-		    (mod->last_eviction_id == __wt_txn_oldest_id(session) ||
-		    !__wt_txn_visible_all(session, mod->update_txn, NULL)))
+		if (!__wt_page_evict_retry(session, page) || (modified &&
+		    !__txn_visible_all_id(session, page->modify->update_txn)))
 			continue;
 
 fast:		/* If the page can't be evicted, give up. */
@@ -1998,8 +2020,8 @@ fast:		/* If the page can't be evicted, give up. */
 			if (restarts == 0)
 				WT_STAT_CONN_INCR(
 				    session, cache_eviction_walks_abandoned);
-			WT_RET(__wt_page_release(cache->walk_session,
-			    ref, WT_READ_NO_EVICT));
+			WT_RET(__wt_page_release(
+			    cache->walk_session, ref, walk_flags));
 			ref = NULL;
 		} else if (WT_READGEN_EVICT_SOON(ref->page->read_gen))
 			WT_RET_NOTFOUND_OK(__wt_tree_walk_count(
@@ -2036,9 +2058,10 @@ __evict_get_ref(
 	cache = S2C(session)->cache;
 	is_app = !F_ISSET(session, WT_SESSION_INTERNAL);
 	server_only = is_server && !WT_EVICT_HAS_WORKERS(session);
+	/* Application threads do eviction when cache is full of dirty data */
 	urgent_ok = (!is_app && !is_server) ||
 	    !WT_EVICT_HAS_WORKERS(session) ||
-	    (is_app && __wt_cache_aggressive(session));
+	    (is_app && F_ISSET(cache, WT_CACHE_EVICT_DIRTY_HARD));
 	urgent_queue = cache->evict_urgent_queue;
 
 	WT_STAT_CONN_INCR(session, cache_eviction_get_ref);
@@ -2258,7 +2281,8 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
  * crosses its boundaries.
  */
 int
-__wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
+__wt_cache_eviction_worker(
+    WT_SESSION_IMPL *session, bool busy, bool readonly, u_int pct_full)
 {
 	struct timespec enter, leave;
 	WT_CACHE *cache;
@@ -2323,16 +2347,17 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, u_int pct_full)
 		max_progress = busy ? 5 : 20;
 
 		/* See if eviction is still needed. */
-		if (!__wt_eviction_needed(session, busy, &pct_full) ||
-		    (pct_full < 100 && cache->eviction_progress >
-		    initial_progress + max_progress))
+		if (!__wt_eviction_needed(session, busy, readonly, &pct_full) ||
+		    ((pct_full < 100 || cache->eviction_scrub_limit > 0.0) &&
+		    (cache->eviction_progress >
+		    initial_progress + max_progress)))
 			break;
 
 		/*
 		 * Don't make application threads participate in scrubbing for
 		 * checkpoints.  Just throttle updates instead.
 		 */
-		if (busy && WT_EVICT_HAS_WORKERS(session) &&
+		if (WT_EVICT_HAS_WORKERS(session) &&
 		    cache->eviction_scrub_limit > 0.0 &&
 		    !F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD)) {
 			__wt_yield();

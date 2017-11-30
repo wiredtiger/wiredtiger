@@ -1169,6 +1169,7 @@ strget
 strlen
 strncpy
 strndup
+strnlen
 strtok
 strtoll
 strtouq
