@@ -135,7 +135,8 @@ static WT_EVENT_HANDLER event_handler = {
 	NULL,
 	handle_message,
 	handle_progress,
-	NULL	/* Close handler. */
+	NULL,	/* Close handler. */
+	NULL    /* Commit visibility handler. */
 };
 
 #define	CONFIG_APPEND(p, ...) do {					\

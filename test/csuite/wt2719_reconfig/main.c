@@ -191,7 +191,9 @@ handle_message(WT_EVENT_HANDLER *handler,
 	return (0);
 }
 
-static WT_EVENT_HANDLER event_handler = { NULL, handle_message, NULL, NULL };
+static WT_EVENT_HANDLER event_handler = {
+	NULL, handle_message, NULL, NULL, NULL
+};
 
 static const char *current;			/* Current test configuration */
 
