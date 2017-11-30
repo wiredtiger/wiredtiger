@@ -410,8 +410,8 @@ if enableJava and enableJava.count(",") == 1:
     wtJar = env.Command( 'lang/java/wiredtiger.jar', 'lang/java/build', env['JAR'] + " -cf $TARGET -C $SOURCE .")
     env.Depends(wtJar, wtClasses)
     Default(wtJar)
-    else:
-        print "Error using --enable-java, this option may contain two paths separated by comma, the first is the swig.exe binary and the second is the Java JDK directory. e.g. C:\Python27\python.exe C:\Python27\Scripts\scons.py --enable-java=\"C:\Users\paco\Downloads\swigwin-3.0.12\swig.exe\",\"C:\Program Files\Java\jdk1.8.0_151\""
+else:
+    print "Error using --enable-java, this option may contain two paths separated by comma, the first is the swig.exe binary and the second is the Java JDK directory. e.g. C:\Python27\python.exe C:\Python27\Scripts\scons.py --enable-java=\"C:\Users\paco\Downloads\swigwin-3.0.12\swig.exe\",\"C:\Program Files\Java\jdk1.8.0_151\""
 
 # Shim library of functions to emulate POSIX on Windows
 shim = env.Library("window_shim",
