@@ -67,18 +67,20 @@ struct __wt_optrack_record {
  * we may lose a few log records. We prefer to risk losing a few log records
  * occasionally in order not to synchronize this code, which is intended to be
  * very lightweight.
+ * Exclude the default session (ID 0) because it can be used by multiple
+ * threads and it is also used in error paths during failed open calls.
  */
 #define	WT_TRACK_OP_INIT(s)						\
 	WT_OPTRACK_RECORD *tr;						\
 	static volatile bool id_recorded = false;			\
-	if (F_ISSET(S2C(s), WT_CONN_OPTRACK)) {				\
+	if (F_ISSET(S2C(s), WT_CONN_OPTRACK) && (s)->id != 0) {		\
 		tr = &(s->optrack_buf[s->optrackbuf_ptr % WT_OPTRACK_MAXRECS]);\
 		s->optrackbuf_ptr++;					\
 		WT_TRACK_OP(s, 0);					\
 	}
 
 #define	WT_TRACK_OP_END(s)						\
-	if (F_ISSET(S2C(s), WT_CONN_OPTRACK)) {				\
+	if (F_ISSET(S2C(s), WT_CONN_OPTRACK) && (s)->id != 0) {		\
 		tr = &(s->optrack_buf[s->optrackbuf_ptr % WT_OPTRACK_MAXRECS]);\
 		s->optrackbuf_ptr++;					\
 		WT_TRACK_OP(s, 1);					\
