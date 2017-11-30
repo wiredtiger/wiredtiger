@@ -360,58 +360,58 @@ if GetOption("lang-python"):
 
 # Javap SWIG wrapper for WiredTiger
 enableJava = GetOption("lang-java")
-if enableJava and "," in enableJava:
+if enableJava and enableJava.count(",") == 1:
     enableJavaPaths = enableJava.split(',')
-    if len(enableJavaPaths) == 2:
-        swigExe = enableJavaPaths[0]
-        javaPath = enableJavaPaths[1]
-        conf.env.Append(CPPPATH=[ javaPath + '/include'])
-        conf.env.Append(CPPPATH=[ javaPath + '/include/win32'])
 
-        swigJavaFiles = ["lang/java/src/com/wiredtiger/db/AsyncOp.java",
-        "lang/java/src/com/wiredtiger/db/AsyncOpType.java",
-        "lang/java/src/com/wiredtiger/db/Connection.java",
-        "lang/java/src/com/wiredtiger/db/Cursor.java",
-        "lang/java/src/com/wiredtiger/db/Modify.java",
-        "lang/java/src/com/wiredtiger/db/SearchStatus.java",
-        "lang/java/src/com/wiredtiger/db/Session.java",
-        "lang/java/src/com/wiredtiger/db/WT_ITEM_HOLD.java",
-        "lang/java/src/com/wiredtiger/db/WT_MODIFY_LIST.java",
-        "lang/java/src/com/wiredtiger/db/wiredtiger.java",
-        "lang/java/src/com/wiredtiger/db/wiredtigerConstants.java",
-        "lang/java/src/com/wiredtiger/db/wiredtigerJNI.java"]
+    swigExe = enableJavaPaths[0]
+    javaPath = enableJavaPaths[1]
+    conf.env.Append(CPPPATH=[ javaPath + '/include'])
+    conf.env.Append(CPPPATH=[ javaPath + '/include/win32'])
 
-        swigCFile = "wiredtiger_wrap.c"
+    swigJavaFiles = ["lang/java/src/com/wiredtiger/db/AsyncOp.java",
+    "lang/java/src/com/wiredtiger/db/AsyncOpType.java",
+    "lang/java/src/com/wiredtiger/db/Connection.java",
+    "lang/java/src/com/wiredtiger/db/Cursor.java",
+    "lang/java/src/com/wiredtiger/db/Modify.java",
+    "lang/java/src/com/wiredtiger/db/SearchStatus.java",
+    "lang/java/src/com/wiredtiger/db/Session.java",
+    "lang/java/src/com/wiredtiger/db/WT_ITEM_HOLD.java",
+    "lang/java/src/com/wiredtiger/db/WT_MODIFY_LIST.java",
+    "lang/java/src/com/wiredtiger/db/wiredtiger.java",
+    "lang/java/src/com/wiredtiger/db/wiredtigerConstants.java",
+    "lang/java/src/com/wiredtiger/db/wiredtigerJNI.java"]
 
-        swigFiles = env.Command(
-            swigJavaFiles + [swigCFile], '',
-            '"' + swigExe + '" -Wall -v -java -nodefaultctor -nodefaultdtor -package com.wiredtiger.db -outdir lang/java/src/com/wiredtiger/db -o wiredtiger_wrap.c lang/java/wiredtiger.i')
+    swigCFile = "wiredtiger_wrap.c"
+
+    swigFiles = env.Command(
+        swigJavaFiles + [swigCFile], '',
+        '"' + swigExe + '" -Wall -v -java -nodefaultctor -nodefaultdtor -package com.wiredtiger.db -outdir lang/java/src/com/wiredtiger/db -o wiredtiger_wrap.c lang/java/wiredtiger.i')
         env.Depends(swigFiles, wtheader)
         objectJavaWrap = env.Object(swigCFile)
-        env.Depends(objectJavaWrap, swigCFile)
+    env.Depends(objectJavaWrap, swigCFile)
 
-        #
-        # Dynamically Loaded Library - wiredtiger_java.dll
-        wtjavadll = env.SharedLibrary(
-            target="wiredtiger_java",
-            source=wt_objs + [objectJavaWrap] + ['build_win/wiredtiger.def'], LIBS=wtlibs)
+    #
+    # Dynamically Loaded Library - wiredtiger_java.dll
+    wtjavadll = env.SharedLibrary(
+    target="wiredtiger_java",
+    source=wt_objs + [objectJavaWrap] + ['build_win/wiredtiger.def'], LIBS=wtlibs)
 
-        env.Depends(wtjavadll, [filelistfile, version_file])
-        Default(wtjavadll)
+    env.Depends(wtjavadll, [filelistfile, version_file])
+    Default(wtjavadll)
 
-        #
-        # wiredtiger.jar
-        env['JAVAC'] = '"' + javaPath + '/bin/javac.exe"'
-        env['JAR'] = '"' + javaPath + '/bin/jar.exe"'
-        # Build classes
-        wtClasses = env.Java('lang/java/build', 'lang/java/src/')
-        env.Depends(wtClasses, swigJavaFiles)
-        # Pack classes in jar
-        wtJar = env.Command( 'lang/java/wiredtiger.jar', 'lang/java/build', env['JAR'] + " -cf $TARGET -C $SOURCE .")
-        env.Depends(wtJar, wtClasses)
-        Default(wtJar)
-else:
-    print "Error using --enable-java, this option may contain two paths separated by comma, the first is the swig.exe binary and the second is the Java JDK directory. e.g. C:\Python27\python.exe C:\Python27\Scripts\scons.py --enable-java=\"C:\Users\paco\Downloads\swigwin-3.0.12\swig.exe\",\"C:\Program Files\Java\jdk1.8.0_151\""
+    #
+    # wiredtiger.jar
+    env['JAVAC'] = '"' + javaPath + '/bin/javac.exe"'
+    env['JAR'] = '"' + javaPath + '/bin/jar.exe"'
+    # Build classes
+    wtClasses = env.Java('lang/java/build', 'lang/java/src/')
+    env.Depends(wtClasses, swigJavaFiles)
+    # Pack classes in jar
+    wtJar = env.Command( 'lang/java/wiredtiger.jar', 'lang/java/build', env['JAR'] + " -cf $TARGET -C $SOURCE .")
+    env.Depends(wtJar, wtClasses)
+    Default(wtJar)
+    else:
+        print "Error using --enable-java, this option may contain two paths separated by comma, the first is the swig.exe binary and the second is the Java JDK directory. e.g. C:\Python27\python.exe C:\Python27\Scripts\scons.py --enable-java=\"C:\Users\paco\Downloads\swigwin-3.0.12\swig.exe\",\"C:\Program Files\Java\jdk1.8.0_151\""
 
 # Shim library of functions to emulate POSIX on Windows
 shim = env.Library("window_shim",
