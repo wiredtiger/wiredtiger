@@ -386,8 +386,8 @@ if enableJava and enableJava.count(",") == 1:
     swigFiles = env.Command(
         swigJavaFiles + [swigCFile], '',
         '"' + swigExe + '" -Wall -v -java -nodefaultctor -nodefaultdtor -package com.wiredtiger.db -outdir lang/java/src/com/wiredtiger/db -o wiredtiger_wrap.c lang/java/wiredtiger.i')
-        env.Depends(swigFiles, wtheader)
-        objectJavaWrap = env.Object(swigCFile)
+    env.Depends(swigFiles, wtheader)
+    objectJavaWrap = env.Object(swigCFile)
     env.Depends(objectJavaWrap, swigCFile)
 
     #
