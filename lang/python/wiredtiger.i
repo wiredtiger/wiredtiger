@@ -1015,11 +1015,7 @@ int timestamp_build() {
 }
 
 int verbose_build() {
-#ifdef HAVE_VERBOSE
 	return 1;
-#else
-	return 0;
-#endif
 }
 %}
 int diagnostic_build();

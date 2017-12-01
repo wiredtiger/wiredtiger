@@ -183,9 +183,6 @@ if GetOption("lang-python"):
     env.Append(LIBPATH=[distutils.sysconfig.PREFIX + r"\libs"])
     env.Append(CPPPATH=[distutils.sysconfig.get_python_inc()])
 
-if GetOption("verbose"):
-    env.Append(CPPDEFINES = ["HAVE_VERBOSE"])
-
 
 # Build WiredTiger.h file
 #
