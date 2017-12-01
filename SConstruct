@@ -28,11 +28,11 @@ AddOption("--enable-diagnostic", dest="diagnostic", action="store_true", default
 AddOption("--enable-lz4", dest="lz4", type="string", nargs=1, action="store",
           help="Use LZ4 compression")
 
-AddOption("--enable-python", dest="lang-python", type="string", nargs=1, action="store",
-          help="Build Python extension, specify location of swig.exe binary")
-
 AddOption("--enable-java", dest="lang-java", type="string", nargs=1, action="store",
           help="Build java extension, specify location of swig.exe binary and Java JDK dir separated by comma")
+
+AddOption("--enable-python", dest="lang-python", type="string", nargs=1, action="store",
+          help="Build Python extension, specify location of swig.exe binary")
 
 AddOption("--enable-snappy", dest="snappy", type="string", nargs=1, action="store",
           help="Use snappy compression")
@@ -411,7 +411,7 @@ if enableJava and enableJava.count(",") == 1:
     env.Depends(wtJar, wtClasses)
     Default(wtJar)
 else:
-    print "Error using --enable-java, this option may contain two paths separated by comma, the first is the swig.exe binary and the second is the Java JDK directory. e.g. C:\Python27\python.exe C:\Python27\Scripts\scons.py --enable-java=\"C:\Users\paco\Downloads\swigwin-3.0.12\swig.exe\",\"C:\Program Files\Java\jdk1.8.0_151\""
+    print "Error using --enable-java, this option may contain two paths separated by comma, the first is the swig.exe binary and the second is the Java JDK directory. e.g. C:\Python27\python.exe C:\Python27\Scripts\scons.py --enable-java=\"C:\Program Files\swigwin-3.0.12\swig.exe\",\"C:\Program Files\Java\jdk1.8.0_151\""
 
 # Shim library of functions to emulate POSIX on Windows
 shim = env.Library("window_shim",
