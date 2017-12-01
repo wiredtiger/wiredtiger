@@ -725,12 +725,10 @@ __las_sweep_init(WT_SESSION_IMPL *session)
 	cache->las_sweep_dropmin = UINT32_MAX;
 	cache->las_sweep_dropmax = 0;
 	for (i = 0; i < cache->las_dropped_next; i++) {
-		cache->las_sweep_dropmin = WT_MIN(
-		    cache->las_sweep_dropmin,
-		    cache->las_dropped[i]);
-		cache->las_sweep_dropmax = WT_MAX(
-		    cache->las_sweep_dropmax,
-		    cache->las_dropped[i]);
+		cache->las_sweep_dropmin =
+		    WT_MIN(cache->las_sweep_dropmin, cache->las_dropped[i]);
+		cache->las_sweep_dropmax =
+		    WT_MAX(cache->las_sweep_dropmax, cache->las_dropped[i]);
 	}
 
 	/* Initialize the bitmap. */
