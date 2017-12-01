@@ -55,27 +55,12 @@
 	if (a)								\
 		return (v);						\
 } while (0)
-#define	WT_RET_TRACK_TEST(a, v) do {					\
-	if (a) {						        \
-		WT_TRACK_OP_END(session);				\
-		return (v);						\
-	}								\
-} while (0)
 #define	WT_RET_ERROR_OK(a, e) do {					\
 	int __ret = (a);						\
 	WT_RET_TEST(__ret != 0 && __ret != (e), __ret);			\
 } while (0)
-#define	WT_RET_TRACK_ERROR_OK(a, e) do {			        \
-	int __ret = (a);						\
-	WT_RET_TRACK_TEST(__ret != 0 && __ret != (e), __ret);		\
-} while (0)
 #define	WT_RET_BUSY_OK(a)	WT_RET_ERROR_OK(a, EBUSY)
 #define	WT_RET_NOTFOUND_OK(a)	WT_RET_ERROR_OK(a, WT_NOTFOUND)
-#define	WT_RET_TRACK_NOTFOUND_OK(a) WT_RET_TRACK_ERROR_OK(a, WT_NOTFOUND)
-#define	WT_RET_TRACK(a) do {			                        \
-	WT_TRACK_OP_END(session);				        \
-	return (a);						        \
-} while (0)
 /* Set "ret" if not already set. */
 #define	WT_TRET(a) do {							\
 	int __ret;							\

@@ -1213,12 +1213,12 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 	 */
 	if (__evict_queue_full(queue) &&
 	    cache->evict_empty_score < WT_EVICT_SCORE_CUTOFF)
-		WT_RET_TRACK(0);
+		goto err;
 
 	/* Get some more pages to consider for eviction. */
 	if ((ret = __evict_walk(cache->walk_session, queue)) == EBUSY)
-		WT_RET_TRACK(0);     /* An interrupt was requested, give up. */
-	WT_RET_TRACK_NOTFOUND_OK(ret);
+		goto err;     /* An interrupt was requested, give up. */
+	WT_ERR_NOTFOUND_OK(ret);
 
 	/*
 	 * If the queue we are filling is empty, pages are being requested
@@ -1272,7 +1272,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 		queue->evict_candidates = 0;
 		queue->evict_current = NULL;
 		__wt_spin_unlock(session, &queue->evict_lock);
-		WT_RET_TRACK(0);
+		goto err;
 	}
 
 	/* Decide how many of the candidates we're going to try and evict. */
@@ -1331,7 +1331,8 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 	 */
 	__wt_cond_signal(session, S2C(session)->evict_threads.wait_cond);
 
-	WT_RET_TRACK(0);
+err:	WT_TRACK_OP_END(session);
+	return (ret);
 }
 
 /*
@@ -1527,10 +1528,11 @@ err:	if (dhandle_locked)
 	 * let our caller know.
 	 */
 	if (queue->evict_entries == slot && cache->pass_intr == 0)
-		WT_RET_TRACK(WT_NOTFOUND);
+		ret = WT_NOTFOUND;
 
 	queue->evict_entries = slot;
-	WT_RET_TRACK(ret);
+	WT_TRACK_OP_END(session);
+	return (ret);
 }
 
 /*
@@ -2272,7 +2274,8 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 		WT_STAT_CONN_INCRV(session,
 		    application_evict_time, WT_TIMEDIFF_US(leave, enter));
 	}
-	WT_RET_TRACK(ret);
+	WT_TRACK_OP_END(session);
+	return (ret);
 }
 
 /*
@@ -2304,11 +2307,8 @@ __wt_cache_eviction_worker(
 	 * It is not safe to proceed if the eviction server threads aren't
 	 * setup yet.
 	 */
-	if (!conn->evict_server_running)
-		WT_RET_TRACK(0);
-
-	if (busy && pct_full < 100)
-		WT_RET_TRACK(0);
+	if (!conn->evict_server_running || (busy && pct_full < 100))
+		goto done;
 
 	/* Wake the eviction server if we need to do work. */
 	__wt_evict_server_wake(session);
@@ -2389,7 +2389,8 @@ err:	if (timer) {
 		    application_cache_time, WT_TIMEDIFF_US(leave, enter));
 	}
 
-	WT_RET_TRACK(ret);
+done:	WT_TRACK_OP_END(session);
+	return (ret);
 	/* NOTREACHED */
 }
 
