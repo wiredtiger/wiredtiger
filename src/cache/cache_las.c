@@ -533,7 +533,7 @@ __wt_las_insert_block(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 	if (insert_cnt > 0) {
 		WT_STAT_CONN_INCRV(
 		    session, cache_lookaside_entries, insert_cnt);
-		__wt_atomic_add64(
+		(void)__wt_atomic_add64(
 		    &S2C(session)->cache->las_entry_count, insert_cnt);
 		WT_ERR(__las_insert_block_verbose(session, multi));
 	}
