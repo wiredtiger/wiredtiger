@@ -492,7 +492,7 @@ __wt_evict_create(WT_SESSION_IMPL *session)
 	 */
 #if !defined(HAVE_DIAGNOSTIC)
 	/* Need verbose check only if not in diagnostic build */
-	if (WT_VERBOSE_ISSET(session, WT_VERB_EVICTSERVER)
+	if (WT_VERBOSE_ISSET(session, WT_VERB_EVICTSERVER))
 #endif
 		__wt_epoch(session, &conn->cache->stuck_time);
 
