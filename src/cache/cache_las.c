@@ -433,7 +433,7 @@ __wt_las_insert_block(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 	/* Wrap all the updates in a transaction. */
 	las_session = (WT_SESSION_IMPL *)cursor->session;
 	WT_RET(__wt_txn_begin(las_session, NULL));
-	las_session->txn.isolation = WT_TXN_ISO_READ_UNCOMMITTED;
+	las_session->txn.isolation = WT_ISO_READ_UNCOMMITTED;
 
 	/*
 	 * Make sure there are no leftover entries (e.g., from a handle
@@ -639,7 +639,7 @@ __wt_las_remove_block(WT_SESSION_IMPL *session,
 	 */
 	if (local_cursor) {
 		WT_ERR(__wt_txn_begin(las_session, NULL));
-		las_session->txn.isolation = WT_TXN_ISO_READ_UNCOMMITTED;
+		las_session->txn.isolation = WT_ISO_READ_UNCOMMITTED;
 		local_txn = true;
 	}
 
