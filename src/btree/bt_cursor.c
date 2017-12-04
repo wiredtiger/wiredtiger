@@ -52,13 +52,16 @@ __cursor_state_restore(WT_CURSOR *cursor, WT_CURFILE_STATE *state)
 
 /*
  * __cursor_page_pinned --
- *	Return if we have a page pinned and it's not been flagged for forced
- * eviction (the forced eviction test is so we periodically release pages
- * grown too large).
+ *	Return if we have a page pinned.
  */
 static inline bool
 __cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool eviction_ok)
 {
+	/*
+	 * Optionally fail the page-pinned test when the page is flagged for
+	 * forced eviction (so we periodically release pages grown too large).
+	 * The test is optional as not all callers can release pinned pages.
+	 */
 	return (F_ISSET(cbt, WT_CBT_ACTIVE) &&
 	    (!eviction_ok || cbt->ref->page->read_gen != WT_READGEN_OLDEST));
 }
