@@ -1216,8 +1216,10 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 		goto err;
 
 	/* Get some more pages to consider for eviction. */
-	if ((ret = __evict_walk(cache->walk_session, queue)) == EBUSY)
+	if ((ret = __evict_walk(cache->walk_session, queue)) == EBUSY) {
+		ret = 0;
 		goto err;     /* An interrupt was requested, give up. */
+	}
 	WT_ERR_NOTFOUND_OK(ret);
 
 	/*
