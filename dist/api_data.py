@@ -501,7 +501,7 @@ connection_runtime_config = [
         enable tracking of performance-critical functions. See
         @ref operation_tracking for more information''',
         type='category', subconfig=[
-            Config('enabled', 'true', r'''
+            Config('enabled', 'false', r'''
                 enable operation tracking subsystem''',
                 type='boolean'),
             Config('path', '"."', r'''
