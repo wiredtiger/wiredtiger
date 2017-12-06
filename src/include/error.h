@@ -61,7 +61,6 @@
 } while (0)
 #define	WT_RET_BUSY_OK(a)	WT_RET_ERROR_OK(a, EBUSY)
 #define	WT_RET_NOTFOUND_OK(a)	WT_RET_ERROR_OK(a, WT_NOTFOUND)
-
 /* Set "ret" if not already set. */
 #define	WT_TRET(a) do {							\
 	int __ret;							\
