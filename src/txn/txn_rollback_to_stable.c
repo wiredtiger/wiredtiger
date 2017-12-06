@@ -285,7 +285,7 @@ __txn_rollback_to_stable_btree_walk(
 	    NULL, WT_READ_CACHE | WT_READ_NO_EVICT)) == 0 && ref != NULL) {
 		page = ref->page;
 
-		if (ref->state == WT_REF_AMNESIA) {
+		if (ref->state == WT_REF_LIMBO) {
 			if (__wt_timestamp_cmp(rollback_timestamp,
 			    &ref->page_las->onpage_timestamp) < 0)
 				ref->page_las->invalid = true;

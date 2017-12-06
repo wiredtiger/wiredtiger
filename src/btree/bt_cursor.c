@@ -68,7 +68,7 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool eviction_ok)
 	 * If we get here during an update with a page lacking history, we'd
 	 * better be able to evict it.
 	 */
-	WT_ASSERT(session, cbt->ref->state != WT_REF_AMNESIA ||
+	WT_ASSERT(session, cbt->ref->state != WT_REF_LIMBO ||
 	    !F_ISSET(&session->txn, WT_TXN_UPDATE) || eviction_ok);
 
 	/*
@@ -82,7 +82,7 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool eviction_ok)
 	if (eviction_ok && cbt->ref->page->read_gen == WT_READGEN_OLDEST)
 		return (false);
 
-	if (cbt->ref->state == WT_REF_AMNESIA &&
+	if (cbt->ref->state == WT_REF_LIMBO &&
 	    F_ISSET(&session->txn, WT_TXN_UPDATE))
 		return (false);
 

@@ -682,14 +682,14 @@ struct __wt_page {
  *	memory before use.  WT_REF_DISK has a value of 0 (the default state
  *	after allocating cleared memory).
  *
- * WT_REF_AMNESIA:
- *	The page image has been loaded into memory but there is additional
- *	history in the lookaside table that has not been applied.
- *
  * WT_REF_DELETED:
  *	The page is on disk, but has been deleted from the tree; we can delete
  *	row-store leaf pages without reading them if they don't reference
  *	overflow items.
+ *
+ * WT_REF_LIMBO:
+ *	The page image has been loaded into memory but there is additional
+ *	history in the lookaside table that has not been applied.
  *
  * WT_REF_LOCKED:
  *	Locked for exclusive access.  In eviction, this page or a parent has
@@ -763,8 +763,8 @@ struct __wt_ref {
 	volatile uint32_t pindex_hint;	/* Reference page index hint */
 
 #define	WT_REF_DISK	 0		/* Page is on disk */
-#define	WT_REF_AMNESIA	 1		/* Page is in cache without history */
-#define	WT_REF_DELETED	 2		/* Page is on disk, but deleted */
+#define	WT_REF_DELETED	 1		/* Page is on disk, but deleted */
+#define	WT_REF_LIMBO	 2		/* Page is in cache without history */
 #define	WT_REF_LOCKED	 3		/* Page locked for exclusive access */
 #define	WT_REF_LOOKASIDE 4		/* Page is on disk with lookaside */
 #define	WT_REF_MEM	 5		/* Page is in cache and valid */
