@@ -213,4 +213,12 @@ struct __wt_session_impl {
 	uint32_t   hazard_inuse;	/* Hazard pointer array slots in-use */
 	uint32_t   nhazard;		/* Count of active hazard pointers */
 	WT_HAZARD *hazard;		/* Hazard pointer array */
+
+	/*
+	 * Operation tracking.
+	 */
+	WT_OPTRACK_RECORD *optrack_buf;
+	u_int optrackbuf_ptr;
+	uint64_t optrack_offset;
+	WT_FH *optrack_fh;
 };
