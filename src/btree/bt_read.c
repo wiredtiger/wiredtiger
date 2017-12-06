@@ -522,13 +522,16 @@ skip_read:
 	 * before doing any work.
 	 */
 	if (previous_state == WT_REF_LOOKASIDE &&
-	    __las_page_skip_locked(session, ref))
+	    __las_page_skip_locked(session, ref)) {
+		WT_STAT_CONN_INCR(session, cache_read_lookaside_skipped);
 		final_state = WT_REF_AMNESIA;
-	else if (previous_state == WT_REF_AMNESIA ||
+	} else if (previous_state == WT_REF_AMNESIA ||
 	    previous_state == WT_REF_LOOKASIDE) {
 		WT_ASSERT(session, (ref->page->dsk == NULL ||
 		    F_ISSET(ref->page->dsk, WT_PAGE_LAS_UPDATE)));
 
+		if (previous_state == WT_REF_AMNESIA)
+			WT_STAT_CONN_INCR(session, cache_read_lookaside_delay);
 		__btree_verbose_lookaside_read(
 		    session, btree->id, ref->page_las->las_pageid);
 		WT_STAT_CONN_INCR(session, cache_read_lookaside);
