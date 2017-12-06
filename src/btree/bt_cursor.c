@@ -79,10 +79,14 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool eviction_ok)
 	 * We cannot use a page without history for an update operation:
 	 * release the page so we get it again with history in that case.
 	 */
-	return (!eviction_ok ||
-	    cbt->ref->page->read_gen != WT_READGEN_OLDEST ||
-	    cbt->ref->state != WT_REF_AMNESIA ||
-	    !F_ISSET(&session->txn, WT_TXN_UPDATE));
+	if (eviction_ok && cbt->ref->page->read_gen == WT_READGEN_OLDEST)
+		return (false);
+
+	if (cbt->ref->state == WT_REF_AMNESIA &&
+	    F_ISSET(&session->txn, WT_TXN_UPDATE))
+		return (false);
+
+	return (true);
 }
 
 /*
