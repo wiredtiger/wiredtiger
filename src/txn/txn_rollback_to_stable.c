@@ -282,8 +282,15 @@ __txn_rollback_to_stable_btree_walk(
 	ref = NULL;
 	while ((ret = __wt_tree_walk_custom_skip(session, &ref,
 	    __txn_rollback_to_stable_custom_skip,
-	    NULL, WT_READ_NO_EVICT)) == 0 && ref != NULL) {
+	    NULL, WT_READ_CACHE | WT_READ_NO_EVICT)) == 0 && ref != NULL) {
 		page = ref->page;
+
+		if (ref->state == WT_REF_AMNESIA) {
+			if (__wt_timestamp_cmp(rollback_timestamp,
+			    &ref->page_las->onpage_timestamp) < 0)
+				ref->page_las->invalid = true;
+			continue;
+		}
 
 		/* Review deleted page saved to the ref */
 		if (ref->page_del != NULL && __wt_timestamp_cmp(

@@ -68,11 +68,9 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         cur = session.open_cursor(tablename, None)
         if missing == False:
             actual = dict((k, v) for k, v in cur if v != 0)
-            if prn == True:
-                print "CHECK : Expected"
-                print expected
-                print "CHECK : Actual"
-                print actual
+            if actual != expected:
+                print "missing: ", sorted(set(expected) - set(actual))
+                print "extras: ", sorted(set(actual) - set(expected))
             self.assertTrue(actual == expected)
 
         # Search for the expected items as well as iterating

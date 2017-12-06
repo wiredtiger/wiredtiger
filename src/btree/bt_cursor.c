@@ -52,21 +52,37 @@ __cursor_state_restore(WT_CURSOR *cursor, WT_CURFILE_STATE *state)
 
 /*
  * __cursor_page_pinned --
- *	Return if we have a page pinned and it's not been flagged for forced
- * eviction (the forced eviction test is so we periodically release pages
- * grown too large).
+ *	Return if we have a page pinned.
  */
 static inline bool
-__cursor_page_pinned(WT_CURSOR_BTREE *cbt)
+__cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool eviction_ok)
 {
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)cbt->iface.session;
 
-	return (F_ISSET(cbt, WT_CBT_ACTIVE) &&
-	    cbt->ref->page->read_gen != WT_READGEN_OLDEST &&
-	    (cbt->ref->state != WT_REF_AMNESIA ||
-	    !F_ISSET(&session->txn, WT_TXN_UPDATE)));
+	if (!F_ISSET(cbt, WT_CBT_ACTIVE))
+		return (false);
+
+	/*
+	 * If we get here during an update with a page lacking history, we'd
+	 * better be able to evict it.
+	 */
+	WT_ASSERT(session, cbt->ref->state != WT_REF_AMNESIA ||
+	    !F_ISSET(&session->txn, WT_TXN_UPDATE) || eviction_ok);
+
+	/*
+	 * Optionally fail the page-pinned test when the page is flagged for
+	 * forced eviction (so we periodically release pages grown too large).
+	 * The test is optional as not all callers can release pinned pages.
+	 *
+	 * We cannot use a page without history for an update operation:
+	 * release the page so we get it again with history in that case.
+	 */
+	return (!eviction_ok ||
+	    cbt->ref->page->read_gen != WT_READGEN_OLDEST ||
+	    cbt->ref->state != WT_REF_AMNESIA ||
+	    !F_ISSET(&session->txn, WT_TXN_UPDATE));
 }
 
 /*
@@ -471,7 +487,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 	 * from the root.
 	 */
 	valid = false;
-	if (__cursor_page_pinned(cbt)) {
+	if (__cursor_page_pinned(cbt, true)) {
 		__wt_txn_cursor_op(session);
 
 		WT_ERR(btree->type == BTREE_ROW ?
@@ -568,7 +584,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 	 * existing record.
 	 */
 	valid = false;
-	if (btree->type == BTREE_ROW && __cursor_page_pinned(cbt)) {
+	if (btree->type == BTREE_ROW && __cursor_page_pinned(cbt, true)) {
 		__wt_txn_cursor_op(session);
 
 		WT_ERR(__cursor_row_search(session, cbt, cbt->ref, true));
@@ -699,7 +715,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
 	 * configured for append aren't included, regardless of whether or not
 	 * they meet all other criteria.
 	 */
-	if (__cursor_page_pinned(cbt) &&
+	if (__cursor_page_pinned(cbt, true) &&
 	    F_ISSET_ALL(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_OVERWRITE) &&
 	    !append_key) {
 		WT_ERR(__wt_txn_autocommit_check(session));
@@ -918,8 +934,22 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt)
 	 * removed, and the record must exist with a positioned cursor. The
 	 * cursor won't be positioned on a page with an external key set, but
 	 * be sure.
+	 *
+	 * There's trickiness in the page-pinned check. By definition a remove
+	 * operation leaves a cursor positioned if it's initially positioned.
+	 * However, if every item on the page is deleted and we unpin the page,
+	 * eviction might delete the page and our search will re-instantiate an
+	 * empty page for us. Cursor remove returns not-found whether or not
+	 * that eviction/deletion happens and it's OK unless cursor-overwrite
+	 * is configured (which means we return success even if there's no item
+	 * to delete). In that case, we'll fail when we try to point the cursor
+	 * at the key on the page to satisfy the positioned requirement. It's
+	 * arguably safe to simply leave the key initialized in the cursor (as
+	 * that's all a positioned cursor implies), but it's probably safer to
+	 * avoid page eviction entirely in the positioned case.
 	 */
-	if (__cursor_page_pinned(cbt) && F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
+	if (__cursor_page_pinned(cbt, !positioned) &&
+	    F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
 		WT_ERR(__wt_txn_autocommit_check(session));
 
 		/*
@@ -1061,7 +1091,8 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
 	 * cursor won't be positioned on a page with an external key set, but
 	 * be sure.
 	 */
-	if (__cursor_page_pinned(cbt) && F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
+	if (__cursor_page_pinned(cbt, true) &&
+	    F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
 		WT_ERR(__wt_txn_autocommit_check(session));
 
 		/*

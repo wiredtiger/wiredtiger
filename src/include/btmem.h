@@ -204,6 +204,8 @@ struct __wt_page_lookaside {
 	WT_DECL_TIMESTAMP(min_timestamp)	/* Min timestamp in lookaside */
 	WT_DECL_TIMESTAMP(onpage_timestamp)	/* Max timestamp on page */
 	bool las_skew_newest;			/* On-page skewed to newest */
+	bool invalid;				/* History is required correct
+						   reads */
 };
 
 /*
