@@ -165,8 +165,8 @@ __read_blocked(WT_SESSION_IMPL *session)
 void
 __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 {
-	struct timespec enter, leave;
 	WT_RWLOCK new, old;
+	uint64_t enter, leave;
 	int64_t **stats;
 	int16_t writers_active;
 	uint8_t ticket;
@@ -174,6 +174,7 @@ __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 	bool set_stats;
 
 	WT_STAT_CONN_INCR(session, rwlock_read);
+	enter = leave = 0;
 	stats = (int64_t **)S2C(session)->stats;
 	set_stats = (l->stat_read_count_off != -1 && WT_STAT_ENABLED(session));
 	if (set_stats)
@@ -236,7 +237,7 @@ stall:			__wt_cond_wait(session,
 	}
 
 	if (set_stats)
-		__wt_epoch(session, &enter);
+		enter = __wt_rdtsc(session);
 	/* Wait for our group to start. */
 	for (pause_cnt = 0; ticket != l->u.s.current; pause_cnt++) {
 		if (pause_cnt < 1000)
@@ -251,13 +252,14 @@ stall:			__wt_cond_wait(session,
 		}
 	}
 	if (set_stats) {
-		__wt_epoch(session, &leave);
+		leave = __wt_rdtsc(session);
+		WT_ASSERT(session, leave > enter);
 		if (F_ISSET(session, WT_SESSION_INTERNAL))
 			stats[session->stat_bucket][l->stat_int_usecs_off] +=
-			    (int64_t)WT_TIMEDIFF_US(leave, enter);
+			    (int64_t)WT_TSCDIFF_US(leave, enter);
 		else
 			stats[session->stat_bucket][l->stat_app_usecs_off] +=
-			    (int64_t)WT_TIMEDIFF_US(leave, enter);
+			    (int64_t)WT_TSCDIFF_US(leave, enter);
 	}
 
 	/*
@@ -362,13 +364,14 @@ __write_blocked(WT_SESSION_IMPL *session)
 void
 __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 {
-	struct timespec enter, leave;
 	WT_RWLOCK new, old;
+	uint64_t enter, leave;
 	int64_t **stats;
 	uint8_t ticket;
 	int pause_cnt;
 	bool set_stats;
 
+	enter = leave = 0;
 	WT_STAT_CONN_INCR(session, rwlock_write);
 	stats = (int64_t **)S2C(session)->stats;
 	set_stats = (l->stat_write_count_off != -1 && WT_STAT_ENABLED(session));
@@ -405,7 +408,7 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 	 * we have the lock.
 	 */
 	if (set_stats)
-		__wt_epoch(session, &enter);
+		enter = __wt_rdtsc(session);
 	for (pause_cnt = 0, old.u.v = l->u.v;
 	    ticket != old.u.s.current || old.u.s.readers_active != 0;
 	    pause_cnt++, old.u.v = l->u.v) {
@@ -421,13 +424,14 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 		}
 	}
 	if (set_stats) {
-		__wt_epoch(session, &leave);
+		leave = __wt_rdtsc(session);
+		WT_ASSERT(session, leave > enter);
 		if (F_ISSET(session, WT_SESSION_INTERNAL))
 			stats[session->stat_bucket][l->stat_int_usecs_off] +=
-			    (int64_t)WT_TIMEDIFF_US(leave, enter);
+			    (int64_t)WT_TSCDIFF_US(leave, enter);
 		else
 			stats[session->stat_bucket][l->stat_app_usecs_off] +=
-			    (int64_t)WT_TIMEDIFF_US(leave, enter);
+			    (int64_t)WT_TSCDIFF_US(leave, enter);
 	}
 
 	/*

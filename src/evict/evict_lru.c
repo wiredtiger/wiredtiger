@@ -2251,11 +2251,11 @@ __evict_get_ref(
 static int
 __evict_page(WT_SESSION_IMPL *session, bool is_server)
 {
-	struct timespec enter, leave;
 	WT_BTREE *btree;
 	WT_CACHE *cache;
 	WT_DECL_RET;
 	WT_REF *ref;
+	uint64_t enter, leave;
 	bool app_timer;
 
 	WT_TRACK_OP_INIT(session);
@@ -2264,6 +2264,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 	WT_ASSERT(session, ref->state == WT_REF_LOCKED);
 
 	app_timer = false;
+	enter = leave = 0;
 	cache = S2C(session)->cache;
 
 	/*
@@ -2283,7 +2284,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 		cache->app_evicts++;
 		if (WT_STAT_ENABLED(session)) {
 			app_timer = true;
-			__wt_epoch(session, &enter);
+			enter = __wt_rdtsc(session);
 		}
 	}
 
@@ -2303,9 +2304,9 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 	(void)__wt_atomic_subv32(&btree->evict_busy, 1);
 
 	if (app_timer) {
-		__wt_epoch(session, &leave);
-		WT_STAT_CONN_INCRV(session,
-		    application_evict_time, WT_TIMEDIFF_US(leave, enter));
+		leave = __wt_rdtsc(session);
+		WT_STAT_CONN_INCRV(session, application_evict_time,
+		    WT_TSCDIFF_US(leave, enter));
 	}
 	WT_TRACK_OP_END(session);
 	return (ret);
@@ -2320,13 +2321,12 @@ int
 __wt_cache_eviction_worker(
     WT_SESSION_IMPL *session, bool busy, bool readonly, u_int pct_full)
 {
-	struct timespec enter, leave;
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_STATE *txn_state;
-	uint64_t initial_progress, max_progress;
+	uint64_t enter, initial_progress, leave, max_progress;
 	bool timer;
 
 	WT_TRACK_OP_INIT(session);
@@ -2335,6 +2335,7 @@ __wt_cache_eviction_worker(
 	cache = conn->cache;
 	txn_global = &conn->txn_global;
 	txn_state = WT_SESSION_TXN_STATE(session);
+	enter = leave = 0;
 
 	/*
 	 * It is not safe to proceed if the eviction server threads aren't
@@ -2350,7 +2351,7 @@ __wt_cache_eviction_worker(
 	timer =
 	    WT_STAT_ENABLED(session) && !F_ISSET(session, WT_SESSION_INTERNAL);
 	if (timer)
-		__wt_epoch(session, &enter);
+		enter = __wt_rdtsc(session);
 
 	for (initial_progress = cache->eviction_progress;; ret = 0) {
 		/*
@@ -2417,9 +2418,9 @@ __wt_cache_eviction_worker(
 	}
 
 err:	if (timer) {
-		__wt_epoch(session, &leave);
-		WT_STAT_CONN_INCRV(session,
-		    application_cache_time, WT_TIMEDIFF_US(leave, enter));
+		leave = __wt_rdtsc(session);
+		WT_STAT_CONN_INCRV(session, application_cache_time,
+		    WT_TSCDIFF_US(leave, enter));
 	}
 
 done:	WT_TRACK_OP_END(session);

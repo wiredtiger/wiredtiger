@@ -65,6 +65,11 @@
 #define	WT_TIMEDIFF_SEC(end, begin)					\
 	(WT_TIMEDIFF_NS((end), (begin)) / WT_BILLION)
 
+#define	WT_TSCDIFF_NS(end, begin)					\
+	((uint64_t)(end) - (uint64_t)(begin))
+#define	WT_TSCDIFF_US(end, begin)					\
+	(WT_TSCDIFF_NS((end), (begin)) / WT_THOUSAND)
+
 #define	WT_TIMECMP(t1, t2)						\
 	((t1).tv_sec < (t2).tv_sec ? -1 :				\
 	     (t1).tv_sec == (t2).tv_sec ?				\
