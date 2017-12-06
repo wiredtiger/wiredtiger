@@ -293,6 +293,7 @@ struct __wt_connection_stats {
 	int64_t cache_write_app_count;
 	int64_t cache_write_app_time;
 	int64_t cache_bytes_image;
+	int64_t cache_bytes_lookaside;
 	int64_t cache_bytes_inuse;
 	int64_t cache_bytes_other;
 	int64_t cache_bytes_read;
@@ -341,6 +342,7 @@ struct __wt_connection_stats {
 	int64_t cache_eviction_internal;
 	int64_t cache_eviction_split_internal;
 	int64_t cache_eviction_split_leaf;
+	int64_t cache_lookaside_score;
 	int64_t cache_lookaside_entries;
 	int64_t cache_lookaside_insert;
 	int64_t cache_lookaside_remove;
@@ -535,6 +537,8 @@ struct __wt_connection_stats {
 	int64_t txn_pinned_range;
 	int64_t txn_pinned_checkpoint_range;
 	int64_t txn_pinned_snapshot_range;
+	int64_t txn_pinned_timestamp;
+	int64_t txn_pinned_timestamp_oldest;
 	int64_t txn_sync;
 	int64_t txn_commit_queue_head;
 	int64_t txn_commit_queue_inserts;

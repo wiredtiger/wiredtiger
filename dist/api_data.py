@@ -509,6 +509,19 @@ connection_runtime_config = [
     Config('lsm_merge', 'true', r'''
         merge LSM chunks where possible (deprecated)''',
         type='boolean', undoc=True),
+    Config('operation_tracking', '', r'''
+        enable tracking of performance-critical functions. See
+        @ref operation_tracking for more information''',
+        type='category', subconfig=[
+            Config('enabled', 'false', r'''
+                enable operation tracking subsystem''',
+                type='boolean'),
+            Config('path', '"."', r'''
+                the name of a directory into which operation tracking files are
+                written. The directory must already exist. If the value is not
+                an absolute path, the path is relative to the database home
+                (see @ref absolute_path for more information)'''),
+        ]),
     Config('shared_cache', '', r'''
         shared cache configuration options. A database should configure
         either a cache_size or a shared_cache not both. Enabling a
@@ -565,6 +578,7 @@ connection_runtime_config = [
             'api',
             'block',
             'checkpoint',
+            'checkpoint_progress',
             'compact',
             'evict',
             'evict_stuck',
@@ -572,6 +586,7 @@ connection_runtime_config = [
             'fileops',
             'handleops',
             'log',
+            'lookaside',
             'lookaside_activity',
             'lsm',
             'lsm_manager',
@@ -586,7 +601,6 @@ connection_runtime_config = [
             'salvage',
             'shared_cache',
             'split',
-            'temporary',
             'thread_group',
             'timestamp',
             'transaction',
@@ -1314,6 +1328,10 @@ methods = {
         where the application is rolling back locally committed transactions.
         The supplied value should not be older than the current oldest and
         stable timestamps.  See @ref transaction_timestamps'''),
+    Config('force', 'false', r'''
+        set timestamps even if they violate normal ordering requirements.
+        For example allow the \c oldest_timestamp to move backwards''',
+        type='boolean'),
     Config('oldest_timestamp', '', r'''
         future commits and queries will be no earlier than the specified
         timestamp.  Supplied values must be monotonically increasing, any

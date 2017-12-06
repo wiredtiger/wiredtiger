@@ -192,6 +192,11 @@ struct __wt_connection_impl {
 					/* Configuration */
 	const WT_CONFIG_ENTRY **config_entries;
 
+	const char *optrack_path;	/* Directory for operation logs */
+	WT_FH *optrack_map_fh;		/* Name to id translation file. */
+	WT_SPINLOCK optrack_map_spinlock; /* Translation file spinlock. */
+	uintmax_t optrack_pid;		/* Cache the process ID. */
+
 	void  **foc;			/* Free-on-close array */
 	size_t  foc_cnt;		/* Array entries */
 	size_t  foc_size;		/* Array size */
@@ -267,6 +272,15 @@ struct __wt_connection_impl {
 	uint64_t  ckpt_time_min;
 	uint64_t  ckpt_time_recent;	/* Checkpoint time recent/total */
 	uint64_t  ckpt_time_total;
+
+	/* Checkpoint stats and verbosity timers */
+	struct timespec ckpt_timer_start;
+	struct timespec ckpt_timer_scrub_end;
+
+	/* Checkpoint progress message data */
+	uint64_t ckpt_progress_msg_count;
+	uint64_t ckpt_write_bytes;
+	uint64_t ckpt_write_pages;
 
 	uint32_t stat_flags;		/* Options declared in flags.py */
 
@@ -348,23 +362,6 @@ struct __wt_connection_impl {
 	uint64_t         sweep_idle_time;  /* Handle sweep idle time */
 	uint64_t         sweep_interval;   /* Handle sweep interval */
 	uint64_t         sweep_handles_min;/* Handle sweep minimum open */
-
-	/*
-	 * Shared lookaside lock, session and cursor, used by threads accessing
-	 * the lookaside table (other than eviction server and worker threads
-	 * and the sweep thread, all of which have their own lookaside cursors).
-	 */
-	WT_SPINLOCK	 las_lock;	/* Lookaside table spinlock */
-	WT_SESSION_IMPL *las_session;	/* Lookaside table session */
-	uint32_t         las_fileid;    /* Lookaside table file ID */
-
-	/*
-	 * The "lookaside_activity" verbose messages are throttled to once per
-	 * checkpoint. To accomplish this we track the checkpoint generation
-	 * for the most recent read and write verbose messages.
-	 */
-	uint64_t las_verb_gen_read;
-	uint64_t las_verb_gen_write;
 
 	/* Set of btree IDs not being rolled back */
 	uint8_t *stable_rollback_bitstring;

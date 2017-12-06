@@ -484,18 +484,8 @@ static int
 __log_filename(WT_SESSION_IMPL *session,
     uint32_t id, const char *file_prefix, WT_ITEM *buf)
 {
-	const char *log_path;
-
-	log_path = S2C(session)->log_path;
-
-	if (log_path != NULL && log_path[0] != '\0')
-		WT_RET(__wt_buf_fmt(session, buf, "%s/%s.%010" PRIu32,
-		    log_path, file_prefix, id));
-	else
-		WT_RET(__wt_buf_fmt(session, buf, "%s.%010" PRIu32,
-		    file_prefix, id));
-
-	return (0);
+	return (__wt_filename_construct(session,
+		   S2C(session)->log_path, file_prefix, UINTMAX_MAX, id, buf));
 }
 
 /*
@@ -1012,6 +1002,7 @@ err:	__wt_scr_free(session, &buf);
 static int
 __log_alloc_prealloc(WT_SESSION_IMPL *session, uint32_t to_num)
 {
+	WT_CONNECTION_IMPL *conn;
 	WT_DECL_ITEM(from_path);
 	WT_DECL_ITEM(to_path);
 	WT_DECL_RET;
@@ -1023,7 +1014,8 @@ __log_alloc_prealloc(WT_SESSION_IMPL *session, uint32_t to_num)
 	/*
 	 * If there are no pre-allocated files, return WT_NOTFOUND.
 	 */
-	log = S2C(session)->log;
+	conn = S2C(session);
+	log = conn->log;
 	logfiles = NULL;
 	WT_ERR(__log_get_files(session, WT_LOG_PREPNAME, &logfiles, &logcount));
 	if (logcount == 0)
@@ -1137,7 +1129,14 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
 	 * If we need to create the log file, do so now.
 	 */
 	if (create_log) {
-		log->prep_missed++;
+		/*
+		 * Increment the missed pre-allocated file counter only
+		 * if a hot backup is not in progress. We are deliberately
+		 * not using pre-allocated log files during backup
+		 * (see comment above).
+		 */
+		if (!conn->hot_backup)
+			log->prep_missed++;
 		WT_RET(__wt_log_allocfile(
 		    session, log->fileid, WT_LOG_FILENAME));
 	}
@@ -1914,11 +1913,6 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 	if (func == NULL)
 		return (0);
 
-	if (LF_ISSET(WT_LOGSCAN_RECOVER))
-		__wt_verbose(session, WT_VERB_LOG,
-		    "__wt_log_scan truncating to %" PRIu32 "/%" PRIu32,
-		    log->trunc_lsn.l.file, log->trunc_lsn.l.offset);
-
 	if (lsnp != NULL &&
 	    LF_ISSET(WT_LOGSCAN_FIRST|WT_LOGSCAN_FROM_CKP))
 		WT_RET_MSG(session, WT_ERROR,
@@ -2042,8 +2036,13 @@ advance:
 			/*
 			 * Truncate this log file before we move to the next.
 			 */
-			if (LF_ISSET(WT_LOGSCAN_RECOVER))
+			if (LF_ISSET(WT_LOGSCAN_RECOVER) &&
+			    __wt_log_cmp(&rd_lsn, &log->trunc_lsn) < 0) {
+				__wt_verbose(session, WT_VERB_LOG,
+				    "Truncate end of log %" PRIu32 "/%" PRIu32,
+				    rd_lsn.l.file, rd_lsn.l.offset);
 				WT_ERR(__log_truncate(session, &rd_lsn, true));
+			}
 			/*
 			 * If we had a partial record, we'll want to break
 			 * now after closing and truncating.  Although for now
@@ -2228,7 +2227,7 @@ advance:
 	if (LF_ISSET(WT_LOGSCAN_RECOVER) &&
 	    __wt_log_cmp(&rd_lsn, &log->trunc_lsn) < 0) {
 		__wt_verbose(session, WT_VERB_LOG,
-		    "__wt_log_scan truncating to %" PRIu32 "/%" PRIu32,
+		    "End of recovery truncate end of log %" PRIu32 "/%" PRIu32,
 		    rd_lsn.l.file, rd_lsn.l.offset);
 		WT_ERR(__log_truncate(session, &rd_lsn, false));
 	}
@@ -2658,8 +2657,10 @@ __wt_log_flush(WT_SESSION_IMPL *session, uint32_t flags)
 	 * Wait until all current outstanding writes have been written
 	 * to the file system.
 	 */
-	while (__wt_log_cmp(&last_lsn, &lsn) > 0)
+	while (__wt_log_cmp(&last_lsn, &lsn) > 0) {
+		__wt_sleep(0, WT_THOUSAND);
 		WT_RET(__wt_log_flush_lsn(session, &lsn, false));
+	}
 
 	__wt_verbose(session, WT_VERB_LOG,
 	    "log_flush: flags %#" PRIx32 " LSN %" PRIu32 "/%" PRIu32,

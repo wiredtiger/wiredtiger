@@ -1084,6 +1084,8 @@ err:	/*
 			WT_TRET(wt_session->close(wt_session, config));
 		}
 
+	WT_TRET(__wt_async_flush(session));
+
 	/*
 	 * Disable lookaside eviction: it doesn't help us shut down and can
 	 * lead to pages being marked dirty, causing spurious assertions to
@@ -1808,6 +1810,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 		{ "api",		WT_VERB_API },
 		{ "block",		WT_VERB_BLOCK },
 		{ "checkpoint",		WT_VERB_CHECKPOINT },
+		{ "checkpoint_progress",WT_VERB_CHECKPOINT_PROGRESS },
 		{ "compact",		WT_VERB_COMPACT },
 		{ "evict",		WT_VERB_EVICT },
 		{ "evict_stuck",	WT_VERB_EVICT_STUCK },
@@ -1815,7 +1818,8 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 		{ "fileops",		WT_VERB_FILEOPS },
 		{ "handleops",		WT_VERB_HANDLEOPS },
 		{ "log",		WT_VERB_LOG },
-		{ "lookaside_activity",	WT_VERB_LOOKASIDE },
+		{ "lookaside",		WT_VERB_LOOKASIDE },
+		{ "lookaside_activity",	WT_VERB_LOOKASIDE_ACTIVITY },
 		{ "lsm",		WT_VERB_LSM },
 		{ "lsm_manager",	WT_VERB_LSM_MANAGER },
 		{ "metadata",		WT_VERB_METADATA },
@@ -1829,7 +1833,6 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 		{ "salvage",		WT_VERB_SALVAGE },
 		{ "shared_cache",	WT_VERB_SHARED_CACHE },
 		{ "split",		WT_VERB_SPLIT },
-		{ "temporary",		WT_VERB_TEMPORARY },
 		{ "thread_group",	WT_VERB_THREAD_GROUP },
 		{ "timestamp",		WT_VERB_TIMESTAMP },
 		{ "transaction",	WT_VERB_TRANSACTION },
@@ -2496,6 +2499,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	}
 	WT_ERR(__wt_verbose_config(session, cfg));
 	WT_ERR(__wt_timing_stress_config(session, cfg));
+
+	/* Set up operation tracking if configured. */
+	WT_ERR(__wt_conn_optrack_setup(session, cfg, false));
 
 	WT_ERR(__wt_config_gets(session, cfg, "session_max", &cval));
 	conn->session_size = (uint32_t)cval.val + WT_EXTRA_INTERNAL_SESSIONS;

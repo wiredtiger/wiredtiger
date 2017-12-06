@@ -167,11 +167,12 @@ struct __wt_ovfl_reuse {
  * are written into a lookaside table, and restored as necessary if the page is
  * read.
  *
- * The key is a unique marker for the page (a file ID plus a page ID), a
- * counter (used to ensure the update records remain in the original order),
- * and the record's key (byte-string for row-store, record number for
- * column-store).  The value is the WT_UPDATE structure's transaction ID,
- * timestamp, update type and value.
+ * The key is a unique marker for the page (a page ID plus a file ID, ordered
+ * this way so that overall the lookaside table is append-mostly), a counter
+ * (used to ensure the update records remain in the original order), and the
+ * record's key (byte-string for row-store, record number for column-store).
+ * The value is the WT_UPDATE structure's transaction ID, timestamp, update
+ * type and value.
  *
  * As the key for the lookaside table is different for row- and column-store, we
  * store both key types in a WT_ITEM, building/parsing them in the code, because
@@ -181,9 +182,29 @@ struct __wt_ovfl_reuse {
  * makes the lookaside table's value more likely to overflow the page size when
  * the row-store key is relatively large.
  */
-#define	WT_LAS_FORMAT							\
-    "key_format=" WT_UNCHECKED_STRING(IQQu)				\
-    ",value_format=" WT_UNCHECKED_STRING(QuBu)
+#ifdef HAVE_BUILTIN_EXTENSION_SNAPPY
+#define	WT_LOOKASIDE_COMPRESSOR	"snappy"
+#else
+#define	WT_LOOKASIDE_COMPRESSOR	"none"
+#endif
+#define	WT_LAS_CONFIG							\
+    "key_format=" WT_UNCHECKED_STRING(QIQu)				\
+    ",value_format=" WT_UNCHECKED_STRING(QuBu)				\
+    ",block_compressor=" WT_LOOKASIDE_COMPRESSOR			\
+    ",leaf_value_max=64MB"
+
+/*
+ * WT_PAGE_LOOKASIDE --
+ *	Related information for on-disk pages with lookaside entries.
+ */
+struct __wt_page_lookaside {
+	uint64_t las_pageid;			/* Page ID in lookaside */
+	uint64_t las_max_txn;			/* Maximum transaction ID in
+						   lookaside */
+	WT_DECL_TIMESTAMP(min_timestamp)	/* Min timestamp in lookaside */
+	WT_DECL_TIMESTAMP(onpage_timestamp)	/* Max timestamp on page */
+	bool las_skew_newest;			/* On-page skewed to newest */
+};
 
 /*
  * WT_PAGE_MODIFY --
@@ -194,7 +215,9 @@ struct __wt_page_modify {
 	uint64_t first_dirty_txn;
 
 	/* The transaction state last time eviction was attempted. */
+	uint64_t last_evict_pass_gen;
 	uint64_t last_eviction_id;
+	WT_DECL_TIMESTAMP(last_eviction_timestamp)
 
 #ifdef HAVE_DIAGNOSTIC
 	/* Check that transaction time moves forward. */
@@ -203,6 +226,7 @@ struct __wt_page_modify {
 
 	/* Avoid checking for obsolete updates during checkpoints. */
 	uint64_t obsolete_check_txn;
+	WT_DECL_TIMESTAMP(obsolete_check_timestamp)
 
 	/* The largest transaction seen on the page by reconciliation. */
 	uint64_t rec_max_txn;
@@ -241,17 +265,14 @@ struct __wt_page_modify {
 		void	*disk_image;
 
 		/* The page has lookaside entries. */
-		uint64_t las_pageid;
-		WT_DECL_TIMESTAMP(las_min_timestamp)
+		WT_PAGE_LOOKASIDE page_las;
 	} r;
 #undef	mod_replace
 #define	mod_replace	u1.r.replace
 #undef	mod_disk_image
 #define	mod_disk_image	u1.r.disk_image
-#undef	mod_replace_las_pageid
-#define	mod_replace_las_pageid	u1.r.las_pageid
-#undef	mod_replace_las_min_timestamp
-#define	mod_replace_las_min_timestamp	u1.r.las_min_timestamp
+#undef	mod_page_las
+#define	mod_page_las	u1.r.page_las
 
 	struct {			/* Multiple replacement blocks */
 	struct __wt_multi {
@@ -297,8 +318,7 @@ struct __wt_page_modify {
 		uint32_t size;
 		uint32_t checksum;
 
-		uint64_t las_pageid;
-		WT_DECL_TIMESTAMP(las_min_timestamp)
+		WT_PAGE_LOOKASIDE page_las;
 	} *multi;
 	uint32_t multi_entries;		/* Multiple blocks element count */
 	} m;
@@ -718,16 +738,6 @@ struct __wt_page_deleted {
 	WT_DECL_TIMESTAMP(timestamp)
 
 	WT_UPDATE **update_list;		/* List of updates for abort */
-};
-
-/*
- * WT_PAGE_LOOKASIDE --
- *	Related information for on-disk pages with lookaside entries.
- */
-struct __wt_page_lookaside {
-	uint64_t las_pageid;			/* Page ID in lookaside */
-	WT_DECL_TIMESTAMP(min_timestamp)	/* Oldest timestamp in
-						   lookaside for the page */
 };
 
 /*

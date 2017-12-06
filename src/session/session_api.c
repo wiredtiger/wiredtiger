@@ -191,6 +191,24 @@ __session_close(WT_SESSION *wt_session, const char *config)
 	/* Free transaction information. */
 	__wt_txn_destroy(session);
 
+	/*
+	 * Close the file where we tracked long operations.  Do this before
+	 * releasing resources, as we do scratch buffer management when we flush
+	 * optrack buffers to disk
+	 */
+	if (F_ISSET(conn, WT_CONN_OPTRACK)) {
+		if (session->optrackbuf_ptr > 0) {
+			WT_IGNORE_RET((int)__wt_optrack_flush_buffer(session));
+			WT_IGNORE_RET(__wt_close(session,
+			    &session->optrack_fh));
+			/* Indicate that the file is closed */
+			session->optrack_fh = NULL;
+		}
+
+		/* Free the operation tracking buffer */
+		__wt_free(session, session->optrack_buf);
+	}
+
 	/* Release common session resources. */
 	WT_TRET(__wt_session_release_resources(session));
 
@@ -259,9 +277,9 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 	ret = __wt_config_getones(session, config, "ignore_cache_size", &cval);
 	if (ret == 0) {
 		if (cval.val)
-			F_SET(session, WT_SESSION_NO_EVICTION);
+			F_SET(session, WT_SESSION_IGNORE_CACHE_SIZE);
 		else
-			F_CLR(session, WT_SESSION_NO_EVICTION);
+			F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
 	}
 	WT_ERR_NOTFOUND_OK(ret);
 
@@ -1489,7 +1507,12 @@ __session_timestamp_transaction(WT_SESSION *wt_session, const char *config)
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)wt_session;
+#ifdef HAVE_DIAGNOSTIC
 	SESSION_API_CALL(session, timestamp_transaction, config, cfg);
+#else
+	SESSION_API_CALL(session, timestamp_transaction, NULL, cfg);
+	cfg[1] = config;
+#endif
 	WT_TRET(__wt_txn_set_timestamp(session, cfg));
 err:	API_END_RET(session, ret);
 }
@@ -1899,6 +1922,12 @@ __open_session(WT_CONNECTION_IMPL *conn,
 	/* Cache the offset of this session's statistics bucket. */
 	session_ret->stat_bucket = WT_STATS_SLOT_ID(session);
 
+	/* Allocate the buffer for operation tracking */
+	if (F_ISSET(conn, WT_CONN_OPTRACK)) {
+		WT_ERR(__wt_malloc(session, WT_OPTRACK_BUFSIZE,
+				   &session_ret->optrack_buf));
+		session_ret->optrackbuf_ptr = 0;
+	}
 	/*
 	 * Configuration: currently, the configuration for open_session is the
 	 * same as session.reconfigure, so use that function.

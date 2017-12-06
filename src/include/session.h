@@ -96,6 +96,12 @@ struct __wt_session_impl {
 	size_t	  scratch_cached;	/* Scratch bytes cached */
 #ifdef HAVE_DIAGNOSTIC
 	/*
+	 * Variables used to look for violations of the contract that a
+	 * session is only used by a single session at once.
+	 */
+	volatile uintmax_t api_tid;
+	volatile uint32_t api_enter_refcnt;
+	/*
 	 * It's hard to figure out from where a buffer was allocated after it's
 	 * leaked, so in diagnostic mode we track them; DIAGNOSTIC can't simply
 	 * add additional fields to WT_ITEM structures because they are visible
@@ -207,4 +213,12 @@ struct __wt_session_impl {
 	uint32_t   hazard_inuse;	/* Hazard pointer array slots in-use */
 	uint32_t   nhazard;		/* Count of active hazard pointers */
 	WT_HAZARD *hazard;		/* Hazard pointer array */
+
+	/*
+	 * Operation tracking.
+	 */
+	WT_OPTRACK_RECORD *optrack_buf;
+	u_int optrackbuf_ptr;
+	uint64_t optrack_offset;
+	WT_FH *optrack_fh;
 };
