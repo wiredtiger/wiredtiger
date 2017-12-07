@@ -38,8 +38,6 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
 int
 __wt_block_compact_end(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
-	WT_UNUSED(session);
-
 	/* Restore the original allocation plan. */
 	__wt_block_configure_first_fit(block, false);
 
