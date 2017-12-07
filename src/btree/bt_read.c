@@ -144,7 +144,7 @@ __las_page_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 
 	skip = false;
 
-	if ((previous_state = ref->state) != WT_REF_AMNESIA &&
+	if ((previous_state = ref->state) != WT_REF_LIMBO &&
 	    previous_state != WT_REF_LOOKASIDE)
 		return (false);
 
@@ -435,8 +435,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	case WT_REF_DISK:
 		new_state = WT_REF_READING;
 		break;
-	case WT_REF_AMNESIA:
 	case WT_REF_DELETED:
+	case WT_REF_LIMBO:
 	case WT_REF_LOOKASIDE:
 		new_state = WT_REF_LOCKED;
 		break;
@@ -454,7 +454,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	 * We need exclusive access because other threads could be reading the
 	 * page without history and we can't change the state underneath them.
 	 */
-	if (previous_state == WT_REF_AMNESIA) {
+	if (previous_state == WT_REF_LIMBO) {
 		if (__wt_hazard_check(session, ref) != NULL)
 			goto err;
 		goto skip_read;
@@ -524,13 +524,13 @@ skip_read:
 	if (previous_state == WT_REF_LOOKASIDE &&
 	    __las_page_skip_locked(session, ref)) {
 		WT_STAT_CONN_INCR(session, cache_read_lookaside_skipped);
-		final_state = WT_REF_AMNESIA;
-	} else if (previous_state == WT_REF_AMNESIA ||
+		final_state = WT_REF_LIMBO;
+	} else if (previous_state == WT_REF_LIMBO ||
 	    previous_state == WT_REF_LOOKASIDE) {
 		WT_ASSERT(session, (ref->page->dsk == NULL ||
 		    F_ISSET(ref->page->dsk, WT_PAGE_LAS_UPDATE)));
 
-		if (previous_state == WT_REF_AMNESIA)
+		if (previous_state == WT_REF_LIMBO)
 			WT_STAT_CONN_INCR(session, cache_read_lookaside_delay);
 		__btree_verbose_lookaside_read(
 		    session, btree->id, ref->page_las->las_pageid);
@@ -556,7 +556,7 @@ err:	/*
 	 * it discarded the page, but not the disk image.  Discard the page
 	 * and separately discard the disk image in all cases.
 	 */
-	if (ref->page != NULL && previous_state != WT_REF_AMNESIA)
+	if (ref->page != NULL && previous_state != WT_REF_LIMBO)
 		__wt_ref_out(session, ref);
 	WT_PUBLISH(ref->state, previous_state);
 
@@ -675,7 +675,7 @@ read:			/*
 			break;
 		case WT_REF_SPLIT:
 			return (WT_RESTART);
-		case WT_REF_AMNESIA:
+		case WT_REF_LIMBO:
 			if (((!LF_ISSET(WT_READ_CACHE) ||
 			    LF_ISSET(WT_READ_LOOKASIDE)) &&
 			    !__las_page_skip(session, ref)) ||

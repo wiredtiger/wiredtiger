@@ -269,7 +269,7 @@ __evict_page_clean_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 	 * an address, it's a disk page; if it has no address, it's a deleted
 	 * page re-instantiated (for example, by searching) and never written.
 	 *
-	 * If evict a WT_REF_AMNESIA reference, we get to here and should
+	 * If evict a WT_REF_LIMBO reference, we get to here and should
 	 * transition back to WT_REF_LOOKASIDE.
 	 */
 	__wt_ref_out(session, ref);

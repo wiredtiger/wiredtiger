@@ -1754,7 +1754,7 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 			 */
 			break;
 
-		case WT_REF_AMNESIA:
+		case WT_REF_LIMBO:
 		case WT_REF_LOOKASIDE:
 			/*
 			 * On disk, with lookaside updates.

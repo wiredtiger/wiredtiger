@@ -471,7 +471,7 @@ restart:	/*
 				 */
 				if (LF_ISSET(WT_READ_NO_WAIT) &&
 				    ref->state != WT_REF_MEM &&
-				    ref->state != WT_REF_AMNESIA)
+				    ref->state != WT_REF_LIMBO)
 					break;
 
 				/* Skip lookaside pages if not requested. */
