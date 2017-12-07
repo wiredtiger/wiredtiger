@@ -1477,8 +1477,11 @@ __split_multi_inmem(
 			    session, key, ref, &cbt, true, true));
 
 			/*
+			 * On-page keys should return an exact match.
 			 * Birthmarks should only be applied to on-page values.
 			 */
+			WT_ASSERT(session,
+			    cbt.compare == 0 || supd->ins != NULL);
 			WT_ASSERT(session, cbt.compare == 0 ||
 			    upd->type != WT_UPDATE_BIRTHMARK);
 
