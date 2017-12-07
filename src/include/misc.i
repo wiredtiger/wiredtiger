@@ -30,6 +30,28 @@ __wt_hex(int c)
 }
 
 /*
+ * __wt_rdtsc --
+ *      Get a timestamp from CPU registers.
+ */
+static inline uint64_t
+__wt_rdtsc(WT_SESSION_IMPL *session) {
+#if (defined __i386)
+	uint64_t x;
+	WT_UNUSED(session);
+	__asm__ volatile ("rdtsc" : "=A" (x));
+	return (x);
+
+#elif (defined __amd64)
+	uint64_t a, d;
+	WT_UNUSED(session);
+	__asm__ volatile ("rdtsc" : "=a" (a), "=d" (d));
+	return (d<<32) | a;
+#else
+	return __wt_optrack_get_expensive_timestamp(session);
+#endif
+}
+
+/*
  * __wt_strdup --
  *	ANSI strdup function.
  */
@@ -38,6 +60,20 @@ __wt_strdup(WT_SESSION_IMPL *session, const char *str, void *retp)
 {
 	return (__wt_strndup(
 	    session, str, (str == NULL) ? 0 : strlen(str), retp));
+}
+
+/*
+ * __wt_strnlen --
+ *      Determine the length of a fixed-size string
+ */
+static inline size_t
+__wt_strnlen(const char *s, size_t maxlen)
+{
+	size_t i;
+
+	for (i = 0; i < maxlen && *s != '\0'; i++, s++)
+		;
+	return (i);
 }
 
 /*

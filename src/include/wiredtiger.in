@@ -1320,6 +1320,20 @@ struct __wt_session {
 	 * for chunks to be temporarily larger than this value.  This overrides
 	 * the \c memory_page_max setting., an integer between 512K and 500MB;
 	 * default \c 10MB.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;merge_custom = (,
+	 * configure the tree to merge into a custom data source., a set of
+	 * related configuration options defined below.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;prefix,
+	 * custom data source prefix instead of \c "file"., a string; default
+	 * empty.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;start
+	 * _generation, merge generation at which the custom data source is used
+	 * (zero indicates no custom data source)., an integer between 0 and 10;
+	 * default \c 0.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;suffix,
+	 * custom data source suffix instead of \c ".lsm"., a string; default
+	 * empty.}
+	 * @config{ ),,}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;merge_max, the
 	 * maximum number of chunks to include in a merge operation., an integer
 	 * between 2 and 100; default \c 15.}
@@ -2137,6 +2151,17 @@ struct __wt_connection {
 	 * thread uses a session handle from the configured session_max., an
 	 * integer between 3 and 20; default \c 4.}
 	 * @config{ ),,}
+	 * @config{operation_tracking = (, enable tracking of
+	 * performance-critical functions.  See @ref operation_tracking for more
+	 * information., a set of related configuration options defined below.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable operation tracking
+	 * subsystem., a boolean flag; default \c false.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the name of a directory into
+	 * which operation tracking files are written.  The directory must
+	 * already exist.  If the value is not an absolute path\, the path is
+	 * relative to the database home (see @ref absolute_path for more
+	 * information)., a string; default \c ".".}
+	 * @config{ ),,}
 	 * @config{shared_cache = (, shared cache configuration options.  A
 	 * database should configure either a cache_size or a shared_cache not
 	 * both.  Enabling a shared cache uses a session from the configured
@@ -2341,6 +2366,9 @@ struct __wt_connection {
 	 * supplied value should not be older than the current oldest and stable
 	 * timestamps.  See @ref transaction_timestamps., a string; default
 	 * empty.}
+	 * @config{force, set timestamps even if they violate normal ordering
+	 * requirements.  For example allow the \c oldest_timestamp to move
+	 * backwards., a boolean flag; default \c false.}
 	 * @config{oldest_timestamp, future commits and queries will be no
 	 * earlier than the specified timestamp.  Supplied values must be
 	 * monotonically increasing\, any attempt to set the value to older than
@@ -2756,6 +2784,16 @@ struct __wt_connection {
  * start an RPC server for primary processes and use RPC for secondary
  * processes). <b>Not yet supported in WiredTiger</b>., a boolean flag; default
  * \c false.}
+ * @config{operation_tracking = (, enable tracking of performance-critical
+ * functions.  See @ref operation_tracking for more information., a set of
+ * related configuration options defined below.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable operation tracking
+ * subsystem., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the name of a directory into which
+ * operation tracking files are written.  The directory must already exist.  If
+ * the value is not an absolute path\, the path is relative to the database home
+ * (see @ref absolute_path for more information)., a string; default \c ".".}
+ * @config{ ),,}
  * @config{readonly, open connection in read-only mode.  The database must
  * exist.  All methods that may modify a database are disabled.  See @ref
  * readonly for more information., a boolean flag; default \c false.}
@@ -3861,6 +3899,14 @@ struct __wt_data_source {
 	    const char *uri, WT_CONFIG_ARG *config);
 
 	/*!
+	 * Callback to get the size of an object.
+	 *
+	 * @snippet ex_data_source.c WT_DATA_SOURCE size
+	 */
+	int (*size)(WT_DATA_SOURCE *dsrc, WT_SESSION *session,
+	    const char *uri, wt_off_t *size);
+
+	/*!
 	 * Callback to truncate an object.
 	 *
 	 * @snippet ex_data_source.c WT_DATA_SOURCE truncate
@@ -3901,6 +3947,17 @@ struct __wt_data_source {
 	 * @snippet ex_data_source.c WT_DATA_SOURCE terminate
 	 */
 	int (*terminate)(WT_DATA_SOURCE *dsrc, WT_SESSION *session);
+
+	/*!
+	 * If non-NULL, a callback performed before an LSM merge.
+	 *
+	 * @param[in] source a cursor configured with the data being merged
+	 * @param[in] dest a cursor on the new object being filled by the merge
+	 *
+	 * @snippet ex_data_source.c WT_DATA_SOURCE lsm_pre_merge
+	 */
+	int (*lsm_pre_merge)(
+	    WT_DATA_SOURCE *dsrc, WT_CURSOR *source, WT_CURSOR *dest);
 };
 
 /*!
