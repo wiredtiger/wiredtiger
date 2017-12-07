@@ -387,8 +387,10 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	 * have a snapshot.  This doesn't apply to checkpoints: there are
 	 * (rare) cases where we write data at read-uncommitted isolation.
 	 */
-	WT_ASSERT(session, !LF_ISSET(WT_REC_UPDATE_RESTORE) ||
-	    LF_ISSET(WT_REC_VISIBLE_ALL));
+	WT_ASSERT(session,
+	    !LF_ISSET(WT_REC_LOOKASIDE) || !LF_ISSET(WT_REC_UPDATE_RESTORE));
+	WT_ASSERT(session,
+	    !LF_ISSET(WT_REC_UPDATE_RESTORE) || LF_ISSET(WT_REC_VISIBLE_ALL));
 	WT_ASSERT(session, !LF_ISSET(WT_REC_EVICT) ||
 	    LF_ISSET(WT_REC_VISIBLE_ALL) ||
 	    F_ISSET(&session->txn, WT_TXN_HAS_SNAPSHOT));
@@ -1291,7 +1293,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	wt_timestamp_t *timestampp;
 	size_t upd_memsize;
 	uint64_t max_txn, txnid;
-	bool all_visible, uncommitted;
+	bool all_visible, skipped_birthmark, uncommitted;
 
 #ifdef HAVE_TIMESTAMPS
 	WT_UPDATE *first_ts_upd;
@@ -1306,7 +1308,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	first_txn_upd = NULL;
 	upd_memsize = 0;
 	max_txn = WT_TXN_NONE;
-	uncommitted = false;
+	skipped_birthmark = uncommitted = false;
 
 	/*
 	 * If called with a WT_INSERT item, use its WT_UPDATE list (which must
@@ -1400,6 +1402,9 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 				return (EBUSY);
 			}
 
+			if (upd->type == WT_UPDATE_BIRTHMARK)
+				skipped_birthmark = true;
+
 			continue;
 		}
 
@@ -1472,11 +1477,15 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	    __wt_txn_visible(session, max_txn, timestampp));
 
 	/*
-	 * If the update we chose was a birthmark, the original on-page value
-	 * should be used.
+	 * If the update we chose was a birthmark, or doing update-restore and
+	 * we skipped a birthmark, the original on-page value must be retained.
 	 */
-	if (*updp != NULL && (*updp)->type == WT_UPDATE_BIRTHMARK)
-		*updp = NULL;
+	if (*updp != NULL) {
+		if ((*updp)->type == WT_UPDATE_BIRTHMARK)
+			*updp = NULL;
+		if (F_ISSET(r, WT_REC_UPDATE_RESTORE) && skipped_birthmark)
+			*updp = NULL;
+	}
 
 	if (all_visible)
 		goto check_original_value;
@@ -5492,8 +5501,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 					    val->len = val->buf.size = 0;
 				} else {
 					WT_ERR(__rec_cell_build_val(session, r,
-					    upd->data, upd->size,
-					    (uint64_t)0));
+					    upd->data, upd->size, (uint64_t)0));
 					dictionary = true;
 				}
 				break;
