@@ -146,7 +146,14 @@ class test_compact02(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # 5. Call compact.
-        self.session.compact(self.uri, None)
+        # Compact can collide with eviction, if that happens we retry.
+        for i in range(1, 5):
+            try:
+                self.session.compact(self.uri, None)
+            except wiredtiger.WiredTigerError:
+                time.sleep(2)
+            else:
+                break
 
         # 6. Get stats on compacted table.
         sz = self.getSize()
