@@ -40,9 +40,9 @@ typedef struct {
 
 	/*
 	 * Track the oldest running transaction and whether to skew lookaside
-	 * to the newest or oldest update.
+	 * to the newest update.
 	 */
-	bool las_skew_oldest;
+	bool las_skew_newest;
 	uint64_t last_running;
 
 	/* Track the page's min/maximum transactions. */
@@ -420,8 +420,16 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	}
 
 	oldest_id = __wt_txn_oldest_id(session);
-	if (LF_ISSET(WT_REC_EVICT))
+	if (LF_ISSET(WT_REC_EVICT)) {
 		mod->last_eviction_id = oldest_id;
+#ifdef HAVE_TIMESTAMPS
+		WT_WITH_TIMESTAMP_READLOCK(session,
+		    &S2C(session)->txn_global.rwlock,
+		    __wt_timestamp_set(&mod->last_eviction_timestamp,
+		    &S2C(session)->txn_global.pinned_timestamp));
+#endif
+		mod->last_evict_pass_gen = S2C(session)->cache->evict_pass_gen;
+	}
 
 #ifdef HAVE_DIAGNOSTIC
 	/*
@@ -855,10 +863,11 @@ __rec_raw_compression_config(WT_SESSION_IMPL *session,
 
 	/*
 	 * XXX
-	 * Turn off if lookaside is configured: lookaside potentially writes
-	 * blocks without entries and raw compression isn't ready for that.
+	 * Turn off if lookaside or update/restore are configured: those modes
+	 * potentially write blocks without entries and raw compression isn't
+	 * ready for that.
 	 */
-	if (LF_ISSET(WT_REC_LOOKASIDE))
+	if (LF_ISSET(WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE))
 		return (false);
 
 	/*
@@ -898,6 +907,7 @@ __rec_init(WT_SESSION_IMPL *session,
 	WT_PAGE *page;
 	WT_RECONCILE *r;
 	WT_TXN_GLOBAL *txn_global;
+	bool las_skew_oldest;
 
 	btree = S2BT(session);
 	page = ref->page;
@@ -943,10 +953,13 @@ __rec_init(WT_SESSION_IMPL *session,
 	 */
 	txn_global = &S2C(session)->txn_global;
 	if (__wt_btree_immediately_durable(session))
-		r->las_skew_oldest = false;
+		las_skew_oldest = false;
 	else
-		WT_ORDERED_READ(r->las_skew_oldest,
+		WT_ORDERED_READ(las_skew_oldest,
 		    txn_global->has_stable_timestamp);
+	r->las_skew_newest = LF_ISSET(WT_REC_LOOKASIDE) &&
+	    LF_ISSET(WT_REC_VISIBLE_ALL) && !las_skew_oldest;
+
 	WT_ORDERED_READ(r->last_running, txn_global->last_running);
 
 	/*
@@ -1242,7 +1255,8 @@ err:	__wt_scr_free(session, &tmp);
  */
 static int
 __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
-    WT_INSERT *ins, void *ripcip, WT_CELL_UNPACK *vpack, WT_UPDATE **updp)
+    WT_INSERT *ins, void *ripcip, WT_CELL_UNPACK *vpack,
+    bool *upd_savedp, WT_UPDATE **updp)
 {
 	WT_PAGE *page;
 	WT_UPDATE *first_txn_upd, *first_upd, *upd;
@@ -1256,6 +1270,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	first_ts_upd = NULL;
 #endif
 
+	if (upd_savedp != NULL)
+		*upd_savedp = false;
 	*updp = NULL;
 
 	page = r->page;
@@ -1332,8 +1348,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 * version (but we save enough information that checkpoint can
 		 * fix things up if we choose an update that is too new).
 		 */
-		if (*updp == NULL && F_ISSET(r, WT_REC_LOOKASIDE) &&
-		    F_ISSET(r, WT_REC_VISIBLE_ALL) && !r->las_skew_oldest)
+		if (*updp == NULL && r->las_skew_newest)
 			*updp = upd;
 
 		if (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
@@ -1468,6 +1483,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 * unresolved updates, move the entire update list.
 	 */
 	WT_RET(__rec_update_save(session, r, ins, ripcip, *updp, upd_memsize));
+	if (upd_savedp != NULL)
+		*upd_savedp = true;
 
 #ifdef HAVE_TIMESTAMPS
 	/* Track the oldest saved timestamp for lookaside. */
@@ -1498,13 +1515,17 @@ check_original_value:
 	/*
 	 * Returning an update means the original on-page value might be lost,
 	 * and that's a problem if there's a reader that needs it. There are
-	 * three cases: any update from a modify operation (because the modify
-	 * has to be applied to a stable update, not the new on-page update),
-	 * any lookaside table eviction (because the backing disk image is
-	 * rewritten), or any reconciliation of a backing overflow record that
-	 * will be physically removed once it's no longer needed.
+	 * several cases:
+	 * - any update with no backing record (because we will store an empty
+	 *   value on page and returning that is wrong).
+	 * - any update from a modify operation (because the modify has to be
+	 *   applied to a stable update, not the new on-page update),
+	 * - any lookaside table eviction (because the backing disk image is
+	 *   rewritten),
+	 * - or any reconciliation of a backing overflow record that will be
+	 *   physically removed once it's no longer needed.
 	 */
-	if (*updp != NULL && ((*updp)->type == WT_UPDATE_MODIFIED ||
+	if (*updp != NULL && (!WT_UPDATE_DATA_VALUE(*updp) ||
 	    F_ISSET(r, WT_REC_LOOKASIDE) || (vpack != NULL &&
 	    vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)))
 		WT_RET(
@@ -3367,7 +3388,7 @@ __rec_split_write_supd(WT_SESSION_IMPL *session,
 	}
 
 done:	/* Track the oldest timestamp seen so far. */
-	multi->page_las.las_skew_oldest = r->las_skew_oldest;
+	multi->page_las.las_skew_newest = r->las_skew_newest;
 	multi->page_las.las_max_txn = r->max_txn;
 	WT_ASSERT(session, r->max_txn != WT_TXN_NONE);
 #ifdef HAVE_TIMESTAMPS
@@ -4199,7 +4220,7 @@ __rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 
 	/* Update any changes to the original on-page data items. */
 	WT_SKIP_FOREACH(ins, WT_COL_UPDATE_SINGLE(page)) {
-		WT_RET(__rec_txn_read(session, r, ins, NULL, NULL, &upd));
+		WT_RET(__rec_txn_read(session, r, ins, NULL, NULL, NULL, &upd));
 		if (upd != NULL)
 			__bit_setv(r->first_free,
 			    WT_INSERT_RECNO(ins) - pageref->ref_recno,
@@ -4243,8 +4264,8 @@ __rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 				break;
 			upd = NULL;
 		} else {
-			WT_RET(
-			    __rec_txn_read(session, r, ins, NULL, NULL, &upd));
+			WT_RET(__rec_txn_read(
+			    session, r, ins, NULL, NULL, NULL, &upd));
 			recno = WT_INSERT_RECNO(ins);
 		}
 		for (;;) {
@@ -4595,7 +4616,7 @@ record_loop:	/*
 			upd = NULL;
 			if (ins != NULL && WT_INSERT_RECNO(ins) == src_recno) {
 				WT_ERR(__rec_txn_read(
-				    session, r, ins, cip, vpack, &upd));
+				    session, r, ins, cip, vpack, NULL, &upd));
 				ins = WT_SKIP_NEXT(ins);
 			}
 
@@ -4610,8 +4631,9 @@ record_loop:	/*
 					break;
 				case WT_UPDATE_MODIFIED:
 					cbt->slot = WT_COL_SLOT(page, cip);
-					WT_ERR(__wt_value_return(
-					    session, cbt, upd));
+					WT_ERR(__wt_value_return_upd(
+					    session, cbt, upd,
+					    F_ISSET(r, WT_REC_VISIBLE_ALL)));
 					data = cbt->iface.value.data;
 					size = (uint32_t)cbt->iface.value.size;
 					update_no_copy = false;
@@ -4812,8 +4834,8 @@ compare:		/*
 
 			upd = NULL;
 		} else {
-			WT_ERR(
-			    __rec_txn_read(session, r, ins, NULL, NULL, &upd));
+			WT_ERR(__rec_txn_read(
+			    session, r, ins, NULL, NULL, NULL, &upd));
 			n = WT_INSERT_RECNO(ins);
 		}
 		while (src_recno <= n) {
@@ -4854,8 +4876,9 @@ compare:		/*
 					 * on-page item.
 					 */
 					cbt->slot = UINT32_MAX;
-					WT_ERR(__wt_value_return(
-					    session, cbt, upd));
+					WT_ERR(__wt_value_return_upd(
+					    session, cbt, upd,
+					    F_ISSET(r, WT_REC_VISIBLE_ALL)));
 					data = cbt->iface.value.data;
 					size = (uint32_t)cbt->iface.value.size;
 					update_no_copy = false;
@@ -5311,7 +5334,8 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 			vpack = &_vpack;
 			__wt_cell_unpack(val_cell, vpack);
 		}
-		WT_ERR(__rec_txn_read(session, r, NULL, rip, vpack, &upd));
+		WT_ERR(__rec_txn_read(
+		    session, r, NULL, rip, vpack, NULL, &upd));
 
 		/* Build value cell. */
 		dictionary = false;
@@ -5451,7 +5475,9 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 				goto leaf_insert;
 			case WT_UPDATE_MODIFIED:
 				cbt->slot = WT_ROW_SLOT(page, rip);
-				WT_ERR(__wt_value_return(session, cbt, upd));
+				WT_ERR(__wt_value_return_upd(
+				    session, cbt, upd,
+				    F_ISSET(r, WT_REC_VISIBLE_ALL)));
 				WT_ERR(__rec_cell_build_val(session, r,
 				    cbt->iface.value.data,
 				    cbt->iface.value.size, (uint64_t)0));
@@ -5625,7 +5651,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 	WT_CURSOR_BTREE *cbt;
 	WT_KV *key, *val;
 	WT_UPDATE *upd;
-	bool ovfl_key;
+	bool ovfl_key, upd_saved;
 
 	btree = S2BT(session);
 	cbt = &r->update_modify_cbt;
@@ -5634,11 +5660,32 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 	val = &r->v;
 
 	for (; ins != NULL; ins = WT_SKIP_NEXT(ins)) {
-		WT_RET(__rec_txn_read(session, r, ins, NULL, NULL, &upd));
+		WT_RET(__rec_txn_read(
+		    session, r, ins, NULL, NULL, &upd_saved, &upd));
 
-		/* If no updates are visible there's no work to do. */
-		if (upd == NULL)
+		if (upd == NULL) {
+			/*
+			 * If no update is visible but some were saved, check
+			 * for splits.
+			 */
+			if (!upd_saved)
+				continue;
+			if (!__rec_need_split(r, WT_INSERT_KEY_SIZE(ins)))
+				continue;
+
+			/* Copy the current key into place and then split. */
+			WT_RET(__wt_buf_set(session, r->cur,
+			    WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins)));
+			WT_RET(__rec_split_crossing_bnd(
+			    session, r, WT_INSERT_KEY_SIZE(ins)));
+
+			/*
+			 * Turn off prefix and suffix compression until a full
+			 * key is written into the new page.
+			 */
+			r->key_pfx_compress = r->key_sfx_compress = false;
 			continue;
+		}
 
 		switch (upd->type) {
 		case WT_UPDATE_DELETED:
@@ -5649,7 +5696,9 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 			 * item.
 			 */
 			cbt->slot = UINT32_MAX;
-			WT_RET(__wt_value_return(session, cbt, upd));
+			WT_RET(__wt_value_return_upd(
+			    session, cbt, upd,
+			    F_ISSET(r, WT_REC_VISIBLE_ALL)));
 			WT_RET(__rec_cell_build_val(session, r,
 			    cbt->iface.value.data,
 			    cbt->iface.value.size, (uint64_t)0));
@@ -5664,7 +5713,8 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 			break;
 		WT_ILLEGAL_VALUE(session);
 		}
-							/* Build key cell. */
+
+		/* Build key cell. */
 		WT_RET(__rec_cell_build_leaf_key(session, r,
 		    WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins), &ovfl_key));
 

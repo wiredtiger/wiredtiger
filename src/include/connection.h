@@ -192,6 +192,11 @@ struct __wt_connection_impl {
 					/* Configuration */
 	const WT_CONFIG_ENTRY **config_entries;
 
+	const char *optrack_path;	/* Directory for operation logs */
+	WT_FH *optrack_map_fh;		/* Name to id translation file. */
+	WT_SPINLOCK optrack_map_spinlock; /* Translation file spinlock. */
+	uintmax_t optrack_pid;		/* Cache the process ID. */
+
 	void  **foc;			/* Free-on-close array */
 	size_t  foc_cnt;		/* Array entries */
 	size_t  foc_size;		/* Array size */
@@ -463,26 +468,27 @@ struct __wt_connection_impl {
 	WT_FILE_SYSTEM *file_system;
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define	WT_CONN_CACHE_POOL		0x00001u
-#define	WT_CONN_CKPT_SYNC		0x00002u
-#define	WT_CONN_CLOSING			0x00004u
-#define	WT_CONN_CLOSING_NO_MORE_OPENS	0x00008u
-#define	WT_CONN_EVICTION_NO_LOOKASIDE	0x00010u
-#define	WT_CONN_EVICTION_RUN		0x00020u
-#define	WT_CONN_IN_MEMORY		0x00040u
-#define	WT_CONN_LEAK_MEMORY		0x00080u
-#define	WT_CONN_LOOKASIDE_OPEN		0x00100u
-#define	WT_CONN_LSM_MERGE		0x00200u
-#define	WT_CONN_PANIC			0x00400u
-#define	WT_CONN_READONLY		0x00800u
-#define	WT_CONN_RECOVERING		0x01000u
-#define	WT_CONN_SERVER_ASYNC		0x02000u
-#define	WT_CONN_SERVER_CHECKPOINT	0x04000u
-#define	WT_CONN_SERVER_LOG		0x08000u
-#define	WT_CONN_SERVER_LSM		0x10000u
-#define	WT_CONN_SERVER_STATISTICS	0x20000u
-#define	WT_CONN_SERVER_SWEEP		0x40000u
-#define	WT_CONN_WAS_BACKUP		0x80000u
+#define	WT_CONN_CACHE_POOL		0x000001u
+#define	WT_CONN_CKPT_SYNC		0x000002u
+#define	WT_CONN_CLOSING			0x000004u
+#define	WT_CONN_CLOSING_NO_MORE_OPENS	0x000008u
+#define	WT_CONN_EVICTION_NO_LOOKASIDE	0x000010u
+#define	WT_CONN_EVICTION_RUN		0x000020u
+#define	WT_CONN_IN_MEMORY		0x000040u
+#define	WT_CONN_LEAK_MEMORY		0x000080u
+#define	WT_CONN_LOOKASIDE_OPEN		0x000100u
+#define	WT_CONN_LSM_MERGE		0x000200u
+#define	WT_CONN_OPTRACK			0x000400u
+#define	WT_CONN_PANIC			0x000800u
+#define	WT_CONN_READONLY		0x001000u
+#define	WT_CONN_RECOVERING		0x002000u
+#define	WT_CONN_SERVER_ASYNC		0x004000u
+#define	WT_CONN_SERVER_CHECKPOINT	0x008000u
+#define	WT_CONN_SERVER_LOG		0x010000u
+#define	WT_CONN_SERVER_LSM		0x020000u
+#define	WT_CONN_SERVER_STATISTICS	0x040000u
+#define	WT_CONN_SERVER_SWEEP		0x080000u
+#define	WT_CONN_WAS_BACKUP		0x100000u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint32_t flags;
 };

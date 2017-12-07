@@ -215,9 +215,16 @@ struct __wt_ovfl_reuse {
  * makes the lookaside table's value more likely to overflow the page size when
  * the row-store key is relatively large.
  */
+#ifdef HAVE_BUILTIN_EXTENSION_SNAPPY
+#define	WT_LOOKASIDE_COMPRESSOR	"snappy"
+#else
+#define	WT_LOOKASIDE_COMPRESSOR	"none"
+#endif
 #define	WT_LAS_CONFIG							\
     "key_format=" WT_UNCHECKED_STRING(QIQu)				\
-    ",value_format=" WT_UNCHECKED_STRING(QuBu)
+    ",value_format=" WT_UNCHECKED_STRING(QuBu)				\
+    ",block_compressor=" WT_LOOKASIDE_COMPRESSOR			\
+    ",leaf_value_max=64MB"
 
 /*
  * WT_PAGE_LOOKASIDE --
@@ -229,7 +236,7 @@ struct __wt_page_lookaside {
 						   lookaside */
 	WT_DECL_TIMESTAMP(min_timestamp)	/* Min timestamp in lookaside */
 	WT_DECL_TIMESTAMP(onpage_timestamp)	/* Max timestamp on page */
-	bool las_skew_oldest;			/* On-page skewed to oldest */
+	bool las_skew_newest;			/* On-page skewed to newest */
 };
 
 /*
@@ -241,7 +248,9 @@ struct __wt_page_modify {
 	uint64_t first_dirty_txn;
 
 	/* The transaction state last time eviction was attempted. */
+	uint64_t last_evict_pass_gen;
 	uint64_t last_eviction_id;
+	WT_DECL_TIMESTAMP(last_eviction_timestamp)
 
 #ifdef HAVE_DIAGNOSTIC
 	/* Check that transaction time moves forward. */
@@ -250,6 +259,7 @@ struct __wt_page_modify {
 
 	/* Avoid checking for obsolete updates during checkpoints. */
 	uint64_t obsolete_check_txn;
+	WT_DECL_TIMESTAMP(obsolete_check_timestamp)
 
 	/* The largest transaction seen on the page by reconciliation. */
 	uint64_t rec_max_txn;

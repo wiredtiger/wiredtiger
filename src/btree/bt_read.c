@@ -205,8 +205,31 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t btree_id)
 	if (total_incr != 0) {
 		__wt_cache_page_inmem_incr(session, page, total_incr);
 
-		/* Make sure the page is included in the next checkpoint. */
+		/*
+		 * If the updates in lookaside are newer than the versions on
+		 * the page, it must be included in the next checkpoint.
+		 *
+		 * Otherwise, the page image contained the newest versions of
+		 * data so the updates are all older and we could consider
+		 * marking it clean (i.e., the next checkpoint can use the
+		 * version already on disk).
+		 *
+		 * This needs care because (a) it creates pages with history
+		 * that can't be evicted until they are marked dirty again, and
+		 * (b) checkpoints may need to visit these pages to resolve
+		 * changes evicted while a checkpoint is running.
+		 */
 		page->modify->first_dirty_txn = WT_TXN_FIRST;
+
+		if (ref->page_las->las_skew_newest &&
+		    !S2C(session)->txn_global.has_stable_timestamp &&
+		    __wt_txn_visible_all(session, ref->page_las->las_max_txn,
+		    WT_TIMESTAMP_NULL(&ref->page_las->onpage_timestamp))) {
+			page->modify->rec_max_txn = ref->page_las->las_max_txn;
+			__wt_timestamp_set(&page->modify->rec_max_timestamp,
+			    &ref->page_las->onpage_timestamp);
+			__wt_page_modify_clear(session, page);
+		}
 	}
 
 err:	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
@@ -245,7 +268,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * It's hard to imagine a page with a huge memory footprint that has
 	 * never been modified, but check to be sure.
 	 */
-	if (page->modify == NULL)
+	if (__wt_page_evict_clean(page))
 		return (false);
 
 	/* Pages are usually small enough, check that first. */
@@ -274,8 +297,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * skipping the page indefinitely or large records can lead to
 	 * extremely large memory footprints.
 	 */
-	if (page->modify->update_restored &&
-	    page->modify->last_eviction_id == __wt_txn_oldest_id(session))
+	if (!__wt_page_evict_retry(session, page))
 		return (false);
 
 	/* Trigger eviction on the next page release. */
@@ -473,7 +495,7 @@ __las_page_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 		goto done;
 
 	if (!F_ISSET(txn, WT_TXN_HAS_TS_READ) &&
-	    !ref->page_las->las_skew_oldest) {
+	    ref->page_las->las_skew_newest) {
 		skip = true;
 		goto done;
 	}
@@ -489,7 +511,7 @@ __las_page_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 	    &session->txn.read_timestamp) <= 0);
 
 	if (F_ISSET(&session->txn, WT_TXN_HAS_TS_READ) &&
-	    ref->page_las->las_skew_oldest &&
+	    !ref->page_las->las_skew_newest &&
 	    __wt_timestamp_cmp(
 	    &ref->page_las->min_timestamp, &session->txn.read_timestamp) > 0) {
 		skip = true;
@@ -557,13 +579,15 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 				return (WT_NOTFOUND);
 
 read:			/*
-			 * The page isn't in memory, read it. If this thread is
-			 * allowed to do eviction work, check for space in the
+			 * The page isn't in memory, read it. If this thread
+			 * respects the cache size, check for space in the
 			 * cache.
 			 */
 			if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
 				WT_RET(__wt_cache_eviction_check(
-				    session, 1, NULL));
+				    session, true,
+				    !F_ISSET(&session->txn, WT_TXN_HAS_ID),
+				    NULL));
 			WT_RET(__page_read(session, ref, flags));
 
 			/*
@@ -730,8 +754,10 @@ skip_evict:		/*
 		 * substitute that for a sleep.
 		 */
 		if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE)) {
-			WT_RET(
-			    __wt_cache_eviction_check(session, 1, &cache_work));
+			WT_RET(__wt_cache_eviction_check(
+			    session, true,
+			    !F_ISSET(&session->txn, WT_TXN_HAS_ID),
+			    &cache_work));
 			if (cache_work)
 				continue;
 		}
