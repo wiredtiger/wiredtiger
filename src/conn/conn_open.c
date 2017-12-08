@@ -149,7 +149,7 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 
 	/* Close any optrack files */
 	if (session->optrack_fh != NULL)
-		WT_IGNORE_RET(__wt_close(session, &session->optrack_fh));
+		WT_TRET(__wt_close(session, &session->optrack_fh));
 
 	/* Close operation tracking */
 	WT_TRET(__wt_conn_optrack_teardown(session, false));
