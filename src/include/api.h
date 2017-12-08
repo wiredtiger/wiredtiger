@@ -41,6 +41,10 @@
 	const char *__oldname = (s)->name;				\
 	(s)->dhandle = (dh);						\
 	(s)->name = (s)->lastop = #h "." #n;				\
+	/*								\
+	 * Only declarations above this line, otherwise error handling	\
+	 * won't be correct.						\
+	 */								\
 	WT_TRACK_OP_INIT(s);						\
 	WT_SINGLE_THREAD_CHECK_START(s);				\
 	WT_ERR(WT_SESSION_CHECK_PANIC(s));				\
