@@ -333,7 +333,6 @@ __wt_las_cursor_close(
 static int
 __las_insert_block_verbose(WT_SESSION_IMPL *session, WT_MULTI *multi)
 {
-#ifdef HAVE_VERBOSE
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 #ifdef HAVE_TIMESTAMPS
@@ -393,10 +392,6 @@ __las_insert_block_verbose(WT_SESSION_IMPL *session, WT_MULTI *multi)
 	/* Never skip updating the tracked generation */
 	if (WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE))
 		cache->las_verb_gen_write = ckpt_gen_current;
-#else
-	WT_UNUSED(session);
-	WT_UNUSED(multi);
-#endif
 	return (0);
 }
 

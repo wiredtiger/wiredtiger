@@ -40,9 +40,6 @@ AddOption("--enable-snappy", dest="snappy", type="string", nargs=1, action="stor
 AddOption("--enable-tcmalloc", dest="tcmalloc", type="string", nargs=1, action="store",
           help="Use TCMalloc for memory allocation")
 
-AddOption("--enable-verbose", dest="verbose", action="store_true", default=False,
-          help="Configure WiredTiger to support the verbose configuration string to wiredtiger_open")
-
 AddOption("--enable-zlib", dest="zlib", type="string", nargs=1, action="store",
           help="Use zlib compression")
 
@@ -185,9 +182,6 @@ if GetOption("diagnostic"):
 if GetOption("lang-python"):
     env.Append(LIBPATH=[distutils.sysconfig.PREFIX + r"\libs"])
     env.Append(CPPPATH=[distutils.sysconfig.get_python_inc()])
-
-if GetOption("verbose"):
-    env.Append(CPPDEFINES = ["HAVE_VERBOSE"])
 
 
 # Build WiredTiger.h file
