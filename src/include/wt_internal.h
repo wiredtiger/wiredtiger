@@ -76,6 +76,8 @@ struct __wt_async_op_impl;
     typedef struct __wt_async_op_impl WT_ASYNC_OP_IMPL;
 struct __wt_async_worker_state;
     typedef struct __wt_async_worker_state WT_ASYNC_WORKER_STATE;
+struct __wt_bitmap;
+    typedef struct __wt_bitmap WT_BITMAP;
 struct __wt_block;
     typedef struct __wt_block WT_BLOCK;
 struct __wt_block_ckpt;
@@ -342,6 +344,7 @@ union __wt_rand_state;
 
 #include "api.h"
 #include "async.h"
+#include "bitmap.h"
 #include "block.h"
 #include "bloom.h"
 #include "btmem.h"
@@ -372,6 +375,7 @@ union __wt_rand_state;
 #endif
 #include "verify_build.h"
 
+#include "bitstring.i"			/* required by bitmap.i */
 #include "ctype.i"			/* required by packing.i */
 #include "intpack.i"			/* required by cell.i, packing.i */
 
@@ -381,7 +385,7 @@ union __wt_rand_state;
 #include "mutex.i"			/* required by btree.i */
 #include "txn.i"			/* required by btree.i */
 
-#include "bitstring.i"
+#include "bitmap.i"
 #include "btree.i"			/* required by cursor.i */
 #include "btree_cmp.i"
 #include "column.i"

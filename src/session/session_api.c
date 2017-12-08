@@ -95,6 +95,10 @@ __wt_session_release_resources(WT_SESSION_IMPL *session)
 	if (session->reconcile_cleanup != NULL)
 		WT_TRET(session->reconcile_cleanup(session));
 
+	/* Free bitmaps used to inform cursor cache. */
+	__wt_bitmap_free(session, &session->dhandle_open);
+	__wt_bitmap_free(session, &session->dhandle_inuse);
+
 	/* Stashed memory. */
 	__wt_stash_discard(session);
 
@@ -153,6 +157,9 @@ __session_close(WT_SESSION *wt_session, const char *config)
 	SESSION_API_CALL(session, close, config, cfg);
 	WT_UNUSED(cfg);
 
+	/* Close all open cursors while the cursor cache is disabled. */
+	F_CLR(session, WT_SESSION_CACHE_CURSORS);
+
 	/* Rollback any active transaction. */
 	if (F_ISSET(&session->txn, WT_TXN_RUNNING))
 		WT_TRET(__session_rollback_transaction(wt_session, NULL));
@@ -174,10 +181,19 @@ __session_close(WT_SESSION *wt_session, const char *config)
 		    !WT_STREQ(cursor->internal_uri, WT_LAS_URI))
 			WT_TRET(session->event_handler->handle_close(
 			    session->event_handler, wt_session, cursor));
+		if (F_ISSET(cursor, WT_CURSTD_CACHED)) {
+			--session->ncursors_cached;
+			F_CLR(cursor, WT_CURSTD_CACHED);
+		}
 		WT_TRET(cursor->close(cursor));
 	} WT_TAILQ_SAFE_REMOVE_END
 
 	WT_ASSERT(session, session->ncursors == 0);
+	WT_ASSERT(session, session->ncursors_cached == 0);
+
+	/* Release and destroy session cursor cache ownership lock. */
+	__wt_session_cursor_cache_unlock(session, session);
+	__wt_rwlock_destroy(session, &session->cursor_cache_lock);
 
 	/* Discard cached handles. */
 	__wt_session_close_cache(session);
@@ -239,9 +255,11 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 	WT_CONFIG_ITEM cval;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	bool run_config, idle_config;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, reconfigure, config, cfg);
+	run_config = idle_config = false;
+	SESSION_API_CALL_IDLE_OK(session, reconfigure, config, cfg);
 
 	/*
 	 * Note that this method only checks keys that are passed in by the
@@ -249,6 +267,30 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 	 * default values.
 	 */
 	WT_UNUSED(cfg);
+
+	/*
+	 * When the session is idle, reconfigure can be called, but only
+	 * if a run_state is given.
+	 */
+	ret = __wt_config_getones(session, config, "run_state", &cval);
+	if (ret == 0) {
+		if (WT_STRING_MATCH("running", cval.str, cval.len)) {
+			if (F_ISSET(session, WT_SESSION_IDLE)) {
+				__wt_session_cursor_cache_lock(session,
+				    session);
+				F_CLR(session, WT_SESSION_IDLE);
+			}
+			run_config = true;
+		}
+		SESSION_API_NOT_IDLE(session);
+		if (WT_STRING_MATCH("idle", cval.str, cval.len)) {
+			if (!F_ISSET(session, WT_SESSION_IDLE))
+				idle_config = true;
+		} else if (!run_config)
+			WT_ERR_MSG(session, EINVAL, "unknown run_state");
+	} else
+		SESSION_API_NOT_IDLE(session);
+	WT_ERR_NOTFOUND_OK(ret);
 
 	WT_ERR(__wt_txn_context_check(session, false));
 
@@ -264,6 +306,25 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 			F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
 	}
 	WT_ERR_NOTFOUND_OK(ret);
+
+	ret = __wt_config_getones(session, config, "cache_cursors", &cval);
+	if (ret == 0) {
+		if (cval.val) {
+			if (!F_ISSET(S2C(session), WT_CONN_CACHE_CURSORS))
+				WT_ERR_MSG(session, EINVAL,
+				    "'cache_cursors' must be set on the "
+				    "WT_CONNECTION in order for it to be used "
+				    "on a session");
+			F_SET(session, WT_SESSION_CACHE_CURSORS);
+		} else
+			F_CLR(session, WT_SESSION_CACHE_CURSORS);
+	}
+	WT_ERR_NOTFOUND_OK(ret);
+
+	if (idle_config) {
+		F_SET(session, WT_SESSION_IDLE);
+		__wt_session_cursor_cache_unlock(session, session);
+	}
 
 err:	API_END_RET_NOTFOUND_MAP(session, ret);
 }
@@ -281,6 +342,10 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri,
 	WT_DECL_RET;
 
 	*cursorp = NULL;
+
+	if (owner == NULL)
+		/* Collect dhandles used, needed to track cached cursors. */
+		__wt_bitmap_clear_all(&session->dhandle_open);
 
 	/*
 	 * Open specific cursor types we know about, or call the generic data
@@ -367,6 +432,30 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri,
 	if (*cursorp == NULL)
 		return (__wt_bad_object_type(session, uri));
 
+	if (owner != NULL)
+		F_CLR(*cursorp, WT_CURSTD_CACHEABLE);
+
+	if (F_ISSET(session, WT_SESSION_CACHE_CURSORS)) {
+		WT_RET(__wt_bitmap_or_bitmap(session,
+		    WT_CURSOR_DS_BITS(*cursorp),
+		    &session->dhandle_open));
+
+		if (owner != NULL) {
+			/*
+			 * We'd like to know if there's ever a situation
+			 * where a subordinate cursor (that doesn't
+			 * have bits set) might be cached indirectly.
+			 * That might leave open handles that might
+			 * prevent a drop from occurring.
+			 */
+			WT_ASSERT(session,
+			    __wt_bitmap_test_any(&session->dhandle_open));
+			WT_RET(__wt_bitmap_or_bitmap(session,
+			    WT_CURSOR_DS_BITS(owner),
+			    WT_CURSOR_DS_BITS(*cursorp)));
+		}
+	}
+
 	/*
 	 * When opening simple tables, the table code calls this function on the
 	 * underlying data source, in which case the application's URI has been
@@ -435,6 +524,9 @@ __session_open_cursor(WT_SESSION *wt_session,
 	    statjoin ? to_dup : NULL, cfg, &cursor));
 	if (to_dup != NULL && !statjoin)
 		WT_ERR(__wt_cursor_dup_position(to_dup, cursor));
+	if (F_ISSET(session, WT_SESSION_CACHE_CURSORS))
+		WT_ERR(__wt_bitmap_or_bitmap(session, &session->dhandle_inuse,
+		    WT_CURSOR_DS_BITS(cursor)));
 
 	*cursorp = cursor;
 
@@ -484,10 +576,11 @@ __session_alter(WT_SESSION *wt_session, const char *uri, const char *config)
 	 */
 	cfg[0] = cfg[1];
 	cfg[1] = NULL;
-	WT_WITH_CHECKPOINT_LOCK(session,
-	    WT_WITH_SCHEMA_LOCK(session,
-		ret = __wt_schema_worker(session, uri, __wt_alter, NULL, cfg,
-		WT_BTREE_ALTER | WT_DHANDLE_EXCLUSIVE)));
+	WT_WITH_CURSOR_CACHE_CLOSES(session, uri, true,
+	    WT_WITH_CHECKPOINT_LOCK(session,
+		WT_WITH_SCHEMA_LOCK(session,
+		    ret = __wt_schema_worker(session, uri, __wt_alter, NULL,
+		    cfg, WT_BTREE_ALTER | WT_DHANDLE_EXCLUSIVE))));
 
 err:	if (ret != 0)
 		WT_STAT_CONN_INCR(session, session_table_alter_fail);
@@ -726,10 +819,11 @@ __session_rebalance(WT_SESSION *wt_session, const char *uri, const char *config)
 		goto err;
 
 	/* Block out checkpoints to avoid spurious EBUSY errors. */
-	WT_WITH_CHECKPOINT_LOCK(session,
-	    WT_WITH_SCHEMA_LOCK(session,
-		ret = __wt_schema_worker(session, uri, __wt_bt_rebalance,
-		NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_REBALANCE)));
+	WT_WITH_CURSOR_CACHE_CLOSES(session, uri, true,
+	    WT_WITH_CHECKPOINT_LOCK(session,
+		WT_WITH_SCHEMA_LOCK(session,
+		    ret = __wt_schema_worker(session, uri, __wt_bt_rebalance,
+		    NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_REBALANCE))));
 
 err:	if (ret != 0)
 		WT_STAT_CONN_INCR(session, session_table_rebalance_fail);
@@ -778,10 +872,11 @@ __session_rename(WT_SESSION *wt_session,
 	WT_ERR(__wt_str_name_check(session, uri));
 	WT_ERR(__wt_str_name_check(session, newuri));
 
-	WT_WITH_CHECKPOINT_LOCK(session,
-	    WT_WITH_SCHEMA_LOCK(session,
-		WT_WITH_TABLE_WRITE_LOCK(session,
-		    ret = __wt_schema_rename(session, uri, newuri, cfg))));
+	WT_WITH_CURSOR_CACHE_CLOSES(session, uri, true,
+	    WT_WITH_CHECKPOINT_LOCK(session,
+		WT_WITH_SCHEMA_LOCK(session,
+		    WT_WITH_TABLE_WRITE_LOCK(session,
+			ret = __wt_schema_rename(session, uri, newuri, cfg)))));
 
 err:	if (ret != 0)
 		WT_STAT_CONN_INCR(session, session_table_rename_fail);
@@ -866,25 +961,33 @@ __session_drop(WT_SESSION *wt_session, const char *uri, const char *config)
 	 */
 	if (checkpoint_wait) {
 		if (lock_wait)
-			WT_WITH_CHECKPOINT_LOCK(session,
-			    WT_WITH_SCHEMA_LOCK(session,
-				WT_WITH_TABLE_WRITE_LOCK(session, ret =
-				    __wt_schema_drop(session, uri, cfg))));
+			WT_WITH_CURSOR_CACHE_CLOSES(session, uri, true,
+			    WT_WITH_CHECKPOINT_LOCK(session,
+				WT_WITH_SCHEMA_LOCK(session,
+				    WT_WITH_TABLE_WRITE_LOCK(session,
+					ret = __wt_schema_drop(
+					session, uri, true, cfg)))));
 		else
-			WT_WITH_CHECKPOINT_LOCK_NOWAIT(session, ret,
-			    WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret,
-				WT_WITH_TABLE_WRITE_LOCK_NOWAIT(session, ret,
-				    ret =
-				    __wt_schema_drop(session, uri, cfg))));
+			WT_WITH_CURSOR_CACHE_CLOSES(session, uri, true,
+			    WT_WITH_CHECKPOINT_LOCK_NOWAIT(session, ret,
+				WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret,
+				    WT_WITH_TABLE_WRITE_LOCK_NOWAIT(session,
+					ret,
+					ret = __wt_schema_drop(
+					session, uri, true, cfg)))));
 	} else {
 		if (lock_wait)
-			WT_WITH_SCHEMA_LOCK(session,
-			    WT_WITH_TABLE_WRITE_LOCK(session,
-				ret = __wt_schema_drop(session, uri, cfg)));
+			WT_WITH_CURSOR_CACHE_CLOSES(session, uri, true,
+			    WT_WITH_SCHEMA_LOCK(session,
+				WT_WITH_TABLE_WRITE_LOCK(session,
+				    ret = __wt_schema_drop(
+				    session, uri, true, cfg))));
 		else
-			WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret,
-			    WT_WITH_TABLE_WRITE_LOCK_NOWAIT(session, ret,
-				ret = __wt_schema_drop(session, uri, cfg)));
+			WT_WITH_CURSOR_CACHE_CLOSES(session, uri, true,
+			    WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret,
+				WT_WITH_TABLE_WRITE_LOCK_NOWAIT(session, ret,
+				    ret = __wt_schema_drop(
+				    session, uri, true, cfg))));
 	}
 
 err:	if (ret != 0)
@@ -1073,10 +1176,11 @@ __session_salvage(WT_SESSION *wt_session, const char *uri, const char *config)
 	WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
 	/* Block out checkpoints to avoid spurious EBUSY errors. */
-	WT_WITH_CHECKPOINT_LOCK(session,
-	    WT_WITH_SCHEMA_LOCK(session,
-		ret = __wt_schema_worker(session, uri, __wt_salvage,
-		NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_SALVAGE)));
+	WT_WITH_CURSOR_CACHE_CLOSES(session, uri, true,
+	    WT_WITH_CHECKPOINT_LOCK(session,
+		WT_WITH_SCHEMA_LOCK(session,
+		    ret = __wt_schema_worker(session, uri, __wt_salvage,
+		    NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_SALVAGE))));
 
 err:	if (ret != 0)
 		WT_STAT_CONN_INCR(session, session_table_salvage_fail);
@@ -1285,9 +1389,11 @@ __session_truncate(WT_SESSION *wt_session,
 			    session, uri, start, stop));
 		else
 			/* Wait for checkpoints to avoid EBUSY errors. */
-			WT_WITH_CHECKPOINT_LOCK(session,
-			    WT_WITH_SCHEMA_LOCK(session,
-				ret = __wt_schema_truncate(session, uri, cfg)));
+			WT_WITH_CURSOR_CACHE_CLOSES(session, uri, true,
+			    WT_WITH_CHECKPOINT_LOCK(session,
+				WT_WITH_SCHEMA_LOCK(session,
+				    ret = __wt_schema_truncate(
+				    session, uri, cfg))));
 	} else
 		WT_ERR(__wt_session_range_truncate(session, uri, start, stop));
 
@@ -1344,10 +1450,11 @@ __session_upgrade(WT_SESSION *wt_session, const char *uri, const char *config)
 	WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
 	/* Block out checkpoints to avoid spurious EBUSY errors. */
-	WT_WITH_CHECKPOINT_LOCK(session,
-	    WT_WITH_SCHEMA_LOCK(session,
-		ret = __wt_schema_worker(session, uri, __wt_upgrade,
-		NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_UPGRADE)));
+	WT_WITH_CURSOR_CACHE_CLOSES(session, uri, true,
+	    WT_WITH_CHECKPOINT_LOCK(session,
+		WT_WITH_SCHEMA_LOCK(session,
+		    ret = __wt_schema_worker(session, uri, __wt_upgrade,
+		    NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_UPGRADE))));
 
 err:	API_END_RET_NOTFOUND_MAP(session, ret);
 }
@@ -1390,10 +1497,11 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
 	WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
 	/* Block out checkpoints to avoid spurious EBUSY errors. */
-	WT_WITH_CHECKPOINT_LOCK(session,
-	    WT_WITH_SCHEMA_LOCK(session,
-		ret = __wt_schema_worker(session, uri, __wt_verify,
-		NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY)));
+	WT_WITH_CURSOR_CACHE_CLOSES(session, uri, true,
+	    WT_WITH_CHECKPOINT_LOCK(session,
+		WT_WITH_SCHEMA_LOCK(session,
+		    ret = __wt_schema_worker(session, uri, __wt_verify,
+		    NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY))));
 
 err:	if (ret != 0)
 		WT_STAT_CONN_INCR(session, session_table_verify_fail);
@@ -1874,6 +1982,9 @@ __open_session(WT_CONNECTION_IMPL *conn,
 
 	TAILQ_INIT(&session_ret->cursors);
 	TAILQ_INIT(&session_ret->dhandles);
+
+	WT_ERR(__wt_rwlock_init(session, &session_ret->cursor_cache_lock));
+
 	/*
 	 * If we don't have one, allocate the dhandle hash array.
 	 * Allocate the table hash array as well.
@@ -1900,6 +2011,9 @@ __open_session(WT_CONNECTION_IMPL *conn,
 		session_ret->hazard_inuse = 0;
 		session_ret->nhazard = 0;
 	}
+
+	/* The session starts with ownership of its own cached cursors. */
+	__wt_session_cursor_cache_lock(session, session_ret);
 
 	/* Cache the offset of this session's statistics bucket. */
 	session_ret->stat_bucket = WT_STATS_SLOT_ID(session);
@@ -1991,6 +2105,7 @@ __wt_open_internal_session(WT_CONNECTION_IMPL *conn, const char *name,
 	 * flag to avoid this: internal sessions are not closed automatically.
 	 */
 	F_SET(session, session_flags | WT_SESSION_INTERNAL);
+	F_CLR(session, WT_SESSION_CACHE_CURSORS);
 
 	*sessionp = session;
 	return (0);

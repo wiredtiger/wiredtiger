@@ -101,6 +101,7 @@ flags = {
 # Structure flag declarations
 ###################################################
     'conn' : [
+        'CONN_CACHE_CURSORS',
         'CONN_CACHE_POOL',
         'CONN_CKPT_SYNC',
         'CONN_CLOSING',
@@ -116,6 +117,7 @@ flags = {
         'CONN_RECOVERING',
         'CONN_SERVER_ASYNC',
         'CONN_SERVER_CHECKPOINT',
+        'CONN_SERVER_CURSOR_CACHE',
         'CONN_SERVER_LOG',
         'CONN_SERVER_LSM',
         'CONN_SERVER_STATISTICS',
@@ -123,7 +125,9 @@ flags = {
         'CONN_WAS_BACKUP',
     ],
     'session' : [
+        'SESSION_CACHE_CURSORS',
         'SESSION_CAN_WAIT',
+        'SESSION_IDLE',
         'SESSION_INTERNAL',
         'SESSION_IGNORE_CACHE_SIZE',
         'SESSION_LOCKED_CHECKPOINT',

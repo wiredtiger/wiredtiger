@@ -73,6 +73,11 @@ struct __wt_session_impl {
 
 	WT_CURSOR_BACKUP *bkp_cursor;	/* Hot backup cursor */
 
+	WT_BITMAP dhandle_open;		/* Data sources used during open */
+	WT_BITMAP dhandle_inuse;	/* Data handle descriptors in use */
+	WT_RWLOCK cursor_cache_lock;	/* Lock for managing cursor cache */
+	time_t last_cursor_cache_close; /* Last time stale cursors closed */
+
 	WT_COMPACT_STATE *compact;	/* Compaction information */
 	enum { WT_COMPACT_NONE=0,
 	    WT_COMPACT_RUNNING, WT_COMPACT_SUCCESS } compact_state;
@@ -120,6 +125,7 @@ struct __wt_session_impl {
 #define	WT_SESSION_BG_SYNC_MSEC		1200000
 	WT_LSN	bg_sync_lsn;		/* Background sync operation LSN. */
 	u_int	ncursors;		/* Count of active file cursors. */
+	u_int	ncursors_cached;	/* Count of cursors cached. */
 
 	void	*block_manager;		/* Block-manager support */
 	int	(*block_manager_cleanup)(WT_SESSION_IMPL *);
@@ -214,3 +220,16 @@ struct __wt_session_impl {
 	uint32_t   nhazard;		/* Count of active hazard pointers */
 	WT_HAZARD *hazard;		/* Hazard pointer array */
 };
+
+/*
+ * WT_WITHOUT_CURSOR_CACHING --
+ *	Do the operation without cursor caching, so that any cursors
+ *	created are not cached.
+ */
+#define	WT_WITHOUT_CURSOR_CACHING(session, op) do {			\
+	uint32_t cachemask;						\
+	cachemask = F_MASK(session, WT_SESSION_CACHE_CURSORS);		\
+	F_CLR(session, cachemask);					\
+	op;								\
+	F_SET(session, cachemask);					\
+} while (0)

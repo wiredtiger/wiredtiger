@@ -802,6 +802,7 @@ __curtable_close(WT_CURSOR *cursor)
 
 	ctable = (WT_CURSOR_TABLE *)cursor;
 	JOINABLE_CURSOR_API_CALL(cursor, session, close, NULL);
+	CURSOR_CLOSE_CACHE(cursor, session);
 
 	if (ctable->cg_cursors != NULL)
 		for (i = 0, cp = ctable->cg_cursors;
@@ -967,11 +968,15 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 	WT_TABLE *table;
 	size_t size;
 	int cfg_cnt;
+	bool cacheable;
 	const char *tablename, *columns;
 
 	WT_STATIC_ASSERT(offsetof(WT_CURSOR_TABLE, iface) == 0);
 
+	CURSOR_OPEN_CACHE(session, uri, owner, cfg, cursorp);
+
 	ctable = NULL;
+	cacheable = true;
 
 	tablename = uri;
 	WT_PREFIX_SKIP_REQUIRED(session, tablename, "table:");
@@ -983,6 +988,7 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 		size = WT_PTRDIFF(columns, tablename);
 		WT_RET(__wt_schema_get_table(
 		    session, tablename, size, false, 0, &table));
+		cacheable = false;
 	}
 
 	WT_RET(__curtable_complete(session, table));	/* completeness check */
@@ -998,6 +1004,21 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 			cursor = *cursorp;
 			__wt_free(session, cursor->uri);
 			WT_TRET(__wt_strdup(session, uri, &cursor->uri));
+			if (ret == 0 && cacheable &&
+			    F_ISSET(session, WT_SESSION_CACHE_CURSORS) &&
+			    F_ISSET(cursor, WT_CURSTD_CACHEABLE)) {
+				WT_ASSERT(session, __wt_bitmap_test_any(
+				    &session->dhandle_open));
+				WT_TRET(__wt_bitmap_or_bitmap(session,
+				    WT_CURSOR_DS_BITS(cursor),
+				    &session->dhandle_open));
+				WT_TRET(__wt_bitmap_set(session,
+				    WT_CURSOR_DS_BITS(cursor)
+				    , table->iface.descriptor));
+				WT_TRET(__wt_bitmap_or_bitmap(session,
+				    &session->dhandle_inuse,
+				    WT_CURSOR_DS_BITS(cursor)));
+			}
 		}
 		return (ret);
 	}
@@ -1038,6 +1059,7 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 		__wt_cursor_set_notsup(cursor);
 		cursor->next = __curtable_next_random;
 		cursor->reset = __curtable_reset;
+		cacheable = false;
 	}
 
 	WT_ERR(__wt_cursor_init(
@@ -1080,6 +1102,14 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 		WT_ERR(__wt_buf_catfmt(session, tmp, "%s,", cfg[cfg_cnt]));
 	WT_ERR(__wt_buf_catfmt(session, tmp, "dump=\"\",readonly=0"));
 	WT_ERR(__wt_strdup(session, tmp->data, &ctable->cfg[1]));
+	if (F_ISSET(session, WT_SESSION_CACHE_CURSORS) && cacheable) {
+		WT_ERR(__wt_bitmap_or_bitmap(session,
+		    WT_CURSOR_DS_BITS(cursor),
+		    &session->dhandle_open));
+		WT_ERR(__wt_bitmap_or_bitmap(session, &session->dhandle_inuse,
+		    WT_CURSOR_DS_BITS(cursor)));
+		F_SET(cursor, WT_CURSTD_CACHEABLE);
+	}
 
 	if (0) {
 err:		if (*cursorp != NULL) {

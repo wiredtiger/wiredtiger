@@ -60,6 +60,7 @@
 	{ NULL, 0, NULL, 0, 0 },	/* WT_ITEM value */		\
 	0,				/* int saved_err */		\
 	NULL,				/* internal_uri */		\
+	{ NULL, 0, 0 },			/* WT_BITMAP data_sources */	\
 	0				/* uint32_t flags */		\
 }
 
@@ -503,3 +504,5 @@ struct __wt_cursor_table {
 
 #define	WT_CURSOR_RAW_OK						\
 	(WT_CURSTD_DUMP_HEX | WT_CURSTD_DUMP_PRINT | WT_CURSTD_RAW)
+
+#define	WT_CURSOR_DS_BITS(cursor)	((WT_BITMAP *)&(cursor)->data_sources)

@@ -32,6 +32,7 @@ examples/c
 examples/java JAVA
 
 # Test programs.
+test/bitmap
 test/bloom
 test/checkpoint
 test/csuite

@@ -605,13 +605,13 @@ err:	if (locked)
 		if (chunk->uri != NULL) {
 			WT_WITH_SCHEMA_LOCK(session,
 			    tret = __wt_schema_drop(
-			    session, chunk->uri, drop_cfg));
+			    session, chunk->uri, false, drop_cfg));
 			WT_TRET(tret);
 		}
 		if (create_bloom && chunk->bloom_uri != NULL) {
 			WT_WITH_SCHEMA_LOCK(session,
 			    tret = __wt_schema_drop(
-			    session, chunk->bloom_uri, drop_cfg));
+			    session, chunk->bloom_uri, false, drop_cfg));
 			WT_TRET(tret);
 		}
 		__wt_free(session, chunk->bloom_uri);

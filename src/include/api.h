@@ -143,11 +143,20 @@
 	s = (conn)->default_session;					\
 	API_CALL_NOCONF(s, WT_CONNECTION, n, NULL)
 
+#define	SESSION_API_NOT_IDLE(s)						\
+	if (F_ISSET(s, WT_SESSION_IDLE))				\
+		WT_ERR(__wt_session_not_idle(s))
+
 #define	SESSION_API_CALL(s, n, config, cfg)				\
+	SESSION_API_NOT_IDLE(s);					\
 	API_CALL(s, WT_SESSION, n, NULL, config, cfg)
 
 #define	SESSION_API_CALL_NOCONF(s, n)					\
+	SESSION_API_NOT_IDLE(s);					\
 	API_CALL_NOCONF(s, WT_SESSION, n, NULL)
+
+#define	SESSION_API_CALL_IDLE_OK(s, n, config, cfg)			\
+	API_CALL(s, WT_SESSION, n, NULL, config, cfg)
 
 #define	SESSION_TXN_API_CALL(s, n, config, cfg)				\
 	TXN_API_CALL(s, WT_SESSION, n, NULL, config, cfg)
@@ -155,7 +164,9 @@
 #define	CURSOR_API_CALL(cur, s, n, bt)					\
 	(s) = (WT_SESSION_IMPL *)(cur)->session;			\
 	API_CALL_NOCONF(s, WT_CURSOR, n,				\
-	    ((bt) == NULL) ? NULL : ((WT_BTREE *)(bt))->dhandle)
+	    ((bt) == NULL) ? NULL : ((WT_BTREE *)(bt))->dhandle);	\
+	if (F_ISSET(cur, WT_CURSTD_CACHED))				\
+		WT_ERR(__wt_cursor_cached(cur))				\
 
 #define	JOINABLE_CURSOR_CALL_CHECK(cur)					\
 	if (F_ISSET(cur, WT_CURSTD_JOINED))				\
@@ -164,6 +175,22 @@
 #define	JOINABLE_CURSOR_API_CALL(cur, s, n, bt)				\
 	CURSOR_API_CALL(cur, s, n, bt);					\
 	JOINABLE_CURSOR_CALL_CHECK(cur)
+
+#define	CURSOR_CLOSE_CACHE(cur, s)					\
+	if (F_ISSET(s, WT_SESSION_CACHE_CURSORS) &&			\
+	    !F_ISSET(cur, WT_CURSTD_BULK) &&				\
+	    F_ISSET(cur, WT_CURSTD_CACHEABLE))				\
+		return (__wt_cursor_cache(cur))
+
+#define	CURSOR_OPEN_CACHE(s, uri, owner, cfg, cursorp) do {		\
+	int __cret;							\
+	if (F_ISSET(session, WT_SESSION_CACHE_CURSORS)) {		\
+		if ((__cret = __wt_cursor_open_cache(			\
+		    s, uri, owner, cfg, cursorp)) == 0)			\
+			return (0);					\
+		WT_RET_NOTFOUND_OK(__cret);				\
+	}								\
+} while (0)
 
 #define	CURSOR_REMOVE_API_CALL(cur, s, bt)				\
 	(s) = (WT_SESSION_IMPL *)(cur)->session;			\

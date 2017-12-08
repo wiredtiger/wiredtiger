@@ -683,6 +683,17 @@ wiredtiger_open_statistics_log_configuration = [
 ]
 
 session_config = [
+    Config('cache_cursors', '', r'''
+        enable caching of cursors for reuse. Any calls to WT_CURSOR::close
+        for a cursor created in this session will mark the cursor
+        as cached and keep it available to be reused for later calls
+        to WT_SESSION::open_cursor. Cached cursors may be eventually
+        closed. When a session is closed, its
+        set of cached cursors may be made available to another session
+        created with WT_CONNECTION::open_session. This flag requires
+        ::wiredtiger_open or WT_CONNECTION::reconfigure to be called
+        with \c cache_cursors enabled.''',
+        type='boolean'),
     Config('ignore_cache_size', 'false', r'''
         when set, operations performed by this session ignore the cache size
         and are not blocked when the cache is full.  Note that use of this
@@ -692,6 +703,13 @@ session_config = [
     Config('isolation', 'read-committed', r'''
         the default isolation level for operations in this session''',
         choices=['read-uncommitted', 'read-committed', 'snapshot']),
+    Config('run_state', 'running', r'''
+        the state of the session for purposes of cursor caching.
+        A state of \c running signifies normal operation. Setting the
+        state to \c idle allows any cached cursors to be silently closed
+        as necessary. During \c idle, no operations other than
+        \c reconfigure to a \c running state are allowed''',
+        choices=['idle', 'running']),
 ]
 
 wiredtiger_open_common =\
@@ -709,6 +727,8 @@ wiredtiger_open_common =\
         values are passed to WT_CONNECTION::load_extension as the \c config
         parameter (for example,
         <code>builtin_extension_config={zlib={compression_level=3}}</code>)'''),
+    Config('cache_cursors', 'false', r'''
+        enable infrastructure for caching cursors.'''),
     Config('checkpoint_sync', 'true', r'''
         flush files to stable storage when closing or writing
         checkpoints''',

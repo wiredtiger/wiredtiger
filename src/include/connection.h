@@ -220,6 +220,14 @@ struct __wt_connection_impl {
 	TAILQ_HEAD(__wt_blockhash, __wt_block) blockhash[WT_HASH_ARRAY_SIZE];
 	TAILQ_HEAD(__wt_block_qh, __wt_block) blockqh;
 
+	WT_BITMAP dhandle_alloced;	/* Data handle descriptors allocated */
+	WT_BITMAP dhandle_hot;		/* Data handle recent usage */
+	WT_BITMAP *dhandle_history;	/* Data handle usage history */
+	WT_RWLOCK cursor_cache_lock;	/* Lock for managing cursor caches */
+	WT_CONDVAR *cursor_cache_cond;	/* Cursor cache wait mutex */
+	wt_thread_t cursor_cache_tid;	/* Cursor cache thread */
+	int cursor_cache_tid_set;	/* Cursor cache thread set */
+	u_int dhandle_history_cnt;
 	u_int dhandle_count;		/* Locked: handles in the queue */
 	u_int open_btree_count;		/* Locked: open writable btree count */
 	uint32_t next_file_id;		/* Locked: file ID counter */

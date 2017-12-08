@@ -110,7 +110,7 @@ __wt_las_create(WT_SESSION_IMPL *session)
 	 * Discard any previous incarnation of the table.
 	 */
 	WT_WITH_SCHEMA_LOCK(session,
-	    ret = __wt_schema_drop(session, WT_LAS_URI, drop_cfg));
+	    ret = __wt_schema_drop(session, WT_LAS_URI, false, drop_cfg));
 	WT_RET(ret);
 
 	/* Re-create the table. */

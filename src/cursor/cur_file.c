@@ -428,6 +428,7 @@ __curfile_close(WT_CURSOR *cursor)
 
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_API_CALL(cursor, session, close, cbt->btree);
+	CURSOR_CLOSE_CACHE(cursor, session);
 	if (F_ISSET(cursor, WT_CURSTD_BULK)) {
 		/* Free the bulk-specific resources. */
 		cbulk = (WT_CURSOR_BULK *)cbt;
@@ -488,10 +489,12 @@ __curfile_create(WT_SESSION_IMPL *session,
 	WT_CURSOR_BULK *cbulk;
 	WT_DECL_RET;
 	size_t csize;
+	bool cacheable;
 
 	WT_STATIC_ASSERT(offsetof(WT_CURSOR_BTREE, iface) == 0);
 
 	cbt = NULL;
+	cacheable = true;
 
 	btree = S2BT(session);
 	WT_ASSERT(session, btree != NULL);
@@ -527,6 +530,7 @@ __curfile_create(WT_SESSION_IMPL *session,
 		    session, cfg, "skip_sort_check", 0, &cval));
 		WT_ERR(__wt_curbulk_init(
 		    session, cbulk, bitmap, cval.val == 0 ? 0 : 1));
+		cacheable = false;
 	}
 
 	/*
@@ -548,6 +552,7 @@ __curfile_create(WT_SESSION_IMPL *session,
 		    session, cfg, "next_random_sample_size", 0, &cval));
 		if (cval.val != 0)
 			cbt->next_random_sample_size = (u_int)cval.val;
+		cacheable = false;
 	}
 
 	/* Underlying btree initialization. */
@@ -567,6 +572,20 @@ __curfile_create(WT_SESSION_IMPL *session,
 
 	WT_STAT_CONN_INCR(session, cursor_create);
 	WT_STAT_DATA_INCR(session, cursor_create);
+
+	if (F_ISSET(session, WT_SESSION_CACHE_CURSORS) && cacheable) {
+		WT_ERR(__wt_bitmap_or_bitmap(session,
+		    WT_CURSOR_DS_BITS(cursor),
+		    &session->dhandle_open));
+		WT_ERR(__wt_bitmap_or_bitmap(session, &session->dhandle_inuse,
+		    WT_CURSOR_DS_BITS(cursor)));
+		/*
+		 * WiredTiger.wt should not be cached, doing so interferes
+		 * with named checkpoints.
+		 */
+		if (!WT_STREQ(WT_METAFILE_URI, cursor->internal_uri))
+			F_SET(cursor, WT_CURSTD_CACHEABLE);
+	}
 
 	if (0) {
 err:		/*
@@ -600,6 +619,7 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri,
 	checkpoint_wait = true;
 	flags = 0;
 
+	CURSOR_OPEN_CACHE(session, uri, owner, cfg, cursorp);
 	/*
 	 * Decode the bulk configuration settings. In memory databases
 	 * ignore bulk load.

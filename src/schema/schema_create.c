@@ -376,9 +376,11 @@ __create_index(WT_SESSION_IMPL *session,
 	const char *sourcecfg[] = { config, NULL, NULL };
 	const char *source, *sourceconf, *idxname, *tablename;
 	char *idxconf, *origconf;
+	uint64_t closed_cnt;
 	size_t tlen;
 	bool exists, have_extractor;
 	u_int i, npublic_cols;
+	WT_BITMAP table_bitmap;
 
 	sourceconf = NULL;
 	idxconf = origconf = NULL;
@@ -412,6 +414,21 @@ __create_index(WT_SESSION_IMPL *session,
 		WT_RET_MSG(session, ret,
 		    "Can't create an index for a non-existent table: %.*s",
 		    (int)tlen, tablename);
+
+	/*
+	 * We need to explicitly close cached cursors matching this table.
+	 * Otherwise those cursors may have a set of index cursors that
+	 * do not match the schema, which will cause real trouble.
+	 * When there's a real fix for WT-3732, we won't need this.
+	 */
+	if (F_ISSET(S2C(session), WT_CONN_CACHE_CURSORS)) {
+		memset(&table_bitmap, 0, sizeof(table_bitmap));
+		closed_cnt = 0;
+		WT_ERR(__wt_bitmap_set(session, &table_bitmap,
+		    table->iface.descriptor));
+		WT_ERR(__wt_conn_cursor_cache_pass(session, true, false,
+		    &table_bitmap, &closed_cnt));
+	}
 
 	if (table->is_simple)
 		WT_ERR_MSG(session, EINVAL,
@@ -544,7 +561,9 @@ __create_index(WT_SESSION_IMPL *session,
 		    session, table, idxname, strlen(idxname), &idx));
 
 		/* If there is data in the table, fill the index. */
-		WT_ERR(__fill_index(session, table, idx));
+		WT_WITHOUT_CURSOR_CACHING(session,
+		    ret = __fill_index(session, table, idx));
+		WT_ERR(ret);
 	}
 
 err:	__wt_free(session, idxconf);

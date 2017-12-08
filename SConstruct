@@ -10,10 +10,10 @@ import distutils.sysconfig
 
 EnsureSConsVersion( 2, 0, 0 )
 
-if not os.sys.platform == "win32":
-    print ("SConstruct is only supported for Windows, use build_posix for other platforms")
-    Exit(1)
-
+#if not os.sys.platform == "win32":
+#    print ("SConstruct is only supported for Windows, use build_posix for other platforms")
+#    Exit(1)
+#
 # Command line options
 #
 AddOption("--dynamic-crt", dest="dynamic-crt", action="store_true", default=False,

@@ -505,6 +505,8 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session,
 	for (;;) {
 		WT_RET(__session_get_dhandle(session, uri, checkpoint));
 		dhandle = session->dhandle;
+		WT_RET(__wt_bitmap_set(session, &session->dhandle_open,
+		    dhandle->descriptor));
 
 		/* Try to lock the handle. */
 		WT_RET(__wt_session_lock_dhandle(session, flags, &is_dead));
