@@ -194,12 +194,8 @@
 } while (0)
 
 /* Verbose messages. */
-#ifdef HAVE_VERBOSE
 #define	WT_VERBOSE_ISSET(session, f)					\
 	(FLD_ISSET(S2C(session)->verbose, f))
-#else
-#define	WT_VERBOSE_ISSET(session, f)	0
-#endif
 
 #define	WT_CLEAR(s)							\
 	memset(&(s), 0, sizeof(s))

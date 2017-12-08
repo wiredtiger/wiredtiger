@@ -575,7 +575,6 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
 static void
 __checkpoint_verbose_track(WT_SESSION_IMPL *session, const char *msg)
 {
-#ifdef HAVE_VERBOSE
 	struct timespec stop;
 	WT_CONNECTION_IMPL *conn;
 	uint64_t msec;
@@ -593,10 +592,6 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session, const char *msg)
 	    ": Full database checkpoint %s",
 	    msec, __wt_gen(session, WT_GEN_CHECKPOINT), msg);
 
-#else
-	WT_UNUSED(session);
-	WT_UNUSED(msg);
-#endif
 }
 
 /*
