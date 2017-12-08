@@ -123,7 +123,7 @@ union __wt_lsn {
  * The log slot bits are signed and should be rewritten as unsigned. For now,
  * give the logging subsystem its own flags macro.
  */
-#define	FLD64_ISSET(field, mask)	(((field) & (uint64_t)(mask)) != 0)
+#define	FLD_LOG_SLOT_ISSET(field, mask)	(((field) & (uint64_t)(mask)) != 0)
 
 /*
  * The high bit is reserved for the special states.  If the high bit is
@@ -176,8 +176,8 @@ union __wt_lsn {
 /* Slot is in use, but closed to new joins */
 #define	WT_LOG_SLOT_CLOSED(state)					\
     (WT_LOG_SLOT_ACTIVE(state) &&					\
-    (FLD64_ISSET((uint64_t)(state), WT_LOG_SLOT_CLOSE) &&		\
-    !FLD64_ISSET((uint64_t)(state), WT_LOG_SLOT_RESERVED)))
+    (FLD_LOG_SLOT_ISSET((uint64_t)(state), WT_LOG_SLOT_CLOSE) &&	\
+    !FLD_LOG_SLOT_ISSET((uint64_t)(state), WT_LOG_SLOT_RESERVED)))
 /* Slot is in use, all data copied into buffer */
 #define	WT_LOG_SLOT_INPROGRESS(state)					\
     (WT_LOG_SLOT_RELEASED(state) != WT_LOG_SLOT_JOINED(state))
@@ -188,7 +188,7 @@ union __wt_lsn {
 #define	WT_LOG_SLOT_OPEN(state)						\
     (WT_LOG_SLOT_ACTIVE(state) &&					\
     !WT_LOG_SLOT_UNBUFFERED_ISSET(state) &&				\
-    !FLD64_ISSET((uint64_t)(state), WT_LOG_SLOT_CLOSE) &&		\
+    !FLD_LOG_SLOT_ISSET((uint64_t)(state), WT_LOG_SLOT_CLOSE) &&	\
     WT_LOG_SLOT_JOINED(state) < WT_LOG_SLOT_BUF_MAX)
 
 struct __wt_logslot {
