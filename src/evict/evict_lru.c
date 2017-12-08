@@ -1160,6 +1160,7 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
+	WT_TRACK_OP_DECL;
 
 	WT_TRACK_OP_INIT(session);
 	conn = S2C(session);
@@ -1192,6 +1193,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 	WT_CACHE *cache;
 	WT_DECL_RET;
 	WT_EVICT_QUEUE *queue, *other_queue;
+	WT_TRACK_OP_DECL;
 	uint64_t read_gen_oldest;
 	uint32_t candidates, entries;
 
@@ -1353,6 +1355,7 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
+	WT_TRACK_OP_DECL;
 	u_int max_entries, retries, slot, start_slot, total_candidates;
 	bool dhandle_locked, incr;
 
@@ -2258,6 +2261,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 	WT_CACHE *cache;
 	WT_DECL_RET;
 	WT_REF *ref;
+	WT_TRACK_OP_DECL;
 	bool app_timer;
 
 	WT_TRACK_OP_INIT(session);
@@ -2326,6 +2330,7 @@ __wt_cache_eviction_worker(
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
+	WT_TRACK_OP_DECL;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_STATE *txn_state;
 	uint64_t initial_progress, max_progress;

@@ -13,20 +13,21 @@
  *	Record optrack function id
  */
 void
-__wt_optrack_record_funcid(WT_SESSION_IMPL *session,
-    uint64_t op_id, void *func, size_t funcsize, volatile bool *id_recorded)
+__wt_optrack_record_funcid(
+    WT_SESSION_IMPL *session, const char *func, uint16_t *func_idp)
 {
 	WT_CONNECTION_IMPL *conn;
 	wt_off_t fsize;
-	char endline[] = "\n";
-	char id_buf[sizeof(uint64_t)*2 + sizeof(char)*4];
+	char id_buf[sizeof(uint64_t) * 2 + sizeof(uint8_t) * 4];
 
 	conn = S2C(session);
 
 	__wt_spin_lock(session, &conn->optrack_map_spinlock);
-	if (!*id_recorded) {
+	if (*func_idp == 0) {
+		*func_idp = ++conn->optrack_uid;
+
 		WT_IGNORE_RET(__wt_snprintf(id_buf,
-		    sizeof(id_buf), "%p ", (void*)op_id));
+		    sizeof(id_buf), "%" PRIu16 " ", *func_idp));
 		WT_IGNORE_RET(__wt_filesize(session,
 		    conn->optrack_map_fh, &fsize));
 		WT_IGNORE_RET(__wt_write(session,
@@ -35,12 +36,11 @@ __wt_optrack_record_funcid(WT_SESSION_IMPL *session,
 		WT_IGNORE_RET(__wt_filesize(session,
 		    conn->optrack_map_fh, &fsize));
 		WT_IGNORE_RET(__wt_write(session,
-		    conn->optrack_map_fh, fsize, funcsize - 1, func));
+		    conn->optrack_map_fh, fsize, strlen(func), func));
 		WT_IGNORE_RET(__wt_filesize(session,
 		    conn->optrack_map_fh, &fsize));
 		WT_IGNORE_RET(__wt_write(session,
-		    conn->optrack_map_fh, fsize, sizeof(endline) - 1, endline));
-		*id_recorded = true;
+		    conn->optrack_map_fh, fsize, 1, "\n"));
 	}
 	__wt_spin_unlock(session, &conn->optrack_map_spinlock);
 }
