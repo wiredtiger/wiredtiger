@@ -132,11 +132,10 @@
  * hex constant might be a negative integer), and to ensure the hex constant is
  * the correct size before applying the bitwise not operator.
  */
-#define	FLD_CLR(field, mask)	        ((void)((field) &= ~(uint32_t)(mask)))
-#define	FLD_MASK(field, mask)	        ((field) & (uint32_t)(mask))
+#define	FLD_CLR(field, mask)	        ((void)((field) &= ~(mask)))
+#define	FLD_MASK(field, mask)	        ((field) & (mask))
 #define	FLD_ISSET(field, mask)	        (FLD_MASK(field, mask) != 0)
-#define	FLD64_ISSET(field, mask)	(((field) & (uint64_t)(mask)) != 0)
-#define	FLD_SET(field, mask)	        ((void)((field) |= (uint32_t)(mask)))
+#define	FLD_SET(field, mask)	        ((void)((field) |= (mask)))
 
 #define	F_CLR(p, mask)		        FLD_CLR((p)->flags, mask)
 #define	F_ISSET(p, mask)	        FLD_ISSET((p)->flags, mask)

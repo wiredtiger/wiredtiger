@@ -356,7 +356,6 @@ union __wt_rand_state;
 #include "cursor.h"
 #include "dlh.h"
 #include "error.h"
-#include "flags.h"
 #include "log.h"
 #include "lsm.h"
 #include "meta.h"
