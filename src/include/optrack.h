@@ -44,22 +44,21 @@ struct __wt_optrack_record {
 	uint64_t timestamp;
 	uint64_t op_id;
 	uint16_t op_type;
-	uint8_t  padding[6];
+	char padding[6];
 };
 
-#define	WT_TRACK_OP(s, optype) do {					\
-	WT_OPTRACK_RECORD *__tr;					\
-	__tr = &((s)->optrack_buf[					\
-	    (s)->optrackbuf_ptr % WT_OPTRACK_MAXRECS]);			\
-	__tr->timestamp = __wt_rdtsc(s);				\
-	__tr->op_type = optype;						\
-	__tr->op_id = (uint64_t)__func__;				\
+#define	WT_TRACK_OP(s, optype)						\
+	tr->timestamp = __wt_rdtsc(s);					\
+	tr->op_type = optype;						\
+	tr->op_id = (uint64_t)&__func__;				\
 									\
-	if (++(s)->optrackbuf_ptr == WT_OPTRACK_MAXRECS) {		\
-		(s)->optrack_offset += __wt_optrack_flush_buffer(s);	\
-		(s)->optrackbuf_ptr = 0;				\
-	}								\
-} while (0)
+	if (optype == 0 && !id_recorded)				\
+		__wt_optrack_record_funcid(s, tr->op_id,		\
+		    (void*)&__func__, sizeof(__func__), &id_recorded);	\
+	if (s->optrackbuf_ptr == WT_OPTRACK_MAXRECS) {			\
+		s->optrack_offset += __wt_optrack_flush_buffer(s);	\
+		s->optrackbuf_ptr = 0;					\
+	}
 
 /*
  * We do not synchronize access to optrack buffer pointer under the assumption
@@ -72,14 +71,17 @@ struct __wt_optrack_record {
  * threads and it is also used in error paths during failed open calls.
  */
 #define	WT_TRACK_OP_INIT(s)						\
+	WT_OPTRACK_RECORD *tr;						\
+	static volatile bool id_recorded = false;			\
 	if (F_ISSET(S2C(s), WT_CONN_OPTRACK) && (s)->id != 0) {		\
-		static bool __id_recorded = false;			\
-		if (!__id_recorded)					\
-			__wt_optrack_record_funcid(s,			\
-			    (void *)__func__, &__id_recorded);		\
+		tr = &(s->optrack_buf[s->optrackbuf_ptr % WT_OPTRACK_MAXRECS]);\
+		s->optrackbuf_ptr++;					\
 		WT_TRACK_OP(s, 0);					\
 	}
 
 #define	WT_TRACK_OP_END(s)						\
-	if (F_ISSET(S2C(s), WT_CONN_OPTRACK) && (s)->id != 0)		\
-		WT_TRACK_OP(s, 1);
+	if (F_ISSET(S2C(s), WT_CONN_OPTRACK) && (s)->id != 0) {		\
+		tr = &(s->optrack_buf[s->optrackbuf_ptr % WT_OPTRACK_MAXRECS]);\
+		s->optrackbuf_ptr++;					\
+		WT_TRACK_OP(s, 1);					\
+	}
