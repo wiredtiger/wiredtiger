@@ -453,7 +453,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 		WT_TRET(__wt_verbose_dump_txn(session));
 		WT_TRET(__wt_verbose_dump_cache(session));
 		return (ret);
-#endif
+#else
 		if (WT_VERBOSE_ISSET(session, WT_VERB_EVICT_STUCK)) {
 			WT_RET(__wt_verbose_dump_txn(session));
 			WT_RET(__wt_verbose_dump_cache(session));
@@ -461,6 +461,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 			/* Reset the timer. */
 			__wt_epoch(session, &cache->stuck_time);
 		}
+#endif
 	}
 	return (0);
 }
