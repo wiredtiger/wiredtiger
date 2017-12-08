@@ -104,12 +104,6 @@ struct __wt_named_extractor {
 };
 
 /*
- * Allocate some additional slots for internal sessions so the user cannot
- * configure too few sessions for us to run.
- */
-#define	WT_EXTRA_INTERNAL_SESSIONS	20
-
-/*
  * WT_CONN_CHECK_PANIC --
  *	Check if we've panicked and return the appropriate error.
  */
