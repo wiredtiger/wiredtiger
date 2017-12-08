@@ -125,9 +125,11 @@ struct __wt_item {
 	/*! Managed memory size (internal use). */
 	size_t memsize;
 
-#define	WT_ITEM_ALIGNED					0x00000001
-#define	WT_ITEM_INUSE					0x00000002
 	/*! Object flags (internal use). */
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_ITEM_ALIGNED	0x1u
+#define	WT_ITEM_INUSE	0x2u
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint32_t flags;
 #endif
 };
@@ -673,22 +675,24 @@ struct __wt_cursor {
 	 */
 	const char *internal_uri;
 
-#define	WT_CURSTD_APPEND	0x00001
-#define	WT_CURSTD_BULK		0x00002
-#define	WT_CURSTD_DUMP_HEX	0x00004
-#define	WT_CURSTD_DUMP_JSON	0x00008
-#define	WT_CURSTD_DUMP_PRINT	0x00010
-#define	WT_CURSTD_JOINED	0x00020
-#define	WT_CURSTD_KEY_EXT	0x00040	/* Key points out of the tree. */
-#define	WT_CURSTD_KEY_INT	0x00080	/* Key points into the tree. */
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_CURSTD_APPEND	0x0001u
+#define	WT_CURSTD_BULK		0x0002u
+#define	WT_CURSTD_DUMP_HEX	0x0004u
+#define	WT_CURSTD_DUMP_JSON	0x0008u
+#define	WT_CURSTD_DUMP_PRINT	0x0010u
+#define	WT_CURSTD_JOINED	0x0020u
+#define	WT_CURSTD_KEY_EXT	0x0040u	/* Key points out of the tree. */
+#define	WT_CURSTD_KEY_INT	0x0080u	/* Key points into the tree. */
+#define	WT_CURSTD_META_INUSE	0x0100u
+#define	WT_CURSTD_OPEN		0x0200u
+#define	WT_CURSTD_OVERWRITE	0x0400u
+#define	WT_CURSTD_RAW		0x0800u
+#define	WT_CURSTD_RAW_SEARCH	0x1000u
+#define	WT_CURSTD_VALUE_EXT	0x2000u	/* Value points out of the tree. */
+#define	WT_CURSTD_VALUE_INT	0x4000u	/* Value points into the tree. */
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
 #define	WT_CURSTD_KEY_SET	(WT_CURSTD_KEY_EXT | WT_CURSTD_KEY_INT)
-#define	WT_CURSTD_META_INUSE	0x00100
-#define	WT_CURSTD_OPEN		0x00200
-#define	WT_CURSTD_OVERWRITE	0x00400
-#define	WT_CURSTD_RAW		0x00800
-#define	WT_CURSTD_RAW_SEARCH	0x01000
-#define	WT_CURSTD_VALUE_EXT	0x02000	/* Value points out of the tree. */
-#define	WT_CURSTD_VALUE_INT	0x04000	/* Value points into the tree. */
 #define	WT_CURSTD_VALUE_SET	(WT_CURSTD_VALUE_EXT | WT_CURSTD_VALUE_INT)
 	uint32_t flags;
 #endif
@@ -4172,31 +4176,45 @@ typedef enum {
 	WT_FS_OPEN_FILE_TYPE_REGULAR	/*!< open a regular file */
 } WT_FS_OPEN_FILE_TYPE;
 
+#ifdef DOXYGEN
 /*! WT_FILE_SYSTEM::open_file flags: random access pattern */
-#define	WT_FS_OPEN_ACCESS_RAND	0x001
+#define	WT_FS_OPEN_ACCESS_RAND	0x0
 /*! WT_FILE_SYSTEM::open_file flags: sequential access pattern */
-#define	WT_FS_OPEN_ACCESS_SEQ	0x002
+#define	WT_FS_OPEN_ACCESS_SEQ	0x0
 /*! WT_FILE_SYSTEM::open_file flags: create if does not exist */
-#define	WT_FS_OPEN_CREATE	0x004
+#define	WT_FS_OPEN_CREATE	0x0
 /*! WT_FILE_SYSTEM::open_file flags: direct I/O requested */
-#define	WT_FS_OPEN_DIRECTIO	0x008
+#define	WT_FS_OPEN_DIRECTIO	0x0
 /*! WT_FILE_SYSTEM::open_file flags: file creation must be durable */
-#define	WT_FS_OPEN_DURABLE	0x010
+#define	WT_FS_OPEN_DURABLE	0x0
 /*!
  * WT_FILE_SYSTEM::open_file flags: return EBUSY if exclusive use not available
  */
-#define	WT_FS_OPEN_EXCLUSIVE	0x020
-#ifndef DOXYGEN
-#define	WT_FS_OPEN_FIXED	0x040	/* Path not home relative (internal) */
-#endif
+#define	WT_FS_OPEN_EXCLUSIVE	0x0
 /*! WT_FILE_SYSTEM::open_file flags: open is read-only */
-#define	WT_FS_OPEN_READONLY	0x080
+#define	WT_FS_OPEN_READONLY	0x0
 
 /*!
  * WT_FILE_SYSTEM::remove or WT_FILE_SYSTEM::rename flags: the remove or rename
  * operation must be durable
  */
-#define	WT_FS_DURABLE		0x001
+#define	WT_FS_DURABLE		0x0
+#else
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_FS_OPEN_ACCESS_RAND	0x01u
+#define	WT_FS_OPEN_ACCESS_SEQ	0x02u
+#define	WT_FS_OPEN_CREATE	0x04u
+#define	WT_FS_OPEN_DIRECTIO	0x08u
+#define	WT_FS_OPEN_DURABLE	0x10u
+#define	WT_FS_OPEN_EXCLUSIVE	0x20u
+#define	WT_FS_OPEN_FIXED	0x40u	/* Path not home relative (internal) */
+#define	WT_FS_OPEN_READONLY	0x80u
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
+
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_FS_DURABLE		0x1u
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
+#endif
 
 /*!
  * The interface implemented by applications to provide a custom file system
