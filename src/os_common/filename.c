@@ -65,8 +65,7 @@ __wt_filename_construct(WT_SESSION_IMPL *session, const char *path,
 	if (path != NULL && path[0] != '\0')
 		WT_RET(__wt_buf_catfmt(
 		    session, buf, "%s%s", path, __wt_path_separator()));
-	WT_RET(__wt_buf_catfmt(
-	    session, buf, "%s", file_prefix));
+	WT_RET(__wt_buf_catfmt(session, buf, "%s", file_prefix));
 	if (id_1 != UINTMAX_MAX)
 		WT_RET(__wt_buf_catfmt(session, buf, ".%010" PRIuMAX, id_1));
 	if (id_2 != UINT32_MAX)
