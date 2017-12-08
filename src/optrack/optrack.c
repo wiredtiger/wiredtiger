@@ -104,7 +104,7 @@ __wt_optrack_flush_buffer(WT_SESSION_IMPL *s)
 	    (WT_SESSION *)s, (wt_off_t)s->optrack_offset,
 	    s->optrackbuf_ptr * sizeof(WT_OPTRACK_RECORD), s->optrack_buf);
 	if (ret == 0)
-		return s->optrackbuf_ptr * sizeof(WT_OPTRACK_RECORD);
+		return (s->optrackbuf_ptr * sizeof(WT_OPTRACK_RECORD));
 	else
 		return (0);
 }
