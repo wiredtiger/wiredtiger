@@ -578,6 +578,7 @@ __wt_cursor_close(WT_CURSOR *cursor)
 		(void)__wt_atomic_sub32(&S2C(session)->open_cursor_count, 1);
 		WT_STAT_DATA_DECR(session, session_cursor_open);
 	}
+
 	__wt_buf_free(session, &cursor->key);
 	__wt_buf_free(session, &cursor->value);
 
