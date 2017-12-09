@@ -42,8 +42,8 @@
 	(s)->dhandle = (dh);						\
 	(s)->name = (s)->lastop = #h "." #n;				\
 	/*								\
-	 * Only declarations above this line, otherwise error handling	\
-	 * won't be correct.						\
+	 * No code before this line, otherwise error handling  won't be	\
+	 * correct.							\
 	 */								\
 	WT_TRACK_OP_INIT(s);						\
 	WT_SINGLE_THREAD_CHECK_START(s);				\
@@ -63,8 +63,6 @@
 
 #define	API_END(s, ret)							\
 	if ((s) != NULL) {						\
-		(s)->dhandle = __olddh;					\
-		(s)->name = __oldname;					\
 		WT_TRACK_OP_END(s);					\
 		WT_SINGLE_THREAD_CHECK_STOP(s);				\
 		if (F_ISSET(&(s)->txn, WT_TXN_RUNNING) &&		\
@@ -72,6 +70,12 @@
 		    (ret) != WT_NOTFOUND &&				\
 		    (ret) != WT_DUPLICATE_KEY)				\
 			F_SET(&(s)->txn, WT_TXN_ERROR);			\
+		/*							\
+		 * No code after this line, otherwise error handling	\
+		 * won't be correct.					\
+		 */							\
+		(s)->dhandle = __olddh;					\
+		(s)->name = __oldname;					\
 	}								\
 } while (0)
 
