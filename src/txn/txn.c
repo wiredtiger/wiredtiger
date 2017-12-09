@@ -287,7 +287,7 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 #ifdef HAVE_TIMESTAMPS
 	/* Try to move the pinned timestamp forward. */
 	if (strict)
-		WT_RET(__wt_txn_update_pinned_timestamp(session));
+		WT_RET(__wt_txn_update_pinned_timestamp(session, false));
 #endif
 
 	/*
@@ -367,7 +367,6 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 	if (WT_TXNID_LT(txn_global->last_running, last_running)) {
 		txn_global->last_running = last_running;
 
-#ifdef HAVE_VERBOSE
 		/* Output a verbose message about long-running transactions,
 		 * but only when some progress is being made. */
 		if (WT_VERBOSE_ISSET(session, WT_VERB_TRANSACTION) &&
@@ -380,7 +379,6 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 			    oldest_session->lastop,
 			    oldest_session->txn.snap_min);
 		}
-#endif
 	}
 
 done:	__wt_writeunlock(session, &txn_global->rwlock);
