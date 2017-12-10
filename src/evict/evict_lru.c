@@ -230,7 +230,6 @@ __wt_evict_server_wake(WT_SESSION_IMPL *session)
 	conn = S2C(session);
 	cache = conn->cache;
 
-#ifdef HAVE_VERBOSE
 	if (WT_VERBOSE_ISSET(session, WT_VERB_EVICTSERVER)) {
 		uint64_t bytes_inuse, bytes_max;
 
@@ -244,7 +243,6 @@ __wt_evict_server_wake(WT_SESSION_IMPL *session)
 		    bytes_inuse <= bytes_max ? "<=" : ">",
 		    bytes_max / WT_MEGABYTE);
 	}
-#endif
 
 	__wt_cond_signal(session, cache->evict_cond);
 }
@@ -371,9 +369,7 @@ err:		WT_PANIC_MSG(session, ret, "cache eviction thread error");
 static int
 __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 {
-#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
 	struct timespec now;
-#endif
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
@@ -421,13 +417,19 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 
 	/* Eviction is stuck, check if we have made progress. */
 	if (*did_work) {
-#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
-		__wt_epoch(session, &cache->stuck_time);
+#if !defined(HAVE_DIAGNOSTIC)
+		/* Need verbose check only if not in diagnostic build */
+		if (WT_VERBOSE_ISSET(session, WT_VERB_EVICT_STUCK))
 #endif
+			__wt_epoch(session, &cache->stuck_time);
 		return (0);
 	}
 
-#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
+#if !defined(HAVE_DIAGNOSTIC)
+	/* Need verbose check only if not in diagnostic build */
+	if (!WT_VERBOSE_ISSET(session, WT_VERB_EVICT_STUCK))
+		return (0);
+#endif
 	/*
 	 * If we're stuck for 5 minutes in diagnostic mode, or the verbose
 	 * evict_stuck flag is configured, log the cache and transaction state.
@@ -451,7 +453,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 		WT_TRET(__wt_verbose_dump_txn(session));
 		WT_TRET(__wt_verbose_dump_cache(session));
 		return (ret);
-#elif defined(HAVE_VERBOSE)
+#endif
 		if (WT_VERBOSE_ISSET(session, WT_VERB_EVICT_STUCK)) {
 			WT_RET(__wt_verbose_dump_txn(session));
 			WT_RET(__wt_verbose_dump_cache(session));
@@ -459,9 +461,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 			/* Reset the timer. */
 			__wt_epoch(session, &cache->stuck_time);
 		}
-#endif
 	}
-#endif
 	return (0);
 }
 
@@ -492,12 +492,14 @@ __wt_evict_create(WT_SESSION_IMPL *session)
 	    session_flags, __wt_evict_thread_chk, __wt_evict_thread_run,
 	    __wt_evict_thread_stop));
 
-#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
 	/*
 	 * Ensure the cache stuck timer is initialized when starting eviction.
 	 */
-	__wt_epoch(session, &conn->cache->stuck_time);
+#if !defined(HAVE_DIAGNOSTIC)
+	/* Need verbose check only if not in diagnostic build */
+	if (WT_VERBOSE_ISSET(session, WT_VERB_EVICTSERVER))
 #endif
+		__wt_epoch(session, &conn->cache->stuck_time);
 
 	/*
 	 * Allow queues to be populated now that the eviction threads

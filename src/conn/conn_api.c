@@ -1854,17 +1854,8 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 	flags = 0;
 	for (ft = verbtypes; ft->name != NULL; ft++) {
 		if ((ret = __wt_config_subgets(
-		    session, &cval, ft->name, &sval)) == 0 && sval.val != 0) {
-#ifdef HAVE_VERBOSE
+		    session, &cval, ft->name, &sval)) == 0 && sval.val != 0)
 			LF_SET(ft->flag);
-#else
-			WT_RET_MSG(session, EINVAL,
-			    "Verbose option specified when WiredTiger built "
-			    "without verbose support. Add --enable-verbose to "
-			    "configure command and rebuild to include support "
-			    "for verbose messages");
-#endif
-		}
 		WT_RET_NOTFOUND_OK(ret);
 	}
 
@@ -2171,6 +2162,44 @@ __conn_set_file_system(
 	conn->file_system = file_system;
 
 err:	API_END_RET(session, ret);
+}
+
+/*
+ * __conn_session_size --
+ *	Return the session count for this run.
+ */
+static int
+__conn_session_size(
+    WT_SESSION_IMPL *session, const char *cfg[], uint32_t *vp)
+{
+	WT_CONFIG_ITEM cval;
+	int64_t v;
+
+	/*
+	 * Start with 20 internal sessions to cover threads the application
+	 * can't configure (for example, checkpoint or statistics log server
+	 * threads).
+	 */
+#define	WT_EXTRA_INTERNAL_SESSIONS	20
+	v = WT_EXTRA_INTERNAL_SESSIONS;
+
+	/* Then, add in the thread counts applications can configure. */
+	WT_RET(__wt_config_gets(session, cfg, "async.threads", &cval));
+	v += cval.val;
+
+	WT_RET(__wt_config_gets(session, cfg, "eviction.threads_max", &cval));
+	v += cval.val;
+
+	WT_RET(__wt_config_gets(
+	    session, cfg, "lsm_manager.worker_thread_max", &cval));
+	v += cval.val;
+
+	WT_RET(__wt_config_gets(session, cfg, "session_max", &cval));
+	v += cval.val;
+
+	*vp = (uint32_t)v;
+
+	return (0);
 }
 
 /*
@@ -2503,8 +2532,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	/* Set up operation tracking if configured. */
 	WT_ERR(__wt_conn_optrack_setup(session, cfg, false));
 
-	WT_ERR(__wt_config_gets(session, cfg, "session_max", &cval));
-	conn->session_size = (uint32_t)cval.val + WT_EXTRA_INTERNAL_SESSIONS;
+	WT_ERR(__conn_session_size(session, cfg, &conn->session_size));
 
 	WT_ERR(__wt_config_gets(session, cfg, "session_scratch_max", &cval));
 	conn->session_scratch_max = (size_t)cval.val;
