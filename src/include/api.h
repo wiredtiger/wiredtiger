@@ -38,6 +38,7 @@
 #define	API_SESSION_INIT(s, h, n, dh)					\
 	WT_DATA_HANDLE *__olddh = (s)->dhandle;				\
 	const char *__oldname = (s)->name;				\
+	WT_TRACK_OP_INIT(s);						\
 	(s)->dhandle = (dh);						\
 	(s)->name = (s)->lastop = #h "." #n;				\
 	WT_SINGLE_THREAD_CHECK_START(s);				\
@@ -57,7 +58,8 @@
 
 #define	API_END(s, ret)							\
 	if ((s) != NULL) {						\
-		WT_SINGLE_THREAD_CHECK_STOP(s);			\
+		WT_SINGLE_THREAD_CHECK_STOP(s);				\
+		WT_TRACK_OP_END(s);					\
 		(s)->dhandle = __olddh;					\
 		(s)->name = __oldname;					\
 		if (F_ISSET(&(s)->txn, WT_TXN_RUNNING) &&		\

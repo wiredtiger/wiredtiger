@@ -133,7 +133,8 @@ retry:
 	/*
 	 * If someone completely processed this slot, we're done.
 	 */
-	if (FLD64_ISSET((uint64_t)slot->slot_state, WT_LOG_SLOT_RESERVED)) {
+	if (FLD_LOG_SLOT_ISSET(
+	    (uint64_t)slot->slot_state, WT_LOG_SLOT_RESERVED)) {
 		WT_STAT_CONN_INCR(session, log_slot_close_race);
 		return (WT_NOTFOUND);
 	}
@@ -482,7 +483,7 @@ __wt_log_slot_destroy(WT_SESSION_IMPL *session)
 	 */
 	for (i = 0; i < WT_SLOT_POOL; i++) {
 		slot = &log->slot_pool[i];
-		if (!FLD64_ISSET(
+		if (!FLD_LOG_SLOT_ISSET(
 		    (uint64_t)slot->slot_state, WT_LOG_SLOT_RESERVED)) {
 			rel = WT_LOG_SLOT_RELEASED_BUFFERED(slot->slot_state);
 			if (rel != 0)

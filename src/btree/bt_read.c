@@ -841,7 +841,6 @@ static void
 __btree_verbose_lookaside_read(
     WT_SESSION_IMPL *session, uint32_t las_id, uint64_t las_pageid)
 {
-#ifdef HAVE_VERBOSE
 	WT_CACHE *cache;
 	uint64_t ckpt_gen_current, ckpt_gen_last;
 
@@ -874,9 +873,4 @@ __btree_verbose_lookaside_read(
 			    las_id, las_pageid);
 		}
 	}
-#else
-	WT_UNUSED(session);
-	WT_UNUSED(las_id);
-	WT_UNUSED(las_pageid);
-#endif
 }
