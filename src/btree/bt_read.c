@@ -710,8 +710,10 @@ read:			/*
 			    (((!LF_ISSET(WT_READ_CACHE) ||
 			    LF_ISSET(WT_READ_LOOKASIDE)) &&
 			    !__las_page_skip_locked(session, ref)) ||
-			    F_ISSET(&session->txn, WT_TXN_UPDATE)))
+			    F_ISSET(&session->txn, WT_TXN_UPDATE))) {
+				WT_RET(__wt_hazard_clear(session, ref));
 				goto read;
+			}
 			if (ref->state == WT_REF_LIMBO &&
 			    LF_ISSET(WT_READ_CACHE) &&
 			    LF_ISSET(WT_READ_LOOKASIDE))
