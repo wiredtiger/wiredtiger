@@ -153,6 +153,7 @@ __wt_bitmap_clear_bitmap(WT_SESSION_IMPL *session, WT_BITMAP *dst,
 {
 	size_t i, nbytes;
 
+	WT_UNUSED(session);
 	nbytes = __min_bitmap_size(dst, src);
 	for (i = 0; i < nbytes; i++)
 		dst->bitstring[i] &= ~src->bitstring[i];
@@ -169,6 +170,7 @@ __wt_bitmap_test_bitmap(WT_SESSION_IMPL *session, WT_BITMAP *bm,
 {
 	size_t i, nbytes;
 
+	WT_UNUSED(session);
 	nbytes = __min_bitmap_size(bm, test);
 	for (i = 0; i < nbytes; i++)
 		if (bm->bitstring[i] & test->bitstring[i])
@@ -187,6 +189,7 @@ __wt_bitmap_test_all_bitmap(WT_SESSION_IMPL *session, WT_BITMAP *bm,
 {
 	size_t i, nbytes;
 
+	WT_UNUSED(session);
 	nbytes = __min_bitmap_size(bm, test);
 	for (i = 0; i < nbytes; i++)
 		if ((bm->bitstring[i] & test->bitstring[i]) !=
