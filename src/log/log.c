@@ -16,8 +16,9 @@ static int __log_write_internal(
 #define	WT_LOG_COMPRESS_SKIP	(offsetof(WT_LOG_RECORD, record))
 #define	WT_LOG_ENCRYPT_SKIP	(offsetof(WT_LOG_RECORD, record))
 
-/* Flags to __log_openfile */
-#define	WT_LOG_OPEN_CREATE_OK	0x01
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_LOG_OPEN_CREATE_OK	0x1u		/* Flag to __log_openfile() */
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
 
 /*
  * __wt_log_printf --
@@ -484,18 +485,8 @@ static int
 __log_filename(WT_SESSION_IMPL *session,
     uint32_t id, const char *file_prefix, WT_ITEM *buf)
 {
-	const char *log_path;
-
-	log_path = S2C(session)->log_path;
-
-	if (log_path != NULL && log_path[0] != '\0')
-		WT_RET(__wt_buf_fmt(session, buf, "%s/%s.%010" PRIu32,
-		    log_path, file_prefix, id));
-	else
-		WT_RET(__wt_buf_fmt(session, buf, "%s.%010" PRIu32,
-		    file_prefix, id));
-
-	return (0);
+	return (__wt_filename_construct(session,
+	    S2C(session)->log_path, file_prefix, UINTMAX_MAX, id, buf));
 }
 
 /*
@@ -1012,6 +1003,7 @@ err:	__wt_scr_free(session, &buf);
 static int
 __log_alloc_prealloc(WT_SESSION_IMPL *session, uint32_t to_num)
 {
+	WT_CONNECTION_IMPL *conn;
 	WT_DECL_ITEM(from_path);
 	WT_DECL_ITEM(to_path);
 	WT_DECL_RET;
@@ -1023,7 +1015,8 @@ __log_alloc_prealloc(WT_SESSION_IMPL *session, uint32_t to_num)
 	/*
 	 * If there are no pre-allocated files, return WT_NOTFOUND.
 	 */
-	log = S2C(session)->log;
+	conn = S2C(session);
+	log = conn->log;
 	logfiles = NULL;
 	WT_ERR(__log_get_files(session, WT_LOG_PREPNAME, &logfiles, &logcount));
 	if (logcount == 0)
