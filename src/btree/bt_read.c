@@ -676,15 +676,6 @@ read:			/*
 		case WT_REF_SPLIT:
 			return (WT_RESTART);
 		case WT_REF_LIMBO:
-			if (((!LF_ISSET(WT_READ_CACHE) ||
-			    LF_ISSET(WT_READ_LOOKASIDE)) &&
-			    !__las_page_skip(session, ref)) ||
-			    F_ISSET(&session->txn, WT_TXN_UPDATE))
-				goto read;
-			if (LF_ISSET(WT_READ_CACHE) &&
-			    LF_ISSET(WT_READ_LOOKASIDE))
-				__wt_tree_modify_set(session);
-			/* FALLTHROUGH */
 		case WT_REF_MEM:
 			/*
 			 * The page is in memory.
@@ -710,6 +701,21 @@ read:			/*
 				WT_STAT_CONN_INCR(session, page_busy_blocked);
 				break;
 			}
+			/*
+			 * If we are a limbo page check whether we need to
+			 * instantiate the history. By having a hazard pointer
+			 * we can use the locked version.
+			 */
+			if (ref->state == WT_REF_LIMBO &&
+			    (((!LF_ISSET(WT_READ_CACHE) ||
+			    LF_ISSET(WT_READ_LOOKASIDE)) &&
+			    !__las_page_skip_locked(session, ref)) ||
+			    F_ISSET(&session->txn, WT_TXN_UPDATE)))
+				goto read;
+			if (ref->state == WT_REF_LIMBO &&
+			    LF_ISSET(WT_READ_CACHE) &&
+			    LF_ISSET(WT_READ_LOOKASIDE))
+				__wt_tree_modify_set(session);
 
 			/*
 			 * Check if the page requires forced eviction.
