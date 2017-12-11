@@ -486,7 +486,7 @@ __log_filename(WT_SESSION_IMPL *session,
     uint32_t id, const char *file_prefix, WT_ITEM *buf)
 {
 	return (__wt_filename_construct(session,
-		   S2C(session)->log_path, file_prefix, UINTMAX_MAX, id, buf));
+	    S2C(session)->log_path, file_prefix, UINTMAX_MAX, id, buf));
 }
 
 /*
