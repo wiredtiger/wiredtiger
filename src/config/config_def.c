@@ -1472,7 +1472,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  ",wait=0),timing_stress_for_test=,transaction_sync=(enabled=false"
 	  ",method=fsync),use_environment=true,use_environment_priv=false,"
 	  "verbose=,write_through=",
-	  confchk_wiredtiger_open, 43
+	  confchk_wiredtiger_open, 44
 	},
 	{ "wiredtiger_open_all",
 	  "async=(enabled=false,ops_max=1024,threads=2),buffer_alignment=-1"
@@ -1497,7 +1497,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  ",wait=0),timing_stress_for_test=,transaction_sync=(enabled=false"
 	  ",method=fsync),use_environment=true,use_environment_priv=false,"
 	  "verbose=,version=(major=0,minor=0),write_through=",
-	  confchk_wiredtiger_open_all, 44
+	  confchk_wiredtiger_open_all, 45
 	},
 	{ "wiredtiger_open_basecfg",
 	  "async=(enabled=false,ops_max=1024,threads=2),buffer_alignment=-1"
@@ -1520,7 +1520,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  ",on_close=false,path=\".\",sources=,timestamp=\"%b %d %H:%M:%S\""
 	  ",wait=0),timing_stress_for_test=,transaction_sync=(enabled=false"
 	  ",method=fsync),verbose=,version=(major=0,minor=0),write_through=",
-	  confchk_wiredtiger_open_basecfg, 38
+	  confchk_wiredtiger_open_basecfg, 39
 	},
 	{ "wiredtiger_open_usercfg",
 	  "async=(enabled=false,ops_max=1024,threads=2),buffer_alignment=-1"
@@ -1543,7 +1543,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  ",on_close=false,path=\".\",sources=,timestamp=\"%b %d %H:%M:%S\""
 	  ",wait=0),timing_stress_for_test=,transaction_sync=(enabled=false"
 	  ",method=fsync),verbose=,write_through=",
-	  confchk_wiredtiger_open_usercfg, 37
+	  confchk_wiredtiger_open_usercfg, 38
 	},
 	{ NULL, NULL, NULL, 0 }
 };

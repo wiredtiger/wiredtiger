@@ -83,17 +83,6 @@ __wt_bitmap_alloc_bit(WT_SESSION_IMPL *session, WT_BITMAP *bm,
 }
 
 /*
- * __wt_bitmap_set_quick --
- *	Set a bit in the bitmap, which is assumed to be big enough.
- */
-static inline void
-__wt_bitmap_set_quick(WT_SESSION_IMPL *session, WT_BITMAP *bm, uint64_t bit)
-{
-	WT_ASSERT(session, bit < bm->cnt);
-	__bit_set(bm->bitstring, bit);
-}
-
-/*
  * __wt_bitmap_set --
  *	Set a bit in the bitmap, growing it if needed.
  */
@@ -196,23 +185,6 @@ __wt_bitmap_test_all_bitmap(WT_SESSION_IMPL *session, WT_BITMAP *bm,
 		    test->bitstring[i])
 			return (false);
 	return (true);
-}
-
-/*
- * __wt_bitmap_copy_bitmap --
- *	Copy one bitmap to another.
- */
-static inline int
-__wt_bitmap_copy_bitmap(WT_SESSION_IMPL *session, WT_BITMAP *dst,
-    WT_BITMAP *src)
-{
-	size_t i, nbytes;
-
-	nbytes = __bitmap_size(src);
-	WT_RET(__wt_bitmap_ensure(session, dst, src->cnt));
-	for (i = 0; i < nbytes; i++)
-		dst->bitstring[i] = src->bitstring[i];
-	return (0);
 }
 
 /*
