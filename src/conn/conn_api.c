@@ -1796,7 +1796,7 @@ err:	/*
 /* Simple structure for name and flag configuration searches. */
 typedef struct {
 	const char *name;
-	uint32_t flag;
+	uint64_t flag;
 } WT_NAME_FLAG;
 
 /*
@@ -1833,6 +1833,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 		{ "salvage",		WT_VERB_SALVAGE },
 		{ "shared_cache",	WT_VERB_SHARED_CACHE },
 		{ "split",		WT_VERB_SPLIT },
+		{ "temporary",		WT_VERB_TEMPORARY },
 		{ "thread_group",	WT_VERB_THREAD_GROUP },
 		{ "timestamp",		WT_VERB_TIMESTAMP },
 		{ "transaction",	WT_VERB_TRANSACTION },
@@ -1845,7 +1846,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	const WT_NAME_FLAG *ft;
-	uint32_t flags;
+	uint64_t flags;
 
 	conn = S2C(session);
 
@@ -1995,7 +1996,7 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	const WT_NAME_FLAG *ft;
-	uint32_t flags;
+	uint64_t flags;
 
 	conn = S2C(session);
 

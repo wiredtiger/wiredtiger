@@ -2038,8 +2038,8 @@ __open_session(WT_CONNECTION_IMPL *conn,
 
 	/* Allocate the buffer for operation tracking */
 	if (F_ISSET(conn, WT_CONN_OPTRACK)) {
-		WT_ERR(__wt_malloc(session, WT_OPTRACK_BUFSIZE,
-				   &session_ret->optrack_buf));
+		WT_ERR(__wt_malloc(
+		    session, WT_OPTRACK_BUFSIZE, &session_ret->optrack_buf));
 		session_ret->optrackbuf_ptr = 0;
 	}
 	/*

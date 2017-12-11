@@ -260,7 +260,7 @@ retry_find:
 		 * in too high a generation, stop.
 		 */
 		if (nchunks >= merge_min &&
-		   chunk->generation > youngest_gen + max_gap)
+		    chunk->generation > youngest_gen + max_gap)
 			break;
 
 		/*

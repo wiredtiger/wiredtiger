@@ -600,6 +600,7 @@ connection_runtime_config = [
             'salvage',
             'shared_cache',
             'split',
+            'temporary',
             'thread_group',
             'timestamp',
             'transaction',

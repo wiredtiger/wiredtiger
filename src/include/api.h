@@ -58,7 +58,7 @@
 
 #define	API_END(s, ret)							\
 	if ((s) != NULL) {						\
-		WT_SINGLE_THREAD_CHECK_STOP(s);			\
+		WT_SINGLE_THREAD_CHECK_STOP(s);				\
 		WT_TRACK_OP_END(s);					\
 		(s)->dhandle = __olddh;					\
 		(s)->name = __oldname;					\
