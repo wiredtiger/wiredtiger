@@ -449,11 +449,10 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 #if defined(HAVE_DIAGNOSTIC)
 		__wt_err(session, ETIMEDOUT,
 		    "Cache stuck for too long, giving up");
-		ret = ETIMEDOUT;
-		WT_TRET(__wt_verbose_dump_txn(session));
-		WT_TRET(__wt_verbose_dump_cache(session));
-		return (ret);
-#endif
+		WT_RET(__wt_verbose_dump_txn(session));
+		WT_RET(__wt_verbose_dump_cache(session));
+		return (ETIMEDOUT);
+#else
 		if (WT_VERBOSE_ISSET(session, WT_VERB_EVICT_STUCK)) {
 			WT_RET(__wt_verbose_dump_txn(session));
 			WT_RET(__wt_verbose_dump_cache(session));
@@ -461,6 +460,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 			/* Reset the timer. */
 			__wt_epoch(session, &cache->stuck_time);
 		}
+#endif
 	}
 	return (0);
 }
@@ -2619,6 +2619,7 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
 	WT_DECL_RET;
 	uint64_t total_bytes, total_dirty_bytes;
 	u_int pct;
+	bool needed;
 
 	conn = S2C(session);
 	total_bytes = total_dirty_bytes = 0;
@@ -2629,10 +2630,12 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
 
 	WT_RET(__wt_msg(session,
 	    "cache full: %s", __wt_cache_full(session) ? "yes" : "no"));
-	WT_RET(__wt_msg(session, "cache clean check: %s (%u%%)",
-	    __wt_eviction_clean_needed(session, &pct) ? "yes" : "no", pct));
-	WT_RET(__wt_msg(session, "cache dirty check: %s (%u%%)",
-	    __wt_eviction_dirty_needed(session, &pct) ? "yes" : "no", pct));
+	needed = __wt_eviction_clean_needed(session, &pct);
+	WT_RET(__wt_msg(session,
+	    "cache clean check: %s (%u%%)", needed ? "yes" : "no", pct));
+	needed = __wt_eviction_dirty_needed(session, &pct);
+	WT_RET(__wt_msg(session,
+	    "cache dirty check: %s (%u%%)", needed ? "yes" : "no", pct));
 
 	for (dhandle = NULL;;) {
 		WT_WITH_HANDLE_LIST_READ_LOCK(session,

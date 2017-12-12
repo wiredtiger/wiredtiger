@@ -211,6 +211,8 @@ __wt_open(WT_SESSION_IMPL *session,
 
 	WT_ASSERT(session, file_type != 0);	/* A file type is required. */
 
+	*fhp = NULL;
+
 	conn = S2C(session);
 	file_system = conn->file_system;
 	fh = NULL;
