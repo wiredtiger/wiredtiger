@@ -402,6 +402,7 @@ struct __wt_connection_impl {
 
 	bool	 mmap;			/* mmap configuration */
 	int page_size;			/* OS page size for mmap alignment */
+	double	 tsc_nsec_ratio;	/* rdtsc ticks to nanoseconds */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define	WT_VERB_API			0x000000001u

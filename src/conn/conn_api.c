@@ -1286,6 +1286,37 @@ err:	API_END_RET(session, ret);
 }
 
 /*
+ * __conn_calibrate_ticks --
+ *	Calibrate a ratio from rdtsc ticks to nanoseconds.
+ */
+static void
+__conn_calibrate_ticks(WT_SESSION_IMPL *session)
+{
+#if (defined __i386) || (defined __amd64)
+	struct timespec start, stop;
+	WT_CONNECTION_IMPL *conn;
+	uint64_t diff_nsec, diff_tsc;
+	uint64_t i, tsc_start, tsc_stop;
+
+	conn = S2C(session);
+	__wt_epoch(session, &start);
+	tsc_start = __wt_rdtsc(session);
+	/*
+	 * This needs to be CPU intensive and large enough.
+	 */
+	for (i = 0; i < WT_MILLION; i++)
+		;
+	tsc_stop = __wt_rdtsc(session);
+	__wt_epoch(session, &stop);
+	diff_nsec = WT_TIMEDIFF_NS(stop, start);
+	diff_tsc = tsc_stop - tsc_start;
+	conn->tsc_nsec_ratio = (double)diff_tsc/(double)diff_nsec;
+#else
+	conn->tsc_nsec_ratio = 1.0;
+#endif
+}
+
+/*
  * __conn_config_append --
  *	Append an entry to a config stack.
  */
@@ -2651,6 +2682,11 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	 * Configuration completed; optionally write a base configuration file.
 	 */
 	WT_ERR(__conn_write_base_config(session, cfg));
+
+	/*
+	 * Calibrate the ratio of rdtsc ticks to nanoseconds.
+	 */
+	__conn_calibrate_ticks(session);
 
 	/*
 	 * Check on the turtle and metadata files, creating them if necessary

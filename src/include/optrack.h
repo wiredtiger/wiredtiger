@@ -41,14 +41,14 @@ struct __wt_optrack_header {
  * from it.
  */
 struct __wt_optrack_record {
-	uint64_t timestamp;
+	uint64_t op_timestamp;
 	uint64_t op_id;
 	uint16_t op_type;
 	char padding[6];
 };
 
 #define	WT_TRACK_OP(s, optype)						\
-	tr->timestamp = __wt_rdtsc(s);					\
+	tr->op_timestamp = __wt_rdtsc(s);				\
 	tr->op_type = optype;						\
 	tr->op_id = (uint64_t)&__func__;				\
 									\

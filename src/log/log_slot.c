@@ -504,17 +504,17 @@ void
 __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
     uint32_t flags, WT_MYSLOT *myslot)
 {
-	struct timespec start, stop;
 	WT_CONNECTION_IMPL *conn;
 	WT_LOG *log;
 	WT_LOGSLOT *slot;
-	uint64_t usecs;
+	uint64_t start, stop, usecs;
 	int64_t flag_state, new_state, old_state, released;
 	int32_t join_offset, new_join, wait_cnt;
 	bool closed, diag_yield, raced, slept, unbuffered, yielded;
 
 	conn = S2C(session);
 	log = conn->log;
+	start = stop = 0;
 
 	WT_ASSERT(session, !F_ISSET(session, WT_SESSION_LOCKED_SLOT));
 	WT_ASSERT(session, mysize != 0);
@@ -576,7 +576,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 			++wait_cnt;
 		}
 		if (!yielded)
-			__wt_epoch(session, &start);
+			start = __wt_rdtsc(session);
 		yielded = true;
 		/*
 		 * The slot is no longer open or we lost the race to
@@ -597,8 +597,8 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 		WT_STAT_CONN_INCR(session, log_slot_immediate);
 	else {
 		WT_STAT_CONN_INCR(session, log_slot_yield);
-		__wt_epoch(session, &stop);
-		usecs = WT_TIMEDIFF_US(stop, start);
+		stop = __wt_rdtsc(session);
+		usecs = WT_TSCDIFF_US(session, stop, start);
 		WT_STAT_CONN_INCRV(session, log_slot_yield_duration, usecs);
 		if (closed)
 			WT_STAT_CONN_INCR(session, log_slot_yield_close);
