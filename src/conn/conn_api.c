@@ -1294,11 +1294,9 @@ __conn_calibrate_ticks(WT_SESSION_IMPL *session)
 {
 #if (defined __i386) || (defined __amd64)
 	struct timespec start, stop;
-	WT_CONNECTION_IMPL *conn;
 	uint64_t diff_nsec, diff_tsc;
 	uint64_t i, tsc_start, tsc_stop;
 
-	conn = S2C(session);
 	__wt_epoch(session, &start);
 	tsc_start = __wt_rdtsc(session);
 	/*
@@ -1310,9 +1308,9 @@ __conn_calibrate_ticks(WT_SESSION_IMPL *session)
 	__wt_epoch(session, &stop);
 	diff_nsec = WT_TIMEDIFF_NS(stop, start);
 	diff_tsc = tsc_stop - tsc_start;
-	conn->tsc_nsec_ratio = (double)diff_tsc/(double)diff_nsec;
+	S2C(session)->tsc_nsec_ratio = (double)diff_tsc/(double)diff_nsec;
 #else
-	conn->tsc_nsec_ratio = 1.0;
+	S2C(session)->tsc_nsec_ratio = 1.0;
 #endif
 }
 
