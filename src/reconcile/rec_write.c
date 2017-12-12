@@ -421,14 +421,6 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 		return (EBUSY);
 	}
 
-#if 0
-	if (LF_ISSET(WT_REC_EVICT) && LF_ISSET(WT_REC_LOOKASIDE) &&
-	    session == S2C(session)->evict_threads.threads[0]->session) {
-		WT_TRET(__wt_msg(session, "reconciling page for lookaside:"));
-		WT_TRET(__wt_debug_page(session, ref, NULL));
-	}
-#endif
-
 	oldest_id = __wt_txn_oldest_id(session);
 	if (LF_ISSET(WT_REC_EVICT)) {
 		mod->last_eviction_id = oldest_id;
