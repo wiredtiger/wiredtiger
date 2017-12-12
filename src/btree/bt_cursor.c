@@ -951,9 +951,13 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt)
 	 * arguably safe to simply leave the key initialized in the cursor (as
 	 * that's all a positioned cursor implies), but it's probably safer to
 	 * avoid page eviction entirely in the positioned case.
+	 *
+	 * Eviction is okay if we are not positioned, or if we are in the
+	 * WT_REF_LIMBO state. A page in that state was read from disk and
+	 * therefore cannot have every item deleted.
 	 */
 	if (__cursor_page_pinned(cbt,
-	    (!positioned || cbt->ref->state != WT_REF_LIMBO)) &&
+	    (!positioned || cbt->ref->state == WT_REF_LIMBO)) &&
 	    F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
 		WT_ERR(__wt_txn_autocommit_check(session));
 
