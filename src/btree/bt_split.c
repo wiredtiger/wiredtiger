@@ -2267,13 +2267,6 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
 	/* Swap the new page into place. */
 	ref->page = new->page;
 
-#if 0
-	if (session == S2C(session)->evict_threads.threads[0]->session) {
-		WT_TRET(__wt_msg(session, "After a rewrite:"));
-		WT_TRET(__wt_debug_page(session, ref, NULL));
-	}
-#endif
-
 	WT_PUBLISH(ref->state, WT_REF_MEM);
 
 	__wt_free(session, new);
