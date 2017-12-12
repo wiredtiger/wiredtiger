@@ -952,7 +952,8 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt)
 	 * that's all a positioned cursor implies), but it's probably safer to
 	 * avoid page eviction entirely in the positioned case.
 	 */
-	if (__cursor_page_pinned(cbt, !positioned) &&
+	if (__cursor_page_pinned(cbt,
+	    (!positioned || cbt->ref->state != WT_REF_LIMBO)) &&
 	    F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
 		WT_ERR(__wt_txn_autocommit_check(session));
 
