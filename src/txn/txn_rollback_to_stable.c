@@ -16,7 +16,6 @@
 static int
 __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 {
-	static WT_DECL_TIMESTAMP(zero_timestamp)
 	WT_CONNECTION_IMPL *conn;
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
@@ -50,7 +49,7 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 	F_SET(session, WT_SESSION_READ_WONT_NEED);
 
 	/* Walk the file. */
-	for (; (ret = cursor->next(cursor)) == 0; ) {
+	while ((ret = cursor->next(cursor)) == 0) {
 		WT_ERR(cursor->get_key(cursor,
 		    &las_pageid, &las_id, &las_counter, &las_key));
 
@@ -71,17 +70,9 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 		 * be removed.
 		 */
 		if (__wt_timestamp_cmp(
-		    &rollback_timestamp, las_timestamp.data) < 0) {
-			if (upd_type == WT_UPDATE_BIRTHMARK) {
-				las_timestamp.data = &zero_timestamp;
-				las_timestamp.size = WT_TIMESTAMP_SIZE;
-				cursor->set_value(cursor,
-				    WT_TXN_NONE, &las_timestamp,
-				    WT_UPDATE_TOMBSTONE, &las_value);
-				WT_ERR(cursor->update(cursor));
-			} else
-				WT_ERR(cursor->remove(cursor));
-		} else
+		    &rollback_timestamp, las_timestamp.data) < 0)
+			WT_ERR(cursor->remove(cursor));
+		else
 			++las_total;
 	}
 	WT_ERR_NOTFOUND_OK(ret);
