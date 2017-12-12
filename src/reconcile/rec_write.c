@@ -1479,8 +1479,17 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	/*
 	 * If the update we chose was a birthmark, or doing update-restore and
 	 * we skipped a birthmark, the original on-page value must be retained.
+	 *
+	 * Update the maximum on-page timestamp before discarding the chosen
+	 * update.
 	 */
-	if (*updp != NULL) {
+	if ((upd = *updp) != NULL) {
+#ifdef HAVE_TIMESTAMPS
+		if (__wt_timestamp_cmp(
+		    &upd->timestamp, &r->max_onpage_timestamp) > 0)
+			__wt_timestamp_set(
+			    &r->max_onpage_timestamp, &upd->timestamp);
+#endif
 		if ((*updp)->type == WT_UPDATE_BIRTHMARK)
 			*updp = NULL;
 		if (F_ISSET(r, WT_REC_UPDATE_RESTORE) && skipped_birthmark)
@@ -1575,12 +1584,6 @@ check_original_value:
 	    vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)))
 		WT_RET(
 		    __rec_append_orig_value(session, page, first_upd, vpack));
-
-#ifdef HAVE_TIMESTAMPS
-	if ((upd = *updp) != NULL &&
-	    __wt_timestamp_cmp(&upd->timestamp, &r->max_onpage_timestamp) > 0)
-		__wt_timestamp_set(&r->max_onpage_timestamp, &upd->timestamp);
-#endif
 
 	return (0);
 }
