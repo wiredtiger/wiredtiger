@@ -73,14 +73,14 @@ def buildTranslationMap(mapFileName):
         return;
 
     # Read lines from the map file and build an in-memory map
-    # of translations. Each line has a function ID followed by a comma and
-    # a space and then followed by the function name.
+    # of translations. Each line has a function ID followed by space and
+    # followed by the function name.
     #
     lines = mapFile.readlines();  # a map file is usually small
 
     for line in lines:
 
-        words = line.split(",");
+        words = line.split(" ");
         if (len(words) < 2):
             continue;
 
