@@ -176,10 +176,10 @@ err:	API_END_RET(session, ret);
 static int
 __curfile_search(WT_CURSOR *cursor)
 {
-	uint64_t start, stop;
 	WT_CURSOR_BTREE *cbt;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	uint64_t start, stop;
 
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_API_CALL(cursor, session, search, cbt->btree);
@@ -205,10 +205,10 @@ err:	API_END_RET(session, ret);
 static int
 __curfile_search_near(WT_CURSOR *cursor, int *exact)
 {
-	uint64_t start, stop;
 	WT_CURSOR_BTREE *cbt;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	uint64_t start, stop;
 
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_API_CALL(cursor, session, search_near, cbt->btree);
@@ -234,10 +234,10 @@ err:	API_END_RET(session, ret);
 static int
 __curfile_insert(WT_CURSOR *cursor)
 {
-	uint64_t start, stop;
 	WT_CURSOR_BTREE *cbt;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	uint64_t start, stop;
 
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_UPDATE_API_CALL_BTREE(cursor, session, insert, cbt->btree);
@@ -275,14 +275,20 @@ __wt_curfile_insert_check(WT_CURSOR *cursor)
 	WT_CURSOR_BTREE *cbt;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	int tret;
 
 	cbt = (WT_CURSOR_BTREE *)cursor;
+	tret = 0;
 	CURSOR_UPDATE_API_CALL_BTREE(cursor, session, update, cbt->btree);
 	WT_ERR(__cursor_checkkey(cursor));
 
-	ret = __wt_btcur_insert_check(cbt);
+	tret = __wt_btcur_insert_check(cbt);
 
+	/*
+	 * Detecting a conflict should not cause transaction error.
+	 */
 err:	CURSOR_UPDATE_API_END(session, ret);
+	WT_TRET(tret);
 	return (ret);
 }
 
@@ -327,10 +333,10 @@ err:	CURSOR_UPDATE_API_END(session, ret);
 static int
 __curfile_update(WT_CURSOR *cursor)
 {
-	uint64_t start, stop;
 	WT_CURSOR_BTREE *cbt;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	uint64_t start, stop;
 
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_UPDATE_API_CALL_BTREE(cursor, session, update, cbt->btree);
@@ -358,10 +364,10 @@ err:	CURSOR_UPDATE_API_END(session, ret);
 static int
 __curfile_remove(WT_CURSOR *cursor)
 {
-	uint64_t start, stop;
 	WT_CURSOR_BTREE *cbt;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	uint64_t start, stop;
 
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_REMOVE_API_CALL(cursor, session, cbt->btree);
@@ -461,7 +467,7 @@ __curfile_close(WT_CURSOR *cursor)
 	if (session->dhandle != NULL) {
 		/* Decrement the data-source's in-use counter. */
 		__wt_cursor_dhandle_decr_use(session);
-		WT_TRET(__wt_session_release_btree(session));
+		WT_TRET(__wt_session_release_dhandle(session));
 	}
 
 err:	API_END_RET(session, ret);
@@ -649,29 +655,28 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri,
 	if (bulk)
 		LF_SET(WT_BTREE_BULK | WT_DHANDLE_EXCLUSIVE);
 
+	WT_ASSERT(session, WT_PREFIX_MATCH(uri, "file:"));
+
 	/* Get the handle and lock it while the cursor is using it. */
-	if (WT_PREFIX_MATCH(uri, "file:")) {
-		/*
-		 * If we are opening exclusive and don't want a bulk cursor
-		 * open to fail with EBUSY due to a database-wide checkpoint,
-		 * get the handle while holding the checkpoint lock.
-		 */
-		if (LF_ISSET(WT_DHANDLE_EXCLUSIVE) && checkpoint_wait)
-			WT_WITH_CHECKPOINT_LOCK(session,
-			    ret = __wt_session_get_btree_ckpt(
-			    session, uri, cfg, flags));
-		else
-			ret = __wt_session_get_btree_ckpt(
-			    session, uri, cfg, flags);
-		WT_RET(ret);
-	} else
-		WT_RET(__wt_bad_object_type(session, uri));
+	/*
+	 * If we are opening exclusive and don't want a bulk cursor
+	 * open to fail with EBUSY due to a database-wide checkpoint,
+	 * get the handle while holding the checkpoint lock.
+	 */
+	if (LF_ISSET(WT_DHANDLE_EXCLUSIVE) && checkpoint_wait)
+		WT_WITH_CHECKPOINT_LOCK(session,
+		    ret = __wt_session_get_btree_ckpt(
+		    session, uri, cfg, flags));
+	else
+		ret = __wt_session_get_btree_ckpt(
+		    session, uri, cfg, flags);
+	WT_RET(ret);
 
 	WT_ERR(__curfile_create(session, owner, cfg, bulk, bitmap, cursorp));
 
 	return (0);
 
 err:	/* If the cursor could not be opened, release the handle. */
-	WT_TRET(__wt_session_release_btree(session));
+	WT_TRET(__wt_session_release_dhandle(session));
 	return (ret);
 }

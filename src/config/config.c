@@ -340,15 +340,18 @@ static const int8_t goesc[256] = {
 static int
 __config_next(WT_CONFIG *conf, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value)
 {
-	WT_CONFIG_ITEM *out = key;
-	int utf8_remain = 0;
+	WT_CONFIG_ITEM *out;
+	int utf8_remain;
 	static const WT_CONFIG_ITEM true_value = {
 		"", 0, 1, WT_CONFIG_ITEM_BOOL
 	};
 
-	key->len = 0;
 	/* Keys with no value default to true. */
 	*value = true_value;
+
+	out = key;
+	utf8_remain = 0;
+	key->len = 0;
 
 	if (conf->go == NULL)
 		conf->go = gostruct;

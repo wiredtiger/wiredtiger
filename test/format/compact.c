@@ -58,17 +58,22 @@ compact(void *arg)
 		/* Sleep for short periods so we don't make the run wait. */
 		while (period > 0 && !g.workers_finished) {
 			--period;
-			sleep(1);
+			__wt_sleep(1, 0);
 		}
 		if (g.workers_finished)
 			break;
 
 		/*
-		 * Compact can return EBUSY if concurrent with alter.
+		 * Compact can return EBUSY if concurrent with alter or if there
+		 * is eviction pressure, or we collide with checkpoints.
+		 *
+		 * Compact returns ETIMEDOUT if the compaction doesn't finish in
+		 * in some number of seconds. We don't configure a timeout and
+		 * occasionally exceed the default of 1200 seconds.
 		 */
-		while ((ret = session->compact(session, g.uri, NULL)) == EBUSY)
-			__wt_yield();
-		if (ret != 0 && ret != WT_ROLLBACK)
+		ret = session->compact(session, g.uri, NULL);
+		if (ret != 0 &&
+		    ret != EBUSY && ret != ETIMEDOUT && ret != WT_ROLLBACK)
 			testutil_die(ret, "session.compact");
 	}
 

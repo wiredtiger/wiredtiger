@@ -327,8 +327,8 @@ static inline int
 __pack_write(
     WT_SESSION_IMPL *session, WT_PACK_VALUE *pv, uint8_t **pp, size_t maxlen)
 {
-	uint8_t *oldp;
 	size_t s, pad;
+	uint8_t *oldp;
 
 	switch (pv->type) {
 	case 'x':
@@ -342,15 +342,20 @@ __pack_write(
 		*pp += pv->size;
 		break;
 	case 'S':
-		s = strlen(pv->u.s);
+		/*
+		 * When preceded by a size, that indicates the maximum number
+		 * of bytes the string can store, this does not include the
+		 * terminating NUL character. In a string with characters
+		 * less than the specified size, the remaining bytes are
+		 * NULL padded.
+		 */
 		if (pv->havesize) {
-			if (pv->size < s) {
-				s = pv->size;
-				pad = 0;
-			} else
-				pad = pv->size - s;
-		} else
+			s = __wt_strnlen(pv->u.s, pv->size);
+			pad = (s < pv->size) ? pv->size - s : 0;
+		} else {
+			s = strlen(pv->u.s);
 			pad = 1;
+		}
 		WT_SIZE_CHECK_PACK(s + pad, maxlen);
 		if (s > 0)
 			memcpy(*pp, pv->u.s, s);
@@ -719,8 +724,10 @@ __wt_struct_unpackv(WT_SESSION_IMPL *session,
 static inline void
 __wt_struct_size_adjust(WT_SESSION_IMPL *session, size_t *sizep)
 {
-	size_t curr_size = *sizep;
-	size_t field_size, prev_field_size = 1;
+	size_t curr_size, field_size, prev_field_size;
+
+	curr_size = *sizep;
+	prev_field_size = 1;
 
 	while ((field_size = __wt_vsize_uint(curr_size)) != prev_field_size) {
 		curr_size += field_size - prev_field_size;

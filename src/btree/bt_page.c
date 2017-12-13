@@ -114,7 +114,6 @@ err:			if ((pindex = WT_INTL_INDEX_GET_SAFE(page)) != NULL) {
 
 	/* Increment the cache statistics. */
 	__wt_cache_page_inmem_incr(session, page, size);
-	(void)__wt_atomic_add64(&cache->bytes_read, size);
 	(void)__wt_atomic_add64(&cache->pages_inmem, 1);
 	page->cache_create_gen = cache->evict_pass_gen;
 
@@ -127,14 +126,14 @@ err:			if ((pindex = WT_INTL_INDEX_GET_SAFE(page)) != NULL) {
  *	Build in-memory page information.
  */
 int
-__wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref,
-    const void *image, size_t memsize, uint32_t flags, WT_PAGE **pagep)
+__wt_page_inmem(WT_SESSION_IMPL *session,
+    WT_REF *ref, const void *image, uint32_t flags, WT_PAGE **pagep)
 {
 	WT_DECL_RET;
 	WT_PAGE *page;
 	const WT_PAGE_HEADER *dsk;
-	uint32_t alloc_entries;
 	size_t size;
+	uint32_t alloc_entries;
 
 	*pagep = NULL;
 
@@ -196,8 +195,13 @@ __wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref,
 	 * Track the memory allocated to build this page so we can update the
 	 * cache statistics in a single call. If the disk image is in allocated
 	 * memory, start with that.
+	 *
+	 * Accounting is based on the page-header's in-memory disk size instead
+	 * of the buffer memory used to instantiate the page image even though
+	 * the values might not match exactly, because that's the only value we
+	 * have when discarding the page image and accounting needs to match.
 	 */
-	size = LF_ISSET(WT_PAGE_DISK_ALLOC) ? memsize : 0;
+	size = LF_ISSET(WT_PAGE_DISK_ALLOC) ? dsk->mem_size : 0;
 
 	switch (page->type) {
 	case WT_PAGE_COL_FIX:
@@ -218,9 +222,10 @@ __wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref,
 	WT_ILLEGAL_VALUE_ERR(session);
 	}
 
-	/* Update the page's in-memory size and the cache statistics. */
+	/* Update the page's cache statistics. */
 	__wt_cache_page_inmem_incr(session, page, size);
-	__wt_cache_page_image_incr(session, dsk->mem_size);
+	if (LF_ISSET(WT_PAGE_DISK_ALLOC))
+		__wt_cache_page_image_incr(session, dsk->mem_size);
 
 	/* Link the new internal page to the parent. */
 	if (ref != NULL) {
@@ -306,12 +311,13 @@ __inmem_col_var_repeats(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t *np)
 	const WT_PAGE_HEADER *dsk;
 	uint32_t i;
 
+	*np = 0;
+
 	btree = S2BT(session);
 	dsk = page->dsk;
 	unpack = &_unpack;
 
 	/* Walk the page, counting entries for the repeats array. */
-	*np = 0;
 	WT_CELL_FOREACH(btree, dsk, cell, unpack, i) {
 		__wt_cell_unpack(cell, unpack);
 		if (__wt_cell_rle(unpack) > 1)
@@ -329,10 +335,10 @@ __inmem_col_var(
     WT_SESSION_IMPL *session, WT_PAGE *page, uint64_t recno, size_t *sizep)
 {
 	WT_BTREE *btree;
-	WT_COL *cip;
-	WT_COL_RLE *repeats;
 	WT_CELL *cell;
 	WT_CELL_UNPACK *unpack, _unpack;
+	WT_COL *cip;
+	WT_COL_RLE *repeats;
 	const WT_PAGE_HEADER *dsk;
 	size_t size;
 	uint64_t rle;

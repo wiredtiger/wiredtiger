@@ -501,6 +501,157 @@ fclose_and_clear(FILE **fpp)
 }
 
 /*
+ * checkpoint --
+ *	Periodically take a checkpoint
+ */
+WT_THREAD_RET
+checkpoint(void *arg)
+{
+	WT_CONNECTION *conn;
+	WT_DECL_RET;
+	WT_SESSION *session;
+	u_int secs;
+	const char *ckpt_config;
+	char config_buf[64];
+	bool backup_locked;
+
+	(void)arg;
+	conn = g.wts_conn;
+	testutil_check(conn->open_session(conn, NULL, NULL, &session));
+
+	for (secs = mmrand(NULL, 1, 10); !g.workers_finished;) {
+		if (secs > 0) {
+			__wt_sleep(1, 0);
+			--secs;
+			continue;
+		}
+
+		/*
+		 * LSM and data-sources don't support named checkpoints. Also,
+		 * don't attempt named checkpoints during a hot backup. It's
+		 * OK to create named checkpoints during a hot backup, but we
+		 * can't delete them, so repeating an already existing named
+		 * checkpoint will fail when we can't drop the previous one.
+		 */
+		ckpt_config = NULL;
+		backup_locked = false;
+		if (!DATASOURCE("helium") && !DATASOURCE("kvsbdb") &&
+		    !DATASOURCE("lsm"))
+			switch (mmrand(NULL, 1, 20)) {
+			case 1:
+				/*
+				 * 5% create a named snapshot. Rotate between a
+				 * few names to test multiple named snapshots in
+				 * the system.
+				 */
+				ret = pthread_rwlock_trywrlock(&g.backup_lock);
+				if (ret == 0) {
+					backup_locked = true;
+					testutil_check(__wt_snprintf(
+					    config_buf, sizeof(config_buf),
+					    "name=mine.%" PRIu32,
+					    mmrand(NULL, 1, 4)));
+					ckpt_config = config_buf;
+				} else if (ret != EBUSY)
+					testutil_check(ret);
+				break;
+			case 2:
+				/*
+				 * 5% drop all named snapshots.
+				 */
+				ret = pthread_rwlock_trywrlock(&g.backup_lock);
+				if (ret == 0) {
+					backup_locked = true;
+					ckpt_config = "drop=(all)";
+				} else if (ret != EBUSY)
+					testutil_check(ret);
+				break;
+			}
+
+		testutil_check(session->checkpoint(session, ckpt_config));
+
+		if (backup_locked)
+			testutil_check(pthread_rwlock_unlock(&g.backup_lock));
+
+		secs = mmrand(NULL, 5, 40);
+	}
+
+	testutil_check(session->close(session, NULL));
+	return (WT_THREAD_RET_VALUE);
+}
+
+/*
+ * timestamp --
+ *	Periodically update the oldest timestamp.
+ */
+WT_THREAD_RET
+timestamp(void *arg)
+{
+	WT_CONNECTION *conn;
+	WT_SESSION *session;
+	TINFO **tinfo_list, *tinfo;
+	time_t last, now;
+	uint64_t oldest_timestamp, this_ts, usecs;
+	uint32_t i;
+	char config_buf[64];
+
+	tinfo_list = arg;
+
+	conn = g.wts_conn;
+	testutil_check(conn->open_session(conn, NULL, NULL, &session));
+
+	__wt_seconds((WT_SESSION_IMPL *)session, &last);
+
+	/*
+	 * Update the oldest timestamp every 100 transactions, but at least
+	 * once every 15 seconds.
+	 */
+	while (!g.workers_finished) {
+		/*
+		 * Find the lowest committed timestamp. The timestamp thread
+		 * starts before the operational threads, wait for them.
+		 */
+		oldest_timestamp = UINT64_MAX;
+		for (i = 0; i < g.c_threads; ++i) {
+			tinfo = tinfo_list[i];
+			this_ts = tinfo->timestamp;
+			if (this_ts != 0 &&
+			    this_ts < oldest_timestamp)
+				oldest_timestamp = this_ts;
+		}
+		if (oldest_timestamp == UINT64_MAX) {
+			__wt_sleep(1, 0);
+			continue;
+		}
+
+		/*
+		 * Don't get more than 100 transactions or more than 15 seconds
+		 * out of date.
+		 */
+		WT_READ_BARRIER();
+		testutil_assert(oldest_timestamp <= g.timestamp);
+		if (g.timestamp - oldest_timestamp < 100) {
+			__wt_seconds((WT_SESSION_IMPL *)session, &now);
+			if (difftime(now, last) < 15) {
+				__wt_sleep(1, 0);
+				continue;
+			}
+		}
+
+		testutil_check(__wt_snprintf(
+		    config_buf, sizeof(config_buf),
+		    "oldest_timestamp=%" PRIx64, oldest_timestamp));
+		testutil_check(conn->set_timestamp(conn, config_buf));
+
+		usecs = mmrand(NULL, 5, 40);
+		__wt_sleep(0, usecs);
+	}
+
+	testutil_check(session->close(session, NULL));
+	return (WT_THREAD_RET_VALUE);
+}
+
+/*
  * alter --
  *	Periodically alter a table's metadata.
  */
@@ -511,8 +662,8 @@ alter(void *arg)
 	WT_DECL_RET;
 	WT_SESSION *session;
 	u_int period;
-	bool access_value;
 	char buf[32];
+	bool access_value;
 
 	(void)(arg);
 	conn = g.wts_conn;
@@ -542,53 +693,11 @@ alter(void *arg)
 			testutil_die(ret, "session.alter");
 		while (period > 0 && !g.workers_finished) {
 			--period;
-			sleep(1);
+			__wt_sleep(1, 0);
 		}
 	}
 
 	testutil_check(session->close(session, NULL));
-	return (WT_THREAD_RET_VALUE);
-}
-
-#define	COMPATSTR_V1	"compatibility=(release=2.6)"
-#define	COMPATSTR_V2	"compatibility=(release=3.0)"
-
-/*
- * compat --
- *	Periodically reconfigure the compatibility option.
- */
-WT_THREAD_RET
-compat(void *arg)
-{
-	WT_CONNECTION *conn;
-	WT_DECL_RET;
-	u_int count, period;
-	const char *str;
-
-	(void)(arg);
-
-	conn = g.wts_conn;
-	str = NULL;
-	/*
-	 * Perform compatibility swaps at somewhere under 10 seconds (so we
-	 * get at least one done), and then at 7 second intervals.
-	 */
-	for (period = mmrand(NULL, 1, 10), count = 0;; ++count, period = 7) {
-		if (count % 2 == 0)
-			str = COMPATSTR_V1;
-		else
-			str = COMPATSTR_V2;
-		if ((ret = conn->reconfigure(conn, str)) != 0)
-			testutil_die(ret, "conn.reconfigure");
-
-		/* Sleep for short periods so we don't make the run wait. */
-		while (period > 0 && !g.workers_finished) {
-			--period;
-			sleep(1);
-		}
-		if (g.workers_finished)
-			break;
-	}
 	return (WT_THREAD_RET_VALUE);
 }
 

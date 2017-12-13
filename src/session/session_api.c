@@ -136,68 +136,6 @@ __session_clear(WT_SESSION_IMPL *session)
 }
 
 /*
- * __session_alter --
- *	Alter a table setting.
- */
-static int
-__session_alter(WT_SESSION *wt_session, const char *uri, const char *config)
-{
-	WT_DECL_RET;
-	WT_SESSION_IMPL *session;
-
-	session = (WT_SESSION_IMPL *)wt_session;
-
-	SESSION_API_CALL(session, alter, config, cfg);
-
-	/* In-memory ignores alter operations. */
-	if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
-		goto err;
-
-	/* Disallow objects in the WiredTiger name space. */
-	WT_ERR(__wt_str_name_check(session, uri));
-
-	/*
-	 * We replace the default configuration listing with the current
-	 * configuration.  Otherwise the defaults for values that can be
-	 * altered would override settings used by the user in create.
-	 */
-	cfg[0] = cfg[1];
-	cfg[1] = NULL;
-	WT_WITH_CHECKPOINT_LOCK(session,
-	    WT_WITH_SCHEMA_LOCK(session,
-		ret = __wt_schema_worker(session, uri, __wt_alter, NULL, cfg,
-		WT_BTREE_ALTER | WT_DHANDLE_EXCLUSIVE)));
-
-err:	if (ret != 0)
-		WT_STAT_CONN_INCR(session, session_table_alter_fail);
-	else
-		WT_STAT_CONN_INCR(session, session_table_alter_success);
-	API_END_RET_NOTFOUND_MAP(session, ret);
-}
-
-/*
- * __session_alter_readonly --
- *	WT_SESSION->alter method; readonly version.
- */
-static int
-__session_alter_readonly(
-    WT_SESSION *wt_session, const char *uri, const char *config)
-{
-	WT_DECL_RET;
-	WT_SESSION_IMPL *session;
-
-	WT_UNUSED(uri);
-	WT_UNUSED(config);
-
-	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL_NOCONF(session, alter);
-
-	WT_STAT_CONN_INCR(session, session_table_alter_fail);
-	ret = __wt_session_notsup(session);
-err:	API_END_RET(session, ret);
-}
-
-/*
  * __session_close --
  *	WT_SESSION->close method.
  */
@@ -244,9 +182,6 @@ __session_close(WT_SESSION *wt_session, const char *config)
 	/* Discard cached handles. */
 	__wt_session_close_cache(session);
 
-	/* Close all tables. */
-	WT_TRET(__wt_schema_close_tables(session));
-
 	/* Confirm we're not holding any hazard pointers. */
 	__wt_hazard_close(session);
 
@@ -255,6 +190,24 @@ __session_close(WT_SESSION *wt_session, const char *config)
 
 	/* Free transaction information. */
 	__wt_txn_destroy(session);
+
+	/*
+	 * Close the file where we tracked long operations.  Do this before
+	 * releasing resources, as we do scratch buffer management when we flush
+	 * optrack buffers to disk
+	 */
+	if (F_ISSET(conn, WT_CONN_OPTRACK)) {
+		if (session->optrackbuf_ptr > 0) {
+			WT_IGNORE_RET((int)__wt_optrack_flush_buffer(session));
+			WT_IGNORE_RET(__wt_close(session,
+			    &session->optrack_fh));
+			/* Indicate that the file is closed */
+			session->optrack_fh = NULL;
+		}
+
+		/* Free the operation tracking buffer */
+		__wt_free(session, session->optrack_buf);
+	}
 
 	/* Release common session resources. */
 	WT_TRET(__wt_session_release_resources(session));
@@ -324,9 +277,9 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 	ret = __wt_config_getones(session, config, "ignore_cache_size", &cval);
 	if (ret == 0) {
 		if (cval.val)
-			F_SET(session, WT_SESSION_NO_EVICTION);
+			F_SET(session, WT_SESSION_IGNORE_CACHE_SIZE);
 		else
-			F_CLR(session, WT_SESSION_NO_EVICTION);
+			F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
 	}
 	WT_ERR_NOTFOUND_OK(ret);
 
@@ -510,17 +463,77 @@ err:		if (cursor != NULL)
 
 	/*
 	 * Opening a cursor on a non-existent data source will set ret to
-	 * either of ENOENT or WT_NOTFOUND at this point.  However,
+	 * either of ENOENT or WT_NOTFOUND at this point. However,
 	 * applications may reasonably do this inside a transaction to check
 	 * for the existence of a table or index.
 	 *
-	 * Prefer WT_NOTFOUND here: that does not force running transactions to
-	 * roll back.  It will be mapped back to ENOENT.
+	 * Failure in opening a cursor should not set an error on the
+	 * transaction and WT_NOTFOUND will be mapped to ENOENT.
 	 */
-	if (ret == ENOENT)
-		ret = WT_NOTFOUND;
 
+	API_END_RET_NO_TXN_ERROR(session, ret);
+}
+
+/*
+ * __session_alter --
+ *	Alter a table setting.
+ */
+static int
+__session_alter(WT_SESSION *wt_session, const char *uri, const char *config)
+{
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	session = (WT_SESSION_IMPL *)wt_session;
+
+	SESSION_API_CALL(session, alter, config, cfg);
+
+	/* In-memory ignores alter operations. */
+	if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+		goto err;
+
+	/* Disallow objects in the WiredTiger name space. */
+	WT_ERR(__wt_str_name_check(session, uri));
+
+	/*
+	 * We replace the default configuration listing with the current
+	 * configuration.  Otherwise the defaults for values that can be
+	 * altered would override settings used by the user in create.
+	 */
+	cfg[0] = cfg[1];
+	cfg[1] = NULL;
+	WT_WITH_CHECKPOINT_LOCK(session,
+	    WT_WITH_SCHEMA_LOCK(session,
+		ret = __wt_schema_worker(session, uri, __wt_alter, NULL, cfg,
+		WT_BTREE_ALTER | WT_DHANDLE_EXCLUSIVE)));
+
+err:	if (ret != 0)
+		WT_STAT_CONN_INCR(session, session_table_alter_fail);
+	else
+		WT_STAT_CONN_INCR(session, session_table_alter_success);
 	API_END_RET_NOTFOUND_MAP(session, ret);
+}
+
+/*
+ * __session_alter_readonly --
+ *	WT_SESSION->alter method; readonly version.
+ */
+static int
+__session_alter_readonly(
+    WT_SESSION *wt_session, const char *uri, const char *config)
+{
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	WT_UNUSED(uri);
+	WT_UNUSED(config);
+
+	session = (WT_SESSION_IMPL *)wt_session;
+	SESSION_API_CALL_NOCONF(session, alter);
+
+	WT_STAT_CONN_INCR(session, session_table_alter_fail);
+	ret = __wt_session_notsup(session);
+err:	API_END_RET(session, ret);
 }
 
 /*
@@ -678,8 +691,8 @@ static int
 __session_log_printf(WT_SESSION *wt_session, const char *fmt, ...)
     WT_GCC_FUNC_ATTRIBUTE((format (printf, 2, 3)))
 {
-	WT_SESSION_IMPL *session;
 	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
 	va_list ap;
 
 	session = (WT_SESSION_IMPL *)wt_session;
@@ -940,10 +953,10 @@ __session_join(WT_SESSION *wt_session, WT_CURSOR *join_cursor,
 	WT_INDEX *idx;
 	WT_SESSION_IMPL *session;
 	WT_TABLE *table;
-	bool nested;
 	uint64_t count;
 	uint32_t bloom_bit_count, bloom_hash_count;
 	uint8_t flags, range;
+	bool nested;
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL(session, join, config, cfg);
@@ -1494,7 +1507,12 @@ __session_timestamp_transaction(WT_SESSION *wt_session, const char *config)
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)wt_session;
+#ifdef HAVE_DIAGNOSTIC
 	SESSION_API_CALL(session, timestamp_transaction, config, cfg);
+#else
+	SESSION_API_CALL(session, timestamp_transaction, NULL, cfg);
+	cfg[1] = config;
+#endif
 	WT_TRET(__wt_txn_set_timestamp(session, cfg));
 err:	API_END_RET(session, ret);
 }
@@ -1552,12 +1570,12 @@ __transaction_sync_run_chk(WT_SESSION_IMPL *session)
 static int
 __session_transaction_sync(WT_SESSION *wt_session, const char *config)
 {
+	struct timespec now, start;
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_LOG *log;
 	WT_SESSION_IMPL *session;
-	struct timespec now, start;
 	uint64_t remaining_usec, timeout_ms, waited_ms;
 
 	session = (WT_SESSION_IMPL *)wt_session;
@@ -1766,11 +1784,11 @@ __open_session(WT_CONNECTION_IMPL *conn,
 	static const WT_SESSION stds = {
 		NULL,
 		NULL,
-		__session_alter,
 		__session_close,
 		__session_reconfigure,
 		__wt_session_strerror,
 		__session_open_cursor,
+		__session_alter,
 		__session_create,
 		__wt_session_compact,
 		__session_drop,
@@ -1795,11 +1813,11 @@ __open_session(WT_CONNECTION_IMPL *conn,
 	}, stds_readonly = {
 		NULL,
 		NULL,
-		__session_alter_readonly,
 		__session_close,
 		__session_reconfigure,
 		__wt_session_strerror,
 		__session_open_cursor,
+		__session_alter_readonly,
 		__session_create_readonly,
 		__wt_session_compact_readonly,
 		__session_drop_readonly,
@@ -1846,10 +1864,10 @@ __open_session(WT_CONNECTION_IMPL *conn,
 		if (!session_ret->active)
 			break;
 	if (i == conn->session_size)
-		WT_ERR_MSG(session, ENOMEM,
-		    "only configured to support %" PRIu32 " sessions"
-		    " (including %d additional internal sessions)",
-		    conn->session_size, WT_EXTRA_INTERNAL_SESSIONS);
+		WT_ERR_MSG(session, WT_ERROR,
+		    "out of sessions, configured for %" PRIu32 " (including "
+		    "internal sessions)",
+		    conn->session_size);
 
 	/*
 	 * If the active session count is increasing, update it.  We don't worry
@@ -1881,13 +1899,8 @@ __open_session(WT_CONNECTION_IMPL *conn,
 	if (session_ret->dhhash == NULL)
 		WT_ERR(__wt_calloc(session, WT_HASH_ARRAY_SIZE,
 		    sizeof(struct __dhandles_hash), &session_ret->dhhash));
-	if (session_ret->tablehash == NULL)
-		WT_ERR(__wt_calloc(session, WT_HASH_ARRAY_SIZE,
-		    sizeof(struct __tables_hash), &session_ret->tablehash));
-	for (i = 0; i < WT_HASH_ARRAY_SIZE; i++) {
+	for (i = 0; i < WT_HASH_ARRAY_SIZE; i++)
 		TAILQ_INIT(&session_ret->dhhash[i]);
-		TAILQ_INIT(&session_ret->tablehash[i]);
-	}
 
 	/* Initialize transaction support: default to read-committed. */
 	session_ret->isolation = WT_ISO_READ_COMMITTED;
@@ -1909,6 +1922,12 @@ __open_session(WT_CONNECTION_IMPL *conn,
 	/* Cache the offset of this session's statistics bucket. */
 	session_ret->stat_bucket = WT_STATS_SLOT_ID(session);
 
+	/* Allocate the buffer for operation tracking */
+	if (F_ISSET(conn, WT_CONN_OPTRACK)) {
+		WT_ERR(__wt_malloc(
+		    session, WT_OPTRACK_BUFSIZE, &session_ret->optrack_buf));
+		session_ret->optrackbuf_ptr = 0;
+	}
 	/*
 	 * Configuration: currently, the configuration for open_session is the
 	 * same as session.reconfigure, so use that function.
@@ -1944,8 +1963,8 @@ __wt_open_session(WT_CONNECTION_IMPL *conn,
     bool open_metadata, WT_SESSION_IMPL **sessionp)
 {
 	WT_DECL_RET;
-	WT_SESSION_IMPL *session;
 	WT_SESSION *wt_session;
+	WT_SESSION_IMPL *session;
 
 	*sessionp = NULL;
 
@@ -1981,8 +2000,6 @@ int
 __wt_open_internal_session(WT_CONNECTION_IMPL *conn, const char *name,
     bool open_metadata, uint32_t session_flags, WT_SESSION_IMPL **sessionp)
 {
-	WT_DECL_RET;
-	WT_SESSION *wt_session;
 	WT_SESSION_IMPL *session;
 
 	*sessionp = NULL;
@@ -1998,19 +2015,6 @@ __wt_open_internal_session(WT_CONNECTION_IMPL *conn, const char *name,
 	 * flag to avoid this: internal sessions are not closed automatically.
 	 */
 	F_SET(session, session_flags | WT_SESSION_INTERNAL);
-
-	/*
-	 * Acquiring the lookaside table cursor requires various locks; we've
-	 * seen problems in the past where deadlocks happened because sessions
-	 * deadlocked getting the cursor late in the process.  Be defensive,
-	 * get it now.
-	 */
-	if (F_ISSET(session, WT_SESSION_LOOKASIDE_CURSOR) &&
-	    (ret = __wt_las_cursor_open(session, &session->las_cursor)) != 0) {
-		wt_session = &session->iface;
-		WT_TRET(wt_session->close(wt_session, NULL));
-		return (ret);
-	}
 
 	*sessionp = session;
 	return (0);

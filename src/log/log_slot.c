@@ -104,11 +104,11 @@ __log_slot_close(
 	int count;
 #endif
 
+	*releasep = false;
+
 	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SLOT));
-	WT_ASSERT(session, releasep != NULL);
 	conn = S2C(session);
 	log = conn->log;
-	*releasep = 0;
 	if (slot == NULL)
 		return (WT_NOTFOUND);
 retry:
@@ -133,7 +133,8 @@ retry:
 	/*
 	 * If someone completely processed this slot, we're done.
 	 */
-	if (FLD64_ISSET((uint64_t)slot->slot_state, WT_LOG_SLOT_RESERVED)) {
+	if (FLD_LOG_SLOT_ISSET(
+	    (uint64_t)slot->slot_state, WT_LOG_SLOT_RESERVED)) {
 		WT_STAT_CONN_INCR(session, log_slot_close_race);
 		return (WT_NOTFOUND);
 	}
@@ -149,7 +150,7 @@ retry:
 	 */
 	WT_STAT_CONN_INCR(session, log_slot_closes);
 	if (WT_LOG_SLOT_DONE(new_state))
-		*releasep = 1;
+		*releasep = true;
 	slot->slot_end_lsn = slot->slot_start_lsn;
 	/*
 	 * A thread setting the unbuffered flag sets the unbuffered size after
@@ -294,8 +295,8 @@ __log_slot_switch_internal(
 	WT_DECL_RET;
 	WT_LOG *log;
 	WT_LOGSLOT *slot;
-	bool free_slot, release;
 	uint32_t joined;
+	bool free_slot, release;
 
 	log = S2C(session)->log;
 	release = false;
@@ -482,7 +483,7 @@ __wt_log_slot_destroy(WT_SESSION_IMPL *session)
 	 */
 	for (i = 0; i < WT_SLOT_POOL; i++) {
 		slot = &log->slot_pool[i];
-		if (!FLD64_ISSET(
+		if (!FLD_LOG_SLOT_ISSET(
 		    (uint64_t)slot->slot_state, WT_LOG_SLOT_RESERVED)) {
 			rel = WT_LOG_SLOT_RELEASED_BUFFERED(slot->slot_state);
 			if (rel != 0)

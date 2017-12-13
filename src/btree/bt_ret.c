@@ -129,19 +129,27 @@ __value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 }
 
 /*
- * __value_return_upd --
- *	Change the cursor to reference an internal update structure return
- * value.
+ * When threads race modifying a record, we can end up with more than the usual
+ * maximum number of modifications in an update list.  We'd prefer not to
+ * allocate memory in a return path, so add a few additional slots to the array
+ * we use to build up a list of modify records to apply.
  */
-static inline int
-__value_return_upd(
-    WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
+#define	WT_MODIFY_ARRAY_SIZE	(WT_MAX_MODIFY_UPDATE + 10)
+
+/*
+ * __wt_value_return_upd --
+ *	Change the cursor to reference an internal update structure return
+ *	value.
+ */
+int
+__wt_value_return_upd(WT_SESSION_IMPL *session,
+    WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, bool ignore_visibility)
 {
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
-	WT_UPDATE **listp, *list[WT_MAX_MODIFY_UPDATE];
-	u_int i;
+	WT_UPDATE **listp, *list[WT_MODIFY_ARRAY_SIZE];
 	size_t allocated_bytes;
+	u_int i;
 
 	cursor = &cbt->iface;
 	allocated_bytes = 0;
@@ -165,7 +173,8 @@ __value_return_upd(
 	 * that are visible to us.
 	 */
 	for (i = 0, listp = list; upd != NULL; upd = upd->next) {
-		if (!__wt_txn_upd_visible(session, upd))
+		if (upd->txnid == WT_TXN_ABORTED ||
+		    (!ignore_visibility && !__wt_txn_upd_visible(session, upd)))
 			continue;
 
 		if (WT_UPDATE_DATA_VALUE(upd))
@@ -178,12 +187,12 @@ __value_return_upd(
 			 * avoid memory allocation in normal cases, but we have
 			 * to handle the edge cases too.
 			 */
-			if (i >= WT_MAX_MODIFY_UPDATE) {
-				if (i == WT_MAX_MODIFY_UPDATE)
+			if (i >= WT_MODIFY_ARRAY_SIZE) {
+				if (i == WT_MODIFY_ARRAY_SIZE)
 					listp = NULL;
 				WT_ERR(__wt_realloc_def(
 				    session, &allocated_bytes, i + 1, &listp));
-				if (i == WT_MAX_MODIFY_UPDATE)
+				if (i == WT_MODIFY_ARRAY_SIZE)
 					memcpy(listp, list, sizeof(list));
 			}
 			listp[i++] = upd;
@@ -216,7 +225,7 @@ __value_return_upd(
 		WT_ERR(__wt_modify_apply(
 		    session, &cursor->value, listp[--i]->data));
 
-err:	if (allocated_bytes)
+err:	if (allocated_bytes != 0)
 		__wt_free(session, listp);
 	return (ret);
 }
@@ -265,7 +274,7 @@ __wt_value_return(
 	if (upd == NULL)
 		WT_RET(__value_return(session, cbt));
 	else
-		WT_RET(__value_return_upd(session, cbt, upd));
+		WT_RET(__wt_value_return_upd(session, cbt, upd, false));
 	F_SET(cursor, WT_CURSTD_VALUE_INT);
 	return (0);
 }

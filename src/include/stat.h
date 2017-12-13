@@ -84,6 +84,17 @@
 #define	WT_STATS_FIELD_TO_OFFSET(stats, fld)				\
 	(int)(&(stats)[0]->fld - (int64_t *)(stats)[0])
 
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_STAT_CLEAR		0x01u
+#define	WT_STAT_JSON		0x02u
+#define	WT_STAT_ON_CLOSE	0x04u
+#define	WT_STAT_TYPE_ALL	0x08u
+#define	WT_STAT_TYPE_CACHE_WALK	0x10u
+#define	WT_STAT_TYPE_FAST	0x20u
+#define	WT_STAT_TYPE_SIZE	0x40u
+#define	WT_STAT_TYPE_TREE_WALK	0x80u
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
+
 /*
  * Sum the values from all structures in the array.
  */
@@ -293,6 +304,7 @@ struct __wt_connection_stats {
 	int64_t cache_write_app_count;
 	int64_t cache_write_app_time;
 	int64_t cache_bytes_image;
+	int64_t cache_bytes_lookaside;
 	int64_t cache_bytes_inuse;
 	int64_t cache_bytes_other;
 	int64_t cache_bytes_read;
@@ -341,6 +353,8 @@ struct __wt_connection_stats {
 	int64_t cache_eviction_internal;
 	int64_t cache_eviction_split_internal;
 	int64_t cache_eviction_split_leaf;
+	int64_t cache_lookaside_score;
+	int64_t cache_lookaside_entries;
 	int64_t cache_lookaside_insert;
 	int64_t cache_lookaside_remove;
 	int64_t cache_bytes_max;
@@ -556,8 +570,16 @@ struct __wt_connection_stats {
 	int64_t txn_pinned_range;
 	int64_t txn_pinned_checkpoint_range;
 	int64_t txn_pinned_snapshot_range;
+	int64_t txn_pinned_timestamp;
+	int64_t txn_pinned_timestamp_oldest;
 	int64_t txn_sync;
+	int64_t txn_commit_queue_head;
+	int64_t txn_commit_queue_inserts;
+	int64_t txn_commit_queue_len;
 	int64_t txn_commit;
+	int64_t txn_read_queue_head;
+	int64_t txn_read_queue_inserts;
+	int64_t txn_read_queue_len;
 	int64_t txn_rollback;
 	int64_t txn_update_conflict;
 };

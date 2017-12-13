@@ -44,6 +44,7 @@ each of which is ordered by one or more columns.
 - @subpage in_memory
 - @subpage cursor_join
 - @subpage cursor_log
+- @subpage operation_tracking
 - @ref transaction_named_snapshots
 - @subpage rebalance
 - @subpage shared_cache
@@ -63,7 +64,6 @@ each of which is ordered by one or more columns.
 <h2>Performance monitoring and tuning</h2>
 - @subpage_single tune_statistics
 - @subpage_single wtperf
-- @subpage_single wtstats
 <p>
 - @subpage_single tune_build_options
 - @subpage_single tune_bulk_load

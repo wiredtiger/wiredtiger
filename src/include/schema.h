@@ -40,7 +40,10 @@ struct __wt_index {
 
 	const char *idxkey_format;	/* Index key format (hides primary) */
 	const char *exkey_format;	/* Key format for custom extractors */
-#define	WT_INDEX_IMMUTABLE	0x01
+
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_INDEX_IMMUTABLE	0x1u
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint32_t    flags;		/* Index configuration flags */
 };
 
@@ -52,9 +55,10 @@ struct __wt_index {
  *	in an index key that can be used to reconstruct the primary key.
  */
 struct __wt_table {
-	const char *name, *config, *plan;
+	WT_DATA_HANDLE iface;
+
+	const char *plan;
 	const char *key_format, *value_format;
-	uint64_t name_hash;		/* Hash of name */
 
 	WT_CONFIG_ITEM cgconf, colconf;
 
@@ -62,14 +66,8 @@ struct __wt_table {
 	WT_INDEX **indices;
 	size_t idx_alloc;
 
-	TAILQ_ENTRY(__wt_table) q;
-	TAILQ_ENTRY(__wt_table) hashq;
-
 	bool cg_complete, idx_complete, is_simple;
 	u_int ncolgroups, nindices, nkey_columns;
-
-	uint32_t refcnt;		/* Number of open cursors */
-	uint64_t schema_gen;		/* Cached schema generation number */
 };
 
 /*
@@ -301,7 +299,9 @@ struct __wt_table {
 		F_CLR(session, WT_SESSION_LOCKED_CHECKPOINT);		\
 		__wt_spin_unlock(session, &__conn->checkpoint_lock);	\
 	}								\
+	__wt_yield();							\
 	op;								\
+	__wt_yield();							\
 	if (__checkpoint_locked) {					\
 		__wt_spin_lock(session, &__conn->checkpoint_lock);	\
 		F_SET(session, WT_SESSION_LOCKED_CHECKPOINT);		\

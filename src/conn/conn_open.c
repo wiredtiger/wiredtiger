@@ -75,9 +75,6 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	wt_conn = &conn->iface;
 	session = conn->default_session;
 
-	/* Shut down transactions (wait for in-flight operations to complete. */
-	WT_TRET(__wt_txn_global_shutdown(session));
-
 	/* Shut down the subsystems, ensuring workers see the state change. */
 	F_SET(conn, WT_CONN_CLOSING);
 	WT_FULL_BARRIER();
@@ -114,9 +111,6 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	/* The eviction server is shut down last. */
 	WT_TRET(__wt_evict_destroy(session));
 
-	/* Shut down the lookaside table, after all eviction is complete. */
-	WT_TRET(__wt_las_destroy(session));
-
 	/* Close open data handles. */
 	WT_TRET(__wt_conn_dhandle_discard(session));
 
@@ -130,7 +124,7 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	 * conditional because we allocate the log path so that printlog can
 	 * run without running logging or recovery.
 	 */
-	if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) &&
+	if (ret == 0 && FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) &&
 	    FLD_ISSET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE))
 		WT_TRET(__wt_txn_checkpoint_log(
 		    session, true, WT_TXN_LOG_CKPT_STOP, NULL));
@@ -156,6 +150,13 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	if (conn->lock_fh != NULL)
 		WT_TRET(__wt_close(session, &conn->lock_fh));
 
+	/* Close any optrack files */
+	if (session->optrack_fh != NULL)
+		WT_TRET(__wt_close(session, &session->optrack_fh));
+
+	/* Close operation tracking */
+	WT_TRET(__wt_conn_optrack_teardown(session, false));
+
 	/* Close any file handles left open. */
 	WT_TRET(__wt_close_connection_close(session));
 
@@ -178,7 +179,6 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 		if ((s = conn->sessions) != NULL)
 			for (i = 0; i < conn->session_size; ++s, ++i) {
 				__wt_free(session, s->dhhash);
-				__wt_free(session, s->tablehash);
 				__wt_stash_discard_all(session, s);
 				__wt_free(session, s->hazard);
 			}

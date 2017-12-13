@@ -52,15 +52,18 @@ __cursor_state_restore(WT_CURSOR *cursor, WT_CURFILE_STATE *state)
 
 /*
  * __cursor_page_pinned --
- *	Return if we have a page pinned and it's not been flagged for forced
- * eviction (the forced eviction test is so we periodically release pages
- * grown too large).
+ *	Return if we have a page pinned.
  */
 static inline bool
-__cursor_page_pinned(WT_CURSOR_BTREE *cbt)
+__cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool eviction_ok)
 {
+	/*
+	 * Optionally fail the page-pinned test when the page is flagged for
+	 * forced eviction (so we periodically release pages grown too large).
+	 * The test is optional as not all callers can release pinned pages.
+	 */
 	return (F_ISSET(cbt, WT_CBT_ACTIVE) &&
-	    cbt->ref->page->read_gen != WT_READGEN_OLDEST);
+	    (!eviction_ok || cbt->ref->page->read_gen != WT_READGEN_OLDEST));
 }
 
 /*
@@ -133,8 +136,10 @@ __cursor_disable_bulk(WT_SESSION_IMPL *session, WT_BTREE *btree)
 	 * into a tree.  Eviction is disabled when an empty tree is opened, and
 	 * it must only be enabled once.
 	 */
-	if (__wt_atomic_cas8(&btree->original, 1, 0))
+	if (__wt_atomic_cas8(&btree->original, 1, 0)) {
+		btree->evict_disabled_open = false;
 		__wt_evict_file_exclusive_off(session);
+	}
 }
 
 /*
@@ -332,7 +337,7 @@ __cursor_col_search(
 	WT_DECL_RET;
 
 	WT_WITH_PAGE_INDEX(session,
-	    ret = __wt_col_search(session, cbt->iface.recno, leaf, cbt));
+	    ret = __wt_col_search(session, cbt->iface.recno, leaf, cbt, false));
 	return (ret);
 }
 
@@ -346,8 +351,8 @@ __cursor_row_search(
 {
 	WT_DECL_RET;
 
-	WT_WITH_PAGE_INDEX(session,
-	    ret = __wt_row_search(session, &cbt->iface.key, leaf, cbt, insert));
+	WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(
+	    session, &cbt->iface.key, leaf, cbt, insert, false));
 	return (ret);
 }
 
@@ -443,6 +448,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 	WT_STAT_CONN_INCR(session, cursor_search);
 	WT_STAT_DATA_INCR(session, cursor_search);
 
+	WT_RET(__wt_txn_search_check(session));
 	__cursor_state_save(cursor, &state);
 
 	/*
@@ -462,7 +468,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 	 * from the root.
 	 */
 	valid = false;
-	if (__cursor_page_pinned(cbt)) {
+	if (__cursor_page_pinned(cbt, true)) {
 		__wt_txn_cursor_op(session);
 
 		WT_ERR(btree->type == BTREE_ROW ?
@@ -532,6 +538,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 	WT_STAT_CONN_INCR(session, cursor_search_near);
 	WT_STAT_DATA_INCR(session, cursor_search_near);
 
+	WT_RET(__wt_txn_search_check(session));
 	__cursor_state_save(cursor, &state);
 
 	/*
@@ -558,7 +565,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 	 * existing record.
 	 */
 	valid = false;
-	if (btree->type == BTREE_ROW && __cursor_page_pinned(cbt)) {
+	if (btree->type == BTREE_ROW && __cursor_page_pinned(cbt, true)) {
 		__wt_txn_cursor_op(session);
 
 		WT_ERR(__cursor_row_search(session, cbt, cbt->ref, true));
@@ -689,7 +696,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
 	 * configured for append aren't included, regardless of whether or not
 	 * they meet all other criteria.
 	 */
-	if (__cursor_page_pinned(cbt) &&
+	if (__cursor_page_pinned(cbt, true) &&
 	    F_ISSET_ALL(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_OVERWRITE) &&
 	    !append_key) {
 		WT_ERR(__wt_txn_autocommit_check(session));
@@ -908,8 +915,22 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt)
 	 * removed, and the record must exist with a positioned cursor. The
 	 * cursor won't be positioned on a page with an external key set, but
 	 * be sure.
+	 *
+	 * There's trickiness in the page-pinned check. By definition a remove
+	 * operation leaves a cursor positioned if it's initially positioned.
+	 * However, if every item on the page is deleted and we unpin the page,
+	 * eviction might delete the page and our search will re-instantiate an
+	 * empty page for us. Cursor remove returns not-found whether or not
+	 * that eviction/deletion happens and it's OK unless cursor-overwrite
+	 * is configured (which means we return success even if there's no item
+	 * to delete). In that case, we'll fail when we try to point the cursor
+	 * at the key on the page to satisfy the positioned requirement. It's
+	 * arguably safe to simply leave the key initialized in the cursor (as
+	 * that's all a positioned cursor implies), but it's probably safer to
+	 * avoid page eviction entirely in the positioned case.
 	 */
-	if (__cursor_page_pinned(cbt) && F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
+	if (__cursor_page_pinned(cbt, !positioned) &&
+	    F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
 		WT_ERR(__wt_txn_autocommit_check(session));
 
 		/*
@@ -1051,7 +1072,8 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
 	 * cursor won't be positioned on a page with an external key set, but
 	 * be sure.
 	 */
-	if (__cursor_page_pinned(cbt) && F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
+	if (__cursor_page_pinned(cbt, true) &&
+	    F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
 		WT_ERR(__wt_txn_autocommit_check(session));
 
 		/*
@@ -1197,8 +1219,7 @@ __cursor_chain_exceeded(WT_CURSOR_BTREE *cbt)
 		upd = page->modify->mod_row_update[cbt->slot];
 
 	for (i = 0; upd != NULL; ++i, upd = upd->next) {
-		if (upd->type == WT_UPDATE_DELETED ||
-		    upd->type == WT_UPDATE_STANDARD)
+		if (WT_UPDATE_DATA_VALUE(upd))
 			return (false);
 		if (i >= WT_MAX_MODIFY_UPDATE)
 			return (true);
@@ -1219,7 +1240,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	size_t orig, new;
-	bool chain_exceeded, overwrite;
+	bool overwrite;
 
 	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cursor->session;
@@ -1259,13 +1280,13 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 	/*
 	 * WT_CURSOR.modify is update-without-overwrite.
 	 *
-	 * Use the modify buffer as the update if under the limit, else use the
-	 * complete value.
+	 * Use the modify buffer as the update if the data package saves us some
+	 * memory and the update chain is under the limit, else use the complete
+	 * value.
 	 */
 	overwrite = F_ISSET(cursor, WT_CURSTD_OVERWRITE);
 	F_CLR(cursor, WT_CURSTD_OVERWRITE);
-	chain_exceeded = __cursor_chain_exceeded(cbt);
-	if (chain_exceeded)
+	if (cursor->value.size <= 64 || __cursor_chain_exceeded(cbt))
 		ret = __btcur_update(cbt, &cursor->value, WT_UPDATE_STANDARD);
 	else if ((ret =
 	    __wt_modify_pack(session, &modify, entries, nentries)) == 0)

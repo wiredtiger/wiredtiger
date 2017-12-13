@@ -61,6 +61,9 @@ static const char * const list[] = {
 	",checkpoint=(wait=2)",
 	",checkpoint=(wait=0)",
 
+	",compatibility=(release=2.6)",
+	",compatibility=(release=3.0)",
+
 	",error_prefix=\"prefix\"",
 
 	",eviction=(threads_min=7,threads_max=10)",
@@ -146,7 +149,6 @@ static const char * const list[] = {
 	",statistics_log=(wait=37)",
 	",statistics_log=(wait=0)",
 
-#ifdef HAVE_VERBOSE
 	",verbose=(\"api\")",
 	",verbose=(\"block\")",
 	",verbose=(\"checkpoint\")",
@@ -168,13 +170,11 @@ static const char * const list[] = {
 	",verbose=(\"salvage\")",
 	",verbose=(\"shared_cache\")",
 	",verbose=(\"split\")",
-	",verbose=(\"temporary\")",
 	",verbose=(\"transaction\")",
 	",verbose=(\"verify\")",
 	",verbose=(\"version\")",
 	",verbose=(\"write\")",
 	",verbose=()"
-#endif
 };
 
 static int

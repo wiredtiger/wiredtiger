@@ -72,6 +72,7 @@ src/conn/conn_dhandle.c
 src/conn/conn_handle.c
 src/conn/conn_log.c
 src/conn/conn_open.c
+src/conn/conn_reconfig.c
 src/conn/conn_stat.c
 src/conn/conn_sweep.c
 src/cursor/cur_backup.c
@@ -111,6 +112,7 @@ src/meta/meta_ext.c
 src/meta/meta_table.c
 src/meta/meta_track.c
 src/meta/meta_turtle.c
+src/optrack/optrack.c
 src/os_common/filename.c
 src/os_common/os_abort.c
 src/os_common/os_alloc.c
@@ -201,4 +203,5 @@ src/txn/txn_ext.c
 src/txn/txn_log.c
 src/txn/txn_nsnap.c
 src/txn/txn_recover.c
+src/txn/txn_rollback_to_stable.c
 src/txn/txn_timestamp.c

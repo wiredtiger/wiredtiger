@@ -96,9 +96,16 @@ __wt_cursor_equals_notsup(WT_CURSOR *cursor, WT_CURSOR *other, int *equalp)
 int
 __wt_cursor_modify_notsup(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 {
+	WT_SESSION_IMPL *session;
+
 	WT_UNUSED(entries);
 	WT_UNUSED(nentries);
 
+	if (cursor->value_format != NULL && strlen(cursor->value_format) != 0) {
+		session = (WT_SESSION_IMPL *)cursor->session;
+		WT_RET_MSG(session, ENOTSUP,
+		    "WT_CURSOR.modify only supported for 'u' value formats");
+	}
 	return (__wt_cursor_notsup(cursor));
 }
 
@@ -329,11 +336,11 @@ void
 __wt_cursor_set_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
 {
 	WT_DECL_RET;
-	WT_SESSION_IMPL *session;
 	WT_ITEM *buf, *item, tmp;
+	WT_SESSION_IMPL *session;
 	size_t sz;
-	va_list ap_copy;
 	const char *fmt, *str;
+	va_list ap_copy;
 
 	buf = &cursor->key;
 	tmp.mem = NULL;
@@ -484,9 +491,9 @@ __wt_cursor_set_valuev(WT_CURSOR *cursor, va_list ap)
 	WT_DECL_RET;
 	WT_ITEM *buf, *item, tmp;
 	WT_SESSION_IMPL *session;
+	size_t sz;
 	const char *fmt, *str;
 	va_list ap_copy;
-	size_t sz;
 
 	buf = &cursor->value;
 	tmp.mem = NULL;
@@ -591,8 +598,7 @@ __wt_cursor_equals(WT_CURSOR *cursor, WT_CURSOR *other, int *equalp)
 	WT_ERR(cursor->compare(cursor, other, &cmp));
 	*equalp = (cmp == 0) ? 1 : 0;
 
-err:	API_END(session, ret);
-	return (ret);
+err:	API_END_RET(session, ret);
 }
 
 /*
@@ -605,7 +611,7 @@ __cursor_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 
-	CURSOR_UPDATE_API_CALL(cursor, session, modify);
+	CURSOR_API_CALL(cursor, session, modify, NULL);
 
 	WT_STAT_CONN_INCR(session, cursor_modify);
 	WT_STAT_DATA_INCR(session, cursor_modify);
@@ -633,8 +639,7 @@ __cursor_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 	/* We know both key and value are set, "overwrite" doesn't matter. */
 	ret = cursor->update(cursor);
 
-err:	CURSOR_UPDATE_API_END(session, ret);
-	return (ret);
+err:	API_END_RET(session, ret);
 }
 
 /*

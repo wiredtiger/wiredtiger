@@ -141,7 +141,6 @@ __thread_group_resize(
 
 	conn = S2C(session);
 	thread = NULL;
-	session_flags = 0;
 
 	__wt_verbose(session, WT_VERB_THREAD_GROUP,
 	    "Resize thread group: %p, from min: %" PRIu32 " -> %" PRIu32
@@ -183,16 +182,15 @@ __thread_group_resize(
 		WT_ERR(__wt_calloc_one(session, &thread));
 		/*
 		 * Threads get their own session and lookaside table cursor
-		 * if the lookaside table is open. Note that threads are
-		 * started during recovery, before the lookaside table is
-		 * created.
+		 * (if the lookaside table is open).
 		 */
-		if (LF_ISSET(WT_THREAD_CAN_WAIT))
-			session_flags = WT_SESSION_CAN_WAIT;
-		if (F_ISSET(conn, WT_CONN_LAS_OPEN))
-			FLD_SET(session_flags, WT_SESSION_LOOKASIDE_CURSOR);
+		session_flags =
+		    LF_ISSET(WT_THREAD_CAN_WAIT) ? WT_SESSION_CAN_WAIT : 0;
 		WT_ERR(__wt_open_internal_session(conn, group->name,
 		    false, session_flags, &thread->session));
+		if (LF_ISSET(WT_THREAD_LOOKASIDE) &&
+		    F_ISSET(conn, WT_CONN_LOOKASIDE_OPEN))
+			WT_ERR(__wt_las_cursor_open(thread->session));
 		if (LF_ISSET(WT_THREAD_PANIC_FAIL))
 			F_SET(thread, WT_THREAD_PANIC_FAIL);
 		thread->id = i;

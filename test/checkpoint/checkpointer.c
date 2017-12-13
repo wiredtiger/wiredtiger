@@ -67,7 +67,7 @@ checkpointer(void *arg)
 
 	WT_UNUSED(arg);
 
-	testutil_check(__wt_thread_id(tid, sizeof(tid)));
+	testutil_check(__wt_thread_str(tid, sizeof(tid)));
 	printf("checkpointer thread starting: tid: %s\n", tid);
 
 	(void)real_checkpointer();
@@ -83,8 +83,8 @@ static int
 real_checkpointer(void)
 {
 	WT_SESSION *session;
-	char *checkpoint_config, _buf[128];
 	int ret;
+	char buf[128], *checkpoint_config;
 
 	if (g.running == 0)
 		return (log_print_err(
@@ -96,19 +96,15 @@ real_checkpointer(void)
 	if ((ret = g.conn->open_session(g.conn, NULL, NULL, &session)) != 0)
 		return (log_print_err("conn.open_session", ret, 1));
 
+	if (WT_PREFIX_MATCH(g.checkpoint_name, "WiredTigerCheckpoint"))
+		checkpoint_config = NULL;
+	else {
+		testutil_check(__wt_snprintf(
+		    buf, sizeof(buf), "name=%s", g.checkpoint_name));
+		checkpoint_config = buf;
+	}
+
 	while (g.running) {
-		if (WT_PREFIX_MATCH(g.checkpoint_name, "WiredTigerCheckpoint"))
-			strcpy(_buf, "");
-		else
-			testutil_check(__wt_snprintf(
-			    _buf, sizeof(_buf), "name=%s", g.checkpoint_name));
-
-		if (g.use_timestamps && g.timestamp > 0)
-			testutil_check(__wt_snprintf(
-			    _buf + strlen(_buf), sizeof(_buf) - strlen(_buf),
-			    ",read_timestamp=%" PRIx64, g.timestamp));
-
-		checkpoint_config = strlen(_buf) > 0 ? _buf : NULL;
 		/* Execute a checkpoint */
 		if ((ret = session->checkpoint(
 		    session, checkpoint_config)) != 0)
@@ -138,10 +134,10 @@ static int
 verify_checkpoint(WT_SESSION *session)
 {
 	WT_CURSOR **cursors;
-	const char *type0, *typei;
-	char next_uri[128], ckpt[128];
-	int i, ret, t_ret;
 	uint64_t key_count;
+	int i, ret, t_ret;
+	char ckpt[128], next_uri[128];
+	const char *type0, *typei;
 
 	ret = t_ret = 0;
 	key_count = 0;
@@ -244,8 +240,8 @@ compare_cursors(
     WT_CURSOR *cursor2, const char *type2)
 {
 	uint64_t key1, key2;
-	char *val1, *val2, buf[128];
 	int ret;
+	char buf[128], *val1, *val2;
 
 	ret = 0;
 	memset(buf, 0, 128);
@@ -289,8 +285,8 @@ diagnose_key_error(
 	WT_CURSOR *c;
 	WT_SESSION *session;
 	uint64_t key1, key1_orig, key2, key2_orig;
-	char next_uri[128], ckpt[128];
 	int ret;
+	char ckpt[128], next_uri[128];
 
 	/* Hack to avoid passing session as parameter. */
 	session = cursor1->session;

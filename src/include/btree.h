@@ -97,6 +97,14 @@ struct __wt_btree {
 	uint64_t maxmempage;		/* In-memory page max size */
 	uint64_t splitmempage;		/* In-memory split trigger size */
 
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_ASSERT_COMMIT_TS_ALWAYS	0x1u
+#define	WT_ASSERT_COMMIT_TS_NEVER	0x2u
+#define	WT_ASSERT_READ_TS_ALWAYS	0x4u
+#define	WT_ASSERT_READ_TS_NEVER		0x8u
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
+	uint32_t assert_flags;		/* Debugging assertion information */
+
 	void *huffman_key;		/* Key huffman encoding */
 	void *huffman_value;		/* Value huffman encoding */
 
@@ -110,17 +118,22 @@ struct __wt_btree {
 	 */
 	u_int dictionary;		/* Dictionary slots */
 	bool  internal_key_truncate;	/* Internal key truncate */
-	int   maximum_depth;		/* Maximum tree depth */
 	bool  prefix_compression;	/* Prefix compression */
 	u_int prefix_compression_min;	/* Prefix compression min */
+
 #define	WT_SPLIT_DEEPEN_MIN_CHILD_DEF	10000
 	u_int split_deepen_min_child;	/* Minimum entries to deepen tree */
 #define	WT_SPLIT_DEEPEN_PER_CHILD_DEF	100
 	u_int split_deepen_per_child;	/* Entries per child when deepened */
 	int   split_pct;		/* Split page percent */
+
 	WT_COMPRESSOR *compressor;	/* Page compressor */
 	WT_KEYED_ENCRYPTOR *kencryptor;	/* Page encryptor */
+
 	WT_RWLOCK ovfl_lock;		/* Overflow lock */
+
+	int	maximum_depth;		/* Maximum tree depth during search */
+	u_int	rec_multiblock_max;	/* Maximum blocks written for a page */
 
 	uint64_t last_recno;		/* Column-store last record number */
 
@@ -129,6 +142,7 @@ struct __wt_btree {
 	uint8_t	original;		/* Newly created: bulk-load possible
 					   (want a bool but needs atomic cas) */
 
+	bool lookaside_entries;		/* Has entries in the lookaside table */
 	bool lsm_primary;		/* Handle is/was the LSM primary */
 
 	WT_BM	*bm;			/* Block manager reference */
@@ -147,16 +161,6 @@ struct __wt_btree {
 	uint64_t    bytes_dirty_intl;	/* Bytes in dirty internal pages. */
 	uint64_t    bytes_dirty_leaf;	/* Bytes in dirty leaf pages. */
 
-	WT_REF	   *evict_ref;		/* Eviction thread's location */
-	uint64_t    evict_priority;	/* Relative priority of cached pages */
-	u_int	    evict_walk_period;	/* Skip this many LRU walks */
-	u_int	    evict_walk_saved;	/* Saved walk skips for checkpoints */
-	u_int	    evict_walk_skips;	/* Number of walks skipped */
-	int32_t	    evict_disabled;	/* Eviction disabled count */
-	volatile uint32_t evict_busy;	/* Count of threads in eviction */
-	int	    evict_start_type;	/* Start position for eviction walk
-					   (see WT_EVICT_WALK_START). */
-
 	/*
 	 * We flush pages from the tree (in order to make checkpoint faster),
 	 * without a high-level lock.  To avoid multiple threads flushing at
@@ -164,20 +168,49 @@ struct __wt_btree {
 	 */
 	WT_SPINLOCK	flush_lock;	/* Lock to flush the tree's pages */
 
-	/* Flags values up to 0xff are reserved for WT_DHANDLE_* */
-#define	WT_BTREE_ALTER		0x000100 /* Handle is for alter */
-#define	WT_BTREE_BULK		0x000200 /* Bulk-load handle */
-#define	WT_BTREE_CLOSED		0x000400 /* Handle closed */
-#define	WT_BTREE_IGNORE_CACHE	0x000800 /* Cache-resident object */
-#define	WT_BTREE_IN_MEMORY	0x001000 /* Cache-resident object */
-#define	WT_BTREE_LOOKASIDE	0x002000 /* Look-aside table */
-#define	WT_BTREE_NO_CHECKPOINT	0x004000 /* Disable checkpoints */
-#define	WT_BTREE_NO_LOGGING	0x008000 /* Disable logging */
-#define	WT_BTREE_REBALANCE	0x010000 /* Handle is for rebalance */
-#define	WT_BTREE_SALVAGE	0x020000 /* Handle is for salvage */
-#define	WT_BTREE_SKIP_CKPT	0x040000 /* Handle skipped checkpoint */
-#define	WT_BTREE_UPGRADE	0x080000 /* Handle is for upgrade */
-#define	WT_BTREE_VERIFY		0x100000 /* Handle is for verify */
+	/*
+	 * All of the following fields live at the end of the structure so it's
+	 * easier to clear everything but the fields that persist.
+	 */
+#define	WT_BTREE_CLEAR_SIZE	(offsetof(WT_BTREE, evict_ref))
+
+	/*
+	 * Eviction information is maintained in the btree handle, but owned by
+	 * eviction, not the btree code.
+	 */
+	WT_REF	   *evict_ref;		/* Eviction thread's location */
+	uint64_t    evict_priority;	/* Relative priority of cached pages */
+	u_int	    evict_walk_period;	/* Skip this many LRU walks */
+	u_int	    evict_walk_saved;	/* Saved walk skips for checkpoints */
+	u_int	    evict_walk_skips;	/* Number of walks skipped */
+	int32_t	    evict_disabled;	/* Eviction disabled count */
+	bool	    evict_disabled_open;/* Eviction disabled on open */
+	volatile uint32_t evict_busy;	/* Count of threads in eviction */
+	enum {				/* Start position for eviction walk */
+		WT_EVICT_WALK_NEXT,
+		WT_EVICT_WALK_PREV,
+		WT_EVICT_WALK_RAND_NEXT,
+		WT_EVICT_WALK_RAND_PREV
+	} evict_start_type;
+
+	/*
+	 * Flag values up to 0xff are reserved for WT_DHANDLE_XXX. We don't
+	 * automatically generate these flag values for that reason, there's
+	 * no way to start at an offset.
+	 */
+#define	WT_BTREE_ALTER		0x000100u	/* Handle is for alter */
+#define	WT_BTREE_BULK		0x000200u	/* Bulk-load handle */
+#define	WT_BTREE_CLOSED		0x000400u	/* Handle closed */
+#define	WT_BTREE_IGNORE_CACHE	0x000800u	/* Cache-resident object */
+#define	WT_BTREE_IN_MEMORY	0x001000u	/* Cache-resident object */
+#define	WT_BTREE_LOOKASIDE	0x002000u	/* Look-aside table */
+#define	WT_BTREE_NO_CHECKPOINT	0x004000u	/* Disable checkpoints */
+#define	WT_BTREE_NO_LOGGING	0x008000u	/* Disable logging */
+#define	WT_BTREE_REBALANCE	0x010000u	/* Handle is for rebalance */
+#define	WT_BTREE_SALVAGE	0x020000u	/* Handle is for salvage */
+#define	WT_BTREE_SKIP_CKPT	0x040000u	/* Handle skipped checkpoint */
+#define	WT_BTREE_UPGRADE	0x080000u	/* Handle is for upgrade */
+#define	WT_BTREE_VERIFY		0x100000u	/* Handle is for verify */
 	uint32_t flags;
 };
 

@@ -160,12 +160,12 @@ __compact_handle_append(WT_SESSION_IMPL *session, const char *cfg[])
 
 	WT_UNUSED(cfg);
 
-	WT_RET(__wt_session_get_btree(
+	WT_RET(__wt_session_get_dhandle(
 	    session, session->dhandle->name, NULL, NULL, 0));
 
 	/* Set compact active on the handle. */
 	if ((ret = __compact_start(session)) != 0) {
-		WT_TRET(__wt_session_release_btree(session));
+		WT_TRET(__wt_session_release_dhandle(session));
 		return (ret);
 	}
 
@@ -201,8 +201,8 @@ __wt_session_compact_check_timeout(WT_SESSION_IMPL *session)
 static int
 __compact_checkpoint(WT_SESSION_IMPL *session)
 {
-	WT_TXN_GLOBAL *txn_global;
 	WT_DECL_RET;
+	WT_TXN_GLOBAL *txn_global;
 	uint64_t txn_gen;
 
 	/*
@@ -250,7 +250,7 @@ __compact_worker(WT_SESSION_IMPL *session)
 {
 	WT_DECL_RET;
 	u_int i, loop;
-	bool didwork;
+	bool another_pass;
 
 	/*
 	 * Reset the handles' compaction skip flag (we don't bother setting
@@ -274,7 +274,8 @@ __compact_worker(WT_SESSION_IMPL *session)
 	 */
 	for (loop = 0; loop < 100; ++loop) {
 		/* Step through the list of files being compacted. */
-		for (didwork = false, i = 0; i < session->op_handle_next; ++i) {
+		for (another_pass = false,
+		    i = 0; i < session->op_handle_next; ++i) {
 			/* Skip objects where there's no more work. */
 			if (session->op_handle[i]->compact_skip)
 				continue;
@@ -282,15 +283,43 @@ __compact_worker(WT_SESSION_IMPL *session)
 			session->compact_state = WT_COMPACT_RUNNING;
 			WT_WITH_DHANDLE(session,
 			    session->op_handle[i], ret = __wt_compact(session));
-			WT_ERR(ret);
 
-			/* If we did no work, skip this file in the future. */
-			if (session->compact_state == WT_COMPACT_SUCCESS)
-				didwork = true;
-			else
-				session->op_handle[i]->compact_skip = true;
+			/*
+			 * If successful and we did work, schedule another pass.
+			 * If successful and we did no work, skip this file in
+			 * the future.
+			 */
+			if (ret == 0) {
+				if (session->
+				    compact_state == WT_COMPACT_SUCCESS)
+					another_pass = true;
+				else
+					session->
+					    op_handle[i]->compact_skip = true;
+				continue;
+			}
+
+			/*
+			 * If compaction failed because checkpoint was running,
+			 * continue with the next handle. We might continue to
+			 * race with checkpoint on each handle, but that's OK,
+			 * we'll step through all the handles, and then we'll
+			 * block until a checkpoint completes.
+			 *
+			 * Just quit if eviction is the problem.
+			 */
+			if (ret == EBUSY) {
+				if (__wt_cache_stuck(session)) {
+					WT_ERR_MSG(session, EBUSY,
+					    "compaction halted by eviction "
+					    "pressure");
+				}
+				ret = 0;
+				another_pass = true;
+			}
+			WT_ERR(ret);
 		}
-		if (!didwork)
+		if (!another_pass)
 			break;
 
 		/*
@@ -320,9 +349,22 @@ __wt_session_compact(
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	u_int i;
+	bool ignore_cache_size_set;
+
+	ignore_cache_size_set = false;
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL(session, compact, config, cfg);
+
+	/*
+	 * The compaction thread should not block when the cache is full: it is
+	 * holding locks blocking checkpoints and once the cache is full, it can
+	 * spend a long time doing eviction.
+	 */
+	if (!F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE)) {
+		ignore_cache_size_set = true;
+		F_SET(session, WT_SESSION_IGNORE_CACHE_SIZE);
+	}
 
 	/* In-memory ignores compaction operations. */
 	if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
@@ -381,7 +423,7 @@ err:	session->compact = NULL;
 		WT_WITH_DHANDLE(session, session->op_handle[i],
 		    WT_TRET(__compact_end(session)));
 		WT_WITH_DHANDLE(session, session->op_handle[i],
-		    WT_TRET(__wt_session_release_btree(session)));
+		    WT_TRET(__wt_session_release_dhandle(session)));
 	}
 
 	__wt_free(session, session->op_handle);
@@ -392,6 +434,9 @@ err:	session->compact = NULL;
 	 * significant reconciliation structures/memory).
 	 */
 	WT_TRET(__wt_session_release_resources(session));
+
+	if (ignore_cache_size_set)
+		F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
 
 	if (ret != 0)
 		WT_STAT_CONN_INCR(session, session_table_compact_fail);

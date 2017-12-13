@@ -761,6 +761,7 @@ static const char * const __stats_connection_desc[] = {
 	"cache: application threads page write from cache to disk count",
 	"cache: application threads page write from cache to disk time (usecs)",
 	"cache: bytes belonging to page images in the cache",
+	"cache: bytes belonging to the lookaside table in the cache",
 	"cache: bytes currently in the cache",
 	"cache: bytes not belonging to page images in the cache",
 	"cache: bytes read into cache",
@@ -809,6 +810,8 @@ static const char * const __stats_connection_desc[] = {
 	"cache: internal pages evicted",
 	"cache: internal pages split during eviction",
 	"cache: leaf pages split during eviction",
+	"cache: lookaside score",
+	"cache: lookaside table entries",
 	"cache: lookaside table insert calls",
 	"cache: lookaside table remove calls",
 	"cache: maximum bytes configured",
@@ -1024,8 +1027,16 @@ static const char * const __stats_connection_desc[] = {
 	"transaction: transaction range of IDs currently pinned",
 	"transaction: transaction range of IDs currently pinned by a checkpoint",
 	"transaction: transaction range of IDs currently pinned by named snapshots",
+	"transaction: transaction range of timestamps currently pinned",
+	"transaction: transaction range of timestamps pinned by the oldest timestamp",
 	"transaction: transaction sync calls",
+	"transaction: transactions commit timestamp queue inserts to head",
+	"transaction: transactions commit timestamp queue inserts total",
+	"transaction: transactions commit timestamp queue length",
 	"transaction: transactions committed",
+	"transaction: transactions read timestamp queue inserts to head",
+	"transaction: transactions read timestamp queue inserts total",
+	"transaction: transactions read timestamp queue length",
 	"transaction: transactions rolled back",
 	"transaction: update conflicts",
 };
@@ -1106,6 +1117,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cache_write_app_count = 0;
 	stats->cache_write_app_time = 0;
 		/* not clearing cache_bytes_image */
+		/* not clearing cache_bytes_lookaside */
 		/* not clearing cache_bytes_inuse */
 		/* not clearing cache_bytes_other */
 	stats->cache_bytes_read = 0;
@@ -1154,6 +1166,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cache_eviction_internal = 0;
 	stats->cache_eviction_split_internal = 0;
 	stats->cache_eviction_split_leaf = 0;
+		/* not clearing cache_lookaside_score */
+		/* not clearing cache_lookaside_entries */
 	stats->cache_lookaside_insert = 0;
 	stats->cache_lookaside_remove = 0;
 		/* not clearing cache_bytes_max */
@@ -1369,8 +1383,16 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing txn_pinned_range */
 		/* not clearing txn_pinned_checkpoint_range */
 		/* not clearing txn_pinned_snapshot_range */
+		/* not clearing txn_pinned_timestamp */
+		/* not clearing txn_pinned_timestamp_oldest */
 	stats->txn_sync = 0;
+	stats->txn_commit_queue_head = 0;
+	stats->txn_commit_queue_inserts = 0;
+	stats->txn_commit_queue_len = 0;
 	stats->txn_commit = 0;
+	stats->txn_read_queue_head = 0;
+	stats->txn_read_queue_inserts = 0;
+	stats->txn_read_queue_len = 0;
 	stats->txn_rollback = 0;
 	stats->txn_update_conflict = 0;
 }
@@ -1433,6 +1455,8 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, cache_write_app_count);
 	to->cache_write_app_time += WT_STAT_READ(from, cache_write_app_time);
 	to->cache_bytes_image += WT_STAT_READ(from, cache_bytes_image);
+	to->cache_bytes_lookaside +=
+	    WT_STAT_READ(from, cache_bytes_lookaside);
 	to->cache_bytes_inuse += WT_STAT_READ(from, cache_bytes_inuse);
 	to->cache_bytes_other += WT_STAT_READ(from, cache_bytes_other);
 	to->cache_bytes_read += WT_STAT_READ(from, cache_bytes_read);
@@ -1520,6 +1544,10 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, cache_eviction_split_internal);
 	to->cache_eviction_split_leaf +=
 	    WT_STAT_READ(from, cache_eviction_split_leaf);
+	to->cache_lookaside_score +=
+	    WT_STAT_READ(from, cache_lookaside_score);
+	to->cache_lookaside_entries +=
+	    WT_STAT_READ(from, cache_lookaside_entries);
 	to->cache_lookaside_insert +=
 	    WT_STAT_READ(from, cache_lookaside_insert);
 	to->cache_lookaside_remove +=
@@ -1837,8 +1865,20 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, txn_pinned_checkpoint_range);
 	to->txn_pinned_snapshot_range +=
 	    WT_STAT_READ(from, txn_pinned_snapshot_range);
+	to->txn_pinned_timestamp += WT_STAT_READ(from, txn_pinned_timestamp);
+	to->txn_pinned_timestamp_oldest +=
+	    WT_STAT_READ(from, txn_pinned_timestamp_oldest);
 	to->txn_sync += WT_STAT_READ(from, txn_sync);
+	to->txn_commit_queue_head +=
+	    WT_STAT_READ(from, txn_commit_queue_head);
+	to->txn_commit_queue_inserts +=
+	    WT_STAT_READ(from, txn_commit_queue_inserts);
+	to->txn_commit_queue_len += WT_STAT_READ(from, txn_commit_queue_len);
 	to->txn_commit += WT_STAT_READ(from, txn_commit);
+	to->txn_read_queue_head += WT_STAT_READ(from, txn_read_queue_head);
+	to->txn_read_queue_inserts +=
+	    WT_STAT_READ(from, txn_read_queue_inserts);
+	to->txn_read_queue_len += WT_STAT_READ(from, txn_read_queue_len);
 	to->txn_rollback += WT_STAT_READ(from, txn_rollback);
 	to->txn_update_conflict += WT_STAT_READ(from, txn_update_conflict);
 }

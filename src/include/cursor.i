@@ -109,7 +109,7 @@ __cursor_needkey(WT_CURSOR *cursor)
 static inline int
 __cursor_needvalue(WT_CURSOR *cursor)
 {
-	WT_RET(__cursor_localkey(cursor));
+	WT_RET(__cursor_localvalue(cursor));
 	return (__cursor_checkvalue(cursor));
 }
 
@@ -149,7 +149,7 @@ __cursor_enter(WT_SESSION_IMPL *session)
 	 * whether the cache is full.
 	 */
 	if (session->ncursors == 0)
-		WT_RET(__wt_cache_eviction_check(session, false, NULL));
+		WT_RET(__wt_cache_eviction_check(session, false, false, NULL));
 	++session->ncursors;
 	return (0);
 }
@@ -361,9 +361,9 @@ static inline int
 __cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_UPDATE *upd)
 {
 	WT_BTREE *btree;
-	WT_ITEM *kb, *vb;
 	WT_CELL *cell;
 	WT_CELL_UNPACK *unpack, _unpack;
+	WT_ITEM *kb, *vb;
 	WT_PAGE *page;
 	WT_SESSION_IMPL *session;
 	void *copy;

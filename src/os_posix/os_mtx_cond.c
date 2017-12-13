@@ -26,8 +26,11 @@ __wt_cond_alloc(WT_SESSION_IMPL *session, const char *name, WT_CONDVAR **condp)
 	pthread_condattr_t condattr;
 
 	WT_ERR(pthread_condattr_init(&condattr));
-	WT_ERR(pthread_condattr_setclock(&condattr, CLOCK_MONOTONIC));
-	WT_ERR(pthread_cond_init(&cond->cond, &condattr));
+	ret = pthread_condattr_setclock(&condattr, CLOCK_MONOTONIC);
+	if (ret == 0)
+		ret = pthread_cond_init(&cond->cond, &condattr);
+	WT_TRET(pthread_condattr_destroy(&condattr));
+	WT_ERR(ret);
 	}
 #else
 	WT_ERR(pthread_cond_init(&cond->cond, NULL));
@@ -55,6 +58,8 @@ __wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond,
 	struct timespec ts;
 	WT_DECL_RET;
 	bool locked;
+
+	WT_TRACK_OP_INIT(session);
 
 	locked = false;
 
@@ -132,8 +137,10 @@ err:	(void)__wt_atomic_subi32(&cond->waiters, 1);
 
 	if (locked)
 		WT_TRET(pthread_mutex_unlock(&cond->mtx));
-	if (ret == 0)
+	if (ret == 0) {
+		WT_TRACK_OP_END(session);
 		return;
+	}
 
 	WT_PANIC_MSG(session, ret, "pthread_cond_wait: %s", cond->name);
 }

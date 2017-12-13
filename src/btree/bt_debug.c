@@ -16,17 +16,20 @@ typedef struct __wt_dbg WT_DBG;
 struct __wt_dbg {
 	WT_SESSION_IMPL *session;		/* Enclosing session */
 
+	bool integer_key;			/* Integer key formats */
+	bool unsigned_key;
+
 	/*
 	 * When using the standard event handlers, the debugging output has to
 	 * do its own message handling because its output isn't line-oriented.
 	 */
-	FILE		*fp;			/* Optional file handle */
-	WT_ITEM		*msg;			/* Buffered message */
+	FILE	*fp;				/* Optional file handle */
+	WT_ITEM	*msg;				/* Buffered message */
 
 	int (*f)(WT_DBG *, const char *, ...)	/* Function to write */
 	    WT_GCC_FUNC_DECL_ATTRIBUTE((format (printf, 2, 3)));
 
-	WT_ITEM		*tmp;			/* Temporary space */
+	WT_ITEM *tmp;				/* Temporary space */
 };
 
 static const					/* Output separator */
@@ -39,7 +42,6 @@ static int __debug_col_skip(WT_DBG *, WT_INSERT_HEAD *, const char *, bool);
 static int __debug_config(WT_SESSION_IMPL *, WT_DBG *, const char *);
 static int __debug_dsk_cell(WT_DBG *, const WT_PAGE_HEADER *);
 static int __debug_dsk_col_fix(WT_DBG *, const WT_PAGE_HEADER *);
-static int __debug_item(WT_DBG *, const char *, const void *, size_t);
 static int __debug_page(WT_DBG *, WT_REF *, uint32_t);
 static int __debug_page_col_fix(WT_DBG *, WT_REF *);
 static int __debug_page_col_int(WT_DBG *, WT_PAGE *, uint32_t);
@@ -61,8 +63,8 @@ static int __dmsg_wrapup(WT_DBG *);
 int
 __wt_debug_set_verbose(WT_SESSION_IMPL *session, const char *v)
 {
-	const char *cfg[2] = { NULL, NULL };
 	char buf[256];
+	const char *cfg[2] = { NULL, NULL };
 
 	WT_RET(__wt_snprintf(buf, sizeof(buf), "verbose=[%s]", v));
 	cfg[0] = buf;
@@ -81,6 +83,69 @@ __debug_hex_byte(WT_DBG *ds, uint8_t v)
 }
 
 /*
+ * __debug_bytes --
+ *	Dump a single set of bytes.
+ */
+static int
+__debug_bytes(WT_DBG *ds, const void *data_arg, size_t size)
+{
+	size_t i;
+	const uint8_t *data;
+	u_char ch;
+
+	for (data = data_arg, i = 0; i < size; ++i, ++data) {
+		ch = data[0];
+		if (__wt_isprint(ch))
+			WT_RET(ds->f(ds, "%c", (int)ch));
+		else
+			WT_RET(__debug_hex_byte(ds, data[0]));
+	}
+	return (0);
+}
+
+/*
+ * __debug_item --
+ *	Dump a single data/size item, with an optional tag.
+ */
+static int
+__debug_item(WT_DBG *ds, const char *tag, const void *data_arg, size_t size)
+{
+	WT_RET(ds->f(ds,
+	    "\t%s%s{", tag == NULL ? "" : tag, tag == NULL ? "" : " "));
+	WT_RET(__debug_bytes(ds, data_arg, size));
+	WT_RET(ds->f(ds, "}\n"));
+	return (0);
+}
+
+/*
+ * __debug_item_key --
+ *	Dump a single data/size key item, with an optional tag.
+ */
+static int
+__debug_item_key(WT_DBG *ds, const char *tag, const void *data_arg, size_t size)
+{
+	uint64_t ukey;
+	int64_t ikey;
+	const uint8_t *p;
+
+	if (ds->integer_key) {
+		p = data_arg;
+		WT_RET(__wt_vunpack_int(&p, 0, &ikey));
+		WT_RET(ds->f(ds, "\t%s%s{%" PRId64 "}\n",
+		    tag == NULL ? "" : tag, tag == NULL ? "" : " ", ikey));
+		return (0);
+	}
+	if (ds->unsigned_key) {
+		p = data_arg;
+		WT_RET(__wt_vunpack_uint(&p, 0, &ukey));
+		WT_RET(ds->f(ds, "\t%s%s{%" PRIu64 "}\n",
+		    tag == NULL ? "" : tag, tag == NULL ? "" : " ", ukey));
+		return (0);
+	}
+	return (__debug_item(ds, tag, data_arg, size));
+}
+
+/*
  * __dmsg_event --
  *	Send a debug message to the event handler.
  */
@@ -91,8 +156,8 @@ __dmsg_event(WT_DBG *ds, const char *fmt, ...)
 	WT_ITEM *msg;
 	WT_SESSION_IMPL *session;
 	size_t len, space;
-	va_list ap;
 	char *p;
+	va_list ap;
 
 	session = ds->session;
 
@@ -159,6 +224,8 @@ __dmsg_file(WT_DBG *ds, const char *fmt, ...)
 static int
 __debug_config(WT_SESSION_IMPL *session, WT_DBG *ds, const char *ofile)
 {
+	WT_BTREE *btree;
+
 	memset(ds, 0, sizeof(WT_DBG));
 
 	ds->session = session;
@@ -179,6 +246,13 @@ __debug_config(WT_SESSION_IMPL *session, WT_DBG *ds, const char *ofile)
 		ds->f = __dmsg_file;
 	}
 
+	btree = S2BT_SAFE(session);
+	ds->integer_key = btree != NULL &&
+	    strchr("hilq", btree->key_format[0]) != NULL &&
+	    btree->key_format[1] == '\0';
+	ds->unsigned_key = btree != NULL &&
+	    strchr("HILQr", btree->key_format[0]) != NULL &&
+	    btree->key_format[1] == '\0';
 	return (0);
 }
 
@@ -189,8 +263,8 @@ __debug_config(WT_SESSION_IMPL *session, WT_DBG *ds, const char *ofile)
 static int
 __dmsg_wrapup(WT_DBG *ds)
 {
-	WT_SESSION_IMPL *session;
 	WT_ITEM *msg;
+	WT_SESSION_IMPL *session;
 
 	session = ds->session;
 	msg = ds->msg;
@@ -444,8 +518,8 @@ __debug_dsk_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk)
 static char *
 __debug_tree_shape_info(WT_PAGE *page)
 {
-	uint64_t v;
 	static char buf[128];
+	uint64_t v;
 	const char *unit;
 
 	v = page->memory_footprint;
@@ -523,8 +597,10 @@ __wt_debug_tree_shape(
 	return (__dmsg_wrapup(ds));
 }
 
-#define	WT_DEBUG_TREE_LEAF	0x01			/* Debug leaf pages */
-#define	WT_DEBUG_TREE_WALK	0x02			/* Descend the tree */
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_DEBUG_TREE_LEAF	0x1u			/* Debug leaf pages */
+#define	WT_DEBUG_TREE_WALK	0x2u			/* Descend the tree */
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
 
 /*
  * __wt_debug_tree_all --
@@ -699,6 +775,8 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
 	WT_RET(ds->f(ds, ", entries %" PRIu32, entries));
 	WT_RET(ds->f(ds,
 	    ", %s", __wt_page_is_modified(page) ? "dirty" : "clean"));
+	WT_RET(ds->f(ds,
+	    ", memory_size %" WT_SIZET_FMT, page->memory_footprint));
 
 	if (F_ISSET_ATOMIC(page, WT_PAGE_BUILD_KEYS))
 		WT_RET(ds->f(ds, ", keys-built"));
@@ -884,7 +962,7 @@ __debug_page_row_int(WT_DBG *ds, WT_PAGE *page, uint32_t flags)
 
 	WT_INTL_FOREACH_BEGIN(session, page, ref) {
 		__wt_ref_key(page, ref, &p, &len);
-		WT_RET(__debug_item(ds, "K", p, len));
+		WT_RET(__debug_item_key(ds, "K", p, len));
 		WT_RET(__debug_ref(ds, ref));
 	} WT_INTL_FOREACH_END;
 
@@ -929,7 +1007,7 @@ __debug_page_row_leaf(WT_DBG *ds, WT_PAGE *page)
 	/* Dump the page's K/V pairs. */
 	WT_ROW_FOREACH(page, rip, i) {
 		WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
-		WT_ERR(__debug_item(ds, "K", key->data, key->size));
+		WT_ERR(__debug_item_key(ds, "K", key->data, key->size));
 
 		if ((cell = __wt_row_leaf_value_cell(page, rip, NULL)) == NULL)
 			WT_ERR(ds->f(ds, "\tV {}\n"));
@@ -978,7 +1056,7 @@ __debug_row_skip(WT_DBG *ds, WT_INSERT_HEAD *head)
 	WT_INSERT *ins;
 
 	WT_SKIP_FOREACH(ins, head) {
-		WT_RET(__debug_item(ds,
+		WT_RET(__debug_item_key(ds,
 		    "insert", WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins)));
 		WT_RET(__debug_update(ds, ins->upd, false));
 	}
@@ -992,24 +1070,26 @@ __debug_row_skip(WT_DBG *ds, WT_INSERT_HEAD *head)
 static int
 __debug_modified(WT_DBG *ds, WT_UPDATE *upd)
 {
+	size_t nentries, data_size, offset, size;
 	const size_t *p;
-	int nentries;
 	const uint8_t *data;
-	void *modify;
 
-	modify = upd->data;
+	p = (size_t *)upd->data;
+	memcpy(&nentries, p++, sizeof(size_t));
+	data = upd->data + sizeof(size_t) + (nentries * 3 * sizeof(size_t));
 
-	p = modify;
-	nentries = (int)*p++;
-	data = (uint8_t *)modify +
-	    sizeof(size_t) + ((size_t)nentries * 3 * sizeof(size_t));
-
-	WT_RET(ds->f(ds, "%d: ", nentries));
-	for (; nentries-- > 0; data += p[0], p += 3)
+	WT_RET(ds->f(ds, "%" WT_SIZET_FMT ": ", nentries));
+	for (; nentries-- > 0; data += data_size) {
+		memcpy(&data_size, p++, sizeof(size_t));
+		memcpy(&offset, p++, sizeof(size_t));
+		memcpy(&size, p++, sizeof(size_t));
 		WT_RET(ds->f(ds,
 		    "{%" WT_SIZET_FMT ", %" WT_SIZET_FMT ", %" WT_SIZET_FMT
-		    ", %.*s}%s", p[0], p[1], p[2],
-		    (int)p[2], data, nentries == 0 ? "" : ", "));
+		    ", ",
+		    data_size, offset, size));
+		WT_RET(__debug_bytes(ds, data, data_size));
+		WT_RET(ds->f(ds, "}%s", nentries == 0 ? "" : ", "));
+	}
 
 	return (0);
 }
@@ -1052,17 +1132,10 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 #ifdef HAVE_TIMESTAMPS
 		if (!__wt_timestamp_iszero(
 		    WT_TIMESTAMP_NULL(&upd->timestamp))) {
-#if WT_TIMESTAMP_SIZE == 8
-			WT_RET(ds->f(ds,
-			    ", stamp %" PRIu64, upd->timestamp.val));
-#else
-			int i;
-
-			WT_RET(ds->f(ds, ", stamp 0x"));
-			for (i = 0; i < WT_TIMESTAMP_SIZE; ++i)
-				WT_RET(ds->f(ds,
-				    "%" PRIx8, upd->timestamp.ts[i]));
-#endif
+			char hex_timestamp[2 * WT_TIMESTAMP_SIZE + 1];
+			WT_RET(__wt_timestamp_to_hex_string(
+			    ds->session, hex_timestamp, &upd->timestamp));
+			WT_RET(ds->f(ds, ", stamp %s", hex_timestamp));
 		}
 #endif
 		WT_RET(ds->f(ds, "\n"));
@@ -1093,6 +1166,9 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
 		break;
 	case WT_REF_LOCKED:
 		state = "locked";
+		break;
+	case WT_REF_LOOKASIDE:
+		state = "lookaside";
 		break;
 	case WT_REF_MEM:
 		state = "memory";
@@ -1249,29 +1325,5 @@ __debug_cell_data(WT_DBG *ds,
 	}
 
 	return (ret);
-}
-
-/*
- * __debug_item --
- *	Dump a single data/size pair, with an optional tag.
- */
-static int
-__debug_item(WT_DBG *ds, const char *tag, const void *data_arg, size_t size)
-{
-	size_t i;
-	u_char ch;
-	const uint8_t *data;
-
-	WT_RET(ds->f(ds,
-	    "\t%s%s{", tag == NULL ? "" : tag, tag == NULL ? "" : " "));
-	for (data = data_arg, i = 0; i < size; ++i, ++data) {
-		ch = data[0];
-		if (__wt_isprint(ch))
-			WT_RET(ds->f(ds, "%c", (int)ch));
-		else
-			WT_RET(__debug_hex_byte(ds, data[0]));
-	}
-	WT_RET(ds->f(ds, "}\n"));
-	return (0);
 }
 #endif

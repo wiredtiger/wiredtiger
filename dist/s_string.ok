@@ -55,6 +55,7 @@ CET
 CFLAGS
 CHECKKEY
 CKPT
+CLOEXEC
 CMP
 CONCAT
 CONFIG
@@ -74,6 +75,7 @@ Checksum
 Checksums
 CityHash
 CloseHandle
+Cmvz
 Collet
 Comparator
 Config
@@ -160,6 +162,7 @@ HFS
 HHHH
 HHHHLL
 HHHLL
+HILQr
 Hendrik
 HyperLevelDB
 ID's
@@ -175,6 +178,7 @@ INMEM
 INSN
 INTL
 INULL
+INUSE
 ISA
 ITEMs
 ITER
@@ -264,6 +268,8 @@ NoAddr
 Noll
 Nul
 OOB
+OPLOG
+OPTRACK
 OPTYPE
 OUTBUFF
 OVFL
@@ -528,6 +534,7 @@ checkpointer
 checkpointing
 checksum
 checksums
+checksys
 checkvalue
 children's
 chk
@@ -741,6 +748,7 @@ fsyncLock
 fsyncs
 ftruncate
 func
+funcid
 fvisibility
 gcc
 gdb
@@ -770,6 +778,7 @@ hashval
 havesize
 hdr
 highjack
+hilq
 hotbackup
 hselasky
 html
@@ -780,6 +789,7 @@ iS
 iSh
 ibackup
 icount
+idlems
 idx
 ifdef
 ifdef's
@@ -920,6 +930,7 @@ mem
 memalign
 membar
 memcpy
+memdup
 memget
 memmove
 memset
@@ -940,6 +951,7 @@ msvc
 multi
 multiblock
 multicore
+multicycle
 multiprocess
 multisocket
 multithreaded
@@ -998,6 +1010,7 @@ openfile
 oplist
 oplog
 optimizations
+optrack
 optype
 ori
 os
@@ -1050,7 +1063,6 @@ psp
 pthread
 ptr
 ptrdiff
-pushms
 putK
 putV
 pv
@@ -1062,6 +1074,7 @@ qrrSS
 qsort
 quartile
 queueable
+quiesce
 qup
 rN
 rS
@@ -1070,6 +1083,7 @@ rbrace
 rbracket
 rcursor
 rdonly
+rdtsc
 rduppo
 readlock
 readonly
@@ -1081,6 +1095,7 @@ rebalancing
 recno
 recnos
 reconfig
+reconfigures
 reconfiguring
 recsize
 rectype
@@ -1156,6 +1171,7 @@ strget
 strlen
 strncpy
 strndup
+strnlen
 strtok
 strtoll
 strtouq
@@ -1170,6 +1186,7 @@ sublicense
 subtest
 subtree
 sunique
+supd
 superset
 sw
 sx
@@ -1182,6 +1199,7 @@ tV
 tablename
 tcbench
 td
+teardown
 tempdir
 testutil
 th
@@ -1224,6 +1242,7 @@ unbuffered
 uncompressing
 uncompresssed
 undef
+underflowed
 unencrypted
 unesc
 unescape
@@ -1284,6 +1303,7 @@ vtype
 vunpack
 vw
 vxr
+vz
 waitpid
 waker
 wakeup

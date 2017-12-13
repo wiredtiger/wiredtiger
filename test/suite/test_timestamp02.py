@@ -38,12 +38,6 @@ from wtscenario import make_scenarios
 def timestamp_str(t):
     return '%x' % t
 
-def timestamp_ret_str(t):
-    s = timestamp_str(t)
-    if len(s) % 2 == 1:
-        s = '0' + s
-    return s
-
 class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_timestamp02'
     uri = 'table:' + tablename
@@ -63,7 +57,7 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
             session.begin_transaction(txn_config)
         c = session.open_cursor(self.uri, None)
         actual = dict((k, v) for k, v in c if v != 0)
-        self.assertEqual(actual, expected)
+        self.assertTrue(actual == expected)
         # Search for the expected items as well as iterating
         for k, v in expected.iteritems():
             self.assertEqual(c[k], v, "for key " + str(k))
@@ -97,8 +91,10 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
             self.check(self.session, 'read_timestamp=' + timestamp_str(t),
                 dict((k, 1) for k in orig_keys[:i+1]))
 
+        # Everything up to and including timestamp 100 has been committed.
+        self.assertTimestampsEqual(self.conn.query_timestamp(), timestamp_str(100))
+
         # Bump the oldest timestamp, we're not going back...
-        self.assertEqual(self.conn.query_timestamp(), timestamp_ret_str(100))
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(100))
 
         # Update them and retry.
@@ -108,6 +104,14 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
             c[k] = 2
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(k + 100))
 
+        # Everything up to and including timestamp 200 has been committed.
+        self.assertTimestampsEqual(self.conn.query_timestamp(), timestamp_str(200))
+
+        # Test that we can manually move the commit timestamp back
+        self.conn.set_timestamp('commit_timestamp=' + timestamp_str(150))
+        self.assertTimestampsEqual(self.conn.query_timestamp(), timestamp_str(150))
+        self.conn.set_timestamp('commit_timestamp=' + timestamp_str(200))
+
         # Now the stable timestamp before we read.
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(200))
 
@@ -116,7 +120,6 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
                 dict((k, (2 if j <= i else 1)) for j, k in enumerate(orig_keys)))
 
         # Bump the oldest timestamp, we're not going back...
-        self.assertEqual(self.conn.query_timestamp(), timestamp_ret_str(200))
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(200))
 
         # Remove them and retry
@@ -131,6 +134,24 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
         for i, t in enumerate(orig_keys):
             self.check(self.session, 'read_timestamp=' + timestamp_str(t + 200),
                 dict((k, 2) for k in orig_keys[i+1:]))
+
+    def test_read_your_writes(self):
+        if not wiredtiger.timestamp_build():
+            self.skipTest('requires a timestamp build')
+
+        self.session.create(self.uri,
+            'key_format=i,value_format=i' + self.extra_config)
+        c = self.session.open_cursor(self.uri)
+
+        k = 10
+        c[k] = 0
+
+        self.session.begin_transaction('read_timestamp=10')
+        self.session.timestamp_transaction('commit_timestamp=20')
+        c[k] = 1
+        # We should see the value we just inserted
+        self.assertEqual(c[k], 1)
+        self.session.commit_transaction()
 
 if __name__ == '__main__':
     wttest.run()

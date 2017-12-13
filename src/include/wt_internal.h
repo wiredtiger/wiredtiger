@@ -246,6 +246,10 @@ struct __wt_named_extractor;
     typedef struct __wt_named_extractor WT_NAMED_EXTRACTOR;
 struct __wt_named_snapshot;
     typedef struct __wt_named_snapshot WT_NAMED_SNAPSHOT;
+struct __wt_optrack_header;
+    typedef struct __wt_optrack_header WT_OPTRACK_HEADER;
+struct __wt_optrack_record;
+    typedef struct __wt_optrack_record WT_OPTRACK_RECORD;
 struct __wt_ovfl_reuse;
     typedef struct __wt_ovfl_reuse WT_OVFL_REUSE;
 struct __wt_ovfl_track;
@@ -258,6 +262,8 @@ struct __wt_page_header;
     typedef struct __wt_page_header WT_PAGE_HEADER;
 struct __wt_page_index;
     typedef struct __wt_page_index WT_PAGE_INDEX;
+struct __wt_page_lookaside;
+    typedef struct __wt_page_lookaside WT_PAGE_LOOKASIDE;
 struct __wt_page_modify;
     typedef struct __wt_page_modify WT_PAGE_MODIFY;
 struct __wt_process;
@@ -350,10 +356,10 @@ union __wt_rand_state;
 #include "cursor.h"
 #include "dlh.h"
 #include "error.h"
-#include "flags.h"
 #include "log.h"
 #include "lsm.h"
 #include "meta.h"
+#include "optrack.h"
 #include "os.h"
 #include "schema.h"
 #include "thread_group.h"

@@ -47,12 +47,12 @@ int
 __wt_cache_pool_config(WT_SESSION_IMPL *session, const char **cfg)
 {
 	WT_CACHE_POOL *cp;
-	WT_CONFIG_ITEM cval;
+	WT_CONFIG_ITEM cval, cval_cache_size;
 	WT_CONNECTION_IMPL *conn, *entry;
 	WT_DECL_RET;
+	uint64_t chunk, quota, reserve, size, used_cache;
 	char *pool_name;
 	bool created, updating;
-	uint64_t chunk, quota, reserve, size, used_cache;
 
 	conn = S2C(session);
 	created = updating = false;
@@ -78,7 +78,7 @@ __wt_cache_pool_config(WT_SESSION_IMPL *session, const char **cfg)
 		}
 
 		if (__wt_config_gets(session,
-		    &cfg[1], "cache_size", &cval) != WT_NOTFOUND)
+		    &cfg[1], "cache_size", &cval_cache_size) != WT_NOTFOUND)
 			WT_RET_MSG(session, EINVAL,
 			    "Only one of cache_size and shared_cache can be "
 			    "in the configuration");
@@ -135,7 +135,7 @@ __wt_cache_pool_config(WT_SESSION_IMPL *session, const char **cfg)
 		if (__wt_config_gets(session, &cfg[1],
 		    "shared_cache.size", &cval) == 0 && cval.val != 0)
 			size = (uint64_t)cval.val;
-		 else
+		else
 			size = cp->size;
 		if (__wt_config_gets(session, &cfg[1],
 		    "shared_cache.chunk", &cval) == 0 && cval.val != 0)
@@ -221,8 +221,7 @@ __wt_cache_pool_config(WT_SESSION_IMPL *session, const char **cfg)
 
 	F_SET(conn, WT_CONN_CACHE_POOL);
 err:	__wt_spin_unlock(session, &__wt_process.spinlock);
-	if (!updating)
-		__wt_free(session, pool_name);
+	__wt_free(session, pool_name);
 	if (ret != 0 && created) {
 		__wt_free(session, cp->name);
 		__wt_cond_destroy(session, &cp->cache_pool_cond);
@@ -473,8 +472,8 @@ __cache_pool_balance(WT_SESSION_IMPL *session, bool forward)
 static void
 __cache_pool_assess(WT_SESSION_IMPL *session, uint64_t *phighest)
 {
-	WT_CACHE_POOL *cp;
 	WT_CACHE *cache;
+	WT_CACHE_POOL *cp;
 	WT_CONNECTION_IMPL *entry;
 	uint64_t app_evicts, app_waits, reads;
 	uint64_t balanced_size, entries, highest, tmp;
@@ -568,14 +567,15 @@ static void
 __cache_pool_adjust(WT_SESSION_IMPL *session,
     uint64_t highest, uint64_t bump_threshold, bool forward, bool *adjustedp)
 {
-	WT_CACHE_POOL *cp;
 	WT_CACHE *cache;
+	WT_CACHE_POOL *cp;
 	WT_CONNECTION_IMPL *entry;
 	uint64_t adjustment, highest_percentile, pressure, reserved, smallest;
 	u_int pct_full;
 	bool busy, decrease_ok, grow, pool_full;
 
 	*adjustedp = false;
+
 	cp = __wt_process.cache_pool;
 	grow = false;
 	pool_full = cp->currently_used >= cp->size;
@@ -608,7 +608,7 @@ __cache_pool_adjust(WT_SESSION_IMPL *session,
 		 */
 		pressure = cache->cp_pass_pressure / highest_percentile;
 		busy = __wt_eviction_needed(
-		    entry->default_session, false, &pct_full);
+		    entry->default_session, false, true, &pct_full);
 
 		__wt_verbose(session, WT_VERB_SHARED_CACHE,
 		    "\t%5" PRIu64 ", %3" PRIu64 ", %2" PRIu32 ", %d, %2u",

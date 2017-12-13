@@ -36,9 +36,6 @@ __ovfl_discard_verbose(
 	WT_CELL_UNPACK *unpack, _unpack;
 	WT_DECL_ITEM(tmp);
 
-	WT_UNUSED(page);				/* !HAVE_VERBOSE */
-	WT_UNUSED(tag);					/* !HAVE_VERBOSE */
-
 	WT_RET(__wt_scr_alloc(session, 512, &tmp));
 
 	unpack = &_unpack;
@@ -171,10 +168,6 @@ __ovfl_reuse_verbose(WT_SESSION_IMPL *session,
     WT_PAGE *page, WT_OVFL_REUSE *reuse, const char *tag)
 {
 	WT_DECL_ITEM(tmp);
-
-	WT_UNUSED(page);				/* !HAVE_VERBOSE */
-	WT_UNUSED(reuse);				/* !HAVE_VERBOSE */
-	WT_UNUSED(tag);					/* !HAVE_VERBOSE */
 
 	WT_RET(__wt_scr_alloc(session, 64, &tmp));
 
@@ -491,8 +484,8 @@ __wt_ovfl_reuse_add(WT_SESSION_IMPL *session, WT_PAGE *page,
 {
 	WT_OVFL_REUSE **head, *reuse, **stack[WT_SKIP_MAXDEPTH];
 	size_t size;
-	u_int i, skipdepth;
 	uint8_t *p;
+	u_int i, skipdepth;
 
 	if (page->modify->ovfl_track == NULL)
 		WT_RET(__wt_ovfl_track_init(session, page));

@@ -106,10 +106,12 @@ struct __wt_track {
 		} col;
 	} u;
 
-#define	WT_TRACK_CHECK_START	0x01		/* Row: initial key updated */
-#define	WT_TRACK_CHECK_STOP	0x02		/* Row: last key updated */
-#define	WT_TRACK_MERGE		0x04		/* Page requires merging */
-#define	WT_TRACK_OVFL_REFD	0x08		/* Overflow page referenced */
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_TRACK_CHECK_START	0x1u		/* Row: initial key updated */
+#define	WT_TRACK_CHECK_STOP	0x2u		/* Row: last key updated */
+#define	WT_TRACK_MERGE		0x4u		/* Page requires merging */
+#define	WT_TRACK_OVFL_REFD	0x8u		/* Overflow page referenced */
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
 	u_int flags;
 };
 
@@ -496,7 +498,7 @@ __slvg_trk_init(WT_SESSION_IMPL *session,
 	trk->shared->ref = 1;
 
 	trk->ss = ss;
-	WT_ERR(__wt_strndup(session, addr, addr_size, &trk->trk_addr));
+	WT_ERR(__wt_memdup(session, addr, addr_size, &trk->trk_addr));
 	trk->trk_addr_size = (uint8_t)addr_size;
 	trk->trk_size = size;
 	trk->trk_gen = gen;
@@ -588,8 +590,12 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session,
 		 * and copy the full keys, then free the page. We do this on
 		 * every leaf page, and if you need to speed up the salvage,
 		 * it's probably a great place to start.
+		 *
+		 * Page flags are 0 because we aren't releasing the memory used
+		 * to read the page into memory and we don't want page discard
+		 * to free it.
 		 */
-		WT_ERR(__wt_page_inmem(session, NULL, dsk, 0, 0, &page));
+		WT_ERR(__wt_page_inmem(session, NULL, dsk, 0, &page));
 		WT_ERR(__wt_row_leaf_key_copy(session,
 		    page, &page->pg_row[0], &trk->row_start));
 		WT_ERR(__wt_row_leaf_key_copy(session,
@@ -683,7 +689,7 @@ __slvg_trk_leaf_ovfl(
 	WT_CELL_FOREACH(btree, dsk, cell, unpack, i) {
 		__wt_cell_unpack(cell, unpack);
 		if (unpack->ovfl) {
-			WT_RET(__wt_strndup(session, unpack->data,
+			WT_RET(__wt_memdup(session, unpack->data,
 			    unpack->size, &trk->trk_ovfl_addr[ovfl_cnt].addr));
 			trk->trk_ovfl_addr[ovfl_cnt].size =
 			    (uint8_t)unpack->size;
@@ -1171,7 +1177,7 @@ __slvg_col_build_internal(
 		ref->page = NULL;
 
 		WT_ERR(__wt_calloc_one(session, &addr));
-		WT_ERR(__wt_strndup(
+		WT_ERR(__wt_memdup(
 		    session, trk->trk_addr, trk->trk_addr_size, &addr->addr));
 		addr->size = trk->trk_addr_size;
 		addr->type =
@@ -1285,7 +1291,8 @@ __slvg_col_build_leaf(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_REF *ref)
 
 	/* Write the new version of the leaf page to disk. */
 	WT_ERR(__slvg_modify_init(session, page));
-	WT_ERR(__wt_reconcile(session, ref, cookie, WT_VISIBILITY_ERR, NULL));
+	WT_ERR(__wt_reconcile(
+	    session, ref, cookie, WT_REC_VISIBILITY_ERR, NULL));
 
 	/* Reset the page. */
 	page->pg_var = save_col_var;
@@ -1337,8 +1344,8 @@ static int
 __slvg_col_ovfl(WT_SESSION_IMPL *session, WT_TRACK *trk,
     WT_PAGE *page, uint64_t recno,  uint64_t skip, uint64_t take)
 {
-	WT_CELL_UNPACK unpack;
 	WT_CELL *cell;
+	WT_CELL_UNPACK unpack;
 	WT_COL *cip;
 	WT_DECL_RET;
 	uint64_t start, stop;
@@ -1405,8 +1412,8 @@ __slvg_col_ovfl(WT_SESSION_IMPL *session, WT_TRACK *trk,
 static int
 __slvg_row_range(WT_SESSION_IMPL *session, WT_STUFF *ss)
 {
-	WT_TRACK *jtrk;
 	WT_BTREE *btree;
+	WT_TRACK *jtrk;
 	uint32_t i, j;
 	int cmp;
 
@@ -1735,10 +1742,13 @@ __slvg_row_trk_update_start(
 	 * Read and instantiate the WT_TRACK page (we don't have to verify the
 	 * page, nor do we have to be quiet on error, we've already read this
 	 * page successfully).
+	 *
+	 * Page flags are 0 because we aren't releasing the memory used to read
+	 * the page into memory and we don't want page discard to free it.
 	 */
 	WT_RET(__wt_scr_alloc(session, trk->trk_size, &dsk));
 	WT_ERR(__wt_bt_read(session, dsk, trk->trk_addr, trk->trk_addr_size));
-	WT_ERR(__wt_page_inmem(session, NULL, dsk->mem, 0, 0, &page));
+	WT_ERR(__wt_page_inmem(session, NULL, dsk->data, 0, &page));
 
 	/*
 	 * Walk the page, looking for a key sorting greater than the specified
@@ -1824,7 +1834,7 @@ __slvg_row_build_internal(
 		ref->page = NULL;
 
 		WT_ERR(__wt_calloc_one(session, &addr));
-		WT_ERR(__wt_strndup(
+		WT_ERR(__wt_memdup(
 		    session, trk->trk_addr, trk->trk_addr_size, &addr->addr));
 		addr->size = trk->trk_addr_size;
 		addr->type =
@@ -1884,8 +1894,6 @@ __slvg_row_build_leaf(
 	WT_SALVAGE_COOKIE *cookie, _cookie;
 	uint32_t i, skip_start, skip_stop;
 	int cmp;
-
-	WT_UNUSED(ss);					/* !HAVE_VERBOSE */
 
 	btree = S2BT(session);
 	page = NULL;
@@ -1998,7 +2006,8 @@ __slvg_row_build_leaf(
 
 	/* Write the new version of the leaf page to disk. */
 	WT_ERR(__slvg_modify_init(session, page));
-	WT_ERR(__wt_reconcile(session, ref, cookie, WT_VISIBILITY_ERR, NULL));
+	WT_ERR(__wt_reconcile(
+	    session, ref, cookie, WT_REC_VISIBILITY_ERR, NULL));
 
 	/* Reset the page. */
 	page->entries += skip_stop;

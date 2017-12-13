@@ -165,7 +165,8 @@ struct __wt_bm {
 	    (WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, WT_CKPT *, bool);
 	int (*checkpoint_load)(WT_BM *, WT_SESSION_IMPL *,
 	    const uint8_t *, size_t, uint8_t *, size_t *, bool);
-	int (*checkpoint_resolve)(WT_BM *, WT_SESSION_IMPL *);
+	int (*checkpoint_resolve)(WT_BM *, WT_SESSION_IMPL *, bool);
+	int (*checkpoint_start)(WT_BM *, WT_SESSION_IMPL *);
 	int (*checkpoint_unload)(WT_BM *, WT_SESSION_IMPL *);
 	int (*close)(WT_BM *, WT_SESSION_IMPL *);
 	int (*compact_end)(WT_BM *, WT_SESSION_IMPL *);
@@ -249,7 +250,9 @@ struct __wt_block {
 #ifdef HAVE_DIAGNOSTIC
 	bool		live_open;	/* Live system is open */
 #endif
-	bool		ckpt_inprogress;/* Live checkpoint in progress */
+					/* Live checkpoint status */
+	enum { WT_CKPT_NONE=0, WT_CKPT_INPROGRESS,
+	    WT_CKPT_PANIC_ON_FAILURE, WT_CKPT_SALVAGE } ckpt_state;
 
 				/* Compaction support */
 	int	 compact_pct_tenths;	/* Percent to compact */
@@ -338,7 +341,11 @@ struct __wt_block_header {
 	 */
 	uint32_t checksum;		/* 04-07: checksum */
 
-#define	WT_BLOCK_DATA_CKSUM	0x01	/* Block data is part of the checksum */
+	/*
+	 * No automatic generation: flag values cannot change, they're written
+	 * to disk.
+	 */
+#define	WT_BLOCK_DATA_CKSUM	0x1u	/* Block data is part of the checksum */
 	uint8_t flags;			/* 08: flags */
 
 	/*

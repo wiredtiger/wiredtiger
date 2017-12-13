@@ -393,10 +393,10 @@ __cursor_key_order_check_row(
     WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next)
 {
 	WT_BTREE *btree;
-	WT_ITEM *key;
-	WT_DECL_RET;
 	WT_DECL_ITEM(a);
 	WT_DECL_ITEM(b);
+	WT_DECL_RET;
+	WT_ITEM *key;
 	int cmp;
 
 	btree = S2BT(session);
@@ -592,6 +592,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 	 * file.
 	 */
 	flags = WT_READ_SKIP_INTL;			/* tree walk flags */
+	LF_SET(WT_READ_NO_SPLIT);			/* don't try to split */
 	if (truncating)
 		LF_SET(WT_READ_TRUNCATE);
 	for (newpage = false;; newpage = true) {

@@ -8,8 +8,6 @@
 
 #include "wt_internal.h"
 
-static int __conn_statistics_config(WT_SESSION_IMPL *, const char *[]);
-
 /*
  * ext_collate --
  *	Call the collation function (external API version).
@@ -187,45 +185,6 @@ __wt_conn_remove_collator(WT_SESSION_IMPL *session)
 	}
 
 	return (ret);
-}
-
-/*
- * __conn_compat_config --
- *	Configure compatibility version.
- */
-static int
-__conn_compat_config(WT_SESSION_IMPL *session, const char **cfg)
-{
-	WT_CONFIG_ITEM cval;
-	WT_CONNECTION_IMPL *conn;
-	uint16_t patch;
-
-	conn = S2C(session);
-	WT_RET(__wt_config_gets(session, cfg,
-	    "compatibility.release", &cval));
-	if (cval.len != 0) {
-		/*
-		 * Accept either a major.minor release string or a
-		 * major.minor.patch release string.  We ignore the patch
-		 * value, but allow it in the string.
-		 */
-		if (sscanf(cval.str, "%" SCNu16 ".%" SCNu16,
-		    &conn->compat_major, &conn->compat_minor) != 2 &&
-		    sscanf(cval.str, "%" SCNu16 ".%" SCNu16 ".%" SCNu16,
-		    &conn->compat_major, &conn->compat_minor, &patch) != 3)
-			WT_RET_MSG(session,
-			    EINVAL, "illegal compatibility release");
-		if (conn->compat_major > WIREDTIGER_VERSION_MAJOR)
-			WT_RET_MSG(session, EINVAL, "unknown major version");
-		if (conn->compat_major == WIREDTIGER_VERSION_MAJOR &&
-		    conn->compat_minor > WIREDTIGER_VERSION_MINOR)
-			WT_RET_MSG(session,
-			    EINVAL, "illegal compatibility version");
-	} else {
-		conn->compat_major = WIREDTIGER_VERSION_MAJOR;
-		conn->compat_minor = WIREDTIGER_VERSION_MINOR;
-	}
-	return (0);
 }
 
 /*
@@ -913,9 +872,9 @@ __conn_load_extension_int(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	WT_DLH *dlh;
 	int (*load)(WT_CONNECTION *, WT_CONFIG_ARG *);
-	bool is_local;
-	const char *ext_config, *init_name, *terminate_name;
 	const char *ext_cfg[2];
+	const char *ext_config, *init_name, *terminate_name;
+	bool is_local;
 
 	dlh = NULL;
 	ext_config = init_name = terminate_name = NULL;
@@ -1125,12 +1084,104 @@ err:	/*
 			WT_TRET(wt_session->close(wt_session, config));
 		}
 
+	WT_TRET(__wt_async_flush(session));
+
+	/*
+	 * Disable lookaside eviction: it doesn't help us shut down and can
+	 * lead to pages being marked dirty, causing spurious assertions to
+	 * fire.
+	 */
+	F_SET(conn, WT_CONN_EVICTION_NO_LOOKASIDE);
+
+	/* Shut down transactions (wait for in-flight operations to complete. */
+	WT_TRET(__wt_txn_global_shutdown(session));
+
+	/*
+	 * Perform a system-wide checkpoint so that all tables are consistent
+	 * with each other.  All transactions are resolved but ignore
+	 * timestamps to make sure all data gets to disk.  Do this before
+	 * shutting down all the subsystems.  We have shut down all user
+	 * sessions, but send in true for waiting for internal races.
+	 */
+	if (!F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY)) {
+		s = NULL;
+		WT_TRET(__wt_open_internal_session(
+		    conn, "close_ckpt", true, 0, &s));
+		if (s != NULL) {
+			const char *checkpoint_cfg[] = {
+			    WT_CONFIG_BASE(session, WT_SESSION_checkpoint),
+			    "use_timestamp=false",
+			    NULL
+			};
+			wt_session = &s->iface;
+			WT_TRET(__wt_txn_checkpoint(s, checkpoint_cfg, true));
+
+			/*
+			 * Mark the metadata dirty so we flush it on close,
+			 * allowing recovery to be skipped.
+			 */
+			WT_WITH_DHANDLE(s, WT_SESSION_META_DHANDLE(s),
+			    __wt_tree_modify_set(s));
+
+			WT_TRET(wt_session->close(wt_session, config));
+		}
+	}
+
+	if (ret != 0) {
+		__wt_err(session, ret,
+		    "failure during close, disabling further writes");
+		F_SET(conn, WT_CONN_PANIC);
+	}
+
 	WT_TRET(__wt_connection_close(conn));
 
 	/* We no longer have a session, don't try to update it. */
 	session = NULL;
 
 	API_END_RET_NOTFOUND_MAP(session, ret);
+}
+
+/*
+ * __conn_debug_info --
+ *	WT_CONNECTION->debug_info method.
+ */
+static int
+__conn_debug_info(WT_CONNECTION *wt_conn, const char *config)
+{
+	WT_CONFIG_ITEM cval;
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	conn = (WT_CONNECTION_IMPL *)wt_conn;
+
+	CONNECTION_API_CALL(conn, session, debug_info, config, cfg);
+
+	WT_ERR(__wt_config_gets(session, cfg, "cache", &cval));
+	if (cval.val != 0)
+		WT_ERR(__wt_verbose_dump_cache(session));
+
+	WT_ERR(__wt_config_gets(session, cfg, "cursors", &cval));
+	if (cval.val != 0)
+		WT_ERR(__wt_verbose_dump_sessions(session, true));
+
+	WT_ERR(__wt_config_gets(session, cfg, "handles", &cval));
+	if (cval.val != 0)
+		WT_ERR(__wt_verbose_dump_handles(session));
+
+	WT_ERR(__wt_config_gets(session, cfg, "log", &cval));
+	if (cval.val != 0)
+		WT_ERR(__wt_verbose_dump_log(session));
+
+	WT_ERR(__wt_config_gets(session, cfg, "sessions", &cval));
+	if (cval.val != 0)
+		WT_ERR(__wt_verbose_dump_sessions(session, false));
+
+	WT_ERR(__wt_config_gets(session, cfg, "txn", &cval));
+	if (cval.val != 0)
+		WT_ERR(__wt_verbose_dump_txn(session));
+err:
+	API_END_RET(session, ret);
 }
 
 /*
@@ -1143,57 +1194,12 @@ __conn_reconfigure(WT_CONNECTION *wt_conn, const char *config)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	const char *p;
-	bool locked;
 
 	conn = (WT_CONNECTION_IMPL *)wt_conn;
-	locked = false;
 
 	CONNECTION_API_CALL(conn, session, reconfigure, config, cfg);
-
-	/* Serialize reconfiguration. */
-	__wt_spin_lock(session, &conn->reconfig_lock);
-	locked = true;
-
-	/*
-	 * The configuration argument has been checked for validity, update the
-	 * previous connection configuration.
-	 *
-	 * DO NOT merge the configuration before the reconfigure calls.  Some
-	 * of the underlying reconfiguration functions do explicit checks with
-	 * the second element of the configuration array, knowing the defaults
-	 * are in slot #1 and the application's modifications are in slot #2.
-	 *
-	 * First, replace the base configuration set up by CONNECTION_API_CALL
-	 * with the current connection configuration, otherwise reconfiguration
-	 * functions will find the base value instead of previously configured
-	 * value.
-	 */
-	cfg[0] = conn->cfg;
-	cfg[1] = config;
-
-	/* Second, reconfigure the system. */
-	WT_ERR(__conn_compat_config(session, cfg));
-	WT_ERR(__conn_statistics_config(session, cfg));
-	WT_ERR(__wt_async_reconfig(session, cfg));
-	WT_ERR(__wt_cache_config(session, true, cfg));
-	WT_ERR(__wt_checkpoint_server_create(session, cfg));
-	WT_ERR(__wt_logmgr_reconfig(session, cfg));
-	WT_ERR(__wt_lsm_manager_reconfig(session, cfg));
-	WT_ERR(__wt_statlog_create(session, cfg));
-	WT_ERR(__wt_sweep_config(session, cfg));
-	WT_ERR(__wt_verbose_config(session, cfg));
-	WT_ERR(__wt_timing_stress_config(session, cfg));
-
-	/* Third, merge everything together, creating a new connection state. */
-	WT_ERR(__wt_config_merge(session, cfg, NULL, &p));
-	__wt_free(session, conn->cfg);
-	conn->cfg = p;
-
-err:	if (locked)
-		__wt_spin_unlock(session, &conn->reconfig_lock);
-
-	API_END_RET(session, ret);
+	ret = __wt_conn_reconfig(session, cfg);
+err:	API_END_RET(session, ret);
 }
 
 /*
@@ -1258,6 +1264,24 @@ __conn_set_timestamp(WT_CONNECTION *wt_conn, const char *config)
 
 	CONNECTION_API_CALL(conn, session, set_timestamp, config, cfg);
 	WT_TRET(__wt_txn_global_set_timestamp(session, cfg));
+err:	API_END_RET(session, ret);
+}
+
+/*
+ * __conn_rollback_to_stable --
+ *	WT_CONNECTION->rollback_to_stable method.
+ */
+static int
+__conn_rollback_to_stable(WT_CONNECTION *wt_conn, const char *config)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	conn = (WT_CONNECTION_IMPL *)wt_conn;
+
+	CONNECTION_API_CALL(conn, session, rollback_to_stable, config, cfg);
+	WT_TRET(__wt_txn_rollback_to_stable(session, cfg));
 err:	API_END_RET(session, ret);
 }
 
@@ -1336,10 +1360,10 @@ __conn_config_file(WT_SESSION_IMPL *session,
 {
 	WT_DECL_RET;
 	WT_FH *fh;
-	size_t len;
 	wt_off_t size;
-	bool exist, quoted;
+	size_t len;
 	char *p, *t;
+	bool exist, quoted;
 
 	fh = NULL;
 
@@ -1475,8 +1499,8 @@ __conn_config_env(WT_SESSION_IMPL *session, const char *cfg[], WT_ITEM *cbuf)
 {
 	WT_CONFIG_ITEM cval;
 	WT_DECL_RET;
-	const char *env_config;
 	size_t len;
+	const char *env_config;
 
 	/* Only use the environment variable if configured. */
 	WT_RET(__wt_config_gets(session, cfg, "use_environment", &cval));
@@ -1571,10 +1595,10 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_CONNECTION_IMPL *conn, *t;
 	WT_DECL_RET;
 	WT_FH *fh;
-	size_t len;
 	wt_off_t size;
-	bool bytelock, exist, is_create, match;
+	size_t len;
 	char buf[256];
+	bool bytelock, exist, is_create, match;
 
 	conn = S2C(session);
 	fh = NULL;
@@ -1769,98 +1793,10 @@ err:	/*
 	return (ret);
 }
 
-/*
- * __conn_statistics_config --
- *	Set statistics configuration.
- */
-static int
-__conn_statistics_config(WT_SESSION_IMPL *session, const char *cfg[])
-{
-	WT_CONFIG_ITEM cval, sval;
-	WT_CONNECTION_IMPL *conn;
-	WT_DECL_RET;
-	uint32_t flags;
-	int set;
-
-	conn = S2C(session);
-
-	WT_RET(__wt_config_gets(session, cfg, "statistics", &cval));
-
-	flags = 0;
-	set = 0;
-	if ((ret = __wt_config_subgets(
-	    session, &cval, "none", &sval)) == 0 && sval.val != 0) {
-		flags = 0;
-		++set;
-	}
-	WT_RET_NOTFOUND_OK(ret);
-
-	if ((ret = __wt_config_subgets(
-	    session, &cval, "fast", &sval)) == 0 && sval.val != 0) {
-		LF_SET(WT_STAT_TYPE_FAST);
-		++set;
-	}
-	WT_RET_NOTFOUND_OK(ret);
-
-	if ((ret = __wt_config_subgets(
-	    session, &cval, "all", &sval)) == 0 && sval.val != 0) {
-		LF_SET(
-		    WT_STAT_TYPE_ALL | WT_STAT_TYPE_CACHE_WALK |
-		    WT_STAT_TYPE_FAST | WT_STAT_TYPE_TREE_WALK);
-		++set;
-	}
-	WT_RET_NOTFOUND_OK(ret);
-
-	if (set > 1)
-		WT_RET_MSG(session, EINVAL,
-		    "Only one of all, fast, none configuration values should "
-		    "be specified");
-
-	/*
-	 * Now that we've parsed general statistics categories, process
-	 * sub-categories.
-	 */
-	if ((ret = __wt_config_subgets(
-	    session, &cval, "cache_walk", &sval)) == 0 && sval.val != 0)
-		/*
-		 * Configuring cache walk statistics implies fast statistics.
-		 * Keep that knowledge internal for now - it may change in the
-		 * future.
-		 */
-		LF_SET(WT_STAT_TYPE_FAST | WT_STAT_TYPE_CACHE_WALK);
-	WT_RET_NOTFOUND_OK(ret);
-
-	if ((ret = __wt_config_subgets(
-	    session, &cval, "tree_walk", &sval)) == 0 && sval.val != 0)
-		/*
-		 * Configuring tree walk statistics implies fast statistics.
-		 * Keep that knowledge internal for now - it may change in the
-		 * future.
-		 */
-		LF_SET(WT_STAT_TYPE_FAST | WT_STAT_TYPE_TREE_WALK);
-	WT_RET_NOTFOUND_OK(ret);
-
-	if ((ret = __wt_config_subgets(
-	    session, &cval, "clear", &sval)) == 0 && sval.val != 0) {
-		if (!LF_ISSET(WT_STAT_TYPE_ALL | WT_STAT_TYPE_CACHE_WALK |
-		    WT_STAT_TYPE_FAST | WT_STAT_TYPE_TREE_WALK))
-			WT_RET_MSG(session, EINVAL,
-			    "the value \"clear\" can only be specified if "
-			    "statistics are enabled");
-		LF_SET(WT_STAT_CLEAR);
-	}
-	WT_RET_NOTFOUND_OK(ret);
-
-	/* Configuring statistics clears any existing values. */
-	conn->stat_flags = flags;
-
-	return (0);
-}
-
 /* Simple structure for name and flag configuration searches. */
 typedef struct {
 	const char *name;
-	uint32_t flag;
+	uint64_t flag;
 } WT_NAME_FLAG;
 
 /*
@@ -1874,6 +1810,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 		{ "api",		WT_VERB_API },
 		{ "block",		WT_VERB_BLOCK },
 		{ "checkpoint",		WT_VERB_CHECKPOINT },
+		{ "checkpoint_progress",WT_VERB_CHECKPOINT_PROGRESS },
 		{ "compact",		WT_VERB_COMPACT },
 		{ "evict",		WT_VERB_EVICT },
 		{ "evict_stuck",	WT_VERB_EVICT_STUCK },
@@ -1881,7 +1818,8 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 		{ "fileops",		WT_VERB_FILEOPS },
 		{ "handleops",		WT_VERB_HANDLEOPS },
 		{ "log",		WT_VERB_LOG },
-		{ "lookaside_activity",	WT_VERB_LOOKASIDE },
+		{ "lookaside",		WT_VERB_LOOKASIDE },
+		{ "lookaside_activity",	WT_VERB_LOOKASIDE_ACTIVITY },
 		{ "lsm",		WT_VERB_LSM },
 		{ "lsm_manager",	WT_VERB_LSM_MANAGER },
 		{ "metadata",		WT_VERB_METADATA },
@@ -1897,6 +1835,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 		{ "split",		WT_VERB_SPLIT },
 		{ "temporary",		WT_VERB_TEMPORARY },
 		{ "thread_group",	WT_VERB_THREAD_GROUP },
+		{ "timestamp",		WT_VERB_TIMESTAMP },
 		{ "transaction",	WT_VERB_TRANSACTION },
 		{ "verify",		WT_VERB_VERIFY },
 		{ "version",		WT_VERB_VERSION },
@@ -1907,7 +1846,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	const WT_NAME_FLAG *ft;
-	uint32_t flags;
+	uint64_t flags;
 
 	conn = S2C(session);
 
@@ -1916,22 +1855,127 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 	flags = 0;
 	for (ft = verbtypes; ft->name != NULL; ft++) {
 		if ((ret = __wt_config_subgets(
-		    session, &cval, ft->name, &sval)) == 0 && sval.val != 0) {
-#ifdef HAVE_VERBOSE
+		    session, &cval, ft->name, &sval)) == 0 && sval.val != 0)
 			LF_SET(ft->flag);
-#else
-			WT_RET_MSG(session, EINVAL,
-			    "Verbose option specified when WiredTiger built "
-			    "without verbose support. Add --enable-verbose to "
-			    "configure command and rebuild to include support "
-			    "for verbose messages");
-#endif
-		}
 		WT_RET_NOTFOUND_OK(ret);
 	}
 
 	conn->verbose = flags;
 	return (0);
+}
+
+/*
+ * __wt_verbose_dump_sessions --
+ *	Print out debugging information about sessions.
+ */
+int
+__wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_CURSOR *cursor;
+	WT_DECL_ITEM(buf);
+	WT_DECL_RET;
+	WT_SESSION_IMPL *s;
+	uint32_t i, internal;
+
+	conn = S2C(session);
+	WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
+	WT_RET(__wt_msg(session, "Active sessions: %" PRIu32 " Max: %" PRIu32,
+	    conn->session_cnt, conn->session_size));
+	WT_RET(__wt_scr_alloc(session, 0, &buf));
+	internal = 0;
+	for (s = conn->sessions, i = 0; i < conn->session_cnt; ++s, ++i) {
+		/*
+		 * If it is not active or it is an internal session
+		 * it is not interesting.
+		 */
+		if (!s->active)
+			continue;
+		if (F_ISSET(s, WT_SESSION_INTERNAL)) {
+			++internal;
+			continue;
+		}
+		WT_ASSERT(session, i == s->id);
+		WT_ERR(__wt_msg(session,
+		    "Session: ID: %" PRIu32 " @: 0x%p", i, (void *)s));
+		WT_ERR(__wt_msg(session, "  Name: %s",
+		    s->name == NULL ? "EMPTY" : s->name));
+		if (!show_cursors) {
+			WT_ERR(__wt_msg(session, "  Last operation: %s",
+			    s->lastop == NULL ? "NONE" : s->lastop));
+			WT_ERR(__wt_msg(session, "  Current dhandle: %s",
+			    s->dhandle == NULL ? "NONE" : s->dhandle->name));
+			WT_ERR(__wt_msg(session, "  Backup in progress: %s",
+			    s->bkp_cursor == NULL ? "no" : "yes"));
+			WT_ERR(__wt_msg(session, "  Compact state: %s",
+			    s->compact_state == WT_COMPACT_NONE ? "none" :
+			    (s->compact_state == WT_COMPACT_RUNNING ?
+			     "running" : "success")));
+			WT_ERR(__wt_msg(session,
+			    "  Flags: 0x%" PRIx32, s->flags));
+			WT_ERR(__wt_msg(session, "  Isolation level: %s",
+			    s->isolation == WT_ISO_READ_COMMITTED ?
+			    "read-committed" :
+			    (s->isolation == WT_ISO_READ_UNCOMMITTED ?
+			     "read-uncommitted" : "snapshot")));
+			WT_ERR(__wt_msg(session, "  Transaction:"));
+			WT_ERR(__wt_verbose_dump_txn_one(session, &s->txn));
+		} else {
+			WT_ERR(__wt_msg(session,
+			    "  Number of positioned cursors: %u", s->ncursors));
+			TAILQ_FOREACH(cursor, &s->cursors, q) {
+				WT_ERR(__wt_msg(session,
+				    "Cursor @ %p:", (void *)cursor));
+				WT_ERR(__wt_msg(session,
+				    "  URI: %s, Internal URI: %s",
+				    cursor->uri == NULL ? "EMPTY" : cursor->uri,
+				    cursor->internal_uri == NULL ? "EMPTY" :
+				    cursor->internal_uri));
+				if (F_ISSET(cursor, WT_CURSTD_OPEN)) {
+					WT_ERR(__wt_buf_fmt(
+					    session, buf, "OPEN"));
+					if (F_ISSET(cursor,
+					    WT_CURSTD_KEY_SET) ||
+					    F_ISSET(cursor,
+					    WT_CURSTD_VALUE_SET))
+						WT_ERR(__wt_buf_catfmt(session,
+						    buf, ", POSITIONED"));
+					else
+						WT_ERR(__wt_buf_catfmt(session,
+						    buf, ", RESET"));
+					if (F_ISSET(cursor, WT_CURSTD_APPEND))
+						WT_ERR(__wt_buf_catfmt(session,
+						    buf, ", APPEND"));
+					if (F_ISSET(cursor, WT_CURSTD_BULK))
+						WT_ERR(__wt_buf_catfmt(session,
+						    buf, ", BULK"));
+					if (F_ISSET(cursor,
+					    WT_CURSTD_META_INUSE))
+						WT_ERR(__wt_buf_catfmt(session,
+						    buf, ", META_INUSE"));
+					if (F_ISSET(cursor,
+					    WT_CURSTD_OVERWRITE))
+						WT_ERR(__wt_buf_catfmt(session,
+						    buf, ", OVERWRITE"));
+					WT_ERR(__wt_msg(session,
+					    "  %s", (const char *)buf->data));
+				}
+				WT_ERR(__wt_msg(session,
+				    "  Flags: 0x%" PRIx32, cursor->flags));
+				WT_ERR(__wt_msg(session,
+				    "  Key_format: %s, Value_format: %s",
+				    cursor->key_format == NULL ? "EMPTY" :
+				    cursor->key_format,
+				    cursor->value_format == NULL ? "EMPTY" :
+				    cursor->value_format));
+			}
+		}
+	}
+	if (!show_cursors)
+		WT_ERR(__wt_msg(session,
+		    "Internal sessions: %" PRIu32, internal));
+err:	__wt_scr_free(session, &buf);
+	return (ret);
 }
 
 /*
@@ -1952,7 +1996,7 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	const WT_NAME_FLAG *ft;
-	uint32_t flags;
+	uint64_t flags;
 
 	conn = S2C(session);
 
@@ -1979,12 +2023,12 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
 static int
 __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
-	WT_FSTREAM *fs;
 	WT_CONFIG parser;
 	WT_CONFIG_ITEM cval, k, v;
 	WT_DECL_RET;
-	bool exist;
+	WT_FSTREAM *fs;
 	const char *base_config;
+	bool exist;
 
 	fs = NULL;
 	base_config = NULL;
@@ -2122,6 +2166,44 @@ err:	API_END_RET(session, ret);
 }
 
 /*
+ * __conn_session_size --
+ *	Return the session count for this run.
+ */
+static int
+__conn_session_size(
+    WT_SESSION_IMPL *session, const char *cfg[], uint32_t *vp)
+{
+	WT_CONFIG_ITEM cval;
+	int64_t v;
+
+	/*
+	 * Start with 20 internal sessions to cover threads the application
+	 * can't configure (for example, checkpoint or statistics log server
+	 * threads).
+	 */
+#define	WT_EXTRA_INTERNAL_SESSIONS	20
+	v = WT_EXTRA_INTERNAL_SESSIONS;
+
+	/* Then, add in the thread counts applications can configure. */
+	WT_RET(__wt_config_gets(session, cfg, "async.threads", &cval));
+	v += cval.val;
+
+	WT_RET(__wt_config_gets(session, cfg, "eviction.threads_max", &cval));
+	v += cval.val;
+
+	WT_RET(__wt_config_gets(
+	    session, cfg, "lsm_manager.worker_thread_max", &cval));
+	v += cval.val;
+
+	WT_RET(__wt_config_gets(session, cfg, "session_max", &cval));
+	v += cval.val;
+
+	*vp = (uint32_t)v;
+
+	return (0);
+}
+
+/*
  * __conn_chk_file_system --
  *	Check the configured file system.
  */
@@ -2200,6 +2282,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 		__conn_async_flush,
 		__conn_async_new_op,
 		__conn_close,
+		__conn_debug_info,
 		__conn_reconfigure,
 		__conn_get_home,
 		__conn_configure_method,
@@ -2207,6 +2290,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 		__conn_open_session,
 		__conn_query_timestamp,
 		__conn_set_timestamp,
+		__conn_rollback_to_stable,
 		__conn_load_extension,
 		__conn_add_data_source,
 		__conn_add_collator,
@@ -2324,7 +2408,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	/*
 	 * Set compatibility versions early so that any subsystem sees it.
 	 */
-	WT_ERR(__conn_compat_config(session, cfg));
+	WT_ERR(__wt_conn_compat_config(session, cfg));
 
 	/*
 	 * If the application didn't configure its own file system, configure
@@ -2377,7 +2461,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	cfg[1] = NULL;
 	WT_ERR(__wt_snprintf(version, sizeof(version),
 	    "version=(major=%d,minor=%d)",
-	    WIREDTIGER_VERSION_MAJOR, WIREDTIGER_VERSION_MINOR));
+	    conn->compat_major, conn->compat_minor));
 	__conn_config_append(cfg, version);
 
 	/* Ignore the base_config file if config_base_set is false. */
@@ -2446,8 +2530,10 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	WT_ERR(__wt_verbose_config(session, cfg));
 	WT_ERR(__wt_timing_stress_config(session, cfg));
 
-	WT_ERR(__wt_config_gets(session, cfg, "session_max", &cval));
-	conn->session_size = (uint32_t)cval.val + WT_EXTRA_INTERNAL_SESSIONS;
+	/* Set up operation tracking if configured. */
+	WT_ERR(__wt_conn_optrack_setup(session, cfg, false));
+
+	WT_ERR(__conn_session_size(session, cfg, &conn->session_size));
 
 	WT_ERR(__wt_config_gets(session, cfg, "session_scratch_max", &cval));
 	conn->session_scratch_max = (size_t)cval.val;
@@ -2511,7 +2597,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	WT_ERR(__wt_config_gets(session, cfg, "mmap", &cval));
 	conn->mmap = cval.val != 0;
 
-	WT_ERR(__conn_statistics_config(session, cfg));
+	WT_ERR(__wt_conn_statistics_config(session, cfg));
 	WT_ERR(__wt_lsm_manager_config(session, cfg));
 	WT_ERR(__wt_sweep_config(session, cfg));
 
@@ -2601,8 +2687,15 @@ err:	/* Discard the scratch buffers. */
 		__wt_scr_discard(session);
 	__wt_scr_discard(&conn->dummy_session);
 
-	if (ret != 0)
+	if (ret != 0) {
+		/*
+		 * Set panic if we're returning the run recovery error so that
+		 * we don't try to checkpoint data handles.
+		 */
+		if (ret == WT_RUN_RECOVERY)
+			F_SET(conn, WT_CONN_PANIC);
 		WT_TRET(__wt_connection_close(conn));
+	}
 
 	return (ret);
 }

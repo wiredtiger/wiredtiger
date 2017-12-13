@@ -350,8 +350,8 @@ err:		F_CLR(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 static int
 __curindex_close(WT_CURSOR *cursor)
 {
-	WT_CURSOR_INDEX *cindex;
 	WT_CURSOR **cp;
+	WT_CURSOR_INDEX *cindex;
 	WT_DECL_RET;
 	WT_INDEX *idx;
 	WT_SESSION_IMPL *session;
@@ -382,7 +382,7 @@ __curindex_close(WT_CURSOR *cursor)
 	if (cindex->child != NULL)
 		WT_TRET(cindex->child->close(cindex->child));
 
-	__wt_schema_release_table(session, cindex->table);
+	WT_TRET(__wt_schema_release_table(session, cindex->table));
 	/* The URI is owned by the index. */
 	cursor->internal_uri = NULL;
 	WT_TRET(__wt_cursor_close(cursor));
@@ -398,8 +398,8 @@ static int
 __curindex_open_colgroups(
     WT_SESSION_IMPL *session, WT_CURSOR_INDEX *cindex, const char *cfg_arg[])
 {
-	WT_TABLE *table;
 	WT_CURSOR **cp;
+	WT_TABLE *table;
 	u_long arg;
 	/* Child cursors are opened with dump disabled. */
 	const char *cfg[] = { cfg_arg[0], cfg_arg[1], "dump=\"\"", NULL };
@@ -472,7 +472,7 @@ __wt_curindex_open(WT_SESSION_IMPL *session,
 	++idxname;
 
 	if ((ret = __wt_schema_get_table(session,
-	    tablename, namesize, false, &table)) != 0) {
+	    tablename, namesize, false, 0, &table)) != 0) {
 		if (ret == WT_NOTFOUND)
 			WT_RET_MSG(session, EINVAL,
 			    "Cannot open cursor '%s' on unknown table", uri);
@@ -487,7 +487,7 @@ __wt_curindex_open(WT_SESSION_IMPL *session,
 
 	if ((ret = __wt_schema_open_index(
 	    session, table, idxname, namesize, &idx)) != 0) {
-		__wt_schema_release_table(session, table);
+		WT_TRET(__wt_schema_release_table(session, table));
 		return (ret);
 	}
 	WT_RET(__wt_calloc_one(session, &cindex));

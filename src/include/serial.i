@@ -156,14 +156,14 @@ __wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
     WT_INSERT_HEAD *ins_head, WT_INSERT ***ins_stack, WT_INSERT **new_insp,
     size_t new_ins_size, uint64_t *recnop, u_int skipdepth, bool exclusive)
 {
-	WT_INSERT *new_ins = *new_insp;
 	WT_DECL_RET;
-
-	/* Check for page write generation wrap. */
-	WT_RET(__page_write_gen_wrapped_check(page));
+	WT_INSERT *new_ins = *new_insp;
 
 	/* Clear references to memory we now own and must free on error. */
 	*new_insp = NULL;
+
+	/* Check for page write generation wrap. */
+	WT_RET(__page_write_gen_wrapped_check(page));
 
 	/*
 	 * Acquire the page's spinlock unless we already have exclusive access.
@@ -205,16 +205,16 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
     WT_INSERT_HEAD *ins_head, WT_INSERT ***ins_stack, WT_INSERT **new_insp,
     size_t new_ins_size, u_int skipdepth, bool exclusive)
 {
-	WT_INSERT *new_ins = *new_insp;
 	WT_DECL_RET;
+	WT_INSERT *new_ins = *new_insp;
 	u_int i;
 	bool simple;
 
-	/* Check for page write generation wrap. */
-	WT_RET(__page_write_gen_wrapped_check(page));
-
 	/* Clear references to memory we now own and must free on error. */
 	*new_insp = NULL;
+
+	/* Check for page write generation wrap. */
+	WT_RET(__page_write_gen_wrapped_check(page));
 
 	simple = true;
 	for (i = 0; i < skipdepth; i++)
@@ -263,13 +263,14 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
 {
 	WT_DECL_RET;
 	WT_UPDATE *obsolete, *upd = *updp;
+	wt_timestamp_t *obsolete_timestamp;
 	uint64_t txn;
-
-	/* Check for page write generation wrap. */
-	WT_RET(__page_write_gen_wrapped_check(page));
 
 	/* Clear references to memory we now own and must free on error. */
 	*updp = NULL;
+
+	/* Check for page write generation wrap. */
+	WT_RET(__page_write_gen_wrapped_check(page));
 
 	/*
 	 * All structure setup must be flushed before the structure is entered
@@ -309,11 +310,14 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
 	 * is used as an indicator of there being further updates on this page.
 	 */
 	if ((txn = page->modify->obsolete_check_txn) != WT_TXN_NONE) {
-		if (!__wt_txn_visible_all(session, txn, NULL)) {
+		obsolete_timestamp =
+		    WT_TIMESTAMP_NULL(&page->modify->obsolete_check_timestamp);
+		if (!__wt_txn_visible_all(session, txn, obsolete_timestamp)) {
 			/* Try to move the oldest ID forward and re-check. */
 			WT_RET(__wt_txn_update_oldest(session, 0));
 
-			if (!__wt_txn_visible_all(session, txn, NULL))
+			if (!__wt_txn_visible_all(
+			    session, txn, obsolete_timestamp))
 				return (0);
 		}
 
