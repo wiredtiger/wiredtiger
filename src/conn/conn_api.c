@@ -1294,8 +1294,8 @@ __conn_calibrate_ticks(WT_SESSION_IMPL *session)
 {
 #if (defined __i386) || (defined __amd64)
 	struct timespec start, stop;
-	uint64_t diff_nsec, diff_tsc;
-	uint64_t i, tsc_start, tsc_stop;
+	uint64_t diff_nsec, diff_tsc, tsc_start, tsc_stop;
+	volatile uint64_t i;
 
 	__wt_epoch(session, &start);
 	tsc_start = __wt_rdtsc(session);
