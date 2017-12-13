@@ -1575,13 +1575,13 @@ __session_transaction_sync(WT_SESSION *wt_session, const char *config)
 	WT_DECL_RET;
 	WT_LOG *log;
 	WT_SESSION_IMPL *session;
-	uint64_t now, start;
 	uint64_t remaining_usec, timeout_ms, waited_ms;
+	uint64_t time_start, time_stop;
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL(session, transaction_sync, config, cfg);
 	WT_STAT_CONN_INCR(session, txn_sync);
-	now = start = 0;
+	time_start = time_stop = 0;
 
 	conn = S2C(session);
 	WT_ERR(__wt_txn_context_check(session, false));
@@ -1619,7 +1619,7 @@ __session_transaction_sync(WT_SESSION *wt_session, const char *config)
 	if (timeout_ms == 0)
 		WT_ERR(ETIMEDOUT);
 
-	start = __wt_rdtsc(session);
+	time_start = __wt_rdtsc(session);
 	/*
 	 * Keep checking the LSNs until we find it is stable or we reach
 	 * our timeout, or there's some other reason to quit.
@@ -1629,8 +1629,8 @@ __session_transaction_sync(WT_SESSION *wt_session, const char *config)
 			WT_ERR(ETIMEDOUT);
 
 		__wt_cond_signal(session, conn->log_file_cond);
-		now = __wt_rdtsc(session);
-		waited_ms = WT_TSCDIFF_MS(session, now, start);
+		time_stop = __wt_rdtsc(session);
+		waited_ms = WT_TSCDIFF_MS(session, time_stop, time_start);
 		if (waited_ms < timeout_ms) {
 			remaining_usec = (timeout_ms - waited_ms) * WT_THOUSAND;
 			__wt_cond_wait(session, log->log_sync_cond,

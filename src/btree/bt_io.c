@@ -182,7 +182,7 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 	WT_KEYED_ENCRYPTOR *kencryptor;
 	WT_PAGE_HEADER *dsk;
 	size_t dst_len, len, result_len, size, src_len;
-	uint64_t start, stop;
+	uint64_t time_start, time_stop;
 	uint8_t *dst, *src;
 	int compression_failed;		/* Extension API, so not a bool. */
 	bool data_checksum, encrypted, timer;
@@ -190,7 +190,7 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 	btree = S2BT(session);
 	bm = btree->bm;
 	encrypted = false;
-	start = stop = 0;
+	time_start = time_stop = 0;
 
 	/* Checkpoint calls are different than standard calls. */
 	WT_ASSERT(session,
@@ -367,7 +367,7 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 	}
 	timer = !F_ISSET(session, WT_SESSION_INTERNAL);
 	if (timer)
-		start = __wt_rdtsc(session);
+		time_start = __wt_rdtsc(session);
 
 	/* Call the block manager to write the block. */
 	WT_ERR(checkpoint ?
@@ -377,10 +377,10 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 
 	/* Update some statistics now that the write is done */
 	if (timer) {
-		stop = __wt_rdtsc(session);
+		time_stop = __wt_rdtsc(session);
 		WT_STAT_CONN_INCR(session, cache_write_app_count);
 		WT_STAT_CONN_INCRV(session, cache_write_app_time,
-		    WT_TSCDIFF_US(session, stop, start));
+		    WT_TSCDIFF_US(session, time_stop, time_start));
 	}
 
 	WT_STAT_CONN_INCR(session, cache_write);

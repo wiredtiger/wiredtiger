@@ -869,8 +869,7 @@ __log_server(void *arg)
 	WT_DECL_RET;
 	WT_LOG *log;
 	WT_SESSION_IMPL *session;
-	uint64_t start, now;
-	uint64_t timediff;
+	uint64_t time_start, time_stop, timediff;
 	bool did_work, signalled;
 
 	session = arg;
@@ -949,11 +948,11 @@ __log_server(void *arg)
 		}
 
 		/* Wait until the next event. */
-		start = __wt_rdtsc(session);
+		time_start = __wt_rdtsc(session);
 		__wt_cond_auto_wait_signal(
 		    session, conn->log_cond, did_work, NULL, &signalled);
-		now = __wt_rdtsc(session);
-		timediff = WT_TSCDIFF_MS(session, now, start);
+		time_stop = __wt_rdtsc(session);
+		timediff = WT_TSCDIFF_MS(session, time_stop, time_start);
 	}
 
 	if (0) {

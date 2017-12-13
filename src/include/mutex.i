@@ -293,21 +293,23 @@ __wt_spin_unlock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 static inline void
 __wt_spin_lock_track(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 {
-	uint64_t enter, leave;
+	uint64_t time_start, time_stop;
 	int64_t **stats;
 
 	if (t->stat_count_off != -1 && WT_STAT_ENABLED(session)) {
-		enter = __wt_rdtsc(session);
+		time_start = __wt_rdtsc(session);
 		__wt_spin_lock(session, t);
-		leave = __wt_rdtsc(session);
+		time_stop = __wt_rdtsc(session);
 		stats = (int64_t **)S2C(session)->stats;
 		stats[session->stat_bucket][t->stat_count_off]++;
 		if (F_ISSET(session, WT_SESSION_INTERNAL))
 			stats[session->stat_bucket][t->stat_int_usecs_off] +=
-			    (int64_t)WT_TSCDIFF_US(session, leave, enter);
+			    (int64_t)WT_TSCDIFF_US(
+			    session, time_stop, time_start);
 		else
 			stats[session->stat_bucket][t->stat_app_usecs_off] +=
-			    (int64_t)WT_TSCDIFF_US(session, leave, enter);
+			    (int64_t)WT_TSCDIFF_US(
+			    session, time_stop, time_start);
 	} else
 		__wt_spin_lock(session, t);
 }
