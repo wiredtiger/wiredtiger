@@ -100,7 +100,7 @@ __log_slot_close(
 	WT_LOG *log;
 	int64_t end_offset, new_state, old_state;
 #ifdef	HAVE_DIAGNOSTIC
-	struct timespec begin, now;
+	uint64_t begin, now;
 	int count;
 #endif
 
@@ -161,7 +161,7 @@ retry:
 	 */
 #ifdef	HAVE_DIAGNOSTIC
 	count = 0;
-	__wt_epoch(session, &begin);
+	begin = __wt_rdtsc(session);
 #endif
 	if (WT_LOG_SLOT_UNBUFFERED_ISSET(old_state)) {
 		while (slot->slot_unbuffered == 0) {
@@ -170,8 +170,8 @@ retry:
 #ifdef	HAVE_DIAGNOSTIC
 			++count;
 			if (count > WT_MILLION) {
-				__wt_epoch(session, &now);
-				if (WT_TIMEDIFF_SEC(now, begin) > 10) {
+				now = __wt_rdtsc(session);
+				if (WT_TSCDIFF_SEC(session, now, begin) > 10) {
 					__wt_errx(session, "SLOT_CLOSE: Slot %"
 					PRIu32 " Timeout unbuffered, state 0x%"
 					PRIx64 " unbuffered %" PRId64,
@@ -212,7 +212,7 @@ __log_slot_new(WT_SESSION_IMPL *session)
 	WT_LOGSLOT *slot;
 	int32_t i, pool_i;
 #ifdef	HAVE_DIAGNOSTIC
-	struct timespec begin, now;
+	uint64_t begin, now;
 	int count;
 #endif
 
@@ -230,7 +230,7 @@ __log_slot_new(WT_SESSION_IMPL *session)
 
 #ifdef	HAVE_DIAGNOSTIC
 	count = 0;
-	__wt_epoch(session, &begin);
+	begin = __wt_rdtsc(session);
 #endif
 	/*
 	 * Keep trying until we can find a free slot.
@@ -270,8 +270,8 @@ __log_slot_new(WT_SESSION_IMPL *session)
 #ifdef	HAVE_DIAGNOSTIC
 		++count;
 		if (count > WT_MILLION) {
-			__wt_epoch(session, &now);
-			if (WT_TIMEDIFF_SEC(now, begin) > 10) {
+			now = __wt_rdtsc(session);
+			if (WT_TSCDIFF_SEC(session, now, begin) > 10) {
 				__wt_errx(session,
 				    "SLOT_NEW: Timeout free slot");
 				__log_slot_dump(session);

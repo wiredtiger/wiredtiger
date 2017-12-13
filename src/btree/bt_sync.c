@@ -114,13 +114,13 @@ __sync_dup_walk(
 static int
 __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 {
-	struct timespec end, start;
 	WT_BTREE *btree;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_PAGE *page;
 	WT_REF *prev, *walk;
 	WT_TXN *txn;
+	uint64_t end, start;
 	uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
 	uint64_t oldest_id, saved_pinned_id;
 	uint32_t flags;
@@ -131,6 +131,7 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 	prev = walk = NULL;
 	txn = &session->txn;
 	tried_eviction = false;
+	end = start = 0;
 
 	flags = WT_READ_CACHE | WT_READ_NO_GEN;
 	internal_bytes = leaf_bytes = 0;
@@ -138,7 +139,7 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 	saved_pinned_id = WT_SESSION_TXN_STATE(session)->pinned_id;
 	timer = WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT);
 	if (timer)
-		__wt_epoch(session, &start);
+		start = __wt_rdtsc(session);
 
 	switch (syncop) {
 	case WT_SYNC_WRITE_LEAVES:
@@ -330,7 +331,7 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 	}
 
 	if (timer) {
-		__wt_epoch(session, &end);
+		end = __wt_rdtsc(session);
 		__wt_verbose(session, WT_VERB_CHECKPOINT,
 		    "__sync_file WT_SYNC_%s wrote: %" PRIu64
 		    " leaf pages (%" PRIu64 "B), %" PRIu64
@@ -338,7 +339,7 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 		    syncop == WT_SYNC_WRITE_LEAVES ?
 		    "WRITE_LEAVES" : "CHECKPOINT",
 		    leaf_pages, leaf_bytes, internal_pages, internal_bytes,
-		    WT_TIMEDIFF_MS(end, start));
+		    WT_TSCDIFF_MS(session, end, start));
 	}
 
 err:	/* On error, clear any left-over tree walk. */

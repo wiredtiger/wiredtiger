@@ -69,6 +69,10 @@
 	(__wt_tsc_to_nsec((s), (uint64_t)(end) - (uint64_t)(begin)))
 #define	WT_TSCDIFF_US(s, end, begin)					\
 	(WT_TSCDIFF_NS((s), (end), (begin)) / WT_THOUSAND)
+#define	WT_TSCDIFF_MS(s, end, begin)					\
+	(WT_TSCDIFF_NS((s), (end), (begin)) / WT_MILLION)
+#define	WT_TSCDIFF_SEC(s, end, begin)					\
+	(WT_TSCDIFF_NS((s), (end), (begin)) / WT_BILLION)
 
 #define	WT_TIMECMP(t1, t2)						\
 	((t1).tv_sec < (t2).tv_sec ? -1 :				\
