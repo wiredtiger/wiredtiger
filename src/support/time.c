@@ -8,9 +8,6 @@
 
 #include "wt_internal.h"
 
-#define	TIMER_PRECISION_US 1
-#define	TIMER_RECHECK_PERIOD 25
-
 /*
  * __time_check_monotonic --
  *	Check and prevent time running backward.  If we detect that it has, we
@@ -73,100 +70,4 @@ __wt_seconds(WT_SESSION_IMPL *session, time_t *timep)
 	__wt_epoch(session, &t);
 
 	*timep = t.tv_sec;
-}
-
-/*
- * __clock_server --
- *	Within WiredTiger there are a number of places where we wish to time
- *	the execution of operations, but the cost of calling time() is too high.
- *	To work around this issue, we create a clock server below which keeps
- *	time on the connection accessible globally.
- *
- * 	The clock server aims to keep time to roughly the precision of the
- * 	TIMER_PRECISION_US value and we accept that sometimes things may skew
- *	until the next reset.
- */
-static WT_THREAD_RET
-__clock_server(void *arg)
-{
-	struct timespec time;
-	WT_CONNECTION_IMPL *conn;
-	WT_SESSION_IMPL *session;
-	uint64_t timer_runs;
-
-	session = arg;
-	conn = S2C(session);
-	timer_runs = 0;
-
-	while (F_ISSET(conn, WT_CONN_SERVER_CLOCK)) {
-		/*
-		 * We re-capture timing the long way every so often to ensure
-		 * that we don't skew too much in our timing.
-		 */
-		if (timer_runs % TIMER_RECHECK_PERIOD == 0) {
-			__wt_epoch(NULL, &time);
-			WT_CLOCK_SET_TIME(session, time);
-		} else {
-			__wt_atomic_add64(
-			    &conn->server_clock, TIMER_PRECISION_US);
-		}
-		/*
-		 * Fuzzy time tracking means we don't mind loosing some
-		 * precision when sleeping.
-		 */
-		__wt_sleep(0, TIMER_PRECISION_US);
-		timer_runs += 1;
-	}
-	return (WT_THREAD_RET_VALUE);
-}
-
-/*
- * __wt_clock_server_start --
- *	Start the clock server.
- */
-int
-__wt_clock_server_start(WT_SESSION_IMPL *session)
-{
-	struct timespec time;
-	WT_CONNECTION_IMPL *conn;
-
-	conn = S2C(session);
-
-	/* Set the initial time value before starting the thread */
-	__wt_epoch(NULL, &time);
-	WT_CLOCK_SET_TIME(session, time);
-
-	F_SET(conn, WT_CONN_SERVER_CLOCK);
-
-	WT_RET(__wt_thread_create(
-	    session, &conn->clock_tid, __clock_server, session));
-	conn->clock_tid_set = true;
-
-	return (0);
-}
-
-/*
- * __wt_clock_server_destroy --
- *	Destroy the clock server.
- */
-int
-__wt_clock_server_destroy(WT_SESSION_IMPL *session)
-{
-	WT_CONNECTION_IMPL *conn;
-
-	conn = S2C(session);
-
-	/*
-	 * Clear the clock server flag and then sleep for 2 clock sleeps to
-	 * allow the clock server to finish.
-	 */
-	F_CLR(conn, WT_CONN_SERVER_CLOCK);
-	__wt_sleep(0, 2 * TIMER_PRECISION_US);
-
-	if (conn->sweep_tid_set) {
-		WT_RET(__wt_thread_join(session, conn->clock_tid));
-		conn->clock_tid_set = false;
-	}
-
-	return (0);
 }

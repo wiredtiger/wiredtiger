@@ -345,19 +345,6 @@ struct __wt_connection_impl {
 
 	WT_SESSION_IMPL *meta_ckpt_session;/* Metadata checkpoint session */
 
-	/* Macro to set a current time to be the same as the clock server */
-#define	WT_CLOCK_GET_TIME(session, time) time = S2C(session)->server_clock
-
-	/* Macro to set the clock servers time */
-#define	WT_CLOCK_SET_TIME(session, time)				\
-	__wt_atomic_store64(&S2C(session)->server_clock,		\
-	    (uint64_t)(time.tv_sec * WT_MILLION) +			\
-	    (uint64_t)(time.tv_nsec / WT_THOUSAND))
-
-	uint64_t	server_clock;	/* The clock of the clock server */
-	wt_thread_t	clock_tid;	/* Clock thread */
-	bool		clock_tid_set;	/* Clock thread set */
-
 	/*
 	 * Is there a data/schema change that needs to be the part of a
 	 * checkpoint.
@@ -491,12 +478,11 @@ struct __wt_connection_impl {
 #define	WT_CONN_RECOVERING		0x002000u
 #define	WT_CONN_SERVER_ASYNC		0x004000u
 #define	WT_CONN_SERVER_CHECKPOINT	0x008000u
-#define	WT_CONN_SERVER_CLOCK		0x010000u
-#define	WT_CONN_SERVER_LOG		0x020000u
-#define	WT_CONN_SERVER_LSM		0x040000u
-#define	WT_CONN_SERVER_STATISTICS	0x080000u
-#define	WT_CONN_SERVER_SWEEP		0x100000u
-#define	WT_CONN_WAS_BACKUP		0x200000u
+#define	WT_CONN_SERVER_LOG		0x010000u
+#define	WT_CONN_SERVER_LSM		0x020000u
+#define	WT_CONN_SERVER_STATISTICS	0x040000u
+#define	WT_CONN_SERVER_SWEEP		0x080000u
+#define	WT_CONN_WAS_BACKUP		0x100000u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint32_t flags;
 };
