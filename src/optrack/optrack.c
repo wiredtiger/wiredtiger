@@ -30,7 +30,7 @@ __wt_optrack_record_funcid(
 		*func_idp = ++conn->optrack_uid;
 
 		WT_ERR(__wt_buf_fmt(
-		    session, tmp, "%" PRIu16 ", %s\n", *func_idp, func));
+		    session, tmp, "%" PRIu16 " %s\n", *func_idp, func));
 		WT_ERR(__wt_filesize(session, conn->optrack_map_fh, &fsize));
 		WT_ERR(__wt_write(session,
 		    conn->optrack_map_fh, fsize, tmp->size, tmp->data));
