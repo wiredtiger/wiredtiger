@@ -29,6 +29,17 @@ __wt_hex(int c)
 	return ((u_char)"0123456789abcdef"[c]);
 }
 
+static inline void
+__tsc_check_monotonic(WT_SESSION_IMPL *session, uint64_t *x) {
+	if (session == NULL)
+		return;
+	if (*x < session->last_tsc) {
+		WT_STAT_CONN_INCR(session, time_travel);
+		*x = session->last_tsc;
+	} else
+		session->last_tsc = *x;
+
+}
 /*
  * __wt_rdtsc --
  *      Get a timestamp from CPU registers.
@@ -38,17 +49,16 @@ __wt_rdtsc(WT_SESSION_IMPL *session) {
 #if (defined __i386)
 	uint64_t x;
 
-	WT_UNUSED(session);
-
 	__asm__ volatile ("rdtsc" : "=A" (x));
+	__tsc_check_monotonic(session, &x);
 	return (x);
 #elif (defined __amd64)
-	uint64_t a, d;
-
-	WT_UNUSED(session);
+	uint64_t a, d, x;
 
 	__asm__ volatile ("rdtsc" : "=a" (a), "=d" (d));
-	return ((d << 32) | a);
+	x = (d << 32) | a;
+	__tsc_check_monotonic(session, &x);
+	return (x);
 #else
 	return (__wt_optrack_get_expensive_timestamp(session));
 #endif
