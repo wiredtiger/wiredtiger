@@ -6126,7 +6126,7 @@ __rec_write_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
 /*
  * __rec_las_wrapup --
- *	Copy all of the saved updates into the database's lookaside buffer.
+ *	Copy all of the saved updates into the database's lookaside table.
  */
 static int
 __rec_las_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
