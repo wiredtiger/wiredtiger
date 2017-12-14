@@ -925,10 +925,10 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt)
 	 * re-instantiate an empty page for us, with no key/value pairs. Cursor
 	 * remove will search that page and return not-found, which is OK unless
 	 * cursor-overwrite is configured (which causes cursor remove to return
-	 * to return success even if there's no item to delete). In that case,
-	 * we're supposed to return a positioned cursor, but there's nothing to
-	 * which we can position, and we'll fail attempting to point the cursor
-	 * at the key on the page to satisfy the positioned requirement.
+	 * success even if there's no item to delete). In that case, we're
+	 * supposed to return a positioned cursor, but there's nothing to which
+	 * we can position, and we'll fail attempting to point the cursor at the
+	 * key on the page to satisfy the positioned requirement.
 	 *
 	 * Do the best we can: If we start with a positioned cursor, and we let
 	 * go of our pinned page, reset our state to use-search-position, that
