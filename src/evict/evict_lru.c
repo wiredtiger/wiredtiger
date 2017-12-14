@@ -653,11 +653,11 @@ __evict_update_work(WT_SESSION_IMPL *session)
 static int
 __evict_pass(WT_SESSION_IMPL *session)
 {
-	struct timespec now, prev;
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	WT_TXN_GLOBAL *txn_global;
 	uint64_t eviction_progress, oldest_id, prev_oldest_id;
+	uint64_t time_now, time_prev;
 	u_int loop;
 
 	conn = S2C(session);
@@ -667,13 +667,13 @@ __evict_pass(WT_SESSION_IMPL *session)
 	/* Track whether pages are being evicted and progress is made. */
 	eviction_progress = cache->eviction_progress;
 	prev_oldest_id = txn_global->oldest_id;
-	WT_CLEAR(prev);
+	time_now = time_prev = 0;
 
 	/* Evict pages from the cache. */
 	for (loop = 0; cache->pass_intr == 0; loop++) {
-		__wt_epoch(session, &now);
+		time_now = __wt_rdtsc(session);
 		if (loop == 0)
-			prev = now;
+			time_prev = time_now;
 
 		__evict_tune_workers(session);
 		/*
@@ -741,7 +741,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 		 * transactions and writing updates to the lookaside table.
 		 */
 		if (eviction_progress == cache->eviction_progress) {
-			if (WT_TIMEDIFF_MS(now, prev) >= 20 &&
+			if (WT_TSCDIFF_MS(session, time_now, time_prev) >= 20 &&
 			    F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD |
 			    WT_CACHE_EVICT_DIRTY_HARD)) {
 				if (cache->evict_aggressive_score < 100)
@@ -751,7 +751,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 				    txn_global->current != oldest_id &&
 				    cache->evict_aggressive_score < 100)
 					++cache->evict_aggressive_score;
-				prev = now;
+				time_prev = time_now;
 				prev_oldest_id = oldest_id;
 			}
 
@@ -2253,11 +2253,11 @@ __evict_get_ref(
 static int
 __evict_page(WT_SESSION_IMPL *session, bool is_server)
 {
-	struct timespec enter, leave;
 	WT_BTREE *btree;
 	WT_CACHE *cache;
 	WT_DECL_RET;
 	WT_REF *ref;
+	uint64_t time_start, time_stop;
 	bool app_timer;
 
 	WT_TRACK_OP_INIT(session);
@@ -2267,6 +2267,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 
 	app_timer = false;
 	cache = S2C(session)->cache;
+	time_start = time_stop = 0;
 
 	/*
 	 * An internal session flags either the server itself or an eviction
@@ -2285,7 +2286,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 		cache->app_evicts++;
 		if (WT_STAT_ENABLED(session)) {
 			app_timer = true;
-			__wt_epoch(session, &enter);
+			time_start = __wt_rdtsc(session);
 		}
 	}
 
@@ -2305,9 +2306,10 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 	(void)__wt_atomic_subv32(&btree->evict_busy, 1);
 
 	if (app_timer) {
-		__wt_epoch(session, &leave);
+		time_stop = __wt_rdtsc(session);
 		WT_STAT_CONN_INCRV(session,
-		    application_evict_time, WT_TIMEDIFF_US(leave, enter));
+		    application_evict_time,
+		    WT_TSCDIFF_US(session, time_stop, time_start));
 	}
 	WT_TRACK_OP_END(session);
 	return (ret);
@@ -2322,19 +2324,19 @@ int
 __wt_cache_eviction_worker(
     WT_SESSION_IMPL *session, bool busy, bool readonly, u_int pct_full)
 {
-	struct timespec enter, leave;
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_STATE *txn_state;
-	uint64_t initial_progress, max_progress;
+	uint64_t initial_progress, max_progress, time_start, time_stop;
 	bool timer;
 
 	WT_TRACK_OP_INIT(session);
 
 	conn = S2C(session);
 	cache = conn->cache;
+	time_start = time_stop = 0;
 	txn_global = &conn->txn_global;
 	txn_state = WT_SESSION_TXN_STATE(session);
 
@@ -2352,7 +2354,7 @@ __wt_cache_eviction_worker(
 	timer =
 	    WT_STAT_ENABLED(session) && !F_ISSET(session, WT_SESSION_INTERNAL);
 	if (timer)
-		__wt_epoch(session, &enter);
+		time_start = __wt_rdtsc(session);
 
 	for (initial_progress = cache->eviction_progress;; ret = 0) {
 		/*
@@ -2419,9 +2421,10 @@ __wt_cache_eviction_worker(
 	}
 
 err:	if (timer) {
-		__wt_epoch(session, &leave);
+		time_stop = __wt_rdtsc(session);
 		WT_STAT_CONN_INCRV(session,
-		    application_cache_time, WT_TIMEDIFF_US(leave, enter));
+		    application_cache_time,
+		    WT_TSCDIFF_US(session, time_stop, time_start));
 	}
 
 done:	WT_TRACK_OP_END(session);
