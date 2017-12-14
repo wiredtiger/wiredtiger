@@ -162,6 +162,7 @@ HFS
 HHHH
 HHHHLL
 HHHLL
+HILQr
 Hendrik
 HyperLevelDB
 ID's
@@ -777,6 +778,7 @@ hashval
 havesize
 hdr
 highjack
+hilq
 hotbackup
 hselasky
 html
@@ -988,6 +990,7 @@ notsup
 notused
 novalue
 nowait
+nsec
 nset
 nsnap
 nul
@@ -1221,6 +1224,7 @@ trk
 trk's
 trunc
 trylock
+tsc
 tupdate
 tvalue
 txn

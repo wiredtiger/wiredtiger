@@ -108,6 +108,18 @@ lsm_config = [
             larger than this value.  This overrides the \c memory_page_max
             setting''',
             min='512K', max='500MB'),
+        Config('merge_custom', '', r'''
+            configure the tree to merge into a custom data source''',
+            type='category', subconfig=[
+            Config('prefix', '', r'''
+                custom data source prefix instead of \c "file"'''),
+            Config('start_generation', '0', r'''
+                merge generation at which the custom data source is used
+                (zero indicates no custom data source)''',
+                min='0', max='10'),
+            Config('suffix', '', r'''
+                custom data source suffix instead of \c ".lsm"'''),
+            ]),
         Config('merge_max', '15', r'''
             the maximum number of chunks to include in a merge operation''',
             min='2', max='100'),
@@ -559,8 +571,7 @@ connection_runtime_config = [
         type='list', undoc=True, choices=[
             'checkpoint_slow', 'internal_page_split_race', 'page_split_race']),
     Config('verbose', '', r'''
-        enable messages for various events. Only available if WiredTiger
-        is configured with --enable-verbose. Options are given as a
+        enable messages for various events. Options are given as a
         list, such as <code>"verbose=[evictserver,read]"</code>''',
         type='list', choices=[
             'api',
@@ -589,6 +600,7 @@ connection_runtime_config = [
             'salvage',
             'shared_cache',
             'split',
+            'temporary',
             'thread_group',
             'timestamp',
             'transaction',
