@@ -118,5 +118,5 @@ __wt_thread_str(char *buf, size_t buflen)
 uintmax_t
 __wt_process_id(void)
 {
-	return (uintmax_t)getpid();
+	return ((uintmax_t)getpid());
 }
