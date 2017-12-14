@@ -990,6 +990,7 @@ notsup
 notused
 novalue
 nowait
+nsec
 nset
 nsnap
 nul
@@ -1223,6 +1224,7 @@ trk
 trk's
 trunc
 trylock
+tsc
 tupdate
 tvalue
 txn

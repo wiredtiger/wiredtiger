@@ -41,7 +41,7 @@ struct __wt_optrack_header {
  * from it.
  */
 struct __wt_optrack_record {
-	uint64_t timestamp;				/* timestamp */
+	uint64_t op_timestamp;				/* timestamp */
 	uint16_t op_id;					/* function ID */
 	uint16_t op_type;				/* start/stop */
 	uint8_t  padding[4];
@@ -51,7 +51,7 @@ struct __wt_optrack_record {
 	WT_OPTRACK_RECORD *__tr;					\
 	__tr = &((s)->optrack_buf[					\
 	    (s)->optrackbuf_ptr % WT_OPTRACK_MAXRECS]);			\
-	__tr->timestamp = __wt_rdtsc(s);				\
+	__tr->op_timestamp = __wt_rdtsc(s);				\
 	__tr->op_id = __func_id;					\
 	__tr->op_type = optype;						\
 									\
