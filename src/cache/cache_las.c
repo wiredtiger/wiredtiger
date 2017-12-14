@@ -510,11 +510,14 @@ __wt_las_insert_block(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 			las_timestamp.size = WT_TIMESTAMP_SIZE;
 #endif
 			/*
-			 * If we're saving a value on the page, don't repeat it
-			 * in the lookaside table, save a birthmark instead.
+			 * If saving a non-zero length value on the page, save a
+			 * birthmark instead of duplicating it in the lookaside
+			 * table. (We check the length because row-store doesn't
+			 * write zero-length data items.)
 			 */
 			if (multi->page_las.las_skew_newest &&
 			    upd == list->onpage_upd &&
+			    upd->size > 0 &&
 			    (upd->type == WT_UPDATE_STANDARD ||
 			    upd->type == WT_UPDATE_MODIFY)) {
 				las_value.size = 0;
