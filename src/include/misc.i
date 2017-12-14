@@ -29,6 +29,10 @@ __wt_hex(int c)
 	return ((u_char)"0123456789abcdef"[c]);
 }
 
+/*
+ * __tsc_check_monotonic --
+ *      Check that tsc values run forward.
+ */
 static inline void
 __tsc_check_monotonic(WT_SESSION_IMPL *session, uint64_t *x) {
 	if (session == NULL)
@@ -40,6 +44,7 @@ __tsc_check_monotonic(WT_SESSION_IMPL *session, uint64_t *x) {
 		session->last_tsc = *x;
 
 }
+
 /*
  * __wt_rdtsc --
  *      Get a timestamp from CPU registers.
