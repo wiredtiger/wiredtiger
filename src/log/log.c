@@ -25,13 +25,13 @@ static int __log_write_internal(
  *	Write a text message to the log.
  */
 int
-__wt_log_printf(WT_SESSION_IMPL *session, const char *fmt, ...)
+__wt_log_printf(WT_SESSION_IMPL *session, const char *format, ...)
 {
 	WT_DECL_RET;
 	va_list ap;
 
-	va_start(ap, fmt);
-	ret = __wt_log_vprintf(session, fmt, ap);
+	va_start(ap, format);
+	ret = __wt_log_vprintf(session, format, ap);
 	va_end(ap);
 	return (ret);
 }

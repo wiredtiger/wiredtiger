@@ -1523,7 +1523,7 @@ struct __wt_session {
 	 * @param fmt a printf format specifier
 	 * @errors
 	 */
-	int __F(log_printf)(WT_SESSION *session, const char *fmt, ...);
+	int __F(log_printf)(WT_SESSION *session, const char *format, ...);
 
 	/*!
 	 * Rebalance a table or file, see @ref rebalance.

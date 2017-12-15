@@ -14,7 +14,7 @@
  */
 int
 wiredtiger_struct_pack(WT_SESSION *wt_session,
-    void *buffer, size_t size, const char *fmt, ...)
+    void *buffer, size_t size, const char *format, ...)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -22,8 +22,8 @@ wiredtiger_struct_pack(WT_SESSION *wt_session,
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	va_start(ap, fmt);
-	ret = __wt_struct_packv(session, buffer, size, fmt, ap);
+	va_start(ap, format);
+	ret = __wt_struct_packv(session, buffer, size, format, ap);
 	va_end(ap);
 
 	return (ret);
@@ -35,7 +35,7 @@ wiredtiger_struct_pack(WT_SESSION *wt_session,
  */
 int
 wiredtiger_struct_size(WT_SESSION *wt_session,
-    size_t *sizep, const char *fmt, ...)
+    size_t *sizep, const char *format, ...)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -43,8 +43,8 @@ wiredtiger_struct_size(WT_SESSION *wt_session,
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	va_start(ap, fmt);
-	ret = __wt_struct_sizev(session, sizep, fmt, ap);
+	va_start(ap, format);
+	ret = __wt_struct_sizev(session, sizep, format, ap);
 	va_end(ap);
 
 	return (ret);
@@ -56,7 +56,7 @@ wiredtiger_struct_size(WT_SESSION *wt_session,
  */
 int
 wiredtiger_struct_unpack(WT_SESSION *wt_session,
-    const void *buffer, size_t size, const char *fmt, ...)
+    const void *buffer, size_t size, const char *format, ...)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -64,8 +64,8 @@ wiredtiger_struct_unpack(WT_SESSION *wt_session,
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	va_start(ap, fmt);
-	ret = __wt_struct_unpackv(session, buffer, size, fmt, ap);
+	va_start(ap, format);
+	ret = __wt_struct_unpackv(session, buffer, size, format, ap);
 	va_end(ap);
 
 	return (ret);
