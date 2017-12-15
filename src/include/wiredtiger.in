@@ -3296,9 +3296,9 @@ struct __wt_config_item {
  * ::wiredtiger_open.
  * @param session the session handle (may be \c NULL if the database not yet
  * opened).
- * @param errhandler An error handler (used if \c session is \c NULL; if both
- * \c session and \c errhandler are \c NULL, error messages will be written to
- * stderr).
+ * @param event_handler An event handler (used if \c session is \c NULL; if both
+ * \c session and \c event_handler are \c NULL, error messages will be written
+ * to stderr).
  * @param name the WiredTiger function or method to validate.
  * @param config the configuration string being parsed.
  * @returns zero for success, non-zero to indicate an error.
@@ -3306,7 +3306,7 @@ struct __wt_config_item {
  * @snippet ex_all.c Validate a configuration string
  */
 int wiredtiger_config_validate(WT_SESSION *session,
-    WT_EVENT_HANDLER *errhandler, const char *name, const char *config)
+    WT_EVENT_HANDLER *event_handler, const char *name, const char *config)
     WT_ATTRIBUTE_LIBRARY_VISIBLE;
 #endif
 
