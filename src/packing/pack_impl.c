@@ -25,9 +25,7 @@ __wt_struct_check(WT_SESSION_IMPL *session,
 	WT_RET(__pack_initn(session, &pack, fmt, len));
 	for (fields = 0; (ret = __pack_next(&pack, &pv)) == 0; fields++)
 		;
-
-	if (ret != WT_NOTFOUND)
-		return (ret);
+	WT_RET_NOTFOUND_OK(ret);
 
 	if (fixedp != NULL && fixed_lenp != NULL) {
 		if (fields == 0) {

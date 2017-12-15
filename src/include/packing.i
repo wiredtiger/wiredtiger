@@ -643,12 +643,10 @@ __wt_struct_packv(WT_SESSION_IMPL *session,
 		WT_PACK_GET(session, pv, ap);
 		WT_RET(__pack_write(session, &pv, &p, (size_t)(end - p)));
 	}
+	WT_RET_NOTFOUND_OK(ret);
 
 	/* Be paranoid - __pack_write should never overflow. */
 	WT_ASSERT(session, p <= end);
-
-	if (ret != WT_NOTFOUND)
-		return (ret);
 
 	return (0);
 }
@@ -681,6 +679,7 @@ __wt_struct_sizev(
 		*sizep += v;
 	}
 	WT_RET_NOTFOUND_OK(ret);
+
 	return (0);
 }
 
@@ -712,12 +711,10 @@ __wt_struct_unpackv(WT_SESSION_IMPL *session,
 		WT_RET(__unpack_read(session, &pv, &p, (size_t)(end - p)));
 		WT_UNPACK_PUT(session, pv, ap);
 	}
+	WT_RET_NOTFOUND_OK(ret);
 
 	/* Be paranoid - __pack_write should never overflow. */
 	WT_ASSERT(session, p <= end);
-
-	if (ret != WT_NOTFOUND)
-		return (ret);
 
 	return (0);
 }
