@@ -507,7 +507,8 @@ __session_alter(WT_SESSION *wt_session, const char *uri, const char *config)
 		ret = __wt_schema_worker(session, uri, __wt_alter, NULL, cfg,
 		WT_BTREE_ALTER | WT_DHANDLE_EXCLUSIVE)));
 
-err:	if (ret != 0)
+err:
+	if (ret != 0)
 		WT_STAT_CONN_INCR(session, session_table_alter_fail);
 	else
 		WT_STAT_CONN_INCR(session, session_table_alter_success);
@@ -598,7 +599,8 @@ __session_create(WT_SESSION *wt_session, const char *uri, const char *config)
 
 	ret = __wt_session_create(session, uri, config);
 
-err:	if (ret != 0)
+err:
+	if (ret != 0)
 		WT_STAT_CONN_INCR(session, session_table_create_fail);
 	else
 		WT_STAT_CONN_INCR(session, session_table_create_success);
@@ -749,7 +751,8 @@ __session_rebalance(WT_SESSION *wt_session, const char *uri, const char *config)
 		ret = __wt_schema_worker(session, uri, __wt_bt_rebalance,
 		NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_REBALANCE)));
 
-err:	if (ret != 0)
+err:
+	if (ret != 0)
 		WT_STAT_CONN_INCR(session, session_table_rebalance_fail);
 	else
 		WT_STAT_CONN_INCR(session, session_table_rebalance_success);
@@ -800,8 +803,8 @@ __session_rename(WT_SESSION *wt_session,
 	    WT_WITH_SCHEMA_LOCK(session,
 		WT_WITH_TABLE_WRITE_LOCK(session,
 		    ret = __wt_schema_rename(session, uri, newuri, cfg))));
-
-err:	if (ret != 0)
+err:
+	if (ret != 0)
 		WT_STAT_CONN_INCR(session, session_table_rename_fail);
 	else
 		WT_STAT_CONN_INCR(session, session_table_rename_success);
@@ -905,7 +908,8 @@ __session_drop(WT_SESSION *wt_session, const char *uri, const char *config)
 				ret = __wt_schema_drop(session, uri, cfg)));
 	}
 
-err:	if (ret != 0)
+err:
+	if (ret != 0)
 		WT_STAT_CONN_INCR(session, session_table_drop_fail);
 	else
 		WT_STAT_CONN_INCR(session, session_table_drop_success);
@@ -1096,7 +1100,8 @@ __session_salvage(WT_SESSION *wt_session, const char *uri, const char *config)
 		ret = __wt_schema_worker(session, uri, __wt_salvage,
 		NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_SALVAGE)));
 
-err:	if (ret != 0)
+err:
+	if (ret != 0)
 		WT_STAT_CONN_INCR(session, session_table_salvage_fail);
 	else
 		WT_STAT_CONN_INCR(session, session_table_salvage_success);
@@ -1413,7 +1418,8 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
 		ret = __wt_schema_worker(session, uri, __wt_verify,
 		NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY)));
 
-err:	if (ret != 0)
+err:
+	if (ret != 0)
 		WT_STAT_CONN_INCR(session, session_table_verify_fail);
 	else
 		WT_STAT_CONN_INCR(session, session_table_verify_success);
