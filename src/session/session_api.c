@@ -1581,7 +1581,6 @@ __session_transaction_sync(WT_SESSION *wt_session, const char *config)
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL(session, transaction_sync, config, cfg);
 	WT_STAT_CONN_INCR(session, txn_sync);
-	time_start = time_stop = 0;
 
 	conn = S2C(session);
 	WT_ERR(__wt_txn_context_check(session, false));
@@ -1619,11 +1618,11 @@ __session_transaction_sync(WT_SESSION *wt_session, const char *config)
 	if (timeout_ms == 0)
 		WT_ERR(ETIMEDOUT);
 
-	time_start = __wt_rdtsc(session);
 	/*
 	 * Keep checking the LSNs until we find it is stable or we reach
 	 * our timeout, or there's some other reason to quit.
 	 */
+	time_start = __wt_rdtsc(session);
 	while (__wt_log_cmp(&session->bg_sync_lsn, &log->sync_lsn) > 0) {
 		if (!__transaction_sync_run_chk(session))
 			WT_ERR(ETIMEDOUT);
