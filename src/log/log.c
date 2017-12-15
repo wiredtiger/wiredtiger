@@ -266,7 +266,6 @@ __wt_log_force_sync(WT_SESSION_IMPL *session, WT_LSN *min_lsn)
 
 	log = S2C(session)->log;
 	log_fh = NULL;
-	time_start = time_stop = 0;
 
 	/*
 	 * We need to wait for the previous log file to get written
@@ -1722,7 +1721,6 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
 	conn = S2C(session);
 	log = conn->log;
 	locked = false;
-	time_start = time_stop = 0;
 	if (freep != NULL)
 		*freep = 1;
 	release_buffered = WT_LOG_SLOT_RELEASED_BUFFERED(slot->slot_state);
