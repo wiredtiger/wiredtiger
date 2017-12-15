@@ -136,8 +136,9 @@ new_page:	if (cbt->ins == NULL)
 		__cursor_set_recno(cbt, WT_INSERT_RECNO(cbt->ins));
 		if ((upd = __wt_txn_read(session, cbt->ins->upd)) == NULL)
 			continue;
-		if (upd->type == WT_UPDATE_DELETED) {
-			if (__wt_txn_upd_visible_all(session, upd))
+		if (upd->type == WT_UPDATE_TOMBSTONE) {
+			if (upd->txnid != WT_TXN_NONE &&
+			    __wt_txn_upd_visible_all(session, upd))
 				++cbt->page_deleted_count;
 			continue;
 		}
@@ -195,8 +196,9 @@ new_page:	/* Find the matching WT_COL slot. */
 		upd = cbt->ins == NULL ?
 		    NULL : __wt_txn_read(session, cbt->ins->upd);
 		if (upd != NULL) {
-			if (upd->type == WT_UPDATE_DELETED) {
-				if (__wt_txn_upd_visible_all(session, upd))
+			if (upd->type == WT_UPDATE_TOMBSTONE) {
+				if (upd->txnid != WT_TXN_NONE &&
+				    __wt_txn_upd_visible_all(session, upd))
 					++cbt->page_deleted_count;
 				continue;
 			}
@@ -311,8 +313,9 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage)
 new_insert:	if ((ins = cbt->ins) != NULL) {
 			if ((upd = __wt_txn_read(session, ins->upd)) == NULL)
 				continue;
-			if (upd->type == WT_UPDATE_DELETED) {
-				if (__wt_txn_upd_visible_all(session, upd))
+			if (upd->type == WT_UPDATE_TOMBSTONE) {
+				if (upd->txnid != WT_TXN_NONE &&
+				    __wt_txn_upd_visible_all(session, upd))
 					++cbt->page_deleted_count;
 				continue;
 			}
@@ -342,8 +345,9 @@ new_insert:	if ((ins = cbt->ins) != NULL) {
 		cbt->slot = cbt->row_iteration_slot / 2 - 1;
 		rip = &page->pg_row[cbt->slot];
 		upd = __wt_txn_read(session, WT_ROW_UPDATE(page, rip));
-		if (upd != NULL && upd->type == WT_UPDATE_DELETED) {
-			if (__wt_txn_upd_visible_all(session, upd))
+		if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {
+			if (upd->txnid != WT_TXN_NONE &&
+			    __wt_txn_upd_visible_all(session, upd))
 				++cbt->page_deleted_count;
 			continue;
 		}
