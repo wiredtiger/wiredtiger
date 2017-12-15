@@ -663,6 +663,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 	conn = S2C(session);
 	cache = conn->cache;
 	txn_global = &conn->txn_global;
+	time_prev = 0;			/* [-Wconditional-uninitialized] */
 
 	/* Track whether pages are being evicted and progress is made. */
 	eviction_progress = cache->eviction_progress;
