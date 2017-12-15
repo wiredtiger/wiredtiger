@@ -667,7 +667,6 @@ __evict_pass(WT_SESSION_IMPL *session)
 	/* Track whether pages are being evicted and progress is made. */
 	eviction_progress = cache->eviction_progress;
 	prev_oldest_id = txn_global->oldest_id;
-	time_now = time_prev = 0;
 
 	/* Evict pages from the cache. */
 	for (loop = 0; cache->pass_intr == 0; loop++) {
