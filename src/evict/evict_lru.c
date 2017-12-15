@@ -781,12 +781,11 @@ __evict_pass(WT_SESSION_IMPL *session)
 			__wt_verbose(session, WT_VERB_EVICTSERVER,
 			    "%s", "unable to reach eviction goal");
 			break;
-		} else {
-			if (cache->evict_aggressive_score > 0)
-				--cache->evict_aggressive_score;
-			loop = 0;
-			eviction_progress = cache->eviction_progress;
 		}
+		if (cache->evict_aggressive_score > 0)
+			--cache->evict_aggressive_score;
+		loop = 0;
+		eviction_progress = cache->eviction_progress;
 	}
 	return (0);
 }
