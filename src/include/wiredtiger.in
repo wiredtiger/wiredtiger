@@ -3069,13 +3069,13 @@ int wiredtiger_struct_pack(WT_SESSION *session,
  * @snippet ex_all.c Get the packed size
  *
  * @param session the session handle
- * @param sizep a location where the number of bytes needed for the
+ * @param lenp a location where the number of bytes needed for the
  * matching call to ::wiredtiger_struct_pack is returned
  * @param format the data format, see @ref packing
  * @errors
  */
 int wiredtiger_struct_size(WT_SESSION *session,
-    size_t *sizep, const char *format, ...) WT_ATTRIBUTE_LIBRARY_VISIBLE;
+    size_t *lenp, const char *format, ...) WT_ATTRIBUTE_LIBRARY_VISIBLE;
 
 /*!
  * Unpack a structure from a buffer.
