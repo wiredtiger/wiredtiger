@@ -57,6 +57,7 @@ __wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond,
 {
 	struct timespec ts;
 	WT_DECL_RET;
+	WT_TRACK_OP_DECL;
 	bool locked;
 
 	WT_TRACK_OP_INIT(session);

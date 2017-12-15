@@ -530,7 +530,7 @@ extern int __wt_meta_track_destroy(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_AT
 extern int __wt_turtle_init(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_turtle_read(WT_SESSION_IMPL *session, const char *key, char **valuep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern void __wt_optrack_record_funcid(WT_SESSION_IMPL *session, uint64_t op_id, void *func, size_t funcsize, volatile bool *id_recorded);
+extern void __wt_optrack_record_funcid( WT_SESSION_IMPL *session, const char *func, uint16_t *func_idp);
 extern int __wt_optrack_open_file(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern size_t __wt_optrack_flush_buffer(WT_SESSION_IMPL *s);
 extern uint64_t __wt_optrack_get_expensive_timestamp(WT_SESSION_IMPL *session);
@@ -786,6 +786,7 @@ extern void __wt_thread_group_start_one( WT_SESSION_IMPL *session, WT_THREAD_GRO
 extern void __wt_thread_group_stop_one(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group);
 extern void __wt_epoch(WT_SESSION_IMPL *session, struct timespec *tsp) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_seconds(WT_SESSION_IMPL *session, time_t *timep);
+extern uint64_t __wt_tsc_to_nsec(WT_SESSION_IMPL *session, uint64_t tsc_diff);
 extern void __wt_txn_release_snapshot(WT_SESSION_IMPL *session);
 extern void __wt_txn_get_snapshot(WT_SESSION_IMPL *session);
 extern int __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

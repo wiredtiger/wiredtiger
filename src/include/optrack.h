@@ -24,13 +24,13 @@ struct __wt_optrack_header {
  * WT_OPTRACK_RECORD --
  *     A structure for logging function entry and exit events.
  *
- * We pad the record so that the size of the entire record is three double
- * words, or 24 bytes. If we don't do this, the compiler will pad it for us,
- * because we keep records in the record buffer array and each new record must
- * be aligned on the 8-byte boundary, since its first element is an 8-byte
- * timestamp. Instead of letting the compiler insert the padding silently, we
- * pad explicitly, so that whoever writes the binary decoder can refer to this
- * struct to find out the record size.
+ * We pad the record so that the size of the entire record is 16 bytes. If we
+ * don't do this, the compiler will pad it for us, because we keep records in
+ * the record buffer array and each new record must be aligned on the 8-byte
+ * boundary, since its first element is an 8-byte timestamp. Instead of letting
+ * the compiler insert the padding silently, we pad explicitly, so that whoever
+ * writes the binary decoder can refer to this struct to find out the record
+ * size.
  *
  * The operation id included in this structure is a unique address of a function
  * in the binary. As we log operations, we keep track of the correspondence
@@ -41,24 +41,25 @@ struct __wt_optrack_header {
  * from it.
  */
 struct __wt_optrack_record {
-	uint64_t timestamp;
-	uint64_t op_id;
-	uint16_t op_type;
-	char padding[6];
+	uint64_t op_timestamp;				/* timestamp */
+	uint16_t op_id;					/* function ID */
+	uint16_t op_type;				/* start/stop */
+	uint8_t  padding[4];
 };
 
-#define	WT_TRACK_OP(s, optype)						\
-	tr->timestamp = __wt_rdtsc(s);					\
-	tr->op_type = optype;						\
-	tr->op_id = (uint64_t)&__func__;				\
+#define	WT_TRACK_OP(s, optype) do {					\
+	WT_OPTRACK_RECORD *__tr;					\
+	__tr = &((s)->optrack_buf[					\
+	    (s)->optrackbuf_ptr % WT_OPTRACK_MAXRECS]);			\
+	__tr->op_timestamp = __wt_rdtsc(s);				\
+	__tr->op_id = __func_id;					\
+	__tr->op_type = optype;						\
 									\
-	if (optype == 0 && !id_recorded)				\
-		__wt_optrack_record_funcid(s, tr->op_id,		\
-		    (void*)&__func__, sizeof(__func__), &id_recorded);	\
-	if (s->optrackbuf_ptr == WT_OPTRACK_MAXRECS) {			\
-		s->optrack_offset += __wt_optrack_flush_buffer(s);	\
-		s->optrackbuf_ptr = 0;					\
-	}
+	if (++(s)->optrackbuf_ptr == WT_OPTRACK_MAXRECS) {		\
+		(s)->optrack_offset += __wt_optrack_flush_buffer(s);	\
+		(s)->optrackbuf_ptr = 0;				\
+	}								\
+} while (0)
 
 /*
  * We do not synchronize access to optrack buffer pointer under the assumption
@@ -70,18 +71,16 @@ struct __wt_optrack_record {
  * Exclude the default session (ID 0) because it can be used by multiple
  * threads and it is also used in error paths during failed open calls.
  */
+#define	WT_TRACK_OP_DECL						\
+	static uint16_t __func_id = 0
 #define	WT_TRACK_OP_INIT(s)						\
-	WT_OPTRACK_RECORD *tr;						\
-	static volatile bool id_recorded = false;			\
 	if (F_ISSET(S2C(s), WT_CONN_OPTRACK) && (s)->id != 0) {		\
-		tr = &(s->optrack_buf[s->optrackbuf_ptr % WT_OPTRACK_MAXRECS]);\
-		s->optrackbuf_ptr++;					\
+		if (__func_id == 0)					\
+			__wt_optrack_record_funcid(			\
+			    s, __func__, &__func_id);			\
 		WT_TRACK_OP(s, 0);					\
 	}
 
 #define	WT_TRACK_OP_END(s)						\
-	if (F_ISSET(S2C(s), WT_CONN_OPTRACK) && (s)->id != 0) {		\
-		tr = &(s->optrack_buf[s->optrackbuf_ptr % WT_OPTRACK_MAXRECS]);\
-		s->optrackbuf_ptr++;					\
-		WT_TRACK_OP(s, 1);					\
-	}
+	if (F_ISSET(S2C(s), WT_CONN_OPTRACK) && (s)->id != 0)		\
+		WT_TRACK_OP(s, 1);
