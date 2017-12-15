@@ -170,7 +170,8 @@ __wt_read(
 	    fh->handle, (WT_SESSION *)session, offset, len, buf);
 
 	stop = __wt_rdtsc(session);
-	__wt_stat_read_io_histogram(session, (stop - start) / 1000);
+	__wt_stat_read_io_histogram(session,
+	    WT_TSCDIFF_MS(session, stop, start));
 	WT_STAT_CONN_DECR_ATOMIC(session, thread_read_active);
 	return (ret);
 }
@@ -248,7 +249,8 @@ __wt_write(WT_SESSION_IMPL *session,
 	    fh->handle, (WT_SESSION *)session, offset, len, buf);
 
 	stop = __wt_rdtsc(session);
-	__wt_stat_write_io_histogram(session, (stop - start) / 1000);
+	__wt_stat_write_io_histogram(session,
+	    WT_TSCDIFF_MS(session, stop, start));
 	WT_STAT_CONN_DECR_ATOMIC(session, thread_write_active);
 	return (ret);
 }

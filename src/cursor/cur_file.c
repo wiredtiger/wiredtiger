@@ -188,7 +188,8 @@ __curfile_search(WT_CURSOR *cursor)
 	start = __wt_rdtsc(session);
 	WT_ERR(__wt_btcur_search(cbt));
 	stop = __wt_rdtsc(session);
-	 __wt_stat_read_op_histogram(session, (stop - start));
+	 __wt_stat_read_op_histogram(session,
+	    WT_TSCDIFF_US(session, stop, start));
 
 	/* Search maintains a position, key and value. */
 	WT_ASSERT(session,
@@ -217,7 +218,8 @@ __curfile_search_near(WT_CURSOR *cursor, int *exact)
 	start = __wt_rdtsc(session);
 	WT_ERR(__wt_btcur_search_near(cbt, exact));
 	stop = __wt_rdtsc(session);
-	__wt_stat_read_op_histogram(session, (stop - start));
+	__wt_stat_read_op_histogram(session,
+	    WT_TSCDIFF_US(session, stop, start));
 
 	/* Search-near maintains a position, key and value. */
 	WT_ASSERT(session,
@@ -249,7 +251,8 @@ __curfile_insert(WT_CURSOR *cursor)
 	start = __wt_rdtsc(session);
 	WT_ERR(__wt_btcur_insert(cbt));
 	stop = __wt_rdtsc(session);
-	__wt_stat_write_op_histogram(session, (stop - start));
+	__wt_stat_write_op_histogram(session,
+	    WT_TSCDIFF_US(session, stop, start));
 
 	/*
 	 * Insert maintains no position, key or value (except for column-store
@@ -346,7 +349,8 @@ __curfile_update(WT_CURSOR *cursor)
 	start = __wt_rdtsc(session);
 	WT_ERR(__wt_btcur_update(cbt));
 	stop = __wt_rdtsc(session);
-	__wt_stat_write_op_histogram(session, (stop - start));
+	__wt_stat_write_op_histogram(session,
+	    WT_TSCDIFF_US(session, stop, start));
 
 	/* Update maintains a position, key and value. */
 	WT_ASSERT(session,
@@ -376,7 +380,8 @@ __curfile_remove(WT_CURSOR *cursor)
 	start = __wt_rdtsc(session);
 	WT_ERR(__wt_btcur_remove(cbt));
 	stop = __wt_rdtsc(session);
-	__wt_stat_write_op_histogram(session, (stop - start));
+	__wt_stat_write_op_histogram(session,
+	    WT_TSCDIFF_US(session, stop, start));
 
 	/*
 	 * Remove with a search-key is fire-and-forget, no position and no key.
