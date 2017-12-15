@@ -2305,7 +2305,7 @@ wiredtiger_dummy_session_init(
  */
 int
 wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
-    const char *config, WT_CONNECTION **wt_connp)
+    const char *config, WT_CONNECTION **connectionp)
 {
 	static const WT_CONNECTION stdc = {
 		__conn_async_flush,
@@ -2353,7 +2353,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	const char *cfg[] = {
 	    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
 
-	*wt_connp = NULL;
+	*connectionp = NULL;
 
 	conn = NULL;
 	session = NULL;
@@ -2703,7 +2703,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	WT_ERR(__wt_connection_workers(session, cfg));
 
 	WT_STATIC_ASSERT(offsetof(WT_CONNECTION_IMPL, iface) == 0);
-	*wt_connp = &conn->iface;
+	*connectionp = &conn->iface;
 
 err:	/* Discard the scratch buffers. */
 	__wt_scr_free(session, &encbuf);

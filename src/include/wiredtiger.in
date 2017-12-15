@@ -2585,8 +2585,8 @@ struct __wt_connection {
  *
  * @param home The path to the database home directory.  See @ref home
  * for more information.
- * @param errhandler An error handler.  If <code>NULL</code>, a builtin error
- * handler is installed that writes error messages to stderr. See
+ * @param event_handler An event handler. If <code>NULL</code>, a default
+ * event handler is installed that writes error messages to stderr. See
  * @ref error_handling_event for more information.
  * @configstart{wiredtiger_open, see dist/api_data.py}
  * @config{async = (, asynchronous operations configuration options., a set of
@@ -2907,7 +2907,7 @@ struct __wt_connection {
  * @errors
  */
 int wiredtiger_open(const char *home,
-    WT_EVENT_HANDLER *errhandler, const char *config,
+    WT_EVENT_HANDLER *event_handler, const char *config,
     WT_CONNECTION **connectionp) WT_ATTRIBUTE_LIBRARY_VISIBLE;
 
 /*!
