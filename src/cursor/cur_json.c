@@ -210,7 +210,7 @@ __json_struct_size(WT_SESSION_IMPL *session, const void *buffer,
 	WT_ASSERT(session, p <= end);
 
 	*presult = result;
-	return (ret);
+	return (0);
 }
 
 /*
@@ -264,7 +264,7 @@ __json_struct_unpackv(WT_SESSION_IMPL *session,
 
 	WT_ASSERT(session, jbufsize == 1);
 
-	return (ret);
+	return (0);
 }
 
 /*
