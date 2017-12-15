@@ -3051,12 +3051,12 @@ struct __wt_event_handler {
  *
  * @param session the session handle
  * @param buffer a pointer to a packed byte array
- * @param size the number of valid bytes in the buffer
+ * @param len the number of valid bytes in the buffer
  * @param format the data format, see @ref packing
  * @errors
  */
 int wiredtiger_struct_pack(WT_SESSION *session,
-    void *buffer, size_t size, const char *format, ...)
+    void *buffer, size_t len, const char *format, ...)
     WT_ATTRIBUTE_LIBRARY_VISIBLE;
 
 /*!
@@ -3087,12 +3087,12 @@ int wiredtiger_struct_size(WT_SESSION *session,
  *
  * @param session the session handle
  * @param buffer a pointer to a packed byte array
- * @param size the number of valid bytes in the buffer
+ * @param len the number of valid bytes in the buffer
  * @param format the data format, see @ref packing
  * @errors
  */
 int wiredtiger_struct_unpack(WT_SESSION *session,
-    const void *buffer, size_t size, const char *format, ...)
+    const void *buffer, size_t len, const char *format, ...)
     WT_ATTRIBUTE_LIBRARY_VISIBLE;
 
 #if !defined(SWIG)
