@@ -1520,7 +1520,7 @@ struct __wt_session {
 	 * called).
 	 *
 	 * @param session the session handle
-	 * @param fmt a printf format specifier
+	 * @param format a printf format specifier
 	 * @errors
 	 */
 	int __F(log_printf)(WT_SESSION *session, const char *format, ...);
