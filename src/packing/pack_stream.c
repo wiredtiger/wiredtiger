@@ -24,7 +24,7 @@ struct __wt_pack_stream {
  */
 int
 wiredtiger_pack_start(WT_SESSION *wt_session,
-	const char *format, void *buffer, size_t size, WT_PACK_STREAM **psp)
+    const char *format, void *buffer, size_t size, WT_PACK_STREAM **psp)
 {
 	WT_DECL_RET;
 	WT_PACK_STREAM *ps;
@@ -48,8 +48,8 @@ err:		(void)wiredtiger_pack_close(ps, NULL);
  *	Open a stream for unpacking.
  */
 int
-wiredtiger_unpack_start(WT_SESSION *wt_session, const char *format,
-	const void *buffer, size_t size, WT_PACK_STREAM **psp)
+wiredtiger_unpack_start(WT_SESSION *wt_session,
+    const char *format, const void *buffer, size_t size, WT_PACK_STREAM **psp)
 {
 	return (wiredtiger_pack_start(
 	    wt_session, format, (void *)buffer, size, psp));
