@@ -1308,7 +1308,7 @@ __conn_calibrate_ticks(WT_SESSION_IMPL *session)
 	__wt_epoch(session, &stop);
 	diff_nsec = WT_TIMEDIFF_NS(stop, start);
 	diff_tsc = tsc_stop - tsc_start;
-	S2C(session)->tsc_nsec_ratio = (double)diff_tsc/(double)diff_nsec;
+	S2C(session)->tsc_nsec_ratio = (double)diff_tsc / (double)diff_nsec;
 #else
 	S2C(session)->tsc_nsec_ratio = 1.0;
 #endif
