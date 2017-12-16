@@ -327,3 +327,31 @@ struct __wt_table {
 		F_SET(session, WT_SESSION_LOCKED_HANDLE_LIST_WRITE);	\
 	}								\
 } while (0)
+
+/*
+ * WT_WITH_CURSOR_CACHE_CLOSES --
+ *	Perform the operation with retries as long as we are making
+ *	progress from closing cached cursors.
+ */
+#define	WT_WITH_CURSOR_CACHE_CLOSES(session, uri, cond, op) do {	\
+	uint64_t closed_cnt;						\
+	if (F_ISSET(S2C(session), WT_CONN_CACHE_CURSORS))		\
+		__wt_bitmap_clear_all(&(session)->dhandle_open);	\
+	op;								\
+	if (ret == EBUSY && (cond) &&					\
+	    F_ISSET(S2C(session), WT_CONN_CACHE_CURSORS)) {		\
+		while (ret == EBUSY &&					\
+		    __wt_bitmap_test_any(&(session)->dhandle_open)) {	\
+			WT_ERR(__wt_schema_backup_check(session, uri));	\
+			closed_cnt = 0;					\
+			WT_ERR(__wt_conn_cursor_cache_pass(session,	\
+			    true, false, &session->dhandle_open,	\
+			    &closed_cnt));				\
+			if (closed_cnt == 0) {				\
+				ret = EBUSY;				\
+				break;					\
+			}						\
+			op;						\
+		}							\
+	}								\
+} while (0)

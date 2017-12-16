@@ -122,10 +122,13 @@ __wt_conn_dhandle_alloc(
     WT_SESSION_IMPL *session, const char *uri, const char *checkpoint)
 {
 	WT_BTREE *btree;
+	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
 	WT_TABLE *table;
 	uint64_t bucket;
+
+	conn = S2C(session);
 
 	/*
 	 * Ensure no one beat us to creating the handle now that we hold the
@@ -163,6 +166,15 @@ __wt_conn_dhandle_alloc(
 	WT_ERR(__wt_spin_init(
 	    session, &dhandle->close_lock, "data handle close"));
 
+	if (F_ISSET(conn, WT_CONN_CACHE_CURSORS)) {
+		/* TODO: we need a lock for the dhandle allocated bits.
+		 * Also, we may have a dhandle_dropped bit array to
+		 * NOT allocate from.  That would handle drops in progress?
+		 */
+		WT_ERR(__wt_bitmap_alloc_bit(session, &conn->dhandle_alloced,
+		    &dhandle->descriptor));
+	}
+
 	/*
 	 * We are holding the data handle list lock, which protects most
 	 * threads from seeing the new handle until that lock is released.
@@ -178,7 +190,7 @@ __wt_conn_dhandle_alloc(
 	 * need new files again soon, until they are cached by all sessions.
 	 */
 	bucket = dhandle->name_hash % WT_HASH_ARRAY_SIZE;
-	WT_CONN_DHANDLE_INSERT(S2C(session), dhandle, bucket);
+	WT_CONN_DHANDLE_INSERT(conn, dhandle, bucket);
 
 	session->dhandle = dhandle;
 	return (0);

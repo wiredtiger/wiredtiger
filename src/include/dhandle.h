@@ -68,6 +68,7 @@ struct __wt_data_handle {
 	uint64_t name_hash;		/* Hash of name */
 	const char *checkpoint;		/* Checkpoint name (or NULL) */
 	const char **cfg;		/* Configuration information */
+	uint64_t  descriptor;		/* Unique for the lifetime of handle */
 
 	/*
 	 * Sessions caching a connection's data handle will have a non-zero

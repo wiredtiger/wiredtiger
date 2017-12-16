@@ -34,6 +34,19 @@ __wt_cursor_notsup(WT_CURSOR *cursor)
 }
 
 /*
+ * __wt_cursor_cached --
+ *	No actions on a closed and cached cursor are allowed.
+ */
+int
+__wt_cursor_cached(WT_CURSOR *cursor)
+{
+	WT_SESSION_IMPL *session;
+
+	session = (WT_SESSION_IMPL *)cursor->session;
+	WT_RET_MSG(session, ENOTSUP, "Cursor has been closed");
+}
+
+/*
  * __wt_cursor_get_value_notsup --
  *	WT_CURSOR.get_value not-supported.
  */
@@ -599,6 +612,68 @@ __wt_cursor_equals(WT_CURSOR *cursor, WT_CURSOR *other, int *equalp)
 	*equalp = (cmp == 0) ? 1 : 0;
 
 err:	API_END_RET(session, ret);
+}
+
+/*
+ * __wt_cursor_cache --
+ *	Add this cursor to the cache.
+ */
+int
+__wt_cursor_cache(WT_CURSOR *cursor)
+{
+	WT_SESSION_IMPL *session;
+
+	session = (WT_SESSION_IMPL *)cursor->session;
+	WT_RET(cursor->reset(cursor));
+	F_SET(cursor, WT_CURSTD_CACHED);
+	session->ncursors_cached++;
+	WT_RET(__wt_bitmap_or_bitmap(session, &session->dhandle_inuse,
+	    WT_CURSOR_DS_BITS(cursor)));
+	WT_ASSERT(session, __wt_bitmap_test_any(WT_CURSOR_DS_BITS(cursor)));
+
+	return (0);
+}
+
+/*
+ * __wt_cursor_open_cache --
+ *	Open a matching cursor from the cache.
+ */
+int
+__wt_cursor_open_cache(WT_SESSION_IMPL *session, const char *uri,
+    WT_CURSOR *owner, const char *cfg[], WT_CURSOR **cursorp)
+{
+	WT_CONFIG_ITEM cval;
+	WT_DECL_RET;
+	bool append, overwrite, raw;
+
+	if (owner != NULL || session->ncursors_cached == 0)
+		return (WT_NOTFOUND);
+
+	WT_RET(__wt_config_gets(session, cfg, "readonly", &cval));
+	if (cval.val)
+		return (WT_NOTFOUND);
+	WT_RET(__wt_config_gets(session, cfg, "bulk", &cval));
+	if (cval.val)
+		return (WT_NOTFOUND);
+
+	WT_RET(__wt_config_gets(session, cfg, "append", &cval));
+	append = (cval.val != 0);
+	WT_RET(__wt_config_gets(session, cfg, "overwrite", &cval));
+	overwrite = (cval.val != 0);
+	WT_RET(__wt_config_gets_def(session, cfg, "raw", 0, &cval));
+	raw = (cval.val != 0);
+
+	ret = __wt_session_cursor_cache_open(
+	    session, uri, append, overwrite, cursorp);
+
+	if (ret == 0) {
+		/* TODO: Can this same trick be applied to overwrite/append? */
+		if (raw)
+			F_SET(*cursorp, WT_CURSTD_RAW);
+		else
+			F_CLR(*cursorp, WT_CURSTD_RAW);
+	}
+	return (ret);
 }
 
 /*

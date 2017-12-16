@@ -64,7 +64,8 @@ __drop_colgroup(
 	/* If we can get the colgroup, detach it from the table. */
 	if ((ret = __wt_schema_get_colgroup(
 	    session, uri, force, &table, &colgroup)) == 0) {
-		WT_TRET(__wt_schema_drop(session, colgroup->source, cfg));
+		WT_TRET(__wt_schema_drop(session, colgroup->source, false,
+		    cfg));
 		if (ret == 0)
 			table->cg_complete = false;
 	}
@@ -86,7 +87,7 @@ __drop_index(
 
 	/* If we can get the index, detach it from the table. */
 	if ((ret = __wt_schema_get_index(session, uri, true, force, &idx)) == 0)
-		WT_TRET(__wt_schema_drop(session, idx->source, cfg));
+		WT_TRET(__wt_schema_drop(session, idx->source, false, cfg));
 
 	WT_TRET(__wt_metadata_remove(session, uri));
 	return (ret);
@@ -143,7 +144,7 @@ __drop_table(
 		 * the metadata for the table becoming inconsistent if we can't
 		 * get exclusive access.
 		 */
-		WT_ERR(__wt_schema_drop(session, colgroup->source, cfg));
+		WT_ERR(__wt_schema_drop(session, colgroup->source, false, cfg));
 		WT_ERR(__wt_metadata_remove(session, colgroup->name));
 	}
 
@@ -157,7 +158,7 @@ __drop_table(
 		 * the metadata for the table becoming inconsistent if we can't
 		 * get exclusive access.
 		 */
-		WT_ERR(__wt_schema_drop(session, idx->source, cfg));
+		WT_ERR(__wt_schema_drop(session, idx->source, false, cfg));
 		WT_ERR(__wt_metadata_remove(session, idx->name));
 	}
 
@@ -182,24 +183,15 @@ err:	if (table != NULL && !tracked)
 }
 
 /*
- * __wt_schema_drop --
+ * __drop_int --
  *	Process a WT_SESSION::drop operation for all supported types.
  */
-int
-__wt_schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
+static int
+__drop_int(WT_SESSION_IMPL *session, const char *uri, bool force,
+    const char *cfg[])
 {
-	WT_CONFIG_ITEM cval;
 	WT_DATA_SOURCE *dsrc;
 	WT_DECL_RET;
-	bool force;
-
-	WT_RET(__wt_config_gets_def(session, cfg, "force", 0, &cval));
-	force = cval.val != 0;
-
-	WT_RET(__wt_meta_track_on(session));
-
-	/* Paranoia: clear any handle from our caller. */
-	session->dhandle = NULL;
 
 	if (WT_PREFIX_MATCH(uri, "colgroup:"))
 		ret = __drop_colgroup(session, uri, force, cfg);
@@ -226,7 +218,32 @@ __wt_schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 	if (ret == WT_NOTFOUND || ret == ENOENT)
 		ret = force ? 0 : ENOENT;
 
-	WT_TRET(__wt_meta_track_off(session, true, ret != 0));
+	return (ret);
+}
+
+/*
+ * __wt_schema_drop --
+ *	Process a WT_SESSION::drop operation for all supported types,
+ *	with a possible retry.
+ */
+int
+__wt_schema_drop(WT_SESSION_IMPL *session, const char *uri, bool retry,
+    const char *cfg[])
+{
+	WT_CONFIG_ITEM cval;
+	WT_DECL_RET;
+	bool force;
+
+	WT_RET(__wt_config_gets_def(session, cfg, "force", 0, &cval));
+	force = cval.val != 0;
+
+	WT_RET(__wt_meta_track_on(session));
+
+	/* Paranoia: clear any handle from our caller. */
+	session->dhandle = NULL;
+	WT_ERR(__drop_int(session, uri, force, cfg));
+
+err:	WT_TRET(__wt_meta_track_off(session, true, ret != 0));
 
 	return (ret);
 }

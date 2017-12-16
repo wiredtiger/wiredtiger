@@ -7,6 +7,8 @@ __bit_ffs
 __bit_nclr
 __ovfl_discard_dump
 __ovfl_reuse_dump
+__wt_bitmap_clear
+__wt_bitmap_test
 __wt_bloom_drop
 __wt_bloom_get
 __wt_bulk_insert_fix

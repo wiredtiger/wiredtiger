@@ -73,6 +73,11 @@ struct __wt_session_impl {
 
 	WT_CURSOR_BACKUP *bkp_cursor;	/* Hot backup cursor */
 
+	WT_BITMAP dhandle_open;		/* Data sources used during open */
+	WT_BITMAP dhandle_inuse;	/* Data handle descriptors in use */
+	WT_RWLOCK cursor_cache_lock;	/* Lock for managing cursor cache */
+	time_t last_cursor_cache_close; /* Last time stale cursors closed */
+
 	WT_COMPACT_STATE *compact;	/* Compaction information */
 	enum { WT_COMPACT_NONE=0,
 	    WT_COMPACT_RUNNING, WT_COMPACT_SUCCESS } compact_state;
@@ -120,6 +125,7 @@ struct __wt_session_impl {
 #define	WT_SESSION_BG_SYNC_MSEC		1200000
 	WT_LSN	bg_sync_lsn;		/* Background sync operation LSN. */
 	u_int	ncursors;		/* Count of active file cursors. */
+	u_int	ncursors_cached;	/* Count of cursors cached. */
 
 	void	*block_manager;		/* Block-manager support */
 	int	(*block_manager_cleanup)(WT_SESSION_IMPL *);
@@ -149,28 +155,30 @@ struct __wt_session_impl {
 	u_int	stat_bucket;		/* Statistics bucket offset */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define	WT_SESSION_CAN_WAIT			0x000001u
-#define	WT_SESSION_IGNORE_CACHE_SIZE		0x000002u
-#define	WT_SESSION_INTERNAL			0x000004u
-#define	WT_SESSION_LOCKED_CHECKPOINT		0x000008u
-#define	WT_SESSION_LOCKED_HANDLE_LIST_READ	0x000010u
-#define	WT_SESSION_LOCKED_HANDLE_LIST_WRITE	0x000020u
-#define	WT_SESSION_LOCKED_METADATA		0x000040u
-#define	WT_SESSION_LOCKED_PASS			0x000080u
-#define	WT_SESSION_LOCKED_SCHEMA		0x000100u
-#define	WT_SESSION_LOCKED_SLOT			0x000200u
-#define	WT_SESSION_LOCKED_TABLE_READ		0x000400u
-#define	WT_SESSION_LOCKED_TABLE_WRITE		0x000800u
-#define	WT_SESSION_LOCKED_TURTLE		0x001000u
-#define	WT_SESSION_LOGGING_INMEM		0x002000u
-#define	WT_SESSION_LOOKASIDE_CURSOR		0x004000u
-#define	WT_SESSION_NO_DATA_HANDLES		0x008000u
-#define	WT_SESSION_NO_LOGGING			0x010000u
-#define	WT_SESSION_NO_RECONCILE			0x020000u
-#define	WT_SESSION_NO_SCHEMA_LOCK		0x040000u
-#define	WT_SESSION_QUIET_CORRUPT_FILE		0x080000u
-#define	WT_SESSION_READ_WONT_NEED		0x100000u
-#define	WT_SESSION_SERVER_ASYNC			0x200000u
+#define	WT_SESSION_CACHE_CURSORS		0x000001u
+#define	WT_SESSION_CAN_WAIT			0x000002u
+#define	WT_SESSION_IDLE				0x000004u
+#define	WT_SESSION_IGNORE_CACHE_SIZE		0x000008u
+#define	WT_SESSION_INTERNAL			0x000010u
+#define	WT_SESSION_LOCKED_CHECKPOINT		0x000020u
+#define	WT_SESSION_LOCKED_HANDLE_LIST_READ	0x000040u
+#define	WT_SESSION_LOCKED_HANDLE_LIST_WRITE	0x000080u
+#define	WT_SESSION_LOCKED_METADATA		0x000100u
+#define	WT_SESSION_LOCKED_PASS			0x000200u
+#define	WT_SESSION_LOCKED_SCHEMA		0x000400u
+#define	WT_SESSION_LOCKED_SLOT			0x000800u
+#define	WT_SESSION_LOCKED_TABLE_READ		0x001000u
+#define	WT_SESSION_LOCKED_TABLE_WRITE		0x002000u
+#define	WT_SESSION_LOCKED_TURTLE		0x004000u
+#define	WT_SESSION_LOGGING_INMEM		0x008000u
+#define	WT_SESSION_LOOKASIDE_CURSOR		0x010000u
+#define	WT_SESSION_NO_DATA_HANDLES		0x020000u
+#define	WT_SESSION_NO_LOGGING			0x040000u
+#define	WT_SESSION_NO_RECONCILE			0x080000u
+#define	WT_SESSION_NO_SCHEMA_LOCK		0x100000u
+#define	WT_SESSION_QUIET_CORRUPT_FILE		0x200000u
+#define	WT_SESSION_READ_WONT_NEED		0x400000u
+#define	WT_SESSION_SERVER_ASYNC			0x800000u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint32_t flags;
 
@@ -246,3 +254,16 @@ struct __wt_session_impl {
 	uint64_t optrack_offset;
 	WT_FH *optrack_fh;
 };
+
+/*
+ * WT_WITHOUT_CURSOR_CACHING --
+ *	Do the operation without cursor caching, so that any cursors
+ *	created are not cached.
+ */
+#define	WT_WITHOUT_CURSOR_CACHING(session, op) do {			\
+	uint32_t cachemask;						\
+	cachemask = F_MASK(session, WT_SESSION_CACHE_CURSORS);		\
+	F_CLR(session, cachemask);					\
+	op;								\
+	F_SET(session, cachemask);					\
+} while (0)

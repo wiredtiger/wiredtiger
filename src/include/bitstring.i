@@ -81,6 +81,24 @@ __bit_alloc(WT_SESSION_IMPL *session, uint64_t nbits, void *retp)
 }
 
 /*
+ * __bit_realloc --
+ *	Reallocate a bitstring.
+ */
+static inline int
+__bit_realloc(WT_SESSION_IMPL *session, uint64_t curbits, uint64_t nbits,
+    void *retp)
+{
+	size_t curbytes, newbytes;
+
+	curbytes = (size_t)__bitstr_size(curbits);
+	newbytes = (size_t)__bitstr_size(nbits);
+	if (curbytes == newbytes)
+		return (0);
+	else
+		return (__wt_realloc(session, &curbytes, newbytes, retp));
+}
+
+/*
  * __bit_test --
  *	Test one bit in name.
  */

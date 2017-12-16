@@ -53,6 +53,9 @@ __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
 	/* Create the cache. */
 	WT_RET(__wt_cache_create(session, cfg));
 
+	/* Initialize bitmaps used for cursor caching. */
+	WT_RET(__wt_conn_cursor_cache_open(session));
+
 	/* Initialize transaction support. */
 	WT_RET(__wt_txn_global_init(session, cfg));
 
@@ -104,6 +107,7 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	WT_TRET(__wt_checkpoint_server_destroy(session));
 	WT_TRET(__wt_statlog_destroy(session, true));
 	WT_TRET(__wt_sweep_destroy(session));
+	WT_TRET(__wt_conn_cursor_cache_destroy(session));
 
 	/* The eviction server is shut down last. */
 	WT_TRET(__wt_evict_destroy(session));

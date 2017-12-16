@@ -291,7 +291,7 @@ __lsm_tree_cleanup_old(WT_SESSION_IMPL *session, const char *uri)
 		WT_RET(__wt_fs_exist(session, uri + strlen("file:"), &exists));
 	if (!is_file || exists)
 		WT_WITH_SCHEMA_LOCK(session,
-		    ret = __wt_schema_drop(session, uri, cfg));
+		    ret = __wt_schema_drop(session, uri, false, cfg));
 	return (ret);
 }
 
@@ -924,20 +924,22 @@ __wt_lsm_tree_drop(
 	/* Drop the chunks. */
 	for (i = 0; i < lsm_tree->nchunks; i++) {
 		chunk = lsm_tree->chunk[i];
-		WT_ERR(__wt_schema_drop(session, chunk->uri, cfg));
+		WT_ERR(__wt_schema_drop(session, chunk->uri, false, cfg));
 		if (F_ISSET(chunk, WT_LSM_CHUNK_BLOOM))
 			WT_ERR(
-			    __wt_schema_drop(session, chunk->bloom_uri, cfg));
+			    __wt_schema_drop(session, chunk->bloom_uri, false,
+			    cfg));
 	}
 
 	/* Drop any chunks on the obsolete list. */
 	for (i = 0; i < lsm_tree->nold_chunks; i++) {
 		if ((chunk = lsm_tree->old_chunks[i]) == NULL)
 			continue;
-		WT_ERR(__wt_schema_drop(session, chunk->uri, cfg));
+		WT_ERR(__wt_schema_drop(session, chunk->uri, false, cfg));
 		if (F_ISSET(chunk, WT_LSM_CHUNK_BLOOM))
 			WT_ERR(
-			    __wt_schema_drop(session, chunk->bloom_uri, cfg));
+			    __wt_schema_drop(session, chunk->bloom_uri, false,
+			    cfg));
 	}
 
 	locked = false;
@@ -1068,7 +1070,8 @@ err:	if (locked)
 		__wt_lsm_tree_writeunlock(session, lsm_tree);
 	if (ret != 0) {
 		if (chunk != NULL) {
-			WT_TRET(__wt_schema_drop(session, chunk->uri, NULL));
+			WT_TRET(__wt_schema_drop(session, chunk->uri, false,
+			    NULL));
 			__wt_free(session, chunk);
 		}
 		/*

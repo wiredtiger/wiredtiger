@@ -675,22 +675,36 @@ struct __wt_cursor {
 	 */
 	const char *internal_uri;
 
+	/*
+	 * !!!
+	 * Explicit representations of structures from bitmap.h.
+	 * WT_BITMAP cache_data_sources;
+	 */
+	struct {
+		uint8_t *bitstring;
+
+		uint64_t cnt;
+		uint64_t size;
+	} data_sources;			/* Data sources for cached cursors */
+
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define	WT_CURSTD_APPEND	0x0001u
-#define	WT_CURSTD_BULK		0x0002u
-#define	WT_CURSTD_DUMP_HEX	0x0004u
-#define	WT_CURSTD_DUMP_JSON	0x0008u
-#define	WT_CURSTD_DUMP_PRINT	0x0010u
-#define	WT_CURSTD_JOINED	0x0020u
-#define	WT_CURSTD_KEY_EXT	0x0040u	/* Key points out of the tree. */
-#define	WT_CURSTD_KEY_INT	0x0080u	/* Key points into the tree. */
-#define	WT_CURSTD_META_INUSE	0x0100u
-#define	WT_CURSTD_OPEN		0x0200u
-#define	WT_CURSTD_OVERWRITE	0x0400u
-#define	WT_CURSTD_RAW		0x0800u
-#define	WT_CURSTD_RAW_SEARCH	0x1000u
-#define	WT_CURSTD_VALUE_EXT	0x2000u	/* Value points out of the tree. */
-#define	WT_CURSTD_VALUE_INT	0x4000u	/* Value points into the tree. */
+#define	WT_CURSTD_APPEND	0x00001u
+#define	WT_CURSTD_BULK		0x00002u
+#define	WT_CURSTD_CACHEABLE	0x00004u
+#define	WT_CURSTD_CACHED	0x00008u
+#define	WT_CURSTD_DUMP_HEX	0x00010u
+#define	WT_CURSTD_DUMP_JSON	0x00020u
+#define	WT_CURSTD_DUMP_PRINT	0x00040u
+#define	WT_CURSTD_JOINED	0x00080u
+#define	WT_CURSTD_KEY_EXT	0x00100u	/* Key points out of tree. */
+#define	WT_CURSTD_KEY_INT	0x00200u	/* Key points into tree. */
+#define	WT_CURSTD_META_INUSE	0x00400u
+#define	WT_CURSTD_OPEN		0x00800u
+#define	WT_CURSTD_OVERWRITE	0x01000u
+#define	WT_CURSTD_RAW		0x02000u
+#define	WT_CURSTD_RAW_SEARCH	0x04000u
+#define	WT_CURSTD_VALUE_EXT	0x08000u	/* Value points out of tree. */
+#define	WT_CURSTD_VALUE_INT	0x10000u	/* Value points into tree. */
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 #define	WT_CURSTD_KEY_SET	(WT_CURSTD_KEY_EXT | WT_CURSTD_KEY_INT)
 #define	WT_CURSTD_VALUE_SET	(WT_CURSTD_VALUE_EXT | WT_CURSTD_VALUE_INT)
@@ -942,6 +956,15 @@ struct __wt_session {
 	 *
 	 * @param session the session handle
 	 * @configstart{WT_SESSION.reconfigure, see dist/api_data.py}
+	 * @config{cache_cursors, enable caching of cursors for reuse.  Any
+	 * calls to WT_CURSOR::close for a cursor created in this session will
+	 * mark the cursor as cached and keep it available to be reused for
+	 * later calls to WT_SESSION::open_cursor.  Cached cursors may be
+	 * eventually closed.  When a session is closed\, its set of cached
+	 * cursors may be made available to another session created with
+	 * WT_CONNECTION::open_session.  This flag requires ::wiredtiger_open or
+	 * WT_CONNECTION::reconfigure to be called with \c cache_cursors
+	 * enabled., a boolean flag; default empty.}
 	 * @config{ignore_cache_size, when set\, operations performed by this
 	 * session ignore the cache size and are not blocked when the cache is
 	 * full.  Note that use of this option for operations that create cache
@@ -951,6 +974,13 @@ struct __wt_session {
 	 * session., a string\, chosen from the following options: \c
 	 * "read-uncommitted"\, \c "read-committed"\, \c "snapshot"; default \c
 	 * read-committed.}
+	 * @config{run_state, the state of the session for purposes of cursor
+	 * caching.  A state of \c running signifies normal operation.  Setting
+	 * the state to \c idle allows any cached cursors to be silently closed
+	 * as necessary.  During \c idle\, no operations other than \c
+	 * reconfigure to a \c running state are allowed., a string\, chosen
+	 * from the following options: \c "idle"\, \c "running"; default \c
+	 * running.}
 	 * @configend
 	 * @errors
 	 */
@@ -2299,6 +2329,15 @@ struct __wt_connection {
 	 * connection's error handler is used. See @ref error_handling_event
 	 * for more information.
 	 * @configstart{WT_CONNECTION.open_session, see dist/api_data.py}
+	 * @config{cache_cursors, enable caching of cursors for reuse.  Any
+	 * calls to WT_CURSOR::close for a cursor created in this session will
+	 * mark the cursor as cached and keep it available to be reused for
+	 * later calls to WT_SESSION::open_cursor.  Cached cursors may be
+	 * eventually closed.  When a session is closed\, its set of cached
+	 * cursors may be made available to another session created with
+	 * WT_CONNECTION::open_session.  This flag requires ::wiredtiger_open or
+	 * WT_CONNECTION::reconfigure to be called with \c cache_cursors
+	 * enabled., a boolean flag; default empty.}
 	 * @config{ignore_cache_size, when set\, operations performed by this
 	 * session ignore the cache size and are not blocked when the cache is
 	 * full.  Note that use of this option for operations that create cache
@@ -2308,6 +2347,13 @@ struct __wt_connection {
 	 * session., a string\, chosen from the following options: \c
 	 * "read-uncommitted"\, \c "read-committed"\, \c "snapshot"; default \c
 	 * read-committed.}
+	 * @config{run_state, the state of the session for purposes of cursor
+	 * caching.  A state of \c running signifies normal operation.  Setting
+	 * the state to \c idle allows any cached cursors to be silently closed
+	 * as necessary.  During \c idle\, no operations other than \c
+	 * reconfigure to a \c running state are allowed., a string\, chosen
+	 * from the following options: \c "idle"\, \c "running"; default \c
+	 * running.}
 	 * @configend
 	 * @param[out] sessionp the new session handle
 	 * @errors
@@ -2610,6 +2656,8 @@ struct __wt_connection {
  * as the \c config parameter (for example\,
  * <code>builtin_extension_config={zlib={compression_level=3}}</code>)., a
  * string; default empty.}
+ * @config{cache_cursors, enable infrastructure for caching cursors., a string;
+ * default \c false.}
  * @config{cache_overhead, assume the heap allocator overhead is the specified
  * percentage\, and adjust the cache usage by that amount (for example\, if
  * there is 10GB of data in cache\, a percentage of 10 means WiredTiger treats
