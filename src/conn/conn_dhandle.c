@@ -678,8 +678,8 @@ restart:
 			continue;
 
 		WT_WITH_DHANDLE(session, dhandle,
-		    WT_TRET(__wt_conn_dhandle_discard_single(
-		    session, true, F_ISSET(conn, WT_CONN_IN_MEMORY))));
+		    WT_TRET(__wt_conn_dhandle_discard_single(session, true,
+		    F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_PANIC))));
 		goto restart;
 	}
 
@@ -704,8 +704,8 @@ restart:
 	/* Close the metadata file handle. */
 	while ((dhandle = TAILQ_FIRST(&conn->dhqh)) != NULL)
 		WT_WITH_DHANDLE(session, dhandle,
-		    WT_TRET(__wt_conn_dhandle_discard_single(
-		    session, true, F_ISSET(conn, WT_CONN_IN_MEMORY))));
+		    WT_TRET(__wt_conn_dhandle_discard_single(session, true,
+		    F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_PANIC))));
 
 	return (ret);
 }
