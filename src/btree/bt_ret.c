@@ -180,8 +180,10 @@ __wt_value_return_upd(WT_SESSION_IMPL *session,
 			continue;
 
 		if (!ignore_visibility && !__wt_txn_upd_visible(session, upd)) {
-			if (upd->type == WT_UPDATE_BIRTHMARK)
+			if (upd->type == WT_UPDATE_BIRTHMARK) {
 				skipped_birthmark = true;
+				break;
+			}
 			continue;
 		}
 
@@ -216,7 +218,9 @@ __wt_value_return_upd(WT_SESSION_IMPL *session,
 	 * If we hit the end of the chain, roll forward from the update item we
 	 * found, otherwise, from the original page's value.
 	 */
-	if (upd == NULL && !skipped_birthmark) {
+	if (skipped_birthmark)
+		WT_ERR(__wt_buf_set(session, &cursor->value, "", 0));
+	else if (upd == NULL) {
 		/*
 		 * Callers of this function set the cursor slot to an impossible
 		 * value to check we're not trying to return on-page values when
@@ -228,7 +232,7 @@ __wt_value_return_upd(WT_SESSION_IMPL *session,
 		WT_ASSERT(session, cbt->slot != UINT32_MAX);
 
 		WT_ERR(__value_return(session, cbt));
-	} else if (upd->type == WT_UPDATE_TOMBSTONE || skipped_birthmark)
+	} else if (upd->type == WT_UPDATE_TOMBSTONE)
 		WT_ERR(__wt_buf_set(session, &cursor->value, "", 0));
 	else
 		WT_ERR(__wt_buf_set(session,
