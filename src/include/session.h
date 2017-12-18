@@ -67,7 +67,6 @@ struct __wt_session_impl {
 	TAILQ_HEAD(__dhandles, __wt_data_handle_cache) dhandles;
 	time_t last_sweep;		/* Last sweep for dead handles */
 	struct timespec last_epoch;	/* Last epoch time returned */
-	uint64_t last_tsc;		/* Last tsc value returned */
 
 					/* Cursors closed with the session */
 	TAILQ_HEAD(__cursors, __wt_cursor) cursors;

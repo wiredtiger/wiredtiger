@@ -81,7 +81,13 @@ __wt_tsc_to_nsec(WT_SESSION_IMPL *session, uint64_t end, uint64_t begin)
 {
 	double tsc_diff;
 
-	WT_ASSERT(session, end >= begin);
+	/*
+	 * If the ticks were reset, consider it an invalid check and just
+	 * return zero as the time difference because we cannot compute
+	 * anything meaningful.
+	 */
+	if (end < begin)
+		return (0);
 	tsc_diff = (double)(end - begin);
 	return ((uint64_t)(tsc_diff / S2C(session)->tsc_nsec_ratio));
 }
