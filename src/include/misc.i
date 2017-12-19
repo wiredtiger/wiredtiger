@@ -35,22 +35,22 @@ __wt_hex(int c)
  */
 static inline uint64_t
 __wt_rdtsc(WT_SESSION_IMPL *session) {
-#if (defined __i386)
+	if (F_ISSET(S2C(session), WT_CONN_USE_EPOCHTIME))
+		return (__wt_optrack_get_expensive_timestamp(session));
+#if defined (__i386)
+	{
 	uint64_t x;
-
-	WT_UNUSED(session);
 
 	__asm__ volatile ("rdtsc" : "=A" (x));
 	return (x);
-#elif (defined __amd64)
+	}
+#elif defined (__amd64)
+	{
 	uint64_t a, d;
-
-	WT_UNUSED(session);
 
 	__asm__ volatile ("rdtsc" : "=a" (a), "=d" (d));
 	return ((d << 32) | a);
-#else
-	return (__wt_optrack_get_expensive_timestamp(session));
+	}
 #endif
 }
 

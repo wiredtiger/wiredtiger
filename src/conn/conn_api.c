@@ -1292,7 +1292,7 @@ err:	API_END_RET(session, ret);
 static void
 __conn_calibrate_ticks(WT_SESSION_IMPL *session)
 {
-#if (defined __i386) || (defined __amd64)
+#if defined (__i386) || defined (__amd64)
 	struct timespec start, stop;
 	uint64_t diff_nsec, diff_tsc, min_nsec, min_tsc;
 	uint64_t tries, tsc_start, tsc_stop;
@@ -1327,9 +1327,20 @@ __conn_calibrate_ticks(WT_SESSION_IMPL *session)
 		else
 			min_tsc = WT_MIN(min_tsc, diff_tsc);
 	}
-	WT_ASSERT(session, min_nsec != 0 && min_tsc != 0);
-	S2C(session)->tsc_nsec_ratio = (double)min_tsc/(double)min_nsec;
+
+	/*
+	 * If we couldn't get a good reading then fallback to getting
+	 * time with wt_epoch. One possible reason is that the system's
+	 * clock granularity is not fine-grained enough.
+	 */
+	if (min_nsec == 0) {
+		F_SET(S2C(session), WT_CONN_USE_EPOCHTIME);
+		S2C(session)->tsc_nsec_ratio = 1.0;
+	} else
+		S2C(session)->tsc_nsec_ratio =
+		    (double)min_tsc / (double)min_nsec;
 #else
+	F_SET(S2C(session), WT_CONN_USE_EPOCHTIME);
 	S2C(session)->tsc_nsec_ratio = 1.0;
 #endif
 }
