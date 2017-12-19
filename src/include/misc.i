@@ -36,7 +36,7 @@ __wt_hex(int c)
 static inline uint64_t
 __wt_rdtsc(WT_SESSION_IMPL *session) {
 	if (F_ISSET(S2C(session), WT_CONN_USE_EPOCHTIME))
-		return (__wt_optrack_get_expensive_timestamp(session));
+		return (__wt_tsc_get_expensive_timestamp(session));
 #if defined (__i386)
 	{
 	uint64_t x;
@@ -52,7 +52,7 @@ __wt_rdtsc(WT_SESSION_IMPL *session) {
 	return ((d << 32) | a);
 	}
 #else
-	return (__wt_optrack_get_expensive_timestamp(session));
+	return (__wt_tsc_get_expensive_timestamp(session));
 #endif
 }
 
