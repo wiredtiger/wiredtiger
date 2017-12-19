@@ -2295,8 +2295,8 @@ struct __wt_connection {
 	 * @snippet ex_all.c Open a session
 	 *
 	 * @param connection the connection handle
-	 * @param errhandler An error handler.  If <code>NULL</code>, the
-	 * connection's error handler is used. See @ref error_handling_event
+	 * @param event_handler An event handler. If <code>NULL</code>, the
+	 * connection's event handler is used. See @ref event_message_handling
 	 * for more information.
 	 * @configstart{WT_CONNECTION.open_session, see dist/api_data.py}
 	 * @config{ignore_cache_size, when set\, operations performed by this
@@ -2313,7 +2313,7 @@ struct __wt_connection {
 	 * @errors
 	 */
 	int __F(open_session)(WT_CONNECTION *connection,
-	    WT_EVENT_HANDLER *errhandler, const char *config,
+	    WT_EVENT_HANDLER *event_handler, const char *config,
 	    WT_SESSION **sessionp);
 	/*! @} */
 
@@ -2587,7 +2587,7 @@ struct __wt_connection {
  * for more information.
  * @param event_handler An event handler. If <code>NULL</code>, a default
  * event handler is installed that writes error messages to stderr. See
- * @ref error_handling_event for more information.
+ * @ref event_message_handling for more information.
  * @configstart{wiredtiger_open, see dist/api_data.py}
  * @config{async = (, asynchronous operations configuration options., a set of
  * related configuration options defined below.}
@@ -2955,14 +2955,15 @@ struct __wt_async_callback {
 struct __wt_event_handler {
 	/*!
 	 * Callback to handle error messages; by default, error messages are
-	 * written to the stderr stream. See @ref error_handling.
+	 * written to the stderr stream. See @ref event_message_handling for
+	 * more information.
 	 *
 	 * Errors that require the application to exit and restart will have
 	 * their \c error value set to \c WT_PANIC. The application can exit
-	 * immediately when \c WT_PANIC is passed to an error handler, there
+	 * immediately when \c WT_PANIC is passed to an event handler, there
 	 * is no reason to return into WiredTiger.
 	 *
-	 * Error handler returns are not ignored: if the handler returns
+	 * Event handler returns are not ignored: if the handler returns
 	 * non-zero, the error may cause the WiredTiger function posting the
 	 * event to fail, and may even cause operation or library failure.
 	 *
@@ -2979,7 +2980,8 @@ struct __wt_event_handler {
 
 	/*!
 	 * Callback to handle informational messages; by default, informational
-	 * messages are written to the stdout stream. See @ref error_handling.
+	 * messages are written to the stdout stream. See
+	 * @ref event_message_handling for more information.
 	 *
 	 * Message handler returns are not ignored: if the handler returns
 	 * non-zero, the error may cause the WiredTiger function posting the
@@ -2994,8 +2996,9 @@ struct __wt_event_handler {
 	    WT_SESSION *session, const char *message);
 
 	/*!
-	 * Callback to handle progress messages; by default, no progress
-	 * messages are written. See @ref error_handling.
+	 * Callback to handle progress messages; by default, progress messages
+	 * are not written. See @ref event_message_handling for more
+	 * information.
 	 *
 	 * Progress handler returns are not ignored: if the handler returns
 	 * non-zero, the error may cause the WiredTiger function posting the
