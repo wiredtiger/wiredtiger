@@ -51,6 +51,8 @@ __wt_rdtsc(WT_SESSION_IMPL *session) {
 	__asm__ volatile ("rdtsc" : "=a" (a), "=d" (d));
 	return ((d << 32) | a);
 	}
+#else
+	return (__wt_optrack_get_expensive_timestamp(session));
 #endif
 }
 
