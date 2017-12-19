@@ -90,6 +90,7 @@ __curfile_next(WT_CURSOR *cursor)
 
 	/* Next maintains a position, key and value. */
 	WT_ASSERT(session,
+	    F_ISSET(cbt, WT_CBT_ACTIVE) &&
 	    F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
 	    F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
@@ -115,6 +116,7 @@ __wt_curfile_next_random(WT_CURSOR *cursor)
 
 	/* Next-random maintains a position, key and value. */
 	WT_ASSERT(session,
+	    F_ISSET(cbt, WT_CBT_ACTIVE) &&
 	    F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
 	    F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
@@ -139,6 +141,7 @@ __curfile_prev(WT_CURSOR *cursor)
 
 	/* Prev maintains a position, key and value. */
 	WT_ASSERT(session,
+	    F_ISSET(cbt, WT_CBT_ACTIVE) &&
 	    F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
 	    F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
@@ -163,6 +166,7 @@ __curfile_reset(WT_CURSOR *cursor)
 
 	/* Reset maintains no position, key or value. */
 	WT_ASSERT(session,
+	    !F_ISSET(cbt, WT_CBT_ACTIVE) &&
 	    F_MASK(cursor, WT_CURSTD_KEY_SET) == 0 &&
 	    F_MASK(cursor, WT_CURSTD_VALUE_SET) == 0);
 
@@ -188,6 +192,7 @@ __curfile_search(WT_CURSOR *cursor)
 
 	/* Search maintains a position, key and value. */
 	WT_ASSERT(session,
+	    F_ISSET(cbt, WT_CBT_ACTIVE) &&
 	    F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
 	    F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
@@ -213,6 +218,7 @@ __curfile_search_near(WT_CURSOR *cursor, int *exact)
 
 	/* Search-near maintains a position, key and value. */
 	WT_ASSERT(session,
+	    F_ISSET(cbt, WT_CBT_ACTIVE) &&
 	    F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
 	    F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
@@ -244,10 +250,12 @@ __curfile_insert(WT_CURSOR *cursor)
 	 * appends, where we are returning a key).
 	 */
 	WT_ASSERT(session,
-	    (F_ISSET(cursor, WT_CURSTD_APPEND) &&
-	    F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT) ||
+	    !F_ISSET(cbt, WT_CBT_ACTIVE) &&
+	    ((F_ISSET(cursor, WT_CURSTD_APPEND) &&
+	    F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_EXT) ||
 	    (!F_ISSET(cursor, WT_CURSTD_APPEND) &&
-	    F_MASK(cursor, WT_CURSTD_KEY_SET) == 0));
+	    F_MASK(cursor, WT_CURSTD_KEY_SET) == 0)));
+	WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_VALUE_SET) == 0);
 
 err:	CURSOR_UPDATE_API_END(session, ret);
 	return (ret);
@@ -307,6 +315,7 @@ __curfile_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 	 * always an internal value.
 	 */
 	WT_ASSERT(session,
+	    F_ISSET(cbt, WT_CBT_ACTIVE) &&
 	    F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
 	WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_VALUE_SET) != 0);
 
@@ -334,6 +343,7 @@ __curfile_update(WT_CURSOR *cursor)
 
 	/* Update maintains a position, key and value. */
 	WT_ASSERT(session,
+	    F_ISSET(cbt, WT_CBT_ACTIVE) &&
 	    F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT &&
 	    F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
@@ -360,13 +370,10 @@ __curfile_remove(WT_CURSOR *cursor)
 
 	/*
 	 * Remove with a search-key is fire-and-forget, no position and no key.
-	 * Remove starting from a position maintains the position and a key.
-	 * We don't know which it was at this layer, so can only assert the key
-	 * is not set at all, or internal. There's never a value.
+	 * Remove starting from a position maintains the position and a key,
+	 * but the key can end up being internal, external, or not set, there's
+	 * nothing to assert. There's never a value.
 	 */
-	WT_ASSERT(session,
-	    F_MASK(cursor, WT_CURSTD_KEY_SET) == 0 ||
-	    F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
 	WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_VALUE_SET) == 0);
 
 err:	CURSOR_UPDATE_API_END(session, ret);
@@ -398,6 +405,7 @@ __curfile_reserve(WT_CURSOR *cursor)
 	 * each successful reserve operation.
 	 */
 	WT_ASSERT(session,
+	    F_ISSET(cbt, WT_CBT_ACTIVE) &&
 	    F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
 	WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_VALUE_SET) == 0);
 
