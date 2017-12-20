@@ -1091,8 +1091,10 @@ done:	if (ret == 0) {
 		}
 	}
 
-	if (ret != 0)
+	if (ret != 0) {
+		WT_TRET(__cursor_reset(cbt));
 		__cursor_state_restore(cursor, &state);
+	}
 
 	return (ret);
 }
