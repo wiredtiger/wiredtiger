@@ -1064,11 +1064,11 @@ __debug_row_skip(WT_DBG *ds, WT_INSERT_HEAD *head)
 }
 
 /*
- * __debug_modified --
- *	Dump a modified update.
+ * __debug_modify --
+ *	Dump a modify update.
  */
 static int
-__debug_modified(WT_DBG *ds, WT_UPDATE *upd)
+__debug_modify(WT_DBG *ds, WT_UPDATE *upd)
 {
 	size_t nentries, data_size, offset, size;
 	const size_t *p;
@@ -1103,16 +1103,19 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 {
 	for (; upd != NULL; upd = upd->next) {
 		switch (upd->type) {
-		case WT_UPDATE_DELETED:
-			WT_RET(ds->f(ds, "\tvalue {deleted}\n"));
+		case WT_UPDATE_INVALID:
+			WT_RET(ds->f(ds, "\tvalue {invalid}\n"));
 			break;
-		case WT_UPDATE_MODIFIED:
-			WT_RET(ds->f(ds, "\tvalue {modified: "));
-			WT_RET(__debug_modified(ds, upd));
+		case WT_UPDATE_BIRTHMARK:
+			WT_RET(ds->f(ds, "\tvalue {birthmark}\n"));
+			break;
+		case WT_UPDATE_MODIFY:
+			WT_RET(ds->f(ds, "\tvalue {modify: "));
+			WT_RET(__debug_modify(ds, upd));
 			WT_RET(ds->f(ds, "}\n"));
 			break;
-		case WT_UPDATE_RESERVED:
-			WT_RET(ds->f(ds, "\tvalue {reserved}\n"));
+		case WT_UPDATE_RESERVE:
+			WT_RET(ds->f(ds, "\tvalue {reserve}\n"));
 			break;
 		case WT_UPDATE_STANDARD:
 			if (hexbyte) {
@@ -1122,6 +1125,9 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 			} else
 				WT_RET(__debug_item(ds,
 				    "value", upd->data, upd->size));
+			break;
+		case WT_UPDATE_TOMBSTONE:
+			WT_RET(ds->f(ds, "\tvalue {tombstone}\n"));
 			break;
 		}
 		if (upd->txnid == WT_TXN_ABORTED)
