@@ -141,8 +141,8 @@ __wt_buf_catfmt(WT_SESSION_IMPL *session, WT_ITEM *buf, const char *fmt, ...)
 
 /*
  * __wt_buf_set_printable --
- *	Set the contents of the buffer to a printable representation of a
- * byte string.
+ *	Set the contents of the buffer to a printable representation of a byte
+ * string.
  */
 const char *
 __wt_buf_set_printable(
@@ -153,6 +153,89 @@ __wt_buf_set_printable(
 		buf->size = strlen("[Error]");
 	}
 	return (buf->data);
+}
+
+/*
+ * __wt_buf_set_printable_format --
+ *	Set the contents of the buffer to a printable representation of a byte
+ * string, based on a format.
+ */
+const char *
+__wt_buf_set_printable_format(WT_SESSION_IMPL *session,
+    const void *p, size_t size, const char *format, WT_ITEM *buf)
+{
+	WT_DECL_ITEM(tmp);
+	WT_DECL_PACK_VALUE(pv);
+	WT_DECL_RET;
+	WT_PACK_STREAM *ps;
+	WT_SESSION *wt_session;
+	const char *retp, *sep;
+
+	ps = NULL;
+	wt_session = (WT_SESSION *)session;
+
+	WT_ERR(__wt_buf_init(session, buf, 32));
+
+	WT_ERR(wiredtiger_unpack_start(wt_session, format, p, size, &ps));
+
+	for (sep = ""; *format != '\0'; ++format)
+		switch (*format) {
+		case '.':
+		case '>':
+		case '<':
+		case '@':
+		case 'x':
+			break;
+		case 'b':
+		case 'h':
+		case 'i':
+		case 'l':
+		case 'q':
+			WT_ERR(wiredtiger_unpack_int(ps, &pv.u.i));
+			WT_ERR(__wt_buf_catfmt(
+			    session, buf, "%s%" PRId64, sep, pv.u.i));
+			sep = ",";
+			break;
+		case 'B':
+		case 'H':
+		case 'I':
+		case 'L':
+		case 'Q':
+		case 'r':
+		case 't':
+			WT_ERR(wiredtiger_unpack_uint(ps, &pv.u.u));
+			WT_ERR(__wt_buf_catfmt(
+			    session, buf, "%s%" PRIu64, sep, pv.u.u));
+			sep = ",";
+			break;
+		case 's':
+		case 'S':
+			WT_ERR(wiredtiger_unpack_str(ps, &pv.u.s));
+			WT_ERR(__wt_buf_catfmt(
+			    session, buf, "%s%s", sep,  pv.u.s));
+			sep = ",";
+			break;
+		case 'u':
+			if (tmp == NULL)
+				WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+			WT_ERR(wiredtiger_unpack_item(ps, &pv.u.item));
+			WT_ERR(__wt_buf_catfmt(session, buf, "%s%s",
+			    sep, __wt_buf_set_printable(
+			    session, pv.u.item.data, pv.u.item.size, tmp)));
+			break;
+		WT_ILLEGAL_VALUE_ERR(session);
+		}
+
+err:	if (ps != NULL)
+		WT_TRET(wiredtiger_pack_close(ps, NULL));
+
+	__wt_scr_free(session, &tmp);
+	if (ret == 0)
+		return ((const char *)buf->data);
+
+	retp = "failed to create printable output";
+	__wt_err(session, ret, "%s: %s", __func__, retp);
+	return (retp);
 }
 
 /*

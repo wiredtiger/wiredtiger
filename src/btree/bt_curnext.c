@@ -421,9 +421,10 @@ __cursor_key_order_check_row(
 	WT_PANIC_ERR(session, EINVAL,
 	    "WT_CURSOR.%s out-of-order returns: returned key %s then key %s",
 	    next ? "next" : "prev",
-	    __wt_buf_set_printable(
-	    session, cbt->lastkey->data, cbt->lastkey->size, a),
-	    __wt_buf_set_printable(session, key->data, key->size, b));
+	    __wt_buf_set_printable_format(session,
+	    cbt->lastkey->data, cbt->lastkey->size, btree->key_format, a),
+	    __wt_buf_set_printable_format(session,
+	    key->data, key->size, btree->key_format, b));
 
 err:	__wt_scr_free(session, &a);
 	__wt_scr_free(session, &b);
