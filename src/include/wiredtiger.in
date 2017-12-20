@@ -5211,49 +5211,49 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! log: yields waiting for previous log file close */
 #define	WT_STAT_CONN_LOG_CLOSE_YIELDS			1215
 /*! perf: file system read latency histogram - 10-49ms */
-#define	WT_STAT_CONN_PERF_HIST_READFS_LATENCY_LT50	1216
+#define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT50	1216
 /*! perf: file system read latency histogram - 100-249ms */
-#define	WT_STAT_CONN_PERF_HIST_READFS_LATENCY_LT250	1217
+#define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT250	1217
 /*! perf: file system read latency histogram - 1000ms+ */
-#define	WT_STAT_CONN_PERF_HIST_READFS_LATENCY_GT1000	1218
+#define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_GT1000	1218
 /*! perf: file system read latency histogram - 250-499ms */
-#define	WT_STAT_CONN_PERF_HIST_READFS_LATENCY_LT500	1219
+#define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT500	1219
 /*! perf: file system read latency histogram - 50-99ms */
-#define	WT_STAT_CONN_PERF_HIST_READFS_LATENCY_LT100	1220
+#define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT100	1220
 /*! perf: file system read latency histogram - 500-999ms */
-#define	WT_STAT_CONN_PERF_HIST_READFS_LATENCY_LT1000	1221
+#define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT1000	1221
 /*! perf: file system write latency histogram - 10-49ms */
-#define	WT_STAT_CONN_PERF_HIST_WRITEFS_LATENCY_LT50	1222
+#define	WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_LT50	1222
 /*! perf: file system write latency histogram - 100-249ms */
-#define	WT_STAT_CONN_PERF_HIST_WRITEFS_LATENCY_LT250	1223
+#define	WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_LT250	1223
 /*! perf: file system write latency histogram - 1000ms+ */
-#define	WT_STAT_CONN_PERF_HIST_WRITEFS_LATENCY_GT1000	1224
+#define	WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_GT1000	1224
 /*! perf: file system write latency histogram - 250-499ms */
-#define	WT_STAT_CONN_PERF_HIST_WRITEFS_LATENCY_LT500	1225
+#define	WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_LT500	1225
 /*! perf: file system write latency histogram - 50-99ms */
-#define	WT_STAT_CONN_PERF_HIST_WRITEFS_LATENCY_LT100	1226
+#define	WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_LT100	1226
 /*! perf: file system write latency histogram - 500-999ms */
-#define	WT_STAT_CONN_PERF_HIST_WRITEFS_LATENCY_LT1000	1227
+#define	WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_LT1000	1227
 /*! perf: operation read latency histogram - 100-249us */
-#define	WT_STAT_CONN_PERF_HIST_READOP_LATENCY_LT250	1228
+#define	WT_STAT_CONN_PERF_HIST_OPREAD_LATENCY_LT250	1228
 /*! perf: operation read latency histogram - 1000-9999us */
-#define	WT_STAT_CONN_PERF_HIST_READOP_LATENCY_LT10000	1229
+#define	WT_STAT_CONN_PERF_HIST_OPREAD_LATENCY_LT10000	1229
 /*! perf: operation read latency histogram - 10000us+ */
-#define	WT_STAT_CONN_PERF_HIST_READOP_LATENCY_GT10000	1230
+#define	WT_STAT_CONN_PERF_HIST_OPREAD_LATENCY_GT10000	1230
 /*! perf: operation read latency histogram - 250-499us */
-#define	WT_STAT_CONN_PERF_HIST_READOP_LATENCY_LT500	1231
+#define	WT_STAT_CONN_PERF_HIST_OPREAD_LATENCY_LT500	1231
 /*! perf: operation read latency histogram - 500-999us */
-#define	WT_STAT_CONN_PERF_HIST_READOP_LATENCY_LT1000	1232
+#define	WT_STAT_CONN_PERF_HIST_OPREAD_LATENCY_LT1000	1232
 /*! perf: operation write latency histogram - 100-249us */
-#define	WT_STAT_CONN_PERF_HIST_WRITEOP_LATENCY_LT250	1233
+#define	WT_STAT_CONN_PERF_HIST_OPWRITE_LATENCY_LT250	1233
 /*! perf: operation write latency histogram - 1000-9999us */
-#define	WT_STAT_CONN_PERF_HIST_WRITEOP_LATENCY_LT10000	1234
+#define	WT_STAT_CONN_PERF_HIST_OPWRITE_LATENCY_LT10000	1234
 /*! perf: operation write latency histogram - 10000us+ */
-#define	WT_STAT_CONN_PERF_HIST_WRITEOP_LATENCY_GT10000	1235
+#define	WT_STAT_CONN_PERF_HIST_OPWRITE_LATENCY_GT10000	1235
 /*! perf: operation write latency histogram - 250-499us */
-#define	WT_STAT_CONN_PERF_HIST_WRITEOP_LATENCY_LT500	1236
+#define	WT_STAT_CONN_PERF_HIST_OPWRITE_LATENCY_LT500	1236
 /*! perf: operation write latency histogram - 500-999us */
-#define	WT_STAT_CONN_PERF_HIST_WRITEOP_LATENCY_LT1000	1237
+#define	WT_STAT_CONN_PERF_HIST_OPWRITE_LATENCY_LT1000	1237
 /*! reconciliation: fast-path pages deleted */
 #define	WT_STAT_CONN_REC_PAGE_DELETE_FAST		1238
 /*! reconciliation: page reconciliation calls */

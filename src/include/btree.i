@@ -1725,17 +1725,16 @@ __wt_stat_read_op_histogram(WT_SESSION_IMPL *session, uint64_t usecs)
 	if (usecs  < 100)
 		return;
 
-	if (usecs < 250) {
-		WT_STAT_CONN_INCR(session, perf_hist_readop_latency_lt250);
-	} else if (usecs < 500) {
-		WT_STAT_CONN_INCR(session, perf_hist_readop_latency_lt500);
-	} else if (usecs < 1000) {
-		WT_STAT_CONN_INCR(session, perf_hist_readop_latency_lt1000);
-	} else if (usecs < 10000) {
-		WT_STAT_CONN_INCR(session, perf_hist_readop_latency_lt10000);
-	} else {
-		WT_STAT_CONN_INCR(session, perf_hist_readop_latency_gt10000);
-	}
+	if (usecs < 250)
+		WT_STAT_CONN_INCR(session, perf_hist_opread_latency_lt250);
+	else if (usecs < 500)
+		WT_STAT_CONN_INCR(session, perf_hist_opread_latency_lt500);
+	else if (usecs < 1000)
+		WT_STAT_CONN_INCR(session, perf_hist_opread_latency_lt1000);
+	else if (usecs < 10000)
+		WT_STAT_CONN_INCR(session, perf_hist_opread_latency_lt10000);
+	else
+		WT_STAT_CONN_INCR(session, perf_hist_opread_latency_gt10000);
 }
 
 /*
@@ -1755,15 +1754,14 @@ __wt_stat_write_op_histogram(WT_SESSION_IMPL *session, uint64_t usecs)
 	if (usecs  < 100)
 		return;
 
-	if (usecs < 250) {
-		WT_STAT_CONN_INCR(session, perf_hist_writeop_latency_lt250);
-	} else if (usecs < 500) {
-		WT_STAT_CONN_INCR(session, perf_hist_writeop_latency_lt500);
-	} else if (usecs < 1000) {
-		WT_STAT_CONN_INCR(session, perf_hist_writeop_latency_lt1000);
-	} else if (usecs < 10000) {
-		WT_STAT_CONN_INCR(session, perf_hist_writeop_latency_lt10000);
-	} else {
-		WT_STAT_CONN_INCR(session, perf_hist_writeop_latency_gt10000);
-	}
+	if (usecs < 250)
+		WT_STAT_CONN_INCR(session, perf_hist_opwrite_latency_lt250);
+	else if (usecs < 500)
+		WT_STAT_CONN_INCR(session, perf_hist_opwrite_latency_lt500);
+	else if (usecs < 1000)
+		WT_STAT_CONN_INCR(session, perf_hist_opwrite_latency_lt1000);
+	else if (usecs < 10000)
+		WT_STAT_CONN_INCR(session, perf_hist_opwrite_latency_lt10000);
+	else
+		WT_STAT_CONN_INCR(session, perf_hist_opwrite_latency_gt10000);
 }
