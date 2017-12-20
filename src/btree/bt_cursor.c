@@ -75,7 +75,7 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt)
 	if (cbt->ref->page->read_gen == WT_READGEN_OLDEST)
 		return (false);
 
-	if (cbt->ref->state == WT_REF_LIMBO &&
+	if (cbt->ref->state != WT_REF_MEM &&
 	    F_ISSET(&session->txn, WT_TXN_UPDATE))
 		return (false);
 
