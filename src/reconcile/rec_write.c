@@ -1421,6 +1421,15 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	}
 
 	/*
+	 * The checkpoint transaction is special.  Make sure we never write
+	 * metadata updates from a checkpoint in a concurrent session.
+	 */
+	WT_ASSERT(session, !WT_IS_METADATA(session->dhandle) ||
+	    *updp == NULL || (*updp)->txnid == WT_TXN_NONE ||
+	    (*updp)->txnid != S2C(session)->txn_global.checkpoint_state.id ||
+	    WT_SESSION_IS_CHECKPOINT(session));
+
+	/*
 	 * Track the most recent transaction in the page.  We store this in the
 	 * tree at the end of reconciliation in the service of checkpoints, it
 	 * is used to avoid discarding trees from memory when they have changes
@@ -1430,19 +1439,27 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		r->max_txn = max_txn;
 
 #ifdef HAVE_TIMESTAMPS
+	/* Update the maximum timestamp. */
 	if (first_ts_upd != NULL &&
 	    __wt_timestamp_cmp(&r->max_timestamp, &first_ts_upd->timestamp) < 0)
 		__wt_timestamp_set(&r->max_timestamp, &first_ts_upd->timestamp);
+
+	/* Update the maximum on-page timestamp. */
+	if ((upd = *updp) != NULL &&
+	    __wt_timestamp_cmp(&upd->timestamp, &r->max_onpage_timestamp) > 0)
+		__wt_timestamp_set(&r->max_onpage_timestamp, &upd->timestamp);
 #endif
 
 	/*
-	 * The checkpoint transaction is special.  Make sure we never write
-	 * metadata updates from a checkpoint in a concurrent session.
+	 * If the update we chose was a birthmark, or doing update-restore and
+	 * we skipped a birthmark, the original on-page value must be retained.
 	 */
-	WT_ASSERT(session, !WT_IS_METADATA(session->dhandle) ||
-	    *updp == NULL || (*updp)->txnid == WT_TXN_NONE ||
-	    (*updp)->txnid != S2C(session)->txn_global.checkpoint_state.id ||
-	    WT_SESSION_IS_CHECKPOINT(session));
+	if ((upd = *updp) != NULL) {
+		if ((*updp)->type == WT_UPDATE_BIRTHMARK)
+			*updp = NULL;
+		if (F_ISSET(r, WT_REC_UPDATE_RESTORE) && skipped_birthmark)
+			*updp = NULL;
+	}
 
 	/*
 	 * If there are no skipped updates, record that we're making progress.
@@ -1467,35 +1484,14 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	    (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 	    __wt_txn_visible_all(session, max_txn, timestampp) :
 	    __wt_txn_visible(session, max_txn, timestampp));
-
-	/*
-	 * If the update we chose was a birthmark, or doing update-restore and
-	 * we skipped a birthmark, the original on-page value must be retained.
-	 *
-	 * Update the maximum on-page timestamp before discarding the chosen
-	 * update.
-	 */
-	if ((upd = *updp) != NULL) {
-#ifdef HAVE_TIMESTAMPS
-		if (__wt_timestamp_cmp(
-		    &upd->timestamp, &r->max_onpage_timestamp) > 0)
-			__wt_timestamp_set(
-			    &r->max_onpage_timestamp, &upd->timestamp);
-#endif
-		if ((*updp)->type == WT_UPDATE_BIRTHMARK)
-			*updp = NULL;
-		if (F_ISSET(r, WT_REC_UPDATE_RESTORE) && skipped_birthmark)
-			*updp = NULL;
-	}
-
 	if (all_visible)
 		goto check_original_value;
+
+	r->leave_dirty = true;
 
 	if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
 		WT_PANIC_RET(session, EINVAL,
 		    "reconciliation error, update not visible");
-
-	r->leave_dirty = true;
 
 	/*
 	 * If not trying to evict the page, we know what we'll write and we're
