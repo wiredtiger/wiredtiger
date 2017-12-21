@@ -48,11 +48,11 @@
 	if ((dhandle) == NULL)						\
 		(dhandle) = TAILQ_FIRST(head);				\
 	else {								\
-		    WT_DHANDLE_RELEASE(dhandle);			\
-		    (dhandle) = TAILQ_NEXT(dhandle, field);		\
+		WT_DHANDLE_RELEASE(dhandle);				\
+		(dhandle) = TAILQ_NEXT(dhandle, field);			\
 	}								\
 	if ((dhandle) != NULL)						\
-		    WT_DHANDLE_ACQUIRE(dhandle);			\
+		WT_DHANDLE_ACQUIRE(dhandle);				\
 } while (0)
 
 /*

@@ -369,7 +369,7 @@ __txn_rollback_to_stable_btree(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
 	    __wt_timestamp_set(
-		&rollback_timestamp, &txn_global->stable_timestamp));
+	    &rollback_timestamp, &txn_global->stable_timestamp));
 
 	/*
 	 * Ensure the eviction server is out of the file - we don't
