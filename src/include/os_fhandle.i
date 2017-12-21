@@ -7,64 +7,11 @@
  */
 
 /*
- * __wt_stat_read_io_histogram --
- *	Add an operations execution time to the disk read histogram.
+ * Define functions that increment histogram statistics for filesystem
+ * operations latency.
  */
-static inline void
-__wt_stat_read_io_histogram(WT_SESSION_IMPL *session, uint64_t msecs)
-{
-	/*
-	 * Ignore any operation that takes less than 10ms to execute. This
-	 * floor value keeps us from having an excessively large smallest
-	 * execution time bucket. The 10ms value and the other histogram buckets
-	 * were chosen based on expectations of disk response times and testing.
-	 */
-	if (msecs < 10)
-		return;
-
-	if (msecs < 50)
-		WT_STAT_CONN_INCR(session, perf_hist_fsread_latency_lt50);
-	else if (msecs < 100)
-		WT_STAT_CONN_INCR(session, perf_hist_fsread_latency_lt100);
-	else if (msecs < 250)
-		WT_STAT_CONN_INCR(session, perf_hist_fsread_latency_lt250);
-	else if (msecs < 500)
-		WT_STAT_CONN_INCR(session, perf_hist_fsread_latency_lt500);
-	else if (msecs < 1000)
-		WT_STAT_CONN_INCR(session, perf_hist_fsread_latency_lt1000);
-	else
-		WT_STAT_CONN_INCR(session, perf_hist_fsread_latency_gt1000);
-}
-
-/*
- * __wt_stat_write_io_histogram --
- *	Add an operations execution time to the disk write histogram.
- */
-static inline void
-__wt_stat_write_io_histogram(WT_SESSION_IMPL *session, uint64_t msecs)
-{
-	/*
-	 * Ignore any operation that takes less than 10ms to execute. This
-	 * floor value keeps us from having an excessively large smallest
-	 * execution time bucket. The 10ms value and the other histogram buckets
-	 * were chosen based on expectations of disk response times and testing.
-	 */
-	if (msecs < 10)
-		return;
-
-	if (msecs < 50)
-		WT_STAT_CONN_INCR(session, perf_hist_fswrite_latency_lt50);
-	else if (msecs < 100)
-		WT_STAT_CONN_INCR(session, perf_hist_fswrite_latency_lt100);
-	else if (msecs < 250)
-		WT_STAT_CONN_INCR(session, perf_hist_fswrite_latency_lt250);
-	else if (msecs < 500)
-		WT_STAT_CONN_INCR(session, perf_hist_fswrite_latency_lt500);
-	else if (msecs < 1000)
-		WT_STAT_CONN_INCR(session, perf_hist_fswrite_latency_lt1000);
-	else
-		WT_STAT_CONN_INCR(session, perf_hist_fswrite_latency_gt1000);
-}
+WT_STAT_MSECS_HIST_INCR_FUNC(fsread, perf_hist_fsread_latency, 10);
+WT_STAT_MSECS_HIST_INCR_FUNC(fswrite, perf_hist_fswrite_latency, 10);
 
 /*
  * __wt_fsync --
@@ -168,7 +115,7 @@ __wt_read(
 	    fh->handle, (WT_SESSION *)session, offset, len, buf);
 
 	time_stop = __wt_rdtsc(session);
-	__wt_stat_read_io_histogram(session,
+	__wt_stat_msecs_hist_incr_fsread(session,
 	    WT_TSCDIFF_MS(session, time_stop, time_start));
 	WT_STAT_CONN_DECR_ATOMIC(session, thread_read_active);
 	return (ret);
@@ -247,7 +194,7 @@ __wt_write(WT_SESSION_IMPL *session,
 	    fh->handle, (WT_SESSION *)session, offset, len, buf);
 
 	time_stop = __wt_rdtsc(session);
-	__wt_stat_write_io_histogram(session,
+	__wt_stat_msecs_hist_incr_fswrite(session,
 	    WT_TSCDIFF_MS(session, time_stop, time_start));
 	WT_STAT_CONN_DECR_ATOMIC(session, thread_write_active);
 	return (ret);

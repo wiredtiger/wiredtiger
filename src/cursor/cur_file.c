@@ -9,6 +9,13 @@
 #include "wt_internal.h"
 
 /*
+ * Define functions that increment histogram statistics for cursor read and
+ * write operations latency.
+ */
+WT_STAT_USECS_HIST_INCR_FUNC(opread, perf_hist_opread_latency, 100);
+WT_STAT_USECS_HIST_INCR_FUNC(opwrite, perf_hist_opwrite_latency, 100);
+
+/*
  * __curfile_compare --
  *	WT_CURSOR->compare method for the btree cursor type.
  */
@@ -188,7 +195,7 @@ __curfile_search(WT_CURSOR *cursor)
 	time_start = __wt_rdtsc(session);
 	WT_ERR(__wt_btcur_search(cbt));
 	time_stop = __wt_rdtsc(session);
-	 __wt_stat_read_op_histogram(session,
+	 __wt_stat_usecs_hist_incr_opread(session,
 	    WT_TSCDIFF_US(session, time_stop, time_start));
 
 	/* Search maintains a position, key and value. */
@@ -218,7 +225,7 @@ __curfile_search_near(WT_CURSOR *cursor, int *exact)
 	time_start = __wt_rdtsc(session);
 	WT_ERR(__wt_btcur_search_near(cbt, exact));
 	time_stop = __wt_rdtsc(session);
-	__wt_stat_read_op_histogram(session,
+	__wt_stat_usecs_hist_incr_opread(session,
 	    WT_TSCDIFF_US(session, time_stop, time_start));
 
 	/* Search-near maintains a position, key and value. */
@@ -251,7 +258,7 @@ __curfile_insert(WT_CURSOR *cursor)
 	time_start = __wt_rdtsc(session);
 	WT_ERR(__wt_btcur_insert(cbt));
 	time_stop = __wt_rdtsc(session);
-	__wt_stat_write_op_histogram(session,
+	__wt_stat_usecs_hist_incr_opwrite(session,
 	    WT_TSCDIFF_US(session, time_stop, time_start));
 
 	/*
@@ -349,7 +356,7 @@ __curfile_update(WT_CURSOR *cursor)
 	time_start = __wt_rdtsc(session);
 	WT_ERR(__wt_btcur_update(cbt));
 	time_stop = __wt_rdtsc(session);
-	__wt_stat_write_op_histogram(session,
+	__wt_stat_usecs_hist_incr_opwrite(session,
 	    WT_TSCDIFF_US(session, time_stop, time_start));
 
 	/* Update maintains a position, key and value. */
@@ -380,7 +387,7 @@ __curfile_remove(WT_CURSOR *cursor)
 	time_start = __wt_rdtsc(session);
 	WT_ERR(__wt_btcur_remove(cbt));
 	time_stop = __wt_rdtsc(session);
-	__wt_stat_write_op_histogram(session,
+	__wt_stat_usecs_hist_incr_opwrite(session,
 	    WT_TSCDIFF_US(session, time_stop, time_start));
 
 	/*

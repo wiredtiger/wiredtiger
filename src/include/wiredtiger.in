@@ -5252,50 +5252,50 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_LOG_SLOT_COALESCED			1226
 /*! log: yields waiting for previous log file close */
 #define	WT_STAT_CONN_LOG_CLOSE_YIELDS			1227
-/*! perf: file system read latency histogram - 10-49ms */
+/*! perf: file system read latency histogram (bucket 1) - 10-49ms */
 #define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT50	1228
-/*! perf: file system read latency histogram - 100-249ms */
-#define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT250	1229
-/*! perf: file system read latency histogram - 1000ms+ */
-#define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_GT1000	1230
-/*! perf: file system read latency histogram - 250-499ms */
+/*! perf: file system read latency histogram (bucket 2) - 50-99ms */
+#define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT100	1229
+/*! perf: file system read latency histogram (bucket 3) - 100-249ms */
+#define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT250	1230
+/*! perf: file system read latency histogram (bucket 4) - 250-499ms */
 #define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT500	1231
-/*! perf: file system read latency histogram - 50-99ms */
-#define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT100	1232
-/*! perf: file system read latency histogram - 500-999ms */
-#define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT1000	1233
-/*! perf: file system write latency histogram - 10-49ms */
+/*! perf: file system read latency histogram (bucket 5) - 500-999ms */
+#define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_LT1000	1232
+/*! perf: file system read latency histogram (bucket 6) - 1000ms+ */
+#define	WT_STAT_CONN_PERF_HIST_FSREAD_LATENCY_GT1000	1233
+/*! perf: file system write latency histogram (bucket 1) - 10-49ms */
 #define	WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_LT50	1234
-/*! perf: file system write latency histogram - 100-249ms */
-#define	WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_LT250	1235
-/*! perf: file system write latency histogram - 1000ms+ */
-#define	WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_GT1000	1236
-/*! perf: file system write latency histogram - 250-499ms */
+/*! perf: file system write latency histogram (bucket 2) - 50-99ms */
+#define	WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_LT100	1235
+/*! perf: file system write latency histogram (bucket 3) - 100-249ms */
+#define	WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_LT250	1236
+/*! perf: file system write latency histogram (bucket 4) - 250-499ms */
 #define	WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_LT500	1237
-/*! perf: file system write latency histogram - 50-99ms */
-#define	WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_LT100	1238
-/*! perf: file system write latency histogram - 500-999ms */
-#define	WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_LT1000	1239
-/*! perf: operation read latency histogram - 100-249us */
+/*! perf: file system write latency histogram (bucket 5) - 500-999ms */
+#define	WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_LT1000	1238
+/*! perf: file system write latency histogram (bucket 6) - 1000ms+ */
+#define	WT_STAT_CONN_PERF_HIST_FSWRITE_LATENCY_GT1000	1239
+/*! perf: operation read latency histogram (bucket 1) - 100-249us */
 #define	WT_STAT_CONN_PERF_HIST_OPREAD_LATENCY_LT250	1240
-/*! perf: operation read latency histogram - 1000-9999us */
-#define	WT_STAT_CONN_PERF_HIST_OPREAD_LATENCY_LT10000	1241
-/*! perf: operation read latency histogram - 10000us+ */
-#define	WT_STAT_CONN_PERF_HIST_OPREAD_LATENCY_GT10000	1242
-/*! perf: operation read latency histogram - 250-499us */
-#define	WT_STAT_CONN_PERF_HIST_OPREAD_LATENCY_LT500	1243
-/*! perf: operation read latency histogram - 500-999us */
-#define	WT_STAT_CONN_PERF_HIST_OPREAD_LATENCY_LT1000	1244
-/*! perf: operation write latency histogram - 100-249us */
+/*! perf: operation read latency histogram (bucket 2) - 250-499us */
+#define	WT_STAT_CONN_PERF_HIST_OPREAD_LATENCY_LT500	1241
+/*! perf: operation read latency histogram (bucket 3) - 500-999us */
+#define	WT_STAT_CONN_PERF_HIST_OPREAD_LATENCY_LT1000	1242
+/*! perf: operation read latency histogram (bucket 4) - 1000-9999us */
+#define	WT_STAT_CONN_PERF_HIST_OPREAD_LATENCY_LT10000	1243
+/*! perf: operation read latency histogram (bucket 5) - 10000us+ */
+#define	WT_STAT_CONN_PERF_HIST_OPREAD_LATENCY_GT10000	1244
+/*! perf: operation write latency histogram (bucket 1) - 100-249us */
 #define	WT_STAT_CONN_PERF_HIST_OPWRITE_LATENCY_LT250	1245
-/*! perf: operation write latency histogram - 1000-9999us */
-#define	WT_STAT_CONN_PERF_HIST_OPWRITE_LATENCY_LT10000	1246
-/*! perf: operation write latency histogram - 10000us+ */
-#define	WT_STAT_CONN_PERF_HIST_OPWRITE_LATENCY_GT10000	1247
-/*! perf: operation write latency histogram - 250-499us */
-#define	WT_STAT_CONN_PERF_HIST_OPWRITE_LATENCY_LT500	1248
-/*! perf: operation write latency histogram - 500-999us */
-#define	WT_STAT_CONN_PERF_HIST_OPWRITE_LATENCY_LT1000	1249
+/*! perf: operation write latency histogram (bucket 2) - 250-499us */
+#define	WT_STAT_CONN_PERF_HIST_OPWRITE_LATENCY_LT500	1246
+/*! perf: operation write latency histogram (bucket 3) - 500-999us */
+#define	WT_STAT_CONN_PERF_HIST_OPWRITE_LATENCY_LT1000	1247
+/*! perf: operation write latency histogram (bucket 4) - 1000-9999us */
+#define	WT_STAT_CONN_PERF_HIST_OPWRITE_LATENCY_LT10000	1248
+/*! perf: operation write latency histogram (bucket 5) - 10000us+ */
+#define	WT_STAT_CONN_PERF_HIST_OPWRITE_LATENCY_GT10000	1249
 /*! reconciliation: fast-path pages deleted */
 #define	WT_STAT_CONN_REC_PAGE_DELETE_FAST		1250
 /*! reconciliation: page reconciliation calls */
