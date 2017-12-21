@@ -162,74 +162,70 @@ __wt_buf_set_printable(
  */
 const char *
 __wt_buf_set_printable_format(WT_SESSION_IMPL *session,
-    const void *p, size_t size, const char *format, WT_ITEM *buf)
+    const void *buffer, size_t size, const char *format, WT_ITEM *buf)
 {
 	WT_DECL_ITEM(tmp);
 	WT_DECL_PACK_VALUE(pv);
 	WT_DECL_RET;
-	WT_PACK_STREAM *ps;
-	WT_SESSION *wt_session;
+	WT_PACK pack;
+	const uint8_t *p, *end;
 	const char *retp, *sep;
 
-	ps = NULL;
-	wt_session = (WT_SESSION *)session;
+	p = (const uint8_t *)buffer;
+	end = p + size;
 
-	WT_ERR(__wt_buf_init(session, buf, 32));
+	WT_ERR(__wt_buf_init(session, buf, 0));
 
-	WT_ERR(wiredtiger_unpack_start(wt_session, format, p, size, &ps));
-
-	for (sep = ""; *format != '\0'; ++format)
-		switch (*format) {
-		case '.':
-		case '>':
-		case '<':
-		case '@':
+	WT_ERR(__pack_init(session, &pack, format));
+	for (sep = ""; (ret = __pack_next(&pack, &pv)) == 0;) {
+		WT_ERR(__unpack_read(session, &pv, &p, (size_t)(end - p)));
+		switch (pv.type) {
 		case 'x':
+			break;
+		case 's':
+		case 'S':
+			WT_ERR(__wt_buf_catfmt(
+			    session, buf, "%s%s", sep,  pv.u.s));
+			sep = ",";
+			break;
+		case 'U':
+		case 'u':
+			if (pv.u.item.size == 0)
+				break;
+
+			if (tmp == NULL)
+				WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+			WT_ERR(__wt_buf_catfmt(session, buf, "%s%s",
+			    sep, __wt_buf_set_printable(
+			    session, pv.u.item.data, pv.u.item.size, tmp)));
 			break;
 		case 'b':
 		case 'h':
 		case 'i':
 		case 'l':
 		case 'q':
-			WT_ERR(wiredtiger_unpack_int(ps, &pv.u.i));
 			WT_ERR(__wt_buf_catfmt(
 			    session, buf, "%s%" PRId64, sep, pv.u.i));
 			sep = ",";
 			break;
 		case 'B':
+		case 't':
 		case 'H':
 		case 'I':
 		case 'L':
 		case 'Q':
 		case 'r':
-		case 't':
-			WT_ERR(wiredtiger_unpack_uint(ps, &pv.u.u));
+		case 'R':
 			WT_ERR(__wt_buf_catfmt(
 			    session, buf, "%s%" PRIu64, sep, pv.u.u));
 			sep = ",";
 			break;
-		case 's':
-		case 'S':
-			WT_ERR(wiredtiger_unpack_str(ps, &pv.u.s));
-			WT_ERR(__wt_buf_catfmt(
-			    session, buf, "%s%s", sep,  pv.u.s));
-			sep = ",";
-			break;
-		case 'u':
-			if (tmp == NULL)
-				WT_ERR(__wt_scr_alloc(session, 0, &tmp));
-			WT_ERR(wiredtiger_unpack_item(ps, &pv.u.item));
-			WT_ERR(__wt_buf_catfmt(session, buf, "%s%s",
-			    sep, __wt_buf_set_printable(
-			    session, pv.u.item.data, pv.u.item.size, tmp)));
-			break;
 		WT_ILLEGAL_VALUE_ERR(session);
 		}
+	}
+	WT_ERR_NOTFOUND_OK(ret);
 
-err:	if (ps != NULL)
-		WT_TRET(wiredtiger_pack_close(ps, NULL));
-
-	__wt_scr_free(session, &tmp);
+err:	__wt_scr_free(session, &tmp);
 	if (ret == 0)
 		return ((const char *)buf->data);
 
