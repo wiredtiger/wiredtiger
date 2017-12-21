@@ -10,8 +10,8 @@
  * Define functions that increment histogram statistics for filesystem
  * operations latency.
  */
-WT_STAT_MSECS_HIST_INCR_FUNC(fsread, perf_hist_fsread_latency, 10);
-WT_STAT_MSECS_HIST_INCR_FUNC(fswrite, perf_hist_fswrite_latency, 10);
+WT_STAT_MSECS_HIST_INCR_FUNC(fsread, perf_hist_fsread_latency, 10)
+WT_STAT_MSECS_HIST_INCR_FUNC(fswrite, perf_hist_fswrite_latency, 10)
 
 /*
  * __wt_fsync --
