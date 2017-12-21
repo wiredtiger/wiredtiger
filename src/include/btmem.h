@@ -224,7 +224,8 @@ struct __wt_ovfl_reuse {
     "key_format=" WT_UNCHECKED_STRING(QIQu)				\
     ",value_format=" WT_UNCHECKED_STRING(QuBu)				\
     ",block_compressor=" WT_LOOKASIDE_COMPRESSOR			\
-    ",leaf_value_max=64MB"
+    ",leaf_value_max=64MB"						\
+    ",prefix_compression=true"
 
 /*
  * WT_PAGE_LOOKASIDE --

@@ -6,8 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
-#define	WT_OPTRACK_MAXRECS 16384
-#define	WT_OPTRACK_BUFSIZE WT_OPTRACK_MAXRECS * sizeof(WT_OPTRACK_RECORD)
+#define	WT_OPTRACK_MAXRECS (16384)
+#define	WT_OPTRACK_BUFSIZE (WT_OPTRACK_MAXRECS * sizeof(WT_OPTRACK_RECORD))
 #define	WT_OPTRACK_VERSION 1
 
 /*

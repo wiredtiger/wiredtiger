@@ -663,11 +663,11 @@ __evict_pass(WT_SESSION_IMPL *session)
 	conn = S2C(session);
 	cache = conn->cache;
 	txn_global = &conn->txn_global;
+	time_prev = 0;			/* [-Wconditional-uninitialized] */
 
 	/* Track whether pages are being evicted and progress is made. */
 	eviction_progress = cache->eviction_progress;
 	prev_oldest_id = txn_global->oldest_id;
-	time_now = time_prev = 0;
 
 	/* Evict pages from the cache. */
 	for (loop = 0; cache->pass_intr == 0; loop++) {
@@ -781,12 +781,11 @@ __evict_pass(WT_SESSION_IMPL *session)
 			__wt_verbose(session, WT_VERB_EVICTSERVER,
 			    "%s", "unable to reach eviction goal");
 			break;
-		} else {
-			if (cache->evict_aggressive_score > 0)
-				--cache->evict_aggressive_score;
-			loop = 0;
-			eviction_progress = cache->eviction_progress;
 		}
+		if (cache->evict_aggressive_score > 0)
+			--cache->evict_aggressive_score;
+		loop = 0;
+		eviction_progress = cache->eviction_progress;
 	}
 	return (0);
 }

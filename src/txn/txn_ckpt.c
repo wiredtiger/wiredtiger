@@ -380,15 +380,13 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 
 	conn = S2C(session);
 	cache = conn->cache;
-	time_last = time_start = time_stop = 0;
 
 	/* Give up if scrubbing is disabled. */
 	if (cache->eviction_checkpoint_target == 0 ||
 	    cache->eviction_checkpoint_target >= cache->eviction_dirty_trigger)
 		return;
 
-	time_start = __wt_rdtsc(session);
-	time_last = time_start;
+	time_last = time_start = __wt_rdtsc(session);
 	bytes_written_last = 0;
 	bytes_written_start = cache->bytes_written;
 	cache_size = conn->cache_size;
@@ -758,7 +756,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	txn_global = &conn->txn_global;
 	saved_isolation = session->isolation;
 	full = idle = logging = tracking = false;
-	time_start = time_stop = 0;
 
 	/*
 	 * Do a pass over the configuration arguments and figure out what kind
