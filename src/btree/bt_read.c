@@ -93,8 +93,14 @@ __las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * eviction is active in tree 2 when a checkpoint has started and is
 	 * working its way through tree 1.  In that case, lookaside may have
 	 * created a page image with updates in the future of the checkpoint.
+	 *
+	 * We also need to instantiate a lookaside page if this is an update
+	 * operation in progress.
 	 */
 	if (ref->page_las->invalid)
+		return (false);
+
+	if (F_ISSET(txn, WT_TXN_UPDATE))
 		return (false);
 
 	if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
