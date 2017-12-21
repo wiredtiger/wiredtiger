@@ -1451,23 +1451,6 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 #endif
 
 	/*
-	 * If the update we chose was a birthmark, or doing update-restore and
-	 * we skipped a birthmark, the original on-page value must be retained.
-	 */
-	if ((upd = *updp) != NULL) {
-		if ((*updp)->type == WT_UPDATE_BIRTHMARK)
-			*updp = NULL;
-		if (F_ISSET(r, WT_REC_UPDATE_RESTORE) && skipped_birthmark)
-			*updp = NULL;
-	}
-
-	/*
-	 * If there are no skipped updates, record that we're making progress.
-	 */
-	if (*updp == first_txn_upd)
-		r->update_used = true;
-
-	/*
 	 * Check if all updates on the page are visible.  If not, it must stay
 	 * dirty unless we are saving updates to the lookaside table.
 	 *
@@ -1484,6 +1467,24 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	    (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 	    __wt_txn_visible_all(session, max_txn, timestampp) :
 	    __wt_txn_visible(session, max_txn, timestampp));
+
+	/*
+	 * If the update we chose was a birthmark, or doing update-restore and
+	 * we skipped a birthmark, the original on-page value must be retained.
+	 */
+	if ((upd = *updp) != NULL) {
+		if ((*updp)->type == WT_UPDATE_BIRTHMARK)
+			*updp = NULL;
+		if (F_ISSET(r, WT_REC_UPDATE_RESTORE) && skipped_birthmark)
+			*updp = NULL;
+	}
+
+	/*
+	 * If there are no skipped updates, record that we're making progress.
+	 */
+	if (*updp == first_txn_upd)
+		r->update_used = true;
+
 	if (all_visible)
 		goto check_original_value;
 
