@@ -2100,31 +2100,30 @@ struct __wt_connection {
 	 * @config{ ),,}
 	 * @config{eviction_checkpoint_target, perform eviction at the beginning
 	 * of checkpoints to bring the dirty content in cache to this level\,
-	 * absolute when greater than 100, otherwise expressed as a percentage
-	 * of the total cache size, should not exceed the \c cache_size.
+	 * absolute when greater than 100\, otherwise expressed as a percentage
+	 * of the total cache size\, should not exceed the \c cache_size.
 	 * Ignored if set to zero or \c in_memory is \c true., an integer
-	 * between 0 and 10TB; default \c 5;.}
+	 * between 0 and 10TB; default \c 5.}
 	 * @config{eviction_dirty_target, perform eviction in worker threads
-	 * when the cache contains at least this much dirty content\,
-	 * absolute when greater than 100, otherwise expressed as a percentage
-	 * of the total cache size, should not exceed the \c cache_size., an
-	 * integer between 1 and 10TB; default \c 5.}
+	 * when the cache contains at least this much dirty content\, absolute
+	 * when greater than 100\, otherwise expressed as a percentage of the
+	 * total cache size\, should not exceed the \c cache_size., an integer
+	 * between 1 and 10TB; default \c 5.}
 	 * @config{eviction_dirty_trigger, trigger application threads to
 	 * perform eviction when the cache contains at least this much dirty
-	 * content\, absolute when greater than 100, otherwise expressed as a
-	 * percentage of the total cache size, should not exceed the \c
+	 * content\, absolute when greater than 100\, otherwise expressed as a
+	 * percentage of the total cache size\, should not exceed the \c
 	 * cache_size.  This setting only alters behavior if it is lower than
-	 * eviction_trigger., an integer between 1 and 10TB;
-	 * default \c 20.}
+	 * eviction_trigger., an integer between 1 and 10TB; default \c 20.}
 	 * @config{eviction_target, perform eviction in worker threads when the
 	 * cache contains at least this much content\, absolute when greater
-	 * than 100, otherwise expressed as a percentage of the total cache
-	 * size. Must be less than \c eviction_trigger and \c cache_size., an
+	 * than 100\, otherwise expressed as a percentage of the total cache
+	 * size.  Must be less than \c eviction_trigger and \c cache_size., an
 	 * integer between 10 and 10TB; default \c 80.}
 	 * @config{eviction_trigger, trigger application threads to perform
 	 * eviction when the cache contains at least this much content\,
-	 * absolute when greater than 100, otherwise expressed as a percentage
-	 * of the total cache size, should not exceed the \c cache_size., an
+	 * absolute when greater than 100\, otherwise expressed as a percentage
+	 * of the total cache size\, should not exceed the \c cache_size., an
 	 * integer between 10 and 10TB; default \c 95.}
 	 * @config{file_manager = (, control how file handles are managed., a
 	 * set of related configuration options defined below.}
@@ -2704,25 +2703,30 @@ struct __wt_connection {
  * @config{
  * ),,}
  * @config{eviction_checkpoint_target, perform eviction at the beginning of
- * checkpoints to bring the dirty content in cache to this level\, expressed as
- * a percentage of the total cache size.  Ignored if set to zero or \c in_memory
- * is \c true., an integer between 0 and 99; default \c 5.}
+ * checkpoints to bring the dirty content in cache to this level\, absolute when
+ * greater than 100\, otherwise expressed as a percentage of the total cache
+ * size\, should not exceed the \c cache_size.  Ignored if set to zero or \c
+ * in_memory is \c true., an integer between 0 and 10TB; default \c 5.}
  * @config{eviction_dirty_target, perform eviction in worker threads when the
- * cache contains at least this much dirty content\, expressed as a percentage
- * of the total cache size., an integer between 1 and 99; default \c 5.}
+ * cache contains at least this much dirty content\, absolute when greater than
+ * 100\, otherwise expressed as a percentage of the total cache size\, should
+ * not exceed the \c cache_size., an integer between 1 and 10TB; default \c 5.}
  * @config{eviction_dirty_trigger, trigger application threads to perform
- * eviction when the cache contains at least this much dirty content\, expressed
- * as a percentage of the total cache size.  This setting only alters behavior
- * if it is lower than eviction_trigger., an integer between 1 and 99; default
- * \c 20.}
+ * eviction when the cache contains at least this much dirty content\, absolute
+ * when greater than 100\, otherwise expressed as a percentage of the total
+ * cache size\, should not exceed the \c cache_size.  This setting only alters
+ * behavior if it is lower than eviction_trigger., an integer between 1 and
+ * 10TB; default \c 20.}
  * @config{eviction_target, perform eviction in worker threads when the cache
- * contains at least this much content\, expressed as a percentage of the total
- * cache size.  Must be less than \c eviction_trigger., an integer between 10
- * and 99; default \c 80.}
+ * contains at least this much content\, absolute when greater than 100\,
+ * otherwise expressed as a percentage of the total cache size.  Must be less
+ * than \c eviction_trigger and \c cache_size., an integer between 10 and 10TB;
+ * default \c 80.}
  * @config{eviction_trigger, trigger application threads to perform eviction
- * when the cache contains at least this much content\, expressed as a
- * percentage of the total cache size., an integer between 10 and 99; default \c
- * 95.}
+ * when the cache contains at least this much content\, absolute when greater
+ * than 100\, otherwise expressed as a percentage of the total cache size\,
+ * should not exceed the \c cache_size., an integer between 10 and 10TB; default
+ * \c 95.}
  * @config{exclusive, fail if the database already exists\, generally used with
  * the \c create option., a boolean flag; default \c false.}
  * @config{extensions, list of shared library extensions to load (using dlopen).

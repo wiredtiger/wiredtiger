@@ -454,29 +454,35 @@ connection_runtime_config = [
             ]),
     Config('eviction_checkpoint_target', '5', r'''
         perform eviction at the beginning of checkpoints to bring the dirty
-        content in cache to this level, expressed as a percentage of the total
-        cache size.  Ignored if set to zero or \c in_memory is \c true''',
-        min=0, max=99),
+        content in cache to this level, absolute when greater than 100,
+        otherwise expressed as a percentage of the total cache size, should not
+        exceed the \c cache_size. Ignored if set to zero or \c in_memory is \c
+        true''',
+        min=0, max='10TB'),
     Config('eviction_dirty_target', '5', r'''
         perform eviction in worker threads when the cache contains at least
-        this much dirty content, expressed as a percentage of the total cache
-        size.''',
-        min=1, max=99),
+        this much dirty content, absolute when greater than 100, otherwise
+        expressed as a percentage of the total cache size, should not exceed the
+        \c cache_size''',
+        min=1, max='10TB'),
     Config('eviction_dirty_trigger', '20', r'''
         trigger application threads to perform eviction when the cache contains
-        at least this much dirty content, expressed as a percentage of the
-        total cache size. This setting only alters behavior if it is lower than
-        eviction_trigger''',
-        min=1, max=99),
+        at least this much dirty content, absolute when greater than 100,
+        otherwise expressed as a percentage of the total cache size, should not
+        exceed the \c cache_size. This setting only alters behavior if it is
+        lower than eviction_trigger''',
+        min=1, max='10TB'),
     Config('eviction_target', '80', r'''
         perform eviction in worker threads when the cache contains at least
-        this much content, expressed as a percentage of the total cache size.
-        Must be less than \c eviction_trigger''',
-        min=10, max=99),
+        this much content, absolute when greater than 100, otherwise expressed
+        as a percentage of the total cache size. Must be less than \c
+        eviction_trigger and \c cache_size''',
+        min=10, max='10TB'),
     Config('eviction_trigger', '95', r'''
         trigger application threads to perform eviction when the cache contains
-        at least this much content, expressed as a percentage of the
-        total cache size''', min=10, max=99),
+        at least this much content, absolute when greater than 100, otherwise
+        expressed as a percentage of the total cache size, should not exceed
+        the \c cache_size''', min=10, max='10TB'),
     Config('file_manager', '', r'''
         control how file handles are managed''',
         type='category', subconfig=[
