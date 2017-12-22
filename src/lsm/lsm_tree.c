@@ -1378,9 +1378,9 @@ __wt_lsm_tree_worker(WT_SESSION_IMPL *session,
 	u_int i;
 	bool exclusive, locked, need_release;
 
-	locked = false;
-	need_release = false;
+	locked = need_release = false;
 	exclusive = FLD_ISSET(open_flags, WT_DHANDLE_EXCLUSIVE);
+
 	WT_RET(__wt_lsm_tree_get(session, uri, exclusive, &lsm_tree));
 	need_release = true;
 
@@ -1419,20 +1419,18 @@ __wt_lsm_tree_worker(WT_SESSION_IMPL *session,
 	 */
 	if (FLD_ISSET(open_flags, WT_BTREE_ALTER)) {
 		WT_ERR(__wt_lsm_meta_write(session, lsm_tree, cfg[0]));
-		/*
-		 * We're about to discard the tree so we do not need to
-		 * release it later.
-		 */
-		need_release = false;
+
+		locked = false;
 		if (exclusive)
 			__wt_lsm_tree_writeunlock(session, lsm_tree);
 		else
 			__wt_lsm_tree_readunlock(session, lsm_tree);
-		locked = false;
+
 		/*
 		 * We rewrote the meta-data.  Discard the tree and the next
 		 * access will reopen it.
 		 */
+		need_release = false;
 		WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
 		    ret = __lsm_tree_discard(session, lsm_tree, false));
 		WT_ERR(ret);
