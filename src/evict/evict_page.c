@@ -367,6 +367,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		 * re-instantiate the page in memory, else discard the page.
 		 */
 		if (mod->mod_disk_image == NULL) {
+			__wt_free(session, ref->page_las);
 			if (mod->mod_page_las.las_pageid != 0) {
 				WT_RET(
 				    __wt_calloc_one(session, &ref->page_las));
