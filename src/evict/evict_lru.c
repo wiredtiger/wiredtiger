@@ -595,7 +595,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
 	dirty_inuse = __wt_cache_dirty_leaf_inuse(cache);
 	if (__wt_eviction_dirty_needed(session, NULL))
 		F_SET(cache, WT_CACHE_EVICT_DIRTY | WT_CACHE_EVICT_DIRTY_HARD);
-	else if (dirty_inuse > (cache->eviction_dirty_target * bytes_max) / 100)
+	else if (dirty_inuse > (uint64_t)(cache->eviction_dirty_target * bytes_max) / 100)
 		F_SET(cache, WT_CACHE_EVICT_DIRTY);
 
 	/*
@@ -610,7 +610,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
 	 * Scrub dirty pages and keep them in cache if we are less than half
 	 * way to the clean or dirty trigger.
 	 */
-	if (bytes_inuse < ((cache->eviction_target + cache->eviction_trigger) *
+	if (bytes_inuse < (uint64_t)((cache->eviction_target + cache->eviction_trigger) *
 	    bytes_max) / 200 && dirty_inuse < (uint64_t)
 	    ((cache->eviction_dirty_target + cache->eviction_dirty_trigger) *
 	    bytes_max) / 200)
@@ -2326,7 +2326,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
  */
 int
 __wt_cache_eviction_worker(
-    WT_SESSION_IMPL *session, bool busy, bool readonly, u_int pct_full)
+    WT_SESSION_IMPL *session, bool busy, bool readonly, double pct_full)
 {
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
@@ -2349,7 +2349,7 @@ __wt_cache_eviction_worker(
 	 * It is not safe to proceed if the eviction server threads aren't
 	 * setup yet.
 	 */
-	if (!conn->evict_server_running || (busy && pct_full < 100))
+	if (!conn->evict_server_running || (busy && pct_full < 100.0))
 		goto done;
 
 	/* Wake the eviction server if we need to do work. */
@@ -2390,7 +2390,7 @@ __wt_cache_eviction_worker(
 
 		/* See if eviction is still needed. */
 		if (!__wt_eviction_needed(session, busy, readonly, &pct_full) ||
-		    ((pct_full < 100 || cache->eviction_scrub_limit > 0.0) &&
+		    ((pct_full < 100.0 || cache->eviction_scrub_limit > 0.0) &&
 		    (cache->eviction_progress >
 		    initial_progress + max_progress)))
 			break;

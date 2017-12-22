@@ -312,7 +312,7 @@ __wt_eviction_dirty_needed(WT_SESSION_IMPL *session, u_int *pct_fullp)
  */
 static inline bool
 __wt_eviction_needed(
-    WT_SESSION_IMPL *session, bool busy, bool readonly, u_int *pct_fullp)
+    WT_SESSION_IMPL *session, bool busy, bool readonly, double *pct_fullp)
 {
 	WT_CACHE *cache;
 	u_int pct_dirty, pct_full;
@@ -339,9 +339,9 @@ __wt_eviction_needed(
 	 * we involve the application thread.
 	 */
 	if (pct_fullp != NULL)
-		*pct_fullp = (u_int)WT_MAX(0, 100 - WT_MIN(
-		    (int)cache->eviction_trigger - (int)pct_full,
-		    (int)cache->eviction_dirty_trigger - (int)pct_dirty));
+		*pct_fullp = (double)WT_MAX(0.0, 100.0 - WT_MIN(
+		    cache->eviction_trigger - (double)pct_full,
+		    cache->eviction_dirty_trigger - (double)pct_dirty));
 
 	/*
 	 * Only check the dirty trigger when the session is not busy.
@@ -381,7 +381,7 @@ __wt_cache_eviction_check(
 	WT_BTREE *btree;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_STATE *txn_state;
-	u_int pct_full;
+	double pct_full;
 
 	if (didworkp != NULL)
 		*didworkp = false;
