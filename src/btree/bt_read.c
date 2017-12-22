@@ -510,49 +510,60 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	WT_ERR(__wt_page_inmem(session, ref, tmp.data, page_flags, &page));
 	tmp.mem = NULL;
 
-skip_read:
+	/*
+	 * The WT_REF lookaside state should match the page-header state of
+	 * any page we read.
+	 */
+	WT_ASSERT(session,
+	    (previous_state != WT_REF_LIMBO &&
+	    previous_state != WT_REF_LOOKASIDE) ||
+	    ref->page->dsk == NULL ||
+	    F_ISSET(ref->page->dsk, WT_PAGE_LAS_UPDATE));
+
 	/*
 	 * If reading for a checkpoint, there's no additional work to do, the
 	 * page on disk is correct as written.
 	 */
-	if (session->dhandle->checkpoint != NULL)
+	if (session->dhandle->checkpoint != NULL) {
+		WT_ASSERT(session, previous_state == WT_REF_DISK);
 		goto done;
+	}
 
-	/* If the page was deleted, instantiate that information. */
-	if (previous_state == WT_REF_DELETED)
+skip_read:
+	switch (previous_state) {
+	case WT_REF_DELETED:
+		/* If the page was deleted, instantiate that information. */
 		WT_ERR(__wt_delete_page_instantiate(session, ref));
-
-	/*
-	 * Instantiate updates from the database's lookaside table. The page
-	 * flag was set when the page was written, potentially a long time ago.
-	 * We only care if the lookaside table is currently active, check that
-	 * before doing any work.
-	 */
-	if (previous_state == WT_REF_LOOKASIDE &&
-	    __las_page_skip_locked(session, ref)) {
-		WT_STAT_CONN_INCR(session, cache_read_lookaside_skipped);
-		final_state = WT_REF_LIMBO;
-	} else if (previous_state == WT_REF_LIMBO ||
-	    previous_state == WT_REF_LOOKASIDE) {
-		WT_ASSERT(session, (ref->page->dsk == NULL ||
-		    F_ISSET(ref->page->dsk, WT_PAGE_LAS_UPDATE)));
-
+		break;
+	case WT_REF_LOOKASIDE:
+		if (__las_page_skip_locked(session, ref)) {
+			WT_STAT_CONN_INCR(
+			    session, cache_read_lookaside_skipped);
+			final_state = WT_REF_LIMBO;
+			break;
+		}
+		/* FALLTHROUGH */
+	case WT_REF_LIMBO:
+		/* Instantiate updates from the database's lookaside table. */
 		if (previous_state == WT_REF_LIMBO)
 			WT_STAT_CONN_INCR(session, cache_read_lookaside_delay);
+
 		__btree_verbose_lookaside_read(
 		    session, btree->id, ref->page_las->las_pageid);
 		WT_STAT_CONN_INCR(session, cache_read_lookaside);
 		WT_STAT_DATA_INCR(session, cache_read_lookaside);
+
 		WT_ERR(__las_page_instantiate(session, ref, btree->id));
 
 		/*
 		 * The page is instantiated so we no longer need the lookaside
-		 * entries.  Note that we are discarding updates so the page
-		 * must be marked available even if these operations fail.
+		 * entries. Note we are discarding updates so the page must be
+		 * marked available even if these operations fail.
 		 */
 		WT_TRET(__wt_las_remove_block(
 		    session, NULL, btree->id, ref->page_las->las_pageid));
 		__wt_free(session, ref->page_las);
+		break;
 	}
 
 done:	WT_PUBLISH(ref->state, final_state);
