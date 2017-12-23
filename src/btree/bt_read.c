@@ -158,7 +158,10 @@ __las_page_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 
 	skip = __las_page_skip_locked(session, ref);
 
-	WT_PUBLISH(ref->state, previous_state);
+	/* Restore the state and push the change. */
+	ref->state = previous_state;
+	WT_FULL_BARRIER();
+
 	return (skip);
 }
 
