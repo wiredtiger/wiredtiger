@@ -599,6 +599,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 	WT_DECL_RET;
 	WT_PAGE *page;
 	uint64_t sleep_cnt, wait_cnt;
+	uint32_t current_state;
 	int force_attempts;
 	bool busy, cache_work, did_read, stalled, wont_need;
 
@@ -618,7 +619,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 
 	for (did_read = wont_need = stalled = false,
 	    force_attempts = 0, sleep_cnt = wait_cnt = 0;;) {
-		switch (ref->state) {
+		switch (current_state = ref->state) {
 		case WT_REF_DELETED:
 			if (LF_ISSET(WT_READ_NO_EMPTY) &&
 			    __wt_delete_page_skip(session, ref, false))
@@ -724,15 +725,14 @@ read:			/*
 			 * instantiate the history. By having a hazard pointer
 			 * we can use the locked version.
 			 */
-			if (ref->state == WT_REF_LIMBO &&
-			    (((!LF_ISSET(WT_READ_CACHE) ||
+			if (current_state == WT_REF_LIMBO &&
+			    ((!LF_ISSET(WT_READ_CACHE) ||
 			    LF_ISSET(WT_READ_LOOKASIDE)) &&
-			    !__las_page_skip_locked(session, ref)) ||
-			    F_ISSET(&session->txn, WT_TXN_UPDATE))) {
+			    !__las_page_skip_locked(session, ref))) {
 				WT_RET(__wt_hazard_clear(session, ref));
 				goto read;
 			}
-			if (ref->state == WT_REF_LIMBO &&
+			if (current_state == WT_REF_LIMBO &&
 			    LF_ISSET(WT_READ_CACHE) &&
 			    LF_ISSET(WT_READ_LOOKASIDE))
 				__wt_tree_modify_set(session);
