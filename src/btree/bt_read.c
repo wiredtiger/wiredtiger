@@ -85,14 +85,14 @@ __las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * updates in lookaside are in the past.
 	 *
 	 * Lookaside eviction preferentially chooses the newest updates when
-	 * creating page image with no stable timestamp.  If a stable timestamp
+	 * creating page images with no stable timestamp. If a stable timestamp
 	 * has been set, we have to visit the page because eviction chooses old
 	 * version of records in that case.
 	 *
-	 * One case where we may need to visit the page is if lookaside
-	 * eviction is active in tree 2 when a checkpoint has started and is
-	 * working its way through tree 1.  In that case, lookaside may have
-	 * created a page image with updates in the future of the checkpoint.
+	 * One case where we may need to visit the page is if lookaside eviction
+	 * is active in tree 2 when a checkpoint has started and is working its
+	 * way through tree 1. In that case, lookaside may have created a page
+	 * image with updates in the future of the checkpoint.
 	 *
 	 * We also need to instantiate a lookaside page if this is an update
 	 * operation in progress.
@@ -109,8 +109,7 @@ __las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 	if (WT_TXNID_LE(txn->snap_min, ref->page_las->las_max_txn))
 		return (false);
 
-	if (!F_ISSET(txn, WT_TXN_HAS_TS_READ) &&
-	    ref->page_las->las_skew_newest)
+	if (!F_ISSET(txn, WT_TXN_HAS_TS_READ) && ref->page_las->las_skew_newest)
 		return (true);
 
 #ifdef HAVE_TIMESTAMPS
