@@ -561,10 +561,12 @@ skip_read:
 		 * The page is instantiated so we no longer need the lookaside
 		 * entries. Note we are discarding updates so the page must be
 		 * marked available even if these operations fail.
+		 *
+		 * Don't free WT_REF.page_las, there may be concurrent readers.
 		 */
 		WT_TRET(__wt_las_remove_block(
 		    session, NULL, btree->id, ref->page_las->las_pageid));
-		__wt_free(session, ref->page_las);
+
 		break;
 	}
 

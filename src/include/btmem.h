@@ -827,16 +827,14 @@ struct __wt_ref {
 #undef	ref_ikey
 #define	ref_ikey	key.ikey
 
-	union {
-		WT_PAGE_DELETED	*page_del;	/* Deleted page information */
-		WT_PAGE_LOOKASIDE *page_las;	/* Lookaside information */
-	};
+	WT_PAGE_DELETED	  *page_del;	/* Deleted page information */
+	WT_PAGE_LOOKASIDE *page_las;	/* Lookaside information */
 };
 /*
  * WT_REF_SIZE is the expected structure size -- we verify the build to ensure
  * the compiler hasn't inserted padding which would break the world.
  */
-#define	WT_REF_SIZE	48
+#define	WT_REF_SIZE	56
 
 /*
  * WT_ROW --

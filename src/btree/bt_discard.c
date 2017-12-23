@@ -321,9 +321,8 @@ __wt_free_ref(
 	 * lookaside structure for lookaside references, but can see
 	 * page-deleted information in other cases (such as WT_REF_MEM).
 	 */
-	if (ref->state == WT_REF_LIMBO || ref->state == WT_REF_LOOKASIDE)
-		__wt_free(session, ref->page_las);
-	else if (ref->page_del != NULL) {
+	__wt_free(session, ref->page_las);
+	if (ref->page_del != NULL) {
 		__wt_free(session, ref->page_del->update_list);
 		__wt_free(session, ref->page_del);
 	}
