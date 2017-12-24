@@ -119,7 +119,7 @@ err:	if (findhandle != INVALID_HANDLE_VALUE)
  * __wt_win_directory_list --
  *	Get a list of files from a directory, MSVC version.
  */
-static int
+int
 __wt_win_directory_list(WT_FILE_SYSTEM *file_system,
     WT_SESSION *wt_session, const char *directory,
     const char *prefix, char ***dirlistp, uint32_t *countp)
@@ -132,7 +132,7 @@ __wt_win_directory_list(WT_FILE_SYSTEM *file_system,
  * __wt_win_directory_list_single --
  *	Get a single file from a directory, MSVC version.
  */
-static int
+int
 __wt_win_directory_list_single(WT_FILE_SYSTEM *file_system,
     WT_SESSION *wt_session, const char *directory,
     const char *prefix, char ***dirlistp, uint32_t *countp)
