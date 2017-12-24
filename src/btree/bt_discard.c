@@ -310,17 +310,10 @@ __wt_free_ref(
 		break;
 	}
 
-	/*
-	 * Free any address allocation; if there's no linked WT_REF page, it
-	 * must be allocated.
-	 */
+	/* Free any address allocation. */
 	__wt_ref_addr_free(session, ref);
 
-	/*
-	 * Free any lookaside or page-deleted information.  We only expect a
-	 * lookaside structure for lookaside references, but can see
-	 * page-deleted information in other cases (such as WT_REF_MEM).
-	 */
+	/* Free any lookaside or page-deleted information. */
 	__wt_free(session, ref->page_las);
 	if (ref->page_del != NULL) {
 		__wt_free(session, ref->page_del->update_list);
