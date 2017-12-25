@@ -65,7 +65,7 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 	bool sformat;
 
 	value = &cursor->value;
-	sformat = S2BT(session)->value_format[0] == 'S';
+	sformat = cursor->value_format[0] == 'S';
 
 	/*
 	 * Grow the buffer to the maximum size we'll need. This is pessimistic
