@@ -595,7 +595,8 @@ __evict_update_work(WT_SESSION_IMPL *session)
 	dirty_inuse = __wt_cache_dirty_leaf_inuse(cache);
 	if (__wt_eviction_dirty_needed(session, NULL))
 		F_SET(cache, WT_CACHE_EVICT_DIRTY | WT_CACHE_EVICT_DIRTY_HARD);
-	else if (dirty_inuse > (uint64_t)(cache->eviction_dirty_target * bytes_max) / 100)
+	else if (dirty_inuse > (uint64_t)
+	    (cache->eviction_dirty_target * bytes_max) / 100)
 		F_SET(cache, WT_CACHE_EVICT_DIRTY);
 
 	/*
@@ -610,7 +611,8 @@ __evict_update_work(WT_SESSION_IMPL *session)
 	 * Scrub dirty pages and keep them in cache if we are less than half
 	 * way to the clean or dirty trigger.
 	 */
-	if (bytes_inuse < (uint64_t)((cache->eviction_target + cache->eviction_trigger) *
+	if (bytes_inuse < (uint64_t)
+	    ((cache->eviction_target + cache->eviction_trigger) *
 	    bytes_max) / 200 && dirty_inuse < (uint64_t)
 	    ((cache->eviction_dirty_target + cache->eviction_dirty_trigger) *
 	    bytes_max) / 200)
