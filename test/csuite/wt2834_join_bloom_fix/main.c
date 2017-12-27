@@ -160,9 +160,7 @@ main(int argc, char *argv[])
 	testutil_assert(count == 0);
 
 	testutil_cleanup(opts);
-	/* NOTREACHED */
-
-	return (0);
+	return (EXIT_SUCCESS);
 }
 
 void
