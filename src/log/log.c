@@ -82,7 +82,7 @@ __log_get_files(WT_SESSION_IMPL *session,
 
 /*
  * __log_get_files_single --
- *	Retrieve a single log-related files of the given prefix type.
+ *	Retrieve a single log-related file of the given prefix type.
  */
 static int
 __log_get_files_single(WT_SESSION_IMPL *session,
