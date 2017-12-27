@@ -4253,6 +4253,15 @@ struct __wt_file_system {
 	    WT_SESSION *session, const char *directory, const char *prefix,
 	    char ***dirlist, uint32_t *countp);
 
+#if !defined(DOXYGEN)
+	/*
+	 * Return a single file name for the named directory.
+	 */
+	int (*fs_directory_list_single)(WT_FILE_SYSTEM *file_system,
+	    WT_SESSION *session, const char *directory, const char *prefix,
+	    char ***dirlist, uint32_t *countp);
+#endif
+
 	/*!
 	 * Free memory allocated by WT_FILE_SYSTEM::directory_list.
 	 *

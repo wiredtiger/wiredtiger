@@ -81,6 +81,28 @@ __log_get_files(WT_SESSION_IMPL *session,
 }
 
 /*
+ * __log_get_files_single --
+ *	Retrieve a single log-related file of the given prefix type.
+ */
+static int
+__log_get_files_single(WT_SESSION_IMPL *session,
+    const char *file_prefix, char ***filesp, u_int *countp)
+{
+	WT_CONNECTION_IMPL *conn;
+	const char *log_path;
+
+	*countp = 0;
+	*filesp = NULL;
+
+	conn = S2C(session);
+	log_path = conn->log_path;
+	if (log_path == NULL)
+		log_path = "";
+	return (__wt_fs_directory_list_single(
+	    session, log_path, file_prefix, filesp, countp));
+}
+
+/*
  * __log_prealloc_remove --
  *	Remove all previously created pre-allocated files.
  */
@@ -1019,13 +1041,12 @@ __log_alloc_prealloc(WT_SESSION_IMPL *session, uint32_t to_num)
 	conn = S2C(session);
 	log = conn->log;
 	logfiles = NULL;
-	WT_ERR(__log_get_files(session, WT_LOG_PREPNAME, &logfiles, &logcount));
+	WT_ERR(__log_get_files_single(
+	    session, WT_LOG_PREPNAME, &logfiles, &logcount));
 	if (logcount == 0)
 		return (WT_NOTFOUND);
 
-	/*
-	 * We have a file to use.  Just use the first one.
-	 */
+	/* We have a file to use. */
 	WT_ERR(__wt_log_extract_lognum(session, logfiles[0], &from_num));
 
 	WT_ERR(__wt_scr_alloc(session, 0, &from_path));
