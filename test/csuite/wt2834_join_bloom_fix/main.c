@@ -159,7 +159,9 @@ main(int argc, char *argv[])
 	testutil_assert(ret == WT_NOTFOUND);
 	testutil_assert(count == 0);
 
+#if 0
 	testutil_cleanup(opts);
+#endif
 	return (EXIT_SUCCESS);
 }
 
