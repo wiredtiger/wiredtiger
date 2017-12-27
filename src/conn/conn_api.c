@@ -2290,6 +2290,16 @@ __conn_chk_file_system(WT_SESSION_IMPL *session, bool readonly)
 	}
 	WT_CONN_SET_FILE_SYSTEM_REQ(fs_size);
 
+	/*
+	 * The lower-level API for returning the first matching entry was added
+	 * later and not documented because it's an optimization for high-end
+	 * filesystems doing logging, specifically pre-allocating log files.
+	 * Check for the API and fall back to the standard API if not available.
+	 */
+	if (conn->file_system->fs_directory_list_single == NULL)
+		conn->file_system->fs_directory_list_single =
+		    conn->file_system->fs_directory_list;
+
 	return (0);
 }
 

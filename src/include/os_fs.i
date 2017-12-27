@@ -38,6 +38,37 @@ __wt_fs_directory_list(WT_SESSION_IMPL *session,
 }
 
 /*
+ * __wt_fs_directory_list_single --
+ *	Return a single matching file from a directory.
+ */
+static inline int
+__wt_fs_directory_list_single(WT_SESSION_IMPL *session,
+    const char *dir, const char *prefix, char ***dirlistp, u_int *countp)
+{
+	WT_DECL_RET;
+	WT_FILE_SYSTEM *file_system;
+	WT_SESSION *wt_session;
+	char *path;
+
+	*dirlistp = NULL;
+	*countp = 0;
+
+	__wt_verbose(session, WT_VERB_FILEOPS,
+	    "%s: directory-list-single: prefix %s",
+	    dir, prefix == NULL ? "all" : prefix);
+
+	WT_RET(__wt_filename(session, dir, &path));
+
+	file_system = S2C(session)->file_system;
+	wt_session = (WT_SESSION *)session;
+	ret = file_system->fs_directory_list_single(
+	    file_system, wt_session, path, prefix, dirlistp, countp);
+
+	__wt_free(session, path);
+	return (ret);
+}
+
+/*
  * __wt_fs_directory_list_free --
  *	Free memory allocated by __wt_fs_directory_list.
  */
