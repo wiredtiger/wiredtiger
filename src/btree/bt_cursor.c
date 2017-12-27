@@ -83,7 +83,7 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt)
 	 * Fail if the page is flagged for forced eviction (so we periodically
 	 * release pages grown too large).
 	 */
-	if (cbt->ref->page->read_gen != WT_READGEN_OLDEST)
+	if (cbt->ref->page->read_gen == WT_READGEN_OLDEST)
 		return (false);
 
 	return (true);
