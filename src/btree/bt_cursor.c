@@ -82,9 +82,8 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt)
 		return (false);
 
 	/*
-	 * Optionally fail the page-pinned test when the page is flagged for
-	 * forced eviction (so we periodically release pages grown too large).
-	 * The test is optional as not all callers can release pinned pages.
+	 * Fail if the page is flagged for forced eviction (so we periodically
+	 * release pages grown too large).
 	 */
 	if (cbt->ref->page->read_gen == WT_READGEN_OLDEST)
 		return (false);
