@@ -8,9 +8,6 @@
 
 #include "wt_internal.h"
 
-static void __btree_verbose_lookaside_read(
-		WT_SESSION_IMPL *, uint32_t, uint64_t);
-
 /*
  * __col_instantiate --
  *	Update a column-store page entry based on a lookaside table update list.
@@ -166,6 +163,48 @@ __las_page_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
+ * __las_page_instantiate_verbose --
+ *	Create a verbose message to display at most once per checkpoint when
+ *	performing a lookaside table read.
+ */
+static void
+__las_page_instantiate_verbose(WT_SESSION_IMPL *session, uint64_t las_pageid)
+{
+	WT_CACHE *cache;
+	uint64_t ckpt_gen_current, ckpt_gen_last;
+
+	if (!WT_VERBOSE_ISSET(session,
+	    WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY))
+		return;
+
+	cache = S2C(session)->cache;
+	ckpt_gen_current = __wt_gen(session, WT_GEN_CHECKPOINT);
+	ckpt_gen_last = cache->las_verb_gen_read;
+
+	/*
+	 * This message is throttled to one per checkpoint. To do this we
+	 * track the generation of the last checkpoint for which the message
+	 * was printed and check against the current checkpoint generation.
+	 */
+	if (WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE) ||
+	    ckpt_gen_current > ckpt_gen_last) {
+		/*
+		 * Attempt to atomically replace the last checkpoint generation
+		 * for which this message was printed. If the atomic swap fails
+		 * we have raced and the winning thread will print the message.
+		 */
+		if (__wt_atomic_casv64(&cache->las_verb_gen_read,
+			ckpt_gen_last, ckpt_gen_current)) {
+			__wt_verbose(session,
+			    WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY,
+			    "Read from lookaside file triggered for "
+			    "file ID %" PRIu32 ", page ID %" PRIu64,
+			    S2BT(session)->id, las_pageid);
+		}
+	}
+}
+
+/*
  * __las_page_instantiate --
  *	Instantiate lookaside update records in a recently read page.
  */
@@ -192,6 +231,10 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t btree_id)
 	current_recno = recno = WT_RECNO_OOB;
 	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
 	WT_CLEAR(las_key);
+
+	__las_page_instantiate_verbose(session, ref->page_las->las_pageid);
+	WT_STAT_CONN_INCR(session, cache_read_lookaside);
+	WT_STAT_DATA_INCR(session, cache_read_lookaside);
 
 	__wt_btcur_init(session, &cbt);
 	__wt_btcur_open(&cbt);
@@ -550,11 +593,6 @@ skip_read:
 		if (previous_state == WT_REF_LIMBO)
 			WT_STAT_CONN_INCR(session, cache_read_lookaside_delay);
 
-		__btree_verbose_lookaside_read(
-		    session, btree->id, ref->page_las->las_pageid);
-		WT_STAT_CONN_INCR(session, cache_read_lookaside);
-		WT_STAT_DATA_INCR(session, cache_read_lookaside);
-
 		WT_ERR(__las_page_instantiate(session, ref, btree->id));
 
 		/*
@@ -851,48 +889,5 @@ skip_evict:		/*
 		}
 		__wt_ref_state_yield_sleep(&wait_cnt, &sleep_cnt);
 		WT_STAT_CONN_INCRV(session, page_sleep, sleep_cnt);
-	}
-}
-
-/*
- * __btree_verbose_lookaside_read --
- *	Create a verbose message to display at most once per checkpoint when
- *	performing a lookaside table read.
- */
-static void
-__btree_verbose_lookaside_read(
-    WT_SESSION_IMPL *session, uint32_t las_id, uint64_t las_pageid)
-{
-	WT_CACHE *cache;
-	uint64_t ckpt_gen_current, ckpt_gen_last;
-
-	if (!WT_VERBOSE_ISSET(session,
-	    WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY))
-		return;
-
-	cache = S2C(session)->cache;
-	ckpt_gen_current = __wt_gen(session, WT_GEN_CHECKPOINT);
-	ckpt_gen_last = cache->las_verb_gen_read;
-
-	/*
-	 * This message is throttled to one per checkpoint. To do this we
-	 * track the generation of the last checkpoint for which the message
-	 * was printed and check against the current checkpoint generation.
-	 */
-	if (WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE) ||
-	    ckpt_gen_current > ckpt_gen_last) {
-		/*
-		 * Attempt to atomically replace the last checkpoint generation
-		 * for which this message was printed. If the atomic swap fails
-		 * we have raced and the winning thread will print the message.
-		 */
-		if (__wt_atomic_casv64(&cache->las_verb_gen_read,
-			ckpt_gen_last, ckpt_gen_current)) {
-			__wt_verbose(session,
-			    WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY,
-			    "Read from lookaside file triggered for "
-			    "file ID %" PRIu32 ", page ID %" PRIu64,
-			    las_id, las_pageid);
-		}
 	}
 }
