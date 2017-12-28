@@ -183,7 +183,9 @@ main(int argc, char *argv[])
 	}
 
 	testutil_assert(nfail == 0);
+#if 0
 	testutil_cleanup(opts);
+#endif
 
 	return (0);
 }
