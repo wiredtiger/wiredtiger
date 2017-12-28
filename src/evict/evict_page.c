@@ -274,9 +274,7 @@ __evict_page_clean_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 	 */
 	__wt_ref_out(session, ref);
 	if (ref->page_las != NULL &&
-	    ref->page_las->eviction_to_lookaside == false)
-		__wt_free(session, ref->page_las);
-	if (ref->page_las != NULL) {
+	    ref->page_las->eviction_to_lookaside == true) {
 		ref->page_las->eviction_to_lookaside = false;
 		WT_PUBLISH(ref->state, WT_REF_LOOKASIDE);
 	} else if (ref->addr == NULL) {
