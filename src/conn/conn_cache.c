@@ -20,6 +20,9 @@ __cache_config_abs_to_pct(WT_SESSION_IMPL *session,
 
 	conn = S2C(session);
 
+	if (param == NULL)
+		WT_RET_MSG(session, EINVAL,
+		    "%s should be initialised before conversion", param_name);
 	/*
 	 * Anything above 100 is an absolute value; convert it to percentage.
 	 * An absolute value should not exceed the cache size.
@@ -27,8 +30,12 @@ __cache_config_abs_to_pct(WT_SESSION_IMPL *session,
 	if (*param > 100.0) {
 		if (*param > conn->cache_size)
 			WT_RET_MSG(session, EINVAL,
-			    "%s should be lower than cache size!", param_name);
-		*param = (100.0 * *param) / (conn->cache_size + 1);
+			    "%s should not exceed cache size", param_name);
+		/*
+		 * Avoid division by zero if the cache size has not yet been set
+		 * in a shared cache.
+		 */
+		*param = (*param * 100.0) / (conn->cache_size + 1);
 	}
 
 	return (0);

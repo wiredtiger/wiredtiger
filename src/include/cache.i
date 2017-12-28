@@ -339,7 +339,7 @@ __wt_eviction_needed(
 	 * we involve the application thread.
 	 */
 	if (pct_fullp != NULL)
-		*pct_fullp = (double)WT_MAX(0.0, 100.0 - WT_MIN(
+		*pct_fullp = WT_MAX(0.0, 100.0 - WT_MIN(
 		    cache->eviction_trigger - (double)pct_full,
 		    cache->eviction_dirty_trigger - (double)pct_dirty));
 
