@@ -584,6 +584,7 @@ skip_read:
 		if (__las_page_skip_locked(session, ref)) {
 			WT_STAT_CONN_INCR(
 			    session, cache_read_lookaside_skipped);
+			ref->page_las->eviction_to_lookaside = true;
 			final_state = WT_REF_LIMBO;
 			break;
 		}
@@ -605,6 +606,7 @@ skip_read:
 		WT_TRET(__wt_las_remove_block(
 		    session, NULL, btree->id, ref->page_las->las_pageid));
 
+		ref->page_las->eviction_to_lookaside = false;
 		break;
 	}
 

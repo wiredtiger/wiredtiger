@@ -269,13 +269,17 @@ __evict_page_clean_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 	 * an address, it's a disk page; if it has no address, it's a deleted
 	 * page re-instantiated (for example, by searching) and never written.
 	 *
-	 * If evicting a WT_REF_LIMBO reference, we get to here and should
-	 * transition back to WT_REF_LOOKASIDE.
+	 * If evicting a WT_REF_LIMBO reference, we get to here and transition
+	 * back to WT_REF_LOOKASIDE, else discarding any lookaside information.
 	 */
 	__wt_ref_out(session, ref);
-	if (ref->state == WT_REF_LIMBO)
+	if (ref->page_las != NULL &&
+	    ref->page_las->eviction_to_lookaside == false)
+		__wt_free(session, ref->page_las);
+	if (ref->page_las != NULL) {
+		ref->page_las->eviction_to_lookaside = false;
 		WT_PUBLISH(ref->state, WT_REF_LOOKASIDE);
-	else if (ref->addr == NULL) {
+	} else if (ref->addr == NULL) {
 		WT_WITH_PAGE_INDEX(session,
 		    ret = __evict_delete_ref(session, ref, closing));
 		WT_RET_BUSY_OK(ret);

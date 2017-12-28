@@ -232,14 +232,14 @@ struct __wt_ovfl_reuse {
  *	Related information for on-disk pages with lookaside entries.
  */
 struct __wt_page_lookaside {
-	uint64_t las_pageid;			/* Page ID in lookaside */
-	uint64_t las_max_txn;			/* Maximum transaction ID in
-						   lookaside */
-	WT_DECL_TIMESTAMP(min_timestamp)	/* Min timestamp in lookaside */
-	WT_DECL_TIMESTAMP(onpage_timestamp)	/* Max timestamp on page */
-	bool las_skew_newest;			/* On-page skewed to newest */
-	bool invalid;				/* History is required correct
-						   reads */
+	uint64_t las_pageid;		/* Page ID in lookaside */
+	uint64_t las_max_txn;		/* Max transaction ID in lookaside */
+	WT_DECL_TIMESTAMP(min_timestamp)/* Min timestamp in lookaside */
+					/* Max timestamp on page */
+	WT_DECL_TIMESTAMP(onpage_timestamp)
+	bool eviction_to_lookaside;	/* Revert to lookaside on eviction */
+	bool las_skew_newest;		/* On-page skewed to newest */
+	bool invalid;			/* History is required correct reads */
 };
 
 /*
