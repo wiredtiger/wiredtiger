@@ -92,7 +92,7 @@ util_write(WT_SESSION *session, int argc, char *argv[])
 	while (*++argv != NULL) {
 		if (!append) {
 			if (rkey) {
-				if (util_str2recno(session, *argv, &recno))
+				if (util_str2num(session, *argv, true, &recno))
 					return (1);
 				cursor->set_key(cursor, recno);
 			} else
