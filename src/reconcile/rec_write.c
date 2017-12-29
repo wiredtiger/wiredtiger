@@ -5630,6 +5630,7 @@ build:
 					WT_ERR(__wt_dsk_cell_data_ref(session,
 					    WT_PAGE_ROW_LEAF, kpack, r->cur));
 					key_onpage_ovfl = false;
+					WT_NOT_READ(key_onpage_ovfl);
 				}
 
 				/*

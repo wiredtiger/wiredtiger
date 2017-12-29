@@ -516,6 +516,7 @@ restart:	/*
 			 */
 			if (ret == WT_NOTFOUND) {
 				ret = 0;
+				WT_NOT_READ(ret);
 				break;
 			}
 

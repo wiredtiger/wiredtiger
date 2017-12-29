@@ -599,6 +599,7 @@ __log_file_server(void *arg)
 				WT_ERR(__wt_fsync(session, log->log_fh, true));
 				__wt_spin_lock(session, &log->log_sync_lock);
 				locked = true;
+				WT_NOT_READ(locked);
 				/*
 				 * The sync LSN could have advanced while we
 				 * were writing to disk.

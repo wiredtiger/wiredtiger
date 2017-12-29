@@ -304,6 +304,7 @@ __wt_conn_cache_pool_destroy(WT_SESSION_IMPL *session)
 	conn = S2C(session);
 	cache = conn->cache;
 	cp_locked = found = false;
+	WT_NOT_READ(cp_locked);
 	cp = __wt_process.cache_pool;
 
 	if (!F_ISSET(conn, WT_CONN_CACHE_POOL))
@@ -338,6 +339,7 @@ __wt_conn_cache_pool_destroy(WT_SESSION_IMPL *session)
 		 */
 		__wt_spin_unlock(session, &cp->cache_pool_lock);
 		cp_locked = false;
+		WT_NOT_READ(cp_locked);
 
 		FLD_CLR(cache->pool_flags, WT_CACHE_POOL_RUN);
 		__wt_cond_signal(session, cp->cache_pool_cond);
