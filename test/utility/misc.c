@@ -159,7 +159,7 @@ testutil_progress(TEST_OPTS *opts, const char *message)
 
 	if ((fp = fopen(opts->progress_file_name, "a")) == NULL)
 		testutil_die(errno, "fopen");
-	__wt_seconds(NULL, &now);
+	(void)time(&now);
 	fprintf(fp, "[%" PRIuMAX "] %s\n", (uintmax_t)now, message);
 	if (fclose(fp) != 0)
 		testutil_die(errno, "fclose");
