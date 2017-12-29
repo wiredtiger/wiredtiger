@@ -23,7 +23,7 @@ test "$p" != "/" || {
 	exit 1
 }
 
-cd $p
+cd $p || exit 1
 echo "$0: running scan-build in $p..."
 
 sh autogen.sh > /dev/null || exit 1
