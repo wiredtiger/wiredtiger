@@ -28,7 +28,6 @@ util_downgrade(WT_SESSION *session, WT_CONNECTION *conn, int argc, char *argv[])
 			return (usage());
 		}
 	argc -= __wt_optind;
-	argv += __wt_optind;
 
 	/*
 	 * The release argument is required.

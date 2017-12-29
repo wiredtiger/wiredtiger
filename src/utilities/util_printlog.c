@@ -35,7 +35,6 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
 			return (usage());
 		}
 	argc -= __wt_optind;
-	argv += __wt_optind;
 
 	/* There should not be any more arguments. */
 	if (argc != 0)
