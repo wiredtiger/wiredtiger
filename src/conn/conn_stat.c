@@ -520,7 +520,8 @@ __statlog_log_one(WT_SESSION_IMPL *session, WT_ITEM *path, WT_ITEM *tmp)
 	    path == NULL || strcmp(tmp->mem, path->mem) != 0) {
 		WT_RET(__wt_fclose(session, &conn->stat_fs));
 		if (path != NULL)
-			(void)strcpy(path->mem, tmp->mem);
+			WT_RET(
+			    __wt_buf_set(session, path, tmp->data, tmp->size));
 		WT_RET(__wt_fopen(session, tmp->mem,
 		    WT_FS_OPEN_CREATE | WT_FS_OPEN_FIXED, WT_STREAM_APPEND,
 		    &log_stream));
