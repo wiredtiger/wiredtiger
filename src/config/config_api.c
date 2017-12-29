@@ -59,7 +59,8 @@ __config_parser_next(WT_CONFIG_PARSER *wt_config_parser,
  *	Create a configuration parser.
  */
 int
-wiredtiger_config_parser_open(WT_SESSION *wt_session,
+wiredtiger_config_parser_open(WT_SESSION *session,
+    /* Don't rename the session argument, it must match the documentation. */
     const char *config, size_t len, WT_CONFIG_PARSER **config_parserp)
 {
 	static const WT_CONFIG_PARSER stds = {
@@ -70,22 +71,22 @@ wiredtiger_config_parser_open(WT_SESSION *wt_session,
 	WT_CONFIG_ITEM config_item =
 	    { config, len, 0, WT_CONFIG_ITEM_STRING };
 	WT_CONFIG_PARSER_IMPL *config_parser;
-	WT_SESSION_IMPL *session;
+	WT_SESSION_IMPL *session_impl;
 
 	*config_parserp = NULL;
 
-	session = (WT_SESSION_IMPL *)wt_session;
+	session_impl = (WT_SESSION_IMPL *)session;
 
-	WT_RET(__wt_calloc_one(session, &config_parser));
+	WT_RET(__wt_calloc_one(session_impl, &config_parser));
 	config_parser->iface = stds;
-	config_parser->session = session;
+	config_parser->session = session_impl;
 
 	/*
 	 * Setup a WT_CONFIG_ITEM to be used for get calls and a WT_CONFIG
 	 * structure for iterations through the configuration string.
 	 */
 	memcpy(&config_parser->config_item, &config_item, sizeof(config_item));
-	__wt_config_initn(session, &config_parser->config, config, len);
+	__wt_config_initn(session_impl, &config_parser->config, config, len);
 
 	*config_parserp = (WT_CONFIG_PARSER *)config_parser;
 	return (0);
@@ -96,20 +97,21 @@ wiredtiger_config_parser_open(WT_SESSION *wt_session,
  *	Validate a configuration string.
  */
 int
-wiredtiger_config_validate(WT_SESSION *wt_session,
+wiredtiger_config_validate(WT_SESSION *session,
+    /* Don't rename the session argument, it must match the documentation. */
     WT_EVENT_HANDLER *event_handler, const char *name, const char *config)
 {
 	const WT_CONFIG_ENTRY *ep, **epp;
 	WT_CONNECTION_IMPL *conn, dummy_conn;
-	WT_SESSION_IMPL *session;
+	WT_SESSION_IMPL *session_impl;
 
-	session = (WT_SESSION_IMPL *)wt_session;
+	session_impl = (WT_SESSION_IMPL *)session;
 
 	/*
 	 * It's a logic error to specify both a session and an event handler.
 	 */
-	if (session != NULL && event_handler != NULL)
-		WT_RET_MSG(session, EINVAL,
+	if (session_impl != NULL && event_handler != NULL)
+		WT_RET_MSG(session_impl, EINVAL,
 		    "wiredtiger_config_validate event handler ignored when "
 		    "a session also specified");
 
@@ -118,28 +120,29 @@ wiredtiger_config_validate(WT_SESSION *wt_session,
 	 * a fake session/connection pair and configure the event handler.
 	 */
 	conn = NULL;
-	if (session == NULL && event_handler != NULL) {
+	if (session_impl == NULL && event_handler != NULL) {
 		WT_CLEAR(dummy_conn);
 		conn = &dummy_conn;
-		session = conn->default_session = &conn->dummy_session;
-		session->iface.connection = &conn->iface;
-		session->name = "wiredtiger_config_validate";
-		__wt_event_handler_set(session, event_handler);
+		session_impl = conn->default_session = &conn->dummy_session;
+		session_impl->iface.connection = &conn->iface;
+		session_impl->name = "wiredtiger_config_validate";
+		__wt_event_handler_set(session_impl, event_handler);
 	}
-	if (session != NULL)
-		conn = S2C(session);
+	if (session_impl != NULL)
+		conn = S2C(session_impl);
 
 	if (name == NULL)
-		WT_RET_MSG(session, EINVAL, "no name specified");
+		WT_RET_MSG(session_impl, EINVAL, "no name specified");
 	if (config == NULL)
-		WT_RET_MSG(session, EINVAL, "no configuration specified");
+		WT_RET_MSG(session_impl, EINVAL, "no configuration specified");
 
 	/*
 	 * If we don't have a real connection, look for a matching name in the
 	 * static list, otherwise look in the configuration list (which has any
 	 * configuration information the application has added).
 	 */
-	if (session == NULL || conn == NULL || conn->config_entries == NULL)
+	if (session_impl == NULL ||
+	    conn == NULL || conn->config_entries == NULL)
 		ep = __wt_conn_config_match(name);
 	else {
 		ep = NULL;
@@ -151,11 +154,10 @@ wiredtiger_config_validate(WT_SESSION *wt_session,
 			}
 	}
 	if (ep == NULL)
-		WT_RET_MSG(session, EINVAL,
-		    "unknown or unsupported configuration API: %s",
-		    name);
+		WT_RET_MSG(session_impl, EINVAL,
+		    "unknown or unsupported configuration API: %s", name);
 
-	return (__wt_config_check(session, ep, config, 0));
+	return (__wt_config_check(session_impl, ep, config, 0));
 }
 
 /*
