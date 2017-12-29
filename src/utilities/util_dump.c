@@ -41,7 +41,6 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
 	bool hex, json, reverse;
 
 	session_impl = (WT_SESSION_IMPL *)session;
-	WT_RET(__wt_scr_alloc(session_impl, 0, &tmp));
 
 	hex = json = reverse = false;
 	checkpoint = simpleuri = uri = NULL;
@@ -89,6 +88,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
 	    dump_prefix(session, hex, json) != 0))
 		goto err;
 
+	WT_RET(__wt_scr_alloc(session_impl, 0, &tmp));
 	for (i = 0; i < argc; i++) {
 		if (json && i > 0)
 			if (dump_json_separator(session) != 0)
