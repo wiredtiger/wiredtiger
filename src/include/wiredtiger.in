@@ -1924,6 +1924,19 @@ struct __wt_session {
 	 */
 	int __F(transaction_sync)(WT_SESSION *session, const char *config);
 	/*! @} */
+
+#ifndef DOXYGEN
+	/*!
+	 * Call into the library.
+	 *
+	 * This method is used for breakpoints and to set other configuration
+	 * when debugging layers not directly supporting those features.
+	 *
+	 * @param session the session handle
+	 * @errors
+	 */
+	int __F(breakpoint)(WT_SESSION *session);
+#endif
 };
 
 /*!
