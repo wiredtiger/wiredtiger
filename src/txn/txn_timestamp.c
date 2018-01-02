@@ -439,8 +439,8 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_RET(__wt_timestamp_to_hex_string(
 		    session, hex_timestamp2, &commit_ts));
 		WT_RET_MSG(session, EINVAL,
-		    "set_timestamp: oldest timestamp %s must not be later than"
-		    " commit timestamp %s", hex_timestamp1, hex_timestamp2);
+		    "set_timestamp: oldest timestamp %s must not be later than "
+		    "commit timestamp %s", hex_timestamp1, hex_timestamp2);
 	}
 
 	if (has_commit && (has_stable || txn_global->has_stable_timestamp) &&
@@ -451,8 +451,8 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_RET(__wt_timestamp_to_hex_string(
 		    session, hex_timestamp2, &commit_ts));
 		WT_RET_MSG(session, EINVAL,
-		    "set_timestamp: stable timestamp %s must not be later than"
-		    " commit timestamp %s", hex_timestamp1, hex_timestamp2);
+		    "set_timestamp: stable timestamp %s must not be later than "
+		    "commit timestamp %s", hex_timestamp1, hex_timestamp2);
 	}
 
 	/*
@@ -469,8 +469,8 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_RET(__wt_timestamp_to_hex_string(
 		    session, hex_timestamp2, &stable_ts));
 		WT_RET_MSG(session, EINVAL,
-		    "set_timestamp: oldest timestamp %s must not be later than"
-		    " stable timestamp %s", hex_timestamp1, hex_timestamp2);
+		    "set_timestamp: oldest timestamp %s must not be later than "
+		    "stable timestamp %s", hex_timestamp1, hex_timestamp2);
 	}
 
 	__wt_readunlock(session, &txn_global->rwlock);
@@ -568,10 +568,10 @@ __wt_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
 	    __wt_timestamp_cmp(ts, &txn_global->stable_timestamp) < 0));
 
 	if (older_than_oldest_ts) {
-	/*
-	 * As global oldest timestamp access is for error message only, lock was
-	 * not acquired.
-	 */
+		/*
+		 * As global oldest timestamp access is for error message only,
+		 * lock was not acquired.
+		 */
 		WT_RET(__wt_timestamp_to_hex_string(
 		    session, hex_timestamp, &txn_global->oldest_timestamp));
 		WT_RET_MSG(session, EINVAL,
@@ -579,10 +579,10 @@ __wt_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
 		    name, (int)cval->len, cval->str, hex_timestamp);
 	}
 	if (older_than_stable_ts) {
-	/*
-	 * As global stable timestamp access is for error message only, lock was
-	 * not acquired.
-	 */
+		/*
+		 * As global stable timestamp access is for error message only,
+		 * lock was not acquired.
+		 */
 		WT_RET(__wt_timestamp_to_hex_string(
 		    session, hex_timestamp, &txn_global->stable_timestamp));
 		WT_RET_MSG(session, EINVAL,
