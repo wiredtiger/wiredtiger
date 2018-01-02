@@ -85,7 +85,7 @@ def buildTranslationMap(mapFileName):
             continue;
 
         try:
-            funcID = int(words[0], 16);
+            funcID = int(words[0]);
         except:
             continue;
 
@@ -106,9 +106,9 @@ def funcIDtoName(funcID):
 # The format of the record is written down in src/include/optrack.h
 # file in the WiredTiger source tree. The current implementation assumes
 # a record of three fields. The first field is the 8-byte timestamp.
-# The second field is the 8-byte function ID. The third field is the
+# The second field is the 2-byte function ID. The third field is the
 # 2-byte operation type: '0' for function entry, '1' for function exit.
-# The record size would be padded to 24 bytes in the C implementation by
+# The record size would be padded to 16 bytes in the C implementation by
 # the compiler, because we keep an array of records, and each new record
 # has to be 8-byte aligned, since the first field has the size 8 bytes.
 # So we explicitly pad the track record structure in the implementation
@@ -118,7 +118,7 @@ def parseOneRecord(file):
 
     bytesRead = "";
     record = ();
-    RECORD_SIZE = 24;
+    RECORD_SIZE = 16;
 
     try:
         bytesRead = file.read(RECORD_SIZE);
@@ -128,7 +128,7 @@ def parseOneRecord(file):
     if (len(bytesRead) < RECORD_SIZE):
         return None;
 
-    record = struct.unpack('QQhxxxxxx', bytesRead);
+    record = struct.unpack('Qhhxxxx', bytesRead);
 
     return record;
 

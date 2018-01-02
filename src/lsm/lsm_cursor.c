@@ -1838,7 +1838,8 @@ __wt_clsm_open(WT_SESSION_IMPL *session,
 		WT_ERR(__wt_clsm_open_bulk(clsm, cfg));
 
 	if (0) {
-err:		if (clsm != NULL)
+err:
+		if (clsm != NULL)
 			WT_TRET(__wt_clsm_close(cursor));
 		else if (lsm_tree != NULL)
 			__wt_lsm_tree_release(session, lsm_tree);

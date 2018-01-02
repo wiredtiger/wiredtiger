@@ -776,6 +776,8 @@ __wt_os_posix(WT_SESSION_IMPL *session)
 
 	/* Initialize the POSIX jump table. */
 	file_system->fs_directory_list = __wt_posix_directory_list;
+	file_system->fs_directory_list_single =
+	    __wt_posix_directory_list_single;
 	file_system->fs_directory_list_free = __wt_posix_directory_list_free;
 	file_system->fs_exist = __posix_fs_exist;
 	file_system->fs_open_file = __posix_open_file;

@@ -190,6 +190,7 @@ struct __wt_connection_impl {
 	WT_FH *optrack_map_fh;		/* Name to id translation file. */
 	WT_SPINLOCK optrack_map_spinlock; /* Translation file spinlock. */
 	uintmax_t optrack_pid;		/* Cache the process ID. */
+	uint16_t  optrack_uid;		/* Unique function ID */
 
 	void  **foc;			/* Free-on-close array */
 	size_t  foc_cnt;		/* Array entries */
@@ -402,6 +403,7 @@ struct __wt_connection_impl {
 
 	bool	 mmap;			/* mmap configuration */
 	int page_size;			/* OS page size for mmap alignment */
+	double	 tsc_nsec_ratio;	/* rdtsc ticks to nanoseconds */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define	WT_VERB_API			0x000000001u
@@ -482,7 +484,8 @@ struct __wt_connection_impl {
 #define	WT_CONN_SERVER_LSM		0x020000u
 #define	WT_CONN_SERVER_STATISTICS	0x040000u
 #define	WT_CONN_SERVER_SWEEP		0x080000u
-#define	WT_CONN_WAS_BACKUP		0x100000u
+#define	WT_CONN_USE_EPOCHTIME		0x100000u
+#define	WT_CONN_WAS_BACKUP		0x200000u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint32_t flags;
 };
