@@ -557,10 +557,16 @@ __evict_update_work(WT_SESSION_IMPL *session)
 	WT_BTREE *las_tree;
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
+	double dirty_target, dirty_trigger, target, trigger;
 	uint64_t bytes_inuse, bytes_max, dirty_inuse;
 
 	conn = S2C(session);
 	cache = conn->cache;
+
+	dirty_target = cache->eviction_dirty_target;
+	dirty_trigger = cache->eviction_dirty_trigger;
+	target = cache->eviction_target;
+	trigger = cache->eviction_trigger;
 
 	/* Clear previous state. */
 	cache->flags = 0;
@@ -589,14 +595,14 @@ __evict_update_work(WT_SESSION_IMPL *session)
 	bytes_inuse = __wt_cache_bytes_inuse(cache);
 	if (__wt_eviction_clean_needed(session, NULL))
 		F_SET(cache, WT_CACHE_EVICT_CLEAN | WT_CACHE_EVICT_CLEAN_HARD);
-	else if (bytes_inuse > (cache->eviction_target * bytes_max) / 100)
+	else if (bytes_inuse > (target * bytes_max) / 100)
 		F_SET(cache, WT_CACHE_EVICT_CLEAN);
 
 	dirty_inuse = __wt_cache_dirty_leaf_inuse(cache);
 	if (__wt_eviction_dirty_needed(session, NULL))
 		F_SET(cache, WT_CACHE_EVICT_DIRTY | WT_CACHE_EVICT_DIRTY_HARD);
 	else if (dirty_inuse > (uint64_t)
-	    (cache->eviction_dirty_target * bytes_max) / 100)
+	    (dirty_target * bytes_max) / 100)
 		F_SET(cache, WT_CACHE_EVICT_DIRTY);
 
 	/*
@@ -611,11 +617,9 @@ __evict_update_work(WT_SESSION_IMPL *session)
 	 * Scrub dirty pages and keep them in cache if we are less than half
 	 * way to the clean or dirty trigger.
 	 */
-	if (bytes_inuse < (uint64_t)
-	    ((cache->eviction_target + cache->eviction_trigger) *
-	    bytes_max) / 200 && dirty_inuse < (uint64_t)
-	    ((cache->eviction_dirty_target + cache->eviction_dirty_trigger) *
-	    bytes_max) / 200)
+	if (bytes_inuse < (uint64_t)((target + trigger) * bytes_max) / 200 &&
+	    dirty_inuse <
+	    (uint64_t)((dirty_target + dirty_trigger) * bytes_max) / 200)
 		F_SET(cache, WT_CACHE_EVICT_SCRUB);
 
 	/*
@@ -628,9 +632,8 @@ __evict_update_work(WT_SESSION_IMPL *session)
 	if (!F_ISSET(conn, WT_CONN_EVICTION_NO_LOOKASIDE) &&
 	    (__wt_cache_stuck(session) ||
 	    (__wt_cache_lookaside_score(cache) > 80 &&
-	    dirty_inuse > (uint64_t)
-	    ((cache->eviction_dirty_target + cache->eviction_dirty_trigger) *
-	    bytes_max) / 200)))
+	    dirty_inuse >
+	    (uint64_t)((dirty_target + dirty_trigger) * bytes_max) / 200)))
 		F_SET(cache, WT_CACHE_EVICT_LOOKASIDE);
 
 	/*
