@@ -1088,9 +1088,11 @@ __rec_init(WT_SESSION_IMPL *session,
 
 	/*
 	 * The fake cursor used to figure out modified update values points to
-	 * the enclosing WT_REF as a way to access the page.
+	 * the enclosing WT_REF as a way to access the page, and also needs to
+	 * set the format.
 	 */
 	r->update_modify_cbt.ref = ref;
+	r->update_modify_cbt.iface.value_format = btree->value_format;
 
 	return (0);
 }

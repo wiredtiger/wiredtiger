@@ -119,6 +119,14 @@ testutil_parse_opts(int argc, char * const *argv, TEST_OPTS *opts)
 		    opts->home, len, "WT_TEST.%s", opts->progname));
 	}
 
+	/*
+	 * Setup the progress file name.
+	 */
+	len = strlen(opts->home) + 20;
+	opts->progress_file_name = dmalloc(len);
+	testutil_check(__wt_snprintf(opts->progress_file_name, len,
+	    "%s/progress.txt", opts->home));
+
 	/* Setup the default URI string */
 	len = strlen("table:") + strlen(opts->progname) + 10;
 	opts->uri = dmalloc(len);

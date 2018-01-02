@@ -58,11 +58,6 @@ __wt_global_once(void)
 	__wt_checksum_init();
 
 	TAILQ_INIT(&__wt_process.connqh);
-
-#ifdef HAVE_DIAGNOSTIC
-	/* Load debugging code the compiler might optimize out. */
-	__wt_breakpoint();
-#endif
 }
 
 /*
@@ -91,19 +86,3 @@ __wt_library_init(void)
 	}
 	return (__wt_pthread_once_failed);
 }
-
-#ifdef HAVE_DIAGNOSTIC
-/*
- * __wt_breakpoint --
- *	A simple place to put a breakpoint, if you need one.
- */
-void
-__wt_breakpoint(void)
-{
-	/*
-	 * Yield the processor (just to keep the compiler from optimizing the
-	 * function out).
-	 */
-	__wt_yield();
-}
-#endif

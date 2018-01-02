@@ -151,8 +151,11 @@ struct __wt_modify {
 	/*!
 	 * The zero-based byte offset in the value where the new data is placed.
 	 *
-	 * If the offset is past the end of the value, nul bytes are appended to
-	 * the value up to the specified offset.
+	 * If the offset is past the end of the value, padding bytes are
+	 * appended to the value up to the specified offset. If the value is a
+	 * string (value format \c S), the padding byte is a space. If the value
+	 * is a raw byte array accessed using a WT_ITEM structure (value format
+	 * \c u), the padding byte is a nul.
 	 */
 	 size_t offset;
 
@@ -485,11 +488,12 @@ struct __wt_cursor {
 	 * Both the key and value must be set and the record must already exist;
 	 * the record will be updated.
 	 *
-	 * Modification structures are applied in order, and later modifications
-	 * can update earlier modifications.
+	 * Modifications are specified in WT_MODIFY structures. Modifications
+	 * are applied in order and later modifications can update earlier ones.
 	 *
-	 * The modify method is only supported on raw byte arrays accessed using
-	 * a WT_ITEM structure, that is, a format type of \c u.
+	 * The modify method is only supported on strings (value format type
+	 * \c S), or raw byte arrays accessed using a WT_ITEM structure (value
+	 * format type \c u).
 	 *
 	 * Calling the WT_CURSOR::modify method outside of snapshot isolation
 	 * can lead to unexpected results. While \c read-committed isolation
@@ -1924,6 +1928,19 @@ struct __wt_session {
 	 */
 	int __F(transaction_sync)(WT_SESSION *session, const char *config);
 	/*! @} */
+
+#ifndef DOXYGEN
+	/*!
+	 * Call into the library.
+	 *
+	 * This method is used for breakpoints and to set other configuration
+	 * when debugging layers not directly supporting those features.
+	 *
+	 * @param session the session handle
+	 * @errors
+	 */
+	int __F(breakpoint)(WT_SESSION *session);
+#endif
 };
 
 /*!
