@@ -23,17 +23,16 @@ struct __wt_pack_stream {
  *	Open a stream for packing.
  */
 int
-wiredtiger_pack_start(WT_SESSION *session,
-    /* Don't rename the session argument, it must match the documentation. */
+wiredtiger_pack_start(WT_SESSION *wt_session,
     const char *format, void *buffer, size_t size, WT_PACK_STREAM **psp)
 {
 	WT_DECL_RET;
 	WT_PACK_STREAM *ps;
-	WT_SESSION_IMPL *session_impl;
+	WT_SESSION_IMPL *session;
 
-	session_impl = (WT_SESSION_IMPL *)session;
-	WT_RET(__wt_calloc_one(session_impl, &ps));
-	WT_ERR(__pack_init(session_impl, &ps->pack, format));
+	session = (WT_SESSION_IMPL *)wt_session;
+	WT_RET(__wt_calloc_one(session, &ps));
+	WT_ERR(__pack_init(session, &ps->pack, format));
 	ps->p = ps->start = buffer;
 	ps->end = ps->p + size;
 	*psp = ps;
@@ -49,12 +48,11 @@ err:		(void)wiredtiger_pack_close(ps, NULL);
  *	Open a stream for unpacking.
  */
 int
-wiredtiger_unpack_start(WT_SESSION *session,
-    /* Don't rename the session argument, it must match the documentation. */
+wiredtiger_unpack_start(WT_SESSION *wt_session,
     const char *format, const void *buffer, size_t size, WT_PACK_STREAM **psp)
 {
 	return (wiredtiger_pack_start(
-	    session, format, (void *)buffer, size, psp));
+	    wt_session, format, (void *)buffer, size, psp));
 }
 
 /*
