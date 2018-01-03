@@ -477,10 +477,8 @@ __wt_txn_visible(WT_SESSION_IMPL *session, uint64_t id,
 	 * timestamps are updated in order.
 	 */
 	if (next_timestamp != NULL &&
-            __wt_timestamp_cmp(timestamp, next_timestamp) < 0) {
-                __wt_errx(session, "Update out of timestamp order");
+	    __wt_timestamp_cmp(timestamp, next_timestamp) < 0)
 		return (false);
-        }
 #else
 	WT_UNUSED(next_timestamp);
 #endif
@@ -754,8 +752,6 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 				    session, txn_update_conflict);
 				WT_STAT_DATA_INCR(
 				    session, txn_update_conflict);
-                                __wt_errx(session, "UPDATE: visibility ROLLBACK");
-                                __wt_abort(session);
 				return (WT_ROLLBACK);
 			}
 			upd = upd->next;
