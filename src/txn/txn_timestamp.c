@@ -384,8 +384,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN_GLOBAL *txn_global;
 	wt_timestamp_t commit_ts, oldest_ts, stable_ts;
 	wt_timestamp_t last_oldest_ts, last_stable_ts;
-	char hex_timestamp1[2 * WT_TIMESTAMP_SIZE + 1];
-	char hex_timestamp2[2 * WT_TIMESTAMP_SIZE + 1];
+	char hex_timestamp[2][2 * WT_TIMESTAMP_SIZE + 1];
 	bool force;
 
 	txn_global = &S2C(session)->txn_global;
@@ -435,24 +434,24 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	    __wt_timestamp_cmp(&oldest_ts, &commit_ts) > 0) {
 		__wt_readunlock(session, &txn_global->rwlock);
 		WT_RET(__wt_timestamp_to_hex_string(
-		    session, hex_timestamp1, &oldest_ts));
+		    session, hex_timestamp[0], &oldest_ts));
 		WT_RET(__wt_timestamp_to_hex_string(
-		    session, hex_timestamp2, &commit_ts));
+		    session, hex_timestamp[1], &commit_ts));
 		WT_RET_MSG(session, EINVAL,
 		    "set_timestamp: oldest timestamp %s must not be later than "
-		    "commit timestamp %s", hex_timestamp1, hex_timestamp2);
+		    "commit timestamp %s", hex_timestamp[0], hex_timestamp[1]);
 	}
 
 	if (has_commit && (has_stable || txn_global->has_stable_timestamp) &&
 	    __wt_timestamp_cmp(&stable_ts, &commit_ts) > 0) {
 		__wt_readunlock(session, &txn_global->rwlock);
 		WT_RET(__wt_timestamp_to_hex_string(
-		    session, hex_timestamp1, &stable_ts));
+		    session, hex_timestamp[0], &stable_ts));
 		WT_RET(__wt_timestamp_to_hex_string(
-		    session, hex_timestamp2, &commit_ts));
+		    session, hex_timestamp[1], &commit_ts));
 		WT_RET_MSG(session, EINVAL,
 		    "set_timestamp: stable timestamp %s must not be later than "
-		    "commit timestamp %s", hex_timestamp1, hex_timestamp2);
+		    "commit timestamp %s", hex_timestamp[0], hex_timestamp[1]);
 	}
 
 	/*
@@ -465,12 +464,12 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	    __wt_timestamp_cmp(&oldest_ts, &stable_ts) > 0) {
 		__wt_readunlock(session, &txn_global->rwlock);
 		WT_RET(__wt_timestamp_to_hex_string(
-		    session, hex_timestamp1, &oldest_ts));
+		    session, hex_timestamp[0], &oldest_ts));
 		WT_RET(__wt_timestamp_to_hex_string(
-		    session, hex_timestamp2, &stable_ts));
+		    session, hex_timestamp[1], &stable_ts));
 		WT_RET_MSG(session, EINVAL,
 		    "set_timestamp: oldest timestamp %s must not be later than "
-		    "stable timestamp %s", hex_timestamp1, hex_timestamp2);
+		    "stable timestamp %s", hex_timestamp[0], hex_timestamp[1]);
 	}
 
 	__wt_readunlock(session, &txn_global->rwlock);
@@ -550,6 +549,7 @@ __wt_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
     wt_timestamp_t *ts, WT_CONFIG_ITEM *cval,
     bool cmp_oldest, bool cmp_stable, bool cmp_commit)
 {
+	WT_DECL_RET;
 	WT_TXN *txn = &session->txn;
 	WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
 	char hex_timestamp[2 * WT_TIMESTAMP_SIZE + 1];
@@ -568,23 +568,19 @@ __wt_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
 	    __wt_timestamp_cmp(ts, &txn_global->stable_timestamp) < 0));
 
 	if (older_than_oldest_ts) {
-		/*
-		 * As global oldest timestamp access is for error message only,
-		 * lock was not acquired.
-		 */
-		WT_RET(__wt_timestamp_to_hex_string(
+		WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
+		    ret = __wt_timestamp_to_hex_string(
 		    session, hex_timestamp, &txn_global->oldest_timestamp));
+		WT_RET(ret);
 		WT_RET_MSG(session, EINVAL,
 		    "%s timestamp %.*s older than oldest timestamp %s",
 		    name, (int)cval->len, cval->str, hex_timestamp);
 	}
 	if (older_than_stable_ts) {
-		/*
-		 * As global stable timestamp access is for error message only,
-		 * lock was not acquired.
-		 */
-		WT_RET(__wt_timestamp_to_hex_string(
+		WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
+		    ret = __wt_timestamp_to_hex_string(
 		    session, hex_timestamp, &txn_global->stable_timestamp));
+		WT_RET(ret);
 		WT_RET_MSG(session, EINVAL,
 		    "%s timestamp %.*s older than stable timestamp %s",
 		    name, (int)cval->len, cval->str, hex_timestamp);
