@@ -645,6 +645,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #endif
 	}
 
+	WT_UNUSED(upd);
 #ifdef HAVE_TIMESTAMPS
 	/*
 	 * Debugging checks on timestamps, if user requested them.
@@ -683,8 +684,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 				WT_ERR_MSG(session, EINVAL,
 				    "out of order timestamps");
 		}
-#else
-	WT_UNUSED(upd);
 #endif
 #endif
 	/*
