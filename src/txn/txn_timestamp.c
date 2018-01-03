@@ -549,38 +549,36 @@ __wt_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
     wt_timestamp_t *ts, WT_CONFIG_ITEM *cval,
     bool cmp_oldest, bool cmp_stable, bool cmp_commit)
 {
-	WT_DECL_RET;
 	WT_TXN *txn = &session->txn;
 	WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
+	wt_timestamp_t oldest_ts, stable_ts;
 	char hex_timestamp[2 * WT_TIMESTAMP_SIZE + 1];
-	bool older_than_oldest_ts, older_than_stable_ts;
+	bool has_oldest_ts, has_stable_ts;
 
 	/*
 	 * Compare against the oldest and the stable timestamp. Return an error
 	 * if the given timestamp is older than oldest and/or stable timestamp.
 	 */
 	WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
-	    older_than_oldest_ts =
-	    (cmp_oldest && txn_global->has_oldest_timestamp &&
-	    __wt_timestamp_cmp(ts, &txn_global->oldest_timestamp) < 0);
-	    older_than_stable_ts = (cmp_stable &&
-	    txn_global->has_stable_timestamp &&
-	    __wt_timestamp_cmp(ts, &txn_global->stable_timestamp) < 0));
+	    has_oldest_ts = txn_global->has_oldest_timestamp;
+	    has_oldest_ts ?
+	    __wt_timestamp_set(&oldest_ts, &txn_global->oldest_timestamp) : 0;
+	    has_stable_ts = txn_global->has_stable_timestamp;
+	    has_stable_ts ?
+	    __wt_timestamp_set(&stable_ts, &txn_global->stable_timestamp) : 0);
 
-	if (older_than_oldest_ts) {
-		WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
-		    ret = __wt_timestamp_to_hex_string(
-		    session, hex_timestamp, &txn_global->oldest_timestamp));
-		WT_RET(ret);
+	if (cmp_oldest && has_oldest_ts &&
+	    __wt_timestamp_cmp(ts, &oldest_ts) < 0) {
+		WT_RET(__wt_timestamp_to_hex_string(session, hex_timestamp,
+		    &oldest_ts));
 		WT_RET_MSG(session, EINVAL,
 		    "%s timestamp %.*s older than oldest timestamp %s",
 		    name, (int)cval->len, cval->str, hex_timestamp);
 	}
-	if (older_than_stable_ts) {
-		WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
-		    ret = __wt_timestamp_to_hex_string(
-		    session, hex_timestamp, &txn_global->stable_timestamp));
-		WT_RET(ret);
+	if (cmp_stable && has_stable_ts &&
+	    __wt_timestamp_cmp(ts, &stable_ts) < 0) {
+		WT_RET(__wt_timestamp_to_hex_string(session, hex_timestamp,
+		    &stable_ts));
 		WT_RET_MSG(session, EINVAL,
 		    "%s timestamp %.*s older than stable timestamp %s",
 		    name, (int)cval->len, cval->str, hex_timestamp);
