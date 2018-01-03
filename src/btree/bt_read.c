@@ -680,6 +680,7 @@ read:			/*
 				/* If forced eviction fails, stall. */
 				if (ret == EBUSY) {
 					ret = 0;
+					WT_NOT_READ(ret);
 					WT_STAT_CONN_INCR(session,
 					    page_forcible_evict_blocked);
 					stalled = true;

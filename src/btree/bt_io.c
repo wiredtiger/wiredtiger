@@ -354,6 +354,7 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 	 * configured.
 	 */
 	data_checksum = true;		/* -Werror=maybe-uninitialized */
+	WT_NOT_READ(data_checksum);
 	switch (btree->checksum) {
 	case CKSUM_ON:
 		data_checksum = true;

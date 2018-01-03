@@ -744,9 +744,9 @@ extern uint32_t __wt_rduppo2(uint32_t n, uint32_t po2);
 extern void __wt_random_init(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_random_init_seed( WT_SESSION_IMPL *session, WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern uint32_t __wt_random(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
-extern int __wt_buf_grow_worker(WT_SESSION_IMPL *session, WT_ITEM *buf, size_t size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_buf_fmt(WT_SESSION_IMPL *session, WT_ITEM *buf, const char *fmt, ...) WT_GCC_FUNC_DECL_ATTRIBUTE((format (printf, 3, 4))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_buf_catfmt(WT_SESSION_IMPL *session, WT_ITEM *buf, const char *fmt, ...) WT_GCC_FUNC_DECL_ATTRIBUTE((format (printf, 3, 4))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_buf_grow_worker(WT_SESSION_IMPL *session, WT_ITEM *buf, size_t size) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default"))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_buf_fmt(WT_SESSION_IMPL *session, WT_ITEM *buf, const char *fmt, ...) WT_GCC_FUNC_DECL_ATTRIBUTE((format (printf, 3, 4))) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default"))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_buf_catfmt(WT_SESSION_IMPL *session, WT_ITEM *buf, const char *fmt, ...) WT_GCC_FUNC_DECL_ATTRIBUTE((format (printf, 3, 4))) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default"))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern const char *__wt_buf_set_printable( WT_SESSION_IMPL *session, const void *p, size_t size, WT_ITEM *buf);
 extern const char *__wt_buf_set_printable_format(WT_SESSION_IMPL *session, const void *buffer, size_t size, const char *format, WT_ITEM *buf);
 extern const char *__wt_buf_set_size( WT_SESSION_IMPL *session, uint64_t size, bool exact, WT_ITEM *buf);
@@ -755,7 +755,8 @@ __wt_scr_alloc_func(WT_SESSION_IMPL *session, size_t size, WT_ITEM **scratchp
 #ifdef HAVE_DIAGNOSTIC
  , const char *file, int line
 #endif
- );
+ )
+ WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_scr_discard(WT_SESSION_IMPL *session);
 extern void *__wt_ext_scr_alloc( WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, size_t size);
 extern void __wt_ext_scr_free(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, void *p);

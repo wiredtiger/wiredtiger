@@ -912,6 +912,7 @@ __wt_lsm_tree_drop(
 	bool locked;
 
 	locked = false;
+	WT_NOT_READ(locked);
 
 	/* Get the LSM tree. */
 	WT_RET(__wt_lsm_tree_get(session, name, true, &lsm_tree));
@@ -971,6 +972,7 @@ __wt_lsm_tree_rename(WT_SESSION_IMPL *session,
 
 	old = NULL;
 	locked = false;
+	WT_NOT_READ(locked);
 
 	/* Get the LSM tree. */
 	WT_RET(__wt_lsm_tree_get(session, olduri, true, &lsm_tree));
@@ -1039,8 +1041,10 @@ __wt_lsm_tree_truncate(
 	bool locked;
 
 	WT_UNUSED(cfg);
+
 	chunk = NULL;
 	locked = false;
+	WT_NOT_READ(locked);
 
 	/* Get the LSM tree. */
 	WT_RET(__wt_lsm_tree_get(session, name, true, &lsm_tree));
@@ -1379,6 +1383,7 @@ __wt_lsm_tree_worker(WT_SESSION_IMPL *session,
 	bool exclusive, locked, need_release;
 
 	locked = need_release = false;
+	WT_NOT_READ(locked);
 	exclusive = FLD_ISSET(open_flags, WT_DHANDLE_EXCLUSIVE);
 
 	WT_RET(__wt_lsm_tree_get(session, uri, exclusive, &lsm_tree));
