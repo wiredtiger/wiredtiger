@@ -467,10 +467,12 @@ __wt_txn_visible(
 	/* Timestamp check. */
 	if (!F_ISSET(txn, WT_TXN_HAS_TS_READ) || timestamp == NULL)
 		return (true);
+
 	return (__wt_timestamp_cmp(timestamp, &txn->read_timestamp) <= 0);
 	}
 #else
 	WT_UNUSED(timestamp);
+	return (true);
 #endif
 }
 
