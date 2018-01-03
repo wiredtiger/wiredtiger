@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -1158,6 +1158,7 @@ __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn)
 	const char *iso_tag;
 
 	iso_tag = "INVALID";
+	WT_NOT_READ(iso_tag);
 	switch (txn->isolation) {
 	case WT_ISO_READ_COMMITTED:
 		iso_tag = "WT_ISO_READ_COMMITTED";

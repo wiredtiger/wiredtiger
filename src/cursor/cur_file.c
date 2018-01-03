@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -594,11 +594,12 @@ __curfile_create(WT_SESSION_IMPL *session,
 	__wt_btcur_open(cbt);
 
 	/*
-	 * WT_CURSOR.modify supported on 'u' value formats, but the fast-path
-	 * through the btree code requires log file format changes, it's not
-	 * available in all versions.
+	 * WT_CURSOR.modify supported on 'S' and 'u' value formats, but the
+	 * fast-path through the btree code requires log file format changes,
+	 * it's not available in all versions.
 	 */
-	if (WT_STREQ(cursor->value_format, "u") &&
+	if ((WT_STREQ(cursor->value_format, "S") ||
+	    WT_STREQ(cursor->value_format, "u")) &&
 	    S2C(session)->compat_major >= WT_LOG_V2)
 		cursor->modify = __curfile_modify;
 

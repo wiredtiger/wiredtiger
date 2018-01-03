@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -15,6 +15,7 @@
  */
 int
 __wt_buf_grow_worker(WT_SESSION_IMPL *session, WT_ITEM *buf, size_t size)
+    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	size_t offset;
 	bool copy_data;
@@ -68,6 +69,7 @@ __wt_buf_grow_worker(WT_SESSION_IMPL *session, WT_ITEM *buf, size_t size)
 int
 __wt_buf_fmt(WT_SESSION_IMPL *session, WT_ITEM *buf, const char *fmt, ...)
     WT_GCC_FUNC_ATTRIBUTE((format (printf, 3, 4)))
+    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	WT_DECL_RET;
 	size_t len;
@@ -102,6 +104,7 @@ __wt_buf_fmt(WT_SESSION_IMPL *session, WT_ITEM *buf, const char *fmt, ...)
 int
 __wt_buf_catfmt(WT_SESSION_IMPL *session, WT_ITEM *buf, const char *fmt, ...)
     WT_GCC_FUNC_ATTRIBUTE((format (printf, 3, 4)))
+    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	WT_DECL_RET;
 	size_t len, space;
@@ -286,6 +289,7 @@ __wt_scr_alloc_func(WT_SESSION_IMPL *session, size_t size, WT_ITEM **scratchp
     , const char *file, int line
 #endif
     )
+    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	WT_DECL_RET;
 	WT_ITEM *buf, **p, **best, **slot;

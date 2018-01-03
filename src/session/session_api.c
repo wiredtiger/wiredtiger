@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -1779,6 +1779,19 @@ __wt_session_strerror(WT_SESSION *wt_session, int error)
 }
 
 /*
+ * __wt_session_breakpoint --
+ *	A place to put a breakpoint, if you need one, or call some check
+ * code.
+ */
+int
+__wt_session_breakpoint(WT_SESSION *wt_session)
+{
+	WT_UNUSED(wt_session);
+
+	return (0);
+}
+
+/*
  * __open_session --
  *	Allocate a session handle.
  */
@@ -1815,7 +1828,8 @@ __open_session(WT_CONNECTION_IMPL *conn,
 		__session_checkpoint,
 		__session_snapshot,
 		__session_transaction_pinned_range,
-		__session_transaction_sync
+		__session_transaction_sync,
+		__wt_session_breakpoint
 	}, stds_readonly = {
 		NULL,
 		NULL,
@@ -1844,7 +1858,8 @@ __open_session(WT_CONNECTION_IMPL *conn,
 		__session_checkpoint_readonly,
 		__session_snapshot,
 		__session_transaction_pinned_range,
-		__session_transaction_sync_readonly
+		__session_transaction_sync_readonly,
+		__wt_session_breakpoint
 	};
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session, *session_ret;

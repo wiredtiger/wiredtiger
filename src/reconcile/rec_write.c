@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -1088,9 +1088,11 @@ __rec_init(WT_SESSION_IMPL *session,
 
 	/*
 	 * The fake cursor used to figure out modified update values points to
-	 * the enclosing WT_REF as a way to access the page.
+	 * the enclosing WT_REF as a way to access the page, and also needs to
+	 * set the format.
 	 */
 	r->update_modify_cbt.ref = ref;
+	r->update_modify_cbt.iface.value_format = btree->value_format;
 
 	return (0);
 }
@@ -5633,6 +5635,7 @@ build:
 					WT_ERR(__wt_dsk_cell_data_ref(session,
 					    WT_PAGE_ROW_LEAF, kpack, r->cur));
 					key_onpage_ovfl = false;
+					WT_NOT_READ(key_onpage_ovfl);
 				}
 
 				/*
