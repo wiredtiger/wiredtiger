@@ -1292,12 +1292,19 @@ err:	API_END_RET(session, ret);
 static void
 __conn_calibrate_ticks(WT_SESSION_IMPL *session)
 {
+	WT_CONNECTION_IMPL *conn;
 #if defined (__i386) || defined (__amd64)
 	struct timespec start, stop;
+	double ratio;
 	uint64_t diff_nsec, diff_tsc, min_nsec, min_tsc;
 	uint64_t tries, tsc_start, tsc_stop;
 	volatile uint64_t i;
+#endif
 
+	conn = S2C(session);
+	F_SET(conn, WT_CONN_USE_EPOCHTIME);
+	conn->tsc_nsec_ratio = 1.0;
+#if defined (__i386) || defined (__amd64)
 	min_nsec = min_tsc = 0;
 	/*
 	 * Run this calibration loop a few times to make sure we get a
@@ -1333,15 +1340,13 @@ __conn_calibrate_ticks(WT_SESSION_IMPL *session)
 	 * time with wt_epoch. One possible reason is that the system's
 	 * clock granularity is not fine-grained enough.
 	 */
-	if (min_nsec == 0) {
-		F_SET(S2C(session), WT_CONN_USE_EPOCHTIME);
-		S2C(session)->tsc_nsec_ratio = 1.0;
-	} else
-		S2C(session)->tsc_nsec_ratio =
-		    (double)min_tsc / (double)min_nsec;
-#else
-	F_SET(S2C(session), WT_CONN_USE_EPOCHTIME);
-	S2C(session)->tsc_nsec_ratio = 1.0;
+	if (min_nsec > 0) {
+		ratio = (double)min_tsc / (double)min_nsec;
+		if (ratio > DBL_EPSILON) {
+			conn->tsc_nsec_ratio = ratio;
+			F_CLR(conn, WT_CONN_USE_EPOCHTIME);
+		}
+	}
 #endif
 }
 
@@ -2428,6 +2433,12 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	    WT_CONFIG_REF(session, wiredtiger_open), config, 0));
 
 	/*
+	 * Calibrate the ratio of rdtsc ticks to nanoseconds. This must be
+	 * done before anything else that might use time functions.
+	 */
+	__conn_calibrate_ticks(session);
+
+	/*
 	 * Build the temporary, initial configuration stack, in the following
 	 * order (where later entries override earlier entries):
 	 *
@@ -2721,11 +2732,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	 * Configuration completed; optionally write a base configuration file.
 	 */
 	WT_ERR(__conn_write_base_config(session, cfg));
-
-	/*
-	 * Calibrate the ratio of rdtsc ticks to nanoseconds.
-	 */
-	__conn_calibrate_ticks(session);
 
 	/*
 	 * Check on the turtle and metadata files, creating them if necessary
