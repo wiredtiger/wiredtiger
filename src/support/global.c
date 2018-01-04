@@ -41,6 +41,67 @@ __wt_endian_check(void)
 }
 
 /*
+ * __global_calibrate_ticks --
+ *	Calibrate a ratio from rdtsc ticks to nanoseconds.
+ */
+static void
+__global_calibrate_ticks()
+{
+#if defined (__i386) || defined (__amd64)
+	struct timespec start, stop;
+	double ratio;
+	uint64_t diff_nsec, diff_tsc, min_nsec, min_tsc;
+	uint64_t tries, tsc_start, tsc_stop;
+	volatile uint64_t i;
+
+	min_nsec = min_tsc = 0;
+	/*
+	 * Run this calibration loop a few times to make sure we get a
+	 * reading that does not have a potential scheduling shift in it.
+	 * The inner loop is CPU intensive but a scheduling change in the
+	 * middle could throw off calculations. Take the minimum amount
+	 * of time and compute the ratio.
+	 */
+	for (tries = 0; tries < 3; ++tries) {
+		__wt_epoch(NULL, &start);
+		tsc_start = __wt_rdtsc(NULL);
+		/*
+		 * This needs to be CPU intensive and large enough.
+		 */
+		for (i = 0; i < WT_MILLION * 100; i++)
+			;
+		tsc_stop = __wt_rdtsc(NULL);
+		__wt_epoch(NULL, &stop);
+		diff_nsec = WT_TIMEDIFF_NS(stop, start);
+		diff_tsc = tsc_stop - tsc_start;
+		if (min_nsec == 0)
+			min_nsec = diff_nsec;
+		else
+			min_nsec = WT_MIN(min_nsec, diff_nsec);
+		if (min_tsc == 0)
+			min_tsc = diff_tsc;
+		else
+			min_tsc = WT_MIN(min_tsc, diff_tsc);
+	}
+
+	/*
+	 * If we couldn't get a good reading then fallback to getting
+	 * time with wt_epoch. One possible reason is that the system's
+	 * clock granularity is not fine-grained enough.
+	 */
+	__wt_process.tsc_nsec_ratio = WT_TSC_DEFAULT_RATIO;
+	if (min_nsec != 0) {
+		ratio =
+		    (double)min_tsc / (double)min_nsec;
+		if (ratio > DBL_EPSILON)
+			__wt_process.tsc_nsec_ratio = ratio;
+	}
+#else
+	__wt_process.tsc_nsec_ratio = WT_TSC_DEFAULT_RATIO;
+#endif
+}
+
+/*
  * __wt_global_once --
  *	Global initialization, run once.
  */
@@ -56,6 +117,7 @@ __wt_global_once(void)
 	}
 
 	__wt_checksum_init();
+	__global_calibrate_ticks();
 
 	TAILQ_INIT(&__wt_process.connqh);
 }

@@ -25,6 +25,8 @@ struct __wt_process {
 					/* Locked: connection queue */
 	TAILQ_HEAD(__wt_connection_impl_qh, __wt_connection_impl) connqh;
 	WT_CACHE_POOL *cache_pool;
+#define	WT_TSC_DEFAULT_RATIO	1.0
+	double	 tsc_nsec_ratio;	/* rdtsc ticks to nanoseconds */
 
 					/* Checksum function */
 #define	__wt_checksum(chunk, len)	__wt_process.checksum(chunk, len)
@@ -403,7 +405,6 @@ struct __wt_connection_impl {
 
 	bool	 mmap;			/* mmap configuration */
 	int page_size;			/* OS page size for mmap alignment */
-	double	 tsc_nsec_ratio;	/* rdtsc ticks to nanoseconds */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define	WT_VERB_API			0x000000001u
@@ -484,8 +485,7 @@ struct __wt_connection_impl {
 #define	WT_CONN_SERVER_LSM		0x020000u
 #define	WT_CONN_SERVER_STATISTICS	0x040000u
 #define	WT_CONN_SERVER_SWEEP		0x080000u
-#define	WT_CONN_USE_EPOCHTIME		0x100000u
-#define	WT_CONN_WAS_BACKUP		0x200000u
+#define	WT_CONN_WAS_BACKUP		0x100000u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint32_t flags;
 };

@@ -35,7 +35,7 @@ __wt_hex(int c)
  */
 static inline uint64_t
 __wt_rdtsc(WT_SESSION_IMPL *session) {
-	if (F_ISSET(S2C(session), WT_CONN_USE_EPOCHTIME))
+	if (__wt_process.tsc_nsec_ratio == WT_TSC_DEFAULT_RATIO)
 		return (__wt_tsc_get_expensive_timestamp(session));
 #if defined (__i386)
 	{
