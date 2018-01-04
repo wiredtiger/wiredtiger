@@ -134,5 +134,28 @@ class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
             lambda: self.session.commit_transaction(), msg)
         c.close()
 
+        # Make sure multiple update attempts still fail and eventually
+        # try a later timestamp.
+        c = self.session.open_cursor(uri)
+        self.session.begin_transaction()
+        self.session.timestamp_transaction(
+            'commit_timestamp=' + timestamp_str(14))
+        c['key3'] = 'value14'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.commit_transaction(), msg)
+        c.close()
+
+        c = self.session.open_cursor(uri)
+        self.assertEquals(c['key3'], 'value15')
+        c.close()
+
+        c = self.session.open_cursor(uri)
+        self.session.begin_transaction()
+        self.session.timestamp_transaction(
+            'commit_timestamp=' + timestamp_str(16))
+        c['key3'] = 'value16'
+        self.session.commit_transaction()
+        c.close()
+
 if __name__ == '__main__':
     wttest.run()
