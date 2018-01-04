@@ -45,7 +45,7 @@ __wt_endian_check(void)
  *	Calibrate a ratio from rdtsc ticks to nanoseconds.
  */
 static void
-__global_calibrate_ticks()
+__global_calibrate_ticks(void)
 {
 #if defined (__i386) || defined (__amd64)
 	struct timespec start, stop;
