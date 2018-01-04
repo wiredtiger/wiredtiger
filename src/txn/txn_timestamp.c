@@ -560,12 +560,12 @@ __wt_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
 	 * if the given timestamp is older than oldest and/or stable timestamp.
 	 */
 	WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
-	    has_oldest_ts = txn_global->has_oldest_timestamp;
-	    has_oldest_ts ?
-	    __wt_timestamp_set(&oldest_ts, &txn_global->oldest_timestamp) : 0;
-	    has_stable_ts = txn_global->has_stable_timestamp;
-	    has_stable_ts ?
-	    __wt_timestamp_set(&stable_ts, &txn_global->stable_timestamp) : 0);
+	    (has_oldest_ts = txn_global->has_oldest_timestamp) ?
+	    (__wt_timestamp_set(&oldest_ts, &txn_global->oldest_timestamp),
+	    has_oldest_ts = true) : false;
+	    (has_stable_ts = txn_global->has_stable_timestamp) ?
+	    (__wt_timestamp_set(&stable_ts, &txn_global->stable_timestamp),
+	    has_stable_ts = true) : false);
 
 	if (cmp_oldest && has_oldest_ts &&
 	    __wt_timestamp_cmp(ts, &oldest_ts) < 0) {
