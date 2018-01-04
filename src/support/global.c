@@ -62,6 +62,7 @@ __global_calibrate_ticks()
 	 * middle could throw off calculations. Take the minimum amount
 	 * of time and compute the ratio.
 	 */
+	__wt_process.use_epochtime = false;
 	for (tries = 0; tries < 3; ++tries) {
 		__wt_epoch(NULL, &start);
 		tsc_start = __wt_rdtsc(NULL);
@@ -90,13 +91,17 @@ __global_calibrate_ticks()
 	 * clock granularity is not fine-grained enough.
 	 */
 	__wt_process.tsc_nsec_ratio = WT_TSC_DEFAULT_RATIO;
+	__wt_process.use_epochtime = true;
 	if (min_nsec != 0) {
 		ratio =
 		    (double)min_tsc / (double)min_nsec;
-		if (ratio > DBL_EPSILON)
+		if (ratio > DBL_EPSILON) {
 			__wt_process.tsc_nsec_ratio = ratio;
+			__wt_process.use_epochtime = false;
+		}
 	}
 #else
+	__wt_process.use_epochtime = true;
 	__wt_process.tsc_nsec_ratio = WT_TSC_DEFAULT_RATIO;
 #endif
 }

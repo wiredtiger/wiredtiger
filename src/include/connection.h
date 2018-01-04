@@ -27,6 +27,7 @@ struct __wt_process {
 	WT_CACHE_POOL *cache_pool;
 #define	WT_TSC_DEFAULT_RATIO	1.0
 	double	 tsc_nsec_ratio;	/* rdtsc ticks to nanoseconds */
+	bool use_epochtime;		/* use expensive time */
 
 					/* Checksum function */
 #define	__wt_checksum(chunk, len)	__wt_process.checksum(chunk, len)
