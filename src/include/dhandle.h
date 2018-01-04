@@ -43,6 +43,12 @@
 #define	WT_DHANDLE_RELEASE(dhandle)					\
     (void)__wt_atomic_sub32(&(dhandle)->session_ref, 1)
 
+#define	WT_DHANDLE_CACHE(dhandle)					\
+    (void)__wt_atomic_add32(&(dhandle)->cursor_cache_ref, 1)
+
+#define	WT_DHANDLE_UNCACHE(dhandle)					\
+    (void)__wt_atomic_sub32(&(dhandle)->cursor_cache_ref, 1)
+
 #define	WT_DHANDLE_NEXT(session, dhandle, head, field) do {		\
 	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST));\
 	if ((dhandle) == NULL)						\
@@ -70,12 +76,14 @@ struct __wt_data_handle {
 	const char **cfg;		/* Configuration information */
 
 	/*
-	 * Sessions caching a connection's data handle will have a non-zero
+	 * Sessions holding a connection's data handle will have a non-zero
 	 * reference count; sessions using a connection's data handle will
-	 * have a non-zero in-use count.
+	 * have a non-zero in-use count. Instances of cached cursors referencing
+	 * the data handle appear in session_cache_ref.
 	 */
 	uint32_t session_ref;		/* Sessions referencing this handle */
 	int32_t	 session_inuse;		/* Sessions using this handle */
+	uint32_t cursor_cache_ref;	/* Cached cursors referencing handle */
 	uint32_t excl_ref;		/* Refs of handle by excl_session */
 	time_t	 timeofdeath;		/* Use count went to 0 */
 	WT_SESSION_IMPL *excl_session;	/* Session with exclusive use, if any */

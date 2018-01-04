@@ -344,6 +344,40 @@ err:		F_CLR(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 }
 
 /*
+ * __curindex_cache --
+ *	WT_CURSOR->cache method for index cursors.
+ */
+static int
+__curindex_cache(WT_CURSOR *cursor)
+{
+	WT_CURSOR_INDEX *cindex;
+
+	cindex = (WT_CURSOR_INDEX *)cursor;
+
+	WT_RET(__wt_cursor_cache(cursor, NULL));
+	WT_RET(cindex->child->cache(cindex->child));
+
+	return (0);
+}
+
+/*
+ * __curindex_reopen --
+ *	WT_CURSOR->reopen method for index cursors.
+ */
+static int
+__curindex_reopen(WT_CURSOR *cursor)
+{
+	WT_CURSOR_INDEX *cindex;
+
+	cindex = (WT_CURSOR_INDEX *)cursor;
+
+	WT_RET(__wt_cursor_reopen(cursor, NULL));
+	WT_RET(cindex->child->reopen(cindex->child));
+
+	return (0);
+}
+
+/*
  * __curindex_close --
  *	WT_CURSOR->close method for index cursors.
  */
@@ -361,6 +395,7 @@ __curindex_close(WT_CURSOR *cursor)
 	idx = cindex->index;
 
 	JOINABLE_CURSOR_API_CALL(cursor, session, close, NULL);
+	CURSOR_CLOSE_CACHE(cursor, session);
 
 	if ((cp = cindex->cg_cursors) != NULL)
 		for (i = 0, cp = cindex->cg_cursors;
@@ -454,6 +489,8 @@ __wt_curindex_open(WT_SESSION_IMPL *session,
 	    __wt_cursor_notsup,			/* remove */
 	    __wt_cursor_notsup,			/* reserve */
 	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
+	    __curindex_cache,			/* cache */
+	    __curindex_reopen,			/* reopen */
 	    __curindex_close);			/* close */
 	WT_CURSOR_INDEX *cindex;
 	WT_CURSOR *cursor;
@@ -463,6 +500,9 @@ __wt_curindex_open(WT_SESSION_IMPL *session,
 	WT_TABLE *table;
 	const char *columns, *idxname, *tablename;
 	size_t namesize;
+	bool cacheable;
+
+	cacheable = false;
 
 	tablename = uri;
 	if (!WT_PREFIX_SKIP(tablename, "index:") ||
@@ -482,8 +522,13 @@ __wt_curindex_open(WT_SESSION_IMPL *session,
 	columns = strchr(idxname, '(');
 	if (columns == NULL)
 		namesize = strlen(idxname);
-	else
+	else {
 		namesize = (size_t)(columns - idxname);
+		cacheable = false;
+	}
+
+	if (cacheable)
+		CURSOR_OPEN_CACHE(session, uri, owner, cfg, cursorp);
 
 	if ((ret = __wt_schema_open_index(
 	    session, table, idxname, namesize, &idx)) != 0) {
@@ -544,6 +589,12 @@ __wt_curindex_open(WT_SESSION_IMPL *session,
 	if (F_ISSET(cursor, WT_CURSTD_DUMP_JSON))
 		__wt_json_column_init(cursor, uri, table->key_format,
 		    &idx->colconf, &table->colconf);
+
+	if (cacheable && F_ISSET(session, WT_SESSION_CACHE_CURSORS) &&
+	    F_ISSET(cindex->child, WT_CURSTD_CACHEABLE)) {
+		F_SET(cursor, WT_CURSTD_CACHEABLE);
+		F_SET(cindex->child, WT_CURSTD_CACHE_CHILD);
+	}
 
 	if (0) {
 err:		WT_TRET(__curindex_close(cursor));

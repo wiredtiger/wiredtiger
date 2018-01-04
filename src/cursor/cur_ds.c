@@ -496,6 +496,8 @@ __wt_curds_open(
 	    __curds_remove,			/* remove */
 	    __curds_reserve,			/* reserve */
 	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
+	    __wt_cursor_notsup,			/* cache */
+	    __wt_cursor_notsup,			/* reopen */
 	    __curds_close);			/* close */
 	WT_CONFIG_ITEM cval, metadata;
 	WT_CURSOR *cursor, *source;

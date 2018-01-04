@@ -97,6 +97,8 @@ __wt_apply_single_idx(WT_SESSION_IMPL *session, WT_INDEX *idx,
 	    __wt_cursor_notsup,			/* remove */
 	    __wt_cursor_notsup,			/* reserve */
 	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
+	    __wt_cursor_notsup,			/* cache */
+	    __wt_cursor_notsup,			/* reopen */
 	    __wt_cursor_notsup);		/* close */
 	WT_CURSOR_EXTRACTOR extract_cursor;
 	WT_DECL_RET;
@@ -788,6 +790,50 @@ err:	__wt_scr_free(session, &key);
 }
 
 /*
+ * __curtable_cache --
+ *	WT_CURSOR->cache method for table cursors.
+ */
+static int
+__curtable_cache(WT_CURSOR *cursor)
+{
+	WT_CURSOR_TABLE *ctable;
+	WT_DECL_RET;
+
+	ctable = (WT_CURSOR_TABLE *)cursor;
+
+	WT_ERR(__wt_cursor_cache(cursor, &ctable->table->iface));
+	APPLY_CG(ctable, cache);
+	WT_ERR(ret);
+	WT_ERR(__apply_idx(ctable, offsetof(WT_CURSOR, cache), false));
+
+err:	return (ret);
+}
+
+/*
+ * __curtable_reopen --
+ *	WT_CURSOR->reopen method for table cursors.
+ */
+static int
+__curtable_reopen(WT_CURSOR *cursor)
+{
+	WT_CURSOR_TABLE *ctable;
+	WT_DECL_RET;
+
+	ctable = (WT_CURSOR_TABLE *)cursor;
+
+	/*
+	 * If anything fails here, the caller will explicitly close
+	 * the cursor.
+	 */
+	WT_ERR(__wt_cursor_reopen(cursor, &ctable->table->iface));
+	APPLY_CG(ctable, reopen);
+	WT_ERR(ret);
+	WT_ERR(__apply_idx(ctable, offsetof(WT_CURSOR, reopen), false));
+
+err:	return (ret);
+}
+
+/*
  * __curtable_close --
  *	WT_CURSOR->close method for the table cursor type.
  */
@@ -802,6 +848,7 @@ __curtable_close(WT_CURSOR *cursor)
 
 	ctable = (WT_CURSOR_TABLE *)cursor;
 	JOINABLE_CURSOR_API_CALL(cursor, session, close, NULL);
+	CURSOR_CLOSE_CACHE(cursor, session);
 
 	if (ctable->cg_cursors != NULL)
 		for (i = 0, cp = ctable->cg_cursors;
@@ -835,6 +882,9 @@ __curtable_close(WT_CURSOR *cursor)
 	WT_TRET(__wt_schema_release_table(session, ctable->table));
 	/* The URI is owned by the table. */
 	cursor->internal_uri = NULL;
+	if (F_ISSET(cursor, WT_CURSTD_CACHED))
+		if (&ctable->table->iface == session->dhandle)
+			WT_DHANDLE_UNCACHE(session->dhandle);
 	WT_TRET(__wt_cursor_close(cursor));
 
 err:	API_END_RET(session, ret);
@@ -958,20 +1008,27 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 	    __curtable_remove,			/* remove */
 	    __curtable_reserve,			/* reserve */
 	    __wt_cursor_reconfigure,		/* reconfigure */
+	    __curtable_cache,			/* cache */
+	    __curtable_reopen,			/* reopen */
 	    __curtable_close);			/* close */
 	WT_CONFIG_ITEM cval;
-	WT_CURSOR *cursor;
+	WT_CURSOR *cursor, **cp;
 	WT_CURSOR_TABLE *ctable;
 	WT_DECL_ITEM(tmp);
 	WT_DECL_RET;
 	WT_TABLE *table;
 	size_t size;
+	u_int i;
 	int cfg_cnt;
 	const char *tablename, *columns;
+	bool cacheable;
 
 	WT_STATIC_ASSERT(offsetof(WT_CURSOR_TABLE, iface) == 0);
 
+	CURSOR_OPEN_CACHE(session, uri, owner, cfg, cursorp);
+
 	ctable = NULL;
+	cacheable = true;
 
 	tablename = uri;
 	WT_PREFIX_SKIP_REQUIRED(session, tablename, "table:");
@@ -983,6 +1040,7 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 		size = WT_PTRDIFF(columns, tablename);
 		WT_RET(__wt_schema_get_table(
 		    session, tablename, size, false, 0, &table));
+		cacheable = false;
 	}
 
 	WT_RET(__curtable_complete(session, table));	/* completeness check */
@@ -998,6 +1056,8 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 			cursor = *cursorp;
 			__wt_free(session, cursor->uri);
 			WT_TRET(__wt_strdup(session, uri, &cursor->uri));
+			if (!cacheable)
+				F_CLR(cursor, WT_CURSTD_CACHEABLE);
 		}
 		return (ret);
 	}
@@ -1038,6 +1098,7 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 		__wt_cursor_set_notsup(cursor);
 		cursor->next = __curtable_next_random;
 		cursor->reset = __curtable_reset;
+		cacheable = false;
 	}
 
 	WT_ERR(__wt_cursor_init(
@@ -1080,6 +1141,23 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 		WT_ERR(__wt_buf_catfmt(session, tmp, "%s,", cfg[cfg_cnt]));
 	WT_ERR(__wt_buf_catfmt(session, tmp, "dump=\"\",readonly=0"));
 	WT_ERR(__wt_strdup(session, tmp->data, &ctable->cfg[1]));
+
+	if (cacheable && F_ISSET(session, WT_SESSION_CACHE_CURSORS)) {
+		for (i = 0, cp = ctable->cg_cursors;
+		     cacheable && i < WT_COLGROUPS(ctable->table); i++, cp++) {
+			F_SET(*cp, WT_CURSTD_CACHE_CHILD);
+			if (!F_ISSET(*cp, WT_CURSTD_CACHEABLE))
+				cacheable = false;
+		}
+		for (i = 0, cp = ctable->idx_cursors;
+		     cacheable && i < ctable->table->nindices; i++, cp++) {
+			F_SET(*cp, WT_CURSTD_CACHE_CHILD);
+			if (!F_ISSET(*cp, WT_CURSTD_CACHEABLE))
+				cacheable = false;
+		}
+		if (cacheable)
+			F_SET(cursor, WT_CURSTD_CACHEABLE);
+	}
 
 	if (0) {
 err:		if (*cursorp != NULL) {

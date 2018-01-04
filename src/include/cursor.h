@@ -27,6 +27,8 @@
 	remove,								\
 	reserve,							\
 	reconfigure,							\
+	cache,								\
+	reopen,								\
 	close)								\
 	static const WT_CURSOR n = {					\
 	NULL,				/* session */			\
@@ -51,6 +53,8 @@
 	reserve,							\
 	close,								\
 	reconfigure,							\
+	cache,								\
+	reopen,								\
 	{ NULL, NULL },			/* TAILQ_ENTRY q */		\
 	0,				/* recno key */			\
 	{ 0 },				/* recno raw buffer */		\

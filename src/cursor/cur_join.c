@@ -596,6 +596,8 @@ __curjoin_entry_member(WT_SESSION_IMPL *session, WT_CURSOR_JOIN_ENTRY *entry,
 	    __wt_cursor_notsup,			/* remove */
 	    __wt_cursor_notsup,			/* reserve */
 	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
+	    __wt_cursor_notsup,			/* cache */
+	    __wt_cursor_notsup,			/* reopen */
 	    __wt_cursor_notsup);		/* close */
 	WT_DECL_RET;
 	WT_INDEX *idx;
@@ -1301,6 +1303,8 @@ __wt_curjoin_open(WT_SESSION_IMPL *session,
 	    __wt_cursor_notsup,			/* remove */
 	    __wt_cursor_notsup,			/* reserve */
 	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
+	    __wt_cursor_notsup,			/* cache */
+	    __wt_cursor_notsup,			/* reopen */
 	    __curjoin_close);			/* close */
 	WT_CURSOR *cursor;
 	WT_CURSOR_JOIN *cjoin;

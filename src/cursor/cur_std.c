@@ -21,6 +21,19 @@ __wt_cursor_noop(WT_CURSOR *cursor)
 }
 
 /*
+ * __wt_cursor_cached --
+ *	No actions on a closed and cached cursor are allowed.
+ */
+int
+__wt_cursor_cached(WT_CURSOR *cursor)
+{
+	WT_SESSION_IMPL *session;
+
+	session = (WT_SESSION_IMPL *)cursor->session;
+	WT_RET_MSG(session, ENOTSUP, "Cursor has been closed");
+}
+
+/*
  * __wt_cursor_notsup --
  *	Unsupported cursor actions.
  */
@@ -556,6 +569,167 @@ err:		cursor->saved_err = ret;
 }
 
 /*
+ * __wt_cursor_cache --
+ *	Add this cursor to the cache.
+ */
+int
+__wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
+{
+	WT_SESSION_IMPL *session;
+
+	session = (WT_SESSION_IMPL *)cursor->session;
+	WT_ASSERT(session, !F_ISSET(cursor, WT_CURSTD_CACHED) &&
+	    (dhandle != NULL || F_ISSET(cursor, WT_CURSTD_CACHE_CHILD)));
+
+	if (!F_ISSET(cursor, WT_CURSTD_CACHE_CHILD))
+		WT_RET(cursor->reset(cursor));
+	if (dhandle != NULL) {
+		WT_DHANDLE_CACHE(dhandle);
+
+		/*
+		 * Acquire a reference while decrementing the in-use counter.
+		 * After this point, the dhandle may be marked dead, but the
+		 * actual handle won't be removed.
+		 */
+		session->dhandle = dhandle;
+		WT_DHANDLE_ACQUIRE(dhandle);
+		__wt_cursor_dhandle_decr_use(session);
+	}
+	F_SET(cursor, WT_CURSTD_CACHED);
+	return (0);
+}
+
+/*
+ * __wt_cursor_reopen --
+ *	Reopen this cursor from the cached state.
+ */
+int
+__wt_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
+{
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	session = (WT_SESSION_IMPL *)cursor->session;
+	WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_CACHED));
+
+	/*
+	 * TODO: what about checkpoints?  When we get a dhandle, it
+	 * has knowledge of a checkpoint (see __session_find_dhandle).
+	 */
+	if (dhandle != NULL) {
+		/*
+		 * A WT_NOTFOUND return is a signal to the caller to close
+		 * the cursor. We still need to restore the cursor so the
+		 * close can function normally.
+		 */
+		if (WT_DHANDLE_INACTIVE(dhandle) ||
+		    !F_ISSET(dhandle, WT_DHANDLE_OPEN))
+			ret = WT_NOTFOUND;
+
+		session->dhandle = dhandle;
+		__wt_cursor_dhandle_incr_use(session);
+		WT_DHANDLE_RELEASE(dhandle);
+		WT_DHANDLE_UNCACHE(dhandle);
+	}
+	F_CLR(cursor, WT_CURSTD_CACHED);
+	return (ret);
+}
+
+/*
+ * __wt_cursor_close_cache --
+ *	Put the cursor into a cached state, called during close operations.
+ */
+int
+__wt_cursor_close_cache(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
+{
+	WT_DECL_RET;
+
+	if ((ret = cursor->cache(cursor)) == 0) {
+		WT_STAT_CONN_INCR(session, cursor_cache);
+		WT_STAT_DATA_INCR(session, cursor_cache);
+		return (0);
+	}
+
+	/*
+	 * TODO: The caching operation failed, so we'll continue the close,
+	 * reopen first??
+	 */
+	WT_TRET(cursor->reopen(cursor));
+	return (ret);
+}
+
+/*
+ * __wt_cursor_open_cache --
+ *	Open a matching cursor from the cache.
+ */
+int
+__wt_cursor_open_cache(WT_SESSION_IMPL *session, const char *uri,
+    WT_CURSOR *owner, const char *cfg[], WT_CURSOR **cursorp)
+{
+	WT_CONFIG_ITEM cval;
+	WT_CURSOR *cursor;
+	WT_DECL_RET;
+	uint32_t flags, mask;
+	const char *tmp_cfg;
+	bool raw;
+
+	if (cfg == NULL) {
+		tmp_cfg = NULL;
+		cfg = &tmp_cfg;
+	}
+	WT_RET(__wt_config_gets(session, cfg, "readonly", &cval));
+	if (cval.val)
+		return (WT_NOTFOUND);
+	WT_RET(__wt_config_gets(session, cfg, "bulk", &cval));
+	if (cval.val)
+		return (WT_NOTFOUND);
+
+	mask = WT_CURSTD_CACHED | WT_CURSTD_APPEND | WT_CURSTD_OVERWRITE;
+	flags = WT_CURSTD_CACHED;
+
+	WT_RET(__wt_config_gets(session, cfg, "append", &cval));
+	if (cval.val != 0)
+		LF_SET(WT_CURSTD_APPEND);
+	WT_RET(__wt_config_gets(session, cfg, "overwrite", &cval));
+	if (cval.val != 0)
+		LF_SET(WT_CURSTD_OVERWRITE);
+
+	WT_RET(__wt_config_gets_def(session, cfg, "raw", 0, &cval));
+	raw = (cval.val != 0);
+
+	/*
+	 * Walk through all cursors, if there is a cached
+	 * cursor that matches uri and configuration, use it.
+	 */
+	TAILQ_FOREACH(cursor, &session->cursors, q) {
+		if (F_MASK(cursor, mask) == flags && cursor->uri != NULL &&
+		    WT_STREQ(cursor->uri, uri)) {
+			if ((ret = cursor->reopen(cursor)) != 0) {
+				F_CLR(cursor, WT_CURSTD_CACHEABLE);
+				session->dhandle = NULL;
+				(void)cursor->close(cursor);
+				return (ret);
+			}
+			*cursorp = cursor;
+
+			/*
+			 * TODO: Can this same technique be applied to
+			 * overwrite/append?
+			 */
+			if (raw)
+				F_SET(*cursorp, WT_CURSTD_RAW);
+			else
+				F_CLR(*cursorp, WT_CURSTD_RAW);
+
+			WT_STAT_CONN_INCR(session, cursor_reopen);
+			WT_STAT_DATA_INCR(session, cursor_reopen);
+			return (0);
+		}
+	}
+	return (WT_NOTFOUND);
+}
+
+/*
  * __wt_cursor_close --
  *	WT_CURSOR->close default implementation.
  */
@@ -572,7 +746,6 @@ __wt_cursor_close(WT_CURSOR *cursor)
 		(void)__wt_atomic_sub32(&S2C(session)->open_cursor_count, 1);
 		WT_STAT_DATA_DECR(session, session_cursor_open);
 	}
-
 	__wt_buf_free(session, &cursor->key);
 	__wt_buf_free(session, &cursor->value);
 

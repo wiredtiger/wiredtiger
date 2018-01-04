@@ -1765,6 +1765,8 @@ __wt_clsm_open(WT_SESSION_IMPL *session,
 	    __clsm_remove,			/* remove */
 	    __clsm_reserve,			/* reserve */
 	    __wt_cursor_reconfigure,		/* reconfigure */
+	    __wt_cursor_notsup,			/* cache */
+	    __wt_cursor_notsup,			/* reopen */
 	    __wt_clsm_close);			/* close */
 	WT_CURSOR *cursor;
 	WT_CURSOR_LSM *clsm;

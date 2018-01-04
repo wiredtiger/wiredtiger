@@ -153,6 +153,9 @@ __session_close(WT_SESSION *wt_session, const char *config)
 	SESSION_API_CALL(session, close, config, cfg);
 	WT_UNUSED(cfg);
 
+	/* Close all open cursors while the cursor cache is disabled. */
+	F_CLR(session, WT_SESSION_CACHE_CURSORS);
+
 	/* Rollback any active transaction. */
 	if (F_ISSET(&session->txn, WT_TXN_RUNNING))
 		WT_TRET(__session_rollback_transaction(wt_session, NULL));
@@ -174,6 +177,9 @@ __session_close(WT_SESSION *wt_session, const char *config)
 		    !WT_STREQ(cursor->internal_uri, WT_LAS_URI))
 			WT_TRET(session->event_handler->handle_close(
 			    session->event_handler, wt_session, cursor));
+		if (F_ISSET(cursor, WT_CURSTD_CACHED))
+			WT_TRET_NOTFOUND_OK(cursor->reopen(cursor));
+
 		WT_TRET(cursor->close(cursor));
 	} WT_TAILQ_SAFE_REMOVE_END
 
@@ -283,6 +289,15 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 	}
 	WT_ERR_NOTFOUND_OK(ret);
 
+	ret = __wt_config_getones(session, config, "cache_cursors", &cval);
+	if (ret == 0) {
+		if (cval.val)
+			F_SET(session, WT_SESSION_CACHE_CURSORS);
+		else
+			F_CLR(session, WT_SESSION_CACHE_CURSORS);
+	}
+	WT_ERR_NOTFOUND_OK(ret);
+
 err:	API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
@@ -384,6 +399,9 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri,
 
 	if (*cursorp == NULL)
 		return (__wt_bad_object_type(session, uri));
+
+	if (owner != NULL)
+		F_CLR(*cursorp, WT_CURSTD_CACHEABLE);
 
 	/*
 	 * When opening simple tables, the table code calls this function on the

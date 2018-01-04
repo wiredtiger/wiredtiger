@@ -428,6 +428,13 @@ __curfile_close(WT_CURSOR *cursor)
 
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_API_CALL(cursor, session, close, cbt->btree);
+
+	/*
+	 * TODO: if cursor->cache() fails, we want to (continue) to
+	 * close the cursor, but before doing so we need to increment
+	 * the use count (??) and decrement the ref count.
+	 */
+	CURSOR_CLOSE_CACHE(cursor, session);
 	if (F_ISSET(cursor, WT_CURSTD_BULK)) {
 		/* Free the bulk-specific resources. */
 		cbulk = (WT_CURSOR_BULK *)cbt;
@@ -438,6 +445,14 @@ __curfile_close(WT_CURSOR *cursor)
 	WT_TRET(__wt_btcur_close(cbt, false));
 	/* The URI is owned by the btree handle. */
 	cursor->internal_uri = NULL;
+
+	WT_ASSERT(session, session->dhandle == NULL ||
+	    session->dhandle->session_inuse > 0);
+
+	if (F_ISSET(cursor, WT_CURSTD_CACHED))
+		if (cbt->btree->dhandle == session->dhandle)
+			WT_DHANDLE_UNCACHE(session->dhandle);
+
 	WT_TRET(__wt_cursor_close(cursor));
 
 	/*
@@ -451,6 +466,43 @@ __curfile_close(WT_CURSOR *cursor)
 	}
 
 err:	API_END_RET(session, ret);
+}
+
+/*
+ * __curfile_cache --
+ *	WT_CURSOR->cache method for the btree cursor type.
+ */
+static int
+__curfile_cache(WT_CURSOR *cursor)
+{
+	WT_CURSOR_BTREE *cbt;
+
+	cbt = (WT_CURSOR_BTREE *)cursor;
+	WT_RET(__wt_cursor_cache(cursor, cbt->btree->dhandle));
+	return (__wt_session_release_dhandle(
+	    (WT_SESSION_IMPL *)cursor->session));
+}
+
+/*
+ * __curfile_reopen --
+ *	WT_CURSOR->reopen method for the btree cursor type.
+ */
+static int
+__curfile_reopen(WT_CURSOR *cursor)
+{
+	WT_CURSOR_BTREE *cbt;
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+	bool is_dead;
+
+	cbt = (WT_CURSOR_BTREE *)cursor;
+	session = (WT_SESSION_IMPL *)cursor->session;
+	session->dhandle = cbt->btree->dhandle;
+	WT_TRET(__wt_session_lock_dhandle(session, 0, &is_dead));
+	WT_TRET(__wt_cursor_reopen(cursor, cbt->btree->dhandle));
+	if (is_dead)
+		WT_TRET(WT_NOTFOUND);
+	return (ret);
 }
 
 /*
@@ -480,6 +532,8 @@ __curfile_create(WT_SESSION_IMPL *session,
 	    __curfile_remove,			/* remove */
 	    __curfile_reserve,			/* reserve */
 	    __wt_cursor_reconfigure,		/* reconfigure */
+	    __curfile_cache,			/* cache */
+	    __curfile_reopen,			/* reopen */
 	    __curfile_close);			/* close */
 	WT_BTREE *btree;
 	WT_CONFIG_ITEM cval;
@@ -488,10 +542,12 @@ __curfile_create(WT_SESSION_IMPL *session,
 	WT_CURSOR_BULK *cbulk;
 	WT_DECL_RET;
 	size_t csize;
+	bool cacheable;
 
 	WT_STATIC_ASSERT(offsetof(WT_CURSOR_BTREE, iface) == 0);
 
 	cbt = NULL;
+	cacheable = true;
 
 	btree = S2BT(session);
 	WT_ASSERT(session, btree != NULL);
@@ -548,6 +604,7 @@ __curfile_create(WT_SESSION_IMPL *session,
 		    session, cfg, "next_random_sample_size", 0, &cval));
 		if (cval.val != 0)
 			cbt->next_random_sample_size = (u_int)cval.val;
+		cacheable = false;
 	}
 
 	/* Underlying btree initialization. */
@@ -564,6 +621,14 @@ __curfile_create(WT_SESSION_IMPL *session,
 
 	WT_ERR(__wt_cursor_init(
 	    cursor, cursor->internal_uri, owner, cfg, cursorp));
+
+	/*
+	 * WiredTiger.wt should not be cached, doing so interferes
+	 * with named checkpoints.
+	 */
+	if (cacheable && F_ISSET(session, WT_SESSION_CACHE_CURSORS) &&
+	    !WT_STREQ(WT_METAFILE_URI, cursor->internal_uri))
+		F_SET(cursor, WT_CURSTD_CACHEABLE);
 
 	WT_STAT_CONN_INCR(session, cursor_create);
 	WT_STAT_DATA_INCR(session, cursor_create);
@@ -600,6 +665,7 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri,
 	checkpoint_wait = true;
 	flags = 0;
 
+	CURSOR_OPEN_CACHE(session, uri, owner, cfg, cursorp);
 	/*
 	 * Decode the bulk configuration settings. In memory databases
 	 * ignore bulk load.
