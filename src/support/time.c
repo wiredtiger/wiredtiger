@@ -77,11 +77,10 @@ __wt_seconds(WT_SESSION_IMPL *session, time_t *timep)
  *	Convert from rdtsc ticks to nanoseconds.
  */
 uint64_t
-__wt_tsc_to_nsec(WT_SESSION_IMPL *session, uint64_t end, uint64_t begin)
+__wt_tsc_to_nsec(uint64_t end, uint64_t begin)
 {
 	double tsc_diff;
 
-	WT_UNUSED(session);
 	/*
 	 * If the ticks were reset, consider it an invalid check and just
 	 * return zero as the time difference because we cannot compute

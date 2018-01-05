@@ -381,7 +381,7 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 		time_stop = __wt_rdtsc(session);
 		WT_STAT_CONN_INCR(session, cache_write_app_count);
 		WT_STAT_CONN_INCRV(session, cache_write_app_time,
-		    WT_TSCDIFF_US(session, time_stop, time_start));
+		    WT_TSCDIFF_US(time_stop, time_start));
 	}
 
 	WT_STAT_CONN_INCR(session, cache_write);

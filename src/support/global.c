@@ -47,14 +47,20 @@ __wt_endian_check(void)
 static void
 __global_calibrate_ticks(void)
 {
+	/*
+	 * Default to using __wt_epoch until we have a good value for the ratio.
+	 */
+	__wt_process.tsc_nsec_ratio = WT_TSC_DEFAULT_RATIO;
+	__wt_process.use_epochtime = true;
+
 #if defined (__i386) || defined (__amd64)
+	{
 	struct timespec start, stop;
 	double ratio;
 	uint64_t diff_nsec, diff_tsc, min_nsec, min_tsc;
 	uint64_t tries, tsc_start, tsc_stop;
 	volatile uint64_t i;
 
-	min_nsec = min_tsc = 0;
 	/*
 	 * Run this calibration loop a few times to make sure we get a
 	 * reading that does not have a potential scheduling shift in it.
@@ -62,47 +68,37 @@ __global_calibrate_ticks(void)
 	 * middle could throw off calculations. Take the minimum amount
 	 * of time and compute the ratio.
 	 */
-	__wt_process.use_epochtime = false;
+	min_nsec = min_tsc = UINT64_MAX;
 	for (tries = 0; tries < 3; ++tries) {
+		/* This needs to be CPU intensive and large enough. */
 		__wt_epoch(NULL, &start);
 		tsc_start = __wt_rdtsc(NULL);
-		/*
-		 * This needs to be CPU intensive and large enough.
-		 */
-		for (i = 0; i < WT_MILLION * 100; i++)
+		for (i = 0; i < 100 * WT_MILLION; i++)
 			;
 		tsc_stop = __wt_rdtsc(NULL);
 		__wt_epoch(NULL, &stop);
 		diff_nsec = WT_TIMEDIFF_NS(stop, start);
 		diff_tsc = tsc_stop - tsc_start;
-		if (min_nsec == 0)
-			min_nsec = diff_nsec;
-		else
-			min_nsec = WT_MIN(min_nsec, diff_nsec);
-		if (min_tsc == 0)
-			min_tsc = diff_tsc;
-		else
-			min_tsc = WT_MIN(min_tsc, diff_tsc);
+
+		/* If the clock didn't tick over, we don't have a sample. */
+		if (diff_nsec == 0 || diff_tsc == 0)
+			continue;
+		min_nsec = WT_MIN(min_nsec, diff_nsec);
+		min_tsc = WT_MIN(min_tsc, diff_tsc);
 	}
 
 	/*
-	 * If we couldn't get a good reading then fallback to getting
-	 * time with wt_epoch. One possible reason is that the system's
-	 * clock granularity is not fine-grained enough.
+	 * Only use rdtsc if we got a good reading.  One reason this might fail
+	 * is that the system's clock granularity is not fine-grained enough.
 	 */
-	__wt_process.tsc_nsec_ratio = WT_TSC_DEFAULT_RATIO;
-	__wt_process.use_epochtime = true;
-	if (min_nsec != 0) {
-		ratio =
-		    (double)min_tsc / (double)min_nsec;
+	if (min_nsec != UINT64_MAX) {
+		ratio = (double)min_tsc / (double)min_nsec;
 		if (ratio > DBL_EPSILON) {
 			__wt_process.tsc_nsec_ratio = ratio;
 			__wt_process.use_epochtime = false;
 		}
 	}
-#else
-	__wt_process.use_epochtime = true;
-	__wt_process.tsc_nsec_ratio = WT_TSC_DEFAULT_RATIO;
+	}
 #endif
 }
 
