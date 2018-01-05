@@ -380,13 +380,13 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	 */
 	timer = !F_ISSET(session, WT_SESSION_INTERNAL);
 	if (timer)
-		time_start = __wt_rdtsc(session);
+		time_start = __wt_clock(session);
 	WT_ERR(__wt_bt_read(session, &tmp, addr, addr_size));
 	if (timer) {
-		time_stop = __wt_rdtsc(session);
+		time_stop = __wt_clock(session);
 		WT_STAT_CONN_INCR(session, cache_read_app_count);
 		WT_STAT_CONN_INCRV(session, cache_read_app_time,
-		    WT_TSCDIFF_US(time_stop, time_start));
+		    WT_CLOCKDIFF_US(time_stop, time_start));
 	}
 
 	/*
