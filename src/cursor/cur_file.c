@@ -665,7 +665,7 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri,
 	checkpoint_wait = true;
 	flags = 0;
 
-	CURSOR_OPEN_CACHE(session, uri, owner, cfg, cursorp);
+	CURSOR_OPEN_CACHE(session, uri, cfg, cursorp);
 	/*
 	 * Decode the bulk configuration settings. In memory databases
 	 * ignore bulk load.

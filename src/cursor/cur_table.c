@@ -1025,7 +1025,7 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 
 	WT_STATIC_ASSERT(offsetof(WT_CURSOR_TABLE, iface) == 0);
 
-	CURSOR_OPEN_CACHE(session, uri, owner, cfg, cursorp);
+	CURSOR_OPEN_CACHE(session, uri, cfg, cursorp);
 
 	ctable = NULL;
 	cacheable = true;

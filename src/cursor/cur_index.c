@@ -528,7 +528,7 @@ __wt_curindex_open(WT_SESSION_IMPL *session,
 	}
 
 	if (cacheable)
-		CURSOR_OPEN_CACHE(session, uri, owner, cfg, cursorp);
+		CURSOR_OPEN_CACHE(session, uri, cfg, cursorp);
 
 	if ((ret = __wt_schema_open_index(
 	    session, table, idxname, namesize, &idx)) != 0) {

@@ -664,7 +664,7 @@ __wt_cursor_close_cache(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
  */
 int
 __wt_cursor_open_cache(WT_SESSION_IMPL *session, const char *uri,
-    WT_CURSOR *owner, const char *cfg[], WT_CURSOR **cursorp)
+    const char *cfg[], WT_CURSOR **cursorp)
 {
 	WT_CONFIG_ITEM cval;
 	WT_CURSOR *cursor;

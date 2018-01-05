@@ -164,11 +164,11 @@
 	}								\
 } while (0)
 
-#define	CURSOR_OPEN_CACHE(s, uri, owner, cfg, cursorp) do {		\
+#define	CURSOR_OPEN_CACHE(s, uri, cfg, cursorp) do {		\
 	int __cret;							\
 	if (F_ISSET(session, WT_SESSION_CACHE_CURSORS)) {		\
 		if ((__cret = __wt_cursor_open_cache(			\
-		    s, uri, owner, cfg, cursorp)) == 0)			\
+		    s, uri, cfg, cursorp)) == 0)			\
 			return (0);					\
 		WT_RET_NOTFOUND_OK(__cret);				\
 	}								\

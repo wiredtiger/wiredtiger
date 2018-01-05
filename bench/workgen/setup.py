@@ -39,6 +39,7 @@ if not 'ARCHFLAGS' in os.environ:
 # Suppress warnings building SWIG generated code
 extra_cflags = [ '-w', '-Wno-sign-conversion', '-I../../src/include', \
                  '-I../../test/utility']
+extra_ldflags = [ '-Wno-deprecated' ]
 
 dir = os.path.dirname(__file__)
 abs_dir = os.path.dirname(os.path.abspath(__file__))
@@ -64,6 +65,7 @@ setup(name='workgen', version=wt_ver,
                 [os.path.join(dir, 'workgen_wrap.cxx')],
         libraries=['wiredtiger', 'pthread', 'workgen'],
         extra_compile_args=extra_cflags,
+        extra_link_args=extra_ldflags,
     )],
     package_dir={'' : dir},
     packages=['workgen'],
