@@ -601,8 +601,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
 	dirty_inuse = __wt_cache_dirty_leaf_inuse(cache);
 	if (__wt_eviction_dirty_needed(session, NULL))
 		F_SET(cache, WT_CACHE_EVICT_DIRTY | WT_CACHE_EVICT_DIRTY_HARD);
-	else if (dirty_inuse > (uint64_t)
-	    (dirty_target * bytes_max) / 100)
+	else if (dirty_inuse > (uint64_t)(dirty_target * bytes_max) / 100)
 		F_SET(cache, WT_CACHE_EVICT_DIRTY);
 
 	/*

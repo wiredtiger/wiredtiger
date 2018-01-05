@@ -674,8 +674,8 @@ __cache_pool_adjust(WT_SESSION_IMPL *session,
 			 * potentially a negative feedback loop in the
 			 * balance algorithm.
 			 */
-			smallest = (uint64_t)
-			    ((100 * __wt_cache_bytes_inuse(cache)) /
+			smallest =
+			    (uint64_t)((100 * __wt_cache_bytes_inuse(cache)) /
 			    cache->eviction_trigger);
 			if (entry->cache_size > smallest)
 				adjustment = WT_MIN(cp->chunk,
