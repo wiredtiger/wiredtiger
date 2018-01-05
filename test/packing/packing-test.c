@@ -37,6 +37,12 @@ check(const char *fmt, ...)
 
 	len = 0;			/* -Werror=maybe-uninitialized */
 
+	/*
+	 * Required on some systems to pull in parts of the library
+	 * for which we have data references.
+	 */
+	(void)__wt_library_init();
+
 	va_start(ap, fmt);
 	testutil_check(__wt_struct_sizev(NULL, &len, fmt, ap));
 	va_end(ap);
