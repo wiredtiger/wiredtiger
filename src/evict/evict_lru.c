@@ -671,7 +671,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 
 	/* Evict pages from the cache. */
 	for (loop = 0; cache->pass_intr == 0; loop++) {
-		time_now = __wt_rdtsc(session);
+		time_now = __wt_clock(session);
 		if (loop == 0)
 			time_prev = time_now;
 
@@ -741,7 +741,7 @@ __evict_pass(WT_SESSION_IMPL *session)
 		 * transactions and writing updates to the lookaside table.
 		 */
 		if (eviction_progress == cache->eviction_progress) {
-			if (WT_TSCDIFF_MS(session, time_now, time_prev) >= 20 &&
+			if (WT_CLOCKDIFF_MS(time_now, time_prev) >= 20 &&
 			    F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD |
 			    WT_CACHE_EVICT_DIRTY_HARD)) {
 				if (cache->evict_aggressive_score < 100)
@@ -2291,7 +2291,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 		cache->app_evicts++;
 		if (WT_STAT_ENABLED(session)) {
 			app_timer = true;
-			time_start = __wt_rdtsc(session);
+			time_start = __wt_clock(session);
 		}
 	}
 
@@ -2311,10 +2311,10 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 	(void)__wt_atomic_subv32(&btree->evict_busy, 1);
 
 	if (app_timer) {
-		time_stop = __wt_rdtsc(session);
+		time_stop = __wt_clock(session);
 		WT_STAT_CONN_INCRV(session,
 		    application_evict_time,
-		    WT_TSCDIFF_US(session, time_stop, time_start));
+		    WT_CLOCKDIFF_US(time_stop, time_start));
 	}
 	WT_TRACK_OP_END(session);
 	return (ret);
@@ -2360,7 +2360,7 @@ __wt_cache_eviction_worker(
 	timer =
 	    WT_STAT_ENABLED(session) && !F_ISSET(session, WT_SESSION_INTERNAL);
 	if (timer)
-		time_start = __wt_rdtsc(session);
+		time_start = __wt_clock(session);
 
 	for (initial_progress = cache->eviction_progress;; ret = 0) {
 		/*
@@ -2427,10 +2427,10 @@ __wt_cache_eviction_worker(
 	}
 
 err:	if (timer) {
-		time_stop = __wt_rdtsc(session);
+		time_stop = __wt_clock(session);
 		WT_STAT_CONN_INCRV(session,
 		    application_cache_time,
-		    WT_TSCDIFF_US(session, time_stop, time_start));
+		    WT_CLOCKDIFF_US(time_stop, time_start));
 	}
 
 done:	WT_TRACK_OP_END(session);

@@ -60,7 +60,7 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 
 	btree = S2BT(session);
 	page = ref->page;
-	time_start = __wt_rdtsc(session);
+	time_start = __wt_clock(session);
 
 	/*
 	 * Take some care with order of operations: if we release the hazard
@@ -83,12 +83,12 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * we have one of two pairs of stats to increment.
 	 */
 	ret = __wt_evict(session, ref, false);
-	time_stop = __wt_rdtsc(session);
+	time_stop = __wt_clock(session);
 	if (ret == 0) {
 		if (too_big) {
 			WT_STAT_CONN_INCR(session, cache_eviction_force);
 			WT_STAT_CONN_INCRV(session, cache_eviction_force_time,
-			    WT_TSCDIFF_US(session, time_stop, time_start));
+			    WT_CLOCKDIFF_US(time_stop, time_start));
 		} else {
 			/*
 			 * If the page isn't too big, we are evicting it because
@@ -98,12 +98,12 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 			WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
 			WT_STAT_CONN_INCRV(session,
 			    cache_eviction_force_delete_time,
-			    WT_TSCDIFF_US(session, time_stop, time_start));
+			    WT_CLOCKDIFF_US(time_stop, time_start));
 		}
 	} else {
 		WT_STAT_CONN_INCR(session, cache_eviction_force_fail);
 		WT_STAT_CONN_INCRV(session, cache_eviction_force_fail_time,
-		    WT_TSCDIFF_US(session, time_stop, time_start));
+		    WT_CLOCKDIFF_US(time_stop, time_start));
 	}
 
 	(void)__wt_atomic_subv32(&btree->evict_busy, 1);
