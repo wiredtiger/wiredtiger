@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -2230,6 +2230,16 @@ __conn_chk_file_system(WT_SESSION_IMPL *session, bool readonly)
 	}
 	WT_CONN_SET_FILE_SYSTEM_REQ(fs_size);
 
+	/*
+	 * The lower-level API for returning the first matching entry was added
+	 * later and not documented because it's an optimization for high-end
+	 * filesystems doing logging, specifically pre-allocating log files.
+	 * Check for the API and fall back to the standard API if not available.
+	 */
+	if (conn->file_system->fs_directory_list_single == NULL)
+		conn->file_system->fs_directory_list_single =
+		    conn->file_system->fs_directory_list;
+
 	return (0);
 }
 
@@ -2276,7 +2286,7 @@ wiredtiger_dummy_session_init(
  */
 int
 wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
-    const char *config, WT_CONNECTION **wt_connp)
+    const char *config, WT_CONNECTION **connectionp)
 {
 	static const WT_CONNECTION stdc = {
 		__conn_async_flush,
@@ -2324,7 +2334,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	const char *cfg[] = {
 	    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
 
-	*wt_connp = NULL;
+	*connectionp = NULL;
 
 	conn = NULL;
 	session = NULL;
@@ -2669,7 +2679,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	WT_ERR(__wt_connection_workers(session, cfg));
 
 	WT_STATIC_ASSERT(offsetof(WT_CONNECTION_IMPL, iface) == 0);
-	*wt_connp = &conn->iface;
+	*connectionp = &conn->iface;
 
 err:	/* Discard the scratch buffers. */
 	__wt_scr_free(session, &encbuf);

@@ -990,11 +990,13 @@ notsup
 notused
 novalue
 nowait
+nsec
 nset
 nsnap
 nul
 nullptr
 nuls
+num
 numSymbols
 numbare
 offpage
@@ -1223,6 +1225,7 @@ trk
 trk's
 trunc
 trylock
+tsc
 tupdate
 tvalue
 txn

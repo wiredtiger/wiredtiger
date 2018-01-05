@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -25,6 +25,9 @@ struct __wt_process {
 					/* Locked: connection queue */
 	TAILQ_HEAD(__wt_connection_impl_qh, __wt_connection_impl) connqh;
 	WT_CACHE_POOL *cache_pool;
+#define	WT_TSC_DEFAULT_RATIO	1.0
+	double	 tsc_nsec_ratio;	/* rdtsc ticks to nanoseconds */
+	bool use_epochtime;		/* use expensive time */
 
 					/* Checksum function */
 #define	__wt_checksum(chunk, len)	__wt_process.checksum(chunk, len)
@@ -190,6 +193,7 @@ struct __wt_connection_impl {
 	WT_FH *optrack_map_fh;		/* Name to id translation file. */
 	WT_SPINLOCK optrack_map_spinlock; /* Translation file spinlock. */
 	uintmax_t optrack_pid;		/* Cache the process ID. */
+	uint16_t  optrack_uid;		/* Unique function ID */
 
 	void  **foc;			/* Free-on-close array */
 	size_t  foc_cnt;		/* Array entries */

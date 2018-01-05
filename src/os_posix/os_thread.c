@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -118,5 +118,5 @@ __wt_thread_str(char *buf, size_t buflen)
 uintmax_t
 __wt_process_id(void)
 {
-	return (uintmax_t)getpid();
+	return ((uintmax_t)getpid());
 }

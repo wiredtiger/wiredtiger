@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -13,36 +13,35 @@
  *	Record optrack function id
  */
 void
-__wt_optrack_record_funcid(WT_SESSION_IMPL *session,
-    uint64_t op_id, void *func, size_t funcsize, volatile bool *id_recorded)
+__wt_optrack_record_funcid(
+    WT_SESSION_IMPL *session, const char *func, uint16_t *func_idp)
 {
 	WT_CONNECTION_IMPL *conn;
+	WT_DECL_ITEM(tmp);
+	WT_DECL_RET;
 	wt_off_t fsize;
-	char endline[] = "\n";
-	char id_buf[sizeof(uint64_t)*2 + sizeof(char)*4];
 
 	conn = S2C(session);
 
+	WT_ERR(__wt_scr_alloc(session, strlen(func) + 32, &tmp));
+
 	__wt_spin_lock(session, &conn->optrack_map_spinlock);
-	if (!*id_recorded) {
-		WT_IGNORE_RET(__wt_snprintf(id_buf,
-		    sizeof(id_buf), "%p ", (void*)op_id));
-		WT_IGNORE_RET(__wt_filesize(session,
-		    conn->optrack_map_fh, &fsize));
-		WT_IGNORE_RET(__wt_write(session,
-		    conn->optrack_map_fh, fsize, WT_MIN(strnlen(id_buf,
-		    sizeof(id_buf) - 1), sizeof(id_buf) - 1), id_buf));
-		WT_IGNORE_RET(__wt_filesize(session,
-		    conn->optrack_map_fh, &fsize));
-		WT_IGNORE_RET(__wt_write(session,
-		    conn->optrack_map_fh, fsize, funcsize - 1, func));
-		WT_IGNORE_RET(__wt_filesize(session,
-		    conn->optrack_map_fh, &fsize));
-		WT_IGNORE_RET(__wt_write(session,
-		    conn->optrack_map_fh, fsize, sizeof(endline) - 1, endline));
-		*id_recorded = true;
+	if (*func_idp == 0) {
+		*func_idp = ++conn->optrack_uid;
+
+		WT_ERR(__wt_buf_fmt(
+		    session, tmp, "%" PRIu16 " %s\n", *func_idp, func));
+		WT_ERR(__wt_filesize(session, conn->optrack_map_fh, &fsize));
+		WT_ERR(__wt_write(session,
+		    conn->optrack_map_fh, fsize, tmp->size, tmp->data));
 	}
+
+	if (0) {
+err:		WT_PANIC_MSG(session, ret, "%s", __func__);
+	}
+
 	__wt_spin_unlock(session, &conn->optrack_map_spinlock);
+	__wt_scr_free(session, &tmp);
 }
 
 /*
@@ -107,18 +106,4 @@ __wt_optrack_flush_buffer(WT_SESSION_IMPL *s)
 		return (s->optrackbuf_ptr * sizeof(WT_OPTRACK_RECORD));
 	else
 		return (0);
-}
-
-/*
- * __wt_optrack_get_expensive_timestamp --
- *       Obtain a timestamp via a system call on platforms where obtaining it
- *       directly from the hardware register is not supported.
- */
-uint64_t
-__wt_optrack_get_expensive_timestamp(WT_SESSION_IMPL *session)
-{
-	struct timespec tsp;
-
-	__wt_epoch_raw(session, &tsp);
-	return ((uint64_t)(tsp.tv_sec * WT_BILLION + tsp.tv_nsec));
 }

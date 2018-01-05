@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -35,6 +35,7 @@ extern "C" {
 #endif
 #include <errno.h>
 #include <fcntl.h>
+#include <float.h>
 #include <inttypes.h>
 #ifdef _WIN32
 #include <io.h>
@@ -378,6 +379,7 @@ union __wt_rand_state;
 
 #include "ctype.i"			/* required by packing.i */
 #include "intpack.i"			/* required by cell.i, packing.i */
+#include "misc.i"			/* required by mutex.i */
 
 #include "buf.i"                        /* required by cell.i */
 #include "cache.i"			/* required by txn.i */
@@ -391,7 +393,6 @@ union __wt_rand_state;
 #include "column.i"
 #include "cursor.i"
 #include "log.i"
-#include "misc.i"
 #include "os_fhandle.i"
 #include "os_fs.i"
 #include "os_fstream.i"

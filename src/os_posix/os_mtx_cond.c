@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -57,6 +57,7 @@ __wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond,
 {
 	struct timespec ts;
 	WT_DECL_RET;
+	WT_TRACK_OP_DECL;
 	bool locked;
 
 	WT_TRACK_OP_INIT(session);
