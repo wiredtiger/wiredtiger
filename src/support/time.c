@@ -77,7 +77,7 @@ __wt_seconds(WT_SESSION_IMPL *session, time_t *timep)
  *	Convert from rdtsc ticks to nanoseconds.
  */
 uint64_t
-__wt_tsc_to_nsec(WT_SESSION_IMPL *session, uint64_t end, uint64_t begin)
+__wt_tsc_to_nsec(uint64_t end, uint64_t begin)
 {
 	double tsc_diff;
 
@@ -89,7 +89,7 @@ __wt_tsc_to_nsec(WT_SESSION_IMPL *session, uint64_t end, uint64_t begin)
 	if (end < begin)
 		return (0);
 	tsc_diff = (double)(end - begin);
-	return ((uint64_t)(tsc_diff / S2C(session)->tsc_nsec_ratio));
+	return ((uint64_t)(tsc_diff / __wt_process.tsc_nsec_ratio));
 }
 
 /*

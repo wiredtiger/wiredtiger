@@ -953,7 +953,7 @@ __log_server(void *arg)
 		__wt_cond_auto_wait_signal(
 		    session, conn->log_cond, did_work, NULL, &signalled);
 		time_stop = __wt_rdtsc(session);
-		timediff = WT_TSCDIFF_MS(session, time_stop, time_start);
+		timediff = WT_TSCDIFF_MS(time_stop, time_start);
 	}
 
 	if (0) {

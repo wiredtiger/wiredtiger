@@ -1635,7 +1635,7 @@ __session_transaction_sync(WT_SESSION *wt_session, const char *config)
 
 		__wt_cond_signal(session, conn->log_file_cond);
 		time_stop = __wt_rdtsc(session);
-		waited_ms = WT_TSCDIFF_MS(session, time_stop, time_start);
+		waited_ms = WT_TSCDIFF_MS(time_stop, time_start);
 		if (waited_ms < timeout_ms) {
 			remaining_usec = (timeout_ms - waited_ms) * WT_THOUSAND;
 			__wt_cond_wait(session, log->log_sync_cond,

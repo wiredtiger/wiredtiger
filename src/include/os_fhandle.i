@@ -116,7 +116,7 @@ __wt_read(
 
 	time_stop = __wt_rdtsc(session);
 	__wt_stat_msecs_hist_incr_fsread(session,
-	    WT_TSCDIFF_MS(session, time_stop, time_start));
+	    WT_TSCDIFF_MS(time_stop, time_start));
 	WT_STAT_CONN_DECR_ATOMIC(session, thread_read_active);
 	return (ret);
 }
@@ -195,7 +195,7 @@ __wt_write(WT_SESSION_IMPL *session,
 
 	time_stop = __wt_rdtsc(session);
 	__wt_stat_msecs_hist_incr_fswrite(session,
-	    WT_TSCDIFF_MS(session, time_stop, time_start));
+	    WT_TSCDIFF_MS(time_stop, time_start));
 	WT_STAT_CONN_DECR_ATOMIC(session, thread_write_active);
 	return (ret);
 }
