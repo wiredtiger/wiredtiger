@@ -44,7 +44,7 @@ main(void)
 	 * Required on some systems to pull in parts of the library
 	 * for which we have data references.
 	 */
-	(void)__wt_library_init();
+	testutil_check(__wt_library_init());
 
 	for (ncalls = 0, i = 0; i < 10000000; i++) {
 		for (s = 0; s < 50; s += 5) {

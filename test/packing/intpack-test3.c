@@ -49,7 +49,7 @@ test_value(int64_t val)
 	 * Required on some systems to pull in parts of the library
 	 * for which we have data references.
 	 */
-	(void)__wt_library_init();
+	testutil_check(__wt_library_init());
 
 	p = buf;
 	testutil_check(__wt_vpack_int(&p, sizeof(buf), sinput));

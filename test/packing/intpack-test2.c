@@ -42,7 +42,7 @@ main(void)
 	 * Required on some systems to pull in parts of the library
 	 * for which we have data references.
 	 */
-	(void)__wt_library_init();
+	testutil_check(__wt_library_init());
 
 	for (i = 1; i < 1LL << 60; i <<= 1) {
 		end = buf;
