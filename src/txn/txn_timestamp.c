@@ -556,8 +556,8 @@ __wt_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
 	bool has_oldest_ts, has_stable_ts;
 
 	/*
- 	 * Added this redundant initialization to circumvent build failure.
- 	 */
+	 * Added this redundant initialization to circumvent build failure.
+	 */
 	__wt_timestamp_set_zero(&oldest_ts);
 	__wt_timestamp_set_zero(&stable_ts);
 	/*
