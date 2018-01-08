@@ -658,6 +658,8 @@ struct __wt_cursor {
 	int __F(cache)(WT_CURSOR *cursor);	/* Cache the cursor */
 	int __F(reopen)(WT_CURSOR *cursor);	/* Reopen a cached cursor */
 
+	const char *checkpoint;			/* Checkpoint, if any */
+
 	/*
 	 * !!!
 	 * Explicit representations of structures from queue.h.

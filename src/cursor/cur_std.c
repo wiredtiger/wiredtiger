@@ -613,10 +613,6 @@ __wt_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 	session = (WT_SESSION_IMPL *)cursor->session;
 	WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_CACHED));
 
-	/*
-	 * TODO: what about checkpoints?  When we get a dhandle, it
-	 * has knowledge of a checkpoint (see __session_find_dhandle).
-	 */
 	if (dhandle != NULL) {
 		/*
 		 * A WT_NOTFOUND return is a signal to the caller to close
@@ -698,13 +694,28 @@ __wt_cursor_open_cache(WT_SESSION_IMPL *session, const char *uri,
 	WT_RET(__wt_config_gets_def(session, cfg, "raw", 0, &cval));
 	raw = (cval.val != 0);
 
+	WT_RET_NOTFOUND_OK(
+	    __wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
+
+	/*
+	 * The internal checkpoint name is special, don't
+	 * look for it.
+	 */
+	if (cval.len != 0 && WT_STRING_MATCH(WT_CHECKPOINT, cval.str, cval.len))
+		return (WT_NOTFOUND);
+
+#define	CHECKPOINT_MATCH(s, cval)					\
+	((s == NULL && cval.len == 0) ||				\
+	    (s != NULL && WT_STRING_MATCH(s, cval.str, cval.len)))
+
 	/*
 	 * Walk through all cursors, if there is a cached
 	 * cursor that matches uri and configuration, use it.
 	 */
 	TAILQ_FOREACH(cursor, &session->cursors, q) {
 		if (F_MASK(cursor, mask) == flags && cursor->uri != NULL &&
-		    WT_STREQ(cursor->uri, uri)) {
+		    WT_STREQ(cursor->uri, uri) &&
+		    CHECKPOINT_MATCH(cursor->checkpoint, cval)) {
 			if ((ret = cursor->reopen(cursor)) != 0) {
 				F_CLR(cursor, WT_CURSTD_CACHEABLE);
 				session->dhandle = NULL;

@@ -30,6 +30,7 @@ import wiredtiger, wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
 import test_cursor01, test_cursor02, test_cursor03
+import test_checkpoint01, test_checkpoint02
 from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
 from helper import confirm_does_not_exist
 
@@ -76,6 +77,34 @@ class test_cursor13_02(test_cursor02.test_cursor02, test_cursor13_base):
     pass
 
 class test_cursor13_03(test_cursor03.test_cursor03, test_cursor13_base):
+    pass
+
+class test_cursor13_ckpt01(test_checkpoint01.test_checkpoint,
+                           test_cursor13_base):
+    pass
+
+class test_cursor13_ckpt02(test_checkpoint01.test_checkpoint_cursor,
+                           test_cursor13_base):
+    pass
+
+class test_cursor13_ckpt03(test_checkpoint01.test_checkpoint_target,
+                           test_cursor13_base):
+    pass
+
+class test_cursor13_ckpt04(test_checkpoint01.test_checkpoint_cursor_update,
+                           test_cursor13_base):
+    pass
+
+class test_cursor13_ckpt05(test_checkpoint01.test_checkpoint_last,
+                           test_cursor13_base):
+    pass
+
+class test_cursor13_ckpt06(test_checkpoint01.test_checkpoint_empty,
+                           test_cursor13_base):
+    pass
+
+class test_cursor13_ckpt2(test_checkpoint02.test_checkpoint02,
+                          test_cursor13_base):
     pass
 
 class test_cursor13_reopens(test_cursor13_base):

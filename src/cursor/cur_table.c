@@ -1070,6 +1070,7 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 	cursor->internal_uri = table->iface.name;
 	cursor->key_format = table->key_format;
 	cursor->value_format = table->value_format;
+	cursor->checkpoint = table->iface.checkpoint;
 
 	ctable->table = table;
 	ctable->plan = table->plan;
