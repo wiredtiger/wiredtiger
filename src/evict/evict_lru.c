@@ -1690,7 +1690,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session,
 	btree = S2BT(session);
 	cache = conn->cache;
 	txn_global = &conn->txn_global;
-	restarts = 0;
+	internal_pages = restarts = 0;
 	give_up = urgent_queued = false;
 
 	/*
