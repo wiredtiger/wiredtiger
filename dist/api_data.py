@@ -532,7 +532,9 @@ connection_runtime_config = [
     Config('shared_cache', '', r'''
         shared cache configuration options. A database should configure
         either a cache_size or a shared_cache not both. Enabling a
-        shared cache uses a session from the configured session_max''',
+        shared cache uses a session from the configured session_max. shared
+        cache can not have absolute values configured for cache eviction
+        settings''',
         type='category', subconfig=[
         Config('chunk', '10MB', r'''
             the granularity that a shared cache is redistributed''',
