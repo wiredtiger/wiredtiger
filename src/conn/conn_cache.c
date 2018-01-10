@@ -30,8 +30,8 @@ __cache_config_abs_to_pct(WT_SESSION_IMPL *session,
 		 * In shared cache configuration the cache size changes
 		 * regularly; an absolute value for the configuration parameter
 		 * may not remain consistent with the changing cache size.
-		 */ 
-		if(shared)
+		 */
+		if (shared)
 			WT_RET_MSG(session, EINVAL,
 			    "Shared cache configuration requires a percentage "
 			    "value for %s", param_name);
