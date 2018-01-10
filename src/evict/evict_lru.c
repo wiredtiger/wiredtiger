@@ -1715,13 +1715,6 @@ __evict_walk_tree(WT_SESSION_IMPL *session,
 	if (target_pages == 0)
 		return (0);
 
-	/*
-	 * If the tree is dead or we're near the end of the queue, fill the
-	 * remaining slots.
-	 */
-	if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
-	    target_pages > remaining_slots)
-		target_pages = remaining_slots;
 	end = start + target_pages;
 
 	/*
