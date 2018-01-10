@@ -156,10 +156,8 @@ __cursor_disable_bulk(WT_SESSION_IMPL *session, WT_BTREE *btree)
 	 * into a tree.  Eviction is disabled when an empty tree is opened, and
 	 * it must only be enabled once.
 	 */
-	if (__wt_atomic_cas8(&btree->original, 1, 0)) {
-		btree->evict_disabled_open = false;
+	if (__wt_atomic_cas8(&btree->original, 1, 0))
 		__wt_evict_file_exclusive_off(session);
-	}
 }
 
 /*
