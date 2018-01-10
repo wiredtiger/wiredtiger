@@ -179,7 +179,7 @@ class test_shared_cache02(wttest.WiredTigerTestCase):
             "size=20M,reserve=10M),eviction_trigger=10M"),'/Shared cache '
             'configuration requires a percentage value for eviction trigger/')
 
-	connection = self.conns[1]
+        connection = self.conns[1]
         # Reconfiguring with absolute value for eviction target should fail.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: connection.reconfigure("shared_cache=(name=pool,"

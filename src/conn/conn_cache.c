@@ -115,7 +115,8 @@ __cache_config_local(WT_SESSION_IMPL *session, bool shared, const char *cfg[])
 	WT_RET(__wt_config_gets(session, cfg, "eviction_dirty_trigger", &cval));
 	cache->eviction_dirty_trigger = (double)cval.val;
 	WT_RET(__cache_config_abs_to_pct(session,
-	    &(cache->eviction_dirty_trigger), "eviction dirty trigger", shared));
+	    &(cache->eviction_dirty_trigger), "eviction dirty trigger",
+	    shared));
 
 	/*
 	 * Don't allow the dirty trigger to be larger than the overall
