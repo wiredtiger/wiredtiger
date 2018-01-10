@@ -270,7 +270,7 @@ __evict_page_clean_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 	 * page re-instantiated (for example, by searching) and never written.
 	 *
 	 * If evicting a WT_REF_LIMBO reference, we get to here and transition
-	 * back to WT_REF_LOOKASIDE, else discarding any lookaside information.
+	 * back to WT_REF_LOOKASIDE.
 	 */
 	__wt_ref_out(session, ref);
 	if (!closing && ref->page_las != NULL &&
@@ -368,8 +368,8 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		 * Eviction wants to keep this page if we have a disk image,
 		 * re-instantiate the page in memory, else discard the page.
 		 */
+		__wt_free(session, ref->page_las);
 		if (mod->mod_disk_image == NULL) {
-			__wt_free(session, ref->page_las);
 			if (mod->mod_page_las.las_pageid != 0) {
 				WT_RET(
 				    __wt_calloc_one(session, &ref->page_las));
