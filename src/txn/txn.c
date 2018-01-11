@@ -442,7 +442,7 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 #ifdef HAVE_TIMESTAMPS
 		wt_timestamp_t ts;
 		WT_TXN_GLOBAL *txn_global;
-		char timestamp_buf[2 * WT_TIMESTAMP_SIZE + 1];
+		char hex_timestamp[2][2 * WT_TIMESTAMP_SIZE + 1];
 		bool round_to_oldest;
 
 		txn_global = &S2C(session)->txn_global;
@@ -460,11 +460,13 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 		 * avoid a race between checking and setting transaction
 		 * timestamp.
 		 */
+		WT_RET(__wt_timestamp_to_hex_string(session,
+		    hex_timestamp[0], &ts));
 		__wt_readlock(session, &txn_global->rwlock);
 		if (__wt_timestamp_cmp(&ts, &txn_global->oldest_timestamp) < 0)
 		{
 			WT_RET(__wt_timestamp_to_hex_string(session,
-			    timestamp_buf, &ts));
+			    hex_timestamp[1], &txn_global->oldest_timestamp));
 			/*
 			 * If given read timestamp is earlier than oldest
 			 * timestamp then round the read timestamp to
@@ -476,8 +478,8 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 			else {
 				__wt_readunlock(session, &txn_global->rwlock);
 				WT_RET_MSG(session, EINVAL, "read timestamp "
-				    "%s older than oldest timestamp",
-				    timestamp_buf);
+				    "%s older than oldest timestamp %s",
+				    hex_timestamp[0], hex_timestamp[1]);
 			}
 		} else {
 			__wt_timestamp_set(&txn->read_timestamp, &ts);
@@ -497,8 +499,8 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 			 * critical section.
 			 */
 			__wt_verbose(session, WT_VERB_TIMESTAMP, "Read "
-			    "timestamp %s : Rounded to oldest timestamp",
-			    timestamp_buf);
+			    "timestamp %s : Rounded to oldest timestamp %s",
+			    hex_timestamp[0], hex_timestamp[1]);
 		}
 #else
 		WT_RET_MSG(session, EINVAL, "read_timestamp requires a "
