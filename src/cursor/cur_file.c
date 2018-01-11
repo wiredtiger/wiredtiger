@@ -465,6 +465,7 @@ __curfile_close(WT_CURSOR *cursor)
 	WT_CURSOR_BULK *cbulk;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	bool cached;
 
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_API_CALL(cursor, session, close, cbt->btree);
@@ -489,7 +490,8 @@ __curfile_close(WT_CURSOR *cursor)
 	WT_ASSERT(session, session->dhandle == NULL ||
 	    session->dhandle->session_inuse > 0);
 
-	if (F_ISSET(cursor, WT_CURSTD_CACHED))
+	cached = F_ISSET(cursor, WT_CURSTD_CACHED);
+	if (cached)
 		if (cbt->btree->dhandle == session->dhandle)
 			WT_DHANDLE_UNCACHE(session->dhandle);
 
@@ -502,7 +504,8 @@ __curfile_close(WT_CURSOR *cursor)
 	if (session->dhandle != NULL) {
 		/* Decrement the data-source's in-use counter. */
 		__wt_cursor_dhandle_decr_use(session);
-		WT_TRET(__wt_session_release_dhandle(session));
+		if (!cached || !F_ISSET(session->dhandle, WT_DHANDLE_DROPPED))
+			WT_TRET(__wt_session_release_dhandle(session));
 	}
 
 err:	API_END_RET(session, ret);

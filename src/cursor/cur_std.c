@@ -620,7 +620,8 @@ __wt_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 		 * close can function normally.
 		 */
 		if (WT_DHANDLE_INACTIVE(dhandle) ||
-		    !F_ISSET(dhandle, WT_DHANDLE_OPEN))
+		    !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
+		    F_ISSET(dhandle, WT_DHANDLE_DROPPED))
 			ret = WT_NOTFOUND;
 
 		session->dhandle = dhandle;
