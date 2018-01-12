@@ -520,8 +520,7 @@ __statlog_log_one(WT_SESSION_IMPL *session, WT_ITEM *path, WT_ITEM *tmp)
 	    path == NULL || strcmp(tmp->mem, path->mem) != 0) {
 		WT_RET(__wt_fclose(session, &conn->stat_fs));
 		if (path != NULL)
-			WT_RET(
-			    __wt_buf_set(session, path, tmp->data, tmp->size));
+			WT_RET(__wt_buf_setstr(session, path, tmp->mem));
 		WT_RET(__wt_fopen(session, tmp->mem,
 		    WT_FS_OPEN_CREATE | WT_FS_OPEN_FIXED, WT_STREAM_APPEND,
 		    &log_stream));
@@ -583,6 +582,7 @@ __statlog_on_close(WT_SESSION_IMPL *session)
 		    "Attempt to log statistics while a server is running");
 
 	WT_RET(__wt_scr_alloc(session, strlen(conn->stat_path) + 128, &tmp));
+	WT_ERR(__wt_buf_setstr(session, tmp, ""));
 	WT_ERR(__statlog_log_one(session, NULL, tmp));
 
 err:	__wt_scr_free(session, &tmp);
@@ -623,10 +623,10 @@ __statlog_server(void *arg)
 	 */
 	WT_CLEAR(path);
 	WT_ERR(__wt_buf_init(session, &path, strlen(conn->stat_path) + 128));
-	WT_ERR(__wt_buf_set(session, &path, "", 0));
+	WT_ERR(__wt_buf_setstr(session, &path, ""));
 	WT_CLEAR(tmp);
 	WT_ERR(__wt_buf_init(session, &tmp, strlen(conn->stat_path) + 128));
-	WT_ERR(__wt_buf_set(session, &tmp, "", 0));
+	WT_ERR(__wt_buf_setstr(session, &tmp, ""));
 
 	for (;;) {
 		/* Wait until the next event. */
