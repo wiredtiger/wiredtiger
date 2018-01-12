@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2017 MongoDB, Inc.
+ * Public Domain 2014-2018 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -103,7 +103,7 @@ static CONFIG c[] = {
 
 	{ "cache_minimum",
 	  "minimum size of the cache in MB",
-	  C_IGNORE, 1, 0, 100 * 1024, &g.c_cache_minimum, NULL },
+	  C_IGNORE, 0, 0, 100 * 1024, &g.c_cache_minimum, NULL },
 
 	{ "checkpoints",
 	  "type of checkpoints (on | off | wiredtiger)",

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -11,6 +11,7 @@
  * and unused function return values.
  */
 #define	WT_UNUSED(var)		(void)(var)
+#define	WT_NOT_READ(var)	(void)(var)
 #define	WT_IGNORE_RET(call) do {					\
 	int __ignored_ret;						\
 	__ignored_ret = (call);						\

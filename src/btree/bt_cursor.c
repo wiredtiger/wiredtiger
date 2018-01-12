@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -83,7 +83,7 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt)
 	 * Fail if the page is flagged for forced eviction (so we periodically
 	 * release pages grown too large).
 	 */
-	if (cbt->ref->page->read_gen != WT_READGEN_OLDEST)
+	if (cbt->ref->page->read_gen == WT_READGEN_OLDEST)
 		return (false);
 
 	return (true);
@@ -1324,8 +1324,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 
 	WT_ERR(__wt_btcur_search(cbt));
 	orig = cursor->value.size;
-	WT_ERR(__wt_modify_apply_api(
-	    session, &cursor->value, entries, nentries));
+	WT_ERR(__wt_modify_apply_api(session, cursor, entries, nentries));
 	new = cursor->value.size;
 	WT_ERR(__cursor_size_chk(session, &cursor->value));
 	if (new > orig)

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -442,7 +442,7 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 #ifdef HAVE_TIMESTAMPS
 		wt_timestamp_t ts;
 		WT_TXN_GLOBAL *txn_global;
-		char timestamp_buf[2 * WT_TIMESTAMP_SIZE + 1];
+		char hex_timestamp[2][2 * WT_TIMESTAMP_SIZE + 1];
 		bool round_to_oldest;
 
 		txn_global = &S2C(session)->txn_global;
@@ -460,11 +460,13 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 		 * avoid a race between checking and setting transaction
 		 * timestamp.
 		 */
+		WT_RET(__wt_timestamp_to_hex_string(session,
+		    hex_timestamp[0], &ts));
 		__wt_readlock(session, &txn_global->rwlock);
 		if (__wt_timestamp_cmp(&ts, &txn_global->oldest_timestamp) < 0)
 		{
 			WT_RET(__wt_timestamp_to_hex_string(session,
-			    timestamp_buf, &ts));
+			    hex_timestamp[1], &txn_global->oldest_timestamp));
 			/*
 			 * If given read timestamp is earlier than oldest
 			 * timestamp then round the read timestamp to
@@ -476,8 +478,8 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 			else {
 				__wt_readunlock(session, &txn_global->rwlock);
 				WT_RET_MSG(session, EINVAL, "read timestamp "
-				    "%s older than oldest timestamp",
-				    timestamp_buf);
+				    "%s older than oldest timestamp %s",
+				    hex_timestamp[0], hex_timestamp[1]);
 			}
 		} else {
 			__wt_timestamp_set(&txn->read_timestamp, &ts);
@@ -497,8 +499,8 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 			 * critical section.
 			 */
 			__wt_verbose(session, WT_VERB_TIMESTAMP, "Read "
-			    "timestamp %s : Rounded to oldest timestamp",
-			    timestamp_buf);
+			    "timestamp %s : Rounded to oldest timestamp %s",
+			    hex_timestamp[0], hex_timestamp[1]);
 		}
 #else
 		WT_RET_MSG(session, EINVAL, "read_timestamp requires a "
@@ -609,6 +611,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_OP *op;
+	WT_UPDATE *upd;
 	u_int i;
 	bool locked, readonly;
 #ifdef HAVE_TIMESTAMPS
@@ -644,6 +647,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #endif
 	}
 
+	WT_UNUSED(upd);
 #ifdef HAVE_TIMESTAMPS
 	/*
 	 * Debugging checks on timestamps, if user requested them.
@@ -658,6 +662,31 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	    txn->mod_count != 0)
 		WT_ERR_MSG(session, EINVAL, "no commit_timestamp required and "
 		    "timestamp set on this transaction");
+#ifdef HAVE_DIAGNOSTIC
+	/*
+	 * Error on any valid update structures for the same key that
+	 * are at a later timestamp.
+	 */
+	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++)
+		if (op->type == WT_TXN_OP_BASIC_TS) {
+			/*
+			 * Skip over any aborted update structures.
+			 */
+			upd = op->u.upd->next;
+			while (upd != NULL && upd->txnid == WT_TXN_ABORTED)
+				upd = upd->next;
+			/*
+			 * Check the timestamp on this update with the
+			 * first valid update in the chain. They're in
+			 * most recent order.
+			 */
+			if (upd != NULL &&
+			    __wt_timestamp_cmp(&op->u.upd->timestamp,
+			    &upd->timestamp) < 0)
+				WT_ERR_MSG(session, EINVAL,
+				    "out of order timestamps");
+		}
+#endif
 #endif
 	/*
 	 * The default sync setting is inherited from the connection, but can
@@ -1158,6 +1187,7 @@ __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn)
 	const char *iso_tag;
 
 	iso_tag = "INVALID";
+	WT_NOT_READ(iso_tag);
 	switch (txn->isolation) {
 	case WT_ISO_READ_COMMITTED:
 		iso_tag = "WT_ISO_READ_COMMITTED";

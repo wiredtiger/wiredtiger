@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -1286,66 +1286,6 @@ err:	API_END_RET(session, ret);
 }
 
 /*
- * __conn_calibrate_ticks --
- *	Calibrate a ratio from rdtsc ticks to nanoseconds.
- */
-static void
-__conn_calibrate_ticks(WT_SESSION_IMPL *session)
-{
-#if defined (__i386) || defined (__amd64)
-	struct timespec start, stop;
-	uint64_t diff_nsec, diff_tsc, min_nsec, min_tsc;
-	uint64_t tries, tsc_start, tsc_stop;
-	volatile uint64_t i;
-
-	min_nsec = min_tsc = 0;
-	/*
-	 * Run this calibration loop a few times to make sure we get a
-	 * reading that does not have a potential scheduling shift in it.
-	 * The inner loop is CPU intensive but a scheduling change in the
-	 * middle could throw off calculations. Take the minimum amount
-	 * of time and compute the ratio.
-	 */
-	for (tries = 0; tries < 3; ++tries) {
-		__wt_epoch(session, &start);
-		tsc_start = __wt_rdtsc(session);
-		/*
-		 * This needs to be CPU intensive and large enough.
-		 */
-		for (i = 0; i < WT_MILLION * 100; i++)
-			;
-		tsc_stop = __wt_rdtsc(session);
-		__wt_epoch(session, &stop);
-		diff_nsec = WT_TIMEDIFF_NS(stop, start);
-		diff_tsc = tsc_stop - tsc_start;
-		if (min_nsec == 0)
-			min_nsec = diff_nsec;
-		else
-			min_nsec = WT_MIN(min_nsec, diff_nsec);
-		if (min_tsc == 0)
-			min_tsc = diff_tsc;
-		else
-			min_tsc = WT_MIN(min_tsc, diff_tsc);
-	}
-
-	/*
-	 * If we couldn't get a good reading then fallback to getting
-	 * time with wt_epoch. One possible reason is that the system's
-	 * clock granularity is not fine-grained enough.
-	 */
-	if (min_nsec == 0) {
-		F_SET(S2C(session), WT_CONN_USE_EPOCHTIME);
-		S2C(session)->tsc_nsec_ratio = 1.0;
-	} else
-		S2C(session)->tsc_nsec_ratio =
-		    (double)min_tsc / (double)min_nsec;
-#else
-	F_SET(S2C(session), WT_CONN_USE_EPOCHTIME);
-	S2C(session)->tsc_nsec_ratio = 1.0;
-#endif
-}
-
-/*
  * __conn_config_append --
  *	Append an entry to a config stack.
  */
@@ -2290,6 +2230,16 @@ __conn_chk_file_system(WT_SESSION_IMPL *session, bool readonly)
 	}
 	WT_CONN_SET_FILE_SYSTEM_REQ(fs_size);
 
+	/*
+	 * The lower-level API for returning the first matching entry was added
+	 * later and not documented because it's an optimization for high-end
+	 * filesystems doing logging, specifically pre-allocating log files.
+	 * Check for the API and fall back to the standard API if not available.
+	 */
+	if (conn->file_system->fs_directory_list_single == NULL)
+		conn->file_system->fs_directory_list_single =
+		    conn->file_system->fs_directory_list;
+
 	return (0);
 }
 
@@ -2711,11 +2661,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	 * Configuration completed; optionally write a base configuration file.
 	 */
 	WT_ERR(__conn_write_base_config(session, cfg));
-
-	/*
-	 * Calibrate the ratio of rdtsc ticks to nanoseconds.
-	 */
-	__conn_calibrate_ticks(session);
 
 	/*
 	 * Check on the turtle and metadata files, creating them if necessary
