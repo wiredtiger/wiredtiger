@@ -1796,6 +1796,7 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 			 */
 			break;
 
+		case WT_REF_LIMBO:
 		case WT_REF_LOOKASIDE:
 			/*
 			 * On disk, with lookaside updates.
@@ -3429,16 +3430,18 @@ __rec_split_write_supd(WT_SESSION_IMPL *session,
 		r->supd_next = j;
 	}
 
-done:	/* Track the oldest timestamp seen so far. */
-	multi->page_las.las_skew_newest = r->las_skew_newest;
-	multi->page_las.las_max_txn = r->max_txn;
-	WT_ASSERT(session, r->max_txn != WT_TXN_NONE);
+done:	if (F_ISSET(r, WT_REC_LOOKASIDE)) {
+		/* Track the oldest lookaside timestamp seen so far. */
+		multi->page_las.las_skew_newest = r->las_skew_newest;
+		multi->page_las.las_max_txn = r->max_txn;
+		WT_ASSERT(session, r->max_txn != WT_TXN_NONE);
 #ifdef HAVE_TIMESTAMPS
-	__wt_timestamp_set(
-	    &multi->page_las.min_timestamp, &r->min_saved_timestamp);
-	__wt_timestamp_set(
-	    &multi->page_las.onpage_timestamp, &r->max_onpage_timestamp);
+		__wt_timestamp_set(&multi->page_las.min_timestamp,
+		    &r->min_saved_timestamp);
+		__wt_timestamp_set(&multi->page_las.onpage_timestamp,
+		    &r->max_onpage_timestamp);
 #endif
+	}
 
 err:	__wt_scr_free(session, &key);
 	return (ret);
