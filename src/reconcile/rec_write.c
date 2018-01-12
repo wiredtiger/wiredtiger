@@ -1409,24 +1409,30 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			*updp = upd;
 	}
 
+	/* Keep track of the selected update. */
+	upd = *updp;
+
 	/* Reconciliation should never see an aborted or reserved update. */
-	WT_ASSERT(session, *updp == NULL ||
-	    ((*updp)->txnid != WT_TXN_ABORTED &&
-	    (*updp)->type != WT_UPDATE_RESERVE));
+	WT_ASSERT(session, upd == NULL ||
+	    (upd->txnid != WT_TXN_ABORTED && upd->type != WT_UPDATE_RESERVE));
 
 	/* If all of the updates were aborted, quit. */
 	if (first_txn_upd == NULL) {
-		WT_ASSERT(session, *updp == NULL);
+		WT_ASSERT(session, upd == NULL);
 		return (0);
 	}
+
+	/* If no updates were skipped, record that we're making progress. */
+	if (upd == first_txn_upd)
+		r->update_used = true;
 
 	/*
 	 * The checkpoint transaction is special.  Make sure we never write
 	 * metadata updates from a checkpoint in a concurrent session.
 	 */
 	WT_ASSERT(session, !WT_IS_METADATA(session->dhandle) ||
-	    *updp == NULL || (*updp)->txnid == WT_TXN_NONE ||
-	    (*updp)->txnid != S2C(session)->txn_global.checkpoint_state.id ||
+	    upd == NULL || upd->txnid == WT_TXN_NONE ||
+	    upd->txnid != S2C(session)->txn_global.checkpoint_state.id ||
 	    WT_SESSION_IS_CHECKPOINT(session));
 
 	/*
@@ -1445,10 +1451,20 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		__wt_timestamp_set(&r->max_timestamp, &first_ts_upd->timestamp);
 
 	/* Update the maximum on-page timestamp. */
-	if ((upd = *updp) != NULL &&
+	if (upd != NULL &&
 	    __wt_timestamp_cmp(&upd->timestamp, &r->max_onpage_timestamp) > 0)
 		__wt_timestamp_set(&r->max_onpage_timestamp, &upd->timestamp);
 #endif
+
+	/*
+	 * If the update we chose was a birthmark, or we are doing
+	 * update-restore and we skipped a birthmark, the original on-page
+	 * value must be retained.
+	 */
+	if (upd != NULL &&
+	    (upd->type == WT_UPDATE_BIRTHMARK ||
+	    (F_ISSET(r, WT_REC_UPDATE_RESTORE) && skipped_birthmark)))
+		*updp = NULL;
 
 	/*
 	 * Check if all updates on the page are visible.  If not, it must stay
@@ -1463,27 +1479,10 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 #else
 	timestampp = NULL;
 #endif
-	all_visible = *updp == first_txn_upd && !uncommitted &&
+	all_visible = upd == first_txn_upd && !uncommitted &&
 	    (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 	    __wt_txn_visible_all(session, max_txn, timestampp) :
 	    __wt_txn_visible(session, max_txn, timestampp));
-
-	/*
-	 * If the update we chose was a birthmark, or doing update-restore and
-	 * we skipped a birthmark, the original on-page value must be retained.
-	 */
-	if ((upd = *updp) != NULL) {
-		if ((*updp)->type == WT_UPDATE_BIRTHMARK)
-			*updp = NULL;
-		if (F_ISSET(r, WT_REC_UPDATE_RESTORE) && skipped_birthmark)
-			*updp = NULL;
-	}
-
-	/*
-	 * If there are no skipped updates, record that we're making progress.
-	 */
-	if (*updp == first_txn_upd)
-		r->update_used = true;
 
 	if (all_visible)
 		goto check_original_value;
