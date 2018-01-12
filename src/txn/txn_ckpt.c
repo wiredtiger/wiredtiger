@@ -382,7 +382,7 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 	cache = conn->cache;
 
 	/* Give up if scrubbing is disabled. */
-	if (cache->eviction_checkpoint_target == 0 ||
+	if (cache->eviction_checkpoint_target < DBL_EPSILON ||
 	    cache->eviction_checkpoint_target >= cache->eviction_dirty_trigger)
 		return;
 
@@ -436,7 +436,7 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 	for (;;) {
 		current_dirty =
 		    (100.0 * __wt_cache_dirty_leaf_inuse(cache)) / cache_size;
-		if (current_dirty <= (double)cache->eviction_checkpoint_target)
+		if (current_dirty <= cache->eviction_checkpoint_target)
 			break;
 
 		/*
