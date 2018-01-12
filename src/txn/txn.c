@@ -594,6 +594,8 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 	__wt_txn_release_snapshot(session);
 	txn->isolation = session->isolation;
 
+	txn->rollback_reason = NULL;
+
 	/* Ensure the transaction flags are cleared on exit */
 	txn->flags = 0;
 }
@@ -966,6 +968,17 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	if (!readonly)
 		(void)__wt_cache_eviction_check(session, false, false, NULL);
 	return (ret);
+}
+
+/*
+ * __wt_txn_rollback_required --
+ *	Rollback is required, prepare to log a reason.
+ */
+int
+__wt_txn_rollback_required(WT_SESSION_IMPL *session, const char *reason)
+{
+	session->txn.rollback_reason = reason;
+	return (WT_ROLLBACK);
 }
 
 /*

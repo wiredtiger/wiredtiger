@@ -2376,7 +2376,8 @@ __wt_cache_eviction_worker(
 		if (__wt_cache_stuck(session) && __wt_txn_am_oldest(session)) {
 			--cache->evict_aggressive_score;
 			WT_STAT_CONN_INCR(session, txn_fail_cache);
-			WT_ERR(WT_ROLLBACK);
+			WT_ERR(__wt_txn_rollback_required(session,
+			    "oldest transaction rolled back for eviction"));
 		}
 
 		/*
