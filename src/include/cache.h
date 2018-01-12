@@ -105,7 +105,11 @@ struct __wt_cache {
 	WT_CONDVAR *evict_cond;		/* Eviction server condition */
 	WT_SPINLOCK evict_walk_lock;	/* Eviction walk location */
 
-	double eviction_dirty_target;    /* Percent to allow dirty */
+	/*
+	 * Eviction threshold percentages use double type to allow for
+	 * specifying percentages less than one.
+	 */
+	double eviction_dirty_target;	/* Percent to allow dirty */
 	double eviction_dirty_trigger;	/* Percent to trigger dirty eviction */
 	double eviction_trigger;	/* Percent to trigger eviction */
 	double eviction_target;		/* Percent to end eviction */

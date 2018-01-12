@@ -2629,13 +2629,13 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
+	double pct;
 	uint64_t total_bytes, total_dirty_bytes;
-	u_int pct;
 	bool needed;
 
 	conn = S2C(session);
 	total_bytes = total_dirty_bytes = 0;
-	pct = 0;				/* [-Werror=uninitialized] */
+	pct = 0.0;				/* [-Werror=uninitialized] */
 
 	WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
 	WT_RET(__wt_msg(session, "cache dump"));
@@ -2644,10 +2644,10 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
 	    "cache full: %s", __wt_cache_full(session) ? "yes" : "no"));
 	needed = __wt_eviction_clean_needed(session, &pct);
 	WT_RET(__wt_msg(session,
-	    "cache clean check: %s (%u%%)", needed ? "yes" : "no", pct));
+	    "cache clean check: %s (%2.3f%%)", needed ? "yes" : "no", pct));
 	needed = __wt_eviction_dirty_needed(session, &pct);
 	WT_RET(__wt_msg(session,
-	    "cache dirty check: %s (%u%%)", needed ? "yes" : "no", pct));
+	    "cache dirty check: %s (%2.3f%%)", needed ? "yes" : "no", pct));
 
 	for (dhandle = NULL;;) {
 		WT_WITH_HANDLE_LIST_READ_LOCK(session,

@@ -10,37 +10,40 @@
 
 /*
  * __cache_config_abs_to_pct --
- *	Convert the absolute value in cache config to percentage.
+ *	Cache configuration values can be either a percentage or an absolute
+ *	size, this function converts an absolute size to a percentage.
  */
 static inline int
 __cache_config_abs_to_pct(WT_SESSION_IMPL *session,
     double *param, const char *param_name, bool shared)
 {
 	WT_CONNECTION_IMPL *conn;
+	double input;
 
 	conn = S2C(session);
 
 	WT_ASSERT(session, param != NULL);
+	input = *param;
 
 	/*
 	 * Anything above 100 is an absolute value; convert it to percentage.
 	 */
-	if (*param > 100.0) {
+	if (input > 100.0) {
 		/*
-		 * In shared cache configuration the cache size changes
-		 * regularly; an absolute value for the configuration parameter
-		 * may not remain consistent with the changing cache size.
+		 * In a shared cache configuration the cache size changes
+		 * regulary. Therefore, we require a percentage setting and do
+		 * not allow an absolute size setting.
 		 */
 		if (shared)
 			WT_RET_MSG(session, EINVAL,
 			    "Shared cache configuration requires a percentage "
 			    "value for %s", param_name);
 		/* An absolute value can't exceed the cache size. */
-		if (*param > conn->cache_size)
+		if (input > conn->cache_size)
 			WT_RET_MSG(session, EINVAL,
 			    "%s should not exceed cache size", param_name);
 
-		*param = (*param * 100.0) / (conn->cache_size);
+		*param = (input * 100.0) / (conn->cache_size);
 	}
 
 	return (0);
