@@ -1028,7 +1028,7 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 	CURSOR_OPEN_CACHE(session, uri, cfg, cursorp);
 
 	ctable = NULL;
-	cacheable = true;
+	cacheable = F_ISSET(session, WT_SESSION_CACHE_CURSORS);
 
 	tablename = uri;
 	WT_PREFIX_SKIP_REQUIRED(session, tablename, "table:");
@@ -1102,6 +1102,9 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 		cacheable = false;
 	}
 
+	if (cacheable)
+		F_SET(cursor, WT_CURSTD_CACHEABLE);
+
 	WT_ERR(__wt_cursor_init(
 	    cursor, cursor->internal_uri, owner, cfg, cursorp));
 
@@ -1143,7 +1146,8 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 	WT_ERR(__wt_buf_catfmt(session, tmp, "dump=\"\",readonly=0"));
 	WT_ERR(__wt_strdup(session, tmp->data, &ctable->cfg[1]));
 
-	if (cacheable && F_ISSET(session, WT_SESSION_CACHE_CURSORS)) {
+	if (F_ISSET(cursor, WT_CURSTD_CACHEABLE)) {
+		cacheable = true;
 		for (i = 0, cp = ctable->cg_cursors;
 		     cacheable && i < WT_COLGROUPS(ctable->table); i++, cp++) {
 			F_SET(*cp, WT_CURSTD_CACHE_CHILD);
@@ -1156,8 +1160,8 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 			if (!F_ISSET(*cp, WT_CURSTD_CACHEABLE))
 				cacheable = false;
 		}
-		if (cacheable)
-			F_SET(cursor, WT_CURSTD_CACHEABLE);
+		if (!cacheable)
+			F_CLR(cursor, WT_CURSTD_CACHEABLE);
 	}
 
 	if (0) {

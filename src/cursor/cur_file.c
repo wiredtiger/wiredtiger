@@ -590,7 +590,7 @@ __curfile_create(WT_SESSION_IMPL *session,
 	WT_STATIC_ASSERT(offsetof(WT_CURSOR_BTREE, iface) == 0);
 
 	cbt = NULL;
-	cacheable = true;
+	cacheable = F_ISSET(session, WT_SESSION_CACHE_CURSORS);
 
 	btree = S2BT(session);
 	WT_ASSERT(session, btree != NULL);
@@ -664,16 +664,15 @@ __curfile_create(WT_SESSION_IMPL *session,
 	    S2C(session)->compat_major >= WT_LOG_V2)
 		cursor->modify = __curfile_modify;
 
-	WT_ERR(__wt_cursor_init(
-	    cursor, cursor->internal_uri, owner, cfg, cursorp));
-
 	/*
 	 * WiredTiger.wt should not be cached, doing so interferes
 	 * with named checkpoints.
 	 */
-	if (cacheable && F_ISSET(session, WT_SESSION_CACHE_CURSORS) &&
-	    !WT_STREQ(WT_METAFILE_URI, cursor->internal_uri))
+	if (cacheable && !WT_STREQ(WT_METAFILE_URI, cursor->internal_uri))
 		F_SET(cursor, WT_CURSTD_CACHEABLE);
+
+	WT_ERR(__wt_cursor_init(
+	    cursor, cursor->internal_uri, owner, cfg, cursorp));
 
 	WT_STAT_CONN_INCR(session, cursor_create);
 	WT_STAT_DATA_INCR(session, cursor_create);

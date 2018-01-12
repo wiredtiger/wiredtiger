@@ -667,9 +667,7 @@ __wt_cursor_open_cache(WT_SESSION_IMPL *session, const char *uri,
 	WT_CONFIG_ITEM cval;
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
-	uint32_t flags, mask;
 	const char *tmp_cfg;
-	bool raw;
 
 	if (cfg == NULL) {
 		tmp_cfg = NULL;
@@ -681,19 +679,12 @@ __wt_cursor_open_cache(WT_SESSION_IMPL *session, const char *uri,
 	WT_RET(__wt_config_gets(session, cfg, "bulk", &cval));
 	if (cval.val)
 		return (WT_NOTFOUND);
-
-	mask = WT_CURSTD_CACHED | WT_CURSTD_APPEND | WT_CURSTD_OVERWRITE;
-	flags = WT_CURSTD_CACHED;
-
-	WT_RET(__wt_config_gets(session, cfg, "append", &cval));
+	WT_RET(__wt_config_gets(session, cfg, "next_random", &cval));
 	if (cval.val != 0)
-		LF_SET(WT_CURSTD_APPEND);
-	WT_RET(__wt_config_gets(session, cfg, "overwrite", &cval));
-	if (cval.val != 0)
-		LF_SET(WT_CURSTD_OVERWRITE);
-
-	WT_RET(__wt_config_gets_def(session, cfg, "raw", 0, &cval));
-	raw = (cval.val != 0);
+		return (WT_NOTFOUND);
+	WT_RET(__wt_config_gets_def(session, cfg, "dump", 0, &cval));
+	if (cval.len != 0)
+		return (WT_NOTFOUND);
 
 	WT_RET_NOTFOUND_OK(
 	    __wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
@@ -714,7 +705,7 @@ __wt_cursor_open_cache(WT_SESSION_IMPL *session, const char *uri,
 	 * cursor that matches uri and configuration, use it.
 	 */
 	TAILQ_FOREACH(cursor, &session->cursors, q) {
-		if (F_MASK(cursor, mask) == flags && cursor->uri != NULL &&
+		if (F_ISSET(cursor, WT_CURSTD_CACHED) && cursor->uri != NULL &&
 		    WT_STREQ(cursor->uri, uri) &&
 		    CHECKPOINT_MATCH(cursor->checkpoint, cval)) {
 			if ((ret = cursor->reopen(cursor)) != 0) {
@@ -723,19 +714,29 @@ __wt_cursor_open_cache(WT_SESSION_IMPL *session, const char *uri,
 				(void)cursor->close(cursor);
 				return (ret);
 			}
-			*cursorp = cursor;
 
-			/*
-			 * TODO: Can this same technique be applied to
-			 * overwrite/append?
-			 */
-			if (raw)
-				F_SET(*cursorp, WT_CURSTD_RAW);
-			else
-				F_CLR(*cursorp, WT_CURSTD_RAW);
+			F_CLR(cursor, WT_CURSTD_APPEND | WT_CURSTD_OVERWRITE |
+			    WT_CURSTD_RAW);
+
+			WT_RET(__wt_config_gets(
+			    session, cfg, "append", &cval));
+			if (cval.val != 0)
+				F_SET(cursor, WT_CURSTD_APPEND);
+
+			WT_RET(__wt_config_gets(
+			    session, cfg, "overwrite", &cval));
+			if (cval.val != 0)
+				F_SET(cursor, WT_CURSTD_OVERWRITE);
+
+			WT_RET(__wt_config_gets(
+			    session, cfg, "raw", &cval));
+			if (cval.val != 0)
+				F_SET(cursor, WT_CURSTD_RAW);
 
 			WT_STAT_CONN_INCR(session, cursor_reopen);
 			WT_STAT_DATA_INCR(session, cursor_reopen);
+
+			*cursorp = cursor;
 			return (0);
 		}
 	}
@@ -967,6 +968,7 @@ __wt_cursor_init(WT_CURSOR *cursor,
 		cursor->remove = __wt_cursor_notsup;
 		cursor->reserve = __wt_cursor_notsup;
 		cursor->update = __wt_cursor_notsup;
+		F_CLR(cursor, WT_CURSTD_CACHEABLE);
 	}
 
 	/*
@@ -990,6 +992,7 @@ __wt_cursor_init(WT_CURSOR *cursor,
 		 */
 		WT_RET(__wt_curdump_create(cursor, owner, &cdump));
 		owner = cdump;
+		F_CLR(cursor, WT_CURSTD_CACHEABLE);
 	} else
 		cdump = NULL;
 
