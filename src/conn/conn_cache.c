@@ -31,7 +31,7 @@ __cache_config_abs_to_pct(WT_SESSION_IMPL *session,
 	if (input > 100.0) {
 		/*
 		 * In a shared cache configuration the cache size changes
-		 * regulary. Therefore, we require a percentage setting and do
+		 * regularly. Therefore, we require a percentage setting and do
 		 * not allow an absolute size setting.
 		 */
 		if (shared)
