@@ -300,7 +300,7 @@ __wt_eviction_dirty_needed(WT_SESSION_IMPL *session, double *pct_fullp)
 		*pct_fullp = ((100.0 * dirty_inuse) / bytes_max);
 
 	if ((dirty_trigger = cache->eviction_scrub_limit) < 1.0)
-		dirty_trigger = (double)cache->eviction_dirty_trigger;
+		dirty_trigger = cache->eviction_dirty_trigger;
 
 	return (dirty_inuse > (uint64_t)(dirty_trigger * bytes_max) / 100);
 }
