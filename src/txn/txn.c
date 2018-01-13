@@ -611,7 +611,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_OP *op;
-	WT_UPDATE *upd;
 	u_int i;
 	bool locked, readonly;
 #ifdef HAVE_TIMESTAMPS
@@ -647,7 +646,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #endif
 	}
 
-	WT_UNUSED(upd);
 #ifdef HAVE_TIMESTAMPS
 	/*
 	 * Debugging checks on timestamps, if user requested them.
@@ -669,6 +667,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++)
 		if (op->type == WT_TXN_OP_BASIC_TS) {
+			WT_UPDATE *upd;
+
 			/*
 			 * Skip over any aborted update structures.
 			 */
