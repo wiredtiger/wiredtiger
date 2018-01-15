@@ -494,7 +494,8 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session)
 	if (g.c_txn_timestamps) {
 		/*
 		 * Update the thread's active timestamp with the current value
-		 * to prevent it moving past our allocated timestamp.
+		 * to prevent the oldest timestamp moving past our allocated
+		 * timestamp before the commit completes.
 		 */
 		tinfo->timestamp = g.timestamp;
 		ts = __wt_atomic_addv64(&g.timestamp, 1);
@@ -505,10 +506,10 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session)
 		    session->commit_transaction(session, config_buf));
 
 		/*
-		 * Update the thread's last-committed timestamp. Don't let the
-		 * compiler re-order this statement, if we were to race with
-		 * the timestamp thread, it might see our thread update before
-		 * the transaction commit.
+		 * Clear the thread's active timestamp: it no longer needs to
+		 * be pinned. Don't let the compiler re-order this statement,
+		 * if we were to race with the timestamp thread, it might see
+		 * our thread update before the transaction commit.
 		 */
 		WT_PUBLISH(tinfo->timestamp, 0);
 	} else
