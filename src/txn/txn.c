@@ -598,6 +598,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 	txn->flags = 0;
 }
 
+#ifdef	HAVE_TIMESTAMPS
 /*
  * __txn_commit_timestamp_validate --
  *	Validate that timestamp provided to commit is legal.
@@ -605,10 +606,10 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 static inline int
 __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 {
-#ifdef	HAVE_TIMESTAMPS
 	WT_TXN *txn;
 
 	txn = &session->txn;
+
 	/*
 	 * Debugging checks on timestamps, if user requested them.
 	 */
@@ -633,7 +634,6 @@ __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 	 */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++)
 		if (op->type == WT_TXN_OP_BASIC_TS) {
-
 			/*
 			 * Skip over any aborted update structures.
 			 */
@@ -653,11 +653,9 @@ __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 		}
 	}
 #endif
-#else
-	WT_UNUSED(session);
-#endif
 	return (0);
 }
+#endif
 
 /*
  * __wt_txn_commit --
@@ -707,7 +705,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #endif
 	}
 
+#ifdef HAVE_TIMESTAMPS
 	WT_ERR(__txn_commit_timestamp_validate(session));
+#endif
+
 	/*
 	 * The default sync setting is inherited from the connection, but can
 	 * be overridden by an explicit "sync" setting for this transaction.
