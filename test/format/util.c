@@ -622,7 +622,7 @@ timestamp(void *arg)
 
 		/*
 		 * If less than 100 transactions out of date, wait up to 15
-		 * seconds.
+		 * seconds before updating.
 		 */
 		WT_READ_BARRIER();
 		testutil_assert(oldest_timestamp <= g.timestamp);
@@ -638,6 +638,7 @@ timestamp(void *arg)
 		    config_buf, sizeof(config_buf),
 		    "oldest_timestamp=%" PRIx64, oldest_timestamp));
 		testutil_check(conn->set_timestamp(conn, config_buf));
+		last = now;
 
 		usecs = mmrand(NULL, 5, 40);
 		__wt_sleep(0, usecs);
