@@ -166,7 +166,7 @@ class test_config04(wttest.WiredTigerTestCase):
         self.wiredtiger_open('.','create,cache_size=8GB,eviction_target=70MB,'
                              'eviction_trigger=75MB')
 
-    # Test that eviciton_target must be lower than eviction_trigger
+    # Test that eviction_target must be lower than eviction_trigger
     def test_eviction_absolute_bad(self):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
             self.wiredtiger_open('.','create,eviction_target=70MB,'

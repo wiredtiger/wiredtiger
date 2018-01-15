@@ -600,6 +600,65 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 	txn->flags = 0;
 }
 
+#ifdef	HAVE_TIMESTAMPS
+/*
+ * __txn_commit_timestamp_validate --
+ *	Validate that timestamp provided to commit is legal.
+ */
+static inline int
+__txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
+{
+	WT_TXN *txn;
+
+	txn = &session->txn;
+
+	/*
+	 * Debugging checks on timestamps, if user requested them.
+	 */
+	if (F_ISSET(txn, WT_TXN_TS_COMMIT_ALWAYS) &&
+	    !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
+	    txn->mod_count != 0)
+		WT_RET_MSG(session, EINVAL, "commit_timestamp required and "
+		    "none set on this transaction");
+	if (F_ISSET(txn, WT_TXN_TS_COMMIT_NEVER) &&
+	    F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
+	    txn->mod_count != 0)
+		WT_RET_MSG(session, EINVAL, "no commit_timestamp required and "
+		    "timestamp set on this transaction");
+#ifdef HAVE_DIAGNOSTIC
+	{
+	WT_TXN_OP *op;
+	WT_UPDATE *upd;
+	u_int i;
+	/*
+	 * Error on any valid update structures for the same key that
+	 * are at a later timestamp.
+	 */
+	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++)
+		if (op->type == WT_TXN_OP_BASIC_TS) {
+			/*
+			 * Skip over any aborted update structures.
+			 */
+			upd = op->u.upd->next;
+			while (upd != NULL && upd->txnid == WT_TXN_ABORTED)
+				upd = upd->next;
+			/*
+			 * Check the timestamp on this update with the
+			 * first valid update in the chain. They're in
+			 * most recent order.
+			 */
+			if (upd != NULL &&
+			    __wt_timestamp_cmp(&op->u.upd->timestamp,
+			    &upd->timestamp) < 0)
+				WT_RET_MSG(session, EINVAL,
+				    "out of order timestamps");
+		}
+	}
+#endif
+	return (0);
+}
+#endif
+
 /*
  * __wt_txn_commit --
  *	Commit the current transaction.
@@ -613,7 +672,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_OP *op;
-	WT_UPDATE *upd;
 	u_int i;
 	bool locked, readonly;
 #ifdef HAVE_TIMESTAMPS
@@ -649,47 +707,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #endif
 	}
 
-	WT_UNUSED(upd);
 #ifdef HAVE_TIMESTAMPS
-	/*
-	 * Debugging checks on timestamps, if user requested them.
-	 */
-	if (F_ISSET(txn, WT_TXN_TS_COMMIT_ALWAYS) &&
-	    !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
-	    txn->mod_count != 0)
-		WT_ERR_MSG(session, EINVAL, "commit_timestamp required and "
-		    "none set on this transaction");
-	if (F_ISSET(txn, WT_TXN_TS_COMMIT_NEVER) &&
-	    F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
-	    txn->mod_count != 0)
-		WT_ERR_MSG(session, EINVAL, "no commit_timestamp required and "
-		    "timestamp set on this transaction");
-#ifdef HAVE_DIAGNOSTIC
-	/*
-	 * Error on any valid update structures for the same key that
-	 * are at a later timestamp.
-	 */
-	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++)
-		if (op->type == WT_TXN_OP_BASIC_TS) {
-			/*
-			 * Skip over any aborted update structures.
-			 */
-			upd = op->u.upd->next;
-			while (upd != NULL && upd->txnid == WT_TXN_ABORTED)
-				upd = upd->next;
-			/*
-			 * Check the timestamp on this update with the
-			 * first valid update in the chain. They're in
-			 * most recent order.
-			 */
-			if (upd != NULL &&
-			    __wt_timestamp_cmp(&op->u.upd->timestamp,
-			    &upd->timestamp) < 0)
-				WT_ERR_MSG(session, EINVAL,
-				    "out of order timestamps");
-		}
+	WT_ERR(__txn_commit_timestamp_validate(session));
 #endif
-#endif
+
 	/*
 	 * The default sync setting is inherited from the connection, but can
 	 * be overridden by an explicit "sync" setting for this transaction.
