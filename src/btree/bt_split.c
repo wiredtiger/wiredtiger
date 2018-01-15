@@ -2257,9 +2257,13 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
 	 *
 	 * Pages with unresolved changes are not marked clean during
 	 * reconciliation, do it now.
+	 *
+	 * Don't count this as eviction making progress, we did a one-for-one
+	 * rewrite of a page in memory, typical in the case of cache pressure.
 	 */
 	__wt_page_modify_clear(session, page);
-	__wt_ref_out_int(session, ref, true);
+	F_SET_ATOMIC(page, WT_PAGE_EVICT_NO_PROGRESS);
+	__wt_ref_out(session, ref);
 
 	/* Swap the new page into place. */
 	ref->page = new->page;
