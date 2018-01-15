@@ -360,24 +360,3 @@ __wt_update_obsolete_check(
 
 	return (NULL);
 }
-
-/*
- * __wt_update_obsolete_free --
- *	Free an obsolete update list.
- */
-void
-__wt_update_obsolete_free(
-    WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd)
-{
-	WT_UPDATE *next;
-	size_t size;
-
-	/* Free a WT_UPDATE list. */
-	for (size = 0; upd != NULL; upd = next) {
-		next = upd->next;
-		size += WT_UPDATE_MEMSIZE(upd);
-		__wt_free(session, upd);
-	}
-	if (size != 0)
-		__wt_cache_page_inmem_decr(session, page, size);
-}
