@@ -303,15 +303,6 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 
 	WT_ASSERT(session, ref->addr == NULL);
 
-	/*
-	 * Don't count discarding a modified lookaside table page as eviction
-	 * making progress. This isn't precise, but what we're trying to spot
-	 * is active lookaside pages created in reconciliation, as opposed to
-	 * lookaside pages read to satisfy normal cursor operations.
-	 */
-	if (F_ISSET(S2BT(session), WT_BTREE_LOOKASIDE))
-		F_SET_ATOMIC(ref->page, WT_PAGE_EVICT_NO_PROGRESS);
-
 	switch (mod->rec_result) {
 	case WT_PM_REC_EMPTY:				/* Page is empty */
 		/*
