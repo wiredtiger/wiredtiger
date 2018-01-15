@@ -972,7 +972,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
 /*
  * __wt_txn_rollback_required --
- *	Rollback is required, prepare to log a reason.
+ *	Prepare to log a reason if the user attempts to use the transaction to
+ * do anything other than rollback.
  */
 int
 __wt_txn_rollback_required(WT_SESSION_IMPL *session, const char *reason)
