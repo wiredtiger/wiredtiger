@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -341,7 +341,8 @@ __las_insert_block_verbose(WT_SESSION_IMPL *session, WT_MULTI *multi)
 	char hex_timestamp[9]; /* Enough for disabled string */
 #endif
 	uint64_t ckpt_gen_current, ckpt_gen_last;
-	uint32_t btree_id, pct_dirty, pct_full;
+	uint32_t btree_id;
+	double pct_dirty, pct_full;
 
 	btree_id = S2BT(session)->id;
 
@@ -379,8 +380,8 @@ __las_insert_block_verbose(WT_SESSION_IMPL *session, WT_MULTI *multi)
 		    "file ID %" PRIu32 ", page ID %" PRIu64 ". "
 		    "Max txn ID %" PRIu64 ", min timestamp %s, skewed %s. "
 		    "Entries now in lookaside file: %" PRId64 ", "
-		    "cache dirty: %" PRIu32 "%% , "
-		    "cache use: %" PRIu32 "%%",
+		    "cache dirty: %2.3f%% , "
+		    "cache use: %2.3f%%",
 		    btree_id, multi->page_las.las_pageid,
 		    multi->page_las.las_max_txn,
 		    hex_timestamp,
@@ -490,18 +491,16 @@ __wt_las_insert_block(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 				continue;
 
 			switch (upd->type) {
-			case WT_UPDATE_DELETED:
-				las_value.size = 0;
-				break;
-			case WT_UPDATE_MODIFIED:
+			case WT_UPDATE_MODIFY:
 			case WT_UPDATE_STANDARD:
 				las_value.data = upd->data;
 				las_value.size = upd->size;
 				break;
-			case WT_UPDATE_RESERVED:
-				WT_ASSERT(session,
-				    upd->type != WT_UPDATE_RESERVED);
-				continue;
+			case WT_UPDATE_BIRTHMARK:
+			case WT_UPDATE_TOMBSTONE:
+				las_value.size = 0;
+				break;
+			WT_ILLEGAL_VALUE_ERR(session);
 			}
 
 			cursor->set_key(cursor,
@@ -511,8 +510,25 @@ __wt_las_insert_block(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 			las_timestamp.data = &upd->timestamp;
 			las_timestamp.size = WT_TIMESTAMP_SIZE;
 #endif
-			cursor->set_value(cursor,
-			    upd->txnid, &las_timestamp, upd->type, &las_value);
+			/*
+			 * If saving a non-zero length value on the page, save a
+			 * birthmark instead of duplicating it in the lookaside
+			 * table. (We check the length because row-store doesn't
+			 * write zero-length data items.)
+			 */
+			if (multi->page_las.las_skew_newest &&
+			    upd == list->onpage_upd &&
+			    upd->size > 0 &&
+			    (upd->type == WT_UPDATE_STANDARD ||
+			    upd->type == WT_UPDATE_MODIFY)) {
+				las_value.size = 0;
+				cursor->set_value(cursor,
+				    upd->txnid, &las_timestamp,
+				    WT_UPDATE_BIRTHMARK, &las_value);
+			} else
+				cursor->set_value(cursor,
+				    upd->txnid, &las_timestamp,
+				    upd->type, &las_value);
 
 			/*
 			 * Using update looks a little strange because the keys

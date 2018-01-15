@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -599,6 +599,7 @@ __log_file_server(void *arg)
 				WT_ERR(__wt_fsync(session, log->log_fh, true));
 				__wt_spin_lock(session, &log->log_sync_lock);
 				locked = true;
+				WT_NOT_READ(locked);
 				/*
 				 * The sync LSN could have advanced while we
 				 * were writing to disk.
@@ -948,11 +949,11 @@ __log_server(void *arg)
 		}
 
 		/* Wait until the next event. */
-		time_start = __wt_rdtsc(session);
+		time_start = __wt_clock(session);
 		__wt_cond_auto_wait_signal(
 		    session, conn->log_cond, did_work, NULL, &signalled);
-		time_stop = __wt_rdtsc(session);
-		timediff = WT_TSCDIFF_MS(session, time_stop, time_start);
+		time_stop = __wt_clock(session);
+		timediff = WT_CLOCKDIFF_MS(time_stop, time_start);
 	}
 
 	if (0) {

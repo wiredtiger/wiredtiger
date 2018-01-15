@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -494,13 +494,25 @@ __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 static inline WT_UPDATE *
 __wt_txn_read(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-	/* Skip reserved place-holders, they're never visible. */
-	for (; upd != NULL; upd = upd->next)
-		if (upd->type != WT_UPDATE_RESERVED &&
+	static WT_UPDATE tombstone = {
+		.txnid = WT_TXN_NONE, .type = WT_UPDATE_TOMBSTONE
+	};
+	bool skipped_birthmark;
+
+	for (skipped_birthmark = false; upd != NULL; upd = upd->next) {
+		/* Skip reserved place-holders, they're never visible. */
+		if (upd->type != WT_UPDATE_RESERVE &&
 		    __wt_txn_upd_visible(session, upd))
 			break;
+		/* An invisible birthmark is equivalent to a tombstone. */
+		if (upd->type == WT_UPDATE_BIRTHMARK)
+			skipped_birthmark = true;
+	}
 
-	return (upd);
+	if (upd == NULL && skipped_birthmark)
+		upd = &tombstone;
+
+	return (upd == NULL || upd->type == WT_UPDATE_BIRTHMARK ? NULL : upd);
 }
 
 /*
@@ -721,7 +733,8 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 				    session, txn_update_conflict);
 				WT_STAT_DATA_INCR(
 				    session, txn_update_conflict);
-				return (WT_ROLLBACK);
+				return (__wt_txn_rollback_required(session,
+				    "conflict between concurrent operations"));
 			}
 			upd = upd->next;
 		}

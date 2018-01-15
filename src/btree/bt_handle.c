@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -807,7 +807,7 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
 	btree->maxmempage = (uint64_t)cval.val;
 	if (!F_ISSET(conn, WT_CONN_CACHE_POOL) &&
 	    (cache_size = conn->cache_size) > 0)
-		btree->maxmempage = WT_MIN(btree->maxmempage,
+		btree->maxmempage = (uint64_t)WT_MIN(btree->maxmempage,
 		    (conn->cache->eviction_dirty_trigger * cache_size) / 1000);
 
 	/* Enforce a lower bound of a single disk leaf page */

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -224,19 +224,22 @@ struct __wt_ovfl_reuse {
     "key_format=" WT_UNCHECKED_STRING(QIQu)				\
     ",value_format=" WT_UNCHECKED_STRING(QuBu)				\
     ",block_compressor=" WT_LOOKASIDE_COMPRESSOR			\
-    ",leaf_value_max=64MB"
+    ",leaf_value_max=64MB"						\
+    ",prefix_compression=true"
 
 /*
  * WT_PAGE_LOOKASIDE --
  *	Related information for on-disk pages with lookaside entries.
  */
 struct __wt_page_lookaside {
-	uint64_t las_pageid;			/* Page ID in lookaside */
-	uint64_t las_max_txn;			/* Maximum transaction ID in
-						   lookaside */
-	WT_DECL_TIMESTAMP(min_timestamp)	/* Min timestamp in lookaside */
-	WT_DECL_TIMESTAMP(onpage_timestamp)	/* Max timestamp on page */
-	bool las_skew_newest;			/* On-page skewed to newest */
+	uint64_t las_pageid;		/* Page ID in lookaside */
+	uint64_t las_max_txn;		/* Max transaction ID in lookaside */
+	WT_DECL_TIMESTAMP(min_timestamp)/* Min timestamp in lookaside */
+					/* Max timestamp on page */
+	WT_DECL_TIMESTAMP(onpage_timestamp)
+	bool eviction_to_lookaside;	/* Revert to lookaside on eviction */
+	bool las_skew_newest;		/* On-page skewed to newest */
+	bool invalid;			/* History is required correct reads */
 };
 
 /*
@@ -720,6 +723,10 @@ struct __wt_page {
  *	row-store leaf pages without reading them if they don't reference
  *	overflow items.
  *
+ * WT_REF_LIMBO:
+ *	The page image has been loaded into memory but there is additional
+ *	history in the lookaside table that has not been applied.
+ *
  * WT_REF_LOCKED:
  *	Locked for exclusive access.  In eviction, this page or a parent has
  *	been selected for eviction; once hazard pointers are checked, the page
@@ -793,11 +800,12 @@ struct __wt_ref {
 
 #define	WT_REF_DISK	 0		/* Page is on disk */
 #define	WT_REF_DELETED	 1		/* Page is on disk, but deleted */
-#define	WT_REF_LOCKED	 2		/* Page locked for exclusive access */
-#define	WT_REF_LOOKASIDE 3		/* Page is on disk with lookaside */
-#define	WT_REF_MEM	 4		/* Page is in cache and valid */
-#define	WT_REF_READING	 5		/* Page being read */
-#define	WT_REF_SPLIT	 6		/* Parent page split (WT_REF dead) */
+#define	WT_REF_LIMBO	 2		/* Page is in cache without history */
+#define	WT_REF_LOCKED	 3		/* Page locked for exclusive access */
+#define	WT_REF_LOOKASIDE 4		/* Page is on disk with lookaside */
+#define	WT_REF_MEM	 5		/* Page is in cache and valid */
+#define	WT_REF_READING	 6		/* Page being read */
+#define	WT_REF_SPLIT	 7		/* Parent page split (WT_REF dead) */
 	volatile uint32_t state;	/* Page state */
 
 	/*
@@ -819,16 +827,14 @@ struct __wt_ref {
 #undef	ref_ikey
 #define	ref_ikey	key.ikey
 
-	union {
-		WT_PAGE_DELETED	*page_del;	/* Deleted page information */
-		WT_PAGE_LOOKASIDE *page_las;	/* Lookaside information */
-	};
+	WT_PAGE_DELETED	  *page_del;	/* Deleted page information */
+	WT_PAGE_LOOKASIDE *page_las;	/* Lookaside information */
 };
 /*
  * WT_REF_SIZE is the expected structure size -- we verify the build to ensure
  * the compiler hasn't inserted padding which would break the world.
  */
-#define	WT_REF_SIZE	48
+#define	WT_REF_SIZE	56
 
 /*
  * WT_ROW --
@@ -974,15 +980,17 @@ struct __wt_update {
 	uint32_t size;			/* data length */
 
 #define	WT_UPDATE_INVALID	0	/* diagnostic check */
-#define	WT_UPDATE_DELETED	1	/* deleted */
-#define	WT_UPDATE_MODIFIED	2	/* partial-update modify value */
-#define	WT_UPDATE_RESERVED	3	/* reserved */
+#define	WT_UPDATE_BIRTHMARK	1	/* transaction for on-page value */
+#define	WT_UPDATE_MODIFY	2	/* partial-update modify value */
+#define	WT_UPDATE_RESERVE	3	/* reserved */
 #define	WT_UPDATE_STANDARD	4	/* complete value */
+#define	WT_UPDATE_TOMBSTONE	5	/* deleted */
 	uint8_t type;			/* type (one byte to conserve memory) */
 
 	/* If the update includes a complete value. */
 #define	WT_UPDATE_DATA_VALUE(upd)					\
-	((upd)->type == WT_UPDATE_STANDARD || (upd)->type == WT_UPDATE_DELETED)
+	((upd)->type == WT_UPDATE_STANDARD ||				\
+	(upd)->type == WT_UPDATE_TOMBSTONE)
 
 #if WT_TIMESTAMP_SIZE != 8
 	WT_DECL_TIMESTAMP(timestamp)	/* unaligned uint8_t array timestamp */

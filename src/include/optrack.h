@@ -1,13 +1,13 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
 
-#define	WT_OPTRACK_MAXRECS 16384
-#define	WT_OPTRACK_BUFSIZE WT_OPTRACK_MAXRECS * sizeof(WT_OPTRACK_RECORD)
+#define	WT_OPTRACK_MAXRECS (16384)
+#define	WT_OPTRACK_BUFSIZE (WT_OPTRACK_MAXRECS * sizeof(WT_OPTRACK_RECORD))
 #define	WT_OPTRACK_VERSION 1
 
 /*
@@ -51,7 +51,7 @@ struct __wt_optrack_record {
 	WT_OPTRACK_RECORD *__tr;					\
 	__tr = &((s)->optrack_buf[					\
 	    (s)->optrackbuf_ptr % WT_OPTRACK_MAXRECS]);			\
-	__tr->op_timestamp = __wt_rdtsc(s);				\
+	__tr->op_timestamp = __wt_clock(s);				\
 	__tr->op_id = __func_id;					\
 	__tr->op_type = optype;						\
 									\
