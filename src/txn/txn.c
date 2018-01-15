@@ -624,7 +624,9 @@ __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 		    "timestamp set on this transaction");
 #ifdef HAVE_DIAGNOSTIC
 	{
+	WT_TXN_OP *op;
 	WT_UPDATE *upd;
+	u_int i;
 	/*
 	 * Error on any valid update structures for the same key that
 	 * are at a later timestamp.
