@@ -505,10 +505,12 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session)
 		    session->commit_transaction(session, config_buf));
 
 		/*
-		 * Clear the threads' timestamp to prevent anything being
-		 * pinned.
+		 * Update the thread's last-committed timestamp. Don't let the
+		 * compiler re-order this statement, if we were to race with
+		 * the timestamp thread, it might see our thread update before
+		 * the transaction commit.
 		 */
-		tinfo->timestamp = 0;
+		WT_PUBLISH(tinfo->timestamp, 0);
 	} else
 		testutil_check(session->commit_transaction(session, NULL));
 	++tinfo->commit;
