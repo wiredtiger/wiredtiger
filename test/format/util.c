@@ -638,7 +638,7 @@ timestamp(void *arg)
 		    config_buf, sizeof(config_buf),
 		    "oldest_timestamp=%" PRIx64, oldest_timestamp));
 		testutil_check(conn->set_timestamp(conn, config_buf));
-		last = now;
+		__wt_seconds((WT_SESSION_IMPL *)session, &last);
 
 		usecs = mmrand(NULL, 5, 40);
 		__wt_sleep(0, usecs);
