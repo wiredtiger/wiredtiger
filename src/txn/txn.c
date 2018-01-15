@@ -605,10 +605,10 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 static inline int
 __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 {
+#ifdef	HAVE_TIMESTAMPS
 	WT_TXN *txn;
 
 	txn = &session->txn;
-#ifdef	HAVE_TIMESTAMPS
 	/*
 	 * Debugging checks on timestamps, if user requested them.
 	 */
