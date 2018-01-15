@@ -496,7 +496,7 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session)
 		 * Update the thread's active timestamp with the current value
 		 * to prevent it moving past our allocated timestamp.
 		 */
-		WT_PUBLISH(tinfo->timestamp, g.timestamp);
+		tinfo->timestamp = g.timestamp;
 		ts = __wt_atomic_addv64(&g.timestamp, 1);
 		testutil_check(__wt_snprintf(
 		    config_buf, sizeof(config_buf),
@@ -508,7 +508,7 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session)
 		 * Clear the threads' timestamp to prevent anything being
 		 * pinned.
 		 */
-		WT_PUBLISH(tinfo->timestamp, 0);
+		tinfo->timestamp = 0;
 	} else
 		testutil_check(session->commit_transaction(session, NULL));
 	++tinfo->commit;
