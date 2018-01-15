@@ -257,7 +257,7 @@ __wt_cache_page_byte_dirty_decr(
 		 * Take care to read the dirty-byte count only once in case
 		 * we're racing with updates.
 		 */
-		orig = page->modify->bytes_dirty;
+		WT_ORDERED_READ(orig, page->modify->bytes_dirty);
 		decr = WT_MIN(size, orig);
 		if (__wt_atomic_cassize(
 		    &page->modify->bytes_dirty, orig, orig - decr))
