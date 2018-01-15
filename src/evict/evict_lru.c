@@ -2376,7 +2376,8 @@ __wt_cache_eviction_worker(
 		if (__wt_cache_stuck(session) && __wt_txn_am_oldest(session)) {
 			--cache->evict_aggressive_score;
 			WT_STAT_CONN_INCR(session, txn_fail_cache);
-			WT_ERR(WT_ROLLBACK);
+			WT_ERR(__wt_txn_rollback_required(session,
+			    "oldest transaction rolled back for eviction"));
 		}
 
 		/*
@@ -2579,7 +2580,9 @@ __verbose_dump_cache_single(WT_SESSION_IMPL *session,
 	    dhandle->checkpoint != NULL ? dhandle->checkpoint : "<live>",
 	    btree->evict_disabled != 0 ?  "eviction disabled" : "",
 	    btree->evict_disabled_open ? " at open" : ""));
-	if (intl_pages != 0)
+	if (intl_pages == 0)
+		WT_RET(__wt_msg(session, "internal: 0 pages"));
+	else
 		WT_RET(__wt_msg(session,
 		    "internal: "
 		    "%" PRIu64 " pages, "
@@ -2596,7 +2599,9 @@ __verbose_dump_cache_single(WT_SESSION_IMPL *session,
 		    intl_dirty_bytes / WT_MEGABYTE,
 		    intl_bytes_max / WT_MEGABYTE,
 		    intl_dirty_bytes_max / WT_MEGABYTE));
-	if (leaf_pages != 0)
+	if (leaf_pages == 0)
+		WT_RET(__wt_msg(session, "leaf: 0 pages"));
+	else
 		WT_RET(__wt_msg(session,
 		    "leaf: "
 		    "%" PRIu64 " pages, "

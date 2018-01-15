@@ -1467,7 +1467,9 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
 	txn = &session->txn;
 	if (F_ISSET(txn, WT_TXN_ERROR) && txn->mod_count != 0)
 		WT_ERR_MSG(session, EINVAL,
-		    "failed transaction requires rollback");
+		    "failed transaction requires rollback%s%s",
+		    txn->rollback_reason == NULL ? "" : ": ",
+		    txn->rollback_reason == NULL ? "" : txn->rollback_reason);
 
 	if (ret == 0)
 		ret = __wt_txn_commit(session, cfg);

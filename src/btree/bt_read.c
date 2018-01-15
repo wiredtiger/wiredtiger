@@ -144,8 +144,6 @@ __las_page_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 	uint32_t previous_state;
 	bool skip;
 
-	skip = false;
-
 	if ((previous_state = ref->state) != WT_REF_LIMBO &&
 	    previous_state != WT_REF_LOOKASIDE)
 		return (false);
@@ -547,11 +545,17 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	 * Build the in-memory version of the page. Clear our local reference to
 	 * the allocated copy of the disk image on return, the in-memory object
 	 * steals it.
+	 *
+	 * If a page is read with eviction disabled, we don't count evicting it
+	 * as progress. Since disabling eviction allows pages to be read even
+	 * when the cache is full, we want to avoid workloads repeatedly reading
+	 * a page with eviction disabled (e.g., a metadata page), then evicting
+	 * that page and deciding that is a sign that eviction is unstuck.
 	 */
 	page_flags =
 	    WT_DATA_IN_ITEM(&tmp) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED;
 	if (LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
-		FLD_SET(page_flags, WT_PAGE_READ_NO_EVICT);
+		FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
 	WT_ERR(__wt_page_inmem(session, ref, tmp.data, page_flags, &page));
 	tmp.mem = NULL;
 
