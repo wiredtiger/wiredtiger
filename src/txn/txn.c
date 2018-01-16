@@ -609,6 +609,10 @@ static inline int
 __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 {
 	WT_TXN *txn;
+	WT_TXN_OP *op;
+	WT_UPDATE *upd;
+	u_int i;
+	char timestamp_buf[2][2 * WT_TIMESTAMP_SIZE + 1];
 
 	txn = &session->txn;
 
@@ -625,17 +629,15 @@ __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 	    txn->mod_count != 0)
 		WT_RET_MSG(session, EINVAL, "no commit_timestamp required and "
 		    "timestamp set on this transaction");
-#ifdef HAVE_DIAGNOSTIC
-	{
-	WT_TXN_OP *op;
-	WT_UPDATE *upd;
-	u_int i;
-	/*
-	 * Error on any valid update structures for the same key that
-	 * are at a later timestamp.
-	 */
-	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++)
-		if (op->type == WT_TXN_OP_BASIC_TS) {
+
+	if (WT_VERBOSE_ISSET(session, WT_VERB_TIMESTAMP)) {
+		/*
+		 * Error on any valid update structures for the same key that
+		 * are at a later timestamp.
+		 */
+		for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
+			if (op->type != WT_TXN_OP_BASIC_TS)
+				continue;
 			/*
 			 * Skip over any aborted update structures.
 			 */
@@ -649,12 +651,18 @@ __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 			 */
 			if (upd != NULL &&
 			    __wt_timestamp_cmp(&op->u.upd->timestamp,
-			    &upd->timestamp) < 0)
-				WT_RET_MSG(session, EINVAL,
-				    "out of order timestamps");
+			    &upd->timestamp) < 0) {
+				WT_RET(__wt_timestamp_to_hex_string(session,
+				    timestamp_buf[0], &op->u.upd->timestamp));
+				WT_RET(__wt_timestamp_to_hex_string(session,
+				    timestamp_buf[1], &upd->timestamp));
+				__wt_verbose(session, WT_VERB_TIMESTAMP,
+				    "Timestamp %s on new update is older than "
+				    "timestamp %s on existing update.",
+				    timestamp_buf[0], timestamp_buf[1]);
+			}
 		}
 	}
-#endif
 	return (0);
 }
 #endif
