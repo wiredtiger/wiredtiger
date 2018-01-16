@@ -2053,12 +2053,13 @@ fast:		/* If the page can't be evicted, give up. */
 	 * point keeping a page pinned, since it may be the only candidate in
 	 * an idle tree.
 	 *
-	 * If we land on a page requiring forced eviction, move on to the next
-	 * page: we want this page evicted as quickly as possible.
+	 * If we land on a page requiring forced eviction, or that isn't an
+	 * ordinary in-memory page (e.g., WT_REF_LIMBO), move until we find an
+	 * ordinary page: we should not prevent exclusive access to the page
+	 * until the next walk.
 	 */
 	if (ref != NULL) {
 		if (__wt_ref_is_root(ref) || evict == start || give_up ||
-		    WT_READGEN_EVICT_SOON(ref->page->read_gen) ||
 		    ref->page->memory_footprint >= btree->splitmempage) {
 			if (restarts == 0)
 				WT_STAT_CONN_INCR(
@@ -2066,9 +2067,11 @@ fast:		/* If the page can't be evicted, give up. */
 			WT_RET(__wt_page_release(
 			    cache->walk_session, ref, walk_flags));
 			ref = NULL;
-		} else if (WT_READGEN_EVICT_SOON(ref->page->read_gen))
-			WT_RET_NOTFOUND_OK(__wt_tree_walk_count(
-			    session, &ref, &refs_walked, walk_flags));
+		} else
+			while (ref != NULL && (ref->state != WT_REF_MEM ||
+			    WT_READGEN_EVICT_SOON(ref->page->read_gen)))
+				WT_RET_NOTFOUND_OK(__wt_tree_walk_count(
+				    session, &ref, &refs_walked, walk_flags));
 		btree->evict_ref = ref;
 	}
 
