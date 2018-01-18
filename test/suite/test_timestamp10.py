@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2017 MongoDB, Inc.
+# Public Domain 2014-2018 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -37,6 +37,7 @@ def timestamp_str(t):
     return '%x' % t
 
 class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
+    conn_config = 'verbose=[timestamp]'
     def test_timestamp_range(self):
         if not wiredtiger.timestamp_build() or not wiredtiger.diagnostic_build():
             self.skipTest('requires a timestamp and diagnostic build')
@@ -67,9 +68,9 @@ class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.timestamp_transaction(
             'commit_timestamp=' + timestamp_str(1))
         c['key'] = 'value1'
-        msg='/out of order/'
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.commit_transaction(), msg)
+        msg='on new update is older than'
+        with self.expectedStdoutPattern(msg):
+            self.session.commit_transaction()
         c.close()
 
         # Make sure we can successfully add a different key at timestamp 1.
@@ -83,9 +84,9 @@ class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
 
         #
         # Insert key2 at timestamp 10 and key3 at 15.
-        # Then modify both keys in one transaction at timestamp 13.
-        # We should not be allowed to modify the one from 15.
-        # So the whole transaction should fail.
+        # Then modify both keys in one transaction at timestamp 14.
+        # Modifying the one from 15 should report a warning message, but
+        # the update will be applied.
         #
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
@@ -102,58 +103,58 @@ class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
         self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(13))
-        c['key2'] = 'value13'
-        c['key3'] = 'value13'
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.commit_transaction(), msg)
-        c.close()
-
-        c = self.session.open_cursor(uri)
-        self.assertEquals(c['key2'], 'value10')
-        self.assertEquals(c['key3'], 'value15')
-        c.close()
-
-        #
-        # Separately, we should be able to update key2 at timestamp 10
-        # but not update key3 inserted at timestamp 15.
-        #
-        c = self.session.open_cursor(uri)
-        self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(13))
-        c['key2'] = 'value13'
-        self.session.commit_transaction()
-
-        c = self.session.open_cursor(uri)
-        self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(13))
-        c['key3'] = 'value13'
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.commit_transaction(), msg)
-        c.close()
-
-        # Make sure multiple update attempts still fail and eventually
-        # try a later timestamp.
-        c = self.session.open_cursor(uri)
-        self.session.begin_transaction()
-        self.session.timestamp_transaction(
             'commit_timestamp=' + timestamp_str(14))
+        c['key2'] = 'value14'
         c['key3'] = 'value14'
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.commit_transaction(), msg)
+        with self.expectedStdoutPattern(msg):
+            self.session.commit_transaction()
         c.close()
 
         c = self.session.open_cursor(uri)
-        self.assertEquals(c['key3'], 'value15')
+        self.assertEquals(c['key2'], 'value14')
+        self.assertEquals(c['key3'], 'value14')
         c.close()
 
+        #
+        # Separately, we should be able to update key2 at timestamp 16.
+        #
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
         self.session.timestamp_transaction(
             'commit_timestamp=' + timestamp_str(16))
-        c['key3'] = 'value16'
+        c['key2'] = 'value16'
+        self.session.commit_transaction()
+
+        # Updating key3 inserted at timestamp 13 will report a warning.
+        c = self.session.open_cursor(uri)
+        self.session.begin_transaction()
+        self.session.timestamp_transaction(
+            'commit_timestamp=' + timestamp_str(13))
+        c['key3'] = 'value13'
+        with self.expectedStdoutPattern(msg):
+            self.session.commit_transaction()
+        c.close()
+
+        # Test that updating again with an invalid timestamp reports a warning.
+        c = self.session.open_cursor(uri)
+        self.session.begin_transaction()
+        self.session.timestamp_transaction(
+            'commit_timestamp=' + timestamp_str(12))
+        c['key3'] = 'value12'
+        with self.expectedStdoutPattern(msg):
+            self.session.commit_transaction()
+        c.close()
+
+        c = self.session.open_cursor(uri)
+        self.assertEquals(c['key3'], 'value12')
+        c.close()
+
+        # Now try a later timestamp.
+        c = self.session.open_cursor(uri)
+        self.session.begin_transaction()
+        self.session.timestamp_transaction(
+            'commit_timestamp=' + timestamp_str(17))
+        c['key3'] = 'value17'
         self.session.commit_transaction()
         c.close()
 

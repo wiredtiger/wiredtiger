@@ -611,7 +611,7 @@ timestamp(void *arg)
 		 * Find the lowest committed timestamp. The timestamp thread
 		 * starts before the operational threads, wait for them.
 		 */
-		oldest_timestamp = UINT64_MAX;
+		oldest_timestamp = g.timestamp;
 		for (i = 0; i < g.c_threads; ++i) {
 			tinfo = tinfo_list[i];
 			this_ts = tinfo->timestamp;
@@ -619,14 +619,19 @@ timestamp(void *arg)
 			    this_ts < oldest_timestamp)
 				oldest_timestamp = this_ts;
 		}
-		if (oldest_timestamp == UINT64_MAX) {
+
+		/*
+		 * Don't try to update until we've committed some transactions
+		 * with timestamps.
+		 */
+		if (oldest_timestamp == 0) {
 			__wt_sleep(1, 0);
 			continue;
 		}
 
 		/*
-		 * Don't get more than 100 transactions or more than 15 seconds
-		 * out of date.
+		 * If less than 100 transactions out of date, wait up to 15
+		 * seconds before updating.
 		 */
 		WT_READ_BARRIER();
 		testutil_assert(oldest_timestamp <= g.timestamp);
@@ -642,6 +647,7 @@ timestamp(void *arg)
 		    config_buf, sizeof(config_buf),
 		    "oldest_timestamp=%" PRIx64, oldest_timestamp));
 		testutil_check(conn->set_timestamp(conn, config_buf));
+		__wt_seconds((WT_SESSION_IMPL *)session, &last);
 
 		usecs = mmrand(NULL, 5, 40);
 		__wt_sleep(0, usecs);
