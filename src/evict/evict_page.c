@@ -306,16 +306,14 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 	switch (mod->rec_result) {
 	case WT_PM_REC_EMPTY:				/* Page is empty */
 		/*
-		 * Update the parent to reference a deleted page.  The fact that
-		 * reconciliation left the page "empty" means there's no older
-		 * transaction in the system that might need to see an earlier
-		 * version of the page.  For that reason, we clear the address
-		 * of the page, if we're forced to "read" into that namespace,
-		 * we'll instantiate a new page instead of trying to read from
-		 * the backing store.
+		 * Update the parent to reference a deleted page. Reconciliation
+		 * left the page "empty", so there's no older transaction in the
+		 * system that might need to see an earlier version of the page.
+		 * There's no backing address, if we're forced to "read" into
+		 * that namespace, we'll instantiate a new page instead of trying
+		 * to read from the backing store.
 		 */
 		__wt_ref_out(session, ref);
-		ref->addr = NULL;
 		WT_WITH_PAGE_INDEX(session,
 		    ret = __evict_delete_ref(session, ref, closing));
 		WT_RET_BUSY_OK(ret);
@@ -354,9 +352,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		 * Publish: a barrier to ensure the structure fields are set
 		 * before the state change makes the page available to readers.
 		 */
-		if (mod->mod_replace.addr == NULL)
-			ref->addr = NULL;
-		else {
+		if (mod->mod_replace.addr != NULL) {
 			WT_RET(__wt_calloc_one(session, &addr));
 			*addr = mod->mod_replace;
 			mod->mod_replace.addr = NULL;
@@ -371,8 +367,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		__wt_free(session, ref->page_las);
 		if (mod->mod_disk_image == NULL) {
 			if (mod->mod_page_las.las_pageid != 0) {
-				WT_RET(
-				    __wt_calloc_one(session, &ref->page_las));
+				WT_RET(__wt_calloc_one(session, &ref->page_las));
 				*ref->page_las = mod->mod_page_las;
 				__wt_page_modify_clear(session, ref->page);
 				__wt_ref_out(session, ref);
