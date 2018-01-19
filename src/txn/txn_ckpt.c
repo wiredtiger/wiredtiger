@@ -612,7 +612,8 @@ __checkpoint_fail_reset(WT_SESSION_IMPL *session)
  *	Start the transaction for a checkpoint and gather handles.
  */
 static int
-__checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
+__checkpoint_prepare(
+    WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[])
 {
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
@@ -645,6 +646,10 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/* Ensure a transaction ID is allocated prior to sharing it globally */
 	WT_RET(__wt_txn_id_check(session));
+
+	/* Keep track of handles acquired for locking. */
+	WT_RET(__wt_meta_track_on(session));
+	*trackingp = true;
 
 	/*
 	 * Mark the connection as clean. If some data gets modified after
@@ -820,10 +825,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	generation = __wt_gen_next(session, WT_GEN_CHECKPOINT);
 	WT_STAT_CONN_SET(session, txn_checkpoint_generation, generation);
 
-	/* Keep track of handles acquired for locking. */
-	WT_ERR(__wt_meta_track_on(session));
-	tracking = true;
-
 	/*
 	 * We want to skip checkpointing clean handles whenever possible.  That
 	 * is, when the checkpoint is not named or forced.  However, we need to
@@ -839,7 +840,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * Hold the schema lock while starting the transaction and gathering
 	 * handles so the set we get is complete and correct.
 	 */
-	WT_WITH_SCHEMA_LOCK(session, ret = __checkpoint_prepare(session, cfg));
+	WT_WITH_SCHEMA_LOCK(session,
+	    ret = __checkpoint_prepare(session, &tracking, cfg));
 	WT_ERR(ret);
 
 	WT_ASSERT(session, txn->isolation == WT_ISO_SNAPSHOT);

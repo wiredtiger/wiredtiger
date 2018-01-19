@@ -263,11 +263,19 @@ __curmetadata_next(WT_CURSOR *cursor)
 		 * all schema-level operations reflected in the results.  Query
 		 * at read-uncommitted to avoid confusion caused by the current
 		 * transaction state.
+		 *
+		 * Don't exit from the scan if we find an incomplete entry:
+		 * just skip over it.
 		 */
-		WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
-		    ret = file_cursor->next(mdc->file_cursor));
-		WT_ERR(ret);
-		WT_ERR(__curmetadata_setkv(mdc, file_cursor));
+		for (;;) {
+			WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
+			    ret = file_cursor->next(mdc->file_cursor));
+			WT_ERR(ret);
+			if ((ret = __curmetadata_setkv(mdc, file_cursor)) == 0)
+				break;
+			WT_ERR_NOTFOUND_OK(
+			    __curmetadata_setkv(mdc, file_cursor));
+		}
 	}
 
 err:	if (ret != 0) {
@@ -299,12 +307,22 @@ __curmetadata_prev(WT_CURSOR *cursor)
 		goto err;
 	}
 
-	WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
-	    ret = file_cursor->prev(file_cursor));
-	if (ret == 0)
-		WT_ERR(__curmetadata_setkv(mdc, file_cursor));
-	else if (ret == WT_NOTFOUND)
-		WT_ERR(__curmetadata_metadata_search(session, cursor));
+	/*
+	 * Don't exit from the scan if we find an incomplete entry:
+	 * just skip over it.
+	 */
+	for (;;) {
+		WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
+		    ret = file_cursor->prev(file_cursor));
+		if (ret == WT_NOTFOUND) {
+			WT_ERR(__curmetadata_metadata_search(session, cursor));
+			break;
+		}
+		WT_ERR(ret);
+		if ((ret = __curmetadata_setkv(mdc, file_cursor)) == 0)
+			break;
+		WT_ERR_NOTFOUND_OK(ret);
+	}
 
 err:	if (ret != 0) {
 		F_CLR(mdc, WT_MDC_POSITIONED | WT_MDC_ONMETADATA);
