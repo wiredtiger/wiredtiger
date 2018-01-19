@@ -310,7 +310,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		 * left the page "empty", so there's no older transaction in the
 		 * system that might need to see an earlier version of the page.
 		 * There's no backing address, if we're forced to "read" into
-		 * that namespace, we'll instantiate a new page instead of trying
+		 * that namespace, we instantiate a new page instead of trying
 		 * to read from the backing store.
 		 */
 		__wt_ref_out(session, ref);
@@ -367,7 +367,8 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		__wt_free(session, ref->page_las);
 		if (mod->mod_disk_image == NULL) {
 			if (mod->mod_page_las.las_pageid != 0) {
-				WT_RET(__wt_calloc_one(session, &ref->page_las));
+				WT_RET(
+				    __wt_calloc_one(session, &ref->page_las));
 				*ref->page_las = mod->mod_page_las;
 				__wt_page_modify_clear(session, ref->page);
 				__wt_ref_out(session, ref);
