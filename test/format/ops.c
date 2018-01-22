@@ -456,8 +456,8 @@ snap_check(WT_CURSOR *cursor,
  * begin_transaction --
  *	Choose an isolation configuration and begin a transaction.
  */
-static u_int
-begin_transaction(TINFO *tinfo, WT_SESSION *session)
+static void
+begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 {
 	u_int v;
 	char *config, config_buf[64];
@@ -491,9 +491,9 @@ begin_transaction(TINFO *tinfo, WT_SESSION *session)
 		}
 		break;
 	}
-	testutil_check(session->begin_transaction(session, config));
+	*iso_configp = v;
 
-	return (v);
+	testutil_check(session->begin_transaction(session, config));
 }
 
 /*
@@ -667,7 +667,7 @@ ops(void *arg)
 		 */
 		if (!SINGLETHREADED &&
 		    !intxn && mmrand(&tinfo->rnd, 1, 100) >= g.c_txn_freq) {
-			iso_config = begin_transaction(tinfo, session);
+			begin_transaction(tinfo, session, &iso_config);
 			snap =
 			    iso_config == ISOLATION_SNAPSHOT ? snap_list : NULL;
 			intxn = true;
