@@ -30,7 +30,7 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 
 # test_prepare01.py
-#    Transactions: basic functionality
+#    Transactions: basic functionality with prepare
 class test_prepare01(wttest.WiredTigerTestCase):
     nentries = 1000
     scenarios = make_scenarios([
@@ -109,11 +109,13 @@ class test_prepare01(wttest.WiredTigerTestCase):
         committed = 0
         cursor = self.session.open_cursor(self.uri, None)
         self.check(cursor, 0, 0)
+        msg = "/prepare_transaction is not supported/"
         self.session.begin_transaction()
         for i in xrange(self.nentries):
             if i > 0 and i % (self.nentries / 37) == 0:
                 self.check(cursor, committed, i)
-                self.session.prepare_transaction()
+                self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                    lambda: self.session.prepare_transaction(), msg)
                 self.session.commit_transaction()
                 committed = i
                 self.session.begin_transaction()
@@ -129,7 +131,8 @@ class test_prepare01(wttest.WiredTigerTestCase):
             cursor.insert()
 
         self.check(cursor, committed, self.nentries)
-        self.session.prepare_transaction()
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.prepare_transaction(), msg)
         self.session.commit_transaction()
         self.check(cursor, self.nentries, self.nentries)
 
@@ -149,7 +152,9 @@ class test_read_committed_default(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(self.uri, None)
         self.session.begin_transaction()
         cursor['key: aaa'] = 'value: aaa'
-        self.session.prepare_transaction()
+        msg = "/prepare_transaction is not supported/"
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.prepare_transaction(), msg)
         self.session.commit_transaction()
         self.session.begin_transaction()
         cursor['key: bbb'] = 'value: bbb'
@@ -158,11 +163,13 @@ class test_read_committed_default(wttest.WiredTigerTestCase):
         cursor = s.open_cursor(self.uri, None)
         s.begin_transaction("isolation=read-committed")
         self.assertEqual(self.cursor_count(cursor), 1)
-        s.prepare_transaction()
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.prepare_transaction(), msg)
         s.commit_transaction()
         s.begin_transaction(None)
         self.assertEqual(self.cursor_count(cursor), 1)
-        s.prepare_transaction()
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.prepare_transaction(), msg)
         s.commit_transaction()
         s.close()
 

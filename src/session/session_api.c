@@ -1498,7 +1498,12 @@ __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
 
 	WT_TRET(__wt_txn_prepare(session, cfg));
 
-err:	API_END_RET(session, ret);
+	/*
+	 * Below code to be corrected as part of prepare functionality
+	 * implementation, coded as below to avoid setting error to transaction.
+	 */
+
+err:	API_END_RET_NO_TXN_ERROR(session, ret);
 }
 
 /*
