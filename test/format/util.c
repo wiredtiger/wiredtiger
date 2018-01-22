@@ -608,8 +608,8 @@ timestamp(void *arg)
 	 */
 	while (!g.workers_finished) {
 		/*
-		 * Find the lowest committed timestamp. The timestamp thread
-		 * starts before the operational threads, wait for them.
+		 * Find the lowest in-use timestamp. The timestamp thread starts
+		 * before the operational threads, wait for them.
 		 */
 		oldest_timestamp = g.timestamp;
 		for (i = 0; i < g.c_threads; ++i) {
