@@ -496,7 +496,6 @@ begin_transaction(TINFO *tinfo, WT_SESSION *session)
 	return (v);
 }
 
-
 /*
  * commit_transaction --
  *     Commit a transaction
