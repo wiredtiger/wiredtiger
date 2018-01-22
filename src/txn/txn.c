@@ -930,6 +930,22 @@ err:	/*
 }
 
 /*
+ * __wt_txn_prepare --
+ *	Prepare the current transaction.
+ */
+int
+__wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
+{
+	WT_UNUSED(cfg);
+
+#ifdef HAVE_TIMESTAMPS
+	WT_RET_MSG(session, ENOTSUP, "prepare_transaction is not supported");
+#else
+	WT_RET_MSG(session, ENOTSUP, "prepare_transaction requires a version "
+	    "of WiredTiger built with timestamp support");
+#endif
+}
+/*
  * __wt_txn_rollback --
  *	Roll back the current transaction.
  */

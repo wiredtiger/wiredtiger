@@ -750,6 +750,7 @@ ftruncate
 func
 funcid
 fvisibility
+gaurantee
 gcc
 gdb
 ge
@@ -945,6 +946,7 @@ mkdir
 mmap
 mmrand
 mnt
+mongodb
 msecs
 msg
 msvc
