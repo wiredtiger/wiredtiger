@@ -614,9 +614,11 @@ timestamp(void *arg)
 		oldest_timestamp = g.timestamp;
 		for (i = 0; i < g.c_threads; ++i) {
 			tinfo = tinfo_list[i];
-			this_ts = tinfo->timestamp;
-			if (this_ts != 0 &&
-			    this_ts < oldest_timestamp)
+			this_ts = tinfo->commit_timestamp;
+			if (this_ts != 0 && this_ts < oldest_timestamp)
+				oldest_timestamp = this_ts;
+			this_ts = tinfo->read_timestamp;
+			if (this_ts != 0 && this_ts < oldest_timestamp)
 				oldest_timestamp = this_ts;
 		}
 
