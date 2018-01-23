@@ -478,9 +478,10 @@ begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 		config = "isolation=snapshot";
 		if (g.c_txn_timestamps) {
 			/*
-			 * Update the thread's read timestamp with the current
-			 * value to prevent the oldest timestamp moving past our
-			 * allocated timestamp before the commit completes.
+			 * Set the thread's read timestamp to the current value
+			 * before allocating a new read timestamp. This
+			 * guarantees the oldest timestamp won't move past the
+			 * allocated timestamp before the transaction begins.
 			 */
 			tinfo->read_timestamp = g.timestamp;
 			tinfo->read_timestamp =
@@ -495,6 +496,12 @@ begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 	*iso_configp = v;
 
 	testutil_check(session->begin_transaction(session, config));
+
+	/*
+	 * It's OK for the oldest timestamp to move past a running query, clear
+	 * the thread's read timestamp, it no longer needs to be pinned.
+	 */
+	tinfo->read_timestamp = 0;
 }
 
 /*
@@ -926,12 +933,6 @@ deadlock:			++tinfo->deadlock;
 			++tinfo->rollback;
 			break;
 		}
-
-		/*
-		 * Clear the thread's read timestamp: it no longer needs to
-		 * be pinned.
-		 */
-		tinfo->read_timestamp = 0;
 
 		intxn = false;
 		snap = NULL;
