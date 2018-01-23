@@ -460,7 +460,8 @@ static void
 begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 {
 	u_int v;
-	char *config, config_buf[64];
+	const char *config;
+	char config_buf[64];
 
 	if ((v = g.c_isolation_flag) == ISOLATION_RANDOM)
 		v = mmrand(&tinfo->rnd, 2, 4);
