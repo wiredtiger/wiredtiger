@@ -768,15 +768,18 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	WT_CACHE *cache;
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
-	WT_ITEM *key, las_key;
-	uint64_t cnt, las_counter, las_pageid, remove_cnt;
+	WT_ITEM *key, las_key, las_timestamp, las_value, *saved_key;
+	wt_timestamp_t timestamp, *val_ts;
+	uint64_t cnt, las_counter, las_pageid, remove_cnt, txnid;
 	uint32_t las_id, session_flags;
+	uint8_t upd_type;
 	int notused;
 
 	cache = S2C(session)->cache;
 	cursor = NULL;
 	key = &cache->las_sweep_key;
 	remove_cnt = 0;
+	saved_key = NULL;
 	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
 
 	__wt_las_cursor(session, &cursor, &session_flags);
@@ -859,17 +862,59 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		 * should another thread remove the record before we do (not
 		 * expected for dropped trees), and the cursor remains
 		 * positioned in that case.
-		 *
+		 */
+		if (las_id >= cache->las_sweep_dropmin &&
+		    las_id <= cache->las_sweep_dropmax &&
+		    __bit_test(cache->las_sweep_dropmap,
+		    las_id - cache->las_sweep_dropmin)) {
+			WT_ERR(cursor->remove(cursor));
+			++remove_cnt;
+			continue;
+		}
+
+		/*
 		 * TODO it would also be good to remove entries in lookaside
 		 * from live files that have aged out.  If we track for each
 		 * entry whether it was the on-page value chosen by
 		 * reconciliation, we can safely remove entries from that point
 		 * on (for the given key) that are visible to all readers.
 		 */
-		if (las_id >= cache->las_sweep_dropmin &&
-		    las_id <= cache->las_sweep_dropmax &&
-		    __bit_test(cache->las_sweep_dropmap,
-		    las_id - cache->las_sweep_dropmin)) {
+		WT_ERR(cursor->get_value(cursor,
+		    &txnid, &las_timestamp, &upd_type, &las_value));
+		val_ts = NULL;
+#ifdef HAVE_TIMESTAMPS
+                WT_ASSERT(session, las_timestamp.size == WT_TIMESTAMP_SIZE);
+                memcpy(&timestamp, las_timestamp.data, las_timestamp.size);
+		val_ts = &timestamp;
+#endif
+		/*
+		 * If this entry isn't globally visible we cannot remove it.
+		 * If it is visible then perform additional checks to see
+		 * whether it has aged out of a live file.
+		 */
+		if (__wt_txn_visible_all(session, txnid, val_ts)) {
+			/*
+			 * Save our key for comparing with older entries if we
+			 * don't have one or it is different.
+			 */
+			if (saved_key == NULL ||
+			    saved_key->size != las_key.size ||
+			    memcmp(saved_key->data,
+			    las_key.data, las_key.size) != 0) {
+				WT_ERR(__wt_cursor_get_raw_key(
+				    cursor, saved_key));
+				if (!WT_DATA_IN_ITEM(saved_key))
+					WT_ERR(__wt_buf_set(session, saved_key,
+					    saved_key->data, saved_key->size));
+				/*
+				 * If it is a birthmark record, even the
+				 * oldest key can be removed because it is
+				 * on disk already and now visible. Otherwise
+				 * we don't remove the first entry.
+				 */
+				if (upd_type != WT_UPDATE_BIRTHMARK)
+					continue;
+			}
 			WT_ERR(cursor->remove(cursor));
 			++remove_cnt;
 		}
@@ -882,6 +927,8 @@ srch_notfound:
 err:		__wt_buf_free(session, key);
 	}
 
+	if (saved_key != NULL)
+		__wt_buf_free(session, saved_key);
 	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 
 	__wt_cache_decr_check_uint64(session,
