@@ -45,7 +45,7 @@
 
 #include <wiredtiger.h>
 
-const unsigned c_key_size = 20;
+#define	KEY_SIZE	20
 
 static int
 my_compare(WT_COLLATOR *collator, WT_SESSION *session,
@@ -69,7 +69,7 @@ main(int argc, char *argv[])
 	WT_CONNECTION *conn;
 	WT_SESSION *session;
 	WT_CURSOR *cursor;
-	char buf[c_key_size];
+	char buf[KEY_SIZE];
 	WT_ITEM key;
 
 	opts = &_opts;
