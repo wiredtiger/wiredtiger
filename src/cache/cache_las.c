@@ -877,11 +877,8 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		}
 
 		/*
-		 * TODO it would also be good to remove entries in lookaside
-		 * from live files that have aged out.  If we track for each
-		 * entry whether it was the on-page value chosen by
-		 * reconciliation, we can safely remove entries from that point
-		 * on (for the given key) that are visible to all readers.
+		 * Remove entries from the lookaside that have aged out,
+		 * are now visible and no longer needed.
 		 */
 		WT_ERR(cursor->get_value(cursor,
 		    &txnid, &las_timestamp, &upd_type, &las_value));
