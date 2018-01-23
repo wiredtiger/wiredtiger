@@ -769,7 +769,11 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_ITEM *key, las_key, las_timestamp, las_value, *saved_key;
+#ifdef HAVE_TIMESTAMPS
 	wt_timestamp_t timestamp, *val_ts;
+#else
+	wt_timestamp_t *val_ts;
+#endif
 	uint64_t cnt, las_counter, las_pageid, remove_cnt, txnid;
 	uint32_t las_id, session_flags;
 	uint8_t upd_type;
