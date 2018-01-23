@@ -883,8 +883,8 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		    &txnid, &las_timestamp, &upd_type, &las_value));
 		val_ts = NULL;
 #ifdef HAVE_TIMESTAMPS
-                WT_ASSERT(session, las_timestamp.size == WT_TIMESTAMP_SIZE);
-                memcpy(&timestamp, las_timestamp.data, las_timestamp.size);
+		WT_ASSERT(session, las_timestamp.size == WT_TIMESTAMP_SIZE);
+		memcpy(&timestamp, las_timestamp.data, las_timestamp.size);
 		val_ts = &timestamp;
 #endif
 		/*
