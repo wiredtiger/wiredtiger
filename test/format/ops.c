@@ -931,7 +931,7 @@ deadlock:			++tinfo->deadlock;
 		 * Clear the thread's read timestamp: it no longer needs to
 		 * be pinned.
 		 */
-		tinfo->commit_timestamp = 0;
+		tinfo->read_timestamp = 0;
 
 		intxn = false;
 		snap = NULL;
