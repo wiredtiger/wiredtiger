@@ -55,7 +55,8 @@ __wt_optrack_open_file(WT_SESSION_IMPL *session)
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
 	WT_OPTRACK_HEADER optrack_header =
-		{WT_OPTRACK_VERSION, 0, WT_TSC_DEFAULT_RATIO * WT_THOUSAND};
+		{WT_OPTRACK_VERSION, 0,
+		 (uint32_t)WT_TSC_DEFAULT_RATIO * WT_THOUSAND};
 
 	conn = S2C(session);
 
