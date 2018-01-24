@@ -77,7 +77,7 @@ __wt_optrack_open_file(WT_SESSION_IMPL *session)
 	 * it by one thousand, so we can use a fixed width integer.
 	 */
 	optrack_header.optrack_tsc_nsec_ratio =
-		__wt_process.tsc_nsec_ratio * WT_THOUSAND;
+		(uint32_t)(__wt_process.tsc_nsec_ratio * WT_THOUSAND);
 
 	/* Write the header into the operation-tracking file. */
 	WT_ERR(session->optrack_fh->handle->fh_write(
