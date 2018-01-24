@@ -279,6 +279,17 @@ __wt_eventv(WT_SESSION_IMPL *session, bool msg_event, int error,
 			__handler_failure(session, ret, "error", true);
 	}
 
+	/*
+	 * The buffer is fixed sized, complain if we overflow. (The test is for
+	 * no more bytes remaining in the buffer, so technically we might have
+	 * just filled it exactly.) Be cautious changing this this code, we're
+	 * calling recursively.
+	 */
+	if (ret == 0 && remain == 0)
+		__wt_err(session, ENOMEM,
+		    "error or message truncated: internal WiredTiger buffer "
+		    "too small");
+
 	if (ret != 0) {
 err:		if (fprintf(stderr,
 		    "WiredTiger Error%s%s: ",
