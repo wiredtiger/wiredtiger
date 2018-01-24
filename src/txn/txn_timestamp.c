@@ -731,11 +731,9 @@ void
 __wt_txn_clear_commit_timestamp(WT_SESSION_IMPL *session)
 {
 	WT_TXN *txn;
-	WT_TXN_GLOBAL *txn_global;
 	uint32_t flags;
 
 	txn = &session->txn;
-	txn_global = &S2C(session)->txn_global;
 
 	if (!F_ISSET(txn, WT_TXN_PUBLIC_TS_COMMIT))
 		return;
