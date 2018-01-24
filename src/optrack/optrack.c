@@ -54,9 +54,8 @@ __wt_optrack_open_file(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
-	WT_OPTRACK_HEADER optrack_header =
-		{WT_OPTRACK_VERSION, 0,
-		 (uint32_t)WT_TSC_DEFAULT_RATIO * WT_THOUSAND};
+	WT_OPTRACK_HEADER optrack_header = { WT_OPTRACK_VERSION, 0,
+	    (uint32_t)WT_TSC_DEFAULT_RATIO * WT_THOUSAND };
 
 	conn = S2C(session);
 
@@ -74,8 +73,9 @@ __wt_optrack_open_file(WT_SESSION_IMPL *session)
 	if (F_ISSET(session, WT_SESSION_INTERNAL))
 		optrack_header.optrack_session_internal = 1;
 
-	/* Record the clock ticks to nanoseconds ratio. Multiply
-	 * it by one thousand, so we can use a fixed width integer.
+	/*
+	 * Record the clock ticks to nanoseconds ratio. Multiply it by one
+	 * thousand, so we can use a fixed width integer.
 	 */
 	optrack_header.optrack_tsc_nsec_ratio =
 		(uint32_t)(__wt_process.tsc_nsec_ratio * WT_THOUSAND);
