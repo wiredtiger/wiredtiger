@@ -445,6 +445,9 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 		char hex_timestamp[2][2 * WT_TIMESTAMP_SIZE + 1];
 		bool round_to_oldest;
 
+		txn_global = &S2C(session)->txn_global;
+		WT_RET(__wt_txn_parse_timestamp(session, "read", &ts, &cval));
+
 		/*
 		 * Prepare transactions are supported only in timestamp build,
 		 * as it is to support mongodb exclusively.
@@ -453,9 +456,6 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 		    cfg, "ignore_prepare", 0, &cval));
 		if (cval.val)
 			F_SET(txn, WT_TXN_IGNORE_PREPARE);
-
-		txn_global = &S2C(session)->txn_global;
-		WT_RET(__wt_txn_parse_timestamp(session, "read", &ts, &cval));
 
 		/*
 		 * Read the configuration here to reduce the span of the
