@@ -193,7 +193,7 @@ __eventv(WT_SESSION_IMPL *session, bool msg_event, int error,
 	 * SECURITY:
 	 * Buffer placed at the end of the stack in case snprintf overflows.
 	 */
-	char s[2048];
+	char s[4 * 1024];
 	p = s;
 	remain = sizeof(s);
 
