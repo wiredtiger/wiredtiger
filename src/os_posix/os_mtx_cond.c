@@ -140,11 +140,10 @@ err:	(void)__wt_atomic_subi32(&cond->waiters, 1);
 
 	if (locked)
 		WT_TRET(pthread_mutex_unlock(&cond->mtx));
-	if (ret == 0) {
-		WT_TRACK_OP_END(session);
-		return;
-	}
+
 	WT_TRACK_OP_END(session);
+	if (ret == 0)
+		return;
 
 	WT_PANIC_MSG(session, ret, "pthread_cond_wait: %s", cond->name);
 }
