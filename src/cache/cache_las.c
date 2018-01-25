@@ -804,7 +804,6 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	uint32_t las_id, session_flags;
 	uint8_t upd_type;
 	int notused;
-	bool newkey;
 
 	cache = S2C(session)->cache;
 	cursor = NULL;
@@ -922,9 +921,8 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 			if (!WT_DATA_IN_ITEM(saved_key))
 				WT_ERR(__wt_buf_set(session, saved_key,
 				    saved_key->data, saved_key->size));
-			newkey = true;
-		} else
-			newkey = false;
+			continue;
+		}
 
 		/*
 		 * If this entry isn't globally visible we cannot remove it.
@@ -932,15 +930,6 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		 * whether it has aged out of a live file.
 		 */
 		if (!__wt_txn_visible_all(session, txnid, val_ts))
-			continue;
-
-		/*
-		 * If the first entry we see for a key is anything other than a
-		 * birthmark record, it cannot be removed because some other
-		 * value is on disk already and will need to be overwritten by
-		 * the next checkpoint.
-		 */
-		if (newkey && upd_type != WT_UPDATE_BIRTHMARK)
 			continue;
 
 		WT_ERR(cursor->remove(cursor));
