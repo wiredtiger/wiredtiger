@@ -750,7 +750,6 @@ ftruncate
 func
 funcid
 fvisibility
-gaurantee
 gcc
 gdb
 ge
@@ -773,6 +772,7 @@ gostring
 gostruct
 goutf
 gt
+guarantee
 handleops
 handlep
 hashval

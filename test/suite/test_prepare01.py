@@ -61,8 +61,8 @@ class test_prepare01(wttest.WiredTigerTestCase):
         self.assertEqual(self.cursor_count(cursor), expected)
         s.close()
 
-    # Open a cursor with snapshot isolation, and assert the number of records
-    # visible to the cursor matches the expected value.
+    # Open a cursor with specified isolation level, and assert the number of
+    # records visible to the cursor matches the expected value.
     def check_txn_cursor(self, level, expected):
         s = self.conn.open_session()
         cursor = s.open_cursor(self.uri, None)
@@ -70,12 +70,13 @@ class test_prepare01(wttest.WiredTigerTestCase):
         self.assertEqual(self.cursor_count(cursor), expected)
         s.close()
 
-    # Open a session with snapshot isolation, and assert the number of records
-    # visible to the cursor matches the expected value.
+    # Open a session with specified isolation level, and assert the number of
+    # records visible to the cursor matches the expected value.
     def check_txn_session(self, level, expected):
         s = self.conn.open_session(level)
         cursor = s.open_cursor(self.uri, None)
-        s.begin_transaction()
+        # Currently ignore_prepare is not realized yet, hence no effect.
+        s.begin_transaction("ignore_prepare=true")
         self.assertEqual(self.cursor_count(cursor), expected)
         s.close()
 
@@ -110,7 +111,8 @@ class test_prepare01(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(self.uri, None)
         self.check(cursor, 0, 0)
         msg = "/prepare_transaction is not supported/"
-        self.session.begin_transaction()
+        # Currently ignore_prepare is not realized yet, hence no effect.
+        self.session.begin_transaction("ignore_prepare=false")
         for i in xrange(self.nentries):
             if i > 0 and i % (self.nentries / 37) == 0:
                 self.check(cursor, committed, i)
