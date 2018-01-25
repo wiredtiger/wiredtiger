@@ -141,7 +141,7 @@ __wt_bm_corrupt_dump(WT_SESSION_IMPL *session,
 			    "): %.*s",
 			    (uintmax_t)offset, size, checksum,
 			    ++chunk, nchunks,
-			    (int)tmp->size, tmp->data);
+			    (int)tmp->size, (char *)tmp->data);
 			if (i == buf->size)
 				break;
 			WT_ERR(__wt_buf_set(session, tmp, "", 0));
