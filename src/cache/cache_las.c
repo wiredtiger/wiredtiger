@@ -747,7 +747,10 @@ __las_sweep_init(WT_SESSION_IMPL *session)
 
 	__wt_spin_lock(session, &cache->las_sweep_lock);
 
-	/* If no files have been dropped, there's nothing to do. */
+	/*
+	 * If no files have been dropped and the lookaside file is empty,
+	 * there's nothing to do.
+	 */
 	if (cache->las_dropped_next == 0) {
 		if (cache->las_entry_count == 0)
 			ret = WT_NOTFOUND;
@@ -789,8 +792,9 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 {
 	WT_CACHE *cache;
 	WT_CURSOR *cursor;
+	WT_DECL_ITEM(saved_key);
 	WT_DECL_RET;
-	WT_ITEM *key, las_key, las_timestamp, las_value, saved_key;
+	WT_ITEM *key, las_key, las_timestamp, las_value;
 #ifdef HAVE_TIMESTAMPS
 	wt_timestamp_t timestamp, *val_ts;
 #else
@@ -806,7 +810,6 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	cursor = NULL;
 	key = &cache->las_sweep_key;
 	remove_cnt = 0;
-	WT_CLEAR(saved_key);
 	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
 
 	__wt_las_cursor(session, &cursor, &session_flags);
@@ -851,6 +854,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	    (uint64_t)WT_MAX(100, cache->las_entry_count / 30));
 
 	/* Walk the file. */
+	WT_ERR(__wt_scr_alloc(session, 0, &saved_key));
 	for (; cnt > 0 && (ret = cursor->next(cursor)) == 0; --cnt) {
 		/*
 		 * Give up if the cache is stuck: we are ignoring the cache
@@ -891,7 +895,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		    las_id - cache->las_sweep_dropmin)) {
 			WT_ERR(cursor->remove(cursor));
 			++remove_cnt;
-			saved_key.data = NULL;
+			saved_key->size = 0;
 			continue;
 		}
 
@@ -912,15 +916,12 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		 * Save our key for comparing with older entries if we
 		 * don't have one or it is different.
 		 */
-		if (saved_key.data == NULL ||
-		    saved_key.size != las_key.size ||
-		    memcmp(saved_key.data,
-		    las_key.data, las_key.size) != 0) {
-			WT_ERR(__wt_cursor_get_raw_key(
-			    cursor, &saved_key));
-			if (!WT_DATA_IN_ITEM(&saved_key))
-				WT_ERR(__wt_buf_set(session, &saved_key,
-				    saved_key.data, saved_key.size));
+		if (saved_key->size != las_key.size ||
+		    memcmp(saved_key->data, las_key.data, las_key.size) != 0) {
+			WT_ERR(__wt_cursor_get_raw_key(cursor, saved_key));
+			if (!WT_DATA_IN_ITEM(saved_key))
+				WT_ERR(__wt_buf_set(session, saved_key,
+				    saved_key->data, saved_key->size));
 			newkey = true;
 		} else
 			newkey = false;
@@ -953,7 +954,7 @@ srch_notfound:
 err:		__wt_buf_free(session, key);
 	}
 
-	__wt_buf_free(session, &saved_key);
+	__wt_scr_free(session, &saved_key);
 	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 
 	__wt_cache_decr_check_uint64(session,
