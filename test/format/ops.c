@@ -28,23 +28,19 @@
 
 #include "format.h"
 
-static int   col_insert(TINFO *, WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t *);
-static int   col_modify(
-		TINFO *, WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t, bool);
-static int   col_remove(WT_CURSOR *, WT_ITEM *, uint64_t, bool);
-static int   col_reserve(WT_CURSOR *, uint64_t, bool);
-static int   col_update(
-		TINFO *, WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t, bool);
-static int   nextprev(WT_CURSOR *, int);
+static int   col_insert(TINFO *, WT_CURSOR *, WT_ITEM *);
+static int   col_modify(TINFO *, WT_CURSOR *, WT_ITEM *, bool);
+static int   col_remove(TINFO *, WT_CURSOR *, bool);
+static int   col_reserve(TINFO *, WT_CURSOR *, bool);
+static int   col_update(TINFO *, WT_CURSOR *, WT_ITEM *, bool);
+static int   nextprev(TINFO *, WT_CURSOR *, int);
 static WT_THREAD_RET ops(void *);
-static int   row_insert(
-		TINFO *, WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t, bool);
-static int   row_modify(
-		TINFO *, WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t, bool);
-static int   row_remove(WT_CURSOR *, WT_ITEM *, uint64_t, bool);
-static int   row_reserve(WT_CURSOR *, WT_ITEM *, uint64_t, bool);
-static int   row_update(
-		TINFO *, WT_CURSOR *, WT_ITEM *, WT_ITEM *, uint64_t, bool);
+static int   read_row(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value);
+static int   row_insert(TINFO *, WT_CURSOR *, WT_ITEM *, bool);
+static int   row_modify(TINFO *, WT_CURSOR *, WT_ITEM *, bool);
+static int   row_remove(TINFO *, WT_CURSOR *, bool);
+static int   row_reserve(TINFO *, WT_CURSOR *, bool);
+static int   row_update(TINFO *, WT_CURSOR *, WT_ITEM *, bool);
 static void  table_append_init(void);
 
 #ifdef HAVE_BERKELEY_DB
@@ -553,9 +549,9 @@ ops(void *arg)
 	WT_CONNECTION *conn;
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
-	WT_ITEM *key, _key, *value, _value;
+	WT_ITEM *value, _value;
 	WT_SESSION *session;
-	uint64_t keyno, reset_op, session_op;
+	uint64_t reset_op, session_op;
 	uint32_t rnd;
 	u_int i, iso_config;
 	int dir;
@@ -572,8 +568,8 @@ ops(void *arg)
 	memset(snap_list, 0, sizeof(snap_list));
 
 	/* Set up the default key and value buffers. */
-	key = &_key;
-	key_gen_init(key);
+	tinfo->key = &tinfo->_key;
+	key_gen_init(tinfo->key);
 	value = &_value;
 	val_gen_init(value);
 
@@ -682,7 +678,7 @@ ops(void *arg)
 		}
 
 		/* Select a row. */
-		keyno = mmrand(&tinfo->rnd, 1, (u_int)g.rows);
+		tinfo->keyno = mmrand(&tinfo->rnd, 1, (u_int)g.rows);
 		positioned = false;
 
 		/* Select an operation. */
@@ -710,11 +706,12 @@ ops(void *arg)
 		positioned = false;
 		if (op != READ && mmrand(&tinfo->rnd, 1, 5) == 1) {
 			++tinfo->search;
-			ret = read_row(cursor, key, value, keyno);
+			ret = read_row(tinfo, cursor, value);
 			if (ret == 0) {
 				positioned = true;
 				if (SNAP_TRACK)
-					snap_track(snap++, keyno, NULL, value);
+					snap_track(
+					    snap++, tinfo->keyno, NULL, value);
 			} else {
 				positioned = false;
 				if (ret == WT_ROLLBACK && intxn)
@@ -727,12 +724,11 @@ ops(void *arg)
 		if (!readonly && intxn && mmrand(&tinfo->rnd, 0, 20) == 1) {
 			switch (g.type) {
 			case ROW:
-				ret =
-				    row_reserve(cursor, key, keyno, positioned);
+				ret = row_reserve(tinfo, cursor, positioned);
 				break;
 			case FIX:
 			case VAR:
-				ret = col_reserve(cursor, keyno, positioned);
+				ret = col_reserve(tinfo, cursor, positioned);
 				break;
 			}
 			if (ret == 0) {
@@ -751,8 +747,8 @@ ops(void *arg)
 		case INSERT:
 			switch (g.type) {
 			case ROW:
-				ret = row_insert(tinfo,
-				    cursor, key, value, keyno, positioned);
+				ret = row_insert(
+				    tinfo, cursor, value, positioned);
 				break;
 			case FIX:
 			case VAR:
@@ -764,8 +760,7 @@ ops(void *arg)
 				if (g.append_cnt >= g.append_max)
 					goto update_instead_of_chosen_op;
 
-				ret = col_insert(
-				    tinfo, cursor, key, value, &keyno);
+				ret = col_insert(tinfo, cursor, value);
 				break;
 			}
 
@@ -774,8 +769,9 @@ ops(void *arg)
 			if (ret == 0) {
 				++tinfo->insert;
 				if (SNAP_TRACK)
-					snap_track(snap++, keyno,
-					    g.type == ROW ? key : NULL, value);
+					snap_track(snap++, tinfo->keyno,
+					    g.type == ROW ? tinfo->key : NULL,
+					    value);
 			} else {
 				if (ret == WT_ROLLBACK && intxn)
 					goto deadlock;
@@ -793,18 +789,19 @@ ops(void *arg)
 			++tinfo->update;
 			switch (g.type) {
 			case ROW:
-				ret = row_modify(tinfo, cursor,
-				    key, value, keyno, positioned);
+				ret = row_modify(
+				    tinfo, cursor, value, positioned);
 				break;
 			case VAR:
-				ret = col_modify(tinfo, cursor,
-				    key, value, keyno, positioned);
+				ret = col_modify(
+				    tinfo, cursor, value, positioned);
 				break;
 			}
 			if (ret == 0) {
 				positioned = true;
 				if (SNAP_TRACK)
-					snap_track(snap++, keyno, NULL, value);
+					snap_track(
+					    snap++, tinfo->keyno, NULL, value);
 			} else {
 				positioned = false;
 				if (ret == WT_ROLLBACK && intxn)
@@ -815,11 +812,12 @@ ops(void *arg)
 			break;
 		case READ:
 			++tinfo->search;
-			ret = read_row(cursor, key, value, keyno);
+			ret = read_row(tinfo, cursor, value);
 			if (ret == 0) {
 				positioned = true;
 				if (SNAP_TRACK)
-					snap_track(snap++, keyno, NULL, value);
+					snap_track(
+					    snap++, tinfo->keyno, NULL, value);
 			} else {
 				positioned = false;
 				if (ret == WT_ROLLBACK && intxn)
@@ -831,12 +829,12 @@ ops(void *arg)
 			switch (g.type) {
 			case ROW:
 				ret =
-				    row_remove(cursor, key, keyno, positioned);
+				    row_remove(tinfo, cursor, positioned);
 				break;
 			case FIX:
 			case VAR:
 				ret =
-				    col_remove(cursor, key, keyno, positioned);
+				    col_remove(tinfo, cursor, positioned);
 				break;
 			}
 			if (ret == 0) {
@@ -846,7 +844,8 @@ ops(void *arg)
 				 * previous state, but not necessarily set.
 				 */
 				if (SNAP_TRACK)
-					snap_track(snap++, keyno, NULL, NULL);
+					snap_track(
+					    snap++, tinfo->keyno, NULL, NULL);
 			} else {
 				positioned = false;
 				if (ret == WT_ROLLBACK && intxn)
@@ -859,19 +858,20 @@ update_instead_of_chosen_op:
 			++tinfo->update;
 			switch (g.type) {
 			case ROW:
-				ret = row_update(tinfo, cursor,
-				    key, value, keyno, positioned);
+				ret = row_update(
+				    tinfo, cursor, value, positioned);
 				break;
 			case FIX:
 			case VAR:
-				ret = col_update(tinfo, cursor,
-				    key, value, keyno, positioned);
+				ret = col_update(
+				    tinfo, cursor, value, positioned);
 				break;
 			}
 			if (ret == 0) {
 				positioned = true;
 				if (SNAP_TRACK)
-					snap_track(snap++, keyno, NULL, value);
+					snap_track(
+					    snap++, tinfo->keyno, NULL, value);
 			} else {
 				positioned = false;
 				if (ret == WT_ROLLBACK && intxn)
@@ -889,7 +889,7 @@ update_instead_of_chosen_op:
 		if (positioned) {
 			dir = (int)mmrand(&tinfo->rnd, 0, 1);
 			for (i = 0; i < mmrand(&tinfo->rnd, 1, 100); ++i) {
-				if ((ret = nextprev(cursor, dir)) == 0)
+				if ((ret = nextprev(tinfo, cursor, dir)) == 0)
 					continue;
 				if (ret == WT_ROLLBACK && intxn)
 					goto deadlock;
@@ -913,7 +913,7 @@ update_instead_of_chosen_op:
 		 * operations and confirm they're unchanged.
 		 */
 		if (snap != NULL && (ret = snap_check(
-		    cursor, snap_list, snap, key, value)) == WT_ROLLBACK)
+		    cursor, snap_list, snap, tinfo->key, value)) == WT_ROLLBACK)
 			goto deadlock;
 
 		/*
@@ -945,7 +945,7 @@ deadlock:			++tinfo->deadlock;
 		free(snap_list[i].kdata);
 		free(snap_list[i].vdata);
 	}
-	key_gen_teardown(key);
+	key_gen_teardown(tinfo->key);
 	val_gen_teardown(value);
 
 	tinfo->state = TINFO_COMPLETE;
@@ -993,7 +993,7 @@ wts_read_scan(void)
 			last_keyno = keyno;
 		}
 
-		switch (ret = read_row(cursor, &key, &value, keyno)) {
+		switch (ret = read_row_worker(cursor, &key, keyno, &value)) {
 		case 0:
 		case WT_NOTFOUND:
 		case WT_ROLLBACK:
@@ -1011,11 +1011,11 @@ wts_read_scan(void)
 }
 
 /*
- * read_row --
+ * read_row_worker --
  *	Read and verify a single element in a row- or column-store file.
  */
 int
-read_row(WT_CURSOR *cursor, WT_ITEM *key, WT_ITEM *value, uint64_t keyno)
+read_row_worker(WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno, WT_ITEM *value)
 {
 	static int sn = 0;
 	WT_SESSION *session;
@@ -1107,16 +1107,27 @@ read_row(WT_CURSOR *cursor, WT_ITEM *key, WT_ITEM *value, uint64_t keyno)
 }
 
 /*
+ * read_row --
+ *	Read and verify a single element in a row- or column-store file.
+ */
+static int
+read_row(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value)
+{
+	return (read_row_worker(cursor, tinfo->key, tinfo->keyno, value));
+}
+
+/*
  * nextprev --
  *	Read and verify the next/prev element in a row- or column-store file.
  */
 static int
-nextprev(WT_CURSOR *cursor, int next)
+nextprev(TINFO *tinfo, WT_CURSOR *cursor, int next)
 {
 	WT_DECL_RET;
 	WT_ITEM key, value;
 	uint64_t keyno;
 	uint8_t bitfield;
+	int cmp;
 	const char *which;
 
 	keyno = 0;
@@ -1143,6 +1154,44 @@ nextprev(WT_CURSOR *cursor, int next)
 		}
 		if (ret != 0)
 			testutil_die(ret, "nextprev: get_key/get_value");
+
+		/* Check that keys are never returned out-of-order. */
+		switch (g.type) {
+		case FIX:
+		case VAR:
+			testutil_assertfmt(
+			    (!next || tinfo->keyno < keyno),
+			    "cursor next returned %" PRIu64 " then %" PRIu64,
+			    tinfo->keyno, keyno);
+			testutil_assertfmt(
+			    (next || tinfo->keyno > keyno),
+			    "cursor next returned %" PRIu64 " then %" PRIu64,
+			    tinfo->keyno, keyno);
+
+			tinfo->keyno = keyno;
+			break;
+		case ROW:
+			cmp = memcmp(tinfo->key->data, key.data,
+			    WT_MIN(tinfo->key->size, key.size));
+			testutil_assertfmt(
+			    (!next ||
+			    cmp < 0 ||
+			    (cmp == 0 && tinfo->key->size < key.size)),
+			    "cursor next returned {%.*s} then {%.*s}",
+			    (int)tinfo->key->size, tinfo->key->data,
+			    (int)key.size, key.data);
+			testutil_assertfmt(
+			    (next ||
+			    cmp > 0 ||
+			    (cmp == 0 && tinfo->key->size > key.size)),
+			    "cursor prev returned {%.*s} then {%.*s}",
+			    (int)tinfo->key->size, tinfo->key->data,
+			    (int)key.size, key.data);
+
+			testutil_check(__wt_buf_set((WT_SESSION_IMPL *)
+			    cursor->session, tinfo->key, key.data, key.size));
+			break;
+		}
 		break;
 	case WT_NOTFOUND:
 		break;
@@ -1225,18 +1274,19 @@ mismatch:	if (g.type == ROW) {
  *	Reserve a row in a row-store file.
  */
 static int
-row_reserve(WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno, bool positioned)
+row_reserve(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 {
 	WT_DECL_RET;
 
 	if (!positioned) {
-		key_gen(key, keyno);
-		cursor->set_key(cursor, key);
+		key_gen(tinfo->key, tinfo->keyno);
+		cursor->set_key(cursor, tinfo->key);
 	}
 
 	if (g.logging == LOG_OPS)
 		(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
-		    "%-10s{%.*s}", "reserve", (int)key->size, key->data);
+		    "%-10s{%.*s}", "reserve",
+		    (int)tinfo->key->size, tinfo->key->data);
 
 	switch (ret = cursor->reserve(cursor)) {
 	case 0:
@@ -1248,7 +1298,8 @@ row_reserve(WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno, bool positioned)
 		return (WT_NOTFOUND);
 	default:
 		testutil_die(ret,
-		    "row_reserve: reserve row %" PRIu64 " by key", keyno);
+		    "row_reserve: reserve row %" PRIu64 " by key",
+		    tinfo->keyno);
 	}
 	return (0);
 }
@@ -1258,16 +1309,16 @@ row_reserve(WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno, bool positioned)
  *	Reserve a row in a column-store file.
  */
 static int
-col_reserve(WT_CURSOR *cursor, uint64_t keyno, bool positioned)
+col_reserve(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 {
 	WT_DECL_RET;
 
 	if (!positioned)
-		cursor->set_key(cursor, keyno);
+		cursor->set_key(cursor, tinfo->keyno);
 
 	if (g.logging == LOG_OPS)
 		(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
-		    "%-10s%" PRIu64, "reserve", keyno);
+		    "%-10s%" PRIu64, "reserve", tinfo->keyno);
 
 	switch (ret = cursor->reserve(cursor)) {
 	case 0:
@@ -1278,7 +1329,7 @@ col_reserve(WT_CURSOR *cursor, uint64_t keyno, bool positioned)
 	case WT_NOTFOUND:
 		return (WT_NOTFOUND);
 	default:
-		testutil_die(ret, "col_reserve: %" PRIu64, keyno);
+		testutil_die(ret, "col_reserve: %" PRIu64, tinfo->keyno);
 	}
 	return (0);
 }
@@ -1314,16 +1365,15 @@ modify_build(TINFO *tinfo, WT_MODIFY *entries, int *nentriesp)
  *	Modify a row in a row-store file.
  */
 static int
-row_modify(TINFO *tinfo, WT_CURSOR *cursor,
-    WT_ITEM *key, WT_ITEM *value, uint64_t keyno, bool positioned)
+row_modify(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value, bool positioned)
 {
 	WT_DECL_RET;
 	WT_MODIFY entries[MAX_MODIFY_ENTRIES];
 	int nentries;
 
 	if (!positioned) {
-		key_gen(key, keyno);
-		cursor->set_key(cursor, key);
+		key_gen(tinfo->key, tinfo->keyno);
+		cursor->set_key(cursor, tinfo->key);
 	}
 
 	modify_build(tinfo, entries, &nentries);
@@ -1338,20 +1388,22 @@ row_modify(TINFO *tinfo, WT_CURSOR *cursor,
 		return (WT_NOTFOUND);
 	default:
 		testutil_die(ret,
-		    "row_modify: modify row %" PRIu64 " by key", keyno);
+		    "row_modify: modify row %" PRIu64 " by key", tinfo->keyno);
 	}
 
 	if (g.logging == LOG_OPS)
 		(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
 		    "%-10s{%.*s}, {%.*s}",
 		    "modify",
-		    (int)key->size, key->data, (int)value->size, value->data);
+		    (int)tinfo->key->size, tinfo->key->data,
+		    (int)value->size, value->data);
 
 #ifdef HAVE_BERKELEY_DB
 	if (!SINGLETHREADED)
 		return (0);
 
-	bdb_update(key->data, key->size, value->data, value->size);
+	bdb_update(
+	    tinfo->key->data, tinfo->key->size, value->data, value->size);
 #endif
 	return (0);
 }
@@ -1361,15 +1413,14 @@ row_modify(TINFO *tinfo, WT_CURSOR *cursor,
  *	Modify a row in a column-store file.
  */
 static int
-col_modify(TINFO *tinfo, WT_CURSOR *cursor,
-    WT_ITEM *key, WT_ITEM *value, uint64_t keyno, bool positioned)
+col_modify(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value, bool positioned)
 {
 	WT_DECL_RET;
 	WT_MODIFY entries[MAX_MODIFY_ENTRIES];
 	int nentries;
 
 	if (!positioned)
-		cursor->set_key(cursor, keyno);
+		cursor->set_key(cursor, tinfo->keyno);
 
 	modify_build(tinfo, entries, &nentries);
 	switch (ret = cursor->modify(cursor, entries, nentries)) {
@@ -1382,23 +1433,24 @@ col_modify(TINFO *tinfo, WT_CURSOR *cursor,
 	case WT_NOTFOUND:
 		return (WT_NOTFOUND);
 	default:
-		testutil_die(ret, "col_modify: modify row %" PRIu64, keyno);
+		testutil_die(ret,
+		    "col_modify: modify row %" PRIu64, tinfo->keyno);
 	}
 
 	if (g.logging == LOG_OPS)
 		(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
 		    "%-10s{%.*s}, {%.*s}",
 		    "modify",
-		    (int)key->size, key->data, (int)value->size, value->data);
+		    (int)tinfo->key->size, tinfo->key->data,
+		    (int)value->size, value->data);
 
 #ifdef HAVE_BERKELEY_DB
 	if (!SINGLETHREADED)
 		return (0);
 
-	key_gen(key, keyno);
-	bdb_update(key->data, key->size, value->data, value->size);
-#else
-	(void)key;				/* [-Wunused-variable] */
+	key_gen(tinfo->key, tinfo->keyno);
+	bdb_update(
+	    tinfo->key->data, tinfo->key->size, value->data, value->size);
 #endif
 	return (0);
 }
@@ -1408,23 +1460,23 @@ col_modify(TINFO *tinfo, WT_CURSOR *cursor,
  *	Update a row in a row-store file.
  */
 static int
-row_update(TINFO *tinfo, WT_CURSOR *cursor,
-    WT_ITEM *key, WT_ITEM *value, uint64_t keyno, bool positioned)
+row_update(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value, bool positioned)
 {
 	WT_DECL_RET;
 
 	if (!positioned) {
-		key_gen(key, keyno);
-		cursor->set_key(cursor, key);
+		key_gen(tinfo->key, tinfo->keyno);
+		cursor->set_key(cursor, tinfo->key);
 	}
-	val_gen(&tinfo->rnd, value, keyno);
+	val_gen(&tinfo->rnd, value, tinfo->keyno);
 	cursor->set_value(cursor, value);
 
 	if (g.logging == LOG_OPS)
 		(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
 		    "%-10s{%.*s}, {%.*s}",
 		    "put",
-		    (int)key->size, key->data, (int)value->size, value->data);
+		    (int)tinfo->key->size, tinfo->key->data,
+		    (int)value->size, value->data);
 
 	switch (ret = cursor->update(cursor)) {
 	case 0:
@@ -1434,14 +1486,15 @@ row_update(TINFO *tinfo, WT_CURSOR *cursor,
 		return (WT_ROLLBACK);
 	default:
 		testutil_die(ret,
-		    "row_update: update row %" PRIu64 " by key", keyno);
+		    "row_update: update row %" PRIu64 " by key", tinfo->keyno);
 	}
 
 #ifdef HAVE_BERKELEY_DB
 	if (!SINGLETHREADED)
 		return (0);
 
-	bdb_update(key->data, key->size, value->data, value->size);
+	bdb_update(
+	    tinfo->key->data, tinfo->key->size, value->data, value->size);
 #endif
 	return (0);
 }
@@ -1451,14 +1504,13 @@ row_update(TINFO *tinfo, WT_CURSOR *cursor,
  *	Update a row in a column-store file.
  */
 static int
-col_update(TINFO *tinfo, WT_CURSOR *cursor,
-    WT_ITEM *key, WT_ITEM *value, uint64_t keyno, bool positioned)
+col_update(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value, bool positioned)
 {
 	WT_DECL_RET;
 
 	if (!positioned)
-		cursor->set_key(cursor, keyno);
-	val_gen(&tinfo->rnd, value, keyno);
+		cursor->set_key(cursor, tinfo->keyno);
+	val_gen(&tinfo->rnd, value, tinfo->keyno);
 	if (g.type == FIX)
 		cursor->set_value(cursor, *(uint8_t *)value->data);
 	else
@@ -1468,12 +1520,12 @@ col_update(TINFO *tinfo, WT_CURSOR *cursor,
 		if (g.type == FIX)
 			(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
 			    "%-10s%" PRIu64 " {0x%02" PRIx8 "}",
-			    "update", keyno,
+			    "update", tinfo->keyno,
 			    ((uint8_t *)value->data)[0]);
 		else
 			(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
 			    "%-10s%" PRIu64 " {%.*s}",
-			    "update", keyno,
+			    "update", tinfo->keyno,
 			    (int)value->size, (char *)value->data);
 	}
 
@@ -1484,17 +1536,16 @@ col_update(TINFO *tinfo, WT_CURSOR *cursor,
 	case WT_ROLLBACK:
 		return (WT_ROLLBACK);
 	default:
-		testutil_die(ret, "col_update: %" PRIu64, keyno);
+		testutil_die(ret, "col_update: %" PRIu64, tinfo->keyno);
 	}
 
 #ifdef HAVE_BERKELEY_DB
 	if (!SINGLETHREADED)
 		return (0);
 
-	key_gen(key, keyno);
-	bdb_update(key->data, key->size, value->data, value->size);
-#else
-	(void)key;				/* [-Wunused-variable] */
+	key_gen(tinfo->key, tinfo->keyno);
+	bdb_update(
+	    tinfo->key->data, tinfo->key->size, value->data, value->size);
 #endif
 	return (0);
 }
@@ -1603,8 +1654,7 @@ table_append(uint64_t keyno)
  *	Insert a row in a row-store file.
  */
 static int
-row_insert(TINFO *tinfo, WT_CURSOR *cursor,
-    WT_ITEM *key, WT_ITEM *value, uint64_t keyno, bool positioned)
+row_insert(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value, bool positioned)
 {
 	WT_DECL_RET;
 
@@ -1613,10 +1663,10 @@ row_insert(TINFO *tinfo, WT_CURSOR *cursor,
 	 * the insert method. Otherwise, generate a unique key and insert.
 	 */
 	if (!positioned) {
-		key_gen_insert(&tinfo->rnd, key, keyno);
-		cursor->set_key(cursor, key);
+		key_gen_insert(&tinfo->rnd, tinfo->key, tinfo->keyno);
+		cursor->set_key(cursor, tinfo->key);
 	}
-	val_gen(&tinfo->rnd, value, keyno);
+	val_gen(&tinfo->rnd, value, tinfo->keyno);
 	cursor->set_value(cursor, value);
 
 	/* Log the operation */
@@ -1624,7 +1674,8 @@ row_insert(TINFO *tinfo, WT_CURSOR *cursor,
 		(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
 		    "%-10s{%.*s}, {%.*s}",
 		    "insert",
-		    (int)key->size, key->data, (int)value->size, value->data);
+		    (int)tinfo->key->size, tinfo->key->data,
+		    (int)value->size, value->data);
 
 	switch (ret = cursor->insert(cursor)) {
 	case 0:
@@ -1634,14 +1685,15 @@ row_insert(TINFO *tinfo, WT_CURSOR *cursor,
 		return (WT_ROLLBACK);
 	default:
 		testutil_die(ret,
-		    "row_insert: insert row %" PRIu64 " by key", keyno);
+		    "row_insert: insert row %" PRIu64 " by key", tinfo->keyno);
 	}
 
 #ifdef HAVE_BERKELEY_DB
 	if (!SINGLETHREADED)
 		return (0);
 
-	bdb_update(key->data, key->size, value->data, value->size);
+	bdb_update(
+	    tinfo->key->data, tinfo->key->size, value->data, value->size);
 #endif
 	return (0);
 }
@@ -1651,11 +1703,9 @@ row_insert(TINFO *tinfo, WT_CURSOR *cursor,
  *	Insert an element in a column-store file.
  */
 static int
-col_insert(TINFO *tinfo,
-    WT_CURSOR *cursor, WT_ITEM *key, WT_ITEM *value, uint64_t *keynop)
+col_insert(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value)
 {
 	WT_DECL_RET;
-	uint64_t keyno;
 
 	val_gen(&tinfo->rnd, value, g.rows + 1);
 	if (g.type == FIX)
@@ -1671,21 +1721,20 @@ col_insert(TINFO *tinfo,
 	default:
 		testutil_die(ret, "cursor.insert");
 	}
-	testutil_check(cursor->get_key(cursor, &keyno));
-	*keynop = (uint32_t)keyno;
+	testutil_check(cursor->get_key(cursor, &tinfo->keyno));
 
-	table_append(keyno);			/* Extend the object. */
+	table_append(tinfo->keyno);			/* Extend the object. */
 
 	if (g.logging == LOG_OPS) {
 		if (g.type == FIX)
 			(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
 			    "%-10s%" PRIu64 " {0x%02" PRIx8 "}",
-			    "insert", keyno,
+			    "insert", tinfo->keyno,
 			    ((uint8_t *)value->data)[0]);
 		else
 			(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
 			    "%-10s%" PRIu64 " {%.*s}",
-			    "insert", keyno,
+			    "insert", tinfo->keyno,
 			    (int)value->size, (char *)value->data);
 	}
 
@@ -1693,10 +1742,9 @@ col_insert(TINFO *tinfo,
 	if (!SINGLETHREADED)
 		return (0);
 
-	key_gen(key, keyno);
-	bdb_update(key->data, key->size, value->data, value->size);
-#else
-	(void)key;				/* [-Wunused-variable] */
+	key_gen(tinfo->key, tinfo->keyno);
+	bdb_update(
+	    tinfo->key->data, tinfo->key->size, value->data, value->size);
 #endif
 	return (0);
 }
@@ -1706,18 +1754,18 @@ col_insert(TINFO *tinfo,
  *	Remove an row from a row-store file.
  */
 static int
-row_remove(WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno, bool positioned)
+row_remove(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 {
 	WT_DECL_RET;
 
 	if (!positioned) {
-		key_gen(key, keyno);
-		cursor->set_key(cursor, key);
+		key_gen(tinfo->key, tinfo->keyno);
+		cursor->set_key(cursor, tinfo->key);
 	}
 
 	if (g.logging == LOG_OPS)
 		(void)g.wt_api->msg_printf(g.wt_api,
-		    cursor->session, "%-10s%" PRIu64, "remove", keyno);
+		    cursor->session, "%-10s%" PRIu64, "remove", tinfo->keyno);
 
 	/* We use the cursor in overwrite mode, check for existence. */
 	if ((ret = cursor->search(cursor)) == 0)
@@ -1730,7 +1778,7 @@ row_remove(WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno, bool positioned)
 		return (WT_ROLLBACK);
 	default:
 		testutil_die(ret,
-		    "row_remove: remove %" PRIu64 " by key", keyno);
+		    "row_remove: remove %" PRIu64 " by key", tinfo->keyno);
 	}
 
 #ifdef HAVE_BERKELEY_DB
@@ -1740,11 +1788,9 @@ row_remove(WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno, bool positioned)
 	{
 	int notfound;
 
-	bdb_remove(keyno, &notfound);
-	(void)notfound_chk("row_remove", ret, notfound, keyno);
+	bdb_remove(tinfo->keyno, &notfound);
+	(void)notfound_chk("row_remove", ret, notfound, tinfo->keyno);
 	}
-#else
-	(void)key;				/* [-Wunused-variable] */
 #endif
 	return (ret);
 }
@@ -1754,16 +1800,16 @@ row_remove(WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno, bool positioned)
  *	Remove a row from a column-store file.
  */
 static int
-col_remove(WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno, bool positioned)
+col_remove(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 {
 	WT_DECL_RET;
 
 	if (!positioned)
-		cursor->set_key(cursor, keyno);
+		cursor->set_key(cursor, tinfo->keyno);
 
 	if (g.logging == LOG_OPS)
 		(void)g.wt_api->msg_printf(g.wt_api,
-		    cursor->session, "%-10s%" PRIu64, "remove", keyno);
+		    cursor->session, "%-10s%" PRIu64, "remove", tinfo->keyno);
 
 	/* We use the cursor in overwrite mode, check for existence. */
 	if ((ret = cursor->search(cursor)) == 0)
@@ -1776,7 +1822,7 @@ col_remove(WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno, bool positioned)
 		return (WT_ROLLBACK);
 	default:
 		testutil_die(ret,
-		    "col_remove: remove %" PRIu64 " by key", keyno);
+		    "col_remove: remove %" PRIu64 " by key", tinfo->keyno);
 	}
 
 #ifdef HAVE_BERKELEY_DB
@@ -1788,16 +1834,14 @@ col_remove(WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno, bool positioned)
 	 * do the same thing for the BDB store.
 	 */
 	if (g.type == FIX) {
-		key_gen(key, keyno);
-		bdb_update(key->data, key->size, "", 1);
+		key_gen(tinfo->key, tinfo->keyno);
+		bdb_update(tinfo->key->data, tinfo->key->size, "", 1);
 	} else {
 		int notfound;
 
-		bdb_remove(keyno, &notfound);
-		(void)notfound_chk("col_remove", ret, notfound, keyno);
+		bdb_remove(tinfo->keyno, &notfound);
+		(void)notfound_chk("col_remove", ret, notfound, tinfo->keyno);
 	}
-#else
-	(void)key;				/* [-Wunused-variable] */
 #endif
 	return (ret);
 }
