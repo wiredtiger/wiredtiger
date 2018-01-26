@@ -1165,7 +1165,7 @@ nextprev(TINFO *tinfo, WT_CURSOR *cursor, int next)
 			    tinfo->keyno, keyno);
 			testutil_assertfmt(
 			    (next || tinfo->keyno > keyno),
-			    "cursor next returned %" PRIu64 " then %" PRIu64,
+			    "cursor prev returned %" PRIu64 " then %" PRIu64,
 			    tinfo->keyno, keyno);
 
 			tinfo->keyno = keyno;
