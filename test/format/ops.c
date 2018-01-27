@@ -1061,13 +1061,14 @@ read_row_worker(WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno, WT_ITEM *value)
 	case WT_NOTFOUND:
 		/*
 		 * In fixed length stores, zero values at the end of the key
-		 * space are returned as not found.  Treat this the same as
+		 * space are returned as not-found. Treat this the same as
 		 * a zero value in the key space, to match BDB's behavior.
+		 * The WiredTiger cursor has lost its position though, so
+		 * we return not-found, the cursor movement can't continue.
 		 */
 		if (g.type == FIX) {
 			*(uint8_t *)(value->data) = 0;
 			value->size = 1;
-			ret = 0;
 		}
 		break;
 	case WT_ROLLBACK:
