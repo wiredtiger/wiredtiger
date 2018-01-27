@@ -290,7 +290,7 @@ typedef struct {
 #ifdef HAVE_BERKELEY_DB
 void	 bdb_close(void);
 void	 bdb_insert(const void *, size_t, const void *, size_t);
-void	 bdb_np(int, void *, size_t *, void *, size_t *, int *);
+void	 bdb_np(bool, void *, size_t *, void *, size_t *, int *);
 void	 bdb_open(void);
 void	 bdb_read(uint64_t, void *, size_t *, int *);
 void	 bdb_remove(uint64_t, int *);

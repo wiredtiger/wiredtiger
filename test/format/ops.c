@@ -33,7 +33,7 @@ static int   col_modify(TINFO *, WT_CURSOR *, WT_ITEM *, bool);
 static int   col_remove(TINFO *, WT_CURSOR *, bool);
 static int   col_reserve(TINFO *, WT_CURSOR *, bool);
 static int   col_update(TINFO *, WT_CURSOR *, WT_ITEM *, bool);
-static int   nextprev(TINFO *, WT_CURSOR *, int);
+static int   nextprev(TINFO *, WT_CURSOR *, bool);
 static WT_THREAD_RET ops(void *);
 static int   read_row(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value);
 static int   row_insert(TINFO *, WT_CURSOR *, WT_ITEM *, bool);
@@ -554,8 +554,7 @@ ops(void *arg)
 	uint64_t reset_op, session_op;
 	uint32_t rnd;
 	u_int i, iso_config;
-	int dir;
-	bool intxn, positioned, readonly;
+	bool intxn, next, positioned, readonly;
 
 	tinfo = arg;
 
@@ -887,9 +886,9 @@ update_instead_of_chosen_op:
 		 * a random direction.
 		 */
 		if (positioned) {
-			dir = (int)mmrand(&tinfo->rnd, 0, 1);
+			next = mmrand(&tinfo->rnd, 0, 1) == 1;
 			for (i = 0; i < mmrand(&tinfo->rnd, 1, 100); ++i) {
-				if ((ret = nextprev(tinfo, cursor, dir)) == 0)
+				if ((ret = nextprev(tinfo, cursor, next)) == 0)
 					continue;
 				if (ret == WT_ROLLBACK && intxn)
 					goto deadlock;
@@ -1121,7 +1120,7 @@ read_row(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value)
  *	Read and verify the next/prev element in a row- or column-store file.
  */
 static int
-nextprev(TINFO *tinfo, WT_CURSOR *cursor, int next)
+nextprev(TINFO *tinfo, WT_CURSOR *cursor, bool next)
 {
 	WT_DECL_RET;
 	WT_ITEM key, value;
@@ -1133,7 +1132,7 @@ nextprev(TINFO *tinfo, WT_CURSOR *cursor, int next)
 	keyno = 0;
 	which = next ? "next" : "prev";
 
-	switch (ret = (next ? cursor->next(cursor) : cursor->prev(cursor))) {
+	switch (ret = next ? cursor->next(cursor) : cursor->prev(cursor)) {
 	case 0:
 		switch (g.type) {
 		case FIX:
@@ -1160,11 +1159,11 @@ nextprev(TINFO *tinfo, WT_CURSOR *cursor, int next)
 		case FIX:
 		case VAR:
 			testutil_assertfmt(
-			    (!next || tinfo->keyno < keyno),
+			    !next || tinfo->keyno < keyno,
 			    "cursor next returned %" PRIu64 " then %" PRIu64,
 			    tinfo->keyno, keyno);
 			testutil_assertfmt(
-			    (next || tinfo->keyno > keyno),
+			    next || tinfo->keyno > keyno,
 			    "cursor prev returned %" PRIu64 " then %" PRIu64,
 			    tinfo->keyno, keyno);
 
@@ -1174,16 +1173,16 @@ nextprev(TINFO *tinfo, WT_CURSOR *cursor, int next)
 			cmp = memcmp(tinfo->key->data, key.data,
 			    WT_MIN(tinfo->key->size, key.size));
 			testutil_assertfmt(
-			    (!next ||
+			    !next ||
 			    cmp < 0 ||
-			    (cmp == 0 && tinfo->key->size < key.size)),
+			    (cmp == 0 && tinfo->key->size < key.size),
 			    "cursor next returned {%.*s} then {%.*s}",
 			    (int)tinfo->key->size, tinfo->key->data,
 			    (int)key.size, key.data);
 			testutil_assertfmt(
-			    (next ||
+			    next ||
 			    cmp > 0 ||
-			    (cmp == 0 && tinfo->key->size > key.size)),
+			    (cmp == 0 && tinfo->key->size > key.size),
 			    "cursor prev returned {%.*s} then {%.*s}",
 			    (int)tinfo->key->size, tinfo->key->data,
 			    (int)key.size, key.data);
