@@ -992,7 +992,8 @@ wts_read_scan(void)
 			last_keyno = keyno;
 		}
 
-		switch (ret = read_row_worker(cursor, &key, keyno, &value)) {
+		switch (ret = read_row_worker(
+		    cursor, &key, keyno, &value, false)) {
 		case 0:
 		case WT_NOTFOUND:
 		case WT_ROLLBACK:
@@ -1014,9 +1015,9 @@ wts_read_scan(void)
  *	Read and verify a single element in a row- or column-store file.
  */
 int
-read_row_worker(WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno, WT_ITEM *value)
+read_row_worker(
+    WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno, WT_ITEM *value, bool sn)
 {
-	static int sn = 0;
 	WT_SESSION *session;
 	uint8_t bitfield;
 	int exact, ret;
@@ -1044,11 +1045,8 @@ read_row_worker(WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno, WT_ITEM *value)
 		ret = cursor->search_near(cursor, &exact);
 		if (ret == 0 && exact != 0)
 			ret = WT_NOTFOUND;
-		sn = 0;
-	} else {
+	} else
 		ret = cursor->search(cursor);
-		sn = 1;
-	}
 	switch (ret) {
 	case 0:
 		if (g.type == FIX) {
@@ -1113,7 +1111,9 @@ read_row_worker(WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno, WT_ITEM *value)
 static int
 read_row(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value)
 {
-	return (read_row_worker(cursor, tinfo->key, tinfo->keyno, value));
+	/* 25% of the time we call search-near. */
+	return (read_row_worker(cursor,
+	    tinfo->key, tinfo->keyno, value, mmrand(&tinfo->rnd, 0, 3) == 1));
 }
 
 /*
@@ -1133,7 +1133,7 @@ nextprev(TINFO *tinfo, WT_CURSOR *cursor, bool next)
 	keyno = 0;
 	which = next ? "next" : "prev";
 
-	switch (ret = next ? cursor->next(cursor) : cursor->prev(cursor)) {
+	switch (ret = (next ? cursor->next(cursor) : cursor->prev(cursor))) {
 	case 0:
 		switch (g.type) {
 		case FIX:

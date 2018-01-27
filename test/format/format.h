@@ -317,7 +317,7 @@ WT_THREAD_RET lrt(void *);
 void	 path_setup(const char *);
 void	 print_item(const char *, WT_ITEM *);
 void	 print_item_data(const char *, const uint8_t *, size_t);
-int	 read_row_worker(WT_CURSOR *, WT_ITEM *, uint64_t, WT_ITEM *);
+int	 read_row_worker(WT_CURSOR *, WT_ITEM *, uint64_t, WT_ITEM *, bool);
 uint32_t rng(WT_RAND_STATE *);
 WT_THREAD_RET timestamp(void *);
 void	 track(const char *, uint64_t, TINFO *);
