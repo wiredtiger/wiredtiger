@@ -1106,11 +1106,11 @@ done:	if (ret == 0) {
 		__cursor_state_restore(cursor, &state);
 
 		/*
-		 * If an iterating cursor was forced to give up its pinned page
-		 * and then a search failed, we've lost our cursor position, no
-		 * subsequent iteration can succeed.
+		 * If an iterating or positioned cursor was forced to give up
+		 * its pinned page and then a search failed, we've lost our
+		 * cursor position, no subsequent iteration can succeed.
 		 */
-		if (ret == WT_NOTFOUND && iterating)
+		if (ret == WT_NOTFOUND && (iterating || positioned))
 			ret = WT_ROLLBACK;
 
 		/*
