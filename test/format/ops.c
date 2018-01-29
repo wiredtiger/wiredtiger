@@ -887,7 +887,7 @@ update_instead_of_chosen_op:
 		 */
 		if (positioned) {
 			next = mmrand(&tinfo->rnd, 0, 1) == 1;
-			for (i = 0; i < mmrand(&tinfo->rnd, 1, 100); ++i) {
+			for (i = mmrand(&tinfo->rnd, 1, 100); i > 0; --i) {
 				if ((ret = nextprev(tinfo, cursor, next)) == 0)
 					continue;
 				if (ret == WT_ROLLBACK && intxn)
@@ -1129,9 +1129,10 @@ nextprev(TINFO *tinfo, WT_CURSOR *cursor, bool next)
 	uint8_t bitfield;
 	int cmp;
 	const char *which;
+	bool incrementing;
 
 	keyno = 0;
-	which = next ? "next" : "prev";
+	which = next ? "WT_CURSOR.next" : "WT_CURSOR.prev";
 
 	switch (ret = (next ? cursor->next(cursor) : cursor->prev(cursor))) {
 	case 0:
@@ -1161,30 +1162,34 @@ nextprev(TINFO *tinfo, WT_CURSOR *cursor, bool next)
 		case VAR:
 			testutil_assertfmt(
 			    !next || tinfo->keyno < keyno,
-			    "cursor next returned %" PRIu64 " then %" PRIu64,
-			    tinfo->keyno, keyno);
+			    "%s returned %" PRIu64 " then %" PRIu64,
+			    which, tinfo->keyno, keyno);
 			testutil_assertfmt(
 			    next || tinfo->keyno > keyno,
-			    "cursor prev returned %" PRIu64 " then %" PRIu64,
-			    tinfo->keyno, keyno);
+			    "%s returned %" PRIu64 " then %" PRIu64,
+			    which, tinfo->keyno, keyno);
 
 			tinfo->keyno = keyno;
 			break;
 		case ROW:
 			cmp = memcmp(tinfo->key->data, key.data,
 			    WT_MIN(tinfo->key->size, key.size));
+			incrementing =
+			    (next && !g.c_reverse) || (!next && g.c_reverse);
 			testutil_assertfmt(
-			    !next ||
+			    !incrementing ||
 			    cmp < 0 ||
 			    (cmp == 0 && tinfo->key->size < key.size),
-			    "cursor next returned {%.*s} then {%.*s}",
+			    "%s returned {%.*s} then {%.*s}",
+			    which,
 			    (int)tinfo->key->size, tinfo->key->data,
 			    (int)key.size, key.data);
 			testutil_assertfmt(
-			    next ||
+			    incrementing ||
 			    cmp > 0 ||
 			    (cmp == 0 && tinfo->key->size > key.size),
-			    "cursor prev returned {%.*s} then {%.*s}",
+			    "%s returned {%.*s} then {%.*s}",
+			    which,
 			    (int)tinfo->key->size, tinfo->key->data,
 			    (int)key.size, key.data);
 
