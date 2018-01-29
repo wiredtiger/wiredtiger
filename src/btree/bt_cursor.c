@@ -59,6 +59,7 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt)
 {
 	WT_CURSOR *cursor;
 	WT_SESSION_IMPL *session;
+	uint32_t current_state;
 
 	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cursor->session;
@@ -89,12 +90,16 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt)
 		return (false);
 
 	/*
-	 * If we are doing an update, we need a page with history.  Release the
-	 * page so we get it again with history if required.
+	 * If we are doing an update, we need a page with history, release the
+	 * page so we get it again with history if required. Eviction may be
+	 * locking the page, wait until we see a "normal" state and then test
+	 * against that state (eviction may have already locked the page again).
 	 */
-	if (F_ISSET(&session->txn, WT_TXN_UPDATE) &&
-	    cbt->ref->state != WT_REF_MEM)
-		return (false);
+	if (F_ISSET(&session->txn, WT_TXN_UPDATE)) {
+		while ((current_state = cbt->ref->state) == WT_REF_LOCKED)
+			__wt_yield();
+		return (current_state == WT_REF_MEM);
+	}
 
 	return (true);
 }
