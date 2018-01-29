@@ -926,10 +926,12 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt)
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	bool iterating;
 
 	btree = cbt->btree;
 	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cursor->session;
+	iterating = F_ISSET(cbt, WT_CBT_ITERATE_NEXT | WT_CBT_ITERATE_PREV);
 
 	WT_STAT_CONN_INCR(session, cursor_remove);
 	WT_STAT_DATA_INCR(session, cursor_remove);
@@ -1104,6 +1106,14 @@ done:	if (ret == 0) {
 		__cursor_state_restore(cursor, &state);
 
 		/*
+		 * If an iterating cursor was forced to give up its pinned page
+		 * and then a search failed, we've lost our cursor position, no
+		 * subsequent iteration can succeed.
+		 */
+		if (ret == WT_NOTFOUND && iterating)
+			ret = WT_ROLLBACK;
+
+		/*
 		 * If the cursor is configured to overwrite and the record isn't
 		 * found, that is exactly what we want, return success. Note we
 		 * set clear the return value after everything else, the clause
@@ -1113,7 +1123,7 @@ done:	if (ret == 0) {
 		 * take is to set the cursor to its original key, which we just
 		 * did.
 		 */
-		if (F_ISSET(cursor, WT_CURSTD_OVERWRITE) && ret == WT_NOTFOUND)
+		if (ret == WT_NOTFOUND && F_ISSET(cursor, WT_CURSTD_OVERWRITE))
 			ret = 0;
 	}
 
@@ -1132,10 +1142,12 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	bool iterating;
 
 	btree = cbt->btree;
 	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cursor->session;
+	iterating = F_ISSET(cbt, WT_CBT_ITERATE_NEXT | WT_CBT_ITERATE_PREV);
 
 	/* It's no longer possible to bulk-load into the tree. */
 	__cursor_disable_bulk(session, btree);
@@ -1267,6 +1279,14 @@ done:	if (ret == 0)
 	if (ret != 0) {
 		WT_TRET(__cursor_reset(cbt));
 		__cursor_state_restore(cursor, &state);
+
+		/*
+		 * If an iterating cursor was forced to give up its pinned page
+		 * and then a search failed, we've lost our cursor position, no
+		 * subsequent iteration can succeed.
+		 */
+		if (ret == WT_NOTFOUND && iterating)
+			ret = WT_ROLLBACK;
 	}
 
 	return (ret);
