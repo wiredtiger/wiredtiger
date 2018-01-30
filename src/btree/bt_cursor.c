@@ -1063,8 +1063,7 @@ err:	if (ret == WT_RESTART) {
 	}
 
 	if (ret == 0) {
-done:		F_CLR(cursor, WT_CURSTD_VALUE_SET);
-		switch (positioned) {
+done:		switch (positioned) {
 		case NO_POSITION:
 			/*
 			 * Never positioned and we leave it that way, clear any
@@ -1115,6 +1114,14 @@ done:		F_CLR(cursor, WT_CURSTD_VALUE_SET);
 		if (ret == WT_NOTFOUND && F_ISSET(cursor, WT_CURSTD_OVERWRITE))
 			ret = 0;
 	}
+
+	/*
+	 * Upper level cursor removes don't expect the cursor value to be set
+	 * after a successful remove (and check in diagnostic mode). Error
+	 * handling may have converted failure to a success, do a final check.
+	 */
+	if (ret == 0)
+		F_CLR(cursor, WT_CURSTD_VALUE_SET);
 
 	return (ret);
 }
