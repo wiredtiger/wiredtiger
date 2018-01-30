@@ -553,7 +553,7 @@ ops(void *arg)
 	WT_SESSION *session;
 	uint64_t reset_op, session_op;
 	uint32_t rnd;
-	u_int i, iso_config;
+	u_int i, j, iso_config;
 	bool intxn, next, positioned, readonly;
 
 	tinfo = arg;
@@ -678,7 +678,6 @@ ops(void *arg)
 
 		/* Select a row. */
 		tinfo->keyno = mmrand(&tinfo->rnd, 1, (u_int)g.rows);
-		positioned = false;
 
 		/* Select an operation. */
 		op = READ;
@@ -712,7 +711,6 @@ ops(void *arg)
 					snap_track(
 					    snap++, tinfo->keyno, NULL, value);
 			} else {
-				positioned = false;
 				if (ret == WT_ROLLBACK && intxn)
 					goto deadlock;
 				testutil_assert(ret == WT_NOTFOUND);
@@ -887,7 +885,8 @@ update_instead_of_chosen_op:
 		 */
 		if (positioned) {
 			next = mmrand(&tinfo->rnd, 0, 1) == 1;
-			for (i = mmrand(&tinfo->rnd, 1, 100); i > 0; --i) {
+			j = mmrand(&tinfo->rnd, 1, 100);
+			for (i = 0; i < j; ++i) {
 				if ((ret = nextprev(tinfo, cursor, next)) == 0)
 					continue;
 				if (ret == WT_ROLLBACK && intxn)
