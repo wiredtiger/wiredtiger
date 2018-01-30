@@ -956,14 +956,23 @@ err:	/*
 int
 __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 {
+#ifdef HAVE_TIMESTAMPS
+	WT_DECL_RET;
+	WT_TXN *txn;
+#endif
+
 	WT_UNUSED(cfg);
 
 #ifdef HAVE_TIMESTAMPS
-	WT_RET_MSG(session, ENOTSUP, "prepare_transaction is not supported");
+	txn = &session->txn;
+	WT_TRET(__wt_txn_context_check(session, true, false));
+
+	F_SET(txn, WT_TXN_PREPARE);
 #else
 	WT_RET_MSG(session, ENOTSUP, "prepare_transaction requires a version "
 	    "of WiredTiger built with timestamp support");
 #endif
+	return (0);
 }
 /*
  * __wt_txn_rollback --

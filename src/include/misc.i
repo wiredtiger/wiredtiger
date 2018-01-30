@@ -193,15 +193,21 @@ __wt_snprintf_len_incr(
  *	Complain if a transaction is/isn't running.
  */
 static inline int
-__wt_txn_context_check(WT_SESSION_IMPL *session, bool requires_txn)
+__wt_txn_context_check(
+    WT_SESSION_IMPL *session, bool requires_txn, bool prepare_allowed)
 {
+	if (!requires_txn && F_ISSET(&session->txn, WT_TXN_RUNNING))
+		WT_RET_MSG(session, EINVAL,
+		    "%s: not permitted in a running transaction",
+		    session->name);
 	if (requires_txn && !F_ISSET(&session->txn, WT_TXN_RUNNING))
 		WT_RET_MSG(session, EINVAL,
 		    "%s: only permitted in a running transaction",
 		    session->name);
-	if (!requires_txn && F_ISSET(&session->txn, WT_TXN_RUNNING))
+	if (requires_txn && !prepare_allowed &&
+	    F_ISSET(&session->txn, WT_TXN_PREPARE))
 		WT_RET_MSG(session, EINVAL,
-		    "%s: not permitted in a running transaction",
+		    "%s: not permitted in a prepared transaction",
 		    session->name);
 	return (0);
 }
