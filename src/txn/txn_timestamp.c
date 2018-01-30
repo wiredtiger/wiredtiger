@@ -693,9 +693,11 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session)
 		TAILQ_FOREACH_SAFE(qtxn, &txn_global->commit_timestamph,
 		    commit_timestampq, txn_tmp) {
 			if (!F_ISSET(qtxn, WT_TXN_PUBLIC_TS_COMMIT)) {
+				qtxn->clear_ts_queue = false;
 				TAILQ_REMOVE(&txn_global->commit_timestamph,
 				    qtxn, commit_timestampq);
 				--txn_global->commit_timestampq_len;
+				continue;
 			}
 			/*
 			 * Only walk the list up until we get to the place where
@@ -740,6 +742,7 @@ __wt_txn_clear_commit_timestamp(WT_SESSION_IMPL *session)
 	flags = txn->flags;
 	LF_CLR(WT_TXN_PUBLIC_TS_COMMIT);
 
+	WT_PUBLISH(txn->clear_ts_queue, true);
 	WT_PUBLISH(txn->flags, flags);
 }
 
