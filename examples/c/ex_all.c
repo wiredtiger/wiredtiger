@@ -900,6 +900,8 @@ transaction_ops(WT_SESSION *session_arg)
 	error_check(session->commit_transaction(session, NULL));
 	/*! [transaction isolation] */
 
+#ifdef HAVE_TIMESTAMPS
+	{
 	/*! [transaction prepare] */
 	/*
 	 * An active transaction can be prepared, if successful will guarantee
@@ -917,7 +919,8 @@ transaction_ops(WT_SESSION *session_arg)
 	    session, "prepare_timestamp=2a"));
 	error_check(session->commit_transaction(session, NULL));
 	/*! [transaction prepare] */
-
+	}
+#endif
 	/*! [session isolation configuration] */
 	/* Open a session configured for read-uncommitted isolation. */
 	error_check(conn->open_session(
