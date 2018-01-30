@@ -158,9 +158,7 @@ __session_clear(WT_SESSION_IMPL *session)
 	 *
 	 * For these reasons, be careful when clearing the session structure.
 	 */
-#ifdef HAVE_TIMESTAMPS
 	__session_clear_commit_queue(session);
-#endif
 	memset(session, 0, WT_SESSION_CLEAR_SIZE);
 
 	WT_INIT_LSN(&session->bg_sync_lsn);
