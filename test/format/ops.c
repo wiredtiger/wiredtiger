@@ -277,12 +277,10 @@ typedef struct {
 	void    *kdata;			/* If an insert, the generated key */
 	size_t   ksize;
 	size_t   kmemsize;
-	bool	 kset;
 
 	void    *vdata;			/* If not a delete, the value */
 	size_t   vsize;
 	size_t   vmemsize;
-	bool	 vset;
 } SNAP_OPS;
 
 #define	SNAP_TRACK(op, keyno, key, value) do {				\
@@ -302,8 +300,8 @@ snap_track(
 	snap->op = op;
 	snap->keyno = keyno;
 
-	snap->kset = key != NULL;
-	if (snap->kset) {
+	testutil_assert(key == NULL || (op == INSERT && g.type == ROW));
+	if (key != NULL) {
 		if (snap->kmemsize < key->size) {
 			snap->kdata = drealloc(snap->kdata, key->size);
 			snap->kmemsize = key->size;
@@ -311,8 +309,8 @@ snap_track(
 		memcpy(snap->kdata, key->data, snap->ksize = key->size);
 	}
 
-	snap->vset = value != NULL;
-	if (snap->vset) {
+	testutil_assert(value != NULL || op == REMOVE);
+	if (value != NULL) {
 		if (snap->vmemsize < value->size) {
 			snap->vdata = drealloc(snap->vdata, value->size);
 			snap->vmemsize = value->size;
@@ -345,7 +343,7 @@ snap_check(WT_CURSOR *cursor,
 		 * unique generated key we saved, else generate the key from the
 		 * key number.
 		 */
-		if (start->kset) {
+		if (start->op == INSERT && g.type == ROW) {
 			key->data = start->kdata;
 			key->size = start->ksize;
 			cursor->set_key(cursor, key);
@@ -375,11 +373,11 @@ snap_check(WT_CURSOR *cursor,
 				return (ret);
 
 		/* Check for simple matches. */
-		if (ret == 0 && start->vset &&
+		if (ret == 0 && start->op != REMOVE &&
 		    value->size == start->vsize &&
 		    memcmp(value->data, start->vdata, value->size) == 0)
 			continue;
-		if (ret == WT_NOTFOUND && !start->vset)
+		if (ret == WT_NOTFOUND && start->op == REMOVE)
 			continue;
 
 		/*
@@ -391,7 +389,7 @@ snap_check(WT_CURSOR *cursor,
 			if (ret == WT_NOTFOUND &&
 			    start->vsize == 1 && *(uint8_t *)start->vdata == 0)
 				continue;
-			if (!start->vset &&
+			if (start->op == REMOVE &&
 			    value->size == 1 && *(uint8_t *)value->data == 0)
 				continue;
 		}
@@ -403,7 +401,7 @@ snap_check(WT_CURSOR *cursor,
 			    "snapshot-isolation: %" PRIu64 " search: "
 			    "expected {0x%02x}, found {0x%02x}",
 			    start->keyno,
-			    !start->vset ? 0 : *(uint8_t *)start->vdata,
+			    start->op == REMOVE ? 0 : *(uint8_t *)start->vdata,
 			    ret == WT_NOTFOUND ? 0 : *(uint8_t *)value->data);
 			/* NOTREACHED */
 		case ROW:
@@ -411,11 +409,11 @@ snap_check(WT_CURSOR *cursor,
 			    "snapshot-isolation %.*s search mismatch\n",
 			    (int)key->size, (const char *)key->data);
 
-			if (start->vset)
+			if (start->op == REMOVE)
+				fprintf(stderr, "expected {deleted}\n");
+			else
 				print_item_data(
 				    "expected", start->vdata, start->vsize);
-			else
-				fprintf(stderr, "expected {deleted}\n");
 			if (ret == WT_NOTFOUND)
 				fprintf(stderr, "found {deleted}\n");
 			else
@@ -431,11 +429,11 @@ snap_check(WT_CURSOR *cursor,
 			    "snapshot-isolation %" PRIu64 " search mismatch\n",
 			    start->keyno);
 
-			if (start->vset)
+			if (start->op == REMOVE)
+				fprintf(stderr, "expected {deleted}\n");
+			else
 				print_item_data(
 				    "expected", start->vdata, start->vsize);
-			else
-				fprintf(stderr, "expected {deleted}\n");
 			if (ret == WT_NOTFOUND)
 				fprintf(stderr, "found {deleted}\n");
 			else
