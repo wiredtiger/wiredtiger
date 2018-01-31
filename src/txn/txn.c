@@ -608,7 +608,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 static inline int
 __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 {
-	WT_DECL_TIMESTAMP(op_timestamp);
+	WT_DECL_TIMESTAMP(op_timestamp)
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
