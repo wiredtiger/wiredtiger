@@ -214,7 +214,7 @@ __txn_global_query_timestamp(
 		__wt_readlock(session, &txn_global->commit_timestamp_rwlock);
 		TAILQ_FOREACH(txn, &txn_global->commit_timestamph,
 		    commit_timestampq) {
-			if (!F_ISSET(txn, WT_TXN_PUBLIC_TS_COMMIT))
+			if (txn->clear_ts_queue)
 				continue;
 			/*
 			 * Compare on the first real running transaction.
@@ -692,7 +692,7 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session)
 	} else {
 		TAILQ_FOREACH_SAFE(qtxn, &txn_global->commit_timestamph,
 		    commit_timestampq, txn_tmp) {
-			if (!F_ISSET(qtxn, WT_TXN_PUBLIC_TS_COMMIT)) {
+			if (qtxn->clear_ts_queue) {
 				qtxn->clear_ts_queue = false;
 				TAILQ_REMOVE(&txn_global->commit_timestamph,
 				    qtxn, commit_timestampq);
@@ -721,6 +721,7 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session)
 	}
 	++txn_global->commit_timestampq_len;
 	WT_STAT_CONN_INCR(session, txn_commit_queue_inserts);
+	txn->clear_ts_queue = false;
 	__wt_writeunlock(session, &txn_global->commit_timestamp_rwlock);
 	F_SET(txn, WT_TXN_HAS_TS_COMMIT | WT_TXN_PUBLIC_TS_COMMIT);
 }
