@@ -498,17 +498,9 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 
 	final_state = WT_REF_MEM;
 
-	/*
-	 * If we already have the page image, just instantiate the history.
-	 *
-	 * We need exclusive access because other threads could be reading the
-	 * page without history and we can't change the state underneath them.
-	 */
-	if (previous_state == WT_REF_LIMBO) {
-		if (__wt_hazard_check(session, ref) != NULL)
-			goto err;
+	/* If we already have the page image, just instantiate the history. */
+	if (previous_state == WT_REF_LIMBO)
 		goto skip_read;
-	}
 
 	/*
 	 * Get the address: if there is no address, the page was deleted or had

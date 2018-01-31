@@ -644,10 +644,12 @@ __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 		if (op->type == WT_TXN_OP_BASIC_TS ||
 		    op->type == WT_TXN_OP_BASIC) {
 			/*
-			 * Skip over any aborted update structures.
+			 * Skip over any aborted update structures or ones
+			 * from our own transaction.
 			 */
 			upd = op->u.upd->next;
-			while (upd != NULL && upd->txnid == WT_TXN_ABORTED)
+			while (upd != NULL && (upd->txnid == WT_TXN_ABORTED ||
+			    upd->txnid == txn->id))
 				upd = upd->next;
 
 			/*
