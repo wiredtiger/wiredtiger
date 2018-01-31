@@ -1093,25 +1093,24 @@ done:		switch (positioned) {
 		__cursor_state_restore(cursor, &state);
 
 		/*
-		 * If an iterating or positioned cursor was forced to give up
-		 * its pinned page and then a search failed, we've lost our
-		 * cursor position, no subsequent iteration can succeed.
-		 */
-		if (ret == WT_NOTFOUND &&
-		    (iterating || positioned != NO_POSITION))
-			ret = WT_ROLLBACK;
-
-		/*
-		 * If the cursor is configured to overwrite and the record isn't
-		 * found, that is exactly what we want, return success. Note we
-		 * set clear the return value after everything else, the clause
+		 * If the record isn't found and the cursor is configured for
+		 * overwrite, that is what we want, try to return success.
+		 *
+		 * We set the return to 0 after testing for success, the clause
 		 * above dealing with the cursor position is only correct if we
 		 * were successful. If search failed after positioned is set to
 		 * SEARCH_POSITION, we cannot return a key. The only action to
 		 * take is to set the cursor to its original key, which we just
 		 * did.
+		 *
+		 * Finally, if an iterating or positioned cursor was forced to
+		 * give up its pinned page and then a search failed, we've
+		 * lost our cursor position. Since no subsequent iteration can
+		 * succeed, we cannot return success.
 		 */
-		if (ret == WT_NOTFOUND && F_ISSET(cursor, WT_CURSTD_OVERWRITE))
+		if (ret == WT_NOTFOUND &&
+		    F_ISSET(cursor, WT_CURSTD_OVERWRITE) &&
+		    !iterating && positioned == NO_POSITION)
 			ret = 0;
 	}
 
@@ -1138,12 +1137,10 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	bool iterating;
 
 	btree = cbt->btree;
 	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cursor->session;
-	iterating = F_ISSET(cbt, WT_CBT_ITERATE_NEXT | WT_CBT_ITERATE_PREV);
 
 	/* It's no longer possible to bulk-load into the tree. */
 	__cursor_disable_bulk(session, btree);
@@ -1276,14 +1273,6 @@ done:		switch (modify_type) {
 	if (ret != 0) {
 		WT_TRET(__cursor_reset(cbt));
 		__cursor_state_restore(cursor, &state);
-
-		/*
-		 * If an iterating cursor was forced to give up its pinned page
-		 * and then a search failed, we've lost our cursor position, no
-		 * subsequent iteration can succeed.
-		 */
-		if (ret == WT_NOTFOUND && iterating)
-			ret = WT_ROLLBACK;
 	}
 
 	return (ret);
