@@ -608,11 +608,12 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 static inline int
 __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 {
+	WT_DECL_TIMESTAMP(op_timestamp);
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
 	u_int i;
-	bool op_used_ts, upd_used_ts;
+	bool op_zero_ts, upd_zero_ts;
 
 	txn = &session->txn;
 
@@ -662,16 +663,31 @@ __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 			/*
 			 * Check for consistent per-key timestamp usage.
 			 * If timestamps are or are not used originally then
-			 * they should be used the same way always. Check
-			 * timestamps are used in order.
+			 * they should be used the same way always. For this
+			 * transaction, timestamps are in use anytime the
+			 * commit timestamp is set.
+			 * Check timestamps are used in order.
 			 */
-			op_used_ts =
-			    __wt_timestamp_iszero(&op->u.upd->timestamp);
-			upd_used_ts = __wt_timestamp_iszero(&upd->timestamp);
-			if (op_used_ts != upd_used_ts)
+			op_zero_ts = !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT);
+			upd_zero_ts = __wt_timestamp_iszero(&upd->timestamp);
+			if (op_zero_ts != upd_zero_ts)
 				WT_RET_MSG(session, EINVAL,
 				    "per-key timestamps used inconsistently");
-			if (__wt_timestamp_cmp(&op->u.upd->timestamp,
+			/*
+			 * If we aren't using timestamps for this transaction
+			 * then we are done checking. Don't check the timestamp
+			 * because the one in the transaction is not cleared.
+			 */
+			if (op_zero_ts)
+				continue;
+			op_timestamp = op->u.upd->timestamp;
+			/*
+			 * Only if the update structure doesn't have a timestamp
+			 * then use the one in the transaction structure.
+			 */
+			if (__wt_timestamp_iszero(&op->u.upd->timestamp))
+				op_timestamp = txn->commit_timestamp;
+			if (__wt_timestamp_cmp(&op_timestamp,
 			    &upd->timestamp) < 0)
 				WT_RET_MSG(session, EINVAL,
 				    "out of order timestamps");
