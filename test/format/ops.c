@@ -28,19 +28,19 @@
 
 #include "format.h"
 
-static int   col_insert(TINFO *, WT_CURSOR *, WT_ITEM *);
-static int   col_modify(TINFO *, WT_CURSOR *, WT_ITEM *, bool);
+static int   col_insert(TINFO *, WT_CURSOR *);
+static int   col_modify(TINFO *, WT_CURSOR *, bool);
 static int   col_remove(TINFO *, WT_CURSOR *, bool);
 static int   col_reserve(TINFO *, WT_CURSOR *, bool);
-static int   col_update(TINFO *, WT_CURSOR *, WT_ITEM *, bool);
+static int   col_update(TINFO *, WT_CURSOR *, bool);
 static int   nextprev(TINFO *, WT_CURSOR *, bool);
 static WT_THREAD_RET ops(void *);
-static int   read_row(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value);
-static int   row_insert(TINFO *, WT_CURSOR *, WT_ITEM *, bool);
-static int   row_modify(TINFO *, WT_CURSOR *, WT_ITEM *, bool);
+static int   read_row(TINFO *, WT_CURSOR *);
+static int   row_insert(TINFO *, WT_CURSOR *, bool);
+static int   row_modify(TINFO *, WT_CURSOR *, bool);
 static int   row_remove(TINFO *, WT_CURSOR *, bool);
 static int   row_reserve(TINFO *, WT_CURSOR *, bool);
-static int   row_update(TINFO *, WT_CURSOR *, WT_ITEM *, bool);
+static int   row_update(TINFO *, WT_CURSOR *, bool);
 static void  table_append_init(void);
 
 #ifdef HAVE_BERKELEY_DB
@@ -269,8 +269,10 @@ wts_ops(int lastrun)
 	free(tinfo_list);
 }
 
+typedef enum { INSERT, MODIFY, READ, REMOVE, UPDATE } thread_op;
 typedef struct {
-	uint64_t keyno;			/* Row number */
+	thread_op op;			/* Operation */
+	uint64_t  keyno;		/* Row number */
 
 	void    *kdata;			/* If an insert, the generated key */
 	size_t   ksize;
@@ -279,37 +281,36 @@ typedef struct {
 	void    *vdata;			/* If not a delete, the value */
 	size_t   vsize;
 	size_t   vmemsize;
-
-	bool     deleted;		/* Delete operation */
-	bool     insert;		/* Insert operation */
 } SNAP_OPS;
 
-#define	SNAP_TRACK							\
-	(snap != NULL && (size_t)(snap - snap_list) < WT_ELEMENTS(snap_list))
+#define	SNAP_TRACK(op, keyno, key, value) do {				\
+	if (snap != NULL &&						\
+	    (size_t)(snap - snap_list) < WT_ELEMENTS(snap_list))	\
+		snap_track(snap++, op, keyno, key, value);		\
+} while (0)
 
 /*
  * snap_track --
  *     Add a single snapshot isolation returned value to the list.
  */
 static void
-snap_track(SNAP_OPS *snap, uint64_t keyno, WT_ITEM *key, WT_ITEM *value)
+snap_track(
+    SNAP_OPS *snap, thread_op op, uint64_t keyno, WT_ITEM *key, WT_ITEM *value)
 {
+	snap->op = op;
 	snap->keyno = keyno;
-	if (key == NULL)
-		snap->insert = false;
-	else {
-		snap->insert = true;
 
+	testutil_assert(key == NULL || (op == INSERT && g.type == ROW));
+	if (key != NULL) {
 		if (snap->kmemsize < key->size) {
 			snap->kdata = drealloc(snap->kdata, key->size);
 			snap->kmemsize = key->size;
 		}
 		memcpy(snap->kdata, key->data, snap->ksize = key->size);
 	}
-	if (value == NULL)
-		snap->deleted = true;
-	else  {
-		snap->deleted = false;
+
+	testutil_assert(value != NULL || op == REMOVE);
+	if (value != NULL) {
 		if (snap->vmemsize < value->size) {
 			snap->vdata = drealloc(snap->vdata, value->size);
 			snap->vmemsize = value->size;
@@ -342,7 +343,11 @@ snap_check(WT_CURSOR *cursor,
 		 * unique generated key we saved, else generate the key from the
 		 * key number.
 		 */
-		if (start->insert == 0) {
+		if (start->op == INSERT && g.type == ROW) {
+			key->data = start->kdata;
+			key->size = start->ksize;
+			cursor->set_key(cursor, key);
+		} else {
 			switch (g.type) {
 			case FIX:
 			case VAR:
@@ -353,10 +358,6 @@ snap_check(WT_CURSOR *cursor,
 				cursor->set_key(cursor, key);
 				break;
 			}
-		} else {
-			key->data = start->kdata;
-			key->size = start->ksize;
-			cursor->set_key(cursor, key);
 		}
 		if ((ret = cursor->search(cursor)) == 0) {
 			if (g.type == FIX) {
@@ -372,11 +373,11 @@ snap_check(WT_CURSOR *cursor,
 				return (ret);
 
 		/* Check for simple matches. */
-		if (ret == 0 && !start->deleted &&
+		if (ret == 0 && start->op != REMOVE &&
 		    value->size == start->vsize &&
 		    memcmp(value->data, start->vdata, value->size) == 0)
 			continue;
-		if (ret == WT_NOTFOUND && start->deleted)
+		if (ret == WT_NOTFOUND && start->op == REMOVE)
 			continue;
 
 		/*
@@ -388,7 +389,7 @@ snap_check(WT_CURSOR *cursor,
 			if (ret == WT_NOTFOUND &&
 			    start->vsize == 1 && *(uint8_t *)start->vdata == 0)
 				continue;
-			if (start->deleted &&
+			if (start->op == REMOVE &&
 			    value->size == 1 && *(uint8_t *)value->data == 0)
 				continue;
 		}
@@ -400,7 +401,7 @@ snap_check(WT_CURSOR *cursor,
 			    "snapshot-isolation: %" PRIu64 " search: "
 			    "expected {0x%02x}, found {0x%02x}",
 			    start->keyno,
-			    start->deleted ? 0 : *(uint8_t *)start->vdata,
+			    start->op == REMOVE ? 0 : *(uint8_t *)start->vdata,
 			    ret == WT_NOTFOUND ? 0 : *(uint8_t *)value->data);
 			/* NOTREACHED */
 		case ROW:
@@ -408,7 +409,7 @@ snap_check(WT_CURSOR *cursor,
 			    "snapshot-isolation %.*s search mismatch\n",
 			    (int)key->size, (const char *)key->data);
 
-			if (start->deleted)
+			if (start->op == REMOVE)
 				fprintf(stderr, "expected {deleted}\n");
 			else
 				print_item_data(
@@ -428,7 +429,7 @@ snap_check(WT_CURSOR *cursor,
 			    "snapshot-isolation %" PRIu64 " search mismatch\n",
 			    start->keyno);
 
-			if (start->deleted)
+			if (start->op == REMOVE)
 				fprintf(stderr, "expected {deleted}\n");
 			else
 				print_item_data(
@@ -543,14 +544,13 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session)
 static WT_THREAD_RET
 ops(void *arg)
 {
-	enum { INSERT, MODIFY, READ, REMOVE, UPDATE } op;
-	SNAP_OPS *snap, snap_list[64];
+	SNAP_OPS *snap, snap_list[128];
 	TINFO *tinfo;
 	WT_CONNECTION *conn;
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
-	WT_ITEM *value, _value;
 	WT_SESSION *session;
+	thread_op op;
 	uint64_t reset_op, session_op;
 	uint32_t rnd;
 	u_int i, j, iso_config;
@@ -569,8 +569,8 @@ ops(void *arg)
 	/* Set up the default key and value buffers. */
 	tinfo->key = &tinfo->_key;
 	key_gen_init(tinfo->key);
-	value = &_value;
-	val_gen_init(value);
+	tinfo->value = &tinfo->_value;
+	val_gen_init(tinfo->value);
 
 	/* Set the first operation where we'll create sessions and cursors. */
 	cursor = NULL;
@@ -704,12 +704,11 @@ ops(void *arg)
 		positioned = false;
 		if (op != READ && mmrand(&tinfo->rnd, 1, 5) == 1) {
 			++tinfo->search;
-			ret = read_row(tinfo, cursor, value);
+			ret = read_row(tinfo, cursor);
 			if (ret == 0) {
 				positioned = true;
-				if (SNAP_TRACK)
-					snap_track(
-					    snap++, tinfo->keyno, NULL, value);
+				SNAP_TRACK(
+				    READ, tinfo->keyno, NULL, tinfo->value);
 			} else {
 				if (ret == WT_ROLLBACK && intxn)
 					goto deadlock;
@@ -744,8 +743,7 @@ ops(void *arg)
 		case INSERT:
 			switch (g.type) {
 			case ROW:
-				ret = row_insert(
-				    tinfo, cursor, value, positioned);
+				ret = row_insert(tinfo, cursor, positioned);
 				break;
 			case FIX:
 			case VAR:
@@ -757,7 +755,7 @@ ops(void *arg)
 				if (g.append_cnt >= g.append_max)
 					goto update_instead_of_chosen_op;
 
-				ret = col_insert(tinfo, cursor, value);
+				ret = col_insert(tinfo, cursor);
 				break;
 			}
 
@@ -765,10 +763,9 @@ ops(void *arg)
 			positioned = false;
 			if (ret == 0) {
 				++tinfo->insert;
-				if (SNAP_TRACK)
-					snap_track(snap++, tinfo->keyno,
-					    g.type == ROW ? tinfo->key : NULL,
-					    value);
+				SNAP_TRACK(INSERT, tinfo->keyno,
+				    g.type == ROW ? tinfo->key : NULL,
+				    tinfo->value);
 			} else {
 				if (ret == WT_ROLLBACK && intxn)
 					goto deadlock;
@@ -786,19 +783,16 @@ ops(void *arg)
 			++tinfo->update;
 			switch (g.type) {
 			case ROW:
-				ret = row_modify(
-				    tinfo, cursor, value, positioned);
+				ret = row_modify(tinfo, cursor, positioned);
 				break;
 			case VAR:
-				ret = col_modify(
-				    tinfo, cursor, value, positioned);
+				ret = col_modify(tinfo, cursor, positioned);
 				break;
 			}
 			if (ret == 0) {
 				positioned = true;
-				if (SNAP_TRACK)
-					snap_track(
-					    snap++, tinfo->keyno, NULL, value);
+				SNAP_TRACK(
+				    MODIFY, tinfo->keyno, NULL, tinfo->value);
 			} else {
 				positioned = false;
 				if (ret == WT_ROLLBACK && intxn)
@@ -809,12 +803,11 @@ ops(void *arg)
 			break;
 		case READ:
 			++tinfo->search;
-			ret = read_row(tinfo, cursor, value);
+			ret = read_row(tinfo, cursor);
 			if (ret == 0) {
 				positioned = true;
-				if (SNAP_TRACK)
-					snap_track(
-					    snap++, tinfo->keyno, NULL, value);
+				SNAP_TRACK(
+				    READ, tinfo->keyno, NULL, tinfo->value);
 			} else {
 				positioned = false;
 				if (ret == WT_ROLLBACK && intxn)
@@ -840,9 +833,7 @@ ops(void *arg)
 				 * Don't set positioned: it's unchanged from the
 				 * previous state, but not necessarily set.
 				 */
-				if (SNAP_TRACK)
-					snap_track(
-					    snap++, tinfo->keyno, NULL, NULL);
+				SNAP_TRACK(REMOVE, tinfo->keyno, NULL, NULL);
 			} else {
 				positioned = false;
 				if (ret == WT_ROLLBACK && intxn)
@@ -855,20 +846,17 @@ update_instead_of_chosen_op:
 			++tinfo->update;
 			switch (g.type) {
 			case ROW:
-				ret = row_update(
-				    tinfo, cursor, value, positioned);
+				ret = row_update(tinfo, cursor, positioned);
 				break;
 			case FIX:
 			case VAR:
-				ret = col_update(
-				    tinfo, cursor, value, positioned);
+				ret = col_update(tinfo, cursor, positioned);
 				break;
 			}
 			if (ret == 0) {
 				positioned = true;
-				if (SNAP_TRACK)
-					snap_track(
-					    snap++, tinfo->keyno, NULL, value);
+				SNAP_TRACK(
+				    UPDATE, tinfo->keyno, NULL, tinfo->value);
 			} else {
 				positioned = false;
 				if (ret == WT_ROLLBACK && intxn)
@@ -910,9 +898,13 @@ update_instead_of_chosen_op:
 		 * Ending the transaction. If in snapshot isolation, repeat the
 		 * operations and confirm they're unchanged.
 		 */
-		if (snap != NULL && (ret = snap_check(
-		    cursor, snap_list, snap, tinfo->key, value)) == WT_ROLLBACK)
-			goto deadlock;
+		if (snap != NULL) {
+			ret = snap_check(
+			    cursor, snap_list, snap, tinfo->key, tinfo->value);
+			testutil_assert(ret == 0 || ret == WT_ROLLBACK);
+			if (ret == WT_ROLLBACK)
+				goto deadlock;
+		}
 
 		/*
 		 * If we're in a transaction, commit 40% of the time and
@@ -944,7 +936,7 @@ deadlock:			++tinfo->deadlock;
 		free(snap_list[i].vdata);
 	}
 	key_gen_teardown(tinfo->key);
-	val_gen_teardown(value);
+	val_gen_teardown(tinfo->value);
 
 	tinfo->state = TINFO_COMPLETE;
 	return (WT_THREAD_RET_VALUE);
@@ -992,7 +984,7 @@ wts_read_scan(void)
 		}
 
 		switch (ret = read_row_worker(
-		    cursor, &key, keyno, &value, false)) {
+		    cursor, keyno, &key, &value, false)) {
 		case 0:
 		case WT_NOTFOUND:
 		case WT_ROLLBACK:
@@ -1015,7 +1007,7 @@ wts_read_scan(void)
  */
 int
 read_row_worker(
-    WT_CURSOR *cursor, WT_ITEM *key, uint64_t keyno, WT_ITEM *value, bool sn)
+    WT_CURSOR *cursor, uint64_t keyno, WT_ITEM *key, WT_ITEM *value, bool sn)
 {
 	WT_SESSION *session;
 	uint8_t bitfield;
@@ -1108,11 +1100,11 @@ read_row_worker(
  *	Read and verify a single element in a row- or column-store file.
  */
 static int
-read_row(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value)
+read_row(TINFO *tinfo, WT_CURSOR *cursor)
 {
 	/* 25% of the time we call search-near. */
-	return (read_row_worker(cursor,
-	    tinfo->key, tinfo->keyno, value, mmrand(&tinfo->rnd, 0, 3) == 1));
+	return (read_row_worker(cursor, tinfo->keyno,
+	    tinfo->key, tinfo->value, mmrand(&tinfo->rnd, 0, 3) == 1));
 }
 
 /*
@@ -1369,7 +1361,7 @@ modify_build(TINFO *tinfo, WT_MODIFY *entries, int *nentriesp)
  *	Modify a row in a row-store file.
  */
 static int
-row_modify(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value, bool positioned)
+row_modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 {
 	WT_DECL_RET;
 	WT_MODIFY entries[MAX_MODIFY_ENTRIES];
@@ -1383,7 +1375,7 @@ row_modify(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value, bool positioned)
 	modify_build(tinfo, entries, &nentries);
 	switch (ret = cursor->modify(cursor, entries, nentries)) {
 	case 0:
-		testutil_check(cursor->get_value(cursor, value));
+		testutil_check(cursor->get_value(cursor, tinfo->value));
 		break;
 	case WT_CACHE_FULL:
 	case WT_ROLLBACK:
@@ -1400,14 +1392,15 @@ row_modify(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value, bool positioned)
 		    "%-10s{%.*s}, {%.*s}",
 		    "modify",
 		    (int)tinfo->key->size, tinfo->key->data,
-		    (int)value->size, value->data);
+		    (int)tinfo->value->size, tinfo->value->data);
 
 #ifdef HAVE_BERKELEY_DB
 	if (!SINGLETHREADED)
 		return (0);
 
 	bdb_update(
-	    tinfo->key->data, tinfo->key->size, value->data, value->size);
+	    tinfo->key->data, tinfo->key->size,
+	    tinfo->value->data, tinfo->value->size);
 #endif
 	return (0);
 }
@@ -1417,7 +1410,7 @@ row_modify(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value, bool positioned)
  *	Modify a row in a column-store file.
  */
 static int
-col_modify(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value, bool positioned)
+col_modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 {
 	WT_DECL_RET;
 	WT_MODIFY entries[MAX_MODIFY_ENTRIES];
@@ -1429,7 +1422,7 @@ col_modify(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value, bool positioned)
 	modify_build(tinfo, entries, &nentries);
 	switch (ret = cursor->modify(cursor, entries, nentries)) {
 	case 0:
-		testutil_check(cursor->get_value(cursor, value));
+		testutil_check(cursor->get_value(cursor, tinfo->value));
 		break;
 	case WT_CACHE_FULL:
 	case WT_ROLLBACK:
@@ -1446,7 +1439,7 @@ col_modify(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value, bool positioned)
 		    "%-10s{%.*s}, {%.*s}",
 		    "modify",
 		    (int)tinfo->key->size, tinfo->key->data,
-		    (int)value->size, value->data);
+		    (int)tinfo->value->size, tinfo->value->data);
 
 #ifdef HAVE_BERKELEY_DB
 	if (!SINGLETHREADED)
@@ -1454,7 +1447,8 @@ col_modify(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value, bool positioned)
 
 	key_gen(tinfo->key, tinfo->keyno);
 	bdb_update(
-	    tinfo->key->data, tinfo->key->size, value->data, value->size);
+	    tinfo->key->data, tinfo->key->size,
+	    tinfo->value->data, tinfo->value->size);
 #endif
 	return (0);
 }
@@ -1464,7 +1458,7 @@ col_modify(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value, bool positioned)
  *	Update a row in a row-store file.
  */
 static int
-row_update(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value, bool positioned)
+row_update(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 {
 	WT_DECL_RET;
 
@@ -1472,15 +1466,15 @@ row_update(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value, bool positioned)
 		key_gen(tinfo->key, tinfo->keyno);
 		cursor->set_key(cursor, tinfo->key);
 	}
-	val_gen(&tinfo->rnd, value, tinfo->keyno);
-	cursor->set_value(cursor, value);
+	val_gen(&tinfo->rnd, tinfo->value, tinfo->keyno);
+	cursor->set_value(cursor, tinfo->value);
 
 	if (g.logging == LOG_OPS)
 		(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
 		    "%-10s{%.*s}, {%.*s}",
 		    "put",
 		    (int)tinfo->key->size, tinfo->key->data,
-		    (int)value->size, value->data);
+		    (int)tinfo->value->size, tinfo->value->data);
 
 	switch (ret = cursor->update(cursor)) {
 	case 0:
@@ -1498,7 +1492,8 @@ row_update(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value, bool positioned)
 		return (0);
 
 	bdb_update(
-	    tinfo->key->data, tinfo->key->size, value->data, value->size);
+	    tinfo->key->data, tinfo->key->size,
+	    tinfo->value->data, tinfo->value->size);
 #endif
 	return (0);
 }
@@ -1508,29 +1503,30 @@ row_update(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value, bool positioned)
  *	Update a row in a column-store file.
  */
 static int
-col_update(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value, bool positioned)
+col_update(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 {
 	WT_DECL_RET;
 
 	if (!positioned)
 		cursor->set_key(cursor, tinfo->keyno);
-	val_gen(&tinfo->rnd, value, tinfo->keyno);
+	val_gen(&tinfo->rnd, tinfo->value, tinfo->keyno);
 	if (g.type == FIX)
-		cursor->set_value(cursor, *(uint8_t *)value->data);
+		cursor->set_value(cursor, *(uint8_t *)tinfo->value->data);
 	else
-		cursor->set_value(cursor, value);
+		cursor->set_value(cursor, tinfo->value);
 
 	if (g.logging == LOG_OPS) {
 		if (g.type == FIX)
 			(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
 			    "%-10s%" PRIu64 " {0x%02" PRIx8 "}",
 			    "update", tinfo->keyno,
-			    ((uint8_t *)value->data)[0]);
+			    ((uint8_t *)tinfo->value->data)[0]);
 		else
 			(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
 			    "%-10s%" PRIu64 " {%.*s}",
 			    "update", tinfo->keyno,
-			    (int)value->size, (char *)value->data);
+			    (int)tinfo->value->size,
+			    (char *)tinfo->value->data);
 	}
 
 	switch (ret = cursor->update(cursor)) {
@@ -1549,7 +1545,8 @@ col_update(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value, bool positioned)
 
 	key_gen(tinfo->key, tinfo->keyno);
 	bdb_update(
-	    tinfo->key->data, tinfo->key->size, value->data, value->size);
+	    tinfo->key->data, tinfo->key->size,
+	    tinfo->value->data, tinfo->value->size);
 #endif
 	return (0);
 }
@@ -1658,7 +1655,7 @@ table_append(uint64_t keyno)
  *	Insert a row in a row-store file.
  */
 static int
-row_insert(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value, bool positioned)
+row_insert(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 {
 	WT_DECL_RET;
 
@@ -1670,8 +1667,8 @@ row_insert(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value, bool positioned)
 		key_gen_insert(&tinfo->rnd, tinfo->key, tinfo->keyno);
 		cursor->set_key(cursor, tinfo->key);
 	}
-	val_gen(&tinfo->rnd, value, tinfo->keyno);
-	cursor->set_value(cursor, value);
+	val_gen(&tinfo->rnd, tinfo->value, tinfo->keyno);
+	cursor->set_value(cursor, tinfo->value);
 
 	/* Log the operation */
 	if (g.logging == LOG_OPS)
@@ -1679,7 +1676,7 @@ row_insert(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value, bool positioned)
 		    "%-10s{%.*s}, {%.*s}",
 		    "insert",
 		    (int)tinfo->key->size, tinfo->key->data,
-		    (int)value->size, value->data);
+		    (int)tinfo->value->size, tinfo->value->data);
 
 	switch (ret = cursor->insert(cursor)) {
 	case 0:
@@ -1697,7 +1694,8 @@ row_insert(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value, bool positioned)
 		return (0);
 
 	bdb_update(
-	    tinfo->key->data, tinfo->key->size, value->data, value->size);
+	    tinfo->key->data, tinfo->key->size,
+	    tinfo->value->data, tinfo->value->size);
 #endif
 	return (0);
 }
@@ -1707,15 +1705,15 @@ row_insert(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value, bool positioned)
  *	Insert an element in a column-store file.
  */
 static int
-col_insert(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value)
+col_insert(TINFO *tinfo, WT_CURSOR *cursor)
 {
 	WT_DECL_RET;
 
-	val_gen(&tinfo->rnd, value, g.rows + 1);
+	val_gen(&tinfo->rnd, tinfo->value, g.rows + 1);
 	if (g.type == FIX)
-		cursor->set_value(cursor, *(uint8_t *)value->data);
+		cursor->set_value(cursor, *(uint8_t *)tinfo->value->data);
 	else
-		cursor->set_value(cursor, value);
+		cursor->set_value(cursor, tinfo->value);
 	switch (ret = cursor->insert(cursor)) {
 	case 0:
 		break;
@@ -1734,12 +1732,13 @@ col_insert(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value)
 			(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
 			    "%-10s%" PRIu64 " {0x%02" PRIx8 "}",
 			    "insert", tinfo->keyno,
-			    ((uint8_t *)value->data)[0]);
+			    ((uint8_t *)tinfo->value->data)[0]);
 		else
 			(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
 			    "%-10s%" PRIu64 " {%.*s}",
 			    "insert", tinfo->keyno,
-			    (int)value->size, (char *)value->data);
+			    (int)tinfo->value->size,
+			    (char *)tinfo->value->data);
 	}
 
 #ifdef HAVE_BERKELEY_DB
@@ -1748,7 +1747,8 @@ col_insert(TINFO *tinfo, WT_CURSOR *cursor, WT_ITEM *value)
 
 	key_gen(tinfo->key, tinfo->keyno);
 	bdb_update(
-	    tinfo->key->data, tinfo->key->size, value->data, value->size);
+	    tinfo->key->data, tinfo->key->size,
+	    tinfo->value->data, tinfo->value->size);
 #endif
 	return (0);
 }
