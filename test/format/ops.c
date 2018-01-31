@@ -269,47 +269,50 @@ wts_ops(int lastrun)
 	free(tinfo_list);
 }
 
+typedef enum { INSERT, MODIFY, READ, REMOVE, UPDATE } thread_op;
 typedef struct {
-	uint64_t keyno;			/* Row number */
+	thread_op op;			/* Operation */
+	uint64_t  keyno;		/* Row number */
 
 	void    *kdata;			/* If an insert, the generated key */
 	size_t   ksize;
 	size_t   kmemsize;
+	bool	 kset;
 
 	void    *vdata;			/* If not a delete, the value */
 	size_t   vsize;
 	size_t   vmemsize;
-
-	bool     deleted;		/* Delete operation */
-	bool     insert;		/* Insert operation */
+	bool	 vset;
 } SNAP_OPS;
 
-#define	SNAP_TRACK							\
-	(snap != NULL && (size_t)(snap - snap_list) < WT_ELEMENTS(snap_list))
+#define	SNAP_TRACK(op, keyno, key, value) do {				\
+	if (snap != NULL &&						\
+	    (size_t)(snap - snap_list) < WT_ELEMENTS(snap_list))	\
+		snap_track(snap++, op, keyno, key, value);		\
+} while (0)
 
 /*
  * snap_track --
  *     Add a single snapshot isolation returned value to the list.
  */
 static void
-snap_track(SNAP_OPS *snap, uint64_t keyno, WT_ITEM *key, WT_ITEM *value)
+snap_track(
+    SNAP_OPS *snap, thread_op op, uint64_t keyno, WT_ITEM *key, WT_ITEM *value)
 {
+	snap->op = op;
 	snap->keyno = keyno;
-	if (key == NULL)
-		snap->insert = false;
-	else {
-		snap->insert = true;
 
+	snap->kset = key != NULL;
+	if (snap->kset) {
 		if (snap->kmemsize < key->size) {
 			snap->kdata = drealloc(snap->kdata, key->size);
 			snap->kmemsize = key->size;
 		}
 		memcpy(snap->kdata, key->data, snap->ksize = key->size);
 	}
-	if (value == NULL)
-		snap->deleted = true;
-	else  {
-		snap->deleted = false;
+
+	snap->vset = value != NULL;
+	if (snap->vset) {
 		if (snap->vmemsize < value->size) {
 			snap->vdata = drealloc(snap->vdata, value->size);
 			snap->vmemsize = value->size;
@@ -342,7 +345,11 @@ snap_check(WT_CURSOR *cursor,
 		 * unique generated key we saved, else generate the key from the
 		 * key number.
 		 */
-		if (start->insert == 0) {
+		if (start->kset) {
+			key->data = start->kdata;
+			key->size = start->ksize;
+			cursor->set_key(cursor, key);
+		} else {
 			switch (g.type) {
 			case FIX:
 			case VAR:
@@ -353,10 +360,6 @@ snap_check(WT_CURSOR *cursor,
 				cursor->set_key(cursor, key);
 				break;
 			}
-		} else {
-			key->data = start->kdata;
-			key->size = start->ksize;
-			cursor->set_key(cursor, key);
 		}
 		if ((ret = cursor->search(cursor)) == 0) {
 			if (g.type == FIX) {
@@ -372,11 +375,11 @@ snap_check(WT_CURSOR *cursor,
 				return (ret);
 
 		/* Check for simple matches. */
-		if (ret == 0 && !start->deleted &&
+		if (ret == 0 && start->vset &&
 		    value->size == start->vsize &&
 		    memcmp(value->data, start->vdata, value->size) == 0)
 			continue;
-		if (ret == WT_NOTFOUND && start->deleted)
+		if (ret == WT_NOTFOUND && !start->vset)
 			continue;
 
 		/*
@@ -388,7 +391,7 @@ snap_check(WT_CURSOR *cursor,
 			if (ret == WT_NOTFOUND &&
 			    start->vsize == 1 && *(uint8_t *)start->vdata == 0)
 				continue;
-			if (start->deleted &&
+			if (!start->vset &&
 			    value->size == 1 && *(uint8_t *)value->data == 0)
 				continue;
 		}
@@ -400,7 +403,7 @@ snap_check(WT_CURSOR *cursor,
 			    "snapshot-isolation: %" PRIu64 " search: "
 			    "expected {0x%02x}, found {0x%02x}",
 			    start->keyno,
-			    start->deleted ? 0 : *(uint8_t *)start->vdata,
+			    !start->vset ? 0 : *(uint8_t *)start->vdata,
 			    ret == WT_NOTFOUND ? 0 : *(uint8_t *)value->data);
 			/* NOTREACHED */
 		case ROW:
@@ -408,11 +411,11 @@ snap_check(WT_CURSOR *cursor,
 			    "snapshot-isolation %.*s search mismatch\n",
 			    (int)key->size, (const char *)key->data);
 
-			if (start->deleted)
-				fprintf(stderr, "expected {deleted}\n");
-			else
+			if (start->vset)
 				print_item_data(
 				    "expected", start->vdata, start->vsize);
+			else
+				fprintf(stderr, "expected {deleted}\n");
 			if (ret == WT_NOTFOUND)
 				fprintf(stderr, "found {deleted}\n");
 			else
@@ -428,11 +431,11 @@ snap_check(WT_CURSOR *cursor,
 			    "snapshot-isolation %" PRIu64 " search mismatch\n",
 			    start->keyno);
 
-			if (start->deleted)
-				fprintf(stderr, "expected {deleted}\n");
-			else
+			if (start->vset)
 				print_item_data(
 				    "expected", start->vdata, start->vsize);
+			else
+				fprintf(stderr, "expected {deleted}\n");
 			if (ret == WT_NOTFOUND)
 				fprintf(stderr, "found {deleted}\n");
 			else
@@ -543,14 +546,14 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session)
 static WT_THREAD_RET
 ops(void *arg)
 {
-	enum { INSERT, MODIFY, READ, REMOVE, UPDATE } op;
-	SNAP_OPS *snap, snap_list[64];
+	SNAP_OPS *snap, snap_list[128];
 	TINFO *tinfo;
 	WT_CONNECTION *conn;
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_ITEM *value, _value;
 	WT_SESSION *session;
+	thread_op op;
 	uint64_t reset_op, session_op;
 	uint32_t rnd;
 	u_int i, j, iso_config;
@@ -707,9 +710,7 @@ ops(void *arg)
 			ret = read_row(tinfo, cursor, value);
 			if (ret == 0) {
 				positioned = true;
-				if (SNAP_TRACK)
-					snap_track(
-					    snap++, tinfo->keyno, NULL, value);
+				SNAP_TRACK(READ, tinfo->keyno, NULL, value);
 			} else {
 				if (ret == WT_ROLLBACK && intxn)
 					goto deadlock;
@@ -765,10 +766,8 @@ ops(void *arg)
 			positioned = false;
 			if (ret == 0) {
 				++tinfo->insert;
-				if (SNAP_TRACK)
-					snap_track(snap++, tinfo->keyno,
-					    g.type == ROW ? tinfo->key : NULL,
-					    value);
+				SNAP_TRACK(INSERT, tinfo->keyno,
+				    g.type == ROW ? tinfo->key : NULL, value);
 			} else {
 				if (ret == WT_ROLLBACK && intxn)
 					goto deadlock;
@@ -796,9 +795,7 @@ ops(void *arg)
 			}
 			if (ret == 0) {
 				positioned = true;
-				if (SNAP_TRACK)
-					snap_track(
-					    snap++, tinfo->keyno, NULL, value);
+				SNAP_TRACK(MODIFY, tinfo->keyno, NULL, value);
 			} else {
 				positioned = false;
 				if (ret == WT_ROLLBACK && intxn)
@@ -812,9 +809,7 @@ ops(void *arg)
 			ret = read_row(tinfo, cursor, value);
 			if (ret == 0) {
 				positioned = true;
-				if (SNAP_TRACK)
-					snap_track(
-					    snap++, tinfo->keyno, NULL, value);
+				SNAP_TRACK(READ, tinfo->keyno, NULL, value);
 			} else {
 				positioned = false;
 				if (ret == WT_ROLLBACK && intxn)
@@ -840,9 +835,7 @@ ops(void *arg)
 				 * Don't set positioned: it's unchanged from the
 				 * previous state, but not necessarily set.
 				 */
-				if (SNAP_TRACK)
-					snap_track(
-					    snap++, tinfo->keyno, NULL, NULL);
+				SNAP_TRACK(REMOVE, tinfo->keyno, NULL, NULL);
 			} else {
 				positioned = false;
 				if (ret == WT_ROLLBACK && intxn)
@@ -866,9 +859,7 @@ update_instead_of_chosen_op:
 			}
 			if (ret == 0) {
 				positioned = true;
-				if (SNAP_TRACK)
-					snap_track(
-					    snap++, tinfo->keyno, NULL, value);
+				SNAP_TRACK(UPDATE, tinfo->keyno, NULL, value);
 			} else {
 				positioned = false;
 				if (ret == WT_ROLLBACK && intxn)
@@ -910,9 +901,13 @@ update_instead_of_chosen_op:
 		 * Ending the transaction. If in snapshot isolation, repeat the
 		 * operations and confirm they're unchanged.
 		 */
-		if (snap != NULL && (ret = snap_check(
-		    cursor, snap_list, snap, tinfo->key, value)) == WT_ROLLBACK)
-			goto deadlock;
+		if (snap != NULL) {
+			ret = snap_check(
+			    cursor, snap_list, snap, tinfo->key, value);
+			testutil_assert(ret == 0 || ret == WT_ROLLBACK);
+			if (ret == WT_ROLLBACK)
+				goto deadlock;
+		}
 
 		/*
 		 * If we're in a transaction, commit 40% of the time and
