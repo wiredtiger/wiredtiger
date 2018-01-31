@@ -10,12 +10,13 @@
 
 /*
  * __wt_optrack_record_funcid --
- *	Record optrack function id
+ *	Allocate and record optrack function ID.
  */
 void
 __wt_optrack_record_funcid(
     WT_SESSION_IMPL *session, const char *func, uint16_t *func_idp)
 {
+	static uint16_t optrack_uid = 0; /* Unique for the process lifetime. */
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_ITEM(tmp);
 	WT_DECL_RET;
@@ -27,7 +28,7 @@ __wt_optrack_record_funcid(
 
 	__wt_spin_lock(session, &conn->optrack_map_spinlock);
 	if (*func_idp == 0) {
-		*func_idp = ++conn->optrack_uid;
+		*func_idp = ++optrack_uid;
 
 		WT_ERR(__wt_buf_fmt(
 		    session, tmp, "%" PRIu16 " %s\n", *func_idp, func));
@@ -54,7 +55,8 @@ __wt_optrack_open_file(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
-	WT_OPTRACK_HEADER optrack_header = {WT_OPTRACK_VERSION, 0};
+	WT_OPTRACK_HEADER optrack_header = { WT_OPTRACK_VERSION, 0,
+	    (uint32_t)WT_TSC_DEFAULT_RATIO * WT_THOUSAND };
 
 	conn = S2C(session);
 
@@ -68,10 +70,18 @@ __wt_optrack_open_file(WT_SESSION_IMPL *session)
 	    (const char *)buf->data, WT_FS_OPEN_FILE_TYPE_REGULAR,
 	    WT_FS_OPEN_CREATE, &session->optrack_fh));
 
-	/* Write the header into the operation-tracking file. */
+	/* Indicate whether this is an internal session */
 	if (F_ISSET(session, WT_SESSION_INTERNAL))
 		optrack_header.optrack_session_internal = 1;
 
+	/*
+	 * Record the clock ticks to nanoseconds ratio. Multiply it by one
+	 * thousand, so we can use a fixed width integer.
+	 */
+	optrack_header.optrack_tsc_nsec_ratio =
+		(uint32_t)(__wt_process.tsc_nsec_ratio * WT_THOUSAND);
+
+	/* Write the header into the operation-tracking file. */
 	WT_ERR(session->optrack_fh->handle->fh_write(
 	    session->optrack_fh->handle, (WT_SESSION *)session,
 	    0, sizeof(WT_OPTRACK_HEADER), &optrack_header));

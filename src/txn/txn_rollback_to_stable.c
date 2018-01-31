@@ -424,8 +424,14 @@ __wt_txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
 	 * Mark that a rollback operation is in progress and wait for eviction
 	 * to drain.  This is necessary because lookaside eviction uses
 	 * transactions and causes the check for a quiescent system to fail.
+	 *
+	 * Configuring lookaside eviction off isn't atomic, safe because the
+	 * flag is only otherwise set when closing down the database. Assert
+	 * to avoid confusion in the future.
 	 */
+	WT_ASSERT(session, !F_ISSET(conn, WT_CONN_EVICTION_NO_LOOKASIDE));
 	F_SET(conn, WT_CONN_EVICTION_NO_LOOKASIDE);
+
 	WT_ERR(__wt_conn_btree_apply(session,
 	    NULL, __txn_rollback_eviction_drain, NULL, cfg));
 
