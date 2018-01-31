@@ -743,6 +743,11 @@ __wt_txn_clear_commit_timestamp(WT_SESSION_IMPL *session)
 	flags = txn->flags;
 	LF_CLR(WT_TXN_PUBLIC_TS_COMMIT);
 
+	/*
+	 * Notify other threads that our transaction is inactive and can be
+	 * cleaned up safely from the commit timestamp queue whenever the next
+	 * thread walks the queue. We do not need to remove it now.
+	 */
 	WT_PUBLISH(txn->clear_ts_queue, true);
 	WT_PUBLISH(txn->flags, flags);
 }
