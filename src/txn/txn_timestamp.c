@@ -693,9 +693,9 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session)
 		TAILQ_FOREACH_SAFE(qtxn, &txn_global->commit_timestamph,
 		    commit_timestampq, txn_tmp) {
 			if (qtxn->clear_ts_queue) {
-				qtxn->clear_ts_queue = false;
 				TAILQ_REMOVE(&txn_global->commit_timestamph,
 				    qtxn, commit_timestampq);
+				WT_PUBLISH(qtxn->clear_ts_queue, false);
 				--txn_global->commit_timestampq_len;
 				continue;
 			}
