@@ -1782,8 +1782,10 @@ struct __wt_session {
 	 * Prepare the current transaction.
 	 *
 	 * A transaction must be in progress when this method is called.
-	 *
-	 * All cursors are reset.
+	 * Preparing a transaction will guarantee subsequent commit will
+	 * succeed. Only commit and rollback are allowed on a transaction after
+	 * it has been prepared. At the moment, prepare transaction is designed
+	 * to support MongoDB exclusively.
 	 *
 	 * @requires_transaction
 	 *
@@ -1793,8 +1795,9 @@ struct __wt_session {
 	 * @configstart{WT_SESSION.prepare_transaction, see dist/api_data.py}
 	 * @config{prepare_timestamp, set the prepare timestamp for the updates
 	 * of the current transaction.  The supplied value should not be older
-	 * than any active read timestamps.  See @ref transaction_timestamps., a
-	 * string; default empty.}
+	 * than any active read timestamps.  This configuration option is
+	 * mandatory.  See @ref transaction_timestamps., a string; default
+	 * empty.}
 	 * @configend
 	 * @errors
 	 */

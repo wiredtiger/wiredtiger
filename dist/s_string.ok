@@ -772,7 +772,6 @@ gostring
 gostruct
 goutf
 gt
-guarantee
 handleops
 handlep
 hashval
@@ -946,7 +945,6 @@ mkdir
 mmap
 mmrand
 mnt
-mongodb
 msecs
 msg
 msvc

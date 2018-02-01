@@ -902,11 +902,9 @@ transaction_ops(WT_SESSION *session_arg)
 
 	/*! [transaction prepare] */
 	/*
-	 * An active transaction can be prepared, if successful will guarantee
-	 * a commit. No operations, apart from commit/rollback operation is
-	 * allowed on a prepared transaction, including session/cursor
-	 * operations. At the moment, prepare transaction is designed to
-	 * support mongodb exclusively.
+	 * Prepare a transaction which guarantees a subsequent commit will
+	 * succeed. Only commit and rollback are allowed on a transaction after
+	 * it has been prepared.
 	 */
 	error_check(session->open_cursor(
 	    session, "table:mytable", NULL, NULL, &cursor));
