@@ -805,9 +805,11 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	uint32_t las_id, session_flags;
 	uint8_t upd_type;
 	int notused;
+	bool locked;
 
 	cache = S2C(session)->cache;
 	cursor = NULL;
+	locked = false;
 	sweep_key = &cache->las_sweep_key;
 	remove_cnt = 0;
 	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
@@ -855,6 +857,8 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 
 	/* Walk the file. */
 	WT_ERR(__wt_scr_alloc(session, 0, &saved_key));
+	__wt_writelock(session, &cache->las_sweepwalk_lock);
+	locked = true;
 	while ((ret = cursor->next(cursor)) == 0) {
 		/*
 		 * Stop if the cache is stuck: we are ignoring the cache size
@@ -938,6 +942,8 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		WT_ERR(cursor->remove(cursor));
 		++remove_cnt;
 	}
+	__wt_writeunlock(session, &cache->las_sweepwalk_lock);
+	locked = false;
 
 	/*
 	 * If the loop terminates after completing a work unit, we will
@@ -959,6 +965,8 @@ srch_notfound:
 	if (0) {
 err:		__wt_buf_free(session, sweep_key);
 	}
+	if (locked)
+		__wt_writeunlock(session, &cache->las_sweepwalk_lock);
 
 	__wt_scr_free(session, &saved_key);
 	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
