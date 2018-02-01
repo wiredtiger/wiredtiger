@@ -794,7 +794,8 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	WT_CURSOR *cursor;
 	WT_DECL_ITEM(saved_key);
 	WT_DECL_RET;
-	WT_ITEM *key, las_key, las_timestamp, las_value;
+	WT_ITEM las_key, las_timestamp, las_value;
+	WT_ITEM *sweep_key;
 #ifdef HAVE_TIMESTAMPS
 	wt_timestamp_t timestamp, *val_ts;
 #else
@@ -807,7 +808,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 
 	cache = S2C(session)->cache;
 	cursor = NULL;
-	key = &cache->las_sweep_key;
+	sweep_key = &cache->las_sweep_key;
 	remove_cnt = 0;
 	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
 
@@ -824,8 +825,8 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	 * Otherwise, we're starting a new sweep, gather the list of trees to
 	 * sweep.
 	 */
-	if (key->size != 0) {
-		__wt_cursor_set_raw_key(cursor, key);
+	if (sweep_key->size != 0) {
+		__wt_cursor_set_raw_key(cursor, sweep_key);
 		ret = cursor->search_near(cursor, &notused);
 
 		/*
@@ -835,7 +836,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		 * table. Searching for the same key could leave us stuck at
 		 * the end of the table, repeatedly checking the same rows.
 		 */
-		key->size = 0;
+		sweep_key->size = 0;
 	} else
 		ret = __las_sweep_init(session);
 
@@ -854,28 +855,23 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 
 	/* Walk the file. */
 	WT_ERR(__wt_scr_alloc(session, 0, &saved_key));
-	for (; cnt > 0 && (ret = cursor->next(cursor)) == 0; --cnt) {
+	while ((ret = cursor->next(cursor)) == 0) {
 		/*
-		 * Give up if the cache is stuck: we are ignoring the cache
-		 * size while scanning the lookaside table, so we're making
-		 * things worse.
+		 * Stop if the cache is stuck: we are ignoring the cache size
+		 * while scanning the lookaside table, so we're making things
+		 * worse.
 		 */
 		if (__wt_cache_stuck(session))
-			cnt = 1;
+			cnt = 0;
 
 		/*
-		 * If the loop terminates after completing a work unit, we will
-		 * continue the table sweep next time. Get a local copy of the
-		 * sweep key, we're going to reset the cursor; do so before
-		 * calling cursor.remove, cursor.remove can discard our hazard
-		 * pointer and the page could be evicted from underneath us.
+		 * If we have processed enough entries and we are between
+		 * blocks, give up.
 		 */
-		if (cnt == 1) {
-			WT_ERR(__wt_cursor_get_raw_key(cursor, key));
-			if (!WT_DATA_IN_ITEM(key))
-				WT_ERR(__wt_buf_set(
-				    session, key, key->data, key->size));
-		}
+		if (cnt > 0)
+			--cnt;
+		else if (saved_key->size == 0)
+			break;
 
 		WT_ERR(cursor->get_key(cursor,
 		    &las_pageid, &las_id, &las_counter, &las_key));
@@ -904,12 +900,23 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		 */
 		WT_ERR(cursor->get_value(cursor,
 		    &txnid, &las_timestamp, &upd_type, &las_value));
-		val_ts = NULL;
 #ifdef HAVE_TIMESTAMPS
 		WT_ASSERT(session, las_timestamp.size == WT_TIMESTAMP_SIZE);
 		memcpy(&timestamp, las_timestamp.data, las_timestamp.size);
 		val_ts = &timestamp;
+#else
+		val_ts = NULL;
 #endif
+
+		/*
+		 * If this entry isn't globally visible we cannot remove it.
+		 * If it is visible then perform additional checks to see
+		 * whether it has aged out of a live file.
+		 */
+		if (!__wt_txn_visible_all(session, txnid, val_ts)) {
+			saved_key->size = 0;
+			continue;
+		}
 
 		/*
 		 * Save our key for comparing with older entries if we
@@ -917,30 +924,40 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		 */
 		if (saved_key->size != las_key.size ||
 		    memcmp(saved_key->data, las_key.data, las_key.size) != 0) {
-			WT_ERR(__wt_cursor_get_raw_key(cursor, saved_key));
-			if (!WT_DATA_IN_ITEM(saved_key))
-				WT_ERR(__wt_buf_set(session, saved_key,
-				    saved_key->data, saved_key->size));
-			continue;
-		}
+			/* If we have processed enough entries, give up. */
+			if (cnt == 0)
+				break;
 
-		/*
-		 * If this entry isn't globally visible we cannot remove it.
-		 * If it is visible then perform additional checks to see
-		 * whether it has aged out of a live file.
-		 */
-		if (!__wt_txn_visible_all(session, txnid, val_ts))
-			continue;
+			WT_ERR(__wt_buf_set(session, saved_key,
+			    las_key.data, las_key.size));
+
+			if (upd_type != WT_UPDATE_BIRTHMARK)
+				continue;
+		}
 
 		WT_ERR(cursor->remove(cursor));
 		++remove_cnt;
+	}
+
+	/*
+	 * If the loop terminates after completing a work unit, we will
+	 * continue the table sweep next time. Get a local copy of the
+	 * sweep key, we're going to reset the cursor; do so before
+	 * calling cursor.remove, cursor.remove can discard our hazard
+	 * pointer and the page could be evicted from underneath us.
+	 */
+	if (ret == 0) {
+		WT_ERR(__wt_cursor_get_raw_key(cursor, sweep_key));
+		if (!WT_DATA_IN_ITEM(sweep_key))
+			WT_ERR(__wt_buf_set(session, sweep_key,
+			    sweep_key->data, sweep_key->size));
 	}
 
 srch_notfound:
 	WT_ERR_NOTFOUND_OK(ret);
 
 	if (0) {
-err:		__wt_buf_free(session, key);
+err:		__wt_buf_free(session, sweep_key);
 	}
 
 	__wt_scr_free(session, &saved_key);
