@@ -241,6 +241,7 @@ struct __wt_txn {
 
 	TAILQ_ENTRY(__wt_txn) commit_timestampq;
 	TAILQ_ENTRY(__wt_txn) read_timestampq;
+	bool clear_ts_queue;	/* Set if we need to clear from the queue */
 
 	/* Array of modifications by this transaction. */
 	WT_TXN_OP      *mod;
@@ -275,8 +276,9 @@ struct __wt_txn {
 #define	WT_TXN_RUNNING		0x0400u
 #define	WT_TXN_SYNC_SET		0x0800u
 #define	WT_TXN_TS_COMMIT_ALWAYS	0x1000u
-#define	WT_TXN_TS_COMMIT_NEVER	0x2000u
-#define	WT_TXN_UPDATE	        0x4000u
+#define	WT_TXN_TS_COMMIT_KEYS	0x2000u
+#define	WT_TXN_TS_COMMIT_NEVER	0x4000u
+#define	WT_TXN_UPDATE	        0x8000u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint32_t flags;
 };
