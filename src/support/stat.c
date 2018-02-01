@@ -140,6 +140,7 @@ static const char * const __stats_dsrc_desc[] = {
 	"reconciliation: page reconciliation calls",
 	"reconciliation: page reconciliation calls for eviction",
 	"reconciliation: pages deleted",
+	"session: cached cursor count",
 	"session: object compaction",
 	"session: open cursor count",
 	"transaction: update conflicts",
@@ -322,6 +323,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
 	stats->rec_pages = 0;
 	stats->rec_pages_eviction = 0;
 	stats->rec_page_delete = 0;
+		/* not clearing session_cursor_cached */
 	stats->session_compact = 0;
 		/* not clearing session_cursor_open */
 	stats->txn_update_conflict = 0;
@@ -506,6 +508,7 @@ __wt_stat_dsrc_aggregate_single(
 	to->rec_pages += from->rec_pages;
 	to->rec_pages_eviction += from->rec_pages_eviction;
 	to->rec_page_delete += from->rec_page_delete;
+	to->session_cursor_cached += from->session_cursor_cached;
 	to->session_compact += from->session_compact;
 	to->session_cursor_open += from->session_cursor_open;
 	to->txn_update_conflict += from->txn_update_conflict;
@@ -727,6 +730,8 @@ __wt_stat_dsrc_aggregate(
 	to->rec_pages += WT_STAT_READ(from, rec_pages);
 	to->rec_pages_eviction += WT_STAT_READ(from, rec_pages_eviction);
 	to->rec_page_delete += WT_STAT_READ(from, rec_page_delete);
+	to->session_cursor_cached +=
+	    WT_STAT_READ(from, session_cursor_cached);
 	to->session_compact += WT_STAT_READ(from, session_compact);
 	to->session_cursor_open += WT_STAT_READ(from, session_cursor_open);
 	to->txn_update_conflict += WT_STAT_READ(from, txn_update_conflict);

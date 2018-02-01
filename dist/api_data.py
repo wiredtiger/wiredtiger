@@ -724,9 +724,7 @@ session_config = [
         for a cursor created in this session will mark the cursor
         as cached and keep it available to be reused for later calls
         to WT_SESSION::open_cursor. Cached cursors may be eventually
-        closed. This flag requires
-        ::wiredtiger_open or WT_CONNECTION::reconfigure to be called
-        with \c cache_cursors enabled.''',
+        closed.''',
         type='boolean'),
     Config('ignore_cache_size', 'false', r'''
         when set, operations performed by this session ignore the cache size

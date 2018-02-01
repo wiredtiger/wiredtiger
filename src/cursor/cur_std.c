@@ -596,6 +596,19 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 		WT_DHANDLE_ACQUIRE(dhandle);
 		__wt_cursor_dhandle_decr_use(session);
 	}
+
+	/*
+	 * Move non-child cached cursors to the front of the cursor
+	 * list, so they can be found more quickly during a reopen.
+	 */
+	if (!F_ISSET(cursor, WT_CURSTD_CACHE_CHILD)) {
+		TAILQ_REMOVE(&session->cursors, cursor, q);
+		TAILQ_INSERT_HEAD(&session->cursors, cursor, q);
+	}
+
+	(void)__wt_atomic_sub32(&S2C(session)->open_cursor_count, 1);
+	WT_STAT_DATA_DECR(session, session_cursor_open);
+	WT_STAT_DATA_INCR(session, session_cursor_cached);
 	F_SET(cursor, WT_CURSTD_CACHED);
 	return (0);
 }
@@ -629,6 +642,9 @@ __wt_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 		WT_DHANDLE_RELEASE(dhandle);
 		WT_DHANDLE_UNCACHE(dhandle);
 	}
+	(void)__wt_atomic_add32(&S2C(session)->open_cursor_count, 1);
+	WT_STAT_DATA_INCR(session, session_cursor_open);
+	WT_STAT_DATA_DECR(session, session_cursor_cached);
 	F_CLR(cursor, WT_CURSTD_CACHED);
 	return (ret);
 }

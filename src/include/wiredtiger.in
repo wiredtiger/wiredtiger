@@ -5963,12 +5963,14 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_REC_PAGES_EVICTION			2135
 /*! reconciliation: pages deleted */
 #define	WT_STAT_DSRC_REC_PAGE_DELETE			2136
+/*! session: cached cursor count */
+#define	WT_STAT_DSRC_SESSION_CURSOR_CACHED		2137
 /*! session: object compaction */
-#define	WT_STAT_DSRC_SESSION_COMPACT			2137
+#define	WT_STAT_DSRC_SESSION_COMPACT			2138
 /*! session: open cursor count */
-#define	WT_STAT_DSRC_SESSION_CURSOR_OPEN		2138
+#define	WT_STAT_DSRC_SESSION_CURSOR_OPEN		2139
 /*! transaction: update conflicts */
-#define	WT_STAT_DSRC_TXN_UPDATE_CONFLICT		2139
+#define	WT_STAT_DSRC_TXN_UPDATE_CONFLICT		2140
 
 /*!
  * @}

@@ -720,6 +720,7 @@ dsrc_stats = [
     ##########################################
     # Session operations
     ##########################################
+    SessionStat('session_cursor_cached', 'cached cursor count', 'no_clear,no_scale'),
     SessionStat('session_compact', 'object compaction'),
     SessionStat('session_cursor_open', 'open cursor count', 'no_clear,no_scale'),
 

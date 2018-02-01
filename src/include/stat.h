@@ -797,6 +797,7 @@ struct __wt_dsrc_stats {
 	int64_t rec_pages;
 	int64_t rec_pages_eviction;
 	int64_t rec_page_delete;
+	int64_t session_cursor_cached;
 	int64_t session_compact;
 	int64_t session_cursor_open;
 	int64_t txn_update_conflict;
