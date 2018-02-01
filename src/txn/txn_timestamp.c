@@ -695,8 +695,7 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session)
 			if (qtxn->clear_ts_queue) {
 				TAILQ_REMOVE(&txn_global->commit_timestamph,
 				    qtxn, commit_timestampq);
-				WT_WRITE_BARRIER();
-				qtxn->clear_ts_queue = false;
+				WT_PUBLISH(qtxn->clear_ts_queue, false);
 				--txn_global->commit_timestampq_len;
 				continue;
 			}
