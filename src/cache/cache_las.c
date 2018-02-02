@@ -717,18 +717,12 @@ err:	__wt_spin_unlock(session, &cache->las_sweep_lock);
 }
 
 /*
- * __las_sweep_init --
- *	Prepare to start a lookaside sweep.
+ * __las_sweep_count --
+ *	Calculate how many records to examine per sweep step.
  */
-static int
-__las_sweep_init(WT_SESSION_IMPL *session)
+static inline uint64_t
+__las_sweep_count(WT_CACHE *cache)
 {
-	WT_CACHE *cache;
-	WT_DECL_RET;
-	u_int i;
-
-	cache = S2C(session)->cache;
-
 	/*
 	 * The sweep server wakes up every 10 seconds (by default), it's a slow
 	 * moving thread. Try to review the entire lookaside table once every 5
@@ -741,9 +735,28 @@ __las_sweep_init(WT_SESSION_IMPL *session)
 	 * but possibly better, alternative might be to review all lookaside
 	 * blocks in the cache in order to get rid of them, and slowly review
 	 * lookaside blocks that have already been evicted.
+	 *
+	 * Put upper and lower bounds on the calculation: since reads of pages
+	 * with lookaside entries are blocked during sweep, make sure we do
+	 * some work but don't block reads for too long.
 	 */
-	cache->las_sweep_cnt =
-	    (uint64_t)WT_MAX(100, cache->las_entry_count / 30);
+	return ((uint64_t)WT_MAX(100, WT_MIN(10 * WT_THOUSAND,
+	    cache->las_entry_count / 30)));
+}
+
+/*
+ * __las_sweep_init --
+ *	Prepare to start a lookaside sweep.
+ */
+static int
+__las_sweep_init(WT_SESSION_IMPL *session)
+{
+	WT_CACHE *cache;
+	WT_DECL_RET;
+	u_int i;
+
+	cache = S2C(session)->cache;
+	cache->las_sweep_cnt = __las_sweep_count(cache);
 
 	__wt_spin_lock(session, &cache->las_sweep_lock);
 
@@ -852,8 +865,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	 * removes entries and that would cause sweep to do less and less work
 	 * rather than driving the lookaside table to empty.
 	 */
-	cnt = WT_MAX(cache->las_sweep_cnt,
-	    (uint64_t)WT_MAX(100, cache->las_entry_count / 30));
+	cnt = WT_MAX(cache->las_sweep_cnt, __las_sweep_count(cache));
 
 	/* Walk the file. */
 	WT_ERR(__wt_scr_alloc(session, 0, &saved_key));
