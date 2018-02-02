@@ -865,7 +865,9 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	 * removes entries and that would cause sweep to do less and less work
 	 * rather than driving the lookaside table to empty.
 	 */
-	cnt = WT_MAX(cache->las_sweep_cnt, __las_sweep_count(cache));
+	cnt = __las_sweep_count(cache);
+	if (cnt < cache->las_sweep_cnt)
+		cnt = cache->las_sweep_cnt;
 
 	/* Walk the file. */
 	WT_ERR(__wt_scr_alloc(session, 0, &saved_key));
