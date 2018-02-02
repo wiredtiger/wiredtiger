@@ -69,7 +69,7 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt)
 	 * external key.
 	 */
 	if (!F_ISSET(cbt, WT_CBT_ACTIVE)) {
-		WT_ASSERT((WT_SESSION_IMPL *)cursor->session,
+		WT_ASSERT(session,
 		    cbt->ref == NULL && !F_ISSET(cursor, WT_CURSTD_KEY_INT));
 		return (false);
 	}
