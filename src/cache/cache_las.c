@@ -56,11 +56,15 @@ __wt_las_stats_update(WT_SESSION_IMPL *session)
 	if (!F_ISSET(conn, WT_CONN_LOOKASIDE_OPEN))
 		return;
 
+	/* Set the connection-wide statistics. */
+	cstats = conn->stats;
+	WT_STAT_SET(
+	    session, cstats, cache_lookaside_entries, cache->las_entry_count);
+
 	/*
 	 * We have a cursor, and we need the underlying data handle; we can get
 	 * to it by way of the underlying btree handle, but it's a little ugly.
 	 */
-	cstats = conn->stats;
 	dstats = ((WT_CURSOR_BTREE *)
 	    cache->las_session[0]->las_cursor)->btree->dhandle->stats;
 
@@ -68,6 +72,7 @@ __wt_las_stats_update(WT_SESSION_IMPL *session)
 	WT_STAT_SET(session, cstats, cache_lookaside_insert, v);
 	v = WT_STAT_READ(dstats, cursor_remove);
 	WT_STAT_SET(session, cstats, cache_lookaside_remove, v);
+
 	/*
 	 * If we're clearing stats we need to clear the cursor values we just
 	 * read.  This does not clear the rest of the statistics in the
@@ -542,8 +547,6 @@ __wt_las_insert_block(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 	}
 
 	if (insert_cnt > 0) {
-		WT_STAT_CONN_INCRV(
-		    session, cache_lookaside_entries, insert_cnt);
 		(void)__wt_atomic_add64(
 		    &S2C(session)->cache->las_entry_count, insert_cnt);
 		WT_ERR(__las_insert_block_verbose(session, multi));
@@ -685,7 +688,6 @@ err:	if (local_txn) {
 		WT_TRET(__wt_las_cursor_close(
 		    session, &cursor, session_flags));
 
-	WT_STAT_CONN_DECRV(session, cache_lookaside_entries, remove_cnt);
 	__wt_cache_decr_check_uint64(session,
 	    &S2C(session)->cache->las_entry_count, remove_cnt,
 	    "lookaside entry count");
@@ -715,6 +717,34 @@ err:	__wt_spin_unlock(session, &cache->las_sweep_lock);
 }
 
 /*
+ * __las_sweep_count --
+ *	Calculate how many records to examine per sweep step.
+ */
+static inline uint64_t
+__las_sweep_count(WT_CACHE *cache)
+{
+	/*
+	 * The sweep server wakes up every 10 seconds (by default), it's a slow
+	 * moving thread. Try to review the entire lookaside table once every 5
+	 * minutes, or every 30 calls.
+	 *
+	 * The reason is because the lookaside table exists because we're seeing
+	 * cache/eviction pressure (it allows us to trade performance and disk
+	 * space for cache space), and it's likely lookaside blocks are being
+	 * evicted, and reading them back in doesn't help things. A trickier,
+	 * but possibly better, alternative might be to review all lookaside
+	 * blocks in the cache in order to get rid of them, and slowly review
+	 * lookaside blocks that have already been evicted.
+	 *
+	 * Put upper and lower bounds on the calculation: since reads of pages
+	 * with lookaside entries are blocked during sweep, make sure we do
+	 * some work but don't block reads for too long.
+	 */
+	return ((uint64_t)WT_MAX(100, WT_MIN(10 * WT_THOUSAND,
+	    cache->las_entry_count / 30)));
+}
+
+/*
  * __las_sweep_init --
  *	Prepare to start a lookaside sweep.
  */
@@ -726,11 +756,19 @@ __las_sweep_init(WT_SESSION_IMPL *session)
 	u_int i;
 
 	cache = S2C(session)->cache;
+	cache->las_sweep_cnt = __las_sweep_count(cache);
 
 	__wt_spin_lock(session, &cache->las_sweep_lock);
-	/* If no files have been dropped, there's nothing to do. */
-	if (cache->las_dropped_next == 0)
-		WT_ERR(WT_NOTFOUND);
+
+	/*
+	 * If no files have been dropped and the lookaside file is empty,
+	 * there's nothing to do.
+	 */
+	if (cache->las_dropped_next == 0) {
+		if (cache->las_entry_count == 0)
+			ret = WT_NOTFOUND;
+		goto err;
+	}
 
 	/* Scan the btree IDs to find min/max. */
 	cache->las_sweep_dropmin = UINT32_MAX;
@@ -767,15 +805,25 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 {
 	WT_CACHE *cache;
 	WT_CURSOR *cursor;
+	WT_DECL_ITEM(saved_key);
 	WT_DECL_RET;
-	WT_ITEM *key, las_key;
-	uint64_t cnt, las_counter, las_pageid, remove_cnt;
+	WT_ITEM las_key, las_timestamp, las_value;
+	WT_ITEM *sweep_key;
+#ifdef HAVE_TIMESTAMPS
+	wt_timestamp_t timestamp, *val_ts;
+#else
+	wt_timestamp_t *val_ts;
+#endif
+	uint64_t cnt, las_counter, las_pageid, remove_cnt, txnid;
 	uint32_t las_id, session_flags;
+	uint8_t upd_type;
 	int notused;
+	bool locked;
 
 	cache = S2C(session)->cache;
 	cursor = NULL;
-	key = &cache->las_sweep_key;
+	locked = false;
+	sweep_key = &cache->las_sweep_key;
 	remove_cnt = 0;
 	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
 
@@ -792,8 +840,8 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	 * Otherwise, we're starting a new sweep, gather the list of trees to
 	 * sweep.
 	 */
-	if (key->size != 0) {
-		__wt_cursor_set_raw_key(cursor, key);
+	if (sweep_key->size != 0) {
+		__wt_cursor_set_raw_key(cursor, sweep_key);
 		ret = cursor->search_near(cursor, &notused);
 
 		/*
@@ -803,7 +851,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		 * table. Searching for the same key could leave us stuck at
 		 * the end of the table, repeatedly checking the same rows.
 		 */
-		key->size = 0;
+		sweep_key->size = 0;
 	} else
 		ret = __las_sweep_init(session);
 
@@ -811,43 +859,35 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		goto srch_notfound;
 
 	/*
-	 * The sweep server wakes up every 10 seconds (by default), it's a slow
-	 * moving thread. Try to review the entire lookaside table once every 5
-	 * minutes, or every 30 calls.
-	 *
-	 * The reason is because the lookaside table exists because we're seeing
-	 * cache/eviction pressure (it allows us to trade performance and disk
-	 * space for cache space), and it's likely lookaside blocks are being
-	 * evicted, and reading them back in doesn't help things. A trickier,
-	 * but possibly better, alternative might be to review all lookaside
-	 * blocks in the cache in order to get rid of them, and slowly review
-	 * lookaside blocks that have already been evicted.
+	 * Walk at least the number we calculated at the beginning of the
+	 * sweep, or more if there have been additional records inserted in the
+	 * meantime.  Don't just repeat the calculation here since sweep
+	 * removes entries and that would cause sweep to do less and less work
+	 * rather than driving the lookaside table to empty.
 	 */
-	cnt = (uint64_t)WT_MAX(100, cache->las_entry_count / 30);
+	cnt = WT_MAX(cache->las_sweep_cnt, __las_sweep_count(cache));
 
 	/* Walk the file. */
-	for (; cnt > 0 && (ret = cursor->next(cursor)) == 0; --cnt) {
+	WT_ERR(__wt_scr_alloc(session, 0, &saved_key));
+	__wt_writelock(session, &cache->las_sweepwalk_lock);
+	locked = true;
+	while ((ret = cursor->next(cursor)) == 0) {
 		/*
-		 * Give up if the cache is stuck: we are ignoring the cache
-		 * size while scanning the lookaside table, so we're making
-		 * things worse.
+		 * Stop if the cache is stuck: we are ignoring the cache size
+		 * while scanning the lookaside table, so we're making things
+		 * worse.
 		 */
 		if (__wt_cache_stuck(session))
-			cnt = 1;
+			cnt = 0;
 
 		/*
-		 * If the loop terminates after completing a work unit, we will
-		 * continue the table sweep next time. Get a local copy of the
-		 * sweep key, we're going to reset the cursor; do so before
-		 * calling cursor.remove, cursor.remove can discard our hazard
-		 * pointer and the page could be evicted from underneath us.
+		 * If we have processed enough entries and we are between
+		 * blocks, give up.
 		 */
-		if (cnt == 1) {
-			WT_ERR(__wt_cursor_get_raw_key(cursor, key));
-			if (!WT_DATA_IN_ITEM(key))
-				WT_ERR(__wt_buf_set(
-				    session, key, key->data, key->size));
-		}
+		if (cnt > 0)
+			--cnt;
+		else if (saved_key->size == 0)
+			break;
 
 		WT_ERR(cursor->get_key(cursor,
 		    &las_pageid, &las_id, &las_counter, &las_key));
@@ -859,12 +899,6 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		 * should another thread remove the record before we do (not
 		 * expected for dropped trees), and the cursor remains
 		 * positioned in that case.
-		 *
-		 * TODO it would also be good to remove entries in lookaside
-		 * from live files that have aged out.  If we track for each
-		 * entry whether it was the on-page value chosen by
-		 * reconciliation, we can safely remove entries from that point
-		 * on (for the given key) that are visible to all readers.
 		 */
 		if (las_id >= cache->las_sweep_dropmin &&
 		    las_id <= cache->las_sweep_dropmax &&
@@ -872,16 +906,81 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		    las_id - cache->las_sweep_dropmin)) {
 			WT_ERR(cursor->remove(cursor));
 			++remove_cnt;
+			saved_key->size = 0;
+			continue;
 		}
+
+		/*
+		 * Remove entries from the lookaside that have aged out and are
+		 * now no longer needed.
+		 */
+		WT_ERR(cursor->get_value(cursor,
+		    &txnid, &las_timestamp, &upd_type, &las_value));
+#ifdef HAVE_TIMESTAMPS
+		WT_ASSERT(session, las_timestamp.size == WT_TIMESTAMP_SIZE);
+		memcpy(&timestamp, las_timestamp.data, las_timestamp.size);
+		val_ts = &timestamp;
+#else
+		val_ts = NULL;
+#endif
+
+		/*
+		 * If this entry isn't globally visible we cannot remove it.
+		 * If it is visible then perform additional checks to see
+		 * whether it has aged out of a live file.
+		 */
+		if (!__wt_txn_visible_all(session, txnid, val_ts)) {
+			saved_key->size = 0;
+			continue;
+		}
+
+		/*
+		 * Save our key for comparing with older entries if we
+		 * don't have one or it is different.
+		 */
+		if (saved_key->size != las_key.size ||
+		    memcmp(saved_key->data, las_key.data, las_key.size) != 0) {
+			/* If we have processed enough entries, give up. */
+			if (cnt == 0)
+				break;
+
+			WT_ERR(__wt_buf_set(session, saved_key,
+			    las_key.data, las_key.size));
+
+			if (upd_type != WT_UPDATE_BIRTHMARK)
+				continue;
+		}
+
+		WT_ERR(cursor->remove(cursor));
+		++remove_cnt;
+	}
+	__wt_writeunlock(session, &cache->las_sweepwalk_lock);
+	locked = false;
+
+	/*
+	 * If the loop terminates after completing a work unit, we will
+	 * continue the table sweep next time. Get a local copy of the
+	 * sweep key, we're going to reset the cursor; do so before
+	 * calling cursor.remove, cursor.remove can discard our hazard
+	 * pointer and the page could be evicted from underneath us.
+	 */
+	if (ret == 0) {
+		WT_ERR(__wt_cursor_get_raw_key(cursor, sweep_key));
+		if (!WT_DATA_IN_ITEM(sweep_key))
+			WT_ERR(__wt_buf_set(session, sweep_key,
+			    sweep_key->data, sweep_key->size));
 	}
 
 srch_notfound:
 	WT_ERR_NOTFOUND_OK(ret);
 
 	if (0) {
-err:		__wt_buf_free(session, key);
+err:		__wt_buf_free(session, sweep_key);
 	}
+	if (locked)
+		__wt_writeunlock(session, &cache->las_sweepwalk_lock);
 
+	__wt_scr_free(session, &saved_key);
 	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 
 	__wt_cache_decr_check_uint64(session,
