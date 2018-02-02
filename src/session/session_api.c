@@ -479,6 +479,9 @@ __session_open_cursor(WT_SESSION *wt_session,
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL(session, open_cursor, config, cfg);
 
+	if (to_dup == NULL)
+		CURSOR_OPEN_CACHE(session, uri, cfg, cursorp);
+
 	statjoin = (to_dup != NULL && uri != NULL &&
 	    WT_STREQ(uri, "statistics:join"));
 	if ((to_dup == NULL && uri == NULL) ||

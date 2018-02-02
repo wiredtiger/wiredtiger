@@ -689,13 +689,13 @@ __wt_cursor_open_cache(WT_SESSION_IMPL *session, const char *uri,
 		tmp_cfg = NULL;
 		cfg = &tmp_cfg;
 	}
-	WT_RET(__wt_config_gets(session, cfg, "readonly", &cval));
+	WT_RET(__wt_config_gets_def(session, cfg, "readonly", 0, &cval));
 	if (cval.val)
 		return (WT_NOTFOUND);
-	WT_RET(__wt_config_gets(session, cfg, "bulk", &cval));
+	WT_RET(__wt_config_gets_def(session, cfg, "bulk", 0, &cval));
 	if (cval.val)
 		return (WT_NOTFOUND);
-	WT_RET(__wt_config_gets(session, cfg, "next_random", &cval));
+	WT_RET(__wt_config_gets_def(session, cfg, "next_random", 0, &cval));
 	if (cval.val != 0)
 		return (WT_NOTFOUND);
 	WT_RET(__wt_config_gets_def(session, cfg, "dump", 0, &cval));
@@ -712,7 +712,7 @@ __wt_cursor_open_cache(WT_SESSION_IMPL *session, const char *uri,
 	if (cval.len != 0 && WT_STRING_MATCH(WT_CHECKPOINT, cval.str, cval.len))
 		return (WT_NOTFOUND);
 
-#define	CHECKPOINT_MATCH(s, cval)					\
+#define	CHECKPOINT_MATCH(s)						\
 	((s == NULL && cval.len == 0) ||				\
 	    (s != NULL && WT_STRING_MATCH(s, cval.str, cval.len)))
 
@@ -723,7 +723,7 @@ __wt_cursor_open_cache(WT_SESSION_IMPL *session, const char *uri,
 	TAILQ_FOREACH(cursor, &session->cursors, q) {
 		if (F_ISSET(cursor, WT_CURSTD_CACHED) && cursor->uri != NULL &&
 		    WT_STREQ(cursor->uri, uri) &&
-		    CHECKPOINT_MATCH(cursor->checkpoint, cval)) {
+		    CHECKPOINT_MATCH(cursor->checkpoint)) {
 			if ((ret = cursor->reopen(cursor)) != 0) {
 				F_CLR(cursor, WT_CURSTD_CACHEABLE);
 				session->dhandle = NULL;
@@ -734,18 +734,18 @@ __wt_cursor_open_cache(WT_SESSION_IMPL *session, const char *uri,
 			F_CLR(cursor, WT_CURSTD_APPEND | WT_CURSTD_OVERWRITE |
 			    WT_CURSTD_RAW);
 
-			WT_RET(__wt_config_gets(
-			    session, cfg, "append", &cval));
+			WT_RET(__wt_config_gets_def(
+			    session, cfg, "append", 0, &cval));
 			if (cval.val != 0)
 				F_SET(cursor, WT_CURSTD_APPEND);
 
-			WT_RET(__wt_config_gets(
-			    session, cfg, "overwrite", &cval));
+			WT_RET(__wt_config_gets_def(
+			    session, cfg, "overwrite", 1, &cval));
 			if (cval.val != 0)
 				F_SET(cursor, WT_CURSTD_OVERWRITE);
 
-			WT_RET(__wt_config_gets(
-			    session, cfg, "raw", &cval));
+			WT_RET(__wt_config_gets_def(
+			    session, cfg, "raw", 0, &cval));
 			if (cval.val != 0)
 				F_SET(cursor, WT_CURSTD_RAW);
 
