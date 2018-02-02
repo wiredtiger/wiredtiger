@@ -94,7 +94,7 @@ class test_assert04(wttest.WiredTigerTestCase, suite_subprocess):
         c.close()
 
         # We must move the oldest timestamp forward in order to alter.
-        # Otherwise alter's closing of the file will fail with EBUSY.
+        # Otherwise alter closing the file will fail with EBUSY.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(2))
 
         # Now alter the setting and make sure we detect incorrect usage.
