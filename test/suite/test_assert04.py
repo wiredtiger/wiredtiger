@@ -373,5 +373,23 @@ class test_assert04(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEquals(c['key_ts6'], 'value21_after')
         c.close()
 
+        # Confirm it is okay to set the timestamp on the commit call.
+        # That should set the timestamp for the whole thing.
+        c = self.session.open_cursor(uri)
+        self.session.begin_transaction()
+        c['key_ts6'] = 'value_committs1'
+        c['key_ts6'] = 'value22'
+        self.session.commit_transaction('commit_timestamp=' +
+            timestamp_str(22))
+        c.close()
+
+        c = self.session.open_cursor(uri)
+        self.session.begin_transaction()
+        c['key_nots'] = 'value23'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.commit_transaction(
+            'commit_timestamp=' + timestamp_str(23)), msg_usage)
+        c.close()
+
 if __name__ == '__main__':
     wttest.run()

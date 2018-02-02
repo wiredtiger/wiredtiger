@@ -5455,8 +5455,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TREE_DESCEND_BLOCKED		1296
 /*! transaction: commit timestamp queue insert to empty */
 #define	WT_STAT_CONN_TXN_COMMIT_QUEUE_EMPTY		1297
-/*! transaction: commit timestamp queue inserts to head */
-#define	WT_STAT_CONN_TXN_COMMIT_QUEUE_HEAD		1298
+/*! transaction: commit timestamp queue inserts to tail */
+#define	WT_STAT_CONN_TXN_COMMIT_QUEUE_TAIL		1298
 /*! transaction: commit timestamp queue inserts total */
 #define	WT_STAT_CONN_TXN_COMMIT_QUEUE_INSERTS		1299
 /*! transaction: commit timestamp queue length */
