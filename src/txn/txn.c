@@ -960,7 +960,7 @@ __wt_txn_prepare_clear(WT_SESSION_IMPL *session)
 	WT_TXN *txn;
 
 	txn = &session->txn;
-	F_SET(txn, WT_TXN_PREPARE);
+	F_CLR(txn, WT_TXN_PREPARE);
 #else
 	WT_UNUSED(session);
 #endif
