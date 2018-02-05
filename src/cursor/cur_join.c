@@ -549,6 +549,7 @@ __curjoin_extract_insert(WT_CURSOR *cursor)
 		return (0);
 
 	session = (WT_SESSION_IMPL *)cursor->session;
+	WT_RET(__wt_txn_context_prepare_check(session, false));
 
 	WT_ITEM_SET(ikey, cursor->key);
 	/*

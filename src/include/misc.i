@@ -211,3 +211,17 @@ __wt_txn_context_check(
 		    session->name);
 	return (0);
 }
+/*
+ * __wt_txn_context_prepare_check --
+ *	Complain if a transaction is/isn't in prepare.
+ */
+static inline int
+__wt_txn_context_prepare_check(
+    WT_SESSION_IMPL *session, bool prepare_allowed)
+{
+	if (!prepare_allowed && F_ISSET(&session->txn, WT_TXN_PREPARE))
+		WT_RET_MSG(session, EINVAL,
+		    "%s: not permitted in a prepared transaction",
+		    session->name);
+	return (0);
+}

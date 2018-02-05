@@ -950,6 +950,23 @@ err:	/*
 }
 
 /*
+ * __wt_txn_prepare_clear --
+ *	Clear prepare state of current transaction.
+ */
+void
+__wt_txn_prepare_clear(WT_SESSION_IMPL *session)
+{
+#ifdef HAVE_TIMESTAMPS
+	WT_TXN *txn;
+
+	txn = &session->txn;
+	F_SET(txn, WT_TXN_PREPARE);
+#else
+	WT_UNUSED(session);
+#endif
+}
+
+/*
  * __wt_txn_prepare --
  *	Prepare the current transaction.
  */

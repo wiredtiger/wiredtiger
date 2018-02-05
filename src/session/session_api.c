@@ -428,6 +428,7 @@ __session_open_cursor(WT_SESSION *wt_session,
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL(session, open_cursor, config, cfg);
+	WT_ERR(__wt_txn_context_prepare_check(session, false));
 
 	statjoin = (to_dup != NULL && uri != NULL &&
 	    WT_STREQ(uri, "statistics:join"));
@@ -1471,6 +1472,7 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
 		    txn->rollback_reason == NULL ? "" : ": ",
 		    txn->rollback_reason == NULL ? "" : txn->rollback_reason);
 
+	__wt_txn_prepare_clear(session);
 	if (ret == 0)
 		ret = __wt_txn_commit(session, cfg);
 	else {
@@ -1515,6 +1517,7 @@ __session_rollback_transaction(WT_SESSION *wt_session, const char *config)
 
 	WT_ERR(__wt_txn_context_check(session, true, true));
 
+	__wt_txn_prepare_clear(session);
 	WT_TRET(__wt_session_reset_cursors(session, false));
 
 	WT_TRET(__wt_txn_rollback(session, cfg));

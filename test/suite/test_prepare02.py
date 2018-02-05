@@ -45,32 +45,40 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
         # Commit after prepare is permitted
         self.session.begin_transaction()
         self.session.prepare_transaction()
-        with self.expectedStderrPattern(''):
+        with self.expectedStderrPattern(" not permitted in a"):
             self.assertRaises(wiredtiger.WiredTigerError,
                 lambda: self.session.reconfigure())
-        with self.expectedStderrPattern(''):
+        with self.expectedStderrPattern(" not permitted in a"):
             self.assertRaises(wiredtiger.WiredTigerError,
                 lambda: self.session.reset())
-        with self.expectedStderrPattern(''):
+        with self.expectedStderrPattern(" not permitted in a"):
             self.assertRaises(wiredtiger.WiredTigerError,
                 lambda: self.session.begin_transaction())
-        with self.expectedStderrPattern(''):
+        with self.expectedStderrPattern(" not permitted in a"):
             self.assertRaises(wiredtiger.WiredTigerError,
                 lambda: self.session.transaction_sync())
-        with self.expectedStderrPattern(''):
+        with self.expectedStderrPattern(" not permitted in a"):
             self.assertRaises(wiredtiger.WiredTigerError,
                 lambda: self.session.checkpoint())
-        with self.expectedStderrPattern(''):
+        with self.expectedStderrPattern(" not permitted in a"):
             self.assertRaises(wiredtiger.WiredTigerError,
                     lambda: self.session.compact("table:mytable"))
-
-        self.session.alter("table:mytable","access_pattern_hint=random")
-        self.session.open_cursor("table:mytable", None)
-        self.session.create("table:mytable1", "key_format=S,value_format=S")
+        with self.expectedStderrPattern(" not permitted in a"):
+            self.assertRaises(wiredtiger.WiredTigerError,
+                    lambda: self.session.open_cursor("table:mytable", None))
+        with self.expectedStderrPattern(" not permitted in a"):
+            self.assertRaises(wiredtiger.WiredTigerError,
+                    lambda: self.session.alter("table:mytable",
+                        "access_pattern_hint=random"))
+        with self.expectedStderrPattern(" not permitted in a"):
+            self.assertRaises(wiredtiger.WiredTigerError,
+                    lambda: self.session.create("table:mytable1",
+                        "key_format=S,value_format=S"))
         self.session.rollback_transaction()
 
         # Commit after prepare is permitted
         self.session.begin_transaction()
+        c1 = self.session.open_cursor("table:mytable", None)
         self.session.prepare_transaction()
         self.session.commit_transaction()
 

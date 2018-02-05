@@ -292,8 +292,11 @@ static int
 __curlog_reset(WT_CURSOR *cursor)
 {
 	WT_CURSOR_LOG *cl;
+	WT_SESSION_IMPL *session;
 
 	cl = (WT_CURSOR_LOG *)cursor;
+	session = (WT_SESSION_IMPL *)cursor->session;
+	WT_RET(__wt_txn_context_prepare_check(session, false));
 	cl->stepp = cl->stepp_end = NULL;
 	cl->step_count = 0;
 	WT_INIT_LSN(cl->cur_lsn);
