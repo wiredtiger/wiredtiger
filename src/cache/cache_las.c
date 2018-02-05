@@ -409,14 +409,13 @@ __las_insert_block_verbose(WT_SESSION_IMPL *session, WT_MULTI *multi)
 {
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
-#ifdef HAVE_TIMESTAMPS
-	char hex_timestamp[2 * WT_TIMESTAMP_SIZE + 1];
-#else
-	char hex_timestamp[9]; /* Enough for disabled string */
-#endif
 	uint64_t ckpt_gen_current, ckpt_gen_last;
 	uint32_t btree_id;
 	double pct_dirty, pct_full;
+#ifdef HAVE_TIMESTAMPS
+	char hex_timestamp[2 * WT_TIMESTAMP_SIZE + 1];
+#endif
+	char *ts;
 
 	btree_id = S2BT(session)->id;
 
@@ -444,9 +443,9 @@ __las_insert_block_verbose(WT_SESSION_IMPL *session, WT_MULTI *multi)
 #ifdef HAVE_TIMESTAMPS
 		WT_RET(__wt_timestamp_to_hex_string(
 		    session, hex_timestamp, &multi->page_las.min_timestamp));
+		ts = hex_timestamp;
 #else
-		WT_RET(__wt_snprintf(
-		    hex_timestamp, sizeof(hex_timestamp), "disabled"));
+		ts = "disabled";
 #endif
 		__wt_verbose(session,
 		    WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY,
@@ -458,7 +457,7 @@ __las_insert_block_verbose(WT_SESSION_IMPL *session, WT_MULTI *multi)
 		    "cache use: %2.3f%%",
 		    btree_id, multi->page_las.las_pageid,
 		    multi->page_las.las_max_txn,
-		    hex_timestamp,
+		    ts,
 		    multi->page_las.las_skew_newest ? "newest" : "oldest",
 		    WT_STAT_READ(conn->stats, cache_lookaside_entries),
 		    pct_dirty, pct_full);
