@@ -866,6 +866,8 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
 	local_txn = locked = false;
 
+	WT_RET(__wt_scr_alloc(session, 0, &saved_key));
+
 	/*
 	 * Allocate a cursor and wrap all the updates in a transaction.
 	 * We should have our own lookaside cursor.
@@ -884,6 +886,10 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	 * Otherwise, we're starting a new sweep, gather the list of trees to
 	 * sweep.
 	 */
+	if (sweep_key->size == 0)
+		ret = __las_sweep_init(session);
+	__wt_writelock(session, &cache->las_sweepwalk_lock);
+	locked = true;
 	if (sweep_key->size != 0) {
 		__wt_cursor_set_raw_key(cursor, sweep_key);
 		ret = cursor->search_near(cursor, &notused);
@@ -896,11 +902,11 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		 * the end of the table, repeatedly checking the same rows.
 		 */
 		sweep_key->size = 0;
-	} else
-		ret = __las_sweep_init(session);
-
-	if (ret != 0)
-		goto srch_notfound;
+	}
+	if (ret != 0) {
+		WT_ERR_NOTFOUND_OK(ret);
+		goto done;
+	}
 
 	/*
 	 * Walk at least the number we calculated at the beginning of the
@@ -912,9 +918,6 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	cnt = WT_MAX(cache->las_sweep_cnt, __las_sweep_count(cache));
 
 	/* Walk the file. */
-	WT_ERR(__wt_scr_alloc(session, 0, &saved_key));
-	__wt_writelock(session, &cache->las_sweepwalk_lock);
-	locked = true;
 	while ((ret = cursor->next(cursor)) == 0) {
 		/*
 		 * Stop if the cache is stuck: we are ignoring the cache size
@@ -998,6 +1001,8 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		WT_ERR(cursor->remove(cursor));
 		++remove_cnt;
 	}
+	WT_ERR_NOTFOUND_OK(ret);
+
 	__wt_writeunlock(session, &cache->las_sweepwalk_lock);
 	locked = false;
 
@@ -1015,9 +1020,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 			    sweep_key->data, sweep_key->size));
 	}
 
-srch_notfound:
-	WT_ERR_NOTFOUND_OK(ret);
-
+done:
 	if (0) {
 err:		__wt_buf_free(session, sweep_key);
 	}
