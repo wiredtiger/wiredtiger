@@ -407,9 +407,9 @@ __las_insert_block_verbose(WT_SESSION_IMPL *session, WT_MULTI *multi)
 {
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
+	double pct_dirty, pct_full;
 	uint64_t ckpt_gen_current, ckpt_gen_last;
 	uint32_t btree_id;
-	double pct_dirty, pct_full;
 #ifdef HAVE_TIMESTAMPS
 	char hex_timestamp[2 * WT_TIMESTAMP_SIZE + 1];
 #endif
@@ -483,8 +483,8 @@ __wt_las_insert_block(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 	WT_SESSION_IMPL *las_session;
 	WT_TXN_ISOLATION saved_isolation;
 	WT_UPDATE *upd;
-	uint64_t las_counter, las_pageid;
 	uint64_t decrement_cnt, insert_cnt, insert_estimate;
+	uint64_t las_counter, las_pageid;
 	uint32_t btree_id, i, slot;
 	uint8_t *p;
 	bool local_txn;
@@ -1075,7 +1075,6 @@ err:		__wt_buf_free(session, sweep_key);
 	__las_pop_isolation(session, saved_isolation);
 
 	__wt_scr_free(session, &saved_key);
-
 
 	return (ret);
 }
