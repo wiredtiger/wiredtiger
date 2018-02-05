@@ -721,7 +721,6 @@ __wt_las_remove_block(
 	WT_ERR(__wt_txn_begin(las_session, NULL));
 
 	ret = __las_remove_block(las_session, cursor, btree_id, pageid);
-
 	if (ret == 0)
 		ret = __wt_txn_commit(las_session, NULL);
 	else
@@ -858,19 +857,24 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	uint32_t las_id, session_flags;
 	uint8_t upd_type;
 	int notused;
-	bool locked;
+	bool local_txn, locked;
 
 	cache = S2C(session)->cache;
 	cursor = NULL;
-	locked = false;
 	sweep_key = &cache->las_sweep_key;
 	remove_cnt = 0;
 	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
+	local_txn = locked = false;
 
-	/* We should have our own lookaside cursor. */
+	/*
+	 * Allocate a cursor and wrap all the updates in a transaction.
+	 * We should have our own lookaside cursor.
+	 */
 	__wt_las_cursor(session, &cursor, &session_flags);
 	WT_ASSERT(session, cursor->session == &session->iface);
 	__las_set_read_uncommitted(session, &saved_isolation);
+	WT_ERR(__wt_txn_begin(session, NULL));
+	local_txn = true;
 
 	/*
 	 * When continuing a sweep, position the cursor using the key from the
@@ -1017,12 +1021,19 @@ srch_notfound:
 	if (0) {
 err:		__wt_buf_free(session, sweep_key);
 	}
+	if (local_txn) {
+		if (ret == 0)
+			ret = __wt_txn_commit(session, NULL);
+		else
+			WT_TRET(__wt_txn_rollback(session, NULL));
+	}
 	if (locked)
 		__wt_writeunlock(session, &cache->las_sweepwalk_lock);
 
-	__wt_scr_free(session, &saved_key);
 	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 	__las_pop_isolation(session, saved_isolation);
+
+	__wt_scr_free(session, &saved_key);
 
 	__wt_cache_decr_check_uint64(session,
 	    &S2C(session)->cache->las_entry_count, remove_cnt,
