@@ -19,6 +19,28 @@
 	WT_SESSION_NO_RECONCILE)
 
 /*
+ * __las_set_read_uncommitted --
+ *	Switch to read-uncommitted.
+ */
+static void
+__las_set_read_uncommitted(
+    WT_SESSION_IMPL *session, WT_TXN_ISOLATION *saved_isolationp)
+{
+	*saved_isolationp = session->txn.isolation;
+	session->txn.isolation = WT_ISO_READ_UNCOMMITTED;
+}
+
+/*
+ * __las_pop_isolation --
+ *	Restore isolation.
+ */
+static void
+__las_pop_isolation(WT_SESSION_IMPL *session, WT_TXN_ISOLATION saved_isolation)
+{
+	session->txn.isolation = saved_isolation;
+}
+
+/*
  * __wt_las_nonempty --
  *	Return when there are entries in the lookaside table.
  */
@@ -414,27 +436,31 @@ __wt_las_insert_block(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 	WT_ITEM las_timestamp, las_value;
 	WT_SAVE_UPD *list;
 	WT_SESSION_IMPL *las_session;
+	WT_TXN_ISOLATION saved_isolation;
 	WT_UPDATE *upd;
 	uint64_t insert_cnt, las_counter, las_pageid;
 	uint32_t btree_id, i, slot;
 	uint8_t *p;
+	bool local_txn;
 
 	WT_CLEAR(las_timestamp);
 	WT_CLEAR(las_value);
 	insert_cnt = 0;
 
 	btree = S2BT(session);
-	btree_id = btree->id;
 	las_pageid = multi->page_las.las_pageid =
 	    __wt_atomic_add64(&S2C(session)->cache->las_pageid, 1);
+	btree_id = btree->id;
+	local_txn = false;
 
 	if (!btree->lookaside_entries)
 		btree->lookaside_entries = true;
 
 	/* Wrap all the updates in a transaction. */
 	las_session = (WT_SESSION_IMPL *)cursor->session;
-	WT_RET(__wt_txn_begin(las_session, NULL));
-	las_session->txn.isolation = WT_ISO_READ_UNCOMMITTED;
+	__las_set_read_uncommitted(las_session, &saved_isolation);
+	WT_ERR(__wt_txn_begin(las_session, NULL));
+	local_txn = true;
 
 	/*
 	 * Make sure there are no leftover entries (e.g., from a handle
@@ -553,10 +579,14 @@ __wt_las_insert_block(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 	}
 
 err:	/* Resolve the transaction. */
-	if (ret == 0)
-		ret = __wt_txn_commit(las_session, NULL);
-	else
-		WT_TRET(__wt_txn_rollback(las_session, NULL));
+	if (local_txn) {
+		if (ret == 0)
+			ret = __wt_txn_commit(las_session, NULL);
+		else
+			WT_TRET(__wt_txn_rollback(las_session, NULL));
+	}
+
+	__las_pop_isolation(las_session, saved_isolation);
 	return (ret);
 }
 
@@ -632,6 +662,7 @@ __wt_las_remove_block(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	WT_ITEM las_key;
 	WT_SESSION_IMPL *las_session;
+	WT_TXN_ISOLATION saved_isolation;
 	uint64_t las_counter, las_pageid, remove_cnt;
 	uint32_t las_id, session_flags;
 	bool local_cursor, local_txn, locked;
@@ -639,23 +670,25 @@ __wt_las_remove_block(WT_SESSION_IMPL *session,
 	conn = S2C(session);
 	remove_cnt = 0;
 	session_flags = 0;		/* [-Wconditional-uninitialized] */
-
 	local_cursor = local_txn = locked = false;
+
+	/*
+	 * Allocate a cursor unless provided one (a cursor implies this remove
+	 * is part of a larger operation). If a local operation, wrap removes
+	 * in a transaction.
+	 */
 	if (cursor == NULL) {
 		__wt_las_cursor(session, &cursor, &session_flags);
 		local_cursor = true;
+
+		las_session = (WT_SESSION_IMPL *)cursor->session;
+		__las_set_read_uncommitted(las_session, &saved_isolation);
+
+		WT_ERR(__wt_txn_begin(las_session, NULL));
+		local_txn = true;
+
 	}
 	las_session = (WT_SESSION_IMPL *)cursor->session;
-
-	/*
-	 * Wrap all of the removes in a transaction, unless this remove is part
-	 * of a larger operation.
-	 */
-	if (local_cursor) {
-		WT_ERR(__wt_txn_begin(las_session, NULL));
-		las_session->txn.isolation = WT_ISO_READ_UNCOMMITTED;
-		local_txn = true;
-	}
 
 	__wt_writelock(session, &conn->cache->las_sweepwalk_lock);
 	locked = true;
@@ -689,9 +722,11 @@ err:	if (locked)
 		else
 			WT_TRET(__wt_txn_rollback(las_session, NULL));
 	}
-	if (local_cursor)
+	if (local_cursor) {
+		__las_pop_isolation(las_session, saved_isolation);
 		WT_TRET(__wt_las_cursor_close(
 		    session, &cursor, session_flags));
+	}
 
 	__wt_cache_decr_check_uint64(session,
 	    &conn->cache->las_entry_count, remove_cnt,
@@ -814,6 +849,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	WT_DECL_RET;
 	WT_ITEM las_key, las_timestamp, las_value;
 	WT_ITEM *sweep_key;
+	WT_TXN_ISOLATION saved_isolation;
 #ifdef HAVE_TIMESTAMPS
 	wt_timestamp_t timestamp, *val_ts;
 #else
@@ -832,10 +868,10 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	remove_cnt = 0;
 	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
 
+	/* We should have our own lookaside cursor. */
 	__wt_las_cursor(session, &cursor, &session_flags);
-
-	/* We should have our own session. */
 	WT_ASSERT(session, cursor->session == &session->iface);
+	__las_set_read_uncommitted(session, &saved_isolation);
 
 	/*
 	 * When continuing a sweep, position the cursor using the key from the
@@ -987,6 +1023,7 @@ err:		__wt_buf_free(session, sweep_key);
 
 	__wt_scr_free(session, &saved_key);
 	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
+	__las_pop_isolation(session, saved_isolation);
 
 	__wt_cache_decr_check_uint64(session,
 	    &S2C(session)->cache->las_entry_count, remove_cnt,
