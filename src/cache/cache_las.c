@@ -911,6 +911,9 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	WT_ERR(__wt_txn_begin(session, NULL));
 	local_txn = true;
 
+	__wt_writelock(session, &cache->las_sweepwalk_lock);
+	locked = true;
+
 	/*
 	 * When continuing a sweep, position the cursor using the key from the
 	 * last call (we don't care if we're before or after the key, either
@@ -919,10 +922,6 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	 * Otherwise, we're starting a new sweep, gather the list of trees to
 	 * sweep.
 	 */
-	if (sweep_key->size == 0)
-		ret = __las_sweep_init(session);
-	__wt_writelock(session, &cache->las_sweepwalk_lock);
-	locked = true;
 	if (sweep_key->size != 0) {
 		__wt_cursor_set_raw_key(cursor, sweep_key);
 		ret = cursor->search_near(cursor, &notused);
@@ -935,11 +934,10 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		 * the end of the table, repeatedly checking the same rows.
 		 */
 		sweep_key->size = 0;
-	}
-	if (ret != 0) {
-		WT_ERR_NOTFOUND_OK(ret);
-		goto done;
-	}
+	} else
+		ret = __las_sweep_init(session);
+	if (ret != 0)
+		goto srch_notfound;
 
 	/*
 	 * Walk at least the number we calculated at the beginning of the
@@ -1034,7 +1032,6 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		WT_ERR(cursor->remove(cursor));
 		++decrement_cnt;
 	}
-	WT_ERR_NOTFOUND_OK(ret);
 
 	__wt_writeunlock(session, &cache->las_sweepwalk_lock);
 	locked = false;
@@ -1053,7 +1050,9 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 			    sweep_key->data, sweep_key->size));
 	}
 
-done:
+srch_notfound:
+	WT_ERR_NOTFOUND_OK(ret);
+
 	if (0) {
 err:		__wt_buf_free(session, sweep_key);
 	}
