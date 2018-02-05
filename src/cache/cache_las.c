@@ -479,26 +479,28 @@ __wt_las_insert_block(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
     WT_PAGE *page, WT_MULTI *multi, WT_ITEM *key)
 {
 	WT_BTREE *btree;
+	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_ITEM las_timestamp, las_value;
 	WT_SAVE_UPD *list;
 	WT_SESSION_IMPL *las_session;
 	WT_TXN_ISOLATION saved_isolation;
 	WT_UPDATE *upd;
-	uint64_t insert_cnt, las_counter, las_pageid;
+	uint64_t insert_cnt, insert_estimate, las_counter, las_pageid;
 	uint32_t btree_id, i, slot;
 	uint8_t *p;
 	bool local_txn;
 
+	btree = S2BT(session);
+	conn = S2C(session);
 	WT_CLEAR(las_timestamp);
 	WT_CLEAR(las_value);
-	insert_cnt = 0;
-
-	btree = S2BT(session);
-	las_pageid = multi->page_las.las_pageid =
-	    __wt_atomic_add64(&S2C(session)->cache->las_pageid, 1);
+	insert_cnt = insert_estimate = 0;
 	btree_id = btree->id;
 	local_txn = false;
+
+	las_pageid = multi->page_las.las_pageid =
+	    __wt_atomic_add64(&conn->cache->las_pageid, 1);
 
 	if (!btree->lookaside_entries)
 		btree->lookaside_entries = true;
@@ -609,6 +611,18 @@ __wt_las_insert_block(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 				    upd->type, &las_value);
 
 			/*
+			 * If remove is running concurrently, it's possible for
+			 * records to be removed before the insert transaction
+			 * commit (remove is configured read-uncommitted). Make
+			 * sure increments stay ahead of decrements.
+			 */
+			if (insert_estimate <= insert_cnt) {
+				insert_estimate += 100;
+				(void)__wt_atomic_add64(
+				    &conn->cache->las_entry_count, 100);
+			}
+
+			/*
 			 * Using update looks a little strange because the keys
 			 * are guaranteed to not exist, but since we're
 			 * appending, we want the cursor to stay positioned in
@@ -621,7 +635,8 @@ __wt_las_insert_block(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 
 	if (insert_cnt > 0) {
 		(void)__wt_atomic_add64(
-		    &S2C(session)->cache->las_entry_count, insert_cnt);
+		    &conn->cache->las_entry_count,
+		    insert_estimate - insert_cnt);
 		WT_ERR(__las_insert_block_verbose(session, multi));
 	}
 
