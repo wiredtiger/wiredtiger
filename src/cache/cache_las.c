@@ -659,14 +659,15 @@ __wt_las_remove_block(WT_SESSION_IMPL *session,
 		local_txn = true;
 	}
 
+	__wt_writelock(session, &conn->cache->las_sweepwalk_lock);
+	locked = true;
+
 	/*
 	 * Search for the block's unique prefix and step through all matching
 	 * records, removing them.
 	 */
-	ret = __wt_las_cursor_position(cursor, btree_id, pageid);
-	__wt_writelock(session, &conn->cache->las_sweepwalk_lock);
-	locked = true;
-	for (; ret == 0; ret = cursor->next(cursor)) {
+	for (ret = __wt_las_cursor_position(cursor, btree_id, pageid);
+	    ret == 0; ret = cursor->next(cursor)) {
 		WT_ERR(cursor->get_key(cursor,
 		    &las_pageid, &las_id, &las_counter, &las_key));
 
