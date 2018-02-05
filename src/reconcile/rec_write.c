@@ -6155,9 +6155,13 @@ __rec_las_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	__wt_las_cursor(session, &cursor, &session_flags);
 
 	for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
-		if (multi->supd != NULL)
+		if (multi->supd != NULL) {
 			WT_ERR(__wt_las_insert_block(
 			    session, cursor, r->page, multi, key));
+
+			__wt_free(session, multi->supd);
+			multi->supd_entries = 0;
+		}
 
 err:	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 
