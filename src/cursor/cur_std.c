@@ -650,17 +650,26 @@ __wt_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 }
 
 /*
- * __wt_cursor_close_cache --
+ * __wt_cursor_cache_release --
  *	Put the cursor into a cached state, called during close operations.
  */
 int
-__wt_cursor_close_cache(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
+__wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
+    bool *released)
 {
 	WT_DECL_RET;
+
+	if (!F_ISSET(session, WT_SESSION_CACHE_CURSORS) ||
+	    F_ISSET(cursor, WT_CURSTD_BULK | WT_CURSTD_CACHED) ||
+	    !F_ISSET(cursor, WT_CURSTD_CACHEABLE)) {
+		*released = false;
+		return (0);
+	}
 
 	if ((ret = cursor->cache(cursor)) == 0) {
 		WT_STAT_CONN_INCR(session, cursor_cache);
 		WT_STAT_DATA_INCR(session, cursor_cache);
+		*released = true;
 		return (0);
 	}
 
@@ -668,16 +677,17 @@ __wt_cursor_close_cache(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 	 * TODO: The caching operation failed, so we'll continue the close,
 	 * reopen first??
 	 */
+	*released = false;
 	WT_TRET(cursor->reopen(cursor));
 	return (ret);
 }
 
 /*
- * __wt_cursor_open_cache --
+ * __wt_cursor_cache_get --
  *	Open a matching cursor from the cache.
  */
 int
-__wt_cursor_open_cache(WT_SESSION_IMPL *session, const char *uri,
+__wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
     const char *cfg[], WT_CURSOR **cursorp)
 {
 	WT_CONFIG_ITEM cval;

@@ -171,26 +171,6 @@
 #define	SESSION_TXN_API_CALL(s, n, config, cfg)				\
 	TXN_API_CALL(s, WT_SESSION, n, NULL, config, cfg)
 
-#define	CURSOR_CLOSE_CACHE(cur, s) do {					\
-	if (F_ISSET(s, WT_SESSION_CACHE_CURSORS) &&			\
-	    !F_ISSET(cur, WT_CURSTD_BULK | WT_CURSTD_CACHED) &&		\
-	    F_ISSET(cur, WT_CURSTD_CACHEABLE)) {			\
-		if ((ret = __wt_cursor_close_cache(s, cur)) == 0)	\
-			return (0);					\
-		WT_RET(ret);						\
-	}								\
-} while (0)
-
-#define	CURSOR_OPEN_CACHE(s, uri, cfg, cursorp) do {		\
-	int __cret;							\
-	if (F_ISSET(session, WT_SESSION_CACHE_CURSORS)) {		\
-		if ((__cret = __wt_cursor_open_cache(			\
-		    s, uri, cfg, cursorp)) == 0)			\
-			return (0);					\
-		WT_RET_NOTFOUND_OK(__cret);				\
-	}								\
-} while (0)
-
 #define	CURSOR_API_CALL(cur, s, n, bt)					\
 	(s) = (WT_SESSION_IMPL *)(cur)->session;			\
 	API_CALL_NOCONF(s, WT_CURSOR, n,				\

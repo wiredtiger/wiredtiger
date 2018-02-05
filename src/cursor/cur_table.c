@@ -845,10 +845,15 @@ __curtable_close(WT_CURSOR *cursor)
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	u_int i;
+	bool released;
 
 	ctable = (WT_CURSOR_TABLE *)cursor;
 	JOINABLE_CURSOR_API_CALL(cursor, session, close, NULL);
-	CURSOR_CLOSE_CACHE(cursor, session);
+	released = false;
+
+	WT_TRET(__wt_cursor_cache_release(session, cursor, &released));
+	if (released)
+		return (0);
 
 	if (ctable->cg_cursors != NULL)
 		for (i = 0, cp = ctable->cg_cursors;
@@ -1025,7 +1030,12 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 
 	WT_STATIC_ASSERT(offsetof(WT_CURSOR_TABLE, iface) == 0);
 
-	CURSOR_OPEN_CACHE(session, uri, cfg, cursorp);
+	if (F_ISSET(session, WT_SESSION_CACHE_CURSORS)) {
+		if ((ret = __wt_cursor_cache_get(
+		    session, uri, cfg, cursorp)) == 0)
+			return (0);
+		WT_RET_NOTFOUND_OK(ret);
+	}
 
 	ctable = NULL;
 	cacheable = F_ISSET(session, WT_SESSION_CACHE_CURSORS);

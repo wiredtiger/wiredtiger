@@ -390,12 +390,17 @@ __curindex_close(WT_CURSOR *cursor)
 	WT_INDEX *idx;
 	WT_SESSION_IMPL *session;
 	u_int i;
+	bool released;
 
 	cindex = (WT_CURSOR_INDEX *)cursor;
 	idx = cindex->index;
+	released = false;
 
 	JOINABLE_CURSOR_API_CALL(cursor, session, close, NULL);
-	CURSOR_CLOSE_CACHE(cursor, session);
+
+	WT_TRET(__wt_cursor_cache_release(session, cursor, &released));
+	if (released)
+		return (0);
 
 	if ((cp = cindex->cg_cursors) != NULL)
 		for (i = 0, cp = cindex->cg_cursors;
@@ -527,8 +532,12 @@ __wt_curindex_open(WT_SESSION_IMPL *session,
 		cacheable = false;
 	}
 
-	if (cacheable)
-		CURSOR_OPEN_CACHE(session, uri, cfg, cursorp);
+	if (cacheable && F_ISSET(session, WT_SESSION_CACHE_CURSORS)) {
+		if ((ret = __wt_cursor_cache_get(
+		    session, uri, cfg, cursorp)) == 0)
+			return (0);
+		WT_RET_NOTFOUND_OK(ret);
+	}
 
 	if ((ret = __wt_schema_open_index(
 	    session, table, idxname, namesize, &idx)) != 0) {

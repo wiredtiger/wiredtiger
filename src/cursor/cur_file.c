@@ -465,17 +465,21 @@ __curfile_close(WT_CURSOR *cursor)
 	WT_CURSOR_BULK *cbulk;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	bool cached;
+	bool cached, released;
 
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_API_CALL(cursor, session, close, cbt->btree);
+	released = false;
 
 	/*
 	 * TODO: if cursor->cache() fails, we want to (continue) to
 	 * close the cursor, but before doing so we need to increment
 	 * the use count (??) and decrement the ref count.
 	 */
-	CURSOR_CLOSE_CACHE(cursor, session);
+	WT_TRET(__wt_cursor_cache_release(session, cursor, &released));
+	if (released)
+		return (0);
+
 	if (F_ISSET(cursor, WT_CURSTD_BULK)) {
 		/* Free the bulk-specific resources. */
 		cbulk = (WT_CURSOR_BULK *)cbt;
@@ -709,7 +713,13 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri,
 	checkpoint_wait = true;
 	flags = 0;
 
-	CURSOR_OPEN_CACHE(session, uri, cfg, cursorp);
+	if (F_ISSET(session, WT_SESSION_CACHE_CURSORS)) {
+		if ((ret = __wt_cursor_cache_get(
+		    session, uri, cfg, cursorp)) == 0)
+			return (0);
+		WT_RET_NOTFOUND_OK(ret);
+	}
+
 	/*
 	 * Decode the bulk configuration settings. In memory databases
 	 * ignore bulk load.
