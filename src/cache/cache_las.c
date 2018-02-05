@@ -557,8 +557,6 @@ err:	/* Resolve the transaction. */
 		ret = __wt_txn_commit(las_session, NULL);
 	else
 		WT_TRET(__wt_txn_rollback(las_session, NULL));
-	__wt_free(session, multi->supd);
-	multi->supd_entries = 0;
 	return (ret);
 }
 
