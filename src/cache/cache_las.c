@@ -413,7 +413,7 @@ __las_insert_block_verbose(WT_SESSION_IMPL *session, WT_MULTI *multi)
 #ifdef HAVE_TIMESTAMPS
 	char hex_timestamp[2 * WT_TIMESTAMP_SIZE + 1];
 #endif
-	char *ts;
+	const char *ts;
 
 	btree_id = S2BT(session)->id;
 
