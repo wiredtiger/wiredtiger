@@ -10,7 +10,12 @@
 
 static int __session_checkpoint(WT_SESSION *, const char *);
 static int __session_snapshot(WT_SESSION *, const char *);
+static int __session_commit_transaction(WT_SESSION *, const char *);
+static int __session_prepare_transaction(WT_SESSION *, const char *);
 static int __session_rollback_transaction(WT_SESSION *, const char *);
+static int __session_transaction_sync(WT_SESSION *, const char *);
+static int __session_timestamp_transaction(WT_SESSION *, const char *);
+static int __session_transaction_pinned_range(WT_SESSION *, uint64_t *);
 
 /*
  * __wt_session_notsup --
@@ -1454,10 +1459,44 @@ err:	API_END_RET(session, ret);
 static int
 __session_commit_transaction(WT_SESSION *wt_session, const char *config)
 {
+	static const WT_SESSION stds = {
+		NULL,
+		NULL,
+		__session_close,
+		__session_reconfigure,
+		__wt_session_strerror,
+		__session_open_cursor,
+		__session_alter,
+		__session_create,
+		__wt_session_compact,
+		__session_drop,
+		__session_join,
+		__session_log_flush,
+		__session_log_printf,
+		__session_rebalance,
+		__session_rename,
+		__session_reset,
+		__session_salvage,
+		__session_truncate,
+		__session_upgrade,
+		__session_verify,
+		__session_begin_transaction,
+		__session_commit_transaction,
+		__session_prepare_transaction,
+		__session_rollback_transaction,
+		__session_timestamp_transaction,
+		__session_checkpoint,
+		__session_snapshot,
+		__session_transaction_pinned_range,
+		__session_transaction_sync,
+		__wt_session_breakpoint
+	};
+	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	WT_TXN *txn;
 
+	conn = (WT_CONNECTION_IMPL *)wt_session->connection;
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL(session, commit_transaction, config, cfg);
 	WT_STAT_CONN_INCR(session, txn_commit);
@@ -1465,11 +1504,18 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
 	WT_ERR(__wt_txn_context_check(session, true));
 
 	txn = &session->txn;
+
 	if (F_ISSET(txn, WT_TXN_ERROR) && txn->mod_count != 0)
 		WT_ERR_MSG(session, EINVAL,
 		    "failed transaction requires rollback%s%s",
 		    txn->rollback_reason == NULL ? "" : ": ",
 		    txn->rollback_reason == NULL ? "" : txn->rollback_reason);
+
+	if (F_ISSET(txn, WT_TXN_PREPARE)) {
+		session->iface = stds;
+		session->iface.connection = &conn->iface;
+		F_CLR(txn, WT_TXN_PREPARE);
+	}
 
 	if (ret == 0)
 		ret = __wt_txn_commit(session, cfg);
@@ -1488,9 +1534,43 @@ err:	API_END_RET(session, ret);
 static int
 __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
 {
+	static const WT_SESSION stds = {
+		NULL,
+		NULL,
+		__session_close,
+		__session_reconfigure,
+		__wt_session_strerror,
+		__wt_session_open_cursor_prepare,
+		__wt_session_alter_prepare,
+		__wt_session_create_prepare,
+		__wt_session_compact,
+		__wt_session_drop_prepare,
+		__wt_session_join_prepare,
+		__wt_session_log_flush_prepare,
+		__wt_session_log_printf_prepare,
+		__wt_session_rebalance_prepare,
+		__wt_session_rename_prepare,
+		__session_reset,
+		__wt_session_salvage_prepare,
+		__wt_session_truncate_prepare,
+		__wt_session_upgrade_prepare,
+		__wt_session_verify_prepare,
+		__session_begin_transaction,
+		__session_commit_transaction,
+		__wt_session_prepare_transaction_prepare,
+		__session_rollback_transaction,
+		__wt_session_timestamp_transaction_prepare,
+		__session_checkpoint,
+		__wt_session_snapshot_prepare,
+		__wt_session_transaction_pinned_range_prepare,
+		__session_transaction_sync,
+		__wt_session_breakpoint
+	};
+	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 
+	conn = (WT_CONNECTION_IMPL *)wt_session->connection;
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL(session, prepare_transaction, config, cfg);
 
@@ -1498,12 +1578,10 @@ __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
 
 	WT_TRET(__wt_txn_prepare(session, cfg));
 
-	/*
-	 * Below code to be corrected as part of prepare functionality
-	 * implementation, coded as below to avoid setting error to transaction.
-	 */
+	session->iface = stds;
+	session->iface.connection = &conn->iface;
 
-err:	API_END_RET_NO_TXN_ERROR(session, ret);
+err:	API_END_RET(session, ret);
 }
 
 /*
@@ -1513,16 +1591,59 @@ err:	API_END_RET_NO_TXN_ERROR(session, ret);
 static int
 __session_rollback_transaction(WT_SESSION *wt_session, const char *config)
 {
+	static const WT_SESSION stds = {
+		NULL,
+		NULL,
+		__session_close,
+		__session_reconfigure,
+		__wt_session_strerror,
+		__session_open_cursor,
+		__session_alter,
+		__session_create,
+		__wt_session_compact,
+		__session_drop,
+		__session_join,
+		__session_log_flush,
+		__session_log_printf,
+		__session_rebalance,
+		__session_rename,
+		__session_reset,
+		__session_salvage,
+		__session_truncate,
+		__session_upgrade,
+		__session_verify,
+		__session_begin_transaction,
+		__session_commit_transaction,
+		__session_prepare_transaction,
+		__session_rollback_transaction,
+		__session_timestamp_transaction,
+		__session_checkpoint,
+		__session_snapshot,
+		__session_transaction_pinned_range,
+		__session_transaction_sync,
+		__wt_session_breakpoint
+	};
+	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	WT_TXN *txn;
 
+	conn = (WT_CONNECTION_IMPL *)wt_session->connection;
 	session = (WT_SESSION_IMPL *)wt_session;
+	txn = &session->txn;
+
 	SESSION_API_CALL(session, rollback_transaction, config, cfg);
 	WT_STAT_CONN_INCR(session, txn_rollback);
 
 	WT_ERR(__wt_txn_context_check(session, true));
 
 	WT_TRET(__wt_session_reset_cursors(session, false));
+
+	if (F_ISSET(txn, WT_TXN_PREPARE)) {
+		session->iface = stds;
+		session->iface.connection = &conn->iface;
+		F_CLR(txn, WT_TXN_PREPARE);
+	}
 
 	WT_TRET(__wt_txn_rollback(session, cfg));
 
