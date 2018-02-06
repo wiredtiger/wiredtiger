@@ -170,9 +170,13 @@ __wt_txn_named_snapshot_begin(WT_SESSION_IMPL *session, const char *cfg[])
 
 		WT_RET(__wt_txn_begin(session, txn_cfg));
 		started_txn = true;
+#ifdef HAVE_TIMESTAMPS
 	} else if (F_ISSET(txn, WT_TXN_PREPARE))
 		WT_RET_MSG(session, EINVAL, "A transaction must not be in "
 		    "prepared state for named snapshot");
+#else
+	}
+#endif
 
 	if (!include_updates)
 		F_SET(txn, WT_TXN_READONLY);
@@ -377,10 +381,12 @@ __wt_txn_named_snapshot_config(WT_SESSION_IMPL *session,
 			WT_RET_MSG(session, EINVAL,
 			    "Can't create a named snapshot from a running "
 			    "transaction that has made updates");
+#ifdef HAVE_TIMESTAMPS
 		else if (F_ISSET(txn, WT_TXN_PREPARE))
 			WT_RET_MSG(session, EINVAL,
 			    "Can't create a named snapshot from a prepared "
 			    "transaction");
+#endif
 		*has_create = true;
 	}
 

@@ -204,11 +204,15 @@ __wt_txn_context_check(
 		WT_RET_MSG(session, EINVAL,
 		    "%s: only permitted in a running transaction",
 		    session->name);
+#ifdef HAVE_TIMESTAMPS
 	if (requires_txn && !prepare_allowed &&
 	    F_ISSET(&session->txn, WT_TXN_PREPARE))
 		WT_RET_MSG(session, EINVAL,
 		    "%s: not permitted in a prepared transaction",
 		    session->name);
+#else
+	WT_UNUSED(prepare_allowed);
+#endif
 	return (0);
 }
 /*
@@ -219,9 +223,14 @@ static inline int
 __wt_txn_context_prepare_check(
     WT_SESSION_IMPL *session, bool prepare_allowed)
 {
+#ifdef HAVE_TIMESTAMPS
 	if (!prepare_allowed && F_ISSET(&session->txn, WT_TXN_PREPARE))
 		WT_RET_MSG(session, EINVAL,
 		    "%s: not permitted in a prepared transaction",
 		    session->name);
+#else
+	WT_UNUSED(prepare_allowed);
+	WT_UNUSED(session);
+#endif
 	return (0);
 }
