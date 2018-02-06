@@ -532,13 +532,6 @@ __wt_curindex_open(WT_SESSION_IMPL *session,
 		cacheable = false;
 	}
 
-	if (cacheable && F_ISSET(session, WT_SESSION_CACHE_CURSORS)) {
-		if ((ret = __wt_cursor_cache_get(
-		    session, uri, cfg, cursorp)) == 0)
-			return (0);
-		WT_RET_NOTFOUND_OK(ret);
-	}
-
 	if ((ret = __wt_schema_open_index(
 	    session, table, idxname, namesize, &idx)) != 0) {
 		WT_TRET(__wt_schema_release_table(session, table));

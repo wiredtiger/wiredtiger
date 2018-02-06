@@ -713,13 +713,6 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri,
 	checkpoint_wait = true;
 	flags = 0;
 
-	if (F_ISSET(session, WT_SESSION_CACHE_CURSORS)) {
-		if ((ret = __wt_cursor_cache_get(
-		    session, uri, cfg, cursorp)) == 0)
-			return (0);
-		WT_RET_NOTFOUND_OK(ret);
-	}
-
 	/*
 	 * Decode the bulk configuration settings. In memory databases
 	 * ignore bulk load.

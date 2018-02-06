@@ -432,8 +432,12 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri,
 	if (*cursorp == NULL)
 		return (__wt_bad_object_type(session, uri));
 
-	if (owner != NULL)
-		F_CLR(*cursorp, WT_CURSTD_CACHEABLE);
+	/*
+	 * When caching a cursor, all child cursors must be cached.
+	 * Thus, if a child is not cacheable, neither is the parent.
+	 */
+	if (owner != NULL && !F_ISSET(*cursorp, WT_CURSTD_CACHEABLE))
+		F_CLR(owner, WT_CURSTD_CACHEABLE);
 
 	/*
 	 * When opening simple tables, the table code calls this function on the
@@ -457,6 +461,15 @@ int
 __wt_open_cursor(WT_SESSION_IMPL *session,
     const char *uri, WT_CURSOR *owner, const char *cfg[], WT_CURSOR **cursorp)
 {
+	WT_DECL_RET;
+
+	if (F_ISSET(session, WT_SESSION_CACHE_CURSORS)) {
+		if ((ret = __wt_cursor_cache_get(
+		    session, uri, owner, cfg, cursorp)) == 0)
+			return (0);
+		WT_RET_NOTFOUND_OK(ret);
+	}
+
 	return (__session_open_cursor_int(session, uri, owner, NULL, cfg,
 	    cursorp));
 }
@@ -481,7 +494,7 @@ __session_open_cursor(WT_SESSION *wt_session,
 
 	if (to_dup == NULL && F_ISSET(session, WT_SESSION_CACHE_CURSORS)) {
 		if ((ret = __wt_cursor_cache_get(
-		    session, uri, cfg, cursorp)) == 0)
+		    session, uri, NULL, cfg, cursorp)) == 0)
 			return (0);
 		WT_RET_NOTFOUND_OK(ret);
 	}

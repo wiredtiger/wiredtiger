@@ -688,13 +688,15 @@ __wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
  */
 int
 __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
-    const char *cfg[], WT_CURSOR **cursorp)
+    WT_CURSOR *owner, const char *cfg[], WT_CURSOR **cursorp)
 {
 	WT_CONFIG_ITEM cval;
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	const char *tmp_cfg;
 
+	if (owner != NULL && F_ISSET(owner, WT_CURSTD_CACHEABLE))
+		return (WT_NOTFOUND);
 	if (cfg == NULL) {
 		tmp_cfg = NULL;
 		cfg = &tmp_cfg;
