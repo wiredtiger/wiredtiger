@@ -610,7 +610,7 @@ skip_read:
 		 * Don't free WT_REF.page_las, there may be concurrent readers.
 		 */
 		WT_TRET(__wt_las_remove_block(
-		    session, NULL, btree->id, ref->page_las->las_pageid));
+		    session, btree->id, ref->page_las->las_pageid));
 
 		ref->page_las->eviction_to_lookaside = false;
 		break;
