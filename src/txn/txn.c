@@ -449,6 +449,14 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_RET(__wt_txn_parse_timestamp(session, "read", &ts, &cval));
 
 		/*
+		 * Prepare transactions are supported only in timestamp build.
+		 */
+		WT_RET(__wt_config_gets_def(session,
+		    cfg, "ignore_prepare", 0, &cval));
+		if (cval.val)
+			F_SET(txn, WT_TXN_IGNORE_PREPARE);
+
+		/*
 		 * Read the configuration here to reduce the span of the
 		 * critical section.
 		 */
@@ -958,6 +966,22 @@ err:	/*
 	return (ret);
 }
 
+/*
+ * __wt_txn_prepare --
+ *	Prepare the current transaction.
+ */
+int
+__wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
+{
+	WT_UNUSED(cfg);
+
+#ifdef HAVE_TIMESTAMPS
+	WT_RET_MSG(session, ENOTSUP, "prepare_transaction is not supported");
+#else
+	WT_RET_MSG(session, ENOTSUP, "prepare_transaction requires a version "
+	    "of WiredTiger built with timestamp support");
+#endif
+}
 /*
  * __wt_txn_rollback --
  *	Roll back the current transaction.

@@ -1514,6 +1514,31 @@ err:	API_END_RET(session, ret);
 }
 
 /*
+ * __session_prepare_transaction --
+ *	WT_SESSION->prepare_transaction method.
+ */
+static int
+__session_prepare_transaction(WT_SESSION *wt_session, const char *config)
+{
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	session = (WT_SESSION_IMPL *)wt_session;
+	SESSION_API_CALL(session, prepare_transaction, config, cfg);
+
+	WT_ERR(__wt_txn_context_check(session, true));
+
+	WT_TRET(__wt_txn_prepare(session, cfg));
+
+	/*
+	 * Below code to be corrected as part of prepare functionality
+	 * implementation, coded as below to avoid setting error to transaction.
+	 */
+
+err:	API_END_RET_NO_TXN_ERROR(session, ret);
+}
+
+/*
  * __session_rollback_transaction --
  *	WT_SESSION->rollback_transaction method.
  */
@@ -1857,6 +1882,7 @@ __open_session(WT_CONNECTION_IMPL *conn,
 		__session_verify,
 		__session_begin_transaction,
 		__session_commit_transaction,
+		__session_prepare_transaction,
 		__session_rollback_transaction,
 		__session_timestamp_transaction,
 		__session_checkpoint,
@@ -1887,6 +1913,7 @@ __open_session(WT_CONNECTION_IMPL *conn,
 		__session_verify,
 		__session_begin_transaction,
 		__session_commit_transaction,
+		__session_prepare_transaction,
 		__session_rollback_transaction,
 		__session_timestamp_transaction,
 		__session_checkpoint_readonly,
