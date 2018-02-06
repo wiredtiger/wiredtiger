@@ -19,11 +19,11 @@
 	WT_SESSION_NO_RECONCILE)
 
 /*
- * __las_set_read_uncommitted --
+ * __las_set_isolation --
  *	Switch to read-uncommitted.
  */
 static void
-__las_set_read_uncommitted(
+__las_set_isolation(
     WT_SESSION_IMPL *session, WT_TXN_ISOLATION *saved_isolationp)
 {
 	*saved_isolationp = session->txn.isolation;
@@ -31,11 +31,12 @@ __las_set_read_uncommitted(
 }
 
 /*
- * __las_pop_isolation --
+ * __las_restore_isolation --
  *	Restore isolation.
  */
 static void
-__las_pop_isolation(WT_SESSION_IMPL *session, WT_TXN_ISOLATION saved_isolation)
+__las_restore_isolation(
+    WT_SESSION_IMPL *session, WT_TXN_ISOLATION saved_isolation)
 {
 	session->txn.isolation = saved_isolation;
 }
@@ -505,7 +506,7 @@ __wt_las_insert_block(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 
 	/* Wrap all the updates in a transaction. */
 	las_session = (WT_SESSION_IMPL *)cursor->session;
-	__las_set_read_uncommitted(las_session, &saved_isolation);
+	__las_set_isolation(las_session, &saved_isolation);
 	WT_ERR(__wt_txn_begin(las_session, NULL));
 	local_txn = true;
 
@@ -640,7 +641,7 @@ err:	/* Resolve the transaction. */
 			WT_TRET(__wt_txn_rollback(las_session, NULL));
 	}
 
-	__las_pop_isolation(las_session, saved_isolation);
+	__las_restore_isolation(las_session, saved_isolation);
 
 	if (insert_cnt > 0) {
 		if (ret == 0) {
@@ -744,7 +745,7 @@ __wt_las_remove_block(
 	__wt_las_cursor(session, &cursor, &session_flags);
 
 	las_session = (WT_SESSION_IMPL *)cursor->session;
-	__las_set_read_uncommitted(las_session, &saved_isolation);
+	__las_set_isolation(las_session, &saved_isolation);
 
 	WT_ERR(__wt_txn_begin(las_session, NULL));
 
@@ -759,7 +760,7 @@ __wt_las_remove_block(
 		    &conn->cache->las_entry_count,
 		    decrement_cnt, "lookaside entry count");
 
-err:	__las_pop_isolation(las_session, saved_isolation);
+err:	__las_restore_isolation(las_session, saved_isolation);
 	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 
 	return (ret);
@@ -907,7 +908,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	 */
 	__wt_las_cursor(session, &cursor, &session_flags);
 	WT_ASSERT(session, cursor->session == &session->iface);
-	__las_set_read_uncommitted(session, &saved_isolation);
+	__las_set_isolation(session, &saved_isolation);
 	WT_ERR(__wt_txn_begin(session, NULL));
 	local_txn = true;
 
@@ -1073,7 +1074,7 @@ err:		__wt_buf_free(session, sweep_key);
 		__wt_writeunlock(session, &cache->las_sweepwalk_lock);
 
 	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
-	__las_pop_isolation(session, saved_isolation);
+	__las_restore_isolation(session, saved_isolation);
 
 	__wt_scr_free(session, &saved_key);
 
