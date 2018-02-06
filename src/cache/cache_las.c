@@ -643,12 +643,17 @@ err:	/* Resolve the transaction. */
 
 	__las_restore_isolation(las_session, saved_isolation);
 
+	/*
+	 * If the transaction successfully committed and we inserted records,
+	 * adjust the final entry count. We may have also deleted records,
+	 * but we must have intended to insert records to be in this function
+	 * at all, checking the insert count is sufficient.
+	 */
 	if (insert_cnt > 0) {
 		if (ret == 0) {
 			(void)__wt_atomic_add64(
 			    &conn->cache->las_entry_count,
 			    insert_estimate - insert_cnt);
-
 			__wt_cache_decr_check_uint64(session,
 			    &conn->cache->las_entry_count,
 			    decrement_cnt, "lookaside entry count");
@@ -725,7 +730,7 @@ __wt_las_cursor_position(WT_CURSOR *cursor, uint32_t btree_id, uint64_t pageid)
 
 /*
  * __wt_las_remove_block --
- *	Remove all records for a given page from the lookaside store.
+ *	Remove all records for a given page from the lookaside table.
  */
 int
 __wt_las_remove_block(
@@ -742,6 +747,11 @@ __wt_las_remove_block(
 	conn = S2C(session);
 	session_flags = 0;		/* [-Wconditional-uninitialized] */
 
+	/*
+	 * This is an external API for removing records from the lookaside
+	 * table, first acquiring a lookaside table cursor and enclosing
+	 * transaction, then calling an underlying function to do the work.
+	 */
 	__wt_las_cursor(session, &cursor, &session_flags);
 
 	las_session = (WT_SESSION_IMPL *)cursor->session;
@@ -1064,7 +1074,6 @@ err:		__wt_buf_free(session, sweep_key);
 			ret = __wt_txn_commit(session, NULL);
 		else
 			WT_TRET(__wt_txn_rollback(session, NULL));
-
 		if (ret == 0)
 			__wt_cache_decr_check_uint64(session,
 			    &S2C(session)->cache->las_entry_count,
