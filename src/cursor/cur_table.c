@@ -801,15 +801,9 @@ __curtable_close(WT_CURSOR *cursor)
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	u_int i;
-	bool released;
 
 	ctable = (WT_CURSOR_TABLE *)cursor;
 	JOINABLE_CURSOR_API_CALL(cursor, session, close, NULL);
-	released = false;
-
-	WT_TRET(__wt_cursor_cache_release(session, cursor, &released));
-	if (released)
-		return (0);
 
 	if (ctable->cg_cursors != NULL)
 		for (i = 0, cp = ctable->cg_cursors;
@@ -843,9 +837,6 @@ __curtable_close(WT_CURSOR *cursor)
 	WT_TRET(__wt_schema_release_table(session, ctable->table));
 	/* The URI is owned by the table. */
 	cursor->internal_uri = NULL;
-	if (F_ISSET(cursor, WT_CURSTD_CACHED))
-		if (&ctable->table->iface == session->dhandle)
-			WT_DHANDLE_UNCACHE(session->dhandle);
 	WT_TRET(__wt_cursor_close(cursor));
 
 err:	API_END_RET(session, ret);
@@ -1023,7 +1014,6 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 	cursor->internal_uri = table->iface.name;
 	cursor->key_format = table->key_format;
 	cursor->value_format = table->value_format;
-	cursor->checkpoint = table->iface.checkpoint;
 
 	ctable->table = table;
 	ctable->plan = table->plan;
