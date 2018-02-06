@@ -374,8 +374,8 @@ __las_remove_block(WT_SESSION_IMPL *session,
 	__wt_writelock(session, &conn->cache->las_sweepwalk_lock);
 
 	/*
-	 * Search for the block's unique prefix and step through all matching
-	 * records, removing them.
+	 * Search for the block's unique btree ID and page ID prefix and step
+	 * through all matching records, removing them.
 	 */
 	for (ret = __wt_las_cursor_position(cursor, btree_id, pageid);
 	    ret == 0; ret = cursor->next(cursor)) {
