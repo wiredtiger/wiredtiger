@@ -383,8 +383,8 @@ __las_remove_block(WT_SESSION_IMPL *session,
 		    &las_pageid, &las_id, &las_counter, &las_key));
 
 		/*
-		 * Confirm the search using the unique prefix; if not a match,
-		 * we're done searching for records for this page.
+		 * Confirm the record matches; if not a match, we're done
+		 * searching for records for this page.
 		 */
 		if (las_pageid != pageid || las_id != btree_id)
 			break;
