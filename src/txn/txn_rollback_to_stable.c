@@ -81,8 +81,7 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 err:	__wt_writeunlock(session, &conn->cache->las_sweepwalk_lock);
 	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 	__wt_cache_decr_check_uint64(session,
-	    &conn->cache->las_entry_count, remove_cnt,
-	    "lookaside entry count");
+	    &conn->cache->las_entry_count, remove_cnt, "lookaside entry count");
 	WT_STAT_CONN_SET(session, cache_lookaside_entries, las_total);
 
 	F_CLR(session, WT_SESSION_READ_WONT_NEED);

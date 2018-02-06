@@ -469,7 +469,7 @@ __las_insert_block_verbose(WT_SESSION_IMPL *session, WT_MULTI *multi)
 
 /*
  * __wt_las_insert_block --
- *	Copy one set of saved updates into the database's lookaside buffer.
+ *	Copy one set of saved updates into the database's lookaside table.
  */
 int
 __wt_las_insert_block(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
@@ -946,7 +946,9 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	 * removes entries and that would cause sweep to do less and less work
 	 * rather than driving the lookaside table to empty.
 	 */
-	cnt = WT_MAX(cache->las_sweep_cnt, __las_sweep_count(cache));
+	cnt = __las_sweep_count(cache);
+	if (cnt < cache->las_sweep_cnt)
+		cnt = cache->las_sweep_cnt;
 
 	/* Walk the file. */
 	while ((ret = cursor->next(cursor)) == 0) {
