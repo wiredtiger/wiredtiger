@@ -1528,9 +1528,8 @@ __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL(session, prepare_transaction, config, cfg);
 
+	WT_ERR(__wt_txn_context_check(session, true, false));
 
- 	WT_ERR(__wt_txn_context_check(session, true, false));
-  
 	WT_TRET(__wt_txn_prepare(session, cfg));
 
 err:	API_END_RET(session, ret);

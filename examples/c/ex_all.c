@@ -918,6 +918,7 @@ transaction_ops(WT_SESSION *session_arg)
 	error_check(session->commit_transaction(session, NULL));
 	/*! [transaction prepare] */
 	}
+#endif
 
 	/*! [session isolation configuration] */
 	/* Open a session configured for read-uncommitted isolation. */
