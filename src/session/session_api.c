@@ -434,7 +434,7 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri,
 
 	/*
 	 * When caching a cursor, all child cursors must be cached.
-	 * Thus, if a child is not cacheable, neither is the parent.
+	 * Thus, if a child cannot be cached, neither can the parent.
 	 */
 	if (owner != NULL && !F_ISSET(*cursorp, WT_CURSTD_CACHEABLE))
 		F_CLR(owner, WT_CURSTD_CACHEABLE);
