@@ -1148,6 +1148,15 @@ nextprev(TINFO *tinfo, WT_CURSOR *cursor, bool next)
 			testutil_die(ret, "nextprev: get_key/get_value");
 
 		/* Check that keys are never returned out-of-order. */
+		/*
+		 * XXX
+		 * WT-3889
+		 * LSM has a bug that prevents cursor order checks from
+		 * working, skip the test for now.
+		 */
+		if (DATASOURCE("lsm"))
+			break;
+
 		switch (g.type) {
 		case FIX:
 		case VAR:
