@@ -904,11 +904,9 @@ transaction_ops(WT_SESSION *session_arg)
 	{
 	/*! [transaction prepare] */
 	/*
-	 * An active transaction can be prepared, if successful will guarantee
-	 * a commit. No operations, apart from commit/rollback operation is
-	 * allowed on a prepared transaction, including session/cursor
-	 * operations. At the moment, prepare transaction is designed to
-	 * support mongodb exclusively.
+	 * Prepare a transaction which guarantees a subsequent commit will
+	 * succeed. Only commit and rollback are allowed on a transaction after
+	 * it has been prepared.
 	 */
 	error_check(session->open_cursor(
 	    session, "table:mytable", NULL, NULL, &cursor));
@@ -920,7 +918,7 @@ transaction_ops(WT_SESSION *session_arg)
 	error_check(session->commit_transaction(session, NULL));
 	/*! [transaction prepare] */
 	}
-#endif
+
 	/*! [session isolation configuration] */
 	/* Open a session configured for read-uncommitted isolation. */
 	error_check(conn->open_session(

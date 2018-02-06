@@ -110,6 +110,7 @@ class test_prepare01(wttest.WiredTigerTestCase):
         committed = 0
         cursor = self.session.open_cursor(self.uri, None)
         self.check(cursor, 0, 0)
+
         # Currently ignore_prepare is not realized yet, hence no effect.
         self.session.begin_transaction("ignore_prepare=false")
         for i in xrange(self.nentries):
@@ -131,6 +132,7 @@ class test_prepare01(wttest.WiredTigerTestCase):
             cursor.insert()
 
         self.check(cursor, committed, self.nentries)
+
         self.session.prepare_transaction()
         self.session.commit_transaction()
         self.check(cursor, self.nentries, self.nentries)
@@ -151,6 +153,7 @@ class test_read_committed_default(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(self.uri, None)
         self.session.begin_transaction()
         cursor['key: aaa'] = 'value: aaa'
+
         self.session.prepare_transaction()
         self.session.commit_transaction()
         self.session.begin_transaction()
@@ -160,11 +163,13 @@ class test_read_committed_default(wttest.WiredTigerTestCase):
         cursor = s.open_cursor(self.uri, None)
         s.begin_transaction("isolation=read-committed")
         self.assertEqual(self.cursor_count(cursor), 1)
+
         s.prepare_transaction()
         s.commit_transaction()
         s.begin_transaction(None)
         self.assertEqual(self.cursor_count(cursor), 1)
         s.prepare_transaction()
+
         s.commit_transaction()
         s.close()
 
