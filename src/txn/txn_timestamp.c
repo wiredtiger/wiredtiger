@@ -677,9 +677,20 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session)
 	 * fixed.
 	 */
 	__wt_timestamp_set(&ts, &txn->commit_timestamp);
-	__wt_timestamp_set(&txn->first_commit_timestamp, &ts);
 
 	__wt_writelock(session, &txn_global->commit_timestamp_rwlock);
+	/*
+	 * If our transaction is on the queue remove it first. The timestamp
+	 * may move earlier so we otherwise might not remove ourselves before
+	 * finding where to insert ourselves (which would result in a list
+	 * loop) and we don't want to walk more of the list than needed.
+	 */
+	if (txn->clear_ts_queue) {
+		TAILQ_REMOVE(&txn_global->commit_timestamph,
+		    txn, commit_timestampq);
+		WT_PUBLISH(txn->clear_ts_queue, false);
+		--txn_global->commit_timestampq_len;
+	}
 	/*
 	 * Walk the list to look for where to insert our own transaction
 	 * and remove any transactions that are not active.  We stop when
@@ -719,11 +730,12 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session)
 		} else
 			TAILQ_INSERT_BEFORE(qtxn, txn, commit_timestampq);
 	}
+	__wt_timestamp_set(&txn->first_commit_timestamp, &ts);
 	++txn_global->commit_timestampq_len;
 	WT_STAT_CONN_INCR(session, txn_commit_queue_inserts);
 	txn->clear_ts_queue = false;
-	__wt_writeunlock(session, &txn_global->commit_timestamp_rwlock);
 	F_SET(txn, WT_TXN_HAS_TS_COMMIT | WT_TXN_PUBLIC_TS_COMMIT);
+	__wt_writeunlock(session, &txn_global->commit_timestamp_rwlock);
 }
 
 /*
