@@ -71,6 +71,10 @@ struct __wt_session_impl {
 					/* Cursors closed with the session */
 	TAILQ_HEAD(__cursors, __wt_cursor) cursors;
 
+					/* Hash table of cached cursors */
+	TAILQ_HEAD(__cursor_cache, __wt_cursor)
+	    cursor_cache[WT_HASH_ARRAY_SIZE];
+
 	WT_CURSOR_BACKUP *bkp_cursor;	/* Hot backup cursor */
 
 	WT_COMPACT_STATE *compact;	/* Compaction information */

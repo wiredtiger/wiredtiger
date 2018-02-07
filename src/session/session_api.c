@@ -432,12 +432,15 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri,
 	if (*cursorp == NULL)
 		return (__wt_bad_object_type(session, uri));
 
-	/*
-	 * When caching a cursor, all child cursors must be cached.
-	 * Thus, if a child cannot be cached, neither can the parent.
-	 */
-	if (owner != NULL && !F_ISSET(*cursorp, WT_CURSTD_CACHEABLE))
+	if (owner != NULL) {
+		/*
+		 * We support caching simple cursors that have no
+		 * children. If this cursor is a child, we're not going
+		 * to cache this child or its parent.
+		 */
 		F_CLR(owner, WT_CURSTD_CACHEABLE);
+		F_CLR(*cursorp, WT_CURSTD_CACHEABLE);
+	}
 
 	/*
 	 * When opening simple tables, the table code calls this function on the
@@ -1985,15 +1988,15 @@ __open_session(WT_CONNECTION_IMPL *conn,
 
 	TAILQ_INIT(&session_ret->cursors);
 	TAILQ_INIT(&session_ret->dhandles);
-	/*
-	 * If we don't have one, allocate the dhandle hash array.
-	 * Allocate the table hash array as well.
-	 */
+
+	/* If we don't have one, allocate the dhandle hash array. */
 	if (session_ret->dhhash == NULL)
 		WT_ERR(__wt_calloc(session, WT_HASH_ARRAY_SIZE,
 		    sizeof(struct __dhandles_hash), &session_ret->dhhash));
 	for (i = 0; i < WT_HASH_ARRAY_SIZE; i++)
 		TAILQ_INIT(&session_ret->dhhash[i]);
+	for (i = 0; i < WT_HASH_ARRAY_SIZE; i++)
+		TAILQ_INIT(&session_ret->cursor_cache[i]);
 
 	/* Initialize transaction support: default to read-committed. */
 	session_ret->isolation = WT_ISO_READ_COMMITTED;

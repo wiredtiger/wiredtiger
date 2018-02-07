@@ -55,6 +55,7 @@
 	reconfigure,							\
 	cache,								\
 	reopen,								\
+	-1,				/* cache_bucket */		\
 	NULL,				/* checkpoint */		\
 	{ NULL, NULL },			/* TAILQ_ENTRY q */		\
 	0,				/* recno key */			\

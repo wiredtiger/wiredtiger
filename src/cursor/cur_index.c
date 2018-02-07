@@ -593,10 +593,8 @@ __wt_curindex_open(WT_SESSION_IMPL *session,
 		    &idx->colconf, &table->colconf);
 
 	if (cacheable && F_ISSET(session, WT_SESSION_CACHE_CURSORS) &&
-	    F_ISSET(cindex->child, WT_CURSTD_CACHEABLE)) {
+	    F_ISSET(cindex->child, WT_CURSTD_CACHEABLE))
 		F_SET(cursor, WT_CURSTD_CACHEABLE);
-		F_SET(cindex->child, WT_CURSTD_CACHE_CHILD);
-	}
 
 	if (0) {
 err:		WT_TRET(__curindex_close(cursor));
