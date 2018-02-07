@@ -37,6 +37,8 @@ struct __wt_hazard {
 #define	S2BT(session)	   ((WT_BTREE *)(session)->dhandle->handle)
 #define	S2BT_SAFE(session) ((session)->dhandle == NULL ? NULL : S2BT(session))
 
+typedef TAILQ_HEAD(__wt_cursor_list, __wt_cursor)	WT_CURSOR_LIST;
+
 /*
  * WT_SESSION_IMPL --
  *	Implementation of WT_SESSION.
@@ -68,12 +70,9 @@ struct __wt_session_impl {
 	time_t last_sweep;		/* Last sweep for dead handles */
 	struct timespec last_epoch;	/* Last epoch time returned */
 
-					/* Cursors closed with the session */
-	TAILQ_HEAD(__cursors, __wt_cursor) cursors;
-
+	WT_CURSOR_LIST cursors;		/* Cursors closed with the session */
 					/* Hash table of cached cursors */
-	TAILQ_HEAD(__cursor_cache, __wt_cursor)
-	    cursor_cache[WT_HASH_ARRAY_SIZE];
+	WT_CURSOR_LIST cursor_cache[WT_HASH_ARRAY_SIZE];
 
 	WT_CURSOR_BACKUP *bkp_cursor;	/* Hot backup cursor */
 

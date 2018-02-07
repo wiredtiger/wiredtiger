@@ -168,6 +168,35 @@ __session_clear(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __session_close_cursors --
+ *	Close all cursors in a list.
+ */
+static int
+__session_close_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LIST *cursors)
+{
+	WT_CURSOR *cursor, *cursor_tmp;
+	WT_DECL_RET;
+
+	/* Close all open cursors. */
+	WT_TAILQ_SAFE_REMOVE_BEGIN(cursor, cursors, q, cursor_tmp) {
+		/*
+		 * Notify the user that we are closing the cursor handle
+		 * via the registered close callback.
+		 */
+		if (session->event_handler->handle_close != NULL &&
+		    !WT_STREQ(cursor->internal_uri, WT_LAS_URI))
+			WT_TRET(session->event_handler->handle_close(
+			    session->event_handler, &session->iface, cursor));
+		if (F_ISSET(cursor, WT_CURSTD_CACHED))
+			WT_TRET_NOTFOUND_OK(cursor->reopen(cursor));
+
+		WT_TRET(cursor->close(cursor));
+	} WT_TAILQ_SAFE_REMOVE_END
+
+	return (0);
+}
+
+/*
  * __session_close --
  *	WT_SESSION->close method.
  */
@@ -175,9 +204,9 @@ static int
 __session_close(WT_SESSION *wt_session, const char *config)
 {
 	WT_CONNECTION_IMPL *conn;
-	WT_CURSOR *cursor, *cursor_tmp;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	int i;
 
 	conn = (WT_CONNECTION_IMPL *)wt_session->connection;
 	session = (WT_SESSION_IMPL *)wt_session;
@@ -200,20 +229,10 @@ __session_close(WT_SESSION *wt_session, const char *config)
 		__wt_txn_release_snapshot(session);
 
 	/* Close all open cursors. */
-	WT_TAILQ_SAFE_REMOVE_BEGIN(cursor, &session->cursors, q, cursor_tmp) {
-		/*
-		 * Notify the user that we are closing the cursor handle
-		 * via the registered close callback.
-		 */
-		if (session->event_handler->handle_close != NULL &&
-		    !WT_STREQ(cursor->internal_uri, WT_LAS_URI))
-			WT_TRET(session->event_handler->handle_close(
-			    session->event_handler, wt_session, cursor));
-		if (F_ISSET(cursor, WT_CURSTD_CACHED))
-			WT_TRET_NOTFOUND_OK(cursor->reopen(cursor));
-
-		WT_TRET(cursor->close(cursor));
-	} WT_TAILQ_SAFE_REMOVE_END
+	WT_TRET(__session_close_cursors(session, &session->cursors));
+	for (i = 0; i < WT_HASH_ARRAY_SIZE; i++)
+		WT_TRET(__session_close_cursors(session,
+		    &session->cursor_cache[i]));
 
 	WT_ASSERT(session, session->ncursors == 0);
 

@@ -523,11 +523,15 @@ static int
 __curfile_cache(WT_CURSOR *cursor)
 {
 	WT_CURSOR_BTREE *cbt;
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
 
 	cbt = (WT_CURSOR_BTREE *)cursor;
-	WT_RET(__wt_cursor_cache(cursor, cbt->btree->dhandle));
-	return (__wt_session_release_dhandle(
-	    (WT_SESSION_IMPL *)cursor->session));
+	session = (WT_SESSION_IMPL *)cursor->session;
+
+	WT_TRET(__wt_cursor_cache(cursor, cbt->btree->dhandle));
+	WT_TRET(__wt_session_release_dhandle(session));
+	return (ret);
 }
 
 /*

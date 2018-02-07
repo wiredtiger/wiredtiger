@@ -576,25 +576,24 @@ err:		cursor->saved_err = ret;
 int
 __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 {
+	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)cursor->session;
 	WT_ASSERT(session, !F_ISSET(cursor, WT_CURSTD_CACHED) &&
 	    dhandle != NULL);
 
-	WT_RET(cursor->reset(cursor));
-	if (dhandle != NULL) {
-		WT_DHANDLE_CACHE(dhandle);
+	WT_TRET(cursor->reset(cursor));
+	WT_DHANDLE_CACHE(dhandle);
 
-		/*
-		 * Acquire a reference while decrementing the in-use counter.
-		 * After this point, the dhandle may be marked dead, but the
-		 * actual handle won't be removed.
-		 */
-		session->dhandle = dhandle;
-		WT_DHANDLE_ACQUIRE(dhandle);
-		__wt_cursor_dhandle_decr_use(session);
-	}
+	/*
+	 * Acquire a reference while decrementing the in-use counter.
+	 * After this point, the dhandle may be marked dead, but the
+	 * actual handle won't be removed.
+	 */
+	session->dhandle = dhandle;
+	WT_DHANDLE_ACQUIRE(dhandle);
+	__wt_cursor_dhandle_decr_use(session);
 
 	/* Move the cursor from the open list to the caching hash table. */
 	if (cursor->cache_bucket < 0)
@@ -608,7 +607,7 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 	WT_STAT_DATA_DECR(session, session_cursor_open);
 	WT_STAT_DATA_INCR(session, session_cursor_cached);
 	F_SET(cursor, WT_CURSTD_CACHED);
-	return (0);
+	return (ret);
 }
 
 /*
@@ -668,19 +667,22 @@ __wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 		return (0);
 	}
 
-	if ((ret = cursor->cache(cursor)) == 0) {
-		WT_STAT_CONN_INCR(session, cursor_cache);
-		WT_STAT_DATA_INCR(session, cursor_cache);
-		*released = true;
-		return (0);
+	WT_ERR(cursor->cache(cursor));
+	WT_STAT_CONN_INCR(session, cursor_cache);
+	WT_STAT_DATA_INCR(session, cursor_cache);
+	*released = true;
+
+	if (0) {
+		/*
+		 * If caching fails, we must restore the state of the
+		 * cursor back to open so that the close works from
+		 * a known state. The reopen may also fail, but that
+		 * doesn't matter at this point.
+		 */
+err:		WT_TRET(cursor->reopen(cursor));
+		*released = false;
 	}
 
-	/*
-	 * TODO: The caching operation failed, so we'll continue the close,
-	 * reopen first??
-	 */
-	*released = false;
-	WT_TRET(cursor->reopen(cursor));
 	return (ret);
 }
 
