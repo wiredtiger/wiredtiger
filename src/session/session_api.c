@@ -179,21 +179,27 @@ __session_close_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LIST *cursors)
 
 	/* Close all open cursors. */
 	WT_TAILQ_SAFE_REMOVE_BEGIN(cursor, cursors, q, cursor_tmp) {
-		/*
-		 * Notify the user that we are closing the cursor handle
-		 * via the registered close callback.
-		 */
-		if (session->event_handler->handle_close != NULL &&
-		    !WT_STREQ(cursor->internal_uri, WT_LAS_URI))
-			WT_TRET(session->event_handler->handle_close(
-			    session->event_handler, &session->iface, cursor));
 		if (F_ISSET(cursor, WT_CURSTD_CACHED))
+			/*
+			 * Put the cached cursor is an open state
+			 * that allows it to be closed.
+			 */
 			WT_TRET_NOTFOUND_OK(cursor->reopen(cursor));
+		else
+			/*
+			 * Notify the user that we are closing the cursor handle
+			 * via the registered close callback.
+			 */
+			if (session->event_handler->handle_close != NULL &&
+			    !WT_STREQ(cursor->internal_uri, WT_LAS_URI))
+				WT_TRET(session->event_handler->handle_close(
+				    session->event_handler, &session->iface,
+				    cursor));
 
 		WT_TRET(cursor->close(cursor));
 	} WT_TAILQ_SAFE_REMOVE_END
 
-	return (0);
+	return (ret);
 }
 
 /*
