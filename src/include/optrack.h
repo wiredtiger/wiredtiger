@@ -57,7 +57,8 @@ struct __wt_optrack_record {
 	__tr->op_type = optype;						\
 									\
 	if (++(s)->optrackbuf_ptr == WT_OPTRACK_MAXRECS) {		\
-		(s)->optrack_offset += __wt_optrack_flush_buffer(s);	\
+		size_t __written =__wt_optrack_flush_buffer(s);		\
+		(s)->optrack_offset += __written;			\
 		(s)->optrackbuf_ptr = 0;				\
 	}								\
 } while (0)
