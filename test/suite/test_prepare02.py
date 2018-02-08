@@ -37,11 +37,12 @@ def timestamp_str(t):
     return '%x' % t
 
 class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
-    def test_timestamp_range(self):
+    def test_prepare_session_operations(self):
         if not wiredtiger.timestamp_build():
             self.skipTest('requires a timestamp build')
 
         self.session.create("table:mytable", "key_format=S,value_format=S")
+        cursor = self.session.open_cursor("table:mytable", None)
         # Commit after prepare is permitted
         self.session.begin_transaction()
         self.session.prepare_transaction()
@@ -62,18 +63,57 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
                 lambda: self.session.checkpoint())
         with self.expectedStderrPattern(" not permitted in a"):
             self.assertRaises(wiredtiger.WiredTigerError,
-                    lambda: self.session.compact("table:mytable"))
+                lambda: self.session.compact("table:mytable"))
         with self.expectedStderrPattern(" not permitted in a"):
             self.assertRaises(wiredtiger.WiredTigerError,
-                    lambda: self.session.open_cursor("table:mytable", None))
+                lambda: self.session.open_cursor("table:mytable", None))
         with self.expectedStderrPattern(" not permitted in a"):
             self.assertRaises(wiredtiger.WiredTigerError,
-                    lambda: self.session.alter("table:mytable",
-                        "access_pattern_hint=random"))
+                lambda: self.session.alter("table:mytable",
+                   "access_pattern_hint=random"))
         with self.expectedStderrPattern(" not permitted in a"):
             self.assertRaises(wiredtiger.WiredTigerError,
-                    lambda: self.session.create("table:mytable1",
-                        "key_format=S,value_format=S"))
+                lambda: self.session.create("table:mytable1",
+                   "key_format=S,value_format=S"))
+        with self.expectedStderrPattern(" not permitted in a"):
+            self.assertRaises(wiredtiger.WiredTigerError,
+                lambda: self.session.rebalance("table:mytable", None))
+        with self.expectedStderrPattern(" not permitted in a"):
+            self.assertRaises(wiredtiger.WiredTigerError,
+                lambda: self.session.rename("table:mytable",
+                   "table:mynewtable", None))
+        with self.expectedStderrPattern(" not permitted in a"):
+            self.assertRaises(wiredtiger.WiredTigerError,
+                lambda: self.session.salvage("table:mytable", None))
+        with self.expectedStderrPattern(" not permitted in a"):
+            self.assertRaises(wiredtiger.WiredTigerError,
+                lambda: self.session.truncate("table:mytable",
+                    None, None, None))
+        with self.expectedStderrPattern(" not permitted in a"):
+            self.assertRaises(wiredtiger.WiredTigerError,
+                lambda: self.session.drop("table:mytable", None))
+        with self.expectedStderrPattern(" not permitted in a"):
+            self.assertRaises(wiredtiger.WiredTigerError,
+                lambda: self.session.join(cursor, cursor,
+                    "compare=gt,count=10"))
+        with self.expectedStderrPattern("logging not enabled"):
+            self.assertRaises(wiredtiger.WiredTigerError,
+                lambda: self.session.log_flush("sync=on"))
+        with self.expectedStderrPattern(" not permitted in a"):
+            self.assertRaises(wiredtiger.WiredTigerError,
+                lambda: self.session.upgrade("table:mytable", None))
+        with self.expectedStderrPattern(" not permitted in a"):
+            self.assertRaises(wiredtiger.WiredTigerError,
+                lambda: self.session.verify("table:mytable", None))
+        with self.expectedStderrPattern(" not permitted in a"):
+            self.assertRaises(wiredtiger.WiredTigerError,
+                lambda: self.session.snapshot("name=test"))
+        with self.expectedStderrPattern(" not permitted in a"):
+            self.assertRaises(wiredtiger.WiredTigerError,
+                lambda: self.session.timestamp_transaction(
+                    "commit_timestamp=2a"))
+        self.session.log_printf("Wrote 100 records")
+        #self.session.strerror(-1932942106)
         self.session.rollback_transaction()
 
         # Commit after prepare is permitted

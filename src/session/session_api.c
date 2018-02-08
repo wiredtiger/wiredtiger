@@ -520,6 +520,7 @@ __session_alter(WT_SESSION *wt_session, const char *uri, const char *config)
 	session = (WT_SESSION_IMPL *)wt_session;
 
 	SESSION_API_CALL(session, alter, config, cfg);
+	WT_ERR(__wt_txn_context_prepare_check(session, false));
 
 	/* In-memory ignores alter operations. */
 	if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
@@ -599,6 +600,7 @@ __session_create(WT_SESSION *wt_session, const char *uri, const char *config)
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL(session, create, config, cfg);
+	WT_ERR(__wt_txn_context_prepare_check(session, false));
 	WT_UNUSED(cfg);
 
 	/* Disallow objects in the WiredTiger name space. */
@@ -774,6 +776,7 @@ __session_rebalance(WT_SESSION *wt_session, const char *uri, const char *config)
 
 	SESSION_API_CALL(session, rebalance, config, cfg);
 
+	WT_ERR(__wt_txn_context_prepare_check(session, false));
 	/* In-memory ignores rebalance operations. */
 	if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
 		goto err;
@@ -827,6 +830,7 @@ __session_rename(WT_SESSION *wt_session,
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL(session, rename, config, cfg);
+	WT_ERR(__wt_txn_context_prepare_check(session, false));
 
 	/* Disallow objects in the WiredTiger name space. */
 	WT_ERR(__wt_str_name_check(session, uri));
@@ -905,6 +909,7 @@ __session_drop(WT_SESSION *wt_session, const char *uri, const char *config)
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL(session, drop, config, cfg);
+	WT_ERR(__wt_txn_context_prepare_check(session, false));
 
 	/* Disallow objects in the WiredTiger name space. */
 	WT_ERR(__wt_str_name_check(session, uri));
@@ -997,6 +1002,7 @@ __session_join(WT_SESSION *wt_session, WT_CURSOR *join_cursor,
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL(session, join, config, cfg);
+	WT_ERR(__wt_txn_context_prepare_check(session, false));
 
 	firstcg = NULL;
 	table = NULL;
@@ -1125,6 +1131,7 @@ __session_salvage(WT_SESSION *wt_session, const char *uri, const char *config)
 
 	SESSION_API_CALL(session, salvage, config, cfg);
 
+	WT_ERR(__wt_txn_context_prepare_check(session, false));
 	WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
 	/* Block out checkpoints to avoid spurious EBUSY errors. */
@@ -1303,6 +1310,7 @@ __session_truncate(WT_SESSION *wt_session,
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_TXN_API_CALL(session, truncate, config, cfg);
+	WT_ERR(__wt_txn_context_prepare_check(session, false));
 	WT_STAT_CONN_INCR(session, cursor_truncate);
 
 	/*
@@ -1396,6 +1404,7 @@ __session_upgrade(WT_SESSION *wt_session, const char *uri, const char *config)
 	session = (WT_SESSION_IMPL *)wt_session;
 
 	SESSION_API_CALL(session, upgrade, config, cfg);
+	WT_ERR(__wt_txn_context_prepare_check(session, false));
 
 	WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
@@ -1442,6 +1451,7 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
 	session = (WT_SESSION_IMPL *)wt_session;
 
 	SESSION_API_CALL(session, verify, config, cfg);
+	WT_ERR(__wt_txn_context_prepare_check(session, false));
 
 	WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
@@ -1577,6 +1587,7 @@ __session_timestamp_transaction(WT_SESSION *wt_session, const char *config)
 	SESSION_API_CALL(session, timestamp_transaction, NULL, cfg);
 	cfg[1] = config;
 #endif
+	WT_ERR(__wt_txn_context_prepare_check(session, false));
 	WT_TRET(__wt_txn_set_timestamp(session, cfg));
 err:	API_END_RET(session, ret);
 }
@@ -1597,6 +1608,7 @@ __session_transaction_pinned_range(WT_SESSION *wt_session, uint64_t *prange)
 	SESSION_API_CALL_NOCONF(session, pinned_range);
 
 	txn_state = WT_SESSION_TXN_STATE(session);
+	WT_ERR(__wt_txn_context_prepare_check(session, false));
 
 	/* Assign pinned to the lesser of id or snap_min */
 	if (txn_state->id != WT_TXN_NONE &&
@@ -1803,6 +1815,7 @@ __session_snapshot(WT_SESSION *wt_session, const char *config)
 	txn_global = &S2C(session)->txn_global;
 
 	SESSION_API_CALL(session, snapshot, config, cfg);
+	WT_ERR(__wt_txn_context_prepare_check(session, false));
 
 	WT_ERR(__wt_txn_named_snapshot_config(
 	    session, cfg, &has_create, &has_drop));
