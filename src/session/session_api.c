@@ -1282,7 +1282,7 @@ err:	/*
 	 */
 	if (local_start)
 		WT_TRET(start->close(start));
-	else
+	else if (start != NULL)
 		WT_TRET(start->reset(start));
 	if (stop != NULL)
 		WT_TRET(stop->reset(stop));
