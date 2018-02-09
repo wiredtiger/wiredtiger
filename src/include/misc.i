@@ -213,8 +213,7 @@ __wt_txn_context_prepare_check(
  *	Complain if a transaction is/isn't running.
  */
 static inline int
-__wt_txn_context_check(
-    WT_SESSION_IMPL *session, bool requires_txn)
+__wt_txn_context_check(WT_SESSION_IMPL *session, bool requires_txn)
 {
 	if (requires_txn && !F_ISSET(&session->txn, WT_TXN_RUNNING))
 		WT_RET_MSG(session, EINVAL,
