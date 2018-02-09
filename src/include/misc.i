@@ -214,22 +214,15 @@ __wt_txn_context_prepare_check(
  */
 static inline int
 __wt_txn_context_check(
-    WT_SESSION_IMPL *session, bool requires_txn, bool prepare_allowed)
+    WT_SESSION_IMPL *session, bool requires_txn)
 {
-	if (!requires_txn && F_ISSET(&session->txn, WT_TXN_RUNNING))
-		WT_RET_MSG(session, EINVAL,
-		    "%s: not permitted in a running transaction",
-		    session->name);
 	if (requires_txn && !F_ISSET(&session->txn, WT_TXN_RUNNING))
 		WT_RET_MSG(session, EINVAL,
 		    "%s: only permitted in a running transaction",
 		    session->name);
-#ifdef HAVE_TIMESTAMPS
-	if (requires_txn)
-		WT_RET(__wt_txn_context_prepare_check(session,
-		    prepare_allowed));
-#else
-	WT_UNUSED(prepare_allowed);
-#endif
+	if (!requires_txn && F_ISSET(&session->txn, WT_TXN_RUNNING))
+		WT_RET_MSG(session, EINVAL,
+		    "%s: not permitted in a running transaction",
+		    session->name);
 	return (0);
 }

@@ -170,12 +170,7 @@ __wt_txn_named_snapshot_begin(WT_SESSION_IMPL *session, const char *cfg[])
 
 		WT_RET(__wt_txn_begin(session, txn_cfg));
 		started_txn = true;
-#ifdef HAVE_TIMESTAMPS
-	} else
-		WT_RET(__wt_txn_context_prepare_check(session, false));
-#else
 	}
-#endif
 
 	if (!include_updates)
 		F_SET(txn, WT_TXN_READONLY);
@@ -380,10 +375,6 @@ __wt_txn_named_snapshot_config(WT_SESSION_IMPL *session,
 			WT_RET_MSG(session, EINVAL,
 			    "Can't create a named snapshot from a running "
 			    "transaction that has made updates");
-#ifdef HAVE_TIMESTAMPS
-		else
-			WT_RET(__wt_txn_context_prepare_check(session, false));
-#endif
 		*has_create = true;
 	}
 

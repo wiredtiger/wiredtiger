@@ -182,7 +182,7 @@ __session_close(WT_SESSION *wt_session, const char *config)
 	conn = (WT_CONNECTION_IMPL *)wt_session->connection;
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	SESSION_API_CALL(session, close, config, cfg);
+	SESSION_API_CALL(session, close, config, cfg, true);
 	WT_UNUSED(cfg);
 
 	/* Rollback any active transaction. */
@@ -291,7 +291,7 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, reconfigure, config, cfg);
+	SESSION_API_CALL(session, reconfigure, config, cfg, false);
 
 	/*
 	 * Note that this method only checks keys that are passed in by the
@@ -300,7 +300,7 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 	 */
 	WT_UNUSED(cfg);
 
-	WT_ERR(__wt_txn_context_check(session, false, false));
+	WT_ERR(__wt_txn_context_check(session, false));
 
 	WT_ERR(__wt_session_reset_cursors(session, false));
 
@@ -459,8 +459,7 @@ __session_open_cursor(WT_SESSION *wt_session,
 	cursor = *cursorp = NULL;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, open_cursor, config, cfg);
-	WT_ERR(__wt_txn_context_prepare_check(session, false));
+	SESSION_API_CALL(session, open_cursor, config, cfg, false);
 
 	statjoin = (to_dup != NULL && uri != NULL &&
 	    WT_STREQ(uri, "statistics:join"));
@@ -519,8 +518,7 @@ __session_alter(WT_SESSION *wt_session, const char *uri, const char *config)
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	SESSION_API_CALL(session, alter, config, cfg);
-	WT_ERR(__wt_txn_context_prepare_check(session, false));
+	SESSION_API_CALL(session, alter, config, cfg, false);
 
 	/* In-memory ignores alter operations. */
 	if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
@@ -599,8 +597,7 @@ __session_create(WT_SESSION *wt_session, const char *uri, const char *config)
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, create, config, cfg);
-	WT_ERR(__wt_txn_context_prepare_check(session, false));
+	SESSION_API_CALL(session, create, config, cfg, false);
 	WT_UNUSED(cfg);
 
 	/* Disallow objects in the WiredTiger name space. */
@@ -678,7 +675,7 @@ __session_log_flush(WT_SESSION *wt_session, const char *config)
 	uint32_t flags;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, log_flush, config, cfg);
+	SESSION_API_CALL(session, log_flush, config, cfg, true);
 	WT_STAT_CONN_INCR(session, log_flush);
 
 	conn = S2C(session);
@@ -774,9 +771,8 @@ __session_rebalance(WT_SESSION *wt_session, const char *uri, const char *config)
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	SESSION_API_CALL(session, rebalance, config, cfg);
+	SESSION_API_CALL(session, rebalance, config, cfg, false);
 
-	WT_ERR(__wt_txn_context_prepare_check(session, false));
 	/* In-memory ignores rebalance operations. */
 	if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
 		goto err;
@@ -829,8 +825,7 @@ __session_rename(WT_SESSION *wt_session,
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, rename, config, cfg);
-	WT_ERR(__wt_txn_context_prepare_check(session, false));
+	SESSION_API_CALL(session, rename, config, cfg, false);
 
 	/* Disallow objects in the WiredTiger name space. */
 	WT_ERR(__wt_str_name_check(session, uri));
@@ -885,7 +880,7 @@ __session_reset(WT_SESSION *wt_session)
 
 	SESSION_API_CALL_NOCONF(session, reset);
 
-	WT_ERR(__wt_txn_context_check(session, false, false));
+	WT_ERR(__wt_txn_context_check(session, false));
 
 	WT_TRET(__wt_session_reset_cursors(session, true));
 
@@ -908,8 +903,7 @@ __session_drop(WT_SESSION *wt_session, const char *uri, const char *config)
 	bool checkpoint_wait, lock_wait;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, drop, config, cfg);
-	WT_ERR(__wt_txn_context_prepare_check(session, false));
+	SESSION_API_CALL(session, drop, config, cfg, false);
 
 	/* Disallow objects in the WiredTiger name space. */
 	WT_ERR(__wt_str_name_check(session, uri));
@@ -1001,8 +995,7 @@ __session_join(WT_SESSION *wt_session, WT_CURSOR *join_cursor,
 	bool nested;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, join, config, cfg);
-	WT_ERR(__wt_txn_context_prepare_check(session, false));
+	SESSION_API_CALL(session, join, config, cfg, false);
 
 	firstcg = NULL;
 	table = NULL;
@@ -1129,9 +1122,8 @@ __session_salvage(WT_SESSION *wt_session, const char *uri, const char *config)
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	SESSION_API_CALL(session, salvage, config, cfg);
+	SESSION_API_CALL(session, salvage, config, cfg, false);
 
-	WT_ERR(__wt_txn_context_prepare_check(session, false));
 	WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
 	/* Block out checkpoints to avoid spurious EBUSY errors. */
@@ -1309,8 +1301,7 @@ __session_truncate(WT_SESSION *wt_session,
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_TXN_API_CALL(session, truncate, config, cfg);
-	WT_ERR(__wt_txn_context_prepare_check(session, false));
+	SESSION_TXN_API_CALL(session, truncate, config, cfg, false);
 	WT_STAT_CONN_INCR(session, cursor_truncate);
 
 	/*
@@ -1403,8 +1394,7 @@ __session_upgrade(WT_SESSION *wt_session, const char *uri, const char *config)
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	SESSION_API_CALL(session, upgrade, config, cfg);
-	WT_ERR(__wt_txn_context_prepare_check(session, false));
+	SESSION_API_CALL(session, upgrade, config, cfg, false);
 
 	WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
@@ -1450,8 +1440,7 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	SESSION_API_CALL(session, verify, config, cfg);
-	WT_ERR(__wt_txn_context_prepare_check(session, false));
+	SESSION_API_CALL(session, verify, config, cfg, false);
 
 	WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
@@ -1480,10 +1469,10 @@ __session_begin_transaction(WT_SESSION *wt_session, const char *config)
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, begin_transaction, config, cfg);
+	SESSION_API_CALL(session, begin_transaction, config, cfg, false);
 	WT_STAT_CONN_INCR(session, txn_begin);
 
-	WT_ERR(__wt_txn_context_check(session, false, false));
+	WT_ERR(__wt_txn_context_check(session, false));
 
 	ret = __wt_txn_begin(session, cfg);
 
@@ -1502,10 +1491,10 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
 	WT_TXN *txn;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, commit_transaction, config, cfg);
+	SESSION_API_CALL(session, commit_transaction, config, cfg, true);
 	WT_STAT_CONN_INCR(session, txn_commit);
 
-	WT_ERR(__wt_txn_context_check(session, true, true));
+	WT_ERR(__wt_txn_context_check(session, true));
 
 	txn = &session->txn;
 	if (F_ISSET(txn, WT_TXN_ERROR) && txn->mod_count != 0)
@@ -1536,9 +1525,9 @@ __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, prepare_transaction, config, cfg);
+	SESSION_API_CALL(session, prepare_transaction, config, cfg, false);
 
-	WT_ERR(__wt_txn_context_check(session, true, false));
+	WT_ERR(__wt_txn_context_check(session, true));
 
 	WT_TRET(__wt_txn_prepare(session, cfg));
 
@@ -1557,10 +1546,10 @@ __session_rollback_transaction(WT_SESSION *wt_session, const char *config)
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, rollback_transaction, config, cfg);
+	SESSION_API_CALL(session, rollback_transaction, config, cfg, true);
 	WT_STAT_CONN_INCR(session, txn_rollback);
 
-	WT_ERR(__wt_txn_context_check(session, true, true));
+	WT_ERR(__wt_txn_context_check(session, true));
 
 	__wt_txn_prepare_clear(session);
 	WT_TRET(__wt_session_reset_cursors(session, false));
@@ -1582,12 +1571,11 @@ __session_timestamp_transaction(WT_SESSION *wt_session, const char *config)
 
 	session = (WT_SESSION_IMPL *)wt_session;
 #ifdef HAVE_DIAGNOSTIC
-	SESSION_API_CALL(session, timestamp_transaction, config, cfg);
+	SESSION_API_CALL(session, timestamp_transaction, config, cfg, false);
 #else
-	SESSION_API_CALL(session, timestamp_transaction, NULL, cfg);
+	SESSION_API_CALL(session, timestamp_transaction, NULL, cfg, false);
 	cfg[1] = config;
 #endif
-	WT_ERR(__wt_txn_context_prepare_check(session, false));
 	WT_TRET(__wt_txn_set_timestamp(session, cfg));
 err:	API_END_RET(session, ret);
 }
@@ -1655,11 +1643,11 @@ __session_transaction_sync(WT_SESSION *wt_session, const char *config)
 	uint64_t time_start, time_stop;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, transaction_sync, config, cfg);
+	SESSION_API_CALL(session, transaction_sync, config, cfg, false);
 	WT_STAT_CONN_INCR(session, txn_sync);
 
 	conn = S2C(session);
-	WT_ERR(__wt_txn_context_check(session, false, false));
+	WT_ERR(__wt_txn_context_check(session, false));
 
 	/*
 	 * If logging is not enabled there is nothing to do.
@@ -1749,7 +1737,7 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
 	session = (WT_SESSION_IMPL *)wt_session;
 
 	WT_STAT_CONN_INCR(session, txn_checkpoint);
-	SESSION_API_CALL(session, checkpoint, config, cfg);
+	SESSION_API_CALL(session, checkpoint, config, cfg, false);
 
 	WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
@@ -1766,7 +1754,7 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
 	 * from evicting anything newer than this because we track the oldest
 	 * transaction ID in the system that is not visible to all readers.
 	 */
-	WT_ERR(__wt_txn_context_check(session, false, false));
+	WT_ERR(__wt_txn_context_check(session, false));
 
 	ret = __wt_txn_checkpoint(session, cfg, true);
 
@@ -1814,8 +1802,7 @@ __session_snapshot(WT_SESSION *wt_session, const char *config)
 	session = (WT_SESSION_IMPL *)wt_session;
 	txn_global = &S2C(session)->txn_global;
 
-	SESSION_API_CALL(session, snapshot, config, cfg);
-	WT_ERR(__wt_txn_context_prepare_check(session, false));
+	SESSION_API_CALL(session, snapshot, config, cfg, false);
 
 	WT_ERR(__wt_txn_named_snapshot_config(
 	    session, cfg, &has_create, &has_drop));

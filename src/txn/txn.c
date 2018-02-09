@@ -999,7 +999,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
 #ifdef HAVE_TIMESTAMPS
 	txn = &session->txn;
-	WT_TRET(__wt_txn_context_check(session, true, false));
+	WT_TRET(__wt_txn_context_check(session, true));
 
 	F_SET(txn, WT_TXN_PREPARE);
 

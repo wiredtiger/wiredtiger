@@ -354,7 +354,7 @@ __wt_session_compact(
 	ignore_cache_size_set = false;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, compact, config, cfg);
+	SESSION_API_CALL(session, compact, config, cfg, false);
 
 	/*
 	 * The compaction thread should not block when the cache is full: it is
@@ -376,7 +376,7 @@ __wt_session_compact(
 	 * reason for LSM to allow this, possible or not), and check now so the
 	 * error message isn't confusing.
 	 */
-	WT_ERR(__wt_txn_context_check(session, false, false));
+	WT_ERR(__wt_txn_context_check(session, false));
 
 	/* Disallow objects in the WiredTiger name space. */
 	WT_ERR(__wt_str_name_check(session, uri));

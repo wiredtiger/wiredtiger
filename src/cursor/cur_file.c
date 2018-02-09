@@ -427,7 +427,7 @@ __curfile_reserve(WT_CURSOR *cursor)
 	CURSOR_UPDATE_API_CALL_BTREE(cursor, session, reserve, cbt->btree);
 	WT_ERR(__cursor_checkkey(cursor));
 
-	WT_ERR(__wt_txn_context_check(session, true, false));
+	WT_ERR(__wt_txn_context_check(session, true));
 
 	WT_ERR(__wt_btcur_reserve(cbt));
 

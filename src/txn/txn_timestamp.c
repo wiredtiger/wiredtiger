@@ -634,7 +634,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_TXN *txn = &session->txn;
 		wt_timestamp_t ts;
 
-		WT_TRET(__wt_txn_context_check(session, true, false));
+		WT_TRET(__wt_txn_context_check(session, true));
 		WT_RET(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
 		WT_RET(__wt_timestamp_validate(session,
 		    "commit", &ts, &cval, true, true, true));

@@ -687,7 +687,7 @@ __curtable_reserve(WT_CURSOR *cursor)
 	 * Check for a transaction before index open, opening the indices will
 	 * start a transaction if one isn't running.
 	 */
-	WT_ERR(__wt_txn_context_check(session, true, false));
+	WT_ERR(__wt_txn_context_check(session, true));
 	WT_ERR(__curtable_open_indices(ctable));
 
 	/* Reserve in column groups, ignore indices. */
