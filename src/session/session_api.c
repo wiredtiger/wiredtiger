@@ -224,17 +224,14 @@ __session_close(WT_SESSION *wt_session, const char *config)
 	__wt_txn_destroy(session);
 
 	/*
-	 * Close the file where we tracked long operations.  Do this before
-	 * releasing resources, as we do scratch buffer management when we flush
-	 * optrack buffers to disk
+	 * Close the file where we tracked long operations. Do this before
+	 * releasing resources, as we do scratch buffer management when we
+	 * flush optrack buffers to disk.
 	 */
 	if (F_ISSET(conn, WT_CONN_OPTRACK)) {
 		if (session->optrackbuf_ptr > 0) {
-			WT_IGNORE_RET((int)__wt_optrack_flush_buffer(session));
-			WT_IGNORE_RET(__wt_close(session,
-			    &session->optrack_fh));
-			/* Indicate that the file is closed */
-			session->optrack_fh = NULL;
+			__wt_optrack_flush_buffer(session);
+			WT_TRET(__wt_close(session, &session->optrack_fh));
 		}
 
 		/* Free the operation tracking buffer */
