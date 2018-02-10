@@ -656,7 +656,8 @@ struct __wt_cursor {
 	 */
 #if !defined(SWIG) && !defined(DOXYGEN)
 	int __F(cache)(WT_CURSOR *cursor);	/* Cache the cursor */
-	int __F(reopen)(WT_CURSOR *cursor);	/* Reopen a cached cursor */
+						/* Reopen a cached cursor */
+	int __F(reopen)(WT_CURSOR *cursor, bool check_only);
 
 	int32_t cache_bucket;			/* Cursor hash table bucket */
 	const char *checkpoint;			/* Checkpoint, if any */

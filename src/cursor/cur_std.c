@@ -148,6 +148,18 @@ __wt_cursor_reconfigure_notsup(WT_CURSOR *cursor, const char *config)
 }
 
 /*
+ * __wt_cursor_reopen_notsup --
+ *	Unsupported cursor reopen.
+ */
+int
+__wt_cursor_reopen_notsup(WT_CURSOR *cursor, bool check_only)
+{
+	WT_UNUSED(check_only);
+
+	return (__wt_cursor_notsup(cursor));
+}
+
+/*
  * __wt_cursor_set_notsup --
  *	Reset the cursor methods to not-supported.
  */
@@ -614,26 +626,15 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
  * __wt_cursor_reopen --
  *	Reopen this cursor from the cached state.
  */
-int
+void
 __wt_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 {
-	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)cursor->session;
 	WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_CACHED));
 
 	if (dhandle != NULL) {
-		/*
-		 * A WT_NOTFOUND return is a signal to the caller to close
-		 * the cursor. We still need to restore the cursor so the
-		 * close can function normally.
-		 */
-		if (WT_DHANDLE_INACTIVE(dhandle) ||
-		    !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
-		    F_ISSET(dhandle, WT_DHANDLE_DROPPED))
-			ret = WT_NOTFOUND;
-
 		session->dhandle = dhandle;
 		__wt_cursor_dhandle_incr_use(session);
 		WT_DHANDLE_RELEASE(dhandle);
@@ -645,9 +646,7 @@ __wt_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 
 	TAILQ_REMOVE(&session->cursor_cache[cursor->cache_bucket], cursor, q);
 	TAILQ_INSERT_HEAD(&session->cursors, cursor, q);
-
 	F_CLR(cursor, WT_CURSTD_CACHED);
-	return (ret);
 }
 
 /*
@@ -660,12 +659,18 @@ __wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 {
 	WT_DECL_RET;
 
+	*released = false;
 	if (!F_ISSET(session, WT_SESSION_CACHE_CURSORS) ||
 	    F_ISSET(cursor, WT_CURSTD_BULK | WT_CURSTD_CACHED) ||
-	    !F_ISSET(cursor, WT_CURSTD_CACHEABLE)) {
-		*released = false;
+	    !F_ISSET(cursor, WT_CURSTD_CACHEABLE))
 		return (0);
-	}
+
+	/*
+	 * Do any sweeping first, if there are errors, it will
+	 * be easier to clean up if the cursor is not already cached.
+	 */
+	if (--session->cursor_sweep_countdown == 0)
+		WT_RET(__wt_session_cursor_cache_sweep(session));
 
 	WT_ERR(cursor->cache(cursor));
 	WT_STAT_CONN_INCR(session, cursor_cache);
@@ -679,8 +684,7 @@ __wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 		 * a known state. The reopen may also fail, but that
 		 * doesn't matter at this point.
 		 */
-err:		WT_TRET(cursor->reopen(cursor));
-		*released = false;
+err:		WT_TRET(cursor->reopen(cursor, false));
 	}
 
 	return (ret);
@@ -741,7 +745,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 	TAILQ_FOREACH(cursor, &session->cursor_cache[bucket], q) {
 		if (WT_STREQ(cursor->uri, uri) &&
 		    CHECKPOINT_MATCH(cursor->checkpoint)) {
-			if ((ret = cursor->reopen(cursor)) != 0) {
+			if ((ret = cursor->reopen(cursor, false)) != 0) {
 				F_CLR(cursor, WT_CURSTD_CACHEABLE);
 				session->dhandle = NULL;
 				(void)cursor->close(cursor);

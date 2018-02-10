@@ -50,6 +50,61 @@ __wt_session_reset_cursors(WT_SESSION_IMPL *session, bool free_buffers)
 }
 
 /*
+ * __wt_session_cursor_cache_sweep --
+ *	Sweep the cursor cache.
+ */
+int
+__wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
+{
+	WT_CURSOR *cursor, *cursor_tmp;
+	WT_CURSOR_LIST *cached_list;
+	WT_DECL_RET;
+	uint32_t position;
+	int i, t_ret, nbuckets, nchecked, ncleaned;
+	bool caching;
+	bool productive;
+
+	position = session->cursor_sweep_position;
+	productive = true;
+	nbuckets = nchecked = ncleaned = 0;
+
+	caching = F_ISSET(session, WT_SESSION_CACHE_CURSORS);
+	F_CLR(session, WT_SESSION_CACHE_CURSORS);
+	for (i = 0; i < WT_SESSION_CURSOR_SWEEP_MAX && productive; i++) {
+		++nbuckets;
+		cached_list = &session->cursor_cache[position];
+		position = (position + 1) % WT_HASH_ARRAY_SIZE;
+		TAILQ_FOREACH_SAFE(cursor, cached_list, q, cursor_tmp) {
+			/*
+			 * First check to see if the cursor could be reopened.
+			 */
+			++nchecked;
+			t_ret = cursor->reopen(cursor, true);
+			if (t_ret != 0) {
+				WT_TRET_NOTFOUND_OK(t_ret);
+				WT_TRET_NOTFOUND_OK(
+				    cursor->reopen(cursor, false));
+				WT_TRET(cursor->close(cursor));
+				++ncleaned;
+			}
+		}
+
+		/*
+		 * We continue sweeping as long as we have some good average
+		 * productivity. At a minimum, we look at two buckets.
+		 */
+		productive = (ncleaned >= i);
+	}
+
+	session->cursor_sweep_position = position;
+	if (caching)
+		F_SET(session, WT_SESSION_CACHE_CURSORS);
+	session->cursor_sweep_countdown = WT_SESSION_CURSOR_SWEEP_COUNTDOWN;
+
+	return (ret);
+}
+
+/*
  * __wt_session_copy_values --
  *	Copy values into all positioned cursors, so that they don't keep
  *	transaction IDs pinned.
@@ -184,7 +239,7 @@ __session_close_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LIST *cursors)
 			 * Put the cached cursor is an open state
 			 * that allows it to be closed.
 			 */
-			WT_TRET_NOTFOUND_OK(cursor->reopen(cursor));
+			WT_TRET_NOTFOUND_OK(cursor->reopen(cursor, false));
 		else
 			/*
 			 * Notify the user that we are closing the cursor handle
@@ -949,6 +1004,8 @@ __session_reset(WT_SESSION *wt_session)
 	WT_ERR(__wt_txn_context_check(session, false));
 
 	WT_TRET(__wt_session_reset_cursors(session, true));
+
+	WT_TRET(__wt_session_cursor_cache_sweep(session));
 
 	/* Release common session resources. */
 	WT_TRET(__wt_session_release_resources(session));
@@ -2020,8 +2077,11 @@ __open_session(WT_CONNECTION_IMPL *conn,
 		    sizeof(struct __dhandles_hash), &session_ret->dhhash));
 	for (i = 0; i < WT_HASH_ARRAY_SIZE; i++)
 		TAILQ_INIT(&session_ret->dhhash[i]);
+
+	/* Initialize the cursor cache hash buckets and sweep trigger. */
 	for (i = 0; i < WT_HASH_ARRAY_SIZE; i++)
 		TAILQ_INIT(&session_ret->cursor_cache[i]);
+	session_ret->cursor_sweep_countdown = WT_SESSION_CURSOR_SWEEP_COUNTDOWN;
 
 	/* Initialize transaction support: default to read-committed. */
 	session_ret->isolation = WT_ISO_READ_COMMITTED;

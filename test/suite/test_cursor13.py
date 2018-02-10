@@ -145,8 +145,8 @@ class test_cursor13_reopens(test_cursor13_base):
         session.create(self.uri, 'key_format=S,value_format=S')
         self.basic_populate(self.uri)
 
-        # Reopen/close 10 times, with multiple cursors
-        for opens in range(0, 10):
+        # Reopen/close many times, with multiple cursors
+        for opens in range(0, 100):
             c = session.open_cursor(self.uri)
             self.assert_cursor_reopened()
             c2 = session.open_cursor(self.uri)

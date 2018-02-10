@@ -39,6 +39,12 @@ struct __wt_hazard {
 
 typedef TAILQ_HEAD(__wt_cursor_list, __wt_cursor)	WT_CURSOR_LIST;
 
+/* Number of cursors cached to trigger sweep. */
+#define	WT_SESSION_CURSOR_SWEEP_COUNTDOWN	20
+
+/* Maximum number of buckets to visit during sweep. */
+#define	WT_SESSION_CURSOR_SWEEP_MAX		32
+
 /*
  * WT_SESSION_IMPL --
  *	Implementation of WT_SESSION.
@@ -72,7 +78,10 @@ struct __wt_session_impl {
 
 	WT_CURSOR_LIST cursors;		/* Cursors closed with the session */
 					/* Hash table of cached cursors */
+
 	WT_CURSOR_LIST cursor_cache[WT_HASH_ARRAY_SIZE];
+	uint32_t cursor_sweep_position;	/* Position in cursor_cache for sweep */
+	uint32_t cursor_sweep_countdown;/* Countdown to cursor sweep */
 
 	WT_CURSOR_BACKUP *bkp_cursor;	/* Hot backup cursor */
 

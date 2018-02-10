@@ -33,6 +33,12 @@
 	(F_ISSET(dhandle, WT_DHANDLE_DEAD) ||				\
 	!F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE | WT_DHANDLE_OPEN))
 
+/* Check if a handle could be reopened. */
+#define	WT_DHANDLE_CAN_REOPEN(dhandle)					\
+	(!WT_DHANDLE_INACTIVE(dhandle) &&				\
+	F_ISSET(dhandle, WT_DHANDLE_OPEN) &&				\
+	!F_ISSET(dhandle, WT_DHANDLE_DROPPED))
+
 /* The metadata cursor's data handle. */
 #define	WT_SESSION_META_DHANDLE(s)					\
 	(((WT_CURSOR_BTREE *)((s)->meta_cursor))->btree->dhandle)

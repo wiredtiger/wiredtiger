@@ -333,6 +333,7 @@ extern int __wt_cursor_equals_notsup(WT_CURSOR *cursor, WT_CURSOR *other, int *e
 extern int __wt_cursor_modify_notsup(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_search_near_notsup(WT_CURSOR *cursor, int *exact) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_reconfigure_notsup(WT_CURSOR *cursor, const char *config) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_cursor_reopen_notsup(WT_CURSOR *cursor, bool check_only) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_cursor_set_notsup(WT_CURSOR *cursor);
 extern int __wt_cursor_kv_not_set(WT_CURSOR *cursor, bool key) WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_get_key(WT_CURSOR *cursor, ...) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -348,7 +349,7 @@ extern int __wt_cursor_get_valuev(WT_CURSOR *cursor, va_list ap) WT_GCC_FUNC_DEC
 extern void __wt_cursor_set_value(WT_CURSOR *cursor, ...);
 extern void __wt_cursor_set_valuev(WT_CURSOR *cursor, va_list ap);
 extern int __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern void __wt_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle);
 extern int __wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool *released) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, const char *cfg[], WT_CURSOR **cursorp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_close(WT_CURSOR *cursor) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -641,6 +642,7 @@ extern int __wt_name_check(WT_SESSION_IMPL *session, const char *str, size_t len
 extern int __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri, int (*file_func)(WT_SESSION_IMPL *, const char *[]), int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[], uint32_t open_flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_notsup(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_reset_cursors(WT_SESSION_IMPL *session, bool free_buffers) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_copy_values(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_release_resources(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, const char *cfg[], WT_CURSOR **cursorp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

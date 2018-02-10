@@ -455,7 +455,7 @@ __wt_curindex_open(WT_SESSION_IMPL *session,
 	    __wt_cursor_notsup,			/* reserve */
 	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
 	    __wt_cursor_notsup,			/* cache */
-	    __wt_cursor_notsup,			/* reopen */
+	    __wt_cursor_reopen_notsup,		/* reopen */
 	    __curindex_close);			/* close */
 	WT_CURSOR_INDEX *cindex;
 	WT_CURSOR *cursor;

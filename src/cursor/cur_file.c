@@ -539,20 +539,28 @@ __curfile_cache(WT_CURSOR *cursor)
  *	WT_CURSOR->reopen method for the btree cursor type.
  */
 static int
-__curfile_reopen(WT_CURSOR *cursor)
+__curfile_reopen(WT_CURSOR *cursor, bool check_only)
 {
 	WT_CURSOR_BTREE *cbt;
+	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	bool is_dead;
 
+	is_dead = false;
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	session = (WT_SESSION_IMPL *)cursor->session;
-	session->dhandle = cbt->btree->dhandle;
-	WT_TRET(__wt_session_lock_dhandle(session, 0, &is_dead));
-	WT_TRET(__wt_cursor_reopen(cursor, cbt->btree->dhandle));
-	if (is_dead)
-		WT_TRET(WT_NOTFOUND);
+	dhandle = cbt->btree->dhandle;
+
+	if (!WT_DHANDLE_CAN_REOPEN(dhandle))
+		ret = WT_NOTFOUND;
+	if (!check_only) {
+		session->dhandle = dhandle;
+		WT_TRET(__wt_session_lock_dhandle(session, 0, &is_dead));
+		if (is_dead)
+			WT_TRET(WT_NOTFOUND);
+		__wt_cursor_reopen(cursor, dhandle);
+	}
 	return (ret);
 }
 
