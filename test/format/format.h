@@ -276,11 +276,15 @@ typedef struct {
 	uint64_t insert;
 	uint64_t update;
 	uint64_t remove;
+	uint64_t truncate;
 	uint64_t ops;
 
-	uint64_t keyno;				/* current key, value */
-	WT_ITEM	 *key, _key;
+	uint64_t keyno;				/* key */
+	WT_ITEM	 *key, _key;			/* key, value */
 	WT_ITEM	 *value, _value;
+
+	uint64_t last;				/* truncate range */
+	WT_ITEM	 *lastkey, _lastkey;
 
 #define	TINFO_RUNNING	1			/* Running */
 #define	TINFO_COMPLETE	2			/* Finished */
@@ -295,6 +299,7 @@ void	 bdb_np(bool, void *, size_t *, void *, size_t *, int *);
 void	 bdb_open(void);
 void	 bdb_read(uint64_t, void *, size_t *, int *);
 void	 bdb_remove(uint64_t, int *);
+void	 bdb_truncate(uint64_t, uint64_t);
 void	 bdb_update(const void *, size_t, const void *, size_t);
 #endif
 

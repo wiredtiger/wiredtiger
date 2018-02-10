@@ -32,6 +32,10 @@
 static DBT key, value;
 static WT_ITEM keyitem;
 
+#define	bdb_die(ret, fmt, ...)						\
+	testutil_die(0, "%s/%d: %s: " fmt,				\
+	    __func__, __LINE__, db_strerror(ret), __VA_ARGS__);
+
 static int
 bdb_compare_reverse(DB *dbp, const DBT *k1, const DBT *k2
 #if DB_VERSION_MAJOR >= 6
@@ -127,7 +131,7 @@ bdb_np(bool next,
 	if ((ret =
 	    dbc->get(dbc, &key, &value, next ? DB_NEXT : DB_PREV)) != 0) {
 		if (ret != DB_NOTFOUND)
-			testutil_die(ret, "dbc.get: %s: {%.*s}",
+			bdb_die(ret, "dbc.get: %s: {%.*s}",
 			    next ? "DB_NEXT" : "DB_PREV",
 			    (int)key.size, (char *)key.data);
 		*notfoundp = 1;
@@ -152,7 +156,7 @@ bdb_read(uint64_t keyno, void *valuep, size_t *valuesizep, int *notfoundp)
 	*notfoundp = 0;
 	if ((ret = dbc->get(dbc, &key, &value, DB_SET)) != 0) {
 		if (ret != DB_NOTFOUND)
-			testutil_die(ret, "dbc.get: DB_SET: {%.*s}",
+			bdb_die(ret, "dbc.get: DB_SET: {%.*s}",
 			    (int)key.size, (char *)key.data);
 		*notfoundp = 1;
 	} else {
@@ -174,7 +178,7 @@ bdb_update(const void *arg_key, size_t arg_key_size,
 	value.size = (u_int32_t)arg_value_size;
 
 	if ((ret = dbc->put(dbc, &key, &value, DB_KEYFIRST)) != 0)
-		testutil_die(ret, "dbc.put: DB_KEYFIRST: {%.*s}{%.*s}",
+		bdb_die(ret, "dbc.put: DB_KEYFIRST: {%.*s}{%.*s}",
 		    (int)key.size, (char *)key.data,
 		    (int)value.size, (char *)value.data);
 }
@@ -198,8 +202,55 @@ bdb_remove(uint64_t keyno, int *notfoundp)
 
 	if ((ret = dbc->del(dbc, 0)) != 0) {
 		if (ret != DB_NOTFOUND)
-			testutil_die(ret, "dbc.del: {%.*s}",
+			bdb_die(ret, "dbc.del: {%.*s}",
 			    (int)key.size, (char *)key.data);
 		*notfoundp = 1;
 	}
+}
+
+void
+bdb_truncate(uint64_t start, uint64_t stop)
+{
+	DBC *dbc = g.dbc;
+	size_t len;
+	int cmp, ret;
+
+	if (start == 0) {
+		ret = dbc->get(dbc, &key, &value, DB_FIRST);
+		if (ret != 0 && ret != DB_NOTFOUND)
+			bdb_die(ret, "%s", "dbc.get: DB_FIRST");
+	} else {
+		key_gen(&keyitem, start);
+		key.data = (void *)keyitem.data;
+		key.size = (u_int32_t)keyitem.size;
+		ret = dbc->get(dbc, &key, &value, DB_SET_RANGE);
+		if (ret != 0 && ret != DB_NOTFOUND)
+			bdb_die(ret, "dbc.get: DB_SET: {%.*s}",
+			    (int)key.size, (char *)key.data);
+	}
+	if (ret == DB_NOTFOUND)
+		return;
+
+	if (stop == 0) {
+		do {
+			ret = dbc->del(dbc, 0);
+			if (ret != 0 && ret != DB_NOTFOUND)
+				bdb_die(ret, "dbc.del: {%.*s}",
+				    (int)key.size, (char *)key.data);
+		} while ((ret = dbc->get(dbc, &key, &value, DB_NEXT)) == 0);
+	} else {
+		key_gen(&keyitem, stop);
+		do {
+			len = WT_MIN(key.size, keyitem.size);
+			cmp = memcmp(key.data, keyitem.data, len);
+			if (cmp > 0 || (cmp == 0 && key.size > keyitem.size))
+				break;
+			ret = dbc->del(dbc, 0);
+			if (ret != 0 && ret != DB_NOTFOUND)
+				bdb_die(ret, "dbc.del: {%.*s}",
+				    (int)key.size, (char *)key.data);
+		} while ((ret = dbc->get(dbc, &key, &value, DB_NEXT)) == 0);
+	}
+	if (ret != 0 && ret != DB_NOTFOUND)
+		bdb_die(ret, "%s", "dbc.get: DB_NEXT");
 }
