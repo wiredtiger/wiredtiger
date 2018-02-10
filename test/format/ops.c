@@ -286,10 +286,10 @@ typedef struct {
 	size_t   vmemsize;
 } SNAP_OPS;
 
-#define	SNAP_TRACK(op, tinfo, key, value) do {				\
+#define	SNAP_TRACK(op, tinfo) do {					\
 	if (snap != NULL &&						\
 	    (size_t)(snap - snap_list) < WT_ELEMENTS(snap_list))	\
-		snap_track(snap++, op, tinfo, key, value);		\
+		snap_track(snap++, op, tinfo);				\
 } while (0)
 
 /*
@@ -297,29 +297,30 @@ typedef struct {
  *     Add a single snapshot isolation returned value to the list.
  */
 static void
-snap_track(
-    SNAP_OPS *snap, thread_op op, TINFO *tinfo, WT_ITEM *key, WT_ITEM *value)
+snap_track(SNAP_OPS *snap, thread_op op, TINFO *tinfo)
 {
+	WT_ITEM *ip;
+
 	snap->op = op;
 	snap->keyno = tinfo->keyno;
 	snap->last = op == TRUNCATE ? tinfo->last : 0;
 
-	testutil_assert(key == NULL || (op == INSERT && g.type == ROW));
-	if (key != NULL) {
-		if (snap->kmemsize < key->size) {
-			snap->kdata = drealloc(snap->kdata, key->size);
-			snap->kmemsize = key->size;
+	if (op == INSERT && g.type == ROW) {
+		ip = tinfo->key;
+		if (snap->kmemsize < ip->size) {
+			snap->kdata = drealloc(snap->kdata, ip->size);
+			snap->kmemsize = ip->size;
 		}
-		memcpy(snap->kdata, key->data, snap->ksize = key->size);
+		memcpy(snap->kdata, ip->data, snap->ksize = ip->size);
 	}
 
-	testutil_assert(value != NULL || op == REMOVE || op == TRUNCATE);
-	if (value != NULL) {
-		if (snap->vmemsize < value->size) {
-			snap->vdata = drealloc(snap->vdata, value->size);
-			snap->vmemsize = value->size;
+	if (op != REMOVE && op != TRUNCATE)  {
+		ip = tinfo->value;
+		if (snap->vmemsize < ip->size) {
+			snap->vdata = drealloc(snap->vdata, ip->size);
+			snap->vmemsize = ip->size;
 		}
-		memcpy(snap->vdata, value->data, snap->vsize = value->size);
+		memcpy(snap->vdata, ip->data, snap->vsize = ip->size);
 	}
 }
 
@@ -727,7 +728,7 @@ ops(void *arg)
 			ret = read_row(tinfo, cursor);
 			if (ret == 0) {
 				positioned = true;
-				SNAP_TRACK(READ, tinfo, NULL, tinfo->value);
+				SNAP_TRACK(READ, tinfo);
 			} else {
 				if (ret == WT_ROLLBACK && intxn)
 					goto deadlock;
@@ -782,9 +783,7 @@ ops(void *arg)
 			positioned = false;
 			if (ret == 0) {
 				++tinfo->insert;
-				SNAP_TRACK(INSERT, tinfo,
-				    g.type == ROW ? tinfo->key : NULL,
-				    tinfo->value);
+				SNAP_TRACK(INSERT, tinfo);
 			} else {
 				if (ret == WT_ROLLBACK && intxn)
 					goto deadlock;
@@ -810,7 +809,7 @@ ops(void *arg)
 			}
 			if (ret == 0) {
 				positioned = true;
-				SNAP_TRACK(MODIFY, tinfo, NULL, tinfo->value);
+				SNAP_TRACK(MODIFY, tinfo);
 			} else {
 				positioned = false;
 				if (ret == WT_ROLLBACK && intxn)
@@ -824,7 +823,7 @@ ops(void *arg)
 			ret = read_row(tinfo, cursor);
 			if (ret == 0) {
 				positioned = true;
-				SNAP_TRACK(READ, tinfo, NULL, tinfo->value);
+				SNAP_TRACK(READ, tinfo);
 			} else {
 				positioned = false;
 				if (ret == WT_ROLLBACK && intxn)
@@ -848,7 +847,7 @@ ops(void *arg)
 				 * Don't set positioned: it's unchanged from the
 				 * previous state, but not necessarily set.
 				 */
-				SNAP_TRACK(REMOVE, tinfo, NULL, NULL);
+				SNAP_TRACK(REMOVE, tinfo);
 			} else {
 				positioned = false;
 				if (ret == WT_ROLLBACK && intxn)
@@ -891,7 +890,7 @@ ops(void *arg)
 			positioned = false;
 			if (ret == 0) {
 				++tinfo->truncate;
-				SNAP_TRACK(TRUNCATE, tinfo, NULL, NULL);
+				SNAP_TRACK(TRUNCATE, tinfo);
 			} else {
 				testutil_assert(ret == WT_ROLLBACK);
 				if (intxn)
@@ -912,7 +911,7 @@ update_instead_of_chosen_op:
 			}
 			if (ret == 0) {
 				positioned = true;
-				SNAP_TRACK(UPDATE, tinfo, NULL, tinfo->value);
+				SNAP_TRACK(UPDATE, tinfo);
 			} else {
 				positioned = false;
 				if (ret == WT_ROLLBACK && intxn)
