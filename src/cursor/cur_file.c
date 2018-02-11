@@ -495,10 +495,6 @@ __curfile_close(WT_CURSOR *cursor)
 	    session->dhandle->session_inuse > 0);
 
 	cached = F_ISSET(cursor, WT_CURSTD_CACHED);
-	if (cached)
-		if (cbt->btree->dhandle == session->dhandle)
-			WT_DHANDLE_UNCACHE(session->dhandle);
-
 	WT_TRET(__wt_cursor_close(cursor));
 
 	/*
