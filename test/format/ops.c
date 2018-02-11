@@ -883,10 +883,10 @@ ops(void *arg)
 				    mmrand(&tinfo->rnd, 1, (u_int)g.rows);
 
 			/*
-			 * Trunate a range, up to 5% of the table. If the range
-			 * overlaps the beginning/end of the table, set the
-			 * key to 0 (the truncate function then sets a cursor
-			 * to NULL so we test that code).
+			 * Truncate up to 5% of the table. If the range overlaps
+			 * the beginning/end of the table, set the key to 0 (the
+			 * truncate function then sets a cursor to NULL so that
+			 * code is tested).
 			 *
 			 * This gets tricky: there are 2 directions (truncating
 			 * from lower keys to the current position or from
