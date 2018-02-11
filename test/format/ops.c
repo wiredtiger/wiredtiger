@@ -32,7 +32,7 @@ static int   col_insert(TINFO *, WT_CURSOR *);
 static int   col_modify(TINFO *, WT_CURSOR *, bool);
 static int   col_remove(TINFO *, WT_CURSOR *, bool);
 static int   col_reserve(TINFO *, WT_CURSOR *, bool);
-static int   col_truncate(TINFO *, WT_CURSOR *, bool);
+static int   col_truncate(TINFO *, WT_CURSOR *);
 static int   col_update(TINFO *, WT_CURSOR *, bool);
 static int   nextprev(TINFO *, WT_CURSOR *, bool);
 static WT_THREAD_RET ops(void *);
@@ -41,7 +41,7 @@ static int   row_insert(TINFO *, WT_CURSOR *, bool);
 static int   row_modify(TINFO *, WT_CURSOR *, bool);
 static int   row_remove(TINFO *, WT_CURSOR *, bool);
 static int   row_reserve(TINFO *, WT_CURSOR *, bool);
-static int   row_truncate(TINFO *, WT_CURSOR *, bool);
+static int   row_truncate(TINFO *, WT_CURSOR *);
 static int   row_update(TINFO *, WT_CURSOR *, bool);
 static void  table_append_init(void);
 
@@ -337,13 +337,31 @@ snap_check(WT_CURSOR *cursor,
 	uint8_t bitfield;
 
 	for (; start < stop; ++start) {
+		/*
+		 * We don't test all of the records in a truncate range, only
+		 * the first because that matches the rest of the isolation
+		 * checks. If a truncate range was from the start of the table,
+		 * switch to the record at the end.
+		 */
+		if (start->op == TRUNCATE && start->keyno == 0) {
+			start->keyno = start->last;
+			testutil_assert(start->keyno != 0);
+		}
+
 		/* Check for subsequent changes to this record. */
 		for (p = start + 1; p < stop; ++p) {
 			if (p->keyno == start->keyno)
 				break;
-			if (start->op == TRUNCATE &&
-			    p->keyno >= start->keyno &&
-			    (start->last == 0 || p->keyno <= start->last))
+
+			if (p->op != TRUNCATE)
+				continue;
+			if (g.c_reverse &&
+			    (p->keyno == 0 || p->keyno >= start->keyno) &&
+			    (p->last == 0 || p->last <= start->keyno))
+				break;
+			if (!g.c_reverse &&
+			    (p->keyno == 0 || p->keyno <= start->keyno) &&
+			    (p->last == 0 || p->last >= start->keyno))
 				break;
 		}
 		if (p != stop)
@@ -370,7 +388,10 @@ snap_check(WT_CURSOR *cursor,
 				break;
 			}
 		}
-		if ((ret = cursor->search(cursor)) == 0) {
+
+		while ((ret = cursor->search(cursor)) == WT_ROLLBACK)
+			;
+		if (ret == 0) {
 			if (g.type == FIX) {
 				testutil_check(
 				    cursor->get_value(cursor, &bitfield));
@@ -380,15 +401,16 @@ snap_check(WT_CURSOR *cursor,
 				testutil_check(
 				    cursor->get_value(cursor, value));
 		} else
-			if (ret != WT_NOTFOUND)
-				return (ret);
+			testutil_assert(ret == WT_NOTFOUND);
 
 		/* Check for simple matches. */
-		if (ret == 0 && start->op != REMOVE &&
+		if (ret == 0 &&
+		    (start->op != REMOVE || start->op != TRUNCATE) &&
 		    value->size == start->vsize &&
 		    memcmp(value->data, start->vdata, value->size) == 0)
 			continue;
-		if (ret == WT_NOTFOUND && start->op == REMOVE)
+		if (ret == WT_NOTFOUND &&
+		    (start->op == REMOVE || start->op == TRUNCATE))
 			continue;
 
 		/*
@@ -400,7 +422,7 @@ snap_check(WT_CURSOR *cursor,
 			if (ret == WT_NOTFOUND &&
 			    start->vsize == 1 && *(uint8_t *)start->vdata == 0)
 				continue;
-			if (start->op == REMOVE &&
+			if ((start->op == REMOVE || start->op == TRUNCATE) &&
 			    value->size == 1 && *(uint8_t *)value->data == 0)
 				continue;
 		}
@@ -565,7 +587,7 @@ ops(void *arg)
 	uint64_t reset_op, session_op, truncate_op;
 	uint32_t range, rnd;
 	u_int i, j, iso_config;
-	bool intxn, next, positioned, readonly;
+	bool greater_than, intxn, next, positioned, readonly;
 
 	tinfo = arg;
 
@@ -856,35 +878,55 @@ ops(void *arg)
 			}
 			break;
 		case TRUNCATE:
-			/*
-			 * Create a range, up to 5% of the table. If the range
-			 * overlaps the beginning/end of the table, set the
-			 * key to 0 (the truncate function then sets the cursor
-			 * to NULL so we test that code).
-			 */
 			if (!positioned)
 				tinfo->keyno =
 				    mmrand(&tinfo->rnd, 1, (u_int)g.rows);
-			range = mmrand(&tinfo->rnd, 1, (u_int)g.rows / 20);
-			if (g.c_reverse) {
-				if (range > tinfo->keyno) {
-					tinfo->last = tinfo->keyno;
-					tinfo->keyno = 0;
-				} else
-					tinfo->last = tinfo->keyno - range;
-			} else {
-				tinfo->last = tinfo->keyno + range;
-				if (tinfo->last > g.rows)
-					tinfo->last = 0;
-			}
 
+			/*
+			 * Trunate a range, up to 5% of the table. If the range
+			 * overlaps the beginning/end of the table, set the
+			 * key to 0 (the truncate function then sets a cursor
+			 * to NULL so we test that code).
+			 *
+			 * This gets tricky: there are 2 directions (truncating
+			 * from lower keys to the current position or from
+			 * the current position to higher keys), and collation
+			 * order (truncating from lower keys to higher keys or
+			 * vice-versa).
+			 */
+			greater_than = mmrand(&tinfo->rnd, 0, 1) == 1;
+			range = mmrand(&tinfo->rnd, 1, (u_int)g.rows / 20);
+			tinfo->last = tinfo->keyno;
+			if (greater_than) {
+				if (g.c_reverse) {
+					if (tinfo->keyno <= range)
+						tinfo->last = 0;
+					else
+						tinfo->last -= range;
+				} else {
+					tinfo->last += range;
+					if (tinfo->last > g.rows)
+						tinfo->last = 0;
+				}
+			} else {
+				if (g.c_reverse) {
+					tinfo->keyno += range;
+					if (tinfo->keyno > g.rows)
+						tinfo->keyno = 0;
+				} else {
+					if (tinfo->keyno <= range)
+						tinfo->keyno = 0;
+					else
+						tinfo->keyno -= range;
+				}
+			}
 			switch (g.type) {
 			case ROW:
-				ret = row_truncate(tinfo, cursor, positioned);
+				ret = row_truncate(tinfo, cursor);
 				break;
 			case FIX:
 			case VAR:
-				ret = col_truncate(tinfo, cursor, positioned);
+				ret = col_truncate(tinfo, cursor);
 				break;
 			}
 			positioned = false;
@@ -1524,7 +1566,7 @@ col_modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
  *	Truncate rows in a row-store file.
  */
 static int
-row_truncate(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
+row_truncate(TINFO *tinfo, WT_CURSOR *cursor)
 {
 	WT_CURSOR *c2;
 	WT_DECL_RET;
@@ -1538,28 +1580,18 @@ row_truncate(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 	 */
 	testutil_assert(tinfo->keyno != 0 || tinfo->last != 0);
 
-	/*
-	 * If not deleted from the start of the table or to the end of the
-	 * table, we need a second, positioned cursor.
-	 */
 	c2 = NULL;
 	if (tinfo->keyno == 0) {
-		if (!positioned) {
-			key_gen(tinfo->key, tinfo->last);
-			cursor->set_key(cursor, tinfo->key);
-		}
+		key_gen(tinfo->key, tinfo->last);
+		cursor->set_key(cursor, tinfo->key);
 		ret = session->truncate(session, NULL, NULL, cursor, NULL);
 	} else if (tinfo->last == 0) {
-		if (!positioned) {
-			key_gen(tinfo->key, tinfo->keyno);
-			cursor->set_key(cursor, tinfo->key);
-		}
+		key_gen(tinfo->key, tinfo->keyno);
+		cursor->set_key(cursor, tinfo->key);
 		ret = session->truncate(session, NULL, cursor, NULL, NULL);
 	} else {
-		if (!positioned) {
-			key_gen(tinfo->key, tinfo->keyno);
-			cursor->set_key(cursor, tinfo->key);
-		}
+		key_gen(tinfo->key, tinfo->keyno);
+		cursor->set_key(cursor, tinfo->key);
 
 		testutil_check(
 		    session->open_cursor(session, g.uri, NULL, NULL, &c2));
@@ -1643,7 +1675,7 @@ row_update(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
  *	Truncate rows in a column-store file.
  */
 static int
-col_truncate(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
+col_truncate(TINFO *tinfo, WT_CURSOR *cursor)
 {
 	WT_CURSOR *c2;
 	WT_DECL_RET;
@@ -1657,22 +1689,15 @@ col_truncate(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 	 */
 	testutil_assert(tinfo->keyno != 0 || tinfo->last != 0);
 
-	/*
-	 * If not deleted from the start of the table or to the end of the
-	 * table, we need a second, positioned cursor.
-	 */
 	c2 = NULL;
 	if (tinfo->keyno == 0) {
-		if (!positioned)
-			cursor->set_key(cursor, tinfo->last);
+		cursor->set_key(cursor, tinfo->last);
 		ret = session->truncate(session, NULL, NULL, cursor, NULL);
 	} else if (tinfo->last == 0) {
-		if (!positioned)
-			cursor->set_key(cursor, tinfo->keyno);
+		cursor->set_key(cursor, tinfo->keyno);
 		ret = session->truncate(session, NULL, cursor, NULL, NULL);
 	} else {
-		if (!positioned)
-			cursor->set_key(cursor, tinfo->keyno);
+		cursor->set_key(cursor, tinfo->keyno);
 
 		testutil_check(
 		    session->open_cursor(session, g.uri, NULL, NULL, &c2));
