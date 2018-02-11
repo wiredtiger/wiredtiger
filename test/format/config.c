@@ -591,7 +591,7 @@ config_pct(void)
 
 	/* Cursor modify isn't possible for fixed-length column store. */
 	if (g.type == FIX) {
-		if (config_is_perm("modify_pct"))
+		if (config_is_perm("modify_pct") && g.c_modify_pct != 0)
 			testutil_die(EINVAL,
 			    "WT_CURSOR.modify not supported by fixed-length "
 			    "column store");
@@ -606,7 +606,7 @@ config_pct(void)
 	 */
 	if (g.c_isolation_flag == ISOLATION_READ_UNCOMMITTED) {
 		if (config_is_perm("isolation")) {
-			if (config_is_perm("modify_pct"))
+			if (config_is_perm("modify_pct") && g.c_modify_pct != 0)
 				testutil_die(EINVAL,
 				    "WT_CURSOR.modify not supported with "
 				    "read-uncommitted transactions");
