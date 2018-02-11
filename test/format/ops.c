@@ -1299,7 +1299,7 @@ mismatch:	if (g.type == ROW) {
 			if ((p = (char *)strchr(bdb_key.data, '.')) != NULL)
 				*p = '\0';
 			fprintf(stderr,
-			    "\tbdb-key %.*s != wt-key %" PRIu64 "\n",
+			    "\t" "bdb-key %.*s != wt-key %" PRIu64 "\n",
 			    (int)bdb_key.size, (char *)bdb_key.data, keyno);
 		}
 		print_item("bdb-value", &bdb_value);
@@ -1630,12 +1630,10 @@ row_update(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 	}
 
 #ifdef HAVE_BERKELEY_DB
-	if (!SINGLETHREADED)
-		return (0);
-
-	bdb_update(
-	    tinfo->key->data, tinfo->key->size,
-	    tinfo->value->data, tinfo->value->size);
+	if (SINGLETHREADED)
+		bdb_update(
+		    tinfo->key->data, tinfo->key->size,
+		    tinfo->value->data, tinfo->value->size);
 #endif
 	return (0);
 }
@@ -1751,13 +1749,12 @@ col_update(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 	}
 
 #ifdef HAVE_BERKELEY_DB
-	if (!SINGLETHREADED)
-		return (0);
-
-	key_gen(tinfo->key, tinfo->keyno);
-	bdb_update(
-	    tinfo->key->data, tinfo->key->size,
-	    tinfo->value->data, tinfo->value->size);
+	if (SINGLETHREADED) {
+		key_gen(tinfo->key, tinfo->keyno);
+		bdb_update(
+		    tinfo->key->data, tinfo->key->size,
+		    tinfo->value->data, tinfo->value->size);
+	}
 #endif
 	return (0);
 }
@@ -1901,12 +1898,10 @@ row_insert(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 	}
 
 #ifdef HAVE_BERKELEY_DB
-	if (!SINGLETHREADED)
-		return (0);
-
-	bdb_update(
-	    tinfo->key->data, tinfo->key->size,
-	    tinfo->value->data, tinfo->value->size);
+	if (SINGLETHREADED)
+		bdb_update(
+		    tinfo->key->data, tinfo->key->size,
+		    tinfo->value->data, tinfo->value->size);
 #endif
 	return (0);
 }
@@ -1953,13 +1948,12 @@ col_insert(TINFO *tinfo, WT_CURSOR *cursor)
 	}
 
 #ifdef HAVE_BERKELEY_DB
-	if (!SINGLETHREADED)
-		return (0);
-
-	key_gen(tinfo->key, tinfo->keyno);
-	bdb_update(
-	    tinfo->key->data, tinfo->key->size,
-	    tinfo->value->data, tinfo->value->size);
+	if (SINGLETHREADED) {
+		key_gen(tinfo->key, tinfo->keyno);
+		bdb_update(
+		    tinfo->key->data, tinfo->key->size,
+		    tinfo->value->data, tinfo->value->size);
+	}
 #endif
 	return (0);
 }
@@ -1997,14 +1991,11 @@ row_remove(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 	}
 
 #ifdef HAVE_BERKELEY_DB
-	if (!SINGLETHREADED)
-		return (ret);
+	if (SINGLETHREADED) {
+		int notfound;
 
-	{
-	int notfound;
-
-	bdb_remove(tinfo->keyno, &notfound);
-	(void)notfound_chk("row_remove", ret, notfound, tinfo->keyno);
+		bdb_remove(tinfo->keyno, &notfound);
+		(void)notfound_chk("row_remove", ret, notfound, tinfo->keyno);
 	}
 #endif
 	return (ret);
@@ -2041,17 +2032,7 @@ col_remove(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 	}
 
 #ifdef HAVE_BERKELEY_DB
-	if (!SINGLETHREADED)
-		return (ret);
-
-	/*
-	 * Deleting a fixed-length item is the same as setting the bits to 0;
-	 * do the same thing for the BDB store.
-	 */
-	if (g.type == FIX) {
-		key_gen(tinfo->key, tinfo->keyno);
-		bdb_update(tinfo->key->data, tinfo->key->size, "", 1);
-	} else {
+	if (SINGLETHREADED) {
 		int notfound;
 
 		bdb_remove(tinfo->keyno, &notfound);

@@ -200,12 +200,16 @@ bdb_remove(uint64_t keyno, int *notfoundp)
 	if (*notfoundp)
 		return;
 
-	if ((ret = dbc->del(dbc, 0)) != 0) {
-		if (ret != DB_NOTFOUND)
-			bdb_die(ret, "dbc.del: {%.*s}",
-			    (int)key.size, (char *)key.data);
-		*notfoundp = 1;
-	}
+	/* Deleting a fixed-length item is the same as setting the bits to 0. */
+	if (g.type == FIX)
+		bdb_update(key.data, key.size, "", 1);
+	else
+		if ((ret = dbc->del(dbc, 0)) != 0) {
+			if (ret != DB_NOTFOUND)
+				bdb_die(ret, "dbc.del: {%.*s}",
+				    (int)key.size, (char *)key.data);
+			*notfoundp = 1;
+		}
 }
 
 void
@@ -213,7 +217,22 @@ bdb_truncate(uint64_t start, uint64_t stop)
 {
 	DBC *dbc = g.dbc;
 	size_t len;
-	int cmp, ret;
+	int cmp, ret, notfound;
+
+	/* Deleting a fixed-length item is the same as setting the bits to 0. */
+	if (g.type == FIX) {
+		/*
+		 * If we're deleting from/to the start/end of the database,
+		 * correct for the number of records we have.
+		 */
+		if (start == 0)
+			start = 1;
+		if (stop == 0)
+			stop = g.rows;
+		for (; start <= stop; ++start)
+			bdb_remove(start, &notfound);
+		return;
+	}
 
 	if (start == 0) {
 		ret = dbc->get(dbc, &key, &value, DB_FIRST);
