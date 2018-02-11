@@ -1298,7 +1298,8 @@ mismatch:	if (g.type == ROW) {
 		} else {
 			if ((p = (char *)strchr(bdb_key.data, '.')) != NULL)
 				*p = '\0';
-			fprintf(stderr, "\t%.*s != %" PRIu64 "\n",
+			fprintf(stderr,
+			    "\tbdb-key %.*s != wt-key %" PRIu64 "\n",
 			    (int)bdb_key.size, (char *)bdb_key.data, keyno);
 		}
 		print_item("bdb-value", &bdb_value);
