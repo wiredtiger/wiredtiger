@@ -73,7 +73,7 @@ bdb_open(void)
 	    DB_CREATE | DB_INIT_LOCK | DB_INIT_MPOOL | DB_PRIVATE, 0) == 0);
 	assert(db_create(&db, dbenv, 0) == 0);
 
-	if (g.type == ROW && g.c_reverse)
+	if (g.c_reverse)
 		assert(db->set_bt_compare(db, bdb_compare_reverse) == 0);
 
 	assert(db->open(
@@ -243,8 +243,14 @@ bdb_truncate(uint64_t start, uint64_t stop)
 		do {
 			len = WT_MIN(key.size, keyitem.size);
 			cmp = memcmp(key.data, keyitem.data, len);
-			if (cmp > 0 || (cmp == 0 && key.size > keyitem.size))
-				break;
+			if (g.c_reverse) {
+				if (cmp < 0 ||
+				    (cmp == 0 && key.size < keyitem.size))
+					break;
+			} else
+				if (cmp > 0 ||
+				    (cmp == 0 && key.size > keyitem.size))
+					break;
 			ret = dbc->del(dbc, 0);
 			if (ret != 0 && ret != DB_NOTFOUND)
 				bdb_die(ret, "dbc.del: {%.*s}",

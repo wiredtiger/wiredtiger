@@ -149,8 +149,11 @@ config_setup(void)
 	if (DATASOURCE("kvsbdb") && access(KVS_BDB_PATH, R_OK) != 0)
 		testutil_die(errno, "kvsbdb shared library: %s", KVS_BDB_PATH);
 
-	/* Some data-sources don't support user-specified collations. */
-	if (DATASOURCE("kvsbdb"))
+	/*
+	 * Only row-store tables support collation order.
+	 * Some data-sources don't support user-specified collations.
+	 */
+	if (g.type != ROW || DATASOURCE("kvsbdb"))
 		config_single("reverse=off", 0);
 
 	/*
