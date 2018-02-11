@@ -33,6 +33,7 @@ import test_cursor01, test_cursor02, test_cursor03
 import test_checkpoint01, test_checkpoint02
 from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
 from helper import confirm_does_not_exist
+from suite_random import suite_random
 
 # Cursor caching tests
 class test_cursor13_base(wttest.WiredTigerTestCase):
@@ -271,3 +272,71 @@ class test_cursor13_drops(test_cursor13_base):
                 lambda: session.drop(uri))
             cursor.close()
             session.drop(uri)
+
+class test_cursor13_sweep(test_cursor13_base):
+    scenarios = make_scenarios([
+        ('file', dict(uri='file:cursor13_sweep1')),
+        ('table', dict(uri='table:cursor13_sweep2'))
+    ])
+
+    deep = 3
+    nuris = 100
+    nopens = 1000000
+    def uriname(self, i):
+        return self.uri + '.' + str(i)
+        
+    def test_cursor_drops(self):
+        rand = suite_random()
+
+        # Create a large number (nuris) of uris, and for each one,
+        # create some number (deep) of cached cursors.
+        urimap = {}
+        for i in xrange(0, self.nuris):
+            uri = self.uriname(i)
+            cursors = []
+            self.session.create(uri, None)
+            for j in xrange(0, self.deep):
+                cursors.append(self.session.open_cursor(uri, None))
+            for c in cursors:
+                c.close()
+
+            # Each map entry has a list of the open cursors.
+            # We start with none
+            urimap[uri] = []
+
+        # At this point, we'll randomly open/close lots of cursors, keeping
+        # track of how many of each. As long as we don't have more than [deep]
+        # cursors open for each uri, we should always be taking then from
+        # the set of cached cursors.
+        self.cursor_stats_init()
+        begin_stats = self.caching_stats()
+        #self.tty('stats before = ' + str(begin_stats))
+
+        opencount = 0
+        closecount = 0
+        while opencount < self.nopens:
+            uri = self.uriname(rand.rand_range(0, self.nuris))
+            cursors = urimap[uri]
+            ncursors = len(cursors)
+
+            # Keep the range of open cursors between 0 and [deep],
+            # with some random fluctuation
+            if ncursors == 0:
+                do_open = True
+            elif ncursors == self.deep:
+                do_open = False
+            else:
+                do_open = (rand.rand_range(0, 2) == 0)
+            if do_open:
+                cursors.append(self.session.open_cursor(uri, None))
+                opencount += 1
+            else:
+                i = rand.rand_range(0, ncursors)
+                cursors.pop(i).close()
+                closecount += 1
+
+        end_stats = self.caching_stats()
+        #self.tty('opens = ' + str(opencount) + ', closes = ' + str(closecount))
+        #self.tty('stats after = ' + str(end_stats))
+        self.assertEquals(begin_stats[0] + closecount, end_stats[0])
+        self.assertEquals(begin_stats[1] + opencount, end_stats[1])
