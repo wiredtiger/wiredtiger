@@ -405,7 +405,7 @@ snap_check(WT_CURSOR *cursor,
 
 		/* Check for simple matches. */
 		if (ret == 0 &&
-		    (start->op != REMOVE || start->op != TRUNCATE) &&
+		    start->op != REMOVE && start->op != TRUNCATE &&
 		    value->size == start->vsize &&
 		    memcmp(value->data, start->vdata, value->size) == 0)
 			continue;
