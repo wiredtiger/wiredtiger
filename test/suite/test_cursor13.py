@@ -284,7 +284,7 @@ class test_cursor13_sweep(test_cursor13_base):
     nopens = 1000000
     def uriname(self, i):
         return self.uri + '.' + str(i)
-        
+
     def test_cursor_drops(self):
         rand = suite_random()
 
