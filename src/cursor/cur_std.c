@@ -657,12 +657,12 @@ __wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 {
 	WT_DECL_RET;
 
-	WT_ASSERT(session, !F_ISSET(cursor, WT_CURSTD_BULK | WT_CURSTD_CACHED));
-
 	*released = false;
 	if (!F_ISSET(cursor, WT_CURSTD_CACHEABLE) ||
 	    !F_ISSET(session, WT_SESSION_CACHE_CURSORS))
 		return (0);
+
+	WT_ASSERT(session, !F_ISSET(cursor, WT_CURSTD_BULK | WT_CURSTD_CACHED));
 
 	/*
 	 * Do any sweeping first, if there are errors, it will
