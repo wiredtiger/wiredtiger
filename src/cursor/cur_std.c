@@ -657,10 +657,11 @@ __wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 {
 	WT_DECL_RET;
 
+	WT_ASSERT(session, !F_ISSET(cursor, WT_CURSTD_BULK | WT_CURSTD_CACHED));
+
 	*released = false;
-	if (!F_ISSET(session, WT_SESSION_CACHE_CURSORS) ||
-	    F_ISSET(cursor, WT_CURSTD_BULK | WT_CURSTD_CACHED) ||
-	    !F_ISSET(cursor, WT_CURSTD_CACHEABLE))
+	if (!F_ISSET(cursor, WT_CURSTD_CACHEABLE) ||
+	    !F_ISSET(session, WT_SESSION_CACHE_CURSORS))
 		return (0);
 
 	/*
@@ -673,6 +674,7 @@ __wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 	WT_ERR(cursor->cache(cursor));
 	WT_STAT_CONN_INCR(session, cursor_cache);
 	WT_STAT_DATA_INCR(session, cursor_cache);
+	WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_CACHED));
 	*released = true;
 
 	if (0) {
@@ -683,6 +685,7 @@ __wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 		 * doesn't matter at this point.
 		 */
 err:		WT_TRET(cursor->reopen(cursor, false));
+		WT_ASSERT(session, !F_ISSET(cursor, WT_CURSTD_CACHED));
 	}
 
 	return (ret);
@@ -697,11 +700,11 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
     WT_CURSOR *owner, const char *cfg[], WT_CURSOR **cursorp)
 {
 	WT_CONFIG_ITEM cval;
+	WT_CONFIG_ITEM_STATIC_INIT(false_value);
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	uint64_t bucket;
 	bool have_config;
-	WT_CONFIG_ITEM_STATIC_INIT(false_value);
 
 	if (owner != NULL && F_ISSET(owner, WT_CURSTD_CACHEABLE))
 		return (WT_NOTFOUND);

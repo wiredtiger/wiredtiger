@@ -465,16 +465,15 @@ __curfile_close(WT_CURSOR *cursor)
 	WT_CURSOR_BULK *cbulk;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	bool cached, released;
+	bool released;
 
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_API_CALL(cursor, session, close, cbt->btree);
 	released = false;
 
 	/*
-	 * TODO: if cursor->cache() fails, we want to (continue) to
-	 * close the cursor, but before doing so we need to increment
-	 * the use count (??) and decrement the ref count.
+	 * If releasing the cursor fails in any way, it will be left
+	 * in a state that allows it to be normally closed.
 	 */
 	WT_TRET(__wt_cursor_cache_release(session, cursor, &released));
 	if (released)
@@ -494,7 +493,6 @@ __curfile_close(WT_CURSOR *cursor)
 	WT_ASSERT(session, session->dhandle == NULL ||
 	    session->dhandle->session_inuse > 0);
 
-	cached = F_ISSET(cursor, WT_CURSTD_CACHED);
 	WT_TRET(__wt_cursor_close(cursor));
 
 	/*
@@ -504,8 +502,7 @@ __curfile_close(WT_CURSOR *cursor)
 	if (session->dhandle != NULL) {
 		/* Decrement the data-source's in-use counter. */
 		__wt_cursor_dhandle_decr_use(session);
-		if (!cached || !F_ISSET(session->dhandle, WT_DHANDLE_DROPPED))
-			WT_TRET(__wt_session_release_dhandle(session));
+		WT_TRET(__wt_session_release_dhandle(session));
 	}
 
 err:	API_END_RET(session, ret);
@@ -602,7 +599,7 @@ __curfile_create(WT_SESSION_IMPL *session,
 	WT_STATIC_ASSERT(offsetof(WT_CURSOR_BTREE, iface) == 0);
 
 	cbt = NULL;
-	cacheable = F_ISSET(session, WT_SESSION_CACHE_CURSORS);
+	cacheable = F_ISSET(session, WT_SESSION_CACHE_CURSORS) && !bulk;
 
 	btree = S2BT(session);
 	WT_ASSERT(session, btree != NULL);
