@@ -700,36 +700,45 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	uint64_t bucket;
-	const char *tmp_cfg;
+	bool have_config;
+	static const WT_CONFIG_ITEM false_value = {
+		"", 0, 0, WT_CONFIG_ITEM_NUM
+	};
 
 	if (owner != NULL && F_ISSET(owner, WT_CURSTD_CACHEABLE))
 		return (WT_NOTFOUND);
-	if (cfg == NULL) {
-		tmp_cfg = NULL;
-		cfg = &tmp_cfg;
-	}
-	WT_RET(__wt_config_gets_def(session, cfg, "readonly", 0, &cval));
-	if (cval.val)
-		return (WT_NOTFOUND);
-	WT_RET(__wt_config_gets_def(session, cfg, "bulk", 0, &cval));
-	if (cval.val)
-		return (WT_NOTFOUND);
-	WT_RET(__wt_config_gets_def(session, cfg, "next_random", 0, &cval));
-	if (cval.val != 0)
-		return (WT_NOTFOUND);
-	WT_RET(__wt_config_gets_def(session, cfg, "dump", 0, &cval));
-	if (cval.len != 0)
-		return (WT_NOTFOUND);
+	have_config = (cfg != NULL && cfg[0] != NULL && cfg[1] != NULL);
+	if (have_config) {
+		WT_RET(__wt_config_gets_def(
+		    session, cfg, "readonly", 0, &cval));
+		if (cval.val)
+			return (WT_NOTFOUND);
 
-	WT_RET_NOTFOUND_OK(
-	    __wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
+		WT_RET(__wt_config_gets_def(session, cfg, "bulk", 0, &cval));
+		if (cval.val)
+			return (WT_NOTFOUND);
 
-	/*
-	 * The internal checkpoint name is special, don't
-	 * look for it.
-	 */
-	if (cval.len != 0 && WT_STRING_MATCH(WT_CHECKPOINT, cval.str, cval.len))
-		return (WT_NOTFOUND);
+		WT_RET(__wt_config_gets_def(
+		    session, cfg, "next_random", 0, &cval));
+		if (cval.val != 0)
+			return (WT_NOTFOUND);
+
+		WT_RET(__wt_config_gets_def(session, cfg, "dump", 0, &cval));
+		if (cval.len != 0)
+			return (WT_NOTFOUND);
+
+		WT_RET_NOTFOUND_OK(
+		    __wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
+
+		/*
+		 * The internal checkpoint name is special, don't
+		 * look for it.
+		 */
+		if (cval.len != 0 &&
+		    WT_STRING_MATCH(WT_CHECKPOINT, cval.str, cval.len))
+			return (WT_NOTFOUND);
+	} else
+		cval = false_value;
 
 #define	CHECKPOINT_MATCH(s)						\
 	((s == NULL && cval.len == 0) ||				\
@@ -753,20 +762,22 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 			F_CLR(cursor, WT_CURSTD_APPEND | WT_CURSTD_OVERWRITE |
 			    WT_CURSTD_RAW);
 
-			WT_RET(__wt_config_gets_def(
-			    session, cfg, "append", 0, &cval));
-			if (cval.val != 0)
-				F_SET(cursor, WT_CURSTD_APPEND);
+			if (have_config) {
+				WT_RET(__wt_config_gets_def(
+				    session, cfg, "append", 0, &cval));
+				if (cval.val != 0)
+					F_SET(cursor, WT_CURSTD_APPEND);
 
-			WT_RET(__wt_config_gets_def(
-			    session, cfg, "overwrite", 1, &cval));
-			if (cval.val != 0)
-				F_SET(cursor, WT_CURSTD_OVERWRITE);
+				WT_RET(__wt_config_gets_def(
+				    session, cfg, "overwrite", 1, &cval));
+				if (cval.val != 0)
+					F_SET(cursor, WT_CURSTD_OVERWRITE);
 
-			WT_RET(__wt_config_gets_def(
-			    session, cfg, "raw", 0, &cval));
-			if (cval.val != 0)
-				F_SET(cursor, WT_CURSTD_RAW);
+				WT_RET(__wt_config_gets_def(
+				    session, cfg, "raw", 0, &cval));
+				if (cval.val != 0)
+					F_SET(cursor, WT_CURSTD_RAW);
+			}
 
 			WT_STAT_CONN_INCR(session, cursor_reopen);
 			WT_STAT_DATA_INCR(session, cursor_reopen);
