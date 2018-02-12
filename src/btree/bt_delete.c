@@ -315,8 +315,9 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	 *
 	 * Second, a truncate call deleted a page and the truncate committed,
 	 * but an older transaction in the system forced us to keep the old
-	 * version of the page around, then we crashed and recovered, and now
-	 * we're being forced to read that page.
+	 * version of the page around, then we crashed and recovered or we're
+	 * running inside a checkpoint, and now we're being forced to read that
+	 * page.
 	 *
 	 * In the first case, we have a page reference structure, in the second
 	 * second, we don't.

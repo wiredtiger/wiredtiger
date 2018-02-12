@@ -571,15 +571,6 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	    ref->page->dsk == NULL ||
 	    F_ISSET(ref->page->dsk, WT_PAGE_LAS_UPDATE));
 
-	/*
-	 * If reading for a checkpoint, there's no additional work to do, the
-	 * page on disk is correct as written.
-	 */
-	if (session->dhandle->checkpoint != NULL) {
-		WT_ASSERT(session, previous_state == WT_REF_DISK);
-		goto done;
-	}
-
 skip_read:
 	switch (previous_state) {
 	case WT_REF_DELETED:
