@@ -701,9 +701,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 	WT_DECL_RET;
 	uint64_t bucket;
 	bool have_config;
-	static const WT_CONFIG_ITEM false_value = {
-		"", 0, 0, WT_CONFIG_ITEM_NUM
-	};
+	WT_CONFIG_ITEM_STATIC_INIT(false_value);
 
 	if (owner != NULL && F_ISSET(owner, WT_CURSTD_CACHEABLE))
 		return (WT_NOTFOUND);
