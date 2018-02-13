@@ -258,6 +258,22 @@ __session_close_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LIST *cursors)
 }
 
 /*
+ * __session_close_cached_cursors --
+ *	Fully close all cached cursors.
+ */
+static int
+__session_close_cached_cursors(WT_SESSION_IMPL *session)
+{
+	WT_DECL_RET;
+	int i;
+
+	for (i = 0; i < WT_HASH_ARRAY_SIZE; i++)
+		WT_TRET(__session_close_cursors(session,
+		    &session->cursor_cache[i]));
+	return (ret);
+}
+
+/*
  * __session_close --
  *	WT_SESSION->close method.
  */
@@ -267,7 +283,6 @@ __session_close(WT_SESSION *wt_session, const char *config)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	int i;
 
 	conn = (WT_CONNECTION_IMPL *)wt_session->connection;
 	session = (WT_SESSION_IMPL *)wt_session;
@@ -291,9 +306,7 @@ __session_close(WT_SESSION *wt_session, const char *config)
 
 	/* Close all open cursors. */
 	WT_TRET(__session_close_cursors(session, &session->cursors));
-	for (i = 0; i < WT_HASH_ARRAY_SIZE; i++)
-		WT_TRET(__session_close_cursors(session,
-		    &session->cursor_cache[i]));
+	WT_TRET(__session_close_cached_cursors(session));
 
 	WT_ASSERT(session, session->ncursors == 0);
 
@@ -405,8 +418,10 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 	if (ret == 0) {
 		if (cval.val)
 			F_SET(session, WT_SESSION_CACHE_CURSORS);
-		else
+		else {
 			F_CLR(session, WT_SESSION_CACHE_CURSORS);
+			WT_ERR(__session_close_cached_cursors(session));
+		}
 	}
 	WT_ERR_NOTFOUND_OK(ret);
 

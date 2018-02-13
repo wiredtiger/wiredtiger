@@ -51,19 +51,21 @@ class test_cursor13_base(wttest.WiredTigerTestCase):
         stat_cursor.close()
         return [cache, reopen]
 
-    def assert_cursor_cached(self):
+    def assert_cursor_cached(self, expect_change):
         stats = self.caching_stats()
-        self.assertGreater(stats[0], self.stat_cursor_cache)
-        self.stat_cursor_cache = stats[0]
+        if expect_change:
+            self.assertGreater(stats[0], self.stat_cursor_cache)
+            self.stat_cursor_cache = stats[0]
+        else:
+            self.assertEqual(stats[0], self.stat_cursor_cache)
 
-    def assert_cursor_reopened(self):
+    def assert_cursor_reopened(self, expect_change):
         stats = self.caching_stats()
-        self.assertGreater(stats[1], self.stat_cursor_reopen)
-        self.stat_cursor_reopen = stats[1]
-
-    def assert_cursor_reopened_same(self):
-        stats = self.caching_stats()
-        self.assertEqual(stats[1], self.stat_cursor_reopen)
+        if expect_change:
+            self.assertGreater(stats[1], self.stat_cursor_reopen)
+            self.stat_cursor_reopen = stats[1]
+        else:
+            self.assertEqual(stats[1], self.stat_cursor_reopen)
 
     def cursor_stats_init(self):
         stats = self.caching_stats()
@@ -118,16 +120,16 @@ class test_cursor13_reopens(test_cursor13_base):
         ('clsm', dict(uri='table:cursor13_reopen6', dstype=ComplexLSMDataSet))
     ])
 
-    def basic_populate(self, uri):
+    def basic_populate(self, uri, caching_enabled):
         cursor = self.session.open_cursor(uri)
         cursor['A'] = 'B'
         cursor.close()
-        self.assert_cursor_cached()
+        self.assert_cursor_cached(caching_enabled)
         cursor = self.session.open_cursor(uri)
-        self.assert_cursor_reopened()
+        self.assert_cursor_reopened(caching_enabled)
         cursor['B'] = 'C'
         cursor.close()
-        self.assert_cursor_cached()
+        self.assert_cursor_cached(caching_enabled)
 
     def basic_check(self, cursor):
         count = 0
@@ -141,41 +143,59 @@ class test_cursor13_reopens(test_cursor13_base):
             count += 1
         self.assertEqual(count, 2)
 
-    def basic_reopen(self):
+    def basic_reopen(self, nopens, create, caching_enabled):
         session = self.session
-        session.create(self.uri, 'key_format=S,value_format=S')
-        self.basic_populate(self.uri)
+        if create:
+            session.create(self.uri, 'key_format=S,value_format=S')
+            self.basic_populate(self.uri, caching_enabled)
+            # At this point, we've cached one cursor.
 
         # Reopen/close many times, with multiple cursors
-        for opens in range(0, 100):
+        for opens in range(0, nopens):
+            # We expect a cursor to be reopened if we did the
+            # create operation above or if this is the second or later
+            # time through the loop.
             c = session.open_cursor(self.uri)
-            self.assert_cursor_reopened()
+            self.assert_cursor_reopened(caching_enabled and \
+                                        (opens != 0 or create))
+
+            # With one cursor for this URI already open, we'll only
+            # get a reopened cursor if this is the second or later
+            # time through the loop.
             c2 = session.open_cursor(self.uri)
-            if opens == 0:
-                self.assert_cursor_reopened_same()
-            else:
-                self.assert_cursor_reopened()
+            self.assert_cursor_reopened(caching_enabled and opens != 0)
 
             self.basic_check(c)
             self.basic_check(c2)
             c.close()
-            self.assert_cursor_cached()
+            self.assert_cursor_cached(caching_enabled)
             c2.close()
-            self.assert_cursor_cached()
+            self.assert_cursor_cached(caching_enabled)
 
-    def dataset_reopen(self):
+    def dataset_reopen(self, caching_enabled):
         ds = self.dstype(self, self.uri, 100)
         ds.populate()
-        self.assert_cursor_cached()
+        self.assert_cursor_cached(caching_enabled)
         ds.check()
-        self.assert_cursor_reopened()
+        self.assert_cursor_reopened(caching_enabled)
 
     def test_reopen(self):
         self.cursor_stats_init()
         if self.dstype == None:
-            self.basic_reopen()
+            self.basic_reopen(100, True, True)
         else:
-            self.dataset_reopen()
+            self.dataset_reopen(True)
+
+    def test_reconfig(self):
+        if self.dstype == None:
+            self.cursor_stats_init()
+            self.basic_reopen(10, True, True)
+            self.session.reconfigure('cache_cursors=false')
+            self.cursor_stats_init()
+            self.basic_reopen(10, False, False)
+            self.session.reconfigure('cache_cursors=true')
+            self.cursor_stats_init()
+            self.basic_reopen(10, False, True)
 
 class test_cursor13_drops(test_cursor13_base):
     def open_and_drop(self, uri, cursor_session, drop_session, nopens, ntrials):
