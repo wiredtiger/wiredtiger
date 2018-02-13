@@ -388,6 +388,8 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 			upd->txnid = WT_TXN_NONE;	/* Globally visible */
 		else {
 			upd->txnid = page_del->txnid;
+			__wt_timestamp_set(
+			    &upd->timestamp, &page_del->timestamp);
 			page_del->update_list[i] = upd;
 		}
 
