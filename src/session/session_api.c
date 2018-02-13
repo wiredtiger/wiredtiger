@@ -681,7 +681,7 @@ __session_log_flush(WT_SESSION *wt_session, const char *config)
 	uint32_t flags;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, log_flush, config, cfg, true);
+	SESSION_API_CALL(session, log_flush, config, cfg, false);
 	WT_STAT_CONN_INCR(session, log_flush);
 
 	conn = S2C(session);

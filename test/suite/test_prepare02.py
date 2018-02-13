@@ -69,6 +69,8 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
             lambda: self.session.join(cursor, cursor,
                 "compare=gt,count=10"), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.log_flush("sync=on"), msg)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.rebalance("table:mytable", None), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.rename("table:mytable", "table:mynewtable",
