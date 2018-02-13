@@ -292,16 +292,17 @@ static int
 __curlog_reset(WT_CURSOR *cursor)
 {
 	WT_CURSOR_LOG *cl;
+	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 
+	CURSOR_API_CALL(cursor, session, reset, NULL);
 	cl = (WT_CURSOR_LOG *)cursor;
-	session = (WT_SESSION_IMPL *)cursor->session;
-	WT_RET(__wt_txn_context_prepare_check(session, false));
 	cl->stepp = cl->stepp_end = NULL;
 	cl->step_count = 0;
 	WT_INIT_LSN(cl->cur_lsn);
 	WT_INIT_LSN(cl->next_lsn);
-	return (0);
+
+err:	API_END_RET(session, ret);
 }
 
 /*

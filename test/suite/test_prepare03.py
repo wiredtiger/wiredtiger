@@ -85,7 +85,7 @@ class test_prepre03(wttest.WiredTigerTestCase):
     # Create and session and test cursor operations.
     def test_prepare_cursor(self):
         tablearg = self.uri + ':' + self.table_name1
-        preparemsg = 'not permitted in a prepared transaction'
+        preparemsg = "/ not permitted in a prepared transaction/"
         if self.tablekind == 'row':
             keyformat = 'key_format=S'
         else:
@@ -113,12 +113,10 @@ class test_prepre03(wttest.WiredTigerTestCase):
             #with self.expectedStderrPattern(preparemsg):
             #    self.assertRaises(wiredtiger.WiredTigerError,
             #            lambda: cursor.set_value(self.genvalue(i)))
-            with self.expectedStderrPattern(preparemsg):
-                self.assertRaises(wiredtiger.WiredTigerError,
-                        lambda: cursor.insert())
-            with self.expectedStderrPattern(preparemsg):
-                self.assertRaises(wiredtiger.WiredTigerError,
-                        lambda: cursor.reset())
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda:cursor.insert(), preparemsg)
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda:cursor.reset(), preparemsg)
             self.session.commit_transaction()
             cursor.insert()
 
@@ -130,15 +128,12 @@ class test_prepre03(wttest.WiredTigerTestCase):
         while True:
             self.session.begin_transaction()
             self.session.prepare_transaction()
-            with self.expectedStderrPattern(preparemsg):
-                self.assertRaises(wiredtiger.WiredTigerError,
-                        lambda: cursor.next())
-            with self.expectedStderrPattern(preparemsg):
-                self.assertRaises(wiredtiger.WiredTigerError,
-                        lambda: cursor.get_key())
-            with self.expectedStderrPattern(preparemsg):
-                self.assertRaises(wiredtiger.WiredTigerError,
-                        lambda: cursor.get_value())
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda:cursor.next(), preparemsg)
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda:cursor.get_key(), preparemsg)
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda:cursor.get_value(), preparemsg)
             self.session.commit_transaction()
             nextret = cursor.next()
             if nextret != 0:
@@ -161,9 +156,8 @@ class test_prepre03(wttest.WiredTigerTestCase):
         while True:
             self.session.begin_transaction()
             self.session.prepare_transaction()
-            with self.expectedStderrPattern(preparemsg):
-                self.assertRaises(wiredtiger.WiredTigerError,
-                        lambda: cursor.prev())
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda:cursor.prev(), preparemsg)
             self.session.commit_transaction()
             prevret = cursor.prev()
             if prevret != 0:
@@ -185,21 +179,16 @@ class test_prepre03(wttest.WiredTigerTestCase):
         cursor.set_key(self.genkey(5))
         self.session.begin_transaction()
         self.session.prepare_transaction()
-        with self.expectedStderrPattern(preparemsg):
-            self.assertRaises(wiredtiger.WiredTigerError,
-                   lambda: cursor.search())
-        with self.expectedStderrPattern(preparemsg):
-            self.assertRaises(wiredtiger.WiredTigerError,
-                   lambda: cursor.update())
-        with self.expectedStderrPattern(preparemsg):
-            self.assertRaises(wiredtiger.WiredTigerError,
-                   lambda: cursor.remove())
-        with self.expectedStderrPattern(preparemsg):
-            self.assertRaises(wiredtiger.WiredTigerError,
-                   lambda: cursor.reserve())
-        with self.expectedStderrPattern(preparemsg):
-            self.assertRaises(wiredtiger.WiredTigerError,
-                   lambda: cursor.reconfigure())
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda:cursor.search(), preparemsg)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda:cursor.update(), preparemsg)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda:cursor.remove(), preparemsg)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda:cursor.reserve(), preparemsg)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda:cursor.reconfigure(), preparemsg)
         self.session.commit_transaction()
         cursor.search()
         cursor.set_value(self.genvalue(15))
@@ -210,9 +199,8 @@ class test_prepre03(wttest.WiredTigerTestCase):
         cursor.set_key(self.genkey(10))
         self.session.begin_transaction()
         self.session.prepare_transaction()
-        with self.expectedStderrPattern(preparemsg):
-            self.assertRaises(wiredtiger.WiredTigerError,
-                   lambda: cursor.search_near())
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda:cursor.search_near(), preparemsg)
         self.session.commit_transaction()
         if self.uri == 'lsm':
             cursor.set_key(self.genkey(10))

@@ -171,7 +171,6 @@ __wt_txn_named_snapshot_begin(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_RET(__wt_txn_begin(session, txn_cfg));
 		started_txn = true;
 	}
-
 	if (!include_updates)
 		F_SET(txn, WT_TXN_READONLY);
 

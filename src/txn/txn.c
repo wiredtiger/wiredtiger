@@ -974,10 +974,7 @@ void
 __wt_txn_prepare_clear(WT_SESSION_IMPL *session)
 {
 #ifdef HAVE_TIMESTAMPS
-	WT_TXN *txn;
-
-	txn = &session->txn;
-	F_CLR(txn, WT_TXN_PREPARE);
+	F_CLR(&session->txn, WT_TXN_PREPARE);
 #else
 	WT_UNUSED(session);
 #endif
@@ -992,16 +989,14 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 {
 #ifdef HAVE_TIMESTAMPS
 	WT_DECL_RET;
-	WT_TXN *txn;
 #endif
 
 	WT_UNUSED(cfg);
 
 #ifdef HAVE_TIMESTAMPS
-	txn = &session->txn;
 	WT_TRET(__wt_txn_context_check(session, true));
 
-	F_SET(txn, WT_TXN_PREPARE);
+	F_SET(&session->txn, WT_TXN_PREPARE);
 
 #else
 	WT_RET_MSG(session, ENOTSUP, "prepare_transaction requires a version "
